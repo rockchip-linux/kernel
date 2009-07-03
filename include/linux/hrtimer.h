@@ -204,6 +204,9 @@ struct hrtimer_cpu_base {
 	unsigned int			nr_hangs;
 	unsigned int			max_hang_time;
 #endif
+#ifdef CONFIG_PREEMPT_RT_BASE
+	wait_queue_head_t		wait;
+#endif
 	struct hrtimer_clock_base	clock_base[HRTIMER_MAX_CLOCK_BASES];
 } ____cacheline_aligned;
 
@@ -392,6 +395,13 @@ static inline void hrtimer_restart(struct hrtimer *timer)
 	hrtimer_start_expires(timer, HRTIMER_MODE_ABS);
 }
 
+/* Softirq preemption could deadlock timer removal */
+#ifdef CONFIG_PREEMPT_RT_BASE
+  extern void hrtimer_wait_for_timer(const struct hrtimer *timer);
+#else
+# define hrtimer_wait_for_timer(timer)	do { cpu_relax(); } while (0)
+#endif
+
 /* Query timers: */
 extern ktime_t hrtimer_get_remaining(const struct hrtimer *timer);
 
@@ -411,7 +421,7 @@ static inline int hrtimer_is_queued(struct hrtimer *timer)
  * Helper function to check, whether the timer is running the callback
  * function
  */
-static inline int hrtimer_callback_running(struct hrtimer *timer)
+static inline int hrtimer_callback_running(const struct hrtimer *timer)
 {
 	return timer->base->cpu_base->running == timer;
 }
