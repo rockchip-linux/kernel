@@ -311,6 +311,11 @@ extern char ___assert_task_state[1 - 2*!!(
 
 #endif
 
+#define __set_current_state_no_track(state_value)	\
+	do { current->state = (state_value); } while (0)
+#define set_current_state_no_track(state_value)		\
+	set_mb(current->state, (state_value))
+
 /* Task command name length */
 #define TASK_COMM_LEN 16
 
@@ -968,8 +973,18 @@ struct wake_q_head {
 	struct wake_q_head name = { WAKE_Q_TAIL, &name.first }
 
 extern void wake_q_add(struct wake_q_head *head,
-		       struct task_struct *task);
-extern void wake_up_q(struct wake_q_head *head);
+			      struct task_struct *task);
+extern void __wake_up_q(struct wake_q_head *head, bool sleeper);
+
+static inline void wake_up_q(struct wake_q_head *head)
+{
+	__wake_up_q(head, false);
+}
+
+static inline void wake_up_q_sleeper(struct wake_q_head *head)
+{
+	__wake_up_q(head, true);
+}
 
 /*
  * sched-domains (multiprocessor balancing) declarations:
