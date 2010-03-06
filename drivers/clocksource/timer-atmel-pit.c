@@ -96,6 +96,7 @@ static int pit_clkevt_shutdown(struct clock_event_device *dev)
 
 	/* disable irq, leaving the clocksource active */
 	pit_write(data->base, AT91_PIT_MR, (data->cycle - 1) | AT91_PIT_PITEN);
+	free_irq(atmel_pit_irq, data);
 	return 0;
 }
 
@@ -105,6 +106,13 @@ static int pit_clkevt_shutdown(struct clock_event_device *dev)
 static int pit_clkevt_set_periodic(struct clock_event_device *dev)
 {
 	struct pit_data *data = clkevt_to_pit_data(dev);
+	int ret;
+
+	ret = request_irq(data->irq, at91sam926x_pit_interrupt,
+			  IRQF_SHARED | IRQF_TIMER | IRQF_IRQPOLL,
+			  "at91_tick", data);
+	if (ret)
+		panic(pr_fmt("Unable to setup IRQ\n"));
 
 	/* update clocksource counter */
 	data->cnt += data->cycle * PIT_PICNT(pit_read(data->base, AT91_PIT_PIVR));
@@ -205,13 +213,6 @@ static void __init at91sam926x_pit_common_init(struct pit_data *data)
 	data->clksrc.read = read_pit_clk;
 	data->clksrc.flags = CLOCK_SOURCE_IS_CONTINUOUS;
 	clocksource_register_hz(&data->clksrc, pit_rate);
-
-	/* Set up irq handler */
-	ret = request_irq(data->irq, at91sam926x_pit_interrupt,
-			  IRQF_SHARED | IRQF_TIMER | IRQF_IRQPOLL,
-			  "at91_tick", data);
-	if (ret)
-		panic(pr_fmt("Unable to setup IRQ\n"));
 
 	/* Set up and register clockevents */
 	data->clkevt.name = "pit";
