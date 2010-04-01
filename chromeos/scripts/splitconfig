@@ -28,10 +28,9 @@ for config in os.listdir("."):
         allconfigs[config].add((option, value))
 
 # Split out common config options
-if len(allconfigs) > 1:
-    common = set.intersection(*allconfigs.values())
-else:
-    common = allconfigs.values()[0].copy()
+common = allconfigs.values()[0].copy()
+for config in allconfigs.keys():
+    common &= allconfigs[config]
 for config in allconfigs.keys():
     allconfigs[config] -= common
 allconfigs["config.common"] = common
