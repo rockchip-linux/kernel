@@ -47,7 +47,7 @@ MODULE_LICENSE("GPL");
 #define CHROMEOS_ACPI_VERSION "0.02"
 
 static const struct acpi_device_id chromeos_device_ids[] = {
-        {"CHROMEHW", 0}, /* this name does not yet work */
+        {"GGL0001", 0}, /* Google's own */
 	{"PNP6666", 0},  /* dummy name to get us going */
 	{"", 0},
 };
@@ -69,7 +69,7 @@ static struct acpi_driver chromeos_acpi_driver = {
 
 /* The methods the chromeos ACPI device is supposed to export */
 static char *chromeos_methods[] = {
-	"CHSW", "HWID", "BINF", "GPIO", "CHNV"
+	"CHSW", "HWID", "BINF", "GPIO", "CHNV", "FWID"
 };
 
 /*
