@@ -21,23 +21,6 @@
 #define DM_FIELD_SEP ' '
 #define DM_LINE_SEP ','
 
-/**
- * skip_spaces - Removes leading whitespace from @str.
- * @str: The string to be stripped.
- *
- * From: 2.6.33 lib/string.c
- *
- * Returns a pointer to the first non-whitespace character in @str.
- */
-#include <linux/ctype.h>  /* for isspace */
-static char *skip_spaces(const char *str)
-{
-	while (isspace(*str))
-		++str;
-	return (char *)str;
-}
-
-
 /*
  * When the device-mapper and any targets are compiled into the kernel
  * (not a module), one target may be created and used as the root device at
