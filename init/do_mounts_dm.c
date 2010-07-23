@@ -5,6 +5,7 @@
  *
  * This file is released under the GPL.
  */
+#include <linux/async.h>
 #include <linux/device-mapper.h>
 #include <linux/fs.h>
 #include <linux/string.h>
@@ -182,9 +183,21 @@ static void __init dm_substitute_devices(char *str, size_t str_len)
 		DMDEBUG("converting candidate device '%s' to dev_t", candidate);
 		/* Use the boot-time specific device naming */
 		dev = name_to_dev_t(candidate);
-		*candidate_end = old_char;
 
+		/* If it failed, but the candidate starts with /dev/, then try
+		 * after device probing ends.
+		 */
+		if (!dev && strncmp(candidate, "/dev/", 5) == 0) {
+			DMINFO("waiting to resolve device '%s'...",
+			       candidate);
+			while (driver_probe_done() != 0 ||
+				(dev = name_to_dev_t(candidate)) == 0)
+				msleep(100);
+			async_synchronize_full();
+		}
 		DMDEBUG(" -> %u", dev);
+
+		*candidate_end = old_char;
 		/* No suitable replacement found */
 		if (!dev)
 			continue;
