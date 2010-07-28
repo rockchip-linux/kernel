@@ -176,7 +176,7 @@ static struct acpi_attribute *create_sysfs_attribute(char *value, char *name,
 		if (count >= 1000) {
 			printk(MY_ERR "%s: too many (%d) instances of %s\n",
 			       __FUNCTION__, count, name);
-			return;
+			return NULL;
 		}
 		/* allow up to three digits and the dot */
 		total_size += 4;
