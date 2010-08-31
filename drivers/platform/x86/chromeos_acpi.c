@@ -69,7 +69,7 @@ static struct acpi_driver chromeos_acpi_driver = {
 
 /* The methods the chromeos ACPI device is supposed to export */
 static char *chromeos_methods[] = {
-	"CHSW", "HWID", "BINF", "GPIO", "CHNV", "FWID"
+	"CHSW", "HWID", "BINF", "GPIO", "CHNV", "FWID", "FRID"
 };
 
 /*
