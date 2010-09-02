@@ -696,11 +696,20 @@ config INTEL_IPS
 	  functionality.  If in doubt, say Y here; it will only load on
 	  supported platforms.
 config ACPI_CHROMEOS
-	tristate "ChromeOS specific ACPI extensions"
+	bool "ChromeOS specific ACPI extensions"
 	depends on ACPI
 	---help---
-	  This driver adds support for access to certain proprietary hardware
-	  available on from ChromeOS BIOS.
+	  This driver provides the firmware interface for the services exported
+	  through the CHROMEOS interfaces when using ChromeOS ACPI firmware.
+
+config CHROMEOS
+	bool "ChromeOS specific platform functions"
+	depends on NVRAM
+	depends on ACPI_CHROMEOS
+	---help---
+	  This driver provides abstracted interfaces to the firmware features
+	  provided on ChromeOS devices. It depends on a lowlevel driver to
+	  implement the firmware interface on the platform.
 
 config IBM_RTL
 	tristate "Device driver to enable PRTL support"

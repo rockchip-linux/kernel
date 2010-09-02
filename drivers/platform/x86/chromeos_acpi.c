@@ -44,7 +44,6 @@ MODULE_LICENSE("GPL");
 #define MY_ERR KERN_ERR MY_LOGPREFIX
 #define MY_NOTICE KERN_NOTICE MY_LOGPREFIX
 #define MY_INFO KERN_INFO MY_LOGPREFIX
-#define CHROMEOS_ACPI_VERSION "0.02"
 
 static const struct acpi_device_id chromeos_device_ids[] = {
         {"GGL0001", 0}, /* Google's own */
@@ -106,6 +105,14 @@ struct chromeos_acpi_dev {
 };
 
 static struct chromeos_acpi_dev chromeos_acpi = { };
+
+
+/* Values set at probe time */
+int chromeos_acpi_chnv = -1;
+int chromeos_acpi_chsw = -1;
+
+bool chromeos_acpi_available;
+
 
 /*
  * To show attribute value just access the container structure's `value'
@@ -326,6 +333,30 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 }
 
 /*
+ * handle_single_int() extract a single int value
+ *
+ * @po: package contents as returned by ACPI
+ * @found:	integer pointer to store the value in
+ *
+ */
+static void handle_single_int(union acpi_object *po, int *found)
+{
+	union acpi_object *element = po->package.elements;
+
+	if (!element) {
+		WARN_ON(1);
+		return;
+	}
+
+	if (element->type == ACPI_TYPE_INTEGER)
+		*found = (int) element->integer.value;
+	else
+		printk(MY_ERR "acpi_object unexpected type %d, expected int\n",
+		       element->type);
+}
+
+
+/*
  * handle_acpi_package() create sysfs group including attributes
  *			 representing an ACPI package.
  *
@@ -400,6 +431,12 @@ static int chromeos_device_add(struct acpi_device *device)
 		} else {
 			handle_acpi_package(po, pm);
 		}
+		/* Need to export a couple of variables to chromeos.c */
+		if (!strncmp(pm, "CHNV", 4))
+			handle_single_int(po, &chromeos_acpi_chnv);
+		else if (!strncmp(pm, "CHSW", 4))
+			handle_single_int(po, &chromeos_acpi_chsw);
+
 		kfree(po);
 	}
 	return 0;
@@ -410,38 +447,12 @@ static int chromeos_device_remove(struct acpi_device *device)
 	return 0;
 }
 
-static void chromeos_acpi_exit(void)
-{
-	acpi_bus_unregister_driver(&chromeos_acpi_driver);
-
-	while (chromeos_acpi.groups) {
-		struct acpi_attribute_group *aag;
-		aag = chromeos_acpi.groups;
-		chromeos_acpi.groups = aag->next_acpi_attr_group;
-		sysfs_remove_group(&chromeos_acpi.p_dev->dev.kobj, &aag->ag);
-		kfree(aag);
-	}
-
-	while (chromeos_acpi.attributes) {
-		struct acpi_attribute *aa = chromeos_acpi.attributes;
-		chromeos_acpi.attributes = aa->next_acpi_attr;
-		device_remove_file(&chromeos_acpi.p_dev->dev, &aa->dev_attr);
-		kfree(aa);
-	}
-
-	platform_device_unregister(chromeos_acpi.p_dev);
-	printk(MY_INFO "removed\n");
-}
-
 static int __init chromeos_acpi_init(void)
 {
 	int ret = 0;
 
 	if (acpi_disabled)
 		return -ENODEV;
-
-	printk(MY_INFO "ChromeOS ACPI Extras version %s built on %s@%s\n",
-	       CHROMEOS_ACPI_VERSION, __DATE__, __TIME__);
 
 	chromeos_acpi.p_dev = platform_device_register_simple("chromeos_acpi",
 							      -1, NULL, 0);
@@ -458,9 +469,8 @@ static int __init chromeos_acpi_init(void)
 		return ret;
 	}
 
-	printk(MY_INFO "installed\n");
+	chromeos_acpi_available = true;
+
 	return 0;
 }
-
-module_init(chromeos_acpi_init);
-module_exit(chromeos_acpi_exit);
+subsys_initcall(chromeos_acpi_init);
