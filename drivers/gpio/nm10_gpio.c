@@ -96,6 +96,41 @@ struct nm10_gpio {
 };
 
 /**
+ * nm10_get_parameters() - get value of a GPIO bit
+ *
+ * Inputs:
+ * @chip: generic gpio chip handle associated with this module
+ * @offset: zero based GPIO bit number (in this controller's scope).
+ *
+ * Outputs:
+ * @psection - pointer to the NM10 section number containing bit offset
+ * @pbit,- pointer to the offset's bit mask within the section
+ * @pgpio - pointer to address of this nm10_gpio instance.
+ *
+ * Returns zero on errors or nonzero on success.
+ */
+static int nm10_get_parameters(struct gpio_chip *chip, unsigned offset,
+			       u8* psection, u32* pbit,
+			       struct nm10_gpio **pgpio)
+{
+	*pgpio = container_of(chip, struct nm10_gpio, chip);
+
+	*psection = offset / NM10_GPIO_BITS_PER_SECTION;
+	*pbit = BIT(offset % NM10_GPIO_BITS_PER_SECTION);
+
+	if (*psection >= NM10_GPIO_SECTIONS) {
+		printk(KERN_ERR "%s: bad offset %d\n",
+		       gpio_driver_name, offset);
+		return 0;
+	}
+
+	if (!(*pbit & (*pgpio)->cached_select[*psection])) {
+		return 0;	/* this bit is not used for GPIO */
+	}
+	return ~0;
+}
+
+/**
  * nm10_gpio_get() - get value of a GPIO bit
  * @chip: generic gpio chip handle associated with this module
  * @offset: zero based GPIO bit number (in this controller's scope).
@@ -110,26 +145,19 @@ static int nm10_gpio_get(struct gpio_chip *chip, unsigned offset)
 	u32 bit;
 	struct nm10_gpio *pgpio = container_of(chip, struct nm10_gpio, chip);
 
-	section = offset / NM10_GPIO_BITS_PER_SECTION;
-	bit = BIT(offset % NM10_GPIO_BITS_PER_SECTION);
-
-	if (section >= NM10_GPIO_SECTIONS) {
-		printk(KERN_ERR "%s: bad offset %d\n",
-		       gpio_driver_name, offset);
+	if (!nm10_get_parameters(chip, offset, &section, &bit, &pgpio)) {
 		return 0;
 	}
 
-	if (!(bit & pgpio->cached_select[section])) {
-		return 0;	/* this bit is not used for GPIO */
-	}
 	return inl(pgpio->io_base +
 		   nm10_gpio_sections[section].io_level_offset) & bit;
 }
 
 /**
- * nm10_gpio_set() - get value of a GPIO bit
+ * nm10_gpio_set() - set value of a GPIO bit
  * @chip: generic gpio chip handle associated with this module
  * @offset: zero based GPIO bit number (in this controller's scope).
+ * @value: the value to set the output to
  *
  * If the offset is of a valid bit (used for GPIO output) - the bit state is
  * changed to reflect the value. All other in range offset values are ignored.
@@ -139,19 +167,11 @@ static void nm10_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 	u8 section;
 	u32 bit;
 	const struct nm10_gpio_info *pinfo;
-	struct nm10_gpio *pgpio = container_of(chip, struct nm10_gpio, chip);
+	struct nm10_gpio *pgpio;
 	u32 gpio_reg_value;
 
-	section = offset / NM10_GPIO_BITS_PER_SECTION;
-	bit = BIT(offset % NM10_GPIO_BITS_PER_SECTION);
-
-	if (section >= NM10_GPIO_SECTIONS) {
-		printk(KERN_ERR "%s: bad offset %d\n",
-		       gpio_driver_name, offset);
-	}
-
-	if (!(bit & pgpio->cached_select[section])) {
-		return;		/* this bit is not used for GPIO */
+	if (!nm10_get_parameters(chip, offset, &section, &bit, &pgpio)) {
+		return;
 	}
 
 	pinfo = nm10_gpio_sections + section;
@@ -169,8 +189,57 @@ static void nm10_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 	outl(gpio_reg_value, pgpio->io_base + pinfo->io_level_offset);
 }
 
+/**
+ * nm10_gpio_direction_inp() configure signal "offset" as input, or return error
+ * @chip: generic gpio chip handle associated with this module
+ * @offset: zero based GPIO bit number (in this controller's scope).
+ */
+static int nm10_gpio_direction_inp(struct gpio_chip *chip,
+				   unsigned offset)
+{
+	u8 section;
+	u32 bit;
+	struct nm10_gpio *pgpio = container_of(chip, struct nm10_gpio, chip);
+	u32 io_select_offset;
+
+	if (!nm10_get_parameters(chip, offset, &section, &bit, &pgpio)) {
+		return -1;
+	}
+
+	io_select_offset = pgpio->io_base +
+		nm10_gpio_sections[section].io_select_offset;
+	outl(inl(io_select_offset) | bit, io_select_offset);
+	return 0;
+}
+
+/**
+ * nm10_gpio_direction_out() configure signal "offset" as output,
+ * 			     or return error
+ * @chip: generic gpio chip handle associated with this module
+ * @offset: zero based GPIO bit number (in this controller's scope).
+ * @value: the value to set the output to
+ */
+static int nm10_gpio_direction_out(struct gpio_chip *chip,
+				   unsigned offset, int value)
+{
+	u8 section;
+	u32 bit;
+	struct nm10_gpio *pgpio = container_of(chip, struct nm10_gpio, chip);
+	u32 io_select_offset;
+
+	if (!nm10_get_parameters(chip, offset, &section, &bit, &pgpio)) {
+		return -1;
+	}
+
+	io_select_offset = pgpio->io_base +
+		nm10_gpio_sections[section].io_select_offset;
+	outl(inl(io_select_offset) & ~bit, io_select_offset);
+	nm10_gpio_set(chip, offset, value);
+	return 0;
+}
+
 static int nm10_gpio_probe(struct pci_dev *pdev,
-				     const struct pci_device_id *id)
+			   const struct pci_device_id *id)
 {
 	int retval, ii;
 	u32 value;
@@ -214,6 +283,8 @@ static int nm10_gpio_probe(struct pci_dev *pdev,
 	pgpio->chip.label = dev_name(&pdev->dev);
 	pgpio->chip.get = nm10_gpio_get;
 	pgpio->chip.set = nm10_gpio_set;
+	pgpio->chip.direction_input = nm10_gpio_direction_inp;
+	pgpio->chip.direction_output = nm10_gpio_direction_out;
 	pgpio->chip.ngpio = NM10_MAX_GPIO_BITS;
 	pgpio->chip.can_sleep = 0;
 	pci_set_drvdata(pdev, pgpio);
