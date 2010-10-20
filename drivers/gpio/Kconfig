@@ -722,6 +722,12 @@ config GPIO_RDC321X
 	  Support for the RDC R321x SoC GPIOs over southbridge
 	  PCI configuration space.
 
+config GPIO_NM10
+        tristate "Intel NM10 GPIO controller support"
+        depends on PCI
+        help
+          Say Y here to support Intel's NM10 LPC based GPIO controller.
+
 comment "SPI GPIO expanders:"
 
 config GPIO_MAX7301
