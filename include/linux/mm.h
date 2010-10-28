@@ -47,6 +47,8 @@ extern int sysctl_legacy_va_layout;
 #define sysctl_legacy_va_layout 0
 #endif
 
+extern int min_filelist_kbytes;
+
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/processor.h>
