@@ -374,7 +374,7 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 	for (jj = 0; jj < count; jj++) {
 		union acpi_object *element = po->package.elements + jj;
 		int copy_size = 0;
-		char attr_value[40];	/* 40 chars be enough for names */
+		char attr_value[256];	/* strings could be this long */
 
 		switch (element->type) {
 		case ACPI_TYPE_INTEGER:
