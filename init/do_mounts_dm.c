@@ -9,6 +9,7 @@
 #include <linux/device-mapper.h>
 #include <linux/fs.h>
 #include <linux/string.h>
+#include <linux/delay.h>
 
 #include "do_mounts.h"
 
