@@ -41,6 +41,7 @@
 #include <linux/debugfs.h>
 #include <linux/irq_work.h>
 #include <linux/export.h>
+#include <linux/jiffies.h>
 
 #include <asm/processor.h>
 #include <asm/traps.h>
@@ -1225,7 +1226,7 @@ void mce_log_therm_throt_event(__u64 status)
 static unsigned long check_interval = INITIAL_CHECK_INTERVAL;
 
 static DEFINE_PER_CPU(unsigned long, mce_next_interval); /* in jiffies */
-static DEFINE_PER_CPU(struct timer_list, mce_timer);
+static DEFINE_PER_CPU(struct hrtimer, mce_timer);
 
 static unsigned long mce_adjust_timer_default(unsigned long interval)
 {
@@ -1234,31 +1235,17 @@ static unsigned long mce_adjust_timer_default(unsigned long interval)
 
 static unsigned long (*mce_adjust_timer)(unsigned long interval) = mce_adjust_timer_default;
 
-static void __restart_timer(struct timer_list *t, unsigned long interval)
+static enum hrtimer_restart __restart_timer(struct hrtimer *timer, unsigned long interval)
 {
-	unsigned long when = jiffies + interval;
-	unsigned long flags;
-
-	local_irq_save(flags);
-
-	if (timer_pending(t)) {
-		if (time_before(when, t->expires))
-			mod_timer_pinned(t, when);
-	} else {
-		t->expires = round_jiffies(when);
-		add_timer_on(t, smp_processor_id());
-	}
-
-	local_irq_restore(flags);
+	if (!interval)
+		return HRTIMER_NORESTART;
+	hrtimer_forward_now(timer, ns_to_ktime(jiffies_to_nsecs(interval)));
+	return HRTIMER_RESTART;
 }
 
-static void mce_timer_fn(unsigned long data)
+static enum hrtimer_restart mce_timer_fn(struct hrtimer *timer)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
-	int cpu = smp_processor_id();
 	unsigned long iv;
-
-	WARN_ON(cpu != data);
 
 	iv = __this_cpu_read(mce_next_interval);
 
@@ -1282,7 +1269,7 @@ static void mce_timer_fn(unsigned long data)
 
 done:
 	__this_cpu_write(mce_next_interval, iv);
-	__restart_timer(t, iv);
+	return __restart_timer(timer, iv);
 }
 
 /*
@@ -1290,7 +1277,7 @@ done:
  */
 void mce_timer_kick(unsigned long interval)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 	unsigned long iv = __this_cpu_read(mce_next_interval);
 
 	__restart_timer(t, interval);
@@ -1305,7 +1292,7 @@ static void mce_timer_delete_all(void)
 	int cpu;
 
 	for_each_online_cpu(cpu)
-		del_timer_sync(&per_cpu(mce_timer, cpu));
+		hrtimer_cancel(&per_cpu(mce_timer, cpu));
 }
 
 static void mce_do_trigger(struct work_struct *work)
@@ -1628,7 +1615,7 @@ static void __mcheck_cpu_clear_vendor(struct cpuinfo_x86 *c)
 	}
 }
 
-static void mce_start_timer(unsigned int cpu, struct timer_list *t)
+static void mce_start_timer(unsigned int cpu, struct hrtimer *t)
 {
 	unsigned long iv = check_interval * HZ;
 
@@ -1637,16 +1624,17 @@ static void mce_start_timer(unsigned int cpu, struct timer_list *t)
 
 	per_cpu(mce_next_interval, cpu) = iv;
 
-	t->expires = round_jiffies(jiffies + iv);
-	add_timer_on(t, cpu);
+	hrtimer_start_range_ns(t, ns_to_ktime(jiffies_to_usecs(iv) * 1000ULL),
+			0, HRTIMER_MODE_REL_PINNED);
 }
 
 static void __mcheck_cpu_init_timer(void)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 	unsigned int cpu = smp_processor_id();
 
-	setup_timer(t, mce_timer_fn, cpu);
+	hrtimer_init(t, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	t->function = mce_timer_fn;
 	mce_start_timer(cpu, t);
 }
 
@@ -2365,6 +2353,8 @@ static void mce_disable_cpu(void *h)
 	if (!mce_available(raw_cpu_ptr(&cpu_info)))
 		return;
 
+	hrtimer_cancel(this_cpu_ptr(&mce_timer));
+
 	if (!(action & CPU_TASKS_FROZEN))
 		cmci_clear();
 
@@ -2387,6 +2377,7 @@ static void mce_reenable_cpu(void *h)
 		if (b->init)
 			wrmsrl(MSR_IA32_MCx_CTL(i), b->ctl);
 	}
+	__mcheck_cpu_init_timer();
 }
 
 /* Get notified when a cpu comes on/off. Be hotplug friendly. */
@@ -2394,7 +2385,6 @@ static int
 mce_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned long)hcpu;
-	struct timer_list *t = &per_cpu(mce_timer, cpu);
 
 	switch (action & ~CPU_TASKS_FROZEN) {
 	case CPU_ONLINE:
@@ -2414,11 +2404,9 @@ mce_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 		break;
 	case CPU_DOWN_PREPARE:
 		smp_call_function_single(cpu, mce_disable_cpu, &action, 1);
-		del_timer_sync(t);
 		break;
 	case CPU_DOWN_FAILED:
 		smp_call_function_single(cpu, mce_reenable_cpu, &action, 1);
-		mce_start_timer(cpu, t);
 		break;
 	}
 
