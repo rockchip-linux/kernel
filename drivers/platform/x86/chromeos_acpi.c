@@ -2,7 +2,7 @@
  *  chromeos_acpi.c - ChromeOS specific ACPI support
  *
  *
- *  Copyright (C) 2010 ChromeOS contributors
+ * Copyright (C) 2011 The Chromium OS Authors
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -45,9 +45,13 @@ MODULE_LICENSE("GPL");
 #define MY_NOTICE KERN_NOTICE MY_LOGPREFIX
 #define MY_INFO KERN_INFO MY_LOGPREFIX
 
+/* ACPI method name for MLST; the response for this method is a
+ * package of strings listing the methods which should be reflected in
+ * sysfs. */
+#define MLST_METHOD "MLST"
+
 static const struct acpi_device_id chromeos_device_ids[] = {
-        {"GGL0001", 0}, /* Google's own */
-	{"PNP6666", 0},  /* dummy name to get us going */
+	{"GGL0001", 0}, /* Google's own */
 	{"", 0},
 };
 
@@ -66,9 +70,11 @@ static struct acpi_driver chromeos_acpi_driver = {
 	.owner = THIS_MODULE,
 };
 
-/* The methods the chromeos ACPI device is supposed to export */
-static char *chromeos_methods[] = {
-	"CHSW", "HWID", "BINF", "GPIO", "CHNV", "FWID", "FRID"
+/* The default list of methods the chromeos ACPI device is supposed to export,
+ * if the MLST method is not present or is poorly formed.  The MLST method
+ * itself is included, to aid in debugging. */
+static char *default_methods[] = {
+	"CHSW", "HWID", "BINF", "GPIO", "CHNV", "FWID", "FRID", MLST_METHOD
 };
 
 /*
@@ -159,9 +165,8 @@ static struct acpi_attribute *create_sysfs_attribute(char *value, char *name,
 	int total_size, room_left;
 	int value_len = strlen(value);
 
-	if (!value_len) {
+	if (!value_len)
 		return NULL;
-	}
 
 	value_len++; /* include the terminating zero */
 
@@ -182,7 +187,7 @@ static struct acpi_attribute *create_sysfs_attribute(char *value, char *name,
 	if (count != 1) {
 		if (count >= 1000) {
 			printk(MY_ERR "%s: too many (%d) instances of %s\n",
-			       __FUNCTION__, count, name);
+			       __func__, count, name);
 			return NULL;
 		}
 		/* allow up to three digits and the dot */
@@ -191,7 +196,7 @@ static struct acpi_attribute *create_sysfs_attribute(char *value, char *name,
 
 	paa = kzalloc(total_size, GFP_KERNEL);
 	if (!paa) {
-		printk(MY_ERR "out of memory in %s!\n", __FUNCTION__);
+		printk(MY_ERR "out of memory in %s!\n", __func__);
 		return NULL;
 	}
 
@@ -232,13 +237,11 @@ static void add_sysfs_attribute(char *value, char *name,
 	struct acpi_attribute *paa =
 	    create_sysfs_attribute(value, name, count, instance);
 
-	if (!paa) {
+	if (!paa)
 		return;
-	}
 
-	if (device_create_file(&chromeos_acpi.p_dev->dev, &paa->dev_attr)) {
+	if (device_create_file(&chromeos_acpi.p_dev->dev, &paa->dev_attr))
 		printk(MY_ERR "failed to create attribute for %s\n", name);
-	}
 }
 
 /*
@@ -259,7 +262,7 @@ static void add_sysfs_attribute(char *value, char *name,
 static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 				       int total, int instance)
 {
-	int ii, size, count, jj;
+	int i, size, count, j;
 	struct acpi_attribute_group *aag;
 
 	count = po->package.count;
@@ -270,7 +273,7 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 	if (total != 1) {
 		if (total >= 1000) {
 			printk(MY_ERR "%s: too many (%d) instances of %s\n",
-			       __FUNCTION__, total, pm);
+			       __func__, total, pm);
 			return;
 		}
 		/* allow up to three digits and the dot */
@@ -279,7 +282,7 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 
 	aag = kzalloc(size, GFP_KERNEL);
 	if (!aag) {
-		printk(MY_ERR "out of memory in %s!\n", __FUNCTION__);
+		printk(MY_ERR "out of memory in %s!\n", __func__);
 		return;
 	}
 
@@ -291,15 +294,14 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 	/* room left in the buffer */
 	size = size - (aag->ag.name - (char *)aag);
 
-	if (total != 1) {
+	if (total != 1)
 		snprintf((char *)aag->ag.name, size, "%s.%d", pm, instance);
-	} else {
+	else
 		snprintf((char *)aag->ag.name, size, "%s", pm);
-	}
 
-	jj = 0;			/* attribute index */
-	for (ii = 0; ii < count; ii++) {
-		union acpi_object *element = po->package.elements + ii;
+	j = 0;			/* attribute index */
+	for (i = 0; i < count; i++) {
+		union acpi_object *element = po->package.elements + i;
 		int copy_size = 0;
 		char attr_value[40];	/* 40 chars be enough for names */
 		struct acpi_attribute *paa;
@@ -308,7 +310,7 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 		case ACPI_TYPE_INTEGER:
 			copy_size = snprintf(attr_value, sizeof(attr_value),
 					     "%d", (int)element->integer.value);
-			paa = create_sysfs_attribute(attr_value, pm, count, ii);
+			paa = create_sysfs_attribute(attr_value, pm, count, i);
 			break;
 
 		case ACPI_TYPE_STRING:
@@ -316,7 +318,7 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 					sizeof(attr_value) - 1);
 			memcpy(attr_value, element->string.pointer, copy_size);
 			attr_value[copy_size] = '\0';
-			paa = create_sysfs_attribute(attr_value, pm, count, ii);
+			paa = create_sysfs_attribute(attr_value, pm, count, i);
 			break;
 
 		default:
@@ -324,12 +326,11 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 			       element->type);
 			continue;
 		}
-		aag->ag.attrs[jj++] = &paa->dev_attr.attr;
+		aag->ag.attrs[j++] = &paa->dev_attr.attr;
 	}
 
-	if (sysfs_create_group(&chromeos_acpi.p_dev->dev.kobj, &aag->ag)) {
+	if (sysfs_create_group(&chromeos_acpi.p_dev->dev.kobj, &aag->ag))
 		printk(MY_ERR "failed to create group %s.%d\n", pm, instance);
-	}
 }
 
 /*
@@ -369,10 +370,10 @@ static void handle_single_int(union acpi_object *po, int *found)
  */
 static void handle_acpi_package(union acpi_object *po, char *pm)
 {
-	int jj;
+	int j;
 	int count = po->package.count;
-	for (jj = 0; jj < count; jj++) {
-		union acpi_object *element = po->package.elements + jj;
+	for (j = 0; j < count; j++) {
+		union acpi_object *element = po->package.elements + j;
 		int copy_size = 0;
 		char attr_value[256];	/* strings could be this long */
 
@@ -380,7 +381,7 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 		case ACPI_TYPE_INTEGER:
 			copy_size = snprintf(attr_value, sizeof(attr_value),
 					     "%d", (int)element->integer.value);
-			add_sysfs_attribute(attr_value, pm, count, jj);
+			add_sysfs_attribute(attr_value, pm, count, j);
 			break;
 
 		case ACPI_TYPE_STRING:
@@ -388,11 +389,11 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 					sizeof(attr_value) - 1);
 			memcpy(attr_value, element->string.pointer, copy_size);
 			attr_value[copy_size] = '\0';
-			add_sysfs_attribute(attr_value, pm, count, jj);
+			add_sysfs_attribute(attr_value, pm, count, j);
 			break;
 
 		case ACPI_TYPE_PACKAGE:
-			handle_nested_acpi_package(element, pm, count, jj);
+			handle_nested_acpi_package(element, pm, count, j);
 			break;
 
 		default:
@@ -402,43 +403,111 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 	}
 }
 
+
+/*
+ * add_acpi_method() evaluate an ACPI method and create sysfs attributes.
+ *
+ * @device: ACPI device
+ * @pm: name of the method to evaluate
+ */
+static void add_acpi_method(struct acpi_device *device, char *pm)
+{
+	acpi_status status;
+	struct acpi_buffer output;
+	union acpi_object *po;
+
+	output.length = ACPI_ALLOCATE_BUFFER;
+	output.pointer = NULL;
+
+	status = acpi_evaluate_object(device->handle, pm, NULL, &output);
+
+	if (!ACPI_SUCCESS(status)) {
+		printk(MY_ERR "failed to retrieve %s (%d)\n", pm, status);
+		return;
+	}
+
+	po = output.pointer;
+
+	if (po->type != ACPI_TYPE_PACKAGE)
+		printk(MY_ERR "%s is not a package, ignored\n", pm);
+	else
+		handle_acpi_package(po, pm);
+
+	/* Need to export a couple of variables to chromeos.c */
+	if (!strncmp(pm, "CHNV", 4))
+		handle_single_int(po, &chromeos_acpi_chnv);
+	else if (!strncmp(pm, "CHSW", 4))
+		handle_single_int(po, &chromeos_acpi_chsw);
+
+	kfree(output.pointer);
+}
+
+/*
+ * chromeos_process_mlst() Evaluate the MLST method and add methods listed
+ *                         in the response.
+ *
+ * @device: ACPI device
+ *
+ * Returns: 0 if successful, non-zero if error.
+ */
+static int chromeos_process_mlst(struct acpi_device *device)
+{
+	acpi_status status;
+	struct acpi_buffer output;
+	union acpi_object *po;
+	int j;
+
+	output.length = ACPI_ALLOCATE_BUFFER;
+	output.pointer = NULL;
+
+	status = acpi_evaluate_object(device->handle, MLST_METHOD, NULL,
+				      &output);
+	if (!ACPI_SUCCESS(status)) {
+		pr_debug(MY_LOGPREFIX "failed to retrieve MLST (%d)\n",
+			 status);
+		return 1;
+	}
+
+	po = output.pointer;
+	if (po->type != ACPI_TYPE_PACKAGE) {
+		printk(MY_ERR MLST_METHOD "is not a package, ignored\n");
+		kfree(output.pointer);
+		return -EINVAL;
+	}
+
+	for (j = 0; j < po->package.count; j++) {
+		union acpi_object *element = po->package.elements + j;
+		int copy_size = 0;
+		char method[ACPI_NAME_SIZE + 1];
+
+		if (element->type == ACPI_TYPE_STRING) {
+			copy_size = min((int)element->string.length,
+					ACPI_NAME_SIZE);
+			memcpy(method, element->string.pointer, copy_size);
+			method[copy_size] = '\0';
+			add_acpi_method(device, method);
+		} else {
+			pr_debug(MY_LOGPREFIX "ignoring type %d\n",
+				 element->type);
+		}
+	}
+
+	kfree(output.pointer);
+	return 0;
+}
+
 static int chromeos_device_add(struct acpi_device *device)
 {
-	int ii;
+	int i;
 
-	for (ii = 0; ii < ARRAY_SIZE(chromeos_methods); ii++) {
-		union acpi_object *po;
-		acpi_status status;
-		struct acpi_buffer output;
-		char *pm = chromeos_methods[ii];
+	/* Attempt to add methods by querying the device's MLST method
+	 * for the list of methods. */
+	if (!chromeos_process_mlst(device))
+		return 0;
 
-		output.length = ACPI_ALLOCATE_BUFFER;
-		output.pointer = NULL;
-
-		status = acpi_evaluate_object(device->handle,
-					      pm, NULL, &output);
-
-		if (!ACPI_SUCCESS(status)) {
-			printk(MY_ERR "failed to retrieve %s (%d)\n", pm,
-			       status);
-			continue;
-		}
-
-		po = output.pointer;
-
-		if (po->type != ACPI_TYPE_PACKAGE) {
-			printk(MY_ERR "%s is not a package, ignored\n", pm);
-		} else {
-			handle_acpi_package(po, pm);
-		}
-		/* Need to export a couple of variables to chromeos.c */
-		if (!strncmp(pm, "CHNV", 4))
-			handle_single_int(po, &chromeos_acpi_chnv);
-		else if (!strncmp(pm, "CHSW", 4))
-			handle_single_int(po, &chromeos_acpi_chsw);
-
-		kfree(po);
-	}
+	printk(MY_INFO "falling back to default list of methods\n");
+	for (i = 0; i < ARRAY_SIZE(default_methods); i++)
+		add_acpi_method(device, default_methods[i]);
 	return 0;
 }
 
