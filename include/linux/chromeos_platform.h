@@ -1,6 +1,7 @@
 #ifndef _LINUX_CHROMEOS_PLATFORM_H
 #define _LINUX_CHROMEOS_PLATFORM_H
 
+#include <linux/errno.h>
 #include <linux/types.h>
 
 #ifdef CONFIG_CHROMEOS
@@ -19,6 +20,7 @@ extern bool chromeos_is_devmode(void);
 extern int chromeos_set_need_recovery(void);
 
 #else
+
 /* Stubbed-out versions so we can keep code common */
 static inline bool chromeos_is_devmode(void)
 {

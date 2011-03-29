@@ -13,8 +13,26 @@
 #define CHSW_DEVELOPER_MODE	0x00000020   /* developer switch set */
 #define CHSW_WP			0x00000200   /* write-protect (optional) */
 
-extern int chromeos_acpi_chnv;
-extern int chromeos_acpi_chsw;
-extern bool chromeos_acpi_available;
+/*
+ * Structure containing one ACPi exported integer along with the validity
+ * flag.
+ */
+struct chromeos_acpi_datum {
+	unsigned cad_value;
+	bool	 cad_is_set;
+};
+
+/*
+ * Structure containg the set of ACPI exported integers required by chromeos
+ * wrapper.
+ */
+struct chromeos_acpi_if {
+	struct chromeos_acpi_datum	switch_state;
+	struct chromeos_acpi_datum	nv_base;
+	struct chromeos_acpi_datum	nv_size;
+};
+
+
+extern struct chromeos_acpi_if chromeos_acpi_if_data;
 
 #endif /* _DRIVERS_PLATFORM_X86_CHROMEOS_ACPI_H */
