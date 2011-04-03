@@ -14,7 +14,7 @@
 #define CHSW_WP			0x00000200   /* write-protect (optional) */
 
 /*
- * Structure containing one ACPi exported integer along with the validity
+ * Structure containing one ACPI exported integer along with the validity
  * flag.
  */
 struct chromeos_acpi_datum {
@@ -23,7 +23,7 @@ struct chromeos_acpi_datum {
 };
 
 /*
- * Structure containg the set of ACPI exported integers required by chromeos
+ * Structure containing the set of ACPI exported integers required by chromeos
  * wrapper.
  */
 struct chromeos_acpi_if {
