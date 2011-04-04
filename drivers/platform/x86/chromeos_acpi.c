@@ -194,7 +194,6 @@ static struct acpi_attribute *create_sysfs_attribute(char *value, char *name,
 		return NULL;
 	}
 
-	paa->dev_attr.attr.owner = THIS_MODULE;
 	paa->dev_attr.attr.mode = 0444;  /* read only */
 	paa->dev_attr.show = show_acpi_attribute;
 	paa->value = (char *)(paa + 1);
