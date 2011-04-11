@@ -1,4 +1,4 @@
-/*
+ /*
  *  chromeos_acpi.c - ChromeOS specific ACPI support
  *
  *
@@ -336,24 +336,30 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
  */
 static void maybe_export_acpi_int(const char *pm, int index, unsigned value)
 {
-	struct chromeos_acpi_datum *cad = NULL;
+	int i;
+	struct chromeos_acpi_exported_ints {
+		const char *acpi_name;
+		int acpi_index;
+		struct chromeos_acpi_datum *cad;
+	} exported_ints[] = {
+		{ "VBNV", 0, &chromeos_acpi_if_data.nv_base },
+		{ "VBNV", 1, &chromeos_acpi_if_data.nv_size },
+		{ "CHSW", 0, &chromeos_acpi_if_data.switch_state },
+		{ "CHNV", 0, &chromeos_acpi_if_data.chnv }
+	};
 
-	/* Only a couple of variables need to be exported. */
-	if (!strncmp(pm, "VBNV", 4)) {
-		switch (index) {
-		case 0:
-			cad = &chromeos_acpi_if_data.nv_base;
-			break;
-		case 1:
-			cad = &chromeos_acpi_if_data.nv_size;
-			break;
+	for (i = 0; i < ARRAY_SIZE(exported_ints); i++) {
+		struct chromeos_acpi_exported_ints *exported_int;
+
+		exported_int = exported_ints + i;
+
+		if (!strncmp(pm, exported_int->acpi_name, 4) &&
+		    (exported_int->acpi_index == index)) {
+			printk(MY_NOTICE "registering %s %d\n", pm, index);
+			exported_int->cad->cad_value = value;
+			exported_int->cad->cad_is_set = true;
+			return;
 		}
-	} else if (!strncmp(pm,  "CHSW", 4)) {
-		cad = &chromeos_acpi_if_data.switch_state;
-	}
-	if (cad) {
-		cad->cad_value = value;
-		cad->cad_is_set = true;
 	}
 }
 

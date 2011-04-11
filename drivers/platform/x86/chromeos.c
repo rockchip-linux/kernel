@@ -33,6 +33,7 @@
 #include "chromeos_acpi.h"
 
 static bool chromeos_inited;
+static bool chromeos_nvram_buffer_available;
 static int chromeos_read_nvram(u8 *nvram_buffer, int buf_size);
 static int chromeos_write_nvram(unsigned offset, u8 value);
 
@@ -55,10 +56,46 @@ bool chromeos_is_devmode(void)
 }
 EXPORT_SYMBOL(chromeos_is_devmode);
 
+/*
+ * This function is used with BIOSes which do not export VBNV element through
+ * ACPI. These BIOSes use a fixed location in NVRAM to communicate the need to
+ * restart in recovery mode.
+ */
+static void chromeos_set_nvram_flag(int index, unsigned char flag)
+{
+	unsigned char cur;
+
+	cur = nvram_read_byte(index);
+	/* already set. */
+	if (cur & flag)
+		return;
+	nvram_write_byte(cur | flag, index);
+}
+
+static bool chromeos_on_legacy_firmware(void)
+{
+	/*
+	 * Presense of the CHNV ACPI element implies running on a legacy
+	 * firmware
+	 */
+	return chromeos_acpi_if_data.chnv.cad_is_set;
+}
+
 int chromeos_set_need_recovery(void)
 {
-	return chromeos_write_nvram(RECOVERY_OFFSET,
-				    VBNV_RECOVERY_RW_INVALID_OS);
+	if (chromeos_on_legacy_firmware()) {
+		/* Use fixed location to request recovery reboot. */
+		struct chromeos_acpi_datum *chnv = &chromeos_acpi_if_data.chnv;
+		chromeos_set_nvram_flag(chnv->cad_value,
+					       CHNV_RECOVERY_FLAG);
+		return 0;
+	}
+
+	if (chromeos_nvram_buffer_available) {
+		return chromeos_write_nvram(RECOVERY_OFFSET,
+					    VBNV_RECOVERY_RW_INVALID_OS);
+	}
+	return -EINVAL;
 }
 EXPORT_SYMBOL(chromeos_set_need_recovery);
 
@@ -131,7 +168,7 @@ static int chromeos_read_nvram(u8 *nvram_buffer, int buf_size)
 	size = chromeos_acpi_if_data.nv_size.cad_value;
 
 	if (size > buf_size) {
-		printk(KERN_ERR "%s: buffer range exceeded\n", __func__);
+		pr_err("%s: buffer range exceeded\n", __func__);
 		return -1;
 	}
 
@@ -139,7 +176,7 @@ static int chromeos_read_nvram(u8 *nvram_buffer, int buf_size)
 		nvram_buffer[i] = nvram_read_byte(start++);
 
 	if (nvram_buffer[size - 1] != crc8(nvram_buffer, size - 1)) {
-		printk(KERN_ERR "%s: NVRAM contents corrupted\n", __func__);
+		pr_err("%s: NVRAM contents corrupted\n", __func__);
 		return -1;
 	}
 	return 0;
@@ -149,20 +186,30 @@ static int __init chromeos_init(void)
 {
 	u8 nvram_buffer[MAX_NVRAM_BUFFER_SIZE];
 
-	if (!chromeos_acpi_if_data.nv_base.cad_is_set ||
-	    !chromeos_acpi_if_data.nv_size.cad_is_set ||
-	    (chromeos_acpi_if_data.nv_size.cad_value > MAX_NVRAM_BUFFER_SIZE)) {
-		printk(KERN_ERR "Chrome OS platform not found\n");
+	if (!chromeos_acpi_if_data.switch_state.cad_is_set) {
+		pr_err("Chrome OS platform not found\n");
 		return -ENODEV;
 	}
 
 	chromeos_inited = true;
 
-	printk(KERN_INFO "Chrome OS platform detected\n");
+	if (chromeos_on_legacy_firmware()) {
+		pr_info("Legacy ChromeOS firmware detected\n");
+		return 0;
+	}
+
+	pr_info("ChromeOS firmware detected\n");
 
 	/* check NVRAM buffer sanity */
-	if (chromeos_read_nvram(nvram_buffer, sizeof(nvram_buffer)))
-		printk(KERN_ERR "Failed reading NVRAM section\n");
+	if (!chromeos_acpi_if_data.nv_base.cad_is_set ||
+	    !chromeos_acpi_if_data.nv_size.cad_is_set ||
+	    (chromeos_acpi_if_data.nv_size.cad_value > MAX_NVRAM_BUFFER_SIZE) ||
+	    chromeos_read_nvram(nvram_buffer, sizeof(nvram_buffer))) {
+		pr_warning("Chrome NVram buffer not used\n");
+		chromeos_nvram_buffer_available = false;
+	} else {
+		chromeos_nvram_buffer_available = true;
+	}
 
 	return 0;
 }

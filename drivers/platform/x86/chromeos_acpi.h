@@ -28,6 +28,11 @@ struct chromeos_acpi_datum {
  */
 struct chromeos_acpi_if {
 	struct chromeos_acpi_datum	switch_state;
+
+	/* chnv is a single byte offset in nvram. exported by older firmware */
+	struct chromeos_acpi_datum	chnv;
+
+	/* vbnv is an address range in nvram, exported by newer firmware */
 	struct chromeos_acpi_datum	nv_base;
 	struct chromeos_acpi_datum	nv_size;
 };
