@@ -720,6 +720,12 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 			It will be ignored when crashkernel=X,high is not used
 			or memory reserved is below 4G.
 
+	cros_shared_mem=[ARM]
+			Format: <hex integer>
+			Base address of the ChromeOS shared memory window,
+			aligned at megabyte boundary, window size is fixed at
+			1 megabyte.
+
 	cs89x0_dma=	[HW,NET]
 			Format: <dma>
 

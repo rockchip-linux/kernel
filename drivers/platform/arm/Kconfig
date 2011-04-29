@@ -1,0 +1,33 @@
+#
+# ARM Platform Specific Drivers
+#
+
+menuconfig ARM_PLATFORM_DEVICES
+	bool "ARM Specific Device Drivers"
+	default n
+	---help---
+	  Say Y here to get to see options for device drivers for various
+	  ARM platforms. This option alone does not add any kernel code.
+
+	  If you say N, all options in this submenu will be skipped and disabled.
+
+if ARM_PLATFORM_DEVICES
+
+config ARM_CHROMEOS_FIRMWARE
+	tristate "ChromeOS firmware interface driver"
+	select CHROMEOS
+	---help---
+	  This driver provides an interface to ChromeOS firmware.
+
+	  Say Y here if you are building for a ChromeOS device.
+
+config CHROMEOS
+	bool
+	depends on ARM_CHROMEOS_FIRMWARE
+
+	---help---
+	  This driver provides abstracted interfaces to the firmware features
+	  provided on ChromeOS devices. It depends on a lowlevel driver to
+	  implement the firmware interface on the platform.
+
+endif # CROS_PLATFORM_DEVICES

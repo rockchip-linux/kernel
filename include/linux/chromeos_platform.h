@@ -19,6 +19,8 @@ extern bool chromeos_is_devmode(void);
  */
 extern int chromeos_set_need_recovery(void);
 
+extern u64 phys_window_base;
+
 #else
 
 /* Stubbed-out versions so we can keep code common */
