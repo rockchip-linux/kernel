@@ -25,16 +25,7 @@
 #include <linux/debugfs.h>
 #include <linux/module.h>
 #include <linux/seq_file.h>
-
-/* TODO:
- * let firmware assign gpio_lines
- * u32 gpio_data = (gpio_lines << 1) | is_active_high;
- */
-
-/* gpio lines */
-#define GPIO_RECOVERY	56
-#define GPIO_DEVELOPER	168
-#define GPIO_FW_WP	59
+#include <linux/ide.h>
 
 /* TODO:
  * replace the shared memory block with FDT
@@ -42,63 +33,60 @@
  */
 
 #define FIRMWARE_SHARED_PHYSICAL_SIZE (1024 * 1024)
-
-/* shared data layout in phisical memory */
-#define SIZE_SIGNATURE		16
-#define SIZE_CHSW		4
-#define SIZE_HWID		256
-#define SIZE_FWID		256
-#define SIZE_FRID		256
-#define SIZE_BOOT_REASON	4
-#define SIZE_ACTIVE_MAIN	4
-#define SIZE_ACTIVE_EC		4
-#define SIZE_ACTIVE_MAIN_TYPE	4
-#define SIZE_RECOVERY_REASON	4
-#define SIZE_GPIO		(4 * 11)
-#define SIZE_NV_OFFSET		4
-#define SIZE_NV_SIZE		4
-#define SIZE_FMAP_ADDR		8
-#define SIZE_NVBLK_LBA		8
-#define SIZE_NV_COPY		16
-
-#define OFFSET_SIGNATURE	0
-#define OFFSET_CHSW		(OFFSET_SIGNATURE + SIZE_SIGNATURE)
-#define OFFSET_HWID		(OFFSET_CHSW + SIZE_CHSW)
-#define OFFSET_FWID		(OFFSET_HWID + SIZE_HWID)
-#define OFFSET_FRID		(OFFSET_FWID + SIZE_FWID)
-#define OFFSET_BOOT_REASON	(OFFSET_FRID + SIZE_FRID)
-#define OFFSET_ACTIVE_MAIN	(OFFSET_BOOT_REASON + SIZE_BOOT_REASON)
-#define OFFSET_ACTIVE_EC	(OFFSET_ACTIVE_MAIN + SIZE_ACTIVE_MAIN)
-#define OFFSET_ACTIVE_MAIN_TYPE	(OFFSET_ACTIVE_EC + SIZE_ACTIVE_EC)
-#define OFFSET_RECOVERY_REASON	(OFFSET_ACTIVE_MAIN_TYPE + SIZE_ACTIVE_MAIN_TYPE)
-#define OFFSET_GPIO		(OFFSET_RECOVERY_REASON + SIZE_RECOVERY_REASON)
-#define OFFSET_NV_OFFSET	(OFFSET_GPIO + SIZE_GPIO)
-#define OFFSET_NV_SIZE		(OFFSET_NV_OFFSET + SIZE_NV_OFFSET)
-#define OFFSET_FMAP_ADDR	(OFFSET_NV_SIZE + SIZE_NV_SIZE)
-#define OFFSET_NVBLK_LBA	(OFFSET_FMAP_ADDR + SIZE_FMAP_ADDR)
-#define OFFSET_NV_COPY		(OFFSET_NVBLK_LBA + SIZE_NVBLK_LBA)
-
+#define BLKNV_MAJOR MMC_BLOCK_MAJOR
+#define BLKNV_MINOR 0
 #define MODULE_NAME "chromeos_arm"
+#define SHARED_MEM_VERSION 1
+
+/*
+ * This structure must match the head of the structure in
+ * u-boot-next:files/lib/chromeos/os_storage.c
+ */
+struct shared_data {
+	u32 total_size;
+	u8 signature[10];
+	u16 version;
+	u64 nvcxt_lba;
+	u16 vbnv[2];
+	u8  nvcxt_cache[1]; /* the actual size is in vbnv[1] */
+} __attribute__((packed));
+
 static struct dentry *debugfs_entry;
+static struct shared_data *firmware_shared_data;
 
-static void *firmware_shared_data;
+/* location where the nvram data blends into the sector on the MMC device */
+static u16 nv_offset, nv_size;
 
-static u64 firmware_cookie_lba;
-
-static u64 get_firmware_u64(unsigned offset)
-{
-	return (*(u64*)(firmware_shared_data + offset));
-}
-
-static int check_firmware_signature(void)
+static int verify_shared_memory(void)
 {
 	const char signature[] = "CHROMEOS";
-	return memcmp(firmware_shared_data, signature, sizeof(signature));
+
+	if (firmware_shared_data->version != SHARED_MEM_VERSION) {
+		pr_err(MODULE_NAME "version mismatch: %d != %d\n",
+		       firmware_shared_data->version, SHARED_MEM_VERSION);
+		return -EINVAL;
+	}
+
+	if(memcmp(firmware_shared_data->signature, signature,
+		  sizeof(signature))) {
+		pr_err(MODULE_NAME ": signature mismatch\n");
+		return -EINVAL;
+	}
+
+	if ((nv_offset > SECTOR_SIZE) ||
+	    !nv_size ||
+	    ((nv_offset + nv_size) > SECTOR_SIZE)) {
+		/* nvram block won't fit into a sector */
+		pr_err(MODULE_NAME ": bad nvram location: %d:%d!\n",
+		       nv_offset, nv_size);
+		return -EINVAL;
+	}
+	return 0;
 }
 
 static int chromeos_arm_show(struct seq_file *s, void *unused)
 {
-	seq_write(s, firmware_shared_data, OFFSET_NV_COPY + SIZE_NV_COPY);
+	seq_write(s, firmware_shared_data, firmware_shared_data->total_size);
 	return 0;
 }
 
@@ -107,9 +95,170 @@ static int debugfs_open(struct inode *inode, struct file *file)
 	return single_open(file, chromeos_arm_show, inode->i_private);
 }
 
+/*
+ * Functions to support nvram on block device. The actual device used is minor
+ * 0 of MMC device class, the sector to use is as encoded in
+ * firmware_shared_data->nvcxt_lba, the nvram buffer in the sector starts at
+ * offset nv_offset and takes nv_size bytes.
+ */
+static void blknv_endio(struct bio *bio, int err)
+{
+	complete((struct completion *)bio->bi_private);
+	bio->bi_private = (void *)err;
+}
+
+static void blknv_submit_bio(struct bio *bio, int rq)
+{
+	DECLARE_COMPLETION_ONSTACK(wait);
+
+	bio->bi_end_io	= blknv_endio;
+	bio->bi_private = &wait;
+	submit_bio(rq, bio);
+	wait_for_completion(&wait);
+}
+
+static int chromeos_access_nvram_block(struct page *page,
+				       sector_t sector,
+				       bool is_read)
+{
+	struct block_device *bdev;
+	struct bio *bio = NULL;
+	dev_t mdev;
+	fmode_t devmode = is_read ? FMODE_READ : FMODE_WRITE;
+	int rq, ret;
+
+	mdev = MKDEV(BLKNV_MAJOR, BLKNV_MINOR);
+	bdev = blkdev_get_by_dev(mdev, devmode, NULL);
+	if (IS_ERR(bdev)) {
+		pr_err(MODULE_NAME ":could not open dev=[%d:%d]\n",
+		       BLKNV_MAJOR, BLKNV_MINOR);
+		ret = -EFAULT;
+		goto out;
+	}
+
+	/* map the sector to page */
+	bio = bio_alloc(GFP_NOIO, 1);
+	if (!bio) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	bio->bi_bdev	= bdev;
+	bio->bi_sector	= sector;
+	bio->bi_vcnt	= 1;
+	bio->bi_idx	= 0;
+	bio->bi_size	= SECTOR_SIZE;
+	bio->bi_io_vec[0].bv_page	= page;
+	bio->bi_io_vec[0].bv_len	= SECTOR_SIZE;
+	bio->bi_io_vec[0].bv_offset	= 0;
+
+	/* submit bio */
+	rq = REQ_SYNC | REQ_SOFTBARRIER | REQ_NOIDLE;
+	if (!is_read)
+		rq |= REQ_WRITE;
+
+	blknv_submit_bio(bio, rq);
+	if (bio->bi_private)
+		ret = (int)bio->bi_private;
+	else
+		ret = 0;
+out:
+	if (bio)
+		bio_put(bio);
+	if (bdev)
+		blkdev_put(bdev, devmode);
+	return ret;
+}
+
+static int chromeos_read_nvram_block(struct page *page, sector_t sector)
+{
+	return chromeos_access_nvram_block(page, sector, 1);
+}
+
+static int chromeos_write_nvram_block(struct page *page, sector_t sector)
+{
+	return chromeos_access_nvram_block(page, sector, 0);
+}
+
+
+/*
+ * This function excpects exactly nv_size bytes to be passed in for writing.
+ * It reads the appropriate mmc one sector block, blends in the new nvram
+ * contents and then writes the sector back. If successful, the cached nvram
+ * in the shared memory is also updated.
+ */
+static int chromeos_write(struct file *unused1, const char __user *data,
+			  size_t len, loff_t *unused2)
+{
+	struct page *page;
+	char *virtual_addr;
+	int rv;
+
+	if (!access_ok(VERIFY_READ, data, len))
+		return -EFAULT;
+
+	if (len != nv_size) {
+		pr_err(MODULE_NAME ": %d != %d, invalid block size\n",
+		       len, nv_size);
+		return -EINVAL;
+	}
+
+	page = alloc_page(GFP_NOIO);
+	if (!page) {
+		pr_err(MODULE_NAME ": page allocation failed\n");
+		return -ENOMEM;
+	}
+
+	virtual_addr = page_address(page);
+	if (!virtual_addr) {
+		pr_err(MODULE_NAME ": page not mapped!\n");
+		__free_page(page);
+		return -EFAULT;
+	}
+
+	rv = chromeos_read_nvram_block(page, firmware_shared_data->nvcxt_lba);
+	if (rv)
+		goto unwind;
+
+	/* as a sanity check, lets' confirm that what we read is indeed the
+	 *  sector containing the NVRAM. Note that on a running system the
+	 *  NVRAM block will include its CRC.
+	 */
+	if (memcmp(virtual_addr + nv_offset,
+		   firmware_shared_data->nvcxt_cache, nv_size)) {
+		pr_err(MODULE_NAME ": cached contents mismatch!\n");
+		rv = -EFAULT;
+		goto unwind;
+	}
+
+
+	/*
+	 * Sector has been read, lets blend in nvram data and write the sector
+	 * back.
+	 */
+	if (copy_from_user(virtual_addr + nv_offset, data, len)) {
+		pr_err(MODULE_NAME ": copy failed!\n");
+		rv = -EFAULT;
+		goto unwind;
+	}
+
+	rv = chromeos_write_nvram_block(page, firmware_shared_data->nvcxt_lba);
+	if (!rv) {
+		/* Write was successful, now update the local cache */
+		memcpy(firmware_shared_data->nvcxt_cache,
+		       virtual_addr + nv_offset,
+		       len);
+		rv = len;
+	}
+
+unwind:
+	__free_page(page);
+	return rv;
+}
+
 static const struct file_operations dbg_fops = {
 	.open		= debugfs_open,
 	.read		= seq_read,
+	.write		= chromeos_write,
 	.llseek		= seq_lseek,
 	.release	= single_release,
 };
@@ -155,20 +304,20 @@ int chromeos_arm_init(void)
 		return -EINVAL;
 	}
 
-	if (check_firmware_signature()) {
-		pr_err(MODULE_NAME ": signature verification failed!\n");
-		goto error_exit;
-	}
+	nv_offset = firmware_shared_data->vbnv[0];
+	nv_size = firmware_shared_data->vbnv[1];
 
-	debugfs_entry = debugfs_create_file(MODULE_NAME, S_IRUGO,
+	if (verify_shared_memory())
+		goto error_exit;
+
+	debugfs_entry = debugfs_create_file(MODULE_NAME, S_IRUGO | S_IWUSR,
 					    NULL, NULL, &dbg_fops);
 	if (!debugfs_entry) {
-		pr_err(MODULE_NAME ": signature verification failed!\n");
+		pr_err(MODULE_NAME ": failed to create a debugfs file!\n");
 		goto error_exit;
 	}
-	firmware_cookie_lba = get_firmware_u64(OFFSET_NVBLK_LBA);
 	pr_debug(MODULE_NAME ": firmware cookie lba = %llx\n",
-		 firmware_cookie_lba);
+		 firmware_shared_data->nvcxt_lba);
 	return 0;
 
  error_exit:
