@@ -4,14 +4,14 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 
+extern int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size);
+extern int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size);
+
 #ifdef CONFIG_CHROMEOS
 /*
  * ChromeOS platform support code. Glue layer between higher level functions
  * and per-platform firmware interfaces.
  */
-
-/* Checks to see if the current device is in devmode */
-extern bool chromeos_is_devmode(void);
 
 /*
  * Set the taint bit telling firmware that the currently running side needs
@@ -19,15 +19,7 @@ extern bool chromeos_is_devmode(void);
  */
 extern int chromeos_set_need_recovery(void);
 
-extern u64 phys_window_base;
-
 #else
-
-/* Stubbed-out versions so we can keep code common */
-static inline bool chromeos_is_devmode(void)
-{
-	return true;
-}
 
 static inline int chromeos_set_need_recovery(void)
 {

@@ -3,4 +3,3 @@
 # arm Platform-Specific Drivers
 #
 obj-$(CONFIG_ARM_CHROMEOS_FIRMWARE) += chromeos_arm.o
-obj-$(CONFIG_CHROMEOS) += chromeos.o

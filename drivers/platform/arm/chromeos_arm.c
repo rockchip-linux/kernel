@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/seq_file.h>
 #include <linux/ide.h>
+#include "../chromeos.h"
 
 /* TODO:
  * replace the shared memory block with FDT
@@ -53,6 +54,7 @@ struct shared_data {
 
 static struct dentry *debugfs_entry;
 static struct shared_data *firmware_shared_data;
+static u64 phys_window_base = 0x3ff00000;
 
 /* location where the nvram data blends into the sector on the MMC device */
 static u16 nv_offset, nv_size;
@@ -75,7 +77,8 @@ static int verify_shared_memory(void)
 
 	if ((nv_offset > SECTOR_SIZE) ||
 	    !nv_size ||
-	    ((nv_offset + nv_size) > SECTOR_SIZE)) {
+	    ((nv_offset + nv_size) > SECTOR_SIZE) ||
+	    (nv_size > MAX_NVRAM_BUFFER_SIZE)) {
 		/* nvram block won't fit into a sector */
 		pr_err(MODULE_NAME ": bad nvram location: %d:%d!\n",
 		       nv_offset, nv_size);
@@ -181,26 +184,16 @@ static int chromeos_write_nvram_block(struct page *page, sector_t sector)
 
 
 /*
- * This function excpects exactly nv_size bytes to be passed in for writing.
- * It reads the appropriate mmc one sector block, blends in the new nvram
- * contents and then writes the sector back. If successful, the cached nvram
- * in the shared memory is also updated.
+ * This function accepts a buffer with exactly nv_size bytes. It reads the
+ * appropriate mmc one sector block, blends in the new nvram contents and then
+ * writes the sector back. If successful, the cached nvram in the shared
+ * memory is also updated.
  */
-static int chromeos_write(struct file *unused1, const char __user *data,
-			  size_t len, loff_t *unused2)
+static int _chromeos_write(const u8 *data)
 {
 	struct page *page;
 	char *virtual_addr;
 	int rv;
-
-	if (!access_ok(VERIFY_READ, data, len))
-		return -EFAULT;
-
-	if (len != nv_size) {
-		pr_err(MODULE_NAME ": %d != %d, invalid block size\n",
-		       len, nv_size);
-		return -EINVAL;
-	}
 
 	page = alloc_page(GFP_NOIO);
 	if (!page) {
@@ -219,9 +212,9 @@ static int chromeos_write(struct file *unused1, const char __user *data,
 	if (rv)
 		goto unwind;
 
-	/* as a sanity check, lets' confirm that what we read is indeed the
-	 *  sector containing the NVRAM. Note that on a running system the
-	 *  NVRAM block will include its CRC.
+	/* As a sanity check, let's confirm that what we read is indeed the
+	 * sector containing the NVRAM. Note that on a running system the
+	 * NVRAM block will include its CRC.
 	 */
 	if (memcmp(virtual_addr + nv_offset,
 		   firmware_shared_data->nvcxt_cache, nv_size)) {
@@ -235,24 +228,41 @@ static int chromeos_write(struct file *unused1, const char __user *data,
 	 * Sector has been read, lets blend in nvram data and write the sector
 	 * back.
 	 */
-	if (copy_from_user(virtual_addr + nv_offset, data, len)) {
-		pr_err(MODULE_NAME ": copy failed!\n");
-		rv = -EFAULT;
-		goto unwind;
-	}
+	memcpy(virtual_addr + nv_offset, data, nv_size);
 
 	rv = chromeos_write_nvram_block(page, firmware_shared_data->nvcxt_lba);
 	if (!rv) {
 		/* Write was successful, now update the local cache */
 		memcpy(firmware_shared_data->nvcxt_cache,
 		       virtual_addr + nv_offset,
-		       len);
-		rv = len;
+		       nv_size);
+		rv = nv_size;
 	}
 
 unwind:
 	__free_page(page);
 	return rv;
+}
+
+static int chromeos_write(struct file *unused1, const char __user *data,
+			  size_t len, loff_t *unused2)
+{
+	u8 local_copy[MAX_NVRAM_BUFFER_SIZE];
+
+	if (!access_ok(VERIFY_READ, data, len))
+		return -EFAULT;
+
+	if (len != nv_size) {
+		pr_err(MODULE_NAME ": %d != %d, invalid block size\n",
+		       len, nv_size);
+		return -EINVAL;
+	}
+
+	if (copy_from_user(local_copy, data, len)) {
+		pr_err(MODULE_NAME ": copy failed!\n");
+		return -EFAULT;
+	}
+	return _chromeos_write(local_copy);
 }
 
 static const struct file_operations dbg_fops = {
@@ -263,7 +273,47 @@ static const struct file_operations dbg_fops = {
 	.release	= single_release,
 };
 
-static void chromeos_arm_exit(void)
+
+/*
+ * Read the nvram buffer contents into the user provided space.
+ *
+ * retrun number of bytes copied, or -1 on any error.
+ */
+int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size)
+{
+	if (!firmware_shared_data) {
+		pr_err(MODULE_NAME ": %s NVRAM not configured!\n", __func__);
+		return -1;
+	}
+
+	if (buf_size < nv_size) {
+		pr_err(MODULE_NAME
+		       ": not enough room to read nvram (%d < %d)\n",
+		       buf_size, nv_size);
+		return -1;
+	}
+
+	memcpy(nvram_buffer, firmware_shared_data->nvcxt_cache, nv_size);
+	return nv_size;
+}
+
+int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
+{
+	if (!firmware_shared_data) {
+		pr_err(MODULE_NAME ": %sw NVRAM not configured!\n", __func__);
+		return -1;
+	}
+
+	if (buf_size != nv_size) {
+		pr_err(MODULE_NAME ": wrong write buffer size (%d != %d)\n",
+		       buf_size, nv_size);
+		return -1;
+	}
+
+	return _chromeos_write(nvram_buffer);
+}
+
+static void __init chromeos_arm_shutdown(void)
 {
 	if (debugfs_entry) {
 		debugfs_remove(debugfs_entry);
@@ -274,10 +324,9 @@ static void chromeos_arm_exit(void)
 		iounmap(firmware_shared_data);
 		firmware_shared_data = NULL;
 	}
-	pr_debug(MODULE_NAME ": removed\n");
 }
 
-int chromeos_arm_init(void)
+static int __init chromeos_arm_init(void)
 {
 	if (!phys_window_base) {
 		pr_err(MODULE_NAME ": memory window base undefined\n");
@@ -307,26 +356,38 @@ int chromeos_arm_init(void)
 	nv_offset = firmware_shared_data->vbnv[0];
 	nv_size = firmware_shared_data->vbnv[1];
 
-	if (verify_shared_memory())
-		goto error_exit;
+	if (verify_shared_memory()) {
+		chromeos_arm_shutdown();
+		return -EINVAL;
+	}
+
 
 	debugfs_entry = debugfs_create_file(MODULE_NAME, S_IRUGO | S_IWUSR,
 					    NULL, NULL, &dbg_fops);
 	if (!debugfs_entry) {
 		pr_err(MODULE_NAME ": failed to create a debugfs file!\n");
-		goto error_exit;
+		chromeos_arm_shutdown();
+		return -EINVAL;
 	}
 	pr_debug(MODULE_NAME ": firmware cookie lba = %llx\n",
 		 firmware_shared_data->nvcxt_lba);
 	return 0;
+}
+subsys_initcall(chromeos_arm_init);
 
- error_exit:
-	chromeos_arm_exit();
-	return -ENODEV;
+static int __init get_mem_base(char *p)
+{
+	char *endptr;   /* local pointer to end of parsed string */
+	u64 base = simple_strtoull(p, &endptr, 0);
+
+	/* rudimentary sanity check */
+	if (base & ((1 << 20) - 1)) {
+		pr_err("chromeos: unaligned window base 0x%llx\n", base);
+		return -1;
+	}
+
+	phys_window_base = base;
+	return 0;
 }
 
-MODULE_AUTHOR("ChromiumOS Authors");
-MODULE_LICENSE("GPL");
-
-module_init(chromeos_arm_init);
-module_exit(chromeos_arm_exit);
+early_param("cros_shared_mem", get_mem_base);

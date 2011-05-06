@@ -1,7 +1,4 @@
 /*
- *  ChromeOS platform support code. Glue layer between higher level functions
- *  and per-platform firmware interfaces.
- *
  *  Copyright (C) 2011 The Chromium OS Authors
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -23,34 +20,18 @@
  * helper functions for kernel-side consumers of platform configuration, such
  * as nvram flags.
  */
+#ifndef _DRIVERS_PLATFORM_CHROMEOS_H
+#define _DRIVERS_PLATFORM_CHROMEOS_H
 
-#include <linux/chromeos_platform.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/module.h>
+#define MAX_NVRAM_BUFFER_SIZE 64  /* Should be enough for anything. */
 
-u64 phys_window_base;
-EXPORT_SYMBOL(phys_window_base);
+#ifdef CONFIG_ACPI_CHROMEOS
+extern int chromeos_legacy_set_need_recovery(void);
+#else
+static inline int chromeos_legacy_set_need_recovery(void) { return -ENODEV; }
+#endif
 
-int chromeos_set_need_recovery(void)
-{
-	return -1;
-}
+extern int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size);
+extern int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size);
 
-static int __init get_mem_base(char *p)
-{
-        char *endptr;   /* local pointer to end of parsed string */
-        u64 base = simple_strtoull(p, &endptr, 0);
-
-	/* rudimentary sanity check */
-	if (base & ((1 << 20) -1)) {
-		pr_err("chromeos: unaligned window base 0x%llx\n", base);
-		return -1;
-	}
-
-	phys_window_base = base;
-	return 0;
-}
-
-early_param("cros_shared_mem", get_mem_base);
-
+#endif /* _DRIVERS_PLATFORM_CHROMEOS_H */

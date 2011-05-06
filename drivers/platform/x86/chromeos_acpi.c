@@ -33,13 +33,41 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/nvram.h>
 #include <linux/platform_device.h>
 #include <linux/acpi.h>
 
-#include "chromeos_acpi.h"
+#define CHNV_DEBUG_RESET_FLAG	0x40	     /* flag for S3 reboot */
+#define CHNV_RECOVERY_FLAG	0x80	     /* flag for recovery reboot */
 
-struct chromeos_acpi_if chromeos_acpi_if_data;
-EXPORT_SYMBOL_GPL(chromeos_acpi_if_data);
+#define CHSW_RECOVERY_FW	0x00000002   /* recovery button depressed */
+#define CHSW_RECOVERY_EC	0x00000004   /* recovery button depressed */
+#define CHSW_DEVELOPER_MODE	0x00000020   /* developer switch set */
+#define CHSW_WP			0x00000200   /* write-protect (optional) */
+
+/*
+ * Structure containing one ACPI exported integer along with the validity
+ * flag.
+ */
+struct chromeos_acpi_datum {
+	unsigned cad_value;
+	bool	 cad_is_set;
+};
+
+/*
+ * Structure containing the set of ACPI exported integers required by chromeos
+ * wrapper.
+ */
+struct chromeos_acpi_if {
+	struct chromeos_acpi_datum	switch_state;
+
+	/* chnv is a single byte offset in nvram. exported by older firmware */
+	struct chromeos_acpi_datum	chnv;
+
+	/* vbnv is an address range in nvram, exported by newer firmware */
+	struct chromeos_acpi_datum	nv_base;
+	struct chromeos_acpi_datum	nv_size;
+};
 
 #define MY_LOGPREFIX "chromeos_acpi: "
 #define MY_ERR KERN_ERR MY_LOGPREFIX
@@ -57,9 +85,11 @@ static const struct acpi_device_id chromeos_device_ids[] = {
 };
 
 MODULE_DEVICE_TABLE(acpi, chromeos_device_ids);
+
 static int chromeos_device_add(struct acpi_device *device);
 static int chromeos_device_remove(struct acpi_device *device);
 
+static struct chromeos_acpi_if chromeos_acpi_if_data;
 static struct acpi_driver chromeos_acpi_driver = {
 	.name = "ChromeOS Device",
 	.class = "ChromeOS",
@@ -113,6 +143,106 @@ struct chromeos_acpi_dev {
 
 static struct chromeos_acpi_dev chromeos_acpi = { };
 
+static bool chromeos_on_legacy_firmware(void)
+{
+	/*
+	 * Presense of the CHNV ACPI element implies running on a legacy
+	 * firmware
+	 */
+	return chromeos_acpi_if_data.chnv.cad_is_set;
+}
+
+/*
+ * This function operates on legacy BIOSes which do not export VBNV element
+ * through ACPI. These BIOSes use a fixed location in NVRAM to contain a
+ * bitmask of known flags.
+ *
+ * @flag - the bitmask to set, it is the responsibility of the caller to set
+ *         the proper bits.
+ *
+ * returns 0 on success (is running in legacy mode and chnv is initialized) or
+ *         -1 otherwise.
+ */
+static int chromeos_set_nvram_flag(u8 flag)
+{
+	u8 cur;
+	unsigned index = chromeos_acpi_if_data.chnv.cad_value;
+
+	if (!chromeos_on_legacy_firmware())
+		return -ENODEV;
+
+	cur = nvram_read_byte(index);
+
+	if ((cur & flag) != flag)
+		nvram_write_byte(cur | flag, index);
+	return 0;
+}
+
+int chromeos_legacy_set_need_recovery(void)
+{
+	return chromeos_set_nvram_flag(CHNV_RECOVERY_FLAG);
+}
+
+/*
+ * Read the nvram buffer contents into the user provided space.
+ *
+ * retrun number of bytes copied, or -1 on any error.
+ */
+int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size)
+{
+
+	int base, size, i;
+
+	if (!chromeos_acpi_if_data.nv_base.cad_is_set ||
+	    !chromeos_acpi_if_data.nv_size.cad_is_set) {
+		printk(MY_ERR "%s: NVRAM not configured!\n", __func__);
+		return -ENODEV;
+	}
+
+	base = chromeos_acpi_if_data.nv_base.cad_value;
+	size = chromeos_acpi_if_data.nv_size.cad_value;
+
+	if (buf_size < size) {
+		pr_err("%s: not enough room to read nvram (%d < %d)\n",
+		       __func__, buf_size, size);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < size; i++)
+		nvram_buffer[i] = nvram_read_byte(base++);
+
+	return size;
+}
+
+int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
+{
+	unsigned base, size, i;
+
+	if (!chromeos_acpi_if_data.nv_base.cad_is_set ||
+	    !chromeos_acpi_if_data.nv_size.cad_is_set) {
+		printk(MY_ERR "%s: NVRAM not configured!\n", __func__);
+		return -ENODEV;
+	}
+
+	size = chromeos_acpi_if_data.nv_size.cad_value;
+	base = chromeos_acpi_if_data.nv_base.cad_value;
+
+	if (buf_size != size) {
+		printk(MY_ERR "%s: wrong buffer size (%d != %d)!\n", __func__,
+		       buf_size, size);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < size; i++) {
+		u8 c;
+
+		c = nvram_read_byte(base + i);
+		if (c == nvram_buffer[i])
+			continue;
+		nvram_write_byte(nvram_buffer[i], base + i);
+	}
+	return 0;
+}
 
 /*
  * To show attribute value just access the container structure's `value'
@@ -642,7 +772,8 @@ static int __init chromeos_acpi_init(void)
 		chromeos_acpi.p_dev = NULL;
 		return ret;
 	}
-	printk(MY_INFO "installed\n");
+	printk(MY_INFO "installed%s\n",
+	       chromeos_on_legacy_firmware() ? " (legacy mode)" : "");
 	return 0;
 }
 

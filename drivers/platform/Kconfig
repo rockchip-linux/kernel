@@ -12,3 +12,13 @@ source "drivers/platform/arm/Kconfig"
 endif
 
 source "drivers/platform/chrome/Kconfig"
+
+config CHROMEOS
+	bool
+	depends on ARM_CHROMEOS_FIRMWARE || (NVRAM && ACPI_CHROMEOS)
+
+	---help---
+	  Provides abstracted interfaces to the firmware features provided on
+	  ChromeOS devices. It depends on a lowlevel driver to implement the
+	  firmware interface on the platform.
+
