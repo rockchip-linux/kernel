@@ -64,7 +64,7 @@ static int verify_shared_memory(void)
 	const char signature[] = "CHROMEOS";
 
 	if (firmware_shared_data->version != SHARED_MEM_VERSION) {
-		pr_err(MODULE_NAME "version mismatch: %d != %d\n",
+		pr_err(MODULE_NAME ": version mismatch: %d != %d\n",
 		       firmware_shared_data->version, SHARED_MEM_VERSION);
 		return -EINVAL;
 	}
@@ -133,7 +133,7 @@ static int chromeos_access_nvram_block(struct page *page,
 	mdev = MKDEV(BLKNV_MAJOR, BLKNV_MINOR);
 	bdev = blkdev_get_by_dev(mdev, devmode, NULL);
 	if (IS_ERR(bdev)) {
-		pr_err(MODULE_NAME ":could not open dev=[%d:%d]\n",
+		pr_err(MODULE_NAME ": could not open dev=[%d:%d]\n",
 		       BLKNV_MAJOR, BLKNV_MINOR);
 		ret = -EFAULT;
 		goto out;
@@ -382,7 +382,7 @@ static int __init get_mem_base(char *p)
 
 	/* rudimentary sanity check */
 	if (base & ((1 << 20) - 1)) {
-		pr_err("chromeos: unaligned window base 0x%llx\n", base);
+		pr_err(MODULE_NAME ": unaligned window base 0x%llx\n", base);
 		return -1;
 	}
 
