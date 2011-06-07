@@ -52,6 +52,11 @@ void __rcu_read_unlock(void);
  * types of kernel builds, the rcu_read_lock() nesting depth is unknowable.
  */
 #define rcu_preempt_depth() (current->rcu_read_lock_nesting)
+#ifndef CONFIG_PREEMPT_RT
+#define sched_rcu_preempt_depth()	rcu_preempt_depth()
+#else
+static inline int sched_rcu_preempt_depth(void) { return 0; }
+#endif
 
 #else /* #ifdef CONFIG_PREEMPT_RCU */
 
@@ -76,6 +81,8 @@ static inline int rcu_preempt_depth(void)
 {
 	return 0;
 }
+
+#define sched_rcu_preempt_depth()	rcu_preempt_depth()
 
 #endif /* #else #ifdef CONFIG_PREEMPT_RCU */
 
