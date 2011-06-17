@@ -222,6 +222,9 @@ static inline void smpboot_thread_init(void)
 #endif /* CONFIG_SMP */
 extern struct bus_type cpu_subsys;
 
+static inline void pin_current_cpu(void) { }
+static inline void unpin_current_cpu(void) { }
+
 #ifdef CONFIG_HOTPLUG_CPU
 /* Stop CPUs going up and down. */
 
