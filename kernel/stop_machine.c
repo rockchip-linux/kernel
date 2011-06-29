@@ -30,14 +30,14 @@ struct cpu_stop_done {
 	atomic_t		nr_todo;	/* nr left to execute */
 	bool			executed;	/* actually executed? */
 	int			ret;		/* collected return value */
-	struct completion	completion;	/* fired if nr_todo reaches 0 */
+	struct task_struct	*waiter;	/* woken when nr_todo reaches 0 */
 };
 
 /* the actual stopper, one per every possible cpu, enabled on online cpus */
 struct cpu_stopper {
 	struct task_struct	*thread;
 
-	spinlock_t		lock;
+	raw_spinlock_t		lock;
 	bool			enabled;	/* is this stopper enabled? */
 	struct list_head	works;		/* list of pending works */
 
@@ -59,7 +59,7 @@ static void cpu_stop_init_done(struct cpu_stop_done *done, unsigned int nr_todo)
 {
 	memset(done, 0, sizeof(*done));
 	atomic_set(&done->nr_todo, nr_todo);
-	init_completion(&done->completion);
+	done->waiter = current;
 }
 
 /* signal completion unless @done is NULL */
@@ -68,8 +68,10 @@ static void cpu_stop_signal_done(struct cpu_stop_done *done, bool executed)
 	if (done) {
 		if (executed)
 			done->executed = true;
-		if (atomic_dec_and_test(&done->nr_todo))
-			complete(&done->completion);
+		if (atomic_dec_and_test(&done->nr_todo)) {
+			wake_up_process(done->waiter);
+			done->waiter = NULL;
+		}
 	}
 }
 
@@ -86,12 +88,28 @@ static void cpu_stop_queue_work(unsigned int cpu, struct cpu_stop_work *work)
 	struct cpu_stopper *stopper = &per_cpu(cpu_stopper, cpu);
 	unsigned long flags;
 
-	spin_lock_irqsave(&stopper->lock, flags);
+	raw_spin_lock_irqsave(&stopper->lock, flags);
 	if (stopper->enabled)
 		__cpu_stop_queue_work(stopper, work);
 	else
 		cpu_stop_signal_done(work->done, false);
-	spin_unlock_irqrestore(&stopper->lock, flags);
+	raw_spin_unlock_irqrestore(&stopper->lock, flags);
+}
+
+static void wait_for_stop_done(struct cpu_stop_done *done)
+{
+	set_current_state(TASK_UNINTERRUPTIBLE);
+	while (atomic_read(&done->nr_todo)) {
+		schedule();
+		set_current_state(TASK_UNINTERRUPTIBLE);
+	}
+	/*
+	 * We need to wait until cpu_stop_signal_done() has cleared
+	 * done->waiter.
+	 */
+	while (done->waiter)
+		cpu_relax();
+	set_current_state(TASK_RUNNING);
 }
 
 /**
@@ -125,7 +143,7 @@ int stop_one_cpu(unsigned int cpu, cpu_stop_fn_t fn, void *arg)
 
 	cpu_stop_init_done(&done, 1);
 	cpu_stop_queue_work(cpu, &work);
-	wait_for_completion(&done.completion);
+	wait_for_stop_done(&done);
 	return done.executed ? done.ret : -ENOENT;
 }
 
@@ -224,8 +242,8 @@ static int cpu_stop_queue_two_works(int cpu1, struct cpu_stop_work *work1,
 	int err;
 
 	lg_double_lock(&stop_cpus_lock, cpu1, cpu2);
-	spin_lock_irq(&stopper1->lock);
-	spin_lock_nested(&stopper2->lock, SINGLE_DEPTH_NESTING);
+	raw_spin_lock_irq(&stopper1->lock);
+	raw_spin_lock_nested(&stopper2->lock, SINGLE_DEPTH_NESTING);
 
 	err = -ENOENT;
 	if (!stopper1->enabled || !stopper2->enabled)
@@ -235,8 +253,8 @@ static int cpu_stop_queue_two_works(int cpu1, struct cpu_stop_work *work1,
 	__cpu_stop_queue_work(stopper1, work1);
 	__cpu_stop_queue_work(stopper2, work2);
 unlock:
-	spin_unlock(&stopper2->lock);
-	spin_unlock_irq(&stopper1->lock);
+	raw_spin_unlock(&stopper2->lock);
+	raw_spin_unlock_irq(&stopper1->lock);
 	lg_double_unlock(&stop_cpus_lock, cpu1, cpu2);
 
 	return err;
@@ -284,7 +302,7 @@ int stop_two_cpus(unsigned int cpu1, unsigned int cpu2, cpu_stop_fn_t fn, void *
 
 	preempt_enable();
 
-	wait_for_completion(&done.completion);
+	wait_for_stop_done(&done);
 
 	return done.executed ? done.ret : -ENOENT;
 }
@@ -343,7 +361,7 @@ static int __stop_cpus(const struct cpumask *cpumask,
 
 	cpu_stop_init_done(&done, cpumask_weight(cpumask));
 	queue_stop_cpus_work(cpumask, fn, arg, &done);
-	wait_for_completion(&done.completion);
+	wait_for_stop_done(&done);
 	return done.executed ? done.ret : -ENOENT;
 }
 
@@ -422,9 +440,9 @@ static int cpu_stop_should_run(unsigned int cpu)
 	unsigned long flags;
 	int run;
 
-	spin_lock_irqsave(&stopper->lock, flags);
+	raw_spin_lock_irqsave(&stopper->lock, flags);
 	run = !list_empty(&stopper->works);
-	spin_unlock_irqrestore(&stopper->lock, flags);
+	raw_spin_unlock_irqrestore(&stopper->lock, flags);
 	return run;
 }
 
@@ -436,13 +454,13 @@ static void cpu_stopper_thread(unsigned int cpu)
 
 repeat:
 	work = NULL;
-	spin_lock_irq(&stopper->lock);
+	raw_spin_lock_irq(&stopper->lock);
 	if (!list_empty(&stopper->works)) {
 		work = list_first_entry(&stopper->works,
 					struct cpu_stop_work, list);
 		list_del_init(&work->list);
 	}
-	spin_unlock_irq(&stopper->lock);
+	raw_spin_unlock_irq(&stopper->lock);
 
 	if (work) {
 		cpu_stop_fn_t fn = work->fn;
@@ -474,7 +492,13 @@ repeat:
 			  kallsyms_lookup((unsigned long)fn, NULL, NULL, NULL,
 					  ksym_buf), arg);
 
+		/*
+		 * Make sure that the wakeup and setting done->waiter
+		 * to NULL is atomic.
+		 */
+		local_irq_disable();
 		cpu_stop_signal_done(done, true);
+		local_irq_enable();
 		goto repeat;
 	}
 }
@@ -530,7 +554,7 @@ static int __init cpu_stop_init(void)
 	for_each_possible_cpu(cpu) {
 		struct cpu_stopper *stopper = &per_cpu(cpu_stopper, cpu);
 
-		spin_lock_init(&stopper->lock);
+		raw_spin_lock_init(&stopper->lock);
 		INIT_LIST_HEAD(&stopper->works);
 	}
 
@@ -634,7 +658,7 @@ int stop_machine_from_inactive_cpu(cpu_stop_fn_t fn, void *data,
 	ret = multi_cpu_stop(&msdata);
 
 	/* Busy wait for completion. */
-	while (!completion_done(&done.completion))
+	while (atomic_read(&done.nr_todo))
 		cpu_relax();
 
 	mutex_unlock(&stop_cpus_mutex);
