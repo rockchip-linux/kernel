@@ -403,6 +403,63 @@ static int upgrade_mode(struct dm_dev_internal *dd, fmode_t new_mode,
 	return 0;
 }
 
+static int match_dev_by_uuid(struct device *dev, void *data)
+{
+	u8 *uuid = data;
+	struct hd_struct *part = dev_to_part(dev);
+
+	if (!part->info)
+		goto no_match;
+
+	if (memcmp(uuid, part->info->uuid, sizeof(part->info->uuid)))
+		goto no_match;
+
+	return 1;
+no_match:
+	return 0;
+}
+
+/* Duplicated from /init/do_mounts.c. */
+static dev_t devt_from_partuuid(const char *uuid_str)
+{
+	dev_t res = 0;
+	struct device *dev = NULL;
+	struct gendisk *disk;
+	struct hd_struct *part;
+	u8 uuid[16];
+	int offset = 0;
+	char unreached;
+
+	if (strlen(uuid_str) < 36)
+		goto done;
+	part_pack_uuid(uuid_str, uuid);
+	if (uuid_str[36] && sscanf(uuid_str + 36, "/PARTNROFF=%d%c", &offset,
+	                           &unreached) != 1)
+		goto done;
+
+	dev = class_find_device(&block_class, NULL, uuid, &match_dev_by_uuid);
+	if (!dev)
+		goto done;
+
+	res = dev->devt;
+
+	if (!offset)
+		goto no_offset;
+
+	res = 0;
+	disk = part_to_disk(dev_to_part(dev));
+	part = disk_get_part(disk, dev_to_part(dev)->partno + offset);
+	if (part) {
+		res = part_devt(part);
+		put_device(part_to_dev(part));
+	}
+
+no_offset:
+	put_device(dev);
+done:
+	return res;
+}
+
 /*
  * Add a device to the list, or just increment the usage count if
  * it's already present.
@@ -424,6 +481,8 @@ int dm_get_device(struct dm_target *ti, const char *path, fmode_t mode,
 		dev = MKDEV(major, minor);
 		if (MAJOR(dev) != major || MINOR(dev) != minor)
 			return -EOVERFLOW;
+	} else if (!strncmp(path, "PARTUUID=", 9)) {
+		dev = devt_from_partuuid(path + 9);
 	} else {
 		/* convert the path to a device */
 		struct block_device *bdev = lookup_bdev(path);
