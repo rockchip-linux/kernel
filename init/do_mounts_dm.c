@@ -149,73 +149,6 @@ parse_fail:
 	return NULL;
 }
 
-static void __init dm_substitute_devices(char *str, size_t str_len)
-{
-	char *candidate = str;
-	char *candidate_end = str;
-	char old_char;
-	size_t len = 0;
-	dev_t dev;
-
-	if (str_len < 3)
-		return;
-
-	while (str && *str) {
-		candidate = strchr(str, '/');
-		if (!candidate)
-			break;
-
-		/* Avoid embedded slashes */
-		if (candidate != str && *(candidate - 1) != DM_FIELD_SEP) {
-			str = strchr(candidate, DM_FIELD_SEP);
-			continue;
-		}
-
-		len = get_dm_option(candidate, &candidate_end, DM_FIELD_SEP);
-		str = skip_spaces(candidate_end);
-		if (len < 3 || len > 37)  /* name_to_dev_t max; maj:mix min */
-			continue;
-
-		/* Temporarily terminate with a nul */
-		candidate_end--;
-		old_char = *candidate_end;
-		*candidate_end = '\0';
-
-		DMDEBUG("converting candidate device '%s' to dev_t", candidate);
-		/* Use the boot-time specific device naming */
-		dev = name_to_dev_t(candidate);
-
-		/* If it failed, but the candidate starts with /dev/, then try
-		 * after device probing ends.
-		 */
-		if (!dev && strncmp(candidate, "/dev/", 5) == 0) {
-			DMINFO("waiting to resolve device '%s'...",
-			       candidate);
-			while (driver_probe_done() != 0 ||
-				(dev = name_to_dev_t(candidate)) == 0)
-				msleep(100);
-			async_synchronize_full();
-		}
-		DMDEBUG(" -> %u", dev);
-
-		*candidate_end = old_char;
-		/* No suitable replacement found */
-		if (!dev)
-			continue;
-
-		/* Rewrite the /dev/path as a major:minor */
-		len = snprintf(candidate, len, "%u:%u", MAJOR(dev), MINOR(dev));
-		if (!len) {
-			DMERR("error substituting device major/minor.");
-			break;
-		}
-		candidate += len;
-		/* Pad out with spaces (fixing our nul) */
-		while (candidate < candidate_end)
-			*(candidate++) = DM_FIELD_SEP;
-	}
-}
-
 static int __init dm_setup_parse_targets(char *str)
 {
 	char *next = NULL;
@@ -267,13 +200,6 @@ static int __init dm_setup_parse_targets(char *str)
 			goto parse_fail;
 		}
 		str = skip_spaces(next);
-
-		/* Before moving on, walk through the copied target and
-		 * attempt to replace all /dev/xxx with the major:minor number.
-		 * It may not be possible to resolve them traditionally at
-		 * boot-time. */
-		dm_substitute_devices((*target)->params, len);
-
 		target = &((*target)->next);
 	}
 	DMDEBUG("parsed %d targets", dm_setup_args.target_count);
