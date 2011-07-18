@@ -341,6 +341,8 @@ static void nm10_gpio_remove(struct pci_dev *pdev)
 
 static struct pci_device_id nm10_gpio_ids[] = {
 	{PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_TGP_LPC)},
+	{PCI_DEVICE(PCI_VENDOR_ID_INTEL,
+		PCI_DEVICE_ID_INTEL_COUGARPOINT_LPC_HM65)},
 	{0,}
 };
 
