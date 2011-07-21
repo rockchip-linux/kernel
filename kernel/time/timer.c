@@ -780,6 +780,39 @@ static struct tvec_base *lock_timer_base(struct timer_list *timer,
 		cpu_relax();
 	}
 }
+#ifdef CONFIG_PREEMPT_RT_FULL
+static inline struct tvec_base *switch_timer_base(struct timer_list *timer,
+						  struct tvec_base *old,
+						  struct tvec_base *new)
+{
+	/*
+	 * We cannot do the below because we might be preempted and
+	 * then the preempter would see NULL and loop forever.
+	 */
+	if (spin_trylock(&new->lock)) {
+		WRITE_ONCE(timer->flags,
+			   (timer->flags & ~TIMER_BASEMASK) | new->cpu);
+		spin_unlock(&old->lock);
+		return new;
+	}
+	return old;
+}
+
+#else
+static inline struct tvec_base *switch_timer_base(struct timer_list *timer,
+						  struct tvec_base *old,
+						  struct tvec_base *new)
+{
+	/* See the comment in lock_timer_base() */
+	timer->flags |= TIMER_MIGRATING;
+
+	spin_unlock(&old->lock);
+	spin_lock(&new->lock);
+	WRITE_ONCE(timer->flags,
+		   (timer->flags & ~TIMER_BASEMASK) | new->cpu);
+	return new;
+}
+#endif
 
 static inline int
 __mod_timer(struct timer_list *timer, unsigned long expires,
@@ -810,16 +843,8 @@ __mod_timer(struct timer_list *timer, unsigned long expires,
 		 * handler yet has not finished. This also guarantees that
 		 * the timer is serialized wrt itself.
 		 */
-		if (likely(base->running_timer != timer)) {
-			/* See the comment in lock_timer_base() */
-			timer->flags |= TIMER_MIGRATING;
-
-			spin_unlock(&base->lock);
-			base = new_base;
-			spin_lock(&base->lock);
-			WRITE_ONCE(timer->flags,
-				   (timer->flags & ~TIMER_BASEMASK) | base->cpu);
-		}
+		if (likely(base->running_timer != timer))
+			base = switch_timer_base(timer, base, new_base);
 	}
 
 	timer->expires = expires;
