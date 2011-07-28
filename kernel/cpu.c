@@ -107,9 +107,11 @@ static DEFINE_PER_CPU(struct hotplug_pcp, hotplug_pcp);
  */
 void pin_current_cpu(void)
 {
-	struct hotplug_pcp *hp = this_cpu_ptr(&hotplug_pcp);
+	struct hotplug_pcp *hp;
 
 retry:
+	hp = this_cpu_ptr(&hotplug_pcp);
+
 	if (!hp->unplug || hp->refcount || preempt_count() > 1 ||
 	    hp->unplug == current) {
 		hp->refcount++;
