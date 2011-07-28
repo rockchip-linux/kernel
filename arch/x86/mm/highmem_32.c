@@ -8,12 +8,17 @@ void *kmap_atomic_high_prot(struct page *page, pgprot_t prot)
 {
 	unsigned long vaddr;
 	int idx, type;
+	pte_t pte;
 
 	type = kmap_atomic_idx_push();
 	idx = type + KM_TYPE_NR*smp_processor_id();
 	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
 	BUG_ON(!pte_none(*(kmap_pte-idx)));
-	set_pte(kmap_pte-idx, mk_pte(page, prot));
+	pte = mk_pte(page, prot);
+#ifdef CONFIG_PREEMPT_RT
+	current->kmap_pte[type] = pte;
+#endif
+	set_pte(kmap_pte-idx, pte);
 	arch_flush_lazy_mmu_mode();
 
 	return (void *)vaddr;
@@ -50,6 +55,9 @@ void kunmap_atomic_high(void *kvaddr)
 		 * is a bad idea also, in case the page changes cacheability
 		 * attributes or becomes a protected page in a hypervisor.
 		 */
+#ifdef CONFIG_PREEMPT_RT
+		current->kmap_pte[type] = __pte(0);
+#endif
 		kpte_clear_flush(kmap_pte-idx, vaddr);
 		kmap_atomic_idx_pop();
 		arch_flush_lazy_mmu_mode();

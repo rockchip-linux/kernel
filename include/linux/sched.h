@@ -34,6 +34,7 @@
 #include <linux/rseq.h>
 #include <linux/seqlock.h>
 #include <linux/kcsan.h>
+#include <asm/kmap_types.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
 struct audit_context;
@@ -1305,6 +1306,12 @@ struct task_struct {
 #if defined(CONFIG_BCACHE) || defined(CONFIG_BCACHE_MODULE)
 	unsigned int			sequential_io;
 	unsigned int			sequential_io_avg;
+#endif
+#ifdef CONFIG_PREEMPT_RT
+# if defined CONFIG_HIGHMEM || defined CONFIG_X86_32
+	int				kmap_idx;
+	pte_t				kmap_pte[KM_TYPE_NR];
+# endif
 #endif
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 	unsigned long			task_state_change;

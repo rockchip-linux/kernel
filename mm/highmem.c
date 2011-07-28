@@ -31,8 +31,11 @@
 #include <asm/tlbflush.h>
 #include <linux/vmalloc.h>
 
+#ifndef CONFIG_PREEMPT_RT
 #if defined(CONFIG_HIGHMEM) || defined(CONFIG_X86_32)
 DEFINE_PER_CPU(int, __kmap_atomic_idx);
+EXPORT_PER_CPU_SYMBOL(__kmap_atomic_idx);
+#endif
 #endif
 
 /*
@@ -107,8 +110,6 @@ static inline wait_queue_head_t *get_pkmap_wait_queue_head(unsigned int color)
 
 atomic_long_t _totalhigh_pages __read_mostly;
 EXPORT_SYMBOL(_totalhigh_pages);
-
-EXPORT_PER_CPU_SYMBOL(__kmap_atomic_idx);
 
 unsigned int nr_free_highpages (void)
 {
