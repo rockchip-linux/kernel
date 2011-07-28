@@ -29,6 +29,7 @@
 #include <linux/mm_event.h>
 #include <linux/task_io_accounting.h>
 #include <linux/rseq.h>
+#include <asm/kmap_types.h>
 #include <linux/android_kabi.h>
 
 /* task_struct member predeclarations (sorted alphabetically): */
@@ -1304,6 +1305,12 @@ struct task_struct {
 	struct rcu_head			put_rcu;
 	int				softirq_nestcnt;
 	unsigned int			softirqs_raised;
+#endif
+#ifdef CONFIG_PREEMPT_RT_FULL
+# if defined CONFIG_HIGHMEM || defined CONFIG_X86_32
+	int				kmap_idx;
+	pte_t				kmap_pte[KM_TYPE_NR];
+# endif
 #endif
 #ifdef CONFIG_DEBUG_ATOMIC_SLEEP
 	unsigned long			task_state_change;
