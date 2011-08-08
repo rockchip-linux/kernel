@@ -58,6 +58,10 @@
 #define ISL29018_TEST_SHIFT		0
 #define ISL29018_TEST_MASK		(0xFF << ISL29018_TEST_SHIFT)
 
+#define ISL29018_REG_TEST		0x08
+#define ISL29018_TEST_SHIFT		0
+#define ISL29018_TEST_MASK		(0xFF << ISL29018_TEST_SHIFT)
+
 struct isl29018_chip {
 	struct device		*dev;
 	struct regmap		*regmap;
