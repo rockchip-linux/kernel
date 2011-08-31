@@ -47,6 +47,10 @@
  * "Intel NM10 Family Express Chipset" datasheet of Dec 2009 (document number
  * 322896-001) was used as a reference when writing this driver.
  *
+ * This driver also supports the Intel 6 Series chipset. This chipset
+ * supports 96 GPIOs instead of 64 that NM10 does. Datasheet here:
+ * http://www.intel.com/content/www/us/en/chipsets/6-chipset-c200-chipset-datasheet.html
+ *
  */
 
 #include <linux/module.h>
@@ -64,6 +68,10 @@ static char gpio_driver_version[] = "0.04";
 #define NM10_GPIO_USE_SEL2 0x30
 #define NM10_GPIO_IO_SEL2 0x34
 #define NM10_GPIO_LVL2 0x38
+#define NM10_GPIO_USE_SEL3 0x40
+#define NM10_GPIO_IO_SEL3 0x44
+#define NM10_GPIO_LVL3 0x48
+
 #define NM10_GPIO_REG_FILE_SIZE 0x40
 
 /* Structure describing one GPIO section in the nm10, accessing 32 GPIO bits. */
@@ -77,11 +85,14 @@ struct nm10_gpio_info {
 const struct nm10_gpio_info nm10_gpio_sections[] = {
 	{NM10_GPIO_USE_SEL, NM10_GPIO_IO_SEL, NM10_GPIO_LVL},
 	{NM10_GPIO_USE_SEL2, NM10_GPIO_IO_SEL2, NM10_GPIO_LVL2},
+	{NM10_GPIO_USE_SEL3, NM10_GPIO_IO_SEL3, NM10_GPIO_LVL3},
 };
 
 #define NM10_GPIO_BITS_PER_SECTION 32
 #define NM10_GPIO_SECTIONS ARRAY_SIZE(nm10_gpio_sections)
-#define NM10_MAX_GPIO_BITS (NM10_GPIO_SECTIONS * NM10_GPIO_BITS_PER_SECTION)
+
+static u32 max_gpio_bits;
+#define NM10_MAX_GPIO_BITS max_gpio_bits
 
 /*
  * Structure representing a single NM10 GPIO driver instance.
@@ -275,6 +286,13 @@ static int nm10_gpio_probe(struct pci_dev *pdev,
 		retval = -ENOMEM;
 		goto err3;
 	}
+
+	if (id->device == PCI_DEVICE_ID_INTEL_TGP_LPC)
+		/* NM10 supports 64 GPIOs */
+		max_gpio_bits = 64;
+	else
+		/* Cougarpoint supports 96 GPIOs */
+		max_gpio_bits = 96;
 
 	/* used to access GPIO bits on this chip */
 	pgpio->io_base = value;
