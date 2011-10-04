@@ -121,7 +121,10 @@ static int __init efi_debugfs_setup(void)
 	static u64 efi_smbios_base;
 
 	efi_smbios_base = (u64) efi.smbios;
-	debugfs_create_u64("efi_smbios_base", 0444, NULL, &efi_smbios_base);
+
+	if (efi_smbios_base)
+		debugfs_create_u64("efi_smbios_base", 0444, NULL,
+							&efi_smbios_base);
 
 	return 0;
 }
