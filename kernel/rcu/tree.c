@@ -266,6 +266,7 @@ void rcu_sched_qs(void)
 	}
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 void rcu_bh_qs(void)
 {
 	if (__this_cpu_read(rcu_bh_data.cpu_no_qs.s)) {
@@ -275,6 +276,7 @@ void rcu_bh_qs(void)
 		__this_cpu_write(rcu_bh_data.cpu_no_qs.b.norm, false);
 	}
 }
+#endif
 
 static DEFINE_PER_CPU(int, rcu_sched_qs_mask);
 
@@ -459,6 +461,7 @@ unsigned long rcu_batches_completed_sched(void)
 }
 EXPORT_SYMBOL_GPL(rcu_batches_completed_sched);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Return the number of RCU BH batches completed thus far for debug & stats.
  */
@@ -485,6 +488,13 @@ void rcu_bh_force_quiescent_state(void)
 	force_quiescent_state(&rcu_bh_state);
 }
 EXPORT_SYMBOL_GPL(rcu_bh_force_quiescent_state);
+
+#else
+void rcu_force_quiescent_state(void)
+{
+}
+EXPORT_SYMBOL_GPL(rcu_force_quiescent_state);
+#endif
 
 /*
  * Force a quiescent state for RCU-sched.
@@ -3114,6 +3124,7 @@ void call_rcu_sched(struct rcu_head *head, rcu_callback_t func)
 }
 EXPORT_SYMBOL_GPL(call_rcu_sched);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Queue an RCU callback for invocation after a quicker grace period.
  */
@@ -3122,6 +3133,7 @@ void call_rcu_bh(struct rcu_head *head, rcu_callback_t func)
 	__call_rcu(head, func, &rcu_bh_state, -1, 0);
 }
 EXPORT_SYMBOL_GPL(call_rcu_bh);
+#endif
 
 /*
  * Queue an RCU callback for lazy invocation after a grace period.
@@ -3213,6 +3225,7 @@ void synchronize_sched(void)
 }
 EXPORT_SYMBOL_GPL(synchronize_sched);
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /**
  * synchronize_rcu_bh - wait until an rcu_bh grace period has elapsed.
  *
@@ -3239,6 +3252,7 @@ void synchronize_rcu_bh(void)
 		wait_rcu_gp(call_rcu_bh);
 }
 EXPORT_SYMBOL_GPL(synchronize_rcu_bh);
+#endif
 
 /**
  * get_state_synchronize_rcu - Snapshot current RCU state
@@ -4101,6 +4115,7 @@ static void _rcu_barrier(struct rcu_state *rsp)
 	mutex_unlock(&rsp->barrier_mutex);
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 /**
  * rcu_barrier_bh - Wait until all in-flight call_rcu_bh() callbacks complete.
  */
@@ -4109,6 +4124,7 @@ void rcu_barrier_bh(void)
 	_rcu_barrier(&rcu_bh_state);
 }
 EXPORT_SYMBOL_GPL(rcu_barrier_bh);
+#endif
 
 /**
  * rcu_barrier_sched - Wait for in-flight call_rcu_sched() callbacks.
