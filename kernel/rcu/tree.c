@@ -266,7 +266,14 @@ void rcu_sched_qs(void)
 	}
 }
 
-#ifndef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void rcu_preempt_qs(void);
+
+void rcu_bh_qs(void)
+{
+	rcu_preempt_qs();
+}
+#else
 void rcu_bh_qs(void)
 {
 	if (__this_cpu_read(rcu_bh_data.cpu_no_qs.s)) {
