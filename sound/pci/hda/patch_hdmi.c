@@ -37,6 +37,11 @@
 #include <sound/jack.h>
 #include <sound/asoundef.h>
 #include <sound/tlv.h>
+
+#if defined(CONFIG_TEGRA_DC)
+#include <linux/platform_data/tegra_hdmi_audio.h>
+#endif
+
 #include "hda_codec.h"
 #include "hda_local.h"
 #include "hda_jack.h"
@@ -1754,6 +1759,21 @@ static int generic_hdmi_playback_pcm_prepare(struct hda_pcm_stream *hinfo,
 	mutex_lock(&per_pin->lock);
 	per_pin->channels = substream->runtime->channels;
 	per_pin->setup = true;
+
+#if defined(CONFIG_TEGRA_DC)
+	if (codec->preset->id == 0x10de0028) {
+		int err = 0;
+		/* Set hdmi:audio freq and source selection*/
+		err = tegra_hdmi_setup_audio_freq_source(
+					substream->runtime->rate, HDA);
+		if (err < 0) {
+			snd_printk(KERN_ERR
+				"Unable to set hdmi audio freq to %d \n",
+						substream->runtime->rate);
+			return err;
+		}
+	}
+#endif
 
 	hdmi_setup_audio_infoframe(codec, per_pin, non_pcm);
 	mutex_unlock(&per_pin->lock);
