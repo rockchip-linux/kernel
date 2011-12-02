@@ -872,7 +872,7 @@ static int taos_probe(struct i2c_client *clientp,
 	 * To get full async, we must enable this on both i2c and iio devs
 	 * and the i2c master.
 	 */
-	device_enable_async_suspend(&chip->iio_dev->dev);
+	device_enable_async_suspend(&indio_dev->dev);
 	device_enable_async_suspend(&clientp->dev);
 	device_enable_async_suspend(&clientp->adapter->dev);
 
