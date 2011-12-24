@@ -18,6 +18,7 @@
 #include <linux/mm.h>
 #include <asm/bios_ebda.h>
 #include <asm/e820.h>
+#include <linux/acpi.h>
 
 #define BIOS_MEMCONSOLE_V1_MAGIC	0xDEADBABE
 #define BIOS_MEMCONSOLE_V2_MAGIC	(('M')|('C'<<8)|('O'<<16)|('N'<<24))
@@ -119,25 +120,44 @@ struct cbmem_cons {
 
 struct cbmem_cons __iomem *cbmem_console;
 
-static bool check_cbmem(void)
-{
-	struct sysinfo sysi;
-	phys_addr_t top_of_ram, scan_addr;
-
-	/* coreboot CBMEM constants */
+/* coreboot CBMEM constants */
 #define CBMEM_ALIGNMENT   (128 * 1024)
 #define MEMORY_BOUNDARY   (1024 * 1024 * 1024)
 #define MAX_CBMEM_ENTRIES 16
 #define CBMEM_ENTRY_MAGIC 0x434f5245
 #define CBMEM_CONSOLE_ID  0x434f4e53
+#define CBMEM_ACPI_NAME   "\\CMEM"
+
+static bool check_cbmem(void)
+{
+	struct sysinfo sysi;
+	phys_addr_t top_of_ram, scan_addr = 0;
+	acpi_handle handle;
+	acpi_status status;
+	unsigned long long value;
 
 	/*
-	 * Determine where to start looking for CBMEM signature: take the top
-	 * of usable memory and align it up to 128K boundary.
+	 * Attempt to use defined ACPI name to locate CBMEM TOC.
 	 */
-	si_meminfo(&sysi);
-	top_of_ram = (phys_addr_t) sysi.totalram << PAGE_SHIFT;
-	scan_addr = ALIGN(top_of_ram, CBMEM_ALIGNMENT) + CBMEM_ALIGNMENT;
+	status = acpi_get_handle(NULL, CBMEM_ACPI_NAME, &handle);
+	if (ACPI_SUCCESS(status)) {
+		status = acpi_evaluate_integer(handle, CBMEM_ACPI_NAME,
+					       NULL, &value);
+		/* Start scan at this address */
+		if (ACPI_SUCCESS(status) && value > 0)
+			scan_addr = (phys_addr_t) value;
+	}
+
+	/*
+	 * Otherwise determine where to start looking for CBMEM signature:
+	 * take the top of usable memory and align it up to 128K boundary.
+	 */
+	if (!scan_addr) {
+		si_meminfo(&sysi);
+		top_of_ram = (phys_addr_t) sysi.totalram << PAGE_SHIFT;
+		scan_addr = ALIGN(top_of_ram, CBMEM_ALIGNMENT) +
+			CBMEM_ALIGNMENT;
+	}
 
 	while (scan_addr % MEMORY_BOUNDARY) {
 		struct cbmem_entry __iomem *pcbm;
@@ -154,6 +174,11 @@ static bool check_cbmem(void)
 			break;
 
 		pcbm = ioremap(scan_addr, remap_size);
+		if (!pcbm) {
+			scan_addr += CBMEM_ALIGNMENT;
+			continue;
+		}
+
 		if (pcbm->magic != CBMEM_ENTRY_MAGIC) {
 			iounmap(pcbm);
 			scan_addr += CBMEM_ALIGNMENT;
