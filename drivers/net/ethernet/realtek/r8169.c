@@ -6723,6 +6723,7 @@ static int rtl8169_runtime_idle(struct device *device)
 	struct net_device *dev = pci_get_drvdata(pdev);
 	struct rtl8169_private *tp = netdev_priv(dev);
 
+	__rtl8169_check_link_status(dev, tp, tp->mmio_addr, true);
 	return tp->TxDescArray ? -EBUSY : 0;
 }
 
