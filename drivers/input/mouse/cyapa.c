@@ -15,6 +15,7 @@
  */
 
 #include <linux/async.h>
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/firmware.h>
 #include <linux/i2c.h>
@@ -22,6 +23,7 @@
 #include <linux/input/mt.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 
@@ -242,6 +244,14 @@ struct cyapa {
 	int max_abs_y;
 	int physical_size_x;
 	int physical_size_y;
+
+	struct mutex debugfs_mutex;
+
+	/* per-instance debugfs root */
+	struct dentry *dentry_dev;
+
+	/* Buffer to store firmware read using debugfs */
+	u8 *read_fw_image;
 };
 
 static const u8 bl_activate[] = { 0x00, 0xff, 0x38, 0x00, 0x01, 0x02, 0x03,
@@ -250,6 +260,9 @@ static const u8 bl_deactivate[] = { 0x00, 0xff, 0x3b, 0x00, 0x01, 0x02, 0x03,
 		0x04, 0x05, 0x06, 0x07 };
 static const u8 bl_exit[] = { 0x00, 0xff, 0xa5, 0x00, 0x01, 0x02, 0x03, 0x04,
 		0x05, 0x06, 0x07 };
+
+/* global root node of the cyapa debugfs directory. */
+static struct dentry *cyapa_debugfs_root;
 
 struct cyapa_cmd_len {
 	u8 cmd;
@@ -342,8 +355,10 @@ static const struct cyapa_cmd_len cyapa_smbus_cmds[] = {
 	{ CYAPA_SMBUS_BLK_HEAD, 16 },
 };
 
+#define CYAPA_DEBUGFS_READ_FW	"read_fw"
 #define CYAPA_FW_NAME		"cyapa.bin"
 #define CYAPA_FW_BLOCK_SIZE	64
+#define CYAPA_FW_READ_SIZE	16
 #define CYAPA_FW_HDR_START	0x0780
 #define CYAPA_FW_HDR_BLOCK_COUNT  2
 #define CYAPA_FW_HDR_BLOCK_START  (CYAPA_FW_HDR_START / CYAPA_FW_BLOCK_SIZE)
@@ -1086,6 +1101,43 @@ static int cyapa_write_fw_block(struct cyapa *cyapa, u16 block, const u8 *data)
 }
 
 /*
+ * A firmware block read command reads 16 bytes of data from flash starting
+ * from a given address.  The 12-byte block read command has the format:
+ *   <0xff> <CMD> <Key> <Addr>
+ *
+ *  <0xff>  - every command starts with 0xff
+ *  <CMD>   - the read command value is 0x3c
+ *  <Key>   - read commands include an 8-byte key: { 00 01 02 03 04 05 06 07 }
+ *  <Addr>  - Memory address (16-bit, big-endian)
+ *
+ * The command is followed by an i2c block read to read the 16 bytes of data.
+ */
+static int cyapa_read_fw_bytes(struct cyapa *cyapa, u16 addr, u8 *data)
+{
+	int ret;
+	u8 cmd[] = { 0xff, 0x3c, 0, 1, 2, 3, 4, 5, 6, 7, addr >> 8, addr };
+
+	ret = cyapa_write_buffer(cyapa, cmd, sizeof(cmd));
+	if (ret) {
+		cyapa_dbg(cyapa, "read_fw_bytes write_buffer"
+				" failed, %d\n", ret);
+		return ret;
+	}
+
+	/* read data buffer starting from offset 16 */
+	ret = cyapa_i2c_reg_read_block(cyapa, 16, CYAPA_FW_READ_SIZE, data);
+	if (ret != CYAPA_FW_READ_SIZE) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "read_fw_bytes i2c_reg_read failed, %d\n",
+				ret);
+		return (ret < 0) ? ret : -EIO;
+	}
+
+	return 0;
+}
+
+
+/*
  * Verify the integrity of a CYAPA firmware image file.
  *
  * The firmware image file is 30848 bytes, composed of 482 64-byte blocks.
@@ -1432,6 +1484,153 @@ done:
 }
 
 /*
+ * Read the entire firmware image into ->read_fw_image.
+ * If the ->read_fw_image has already been allocated, then this function
+ * doesn't do anything and just returns 0.
+ * If an error occurs while reading the image, ->read_fw_image is freed, and
+ * the error is returned.
+ *
+ * The firmware is a fixed size (CYAPA_FW_SIZE), and is read out in
+ * fixed length (CYAPA_FW_READ_SIZE) chunks.
+ */
+static int cyapa_read_fw(struct cyapa *cyapa)
+{
+	int ret;
+	int addr;
+
+	if (cyapa->read_fw_image)
+		return 0;
+
+	ret = cyapa_bl_enter(cyapa);
+	if (ret)
+		goto err_detect;
+
+	cyapa->read_fw_image = kmalloc(CYAPA_FW_SIZE, GFP_KERNEL);
+	if (!cyapa->read_fw_image) {
+		ret = -ENOMEM;
+		goto err_detect;
+	}
+
+	for (addr = 0; addr < CYAPA_FW_SIZE; addr += CYAPA_FW_READ_SIZE) {
+		ret = cyapa_read_fw_bytes(cyapa, CYAPA_FW_HDR_START + addr,
+					  &cyapa->read_fw_image[addr]);
+		if (ret) {
+			cyapa_dbg(cyapa, "read_fw failed at addr = %d,"
+					" ret = %d\n", addr, ret);
+			kfree(cyapa->read_fw_image);
+			cyapa->read_fw_image = NULL;
+			break;
+		}
+	}
+
+err_detect:
+	cyapa_detect(cyapa);
+	return ret;
+}
+
+/*
+ **************************************************************
+ * debugfs interface
+ **************************************************************
+*/
+static int cyapa_debugfs_open(struct inode *inode, struct file *file)
+{
+	struct cyapa *cyapa = inode->i_private;
+	int ret;
+
+	if (!cyapa)
+		return -ENODEV;
+
+	ret = mutex_lock_interruptible(&cyapa->debugfs_mutex);
+	if (ret)
+		return ret;
+
+	if (!kobject_get(&cyapa->client->dev.kobj)) {
+		ret = -ENODEV;
+		goto out;
+	}
+
+	file->private_data = cyapa;
+
+	/*
+	 * If firmware hasn't been read yet, read it all in one pass.
+	 * Subsequent opens will reuse the data in this same buffer.
+	 */
+	ret = cyapa_read_fw(cyapa);
+
+out:
+	mutex_unlock(&cyapa->debugfs_mutex);
+	return ret;
+}
+
+static int cyapa_debugfs_release(struct inode *inode, struct file *file)
+{
+	struct cyapa *cyapa = file->private_data;
+	int ret;
+
+	if (!cyapa)
+		return 0;
+
+	ret = mutex_lock_interruptible(&cyapa->debugfs_mutex);
+	if (ret)
+		return ret;
+	file->private_data = NULL;
+	kobject_put(&cyapa->client->dev.kobj);
+	mutex_unlock(&cyapa->debugfs_mutex);
+
+	return 0;
+}
+
+
+/* Return some bytes from the buffered firmware image, starting from *ppos */
+static ssize_t cyapa_debugfs_read_fw(struct file *file, char __user *buffer,
+				     size_t count, loff_t *ppos)
+{
+	struct cyapa *cyapa = file->private_data;
+
+	if (!cyapa->read_fw_image)
+		return -EINVAL;
+
+	if (*ppos >= CYAPA_FW_SIZE)
+		return 0;
+
+	if (count + *ppos > CYAPA_FW_SIZE)
+		count = CYAPA_FW_SIZE - *ppos;
+
+	if (copy_to_user(buffer, &cyapa->read_fw_image[*ppos], count))
+		return -EFAULT;
+
+	*ppos += count;
+	return count;
+}
+
+static const struct file_operations cyapa_read_fw_fops = {
+	.open = cyapa_debugfs_open,
+	.release = cyapa_debugfs_release,
+	.read = cyapa_debugfs_read_fw
+};
+
+static int cyapa_debugfs_init(struct cyapa *cyapa)
+{
+	struct device *dev = &cyapa->client->dev;
+
+	if (!cyapa_debugfs_root)
+		return -ENODEV;
+
+	cyapa->dentry_dev = debugfs_create_dir(kobject_name(&dev->kobj),
+					       cyapa_debugfs_root);
+
+	if (!cyapa->dentry_dev)
+		return -ENODEV;
+
+	mutex_init(&cyapa->debugfs_mutex);
+
+	debugfs_create_file(CYAPA_DEBUGFS_READ_FW, S_IRUSR, cyapa->dentry_dev,
+			    cyapa, &cyapa_read_fw_fops);
+	return 0;
+}
+
+/*
  * Sysfs Interface.
  */
 
@@ -1675,6 +1874,9 @@ static int cyapa_probe(struct i2c_client *client,
 	if (sysfs_create_group(&client->dev.kobj, &cyapa_sysfs_group))
 		dev_warn(dev, "error creating sysfs entries.\n");
 
+	if (cyapa_debugfs_init(cyapa))
+		dev_warn(dev, "error creating debugfs entries.\n");
+
 #ifdef CONFIG_PM_SLEEP
 	if (device_can_wakeup(dev) &&
 	    sysfs_merge_group(&client->dev.kobj, &cyapa_power_wakeup_group))
@@ -1709,6 +1911,12 @@ static int cyapa_remove(struct i2c_client *client)
 #endif
 
 	free_irq(cyapa->irq, cyapa);
+
+	if (cyapa->dentry_dev) {
+		debugfs_remove_recursive(cyapa->dentry_dev);
+		mutex_destroy(&cyapa->debugfs_mutex);
+	}
+
 	input_unregister_device(cyapa->input);
 	cyapa_set_power_mode(cyapa, PWR_MODE_OFF);
 	kfree(cyapa);
@@ -1816,7 +2024,34 @@ static struct i2c_driver cyapa_driver = {
 	.id_table = cyapa_id_table,
 };
 
-module_i2c_driver(cyapa_driver);
+static int __init cyapa_init(void)
+{
+	int ret;
+
+	/* Create a global debugfs root for all cyapa devices */
+	cyapa_debugfs_root = debugfs_create_dir("cyapa", NULL);
+	if (cyapa_debugfs_root == ERR_PTR(-ENODEV))
+		cyapa_debugfs_root = NULL;
+
+	ret = i2c_add_driver(&cyapa_driver);
+	if (ret) {
+		pr_err("cyapa driver register FAILED.\n");
+		return ret;
+	}
+
+	return ret;
+}
+
+static void __exit cyapa_exit(void)
+{
+	if (cyapa_debugfs_root)
+		debugfs_remove_recursive(cyapa_debugfs_root);
+
+	i2c_del_driver(&cyapa_driver);
+}
+
+module_init(cyapa_init);
+module_exit(cyapa_exit);
 
 MODULE_DESCRIPTION("Cypress APA I2C Trackpad Driver");
 MODULE_AUTHOR("Dudley Du <dudl@cypress.com>");
