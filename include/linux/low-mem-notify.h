@@ -1,6 +1,9 @@
 #ifndef _LINUX_LOW_MEM_NOTIFY_H
 #define _LINUX_LOW_MEM_NOTIFY_H
 
+#include <linux/stddef.h>
+#include <linux/mm.h>
+
 extern unsigned low_mem_margin_percent;
 extern unsigned long low_mem_minfree;
 void low_mem_notify(void);

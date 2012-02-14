@@ -33,7 +33,7 @@
 static DECLARE_WAIT_QUEUE_HEAD(low_mem_wait);
 static atomic_t low_mem_state = ATOMIC_INIT(0);
 unsigned low_mem_margin_percent = 10;
-unsigned long low_mem_threshold;
+unsigned long low_mem_minfree;
 
 struct low_mem_notify_file_info {
 	unsigned long unused;
@@ -121,9 +121,7 @@ static ssize_t low_mem_margin_store(struct kobject *kobj,
 	low_mem_margin_percent = (unsigned int) margin;
 	/* Precompute as much as possible outside the allocator fast path. */
 	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_percent);
-	printk(KERN_INFO "low_mem: setting threshold to %lu\n",
-	       low_mem_threshold);
-
+	printk(KERN_INFO "low_mem: setting minfree to %lu\n", low_mem_minfree);
 	return count;
 }
 LOW_MEM_ATTR(margin);
