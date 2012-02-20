@@ -730,6 +730,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	int area;
 	int pressure;
 	int touch_major;
+	int vector1, vector2;
 
 	x = (message->message[1] << 4) | ((message->message[3] >> 4) & 0xf);
 	y = (message->message[2] << 4) | ((message->message[3] & 0xf));
@@ -742,8 +743,12 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	touch_major = get_touch_major_pixels(data, area);
 	pressure = message->message[5];
 
+	/* The two vector components are 4-bit signed ints (2s complement) */
+	vector1 = (signed)((signed char)message->message[6]) >> 4;
+	vector2 = (signed)((signed char)(message->message[6] << 4)) >> 4;
+
 	dev_dbg(dev,
-		"[%u] %c%c%c%c%c%c%c%c x: %5u y: %5u area: %3u amp: %3u\n",
+		"[%u] %c%c%c%c%c%c%c%c x: %5u y: %5u area: %3u amp: %3u vector: [%d,%d]\n",
 		id,
 		(status & MXT_DETECT) ? 'D' : '.',
 		(status & MXT_PRESS) ? 'P' : '.',
@@ -753,7 +758,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 		(status & MXT_AMP) ? 'A' : '.',
 		(status & MXT_SUPPRESS) ? 'S' : '.',
 		(status & MXT_UNGRIP) ? 'U' : '.',
-		x, y, area, pressure);
+		x, y, area, pressure, vector1, vector2);
 
 	input_mt_slot(input_dev, id);
 	input_mt_report_slot_state(input_dev, MT_TOOL_FINGER,
@@ -764,6 +769,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 		input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
 		input_report_abs(input_dev, ABS_MT_PRESSURE, pressure);
 		input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, touch_major);
+		/* TODO: Use vector to report ORIENTATION & TOUCH_MINOR */
 	}
 }
 
