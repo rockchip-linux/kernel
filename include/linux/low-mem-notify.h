@@ -15,26 +15,35 @@ extern const struct file_operations low_mem_notify_fops;
 static inline bool is_low_mem_situation(void)
 {
 	const int lru_base = NR_LRU_BASE - LRU_BASE;
-	const int file_mem_multiplier = 2;  /* between 1 and 2 seems right */
 	/*
-	 * We declare a low-memory condition when free memory is low and there
-	 * isn't much reclaimable file memory.
+	 * We declare a low-memory condition when free memory plus easily
+	 * reclaimable memory is low.
 	 */
 	unsigned long free_mem = global_page_state(NR_FREE_PAGES);
 	unsigned long file_mem =
 			global_page_state(lru_base + LRU_ACTIVE_FILE) +
 			global_page_state(lru_base + LRU_INACTIVE_FILE);
-	unsigned long min_file_mem = file_mem_multiplier *
-			(min_filelist_kbytes >> (PAGE_SHIFT - 10));
-	bool is_low_mem = free_mem < low_mem_minfree && file_mem < min_file_mem;
+	unsigned long dirty_mem = global_page_state(NR_FILE_DIRTY);
+	unsigned long min_file_mem =
+			min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	/*
+	 * free_mem is completely unallocated; clean file-backed memory
+	 * (file_mem - dirty_mem) is easy to reclaim, except for the last
+	 * min_filelist_kbytes.
+	 */
+	unsigned long available_mem =
+			free_mem - (file_mem - dirty_mem - min_file_mem);
+	bool is_low_mem = available_mem < low_mem_minfree;
 
 #ifdef CONFIG_LOW_MEM_NOTIFY_DEBUG
 	{
 		static bool was_low_mem;
 		if (is_low_mem && !was_low_mem)
-			printk(KERN_INFO "entering low_mem: %lu\n", in_use);
+			printk(KERN_INFO "entering low_mem: free=%lu MB\n",
+			       free_mem >> (20 - PAGE_SHIFT));
 		else if (!is_low_mem && was_low_mem)
-			printk(KERN_INFO "exiting low_mem: %lu\n", in_use);
+			printk(KERN_INFO "exiting low_mem: free=%lu MB\n",
+			       free_mem >> (20 - PAGE_SHIFT));
 		was_low_mem = is_low_mem;
 	}
 #endif
