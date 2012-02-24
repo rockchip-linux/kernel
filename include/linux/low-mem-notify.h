@@ -39,11 +39,11 @@ static inline bool is_low_mem_situation(void)
 	{
 		static bool was_low_mem;
 		if (is_low_mem && !was_low_mem)
-			printk(KERN_INFO "entering low_mem: free=%lu MB\n",
-			       free_mem >> (20 - PAGE_SHIFT));
+			printk(KERN_INFO "entering low_mem: avail=%lu MB\n",
+			       available_mem >> (20 - PAGE_SHIFT));
 		else if (!is_low_mem && was_low_mem)
-			printk(KERN_INFO "exiting low_mem: free=%lu MB\n",
-			       free_mem >> (20 - PAGE_SHIFT));
+			printk(KERN_INFO "exiting low_mem: avail=%lu MB\n",
+			       available_mem >> (20 - PAGE_SHIFT));
 		was_low_mem = is_low_mem;
 	}
 #endif
