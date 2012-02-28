@@ -18,21 +18,19 @@ static inline bool is_low_mem_situation(void)
 	/*
 	 * We declare a low-memory condition when free memory plus easily
 	 * reclaimable memory is low.
+	 *
+	 * free_mem is completely unallocated; clean file-backed memory
+	 * (file_mem - dirty_mem) is easy to reclaim, except for the last
+	 * min_filelist_kbytes.
 	 */
 	unsigned long free_mem = global_page_state(NR_FREE_PAGES);
 	unsigned long file_mem =
 			global_page_state(lru_base + LRU_ACTIVE_FILE) +
 			global_page_state(lru_base + LRU_INACTIVE_FILE);
 	unsigned long dirty_mem = global_page_state(NR_FILE_DIRTY);
-	unsigned long min_file_mem =
-			min_filelist_kbytes >> (PAGE_SHIFT - 10);
-	/*
-	 * free_mem is completely unallocated; clean file-backed memory
-	 * (file_mem - dirty_mem) is easy to reclaim, except for the last
-	 * min_filelist_kbytes.
-	 */
-	unsigned long available_mem =
-			free_mem - (file_mem - dirty_mem - min_file_mem);
+	unsigned long min_file_mem = min_filelist_kbytes >> (PAGE_SHIFT - 10);
+	unsigned long available_file_mem = file_mem - dirty_mem - min_file_mem;
+	unsigned long available_mem = free_mem + available_file_mem;
 	bool is_low_mem = available_mem < low_mem_minfree;
 
 #ifdef CONFIG_LOW_MEM_NOTIFY_DEBUG
