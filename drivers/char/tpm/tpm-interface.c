@@ -25,12 +25,15 @@
 
 #include <linux/poll.h>
 #include <linux/slab.h>
+#include <linux/jiffies.h>
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/freezer.h>
 
 #include "tpm.h"
 #include "tpm_eventlog.h"
+
+void tpm_continue_selftest_nocheck(struct tpm_chip *chip);
 
 #define TPM_MAX_ORDINAL 243
 #define TSC_MAX_ORDINAL 12
@@ -305,6 +308,41 @@ static const u8 tpm_ordinal_duration[TPM_MAX_ORDINAL] = {
 	TPM_MEDIUM,
 };
 
+static void set_needs_resume(struct tpm_chip *chip)
+{
+	mutex_lock(&chip->resume_mutex);
+	chip->needs_resume = 1;
+	mutex_unlock(&chip->resume_mutex);
+}
+
+/* The maximum time in milliseconds that the TPM self test will take to
+ * complete.  TODO(semenzato): 1s should be plenty for all TPMs, but how can we
+ * ensure it?
+ */
+#define TPM_SELF_TEST_DURATION_MSEC 1000
+
+/* We don't want to wait for the self test to complete at resume, because it
+ * impacts the resume speed.  TPM commands are infrequent so the wait is
+ * usually not needed and is wasteful.  Instead, before we send any command, we
+ * check that enough time has elapsed from the resume so that we are
+ * comfortable that the self test has completed.  If not, we wait.  Unlike at
+ * boot, here we don't check the return code of continue_self_test, so we can
+ * use a code path which avoids recursion.  Furthermore, this only works when
+ * ContinueSelfTest is blocking, that is it returns only after the self test
+ * has completed, which is the case for the Infineon TPM.
+ */
+void tpm_resume_if_needed(struct tpm_chip *chip)
+{
+	mutex_lock(&chip->resume_mutex);
+	if (chip->needs_resume) {
+		dev_info(chip->dev, "waiting for TPM self test\n");
+		tpm_continue_selftest_nocheck(chip);
+		chip->needs_resume = 0;
+		dev_info(chip->dev, "TPM delayed resume completed\n");
+	}
+	mutex_unlock(&chip->resume_mutex);
+}
+
 /*
  * Returns max number of jiffies to wait
  */
@@ -402,6 +440,8 @@ static ssize_t transmit_cmd(struct tpm_chip *chip, struct tpm_cmd_t *cmd,
 			    int len, const char *desc)
 {
 	int err;
+
+	tpm_resume_if_needed(chip);
 
 	len = tpm_transmit(chip, (u8 *) cmd, len);
 	if (len <  0)
@@ -583,7 +623,7 @@ duration:
 		chip->vendor.duration[TPM_MEDIUM] *= 1000;
 		chip->vendor.duration[TPM_LONG] *= 1000;
 		chip->vendor.duration_adjusted = true;
-		dev_info(chip->dev, "Adjusting TPM timeout parameters.");
+		dev_info(chip->dev, "Adjusting TPM timeout parameters.\n");
 	}
 	return 0;
 }
@@ -598,6 +638,14 @@ static struct tpm_input_header continue_selftest_header = {
 	.ordinal = cpu_to_be32(TPM_ORD_CONTINUE_SELFTEST),
 };
 
+void tpm_continue_selftest_nocheck(struct tpm_chip *chip)
+{
+	struct tpm_cmd_t cmd;
+
+	cmd.header.in = continue_selftest_header;
+	tpm_transmit(chip, (u8 *) &cmd, CONTINUE_SELFTEST_RESULT_SIZE);
+}
+
 /**
  * tpm_continue_selftest -- run TPM's selftest
  * @chip: TPM chip to use
@@ -605,7 +653,7 @@ static struct tpm_input_header continue_selftest_header = {
  * Returns 0 on success, < 0 in case of fatal error or a value > 0 representing
  * a TPM error code.
  */
-static int tpm_continue_selftest(struct tpm_chip *chip)
+int tpm_continue_selftest(struct tpm_chip *chip)
 {
 	int rc;
 	struct tpm_cmd_t cmd;
@@ -615,6 +663,7 @@ static int tpm_continue_selftest(struct tpm_chip *chip)
 			  "continue selftest");
 	return rc;
 }
+EXPORT_SYMBOL_GPL(tpm_continue_selftest);
 
 /*
  * tpm_chip_find_get - return tpm_chip for given chip number
@@ -964,6 +1013,7 @@ int tpm_pm_resume(struct device *dev)
 	if (chip == NULL)
 		return -ENODEV;
 
+	set_needs_resume(chip);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(tpm_pm_resume);
@@ -1068,6 +1118,7 @@ struct tpm_chip *tpm_register_hardware(struct device *dev,
 		return NULL;
 
 	mutex_init(&chip->tpm_mutex);
+	mutex_init(&chip->resume_mutex);
 	INIT_LIST_HEAD(&chip->list);
 
 	chip->ops = ops;
