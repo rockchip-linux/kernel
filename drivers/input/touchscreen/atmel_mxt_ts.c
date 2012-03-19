@@ -285,10 +285,12 @@ struct mxt_data {
 	u32 config_csum;
 
 	/* Cached parameters from object table */
+	u16 T5_address;
 	u8 T6_reportid;
 	u8 T9_reportid_min;
 	u8 T9_reportid_max;
 	u8 T19_reportid;
+	u16 T44_address;
 
 	/* for fw update in bootloader */
 	struct completion bl_completion;
@@ -649,19 +651,23 @@ mxt_get_object(struct mxt_data *data, u8 type)
 	return NULL;
 }
 
+static int mxt_read_num_messages(struct mxt_data *data, u8 *count)
+{
+	/* TODO: Optimization: read first message along with message count */
+	return __mxt_read_reg(data->client, data->T44_address, 1, count);
+}
+
+static int mxt_read_messages(struct mxt_data *data, u8 count,
+			     struct mxt_message *messages)
+{
+	return __mxt_read_reg(data->client, data->T5_address,
+			sizeof(struct mxt_message) * count, messages);
+}
+
 static int mxt_read_message(struct mxt_data *data,
 				 struct mxt_message *message)
 {
-	struct mxt_object *object;
-	u16 reg;
-
-	object = mxt_get_object(data, MXT_GEN_MESSAGE_T5);
-	if (!object)
-		return -EINVAL;
-
-	reg = object->start_address;
-	return __mxt_read_reg(data->client, reg,
-			sizeof(struct mxt_message), message);
+	return mxt_read_messages(data, 1, message);
 }
 
 static int mxt_write_obj_instance(struct mxt_data *data, u8 type, u8 instance,
@@ -784,6 +790,72 @@ static bool mxt_is_T9_message(struct mxt_data *data, struct mxt_message *msg)
 	return (id >= data->T9_reportid_min && id <= data->T9_reportid_max);
 }
 
+static int mxt_proc_messages(struct mxt_data *data, u8 count)
+{
+	struct device *dev = &data->client->dev;
+	u8 reportid;
+	bool update_input = false;
+	struct mxt_message *messages, *msg;
+	int ret;
+
+	messages = kcalloc(count, sizeof(*messages), GFP_KERNEL);
+	if (!messages)
+		return -ENOMEM;
+
+	ret = mxt_read_messages(data, count, messages);
+	if (ret) {
+		dev_err(dev, "Failed to read %u messages (%d).\n", count, ret);
+		goto out;
+	}
+
+	for (msg = messages; msg < &messages[count]; msg++) {
+		mxt_dump_message(dev, msg);
+		reportid = msg->reportid;
+
+		if (reportid == data->T6_reportid) {
+			const u8 *payload = &msg->message[0];
+			u8 status = payload[0];
+			data->config_csum = mxt_extract_T6_csum(&payload[1]);
+			dev_dbg(dev, "Status: %02x Config Checksum: %06x\n",
+				status, data->config_csum);
+		} else if (mxt_is_T9_message(data, msg)) {
+			int id = reportid - data->T9_reportid_min;
+			mxt_input_touchevent(data, msg, id);
+			update_input = true;
+		} else if (msg->reportid == data->T19_reportid) {
+			mxt_input_button(data, msg);
+			update_input = true;
+		}
+	}
+
+	if (update_input) {
+		input_mt_report_pointer_emulation(data->input_dev, false);
+		input_sync(data->input_dev);
+	}
+
+out:
+	kfree(messages);
+	return ret;
+}
+
+static int mxt_handle_messages(struct mxt_data *data)
+{
+	struct device *dev = &data->client->dev;
+	int ret;
+	u8 count;
+
+	ret = mxt_read_num_messages(data, &count);
+	if (ret) {
+		dev_err(dev, "Failed to read message count (%d).\n", ret);
+		return ret;
+	}
+
+	if (count > 0)
+		ret = mxt_proc_messages(data, count);
+
+	return ret;
+}
+
 static int mxt_enter_bl(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
@@ -874,49 +946,13 @@ static void mxt_exit_bl(struct mxt_data *data)
 static irqreturn_t mxt_interrupt(int irq, void *dev_id)
 {
 	struct mxt_data *data = dev_id;
-	struct mxt_message message;
-	const u8 *payload = &message.message[0];
-	struct device *dev = &data->client->dev;
-	u8 reportid;
-	bool update_input = false;
 
 	if (mxt_in_bootloader(data)) {
 		/* bootloader state transition completion */
 		complete(&data->bl_completion);
-		goto end;
+	} else {
+		mxt_handle_messages(data);
 	}
-
-	do {
-		if (mxt_read_message(data, &message)) {
-			dev_err(dev, "Failed to read message\n");
-			goto end;
-		}
-
-		reportid = message.reportid;
-
-		if (reportid == data->T6_reportid) {
-			u8 status = payload[0];
-			data->config_csum = mxt_extract_T6_csum(&payload[1]);
-			dev_dbg(dev, "Status: %02x Config Checksum: %06x\n",
-				status, data->config_csum);
-		} else if (mxt_is_T9_message(data, &message)) {
-			int id = reportid - data->T9_reportid_min;
-			mxt_input_touchevent(data, &message, id);
-			update_input = true;
-		} else if (message.reportid == data->T19_reportid) {
-			mxt_input_button(data, &message);
-			update_input = true;
-		} else {
-			mxt_dump_message(dev, &message);
-		}
-	} while (reportid != 0xff);
-
-	if (update_input) {
-		input_mt_report_pointer_emulation(data->input_dev, false);
-		input_sync(data->input_dev);
-	}
-
-end:
 	return IRQ_HANDLED;
 }
 
@@ -1162,6 +1198,9 @@ static int mxt_get_object_table(struct mxt_data *data)
 			min_id, max_id);
 
 		switch (object->type) {
+		case MXT_GEN_MESSAGE_T5:
+			data->T5_address = object->start_address;
+			break;
 		case MXT_GEN_COMMAND_T6:
 			data->T6_reportid = min_id;
 			break;
@@ -1171,6 +1210,9 @@ static int mxt_get_object_table(struct mxt_data *data)
 			break;
 		case MXT_SPT_GPIOPWM_T19:
 			data->T19_reportid = min_id;
+			break;
+		case MXT_SPT_MESSAGECOUNT_T44:
+			data->T44_address = object->start_address;
 			break;
 		}
 	}
