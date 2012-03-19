@@ -1438,6 +1438,23 @@ out:
 	return ret ?: 0;
 }
 
+static ssize_t mxt_backupnv_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	/* Backup non-volatile memory */
+	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+			       MXT_COMMAND_BACKUPNV, MXT_BACKUP_VALUE);
+	if (ret)
+		return ret;
+	msleep(MXT_BACKUP_TIME);
+
+	return count;
+}
+
 static ssize_t mxt_calibrate_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *buf, size_t count)
@@ -1674,6 +1691,7 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 	return count;
 }
 
+static DEVICE_ATTR(backupnv, S_IWUSR, NULL, mxt_backupnv_store);
 static DEVICE_ATTR(calibrate, S_IWUSR, NULL, mxt_calibrate_store);
 static DEVICE_ATTR(config_csum, S_IRUGO, mxt_config_csum_show, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
@@ -1685,6 +1703,7 @@ static DEVICE_ATTR(object, S_IRUGO | S_IWUSR, mxt_object_show,
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, mxt_update_fw_store);
 
 static struct attribute *mxt_attrs[] = {
+	&dev_attr_backupnv.attr,
 	&dev_attr_calibrate.attr,
 	&dev_attr_config_csum.attr,
 	&dev_attr_fw_version.attr,
