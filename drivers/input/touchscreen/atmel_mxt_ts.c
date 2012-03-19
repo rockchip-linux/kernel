@@ -1563,6 +1563,35 @@ done:
 	return error ?: count;
 }
 
+static ssize_t mxt_object_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	int ret;
+	u32 param;
+	u8 type, instance, offset, val;
+
+	ret = kstrtou32(buf, 16, &param);
+	if (ret < 0)
+		return -EINVAL;
+
+	/*
+	 * Byte Write Command is encoded in 32-bit word: TTIIOOVV:
+	 * <Type> <Instance> <Offset> <Value>
+	 */
+	type = (param & 0xff000000) >> 24;
+	instance = (param & 0x00ff0000) >> 16;
+	offset = (param & 0x0000ff00) >> 8;
+	val = param & 0x000000ff;
+
+	ret = mxt_write_obj_instance(data, type, instance, offset, val);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
 static int mxt_load_fw(struct device *dev, const char *fn)
 {
 	struct mxt_data *data = dev_get_drvdata(dev);
@@ -1651,7 +1680,8 @@ static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
 static DEVICE_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
 static DEVICE_ATTR(info_csum, S_IRUGO, mxt_info_csum_show, NULL);
 static DEVICE_ATTR(matrix_size, S_IRUGO, mxt_matrix_size_show, NULL);
-static DEVICE_ATTR(object, S_IRUGO, mxt_object_show, NULL);
+static DEVICE_ATTR(object, S_IRUGO | S_IWUSR, mxt_object_show,
+		   mxt_object_store);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, mxt_update_fw_store);
 
 static struct attribute *mxt_attrs[] = {
