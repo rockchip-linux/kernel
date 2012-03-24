@@ -345,12 +345,13 @@ static void nm10_gpio_remove(struct pci_dev *pdev)
 	struct nm10_gpio *pgpio = pci_get_drvdata(pdev);
 	int base = pgpio->chip.base;
 
+	release_region(pgpio->io_base, NM10_GPIO_REG_FILE_SIZE);
+
 	if (gpiochip_remove(&pgpio->chip)) {
 		printk(KERN_ERR "%s: failed removing!\n", gpio_driver_name);
 		return;
 	}
 
-	release_region(pgpio->io_base, NM10_GPIO_REG_FILE_SIZE);
 	pci_disable_device(pdev);
 	pci_set_drvdata(pdev, NULL);
 	kfree(pgpio);
