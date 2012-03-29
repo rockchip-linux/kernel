@@ -133,7 +133,7 @@ static struct attribute *low_mem_attrs[] = {
 
 static struct attribute_group low_mem_attr_group = {
 	.attrs = low_mem_attrs,
-	.name = "low_mem",
+	.name = "chromeos-low_mem",
 };
 
 static int __init low_mem_init(void)
