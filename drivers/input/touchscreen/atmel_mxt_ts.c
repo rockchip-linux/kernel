@@ -29,7 +29,11 @@
 /* Slave addresses */
 #define MXT_APP_LOW		0x4a
 #define MXT_APP_HIGH		0x4b
-#define MXT_BOOT_LOW		0x24
+/*
+ * MXT_BOOT_LOW disagrees with Atmel documentation, but has been
+ * updated to support new touch hardware that pairs 0x26 boot with 0x4a app.
+ */
+#define MXT_BOOT_LOW		0x26
 #define MXT_BOOT_HIGH		0x25
 
 /* Firmware */
