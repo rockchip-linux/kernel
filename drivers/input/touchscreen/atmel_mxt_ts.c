@@ -183,7 +183,7 @@
 #define MXT_BACKUP_TIME		50	/* msec */
 #define MXT_RESET_TIME		200	/* msec */
 
-#define MXT_FWRESET_TIME	175	/* msec */
+#define MXT_FWRESET_TIME	500	/* msec */
 
 /* MXT_SPT_GPIOPWM_T19 field */
 #define MXT_GPIO0_MASK		0x04
