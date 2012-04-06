@@ -21,6 +21,8 @@ extern void save_stack_trace_tsk(struct task_struct *tsk,
 
 extern void print_stack_trace(struct stack_trace *trace, int spaces);
 
+extern void clear_dup_stack_traces(void);
+extern unsigned int save_dup_stack_trace(struct task_struct *tsk);
 #ifdef CONFIG_USER_STACKTRACE_SUPPORT
 extern void save_stack_trace_user(struct stack_trace *trace);
 #else
@@ -32,6 +34,8 @@ extern void save_stack_trace_user(struct stack_trace *trace);
 # define save_stack_trace_tsk(tsk, trace)		do { } while (0)
 # define save_stack_trace_user(trace)			do { } while (0)
 # define print_stack_trace(trace, spaces)		do { } while (0)
+# define clear_dup_stack_traces()			do { } while (0)
+# define save_dup_stack_trace(tsk)			do { } while (0)
 #endif
 
 #endif

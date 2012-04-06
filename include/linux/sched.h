@@ -317,6 +317,9 @@ extern void show_regs(struct pt_regs *);
  */
 extern void show_stack(struct task_struct *task, unsigned long *sp);
 
+extern void show_stack_dedup(struct task_struct *task, unsigned long *sp,
+				pid_t dup_stack_pid);
+
 void io_schedule(void);
 long io_schedule_timeout(long timeout);
 

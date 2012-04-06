@@ -81,13 +81,20 @@ stack_frame(struct task_struct *task, struct pt_regs *regs)
 }
 #endif
 
+/*
+ * The parameter dup_stack_pid is used for task stack deduplication.
+ * The non-zero value of dup_stack_pid indicates the pid of the
+ * task with the same stack trace.
+ */
 extern void
 show_trace_log_lvl(struct task_struct *task, struct pt_regs *regs,
-		   unsigned long *stack, unsigned long bp, char *log_lvl);
+		   unsigned long *stack, unsigned long bp, char *log_lvl,
+		   pid_t dup_stack_pid);
 
 extern void
 show_stack_log_lvl(struct task_struct *task, struct pt_regs *regs,
-		   unsigned long *sp, unsigned long bp, char *log_lvl);
+		   unsigned long *sp, unsigned long bp, char *log_lvl,
+		   pid_t dup_stack_pid);
 
 extern unsigned int code_bytes;
 
