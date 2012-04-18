@@ -32,8 +32,16 @@
 
 static DECLARE_WAIT_QUEUE_HEAD(low_mem_wait);
 static atomic_t low_mem_state = ATOMIC_INIT(0);
-unsigned low_mem_margin_percent = 10;
+unsigned low_mem_margin_mb = 50;
+bool low_mem_margin_enabled = true;
 unsigned long low_mem_minfree;
+/*
+ * We're interested in worst-case anon memory usage when the low-memory
+ * notification fires.  To contain logging, we limit our interest to
+ * non-trivial steps.
+ */
+unsigned long low_mem_lowest_seen_anon_mem;
+const unsigned long low_mem_anon_mem_delta = 10 * 1024 * 1024 / PAGE_SIZE;
 
 struct low_mem_notify_file_info {
 	unsigned long unused;
@@ -76,7 +84,7 @@ static unsigned int low_mem_notify_poll(struct file *file, poll_table *wait)
 
 	poll_wait(file, &low_mem_wait, wait);
 
-	if (atomic_read(&low_mem_state) != 0)
+	if (low_mem_margin_enabled && atomic_read(&low_mem_state) != 0)
 		ret = POLLIN;
 
 	return ret;
@@ -99,12 +107,15 @@ EXPORT_SYMBOL(low_mem_notify_fops);
 static ssize_t low_mem_margin_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%u\n", low_mem_margin_percent);
+	if (low_mem_margin_enabled)
+		return sprintf(buf, "%u\n", low_mem_margin_mb);
+	else
+		return sprintf(buf, "off\n");
 }
 
-static unsigned low_mem_margin_to_minfree(unsigned percent)
+static unsigned low_mem_margin_to_minfree(unsigned margin_mb)
 {
-	return percent * totalram_pages / 100;
+	return margin_mb * (1024 * 1024 / PAGE_SIZE);
 }
 
 static ssize_t low_mem_margin_store(struct kobject *kobj,
@@ -113,15 +124,30 @@ static ssize_t low_mem_margin_store(struct kobject *kobj,
 {
 	int err;
 	unsigned long margin;
+	/*
+	 * Even though the API does not say anything about this, the string in
+	 * buf is zero-terminated (as long as count < PAGE_SIZE) because buf is
+	 * a newly allocated zero-filled page.  Most other sysfs handlers rely
+	 * on this too.
+	 */
+	if (strncmp("off", buf, 3) == 0) {
+		printk(KERN_INFO "low_mem: disabling notifier\n");
+		low_mem_margin_enabled = false;
+		return count;
+	}
 
 	err = strict_strtoul(buf, 10, &margin);
-	if (err || margin > 99)
+	if (err)
 		return -EINVAL;
-	/* Notify when the percentage of "free" memory is below margin. */
-	low_mem_margin_percent = (unsigned int) margin;
-	/* Precompute as much as possible outside the allocator fast path. */
-	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_percent);
-	printk(KERN_INFO "low_mem: setting minfree to %lu\n", low_mem_minfree);
+	/* Notify when the "free" memory is below margin megabytes. */
+	low_mem_margin_enabled = true;
+	low_mem_margin_mb = (unsigned int) margin;
+	/* Convert to pages outside the allocator fast path. */
+	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_mb);
+	if (low_mem_minfree < 0 || low_mem_minfree > totalram_pages)
+		return -EINVAL;
+	printk(KERN_INFO "low_mem: setting minfree to %lu kB\n",
+	       low_mem_minfree * (PAGE_SIZE / 1024));
 	return count;
 }
 LOW_MEM_ATTR(margin);
@@ -141,7 +167,8 @@ static int __init low_mem_init(void)
 	int err = sysfs_create_group(mm_kobj, &low_mem_attr_group);
 	if (err)
 		printk(KERN_ERR "low_mem: register sysfs failed\n");
-	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_percent);
+	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_mb);
+	low_mem_lowest_seen_anon_mem = totalram_pages;
 	return err;
 }
 module_init(low_mem_init)
