@@ -262,6 +262,8 @@ struct mxt_data {
 	unsigned int max_x;
 	unsigned int max_y;
 
+	u32 config_csum;
+
 	/* Cached parameters from object table */
 	u8 T6_reportid;
 	u8 T9_reportid_min;
@@ -773,9 +775,9 @@ static irqreturn_t mxt_interrupt(int irq, void *dev_id)
 
 		if (reportid == data->T6_reportid) {
 			u8 status = payload[0];
-			unsigned csum = mxt_extract_T6_csum(&payload[1]);
+			data->config_csum = mxt_extract_T6_csum(&payload[1]);
 			dev_dbg(dev, "Status: %02x Config Checksum: %06x\n",
-				status, csum);
+				status, data->config_csum);
 		} else if (mxt_is_T9_message(data, &message)) {
 			int id = reportid - data->T9_reportid_min;
 			mxt_input_touchevent(data, &message, id);
@@ -1086,6 +1088,13 @@ out:
 	return ret ?: count;
 }
 
+static ssize_t mxt_config_csum_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%06x\n", data->config_csum);
+}
+
 /* Firmware Version is returned as Major.Minor.Build */
 static ssize_t mxt_fw_version_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
@@ -1249,6 +1258,7 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 }
 
 static DEVICE_ATTR(calibrate, S_IWUSR, NULL, mxt_calibrate_store);
+static DEVICE_ATTR(config_csum, S_IRUGO, mxt_config_csum_show, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
 static DEVICE_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
 static DEVICE_ATTR(object, S_IRUGO, mxt_object_show, NULL);
@@ -1256,6 +1266,7 @@ static DEVICE_ATTR(update_fw, S_IWUSR, NULL, mxt_update_fw_store);
 
 static struct attribute *mxt_attrs[] = {
 	&dev_attr_calibrate.attr,
+	&dev_attr_config_csum.attr,
 	&dev_attr_fw_version.attr,
 	&dev_attr_hw_version.attr,
 	&dev_attr_object.attr,
