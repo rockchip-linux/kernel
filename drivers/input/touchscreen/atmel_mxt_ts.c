@@ -906,6 +906,71 @@ static void mxt_handle_pdata(struct mxt_data *data)
 	}
 }
 
+/* Update 24-bit CRC with two new bytes of data */
+static u32 crc24_step(u32 crc, u8 byte1, u8 byte2)
+{
+	const u32 crcpoly = 0x80001b;
+	u16 data = byte1 | (byte2 << 8);
+	u32 result = data ^ (crc << 1);
+
+	/* XOR result with crcpoly if bit 25 is set (overflow occurred) */
+	if (result & 0x01000000)
+		result ^= crcpoly;
+
+	return result & 0x00ffffff;
+}
+
+static u32 crc24(u32 crc, const u8 *data, size_t len)
+{
+	size_t i;
+
+	for (i = 0; i < len - 1; i += 2)
+		crc = crc24_step(crc, data[i], data[i + 1]);
+
+	/* If there were an odd number of bytes pad with 0 */
+	if (i < len)
+		crc = crc24_step(crc, data[i], 0);
+
+	return crc;
+}
+
+static int mxt_verify_info_block_csum(struct mxt_data *data)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
+	size_t object_table_size, info_block_size;
+	u32 crc = 0;
+	u8 *info_block;
+	int ret = 0;
+
+	object_table_size = data->info.object_num * MXT_OBJECT_SIZE;
+	info_block_size = sizeof(data->info) + object_table_size;
+	info_block = kmalloc(info_block_size, GFP_KERNEL);
+	if (!info_block)
+		return -ENOMEM;
+
+	/*
+	 * Information Block CRC is computed over both ID info and Object Table
+	 * So concat them in a temporary buffer, before computing CRC.
+	 * TODO: refactor how the info block is read from the device such
+	 * that it ends up in a single buffer and this copy is not needed.
+	 */
+	memcpy(info_block, &data->info, sizeof(data->info));
+	memcpy(&info_block[sizeof(data->info)], data->object_table,
+			object_table_size);
+
+	crc = crc24(crc, info_block, info_block_size);
+
+	if (crc != data->info_csum) {
+		dev_err(dev, "Information Block CRC mismatch: %06x != %06x\n",
+			data->info_csum, crc);
+		ret = -EINVAL;
+	}
+
+	kfree(info_block);
+	return ret;
+}
+
 static int mxt_get_info(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
@@ -947,6 +1012,10 @@ static int mxt_get_object_table(struct mxt_data *data)
 
 	data->info_csum = csum[0] | (csum[1] << 8) | (csum[2] << 16);
 	dev_info(dev, "Information Block Checksum = %06x\n", data->info_csum);
+
+	error = mxt_verify_info_block_csum(data);
+	if (error)
+		return error;
 
 	/* Valid Report IDs start counting from 1 */
 	reportid = 1;
