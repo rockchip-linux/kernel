@@ -135,17 +135,22 @@ static ssize_t low_mem_margin_store(struct kobject *kobj,
 		low_mem_margin_enabled = false;
 		return count;
 	}
+	if (strncmp("on", buf, 2) == 0) {
+		printk(KERN_INFO "low_mem: enabling notifier\n");
+		low_mem_margin_enabled = true;
+		return count;
+	}
 
 	err = strict_strtoul(buf, 10, &margin);
 	if (err)
+		return -EINVAL;
+	if (margin * ((1024 * 1024) / PAGE_SIZE) > totalram_pages)
 		return -EINVAL;
 	/* Notify when the "free" memory is below margin megabytes. */
 	low_mem_margin_enabled = true;
 	low_mem_margin_mb = (unsigned int) margin;
 	/* Convert to pages outside the allocator fast path. */
 	low_mem_minfree = low_mem_margin_to_minfree(low_mem_margin_mb);
-	if (low_mem_minfree < 0 || low_mem_minfree > totalram_pages)
-		return -EINVAL;
 	printk(KERN_INFO "low_mem: setting minfree to %lu kB\n",
 	       low_mem_minfree * (PAGE_SIZE / 1024));
 	return count;
