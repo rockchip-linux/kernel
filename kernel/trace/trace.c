@@ -292,6 +292,27 @@ cycle_t ftrace_now(int cpu)
 	return buffer_ftrace_now(&global_trace.trace_buffer, cpu);
 }
 
+/*
+ * Interface used by clock_getres(CLOCK_SYSTEM_TRACE).
+ */
+void trace_clock_getres(struct timespec *tp)
+{
+	*tp = ktime_to_timespec(KTIME_LOW_RES);
+}
+
+/*
+ * Interface used by clock_gettime(CLOCK_SYSTEM_TRACE).
+ */
+void trace_clock_gettime(struct timespec *tp)
+{
+	u64 now;
+	u32 rem;
+
+	now = ftrace_now(raw_smp_processor_id());
+	tp->tv_sec = div_u64_rem(now, NSEC_PER_SEC, &rem);
+	tp->tv_nsec = rem;
+}
+
 /**
  * tracing_is_enabled - Show if global_trace has been disabled
  *

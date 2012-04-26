@@ -265,6 +265,20 @@ static int posix_get_boottime(const clockid_t which_clock, struct timespec *tp)
 }
 
 
+static int posix_get_system_trace_res(const clockid_t which_clock,
+				      struct timespec *tp)
+{
+	trace_clock_getres(tp);
+	return 0;
+}
+
+static int posix_get_system_trace(const clockid_t which_clock,
+				  struct timespec *tp)
+{
+	trace_clock_gettime(tp);
+	return 0;
+}
+
 /*
  * Initialize everything, well, just everything in Posix clocks/timers ;)
  */
@@ -314,6 +328,10 @@ static __init int init_posix_timers(void)
 		.timer_get	= common_timer_get,
 		.timer_del	= common_timer_del,
 	};
+	struct k_clock clock_system_trace = {
+		.clock_getres	= posix_get_system_trace_res,
+		.clock_get	= posix_get_system_trace,
+	};
 
 	posix_timers_register_clock(CLOCK_REALTIME, &clock_realtime);
 	posix_timers_register_clock(CLOCK_MONOTONIC, &clock_monotonic);
@@ -321,6 +339,7 @@ static __init int init_posix_timers(void)
 	posix_timers_register_clock(CLOCK_REALTIME_COARSE, &clock_realtime_coarse);
 	posix_timers_register_clock(CLOCK_MONOTONIC_COARSE, &clock_monotonic_coarse);
 	posix_timers_register_clock(CLOCK_BOOTTIME, &clock_boottime);
+	posix_timers_register_clock(CLOCK_SYSTEM_TRACE, &clock_system_trace);
 
 	posix_timers_cache = kmem_cache_create("posix_timers_cache",
 					sizeof (struct k_itimer), 0, SLAB_PANIC,
