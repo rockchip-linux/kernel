@@ -262,6 +262,7 @@ struct mxt_data {
 	unsigned int max_x;
 	unsigned int max_y;
 
+	u32 info_csum;
 	u32 config_csum;
 
 	/* Cached parameters from object table */
@@ -922,16 +923,30 @@ static int mxt_get_info(struct mxt_data *data)
 static int mxt_get_object_table(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
+	struct device *dev = &data->client->dev;
 	size_t table_size;
 	int error;
 	int i;
 	u8 reportid;
+	u8 csum[3];
 
 	table_size = data->info.object_num * sizeof(struct mxt_object);
 	error = __mxt_read_reg(client, MXT_OBJECT_START, table_size,
 			data->object_table);
 	if (error)
 		return error;
+
+	/*
+	 * Read Information Block checksum from 3 bytes immediately following
+	 * info block
+	 */
+	error = __mxt_read_reg(client, MXT_OBJECT_START + table_size,
+			sizeof(csum), csum);
+	if (error)
+		return error;
+
+	data->info_csum = csum[0] | (csum[1] << 8) | (csum[2] << 16);
+	dev_info(dev, "Information Block Checksum = %06x\n", data->info_csum);
 
 	/* Valid Report IDs start counting from 1 */
 	reportid = 1;
@@ -1115,6 +1130,13 @@ static ssize_t mxt_hw_version_show(struct device *dev,
 			 info->family_id, info->variant_id);
 }
 
+static ssize_t mxt_info_csum_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%06x\n", data->info_csum);
+}
+
 static ssize_t mxt_show_instance(char *buf, int count,
 				 struct mxt_object *object, int instance,
 				 const u8 *val)
@@ -1261,6 +1283,7 @@ static DEVICE_ATTR(calibrate, S_IWUSR, NULL, mxt_calibrate_store);
 static DEVICE_ATTR(config_csum, S_IRUGO, mxt_config_csum_show, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
 static DEVICE_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
+static DEVICE_ATTR(info_csum, S_IRUGO, mxt_info_csum_show, NULL);
 static DEVICE_ATTR(object, S_IRUGO, mxt_object_show, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, mxt_update_fw_store);
 
@@ -1269,6 +1292,7 @@ static struct attribute *mxt_attrs[] = {
 	&dev_attr_config_csum.attr,
 	&dev_attr_fw_version.attr,
 	&dev_attr_hw_version.attr,
+	&dev_attr_info_csum.attr,
 	&dev_attr_object.attr,
 	&dev_attr_update_fw.attr,
 	NULL
