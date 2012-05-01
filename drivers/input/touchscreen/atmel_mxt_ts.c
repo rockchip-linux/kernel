@@ -298,6 +298,7 @@ struct mxt_data {
 /* global root node of the atmel_mxt_ts debugfs directory. */
 static struct dentry *mxt_debugfs_root;
 
+static int mxt_calc_resolution(struct mxt_data *data);
 static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
@@ -1142,14 +1143,17 @@ static int mxt_initialize(struct mxt_data *data)
 	mxt_handle_pdata(data);
 
 	/* Backup to memory */
-	mxt_write_object(data, MXT_GEN_COMMAND_T6,
-			MXT_COMMAND_BACKUPNV,
-			MXT_BACKUP_VALUE);
+	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+				 MXT_COMMAND_BACKUPNV, MXT_BACKUP_VALUE);
+	if (error)
+		return error;
 	msleep(MXT_BACKUP_TIME);
 
 	/* Soft reset */
-	mxt_write_object(data, MXT_GEN_COMMAND_T6,
-			MXT_COMMAND_RESET, 1);
+	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+				 MXT_COMMAND_RESET, 1);
+	if (error)
+		return error;
 	msleep(MXT_RESET_TIME);
 
 	/* Update matrix size at info struct */
@@ -1173,6 +1177,10 @@ static int mxt_initialize(struct mxt_data *data)
 			info->matrix_xsize, info->matrix_ysize,
 			info->object_num);
 
+	error = mxt_calc_resolution(data);
+	if (error)
+		return error;
+
 	return 0;
 
 err_free_object_table:
@@ -1180,18 +1188,41 @@ err_free_object_table:
 	return error;
 }
 
-static void mxt_calc_resolution(struct mxt_data *data)
+static int mxt_calc_resolution(struct mxt_data *data)
 {
-	unsigned int max_x = data->pdata->x_size - 1;
-	unsigned int max_y = data->pdata->y_size - 1;
+	struct i2c_client *client = data->client;
+	u8 orient;
+	__le16 xyrange[2];
+	unsigned int max_x, max_y;
+	int ret;
 
-	if (data->pdata->orient & MXT_XY_SWITCH) {
+	struct mxt_object *T9 = mxt_get_object(data, MXT_TOUCH_MULTI_T9);
+	if (T9 == NULL)
+		return -EINVAL;
+
+	/* Get touchscreen resolution */
+	ret = __mxt_read_reg(client, T9->start_address + MXT_TOUCH_XRANGE_LSB,
+			4, xyrange);
+	if (ret)
+		return ret;
+
+	ret = __mxt_read_reg(client, T9->start_address + MXT_TOUCH_ORIENT,
+			1, &orient);
+	if (ret)
+		return ret;
+
+	max_x = le16_to_cpu(xyrange[0]);
+	max_y = le16_to_cpu(xyrange[1]);
+
+	if (orient & MXT_XY_SWITCH) {
 		data->max_x = max_y;
 		data->max_y = max_x;
 	} else {
 		data->max_x = max_x;
 		data->max_y = max_y;
 	}
+
+	return 0;
 }
 
 /*
@@ -1817,8 +1848,6 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	data->irq = client->irq;
 
 	init_completion(&data->bl_completion);
-
-	mxt_calc_resolution(data);
 
 	if (mxt_in_bootloader(data)) {
 		dev_info(&client->dev, "Device in bootloader at probe\n");
