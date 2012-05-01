@@ -602,11 +602,6 @@ static int __mxt_read_reg(struct i2c_client *client,
 	return ret;
 }
 
-static int mxt_read_reg(struct i2c_client *client, u16 reg, u8 *val)
-{
-	return __mxt_read_reg(client, reg, 1, val);
-}
-
 static int __mxt_write_reg(struct i2c_client *client, u16 reg, u16 len,
 			   const void *val)
 {
@@ -1206,7 +1201,6 @@ static int mxt_initialize(struct mxt_data *data)
 	struct i2c_client *client = data->client;
 	struct mxt_info *info = &data->info;
 	int error;
-	u8 val;
 
 	error = mxt_get_info(data);
 	if (error)
@@ -1245,17 +1239,6 @@ static int mxt_initialize(struct mxt_data *data)
 	if (error)
 		return error;
 	msleep(MXT_RESET_TIME);
-
-	/* Update matrix size at info struct */
-	error = mxt_read_reg(client, MXT_MATRIX_X_SIZE, &val);
-	if (error)
-		goto err_free_object_table;
-	info->matrix_xsize = val;
-
-	error = mxt_read_reg(client, MXT_MATRIX_Y_SIZE, &val);
-	if (error)
-		goto err_free_object_table;
-	info->matrix_ysize = val;
 
 	dev_info(&client->dev,
 			"Family ID: %u Variant ID: %u Major.Minor.Build: %u.%u.%02X\n",
