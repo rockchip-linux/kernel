@@ -659,6 +659,7 @@ static bool mxt_is_T9_message(struct mxt_data *data, struct mxt_message *msg)
 static int mxt_enter_bl(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
 	int ret;
 
 	if (mxt_in_bootloader(data))
@@ -687,8 +688,19 @@ static int mxt_enter_bl(struct mxt_data *data)
 		data->input_dev = NULL;
 	}
 
+	init_completion(&data->bl_completion);
 	enable_irq(data->irq);
-	msleep(MXT_RESET_TIME);
+
+	/* Wait for CHG assert to indicate successful reset into bootloader */
+	ret = mxt_wait_for_chg(data, MXT_RESET_TIME);
+	if (ret) {
+		dev_err(dev, "Failed waiting for reset to bootloader.\n");
+		if (client->addr == MXT_BOOT_LOW)
+			client->addr = MXT_APP_LOW;
+		else
+			client->addr = MXT_APP_HIGH;
+		return ret;
+	}
 	return 0;
 }
 
@@ -701,10 +713,10 @@ static void mxt_exit_bl(struct mxt_data *data)
 	if (!mxt_in_bootloader(data))
 		return;
 
-	disable_irq(data->irq);
 	/* Wait for reset */
-	msleep(MXT_FWRESET_TIME);
+	mxt_wait_for_chg(data, MXT_FWRESET_TIME);
 
+	disable_irq(data->irq);
 	if (client->addr == MXT_BOOT_LOW)
 		client->addr = MXT_APP_LOW;
 	else
