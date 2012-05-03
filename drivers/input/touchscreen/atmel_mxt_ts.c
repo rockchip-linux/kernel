@@ -263,6 +263,11 @@ struct mxt_data {
 	u8 T19_reportid;
 };
 
+static void mxt_free_object_table(struct mxt_data *data);
+static int mxt_initialize(struct mxt_data *data);
+static int mxt_input_dev_create(struct mxt_data *data);
+static int mxt_make_highchg(struct mxt_data *data);
+
 static bool mxt_object_readable(unsigned int type)
 {
 	switch (type) {
@@ -412,6 +417,8 @@ recheck:
 
 	if (val != state) {
 		dev_err(&client->dev, "Unvalid bootloader mode state\n");
+		dev_err(&client->dev, "Invalid bootloader mode state %d, %d\n",
+			val, state);
 		return -EINVAL;
 	}
 
@@ -604,6 +611,81 @@ static bool mxt_is_T9_message(struct mxt_data *data, struct mxt_message *msg)
 {
 	u8 id = msg->reportid;
 	return (id >= data->T9_reportid_min && id <= data->T9_reportid_max);
+}
+
+static int mxt_enter_bl(struct mxt_data *data)
+{
+	struct i2c_client *client = data->client;
+	int ret;
+
+	if (mxt_in_bootloader(data))
+		return 0;
+
+	disable_irq(data->irq);
+
+	/* Change to the bootloader mode */
+	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+			       MXT_COMMAND_RESET, MXT_BOOT_VALUE);
+	if (ret) {
+		enable_irq(data->irq);
+		return ret;
+	}
+
+	/* Change to slave address of bootloader */
+	if (client->addr == MXT_APP_LOW)
+		client->addr = MXT_BOOT_LOW;
+	else
+		client->addr = MXT_BOOT_HIGH;
+
+	/* Free any driver state. It will get reinitialized after fw update. */
+	mxt_free_object_table(data);
+	if (data->input_dev) {
+		input_unregister_device(data->input_dev);
+		data->input_dev = NULL;
+	}
+
+	enable_irq(data->irq);
+	msleep(MXT_RESET_TIME);
+	return 0;
+}
+
+static void mxt_exit_bl(struct mxt_data *data)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
+	int error;
+
+	if (!mxt_in_bootloader(data))
+		return;
+
+	disable_irq(data->irq);
+	/* Wait for reset */
+	msleep(MXT_FWRESET_TIME);
+
+	if (client->addr == MXT_BOOT_LOW)
+		client->addr = MXT_APP_LOW;
+	else
+		client->addr = MXT_APP_HIGH;
+
+	error = mxt_initialize(data);
+	if (error) {
+		dev_err(dev, "Failed to initialize on exit bl. error = %d\n",
+			error);
+		return;
+	}
+
+	error = mxt_input_dev_create(data);
+	if (error) {
+		dev_err(dev, "Create input dev failed after init. error = %d\n",
+			error);
+		return;
+	}
+
+	error = mxt_make_highchg(data);
+	if (error)
+		dev_err(dev, "Failed to clear CHG after init. error = %d\n",
+			error);
+	enable_irq(data->irq);
 }
 
 static irqreturn_t mxt_interrupt(int irq, void *dev_id)
@@ -1015,28 +1097,10 @@ static int mxt_load_fw(struct device *dev, const char *fn)
 		return ret;
 	}
 
-	if (mxt_in_bootloader(data))
-		goto bootloader_ready;
-
-	/* Change to the bootloader mode */
-	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
-			MXT_COMMAND_RESET, MXT_BOOT_VALUE);
-	if (ret)
+	ret = mxt_enter_bl(data);
+	if (ret) {
+		dev_err(dev, "Failed to reset to bootloader.\n");
 		goto out;
-	msleep(MXT_RESET_TIME);
-
-	/* Change to slave address of bootloader */
-	if (client->addr == MXT_APP_LOW)
-		client->addr = MXT_BOOT_LOW;
-	else
-		client->addr = MXT_BOOT_HIGH;
-
-bootloader_ready:
-	/* Free any driver state. It will get reinitialized after fw update. */
-	mxt_free_object_table(data);
-	if (data->input_dev) {
-		input_unregister_device(data->input_dev);
-		data->input_dev = NULL;
 	}
 
 	ret = mxt_check_bootloader(client, MXT_WAITING_BOOTLOAD_CMD);
@@ -1076,11 +1140,8 @@ bootloader_ready:
 		dev_dbg(dev, "Updated %d bytes / %zd bytes\n", pos, fw->size);
 	}
 
-	/* Change to slave address of application */
-	if (client->addr == MXT_BOOT_LOW)
-		client->addr = MXT_APP_LOW;
-	else
-		client->addr = MXT_APP_HIGH;
+	/* Device exits bl mode to app mode only if successful */
+	mxt_exit_bl(data);
 out:
 	release_firmware(fw);
 
@@ -1091,10 +1152,7 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 					struct device_attribute *attr,
 					const char *buf, size_t count)
 {
-	struct mxt_data *data = dev_get_drvdata(dev);
 	int error;
-
-	disable_irq(data->irq);
 
 	error = mxt_load_fw(dev, MXT_FW_NAME);
 	if (error) {
@@ -1102,19 +1160,7 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 		count = error;
 	} else {
 		dev_dbg(dev, "The firmware update succeeded\n");
-
-		/* Wait for reset */
-		msleep(MXT_FWRESET_TIME);
-
-		mxt_initialize(data);
-		mxt_input_dev_create(data);
 	}
-
-	enable_irq(data->irq);
-
-	error = mxt_make_highchg(data);
-	if (error)
-		return error;
 
 	return count;
 }
