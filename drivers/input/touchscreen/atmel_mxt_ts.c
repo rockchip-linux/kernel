@@ -304,6 +304,20 @@ struct mxt_data {
 	struct mutex T37_buf_mutex;
 	u8 *T37_buf;
 	size_t T37_buf_size;
+
+	/* Saved T7 configuration
+	 * [0] = IDLEACQINT
+	 * [1] = ACTVACQINT
+	 * [2] = ACTV2IDLETO
+	 */
+	u8 T7_config[3];
+	bool T7_config_valid;
+
+	/* Saved T9 Ctrl field */
+	u8 T9_ctrl;
+	bool T9_ctrl_valid;
+
+	bool irq_wake;  /* irq wake is enabled */
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -1836,6 +1850,44 @@ static int mxt_debugfs_init(struct mxt_data *mxt)
 	return 0;
 }
 
+static int mxt_save_regs(struct mxt_data *data, u8 type, u8 instance,
+			 u8 offset, u8 *val, u16 size)
+{
+	struct mxt_object *object;
+	u16 addr;
+	int ret;
+
+	object = mxt_get_object(data, type);
+	if (!object)
+		return -EINVAL;
+
+	addr = object->start_address + instance * mxt_obj_size(object) + offset;
+	ret = __mxt_read_reg(data->client, addr, size, val);
+	if (ret)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int mxt_set_regs(struct mxt_data *data, u8 type, u8 instance,
+			u8 offset, const u8 *val, u16 size)
+{
+	struct mxt_object *object;
+	u16 addr;
+	int ret;
+
+	object = mxt_get_object(data, type);
+	if (!object)
+		return -EINVAL;
+
+	addr = object->start_address + instance * mxt_obj_size(object) + offset;
+	ret = __mxt_write_reg(data->client, addr, size, val);
+	if (ret)
+		return -EINVAL;
+
+	return 0;
+}
+
 static void mxt_start(struct mxt_data *data)
 {
 	/* Touch enable */
@@ -2065,14 +2117,62 @@ static int mxt_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mxt_data *data = i2c_get_clientdata(client);
 	struct input_dev *input_dev = data->input_dev;
+	static const u8 T7_config_idle[3] = { 0xfe, 0xfe, 0x00 };
+	static const u8 T7_config_deepsleep[3] = { 0x00, 0x00, 0x00 };
+	const u8 *power_config;
+	u8 T9_ctrl = 0x03;
+	int ret;
 
 	if (mxt_in_bootloader(data))
 		return 0;
 
 	mutex_lock(&input_dev->mutex);
 
-	if (input_dev->users)
+	/* Save 3 bytes T7 Power config */
+	ret = mxt_save_regs(data, MXT_GEN_POWER_T7, 0, 0,
+			    data->T7_config, 3);
+	if (ret)
+		dev_err(dev, "Save T7 Power config failed, %d\n", ret);
+	data->T7_config_valid = (ret == 0);
+
+	/*
+	 * Set T7 to idle mode if we allow wakeup from touch, otherwise
+	 * put it into deepsleep mode.
+	 */
+	power_config = device_may_wakeup(dev) ? T7_config_idle
+					      : T7_config_deepsleep;
+
+	ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
+			   power_config, 3);
+	if (ret)
+		dev_err(dev, "Set T7 Power config failed, %d\n", ret);
+
+	if (device_may_wakeup(dev)) {
+		/*
+		 * If we allow wakeup from touch, we have to enable T9 so
+		 * that IRQ can be generated from touch
+		 */
+
+		/* Save 1 byte T9 Ctrl config */
+		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+				    &data->T9_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
+		data->T9_ctrl_valid = (ret == 0);
+
+		/* Enable T9 object */
+		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+				   &T9_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
+
+		/* Enable wake from IRQ */
+		data->irq_wake = (enable_irq_wake(data->irq) == 0);
+	} else if (input_dev->users) {
 		mxt_stop(data);
+	}
+
+	disable_irq(data->irq);
 
 	mutex_unlock(&input_dev->mutex);
 
@@ -2084,20 +2184,40 @@ static int mxt_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mxt_data *data = i2c_get_clientdata(client);
 	struct input_dev *input_dev = data->input_dev;
+	int ret;
 
 	if (mxt_in_bootloader(data))
 		return 0;
 
-	/* Soft reset */
-	mxt_write_object(data, MXT_GEN_COMMAND_T6,
-			MXT_COMMAND_RESET, 1);
-
-	msleep(MXT_RESET_TIME);
+	/* Process any pending message so that CHG line can be de-asserted */
+	ret = mxt_handle_messages(data);
+	if (ret)
+		dev_err(dev, "Handling message fails upon resume, %d\n", ret);
 
 	mutex_lock(&input_dev->mutex);
 
-	if (input_dev->users)
+	enable_irq(data->irq);
+
+	if (device_may_wakeup(dev) && data->irq_wake)
+		disable_irq_wake(data->irq);
+
+	/* Restore the T9 Ctrl config to before-suspend value */
+	if (device_may_wakeup(dev) && data->T9_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+				   &data->T9_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
+	} else if (input_dev->users) {
 		mxt_start(data);
+	}
+
+	/* Restore the T7 Power config to before-suspend value */
+	if (data->T7_config_valid) {
+		ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
+				   data->T7_config, 3);
+		if (ret)
+			dev_err(dev, "Set T7 power config failed, %d\n", ret);
+	}
 
 	mutex_unlock(&input_dev->mutex);
 
