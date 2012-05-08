@@ -2554,8 +2554,7 @@ static noinline void __schedule_bug(struct task_struct *prev)
 	print_modules();
 	if (irqs_disabled())
 		print_irqtrace_events(prev);
-	dump_stack();
-	add_taint(TAINT_WARN, LOCKDEP_STILL_OK);
+	BUG();
 }
 
 /*
