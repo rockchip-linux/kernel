@@ -8,10 +8,12 @@ if [ ! -f "${flavourconf}" ]; then
     exit 1
 fi
 
+outputfile="${2:-.config}"
+
 archconfdir=$(dirname ${flavourconf})
 arch=$(basename ${archconfdir})
 
 # Generate .config
 cat "${family}/config/base.config" \
     "${archconfdir}/common.config" \
-    "${flavourconf}" > .config
+    "${flavourconf}" > "${outputfile}"
