@@ -58,10 +58,10 @@ module_param_named(powersave, i915_powersave, int, 0600);
 MODULE_PARM_DESC(powersave,
 		"Enable powersavings, fbc, downclocking, etc. (default: true)");
 
-int i915_semaphores __read_mostly = -1;
+int i915_semaphores __read_mostly = 1;
 module_param_named(semaphores, i915_semaphores, int, 0400);
 MODULE_PARM_DESC(semaphores,
-		"Use semaphores for inter-ring sync (default: -1 (use per-chip defaults))");
+		"Use semaphores for inter-ring sync (default: true)");
 
 int i915_enable_rc6 __read_mostly = 1;
 module_param_named(i915_enable_rc6, i915_enable_rc6, int, 0600);
@@ -72,11 +72,11 @@ MODULE_PARM_DESC(i915_enable_rc6,
 		"For example, 3 would enable rc6 and deep rc6, and 7 would enable everything. "
 		"default: -1 (use per-chip default)");
 
-int i915_enable_fbc __read_mostly = -1;
+int i915_enable_fbc __read_mostly = 1;
 module_param_named(i915_enable_fbc, i915_enable_fbc, int, 0600);
 MODULE_PARM_DESC(i915_enable_fbc,
 		"Enable frame buffer compression for power savings "
-		"(default: -1 (use per-chip default))");
+		"(default: true)");
 
 unsigned int i915_lvds_downclock __read_mostly = 1;
 module_param_named(lvds_downclock, i915_lvds_downclock, int, 0400);
