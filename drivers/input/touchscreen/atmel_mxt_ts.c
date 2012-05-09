@@ -13,6 +13,7 @@
 
 #include <linux/module.h>
 #include <linux/completion.h>
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/firmware.h>
 #include <linux/i2c.h>
@@ -273,7 +274,13 @@ struct mxt_data {
 
 	/* for fw update in bootloader */
 	struct completion bl_completion;
+
+	/* per-instance debugfs root */
+	struct dentry *dentry_dev;
 };
+
+/* global root node of the atmel_mxt_ts debugfs directory. */
+static struct dentry *mxt_debugfs_root;
 
 static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
@@ -1394,6 +1401,27 @@ static const struct attribute_group mxt_attr_group = {
 	.attrs = mxt_attrs,
 };
 
+/*
+ **************************************************************
+ * debugfs interface
+ **************************************************************
+*/
+static int mxt_debugfs_init(struct mxt_data *mxt)
+{
+	struct device *dev = &mxt->client->dev;
+
+	if (!mxt_debugfs_root)
+		return -ENODEV;
+
+	mxt->dentry_dev = debugfs_create_dir(kobject_name(&dev->kobj),
+					     mxt_debugfs_root);
+
+	if (!mxt->dentry_dev)
+		return -ENODEV;
+
+	return 0;
+}
+
 static void mxt_start(struct mxt_data *data)
 {
 	/* Touch enable */
@@ -1571,6 +1599,10 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	if (error)
 		goto err_free_irq;
 
+	error = mxt_debugfs_init(data);
+	if (error)
+		dev_warn(&client->dev, "error creating debugfs entries.\n");
+
 	return 0;
 
 err_free_irq:
@@ -1588,6 +1620,8 @@ static int mxt_remove(struct i2c_client *client)
 {
 	struct mxt_data *data = i2c_get_clientdata(client);
 
+	if (data->dentry_dev)
+		debugfs_remove_recursive(data->dentry_dev);
 	sysfs_remove_group(&client->dev.kobj, &mxt_attr_group);
 	free_irq(data->irq, data);
 	if (data->input_dev)
@@ -1666,7 +1700,26 @@ static struct i2c_driver mxt_driver = {
 	.id_table	= mxt_id,
 };
 
-module_i2c_driver(mxt_driver);
+static int __init mxt_init(void)
+{
+	/* Create a global debugfs root for all atmel_mxt_ts devices */
+	mxt_debugfs_root = debugfs_create_dir(mxt_driver.driver.name, NULL);
+	if (mxt_debugfs_root == ERR_PTR(-ENODEV))
+		mxt_debugfs_root = NULL;
+
+	return i2c_add_driver(&mxt_driver);
+}
+
+static void __exit mxt_exit(void)
+{
+	if (mxt_debugfs_root)
+		debugfs_remove_recursive(mxt_debugfs_root);
+
+	i2c_del_driver(&mxt_driver);
+}
+
+module_init(mxt_init);
+module_exit(mxt_exit);
 
 /* Module information */
 MODULE_AUTHOR("Joonyoung Shim <jy0922.shim@samsung.com>");
