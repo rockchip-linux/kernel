@@ -970,7 +970,7 @@ static irqreturn_t mxt_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int mxt_check_reg_init(struct mxt_data *data)
+static int mxt_apply_pdata_config(struct mxt_data *data)
 {
 	const struct mxt_platform_data *pdata = data->pdata;
 	struct mxt_object *object;
@@ -980,7 +980,7 @@ static int mxt_check_reg_init(struct mxt_data *data)
 	int ret;
 
 	if (!pdata->config) {
-		dev_dbg(dev, "No cfg data defined, skipping reg init\n");
+		dev_info(dev, "No cfg data defined, skipping reg init\n");
 		return 0;
 	}
 
@@ -1006,10 +1006,21 @@ static int mxt_check_reg_init(struct mxt_data *data)
 	return 0;
 }
 
-static void mxt_handle_pdata(struct mxt_data *data)
+static int mxt_handle_pdata(struct mxt_data *data)
 {
 	const struct mxt_platform_data *pdata = data->pdata;
+	struct device *dev = &data->client->dev;
 	u8 voltage;
+	int ret;
+
+	if (!pdata) {
+		dev_info(dev, "No platform data provided\n");
+		return 0;
+	}
+
+	ret = mxt_apply_pdata_config(data);
+	if (ret)
+		return ret;
 
 	/* Set touchscreen lines */
 	mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_XSIZE,
@@ -1052,6 +1063,8 @@ static void mxt_handle_pdata(struct mxt_data *data)
 		mxt_write_object(data, MXT_SPT_CTECONFIG_T28,
 				MXT_CTE_VOLTAGE, voltage);
 	}
+
+	return 0;
 }
 
 /* Update 24-bit CRC with two new bytes of data */
@@ -1245,12 +1258,10 @@ static int mxt_initialize(struct mxt_data *data)
 	if (error)
 		goto err_free_object_table;
 
-	/* Check register init values */
-	error = mxt_check_reg_init(data);
+	/* Apply config from platform data */
+	error = mxt_handle_pdata(data);
 	if (error)
 		goto err_free_object_table;
-
-	mxt_handle_pdata(data);
 
 	/* Backup to memory */
 	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
@@ -2170,9 +2181,6 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	struct mxt_data *data;
 	unsigned long irqflags;
 	int error;
-
-	if (!pdata)
-		return -EINVAL;
 
 	data = kzalloc(sizeof(struct mxt_data), GFP_KERNEL);
 	if (!data) {
