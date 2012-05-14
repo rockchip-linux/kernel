@@ -2168,6 +2168,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 {
 	const struct mxt_platform_data *pdata = dev_get_platdata(&client->dev);
 	struct mxt_data *data;
+	unsigned long irqflags;
 	int error;
 
 	if (!pdata)
@@ -2203,8 +2204,10 @@ static int __devinit mxt_probe(struct i2c_client *client,
 			goto err_free_object;
 	}
 
+	/* Default to falling edge if no platform data provided */
+	irqflags = pdata ? pdata->irqflags : IRQF_TRIGGER_FALLING;
 	error = request_threaded_irq(client->irq, NULL, mxt_interrupt,
-				     pdata->irqflags | IRQF_ONESHOT,
+				     irqflags | IRQF_ONESHOT,
 				     client->name, data);
 	if (error) {
 		dev_err(&client->dev, "Failed to register interrupt\n");
