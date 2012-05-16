@@ -41,6 +41,9 @@
 /* Firmware */
 #define MXT_FW_NAME		"maxtouch.fw"
 
+/* Config file */
+#define MXT_CONFIG_NAME		"maxtouch.cfg"
+
 /* Registers */
 #define MXT_INFO		0x00
 #define MXT_FAMILY_ID		0x00
@@ -330,6 +333,9 @@ struct mxt_data {
 
 	/* firmware file name */
 	char *fw_file;
+
+	/* config file name */
+	char *config_file;
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -1553,6 +1559,24 @@ static ssize_t mxt_config_csum_show(struct device *dev,
 	return scnprintf(buf, PAGE_SIZE, "%06x\n", data->config_csum);
 }
 
+static ssize_t mxt_config_file_show(struct device *dev,
+				    struct device_attribute *attr, char *buf)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", data->config_file);
+}
+
+static ssize_t mxt_config_file_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	ret = mxt_update_file_name(dev, &data->config_file, buf, count);
+	return ret ? ret : count;
+}
+
 static ssize_t mxt_fw_file_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
@@ -1726,6 +1750,8 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 static DEVICE_ATTR(backupnv, S_IWUSR, NULL, mxt_backupnv_store);
 static DEVICE_ATTR(calibrate, S_IWUSR, NULL, mxt_calibrate_store);
 static DEVICE_ATTR(config_csum, S_IRUGO, mxt_config_csum_show, NULL);
+static DEVICE_ATTR(config_file, S_IRUGO | S_IWUSR, mxt_config_file_show,
+		   mxt_config_file_store);
 static DEVICE_ATTR(fw_file, S_IRUGO | S_IWUSR, mxt_fw_file_show,
 		   mxt_fw_file_store);
 static DEVICE_ATTR(fw_version, S_IRUGO, mxt_fw_version_show, NULL);
@@ -1739,6 +1765,7 @@ static struct attribute *mxt_attrs[] = {
 	&dev_attr_backupnv.attr,
 	&dev_attr_calibrate.attr,
 	&dev_attr_config_csum.attr,
+	&dev_attr_config_file.attr,
 	&dev_attr_fw_file.attr,
 	&dev_attr_fw_version.attr,
 	&dev_attr_hw_version.attr,
@@ -2268,12 +2295,17 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	if (error)
 		goto err_free_mem;
 
+	error = mxt_update_file_name(&client->dev, &data->config_file,
+				     MXT_CONFIG_NAME, strlen(MXT_CONFIG_NAME));
+	if (error)
+		goto err_free_fw_file;
+
 	if (mxt_in_bootloader(data)) {
 		dev_info(&client->dev, "Device in bootloader at probe\n");
 	} else {
 		error = mxt_initialize(data);
 		if (error)
-			goto err_free_fw_file;
+			goto err_free_cfg_file;
 
 		error = mxt_input_dev_create(data);
 		if (error)
@@ -2315,6 +2347,8 @@ err_unregister_device:
 	input_unregister_device(data->input_dev);
 err_free_object:
 	kfree(data->object_table);
+err_free_cfg_file:
+	kfree(data->config_file);
 err_free_fw_file:
 	kfree(data->fw_file);
 err_free_mem:
@@ -2333,6 +2367,7 @@ static int mxt_remove(struct i2c_client *client)
 		input_unregister_device(data->input_dev);
 	kfree(data->object_table);
 	kfree(data->fw_file);
+	kfree(data->config_file);
 	kfree(data);
 
 	return 0;
