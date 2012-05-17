@@ -457,10 +457,10 @@ gmbus_xfer(struct i2c_adapter *adapter,
 
 	reg_offset = dev_priv->gpio_mmio_base;
 
-	/* Hack to use 400kHz only for atmel_mxt i2c devices on ddc ports */
+	/* Hack to use 400kHz only for touch i2c devices on ddc ports */
 	gmbus0 = bus->reg0;
 	if (((gmbus0 & GMBUS_PORT_MASK) == GMBUS_PORT_VGADDC &&
-	     msgs[0].addr == 0x4b) ||
+	     (msgs[0].addr == 0x4b || msgs[0].addr == 0x67)) ||
 	    ((gmbus0 & GMBUS_PORT_MASK) == GMBUS_PORT_PANEL &&
 	     (msgs[0].addr == 0x4a || msgs[0].addr == 0x26)))
 		gmbus0 = (gmbus0 & ~GMBUS_RATE_MASK) | GMBUS_RATE_400KHZ;
