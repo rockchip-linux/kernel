@@ -69,9 +69,15 @@ for arch in $archs; do
 			make O=`pwd`/build ARCH=$kernarch silentoldconfig ;;
 		    editconfig)
 			# Interactively edit config parameters
-			echo "* Run menuconfig on $arch/$config... Press a key."
-			read
-			make O=`pwd`/build ARCH=$kernarch menuconfig ;;
+			echo "* $arch/$config: press <Enter> to edit, S to skip"
+			read -s -n 1
+			if [ $REPLY = 's' -o $REPLY = 'S' ]; then
+			    echo "* Skip: running silentoldconfig"
+			    make O=`pwd`/build ARCH=$kernarch silentoldconfig
+			else
+			    echo "* Running menuconfig"
+			    make O=`pwd`/build ARCH=$kernarch menuconfig
+			fi ;;
 		    *)  # Bad!
 			exit 1 ;;
 		esac
