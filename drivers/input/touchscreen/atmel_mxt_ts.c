@@ -44,6 +44,9 @@
 /* Config file */
 #define MXT_CONFIG_NAME		"maxtouch.cfg"
 
+/* Configuration Data */
+#define MXT_CONFIG_VERSION	"OBP_RAW V1"
+
 /* Registers */
 #define MXT_INFO		0x00
 #define MXT_FAMILY_ID		0x00
@@ -242,6 +245,19 @@
 
 /* For CMT (must match XRANGE/YRANGE as defined in board config */
 #define MXT_PIXELS_PER_MM	20
+
+struct mxt_cfg_file_hdr {
+	bool valid;
+	u32 info_crc;
+	u32 cfg_crc;
+};
+
+struct mxt_cfg_file_line {
+	struct list_head list;
+	u16 addr;
+	u8 size;
+	u8 *content;
+};
 
 struct mxt_info {
 	u8 family_id;
@@ -1359,6 +1375,287 @@ static int mxt_calc_resolution(struct mxt_data *data)
 }
 
 /*
+ * Atmel Raw Config File Format
+ *
+ * The first four lines of the raw config file contain:
+ *  1) Version
+ *  2) Chip ID Information (first 7 bytes of device memory)
+ *  3) Chip Information Block 24-bit CRC Checksum
+ *  4) Chip Configuration 24-bit CRC Checksum
+ *
+ * The rest of the file consists of one line per object instance:
+ *   <TYPE> <INSTANCE> <SIZE> <CONTENTS>
+ *
+ *  <TYPE> - 2-byte object type as hex
+ *  <INSTANCE> - 2-byte object instance number as hex
+ *  <SIZE> - 2-byte object size as hex
+ *  <CONTENTS> - array of <SIZE> 1-byte hex values
+ */
+static int mxt_cfg_verify_hdr(struct mxt_data *data, char **config)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
+	struct mxt_info info;
+	char *token;
+	int ret = 0;
+	u32 crc;
+
+	/* Process the first four lines of the file*/
+	/* 1) Version */
+	token = strsep(config, "\n");
+	dev_info(dev, "Config File: Version = %s\n", token ?: "<null>");
+	if (!token ||
+	    strncmp(token, MXT_CONFIG_VERSION, strlen(MXT_CONFIG_VERSION))) {
+		dev_err(dev, "Invalid config file: Bad Version\n");
+		return -EINVAL;
+	}
+
+	/* 2) Chip ID */
+	token = strsep(config, "\n");
+	if (!token) {
+		dev_err(dev, "Invalid config file: No Chip ID\n");
+		return -EINVAL;
+	}
+	ret = sscanf(token, "%hhx %hhx %hhx %hhx %hhx %hhx %hhx",
+		     &info.family_id, &info.variant_id,
+		     &info.version, &info.build, &info.matrix_xsize,
+		     &info.matrix_ysize, &info.object_num);
+	dev_info(dev, "Config File: Chip ID = %02x %02x %02x %02x %02x %02x %02x\n",
+		info.family_id, info.variant_id, info.version, info.build,
+		info.matrix_xsize, info.matrix_ysize, info.object_num);
+	if (ret != 7 ||
+	    info.family_id != data->info.family_id ||
+	    info.variant_id != data->info.variant_id ||
+	    info.version != data->info.version ||
+	    info.build != data->info.build ||
+	    info.matrix_xsize != data->info.matrix_xsize ||
+	    info.matrix_ysize != data->info.matrix_ysize ||
+	    info.object_num != data->info.object_num) {
+		dev_err(dev, "Invalid config file: Chip ID info mismatch\n");
+		dev_err(dev, "Chip Info: %02x %02x %02x %02x %02x %02x %02x\n",
+			data->info.family_id, data->info.variant_id,
+			data->info.version, data->info.build,
+			data->info.matrix_xsize, data->info.matrix_ysize,
+			data->info.object_num);
+		return -EINVAL;
+	}
+
+	/* 3) Info Block CRC */
+	token = strsep(config, "\n");
+	if (!token) {
+		dev_err(dev, "Invalid config file: No Info Block CRC\n");
+		return -EINVAL;
+	}
+	ret = sscanf(token, "%x", &crc);
+	dev_info(dev, "Config File: Info Block CRC = %06x\n", crc);
+	if (ret != 1 || crc != data->info_csum) {
+		dev_err(dev, "Invalid config file: Bad Info Block CRC\n");
+		return -EINVAL;
+	}
+
+	/* 4) Config CRC */
+	/*
+	 * Parse but don't verify against current config;
+	 * TODO: Verify against CRC of rest of file?
+	 */
+	token = strsep(config, "\n");
+	if (!token) {
+		dev_err(dev, "Invalid config file: No Config CRC\n");
+		return -EINVAL;
+	}
+	ret = sscanf(token, "%x", &crc);
+	dev_info(dev, "Config File: Config CRC = %06x\n", crc);
+	if (ret != 1) {
+		dev_err(dev, "Invalid config file: Bad Config CRC\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int mxt_cfg_proc_line(struct mxt_data *data, const char *line,
+			     struct list_head *cfg_list)
+{
+	int ret;
+	u16 type, instance, size;
+	int len;
+	struct mxt_cfg_file_line *cfg_line;
+	struct mxt_object *object;
+	u8 *content;
+	size_t i;
+
+	ret = sscanf(line, "%hx %hx %hx%n", &type, &instance, &size, &len);
+	/* Skip unparseable lines */
+	if (ret < 3)
+		return 0;
+	/* Only support 1-byte types */
+	if (type > 0xff)
+		return -EINVAL;
+
+	/* Supplied object MUST be a valid instance and match object size */
+	object = mxt_get_object(data, type);
+	if (!object || instance > object->instances || size != object->size)
+		return -EINVAL;
+
+	content = kmalloc(size, GFP_KERNEL);
+	if (!content)
+		return -ENOMEM;
+
+	for (i = 0; i < size; i++) {
+		line += len;
+		ret = sscanf(line, "%hhx%n", &content[i], &len);
+		if (ret < 1) {
+			ret = -EINVAL;
+			goto free_content;
+		}
+	}
+
+	cfg_line = kzalloc(sizeof(*cfg_line), GFP_KERNEL);
+	if (!cfg_line) {
+		ret = -ENOMEM;
+		goto free_content;
+	}
+	INIT_LIST_HEAD(&cfg_line->list);
+	cfg_line->addr = object->start_address + instance * object->size;
+	cfg_line->size = object->size;
+	cfg_line->content = content;
+	list_add_tail(&cfg_line->list, cfg_list);
+
+	return 0;
+
+free_content:
+	kfree(content);
+	return ret;
+}
+
+static int mxt_cfg_proc_data(struct mxt_data *data, char **config)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
+	char *line;
+	int ret = 0;
+	struct list_head cfg_lines;
+	struct mxt_cfg_file_line *cfg_line, *cfg_line_tmp;
+
+	INIT_LIST_HEAD(&cfg_lines);
+
+	while ((line = strsep(config, "\n"))) {
+		ret = mxt_cfg_proc_line(data, line, &cfg_lines);
+		if (ret < 0)
+			goto free_objects;
+	}
+
+	list_for_each_entry(cfg_line, &cfg_lines, list) {
+		dev_dbg(dev, "Addr = %u Size = %u\n",
+			cfg_line->addr, cfg_line->size);
+		print_hex_dump(KERN_DEBUG, "atmel_mxt_ts: ", DUMP_PREFIX_OFFSET,
+			       16, 1, cfg_line->content, cfg_line->size, false);
+
+		ret = __mxt_write_reg(client, cfg_line->addr, cfg_line->size,
+				cfg_line->content);
+		if (ret)
+			break;
+	}
+
+free_objects:
+	list_for_each_entry_safe(cfg_line, cfg_line_tmp, &cfg_lines, list) {
+		list_del(&cfg_line->list);
+		kfree(cfg_line->content);
+		kfree(cfg_line);
+	}
+	return ret;
+}
+
+static int mxt_load_config(struct mxt_data *data, const char *fn)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
+	const struct firmware *fw = NULL;
+	int ret, ret2;
+	char *cfg_copy = NULL;
+	char *running;
+
+	ret = request_firmware(&fw, fn, dev);
+	if (ret) {
+		dev_err(dev, "Unable to open config file %s\n", fn);
+		return ret;
+	}
+
+	dev_info(dev, "Using config file %s (size = %zu)\n", fn, fw->size);
+
+	/* Make a mutable, '\0'-terminated copy of the config file */
+	cfg_copy = kmalloc(fw->size + 1, GFP_KERNEL);
+	if (!cfg_copy) {
+		ret = -ENOMEM;
+		goto err_alloc_copy;
+	}
+	memcpy(cfg_copy, fw->data, fw->size);
+	cfg_copy[fw->size] = '\0';
+
+	/* Verify config file header (after which running points to data) */
+	running = cfg_copy;
+	ret = mxt_cfg_verify_hdr(data, &running);
+	if (ret) {
+		dev_err(dev, "Error verifying config header (%d)\n", ret);
+		goto free_cfg_copy;
+	}
+
+	disable_irq(data->irq);
+
+	if (data->input_dev) {
+		input_unregister_device(data->input_dev);
+		data->input_dev = NULL;
+	}
+
+	/* Write configuration */
+	ret = mxt_cfg_proc_data(data, &running);
+	if (ret) {
+		dev_err(dev, "Error writing config file (%d)\n", ret);
+		goto register_input_dev;
+	}
+
+	/* Backup nvram */
+	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+			       MXT_COMMAND_BACKUPNV,
+			       MXT_BACKUP_VALUE);
+	if (ret) {
+		dev_err(dev, "Error backup to nvram (%d)\n", ret);
+		goto register_input_dev;
+	}
+	msleep(MXT_BACKUP_TIME);
+
+	/* Reset device */
+	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+			       MXT_COMMAND_RESET, 1);
+	if (ret) {
+		dev_err(dev, "Error resetting device (%d)\n", ret);
+		goto register_input_dev;
+	}
+	msleep(MXT_RESET_TIME);
+
+register_input_dev:
+	ret2 = mxt_input_dev_create(data);
+	if (ret2) {
+		dev_err(dev, "Error creating input_dev (%d)\n", ret2);
+		ret = ret2;
+	}
+
+	/* Clear message buffer */
+	ret2 = mxt_handle_messages(data);
+	if (ret2) {
+		dev_err(dev, "Error clearing msg buffer (%d)\n", ret2);
+		ret = ret2;
+	}
+
+	enable_irq(data->irq);
+free_cfg_copy:
+	kfree(cfg_copy);
+err_alloc_copy:
+	release_firmware(fw);
+	return ret;
+}
+
+/*
  * Helper function for performing a T6 diagnostic command
  */
 static int mxt_T6_diag_cmd(struct mxt_data *data, struct mxt_object *T6,
@@ -1664,6 +1961,22 @@ static ssize_t mxt_object_store(struct device *dev,
 	return count;
 }
 
+static ssize_t mxt_update_config_store(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	ssize_t ret;
+
+	ret = mxt_load_config(data, data->config_file);
+	if (ret)
+		dev_err(dev, "The config update failed (%zd)\n", ret);
+	else
+		dev_dbg(dev, "The config update succeeded\n");
+
+	return ret ?: count;
+}
+
 static int mxt_load_fw(struct device *dev, const char *fn)
 {
 	struct mxt_data *data = dev_get_drvdata(dev);
@@ -1759,6 +2072,7 @@ static DEVICE_ATTR(hw_version, S_IRUGO, mxt_hw_version_show, NULL);
 static DEVICE_ATTR(info_csum, S_IRUGO, mxt_info_csum_show, NULL);
 static DEVICE_ATTR(matrix_size, S_IRUGO, mxt_matrix_size_show, NULL);
 static DEVICE_ATTR(object, S_IWUSR, NULL, mxt_object_store);
+static DEVICE_ATTR(update_config, S_IWUSR, NULL, mxt_update_config_store);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, mxt_update_fw_store);
 
 static struct attribute *mxt_attrs[] = {
@@ -1772,6 +2086,7 @@ static struct attribute *mxt_attrs[] = {
 	&dev_attr_info_csum.attr,
 	&dev_attr_matrix_size.attr,
 	&dev_attr_object.attr,
+	&dev_attr_update_config.attr,
 	&dev_attr_update_fw.attr,
 	NULL
 };
