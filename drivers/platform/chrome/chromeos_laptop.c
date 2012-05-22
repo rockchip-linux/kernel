@@ -63,6 +63,7 @@ struct i2c_peripheral {
 
 struct chromeos_laptop {
 	struct i2c_peripheral i2c_peripherals[MAX_I2C_PERIPHERALS];
+	bool has_keyboard_backlight;
 };
 
 static struct chromeos_laptop *cros_laptop;
@@ -316,6 +317,22 @@ static int setup_tsl2563_als(enum i2c_adapter_type type)
 	return (!als) ? -EAGAIN : 0;
 }
 
+static struct platform_device *kb_backlight_device;
+
+static void setup_keyboard_backlight(void)
+{
+	if (kb_backlight_device)
+		return;
+
+	kb_backlight_device =
+		platform_device_register_simple("chromeos-keyboard-leds",
+						-1, NULL, 0);
+	if (IS_ERR(kb_backlight_device)) {
+		pr_warn("Error registering Chrome OS keyboard LEDs.\n");
+		kb_backlight_device = NULL;
+	}
+}
+
 static int __init chromeos_laptop_dmi_matched(const struct dmi_system_id *id)
 {
 	cros_laptop = (void *)id->driver_data;
@@ -343,6 +360,10 @@ static int chromeos_laptop_probe(struct platform_device *pdev)
 		if (i2c_dev->add(i2c_dev->type))
 			ret = -EPROBE_DEFER;
 	}
+
+	/* Add keyboard backlight device if present. */
+	if (cros_laptop->has_keyboard_backlight)
+		setup_keyboard_backlight();
 
 	return ret;
 }
@@ -372,6 +393,7 @@ static struct chromeos_laptop chromebook_pixel = {
 		/* Light Sensor. */
 		{ .add = setup_isl29018_als, I2C_ADAPTER_PANEL },
 	},
+	.has_keyboard_backlight = true,
 };
 
 static struct chromeos_laptop acer_c7_chromebook = {
@@ -511,6 +533,8 @@ static void __exit chromeos_laptop_exit(void)
 		i2c_unregister_device(tp);
 	if (ts)
 		i2c_unregister_device(ts);
+	if (kb_backlight_device)
+		platform_device_unregister(kb_backlight_device);
 
 	platform_device_unregister(cros_platform_device);
 	platform_driver_unregister(&cros_platform_driver);
