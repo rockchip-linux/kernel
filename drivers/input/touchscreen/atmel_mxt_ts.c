@@ -1419,10 +1419,6 @@ static int mxt_initialize(struct mxt_data *data)
 			info->matrix_xsize, info->matrix_ysize,
 			info->object_num);
 
-	error = mxt_calc_resolution(data);
-	if (error)
-		return error;
-
 	return 0;
 
 err_free_object_table:
@@ -2676,6 +2672,20 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	unsigned int num_mt_slots;
 	int max_area_channels;
 	int max_touch_major;
+
+	/* Don't need to register input_dev in bl mode */
+	if (mxt_in_bootloader(data))
+		return 0;
+
+	error = mxt_calc_resolution(data);
+	if (error)
+		return error;
+
+	/* Clear the existing one if it exists */
+	if (data->input_dev) {
+		input_unregister_device(data->input_dev);
+		data->input_dev = NULL;
+	}
 
 	data->input_dev = input_dev = input_allocate_device();
 	if (!input_dev)
