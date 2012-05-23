@@ -4170,6 +4170,19 @@ static int drm_mode_set_obj_prop(struct drm_device *dev,
 	return -EINVAL;
 }
 
+static bool object_has_prop(const struct drm_mode_object *obj, u32 prop_id)
+{
+	int i;
+
+	if (!obj->properties)
+		return false;
+
+	for (i = 0; i < obj->properties->count; i++)
+		if (obj->properties->ids[i] == prop_id)
+			return true;
+	return false;
+}
+
 /* call with mode_config mutex held */
 static int drm_mode_set_obj_prop_id(struct drm_device *dev,
 		struct drm_atomic_state *state,
@@ -4178,20 +4191,10 @@ static int drm_mode_set_obj_prop_id(struct drm_device *dev,
 {
 	struct drm_mode_object *arg_obj;
 	struct drm_property *property;
-	int i;
 
 	arg_obj = drm_mode_object_find(dev, obj_id, obj_type);
-	if (!arg_obj)
+	if (!(arg_obj && object_has_prop(arg_obj, prop_id)))
 		return -ENOENT;
-	if (!arg_obj->properties)
-		return -EINVAL;
-
-	for (i = 0; i < arg_obj->properties->count; i++)
-		if (arg_obj->properties->ids[i] == prop_id)
-			break;
-
-	if (i == arg_obj->properties->count)
-		return -EINVAL;
 
 	property = drm_property_find(dev, prop_id);
 	if (!property)
