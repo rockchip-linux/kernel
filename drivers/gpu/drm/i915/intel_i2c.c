@@ -460,10 +460,12 @@ gmbus_xfer(struct i2c_adapter *adapter,
 	/* Hack to use 400kHz only for touch i2c devices on ddc ports */
 	gmbus0 = bus->reg0;
 	if (((gmbus0 & GMBUS_PORT_MASK) == GMBUS_PORT_VGADDC &&
-	     (msgs[0].addr == 0x4b || msgs[0].addr == 0x67)) ||
+	     (msgs[0].addr == 0x4b || msgs[0].addr == 0x67 ||
+	      msgs[0].addr == 0x25)) ||
 	    ((gmbus0 & GMBUS_PORT_MASK) == GMBUS_PORT_PANEL &&
-	     (msgs[0].addr == 0x4a || msgs[0].addr == 0x26)))
+	     (msgs[0].addr == 0x4a || msgs[0].addr == 0x26))) {
 		gmbus0 = (gmbus0 & ~GMBUS_RATE_MASK) | GMBUS_RATE_400KHZ;
+	}
 	I915_WRITE(GMBUS0 + reg_offset, gmbus0);
 
 	for (i = 0; i < num; i++) {
