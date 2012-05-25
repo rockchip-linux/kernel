@@ -272,6 +272,10 @@ struct mxt_data {
 	unsigned int max_x;
 	unsigned int max_y;
 
+	/* max touchscreen area in terms of pixels and channels */
+	unsigned int max_area_pixels;
+	unsigned int max_area_channels;
+
 	u32 info_csum;
 	u32 config_csum;
 
@@ -650,6 +654,23 @@ static void mxt_input_button(struct mxt_data *data, struct mxt_message *message)
 	}
 }
 
+/*
+ * Assume a circle touch contact and use the diameter as the touch major.
+ * touch_pixels = touch_channels * (max_area_pixels / max_area_channels)
+ * touch_pixels = pi * (touch_major / 2) ^ 2;
+ */
+static int get_touch_major_pixels(struct mxt_data *data, int touch_channels)
+{
+	int touch_pixels;
+
+	if (data->max_area_channels == 0)
+		return 0;
+
+	touch_pixels = DIV_ROUND_CLOSEST(touch_channels * data->max_area_pixels,
+					 data->max_area_channels);
+	return int_sqrt(DIV_ROUND_CLOSEST(touch_pixels * 100, 314)) * 2;
+}
+
 static void mxt_input_touchevent(struct mxt_data *data,
 				      struct mxt_message *message, int id)
 {
@@ -660,6 +681,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	int y;
 	int area;
 	int pressure;
+	int touch_major;
 
 	x = (message->message[1] << 4) | ((message->message[3] >> 4) & 0xf);
 	y = (message->message[2] << 4) | ((message->message[3] & 0xf));
@@ -669,6 +691,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 		y = y >> 2;
 
 	area = message->message[4];
+	touch_major = get_touch_major_pixels(data, area);
 	pressure = message->message[5];
 
 	dev_dbg(dev,
@@ -692,7 +715,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 		input_report_abs(input_dev, ABS_MT_POSITION_X, x);
 		input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
 		input_report_abs(input_dev, ABS_MT_PRESSURE, pressure);
-		input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, area);
+		input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, touch_major);
 	}
 }
 
@@ -1194,6 +1217,7 @@ static int mxt_calc_resolution(struct mxt_data *data)
 	u8 orient;
 	__le16 xyrange[2];
 	unsigned int max_x, max_y;
+	u8 xylines[2];
 	int ret;
 
 	struct mxt_object *T9 = mxt_get_object(data, MXT_TOUCH_MULTI_T9);
@@ -1211,6 +1235,11 @@ static int mxt_calc_resolution(struct mxt_data *data)
 	if (ret)
 		return ret;
 
+	ret = __mxt_read_reg(client, T9->start_address + MXT_TOUCH_XSIZE,
+			2, xylines);
+	if (ret)
+		return ret;
+
 	max_x = le16_to_cpu(xyrange[0]);
 	max_y = le16_to_cpu(xyrange[1]);
 
@@ -1221,6 +1250,9 @@ static int mxt_calc_resolution(struct mxt_data *data)
 		data->max_x = max_x;
 		data->max_y = max_y;
 	}
+
+	data->max_area_pixels = max_x * max_y;
+	data->max_area_channels = xylines[0] * xylines[1];
 
 	return 0;
 }
@@ -1735,6 +1767,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	struct input_dev *input_dev;
 	int error;
 	unsigned int num_mt_slots;
+	int max_area_channels;
+	int max_touch_major;
 
 	data->input_dev = input_dev = input_allocate_device();
 	if (!input_dev)
@@ -1796,8 +1830,10 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	if (error)
 		goto err_free_device;
 
+	max_area_channels = min(255U, data->max_area_channels);
+	max_touch_major = get_touch_major_pixels(data, max_area_channels);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR,
-			     0, MXT_MAX_AREA, 0, 0);
+			     0, max_touch_major, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
 			     0, data->max_x, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y,
