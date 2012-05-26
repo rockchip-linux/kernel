@@ -6905,8 +6905,7 @@ static unsigned rtl_try_msi(struct rtl8169_private *tp,
 			msi = RTL_FEATURE_MSI;
 		}
 	}
-	if (tp->mac_version <= RTL_GIGA_MAC_VER_06)
-		RTL_W8(Config2, cfg2);
+	RTL_W8(Config2, cfg2);
 	return msi;
 }
 
