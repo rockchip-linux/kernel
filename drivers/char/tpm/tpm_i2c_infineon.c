@@ -626,8 +626,17 @@ static int tpm_tis_i2c_init(struct device *dev)
 	INIT_LIST_HEAD(&chip->vendor.list);
 	tpm_dev.chip = chip;
 
-	tpm_get_timeouts(chip);
-	tpm_do_selftest(chip);
+	if (tpm_get_timeouts(chip)) {
+		dev_err(dev, "Could not get TPM timeouts and durations\n");
+		rc = -ENODEV;
+		goto out_release;
+	}
+
+	if (tpm_do_selftest(chip)) {
+		dev_err(dev, "TPM self test failed\n");
+		rc = -ENODEV;
+		goto out_release;
+	}
 
 	return 0;
 
