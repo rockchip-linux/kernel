@@ -122,7 +122,7 @@ static int __init efi_debugfs_setup(void)
 
 	efi_smbios_base = (u64) efi.smbios;
 
-	if (efi_smbios_base)
+	if (efi_smbios_base && efi_smbios_base != EFI_INVALID_TABLE_ADDR)
 		debugfs_create_u64("efi_smbios_base", 0444, NULL,
 							&efi_smbios_base);
 
