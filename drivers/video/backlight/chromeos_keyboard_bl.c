@@ -19,13 +19,14 @@
  *
  */
 
-#include <linux/delay.h>
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/platform_device.h>
 #include <linux/backlight.h>
+#include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/io.h>
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/platform_device.h>
 #include <linux/slab.h>
 
 /* I/O addresses for LPC commands */
