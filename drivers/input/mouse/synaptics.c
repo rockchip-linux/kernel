@@ -1332,6 +1332,17 @@ static void set_input_params(struct input_dev *dev, struct synaptics_data *priv)
 	}
 }
 
+/*****************************************************************************
+ *	sysfs interface
+ ****************************************************************************/
+/* Sysfs entry for board ID */
+static ssize_t synaptics_show_board_id(struct psmouse *psmouse, void *data,
+				       char *buf)
+{
+	struct synaptics_data *priv = psmouse->private;
+	return scnprintf(buf, PAGE_SIZE, "%lu\n", priv->board_id);
+}
+
 static ssize_t synaptics_show_disable_gesture(struct psmouse *psmouse,
 					      void *data, char *buf)
 {
@@ -1370,9 +1381,30 @@ static ssize_t synaptics_set_disable_gesture(struct psmouse *psmouse,
 	return len;
 }
 
+/* Sysfs entry for firmware ID */
+static ssize_t synaptics_show_firmware_id(struct psmouse *psmouse, void *data,
+					  char *buf)
+{
+	struct synaptics_data *priv = psmouse->private;
+	return scnprintf(buf, PAGE_SIZE, "%lu\n", priv->firmware_id);
+}
+
+PSMOUSE_DEFINE_RO_ATTR(board_id, S_IRUGO, NULL, synaptics_show_board_id);
 PSMOUSE_DEFINE_ATTR(disable_gesture, S_IWUSR | S_IRUGO, NULL,
 		    synaptics_show_disable_gesture,
 		    synaptics_set_disable_gesture);
+PSMOUSE_DEFINE_RO_ATTR(firmware_id, S_IRUGO, NULL, synaptics_show_firmware_id);
+
+static struct attribute *synaptics_attrs[] = {
+	&psmouse_attr_board_id.dattr.attr,
+	&psmouse_attr_firmware_id.dattr.attr,
+	NULL
+};
+
+static struct attribute_group synaptics_attr_group = {
+	.attrs = synaptics_attrs,
+};
+
 
 static void synaptics_disconnect(struct psmouse *psmouse)
 {
@@ -1381,6 +1413,9 @@ static void synaptics_disconnect(struct psmouse *psmouse)
 	if (!priv->absolute_mode && SYN_ID_DISGEST_SUPPORTED(priv->identity))
 		device_remove_file(&psmouse->ps2dev.serio->dev,
 				   &psmouse_attr_disable_gesture.dattr);
+
+	sysfs_remove_group(&psmouse->ps2dev.serio->dev.kobj,
+			   &synaptics_attr_group);
 
 	synaptics_reset(psmouse);
 	kfree(priv);
@@ -1647,6 +1682,12 @@ static int __synaptics_init(struct psmouse *psmouse, bool absolute_mode)
 			goto init_fail;
 		}
 	}
+
+	err = sysfs_create_group(&psmouse->ps2dev.serio->dev.kobj,
+				 &synaptics_attr_group);
+	if (err)
+		psmouse_warn(psmouse,
+			    "Failed to create sysfs attributes (%d)", err);
 
 	return 0;
 
