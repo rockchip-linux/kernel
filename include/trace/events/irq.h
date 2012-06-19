@@ -84,6 +84,45 @@ TRACE_EVENT(irq_handler_exit,
 		  __entry->irq, __entry->ret ? "handled" : "unhandled")
 );
 
+TRACE_EVENT(irq_threaded_handler_entry,
+
+	TP_PROTO(int irq, struct irqaction *action),
+
+	TP_ARGS(irq, action),
+
+	TP_STRUCT__entry(
+		__field(	int,	irq		)
+		__string(	name,	action->name	)
+	),
+
+	TP_fast_assign(
+		__entry->irq = irq;
+		__assign_str(name, action->name);
+	),
+
+	TP_printk("irq=%d name=%s", __entry->irq, __get_str(name))
+);
+
+TRACE_EVENT(irq_threaded_handler_exit,
+
+	TP_PROTO(int irq, struct irqaction *action, int ret),
+
+	TP_ARGS(irq, action, ret),
+
+	TP_STRUCT__entry(
+		__field(	int,	irq	)
+		__field(	int,	ret	)
+	),
+
+	TP_fast_assign(
+		__entry->irq	= irq;
+		__entry->ret	= ret;
+	),
+
+	TP_printk("irq=%d ret=%s",
+		  __entry->irq, __entry->ret ? "handled" : "unhandled")
+);
+
 DECLARE_EVENT_CLASS(softirq,
 
 	TP_PROTO(unsigned int vec_nr),

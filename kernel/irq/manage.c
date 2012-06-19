@@ -19,6 +19,8 @@
 #include <linux/sched/rt.h>
 #include <linux/task_work.h>
 
+#include <trace/events/irq.h>
+
 #include "internals.h"
 
 #ifdef CONFIG_IRQ_FORCED_THREADING
@@ -843,6 +845,7 @@ static int irq_thread(void *data)
 	struct irq_desc *desc = irq_to_desc(action->irq);
 	irqreturn_t (*handler_fn)(struct irq_desc *desc,
 			struct irqaction *action);
+	unsigned int irq = action->irq;
 
 	if (force_irqthreads && test_bit(IRQTF_FORCED_THREAD,
 					&action->thread_flags))
@@ -860,7 +863,9 @@ static int irq_thread(void *data)
 
 		irq_thread_check_affinity(desc, action);
 
+		trace_irq_threaded_handler_entry(irq, action);
 		action_ret = handler_fn(desc, action);
+		trace_irq_threaded_handler_exit(irq, action, action_ret);
 		if (!noirqdebug)
 			note_interrupt(action->irq, desc, action_ret);
 
