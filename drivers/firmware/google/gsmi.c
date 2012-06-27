@@ -289,6 +289,8 @@ static int gsmi_exec(u8 func, u8 sub)
 	return rc;
 }
 
+#ifdef CONFIG_EFI_VARS
+
 static efi_status_t gsmi_get_variable(efi_char16_t *name,
 				      efi_guid_t *vendor, u32 *attr,
 				      unsigned long *data_size,
@@ -465,6 +467,8 @@ static const struct efivar_operations efivar_ops = {
 	.set_variable = gsmi_set_variable,
 	.get_next_variable = gsmi_get_next_variable,
 };
+
+#endif /* CONFIG_EFI_VARS */
 
 static ssize_t eventlog_write(struct file *filp, struct kobject *kobj,
 			       struct bin_attribute *bin_attr,
@@ -891,18 +895,22 @@ static __init int gsmi_init(void)
 		goto out_remove_bin_file;
 	}
 
+#ifdef CONFIG_EFI_VARS
 	ret = efivars_register(&efivars, &efivar_ops, gsmi_kobj);
 	if (ret) {
 		printk(KERN_INFO "gsmi: Failed to register efivars\n");
-		goto out_remove_sysfs_files;
+		sysfs_remove_files(gsmi_kobj, gsmi_attrs);
+		goto out_remove_bin_file;
 	}
 
 	ret = efivars_sysfs_init();
 	if (ret) {
 		printk(KERN_INFO "gsmi: Failed to create efivars files\n");
 		efivars_unregister(&efivars);
-		goto out_remove_sysfs_files;
+		sysfs_remove_files(gsmi_kobj, gsmi_attrs);
+		goto out_remove_bin_file;
 	}
+#endif
 
 	register_reboot_notifier(&gsmi_reboot_notifier);
 	register_die_notifier(&gsmi_die_notifier);
@@ -913,8 +921,6 @@ static __init int gsmi_init(void)
 
 	return 0;
 
-out_remove_sysfs_files:
-	sysfs_remove_files(gsmi_kobj, gsmi_attrs);
 out_remove_bin_file:
 	sysfs_remove_bin_file(gsmi_kobj, &eventlog_bin_attr);
 out_err:
@@ -935,7 +941,9 @@ static void __exit gsmi_exit(void)
 	unregister_die_notifier(&gsmi_die_notifier);
 	atomic_notifier_chain_unregister(&panic_notifier_list,
 					 &gsmi_panic_notifier);
+#ifdef CONFIG_EFI_VARS
 	efivars_unregister(&efivars);
+#endif
 
 	sysfs_remove_files(gsmi_kobj, gsmi_attrs);
 	sysfs_remove_bin_file(gsmi_kobj, &eventlog_bin_attr);
