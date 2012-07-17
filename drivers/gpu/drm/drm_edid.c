@@ -1266,8 +1266,18 @@ bool
 drm_probe_ddc(struct i2c_adapter *adapter)
 {
 	unsigned char out;
+	int tries = 5;
+	int ret;
 
-	return (drm_do_probe_ddc_edid(adapter, &out, 0, 1) == 0);
+	/*
+	 * Some monitors NAK the first EDID read request when connected over
+	 * a DVI-DP cable, so we try 5 times before giving up.
+	 */
+	do {
+		ret = drm_do_probe_ddc_edid(adapter, &out, 0, 1);
+	} while (ret && --tries);
+
+	return ret == 0;
 }
 EXPORT_SYMBOL(drm_probe_ddc);
 
