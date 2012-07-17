@@ -127,6 +127,31 @@ struct cpufreq_governor cpufreq_gov_interactive = {
 	.owner = THIS_MODULE,
 };
 
+static void rearm_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
+{
+	pcpu->time_in_idle = get_cpu_idle_time_us(
+	    smp_processor_id(), &pcpu->idle_exit_time);
+	mod_timer(&pcpu->cpu_timer, jiffies + usecs_to_jiffies(timer_rate));
+}
+
+static void arm_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
+{
+	pcpu->timer_idlecancel = 0;
+	rearm_idle_timer(pcpu);
+}
+
+static void del_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
+{
+	del_timer(&pcpu->cpu_timer);
+	/*
+	 * Ensure last timer run time is after current idle
+	 * sample start time, so next idle exit will always
+	 * start a new idle sampling period.
+	 */
+	pcpu->idle_exit_time = 0;
+	pcpu->timer_idlecancel = 0;
+}
+
 static void cpufreq_interactive_timer(unsigned long data)
 {
 	unsigned int delta_idle;
@@ -298,10 +323,7 @@ rearm:
 			pcpu->timer_idlecancel = 1;
 		}
 
-		pcpu->time_in_idle = get_cpu_idle_time_us(
-			data, &pcpu->idle_exit_time);
-		mod_timer(&pcpu->cpu_timer,
-			  jiffies + usecs_to_jiffies(timer_rate));
+		rearm_idle_timer(pcpu);
 	}
 
 exit:
@@ -331,13 +353,8 @@ static void cpufreq_interactive_idle_start(void)
 		 * min indefinitely.  This should probably be a quirk of
 		 * the CPUFreq driver.
 		 */
-		if (!pending) {
-			pcpu->time_in_idle = get_cpu_idle_time_us(
-				smp_processor_id(), &pcpu->idle_exit_time);
-			pcpu->timer_idlecancel = 0;
-			mod_timer(&pcpu->cpu_timer,
-				  jiffies + usecs_to_jiffies(timer_rate));
-		}
+		if (!pending)
+			arm_idle_timer(pcpu);
 #endif
 	} else {
 		/*
@@ -346,16 +363,8 @@ static void cpufreq_interactive_idle_start(void)
 		 * case the CPU suddenly goes busy, cancel that timer.  The
 		 * CPU didn't go busy; we'll recheck things upon idle exit.
 		 */
-		if (pending && pcpu->timer_idlecancel) {
-			del_timer(&pcpu->cpu_timer);
-			/*
-			 * Ensure last timer run time is after current idle
-			 * sample start time, so next idle exit will always
-			 * start a new idle sampling period.
-			 */
-			pcpu->idle_exit_time = 0;
-			pcpu->timer_idlecancel = 0;
-		}
+		if (pending && pcpu->timer_idlecancel)
+			del_idle_timer(pcpu);
 	}
 
 }
@@ -382,16 +391,10 @@ static void cpufreq_interactive_idle_end(void)
 	 * give the timer function enough time to make a decision on this
 	 * run.)
 	 */
-	if (timer_pending(&pcpu->cpu_timer) == 0 &&
+	if (!timer_pending(&pcpu->cpu_timer) &&
 	    pcpu->timer_run_time >= pcpu->idle_exit_time &&
-	    pcpu->governor_enabled) {
-		pcpu->time_in_idle =
-			get_cpu_idle_time_us(smp_processor_id(),
-					     &pcpu->idle_exit_time);
-		pcpu->timer_idlecancel = 0;
-		mod_timer(&pcpu->cpu_timer,
-			  jiffies + usecs_to_jiffies(timer_rate));
-	}
+	    pcpu->governor_enabled)
+		arm_idle_timer(pcpu);
 
 }
 
