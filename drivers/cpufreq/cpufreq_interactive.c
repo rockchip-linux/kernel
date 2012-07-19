@@ -102,11 +102,9 @@ static unsigned long above_hispeed_delay_val;
 static int input_boost_val;
 
 struct cpufreq_interactive_inputopen {
-	struct input_handle *handle;
 	struct work_struct inputopen_work;
+	struct input_handle *handle;
 };
-
-static struct cpufreq_interactive_inputopen inputopen;
 
 /*
  * Non-zero means longer-term speed boost active.
@@ -556,11 +554,18 @@ static void cpufreq_interactive_input_open(struct work_struct *w)
 	struct cpufreq_interactive_inputopen *io =
 		container_of(w, struct cpufreq_interactive_inputopen,
 			     inputopen_work);
+	struct input_handle *handle = io->handle;
 	int error;
 
-	error = input_open_device(io->handle);
-	if (error)
-		input_unregister_handle(io->handle);
+	error = input_open_device(handle);
+	if (error) {
+		pr_warn("%s: open(%s) failed, error %d\n", __func__,
+		    handle->dev->name, error);
+		input_unregister_handle(handle);
+	} else
+		pr_info("%s: monitoring input on %s\n",
+		    handle->name, handle->dev->name);
+	kfree(io);
 }
 
 static int cpufreq_interactive_input_connect(struct input_handler *handler,
@@ -568,23 +573,37 @@ static int cpufreq_interactive_input_connect(struct input_handler *handler,
 					     const struct input_device_id *id)
 {
 	struct input_handle *handle;
+	struct cpufreq_interactive_inputopen *inputopen;
 	int error;
 
-	pr_info("%s: connect to %s\n", __func__, dev->name);
 	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
-	if (!handle)
+	if (!handle) {
+		pr_warn("%s: no memory to register %s\n", __func__, dev->name);
 		return -ENOMEM;
+	}
 
 	handle->dev = dev;
 	handle->handler = handler;
 	handle->name = "cpufreq_interactive";
 
 	error = input_register_handle(handle);
-	if (error)
+	if (error) {
+		pr_warn("%s: failed to register %s, error %d\n", __func__,
+		    dev->name, error);
 		goto err;
+	}
 
-	inputopen.handle = handle;
-	queue_work(down_wq, &inputopen.inputopen_work);
+	inputopen = kzalloc(sizeof(struct cpufreq_interactive_inputopen),
+	    GFP_KERNEL);
+	if (!inputopen) {
+		pr_warn("%s: failed to setup %s, no space for workq item\n",
+		    __func__, dev->name);
+		input_unregister_handle(handle);
+		goto err;
+	}
+	INIT_WORK(&inputopen->inputopen_work, cpufreq_interactive_input_open);
+	inputopen->handle = handle;
+	schedule_work(&inputopen->inputopen_work);
 	return 0;
 err:
 	kfree(handle);
@@ -977,7 +996,6 @@ static int __init cpufreq_interactive_init(void)
 		goto err_freeuptask;
 
 	INIT_WORK(&freq_scale_down_work, cpufreq_interactive_freq_down);
-	INIT_WORK(&inputopen.inputopen_work, cpufreq_interactive_input_open);
 
 	/* NB: wake up so the thread does not look hung to the freezer */
 	wake_up_process(up_task);
