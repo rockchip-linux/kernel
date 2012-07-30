@@ -413,7 +413,7 @@ config BACKLIGHT_PANDORA
 
 config BACKLIGHT_CHROMEOS_KEYBOARD
 	tristate "EC-based Keyboard Backlight for Chrome OS"
-	depends on BACKLIGHT_CLASS_DEVICE
+	depends on BACKLIGHT_CLASS_DEVICE && ACPI
 	help
 	  If you have a EC-based keyboard backlight say Y to enable the
 	  backlight driver.

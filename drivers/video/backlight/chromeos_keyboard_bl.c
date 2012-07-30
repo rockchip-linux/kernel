@@ -19,118 +19,54 @@
  *
  */
 
+#include <linux/acpi.h>
 #include <linux/backlight.h>
 #include <linux/delay.h>
 #include <linux/err.h>
-#include <linux/io.h>
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
-/* I/O addresses for LPC commands */
-#define EC_ADDR_DATA          0x62
-#define EC_ADDR_CMD           0x66
-#define EC_ADDR_PARAM        0x800
-#define EC_PARAM_SIZE          128  /* Size of each param area in bytes */
-
-/*
- * LPC command status byte masks
- * Host has written a command/data byte and the EC hasn't read it yet
- */
-#define EC_LPC_STATUS_FROM_HOST   0x02
-/* EC is processing a command */
-#define EC_LPC_STATUS_PROCESSING  0x04
-
-/* EC is busy.  This covers both the EC processing a command, and the host has
- * written a new command but the EC hasn't picked it up yet. */
-#define EC_LPC_STATUS_BUSY_MASK \
-	(EC_LPC_STATUS_FROM_HOST | EC_LPC_STATUS_PROCESSING)
-
-/* EC PWM commands */
-#define EC_CMD_PWM_GET_KEYBOARD_BACKLIGHT 0x22
-#define EC_CMD_PWM_SET_KEYBOARD_BACKLIGHT 0x23
-
-/* Waits for the EC to be unbusy.  Returns 0 if unbusy, non-zero if
- * timeout. */
-static int wait_for_ec(void)
-{
-	int i;
-	for (i = 0; i < 1000000; i += 10) {
-		udelay(10);  /* Delay first, in case we just sent a command */
-		if (!(inb(EC_ADDR_CMD) & EC_LPC_STATUS_BUSY_MASK))
-			return 0;
-	}
-	return -1;  /* Timeout */
-}
-
-/* Sends a command to the EC.  Returns the command status code, or
- * -1 if other error. */
-static int ec_command(int command, const u8 *indata, int insize,
-		      u8 *outdata, int outsize)
-{
-	int i;
-
-	if (insize > EC_PARAM_SIZE || outsize > EC_PARAM_SIZE) {
-		printk(KERN_ERR "Data size too big\n");
-		return -1;
-	}
-
-	if (wait_for_ec()) {
-		printk(KERN_ERR "Timeout waiting for EC ready\n");
-		return -1;
-	}
-
-	/* Write data, if any */
-	/* TODO: optimized copy using outl() */
-	for (i = 0; i < insize; i++)
-		outb(indata[i], EC_ADDR_PARAM + i);
-
-	outb(command, EC_ADDR_CMD);
-
-	if (wait_for_ec()) {
-		printk(KERN_ERR "Timeout waiting for EC response\n");
-		return -1;
-	}
-
-	/* Check result */
-	i = inb(EC_ADDR_DATA);
-	if (i) {
-		printk(KERN_ERR "EC returned error result code %d\n", i);
-		return i;
-	}
-
-	/* Read data, if any */
-	/* TODO: optimized copy using outl() */
-	for (i = 0; i < outsize; i++)
-		outdata[i] = inb(EC_ADDR_PARAM + i);
-
-	return 0;
-}
+/* Keyboard Backlight ACPI Device must be defined in firmware */
+#define ACPI_KEYBOARD_BACKLIGHT_DEVICE	"\\_SB.KBLT"
+#define ACPI_KEYBOARD_BACKLIGHT_READ	ACPI_KEYBOARD_BACKLIGHT_DEVICE ".KBQC"
+#define ACPI_KEYBOARD_BACKLIGHT_WRITE	ACPI_KEYBOARD_BACKLIGHT_DEVICE ".KBCM"
 
 static int keyboard_backlight_update_status(struct backlight_device *device)
 {
-	u8 brightness = device->props.brightness;
-	int ret = ec_command(EC_CMD_PWM_SET_KEYBOARD_BACKLIGHT, &brightness,
-			     sizeof(brightness), NULL, 0);
-	if (ret) {
-		printk(KERN_ERR "Error setting keyboard backlight value.");
-		return ret;
+	union acpi_object param;
+	struct acpi_object_list input;
+	acpi_status status;
+
+	param.type = ACPI_TYPE_INTEGER;
+	param.integer.value = (u8)device->props.brightness;
+	input.count = 1;
+	input.pointer = &param;
+
+	status = acpi_evaluate_object(NULL, ACPI_KEYBOARD_BACKLIGHT_WRITE,
+				      &input, NULL);
+	if (ACPI_FAILURE(status)) {
+		dev_err(&device->dev, "Error setting keyboard backlight value");
+		return -1;
 	}
 	return 0;
 }
 
 static int keyboard_backlight_get_brightness(struct backlight_device *device)
 {
-	u8 brightness;
-	int ret = ec_command(EC_CMD_PWM_GET_KEYBOARD_BACKLIGHT, NULL, 0,
-			     &brightness, sizeof(brightness));
-	if (ret) {
-		printk(KERN_ERR "Error reading keyboard backlight value.");
+	unsigned long long brightness;
+	acpi_status status;
+
+	status = acpi_evaluate_integer(NULL, ACPI_KEYBOARD_BACKLIGHT_READ,
+				       NULL, &brightness);
+
+	if (ACPI_FAILURE(status)) {
+		dev_err(&device->dev, "Error reading keyboard backlight value");
 		return -1;
 	}
-	return brightness;
+	return (int)brightness;
 }
 
 static const struct backlight_ops keyboard_backlight_ops = {
@@ -144,6 +80,18 @@ static int keyboard_backlight_probe(struct platform_device *pdev)
 	struct backlight_properties props = {
 		.type = BACKLIGHT_FIRMWARE, .max_brightness = 100
 	};
+	acpi_handle handle;
+	acpi_status status;
+
+	/* Look for the keyboard backlight ACPI Device */
+	status = acpi_get_handle(ACPI_ROOT_OBJECT,
+				 ACPI_KEYBOARD_BACKLIGHT_DEVICE,
+				 &handle);
+	if (ACPI_FAILURE(status)) {
+		dev_err(&pdev->dev, "Unable fo find ACPI device %s\n",
+			ACPI_KEYBOARD_BACKLIGHT_DEVICE);
+		return -ENODEV;
+	}
 
 	bl = backlight_device_register("keyboard_backlight", &pdev->dev, NULL,
 				       &keyboard_backlight_ops, &props);
