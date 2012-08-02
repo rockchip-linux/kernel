@@ -766,6 +766,7 @@ static bool sysrq_handle_keypress(struct sysrq_state *sysrq,
 		break;
 
 	case KEY_SYSRQ:
+	case KEY_F10:
 		if (value == 1 && sysrq->alt != KEY_RESERVED) {
 			sysrq->active = true;
 			sysrq->alt_use = sysrq->alt;
