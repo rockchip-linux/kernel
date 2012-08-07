@@ -153,6 +153,21 @@
 #define MXT_TOUCH_YEDGEDIST	29
 #define MXT_TOUCH_JUMPLIMIT	30
 
+/* MXT_TOUCH_CTRL bits */
+#define MXT_TOUCH_CTRL_ENABLE	(1 << 0)
+#define MXT_TOUCH_CTRL_RPTEN	(1 << 1)
+#define MXT_TOUCH_CTRL_DISAMP	(1 << 2)
+#define MXT_TOUCH_CTRL_DISVECT	(1 << 3)
+#define MXT_TOUCH_CTRL_DISMOVE	(1 << 4)
+#define MXT_TOUCH_CTRL_DISREL	(1 << 5)
+#define MXT_TOUCH_CTRL_DISPRESS	(1 << 6)
+#define MXT_TOUCH_CTRL_SCANEN	(1 << 7)
+#define MXT_TOUCH_CTRL_OPERATIONAL	(MXT_TOUCH_CTRL_ENABLE | \
+					 MXT_TOUCH_CTRL_SCANEN | \
+					 MXT_TOUCH_CTRL_RPTEN)
+#define MXT_TOUCH_CTRL_SCANNING		(MXT_TOUCH_CTRL_ENABLE | \
+					 MXT_TOUCH_CTRL_SCANEN)
+
 /* MXT_PROCI_GRIPFACE_T20 field */
 #define MXT_GRIPFACE_CTRL	0
 #define MXT_GRIPFACE_XLOGRIP	1
@@ -2456,8 +2471,8 @@ static int mxt_set_regs(struct mxt_data *data, u8 type, u8 instance,
 static void mxt_start(struct mxt_data *data)
 {
 	/* Touch enable */
-	mxt_write_object(data,
-			MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL, 0x83);
+	mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
+			 MXT_TOUCH_CTRL_OPERATIONAL);
 }
 
 static void mxt_stop(struct mxt_data *data)
@@ -2718,7 +2733,7 @@ static int mxt_remove(struct i2c_client *client)
 static void mxt_suspend_enable_T9(struct mxt_data *data)
 {
 	struct device *dev = &data->client->dev;
-	u8 T9_ctrl = 0x03;
+	u8 T9_ctrl = MXT_TOUCH_CTRL_ENABLE | MXT_TOUCH_CTRL_RPTEN;
 	int ret;
 	unsigned long timeout = msecs_to_jiffies(350);
 
@@ -2786,7 +2801,8 @@ static int mxt_suspend(struct device *dev)
 		data->T9_ctrl_valid = (ret == 0);
 
 		/* Enable T9 only if it is not currently enabled */
-		if (data->T9_ctrl_valid && !(data->T9_ctrl & 0x01))
+		if (data->T9_ctrl_valid &&
+		    !(data->T9_ctrl & MXT_TOUCH_CTRL_ENABLE))
 			mxt_suspend_enable_T9(data);
 
 		/* Enable wake from IRQ */
