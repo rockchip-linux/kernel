@@ -51,6 +51,7 @@
 #include <linux/async.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
+#include <linux/workqueue.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
 
@@ -107,6 +108,7 @@ static int  sd_remove(struct device *);
 static void sd_shutdown(struct device *);
 static int sd_suspend_system(struct device *);
 static int sd_suspend_runtime(struct device *);
+static void __sd_resume(struct work_struct *work);
 static int sd_resume(struct device *);
 static void sd_rescan(struct device *);
 static int sd_done(struct scsi_cmnd *);
@@ -2932,6 +2934,7 @@ static int sd_probe(struct device *dev)
 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
 	if (!sdkp)
 		goto out;
+	INIT_WORK(&sdkp->resume_work, __sd_resume);
 
 	gd = alloc_disk(SD_MINORS);
 	if (!gd)
@@ -3136,6 +3139,10 @@ static int sd_suspend_common(struct device *dev, bool ignore_stop_errors)
 	if (!sdkp)
 		return 0;	/* this can happen */
 
+	/* Avoid race condition with resume */
+	if (work_pending(&sdkp->resume_work))
+		flush_work(&sdkp->resume_work);
+
 	if (sdkp->WCE && sdkp->media_present) {
 		sd_printk(KERN_NOTICE, sdkp, "Synchronizing SCSI cache\n");
 		ret = sd_sync_cache(sdkp);
@@ -3170,9 +3177,10 @@ static int sd_suspend_runtime(struct device *dev)
 	return sd_suspend_common(dev, false);
 }
 
-static int sd_resume(struct device *dev)
+static void __sd_resume(struct work_struct *work)
 {
-	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
+	struct scsi_disk *sdkp = container_of(work, struct scsi_disk,
+		resume_work);
 	int ret = 0;
 
 	if (!sdkp->device->manage_start_stop)
@@ -3180,10 +3188,21 @@ static int sd_resume(struct device *dev)
 
 	sd_printk(KERN_NOTICE, sdkp, "Starting disk\n");
 	ret = sd_start_stop_device(sdkp, 1);
+	WARN_ON(ret);
 
 done:
 	scsi_disk_put(sdkp);
-	return ret;
+	return;
+}
+
+static int sd_resume(struct device *dev)
+{
+	struct scsi_disk *sdkp = scsi_disk_get_from_dev(dev);
+
+	PREPARE_WORK(&sdkp->resume_work, __sd_resume);
+	schedule_work(&sdkp->resume_work);
+
+	return 0;
 }
 
 /**
