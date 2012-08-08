@@ -1095,6 +1095,13 @@ static int mxt_handle_pdata(struct mxt_data *data)
 				MXT_CTE_VOLTAGE, voltage);
 	}
 
+	/* Backup to memory */
+	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+			       MXT_COMMAND_BACKUPNV, MXT_BACKUP_VALUE);
+	if (ret)
+		return ret;
+	msleep(MXT_BACKUP_TIME);
+
 	return 0;
 }
 
@@ -1293,13 +1300,6 @@ static int mxt_initialize(struct mxt_data *data)
 	error = mxt_handle_pdata(data);
 	if (error)
 		goto err_free_object_table;
-
-	/* Backup to memory */
-	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
-				 MXT_COMMAND_BACKUPNV, MXT_BACKUP_VALUE);
-	if (error)
-		goto err_free_object_table;
-	msleep(MXT_BACKUP_TIME);
 
 	/* Soft reset */
 	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
