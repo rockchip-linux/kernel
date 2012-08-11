@@ -2470,16 +2470,16 @@ static int mxt_set_regs(struct mxt_data *data, u8 type, u8 instance,
 
 static void mxt_start(struct mxt_data *data)
 {
-	/* Touch enable */
+	/* Enable touch reporting */
 	mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
 			 MXT_TOUCH_CTRL_OPERATIONAL);
 }
 
 static void mxt_stop(struct mxt_data *data)
 {
-	/* Touch disable */
-	mxt_write_object(data,
-			MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL, 0);
+	/* Disable touch reporting */
+	mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
+			 MXT_TOUCH_CTRL_SCANNING);
 }
 
 static int mxt_input_open(struct input_dev *dev)
