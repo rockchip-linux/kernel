@@ -413,7 +413,7 @@ static void sysrq_handle_cros_xkey(int key)
 	sysrq_handle_showstate_blocked(key);
 	sysrq_handle_sync(key);
 	mdelay(1000); /* Delay for a bit to give time for sync to complete */
-	sysrq_handle_crash(key);
+	panic("ChromeOS X Key");
 }
 
 static struct sysrq_key_op sysrq_cros_xkey = {
