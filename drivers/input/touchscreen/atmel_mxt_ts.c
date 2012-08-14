@@ -848,7 +848,7 @@ static bool mxt_is_T9_message(struct mxt_data *data, struct mxt_message *msg)
 	return (id >= data->T9_reportid_min && id <= data->T9_reportid_max);
 }
 
-static int mxt_proc_messages(struct mxt_data *data, u8 count)
+static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 {
 	struct device *dev = &data->client->dev;
 	u8 reportid;
@@ -865,6 +865,8 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count)
 		dev_err(dev, "Failed to read %u messages (%d).\n", count, ret);
 		goto out;
 	}
+	if (!report)
+		goto out;
 
 	for (msg = messages; msg < &messages[count]; msg++) {
 		mxt_dump_message(dev, msg);
@@ -898,7 +900,7 @@ out:
 	return ret;
 }
 
-static int mxt_handle_messages(struct mxt_data *data)
+static int mxt_handle_messages(struct mxt_data *data, bool report)
 {
 	struct device *dev = &data->client->dev;
 	int ret;
@@ -911,7 +913,7 @@ static int mxt_handle_messages(struct mxt_data *data)
 	}
 
 	if (count > 0)
-		ret = mxt_proc_messages(data, count);
+		ret = mxt_proc_messages(data, count, report);
 
 	return ret;
 }
@@ -996,7 +998,7 @@ static void mxt_exit_bl(struct mxt_data *data)
 		return;
 	}
 
-	error = mxt_handle_messages(data);
+	error = mxt_handle_messages(data, false);
 	if (error)
 		dev_err(dev, "Failed to clear CHG after init. error = %d\n",
 			error);
@@ -1011,7 +1013,7 @@ static irqreturn_t mxt_interrupt(int irq, void *dev_id)
 		/* bootloader state transition completion */
 		complete(&data->bl_completion);
 	} else {
-		mxt_handle_messages(data);
+		mxt_handle_messages(data, true);
 	}
 	return IRQ_HANDLED;
 }
@@ -1657,7 +1659,7 @@ register_input_dev:
 	}
 
 	/* Clear message buffer */
-	ret2 = mxt_handle_messages(data);
+	ret2 = mxt_handle_messages(data, true);
 	if (ret2) {
 		dev_err(dev, "Error clearing msg buffer (%d)\n", ret2);
 		ret = ret2;
@@ -2627,7 +2629,7 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 	}
 
 	if (!mxt_in_bootloader(data)) {
-		error = mxt_handle_messages(data);
+		error = mxt_handle_messages(data, true);
 		if (error)
 			goto error_free_irq;
 	}
@@ -2829,7 +2831,7 @@ static int mxt_resume(struct device *dev)
 		return 0;
 
 	/* Process any pending message so that CHG line can be de-asserted */
-	ret = mxt_handle_messages(data);
+	ret = mxt_handle_messages(data, false);
 	if (ret)
 		dev_err(dev, "Handling message fails upon resume, %d\n", ret);
 
