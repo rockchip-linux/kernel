@@ -23,7 +23,10 @@
 
 #include <linux/chromeos_platform.h>
 #include <linux/ide.h>
+#include <linux/gpio.h>
 #include <linux/of.h>
+#include <linux/of_gpio.h>
+#include <linux/platform_device.h>
 
 
 #include "../chromeos.h"
@@ -243,15 +246,44 @@ int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
 	return _chromeos_write(nvram_buffer);
 }
 
-static int __init chromeos_arm_init(void)
+static int __init chromeos_arm_platform_gpio(struct platform_device *pdev)
+{
+	int gpio, err, active_low;
+	enum of_gpio_flags flags;
+	struct device_node *np = pdev->dev.of_node;
+
+	if (!np)
+		return -ENODEV;
+
+	gpio = of_get_named_gpio_flags(np, "write-protect-gpio", 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		dev_err(&pdev->dev, "invalid write-protect gpio descriptor\n");
+		return -EINVAL;
+	}
+
+	active_low = !!(flags & OF_GPIO_ACTIVE_LOW);
+
+	err = gpio_request_one(gpio, GPIOF_DIR_IN, "firmware-write-protect");
+	if (err)
+		return err;
+	err = gpio_sysfs_set_active_low(gpio, active_low);
+	if (err)
+		return err;
+	gpio_export(gpio, 0);
+	gpio_export_link(&pdev->dev, "write-protect", gpio);
+
+	return 0;
+}
+
+static int __init chromeos_arm_probe(struct platform_device *pdev)
 {
 	int proplen, err;
 	const int *prop;
-	struct device_node *fw_dn;
+	struct device_node *fw_dn = pdev->dev.of_node;
 
-	fw_dn = of_find_compatible_node(NULL, NULL, "chromeos-firmware");
-	if (!fw_dn)
-		return -ENODEV;
+	err = chromeos_arm_platform_gpio(pdev);
+	if (err)
+		goto err;
 
 	prop = of_get_property(fw_dn, "nonvolatile-context-offset", &proplen);
 	if (!prop || proplen != 4) {
@@ -309,5 +341,29 @@ err:
 	of_node_put(fw_dn);
 
 	return err;
+}
+
+static struct platform_driver chromeos_arm_driver = {
+	.probe = chromeos_arm_probe,
+	.driver = {
+		.name = "chromeos_arm",
+	},
+};
+
+static int __init chromeos_arm_init(void)
+{
+	struct device_node *fw_dn;
+	struct platform_device *pdev;
+
+	fw_dn = of_find_compatible_node(NULL, NULL, "chromeos-firmware");
+	if (!fw_dn)
+		return -ENODEV;
+
+	pdev = platform_device_register_simple("chromeos_arm", -1, NULL, 0);
+	pdev->dev.of_node = fw_dn;
+
+	platform_driver_register(&chromeos_arm_driver);
+
+	return 0;
 }
 subsys_initcall(chromeos_arm_init);
