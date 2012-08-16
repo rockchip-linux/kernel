@@ -245,7 +245,7 @@ int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
 
 static int __init chromeos_arm_init(void)
 {
-	int proplen, err, size;
+	int proplen, err;
 	const int *prop;
 	struct device_node *fw_dn;
 
@@ -255,45 +255,32 @@ static int __init chromeos_arm_init(void)
 
 	prop = of_get_property(fw_dn, "nonvolatile-context-offset", &proplen);
 	if (!prop || proplen != 4) {
-		pr_err("can't find nonvolatile memory offset\n");
+		dev_err(&pdev->dev, "missing nonvolatile memory offset\n");
 		err = -ENODEV;
 		goto err;
 	}
 	nv_offset = be32_to_cpup(prop);
 
-	prop = of_get_property(fw_dn, "boot-nonvolatile-cache", &proplen);
-	if (!prop) {
-		pr_err("can't find boot copy of nonvolatile cache\n");
-		err = -ENODEV;
-		goto err;
-	}
-	nv_size = proplen;
-
 	prop = of_get_property(fw_dn, "nonvolatile-context-size", &proplen);
 	if (!prop || proplen != 4) {
-		pr_err("can't find size of nonvolatile memory\n");
+		dev_err(&pdev->dev, "missing size of nonvolatile memory\n");
 		err = -ENODEV;
 		goto err;
 	}
-	size = be32_to_cpup(prop);
-
-	if (size != nv_size) {
-		pr_err("nvram size and cache mismatch\n");
-		err = -EINVAL;
-		goto err;
-	}
+	nv_size = be32_to_cpup(prop);
 
 	if ((nv_offset + nv_size > SECTOR_SIZE) ||
 	    (nv_size > MAX_NVRAM_BUFFER_SIZE)) {
 		/* nvram block won't fit into a sector */
-		pr_err("bad nvram location: %d:%d!\n", nv_offset, nv_size);
+		dev_err(&pdev->dev, "bad nvram location: %d:%d!\n",
+			nv_offset, nv_size);
 		err = -EINVAL;
 		goto err;
 	}
 
 	prop = of_get_property(fw_dn, "nonvolatile-context-lba", &proplen);
 	if (!prop) {
-		pr_err("can't find nvcontext lba\n");
+		dev_err(&pdev->dev, "missing nvcontext lba\n");
 		err = -ENODEV;
 		goto err;
 	}
@@ -305,17 +292,17 @@ static int __init chromeos_arm_init(void)
 		nv_lba = be64_to_cpup((const __be64 *)prop);
 		break;
 	default:
-		pr_err("invalid nvcontext lba\n");
+		dev_err(&pdev->dev, "invalid nvcontext lba\n");
 		err = -EINVAL;
 		goto err;
 	}
 
 	/* XXXOJN FIXME: There should be a search for the right block device to
 	 * use for volatile storage here, not just assume mmcblk0. This should
-	 * include comparing the cached context passed in through the property.
+	 * include comparing the cached context passed in through a property.
 	 */
 
-	pr_info("chromeos system detected\n");
+	dev_info(&pdev->dev, "chromeos system detected\n");
 
 	err = 0;
 err:
