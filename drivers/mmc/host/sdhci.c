@@ -1154,6 +1154,23 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 			return;
 	}
 
+	if (host->quirks2 & SDHCI_QUIRK2_BROADCOM_REGISTERS) {
+		u32 tmp;
+
+		tmp = sdhci_readl(host, 0x198);
+		tmp &= ~0x3000;
+		sdhci_writel(host, tmp, 0x198);
+
+		tmp = sdhci_readl(host, 0x19c);
+		tmp &= ~(0x01a03f30);
+		tmp |= (0x00500000);
+
+		if ((sdhci_readw(host, SDHCI_HOST_CONTROL2) &
+			    SDHCI_CTRL_VDD_180) && (clock >= 200000000))
+			tmp |= (1<<24);
+		sdhci_writel(host, tmp, 0x19c);
+	}
+
 	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
 
 	if (clock == 0)
@@ -1564,9 +1581,13 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 			if ((ios->timing == MMC_TIMING_MMC_HS200) ||
 			    (ios->timing == MMC_TIMING_UHS_SDR104))
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR104;
-			else if (ios->timing == MMC_TIMING_UHS_SDR12)
+			else if ((ios->timing == MMC_TIMING_UHS_SDR12) &&
+				    /* Also is MMC_TIMING_LEGACY */
+				    (host->mmc->caps & MMC_CAP_UHS_SDR12))
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
-			else if (ios->timing == MMC_TIMING_UHS_SDR25)
+			else if ((ios->timing == MMC_TIMING_UHS_SDR25) &&
+				    /* Also is MMC_TIMING_SD_HS */
+				    (host->mmc->caps & MMC_CAP_UHS_SDR25))
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR25;
 			else if (ios->timing == MMC_TIMING_UHS_SDR50)
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR50;
@@ -2804,11 +2825,17 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	caps[0] = (host->quirks & SDHCI_QUIRK_MISSING_CAPS) ? host->caps :
 		sdhci_readl(host, SDHCI_CAPABILITIES);
+	if (host->quirks2 & SDHCI_QUIRK2_BROKEN_UHS)
+		caps[0] &= ~(SDHCI_CAN_VDD_180);
 
 	if (host->version >= SDHCI_SPEC_300)
 		caps[1] = (host->quirks & SDHCI_QUIRK_MISSING_CAPS) ?
 			host->caps1 :
 			sdhci_readl(host, SDHCI_CAPABILITIES_1);
+
+	if (host->quirks2 & SDHCI_QUIRK2_BROKEN_UHS)
+		caps[1] &= ~(SDHCI_SUPPORT_SDR50 | SDHCI_SUPPORT_SDR104 |
+			    SDHCI_SUPPORT_DDR50 | SDHCI_USE_SDR50_TUNING);
 
 	if (host->quirks & SDHCI_QUIRK_FORCE_DMA)
 		host->flags |= SDHCI_USE_SDMA;
