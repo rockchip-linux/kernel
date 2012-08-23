@@ -2789,18 +2789,18 @@ static int mxt_suspend(struct device *dev)
 	if (ret)
 		dev_err(dev, "Set T7 Power config failed, %d\n", ret);
 
+	/* Save 1 byte T9 Ctrl config */
+	ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+			    &data->T9_ctrl, 1);
+	if (ret)
+		dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
+	data->T9_ctrl_valid = (ret == 0);
+
 	if (device_may_wakeup(dev)) {
 		/*
 		 * If we allow wakeup from touch, we have to enable T9 so
 		 * that IRQ can be generated from touch
 		 */
-
-		/* Save 1 byte T9 Ctrl config */
-		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-				    &data->T9_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
-		data->T9_ctrl_valid = (ret == 0);
 
 		/* Enable T9 only if it is not currently enabled */
 		if (data->T9_ctrl_valid &&
@@ -2843,13 +2843,11 @@ static int mxt_resume(struct device *dev)
 		disable_irq_wake(data->irq);
 
 	/* Restore the T9 Ctrl config to before-suspend value */
-	if (device_may_wakeup(dev) && data->T9_ctrl_valid) {
+	if (data->T9_ctrl_valid) {
 		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
 				   &data->T9_ctrl, 1);
 		if (ret)
 			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
-	} else if (input_dev->users) {
-		mxt_start(data);
 	}
 
 	/* Restore the T7 Power config to before-suspend value */
