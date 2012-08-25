@@ -3114,6 +3114,10 @@ static void sd_shutdown(struct device *dev)
 	if (!sdkp)
 		return;         /* this can happen */
 
+	/* Avoid race condition with resume */
+	if (work_pending(&sdkp->resume_work))
+		flush_work(&sdkp->resume_work);
+
 	if (pm_runtime_suspended(dev))
 		goto exit;
 
