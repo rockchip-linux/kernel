@@ -76,7 +76,7 @@ static int keyboard_led_probe(struct platform_device *pdev)
 	cdev = kzalloc(sizeof(struct led_classdev), GFP_KERNEL);
 	if (!cdev)
 		return -ENOMEM;
-	cdev->name = "keyboard_leds";
+	cdev->name = "chromeos::kbd_backlight";
 	cdev->brightness_set = led_pwm_set;
 	cdev->max_brightness = ACPI_KEYBOARD_BACKLIGHT_MAX;
 	cdev->brightness = cdev->max_brightness;
