@@ -407,6 +407,7 @@ config DM_VERITY
 
 	  If unsure, say N.
 
+
 config DM_SWITCH
 	tristate "Switch target support (EXPERIMENTAL)"
 	depends on BLK_DEV_DM
@@ -418,6 +419,20 @@ config DM_SWITCH
 
 	  To compile this code as a module, choose M here: the module will
 	  be called dm-switch.
+
+	  If unsure, say N.
+
+config DM_BOOTCACHE
+	tristate "Boot cache support"
+	depends on BLK_DEV_DM
+	---help---
+	  This device-mapper target is used to accelerate booting. When
+	  enabled, an initial boot generates a list of disk blocks read
+	  during the boot. A user level process can read the list of
+	  blocks and can copy these blocks to a separate disk area in the
+	  order in which they are accessed. Subsequent boots read these
+	  blocks sequentially, thus reducing the number of disk I/O
+	  operations and seeks.
 
 	  If unsure, say N.
 
