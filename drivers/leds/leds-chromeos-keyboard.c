@@ -36,14 +36,15 @@
 
 #define ACPI_KEYBOARD_BACKLIGHT_MAX		100
 
-static void led_pwm_set(struct led_classdev *cdev,
+static void keyboard_led_set_brightness(struct led_classdev *cdev,
 	enum led_brightness brightness)
 {
 	union acpi_object param;
 	struct acpi_object_list input;
 	acpi_status status;
 
-	cdev->brightness = brightness;
+	if (!(cdev->flags & LED_SUSPENDED))
+		cdev->brightness = brightness;
 
 	param.type = ACPI_TYPE_INTEGER;
 	param.integer.value = brightness;
@@ -77,7 +78,7 @@ static int keyboard_led_probe(struct platform_device *pdev)
 	if (!cdev)
 		return -ENOMEM;
 	cdev->name = "chromeos::kbd_backlight";
-	cdev->brightness_set = led_pwm_set;
+	cdev->brightness_set = keyboard_led_set_brightness;
 	cdev->max_brightness = ACPI_KEYBOARD_BACKLIGHT_MAX;
 	cdev->brightness = cdev->max_brightness;
 	cdev->flags |= LED_CORE_SUSPENDRESUME;
@@ -96,38 +97,16 @@ err:
 static int keyboard_led_remove(struct platform_device *pdev)
 {
 	struct led_classdev *cdev = platform_get_drvdata(pdev);
+
+	platform_set_drvdata(pdev, NULL);
 	kfree(cdev);
 	return 0;
 }
-
-#ifdef CONFIG_PM_SLEEP
-static int keyboard_led_suspend(struct device *pdev)
-{
-	struct led_classdev *cdev = platform_get_drvdata(pdev);
-	int saved_brightness = cdev->brightness;
-
-	led_pwm_set(cdev, 0);
-	cdev->brightness = saved_brightness;
-	return 0;
-}
-
-static int keyboard_led_resume(struct device *pdev)
-{
-	struct led_classdev *cdev = platform_get_drvdata(pdev);
-
-	led_pwm_set(cdev, cdev->brightness);
-	return 0;
-}
-#endif  /* CONFIG_PM_SLEEP */
-
-static SIMPLE_DEV_PM_OPS(keyboard_led_pm, keyboard_led_suspend,
-			 keyboard_led_resume);
 
 static struct platform_driver keyboard_led_driver = {
 	.driver		= {
 		.name	= "chromeos-keyboard-leds",
 		.owner	= THIS_MODULE,
-		.pm	= &keyboard_led_pm,
 	},
 	.probe		= keyboard_led_probe,
 	.remove		= keyboard_led_remove,
