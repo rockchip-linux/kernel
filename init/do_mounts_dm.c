@@ -192,7 +192,7 @@ static char * __init dm_parse_device(struct dm_device *dev, char *str)
 		dev->num_targets = 1;
 	}
 	if (dev->num_targets > DM_MAX_TARGETS) {
-		DMERR("too many targets %lu > %d\n",
+		DMERR("too many targets %lu > %d",
 			dev->num_targets, DM_MAX_TARGETS);
 	}
 	return opt.next;
@@ -329,17 +329,17 @@ static int __init dm_setup(char *str)
 		/* Don't advance str */
 	}
 	if (num_devices > DM_MAX_DEVICES) {
-		DMDEBUG("too many devices %lu > %d\n",
+		DMDEBUG("too many devices %lu > %d",
 			num_devices, DM_MAX_DEVICES);
 	}
 	dm_setup_args.str = str;
 	dm_setup_args.num_devices = num_devices;
-	DMINFO("will configure %lu devices\n", num_devices);
+	DMINFO("will configure %lu devices", num_devices);
 	dm_early_setup = 1;
 	return 1;
 
 parse_fail:
-	DMWARN("Invalid arguments supplied to dm=.\n");
+	DMWARN("Invalid arguments supplied to dm=.");
 	return 0;
 }
 
@@ -423,7 +423,7 @@ static void __init dm_setup_drives(void)
 				" name and uuid");
 			goto export_fail;
 		}
-		DMINFO("dm-%d is ready\n", dev->minor);
+		DMINFO("dm-%d is ready", dev->minor);
 	}
 	dm_setup_cleanup(devices);
 	return;
@@ -438,7 +438,7 @@ add_target_fail:
 dm_table_create_fail:
 	dm_put(md);
 dm_create_fail:
-	DMWARN("starting dm-%d (%s) failed\n",
+	DMWARN("starting dm-%d (%s) failed",
 	       dev->minor, dev->name);
 	dm_setup_cleanup(devices);
 }
@@ -449,6 +449,6 @@ void __init dm_run_setup(void)
 {
 	if (!dm_early_setup)
 		return;
-	DMINFO("attempting early device configuration.\n");
+	DMINFO("attempting early device configuration.");
 	dm_setup_drives();
 }
