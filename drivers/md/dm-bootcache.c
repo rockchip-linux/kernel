@@ -121,7 +121,7 @@ struct bootcache {
 	struct dm_dev	*dev;		/* Device for both cache and data */
 	struct delayed_work	work;	/* Work that needs a thread */
 	struct mutex	cache_lock;	/* Locks everything in cache struct */
-	wait_queue_head_t	waitq;	/* Usering waiting for events */
+	struct completion	init_complete;	/* Wait for initialization */
 	struct bootcache_sector_map sectors;	/* Table of pages of sectors */
 	/* Sysfs files for managing the block cache */
 	struct bin_attribute valid;	/* 1 -> valid 0 -> build cache */
@@ -395,7 +395,7 @@ try_again:
 	state = atomic_read(&cache->state);
 	switch (state) {
 	case BC_INIT:
-		wait_event(cache->waitq, atomic_read(&cache->state) != BC_INIT);
+		wait_for_completion(&cache->init_complete);
 		goto try_again;
 	case BC_TRACING:
 		bootcache_record(cache, bio);
@@ -813,7 +813,7 @@ static void bootcache_start(struct work_struct *work)
 		}
 	}
 exit:
-	wake_up_all(&cache->waitq);
+	complete_all(&cache->init_complete);
 	return;
 error:
 	DMERR("error occured starting bootcache, setting to by pass mode");
@@ -1066,7 +1066,7 @@ static int bootcache_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	cache = kzalloc(sizeof(*cache), GFP_KERNEL);
 	if (!cache)
 		goto bad_cache;
-	init_waitqueue_head(&cache->waitq);
+	init_completion(&cache->init_complete);
 	cache->ti = ti;
 
 	cache->args.device = device;
