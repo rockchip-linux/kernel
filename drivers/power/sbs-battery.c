@@ -231,7 +231,8 @@ static int sbs_read_string_data(struct i2c_client *client, u8 address,
 	/* block_length does not include NULL terminator */
 	block_length = ret;
 	if (block_length > I2C_SMBUS_BLOCK_MAX) {
-		dev_err("%s: Returned block_length is longer than 0x%x\n",
+		dev_err(&client->dev,
+			"%s: Returned block_length is longer than 0x%x\n",
 			__func__, I2C_SMBUS_BLOCK_MAX);
 		return -EINVAL;
 	}
