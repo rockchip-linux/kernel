@@ -2738,10 +2738,26 @@ static void mxt_suspend_enable_T9(struct mxt_data *data)
 	u8 T9_ctrl = MXT_TOUCH_CTRL_ENABLE | MXT_TOUCH_CTRL_RPTEN;
 	int ret;
 	unsigned long timeout = msecs_to_jiffies(350);
+	bool need_enable = false;
+	bool need_report = false;
 
-	init_completion(&data->auto_cal_completion);
+	dev_dbg(dev, "Current T9_Ctrl is %x\n", data->T9_ctrl);
 
-	/* Enable T9 object */
+	need_enable = !(data->T9_ctrl & MXT_TOUCH_CTRL_ENABLE);
+	need_report = !(data->T9_ctrl & MXT_TOUCH_CTRL_RPTEN);
+
+	/* If already enabled and reporting, do nothing */
+	if (!need_enable && !need_report)
+		return;
+
+	/* If the ENABLE bit is toggled, there will be auto-calibration msg.
+	 * We will have to clear this msg before going into suspend otherwise
+	 * it will wake up the device immediately
+	 */
+	if (need_enable)
+		init_completion(&data->auto_cal_completion);
+
+	/* Enable T9 object (ENABLE and REPORT) */
 	ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
 			   &T9_ctrl, 1);
 	if (ret) {
@@ -2749,10 +2765,12 @@ static void mxt_suspend_enable_T9(struct mxt_data *data)
 		return;
 	}
 
-	ret = wait_for_completion_interruptible_timeout(
-		&data->auto_cal_completion, timeout);
-	if (ret <= 0)
-		dev_err(dev, "Wait for auto cal completion failed.\n");
+	if (need_enable) {
+		ret = wait_for_completion_interruptible_timeout(
+			&data->auto_cal_completion, timeout);
+		if (ret <= 0)
+			dev_err(dev, "Wait for auto cal completion failed.\n");
+	}
 }
 
 static int mxt_suspend(struct device *dev)
@@ -2802,9 +2820,8 @@ static int mxt_suspend(struct device *dev)
 		 * that IRQ can be generated from touch
 		 */
 
-		/* Enable T9 only if it is not currently enabled */
-		if (data->T9_ctrl_valid &&
-		    !(data->T9_ctrl & MXT_TOUCH_CTRL_ENABLE))
+		/* Set proper T9 ENABLE & REPTN bits */
+		if (data->T9_ctrl_valid)
 			mxt_suspend_enable_T9(data);
 
 		/* Enable wake from IRQ */
