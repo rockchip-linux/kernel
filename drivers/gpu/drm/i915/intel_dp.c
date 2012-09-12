@@ -3296,7 +3296,8 @@ intel_dp_set_property(struct drm_connector *connector,
 	struct intel_dp *intel_dp = enc_to_intel_dp(&intel_encoder->base);
 	int ret;
 
-	ret = drm_object_property_set_value(&connector->base, property, val);
+	ret = drm_object_property_set_value(&connector->base,
+			&connector->propvals, property, val, blob_data);
 	if (ret)
 		return ret;
 

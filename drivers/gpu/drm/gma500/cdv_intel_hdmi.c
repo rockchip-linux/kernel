@@ -191,7 +191,8 @@ static int cdv_hdmi_set_property(struct drm_connector *connector,
 			return 0;
 
 		if (drm_object_property_set_value(&connector->base,
-							property, value))
+							&connector->propvals,
+							property, value, blob_data))
 			return -1;
 
 		centre = (curValue == DRM_MODE_SCALE_NO_SCALE) ||

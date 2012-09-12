@@ -214,9 +214,9 @@ static enum drm_connector_status ch7006_encoder_detect(struct drm_encoder *encod
 	else
 		priv->subconnector = DRM_MODE_SUBCONNECTOR_Unknown;
 
-	drm_object_property_set_value(&connector->base,
+	drm_object_property_set_value(&connector->base, &connector->propvals,
 			encoder->dev->mode_config.tv_subconnector_property,
-							priv->subconnector);
+			priv->subconnector, NULL);
 
 	return priv->subconnector ? connector_status_connected :
 					connector_status_disconnected;

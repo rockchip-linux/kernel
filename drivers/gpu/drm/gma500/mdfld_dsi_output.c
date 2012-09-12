@@ -276,7 +276,8 @@ static int mdfld_dsi_connector_set_property(struct drm_connector *connector,
 			goto set_prop_done;
 
 		if (drm_object_property_set_value(&connector->base,
-							property, value))
+							&connector->propvals,
+							property, value, blob_data))
 			goto set_prop_error;
 
 		centerechange = (val == DRM_MODE_SCALE_NO_SCALE) ||
@@ -300,8 +301,9 @@ static int mdfld_dsi_connector_set_property(struct drm_connector *connector,
 			}
 		}
 	} else if (!strcmp(property->name, "backlight") && encoder) {
-		if (drm_object_property_set_value(&connector->base, property,
-									value))
+		if (drm_object_property_set_value(&connector->base,
+							&connector->propvals,
+							property, value, blob_data))
 			goto set_prop_error;
 		else
 			gma_backlight_set(encoder->dev, value);

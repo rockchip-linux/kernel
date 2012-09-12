@@ -1655,7 +1655,8 @@ cdv_intel_dp_set_property(struct drm_connector *connector,
 	struct cdv_intel_dp *intel_dp = encoder->dev_priv;
 	int ret;
 
-	ret = drm_object_property_set_value(&connector->base, property, val);
+	ret = drm_object_property_set_value(&connector->base,
+			&connector->propvals, property, val, blob_data);
 	if (ret)
 		return ret;
 

@@ -196,8 +196,9 @@ nv17_tv_detect(struct drm_encoder *encoder, struct drm_connector *connector)
 	}
 
 	drm_object_property_set_value(&connector->base,
+					 &connector->propvals,
 					 conf->tv_subconnector_property,
-					 tv_enc->subconnector);
+					 tv_enc->subconnector, NULL);
 
 	if (!reliable) {
 		return connector_status_unknown;

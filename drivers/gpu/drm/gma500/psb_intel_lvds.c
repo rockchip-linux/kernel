@@ -606,8 +606,9 @@ int psb_intel_lvds_set_property(struct drm_connector *connector,
 			goto set_prop_done;
 
 		if (drm_object_property_set_value(&connector->base,
+							&connector->propvals,
 							property,
-							value))
+							value, blob_data))
 			goto set_prop_error;
 
 		if (crtc->saved_mode.hdisplay != 0 &&
@@ -621,8 +622,9 @@ int psb_intel_lvds_set_property(struct drm_connector *connector,
 		}
 	} else if (!strcmp(property->name, "backlight")) {
 		if (drm_object_property_set_value(&connector->base,
+							&connector->propvals,
 							property,
-							value))
+							value, blob_data))
 			goto set_prop_error;
 		else
                         gma_backlight_set(encoder->dev, value);

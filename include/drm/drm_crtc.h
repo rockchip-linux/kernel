@@ -43,6 +43,7 @@ struct drm_object_properties;
 struct drm_file;
 struct drm_clip_rect;
 struct device_node;
+struct drm_object_property_values;
 
 #define DRM_MODE_OBJECT_CRTC 0xcccccccc
 #define DRM_MODE_OBJECT_CONNECTOR 0xc0c0c0c0
@@ -59,12 +60,16 @@ struct drm_mode_object {
 	uint32_t id;
 	uint32_t type;
 	struct drm_object_properties *properties;
+	struct drm_object_property_values *propvals;
 };
 
 #define DRM_OBJECT_MAX_PROPERTY 24
 struct drm_object_properties {
 	int count;
 	uint32_t ids[DRM_OBJECT_MAX_PROPERTY];
+};
+
+struct drm_object_property_values {
 	uint64_t values[DRM_OBJECT_MAX_PROPERTY];
 };
 
@@ -485,6 +490,7 @@ struct drm_crtc {
 	void *helper_private;
 
 	struct drm_object_properties properties;
+	struct drm_object_property_values propvals;
 };
 
 
@@ -655,6 +661,7 @@ struct drm_connector {
 
 	struct drm_property_blob *edid_blob_ptr;
 	struct drm_object_properties properties;
+	struct drm_object_property_values propvals;
 
 	struct drm_property_blob *path_blob_ptr;
 
@@ -740,6 +747,7 @@ struct drm_plane {
 	const struct drm_plane_funcs *funcs;
 
 	struct drm_object_properties properties;
+	struct drm_object_property_values propvals;
 
 	enum drm_plane_type type;
 };
@@ -1130,8 +1138,9 @@ static inline bool drm_property_type_valid(struct drm_property *property)
 }
 
 extern int drm_object_property_set_value(struct drm_mode_object *obj,
+					 struct drm_object_property_values *propvals,
 					 struct drm_property *property,
-					 uint64_t val);
+					 uint64_t val, void *blob_data);
 extern int drm_object_property_get_value(struct drm_mode_object *obj,
 					 struct drm_property *property,
 					 uint64_t *value);

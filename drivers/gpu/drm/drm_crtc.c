@@ -139,6 +139,14 @@ void drm_warn_on_modeset_not_all_locked(struct drm_device *dev)
 }
 EXPORT_SYMBOL(drm_warn_on_modeset_not_all_locked);
 
+static int drm_mode_set_obj_prop(struct drm_device *dev,
+		struct drm_mode_object *obj, struct drm_atomic_state *state,
+		struct drm_property *property, uint64_t value, void *blob_data);
+static struct drm_property_blob *drm_property_create_blob(struct drm_device *dev,
+		int length, void *data);
+static void drm_property_destroy_blob(struct drm_device *dev,
+		struct drm_property_blob *blob);
+
 /* Avoid boilerplate.  I'm tired of typing. */
 #define DRM_ENUM_NAME_FN(fnname, list)				\
 	const char *fnname(int val)				\
@@ -765,6 +773,7 @@ int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 		goto out;
 
 	crtc->base.properties = &crtc->properties;
+	crtc->base.propvals = &crtc->propvals;
 
 	list_add_tail(&crtc->head, &config->crtc_list);
 	config->num_crtc++;
@@ -886,6 +895,7 @@ int drm_connector_init(struct drm_device *dev,
 		goto out_unlock;
 
 	connector->base.properties = &connector->properties;
+	connector->base.propvals = &connector->propvals;
 	connector->dev = dev;
 	connector->funcs = funcs;
 	connector->connector_type = connector_type;
@@ -1131,6 +1141,7 @@ int drm_universal_plane_init(struct drm_device *dev, struct drm_plane *plane,
 		goto out;
 
 	plane->base.properties = &plane->properties;
+	plane->base.propvals = &plane->propvals;
 	plane->dev = dev;
 	plane->funcs = funcs;
 	plane->format_types = kmalloc(sizeof(uint32_t) * format_count,
@@ -1994,7 +2005,7 @@ int drm_mode_getconnector(struct drm_device *dev, void *data,
 				goto out;
 			}
 
-			if (put_user(connector->properties.values[i],
+			if (put_user(connector->propvals.values[i],
 				     prop_values + copied)) {
 				ret = -EFAULT;
 				goto out;
@@ -3661,7 +3672,7 @@ void drm_object_attach_property(struct drm_mode_object *obj,
 	}
 
 	obj->properties->ids[count] = property->base.id;
-	obj->properties->values[count] = init_val;
+	obj->propvals->values[count] = init_val;
 	obj->properties->count++;
 }
 EXPORT_SYMBOL(drm_object_attach_property);
@@ -3680,13 +3691,27 @@ EXPORT_SYMBOL(drm_object_attach_property);
  * Zero on success, error code on failure.
  */
 int drm_object_property_set_value(struct drm_mode_object *obj,
-				  struct drm_property *property, uint64_t val)
+				  struct drm_object_property_values *propvals,
+				  struct drm_property *property, uint64_t val,
+				  void *blob_data)
 {
 	int i;
 
 	for (i = 0; i < obj->properties->count; i++) {
 		if (obj->properties->ids[i] == property->base.id) {
-			obj->properties->values[i] = val;
+			struct drm_device *dev = property->dev;
+			if (property->flags & DRM_MODE_PROP_BLOB) {
+				struct drm_property_blob *blob, *old_blob = NULL;
+				old_blob = drm_property_blob_find(dev, propvals->values[i]);
+				blob = drm_property_create_blob(dev, val, blob_data);
+				if (!blob)
+					return -ENOMEM;
+				propvals->values[i] = blob->base.id;
+				if (old_blob)
+					drm_property_destroy_blob(dev, old_blob);
+			} else {
+				propvals->values[i] = val;
+			}
 			return 0;
 		}
 	}
@@ -3716,7 +3741,7 @@ int drm_object_property_get_value(struct drm_mode_object *obj,
 
 	for (i = 0; i < obj->properties->count; i++) {
 		if (obj->properties->ids[i] == property->base.id) {
-			*val = obj->properties->values[i];
+			*val = obj->propvals->values[i];
 			return 0;
 		}
 	}
@@ -3935,8 +3960,9 @@ int drm_mode_connector_set_path_property(struct drm_connector *connector,
 		return -EINVAL;
 
 	ret = drm_object_property_set_value(&connector->base,
+					    &connector->propvals,
 					    dev->mode_config.path_property,
-					    connector->path_blob_ptr->base.id);
+					    connector->path_blob_ptr->base.id, NULL);
 	return ret;
 }
 EXPORT_SYMBOL(drm_mode_connector_set_path_property);
@@ -3956,27 +3982,35 @@ int drm_mode_connector_update_edid_property(struct drm_connector *connector,
 					    struct edid *edid)
 {
 	struct drm_device *dev = connector->dev;
-	int ret, size;
+	struct drm_mode_object *obj = &connector->base;
+	struct drm_property *edid_prop = dev->mode_config.edid_property;
+	int i, ret, size;
 
 	if (connector->edid_blob_ptr)
 		drm_property_destroy_blob(dev, connector->edid_blob_ptr);
 
 	/* Delete edid, when there is none. */
 	if (!edid) {
-		connector->edid_blob_ptr = NULL;
-		ret = drm_object_property_set_value(&connector->base, dev->mode_config.edid_property, 0);
+		ret = drm_object_property_set_value(obj,
+				&connector->propvals, edid_prop, 0, NULL);
 		return ret;
 	}
 
 	size = EDID_LENGTH * (1 + edid->extensions);
-	connector->edid_blob_ptr = drm_property_create_blob(connector->dev,
-							    size, edid);
-	if (!connector->edid_blob_ptr)
-		return -EINVAL;
 
-	ret = drm_object_property_set_value(&connector->base,
-					       dev->mode_config.edid_property,
-					       connector->edid_blob_ptr->base.id);
+	ret = drm_object_property_set_value(obj,
+			&connector->propvals, edid_prop, size, edid);
+	if (ret)
+		return ret;
+
+	/* find the blob object created for us by drm_object_property_set_value(): */
+	for (i = 0; i < obj->properties->count; i++) {
+		if (obj->properties->ids[i] == edid_prop->base.id) {
+			connector->edid_blob_ptr = drm_property_blob_find(dev,
+					connector->propvals.values[i]);
+			break;
+		}
+	}
 
 	return ret;
 }
@@ -4077,7 +4111,9 @@ static int drm_mode_connector_set_obj_prop(struct drm_connector *connector,
 
 	/* store the property value if successful */
 	if (!ret)
-		drm_object_property_set_value(&connector->base, property, value);
+		drm_object_property_set_value(&connector->base,
+				&connector->propvals, property, value, blob_data);
+
 	return ret;
 }
 
@@ -4091,7 +4127,8 @@ static int drm_mode_crtc_set_obj_prop(struct drm_crtc *crtc,
 		ret = crtc->funcs->set_property(crtc, state, property,
 				value, blob_data);
 	if (!ret)
-		drm_object_property_set_value(&crtc->base, property, value);
+		drm_object_property_set_value(&crtc->base, &crtc->propvals,
+				property, value, NULL);
 
 	return ret;
 }
@@ -4106,7 +4143,8 @@ static int drm_mode_plane_set_obj_prop(struct drm_plane *plane,
 		ret = plane->funcs->set_property(plane, state, property,
 				value, blob_data);
 	if (!ret)
-		drm_object_property_set_value(&plane->base, property, value);
+		drm_object_property_set_value(&plane->base, &plane->propvals,
+				property, value, NULL);
 
 	return ret;
 }
@@ -4220,7 +4258,7 @@ int drm_mode_obj_get_properties_ioctl(struct drm_device *dev, void *data,
 				ret = -EFAULT;
 				goto out;
 			}
-			if (put_user(obj->properties->values[i],
+			if (put_user(obj->propvals->values[i],
 				     prop_values_ptr + copied)) {
 				ret = -EFAULT;
 				goto out;

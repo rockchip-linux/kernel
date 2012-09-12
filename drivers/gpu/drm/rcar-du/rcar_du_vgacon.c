@@ -83,7 +83,8 @@ int rcar_du_vga_connector_init(struct rcar_du_device *rcdu,
 
 	drm_helper_connector_dpms(connector, DRM_MODE_DPMS_OFF);
 	drm_object_property_set_value(&connector->base,
-		rcdu->ddev->mode_config.dpms_property, DRM_MODE_DPMS_OFF);
+		&connector->propvals,
+		rcdu->ddev->mode_config.dpms_property, DRM_MODE_DPMS_OFF, NULL);
 
 	ret = drm_mode_connector_attach_encoder(connector, &renc->encoder);
 	if (ret < 0)
