@@ -117,6 +117,15 @@ enum drm_mode_status {
     MODE_ERROR	= -1	/* error condition */
 };
 
+static inline int64_t U642I64(uint64_t val)
+{
+	return (int64_t)*((int64_t *)&val);
+}
+static inline uint64_t I642U64(int64_t val)
+{
+	return (uint64_t)*((uint64_t *)&val);
+}
+
 #define DRM_MODE_TYPE_CLOCK_CRTC_C (DRM_MODE_TYPE_CLOCK_C | \
 				    DRM_MODE_TYPE_CRTC_C)
 
@@ -1136,6 +1145,9 @@ struct drm_property *drm_property_create_bitmask(struct drm_device *dev,
 struct drm_property *drm_property_create_range(struct drm_device *dev, int flags,
 					 const char *name,
 					 uint64_t min, uint64_t max);
+struct drm_property *drm_property_create_signed_range(struct drm_device *dev,
+					 int flags, const char *name,
+					 int64_t min, int64_t max);
 struct drm_property *drm_property_create_object(struct drm_device *dev,
 					 int flags, const char *name, uint32_t type);
 extern void drm_property_destroy(struct drm_device *dev, struct drm_property *property);
