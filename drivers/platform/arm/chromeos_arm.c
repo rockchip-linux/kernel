@@ -246,7 +246,7 @@ int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
 	return _chromeos_write(nvram_buffer);
 }
 
-static int __init chromeos_arm_platform_gpio(struct platform_device *pdev)
+static int __devinit chromeos_arm_platform_gpio(struct platform_device *pdev)
 {
 	int gpio, err, active_low;
 	enum of_gpio_flags flags;
@@ -275,7 +275,7 @@ static int __init chromeos_arm_platform_gpio(struct platform_device *pdev)
 	return 0;
 }
 
-static int __init chromeos_arm_probe(struct platform_device *pdev)
+static int __devinit chromeos_arm_probe(struct platform_device *pdev)
 {
 	int proplen, err;
 	const int *prop;
