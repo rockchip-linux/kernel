@@ -1085,8 +1085,17 @@ static int psmouse_probe(struct psmouse *psmouse)
  */
 
 	param[0] = 0xa5;
-	if (ps2_command(ps2dev, param, PSMOUSE_CMD_GETID))
-		return -1;
+	if (ps2_command(ps2dev, param, PSMOUSE_CMD_GETID)) {
+		/*
+		 * Reprobe the device if it did not respond to the GETID
+		 * command. Before retry, additional dummy command is sent
+		 * to clear the 'RESEND' response if exists.
+		 */
+		psmouse_warn(psmouse, "GETID probe failed, retrying...\n");
+		ps2_command(ps2dev, NULL, PSMOUSE_CMD_SETSCALE11);
+		if (ps2_command(ps2dev, param, PSMOUSE_CMD_GETID))
+			return -1;
+	}
 
 	if (param[0] != 0x00 && param[0] != 0x03 &&
 	    param[0] != 0x04 && param[0] != 0xff)
