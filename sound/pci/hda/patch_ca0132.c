@@ -4495,6 +4495,13 @@ static struct hda_verb ca0132_init_verbs0[] = {
 static struct hda_verb ca0132_init_verbs1[] = {
 	{0x10, AC_VERB_SET_UNSOLICITED_ENABLE, AC_USRSP_EN | UNSOL_TAG_HP},
 	{0x12, AC_VERB_SET_UNSOLICITED_ENABLE, AC_USRSP_EN | UNSOL_TAG_AMIC1},
+	/* Set the default configuration for the mic pin because the
+	 * value set in BIOS will be reset after ct extension is enabled.
+	 */
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_0, 0xf0},
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_1, 0x10},
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_2, 0xa1},
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_3, 0x03},
 	/* config EAPD */
 	{0x0b, 0x78D, 0x00},
 	/*{0x0b, AC_VERB_SET_EAPD_BTLENABLE, 0x02},*/
