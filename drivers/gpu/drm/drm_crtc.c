@@ -1947,6 +1947,16 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 	}
 	plane = obj_to_plane(obj);
 
+	obj = drm_mode_object_find(dev, plane_req->crtc_id,
+				   DRM_MODE_OBJECT_CRTC);
+	if (!obj) {
+		DRM_DEBUG_KMS("Unknown crtc ID %d\n",
+			      plane_req->crtc_id);
+		ret = -ENOENT;
+		goto out;
+	}
+	crtc = obj_to_crtc(obj);
+
 	/* No fb means shut it down */
 	if (!plane_req->fb_id) {
 		drm_modeset_lock_all(dev);
@@ -1957,16 +1967,6 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 		drm_modeset_unlock_all(dev);
 		goto out;
 	}
-
-	obj = drm_mode_object_find(dev, plane_req->crtc_id,
-				   DRM_MODE_OBJECT_CRTC);
-	if (!obj) {
-		DRM_DEBUG_KMS("Unknown crtc ID %d\n",
-			      plane_req->crtc_id);
-		ret = -ENOENT;
-		goto out;
-	}
-	crtc = obj_to_crtc(obj);
 
 	fb = drm_framebuffer_lookup(dev, plane_req->fb_id);
 	if (!fb) {
