@@ -259,6 +259,8 @@
 /* Touchscreen absolute values */
 #define MXT_MAX_AREA		0xff
 
+#define MXT_MAX_FINGER		10
+
 /* For CMT (must match XRANGE/YRANGE as defined in board config */
 #define MXT_PIXELS_PER_MM	20
 
@@ -368,6 +370,9 @@ struct mxt_data {
 
 	/* config file name */
 	char *config_file;
+
+	/* map for the tracking id currently being used */
+	bool current_id[MXT_MAX_FINGER];
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -467,6 +472,47 @@ static void mxt_dump_message(struct device *dev,
 {
 	dev_dbg(dev, "reportid: %u\tmessage: %*ph\n",
 		message->reportid, 7, message->message);
+}
+
+/*
+ * Release all the fingers that are being tracked. To avoid unwanted gestures,
+ * move all the fingers to (0,0) with largest PRESSURE and TOUCH_MAJOR.
+ * Userspace apps can use these info to filter out these events and/or cancel
+ * existing gestures.
+ */
+static void mxt_release_all_fingers(struct mxt_data *data)
+{
+	struct device *dev = &data->client->dev;
+	struct input_dev *input_dev = data->input_dev;
+	int id;
+	bool need_update = false;
+	for (id = 0; id < MXT_MAX_FINGER; id++) {
+		if (data->current_id[id]) {
+			dev_warn(dev, "Move touch %d to (0,0)\n", id);
+			input_mt_slot(input_dev, id);
+			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER,
+						   true);
+			input_report_abs(input_dev, ABS_MT_POSITION_X, 0);
+			input_report_abs(input_dev, ABS_MT_POSITION_Y, 0);
+			input_report_abs(input_dev, ABS_MT_PRESSURE, 255);
+			input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, 255);
+			need_update = true;
+		}
+	}
+	if (need_update)
+		input_sync(data->input_dev);
+
+	for (id = 0; id < MXT_MAX_FINGER; id++) {
+		if (data->current_id[id]) {
+			dev_warn(dev, "Release touch contact %d\n", id);
+			input_mt_slot(input_dev, id);
+			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER,
+						   false);
+			data->current_id[id] = false;
+		}
+	}
+	if (need_update)
+		input_sync(data->input_dev);
 }
 
 static bool mxt_in_bootloader(struct mxt_data *data)
@@ -827,6 +873,7 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	input_mt_slot(input_dev, id);
 	input_mt_report_slot_state(input_dev, MT_TOOL_FINGER,
 				   status & MXT_DETECT);
+	data->current_id[id] = status & MXT_DETECT;
 
 	if (status & MXT_DETECT) {
 		input_report_abs(input_dev, ABS_MT_POSITION_X, x);
@@ -2851,6 +2898,8 @@ static int mxt_resume(struct device *dev)
 	ret = mxt_handle_messages(data, false);
 	if (ret)
 		dev_err(dev, "Handling message fails upon resume, %d\n", ret);
+
+	mxt_release_all_fingers(data);
 
 	mutex_lock(&input_dev->mutex);
 
