@@ -715,6 +715,9 @@ exit:
 
 static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 {
+	u64 max_sectors;
+	u64 max_meta_sectors;
+
 	if (hdr->magic != BOOTCACHE_MAGIC)
 		return 0;
 	if (hdr->version != BOOTCACHE_VERSION)
@@ -730,6 +733,23 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 	if (strncmp(hdr->signature, cache->hdr.signature,
 			sizeof(hdr->signature)) != 0)
 		return 0;
+	/*
+	 * Check sanity:
+	 * Can't have any more meta sectors than it takes to map
+	 * the remaining parition space for bootcache.
+	 */
+	max_sectors = to_sector(i_size_read(cache->dev->bdev->bd_inode))
+			- cache->args.cache_start;
+	max_meta_sectors = to_sector(round_up(
+		sectors_to_pages(max_sectors) * sizeof(u64), SECTOR_SIZE));
+	if (hdr->sectors_meta > max_meta_sectors) {
+		DMERR("too many meta sectors %lld", (u64)hdr->sectors_meta);
+		return 0;
+	}
+	if (hdr->sectors_data > max_sectors - hdr->sectors_meta - 1) {
+		DMERR("bootcache too big %lld", (u64)hdr->sectors_data);
+		return 0;
+	}
 	return 1;
 }
 
