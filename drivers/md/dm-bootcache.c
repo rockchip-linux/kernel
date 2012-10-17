@@ -1191,6 +1191,10 @@ static int bootcache_status(struct dm_target *ti, status_type_t type,
 
 static void bootcache_dtr(struct dm_target *ti)
 {
+	/*
+	 * Doesn't have to clean-up the meta files in sysfs
+	 * because the device mapper has already done it.
+	 */
 	struct bootcache *cache = (struct bootcache *)ti->private;
 
 	DMDEBUG("Destroying bio set");
@@ -1198,9 +1202,6 @@ static void bootcache_dtr(struct dm_target *ti)
 
 	DMDEBUG("Putting dev");
 	dm_put_device(ti, cache->dev);
-
-	DMDEBUG("Remove sysfs files");
-	bootcache_remove_all_files(cache);
 
 	DMDEBUG("Destroying config");
 	kfree(cache);
