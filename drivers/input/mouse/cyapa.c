@@ -46,6 +46,8 @@
 #define CYAPA_CMD_BL_ALL           0x0a
 #define CYAPA_CMD_BLK_PRODUCT_ID   0x0b
 #define CYAPA_CMD_BLK_HEAD         0x0c
+#define CYAPA_CMD_MAX_BASELINE     0x0d
+#define CYAPA_CMD_MIN_BASELINE     0x0e
 
 /* report data start reg offset address. */
 #define DATA_REG_START_OFFSET  0x0000
@@ -140,6 +142,9 @@
 			      CAPABILITY_MIDDLE_BTN_MASK)
 
 #define CYAPA_OFFSET_SOFT_RESET  REG_OFFSET_COMMAND_BASE
+#define OP_REPORT_BASELINE_MASK  0x40
+#define REG_OFFSET_MAX_BASELINE  0x0026
+#define REG_OFFSET_MIN_BASELINE  0x0027
 
 #define REG_OFFSET_POWER_MODE (REG_OFFSET_COMMAND_BASE + 1)
 
@@ -288,10 +293,14 @@ struct cyapa_cmd_len {
 #define CMD_RESET 0
 #define CMD_POWER_MODE 1
 #define CMD_DEV_STATUS 2
+#define CMD_REPORT_MAX_BASELINE 3
+#define CMD_REPORT_MIN_BASELINE 4
 #define SMBUS_BYTE_CMD(cmd) (((cmd) & 0x3f) << 1)
 #define CYAPA_SMBUS_RESET SMBUS_BYTE_CMD(CMD_RESET)
 #define CYAPA_SMBUS_POWER_MODE SMBUS_BYTE_CMD(CMD_POWER_MODE)
 #define CYAPA_SMBUS_DEV_STATUS SMBUS_BYTE_CMD(CMD_DEV_STATUS)
+#define CYAPA_SMBUS_MAX_BASELINE SMBUS_BYTE_CMD(CMD_REPORT_MAX_BASELINE)
+#define CYAPA_SMBUS_MIN_BASELINE SMBUS_BYTE_CMD(CMD_REPORT_MIN_BASELINE)
 
  /* for group registers read/write command */
 #define REG_GROUP_DATA 0
@@ -336,7 +345,9 @@ static const struct cyapa_cmd_len cyapa_i2c_cmds[] = {
 	{ BL_DATA_OFFSET, 16 },
 	{ BL_HEAD_OFFSET, 32 },
 	{ REG_OFFSET_QUERY_BASE, PRODUCT_ID_SIZE },
-	{ REG_OFFSET_DATA_BASE, 32 }
+	{ REG_OFFSET_DATA_BASE, 32 },
+	{ REG_OFFSET_MAX_BASELINE, 1 },
+	{ REG_OFFSET_MIN_BASELINE, 1 },
 };
 
 static const struct cyapa_cmd_len cyapa_smbus_cmds[] = {
@@ -353,6 +364,8 @@ static const struct cyapa_cmd_len cyapa_smbus_cmds[] = {
 	{ CYAPA_SMBUS_BL_ALL, 32 },
 	{ CYAPA_SMBUS_BLK_PRODUCT_ID, PRODUCT_ID_SIZE },
 	{ CYAPA_SMBUS_BLK_HEAD, 16 },
+	{ CYAPA_SMBUS_MAX_BASELINE, 1 },
+	{ CYAPA_SMBUS_MIN_BASELINE, 1 },
 };
 
 #define CYAPA_DEBUGFS_READ_FW	"read_fw"
@@ -1782,14 +1795,88 @@ static ssize_t cyapa_update_fw_store(struct device *dev,
 	return ret ? ret : count;
 }
 
+static ssize_t cyapa_show_baseline(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+	int max_baseline, min_baseline;
+	int tries = 3;
+	int ret;
+
+	disable_irq(cyapa->irq);
+
+	ret = cyapa_read_byte(cyapa, CYAPA_CMD_DEV_STATUS);
+	if (ret < 0) {
+		dev_err(dev, "Error reading dev status. err = %d\n", ret);
+		goto out;
+	}
+	if ((ret & CYAPA_DEV_NORMAL) != CYAPA_DEV_NORMAL) {
+		dev_warn(dev, "Trackpad device is busy. device state = 0x%x\n",
+			 ret);
+		ret = -EAGAIN;
+		goto out;
+	}
+
+	ret = cyapa_write_byte(cyapa, CYAPA_CMD_SOFT_RESET,
+			       OP_REPORT_BASELINE_MASK);
+	if (ret < 0) {
+		dev_err(dev, "Failed to send report baseline command. %d\n",
+			ret);
+		goto out;
+	}
+
+	do {
+		usleep_range(10000, 20000);
+
+		ret = cyapa_read_byte(cyapa, CYAPA_CMD_DEV_STATUS);
+		if (ret < 0) {
+			dev_err(dev, "Error reading dev status. err = %d\n",
+				ret);
+			goto out;
+		}
+		if ((ret & CYAPA_DEV_NORMAL) == CYAPA_DEV_NORMAL)
+			break;
+	} while (--tries);
+
+	if (tries == 0) {
+		dev_err(dev, "Device timed out going to Normal state.\n");
+		ret = -ETIMEDOUT;
+		goto out;
+	}
+
+	ret = cyapa_read_byte(cyapa, CYAPA_CMD_MAX_BASELINE);
+	if (ret < 0) {
+		dev_err(dev, "Failed to read max baseline. err = %d\n", ret);
+		goto out;
+	}
+	max_baseline = ret;
+
+	ret = cyapa_read_byte(cyapa, CYAPA_CMD_MIN_BASELINE);
+	if (ret < 0) {
+		dev_err(dev, "Failed to read min baseline. err = %d\n", ret);
+		goto out;
+	}
+	min_baseline = ret;
+
+	dev_dbg(dev, "Baseline report successful. Max: %d Min: %d\n",
+		max_baseline, min_baseline);
+	ret = scnprintf(buf, PAGE_SIZE, "%d %d\n", max_baseline, min_baseline);
+
+out:
+	enable_irq(cyapa->irq);
+	return ret;
+}
+
 static DEVICE_ATTR(firmware_version, S_IRUGO, cyapa_show_fm_ver, NULL);
 static DEVICE_ATTR(product_id, S_IRUGO, cyapa_show_product_id, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, cyapa_update_fw_store);
+static DEVICE_ATTR(baseline, S_IRUGO, cyapa_show_baseline, NULL);
 
 static struct attribute *cyapa_sysfs_entries[] = {
 	&dev_attr_firmware_version.attr,
 	&dev_attr_product_id.attr,
 	&dev_attr_update_fw.attr,
+	&dev_attr_baseline.attr,
 	NULL,
 };
 
