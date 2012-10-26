@@ -2592,6 +2592,7 @@ tracing_generic_entry_update(struct trace_entry *entry, unsigned short type,
 	struct task_struct *tsk = current;
 
 	entry->preempt_count		= pc & 0xff;
+	entry->preempt_lazy_count	= preempt_lazy_count();
 	entry->pid			= (tsk) ? tsk->pid : 0;
 	entry->type			= type;
 	entry->flags =
@@ -2603,7 +2604,8 @@ tracing_generic_entry_update(struct trace_entry *entry, unsigned short type,
 		((pc & NMI_MASK    ) ? TRACE_FLAG_NMI     : 0) |
 		((pc & HARDIRQ_MASK) ? TRACE_FLAG_HARDIRQ : 0) |
 		((pc & SOFTIRQ_OFFSET) ? TRACE_FLAG_SOFTIRQ : 0) |
-		(tif_need_resched() ? TRACE_FLAG_NEED_RESCHED : 0) |
+		(tif_need_resched_now() ? TRACE_FLAG_NEED_RESCHED : 0) |
+		(need_resched_lazy() ? TRACE_FLAG_NEED_RESCHED_LAZY : 0) |
 		(test_preempt_need_resched() ? TRACE_FLAG_PREEMPT_RESCHED : 0);
 
 	entry->migrate_disable = migration_disable_value(tsk);
@@ -3813,15 +3815,17 @@ unsigned long trace_total_entries(struct trace_array *tr)
 
 static void print_lat_help_header(struct seq_file *m)
 {
-	seq_puts(m, "#                    _------=> CPU#            \n"
-		    "#                   / _-----=> irqs-off        \n"
-		    "#                  | / _----=> need-resched    \n"
-		    "#                  || / _---=> hardirq/softirq \n"
-		    "#                  ||| / _--=> preempt-depth   \n"
-		    "#                  |||| / _-=> migrate-disable \n"
-		    "#                  ||||| /     delay           \n"
-		    "#  cmd     pid     |||||| time  |   caller     \n"
-		    "#     \\   /        ||||||  \\    |    /       \n");
+	seq_puts(m, "#                    _--------=> CPU#            \n"
+		    "#                   / _-------=> irqs-off        \n"
+		    "#                  | / _------=> need-resched    \n"
+		    "#                  || / _-----=> need-resched-lazy\n"
+		    "#                  ||| / _----=> hardirq/softirq \n"
+		    "#                  |||| / _---=> preempt-depth   \n"
+		    "#                  ||||| / _--=> preempt-lazy-depth\n"
+		    "#                  |||||| / _-=> migrate-disable \n"
+		    "#                  ||||||| /     delay           \n"
+		    "#  cmd     pid     |||||||| time  |   caller     \n"
+		    "#     \\   /        ||||||||  \\    |    /       \n");
 }
 
 static void print_event_info(struct array_buffer *buf, struct seq_file *m)
@@ -3855,14 +3859,16 @@ static void print_func_help_header_irq(struct array_buffer *buf, struct seq_file
 
 	print_event_info(buf, m);
 
-	seq_printf(m, "#                            %.*s  _-----=> irqs-off\n", prec, space);
-	seq_printf(m, "#                            %.*s / _----=> need-resched\n", prec, space);
-	seq_printf(m, "#                            %.*s| / _---=> hardirq/softirq\n", prec, space);
-	seq_printf(m, "#                            %.*s|| / _--=> preempt-depth\n", prec, space);
-	seq_printf(m, "#                            %.*s||| / _-=> migrate-disable\n", prec, space);
-	seq_printf(m, "#                            %.*s|||| /     delay\n", prec, space);
-	seq_printf(m, "#           TASK-PID  %.*s CPU#  |||||  TIMESTAMP  FUNCTION\n", prec, "     TGID   ");
-	seq_printf(m, "#              | |    %.*s   |   |||||     |         |\n", prec, "       |    ");
+	seq_printf(m, "#                            %.*s  _-------=> irqs-off\n", prec, space);
+	seq_printf(m, "#                            %.*s / _------=> need-resched\n", prec, space);
+	seq_printf(m, "#                            %.*s| / _-----=> need-resched-lazy\n", prec, space);
+	seq_printf(m, "#                            %.*s|| / _----=> hardirq/softirq\n", prec, space);
+	seq_printf(m, "#                            %.*s||| / _---=> preempt-depth\n", prec, space);
+	seq_printf(m, "#                            %.*s|||| / _--=> preempt-lazy-depth\n", prec, space);
+	seq_printf(m, "#                            %.*s||||| / _-=> migrate-disable\n", prec, space);
+	seq_printf(m, "#                            %.*s|||||| /     delay\n", prec, space);
+	seq_printf(m, "#           TASK-PID  %.*s CPU#  |||||||  TIMESTAMP  FUNCTION\n", prec, "     TGID   ");
+	seq_printf(m, "#              | |    %.*s   |   |||||||      |         |\n", prec, "       |    ");
 }
 
 void

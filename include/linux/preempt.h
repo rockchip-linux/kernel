@@ -171,11 +171,31 @@ extern void preempt_count_sub(int val);
 #define preempt_count_inc() preempt_count_add(1)
 #define preempt_count_dec() preempt_count_sub(1)
 
+#ifdef CONFIG_PREEMPT_LAZY
+#define add_preempt_lazy_count(val)	do { preempt_lazy_count() += (val); } while (0)
+#define sub_preempt_lazy_count(val)	do { preempt_lazy_count() -= (val); } while (0)
+#define inc_preempt_lazy_count()	add_preempt_lazy_count(1)
+#define dec_preempt_lazy_count()	sub_preempt_lazy_count(1)
+#define preempt_lazy_count()		(current_thread_info()->preempt_lazy_count)
+#else
+#define add_preempt_lazy_count(val)	do { } while (0)
+#define sub_preempt_lazy_count(val)	do { } while (0)
+#define inc_preempt_lazy_count()	do { } while (0)
+#define dec_preempt_lazy_count()	do { } while (0)
+#define preempt_lazy_count()		(0)
+#endif
+
 #ifdef CONFIG_PREEMPT_COUNT
 
 #define preempt_disable() \
 do { \
 	preempt_count_inc(); \
+	barrier(); \
+} while (0)
+
+#define preempt_lazy_disable() \
+do { \
+	inc_preempt_lazy_count(); \
 	barrier(); \
 } while (0)
 
@@ -216,11 +236,29 @@ do { \
 		__preempt_schedule(); \
 } while (0)
 
+/*
+ * open code preempt_check_resched() because it is not exported to modules and
+ * used by local_unlock() or bpf_enable_instrumentation().
+ */
+#define preempt_lazy_enable() \
+do { \
+	dec_preempt_lazy_count(); \
+	barrier(); \
+	if (should_resched(0)) \
+		__preempt_schedule(); \
+} while (0)
+
 #else /* !CONFIG_PREEMPTION */
 #define preempt_enable() \
 do { \
 	barrier(); \
 	preempt_count_dec(); \
+} while (0)
+
+#define preempt_lazy_enable() \
+do { \
+	dec_preempt_lazy_count(); \
+	barrier(); \
 } while (0)
 
 #define preempt_enable_notrace() \
@@ -282,7 +320,7 @@ do { \
 } while (0)
 #define preempt_fold_need_resched() \
 do { \
-	if (tif_need_resched()) \
+	if (tif_need_resched_now()) \
 		set_preempt_need_resched(); \
 } while (0)
 
@@ -410,8 +448,15 @@ extern void migrate_enable(void);
 
 #elif defined(CONFIG_PREEMPT_RT)
 
-static inline void migrate_disable(void) { }
-static inline void migrate_enable(void) { }
+static inline void migrate_disable(void)
+{
+	preempt_lazy_disable();
+}
+
+static inline void migrate_enable(void)
+{
+	preempt_lazy_enable();
+}
 
 #else /* !CONFIG_PREEMPT_RT */
 
