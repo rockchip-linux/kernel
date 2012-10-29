@@ -35,6 +35,7 @@
 
 #include <drm/drmP.h>
 #include "drm_trace.h"
+#include "drm_notifier.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/slab.h>
@@ -1272,6 +1273,20 @@ static void drm_handle_vblank_events(struct drm_device *dev, int crtc)
 	trace_drm_vblank_event(crtc, seq);
 }
 
+static RAW_NOTIFIER_HEAD(drm_vblank_chain);
+
+int drm_vblank_register_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_register(&drm_vblank_chain, nb);
+}
+EXPORT_SYMBOL(drm_vblank_register_notifier);
+
+int drm_vblank_unregister_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_unregister(&drm_vblank_chain, nb);
+}
+EXPORT_SYMBOL(drm_vblank_unregister_notifier);
+
 /**
  * drm_handle_vblank - handle a vblank event
  * @dev: DRM device
@@ -1340,6 +1355,7 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 
 	wake_up(&dev->vblank[crtc].queue);
 	drm_handle_vblank_events(dev, crtc);
+	raw_notifier_call_chain(&drm_vblank_chain, 0, NULL);
 
 	spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags);
 	return true;
