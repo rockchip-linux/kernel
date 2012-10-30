@@ -946,8 +946,6 @@ static int acpi_thermal_register_thermal_zone(struct acpi_thermal *tz)
 		return -ENODEV;
 	}
 
-	tz->tz_enabled = 1;
-
 	dev_info(&tz->device->dev, "registered as thermal_zone%d\n",
 		 tz->thermal_zone->id);
 	return 0;
@@ -1093,6 +1091,7 @@ static int acpi_thermal_add(struct acpi_device *device)
 		return -ENOMEM;
 
 	tz->device = device;
+	tz->tz_enabled = 1;
 	strcpy(tz->name, device->pnp.bus_id);
 	strcpy(acpi_device_name(device), ACPI_THERMAL_DEVICE_NAME);
 	strcpy(acpi_device_class(device), ACPI_THERMAL_CLASS);
