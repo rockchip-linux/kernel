@@ -1338,6 +1338,11 @@ static void cyapa_detect(struct cyapa *cyapa)
 		dev_err(dev, "device detected, but not operational, %d\n", ret);
 	}
 
+	if (ret) {
+		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
+		return;
+	}
+
 	cyapa->debug = false;
 	if (!cyapa->input && ret == 0) {
 		ret = cyapa_create_input_dev(cyapa);
