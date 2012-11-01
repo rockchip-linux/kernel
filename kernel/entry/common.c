@@ -148,7 +148,7 @@ static unsigned long exit_to_user_mode_loop(struct pt_regs *regs,
 
 		local_irq_enable_exit_to_user(ti_work);
 
-		if (ti_work & _TIF_NEED_RESCHED)
+		if (ti_work & _TIF_NEED_RESCHED_MASK)
 			schedule();
 
 #ifdef ARCH_RT_DELAYS_SIGNAL_SEND
