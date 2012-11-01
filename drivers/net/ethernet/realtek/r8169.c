@@ -6643,6 +6643,11 @@ static int rtl8169_suspend(struct device *device)
 {
 	struct pci_dev *pdev = to_pci_dev(device);
 	struct net_device *dev = pci_get_drvdata(pdev);
+	struct rtl8169_private *tp = netdev_priv(dev);
+
+	rtl_lock_work(tp);
+	tp->saved_wolopts = __rtl8169_get_wol(tp);
+	rtl_unlock_work(tp);
 
 	rtl8169_net_suspend(dev);
 
@@ -6670,6 +6675,10 @@ static int rtl8169_resume(struct device *device)
 	struct pci_dev *pdev = to_pci_dev(device);
 	struct net_device *dev = pci_get_drvdata(pdev);
 	struct rtl8169_private *tp = netdev_priv(dev);
+
+	rtl_lock_work(tp);
+	__rtl8169_set_wol(tp, tp->saved_wolopts);
+	rtl_unlock_work(tp);
 
 	rtl8169_init_phy(dev, tp);
 
