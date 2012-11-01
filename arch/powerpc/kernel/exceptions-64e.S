@@ -1080,7 +1080,7 @@ _GLOBAL(ret_from_except_lite)
 	li	r10, -1
 	mtspr	SPRN_DBSR,r10
 	b	restore
-1:	andi.	r0,r4,_TIF_NEED_RESCHED
+1:	andi.	r0,r4,_TIF_NEED_RESCHED_MASK
 	beq	2f
 	bl	restore_interrupts
 	SCHEDULE_USER
@@ -1132,12 +1132,20 @@ resume_kernel:
 	bne-	0b
 1:
 
-#ifdef CONFIG_PREEMPT
+#ifdef CONFIG_PREEMPTION
 	/* Check if we need to preempt */
-	andi.	r0,r4,_TIF_NEED_RESCHED
-	beq+	restore
-	/* Check that preempt_count() == 0 and interrupts are enabled */
 	lwz	r8,TI_PREEMPT(r9)
+	cmpwi	0,r8,0		/* if non-zero, just restore regs and return */
+	bne	restore
+	andi.	r0,r4,_TIF_NEED_RESCHED
+	bne+	check_count
+
+	andi.	r0,r4,_TIF_NEED_RESCHED_LAZY
+	beq+	restore
+	lwz	r8,TI_PREEMPT_LAZY(r9)
+
+	/* Check that preempt_count() == 0 and interrupts are enabled */
+check_count:
 	cmpwi	cr0,r8,0
 	bne	restore
 	ld	r0,SOFTE(r1)
@@ -1158,7 +1166,7 @@ resume_kernel:
 	 * interrupted after loading SRR0/1.
 	 */
 	wrteei	0
-#endif /* CONFIG_PREEMPT */
+#endif /* CONFIG_PREEMPTION */
 
 restore:
 	/*
