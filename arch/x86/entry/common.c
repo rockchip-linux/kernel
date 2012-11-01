@@ -236,7 +236,7 @@ static void exit_to_usermode_loop(struct pt_regs *regs, u32 cached_flags)
 		/* We have work to do. */
 		local_irq_enable();
 
-		if (cached_flags & _TIF_NEED_RESCHED)
+		if (cached_flags & _TIF_NEED_RESCHED_MASK)
 			schedule();
 
 #ifdef ARCH_RT_DELAYS_SIGNAL_SEND
