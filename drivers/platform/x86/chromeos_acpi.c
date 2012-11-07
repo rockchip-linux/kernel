@@ -37,6 +37,8 @@
 #include <linux/platform_device.h>
 #include <linux/acpi.h>
 
+#include "../chromeos.h"
+
 #define CHNV_DEBUG_RESET_FLAG	0x40	     /* flag for S3 reboot */
 #define CHNV_RECOVERY_FLAG	0x80	     /* flag for recovery reboot */
 
@@ -188,7 +190,7 @@ int chromeos_legacy_set_need_recovery(void)
  *
  * retrun number of bytes copied, or -1 on any error.
  */
-ssize_t chromeos_vbc_read(void *buf, size_t count)
+static ssize_t chromeos_vbc_nvram_read(void *buf, size_t count)
 {
 
 	int base, size, i;
@@ -214,7 +216,7 @@ ssize_t chromeos_vbc_read(void *buf, size_t count)
 	return size;
 }
 
-ssize_t chromeos_vbc_write(const void *buf, size_t count)
+static ssize_t chromeos_vbc_nvram_write(const void *buf, size_t count)
 {
 	unsigned base, size, i;
 
@@ -752,12 +754,22 @@ static int chromeos_device_remove(struct acpi_device *device)
 	return 0;
 }
 
+static struct chromeos_vbc chromeos_vbc_nvram = {
+	.name = "chromeos_vbc_nvram",
+	.read = chromeos_vbc_nvram_read,
+	.write = chromeos_vbc_nvram_write,
+};
+
 static int __init chromeos_acpi_init(void)
 {
 	int ret = 0;
 
 	if (acpi_disabled)
 		return -ENODEV;
+
+	ret = chromeos_vbc_register(&chromeos_vbc_nvram);
+	if (ret)
+		return ret;
 
 	chromeos_acpi.p_dev = platform_device_register_simple("chromeos_acpi",
 							      -1, NULL, 0);

@@ -19,8 +19,10 @@
 #define pr_fmt(fmt) "chromeos_vbc_blk: " fmt
 
 #include <linux/ide.h>
+#include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/string.h>
 
 #include "chromeos.h"
 
@@ -201,18 +203,10 @@ out:
 	return ret;
 }
 
-static int vbc_blk_init(void)
+static int __init vbc_blk_init(struct device_node *fw_dn)
 {
-	struct device_node *fw_dn;
 	int err;
 	u32 prop[4];
-
-	fw_dn = of_find_compatible_node(NULL, NULL, "chromeos-firmware");
-	if (!fw_dn) {
-		pr_err("missing chromeos-firmware device node\n");
-		err = -ENODEV;
-		goto err;
-	}
 
 	err = of_property_read_u32_array(fw_dn, "chromeos-vbc-blk", prop,
 			sizeof(prop) / sizeof(prop[0]));
@@ -238,19 +232,14 @@ static int vbc_blk_init(void)
 	config.initialized = true;
 	err = 0;
 err:
-	of_node_put(fw_dn);
-
 	return err;
 }
 
-ssize_t chromeos_vbc_read(void *buf, size_t count)
+static ssize_t chromeos_vbc_blk_read(void *buf, size_t count)
 {
-	int err;
-
 	if (!config.initialized) {
-		err = vbc_blk_init();
-		if (err < 0)
-			return err;
+		pr_err("not initialized\n");
+		return -ENODEV;
 	}
 
 	if (count < config.size) {
@@ -262,14 +251,11 @@ ssize_t chromeos_vbc_read(void *buf, size_t count)
 	return vbc_blk_read(buf);
 }
 
-ssize_t chromeos_vbc_write(const void *buf, size_t count)
+static ssize_t chromeos_vbc_blk_write(const void *buf, size_t count)
 {
-	int err;
-
 	if (!config.initialized) {
-		err = vbc_blk_init();
-		if (err < 0)
-			return err;
+		pr_err("not initialized\n");
+		return -ENODEV;
 	}
 
 	if (count != config.size) {
@@ -280,3 +266,47 @@ ssize_t chromeos_vbc_write(const void *buf, size_t count)
 
 	return vbc_blk_write(buf);
 }
+
+static struct chromeos_vbc chromeos_vbc_blk = {
+	.name = "chromeos_vbc_blk",
+	.read = chromeos_vbc_blk_read,
+	.write = chromeos_vbc_blk_write,
+};
+
+static int __init chromeos_vbc_blk_init(void)
+{
+	struct device_node *of_node;
+	const char *vbc_type;
+	int err;
+
+	of_node = of_find_compatible_node(NULL, NULL, "chromeos-firmware");
+	if (!of_node)
+		return -ENODEV;
+
+	err = of_property_read_string(of_node, "nonvolatile-context-storage",
+			&vbc_type);
+	if (err)
+		goto exit;
+
+	if (strcmp(vbc_type, "disk")) {
+		err = 0;  /* not configured to use vbc_blk, exit normally. */
+		goto exit;
+	}
+
+	err = vbc_blk_init(of_node);
+	if (err < 0)
+		goto exit;
+
+	err = chromeos_vbc_register(&chromeos_vbc_blk);
+	if (err < 0)
+		goto exit;
+
+	err = 0;
+exit:
+	of_node_put(of_node);
+	return err;
+}
+module_init(chromeos_vbc_blk_init);
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("ChromeOS vboot context on block device accessor");

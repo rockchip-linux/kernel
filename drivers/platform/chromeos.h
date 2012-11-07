@@ -26,24 +26,36 @@ extern int chromeos_legacy_set_need_recovery(void);
 static inline int chromeos_legacy_set_need_recovery(void) { return -ENODEV; }
 #endif
 
-/**
- * Read vboot context to buffer
- *
- * @param buf		Pointer to buffer for storing vboot context
- * @param count		Size of buffer
- * @return	on success, the number of bytes read is returned and
- *		on error, -err is returned.
- */
-ssize_t chromeos_vbc_read(void *buf, size_t count);
+struct chromeos_vbc {
+	/**
+	 * Read vboot context to buffer
+	 *
+	 * @param buf		Pointer to buffer for storing vboot context
+	 * @param count		Size of buffer
+	 * @return	on success, the number of bytes read is returned and
+	 *		on error, -err is returned.
+	 */
+	ssize_t (*read)(void *buf, size_t count);
+
+	/**
+	 * Write vboot context from buffer
+	 *
+	 * @param buf		Pointer to buffer of new vboot context content
+	 * @param count		Size of buffer
+	 * @return	on success, the number of bytes written is returned and
+	 *		on error, -err is returned.
+	 */
+	ssize_t (*write)(const void *buf, size_t count);
+
+	const char *name;
+};
 
 /**
- * Write vboot context from buffer
+ * Register chromeos_vbc callbacks.
  *
- * @param buf		Pointer to buffer of new vboot context content
- * @param count		Size of buffer
- * @return	on success, the number of bytes written is returned and
- *		on error, -err is returned.
+ * @param chromeos_vbc	Pointer to struct holding callbacks
+ * @return	on success, return 0, on error, -err is returned.
  */
-ssize_t chromeos_vbc_write(const void *buf, size_t count);
+int chromeos_vbc_register(struct chromeos_vbc *chromeos_vbc);
 
 #endif /* _DRIVERS_PLATFORM_CHROMEOS_H */

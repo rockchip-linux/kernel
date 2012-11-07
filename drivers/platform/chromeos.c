@@ -24,6 +24,8 @@
 #include <linux/module.h>
 #include "chromeos.h"
 
+static struct chromeos_vbc *chromeos_vbc_ptr;
+
 static int vbc_read(u8 *buf, int buf_size);
 static int vbc_write_byte(unsigned offset, u8 value);
 
@@ -66,9 +68,12 @@ static u8 crc8(const u8 *data, int len)
 static int vbc_write_byte(unsigned offset, u8 value)
 {
 	u8 buf[MAX_VBOOT_CONTEXT_BUFFER_SIZE];
+	ssize_t size;
 
-	ssize_t size = vbc_read(buf, sizeof(buf));
+	if (!chromeos_vbc_ptr)
+		return -ENOSYS;
 
+	size = vbc_read(buf, sizeof(buf));
 	if (size <= 0)
 		return -EINVAL;
 
@@ -81,7 +86,7 @@ static int vbc_write_byte(unsigned offset, u8 value)
 	buf[offset] = value;
 	buf[size - 1] = crc8(buf, size - 1);
 
-	return chromeos_vbc_write(buf, size);
+	return chromeos_vbc_ptr->write(buf, size);
 }
 
 /*
@@ -91,8 +96,12 @@ static int vbc_write_byte(unsigned offset, u8 value)
  */
 static int vbc_read(u8 *buf, int buf_size)
 {
-	ssize_t size = chromeos_vbc_read(buf, buf_size);
+	ssize_t size;
 
+	if (!chromeos_vbc_ptr)
+		return -ENOSYS;
+
+	size = chromeos_vbc_ptr->read(buf, buf_size);
 	if (size <= 0)
 		return -1;
 
@@ -101,4 +110,10 @@ static int vbc_read(u8 *buf, int buf_size)
 		return -1;
 	}
 	return size;
+}
+
+int chromeos_vbc_register(struct chromeos_vbc *chromeos_vbc)
+{
+	chromeos_vbc_ptr = chromeos_vbc;
+	return 0;
 }

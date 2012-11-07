@@ -23,6 +23,8 @@
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 
+#include "../chromeos.h"
+
 static int __devinit chromeos_arm_probe(struct platform_device *pdev)
 {
 	int gpio, err, active_low;
