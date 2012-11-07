@@ -100,6 +100,11 @@ static const struct mfd_cell cros_devs[] = {
 		.name = "cros-ec-dev",
 		.id = 3,
 	},
+	{
+		.name = "cros-ec-vbc",
+		.id = 4,
+		.of_compatible = "google,cros-ec-vbc",
+	},
 };
 
 int cros_ec_register(struct cros_ec_device *ec_dev)
