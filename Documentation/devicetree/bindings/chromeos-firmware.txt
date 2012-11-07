@@ -17,6 +17,8 @@ Optional properties:
     look for the block device used for storing vboot context in this property.
     It is a 4-tuple of block device phandle, LBA of the block storing vboot
     context, byte offset in the block, and size of vboot context in bytes.
+  - chromeos-vbc-ec : If nonvolatile-context-storage is "mkbp", kernel should
+    look for the phandle to the device tree node of EC in this property.
 
 Example:
 
@@ -25,5 +27,6 @@ firmware {
 		write-protect-gpio = <&gpd1 6 0 0x10000 0>;
 		nonvolatile-context-storage = "disk";
 		chromeos-vbc-blk = <&mshc_0 0 0 16>;
+		chromeos-vbc-ec = <&ec>;
 	};
 };
