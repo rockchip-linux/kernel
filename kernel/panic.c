@@ -23,6 +23,7 @@
 #include <linux/sysrq.h>
 #include <linux/init.h>
 #include <linux/nmi.h>
+#include <linux/pm.h>
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -364,7 +365,7 @@ void oops_enter(void)
 /*
  * 64-bit random ID for oopses:
  */
-static u64 oops_id;
+static u64 __suspend_volatile_bss oops_id;
 
 static int init_oops_id(void)
 {
