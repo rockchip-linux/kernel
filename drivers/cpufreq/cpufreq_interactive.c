@@ -196,30 +196,27 @@ static void cpufreq_interactive_timer(unsigned long data)
 		cpu_load = load_since_change;
 
 	if (cpu_load >= go_hispeed_load || boost_val) {
-		if (pcpu->target_freq <= pcpu->policy->min) {
+		if (pcpu->target_freq < hispeed_freq) {
 			new_freq = hispeed_freq;
 		} else {
 			new_freq = pcpu->policy->max * cpu_load / 100;
 
 			if (new_freq < hispeed_freq)
 				new_freq = hispeed_freq;
-
-			if (pcpu->target_freq == hispeed_freq &&
-			    new_freq > hispeed_freq &&
-			    now - pcpu->hispeed_validate_time
-			    < above_hispeed_delay_val) {
-				trace_cpufreq_interactive_notyet(data, cpu_load,
-								 pcpu->target_freq,
-								 new_freq);
-				goto rearm;
-			}
 		}
 	} else {
 		new_freq = hispeed_freq * cpu_load / 100;
 	}
 
-	if (new_freq <= hispeed_freq)
-		pcpu->hispeed_validate_time = now;
+	if (pcpu->target_freq >= hispeed_freq &&
+	    new_freq > pcpu->target_freq &&
+	    now - pcpu->hispeed_validate_time < above_hispeed_delay_val) {
+		trace_cpufreq_interactive_notyet(data, cpu_load,
+						pcpu->target_freq, new_freq);
+		goto rearm;
+	}
+
+	pcpu->hispeed_validate_time = now;
 
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
 					   new_freq, CPUFREQ_RELATION_H,
