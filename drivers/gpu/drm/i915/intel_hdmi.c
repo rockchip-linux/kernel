@@ -839,6 +839,12 @@ static void intel_disable_hdmi(struct intel_encoder *encoder)
 		I915_WRITE(intel_hdmi->hdmi_reg, temp);
 		POSTING_READ(intel_hdmi->hdmi_reg);
 	}
+
+	/* Workaround for disappearing AVI Infoframe on SNB on resume */
+	if (HAS_PCH_SPLIT(dev)) {
+		I915_WRITE(_VIDEO_DIP_CTL_A, I915_READ(_VIDEO_DIP_CTL_A));
+		I915_WRITE(_VIDEO_DIP_CTL_B, I915_READ(_VIDEO_DIP_CTL_B));
+	}
 }
 
 static int hdmi_portclock_limit(struct intel_hdmi *hdmi)
