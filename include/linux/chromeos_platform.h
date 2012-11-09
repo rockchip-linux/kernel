@@ -4,9 +4,6 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 
-extern int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size);
-extern int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size);
-
 #ifdef CONFIG_CHROMEOS
 /*
  * ChromeOS platform support code. Glue layer between higher level functions
