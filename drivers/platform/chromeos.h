@@ -14,16 +14,11 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * This module isolates ChromeOS platform specific behavior.  In particular,
- * it uses calls from chromeos_acpi.c to control the boot flow, and exports some
- * helper functions for kernel-side consumers of platform configuration, such
- * as nvram flags.
  */
 #ifndef _DRIVERS_PLATFORM_CHROMEOS_H
 #define _DRIVERS_PLATFORM_CHROMEOS_H
 
-#define MAX_NVRAM_BUFFER_SIZE 64  /* Should be enough for anything. */
+#define MAX_VBOOT_CONTEXT_BUFFER_SIZE 64  /* Should be enough for anything. */
 
 #ifdef CONFIG_ACPI_CHROMEOS
 extern int chromeos_legacy_set_need_recovery(void);
@@ -31,7 +26,24 @@ extern int chromeos_legacy_set_need_recovery(void);
 static inline int chromeos_legacy_set_need_recovery(void) { return -ENODEV; }
 #endif
 
-extern int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size);
-extern int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size);
+/**
+ * Read vboot context to buffer
+ *
+ * @param buf		Pointer to buffer for storing vboot context
+ * @param count		Size of buffer
+ * @return	on success, the number of bytes read is returned and
+ *		on error, -err is returned.
+ */
+ssize_t chromeos_vbc_read(void *buf, size_t count);
+
+/**
+ * Write vboot context from buffer
+ *
+ * @param buf		Pointer to buffer of new vboot context content
+ * @param count		Size of buffer
+ * @return	on success, the number of bytes written is returned and
+ *		on error, -err is returned.
+ */
+ssize_t chromeos_vbc_write(const void *buf, size_t count);
 
 #endif /* _DRIVERS_PLATFORM_CHROMEOS_H */

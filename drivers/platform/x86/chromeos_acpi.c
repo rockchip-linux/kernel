@@ -188,7 +188,7 @@ int chromeos_legacy_set_need_recovery(void)
  *
  * retrun number of bytes copied, or -1 on any error.
  */
-int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size)
+ssize_t chromeos_vbc_read(void *buf, size_t count)
 {
 
 	int base, size, i;
@@ -202,19 +202,19 @@ int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size)
 	base = chromeos_acpi_if_data.nv_base.cad_value;
 	size = chromeos_acpi_if_data.nv_size.cad_value;
 
-	if (buf_size < size) {
-		pr_err("%s: not enough room to read nvram (%d < %d)\n",
-		       __func__, buf_size, size);
+	if (count < size) {
+		pr_err("%s: not enough room to read nvram (%zd < %d)\n",
+		       __func__, count, size);
 		return -EINVAL;
 	}
 
 	for (i = 0; i < size; i++)
-		nvram_buffer[i] = nvram_read_byte(base++);
+		((u8 *)buf)[i] = nvram_read_byte(base++);
 
 	return size;
 }
 
-int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
+ssize_t chromeos_vbc_write(const void *buf, size_t count)
 {
 	unsigned base, size, i;
 
@@ -227,9 +227,9 @@ int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
 	size = chromeos_acpi_if_data.nv_size.cad_value;
 	base = chromeos_acpi_if_data.nv_base.cad_value;
 
-	if (buf_size != size) {
-		printk(MY_ERR "%s: wrong buffer size (%d != %d)!\n", __func__,
-		       buf_size, size);
+	if (count != size) {
+		printk(MY_ERR "%s: wrong buffer size (%zd != %d)!\n", __func__,
+		       count, size);
 		return -EINVAL;
 	}
 
@@ -237,11 +237,11 @@ int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
 		u8 c;
 
 		c = nvram_read_byte(base + i);
-		if (c == nvram_buffer[i])
+		if (c == ((u8 *)buf)[i])
 			continue;
-		nvram_write_byte(nvram_buffer[i], base + i);
+		nvram_write_byte(((u8 *)buf)[i], base + i);
 	}
-	return 0;
+	return size;
 }
 
 /*

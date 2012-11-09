@@ -38,36 +38,37 @@
 #define BLKNV_MAJOR MMC_BLOCK_MAJOR
 #define BLKNV_MINOR 0
 
-/* location where the nvram data blends into the sector on the MMC device */
+/*
+ * location where the vboot context data blends into the sector on the
+ * MMC device
+ */
 static u16 nv_offset, nv_size;
 static u64 nv_lba;
 
 /*
- * Functions to support nvram on block device. The actual device used is minor
- * 0 of MMC device class, the sector to use is as encoded in
- * firmware_shared_data->nvcxt_lba, the nvram buffer in the sector starts at
- * offset nv_offset and takes nv_size bytes.
+ * Functions to support vboot context on block device. The actual device used
+ * is minor 0 of MMC device class, the sector to use is as encoded in
+ * firmware_shared_data->nvcxt_lba, the vboot context buffer in the sector
+ * starts at offset nv_offset and takes nv_size bytes.
  */
-static void blknv_endio(struct bio *bio, int err)
+static void vbc_blk_endio(struct bio *bio, int err)
 {
 	struct completion *c = bio->bi_private;
 	bio->bi_private = (void *)err;
 	complete(c);
 }
 
-static void blknv_submit_bio(struct bio *bio, int rq)
+static void vbc_blk_submit_bio(struct bio *bio, int rq)
 {
 	DECLARE_COMPLETION_ONSTACK(wait);
 
-	bio->bi_end_io	= blknv_endio;
+	bio->bi_end_io	= vbc_blk_endio;
 	bio->bi_private = &wait;
 	submit_bio(rq, bio);
 	wait_for_completion(&wait);
 }
 
-static int chromeos_access_nvram_block(struct page *page,
-				       sector_t sector,
-				       bool is_read)
+static int vbc_blk_access(struct page *page, sector_t sector, bool is_read)
 {
 	struct block_device *bdev;
 	struct bio *bio = NULL;
@@ -104,7 +105,7 @@ static int chromeos_access_nvram_block(struct page *page,
 	if (!is_read)
 		rq |= REQ_WRITE;
 
-	blknv_submit_bio(bio, rq);
+	vbc_blk_submit_bio(bio, rq);
 
 	/* nvblk_endio passes up any error in bi_private */
 	ret = (int)bio->bi_private;
@@ -120,22 +121,12 @@ out:
 	return ret;
 }
 
-static int chromeos_read_nvram_block(struct page *page, sector_t sector)
-{
-	return chromeos_access_nvram_block(page, sector, 1);
-}
-
-static int chromeos_write_nvram_block(struct page *page, sector_t sector)
-{
-	return chromeos_access_nvram_block(page, sector, 0);
-}
-
 /*
  * This function accepts a buffer with exactly nv_size bytes. It reads the
  * appropriate mmc one sector block, extacts the nonvolatile data from there
  * and copies it to the provided buffer.
  */
-static int _chromeos_read(u8 *data)
+static int vbc_blk_read(u8 *data)
 {
 	struct page *page;
 	char *virtual_addr;
@@ -154,7 +145,7 @@ static int _chromeos_read(u8 *data)
 		return -EFAULT;
 	}
 
-	ret = chromeos_read_nvram_block(page, nv_lba);
+	ret = vbc_blk_access(page, nv_lba, 1);
 	if (ret)
 		goto out;
 
@@ -168,10 +159,10 @@ out:
 
 /*
  * This function accepts a buffer with exactly nv_size bytes. It reads the
- * appropriate mmc one sector block, blends in the new nvram contents and then
- * writes the sector back.
+ * appropriate mmc one sector block, blends in the new vboot context contents
+ * and then writes the sector back.
  */
-static int _chromeos_write(const u8 *data)
+static int vbc_blk_write(const u8 *data)
 {
 	struct page *page;
 	char *virtual_addr;
@@ -190,17 +181,17 @@ static int _chromeos_write(const u8 *data)
 		return -EFAULT;
 	}
 
-	ret = chromeos_read_nvram_block(page, nv_lba);
+	ret = vbc_blk_access(page, nv_lba, 1);
 	if (ret)
 		goto out;
 
 	/*
-	 * Sector has been read, lets blend in nvram data and write the sector
-	 * back.
+	 * Sector has been read, lets blend in vboot context data and write
+	 * the sector back.
 	 */
 	memcpy(virtual_addr + nv_offset, data, nv_size);
 
-	ret = chromeos_write_nvram_block(page, nv_lba);
+	ret = vbc_blk_access(page, nv_lba, 0);
 	if (!ret)
 		ret = nv_size;
 
@@ -210,40 +201,40 @@ out:
 }
 
 /*
- * Read the nvram buffer contents into the user provided space.
+ * Read the vboot context buffer contents into the user provided space.
  *
  * returns number of bytes copied, or negative error.
  */
-int chromeos_platform_read_nvram(u8 *nvram_buffer, int buf_size)
+ssize_t chromeos_vbc_read(void *buf, size_t count)
 {
 	if (!nv_size) {
 		pr_err("%s nonvolatile context not configured!\n", __func__);
 		return -ENODEV;
 	}
 
-	if (buf_size < nv_size) {
-		pr_err("not enough room to read nvram (%d < %d)\n",
-		       buf_size, nv_size);
+	if (count < nv_size) {
+		pr_err("not enough room to read vboot context (%zd < %d)\n",
+		       count, nv_size);
 		return -ENOSPC;
 	}
 
-	return _chromeos_read(nvram_buffer);
+	return vbc_blk_read(buf);
 }
 
-int chromeos_platform_write_nvram(u8 *nvram_buffer, int buf_size)
+ssize_t chromeos_vbc_write(const void *buf, size_t count)
 {
 	if (!nv_size) {
 		pr_err("%s nonvolatile context not configured!\n", __func__);
 		return -ENODEV;
 	}
 
-	if (buf_size != nv_size) {
-		pr_err("wrong write buffer size (%d != %d)\n",
-		       buf_size, nv_size);
+	if (count != nv_size) {
+		pr_err("wrong write buffer size (%zd != %d)\n",
+		       count, nv_size);
 		return -ENOSPC;
 	}
 
-	return _chromeos_write(nvram_buffer);
+	return vbc_blk_write(buf);
 }
 
 static int __devinit chromeos_arm_platform_gpio(struct platform_device *pdev)
@@ -302,9 +293,9 @@ static int __devinit chromeos_arm_probe(struct platform_device *pdev)
 	nv_size = be32_to_cpup(prop);
 
 	if ((nv_offset + nv_size > SECTOR_SIZE) ||
-	    (nv_size > MAX_NVRAM_BUFFER_SIZE)) {
-		/* nvram block won't fit into a sector */
-		dev_err(&pdev->dev, "bad nvram location: %d:%d!\n",
+	    (nv_size > MAX_VBOOT_CONTEXT_BUFFER_SIZE)) {
+		/* vboot context block won't fit into a sector */
+		dev_err(&pdev->dev, "bad vboot context location: %d:%d!\n",
 			nv_offset, nv_size);
 		err = -EINVAL;
 		goto err;

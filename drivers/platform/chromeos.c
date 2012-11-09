@@ -17,11 +17,6 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * This module isolates ChromeOS platform specific behavior.  In particular,
- * it uses calls from chromeos_acpi.c to control the boot flow, and exports some
- * helper functions for kernel-side consumers of platform configuration, such
- * as nvram flags.
  */
 
 #include <linux/types.h>
@@ -29,8 +24,8 @@
 #include <linux/module.h>
 #include "chromeos.h"
 
-static int chromeos_read_nvram(u8 *nvram_buffer, int buf_size);
-static int chromeos_write_nvram_byte(unsigned offset, u8 value);
+static int vbc_read(u8 *buf, int buf_size);
+static int vbc_write_byte(unsigned offset, u8 value);
 
 /* the following defines are copied from
  * vboot_reference:firmware/lib/vboot_nvstorage.c.
@@ -43,8 +38,7 @@ int chromeos_set_need_recovery(void)
 	if (!chromeos_legacy_set_need_recovery())
 		return 0;
 
-	return chromeos_write_nvram_byte(RECOVERY_OFFSET,
-					 VBNV_RECOVERY_RW_INVALID_OS);
+	return vbc_write_byte(RECOVERY_OFFSET, VBNV_RECOVERY_RW_INVALID_OS);
 }
 
 /*
@@ -69,11 +63,11 @@ static u8 crc8(const u8 *data, int len)
 	return (u8)(crc >> 8);
 }
 
-static int chromeos_write_nvram_byte(unsigned offset, u8 value)
+static int vbc_write_byte(unsigned offset, u8 value)
 {
-	u8 nvram_buffer[MAX_NVRAM_BUFFER_SIZE];
+	u8 buf[MAX_VBOOT_CONTEXT_BUFFER_SIZE];
 
-	int size = chromeos_read_nvram(nvram_buffer, sizeof(nvram_buffer));
+	ssize_t size = vbc_read(buf, sizeof(buf));
 
 	if (size <= 0)
 		return -EINVAL;
@@ -81,32 +75,29 @@ static int chromeos_write_nvram_byte(unsigned offset, u8 value)
 	if (offset >= (size - 1))
 		return -EINVAL;
 
-	if (nvram_buffer[offset] == value)
+	if (buf[offset] == value)
 		return 0;
 
-	nvram_buffer[offset] = value;
-	nvram_buffer[size - 1] = crc8(nvram_buffer, size - 1);
+	buf[offset] = value;
+	buf[size - 1] = crc8(buf, size - 1);
 
-	return chromeos_platform_write_nvram(nvram_buffer, size);
+	return chromeos_vbc_write(buf, size);
 }
 
 /*
- * Read nvram buffer contents and verify it. Return 0 on success and -1 on
- * failure (uninitialized subsystem, corrupted crc8 value, not enough room in
- * the buffer, etc.).
- *
- * If everything checks out - return number of bytes in the NVRAM buffer, -1
- * on any error.
+ * Read vboot context and verify it.  If everything checks out, return number
+ * of bytes in the vboot context buffer, -1 on any error (uninitialized
+ * subsystem, corrupted crc8 value, not enough room in the buffer, etc.).
  */
-static int chromeos_read_nvram(u8 *nvram_buffer, int buf_size)
+static int vbc_read(u8 *buf, int buf_size)
 {
-	int size = chromeos_platform_read_nvram(nvram_buffer, buf_size);
+	ssize_t size = chromeos_vbc_read(buf, buf_size);
 
 	if (size <= 0)
 		return -1;
 
-	if (nvram_buffer[size - 1] != crc8(nvram_buffer, size - 1)) {
-		pr_err("%s: NVRAM contents corrupted\n", __func__);
+	if (buf[size - 1] != crc8(buf, size - 1)) {
+		pr_err("%s: vboot context contents corrupted\n", __func__);
 		return -1;
 	}
 	return size;
