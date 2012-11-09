@@ -57,13 +57,15 @@ void pm_unregister_suspend_volatile(struct pm_suspend_volatile_chunk *chunk)
  * Checks both memory that was registered with pm_register_suspend_volatile()
  * and memory that was tagged with __suspend_volatile.
  *
+ * As the list is not proected with locks, this code must only be called
+ * from an uninterruptible context.
+ *
  * @start: Physical start address of chunk to check.
  * @num_bytes: Size of the chunk to check in bytes.
  */
 bool pm_does_overlap_suspend_volatile(phys_addr_t start, size_t num_bytes)
 {
 	struct pm_suspend_volatile_chunk *chunk;
-	unsigned long flags;
 	bool is_volatile = false;
 
 	/* Bits marked at compile time as suspend volatile */
@@ -73,8 +75,14 @@ bool pm_does_overlap_suspend_volatile(phys_addr_t start, size_t num_bytes)
 			       __start_suspend_volatile_bss))
 		return true;
 
-	/* Bits registered dynamically */
-	spin_lock_irqsave(&volatile_chunks_lock, flags);
+	/*
+	 * Bits registered dynamically
+	 *
+	 * Normally a call to spin_lock_irqsave(&volatile_chunks_lock, flags);
+	 * would go here.  However this code is only called with scheduling
+	 * disabled so there is no need to lock the list.  It is also called
+	 * often enough that the overhead involved is signficant (~100 ms)
+	 */
 	list_for_each_entry(chunk, &volatile_chunks, list) {
 		if (phys_addrs_overlap(start, num_bytes,
 				       chunk->start, chunk->num_bytes)) {
@@ -82,7 +90,5 @@ bool pm_does_overlap_suspend_volatile(phys_addr_t start, size_t num_bytes)
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&volatile_chunks_lock, flags);
-
 	return is_volatile;
 }
