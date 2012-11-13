@@ -181,6 +181,44 @@ static ssize_t brightness_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(brightness);
 
+static ssize_t resume_brightness_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct backlight_device *bd = to_backlight_device(dev);
+
+	return sprintf(buf, "%d\n", bd->props.resume_brightness);
+}
+
+static ssize_t resume_brightness_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc;
+	struct backlight_device *bd = to_backlight_device(dev);
+	long resume_brightness;
+
+	rc = kstrtol(buf, 0, &resume_brightness);
+	if (rc)
+		return rc;
+
+	rc = -ENXIO;
+
+	mutex_lock(&bd->ops_lock);
+	if (bd->ops) {
+		if (resume_brightness > bd->props.max_brightness)
+			rc = -EINVAL;
+		else {
+			pr_debug("backlight: set resume_brightness to %ld\n",
+				 resume_brightness);
+			bd->props.resume_brightness = resume_brightness;
+			rc = count;
+		}
+	}
+	mutex_unlock(&bd->ops_lock);
+
+	return rc;
+}
+static DEVICE_ATTR_RW(resume_brightness);
+
 static ssize_t type_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -236,8 +274,11 @@ static int backlight_resume(struct device *dev)
 	struct backlight_device *bd = to_backlight_device(dev);
 
 	mutex_lock(&bd->ops_lock);
-	if (bd->ops && bd->ops->options & BL_CORE_SUSPENDRESUME) {
+	if ((bd->ops && bd->ops->options & BL_CORE_SUSPENDRESUME) ||
+		bd->props.resume_brightness != -1) {
 		bd->props.state &= ~BL_CORE_SUSPENDED;
+		if (bd->props.resume_brightness != -1)
+			bd->props.brightness = bd->props.resume_brightness;
 		backlight_update_status(bd);
 	}
 	mutex_unlock(&bd->ops_lock);
@@ -258,6 +299,7 @@ static void bl_device_release(struct device *dev)
 static struct attribute *bl_device_attrs[] = {
 	&dev_attr_bl_power.attr,
 	&dev_attr_brightness.attr,
+	&dev_attr_resume_brightness.attr,
 	&dev_attr_actual_brightness.attr,
 	&dev_attr_max_brightness.attr,
 	&dev_attr_type.attr,
@@ -330,6 +372,7 @@ struct backlight_device *backlight_device_register(const char *name,
 	} else {
 		new_bd->props.type = BACKLIGHT_RAW;
 	}
+	new_bd->props.resume_brightness = -1;
 
 	rc = device_register(&new_bd->dev);
 	if (rc) {

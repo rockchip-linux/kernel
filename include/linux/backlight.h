@@ -61,6 +61,8 @@ struct backlight_ops {
 struct backlight_properties {
 	/* Current User requested brightness (0 - max_brightness) */
 	int brightness;
+	/* The brightness at resume (0 - max_brightness, -1 to disable) */
+	int resume_brightness;
 	/* Maximal value for brightness (read-only) */
 	int max_brightness;
 	/* Current FB Power mode (0: full on, 1..3: power saving
