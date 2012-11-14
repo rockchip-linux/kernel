@@ -2965,11 +2965,6 @@ static int mxt_resume(struct device *dev)
 
 	mutex_lock(&input_dev->mutex);
 
-	enable_irq(data->irq);
-
-	if (device_may_wakeup(dev) && data->irq_wake)
-		disable_irq_wake(data->irq);
-
 	/* Restore the T9 Ctrl config to before-suspend value */
 	if (data->T9_ctrl_valid) {
 		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
@@ -2986,7 +2981,21 @@ static int mxt_resume(struct device *dev)
 			dev_err(dev, "Set T7 power config failed, %d\n", ret);
 	}
 
+	if (!device_may_wakeup(dev)) {
+		/* Recalibration in case of environment change */
+		ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+				       MXT_COMMAND_CALIBRATE, 1);
+		if (ret)
+			dev_err(dev, "Resume recalibration failed %d\n", ret);
+		msleep(MXT_CAL_TIME);
+	}
+
 	mutex_unlock(&input_dev->mutex);
+
+	enable_irq(data->irq);
+
+	if (device_may_wakeup(dev) && data->irq_wake)
+		disable_irq_wake(data->irq);
 
 	return 0;
 }
