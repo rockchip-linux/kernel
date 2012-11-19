@@ -22,3 +22,11 @@ config CHROMEOS
 	  ChromeOS devices. It depends on a lowlevel driver to implement the
 	  firmware interface on the platform.
 
+config CHROMEOS_VBC_BLK
+	bool
+	depends on CHROMEOS
+
+	---help---
+	  Provides access to vboot context stored on block device.  Select this
+	  if you have a ChromeOS firmware that does not support storing vboot
+	  context in EC's nvram.

@@ -1,7 +1,4 @@
 /*
- *  ChromeOS platform support code. Glue layer between higher level functions
- *  and per-platform firmware interfaces.
- *
  *  Copyright (C) 2011 The Chromium OS Authors
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -21,315 +18,45 @@
 
 #define pr_fmt(fmt) "chromeos_arm: " fmt
 
-#include <linux/chromeos_platform.h>
-#include <linux/ide.h>
 #include <linux/gpio.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 
-
-#include "../chromeos.h"
-
-/* TODO:
- * Do a proper search for the right mmc device to use
- */
-
-#define BLKNV_MAJOR MMC_BLOCK_MAJOR
-#define BLKNV_MINOR 0
-
-/*
- * location where the vboot context data blends into the sector on the
- * MMC device
- */
-static u16 nv_offset, nv_size;
-static u64 nv_lba;
-
-/*
- * Functions to support vboot context on block device. The actual device used
- * is minor 0 of MMC device class, the sector to use is as encoded in
- * firmware_shared_data->nvcxt_lba, the vboot context buffer in the sector
- * starts at offset nv_offset and takes nv_size bytes.
- */
-static void vbc_blk_endio(struct bio *bio, int err)
-{
-	struct completion *c = bio->bi_private;
-	bio->bi_private = (void *)err;
-	complete(c);
-}
-
-static void vbc_blk_submit_bio(struct bio *bio, int rq)
-{
-	DECLARE_COMPLETION_ONSTACK(wait);
-
-	bio->bi_end_io	= vbc_blk_endio;
-	bio->bi_private = &wait;
-	submit_bio(rq, bio);
-	wait_for_completion(&wait);
-}
-
-static int vbc_blk_access(struct page *page, sector_t sector, bool is_read)
-{
-	struct block_device *bdev;
-	struct bio *bio = NULL;
-	dev_t mdev;
-	fmode_t devmode = is_read ? FMODE_READ : FMODE_WRITE;
-	int rq, ret;
-
-	mdev = MKDEV(BLKNV_MAJOR, BLKNV_MINOR);
-	bdev = blkdev_get_by_dev(mdev, devmode, NULL);
-	if (IS_ERR(bdev)) {
-		pr_err("could not open dev=[%d:%d]\n",
-		       BLKNV_MAJOR, BLKNV_MINOR);
-		ret = -EFAULT;
-		goto out;
-	}
-
-	/* map the sector to page */
-	bio = bio_alloc(GFP_NOIO, 1);
-	if (!bio) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	bio->bi_bdev	= bdev;
-	bio->bi_sector	= sector;
-	bio->bi_vcnt	= 1;
-	bio->bi_idx	= 0;
-	bio->bi_size	= SECTOR_SIZE;
-	bio->bi_io_vec[0].bv_page	= page;
-	bio->bi_io_vec[0].bv_len	= SECTOR_SIZE;
-	bio->bi_io_vec[0].bv_offset	= 0;
-
-	/* submit bio */
-	rq = REQ_SYNC | REQ_SOFTBARRIER | REQ_NOIDLE;
-	if (!is_read)
-		rq |= REQ_WRITE;
-
-	vbc_blk_submit_bio(bio, rq);
-
-	/* nvblk_endio passes up any error in bi_private */
-	ret = (int)bio->bi_private;
-out:
-	if (bio)
-		bio_put(bio);
-	if (!is_read) {
-		fsync_bdev(bdev);
-		invalidate_bdev(bdev);
-	}
-	if (bdev)
-		blkdev_put(bdev, devmode);
-	return ret;
-}
-
-/*
- * This function accepts a buffer with exactly nv_size bytes. It reads the
- * appropriate mmc one sector block, extacts the nonvolatile data from there
- * and copies it to the provided buffer.
- */
-static int vbc_blk_read(u8 *data)
-{
-	struct page *page;
-	char *virtual_addr;
-	int ret;
-
-	page = alloc_page(GFP_NOIO);
-	if (!page) {
-		pr_err("page allocation failed\n");
-		return -ENOMEM;
-	}
-
-	virtual_addr = page_address(page);
-	if (!virtual_addr) {
-		pr_err("page not mapped!\n");
-		__free_page(page);
-		return -EFAULT;
-	}
-
-	ret = vbc_blk_access(page, nv_lba, 1);
-	if (ret)
-		goto out;
-
-	memcpy(data, virtual_addr + nv_offset, nv_size);
-	ret = nv_size;
-
-out:
-	__free_page(page);
-	return ret;
-}
-
-/*
- * This function accepts a buffer with exactly nv_size bytes. It reads the
- * appropriate mmc one sector block, blends in the new vboot context contents
- * and then writes the sector back.
- */
-static int vbc_blk_write(const u8 *data)
-{
-	struct page *page;
-	char *virtual_addr;
-	int ret;
-
-	page = alloc_page(GFP_NOIO);
-	if (!page) {
-		pr_err("page allocation failed\n");
-		return -ENOMEM;
-	}
-
-	virtual_addr = page_address(page);
-	if (!virtual_addr) {
-		pr_err("page not mapped!\n");
-		__free_page(page);
-		return -EFAULT;
-	}
-
-	ret = vbc_blk_access(page, nv_lba, 1);
-	if (ret)
-		goto out;
-
-	/*
-	 * Sector has been read, lets blend in vboot context data and write
-	 * the sector back.
-	 */
-	memcpy(virtual_addr + nv_offset, data, nv_size);
-
-	ret = vbc_blk_access(page, nv_lba, 0);
-	if (!ret)
-		ret = nv_size;
-
-out:
-	__free_page(page);
-	return ret;
-}
-
-/*
- * Read the vboot context buffer contents into the user provided space.
- *
- * returns number of bytes copied, or negative error.
- */
-ssize_t chromeos_vbc_read(void *buf, size_t count)
-{
-	if (!nv_size) {
-		pr_err("%s nonvolatile context not configured!\n", __func__);
-		return -ENODEV;
-	}
-
-	if (count < nv_size) {
-		pr_err("not enough room to read vboot context (%zd < %d)\n",
-		       count, nv_size);
-		return -ENOSPC;
-	}
-
-	return vbc_blk_read(buf);
-}
-
-ssize_t chromeos_vbc_write(const void *buf, size_t count)
-{
-	if (!nv_size) {
-		pr_err("%s nonvolatile context not configured!\n", __func__);
-		return -ENODEV;
-	}
-
-	if (count != nv_size) {
-		pr_err("wrong write buffer size (%zd != %d)\n",
-		       count, nv_size);
-		return -ENOSPC;
-	}
-
-	return vbc_blk_write(buf);
-}
-
-static int __devinit chromeos_arm_platform_gpio(struct platform_device *pdev)
+static int __devinit chromeos_arm_probe(struct platform_device *pdev)
 {
 	int gpio, err, active_low;
 	enum of_gpio_flags flags;
 	struct device_node *np = pdev->dev.of_node;
 
-	if (!np)
-		return -ENODEV;
+	if (!np) {
+		err = -ENODEV;
+		goto err;
+	}
 
 	gpio = of_get_named_gpio_flags(np, "write-protect-gpio", 0, &flags);
 	if (!gpio_is_valid(gpio)) {
 		dev_err(&pdev->dev, "invalid write-protect gpio descriptor\n");
-		return -EINVAL;
+		err = -EINVAL;
+		goto err;
 	}
 
 	active_low = !!(flags & OF_GPIO_ACTIVE_LOW);
 
 	err = gpio_request_one(gpio, GPIOF_DIR_IN, "firmware-write-protect");
 	if (err)
-		return err;
+		goto err;
 	err = gpio_sysfs_set_active_low(gpio, active_low);
 	if (err)
-		return err;
+		goto err;
 	gpio_export(gpio, 0);
 	gpio_export_link(&pdev->dev, "write-protect", gpio);
-
-	return 0;
-}
-
-static int __devinit chromeos_arm_probe(struct platform_device *pdev)
-{
-	int proplen, err;
-	const int *prop;
-	struct device_node *fw_dn = pdev->dev.of_node;
-
-	err = chromeos_arm_platform_gpio(pdev);
-	if (err)
-		goto err;
-
-	prop = of_get_property(fw_dn, "nonvolatile-context-offset", &proplen);
-	if (!prop || proplen != 4) {
-		dev_err(&pdev->dev, "missing nonvolatile memory offset\n");
-		err = -ENODEV;
-		goto err;
-	}
-	nv_offset = be32_to_cpup(prop);
-
-	prop = of_get_property(fw_dn, "nonvolatile-context-size", &proplen);
-	if (!prop || proplen != 4) {
-		dev_err(&pdev->dev, "missing size of nonvolatile memory\n");
-		err = -ENODEV;
-		goto err;
-	}
-	nv_size = be32_to_cpup(prop);
-
-	if ((nv_offset + nv_size > SECTOR_SIZE) ||
-	    (nv_size > MAX_VBOOT_CONTEXT_BUFFER_SIZE)) {
-		/* vboot context block won't fit into a sector */
-		dev_err(&pdev->dev, "bad vboot context location: %d:%d!\n",
-			nv_offset, nv_size);
-		err = -EINVAL;
-		goto err;
-	}
-
-	prop = of_get_property(fw_dn, "nonvolatile-context-lba", &proplen);
-	if (!prop) {
-		dev_err(&pdev->dev, "missing nvcontext lba\n");
-		err = -ENODEV;
-		goto err;
-	}
-	switch (proplen) {
-	case 4:
-		nv_lba = be32_to_cpup(prop);
-		break;
-	case 8:
-		nv_lba = be64_to_cpup((const __be64 *)prop);
-		break;
-	default:
-		dev_err(&pdev->dev, "invalid nvcontext lba\n");
-		err = -EINVAL;
-		goto err;
-	}
-
-	/* XXXOJN FIXME: There should be a search for the right block device to
-	 * use for volatile storage here, not just assume mmcblk0. This should
-	 * include comparing the cached context passed in through a property.
-	 */
 
 	dev_info(&pdev->dev, "chromeos system detected\n");
 
 	err = 0;
 err:
-	of_node_put(fw_dn);
+	of_node_put(np);
 
 	return err;
 }
