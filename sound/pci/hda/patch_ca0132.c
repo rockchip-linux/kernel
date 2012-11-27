@@ -4573,6 +4573,8 @@ static int ca0132_init(struct hda_codec *codec)
 	ca0132_download_dsp(codec);
 	ca0132_refresh_widget_caps(codec);
 	ca0132_setup_defaults(codec);
+	ca0132_pe_switch_set(codec);
+	ca0132_cvoice_switch_set(codec);
 	ca0132_init_analog_mic2(codec);
 	ca0132_init_dmic(codec);
 
