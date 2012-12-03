@@ -83,7 +83,10 @@ for arch in $archs; do
 		esac
 		cat build/.config > $archconfdir/$config
 		if [ "$keep" = "1" ]; then
+			make O=`pwd`/build ARCH=$kernarch oldconfig
+			make O=`pwd`/build ARCH=$kernarch savedefconfig
 			mv build/.config CONFIGS/$arch-$config
+			mv build/defconfig CONFIGS/$arch-$config.def
 		fi
 	done
 
