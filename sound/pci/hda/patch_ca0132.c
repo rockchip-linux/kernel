@@ -793,7 +793,7 @@ static int chipio_send(struct hda_codec *codec,
 		       unsigned int data)
 {
 	unsigned int res;
-	unsigned long timeout = jiffies + msecs_to_jiffies(1000);
+	unsigned long timeout = jiffies + msecs_to_jiffies(2000);
 
 	/* send bits of data specified by reg */
 	do {
