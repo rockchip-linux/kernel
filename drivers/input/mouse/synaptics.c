@@ -72,33 +72,65 @@
  ****************************************************************************/
 
 /*
+ * Send a "synaptics" command to the device and retry on PS/2 communication
+ * error
+ */
+static int synaptics_send_cmd_retry(struct psmouse *psmouse, unsigned char cmd,
+				    unsigned char *param, int param_c)
+{
+	int tries = 2;
+	do {
+		if (!psmouse_sliced_command(psmouse, cmd) &&
+		    !ps2_command(&psmouse->ps2dev, param, param_c)) {
+			return 0;
+		}
+		/*
+		 * If the touchpad did not ACK a previous command byte,
+		 * it may also respond to the next command byte with 'FE'.
+		 * Send a dummy command to clear this possible 'FE'.
+		 */
+		ps2_command(&psmouse->ps2dev, NULL, PSMOUSE_CMD_SETSCALE11);
+	} while (--tries > 0);
+	psmouse_err(psmouse, "synaptics_retry failed cmd:0x%02x param_c 0x%x",
+		    cmd, param_c);
+	return -1;
+}
+
+/*
  * Set the synaptics touchpad mode byte by special commands
  */
 static int synaptics_mode_cmd(struct psmouse *psmouse, unsigned char mode)
 {
 	unsigned char param[1];
 
-	if (psmouse_sliced_command(psmouse, mode))
-		return -1;
 	param[0] = SYN_PS_SET_MODE2;
-	if (ps2_command(&psmouse->ps2dev, param, PSMOUSE_CMD_SETRATE))
-		return -1;
-	return 0;
+	return synaptics_send_cmd_retry(psmouse, mode,
+					param, PSMOUSE_CMD_SETRATE);
 }
 
 int synaptics_detect(struct psmouse *psmouse, bool set_properties)
 {
 	struct ps2dev *ps2dev = &psmouse->ps2dev;
 	unsigned char param[4];
+	int tries = 2;
 
-	param[0] = 0;
+	do {
+		param[0] = 0;
+		if (!ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_GETINFO)) {
+			goto ps2_command_success;
+		}
+		/* dummy command to reset the communication channel */
+		ps2_command(ps2dev, NULL, PSMOUSE_CMD_SETSCALE11);
+	} while (--tries > 0);
 
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_GETINFO);
+	psmouse_err(psmouse, "synaptics_retry failed in detect()");
+	return -1;
 
+ps2_command_success:
 	if (param[1] != 0x47)
 		return -ENODEV;
 
@@ -139,11 +171,7 @@ static int synaptics_invert_y(int y)
  */
 static int synaptics_send_cmd(struct psmouse *psmouse, unsigned char c, unsigned char *param)
 {
-	if (psmouse_sliced_command(psmouse, c))
-		return -1;
-	if (ps2_command(&psmouse->ps2dev, param, PSMOUSE_CMD_GETINFO))
-		return -1;
-	return 0;
+	return synaptics_send_cmd_retry(psmouse, c, param, PSMOUSE_CMD_GETINFO);
 }
 
 /*
@@ -345,11 +373,10 @@ static int synaptics_set_advanced_gesture_mode(struct psmouse *psmouse)
 	      SYN_CAP_IMAGE_SENSOR(priv->ext_cap_0c)))
 		return 0;
 
-	if (psmouse_sliced_command(psmouse, SYN_QUE_MODEL))
+	if (synaptics_send_cmd_retry(psmouse, SYN_QUE_MODEL,
+				     &param, PSMOUSE_CMD_SETRATE)) {
 		return -1;
-
-	if (ps2_command(&psmouse->ps2dev, &param, PSMOUSE_CMD_SETRATE))
-		return -1;
+	}
 
 	/* Advanced gesture mode also sends multi finger data */
 	priv->capabilities |= BIT(1);
@@ -406,11 +433,8 @@ static int synaptics_pt_write(struct serio *serio, unsigned char c)
 	struct psmouse *parent = serio_get_drvdata(serio->parent);
 	char rate_param = SYN_PS_CLIENT_CMD; /* indicates that we want pass-through port */
 
-	if (psmouse_sliced_command(parent, c))
-		return -1;
-	if (ps2_command(&parent->ps2dev, &rate_param, PSMOUSE_CMD_SETRATE))
-		return -1;
-	return 0;
+	return synaptics_send_cmd_retry(parent, c,
+					&rate_param, PSMOUSE_CMD_SETRATE);
 }
 
 static int synaptics_pt_start(struct serio *serio)
@@ -1512,7 +1536,10 @@ static int synaptics_reconnect(struct psmouse *psmouse)
 	int error;
 
 	do {
-		psmouse_reset(psmouse);
+		if (psmouse_reset(psmouse))
+			psmouse_err(psmouse, "psmouse_reset() failed.\n");
+
+
 		if (retry) {
 			/*
 			 * On some boxes, right after resuming, the touchpad
