@@ -782,6 +782,7 @@ struct fb_videomode {
 extern const char *fb_mode_option;
 extern const struct fb_videomode vesa_modes[];
 extern const struct fb_videomode cea_modes[64];
+extern const struct fb_videomode hdmi_ext_modes[];
 
 struct fb_modelist {
 	struct list_head list;
