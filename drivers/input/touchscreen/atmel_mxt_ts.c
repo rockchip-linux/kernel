@@ -232,6 +232,7 @@
 /* Touchscreen absolute values */
 #define MXT_MAX_AREA		0xff
 
+/* For CMT (must match XRANGE/YRANGE as defined in board config */
 #define MXT_PIXELS_PER_MM	20
 
 struct mxt_info {
@@ -626,9 +627,18 @@ static int mxt_write_object(struct mxt_data *data,
 
 static void mxt_input_button(struct mxt_data *data, struct mxt_message *message)
 {
+	struct device *dev = &data->client->dev;
 	struct input_dev *input = data->input_dev;
 	bool button;
 	int i;
+
+	if (!data->pdata) {
+		/* Active-low switch */
+		button = !(message->message[0] & MXT_GPIO3_MASK);
+		input_report_key(input, BTN_LEFT, button);
+		dev_dbg(dev, "Button state: %d\n", button);
+		return;
+	}
 
 	/* Active-low switch */
 	for (i = 0; i < MXT_NUM_GPIO; i++) {
@@ -1699,7 +1709,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	if (!input_dev)
 		return -ENOMEM;
 
-	data->is_tp = pdata && pdata->is_tp;
+	if (pdata && pdata->is_tp)
+		data->is_tp = true;
 
 	input_dev->name = (data->is_tp) ? "Atmel maXTouch Touchpad" :
 					  "Atmel maXTouch Touchscreen";
@@ -1718,8 +1729,10 @@ static int mxt_input_dev_create(struct mxt_data *data)
 		__set_bit(INPUT_PROP_POINTER, input_dev->propbit);
 		__set_bit(INPUT_PROP_BUTTONPAD, input_dev->propbit);
 
+		if (!pdata)
+			__set_bit(BTN_LEFT, input_dev->keybit);
 		for (i = 0; i < MXT_NUM_GPIO; i++)
-			if (pdata->key_map[i] != KEY_RESERVED)
+			if (pdata && pdata->key_map[i] != KEY_RESERVED)
 				__set_bit(pdata->key_map[i], input_dev->keybit);
 
 		__set_bit(BTN_TOOL_FINGER, input_dev->keybit);
@@ -1743,6 +1756,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 			     0, data->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_PRESSURE,
 			     0, 255, 0, 0);
+	input_abs_set_res(input_dev, ABS_X, MXT_PIXELS_PER_MM);
+	input_abs_set_res(input_dev, ABS_Y, MXT_PIXELS_PER_MM);
 
 	/* For multi touch */
 	num_mt_slots = data->T9_reportid_max - data->T9_reportid_min + 1;
@@ -1758,6 +1773,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 			     0, data->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
 			     0, 255, 0, 0);
+	input_abs_set_res(input_dev, ABS_MT_POSITION_X, MXT_PIXELS_PER_MM);
+	input_abs_set_res(input_dev, ABS_MT_POSITION_Y, MXT_PIXELS_PER_MM);
 
 	input_set_drvdata(input_dev, data);
 
@@ -1789,6 +1806,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
+	data->is_tp = !strcmp(id->name, "atmel_mxt_tp");
 	snprintf(data->phys, sizeof(data->phys), "i2c-%u-%04x/input0",
 		 client->adapter->nr, client->addr);
 
