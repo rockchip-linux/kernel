@@ -664,18 +664,24 @@ static int mxt_read_message(struct mxt_data *data,
 			sizeof(struct mxt_message), message);
 }
 
-static int mxt_write_object(struct mxt_data *data,
-				 u8 type, u8 offset, u8 val)
+static int mxt_write_obj_instance(struct mxt_data *data, u8 type, u8 instance,
+		u8 offset, u8 val)
 {
 	struct mxt_object *object;
 	u16 reg;
 
 	object = mxt_get_object(data, type);
-	if (!object || offset >= mxt_obj_size(object))
+	if (!object || offset >= mxt_obj_size(object) ||
+	    instance >= mxt_obj_instances(object))
 		return -EINVAL;
 
-	reg = object->start_address;
-	return mxt_write_reg(data->client, reg + offset, val);
+	reg = object->start_address + instance * mxt_obj_size(object) + offset;
+	return mxt_write_reg(data->client, reg, val);
+}
+
+static int mxt_write_object(struct mxt_data *data, u8 type, u8 offset, u8 val)
+{
+	return mxt_write_obj_instance(data, type, 0, offset, val);
 }
 
 static void mxt_input_button(struct mxt_data *data, struct mxt_message *message)
