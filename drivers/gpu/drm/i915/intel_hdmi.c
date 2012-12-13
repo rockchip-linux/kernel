@@ -930,6 +930,53 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 	return true;
 }
 
+static bool g4x_hdmi_connected(struct drm_i915_private *dev_priv,
+				struct intel_digital_port *intel_dig_port)
+{
+	uint32_t bit;
+
+	switch (intel_dig_port->port) {
+	case PORT_B:
+		bit = PORTB_HOTPLUG_LIVE_STATUS_G4X;
+		break;
+	case PORT_C:
+		bit = PORTC_HOTPLUG_LIVE_STATUS_G4X;
+		break;
+	case PORT_D:
+		bit = PORTD_HOTPLUG_LIVE_STATUS_G4X;
+		break;
+	default:
+		bit = 0;
+		break;
+	}
+
+	return I915_READ(PORT_HOTPLUG_STAT) & bit;
+}
+
+static bool valleyview_hdmi_connected(struct drm_i915_private *dev_priv,
+				struct intel_digital_port *intel_dig_port)
+{
+	uint32_t bit;
+
+	switch (intel_dig_port->port) {
+	case PORT_B:
+		bit = PORTB_HOTPLUG_LIVE_STATUS_VLV;
+		break;
+	case PORT_C:
+		bit = PORTC_HOTPLUG_LIVE_STATUS_VLV;
+		break;
+	case PORT_D:
+		bit = PORTD_HOTPLUG_LIVE_STATUS_VLV;
+		break;
+	default:
+		bit = 0;
+		break;
+	}
+
+	return I915_READ(PORT_HOTPLUG_STAT) & bit;
+}
+
+
 static enum drm_connector_status
 intel_hdmi_detect(struct drm_connector *connector, bool force)
 {
@@ -944,6 +991,15 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 		      connector->base.id, drm_get_connector_name(connector));
+
+	if (IS_G4X(dev) && !g4x_hdmi_connected(dev_priv, intel_dig_port))
+		return status;
+	else if (HAS_PCH_SPLIT(dev) &&
+		 !ibx_digital_port_connected(dev_priv, intel_dig_port))
+		 return status;
+	else if (IS_VALLEYVIEW(dev) &&
+		 !valleyview_hdmi_connected(dev_priv, intel_dig_port))
+		return status;
 
 	intel_hdmi->has_hdmi_sink = false;
 	intel_hdmi->has_audio = false;
