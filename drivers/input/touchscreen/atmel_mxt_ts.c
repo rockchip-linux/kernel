@@ -21,6 +21,7 @@
 #include <linux/input/mt.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 
 /* Version */
 #define MXT_VER_20		20
@@ -88,6 +89,13 @@
 #define MXT_COMMAND_CALIBRATE	2
 #define MXT_COMMAND_REPORTALL	3
 #define MXT_COMMAND_DIAGNOSTIC	5
+
+#define MXT_T6_CMD_PAGE_UP		0x01
+#define MXT_T6_CMD_PAGE_DOWN		0x02
+#define MXT_T6_CMD_DELTAS		0x10
+#define MXT_T6_CMD_REFS			0x11
+#define MXT_T6_CMD_DEVICE_ID		0x80
+#define MXT_T6_CMD_TOUCH_THRESH		0xF4
 
 /* MXT_GEN_POWER_T7 field */
 #define MXT_POWER_IDLEACQINT	0
@@ -277,6 +285,13 @@ struct mxt_data {
 
 	/* per-instance debugfs root */
 	struct dentry *dentry_dev;
+	struct dentry *dentry_deltas;
+	struct dentry *dentry_refs;
+
+	/* Protect access to the T37 object buffer, used by debugfs */
+	struct mutex T37_buf_mutex;
+	u8 *T37_buf;
+	size_t T37_buf_size;
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -1169,6 +1184,133 @@ static void mxt_calc_resolution(struct mxt_data *data)
 	}
 }
 
+/*
+ * Helper function for performing a T6 diagnostic command
+ */
+static int mxt_T6_diag_cmd(struct mxt_data *data, struct mxt_object *T6,
+			   u8 cmd)
+{
+	int ret;
+	u16 addr = T6->start_address + MXT_COMMAND_DIAGNOSTIC;
+
+	ret = mxt_write_reg(data->client, addr, cmd);
+	if (ret)
+		return ret;
+
+	/*
+	 * Poll T6.diag until it returns 0x00, which indicates command has
+	 * completed.
+	 */
+	while (cmd != 0) {
+		ret = __mxt_read_reg(data->client, addr, 1, &cmd);
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
+/*
+ * SysFS Helper function for reading DELTAS and REFERENCE values for T37 object
+ *
+ * For both modes, a T37_buf is allocated to stores matrix_xsize * matrix_ysize
+ * 2-byte (little-endian) values, which are returned to userspace unmodified.
+ *
+ * It is left to userspace to parse the 2-byte values.
+ * - deltas are signed 2's complement 2-byte little-endian values.
+ *     s32 delta = (b[0] + (b[1] << 8));
+ * - refs are signed 'offset binary' 2-byte little-endian values, with offset
+ *   value 0x4000:
+ *     s32 ref = (b[0] + (b[1] << 8)) - 0x4000;
+ */
+static ssize_t mxt_T37_fetch(struct mxt_data *data, u8 mode)
+{
+	struct mxt_object *T6, *T37;
+	u8 *obuf;
+	ssize_t ret = 0;
+	size_t i;
+	size_t T37_buf_size, num_pages;
+	size_t pos;
+
+	if (!data || !data->object_table)
+		return -ENODEV;
+
+	T6 = mxt_get_object(data, MXT_GEN_COMMAND_T6);
+	T37 = mxt_get_object(data, MXT_DEBUG_DIAGNOSTIC_T37);
+	if (!T6 || mxt_obj_size(T6) < 6 || !T37 || mxt_obj_size(T37) < 3) {
+		dev_err(&data->client->dev, "Invalid T6 or T37 object\n");
+		return -ENODEV;
+	}
+
+	/* Something has gone wrong if T37_buf is already allocated */
+	if (data->T37_buf)
+		return -EINVAL;
+
+	T37_buf_size = data->info.matrix_xsize * data->info.matrix_ysize *
+		       sizeof(__le16);
+	data->T37_buf_size = T37_buf_size;
+	data->T37_buf = kmalloc(data->T37_buf_size, GFP_KERNEL);
+	if (!data->T37_buf)
+		return -ENOMEM;
+
+	/* Temporary buffer used to fetch one T37 page */
+	obuf = kmalloc(mxt_obj_size(T37), GFP_KERNEL);
+	if (!obuf)
+		return -ENOMEM;
+
+	disable_irq(data->irq);
+	num_pages = DIV_ROUND_UP(T37_buf_size, mxt_obj_size(T37) - 2);
+	pos = 0;
+	for (i = 0; i < num_pages; i++) {
+		u8 cmd;
+		size_t chunk_len;
+
+		/* For first page, send mode as cmd, otherwise PageUp */
+		cmd = (i == 0) ? mode : MXT_T6_CMD_PAGE_UP;
+		ret = mxt_T6_diag_cmd(data, T6, cmd);
+		if (ret)
+			goto err_free_T37_buf;
+
+		ret = __mxt_read_reg(data->client, T37->start_address,
+				mxt_obj_size(T37), obuf);
+		if (ret)
+			goto err_free_T37_buf;
+
+		/* Verify first two bytes are current mode and page # */
+		if (obuf[0] != mode) {
+			dev_err(&data->client->dev,
+				"Unexpected mode (%u != %u)\n", obuf[0], mode);
+			ret = -EIO;
+			goto err_free_T37_buf;
+		}
+
+		if (obuf[1] != i) {
+			dev_err(&data->client->dev,
+				"Unexpected page (%u != %zu)\n", obuf[1], i);
+			ret = -EIO;
+			goto err_free_T37_buf;
+		}
+
+		/*
+		 * Copy the data portion of the page, or however many bytes are
+		 * left, whichever is less.
+		 */
+		chunk_len = min(mxt_obj_size(T37) - 2, T37_buf_size - pos);
+		memcpy(&data->T37_buf[pos], &obuf[2], chunk_len);
+		pos += chunk_len;
+	}
+
+	goto out;
+
+err_free_T37_buf:
+	kfree(data->T37_buf);
+	data->T37_buf = NULL;
+	data->T37_buf_size = 0;
+out:
+	kfree(obuf);
+	enable_irq(data->irq);
+	return ret ?: 0;
+}
+
 static ssize_t mxt_calibrate_store(struct device *dev,
 				   struct device_attribute *attr,
 				   const char *buf, size_t count)
@@ -1406,6 +1548,92 @@ static const struct attribute_group mxt_attr_group = {
  * debugfs interface
  **************************************************************
 */
+static int mxt_debugfs_T37_open(struct inode *inode, struct file *file)
+{
+	struct mxt_data *mxt = inode->i_private;
+	int ret;
+	u8 cmd;
+
+	if (file->f_dentry == mxt->dentry_deltas)
+		cmd = MXT_T6_CMD_DELTAS;
+	else if (file->f_dentry == mxt->dentry_refs)
+		cmd = MXT_T6_CMD_REFS;
+	else
+		return -EINVAL;
+
+	/* Only allow one T37 debugfs file to be opened at a time */
+	ret = mutex_lock_interruptible(&mxt->T37_buf_mutex);
+	if (ret)
+		return ret;
+
+	if (!i2c_use_client(mxt->client)) {
+		ret = -ENODEV;
+		goto err_unlock;
+	}
+
+	/* Fetch all T37 pages into mxt->T37_buf */
+	ret = mxt_T37_fetch(mxt, cmd);
+	if (ret)
+		goto err_release;
+
+	file->private_data = mxt;
+
+	return 0;
+
+err_release:
+	i2c_release_client(mxt->client);
+err_unlock:
+	mutex_unlock(&mxt->T37_buf_mutex);
+	return ret;
+}
+
+static int mxt_debugfs_T37_release(struct inode *inode, struct file *file)
+{
+	struct mxt_data *mxt = file->private_data;
+
+	file->private_data = NULL;
+
+	kfree(mxt->T37_buf);
+	mxt->T37_buf = NULL;
+	mxt->T37_buf_size = 0;
+
+	i2c_release_client(mxt->client);
+	mutex_unlock(&mxt->T37_buf_mutex);
+
+	return 0;
+}
+
+
+/* Return some bytes from the buffered T37 object, starting from *ppos */
+static ssize_t mxt_debugfs_T37_read(struct file *file, char __user *buffer,
+				    size_t count, loff_t *ppos)
+{
+	struct mxt_data *mxt = file->private_data;
+
+	if (!mxt->T37_buf)
+		return -ENODEV;
+
+	if (*ppos >= mxt->T37_buf_size)
+		return 0;
+
+	if (count + *ppos > mxt->T37_buf_size)
+		count = mxt->T37_buf_size - *ppos;
+
+	if (copy_to_user(buffer, &mxt->T37_buf[*ppos], count))
+		return -EFAULT;
+
+	*ppos += count;
+
+	return count;
+}
+
+static const struct file_operations mxt_debugfs_T37_fops = {
+	.owner = THIS_MODULE,
+	.open = mxt_debugfs_T37_open,
+	.release = mxt_debugfs_T37_release,
+	.read = mxt_debugfs_T37_read
+};
+
 static int mxt_debugfs_init(struct mxt_data *mxt)
 {
 	struct device *dev = &mxt->client->dev;
@@ -1419,6 +1647,14 @@ static int mxt_debugfs_init(struct mxt_data *mxt)
 	if (!mxt->dentry_dev)
 		return -ENODEV;
 
+	mutex_init(&mxt->T37_buf_mutex);
+
+	mxt->dentry_deltas = debugfs_create_file("deltas", S_IRUSR,
+						 mxt->dentry_dev, mxt,
+						 &mxt_debugfs_T37_fops);
+	mxt->dentry_refs = debugfs_create_file("refs", S_IRUSR,
+					       mxt->dentry_dev, mxt,
+					       &mxt_debugfs_T37_fops);
 	return 0;
 }
 
@@ -1620,8 +1856,11 @@ static int mxt_remove(struct i2c_client *client)
 {
 	struct mxt_data *data = i2c_get_clientdata(client);
 
-	if (data->dentry_dev)
+	if (data->dentry_dev) {
 		debugfs_remove_recursive(data->dentry_dev);
+		mutex_destroy(&data->T37_buf_mutex);
+		kfree(data->T37_buf);
+	}
 	sysfs_remove_group(&client->dev.kobj, &mxt_attr_group);
 	free_irq(data->irq, data);
 	if (data->input_dev)
