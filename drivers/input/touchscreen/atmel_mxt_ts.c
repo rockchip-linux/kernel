@@ -334,16 +334,62 @@ static void mxt_dump_message(struct device *dev,
 		message->reportid, 7, message->message);
 }
 
+static int mxt_i2c_recv(struct i2c_client *client, u8 *buf, size_t count)
+{
+	int ret;
+
+	ret = i2c_master_recv(client, buf, count);
+	if (ret == count) {
+		ret = 0;
+	} else if (ret != count) {
+		ret = (ret < 0) ? ret : -EIO;
+		dev_err(&client->dev, "i2c recv failed (%d)\n", ret);
+	}
+
+	return ret;
+}
+
+static int mxt_i2c_send(struct i2c_client *client, const u8 *buf, size_t count)
+{
+	int ret;
+
+	ret = i2c_master_send(client, buf, count);
+	if (ret == count) {
+		ret = 0;
+	} else if (ret != count) {
+		ret = (ret < 0) ? ret : -EIO;
+		dev_err(&client->dev, "i2c send failed (%d)\n", ret);
+	}
+
+	return ret;
+}
+
+static int mxt_i2c_transfer(struct i2c_client *client, struct i2c_msg *msgs,
+		size_t count)
+{
+	int ret;
+
+	ret = i2c_transfer(client->adapter, msgs, count);
+	if (ret == count) {
+		ret = 0;
+	} else {
+		ret = (ret < 0) ? ret : -EIO;
+		dev_err(&client->dev, "i2c transfer failed (%d)\n", ret);
+	}
+
+	return ret;
+}
+
 static int mxt_check_bootloader(struct i2c_client *client,
 				     unsigned int state)
 {
 	u8 val;
+	int ret;
 
 recheck:
-	if (i2c_master_recv(client, &val, 1) != 1) {
-		dev_err(&client->dev, "%s: i2c recv failed\n", __func__);
-		return -EIO;
-	}
+	ret = mxt_i2c_recv(client, &val, 1);
+	if (ret)
+		return ret;
 
 	switch (state) {
 	case MXT_WAITING_BOOTLOAD_CMD:
@@ -373,23 +419,13 @@ static int mxt_unlock_bootloader(struct i2c_client *client)
 	buf[0] = MXT_UNLOCK_CMD_LSB;
 	buf[1] = MXT_UNLOCK_CMD_MSB;
 
-	if (i2c_master_send(client, buf, 2) != 2) {
-		dev_err(&client->dev, "%s: i2c send failed\n", __func__);
-		return -EIO;
-	}
-
-	return 0;
+	return mxt_i2c_send(client, buf, 2);
 }
 
 static int mxt_fw_write(struct i2c_client *client,
 			     const u8 *data, unsigned int frame_size)
 {
-	if (i2c_master_send(client, data, frame_size) != frame_size) {
-		dev_err(&client->dev, "%s: i2c send failed\n", __func__);
-		return -EIO;
-	}
-
-	return 0;
+	return mxt_i2c_send(client, data, frame_size);
 }
 
 static int __mxt_read_reg(struct i2c_client *client,
@@ -397,7 +433,6 @@ static int __mxt_read_reg(struct i2c_client *client,
 {
 	struct i2c_msg xfer[2];
 	u8 buf[2];
-	int ret;
 
 	buf[0] = reg & 0xff;
 	buf[1] = (reg >> 8) & 0xff;
@@ -414,17 +449,7 @@ static int __mxt_read_reg(struct i2c_client *client,
 	xfer[1].len = len;
 	xfer[1].buf = val;
 
-	ret = i2c_transfer(client->adapter, xfer, 2);
-	if (ret == 2) {
-		ret = 0;
-	} else {
-		if (ret >= 0)
-			ret = -EIO;
-		dev_err(&client->dev, "%s: i2c transfer failed (%d)\n",
-			__func__, ret);
-	}
-
-	return ret;
+	return mxt_i2c_transfer(client, xfer, 2);
 }
 
 static int mxt_read_reg(struct i2c_client *client, u16 reg, u8 *val)
@@ -448,16 +473,7 @@ static int __mxt_write_reg(struct i2c_client *client, u16 reg, u16 len,
 	buf[1] = (reg >> 8) & 0xff;
 	memcpy(&buf[2], val, len);
 
-	ret = i2c_master_send(client, buf, count);
-	if (ret == count) {
-		ret = 0;
-	} else {
-		if (ret >= 0)
-			ret = -EIO;
-		dev_err(&client->dev, "%s: i2c send failed (%d)\n",
-			__func__, ret);
-	}
-
+	ret = mxt_i2c_send(client, buf, count);
 	kfree(buf);
 	return ret;
 }
