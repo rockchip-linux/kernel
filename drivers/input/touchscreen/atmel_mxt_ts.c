@@ -313,7 +313,6 @@ static int mxt_calc_resolution(struct mxt_data *data);
 static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
-static int mxt_make_highchg(struct mxt_data *data);
 
 static inline size_t mxt_obj_size(const struct mxt_object *obj)
 {
@@ -664,12 +663,6 @@ static int mxt_read_messages(struct mxt_data *data, u8 count,
 			sizeof(struct mxt_message) * count, messages);
 }
 
-static int mxt_read_message(struct mxt_data *data,
-				 struct mxt_message *message)
-{
-	return mxt_read_messages(data, 1, message);
-}
-
 static int mxt_write_obj_instance(struct mxt_data *data, u8 type, u8 instance,
 		u8 offset, u8 val)
 {
@@ -936,7 +929,7 @@ static void mxt_exit_bl(struct mxt_data *data)
 		return;
 	}
 
-	error = mxt_make_highchg(data);
+	error = mxt_handle_messages(data);
 	if (error)
 		dev_err(dev, "Failed to clear CHG after init. error = %d\n",
 			error);
@@ -987,28 +980,6 @@ static int mxt_check_reg_init(struct mxt_data *data)
 		if (ret)
 			return ret;
 		index += size;
-	}
-
-	return 0;
-}
-
-static int mxt_make_highchg(struct mxt_data *data)
-{
-	struct device *dev = &data->client->dev;
-	struct mxt_message message;
-	int count = 10;
-	int error;
-
-	/* Read dummy message to make high CHG pin */
-	do {
-		error = mxt_read_message(data, &message);
-		if (error)
-			return error;
-	} while (message.reportid != 0xff && --count);
-
-	if (!count) {
-		dev_err(dev, "CHG pin isn't cleared\n");
-		return -EBUSY;
 	}
 
 	return 0;
@@ -2054,7 +2025,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	}
 
 	if (!mxt_in_bootloader(data)) {
-		error = mxt_make_highchg(data);
+		error = mxt_handle_messages(data);
 		if (error)
 			goto err_free_irq;
 	}
