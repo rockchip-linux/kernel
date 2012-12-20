@@ -1032,6 +1032,13 @@ static int mxt_load_fw(struct device *dev, const char *fn)
 		client->addr = MXT_BOOT_HIGH;
 
 bootloader_ready:
+	/* Free any driver state. It will get reinitialized after fw update. */
+	mxt_free_object_table(data);
+	if (data->input_dev) {
+		input_unregister_device(data->input_dev);
+		data->input_dev = NULL;
+	}
+
 	ret = mxt_check_bootloader(client, MXT_WAITING_BOOTLOAD_CMD);
 	if (ret)
 		goto out;
@@ -1099,9 +1106,8 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 		/* Wait for reset */
 		msleep(MXT_FWRESET_TIME);
 
-		mxt_free_object_table(data);
-
 		mxt_initialize(data);
+		mxt_input_dev_create(data);
 	}
 
 	enable_irq(data->irq);
