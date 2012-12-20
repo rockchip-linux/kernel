@@ -1019,8 +1019,10 @@ static int mxt_load_fw(struct device *dev, const char *fn)
 		goto bootloader_ready;
 
 	/* Change to the bootloader mode */
-	mxt_write_object(data, MXT_GEN_COMMAND_T6,
+	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
 			MXT_COMMAND_RESET, MXT_BOOT_VALUE);
+	if (ret)
+		goto out;
 	msleep(MXT_RESET_TIME);
 
 	/* Change to slave address of bootloader */
@@ -1035,7 +1037,9 @@ bootloader_ready:
 		goto out;
 
 	/* Unlock bootloader */
-	mxt_unlock_bootloader(client);
+	ret = mxt_unlock_bootloader(client);
+	if (ret)
+		goto out;
 
 	while (pos < fw->size) {
 		ret = mxt_check_bootloader(client,
@@ -1051,7 +1055,9 @@ bootloader_ready:
 		frame_size += 2;
 
 		/* Write one frame to device */
-		mxt_fw_write(client, fw->data + pos, frame_size);
+		ret = mxt_fw_write(client, fw->data + pos, frame_size);
+		if (ret)
+			goto out;
 
 		ret = mxt_check_bootloader(client,
 						MXT_FRAME_CRC_PASS);
@@ -1063,14 +1069,13 @@ bootloader_ready:
 		dev_dbg(dev, "Updated %d bytes / %zd bytes\n", pos, fw->size);
 	}
 
-out:
-	release_firmware(fw);
-
 	/* Change to slave address of application */
 	if (client->addr == MXT_BOOT_LOW)
 		client->addr = MXT_APP_LOW;
 	else
 		client->addr = MXT_APP_HIGH;
+out:
+	release_firmware(fw);
 
 	return ret;
 }
