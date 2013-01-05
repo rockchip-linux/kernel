@@ -290,17 +290,8 @@ static void logi_dj_recv_add_djhid_device(struct dj_receiver_dev *djrcv_dev,
 
 	djrcv_dev->paired_dj_devices[dj_report->device_index] = dj_dev;
 
-	if (hid_add_device(dj_hiddev)) {
-		dev_err(&djrcv_hdev->dev, "%s: failed adding dj_device\n",
-			__func__);
-		goto hid_add_device_fail;
-	}
-
 	return;
 
-hid_add_device_fail:
-	djrcv_dev->paired_dj_devices[dj_report->device_index] = NULL;
-	kfree(dj_dev);
 dj_device_allocate_fail:
 	hid_destroy_device(dj_hiddev);
 }
@@ -309,11 +300,15 @@ static void delayedwork_callback(struct work_struct *work)
 {
 	struct dj_receiver_dev *djrcv_dev =
 		container_of(work, struct dj_receiver_dev, work);
+	struct hid_device *djrcv_hdev = djrcv_dev->hdev;
 
+	struct dj_device *djdev;
 	struct dj_report dj_report;
 	unsigned long flags;
 	int count;
 	int retval;
+	u8 param_status;
+	bool connected;
 
 	dbg_hid("%s\n", __func__);
 
@@ -345,6 +340,27 @@ static void delayedwork_callback(struct work_struct *work)
 	case REPORT_TYPE_NOTIF_DEVICE_UNPAIRED:
 		logi_dj_recv_destroy_djhid_device(djrcv_dev, &dj_report);
 		break;
+	case REPORT_TYPE_NOTIF_CONNECTION_STATUS:
+		param_status = dj_report.report_params[
+					CONNECTION_STATUS_PARAM_STATUS];
+		connected = param_status != STATUS_LINKLOSS;
+		djdev = djrcv_dev->paired_dj_devices[dj_report.device_index];
+		dbg_hid("%s: got REPORT_TYPE_NOTIF_CONNECTION_STATUS %d %d\n", __func__, djdev ? djdev->hid_device_started : -1, connected);
+		if (!djdev) {
+			dev_err(&djrcv_dev->hdev->dev, "%s:"
+				"dj_dev null, unexpected device index\n",
+				__func__);
+			return;
+		}
+		if (!djdev->hid_device_started && connected) {
+			if (hid_add_device(djdev->hdev)) {
+				dev_err(&djrcv_hdev->dev,
+					"%s: failed adding dj_device\n",
+					__func__);
+			} else {
+				djdev->hid_device_started = 1;
+			}
+		}
 	default:
 	/* A normal report (i. e. not belonging to a pair/unpair notification)
 	 * arriving here, means that the report arrived but we did not have a
@@ -734,6 +750,7 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 			    STATUS_LINKLOSS) {
 				logi_dj_recv_forward_null_report(djrcv_dev, dj_report);
 			}
+			logi_dj_recv_queue_notification(djrcv_dev, dj_report);
 			break;
 		default:
 			logi_dj_recv_forward_report(djrcv_dev, dj_report);

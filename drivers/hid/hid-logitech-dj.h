@@ -109,6 +109,7 @@ struct dj_device {
 	struct dj_receiver_dev *dj_receiver_dev;
 	u32 reports_supported;
 	u8 device_index;
+	unsigned hid_device_started:1;
 };
 
 /**
