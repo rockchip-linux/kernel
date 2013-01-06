@@ -162,6 +162,31 @@ int hidpp_send_rap_command_sync(struct hidpp_device *hidpp_dev,
 }
 EXPORT_SYMBOL_GPL(hidpp_send_rap_command_sync);
 
+int hidpp_get_hidpp2_feature_index(struct hidpp_device *hidpp_dev,
+					u8 software_id,
+					u16 feature_id,
+					u8 *feature_idx)
+{
+	struct hidpp_report response;
+	u8 params[2];
+	int ret;
+
+	params[0] = feature_id >> 8;
+	params[1] = feature_id & 0xff;
+	ret = hidpp_send_hidpp2_sync(hidpp_dev,
+					REPORT_ID_HIDPP_SHORT,
+					0,
+					0,
+					software_id,
+					params,
+					sizeof(params),
+					&response);
+	if (ret)
+		return ret;
+	*feature_idx = response.rap.params[0];
+	return ret;
+}
+EXPORT_SYMBOL_GPL(hidpp_get_hidpp2_feature_index);
 
 static void schedule_delayed_hidpp_init(struct hidpp_device *hidpp_dev)
 {
@@ -356,8 +381,9 @@ int hidpp_raw_event(struct hid_device *hdev, struct hid_report *hid_report,
 		}
 	}
 
-	if (hidpp_dev->raw_event != NULL)
+	if (hidpp_dev->raw_event != NULL) {
 		return hidpp_dev->raw_event(hidpp_dev, report);
+	}
 
 	hidpp_print_raw_event("event not treated", data, size);
 

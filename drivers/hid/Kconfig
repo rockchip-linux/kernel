@@ -361,6 +361,15 @@ config HID_LOGITECH_HIDPP
 	This module allows sending vendor specific commands to Logitech
 	devices
 
+config HID_LOGITECH_WTP
+	tristate "Logitech Unifying Wireless Touchpad full multitouch support"
+	depends on HID_LOGITECH_DJ
+	select HID_LOGITECH_HIDPP
+	---help---
+	Say Y if you want full multitouch support for the Logitech Unifying Wireless
+	Touchpad. Information of up to 4 fingers is transmitted to the kernel which
+	enables complex gestures to be recognized.
+
 config LOGITECH_FF
 	bool "Logitech force feedback support"
 	depends on HID_LOGITECH

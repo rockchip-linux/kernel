@@ -1106,6 +1106,8 @@ static void logi_dj_remove(struct hid_device *hdev)
 }
 
 static const u16 dj_have_special_driver[] = {
+	UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD,
+	UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD_T650,
 };
 
 static int logi_djdevice_probe(struct hid_device *hdev,

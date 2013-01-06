@@ -117,6 +117,29 @@ extern int hidpp_send_rap_command_sync(struct hidpp_device *hidpp_dev,
 			u8 report_id, u8 sub_id, u8 reg_address, u8 *params,
 			int param_count, struct hidpp_report *response);
 
+static inline int hidpp_send_hidpp2_sync(struct hidpp_device *hidpp_dev,
+					u8 type,
+					u8 feature_index,
+					u8 sub_index,
+					u8 software_id,
+					u8 *params,
+					int params_count,
+					struct hidpp_report *response)
+{
+	return hidpp_send_rap_command_sync(hidpp_dev,
+					type,
+					feature_index,
+					(sub_index << 4) | software_id,
+					params,
+					params_count,
+					response);
+}
+
+extern int hidpp_get_hidpp2_feature_index(struct hidpp_device *hidpp_dev,
+						u8 software_id,
+						u16 feature_id,
+						u8 *feature_idx);
+
 #define HIDPP_ERROR				0x8f
 #define HIDPP_ERROR_SUCCESS			0x00
 #define HIDPP_ERROR_INVALID_SUBID		0x01
