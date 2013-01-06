@@ -29,6 +29,7 @@
 #include <linux/usb.h>
 #include <asm/unaligned.h>
 #include "hid-ids.h"
+#include "hid-logitech-hidpp.h"
 
 #define DJ_MAX_PAIRED_DEVICES			6
 #define DJ_MAX_NUMBER_NOTIFICATIONS		8
@@ -116,16 +117,6 @@ struct dj_device {
 	u8 device_index;
 	unsigned hid_device_started:1;
 };
-
-/**
- * is_dj_device - know if the given dj_device is not the receiver.
- * @dj_dev: the dj device to test
- *
- * This macro tests if a struct dj_device pointer is a device created
- * by the bus enumarator.
- */
-#define is_dj_device(dj_dev) \
-       (&(dj_dev)->dj_receiver_dev->hdev->dev == (dj_dev)->hdev->dev.parent)
 
 /* Keyboard descriptor (1) */
 static const char kbd_descriptor[] = {
@@ -286,6 +277,22 @@ static const u8 hid_reportid_size_map[NUMBER_OF_HID_REPORTS] = {
 
 static struct hid_ll_driver logi_dj_ll_driver;
 
+static void logi_dj_print_raw_event(const char *header, u8 *data, int size)
+{
+	int i;
+	unsigned char log[96];
+	unsigned char tmpstr[60];
+
+	snprintf(log, sizeof(tmpstr), "%s (size=%d)", header, size);
+
+	for (i = 0; i < size; i++) {
+		snprintf(tmpstr, sizeof(tmpstr), " %02x", data[i]);
+		strlcat(log, tmpstr, sizeof(log));
+	}
+
+	dbg_hid("hid-logitech-dj:%s\n", log);
+}
+
 static int logi_dj_output_hidraw_report(struct hid_device *hid, u8 * buf,
 					size_t count,
 					unsigned char report_type);
@@ -358,13 +365,14 @@ static void logi_dj_recv_add_djhid_device(struct dj_receiver_dev *djrcv_dev,
 	dj_hiddev->hid_output_raw_report = logi_dj_output_hidraw_report;
 
 	dj_hiddev->dev.parent = &djrcv_hdev->dev;
-	dj_hiddev->bus = BUS_USB;
+	dj_hiddev->bus = BUS_DJ;
 	dj_hiddev->vendor = le16_to_cpu(usbdev->descriptor.idVendor);
-	dj_hiddev->product = le16_to_cpu(usbdev->descriptor.idProduct);
+	dj_hiddev->product =
+		dj_report->report_params[DEVICE_PAIRED_PARAM_EQUAD_ID_MSB] << 8
+		| dj_report->report_params[DEVICE_PAIRED_PARAM_EQUAD_ID_LSB];
 	snprintf(dj_hiddev->name, sizeof(dj_hiddev->name),
-		"Logitech Unifying Device. Wireless PID:%02x%02x",
-		dj_report->report_params[DEVICE_PAIRED_PARAM_EQUAD_ID_MSB],
-		dj_report->report_params[DEVICE_PAIRED_PARAM_EQUAD_ID_LSB]);
+		"Logitech Unifying Device. Wireless PID:%04x",
+		dj_hiddev->product);
 
 	usb_make_path(usbdev, dj_hiddev->phys, sizeof(dj_hiddev->phys));
 	snprintf(tmpstr, sizeof(tmpstr), ":%d", dj_report->device_index);
@@ -399,6 +407,7 @@ static void delayedwork_callback(struct work_struct *work)
 		container_of(work, struct dj_receiver_dev, work);
 	struct hid_device *djrcv_hdev = djrcv_dev->hdev;
 
+	struct hidpp_device *hidpp_dev;
 	struct dj_device *djdev;
 	struct dj_report dj_report;
 	unsigned long flags;
@@ -458,6 +467,12 @@ static void delayedwork_callback(struct work_struct *work)
 				djdev->hid_device_started = 1;
 			}
 		}
+		hidpp_dev = hid_get_drvdata(djdev->hdev);
+		if (!hidpp_dev)	{
+			dbg_hid("%s: hidpp_dev is NULL\n", __func__);
+			return;
+		}
+		hidpp_connect_change(hidpp_dev, connected);
 	default:
 	/* A normal report (i. e. not belonging to a pair/unpair notification)
 	 * arriving here, means that the report arrived but we did not have a
@@ -538,6 +553,7 @@ static void logi_dj_recv_forward_report(struct dj_receiver_dev *djrcv_dev,
 {
 	/* We are called from atomic context (tasklet && djrcv->lock held) */
 	struct dj_device *dj_device;
+	int error;
 
 	dj_device = djrcv_dev->paired_dj_devices[dj_report->device_index];
 
@@ -559,13 +575,40 @@ static void logi_dj_recv_forward_report(struct dj_receiver_dev *djrcv_dev,
 		return;
 	}
 
-	if (hid_input_report(dj_device->hdev,
-			HID_INPUT_REPORT, &dj_report->report_type,
-			hid_reportid_size_map[dj_report->report_type], 1)) {
-		dbg_hid("hid_input_report error\n");
-	}
+	error = hid_input_report(dj_device->hdev,
+				HID_INPUT_REPORT, &dj_report->report_type,
+				hid_reportid_size_map[dj_report->report_type], 1);
+
+	if (error)
+		dbg_hid("%s:hid_input_report returned error:%d", __func__, error);
 }
 
+static void logi_dj_recv_forward_raw_report(struct dj_receiver_dev *djrcv_dev,
+			struct dj_report *dj_report,
+			struct hid_report *report, u8 *data, int size)
+{
+	/* We are called from atomic context (tasklet && djrcv->lock held) */
+
+	struct dj_device *dj_dev = NULL;
+	int error;
+
+	if ((dj_report->device_index < DJ_DEVICE_INDEX_MIN) ||
+	    (dj_report->device_index > DJ_DEVICE_INDEX_MAX))
+		return;
+
+	dj_dev = djrcv_dev->paired_dj_devices[dj_report->device_index];
+
+	if (!dj_dev) {
+		dbg_hid("%s:warning, dropping report to device index:%d\n",
+			__func__, dj_report->device_index);
+		return;
+	}
+
+	error = hid_input_report(dj_dev->hdev, HID_INPUT_REPORT, data, size, 1);
+
+	if (error)
+		dbg_hid("%s:hid_input_report returned error:%d", __func__, error);
+}
 
 static int logi_dj_recv_send_report(struct dj_receiver_dev *djrcv_dev,
 				    struct dj_report *dj_report)
@@ -657,8 +700,31 @@ static int logi_dj_output_hidraw_report(struct hid_device *hid, u8 * buf,
 					size_t count,
 					unsigned char report_type)
 {
+	struct dj_device *djdev = hid->driver_data;
+	struct dj_receiver_dev *djrcv_dev = djdev->dj_receiver_dev;
+	struct hid_report* report;
+	struct hid_report_enum *output_report_enum;
+	int i;
+
 	/* Called by hid raw to send data */
 	dbg_hid("%s\n", __func__);
+
+	switch (buf[0]) {
+	case REPORT_ID_HIDPP_SHORT:
+	case REPORT_ID_HIDPP_LONG:
+		break;
+	default:
+		return -1;
+	}
+
+	output_report_enum = &djrcv_dev->hdev->report_enum[HID_OUTPUT_REPORT];
+	report = output_report_enum->report_id_hash[buf[0]];
+	hid_set_field(report->field[0], 0, djdev->device_index);
+
+	for (i = 2; i < HIDPP_REPORT_LONG_LENGTH - 1; i++)
+		hid_set_field(report->field[0], i-1, buf[i]);
+
+	hid_hw_request(djrcv_dev->hdev, report, HID_REQ_SET_REPORT);
 
 	return 0;
 }
@@ -675,6 +741,7 @@ static int logi_dj_ll_parse(struct hid_device *hid)
 	unsigned int rsize = 0;
 	char *rdesc;
 	int retval;
+	struct hid_report *report;
 
 	dbg_hid("%s\n", __func__);
 
@@ -719,6 +786,13 @@ static int logi_dj_ll_parse(struct hid_device *hid)
 		dbg_hid("%s: need to send kbd leds report descriptor: %x\n",
 			__func__, djdev->reports_supported);
 	}
+
+	report = hid_register_report(hid, HID_INPUT_REPORT,
+		REPORT_ID_HIDPP_SHORT);
+	report->size = HIDPP_REPORT_SHORT_LENGTH;
+	report = hid_register_report(hid, HID_INPUT_REPORT,
+		REPORT_ID_HIDPP_LONG);
+	report->size = HIDPP_REPORT_LONG_LENGTH;
 
 	retval = hid_parse_report(hid, rdesc, rsize);
 	kfree(rdesc);
@@ -809,9 +883,9 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 	unsigned long flags;
 	bool report_processed = false;
 
-	dbg_hid("%s, size:%d\n", __func__, size);
+	logi_dj_print_raw_event("logi_dj_raw_event", data, size);
 
-	/* Here we receive all data coming from iface 2, there are 4 cases:
+	/* Here we receive all data coming from iface 2, there are 5 cases:
 	 *
 	 * 1) Data should continue its normal processing i.e. data does not
 	 * come from the DJ collection, in which case we do nothing and
@@ -833,6 +907,12 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 	 * a paired DJ device in which case we forward it to the correct hid
 	 * device (via hid_input_report() ) and return 1 so hid-core does not do
 	 * anything else with it.
+	 *
+	 * 5) Data is from HIDPP collection, in this case, we forward the data
+	 * to the corresponding child hid device and return 0 to hid-core so
+	 * the data also goes to the hidraw device of the receiver. This allows
+	 * a user space application to implement the full hidpp20 routing via
+	 * the receiver.
 	 */
 
 	spin_lock_irqsave(&djrcv_dev->lock, flags);
@@ -853,6 +933,13 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 			logi_dj_recv_forward_report(djrcv_dev, dj_report);
 		}
 		report_processed = true;
+	} else {
+		if (dj_report->report_id == REPORT_ID_HIDPP_SHORT ||
+		    dj_report->report_id == REPORT_ID_HIDPP_LONG) {
+			logi_dj_recv_forward_raw_report(djrcv_dev, dj_report,
+							report, data, size);
+			report_processed = false;
+		}
 	}
 	spin_unlock_irqrestore(&djrcv_dev->lock, flags);
 
@@ -865,9 +952,6 @@ static int logi_dj_probe(struct hid_device *hdev,
 	struct usb_interface *intf = to_usb_interface(hdev->dev.parent);
 	struct dj_receiver_dev *djrcv_dev;
 	int retval;
-
-	if (is_dj_device((struct dj_device *)hdev->driver_data))
-		return -ENODEV;
 
 	dbg_hid("%s called for ifnum %d\n", __func__,
 		intf->cur_altsetting->desc.bInterfaceNumber);
@@ -1021,14 +1105,18 @@ static void logi_dj_remove(struct hid_device *hdev)
 	hid_set_drvdata(hdev, NULL);
 }
 
+static const u16 dj_have_special_driver[] = {
+};
+
 static int logi_djdevice_probe(struct hid_device *hdev,
 			 const struct hid_device_id *id)
 {
-	int ret;
-	struct dj_device *dj_dev = hdev->driver_data;
+	int ret, i;
 
-	if (!is_dj_device(dj_dev))
-		return -ENODEV;
+	for (i = 0; i < ARRAY_SIZE(dj_have_special_driver) ; i++) {
+		if (dj_have_special_driver[i] == hdev->product)
+			return -ENODEV;
+	}
 
 	ret = hid_parse(hdev);
 	if (!ret)
@@ -1058,12 +1146,8 @@ static struct hid_driver logi_djreceiver_driver = {
 #endif
 };
 
-
 static const struct hid_device_id logi_dj_devices[] = {
-	{HID_USB_DEVICE(USB_VENDOR_ID_LOGITECH,
-		USB_DEVICE_ID_LOGITECH_UNIFYING_RECEIVER)},
-	{HID_USB_DEVICE(USB_VENDOR_ID_LOGITECH,
-		USB_DEVICE_ID_LOGITECH_UNIFYING_RECEIVER_2)},
+	{HID_DEVICE(BUS_DJ, HID_GROUP_GENERIC, USB_VENDOR_ID_LOGITECH, HID_ANY_ID)},
 	{}
 };
 
