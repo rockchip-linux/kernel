@@ -727,9 +727,9 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 		return 0;
 	if (hdr->max_hw_sectors != cache->hdr.max_hw_sectors)
 		return 0;
-	if (strncmp(hdr->date, __DATE__, sizeof(hdr->date)) != 0)
+	if (strncmp(hdr->date, __DATE__, strlen(__DATE__) + 1) != 0)
 		return 0;
-	if (strncmp(hdr->time, __TIME__, sizeof(hdr->time)) != 0)
+	if (strncmp(hdr->time, __TIME__, strlen(__TIME__) + 1) != 0)
 		return 0;
 	if (strncmp(hdr->signature, cache->hdr.signature,
 			sizeof(hdr->signature)) != 0)
