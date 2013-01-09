@@ -1745,10 +1745,18 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	void *start, *p, *next;
 	int idx;
 	bool shuffle;
+	bool enableirqs = false;
 
 	flags &= gfp_allowed_mask;
 
 	if (gfpflags_allow_blocking(flags))
+		enableirqs = true;
+
+#ifdef CONFIG_PREEMPT_RT
+	if (system_state > SYSTEM_BOOTING && system_state < SYSTEM_SUSPEND)
+		enableirqs = true;
+#endif
+	if (enableirqs)
 		local_irq_enable();
 
 	flags |= s->allocflags;
@@ -1807,7 +1815,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	page->frozen = 1;
 
 out:
-	if (gfpflags_allow_blocking(flags))
+	if (enableirqs)
 		local_irq_disable();
 	if (!page)
 		return NULL;
@@ -2865,6 +2873,10 @@ static __always_inline void *slab_alloc_node(struct kmem_cache *s,
 	unsigned long tid;
 	struct obj_cgroup *objcg = NULL;
 
+	if (IS_ENABLED(CONFIG_PREEMPT_RT) && IS_ENABLED(CONFIG_DEBUG_ATOMIC_SLEEP))
+		WARN_ON_ONCE(!preemptible() &&
+			     (system_state > SYSTEM_BOOTING && system_state < SYSTEM_SUSPEND));
+
 	s = slab_pre_alloc_hook(s, &objcg, 1, gfpflags);
 	if (!s)
 		return NULL;
@@ -3330,6 +3342,10 @@ int kmem_cache_alloc_bulk(struct kmem_cache *s, gfp_t flags, size_t size,
 	LIST_HEAD(to_free);
 	int i;
 	struct obj_cgroup *objcg = NULL;
+
+	if (IS_ENABLED(CONFIG_PREEMPT_RT) && IS_ENABLED(CONFIG_DEBUG_ATOMIC_SLEEP))
+		WARN_ON_ONCE(!preemptible() &&
+			     (system_state > SYSTEM_BOOTING && system_state < SYSTEM_SUSPEND));
 
 	/* memcg and kmem_cache debug support */
 	s = slab_pre_alloc_hook(s, &objcg, size, flags);
