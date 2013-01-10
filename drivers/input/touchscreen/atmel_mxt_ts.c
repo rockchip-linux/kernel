@@ -388,6 +388,7 @@ static int mxt_calc_resolution(struct mxt_data *data);
 static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
+static int get_touch_major_pixels(struct mxt_data *data, int touch_channels);
 
 static inline size_t mxt_obj_size(const struct mxt_object *obj)
 {
@@ -491,6 +492,8 @@ static void mxt_release_all_fingers(struct mxt_data *data)
 	struct device *dev = &data->client->dev;
 	struct input_dev *input_dev = data->input_dev;
 	int id;
+	int max_area_channels = min(255U, data->max_area_channels);
+	int max_touch_major = get_touch_major_pixels(data, max_area_channels);
 	bool need_update = false;
 	for (id = 0; id < MXT_MAX_FINGER; id++) {
 		if (data->current_id[id]) {
@@ -501,7 +504,8 @@ static void mxt_release_all_fingers(struct mxt_data *data)
 			input_report_abs(input_dev, ABS_MT_POSITION_X, 0);
 			input_report_abs(input_dev, ABS_MT_POSITION_Y, 0);
 			input_report_abs(input_dev, ABS_MT_PRESSURE, 255);
-			input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, 255);
+			input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR,
+					 max_touch_major);
 			need_update = true;
 		}
 	}
