@@ -18,10 +18,12 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/firmware.h>
+#include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
 #include <linux/i2c/atmel_mxt_ts.h>
 #include <linux/input/mt.h>
 #include <linux/interrupt.h>
+#include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
@@ -267,6 +269,8 @@
 
 #define MXT_FWRESET_TIME	500	/* msec */
 
+#define MXT_POWERON_DELAY	250	/* msec */
+
 /* Default value for acquisition interval when in suspend mode*/
 #define MXT_SUSPEND_ACQINT_VALUE 32      /* msec */
 
@@ -372,6 +376,8 @@ struct mxt_object {
 /* Each client has this additional data */
 struct mxt_data {
 	struct i2c_client *client;
+	struct regulator *vdd;
+	struct regulator *avdd;
 	struct input_dev *input_dev;
 	char phys[64];		/* device physical location */
 	const struct mxt_platform_data *pdata;
@@ -379,7 +385,10 @@ struct mxt_data {
 	struct mxt_info info;
 	bool is_tp;
 
+	struct gpio_desc *reset_gpio;
+
 	unsigned int irq;
+
 	unsigned int max_x;
 	unsigned int max_y;
 
@@ -3524,6 +3533,46 @@ err_free_device:
 	return error;
 }
 
+static int mxt_power_on(struct mxt_data *data)
+{
+	int error;
+
+	/*
+	 * If we do not have reset gpio assume platform firmware
+	 * controls regulators and does power them on for us.
+	 */
+	if (IS_ERR_OR_NULL(data->reset_gpio))
+		return 0;
+
+	gpiod_set_value_cansleep(data->reset_gpio, 1);
+
+	error = regulator_enable(data->vdd);
+	if (error) {
+		dev_err(&data->client->dev,
+			"failed to enable vdd regulator: %d\n",
+			error);
+		goto release_reset_gpio;
+	}
+
+	error = regulator_enable(data->avdd);
+	if (error) {
+		dev_err(&data->client->dev,
+			"failed to enable avdd regulator: %d\n",
+			error);
+		regulator_disable(data->vdd);
+		goto release_reset_gpio;
+	}
+
+release_reset_gpio:
+	gpiod_set_value_cansleep(data->reset_gpio, 0);
+	if (error)
+		return error;
+
+	msleep(MXT_POWERON_DELAY);
+
+	return 0;
+}
+
 static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 {
 	struct mxt_data *data = closure;
@@ -3531,12 +3580,16 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 	unsigned long irqflags;
 	int error;
 
+	error = mxt_power_on(data);
+	if (error)
+		return;
+
 	if (mxt_in_bootloader(data)) {
 		dev_info(&client->dev, "device in bootloader at probe\n");
 	} else {
 		error = mxt_initialize(data);
 		if (error)
-			goto error_free_mem;
+			return;
 
 		error = mxt_input_dev_create(data);
 		if (error)
@@ -3559,7 +3612,7 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 	if (error) {
 		dev_err(&client->dev, "Failed to register interrupt\n");
 		if (mxt_in_bootloader(data))
-			goto error_free_mem;
+			return;
 		else
 			goto error_unregister_device;
 	}
@@ -3590,12 +3643,10 @@ error_free_irq:
 	free_irq(client->irq, data);
 error_unregister_device:
 	input_unregister_device(data->input_dev);
+	data->input_dev = NULL;
 error_free_object:
 	kfree(data->object_table);
-error_free_mem:
-	kfree(data->fw_file);
-	kfree(data->config_file);
-	kfree(data);
+	data->object_table = NULL;
 }
 
 static int mxt_probe(struct i2c_client *client,
@@ -3606,15 +3657,63 @@ static int mxt_probe(struct i2c_client *client,
 	int error;
 	union i2c_smbus_data dummy;
 
-	/* Make sure there is something at this address */
-	if (i2c_smbus_xfer(client->adapter, client->addr,
-			 0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0)
-		return -ENODEV;
-
-	data = kzalloc(sizeof(struct mxt_data), GFP_KERNEL);
+	data = devm_kzalloc(&client->dev, sizeof(struct mxt_data), GFP_KERNEL);
 	if (!data) {
 		dev_err(&client->dev, "Failed to allocate memory\n");
 		return -ENOMEM;
+	}
+
+	data->vdd = devm_regulator_get(&client->dev, "vdd");
+	if (IS_ERR(data->vdd)) {
+		error = PTR_ERR(data->vdd);
+		if (error != -EPROBE_DEFER)
+			dev_err(&client->dev,
+				"Failed to get 'vdd' regulator: %d\n",
+				error);
+		return error;
+	}
+
+	data->avdd = devm_regulator_get(&client->dev, "avdd");
+	if (IS_ERR(data->avdd)) {
+		error = PTR_ERR(data->avdd);
+		if (error != -EPROBE_DEFER)
+			dev_err(&client->dev,
+				"Failed to get 'avdd' regulator: %d\n",
+				error);
+		return error;
+	}
+
+	data->reset_gpio = devm_gpiod_get(&client->dev, "atmel,reset");
+	if (IS_ERR(data->reset_gpio)) {
+		error = PTR_ERR(data->reset_gpio);
+
+		if (error == -EPROBE_DEFER)
+			return error;
+
+		if (error != -ENOENT && error != -ENOSYS) {
+			dev_err(&client->dev,
+				"failed to get reset gpio: %d\n",
+				error);
+			return error;
+		}
+
+		/*
+		 * If we are not using reset gpio (and thus no regulators)
+		 * the device should already be powered up. Let's see if it
+		 * responds.
+		 */
+		if (i2c_smbus_xfer(client->adapter, client->addr,
+				   0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE,
+				   &dummy) < 0)
+			return -ENODEV;
+	} else {
+		error = gpiod_direction_output(data->reset_gpio, 0);
+		if (error) {
+			dev_err(&client->dev,
+				"failed to configure reset gpio as output: %d\n",
+				error);
+			return error;
+		}
 	}
 
 	if (id)
@@ -3651,7 +3750,7 @@ static int mxt_probe(struct i2c_client *client,
 	error = mxt_update_file_name(&client->dev, &data->fw_file, MXT_FW_NAME,
 				     strlen(MXT_FW_NAME));
 	if (error)
-		goto err_free_mem;
+		return error;
 
 	error = mxt_update_file_name(&client->dev, &data->config_file,
 				     MXT_CONFIG_NAME, strlen(MXT_CONFIG_NAME));
@@ -3666,8 +3765,6 @@ static int mxt_probe(struct i2c_client *client,
 
 err_free_fw_file:
 	kfree(data->fw_file);
-err_free_mem:
-	kfree(data);
 	return error;
 }
 
@@ -3685,7 +3782,6 @@ static int mxt_remove(struct i2c_client *client)
 	kfree(data->object_table);
 	kfree(data->fw_file);
 	kfree(data->config_file);
-	kfree(data);
 
 	return 0;
 }
