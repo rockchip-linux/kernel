@@ -442,7 +442,7 @@ static void handle_nested_acpi_package(union acpi_object *po, char *pm,
 
 		case ACPI_TYPE_STRING:
 			copy_size = min(element->string.length,
-					sizeof(attr_value) - 1);
+					(u32)(sizeof(attr_value)) - 1);
 			memcpy(attr_value, element->string.pointer, copy_size);
 			attr_value[copy_size] = '\0';
 			paa = create_sysfs_attribute(attr_value, pm, count, i);
@@ -621,7 +621,7 @@ static void handle_acpi_package(union acpi_object *po, char *pm)
 
 		case ACPI_TYPE_STRING:
 			copy_size = min(element->string.length,
-					sizeof(attr_value) - 1);
+					(u32)(sizeof(attr_value)) - 1);
 			memcpy(attr_value, element->string.pointer, copy_size);
 			attr_value[copy_size] = '\0';
 			add_sysfs_attribute(attr_value, pm, count, j);
