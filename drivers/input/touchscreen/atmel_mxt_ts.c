@@ -363,6 +363,13 @@ struct mxt_data {
 	bool T9_ctrl_valid;
 
 	bool irq_wake;  /* irq wake is enabled */
+	/* Saved T42 Touch Suppression field */
+	u8 T42_ctrl;
+	bool T42_ctrl_valid;
+
+	/* Saved T19 GPIO config */
+	u8 T19_ctrl;
+	bool T19_ctrl_valid;
 
 	/* Protect access to the object register buffer */
 	struct mutex object_str_mutex;
@@ -2930,6 +2937,44 @@ static int mxt_suspend(struct device *dev)
 		dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
 	data->T9_ctrl_valid = (ret == 0);
 
+	/*
+	 *  For tpads, save T42 and T19 ctrl registers if may wakeup,
+	 *  enable large object suppression, and disable button wake.
+	 *  This will prevent a lid close from acting as a wake source.
+	 */
+	if (data->is_tp && device_may_wakeup(dev)) {
+		u8 T42_sleep = 0x01;
+		u8 T19_sleep = 0x00;
+
+		ret = mxt_save_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
+				    &data->T42_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T42 ctrl config failed, %d\n", ret);
+		data->T42_ctrl_valid = (ret == 0);
+
+		ret = mxt_save_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
+				    &data->T19_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T19 ctrl config failed, %d\n", ret);
+		data->T19_ctrl_valid = (ret == 0);
+
+
+		/* Enable Large Object Suppression */
+		ret = mxt_set_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
+				   &T42_sleep, 1);
+		if (ret)
+			dev_err(dev, "Set T42 ctrl failed, %d\n", ret);
+
+		/* Disable Touchpad Button via GPIO */
+		ret = mxt_set_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
+				   &T19_sleep, 1);
+		if (ret)
+			dev_err(dev, "Set T19 ctrl failed, %d\n", ret);
+
+	} else {
+		data->T42_ctrl_valid = data->T19_ctrl_valid = false;
+	}
+
 	if (device_may_wakeup(dev)) {
 		/*
 		 * If we allow wakeup from touch, we have to enable T9 so
@@ -2986,6 +3031,22 @@ static int mxt_resume(struct device *dev)
 				   data->T7_config, 3);
 		if (ret)
 			dev_err(dev, "Set T7 power config failed, %d\n", ret);
+	}
+
+	/* Restore the T42 ctrl to before-suspend value */
+	if (data->T42_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
+				   &data->T42_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T42 ctrl failed, %d\n", ret);
+	}
+
+	/* Restore the T19 ctrl to before-suspend value */
+	if (data->T19_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
+				   &data->T19_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T19 ctrl failed, %d\n", ret);
 	}
 
 	if (!device_may_wakeup(dev)) {
