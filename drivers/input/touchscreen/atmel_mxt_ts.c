@@ -2821,6 +2821,8 @@ static int mxt_probe(struct i2c_client *client,
 	if (error)
 		goto err_free_fw_file;
 
+	device_set_wakeup_enable(&client->dev, false);
+
 	async_schedule(mxt_initialize_async, data);
 
 	return 0;
