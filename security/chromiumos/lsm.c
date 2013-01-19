@@ -84,6 +84,7 @@ static void report_load_module(struct path *path, char *operation)
 
 static int module_locking = 1;
 static struct dentry *locked_root;
+static DEFINE_SPINLOCK(locked_root_spinlock);
 
 #ifdef CONFIG_SYSCTL
 static int zero;
@@ -171,10 +172,20 @@ static int chromiumos_security_load_module(struct file *file)
 	module_root = file->f_path.mnt->mnt_root;
 
 	/* First loaded module defines the root for all others. */
+	spin_lock(&locked_root_spinlock);
 	if (!locked_root) {
 		locked_root = dget(module_root);
+		/*
+		 * Unlock now since it's only locked_root we care about.
+		 * In the worst case, we will (correctly) report locking
+		 * failures before we have announced that locking is
+		 * enabled. This would be purely cosmetic.
+		 */
+		spin_unlock(&locked_root_spinlock);
 		report_load_module(&file->f_path, "locked");
 		check_locking_enforcement();
+	} else {
+		spin_unlock(&locked_root_spinlock);
 	}
 
 	if (module_root != locked_root) {
