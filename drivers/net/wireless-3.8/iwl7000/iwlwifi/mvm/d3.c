@@ -889,15 +889,6 @@ static void iwl_mvm_report_wakeup_reasons(struct iwl_mvm *mvm,
 	if (reasons & IWL_WOWLAN_WAKEUP_BY_FOUR_WAY_HANDSHAKE)
 		wakeup.four_way_handshake = true;
 
-	if (reasons & IWL_WOWLAN_WAKEUP_BY_REM_WAKE_LINK_LOSS)
-		wakeup.tcp_connlost = true;
-
-	if (reasons & IWL_WOWLAN_WAKEUP_BY_REM_WAKE_SIGNATURE_TABLE)
-		wakeup.tcp_nomoretokens = true;
-
-	if (reasons & IWL_WOWLAN_WAKEUP_BY_REM_WAKE_WAKEUP_PACKET)
-		wakeup.tcp_match = true;
-
 	if (status->wake_packet_bufsize) {
 		int pktsize = status->wake_packet_bufsize;
 		int pktlen = status->wake_packet_length;

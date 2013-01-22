@@ -24,16 +24,6 @@ cfg80211_ch_switch_started_notify(struct net_device *dev,
 #define CFG80211_VERSION KERNEL_VERSION(3,8,0)
 
 #if CFG80211_VERSION < KERNEL_VERSION(3,9,0)
-struct cfg80211_wowlan_wakeup {
-	bool disconnect, magic_pkt, gtk_rekey_failure,
-	     eap_identity_req, four_way_handshake,
-	     rfkill_release, packet_80211,
-	     tcp_match, tcp_connlost, tcp_nomoretokens;
-	s32 pattern_idx;
-	u32 packet_present_len, packet_len;
-	const void *packet;
-};
-
 struct wiphy_wowlan_tcp_support {
 	const struct nl80211_wowlan_tcp_data_token_feature *tok;
 	u32 data_payload_max;
@@ -58,11 +48,6 @@ struct cfg80211_wowlan_tcp {
 	struct nl80211_wowlan_tcp_data_token payload_tok;
 };
 
-static inline void
-cfg80211_report_wowlan_wakeup(struct wireless_dev *wdev,
-			      struct cfg80211_wowlan_wakeup *wakeup, gfp_t gfp)
-{
-}
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,9,0) */
 
 #if CFG80211_VERSION < KERNEL_VERSION(3,10,0)
