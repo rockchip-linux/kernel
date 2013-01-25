@@ -361,7 +361,7 @@ static void __call_usermodehelper(struct work_struct *work)
  * land has been frozen during a system-wide hibernation or suspend operation).
  * Should always be manipulated under umhelper_sem acquired for write.
  */
-static enum umh_disable_depth usermodehelper_disabled = UMH_DISABLED;
+static int usermodehelper_disabled = 1;
 
 /* Number of helpers running */
 static atomic_t running_helpers = ATOMIC_INIT(0);
@@ -386,30 +386,13 @@ static DECLARE_WAIT_QUEUE_HEAD(usermodehelper_disabled_waitq);
 
 int usermodehelper_read_trylock(void)
 {
-	DEFINE_WAIT(wait);
 	int ret = 0;
 
 	down_read(&umhelper_sem);
-	for (;;) {
-		prepare_to_wait(&usermodehelper_disabled_waitq, &wait,
-				TASK_INTERRUPTIBLE);
-		if (!usermodehelper_disabled)
-			break;
-
-		if (usermodehelper_disabled == UMH_DISABLED)
-			ret = -EAGAIN;
-
+	if (usermodehelper_disabled) {
 		up_read(&umhelper_sem);
-
-		if (ret)
-			break;
-
-		schedule();
-		try_to_freeze();
-
-		down_read(&umhelper_sem);
+		ret = -EAGAIN;
 	}
-	finish_wait(&usermodehelper_disabled_waitq, &wait);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(usermodehelper_read_trylock);
@@ -448,35 +431,25 @@ void usermodehelper_read_unlock(void)
 EXPORT_SYMBOL_GPL(usermodehelper_read_unlock);
 
 /**
- * __usermodehelper_set_disable_depth - Modify usermodehelper_disabled.
- * @depth: New value to assign to usermodehelper_disabled.
- *
- * Change the value of usermodehelper_disabled (under umhelper_sem locked for
- * writing) and wakeup tasks waiting for it to change.
+ * usermodehelper_enable - allow new helpers to be started again
  */
-void __usermodehelper_set_disable_depth(enum umh_disable_depth depth)
+void usermodehelper_enable(void)
 {
 	down_write(&umhelper_sem);
-	usermodehelper_disabled = depth;
+	usermodehelper_disabled = 0;
 	wake_up(&usermodehelper_disabled_waitq);
 	up_write(&umhelper_sem);
 }
 
 /**
- * __usermodehelper_disable - Prevent new helpers from being started.
- * @depth: New value to assign to usermodehelper_disabled.
- *
- * Set usermodehelper_disabled to @depth and wait for running helpers to exit.
+ * usermodehelper_disable - prevent new helpers from being started
  */
-int __usermodehelper_disable(enum umh_disable_depth depth)
+int usermodehelper_disable(void)
 {
 	long retval;
 
-	if (!depth)
-		return -EINVAL;
-
 	down_write(&umhelper_sem);
-	usermodehelper_disabled = depth;
+	usermodehelper_disabled = 1;
 	up_write(&umhelper_sem);
 
 	/*
@@ -491,7 +464,7 @@ int __usermodehelper_disable(enum umh_disable_depth depth)
 	if (retval)
 		return 0;
 
-	__usermodehelper_set_disable_depth(UMH_ENABLED);
+	usermodehelper_enable();
 	return -EAGAIN;
 }
 
