@@ -142,6 +142,7 @@
 			      CAPABILITY_MIDDLE_BTN_MASK)
 
 #define CYAPA_OFFSET_SOFT_RESET  REG_OFFSET_COMMAND_BASE
+#define OP_RECALIBRATION_MASK    0x80
 #define OP_REPORT_BASELINE_MASK  0x40
 #define REG_OFFSET_MAX_BASELINE  0x0026
 #define REG_OFFSET_MIN_BASELINE  0x0027
@@ -1795,6 +1796,66 @@ static ssize_t cyapa_update_fw_store(struct device *dev,
 	return ret ? ret : count;
 }
 
+static ssize_t cyapa_calibrate_store(struct device *dev,
+				     struct device_attribute *attr,
+				     const char *buf, size_t count)
+{
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+	int tries = 20;  /* max recalibration timeout 2s. */
+	int ret;
+
+	disable_irq(cyapa->irq);
+
+	ret = cyapa_read_byte(cyapa, CYAPA_CMD_DEV_STATUS);
+	if (ret < 0) {
+		dev_err(dev, "Error reading dev status. err = %d\n", ret);
+		goto out;
+	}
+	if ((ret & CYAPA_DEV_NORMAL) != CYAPA_DEV_NORMAL) {
+		dev_warn(dev, "Trackpad device is busy. device state = 0x%x\n",
+			 ret);
+		ret = -EAGAIN;
+		goto out;
+	}
+
+	ret = cyapa_write_byte(cyapa, CYAPA_CMD_SOFT_RESET,
+			       OP_RECALIBRATION_MASK);
+	if (ret < 0) {
+		dev_err(dev, "Failed to send calibrate command. ret = %d\n",
+			ret);
+		goto out;
+	}
+
+	do {
+		/*
+		 * For this recalibration, the max time will not exceed 2s.
+		 * The average time is approximately 500 - 700 ms, and we
+		 * will check the status every 100 - 200ms.
+		 */
+		usleep_range(100000, 200000);
+
+		ret = cyapa_read_byte(cyapa, CYAPA_CMD_DEV_STATUS);
+		if (ret < 0) {
+			dev_err(dev, "Error reading dev status. err = %d\n",
+				ret);
+			goto out;
+		}
+		if ((ret & CYAPA_DEV_NORMAL) == CYAPA_DEV_NORMAL)
+			break;
+	} while (--tries);
+
+	if (tries == 0) {
+		dev_err(dev, "Failed to calibrate. Timeout.\n");
+		ret = -ETIMEDOUT;
+		goto out;
+	}
+	dev_dbg(dev, "Calibration successful.\n");
+
+out:
+	enable_irq(cyapa->irq);
+	return ret < 0 ? ret : count;
+}
+
 static ssize_t cyapa_show_baseline(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
@@ -1871,12 +1932,14 @@ static DEVICE_ATTR(firmware_version, S_IRUGO, cyapa_show_fm_ver, NULL);
 static DEVICE_ATTR(product_id, S_IRUGO, cyapa_show_product_id, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, cyapa_update_fw_store);
 static DEVICE_ATTR(baseline, S_IRUGO, cyapa_show_baseline, NULL);
+static DEVICE_ATTR(calibrate, S_IWUSR, NULL, cyapa_calibrate_store);
 
 static struct attribute *cyapa_sysfs_entries[] = {
 	&dev_attr_firmware_version.attr,
 	&dev_attr_product_id.attr,
 	&dev_attr_update_fw.attr,
 	&dev_attr_baseline.attr,
+	&dev_attr_calibrate.attr,
 	NULL,
 };
 
