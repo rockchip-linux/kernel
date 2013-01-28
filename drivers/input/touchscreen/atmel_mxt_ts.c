@@ -2980,15 +2980,6 @@ static int mxt_suspend(struct device *dev)
 		dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
 	data->T9_ctrl_valid = (ret == 0);
 
-#if defined(CONFIG_ACPI_BUTTON)
-	ret = acpi_lid_open();
-	if (ret == 0) {
-		/* lid is closed. set T9_ctrl to operational on resume */
-		data->T9_ctrl = MXT_TOUCH_CTRL_OPERATIONAL;
-		data->T9_ctrl_valid = true;
-	}
-#endif
-
 	/*
 	 *  For tpads, save T42 and T19 ctrl registers if may wakeup,
 	 *  enable large object suppression, and disable button wake.
@@ -3068,6 +3059,19 @@ static int mxt_resume(struct device *dev)
 	mxt_release_all_fingers(data);
 
 	mutex_lock(&input_dev->mutex);
+
+#if defined(CONFIG_ACPI_BUTTON)
+	ret = acpi_lid_open();
+	if (ret == 0) {
+		/* lid is closed. set T9_ctrl to non operational resume */
+		data->T9_ctrl = MXT_TOUCH_CTRL_OFF;
+		data->T9_ctrl_valid = true;
+	} else if (ret == 1) {
+		/* lid is open. Set to operational */
+		data->T9_ctrl = MXT_TOUCH_CTRL_OPERATIONAL;
+		data->T9_ctrl_valid = true;
+	}
+#endif
 
 	/* Restore the T9 Ctrl config to before-suspend value */
 	if (data->T9_ctrl_valid) {
