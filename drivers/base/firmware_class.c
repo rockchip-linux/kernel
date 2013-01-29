@@ -1097,7 +1097,7 @@ _request_firmware(const struct firmware **firmware_p, const char *name,
 		}
 	} else {
 		ret = usermodehelper_read_trylock();
-		if (WARN_ON(ret)) {
+		if (ret) {
 			dev_err(device, "firmware: %s will not be loaded\n",
 				name);
 			goto out;
