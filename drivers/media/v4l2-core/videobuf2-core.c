@@ -625,19 +625,6 @@ static bool __buffer_in_use(struct vb2_queue *q, struct vb2_buffer *vb)
 	return false;
 }
 
-/**
- * __buffers_in_use() - return true if any buffers on the queue are in use and
- * the queue cannot be freed (by the means of REQBUFS(0)) call
- */
-static bool __buffers_in_use(struct vb2_queue *q)
-{
-	unsigned int buffer;
-	for (buffer = 0; buffer < q->num_buffers; ++buffer) {
-		if (__buffer_in_use(q, q->bufs[buffer]))
-			return true;
-	}
-	return false;
-}
 
 /**
  * __fill_v4l2_buffer() - fill in a struct v4l2_buffer with information to be
@@ -862,17 +849,6 @@ static int __reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req)
 	}
 
 	if (req->count == 0 || q->num_buffers != 0 || q->memory != req->memory) {
-		/*
-		 * We already have buffers allocated, so first check if they
-		 * are not in use and can be freed.
-		 */
-		mutex_lock(&q->mmap_lock);
-		if (q->memory == V4L2_MEMORY_MMAP && __buffers_in_use(q)) {
-			mutex_unlock(&q->mmap_lock);
-			dprintk(1, "memory in use, cannot free\n");
-			return -EBUSY;
-		}
-
 		/*
 		 * Call queue_cancel to clean up any buffers in the PREPARED or
 		 * QUEUED state which is possible if buffers were prepared or
