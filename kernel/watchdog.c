@@ -461,13 +461,9 @@ static void watchdog_nmi_disable(unsigned int cpu)
 {
 	struct perf_event *event = per_cpu(watchdog_ev, cpu);
 
-	if (event) {
+	if (event)
 		perf_event_disable(event);
-		per_cpu(watchdog_ev, cpu) = NULL;
 
-		/* should be in cleanup, but blocks oprofile */
-		perf_event_release_kernel(event);
-	}
 	return;
 }
 #else
