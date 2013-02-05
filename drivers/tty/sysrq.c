@@ -416,33 +416,18 @@ static void sysrq_x_cros_signal_process(char *comm, char *parent, int sig)
 
 	read_lock(&tasklist_lock);
 	for_each_process(p) {
-		if (p->flags & PF_KTHREAD)
+		if (p->flags & (PF_KTHREAD | PF_EXITING))
 			continue;
 		if (is_global_init(p))
 			continue;
+		if (strncmp(p->comm, comm, TASK_COMM_LEN))
+			continue;
+		if (parent && strncmp(p->parent->comm, parent, TASK_COMM_LEN))
+			continue;
 
-		if (!strncmp(p->comm, comm, TASK_COMM_LEN)) {
-			if (!parent) {
-				printk(KERN_INFO
-				       "%s: signal %d %s pid %u tgid %u\n",
-				       __func__, sig, comm, p->pid, p->tgid);
-				do_send_sig_info(sig, SEND_SIG_FORCED, p,
-						 true);
-				break;
-			} else if (p->parent &&
-				   !strncmp(p->parent->comm, parent,
-					  TASK_COMM_LEN)) {
-				printk(KERN_INFO
-				       "%s: signal %d %s with parent %s "
-				       "pid %u tgid %u\n",
-				       __func__, sig,
-				       comm, parent, p->parent->pid,
-				       p->parent->tgid);
-				do_send_sig_info(sig, SEND_SIG_FORCED, p,
-						 true);
-				break;
-			}
-		}
+		printk(KERN_INFO "%s: signal %d %s pid %u tgid %u\n",
+		       __func__, sig, comm, p->pid, p->tgid);
+		do_send_sig_info(sig, SEND_SIG_FORCED, p, true);
 	}
 	read_unlock(&tasklist_lock);
 }
