@@ -316,6 +316,11 @@ static int usb_dev_suspend(struct device *dev)
 
 static int usb_dev_resume(struct device *dev)
 {
+	if (dev_is_dark_resume(dev)) {
+		dev_info(dev, "disabled for dark resume\n");
+		return 0;
+	}
+
 	return usb_resume(dev, PMSG_RESUME);
 }
 
