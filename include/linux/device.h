@@ -841,6 +841,18 @@ static inline void dev_set_uevent_suppress(struct device *dev, int val)
 	dev->kobj.uevent_suppress = val;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static inline bool dev_is_dark_resume(struct device *dev)
+{
+	return dev->power.use_dark_resume && dpm_is_dark_resume();
+}
+#else
+static inline bool dev_is_dark_resume(struct device *dev)
+{
+	return false;
+}
+#endif
+
 static inline int device_is_registered(struct device *dev)
 {
 	return dev->kobj.state_in_sysfs;
