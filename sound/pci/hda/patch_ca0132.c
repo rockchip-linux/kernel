@@ -73,9 +73,11 @@
 #define SCP_SET    0
 #define SCP_GET    1
 
+#define SPEQ_FILE  "ctspeq.bin"
 #define EFX_FILE   "ctefx.bin"
 
 #ifdef CONFIG_SND_HDA_CODEC_CA0132_DSP
+MODULE_FIRMWARE(SPEQ_FILE);
 MODULE_FIRMWARE(EFX_FILE);
 #endif
 
@@ -2552,6 +2554,42 @@ exit:
 	return status;
 }
 
+/**
+ * Write the SpeakerEQ coefficient data to DSP memories
+ *
+ * @codec: the HDA codec
+ * @x,y:   location to write x and y coeff data to
+ *
+ * Returns zero or a negative error code.
+ */
+static int dspload_get_speakereq_addx(struct hda_codec *codec,
+				unsigned int *x,
+				unsigned int *y)
+{
+	int status = 0;
+	struct { unsigned short y, x; } speakereq_info;
+	unsigned int size = sizeof(speakereq_info);
+
+	snd_printdd(KERN_INFO "dspload_get_speakereq_addx() -- begin");
+	status = dspio_scp(codec, MASTERCONTROL,
+			MASTERCONTROL_QUERY_SPEAKER_EQ_ADDRESS,
+			SCP_GET, NULL, 0, &speakereq_info, &size);
+
+	if (status < 0) {
+		snd_printdd(KERN_INFO "dspload_get_speakereq_addx: SCP Failed");
+		return -EIO;
+	}
+
+	*x = speakereq_info.x;
+	*y = speakereq_info.y;
+	snd_printdd(KERN_INFO "dspload_get_speakereq_addx: X=0x%x Y=0x%x\n",
+		    *x, *y);
+
+	snd_printdd(KERN_INFO "dspload_get_speakereq_addx() -- complete");
+
+	return status;
+}
+
 /*
  * CA0132 DSP download stuffs.
  */
@@ -2634,6 +2672,35 @@ static int dspload_image(struct hda_codec *codec,
 
 		snd_printdd(KERN_INFO "LOAD FINISHED\n");
 	} while (0);
+
+	return status;
+}
+
+static int dspload_speakereq(struct hda_codec *codec)
+{
+	int status = 0;
+	const struct dsp_image_seg *image;
+	unsigned int x, y;
+	const struct firmware *fw_speq;
+
+	snd_printdd(KERN_INFO "dspload_speakereq() -- begin");
+
+	if (request_firmware(&fw_speq, SPEQ_FILE,
+			     codec->bus->card->dev) != 0)
+		return -EIO;
+
+	image = (struct dsp_image_seg *)(fw_speq->data);
+
+	status = dspload_get_speakereq_addx(codec, &x, &y);
+	if (status < 0)
+		goto done;
+
+	status = dspload_image(codec, image, 1, y, 0, 8);
+
+done:
+	release_firmware(fw_speq);
+
+	snd_printdd(KERN_INFO "dspload_speakereq() -- complete");
 
 	return status;
 }
@@ -4410,6 +4477,9 @@ static bool ca0132_download_dsp_images(struct hda_codec *codec)
 
 exit_download:
 	release_firmware(fw_entry);
+
+	if (dsp_loaded)
+		dspload_speakereq(codec);
 
 	return dsp_loaded;
 }
