@@ -2820,6 +2820,12 @@ static int mxt_probe(struct i2c_client *client,
 	const struct mxt_platform_data *pdata = dev_get_platdata(&client->dev);
 	struct mxt_data *data;
 	int error;
+	union i2c_smbus_data dummy;
+
+	/* Make sure there is something at this address */
+	if (client->dev.of_node && i2c_smbus_xfer(client->adapter, client->addr,
+			 0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0)
+		return -ENODEV;
 
 	data = kzalloc(sizeof(struct mxt_data), GFP_KERNEL);
 	if (!data) {
