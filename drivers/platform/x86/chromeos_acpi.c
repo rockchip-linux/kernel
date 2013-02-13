@@ -763,6 +763,7 @@ static struct chromeos_vbc chromeos_vbc_nvram = {
 static int __init chromeos_acpi_init(void)
 {
 	int ret = 0;
+	acpi_status status;
 
 	if (acpi_disabled)
 		return -ENODEV;
@@ -787,6 +788,12 @@ static int __init chromeos_acpi_init(void)
 	}
 	printk(MY_INFO "installed%s\n",
 	       chromeos_on_legacy_firmware() ? " (legacy mode)" : "");
+
+	printk(MY_INFO "chromeos_acpi: enabling S3 USB wake\n");
+	status = acpi_evaluate_object(NULL, "\\S3UE", NULL, NULL);
+	if (!ACPI_SUCCESS(status))
+		printk(MY_INFO "chromeos_acpi: failed to enable S3 USB wake\n");
+
 	return 0;
 }
 
