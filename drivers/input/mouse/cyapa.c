@@ -2061,12 +2061,18 @@ static int cyapa_probe(struct i2c_client *client,
 	u8 adapter_func;
 	struct cyapa *cyapa;
 	struct device *dev = &client->dev;
+	union i2c_smbus_data dummy;
 
 	adapter_func = cyapa_check_adapter_functionality(client);
 	if (adapter_func == CYAPA_ADAPTER_FUNC_NONE) {
 		dev_err(dev, "not a supported I2C/SMBus adapter\n");
 		return -EIO;
 	}
+
+	/* Make sure there is something at this address */
+	if (dev->of_node && i2c_smbus_xfer(client->adapter, client->addr, 0,
+			 I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0)
+		return -ENODEV;
 
 	cyapa = kzalloc(sizeof(struct cyapa), GFP_KERNEL);
 	if (!cyapa) {
