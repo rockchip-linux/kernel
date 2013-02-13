@@ -31,8 +31,14 @@ static inline pte_t get_fixmap_pte(unsigned long vaddr)
 	return *ptep;
 }
 
+static unsigned int fixmap_idx(int type)
+{
+	return FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+}
+
 void *kmap_atomic_high_prot(struct page *page, pgprot_t prot)
 {
+	pte_t pte = mk_pte(page, kmap_prot);
 	unsigned int idx;
 	unsigned long vaddr;
 	void *kmap;
@@ -53,7 +59,7 @@ void *kmap_atomic_high_prot(struct page *page, pgprot_t prot)
 
 	type = kmap_atomic_idx_push();
 
-	idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+	idx = fixmap_idx(type);
 	vaddr = __fix_to_virt(idx);
 #ifdef CONFIG_DEBUG_HIGHMEM
 	/*
@@ -62,12 +68,15 @@ void *kmap_atomic_high_prot(struct page *page, pgprot_t prot)
 	 */
 	BUG_ON(!pte_none(get_fixmap_pte(vaddr)));
 #endif
+#ifdef CONFIG_PREEMPT_RT
+	current->kmap_pte[type] = pte;
+#endif
 	/*
 	 * When debugging is off, kunmap_atomic leaves the previous mapping
 	 * in place, so the contained TLB flush ensures the TLB is updated
 	 * with the new mapping.
 	 */
-	set_fixmap_pte(idx, mk_pte(page, prot));
+	set_fixmap_pte(idx, pte);
 
 	return (void *)vaddr;
 }
@@ -80,10 +89,13 @@ void kunmap_atomic_high(void *kvaddr)
 
 	if (kvaddr >= (void *)FIXADDR_START) {
 		type = kmap_atomic_idx();
-		idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+		idx = fixmap_idx(type);
 
 		if (cache_is_vivt())
 			__cpuc_flush_dcache_area((void *)vaddr, PAGE_SIZE);
+#ifdef CONFIG_PREEMPT_RT
+		current->kmap_pte[type] = __pte(0);
+#endif
 #ifdef CONFIG_DEBUG_HIGHMEM
 		BUG_ON(vaddr != __fix_to_virt(idx));
 #else
@@ -100,22 +112,51 @@ EXPORT_SYMBOL(kunmap_atomic_high);
 
 void *kmap_atomic_pfn(unsigned long pfn)
 {
+	pte_t pte = pfn_pte(pfn, kmap_prot);
 	unsigned long vaddr;
 	int idx, type;
 	struct page *page = pfn_to_page(pfn);
 
-	preempt_disable();
+	migrate_disable();
 	pagefault_disable();
 	if (!PageHighMem(page))
 		return page_address(page);
 
 	type = kmap_atomic_idx_push();
-	idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+	idx = fixmap_idx(type);
 	vaddr = __fix_to_virt(idx);
 #ifdef CONFIG_DEBUG_HIGHMEM
 	BUG_ON(!pte_none(get_fixmap_pte(vaddr)));
 #endif
-	set_fixmap_pte(idx, pfn_pte(pfn, kmap_prot));
+#ifdef CONFIG_PREEMPT_RT
+	current->kmap_pte[type] = pte;
+#endif
+	set_fixmap_pte(idx, pte);
 
 	return (void *)vaddr;
 }
+
+#if defined CONFIG_PREEMPT_RT
+void switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p)
+{
+	int i;
+
+	/*
+	 * Clear @prev's kmap_atomic mappings
+	 */
+	for (i = 0; i < prev_p->kmap_idx; i++) {
+		int idx = fixmap_idx(i);
+
+		set_fixmap_pte(idx, __pte(0));
+	}
+	/*
+	 * Restore @next_p's kmap_atomic mappings
+	 */
+	for (i = 0; i < next_p->kmap_idx; i++) {
+		int idx = fixmap_idx(i);
+
+		if (!pte_none(next_p->kmap_pte[i]))
+			set_fixmap_pte(idx, next_p->kmap_pte[i]);
+	}
+}
+#endif
