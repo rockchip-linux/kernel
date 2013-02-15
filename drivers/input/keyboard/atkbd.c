@@ -520,6 +520,9 @@ static irqreturn_t atkbd_interrupt(struct serio *serio, unsigned char data,
 	}
 
 	atkbd->release = false;
+
+	if (device_may_wakeup(atkbd->dev->dev.parent))
+		pm_wakeup_event(atkbd->dev->dev.parent, 0);
 out:
 	return IRQ_HANDLED;
 }
@@ -1205,6 +1208,9 @@ static int atkbd_connect(struct serio *serio, struct serio_driver *drv)
 
 	atkbd_set_keycode_table(atkbd);
 	atkbd_set_device_attrs(atkbd);
+
+	if (!device_can_wakeup(atkbd->dev->dev.parent))
+		device_init_wakeup(atkbd->dev->dev.parent, true);
 
 	err = sysfs_create_group(&serio->dev.kobj, &atkbd_attribute_group);
 	if (err)
