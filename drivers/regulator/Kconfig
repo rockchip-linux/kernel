@@ -139,6 +139,13 @@ config REGULATOR_AS3722
 	  AS3722 PMIC. This will enable support for all the software
 	  controllable DCDC/LDO regulators.
 
+config REGULATOR_CROS_EC_TPS65090
+	tristate "Chromeos EC regulator"
+	depends on MFD_CROS_EC
+	help
+	  Provides simple access to TPS65090 behind Chromeos EC.  Presently
+	  only enables FET switch control.
+
 config REGULATOR_DA903X
 	tristate "Dialog Semiconductor DA9030/DA9034 regulators"
 	depends on PMIC_DA903X
