@@ -105,6 +105,8 @@ struct wtp_data {
 	__u16 next_tracking_id;
 	__u16 current_slots_used;  /* slots = device IDs. Bitmask. */
 	__u16 prev_slots_used;  /* slots = device IDs. Bitmask. */
+
+	__u8 fingers_seen_this_frame;
 };
 
 static void wtp_touch_event(struct wtp_data *fd,
@@ -114,6 +116,7 @@ static void wtp_touch_event(struct wtp_data *fd,
 
 	bool new_finger = !(fd->prev_slots_used & (1 << slot));
 	fd->current_slots_used |= 1 << slot;
+	fd->fingers_seen_this_frame++;
 
 	input_mt_slot(fd->input, slot);
 	if (new_finger) {
@@ -148,7 +151,10 @@ static int wtp_touchpad_raw_xy_event(struct hidpp_device *hidpp_dev,
 			wtp_touch_event(fd, &event->fingers[i]);
 	}
 
-	if (event->end_of_frame || finger_count <= 2) {
+	if (event->end_of_frame || finger_count < 2 ||
+		(finger_count == 2 && hidpp_dev->hid_dev->product ==
+		 UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD)) {
+		u8 fingers_this_frame = fd->fingers_seen_this_frame;
 		for (i = 0; i < SLOT_COUNT; i++) {
 			__u16 slot_mask = 1 << i;
 			bool released = (fd->prev_slots_used & slot_mask) &&
@@ -161,15 +167,15 @@ static int wtp_touchpad_raw_xy_event(struct hidpp_device *hidpp_dev,
 		}
 		input_mt_report_pointer_emulation(fd->input, true);
 		input_report_key(fd->input, BTN_TOOL_FINGER,
-				 finger_count == 1);
+				 fingers_this_frame == 1);
 		input_report_key(fd->input, BTN_TOOL_DOUBLETAP,
-				 finger_count == 2);
+				 fingers_this_frame == 2);
 		input_report_key(fd->input, BTN_TOOL_TRIPLETAP,
-				 finger_count == 3);
+				 fingers_this_frame == 3);
 		input_report_key(fd->input, BTN_TOOL_QUADTAP,
-				 finger_count == 4);
+				 fingers_this_frame == 4);
 		input_report_key(fd->input, BTN_TOOL_QUINTTAP,
-				 finger_count == 5);
+				 fingers_this_frame == 5);
 		/* WTP Uses normal mouse reports for button state */
 		if (hidpp_dev->hid_dev->product !=
 			UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD)
@@ -179,6 +185,7 @@ static int wtp_touchpad_raw_xy_event(struct hidpp_device *hidpp_dev,
 
 		fd->prev_slots_used = fd->current_slots_used;
 		fd->current_slots_used = 0;
+		fd->fingers_seen_this_frame = 0;
 	}
 	return 1;
 }
@@ -219,11 +226,48 @@ static int hidpp_touchpad_raw_xy_event(struct hidpp_device *hidpp_device,
 
 	/* Ensure we get the proper raw data report here. We do this after
 	   the parsing above to avoid mixed declarations and code. */
-	if (hidpp_report->report_id != REPORT_ID_HIDPP_LONG ||
+	if ((hidpp_report->report_id != REPORT_ID_HIDPP_LONG ||
 		hidpp_report->rap.sub_id != fd->mt_feature_index ||
-		(hidpp_report->rap.reg_address >> 4) != WTP_RAW_XY_EVENT_INDEX) {
+		(hidpp_report->rap.reg_address >> 4) != WTP_RAW_XY_EVENT_INDEX) &&
+		!(hidpp_report->report_id == T651_REPORT_TYPE_MOUSE &&
+		 hidpp_device->hid_dev->product == USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651)) {
 		dbg_hid("Unhandled event type\n");
 		return 0;
+	}
+
+	if (hidpp_report->report_id == T651_REPORT_TYPE_MOUSE &&
+		hidpp_device->hid_dev->product == USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651) {
+		/* Approximate area as (w^2 + h^2) / 2: */
+		u8 c1_area = ((buf[10] & 0xf) * (buf[10] & 0xf) +
+				(buf[10] >> 4) * (buf[10] >> 4)) / 2;
+		u8 c2_area = ((buf[16] & 0xf) * (buf[16] & 0xf) +
+				(buf[16] >> 4) * (buf[16] >> 4)) / 2;
+		struct hidpp_touchpad_raw_xy raw_xy_t651 = {
+			buf[4],  /* Timestamp */
+			{ {
+				0,  /* Contact type */
+				c1_area > 0,  /* Contact status */
+				(buf[7] << 8) | buf[6],  /* X */
+				(buf[9] << 8) | buf[8],  /* Y */
+				c1_area,  /* Z/Force */
+				c1_area,  /* Area */
+				buf[5]  /* Finger ID */
+			}, {
+				0,  /* Contact type */
+				c2_area > 0,  /* Contact status */
+				(buf[13] << 8) | buf[12],  /* X */
+				(buf[15] << 8) | buf[14],  /* Y */
+				c2_area,  /* Z/Force */
+				c2_area,  /* Area */
+				buf[11]  /* Finger ID */
+			} },
+			(buf[5] != 0) + (buf[11] != 0),  /* Fingers this frame */
+			0,  /* Proximity */
+			buf[3] & 1,  /* Mechanical button */
+			0,  /* Spurious flag */
+			(buf[3] >> 7) == 0  /* EOF */
+		};
+		raw_xy = raw_xy_t651;
 	}
 
 	dbg_hid("EVT: %d {ty: %d, st: %d, (%d,%d,%d,%d) id:%d} {ty: %d, st: %d, (%d,%d,%d,%d) id:%d} cnt:%d pr:%d but:%d sf:%d eof:%d\n",
@@ -290,6 +334,11 @@ static int hidpp_touchpad_set_raw_report_state(struct hidpp_device *hidpp_dev)
 		0x10 - send raw + gestures (degrades smoothness)
 		remaining bits - reserved */
 	u8 params = 0x5;
+
+	if (hidpp_dev->hid_dev->product == USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651) {
+		dbg_hid("not going to raw for T651\n");
+		return 0;
+	}
 
 	ret = hidpp_send_fap_command_sync(hidpp_dev, fd->mt_feature_index,
 		CMD_TOUCHPAD_SET_RAW_REPORT_STATE, &params, 1, &response);
@@ -414,7 +463,7 @@ static int wtp_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	hid_device_io_start(hdev);
 
 	/* Get hid++ version number */
-	ret = hidpp_send_hidpp2_sync(hidpp_device, REPORT_ID_HIDPP_SHORT,
+	ret = hidpp_send_hidpp2_sync(hidpp_device, REPORT_ID_HIDPP_LONG,
 					0, 1,
 					SOFTWARE_ID,
 					NULL, 0, &response);
@@ -477,6 +526,7 @@ static void wtp_remove(struct hid_device *hdev)
 static const struct hid_device_id wtp_devices[] = {
 	{HID_DEVICE(BUS_DJ, 0, USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD) },
 	{HID_DEVICE(BUS_DJ, 0, USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD_T650) },
+	{HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_LOGITECH, USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651) },
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, wtp_devices);

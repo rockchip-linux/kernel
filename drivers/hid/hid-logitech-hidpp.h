@@ -164,4 +164,6 @@ extern int hidpp_get_hidpp2_feature_index(struct hidpp_device *hidpp_dev,
 #define HIDPP_TYPE_PRESENTER			0x06
 #define HIDPP_TYPE_RECEIVER			0x07
 
+#define T651_REPORT_TYPE_MOUSE			0x02
+
 #endif
