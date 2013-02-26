@@ -2673,6 +2673,19 @@ static bool dspload_wait_loaded(struct hda_codec *codec)
 /*
  * PCM callbacks
  */
+
+/* Toggles the audio format to serial and back to parallel. Needed to make sure
+ * the codec does what we tell it. */
+static void ca0132_toggle_dac_format(struct hda_codec *codec)
+{
+	unsigned int aicr;
+	chipio_read(codec, 0x18B008, &aicr);
+	aicr = aicr | 0x8;
+	chipio_write(codec, 0x18B008, aicr);
+	aicr = aicr & ~0x8;
+	chipio_write(codec, 0x18B008, aicr);
+}
+
 static int ca0132_playback_pcm_prepare(struct hda_pcm_stream *hinfo,
 			struct hda_codec *codec,
 			unsigned int stream_tag,
@@ -2680,6 +2693,8 @@ static int ca0132_playback_pcm_prepare(struct hda_pcm_stream *hinfo,
 			struct snd_pcm_substream *substream)
 {
 	struct ca0132_spec *spec = codec->spec;
+
+	ca0132_toggle_dac_format(codec);
 
 	snd_hda_codec_setup_stream(codec, spec->dacs[0], stream_tag, 0, format);
 
