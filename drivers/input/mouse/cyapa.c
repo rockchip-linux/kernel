@@ -823,6 +823,42 @@ err_free_device:
 	return ret;
 }
 
+static void cyapa_detect(struct cyapa *cyapa)
+{
+	struct device *dev = &cyapa->client->dev;
+	char *envp[] = {"ERROR=1", NULL};
+	int ret;
+
+	ret = cyapa_check_is_operational(cyapa);
+	if (ret == -ETIMEDOUT) {
+		dev_err(dev, "no device detected, %d\n", ret);
+	} else if (ret) {
+		dev_err(dev, "device detected, but not operational, %d\n", ret);
+	}
+
+	if (!cyapa->input) {
+		ret = cyapa_create_input_dev(cyapa);
+		if (ret)
+			dev_err(dev, "create input_dev instance failed, %d\n",
+				ret);
+
+		enable_irq(cyapa->irq);
+		/*
+		 * On some systems, a system crash / warm boot does not reset
+		 * the device's current power mode to FULL_ACTIVE.
+		 * If such an event happens during suspend, after the device
+		 * has been put in a low power mode, the device will still be
+		 * in low power mode on a subsequent boot, since there was
+		 * never a matching resume().
+		 * Handle this by always forcing full power here, when a
+		 * device is first detected to be in operational mode.
+		 */
+		ret = cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
+		if (ret)
+			dev_warn(dev, "set active power failed, %d\n", ret);
+	}
+}
+
 static int cyapa_probe(struct i2c_client *client,
 		       const struct i2c_device_id *dev_id)
 {
@@ -853,23 +889,8 @@ static int cyapa_probe(struct i2c_client *client,
 	if (adapter_func == CYAPA_ADAPTER_FUNC_SMBUS)
 		cyapa->smbus = true;
 	cyapa->state = CYAPA_STATE_NO_DEVICE;
-	ret = cyapa_check_is_operational(cyapa);
-	if (ret) {
-		dev_err(dev, "device not operational, %d\n", ret);
-		goto err_mem_free;
-	}
 
-	ret = cyapa_create_input_dev(cyapa);
-	if (ret) {
-		dev_err(dev, "create input_dev instance failed, %d\n", ret);
-		goto err_mem_free;
-	}
-
-	ret = cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
-	if (ret) {
-		dev_err(dev, "set active power failed, %d\n", ret);
-		goto err_unregister_device;
-	}
+	cyapa_detect(cyapa);
 
 	cyapa->irq = client->irq;
 	ret = request_threaded_irq(cyapa->irq,
@@ -886,7 +907,8 @@ static int cyapa_probe(struct i2c_client *client,
 	return 0;
 
 err_unregister_device:
-	input_unregister_device(cyapa->input);
+	if (cyapa->input)
+		input_unregister_device(cyapa->input);
 err_mem_free:
 	kfree(cyapa);
 
@@ -936,6 +958,8 @@ static int cyapa_resume(struct device *dev)
 
 	if (device_may_wakeup(dev) && cyapa->irq_wake)
 		disable_irq_wake(cyapa->irq);
+
+	cyapa_detect(cyapa);
 
 	ret = cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
 	if (ret)
