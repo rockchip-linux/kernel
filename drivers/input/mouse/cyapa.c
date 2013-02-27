@@ -216,6 +216,8 @@ struct cyapa {
 
 	/* read from query data region. */
 	char product_id[16];
+	u8 fw_maj_ver;  /* firmware major version. */
+	u8 fw_min_ver;  /* firmware minor version. */
 	u8 btn_capability;
 	u8 gen;
 	int max_abs_x;
@@ -716,6 +718,9 @@ static int cyapa_get_query_data(struct cyapa *cyapa)
 	memcpy(&cyapa->product_id[13], &query_data[11], 2);
 	cyapa->product_id[15] = '\0';
 
+	cyapa->fw_maj_ver = query_data[15];
+	cyapa->fw_min_ver = query_data[16];
+
 	cyapa->btn_capability = query_data[19] & CAPABILITY_BTN_MASK;
 
 	cyapa->gen = query_data[20] & 0x0f;
@@ -1177,6 +1182,21 @@ done:
 /*
  * Sysfs Interface.
  */
+static ssize_t cyapa_show_fm_ver(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%d.%d\n", cyapa->fw_maj_ver,
+			 cyapa->fw_min_ver);
+}
+
+static ssize_t cyapa_show_product_id(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+	return scnprintf(buf, PAGE_SIZE, "%s\n", cyapa->product_id);
+}
+
 static ssize_t cyapa_update_fw_store(struct device *dev,
 				     struct device_attribute *attr,
 				     const char *buf, size_t count)
@@ -1201,9 +1221,13 @@ static ssize_t cyapa_update_fw_store(struct device *dev,
 	return ret ? ret : count;
 }
 
+static DEVICE_ATTR(firmware_version, S_IRUGO, cyapa_show_fm_ver, NULL);
+static DEVICE_ATTR(product_id, S_IRUGO, cyapa_show_product_id, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, cyapa_update_fw_store);
 
 static struct attribute *cyapa_sysfs_entries[] = {
+	&dev_attr_firmware_version.attr,
+	&dev_attr_product_id.attr,
 	&dev_attr_update_fw.attr,
 	NULL,
 };
