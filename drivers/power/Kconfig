@@ -261,6 +261,13 @@ config BATTERY_RX51
 	  Say Y here to enable support for battery information on Nokia
 	  RX-51, also known as N900 tablet.
 
+config CHARGER_CROS_EC
+	tristate "Chromeos EC charger"
+	depends on MFD_CROS_EC
+	help
+	  Provides simple access to TPS65090 charger behind Chrome
+	  OS EC.
+
 config CHARGER_ISP1704
 	tristate "ISP1704 USB Charger Detection"
 	depends on USB_PHY
