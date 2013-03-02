@@ -252,9 +252,15 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	int ret;
 
 	tegra_host->power_gpio = of_get_named_gpio(np, "power-gpios", 0);
-	return mmc_of_parse(host->mmc);
+	ret = mmc_of_parse(host->mmc);
+
+	if (of_get_property(np, "no-1-8-v", NULL))
+		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+
+	return ret;
 }
 
 static int sdhci_tegra_probe(struct platform_device *pdev)
