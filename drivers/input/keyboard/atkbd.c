@@ -743,8 +743,11 @@ static int atkbd_probe(struct atkbd *atkbd)
 
 /* Chrome OS workaround only: we have a bug in the EC that causes keystrokes to
  * be enabled too early, so we may read scancodes instead of the GETID
- * response.  In that case, instead of failing, retry a few times.
+ * response.  In that case, instead of failing, retry a few times on i8042 KBD
+ * port only.
  */
+	if (ps2dev->serio && strcmp(ps2dev->serio->name, "i8042 KBD port"))
+		getid_attempts_left = 1;
 
 getid_retry:
 	getid_attempts_left--;
