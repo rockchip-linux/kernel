@@ -201,7 +201,17 @@ static struct i2c_driver cros_ec_driver = {
 	.id_table	= cros_ec_i2c_id,
 };
 
-module_i2c_driver(cros_ec_driver);
+static int __init cros_ec_init(void)
+{
+	return i2c_add_driver(&cros_ec_driver);
+}
+subsys_initcall(cros_ec_init);
+
+static void __exit cros_ec_exit(void)
+{
+	i2c_del_driver(&cros_ec_driver);
+}
+module_exit(cros_ec_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ChromeOS EC multi function device");
