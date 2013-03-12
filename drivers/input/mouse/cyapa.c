@@ -694,7 +694,7 @@ static int cyapa_bl_enter(struct cyapa *cyapa)
 		cyapa->input = NULL;
 	}
 
-	ret = cyapa_get_state(cyapa);
+	ret = cyapa_poll_state(cyapa, 500);
 	if (ret < 0)
 		return ret;
 	if (cyapa->state == CYAPA_STATE_BL_IDLE) {
@@ -719,7 +719,7 @@ static int cyapa_bl_enter(struct cyapa *cyapa)
 	}
 
 	usleep_range(25000, 50000);
-	ret = cyapa_get_state(cyapa);
+	ret = cyapa_poll_state(cyapa, 500);
 	if (ret < 0)
 		return ret;
 	if (cyapa->state != CYAPA_STATE_BL_IDLE) {
@@ -748,7 +748,7 @@ static int cyapa_bl_activate(struct cyapa *cyapa)
 
 	/* Wait for bootloader to activate; takes between 2 and 12 seconds */
 	msleep(2000);
-	ret = cyapa_poll_state(cyapa, 10000);
+	ret = cyapa_poll_state(cyapa, 11000);
 	if (ret < 0)
 		return ret;
 	if (cyapa->state != CYAPA_STATE_BL_ACTIVE) {
@@ -822,9 +822,10 @@ static int cyapa_bl_exit(struct cyapa *cyapa)
 	/*
 	 * In addition, when a device boots for the first time after being
 	 * updated to new firmware, it must first calibrate its sensors, which
-	 * can take up to an additional 2 seconds.
+	 * can take up to an additional 2 seconds. If the device power is
+	 * running low, this may take even longer.
 	 */
-	ret = cyapa_poll_state(cyapa, 2000);
+	ret = cyapa_poll_state(cyapa, 4000);
 	if (ret < 0)
 		return ret;
 	if (cyapa->state != CYAPA_STATE_OP) {
@@ -840,6 +841,40 @@ static int cyapa_bl_exit(struct cyapa *cyapa)
 	}
 
 	return 0;
+}
+
+/*
+ * cyapa_sleep_time_to_pwr_cmd and cyapa_pwr_cmd_to_sleep_time
+ *
+ * These are helper functions that convert to and from integer idle
+ * times and register settings to write to the PowerMode register.
+ * The trackpad supports between 20ms to 1000ms scan intervals.
+ * The time will be increased in increments of 10ms from 20ms to 100ms.
+ * From 100ms to 1000ms, time will be increased in increments of 20ms.
+ *
+ * When Idle_Time < 100, the format to convert Idle_Time to Idle_Command is:
+ *   Idle_Command = Idle Time / 10;
+ * When Idle_Time >= 100, the format to convert Idle_Time to Idle_Command is:
+ *   Idle_Command = Idle Time / 20 + 5;
+ */
+static u8 cyapa_sleep_time_to_pwr_cmd(u16 sleep_time)
+{
+	if (sleep_time < 20)
+		sleep_time = 20;     /* minimal sleep time. */
+	else if (sleep_time > 1000)
+		sleep_time = 1000;   /* maximal sleep time. */
+
+	if (sleep_time < 100)
+		return ((sleep_time / 10) << 2) & PWR_MODE_MASK;
+	else
+		return ((sleep_time / 20 + 5) << 2) & PWR_MODE_MASK;
+}
+
+static u16 cyapa_pwr_cmd_to_sleep_time(u8 pwr_mode)
+{
+	u8 encoded_time = pwr_mode >> 2;
+	return (encoded_time < 10) ? encoded_time * 10
+				   : (encoded_time - 5) * 20;
 }
 
 /*
@@ -968,7 +1003,7 @@ static int cyapa_check_is_operational(struct cyapa *cyapa)
 	int ret;
 	cyapa_dbg(cyapa, "======< cyapa_check_is_operational >======");
 
-	ret = cyapa_poll_state(cyapa, 2000);
+	ret = cyapa_poll_state(cyapa, 4000);
 	if (ret < 0)
 		return ret;
 	switch (cyapa->state) {
@@ -1078,7 +1113,8 @@ static int cyapa_write_fw_block(struct cyapa *cyapa, u16 block, const u8 *data)
 	int ret;
 	u8 cmd[78];
 	u8 status[BL_STATUS_SIZE];
-	int tries = 3;
+	/* Programming for one block can take about 100ms. */
+	int tries = 11;
 
 	/* set write command and security key bytes. */
 	cmd[0] = 0xff;
@@ -1216,40 +1252,6 @@ static int cyapa_check_fw(struct cyapa *cyapa, const struct firmware *fw)
 		return -EINVAL;
 	}
 	return 0;
-}
-
-/*
- * cyapa_sleep_time_to_pwr_cmd and cyapa_pwr_cmd_to_sleep_time
- *
- * These are helper functions that convert to and from integer idle
- * times and register settings to write to the PowerMode register.
- * The trackpad supports between 20ms to 1000ms scan intervals.
- * The time will be increased in increments of 10ms from 20ms to 100ms.
- * From 100ms to 1000ms, time will be increased in increments of 20ms.
- *
- * When Idle_Time < 100, the format to convert Idle_Time to Idle_Command is:
- *   Idle_Command = Idle Time / 10;
- * When Idle_Time >= 100, the format to convert Idle_Time to Idle_Command is:
- *   Idle_Command = Idle Time / 20 + 5;
- */
-static u8 cyapa_sleep_time_to_pwr_cmd(u16 sleep_time)
-{
-	if (sleep_time < 20)
-		sleep_time = 20;     /* minimal sleep time. */
-	else if (sleep_time > 1000)
-		sleep_time = 1000;   /* maximal sleep time. */
-
-	if (sleep_time < 100)
-		return ((sleep_time / 10) << 2) & PWR_MODE_MASK;
-	else
-		return ((sleep_time / 20 + 5) << 2) & PWR_MODE_MASK;
-}
-
-static u16 cyapa_pwr_cmd_to_sleep_time(u8 pwr_mode)
-{
-	u8 encoded_time = pwr_mode >> 2;
-	return (encoded_time < 10) ? encoded_time * 10
-				   : (encoded_time - 5) * 20;
 }
 
 static irqreturn_t cyapa_irq(int irq, void *dev_id)
@@ -1457,6 +1459,8 @@ static int cyapa_firmware(struct cyapa *cyapa, const char *fw_name)
 	int ret;
 	const struct firmware *fw;
 	int i;
+	u8 pwr_cmd = cyapa->runtime_suspend_power_mode;
+	u16 time = cyapa_pwr_cmd_to_sleep_time(pwr_cmd);
 	cyapa_dbg(cyapa, "======< cyapa_firmware >======");
 
 	ret = request_firmware(&fw, fw_name, dev);
@@ -1471,6 +1475,14 @@ static int cyapa_firmware(struct cyapa *cyapa, const char *fw_name)
 		dev_err(dev, "Invalid CYAPA firmware image: %s\n", fw_name);
 		goto done;
 	}
+
+	/*
+	 * Resume the potentially suspended device because doing FW
+	 * update on a device not in the FULL mode has a chance to
+	 * fail.
+	 */
+	pm_runtime_get_sync(dev);
+	msleep(time + 100);
 
 	ret = cyapa_bl_enter(cyapa);
 	if (ret)
@@ -1508,6 +1520,7 @@ static int cyapa_firmware(struct cyapa *cyapa, const char *fw_name)
 	}
 
 err_detect:
+	pm_runtime_put_noidle(dev);
 	cyapa_detect(cyapa);
 
 done:
