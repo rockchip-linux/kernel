@@ -43,6 +43,10 @@
 
 #define DRIVER_NAME "i2c-designware-pci"
 
+static bool force_std_mode;
+module_param(force_std_mode, bool, 0);
+MODULE_PARM_DESC(force_std_mode, "Force standard mode (100 kHz)");
+
 enum dw_pci_ctl_id_t {
 	moorestown_0,
 	moorestown_1,
@@ -58,13 +62,13 @@ enum dw_pci_ctl_id_t {
 	haswell_0,
 	haswell_1,
 
-	baytrail_0,
-	baytrail_1,
-	baytrail_2,
-	baytrail_3,
-	baytrail_4,
-	baytrail_5,
-	baytrail_6,
+	byt_0,
+	byt_1,
+	byt_2,
+	byt_3,
+	byt_4,
+	byt_5,
+	byt_6,
 };
 
 struct dw_pci_controller {
@@ -157,54 +161,54 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
 		.rx_fifo_depth = 32,
 		.clk_khz      = 25000,
 	},
-	[baytrail_0] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
-	},
-	[baytrail_1] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
-	},
-	[baytrail_2] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
-	},
-	[baytrail_3] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
-	},
-	[baytrail_4] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
-	},
-	[baytrail_5] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
-	},
-	[baytrail_6] = {
-		.bus_num     = -1,
-		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
-		.tx_fifo_depth = 32,
-		.rx_fifo_depth = 32,
-		.clk_khz      = 25000,
+	[byt_0] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
+        },
+        [byt_1] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
+        },
+        [byt_2] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
+        },
+        [byt_3] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
+        },
+        [byt_4] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
+        },
+        [byt_5] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
+        },
+        [byt_6] = {
+                .bus_num     = -1,
+                .bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_FAST,
+                .tx_fifo_depth = 32,
+                .rx_fifo_depth = 32,
+                .clk_khz      = 100000,
 	},
 };
 static struct i2c_algorithm i2c_dw_algo = {
@@ -291,14 +295,14 @@ static void adapter_fill_name(struct i2c_adapter *adap,
 	case haswell_1:
 		adapter_num = id->driver_data - haswell_0;
 		break;
-	case baytrail_0:
-	case baytrail_1:
-	case baytrail_2:
-	case baytrail_3:
-	case baytrail_4:
-	case baytrail_5:
-	case baytrail_6:
-		adapter_num = id->driver_data - baytrail_0;
+	case byt_0:
+	case byt_1:
+	case byt_2:
+	case byt_3:
+	case byt_4:
+	case byt_5:
+	case byt_6:
+		adapter_num = id->driver_data - byt_0;
 		break;
 	default:
 		adapter_num = adap->nr;
@@ -315,6 +319,7 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	struct dw_i2c_dev *dev;
 	struct i2c_adapter *adap;
 	int r;
+	u32 mode;
 	struct  dw_pci_controller *controller;
 
 	if (id->driver_data >= ARRAY_SIZE(dw_pci_controllers)) {
@@ -355,6 +360,13 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 		I2C_FUNC_SMBUS_BYTE_DATA |
 		I2C_FUNC_SMBUS_WORD_DATA |
 		I2C_FUNC_SMBUS_I2C_BLOCK;
+
+	mode = controller->bus_cfg & (DW_IC_CON_SPEED_STD | DW_IC_CON_SPEED_FAST);
+	if (force_std_mode && !(mode & DW_IC_CON_SPEED_STD)){
+		controller->bus_cfg &= ~mode;
+		controller->bus_cfg |= DW_IC_CON_SPEED_STD;
+	}
+
 	dev->master_cfg =  controller->bus_cfg;
 
 	pci_set_drvdata(pdev, dev);
@@ -425,15 +437,14 @@ static DEFINE_PCI_DEVICE_TABLE(i2_designware_pci_ids) = {
 	/* Haswell ULT */
 	{ PCI_VDEVICE(INTEL, 0x9c61), haswell_0 },
 	{ PCI_VDEVICE(INTEL, 0x9c62), haswell_1 },
-	/* Bay Trail */
-	{ PCI_VDEVICE(INTEL, 0x0f41), baytrail_0 },
-	{ PCI_VDEVICE(INTEL, 0x0f42), baytrail_1 },
-	{ PCI_VDEVICE(INTEL, 0x0f43), baytrail_2 },
-	{ PCI_VDEVICE(INTEL, 0x0f44), baytrail_3 },
-	{ PCI_VDEVICE(INTEL, 0x0f45), baytrail_4 },
-	{ PCI_VDEVICE(INTEL, 0x0f46), baytrail_5 },
-	{ PCI_VDEVICE(INTEL, 0x0f47), baytrail_6 },
-
+	/* Baytrail */
+	{ PCI_VDEVICE(INTEL, 0x0F41), byt_0 },
+	{ PCI_VDEVICE(INTEL, 0x0F42), byt_1 },
+	{ PCI_VDEVICE(INTEL, 0x0F43), byt_2 },
+	{ PCI_VDEVICE(INTEL, 0x0F44), byt_3 },
+	{ PCI_VDEVICE(INTEL, 0x0F45), byt_4 },
+	{ PCI_VDEVICE(INTEL, 0x0F46), byt_5 },
+	{ PCI_VDEVICE(INTEL, 0x0F47), byt_6 },
 	{ 0,}
 };
 MODULE_DEVICE_TABLE(pci, i2_designware_pci_ids);
