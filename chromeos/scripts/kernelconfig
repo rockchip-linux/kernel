@@ -19,7 +19,7 @@ case "$mode" in
 esac
 kerneldir="`pwd`"
 confdir="$kerneldir/chromeos/config"
-archs="i386 armel"
+archs="x86_64 i386 armel"
 family='chromeos'
 bindir="`pwd`/chromeos/scripts"
 common_conf="$confdir/config.common.$family"
@@ -96,21 +96,22 @@ for arch in $archs; do
 		fi
 	done
 
-	echo "Running splitconfig.pl for $arch"
+	echo "Running splitconfig for $arch"
 	echo
 
 	# Can we make this more robust by avoiding $tmpdir completely?
 	# This approach was used for now because I didn't want to change
-	# splitconfig.pl
-	(cd $archconfdir; $bindir/splitconfig.pl; mv config.common \
-	 config.common.$arch; cp config.common.$arch $tmpdir)
+	# splitconfig
+	(cd $archconfdir; rm config.common.$arch; $bindir/splitconfig; \
+	    mv config.common config.common.$arch; \
+	    cp config.common.$arch $tmpdir)
 done
 
 rm -f $common_conf
 
-# Now run splitconfig.pl on all the config.common.<arch> copied to
+# Now run splitconfig on all the config.common.<arch> copied to
 # $tmpdir
-(cd $tmpdir; $bindir/splitconfig.pl)
+(cd $tmpdir; $bindir/splitconfig)
 (
 	cd $confdir;
 	rm -f *-full
