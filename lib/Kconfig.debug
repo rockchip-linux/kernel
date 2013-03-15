@@ -1611,6 +1611,14 @@ config TEST_USER_COPY
 
 	  If unsure, say N.
 
+config TEST_MODULE
+	tristate "Test module loading with 'hello world' module"
+	depends on m
+	help
+	  This builds the "test_module" module that emits "Hello, world"
+	  on printk when loaded. It is designed to be used for basic
+	  evaluation of the module loading subsystem.
+
 source "samples/Kconfig"
 
 source "lib/Kconfig.kgdb"
