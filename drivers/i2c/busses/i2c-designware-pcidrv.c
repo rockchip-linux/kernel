@@ -356,6 +356,7 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	dev->dev = &pdev->dev;
 	dev->functionality =
 		I2C_FUNC_I2C |
+		I2C_FUNC_10BIT_ADDR |
 		I2C_FUNC_SMBUS_BYTE |
 		I2C_FUNC_SMBUS_BYTE_DATA |
 		I2C_FUNC_SMBUS_WORD_DATA |
