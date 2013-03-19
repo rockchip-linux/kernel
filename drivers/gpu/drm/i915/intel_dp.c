@@ -3127,7 +3127,7 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 	intel_dp->has_audio = false;
 
 	/* Ensure the sink is awake for DPCD/EDID reads. */
-	if (connector->dpms != DRM_MODE_DPMS_ON) {
+	if (!is_edp(intel_dp) && connector->dpms != DRM_MODE_DPMS_ON) {
 		/* Bypass DPCD check, since we obtain it during detection. */
 		intel_dp_do_sink_dpms(intel_dp, DRM_MODE_DPMS_ON);
 	}
@@ -3158,7 +3158,7 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 
 out:
 	/* Restore the sink state */
-	if (connector->dpms != DRM_MODE_DPMS_ON)
+	if (!is_edp(intel_dp) && connector->dpms != DRM_MODE_DPMS_ON)
 		intel_dp_do_sink_dpms(intel_dp, connector->dpms);
 
 	intel_runtime_pm_put(dev_priv);
