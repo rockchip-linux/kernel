@@ -495,17 +495,17 @@ static bool cmos_caused_wake(struct device *dev)
 	if (!cmos)
 		return false;
 
-	mask = cmos->suspend_ctrl & RTC_IRQMASK;
-	if (!mask)
+	mask = cmos->suspend_ctrl;
+	if (!(mask & RTC_IRQMASK))
 		return false;
 
 	spin_lock_irq(&rtc_lock);
 
 	cmos->wake_source_checked = true;
 	CMOS_WRITE(mask, RTC_CONTROL);
-	hpet_set_rtc_irq_bit(mask);
+	hpet_set_rtc_irq_bit(mask & RTC_IRQMASK);
 	cmos->stored_mask = CMOS_READ(RTC_INTR_FLAGS);
-	cmos->stored_mask &= mask | RTC_IRQF;
+	cmos->stored_mask &= (mask & RTC_IRQMASK) | RTC_IRQF;
 	ret = is_intr(cmos->stored_mask);
 
 	spin_unlock_irq(&rtc_lock);
