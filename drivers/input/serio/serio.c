@@ -781,10 +781,14 @@ ATTRIBUTE_GROUPS(serio_driver);
 
 static int serio_driver_probe(struct device *dev)
 {
+	int retval;
 	struct serio *serio = to_serio_port(dev);
 	struct serio_driver *drv = to_serio_driver(dev->driver);
 
-	return serio_connect_driver(serio, drv);
+	retval = serio_connect_driver(serio, drv);
+	if (!retval)
+		serio_remove_duplicate_events(serio, SERIO_RESCAN_PORT);
+	return retval;
 }
 
 static int serio_driver_remove(struct device *dev)
