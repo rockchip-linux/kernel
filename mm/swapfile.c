@@ -1820,6 +1820,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	struct swap_cluster_info *cluster_info;
 	unsigned long *frontswap_map;
 	struct file *swap_file, *victim;
+	struct path path_holder;
+	struct path *victim_path = NULL;
 	struct address_space *mapping;
 	struct inode *inode;
 	struct filename *pathname;
@@ -1838,10 +1840,16 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 
 	victim = file_open_name(pathname, O_RDWR|O_LARGEFILE, 0);
 	err = PTR_ERR(victim);
-	if (IS_ERR(victim))
-		goto out;
-
-	mapping = victim->f_mapping;
+	if (IS_ERR(victim)) {
+		/* Fallback to just the inode mapping if possible. */
+		if (kern_path(pathname->name, LOOKUP_FOLLOW, &path_holder))
+			goto out;  /* Propogate the original err. */
+		victim_path = &path_holder;
+		mapping = victim_path->dentry->d_inode->i_mapping;
+		victim = NULL;
+	} else {
+		mapping = victim->f_mapping;
+	}
 	prev = -1;
 	spin_lock(&swap_lock);
 	for (type = swap_list.head; type >= 0; type = swap_info[type]->next) {
@@ -1963,7 +1971,10 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	wake_up_interruptible(&proc_poll_wait);
 
 out_dput:
-	filp_close(victim, NULL);
+	if (victim)
+		filp_close(victim, NULL);
+	if (victim_path)
+		path_put(victim_path);
 out:
 	putname(pathname);
 	return err;
@@ -2153,9 +2164,16 @@ static struct swap_info_struct *alloc_swap_info(void)
 static int claim_swapfile(struct swap_info_struct *p, struct inode *inode)
 {
 	int error;
-
+	/* On Chromium OS, we only support zram swap devices. */
 	if (S_ISBLK(inode->i_mode)) {
+		char name[BDEVNAME_SIZE];
 		p->bdev = bdgrab(I_BDEV(inode));
+		bdevname(p->bdev, name);
+		if (strncmp(name, "zram", strlen("zram"))) {
+			bdput(p->bdev);
+			p->bdev = NULL;
+			return -EINVAL;
+		}
 		error = blkdev_get(p->bdev,
 				   FMODE_READ | FMODE_WRITE | FMODE_EXCL,
 				   sys_swapon);
@@ -2168,11 +2186,13 @@ static int claim_swapfile(struct swap_info_struct *p, struct inode *inode)
 		if (error < 0)
 			return error;
 		p->flags |= SWP_BLKDEV;
+#if 0
 	} else if (S_ISREG(inode->i_mode)) {
 		p->bdev = inode->i_sb->s_bdev;
 		mutex_lock(&inode->i_mutex);
 		if (IS_SWAPFILE(inode))
 			return -EBUSY;
+#endif
 	} else
 		return -EINVAL;
 
