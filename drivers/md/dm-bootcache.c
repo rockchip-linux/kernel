@@ -881,13 +881,14 @@ static void bootcache_init_hdr(struct bootcache_hdr *hdr, u64 cache_start,
  */
 static int match_dev_by_uuid(struct device *dev, void *uuid_data)
 {
-	u8 *uuid = uuid_data;
+	char *uuid = uuid_data;
+	unsigned int len = strlen(uuid);
 	struct hd_struct *part = dev_to_part(dev);
 
 	if (!part->info)
 		goto no_match;
 
-	if (memcmp(uuid, part->info->uuid, sizeof(part->info->uuid)))
+	if (strncmp(uuid, part->info->uuid, len))
 		goto no_match;
 
 	return 1;
@@ -918,13 +919,15 @@ static int dm_get_device_by_uuid(struct dm_target *ti, const char *uuid_str,
 	struct device *dev = NULL;
 	dev_t devt = 0;
 	char devt_buf[BDEVT_SIZE];
-	u8 uuid[16];
+	char *uuid = kstrdup(uuid_str, GFP_KERNEL);
 	size_t uuid_length = strlen(uuid_str);
 
 	if (uuid_length < 36)
 		goto bad_uuid;
-	/* Pack the requested UUID in the expected format. */
-	part_pack_uuid(uuid_str, uuid);
+
+	/* don't match anything after the UUID */
+	if (uuid_length > 36)
+		uuid[36] = '\0';
 
 	dev = class_find_device(&block_class, NULL, uuid, &match_dev_by_uuid);
 	if (!dev)
