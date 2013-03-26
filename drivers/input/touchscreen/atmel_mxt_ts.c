@@ -1524,8 +1524,6 @@ static int mxt_cfg_verify_hdr(struct mxt_data *data, char **config)
 	    info.variant_id != data->info.variant_id ||
 	    info.version != data->info.version ||
 	    info.build != data->info.build ||
-	    info.matrix_xsize != data->info.matrix_xsize ||
-	    info.matrix_ysize != data->info.matrix_ysize ||
 	    info.object_num != data->info.object_num) {
 		dev_err(dev, "Invalid config file: Chip ID info mismatch\n");
 		dev_err(dev, "Chip Info: %02x %02x %02x %02x %02x %02x %02x\n",
@@ -1542,6 +1540,25 @@ static int mxt_cfg_verify_hdr(struct mxt_data *data, char **config)
 		dev_err(dev, "Invalid config file: No Info Block CRC\n");
 		return -EINVAL;
 	}
+
+	if (info.matrix_xsize != data->info.matrix_xsize ||
+	    info.matrix_ysize != data->info.matrix_ysize) {
+		/*
+		 * Matrix xsize and ysize depend on the state of T46 byte 1
+		 * for the XY Mode. A mismatch is possible due to
+		 * a corrupted register set. The config update should proceed
+		 * to correct the problem. In this condition, the info block
+		 * CRC check should be skipped.
+		 */
+		dev_info(dev, "Matrix Xsize and Ysize mismatch. Updating.\n");
+		dev_info(dev, "Chip Info: %02x %02x %02x %02x %02x %02x %02x\n",
+			 data->info.family_id, data->info.variant_id,
+			 data->info.version, data->info.build,
+			 data->info.matrix_xsize, data->info.matrix_ysize,
+			 data->info.object_num);
+		goto config_crc;
+	}
+
 	ret = sscanf(token, "%x", &crc);
 	dev_info(dev, "Config File: Info Block CRC = %06x\n", crc);
 	if (ret != 1 || crc != data->info_csum) {
@@ -1549,6 +1566,7 @@ static int mxt_cfg_verify_hdr(struct mxt_data *data, char **config)
 		return -EINVAL;
 	}
 
+config_crc:
 	/* 4) Config CRC */
 	/*
 	 * Parse but don't verify against current config;
