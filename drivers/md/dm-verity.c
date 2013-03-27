@@ -137,58 +137,23 @@ EXPORT_SYMBOL_GPL(dm_verity_unregister_error_notifier);
 static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 			 int error)
 {
-	const char *message;
+	const char message[] = "integrity failure";
 	int error_behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
 	dev_t devt = 0;
 	u64 block = ~0;
-	int transient = 1;
 	struct dm_verity_error_state error_state;
 
-	if (v) {
-		devt = v->data_dev->bdev->bd_dev;
-		error_behavior = v->error_behavior;
-	}
-
-	if (io) {
-		block = io->block;
-	}
-
-	switch (error) {
-	case -ENOMEM:
-		message = "out of memory";
-		break;
-	case -EBUSY:
-		message = "pending data seen during verify";
-		break;
-	case -EFAULT:
-		message = "crypto operation failure";
-		break;
-	case -EACCES:
-		message = "integrity failure";
-		/* Image is bad. */
-		transient = 0;
-		break;
-	case -EPERM:
-		message = "hash tree population failure";
-		/* Should be dm-bht specific errors */
-		transient = 0;
-		break;
-	case -EINVAL:
-		message = "unexpected missing/invalid data";
-		/* The device was configured incorrectly - fallback. */
-		transient = 0;
-		break;
-	default:
-		/* Other errors can be passed through as IO errors */
-		message = "unknown or I/O error";
+	if (!v->hash_failed)
 		return;
-	}
+
+	devt = v->data_dev->bdev->bd_dev;
+	error_behavior = v->error_behavior;
 
 	DMERR_LIMIT("verification failure occurred: %s", message);
 
 	if (error_behavior == DM_VERITY_ERROR_BEHAVIOR_NOTIFY) {
 		error_state.code = error;
-		error_state.transient = transient;
+		error_state.transient = 0;
 		error_state.block = block;
 		error_state.message = message;
 		error_state.dev_start = v->data_start;
@@ -203,7 +168,7 @@ static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 		error_behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
 
 		if (!blocking_notifier_call_chain(
-		    &verity_error_notifier, transient, &error_state)) {
+		    &verity_error_notifier, 0, &error_state)) {
 			error_behavior = error_state.behavior;
 		}
 	}
@@ -639,7 +604,6 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
 	}
 
 	if (bio_data_dir(bio) == WRITE) {
-		verity_error(v, NULL, -EIO);
 		return -EIO;
 	}
 
