@@ -16,6 +16,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/pm.h>
+#include <linux/pm_dark_resume.h>
 
 #include "power.h"
 
@@ -520,7 +521,7 @@ static ssize_t dark_resume_state_show(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				char *buf)
 {
-	return sprintf(buf, "%u\n", dpm_is_dark_resume() ? 1 : 0);
+	return sprintf(buf, "%u\n", pm_dark_resume_active() ? 1 : 0);
 }
 
 static ssize_t dark_resume_state_store(struct kobject *kobj,

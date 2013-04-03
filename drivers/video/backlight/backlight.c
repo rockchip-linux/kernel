@@ -15,6 +15,7 @@
 #include <linux/ctype.h>
 #include <linux/err.h>
 #include <linux/fb.h>
+#include <linux/pm_dark_resume.h>
 #include <linux/slab.h>
 
 #ifdef CONFIG_PMAC_BACKLIGHT
@@ -235,6 +236,11 @@ static int backlight_resume(struct device *dev)
 {
 	struct backlight_device *bd = to_backlight_device(dev);
 
+	if (dev_dark_resume_active(dev)) {
+		dev_info(dev, "disabled for dark resume\n");
+		return 0;
+	}
+
 	mutex_lock(&bd->ops_lock);
 	if (bd->ops && bd->ops->options & BL_CORE_SUSPENDRESUME) {
 		bd->props.state &= ~BL_CORE_SUSPENDED;
@@ -343,6 +349,7 @@ struct backlight_device *backlight_device_register(const char *name,
 		return ERR_PTR(rc);
 	}
 
+	dev_dark_resume_init(&new_bd->dev, NULL, NULL);
 	new_bd->ops = ops;
 
 #ifdef CONFIG_PMAC_BACKLIGHT
@@ -404,6 +411,7 @@ void backlight_device_unregister(struct backlight_device *bd)
 	mutex_unlock(&bd->ops_lock);
 
 	backlight_unregister_fb(bd);
+	dev_dark_resume_remove(&bd->dev);
 	device_unregister(&bd->dev);
 }
 EXPORT_SYMBOL(backlight_device_unregister);

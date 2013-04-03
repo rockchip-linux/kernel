@@ -36,6 +36,7 @@
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
+#include <linux/pm_dark_resume.h>
 
 #include <asm/io.h>
 #include <linux/scatterlist.h>
@@ -316,7 +317,7 @@ static int usb_dev_suspend(struct device *dev)
 
 static int usb_dev_resume(struct device *dev)
 {
-	if (dev_is_dark_resume(dev)) {
+	if (dev_dark_resume_active(dev)) {
 		dev_info(dev, "disabled for dark resume\n");
 		return 0;
 	}

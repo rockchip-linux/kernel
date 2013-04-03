@@ -22,6 +22,7 @@
 #include <linux/export.h>
 #include <linux/mutex.h>
 #include <linux/pm.h>
+#include <linux/pm_dark_resume.h>
 #include <linux/pm_runtime.h>
 #include <linux/resume-trace.h>
 #include <linux/interrupt.h>
@@ -52,15 +53,12 @@ static LIST_HEAD(dpm_prepared_list);
 static LIST_HEAD(dpm_suspended_list);
 static LIST_HEAD(dpm_late_early_list);
 static LIST_HEAD(dpm_noirq_list);
-static LIST_HEAD(dpm_dark_list);
 
 struct suspend_stats suspend_stats;
 static DEFINE_MUTEX(dpm_list_mtx);
-static DEFINE_SPINLOCK(dpm_dark_lock);
 static pm_message_t pm_transition;
 
 static int async_error;
-static bool dark_resume;
 
 static char *pm_verb(int event)
 {
@@ -742,29 +740,6 @@ static bool is_async(struct device *dev)
 }
 
 /**
- * is_dark_resume - This goes through all of the listed devices that can cause a
- * wake. There should, in practice, end up being few (if not one) of these.
- *
- * Only call this function once upon resume. For legacy device reasons (clear on
- * read registers), we either have to cache the state here or in some device
- * drivers.
- */
-static bool is_dark_resume(void)
-{
-	struct dev_pm_dark *dpd;
-
-	spin_lock(&dpm_dark_lock);
-	list_for_each_entry(dpd, &dpm_dark_list, list_node) {
-		if (dpd->caused_wake && dpd->caused_wake(dpd->dev)) {
-			spin_unlock(&dpm_dark_lock);
-			return true;
-		}
-	}
-	spin_unlock(&dpm_dark_lock);
-	return false;
-}
-
-/**
  * dpm_resume - Execute "resume" callbacks for non-sysdev devices.
  * @state: PM transition of the system being carried out.
  *
@@ -781,8 +756,9 @@ void dpm_resume(pm_message_t state)
 	mutex_lock(&dpm_list_mtx);
 	pm_transition = state;
 	async_error = 0;
-	dark_resume = is_dark_resume();
-	pr_debug("Dark resume of system: %s\n", dark_resume ? "true" : "false");
+	pm_dark_resume_check();
+	pr_debug("Dark resume of system: %s\n", pm_dark_resume_active() ?
+		 "true" : "false");
 
 	list_for_each_entry(dev, &dpm_suspended_list, power.entry) {
 		reinit_completion(&dev->power.completion);
@@ -908,43 +884,6 @@ void dpm_resume_end(pm_message_t state)
 	dpm_complete(state);
 }
 EXPORT_SYMBOL_GPL(dpm_resume_end);
-
-/**
- * dpm_set_dark_source - Set whether a device is a dark resume source.
- * @dpd: the struct that contains a pointer to the device we are either adding
- * or removing as a dark resume source
- * @is_source: Set the device to a source if true and remove as source if false
- */
-int dpm_set_dark_source(struct dev_pm_dark *dpd, bool is_source)
-{
-	spin_lock(&dpm_dark_lock);
-	if (is_source == dpd->is_source) {
-		spin_unlock(&dpm_dark_lock);
-		return -EINVAL;
-	}
-
-	if (is_source)
-		list_add(&dpd->list_node, &dpm_dark_list);
-	else
-		list_del(&dpd->list_node);
-
-	dpd->is_source = is_source;
-	spin_unlock(&dpm_dark_lock);
-	return 0;
-}
-EXPORT_SYMBOL_GPL(dpm_set_dark_source);
-
-/**
- * dpm_is_dark_resume - Check if we are in the middle of a dark resume.
- *
- * Drivers should look into dev_is_dark_resume() which is defined in
- * linux/device.h.
- */
-bool dpm_is_dark_resume(void)
-{
-	return dark_resume;
-}
-EXPORT_SYMBOL_GPL(dpm_is_dark_resume);
 
 /*------------------------- Suspend routines -------------------------*/
 
