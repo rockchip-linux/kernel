@@ -118,6 +118,7 @@ enum {
 	VOICE_FOCUS,
 	MIC_SVM,
 	NOISE_REDUCTION,
+	KEY_CLICK,
 	IN_EFFECT_END_NID,
 #define IN_EFFECTS_COUNT  (IN_EFFECT_END_NID - IN_EFFECT_START_NID)
 
@@ -235,6 +236,14 @@ static struct ct_effect ca0132_effects[EFFECTS_COUNT] = {
 	  .direct = EFX_DIR_IN,
 	  .params = 1,
 	  .def_vals = {0x3F800000, 0x3F000000}
+	},
+	{ .name = "Key-Click Reduction",
+	  .nid = KEY_CLICK,
+	  .mid = 0x47,
+	  .reqs = {0},
+	  .direct = EFX_DIR_IN,
+	  .params = 0,
+	  .def_vals = {0x3F800000}
 	},
 	{ .name = "VoiceFX",
 	  .nid = VOICEFX,
