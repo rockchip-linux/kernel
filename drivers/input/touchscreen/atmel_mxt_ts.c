@@ -271,6 +271,11 @@
 
 #define MXT_MAX_FINGER		10
 
+/* Fallback T7 values to restore functionality in the event of i2c problems */
+#define FALLBACK_MXT_POWER_IDLEACQINT	0xff
+#define FALLBACK_MXT_POWER_ACTVACQINT	0xff
+#define FALLBACK_MXT_POWER_ACTV2IDLETO	0x20
+
 /* For CMT (must match XRANGE/YRANGE as defined in board config */
 #define MXT_PIXELS_PER_MM	20
 
@@ -3113,6 +3118,15 @@ static int mxt_resume(struct device *dev)
 				   data->T7_config, 3);
 		if (ret)
 			dev_err(dev, "Set T7 power config failed, %d\n", ret);
+	} else {
+		u8 fallback_T7_config[3] = {FALLBACK_MXT_POWER_IDLEACQINT,
+					    FALLBACK_MXT_POWER_ACTVACQINT,
+					    FALLBACK_MXT_POWER_ACTV2IDLETO};
+		dev_err(dev, "No T7 values found, setting to fallback value\n");
+		ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
+				   fallback_T7_config, 3);
+		if (ret)
+			dev_err(dev, "Set T7 to fallbacks failed, %d\n", ret);
 	}
 
 	/* Restore the T42 ctrl to before-suspend value */
