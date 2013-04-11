@@ -214,6 +214,7 @@ struct cyapa_reg_data {
 /* The main device structure */
 struct cyapa {
 	enum cyapa_state state;
+	u8 status[BL_STATUS_SIZE];
 
 	struct i2c_client *client;
 	struct input_dev *input;
@@ -221,6 +222,8 @@ struct cyapa {
 	int irq;
 	bool irq_wake;  /* irq wake is enabled */
 	bool smbus;
+
+	bool debug;
 
 	/* power mode settings */
 	u8 suspend_power_mode;
@@ -373,16 +376,40 @@ void cyapa_dump_data(struct cyapa *cyapa, size_t length, const u8 *data)
 }
 #undef BYTE_PER_LINE
 
+#define cyapa_dbg(cyapa, fmt, ...)					\
+do {									\
+	if (cyapa->debug)						\
+		dev_info(&cyapa->client->dev, fmt, ##__VA_ARGS__);	\
+	else								\
+		dev_dbg(&cyapa->client->dev, fmt, ##__VA_ARGS__);	\
+} while (0)
+
 static ssize_t cyapa_i2c_reg_read_block(struct cyapa *cyapa, u8 reg, size_t len,
 					u8 *values)
 {
-	return i2c_smbus_read_i2c_block_data(cyapa->client, reg, len, values);
+	ssize_t ret;
+
+	ret = i2c_smbus_read_i2c_block_data(cyapa->client, reg, len, values);
+	cyapa_dbg(cyapa, "i2c read block reg: 0x%02x len: %zu ret: %zd\n",
+		  reg, len, ret);
+	if (ret > 0)
+		cyapa_dump_data(cyapa, ret, values);
+
+	return ret;
 }
 
 static ssize_t cyapa_i2c_reg_write_block(struct cyapa *cyapa, u8 reg,
 					 size_t len, const u8 *values)
 {
-	return i2c_smbus_write_i2c_block_data(cyapa->client, reg, len, values);
+	ssize_t ret;
+
+	ret = i2c_smbus_write_i2c_block_data(cyapa->client, reg, len, values);
+	cyapa_dbg(cyapa, "i2c write block reg: 0x%02x len: %zu ret: %zd\n",
+		  reg, len, ret);
+	if (ret > 0)
+		cyapa_dump_data(cyapa, ret, values);
+
+	return ret;
 }
 
 /*
@@ -428,11 +455,17 @@ static ssize_t cyapa_smbus_read_block(struct cyapa *cyapa, u8 cmd, size_t len,
 	}
 
 out:
+	cyapa_dbg(cyapa, "smbus read block cmd: 0x%02x len: %zu ret: %zd\n",
+		  cmd, len, ret);
+	if (ret > 0)
+		cyapa_dump_data(cyapa, len, values);
+
 	return ret > 0 ? len : ret;
 }
 
 static s32 cyapa_read_byte(struct cyapa *cyapa, u8 cmd_idx)
 {
+	ssize_t ret;
 	u8 cmd;
 
 	if (cyapa->smbus) {
@@ -441,11 +474,16 @@ static s32 cyapa_read_byte(struct cyapa *cyapa, u8 cmd_idx)
 	} else {
 		cmd = cyapa_i2c_cmds[cmd_idx].cmd;
 	}
-	return i2c_smbus_read_byte_data(cyapa->client, cmd);
+	ret = i2c_smbus_read_byte_data(cyapa->client, cmd);
+	cyapa_dbg(cyapa, "read byte [0x%02x] = 0x%02x  ret: %d\n",
+		  cmd, ret, ret);
+
+	return ret;
 }
 
 static s32 cyapa_write_byte(struct cyapa *cyapa, u8 cmd_idx, u8 value)
 {
+	ssize_t ret;
 	u8 cmd;
 
 	if (cyapa->smbus) {
@@ -454,7 +492,11 @@ static s32 cyapa_write_byte(struct cyapa *cyapa, u8 cmd_idx, u8 value)
 	} else {
 		cmd = cyapa_i2c_cmds[cmd_idx].cmd;
 	}
-	return i2c_smbus_write_byte_data(cyapa->client, cmd, value);
+	ret = i2c_smbus_write_byte_data(cyapa->client, cmd, value);
+	cyapa_dbg(cyapa, "write byte [0x%02x] = 0x%02x  ret: %d\n",
+		  cmd, value, ret);
+
+	return ret;
 }
 
 static ssize_t cyapa_read_block(struct cyapa *cyapa, u8 cmd_idx, u8 *values)
@@ -498,29 +540,56 @@ static int cyapa_get_state(struct cyapa *cyapa)
 	 * -ETIMEDOUT.  In this case, try again using the smbus equivalent
 	 * command.  This should return a BL_HEAD indicating CYAPA_STATE_OP.
 	 */
-	if (cyapa->smbus && (ret == -ETIMEDOUT || ret == -ENXIO))
+	if (cyapa->smbus && (ret == -ETIMEDOUT || ret == -ENXIO)) {
+		cyapa_dbg(cyapa, "smbus: probing with BL_STATUS command\n");
 		ret = cyapa_read_block(cyapa, CYAPA_CMD_BL_STATUS, status);
-
+	}
 	if (ret != BL_STATUS_SIZE)
 		goto error;
 
+	cyapa->status[REG_OP_STATUS] = status[REG_OP_STATUS];
+	cyapa->status[REG_BL_STATUS] = status[REG_BL_STATUS];
+	cyapa->status[REG_BL_ERROR] = status[REG_BL_ERROR];
 	if ((status[REG_OP_STATUS] & OP_STATUS_SRC) == OP_STATUS_SRC) {
 		switch (status[REG_OP_STATUS] & OP_STATUS_DEV) {
 		case CYAPA_DEV_NORMAL:
+			cyapa_dbg(cyapa, "device state: operational mode\n");
+			cyapa->state = CYAPA_STATE_OP;
+			break;
 		case CYAPA_DEV_BUSY:
+			cyapa_dbg(cyapa, "device state: operational busy\n");
 			cyapa->state = CYAPA_STATE_OP;
 			break;
 		default:
+			cyapa->debug = true;
+			cyapa_dbg(cyapa, "device state: unknown\n");
+			cyapa_dbg(cyapa, "status[REG_OP_STATUS] = 0x%02x\n",
+				  status[REG_OP_STATUS]);
+			cyapa_dbg(cyapa, "status[REG_BL_STATUS] = 0x%02x\n",
+				  status[REG_BL_STATUS]);
+			cyapa_dbg(cyapa, "status[REG_BL_ERROR] = 0x%02x\n",
+				  status[REG_BL_ERROR]);
+			cyapa->state = CYAPA_STATE_NO_DEVICE;
 			ret = -EAGAIN;
 			goto error;
 		}
 	} else {
-		if (status[REG_BL_STATUS] & BL_STATUS_BUSY)
+		if (status[REG_BL_STATUS] & BL_STATUS_BUSY) {
+			cyapa_dbg(cyapa, "device state: bootloader busy\n");
 			cyapa->state = CYAPA_STATE_BL_BUSY;
-		else if (status[REG_BL_ERROR] & BL_ERROR_BOOTLOADING)
+		} else if (status[REG_BL_ERROR] & BL_ERROR_BOOTLOADING) {
+			cyapa_dbg(cyapa, "device state: bootloader active\n");
 			cyapa->state = CYAPA_STATE_BL_ACTIVE;
-		else
+		} else {
+			cyapa_dbg(cyapa, "device state: bootloader idle\n");
+			cyapa_dbg(cyapa, "status[REG_OP_STATUS] = 0x%02x\n",
+				  status[REG_OP_STATUS]);
+			cyapa_dbg(cyapa, "status[REG_BL_STATUS] = 0x%02x\n",
+				  status[REG_BL_STATUS]);
+			cyapa_dbg(cyapa, "status[REG_BL_ERROR] = 0x%02x\n",
+				  status[REG_BL_ERROR]);
 			cyapa->state = CYAPA_STATE_BL_IDLE;
+		}
 	}
 
 	return 0;
@@ -546,13 +615,33 @@ static int cyapa_poll_state(struct cyapa *cyapa, unsigned int timeout)
 {
 	int ret;
 	int tries = timeout / 100;
+	bool debug_prev = cyapa->debug;
 
 	ret = cyapa_get_state(cyapa);
+	if (ret)
+		cyapa->debug = true;
+
 	while ((ret || cyapa->state >= CYAPA_STATE_BL_BUSY) && tries--) {
 		msleep(100);
 		ret = cyapa_get_state(cyapa);
+		if (ret)
+			cyapa->debug = true;
 	}
+	if (ret == 0 && debug_prev != cyapa->debug)
+		cyapa->debug = debug_prev;
+
 	return (ret == -EAGAIN || ret == -ETIMEDOUT) ? -ETIMEDOUT : ret;
+}
+
+static const char *cyapa_state_to_string(struct cyapa *cyapa)
+{
+	switch (cyapa->state) {
+	case CYAPA_STATE_BL_ACTIVE: return "BL_ACTIVE";
+	case CYAPA_STATE_BL_IDLE: return "BL_IDLE";
+	case CYAPA_STATE_BL_BUSY: return "BL_BUSY";
+	case CYAPA_STATE_OP: return "OPERATIONAL";
+	default: return "UNKNOWN";
+	}
 }
 
 /*
@@ -584,24 +673,36 @@ static int cyapa_bl_enter(struct cyapa *cyapa)
 	if (ret < 0)
 		return ret;
 	if (cyapa->state == CYAPA_STATE_BL_IDLE) {
+		cyapa_dbg(cyapa, "Already in BL_IDLE. Skipping exit.\n");
 		return 0;
 	}
 
 	if (cyapa->state != CYAPA_STATE_OP) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "Not in OP state. state = %s\n",
+			  cyapa_state_to_string(cyapa));
 		return -EAGAIN;
 	}
 
 	cyapa->state = CYAPA_STATE_NO_DEVICE;
 	ret = cyapa_write_byte(cyapa, CYAPA_CMD_SOFT_RESET, 0x01);
-	if (ret < 0)
+	if (ret < 0) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_enter cyapa_write_byte failed, %d\n",
+			  ret);
 		return -EIO;
+	}
 
 	usleep_range(25000, 50000);
 	ret = cyapa_get_state(cyapa);
 	if (ret < 0)
 		return ret;
-	if (cyapa->state != CYAPA_STATE_BL_IDLE)
+	if (cyapa->state != CYAPA_STATE_BL_IDLE) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_enter failed. Now in state %s\n",
+			  cyapa_state_to_string(cyapa));
 		return -EAGAIN;
+	}
 
 	return 0;
 }
@@ -612,16 +713,24 @@ static int cyapa_bl_activate(struct cyapa *cyapa)
 
 	ret = cyapa_i2c_reg_write_block(cyapa, 0, sizeof(bl_activate),
 					bl_activate);
-	if (ret < 0)
+	if (ret < 0) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_activate i2c_reg_write failed, %d\n",
+			  ret);
 		return ret;
+	}
 
 	/* Wait for bootloader to activate; takes between 2 and 12 seconds */
 	msleep(2000);
 	ret = cyapa_poll_state(cyapa, 10000);
 	if (ret < 0)
 		return ret;
-	if (cyapa->state != CYAPA_STATE_BL_ACTIVE)
+	if (cyapa->state != CYAPA_STATE_BL_ACTIVE) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_activate failed. Now in state %s.\n",
+			  cyapa_state_to_string(cyapa));
 		return -EAGAIN;
+	}
 
 	return 0;
 }
@@ -632,16 +741,24 @@ static int cyapa_bl_deactivate(struct cyapa *cyapa)
 
 	ret = cyapa_i2c_reg_write_block(cyapa, 0, sizeof(bl_deactivate),
 					bl_deactivate);
-	if (ret < 0)
+	if (ret < 0) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_deactivate i2c_reg_write failed, %d\n",
+			  ret);
 		return ret;
+	}
 
 	/* wait for bootloader to switch to idle state; should take < 100ms */
 	msleep(100);
 	ret = cyapa_poll_state(cyapa, 500);
 	if (ret < 0)
 		return ret;
-	if (cyapa->state != CYAPA_STATE_BL_IDLE)
+	if (cyapa->state != CYAPA_STATE_BL_IDLE) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_deactivate failed. Now in state %s.\n",
+			  cyapa_state_to_string(cyapa));
 		return -EAGAIN;
+	}
 	return 0;
 }
 
@@ -663,8 +780,11 @@ static int cyapa_bl_exit(struct cyapa *cyapa)
 	int ret;
 
 	ret = cyapa_i2c_reg_write_block(cyapa, 0, sizeof(bl_exit), bl_exit);
-	if (ret < 0)
+	if (ret < 0) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_exit i2c_reg_write failed, %d\n", ret);
 		return ret;
+	}
 
 	/*
 	 * Wait for bootloader to exit, and operation mode to start.
@@ -679,8 +799,18 @@ static int cyapa_bl_exit(struct cyapa *cyapa)
 	ret = cyapa_poll_state(cyapa, 2000);
 	if (ret < 0)
 		return ret;
-	if (cyapa->state != CYAPA_STATE_OP)
+	if (cyapa->state != CYAPA_STATE_OP) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "bl_exit failed. Now in state %s.\n",
+			  cyapa_state_to_string(cyapa));
+		cyapa_dbg(cyapa, "status[REG_OP_STATUS] = 0x%02x\n",
+			  cyapa->status[REG_OP_STATUS]);
+		cyapa_dbg(cyapa, "status[REG_BL_STATUS] = 0x%02x\n",
+			  cyapa->status[REG_BL_STATUS]);
+		cyapa_dbg(cyapa, "status[REG_BL_ERROR] = 0x%02x\n",
+			  cyapa->status[REG_BL_ERROR]);
 		return -EAGAIN;
+	}
 
 	return 0;
 }
@@ -715,15 +845,20 @@ static int cyapa_set_power_mode(struct cyapa *cyapa, u8 power_mode)
 		return 0;
 
 	ret = cyapa_read_byte(cyapa, CYAPA_CMD_POWER_MODE);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_err(dev, "failed to read power mode %d\n", ret);
+		cyapa->debug = true;
 		return ret;
+	}
 
 	power = ret & ~PWR_MODE_MASK;
 	power |= power_mode & PWR_MODE_MASK;
 	ret = cyapa_write_byte(cyapa, CYAPA_CMD_POWER_MODE, power);
-	if (ret < 0)
+	if (ret < 0) {
 		dev_err(dev, "failed to set power_mode 0x%02x err = %d\n",
 			power_mode, ret);
+		cyapa->debug = true;
+	}
 	return ret;
 }
 
@@ -792,14 +927,18 @@ static int cyapa_check_is_operational(struct cyapa *cyapa)
 	switch (cyapa->state) {
 	case CYAPA_STATE_BL_ACTIVE:
 		ret = cyapa_bl_deactivate(cyapa);
-		if (ret)
+		if (ret) {
+			dev_err(dev, "failed to bl_deactivate. %d\n", ret);
 			return ret;
+		}
 
 	/* Fallthrough state */
 	case CYAPA_STATE_BL_IDLE:
 		ret = cyapa_bl_exit(cyapa);
-		if (ret)
+		if (ret) {
+			dev_err(dev, "failed to bl_exit. %d\n", ret);
 			return ret;
+		}
 
 	/* Fallthrough state */
 	case CYAPA_STATE_OP:
@@ -1167,6 +1306,7 @@ static void cyapa_detect(struct cyapa *cyapa)
 		dev_err(dev, "device detected, but not operational, %d\n", ret);
 	}
 
+	cyapa->debug = false;
 	if (!cyapa->input) {
 		ret = cyapa_create_input_dev(cyapa);
 		if (ret)
@@ -1450,6 +1590,7 @@ static int cyapa_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
+	cyapa->debug = false;
 	cyapa->gen = CYAPA_GEN3;
 	cyapa->client = client;
 	i2c_set_clientdata(client, cyapa);
