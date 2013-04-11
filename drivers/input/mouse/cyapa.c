@@ -142,11 +142,15 @@
 #define PWR_MODE_MASK   0xfc
 #define PWR_MODE_FULL_ACTIVE (0x3f << 2)
 #define PWR_MODE_IDLE        (0x05 << 2) /* default sleep time is 50 ms. */
+#define PWR_MODE_BTN_ONLY    (0x01 << 2)
 #define PWR_MODE_OFF         (0x00 << 2)
+
+#define BTN_ONLY_MODE_NAME   "buttononly"
 
 #define PWR_STATUS_MASK      0x0c
 #define PWR_STATUS_ACTIVE    (0x03 << 2)
 #define PWR_STATUS_IDLE      (0x02 << 2)
+#define PWR_STATUS_BTN_ONLY  (0x01 << 2)
 #define PWR_STATUS_OFF       (0x00 << 2)
 
 /*
@@ -213,6 +217,9 @@ struct cyapa {
 	int irq;
 	bool irq_wake;  /* irq wake is enabled */
 	bool smbus;
+
+	/* power mode settings */
+	u8 suspend_power_mode;
 
 	/* read from query data region. */
 	char product_id[16];
@@ -674,6 +681,22 @@ static int cyapa_bl_exit(struct cyapa *cyapa)
 /*
  * Set device power mode
  *
+ * Write to the field to configure power state. Power states include :
+ *   Full : Max scans and report rate.
+ *   Idle : Report rate set by user specified time.
+ *   ButtonOnly : No scans for fingers. When the button is triggered,
+ *     a slave interrupt is asserted to notify host to wake up.
+ *   Off : Only awake for i2c commands from host. No function for button
+ *     or touch sensors.
+ *
+ * The power_mode command should conform to the following :
+ *   Full : 0x3f
+ *   Idle : Configurable from 20 to 1000ms. See note below for
+ *     cyapa_sleep_time_to_pwr_cmd and cyapa_pwr_cmd_to_sleep_time
+ *   ButtonOnly : 0x01
+ *   Off : 0x00
+ *
+ * Device power mode can only be set when device is in operational mode.
  */
 static int cyapa_set_power_mode(struct cyapa *cyapa, u8 power_mode)
 {
@@ -945,6 +968,40 @@ static int cyapa_check_fw(struct cyapa *cyapa, const struct firmware *fw)
 	return 0;
 }
 
+/*
+ * cyapa_sleep_time_to_pwr_cmd and cyapa_pwr_cmd_to_sleep_time
+ *
+ * These are helper functions that convert to and from integer idle
+ * times and register settings to write to the PowerMode register.
+ * The trackpad supports between 20ms to 1000ms scan intervals.
+ * The time will be increased in increments of 10ms from 20ms to 100ms.
+ * From 100ms to 1000ms, time will be increased in increments of 20ms.
+ *
+ * When Idle_Time < 100, the format to convert Idle_Time to Idle_Command is:
+ *   Idle_Command = Idle Time / 10;
+ * When Idle_Time >= 100, the format to convert Idle_Time to Idle_Command is:
+ *   Idle_Command = Idle Time / 20 + 5;
+ */
+static u8 cyapa_sleep_time_to_pwr_cmd(u16 sleep_time)
+{
+	if (sleep_time < 20)
+		sleep_time = 20;     /* minimal sleep time. */
+	else if (sleep_time > 1000)
+		sleep_time = 1000;   /* maximal sleep time. */
+
+	if (sleep_time < 100)
+		return ((sleep_time / 10) << 2) & PWR_MODE_MASK;
+	else
+		return ((sleep_time / 20 + 5) << 2) & PWR_MODE_MASK;
+}
+
+static u16 cyapa_pwr_cmd_to_sleep_time(u8 pwr_mode)
+{
+	u8 encoded_time = pwr_mode >> 2;
+	return (encoded_time < 10) ? encoded_time * 10
+				   : (encoded_time - 5) * 20;
+}
+
 static irqreturn_t cyapa_irq(int irq, void *dev_id)
 {
 	struct cyapa *cyapa = dev_id;
@@ -1182,6 +1239,65 @@ done:
 /*
  * Sysfs Interface.
  */
+
+#ifdef CONFIG_PM_SLEEP
+static ssize_t cyapa_show_suspend_scanrate(struct device *dev,
+					   struct device_attribute *attr,
+					   char *buf)
+{
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+	int len;
+	u8 pwr_cmd = cyapa->suspend_power_mode;
+
+	if (pwr_cmd == PWR_MODE_BTN_ONLY)
+		len = scnprintf(buf, PAGE_SIZE, "%s\n", BTN_ONLY_MODE_NAME);
+	else
+		len = scnprintf(buf, PAGE_SIZE, "%u\n",
+				cyapa_pwr_cmd_to_sleep_time(pwr_cmd));
+	return len;
+}
+
+static ssize_t cyapa_update_suspend_scanrate(struct device *dev,
+					     struct device_attribute *attr,
+					     const char *buf, size_t count)
+{
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+	u8 pwr_cmd;
+	u16 sleep_time;
+
+	if (buf == NULL || count == 0)
+		goto invalidparam;
+
+	if (sysfs_streq(buf, BTN_ONLY_MODE_NAME))
+		pwr_cmd = PWR_MODE_BTN_ONLY;
+	else if (!kstrtou16(buf, 10, &sleep_time))
+		pwr_cmd = cyapa_sleep_time_to_pwr_cmd(sleep_time);
+	else
+		goto invalidparam;
+
+	cyapa->suspend_power_mode = pwr_cmd;
+	return count;
+
+invalidparam:
+	dev_err(dev, "invalid suspend scanrate ms parameters\n");
+	return -EINVAL;
+}
+
+static DEVICE_ATTR(suspend_scanrate_ms, S_IRUGO|S_IWUSR,
+		   cyapa_show_suspend_scanrate,
+		   cyapa_update_suspend_scanrate);
+
+static struct attribute *cyapa_power_wakeup_entries[] = {
+	&dev_attr_suspend_scanrate_ms.attr,
+	NULL,
+};
+
+static const struct attribute_group cyapa_power_wakeup_group = {
+	.name = power_group_name,
+	.attrs = cyapa_power_wakeup_entries,
+};
+#endif /* CONFIG_PM_SLEEP */
+
 static ssize_t cyapa_show_fm_ver(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
@@ -1266,6 +1382,7 @@ static int cyapa_probe(struct i2c_client *client,
 	if (adapter_func == CYAPA_ADAPTER_FUNC_SMBUS)
 		cyapa->smbus = true;
 	cyapa->state = CYAPA_STATE_NO_DEVICE;
+	cyapa->suspend_power_mode = PWR_MODE_IDLE;
 
 	cyapa->irq = client->irq;
 	cyapa_detect(cyapa);
@@ -1284,6 +1401,12 @@ static int cyapa_probe(struct i2c_client *client,
 	if (sysfs_create_group(&client->dev.kobj, &cyapa_sysfs_group))
 		dev_warn(dev, "error creating sysfs entries.\n");
 
+#ifdef CONFIG_PM_SLEEP
+	if (device_can_wakeup(dev) &&
+	    sysfs_merge_group(&client->dev.kobj, &cyapa_power_wakeup_group))
+		dev_warn(dev, "error creating wakeup power entries.\n");
+#endif /* CONFIG_PM_SLEEP */
+
 	return 0;
 
 err_unregister_device:
@@ -1300,6 +1423,10 @@ static int cyapa_remove(struct i2c_client *client)
 	struct cyapa *cyapa = i2c_get_clientdata(client);
 
 	sysfs_remove_group(&client->dev.kobj, &cyapa_sysfs_group);
+
+#ifdef CONFIG_PM_SLEEP
+	sysfs_unmerge_group(&client->dev.kobj, &cyapa_power_wakeup_group);
+#endif
 
 	free_irq(cyapa->irq, cyapa);
 	input_unregister_device(cyapa->input);
@@ -1322,7 +1449,7 @@ static int cyapa_suspend(struct device *dev)
 	 * Set trackpad device to idle mode if wakeup is allowed,
 	 * otherwise turn off.
 	 */
-	power_mode = device_may_wakeup(dev) ? PWR_MODE_IDLE
+	power_mode = device_may_wakeup(dev) ? cyapa->suspend_power_mode
 					    : PWR_MODE_OFF;
 	ret = cyapa_set_power_mode(cyapa, power_mode);
 	if (ret < 0)
