@@ -1267,9 +1267,9 @@ static int cyapa_probe(struct i2c_client *client,
 		cyapa->smbus = true;
 	cyapa->state = CYAPA_STATE_NO_DEVICE;
 
+	cyapa->irq = client->irq;
 	cyapa_detect(cyapa);
 
-	cyapa->irq = client->irq;
 	ret = request_threaded_irq(cyapa->irq,
 				   NULL,
 				   cyapa_irq,
