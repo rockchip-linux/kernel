@@ -1181,6 +1181,15 @@ static irqreturn_t cyapa_irq(int irq, void *dev_id)
 	pm_runtime_get_sync(dev);
 	pm_runtime_mark_last_busy(dev);
 
+	/*
+	 * Don't read input if input device has not been configured.
+	 * This check check solves a race during probe() between irq_request()
+	 * and irq_disable(), since there is no way to request an irq that is
+	 * initially disabled.
+	 */
+	if (!input)
+		goto out;
+
 	if (device_may_wakeup(dev))
 		pm_wakeup_event(dev, 0);
 
@@ -1329,7 +1338,7 @@ static void cyapa_detect(struct cyapa *cyapa)
 	}
 
 	cyapa->debug = false;
-	if (!cyapa->input) {
+	if (!cyapa->input && ret == 0) {
 		ret = cyapa_create_input_dev(cyapa);
 		if (ret)
 			dev_err(dev, "create input_dev instance failed, %d\n",
@@ -1635,7 +1644,6 @@ static int cyapa_probe(struct i2c_client *client,
 	cyapa->suspend_power_mode = PWR_MODE_SLEEP;
 
 	cyapa->irq = client->irq;
-	cyapa_detect(cyapa);
 
 	ret = request_threaded_irq(cyapa->irq,
 				   NULL,
@@ -1647,6 +1655,7 @@ static int cyapa_probe(struct i2c_client *client,
 		dev_err(dev, "IRQ request failed: %d\n, ", ret);
 		goto err_unregister_device;
 	}
+	disable_irq(cyapa->irq);
 
 	if (sysfs_create_group(&client->dev.kobj, &cyapa_sysfs_group))
 		dev_warn(dev, "error creating sysfs entries.\n");
@@ -1657,6 +1666,7 @@ static int cyapa_probe(struct i2c_client *client,
 		dev_warn(dev, "error creating wakeup power entries.\n");
 #endif /* CONFIG_PM_SLEEP */
 
+	cyapa_detect(cyapa);
 	cyapa_start_runtime(cyapa);
 
 	return 0;
