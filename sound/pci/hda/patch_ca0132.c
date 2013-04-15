@@ -276,6 +276,7 @@ enum {
 	EQUALIZER_BAND_7,
 	EQUALIZER_BAND_8,
 	EQUALIZER_BAND_9,
+	AEC_LEVEL,
 	TUNING_CTL_END_NID
 #define TUNING_CTLS_COUNT  (TUNING_CTL_END_NID - TUNING_CTL_START_NID)
 };
@@ -386,6 +387,14 @@ static struct ct_tuning_ctl ca0132_tuning_ctls[] = {
 	  .req = 20,
 	  .direct = EFX_DIR_OUT,
 	  .def_val = 0x00000000
+	},
+	{ .name = "AEC Level",
+	  .parent_nid = ECHO_CANCELLATION,
+	  .nid = AEC_LEVEL,
+	  .mid = 0x86,
+	  .req = 5,
+	  .direct = EFX_DIR_IN,
+	  .def_val = 0x41F00000
 	}
 };
 #endif
@@ -2995,6 +3004,20 @@ static unsigned int equalizer_vals_lookup[] = {
 0x41C00000
 };
 
+static unsigned int aec_vals_lookup[] = {
+0x00000000, 0x3F800000, 0x40000000, 0x40400000, 0x40800000, 0x40A00000,
+0x40C00000, 0x40E00000, 0x41000000, 0x41100000, 0x41200000, 0x41300000,
+0x41400000, 0x41500000, 0x41600000, 0x41700000, 0x41800000, 0x41880000,
+0x41900000, 0x41980000, 0x41A00000, 0x41A80000, 0x41B00000, 0x41B80000,
+0x41C00000, 0x41C80000, 0x41D00000, 0x41D80000, 0x41E00000, 0x41E80000,
+0x41F00000, 0x41F80000, 0x42000000, 0x42040000, 0x42080000, 0x420C0000,
+0x42100000, 0x42140000, 0x42180000, 0x421C0000, 0x42200000, 0x42240000,
+0x42280000, 0x422C0000, 0x42300000, 0x42340000, 0x42380000, 0x423C0000,
+0x42400000, 0x42440000, 0x42480000, 0x424C0000, 0x42500000, 0x42540000,
+0x42580000, 0x425C0000, 0x42600000, 0x42640000, 0x42680000, 0x426C0000,
+0x42700000
+};
+
 static int tuning_ctl_set(struct hda_codec *codec, hda_nid_t nid,
 			  unsigned int *lookup, int idx)
 {
@@ -3096,6 +3119,41 @@ static int mic_svm_ctl_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int aec_ctl_info(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_info *uinfo)
+{
+	int chs = get_amp_channels(kcontrol);
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = chs == 3 ? 2 : 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 60;
+	uinfo->value.integer.step = 1;
+
+	return 0;
+}
+
+static int aec_ctl_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct ca0132_spec *spec = codec->spec;
+	hda_nid_t nid = get_amp_nid(kcontrol);
+	long *valp = ucontrol->value.integer.value;
+	int idx;
+
+	idx = nid - TUNING_CTL_START_NID;
+	/* any change? */
+	if (spec->cur_ctl_vals[idx] == *valp)
+		return 0;
+
+	spec->cur_ctl_vals[idx] = *valp;
+
+	idx = *valp;
+	tuning_ctl_set(codec, nid, aec_vals_lookup, idx);
+
+	return 0;
+}
+
 static int equalizer_ctl_info(struct snd_kcontrol *kcontrol,
 			      struct snd_ctl_elem_info *uinfo)
 {
@@ -3164,6 +3222,11 @@ static int add_tuning_control(struct hda_codec *codec,
 		knew.get = tuning_ctl_get;
 		knew.put = equalizer_ctl_put;
 		knew.tlv.p = eq_db_scale;
+		break;
+	case ECHO_CANCELLATION:
+		knew.info = aec_ctl_info;
+		knew.get = tuning_ctl_get;
+		knew.put = aec_ctl_put;
 		break;
 	default:
 		return 0;
