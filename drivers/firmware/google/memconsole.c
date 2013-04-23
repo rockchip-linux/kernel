@@ -127,6 +127,45 @@ struct cbmem_cons __iomem *cbmem_console;
 #define CBMEM_ENTRY_MAGIC 0x434f5245
 #define CBMEM_CONSOLE_ID  0x434f4e53
 #define CBMEM_ACPI_NAME   "\\CMEM"
+#define CBMEMC_ACPI_NAME  "\\CBMC"
+
+static bool check_acpi_coreboot_memconsole(void)
+{
+	acpi_handle handle;
+	acpi_status status;
+	unsigned long long value;
+	struct cbmem_cons __iomem *tmp_cbmc;
+
+	/*
+	 * Attempt to use defined ACPI name to locate coreboot mem console.
+	 */
+	status = acpi_get_handle(NULL, CBMEMC_ACPI_NAME, &handle);
+	if (!ACPI_SUCCESS(status))
+		return false;
+
+	status = acpi_evaluate_integer(handle, CBMEMC_ACPI_NAME,
+				       NULL, &value);
+		/* Start scan at this address */
+	if (!ACPI_SUCCESS(status) || value == 0)
+		return false;
+
+	tmp_cbmc = ioremap_cache(value, sizeof(*tmp_cbmc));
+
+	if (tmp_cbmc == NULL)
+		return false;
+
+	cbmem_console = ioremap_cache(value, tmp_cbmc->buffer_size);
+
+	iounmap(tmp_cbmc);
+
+	if (cbmem_console == NULL)
+		return false;
+
+	memconsole_baseaddr = cbmem_console->buffer_body;
+	memconsole_length = min(cbmem_console->buffer_cursor,
+				cbmem_console->buffer_size);
+	return true;
+}
 
 static bool check_cbmem(void)
 {
@@ -135,6 +174,9 @@ static bool check_cbmem(void)
 	acpi_handle handle;
 	acpi_status status;
 	unsigned long long value;
+
+	if (check_acpi_coreboot_memconsole())
+		return true;
 
 	/*
 	 * Attempt to use defined ACPI name to locate CBMEM TOC.
