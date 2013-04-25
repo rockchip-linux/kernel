@@ -351,8 +351,14 @@ static void trackpoint_disconnect(struct psmouse *psmouse)
 static int trackpoint_reconnect(struct psmouse *psmouse)
 {
 	int reset_fail;
+	int ret;
+	int tries = 2;
 
-	if (trackpoint_start_protocol(psmouse, NULL))
+	do {
+		ret = trackpoint_start_protocol(psmouse, NULL);
+	} while (ret != 0 && --tries > 0);
+
+	if (ret != 0)
 		return -1;
 
 	reset_fail = trackpoint_power_on_reset(&psmouse->ps2dev);
