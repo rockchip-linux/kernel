@@ -570,14 +570,14 @@ static int bootcache_read_sectors(struct bootcache *cache)
 	int j;
 	int rc = 0;
 
-	bio = bio_alloc_bioset(GFP_KERNEL, max_io, cache->bio_set);
-	if (unlikely(!bio)) {
-		DMERR("Out of memory bio_alloc_bioset");
-		return -ENOMEM;
-	}
-	bio->bi_private = &waiter;
 	p = cache->sectors.pages;
 	for (i = 0; i < chunks_to_read; i++) {
+		bio = bio_alloc_bioset(GFP_KERNEL, max_io, cache->bio_set);
+		if (unlikely(!bio)) {
+			DMERR("Out of memory bio_alloc_bioset");
+			return -ENOMEM;
+		}
+		bio->bi_private = &waiter;
 		bio->bi_idx = 0;
 		bio->bi_bdev = cache->dev->bdev;
 		bio->bi_end_io = bootcache_read_sectors_end;
@@ -601,6 +601,8 @@ static int bootcache_read_sectors(struct bootcache *cache)
 		wait_for_completion(&waiter.completion);
 		if (waiter.error) {
 			rc = waiter.error;
+			bio->bi_private = cache;
+			bio_put(bio);
 			break;
 		}
 		p = start_page;
@@ -610,9 +612,9 @@ static int bootcache_read_sectors(struct bootcache *cache)
 			p->is_filled = 1;
 		}
 		sector += pages_to_sectors(j);
+		bio->bi_private = cache;
+		bio_put(bio);
 	}
-	bio->bi_private = cache;
-	bio_put(bio);
 	atomic_set(&cache->state, BC_FILLED);
 	return rc;
 }
@@ -637,7 +639,6 @@ static int bootcache_dev_read(struct bootcache *cache, void *data,
 	struct bio_vec *bvec;
 	int pages_to_read = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 	int max_io = cache->max_io;
-	int num_pages;
 	int bytes_to_copy;
 	int i;
 	int rc = 0;
@@ -645,23 +646,19 @@ static int bootcache_dev_read(struct bootcache *cache, void *data,
 	u8 *dst = data;
 	u8 *src;
 
-	if (pages_to_read < max_io)
-		num_pages = pages_to_read;
-	else
-		num_pages = max_io;
-	bio = bio_alloc_bioset(GFP_KERNEL, num_pages, cache->bio_set);
-	if (unlikely(!bio)) {
-		DMERR("Out of memory bio_alloc_bioset");
-		return -ENOMEM;
-	}
-	bvec = bio->bi_io_vec;
-	for (i = 0; i < num_pages; i++, bvec++)
-		bvec->bv_page = alloc_page(GFP_KERNEL);
-	bio->bi_private = &waiter;
 	pages_read = 0;
 	while (len) {
 		if (pages_to_read < max_io)
 			max_io = pages_to_read;
+		bio = bio_alloc_bioset(GFP_KERNEL, max_io, cache->bio_set);
+		if (unlikely(!bio)) {
+			DMERR("Out of memory bio_alloc_bioset");
+			return -ENOMEM;
+		}
+		bvec = bio->bi_io_vec;
+		for (i = 0; i < max_io; i++, bvec++)
+			bvec->bv_page = alloc_page(GFP_KERNEL);
+		bio->bi_private = &waiter;
 		bio->bi_idx = 0;
 		bio->bi_bdev = cache->dev->bdev;
 		bio->bi_end_io = bootcache_dev_read_end;
@@ -682,10 +679,10 @@ static int bootcache_dev_read(struct bootcache *cache, void *data,
 		wait_for_completion(&waiter.completion);
 		if (waiter.error) {
 			rc = waiter.error;
-			goto exit;
+			goto error;
 		}
 		for (i = 0; i < max_io; i++) {
-			bytes_to_copy = (len < PAGE_SIZE) ? len : PAGE_SIZE;
+			bytes_to_copy = min(len, (int)PAGE_SIZE);
 			src = kmap_atomic(bio_iovec_idx(bio, i)->bv_page);
 			memcpy(dst, src, bytes_to_copy);
 			kunmap_atomic(src);
@@ -695,10 +692,16 @@ static int bootcache_dev_read(struct bootcache *cache, void *data,
 			dst += bytes_to_copy;
 		}
 		sector += pages_to_sectors(max_io);
+		bvec = bio->bi_io_vec;
+		for (i = 0; i < max_io; i++, bvec++)
+			__free_pages(bvec->bv_page, 0);
+		bio->bi_private = cache;
+		bio_put(bio);
 	}
-exit:
+	return rc;
+error:
 	bvec = bio->bi_io_vec;
-	for (i = 0; i < num_pages; i++, bvec++)
+	for (i = 0; i < max_io; i++, bvec++)
 		__free_pages(bvec->bv_page, 0);
 	bio->bi_private = cache;
 	bio_put(bio);
