@@ -26,6 +26,7 @@
 #include <linux/mutex.h>
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
+#include <linux/uaccess.h>
 
 /* APA trackpad firmware generation */
 #define CYAPA_GEN3   0x03   /* support MT-protocol B with tracking ID. */
