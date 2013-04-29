@@ -713,6 +713,7 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 {
 	u64 max_sectors;
 	u64 max_meta_sectors;
+	u64 max_pages;
 
 	if (hdr->magic != BOOTCACHE_MAGIC)
 		return 0;
@@ -736,8 +737,14 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 	 */
 	max_sectors = to_sector(i_size_read(cache->dev->bdev->bd_inode))
 			- cache->args.cache_start;
-	max_meta_sectors = to_sector(round_up(
-		sectors_to_pages(max_sectors) * sizeof(u64), SECTOR_SIZE));
+	max_pages = sectors_to_pages(max_sectors);
+	max_pages = min(max_pages, (u64)INT_MAX / sizeof(*cache->trace));
+	if (hdr->num_trace_recs > max_pages) {
+		DMERR("too many trace records %lld", (u64)hdr->num_trace_recs);
+		return 0;
+	}
+	max_meta_sectors = to_sector(round_up(max_pages * sizeof(u64),
+						SECTOR_SIZE));
 	if (hdr->sectors_meta > max_meta_sectors) {
 		DMERR("too many meta sectors %lld", (u64)hdr->sectors_meta);
 		return 0;
@@ -751,10 +758,10 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 
 static int read_trace(struct bootcache *cache)
 {
-	int size_trace;
+	u64 size_trace;
+	u64 i;
+	u64 j;
 	int rc;
-	int i;
-	int j;
 	int sum = 0;
 
 	size_trace = sizeof(*cache->trace) * cache->hdr.num_trace_recs;
