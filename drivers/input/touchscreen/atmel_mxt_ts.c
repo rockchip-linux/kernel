@@ -974,7 +974,8 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 	}
 
 	if (update_input) {
-		input_mt_report_pointer_emulation(data->input_dev, false);
+		input_mt_report_pointer_emulation(data->input_dev,
+						  data->is_tp);
 		input_sync(data->input_dev);
 	}
 
