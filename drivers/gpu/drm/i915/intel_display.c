@@ -11314,9 +11314,15 @@ void intel_modeset_setup_hw_state(struct drm_device *dev,
 		for_each_pipe(pipe) {
 			struct drm_crtc *crtc =
 				dev_priv->pipe_to_crtc_mapping[pipe];
+			struct intel_crtc *intel_crtc;
 
 			__intel_set_mode(crtc, &crtc->mode, crtc->x, crtc->y,
 					 crtc->fb);
+
+			/* Force-cycle the cursor */
+			intel_crtc = to_intel_crtc(crtc);
+			intel_crtc->cursor_visible = false;
+			intel_crtc_update_cursor(crtc, true);
 		}
 	} else {
 		intel_modeset_update_staged_output_state(dev);
