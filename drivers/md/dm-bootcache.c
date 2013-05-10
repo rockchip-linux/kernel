@@ -48,6 +48,7 @@
 #define SECTOR_SIZE		(1 << SECTOR_SHIFT)
 #define SECTORS_PER_PAGE	(PAGE_SIZE / SECTOR_SIZE)
 #define MAX_DEVICE_NAME		(1 << 8)
+#define FRACTION_OF_TOTAL_PAGES	10
 
 
 enum bc_state {
@@ -739,6 +740,8 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 			- cache->args.cache_start;
 	max_pages = sectors_to_pages(max_sectors);
 	max_pages = min(max_pages, (u64)INT_MAX / sizeof(*cache->trace));
+	max_pages = min(max_pages,
+			(u64)totalram_pages / FRACTION_OF_TOTAL_PAGES);
 	if (hdr->num_trace_recs > max_pages) {
 		DMERR("too many trace records %lld", (u64)hdr->num_trace_recs);
 		return 0;
