@@ -350,15 +350,6 @@ int hidpp_raw_event(struct hid_device *hdev, struct hid_report *hid_report,
 
 	hidpp_print_raw_event("hidpp_raw_event", data, size);
 
-	if (!(report->report_id == REPORT_ID_HIDPP_LONG ||
-	      report->report_id == REPORT_ID_HIDPP_SHORT ||
-	      (report->report_id == T651_REPORT_TYPE_MOUSE &&
-	       hdev->product == USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651))) {
-		dbg_hid("hid-logitech-hidpp.c:%s: ignore report_id:%d\n",
-			__func__, report->report_id);
-		return 0;
-	}
-
 	/* If the mutex is locked then we have a pending answer from a
 	 * previoulsly sent command
 	 */
