@@ -60,10 +60,14 @@ MODULE_LICENSE("GPL");
 #define BUTTON_LEFT 0
 #define BUTTON_RIGHT 1
 #define BUTTON_MIDDLE 2
+/* T400 reports 2 different buttons for middle clicks,
+	but we report both as BTN_MIDDLE input_event */
+#define BUTTON_MIDDLE_ALT 3
 
 #define BUTTON_LEFT_MASK (1 << BUTTON_LEFT)
 #define BUTTON_RIGHT_MASK (1 << BUTTON_RIGHT)
 #define BUTTON_MIDDLE_MASK (1 << BUTTON_MIDDLE)
+#define BUTTON_MIDDLE_ALT_MASK (1 << BUTTON_MIDDLE_ALT)
 
 #define ARRAYSIZE(array) (sizeof(array) / sizeof(*(array)))
 
@@ -71,6 +75,8 @@ MODULE_LICENSE("GPL");
 static const struct hid_device_id wtp_devices[] = {
 	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD) },
 	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD_T650) },
+	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_ZONE_MOUSE_T400) },
+	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_TOUCH_MOUSE_T620) },
 	{HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_LOGITECH, USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651) },
 	{ }
 };
@@ -91,6 +97,10 @@ struct wtp_event_finger {
 struct wtp_event {
 	struct wtp_event_finger fingers[4];
 
+	/* relative mouse movement */
+	s16 rel_x;
+	s16 rel_y;
+
 	/* bitmask of button states. 1=down, 0=up. */
 	u8 buttons;
 
@@ -99,6 +109,9 @@ struct wtp_event {
 
 	/* true if this event includes finger data */
 	bool has_abs:1;
+
+	/* true if this event includes mouse movement data */
+	bool has_rel:1;
 
 	/* false if there are events following with more data,
 		true if this is the last one */
@@ -112,6 +125,8 @@ struct wtp_device_info {
 
 	u16 abs_max_y;
 	u16 abs_res_y;
+
+	bool has_rel:1;
 
 	u8 origin;
 
@@ -174,13 +189,25 @@ static bool get_bit(u8 mask, u8 idx)
 {
 	return mask & (1 << idx);
 }
-
+static u16 make_u12_4_8(u8 high, u8 low)
+{
+	return make_u16(high, low) & 0x0fff;
+}
+static u16 make_u12_8_4(u8 high, u8 low)
+{
+	return make_u16(high, low << 4) >> 4;
+}
+static s16 u12_to_s12(u16 val)
+{
+	return ((s16)(val << 4)) >> 4;
+}
 /*
 	Helper methods for parsing mouse events. Some devices
 	use mouse events to report buttons.
 */
 
 #define GENERIC_EVENT_MOUSE 0x02
+#define GENERIC_EVENT_KEYBOARD 0x01
 
 static void generic_parse_mouse_button(struct hidpp_report *report,
 		struct wtp_event *event) {
@@ -188,6 +215,14 @@ static void generic_parse_mouse_button(struct hidpp_report *report,
 	event->has_buttons = BUTTON_LEFT_MASK | BUTTON_RIGHT_MASK |
 		BUTTON_MIDDLE_MASK;
 	event->buttons = raw[1] & event->has_buttons;
+}
+
+static void generic_parse_mouse_rel(struct hidpp_report *report,
+		struct wtp_event *event) {
+	u8 *raw = (u8 *)report;
+	event->rel_x = u12_to_s12(make_u12_4_8(low_nib(raw[4]), raw[3]));
+	event->rel_y = u12_to_s12(make_u12_8_4(raw[5], high_nib(raw[4])));
+	event->has_rel = true;
 }
 
 /*
@@ -339,6 +374,106 @@ static int tprxy_parse_feature_event(struct wtp_data *wtp,
 	return 0;
 }
 
+/*
+	TouchMouseRawTouchPoints (TMRTP) Feature
+*/
+
+#define TMRTP_FEATURE 0x6110
+#define TMRTP_CMD_GET_TOUCHPAD_INFO (0x00 | SOFTWARE_ID)
+#define TMRTP_CMD_GET_RAW_MODE (0x10 | SOFTWARE_ID)
+#define TMRTP_CMD_SET_RAW_MODE (0x20 | SOFTWARE_ID)
+#define TMRTP_EVENT_TOUCH_MOUSE_RAW_TOUCH_POINTS 0x00
+#define TMRTP_EVENT_STATUS_CHANGED 0x01
+
+static int tmrtp_init(struct hidpp_device *hidpp_dev)
+{
+	struct wtp_data *fd = hidpp_dev->driver_data;
+	struct hidpp_report response;
+	int ret;
+
+	u8 params = 2; /* raw data NOT filtered */
+
+	dbg_hid("%s\n", __func__);
+
+	ret = hidpp_send_fap_command_sync(hidpp_dev, fd->feature.index,
+		TMRTP_CMD_SET_RAW_MODE, &params, 1, &response);
+
+	return -ret;
+}
+
+static int tmrtp_probe(struct hidpp_device *hidpp_dev,
+		struct wtp_device_info *info)
+{
+	struct wtp_data *fd = hidpp_dev->driver_data;
+	struct hidpp_report response;
+	int ret;
+	u16 res;
+	u8 *params = (u8 *)response.fap.params;
+
+	dbg_hid("%s\n", __func__);
+
+	ret = hidpp_send_fap_command_sync(hidpp_dev, fd->feature.index,
+			TMRTP_CMD_GET_TOUCHPAD_INFO, NULL, 0, &response);
+
+	if (ret)
+		return -ret;
+
+	info->abs_max_x = make_u16(params[0], params[1]);
+	info->abs_max_y = make_u16(params[2], params[3]);
+	info->abs_max_pressure = params[8];
+	info->max_contacts = params[7];
+	info->origin = params[6];
+
+	res = make_u16(params[4], params[5]);
+	info->abs_res_x = res;
+	info->abs_res_y = res;
+	info->has_rel = true;
+	return ret;
+}
+
+static int tmrtp_parse_other_event(struct wtp_data *wtp,
+		struct hidpp_report *report,
+		struct wtp_event *event) {
+	if (report->report_id == GENERIC_EVENT_MOUSE) {
+		generic_parse_mouse_rel(report, event);
+		generic_parse_mouse_button(report, event);
+	} else if (report->report_id == GENERIC_EVENT_KEYBOARD) {
+		/* In some cases T400 sends keyboard events for middle buttons */
+		event->has_buttons = BUTTON_MIDDLE_ALT_MASK;
+		event->buttons = raw[1] & BUTTON_MIDDLE_ALT_MASK;
+	} else {
+		return -1;
+	}
+	return 0;
+}
+
+static int tmrtp_parse_feature_event(struct wtp_data *wtp,
+		struct hidpp_report *report,
+		struct wtp_event *event) {
+	int i;
+	u8 *buf = &report->rap.params[0];
+
+	dbg_hid("%s\n", __func__);
+
+	if (high_nib(report->fap.funcindex_clientid) !=
+			TMRTP_EVENT_TOUCH_MOUSE_RAW_TOUCH_POINTS)
+		return 0;
+
+	for (i = 0; i < ARRAYSIZE(event->fingers); ++i) {
+		u8 *raw = buf + i * 4;
+		event->fingers[i].status = (raw[3] != 0xff);
+		event->fingers[i].abs_x =
+			make_u12_8_4(raw[0], low_nib(raw[2]));
+		event->fingers[i].abs_y =
+			make_u12_8_4(raw[1], high_nib(raw[2]));
+		event->fingers[i].pressure = raw[3];
+		event->fingers[i].id = i + 1;
+	}
+	event->has_abs = true;
+	event->end_of_frame = true;
+	return 0;
+}
+
 /* Array enumerating all supported hidpp features */
 static struct wtp_feature wtp_supported_features[] = {
 	{
@@ -348,6 +483,14 @@ static struct wtp_feature wtp_supported_features[] = {
 		&tprxy_probe,
 		&tprxy_parse_feature_event,
 		&tprxy_parse_other_event
+	},
+	{
+		TMRTP_FEATURE,
+		0, 0,
+		&tmrtp_init,
+		&tmrtp_probe,
+		&tmrtp_parse_feature_event,
+		&tmrtp_parse_other_event
 	},
 	{ }
 };
@@ -411,7 +554,15 @@ static int wtp_process_event(struct hidpp_device *hidpp_dev,
 		input_report_key(fd->input, BTN_RIGHT,
 			get_bit(fd->buttons, BUTTON_RIGHT));
 		input_report_key(fd->input, BTN_MIDDLE,
-			get_bit(fd->buttons, BUTTON_MIDDLE));
+			get_bit(fd->buttons, BUTTON_MIDDLE) |
+			get_bit(fd->buttons, BUTTON_MIDDLE_ALT));
+	}
+
+	/* report relative mouse movement */
+	if (event->has_rel) {
+		dbg_hid("REL: (%d, %d)\n", event->rel_x, event->rel_y);
+		input_report_rel(fd->input, REL_X, event->rel_x);
+		input_report_rel(fd->input, REL_Y, event->rel_y);
 	}
 
 	/* sync now if there is no touch data following */
@@ -509,6 +660,11 @@ static int wtp_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 			0, fd->info.abs_max_y, 0, 0);
 	input_set_abs_params(input, ABS_X, 0, fd->info.abs_max_x, 0, 0);
 	input_set_abs_params(input, ABS_Y, 0, fd->info.abs_max_y, 0, 0);
+
+	if (fd->info.has_rel) {
+		input_set_capability(input, EV_REL, REL_X);
+		input_set_capability(input, EV_REL, REL_Y);
+	}
 
 	res_x_mm = DPI_TO_DPMM(fd->info.abs_res_x);
 	res_y_mm = DPI_TO_DPMM(fd->info.abs_res_y);
