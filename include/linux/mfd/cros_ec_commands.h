@@ -57,13 +57,15 @@
 #define EC_LPC_ADDR_HOST_CMD   0x204
 
 /* I/O addresses for host command args and params */
-#define EC_LPC_ADDR_HOST_ARGS  0x800
+#define EC_LPC_ADDR_HOST_ARGS  0x800    /* and 0x801, 0x802, 0x803 */
 #define EC_LPC_ADDR_HOST_PARAM 0x804
 #define EC_HOST_PARAM_SIZE     0x0fc  /* Size of param area in bytes */
 
-/* I/O addresses for host command params, old interface */
-#define EC_LPC_ADDR_OLD_PARAM  0x880
-#define EC_OLD_PARAM_SIZE      0x080  /* Size of param area in bytes */
+/* The actual block is 0x800-0x8ff, but some BIOSes think it's 0x880-0x8ff
+ * and they tell the kernel that so we have to think of it as two parts. */
+#define EC_HOST_CMD_REGION0    0x800
+#define EC_HOST_CMD_REGION1    0x880
+#define EC_HOST_CMD_REGION_SIZE 0x80
 
 /* EC command register bit functions */
 #define EC_LPC_CMDR_DATA	(1 << 0)  /* Data ready for host to read */
@@ -137,8 +139,8 @@
 #define EC_SWITCH_LID_OPEN               0x01
 #define EC_SWITCH_POWER_BUTTON_PRESSED   0x02
 #define EC_SWITCH_WRITE_PROTECT_DISABLED 0x04
-/* Recovery requested via keyboard */
-#define EC_SWITCH_KEYBOARD_RECOVERY      0x08
+/* Was recovery requested via keyboard; now unused. */
+#define EC_SWITCH_IGNORE1		 0x08
 /* Recovery requested via dedicated signal (from servo board) */
 #define EC_SWITCH_DEDICATED_RECOVERY     0x10
 /* Was fake developer mode switch; now unused.  Remove in next refactor. */
@@ -158,6 +160,14 @@
  * handle actual C code so keep it separate.
  */
 #ifndef __ACPI__
+
+/*
+ * Define __packed if someone hasn't beat us to it.  Linux kernel style
+ * checking prefers __packed over __attribute__((packed)).
+ */
+#ifndef __packed
+#define __packed __attribute__((packed))
+#endif
 
 /* LPC command status byte masks */
 /* EC has written a byte in the data register and host hasn't read it yet */
@@ -1151,7 +1161,7 @@ struct ec_response_gpio_get {
 #define EC_CMD_I2C_READ 0x94
 
 struct ec_params_i2c_read {
-	uint16_t addr;
+	uint16_t addr; /* 8-bit address (7-bit shifted << 1) */
 	uint8_t read_size; /* Either 8 or 16. */
 	uint8_t port;
 	uint8_t offset;
@@ -1165,7 +1175,7 @@ struct ec_response_i2c_read {
 
 struct ec_params_i2c_write {
 	uint16_t data;
-	uint16_t addr;
+	uint16_t addr; /* 8-bit address (7-bit shifted << 1) */
 	uint8_t write_size; /* Either 8 or 16. */
 	uint8_t port;
 	uint8_t offset;
@@ -1206,6 +1216,104 @@ struct ec_params_force_idle {
 #define EC_CMD_BATTERY_CUT_OFF 0x99
 
 /*****************************************************************************/
+/* USB port mux control. */
+
+/*
+ * Switch USB mux or return to automatic switching.
+ */
+#define EC_CMD_USB_MUX 0x9a
+
+struct ec_params_usb_mux {
+	uint8_t mux;
+} __packed;
+
+/*****************************************************************************/
+/* LDOs / FETs control. */
+
+enum ec_ldo_state {
+	EC_LDO_STATE_OFF = 0,	/* the LDO / FET is shut down */
+	EC_LDO_STATE_ON = 1,	/* the LDO / FET is ON / providing power */
+};
+
+/*
+ * Switch on/off a LDO.
+ */
+#define EC_CMD_LDO_SET 0x9b
+
+struct ec_params_ldo_set {
+	uint8_t index;
+	uint8_t state;
+} __packed;
+
+/*
+ * Get LDO state.
+ */
+#define EC_CMD_LDO_GET 0x9c
+
+struct ec_params_ldo_get {
+	uint8_t index;
+} __packed;
+
+struct ec_response_ldo_get {
+	uint8_t state;
+} __packed;
+
+/*****************************************************************************/
+/* Power info. */
+
+/*
+ * Get power info.
+ */
+#define EC_CMD_POWER_INFO 0x9d
+
+struct ec_response_power_info {
+	uint32_t usb_dev_type;
+	uint16_t voltage_ac;
+	uint16_t voltage_system;
+	uint16_t current_system;
+	uint16_t usb_current_limit;
+} __packed;
+
+/*****************************************************************************/
+/* I2C passthru command */
+
+#define EC_CMD_I2C_PASSTHRU 0x9e
+
+/* Slave address is 10 (not 7) bit */
+#define EC_I2C_FLAG_10BIT	(1 << 16)
+
+/* Read data; if not present, message is a write */
+#define EC_I2C_FLAG_READ	(1 << 15)
+
+/* Mask for address */
+#define EC_I2C_ADDR_MASK	0x3ff
+
+#define EC_I2C_STATUS_NAK	(1 << 0) /* Transfer was not acknowledged */
+#define EC_I2C_STATUS_TIMEOUT	(1 << 1) /* Timeout during transfer */
+
+/* Any error */
+#define EC_I2C_STATUS_ERROR	(EC_I2C_STATUS_NAK | EC_I2C_STATUS_TIMEOUT)
+
+struct ec_params_i2c_passthru_msg {
+	uint16_t addr_flags;	/* I2C slave address (7 or 10 bits) and flags */
+	uint16_t len;		/* Number of bytes to read or write */
+} __packed;
+
+struct ec_params_i2c_passthru {
+	uint8_t port;		/* I2C port number */
+	uint8_t num_msgs;	/* Number of messages */
+	struct ec_params_i2c_passthru_msg msg[];
+	/* Data to write for all messages is concatenated here */
+} __packed;
+
+struct ec_response_i2c_passthru {
+	uint8_t i2c_status;	/* Status flags (EC_I2C_STATUS_...) */
+	uint8_t num_msgs;	/* Number of messages processed */
+	uint8_t data[];		/* Data read by messages concatenated here */
+} __packed;
+
+
+/*****************************************************************************/
 /* Temporary debug commands. TODO: remove this crosbug.com/p/13849 */
 
 /*
@@ -1221,7 +1329,51 @@ struct ec_params_force_idle {
 #define EC_CMD_CHARGE_CURRENT_LIMIT 0xa1
 
 struct ec_params_current_limit {
-	uint32_t limit;
+	uint32_t limit; /* in mA */
+} __packed;
+
+/*
+ * Set maximum external power current.
+ */
+#define EC_CMD_EXT_POWER_CURRENT_LIMIT 0xa2
+
+struct ec_params_ext_power_current_limit {
+	uint32_t limit; /* in mA */
+} __packed;
+
+/*****************************************************************************/
+/* Smart battery pass-through */
+
+/* Get / Set 16-bit smart battery registers */
+#define EC_CMD_SB_READ_WORD   0xb0
+#define EC_CMD_SB_WRITE_WORD  0xb1
+
+/* Get / Set string smart battery parameters
+ * formatted as SMBUS "block".
+ */
+#define EC_CMD_SB_READ_BLOCK  0xb2
+#define EC_CMD_SB_WRITE_BLOCK 0xb3
+
+struct ec_params_sb_rd {
+	uint8_t reg;
+} __packed;
+
+struct ec_response_sb_rd_word {
+	uint16_t value;
+} __packed;
+
+struct ec_params_sb_wr_word {
+	uint8_t reg;
+	uint16_t value;
+} __packed;
+
+struct ec_response_sb_rd_block {
+	uint8_t data[32];
+} __packed;
+
+struct ec_params_sb_wr_block {
+	uint8_t reg;
+	uint16_t data[32];
 } __packed;
 
 /*****************************************************************************/
