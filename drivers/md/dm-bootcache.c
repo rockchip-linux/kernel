@@ -1166,7 +1166,7 @@ bad_cache:
 	return -EINVAL;
 }
 
-static int bootcache_status(struct dm_target *ti, status_type_t type,
+static void bootcache_status(struct dm_target *ti, status_type_t type,
 			    unsigned status_flags, char *result, uint maxlen)
 {
 	struct bootcache *cache = (struct bootcache *) ti->private;
@@ -1193,7 +1193,6 @@ static int bootcache_status(struct dm_target *ti, status_type_t type,
 			cache->args.max_trace);
 		break;
 	}
-	return 0;
 }
 
 static void bootcache_dtr(struct dm_target *ti)
