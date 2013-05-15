@@ -6813,29 +6813,29 @@ static int nl80211_get_wowlan(struct sk_buff *skb, struct genl_info *info)
 	if (!hdr)
 		goto nla_put_failure;
 
-	if (rdev->wowlan) {
+	if (rdev->wiphy.wowlan_config) {
 		struct nlattr *nl_wowlan;
 
 		nl_wowlan = nla_nest_start(msg, NL80211_ATTR_WOWLAN_TRIGGERS);
 		if (!nl_wowlan)
 			goto nla_put_failure;
 
-		if ((rdev->wowlan->any &&
+		if ((rdev->wiphy.wowlan_config->any &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_ANY)) ||
-		    (rdev->wowlan->disconnect &&
+		    (rdev->wiphy.wowlan_config->disconnect &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_DISCONNECT)) ||
-		    (rdev->wowlan->magic_pkt &&
+		    (rdev->wiphy.wowlan_config->magic_pkt &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_MAGIC_PKT)) ||
-		    (rdev->wowlan->gtk_rekey_failure &&
+		    (rdev->wiphy.wowlan_config->gtk_rekey_failure &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_GTK_REKEY_FAILURE)) ||
-		    (rdev->wowlan->eap_identity_req &&
+		    (rdev->wiphy.wowlan_config->eap_identity_req &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_EAP_IDENT_REQUEST)) ||
-		    (rdev->wowlan->four_way_handshake &&
+		    (rdev->wiphy.wowlan_config->four_way_handshake &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_4WAY_HANDSHAKE)) ||
-		    (rdev->wowlan->rfkill_release &&
+		    (rdev->wiphy.wowlan_config->rfkill_release &&
 		     nla_put_flag(msg, NL80211_WOWLAN_TRIG_RFKILL_RELEASE)))
 			goto nla_put_failure;
-		if (rdev->wowlan->n_patterns) {
+		if (rdev->wiphy.wowlan_config->n_patterns) {
 			struct nlattr *nl_pats, *nl_pat;
 			int i, pat_len;
 
@@ -6844,17 +6844,17 @@ static int nl80211_get_wowlan(struct sk_buff *skb, struct genl_info *info)
 			if (!nl_pats)
 				goto nla_put_failure;
 
-			for (i = 0; i < rdev->wowlan->n_patterns; i++) {
+			for (i = 0; i < rdev->wiphy.wowlan_config->n_patterns; i++) {
 				nl_pat = nla_nest_start(msg, i + 1);
 				if (!nl_pat)
 					goto nla_put_failure;
-				pat_len = rdev->wowlan->patterns[i].pattern_len;
+				pat_len = rdev->wiphy.wowlan_config->patterns[i].pattern_len;
 				if (nla_put(msg, NL80211_WOWLAN_PKTPAT_MASK,
 					    DIV_ROUND_UP(pat_len, 8),
-					    rdev->wowlan->patterns[i].mask) ||
+					    rdev->wiphy.wowlan_config->patterns[i].mask) ||
 				    nla_put(msg, NL80211_WOWLAN_PKTPAT_PATTERN,
 					    pat_len,
-					    rdev->wowlan->patterns[i].pattern))
+					    rdev->wiphy.wowlan_config->patterns[i].pattern))
 					goto nla_put_failure;
 				nla_nest_end(msg, nl_pat);
 			}
@@ -6880,14 +6880,14 @@ static int nl80211_set_wowlan(struct sk_buff *skb, struct genl_info *info)
 	struct cfg80211_wowlan *ntrig;
 	struct wiphy_wowlan_support *wowlan = &rdev->wiphy.wowlan;
 	int err, i;
-	bool prev_enabled = rdev->wowlan;
+	bool prev_enabled = rdev->wiphy.wowlan_config;
 
 	if (!rdev->wiphy.wowlan.flags && !rdev->wiphy.wowlan.n_patterns)
 		return -EOPNOTSUPP;
 
 	if (!info->attrs[NL80211_ATTR_WOWLAN_TRIGGERS]) {
 		cfg80211_rdev_free_wowlan(rdev);
-		rdev->wowlan = NULL;
+		rdev->wiphy.wowlan_config = NULL;
 		goto set_wakeup;
 	}
 
@@ -7006,11 +7006,12 @@ static int nl80211_set_wowlan(struct sk_buff *skb, struct genl_info *info)
 		goto error;
 	}
 	cfg80211_rdev_free_wowlan(rdev);
-	rdev->wowlan = ntrig;
+	rdev->wiphy.wowlan_config = ntrig;
 
  set_wakeup:
-	if (rdev->ops->set_wakeup && prev_enabled != !!rdev->wowlan)
-		rdev_set_wakeup(rdev, rdev->wowlan);
+	if (rdev->ops->set_wakeup &&
+	    prev_enabled != !!rdev->wiphy.wowlan_config)
+		rdev_set_wakeup(rdev, rdev->wiphy.wowlan_config);
 
 	return 0;
  error:

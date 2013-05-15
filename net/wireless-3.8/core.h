@@ -81,8 +81,6 @@ struct cfg80211_registered_device {
 	struct work_struct conn_work;
 	struct work_struct event_work;
 
-	struct cfg80211_wowlan *wowlan;
-
 	/* netlink port which started critical protocol (0 means not started) */
 	u32 crit_proto_nlportid;
 
@@ -108,14 +106,16 @@ bool wiphy_idx_valid(int wiphy_idx)
 static inline void
 cfg80211_rdev_free_wowlan(struct cfg80211_registered_device *rdev)
 {
+#ifdef CONFIG_PM
 	int i;
 
-	if (!rdev->wowlan)
+	if (!rdev->wiphy.wowlan_config)
 		return;
-	for (i = 0; i < rdev->wowlan->n_patterns; i++)
-		kfree(rdev->wowlan->patterns[i].mask);
-	kfree(rdev->wowlan->patterns);
-	kfree(rdev->wowlan);
+	for (i = 0; i < rdev->wiphy.wowlan_config->n_patterns; i++)
+		kfree(rdev->wiphy.wowlan_config->patterns[i].mask);
+	kfree(rdev->wiphy.wowlan_config->patterns);
+	kfree(rdev->wiphy.wowlan_config);
+#endif
 }
 
 extern struct workqueue_struct *cfg80211_wq;

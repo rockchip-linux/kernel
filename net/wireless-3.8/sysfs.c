@@ -94,6 +94,7 @@ static void cfg80211_leave_all(struct cfg80211_registered_device *rdev)
 		cfg80211_leave(rdev, wdev);
 }
 
+#ifdef CONFIG_PM
 static int wiphy_suspend(struct device *dev, pm_message_t state)
 {
 	struct cfg80211_registered_device *rdev = dev_to_rdev(dev);
@@ -103,10 +104,10 @@ static int wiphy_suspend(struct device *dev, pm_message_t state)
 
 	rtnl_lock();
 	if (rdev->wiphy.registered) {
-		if (!rdev->wowlan)
+		if (!rdev->wiphy.wowlan_config)
 			cfg80211_leave_all(rdev);
 		if (rdev->ops->suspend)
-			ret = rdev_suspend(rdev, rdev->wowlan);
+			ret = rdev_suspend(rdev, rdev->wiphy.wowlan_config);
 		if (ret == 1) {
 			/* Driver refuse to configure wowlan */
 			cfg80211_leave_all(rdev);
@@ -135,6 +136,7 @@ static int wiphy_resume(struct device *dev)
 
 	return ret;
 }
+#endif
 
 static const void *wiphy_namespace(struct device *d)
 {
@@ -149,8 +151,10 @@ struct class ieee80211_class = {
 	.dev_release = wiphy_dev_release,
 	.dev_groups = ieee80211_groups,
 	.dev_uevent = wiphy_uevent,
+#ifdef CONFIG_PM
 	.suspend = wiphy_suspend,
 	.resume = wiphy_resume,
+#endif
 	.ns_type = &net_ns_type_operations,
 	.namespace = wiphy_namespace,
 };
