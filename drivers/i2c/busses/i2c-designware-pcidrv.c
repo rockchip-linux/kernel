@@ -77,6 +77,12 @@ struct dw_pci_controller {
 	u32 tx_fifo_depth;
 	u32 rx_fifo_depth;
 	u32 clk_khz;
+	u32 ss_hcnt;
+	u32 ss_lcnt;
+	u32 fs_hcnt;
+	u32 fs_lcnt;
+	u32 ss_sda;
+	u32 fs_sda;
 };
 
 #define INTEL_MID_STD_CFG  (DW_IC_CON_MASTER |			\
@@ -167,6 +173,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
         },
         [byt_1] = {
                 .bus_num     = -1,
@@ -174,6 +186,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
         },
         [byt_2] = {
                 .bus_num     = -1,
@@ -181,6 +199,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
         },
         [byt_3] = {
                 .bus_num     = -1,
@@ -188,6 +212,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
         },
         [byt_4] = {
                 .bus_num     = -1,
@@ -195,6 +225,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
         },
         [byt_5] = {
                 .bus_num     = -1,
@@ -202,6 +238,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
         },
         [byt_6] = {
                 .bus_num     = -1,
@@ -209,6 +251,12 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
                 .tx_fifo_depth = 32,
                 .rx_fifo_depth = 32,
                 .clk_khz      = 100000,
+		.ss_hcnt	= 0x200,
+		.ss_lcnt	= 0x200,
+		.fs_hcnt	= 0x55,
+		.fs_lcnt	= 0x99,
+		.ss_sda		= 0x6,
+		.fs_sda		= 0x6,
 	},
 };
 static struct i2c_algorithm i2c_dw_algo = {
@@ -362,6 +410,11 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 		I2C_FUNC_SMBUS_WORD_DATA |
 		I2C_FUNC_SMBUS_I2C_BLOCK;
 
+	dev->ss_hcnt = controller->ss_hcnt;
+	dev->ss_lcnt = controller->ss_lcnt;
+	dev->fs_hcnt = controller->fs_hcnt;
+	dev->fs_lcnt = controller->fs_lcnt;
+
 	mode = controller->bus_cfg & (DW_IC_CON_SPEED_STD | DW_IC_CON_SPEED_FAST);
 	if (force_std_mode && !(mode & DW_IC_CON_SPEED_STD)){
 		controller->bus_cfg &= ~mode;
@@ -370,6 +423,7 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 
 	dev->master_cfg =  controller->bus_cfg;
 
+	dev->sda_hold_time = (dev->master_cfg & DW_IC_CON_SPEED_FAST) ? controller->fs_sda : controller->ss_sda;
 	pci_set_drvdata(pdev, dev);
 
 	dev->tx_fifo_depth = controller->tx_fifo_depth;
