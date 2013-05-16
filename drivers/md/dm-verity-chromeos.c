@@ -25,6 +25,7 @@
 #include <linux/genhd.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/mount.h>
 #include <linux/notifier.h>
 #include <linux/string.h>
 #include <asm/page.h>
@@ -130,6 +131,7 @@ static dev_t get_boot_dev_from_root_dev(struct block_device *root_bdev)
 /* get_boot_dev is bassed on dm_get_device_by_uuid in dm_bootcache. */
 static dev_t get_boot_dev(void)
 {
+	const char partuuid[] = "PARTUUID=";
 	char *uuid_str;
 	struct device *dev = NULL;
 	dev_t devt = 0;
@@ -141,17 +143,21 @@ static dev_t get_boot_dev(void)
 		return 0;
 	}
 	uuid_length = strlen(uuid_str);
-	if (uuid_length != 36)
-		goto bad_uuid;
 
-	dev = class_find_device(&block_class, NULL, uuid_str,
-				&match_dev_by_uuid);
-	if (!dev)
-		goto found_nothing;
+	if (strncmp(uuid_str, partuuid, strlen(partuuid)) == 0) {
+		devt = name_to_dev_t(uuid_str);
+	} else {
+		if (uuid_length != 36)
+			goto bad_uuid;
 
-	devt = dev->devt;
-	put_device(dev);
+		dev = class_find_device(&block_class, NULL, uuid_str,
+					&match_dev_by_uuid);
+		if (!dev)
+			goto found_nothing;
 
+		devt = dev->devt;
+		put_device(dev);
+	}
 	return devt;
 
 bad_uuid:
