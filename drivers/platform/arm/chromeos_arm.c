@@ -18,17 +18,149 @@
 
 #define pr_fmt(fmt) "chromeos_arm: " fmt
 
+#include <linux/bcd.h>
 #include <linux/gpio.h>
+#include <linux/notifier.h>
+#include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
 
 #include "../chromeos.h"
+#include "elog.h"
+
+struct chromeos_arm_elog_panic_buffer {
+	uint32_t start;
+	uint32_t size;
+	void __iomem *virt_addr;
+	struct notifier_block nb;
+};
+
+/*
+ * Update the checksum at the last byte
+ */
+static void elog_update_checksum(struct event_header *event, u8 checksum)
+{
+	u8 *event_data = (u8 *)event;
+	event_data[event->length - 1] = checksum;
+}
+
+/*
+ * Simple byte checksum for events
+ */
+static u8 elog_checksum_event(struct event_header *event)
+{
+	u8 index, checksum = 0;
+	u8 *data = (u8 *)event;
+
+	for (index = 0; index < event->length; index++)
+		checksum += data[index];
+	return checksum;
+}
+
+/*
+ * Populate timestamp in event header with current time
+ */
+static void elog_fill_timestamp(struct event_header *event)
+{
+	struct timeval timeval;
+	struct tm time;
+
+	do_gettimeofday(&timeval);
+	time_to_tm(timeval.tv_sec, 0, &time);
+
+	event->second = bin2bcd(time.tm_sec);
+	event->minute = bin2bcd(time.tm_min);
+	event->hour   = bin2bcd(time.tm_hour);
+	event->day    = bin2bcd(time.tm_mday);
+	event->month  = bin2bcd(time.tm_mon + 1);
+	event->year   = bin2bcd(time.tm_year % 100);
+}
+
+/*
+ * Fill out an event structure with space for the data and checksum.
+ */
+void elog_prepare_event(struct event_header *event, u8 event_type, void *data,
+			u8 data_size)
+{
+	event->type = event_type;
+	event->length = sizeof(*event) + data_size + 1;
+	elog_fill_timestamp(event);
+
+	if (data_size)
+		memcpy(&event[1], data, data_size);
+
+	/* Zero the checksum byte and then compute checksum */
+	elog_update_checksum(event, 0);
+	elog_update_checksum(event, -(elog_checksum_event(event)));
+}
+
+static int chromeos_arm_elog_panic(struct notifier_block *this,
+				   unsigned long p_event, void *ptr)
+{
+	struct chromeos_arm_elog_panic_buffer *buf;
+	uint32_t reason = ELOG_SHUTDOWN_PANIC;
+	const u8 data_size = sizeof(reason);
+	union {
+		struct event_header hdr;
+		u8 bytes[sizeof(struct event_header) + data_size + 1];
+	} event;
+
+	buf = container_of(this, struct chromeos_arm_elog_panic_buffer, nb);
+	elog_prepare_event(&event.hdr, ELOG_TYPE_OS_EVENT, &reason, data_size);
+	memcpy_toio(buf->virt_addr, event.bytes, sizeof(event.bytes));
+
+	return NOTIFY_DONE;
+}
+
+static int chromeos_arm_panic_init(struct platform_device *pdev, u32 start,
+				   u32 size)
+{
+	int ret = -EINVAL;
+	struct chromeos_arm_elog_panic_buffer *buf;
+
+	buf = kmalloc(sizeof(*buf), GFP_KERNEL);
+	if (!buf) {
+		dev_err(&pdev->dev, "failed to allocate panic notifier.\n");
+		ret = -ENOMEM;
+		goto fail1;
+	}
+
+	buf->start = start;
+	buf->size = size;
+	buf->nb.notifier_call = chromeos_arm_elog_panic;
+
+	if (!request_mem_region(start, size, "elog panic event")) {
+		dev_err(&pdev->dev, "failed to request panic event buffer.\n");
+		goto fail2;
+	}
+
+	buf->virt_addr = ioremap(start, size);
+	if (!buf->virt_addr) {
+		dev_err(&pdev->dev, "failed to map panic event buffer.\n");
+		goto fail3;
+	}
+
+	atomic_notifier_chain_register(&panic_notifier_list, &buf->nb);
+
+	platform_set_drvdata(pdev, buf);
+
+	return 0;
+
+fail3:
+	release_mem_region(start, size);
+fail2:
+	kfree(buf);
+fail1:
+	return ret;
+}
 
 static int chromeos_arm_probe(struct platform_device *pdev)
 {
 	int gpio, err, active_low;
 	enum of_gpio_flags flags;
+	u32 elog_panic_event[2];
 	struct device_node *np = pdev->dev.of_node;
 
 	if (!np) {
@@ -54,6 +186,15 @@ static int chromeos_arm_probe(struct platform_device *pdev)
 	gpio_export(gpio, 0);
 	gpio_export_link(&pdev->dev, "write-protect", gpio);
 
+	if (!of_property_read_u32_array(np, "elog-panic-event",
+					elog_panic_event,
+					ARRAY_SIZE(elog_panic_event))) {
+		err = chromeos_arm_panic_init(pdev, elog_panic_event[0],
+					      elog_panic_event[1]);
+		if (err)
+			goto err;
+	}
+
 	dev_info(&pdev->dev, "chromeos system detected\n");
 
 	err = 0;
@@ -63,8 +204,25 @@ err:
 	return err;
 }
 
+static int chromeos_arm_remove(struct platform_device *pdev)
+{
+	struct chromeos_arm_elog_panic_buffer *buf;
+
+	buf = platform_get_drvdata(pdev);
+	platform_set_drvdata(pdev, NULL);
+	if (buf) {
+		atomic_notifier_chain_unregister(&panic_notifier_list,
+						 &buf->nb);
+		release_mem_region(buf->start, buf->size);
+		iounmap(buf->virt_addr);
+		kfree(buf);
+	}
+	return 0;
+}
+
 static struct platform_driver chromeos_arm_driver = {
 	.probe = chromeos_arm_probe,
+	.remove = chromeos_arm_remove,
 	.driver = {
 		.name = "chromeos_arm",
 	},
