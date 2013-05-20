@@ -2119,7 +2119,6 @@ static int cyapa_probe(struct i2c_client *client,
 err_unregister_device:
 	if (cyapa->input)
 		input_unregister_device(cyapa->input);
-err_mem_free:
 	kfree(cyapa);
 
 	return ret;
