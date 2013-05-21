@@ -76,7 +76,6 @@ struct cros_ec_msg {
  * @phys_name: name of physical comms layer (e.g. 'i2c-4')
  * @parent: pointer to parent device (e.g. i2c or spi device)
  * @dev: Device pointer
- * dev_lock: Lock to prevent concurrent access
  * @wake_enabled: true if this device can wake the system from sleep
  * @was_wake_device: true if this device was set to wake the system from
  * sleep at the last suspend
@@ -106,7 +105,6 @@ struct cros_ec_device {
 
 	/* These are --private-- fields - do not assign */
 	struct device *dev;
-	struct mutex dev_lock;
 	bool wake_enabled;
 	bool was_wake_device;
 	struct blocking_notifier_head event_notifier;
