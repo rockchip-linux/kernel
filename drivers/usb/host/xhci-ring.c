@@ -1330,43 +1330,6 @@ static int xhci_search_cmd_trb_in_cd_list(struct xhci_hcd *xhci,
 	return 0;
 }
 
-/*
- * If the cmd_trb_comp_code is COMP_CMD_ABORT, we just check whether the
- * trb pointed by the command ring dequeue pointer is the trb we want to
- * cancel or not. And if the cmd_trb_comp_code is COMP_CMD_STOP, we will
- * traverse the cancel_cmd_list to trun the all of the commands according
- * to command descriptor to NO-OP trb.
- */
-static int handle_stopped_cmd_ring(struct xhci_hcd *xhci,
-		int cmd_trb_comp_code)
-{
-	int cur_trb_is_good = 0;
-
-	/* Searching the cmd trb pointed by the command ring dequeue
-	 * pointer in command descriptor list. If it is found, free it.
-	 */
-	cur_trb_is_good = xhci_search_cmd_trb_in_cd_list(xhci,
-			xhci->cmd_ring->dequeue);
-
-	if (cmd_trb_comp_code == COMP_CMD_ABORT)
-		xhci->cmd_ring_state = CMD_RING_STATE_STOPPED;
-	else if (cmd_trb_comp_code == COMP_CMD_STOP) {
-		/* traversing the cancel_cmd_list and canceling
-		 * the command according to command descriptor
-		 */
-		xhci_cancel_cmd_in_cd_list(xhci);
-
-		xhci->cmd_ring_state = CMD_RING_STATE_RUNNING;
-		/*
-		 * ring command ring doorbell again to restart the
-		 * command ring
-		 */
-		if (xhci->cmd_ring->dequeue != xhci->cmd_ring->enqueue)
-			xhci_ring_cmd_db(xhci);
-	}
-	return cur_trb_is_good;
-}
-
 static void xhci_handle_cmd_enable_slot(struct xhci_hcd *xhci, int slot_id,
 		u32 cmd_comp_code)
 {
@@ -1524,14 +1487,34 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	trace_xhci_cmd_completion(cmd_trb, (struct xhci_generic_trb *) event);
 
 	cmd_comp_code = GET_COMP_CODE(le32_to_cpu(event->status));
-	if (cmd_comp_code == COMP_CMD_ABORT || cmd_comp_code == COMP_CMD_STOP) {
-		/* If the return value is 0, we think the trb pointed by
-		 * command ring dequeue pointer is a good trb. The good
-		 * trb means we don't want to cancel the trb, but it have
-		 * been stopped by host. So we should handle it normally.
-		 * Otherwise, driver should invoke inc_deq() and return.
-		 */
-		if (handle_stopped_cmd_ring(xhci, cmd_comp_code)) {
+	/*
+	 * Command Ring Stopped events point at the xHC's *current* dequeue
+	 * pointer, i.e. the next command that will be executed. That TRB may
+	 * or may not have been issued yet. Just overwrite all canceled commands
+	 * with NOOPs and restart the ring, leaving our internal dequeue pointer
+	 * as it is (we will get another event for that position later, when
+	 * it has actually been executed).
+	 */
+	if (cmd_comp_code == COMP_CMD_STOP) {
+		xhci_cancel_cmd_in_cd_list(xhci);
+		xhci->cmd_ring_state = CMD_RING_STATE_RUNNING;
+		if (xhci->cmd_ring->dequeue != xhci->cmd_ring->enqueue)
+			xhci_ring_cmd_db(xhci);
+		return;
+	}
+
+	/*
+	 * If we aborted a command, we check if it is one of the commands we
+	 * meant to cancel. In that case, it will be freed and we just finish
+	 * up right here. If we aborted something else instead, we run it
+	 * through the normal handlers below. At any rate, the command ring is
+	 * stopped now, but the xHC will issue a Command Ring Stopped event
+	 * after this that will cause us to restart it.
+	 */
+	if (cmd_comp_code == COMP_CMD_ABORT) {
+		xhci->cmd_ring_state = CMD_RING_STATE_STOPPED;
+		if (xhci_search_cmd_trb_in_cd_list(xhci,
+			xhci->cmd_ring->dequeue)) {
 			inc_deq(xhci, xhci->cmd_ring);
 			return;
 		}
