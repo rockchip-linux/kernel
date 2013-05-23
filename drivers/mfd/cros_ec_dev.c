@@ -54,6 +54,25 @@ static long cros_ec_xfer_command(struct cros_ec_command *s)
 	return 0;
 }
 
+static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
+{
+	struct ec_response_get_version resp;
+	static const char * const current_image_name[] = {
+		"unknown", "read-only", "read-write", "invalid",
+	};
+	int ret;
+
+	ret = ec->command_recv(ec, EC_CMD_GET_VERSION, &resp, sizeof(resp));
+	if (ret)
+		return ret;
+	if (resp.current_image > ARRAY_SIZE(current_image_name))
+		resp.current_image = 3; /* invalid */
+	snprintf(str, maxlen, "%s\n%s\n%s\n\%s\n", CROS_EC_DEV_VERSION,
+		 resp.version_string_ro, resp.version_string_rw,
+		 current_image_name[resp.current_image]);
+
+	return 0;
+}
 
 /*****************************************************************************/
 /* Device file ops */
@@ -76,11 +95,18 @@ static int ec_device_release(struct inode *inode, struct file *filp)
 static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 			      size_t length, loff_t *offset)
 {
-	const char msg[] = CROS_EC_DEV_VERSION "\n";
-	size_t count = min(length, sizeof(msg));
+	char msg[sizeof(struct ec_response_get_version) +
+		 sizeof(CROS_EC_DEV_VERSION)];
+	size_t count;
+	int ret;
 
 	if (*offset != 0)
 		return 0;
+
+	ret = ec_get_version(ec, msg, sizeof(msg));
+	if (ret)
+		return ret;
+	count = min(length, strlen(msg));
 
 	if (copy_to_user(buffer, msg, count))
 		return -EFAULT;
