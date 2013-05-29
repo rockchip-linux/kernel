@@ -310,7 +310,17 @@ static struct platform_driver ec_i2c_tunnel_driver = {
 	},
 };
 
-module_platform_driver(ec_i2c_tunnel_driver);
+static int __init ec_i2c_init(void)
+{
+	return platform_driver_register(&ec_i2c_tunnel_driver);
+}
+subsys_initcall(ec_i2c_init);
+
+static void __exit ec_i2c_exit(void)
+{
+	platform_driver_unregister(&ec_i2c_tunnel_driver);
+}
+module_exit(ec_i2c_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("EC I2C tunnel driver");
