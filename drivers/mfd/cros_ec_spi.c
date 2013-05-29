@@ -434,7 +434,17 @@ static struct spi_driver cros_ec_driver_spi = {
 	.id_table	= cros_ec_spi_id,
 };
 
-module_spi_driver(cros_ec_driver_spi);
+static int __init cros_ec_init(void)
+{
+	return spi_register_driver(&cros_ec_driver_spi);
+}
+subsys_initcall(cros_ec_init);
+
+static void __exit cros_ec_exit(void)
+{
+	spi_unregister_driver(&cros_ec_driver_spi);
+}
+module_exit(cros_ec_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("ChromeOS EC multi function device (SPI)");
