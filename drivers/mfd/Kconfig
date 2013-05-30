@@ -60,8 +60,8 @@ config MFD_AAT2870_CORE
 	  functionality of the device.
 
 config MFD_CROS_EC
-	tristate "ChromeOS Embedded Controller"
-	select MFD_CORE
+	tristate "Support ChromeOS Embedded Controller"
+	depends on MFD_CORE
 	help
 	  If you say Y here you get support for the ChromeOS Embedded
 	  Controller (EC) providing keyboard, battery and power services.
