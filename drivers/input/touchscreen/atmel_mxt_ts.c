@@ -1590,7 +1590,8 @@ static int mxt_cfg_proc_line(struct mxt_data *data, const char *line,
 
 	/* Supplied object MUST be a valid instance and match object size */
 	object = mxt_get_object(data, type);
-	if (!object || instance > object->instances || size != object->size)
+	if (!object || instance > mxt_obj_instances(object) ||
+	    size != mxt_obj_size(object))
 		return -EINVAL;
 
 	content = kmalloc(size, GFP_KERNEL);
@@ -1612,8 +1613,9 @@ static int mxt_cfg_proc_line(struct mxt_data *data, const char *line,
 		goto free_content;
 	}
 	INIT_LIST_HEAD(&cfg_line->list);
-	cfg_line->addr = object->start_address + instance * object->size;
-	cfg_line->size = object->size;
+	cfg_line->addr = object->start_address +
+		instance * mxt_obj_size(object);
+	cfg_line->size = mxt_obj_size(object);
 	cfg_line->content = content;
 	list_add_tail(&cfg_line->list, cfg_list);
 
