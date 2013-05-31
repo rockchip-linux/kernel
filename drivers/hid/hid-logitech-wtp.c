@@ -235,7 +235,8 @@ static void generic_parse_mouse_rel(u8 *raw,
 #define TPRXY_EVENT_TOUCHPAD_RAW_TOUCH_POINTS 0x00
 
 #define TPRXY_FORMAT_RAW 0x01
-#define TPRXY_FORMAT_MOUSE_EXTENDED 0x02
+#define TPRXY_FORMAT_RAW_SEPARATE_BUTTON_REPORT 0x02
+#define TPRXY_FORMAT_MOUSE_EXTENDED 0x03
 
 #define TPRXY_DEFAULT_RES 1000  /* DPI */
 
@@ -260,6 +261,8 @@ static int tprxy_init(struct hidpp_device *hidpp_dev)
 	} else {
 		params = 0x5; /* enhanced sensitivity + raw */
 		fd->feature.event_format = TPRXY_FORMAT_RAW;
+		if (hidpp_dev->hid_dev->product == UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD)
+			fd->feature.event_format = TPRXY_FORMAT_RAW_SEPARATE_BUTTON_REPORT;
 	}
 
 	ret = hidpp_send_fap_command_sync(hidpp_dev, fd->feature.index,
@@ -317,7 +320,8 @@ static int tprxy_parse_other_event(struct wtp_data *wtp,
 	if (report->report_id != GENERIC_EVENT_MOUSE)
 		return -1;
 
-	generic_parse_mouse_button(raw[1], event);
+	if (wtp->feature.event_format != TPRXY_FORMAT_RAW)
+		generic_parse_mouse_button(raw[1], event);
 
 	if (wtp->feature.event_format != TPRXY_FORMAT_MOUSE_EXTENDED)
 		return 0;
@@ -350,7 +354,7 @@ static int tprxy_parse_feature_event(struct wtp_data *wtp,
 
 	dbg_hid("%s\n", __func__);
 
-	if (wtp->feature.event_format != TPRXY_FORMAT_RAW)
+	if (wtp->feature.event_format == TPRXY_FORMAT_MOUSE_EXTENDED)
 		return -1;
 
 	for (i = 0; i < TPRXY_SLOTS_PER_FRAME; ++i) {
@@ -370,7 +374,8 @@ static int tprxy_parse_feature_event(struct wtp_data *wtp,
 		event->end_of_frame = true;
 
 	event->has_abs = true;
-	event->has_buttons = 0x1;
+	if (wtp->feature.event_format == TPRXY_FORMAT_RAW)
+		event->has_buttons = 0x1;
 	return 0;
 }
 
