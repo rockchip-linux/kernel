@@ -2757,6 +2757,14 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 			goto error_free_object;
 	}
 
+	/* Force the device to report back status so we can cache the device
+	 * config checksum
+	 */
+	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+				 MXT_COMMAND_REPORTALL, 1);
+	if (error)
+		dev_warn(&client->dev, "error making device report status.\n");
+
 	/* Default to falling edge if no platform data provided */
 	irqflags = data->pdata ? data->pdata->irqflags : IRQF_TRIGGER_FALLING;
 	error = request_threaded_irq(client->irq, NULL, mxt_interrupt,
@@ -2775,14 +2783,6 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 		if (error)
 			goto error_free_irq;
 	}
-
-	/* Force the device to report back status so we can cache the device
-	 * config checksum
-	 */
-	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
-				 MXT_COMMAND_REPORTALL, 1);
-	if (error)
-		dev_warn(&client->dev, "error making device report status.\n");
 
 	error = sysfs_create_group(&client->dev.kobj, &mxt_attr_group);
 	if (error) {
