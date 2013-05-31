@@ -120,7 +120,25 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	return ret;
 }
 
+static long ec_device_ioctl_readmem(void __user *argp)
+{
+	struct cros_ec_readmem s_mem;
+	char buf[EC_MEMMAP_SIZE];
+	long num;
 
+	/* Not every platform supports direct reads */
+	if (!ec->cmd_readmem)
+		return -ENOTTY;
+
+	if (copy_from_user(&s_mem, argp, sizeof(s_mem)))
+		return -EFAULT;
+	num = ec->cmd_readmem(ec, s_mem.offset, s_mem.bytes, buf);
+	if (num <= 0)
+		return num;
+	if (copy_to_user((void __user *)s_mem.buffer, buf, num))
+		return -EFAULT;
+	return num;
+}
 
 static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
@@ -135,7 +153,7 @@ static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 		return ec_device_ioctl_xcmd(argp);
 		break;
 	case CROS_EC_DEV_IOCRDMEM:
-		/* FIXME(wfrichar): not yet implemented */
+		return ec_device_ioctl_readmem(argp);
 		break;
 	}
 

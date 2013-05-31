@@ -83,6 +83,10 @@ struct cros_ec_msg {
  * @parent: pointer to parent device (e.g. i2c or spi device)
  * @wake_enabled: true if this device can wake the system from sleep
  * @cmd_xfer: low-level channel to the EC
+ * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
+ *     @offset is within EC_LPC_ADDR_MEMMAP region.
+ *     @bytes: number of bytes to read. zero means "read a string" (including
+ *     the trailing '\0'). At most only EC_MEMMAP_SIZE bytes can be read.
  */
 struct cros_ec_device {
 
@@ -112,6 +116,8 @@ struct cros_ec_device {
 	struct device *parent;
 	bool wake_enabled;
 	int (*cmd_xfer)(struct cros_ec_device *ec, struct cros_ec_msg *msg);
+	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
+			   unsigned int bytes, void *dest);
 };
 
 /**

@@ -145,6 +145,35 @@ done:
 	return ret;
 }
 
+/* Returns num bytes read, or negative on error. Doesn't need locking. */
+static int cros_ec_lpc_readmem(struct cros_ec_device *ec, unsigned int offset,
+			       unsigned int bytes, void *dest)
+{
+	int i = offset;
+	char *s = dest;
+	int cnt = 0;
+
+	if (offset >= EC_MEMMAP_SIZE - bytes)
+		return -EINVAL;
+
+	/* fixed length */
+	if (bytes) {
+		for (; cnt < bytes; i++, s++, cnt++)
+			*s = inb(EC_LPC_ADDR_MEMMAP + i);
+		return cnt;
+	}
+
+	/* string */
+	for (; i < EC_MEMMAP_SIZE; i++, s++) {
+		*s = inb(EC_LPC_ADDR_MEMMAP + i);
+		cnt++;
+		if (!*s)
+			break;
+	}
+
+	return cnt;
+}
+
 static int cros_ec_lpc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -186,6 +215,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	ec_dev->phys_name = dev_name(dev);
 	ec_dev->parent = dev;
 	ec_dev->cmd_xfer = cros_ec_cmd_xfer_lpc;
+	ec_dev->cmd_readmem = cros_ec_lpc_readmem;
 
 	err = cros_ec_register(ec_dev);
 	if (err) {
