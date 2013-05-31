@@ -35,6 +35,7 @@
  * @indata: Where to put the incoming data from EC
  * @insize: Incoming length in bytes (filled in by EC)
  * @result: EC's response to the command (separate from communication failure)
+ * ioctl returns zero on success, negative on error
  */
 struct cros_ec_command {
 	uint32_t version;
@@ -48,48 +49,19 @@ struct cros_ec_command {
 
 /*
  * @offset: within EC_LPC_ADDR_MEMMAP region
- * @value: value read from EC
+ * @bytes: number of bytes to read. zero means "read a string" (including '\0')
+ *         (at most only EC_MEMMAP_SIZE bytes can be read)
+ * @buffer: where to store the result
+ * ioctl returns the number of bytes read, negative on error
  */
-struct cros_ec_read_mem8 {
-	uint8_t offset;
-	uint8_t value;
-};
-
-/*
- * @offset: within EC_LPC_ADDR_MEMMAP region
- * @value: value read from EC
- */
-struct cros_ec_read_mem16 {
-	uint8_t offset;
-	uint16_t value;
-};
-
-/*
- * @offset: within EC_LPC_ADDR_MEMMAP region
- * @value: value read from EC
- */
-struct cros_ec_read_mem32 {
-	uint8_t offset;
-	uint32_t value;
-};
-
-/*
- * @offset: within EC_LPC_ADDR_MEMMAP region
- * @buffer: where to store the string
- * @length: length of string returned (including any trailing '\0')
- */
-struct cros_ec_read_string {
-	uint8_t offset;
+struct cros_ec_readmem {
+	uint32_t offset;
+	uint32_t bytes;
 	char *buffer;
-	uint8_t length;
 };
 
 #define CROS_EC_DEV_IOC              ':'
 #define CROS_EC_DEV_IOCXCMD    _IOWR(':', 0, struct cros_ec_command)
-#define CROS_EC_DEV_IOCRDMEM8  _IOWR(':', 1, struct cros_ec_read_mem8)
-#define CROS_EC_DEV_IOCRDMEM16 _IOWR(':', 2, struct cros_ec_read_mem8)
-#define CROS_EC_DEV_IOCRDMEM32 _IOWR(':', 3, struct cros_ec_read_mem16)
-#define CROS_EC_DEV_IOCRDSTR   _IOWR(':', 4, struct cros_ec_read_string)
-#define CROS_EC_DEV_IOC_MAXNR 4
+#define CROS_EC_DEV_IOCRDMEM   _IOWR(':', 1, struct cros_ec_readmem)
 
 #endif /* _CROS_EC_DEV_H_ */

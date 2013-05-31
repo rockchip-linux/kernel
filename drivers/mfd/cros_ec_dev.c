@@ -129,17 +129,12 @@ static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 
 	if (_IOC_TYPE(cmd) != CROS_EC_DEV_IOC)
 		return -ENOTTY;
-	if (_IOC_NR(cmd) > CROS_EC_DEV_IOC_MAXNR)
-		return -ENOTTY;
 
 	switch (cmd) {
 	case CROS_EC_DEV_IOCXCMD:
 		return ec_device_ioctl_xcmd(argp);
 		break;
-	case CROS_EC_DEV_IOCRDMEM8:
-	case CROS_EC_DEV_IOCRDMEM16:
-	case CROS_EC_DEV_IOCRDMEM32:
-	case CROS_EC_DEV_IOCRDSTR:
+	case CROS_EC_DEV_IOCRDMEM:
 		/* FIXME(wfrichar): not yet implemented */
 		break;
 	}
