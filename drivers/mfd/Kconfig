@@ -78,6 +78,16 @@ config MFD_CROS_EC_I2C
 	  a checksum. Failing accesses will be retried three times to
 	  improve reliability.
 
+config MFD_CROS_EC_LPC
+	tristate "ChromeOS Embedded Controller (LPC)"
+	depends on MFD_CROS_EC
+
+	help
+	  If you say Y here, you get support for talking to the ChromeOS EC
+	  over an LPC bus. This uses a simple byte-level protocol with a
+	  checksum. This is used for userspace access only. The kernel
+	  typically has its own communication methods.
+
 config MFD_CROS_EC_SPI
 	tristate "ChromeOS Embedded Controller (SPI)"
 	depends on MFD_CROS_EC && SPI && OF
