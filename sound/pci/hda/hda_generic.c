@@ -4130,6 +4130,72 @@ static int add_automute_mode_enum(struct hda_codec *codec)
 }
 
 /*
+ * Pin-Mute support
+ */
+#define COMPOSE_PIN_SWITCH_VAL(pin, mask) ((pin) | ((mask) << 16))
+#define GET_PIN_FROM_SWITCH_VAL(val) ((unsigned int)((val) & 0x0000ffff))
+#define GET_MASK_FROM_SWITCH_VAL(val) ((unsigned int)((val) >> 16))
+
+static int pin_mute_info(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_BOOLEAN;
+	uinfo->count = 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 1;
+	return 0;
+}
+
+static int pin_mute_get(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
+	unsigned int pin = GET_PIN_FROM_SWITCH_VAL(kcontrol->private_value);
+	unsigned int mask = GET_MASK_FROM_SWITCH_VAL(kcontrol->private_value);
+	unsigned int value = snd_hda_codec_get_pin_target(codec, pin);
+
+	ucontrol->value.integer.value[0] = !!(mask & value);
+	return 0;
+}
+
+static int pin_mute_put(struct snd_kcontrol *kcontrol,
+			struct snd_ctl_elem_value *ucontrol)
+{
+	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
+	unsigned int pin = GET_PIN_FROM_SWITCH_VAL(kcontrol->private_value);
+	unsigned int mask = GET_MASK_FROM_SWITCH_VAL(kcontrol->private_value);
+	unsigned int value = snd_hda_codec_get_pin_target(codec, pin);
+
+	if (ucontrol->value.integer.value[0])
+		value |= mask;
+	else
+		value &= ~mask;
+
+	set_pin_target(codec, pin, value, true);
+
+	return 0;
+}
+
+static int add_pin_mute(struct hda_codec *codec, const char *name,
+			int pin, int mask)
+{
+	struct hda_gen_spec *spec = codec->spec;
+	static struct snd_kcontrol_new pin_mute = {
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.info = pin_mute_info,
+	};
+
+	pin_mute.name = name;
+	pin_mute.private_value = COMPOSE_PIN_SWITCH_VAL(pin, mask);
+	pin_mute.get = pin_mute_get;
+	pin_mute.put = pin_mute_put;
+
+	if (!snd_hda_gen_add_kctl(spec, NULL, &pin_mute))
+		return -ENOMEM;
+	return 0;
+}
+
+/*
  * Check the availability of HP/line-out auto-mute;
  * Set up appropriately if really supported
  */
@@ -4139,9 +4205,6 @@ static int check_auto_mute_availability(struct hda_codec *codec)
 	struct auto_pin_cfg *cfg = &spec->autocfg;
 	int present = 0;
 	int i, err;
-
-	if (spec->suppress_auto_mute)
-		return 0;
 
 	if (cfg->hp_pins[0])
 		present++;
@@ -4164,6 +4227,25 @@ static int check_auto_mute_availability(struct hda_codec *codec)
 		memcpy(cfg->hp_pins, cfg->line_out_pins,
 		       sizeof(cfg->hp_pins));
 		cfg->hp_outs = cfg->line_outs;
+	}
+
+	if (spec->suppress_auto_mute) {
+		for (i = 0; i < cfg->hp_outs; i++) {
+			hda_nid_t nid = cfg->hp_pins[i];
+			add_pin_mute(codec, "HP Pin Playback Switch",
+				     nid, PIN_HP);
+		}
+		for (i = 0; i < cfg->speaker_outs; i++) {
+			hda_nid_t nid = cfg->speaker_pins[i];
+			add_pin_mute(codec, "Speaker Pin Playback Switch",
+				     nid, PIN_OUT);
+		}
+		for (i = 0; i < cfg->line_outs; i++) {
+			hda_nid_t nid = cfg->line_out_pins[i];
+			add_pin_mute(codec, "LineOut Pin Playback Switch",
+				     nid, PIN_OUT);
+		}
+		return 0;
 	}
 
 	for (i = 0; i < cfg->hp_outs; i++) {
