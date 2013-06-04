@@ -508,7 +508,7 @@ static s32 cyapa_read_byte(struct cyapa *cyapa, u8 cmd_idx)
 		cmd = cyapa_i2c_cmds[cmd_idx].cmd;
 	}
 	ret = i2c_smbus_read_byte_data(cyapa->client, cmd);
-	cyapa_dbg(cyapa, "read byte [0x%02x] = 0x%02x  ret: %d\n",
+	cyapa_dbg(cyapa, "read byte [0x%02x] = 0x%02zx  ret: %zd\n",
 		  cmd, ret, ret);
 
 	return ret;
@@ -526,7 +526,7 @@ static s32 cyapa_write_byte(struct cyapa *cyapa, u8 cmd_idx, u8 value)
 		cmd = cyapa_i2c_cmds[cmd_idx].cmd;
 	}
 	ret = i2c_smbus_write_byte_data(cyapa->client, cmd, value);
-	cyapa_dbg(cyapa, "write byte [0x%02x] = 0x%02x  ret: %d\n",
+	cyapa_dbg(cyapa, "write byte [0x%02x] = 0x%02x  ret: %zd\n",
 		  cmd, value, ret);
 
 	return ret;
