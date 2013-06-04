@@ -954,8 +954,8 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 			const u8 *payload = &msg->message[0];
 			u8 status = payload[0];
 			data->config_csum = mxt_extract_T6_csum(&payload[1]);
-			dev_dbg(dev, "Status: %02x Config Checksum: %06x\n",
-				status, data->config_csum);
+			dev_info(dev, "Status: %02x Config Checksum: %06x\n",
+				 status, data->config_csum);
 			if (status == 0x00)
 				complete(&data->auto_cal_completion);
 		} else if (mxt_is_T9_message(data, msg)) {
@@ -1329,11 +1329,11 @@ static int mxt_get_object_table(struct mxt_data *data)
 			max_id = 0;
 		}
 
-		dev_dbg(&data->client->dev,
-			"Type %2d Start %3d Size %3zu Instances %2zu ReportIDs %3u : %3u\n",
-			object->type, object->start_address,
-			mxt_obj_size(object), mxt_obj_instances(object),
-			min_id, max_id);
+		dev_info(&data->client->dev,
+			 "Type %2d Start %3d Size %3zu Instances %2zu ReportIDs %3u : %3u\n",
+			 object->type, object->start_address,
+			 mxt_obj_size(object), mxt_obj_instances(object),
+			 min_id, max_id);
 
 		switch (object->type) {
 		case MXT_GEN_MESSAGE_T5:
