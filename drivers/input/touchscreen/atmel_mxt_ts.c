@@ -1013,6 +1013,11 @@ static int mxt_enter_bl(struct mxt_data *data)
 
 	disable_irq(data->irq);
 
+	if (data->input_dev) {
+		input_unregister_device(data->input_dev);
+		data->input_dev = NULL;
+	}
+
 	/* Change to the bootloader mode */
 	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
 			       MXT_COMMAND_RESET, MXT_BOOT_VALUE);
@@ -1026,13 +1031,6 @@ static int mxt_enter_bl(struct mxt_data *data)
 		client->addr = MXT_BOOT_LOW;
 	else
 		client->addr = MXT_BOOT_HIGH;
-
-	/* Free any driver state. It will get reinitialized after fw update. */
-	mxt_free_object_table(data);
-	if (data->input_dev) {
-		input_unregister_device(data->input_dev);
-		data->input_dev = NULL;
-	}
 
 	init_completion(&data->bl_completion);
 	enable_irq(data->irq);
@@ -1067,6 +1065,8 @@ static void mxt_exit_bl(struct mxt_data *data)
 		client->addr = MXT_APP_LOW;
 	else
 		client->addr = MXT_APP_HIGH;
+
+	mxt_free_object_table(data);
 
 	error = mxt_initialize(data);
 	if (error) {
