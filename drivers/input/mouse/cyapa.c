@@ -389,6 +389,8 @@ static const struct cyapa_cmd_len cyapa_smbus_cmds[] = {
 #define CYAPA_FW_SIZE		(CYAPA_FW_HDR_SIZE + CYAPA_FW_DATA_SIZE)
 #define CYAPA_CMD_LEN		16
 
+static void cyapa_detect(struct cyapa *cyapa);
+
 #define BYTE_PER_LINE  8
 void cyapa_dump_data(struct cyapa *cyapa, size_t length, const u8 *data)
 {
@@ -1332,12 +1334,22 @@ static irqreturn_t cyapa_irq(int irq, void *dev_id)
 		pm_wakeup_event(dev, 0);
 
 	ret = cyapa_read_block(cyapa, CYAPA_CMD_GROUP_DATA, (u8 *)&data);
-	if (ret != sizeof(data))
+	if (ret != sizeof(data)) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa, "read_block failed in cyapa_irq. ret = %d\n",
+			  ret);
+		cyapa_detect(cyapa);
 		goto out;
+	}
 
 	if ((data.device_status & OP_STATUS_SRC) != OP_STATUS_SRC ||
 	    (data.device_status & OP_STATUS_DEV) != CYAPA_DEV_NORMAL ||
 	    (data.finger_btn & OP_DATA_VALID) != OP_DATA_VALID) {
+		cyapa->debug = true;
+		cyapa_dbg(cyapa,
+			  "irq error. device_status = 0x%x finger_btn = 0x%x",
+			  data.device_status, data.finger_btn);
+		cyapa_detect(cyapa);
 		goto out;
 	}
 
