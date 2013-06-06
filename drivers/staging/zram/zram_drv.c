@@ -855,11 +855,6 @@ static void destroy_device(struct zram *zram)
 		blk_cleanup_queue(zram->queue);
 }
 
-unsigned int zram_get_num_devices(void)
-{
-	return num_devices;
-}
-
 static int __init zram_init(void)
 {
 	int ret, dev_id;
