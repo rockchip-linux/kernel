@@ -642,7 +642,8 @@ recheck:
 		 */
 		int ret = mxt_wait_for_chg(data, 300);
 		if (ret) {
-			dev_err(&client->dev, "Update wait error %d\n", ret);
+			dev_err(&client->dev,
+				"Update wait error %d, state %d\n", ret, state);
 			return ret;
 		}
 	}
@@ -1022,6 +1023,7 @@ static int mxt_enter_bl(struct mxt_data *data)
 	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
 			       MXT_COMMAND_RESET, MXT_BOOT_VALUE);
 	if (ret) {
+		dev_err(dev, "Failed to change to bootloader mode %d.\n", ret);
 		enable_irq(data->irq);
 		return ret;
 	}
@@ -1038,7 +1040,8 @@ static int mxt_enter_bl(struct mxt_data *data)
 	/* Wait for CHG assert to indicate successful reset into bootloader */
 	ret = mxt_wait_for_chg(data, MXT_RESET_TIME);
 	if (ret) {
-		dev_err(dev, "Failed waiting for reset to bootloader.\n");
+		dev_err(dev, "Failed waiting for reset to bootloader %d.\n",
+			ret);
 		if (client->addr == MXT_BOOT_LOW)
 			client->addr = MXT_APP_LOW;
 		else
@@ -1092,12 +1095,20 @@ static void mxt_exit_bl(struct mxt_data *data)
 static irqreturn_t mxt_interrupt(int irq, void *dev_id)
 {
 	struct mxt_data *data = dev_id;
+	struct device *dev = &data->client->dev;
+	char *envp[] = {"ERROR=1", NULL};
+	int ret;
 
 	if (mxt_in_bootloader(data)) {
 		/* bootloader state transition completion */
 		complete(&data->bl_completion);
 	} else {
-		mxt_handle_messages(data, true);
+		ret = mxt_handle_messages(data, true);
+		if (ret) {
+			dev_err(dev, "Handling message fails in IRQ, %d.\n",
+				ret);
+			kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
+		}
 	}
 	return IRQ_HANDLED;
 }
@@ -1695,7 +1706,7 @@ static int mxt_load_config(struct mxt_data *data, const char *fn)
 
 	ret = request_firmware(&fw, fn, dev);
 	if (ret) {
-		dev_err(dev, "Unable to open config file %s\n", fn);
+		dev_err(dev, "Unable to open config file %s, %d\n", fn, ret);
 		return ret;
 	}
 
@@ -2112,24 +2123,31 @@ static int mxt_load_fw(struct device *dev, const char *fn)
 
 	ret = mxt_enter_bl(data);
 	if (ret) {
-		dev_err(dev, "Failed to reset to bootloader.\n");
+		dev_err(dev, "Failed to enter bootloader, %d.\n", ret);
 		goto out;
 	}
 
 	ret = mxt_check_bootloader(data, MXT_WAITING_BOOTLOAD_CMD);
-	if (ret)
+	if (ret) {
+		dev_err(dev, "Checking WAITING_BOOTLOAD_CMD failed, %d\n", ret);
 		goto out;
+	}
 
 	init_completion(&data->bl_completion);
 	/* Unlock bootloader */
 	ret = mxt_unlock_bootloader(client);
-	if (ret)
+	if (ret) {
+		dev_err(dev, "Unlock bootloader failed, %d\n", ret);
 		goto out;
+	}
 
 	while (pos < fw->size) {
 		ret = mxt_check_bootloader(data, MXT_WAITING_FRAME_DATA);
-		if (ret)
+		if (ret) {
+			dev_err(dev, "Checking WAITING_FRAME_DATE failed, %d\n",
+				ret);
 			goto out;
+		}
 
 		frame_size = ((*(fw->data + pos) << 8) | *(fw->data + pos + 1));
 
@@ -2140,12 +2158,18 @@ static int mxt_load_fw(struct device *dev, const char *fn)
 
 		/* Write one frame to device */
 		ret = mxt_fw_write(client, fw->data + pos, frame_size);
-		if (ret)
+		if (ret) {
+			dev_err(dev, "Writing frame to device failed, %d\n",
+				ret);
 			goto out;
+		}
 
 		ret = mxt_check_bootloader(data, MXT_FRAME_CRC_PASS);
-		if (ret)
+		if (ret) {
+			dev_err(dev, "Checking FRAME_CRC_PASS failed, %d\n",
+				ret);
 			goto out;
+		}
 
 		pos += frame_size;
 
@@ -2165,11 +2189,13 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 					const char *buf, size_t count)
 {
 	struct mxt_data *data = dev_get_drvdata(dev);
+	char *envp[] = {"ERROR=1", NULL};
 	int error;
 
 	error = mxt_load_fw(dev, data->fw_file);
 	if (error) {
 		dev_err(dev, "The firmware update failed(%d)\n", error);
+		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
 		count = error;
 	} else {
 		dev_dbg(dev, "The firmware update succeeded\n");
