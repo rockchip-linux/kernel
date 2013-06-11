@@ -91,7 +91,10 @@ void __init efi_call_phys_prelog(void)
 
 	n_pgds = DIV_ROUND_UP((max_pfn << PAGE_SHIFT), PGDIR_SIZE);
 	save_pgd = kmalloc(n_pgds * sizeof(pgd_t), GFP_KERNEL);
-
+	if (!save_pgd) {
+		pr_err("out of memory %s\n", __func__);
+		return;
+	}
 	for (pgd = 0; pgd < n_pgds; pgd++) {
 		save_pgd[pgd] = *pgd_offset_k(pgd * PGDIR_SIZE);
 		vaddress = (unsigned long)__va(pgd * PGDIR_SIZE);
