@@ -11,7 +11,6 @@
 
 #include <linux/slab.h>
 #include <linux/export.h>
-#include <linux/sort.h>
 #include <sound/core.h>
 #include "hda_codec.h"
 #include "hda_local.h"
@@ -31,30 +30,29 @@ static int is_in_nid_list(hda_nid_t nid, const hda_nid_t *list)
 	return 0;
 }
 
-/* a pair of input pin and its sequence */
-struct auto_out_pin {
-	hda_nid_t pin;
-	short seq;
-};
-
-static int compare_seq(const void *ap, const void *bp)
-{
-	const struct auto_out_pin *a = ap;
-	const struct auto_out_pin *b = bp;
-	return (int)(a->seq - b->seq);
-}
 
 /*
  * Sort an associated group of pins according to their sequence numbers.
- * then store it to a pin array.
  */
-static void sort_pins_by_sequence(hda_nid_t *pins, struct auto_out_pin *list,
+static void sort_pins_by_sequence(hda_nid_t *pins, short *sequences,
 				  int num_pins)
 {
-	int i;
-	sort(list, num_pins, sizeof(list[0]), compare_seq, NULL);
-	for (i = 0; i < num_pins; i++)
-		pins[i] = list[i].pin;
+	int i, j;
+	short seq;
+	hda_nid_t nid;
+
+	for (i = 0; i < num_pins; i++) {
+		for (j = i + 1; j < num_pins; j++) {
+			if (sequences[i] > sequences[j]) {
+				seq = sequences[i];
+				sequences[i] = sequences[j];
+				sequences[j] = seq;
+				nid = pins[i];
+				pins[i] = pins[j];
+				pins[j] = nid;
+			}
+		}
+	}
 }
 
 
@@ -69,11 +67,21 @@ static void add_auto_cfg_input_pin(struct auto_pin_cfg *cfg, hda_nid_t nid,
 	}
 }
 
-static int compare_input_type(const void *ap, const void *bp)
+/* sort inputs in the order of AUTO_PIN_* type */
+static void sort_autocfg_input_pins(struct auto_pin_cfg *cfg)
 {
-	const struct auto_pin_cfg_item *a = ap;
-	const struct auto_pin_cfg_item *b = bp;
-	return (int)(a->type - b->type);
+	int i, j;
+
+	for (i = 0; i < cfg->num_inputs; i++) {
+		for (j = i + 1; j < cfg->num_inputs; j++) {
+			if (cfg->inputs[i].type > cfg->inputs[j].type) {
+				struct auto_pin_cfg_item tmp;
+				tmp = cfg->inputs[i];
+				cfg->inputs[i] = cfg->inputs[j];
+				cfg->inputs[j] = tmp;
+			}
+		}
+	}
 }
 
 /* Reorder the surround channels
@@ -169,9 +177,9 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 {
 	hda_nid_t nid, end_nid;
 	short seq, assoc_line_out;
-	struct auto_out_pin line_out[ARRAY_SIZE(cfg->line_out_pins)];
-	struct auto_out_pin speaker_out[ARRAY_SIZE(cfg->speaker_pins)];
-	struct auto_out_pin hp_out[ARRAY_SIZE(cfg->hp_pins)];
+	short sequences_line_out[ARRAY_SIZE(cfg->line_out_pins)];
+	short sequences_speaker[ARRAY_SIZE(cfg->speaker_pins)];
+	short sequences_hp[ARRAY_SIZE(cfg->hp_pins)];
 	int i;
 
 	if (!snd_hda_get_int_hint(codec, "parser_flags", &i))
@@ -179,9 +187,9 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 
 	memset(cfg, 0, sizeof(*cfg));
 
-	memset(line_out, 0, sizeof(line_out));
-	memset(speaker_out, 0, sizeof(speaker_out));
-	memset(hp_out, 0, sizeof(hp_out));
+	memset(sequences_line_out, 0, sizeof(sequences_line_out));
+	memset(sequences_speaker, 0, sizeof(sequences_speaker));
+	memset(sequences_hp, 0, sizeof(sequences_hp));
 	assoc_line_out = 0;
 
 	end_nid = codec->start_nid + codec->num_nodes;
@@ -231,8 +239,8 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 				continue;
 			if (cfg->line_outs >= ARRAY_SIZE(cfg->line_out_pins))
 				continue;
-			line_out[cfg->line_outs].pin = nid;
-			line_out[cfg->line_outs].seq = seq;
+			cfg->line_out_pins[cfg->line_outs] = nid;
+			sequences_line_out[cfg->line_outs] = seq;
 			cfg->line_outs++;
 			break;
 		case AC_JACK_SPEAKER:
@@ -240,8 +248,8 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 			assoc = get_defcfg_association(def_conf);
 			if (cfg->speaker_outs >= ARRAY_SIZE(cfg->speaker_pins))
 				continue;
-			speaker_out[cfg->speaker_outs].pin = nid;
-			speaker_out[cfg->speaker_outs].seq = (assoc << 4) | seq;
+			cfg->speaker_pins[cfg->speaker_outs] = nid;
+			sequences_speaker[cfg->speaker_outs] = (assoc << 4) | seq;
 			cfg->speaker_outs++;
 			break;
 		case AC_JACK_HP_OUT:
@@ -249,8 +257,8 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 			assoc = get_defcfg_association(def_conf);
 			if (cfg->hp_outs >= ARRAY_SIZE(cfg->hp_pins))
 				continue;
-			hp_out[cfg->hp_outs].pin = nid;
-			hp_out[cfg->hp_outs].seq = (assoc << 4) | seq;
+			cfg->hp_pins[cfg->hp_outs] = nid;
+			sequences_hp[cfg->hp_outs] = (assoc << 4) | seq;
 			cfg->hp_outs++;
 			break;
 		case AC_JACK_MIC_IN:
@@ -327,28 +335,34 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 		int i = 0;
 		while (i < cfg->hp_outs) {
 			/* The real HPs should have the sequence 0x0f */
-			if ((hp_out[i].seq & 0x0f) == 0x0f) {
+			if ((sequences_hp[i] & 0x0f) == 0x0f) {
 				i++;
 				continue;
 			}
 			/* Move it to the line-out table */
-			line_out[cfg->line_outs++] = hp_out[i];
+			cfg->line_out_pins[cfg->line_outs] = cfg->hp_pins[i];
+			sequences_line_out[cfg->line_outs] = sequences_hp[i];
+			cfg->line_outs++;
 			cfg->hp_outs--;
-			memmove(hp_out + i, hp_out + i + 1,
-				sizeof(hp_out[0]) * (cfg->hp_outs - i));
+			memmove(cfg->hp_pins + i, cfg->hp_pins + i + 1,
+				sizeof(cfg->hp_pins[0]) * (cfg->hp_outs - i));
+			memmove(sequences_hp + i, sequences_hp + i + 1,
+				sizeof(sequences_hp[0]) * (cfg->hp_outs - i));
 		}
-		memset(hp_out + cfg->hp_outs, 0,
-		       sizeof(hp_out[0]) * (AUTO_CFG_MAX_OUTS - cfg->hp_outs));
+		memset(cfg->hp_pins + cfg->hp_outs, 0,
+		       sizeof(hda_nid_t) * (AUTO_CFG_MAX_OUTS - cfg->hp_outs));
 		if (!cfg->hp_outs)
 			cfg->line_out_type = AUTO_PIN_HP_OUT;
 
 	}
 
 	/* sort by sequence */
-	sort_pins_by_sequence(cfg->line_out_pins, line_out, cfg->line_outs);
-	sort_pins_by_sequence(cfg->speaker_pins, speaker_out,
+	sort_pins_by_sequence(cfg->line_out_pins, sequences_line_out,
+			      cfg->line_outs);
+	sort_pins_by_sequence(cfg->speaker_pins, sequences_speaker,
 			      cfg->speaker_outs);
-	sort_pins_by_sequence(cfg->hp_pins, hp_out, cfg->hp_outs);
+	sort_pins_by_sequence(cfg->hp_pins, sequences_hp,
+			      cfg->hp_outs);
 
 	/*
 	 * FIX-UP: if no line-outs are detected, try to use speaker or HP pin
@@ -377,9 +391,7 @@ int snd_hda_parse_pin_defcfg(struct hda_codec *codec,
 	reorder_outputs(cfg->hp_outs, cfg->hp_pins);
 	reorder_outputs(cfg->speaker_outs, cfg->speaker_pins);
 
-	/* sort inputs in the order of AUTO_PIN_* type */
-	sort(cfg->inputs, cfg->num_inputs, sizeof(cfg->inputs[0]),
-	     compare_input_type, NULL);
+	sort_autocfg_input_pins(cfg);
 
 	/*
 	 * debug prints of the parsed results
