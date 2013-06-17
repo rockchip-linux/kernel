@@ -29,6 +29,7 @@
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 #include <linux/freezer.h>
+#include <linux/reboot.h>
 
 #include "tpm.h"
 #include "tpm_eventlog.h"
@@ -1096,7 +1097,18 @@ static void tpm_dev_release(struct device *dev)
 	tpm_dev_vendor_release(chip);
 
 	chip->release(dev);
+	unregister_reboot_notifier(&chip->shutdown_nb);
 	kfree(chip);
+}
+
+static int tpm_shutdown_notify(struct notifier_block *nb,
+				unsigned long unused, void *unused2)
+{
+	struct tpm_chip *chip = container_of(nb, struct tpm_chip, shutdown_nb);
+	dev_dbg(chip->dev, "acquiring shutdown lock\n");
+	mutex_lock(&chip->tpm_mutex);
+	dev_dbg(chip->dev, "acquired shutdown lock\n");
+	return NOTIFY_DONE;
 }
 
 /*
@@ -1154,6 +1166,13 @@ struct tpm_chip *tpm_register_hardware(struct device *dev,
 	spin_lock(&driver_lock);
 	list_add_rcu(&chip->list, &tpm_chip_list);
 	spin_unlock(&driver_lock);
+
+	/* INFINEON TPM WORKAROUND: Register shutdown callback that ensures we
+	 * don't shut down in the middle of a TPM command, or we may trigger
+	 * nasty defensive timeouts at the next boot.
+	 */
+	chip->shutdown_nb.notifier_call = tpm_shutdown_notify;
+	register_reboot_notifier(&chip->shutdown_nb);
 
 	return chip;
 

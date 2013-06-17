@@ -533,7 +533,7 @@ static int tpm_tis_init(struct device *dev, resource_size_t start,
 	chip->vendor.manufacturer_id = vendor;
 
 	dev_info(dev,
-		 "1.2 TPM (device-id 0x%X, rev-id %d)\n",
+		 "1.2 TPM (device-id 0x%X, rev-id %d) [gentle shutdown]\n",
 		 vendor >> 16, ioread8(chip->vendor.iobase + TPM_RID(0)));
 
 	if (!itpm) {

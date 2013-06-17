@@ -114,6 +114,7 @@ struct tpm_chip {
 
 	struct list_head list;
 	void (*release) (struct device *);
+	struct notifier_block shutdown_nb;
 };
 
 #define to_tpm_chip(n) container_of(n, struct tpm_chip, vendor)
