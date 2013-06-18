@@ -817,7 +817,7 @@ cmos_do_probe(struct device *dev, struct resource *ports, int rtc_irq)
 
 	/* setup dark resume source sysfs files and structs */
 	cmos_rtc.wake_source_checked = false;
-	dev_dark_resume_init(cmos_rtc.dev, &cmos_rtc.dark_resume,
+	dev_dark_resume_init(cmos_rtc.dev, &cmos_rtc.dark_resume, -1,
 			cmos_caused_resume);
 
 	dev_info(dev, "%s%s, %zd bytes nvram%s\n",

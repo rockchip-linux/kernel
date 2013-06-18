@@ -349,7 +349,7 @@ struct backlight_device *backlight_device_register(const char *name,
 		return ERR_PTR(rc);
 	}
 
-	dev_dark_resume_init(&new_bd->dev, NULL, NULL);
+	dev_dark_resume_init(&new_bd->dev, NULL, -1, NULL);
 	new_bd->ops = ops;
 
 #ifdef CONFIG_PMAC_BACKLIGHT

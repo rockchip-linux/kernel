@@ -26,14 +26,15 @@
 #include <linux/device.h>
 #include <linux/export.h>
 #include <linux/pm_dark_resume.h>
-#include <linux/spinlock.h>
+#include <linux/mutex.h>
 #include <linux/types.h>
 
 #include "power.h"
 
 LIST_HEAD(source_list);
-static DEFINE_SPINLOCK(source_list_lock);
+static DEFINE_MUTEX(source_list_lock);
 static bool dark_resume_state;
+static struct pm_dark_resume_ops *dark_resume_ops;
 
 /**
  * dev_dark_resume_set_source - Set whether a device is a dark resume source.
@@ -53,9 +54,9 @@ int dev_dark_resume_set_source(struct device *dev, bool is_source)
 		return -EINVAL;
 	}
 
-	spin_lock(&source_list_lock);
+	mutex_lock(&source_list_lock);
 	if (is_source == dev->power.dark_resume->is_source) {
-		spin_unlock(&source_list_lock);
+		mutex_unlock(&source_list_lock);
 		return -EINVAL;
 	}
 
@@ -65,7 +66,7 @@ int dev_dark_resume_set_source(struct device *dev, bool is_source)
 		list_del(&dev->power.dark_resume->list_node);
 
 	dev->power.dark_resume->is_source = is_source;
-	spin_unlock(&source_list_lock);
+	mutex_unlock(&source_list_lock);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dev_dark_resume_set_source);
@@ -88,18 +89,22 @@ void dev_dark_resume_set_active(struct device *dev, bool is_active)
 EXPORT_SYMBOL_GPL(dev_dark_resume_set_active);
 
 /**
- * dev_dark_resume_init - Initialize the dev_dark_resume struct
+ * dev_dark_resume_init - Initialize the dev_dark_resume struct.
  * @dev: The device struct that the dev_dark_resume struct will be associated
  * with.
- * @dark_resume: The dev_dark_resume struct to initialize,
- * @caused_resume: The function pointer that is called before devices are
- * resumed to see if dev caused the resume of the system.
+ * @dark_resume: The dev_dark_resume struct to initialize.
+ * @irq: The platform callback will check (if supported) if this irq is the wake
+ * source. Note: probably want a hardware irq instead of virtual irq.
+ * @caused_resume: The function pointer that is called by the platform callback
+ * (if supported) before devices are resumed to see if dev caused the resume of
+ * the system.
  *
  * Devices that query dark resume, but cannot be a source should call this
  * function when initialized with dark_resume and caused_resume as NULL.
  */
 int dev_dark_resume_init(struct device *dev,
 			 struct dev_dark_resume *dark_resume,
+			 int irq,
 			 bool (*caused_resume)(struct device *dev))
 {
 	/* Must be called after device_add since sysfs attributes are added */
@@ -114,6 +119,7 @@ int dev_dark_resume_init(struct device *dev,
 
 	dark_resume->dev = dev;
 	dark_resume->is_source = false;
+	dark_resume->irq = irq;
 	dark_resume->caused_resume = caused_resume;
 	INIT_LIST_HEAD(&dark_resume->list_node);
 	/* Don't really need to clean up anything if this fails */
@@ -123,8 +129,8 @@ EXPORT_SYMBOL_GPL(dev_dark_resume_init);
 
 /**
  * dev_dark_resume_remove - Remove all of the associations of the device to dark
- * resume
- * @dev: device struct to remove associations to dark resume from
+ * resume.
+ * @dev: device struct to remove associations to dark resume from.
  *
  * Makes sure that the device is no longer active for dark resume and is not a
  * source.
@@ -138,44 +144,45 @@ void dev_dark_resume_remove(struct device *dev)
 	dev_dark_resume_set_source(dev, false);
 	dark_resume_sysfs_remove(dev);
 	dev->power.dark_resume->caused_resume = NULL;
+	dev->power.dark_resume->irq = 0;
 	dev->power.dark_resume->dev = NULL;
 	dev->power.dark_resume = NULL;
 }
 EXPORT_SYMBOL_GPL(dev_dark_resume_remove);
 
 /**
- * pm_dark_resume_check - This goes through all of the listed devices that can
- * cause a resume. There should, in practice, end up being few (if not one) of
- * these.
- *
- * Only call this function once upon resume. Some drivers may not want to call
- * the caused_resume callback more than once because of time or other issues
- * such as clear on read registers.
+ * pm_dark_resume_check - Call into the platform specific check function if it
+ * exists to check if one of the dark resume sources woke the system.
  */
 bool pm_dark_resume_check(void)
 {
-	struct dev_dark_resume *dark_resume;
-
-	spin_lock(&source_list_lock);
-	list_for_each_entry(dark_resume, &source_list, list_node) {
-		if (dark_resume->caused_resume &&
-		    dark_resume->caused_resume(dark_resume->dev)) {
-			spin_unlock(&source_list_lock);
-			dark_resume_state = true;
-			return dark_resume_state;
-		}
+	if (!dark_resume_ops || !dark_resume_ops->check) {
+		dark_resume_state = false;
+		return dark_resume_state;
 	}
-	spin_unlock(&source_list_lock);
-	dark_resume_state = false;
+
+	mutex_lock(&source_list_lock);
+	dark_resume_state = dark_resume_ops->check(&source_list);
+	mutex_unlock(&source_list_lock);
 	return dark_resume_state;
 }
 EXPORT_SYMBOL_GPL(pm_dark_resume_check);
 
 /**
- * pm_dark_resume_active - Returns the state of dark resume
+ * pm_dark_resume_active - Returns the state of dark resume.
  */
 bool pm_dark_resume_active(void)
 {
 	return dark_resume_state;
 }
 EXPORT_SYMBOL_GPL(pm_dark_resume_active);
+
+/**
+ * pm_dark_resume_register_ops - Registers the callback function to check
+ * whether the system was resumed by something in the source_list.
+ * @ops: Container for the callback function
+ */
+void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops)
+{
+	dark_resume_ops = ops;
+}

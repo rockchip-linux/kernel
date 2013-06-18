@@ -27,8 +27,13 @@
 struct dev_dark_resume {
 	struct list_head list_node;
 	struct device *dev;
+	int irq;
 	bool (*caused_resume)(struct device *dev);
 	bool is_source;
+};
+
+struct pm_dark_resume_ops {
+	bool (*check)(struct list_head *list);
 };
 
 #ifdef CONFIG_PM_SLEEP
@@ -36,10 +41,12 @@ extern int dev_dark_resume_set_source(struct device *dev, bool is_source);
 extern void dev_dark_resume_set_active(struct device *dev, bool is_active);
 extern int dev_dark_resume_init(struct device *dev,
 				struct dev_dark_resume *dark_resume,
+				int irq,
 				bool (*caused_resume)(struct device *dev));
 extern void dev_dark_resume_remove(struct device *dev);
 extern bool pm_dark_resume_check(void);
 extern bool pm_dark_resume_active(void);
+extern void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops);
 
 /*
  * Wrapper for device drivers to check if it should do anything different for a
@@ -62,6 +69,7 @@ static inline void dev_dark_resume_set_active(struct device *dev,
 
 static inline int dev_dark_resume_init(struct device *dev,
 		struct dev_dark_resume *dark_resume,
+		int irq,
 		bool (*caused_resume)(struct device *dev))
 {
 	return 0;
@@ -82,6 +90,10 @@ static inline bool pm_dark_resume_active(void)
 static inline bool dev_dark_resume_active(struct device *dev)
 {
 	return false;
+}
+
+static inline void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops)
+{
 }
 
 #endif /* !CONFIG_PM_SLEEP */

@@ -2387,7 +2387,7 @@ int usb_new_device(struct usb_device *udev)
 	(void) usb_create_ep_devs(&udev->dev, &udev->ep0, udev);
 	usb_mark_last_busy(udev);
 	pm_runtime_put_sync_autosuspend(&udev->dev);
-	dev_dark_resume_init(&udev->dev, NULL, NULL);
+	dev_dark_resume_init(&udev->dev, NULL, -1, NULL);
 	return err;
 
 fail:
