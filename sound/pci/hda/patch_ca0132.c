@@ -821,7 +821,7 @@ static int chipio_send(struct hda_codec *codec,
 					 reg, data);
 		if (res == VENDOR_STATUS_CHIPIO_OK)
 			return 0;
-		msleep(20);
+		msleep(1);
 	} while (time_before(jiffies, timeout));
 
 	return -EIO;
@@ -1096,7 +1096,7 @@ static int dspio_send(struct hda_codec *codec, unsigned int reg,
 		res = snd_hda_codec_read(codec, WIDGET_DSP_CTRL, 0, reg, data);
 		if ((res >= 0) && (res != VENDOR_STATUS_DSPIO_BUSY))
 			return res;
-		msleep(20);
+		msleep(1);
 	} while (time_before(jiffies, timeout));
 
 	return -EIO;
@@ -1378,7 +1378,7 @@ static int dspio_send_scp_message(struct hda_codec *codec,
 		unsigned long timeout = jiffies + msecs_to_jiffies(1000);
 		memset(return_buf, 0, return_buf_size);
 		do {
-			msleep(20);
+			msleep(1);
 		} while (spec->wait_scp && time_before(jiffies, timeout));
 		waiting_for_resp = false;
 		if (!spec->wait_scp) {
@@ -2407,7 +2407,7 @@ static int dspxfr_one_seg(struct hda_codec *codec,
 			dma_active = dsp_is_dma_active(codec, dma_chan);
 			if (!dma_active)
 				break;
-			msleep(20);
+			msleep(1);
 		} while (time_before(jiffies, timeout));
 		if (dma_active)
 			break;
@@ -2739,7 +2739,7 @@ static bool dspload_wait_loaded(struct hda_codec *codec)
 			pr_info("ca0132 DOWNLOAD OK :-) DSP IS RUNNING.\n");
 			return true;
 		}
-		msleep(20);
+		msleep(1);
 	} while (time_before(jiffies, timeout));
 
 	pr_err("ca0132 DOWNLOAD FAILED!!! DSP IS NOT RUNNING.\n");
