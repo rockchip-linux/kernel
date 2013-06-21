@@ -34,7 +34,6 @@
 #define CROS_CLASS_NAME "chromeos"
 struct cros_ec_device *ec;
 static int ec_major;
-static DEFINE_MUTEX(ec_device_mutex);   /* one at a time, please */
 
 /*****************************************************************************/
 /* Basic communication */
@@ -79,16 +78,11 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 
 static int ec_device_open(struct inode *inode, struct file *filp)
 {
-	/* one at time, please */
-	if (!mutex_trylock(&ec_device_mutex))
-		return -EBUSY;
-
 	return 0;
 }
 
 static int ec_device_release(struct inode *inode, struct file *filp)
 {
-	mutex_unlock(&ec_device_mutex);
 	return 0;
 }
 
