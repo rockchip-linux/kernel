@@ -296,7 +296,8 @@ static int cros_ec_cmd_xfer_spi(struct cros_ec_device *ec_dev,
 		if (ptr[0] == EC_RES_IN_PROGRESS) {
 			dev_dbg(ec_dev->dev, "command 0x%02x in progress\n",
 				ec_msg->cmd);
-			return -EAGAIN;
+			ret = -EAGAIN;
+			goto exit;
 		}
 		dev_warn(ec_dev->dev, "command 0x%02x returned an error %d\n",
 			 ec_msg->cmd, ptr[0]);
