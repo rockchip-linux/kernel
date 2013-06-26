@@ -486,7 +486,7 @@ static struct dmi_system_id chromeos_laptop_dmi_table[] __initdata = {
 	{
 		.ident = "Slippy",
 		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Slippy"),
 		},
 		_CBDD(slippy),
@@ -494,7 +494,7 @@ static struct dmi_system_id chromeos_laptop_dmi_table[] __initdata = {
 	{
 		.ident = "Falco",
 		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Falco"),
 		},
 		_CBDD(falco),
@@ -502,7 +502,7 @@ static struct dmi_system_id chromeos_laptop_dmi_table[] __initdata = {
 	{
 		.ident = "Peppy",
 		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "GOOGLE"),
+			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Peppy"),
 		},
 		_CBDD(peppy),
