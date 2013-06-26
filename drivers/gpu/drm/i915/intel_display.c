@@ -5735,6 +5735,14 @@ static void ironlake_init_pch_refclk(struct drm_device *dev)
 	}
 
 	BUG_ON(val != final);
+
+	/*
+	 * On resume, the PPT PCH doesn't seem to work right away, and
+	 * sometimes ignores register read/writes until it's completely up.
+	 * Waiting 30ms seems to be long enough to avoid this.
+	 */
+	if (dev_priv->pch_id == INTEL_PCH_PPT_DEVICE_ID_TYPE)
+		msleep(30);
 }
 
 static void lpt_reset_fdi_mphy(struct drm_i915_private *dev_priv)
