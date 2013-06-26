@@ -548,6 +548,7 @@ static void zram_reset_device(struct zram *zram)
 
 	zram->disksize = 0;
 	set_capacity(zram->disk, 0);
+	up_write(&zram->init_lock);
 }
 
 static void zram_init_device(struct zram *zram, struct zram_meta *meta)
