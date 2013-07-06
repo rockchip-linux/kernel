@@ -54,6 +54,7 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
 #include <linux/usb/of.h>
+#include <linux/usb/otg.h>
 
 #include "platform_data.h"
 #include "core.h"
@@ -376,8 +377,6 @@ static int dwc3_probe(struct platform_device *pdev)
 	void __iomem		*regs;
 	void			*mem;
 
-	u8			mode;
-
 	mem = devm_kzalloc(dev, sizeof(*dwc) + DWC3_ALIGN_MASK, GFP_KERNEL);
 	if (!mem) {
 		dev_err(dev, "not enough memory\n");
@@ -432,6 +431,7 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->usb3_phy = devm_usb_get_phy_by_phandle(dev, "usb-phy", 1);
 
 		dwc->needs_fifo_resize = of_property_read_bool(node, "tx-fifo-resize");
+		dwc->dr_mode = of_usb_get_dr_mode(node);
 	} else {
 		dwc->maximum_speed = pdata->maximum_speed;
 
@@ -439,6 +439,7 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->usb3_phy = devm_usb_get_phy(dev, USB_PHY_TYPE_USB3);
 
 		dwc->needs_fifo_resize = pdata->tx_fifo_resize;
+		dwc->dr_mode = pdata->dr_mode;
 	}
 
 	/* default to superspeed if no maximum_speed passed */
@@ -509,14 +510,15 @@ static int dwc3_probe(struct platform_device *pdev)
 	}
 
 	if (IS_ENABLED(CONFIG_USB_DWC3_HOST))
-		mode = DWC3_MODE_HOST;
+		dwc->dr_mode = USB_DR_MODE_HOST;
 	else if (IS_ENABLED(CONFIG_USB_DWC3_GADGET))
-		mode = DWC3_MODE_DEVICE;
-	else
-		mode = DWC3_MODE_DRD;
+		dwc->dr_mode = USB_DR_MODE_PERIPHERAL;
 
-	switch (mode) {
-	case DWC3_MODE_DEVICE:
+	if (dwc->dr_mode == USB_DR_MODE_UNKNOWN)
+		dwc->dr_mode = USB_DR_MODE_OTG;
+
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
 		dwc3_set_mode(dwc, DWC3_GCTL_PRTCAP_DEVICE);
 		ret = dwc3_gadget_init(dwc);
 		if (ret) {
@@ -524,7 +526,7 @@ static int dwc3_probe(struct platform_device *pdev)
 			goto err2;
 		}
 		break;
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 		dwc3_set_mode(dwc, DWC3_GCTL_PRTCAP_HOST);
 		ret = dwc3_host_init(dwc);
 		if (ret) {
@@ -532,7 +534,7 @@ static int dwc3_probe(struct platform_device *pdev)
 			goto err2;
 		}
 		break;
-	case DWC3_MODE_DRD:
+	case USB_DR_MODE_OTG:
 		dwc3_set_mode(dwc, DWC3_GCTL_PRTCAP_OTG);
 		ret = dwc3_host_init(dwc);
 		if (ret) {
@@ -547,10 +549,9 @@ static int dwc3_probe(struct platform_device *pdev)
 		}
 		break;
 	default:
-		dev_err(dev, "Unsupported mode of operation %d\n", mode);
+		dev_err(dev, "Unsupported mode of operation %d\n", dwc->dr_mode);
 		goto err2;
 	}
-	dwc->mode = mode;
 
 	ret = dwc3_debugfs_init(dwc);
 	if (ret) {
@@ -563,14 +564,14 @@ static int dwc3_probe(struct platform_device *pdev)
 	return 0;
 
 err3:
-	switch (mode) {
-	case DWC3_MODE_DEVICE:
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
 		dwc3_gadget_exit(dwc);
 		break;
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 		dwc3_host_exit(dwc);
 		break;
-	case DWC3_MODE_DRD:
+	case USB_DR_MODE_OTG:
 		dwc3_host_exit(dwc);
 		dwc3_gadget_exit(dwc);
 		break;
@@ -597,14 +598,14 @@ static int dwc3_remove(struct platform_device *pdev)
 
 	dwc3_debugfs_exit(dwc);
 
-	switch (dwc->mode) {
-	case DWC3_MODE_DEVICE:
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
 		dwc3_gadget_exit(dwc);
 		break;
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 		dwc3_host_exit(dwc);
 		break;
-	case DWC3_MODE_DRD:
+	case USB_DR_MODE_OTG:
 		dwc3_host_exit(dwc);
 		dwc3_gadget_exit(dwc);
 		break;
@@ -635,12 +636,12 @@ static int dwc3_prepare(struct device *dev)
 
 	spin_lock_irqsave(&dwc->lock, flags);
 
-	switch (dwc->mode) {
-	case DWC3_MODE_DEVICE:
-	case DWC3_MODE_DRD:
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
+	case USB_DR_MODE_OTG:
 		dwc3_gadget_prepare(dwc);
 		/* FALLTHROUGH */
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 	default:
 		dwc3_event_buffers_cleanup(dwc);
 		break;
@@ -658,12 +659,12 @@ static void dwc3_complete(struct device *dev)
 
 	spin_lock_irqsave(&dwc->lock, flags);
 
-	switch (dwc->mode) {
-	case DWC3_MODE_DEVICE:
-	case DWC3_MODE_DRD:
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
+	case USB_DR_MODE_OTG:
 		dwc3_gadget_complete(dwc);
 		/* FALLTHROUGH */
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 	default:
 		dwc3_event_buffers_setup(dwc);
 		break;
@@ -679,12 +680,12 @@ static int dwc3_suspend(struct device *dev)
 
 	spin_lock_irqsave(&dwc->lock, flags);
 
-	switch (dwc->mode) {
-	case DWC3_MODE_DEVICE:
-	case DWC3_MODE_DRD:
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
+	case USB_DR_MODE_OTG:
 		dwc3_gadget_suspend(dwc);
 		/* FALLTHROUGH */
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 	default:
 		/* do nothing */
 		break;
@@ -712,12 +713,12 @@ static int dwc3_resume(struct device *dev)
 
 	dwc3_writel(dwc->regs, DWC3_GCTL, dwc->gctl);
 
-	switch (dwc->mode) {
-	case DWC3_MODE_DEVICE:
-	case DWC3_MODE_DRD:
+	switch (dwc->dr_mode) {
+	case USB_DR_MODE_PERIPHERAL:
+	case USB_DR_MODE_OTG:
 		dwc3_gadget_resume(dwc);
 		/* FALLTHROUGH */
-	case DWC3_MODE_HOST:
+	case USB_DR_MODE_HOST:
 	default:
 		/* do nothing */
 		break;
