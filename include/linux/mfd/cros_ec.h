@@ -41,13 +41,10 @@ enum {
  *
  * @ec_name: name of EC device (e.g. 'chromeos-ec')
  * @phys_name: name of physical comms layer (e.g. 'i2c-4')
- * @dev: Device pointer
+ * @dev: Device pointer for physical comms device
+ * @vdev: Device pointer for virtual comms device
  * @was_wake_device: true if this device was set to wake the system from
  * sleep at the last suspend
- * @cmd_xfer: send command to EC and get response
- *     Returns the number of bytes received if the communication succeeded, but
- *     that doesn't mean the EC was happy with the command. The caller
- *     should check msg.result for the EC's result code.
  * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
  *     @offset is within EC_LPC_ADDR_MEMMAP region.
  *     @bytes: number of bytes to read. zero means "read a string" (including
@@ -70,6 +67,11 @@ enum {
  * @dout_size: size of dout buffer to allocate (zero to use static dout)
  * @parent: pointer to parent device (e.g. i2c or spi device)
  * @wake_enabled: true if this device can wake the system from sleep
+ * @lock: one transaction at a time
+ * @cmd_xfer: send command to EC and get response
+ *     Returns the number of bytes received if the communication succeeded, but
+ *     that doesn't mean the EC was happy with the command. The caller
+ *     should check msg.result for the EC's result code.
  */
 struct cros_ec_device {
 
@@ -77,6 +79,7 @@ struct cros_ec_device {
 	const char *ec_name;
 	const char *phys_name;
 	struct device *dev;
+	struct device *vdev;
 	bool was_wake_device;
 	struct class *cros_class;
 	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,

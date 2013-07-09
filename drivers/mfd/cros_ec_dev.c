@@ -33,6 +33,7 @@
 /* Device variables */
 #define CROS_CLASS_NAME "chromeos"
 static struct cros_ec_device *ec;
+static struct class *cros_class;
 static int ec_major;
 
 /*****************************************************************************/
@@ -205,15 +206,14 @@ static const struct file_operations fops = {
 
 static int ec_device_probe(struct platform_device *pdev)
 {
-	struct device *ec_dev;
 	int retval = -ENOTTY;
 
 	ec = dev_get_drvdata(pdev->dev.parent);
 
-	ec->cros_class = class_create(THIS_MODULE, CROS_CLASS_NAME);
-	if (IS_ERR(ec->cros_class)) {
+	cros_class = class_create(THIS_MODULE, CROS_CLASS_NAME);
+	if (IS_ERR(cros_class)) {
 		pr_err(MYNAME ": failed to register device class\n");
-		retval = PTR_ERR(ec->cros_class);
+		retval = PTR_ERR(cros_class);
 		goto failed_class;
 	}
 
@@ -226,11 +226,11 @@ static int ec_device_probe(struct platform_device *pdev)
 	}
 
 	/* Instantiate it */
-	ec_dev = device_create(ec->cros_class, NULL, MKDEV(ec_major, 0),
-			       NULL, CROS_EC_DEV_NAME);
-	if (IS_ERR(ec_dev)) {
+	ec->vdev = device_create(cros_class, NULL, MKDEV(ec_major, 0),
+				 NULL, CROS_EC_DEV_NAME);
+	if (IS_ERR(ec->vdev)) {
 		pr_err(MYNAME ": failed to create device\n");
-		retval = PTR_ERR(ec_dev);
+		retval = PTR_ERR(ec->vdev);
 		goto failed_devreg;
 	}
 
@@ -239,17 +239,16 @@ static int ec_device_probe(struct platform_device *pdev)
 failed_devreg:
 	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
 failed_chrdevreg:
-	class_destroy(ec->cros_class);
+	class_destroy(cros_class);
 failed_class:
 	return retval;
 }
 
 static int ec_device_remove(struct platform_device *pdev)
 {
-	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
-	device_destroy(ec->cros_class, MKDEV(ec_major, 0));
+	device_destroy(cros_class, MKDEV(ec_major, 0));
 	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
-	class_destroy(ec->cros_class);
+	class_destroy(cros_class);
 	return 0;
 }
 
