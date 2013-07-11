@@ -100,6 +100,7 @@
 #define MXT_SPT_MESSAGECOUNT_T44	44
 #define MXT_SPT_CTECONFIG_T46		46
 #define MXT_SPT_TIMER_T61		61
+#define MXT_PROCG_NOISESUPPRESSION_T72	72
 
 /* MXT_GEN_COMMAND_T6 field */
 #define MXT_COMMAND_RESET	0
@@ -457,6 +458,7 @@ static bool mxt_object_readable(unsigned int type)
 	case MXT_SPT_DIGITIZER_T43:
 	case MXT_SPT_CTECONFIG_T46:
 	case MXT_SPT_TIMER_T61:
+	case MXT_PROCG_NOISESUPPRESSION_T72:
 		return true;
 	default:
 		return false;
@@ -494,6 +496,7 @@ static bool mxt_object_writable(unsigned int type)
 	case MXT_SPT_DIGITIZER_T43:
 	case MXT_SPT_CTECONFIG_T46:
 	case MXT_SPT_TIMER_T61:
+	case MXT_PROCG_NOISESUPPRESSION_T72:
 		return true;
 	default:
 		return false;
