@@ -117,7 +117,7 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	long ret;
 	struct cros_ec_command s_cmd;
 	uint8_t *user_indata;
-	uint8_t buf[EC_HOST_PARAM_SIZE];
+	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE];
 
 	if (copy_from_user(&s_cmd, argp, sizeof(s_cmd)))
 		return -EFAULT;

@@ -55,8 +55,8 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	int ec_result;
 	int ret = 0;
 
-	if (msg->out_len > EC_HOST_PARAM_SIZE ||
-	    msg->in_len > EC_HOST_PARAM_SIZE) {
+	if (msg->out_len > EC_PROTO2_MAX_PARAM_SIZE ||
+	    msg->in_len > EC_PROTO2_MAX_PARAM_SIZE) {
 		msg->in_len = 0;
 		return -EINVAL;
 	}

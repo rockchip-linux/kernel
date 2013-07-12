@@ -20,6 +20,8 @@
  * project in an attempt to make future updates easy to make.
  */
 
+/* Host communication command constants for Chrome EC */
+
 #ifndef __CROS_EC_COMMANDS_H
 #define __CROS_EC_COMMANDS_H
 
@@ -43,6 +45,7 @@
  */
 
 /* Current version of this protocol */
+/* TODO: This is effectively useless; protocol is determined in other ways */
 #define EC_PROTO_VERSION          0x00000002
 
 /* Command version mask */
@@ -57,9 +60,13 @@
 #define EC_LPC_ADDR_HOST_CMD   0x204
 
 /* I/O addresses for host command args and params */
-#define EC_LPC_ADDR_HOST_ARGS  0x800    /* and 0x801, 0x802, 0x803 */
-#define EC_LPC_ADDR_HOST_PARAM 0x804
-#define EC_HOST_PARAM_SIZE     0x0fc  /* Size of param area in bytes */
+/* Protocol version 2 */
+#define EC_LPC_ADDR_HOST_ARGS    0x800  /* And 0x801, 0x802, 0x803 */
+#define EC_LPC_ADDR_HOST_PARAM   0x804  /* For version 2 params; size is
+					 * EC_PROTO2_MAX_PARAM_SIZE */
+/* Protocol version 3 */
+#define EC_LPC_ADDR_HOST_PACKET  0x800  /* Offset of version 3 packet */
+#define EC_LPC_HOST_PACKET_SIZE  0x100  /* Max size of version 3 packet */
 
 /* The actual block is 0x800-0x8ff, but some BIOSes think it's 0x880-0x8ff
  * and they tell the kernel that so we have to think of it as two parts. */
@@ -149,10 +156,14 @@
 /* Host command interface flags */
 /* Host command interface supports LPC args (LPC interface only) */
 #define EC_HOST_CMD_FLAG_LPC_ARGS_SUPPORTED  0x01
+/* Host command interface supports version 3 protocol */
+#define EC_HOST_CMD_FLAG_VERSION_3   0x02
 
 /* Wireless switch flags */
-#define EC_WIRELESS_SWITCH_WLAN      0x01
-#define EC_WIRELESS_SWITCH_BLUETOOTH 0x02
+#define EC_WIRELESS_SWITCH_WLAN      0x01  /* WLAN radio */
+#define EC_WIRELESS_SWITCH_BLUETOOTH 0x02  /* Bluetooth radio */
+#define EC_WIRELESS_SWITCH_WWAN      0x04  /* WWAN power */
+#define EC_WIRELESS_SWITCH_WLAN_POWER 0x08 /* WLAN power */
 
 /*
  * This header file is used in coreboot both in C and ACPI code.  The ACPI code
@@ -208,6 +219,9 @@ enum ec_status {
 	EC_RES_UNAVAILABLE = 9,		/* No response available */
 	EC_RES_TIMEOUT = 10,		/* We got a timeout */
 	EC_RES_OVERFLOW = 11,		/* Table / data overflow */
+	EC_RES_INVALID_HEADER = 12,     /* Header contains invalid data */
+	EC_RES_REQUEST_TRUNCATED = 13,  /* Didn't get the entire request */
+	EC_RES_RESPONSE_TOO_BIG = 14    /* Response was too big to handle */
 };
 
 /*
@@ -289,6 +303,105 @@ struct ec_lpc_host_args {
  */
 #define EC_HOST_ARGS_FLAG_TO_HOST   0x02
 
+/*****************************************************************************/
+
+/*
+ * Protocol version 2 for I2C and SPI send a request this way:
+ *
+ *	0	EC_CMD_VERSION0 + (command version)
+ *	1	Command number
+ *	2	Length of params = N
+ *	3..N+2	Params, if any
+ *	N+3	8-bit checksum of bytes 0..N+2
+ *
+ * The corresponding response is:
+ *
+ *	0	Result code (EC_RES_*)
+ *	1	Length of params = M
+ *	2..M+1	Params, if any
+ *	M+2	8-bit checksum of bytes 0..M+1
+ */
+#define EC_PROTO2_REQUEST_HEADER_BYTES 3
+#define EC_PROTO2_REQUEST_TRAILER_BYTES 1
+#define EC_PROTO2_REQUEST_OVERHEAD (EC_PROTO2_REQUEST_HEADER_BYTES +	\
+				    EC_PROTO2_REQUEST_TRAILER_BYTES)
+
+#define EC_PROTO2_RESPONSE_HEADER_BYTES 2
+#define EC_PROTO2_RESPONSE_TRAILER_BYTES 1
+#define EC_PROTO2_RESPONSE_OVERHEAD (EC_PROTO2_RESPONSE_HEADER_BYTES +	\
+				     EC_PROTO2_RESPONSE_TRAILER_BYTES)
+
+/* Parameter length was limited by the LPC interface */
+#define EC_PROTO2_MAX_PARAM_SIZE 0xfc
+
+/* Maximum request and response packet sizes for protocol version 2 */
+#define EC_PROTO2_MAX_REQUEST_SIZE (EC_PROTO2_REQUEST_OVERHEAD +	\
+				    EC_PROTO2_MAX_PARAM_SIZE)
+#define EC_PROTO2_MAX_RESPONSE_SIZE (EC_PROTO2_RESPONSE_OVERHEAD +	\
+				     EC_PROTO2_MAX_PARAM_SIZE)
+
+/*****************************************************************************/
+
+/*
+ * Value written to legacy command port / prefix byte to indicate protocol
+ * 3+ structs are being used.  Usage is bus-dependent.
+ */
+#define EC_COMMAND_PROTOCOL_3 0xda
+
+#define EC_HOST_REQUEST_VERSION 3
+
+/* Version 3 request from host */
+struct ec_host_request {
+	/* Struct version (=3)
+	 *
+	 * EC will return EC_RES_INVALID_HEADER if it receives a header with a
+	 * version it doesn't know how to parse.
+	 */
+	uint8_t struct_version;
+
+	/*
+	 * Checksum of request and data; sum of all bytes including checksum
+	 * should total to 0.
+	 */
+	uint8_t checksum;
+
+	/* Command code */
+	uint16_t command;
+
+	/* Command version */
+	uint8_t command_version;
+
+	/* Unused byte in current protocol version; set to 0 */
+	uint8_t reserved;
+
+	/* Length of data which follows this header */
+	uint16_t data_len;
+} __packed;
+
+#define EC_HOST_RESPONSE_VERSION 3
+
+/* Version 3 response from EC */
+struct ec_host_response {
+	/* Struct version (=3) */
+	uint8_t struct_version;
+
+	/*
+	 * Checksum of response and data; sum of all bytes including checksum
+	 * should total to 0.
+	 */
+	uint8_t checksum;
+
+	/* Result code (EC_RES_*) */
+	uint16_t result;
+
+	/* Length of data which follows this header */
+	uint16_t data_len;
+
+	/* Unused bytes in current protocol version; set to 0 */
+	uint16_t reserved;
+} __packed;
+
+/*****************************************************************************/
 /*
  * Notes on commands:
  *
@@ -428,6 +541,46 @@ struct ec_response_get_comms_status {
 	uint32_t flags;		/* Mask of enum ec_comms_status */
 } __packed;
 
+/*
+ * Fake a variety of responses, purely for testing purposes.
+ * FIXME: Would be nice to force checksum errors.
+ */
+#define EC_CMD_TEST_PROTOCOL		0x0a
+
+/* Tell the EC what to send back to us. */
+struct ec_params_test_protocol {
+	uint32_t ec_result;
+	uint32_t ret_len;
+	uint8_t buf[32];
+} __packed;
+
+/* Here it comes... */
+struct ec_response_test_protocol {
+	uint8_t buf[32];
+} __packed;
+
+/* Get prococol information */
+#define EC_CMD_GET_PROTOCOL_INFO	0x0b
+
+/* Flags for ec_response_get_protocol_info.flags */
+/* EC_RES_IN_PROGRESS may be returned if a command is slow */
+#define EC_PROTOCOL_INFO_IN_PROGRESS_SUPPORTED (1 << 0)
+
+struct ec_response_get_protocol_info {
+	/* Fields which exist if at least protocol version 3 supported */
+
+	/* Bitmask of protocol versions supported (1 << n means version n)*/
+	uint32_t protocol_versions;
+
+	/* Maximum request packet size, in bytes */
+	uint16_t max_request_packet_size;
+
+	/* Maximum response packet size, in bytes */
+	uint16_t max_response_packet_size;
+
+	/* Flags; see EC_PROTOCOL_INFO_* */
+	uint32_t flags;
+} __packed;
 
 /*****************************************************************************/
 /* Flash commands */
@@ -469,15 +622,15 @@ struct ec_params_flash_read {
 
 /* Write flash */
 #define EC_CMD_FLASH_WRITE 0x12
+#define EC_VER_FLASH_WRITE 1
+
+/* Version 0 of the flash command supported only 64 bytes of data */
+#define EC_FLASH_WRITE_VER0_SIZE 64
 
 struct ec_params_flash_write {
 	uint32_t offset;   /* Byte offset to write */
 	uint32_t size;     /* Size to write in bytes */
-	/*
-	 * Data to write.  Could really use EC_PARAM_SIZE - 8, but tidiest to
-	 * use a power of 2 so writes stay aligned.
-	 */
-	uint8_t data[64];
+	/* Followed by data to write */
 } __packed;
 
 /* Erase flash */
@@ -742,6 +895,49 @@ enum lightbar_command {
 	LIGHTBAR_CMD_SET_PARAMS = 11,
 	LIGHTBAR_NUM_CMDS
 };
+
+/*****************************************************************************/
+/* LED control commands */
+
+#define EC_CMD_LED_CONTROL 0x29
+
+enum ec_led_id {
+	EC_LED_ID_BATTERY_LED = 0,
+	EC_LED_ID_POWER_BUTTON_LED,
+	EC_LED_ID_ADAPTER_LED,
+};
+
+/* LED control flags */
+#define EC_LED_FLAGS_QUERY (1 << 0) /* Query LED capability only */
+#define EC_LED_FLAGS_AUTO  (1 << 1) /* Switch LED back to automatic control */
+
+enum ec_led_colors {
+	EC_LED_COLOR_RED = 0,
+	EC_LED_COLOR_GREEN,
+	EC_LED_COLOR_BLUE,
+	EC_LED_COLOR_YELLOW,
+	EC_LED_COLOR_WHITE,
+
+	EC_LED_COLOR_COUNT
+};
+
+struct ec_params_led_control {
+	uint8_t led_id;     /* Which LED to control */
+	uint8_t flags;      /* Control flags */
+
+	uint8_t brightness[EC_LED_COLOR_COUNT];
+} __packed;
+
+struct ec_response_led_control {
+	/*
+	 * Available brightness value range.
+	 *
+	 * Range 0 means color channel not present.
+	 * Range 1 means on/off control.
+	 * Other values means the LED is control by PWM.
+	 */
+	uint8_t brightness_range[EC_LED_COLOR_COUNT];
+} __packed;
 
 /*****************************************************************************/
 /* Verified boot commands */
