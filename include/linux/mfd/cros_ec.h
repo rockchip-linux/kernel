@@ -18,6 +18,7 @@
 
 #include <linux/notifier.h>
 #include <linux/mfd/cros_ec_commands.h>
+#include <linux/mfd/cros_ec_dev.h>
 
 /*
  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
@@ -32,25 +33,6 @@ enum {
 	/* Max length of messages */
 	EC_MSG_BYTES		= EC_PROTO2_MAX_PARAM_SIZE +
 					EC_MSG_TX_PROTO_BYTES,
-};
-
-/**
- * struct cros_ec_msg - A message sent to the EC, and its reply
- *
- * @version: Command version number (often 0)
- * @cmd: Command to send (EC_CMD_...)
- * @out_buf: Outgoing payload (to EC)
- * @outlen: Outgoing length
- * @in_buf: Incoming payload (from EC)
- * @in_len: Incoming length
- */
-struct cros_ec_msg {
-	u8 version;
-	u8 cmd;
-	uint8_t *out_buf;
-	int out_len;
-	uint8_t *in_buf;
-	int in_len;
 };
 
 /**
@@ -115,7 +97,8 @@ struct cros_ec_device {
 	int dout_size;
 	struct device *parent;
 	bool wake_enabled;
-	int (*cmd_xfer)(struct cros_ec_device *ec, struct cros_ec_msg *msg);
+	int (*cmd_xfer)(struct cros_ec_device *ec,
+			struct cros_ec_command *msg);
 	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
 			   unsigned int bytes, void *dest);
 };
@@ -151,7 +134,7 @@ int cros_ec_resume(struct cros_ec_device *ec_dev);
  * @msg: Message to write
  */
 int cros_ec_prepare_tx(struct cros_ec_device *ec_dev,
-		       struct cros_ec_msg *msg);
+		       struct cros_ec_command *msg);
 
 /**
  * cros_ec_remove - Remove a ChromeOS EC

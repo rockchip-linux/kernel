@@ -47,7 +47,7 @@ static int ec_response_timed_out(void)
 }
 
 static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
-				struct cros_ec_msg *msg)
+				struct cros_ec_command *msg)
 {
 	struct ec_lpc_host_args args;
 	int csum;
@@ -55,9 +55,9 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	int ec_result;
 	int ret = 0;
 
-	if (msg->out_len > EC_PROTO2_MAX_PARAM_SIZE ||
-	    msg->in_len > EC_PROTO2_MAX_PARAM_SIZE) {
-		msg->in_len = 0;
+	if (msg->outsize > EC_PROTO2_MAX_PARAM_SIZE ||
+	    msg->insize > EC_PROTO2_MAX_PARAM_SIZE) {
+		msg->insize = 0;
 		return -EINVAL;
 	}
 
@@ -67,15 +67,16 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	/* Now actually send the command to the EC and get the result */
 	args.flags = EC_HOST_ARGS_FLAG_FROM_HOST;
 	args.command_version = msg->version;
-	args.data_size = msg->out_len;
+	args.data_size = msg->outsize;
 
 	/* Initialize checksum */
-	csum = msg->cmd + args.flags + args.command_version + args.data_size;
+	csum = msg->command + args.flags +
+		args.command_version + args.data_size;
 
 	/* Copy data and update checksum */
-	for (i = 0; i < msg->out_len; i++) {
-		outb(msg->out_buf[i], EC_LPC_ADDR_HOST_PARAM + i);
-		csum += msg->out_buf[i];
+	for (i = 0; i < msg->outsize; i++) {
+		outb(msg->outdata[i], EC_LPC_ADDR_HOST_PARAM + i);
+		csum += msg->outdata[i];
 	}
 
 	/* Finalize checksum and write args */
@@ -86,10 +87,10 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	outb(args.checksum, EC_LPC_ADDR_HOST_ARGS + 3);
 
 	/* Here we go */
-	outb(msg->cmd, EC_LPC_ADDR_HOST_CMD);
+	outb(msg->command, EC_LPC_ADDR_HOST_CMD);
 
 	if (ec_response_timed_out()) {
-		msg->in_len = 0;
+		msg->insize = 0;
 		dev_warn(ec->dev, "EC responsed timed out\n");
 		ret = -EIO;
 		goto done;
@@ -115,30 +116,31 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	args.data_size = inb(EC_LPC_ADDR_HOST_ARGS + 2);
 	args.checksum = inb(EC_LPC_ADDR_HOST_ARGS + 3);
 
-	if (args.data_size > msg->in_len) {
+	if (args.data_size > msg->insize) {
 		/* FIXME (crbug.com/242706): EC_RES_INVALID_RESPONSE */
-		msg->in_len = 0;
+		msg->insize = 0;
 		goto done;
 	}
 
 	/* Start calculating response checksum */
-	csum = msg->cmd + args.flags + args.command_version + args.data_size;
+	csum = msg->command + args.flags +
+		args.command_version + args.data_size;
 
 	/* Read response and update checksum */
 	for (i = 0; i < args.data_size; i++) {
-		msg->in_buf[i] = inb(EC_LPC_ADDR_HOST_PARAM + i);
-		csum += msg->in_buf[i];
+		msg->indata[i] = inb(EC_LPC_ADDR_HOST_PARAM + i);
+		csum += msg->indata[i];
 	}
 
 	/* Verify checksum */
 	if (args.checksum != (csum & 0xFF)) {
 		/* FIXME (crbug.com/242706): EC_RES_INVALID_CHECKSUM */
-		msg->in_len = 0;
+		msg->insize = 0;
 		goto done;
 	}
 
 	/* Return actual amount of data received */
-	msg->in_len = args.data_size;
+	msg->insize = args.data_size;
 
 done:
 	mutex_unlock(&ec_command_mutex);
