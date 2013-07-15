@@ -289,22 +289,23 @@ static int cros_ec_cmd_xfer_spi(struct cros_ec_device *ec_dev,
 		goto exit;
 	}
 
-	/* check response error code */
-	/* FIXME (crbug.com/242706): The caller needs to know this byte! */
 	ptr = ec_dev->din;
-	if (ptr[0]) {
-		if (ptr[0] == EC_RES_IN_PROGRESS) {
-			dev_dbg(ec_dev->dev, "command 0x%02x in progress\n",
-				ec_msg->command);
-			ret = -EAGAIN;
-			goto exit;
-		}
-		dev_warn(ec_dev->dev, "command 0x%02x returned an error %d\n",
-			 ec_msg->command, ptr[0]);
-		debug_packet(ec_dev->dev, "in_err", ptr, len);
-		ret = -EINVAL;
+
+	/* check response error code */
+	ec_msg->result = ptr[0];
+	switch (ec_msg->result) {
+	case EC_RES_SUCCESS:
+		break;
+	case EC_RES_IN_PROGRESS:
+		ret = -EAGAIN;
+		dev_dbg(ec_dev->dev, "command 0x%02x in progress\n",
+			ec_msg->command);
 		goto exit;
+	default:
+		dev_warn(ec_dev->dev, "command 0x%02x returned %d\n",
+			 ec_msg->command, ec_msg->result);
 	}
+
 	len = ptr[1];
 	sum = ptr[0] + ptr[1];
 	if (len > ec_msg->insize) {

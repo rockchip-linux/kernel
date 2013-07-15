@@ -92,16 +92,23 @@ static int cros_ec_cmd_xfer_i2c(struct cros_ec_device *ec_dev,
 	}
 
 	/* check response error code */
-	if (i2c_msg[1].buf[0]) {
-		dev_warn(ec_dev->dev, "command 0x%02x returned an error %d\n",
-			 msg->command, i2c_msg[1].buf[0]);
-		ret = -EINVAL;
+	msg->result = i2c_msg[1].buf[0];
+	switch (msg->result) {
+	case EC_RES_SUCCESS:
+		break;
+	case EC_RES_IN_PROGRESS:
+		ret = -EAGAIN;
+		dev_dbg(ec_dev->dev, "command 0x%02x in progress\n",
+			msg->command);
 		goto done;
+	default:
+		dev_warn(ec_dev->dev, "command 0x%02x returned %d\n",
+			 msg->command, msg->result);
 	}
 
 	/* copy response packet payload and compute checksum */
 	sum = in_buf[0] + in_buf[1];
-	for (i = 0; i < msg->insize; i++) {
+	for (i = 0; i < msg->insize; i++) { /* FIXME: Use len from EC? */
 		msg->indata[i] = in_buf[2 + i];
 		sum += in_buf[2 + i];
 	}
