@@ -61,18 +61,23 @@ static int vbc_read(struct device *dev, void *buf, size_t count)
 	struct cros_ec_device *ec;
 	struct ec_params_vbnvcontext param;
 	struct ec_response_vbnvcontext resp;
+	struct cros_ec_command msg = {
+		.version = EC_VER_VBNV_CONTEXT,
+		.command = EC_CMD_VBNV_CONTEXT,
+		.outdata = &param,
+		.outsize = sizeof(param.op),
+		.indata = &resp,
+		.insize = sizeof(resp),
+	};
 	int err;
 
 	ec = dev_get_drvdata(dev->parent);
 
 	param.op = EC_VBNV_CONTEXT_OP_READ;
-	err = ec->command_sendrecv(ec,
-			EC_CMD_VBNV_CONTEXT | (EC_VER_VBNV_CONTEXT << 8),
-			&param, sizeof(param.op),
-			&resp, sizeof(resp));
+	err = ec->cmd_xfer(ec, &msg);
 	if (err < 0)
 		return err;
-
+	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
 	count = min(count, sizeof(resp.block));
 	memcpy(buf, resp.block, count);
 
@@ -83,6 +88,14 @@ static int vbc_write(struct device *dev, const void *buf, size_t count)
 {
 	struct cros_ec_device *ec;
 	struct ec_params_vbnvcontext param;
+	struct cros_ec_command msg = {
+		.version = EC_VER_VBNV_CONTEXT,
+		.command = EC_CMD_VBNV_CONTEXT,
+		.outdata = &param,
+		.outsize = sizeof(param),
+		.indata = NULL,
+		.insize = 0,
+	};
 	int err;
 
 	ec = dev_get_drvdata(dev->parent);
@@ -91,12 +104,10 @@ static int vbc_write(struct device *dev, const void *buf, size_t count)
 
 	param.op = EC_VBNV_CONTEXT_OP_WRITE;
 	memcpy(param.block, buf, count);
-	err = ec->command_send(ec,
-			EC_CMD_VBNV_CONTEXT | (EC_VER_VBNV_CONTEXT << 8),
-			&param, sizeof(param));
+	err = ec->cmd_xfer(ec, &msg);
 	if (err < 0)
 		return err;
-
+	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
 	return count;
 }
 
