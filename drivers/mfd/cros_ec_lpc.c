@@ -211,7 +211,6 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, ec_dev);
-	ec_dev->name = "LPC";
 	ec_dev->dev = dev;
 	ec_dev->ec_name = pdev->name;
 	ec_dev->phys_name = dev_name(dev);
