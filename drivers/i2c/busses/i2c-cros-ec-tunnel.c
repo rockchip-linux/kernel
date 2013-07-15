@@ -172,6 +172,7 @@ static int ec_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg i2c_msgs[],
 	u8 *request = NULL;
 	u8 *response = NULL;
 	int result;
+	struct cros_ec_command msg;
 
 	request_len = ec_i2c_construct_message(NULL, i2c_msgs, num, bus_num);
 	if (request_len < 0) {
@@ -207,12 +208,19 @@ static int ec_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg i2c_msgs[],
 	}
 
 	ec_i2c_construct_message(request, i2c_msgs, num, bus_num);
-	result = bus->ec->command_sendrecv(bus->ec, EC_CMD_I2C_PASSTHRU,
-					   request, request_len,
-					   response, response_len);
+
+	msg.version = 0;
+	msg.command = EC_CMD_I2C_PASSTHRU;
+	msg.outdata = request;
+	msg.outsize = request_len;
+	msg.indata = response;
+	msg.insize = response_len;
+
+	result = bus->ec->cmd_xfer(bus->ec, &msg);
 	if (result)
 		goto exit;
 
+	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
 	result = ec_i2c_parse_response(response, i2c_msgs, &num);
 	if (result < 0)
 		goto exit;

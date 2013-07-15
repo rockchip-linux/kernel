@@ -44,10 +44,17 @@ enum {
  * @was_wake_device: true if this device was set to wake the system from
  * sleep at the last suspend
  * @event_notifier: interrupt event notifier for transport devices
- * @command_send: send a command
- * @command_recv: receive a response
- * @command_sendrecv: send a command and receive a response
-
+ * @cmd_xfer: send command to EC and get response
+ *     Returns 0 if the communication succeeded, but that doesn't mean the EC
+ *     was happy with the command it got. Caller should check msg.result for
+ *     the EC's result code.
+ * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
+ *     @offset is within EC_LPC_ADDR_MEMMAP region.
+ *     @bytes: number of bytes to read. zero means "read a string" (including
+ *     the trailing '\0'). At most only EC_MEMMAP_SIZE bytes can be read.
+ *     Caller must ensure that the buffer is large enough for the result when
+ *     reading a string.
+ *
  * @priv: Private data
  * @irq: Interrupt to use
  * @din: input buffer (for data from EC)
@@ -63,11 +70,6 @@ enum {
  * @dout_size: size of dout buffer to allocate (zero to use static dout)
  * @parent: pointer to parent device (e.g. i2c or spi device)
  * @wake_enabled: true if this device can wake the system from sleep
- * @cmd_xfer: low-level channel to the EC
- * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
- *     @offset is within EC_LPC_ADDR_MEMMAP region.
- *     @bytes: number of bytes to read. zero means "read a string" (including
- *     the trailing '\0'). At most only EC_MEMMAP_SIZE bytes can be read.
  */
 struct cros_ec_device {
 
@@ -78,13 +80,10 @@ struct cros_ec_device {
 	bool was_wake_device;
 	struct class *cros_class;
 	struct blocking_notifier_head event_notifier;
-	int (*command_send)(struct cros_ec_device *ec,
-			    uint16_t cmd, void *out_buf, int out_len);
-	int (*command_recv)(struct cros_ec_device *ec,
-			    uint16_t cmd, void *in_buf, int in_len);
-	int (*command_sendrecv)(struct cros_ec_device *ec,
-				uint16_t cmd, void *out_buf, int out_len,
-				void *in_buf, int in_len);
+	int (*cmd_xfer)(struct cros_ec_device *ec,
+			struct cros_ec_command *msg);
+	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
+			   unsigned int bytes, void *dest);
 
 	/* These are used to implement the platform-specific interface */
 	void *priv;
@@ -95,10 +94,6 @@ struct cros_ec_device {
 	int dout_size;
 	struct device *parent;
 	bool wake_enabled;
-	int (*cmd_xfer)(struct cros_ec_device *ec,
-			struct cros_ec_command *msg);
-	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
-			   unsigned int bytes, void *dest);
 };
 
 /**

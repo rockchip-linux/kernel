@@ -32,26 +32,11 @@
 
 /* Device variables */
 #define CROS_CLASS_NAME "chromeos"
-struct cros_ec_device *ec;
+static struct cros_ec_device *ec;
 static int ec_major;
 
 /*****************************************************************************/
 /* Basic communication */
-
-static long cros_ec_xfer_command(struct cros_ec_command *s)
-{
-	int rv;
-
-	s->result = EC_RES_UNAVAILABLE;		/* FIXME (crbug.com/242706) */
-	rv = ec->command_sendrecv(ec, s->command,
-				  s->outdata, s->outsize,
-				  s->indata, s->insize);
-	if (rv)
-		return rv;
-
-	s->result = EC_RES_SUCCESS;
-	return 0;
-}
 
 static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 {
@@ -59,11 +44,25 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 	static const char * const current_image_name[] = {
 		"unknown", "read-only", "read-write", "invalid",
 	};
+	struct cros_ec_command msg = {
+		.version = 0,
+		.command = EC_CMD_GET_VERSION,
+		.outdata = NULL,
+		.outsize = 0,
+		.indata = &resp,
+		.insize = sizeof(resp),
+	};
 	int ret;
 
-	ret = ec->command_recv(ec, EC_CMD_GET_VERSION, &resp, sizeof(resp));
+	ret = ec->cmd_xfer(ec, &msg);
 	if (ret)
 		return ret;
+	if (msg.result != EC_RES_SUCCESS) {
+		snprintf(str, maxlen,
+			 "%s\nUnknown EC version: EC returned %d\n",
+			 CROS_EC_DEV_VERSION, msg.result);
+		return 0;
+	}
 	if (resp.current_image >= ARRAY_SIZE(current_image_name))
 		resp.current_image = 3; /* invalid */
 	snprintf(str, maxlen, "%s\n%s\n%s\n\%s\n", CROS_EC_DEV_VERSION,
@@ -117,7 +116,7 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	long ret;
 	struct cros_ec_command s_cmd;
 	uint8_t *user_indata;
-	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE];
+	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE]; /* FIXME: crosbug.com/p/20820 */
 
 	if (copy_from_user(&s_cmd, argp, sizeof(s_cmd)))
 		return -EFAULT;
@@ -128,7 +127,7 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	user_indata = s_cmd.indata;
 	s_cmd.indata = buf;
 	s_cmd.outdata = buf;
-	ret = cros_ec_xfer_command(&s_cmd);
+	ret = ec->cmd_xfer(ec, &s_cmd);
 	s_cmd.indata = user_indata;
 
 	if (s_cmd.insize &&

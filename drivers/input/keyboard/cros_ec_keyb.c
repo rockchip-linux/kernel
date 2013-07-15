@@ -191,8 +191,19 @@ static void cros_ec_keyb_close(struct input_dev *dev)
 
 static int cros_ec_keyb_get_state(struct cros_ec_keyb *ckdev, uint8_t *kb_state)
 {
-	return ckdev->ec->command_recv(ckdev->ec, EC_CMD_MKBP_STATE,
-					  kb_state, ckdev->cols);
+	int ret;
+	struct cros_ec_command msg = {
+		.version = 0,
+		.command = EC_CMD_MKBP_STATE,
+		.outdata = NULL,
+		.outsize = 0,
+		.indata = kb_state,
+		.insize = ckdev->cols,
+	};
+
+	ret = ckdev->ec->cmd_xfer(ckdev->ec, &msg);
+	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
+	return ret;
 }
 
 static int cros_ec_keyb_work(struct notifier_block *nb,
