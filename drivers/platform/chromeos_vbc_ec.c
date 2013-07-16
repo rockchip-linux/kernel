@@ -64,9 +64,9 @@ static int vbc_read(struct device *dev, void *buf, size_t count)
 	struct cros_ec_command msg = {
 		.version = EC_VER_VBNV_CONTEXT,
 		.command = EC_CMD_VBNV_CONTEXT,
-		.outdata = &param,
+		.outdata = (uint8_t *)&param,
 		.outsize = sizeof(param.op),
-		.indata = &resp,
+		.indata = (uint8_t *)&resp,
 		.insize = sizeof(resp),
 	};
 	int err;
@@ -91,7 +91,7 @@ static int vbc_write(struct device *dev, const void *buf, size_t count)
 	struct cros_ec_command msg = {
 		.version = EC_VER_VBNV_CONTEXT,
 		.command = EC_CMD_VBNV_CONTEXT,
-		.outdata = &param,
+		.outdata = (uint8_t *)&param,
 		.outsize = sizeof(param),
 		.indata = NULL,
 		.insize = 0,
