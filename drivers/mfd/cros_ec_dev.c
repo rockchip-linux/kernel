@@ -49,7 +49,7 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 		.command = EC_CMD_GET_VERSION,
 		.outdata = NULL,
 		.outsize = 0,
-		.indata = &resp,
+		.indata = (uint8_t *)&resp,
 		.insize = sizeof(resp),
 	};
 	int ret;
