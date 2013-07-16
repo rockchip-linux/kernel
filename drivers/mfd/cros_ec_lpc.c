@@ -59,7 +59,6 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 		dev_err(ec->dev,
 			"invalid buffer sizes (out %d, in %d)\n",
 			msg->outsize, msg->insize);
-		msg->insize = 0;
 		return -EINVAL;
 	}
 
@@ -92,7 +91,6 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	outb(msg->command, EC_LPC_ADDR_HOST_CMD);
 
 	if (ec_response_timed_out()) {
-		msg->insize = 0;
 		dev_warn(ec->dev, "EC responsed timed out\n");
 		ret = -EIO;
 		goto done;
@@ -123,7 +121,6 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 		dev_err(ec->dev,
 			"packet too long (%d bytes, expected %d)",
 			args.data_size, msg->insize);
-		msg->insize = 0;
 		ret = -ENOSPC;
 		goto done;
 	}
@@ -143,14 +140,12 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 		dev_err(ec->dev,
 			"bad packet checksum, expected %02x, got %02x\n",
 			args.checksum, csum & 0xFF);
-		msg->insize = 0;
 		ret = -EBADMSG;
 		goto done;
 	}
 
 	/* Return actual amount of data received */
-	msg->insize = args.data_size;
-
+	ret = args.data_size;
 done:
 	mutex_unlock(&ec_command_mutex);
 	return ret;

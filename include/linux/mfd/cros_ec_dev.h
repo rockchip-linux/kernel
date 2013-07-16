@@ -33,9 +33,9 @@
  * @outdata: Outgoing data to EC
  * @outsize: Outgoing length in bytes
  * @indata: Where to put the incoming data from EC
- * @insize: Incoming length in bytes (filled in by EC)
+ * @insize: Max number of bytes to accept from EC
  * @result: EC's response to the command (separate from communication failure)
- * ioctl returns zero on success, negative on error
+ * ioctl returns the number of bytes returned from the EC, negative on error.
  */
 struct cros_ec_command {
 	uint32_t version;

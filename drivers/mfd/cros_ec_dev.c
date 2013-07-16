@@ -55,7 +55,7 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 	int ret;
 
 	ret = ec->cmd_xfer(ec, &msg);
-	if (ret)
+	if (ret < 0)
 		return ret;
 	if (msg.result != EC_RES_SUCCESS) {
 		snprintf(str, maxlen,

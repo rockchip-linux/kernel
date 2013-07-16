@@ -45,9 +45,9 @@ enum {
  * sleep at the last suspend
  * @event_notifier: interrupt event notifier for transport devices
  * @cmd_xfer: send command to EC and get response
- *     Returns 0 if the communication succeeded, but that doesn't mean the EC
- *     was happy with the command it got. Caller should check msg.result for
- *     the EC's result code.
+ *     Returns the number of bytes received if the communication succeeded, but
+ *     that doesn't mean the EC was happy with the command. The caller
+ *     should check msg.result for the EC's result code.
  * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
  *     @offset is within EC_LPC_ADDR_MEMMAP region.
  *     @bytes: number of bytes to read. zero means "read a string" (including
