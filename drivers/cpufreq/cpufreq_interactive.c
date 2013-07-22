@@ -67,7 +67,7 @@ static spinlock_t updown_state_lock;
 static unsigned int hispeed_freq;
 
 /* Go to hi speed when CPU load at or above this value. */
-#define DEFAULT_GO_HISPEED_LOAD 85
+#define DEFAULT_GO_HISPEED_LOAD 95
 static unsigned long go_hispeed_load;
 
 /* Target load.  Lower values result in higher CPU speeds. */
