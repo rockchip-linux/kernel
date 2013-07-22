@@ -33,6 +33,8 @@
 #include <linux/input.h>
 #include <asm/cputime.h>
 
+#include "cpufreq_governor.h"
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
 
@@ -119,8 +121,8 @@ struct cpufreq_governor cpufreq_gov_interactive = {
 
 static void rearm_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
 {
-	pcpu->time_in_idle = get_cpu_idle_time_us(
-	    smp_processor_id(), &pcpu->idle_exit_time);
+	pcpu->time_in_idle = get_cpu_idle_time(smp_processor_id(),
+					       &pcpu->idle_exit_time, 1);
 	mod_timer_pinned(&pcpu->cpu_timer,
 		jiffies + usecs_to_jiffies(timer_rate));
 }
@@ -161,7 +163,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	time_in_idle = pcpu->time_in_idle;
 	idle_exit_time = pcpu->idle_exit_time;
-	now_idle = get_cpu_idle_time_us(data, &now);
+	now_idle = get_cpu_idle_time(data, &now, 1);
 	delta_idle = (unsigned int)(now_idle - time_in_idle);
 	delta_time = (unsigned int)(now - idle_exit_time);
 
@@ -428,7 +430,7 @@ static void cpufreq_interactive_boost(void)
 			pcpu->target_freq = hispeed_freq;
 			cpumask_set_cpu(i, &updown_cpumask);
 			pcpu->target_set_time_in_idle =
-				get_cpu_idle_time_us(i, &pcpu->target_set_time);
+				get_cpu_idle_time(i, &pcpu->target_set_time, 1);
 			pcpu->hispeed_validate_time = pcpu->target_set_time;
 			anyboost = 1;
 		}
@@ -804,8 +806,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			pcpu->target_freq = policy->cur;
 			pcpu->freq_table = freq_table;
 			pcpu->target_set_time_in_idle =
-				get_cpu_idle_time_us(j,
-					     &pcpu->target_set_time);
+				get_cpu_idle_time(j, &pcpu->target_set_time, 1);
 			pcpu->floor_freq = pcpu->target_freq;
 			pcpu->floor_validate_time =
 				pcpu->target_set_time;
