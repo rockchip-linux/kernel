@@ -121,6 +121,8 @@ static struct regulator_ops ec_tps65090_fet_ops = {
 	.enable		= ec_tps65090_fet_enable,
 	.disable	= ec_tps65090_fet_disable,
 	.set_voltage	= ec_tps65090_set_voltage,
+	.set_suspend_enable	= ec_tps65090_fet_enable,
+	.set_suspend_disable	= ec_tps65090_fet_disable,
 };
 
 static void ec_tps65090_unregister_regs(struct ec_tps65090_regulator *regs[])
@@ -229,10 +231,55 @@ static int ec_tps65090_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int ec_tps65090_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct ec_tps65090_data *data = platform_get_drvdata(pdev);
+	int i;
+
+	for (i = 0; i < MAX_REGULATORS; i++)
+		if (data->regulators[i]) {
+			struct regulator_dev *rdev = data->regulators[i]->rdev;
+			struct regulator_state *rstate =
+				&rdev->constraints->state_mem;
+			struct regulator_ops *ops = rdev->desc->ops;
+			if (rstate->disabled)
+				ops->set_suspend_disable(rdev);
+		}
+
+	return 0;
+}
+
+static int ec_tps65090_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct ec_tps65090_data *data = platform_get_drvdata(pdev);
+	int i;
+
+	for (i = 0; i < MAX_REGULATORS; i++)
+		if (data->regulators[i]) {
+			struct regulator_dev *rdev = data->regulators[i]->rdev;
+			struct regulator_state *rstate =
+				&rdev->constraints->state_mem;
+			struct regulator_ops *ops = rdev->desc->ops;
+			if (rstate->disabled && (rdev->use_count > 0 ||
+						 rdev->constraints->always_on))
+				ops->enable(rdev);
+		}
+
+	return 0;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(ec_tps65090_pm_ops, ec_tps65090_suspend,
+			 ec_tps65090_resume);
+
 static struct platform_driver ec_tps65090_driver = {
 	.driver = {
 		.name = "cros-ec-tps65090",
 		.owner = THIS_MODULE,
+		.pm = &ec_tps65090_pm_ops,
 	},
 	.probe = ec_tps65090_probe,
 	.remove = ec_tps65090_remove,
