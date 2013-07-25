@@ -590,6 +590,11 @@ int tpm_get_timeouts(struct tpm_chip *chip)
 	if (timeout)
 		chip->vendor.timeout_d = usecs_to_jiffies(timeout * scale);
 
+	/* Provide ability for vendor overrides of timeout values in case
+	 * of misreporting. */
+	if (chip->ops->update_timeouts != NULL)
+		chip->ops->update_timeouts(chip);
+
 duration:
 	tpm_cmd.header.in = tpm_getcap_header;
 	tpm_cmd.params.getcap_in.cap = TPM_CAP_PROP;
