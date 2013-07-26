@@ -130,9 +130,14 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	ret = ec->cmd_xfer(ec, &s_cmd);
 	s_cmd.indata = user_indata;
 
-	if (s_cmd.insize &&
-	    copy_to_user((void __user *)s_cmd.indata, buf, s_cmd.insize))
-		return -EFAULT;
+	/* Only copy data to userland if data was received. */
+	if (ret > 0 && s_cmd.insize) {
+		unsigned size = ret;
+
+		size = min(size, s_cmd.insize);
+		if (copy_to_user((void __user *)s_cmd.indata, buf, size))
+			return -EFAULT;
+	}
 	if (copy_to_user(argp, &s_cmd, sizeof(s_cmd)))
 		return -EFAULT;
 
