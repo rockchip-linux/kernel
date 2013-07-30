@@ -63,12 +63,19 @@ static struct task_struct *updown_task;
 static cpumask_t updown_cpumask;
 static spinlock_t updown_state_lock;
 
-/* Hi speed to bump to from lo speed when load burst (default max) */
-static unsigned int hispeed_freq;
-
-/* Go to hi speed when CPU load at or above this value. */
+/*
+ * Mapping from loads to CPU frequencies to jump to.  When we exceed a
+ * certain load we will immediately jump to the corresponding frequency.
+ * Default: 85% -> max frequency.
+ */
+struct hispeed_freq_level {
+	unsigned int load;
+	unsigned int freq;
+};
 #define DEFAULT_GO_HISPEED_LOAD 85
-static unsigned long go_hispeed_load;
+static struct hispeed_freq_level *hispeed_freqs;
+static int nhispeed_freqs;
+static spinlock_t hispeed_freqs_lock;
 
 /*
  * The minimum amount of time to spend at a frequency before we can ramp down.
@@ -160,6 +167,47 @@ static unsigned int freq_to_above_hispeed_delay(unsigned int freq)
 	return ret;
 }
 
+static unsigned int next_hispeed_freq(struct cpufreq_interactive_cpuinfo *pcpu)
+{
+	unsigned int ret = pcpu->policy->max;
+	unsigned long flags;
+	int i;
+
+	BUG_ON(hispeed_freqs == NULL);
+
+	spin_lock_irqsave(&hispeed_freqs_lock, flags);
+	for (i = 0; i < nhispeed_freqs; i++) {
+		if (hispeed_freqs[i].freq > pcpu->target_freq) {
+			ret = hispeed_freqs[i].freq;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
+
+	return ret;
+}
+
+static unsigned int load_to_hispeed_freq(unsigned int load)
+{
+	unsigned int ret;
+	unsigned long flags;
+	int i;
+
+	BUG_ON(hispeed_freqs == NULL);
+
+	spin_lock_irqsave(&hispeed_freqs_lock, flags);
+	ret = hispeed_freqs[nhispeed_freqs - 1].freq;
+	for (i = 1; i < nhispeed_freqs; i++) {
+		if (load < hispeed_freqs[i].load) {
+			ret = hispeed_freqs[i - 1].freq;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
+
+	return ret;
+}
+
 static void cpufreq_interactive_timer(unsigned long data)
 {
 	u64 now;
@@ -173,6 +221,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	struct cpufreq_interactive_cpuinfo *pcpu =
 		&per_cpu(cpuinfo, data);
 	u64 now_idle;
+	unsigned int hispeed_freq;
 	unsigned int new_freq;
 	unsigned int index;
 	unsigned long flags;
@@ -216,20 +265,26 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (load_since_change > cpu_load)
 		cpu_load = load_since_change;
 
-	if (cpu_load >= go_hispeed_load || boost_val) {
+	/*
+	 * The first hispeed_freq level has the lowest load.  Only boost if
+	 * we excced that value.
+	 */
+	if (cpu_load >= hispeed_freqs[0].load || boost_val) {
+		hispeed_freq = load_to_hispeed_freq(cpu_load);
 		if (pcpu->target_freq < hispeed_freq) {
 			new_freq = hispeed_freq;
 		} else {
-			new_freq = pcpu->policy->max * cpu_load / 100;
+			new_freq = next_hispeed_freq(pcpu) * cpu_load / 100;
 
 			if (new_freq < hispeed_freq)
 				new_freq = hispeed_freq;
 		}
 	} else {
+		hispeed_freq = next_hispeed_freq(pcpu);
 		new_freq = hispeed_freq * cpu_load / 100;
 	}
 
-	if (pcpu->target_freq >= hispeed_freq &&
+	if (pcpu->target_freq >= hispeed_freqs[0].freq &&
 	    new_freq > pcpu->target_freq &&
 	    now - pcpu->hispeed_validate_time <
 	    freq_to_above_hispeed_delay(pcpu->target_freq)) {
@@ -438,6 +493,7 @@ static void cpufreq_interactive_boost(void)
 	int i;
 	int anyboost = 0;
 	unsigned long flags;
+	unsigned int hispeed_freq;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
 	spin_lock_irqsave(&updown_state_lock, flags);
@@ -445,6 +501,7 @@ static void cpufreq_interactive_boost(void)
 	for_each_online_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
 
+		hispeed_freq = next_hispeed_freq(pcpu);
 		if (pcpu->target_freq < hispeed_freq) {
 			pcpu->target_freq = hispeed_freq;
 			cpumask_set_cpu(i, &updown_cpumask);
@@ -595,9 +652,6 @@ static unsigned int *get_tokenized_data(const char *buf, int *num_tokens)
 	while ((cp = strpbrk(cp + 1, " :")))
 		ntokens++;
 
-	if (!(ntokens & 0x1))
-		goto err;
-
 	tokenized_data = kmalloc(ntokens * sizeof(unsigned int), GFP_KERNEL);
 	if (!tokenized_data) {
 		err = -ENOMEM;
@@ -656,6 +710,10 @@ static ssize_t store_above_hispeed_delay(struct kobject *kobj,
 	new_above_hispeed_delay = get_tokenized_data(buf, &ntokens);
 	if (IS_ERR(new_above_hispeed_delay))
 		return PTR_RET(new_above_hispeed_delay);
+	if (ntokens % 2 != 1) {
+		kfree(new_above_hispeed_delay);
+		return -EINVAL;
+	}
 
 	/* Make sure frequencies are in ascending order. */
 	for (i = 3; i < ntokens; i += 2) {
@@ -683,47 +741,74 @@ static struct global_attr above_hispeed_delay_attr =
 static ssize_t show_hispeed_freq(struct kobject *kobj,
 				 struct attribute *attr, char *buf)
 {
-	return sprintf(buf, "%u\n", hispeed_freq);
+	int i;
+	ssize_t ret = 0;
+	unsigned long flags;
+
+	spin_lock_irqsave(&hispeed_freqs_lock, flags);
+	for (i = 0; i < nhispeed_freqs; i++) {
+		ret += sprintf(buf + ret, "%s%u:%u", i > 0 ? " " : "",
+				hispeed_freqs[i].freq, hispeed_freqs[i].load);
+	}
+	ret += sprintf(buf + ret, "\n");
+	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
+
+	return ret;
 }
 
 static ssize_t store_hispeed_freq(struct kobject *kobj,
 				  struct attribute *attr, const char *buf,
 				  size_t count)
 {
-	int ret;
-	long unsigned int val;
+	int ntokens, i, ret = count;
+	unsigned int *tokens;
+	unsigned long flags;
+	struct hispeed_freq_level *new_hispeed_freqs;
 
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	hispeed_freq = val;
-	return count;
+	tokens = get_tokenized_data(buf, &ntokens);
+	if (IS_ERR(tokens))
+		return PTR_RET(tokens);
+	if (ntokens % 2 != 0) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	new_hispeed_freqs = kzalloc(sizeof(*new_hispeed_freqs) * ntokens / 2,
+				    GFP_KERNEL);
+	if (!new_hispeed_freqs) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	for (i = 0; i < ntokens / 2; i++) {
+		new_hispeed_freqs[i].freq = tokens[2 * i];
+		new_hispeed_freqs[i].load = tokens[2 * i + 1];
+		if (new_hispeed_freqs[i].load > 100) {
+			kfree(new_hispeed_freqs);
+			ret = -EINVAL;
+			goto out;
+		}
+		if (i > 0 && (new_hispeed_freqs[i].freq <=
+			      new_hispeed_freqs[i - 1].freq ||
+			      new_hispeed_freqs[i].load <=
+			      new_hispeed_freqs[i - 1].load)) {
+			kfree(new_hispeed_freqs);
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
+	spin_lock_irqsave(&hispeed_freqs_lock, flags);
+	kfree(hispeed_freqs);
+	hispeed_freqs = new_hispeed_freqs;
+	nhispeed_freqs = ntokens / 2;
+	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
+out:
+	kfree(tokens);
+	return ret;
 }
 
 static struct global_attr hispeed_freq_attr = __ATTR(hispeed_freq, 0644,
 		show_hispeed_freq, store_hispeed_freq);
-
-static ssize_t show_go_hispeed_load(struct kobject *kobj,
-				     struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", go_hispeed_load);
-}
-
-static ssize_t store_go_hispeed_load(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-	go_hispeed_load = val;
-	return count;
-}
-
-static struct global_attr go_hispeed_load_attr = __ATTR(go_hispeed_load, 0644,
-		show_go_hispeed_load, store_go_hispeed_load);
 
 static ssize_t show_min_sample_time(struct kobject *kobj,
 				struct attribute *attr, char *buf)
@@ -841,7 +926,6 @@ static struct global_attr boostpulse =
 static struct attribute *interactive_attributes[] = {
 	&above_hispeed_delay_attr.attr,
 	&hispeed_freq_attr.attr,
-	&go_hispeed_load_attr.attr,
 	&min_sample_time_attr.attr,
 	&timer_rate_attr.attr,
 	&input_boost.attr,
@@ -890,8 +974,16 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 
 		freq_table =
 			cpufreq_frequency_get_table(policy->cpu);
-		if (!hispeed_freq)
-			hispeed_freq = policy->max;
+
+		if (!hispeed_freqs) {
+			hispeed_freqs = kzalloc(sizeof(*hispeed_freqs),
+						GFP_KERNEL);
+			if (!hispeed_freqs)
+				return -ENOMEM;
+			nhispeed_freqs = 1;
+			hispeed_freqs[0].load = DEFAULT_GO_HISPEED_LOAD;
+			hispeed_freqs[0].freq = policy->max;
+		}
 
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
@@ -968,7 +1060,6 @@ static int __init cpufreq_interactive_init(void)
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
-	go_hispeed_load = DEFAULT_GO_HISPEED_LOAD;
 	min_sample_time = DEFAULT_MIN_SAMPLE_TIME;
 	timer_rate = DEFAULT_TIMER_RATE;
 
@@ -980,6 +1071,7 @@ static int __init cpufreq_interactive_init(void)
 		pcpu->cpu_timer.data = i;
 	}
 
+	spin_lock_init(&hispeed_freqs_lock);
 	spin_lock_init(&above_hispeed_delay_lock);
 	spin_lock_init(&updown_state_lock);
 
@@ -1010,6 +1102,7 @@ static void __exit cpufreq_interactive_exit(void)
 	put_task_struct(updown_task);
 	if (above_hispeed_delay != default_above_hispeed_delay)
 		kfree(above_hispeed_delay);
+	kfree(hispeed_freqs);
 	/* TODO(sleffler) cancel inputopen wq request? */
 }
 

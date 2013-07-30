@@ -249,8 +249,16 @@ frequency before ramping down. This is to ensure that the governor has
 seen enough historic cpu load data to determine the appropriate
 workload.  Default is 80000 uS.
 
-go_maxspeed_load: The CPU load at which to ramp to max speed.  Default
-is 85.
+hispeed_freq: List of frequency to load mappings. When CPU load meets
+or exceeds one of the load levels, immediately ramp up to the associated
+frequency. The format is a list of entries of the form <frequency>:<load>
+specified in ascending order. For example:
+
+   650000:75 1600000:95
+
+will cause the governor to jump to 650Mhz if the load is between 75% and
+95%. If CPU load exceeds 95% it will jump to 1.6Ghz instead. Default is
+one level: the maximum available frequency at 85% load.
 
 above_hispeed_delay: When speed is at or above hispeed_freq, wait for
 this long before raising speed in response to continued high load.
