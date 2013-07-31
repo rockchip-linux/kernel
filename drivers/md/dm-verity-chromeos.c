@@ -79,7 +79,7 @@ static int chromeos_invalidate_kernel_submit(struct bio *bio,
 	return 0;
 }
 
-static char *get_info_from_cmdline(const char *key)
+static char *get_info_from_cmdline(const char *key, char *uuid, int maxlen)
 {
 	const char *dev;
 	const char *end;
@@ -91,30 +91,12 @@ static char *get_info_from_cmdline(const char *key)
 	len = strlen(key);
 	dev = &dev[len];
 	end = strchr(dev, ' ');
-	return kstrndup(dev, end - dev, GFP_ATOMIC);
-}
-
-/**
- * match_dev_by_uuid - callback for finding a partition using its uuid
- * @dev:	device passed in by the caller
- * @uuid_data:	opaque pointer to a uuid packed by part_pack_uuid().
- *
- * Returns 1 if the device matches, and 0 otherwise.
- */
-static int match_dev_by_uuid(struct device *dev, void *uuid_data)
-{
-	char *uuid = uuid_data;
-	struct hd_struct *part = dev_to_part(dev);
-
-	if (!part->info)
-		goto no_match;
-
-	if (strncasecmp(uuid, part->info->uuid, strlen(uuid)))
-		goto no_match;
-
-	return 1;
-no_match:
-	return 0;
+	len = end - dev;
+	if (len >= maxlen)
+		return NULL;
+	memcpy(uuid, dev, len);
+	uuid[len] = '\0';
+	return uuid;
 }
 
 static dev_t get_boot_dev_from_root_dev(struct block_device *root_bdev)
@@ -132,40 +114,29 @@ static dev_t get_boot_dev_from_root_dev(struct block_device *root_bdev)
 static dev_t get_boot_dev(void)
 {
 	const char partuuid[] = "PARTUUID=";
+	char uuid[2 * sizeof(partuuid) + 36];	/* Room for 2 PARTUUIDs */
 	char *uuid_str;
-	struct device *dev = NULL;
 	dev_t devt = 0;
-	size_t uuid_length;
 
-	uuid_str = get_info_from_cmdline(" kern_guid=");
+	uuid_str = get_info_from_cmdline(" kern_guid=",
+			&uuid[sizeof(partuuid) - 1],
+			sizeof(uuid) - sizeof(partuuid));
 	if (!uuid_str) {
 		DMERR("Couldn't get uuid, try root dev");
 		return 0;
 	}
-	uuid_length = strlen(uuid_str);
 
-	if (strncmp(uuid_str, partuuid, strlen(partuuid)) == 0) {
-		devt = name_to_dev_t(uuid_str);
-	} else {
-		if (uuid_length != 36)
-			goto bad_uuid;
-
-		dev = class_find_device(&block_class, NULL, uuid_str,
-					&match_dev_by_uuid);
-		if (!dev)
-			goto found_nothing;
-
-		devt = dev->devt;
-		put_device(dev);
+	if (strncmp(uuid_str, partuuid, strlen(partuuid)) != 0) {
+		/* Not prefixed with "PARTUUID=", so add it */
+		memcpy(uuid, partuuid, sizeof(partuuid) - 1);
+		uuid_str = uuid;
 	}
+	devt = name_to_dev_t(uuid_str);
+	if (!devt)
+		goto found_nothing;
 	return devt;
 
-bad_uuid:
-	kfree(uuid_str);
-	DMDEBUG("Supplied value '%s' is an invalid UUID", uuid_str);
-	return 0;
 found_nothing:
-	kfree(uuid_str);
 	DMDEBUG("No matching partition for GUID: %s", uuid_str);
 	return 0;
 }
