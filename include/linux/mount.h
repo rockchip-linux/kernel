@@ -80,5 +80,6 @@ extern void mnt_set_expiry(struct vfsmount *mnt, struct list_head *expiry_list);
 extern void mark_mounts_for_expiry(struct list_head *mounts);
 
 extern dev_t name_to_dev_t(char *name);
+extern dev_t devt_from_partuuid(const char *uuid_str);
 
 #endif /* _LINUX_MOUNT_H */

@@ -113,7 +113,7 @@ no_match:
  *
  * Returns the matching dev_t on success or 0 on failure.
  */
-static dev_t devt_from_partuuid(const char *uuid_str)
+dev_t devt_from_partuuid(const char *uuid_str)
 {
 	dev_t res = 0;
 	struct uuidcmp cmp;
