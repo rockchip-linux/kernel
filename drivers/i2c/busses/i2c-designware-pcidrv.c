@@ -288,7 +288,7 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	adap->dev.parent = &pdev->dev;
 	adap->nr = controller->bus_num;
 	snprintf(adap->name, sizeof(adap->name), "i2c-designware-pci-%ld",
-		 (adap->nr < 0) ? haswell_0 - id->driver_data : adap->nr);
+		 (adap->nr < 0) ? id->driver_data - haswell_0 : adap->nr);
 
 	r = devm_request_irq(&pdev->dev, pdev->irq, i2c_dw_isr, IRQF_SHARED,
 			adap->name, dev);
