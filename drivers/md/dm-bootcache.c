@@ -886,131 +886,6 @@ static void bootcache_init_hdr(struct bootcache_hdr *hdr, u64 cache_start,
 	strncpy(hdr->signature, signature, sizeof(hdr->signature));
 }
 
-/**
- * match_dev_by_uuid - callback for finding a partition using its uuid
- * @dev:	device passed in by the caller
- * @uuid_data:	opaque pointer to a uuid packed by part_pack_uuid().
- *
- * Returns 1 if the device matches, and 0 otherwise.
- */
-static int match_dev_by_uuid(struct device *dev, void *uuid_data)
-{
-	char *uuid = uuid_data;
-	struct hd_struct *part = dev_to_part(dev);
-
-	if (!part->info)
-		goto no_match;
-
-	if (strncasecmp(uuid, part->info->uuid, strlen(uuid)))
-		goto no_match;
-
-	return 1;
-no_match:
-	return 0;
-}
-
-/**
- * dm_get_device_by_uuid: claim a device using its UUID
- * @ti:			current dm_target
- * @uuid_string:	36 byte UUID hex encoded
- *			(xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
- * @dev_start:		offset in sectors passed to dm_get_device
- * @dev_len:		length in sectors passed to dm_get_device
- * @dm_dev:		dm_dev to populate
- *
- * Wraps dm_get_device allowing it to use a unique partition id
- * to find a given partition on any drive. This code is based on
- * printk_all_partitions in that it walks all of the registered
- * block devices.
- *
- * N.B., uuid_string is not checked for safety just strlen().
- */
-static int dm_get_device_by_uuid(struct dm_target *ti, char *uuid_str,
-			     sector_t dev_start, sector_t dev_len,
-			     struct dm_dev **dm_dev)
-{
-	const char partuuid[] = "PARTUUID=";
-	struct device *dev = NULL;
-	dev_t devt = 0;
-	char devt_buf[BDEVT_SIZE];
-	char *uuid;
-	size_t uuid_length = strlen(uuid_str);
-
-	if (strncmp(uuid_str, partuuid, strlen(partuuid)) == 0) {
-		devt = name_to_dev_t(uuid_str);
-	} else {
-		if (uuid_length < 36)
-			goto bad_uuid;
-
-		/* strdup it so that we can modify the contents and pass to */
-		/* class_find_device() which wants something non-const */
-		uuid = kstrdup(uuid_str, GFP_KERNEL);
-		if (!uuid)
-			goto nomem;
-
-		/* don't match anything after the UUID */
-		if (uuid_length > 36)
-			uuid[36] = '\0';
-
-		dev = class_find_device(&block_class, NULL, uuid,
-					&match_dev_by_uuid);
-		kfree(uuid);
-		if (!dev)
-			goto found_nothing;
-
-		devt = dev->devt;
-		put_device(dev);
-
-		/* The caller may specify +/-%u after the UUID if they want
-		 * a partition before or after the one identified.
-		 */
-		if (uuid_length > 36) {
-			unsigned int part_offset;
-			char sign;
-			unsigned minor = MINOR(devt);
-			if (sscanf(uuid_str + 36, "%c%u",
-			    &sign, &part_offset) == 2) {
-				if (sign == '+') {
-					minor += part_offset;
-				} else if (sign == '-') {
-					minor -= part_offset;
-				} else {
-					DMWARN("Trailing characters"
-						" after UUID: %s\n",
-						uuid_str);
-				}
-				devt = MKDEV(MAJOR(devt), minor);
-			}
-		}
-	}
-
-	/* Construct the dev name to pass to dm_get_device.  dm_get_device
-	 * doesn't support being passed a dev_t.
-	 */
-	snprintf(devt_buf, sizeof(devt_buf), "%u:%u",
-		MAJOR(devt), MINOR(devt));
-
-	/* TODO(wad) to make this generic we could also pass in the mode. */
-	if (!dm_get_device(ti, devt_buf, dm_table_get_mode(ti->table), dm_dev))
-		return 0;
-
-	ti->error = "Failed to acquire device";
-	DMDEBUG("Failed to acquire discovered device %s", devt_buf);
-	return -1;
-bad_uuid:
-	ti->error = "Bad UUID";
-	DMDEBUG("Supplied value '%s' is an invalid UUID", uuid_str);
-	return -1;
-found_nothing:
-	DMDEBUG("No matching partition for GUID: %s", uuid_str);
-	ti->error = "No matching GUID";
-	return -1;
-nomem:
-	DMDEBUG("Couldn't allocate memory for GUID: %s", uuid_str);
-	ti->error = "Couldn't allocate memory for GUID";
-	return -1;
-}
-
 static int bootcache_get_device(
 	struct dm_target *ti,
 	char *devname,
@@ -1024,11 +899,6 @@ static int bootcache_get_device(
 		 */
 		if (!dm_get_device(ti, devname,
 				   dm_table_get_mode(ti->table), dm_dev))
-			return 0;
-
-		/* Try the device by partition UUID */
-		if (!dm_get_device_by_uuid(ti, devname, dev_start, dev_len,
-					   dm_dev))
 			return 0;
 
 		/* No need to be too aggressive since this is a slow path. */
@@ -1058,7 +928,8 @@ static int bootcache_get_device(
  * [<dev> [<cache_start> [<sig> [<size_limit> [<max_trace> [<max_limit>]]]]]]
  *
  * Example:
- * 0f5dbd05-c063-a848-a296-b8b8c2c24b28+1 1741200 10e8...78 80 64000 60000
+ * PARTUUID=0f5dbd05-c063-a848-a296-b8b8c2c24b28/PARTNROFF=1 1741200
+ *    10e8...78 80 64000 60000
  */
 static int bootcache_ctr(struct dm_target *ti, unsigned argc, char **argv)
 {
