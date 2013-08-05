@@ -45,8 +45,8 @@ static const char *i2c_adapter_names[] = {
 	"SMBus I801 adapter",
 	"i915 gmbus vga",
 	"i915 gmbus panel",
-	"i2c-designware-pci-9",
-	"i2c-designware-pci-10",
+	"i2c-designware-pci-0",
+	"i2c-designware-pci-1",
 };
 
 /* Keep this enum consistent with i2c_adapter_names */
