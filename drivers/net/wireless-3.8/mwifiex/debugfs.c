@@ -657,6 +657,33 @@ done:
 	return ret;
 }
 
+static ssize_t
+mwifiex_reset_write(struct file *file,
+		      const char __user *ubuf, size_t count, loff_t *ppos)
+{
+	struct mwifiex_private *priv =
+		(struct mwifiex_private *) file->private_data;
+	char cmd;
+
+	if (copy_from_user(&cmd, ubuf, sizeof(cmd)))
+		return -EFAULT;
+
+	switch (cmd) {
+	case 'y':
+	case 'Y':
+	case '1':
+		if (priv->adapter->if_ops.card_reset) {
+			dev_info(priv->adapter->dev, "Resetting per request\n");
+			priv->adapter->if_ops.card_reset(priv->adapter);
+		} else {
+			return -EINVAL;
+		}
+		break;
+	}
+
+	return count;
+}
+
 
 #define MWIFIEX_DFS_ADD_FILE(name) do {                                 \
 	if (!debugfs_create_file(#name, 0644, priv->dfs_dev_dir,        \
@@ -689,6 +716,7 @@ MWIFIEX_DFS_FILE_READ_OPS(debug);
 MWIFIEX_DFS_FILE_READ_OPS(getlog);
 MWIFIEX_DFS_FILE_OPS(regrdwr);
 MWIFIEX_DFS_FILE_OPS(rdeeprom);
+MWIFIEX_DFS_FILE_WRITE_OPS(reset);
 
 /*
  * This function creates the debug FS directory structure and the files.
@@ -710,6 +738,7 @@ mwifiex_dev_debugfs_init(struct mwifiex_private *priv)
 	MWIFIEX_DFS_ADD_FILE(getlog);
 	MWIFIEX_DFS_ADD_FILE(regrdwr);
 	MWIFIEX_DFS_ADD_FILE(rdeeprom);
+	MWIFIEX_DFS_ADD_FILE(reset);
 }
 
 /*
