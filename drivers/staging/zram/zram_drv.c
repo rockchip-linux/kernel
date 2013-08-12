@@ -521,7 +521,7 @@ static int zram_bvec_rw(struct zram *zram, struct bio_vec *bvec, u32 index,
 	return ret;
 }
 
-static void zram_reset_device(struct zram *zram)
+static void zram_reset_device(struct zram *zram, bool reset_capacity)
 {
 	size_t index;
 	struct zram_meta *meta;
@@ -547,7 +547,8 @@ static void zram_reset_device(struct zram *zram)
 	memset(&zram->stats, 0, sizeof(zram->stats));
 
 	zram->disksize = 0;
-	set_capacity(zram->disk, 0);
+	if (reset_capacity)
+		set_capacity(zram->disk, 0);
 	up_write(&zram->init_lock);
 }
 
@@ -631,7 +632,7 @@ static ssize_t reset_store(struct device *dev,
 	if (bdev)
 		fsync_bdev(bdev);
 
-	zram_reset_device(zram);
+	zram_reset_device(zram, true);
 	return len;
 }
 
@@ -899,7 +900,11 @@ static void __exit zram_exit(void)
 		zram = &zram_devices[i];
 
 		destroy_device(zram);
-		zram_reset_device(zram);
+		/*
+		 * Shouldn't access zram->disk after destroy_device
+		 * because destroy_device already released zram->disk.
+		 */
+		zram_reset_device(zram, false);
 	}
 
 	unregister_blkdev(zram_major, "zram");
