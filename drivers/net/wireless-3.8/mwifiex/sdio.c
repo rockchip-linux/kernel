@@ -17,6 +17,7 @@
  * this warranty disclaimer.
  */
 
+#include <linux/bug.h>
 #include <linux/firmware.h>
 
 #include "decl.h"
@@ -1948,6 +1949,8 @@ static void mwifiex_sdio_card_reset(struct mwifiex_adapter *adapter)
 
 	if (work_pending(&card_reset_work))
 		return;
+
+	WARN_ON(1);
 
 	reset_host = card->func->card->host;
 	schedule_work(&card_reset_work);
