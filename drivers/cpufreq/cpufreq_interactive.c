@@ -1008,6 +1008,8 @@ static void __exit cpufreq_interactive_exit(void)
 	cpufreq_unregister_governor(&cpufreq_gov_interactive);
 	kthread_stop(updown_task);
 	put_task_struct(updown_task);
+	if (above_hispeed_delay != default_above_hispeed_delay)
+		kfree(above_hispeed_delay);
 	/* TODO(sleffler) cancel inputopen wq request? */
 }
 
