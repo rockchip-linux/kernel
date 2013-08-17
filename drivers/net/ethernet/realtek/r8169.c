@@ -7123,7 +7123,8 @@ rtl_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	RTL_W8(Cfg9346, Cfg9346_Unlock);
 	RTL_W8(Config1, RTL_R8(Config1) | PMEnable);
 	RTL_W8(Config3, MagicPacket);
-	RTL_W8(Config5, PMEStatus);
+	RTL_W8(Config5,
+	       RTL_R8(Config5) & (BWF | MWF | UWF | LanWake | PMEStatus));
 	tp->features |= RTL_FEATURE_WOL;
 	tp->features |= rtl_try_msi(tp, cfg);
 	RTL_W8(Cfg9346, Cfg9346_Lock);
