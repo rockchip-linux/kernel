@@ -3837,6 +3837,16 @@ static void alc290_fixup_mono_speakers(struct hda_codec *codec,
 	}
 }
 
+static void alc283_fixup_dac_wcaps(struct hda_codec *codec,
+	const struct hda_fixup *fix, int action)
+{
+	switch (action) {
+	case HDA_FIXUP_ACT_PRE_PROBE:
+		snd_hda_override_wcaps(codec, 0x03, 0);
+		break;
+	}
+}
+
 /* for hda_fixup_thinkpad_acpi() */
 #include "thinkpad_helper.c"
 
@@ -3895,6 +3905,7 @@ enum {
 	ALC269_FIXUP_THINKPAD_ACPI,
 	ALC255_FIXUP_DELL1_MIC_NO_PRESENCE,
 	ALC255_FIXUP_HEADSET_MODE,
+	ALC283_FIXUP_DAC_WCAPS,
 };
 
 static const struct hda_fixup alc269_fixups[] = {
@@ -4275,6 +4286,11 @@ static const struct hda_fixup alc269_fixups[] = {
 		.type = HDA_FIXUP_FUNC,
 		.v.func = alc_fixup_headset_mode_alc255,
 	},
+	[ALC283_FIXUP_DAC_WCAPS] = {
+		/* Disable the second DAC, ensuring only DAC1 is used. */
+		.type = HDA_FIXUP_FUNC,
+		.v.func = alc283_fixup_dac_wcaps,
+	},
 };
 
 static const struct snd_pci_quirk alc269_fixup_tbl[] = {
@@ -4504,6 +4520,7 @@ static const struct hda_model_fixup alc269_fixup_models[] = {
 	{.id = ALC269_FIXUP_DELL2_MIC_NO_PRESENCE, .name = "dell-headset-dock"},
 	{.id = ALC283_FIXUP_CHROME_BOOK, .name = "alc283-chrome"},
 	{.id = ALC283_FIXUP_SENSE_COMBO_JACK, .name = "alc283-sense-combo"},
+	{.id = ALC283_FIXUP_DAC_WCAPS, .name = "alc283-dac-wcaps"},
 	{}
 };
 
