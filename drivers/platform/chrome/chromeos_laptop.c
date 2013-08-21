@@ -411,8 +411,6 @@ static struct chromeos_laptop slippy = {
 
 static struct chromeos_laptop falco = {
 	.i2c_peripherals = {
-		/* Light Sensor. */
-		{ .add = setup_isl29018_als, I2C_ADAPTER_I2C1 },
 		/* Touchpad. */
 		{ .add = setup_cyapa_tp, I2C_ADAPTER_I2C0 },
 	},
