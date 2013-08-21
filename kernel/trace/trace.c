@@ -95,6 +95,16 @@ static int tracing_disabled = 1;
 
 DEFINE_PER_CPU(int, ftrace_cpu_disabled);
 
+void ftrace_cpu_off(void)
+{
+	__this_cpu_write(ftrace_cpu_disabled, 1);
+}
+
+void ftrace_cpu_on(void)
+{
+	__this_cpu_write(ftrace_cpu_disabled, 0);
+}
+
 cpumask_var_t __read_mostly	tracing_buffer_mask;
 
 /*
