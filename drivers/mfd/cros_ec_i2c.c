@@ -102,8 +102,8 @@ static int cros_ec_cmd_xfer_i2c(struct cros_ec_device *ec_dev,
 			msg->command);
 		goto done;
 	default:
-		dev_warn(ec_dev->dev, "command 0x%02x returned %d\n",
-			 msg->command, msg->result);
+		dev_dbg(ec_dev->dev, "command 0x%02x returned %d\n",
+			msg->command, msg->result);
 	}
 
 	/* copy response packet payload and compute checksum */
