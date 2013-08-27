@@ -38,6 +38,7 @@
 #include <linux/swap.h>
 #include <linux/slab.h>
 #include <linux/export.h>
+#include <linux/dma-mapping.h>
 #include <drm/drm_cache.h>
 #include <drm/drm_mem_util.h>
 #include <drm/ttm/ttm_module.h>
@@ -247,6 +248,30 @@ void ttm_dma_tt_fini(struct ttm_dma_tt *ttm_dma)
 	ttm_dma->dma_address = NULL;
 }
 EXPORT_SYMBOL(ttm_dma_tt_fini);
+
+void ttm_dma_tt_cache_sync_for_device(struct ttm_dma_tt *ttm_dma,
+				      struct device *dev)
+{
+	unsigned long i;
+
+	for (i = 0; i < ttm_dma->ttm.num_pages; i++) {
+		dma_sync_single_for_device(dev, ttm_dma->dma_address[i],
+					   PAGE_SIZE, DMA_TO_DEVICE);
+	}
+}
+EXPORT_SYMBOL(ttm_dma_tt_cache_sync_for_device);
+
+void ttm_dma_tt_cache_sync_for_cpu(struct ttm_dma_tt *ttm_dma,
+				   struct device *dev)
+{
+	unsigned long i;
+
+	for (i = 0; i < ttm_dma->ttm.num_pages; i++) {
+		dma_sync_single_for_cpu(dev, ttm_dma->dma_address[i],
+					PAGE_SIZE, DMA_FROM_DEVICE);
+	}
+}
+EXPORT_SYMBOL(ttm_dma_tt_cache_sync_for_cpu);
 
 void ttm_tt_unbind(struct ttm_tt *ttm)
 {

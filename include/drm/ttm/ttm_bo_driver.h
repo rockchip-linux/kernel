@@ -41,6 +41,7 @@
 #include <linux/fs.h>
 #include <linux/spinlock.h>
 #include <linux/reservation.h>
+#include <linux/device.h>
 
 struct ttm_backend_func {
 	/**
@@ -689,6 +690,33 @@ extern int ttm_tt_swapout(struct ttm_tt *ttm,
  * Calls the driver method to free all pages from a ttm
  */
 extern void ttm_tt_unpopulate(struct ttm_tt *ttm);
+
+/**
+ * ttm_dma_tt_cache_sync_for_device:
+ *
+ * @ttm A struct ttm_tt of the type returned by ttm_dma_tt_init.
+ * @dev A struct device representing the device to which to sync.
+ *
+ * This function will flush the CPU caches on arches where snooping in the
+ * TT is not available. On fully coherent arches this will turn into an (almost)
+ * noop. This makes sure that data written by the CPU is visible to the device.
+ */
+extern void ttm_dma_tt_cache_sync_for_device(struct ttm_dma_tt *ttm_dma,
+					     struct device *dev);
+
+/**
+ * ttm_dma_tt_cache_sync_for_cpu:
+ *
+ * @ttm A struct ttm_tt of the type returned by ttm_dma_tt_init.
+ * @dev A struct device representing the device from which to sync.
+ *
+ * This function will invalidate the CPU caches on arches where snooping in the
+ * TT is not available. On fully coherent arches this will turn into an (almost)
+ * noop. This makes sure that the CPU does not read any stale cached or
+ * prefetched data.
+ */
+extern void ttm_dma_tt_cache_sync_for_cpu(struct ttm_dma_tt *ttm_dma,
+					  struct device *dev);
 
 /*
  * ttm_bo.c
