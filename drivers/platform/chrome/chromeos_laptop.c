@@ -418,6 +418,8 @@ static struct chromeos_laptop falco = {
 
 static struct chromeos_laptop peppy = {
 	.i2c_peripherals = {
+		/* Touchscreen. */
+		{ .add = setup_atmel_1664s_ts, I2C_ADAPTER_I2C1 },
 		/* Light Sensor. */
 		{ .add = setup_isl29018_als, I2C_ADAPTER_I2C1 },
 		/* Touchpad. */
