@@ -108,6 +108,7 @@ struct dj_receiver_dev {
 	struct kfifo notif_fifo;
 	spinlock_t lock;
 	bool querying_devices;
+	bool connected[DJ_MAX_PAIRED_DEVICES + DJ_DEVICE_INDEX_MIN];
 };
 
 struct dj_device {
@@ -319,8 +320,8 @@ static void logi_dj_recv_destroy_djhid_device(struct dj_receiver_dev *djrcv_dev,
 	}
 }
 
-static void logi_dj_recv_add_djhid_device(struct dj_receiver_dev *djrcv_dev,
-					  struct dj_report *dj_report)
+static int logi_dj_recv_add_djhid_device(struct dj_receiver_dev *djrcv_dev,
+					 struct dj_report *dj_report)
 {
 	/* Called in delayed work context */
 	struct hid_device *djrcv_hdev = djrcv_dev->hdev;
@@ -338,27 +339,27 @@ static void logi_dj_recv_add_djhid_device(struct dj_receiver_dev *djrcv_dev,
 	    SPFUNCTION_DEVICE_LIST_EMPTY) {
 		dbg_hid("%s: device list is empty\n", __func__);
 		djrcv_dev->querying_devices = false;
-		return;
+		return -1;
 	}
 
 	if ((dj_report->device_index < DJ_DEVICE_INDEX_MIN) ||
 	    (dj_report->device_index > DJ_DEVICE_INDEX_MAX)) {
 		dev_err(&djrcv_hdev->dev, "%s: invalid device index:%d\n",
 			__func__, dj_report->device_index);
-		return;
+		return -1;
 	}
 
 	if (djrcv_dev->paired_dj_devices[dj_report->device_index]) {
 		/* The device is already known. No need to reallocate it. */
 		dbg_hid("%s: device is already known\n", __func__);
-		return;
+		return -1;
 	}
 
 	dj_hiddev = hid_allocate_device();
 	if (IS_ERR(dj_hiddev)) {
 		dev_err(&djrcv_hdev->dev, "%s: hid_allocate_device failed\n",
 			__func__);
-		return;
+		return -1;
 	}
 
 	dj_hiddev->ll_driver = &logi_dj_ll_driver;
@@ -395,10 +396,11 @@ static void logi_dj_recv_add_djhid_device(struct dj_receiver_dev *djrcv_dev,
 
 	djrcv_dev->paired_dj_devices[dj_report->device_index] = dj_dev;
 
-	return;
+	return 0;
 
 dj_device_allocate_fail:
 	hid_destroy_device(dj_hiddev);
+	return -1;
 }
 
 static void delayedwork_callback(struct work_struct *work)
@@ -440,39 +442,46 @@ static void delayedwork_callback(struct work_struct *work)
 	spin_unlock_irqrestore(&djrcv_dev->lock, flags);
 
 	switch (dj_report.report_type) {
-	case REPORT_TYPE_NOTIF_DEVICE_PAIRED:
-		logi_dj_recv_add_djhid_device(djrcv_dev, &dj_report);
-		break;
 	case REPORT_TYPE_NOTIF_DEVICE_UNPAIRED:
 		logi_dj_recv_destroy_djhid_device(djrcv_dev, &dj_report);
 		break;
+	case REPORT_TYPE_NOTIF_DEVICE_PAIRED:
+		retval = logi_dj_recv_add_djhid_device(djrcv_dev, &dj_report);
+		if (!djrcv_dev->connected[dj_report.device_index] || retval < 0)
+			break;
+		connected = djrcv_dev->connected[dj_report.device_index];
+		/* Device is connected, but only now paired. Fallthrough.
+		   Note: If we fallthrough here, we should not fallthrough
+		   the next case, since that's the case for connection status
+		   info arriving before paried. */
 	case REPORT_TYPE_NOTIF_CONNECTION_STATUS:
-		param_status = dj_report.report_params[
-					CONNECTION_STATUS_PARAM_STATUS];
-		connected = param_status != STATUS_LINKLOSS;
+		if (dj_report.report_type == REPORT_TYPE_NOTIF_CONNECTION_STATUS) {
+			param_status = dj_report.report_params[
+						CONNECTION_STATUS_PARAM_STATUS];
+			connected = param_status != STATUS_LINKLOSS;
+			djrcv_dev->connected[dj_report.device_index] = connected;
+		}
 		djdev = djrcv_dev->paired_dj_devices[dj_report.device_index];
 		dbg_hid("%s: got REPORT_TYPE_NOTIF_CONNECTION_STATUS %d %d\n", __func__, djdev ? djdev->hid_device_started : -1, connected);
-		if (!djdev) {
-			dev_err(&djrcv_dev->hdev->dev, "%s:"
-				"dj_dev null, unexpected device index\n",
-				__func__);
-			return;
-		}
-		if (!djdev->hid_device_started && connected) {
-			if (hid_add_device(djdev->hdev)) {
-				dev_err(&djrcv_hdev->dev,
-					"%s: failed adding dj_device\n",
-					__func__);
-			} else {
-				djdev->hid_device_started = 1;
+		if (djdev) {
+			if (!djdev->hid_device_started && connected) {
+				if (hid_add_device(djdev->hdev)) {
+					dev_err(&djrcv_hdev->dev,
+						"%s: failed adding dj_device\n",
+						__func__);
+					return;
+				} else {
+					djdev->hid_device_started = 1;
+				}
 			}
+			hidpp_dev = hid_get_drvdata(djdev->hdev);
+			if (!hidpp_dev)	{
+				dbg_hid("%s: hidpp_dev is NULL\n", __func__);
+				return;
+			}
+			hidpp_connect_change(hidpp_dev, connected);
 		}
-		hidpp_dev = hid_get_drvdata(djdev->hdev);
-		if (!hidpp_dev)	{
-			dbg_hid("%s: hidpp_dev is NULL\n", __func__);
-			return;
-		}
-		hidpp_connect_change(hidpp_dev, connected);
+		/* Fallthrough for case where djdev is NULL. */
 	default:
 	/* A normal report (i. e. not belonging to a pair/unpair notification)
 	 * arriving here, means that the report arrived but we did not have a
