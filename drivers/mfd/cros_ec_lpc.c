@@ -258,8 +258,16 @@ static struct platform_driver cros_ec_lpc_driver = {
 	.remove = cros_ec_lpc_remove,
 };
 
+static void do_nothing(struct device *dev)
+{
+	/* not a physical device */
+}
+
 static struct platform_device cros_ec_lpc_device = {
 	.name = MYNAME,
+	.dev = {
+		.release = do_nothing,
+	},
 };
 
 static int __init cros_ec_lpc_init(void)
@@ -286,6 +294,7 @@ static int __init cros_ec_lpc_init(void)
 
 static void __exit cros_ec_lpc_exit(void)
 {
+	platform_device_unregister(&cros_ec_lpc_device);
 	platform_driver_unregister(&cros_ec_lpc_driver);
 }
 
