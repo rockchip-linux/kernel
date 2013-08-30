@@ -1423,6 +1423,7 @@ typedef struct drm_i915_private {
 	 * result in deadlocks.
 	 */
 	struct workqueue_struct *wq;
+	struct workqueue_struct *flip_unpin_wq;
 
 	/* Display functions */
 	struct drm_i915_display_funcs display;

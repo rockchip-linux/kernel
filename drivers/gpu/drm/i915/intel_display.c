@@ -8329,7 +8329,7 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 
 	wake_up_all(&dev_priv->pending_flip_queue);
 
-	queue_work(dev_priv->wq, &work->work);
+	queue_work(dev_priv->flip_unpin_wq, &work->work);
 
 	trace_i915_flip_complete(intel_crtc->plane, work->pending_flip_obj);
 }
@@ -8714,7 +8714,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	if (atomic_read(&intel_crtc->unpin_work_count) >= 2)
-		flush_workqueue(dev_priv->wq);
+		flush_workqueue(dev_priv->flip_unpin_wq);
 
 	ret = i915_mutex_lock_interruptible(dev);
 	if (ret)
