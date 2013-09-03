@@ -24,11 +24,6 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
-#if defined(CONFIG_ACPI_BUTTON)
-#include <acpi/button.h>
-#endif
-
-
 /* Version */
 #define MXT_VER_20		20
 #define MXT_VER_21		21
@@ -403,10 +398,8 @@ struct mxt_data {
 	/* map for the tracking id currently being used */
 	bool current_id[MXT_MAX_FINGER];
 
-#if defined(CONFIG_ACPI_BUTTON)
-	/* notifier block for acpi_lid_notifier */
-	struct notifier_block lid_notifier;
-#endif
+	bool lid_handler_registered;
+	struct input_handler lid_handler;
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -417,6 +410,9 @@ static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
 static int get_touch_major_pixels(struct mxt_data *data, int touch_channels);
+
+static void lid_event_register_handler(struct mxt_data *data);
+static void lid_event_unregister_handler(struct mxt_data *data);
 
 static inline size_t mxt_obj_size(const struct mxt_object *obj)
 {
@@ -2684,24 +2680,6 @@ static void mxt_input_close(struct input_dev *dev)
 	mxt_stop(data);
 }
 
-#if defined(CONFIG_ACPI_BUTTON)
-static int mxt_lid_notify(struct notifier_block *nb, unsigned long val,
-			   void *unused)
-{
-	struct mxt_data *data = container_of(nb, struct mxt_data, lid_notifier);
-
-	if (mxt_in_bootloader(data))
-		return NOTIFY_OK;
-
-	if (val == 0)
-		mxt_stop(data);
-	else
-		mxt_start(data);
-
-	return NOTIFY_OK;
-}
-#endif
-
 static int mxt_input_dev_create(struct mxt_data *data)
 {
 	const struct mxt_platform_data *pdata = data->pdata;
@@ -2872,6 +2850,8 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 	if (error)
 		dev_warn(&client->dev, "error creating debugfs entries.\n");
 
+	lid_event_register_handler(data);
+
 	return;
 
 error_free_irq:
@@ -2934,14 +2914,6 @@ static int mxt_probe(struct i2c_client *client,
 
 	async_schedule(mxt_initialize_async, data);
 
-#if defined(CONFIG_ACPI_BUTTON)
-	data->lid_notifier.notifier_call = mxt_lid_notify;
-	if (acpi_lid_notifier_register(&data->lid_notifier)) {
-		pr_info("lid notifier registration failed\n");
-		data->lid_notifier.notifier_call = NULL;
-	}
-#endif
-
 	return 0;
 
 err_free_fw_file:
@@ -2961,10 +2933,8 @@ static int mxt_remove(struct i2c_client *client)
 	free_irq(data->irq, data);
 	if (data->input_dev)
 		input_unregister_device(data->input_dev);
-#if defined(CONFIG_ACPI_BUTTON)
-	if (data->lid_notifier.notifier_call)
-		acpi_lid_notifier_unregister(&data->lid_notifier);
-#endif
+	lid_event_unregister_handler(data);
+
 	kfree(data->object_table);
 	kfree(data->fw_file);
 	kfree(data->config_file);
@@ -3140,19 +3110,6 @@ static int mxt_resume(struct device *dev)
 
 	mutex_lock(&input_dev->mutex);
 
-#if defined(CONFIG_ACPI_BUTTON)
-	ret = acpi_lid_open();
-	if (ret == 0) {
-		/* lid is closed. set T9_ctrl to non operational resume */
-		data->T9_ctrl = MXT_TOUCH_CTRL_OFF;
-		data->T9_ctrl_valid = true;
-	} else if (ret == 1) {
-		/* lid is open. Set to operational */
-		data->T9_ctrl = MXT_TOUCH_CTRL_OPERATIONAL;
-		data->T9_ctrl_valid = true;
-	}
-#endif
-
 	/* Restore the T9 Ctrl config to before-suspend value */
 	if (data->T9_ctrl_valid) {
 		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
@@ -3213,6 +3170,123 @@ static int mxt_resume(struct device *dev)
 	return 0;
 }
 #endif
+
+/*
+ * We rely on EV_SW and SW_LID bits to identify a LID device, and hook
+ * up our filter to listen for SW_LID events to enable/disable touchpad when
+ * LID is open/closed.
+ */
+static const struct input_device_id lid_device_ids[] = {
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+			 INPUT_DEVICE_ID_MATCH_SWBIT,
+		.evbit = { BIT_MASK(EV_SW) },
+		.swbit = { BIT_MASK(SW_LID) },
+	},
+	{ },
+};
+
+static int lid_device_connect(struct input_handler *handler,
+			      struct input_dev *dev,
+			      const struct input_device_id *id)
+{
+	struct input_handle *lid_handle;
+	int error;
+
+	pr_info("atmel: LID device: '%s' connected\n", dev->name);
+	lid_handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!lid_handle)
+		return -ENOMEM;
+
+	lid_handle->dev = dev;
+	lid_handle->handler = handler;
+	lid_handle->name = "lid_event_handler";
+	lid_handle->private = handler->private;
+
+	error = input_register_handle(lid_handle);
+	if (error) {
+		pr_err("Failed to register lid_event_handler, error %d\n",
+		       error);
+		goto err_free;
+	}
+
+	error = input_open_device(lid_handle);
+	if (error) {
+		pr_err("Failed to open input device, error %d\n", error);
+		goto err_unregister;
+	}
+
+	return 0;
+err_unregister:
+	input_unregister_handle(lid_handle);
+err_free:
+	kfree(lid_handle);
+	return error;
+}
+
+static void lid_device_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static bool lid_event_filter(struct input_handle *handle,
+			     unsigned int type, unsigned int code, int value)
+{
+	struct mxt_data *data = handle->private;
+
+	if (type == EV_SW && code == SW_LID) {
+		if (mxt_in_bootloader(data))
+			return false;
+		pr_info("atmel %s: %s touch device\n",
+			dev_name(&data->client->dev),
+			(value ? "disable" : "enable"));
+		data->T9_ctrl_valid = true;
+		if (value == 0) {
+			data->T9_ctrl = MXT_TOUCH_CTRL_OPERATIONAL;
+			mxt_start(data);
+		} else {
+			data->T9_ctrl = MXT_TOUCH_CTRL_OFF;
+			mxt_stop(data);
+		}
+	}
+	return false;
+}
+
+static void lid_event_register_handler(struct mxt_data *data)
+{
+	int error;
+	struct input_handler *lid_handler = &data->lid_handler;
+
+	if (data->lid_handler_registered) {
+		pr_err("lid handler is registered already\n");
+		return;
+	}
+
+	lid_handler->filter	= lid_event_filter;
+	lid_handler->connect	= lid_device_connect;
+	lid_handler->disconnect	= lid_device_disconnect;
+	lid_handler->name	= "atmel_lid_event_handler";
+	lid_handler->id_table	= lid_device_ids;
+	lid_handler->private	= data;
+
+	error = input_register_handler(lid_handler);
+	if (error) {
+		pr_err("Failed to register lid handler(%d)\n", error);
+		return;
+	}
+	data->lid_handler_registered = true;
+}
+
+static void lid_event_unregister_handler(struct mxt_data *data)
+{
+	if (data->lid_handler_registered) {
+		input_unregister_handler(&data->lid_handler);
+		data->lid_handler_registered = false;
+	}
+
+}
 
 static SIMPLE_DEV_PM_OPS(mxt_pm_ops, mxt_suspend, mxt_resume);
 
