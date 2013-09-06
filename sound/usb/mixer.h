@@ -51,6 +51,7 @@ struct usb_mixer_elem_info {
 	int min, max, res;
 	int dBmin, dBmax;
 	int cached;
+	int cache_disabled;
 	int cache_val[MAX_CHANNELS];
 	u8 initialized;
 };

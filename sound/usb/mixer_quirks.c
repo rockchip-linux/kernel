@@ -1606,6 +1606,22 @@ static int snd_microii_controls_create(struct usb_mixer_interface *mixer)
 	return 0;
 }
 
+static int snd_jabra_controls_tweak(struct usb_mixer_interface *mixer)
+{
+	struct usb_mixer_elem_info *cval;
+	int unitids[] = { 2 /* Playback */, 5 /* Capture */ };
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(unitids); i++)
+		for (cval = mixer->id_elems[unitids[i]]; cval;
+					cval = cval->next_id_elem) {
+			cval->cache_disabled = 1;
+			cval->cached = 0; /* invalidate current cached value */
+		}
+
+	return 0;
+}
+
 int snd_usb_mixer_apply_create_quirk(struct usb_mixer_interface *mixer)
 {
 	int err = 0;
@@ -1653,6 +1669,11 @@ int snd_usb_mixer_apply_create_quirk(struct usb_mixer_interface *mixer)
 
 	case USB_ID(0x0d8c, 0x0103): /* Audio Advantage Micro II */
 		err = snd_microii_controls_create(mixer);
+		break;
+
+	case USB_ID(0x0b0e, 0x0412): /* Jabra Speakerphone 410 */
+	case USB_ID(0x0b0e, 0x0420): /* Jabra Speakerphone 510 */
+		err = snd_jabra_controls_tweak(mixer);
 		break;
 
 	case USB_ID(0x17cc, 0x1011): /* Traktor Audio 6 */
