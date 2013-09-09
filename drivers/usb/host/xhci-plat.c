@@ -164,6 +164,7 @@ static int xhci_plat_probe(struct platform_device *pdev)
 
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
+	device_enable_async_suspend(&pdev->dev);
 
 	return 0;
 
