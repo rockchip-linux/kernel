@@ -865,8 +865,43 @@ static const char *dmic_mux_text[] = { "ADC", "DMIC" };
 static const struct soc_enum dmic_mux_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(dmic_mux_text), dmic_mux_text);
 
+static int put_dmic_mux_shdn(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_dapm_widget_list *wlist = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_dapm_widget *widget = wlist->widgets[0];
+	struct snd_soc_codec *codec = widget->codec;
+	int ret = 0;
+	int old_shdn, old_level_control;
+
+	regmap_read(codec->control_data, M98090_REG_DEVICE_SHUTDOWN, &old_shdn);
+	if (old_shdn & M98090_SHDNN_MASK) {
+		regmap_read(codec->control_data,
+			M98090_REG_LEVEL_CONTROL, &old_level_control);
+		/* Enable volume smoothing, disable zero cross.  This will cause
+		 * a quick 40ms ramp to mute on shutdown.
+		 */
+		regmap_write(codec->control_data,
+			M98090_REG_LEVEL_CONTROL, M98090_VSENN_MASK);
+		regmap_write(codec->control_data,
+			M98090_REG_DEVICE_SHUTDOWN, 0x00);
+		msleep(40);
+	}
+	ret = snd_soc_dapm_put_enum_virt(kcontrol, ucontrol);
+	if (old_shdn & M98090_SHDNN_MASK) {
+		regmap_write(codec->control_data,
+			M98090_REG_LEVEL_CONTROL, old_level_control);
+		mdelay(1); /* Let input path stablize before releasing shdn. */
+		regmap_write(codec->control_data,
+			M98090_REG_DEVICE_SHUTDOWN, old_shdn);
+	}
+
+	return ret;
+}
+
 static const struct snd_kcontrol_new max98090_dmic_mux =
-	SOC_DAPM_ENUM_VIRT("DMIC Mux", dmic_mux_enum);
+	SOC_DAPM_ENUM_EXT("DMIC Mux", dmic_mux_enum,
+		snd_soc_dapm_get_enum_virt, put_dmic_mux_shdn);
 
 static const char *max98090_micpre_text[] = { "Off", "On" };
 
