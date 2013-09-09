@@ -93,14 +93,19 @@
  * bit 7: Busy
  * bit 6 - 5: Reserved
  * bit 4: Bootloader running
- * bit 3 - 1: Reserved
+ * bit 3 - 2: Reserved
+ * bit 1: Watchdog Reset
  * bit 0: Checksum valid
  */
 #define REG_BL_STATUS        0x01
+#define BL_STATUS_REV_6_5    0x60
 #define BL_STATUS_BUSY       0x80
 #define BL_STATUS_RUNNING    0x10
-#define BL_STATUS_DATA_VALID 0x08
+#define BL_STATUS_REV_3_2    0x0c
+#define BL_STATUS_WATCHDOG   0x02
 #define BL_STATUS_CSUM_VALID 0x01
+#define BL_STATUS_REV_MASK (BL_STATUS_WATCHDOG | BL_STATUS_REV_3_2 | \
+			    BL_STATUS_REV_6_5)
 
 /*
  * Bootloader Error Register
@@ -120,6 +125,7 @@
 #define BL_ERROR_CMD_CSUM    0x10
 #define BL_ERROR_FLASH_PROT  0x08
 #define BL_ERROR_FLASH_CSUM  0x04
+#define BL_ERROR_RESERVED    0x03
 
 #define BL_STATUS_SIZE  3  /* length of bootloader status registers */
 #define BLK_HEAD_BYTES 32
@@ -728,7 +734,8 @@ static int cyapa_bl_enter(struct cyapa *cyapa)
 	ret = cyapa_poll_state(cyapa, 500);
 	if (ret < 0)
 		return ret;
-	if (cyapa->state != CYAPA_STATE_BL_IDLE) {
+	if ((cyapa->state != CYAPA_STATE_BL_IDLE) ||
+		(cyapa->status[REG_BL_STATUS] & BL_STATUS_WATCHDOG)) {
 		cyapa->debug = true;
 		cyapa_dbg(cyapa, "bl_enter failed. Now in state %s\n",
 			  cyapa_state_to_string(cyapa));
@@ -1168,6 +1175,8 @@ static int cyapa_write_fw_block(struct cyapa *cyapa, u16 block, const u8 *data)
 	u8 status[BL_STATUS_SIZE];
 	/* Programming for one block can take about 100ms. */
 	int tries = 11;
+	u8 bl_status, bl_error;
+	struct device *dev = &cyapa->client->dev;
 
 	/* set write command and security key bytes. */
 	cmd[0] = 0xff;
@@ -1206,13 +1215,24 @@ static int cyapa_write_fw_block(struct cyapa *cyapa, u16 block, const u8 *data)
 					" failed, %d\n", ret);
 			return (ret < 0) ? ret : -EIO;
 		}
-		ret = (status[1] == BL_STATUS_RUNNING &&
-				status[2] == BL_ERROR_BOOTLOADING) ? 0 : -EIO;
-	} while (--tries && ret);
+	} while ((status[1] & BL_STATUS_BUSY) && --tries);
+
+	/* ignore WATCHDOG bit and reserved bits. */
+	bl_status = status[1] & ~BL_STATUS_REV_MASK;
+	bl_error = status[2] & ~BL_ERROR_RESERVED;
+
+	if (status[1] & BL_STATUS_BUSY) {
+		dev_warn(dev, "write_fw_block timeout.\n");
+		ret = -ETIMEDOUT;
+	} else if (bl_status != BL_STATUS_RUNNING ||
+		bl_error != BL_ERROR_BOOTLOADING) {
+		ret = -EIO;
+	} else {
+		ret = 0;
+	}
 
 	if (ret) {
 		cyapa->debug = true;
-		cyapa_dbg(cyapa, "write_fw_block timed out\n");
 		cyapa_dbg(cyapa, "status registers ="
 				" [0x%02x, 0x%02x, 0x%02x]\n",
 				status[REG_OP_STATUS], status[REG_BL_STATUS],
