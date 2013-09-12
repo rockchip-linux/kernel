@@ -50,4 +50,12 @@ config TEGRA30_MC
 	  analysis, especially for IOMMU/SMMU(System Memory Management
 	  Unit) module.
 
+config TEGRA124_MC
+	bool "Tegra124 Memory Controller(MC) driver"
+	default y
+	depends on ARCH_TEGRA_124_SOC
+	help
+	  This driver is for the Memory Controller(MC) module available
+	  in Tegra124 SoCs.
+
 endif
