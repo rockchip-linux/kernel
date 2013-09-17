@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/mfd/rtsx_pci.h>
+#include <linux/dmi.h>
 
 #include "rtsx_pcr.h"
 
@@ -36,6 +37,12 @@ static u8 rts5209_get_ic_version(struct rtsx_pcr *pcr)
 static void rts5209_fetch_vendor_settings(struct rtsx_pcr *pcr)
 {
 	u32 reg;
+	static struct dmi_system_id dmi_butterfly[] = {
+		{
+			.ident = "ChromeOS Butterfly",
+			.matches = {DMI_MATCH(DMI_PRODUCT_NAME, "Butterfly")}
+		}, {}
+	};
 
 	rtsx_pci_read_config_dword(pcr, PCR_SETTING_REG1, &reg);
 	dev_dbg(&(pcr->pci->dev), "Cfg 0x%x: 0x%x\n", PCR_SETTING_REG1, reg);
@@ -44,6 +51,17 @@ static void rts5209_fetch_vendor_settings(struct rtsx_pcr *pcr)
 		if (rts5209_reg_check_ms_pmos(reg))
 			pcr->flags |= PCR_MS_PMOS;
 		pcr->aspm_en = rts5209_reg_to_aspm(reg);
+	}
+
+	if (dmi_check_system(dmi_butterfly)) {
+		/*
+		 * Do not allow L1 power state for the Butterfly CR
+		 * due to card insert / removal wake-up issues.
+		 * TODO(shawnn): fix real problem and remove this.
+		 */
+		dev_warn(&(pcr->pci->dev),
+			"Butterfly detected, disabling device L1 state.\n");
+		pcr->aspm_en &= 0x01;
 	}
 
 	rtsx_pci_read_config_dword(pcr, PCR_SETTING_REG2, &reg);
