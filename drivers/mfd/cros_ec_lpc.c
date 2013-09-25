@@ -30,8 +30,6 @@
 
 #define MYNAME "cros_ec_lpc"
 
-static DEFINE_MUTEX(ec_command_mutex);
-
 static int ec_response_timed_out(void)
 {
 	unsigned long one_second = jiffies + HZ;
@@ -61,9 +59,6 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 			msg->outsize, msg->insize);
 		return -EINVAL;
 	}
-
-	if (mutex_lock_interruptible(&ec_command_mutex))
-		return -EBUSY;
 
 	/* Now actually send the command to the EC and get the result */
 	args.flags = EC_HOST_ARGS_FLAG_FROM_HOST;
@@ -147,7 +142,6 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	/* Return actual amount of data received */
 	ret = args.data_size;
 done:
-	mutex_unlock(&ec_command_mutex);
 	return ret;
 }
 

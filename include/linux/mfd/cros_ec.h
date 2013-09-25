@@ -19,6 +19,7 @@
 #include <linux/notifier.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mfd/cros_ec_dev.h>
+#include <linux/mutex.h>
 
 /*
  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
@@ -90,6 +91,7 @@ struct cros_ec_device {
 	int dout_size;
 	struct device *parent;
 	bool wake_enabled;
+	struct mutex lock;
 	int (*cmd_xfer)(struct cros_ec_device *ec,
 			struct cros_ec_command *msg);
 };

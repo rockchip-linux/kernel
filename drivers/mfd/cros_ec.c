@@ -48,7 +48,13 @@ EXPORT_SYMBOL(cros_ec_prepare_tx);
 int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 		     struct cros_ec_command *msg)
 {
-	return ec_dev->cmd_xfer(ec_dev, msg);
+	int ret;
+
+	mutex_lock(&ec_dev->lock);
+	ret = ec_dev->cmd_xfer(ec_dev, msg);
+	mutex_unlock(&ec_dev->lock);
+
+	return ret;
 }
 EXPORT_SYMBOL(cros_ec_cmd_xfer);
 
@@ -94,6 +100,8 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		if (!ec_dev->dout)
 			return -ENOMEM;
 	}
+
+	mutex_init(&ec_dev->lock);
 
 	err = mfd_add_devices(dev, 0, cros_devs,
 			      ARRAY_SIZE(cros_devs),
