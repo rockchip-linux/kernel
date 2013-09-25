@@ -74,7 +74,7 @@ static int vbc_read(struct device *dev, void *buf, size_t count)
 	ec = dev_get_drvdata(dev->parent);
 
 	param.op = EC_VBNV_CONTEXT_OP_READ;
-	err = ec->cmd_xfer(ec, &msg);
+	err = cros_ec_cmd_xfer(ec, &msg);
 	if (err < 0)
 		return err;
 	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
@@ -104,7 +104,7 @@ static int vbc_write(struct device *dev, const void *buf, size_t count)
 
 	param.op = EC_VBNV_CONTEXT_OP_WRITE;
 	memcpy(param.block, buf, count);
-	err = ec->cmd_xfer(ec, &msg);
+	err = cros_ec_cmd_xfer(ec, &msg);
 	if (err < 0)
 		return err;
 	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
