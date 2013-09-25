@@ -54,7 +54,7 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 	};
 	int ret;
 
-	ret = ec->cmd_xfer(ec, &msg);
+	ret = cros_ec_cmd_xfer(ec, &msg);
 	if (ret < 0)
 		return ret;
 	if (msg.result != EC_RES_SUCCESS) {
@@ -127,7 +127,7 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	user_indata = s_cmd.indata;
 	s_cmd.indata = buf;
 	s_cmd.outdata = buf;
-	ret = ec->cmd_xfer(ec, &s_cmd);
+	ret = cros_ec_cmd_xfer(ec, &s_cmd);
 	s_cmd.indata = user_indata;
 
 	/* Only copy data to userland if data was received. */

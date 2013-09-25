@@ -63,7 +63,7 @@ static int ec_tps65090_fet_is_enabled(struct regulator_dev *rdev)
 	msg.outsize = sizeof(struct ec_params_ldo_get);
 	msg.indata = (u8 *)&ec_info;
 	msg.insize = sizeof(struct ec_response_ldo_get);
-	ret = ec->cmd_xfer(ec, &msg);
+	ret = cros_ec_cmd_xfer(ec, &msg);
 	if (ret < 0)
 		return ret;
 
@@ -85,7 +85,7 @@ static int ec_tps65090_fet_enable(struct regulator_dev *rdev)
 	msg.outsize = sizeof(struct ec_params_ldo_set);
 	msg.indata = NULL;
 	msg.insize = 0;
-	return ec->cmd_xfer(ec, &msg);
+	return cros_ec_cmd_xfer(ec, &msg);
 }
 
 static int ec_tps65090_fet_disable(struct regulator_dev *rdev)
@@ -103,7 +103,7 @@ static int ec_tps65090_fet_disable(struct regulator_dev *rdev)
 	msg.outsize = sizeof(struct ec_params_ldo_set);
 	msg.indata = NULL;
 	msg.insize = 0;
-	return ec->cmd_xfer(ec, &msg);
+	return cros_ec_cmd_xfer(ec, &msg);
 }
 
 static int ec_tps65090_set_voltage(struct regulator_dev *rdev, int min,

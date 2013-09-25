@@ -183,7 +183,7 @@ static int cros_ec_keyb_get_state(struct cros_ec_keyb *ckdev, uint8_t *kb_state)
 		.insize = ckdev->cols,
 	};
 
-	ret = ckdev->ec->cmd_xfer(ckdev->ec, &msg);
+	ret = cros_ec_cmd_xfer(ckdev->ec, &msg);
 	/* FIXME: This assumes msg.result == EC_RES_SUCCESS */
 	return ret;
 }
