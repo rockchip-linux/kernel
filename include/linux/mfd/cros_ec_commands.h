@@ -25,25 +25,6 @@
 #ifndef __CROS_EC_COMMANDS_H
 #define __CROS_EC_COMMANDS_H
 
-/*
- * Protocol overview
- *
- * request:  CMD [ P0 P1 P2 ... Pn S ]
- * response: ERR [ P0 P1 P2 ... Pn S ]
- *
- * where the bytes are defined as follow :
- *      - CMD is the command code. (defined by EC_CMD_ constants)
- *      - ERR is the error code. (defined by EC_RES_ constants)
- *      - Px is the optional payload.
- *        it is not sent if the error code is not success.
- *        (defined by ec_params_ and ec_response_ structures)
- *      - S is the checksum which is the sum of all payload bytes.
- *
- * On LPC, CMD and ERR are sent/received at EC_LPC_ADDR_KERNEL|USER_CMD
- * and the payloads are sent/received at EC_LPC_ADDR_KERNEL|USER_PARAM.
- * On I2C, all bytes are sent serially in the same message.
- */
-
 /* Current version of this protocol */
 /* TODO: This is effectively useless; protocol is determined in other ways */
 #define EC_PROTO_VERSION          0x00000002
@@ -160,10 +141,11 @@
 #define EC_HOST_CMD_FLAG_VERSION_3   0x02
 
 /* Wireless switch flags */
-#define EC_WIRELESS_SWITCH_WLAN      0x01  /* WLAN radio */
-#define EC_WIRELESS_SWITCH_BLUETOOTH 0x02  /* Bluetooth radio */
-#define EC_WIRELESS_SWITCH_WWAN      0x04  /* WWAN power */
-#define EC_WIRELESS_SWITCH_WLAN_POWER 0x08 /* WLAN power */
+#define EC_WIRELESS_SWITCH_ALL       ~0x00  /* All flags */
+#define EC_WIRELESS_SWITCH_WLAN       0x01  /* WLAN radio */
+#define EC_WIRELESS_SWITCH_BLUETOOTH  0x02  /* Bluetooth radio */
+#define EC_WIRELESS_SWITCH_WWAN       0x04  /* WWAN power */
+#define EC_WIRELESS_SWITCH_WLAN_POWER 0x08  /* WLAN power */
 
 /*
  * This header file is used in coreboot both in C and ACPI code.  The ACPI code
@@ -259,6 +241,11 @@ enum host_event_code {
 	/* Shutdown due to battery level too low */
 	EC_HOST_EVENT_BATTERY_SHUTDOWN = 17,
 
+	/* Suggest that the AP throttle itself */
+	EC_HOST_EVENT_THROTTLE_START = 18,
+	/* Suggest that the AP resume normal speed */
+	EC_HOST_EVENT_THROTTLE_STOP = 19,
+
 	/*
 	 * The high bit of the event mask is not used as a host event code.  If
 	 * it reads back as set, then the entire event mask should be
@@ -302,6 +289,89 @@ struct ec_lpc_host_args {
  * EC_LPC_ADDR_OLD_PARAM with unknown length.
  */
 #define EC_HOST_ARGS_FLAG_TO_HOST   0x02
+
+/*****************************************************************************/
+/*
+ * Byte codes returned by EC over SPI interface.
+ *
+ * These can be used by the AP to debug the EC interface, and to determine
+ * when the EC is not in a state where it will ever get around to responding
+ * to the AP.
+ *
+ * Example of sequence of bytes read from EC for a current good transfer:
+ *   1. -                  - AP asserts chip select (CS#)
+ *   2. EC_SPI_OLD_READY   - AP sends first byte(s) of request
+ *   3. -                  - EC starts handling CS# interrupt
+ *   4. EC_SPI_RECEIVING   - AP sends remaining byte(s) of request
+ *   5. EC_SPI_PROCESSING  - EC starts processing request; AP is clocking in
+ *                           bytes looking for EC_SPI_FRAME_START
+ *   6. -                  - EC finishes processing and sets up response
+ *   7. EC_SPI_FRAME_START - AP reads frame byte
+ *   8. (response packet)  - AP reads response packet
+ *   9. EC_SPI_PAST_END    - Any additional bytes read by AP
+ *   10 -                  - AP deasserts chip select
+ *   11 -                  - EC processes CS# interrupt and sets up DMA for
+ *                           next request
+ *
+ * If the AP is waiting for EC_SPI_FRAME_START and sees any value other than
+ * the following byte values:
+ *   EC_SPI_OLD_READY
+ *   EC_SPI_RX_READY
+ *   EC_SPI_RECEIVING
+ *   EC_SPI_PROCESSING
+ *
+ * Then the EC found an error in the request, or was not ready for the request
+ * and lost data.  The AP should give up waiting for EC_SPI_FRAME_START,
+ * because the EC is unable to tell when the AP is done sending its request.
+ */
+
+/*
+ * Framing byte which precedes a response packet from the EC.  After sending a
+ * request, the AP will clock in bytes until it sees the framing byte, then
+ * clock in the response packet.
+ */
+#define EC_SPI_FRAME_START    0xec
+
+/*
+ * Padding bytes which are clocked out after the end of a response packet.
+ */
+#define EC_SPI_PAST_END       0xed
+
+/*
+ * EC is ready to receive, and has ignored the byte sent by the AP.  EC expects
+ * that the AP will send a valid packet header (starting with
+ * EC_COMMAND_PROTOCOL_3) in the next 32 bytes.
+ */
+#define EC_SPI_RX_READY       0xf8
+
+/*
+ * EC has started receiving the request from the AP, but hasn't started
+ * processing it yet.
+ */
+#define EC_SPI_RECEIVING      0xf9
+
+/* EC has received the entire request from the AP and is processing it. */
+#define EC_SPI_PROCESSING     0xfa
+
+/*
+ * EC received bad data from the AP, such as a packet header with an invalid
+ * length.  EC will ignore all data until chip select deasserts.
+ */
+#define EC_SPI_RX_BAD_DATA    0xfb
+
+/*
+ * EC received data from the AP before it was ready.  That is, the AP asserted
+ * chip select and started clocking data before the EC was ready to receive it.
+ * EC will ignore all data until chip select deasserts.
+ */
+#define EC_SPI_NOT_READY      0xfc
+
+/*
+ * EC was ready to receive a request from the AP.  EC has treated the byte sent
+ * by the AP as part of a request packet, or (for old-style ECs) is processing
+ * a fully received packet but is not ready to respond yet.
+ */
+#define EC_SPI_OLD_READY      0xfd
 
 /*****************************************************************************/
 
@@ -582,12 +652,38 @@ struct ec_response_get_protocol_info {
 	uint32_t flags;
 } __packed;
 
+
+/*****************************************************************************/
+/* Get/Set miscellaneous values */
+
+/* The upper byte of .flags tells what to do (nothing means "get") */
+#define EC_GSV_SET        0x80000000
+
+/* The lower three bytes of .flags identifies the parameter, if that has
+   meaning for an individual command. */
+#define EC_GSV_PARAM_MASK 0x00ffffff
+
+struct ec_params_get_set_value {
+	uint32_t flags;
+	uint32_t value;
+} __packed;
+
+struct ec_response_get_set_value {
+	uint32_t flags;
+	uint32_t value;
+} __packed;
+
+/* More than one command can use these structs to get/set paramters. */
+#define EC_CMD_GSV_PAUSE_IN_S5	0x0c
+
+
 /*****************************************************************************/
 /* Flash commands */
 
 /* Get flash info */
 #define EC_CMD_FLASH_INFO 0x10
 
+/* Version 0 returns these fields */
 struct ec_response_flash_info {
 	/* Usable flash size, in bytes */
 	uint32_t flash_size;
@@ -606,6 +702,37 @@ struct ec_response_flash_info {
 	 * multiple of this.
 	 */
 	uint32_t protect_block_size;
+} __packed;
+
+/* Flags for version 1+ flash info command */
+/* EC flash erases bits to 0 instead of 1 */
+#define EC_FLASH_INFO_ERASE_TO_0 (1 << 0)
+
+/*
+ * Version 1 returns the same initial fields as version 0, with additional
+ * fields following.
+ *
+ * gcc anonymous structs don't seem to get along with the __packed directive;
+ * if they did we'd define the version 0 struct as a sub-struct of this one.
+ */
+struct ec_response_flash_info_1 {
+	/* Version 0 fields; see above for description */
+	uint32_t flash_size;
+	uint32_t write_block_size;
+	uint32_t erase_block_size;
+	uint32_t protect_block_size;
+
+	/* Version 1 adds these fields: */
+	/*
+	 * Ideal write size in bytes.  Writes will be fastest if size is
+	 * exactly this and offset is a multiple of this.  For example, an EC
+	 * may have a write buffer which can do half-page operations if data is
+	 * aligned, and a slower word-at-a-time write mode.
+	 */
+	uint32_t write_ideal_size;
+
+	/* Flags; see EC_FLASH_INFO_* */
+	uint32_t flags;
 } __packed;
 
 /*
@@ -706,7 +833,7 @@ struct ec_response_flash_protect {
 
 enum ec_flash_region {
 	/* Region which holds read-only EC image */
-	EC_FLASH_REGION_RO,
+	EC_FLASH_REGION_RO = 0,
 	/* Region which holds rewritable EC image */
 	EC_FLASH_REGION_RW,
 	/*
@@ -714,6 +841,8 @@ enum ec_flash_region {
 	 * EC_FLASH_REGION_RO)
 	 */
 	EC_FLASH_REGION_WP_RO,
+	/* Number of regions */
+	EC_FLASH_REGION_COUNT,
 };
 
 struct ec_params_flash_region_info {
@@ -839,7 +968,7 @@ struct ec_params_lightbar {
 	union {
 		struct {
 			/* no args */
-		} dump, off, on, init, get_seq, get_params;
+		} dump, off, on, init, get_seq, get_params, version;
 
 		struct num {
 			uint8_t num;
@@ -873,6 +1002,11 @@ struct ec_response_lightbar {
 
 		struct lightbar_params get_params;
 
+		struct version {
+			uint32_t num;
+			uint32_t flags;
+		} version;
+
 		struct {
 			/* no return params */
 		} off, on, init, brightness, seq, reg, rgb, demo, set_params;
@@ -893,6 +1027,7 @@ enum lightbar_command {
 	LIGHTBAR_CMD_DEMO = 9,
 	LIGHTBAR_CMD_GET_PARAMS = 10,
 	LIGHTBAR_CMD_SET_PARAMS = 11,
+	LIGHTBAR_CMD_VERSION = 12,
 	LIGHTBAR_NUM_CMDS
 };
 
@@ -902,9 +1037,17 @@ enum lightbar_command {
 #define EC_CMD_LED_CONTROL 0x29
 
 enum ec_led_id {
+	/* LED to indicate battery state of charge */
 	EC_LED_ID_BATTERY_LED = 0,
-	EC_LED_ID_POWER_BUTTON_LED,
+	/*
+	 * LED to indicate system power state (on or in suspend).
+	 * May be on power button or on C-panel.
+	 */
+	EC_LED_ID_POWER_LED,
+	/* LED on power adapter or its plug */
 	EC_LED_ID_ADAPTER_LED,
+
+	EC_LED_ID_COUNT
 };
 
 /* LED control flags */
@@ -1074,20 +1217,27 @@ struct ec_response_port80_last_boot {
 } __packed;
 
 /*****************************************************************************/
-/* Thermal engine commands */
+/* Thermal engine commands. Note that there are two implementations. We'll
+ * reuse the command number, but the data and behavior is incompatible.
+ * Version 0 is what originally shipped on Link.
+ * Version 1 separates the CPU thermal limits from the fan control.
+ */
 
-/* Set thershold value */
 #define EC_CMD_THERMAL_SET_THRESHOLD 0x50
+#define EC_CMD_THERMAL_GET_THRESHOLD 0x51
 
+/* The version 0 structs are opaque. You have to know what they are for
+ * the get/set commands to make any sense.
+ */
+
+/* Version 0 - set */
 struct ec_params_thermal_set_threshold {
 	uint8_t sensor_type;
 	uint8_t threshold_id;
 	uint16_t value;
 } __packed;
 
-/* Get threshold value */
-#define EC_CMD_THERMAL_GET_THRESHOLD 0x51
-
+/* Version 0 - get */
 struct ec_params_thermal_get_threshold {
 	uint8_t sensor_type;
 	uint8_t threshold_id;
@@ -1096,6 +1246,41 @@ struct ec_params_thermal_get_threshold {
 struct ec_response_thermal_get_threshold {
 	uint16_t value;
 } __packed;
+
+
+/* The version 1 structs are visible. */
+enum ec_temp_thresholds {
+	EC_TEMP_THRESH_WARN = 0,
+	EC_TEMP_THRESH_HIGH,
+	EC_TEMP_THRESH_HALT,
+
+	EC_TEMP_THRESH_COUNT
+};
+
+/* Thermal configuration for one temperature sensor. Temps are in degrees K.
+ * Zero values will be silently ignored by the thermal task.
+ */
+struct ec_thermal_config {
+	uint32_t temp_host[EC_TEMP_THRESH_COUNT]; /* levels of hotness */
+	uint32_t temp_fan_off;		/* no active cooling needed */
+	uint32_t temp_fan_max;		/* max active cooling needed */
+} __packed;
+
+/* Version 1 - get config for one sensor. */
+struct ec_params_thermal_get_threshold_v1 {
+	uint32_t sensor_num;
+} __packed;
+/* This returns a struct ec_thermal_config */
+
+/* Version 1 - set config for one sensor.
+ * Use read-modify-write for best results! */
+struct ec_params_thermal_set_threshold_v1 {
+	uint32_t sensor_num;
+	struct ec_thermal_config cfg;
+} __packed;
+/* This returns no data */
+
+/****************************************************************************/
 
 /* Toggle automatic fan control */
 #define EC_CMD_THERMAL_AUTO_FAN_CTRL 0x52
@@ -1380,11 +1565,20 @@ struct ec_params_i2c_write {
 /*****************************************************************************/
 /* Charge state commands. Only available when flash write protect unlocked. */
 
-/* Force charge state machine to stop in idle mode */
-#define EC_CMD_CHARGE_FORCE_IDLE 0x96
+/* Force charge state machine to stop charging the battery or force it to
+ * discharge the battery.
+ */
+#define EC_CMD_CHARGE_CONTROL 0x96
+#define EC_VER_CHARGE_CONTROL 1
 
-struct ec_params_force_idle {
-	uint8_t enabled;
+enum ec_charge_control_mode {
+	CHARGE_CONTROL_NORMAL = 0,
+	CHARGE_CONTROL_IDLE,
+	CHARGE_CONTROL_DISCHARGE,
+};
+
+struct ec_params_charge_control {
+	uint32_t mode;  /* enum charge_control_mode */
 } __packed;
 
 /*****************************************************************************/
@@ -1713,5 +1907,16 @@ struct ec_params_reboot_ec {
 #define EC_CMD_VERSION0 0xdc
 
 #endif  /* !__ACPI__ */
+
+/*****************************************************************************/
+/*
+ * Deprecated constants. These constants have been renamed for clarity. The
+ * meaning and size has not changed. Programs that use the old names should
+ * switch to the new names soon, as the old names may not be carried forward
+ * forever.
+ */
+#define EC_HOST_PARAM_SIZE      EC_PROTO2_MAX_PARAM_SIZE
+#define EC_LPC_ADDR_OLD_PARAM   EC_HOST_CMD_REGION1
+#define EC_OLD_PARAM_SIZE       EC_HOST_CMD_REGION_SIZE
 
 #endif  /* __CROS_EC_COMMANDS_H */
