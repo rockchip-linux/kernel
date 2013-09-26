@@ -842,6 +842,45 @@ static int max98090_micinput_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+/* Save state when temporarily shutting down the codec to change registers that
+ * must only be changes while in software shutdown.
+ */
+struct max98090_shdn_state {
+	int old_shdn;
+	int old_level_control;
+};
+
+static void max98090_shdn_save(struct snd_soc_codec *codec,
+			       struct max98090_shdn_state *state)
+{
+	regmap_read(codec->control_data, M98090_REG_DEVICE_SHUTDOWN,
+			&state->old_shdn);
+	if (state->old_shdn & M98090_SHDNN_MASK) {
+		regmap_read(codec->control_data,
+			M98090_REG_LEVEL_CONTROL, &state->old_level_control);
+		/* Enable volume smoothing, disable zero cross.  This will cause
+		 * a quick 40ms ramp to mute on shutdown.
+		 */
+		regmap_write(codec->control_data,
+			M98090_REG_LEVEL_CONTROL, M98090_VSENN_MASK);
+		regmap_write(codec->control_data,
+			M98090_REG_DEVICE_SHUTDOWN, 0x00);
+		msleep(40);
+	}
+}
+
+static void max98090_shdn_restore(struct snd_soc_codec *codec,
+				  struct max98090_shdn_state *state)
+{
+	if (state->old_shdn & M98090_SHDNN_MASK) {
+		regmap_write(codec->control_data,
+			M98090_REG_LEVEL_CONTROL, state->old_level_control);
+		mdelay(1); /* Let input path stablize before releasing shdn. */
+		regmap_write(codec->control_data,
+			M98090_REG_DEVICE_SHUTDOWN, state->old_shdn);
+	}
+}
+
 static const char *mic1_mux_text[] = { "IN12", "IN56" };
 
 static const struct soc_enum mic1_mux_enum =
@@ -872,29 +911,11 @@ static int put_dmic_mux_shdn(struct snd_kcontrol *kcontrol,
 	struct snd_soc_dapm_widget *widget = wlist->widgets[0];
 	struct snd_soc_codec *codec = widget->codec;
 	int ret = 0;
-	int old_shdn, old_level_control;
+	struct max98090_shdn_state state;
 
-	regmap_read(codec->control_data, M98090_REG_DEVICE_SHUTDOWN, &old_shdn);
-	if (old_shdn & M98090_SHDNN_MASK) {
-		regmap_read(codec->control_data,
-			M98090_REG_LEVEL_CONTROL, &old_level_control);
-		/* Enable volume smoothing, disable zero cross.  This will cause
-		 * a quick 40ms ramp to mute on shutdown.
-		 */
-		regmap_write(codec->control_data,
-			M98090_REG_LEVEL_CONTROL, M98090_VSENN_MASK);
-		regmap_write(codec->control_data,
-			M98090_REG_DEVICE_SHUTDOWN, 0x00);
-		msleep(40);
-	}
+	max98090_shdn_save(codec, &state);
 	ret = snd_soc_dapm_put_enum_virt(kcontrol, ucontrol);
-	if (old_shdn & M98090_SHDNN_MASK) {
-		regmap_write(codec->control_data,
-			M98090_REG_LEVEL_CONTROL, old_level_control);
-		mdelay(1); /* Let input path stablize before releasing shdn. */
-		regmap_write(codec->control_data,
-			M98090_REG_DEVICE_SHUTDOWN, old_shdn);
-	}
+	max98090_shdn_restore(codec, &state);
 
 	return ret;
 }
@@ -1995,6 +2016,10 @@ static int max98090_dai_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct max98090_priv *max98090 = snd_soc_codec_get_drvdata(codec);
 	struct max98090_cdata *cdata;
+	struct max98090_shdn_state state;
+	int ret = 0;
+
+	max98090_shdn_save(codec, &state);
 
 	cdata = &max98090->dai[0];
 	max98090->bclk = snd_soc_params_to_bclk(params);
@@ -2009,7 +2034,8 @@ static int max98090_dai_hw_params(struct snd_pcm_substream *substream,
 			M98090_WS_MASK, 0);
 		break;
 	default:
-		return -EINVAL;
+		ret = -EINVAL;
+		goto exit_reset_shdn;
 	}
 
 	if (max98090->master)
@@ -2036,7 +2062,10 @@ static int max98090_dai_hw_params(struct snd_pcm_substream *substream,
 	max98090_configure_dmic(max98090, FS_DMIC_TARGET, max98090->pclk,
 		max98090->lrclk);
 
-	return 0;
+
+exit_reset_shdn:
+	max98090_shdn_restore(codec, &state);
+	return ret;
 }
 
 /*
