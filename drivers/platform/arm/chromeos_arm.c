@@ -25,7 +25,7 @@
 
 #include "../chromeos.h"
 
-static int __devinit chromeos_arm_probe(struct platform_device *pdev)
+static int chromeos_arm_probe(struct platform_device *pdev)
 {
 	int gpio, err, active_low;
 	enum of_gpio_flags flags;
