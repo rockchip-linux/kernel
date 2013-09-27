@@ -1239,31 +1239,64 @@ early_param("disablevmx", dodisablevmx);
 
 void cpu_control_vmx(int cpu)
 {
+	int ret;
 	u64 msr;
+	u64 bits;
 	/* ChromeOS currently requires a disablevmx option
 	 * in the cmdline that will make a reasonable
 	 * attempt to set the IA32 FEATURE register to
 	 * 1, meaning vmx disabled and locked out.
 	 */
-	if (!disablevmx || !cpu_has_vmx())
+	if (!cpu_has_vmx())
 		return;
 
 	rdmsrl(MSR_IA32_FEATURE_CONTROL, msr);
+
+	bits = msr;
+
+	if (disablevmx)
+		bits &= ~(FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
+			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX);
+	else
+		bits |= FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
+			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX;
+	bits |= FEATURE_CONTROL_LOCKED;
+
+	/* If nothing to do, do nothing. */
+	if (msr == bits)
+		return;
+
 	/* if it's locked, there's really nothing we can do. */
-	if (msr & FEATURE_CONTROL_LOCKED) {
-		/* But only warn them if it can not be disabled */
-		if (msr  & (FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
-			FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX))
-			printk(KERN_WARNING
-				"Can not disable VMX on CPU%d\n", cpu);
+	if ((msr & FEATURE_CONTROL_LOCKED) && (msr != bits)) {
+		/* But only warn them if it's not what we want. */
+		 pr_warn("can not %s VMX on CPU%d (already locked)\n",
+		    disablevmx ? "disable" : "enable", cpu);
 		return;
 	}
 
-	printk(KERN_INFO "Disabling VMX on cpu %d\n", cpu);
-	msr &= ~(FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX|
-		FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX);
-	msr |= FEATURE_CONTROL_LOCKED;
-	wrmsrl(MSR_IA32_FEATURE_CONTROL, msr);
+	pr_info("%s VMX on cpu %d\n",
+			disablevmx ? "Disabling" : "Enabling", cpu);
+	ret = wrmsrl_safe(MSR_IA32_FEATURE_CONTROL, bits);
+	if (!ret)
+		return;
+
+	pr_warn("wrmsrl_safe (MSR_IA32_FEATURE_CONTROL, %08llx) failed error %d\n",
+		bits, ret);
+
+	/* Not all CPUs support FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX
+	 * even if they support FEATURE_CONTROL_VMXON_ENABLED_OUTSIDE_SMX.
+	 * If setting both options fails, clear the
+	 * FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX option and try again.
+	 * If the second wrmsr fails, there's nothing more we can do.
+	 */
+	bits &= ~FEATURE_CONTROL_VMXON_ENABLED_INSIDE_SMX;
+
+	ret = wrmsrl_safe(MSR_IA32_FEATURE_CONTROL, bits);
+	if (!ret)
+		return;
+
+	pr_warn("wrmsrl_safe (MSR_IA32_FEATURE_CONTROL, %08llx) failed error %d\n",
+		bits, ret);
 }
 #endif
 /*
@@ -1386,12 +1419,12 @@ void cpu_init(void)
 	show_ucode_info_early();
 
 	if (cpumask_test_and_set_cpu(cpu, cpu_initialized_mask)) {
-		printk(KERN_WARNING "CPU#%d already initialized!\n", cpu);
+		pr_warn("CPU#%d already initialized!\n", cpu);
 		for (;;)
 			local_irq_enable();
 	}
 
-	printk(KERN_INFO "Initializing CPU#%d\n", cpu);
+	pr_info("Initializing CPU#%d\n", cpu);
 
 	if (cpu_has_vme || cpu_has_tsc || cpu_has_de)
 		clear_in_cr4(X86_CR4_VME|X86_CR4_PVI|X86_CR4_TSD|X86_CR4_DE);
