@@ -22,6 +22,7 @@
  */
 
 #include <linux/dmi.h>
+#include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/i2c/atmel_mxt_ts.h>
 #include <linux/input.h>
@@ -176,7 +177,12 @@ static struct i2c_client *__add_probed_i2c_device(
 			       __func__, name);
 			return NULL;
 		}
-		info->irq = dev_data->instance;
+
+		/* Use Peripheral IRQ if devfn is 0, otherwise use GPIO IRQ */
+		if (dev_data->devfn != 0)
+			info->irq = gpio_to_irq(dev_data->instance);
+		else
+			info->irq = dev_data->instance;
 	}
 
 	adapter = i2c_get_adapter(bus);
