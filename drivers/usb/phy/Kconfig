@@ -202,7 +202,7 @@ config USB_ISP1301
 
 config USB_MSM_OTG
 	tristate "OTG support for Qualcomm on-chip USB controller"
-	depends on (USB || USB_GADGET) && ARCH_MSM
+	depends on (USB || USB_GADGET) && ARCH_QCOM
 	select USB_PHY
 	help
 	  Enable this to support the USB OTG transceiver on MSM chips. It
@@ -259,6 +259,17 @@ config USB_RCAR_GEN2_PHY
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called phy-rcar-gen2-usb.
+
+config USB_QCOM_DWC3_PHY
+	tristate "Qualcomm USB controller DWC3 PHY wrappers support"
+	depends on (USB || USB_GADGET) && ARCH_QCOM
+	select USB_PHY
+	help
+	  Enable this to support the DWC3 USB PHY transceivers on QCOM chips
+	  with DWC3 USB core. It handles PHY initialization, clock
+	  management required after resetting the hardware and power
+	  management. This driver is required even for peripheral only or
+	  host only mode configurations.
 
 config USB_ULPI
 	bool "Generic ULPI Transceiver Driver"
