@@ -377,5 +377,87 @@
 
 			status = "disabled";
 		};
+
+		hs_phy_1: phy@100f8800 {
+			compatible = "qcom,dwc3-hsphy";
+			reg = <0x100f8800 0x30>;
+			clocks = <&gcc USB30_1_UTMI_CLK>;
+			clock-names = "utmi";
+
+			status = "disabled";
+		};
+
+		ss_phy_1: phy@100f8830 {
+			compatible = "qcom,dwc3-ssphy";
+			reg = <0x100f8830 0x30>;
+
+			clocks = <&gcc USB30_1_MASTER_CLK>;
+			clock-names = "ref";
+
+			status = "disabled";
+		};
+
+		hs_phy_0: phy@110f8800 {
+			compatible = "qcom,dwc3-hsphy";
+			reg = <0x110f8800 0x30>;
+			clocks = <&gcc USB30_0_UTMI_CLK>;
+			clock-names = "utmi";
+
+			status = "disabled";
+		};
+
+		ss_phy_0: phy@110f8830 {
+			compatible = "qcom,dwc3-ssphy";
+			reg = <0x110f8830 0x30>;
+
+			clocks = <&gcc USB30_0_MASTER_CLK>;
+			clock-names = "ref";
+
+			status = "disabled";
+		};
+
+		usb3_0: usb30@0 {
+			compatible = "qcom,dwc3";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			clocks = <&gcc USB30_0_MASTER_CLK>;
+			clock-names = "core";
+
+			ranges;
+
+			status = "disabled";
+
+			dwc3@11000000 {
+				compatible = "snps,dwc3";
+				reg = <0x11000000 0xcd00>;
+				interrupts = <0 110 0x4>;
+				usb-phy = <&hs_phy_0>, <&ss_phy_0>;
+				phy-names = "usb2-phy", "usb3-phy";
+				tx-fifo-resize;
+				dr_mode = "host";
+			};
+		};
+
+		usb3_1: usb30@1 {
+			compatible = "qcom,dwc3";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			clocks = <&gcc USB30_1_MASTER_CLK>;
+			clock-names = "core";
+
+			ranges;
+
+			status = "disabled";
+
+			dwc3@10000000 {
+				compatible = "snps,dwc3";
+				reg = <0x10000000 0xcd00>;
+				interrupts = <0 205 0x4>;
+				usb-phy = <&hs_phy_1>, <&ss_phy_1>;
+				phy-names = "usb2-phy", "usb3-phy";
+				tx-fifo-resize;
+				dr_mode = "host";
+			};
+		};
 	};
 };
