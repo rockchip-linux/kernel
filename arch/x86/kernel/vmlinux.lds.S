@@ -143,6 +143,11 @@ SECTIONS
 		/* rarely changed data like cpu maps */
 		READ_MOSTLY_DATA(INTERNODE_CACHE_BYTES)
 
+		. = ALIGN(PAGE_SIZE);
+		VMLINUX_SYMBOL(__start_suspend_volatile_data) = .;
+		*(.data.suspend_volatile)
+		. = ALIGN(PAGE_SIZE);
+		VMLINUX_SYMBOL(__stop_suspend_volatile_data) = .;
 		/* End of data section */
 		_edata = .;
 	} :data

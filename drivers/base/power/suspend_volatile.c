@@ -75,6 +75,13 @@ bool pm_does_overlap_suspend_volatile(phys_addr_t start, size_t num_bytes)
 			       __start_suspend_volatile_bss))
 		return true;
 
+	/* Bits marked at compile time as suspend volatile */
+	if (phys_addrs_overlap(start, num_bytes,
+			       virt_to_phys(__start_suspend_volatile_data),
+			       __stop_suspend_volatile_data -
+			       __start_suspend_volatile_data))
+		return true;
+
 	/*
 	 * Bits registered dynamically
 	 *
