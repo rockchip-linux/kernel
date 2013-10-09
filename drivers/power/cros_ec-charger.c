@@ -60,6 +60,11 @@ static enum power_supply_property cros_ec_charger_props[] = {
 	POWER_SUPPLY_PROP_ONLINE, /* charger is active or not */
 };
 
+static int is_debounced(struct ec_response_power_info *ec_data)
+{
+	return !!(ec_data->usb_dev_type & TSU6721_TYPE_VBUS_DEBOUNCED);
+}
+
 static void update_psu_type(struct power_supply *psy,
 			    struct ec_response_power_info *ec_data)
 {
@@ -67,26 +72,25 @@ static void update_psu_type(struct power_supply *psy,
 		ec_data->usb_dev_type & CHARGING_MASK,
 		ec_data->usb_current_limit);
 
-	switch (ec_data->usb_dev_type & CHARGING_MASK) {
-	case TSU6721_TYPE_USB_HOST:
-		psy->type = POWER_SUPPLY_TYPE_USB;
-		break;
-	case TSU6721_TYPE_CDP:
-		psy->type = POWER_SUPPLY_TYPE_USB_CDP;
-		break;
-	case TSU6721_TYPE_DCP:
-	case TSU6721_TYPE_APPLE_CHG:
-		psy->type = POWER_SUPPLY_TYPE_USB_DCP;
-		break;
-	case TSU6721_TYPE_CHG12:
-		psy->type = POWER_SUPPLY_TYPE_MAINS;
-		break;
-	case TSU6721_TYPE_U200_CHG:
-	default:
-		psy->type = POWER_SUPPLY_TYPE_UNKNOWN;
-		break;
+	psy->type = POWER_SUPPLY_TYPE_UNKNOWN;
+	if (is_debounced(ec_data)) {
+		switch (ec_data->usb_dev_type & CHARGING_MASK) {
+		case TSU6721_TYPE_USB_HOST:
+		case TSU6721_TYPE_JIG_UART_ON:
+			psy->type = POWER_SUPPLY_TYPE_USB;
+			break;
+		case TSU6721_TYPE_CDP:
+			psy->type = POWER_SUPPLY_TYPE_USB_CDP;
+			break;
+		case TSU6721_TYPE_DCP:
+		case TSU6721_TYPE_APPLE_CHG:
+			psy->type = POWER_SUPPLY_TYPE_USB_DCP;
+			break;
+		case TSU6721_TYPE_CHG12:
+			psy->type = POWER_SUPPLY_TYPE_MAINS;
+			break;
+		}
 	}
-
 }
 
 static int get_ec_power_info(struct power_supply *psy,
@@ -134,7 +138,7 @@ static int cros_ec_charger_get_prop(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = !!(ec_info.usb_dev_type & CHARGING_MASK);
+		val->intval = is_debounced(&ec_info);
 		break;
 	default:
 		return -EINVAL;
