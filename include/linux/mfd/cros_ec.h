@@ -16,7 +16,7 @@
 #ifndef __LINUX_MFD_CROS_EC_H
 #define __LINUX_MFD_CROS_EC_H
 
-#include <linux/notifier.h>
+#include <linux/power_supply.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mfd/cros_ec_dev.h>
 #include <linux/mutex.h>
@@ -94,6 +94,7 @@ struct cros_ec_device {
 	struct mutex lock;
 	int (*cmd_xfer)(struct cros_ec_device *ec,
 			struct cros_ec_command *msg);
+	struct power_supply *charger;
 };
 
 /**
