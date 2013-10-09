@@ -58,6 +58,9 @@ struct charger_data {
 
 static enum power_supply_property cros_ec_charger_props[] = {
 	POWER_SUPPLY_PROP_ONLINE, /* charger is active or not */
+	POWER_SUPPLY_PROP_CURRENT_NOW, /* current flowing out of charger */
+	POWER_SUPPLY_PROP_VOLTAGE_NOW, /* voltage at charger */
+	POWER_SUPPLY_PROP_POWER_NOW, /* product of voltage & current props */
 };
 
 static int is_debounced(struct ec_response_power_info *ec_data)
@@ -136,9 +139,25 @@ static int cros_ec_charger_get_prop(struct power_supply *psy,
 	if (ret)
 		return -EINVAL;
 
+	/* Zero properties unless we've detected presence of AC */
+	if (!is_debounced(&ec_info)) {
+		val->intval = 0;
+		return 0;
+	}
+
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		val->intval = is_debounced(&ec_info);
+		val->intval = 1;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		val->intval = ec_info.current_system * 1000;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		val->intval = ec_info.voltage_system * 1000;
+		break;
+	case POWER_SUPPLY_PROP_POWER_NOW:
+		val->intval = ec_info.voltage_system *
+			ec_info.current_system;
 		break;
 	default:
 		return -EINVAL;
