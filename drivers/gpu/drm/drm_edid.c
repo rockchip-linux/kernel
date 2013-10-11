@@ -141,6 +141,8 @@ static struct edid_quirk {
 	{ "SEC", 0x3142, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
 	/* Acer B116XW03 */
 	{ "AUO", 0x325c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
+	/* Lenovo B116XW03 */
+	{ "AUO", 0x315c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
 };
 
 static struct downclock_rate {
@@ -152,6 +154,8 @@ static struct downclock_rate {
 	{ "SEC", 0x3142, 56428 },
 	/* Acer B116XW03 */
 	{ "AUO", 0x325c, 46285 },
+	/* Lenovo B116XW03 */
+	{ "AUO", 0x315c, 46285 },
 };
 
 /*
