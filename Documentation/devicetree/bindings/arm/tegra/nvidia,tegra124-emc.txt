@@ -1,0 +1,207 @@
+Tegra124 Embedded Memory Controller
+
+Properties:
+- compatible : Should contain "nvidia,tegra124-emc".
+- reg : Should contain the register range of the device
+- #address-cells : Should be 1
+- #size-cells : Should be 0
+- nvidia,mc : phandle to the mc bus connected to EMC.
+- clocks : phandle to EMC and all parent clocks.
+- clock-names : name of each clock.
+
+Child device nodes describe the memory settings for different configurations and
+clock rates.
+
+Example:
+
+	memory-controller@7001b000 {
+		compatible = "nvidia,tegra124-emc";
+		reg = <0x7001b000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		nvidia,mc = <&mc>;
+		clocks = <&tegra_car 57>, <&tegra_car 209>, <&tegra_car 205>,
+			<&tegra_car 211>, <&tegra_car 201>, <&tegra_car 311>,
+			<&tegra_car 207>, <&tegra_car 208>;
+		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
+			"pll_m_ud", "pll_c2", "pll_c3";
+	};
+
+
+Embedded Memory Controller configuration table
+
+This is a table containing the EMC register settings for the various operating
+speeds of the memory controller. They are always located as subnodes of the emc
+controller node.
+
+Properties:
+- compatible : Should contain "nvidia,tegra12-emc-table".
+- clock-frequency : the clock frequency for the EMC at which this
+  table should be used (in KHz).
+- nvidia,revision : The revision of emc table
+- nvidia,emc-min-mv : min voltage
+- nvidia,gk20a-min-mv : GPU min voltage
+- nvidia,emc-src-sel-reg : CLK_SOURCE_EMC
+- nvidia,burst-regs-num : number of emc burst regs
+- nvidia,burst-up-down-regs-num : number of up_down regs
+- nvidia,emc-zcal-wait-cnt : EMC_ZCAL_WAIT_CNT after clock change
+- nvidia,emc-acal-interval : EMC_AUTO_CAL_INTERVAL
+- nvidia,emc-ctt-term-ctrl : EMC_CTT_TERM_CTRL
+- nvidia,emc-cfg : EMC_CFG
+- nvidia,emc-cfg-2 : EMC_CFG_2
+- nvidia,emc-sel-dpd-ctrl : EMC_SEL_DPD_CTRL
+- nvidia,emc-cfg-dig-dll : EMC_CFG_DIG_DLL
+- nvidia,emc-bgbias-ctl0 : EMC_BGBIAS_CTL0
+- nvidia,emc-mode-reset : Mode Register 0
+- nvidia,emc-mode-1 : Mode Register 1
+- nvidia,emc-mode-2 : Mode Register 2
+- nvidia,emc-mode-4 : Mode Register 4
+- nvidia,emc-latency : expected dvfs latency (ns)
+- nvidia,emc-registers : a 167 word array of EMC/MC registers to be
+  programmed for operation at the 'clock-frequency' setting.
+  The order and contents of the registers are:
+	EMC_RC, EMC_RFC, EMC_RFC_SLR, EMC_RAS, EMC_RP, EMC_R2W, EMC_W2R,
+	EMC_R2P, EMC_W2P, EMC_RD_RCD, EMC_WR_RCD, EMC_RRD, EMC_REXT, EMC_WEXT,
+	EMC_WDV, EMC_WDV_MASK, EMC_QUSE, EMC_QUSE_WIDTH, EMC_IBDLY, EMC_EINPUT,
+	EMC_EINPUT_DURATION, EMC_PUTERM_EXTRA, EMC_PUTERM_WIDTH,
+	EMC_PUTERM_ADJ,	EMC_CDB_CNTL_1, EMC_CDB_CNTL_2, EMC_CDB_CNTL_3,
+	EMC_QSAFE, EMC_RDV, EMC_RDV_MASK, EMC_REFRESH, EMC_BURST_REFRESH_NUM,
+	EMC_PRE_REFRESH_REQ_CNT, EMC_PDEX2WR, EMC_PDEX2RD, EMC_PCHG2PDEN,
+	EMC_ACT2PDEN, EMC_AR2PDEN, EMC_RW2PDEN, EMC_TXSR, EMC_TXSRDLL,
+	EMC_TCKE, EMC_TCKESR, EMC_TPD, EMC_TFAW, EMC_TRPAB, EMC_TCLKSTABLE,
+	EMC_TCLKSTOP, EMC_TREFBW, EMC_FBIO_CFG6, EMC_ODT_WRITE, EMC_ODT_READ,
+	EMC_FBIO_CFG5, EMC_CFG_DIG_DLL, EMC_CFG_DIG_DLL_PERIOD,
+	EMC_DLL_XFORM_DQS0, EMC_DLL_XFORM_DQS1,	EMC_DLL_XFORM_DQS2,
+	EMC_DLL_XFORM_DQS3, EMC_DLL_XFORM_DQS4,	EMC_DLL_XFORM_DQS5,
+	EMC_DLL_XFORM_DQS6, EMC_DLL_XFORM_DQS7,	EMC_DLL_XFORM_DQS8,
+	EMC_DLL_XFORM_DQS9, EMC_DLL_XFORM_DQS10, EMC_DLL_XFORM_DQS11,
+	EMC_DLL_XFORM_DQS12, EMC_DLL_XFORM_DQS13, EMC_DLL_XFORM_DQS14,
+	EMC_DLL_XFORM_DQS15, EMC_DLL_XFORM_QUSE0, EMC_DLL_XFORM_QUSE1,
+	EMC_DLL_XFORM_QUSE2, EMC_DLL_XFORM_QUSE3, EMC_DLL_XFORM_QUSE4,
+	EMC_DLL_XFORM_QUSE5, EMC_DLL_XFORM_QUSE6, EMC_DLL_XFORM_QUSE7,
+	EMC_DLL_XFORM_ADDR0, EMC_DLL_XFORM_ADDR1, EMC_DLL_XFORM_ADDR2,
+	EMC_DLL_XFORM_ADDR3, EMC_DLL_XFORM_ADDR4, EMC_DLL_XFORM_ADDR5,
+	EMC_DLL_XFORM_QUSE8, EMC_DLL_XFORM_QUSE9, EMC_DLL_XFORM_QUSE10,
+	EMC_DLL_XFORM_QUSE11, EMC_DLL_XFORM_QUSE12, EMC_DLL_XFORM_QUSE13,
+	EMC_DLL_XFORM_QUSE14, EMC_DLL_XFORM_QUSE15, EMC_DLI_TRIM_TXDQS0,
+	EMC_DLI_TRIM_TXDQS1, EMC_DLI_TRIM_TXDQS2, EMC_DLI_TRIM_TXDQS3,
+	EMC_DLI_TRIM_TXDQS4, EMC_DLI_TRIM_TXDQS5, EMC_DLI_TRIM_TXDQS6,
+	EMC_DLI_TRIM_TXDQS7, EMC_DLI_TRIM_TXDQS8, EMC_DLI_TRIM_TXDQS9,
+	EMC_DLI_TRIM_TXDQS10, EMC_DLI_TRIM_TXDQS11, EMC_DLI_TRIM_TXDQS12,
+	EMC_DLI_TRIM_TXDQS13, EMC_DLI_TRIM_TXDQS14, EMC_DLI_TRIM_TXDQS15,
+	EMC_DLL_XFORM_DQ0, EMC_DLL_XFORM_DQ1, EMC_DLL_XFORM_DQ2,
+	EMC_DLL_XFORM_DQ3, EMC_DLL_XFORM_DQ4, EMC_DLL_XFORM_DQ5,
+	EMC_DLL_XFORM_DQ6, EMC_DLL_XFORM_DQ7, EMC_XM2CMDPADCTRL,
+	EMC_XM2CMDPADCTRL4, EMC_XM2CMDPADCTRL5, EMC_XM2DQSPADCTRL2,
+	EMC_XM2DQPADCTRL2, EMC_XM2DQPADCTRL3, EMC_XM2CLKPADCTRL,
+	EMC_XM2CLKPADCTRL2, EMC_XM2COMPPADCTRL, EMC_XM2VTTGENPADCTRL,
+	EMC_XM2VTTGENPADCTRL2, EMC_XM2VTTGENPADCTRL3, EMC_XM2DQSPADCTRL3,
+	EMC_XM2DQSPADCTRL4, EMC_XM2DQSPADCTRL5, EMC_XM2DQSPADCTRL6,
+	EMC_DSR_VTTGEN_DRV, EMC_TXDSRVTTGEN, EMC_FBIO_SPARE, EMC_ZCAL_INTERVAL,
+	EMC_ZCAL_WAIT_CNT, EMC_MRS_WAIT_CNT, EMC_MRS_WAIT_CNT2,
+	EMC_AUTO_CAL_CONFIG2, EMC_AUTO_CAL_CONFIG3, EMC_AUTO_CAL_CONFIG,
+	EMC_CTT, EMC_CTT_DURATION, EMC_CFG_PIPE, EMC_DYN_SELF_REF_CONTROL,
+	EMC_QPOP, MC_EMEM_ARB_CFG, MC_EMEM_ARB_OUTSTANDING_REQ,
+	MC_EMEM_ARB_TIMING_RCD, MC_EMEM_ARB_TIMING_RP, MC_EMEM_ARB_TIMING_RC,
+	MC_EMEM_ARB_TIMING_RAS, MC_EMEM_ARB_TIMING_FAW, MC_EMEM_ARB_TIMING_RRD,
+	MC_EMEM_ARB_TIMING_RAP2PRE, MC_EMEM_ARB_TIMING_WAP2PRE,
+	MC_EMEM_ARB_TIMING_R2R, MC_EMEM_ARB_TIMING_W2W, MC_EMEM_ARB_TIMING_R2W,
+	MC_EMEM_ARB_TIMING_W2R, MC_EMEM_ARB_DA_TURNS, MC_EMEM_ARB_DA_COVERS,
+	MC_EMEM_ARB_MISC0, MC_EMEM_ARB_RING1_THROTTLE
+- nvidia,emc-registers : a 31 word array of EMC/MC registers to be
+  programmed for operation at the 'clock-frequency' setting.
+  The order and contents of the registers are:
+	MC_MLL_MPCORER_PTSA_RATE, MC_PTSA_GRANT_DECREMENT,
+	MC_LATENCY_ALLOWANCE_XUSB_0, MC_LATENCY_ALLOWANCE_XUSB_1,
+	MC_LATENCY_ALLOWANCE_TSEC_0, MC_LATENCY_ALLOWANCE_SDMMCA_0,
+	MC_LATENCY_ALLOWANCE_SDMMCAA_0, MC_LATENCY_ALLOWANCE_SDMMC_0,
+	MC_LATENCY_ALLOWANCE_SDMMCAB_0, MC_LATENCY_ALLOWANCE_PPCS_0,
+	MC_LATENCY_ALLOWANCE_PPCS_1, MC_LATENCY_ALLOWANCE_MPCORE_0,
+	MC_LATENCY_ALLOWANCE_MPCORELP_0, MC_LATENCY_ALLOWANCE_HC_0,
+	MC_LATENCY_ALLOWANCE_HC_1, MC_LATENCY_ALLOWANCE_AVPC_0,
+	MC_LATENCY_ALLOWANCE_GPU_0, MC_LATENCY_ALLOWANCE_MSENC_0,
+	MC_LATENCY_ALLOWANCE_HDA_0, MC_LATENCY_ALLOWANCE_VIC_0,
+	MC_LATENCY_ALLOWANCE_VI2_0, MC_LATENCY_ALLOWANCE_ISP2_0,
+	MC_LATENCY_ALLOWANCE_ISP2_1, MC_LATENCY_ALLOWANCE_ISP2B_0,
+	MC_LATENCY_ALLOWANCE_ISP2B_1, MC_LATENCY_ALLOWANCE_VDE_0,
+	MC_LATENCY_ALLOWANCE_VDE_1, MC_LATENCY_ALLOWANCE_VDE_2,
+	MC_LATENCY_ALLOWANCE_VDE_3, MC_LATENCY_ALLOWANCE_SATA_0,
+	MC_LATENCY_ALLOWANCE_AFI_0
+
+Example:
+	emc-table@12750 {
+		compatible = "nvidia,tegra12-emc-table";
+		reg = <0>;
+		clock-frequency = <0>;
+		nvidia,revision = <0>;
+		nvidia,emc-min-mv = <0>;
+		nvidia,gk20a-min-mv = <0>;
+		nvidia,source = "pllp_out0";
+		nvidia,src-sel-reg = <0>;
+		nvidia,burst-regs-num = <0>;
+		nvidia,burst-up-down-regs-num = <0>;
+		nvidia,emc-registers = <0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0>;
+		nvidia,emc-burst-up-down-regs = <0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+						0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+						>;
+		nvidia,emc-zcal-cnt-long = <0>;
+		nvidia,emc-acal-interval = <0>;
+		nvidia,emc-ctt-term-ctrl = <0>;
+		nvidia,emc-cfg = <0>;
+		nvidia,emc-cfg-2 = <0>;
+		nvidia,emc-sel-dpd-ctrl = <0>;
+		nvidia,emc-cfg-dig-dll = <0>;
+		nvidia,emc-bgbias-ctl0 = <0>;
+		nvidia,emc-mode-reset = <0>;
+		nvidia,emc-mode-1 = <0>;
+		nvidia,emc-mode-2 = <0>;
+		nvidia,emc-mode-4 = <0>;
+		nvidia,emc-clock-latency-change = <0>;
+	};
+	emc-table@20400 {
+		compatible = "nvidia,tegra12-emc-table";
+		reg = <0>;
+		clock-frequency = <0>;
+		nvidia,revision = <0>;
+		nvidia,emc-min-mv = <0>;
+		nvidia,gk20a-min-mv = <0>;
+		nvidia,source = "pllp_out0";
+		nvidia,src-sel-reg = <0>;
+		nvidia,burst-regs-num = <0>;
+		nvidia,burst-up-down-regs-num = <0>;
+		nvidia,emc-registers = <0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+					0 0 0 0 0 0 0>;
+		nvidia,emc-burst-up-down-regs = <0 0 0 0 0 0 0 0 0 0 0
+						0 0 0 0 0 0 0 0 0 0 0 0
+						0 0 0 0 0 0 0 0>;
+		nvidia,emc-zcal-cnt-long = <0>;
+		nvidia,emc-acal-interval = <0>;
+		nvidia,emc-ctt-term-ctrl = <0>;
+		nvidia,emc-cfg = <0>;
+		nvidia,emc-cfg-2 = <0>;
+		nvidia,emc-sel-dpd-ctrl = <0>;
+		nvidia,emc-cfg-dig-dll = <0>;
+		nvidia,emc-bgbias-ctl0 = <0>;
+		nvidia,emc-mode-reset = <0>;
+		nvidia,emc-mode-1 = <0>;
+		nvidia,emc-mode-2 = <0>;
+		nvidia,emc-mode-4 = <0>;
+		nvidia,emc-clock-latency-change = <0>;
+	};
