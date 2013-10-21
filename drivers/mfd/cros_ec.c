@@ -24,6 +24,7 @@
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/module.h>
+#include <linux/of_platform.h>
 #include <linux/delay.h>
 
 #define EC_COMMAND_RETRIES	50
@@ -93,33 +94,8 @@ EXPORT_SYMBOL(cros_ec_cmd_xfer);
 
 static const struct mfd_cell cros_devs[] = {
 	{
-		.name = "cros-ec-keyb",
-		.id = 1,
-		.of_compatible = "google,cros-ec-keyb",
-	},
-	{
-		.name = "cros-ec-i2c-tunnel",
-		.id = 2,
-		.of_compatible = "google,cros-ec-i2c-tunnel",
-	},
-	{
 		.name = "cros-ec-dev",
-		.id = 3,
-	},
-	{
-		.name = "cros-ec-vbc",
-		.id = 4,
-		.of_compatible = "google,cros-ec-vbc",
-	},
-	{
-		.name = "cros-ec-tps65090",
-		.id = 5,
-		.of_compatible = "ti,cros-ec-tps65090",
-	},
-	{
-		.name = "cros-ec-charger",
-		.id = 6,
-		.of_compatible = "ti,cros-ec-charger",
+		.id = 1,
 	},
 };
 
@@ -127,6 +103,10 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 {
 	struct device *dev = ec_dev->dev;
 	int err = 0;
+#ifdef CONFIG_OF
+	struct device_node *node;
+	int id = ARRAY_SIZE(cros_devs);
+#endif
 
 	if (ec_dev->din_size) {
 		ec_dev->din = devm_kzalloc(dev, ec_dev->din_size, GFP_KERNEL);
@@ -148,6 +128,31 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		dev_err(dev, "failed to add mfd devices\n");
 		return err;
 	}
+#ifdef CONFIG_OF
+	/*
+	 * Add sub-devices declared in the device tree.  NOTE they should NOT be
+	 * declared in cros_devs
+	 */
+	for_each_child_of_node(dev->of_node, node) {
+		char name[128];
+		struct mfd_cell cell = {
+			.id = 0,
+			.name = name,
+		};
+
+		if (of_modalias_node(node, name, sizeof(name)) < 0) {
+			dev_err(dev, "modalias failure on %s\n",
+				node->full_name);
+			continue;
+		}
+		dev_dbg(dev, "adding MFD sub-device %s\n", node->name);
+		cell.of_compatible = of_get_property(node, "compatible", NULL);
+		err = mfd_add_devices(dev, ++id, &cell, 1, NULL, ec_dev->irq,
+				      NULL);
+		if (err)
+			dev_err(dev, "fail to add %s\n", node->full_name);
+	}
+#endif
 
 	dev_info(dev, "Chrome EC device registered\n");
 
