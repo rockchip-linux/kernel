@@ -473,20 +473,29 @@ static int lm90_read16(struct i2c_client *client, u8 regh, u8 regl, u16 *value)
  * various registers have different meanings as a result of selecting a
  * non-default remote channel.
  */
-static inline void lm90_select_remote_channel(struct i2c_client *client,
-					      struct lm90_data *data,
-					      int channel)
+static inline int lm90_select_remote_channel(struct i2c_client *client,
+					     struct lm90_data *data,
+					     int channel)
 {
 	u8 config;
+	int err;
 
 	if (data->kind == max6696) {
 		lm90_read_reg(client, LM90_REG_R_CONFIG1, &config);
 		config &= ~0x08;
 		if (channel)
 			config |= 0x08;
-		i2c_smbus_write_byte_data(client, LM90_REG_W_CONFIG1,
-					  config);
+		err = i2c_smbus_write_byte_data(client, LM90_REG_W_CONFIG1,
+						config);
+		if (err < 0) {
+			dev_err(&client->dev,
+				"Failed to select remote channel %d, err %d\n",
+				channel, err);
+			return err;
+		}
 	}
+
+	return 0;
 }
 
 /*
@@ -759,29 +768,34 @@ static u16 temp_to_u16_adt7461(struct lm90_data *data, long val)
  * Sysfs stuff
  */
 
-static ssize_t show_temp8(struct device *dev, struct device_attribute *devattr,
-			  char *buf)
+static int read_temp8(struct device *dev, int index)
 {
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	struct lm90_data *data = lm90_update_device(dev);
 	int temp;
 
 	if (data->kind == adt7461 || data->kind == tmp451)
-		temp = temp_from_u8_adt7461(data, data->temp8[attr->index]);
+		temp = temp_from_u8_adt7461(data, data->temp8[index]);
 	else if (data->kind == max6646)
-		temp = temp_from_u8(data->temp8[attr->index]);
+		temp = temp_from_u8(data->temp8[index]);
 	else
-		temp = temp_from_s8(data->temp8[attr->index]);
+		temp = temp_from_s8(data->temp8[index]);
 
 	/* +16 degrees offset for temp2 for the LM99 */
-	if (data->kind == lm99 && attr->index == 3)
+	if (data->kind == lm99 && index == 3)
 		temp += 16000;
 
-	return sprintf(buf, "%d\n", temp);
+	return temp;
 }
 
-static ssize_t set_temp8(struct device *dev, struct device_attribute *devattr,
-			 const char *buf, size_t count)
+static ssize_t show_temp8(struct device *dev, struct device_attribute *devattr,
+			  char *buf)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
+
+	return sprintf(buf, "%d\n", read_temp8(dev, attr->index));
+}
+
+static int write_temp8(struct device *dev, int index, long val)
 {
 	static const u8 reg[TEMP8_REG_NUM] = {
 		LM90_REG_W_LOCAL_LOW,
@@ -794,10 +808,37 @@ static ssize_t set_temp8(struct device *dev, struct device_attribute *devattr,
 		MAX6659_REG_W_REMOTE_EMERG,
 	};
 
-	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	struct lm90_data *data = dev_get_drvdata(dev);
 	struct i2c_client *client = data->client;
-	int nr = attr->index;
+	int err;
+
+	/* +16 degrees offset for temp2 for the LM99 */
+	if (data->kind == lm99 && index == 3)
+		val -= 16000;
+
+	mutex_lock(&data->update_lock);
+	if (data->kind == adt7461 || data->kind == tmp451)
+		data->temp8[index] = temp_to_u8_adt7461(data, val);
+	else if (data->kind == max6646)
+		data->temp8[index] = temp_to_u8(val);
+	else
+		data->temp8[index] = temp_to_s8(val);
+
+	if ((err = lm90_select_remote_channel(client, data, index >= 6)) ||
+	    (err = i2c_smbus_write_byte_data(client, reg[index],
+					     data->temp8[index])) ||
+	    (err = lm90_select_remote_channel(client, data, 0)))
+		dev_err(dev, "write_temp8 failed, err %d\n", err);
+	mutex_unlock(&data->update_lock);
+
+	return err;
+}
+
+static ssize_t set_temp8(struct device *dev, struct device_attribute *devattr,
+			 const char *buf, size_t count)
+{
+	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
+	int index = attr->index;
 	long val;
 	int err;
 
@@ -805,49 +846,41 @@ static ssize_t set_temp8(struct device *dev, struct device_attribute *devattr,
 	if (err < 0)
 		return err;
 
-	/* +16 degrees offset for temp2 for the LM99 */
-	if (data->kind == lm99 && attr->index == 3)
-		val -= 16000;
+	err = write_temp8(dev, index, val);
+	if (err < 0)
+		return err;
 
-	mutex_lock(&data->update_lock);
-	if (data->kind == adt7461 || data->kind == tmp451)
-		data->temp8[nr] = temp_to_u8_adt7461(data, val);
-	else if (data->kind == max6646)
-		data->temp8[nr] = temp_to_u8(val);
-	else
-		data->temp8[nr] = temp_to_s8(val);
-
-	lm90_select_remote_channel(client, data, nr >= 6);
-	i2c_smbus_write_byte_data(client, reg[nr], data->temp8[nr]);
-	lm90_select_remote_channel(client, data, 0);
-
-	mutex_unlock(&data->update_lock);
 	return count;
+}
+
+static int read_temp11(struct device *dev, int index)
+{
+	struct lm90_data *data = lm90_update_device(dev);
+	int temp;
+
+	if (data->kind == adt7461 || data->kind == tmp451)
+		temp = temp_from_u16_adt7461(data, data->temp11[index]);
+	else if (data->kind == max6646)
+		temp = temp_from_u16(data->temp11[index]);
+	else
+		temp = temp_from_s16(data->temp11[index]);
+
+	/* +16 degrees offset for temp2 for the LM99 */
+	if (data->kind == lm99 && index <= 2)
+		temp += 16000;
+
+	return temp;
 }
 
 static ssize_t show_temp11(struct device *dev, struct device_attribute *devattr,
 			   char *buf)
 {
 	struct sensor_device_attribute_2 *attr = to_sensor_dev_attr_2(devattr);
-	struct lm90_data *data = lm90_update_device(dev);
-	int temp;
 
-	if (data->kind == adt7461 || data->kind == tmp451)
-		temp = temp_from_u16_adt7461(data, data->temp11[attr->index]);
-	else if (data->kind == max6646)
-		temp = temp_from_u16(data->temp11[attr->index]);
-	else
-		temp = temp_from_s16(data->temp11[attr->index]);
-
-	/* +16 degrees offset for temp2 for the LM99 */
-	if (data->kind == lm99 &&  attr->index <= 2)
-		temp += 16000;
-
-	return sprintf(buf, "%d\n", temp);
+	return sprintf(buf, "%d\n", read_temp11(dev, attr->index));
 }
 
-static ssize_t set_temp11(struct device *dev, struct device_attribute *devattr,
-			  const char *buf, size_t count)
+static int write_temp11(struct device *dev, int nr, int index, long val)
 {
 	struct {
 		u8 high;
@@ -861,17 +894,9 @@ static ssize_t set_temp11(struct device *dev, struct device_attribute *devattr,
 		{ LM90_REG_W_REMOTE_HIGHH, LM90_REG_W_REMOTE_HIGHL, 1 }
 	};
 
-	struct sensor_device_attribute_2 *attr = to_sensor_dev_attr_2(devattr);
 	struct lm90_data *data = dev_get_drvdata(dev);
 	struct i2c_client *client = data->client;
-	int nr = attr->nr;
-	int index = attr->index;
-	long val;
 	int err;
-
-	err = kstrtol(buf, 10, &val);
-	if (err < 0)
-		return err;
 
 	/* +16 degrees offset for temp2 for the LM99 */
 	if (data->kind == lm99 && index <= 2)
@@ -887,15 +912,50 @@ static ssize_t set_temp11(struct device *dev, struct device_attribute *devattr,
 	else
 		data->temp11[index] = temp_to_s8(val) << 8;
 
-	lm90_select_remote_channel(client, data, reg[nr].channel);
-	i2c_smbus_write_byte_data(client, reg[nr].high,
-				  data->temp11[index] >> 8);
-	if (data->flags & LM90_HAVE_REM_LIMIT_EXT)
-		i2c_smbus_write_byte_data(client, reg[nr].low,
-					  data->temp11[index] & 0xff);
-	lm90_select_remote_channel(client, data, 0);
+	err = lm90_select_remote_channel(client, data, reg[nr].channel);
+	if (err)
+		goto error;
+
+	err = i2c_smbus_write_byte_data(client, reg[nr].high,
+					data->temp11[index] >> 8);
+	if (err)
+		goto error;
+
+	if (data->flags & LM90_HAVE_REM_LIMIT_EXT) {
+		err = i2c_smbus_write_byte_data(client, reg[nr].low,
+						data->temp11[index] & 0xff);
+		if (err)
+			goto error;
+	}
+
+	err = lm90_select_remote_channel(client, data, 0);
+
+error:
+	if (err)
+		dev_err(dev, "write_temp11 failed, err %d\n", err);
 
 	mutex_unlock(&data->update_lock);
+
+	return err;
+}
+
+static ssize_t set_temp11(struct device *dev, struct device_attribute *devattr,
+			  const char *buf, size_t count)
+{
+	struct sensor_device_attribute_2 *attr = to_sensor_dev_attr_2(devattr);
+	int nr = attr->nr;
+	int index = attr->index;
+	long val;
+	int err;
+
+	err = kstrtol(buf, 10, &val);
+	if (err < 0)
+		return err;
+
+	err = write_temp11(dev, nr, index, val);
+	if (err < 0)
+		return err;
+
 	return count;
 }
 
