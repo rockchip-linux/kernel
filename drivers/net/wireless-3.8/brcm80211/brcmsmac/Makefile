@@ -17,9 +17,9 @@
 
 ccflags-y := \
 	-D__CHECK_ENDIAN__ \
-	-Idrivers/net/wireless/brcm80211/brcmsmac \
-	-Idrivers/net/wireless/brcm80211/brcmsmac/phy \
-	-Idrivers/net/wireless/brcm80211/include
+	-Idrivers/net/wireless-3.8/brcm80211/brcmsmac \
+	-Idrivers/net/wireless-3.8/brcm80211/brcmsmac/phy \
+	-Idrivers/net/wireless-3.8/brcm80211/include
 
 BRCMSMAC_OFILES := \
 	mac80211_if.o \

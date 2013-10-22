@@ -1,4 +1,13 @@
 #
+# This is our hook to build with another wifi stack version. For example
+# set WIFIVERSION="-3.8" in the environment to build with the 3.8 stack.
+#
+
+config WIFIVERSION
+	string
+	option env="WIFIVERSION"
+
+#
 # Network device configuration
 #
 

@@ -571,19 +571,6 @@ struct cfg80211_ap_settings {
 };
 
 /**
- * enum plink_action - actions to perform in mesh peers
- *
- * @PLINK_ACTION_INVALID: action 0 is reserved
- * @PLINK_ACTION_OPEN: start mesh peer link establishment
- * @PLINK_ACTION_BLOCK: block traffic from this mesh peer
- */
-enum plink_actions {
-	PLINK_ACTION_INVALID,
-	PLINK_ACTION_OPEN,
-	PLINK_ACTION_BLOCK,
-};
-
-/**
  * enum station_parameters_apply_mask - station parameter values to apply
  * @STATION_PARAM_APPLY_UAPSD: apply new uAPSD parameters (uapsd_queues, max_sp)
  *

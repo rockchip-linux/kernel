@@ -376,6 +376,12 @@ LINUXINCLUDE    := \
 		-Iinclude \
 		$(USERINCLUDE)
 
+# This is used to prepend the include path in case we're building with
+# a different wifi stack than the native one.
+ifneq ($(WIFIVERSION),)
+LINUXINCLUDE := -I$(srctree)/include/wireless$(WIFIVERSION) $(LINUXINCLUDE)
+endif
+
 KBUILD_CPPFLAGS := -D__KERNEL__
 
 KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \

@@ -16,8 +16,8 @@
 # CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ccflags-y :=				\
-	-Idrivers/net/wireless/brcm80211/brcmutil \
-	-Idrivers/net/wireless/brcm80211/include
+	-Idrivers/net/wireless-3.8/brcm80211/brcmutil \
+	-Idrivers/net/wireless-3.8/brcm80211/include
 
 BRCMUTIL_OFILES := \
 	utils.o

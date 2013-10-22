@@ -350,8 +350,8 @@ menuconfig WIRELESS
 
 if WIRELESS
 
-source "net/wireless/Kconfig"
-source "net/mac80211/Kconfig"
+source "net/wireless$WIFIVERSION/Kconfig"
+source "net/mac80211$WIFIVERSION/Kconfig"
 
 endif # WIRELESS
 
