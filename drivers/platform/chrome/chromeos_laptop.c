@@ -532,8 +532,6 @@ static struct chromeos_laptop samus = {
 	.i2c_peripherals = {
 		/* Touchpad. */
 		{. add = setup_atmel_224s_tp, I2C_ADAPTER_I2C0 },
-		/* Touchscreen. */
-		{ .add = setup_atmel_1664s_ts, I2C_ADAPTER_I2C1 },
 	},
 	.has_keyboard_backlight = true,
 };
@@ -645,7 +643,7 @@ static struct dmi_system_id chromeos_laptop_dmi_table[] __initdata = {
 	{
 		.ident = "Samus",
 		.matches = {
-			DMI_MATCH(DMI_SYS_VENDOR, "coreboot"),
+			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
 			DMI_MATCH(DMI_PRODUCT_NAME, "Samus"),
 		},
 		_CBDD(samus),
