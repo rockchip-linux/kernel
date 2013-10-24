@@ -515,6 +515,11 @@ config SRAM
 	  the genalloc API. It is supposed to be used for small on-chip SRAM
 	  areas found on many SoCs.
 
+config VLV2_PLAT_CLK
+	tristate "VLV2 platform clock control driver"
+	---help---
+	Driver to enable the platform clock control for Valleyview2
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
