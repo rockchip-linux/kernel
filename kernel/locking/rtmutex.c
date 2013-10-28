@@ -21,6 +21,7 @@
 #include <linux/sched/rt.h>
 #include <linux/sched/deadline.h>
 #include <linux/timer.h>
+#include <linux/ww_mutex.h>
 
 #include "rtmutex_common.h"
 
@@ -1221,6 +1222,40 @@ EXPORT_SYMBOL(__rt_spin_lock_init);
 
 #endif /* PREEMPT_RT_FULL */
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+	static inline int __sched
+__mutex_lock_check_stamp(struct rt_mutex *lock, struct ww_acquire_ctx *ctx)
+{
+	struct ww_mutex *ww = container_of(lock, struct ww_mutex, base.lock);
+	struct ww_acquire_ctx *hold_ctx = ACCESS_ONCE(ww->ctx);
+
+	if (!hold_ctx)
+		return 0;
+
+	if (unlikely(ctx == hold_ctx))
+		return -EALREADY;
+
+	if (ctx->stamp - hold_ctx->stamp <= LONG_MAX &&
+	    (ctx->stamp != hold_ctx->stamp || ctx > hold_ctx)) {
+#ifdef CONFIG_DEBUG_MUTEXES
+		DEBUG_LOCKS_WARN_ON(ctx->contending_lock);
+		ctx->contending_lock = ww;
+#endif
+		return -EDEADLK;
+	}
+
+	return 0;
+}
+#else
+	static inline int __sched
+__mutex_lock_check_stamp(struct rt_mutex *lock, struct ww_acquire_ctx *ctx)
+{
+	BUG();
+	return 0;
+}
+
+#endif
+
 static inline int
 try_to_take_rt_mutex(struct rt_mutex *lock, struct task_struct *task,
 		     struct rt_mutex_waiter *waiter)
@@ -1478,7 +1513,8 @@ void rt_mutex_adjust_pi(struct task_struct *task)
 static int __sched
 __rt_mutex_slowlock(struct rt_mutex *lock, int state,
 		    struct hrtimer_sleeper *timeout,
-		    struct rt_mutex_waiter *waiter)
+		    struct rt_mutex_waiter *waiter,
+		    struct ww_acquire_ctx *ww_ctx)
 {
 	int ret = 0;
 
@@ -1497,6 +1533,12 @@ __rt_mutex_slowlock(struct rt_mutex *lock, int state,
 				ret = -EINTR;
 			if (timeout && !timeout->task)
 				ret = -ETIMEDOUT;
+			if (ret)
+				break;
+		}
+
+		if (ww_ctx && ww_ctx->acquired > 0) {
+			ret = __mutex_lock_check_stamp(lock, ww_ctx);
 			if (ret)
 				break;
 		}
@@ -1535,13 +1577,90 @@ static void rt_mutex_handle_deadlock(int res, int detect_deadlock,
 	}
 }
 
+static __always_inline void ww_mutex_lock_acquired(struct ww_mutex *ww,
+						   struct ww_acquire_ctx *ww_ctx)
+{
+#ifdef CONFIG_DEBUG_MUTEXES
+	/*
+	 * If this WARN_ON triggers, you used ww_mutex_lock to acquire,
+	 * but released with a normal mutex_unlock in this call.
+	 *
+	 * This should never happen, always use ww_mutex_unlock.
+	 */
+	DEBUG_LOCKS_WARN_ON(ww->ctx);
+
+	/*
+	 * Not quite done after calling ww_acquire_done() ?
+	 */
+	DEBUG_LOCKS_WARN_ON(ww_ctx->done_acquire);
+
+	if (ww_ctx->contending_lock) {
+		/*
+		 * After -EDEADLK you tried to
+		 * acquire a different ww_mutex? Bad!
+		 */
+		DEBUG_LOCKS_WARN_ON(ww_ctx->contending_lock != ww);
+
+		/*
+		 * You called ww_mutex_lock after receiving -EDEADLK,
+		 * but 'forgot' to unlock everything else first?
+		 */
+		DEBUG_LOCKS_WARN_ON(ww_ctx->acquired > 0);
+		ww_ctx->contending_lock = NULL;
+	}
+
+	/*
+	 * Naughty, using a different class will lead to undefined behavior!
+	 */
+	DEBUG_LOCKS_WARN_ON(ww_ctx->ww_class != ww->ww_class);
+#endif
+	ww_ctx->acquired++;
+}
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void ww_mutex_account_lock(struct rt_mutex *lock,
+				  struct ww_acquire_ctx *ww_ctx)
+{
+	struct ww_mutex *ww = container_of(lock, struct ww_mutex, base.lock);
+	struct rt_mutex_waiter *waiter, *n;
+
+	/*
+	 * This branch gets optimized out for the common case,
+	 * and is only important for ww_mutex_lock.
+	 */
+	ww_mutex_lock_acquired(ww, ww_ctx);
+	ww->ctx = ww_ctx;
+
+	/*
+	 * Give any possible sleeping processes the chance to wake up,
+	 * so they can recheck if they have to back off.
+	 */
+	rbtree_postorder_for_each_entry_safe(waiter, n, &lock->waiters,
+					     tree_entry) {
+		/* XXX debug rt mutex waiter wakeup */
+
+		BUG_ON(waiter->lock != lock);
+		rt_mutex_wake_waiter(waiter);
+	}
+}
+
+#else
+
+static void ww_mutex_account_lock(struct rt_mutex *lock,
+				  struct ww_acquire_ctx *ww_ctx)
+{
+	BUG();
+}
+#endif
+
 /*
  * Slow path lock function:
  */
 static int __sched
 rt_mutex_slowlock(struct rt_mutex *lock, int state,
 		  struct hrtimer_sleeper *timeout,
-		  enum rtmutex_chainwalk chwalk)
+		  enum rtmutex_chainwalk chwalk,
+		  struct ww_acquire_ctx *ww_ctx)
 {
 	struct rt_mutex_waiter waiter;
 	int ret = 0;
@@ -1552,6 +1671,8 @@ rt_mutex_slowlock(struct rt_mutex *lock, int state,
 
 	/* Try to acquire the lock again: */
 	if (try_to_take_rt_mutex(lock, current, NULL)) {
+		if (ww_ctx)
+			ww_mutex_account_lock(lock, ww_ctx);
 		raw_spin_unlock(&lock->wait_lock);
 		return 0;
 	}
@@ -1566,13 +1687,23 @@ rt_mutex_slowlock(struct rt_mutex *lock, int state,
 
 	if (likely(!ret))
 		/* sleep on the mutex */
-		ret = __rt_mutex_slowlock(lock, state, timeout, &waiter);
+		ret = __rt_mutex_slowlock(lock, state, timeout, &waiter,
+					  ww_ctx);
+	else if (ww_ctx) {
+		/* ww_mutex received EDEADLK, let it become EALREADY */
+		ret = __mutex_lock_check_stamp(lock, ww_ctx);
+		BUG_ON(!ret);
+	}
 
 	if (unlikely(ret)) {
 		__set_current_state(TASK_RUNNING);
 		if (rt_mutex_has_waiters(lock))
 			remove_waiter(lock, &waiter);
-		rt_mutex_handle_deadlock(ret, chwalk, &waiter);
+		/* ww_mutex want to report EDEADLK/EALREADY, let them */
+		if (!ww_ctx)
+			rt_mutex_handle_deadlock(ret, chwalk, &waiter);
+	} else if (ww_ctx) {
+		ww_mutex_account_lock(lock, ww_ctx);
 	}
 
 	/*
@@ -1701,31 +1832,36 @@ static bool __sched rt_mutex_slowunlock(struct rt_mutex *lock,
  */
 static inline int
 rt_mutex_fastlock(struct rt_mutex *lock, int state,
+		  struct ww_acquire_ctx *ww_ctx,
 		  int (*slowfn)(struct rt_mutex *lock, int state,
 				struct hrtimer_sleeper *timeout,
-				enum rtmutex_chainwalk chwalk))
+				enum rtmutex_chainwalk chwalk,
+				struct ww_acquire_ctx *ww_ctx))
 {
 	if (likely(rt_mutex_cmpxchg_acquire(lock, NULL, current))) {
 		rt_mutex_deadlock_account_lock(lock, current);
 		return 0;
 	} else
-		return slowfn(lock, state, NULL, RT_MUTEX_MIN_CHAINWALK);
+		return slowfn(lock, state, NULL, RT_MUTEX_MIN_CHAINWALK,
+			      ww_ctx);
 }
 
 static inline int
 rt_mutex_timed_fastlock(struct rt_mutex *lock, int state,
 			struct hrtimer_sleeper *timeout,
 			enum rtmutex_chainwalk chwalk,
+			struct ww_acquire_ctx *ww_ctx,
 			int (*slowfn)(struct rt_mutex *lock, int state,
 				      struct hrtimer_sleeper *timeout,
-				      enum rtmutex_chainwalk chwalk))
+				      enum rtmutex_chainwalk chwalk,
+				      struct ww_acquire_ctx *ww_ctx))
 {
 	if (chwalk == RT_MUTEX_MIN_CHAINWALK &&
 	    likely(rt_mutex_cmpxchg_acquire(lock, NULL, current))) {
 		rt_mutex_deadlock_account_lock(lock, current);
 		return 0;
 	} else
-		return slowfn(lock, state, timeout, chwalk);
+		return slowfn(lock, state, timeout, chwalk, ww_ctx);
 }
 
 static inline int
@@ -1772,7 +1908,7 @@ void __sched rt_mutex_lock(struct rt_mutex *lock)
 {
 	might_sleep();
 
-	rt_mutex_fastlock(lock, TASK_UNINTERRUPTIBLE, rt_mutex_slowlock);
+	rt_mutex_fastlock(lock, TASK_UNINTERRUPTIBLE, NULL, rt_mutex_slowlock);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock);
 
@@ -1789,7 +1925,7 @@ int __sched rt_mutex_lock_interruptible(struct rt_mutex *lock)
 {
 	might_sleep();
 
-	return rt_mutex_fastlock(lock, TASK_INTERRUPTIBLE, rt_mutex_slowlock);
+	return rt_mutex_fastlock(lock, TASK_INTERRUPTIBLE, NULL, rt_mutex_slowlock);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_interruptible);
 
@@ -1802,7 +1938,7 @@ int rt_mutex_timed_futex_lock(struct rt_mutex *lock,
 	might_sleep();
 
 	return rt_mutex_timed_fastlock(lock, TASK_INTERRUPTIBLE, timeout,
-				       RT_MUTEX_FULL_CHAINWALK,
+				       RT_MUTEX_FULL_CHAINWALK, NULL,
 				       rt_mutex_slowlock);
 }
 
@@ -1821,7 +1957,7 @@ int __sched rt_mutex_lock_killable(struct rt_mutex *lock)
 {
 	might_sleep();
 
-	return rt_mutex_fastlock(lock, TASK_KILLABLE, rt_mutex_slowlock);
+	return rt_mutex_fastlock(lock, TASK_KILLABLE, NULL, rt_mutex_slowlock);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_killable);
 
@@ -1845,6 +1981,7 @@ rt_mutex_timed_lock(struct rt_mutex *lock, struct hrtimer_sleeper *timeout)
 
 	return rt_mutex_timed_fastlock(lock, TASK_INTERRUPTIBLE, timeout,
 				       RT_MUTEX_MIN_CHAINWALK,
+				       NULL,
 				       rt_mutex_slowlock);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_timed_lock);
@@ -2099,7 +2236,7 @@ int rt_mutex_finish_proxy_lock(struct rt_mutex *lock,
 	set_current_state(TASK_INTERRUPTIBLE);
 
 	/* sleep on the mutex */
-	ret = __rt_mutex_slowlock(lock, TASK_INTERRUPTIBLE, to, waiter);
+	ret = __rt_mutex_slowlock(lock, TASK_INTERRUPTIBLE, to, waiter, NULL);
 
 	if (unlikely(ret))
 		remove_waiter(lock, waiter);
@@ -2115,24 +2252,88 @@ int rt_mutex_finish_proxy_lock(struct rt_mutex *lock,
 	return ret;
 }
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-struct ww_mutex {
-};
-struct ww_acquire_ctx {
-};
-int __ww_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ww_ctx)
+static inline int
+ww_mutex_deadlock_injection(struct ww_mutex *lock, struct ww_acquire_ctx *ctx)
 {
-	BUG();
+#ifdef CONFIG_DEBUG_WW_MUTEX_SLOWPATH
+	unsigned tmp;
+
+	if (ctx->deadlock_inject_countdown-- == 0) {
+		tmp = ctx->deadlock_inject_interval;
+		if (tmp > UINT_MAX/4)
+			tmp = UINT_MAX;
+		else
+			tmp = tmp*2 + tmp + tmp/2;
+
+		ctx->deadlock_inject_interval = tmp;
+		ctx->deadlock_inject_countdown = tmp;
+		ctx->contending_lock = lock;
+
+		ww_mutex_unlock(lock);
+
+		return -EDEADLK;
+	}
+#endif
+
+	return 0;
 }
-EXPORT_SYMBOL_GPL(__ww_mutex_lock);
-int __ww_mutex_lock_interruptible(struct ww_mutex *lock, struct ww_acquire_ctx *ww_ctx)
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+int __sched
+__ww_mutex_lock_interruptible(struct ww_mutex *lock, struct ww_acquire_ctx *ww_ctx)
 {
-	BUG();
+	int ret;
+
+	might_sleep();
+
+	mutex_acquire_nest(&lock->base.dep_map, 0, 0, &ww_ctx->dep_map, _RET_IP_);
+	ret = rt_mutex_slowlock(&lock->base.lock, TASK_INTERRUPTIBLE, NULL, 0, ww_ctx);
+	if (ret)
+		mutex_release(&lock->base.dep_map, 1, _RET_IP_);
+	else if (!ret && ww_ctx->acquired > 1)
+		return ww_mutex_deadlock_injection(lock, ww_ctx);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(__ww_mutex_lock_interruptible);
+
+int __sched
+__ww_mutex_lock(struct ww_mutex *lock, struct ww_acquire_ctx *ww_ctx)
+{
+	int ret;
+
+	might_sleep();
+
+	mutex_acquire_nest(&lock->base.dep_map, 0, 0, &ww_ctx->dep_map, _RET_IP_);
+	ret = rt_mutex_slowlock(&lock->base.lock, TASK_UNINTERRUPTIBLE, NULL, 0, ww_ctx);
+	if (ret)
+		mutex_release(&lock->base.dep_map, 1, _RET_IP_);
+	else if (!ret && ww_ctx->acquired > 1)
+		return ww_mutex_deadlock_injection(lock, ww_ctx);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(__ww_mutex_lock);
+
 void __sched ww_mutex_unlock(struct ww_mutex *lock)
 {
-	BUG();
+	int nest = !!lock->ctx;
+
+	/*
+	 * The unlocking fastpath is the 0->1 transition from 'locked'
+	 * into 'unlocked' state:
+	 */
+	if (nest) {
+#ifdef CONFIG_DEBUG_MUTEXES
+		DEBUG_LOCKS_WARN_ON(!lock->ctx->acquired);
+#endif
+		if (lock->ctx->acquired > 0)
+			lock->ctx->acquired--;
+		lock->ctx = NULL;
+	}
+
+	mutex_release(&lock->base.dep_map, nest, _RET_IP_);
+	rt_mutex_unlock(&lock->base.lock);
 }
-EXPORT_SYMBOL_GPL(ww_mutex_unlock);
+EXPORT_SYMBOL(ww_mutex_unlock);
 #endif
