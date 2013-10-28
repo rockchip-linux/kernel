@@ -11,6 +11,7 @@
 
 #include <asm/current.h>
 #include <uapi/linux/wait.h>
+#include <linux/atomic.h>
 
 typedef struct wait_queue_entry wait_queue_entry_t;
 
