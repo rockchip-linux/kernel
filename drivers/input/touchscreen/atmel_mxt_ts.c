@@ -365,6 +365,7 @@ struct mxt_data {
 	u8 T7_config[3];
 	bool T7_config_valid;
 
+	bool suspended;
 	/* T7 IDLEACQINT & ACTVACQINT setting when in suspend mode*/
 	u8 suspend_acq_interval;
 
@@ -2945,7 +2946,7 @@ static int mxt_remove(struct i2c_client *client)
 
 #ifdef CONFIG_PM_SLEEP
 
-static void mxt_suspend_enable_T9(struct mxt_data *data)
+static void mxt_suspend_enable_T9(struct mxt_data *data, u8 current_T9_ctrl)
 {
 	struct device *dev = &data->client->dev;
 	u8 T9_ctrl = MXT_TOUCH_CTRL_ENABLE | MXT_TOUCH_CTRL_RPTEN;
@@ -2954,10 +2955,10 @@ static void mxt_suspend_enable_T9(struct mxt_data *data)
 	bool need_enable = false;
 	bool need_report = false;
 
-	dev_dbg(dev, "Current T9_Ctrl is %x\n", data->T9_ctrl);
+	dev_dbg(dev, "Current T9_Ctrl is %x\n", current_T9_ctrl);
 
-	need_enable = !(data->T9_ctrl & MXT_TOUCH_CTRL_ENABLE);
-	need_report = !(data->T9_ctrl & MXT_TOUCH_CTRL_RPTEN);
+	need_enable = !(current_T9_ctrl & MXT_TOUCH_CTRL_ENABLE);
+	need_report = !(current_T9_ctrl & MXT_TOUCH_CTRL_RPTEN);
 
 	/* If already enabled and reporting, do nothing */
 	if (!need_enable && !need_report)
@@ -2997,12 +2998,14 @@ static int mxt_suspend(struct device *dev)
 			0x00 };
 	static const u8 T7_config_deepsleep[3] = { 0x00, 0x00, 0x00 };
 	const u8 *power_config;
+	u8 current_T9_ctrl = 0;
 	int ret;
 
 	if (mxt_in_bootloader(data))
 		return 0;
 
 	mutex_lock(&input_dev->mutex);
+	data->suspended = true;
 
 	/* Save 3 bytes T7 Power config */
 	ret = mxt_save_regs(data, MXT_GEN_POWER_T7, 0, 0,
@@ -3025,10 +3028,13 @@ static int mxt_suspend(struct device *dev)
 
 	/* Save 1 byte T9 Ctrl config */
 	ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-			    &data->T9_ctrl, 1);
+			    &current_T9_ctrl, 1);
 	if (ret)
 		dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
-	data->T9_ctrl_valid = (ret == 0);
+	if (!data->T9_ctrl_valid && !ret) {
+		data->T9_ctrl_valid = true;
+		data->T9_ctrl = current_T9_ctrl;
+	}
 
 	/*
 	 *  For tpads, save T42 and T19 ctrl registers if may wakeup,
@@ -3076,7 +3082,7 @@ static int mxt_suspend(struct device *dev)
 
 		/* Set proper T9 ENABLE & REPTN bits */
 		if (data->T9_ctrl_valid)
-			mxt_suspend_enable_T9(data);
+			mxt_suspend_enable_T9(data, current_T9_ctrl);
 
 		/* Enable wake from IRQ */
 		data->irq_wake = (enable_irq_wake(data->irq) == 0);
@@ -3117,6 +3123,7 @@ static int mxt_resume(struct device *dev)
 		if (ret)
 			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
 	}
+	data->T9_ctrl_valid = false;
 
 	/* Restore the T7 Power config to before-suspend value */
 	if (data->T7_config_valid) {
@@ -3160,6 +3167,7 @@ static int mxt_resume(struct device *dev)
 		msleep(MXT_CAL_TIME);
 	}
 
+	data->suspended = false;
 	mutex_unlock(&input_dev->mutex);
 
 	enable_irq(data->irq);
@@ -3235,19 +3243,39 @@ static bool lid_event_filter(struct input_handle *handle,
 			     unsigned int type, unsigned int code, int value)
 {
 	struct mxt_data *data = handle->private;
+	struct device *dev = &data->client->dev;
+	int ret;
 
 	if (type == EV_SW && code == SW_LID) {
 		if (mxt_in_bootloader(data))
 			return false;
+
 		pr_info("atmel %s: %s touch device\n",
 			dev_name(&data->client->dev),
 			(value ? "disable" : "enable"));
-		data->T9_ctrl_valid = true;
+		if (data->suspended) {
+			/*
+			 * If the lid event filter is called while suspended,
+			 * there is no guarantee that the underlying i2cs are
+			 * resumed at this point, so it is not safe to try to
+			 * resume the device.
+			 * Instead, rely on mxt_resume to resume the device.
+			 */
+			pr_info("atmel %s: skipping lid pm change in suspend\n",
+				dev_name(&data->client->dev));
+			return false;
+		}
 		if (value == 0) {
-			data->T9_ctrl = MXT_TOUCH_CTRL_OPERATIONAL;
+			data->T9_ctrl_valid = false;
 			mxt_start(data);
 		} else {
-			data->T9_ctrl = MXT_TOUCH_CTRL_OFF;
+			/* Save 1 byte T9 Ctrl config */
+			ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+					    &data->T9_ctrl, 1);
+			if (ret)
+				dev_err(dev, "Save T9 ctrl config failed, %d\n",
+					ret);
+			data->T9_ctrl_valid = (ret == 0);
 			mxt_stop(data);
 		}
 	}
