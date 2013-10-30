@@ -240,6 +240,12 @@ static struct i2c_board_info pn544_hci_device = {
 	.flags = I2C_CLIENT_WAKE,
 };
 
+static struct i2c_board_info atmel_samus_device = {
+	I2C_BOARD_INFO("atmel_mxt_ts", ATMEL_TP_I2C_ADDR),
+	.platform_data = NULL,
+	.flags		= I2C_CLIENT_WAKE,
+};
+
 static struct i2c_client *__add_probed_i2c_device(
 		const char *name,
 		int bus,
@@ -413,6 +419,20 @@ static int setup_pn544_hci_samus(enum i2c_adapter_type type)
 
 	/* add pn544 nfc device */
 	nfc = add_i2c_device("nfc", type, &pn544_hci_device);
+	return (!ts) ? -EAGAIN : 0;
+}
+
+static int setup_atmel_samus_ts(enum i2c_adapter_type type)
+{
+	const unsigned short addr_list[] = { ATMEL_TP_I2C_BL_ADDR,
+					     ATMEL_TP_I2C_ADDR,
+					     I2C_CLIENT_END };
+	if (ts)
+		return 0;
+
+	/* add atmel mxt touch device */
+	ts = add_probed_i2c_device("touchscreen", type,
+				   &atmel_samus_device, addr_list);
 	return (!ts) ? -EAGAIN : 0;
 }
 
@@ -641,6 +661,8 @@ static struct chromeos_laptop samus = {
 		{. add = setup_atmel_224s_tp, I2C_ADAPTER_I2C0 },
 		/* NFC. */
 		{ .add = setup_pn544_hci_samus, I2C_ADAPTER_I2C0 },
+		/* Touchscreen. */
+		{ .add = setup_atmel_samus_ts, I2C_ADAPTER_I2C1 },
 	},
 	.has_keyboard_backlight = true,
 };
