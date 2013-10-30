@@ -69,6 +69,7 @@
 #define MXT_GEN_ACQUIRE_T8		8
 #define MXT_GEN_DATASOURCE_T53		53
 #define MXT_TOUCH_MULTI_T9		9
+#define MXT_TOUCH_MULTI_T100		100
 #define MXT_TOUCH_KEYARRAY_T15		15
 #define MXT_TOUCH_PROXIMITY_T23		23
 #define MXT_TOUCH_PROXKEY_T52		52
@@ -99,6 +100,7 @@
 #define MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70	70
 #define MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71	71
 #define MXT_PROCG_NOISESUPPRESSION_T72	72
+#define MXT_TOUCH_MULTITOUCHSCREEN_T100 100
 
 /* MXT_GEN_COMMAND_T6 field */
 #define MXT_COMMAND_RESET	0
@@ -157,6 +159,17 @@
 #define MXT_TOUCH_YEDGECTRL	28
 #define MXT_TOUCH_YEDGEDIST	29
 #define MXT_TOUCH_JUMPLIMIT	30
+
+/* T100 Multiple Touch Touchscreen */
+#define MXT_T100_CTRL      0
+#define MXT_T100_CFG1      1
+#define MXT_T100_TCHAUX    3
+#define MXT_T100_XRANGE    13
+#define MXT_T100_YRANGE    24
+#define MXT_T100_XSIZE     9
+#define MXT_T100_YSIZE     20
+
+#define MXT_T100_CFG_SWITCHXY  (1 << 5)
 
 /* MXT_TOUCH_CTRL bits */
 #define MXT_TOUCH_CTRL_ENABLE	(1 << 0)
@@ -332,8 +345,13 @@ struct mxt_data {
 	unsigned int max_area_pixels;
 	unsigned int max_area_channels;
 
+	unsigned int num_touchids;
+
 	u32 info_csum;
 	u32 config_csum;
+
+	bool has_T9;
+	bool has_T100;
 
 	/* Cached parameters from object table */
 	u16 T5_address;
@@ -342,6 +360,8 @@ struct mxt_data {
 	u8 T9_reportid_max;
 	u8 T19_reportid;
 	u16 T44_address;
+	u8 T100_reportid_min;
+	u8 T100_reportid_max;
 
 	/* for fw update in bootloader */
 	struct completion bl_completion;
@@ -372,6 +392,9 @@ struct mxt_data {
 	/* Saved T9 Ctrl field */
 	u8 T9_ctrl;
 	bool T9_ctrl_valid;
+
+	u8 T100_ctrl;
+	bool T100_ctrl_valid;
 
 	bool irq_wake;  /* irq wake is enabled */
 	/* Saved T42 Touch Suppression field */
@@ -406,7 +429,8 @@ struct mxt_data {
 /* global root node of the atmel_mxt_ts debugfs directory. */
 static struct dentry *mxt_debugfs_root;
 
-static int mxt_calc_resolution(struct mxt_data *data);
+static int mxt_calc_resolution_T9(struct mxt_data *data);
+static int mxt_calc_resolution_T100(struct mxt_data *data);
 static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
@@ -462,6 +486,7 @@ static bool mxt_object_readable(unsigned int type)
 	case MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70:
 	case MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71:
 	case MXT_PROCG_NOISESUPPRESSION_T72:
+	case MXT_TOUCH_MULTITOUCHSCREEN_T100:
 		return true;
 	default:
 		return false;
@@ -797,7 +822,7 @@ mxt_get_object(struct mxt_data *data, u8 type)
 			return object;
 	}
 
-	dev_err(&data->client->dev, "Invalid object type\n");
+	dev_err(&data->client->dev, "Invalid object type %d\n", type);
 	return NULL;
 }
 
@@ -876,7 +901,7 @@ static int get_touch_major_pixels(struct mxt_data *data, int touch_channels)
 }
 
 static void mxt_input_touchevent(struct mxt_data *data,
-				      struct mxt_message *message, int id)
+				 struct mxt_message *message, int id)
 {
 	struct device *dev = &data->client->dev;
 	u8 status = message->message[0];
@@ -930,6 +955,51 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	}
 }
 
+static void mxt_input_touchevent_T100(struct mxt_data *data,
+				      struct mxt_message *message)
+{
+	struct device *dev = &data->client->dev;
+	int id;
+	u8 status = message->message[0];
+	struct input_dev *input_dev = data->input_dev;
+	int x;
+	int y;
+	int area;
+	int pressure;
+	int touch_major;
+
+	id = message->reportid - data->T100_reportid_min - 2;
+	/* Don't process the first & second report ID. */
+	if (id < 0)
+		return;
+
+	x = (message->message[2] << 8) | message->message[1];
+	y = (message->message[4] << 8) | message->message[3];
+
+	/* TODO: Read the vect/ampl/area according to T100.TCHAUX setting. */
+	area = 0;
+	touch_major = 0;
+	pressure = 0;
+
+	dev_info(dev,
+		"[%u] %c x: %5u y: %5u\n",
+		id,
+		(status & MXT_DETECT) ? 'D' : '.',
+		x, y);
+
+	input_mt_slot(input_dev, id);
+	input_mt_report_slot_state(input_dev, MT_TOOL_FINGER,
+				   status & MXT_DETECT);
+	data->current_id[id] = status & MXT_DETECT;
+
+	if (status & MXT_DETECT) {
+		input_report_abs(input_dev, ABS_MT_POSITION_X, x);
+		input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
+		input_report_abs(input_dev, ABS_MT_PRESSURE, pressure);
+		input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, touch_major);
+	}
+}
+
 static unsigned mxt_extract_T6_csum(const u8 *csum)
 {
 	return csum[0] | (csum[1] << 8) | (csum[2] << 16);
@@ -939,6 +1009,12 @@ static bool mxt_is_T9_message(struct mxt_data *data, struct mxt_message *msg)
 {
 	u8 id = msg->reportid;
 	return (id >= data->T9_reportid_min && id <= data->T9_reportid_max);
+}
+
+static bool mxt_is_T100_message(struct mxt_data *data, struct mxt_message *msg)
+{
+	u8 id = msg->reportid;
+	return (id >= data->T100_reportid_min && id <= data->T100_reportid_max);
 }
 
 static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
@@ -979,6 +1055,9 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 			update_input = true;
 		} else if (msg->reportid == data->T19_reportid) {
 			mxt_input_button(data, msg);
+			update_input = true;
+		} else if (mxt_is_T100_message(data, msg)) {
+			mxt_input_touchevent_T100(data, msg);
 			update_input = true;
 		}
 	}
@@ -1371,12 +1450,20 @@ static int mxt_get_object_table(struct mxt_data *data)
 		case MXT_TOUCH_MULTI_T9:
 			data->T9_reportid_min = min_id;
 			data->T9_reportid_max = max_id;
+			data->num_touchids = object->num_report_ids;
+			data->has_T9 = true;
 			break;
 		case MXT_SPT_GPIOPWM_T19:
 			data->T19_reportid = min_id;
 			break;
 		case MXT_SPT_MESSAGECOUNT_T44:
 			data->T44_address = object->start_address;
+			break;
+		case MXT_TOUCH_MULTITOUCHSCREEN_T100:
+			data->T100_reportid_min = min_id;
+			data->T100_reportid_max = max_id;
+			data->num_touchids = object->num_report_ids - 2;
+			data->has_T100 = true;
 			break;
 		}
 	}
@@ -1392,6 +1479,9 @@ static void mxt_free_object_table(struct mxt_data *data)
 	data->T9_reportid_min = 0;
 	data->T9_reportid_max = 0;
 	data->T19_reportid = 0;
+	data->T100_reportid_min = 0;
+	data->T100_reportid_max = 0;
+
 }
 
 static int mxt_initialize(struct mxt_data *data)
@@ -1446,7 +1536,76 @@ err_free_object_table:
 	return error;
 }
 
-static int mxt_calc_resolution(struct mxt_data *data)
+static int mxt_calc_resolution_T100(struct mxt_data *data)
+{
+	struct i2c_client *client = data->client;
+	u8 orient;
+	__le16 xyrange[2];
+	unsigned int max_x, max_y;
+	u8 xylines[2];
+	int ret;
+
+	struct mxt_object *T100 = mxt_get_object(
+		data, MXT_TOUCH_MULTITOUCHSCREEN_T100);
+	if (!T100)
+		return -EINVAL;
+
+	/* Get touchscreen resolution */
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_XRANGE,
+			2, &xyrange[0]);
+	if (ret)
+		return ret;
+
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_YRANGE,
+			2, &xyrange[1]);
+	if (ret)
+		return ret;
+
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_CFG1,
+			1, &orient);
+	if (ret)
+		return ret;
+
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_XSIZE,
+			1, &xylines[0]);
+	if (ret)
+		return ret;
+
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_YSIZE,
+			1, &xylines[1]);
+	if (ret)
+		return ret;
+
+	/* TODO: Read the TCHAUX field and save the VECT/AMPL/AREA config. */
+
+	max_x = le16_to_cpu(xyrange[0]);
+	max_y = le16_to_cpu(xyrange[1]);
+
+	if (max_x == 0)
+		max_x = 1023;
+
+	if (max_y == 0)
+		max_y = 1023;
+
+	if (orient & MXT_T100_CFG_SWITCHXY) {
+		data->max_x = max_y;
+		data->max_y = max_x;
+	} else {
+		data->max_x = max_x;
+		data->max_y = max_y;
+	}
+
+	data->max_area_pixels = max_x * max_y;
+	data->max_area_channels = xylines[0] * xylines[1];
+
+	dev_info(&client->dev,
+		 "T100 Config: XSIZE %u, YSIZE %u, XLINE %u, YLINE %u",
+		 max_x, max_y, xylines[0], xylines[1]);
+
+	return 0;
+}
+
+static int mxt_calc_resolution_T9(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
 	u8 orient;
@@ -1488,6 +1647,10 @@ static int mxt_calc_resolution(struct mxt_data *data)
 
 	data->max_area_pixels = max_x * max_y;
 	data->max_area_channels = xylines[0] * xylines[1];
+
+	dev_info(&client->dev,
+		 "T9 Config: XSIZE %u, YSIZE %u, XLINE %u, YLINE %u",
+		 max_x, max_y, xylines[0], xylines[1]);
 
 	return 0;
 }
@@ -2654,15 +2817,23 @@ static int mxt_set_regs(struct mxt_data *data, u8 type, u8 instance,
 static void mxt_start(struct mxt_data *data)
 {
 	/* Enable touch reporting */
-	mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
-			 MXT_TOUCH_CTRL_OPERATIONAL);
+	if (data->has_T9)
+		mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
+				 MXT_TOUCH_CTRL_OPERATIONAL);
+	else
+		mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100,
+				 MXT_T100_CTRL, MXT_TOUCH_CTRL_OPERATIONAL);
 }
 
 static void mxt_stop(struct mxt_data *data)
 {
 	/* Disable touch reporting */
-	mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
-			 MXT_TOUCH_CTRL_OFF);
+	if (data->has_T9)
+		mxt_write_object(data, MXT_TOUCH_MULTI_T9, MXT_TOUCH_CTRL,
+				 MXT_TOUCH_CTRL_OFF);
+	else
+		mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100,
+				 MXT_T100_CTRL, MXT_TOUCH_CTRL_OFF);
 }
 
 static int mxt_input_open(struct input_dev *dev)
@@ -2686,7 +2857,6 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	const struct mxt_platform_data *pdata = data->pdata;
 	struct input_dev *input_dev;
 	int error;
-	unsigned int num_mt_slots;
 	int max_area_channels;
 	int max_touch_major;
 
@@ -2694,7 +2864,10 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	if (mxt_in_bootloader(data))
 		return 0;
 
-	error = mxt_calc_resolution(data);
+	if (data->has_T9)
+		error = mxt_calc_resolution_T9(data);
+	else
+		error = mxt_calc_resolution_T100(data);
 	if (error)
 		return error;
 
@@ -2759,8 +2932,7 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	input_abs_set_res(input_dev, ABS_Y, MXT_PIXELS_PER_MM);
 
 	/* For multi touch */
-	num_mt_slots = data->T9_reportid_max - data->T9_reportid_min + 1;
-	error = input_mt_init_slots(input_dev, num_mt_slots, 0);
+	error = input_mt_init_slots(input_dev, data->num_touchids, 0);
 	if (error)
 		goto err_free_device;
 
@@ -2999,6 +3171,7 @@ static int mxt_suspend(struct device *dev)
 	static const u8 T7_config_deepsleep[3] = { 0x00, 0x00, 0x00 };
 	const u8 *power_config;
 	u8 current_T9_ctrl = 0;
+	u8 current_T100_ctrl = 0;
 	int ret;
 
 	if (mxt_in_bootloader(data))
@@ -3026,14 +3199,27 @@ static int mxt_suspend(struct device *dev)
 	if (ret)
 		dev_err(dev, "Set T7 Power config failed, %d\n", ret);
 
-	/* Save 1 byte T9 Ctrl config */
-	ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-			    &current_T9_ctrl, 1);
-	if (ret)
-		dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
-	if (!data->T9_ctrl_valid && !ret) {
-		data->T9_ctrl_valid = true;
-		data->T9_ctrl = current_T9_ctrl;
+	if (data->has_T9) {
+		/* Save 1 byte T9 Ctrl config */
+		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+				    &current_T9_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
+		if (!data->T9_ctrl_valid && !ret) {
+			data->T9_ctrl_valid = true;
+			data->T9_ctrl = current_T9_ctrl;
+		}
+	}
+	if (data->has_T100) {
+		/* Save 1 byte T100 Ctrl config */
+		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
+				    &current_T100_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T100 ctrl config failed, %d\n", ret);
+		if (!data->T100_ctrl_valid && !ret) {
+			data->T100_ctrl_valid = true;
+			data->T100_ctrl = current_T100_ctrl;
+		}
 	}
 
 	/*
@@ -3081,7 +3267,7 @@ static int mxt_suspend(struct device *dev)
 		 */
 
 		/* Set proper T9 ENABLE & REPTN bits */
-		if (data->T9_ctrl_valid)
+		if (data->has_T9 && data->T9_ctrl_valid)
 			mxt_suspend_enable_T9(data, current_T9_ctrl);
 
 		/* Enable wake from IRQ */
@@ -3117,13 +3303,21 @@ static int mxt_resume(struct device *dev)
 	mutex_lock(&input_dev->mutex);
 
 	/* Restore the T9 Ctrl config to before-suspend value */
-	if (data->T9_ctrl_valid) {
+	if (data->has_T9 && data->T9_ctrl_valid) {
 		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
 				   &data->T9_ctrl, 1);
 		if (ret)
 			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
 	}
 	data->T9_ctrl_valid = false;
+
+	if (data->has_T100 && data->T100_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
+				   &data->T100_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T100 ctrl config failed, %d\n", ret);
+	}
+	data->T100_ctrl_valid = false;
 
 	/* Restore the T7 Power config to before-suspend value */
 	if (data->T7_config_valid) {
