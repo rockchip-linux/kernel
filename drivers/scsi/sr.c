@@ -81,7 +81,9 @@ static const char *const VENDOR_BLACKLIST[] = {
 	 * Entries should be eight characters or less (w/o the terminator),
 	 * to match the vendor field in SCSI Inquiry response.
 	 */
+	"HSPA",
 	"HUAWEI",
+	"USBModem",
 	"ZTE",
 	NULL
 };
