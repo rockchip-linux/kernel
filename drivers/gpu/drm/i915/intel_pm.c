@@ -203,8 +203,6 @@ static void sandybridge_blit_fbc_update(struct drm_device *dev)
 	gen6_gt_force_wake_get(dev_priv, FORCEWAKE_MEDIA);
 
 	blt_ecoskpd = I915_READ(GEN6_BLITTER_ECOSKPD);
-	blt_ecoskpd |= GEN6_BLITTER_FBC_NOTIFY <<
-		GEN6_BLITTER_LOCK_SHIFT;
 	I915_WRITE(GEN6_BLITTER_ECOSKPD, blt_ecoskpd);
 	blt_ecoskpd |= GEN6_BLITTER_FBC_NOTIFY;
 	I915_WRITE(GEN6_BLITTER_ECOSKPD, blt_ecoskpd);

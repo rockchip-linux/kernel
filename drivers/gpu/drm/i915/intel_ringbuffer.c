@@ -1724,9 +1724,33 @@ static void gen6_bsd_ring_write_tail(struct intel_ring_buffer *ring,
 		   _MASKED_BIT_DISABLE(GEN6_BSD_SLEEP_MSG_DISABLE));
 }
 
+static int gen6_bsd_ring_fbc_flush(struct intel_ring_buffer *ring)
+{
+	int ret;
+
+	if (!ring->fbc_dirty)
+		return 0;
+
+	ret = intel_ring_begin(ring, 4);
+	if (ret)
+		return ret;
+
+	intel_ring_emit(ring, MI_NOOP);
+	intel_ring_emit(ring, MI_LOAD_REGISTER_IMM(1));
+	intel_ring_emit(ring, GEN6_BLITTER_ECOSKPD);
+	intel_ring_emit(ring,
+			_MASKED_BIT_ENABLE(GEN6_BLITTER_FBC_NOTIFY));
+	intel_ring_advance(ring);
+
+	ring->fbc_dirty = false;
+	return 0;
+}
+
+
 static int gen6_bsd_ring_flush(struct intel_ring_buffer *ring,
 			       u32 invalidate, u32 flush)
 {
+	struct drm_device *dev = ring->dev;
 	uint32_t cmd;
 	int ret;
 
@@ -1756,6 +1780,10 @@ static int gen6_bsd_ring_flush(struct intel_ring_buffer *ring,
 		intel_ring_emit(ring, MI_NOOP);
 	}
 	intel_ring_advance(ring);
+
+	if (IS_GEN6(dev) && flush)
+		return gen6_bsd_ring_fbc_flush(ring);
+
 	return 0;
 }
 
