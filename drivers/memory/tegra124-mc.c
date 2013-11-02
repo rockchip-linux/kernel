@@ -58,7 +58,17 @@ static struct platform_driver tegra124_mc_driver = {
 	},
 };
 
-module_platform_driver(tegra124_mc_driver);
+static int __init tegra124_mc_init(void)
+{
+	return platform_driver_register(&tegra124_mc_driver);
+}
+arch_initcall(tegra124_mc_init);
+
+static void __exit tegra124_mc_exit(void)
+{
+	platform_driver_unregister(&tegra124_mc_driver);
+}
+module_exit(tegra124_mc_exit);
 
 MODULE_DESCRIPTION("Tegra124 MC driver");
 MODULE_LICENSE("GPL v2");
