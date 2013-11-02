@@ -23,6 +23,7 @@
 #include <linux/delay.h>
 #include <linux/export.h>
 #include <linux/clk/tegra.h>
+#include <linux/platform_data/tegra_emc.h>
 #include <dt-bindings/clock/tegra124-car.h>
 
 #include "clk.h"
@@ -1223,6 +1224,22 @@ static void tegra124_utmi_param_configure(void __iomem *clk_base)
 	writel_relaxed(reg, clk_base + UTMIPLL_HW_PWRDN_CFG0);
 }
 
+static struct tegra_clk_periph tegra_emc_periph =
+	TEGRA_CLK_PERIPH(29, 7, 0, 0, 8, 1, 0, TEGRA124_CLK_EMC, 0, NULL, NULL);
+
+static __init void tegra124_emc_clk_init(void __iomem *clk_base)
+{
+	struct clk *clk;
+	const struct emc_clk_ops *emc_ops;
+
+	emc_ops = tegra124_emc_get_ops();
+	clk = tegra_clk_register_emc("emc", mux_pllmcp_clkm,
+		ARRAY_SIZE(mux_pllmcp_clkm), &tegra_emc_periph, clk_base,
+		CLK_SOURCE_EMC, CLK_IGNORE_UNUSED | CLK_GET_RATE_NOCACHE,
+		emc_ops);
+	clks[TEGRA124_CLK_EMC] = clk;
+}
+
 static __init void tegra124_periph_clk_init(void __iomem *clk_base,
 					    void __iomem *pmc_base)
 {
@@ -1249,12 +1266,6 @@ static __init void tegra124_periph_clk_init(void __iomem *clk_base,
 			       ARRAY_SIZE(mux_plld_out0_plld2_out0), 0,
 			       clk_base + PLLD2_BASE, 25, 1, 0, &pll_d2_lock);
 	clks[TEGRA124_CLK_DSIB_MUX] = clk;
-
-	/* emc mux */
-	clk = clk_register_mux(NULL, "emc_mux", mux_pllmcp_clkm,
-			       ARRAY_SIZE(mux_pllmcp_clkm), 0,
-			       clk_base + CLK_SOURCE_EMC,
-			       29, 3, 0, NULL);
 
 	/* cml0 */
 	clk = clk_register_gate(NULL, "cml0", "pll_e", 0, clk_base + PLLE_AUX,
@@ -1679,6 +1690,7 @@ static void __init tegra124_clock_init(struct device_node *np)
 	tegra_fixed_clk_init(tegra124_clks);
 	tegra124_pll_init(clk_base, pmc_base);
 	tegra124_periph_clk_init(clk_base, pmc_base);
+	tegra124_emc_clk_init(clk_base);
 	tegra_audio_clk_init(clk_base, pmc_base, tegra124_clks, &pll_a_params);
 	tegra_pmc_clk_init(pmc_base, tegra124_clks);
 
