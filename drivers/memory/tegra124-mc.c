@@ -24,6 +24,7 @@
 #define DRV_NAME "tegra124-mc"
 
 static void __iomem *tegra_mc_base;
+static bool tegra_mc_init_done;
 
 u32 tegra124_mc_readl(u32 offs)
 {
@@ -37,9 +38,18 @@ void tegra124_mc_writel(u32 val, u32 offs)
 }
 EXPORT_SYMBOL(tegra124_mc_writel);
 
+bool tegra124_mc_is_ready(void)
+{
+	return tegra_mc_init_done;
+}
+EXPORT_SYMBOL(tegra124_mc_is_ready);
+
 static int tegra124_mc_probe(struct platform_device *pdev)
 {
 	tegra_mc_base = of_iomap(pdev->dev.of_node, 0);
+
+	if (tegra_mc_base)
+		tegra_mc_init_done = true;
 
 	return 0;
 }
