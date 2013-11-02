@@ -511,6 +511,29 @@ struct tegra_periph_init_data {
 			NULL, 0, NULL)
 
 /**
+ * struct clk-emc - emc clock
+ *
+ * @hw:		handle between common and hardware-specific interfaces
+ * @periph:	periph clock
+ * @periph_ops:	periph clock ops
+ * @emc_ops:	emc ops
+ */
+struct tegra_clk_emc {
+	struct clk_hw			hw;
+	struct tegra_clk_periph		*periph;
+
+	const struct clk_ops		*periph_ops;
+	const struct emc_clk_ops	*emc_ops;
+};
+
+#define to_clk_emc(_hw) container_of(_hw, struct tegra_clk_emc, hw)
+
+struct clk *tegra_clk_register_emc(const char *name, const char **parent_names,
+	int num_parents, struct tegra_clk_periph *periph,
+	void __iomem *clk_base, u32 offset, unsigned long flags,
+	const struct emc_clk_ops *emc_ops);
+
+/**
  * struct clk_super_mux - super clock
  *
  * @hw:		handle between common and hardware-specific interfaces
