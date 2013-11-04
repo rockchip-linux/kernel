@@ -17,6 +17,7 @@
  */
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/freezer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
@@ -229,8 +230,11 @@ static struct tps65090_platform_data *
 
 static int tps65090_charger_poll_task(void *data)
 {
+	set_freezable();
+
 	while (!kthread_should_stop()) {
 		schedule_timeout_interruptible(POLL_INTERVAL);
+		try_to_freeze();
 		tps65090_charger_isr(-1, data);
 	}
 	return 0;
