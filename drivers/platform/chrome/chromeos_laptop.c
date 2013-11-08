@@ -29,6 +29,7 @@
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/platform_data/pn544.h>
 
 #define ATMEL_TP_I2C_ADDR	0x4b
 #define ATMEL_TP_I2C_BL_ADDR	0x25
@@ -37,12 +38,14 @@
 #define CYAPA_TP_I2C_ADDR	0x67
 #define ISL_ALS_I2C_ADDR	0x44
 #define TAOS_ALS_I2C_ADDR	0x29
+#define PN544_HCI_I2C_ADDR	0x28
 
 #define MAX_I2C_DEVICE_DEFERRALS	5
 
 static struct i2c_client *als;
 static struct i2c_client *tp;
 static struct i2c_client *ts;
+static struct i2c_client *nfc;
 
 static const char *i2c_adapter_names[] = {
 	"SMBus I801 adapter",
@@ -144,6 +147,87 @@ static struct i2c_board_info atmel_1664s_device = {
 	I2C_BOARD_INFO("atmel_mxt_ts", ATMEL_TS_I2C_ADDR),
 	.platform_data = &atmel_1664s_platform_data,
 	.flags		= I2C_CLIENT_WAKE,
+};
+
+static int nfc_gpio_enable = -1;
+static int nfc_gpio_fw_reset = -1;
+static int nfc_gpio_irq = -1;
+
+static int pn544_get_gpio(int type)
+{
+	switch (type) {
+	case NFC_GPIO_ENABLE:
+		return nfc_gpio_enable;
+	case NFC_GPIO_FW_RESET:
+		return nfc_gpio_fw_reset;
+	case NFC_GPIO_IRQ:
+		return nfc_gpio_irq;
+	}
+	return -1;
+}
+
+static int pn544_request_resources(struct i2c_client *client)
+{
+	int ret;
+
+	ret = gpio_request_one(pn544_get_gpio(NFC_GPIO_ENABLE),
+			GPIOF_OUT_INIT_LOW,
+			"NFC enable");
+	if (ret < 0)
+		return ret;
+
+	ret = gpio_request_one(pn544_get_gpio(NFC_GPIO_FW_RESET),
+			GPIOF_OUT_INIT_LOW,
+			"NFC FW reset");
+	if (ret < 0)
+		goto fail_free_enable;
+
+	ret = gpio_request_one(pn544_get_gpio(NFC_GPIO_IRQ),
+			GPIOF_IN,
+			"NFC interrupt");
+	if (ret < 0)
+		goto fail_free_reset;
+
+	client->irq = gpio_to_irq(pn544_get_gpio(NFC_GPIO_IRQ));
+	return 0;
+
+fail_free_reset:
+	gpio_free(pn544_get_gpio(NFC_GPIO_FW_RESET));
+fail_free_enable:
+	gpio_free(pn544_get_gpio(NFC_GPIO_ENABLE));
+	return ret;
+}
+
+static void pn544_free_resources(void)
+{
+	gpio_free(pn544_get_gpio(NFC_GPIO_IRQ));
+	gpio_free(pn544_get_gpio(NFC_GPIO_FW_RESET));
+	gpio_free(pn544_get_gpio(NFC_GPIO_ENABLE));
+}
+
+static void pn544_enable(int fw)
+{
+	gpio_set_value(pn544_get_gpio(NFC_GPIO_ENABLE), 1);
+	gpio_set_value(pn544_get_gpio(NFC_GPIO_FW_RESET), !!fw);
+}
+
+static void pn544_disable(void)
+{
+	gpio_set_value(pn544_get_gpio(NFC_GPIO_ENABLE), 0);
+}
+
+static struct pn544_nfc_platform_data pn544_platform_data = {
+	.request_resources = pn544_request_resources,
+	.free_resources = pn544_free_resources,
+	.enable = pn544_enable,
+	.disable = pn544_disable,
+	.get_gpio = pn544_get_gpio,
+};
+
+static struct i2c_board_info pn544_hci_device = {
+	I2C_BOARD_INFO("pn544", PN544_HCI_I2C_ADDR),
+	.platform_data = &pn544_platform_data,
+	.flags = I2C_CLIENT_WAKE,
 };
 
 static struct i2c_client *__add_probed_i2c_device(
@@ -304,6 +388,21 @@ static int setup_atmel_1664s_ts(enum i2c_adapter_type type)
 	/* add atmel mxt touch device */
 	ts = add_probed_i2c_device("touchscreen", type,
 				   &atmel_1664s_device, addr_list);
+	return (!ts) ? -EAGAIN : 0;
+}
+
+static int setup_pn544_hci_samus(enum i2c_adapter_type type)
+{
+	if (nfc)
+		return 0;
+
+	/* setup the NFC GPIOs */
+	nfc_gpio_enable = 162 + 26;	/* GPIO26 on Samus */
+	nfc_gpio_fw_reset = 162 + 64;	/* GPIO64 on Samus */
+	nfc_gpio_irq = 162 + 28;	/* GPIO28 on Samus */
+
+	/* add pn544 nfc device */
+	nfc = add_i2c_device("nfc", type, &pn544_hci_device);
 	return (!ts) ? -EAGAIN : 0;
 }
 
@@ -530,6 +629,8 @@ static struct chromeos_laptop samus = {
 	.i2c_peripherals = {
 		/* Touchpad. */
 		{. add = setup_atmel_224s_tp, I2C_ADAPTER_I2C0 },
+		/* NFC. */
+		{ .add = setup_pn544_hci_samus, I2C_ADAPTER_I2C0 },
 	},
 	.has_keyboard_backlight = true,
 };
@@ -695,6 +796,8 @@ static void __exit chromeos_laptop_exit(void)
 {
 	if (als)
 		i2c_unregister_device(als);
+	if (nfc)
+		i2c_unregister_device(nfc);
 	if (tp)
 		i2c_unregister_device(tp);
 	if (ts)
