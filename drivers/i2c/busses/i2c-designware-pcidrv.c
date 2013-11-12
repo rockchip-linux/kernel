@@ -57,6 +57,14 @@ enum dw_pci_ctl_id_t {
 
 	haswell_0,
 	haswell_1,
+
+	baytrail_0,
+	baytrail_1,
+	baytrail_2,
+	baytrail_3,
+	baytrail_4,
+	baytrail_5,
+	baytrail_6,
 };
 
 struct dw_pci_controller {
@@ -149,6 +157,55 @@ static struct  dw_pci_controller  dw_pci_controllers[] = {
 		.rx_fifo_depth = 32,
 		.clk_khz      = 25000,
 	},
+	[baytrail_0] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
+	[baytrail_1] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
+	[baytrail_2] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
+	[baytrail_3] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
+	[baytrail_4] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
+	[baytrail_5] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
+	[baytrail_6] = {
+		.bus_num     = -1,
+		.bus_cfg   = INTEL_MID_STD_CFG | DW_IC_CON_SPEED_STD,
+		.tx_fifo_depth = 32,
+		.rx_fifo_depth = 32,
+		.clk_khz      = 25000,
+	},
 };
 static struct i2c_algorithm i2c_dw_algo = {
 	.master_xfer	= i2c_dw_xfer,
@@ -224,6 +281,34 @@ static u32 i2c_dw_get_clk_rate_khz(struct dw_i2c_dev *dev)
 	return dev->controller->clk_khz;
 }
 
+static void adapter_fill_name(struct i2c_adapter *adap,
+			      const struct pci_device_id *id)
+{
+	int adapter_num;
+
+	switch (id->driver_data) {
+	case haswell_0:
+	case haswell_1:
+		adapter_num = id->driver_data - haswell_0;
+		break;
+	case baytrail_0:
+	case baytrail_1:
+	case baytrail_2:
+	case baytrail_3:
+	case baytrail_4:
+	case baytrail_5:
+	case baytrail_6:
+		adapter_num = id->driver_data - baytrail_0;
+		break;
+	default:
+		adapter_num = adap->nr;
+		break;
+	}
+
+	snprintf(adap->name, sizeof(adap->name), "i2c-designware-pci-%d",
+		 adapter_num);
+}
+
 static int i2c_dw_pci_probe(struct pci_dev *pdev,
 			    const struct pci_device_id *id)
 {
@@ -287,8 +372,7 @@ static int i2c_dw_pci_probe(struct pci_dev *pdev,
 	adap->algo = &i2c_dw_algo;
 	adap->dev.parent = &pdev->dev;
 	adap->nr = controller->bus_num;
-	snprintf(adap->name, sizeof(adap->name), "i2c-designware-pci-%ld",
-		 (adap->nr < 0) ? id->driver_data - haswell_0 : adap->nr);
+	adapter_fill_name(adap, id);
 
 	r = devm_request_irq(&pdev->dev, pdev->irq, i2c_dw_isr, IRQF_SHARED,
 			adap->name, dev);
@@ -341,6 +425,15 @@ static DEFINE_PCI_DEVICE_TABLE(i2_designware_pci_ids) = {
 	/* Haswell ULT */
 	{ PCI_VDEVICE(INTEL, 0x9c61), haswell_0 },
 	{ PCI_VDEVICE(INTEL, 0x9c62), haswell_1 },
+	/* Bay Trail */
+	{ PCI_VDEVICE(INTEL, 0x0f41), baytrail_0 },
+	{ PCI_VDEVICE(INTEL, 0x0f42), baytrail_1 },
+	{ PCI_VDEVICE(INTEL, 0x0f43), baytrail_2 },
+	{ PCI_VDEVICE(INTEL, 0x0f44), baytrail_3 },
+	{ PCI_VDEVICE(INTEL, 0x0f45), baytrail_4 },
+	{ PCI_VDEVICE(INTEL, 0x0f46), baytrail_5 },
+	{ PCI_VDEVICE(INTEL, 0x0f47), baytrail_6 },
+
 	{ 0,}
 };
 MODULE_DEVICE_TABLE(pci, i2_designware_pci_ids);
