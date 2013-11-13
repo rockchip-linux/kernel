@@ -53,6 +53,11 @@ static const char *i2c_adapter_names[] = {
 	"i915 gmbus panel",
 	"i2c-designware-pci-0",
 	"i2c-designware-pci-1",
+	"i2c-designware-pci-2",
+	"i2c-designware-pci-3",
+	"i2c-designware-pci-4",
+	"i2c-designware-pci-5",
+	"i2c-designware-pci-6",
 };
 
 /* Keep this enum consistent with i2c_adapter_names */
@@ -62,6 +67,11 @@ enum i2c_adapter_type {
 	I2C_ADAPTER_PANEL,
 	I2C_ADAPTER_I2C0,
 	I2C_ADAPTER_I2C1,
+	I2C_ADAPTER_I2C2,
+	I2C_ADAPTER_I2C3,
+	I2C_ADAPTER_I2C4,
+	I2C_ADAPTER_I2C5,
+	I2C_ADAPTER_I2C6,
 };
 
 enum i2c_peripheral_state {
@@ -635,6 +645,13 @@ static struct chromeos_laptop samus = {
 	.has_keyboard_backlight = true,
 };
 
+static struct chromeos_laptop rambi = {
+	.i2c_peripherals = {
+		/* Touchpad. */
+		{. add = setup_atmel_224s_tp, I2C_ADAPTER_I2C0 },
+	},
+};
+
 #define _CBDD(board_) \
 	.callback = chromeos_laptop_dmi_matched, \
 	.driver_data = (void *)&board_
@@ -746,6 +763,14 @@ static struct dmi_system_id chromeos_laptop_dmi_table[] __initdata = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Samus"),
 		},
 		_CBDD(samus),
+	},
+	{
+		.ident = "Rambi",
+		.matches = {
+			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Rambi"),
+		},
+		_CBDD(rambi),
 	},
 	{ }
 };
