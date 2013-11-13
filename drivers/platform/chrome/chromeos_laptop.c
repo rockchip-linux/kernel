@@ -415,7 +415,7 @@ static int setup_pn544_hci_samus(enum i2c_adapter_type type)
 	/* setup the NFC GPIOs */
 	nfc_gpio_enable = 162 + 26;	/* GPIO26 on Samus */
 	nfc_gpio_fw_reset = 162 + 64;	/* GPIO64 on Samus */
-	nfc_gpio_irq = 162 + 28;	/* GPIO28 on Samus */
+	nfc_gpio_irq = 162 + 9;		/* GPIO9 on Samus */
 
 	/* add pn544 nfc device */
 	nfc = add_i2c_device("nfc", type, &pn544_hci_device);
