@@ -2882,6 +2882,20 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 			dev_priv->psr.sink_support = true;
 			DRM_DEBUG_KMS("Detected EDP PSR Panel.\n");
 		}
+
+		if (intel_dp->dpcd[DP_EDP_CONFIGURATION_CAP] &
+		    DP_DPCD_DISPLAY_CONTROL_CAP) {
+			u8 ctrl[4] = { 0 };
+
+			intel_dp_dpcd_read_wake(&intel_dp->aux, DP_EDP_REV,
+						ctrl, sizeof(ctrl));
+			DRM_DEBUG_KMS("eDP DPCD CTRL %02x %02x %02x %02x\n",
+				      ctrl[0], ctrl[1], ctrl[2], ctrl[3]);
+
+			/* We don't support DPCD backlight control yet. */
+			if (ctrl[0] && (ctrl[1] & 1) && !(ctrl[2] & 1))
+				DRM_ERROR("eDP AUX backlight control only\n");
+		}
 	}
 
 	/* Training Pattern 3 support */
