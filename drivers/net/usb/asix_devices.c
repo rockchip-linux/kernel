@@ -844,6 +844,20 @@ static int ax88178_bind(struct usbnet *dev, struct usb_interface *intf)
 	return 0;
 }
 
+static int asix_resume(struct usb_interface *intf)
+{
+	struct usbnet *dev = usb_get_intfdata(intf);
+	u8 chipcode = 0;
+
+	asix_read_cmd(dev, AX_CMD_STATMNGSTS_REG, 0, 0, 1, &chipcode);
+	chipcode &= 0x70;
+
+	if (dev->driver_info->reset && (chipcode == 0x20))
+		dev->driver_info->reset(dev);
+
+	return usbnet_resume(intf);
+}
+
 static const struct driver_info ax8817x_info = {
 	.description = "ASIX AX8817x USB 2.0 Ethernet",
 	.bind = ax88172_bind,
@@ -1101,7 +1115,7 @@ static struct usb_driver asix_driver = {
 	.id_table =	products,
 	.probe =	usbnet_probe,
 	.suspend =	usbnet_suspend,
-	.resume =	usbnet_resume,
+	.resume =	asix_resume,
 	.disconnect =	usbnet_disconnect,
 	.supports_autosuspend = 1,
 	.disable_hub_initiated_lpm = 1,

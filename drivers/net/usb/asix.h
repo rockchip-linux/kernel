@@ -46,6 +46,7 @@
 #define AX_CMD_SET_SW_MII		0x06
 #define AX_CMD_READ_MII_REG		0x07
 #define AX_CMD_WRITE_MII_REG		0x08
+#define AX_CMD_STATMNGSTS_REG		0x09
 #define AX_CMD_SET_HW_MII		0x0a
 #define AX_CMD_READ_EEPROM		0x0b
 #define AX_CMD_WRITE_EEPROM		0x0c
