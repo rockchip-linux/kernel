@@ -1142,7 +1142,7 @@ static void ironlake_panel_vdd_off_sync(struct intel_dp *intel_dp)
 	u32 pp;
 	u32 pp_stat_reg, pp_ctrl_reg;
 
-	WARN_ON(!mutex_is_locked(&dev->mode_config.connection_mutex));
+	WARN_ON(!drm_modeset_is_locked(&dev->mode_config.connection_mutex));
 
 	if (!intel_dp->want_panel_vdd && ironlake_edp_have_panel_vdd(intel_dp)) {
 		DRM_DEBUG_KMS("Turning eDP VDD off\n");
@@ -1173,9 +1173,9 @@ static void ironlake_panel_vdd_work(struct work_struct *__work)
 						 struct intel_dp, panel_vdd_work);
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 
-	mutex_lock(&dev->mode_config.connection_mutex);
+	drm_modeset_lock(&dev->mode_config.connection_mutex, NULL);
 	ironlake_panel_vdd_off_sync(intel_dp);
-	mutex_unlock(&dev->mode_config.connection_mutex);
+	drm_modeset_unlock(&dev->mode_config.connection_mutex);
 }
 
 void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)
@@ -3410,9 +3410,9 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 	drm_encoder_cleanup(encoder);
 	if (is_edp(intel_dp)) {
 		cancel_delayed_work_sync(&intel_dp->panel_vdd_work);
-		mutex_lock(&dev->mode_config.connection_mutex);
+		drm_modeset_lock(&dev->mode_config.connection_mutex, NULL);
 		ironlake_panel_vdd_off_sync(intel_dp);
-		mutex_unlock(&dev->mode_config.connection_mutex);
+		drm_modeset_unlock(&dev->mode_config.connection_mutex);
 	}
 	kfree(intel_dig_port);
 }
@@ -3849,9 +3849,9 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 		i2c_del_adapter(&intel_dp->adapter);
 		if (is_edp(intel_dp)) {
 			cancel_delayed_work_sync(&intel_dp->panel_vdd_work);
-			mutex_lock(&dev->mode_config.connection_mutex);
+			drm_modeset_lock(&dev->mode_config.connection_mutex, NULL);
 			ironlake_panel_vdd_off_sync(intel_dp);
-			mutex_unlock(&dev->mode_config.connection_mutex);
+			drm_modeset_unlock(&dev->mode_config.connection_mutex);
 		}
 		drm_sysfs_connector_remove(connector);
 		drm_connector_cleanup(connector);
