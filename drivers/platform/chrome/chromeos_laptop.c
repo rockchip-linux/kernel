@@ -419,7 +419,7 @@ static int setup_pn544_hci_samus(enum i2c_adapter_type type)
 
 	/* add pn544 nfc device */
 	nfc = add_i2c_device("nfc", type, &pn544_hci_device);
-	return (!ts) ? -EAGAIN : 0;
+	return (!nfc) ? -EAGAIN : 0;
 }
 
 static int setup_atmel_samus_ts(enum i2c_adapter_type type)
