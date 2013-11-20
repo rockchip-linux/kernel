@@ -19,6 +19,8 @@
 #ifndef __SOC_TEGRA_MC_H__
 #define __SOC_TEGRA_MC_H__
 
+#include <linux/of.h>
+
 #ifdef CONFIG_TEGRA124_MC
 u32 tegra124_mc_readl(u32 offs);
 void tegra124_mc_writel(u32 val, u32 offs);
@@ -53,4 +55,11 @@ int tegra_mc_flush(int id);
 int tegra_mc_flush_done(int id);
 #endif
 
+static __maybe_unused inline int tegra_mc_get_effective_bytes_width(void)
+{
+	if (of_machine_is_compatible("nvidia,tegra124"))
+		return 8;
+	else
+		return 4;
+}
 #endif /* __SOC_TEGRA_MC_H__ */
