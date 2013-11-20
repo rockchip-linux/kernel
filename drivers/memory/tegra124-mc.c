@@ -26,6 +26,13 @@
 static void __iomem *tegra_mc_base;
 static bool tegra_mc_init_done;
 
+#define MC_CLIENT_HOTRESET_CTRL		0x200
+#define MC_CLIENT_HOTRESET_STAT		0x204
+#define MC_CLIENT_HOTRESET_CTRL_1	0x970
+#define MC_CLIENT_HOTRESET_STAT_1	0x974
+
+static DEFINE_SPINLOCK(tegra_mc_lock);
+
 u32 tegra124_mc_readl(u32 offs)
 {
 	return readl(tegra_mc_base + offs);
@@ -43,6 +50,91 @@ bool tegra124_mc_is_ready(void)
 	return tegra_mc_init_done;
 }
 EXPORT_SYMBOL(tegra124_mc_is_ready);
+
+#define HOTRESET_READ_COUNT	5
+static bool tegra_stable_hotreset_check(u32 stat_reg, u32 *stat)
+{
+	int i;
+	u32 cur_stat;
+	u32 prv_stat;
+	unsigned long flags;
+
+	spin_lock_irqsave(&tegra_mc_lock, flags);
+	prv_stat = tegra124_mc_readl(stat_reg);
+	for (i = 0; i < HOTRESET_READ_COUNT; i++) {
+		cur_stat = tegra124_mc_readl(stat_reg);
+		if (cur_stat != prv_stat) {
+			spin_unlock_irqrestore(&tegra_mc_lock, flags);
+			return false;
+		}
+	}
+	*stat = cur_stat;
+	spin_unlock_irqrestore(&tegra_mc_lock, flags);
+	return true;
+}
+
+int tegra_mc_flush(int id)
+{
+	u32 rst_ctrl, rst_stat;
+	u32 rst_ctrl_reg, rst_stat_reg;
+	unsigned long flags;
+	bool ret;
+
+	if (id < 32) {
+		rst_ctrl_reg = MC_CLIENT_HOTRESET_CTRL;
+		rst_stat_reg = MC_CLIENT_HOTRESET_STAT;
+	} else {
+		id %= 32;
+		rst_ctrl_reg = MC_CLIENT_HOTRESET_CTRL_1;
+		rst_stat_reg = MC_CLIENT_HOTRESET_STAT_1;
+	}
+
+	spin_lock_irqsave(&tegra_mc_lock, flags);
+
+	rst_ctrl = tegra124_mc_readl(rst_ctrl_reg);
+	rst_ctrl |= (1 << id);
+	tegra124_mc_writel(rst_ctrl, rst_ctrl_reg);
+
+	spin_unlock_irqrestore(&tegra_mc_lock, flags);
+
+	do {
+		udelay(10);
+		rst_stat = 0;
+		ret = tegra_stable_hotreset_check(rst_stat_reg, &rst_stat);
+		if (!ret)
+			continue;
+	} while (!(rst_stat & (1 << id)));
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_mc_flush);
+
+int tegra_mc_flush_done(int id)
+{
+	u32 rst_ctrl;
+	u32 rst_ctrl_reg, rst_stat_reg;
+	unsigned long flags;
+
+	if (id < 32) {
+		rst_ctrl_reg = MC_CLIENT_HOTRESET_CTRL;
+		rst_stat_reg = MC_CLIENT_HOTRESET_STAT;
+	} else {
+		id %= 32;
+		rst_ctrl_reg = MC_CLIENT_HOTRESET_CTRL_1;
+		rst_stat_reg = MC_CLIENT_HOTRESET_STAT_1;
+	}
+
+	spin_lock_irqsave(&tegra_mc_lock, flags);
+
+	rst_ctrl = tegra124_mc_readl(rst_ctrl_reg);
+	rst_ctrl &= ~(1 << id);
+	tegra124_mc_writel(rst_ctrl, rst_ctrl_reg);
+
+	spin_unlock_irqrestore(&tegra_mc_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_mc_flush_done);
 
 static int tegra124_mc_probe(struct platform_device *pdev)
 {
