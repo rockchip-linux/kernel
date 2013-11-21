@@ -314,13 +314,8 @@ static int sbs_get_battery_presence_and_health(
 	/* Write to ManufacturerAccess with
 	 * ManufacturerAccess command and then
 	 * read the status */
-	ret = sbs_write_word_data(client, sbs_data[REG_MANUFACTURER_DATA].addr,
+	sbs_write_word_data(client, sbs_data[REG_MANUFACTURER_DATA].addr,
 					MANUFACTURER_ACCESS_STATUS);
-	if (ret < 0) {
-		if (psp == POWER_SUPPLY_PROP_PRESENT)
-			val->intval = 0; /* battery removed */
-		return ret;
-	}
 
 	ret = sbs_read_word_data(client, sbs_data[REG_MANUFACTURER_DATA].addr);
 	if (ret < 0)
@@ -948,16 +943,13 @@ static int sbs_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct sbs_info *chip = i2c_get_clientdata(client);
-	s32 ret;
 
 	if (chip->poll_time > 0)
 		cancel_delayed_work_sync(&chip->work);
 
 	/* write to manufacturer access with sleep command */
-	ret = sbs_write_word_data(client, sbs_data[REG_MANUFACTURER_DATA].addr,
+	sbs_write_word_data(client, sbs_data[REG_MANUFACTURER_DATA].addr,
 		MANUFACTURER_ACCESS_SLEEP);
-	if (chip->is_present && ret < 0)
-		return ret;
 
 	return 0;
 }
