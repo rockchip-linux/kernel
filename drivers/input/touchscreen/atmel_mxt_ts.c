@@ -1322,6 +1322,12 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 	if (!report)
 		goto out;
 
+	/* There could be a race condition for entering BL mode,
+	 * it is a sanity check.
+	 */
+	if (!data->input_dev)
+		return 0;
+
 	for (i = 0; i < count; i++) {
 		u8 *msg = &message_buffer[i * data->message_length];
 		u8 reportid = msg[0];
@@ -1402,6 +1408,13 @@ static int mxt_enter_bl(struct mxt_data *data)
 		data->input_dev = NULL;
 	}
 
+	enable_irq(data->irq);
+	/* Clean up message queue in device */
+	mxt_handle_messages(data, false);
+
+	disable_irq(data->irq);
+
+
 	/* Change to the bootloader mode */
 	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
 			       MXT_COMMAND_RESET, MXT_BOOT_VALUE);
@@ -1436,6 +1449,7 @@ static void mxt_exit_bl(struct mxt_data *data)
 
 	if (!mxt_in_bootloader(data))
 		return;
+	init_completion(&data->bl_completion);
 
 	/* Wait for reset */
 	mxt_wait_for_chg(data, MXT_FWRESET_TIME);
