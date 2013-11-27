@@ -621,6 +621,69 @@ void tegra_super_clk_gen4_init(void __iomem *clk_base,
 			void __iomem *pmc_base, struct tegra_clk *tegra_clks,
 			struct tegra_clk_pll_params *pll_params);
 
+enum shared_bus_users_mode {
+	SHARED_FLOOR = 0,
+	SHARED_BW,
+	SHARED_CEILING,
+	SHARED_AUTO,
+	SHARED_OVERRIDE,
+};
+
+#define TEGRA_CLK_SHARED_MAGIC	0x18ce213d
+
+struct tegra_clk_cbus_shared {
+	u32			magic;
+	struct clk_hw		hw;
+	struct list_head	shared_bus_list;
+	struct clk		*shared_bus_backup;
+	u32			flags;
+	unsigned long		min_rate;
+	unsigned long		max_rate;
+	bool			rate_updating;
+	union {
+		struct {
+			struct clk_hw	*top_user;
+			struct clk_hw	*slow_user;
+		} cbus;
+		struct {
+			struct clk_hw	*pclk;
+			struct clk_hw	*hclk;
+			struct clk_hw	*sclk_low;
+			struct clk_hw	*sclk_high;
+			unsigned long	threshold;
+		} system;
+		struct {
+			struct list_head	node;
+			bool			enabled;
+			unsigned long		rate;
+			struct clk		*client;
+			u32			client_div;
+			enum shared_bus_users_mode mode;
+			struct clk		*inputs[2];
+		} shared_bus_user;
+	} u;
+};
+
+#define to_clk_cbus_shared(_hw) \
+			container_of(_hw, struct tegra_clk_cbus_shared, hw)
+
+struct clk *tegra_clk_register_shared(const char *name,
+		const char **parent, u8 num_parents, unsigned long flags,
+		enum shared_bus_users_mode mode, const char *client);
+struct clk *tegra_clk_register_cbus(const char *name,
+		const char *parent, unsigned long flags,
+		const char *backup, unsigned long min_rate,
+		unsigned long max_rate);
+struct clk *tegra_clk_register_shared_master(const char *name,
+		const char *parent, unsigned long flags,
+		unsigned long min_rate, unsigned long max_rate);
+struct clk *tegra_clk_register_sbus_cmplx(const char *name,
+		const char *parent, unsigned long flags,
+		const char *pclk, const char *hclk,
+		const char *sclk_low, const char *sclk_high,
+		unsigned long threshold, unsigned long min_rate,
+		unsigned long max_rate);
+
 void tegra114_clock_tune_cpu_trimmers_high(void);
 void tegra114_clock_tune_cpu_trimmers_low(void);
 void tegra114_clock_tune_cpu_trimmers_init(void);
