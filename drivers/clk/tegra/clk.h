@@ -683,6 +683,7 @@ struct clk *tegra_clk_register_sbus_cmplx(const char *name,
 		const char *sclk_low, const char *sclk_high,
 		unsigned long threshold, unsigned long min_rate,
 		unsigned long max_rate);
+void tegra_shared_clk_init(struct tegra_clk *tegra_clks);
 
 void tegra114_clock_tune_cpu_trimmers_high(void);
 void tegra114_clock_tune_cpu_trimmers_low(void);
