@@ -357,6 +357,13 @@ EXPORT_SYMBOL(drm_dp_bw_code_to_link_rate);
  * Transactions are described using a hardware-independent drm_dp_aux_msg
  * structure, which is passed into a driver's .transfer() implementation.
  * Both native and I2C-over-AUX transactions are supported.
+ *
+ * An AUX channel can also be used to transport I2C messages to a sink. A
+ * typical application of that is to access an EDID that's present in the
+ * sink device. The .transfer() function can also be used to execute such
+ * transactions. The drm_dp_aux_register_i2c_bus() function registers an
+ * I2C adapter that can be passed to drm_probe_ddc(). Upon removal, drivers
+ * should call drm_dp_aux_unregister_i2c_bus() to remove the I2C adapter.
  */
 
 static int drm_dp_dpcd_access(struct drm_dp_aux *aux, u8 request,
