@@ -919,7 +919,10 @@ static int tegra_i2c_resume(struct device *dev)
 	return 0;
 }
 
-static SIMPLE_DEV_PM_OPS(tegra_i2c_pm, tegra_i2c_suspend, tegra_i2c_resume);
+static const struct dev_pm_ops tegra_i2c_pm = {
+	.suspend_noirq = tegra_i2c_suspend,
+	.resume_noirq = tegra_i2c_resume,
+};
 #define TEGRA_I2C_PM	(&tegra_i2c_pm)
 #else
 #define TEGRA_I2C_PM	NULL
