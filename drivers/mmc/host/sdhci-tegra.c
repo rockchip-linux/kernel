@@ -17,6 +17,7 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -30,18 +31,78 @@
 #include "sdhci-pltfm.h"
 
 /* Tegra SDHOST controller vendor register definitions */
+#define SDHCI_VNDR_CLK_CTRL	0x100
+#define SDHCI_VNDR_CLK_CTRL_SDMMC_CLK	0x1
+#define SDHCI_VNDR_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
+#define SDHCI_VNDR_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
+#define SDHCI_VNDR_CLK_CTRL_INPUT_IO_CLK		0x2
+#define SDHCI_VNDR_CLK_CTRL_TAP_VALUE_SHIFT	16
+#define SDHCI_VNDR_CLK_CTRL_TRIM_VALUE_SHIFT	24
+#define SDHCI_VNDR_CLK_CTRL_SDR50_TUNING		0x20
+#define SDHCI_VNDR_CLK_CTRL_INTERNAL_CLK	0x2
+
 #define SDHCI_TEGRA_VENDOR_MISC_CTRL		0x120
-#define SDHCI_MISC_CTRL_ENABLE_SDR104		0x8
-#define SDHCI_MISC_CTRL_ENABLE_SDR50		0x10
+#define SDHCI_VNDR_MISC_CTRL_ENABLE_SDR104_SUPPORT	0x8
+#define SDHCI_VNDR_MISC_CTRL_ENABLE_SDR50_SUPPORT	0x10
+#define SDHCI_VNDR_MISC_CTRL_ENABLE_DDR50_SUPPORT	0x200
 #define SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300	0x20
-#define SDHCI_MISC_CTRL_ENABLE_DDR50		0x200
+#define SDHCI_VNDR_MISC_CTRL_INFINITE_ERASE_TIMEOUT	0x1
+#define SDHCI_VNDR_MISC_CTRL_PIPE_STAGES_MASK	0x180
+
+#define SDMMC_SDMEMCOMPPADCTRL	0x1E0
+#define SDMMC_SDMEMCOMPPADCTRL_VREF_SEL_MASK	0xF
+#define SDMMC_SDMEMCOMPPADCTRL_PAD_E_INPUT_OR_E_PWRD_MASK	0x80000000
+
+#define SDMMC_AUTO_CAL_CONFIG	0x1E4
+#define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_START	0x80000000
+#define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE	0x20000000
+#define SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET_SHIFT	0x8
+
+#define SDMMC_AUTO_CAL_STATUS	0x1EC
+#define SDMMC_AUTO_CAL_STATUS_AUTO_CAL_ACTIVE	0x80000000
+#define SDMMC_AUTO_CAL_STATUS_PULLDOWN_OFFSET	24
+#define PULLUP_ADJUSTMENT_OFFSET	20
+
+#define MMC_1V8_CALIB_OFFSET_SDR12      0x1
+#define MMC_1V8_CALIB_OFFSET_SDR25      0x2
+#define MMC_1V8_CALIB_OFFSET_SDR50      0x4
+#define MMC_1V8_CALIB_OFFSET_DDR50      0x8
+#define MMC_1V8_CALIB_OFFSET_SDR104     0x10
+#define MMC_1V8_CALIB_OFFSET_HS200      0x20
 
 #define NVQUIRK_FORCE_SDHCI_SPEC_200	BIT(0)
 #define NVQUIRK_ENABLE_BLOCK_GAP_DET	BIT(1)
 #define NVQUIRK_ENABLE_SDHCI_SPEC_300	BIT(2)
-#define NVQUIRK_DISABLE_SDR50		BIT(3)
-#define NVQUIRK_DISABLE_SDR104		BIT(4)
-#define NVQUIRK_DISABLE_DDR50		BIT(5)
+#define NVQUIRK_SET_CALIBRATION_OFFSETS	BIT(3)
+#define NVQUIRK_DISABLE_AUTO_CALIBRATION	BIT(4)
+#define NVQUIRK_SET_DRIVE_STRENGTH		BIT(5)
+#define NVQUIRK_ENABLE_PADPIPE_CLKEN		BIT(6)
+#define NVQUIRK_DISABLE_SPI_MODE_CLKEN		BIT(7)
+#define NVQUIRK_SET_TAP_DELAY			BIT(8)
+#define NVQUIRK_SET_TRIM_DELAY			BIT(9)
+#define NVQUIRK_ENABLE_SD_3_0			BIT(10)
+#define NVQUIRK_ENABLE_SDR50			BIT(11)
+#define NVQUIRK_ENABLE_SDR104			BIT(12)
+#define NVQUIRK_ENABLE_DDR50			BIT(13)
+#define NVQUIRK_ENABLE_SDR50_TUNING		BIT(14)
+#define NVQUIRK_ENABLE_HS200			BIT(15)
+#define NVQUIRK_INFINITE_ERASE_TIMEOUT		BIT(16)
+#define NVQUIRK_EN_FEEDBACK_CLK			BIT(17)
+#define NVQUIRK_DISABLE_AUTO_CMD23		BIT(18)
+#define NVQUIRK_SHADOW_XFER_MODE_REG		BIT(19)
+#define NVQUIRK_SET_PAD_E_INPUT_OR_E_PWRD	BIT(20)
+#define NVQUIRK_SET_PIPE_STAGES_MASK_0		BIT(21)
+
+/* Common subset of quirks for Tegra3 and later sdmmc controllers */
+#define TEGRA30_SDHCI_NVQUIRKS	(NVQUIRK_ENABLE_PADPIPE_CLKEN | \
+		  NVQUIRK_DISABLE_SPI_MODE_CLKEN | \
+		  NVQUIRK_EN_FEEDBACK_CLK | \
+		  NVQUIRK_SET_TAP_DELAY | \
+		  NVQUIRK_ENABLE_SDR50_TUNING | \
+		  NVQUIRK_ENABLE_SDR50 | \
+		  NVQUIRK_ENABLE_SDR104 | \
+		  NVQUIRK_SHADOW_XFER_MODE_REG | \
+		  NVQUIRK_DISABLE_AUTO_CMD23)
 
 #define TEGRA_SDHCI_AUTOSUSPEND_DELAY	1500
 
@@ -70,7 +131,11 @@ struct sdhci_tegra {
 	unsigned int calib_3v3_offsets;	/* Format to be filled: 0xXXXXPDPU */
 	unsigned int calib_1v8_offsets;	/* Format to be filled: 0xXXXXPDPU */
 	unsigned int calib_1v8_offsets_uhs_modes;
+	bool set_1v8_calib_offsets;
+	bool calib_1v8_offsets_done;
 };
+
+static void tegra_sdhci_do_calibration(struct sdhci_host *sdhci);
 
 static u32 tegra_sdhci_readl(struct sdhci_host *host, int reg)
 {
@@ -132,28 +197,252 @@ static unsigned int tegra_sdhci_get_ro(struct sdhci_host *host)
 	return mmc_gpio_get_ro(host->mmc);
 }
 
+static int tegra_sdhci_set_uhs_signaling(struct sdhci_host *host,
+		unsigned int uhs)
+{
+	u16 clk, ctrl_2;
+	u32 vndr_ctrl;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	unsigned int calib_1v8_uhs_modes;
+
+	ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
+
+	calib_1v8_uhs_modes = tegra_host->calib_1v8_offsets_uhs_modes;
+	/* Select Bus Speed Mode for host
+	 * For HS200 we need to set UHS_MODE_SEL to SDR104.
+	 * It works as SDR 104 in SD 4-bit mode and HS200 in eMMC 8-bit mode.
+	 */
+	ctrl_2 &= ~SDHCI_CTRL_UHS_MASK;
+	switch (uhs) {
+	case MMC_TIMING_UHS_SDR12:
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
+		if (calib_1v8_uhs_modes & MMC_1V8_CALIB_OFFSET_SDR12)
+			tegra_host->set_1v8_calib_offsets = true;
+		break;
+	case MMC_TIMING_UHS_SDR25:
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR25;
+		if (calib_1v8_uhs_modes & MMC_1V8_CALIB_OFFSET_SDR25)
+			tegra_host->set_1v8_calib_offsets = true;
+		break;
+	case MMC_TIMING_UHS_SDR50:
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR50;
+		if (calib_1v8_uhs_modes & MMC_1V8_CALIB_OFFSET_SDR50)
+			tegra_host->set_1v8_calib_offsets = true;
+		break;
+	case MMC_TIMING_UHS_SDR104:
+	case MMC_TIMING_MMC_HS200:
+		ctrl_2 |= SDHCI_CTRL_UHS_SDR104;
+		if ((calib_1v8_uhs_modes & MMC_1V8_CALIB_OFFSET_SDR104) ||
+			(calib_1v8_uhs_modes & MMC_1V8_CALIB_OFFSET_HS200))
+			tegra_host->set_1v8_calib_offsets = true;
+		break;
+	case MMC_TIMING_UHS_DDR50:
+		ctrl_2 |= SDHCI_CTRL_UHS_DDR50;
+		if (calib_1v8_uhs_modes & MMC_1V8_CALIB_OFFSET_DDR50)
+			tegra_host->set_1v8_calib_offsets = true;
+		break;
+	}
+
+	sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
+
+	if (uhs == MMC_TIMING_UHS_DDR50) {
+		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+		clk &= ~(0xFF << SDHCI_DIVIDER_SHIFT);
+		clk |= 1 << SDHCI_DIVIDER_SHIFT;
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
+
+		/* Set the ddr mode trim delay if required */
+		if (tegra_host->ddr_trim_delay != -1) {
+			vndr_ctrl = sdhci_readl(host, SDHCI_VNDR_CLK_CTRL);
+			vndr_ctrl &= ~(0x1F <<
+				SDHCI_VNDR_CLK_CTRL_TRIM_VALUE_SHIFT);
+			vndr_ctrl |= (tegra_host->ddr_trim_delay <<
+				SDHCI_VNDR_CLK_CTRL_TRIM_VALUE_SHIFT);
+			sdhci_writel(host, vndr_ctrl, SDHCI_VNDR_CLK_CTRL);
+		}
+	}
+
+	if (tegra_host->set_1v8_calib_offsets &&
+		!tegra_host->calib_1v8_offsets_done) {
+		tegra_sdhci_do_calibration(host);
+		tegra_host->calib_1v8_offsets_done = true;
+	}
+	return 0;
+}
+
+static unsigned int get_calibration_offsets(struct sdhci_host *sdhci)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	unsigned int offsets = 0;
+
+	if (sdhci->mmc->ios.signal_voltage == MMC_SIGNAL_VOLTAGE_330)
+		offsets = tegra_host->calib_3v3_offsets;
+	else if (sdhci->mmc->ios.signal_voltage == MMC_SIGNAL_VOLTAGE_180) {
+		offsets = tegra_host->calib_1v8_offsets;
+		/*
+		 * After any mode selection, ios timing would be set. So, if
+		 * ios timing is set but 1.8V calibration offsets requirement
+		 * is not set, it indicates that the current mode doesn't
+		 * require calibration offsets to be programmed.
+		 */
+		if (sdhci->mmc->ios.timing &&
+			!tegra_host->set_1v8_calib_offsets)
+			offsets = 0;
+	}
+
+	return offsets;
+}
+
+static void tegra_sdhci_do_calibration(struct sdhci_host *sdhci)
+{
+	unsigned int val;
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
+	unsigned int timeout = 10;
+	unsigned int calib_offsets;
+
+	if (unlikely(soc_data->nvquirks & NVQUIRK_DISABLE_AUTO_CALIBRATION))
+		return;
+
+	val = sdhci_readl(sdhci, SDMMC_SDMEMCOMPPADCTRL);
+	val &= ~SDMMC_SDMEMCOMPPADCTRL_VREF_SEL_MASK;
+	if (soc_data->nvquirks & NVQUIRK_SET_PAD_E_INPUT_OR_E_PWRD)
+		val |= SDMMC_SDMEMCOMPPADCTRL_PAD_E_INPUT_OR_E_PWRD_MASK;
+	val |= 0x7;
+	sdhci_writel(sdhci, val, SDMMC_SDMEMCOMPPADCTRL);
+
+	/* Enable Auto Calibration*/
+	val = sdhci_readl(sdhci, SDMMC_AUTO_CAL_CONFIG);
+	val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_ENABLE;
+	val |= SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_START;
+	if (unlikely(soc_data->nvquirks & NVQUIRK_SET_CALIBRATION_OFFSETS)) {
+		calib_offsets = get_calibration_offsets(sdhci);
+		if (calib_offsets) {
+			/* Program Auto cal PD offset(bits 8:14) */
+			val &= ~(0x7F <<
+				SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET_SHIFT);
+			val |= (((calib_offsets >> 8) & 0xFF) <<
+				SDMMC_AUTO_CAL_CONFIG_AUTO_CAL_PD_OFFSET_SHIFT);
+			/* Program Auto cal PU offset(bits 0:6) */
+			val &= ~0x7F;
+			val |= (calib_offsets & 0xFF);
+		}
+	}
+	sdhci_writel(sdhci, val, SDMMC_AUTO_CAL_CONFIG);
+
+	/* Wait until the calibration is done */
+	do {
+		if (!(sdhci_readl(sdhci, SDMMC_AUTO_CAL_STATUS) &
+			SDMMC_AUTO_CAL_STATUS_AUTO_CAL_ACTIVE))
+			break;
+
+		msleep(1);
+		timeout--;
+	} while (timeout);
+
+	if (!timeout)
+		dev_err(mmc_dev(sdhci->mmc), "Auto calibration failed\n");
+
+	if (soc_data->nvquirks & NVQUIRK_SET_PAD_E_INPUT_OR_E_PWRD) {
+		val = sdhci_readl(sdhci, SDMMC_SDMEMCOMPPADCTRL);
+		val &= ~SDMMC_SDMEMCOMPPADCTRL_PAD_E_INPUT_OR_E_PWRD_MASK;
+		sdhci_writel(sdhci, val, SDMMC_SDMEMCOMPPADCTRL);
+	}
+}
+
 static void tegra_sdhci_reset_exit(struct sdhci_host *host, u8 mask)
 {
+	u16 misc_ctrl;
+	u32 vendor_ctrl;
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	const struct sdhci_tegra_soc_data *soc_data = tegra_host->soc_data;
-	u32 misc_ctrl;
+	unsigned int best_tap_value;
 
-	if (!(mask & SDHCI_RESET_ALL))
-		return;
+	if (mask & SDHCI_RESET_ALL) {
+		vendor_ctrl = sdhci_readl(host, SDHCI_VNDR_CLK_CTRL);
+		if (soc_data->nvquirks & NVQUIRK_ENABLE_PADPIPE_CLKEN) {
+			vendor_ctrl |=
+				SDHCI_VNDR_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE;
+		}
+		if (soc_data->nvquirks & NVQUIRK_DISABLE_SPI_MODE_CLKEN) {
+			vendor_ctrl &=
+				~SDHCI_VNDR_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE;
+		}
+		if (soc_data->nvquirks & NVQUIRK_EN_FEEDBACK_CLK) {
+			vendor_ctrl &=
+				~SDHCI_VNDR_CLK_CTRL_INPUT_IO_CLK;
+		} else {
+			vendor_ctrl |= SDHCI_VNDR_CLK_CTRL_INTERNAL_CLK;
+		}
 
-	misc_ctrl = sdhci_readw(host, SDHCI_TEGRA_VENDOR_MISC_CTRL);
-	/* Erratum: Enable SDHCI spec v3.00 support */
-	if (soc_data->nvquirks & NVQUIRK_ENABLE_SDHCI_SPEC_300)
-		misc_ctrl |= SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300;
-	/* Don't advertise UHS modes which aren't supported yet */
-	if (soc_data->nvquirks & NVQUIRK_DISABLE_SDR50)
-		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_SDR50;
-	if (soc_data->nvquirks & NVQUIRK_DISABLE_DDR50)
-		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_DDR50;
-	if (soc_data->nvquirks & NVQUIRK_DISABLE_SDR104)
-		misc_ctrl &= ~SDHCI_MISC_CTRL_ENABLE_SDR104;
-	sdhci_writew(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+		if (soc_data->nvquirks & NVQUIRK_SET_TAP_DELAY) {
+			best_tap_value = tegra_host->tap_delay;
+			vendor_ctrl &= ~(0xFF <<
+				SDHCI_VNDR_CLK_CTRL_TAP_VALUE_SHIFT);
+			vendor_ctrl |= (best_tap_value <<
+				SDHCI_VNDR_CLK_CTRL_TAP_VALUE_SHIFT);
+		}
+
+		if (soc_data->nvquirks & NVQUIRK_SET_TRIM_DELAY) {
+			vendor_ctrl &= ~(0x1F <<
+			SDHCI_VNDR_CLK_CTRL_TRIM_VALUE_SHIFT);
+			vendor_ctrl |= (tegra_host->trim_delay <<
+			SDHCI_VNDR_CLK_CTRL_TRIM_VALUE_SHIFT);
+		}
+		if (soc_data->nvquirks & NVQUIRK_ENABLE_SDR50_TUNING)
+			vendor_ctrl |= SDHCI_VNDR_CLK_CTRL_SDR50_TUNING;
+		sdhci_writel(host, vendor_ctrl, SDHCI_VNDR_CLK_CTRL);
+
+		misc_ctrl = sdhci_readw(host, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+		if (soc_data->nvquirks & NVQUIRK_ENABLE_SD_3_0)
+			misc_ctrl |= SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300;
+		if (soc_data->nvquirks & NVQUIRK_ENABLE_SDR104) {
+			misc_ctrl |=
+			SDHCI_VNDR_MISC_CTRL_ENABLE_SDR104_SUPPORT;
+		}
+		if (soc_data->nvquirks & NVQUIRK_ENABLE_SDR50) {
+			misc_ctrl |=
+			SDHCI_VNDR_MISC_CTRL_ENABLE_SDR50_SUPPORT;
+		}
+
+		if (soc_data->nvquirks & NVQUIRK_ENABLE_DDR50 &&
+			!(tegra_host->uhs_mask & MMC_UHS_MASK_DDR50))
+				misc_ctrl |=
+				SDHCI_VNDR_MISC_CTRL_ENABLE_DDR50_SUPPORT;
+
+		if (soc_data->nvquirks & NVQUIRK_INFINITE_ERASE_TIMEOUT) {
+			misc_ctrl |=
+			SDHCI_VNDR_MISC_CTRL_INFINITE_ERASE_TIMEOUT;
+		}
+		if (soc_data->nvquirks & NVQUIRK_SET_PIPE_STAGES_MASK_0)
+			misc_ctrl &= ~SDHCI_VNDR_MISC_CTRL_PIPE_STAGES_MASK;
+		sdhci_writew(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+
+		if (soc_data->nvquirks & NVQUIRK_DISABLE_AUTO_CMD23)
+			host->flags &= ~SDHCI_AUTO_CMD23;
+
+		if (tegra_host->uhs_mask & MMC_UHS_MASK_SDR104)
+			host->mmc->caps &= ~MMC_CAP_UHS_SDR104;
+
+		if (tegra_host->uhs_mask & MMC_UHS_MASK_DDR50)
+			host->mmc->caps &= ~MMC_CAP_UHS_DDR50;
+
+		if (tegra_host->uhs_mask & MMC_UHS_MASK_SDR50)
+			host->mmc->caps &= ~MMC_CAP_UHS_SDR50;
+
+		if (tegra_host->uhs_mask & MMC_UHS_MASK_SDR25)
+			host->mmc->caps &= ~MMC_CAP_UHS_SDR25;
+
+		if (tegra_host->uhs_mask & MMC_UHS_MASK_SDR12)
+			host->mmc->caps &= ~MMC_CAP_UHS_SDR12;
+
+		if (tegra_host->uhs_mask & MMC_MASK_HS200)
+			host->mmc->caps2 &= ~MMC_CAP2_HS200;
+	}
 }
 
 static int tegra_sdhci_buswidth(struct sdhci_host *host, int bus_width)
@@ -184,6 +473,7 @@ static const struct sdhci_ops tegra_sdhci_ops = {
 	.platform_bus_width = tegra_sdhci_buswidth,
 	.platform_reset_exit = tegra_sdhci_reset_exit,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
+	.set_uhs_signaling	= tegra_sdhci_set_uhs_signaling,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
@@ -213,9 +503,7 @@ static const struct sdhci_pltfm_data sdhci_tegra30_pdata = {
 
 static struct sdhci_tegra_soc_data soc_data_tegra30 = {
 	.pdata = &sdhci_tegra30_pdata,
-	.nvquirks = NVQUIRK_ENABLE_SDHCI_SPEC_300 |
-		    NVQUIRK_DISABLE_SDR50 |
-		    NVQUIRK_DISABLE_SDR104,
+	.nvquirks = NVQUIRK_ENABLE_SDHCI_SPEC_300,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra114_pdata = {
@@ -230,9 +518,6 @@ static const struct sdhci_pltfm_data sdhci_tegra114_pdata = {
 
 static struct sdhci_tegra_soc_data soc_data_tegra114 = {
 	.pdata = &sdhci_tegra114_pdata,
-	.nvquirks = NVQUIRK_DISABLE_SDR50 |
-		    NVQUIRK_DISABLE_DDR50 |
-		    NVQUIRK_DISABLE_SDR104,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra132_pdata = {
@@ -248,9 +533,7 @@ static const struct sdhci_pltfm_data sdhci_tegra132_pdata = {
 
 static struct sdhci_tegra_soc_data soc_data_tegra132 = {
 	.pdata = &sdhci_tegra132_pdata,
-	.nvquirks = NVQUIRK_DISABLE_SDR50 |
-		    NVQUIRK_DISABLE_DDR50 |
-		    NVQUIRK_DISABLE_SDR104,
+	.nvquirks = NVQUIRK_ENABLE_HS200,
 };
 
 static const struct of_device_id sdhci_tegra_dt_match[] = {
@@ -361,6 +644,9 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 					 TEGRA_SDHCI_AUTOSUSPEND_DELAY);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_suspend_ignore_children(&pdev->dev, true);
+
+	if (soc_data->nvquirks & NVQUIRK_ENABLE_HS200)
+		host->mmc->caps2 |= MMC_CAP2_HS200;
 
 	rc = sdhci_add_host(host);
 	if (rc)
