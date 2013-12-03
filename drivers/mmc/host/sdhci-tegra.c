@@ -45,6 +45,13 @@
 
 #define TEGRA_SDHCI_AUTOSUSPEND_DELAY	1500
 
+#define MMC_UHS_MASK_SDR12	0x1
+#define MMC_UHS_MASK_SDR25	0x2
+#define MMC_UHS_MASK_SDR50	0x4
+#define MMC_UHS_MASK_DDR50	0x8
+#define MMC_UHS_MASK_SDR104	0x10
+#define MMC_MASK_HS200		0x20
+
 struct sdhci_tegra_soc_data {
 	const struct sdhci_pltfm_data *pdata;
 	u32 nvquirks;
@@ -54,6 +61,15 @@ struct sdhci_tegra {
 	const struct sdhci_tegra_soc_data *soc_data;
 	int power_gpio;
 	bool no_runtime_pm;
+	/* max ddr clk supported by the platform */
+	unsigned int ddr_clk_limit;
+	unsigned int tap_delay;
+	unsigned int trim_delay;
+	int ddr_trim_delay;
+	unsigned int uhs_mask;
+	unsigned int calib_3v3_offsets;	/* Format to be filled: 0xXXXXPDPU */
+	unsigned int calib_1v8_offsets;	/* Format to be filled: 0xXXXXPDPU */
+	unsigned int calib_1v8_offsets_uhs_modes;
 };
 
 static u32 tegra_sdhci_readl(struct sdhci_host *host, int reg)
@@ -266,6 +282,21 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 
 	if (of_get_property(np, "no-1-8-v", NULL))
 		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+
+	of_property_read_u32(np, "tap-delay", &tegra_host->tap_delay);
+	of_property_read_u32(np, "trim-delay", &tegra_host->trim_delay);
+	of_property_read_u32(np, "ddr-clk-limit", &tegra_host->ddr_clk_limit);
+	of_property_read_u32(np, "uhs-mask", &tegra_host->uhs_mask);
+	of_property_read_u32(np,
+		"calib-3v3-offsets", &tegra_host->calib_3v3_offsets);
+	of_property_read_u32(np,
+		"calib-1v8-offsets", &tegra_host->calib_1v8_offsets);
+	of_property_read_u32(np, "calib-1v8-offsets-uhs-modes",
+		&tegra_host->calib_1v8_offsets_uhs_modes);
+
+	if (of_property_read_u32(np, "ddr-trim-delay",
+			&tegra_host->ddr_trim_delay))
+		tegra_host->ddr_trim_delay = -1;
 
 	return ret;
 }

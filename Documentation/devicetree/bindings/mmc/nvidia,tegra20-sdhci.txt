@@ -20,6 +20,26 @@ Optional properties:
 - nvidia,no-runtime-suspend : No runtime PM support on the host
 - nvidia,host-off-card-on : The host is powered off while the card is powered
   on during suspend
+- tap-delay : initial tap delay value (for Rx at high freqs)
+- trim-delay : trim delay value (for Tx at high freqs)
+- ddr-trim-delay : trim delay value for DDR50
+- calib-3v3-offsets : Autocal HW offset for 3v3
+- calib-1v8-offsets : Autocal HW offset for 1v8
+- calib-1v8-offsets-uhs-modes : Mask for UHS mode calibration.  Valid values are:
+	Bit 1: SDR12
+	Bit 2: SDR25
+	Bit 3: SDR50
+	Bit 4: DDR50
+	Bit 5: SDR104
+	Bit 6: HS200
+- uhs-mask : disables a UHS mode when corresponding bit set to 1.  Valid values are:
+	Bit 1: SDR12
+	Bit 2: SDR25
+	Bit 3: SDR50
+	Bit 4: DDR50
+	Bit 5: SDR104
+	Bit 6: HS200
+- ddr-clk-limit : max clock frequency in DDR mode
 
 Example:
 
@@ -36,4 +56,21 @@ sdhci@c8000200 {
 	bus-width = <8>;
 	nvidia,no-runtime-suspend;
 	nvidia,host-off-card-on;
+};
+
+Example 2:
+
+sdhci@700b0600 {
+	compatible = "nvidia,tegra124-sdhci", "nvidia,tegra114-sdhci";
+	reg = <0x700b0600 0x200>;
+	interrupts = <0 31 0x04>;
+	clocks = <&tegra_car 15>;
+	tap-delay = <0x4>;
+	trim-delay = <0x4>;
+	ddr-trim-delay = <0x4>;
+	ddr-clk-limit = <51000000>;
+	calib-3v3-offsets = <0x0202>;
+	calib-1v8-offsets = <0x0202>;
+	calib-1v8-offsets-uhs-modes = <0x28>; /* DDR50 | HS200 */
+	uhs-mask = <0x00>;
 };
