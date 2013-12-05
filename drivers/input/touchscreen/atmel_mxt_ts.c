@@ -12,6 +12,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/acpi.h>
 #include <linux/async.h>
 #include <linux/completion.h>
 #include <linux/debugfs.h>
@@ -3052,7 +3053,7 @@ static int mxt_probe(struct i2c_client *client,
 	union i2c_smbus_data dummy;
 
 	/* Make sure there is something at this address */
-	if (client->dev.of_node && i2c_smbus_xfer(client->adapter, client->addr,
+	if (i2c_smbus_xfer(client->adapter, client->addr,
 			 0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0)
 		return -ENODEV;
 
@@ -3062,7 +3063,23 @@ static int mxt_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
-	data->is_tp = !strcmp(id->name, "atmel_mxt_tp");
+	if (id)
+		data->is_tp = !strcmp(id->name, "atmel_mxt_tp");
+#ifdef CONFIG_ACPI
+	else {
+		/*
+		 * Check the ACPI device ID to determine if this device
+		 * is a touchpad because i2c_device_id is NULL when probed
+		 * from the ACPI device id table.
+		 */
+		struct acpi_device *adev;
+		acpi_status status;
+		status = acpi_bus_get_device(ACPI_HANDLE(&client->dev), &adev);
+		if (ACPI_SUCCESS(status))
+			data->is_tp = !strncmp(dev_name(&adev->dev),
+					       "ATML0000", 8);
+	}
+#endif
 	snprintf(data->phys, sizeof(data->phys), "i2c-%u-%04x/input0",
 		 client->adapter->nr, client->addr);
 
@@ -3525,11 +3542,21 @@ static const struct i2c_device_id mxt_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, mxt_id);
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id mxt_acpi_id[] = {
+	{ "ATML0000", 0 }, /* Touchpad */
+	{ "ATML0001", 0 }, /* Touchscreen */
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, mxt_acpi_id);
+#endif
+
 static struct i2c_driver mxt_driver = {
 	.driver = {
 		.name	= "atmel_mxt_ts",
 		.owner	= THIS_MODULE,
 		.pm	= &mxt_pm_ops,
+		.acpi_match_table = ACPI_PTR(mxt_acpi_id),
 	},
 	.probe		= mxt_probe,
 	.remove		= mxt_remove,
