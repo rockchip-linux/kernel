@@ -460,8 +460,6 @@ enum P2P_MODES {
 
 #define MWIFIEX_FW_V15		   15
 
-#define CFG_DATA_TYPE_CAL		2
-
 struct mwifiex_ie_types_header {
 	__le16 type;
 	__le16 len;
@@ -1572,12 +1570,6 @@ struct mwifiex_ie_list {
 	struct mwifiex_ie ie_list[MAX_MGMT_IE_INDEX];
 } __packed;
 
-struct host_cmd_ds_802_11_cfg_data {
-	__le16 action;
-	__le16 type;
-	__le16 data_len;
-} __packed;
-
 struct host_cmd_ds_command {
 	__le16 command;
 	__le16 size;
@@ -1635,7 +1627,6 @@ struct host_cmd_ds_command {
 		struct host_cmd_ds_802_11_subsc_evt subsc_evt;
 		struct host_cmd_ds_sys_config uap_sys_config;
 		struct host_cmd_11ac_vht_cfg vht_cfg;
-		struct host_cmd_ds_802_11_cfg_data cfg_data;
 	} params;
 } __packed;
 
