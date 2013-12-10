@@ -285,6 +285,7 @@ enum MWIFIEX_802_11_PRIVACY_FILTER {
 #define HostCmd_CMD_802_11_SUBSCRIBE_EVENT            0x0075
 #define HostCmd_CMD_802_11_TX_RATE_QUERY              0x007f
 #define HostCmd_CMD_802_11_IBSS_COALESCING_STATUS     0x0083
+#define HostCmd_CMD_CFG_DATA                          0x008f
 #define HostCmd_CMD_VERSION_EXT                       0x0097
 #define HostCmd_CMD_RSSI_INFO                         0x00a4
 #define HostCmd_CMD_FUNC_INIT                         0x00a9
@@ -458,6 +459,8 @@ enum P2P_MODES {
 	(((event_cause) >> 24) & 0x00ff)
 
 #define MWIFIEX_FW_V15		   15
+
+#define CFG_DATA_TYPE_CAL		2
 
 struct mwifiex_ie_types_header {
 	__le16 type;
@@ -1569,6 +1572,12 @@ struct mwifiex_ie_list {
 	struct mwifiex_ie ie_list[MAX_MGMT_IE_INDEX];
 } __packed;
 
+struct host_cmd_ds_802_11_cfg_data {
+	__le16 action;
+	__le16 type;
+	__le16 data_len;
+} __packed;
+
 struct host_cmd_ds_command {
 	__le16 command;
 	__le16 size;
@@ -1626,6 +1635,7 @@ struct host_cmd_ds_command {
 		struct host_cmd_ds_802_11_subsc_evt subsc_evt;
 		struct host_cmd_ds_sys_config uap_sys_config;
 		struct host_cmd_11ac_vht_cfg vht_cfg;
+		struct host_cmd_ds_802_11_cfg_data cfg_data;
 	} params;
 } __packed;
 
