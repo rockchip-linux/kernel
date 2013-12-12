@@ -14,6 +14,7 @@ extern int of_get_dma_window(struct device_node *dn, const char *prefix,
 
 extern void iommu_add(struct iommu *iommu);
 extern void iommu_del(struct iommu *iommu);
+extern int of_iommu_attach(struct device *dev);
 
 #else
 
@@ -30,6 +31,11 @@ static inline void iommu_add(struct iommu *iommu)
 
 static inline void iommu_del(struct iommu *iommu)
 {
+}
+
+static inline int of_iommu_attach(struct device *dev)
+{
+	return 0;
 }
 
 #endif	/* CONFIG_OF_IOMMU */
