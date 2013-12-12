@@ -281,8 +281,6 @@
 /* Touchscreen absolute values */
 #define MXT_MAX_AREA		0xff
 
-#define MXT_MAX_FINGER		10
-
 /* Fallback T7 values to restore functionality in the event of i2c problems */
 #define FALLBACK_MXT_POWER_IDLEACQINT	0xff
 #define FALLBACK_MXT_POWER_ACTVACQINT	0xff
@@ -420,7 +418,7 @@ struct mxt_data {
 	char *config_file;
 
 	/* map for the tracking id currently being used */
-	bool current_id[MXT_MAX_FINGER];
+	bool *current_id;
 
 	bool lid_handler_registered;
 	struct input_handler lid_handler;
@@ -555,7 +553,7 @@ static void mxt_release_all_fingers(struct mxt_data *data)
 	int max_area_channels = min(255U, data->max_area_channels);
 	int max_touch_major = get_touch_major_pixels(data, max_area_channels);
 	bool need_update = false;
-	for (id = 0; id < MXT_MAX_FINGER; id++) {
+	for (id = 0; id < data->num_touchids; id++) {
 		if (data->current_id[id]) {
 			dev_warn(dev, "Move touch %d to (0,0)\n", id);
 			input_mt_slot(input_dev, id);
@@ -572,7 +570,7 @@ static void mxt_release_all_fingers(struct mxt_data *data)
 	if (need_update)
 		input_sync(data->input_dev);
 
-	for (id = 0; id < MXT_MAX_FINGER; id++) {
+	for (id = 0; id < data->num_touchids; id++) {
 		if (data->current_id[id]) {
 			dev_warn(dev, "Release touch contact %d\n", id);
 			input_mt_slot(input_dev, id);
@@ -1468,12 +1466,18 @@ static int mxt_get_object_table(struct mxt_data *data)
 		}
 	}
 
+	data->current_id = kzalloc(sizeof(*data->current_id) *
+				   data->num_touchids, GFP_KERNEL);
+	if (!data->current_id)
+		return -ENOMEM;
+
 	return 0;
 }
 
 static void mxt_free_object_table(struct mxt_data *data)
 {
 	kfree(data->object_table);
+	kfree(data->current_id);
 	data->object_table = NULL;
 	data->T6_reportid = 0;
 	data->T9_reportid_min = 0;
@@ -1481,7 +1485,7 @@ static void mxt_free_object_table(struct mxt_data *data)
 	data->T19_reportid = 0;
 	data->T100_reportid_min = 0;
 	data->T100_reportid_max = 0;
-
+	data->num_touchids = 0;
 }
 
 static int mxt_initialize(struct mxt_data *data)
