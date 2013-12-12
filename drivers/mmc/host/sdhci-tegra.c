@@ -261,6 +261,9 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 	if (of_get_property(np, "nvidia,no-runtime-suspend", NULL))
 		tegra_host->no_runtime_pm = true;
 
+	if (of_get_property(np, "nvidia,host-off-card-on", NULL))
+		host->quirks2 |= SDHCI_QUIRK2_HOST_OFF_CARD_ON;
+
 	if (of_get_property(np, "no-1-8-v", NULL))
 		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 
