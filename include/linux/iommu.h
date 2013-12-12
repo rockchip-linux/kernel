@@ -97,6 +97,8 @@ enum iommu_attr {
  * @domain_has_cap: domain capabilities query
  * @add_device: add device to iommu grouping
  * @remove_device: remove device from iommu grouping
+ * @bound_driver: called at BUS_NOTIFY_BOUND_DRIVER
+ * @unbind_driver: called at BUS_NOTIFY_UNBIND_DRIVER
  * @domain_get_attr: Query domain attributes
  * @domain_set_attr: Change domain attributes
  * @pgsize_bitmap: bitmap of supported page sizes
@@ -115,6 +117,8 @@ struct iommu_ops {
 			      unsigned long cap);
 	int (*add_device)(struct device *dev);
 	void (*remove_device)(struct device *dev);
+	int (*bound_driver)(struct device *dev);
+	void (*unbind_driver)(struct device *dev);
 	int (*device_group)(struct device *dev, unsigned int *groupid);
 	int (*domain_get_attr)(struct iommu_domain *domain,
 			       enum iommu_attr attr, void *data);
