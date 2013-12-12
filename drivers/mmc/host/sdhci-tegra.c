@@ -53,6 +53,7 @@ struct sdhci_tegra_soc_data {
 struct sdhci_tegra {
 	const struct sdhci_tegra_soc_data *soc_data;
 	int power_gpio;
+	bool no_runtime_pm;
 };
 
 static u32 tegra_sdhci_readl(struct sdhci_host *host, int reg)
@@ -257,6 +258,9 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 	tegra_host->power_gpio = of_get_named_gpio(np, "power-gpios", 0);
 	ret = mmc_of_parse(host->mmc);
 
+	if (of_get_property(np, "nvidia,no-runtime-suspend", NULL))
+		tegra_host->no_runtime_pm = true;
+
 	if (of_get_property(np, "no-1-8-v", NULL))
 		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 
@@ -316,7 +320,8 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 	pltfm_host->clk = clk;
 
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
+	if (!tegra_host->no_runtime_pm)
+		pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev,
 					 TEGRA_SDHCI_AUTOSUSPEND_DELAY);

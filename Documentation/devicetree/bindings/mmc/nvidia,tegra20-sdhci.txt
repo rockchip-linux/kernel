@@ -17,6 +17,7 @@ Required properties:
 
 Optional properties:
 - power-gpios : Specify GPIOs for power control
+- nvidia,no-runtime-suspend : No runtime PM support on the host
 
 Example:
 
@@ -31,4 +32,5 @@ sdhci@c8000200 {
 	wp-gpios = <&gpio 57 0>; /* gpio PH1 */
 	power-gpios = <&gpio 155 0>; /* gpio PT3 */
 	bus-width = <8>;
+	nvidia,no-runtime-suspend;
 };
