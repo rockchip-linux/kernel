@@ -164,13 +164,25 @@
 /* T100 Multiple Touch Touchscreen */
 #define MXT_T100_CTRL      0
 #define MXT_T100_CFG1      1
+#define MXT_T100_SCRAUX    2
 #define MXT_T100_TCHAUX    3
 #define MXT_T100_XRANGE    13
 #define MXT_T100_YRANGE    24
 #define MXT_T100_XSIZE     9
 #define MXT_T100_YSIZE     20
 
-#define MXT_T100_CFG_SWITCHXY  (1 << 5)
+#define MXT_T100_CFG_SWITCHXY	(1 << 5)
+
+#define MXT_T100_SRCAUX_NUMRPTTCH	(1 << 0)
+#define MXT_T100_SRCAUX_TCHAREA		(1 << 1)
+#define MXT_T100_SRCAUX_ATCHAREA	(1 << 2)
+#define MXT_T100_SRCAUX_INTTHRAREA	(1 << 3)
+
+#define MXT_T100_TCHAUX_VECT	(1 << 0)
+#define MXT_T100_TCHAUX_AMPL	(1 << 1)
+#define MXT_T100_TCHAUX_AREA	(1 << 2)
+#define MXT_T100_TCHAUX_PEAK	(1 << 4)
+
 
 /* MXT_TOUCH_CTRL bits */
 #define MXT_TOUCH_CTRL_ENABLE	(1 << 0)
@@ -290,6 +302,21 @@
 /* For CMT (must match XRANGE/YRANGE as defined in board config */
 #define MXT_PIXELS_PER_MM	20
 
+/* Define for TOUCH_MOUTITOUCHSCREEN_T100 Touch Status */
+#define TOUCH_STATUS_DETECT			0x80
+#define TOUCH_STATUS_TYPE_FINGER	0x10
+#define TOUCH_STATUS_TYPE_STYLUS	0x20
+#define TOUCH_STATUS_EVENT_MOVE		0x01
+#define TOUCH_STATUS_EVENT_UNSUP	0x02
+#define TOUCH_STATUS_EVENT_SUP		0x03
+#define TOUCH_STATUS_EVENT_DOWN		0x04
+#define TOUCH_STATUS_EVENT_UP		0x05
+#define TOUCH_STATUS_EVENT_UNSUPSUP	0x06
+#define TOUCH_STATUS_EVENT_UNSUPUP	0x07
+#define TOUCH_STATUS_EVENT_DOWNSUP	0x08
+#define TOUCH_STATUS_EVENT_DOWNUP	0x09
+
+
 struct mxt_cfg_file_hdr {
 	bool valid;
 	u32 info_crc;
@@ -320,11 +347,6 @@ struct mxt_object {
 	u8 instances;		/* Number of instances - 1 */
 	u8 num_report_ids;
 } __packed;
-
-struct mxt_message {
-	u8 reportid;
-	u8 message[7];
-};
 
 /* Each client has this additional data */
 struct mxt_data {
@@ -361,6 +383,17 @@ struct mxt_data {
 	u16 T44_address;
 	u8 T100_reportid_min;
 	u8 T100_reportid_max;
+	u8 message_length;
+
+	/* T100 Configuration.  Which calculations are enabled*/
+	bool T100_enabled_num_reportable_touches;
+	bool T100_enabled_touch_area;
+	bool T100_enabled_antitouch_area;
+	bool T100_enabled_internal_tracking_area;
+	bool T100_enabled_vector;
+	bool T100_enabled_amplitude;
+	bool T100_enabled_area;
+	bool T100_enabled_peak;
 
 	/* for fw update in bootloader */
 	struct completion bl_completion;
@@ -527,17 +560,17 @@ static bool mxt_object_writable(unsigned int type)
 	case MXT_SPT_DYNAMICCONFIGURATIONCONTROLLER_T70:
 	case MXT_SPT_DYNAMICCONFIGURATIONCONTAINER_T71:
 	case MXT_PROCG_NOISESUPPRESSION_T72:
+	case MXT_TOUCH_MULTITOUCHSCREEN_T100:
 		return true;
 	default:
 		return false;
 	}
 }
 
-static void mxt_dump_message(struct device *dev,
-			     struct mxt_message *message)
+static void mxt_dump_message(struct device *dev, u8 *message)
 {
 	dev_dbg(dev, "reportid: %u\tmessage: %*ph\n",
-		message->reportid, 7, message->message);
+		message[0], 7, &message[1]);
 }
 
 /*
@@ -831,11 +864,10 @@ static int mxt_read_num_messages(struct mxt_data *data, u8 *count)
 	return __mxt_read_reg(data->client, data->T44_address, 1, count);
 }
 
-static int mxt_read_messages(struct mxt_data *data, u8 count,
-			     struct mxt_message *messages)
+static int mxt_read_messages(struct mxt_data *data, u8 count, u8 *buf)
 {
 	return __mxt_read_reg(data->client, data->T5_address,
-			sizeof(struct mxt_message) * count, messages);
+			data->message_length * count, buf);
 }
 
 static int mxt_write_obj_instance(struct mxt_data *data, u8 type, u8 instance,
@@ -858,16 +890,21 @@ static int mxt_write_object(struct mxt_data *data, u8 type, u8 offset, u8 val)
 	return mxt_write_obj_instance(data, type, 0, offset, val);
 }
 
-static void mxt_input_button(struct mxt_data *data, struct mxt_message *message)
+static void mxt_input_button(struct mxt_data *data, u8 *message)
 {
 	struct device *dev = &data->client->dev;
 	struct input_dev *input = data->input_dev;
+	u8 *payload = &message[1];
 	bool button;
 	int i;
 
+	dev_dbg(dev, "GPIO Event :%X\n", payload[0]);
 	if (!data->pdata) {
 		/* Active-low switch */
-		button = !(message->message[0] & MXT_GPIO3_MASK);
+		if (data->has_T100)
+			button = !(payload[0] & MXT_GPIO2_MASK);
+		else
+			button = !(payload[0] & MXT_GPIO3_MASK);
 		input_report_key(input, BTN_LEFT, button);
 		dev_dbg(dev, "Button state: %d\n", button);
 		return;
@@ -877,8 +914,9 @@ static void mxt_input_button(struct mxt_data *data, struct mxt_message *message)
 	for (i = 0; i < MXT_NUM_GPIO; i++) {
 		if (data->pdata->key_map[i] == KEY_RESERVED)
 			continue;
-		button = !(message->message[0] & MXT_GPIO0_MASK << i);
+		button = !(payload[0] & MXT_GPIO0_MASK << i);
 		input_report_key(input, data->pdata->key_map[i], button);
+		dev_dbg(dev, "Button state: %d\n", button);
 	}
 }
 
@@ -899,11 +937,53 @@ static int get_touch_major_pixels(struct mxt_data *data, int touch_channels)
 	return int_sqrt(DIV_ROUND_CLOSEST(touch_pixels * 100, 314)) * 2;
 }
 
-static void mxt_input_touchevent(struct mxt_data *data,
-				 struct mxt_message *message, int id)
+static void mxt_handle_screen_status_report(struct mxt_data *data, u8 *message)
 {
 	struct device *dev = &data->client->dev;
-	u8 status = message->message[0];
+	u8 *payload = &message[1];
+	u8 status = payload[0];
+	u8 num_reportable_touches = 0;
+	int touch_area = 0;
+	int antitouch_area = 0;
+	int internal_tracking_area = 0;
+	int next_index = 1;
+
+	/* Process the values according to the internal sequence */
+	if (data->T100_enabled_num_reportable_touches) {
+		num_reportable_touches = payload[next_index];
+		next_index += 1;
+	}
+
+	if (data->T100_enabled_touch_area) {
+		touch_area = payload[next_index + 1] << 8 |
+				payload[next_index];
+		next_index += 2;
+	}
+
+	if (data->T100_enabled_antitouch_area) {
+		antitouch_area = payload[next_index + 1] << 8 |
+					payload[next_index];
+		next_index += 2;
+	}
+
+	if (data->T100_enabled_internal_tracking_area) {
+		internal_tracking_area = payload[next_index + 1] << 8 |
+						payload[next_index];
+		next_index += 2;
+	}
+
+	dev_dbg(dev,
+		"Screen Status Report : status = %X, N=%X, T=%d, A=%d, I=%d\n",
+		status, num_reportable_touches, touch_area, antitouch_area,
+		internal_tracking_area);
+}
+
+
+static void mxt_input_touchevent(struct mxt_data *data, u8 *message, int id)
+{
+	struct device *dev = &data->client->dev;
+	u8 *payload = &message[1];
+	u8 status = payload[0];
 	struct input_dev *input_dev = data->input_dev;
 	int x;
 	int y;
@@ -912,20 +992,20 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	int touch_major;
 	int vector1, vector2;
 
-	x = (message->message[1] << 4) | ((message->message[3] >> 4) & 0xf);
-	y = (message->message[2] << 4) | ((message->message[3] & 0xf));
+	x = (payload[1] << 4) | ((payload[3] >> 4) & 0xf);
+	y = (payload[2] << 4) | ((payload[3] & 0xf));
 	if (data->max_x < 1024)
 		x = x >> 2;
 	if (data->max_y < 1024)
 		y = y >> 2;
 
-	area = message->message[4];
+	area = payload[4];
 	touch_major = get_touch_major_pixels(data, area);
-	pressure = message->message[5];
+	pressure = payload[5];
 
 	/* The two vector components are 4-bit signed ints (2s complement) */
-	vector1 = (signed)((signed char)message->message[6]) >> 4;
-	vector2 = (signed)((signed char)(message->message[6] << 4)) >> 4;
+	vector1 = (signed)((signed char)payload[6]) >> 4;
+	vector2 = (signed)((signed char)(payload[6] << 4)) >> 4;
 
 	dev_dbg(dev,
 		"[%u] %c%c%c%c%c%c%c%c x: %5u y: %5u area: %3u amp: %3u vector: [%d,%d]\n",
@@ -954,48 +1034,106 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	}
 }
 
-static void mxt_input_touchevent_T100(struct mxt_data *data,
-				      struct mxt_message *message)
+static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 {
 	struct device *dev = &data->client->dev;
-	int id;
-	u8 status = message->message[0];
 	struct input_dev *input_dev = data->input_dev;
-	int x;
-	int y;
-	int area;
-	int pressure;
-	int touch_major;
+	u8 reportid = message[0];
+	u8 *payload = &message[1];
+	u8 status = payload[0];
+	u8 event = status & 0x0F;
+	int id;
+	int x, y;
+	int area = 0;
+	int pressure = 0;
+	int touch_major = 0;
+	int next_index = 1;
+	int vector1 = 0, vector2 = 0;
 
-	id = message->reportid - data->T100_reportid_min - 2;
-	/* Don't process the first & second report ID. */
-	if (id < 0)
-		return;
+	id = reportid - data->T100_reportid_min - 2;
 
-	x = (message->message[2] << 8) | message->message[1];
-	y = (message->message[4] << 8) | message->message[3];
+	x = (payload[next_index+1] << 8) | payload[next_index];
+	next_index += 2;
+	y = (payload[next_index+1] << 8) | payload[next_index];
+	next_index += 2;
 
-	/* TODO: Read the vect/ampl/area according to T100.TCHAUX setting. */
-	area = 0;
-	touch_major = 0;
-	pressure = 0;
+	/* Keep the process sequence */
+	if (data->T100_enabled_vector) {
+		/* The two vector components are 4-bit signed ints */
+		u8 values = payload[next_index];
+		vector1 = (signed)((signed char)values) >> 4;
+		vector2 = (signed)((signed char)(values << 4)) >> 4;
+		next_index += 1;
+	}
 
-	dev_info(dev,
-		"[%u] %c x: %5u y: %5u\n",
+	if (data->T100_enabled_amplitude) {
+		pressure = payload[next_index];
+		next_index += 1;
+	}
+
+	if (data->T100_enabled_area) {
+		area = payload[next_index];
+		next_index += 1;
+	}
+
+	if (data->T100_enabled_peak) {
+		touch_major = payload[next_index];
+		next_index += 1;
+	} else {
+		touch_major = get_touch_major_pixels(data, area);
+	}
+
+	dev_dbg(dev,
+		"[%u] %c%c%c%c%c%c%c%c%c%c%c%c x: %5u y: %5u a: %5u p: %5u m: %d v: [%d,%d]\n",
 		id,
-		(status & MXT_DETECT) ? 'D' : '.',
-		x, y);
+		(status & TOUCH_STATUS_DETECT) ? 'D' : '.',
+		(status & TOUCH_STATUS_TYPE_FINGER) ? 'F' : '.',
+		(status & TOUCH_STATUS_TYPE_STYLUS) ? 'S' : '.',
+		(status & TOUCH_STATUS_EVENT_MOVE) ? 'M' : '.',
+		(status & TOUCH_STATUS_EVENT_UNSUP) ? 'U' : '.',
+		(status & TOUCH_STATUS_EVENT_SUP) ? 'S' : '.',
+		(status & TOUCH_STATUS_EVENT_DOWN) ? 'D' : '.',
+		(status & TOUCH_STATUS_EVENT_UP) ? 'U' : '.',
+		(status & TOUCH_STATUS_EVENT_UNSUPSUP) ? 'U' : '.',
+		(status & TOUCH_STATUS_EVENT_UNSUPUP) ? 'U' : '.',
+		(status & TOUCH_STATUS_EVENT_DOWNSUP) ? 'D' : '.',
+		(status & TOUCH_STATUS_EVENT_DOWNUP) ? 'D' : '.',
+		x, y, area, pressure, touch_major, vector1, vector2);
 
-	input_mt_slot(input_dev, id);
-	input_mt_report_slot_state(input_dev, MT_TOOL_FINGER,
-				   status & MXT_DETECT);
-	data->current_id[id] = status & MXT_DETECT;
 
-	if (status & MXT_DETECT) {
-		input_report_abs(input_dev, ABS_MT_POSITION_X, x);
-		input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
-		input_report_abs(input_dev, ABS_MT_PRESSURE, pressure);
-		input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, touch_major);
+	if (status & TOUCH_STATUS_TYPE_FINGER) {
+		if (status & TOUCH_STATUS_DETECT) {
+			if (event & TOUCH_STATUS_EVENT_MOVE ||
+					event & TOUCH_STATUS_EVENT_DOWN ||
+					event & TOUCH_STATUS_EVENT_UNSUP ||
+					event == 0x00) {
+				input_mt_slot(input_dev, id);
+				data->current_id[id] =
+						status & TOUCH_STATUS_DETECT;
+				input_mt_report_slot_state(
+					input_dev, MT_TOOL_FINGER, true);
+				input_report_abs(input_dev,
+						 ABS_MT_POSITION_X, x);
+				input_report_abs(input_dev,
+						 ABS_MT_POSITION_Y, y);
+				input_report_abs(input_dev,
+						 ABS_MT_PRESSURE, pressure);
+				input_report_abs(input_dev,
+						 ABS_MT_TOUCH_MAJOR,
+						 touch_major);
+			}
+		} else {
+			if (event & TOUCH_STATUS_EVENT_UP ||
+					event & TOUCH_STATUS_EVENT_SUP) {
+				input_mt_slot(input_dev, id);
+				input_mt_report_slot_state(input_dev,
+							   MT_TOOL_FINGER,
+							   false);
+			}
+		}
+	} else {
+		input_mt_slot(input_dev, id);
+		input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, false);
 	}
 }
 
@@ -1004,31 +1142,31 @@ static unsigned mxt_extract_T6_csum(const u8 *csum)
 	return csum[0] | (csum[1] << 8) | (csum[2] << 16);
 }
 
-static bool mxt_is_T9_message(struct mxt_data *data, struct mxt_message *msg)
+static bool mxt_is_T9_message(struct mxt_data *data, u8 reportid)
 {
-	u8 id = msg->reportid;
-	return (id >= data->T9_reportid_min && id <= data->T9_reportid_max);
+	return (reportid >= data->T9_reportid_min &&
+			reportid <= data->T9_reportid_max);
 }
 
-static bool mxt_is_T100_message(struct mxt_data *data, struct mxt_message *msg)
+static bool mxt_is_T100_message(struct mxt_data *data, u8 reportid)
 {
-	u8 id = msg->reportid;
-	return (id >= data->T100_reportid_min && id <= data->T100_reportid_max);
+	return (reportid >= data->T100_reportid_min &&
+			reportid <= data->T100_reportid_max);
 }
 
 static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 {
 	struct device *dev = &data->client->dev;
-	u8 reportid;
 	bool update_input = false;
-	struct mxt_message *messages, *msg;
+	u8 *message_buffer;
 	int ret;
+	u8 i;
 
-	messages = kcalloc(count, sizeof(*messages), GFP_KERNEL);
-	if (!messages)
+	message_buffer = kcalloc(count, data->message_length, GFP_KERNEL);
+	if (!message_buffer)
 		return -ENOMEM;
 
-	ret = mxt_read_messages(data, count, messages);
+	ret = mxt_read_messages(data, count, message_buffer);
 	if (ret) {
 		dev_err(dev, "Failed to read %u messages (%d).\n", count, ret);
 		goto out;
@@ -1036,28 +1174,38 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 	if (!report)
 		goto out;
 
-	for (msg = messages; msg < &messages[count]; msg++) {
+	for (i = 0; i < count; i++) {
+		u8 *msg = &message_buffer[i * data->message_length];
+		u8 reportid = msg[0];
 		mxt_dump_message(dev, msg);
-		reportid = msg->reportid;
 
 		if (reportid == data->T6_reportid) {
-			const u8 *payload = &msg->message[0];
+			const u8 *payload = &msg[1];
 			u8 status = payload[0];
 			data->config_csum = mxt_extract_T6_csum(&payload[1]);
 			dev_info(dev, "Status: %02x Config Checksum: %06x\n",
 				 status, data->config_csum);
 			if (status == 0x00)
 				complete(&data->auto_cal_completion);
-		} else if (mxt_is_T9_message(data, msg)) {
+		} else if (mxt_is_T9_message(data, reportid)) {
 			int id = reportid - data->T9_reportid_min;
 			mxt_input_touchevent(data, msg, id);
 			update_input = true;
-		} else if (msg->reportid == data->T19_reportid) {
+		} else if (reportid == data->T19_reportid) {
 			mxt_input_button(data, msg);
 			update_input = true;
-		} else if (mxt_is_T100_message(data, msg)) {
-			mxt_input_touchevent_T100(data, msg);
-			update_input = true;
+		} else if (mxt_is_T100_message(data, reportid)) {
+			/* check SCRSTATUS */
+			if (reportid == data->T100_reportid_min) {
+				/* Screen Status Report */
+				mxt_handle_screen_status_report(data, msg);
+			} else if (reportid == (data->T100_reportid_min + 1)) {
+				/* skip reserved report id */
+				continue;
+			} else {
+				mxt_input_touchevent_T100(data, msg);
+				update_input = true;
+			}
 		}
 	}
 
@@ -1068,7 +1216,7 @@ static int mxt_proc_messages(struct mxt_data *data, u8 count, bool report)
 	}
 
 out:
-	kfree(messages);
+	kfree(message_buffer);
 	return ret;
 }
 
@@ -1442,6 +1590,7 @@ static int mxt_get_object_table(struct mxt_data *data)
 		switch (object->type) {
 		case MXT_GEN_MESSAGE_T5:
 			data->T5_address = object->start_address;
+			data->message_length = mxt_obj_size(object) - 1;
 			break;
 		case MXT_GEN_COMMAND_T6:
 			data->T6_reportid = min_id;
@@ -1539,6 +1688,45 @@ static int mxt_initialize(struct mxt_data *data)
 err_free_object_table:
 	mxt_free_object_table(data);
 	return error;
+}
+
+static int mxt_update_setting_T100(struct mxt_data *data)
+{
+	struct i2c_client *client = data->client;
+	struct mxt_object *T100;
+	u8 srcaux, tchaux;
+	int ret;
+
+	T100 = mxt_get_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T100);
+	if (!T100)
+		return -EINVAL;
+
+	/* Get SRCAUX Setting */
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_SCRAUX,
+			1, &srcaux);
+	if (ret)
+		return ret;
+	data->T100_enabled_num_reportable_touches =
+			(srcaux & MXT_T100_SRCAUX_NUMRPTTCH);
+	data->T100_enabled_touch_area = (srcaux & MXT_T100_SRCAUX_TCHAREA);
+	data->T100_enabled_antitouch_area = (srcaux & MXT_T100_SRCAUX_ATCHAREA);
+	data->T100_enabled_internal_tracking_area =
+			(srcaux & MXT_T100_SRCAUX_INTTHRAREA);
+
+	/* Get TCHAUX Setting */
+	ret = __mxt_read_reg(client, T100->start_address + MXT_T100_TCHAUX,
+			 1, &tchaux);
+	if (ret)
+		return ret;
+	data->T100_enabled_vector = (tchaux & MXT_T100_TCHAUX_VECT);
+	data->T100_enabled_amplitude = (tchaux & MXT_T100_TCHAUX_AMPL);
+	data->T100_enabled_area = (tchaux & MXT_T100_TCHAUX_AREA);
+	data->T100_enabled_peak = (tchaux & MXT_T100_TCHAUX_PEAK);
+
+	dev_info(&client->dev, "T100 Config: SCRAUX : %X, TCHAUX : %X",
+		 srcaux, tchaux);
+
+	return 0;
 }
 
 static int mxt_calc_resolution_T100(struct mxt_data *data)
@@ -1750,8 +1938,9 @@ static int mxt_cfg_verify_hdr(struct mxt_data *data, char **config)
 	}
 
 	ret = sscanf(token, "%x", &crc);
-	dev_info(dev, "Config File: Info Block CRC = %06x\n", crc);
 	if (ret != 1 || crc != data->info_csum) {
+		dev_err(dev, "Config File: Info Block CRC = %06x, info_csum = %06x\n",
+			 crc, data->info_csum);
 		dev_err(dev, "Invalid config file: Bad Info Block CRC\n");
 		return -EINVAL;
 	}
@@ -1780,6 +1969,8 @@ config_crc:
 static int mxt_cfg_proc_line(struct mxt_data *data, const char *line,
 			     struct list_head *cfg_list)
 {
+	struct i2c_client *client = data->client;
+	struct device *dev = &client->dev;
 	int ret;
 	u16 type, instance, size;
 	int len;
@@ -1793,14 +1984,29 @@ static int mxt_cfg_proc_line(struct mxt_data *data, const char *line,
 	if (ret < 3)
 		return 0;
 	/* Only support 1-byte types */
-	if (type > 0xff)
+	if (type > 0xff) {
+		dev_err(dev, "Invalid type = %X\n", type);
 		return -EINVAL;
+	}
 
 	/* Supplied object MUST be a valid instance and match object size */
 	object = mxt_get_object(data, type);
-	if (!object || instance > mxt_obj_instances(object) ||
-	    size != mxt_obj_size(object))
+	if (!object) {
+		dev_err(dev, "Can't get object\n");
 		return -EINVAL;
+	}
+
+	if (instance > mxt_obj_instances(object)) {
+		dev_err(dev, "Too many instances.  Type=%x (%u > %zu)\n",
+			type, instance, mxt_obj_instances(object));
+		return -EINVAL;
+	}
+
+	if (size != mxt_obj_size(object)) {
+		dev_err(dev, "Incorrect obect size. Type=%x (%u != %zu)\n",
+			type, size, mxt_obj_size(object));
+		return -EINVAL;
+	}
 
 	content = kmalloc(size, GFP_KERNEL);
 	if (!content)
@@ -2875,6 +3081,13 @@ static int mxt_input_dev_create(struct mxt_data *data)
 		error = mxt_calc_resolution_T100(data);
 	if (error)
 		return error;
+
+	/* Update T100 settings */
+	if (data->has_T100) {
+		error = mxt_update_setting_T100(data);
+		if (error)
+			return error;
+	}
 
 	/* Clear the existing one if it exists */
 	if (data->input_dev) {
