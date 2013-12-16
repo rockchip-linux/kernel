@@ -1235,7 +1235,10 @@ struct v4l2_ext_control {
 } __attribute__ ((packed));
 
 struct v4l2_ext_controls {
-	__u32 ctrl_class;
+	union {
+		__u32 ctrl_class;
+		__u32 config_store;
+	};
 	__u32 count;
 	__u32 error_idx;
 	__u32 reserved[2];
