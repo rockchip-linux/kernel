@@ -138,23 +138,22 @@ EXPORT_SYMBOL_GPL(dm_verity_unregister_error_notifier);
 static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 			 int error)
 {
-	const char message[] = "integrity failure";
+	const char *message = v->hash_failed ? "integrity" : "block";
 	int error_behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
 	dev_t devt = 0;
 	u64 block = ~0;
 	struct dm_verity_error_state error_state;
-
-	if (!v->hash_failed)
-		return;
+	/* If the hash did not fail, then this is likely transient. */
+	int transient = !v->hash_failed;
 
 	devt = v->data_dev->bdev->bd_dev;
 	error_behavior = v->error_behavior;
 
-	DMERR_LIMIT("verification failure occurred: %s", message);
+	DMERR_LIMIT("verification failure occurred: %s failure", message);
 
 	if (error_behavior == DM_VERITY_ERROR_BEHAVIOR_NOTIFY) {
 		error_state.code = error;
-		error_state.transient = 0;
+		error_state.transient = transient;
 		error_state.block = block;
 		error_state.message = message;
 		error_state.dev_start = v->data_start;
@@ -169,7 +168,7 @@ static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 		error_behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
 
 		if (!blocking_notifier_call_chain(
-		    &verity_error_notifier, 0, &error_state)) {
+		    &verity_error_notifier, transient, &error_state)) {
 			error_behavior = error_state.behavior;
 		}
 	}
@@ -180,7 +179,8 @@ static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
 	case DM_VERITY_ERROR_BEHAVIOR_NONE:
 		break;
 	default:
-		goto do_panic;
+		if (!transient)
+			goto do_panic;
 	}
 	return;
 
@@ -519,6 +519,10 @@ static void verity_end_io(struct bio *bio, int error)
 {
 	struct dm_verity_io *io = bio->bi_private;
 
+	if (error) {
+		verity_finish_io(io, error);
+		return;
+	}
 	INIT_WORK(&io->work, verity_work);
 	queue_work(io->v->verify_wq, &io->work);
 }
