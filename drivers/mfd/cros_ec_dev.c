@@ -17,6 +17,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define pr_fmt(fmt) "cros_ec_dev: " fmt
+
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
@@ -25,10 +27,11 @@
 #include <linux/mfd/cros_ec_dev.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/printk.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 
-#define MYNAME "cros_ec_dev"
+#include "cros_ec_dev.h"
 
 /* Device variables */
 #define CROS_CLASS_NAME "chromeos"
@@ -36,9 +39,7 @@ static struct cros_ec_device *ec;
 static struct class *cros_class;
 static int ec_major;
 
-/*****************************************************************************/
 /* Basic communication */
-
 static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 {
 	struct ec_response_get_version resp;
@@ -73,9 +74,7 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 	return 0;
 }
 
-/*****************************************************************************/
 /* Device file ops */
-
 static int ec_device_open(struct inode *inode, struct file *filp)
 {
 	return 0;
@@ -109,9 +108,8 @@ static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 	return count;
 }
 
-/*****************************************************************************/
-/* Ioctls */
 
+/* Ioctls */
 static long ec_device_ioctl_xcmd(void __user *argp)
 {
 	long ret;
@@ -189,13 +187,10 @@ static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 static long ec_device_compat_ioctl(struct file *filp, unsigned int cmd,
 				   unsigned long arg)
 {
-	pr_err("cros_ec: compat_ioctl not yet implemented\n");
 	return -ENOTTY;
 }
 
-/*****************************************************************************/
 /* Module initialization */
-
 static const struct file_operations fops = {
 	.open = ec_device_open,
 	.release = ec_device_release,
@@ -212,7 +207,7 @@ static int ec_device_probe(struct platform_device *pdev)
 
 	cros_class = class_create(THIS_MODULE, CROS_CLASS_NAME);
 	if (IS_ERR(cros_class)) {
-		pr_err(MYNAME ": failed to register device class\n");
+		pr_err("failed to register device class\n");
 		retval = PTR_ERR(cros_class);
 		goto failed_class;
 	}
@@ -220,19 +215,22 @@ static int ec_device_probe(struct platform_device *pdev)
 	/* Let the kernel pick the major num for us */
 	ec_major = register_chrdev(0, CROS_EC_DEV_NAME, &fops);
 	if (ec_major < 0) {
-		pr_err(MYNAME ": failed to register device\n");
+		pr_err("failed to register device\n");
 		retval = ec_major;
 		goto failed_chrdevreg;
 	}
 
-	/* Instantiate it */
+	/* Instantiate it (and remember the EC) */
 	ec->vdev = device_create(cros_class, NULL, MKDEV(ec_major, 0),
-				 NULL, CROS_EC_DEV_NAME);
+				 ec, CROS_EC_DEV_NAME);
 	if (IS_ERR(ec->vdev)) {
-		pr_err(MYNAME ": failed to create device\n");
+		pr_err("failed to create device\n");
 		retval = PTR_ERR(ec->vdev);
 		goto failed_devreg;
 	}
+
+	/* Initialize extra interfaces */
+	ec_dev_sysfs_init(ec);
 
 	return 0;
 
@@ -246,6 +244,7 @@ failed_class:
 
 static int ec_device_remove(struct platform_device *pdev)
 {
+	ec_dev_sysfs_remove(ec);
 	device_destroy(cros_class, MKDEV(ec_major, 0));
 	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
 	class_destroy(cros_class);
