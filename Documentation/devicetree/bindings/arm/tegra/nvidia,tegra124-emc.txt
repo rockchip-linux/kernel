@@ -52,12 +52,15 @@ Properties:
 - nvidia,emc-sel-dpd-ctrl : EMC_SEL_DPD_CTRL
 - nvidia,emc-cfg-dig-dll : EMC_CFG_DIG_DLL
 - nvidia,emc-bgbias-ctl0 : EMC_BGBIAS_CTL0
+- nvidia,emc-auto-cal-config2 = EMC_AUTO_CAL_CONFIG2;
+- nvidia,emc-auto-cal-config3 = EMC_AUTO_CAL_CONFIG3;
+- nvidia,emc-auto-cal-config = EMC_AUTO_CAL_CONFIG;
 - nvidia,emc-mode-reset : Mode Register 0
 - nvidia,emc-mode-1 : Mode Register 1
 - nvidia,emc-mode-2 : Mode Register 2
 - nvidia,emc-mode-4 : Mode Register 4
 - nvidia,emc-latency : expected dvfs latency (ns)
-- nvidia,emc-registers : a 167 word array of EMC/MC registers to be
+- nvidia,emc-registers : a 164 word array of EMC/MC registers to be
   programmed for operation at the 'clock-frequency' setting.
   The order and contents of the registers are:
 	EMC_RC, EMC_RFC, EMC_RFC_SLR, EMC_RAS, EMC_RP, EMC_R2W, EMC_W2R,
@@ -99,7 +102,6 @@ Properties:
 	EMC_XM2DQSPADCTRL4, EMC_XM2DQSPADCTRL5, EMC_XM2DQSPADCTRL6,
 	EMC_DSR_VTTGEN_DRV, EMC_TXDSRVTTGEN, EMC_FBIO_SPARE, EMC_ZCAL_INTERVAL,
 	EMC_ZCAL_WAIT_CNT, EMC_MRS_WAIT_CNT, EMC_MRS_WAIT_CNT2,
-	EMC_AUTO_CAL_CONFIG2, EMC_AUTO_CAL_CONFIG3, EMC_AUTO_CAL_CONFIG,
 	EMC_CTT, EMC_CTT_DURATION, EMC_CFG_PIPE, EMC_DYN_SELF_REF_CONTROL,
 	EMC_QPOP, MC_EMEM_ARB_CFG, MC_EMEM_ARB_OUTSTANDING_REQ,
 	MC_EMEM_ARB_TIMING_RCD, MC_EMEM_ARB_TIMING_RP, MC_EMEM_ARB_TIMING_RC,
@@ -108,7 +110,7 @@ Properties:
 	MC_EMEM_ARB_TIMING_R2R, MC_EMEM_ARB_TIMING_W2W, MC_EMEM_ARB_TIMING_R2W,
 	MC_EMEM_ARB_TIMING_W2R, MC_EMEM_ARB_DA_TURNS, MC_EMEM_ARB_DA_COVERS,
 	MC_EMEM_ARB_MISC0, MC_EMEM_ARB_RING1_THROTTLE
-- nvidia,emc-registers : a 31 word array of EMC/MC registers to be
+- nvidia,emc-burst-up-down-regs : a 31 word array of EMC/MC registers to be
   programmed for operation at the 'clock-frequency' setting.
   The order and contents of the registers are:
 	MC_MLL_MPCORER_PTSA_RATE, MC_PTSA_GRANT_DECREMENT,
@@ -148,7 +150,7 @@ Example:
 					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-					0 0 0 0 0 0 0>;
+					0 0 0 0>;
 		nvidia,emc-burst-up-down-regs = <0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 						0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 						>;
@@ -160,6 +162,9 @@ Example:
 		nvidia,emc-sel-dpd-ctrl = <0>;
 		nvidia,emc-cfg-dig-dll = <0>;
 		nvidia,emc-bgbias-ctl0 = <0>;
+		nvidia,emc-auto-cal-config2 = <0>;
+		nvidia,emc-auto-cal-config3 = <0>;
+		nvidia,emc-auto-cal-config = <0>;
 		nvidia,emc-mode-reset = <0>;
 		nvidia,emc-mode-1 = <0>;
 		nvidia,emc-mode-2 = <0>;
@@ -187,7 +192,7 @@ Example:
 					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 					0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-					0 0 0 0 0 0 0>;
+					0 0 0 0>;
 		nvidia,emc-burst-up-down-regs = <0 0 0 0 0 0 0 0 0 0 0
 						0 0 0 0 0 0 0 0 0 0 0 0
 						0 0 0 0 0 0 0 0>;
@@ -199,6 +204,9 @@ Example:
 		nvidia,emc-sel-dpd-ctrl = <0>;
 		nvidia,emc-cfg-dig-dll = <0>;
 		nvidia,emc-bgbias-ctl0 = <0>;
+		nvidia,emc-auto-cal-config2 = <0>;
+		nvidia,emc-auto-cal-config3 = <0>;
+		nvidia,emc-auto-cal-config = <0>;
 		nvidia,emc-mode-reset = <0>;
 		nvidia,emc-mode-1 = <0>;
 		nvidia,emc-mode-2 = <0>;

@@ -41,9 +41,10 @@
 #define EMC_CLK_MC_SAME_FREQ			(0x1 << 16)
 
 #define TEGRA_EMC_TABLE_MAX_SIZE		16
-#define EMC_STATUS_UPDATE_TIMEOUT		100
+#define EMC_STATUS_UPDATE_TIMEOUT		1000
 
 #define PRE_WAIT_SREF_US			5
+#define PRE_WAIT_BGBIAS_US			5
 #define PRE_WAIT_DQS_US				30
 
 static bool emc_enable = true;
@@ -197,9 +198,6 @@ enum tegra124_mem_reg_type {
 	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_ZCAL_WAIT_CNT),		\
 	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_MRS_WAIT_CNT),		\
 	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_MRS_WAIT_CNT2),		\
-	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_AUTO_CAL_CONFIG2),		\
-	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_AUTO_CAL_CONFIG3),		\
-	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_AUTO_CAL_CONFIG),		\
 	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_CTT),			\
 	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_CTT_DURATION),		\
 	DEFINE_REG(TEGRA124_MEM_REG_EMC, EMC_CFG_PIPE),			\
@@ -320,6 +318,10 @@ struct emc_table {
 	u32 emc_cfg_2;
 	u32 emc_sel_dpd_ctrl;
 	u32 emc_cfg_dig_dll;
+	u32 emc_bgbias_ctl0;
+	u32 emc_auto_cal_config2;
+	u32 emc_auto_cal_config3;
+	u32 emc_auto_cal_config;
 	u32 emc_mode_reset;
 	u32 emc_mode_1;
 	u32 emc_mode_2;
@@ -549,28 +551,90 @@ static inline int get_dll_change(const struct emc_table *next_timing,
 		return DLL_CHANGE_OFF;
 }
 
+static inline u32 disable_power_features(u32 inreg)
+{
+	u32 mod_reg = inreg;
+
+	mod_reg &= ~(EMC_CFG_DYN_SREF);
+	mod_reg &= ~(EMC_CFG_DRAM_ACPD);
+	mod_reg &= ~(EMC_CFG_DRAM_CLKSTOP_SR);
+	mod_reg &= ~(EMC_CFG_DRAM_CLKSTOP_PD);
+	mod_reg &= ~(EMC_CFG_DSR_VTTGEN_DRV_EN);
+
+	return mod_reg;
+}
+
+static inline u32 emc_sel_dpd_ctrl_enabled(u32 inreg)
+{
+	if (tegra_dram_type == DRAM_TYPE_DDR3)
+		return inreg & (EMC_SEL_DPD_CTRL_DDR3_MASK);
+	else
+		return inreg & (EMC_SEL_DPD_CTRL_MASK);
+}
+
+static inline u32 disable_emc_sel_dpd_ctrl(u32 inreg)
+{
+	u32 mod_reg = inreg;
+
+	mod_reg &= ~(EMC_SEL_DPD_CTRL_DATA_SEL_DPD);
+	mod_reg &= ~(EMC_SEL_DPD_CTRL_ODT_SEL_DPD);
+	if (tegra_dram_type == DRAM_TYPE_DDR3)
+		mod_reg &= ~(EMC_SEL_DPD_CTRL_RESET_SEL_DPD);
+	mod_reg &= ~(EMC_SEL_DPD_CTRL_CA_SEL_DPD);
+	mod_reg &= ~(EMC_SEL_DPD_CTRL_CLK_SEL_DPD);
+
+	return mod_reg;
+}
+
+static inline bool bgbias_preset(const struct emc_table *next_timing,
+					const struct emc_table *last_timing)
+{
+	bool ret = false;
+	unsigned int data, reg;
+
+	data = last_timing->emc_bgbias_ctl0;
+	reg = emc_readl(EMC_BGBIAS_CTL0);
+
+	if (!(next_timing->emc_bgbias_ctl0 &
+	     EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD_IBIAS_RX) &&
+	    (reg & EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD_IBIAS_RX)) {
+		data &= ~EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD_IBIAS_RX;
+		ret = true;
+	}
+
+	if ((reg & EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD) ||
+	    (reg & EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD_IBIAS_VTTGEN))
+		ret = true;
+
+	if (ret)
+		emc_writel(data, EMC_BGBIAS_CTL0);
+
+	return ret;
+}
+
 static inline bool dqs_preset(const struct emc_table *next_timing,
 				const struct emc_table *last_timing)
 {
 	bool ret = false;
-	int data;
+	unsigned int data;
+
+	data = emc_readl(EMC_XM2DQSPADCTRL2);
 
 #define DQS_SET(reg, bit)						\
 	do {								\
-		data = emc_readl(EMC_XM2DQSPADCTRL2);\
 		if ((next_timing->burst_regs[EMC_##reg##_INDEX] &	\
 			EMC_##reg##_##bit##_ENABLE) &&			\
 			(!(data & EMC_##reg##_##bit##_ENABLE))) {	\
-				emc_writel(data | EMC_##reg##_##bit##_ENABLE,\
-					EMC_##reg);	\
-			pr_debug("dqs preset: presetting rx_ft_rec\n");	\
+			data |= EMC_##reg##_##bit##_ENABLE;		\
 			ret = true;					\
 		}							\
 	} while (0)
-
 	DQS_SET(XM2DQSPADCTRL2, VREF);
 	DQS_SET(XM2DQSPADCTRL2, RX_FT_REC);
 #undef DQS_SET
+
+	if (ret)
+		emc_writel(data, EMC_XM2DQSPADCTRL2);
 
 	return ret;
 }
@@ -586,17 +650,22 @@ static int wait_for_update(u32 status_reg, u32 bit_mask, bool updated_state)
 	return -ETIMEDOUT;
 }
 
-static inline void auto_cal_disable(void)
+static inline void wait_auto_cal_disable(void)
 {
 	int err;
 
-	emc_writel(0, EMC_AUTO_CAL_INTERVAL);
 	err = wait_for_update(EMC_AUTO_CAL_STATUS, EMC_AUTO_CAL_STATUS_ACTIVE,
 		false);
 	if (err) {
-		pr_err("%s: disable auto-cal error: %d", __func__, err);
+		pr_err("%s: wait disable auto-cal error: %d", __func__, err);
 		BUG();
 	}
+}
+
+static inline void auto_cal_disable(void)
+{
+	emc_writel(0, EMC_AUTO_CAL_INTERVAL);
+	wait_auto_cal_disable();
 }
 
 static inline void emc_timing_update(void)
@@ -691,12 +760,15 @@ static void emc_set_clock(const struct emc_table *next_timing,
 				   u32 clk_setting)
 {
 	int i, dll_change, pre_wait, ctt_term_changed;
-	bool dyn_sref_enabled, zcal_long;
+	bool cfg_pow_features_enabled, zcal_long;
+	u32 auto_cal_config;
 
 	u32 emc_cfg_reg = emc_readl(EMC_CFG);
 	u32 emc_cfg_2_reg = emc_readl(EMC_CFG_2);
+	u32 sel_dpd_ctrl = emc_readl(EMC_SEL_DPD_CTRL);
+	u32 auto_cal_status = emc_readl(EMC_AUTO_CAL_STATUS);
 
-	dyn_sref_enabled = emc_cfg_reg & EMC_CFG_DYN_SREF_ENABLE;
+	cfg_pow_features_enabled = (emc_cfg_reg & EMC_CFG_PWR_MASK);
 	dll_change = get_dll_change(next_timing, last_timing);
 	zcal_long = (next_timing->burst_regs[EMC_ZCAL_INTERVAL_INDEX] != 0)
 		&& (last_timing->burst_regs[EMC_ZCAL_INTERVAL_INDEX] == 0);
@@ -708,16 +780,44 @@ static void emc_set_clock(const struct emc_table *next_timing,
 	   possible self-refresh entry/exit and/or dqs vref settled - waiting
 	   before the clock change decreases worst case change stall time */
 	pre_wait = 0;
-	if (dyn_sref_enabled) {
-		emc_cfg_reg &= ~EMC_CFG_DYN_SREF_ENABLE;
+	if (cfg_pow_features_enabled) {
+		emc_cfg_reg  = disable_power_features(emc_cfg_reg);
 		emc_writel(emc_cfg_reg, EMC_CFG);
 		pre_wait = PRE_WAIT_SREF_US;
 	}
 
+	/* 2.1 disable sel_dpd_ctrl before starting clock change */
+	if (emc_sel_dpd_ctrl_enabled(sel_dpd_ctrl)) {
+		sel_dpd_ctrl = disable_emc_sel_dpd_ctrl(sel_dpd_ctrl);
+		emc_writel(sel_dpd_ctrl, EMC_SEL_DPD_CTRL);
+	}
+
 	/* 2.5 check dq/dqs vref delay */
+	if (bgbias_preset(next_timing, last_timing)) {
+		if (pre_wait < PRE_WAIT_BGBIAS_US)
+			pre_wait = PRE_WAIT_BGBIAS_US;
+	}
+
 	if (dqs_preset(next_timing, last_timing)) {
 		if (pre_wait < PRE_WAIT_DQS_US)
 			pre_wait = PRE_WAIT_DQS_US;
+	}
+
+	if (pre_wait) {
+		emc_timing_update();
+		udelay(pre_wait);
+	}
+
+	/* 2.5.1 Disable auto_cal for clock change*/
+	emc_writel(0, EMC_AUTO_CAL_INTERVAL);
+	auto_cal_config = emc_readl(EMC_AUTO_CAL_CONFIG);
+	auto_cal_status = emc_readl(EMC_AUTO_CAL_STATUS);
+
+	if ((next_timing->emc_auto_cal_config &
+	     EMC_AUTO_CAL_CONFIG_AUTO_CAL_START) &&
+	    !(auto_cal_status & EMC_AUTO_CAL_STATUS_ACTIVE)) {
+		auto_cal_config |= EMC_AUTO_CAL_CONFIG_AUTO_CAL_START;
+		emc_writel(auto_cal_config, EMC_AUTO_CAL_CONFIG);
 	}
 
 	/* 2.6 Program CTT_TERM Control if it changed since last time*/
@@ -728,10 +828,8 @@ static void emc_set_clock(const struct emc_table *next_timing,
 		emc_writel(next_timing->emc_ctt_term_ctrl, EMC_CTT_TERM_CTRL);
 	}
 
-	if (pre_wait || ctt_term_changed) {
+	if (ctt_term_changed)
 		emc_timing_update();
-		udelay(pre_wait);
-	}
 
 	/* 4. program burst shadow registers */
 	for (i = 0; i < next_timing->burst_regs_num; i++) {
@@ -740,9 +838,25 @@ static void emc_set_clock(const struct emc_table *next_timing,
 		burst_reg_writel(next_timing->burst_regs[i], i);
 	}
 
-	emc_cfg_reg &= ~EMC_CFG_UPDATE_MASK;
-	emc_cfg_reg |= next_timing->emc_cfg & EMC_CFG_UPDATE_MASK;
-	emc_writel(emc_cfg_reg, EMC_CFG);
+	emc_cfg_reg = disable_power_features(next_timing->emc_cfg);
+	ccfifo_writel(emc_cfg_reg, EMC_CFG);
+
+	/* 4.1 program auto_cal_config registers */
+	if (last_timing->emc_auto_cal_config2 !=
+		 next_timing->emc_auto_cal_config2)
+		ccfifo_writel(next_timing->emc_auto_cal_config2,
+			EMC_AUTO_CAL_CONFIG2);
+	if (last_timing->emc_auto_cal_config3 !=
+		next_timing->emc_auto_cal_config3)
+		ccfifo_writel(next_timing->emc_auto_cal_config3,
+			EMC_AUTO_CAL_CONFIG3);
+	if (last_timing->emc_auto_cal_config !=
+		next_timing->emc_auto_cal_config) {
+		auto_cal_config = next_timing->emc_auto_cal_config;
+		auto_cal_config &= ~EMC_AUTO_CAL_CONFIG_AUTO_CAL_START;
+		ccfifo_writel(auto_cal_config, EMC_AUTO_CAL_CONFIG);
+	}
+
 	wmb();
 	barrier();
 
@@ -752,9 +866,6 @@ static void emc_set_clock(const struct emc_table *next_timing,
 		&& (dll_change == DLL_CHANGE_ON))
 		overwrite_mrs_wait_cnt(next_timing, zcal_long);
 
-	/* 5.2 disable auto-refresh to save time after clock change */
-	emc_writel(EMC_REFCTRL_DISABLE_ALL(tegra_dram_dev_num), EMC_REFCTRL);
-
 	/* 5.3 post cfg_2 write and dis ob clock gate */
 	emc_cfg_2_reg = next_timing->emc_cfg_2;
 
@@ -762,13 +873,15 @@ static void emc_set_clock(const struct emc_table *next_timing,
 		emc_cfg_2_reg &= ~EMC_CFG_2_DIS_STP_OB_CLK_DURING_NON_WR;
 	ccfifo_writel(emc_cfg_2_reg, EMC_CFG_2);
 
-	/* 5.4 program sel_dpd */
-	ccfifo_writel(next_timing->emc_sel_dpd_ctrl, EMC_SEL_DPD_CTRL);
-
 	/* 6. turn Off dll and enter self-refresh on DDR3 */
 	if (tegra_dram_type == DRAM_TYPE_DDR3) {
 		if (dll_change == DLL_CHANGE_OFF)
 			ccfifo_writel(next_timing->emc_mode_1, EMC_EMRS);
+	}
+
+	/* 6.1, disable refresh controller using ccfifo */
+	ccfifo_writel(EMC_REFCTRL_DISABLE_ALL(tegra_dram_dev_num), EMC_REFCTRL);
+	if (tegra_dram_type == DRAM_TYPE_DDR3) {
 		ccfifo_writel(DRAM_BROADCAST(tegra_dram_dev_num) |
 			EMC_SELF_REF_CMD_ENABLED, EMC_SELF_REF);
 	}
@@ -779,6 +892,7 @@ static void emc_set_clock(const struct emc_table *next_timing,
 	/* 8. exit self-refresh on DDR3 */
 	if (tegra_dram_type == DRAM_TYPE_DDR3)
 		ccfifo_writel(DRAM_BROADCAST(tegra_dram_dev_num), EMC_SELF_REF);
+	ccfifo_writel(EMC_REFCTRL_ENABLE_ALL(tegra_dram_dev_num), EMC_REFCTRL);
 
 	/* 9. set dram mode registers */
 	set_dram_mode(next_timing, last_timing, dll_change);
@@ -799,6 +913,9 @@ static void emc_set_clock(const struct emc_table *next_timing,
 		ccfifo_writel(emc_cfg_2_reg, EMC_CFG_2);
 	}
 
+	/* 11.2 disable auto_cal for clock change */
+	wait_auto_cal_disable();
+
 	/* 11.5 program burst_up_down registers if emc rate is going down */
 	if (next_timing->rate < last_timing->rate) {
 		for (i = 0; i < next_timing->up_down_regs_num; i++)
@@ -810,9 +927,6 @@ static void emc_set_clock(const struct emc_table *next_timing,
 	/* 12-14. read any MC register to ensure the programming is done
 	   change EMC clock source register wait for clk change completion */
 	do_clock_change(clk_setting);
-
-	/* 14.1 re-enable auto-refresh */
-	emc_writel(EMC_REFCTRL_ENABLE_ALL(tegra_dram_dev_num), EMC_REFCTRL);
 
 	/* 14.2 program burst_up_down registers if emc rate is going up */
 	if (next_timing->rate > last_timing->rate) {
@@ -828,16 +942,26 @@ static void emc_set_clock(const struct emc_table *next_timing,
 			EMC_AUTO_CAL_INTERVAL);
 
 	/* 16. restore dynamic self-refresh */
-	if (next_timing->emc_cfg & EMC_CFG_DYN_SREF_ENABLE) {
-		emc_cfg_reg |= EMC_CFG_DYN_SREF_ENABLE;
+	if (next_timing->emc_cfg & EMC_CFG_PWR_MASK) {
+		emc_cfg_reg = next_timing->emc_cfg;
 		emc_writel(emc_cfg_reg, EMC_CFG);
 	}
 
 	/* 17. set zcal wait count */
 	emc_writel(next_timing->emc_zcal_cnt_long, EMC_ZCAL_WAIT_CNT);
 
+	/* 17.1 turning of bgbias if lpddr3 dram and freq is low */
+	auto_cal_config = emc_readl(EMC_AUTO_CAL_STATUS);
+	if (tegra_dram_type == DRAM_TYPE_DDR3) {
+		if (emc_readl(EMC_BGBIAS_CTL0) != next_timing->emc_bgbias_ctl0)
+			emc_writel(next_timing->emc_bgbias_ctl0,
+				EMC_BGBIAS_CTL0);
+	}
+	emc_writel(next_timing->emc_acal_interval, EMC_AUTO_CAL_INTERVAL);
+
 	/* 18. update restored timing */
 	udelay(2);
+	emc_writel(next_timing->emc_sel_dpd_ctrl, EMC_SEL_DPD_CTRL);
 	emc_timing_update();
 }
 
@@ -1041,7 +1165,7 @@ static void tegra124_parse_dt_data(struct platform_device *pdev)
 			&tegra_emc_table[i].rev);
 		if (ret)
 			continue;
-		if (tegra_emc_table[i].rev < 0x15)
+		if (tegra_emc_table[i].rev < 0x18)
 			continue;
 		ret = of_property_read_u32(iter, "nvidia,src-sel-reg",
 			&tegra_emc_table[i].src_sel_reg);
@@ -1081,6 +1205,22 @@ static void tegra124_parse_dt_data(struct platform_device *pdev)
 			continue;
 		ret = of_property_read_u32(iter, "nvidia,emc-cfg-dig-dll",
 			&tegra_emc_table[i].emc_cfg_dig_dll);
+		if (ret)
+			continue;
+		ret = of_property_read_u32(iter, "nvidia,emc-bgbias-ctl0",
+			&tegra_emc_table[i].emc_bgbias_ctl0);
+		if (ret)
+			continue;
+		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config2",
+			&tegra_emc_table[i].emc_auto_cal_config2);
+		if (ret)
+			continue;
+		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config3",
+			&tegra_emc_table[i].emc_auto_cal_config3);
+		if (ret)
+			continue;
+		ret = of_property_read_u32(iter, "nvidia,emc-auto-cal-config",
+			&tegra_emc_table[i].emc_auto_cal_config);
 		if (ret)
 			continue;
 		ret = of_property_read_u32(iter, "nvidia,emc-mode-reset",

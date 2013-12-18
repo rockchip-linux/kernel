@@ -32,8 +32,10 @@ enum {
 #define EMC_DBG_WRITE_MUX_ACTIVE		(0x1 << 1)
 
 #define EMC_CFG					0xc
+#define EMC_CFG_DRAM_CLKSTOP_PD			(0x1 << 31)
+#define EMC_CFG_DRAM_CLKSTOP_SR			(0x1 << 30)
 #define EMC_CFG_DRAM_ACPD			(0x1 << 29)
-#define EMC_CFG_DYN_SREF_ENABLE			(0x1 << 28)
+#define EMC_CFG_DYN_SREF			(0x1 << 28)
 #define EMC_CFG_PWR_MASK			(0xF << 28)
 #define EMC_CFG_PERIODIC_QRST			(0x1 << 21)
 #define EMC_CFG_EN_DYNAMIC_PUTERM		(0x1 << 20)
@@ -185,6 +187,7 @@ enum {
 #define EMC_TPD					0x15c
 
 #define EMC_AUTO_CAL_CONFIG			0x2a4
+#define EMC_AUTO_CAL_CONFIG_AUTO_CAL_START	(0x1 << 31)
 #define EMC_AUTO_CAL_INTERVAL			0x2a8
 #define EMC_AUTO_CAL_STATUS			0x2ac
 #define EMC_AUTO_CAL_STATUS_ACTIVE		(0x1 << 31)
@@ -282,6 +285,14 @@ enum {
 #define EMC_STALL_THEN_EXE_AFTER_CLKCHANGE	0x3cc
 #define EMC_AUTO_CAL_CLK_STATUS			0x3d4
 #define EMC_SEL_DPD_CTRL			0x3d8
+#define EMC_SEL_DPD_CTRL_DATA_SEL_DPD		(0x1 << 8)
+#define EMC_SEL_DPD_CTRL_ODT_SEL_DPD		(0x1 << 5)
+#define EMC_SEL_DPD_CTRL_RESET_SEL_DPD		(0x1 << 4)
+#define EMC_SEL_DPD_CTRL_CA_SEL_DPD		(0x1 << 3)
+#define EMC_SEL_DPD_CTRL_CLK_SEL_DPD		(0x1 << 2)
+#define EMC_SEL_DPD_CTRL_DDR3_MASK		((0xf << 2) | (0x1 << 8))
+#define EMC_SEL_DPD_CTRL_MASK			\
+	((0x3 << 2) | (0x1 << 5) | (0x1 << 8))
 #define EMC_PRE_REFRESH_REQ_CNT			0x3dc
 #define EMC_DYN_SELF_REF_CONTROL		0x3e0
 #define EMC_TXSRDLL				0x3e4
@@ -366,6 +377,9 @@ enum {
 #define EMC_QUSE_WIDTH				0x568
 #define EMC_PUTERM_WIDTH			0x56c
 #define EMC_BGBIAS_CTL0				0x570
+#define EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD_IBIAS_RX	(0x1 << 3)
+#define EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD_IBIAS_VTTGEN	(0x1 << 2)
+#define EMC_BGBIAS_CTL0_BIAS0_DSC_E_PWRD		(0x1 << 1)
 #define EMC_PUTERM_ADJ				0x574
 
 #define MC_EMEM_CFG				0x50
