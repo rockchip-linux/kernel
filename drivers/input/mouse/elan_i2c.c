@@ -35,6 +35,7 @@
 #include <linux/input.h>
 #include <linux/uaccess.h>
 #include <linux/jiffies.h>
+#include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
 #define ELAN_DRIVER_VERSION	"1.4.6"
@@ -122,21 +123,528 @@
 #define ETP_I2C_IAP_REG_L		0x01
 #define ETP_I2C_IAP_REG_H		0x06
 
+/* IAP F/W updater */
+#define ETP_FW_NAME		"elan_i2c.bin"
+#define ETP_IAP_VERSION_ADDR	0x0082
+#define ETP_IAP_START_ADDR	0x0083
+#define ETP_FW_IAP_PAGE_ERR	(1<<5)
+#define ETP_FW_IAP_INTERFACE_ERR (1<<4)
+#define ETP_FW_PAGE_SIZE	64
+#define ETP_FW_PAGE_COUNT	768
+#define ETP_FW_SIZE		(ETP_FW_PAGE_SIZE * ETP_FW_PAGE_COUNT)
+enum {UNKNOWN_MODE, IAP_MODE, MAIN_MODE};
+
 /* The main device structure */
 struct elan_tp_data {
 	struct i2c_client	*client;
 	struct input_dev	*input;
+
+	/* for fw update */
+	struct completion fw_completion;
+
 	unsigned int		max_x;
 	unsigned int		max_y;
 	unsigned int		width_x;
 	unsigned int		width_y;
 	unsigned int		irq;
-	u16			unique_id;
+	u16			product_id;
 	u16			fw_version;
 	u16			sm_version;
 	u16			iap_version;
+	u16			iap_start_addr;
 	bool			smbus;
+	bool			wait_signal_from_updatefw;
 };
+
+static int elan_i2c_read_cmd(struct i2c_client *client, u16 reg, u8 *val);
+static int elan_i2c_write_cmd(struct i2c_client *client, u16 reg, u16 cmd);
+static int elan_initialize(struct elan_tp_data *data);
+
+/*
+ **********************************************************
+ * IAP firmware updater related routines
+ **********************************************************
+ */
+
+static int elan_iap_getmode(struct elan_tp_data *data)
+{
+	u16 constant;
+	int retval;
+	u8 val[3];
+	struct i2c_client *client = data->client;
+
+	if (data->smbus) {
+		retval = i2c_smbus_read_block_data(client,
+						   ETP_SMBUS_IAP_CTRL_CMD,
+						   val);
+		if (retval < 0) {
+			dev_err(&client->dev, "read iap ctrol fail.\n");
+			return UNKNOWN_MODE;
+		}
+		constant = be16_to_cpup((__be16 *)val);
+		dev_dbg(&client->dev, "iap control reg: 0x%04x.\n", constant);
+		if ((constant & ETP_SMBUS_IAP_MODE_ON) == 0x00)
+			return MAIN_MODE;
+	} else {
+		retval = elan_i2c_read_cmd(client, ETP_I2C_IAP_CTRL_CMD, val);
+		if (retval < 0) {
+			dev_err(&client->dev, "read iap ctrol fail.\n");
+			return UNKNOWN_MODE;
+		}
+		constant = le16_to_cpup((__le16 *)val);
+		dev_dbg(&client->dev, "iap control reg: 0x%04x.\n", constant);
+		if (constant & ETP_I2C_MAIN_MODE_ON)
+			return MAIN_MODE;
+	}
+
+	return IAP_MODE;
+}
+
+static int elan_iap_checksum(struct elan_tp_data *data)
+{
+	int retval = 0;
+	u16 checksum = -1;
+	u8 val[3];
+	struct i2c_client *client = data->client;
+
+	if (data->smbus) {
+		retval = i2c_smbus_read_block_data(client,
+						   ETP_SMBUS_IAP_CHECKSUM_CMD,
+						   val);
+		if (retval < 0) {
+			dev_err(&client->dev, "Read checksum fail, %d\n",
+				retval);
+			return -1;
+		}
+		checksum = be16_to_cpup((__be16 *)val);
+	} else {
+		retval = elan_i2c_read_cmd(client,
+					ETP_I2C_IAP_CHECKSUM_CMD, val);
+		if (retval < 0) {
+			dev_err(&client->dev, "Read checksum fail, %d\n",
+				retval);
+			return -EIO;
+		}
+		checksum = le16_to_cpup((__le16 *)val);
+	}
+	return checksum;
+}
+
+static bool elan_iap_reset(struct elan_tp_data *data)
+{
+	int retval = 0;
+	struct i2c_client *client = data->client;
+
+	if (data->smbus)
+		retval = i2c_smbus_write_byte(client,
+					      ETP_SMBUS_IAP_RESET_CMD);
+	else
+		retval = elan_i2c_write_cmd(client, ETP_I2C_IAP_RESET_CMD,
+					    ETP_I2C_IAP_RESET);
+	if (retval < 0) {
+		dev_err(&client->dev, "cannot reset IC, %d\n", retval);
+		return false;
+	}
+	return true;
+}
+
+static bool elan_iap_setflashkey(struct elan_tp_data *data)
+{
+	int retval = 0;
+	struct i2c_client *client = data->client;
+	u8 smbus_cmd[4] = {0x00, 0x0B, 0x00, 0x5A};
+
+	if (data->smbus)
+		retval = i2c_smbus_write_block_data(client,
+						    ETP_SMBUS_IAP_CMD,
+						    4,
+						    smbus_cmd);
+	else
+		retval = elan_i2c_write_cmd(client, ETP_I2C_IAP_CMD,
+					    ETP_I2C_IAP_PASSWORD);
+	if (retval < 0) {
+		dev_err(&client->dev, "cannot set flash key, %d\n", retval);
+		return false;
+	}
+
+	return true;
+}
+
+static int elan_check_fw(struct elan_tp_data *data,
+			const struct firmware *fw)
+{
+	struct device *dev = &data->client->dev;
+	u8 val[3];
+
+	/* Firmware must match exact PAGE_NUM * PAGE_SIZE bytes */
+	if (fw->size != ETP_FW_SIZE) {
+		dev_err(dev, "invalid firmware size = %zu, expected %d.\n",
+			fw->size, ETP_FW_SIZE);
+		return -EBADF;
+	}
+
+	/* Get IAP Start Address*/
+	memcpy(val, &fw->data[ETP_IAP_START_ADDR * 2], 2);
+	data->iap_start_addr = le16_to_cpup((__le16 *)val);
+	return 0;
+}
+
+
+static int elan_smbus_prepare_fw_update(struct elan_tp_data *data)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &data->client->dev;
+	u16 password;
+	u8 val[3];
+	u8 cmd[4] = {0x0F, 0x78, 0x00, 0x06};
+
+	/* Get FW in which mode	(IAP_MODE/MAIN_MODE)  */
+	int mode = elan_iap_getmode(data);
+	if (mode == UNKNOWN_MODE)
+		return -EIO;
+
+	if (mode == MAIN_MODE) {
+
+		/* set flash key*/
+		if (elan_iap_setflashkey(data) == false) {
+			dev_err(dev, "cannot set flash key\n");
+			return -EIO;
+		}
+
+		/* write iap password */
+		if (i2c_smbus_write_byte(client,
+					 ETP_SMBUS_IAP_PASSWORD_WRITE) < 0) {
+			dev_err(dev, "cannot write iap password\n");
+			return -EIO;
+		}
+
+		if (i2c_smbus_write_block_data(client,
+					       ETP_SMBUS_IAP_CMD, 4, cmd) < 0) {
+			dev_err(dev, "cannot write cmd\n");
+			return -EIO;
+		}
+
+		/* read password to check we enabled successfully. */
+		if (i2c_smbus_read_block_data(client,
+					      ETP_SMBUS_IAP_PASSWORD_READ,
+					      val) < 0) {
+			dev_err(dev, "cannot get iap password\n");
+			return -EIO;
+		}
+		password = be16_to_cpup((__be16 *)val);
+
+		if (password != ETP_SMBUS_IAP_PASSWORD) {
+			dev_err(dev, "wrong iap password = 0x%X\n", password);
+			return -EIO;
+		}
+		/* wait 30ms, from MAIN_MODE change to IAP_MODE*/
+		msleep(30);
+	}
+
+	/* set flash key*/
+	if (elan_iap_setflashkey(data) == false) {
+		dev_err(dev, "cannot set flash key\n");
+		return -EIO;
+	}
+
+	/* Reset IC */
+	if (elan_iap_reset(data) == false) {
+		dev_err(dev, "iap reset fail.\n");
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static int elan_i2c_prepare_fw_update(struct elan_tp_data *data)
+{
+	struct i2c_client *client = data->client;
+	struct device *dev = &data->client->dev;
+	u8 val[3];
+	u16 password;
+
+	/* Get FW in which mode	(IAP_MODE/MAIN_MODE)  */
+	int mode = elan_iap_getmode(data);
+	if (mode == UNKNOWN_MODE)
+		return -EIO;
+
+	if (mode == IAP_MODE) {
+		/* Reset IC */
+		if (elan_iap_reset(data) == false)
+			return -EIO;
+		msleep(30);
+	}
+
+	/* set flash key*/
+	if (elan_iap_setflashkey(data) == false) {
+		dev_err(dev, "cannot set flash key\n");
+		return -EIO;
+	}
+
+	/* Wait for F/W IAP initialization */
+	if (mode == MAIN_MODE)
+		msleep(100);
+	else
+		msleep(30);
+
+	/* check is in iap mode or not*/
+	if (elan_iap_getmode(data) == MAIN_MODE) {
+		dev_err(dev, "status wrong.\n");
+		return -EIO;
+	}
+
+	/* set flash key again */
+	if (elan_iap_setflashkey(data) == false) {
+		dev_err(dev, "cannot set flash key\n");
+		return -EIO;
+	}
+
+	/* Wait for F/W IAP initialization */
+	if (mode == MAIN_MODE)
+		msleep(100);
+	else
+		msleep(30);
+
+	/* read back to check we actually enabled successfully. */
+	if (elan_i2c_read_cmd(client, ETP_I2C_IAP_CMD, val) < 0) {
+		dev_err(dev, "cannot get iap register\n");
+		return -EIO;
+	}
+	password = le16_to_cpup((__le16 *)val);
+
+	if (password != ETP_I2C_IAP_PASSWORD) {
+		dev_err(dev, "wrong iap password = 0x%X\n", password);
+		return -EIO;
+	}
+	return 0;
+}
+
+static bool elan_iap_page_write_ok(struct elan_tp_data *data)
+{
+	u16 constant;
+	int retval = 0;
+	u8 val[3];
+	struct i2c_client *client = data->client;
+
+
+	if (data->smbus) {
+		retval = i2c_smbus_read_block_data(client,
+						   ETP_SMBUS_IAP_CTRL_CMD, val);
+		if (retval < 0)
+			return false;
+		constant = be16_to_cpup((__be16 *)val);
+	} else {
+		retval = elan_i2c_read_cmd(client,
+					   ETP_I2C_IAP_CTRL_CMD, val);
+		if (retval < 0)
+			return false;
+		constant = le16_to_cpup((__le16 *)val);
+	}
+
+	if (constant & ETP_FW_IAP_PAGE_ERR)
+		return false;
+
+	if (constant & ETP_FW_IAP_INTERFACE_ERR)
+		return false;
+	return true;
+}
+
+static int elan_smbus_write_fw_block(struct elan_tp_data *data,
+				     const u8 *page, u16 checksum, int idx)
+{
+	struct device *dev = &data->client->dev;
+	int half_page_size = ETP_FW_PAGE_SIZE / 2;
+	int repeat = 3;
+
+	do {
+		/* due to smbus can write 32 bytes one time,
+		so, we must write data 2 times.
+		*/
+		i2c_smbus_write_block_data(data->client,
+					   ETP_SMBUS_WRITE_FW_BLOCK,
+					   half_page_size,
+					   page);
+		i2c_smbus_write_block_data(data->client,
+					   ETP_SMBUS_WRITE_FW_BLOCK,
+					   half_page_size,
+					   (page + half_page_size));
+		/* Wait for F/W to update one page ROM data. */
+		usleep_range(8000, 10000);
+		if (elan_iap_page_write_ok(data))
+			break;
+		dev_dbg(dev, "IAP retry this page! [%d]\n", idx);
+		repeat--;
+	} while (repeat > 0);
+
+	if (repeat > 0)
+		return 0;
+	return -EIO;
+
+}
+
+static int elan_i2c_write_fw_block(struct elan_tp_data *data,
+				   const u8 *page, u16 checksum, int idx)
+{
+	struct device *dev = &data->client->dev;
+	int ret;
+	int repeat = 3;
+	u8 page_store[ETP_FW_PAGE_SIZE + 4];
+
+	page_store[0] = ETP_I2C_IAP_REG_L;
+	page_store[1] = ETP_I2C_IAP_REG_H;
+	memcpy(&page_store[2], page, ETP_FW_PAGE_SIZE);
+
+	/* recode checksum at last two bytes */
+	page_store[ETP_FW_PAGE_SIZE+2] = (u8)(checksum & 0xFF);
+	page_store[ETP_FW_PAGE_SIZE+3] = (u8)((checksum >> 8)&0xFF);
+
+	do {
+		ret = i2c_master_send(data->client, page_store,
+				      ETP_FW_PAGE_SIZE + 4);
+
+		/* Wait for F/W to update one page ROM data. */
+		msleep(20);
+
+		if (ret == (ETP_FW_PAGE_SIZE + 4)) {
+			if (elan_iap_page_write_ok(data))
+				break;
+		}
+		dev_dbg(dev, "IAP retry this page! [%d]\n", idx);
+		repeat--;
+	} while (repeat > 0);
+
+	if (repeat > 0)
+		return 0;
+	return -1;
+}
+
+static int elan_write_fw_block(struct elan_tp_data *data,
+			       const u8 *page, u16 checksum, int idx)
+{
+	int ret;
+	if (data->smbus)
+		ret = elan_smbus_write_fw_block(data, page, checksum, idx);
+	else
+		ret = elan_i2c_write_fw_block(data, page, checksum, idx);
+	return ret;
+}
+
+static int elan_prepare_fw_update(struct elan_tp_data *data)
+{
+	int ret = 0;
+	if (data->smbus)
+		ret = elan_smbus_prepare_fw_update(data);
+	else
+		ret = elan_i2c_prepare_fw_update(data);
+	return ret;
+}
+
+static int elan_wait_for_chg(struct elan_tp_data *data, unsigned int timeout_ms)
+{
+	struct device *dev = &data->client->dev;
+	struct completion *comp = &data->fw_completion;
+	unsigned long timeout = msecs_to_jiffies(timeout_ms);
+	long ret;
+
+	ret = wait_for_completion_interruptible_timeout(comp, timeout);
+	if (ret < 0) {
+		dev_err(dev, "Wait for completion interrupted.\n");
+		/*
+		 * TODO: handle -EINTR better by terminating fw update process
+		 * before get complete INT signal from firmware
+		 */
+		return -EINTR;
+	} else if (ret == 0) {
+		dev_err(dev, "Wait for completion timed out.\n");
+		return -ETIMEDOUT;
+	}
+	return 0;
+}
+
+static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
+{
+	struct device *dev = &data->client->dev;
+	const struct firmware *fw;
+	int i, j, ret;
+	u16 boot_page_count;
+	u16 sw_checksum, fw_checksum;
+	u8 buffer[ETP_INF_LENGTH];
+
+	dev_dbg(dev, "Start firmware update....\n");
+
+	ret = request_firmware(&fw, fw_name, dev);
+	if (ret) {
+		dev_err(dev, "cannot load firmware from %s, %d\n",
+			fw_name, ret);
+		goto done;
+	}
+	/* check fw data match current iap version */
+	ret = elan_check_fw(data, fw);
+	if (ret) {
+		dev_err(dev, "Invalid Elan firmware from %s, %d\n",
+			fw_name, ret);
+		goto done;
+	}
+	/* setup IAP status */
+	ret = elan_prepare_fw_update(data);
+	if (ret)
+		goto done;
+	sw_checksum = 0;
+	fw_checksum = 0;
+	boot_page_count = (data->iap_start_addr * 2) / ETP_FW_PAGE_SIZE;
+	for (i = boot_page_count; i < ETP_FW_PAGE_COUNT; i++) {
+		u16 checksum = 0;
+		const u8 *page = &fw->data[i * ETP_FW_PAGE_SIZE];
+
+		for (j = 0; j < ETP_FW_PAGE_SIZE; j += 2)
+			checksum += ((page[j + 1] << 8) | page[j]);
+
+		ret = elan_write_fw_block(data, page, checksum, i);
+		if (ret) {
+			dev_err(dev, "write page %d fail\n", i);
+			goto done;
+		}
+		sw_checksum += checksum;
+	}
+
+	/* Wait WDT reset and power on reset */
+	if (data->smbus) {
+		msleep(600);
+	} else {
+		/* only i2c interface need waiting for fw reset signal */
+		data->wait_signal_from_updatefw = true;
+		init_completion(&data->fw_completion);
+		ret = elan_wait_for_chg(data, 600);
+		if (ret) {
+			dev_err(dev, "Failed waiting for reset %d.\n", ret);
+			goto done;
+		}
+
+		ret = i2c_master_recv(data->client, buffer, ETP_INF_LENGTH);
+		if (ret != 2 || le16_to_cpup((__le16 *)buffer) != 0) {
+			dev_err(dev, "Failed INT signal data %d.\n", ret);
+			goto done;
+		}
+		data->wait_signal_from_updatefw = false;
+	}
+
+	/* check checksum */
+	fw_checksum = elan_iap_checksum(data);
+	if (sw_checksum != fw_checksum) {
+		dev_err(dev, "checksum diff sw=[%04X], fw=[%04X]\n",
+			sw_checksum, fw_checksum);
+		ret = -EIO;
+		goto done;
+	}
+	ret = 0;
+done:
+	if (ret != 0)
+		elan_iap_reset(data);
+	else
+		elan_initialize(data);
+	release_firmware(fw);
+	return ret;
+}
 
 /*
  *******************************************************************
@@ -174,6 +682,22 @@ static int elan_smbus_enable_absolute_mode(struct i2c_client *client)
 	u8 cmd[4] = {0x00, 0x07, 0x00, ETP_ENABLE_ABS};
 
 	return i2c_smbus_write_block_data(client, ETP_SMBUS_IAP_CMD, 4, cmd);
+}
+
+static int elan_smbus_enable_calibrate(struct i2c_client *client)
+{
+	u8 cmd[4] = {0x00, 0x07, 0x00, ETP_ENABLE_ABS|ETP_ENABLE_CALIBRATE};
+
+	return i2c_smbus_write_block_data(client,
+					  ETP_SMBUS_IAP_CMD, 4, cmd);
+}
+
+static int elan_smbus_disable_calibrate(struct i2c_client *client)
+{
+	u8 cmd[4] = {0x00, 0x07, 0x00, ETP_ENABLE_ABS|ETP_DISABLE_CALIBRATE};
+
+	return i2c_smbus_write_block_data(client,
+					  ETP_SMBUS_IAP_CMD, 4, cmd);
 }
 
 /*
@@ -272,6 +796,18 @@ static int elan_i2c_get_report_desc(struct i2c_client *client, u8 *val)
 {
 	return elan_i2c_read_block(client, ETP_I2C_REPORT_DESC_CMD,
 				   val, ETP_I2C_REPORT_DESC_LENGTH);
+}
+
+static int elan_i2c_enable_calibrate(struct i2c_client *client)
+{
+	return elan_i2c_write_cmd(client, ETP_I2C_SET_CMD,
+				  ETP_ENABLE_ABS|ETP_ENABLE_CALIBRATE);
+}
+
+static int elan_i2c_disable_calibrate(struct i2c_client *client)
+{
+	return elan_i2c_write_cmd(client, ETP_I2C_SET_CMD,
+				  ETP_ENABLE_ABS|ETP_DISABLE_CALIBRATE);
 }
 
 static int elan_i2c_initialize(struct i2c_client *client)
@@ -439,7 +975,7 @@ static int elan_get_sm_version(struct elan_tp_data *data)
 	return ret;
 }
 
-static int elan_get_unique_id(struct elan_tp_data *data)
+static int elan_get_product_id(struct elan_tp_data *data)
 {
 	int ret;
 	u8 val[3];
@@ -487,6 +1023,74 @@ static int elan_get_y_resolution(struct elan_tp_data *data)
 	return ret;
 }
 
+static int elan_get_fw_checksum(struct elan_tp_data *data)
+{
+	int ret;
+	u8 val[3];
+	if (data->smbus) {
+		i2c_smbus_read_block_data(data->client,
+					  ETP_SMBUS_FW_CHECKSUM_CMD, val);
+		ret = be16_to_cpup((__be16 *)val);
+	} else {
+		elan_i2c_read_cmd(data->client,
+				  ETP_I2C_FW_CHECKSUM_CMD, val);
+		ret = le16_to_cpup((__le16 *)val);
+	}
+	return ret;
+}
+
+static int elan_get_max_baseline(struct elan_tp_data *data)
+{
+	int ret;
+	u8 val[3];
+	if (data->smbus) {
+		i2c_smbus_read_block_data(data->client,
+					  ETP_SMBUS_MAX_BASELINE_CMD, val);
+		ret = be16_to_cpup((__be16 *)val);
+	} else {
+		elan_i2c_read_cmd(data->client,
+				  ETP_I2C_MAX_BASELINE_CMD, val);
+		ret = le16_to_cpup((__le16 *)val);
+	}
+	return ret;
+}
+
+static int elan_get_min_baseline(struct elan_tp_data *data)
+{
+	int ret;
+	u8 val[3];
+	if (data->smbus) {
+		i2c_smbus_read_block_data(data->client,
+					  ETP_SMBUS_MIN_BASELINE_CMD, val);
+		ret = be16_to_cpup((__be16 *)val);
+	} else {
+		elan_i2c_read_cmd(data->client,
+				  ETP_I2C_MIN_BASELINE_CMD, val);
+		ret = le16_to_cpup((__le16 *)val);
+	}
+	return ret;
+}
+
+static int elan_enable_calibrate(struct elan_tp_data *data)
+{
+	int ret;
+	if (data->smbus)
+		ret = elan_smbus_enable_calibrate(data->client);
+	else
+		ret = elan_i2c_enable_calibrate(data->client);
+	return ret;
+}
+
+static int elan_disable_calibrate(struct elan_tp_data *data)
+{
+	int ret;
+	if (data->smbus)
+		ret = elan_smbus_disable_calibrate(data->client);
+	else
+		ret = elan_i2c_disable_calibrate(data->client);
+	return ret;
+}
+
 static int elan_initialize(struct elan_tp_data *data)
 {
 	int ret;
@@ -526,6 +1130,213 @@ err_initialize:
 	return ret;
 }
 
+/*
+ *******************************************************************
+ * below routines export interfaces to sysfs file system.
+ * so user can get firmware/driver/hardware information using cat command.
+ * e.g.: use below command to get firmware version
+ *      cat /sys/bus/i2c/drivers/elan_i2c/x-0015/firmware_version
+ *******************************************************************
+ */
+static ssize_t elan_sysfs_read_fw_checksum(struct device *dev,
+					   struct device_attribute *attr,
+					   char *buf)
+{
+	unsigned int checksum = 0;
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	checksum = elan_get_fw_checksum(data);
+	return sprintf(buf, "0x%04x\n", checksum);
+}
+
+static ssize_t elan_sysfs_read_product_id(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	data->product_id = elan_get_product_id(data);
+	return sprintf(buf, "%d.0\n", data->product_id);
+}
+
+static ssize_t elan_sysfs_read_driver_ver(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	return sprintf(buf, "%s\n", ELAN_DRIVER_VERSION);
+}
+
+static ssize_t elan_sysfs_read_fw_ver(struct device *dev,
+				      struct device_attribute *attr,
+				      char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	data->fw_version = elan_get_fw_version(data);
+	return sprintf(buf, "%d.0\n", data->fw_version);
+}
+
+static ssize_t elan_sysfs_read_sm_ver(struct device *dev,
+				      struct device_attribute *attr,
+				      char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	data->sm_version = elan_get_sm_version(data);
+	return sprintf(buf, "%d.0\n", data->sm_version);
+}
+
+static ssize_t elan_sysfs_read_iap_ver(struct device *dev,
+				       struct device_attribute *attr,
+				       char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	data->iap_version = elan_get_iap_version(data);
+	return sprintf(buf, "%d.0\n", data->iap_version);
+}
+
+
+static ssize_t elan_sysfs_update_fw(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int ret, i;
+	const char *fw_name;
+	char tmp[count];
+
+	/* Do not allow paths that step out of /lib/firmware  */
+	if (strstr(buf, "../") != NULL)
+		return -EINVAL;
+
+	if (!strncmp(buf, "1", count) || !strncmp(buf, "1\n", count)) {
+		fw_name = ETP_FW_NAME;
+	} else {
+		/* check input file name buffer include '\n' or not */
+		for (i = 0; i < count; i++) {
+			if (buf[i] != '\n')
+				tmp[i] = buf[i];
+			else
+				tmp[i] = '\0';
+		}
+		fw_name = tmp;
+	}
+
+	ret = elan_firmware(data, fw_name);
+	if (ret)
+		dev_err(dev, "firmware update failed.\n");
+	else
+		dev_dbg(dev, "firmware update succeeded.\n");
+	return ret ? ret : count;
+}
+
+static ssize_t elan_sysfs_calibrate(struct device *dev,
+				    struct device_attribute *attr,
+				    char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	/* start calibarate cmd */
+	u8 smbus_cmd[4] = {0x00, 0x08, 0x00, 0x01};
+	u8 val[3];
+	int tries = 20;
+	int ret = 0;
+	val[0] = 0;
+
+	disable_irq(data->irq);
+	elan_enable_calibrate(data);
+	if (data->smbus)
+		i2c_smbus_write_block_data(data->client,
+					   ETP_SMBUS_IAP_CMD, 4, smbus_cmd);
+	else
+		elan_i2c_write_cmd(data->client,
+				   ETP_I2C_CALIBRATE_CMD, 1);
+
+	do {
+		/* wait 250ms and check finish or not */
+		msleep(250);
+
+		if (data->smbus)
+			i2c_smbus_read_block_data(data->client,
+						  ETP_SMBUS_CALIBRATE_QUERY,
+						  val);
+		else
+			elan_i2c_read_block(data->client,
+					    ETP_I2C_CALIBRATE_CMD, val, 1);
+
+		/* calibrate finish */
+		if (val[0] == 0)
+			break;
+	} while (--tries);
+
+	elan_disable_calibrate(data);
+	enable_irq(data->irq);
+
+	if (tries == 0) {
+		dev_err(dev, "Failed to calibrate. Timeout.\n");
+		ret = -ETIMEDOUT;
+	}
+	return sprintf(buf, "calibration finish\n");
+}
+
+
+static ssize_t elan_sysfs_read_baseline(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int max_baseline, min_baseline;
+
+	disable_irq(data->irq);
+	elan_enable_calibrate(data);
+	msleep(250);
+	max_baseline = elan_get_max_baseline(data);
+	min_baseline = elan_get_min_baseline(data);
+	elan_disable_calibrate(data);
+	enable_irq(data->irq);
+	return sprintf(buf, "max:%d min:%d\n", max_baseline, min_baseline);
+}
+
+static ssize_t elan_sysfs_reinitialize(struct device *dev,
+				       struct device_attribute *attr,
+				       char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	disable_irq(data->irq);
+	ret = elan_initialize(data);
+	enable_irq(data->irq);
+
+	if (ret < 0)
+		return sprintf(buf, "reinitialize fail\n");
+
+	return sprintf(buf, "reinitialize success\n");
+}
+
+static DEVICE_ATTR(product_id, S_IRUGO, elan_sysfs_read_product_id, NULL);
+static DEVICE_ATTR(firmware_version, S_IRUGO, elan_sysfs_read_fw_ver, NULL);
+static DEVICE_ATTR(sample_version, S_IRUGO, elan_sysfs_read_sm_ver, NULL);
+static DEVICE_ATTR(driver_version, S_IRUGO, elan_sysfs_read_driver_ver, NULL);
+static DEVICE_ATTR(iap_version, S_IRUGO, elan_sysfs_read_iap_ver, NULL);
+static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
+static DEVICE_ATTR(baseline, S_IRUGO, elan_sysfs_read_baseline, NULL);
+static DEVICE_ATTR(reinitialize, S_IRUGO, elan_sysfs_reinitialize, NULL);
+static DEVICE_ATTR(calibrate, S_IRUGO, elan_sysfs_calibrate, NULL);
+static DEVICE_ATTR(update_fw, S_IWUSR, NULL, elan_sysfs_update_fw);
+
+static struct attribute *elan_sysfs_entries[] = {
+	&dev_attr_product_id.attr,
+	&dev_attr_firmware_version.attr,
+	&dev_attr_sample_version.attr,
+	&dev_attr_driver_version.attr,
+	&dev_attr_iap_version.attr,
+	&dev_attr_fw_checksum.attr,
+	&dev_attr_baseline.attr,
+	&dev_attr_reinitialize.attr,
+	&dev_attr_calibrate.attr,
+	&dev_attr_update_fw.attr,
+	NULL,
+};
+
+static const struct attribute_group elan_sysfs_group = {
+	.attrs = elan_sysfs_entries,
+};
 
 /*
  ******************************************************************
@@ -628,6 +1439,16 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	int retval;
 	int report_len;
 
+	/*
+	Only in I2C protocol, when IAP all page wrote finish, driver will
+	get one INT signal from high to low, and driver must get 0000
+	to confirm IAP is finished.
+	*/
+	if (data->wait_signal_from_updatefw) {
+		complete(&data->fw_completion);
+		goto elan_isr_end;
+	}
+
 	if (data->smbus) {
 		report_len = ETP_SMBUS_REPORT_LEN;
 		retval = i2c_smbus_read_block_data(data->client,
@@ -676,7 +1497,7 @@ static int elan_input_dev_create(struct elan_tp_data *data)
 	__set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
 	__set_bit(BTN_LEFT, input->keybit);
 
-	data->unique_id = elan_get_unique_id(data);
+	data->product_id = elan_get_product_id(data);
 	data->fw_version = elan_get_fw_version(data);
 	data->sm_version = elan_get_sm_version(data);
 	data->iap_version = elan_get_iap_version(data);
@@ -691,14 +1512,14 @@ static int elan_input_dev_create(struct elan_tp_data *data)
 
 	dev_dbg(&client->dev,
 		"Elan Touchpad Information:\n"
-		"    Module unique ID:  0x%04x\n"
+		"    Module product ID:  0x%04x\n"
 		"    Firmware Version:  0x%04x\n"
 		"    Sample Version:  0x%04x\n"
 		"    IAP Version:  0x%04x\n"
 		"    Max ABS X,Y:   %d,%d\n"
 		"    Width X,Y:   %d,%d\n"
 		"    Resolution X,Y:   %d,%d (dots/mm)\n",
-		data->unique_id,
+		data->product_id,
 		data->fw_version,
 		data->sm_version,
 		data->iap_version,
@@ -790,6 +1611,8 @@ static int elan_probe(struct i2c_client *client,
 		data->smbus = false;
 	data->client = client;
 	data->irq = client->irq;
+	data->wait_signal_from_updatefw = false;
+	init_completion(&data->fw_completion);
 
 	ret = request_threaded_irq(client->irq, NULL, elan_isr,
 				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -810,10 +1633,18 @@ static int elan_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto err_input_dev;
 
+	ret = sysfs_create_group(&client->dev.kobj, &elan_sysfs_group);
+	if (ret < 0) {
+		dev_err(&client->dev, "cannot register dev attribute %d", ret);
+		goto err_create_group;
+	}
+
 	device_init_wakeup(&client->dev, 1);
 	i2c_set_clientdata(client, data);
 	return 0;
 
+err_create_group:
+	input_unregister_device(data->input);
 err_input_dev:
 err_init:
 	free_irq(data->irq, data);
@@ -826,6 +1657,8 @@ err_irq:
 static int elan_remove(struct i2c_client *client)
 {
 	struct elan_tp_data *data = i2c_get_clientdata(client);
+
+	sysfs_remove_group(&client->dev.kobj, &elan_sysfs_group);
 	free_irq(data->irq, data);
 	input_unregister_device(data->input);
 	kfree(data);
