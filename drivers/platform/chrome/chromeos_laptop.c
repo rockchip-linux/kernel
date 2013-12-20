@@ -40,6 +40,7 @@
 #define ISL_ALS_I2C_ADDR	0x44
 #define TAOS_ALS_I2C_ADDR	0x29
 #define PN544_HCI_I2C_ADDR	0x28
+#define MAX98090_ADDR		0x10
 
 #define MAX_I2C_DEVICE_DEFERRALS	5
 
@@ -47,6 +48,7 @@ static struct i2c_client *als;
 static struct i2c_client *tp;
 static struct i2c_client *ts;
 static struct i2c_client *nfc;
+static struct i2c_client *codec;
 
 static const char *i2c_adapter_names[] = {
 	"SMBus I801 adapter",
@@ -163,6 +165,10 @@ static struct i2c_board_info atmel_1664s_device = {
 	I2C_BOARD_INFO("atmel_mxt_ts", ATMEL_TS_I2C_ADDR),
 	.platform_data = &atmel_1664s_platform_data,
 	.flags		= I2C_CLIENT_WAKE,
+};
+
+static struct i2c_board_info max98090_device = {
+	I2C_BOARD_INFO("max98090", MAX98090_ADDR),
 };
 
 static int nfc_gpio_enable = -1;
@@ -452,6 +458,16 @@ static int setup_atmel_samus_ts(enum i2c_adapter_type type)
 	return (!ts) ? -EAGAIN : 0;
 }
 
+static int setup_max98090_codec(enum i2c_adapter_type type)
+{
+	if (codec)
+		return 0;
+
+	/* add max98090 codec */
+	codec = add_i2c_device(NULL, type, &max98090_device);
+	return (!codec) ? -EAGAIN : 0;
+}
+
 static int setup_isl29018_als(enum i2c_adapter_type type)
 {
 	if (als)
@@ -689,6 +705,8 @@ static struct chromeos_laptop rambi = {
 		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
 		/* Touchscreen. */
 		{ .add = setup_atmel_1664s_ts, I2C_ADAPTER_I2C5 },
+		/* Audio Codec */
+		{. add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
 	},
 };
 
@@ -861,6 +879,8 @@ static void __exit chromeos_laptop_exit(void)
 {
 	if (als)
 		i2c_unregister_device(als);
+	if (codec)
+		i2c_unregister_device(codec);
 	if (nfc)
 		i2c_unregister_device(nfc);
 	if (tp)
