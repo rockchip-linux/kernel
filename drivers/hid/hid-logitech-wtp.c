@@ -903,6 +903,7 @@ static int wtp_probe(struct hid_device *hdev, const struct hid_device_id *id)
 
 	hidpp_device->raw_event = wtp_hidpp_event_handler;
 
+	hdev->quirks |= HID_QUIRK_NO_INIT_REPORTS;
 	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
 	if (ret) {
 		ret = -ENODEV;
