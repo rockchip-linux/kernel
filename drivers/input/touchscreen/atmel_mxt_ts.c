@@ -3416,7 +3416,7 @@ static int lid_device_connect(struct input_handler *handler,
 	struct input_handle *lid_handle;
 	int error;
 
-	pr_info("atmel: LID device: '%s' connected\n", dev->name);
+	pr_info("atmel_mxt_ts: LID device: '%s' connected\n", dev->name);
 	lid_handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
 	if (!lid_handle)
 		return -ENOMEM;
@@ -3428,14 +3428,14 @@ static int lid_device_connect(struct input_handler *handler,
 
 	error = input_register_handle(lid_handle);
 	if (error) {
-		pr_err("Failed to register lid_event_handler, error %d\n",
-		       error);
+		pr_err("atmel_mxt_ts: Failed to register lid_event_handler, error %d\n", error);
 		goto err_free;
 	}
 
 	error = input_open_device(lid_handle);
 	if (error) {
-		pr_err("Failed to open input device, error %d\n", error);
+		pr_err("atmel_mxt_ts: Failed to open input device, error %d\n",
+		       error);
 		goto err_unregister;
 	}
 
@@ -3465,7 +3465,7 @@ static bool lid_event_filter(struct input_handle *handle,
 		if (mxt_in_bootloader(data))
 			return false;
 
-		pr_info("atmel %s: %s touch device\n",
+		pr_info("atmel_mxt_ts %s: %s touch device\n",
 			dev_name(&data->client->dev),
 			(value ? "disable" : "enable"));
 		if (data->suspended) {
@@ -3476,7 +3476,7 @@ static bool lid_event_filter(struct input_handle *handle,
 			 * resume the device.
 			 * Instead, rely on mxt_resume to resume the device.
 			 */
-			pr_info("atmel %s: skipping lid pm change in suspend\n",
+			pr_info("atmel_mxt_ts %s: skipping lid pm change in suspend\n",
 				dev_name(&data->client->dev));
 			return false;
 		}
@@ -3503,7 +3503,7 @@ static void lid_event_register_handler(struct mxt_data *data)
 	struct input_handler *lid_handler = &data->lid_handler;
 
 	if (data->lid_handler_registered) {
-		pr_err("lid handler is registered already\n");
+		pr_err("atmel_mxt_ts: lid handler is registered already\n");
 		return;
 	}
 
@@ -3516,7 +3516,7 @@ static void lid_event_register_handler(struct mxt_data *data)
 
 	error = input_register_handler(lid_handler);
 	if (error) {
-		pr_err("Failed to register lid handler(%d)\n", error);
+		pr_err("atmel_mxt_ts: Failed to register lid handler(%d)\n", error);
 		return;
 	}
 	data->lid_handler_registered = true;
