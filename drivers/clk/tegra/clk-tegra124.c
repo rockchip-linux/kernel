@@ -163,6 +163,7 @@ static const char *mux_plld_out0_plld2_out0[] = {
 
 static const char *mux_pllmcp_clkm[] = {
 	"pll_m", "pll_c", "pll_p", "clk_m", "pll_m_ud", "pll_c2", "pll_c3",
+	"pll_c_ud",
 };
 #define mux_pllmcp_clkm_idx NULL
 
@@ -1315,6 +1316,12 @@ static void __init tegra124_pll_init(void __iomem *clk_base,
 			     &pll_c3_params, NULL);
 	clk_register_clkdev(clk, "pll_c3", NULL);
 	clks[TEGRA124_CLK_PLL_C3] = clk;
+
+	/* PLLC_UD */
+	clk = clk_register_fixed_factor(NULL, "pll_c_ud", "pll_c",
+					CLK_SET_RATE_PARENT, 1, 1);
+	clk_register_clkdev(clk, "pll_c_ud", NULL);
+	clks[TEGRA124_CLK_PLL_C_UD] = clk;
 
 	/* PLLM */
 	clk = tegra_clk_register_pllm("pll_m", "pll_ref", clk_base, pmc,
