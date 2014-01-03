@@ -1064,11 +1064,19 @@ static struct clk *tegra124_emc_predict_parent(unsigned long rate)
 	return tegra_emc_src[src_val];
 }
 
+static void tegra124_emc_get_backup_parent(struct clk **backup_parent,
+						unsigned long *backup_rate)
+{
+	*backup_parent = emc_backup_src;
+	*backup_rate = emc_backup_rate;
+}
+
 static const struct emc_clk_ops tegra124_emc_clk_ops = {
 	.emc_get_rate = tegra124_emc_get_rate,
 	.emc_set_rate = tegra124_emc_set_rate,
 	.emc_round_rate = tegra124_emc_round_rate,
 	.emc_predict_parent = tegra124_emc_predict_parent,
+	.emc_get_backup_parent = tegra124_emc_get_backup_parent,
 };
 
 const struct emc_clk_ops *tegra124_emc_get_ops(void)
@@ -1114,15 +1122,20 @@ static int find_matching_input(struct emc_table *table)
 	}
 
 	input_clk = tegra_emc_src[src_value];
-	input_rate = clk_get_rate(input_clk);
-	if (input_rate != (table->rate * (1 + div_value / 2))) {
-		pr_warn("Tegra124: EMC rate %lu does not match input\n",
-			table->rate);
-		return -EINVAL;
+	if (src_value == TEGRA_EMC_SRC_PLLM_UD)
+		input_rate = table->rate * (1 + div_value / 2);
+	else {
+		input_rate = clk_get_rate(input_clk);
+		if (input_rate != (table->rate * (1 + div_value / 2))) {
+			pr_warn("Tegra124: EMC rate %lu does not match input\n",
+				table->rate);
+			return -EINVAL;
+		}
 	}
 
-	if (src_value == TEGRA_EMC_SRC_PLLC) {
-		emc_backup_src = tegra_emc_src[TEGRA_EMC_SRC_PLLC];
+	if (IS_ERR(emc_backup_src) && (src_value == TEGRA_EMC_SRC_PLLC ||
+					src_value == TEGRA_EMC_SRC_PLLC_UD)) {
+		emc_backup_src = tegra_emc_src[src_value];
 		emc_backup_rate = table->rate;
 	}
 
@@ -1131,6 +1144,25 @@ static int find_matching_input(struct emc_table *table)
 	table->value = table->src_sel_reg;
 
 	return 0;
+}
+
+static void purge_emc_table(void)
+{
+	int i;
+
+	if (!IS_ERR(emc_backup_src))
+		return;
+
+	for (i = 0; i < tegra_emc_table_size; i++) {
+		struct emc_table *table = &tegra_emc_table[i];
+		if (table->input) {
+			if (__clk_get_rate(table->input) != table->input_rate) {
+				table->input = NULL;
+				table->input_rate = 0;
+				table->value = 0;
+			}
+		}
+	}
 }
 
 static void tegra124_parse_dt_data(struct platform_device *pdev)
@@ -1326,6 +1358,8 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 	old_rate = clk_get_rate(emc_clk);
 	max_rate = clk_get_rate(tegra_emc_src[TEGRA_EMC_SRC_PLLM_UD]);
 
+	emc_backup_src = ERR_PTR(-EINVAL);
+
 	for (i = 0; i < tegra_emc_table_size; i++) {
 		table_rate = tegra_emc_table[i].rate;
 		if (!table_rate)
@@ -1349,6 +1383,8 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 		tegra_emc_table_size = 0;
 		return -ENODATA;
 	}
+
+	purge_emc_table();
 
 	pr_info("Tegra124: validated EMC DFS table\n");
 
