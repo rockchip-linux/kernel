@@ -20,11 +20,17 @@ Example:
 		#address-cells = <1>;
 		#size-cells = <0>;
 		nvidia,mc = <&mc>;
-		clocks = <&tegra_car 57>, <&tegra_car 209>, <&tegra_car 205>,
-			<&tegra_car 211>, <&tegra_car 201>, <&tegra_car 311>,
-			<&tegra_car 207>, <&tegra_car 208>;
+		clocks = <&tegra_car TEGRA124_CLK_EMC>,
+			<&tegra_car TEGRA124_CLK_PLL_M>,
+			<&tegra_car TEGRA124_CLK_PLL_C>,
+			<&tegra_car TEGRA124_CLK_PLL_P>,
+			<&tegra_car TEGRA124_CLK_CLK_M>,
+			<&tegra_car TEGRA124_CLK_PLL_M_UD>,
+			<&tegra_car TEGRA124_CLK_PLL_C2>,
+			<&tegra_car TEGRA124_CLK_PLL_C3>,
+			<&tegra_car TEGRA124_CLK_PLL_C_UD>;
 		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
-			"pll_m_ud", "pll_c2", "pll_c3";
+			"pll_m_ud", "pll_c2", "pll_c3", "pll_c_ud";
 	};
 
 

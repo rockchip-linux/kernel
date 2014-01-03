@@ -290,6 +290,7 @@ enum TEGRA_EMC_SOURCE {
 	TEGRA_EMC_SRC_PLLM_UD,
 	TEGRA_EMC_SRC_PLLC2,
 	TEGRA_EMC_SRC_PLLC3,
+	TEGRA_EMC_SRC_PLLC_UD,
 	TEGRA_EMC_SRC_COUNT,
 };
 
@@ -367,6 +368,7 @@ static const char *tegra_emc_src_names[TEGRA_EMC_SRC_COUNT] = {
 	[TEGRA_EMC_SRC_PLLM_UD] = "pll_m_ud",
 	[TEGRA_EMC_SRC_PLLC2] = "pll_c2",
 	[TEGRA_EMC_SRC_PLLC3] = "pll_c3",
+	[TEGRA_EMC_SRC_PLLC_UD] = "pll_c_ud",
 };
 
 static inline void emc_writel(u32 val, unsigned long addr)
