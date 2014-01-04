@@ -28,6 +28,10 @@ config BUILDTIME_EXTABLE_SORT
 
 menu "General setup"
 
+config EXPERIMENTAL
+	bool
+	default y
+
 config BROKEN
 	bool
 
