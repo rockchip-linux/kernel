@@ -23,4 +23,7 @@ struct cros_ec_device;
 void ec_dev_sysfs_init(struct cros_ec_device *);
 void ec_dev_sysfs_remove(struct cros_ec_device *);
 
+void ec_dev_lightbar_init(struct cros_ec_device *);
+void ec_dev_lightbar_remove(struct cros_ec_device *);
+
 #endif	/* _DRV_CROS_EC_DEV_H_ */

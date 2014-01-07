@@ -231,6 +231,7 @@ static int ec_device_probe(struct platform_device *pdev)
 
 	/* Initialize extra interfaces */
 	ec_dev_sysfs_init(ec);
+	ec_dev_lightbar_init(ec);
 
 	return 0;
 
@@ -244,6 +245,7 @@ failed_class:
 
 static int ec_device_remove(struct platform_device *pdev)
 {
+	ec_dev_lightbar_remove(ec);
 	ec_dev_sysfs_remove(ec);
 	device_destroy(cros_class, MKDEV(ec_major, 0));
 	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
