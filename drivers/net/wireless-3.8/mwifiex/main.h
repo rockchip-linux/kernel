@@ -1147,6 +1147,9 @@ u8 *mwifiex_11d_code_2_region(u8 code);
 void mwifiex_11h_process_join(struct mwifiex_private *priv, u8 **buffer,
 			      struct mwifiex_bssdescriptor *bss_desc);
 int mwifiex_11h_handle_event_chanswann(struct mwifiex_private *priv);
+int mwifiex_dnld_dt_cfgdata(struct mwifiex_private *priv,
+			    struct device_node *node, const char *prefix);
+void mwifiex_dnld_txpwr_table(struct mwifiex_private *priv);
 
 #ifdef CONFIG_DEBUG_FS
 void mwifiex_debugfs_init(void);
