@@ -86,4 +86,12 @@ static inline int of_parse_thermal_zones(void) { return 0; }
 static inline void of_thermal_destroy_zones(void) { }
 #endif
 
+#ifdef CONFIG_THERMAL_GOV_PID
+int thermal_gov_pid_register(void);
+void thermal_gov_pid_unregister(void);
+#else
+static inline int thermal_gov_pid_register(void) { return 0; }
+static inline void thermal_gov_pid_unregister(void) {}
+#endif /* CONFIG_THERMAL_GOV_PID */
+
 #endif /* __THERMAL_CORE_H__ */
