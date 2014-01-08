@@ -687,6 +687,8 @@ static struct chromeos_laptop rambi = {
 		{. add = setup_atmel_224s_tp, I2C_ADAPTER_I2C0 },
 		/* Elan Touchpad. */
 		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
+		/* Touchscreen. */
+		{ .add = setup_atmel_1664s_ts, I2C_ADAPTER_I2C5 },
 	},
 };
 
