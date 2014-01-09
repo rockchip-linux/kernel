@@ -330,7 +330,7 @@ thermal_zone_of_add_sensor(struct device_node *zone,
 	struct thermal_zone_device *tzd;
 	struct __thermal_zone *tz;
 
-	tzd = thermal_zone_get_zone_by_name(zone->name);
+	tzd = thermal_zone_get_zone_by_node(zone);
 	if (IS_ERR(tzd))
 		return ERR_PTR(-EPROBE_DEFER);
 
@@ -804,6 +804,8 @@ int __init of_parse_thermal_zones(void)
 			of_thermal_free_zone(tz);
 			/* attempting to build remaining zones still */
 		}
+
+		zone->np = child;
 	}
 
 	return 0;
@@ -837,7 +839,7 @@ void of_thermal_destroy_zones(void)
 	for_each_child_of_node(np, child) {
 		struct thermal_zone_device *zone;
 
-		zone = thermal_zone_get_zone_by_name(child->name);
+		zone = thermal_zone_get_zone_by_node(child);
 		if (IS_ERR(zone))
 			continue;
 
