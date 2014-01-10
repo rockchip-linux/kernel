@@ -39,21 +39,11 @@ struct emc_clk_ops {
 };
 
 #ifdef CONFIG_TEGRA124_EMC
-long tegra124_emc_round_rate(unsigned long rate);
-int tegra124_emc_set_rate(unsigned long rate);
-unsigned long tegra124_emc_get_rate(void);
-struct clk *tegra124_emc_predict_parent(unsigned long rate);
 void tegra124_emc_timing_invalidate(void);
 bool tegra124_emc_is_ready(void);
 unsigned long tegra124_predict_emc_rate(int millivolts);
 const struct emc_clk_ops *tegra124_emc_get_ops(void);
 #else
-static inline long tegra124_emc_round_rate(unsigned long rate)
-{ return 0; }
-static inline int tegra124_emc_set_rate(unsigned long rate) { return -ENODEV; }
-static inline unsigned long tegra124_emc_get_rate(void) { return -ENODEV; }
-static inline struct clk *tegra124_emc_predict_parent(unsigned long rate)
-{ return ERR_PTR(-ENODEV); }
 static inline void tegra124_emc_timing_invalidate(void) { return; };
 static inline bool tegra124_emc_is_ready(void) { return true; };
 static inline unsigned long tegra124_predict_emc_rate(int millivolts)

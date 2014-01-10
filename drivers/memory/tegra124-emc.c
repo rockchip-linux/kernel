@@ -465,7 +465,7 @@ unsigned long tegra124_predict_emc_rate(int millivolts)
 }
 EXPORT_SYMBOL(tegra124_predict_emc_rate);
 
-unsigned long tegra124_emc_get_rate(void)
+static unsigned long tegra124_emc_get_rate(void)
 {
 	u32 val;
 	u32 div_value;
@@ -489,9 +489,8 @@ unsigned long tegra124_emc_get_rate(void)
 
 	return rate * 2;
 }
-EXPORT_SYMBOL(tegra124_emc_get_rate);
 
-long tegra124_emc_round_rate(unsigned long rate)
+static long tegra124_emc_round_rate(unsigned long rate)
 {
 	int i;
 	int max = 0;
@@ -516,7 +515,6 @@ long tegra124_emc_round_rate(unsigned long rate)
 
 	return tegra_emc_table[max].rate;
 }
-EXPORT_SYMBOL(tegra124_emc_round_rate);
 
 static inline void emc_get_timing(struct emc_table *timing)
 {
@@ -1005,7 +1003,7 @@ static int emc_table_lookup(unsigned long rate)
 	return i;
 }
 
-int tegra124_emc_set_rate(unsigned long rate)
+static int tegra124_emc_set_rate(unsigned long rate)
 {
 	int i;
 	u32 clk_setting;
@@ -1049,9 +1047,8 @@ int tegra124_emc_set_rate(unsigned long rate)
 
 	return 0;
 }
-EXPORT_SYMBOL(tegra124_emc_set_rate);
 
-struct clk *tegra124_emc_predict_parent(unsigned long rate)
+static struct clk *tegra124_emc_predict_parent(unsigned long rate)
 {
 	int val;
 	u32 src_val;
@@ -1066,7 +1063,6 @@ struct clk *tegra124_emc_predict_parent(unsigned long rate)
 	src_val = emc_src_val(tegra_emc_table[val].src_sel_reg);
 	return tegra_emc_src[src_val];
 }
-EXPORT_SYMBOL(tegra124_emc_predict_parent);
 
 static const struct emc_clk_ops tegra124_emc_clk_ops = {
 	.emc_get_rate = tegra124_emc_get_rate,
