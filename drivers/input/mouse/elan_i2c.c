@@ -17,6 +17,7 @@
  * Trademarks are the property of their respective owners.
  */
 
+#include <linux/acpi.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
@@ -872,11 +873,20 @@ static const struct i2c_device_id elan_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, elan_id);
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id elan_acpi_id[] = {
+	{ "ELAN0000", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, elan_acpi_id);
+#endif
+
 static struct i2c_driver elan_driver = {
 	.driver = {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
 		.pm	= &elan_pm_ops,
+		.acpi_match_table = ACPI_PTR(elan_acpi_id),
 	},
 	.probe		= elan_probe,
 	.remove		= elan_remove,
