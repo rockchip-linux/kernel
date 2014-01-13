@@ -26,42 +26,6 @@
 #define ETH_P_802_3_MIN 0x0600
 #endif
 
-/* backport IDR APIs */
-static inline void iwl7000_idr_destroy(struct idr *idp)
-{
-	idr_remove_all(idp);
-	idr_destroy(idp);
-}
-#define idr_destroy(idp) iwl7000_idr_destroy(idp)
-
-#if 0 // remove as it was implemented in 3.10 include/linux/idr.h
-static inline int idr_alloc(struct idr *idr, void *ptr, int start, int end,
-			    gfp_t gfp_mask)
-{
-	int id, ret;
-
-	do {
-		if (!idr_pre_get(idr, gfp_mask))
-			return -ENOMEM;
-		ret = idr_get_new_above(idr, ptr, start, &id);
-		if (!ret && id > end) {
-			idr_remove(idr, id);
-			ret = -ENOSPC;
-		}
-	} while (ret == -EAGAIN);
-
-	return ret ? ret : id;
-}
-
-static inline void idr_preload(gfp_t gfp_mask)
-{
-}
-
-static inline void idr_preload_end(void)
-{
-}
-#endif
-
 #define genl_info_snd_portid(__genl_info) (__genl_info->snd_portid)
 #define NETLINK_CB_PORTID(__skb) NETLINK_CB(cb->skb).portid
 
