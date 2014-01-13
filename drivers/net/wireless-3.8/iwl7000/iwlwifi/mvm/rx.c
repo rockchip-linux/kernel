@@ -251,6 +251,12 @@ static u32 iwl_mvm_set_mac80211_rx_flag(struct iwl_mvm *mvm,
 		stats->flag |= RX_FLAG_DECRYPTED;
 		return 0;
 
+	case RX_MPDU_RES_STATUS_SEC_EXT_ENC:
+		if (!(rx_pkt_status & RX_MPDU_RES_STATUS_MIC_OK))
+			return -1;
+		stats->flag |= RX_FLAG_DECRYPTED;
+		return 0;
+
 	default:
 		IWL_ERR(mvm, "Unhandled alg: 0x%x\n", rx_pkt_status);
 	}
@@ -300,10 +306,14 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 		return 0;
 	}
 
+	/*
+	 * Keep packets with CRC errors (and with overrun) for monitor mode
+	 * (otherwise the firmware discards them) but mark them as bad.
+	 */
 	if (!(rx_pkt_status & RX_MPDU_RES_STATUS_CRC_OK) ||
 	    !(rx_pkt_status & RX_MPDU_RES_STATUS_OVERRUN_OK)) {
 		IWL_DEBUG_RX(mvm, "Bad CRC or FIFO: 0x%08X.\n", rx_pkt_status);
-		return 0;
+		rx_status.flag |= RX_FLAG_FAILED_FCS_CRC;
 	}
 
 	/* This will be used in several places later */

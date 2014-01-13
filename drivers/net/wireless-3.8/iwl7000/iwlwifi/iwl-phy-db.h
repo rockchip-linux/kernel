@@ -77,6 +77,11 @@ int iwl_phy_db_set_section(struct iwl_phy_db *phy_db, struct iwl_rx_packet *pkt,
 			   gfp_t alloc_ctx);
 
 
+#if IS_ENABLED(CPTCFG_IWLXVT)
+int iwl_phy_db_get_section_data(struct iwl_phy_db *phy_db,
+				u32 type, u8 **data, u16 *size, u16 ch_id);
+#endif
+
 int iwl_send_phy_db_data(struct iwl_phy_db *phy_db);
 
 #endif /* __IWL_PHYDB_H__ */

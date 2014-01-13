@@ -413,17 +413,13 @@ int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 /**
  * iwl_tm_mvm_send_rx() - Send a spontaneous rx message to user
- * @op_mode:	Device's operation mode
+ * @mvm:	mvm opmode pointer
  * @rxb:	Contains rx packet to be sent
  */
-void iwl_tm_mvm_send_rx(struct iwl_op_mode *op_mode,
-			struct iwl_rx_cmd_buffer *rxb)
+void iwl_tm_mvm_send_rx(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb)
 {
 	struct iwl_rx_packet *pkt;
 	int length;
-
-	if (!op_mode->tst.notify)
-		return;
 
 	pkt = rxb_addr(rxb);
 	length = le32_to_cpu(pkt->len_n_flags) & FH_RSCSR_FRAME_SIZE_MSK;
@@ -431,7 +427,6 @@ void iwl_tm_mvm_send_rx(struct iwl_op_mode *op_mode,
 	/* the length doesn't include len_n_flags field, so add it manually */
 	length += sizeof(__le32);
 
-	iwl_tm_gnl_send_msg(dev_name(op_mode->trans->dev),
-			    IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
-			    (void *)pkt, length, GFP_ATOMIC);
+	iwl_tm_gnl_send_msg(mvm->trans, IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
+			    true, (void *)pkt, length, GFP_ATOMIC);
 }

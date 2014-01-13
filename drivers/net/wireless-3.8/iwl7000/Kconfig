@@ -31,3 +31,8 @@ config IWL7000_TESTMODE
 	def_bool y
 	depends on IWL7000
 	depends on NL80211_TESTMODE
+
+config IWL7000_XVT
+	tristate "Enable IWL7000 XVT (production test) code"
+	depends on IWL7000
+	depends on IWL7000_TESTMODE

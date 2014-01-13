@@ -673,7 +673,7 @@ static int iwl_mvm_get_last_nonqos_seq(struct iwl_mvm *mvm,
 		/* new API returns next, not last-used seqno */
 		if (mvm->fw->ucode_capa.flags &
 				IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API)
-			err -= 0x10;
+			err = (u16) (err - 0x10);
 	}
 
 	iwl_free_resp(&cmd);
@@ -978,10 +978,6 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	if (len >= sizeof(u32) * 2) {
 		mvm->d3_test_pme_ptr =
 			le32_to_cpup((__le32 *)d3_cfg_cmd.resp_pkt->data);
-	} else if (test) {
-		/* in test mode we require the pointer */
-		ret = -EIO;
-		goto out;
 	}
 #endif
 	iwl_free_resp(&d3_cfg_cmd);
@@ -993,10 +989,11 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	mvm->aux_sta.sta_id = old_aux_sta_id;
 	mvm_ap_sta->sta_id = old_ap_sta_id;
 	mvmvif->ap_sta_id = old_ap_sta_id;
- out_noreset:
-	kfree(key_data.rsc_tsc);
+
 	if (ret < 0)
 		ieee80211_restart_hw(mvm->hw);
+ out_noreset:
+	kfree(key_data.rsc_tsc);
 
 	mutex_unlock(&mvm->mutex);
 
@@ -1299,8 +1296,14 @@ static bool iwl_mvm_setup_connection_keep(struct iwl_mvm *mvm,
 	struct iwl_mvm_d3_gtk_iter_data gtkdata = {
 		.status = status,
 	};
+	u32 disconnection_reasons =
+		IWL_WOWLAN_WAKEUP_BY_DISCONNECTION_ON_MISSED_BEACON |
+		IWL_WOWLAN_WAKEUP_BY_DISCONNECTION_ON_DEAUTH;
 
 	if (!status || !vif->bss_conf.bssid)
+		return false;
+
+	if (le32_to_cpu(status->wakeup_reasons) & disconnection_reasons)
 		return false;
 
 	/* find last GTK that we used initially, if any */
@@ -1311,7 +1314,7 @@ static bool iwl_mvm_setup_connection_keep(struct iwl_mvm *mvm,
 	if (gtkdata.unhandled_cipher)
 		return false;
 	if (!gtkdata.num_keys)
-		return true;
+		goto out;
 	if (!gtkdata.last_gtk)
 		return false;
 
@@ -1362,6 +1365,7 @@ static bool iwl_mvm_setup_connection_keep(struct iwl_mvm *mvm,
 					   (void *)&replay_ctr, GFP_KERNEL);
 	}
 
+out:
 	mvmvif->seqno_valid = true;
 	/* +0x10 because the set API expects next-to-use, not last-used */
 	mvmvif->seqno = le16_to_cpu(status->non_qos_seq_ctr) + 0x10;
@@ -1566,6 +1570,10 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	iwl_mvm_read_d3_sram(mvm);
 
 	keep = iwl_mvm_query_wakeup_reasons(mvm, vif);
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	if (keep)
+		mvm->keep_vif = vif;
+#endif
 	/* has unlocked the mutex, so skip that */
 	goto out;
 

@@ -73,7 +73,6 @@
 #include "iwl-trans.h"
 #include "iwl-notif-wait.h"
 #include "iwl-eeprom-parse.h"
-#include "iwl-trans.h"
 #include "sta.h"
 #include "fw-api.h"
 #include "constants.h"
@@ -82,6 +81,7 @@
 #define IWL_MVM_MAX_ADDRESSES		5
 /* RSSI offset for WkP */
 #define IWL_RSSI_OFFSET 50
+#define IWL_MVM_MISSED_BEACONS_THRESHOLD 8
 
 enum iwl_mvm_tx_fifo {
 	IWL_MVM_TX_FIFO_BK = 0,
@@ -165,6 +165,8 @@ struct iwl_mvm_power_ops {
 				 struct ieee80211_vif *vif);
 	int (*power_update_device_mode)(struct iwl_mvm *mvm);
 	int (*power_disable)(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+	void (*power_update_binding)(struct iwl_mvm *mvm,
+				     struct ieee80211_vif *vif, bool assign);
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	int (*power_dbgfs_read)(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				char *buf, int bufsz);
@@ -183,6 +185,7 @@ enum iwl_dbgfs_pm_mask {
 	MVM_DEBUGFS_PM_LPRX_ENA = BIT(6),
 	MVM_DEBUGFS_PM_LPRX_RSSI_THRESHOLD = BIT(7),
 	MVM_DEBUGFS_PM_SNOOZE_ENABLE = BIT(8),
+	MVM_DEBUGFS_PM_UAPSD_MISBEHAVING = BIT(9),
 };
 
 struct iwl_dbgfs_pm {
@@ -195,6 +198,7 @@ struct iwl_dbgfs_pm {
 	bool lprx_ena;
 	u32 lprx_rssi_threshold;
 	bool snooze_ena;
+	bool uapsd_misbehaving;
 	int mask;
 };
 
@@ -266,13 +270,15 @@ struct iwl_mvm_vif_bf_data {
  * @ap_ibss_active: indicates that AP/IBSS is configured and that the interface
  *	should get quota etc.
  * @monitor_active: indicates that monitor context is configured, and that the
- * interface should get quota etc.
+ *	interface should get quota etc.
+ * @low_latency: indicates that this interface is in low-latency mode
+ *	(VMACLowLatencyMode)
  * @queue_params: QoS params for this MAC
  * @bcast_sta: station used for broadcast packets. Used by the following
  *  vifs: P2P_DEVICE, GO and AP.
  * @beacon_skb: the skb used to hold the AP/GO beacon template
- * @smps_requests: the requests of of differents parts of the driver, regard
-	the desired smps mode.
+ * @smps_requests: the SMPS requests of differents parts of the driver,
+ *	combined on update to yield the overall request to mac80211.
  */
 struct iwl_mvm_vif {
 	u16 id;
@@ -282,6 +288,7 @@ struct iwl_mvm_vif {
 	bool uploaded;
 	bool ap_ibss_active;
 	bool monitor_active;
+	bool low_latency;
 	struct iwl_mvm_vif_bf_data bf_data;
 
 	u32 ap_beacon_time;
@@ -325,14 +332,19 @@ struct iwl_mvm_vif {
 #endif
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
+	struct iwl_mvm *mvm;
 	struct dentry *dbgfs_dir;
 	struct dentry *dbgfs_slink;
-	void *dbgfs_data;
 	struct iwl_dbgfs_pm dbgfs_pm;
 	struct iwl_dbgfs_bf dbgfs_bf;
 #endif
 
 	enum ieee80211_smps_mode smps_requests[NUM_IWL_MVM_SMPS_REQ];
+
+	/* FW identified misbehaving AP */
+	u8 uapsd_misbehaving_bssid[ETH_ALEN];
+
+	bool pm_prevented;
 };
 
 static inline struct iwl_mvm_vif *
@@ -481,6 +493,7 @@ struct iwl_mvm {
 	/* Scan status, cmd (pre-allocated) and auxiliary station */
 	enum iwl_scan_status scan_status;
 	struct iwl_scan_cmd *scan_cmd;
+	struct iwl_mcast_filter_cmd *mcast_filter_cmd;
 
 	/* rx chain antennas set through debugfs for the scan command */
 	u8 scan_rx_ant;
@@ -491,11 +504,19 @@ struct iwl_mvm {
 	u8 scan_last_antenna_idx; /* to toggle TX between antennas */
 	u8 mgmt_last_antenna_idx;
 
+	/* last smart fifo state that was successfully sent to firmware */
+	enum iwl_sf_state sf_state;
+
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	struct dentry *debugfs_dir;
 	u32 dbgfs_sram_offset, dbgfs_sram_len;
 	bool disable_power_off;
 	bool disable_power_off_d3;
+
+	struct debugfs_blob_wrapper nvm_hw_blob;
+	struct debugfs_blob_wrapper nvm_sw_blob;
+	struct debugfs_blob_wrapper nvm_calib_blob;
+	struct debugfs_blob_wrapper nvm_prod_blob;
 #endif
 
 	struct iwl_mvm_phy_ctxt phy_ctxts[NUM_PHY_CTX];
@@ -509,12 +530,6 @@ struct iwl_mvm {
 	 */
 	unsigned long fw_key_table[BITS_TO_LONGS(STA_KEY_MAX_NUM)];
 
-	/*
-	 * This counter of created interfaces is referenced only in conjunction
-	 * with FW limitation related to power management. Currently PM is
-	 * supported only on a single interface.
-	 * IMPORTANT: this variable counts all interfaces except P2P device.
-	 */
 	u8 vif_count;
 
 	/* -1 for always, 0 for never, >0 for that many times */
@@ -533,6 +548,7 @@ struct iwl_mvm {
 	bool store_d3_resume_sram;
 	void *d3_resume_sram;
 	u32 d3_test_pme_ptr;
+	struct ieee80211_vif *keep_vif;
 #endif
 #endif
 
@@ -556,6 +572,11 @@ struct iwl_mvm {
 	u8 aux_queue;
 	u8 first_agg_queue;
 	u8 last_agg_queue;
+
+	u8 bound_vif_cnt;
+
+	/* Indicate if device power save is allowed */
+	bool ps_prevented;
 };
 
 /* Extract MVM priv from op_mode and _hw */
@@ -638,6 +659,7 @@ int iwl_mvm_rx_statistics(struct iwl_mvm *mvm,
 
 /* NVM */
 int iwl_nvm_init(struct iwl_mvm *mvm);
+int iwl_mvm_load_nvm_to_nic(struct iwl_mvm *mvm);
 
 int iwl_mvm_up(struct iwl_mvm *mvm);
 int iwl_mvm_load_d3_fw(struct iwl_mvm *mvm);
@@ -694,6 +716,8 @@ int iwl_mvm_rx_beacon_notif(struct iwl_mvm *mvm,
 int iwl_mvm_rx_missed_beacons_notif(struct iwl_mvm *mvm,
 				    struct iwl_rx_cmd_buffer *rxb,
 				    struct iwl_device_cmd *cmd);
+void iwl_mvm_mac_ctxt_recalc_tsf_id(struct iwl_mvm *mvm,
+				    struct ieee80211_vif *vif);
 
 /* Bindings */
 int iwl_mvm_binding_add_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
@@ -754,8 +778,7 @@ iwl_mvm_vif_dbgfs_clean(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd_idx,
 			   struct iwl_tm_data *data_in,
 			   struct iwl_tm_data *data_out);
-void iwl_tm_mvm_send_rx(struct iwl_op_mode *op_mode,
-			struct iwl_rx_cmd_buffer *rxb);
+void iwl_tm_mvm_send_rx(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb);
 
 int iwl_mvm_testmode_send_cmd(struct iwl_op_mode *op_mode,
 			      struct iwl_host_cmd *cmd);
@@ -770,8 +793,7 @@ void iwl_mvm_testmode_event(struct iwl_op_mode *op_mode, struct sk_buff *skb);
 #endif
 
 /* rate scaling */
-int iwl_mvm_send_lq_cmd(struct iwl_mvm *mvm, struct iwl_lq_cmd *lq,
-			u8 flags, bool init);
+int iwl_mvm_send_lq_cmd(struct iwl_mvm *mvm, struct iwl_lq_cmd *lq, bool init);
 
 /* power managment */
 static inline int iwl_mvm_power_update_mode(struct iwl_mvm *mvm,
@@ -792,6 +814,19 @@ static inline int iwl_mvm_power_update_device_mode(struct iwl_mvm *mvm)
 		return mvm->pm_ops->power_update_device_mode(mvm);
 	return 0;
 }
+
+static inline void iwl_mvm_power_update_binding(struct iwl_mvm *mvm,
+						struct ieee80211_vif *vif,
+						bool assign)
+{
+	if (mvm->pm_ops->power_update_binding)
+		mvm->pm_ops->power_update_binding(mvm, vif, assign);
+}
+
+void iwl_mvm_power_vif_assoc(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+int iwl_mvm_power_uapsd_misbehaving_ap_notif(struct iwl_mvm *mvm,
+					     struct iwl_rx_cmd_buffer *rxb,
+					     struct iwl_device_cmd *cmd);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 static inline int iwl_mvm_power_dbgfs_read(struct iwl_mvm *mvm,
@@ -835,9 +870,12 @@ int iwl_mvm_rx_bt_coex_notif(struct iwl_mvm *mvm,
 			     struct iwl_device_cmd *cmd);
 void iwl_mvm_bt_rssi_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			   enum ieee80211_rssi_event rssi_event);
-void iwl_mvm_bt_coex_vif_change(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+void iwl_mvm_bt_coex_vif_change(struct iwl_mvm *mvm);
 u16 iwl_mvm_bt_coex_agg_time_limit(struct iwl_mvm *mvm,
 				   struct ieee80211_sta *sta);
+bool iwl_mvm_bt_coex_is_mimo_allowed(struct iwl_mvm *mvm,
+				     struct ieee80211_sta *sta);
+
 enum iwl_bt_kill_msk {
 	BT_KILL_MSK_DEFAULT,
 	BT_KILL_MSK_SCO_HID_A2DP,
@@ -874,10 +912,36 @@ void iwl_mvm_update_smps(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				enum iwl_mvm_smps_type_request req_type,
 				enum ieee80211_smps_mode smps_request);
 
+/* Low latency */
+int iwl_mvm_update_low_latency(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			       bool value);
+/* get VMACLowLatencyMode */
+static inline bool iwl_mvm_vif_low_latency(struct iwl_mvm_vif *mvmvif)
+{
+	/*
+	 * should this consider associated/active/... state?
+	 *
+	 * Normally low-latency should only be active on interfaces
+	 * that are active, but at least with debugfs it can also be
+	 * enabled on interfaces that aren't active. However, when
+	 * interface aren't active then they aren't added into the
+	 * binding, so this has no real impact. For now, just return
+	 * the current desired low-latency state.
+	 */
+
+	return mvmvif->low_latency;
+}
+
 /* Thermal management and CT-kill */
 void iwl_mvm_tt_handler(struct iwl_mvm *mvm);
 void iwl_mvm_tt_initialize(struct iwl_mvm *mvm);
 void iwl_mvm_tt_exit(struct iwl_mvm *mvm);
 void iwl_mvm_set_hw_ctkill_state(struct iwl_mvm *mvm, bool state);
+
+/* smart fifo */
+int iwl_mvm_sf_update(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+		      bool added_vif);
+
+void iwl_mvm_set_wiphy_vendor_commands(struct wiphy *wiphy);
 
 #endif /* __IWL_MVM_H__ */

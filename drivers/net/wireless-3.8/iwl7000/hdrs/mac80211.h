@@ -154,12 +154,14 @@ struct ieee80211_low_level_stats {
  * @IEEE80211_CHANCTX_CHANGE_RADAR: radar detection flag changed
  * @IEEE80211_CHANCTX_CHANGE_CHANNEL: switched to another operating channel,
  *	this is used only with channel switching with CSA
+ * @IEEE80211_CHANCTX_CHANGE_MIN_WIDTH: The min required channel width changed
  */
 enum ieee80211_chanctx_change {
 	IEEE80211_CHANCTX_CHANGE_WIDTH		= BIT(0),
 	IEEE80211_CHANCTX_CHANGE_RX_CHAINS	= BIT(1),
 	IEEE80211_CHANCTX_CHANGE_RADAR		= BIT(2),
 	IEEE80211_CHANCTX_CHANGE_CHANNEL	= BIT(3),
+	IEEE80211_CHANCTX_CHANGE_MIN_WIDTH	= BIT(4),
 };
 
 /**
@@ -169,6 +171,7 @@ enum ieee80211_chanctx_change {
  * that contains it is visible in mac80211 only.
  *
  * @def: the channel definition
+ * @min_def: the minimum channel definition currently required.
  * @rx_chains_static: The number of RX chains that must always be
  *	active on the channel to receive MIMO transmissions
  * @rx_chains_dynamic: The number of RX chains that must be enabled
@@ -180,6 +183,7 @@ enum ieee80211_chanctx_change {
  */
 struct ieee80211_chanctx_conf {
 	struct cfg80211_chan_def def;
+	struct cfg80211_chan_def min_def;
 
 	u8 rx_chains_static, rx_chains_dynamic;
 
@@ -829,6 +833,15 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  * @RX_FLAG_STBC_MASK: STBC 2 bit bitmask. 1 - Nss=1, 2 - Nss=2, 3 - Nss=3
  * @RX_FLAG_10MHZ: 10 MHz (half channel) was used
  * @RX_FLAG_5MHZ: 5 MHz (quarter channel) was used
+ * @RX_FLAG_AMSDU_MORE: Some drivers may prefer to report separate A-MSDU
+ *	subframes instead of a one huge frame for performance reasons.
+ *	All, but the last MSDU from an A-MSDU should have this flag set. E.g.
+ *	if an A-MSDU has 3 frames, the first 2 must have the flag set, while
+ *	the 3rd (last) one must not have this flag set. The flag is used to
+ *	deal with retransmission/duplication recovery properly since A-MSDU
+ *	subframes share the same sequence number. Reported subframes can be
+ *	either regular MSDU or singly A-MSDUs. Subframes must not be
+ *	interleaved with other frames.
  */
 enum mac80211_rx_flags {
 	RX_FLAG_MMIC_ERROR		= BIT(0),
@@ -859,6 +872,7 @@ enum mac80211_rx_flags {
 	RX_FLAG_STBC_MASK		= BIT(26) | BIT(27),
 	RX_FLAG_10MHZ			= BIT(28),
 	RX_FLAG_5MHZ			= BIT(29),
+	RX_FLAG_AMSDU_MORE		= BIT(30),
 };
 
 #define RX_FLAG_STBC_SHIFT		26
@@ -1149,6 +1163,19 @@ static inline bool ieee80211_vif_is_mesh(struct ieee80211_vif *vif)
 }
 
 /**
+ * wdev_to_ieee80211_vif - return a vif struct from a wdev
+ * @wdev: the wdev to get the vif for
+ *
+ * This can be used by mac80211 drivers with direct cfg80211 APIs
+ * (like the vendor commands) that get a wdev.
+ *
+ * Note that this function may return %NULL if the given wdev isn't
+ * associated with a vif that the driver knows about (e.g. monitor
+ * or AP_VLAN interfaces.)
+ */
+struct ieee80211_vif *wdev_to_ieee80211_vif(struct wireless_dev *wdev);
+
+/**
  * enum ieee80211_key_flags - key flags
  *
  * These flags are used for communication about keys between the driver
@@ -1216,6 +1243,36 @@ struct ieee80211_key_conf {
 	s8 keyidx;
 	u8 keylen;
 	u8 key[0];
+};
+
+/**
+ * struct ieee80211_cipher_scheme - cipher scheme
+ *
+ * This structure contains a cipher scheme information defining
+ * the secure packet crypto handling.
+ *
+ * @cipher: a cipher suite selector
+ * @iftype: a cipher iftype bit mask indicating an allowed cipher usage
+ * @hdr_len: a length of a security header used the cipher
+ * @pn_len: a length of a packet number in the security header
+ * @pn_off: an offset of pn from the beginning of the security header
+ * @key_idx_off: an offset of key index byte in the security header
+ * @key_idx_mask: a bit mask of key_idx bits
+ * @key_idx_shift: a bit shift needed to get key_idx
+ *     key_idx value calculation:
+ *      (sec_header_base[key_idx_off] & key_idx_mask) >> key_idx_shift
+ * @mic_len: a mic length in bytes
+ */
+struct ieee80211_cipher_scheme {
+	u32 cipher;
+	u16 iftype;
+	u8 hdr_len;
+	u8 pn_len;
+	u8 pn_off;
+	u8 key_idx_off;
+	u8 key_idx_mask;
+	u8 key_idx_shift;
+	u8 mic_len;
 };
 
 /**
@@ -1492,6 +1549,15 @@ struct ieee80211_tx_control {
  *
  * @IEEE80211_HW_TIMING_BEACON_ONLY: Use sync timing from beacon frames
  *	only, to allow getting TBTT of a DTIM beacon.
+ *
+ * @IEEE80211_HW_SUPPORTS_HT_CCK_RATES: Hardware supports mixing HT/CCK rates
+ *	and can cope with CCK rates in an aggregation session (e.g. by not
+ *	using aggregation for such frames.)
+ *
+ * @IEEE80211_HW_CHANCTX_STA_CSA: Support 802.11h based channel-switch (CSA)
+ *	for a single active channel while using channel contexts. When support
+ *	is not enabled the default action is to disconnect when getting the
+ *	CSA frame.
  */
 enum ieee80211_hw_flags {
 	IEEE80211_HW_HAS_RATE_CONTROL			= 1<<0,
@@ -1522,6 +1588,7 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_P2P_DEV_ADDR_FOR_INTF		= 1<<25,
 	IEEE80211_HW_TIMING_BEACON_ONLY			= 1<<26,
 	IEEE80211_HW_SUPPORTS_HT_CCK_RATES		= 1<<27,
+	IEEE80211_HW_CHANCTX_STA_CSA			= 1<<28,
 };
 
 /**
@@ -1545,6 +1612,9 @@ enum ieee80211_hw_flags {
  *
  * @extra_tx_headroom: headroom to reserve in each transmit skb
  *	for use by the driver (e.g. for transmit headers.)
+ *
+ * @extra_beacon_tailroom: tailroom to reserve in each beacon tx skb.
+ *	Can be used by drivers to add extra IEs.
  *
  * @channel_change_time: time (in microseconds) it takes to change channels.
  *
@@ -1617,9 +1687,9 @@ enum ieee80211_hw_flags {
  *	deliver to a WMM STA during any Service Period triggered by the WMM STA.
  *	Use IEEE80211_WMM_IE_STA_QOSINFO_SP_* for correct values.
  *
- * @smps_mode_in_ps: smps mode to use when automatic smps mode is configured.
- *	The default is _DYNAMIC.
- *	Use the %IEEE80211_SMPS_* values.
+ * @n_cipher_schemes: a size of an array of cipher schemes definitions.
+ * @cipher_schemes: a pointer to an array of cipher scheme definitions
+ *	supported by HW.
  */
 struct ieee80211_hw {
 	struct ieee80211_conf conf;
@@ -1628,6 +1698,7 @@ struct ieee80211_hw {
 	void *priv;
 	u32 flags;
 	unsigned int extra_tx_headroom;
+	unsigned int extra_beacon_tailroom;
 	int channel_change_time;
 	int vif_data_size;
 	int sta_data_size;
@@ -1647,7 +1718,8 @@ struct ieee80211_hw {
 	netdev_features_t netdev_features;
 	u8 uapsd_queues;
 	u8 uapsd_max_sp_len;
-	enum ieee80211_smps_mode smps_mode_in_ps;
+	u8 n_cipher_schemes;
+	const struct ieee80211_cipher_scheme *cipher_schemes;
 };
 
 /**
@@ -2343,9 +2415,6 @@ enum ieee80211_roc_type {
  *	See the section "Frame filtering" for more information.
  *	This callback must be implemented and can sleep.
  *
- * @set_multicast_list: Configure the device's interface specific RX multicast
- *	filter. This callback is optional. This callback must be atomic.
- *
  * @set_tim: Set TIM bit. mac80211 calls this function when a TIM bit
  * 	must be set or cleared for a given STA. Must be atomic.
  *
@@ -2430,7 +2499,11 @@ enum ieee80211_roc_type {
  *	AP, IBSS/WDS/mesh peer etc. This callback can sleep.
  *
  * @sta_remove: Notifies low level driver about removal of an associated
- *	station, AP, IBSS/WDS/mesh peer etc. This callback can sleep.
+ *	station, AP, IBSS/WDS/mesh peer etc. Note that after the callback
+ *	returns it isn't safe to use the pointer, not even RCU protected;
+ *	no RCU grace period is guaranteed between returning here and freeing
+ *	the station. See @sta_pre_rcu_remove if needed.
+ *	This callback can sleep.
  *
  * @sta_add_debugfs: Drivers can use this callback to add debugfs files
  *	when a station is added to mac80211's station list. This callback
@@ -2449,7 +2522,17 @@ enum ieee80211_roc_type {
  *	station (which can be the AP, a client, IBSS/WDS/mesh peer etc.)
  *	This callback is mutually exclusive with @sta_add/@sta_remove.
  *	It must not fail for down transitions but may fail for transitions
- *	up the list of states.
+ *	up the list of states. Also note that after the callback returns it
+ *	isn't safe to use the pointer, not even RCU protected - no RCU grace
+ *	period is guaranteed between returning here and freeing the station.
+ *	See @sta_pre_rcu_remove if needed.
+ *	The callback can sleep.
+ *
+ * @sta_pre_rcu_remove: Notify driver about station removal before RCU
+ *	synchronisation. This is useful if a driver needs to have station
+ *	pointers protected using RCU, it can then use this call to clear
+ *	the pointers instead of waiting for an RCU grace period to elapse
+ *	in @sta_state.
  *	The callback can sleep.
  *
  * @sta_rc_update: Notifies the driver of changes to the bitrates that can be
@@ -2713,16 +2796,6 @@ struct ieee80211_ops {
 				 unsigned int changed_flags,
 				 unsigned int *total_flags,
 				 u64 multicast);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
-	void (*set_multicast_list)(struct ieee80211_hw *hw,
-				   struct ieee80211_vif *vif, bool allmulti,
-				   struct netdev_hw_addr_list *mc_list);
-#else
-	void (*set_multicast_list)(struct ieee80211_hw *hw,
-				   struct ieee80211_vif *vif, bool allmulti,
-				   int mc_count, struct dev_addr_list *ha);
-#endif
-
 	int (*set_tim)(struct ieee80211_hw *hw, struct ieee80211_sta *sta,
 		       bool set);
 	int (*set_key)(struct ieee80211_hw *hw, enum set_key_cmd cmd,
@@ -2776,6 +2849,9 @@ struct ieee80211_ops {
 			 struct ieee80211_sta *sta,
 			 enum ieee80211_sta_state old_state,
 			 enum ieee80211_sta_state new_state);
+	void (*sta_pre_rcu_remove)(struct ieee80211_hw *hw,
+				   struct ieee80211_vif *vif,
+				   struct ieee80211_sta *sta);
 	void (*sta_rc_update)(struct ieee80211_hw *hw,
 			      struct ieee80211_vif *vif,
 			      struct ieee80211_sta *sta,
@@ -2936,14 +3012,14 @@ enum ieee80211_tpt_led_trigger_flags {
 };
 
 #ifdef CPTCFG_MAC80211_LEDS
-extern char *__ieee80211_get_tx_led_name(struct ieee80211_hw *hw);
-extern char *__ieee80211_get_rx_led_name(struct ieee80211_hw *hw);
-extern char *__ieee80211_get_assoc_led_name(struct ieee80211_hw *hw);
-extern char *__ieee80211_get_radio_led_name(struct ieee80211_hw *hw);
-extern char *__ieee80211_create_tpt_led_trigger(
-				struct ieee80211_hw *hw, unsigned int flags,
-				const struct ieee80211_tpt_blink *blink_table,
-				unsigned int blink_table_len);
+char *__ieee80211_get_tx_led_name(struct ieee80211_hw *hw);
+char *__ieee80211_get_rx_led_name(struct ieee80211_hw *hw);
+char *__ieee80211_get_assoc_led_name(struct ieee80211_hw *hw);
+char *__ieee80211_get_radio_led_name(struct ieee80211_hw *hw);
+char *__ieee80211_create_tpt_led_trigger(struct ieee80211_hw *hw,
+					 unsigned int flags,
+					 const struct ieee80211_tpt_blink *blink_table,
+					 unsigned int blink_table_len);
 #endif
 /**
  * ieee80211_get_tx_led_name - get name of TX LED
@@ -4565,5 +4641,19 @@ int ieee80211_ave_rssi(struct ieee80211_vif *vif);
 void ieee80211_report_wowlan_wakeup(struct ieee80211_vif *vif,
 				    struct cfg80211_wowlan_wakeup *wakeup,
 				    gfp_t gfp);
+
+/**
+ * ieee80211_tx_prepare_skb - prepare an 802.11 skb for transmission
+ * @hw: pointer as obtained from ieee80211_alloc_hw()
+ * @vif: virtual interface
+ * @skb: frame to be sent from within the driver
+ * @band: the band to transmit on
+ * @sta: optional pointer to get the station to send the frame to
+ *
+ * Note: must be called under RCU lock
+ */
+bool ieee80211_tx_prepare_skb(struct ieee80211_hw *hw,
+			      struct ieee80211_vif *vif, struct sk_buff *skb,
+			      int band, struct ieee80211_sta **sta);
 
 #endif /* MAC80211_H */

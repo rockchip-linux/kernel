@@ -81,28 +81,29 @@ struct iwl_tm_data {
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 
-int iwl_tm_gnl_send_msg(const char *dev_name, u32 cmd,
+int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 			void *data_out, u32 data_len, gfp_t flags);
 
-void iwl_tm_gnl_add(struct iwl_op_mode *op_mode);
-void iwl_tm_gnl_remove(struct iwl_op_mode *op_mode);
+void iwl_tm_gnl_add(struct iwl_trans *trans);
+void iwl_tm_gnl_remove(struct iwl_trans *trans);
 
 int iwl_tm_gnl_init(void);
 int iwl_tm_gnl_exit(void);
 
 #else
 
-static inline int iwl_tm_gnl_send_msg(const char *dev_name, u32 cmd,
-				      void *data_out, u32 data_len, gfp_t flags)
+static inline int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd,
+				      bool check_notify, void *data_out,
+				      u32 data_len, gfp_t flags)
 {
 	return 0;
 }
 
-static inline void iwl_tm_gnl_add(struct iwl_op_mode *op_mode)
+static inline void iwl_tm_gnl_add(struct iwl_trans *trans)
 {
 }
 
-static inline void iwl_tm_gnl_remove(struct iwl_op_mode *op_mode)
+static inline void iwl_tm_gnl_remove(struct iwl_trans *trans)
 {
 }
 

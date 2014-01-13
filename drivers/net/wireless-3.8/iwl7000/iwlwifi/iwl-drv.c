@@ -75,6 +75,9 @@
 #include "iwl-tm-gnl.h"
 #include "iwl-config.h"
 #include "iwl-modparams.h"
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+#include "iwl-dbg-cfg.h"
+#endif
 
 /* private includes */
 #include "iwl-fw-file.h"
@@ -127,6 +130,9 @@ struct iwl_drv {
 	struct iwl_trans *trans;
 	struct device *dev;
 	const struct iwl_cfg *cfg;
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	bool xvt_mode_on;
+#endif
 
 	int fw_index;                   /* firmware we're trying to load */
 	char firmware_name[25];         /* name of firmware file to load */
@@ -143,6 +149,9 @@ struct iwl_drv {
 enum {
 	DVM_OP_MODE =	0,
 	MVM_OP_MODE =	1,
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	XVT_OP_MODE =	2,
+#endif
 };
 
 /* Protects the table contents, i.e. the ops pointer & drv list */
@@ -154,7 +163,226 @@ static struct iwlwifi_opmode_table {
 } iwlwifi_opmode_table[] = {		/* ops set when driver is initialized */
 	[DVM_OP_MODE] = { .name = "iwldvm", .ops = NULL },
 	[MVM_OP_MODE] = { .name = "iwlmvm", .ops = NULL },
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	[XVT_OP_MODE] = { .name = "iwlxvt", .ops = NULL },
+#endif
 };
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+/* kernel object for a device dedicated
+ * folder in the sysfs */
+static struct kobject *iwl_kobj;
+
+static struct iwl_op_mode *
+_iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op);
+static void _iwl_op_mode_stop(struct iwl_drv *drv);
+
+/*
+ * iwl_drv_get_dev_container - Given a device, returns the pointer
+ * to it's corresponding driver's struct
+ */
+static struct iwl_drv *iwl_drv_get_dev_container(struct device *dev)
+{
+	struct iwl_drv *drv_itr;
+	int i;
+
+	/* Going over all drivers, looking for the one that holds dev */
+	for (i = 0; (i < ARRAY_SIZE(iwlwifi_opmode_table)); i++) {
+		list_for_each_entry(drv_itr, &iwlwifi_opmode_table[i].drv, list)
+				if (drv_itr->dev == dev)
+					return drv_itr;
+	}
+
+	return NULL;
+}
+
+/*
+ * iwl_drv_get_op_mode - Returns the index of the device's
+ * active operation mode
+ */
+static int iwl_drv_get_op_mode_idx(struct iwl_drv *drv)
+{
+	struct iwl_drv *drv_itr;
+	int i;
+
+	if (!drv || !drv->dev)
+		return -ENODEV;
+
+	/* Going over all drivers, looking for the list that holds it */
+	for (i = 0; (i < ARRAY_SIZE(iwlwifi_opmode_table)); i++) {
+		list_for_each_entry(drv_itr, &iwlwifi_opmode_table[i].drv, list)
+			if (drv_itr->dev == drv->dev)
+				return i;
+	}
+
+	return -EINVAL;
+}
+
+/*
+ * iwl_drv_switch_op_mode - Switch between operation modes
+ * Checks if the desired operation mode is valid, if it
+ * is supported by the device. Stops the current op mode
+ * and starts the desired mode.
+ */
+static int iwl_drv_switch_op_mode(struct iwl_drv *drv, const char *new_op_name)
+{
+	struct iwlwifi_opmode_table *new_op = NULL;
+	int idx;
+
+	/* Searching for wanted op_mode*/
+	for (idx = 0; idx < ARRAY_SIZE(iwlwifi_opmode_table); idx++) {
+		if (!strcmp(iwlwifi_opmode_table[idx].name, new_op_name)) {
+			new_op = &iwlwifi_opmode_table[idx];
+			break;
+		}
+	}
+
+	/* Checking if the desired op mode is valid */
+	if (!new_op) {
+		IWL_ERR(drv, "No such op mode \"%s\"\n", new_op_name);
+		return -EINVAL;
+	}
+
+	/*
+	 * If the desired op mode is already the
+	 * device's current op mode, do nothing
+	 */
+	if (idx == iwl_drv_get_op_mode_idx(drv))
+		return 0;
+
+	/* Checking if the device supports the desired operation mode */
+
+	/* xVT mode is available only with 16 FW */
+	if (drv->fw.mvm_fw) {
+		if ((idx != XVT_OP_MODE) && (idx != MVM_OP_MODE)) {
+			IWL_ERR(drv, "Op mode %s not supported by device\n",
+				new_op_name);
+			return -ENOTSUPP;
+		}
+	} else {
+		IWL_ERR(drv, "Switching op modes is not supported by device\n");
+		return -ENOTSUPP;
+	}
+
+	/* Recording new op mode state */
+	drv->xvt_mode_on = (idx == XVT_OP_MODE);
+
+	/* Stopping the current op mode */
+	_iwl_op_mode_stop(drv);
+
+	/* Changing operation mode */
+	mutex_lock(&iwlwifi_opmode_table_mtx);
+	list_move_tail(&drv->list, &new_op->drv);
+	mutex_unlock(&iwlwifi_opmode_table_mtx);
+
+	/* Starting the new op mode */
+	if (new_op->ops) {
+		drv->op_mode = _iwl_op_mode_start(drv, new_op);
+		if (!drv->op_mode) {
+			IWL_ERR(drv, "Error switching op modes\n");
+			return -EINVAL;
+		}
+	} else {
+		return request_module("%s", new_op->name);
+	}
+
+	return 0;
+}
+
+/*
+ * iwl_drv_sysfs_show - Returns device information to user
+ */
+static ssize_t iwl_drv_sysfs_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	struct iwl_drv  *drv;
+	int op_mode_idx = 0, itr;
+	int ret = 0;
+
+	/* Retrieving containing driver */
+	drv = iwl_drv_get_dev_container(dev);
+	op_mode_idx = iwl_drv_get_op_mode_idx(drv);
+
+	/* Checking if driver and driver information are valid */
+	if (op_mode_idx < 0)
+		return op_mode_idx;
+
+	/* Constructing output */
+	for (itr = 0; itr < ARRAY_SIZE(iwlwifi_opmode_table); itr++) {
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%s%-s\n",
+				 (itr == op_mode_idx) ? "* " : "  ",
+				 iwlwifi_opmode_table[itr].name);
+	}
+
+	return ret;
+}
+
+/*
+ * iwl_drv_sysfs_store - Receives commands from user
+ */
+static ssize_t iwl_drv_sysfs_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct iwl_drv *drv;
+	char *cmd_token_end = strpbrk(buf, "\n\r ");
+	ssize_t ret;
+
+	/* Retrieving containing driver */
+	drv = iwl_drv_get_dev_container(dev);
+	if (!drv) {
+		pr_err("Couldn't retrieve device information\n");
+		ret = -ENODEV;
+		goto sysfs_store_end;
+	}
+
+	/* Terminating string */
+	if (cmd_token_end)
+		*cmd_token_end = '\0';
+
+	/* Executing switch command */
+	ret = iwl_drv_switch_op_mode(drv, buf);
+	/*
+	 * Upon success, return value should be "count"
+	 * otherwise, negative value is returned
+	 */
+	if (!ret)
+		ret = count;
+
+sysfs_store_end:
+	return ret;
+}
+
+/* Attribute for device */
+static DEVICE_ATTR(op_mode, S_IRUGO | S_IWOTH,
+			iwl_drv_sysfs_show, iwl_drv_sysfs_store);
+
+/*
+ * iwl_create_sysfs_file - Creates a sysfs entry (under PCI devices),
+ * and a symlink under modules/iwlwifi
+ */
+static int iwl_create_sysfs_file(struct iwl_drv *drv)
+{
+	int ret;
+
+	ret = device_create_file(drv->dev, &dev_attr_op_mode);
+	if (!ret) {
+		ret = sysfs_create_link(iwl_kobj,
+					&drv->dev->kobj, dev_name(drv->dev));
+	}
+
+	return ret;
+}
+
+/*
+ * iwl_remove_sysfs_file - Removes sysfs entries
+ */
+static void iwl_remove_sysfs_file(struct iwl_drv *drv)
+{
+	sysfs_remove_link(iwl_kobj, dev_name(drv->dev));
+	device_remove_file(drv->dev, &dev_attr_op_mode);
+}
+#endif /* CPTCFG_IWLXVT */
 
 /*
  * struct fw_sec: Just for the image parsing proccess.
@@ -323,6 +551,41 @@ static void set_sec_offset(struct iwl_firmware_pieces *pieces,
 	pieces->img[type].sec[sec].offset = offset;
 }
 
+static int iwl_store_cscheme(struct iwl_fw *fw, const u8 *data, const u32 len)
+{
+	int i, j;
+	struct iwl_fw_cscheme_list *l = (struct iwl_fw_cscheme_list *)data;
+	struct iwl_fw_cipher_scheme *fwcs;
+	struct ieee80211_cipher_scheme *cs;
+	u32 cipher;
+
+	if (len < sizeof(*l) ||
+	    len < sizeof(l->size) + l->size * sizeof(l->cs[0]))
+		return -EINVAL;
+
+	for (i = 0, j = 0; i < IWL_UCODE_MAX_CS && i < l->size; i++) {
+		fwcs = &l->cs[j];
+		cipher = le32_to_cpu(fwcs->cipher);
+
+		/* we skip schemes with zero cipher suite selector */
+		if (!cipher)
+			continue;
+
+		cs = &fw->cs[j++];
+		cs->cipher = cipher;
+		cs->iftype = BIT(NL80211_IFTYPE_STATION);
+		cs->hdr_len = fwcs->hdr_len;
+		cs->pn_len = fwcs->pn_len;
+		cs->pn_off = fwcs->pn_off;
+		cs->key_idx_off = fwcs->key_idx_off;
+		cs->key_idx_mask = fwcs->key_idx_mask;
+		cs->key_idx_shift = fwcs->key_idx_shift;
+		cs->mic_len = fwcs->mic_len;
+	}
+
+	return 0;
+}
+
 /*
  * Gets uCode section from tlv.
  */
@@ -484,6 +747,7 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 	const u8 *tlv_data;
 	char buildstr[25];
 	u32 build;
+	int num_of_cpus;
 
 	if (len < sizeof(*ucode)) {
 		IWL_ERR(drv, "uCode has invalid length: %zd\n", len);
@@ -693,6 +957,46 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 				goto invalid_tlv_len;
 			drv->fw.phy_config = le32_to_cpup((__le32 *)tlv_data);
 			break;
+		 case IWL_UCODE_TLV_SECURE_SEC_RT:
+			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_REGULAR,
+					    tlv_len);
+			drv->fw.mvm_fw = true;
+			drv->fw.img[IWL_UCODE_REGULAR].is_secure = true;
+			break;
+		case IWL_UCODE_TLV_SECURE_SEC_INIT:
+			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_INIT,
+					    tlv_len);
+			drv->fw.mvm_fw = true;
+			drv->fw.img[IWL_UCODE_INIT].is_secure = true;
+			break;
+		case IWL_UCODE_TLV_SECURE_SEC_WOWLAN:
+			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_WOWLAN,
+					    tlv_len);
+			drv->fw.mvm_fw = true;
+			drv->fw.img[IWL_UCODE_WOWLAN].is_secure = true;
+			break;
+		case IWL_UCODE_TLV_NUM_OF_CPU:
+			if (tlv_len != sizeof(u32))
+				goto invalid_tlv_len;
+			num_of_cpus =
+				le32_to_cpup((__le32 *)tlv_data);
+
+			if (num_of_cpus == 2) {
+				drv->fw.img[IWL_UCODE_REGULAR].is_dual_cpus =
+					true;
+				drv->fw.img[IWL_UCODE_INIT].is_dual_cpus =
+					true;
+				drv->fw.img[IWL_UCODE_WOWLAN].is_dual_cpus =
+					true;
+			} else if ((num_of_cpus > 2) || (num_of_cpus < 1)) {
+				IWL_ERR(drv, "Driver support upto 2 CPUs\n");
+				return -EINVAL;
+			}
+			break;
+		case IWL_UCODE_TLV_CSCHEME:
+			if (iwl_store_cscheme(&drv->fw, tlv_data, tlv_len))
+				goto invalid_tlv_len;
+			break;
 		default:
 			IWL_DEBUG_INFO(drv, "unknown TLV: %d\n", tlv_type);
 			break;
@@ -807,7 +1111,7 @@ _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op)
 #endif
 	}
 
-	iwl_tm_gnl_add(op_mode);
+	iwl_tm_gnl_add(drv->trans);
 
 	return op_mode;
 }
@@ -816,7 +1120,7 @@ static void _iwl_op_mode_stop(struct iwl_drv *drv)
 {
 	/* op_mode can be NULL if its start failed */
 	if (drv->op_mode) {
-		iwl_tm_gnl_remove(drv->op_mode);
+		iwl_tm_gnl_remove(drv->trans);
 		iwl_op_mode_stop(drv->op_mode);
 		drv->op_mode = NULL;
 
@@ -967,11 +1271,22 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	/* We have our copies now, allow OS release its copies */
 	release_firmware(ucode_raw);
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
+#endif
+
 	mutex_lock(&iwlwifi_opmode_table_mtx);
 	if (fw->mvm_fw)
 		op = &iwlwifi_opmode_table[MVM_OP_MODE];
 	else
 		op = &iwlwifi_opmode_table[DVM_OP_MODE];
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	if (iwlwifi_mod_params.xvt_default_mode && drv->fw.mvm_fw)
+		op = &iwlwifi_opmode_table[XVT_OP_MODE];
+
+	drv->xvt_mode_on = (op == &iwlwifi_opmode_table[XVT_OP_MODE]);
+#endif
 
 	IWL_INFO(drv, "loaded firmware version %s op_mode %s\n",
 		 drv->fw.fw_version, op->name);
@@ -1049,6 +1364,10 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans,
 	init_completion(&drv->request_firmware_complete);
 	INIT_LIST_HEAD(&drv->list);
 
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	trans->dbg_cfg = current_dbg_config;
+#endif
+
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	/* Create the device debugfs entries. */
 	drv->dbgfs_drv = debugfs_create_dir(dev_name(trans->dev),
@@ -1075,6 +1394,14 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans,
 		IWL_ERR(trans, "Couldn't request the fw\n");
 		goto err_fw;
 	}
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	ret = iwl_create_sysfs_file(drv);
+	if (ret) {
+		IWL_ERR(trans, "Couldn't create sysfs entry\n");
+		goto err_fw;
+	}
+#endif
 
 	return drv;
 
@@ -1109,6 +1436,14 @@ void iwl_drv_stop(struct iwl_drv *drv)
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	debugfs_remove_recursive(drv->dbgfs_drv);
+#endif
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	iwl_dbg_cfg_free(&drv->trans->dbg_cfg);
+#endif
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	iwl_remove_sysfs_file(drv);
 #endif
 
 	kfree(drv);
@@ -1211,6 +1546,12 @@ static int __init iwl_drv_init(void)
 		return -EFAULT;
 #endif
 
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	iwl_kobj = kobject_create_and_add("devices", &THIS_MODULE->mkobj.kobj);
+	if (!iwl_kobj)
+		return -ENOMEM;
+#endif
+
 	pr_info(DRV_DESCRIPTION ", " DRV_VERSION "\n");
 	pr_info(DRV_COPYRIGHT "\n");
 
@@ -1220,6 +1561,11 @@ static int __init iwl_drv_init(void)
 
 	if (!iwl_dbgfs_root)
 		return -EFAULT;
+#endif
+
+#if defined(CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES) && \
+    defined(CPTCFG_IWLWIFI_DEBUGFS)
+	iwl_dbg_cfg_init_dbgfs(iwl_dbgfs_root);
 #endif
 
 	return iwl_register_bus_drivers();
@@ -1234,6 +1580,11 @@ static void __exit iwl_drv_exit(void)
 	debugfs_remove_recursive(iwl_dbgfs_root);
 #endif
 
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	if (iwl_kobj)
+		kobject_put(iwl_kobj);
+#endif
+
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	iwl_tm_gnl_exit();
 #endif
@@ -1244,6 +1595,12 @@ module_exit(iwl_drv_exit);
 module_param_named(debug, iwlwifi_mod_params.debug_level, uint,
 		   S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "debug output mask");
+#endif
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+module_param_named(xvt_default_mode, iwlwifi_mod_params.xvt_default_mode,
+		   bool, S_IRUGO);
+MODULE_PARM_DESC(xvt_default_mode, "xVT is the default operation mode (default: false)");
 #endif
 
 module_param_named(swcrypto, iwlwifi_mod_params.sw_crypto, int, S_IRUGO);
@@ -1303,3 +1660,4 @@ module_param_named(power_level, iwlwifi_mod_params.power_level,
 		int, S_IRUGO);
 MODULE_PARM_DESC(power_level,
 		 "default power save level (range from 1 - 5, default: 1)");
+

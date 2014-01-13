@@ -72,6 +72,37 @@
 #include "iwl-tm-gnl.h"
 #include "iwl-tm-infc.h"
 
+struct iwl_test_trace {
+	u32 size;
+	u8 *cpu_addr;
+	dma_addr_t dma_addr;
+	bool enabled;
+};
+
+struct iwl_test {
+	struct iwl_test_trace trace;
+	bool notify;
+};
+
+
+/**
+ * struct iwl_tm_gnl_dev - Devices data base
+ * @list:	  Linked list to all devices
+ * @trans:	  Pointer to the owning transport
+ * @dev_name:	  Pointer to the device name
+ * @cmd_handlers: Operation mode specific command handlers.
+ *
+ * Used to retrieve a device op mode pointer.
+ * Device identifier it's name.
+ */
+struct iwl_tm_gnl_dev {
+	struct list_head list;
+	struct iwl_test tst;
+	struct iwl_trans *trans;
+	const char *dev_name;
+};
+
+
 /**
  * iwl_tm_validate_fw_cmd() - Validates FW host command input data
  * @data_in:	Input to be validated
@@ -142,12 +173,12 @@ static int iwl_tm_validate_reg_ops(struct iwl_tm_data *data_in)
 
 /**
  * iwl_tm_trace_end - Ends debug trace. Common for all op modes.
- * @op_mode: Specific device's op mode
+ * @dev: testmode device struct
  */
-static int iwl_tm_trace_end(struct iwl_op_mode *op_mode)
+static int iwl_tm_trace_end(struct iwl_tm_gnl_dev *dev)
 {
-	struct iwl_trans *trans = op_mode->trans;
-	struct iwl_test_trace *trace = &op_mode->tst.trace;
+	struct iwl_trans *trans = dev->trans;
+	struct iwl_test_trace *trace = &dev->tst.trace;
 
 	if (!trace->enabled)
 		return -EILSEQ;
@@ -162,16 +193,16 @@ static int iwl_tm_trace_end(struct iwl_op_mode *op_mode)
 
 /**
  * iwl_tm_trace_begin() - Checks input data for trace request
- * @op_mode:	Pointer to the device's test data strcut
+ * @dev:	testmode device struct
  * @data_in:	Only size is relevant - Desired size of trace buffer.
  * @data_out:	Trace request data (address & size)
  */
-static int iwl_tm_trace_begin(struct iwl_op_mode *op_mode,
+static int iwl_tm_trace_begin(struct iwl_tm_gnl_dev *dev,
 			      struct iwl_tm_data *data_in,
 			      struct iwl_tm_data *data_out)
 {
-	struct iwl_trans *trans = op_mode->trans;
-	struct iwl_test_trace *trace = &op_mode->tst.trace;
+	struct iwl_trans *trans = dev->trans;
+	struct iwl_test_trace *trace = &dev->tst.trace;
 	struct iwl_tm_trace_request *req = data_in->data;
 	struct iwl_tm_trace_request *resp;
 
@@ -201,7 +232,7 @@ static int iwl_tm_trace_begin(struct iwl_op_mode *op_mode,
 
 	resp = kmalloc(sizeof(*resp), GFP_KERNEL);
 	if (!resp) {
-		iwl_tm_trace_end(op_mode);
+		iwl_tm_trace_end(dev);
 		return -ENOMEM;
 	}
 	resp->size = trace->size;
@@ -217,10 +248,10 @@ static int iwl_tm_trace_begin(struct iwl_op_mode *op_mode,
 
 /**
  * iwl_tm_validate_sram_write_req() - Checks input data of SRAM write request
- * @op_mode:	Device's operation mode
+ * @dev:	testmode device struct
  * @data_in:	SRAM access request
  */
-static int iwl_tm_validate_sram_write_req(struct iwl_op_mode *op_mode,
+static int iwl_tm_validate_sram_write_req(struct iwl_tm_gnl_dev *dev,
 					  struct iwl_tm_data *data_in)
 {
 	struct iwl_tm_sram_write_request *cmd_in;
@@ -237,7 +268,7 @@ static int iwl_tm_validate_sram_write_req(struct iwl_op_mode *op_mode,
 	if (data_buf_size < cmd_in->len)
 		return -EINVAL;
 
-	if (op_mode->ops->test_ops.valid_hw_addr(cmd_in->offset))
+	if (dev->trans->op_mode->ops->test_ops.valid_hw_addr(cmd_in->offset))
 		return 0;
 
 	if ((cmd_in->offset < IWL_ABS_PRPH_START)  &&
@@ -249,10 +280,10 @@ static int iwl_tm_validate_sram_write_req(struct iwl_op_mode *op_mode,
 
 /**
  * iwl_tm_validate_sram_read_req() - Checks input data of SRAM read request
- * @op_mode:	Device's operation mode
+ * @dev:	testmode device struct
  * @data_in:	SRAM access request
  */
-static int iwl_tm_validate_sram_read_req(struct iwl_op_mode *op_mode,
+static int iwl_tm_validate_sram_read_req(struct iwl_tm_gnl_dev *dev,
 					 struct iwl_tm_data *data_in)
 {
 	struct iwl_tm_sram_read_request *cmd_in;
@@ -263,7 +294,7 @@ static int iwl_tm_validate_sram_read_req(struct iwl_op_mode *op_mode,
 
 	cmd_in = data_in->data;
 
-	if (op_mode->ops->test_ops.valid_hw_addr(cmd_in->offset))
+	if (dev->trans->op_mode->ops->test_ops.valid_hw_addr(cmd_in->offset))
 		return 0;
 
 	if ((cmd_in->offset < IWL_ABS_PRPH_START)  &&
@@ -337,6 +368,24 @@ static int iwl_tm_validate_rx_hdrs_mode_req(struct iwl_tm_data *data_in)
 	return 0;
 }
 
+static int iwl_tm_get_device_status(struct iwl_tm_gnl_dev *dev,
+				    struct iwl_tm_data *data_in,
+				    struct iwl_tm_data *data_out)
+{
+	__u32 *status;
+
+	status = kmalloc(sizeof(__u32), GFP_KERNEL);
+	if (!status)
+		return -ENOMEM;
+
+	*status = 0;
+
+	data_out->data = status;
+	data_out->len = sizeof(__u32);
+
+	return 0;
+}
+
 /*
  * Testmode GNL family types (This NL family
  * will eventually replace nl80211 support in
@@ -365,22 +414,6 @@ struct iwl_tm_gnl_cmd {
 	struct iwl_tm_data data_out;
 };
 
-/**
- * struct iwl_tm_gnl_dev - Devices data base
- * @list:	  Linked list to all devices
- * @op_mode:	  Pointer to the owning operation mode
- * @dev_name:	  Pointer to the device name
- * @cmd_handlers: Operation mode specific command handlers.
- *
- * Used to retrieve a device op mode pointer.
- * Device identifier it's name.
- */
-struct iwl_tm_gnl_dev {
-	struct list_head list;
-	struct iwl_op_mode *op_mode;
-	const char *dev_name;
-};
-
 static struct list_head dev_list;
 static struct mutex dev_list_mtx; /* Protects dev_list */
 
@@ -389,7 +422,8 @@ static struct mutex dev_list_mtx; /* Protects dev_list */
  * Takes a lock on the devices list, so that the doit
  * operation will be protected
  */
-static int iwl_tm_gnl_cmd_pre_do(struct genl_ops *ops, struct sk_buff *skb,
+static int iwl_tm_gnl_cmd_pre_do(__genl_const struct genl_ops *ops,
+				 struct sk_buff *skb,
 				 struct genl_info *info)
 {
 	mutex_lock(&dev_list_mtx);
@@ -397,8 +431,9 @@ static int iwl_tm_gnl_cmd_pre_do(struct genl_ops *ops, struct sk_buff *skb,
 	return 0;
 }
 
-static void iwl_tm_gnl_cmd_post_do(struct genl_ops *ops, struct sk_buff *skb,
-				    struct genl_info *info)
+static void iwl_tm_gnl_cmd_post_do(__genl_const struct genl_ops *ops,
+				   struct sk_buff *skb,
+				   struct genl_info *info)
 {
 	mutex_unlock(&dev_list_mtx);
 }
@@ -433,8 +468,8 @@ static struct genl_family iwl_tm_gnl_family = {
 	.post_doit	= iwl_tm_gnl_cmd_post_do,
 };
 
-static struct genl_multicast_group iwl_tm_gnl_mcgrp = {
-	.name = IWL_TM_GNL_MC_GRP_NAME,
+static __genl_const struct genl_multicast_group iwl_tm_gnl_mcgrps[] = {
+	{ .name = IWL_TM_GNL_MC_GRP_NAME, },
 };
 
 /* TM GNL bus policy */
@@ -525,29 +560,34 @@ send_msg_err:
 
 /**
  * iwl_tm_gnl_send_msg() - Sends a message to a multicast group
- * @dev_name:	Device name (identifier)
+ * @trans:	transport
  * @cmd:	Command index
+ * @check_notify: only send when notify is set
  * @data_out:	Data to be sent
  *
  * Initiate a message sending to user space (as apposed
  * to replying to a message that was initiated by user
  * space). Uses multicast broadcasting method.
  */
-int iwl_tm_gnl_send_msg(const char *dev_name, u32 cmd,
+int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 			void *data_out, u32 data_len, gfp_t flags)
 {
+	struct iwl_tm_gnl_dev *dev;
 	struct iwl_tm_gnl_cmd cmd_data;
 	struct sk_buff *skb;
 
-	if (WARN_ON_ONCE(!dev_name))
+	if (WARN_ON_ONCE(!trans))
 		return -EINVAL;
 
+	if (!trans->tmdev)
+		return 0;
+	dev = trans->tmdev;
+
+	if (check_notify && !dev->tst.notify)
+		return 0;
+
 	memset(&cmd_data, 0 , sizeof(struct iwl_tm_gnl_cmd));
-	/*
-	 * Next assignment is OK since dev_name parameter
-	 * is valid throughout the operation that uses it
-	 */
-	cmd_data.dev_name = dev_name;
+	cmd_data.dev_name = dev_name(trans->dev);
 	cmd_data.cmd = cmd;
 	cmd_data.data_out.data = data_out;
 	cmd_data.data_out.len = data_len;
@@ -556,7 +596,7 @@ int iwl_tm_gnl_send_msg(const char *dev_name, u32 cmd,
 	if (!skb)
 		return -EINVAL;
 
-	return genlmsg_multicast(skb, 0, iwl_tm_gnl_mcgrp.id, flags);
+	return genlmsg_multicast(skb, 0, iwl_tm_gnl_mcgrps[0].id, flags);
 }
 IWL_EXPORT_SYMBOL(iwl_tm_gnl_send_msg);
 
@@ -576,6 +616,22 @@ static int iwl_tm_gnl_reply(struct genl_info *info,
 		return -EINVAL;
 
 	return genlmsg_reply(skb, info);
+}
+
+static int iwl_op_mode_tm_execute_cmd(struct iwl_tm_gnl_dev *dev,
+				      u32 cmd,
+				      struct iwl_tm_data *data_in,
+				      struct iwl_tm_data *data_out)
+{
+	const struct iwl_test_ops *test_ops;
+
+	test_ops = &dev->trans->op_mode->ops->test_ops;
+
+	if (test_ops->cmd_execute)
+		return test_ops->cmd_execute(dev->trans->op_mode,
+					     cmd, data_in, data_out);
+
+	return -EOPNOTSUPP;
 }
 
 /**
@@ -603,19 +659,18 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 		break;
 
 	case IWL_TM_USER_CMD_SRAM_WRITE:
-		ret = iwl_tm_validate_sram_write_req(dev->op_mode,
-						     &cmd_data->data_in);
+		ret = iwl_tm_validate_sram_write_req(dev, &cmd_data->data_in);
 		break;
 
 	case IWL_TM_USER_CMD_BEGIN_TRACE:
-		ret = iwl_tm_trace_begin(dev->op_mode,
+		ret = iwl_tm_trace_begin(dev,
 					 &cmd_data->data_in,
 					 &cmd_data->data_out);
 		common_op = true;
 		break;
 
 	case IWL_TM_USER_CMD_END_TRACE:
-		ret = iwl_tm_trace_end(dev->op_mode);
+		ret = iwl_tm_trace_end(dev);
 		common_op = true;
 		break;
 
@@ -628,17 +683,20 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 		break;
 
 	case IWL_TM_USER_CMD_NOTIFICATIONS:
-		ret = iwl_tm_notifications_en(&dev->op_mode->tst,
-					      &cmd_data->data_in);
+		ret = iwl_tm_notifications_en(&dev->tst, &cmd_data->data_in);
 		common_op = true;
 		break;
 
+	case IWL_TM_USER_CMD_GET_DEVICE_STATUS:
+		ret = iwl_tm_get_device_status(dev, &cmd_data->data_in,
+					       &cmd_data->data_out);
+		break;
 	}
 	if (ret)
 		return ret;
 
 	if (!common_op)
-		ret = iwl_op_mode_tm_execute_cmd(dev->op_mode, cmd_data->cmd,
+		ret = iwl_op_mode_tm_execute_cmd(dev, cmd_data->cmd,
 						 &cmd_data->data_in,
 						 &cmd_data->data_out);
 
@@ -647,20 +705,21 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 
 /**
  * iwl_tm_mem_dump() - Returns memory buffer data
- * @tst:	Device's test data
+ * @dev:	testmode device struct
+ * @data_in:	input data
  * @data_out:	Dump data
  */
-static int iwl_tm_mem_dump(struct iwl_op_mode *op_mode,
+static int iwl_tm_mem_dump(struct iwl_tm_gnl_dev *dev,
 			   struct iwl_tm_data *data_in,
 			   struct iwl_tm_data *data_out)
 {
 	int ret;
 
-	ret = iwl_tm_validate_sram_read_req(op_mode, data_in);
+	ret = iwl_tm_validate_sram_read_req(dev, data_in);
 	if (ret)
 		return ret;
 
-	return iwl_op_mode_tm_execute_cmd(op_mode, IWL_TM_USER_CMD_SRAM_READ,
+	return iwl_op_mode_tm_execute_cmd(dev, IWL_TM_USER_CMD_SRAM_READ,
 					  data_in, data_out);
 }
 
@@ -704,12 +763,11 @@ static int iwl_tm_gnl_command_dump(struct iwl_tm_gnl_cmd *cmd_data)
 	switch (cmd_data->cmd) {
 
 	case IWL_TM_USER_CMD_TRACE_DUMP:
-		ret = iwl_tm_trace_dump(&dev->op_mode->tst,
-					&cmd_data->data_out);
+		ret = iwl_tm_trace_dump(&dev->tst, &cmd_data->data_out);
 		break;
 
 	case IWL_TM_USER_CMD_SRAM_READ:
-		ret = iwl_tm_mem_dump(dev->op_mode,
+		ret = iwl_tm_mem_dump(dev,
 				      &cmd_data->data_in,
 				      &cmd_data->data_out);
 		break;
@@ -880,7 +938,7 @@ static int iwl_tm_gnl_done(struct netlink_callback *cb)
  * There is only one NL command, and only one callback,
  * which handles all NL messages.
  */
-static struct genl_ops iwl_tm_gnl_ops[] = {
+static __genl_const struct genl_ops iwl_tm_gnl_ops[] = {
 	{
 	  .cmd = IWL_TM_GNL_CMD_EXECUTE,
 	  .policy = iwl_tm_gnl_msg_policy,
@@ -892,27 +950,27 @@ static struct genl_ops iwl_tm_gnl_ops[] = {
 
 /**
  * iwl_tm_gnl_add() - Registers a devices/op-mode in the iwl-tm-gnl list
- * @op_mode:	  Owning operation mode
+ * @trans:	transport struct for the device to register for
  */
-void iwl_tm_gnl_add(struct iwl_op_mode *op_mode)
+void iwl_tm_gnl_add(struct iwl_trans *trans)
 {
 	struct iwl_tm_gnl_dev *dev;
 
-	if (!op_mode || !op_mode->trans)
+	if (!trans)
 		return;
 
 	mutex_lock(&dev_list_mtx);
 
-	if (iwl_tm_gnl_get_dev(dev_name(op_mode->trans->dev)))
+	if (iwl_tm_gnl_get_dev(dev_name(trans->dev)))
 		goto unlock;
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
 		goto unlock;
 
-	dev->op_mode = op_mode;
-	dev->dev_name = dev_name(op_mode->trans->dev);
-
+	dev->dev_name = dev_name(trans->dev);
+	trans->tmdev = dev;
+	dev->trans = trans;
 	list_add_tail(&dev->list, &dev_list);
 
 unlock:
@@ -921,21 +979,21 @@ unlock:
 
 /**
  * iwl_tm_gnl_remove() - Unregisters a devices/op-mode in the iwl-tm-gnl list
- * @op_mode:	Device to be removed op mode
+ * @trans:	transport struct for the device
  */
-void iwl_tm_gnl_remove(struct iwl_op_mode *op_mode)
+void iwl_tm_gnl_remove(struct iwl_trans *trans)
 {
 	struct iwl_tm_gnl_dev *dev_itr = NULL;
 	struct list_head *list_itr, *list_temp;
 
-	if (WARN_ON_ONCE(!op_mode))
+	if (WARN_ON_ONCE(!trans))
 		return;
 
 	/* Searching for operation mode in list */
 	mutex_lock(&dev_list_mtx);
 	list_for_each_safe(list_itr, list_temp, &dev_list) {
 		dev_itr = list_entry(list_itr, struct iwl_tm_gnl_dev, list);
-		if (dev_itr->op_mode == op_mode) {
+		if (dev_itr->trans == trans) {
 			/*
 			 * Device found. Removing it from list
 			 * and releasing it's resources
@@ -946,6 +1004,7 @@ void iwl_tm_gnl_remove(struct iwl_op_mode *op_mode)
 		}
 	}
 
+	trans->tmdev = NULL;
 	mutex_unlock(&dev_list_mtx);
 }
 
@@ -959,23 +1018,20 @@ int iwl_tm_gnl_init(void)
 {
 	int ret;
 
+	INIT_LIST_HEAD(&dev_list);
+	mutex_init(&dev_list_mtx);
+
 	ret = genl_register_family_with_ops(&iwl_tm_gnl_family,
-					    iwl_tm_gnl_ops,
-					    IWL_TM_GNL_CMD_MAX);
+					    iwl_tm_gnl_ops, IWL_TM_GNL_CMD_MAX);
 	if (ret) {
-		pr_err("iwl_tm_gnl_init: Failed registering testmode genl\n");
 		return ret;
 	}
 
-	ret = genl_register_mc_group(&iwl_tm_gnl_family, &iwl_tm_gnl_mcgrp);
+	ret = genl_register_mc_group(&iwl_tm_gnl_family, &iwl_tm_gnl_mcgrps[0]);
 	if (ret) {
-		pr_err("iwl_tm_gnl_init: Failed registering multicast group\n");
 		genl_unregister_family(&iwl_tm_gnl_family);
 		return ret;
 	}
-
-	INIT_LIST_HEAD(&dev_list);
-	mutex_init(&dev_list_mtx);
 
 	return 0;
 }

@@ -70,6 +70,10 @@
 #include "iwl-debug.h"
 #include "iwl-config.h"
 #include "iwl-fw.h"
+#include "iwl-op-mode.h"
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+#include "iwl-dbg-cfg.h"
+#endif
 
 /**
  * DOC: Transport layer - what is it ?
@@ -100,8 +104,7 @@
  *	   start_fw
  *
  *	5) Then when finished (or reset):
- *	   stop_fw (a.k.a. stop device for the moment)
- *	   stop_hw
+ *	   stop_device
  *
  *	6) Eventually, the free function will be called.
  */
@@ -183,12 +186,18 @@ struct iwl_rx_packet {
  * @CMD_ASYNC: Return right away and don't wait for the response
  * @CMD_WANT_SKB: valid only with CMD_SYNC. The caller needs the buffer of the
  *	response. The caller needs to call iwl_free_resp when done.
+ * @CMD_HIGH_PRIO: The command is high priority - it goes to the front of the
+ *	command queue, but after other high priority commands. valid only
+ *	with CMD_ASYNC.
+ * @CMD_SEND_IN_IDLE: The command should be sent even when the trans is idle.
  */
 enum CMD_MODE {
 	CMD_SYNC		= 0,
 	CMD_ASYNC		= BIT(0),
 	CMD_WANT_SKB		= BIT(1),
 	CMD_SEND_IN_RFKILL	= BIT(2),
+	CMD_HIGH_PRIO		= BIT(3),
+	CMD_SEND_IN_IDLE	= BIT(4),
 };
 
 #define DEF_CMD_PAYLOAD_SIZE 320
@@ -318,6 +327,26 @@ enum iwl_d3_status {
 };
 
 /**
+ * enum iwl_trans_status: transport status flags
+ * @STATUS_SYNC_HCMD_ACTIVE: a SYNC command is being processed
+ * @STATUS_DEVICE_ENABLED: APM is enabled
+ * @STATUS_TPOWER_PMI: the device might be asleep (need to wake it up)
+ * @STATUS_INT_ENABLED: interrupts are enabled
+ * @STATUS_RFKILL: the HW RFkill switch is in KILL position
+ * @STATUS_FW_ERROR: the fw is in error state
+ * @STATUS_TRANS_IDLE: the trans is idle - general commands are not to be sent
+ */
+enum iwl_trans_status {
+	STATUS_SYNC_HCMD_ACTIVE,
+	STATUS_DEVICE_ENABLED,
+	STATUS_TPOWER_PMI,
+	STATUS_INT_ENABLED,
+	STATUS_RFKILL,
+	STATUS_FW_ERROR,
+	STATUS_TRANS_IDLE,
+};
+
+/**
  * struct iwl_trans_config - transport configuration
  *
  * @op_mode: pointer to the upper layer.
@@ -344,7 +373,7 @@ struct iwl_trans_config {
 	u8 cmd_queue;
 	u8 cmd_fifo;
 	const u8 *no_reclaim_cmds;
-	int n_no_reclaim_cmds;
+	unsigned int n_no_reclaim_cmds;
 
 	bool rx_buf_size_8k;
 	bool bc_table_dword;
@@ -361,9 +390,7 @@ struct iwl_trans;
  *
  * @start_hw: starts the HW- from that point on, the HW can send interrupts
  *	May sleep
- * @stop_hw: stops the HW- from that point on, the HW will be in low power but
- *	will still issue interrupt if the HW RF kill is triggered unless
- *	op_mode_leaving is true.
+ * @op_mode_leave: Turn off the HW RF kill indication if on
  *	May sleep
  * @start_fw: allocates and inits all the resources for the transport
  *	layer. Also kick a fw image.
@@ -371,8 +398,11 @@ struct iwl_trans;
  * @fw_alive: called when the fw sends alive notification. If the fw provides
  *	the SCD base address in SRAM, then provide it here, or 0 otherwise.
  *	May sleep
- * @stop_device:stops the whole device (embedded CPU put to reset)
- *	May sleep
+ * @stop_device: stops the whole device (embedded CPU put to reset) and stops
+ *	the HW. From that point on, the HW will be in low power but will still
+ *	issue interrupt if the HW RF kill is triggered. This callback must do
+ *	the right thing and not crash even if start_hw() was called but not
+ *	start_fw(). May sleep
  * @d3_suspend: put the device into the correct mode for WoWLAN during
  *	suspend. This is optional, if not implemented WoWLAN will not be
  *	supported. This callback may sleep.
@@ -414,11 +444,16 @@ struct iwl_trans;
  * @release_nic_access: let the NIC go to sleep. The "flags" parameter
  *	must be the same one that was sent before to the grab_nic_access.
  * @set_bits_mask - set SRAM register according to value and mask.
+ * @ref: grab a reference to the transport/FW layers, disallowing
+ *	certain low power states
+ * @unref: release a reference previously taken with @ref. Note that
+ *	initially the reference count is 1, making an initial @unref
+ *	necessary to allow low power states.
  */
 struct iwl_trans_ops {
 
 	int (*start_hw)(struct iwl_trans *iwl_trans);
-	void (*stop_hw)(struct iwl_trans *iwl_trans, bool op_mode_leaving);
+	void (*op_mode_leave)(struct iwl_trans *iwl_trans);
 	int (*start_fw)(struct iwl_trans *trans, const struct fw_img *fw,
 			bool run_in_rfkill);
 	void (*fw_alive)(struct iwl_trans *trans, u32 scd_addr);
@@ -460,6 +495,8 @@ struct iwl_trans_ops {
 				   unsigned long *flags);
 	void (*set_bits_mask)(struct iwl_trans *trans, u32 reg, u32 mask,
 			      u32 value);
+	void (*ref)(struct iwl_trans *trans);
+	void (*unref)(struct iwl_trans *trans);
 };
 
 /**
@@ -479,6 +516,7 @@ enum iwl_trans_state {
  * @ops - pointer to iwl_trans_ops
  * @op_mode - pointer to the op_mode
  * @cfg - pointer to the configuration
+ * @status: a bit-mask of transport status flags
  * @dev - pointer to struct device * that represents the device
  * @hw_id: a u32 with the ID of the device / subdevice.
  *	Set during transport allocation.
@@ -498,7 +536,9 @@ struct iwl_trans {
 	const struct iwl_trans_ops *ops;
 	struct iwl_op_mode *op_mode;
 	const struct iwl_cfg *cfg;
+	struct iwl_tm_gnl_dev *tmdev;
 	enum iwl_trans_state state;
+	unsigned long status;
 
 	struct device *dev;
 	u32 hw_rev;
@@ -518,6 +558,10 @@ struct iwl_trans {
 
 #ifdef CONFIG_LOCKDEP
 	struct lockdep_map sync_cmd_lockdep_map;
+#endif
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	struct iwl_dbg_cfg dbg_cfg;
 #endif
 
 	/* pointer to trans specific struct */
@@ -540,15 +584,14 @@ static inline int iwl_trans_start_hw(struct iwl_trans *trans)
 	return trans->ops->start_hw(trans);
 }
 
-static inline void iwl_trans_stop_hw(struct iwl_trans *trans,
-				     bool op_mode_leaving)
+static inline void iwl_trans_op_mode_leave(struct iwl_trans *trans)
 {
 	might_sleep();
 
-	trans->ops->stop_hw(trans, op_mode_leaving);
+	if (trans->ops->op_mode_leave)
+		trans->ops->op_mode_leave(trans);
 
-	if (op_mode_leaving)
-		trans->op_mode = NULL;
+	trans->op_mode = NULL;
 
 	trans->state = IWL_TRANS_NO_FW;
 }
@@ -570,6 +613,7 @@ static inline int iwl_trans_start_fw(struct iwl_trans *trans,
 
 	WARN_ON_ONCE(!trans->rx_mpdu_cmd);
 
+	clear_bit(STATUS_FW_ERROR, &trans->status);
 	return trans->ops->start_fw(trans, fw, run_in_rfkill);
 }
 
@@ -596,13 +640,34 @@ static inline int iwl_trans_d3_resume(struct iwl_trans *trans,
 	return trans->ops->d3_resume(trans, status, test);
 }
 
+static inline void iwl_trans_ref(struct iwl_trans *trans)
+{
+	if (trans->ops->ref)
+		trans->ops->ref(trans);
+}
+
+static inline void iwl_trans_unref(struct iwl_trans *trans)
+{
+	if (trans->ops->unref)
+		trans->ops->unref(trans);
+}
+
 static inline int iwl_trans_send_cmd(struct iwl_trans *trans,
 				     struct iwl_host_cmd *cmd)
 {
 	int ret;
 
-	WARN_ONCE(trans->state != IWL_TRANS_FW_ALIVE,
-		  "%s bad state = %d", __func__, trans->state);
+	if (unlikely(!(cmd->flags & CMD_SEND_IN_RFKILL) &&
+		     test_bit(STATUS_RFKILL, &trans->status)))
+		return -ERFKILL;
+
+	if (unlikely(test_bit(STATUS_FW_ERROR, &trans->status)))
+		return -EIO;
+
+	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE)) {
+		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
+		return -EIO;
+	}
 
 	if (!(cmd->flags & CMD_ASYNC))
 		lock_map_acquire_read(&trans->sync_cmd_lockdep_map);
@@ -638,8 +703,11 @@ static inline void iwl_trans_free_tx_cmd(struct iwl_trans *trans,
 static inline int iwl_trans_tx(struct iwl_trans *trans, struct sk_buff *skb,
 			       struct iwl_device_cmd *dev_cmd, int queue)
 {
-	WARN_ONCE(trans->state != IWL_TRANS_FW_ALIVE,
-		  "%s bad state = %d", __func__, trans->state);
+	if (unlikely(test_bit(STATUS_FW_ERROR, &trans->status)))
+		return -EIO;
+
+	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE))
+		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
 
 	return trans->ops->tx(trans, skb, dev_cmd, queue);
 }
@@ -647,17 +715,14 @@ static inline int iwl_trans_tx(struct iwl_trans *trans, struct sk_buff *skb,
 static inline void iwl_trans_reclaim(struct iwl_trans *trans, int queue,
 				     int ssn, struct sk_buff_head *skbs)
 {
-	WARN_ONCE(trans->state != IWL_TRANS_FW_ALIVE,
-		  "%s bad state = %d", __func__, trans->state);
+	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE))
+		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
 
 	trans->ops->reclaim(trans, queue, ssn, skbs);
 }
 
 static inline void iwl_trans_txq_disable(struct iwl_trans *trans, int queue)
 {
-	WARN_ONCE(trans->state != IWL_TRANS_FW_ALIVE,
-		  "%s bad state = %d", __func__, trans->state);
-
 	trans->ops->txq_disable(trans, queue);
 }
 
@@ -667,8 +732,8 @@ static inline void iwl_trans_txq_enable(struct iwl_trans *trans, int queue,
 {
 	might_sleep();
 
-	WARN_ONCE(trans->state != IWL_TRANS_FW_ALIVE,
-		  "%s bad state = %d", __func__, trans->state);
+	if (unlikely((trans->state != IWL_TRANS_FW_ALIVE)))
+		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
 
 	trans->ops->txq_enable(trans, queue, fifo, sta_id, tid,
 				 frame_limit, ssn);
@@ -683,8 +748,8 @@ static inline void iwl_trans_ac_txq_enable(struct iwl_trans *trans, int queue,
 
 static inline int iwl_trans_wait_tx_queue_empty(struct iwl_trans *trans)
 {
-	WARN_ONCE(trans->state != IWL_TRANS_FW_ALIVE,
-		  "%s bad state = %d", __func__, trans->state);
+	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE))
+		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
 
 	return trans->ops->wait_tx_queue_empty(trans);
 }
@@ -758,7 +823,8 @@ static inline u32 iwl_trans_write_mem32(struct iwl_trans *trans, u32 addr,
 
 static inline void iwl_trans_set_pmi(struct iwl_trans *trans, bool state)
 {
-	trans->ops->set_pmi(trans, state);
+	if (trans->ops->set_pmi)
+		trans->ops->set_pmi(trans, state);
 }
 
 static inline void
@@ -776,6 +842,16 @@ iwl_trans_release_nic_access(struct iwl_trans *trans, unsigned long *flags)
 {
 	trans->ops->release_nic_access(trans, flags);
 	__release(nic_access);
+}
+
+static inline void iwl_trans_fw_error(struct iwl_trans *trans)
+{
+	if (WARN_ON_ONCE(!trans->op_mode))
+		return;
+
+	/* prevent double restarts due to the same erroneous FW */
+	if (!test_and_set_bit(STATUS_FW_ERROR, &trans->status))
+		iwl_op_mode_nic_error(trans->op_mode);
 }
 
 /*****************************************************

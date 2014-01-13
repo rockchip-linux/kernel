@@ -176,6 +176,8 @@ struct iwl_test_ops {
  * @nic_config: configure NIC, called before firmware is started.
  *	May sleep
  * @wimax_active: invoked when WiMax becomes active. May sleep
+ * @enter_d0i3: configure the fw to enter d0i3. May sleep.
+ * @exit_d0i3: configure the fw to exit d0i3. May sleep.
  */
 struct iwl_op_mode_ops {
 	struct iwl_op_mode *(*start)(struct iwl_trans *trans,
@@ -196,37 +198,21 @@ struct iwl_op_mode_ops {
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	struct iwl_test_ops test_ops;
 #endif
+	int (*enter_d0i3)(struct iwl_op_mode *op_mode);
+	int (*exit_d0i3)(struct iwl_op_mode *op_mode);
 };
 
 int iwl_opmode_register(const char *name, const struct iwl_op_mode_ops *ops);
 void iwl_opmode_deregister(const char *name);
 
-struct iwl_test_trace {
-	u32 size;
-	u8 *cpu_addr;
-	dma_addr_t dma_addr;
-	bool enabled;
-};
-
-struct iwl_test {
-	struct iwl_test_trace trace;
-	bool notify;
-};
-
 /**
  * struct iwl_op_mode - operational mode
- * @ops:pointer to its own ops
- * @trans: pointer to the transport layer
- * @tst: pointer to the testmode data
+ * @ops: pointer to its own ops
  *
  * This holds an implementation of the mac80211 / fw API.
  */
 struct iwl_op_mode {
 	const struct iwl_op_mode_ops *ops;
-	struct iwl_trans *trans;
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-	struct iwl_test tst;
-#endif
 
 	char op_mode_specific[0] __aligned(sizeof(void *));
 };
@@ -292,21 +278,22 @@ static inline void iwl_op_mode_wimax_active(struct iwl_op_mode *op_mode)
 	op_mode->ops->wimax_active(op_mode);
 }
 
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-
-static inline int iwl_op_mode_tm_execute_cmd(struct iwl_op_mode *op_mode,
-					     u32 cmd,
-					     struct iwl_tm_data *data_in,
-					     struct iwl_tm_data *data_out)
+static inline int iwl_op_mode_enter_d0i3(struct iwl_op_mode *op_mode)
 {
-	const struct iwl_test_ops *test_ops = &op_mode->ops->test_ops;
+	might_sleep();
 
-	if (test_ops->cmd_execute)
-		return test_ops->cmd_execute(op_mode, cmd, data_in, data_out);
-
-	return -EOPNOTSUPP;
+	if (!op_mode->ops->enter_d0i3)
+		return 0;
+	return op_mode->ops->enter_d0i3(op_mode);
 }
 
-#endif
+static inline int iwl_op_mode_exit_d0i3(struct iwl_op_mode *op_mode)
+{
+	might_sleep();
+
+	if (!op_mode->ops->exit_d0i3)
+		return 0;
+	return op_mode->ops->exit_d0i3(op_mode);
+}
 
 #endif /* __iwl_op_mode_h__ */

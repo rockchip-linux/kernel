@@ -116,6 +116,9 @@ struct iwl_mod_params {
 	u32 debug_level;
 #endif
 	int ant_coupling;
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	bool xvt_default_mode;
+#endif
 	char *nvm_file;
 };
 

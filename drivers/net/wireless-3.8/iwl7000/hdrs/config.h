@@ -26,4 +26,8 @@
 #define CPTCFG_NL80211_TESTMODE 1
 #endif
 
+#ifdef CONFIG_IWL7000_XVT_MODULE
+#define CPTCFG_IWLXVT_MODULE 1
+#endif
+
 #endif

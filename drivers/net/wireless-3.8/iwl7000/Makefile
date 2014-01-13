@@ -20,6 +20,10 @@ export CPTCFG_IWLWIFI_DEVICE_TRACING=y
 export CPTCFG_MAC80211_MESSAGE_TRACING=y
 endif
 
+ifeq ($(CONFIG_IWL7000_XVT),m)
+export CPTCFG_IWLXVT=m
+endif
+
 subdir-ccflags-y = -I$(src) -include "hdrs/iwl-chrome.h"
 
 obj-$(CONFIG_IWL7000) += mac80211/

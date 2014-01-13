@@ -227,7 +227,7 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 	RX_HANDLER(SCAN_REQUEST_CMD, iwl_mvm_rx_scan_response, false),
 	RX_HANDLER(SCAN_COMPLETE_NOTIFICATION, iwl_mvm_rx_scan_complete, false),
 	RX_HANDLER(SCAN_OFFLOAD_COMPLETE,
-		   iwl_mvm_rx_scan_offload_complete_notif, false),
+		   iwl_mvm_rx_scan_offload_complete_notif, true),
 	RX_HANDLER(MATCH_FOUND_NOTIFICATION, iwl_mvm_rx_sched_scan_results,
 		   false),
 
@@ -238,6 +238,8 @@ static const struct iwl_rx_handlers iwl_mvm_rx_handlers[] = {
 		   false),
 
 	RX_HANDLER(REPLY_ERROR, iwl_mvm_rx_fw_error, false),
+	RX_HANDLER(PSM_UAPSD_AP_MISBEHAVING_NOTIFICATION,
+		   iwl_mvm_power_uapsd_misbehaving_ap_notif, false),
 
 };
 #undef RX_HANDLER
@@ -314,6 +316,7 @@ static const char *iwl_mvm_cmd_strings[REPLY_MAX] = {
 	CMD(REPLY_THERMAL_MNG_BACKOFF),
 	CMD(MAC_PM_POWER_TABLE),
 	CMD(BT_COEX_CI),
+	CMD(PSM_UAPSD_AP_MISBEHAVING_NOTIFICATION),
 };
 #undef CMD
 
@@ -344,7 +347,6 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 
 	op_mode = hw->priv;
 	op_mode->ops = &iwl_mvm_ops;
-	op_mode->trans = trans;
 
 	mvm = IWL_OP_MODE_GET_MVM(op_mode);
 	mvm->dev = trans->dev;
@@ -362,6 +364,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 		mvm->aux_queue = 11;
 		mvm->first_agg_queue = 12;
 	}
+	mvm->sf_state = SF_UNINIT;
 
 	mutex_init(&mvm->mutex);
 	spin_lock_init(&mvm->async_handlers_lock);
@@ -420,24 +423,31 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	IWL_INFO(mvm, "Detected %s, REV=0x%X\n",
 		 mvm->cfg->name, mvm->trans->hw_rev);
 
-	err = iwl_trans_start_hw(mvm->trans);
-	if (err)
-		goto out_free;
-
 	iwl_mvm_tt_initialize(mvm);
 
-	mutex_lock(&mvm->mutex);
-	err = iwl_run_init_mvm_ucode(mvm, true);
-	mutex_unlock(&mvm->mutex);
-	/* returns 0 if successful, 1 if success but in rfkill */
-	if (err < 0 && !iwlmvm_mod_params.init_dbg) {
-		IWL_ERR(mvm, "Failed to run INIT ucode: %d\n", err);
-		goto out_free;
-	}
+	/*
+	 * If the NVM exists in an external file,
+	 * there is no need to unnecessarily power up the NIC at driver load
+	 */
+	if (iwlwifi_mod_params.nvm_file) {
+		err = iwl_nvm_init(mvm);
+		if (err)
+			goto out_free;
+	} else {
+		err = iwl_trans_start_hw(mvm->trans);
+		if (err)
+			goto out_free;
 
-	/* Stop the hw after the ALIVE and NVM has been read */
-	if (!iwlmvm_mod_params.init_dbg)
-		iwl_trans_stop_hw(mvm->trans, false);
+		mutex_lock(&mvm->mutex);
+		err = iwl_run_init_mvm_ucode(mvm, true);
+		iwl_trans_stop_device(trans);
+		mutex_unlock(&mvm->mutex);
+		/* returns 0 if successful, 1 if success but in rfkill */
+		if (err < 0 && !iwlmvm_mod_params.init_dbg) {
+			IWL_ERR(mvm, "Failed to run INIT ucode: %d\n", err);
+			goto out_free;
+		}
+	}
 
 	scan_size = sizeof(struct iwl_scan_cmd) +
 		mvm->fw->ucode_capa.max_probe_length +
@@ -454,7 +464,7 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
 	if (err)
 		goto out_unregister;
 
-	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_UAPSD)
+	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_PM_CMD_SUPPORT)
 		mvm->pm_ops = &pm_mac_ops;
 	else
 		mvm->pm_ops = &pm_legacy_ops;
@@ -468,7 +478,8 @@ iwl_op_mode_mvm_start(struct iwl_trans *trans, const struct iwl_cfg *cfg,
  out_free:
 	iwl_phy_db_free(mvm->phy_db);
 	kfree(mvm->scan_cmd);
-	iwl_trans_stop_hw(trans, true);
+	if (!iwlwifi_mod_params.nvm_file)
+		iwl_trans_op_mode_leave(trans);
 	ieee80211_free_hw(mvm->hw);
 	return NULL;
 }
@@ -485,12 +496,14 @@ static void iwl_op_mode_mvm_stop(struct iwl_op_mode *op_mode)
 	ieee80211_unregister_hw(mvm->hw);
 
 	kfree(mvm->scan_cmd);
+	kfree(mvm->mcast_filter_cmd);
+	mvm->mcast_filter_cmd = NULL;
 
 #if defined(CONFIG_PM_SLEEP) && defined(CPTCFG_IWLWIFI_DEBUGFS)
 	kfree(mvm->d3_resume_sram);
 #endif
 
-	iwl_trans_stop_hw(mvm->trans, true);
+	iwl_trans_op_mode_leave(mvm->trans);
 
 	iwl_phy_db_free(mvm->phy_db);
 	mvm->phy_db = NULL;
@@ -575,7 +588,7 @@ static int iwl_mvm_rx_dispatch(struct iwl_op_mode *op_mode,
 	 * In this case the iwl_test object will handle forwarding the rx
 	 * data to user space.
 	 */
-	iwl_tm_mvm_send_rx(op_mode, rxb);
+	iwl_tm_mvm_send_rx(mvm, rxb);
 #endif
 
 	for (i = 0; i < ARRAY_SIZE(iwl_mvm_rx_handlers); i++) {
@@ -665,6 +678,8 @@ static void iwl_mvm_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 	else
 		clear_bit(IWL_MVM_STATUS_HW_RFKILL, &mvm->status);
 
+	if (state && mvm->cur_ucode != IWL_UCODE_INIT)
+		iwl_trans_stop_device(mvm->trans);
 	wiphy_rfkill_set_hw_state(mvm->hw->wiphy, iwl_mvm_is_radio_killed(mvm));
 }
 
@@ -745,7 +760,7 @@ static void iwl_mvm_nic_restart(struct iwl_mvm *mvm)
 			ieee80211_scan_completed(mvm->hw, true);
 			break;
 		case IWL_MVM_SCAN_SCHED:
-			ieee80211_sched_scan_stopped(mvm->hw);
+			/* Sched scan will be restarted by mac80211. */
 			break;
 		}
 
@@ -774,6 +789,22 @@ static void iwl_mvm_cmd_queue_full(struct iwl_op_mode *op_mode)
 	iwl_mvm_nic_restart(mvm);
 }
 
+static int iwl_mvm_enter_d0i3(struct iwl_op_mode *op_mode)
+{
+	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
+
+	IWL_DEBUG_RPM(mvm, "MVM entering D0i3\n");
+	return 0;
+}
+
+static int iwl_mvm_exit_d0i3(struct iwl_op_mode *op_mode)
+{
+	struct iwl_mvm *mvm = IWL_OP_MODE_GET_MVM(op_mode);
+
+	IWL_DEBUG_RPM(mvm, "MVM exiting D0i3\n");
+	return 0;
+}
+
 static const struct iwl_op_mode_ops iwl_mvm_ops = {
 	.start = iwl_op_mode_mvm_start,
 	.stop = iwl_op_mode_mvm_stop,
@@ -797,4 +828,6 @@ static const struct iwl_op_mode_ops iwl_mvm_ops = {
 		.event = iwl_mvm_testmode_event,
 	},
 #endif
+	.enter_d0i3 = iwl_mvm_enter_d0i3,
+	.exit_d0i3 = iwl_mvm_exit_d0i3,
 };

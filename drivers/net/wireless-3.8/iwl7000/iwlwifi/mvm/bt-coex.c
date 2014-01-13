@@ -131,6 +131,51 @@ static const __le32 iwl_bt_prio_boost[BT_COEX_BOOST_SIZE] = {
 	cpu_to_le32(0xff00ff00),
 };
 
+static const __le32 iwl_single_shared_ant[BT_COEX_MAX_LUT][BT_COEX_LUT_SIZE] = {
+	{
+		cpu_to_le32(0x40000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x44000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x40000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x44000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0xc0004000),
+		cpu_to_le32(0xf0005000),
+		cpu_to_le32(0xc0004000),
+		cpu_to_le32(0xf0005000),
+	},
+	{
+		cpu_to_le32(0x40000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x44000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x40000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x44000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0xc0004000),
+		cpu_to_le32(0xf0005000),
+		cpu_to_le32(0xc0004000),
+		cpu_to_le32(0xf0005000),
+	},
+	{
+		cpu_to_le32(0x40000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x44000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x40000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0x44000000),
+		cpu_to_le32(0x00000000),
+		cpu_to_le32(0xc0004000),
+		cpu_to_le32(0xf0005000),
+		cpu_to_le32(0xc0004000),
+		cpu_to_le32(0xf0005000),
+	},
+};
+
 static const __le32 iwl_combined_lookup[BT_COEX_MAX_LUT][BT_COEX_LUT_SIZE] = {
 	{
 		/* Tight */
@@ -249,9 +294,9 @@ static const __le64 iwl_ci_mask[][3] = {
 		cpu_to_le64(0x0)
 	},
 	{
-		cpu_to_le64(0xFE00000000ULL),
+		cpu_to_le64(0xFFC0000000ULL),
 		cpu_to_le64(0x0ULL),
-		cpu_to_le64(0x0)
+		cpu_to_le64(0x0ULL)
 	},
 };
 
@@ -267,7 +312,13 @@ iwl_get_coex_type(struct iwl_mvm *mvm, const struct ieee80211_vif *vif)
 	enum iwl_bt_coex_lut_type ret;
 	u16 phy_ctx_id;
 
-	lockdep_assert_held(&mvm->mutex);
+	/*
+	 * Checking that we hold mvm->mutex is a good idea, but the rate
+	 * control can't acquire the mutex since it runs in Tx path.
+	 * So this is racy in that case, but in the worst case, the AMPDU
+	 * size limit will be wrong for a short time which is not a big
+	 * issue.
+	 */
 
 	rcu_read_lock();
 
@@ -340,16 +391,21 @@ int iwl_send_bt_init_conf(struct iwl_mvm *mvm)
 					    BT_VALID_LUT |
 					    BT_VALID_WIFI_RX_SW_PRIO_BOOST |
 					    BT_VALID_WIFI_TX_SW_PRIO_BOOST |
-					    BT_VALID_MULTI_PRIO_LUT |
 					    BT_VALID_CORUN_LUT_20 |
 					    BT_VALID_CORUN_LUT_40 |
 					    BT_VALID_ANT_ISOLATION |
 					    BT_VALID_ANT_ISOLATION_THRS |
 					    BT_VALID_TXTX_DELTA_FREQ_THRS |
-					    BT_VALID_TXRX_MAX_FREQ_0);
+					    BT_VALID_TXRX_MAX_FREQ_0 |
+					    BT_VALID_SYNC_TO_SCO);
 
-	memcpy(&bt_cmd->decision_lut, iwl_combined_lookup,
-	       sizeof(iwl_combined_lookup));
+	if (mvm->cfg->bt_shared_single_ant)
+		memcpy(&bt_cmd->decision_lut, iwl_single_shared_ant,
+		       sizeof(iwl_single_shared_ant));
+	else
+		memcpy(&bt_cmd->decision_lut, iwl_combined_lookup,
+		       sizeof(iwl_combined_lookup));
+
 	memcpy(&bt_cmd->bt_prio_boost, iwl_bt_prio_boost,
 	       sizeof(iwl_bt_prio_boost));
 	memcpy(&bt_cmd->bt4_multiprio_lut, iwl_bt_mprio_lut,
@@ -415,11 +471,13 @@ static int iwl_mvm_bt_udpate_ctrl_kill_msk(struct iwl_mvm *mvm,
 	if (!bt_cmd)
 		return -ENOMEM;
 	cmd.data[0] = bt_cmd;
+	bt_cmd->flags = cpu_to_le32(BT_COEX_NW);
 
 	bt_cmd->kill_ack_msk = cpu_to_le32(iwl_bt_ack_kill_msk[bt_kill_msk]);
 	bt_cmd->kill_cts_msk = cpu_to_le32(iwl_bt_cts_kill_msk[bt_kill_msk]);
-	bt_cmd->valid_bit_msk =
-		cpu_to_le32(BT_VALID_KILL_ACK | BT_VALID_KILL_CTS);
+	bt_cmd->valid_bit_msk |= cpu_to_le32(BT_VALID_ENABLE |
+					     BT_VALID_KILL_ACK |
+					     BT_VALID_KILL_CTS);
 
 	IWL_DEBUG_COEX(mvm, "ACK Kill msk = 0x%08x, CTS Kill msk = 0x%08x\n",
 		       iwl_bt_ack_kill_msk[bt_kill_msk],
@@ -447,13 +505,17 @@ static int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id,
 	struct iwl_mvm_sta *mvmsta;
 	int ret;
 
-	/* This can happen if the station has been removed right now */
 	if (sta_id == IWL_MVM_STATION_COUNT)
 		return 0;
 
 	sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[sta_id],
 					lockdep_is_held(&mvm->mutex));
-	mvmsta = (void *)sta->drv_priv;
+
+	/* This can happen if the station has been removed right now */
+	if (IS_ERR_OR_NULL(sta))
+		return 0;
+
+	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
 	/* nothing to do */
 	if (mvmsta->bt_reduced_txpower == enable)
@@ -463,8 +525,10 @@ static int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id,
 	if (!bt_cmd)
 		return -ENOMEM;
 	cmd.data[0] = bt_cmd;
+	bt_cmd->flags = cpu_to_le32(BT_COEX_NW);
 
-	bt_cmd->valid_bit_msk = cpu_to_le32(BT_VALID_REDUCED_TX_POWER),
+	bt_cmd->valid_bit_msk =
+		cpu_to_le32(BT_VALID_ENABLE | BT_VALID_REDUCED_TX_POWER);
 	bt_cmd->bt_reduced_tx_power = sta_id;
 
 	if (enable)
@@ -566,11 +630,11 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		/* if secondary is not NULL, it might be a GO */
 		data->secondary = chanctx_conf;
 
-	if (data->notif->bt_status)
-		smps_mode = IEEE80211_SMPS_DYNAMIC;
-
-	if (le32_to_cpu(data->notif->bt_activity_grading) >= BT_LOW_TRAFFIC)
+	if (le32_to_cpu(data->notif->bt_activity_grading) >= BT_HIGH_TRAFFIC)
 		smps_mode = IEEE80211_SMPS_STATIC;
+	else if (le32_to_cpu(data->notif->bt_activity_grading) >=
+		 BT_LOW_TRAFFIC)
+		smps_mode = IEEE80211_SMPS_DYNAMIC;
 
 	IWL_DEBUG_COEX(data->mvm,
 		       "mac %d: bt_status %d bt_activity_grading %d smps_req %d\n",
@@ -588,7 +652,7 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 	}
 
 	/* reduced Txpower only if BT is on, so ...*/
-	if (le32_to_cpu(data->notif->bt_activity_grading) == BT_OFF) {
+	if (!data->notif->bt_status) {
 		/* ... cancel reduced Tx power ... */
 		if (iwl_mvm_bt_coex_reduced_txp(mvm, mvmvif->ap_sta_id, false))
 			IWL_ERR(mvm, "Couldn't send BT_CONFIG cmd\n");
@@ -691,7 +755,7 @@ static void iwl_mvm_bt_coex_notif_handle(struct iwl_mvm *mvm)
 
 		cmd.bt_secondary_ci =
 			iwl_ci_mask[chan->def.chan->hw_value][ci_bw_idx];
-		cmd.secondary_ch_phy_id = *((u16 *)data.primary->drv_priv);
+		cmd.secondary_ch_phy_id = *((u16 *)data.secondary->drv_priv);
 	}
 
 	rcu_read_unlock();
@@ -778,7 +842,12 @@ static void iwl_mvm_bt_rssi_iterator(void *_data, u8 *mac,
 
 	sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[mvmvif->ap_sta_id],
 					lockdep_is_held(&mvm->mutex));
-	mvmsta = (void *)sta->drv_priv;
+
+	/* This can happen if the station has been removed right now */
+	if (IS_ERR_OR_NULL(sta))
+		return;
+
+	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
 	data->num_bss_ifaces++;
 
@@ -808,7 +877,7 @@ void iwl_mvm_bt_rssi_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		return;
 
 	/* No BT - reports should be disabled */
-	if (le32_to_cpu(mvm->last_bt_notif.bt_activity_grading) == BT_OFF)
+	if (!mvm->last_bt_notif.bt_status)
 		return;
 
 	IWL_DEBUG_COEX(mvm, "RSSI for %pM is now %s\n", vif->bss_conf.bssid,
@@ -849,11 +918,11 @@ void iwl_mvm_bt_rssi_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 u16 iwl_mvm_bt_coex_agg_time_limit(struct iwl_mvm *mvm,
 				   struct ieee80211_sta *sta)
 {
-	struct iwl_mvm_sta *mvmsta = (void *)sta->drv_priv;
+	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
 	enum iwl_bt_coex_lut_type lut_type;
 
 	if (le32_to_cpu(mvm->last_bt_notif.bt_activity_grading) <
-	    BT_LOW_TRAFFIC)
+	    BT_HIGH_TRAFFIC)
 		return LINK_QUAL_AGG_TIME_LIMIT_DEF;
 
 	lut_type = iwl_get_coex_type(mvm, mvmsta->vif);
@@ -865,7 +934,25 @@ u16 iwl_mvm_bt_coex_agg_time_limit(struct iwl_mvm *mvm,
 	return LINK_QUAL_AGG_TIME_LIMIT_BT_ACT;
 }
 
-void iwl_mvm_bt_coex_vif_change(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
+bool iwl_mvm_bt_coex_is_mimo_allowed(struct iwl_mvm *mvm,
+				     struct ieee80211_sta *sta)
+{
+	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
+
+	if (le32_to_cpu(mvm->last_bt_notif.bt_activity_grading) <
+	    BT_HIGH_TRAFFIC)
+		return true;
+
+	/*
+	 * In Tight, BT can't Rx while we Tx, so use both antennas since BT is
+	 * already killed.
+	 * In Loose, BT can Rx while we Tx, so forbid MIMO to let BT Rx while we
+	 * Tx.
+	 */
+	return iwl_get_coex_type(mvm, mvmsta->vif) == BT_COEX_TIGHT_LUT;
+}
+
+void iwl_mvm_bt_coex_vif_change(struct iwl_mvm *mvm)
 {
 	if (!(mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_NEWBT_COEX))
 		return;

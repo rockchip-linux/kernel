@@ -614,10 +614,10 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 			channel->flags = IEEE80211_CHAN_NO_HT40;
 
 			if (!(eeprom_ch->flags & EEPROM_CHANNEL_IBSS))
-				channel->flags |= IEEE80211_CHAN_NO_IBSS;
+				channel->flags |= IEEE80211_CHAN_NO_IR;
 
 			if (!(eeprom_ch->flags & EEPROM_CHANNEL_ACTIVE))
-				channel->flags |= IEEE80211_CHAN_PASSIVE_SCAN;
+				channel->flags |= IEEE80211_CHAN_NO_IR;
 
 			if (eeprom_ch->flags & EEPROM_CHANNEL_RADAR)
 				channel->flags |= IEEE80211_CHAN_RADAR;
@@ -750,6 +750,13 @@ void iwl_init_ht_hw_capab(const struct iwl_cfg *cfg,
 
 	ht_info->ht_supported = true;
 	ht_info->cap = IEEE80211_HT_CAP_DSSSCCK40;
+
+	if (cfg->ht_params->stbc) {
+		ht_info->cap |= (1 << IEEE80211_HT_CAP_RX_STBC_SHIFT);
+
+		if (tx_chains > 1)
+			ht_info->cap |= IEEE80211_HT_CAP_TX_STBC;
+	}
 
 	if (iwlwifi_mod_params.amsdu_size_8K)
 		ht_info->cap |= IEEE80211_HT_CAP_MAX_AMSDU;

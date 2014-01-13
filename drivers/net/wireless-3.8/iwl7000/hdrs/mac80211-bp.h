@@ -206,3 +206,111 @@ iwl7000_cfg80211_rx_mgmt(struct wireless_dev *wdev, int freq, int sig_dbm,
 	return cfg80211_rx_mgmt(wdev, freq, sig_dbm, buf, len, gfp);
 }
 #define cfg80211_rx_mgmt iwl7000_cfg80211_rx_mgmt
+
+struct cfg80211_csa_settings {
+	struct cfg80211_chan_def chandef;
+	struct cfg80211_beacon_data beacon_csa;
+	u16 counter_offset_beacon, counter_offset_presp;
+	struct cfg80211_beacon_data beacon_after;
+	bool radar_required;
+	bool block_tx;
+	u8 count;
+};
+
+static inline int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
+{
+	int width;
+
+	switch (c->width) {
+	case NL80211_CHAN_WIDTH_20:
+	case NL80211_CHAN_WIDTH_20_NOHT:
+		width = 20;
+		break;
+	case NL80211_CHAN_WIDTH_40:
+		width = 40;
+		break;
+	case NL80211_CHAN_WIDTH_80P80:
+	case NL80211_CHAN_WIDTH_80:
+		width = 80;
+		break;
+	case NL80211_CHAN_WIDTH_160:
+		width = 160;
+		break;
+	default:
+		WARN_ON_ONCE(1);
+		return -1;
+	}
+	return width;
+}
+
+static inline int cfg80211_get_chans_dfs_required(struct wiphy *wiphy,
+						  u32 center_freq,
+						  u32 bandwidth)
+{
+	struct ieee80211_channel *c;
+	u32 freq, start_freq, end_freq;
+
+	if (bandwidth <= 20) {
+		start_freq = center_freq;
+		end_freq = center_freq;
+	} else {
+		start_freq = center_freq - bandwidth/2 + 10;
+		end_freq = center_freq + bandwidth/2 - 10;
+	}
+
+	for (freq = start_freq; freq <= end_freq; freq += 20) {
+		c = ieee80211_get_channel(wiphy, freq);
+		if (!c)
+			return -EINVAL;
+
+		if (c->flags & IEEE80211_CHAN_RADAR)
+			return 1;
+	}
+	return 0;
+}
+
+
+static inline int
+cfg80211_chandef_dfs_required(struct wiphy *wiphy,
+			      const struct cfg80211_chan_def *chandef)
+{
+	int width;
+	int r;
+
+	if (WARN_ON(!cfg80211_chandef_valid(chandef)))
+		return -EINVAL;
+
+	width = cfg80211_chandef_get_width(chandef);
+	if (width < 0)
+		return -EINVAL;
+
+	r = cfg80211_get_chans_dfs_required(wiphy, chandef->center_freq1,
+					    width);
+	if (r)
+		return r;
+
+	if (!chandef->center_freq2)
+		return 0;
+
+	return cfg80211_get_chans_dfs_required(wiphy, chandef->center_freq2,
+					       width);
+}
+
+#define cfg80211_radar_event(...) do { } while (0)
+
+struct cfg80211_mgmt_tx_params {
+	struct ieee80211_channel *chan;
+	bool offchan;
+	unsigned int wait;
+	const u8 *buf;
+	size_t len;
+	bool no_cck;
+	bool dont_wait_for_ack;
+};
+
+#define IEEE80211_CHAN_NO_IR (IEEE80211_CHAN_PASSIVE_SCAN |\
+			      IEEE80211_CHAN_NO_IBSS)
+
+#define regulatory_flags flags
+#define REGULATORY_CUSTOM_REG WIPHY_FLAG_CUSTOM_REGULATORY
+#define REGULATORY_DISABLE_BEACON_HINTS WIPHY_FLAG_DISABLE_BEACON_HINTS
