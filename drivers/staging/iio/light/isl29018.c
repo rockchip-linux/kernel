@@ -21,6 +21,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA	02110-1301, USA.
  */
 
+#include <linux/acpi.h>
 #include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/err.h>
@@ -949,6 +950,15 @@ static const struct of_device_id isl29018_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, isl29018_of_match);
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id isl29018_acpi_id[] = {
+	/* Intersil PNP ID "LSD" + Device ID 0x2918 */
+	{ "LSD2918", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, isl29018_acpi_id);
+#endif
+
 static struct i2c_driver isl29018_driver = {
 	.class	= I2C_CLASS_HWMON,
 	.driver	 = {
@@ -956,6 +966,7 @@ static struct i2c_driver isl29018_driver = {
 			.pm = ISL29018_PM_OPS,
 			.owner = THIS_MODULE,
 			.of_match_table = isl29018_of_match,
+			.acpi_match_table = ACPI_PTR(isl29018_acpi_id),
 		    },
 	.probe	 = isl29018_probe,
 	.id_table = isl29018_id,
