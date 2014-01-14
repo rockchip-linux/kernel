@@ -88,7 +88,7 @@ struct i2c_peripheral {
 	int tries;
 };
 
-#define MAX_I2C_PERIPHERALS 3
+#define MAX_I2C_PERIPHERALS 4
 
 struct chromeos_laptop {
 	struct i2c_peripheral i2c_peripherals[MAX_I2C_PERIPHERALS];
