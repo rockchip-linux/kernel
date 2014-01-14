@@ -1048,7 +1048,8 @@ static int tegra124_emc_set_rate(unsigned long rate)
 	return 0;
 }
 
-static struct clk *tegra124_emc_predict_parent(unsigned long rate)
+static struct clk *tegra124_emc_predict_parent(unsigned long rate,
+						unsigned long *parent_rate)
 {
 	int val;
 	u32 src_val;
@@ -1060,6 +1061,7 @@ static struct clk *tegra124_emc_predict_parent(unsigned long rate)
 	if (IS_ERR_VALUE(val))
 		return ERR_PTR(val);
 
+	*parent_rate = tegra_emc_table[val].input_rate;
 	src_val = emc_src_val(tegra_emc_table[val].src_sel_reg);
 	return tegra_emc_src[src_val];
 }

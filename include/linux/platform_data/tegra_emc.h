@@ -35,7 +35,7 @@ struct emc_clk_ops {
 	long		(*emc_round_rate)(unsigned long);
 	int		(*emc_set_rate)(unsigned long);
 	unsigned long	(*emc_get_rate)(void);
-	struct clk *	(*emc_predict_parent)(unsigned long);
+	struct clk *	(*emc_predict_parent)(unsigned long, unsigned long *);
 	void		(*emc_get_backup_parent)(struct clk **,
 							unsigned long *);
 };
