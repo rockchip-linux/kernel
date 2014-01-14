@@ -84,9 +84,6 @@ struct generic_pm_domain {
 	struct gpd_cpu_data *cpu_data;
 	struct delayed_work power_off_delayed_work;
 	s64 power_off_delay;
-#ifdef CONFIG_PM_SLEEP
-	struct notifier_block system_suspend_notifier;
-#endif
 };
 
 static inline struct generic_pm_domain *pd_to_genpd(struct dev_pm_domain *pd)
