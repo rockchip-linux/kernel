@@ -167,6 +167,12 @@ static struct i2c_board_info atmel_1664s_device = {
 	.flags		= I2C_CLIENT_WAKE,
 };
 
+static struct i2c_board_info atmel_1664t_device = {
+	I2C_BOARD_INFO("atmel_mxt_ts", ATMEL_TP_I2C_ADDR),
+	.platform_data = NULL,
+	.flags      = I2C_CLIENT_WAKE,
+};
+
 static struct i2c_board_info max98090_device = {
 	I2C_BOARD_INFO("max98090", MAX98090_ADDR),
 };
@@ -426,6 +432,20 @@ static int setup_atmel_1664s_ts(enum i2c_adapter_type type)
 	/* add atmel mxt touch device */
 	ts = add_probed_i2c_device("touchscreen", type,
 				   &atmel_1664s_device, addr_list);
+	return (!ts) ? -EAGAIN : 0;
+}
+
+static int setup_atmel_1664t_ts(enum i2c_adapter_type type)
+{
+	const unsigned short addr_list[] = { ATMEL_TS_I2C_BL_ADDR,
+					     ATMEL_TS_I2C_ADDR,
+					     I2C_CLIENT_END };
+	if (ts)
+		return 0;
+
+	/* add atmel mxt touch device */
+	ts = add_probed_i2c_device("touchscreen", type,
+				   &atmel_1664t_device, addr_list);
 	return (!ts) ? -EAGAIN : 0;
 }
 
