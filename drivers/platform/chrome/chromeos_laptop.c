@@ -726,7 +726,7 @@ static struct chromeos_laptop rambi = {
 		/* Touchscreen. */
 		{ .add = setup_atmel_1664s_ts, I2C_ADAPTER_I2C5 },
 		/* Audio Codec */
-		{. add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
+		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
 	},
 };
 
@@ -734,6 +734,8 @@ static struct chromeos_laptop squawks = {
 	.i2c_peripherals = {
 		/* Elan Touchpad. */
 		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
+		/* Audio Codec */
+		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
 	},
 };
 
@@ -743,6 +745,8 @@ static struct chromeos_laptop glimmer = {
 		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
 		/* Touchscreen. */
 		{ .add = setup_atmel_1664t_ts, I2C_ADAPTER_I2C5 },
+		/* Audio Codec */
+		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
 	},
 };
 
@@ -752,6 +756,8 @@ static struct chromeos_laptop clapper = {
 		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
 		/* Touchscreen. */
 		{ .add = setup_atmel_1664t_ts, I2C_ADAPTER_I2C5 },
+		/* Audio Codec */
+		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
 	},
 };
 
