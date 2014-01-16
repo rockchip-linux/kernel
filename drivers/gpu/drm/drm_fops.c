@@ -300,7 +300,6 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 			}
 		}
 		priv->minor->master = master_ptr;
-		mutex_unlock(&dev->struct_mutex);
 	} else if (!drm_is_render_client(priv)) {
 		/* get a reference to the master */
 		priv->master = drm_master_get(priv->minor->master);
