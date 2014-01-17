@@ -171,6 +171,9 @@ static const struct drm_ioctl_desc drm_ioctls[] = {
 
 #define DRM_CORE_IOCTL_COUNT	ARRAY_SIZE( drm_ioctls )
 
+/* When set to 1, allow set/drop master ioctls as normal user */
+static u32 drm_master_relax;
+
 /** File operations structure */
 static const struct file_operations drm_stub_fops = {
 	.owner = THIS_MODULE,
@@ -203,6 +206,12 @@ static int __init drm_core_init(void)
 		goto err_p3;
 	}
 
+	if (!debugfs_create_bool("drm_master_relax", S_IRUSR | S_IWUSR,
+				drm_debugfs_root, &drm_master_relax)) {
+		DRM_ERROR(
+			  "Cannot create /sys/kernel/debug/dri/drm_master_relax\n");
+	}
+
 	DRM_INFO("Initialized %s %d.%d.%d %s\n",
 		 CORE_NAME, CORE_MAJOR, CORE_MINOR, CORE_PATCHLEVEL, CORE_DATE);
 	return 0;
@@ -218,7 +227,7 @@ err_p1:
 
 static void __exit drm_core_exit(void)
 {
-	debugfs_remove(drm_debugfs_root);
+	debugfs_remove_recursive(drm_debugfs_root);
 	drm_sysfs_destroy();
 
 	unregister_chrdev(DRM_MAJOR, "drm");
@@ -309,6 +318,7 @@ long drm_ioctl(struct file *filp,
 	char stack_kdata[128];
 	char *kdata = NULL;
 	unsigned int usize, asize;
+	int flags;
 
 	dev = file_priv->minor->dev;
 
@@ -347,17 +357,26 @@ long drm_ioctl(struct file *filp,
 		  (long)old_encode_dev(file_priv->minor->device),
 		  file_priv->authenticated, ioctl->name);
 
+	flags = ioctl->flags;
+	if (drm_master_relax) {
+		if (nr == DRM_IOCTL_NR(DRM_IOCTL_SET_MASTER))
+			flags = DRM_AUTH;
+		else if (nr == DRM_IOCTL_NR(DRM_IOCTL_DROP_MASTER))
+			flags = DRM_MASTER;
+	}
+
+
 	/* Do not trust userspace, use our own definition */
 	func = ioctl->func;
 
 	if (!func) {
 		DRM_DEBUG("no function\n");
 		retcode = -EINVAL;
-	} else if (((ioctl->flags & DRM_ROOT_ONLY) && !capable(CAP_SYS_ADMIN)) ||
-		   ((ioctl->flags & DRM_AUTH) && !drm_is_render_client(file_priv) && !file_priv->authenticated) ||
-		   ((ioctl->flags & DRM_MASTER) && !file_priv->is_master) ||
-		   (!(ioctl->flags & DRM_CONTROL_ALLOW) && (file_priv->minor->type == DRM_MINOR_CONTROL)) ||
-		   (!(ioctl->flags & DRM_RENDER_ALLOW) && drm_is_render_client(file_priv))) {
+	} else if (((flags & DRM_ROOT_ONLY) && !capable(CAP_SYS_ADMIN)) ||
+		   ((flags & DRM_AUTH) && !drm_is_render_client(file_priv) && !file_priv->authenticated) ||
+		   ((flags & DRM_MASTER) && !file_priv->is_master) ||
+		   (!(flags & DRM_CONTROL_ALLOW) && (file_priv->minor->type == DRM_MINOR_CONTROL)) ||
+		   (!(flags & DRM_RENDER_ALLOW) && drm_is_render_client(file_priv))) {
 		retcode = -EACCES;
 	} else {
 		if (cmd & (IOC_IN | IOC_OUT)) {
@@ -383,7 +402,7 @@ long drm_ioctl(struct file *filp,
 		} else
 			memset(kdata, 0, usize);
 
-		if (ioctl->flags & DRM_UNLOCKED)
+		if (flags & DRM_UNLOCKED)
 			retcode = func(dev, kdata, file_priv);
 		else {
 			mutex_lock(&drm_global_mutex);
