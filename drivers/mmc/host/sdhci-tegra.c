@@ -339,7 +339,7 @@ static void tegra_sdhci_do_calibration(struct sdhci_host *sdhci)
 			SDMMC_AUTO_CAL_STATUS_AUTO_CAL_ACTIVE))
 			break;
 
-		msleep(1);
+		mdelay(1);
 		timeout--;
 	} while (timeout);
 
