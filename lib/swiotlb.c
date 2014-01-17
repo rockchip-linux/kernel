@@ -553,6 +553,9 @@ void swiotlb_tbl_unmap_single(struct device *hwdev, phys_addr_t tlb_addr,
 	int index = (tlb_addr - io_tlb_start) >> IO_TLB_SHIFT;
 	phys_addr_t orig_addr = io_tlb_orig_addr[index];
 
+	if (WARN(size == 0, "Possible SWIOTLB DMA buffer leak\n"))
+		return;
+
 	/*
 	 * First, sync the memory before unmapping the entry
 	 */
