@@ -1124,7 +1124,8 @@ static int find_matching_input(struct emc_table *table)
 	}
 
 	input_clk = tegra_emc_src[src_value];
-	if (src_value == TEGRA_EMC_SRC_PLLM_UD)
+	if (src_value == TEGRA_EMC_SRC_PLLM_UD ||
+					src_value == TEGRA_EMC_SRC_PLLM)
 		input_rate = table->rate * (1 + div_value / 2);
 	else {
 		input_rate = clk_get_rate(input_clk);
