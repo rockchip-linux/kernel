@@ -1764,12 +1764,13 @@ static void lpt_disable_pch_transcoder(struct drm_i915_private *dev_priv)
  * returning.
  */
 static void intel_enable_pipe(struct drm_i915_private *dev_priv, enum pipe pipe,
-			      bool pch_port, bool dsi, bool wait_for_vblank)
+			      bool pch_port, bool dsi)
 {
 	enum transcoder cpu_transcoder = intel_pipe_to_cpu_transcoder(dev_priv,
 								      pipe);
 	enum pipe pch_transcoder;
 	int reg;
+	struct drm_device *dev = dev_priv->dev;
 	u32 val;
 
 	assert_planes_disabled(dev_priv, pipe);
@@ -1808,7 +1809,15 @@ static void intel_enable_pipe(struct drm_i915_private *dev_priv, enum pipe pipe,
 
 	I915_WRITE(reg, val | PIPECONF_ENABLE);
 	POSTING_READ(reg);
-	if (wait_for_vblank)
+
+	/*
+	 * There's no guarantee the pipe will really start running now. It
+	 * depends on the Gen, the output type and the relative order between
+	 * pipe and plane enabling. Avoid waiting on HSW+ since it's not
+	 * necessary.
+	 * TODO: audit the previous gens.
+	 */
+	if (INTEL_INFO(dev)->gen <= 7 && !IS_HASWELL(dev))
 		intel_wait_for_vblank(dev_priv->dev, pipe);
 }
 
@@ -3615,7 +3624,7 @@ static void ironlake_crtc_enable(struct drm_crtc *crtc)
 
 	intel_update_watermarks(crtc);
 	intel_enable_pipe(dev_priv, pipe,
-			  intel_crtc->config.has_pch_encoder, false, true);
+			  intel_crtc->config.has_pch_encoder, false);
 	intel_enable_primary_plane(dev_priv, plane, pipe);
 	intel_enable_planes(crtc);
 	intel_crtc_update_cursor(crtc, true);
@@ -3753,7 +3762,7 @@ static void haswell_crtc_enable(struct drm_crtc *crtc)
 
 	intel_update_watermarks(crtc);
 	intel_enable_pipe(dev_priv, pipe,
-			  intel_crtc->config.has_pch_encoder, false, true);
+			  intel_crtc->config.has_pch_encoder, false);
 
 	if (intel_crtc->config.has_pch_encoder)
 		lpt_pch_enable(crtc);
@@ -4196,7 +4205,7 @@ static void valleyview_crtc_enable(struct drm_crtc *crtc)
 	intel_crtc_load_lut(crtc);
 
 	intel_update_watermarks(crtc);
-	intel_enable_pipe(dev_priv, pipe, false, is_dsi, true);
+	intel_enable_pipe(dev_priv, pipe, false, is_dsi);
 	intel_enable_primary_plane(dev_priv, plane, pipe);
 	intel_enable_planes(crtc);
 	intel_crtc_update_cursor(crtc, true);
@@ -4236,7 +4245,7 @@ static void i9xx_crtc_enable(struct drm_crtc *crtc)
 	intel_crtc_load_lut(crtc);
 
 	intel_update_watermarks(crtc);
-	intel_enable_pipe(dev_priv, pipe, false, false, true);
+	intel_enable_pipe(dev_priv, pipe, false, false);
 	intel_enable_primary_plane(dev_priv, plane, pipe);
 	intel_enable_planes(crtc);
 	/* The fixup needs to happen before cursor is enabled */
