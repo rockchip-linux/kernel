@@ -675,7 +675,7 @@ static irqreturn_t tegra_dma_isr(int irq, void *dev_id)
 	}
 
 	spin_unlock_irqrestore(&tdc->lock, flags);
-	dev_info(tdc2dev(tdc),
+	dev_dbg(tdc2dev(tdc),
 		"Interrupt already served status 0x%08lx\n", status);
 	return IRQ_NONE;
 }
@@ -796,7 +796,7 @@ static int tegra_dma_wcount_in_bytes(struct dma_chan *dc)
 	status = tdc_read(tdc, TEGRA_APBDMA_CHAN_STATUS);
 	if (status & TEGRA_APBDMA_STATUS_ISE_EOC) {
 		tdc_write(tdc, TEGRA_APBDMA_CHAN_STATUS, status);
-		dev_info(tdc2dev(tdc), "%s():handling isr\n", __func__);
+		dev_dbg(tdc2dev(tdc), "%s():handling isr\n", __func__);
 		tdc->isr_handler(tdc, false);
 		tegra_dma_resume(tdc);
 		return 0;
