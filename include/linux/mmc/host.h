@@ -298,6 +298,11 @@ struct mmc_host {
 	unsigned long           clkgate_delay;
 #endif
 
+	/* card specific properties to deal with power and reset */
+	struct regulator	*card_regulator; /* External VCC needed by the card */
+	struct gpio_desc	*card_reset_gpios[2]; /* External resets, active low */
+	struct clk		*card_clk;	/* External clock needed by the card */
+
 	/* host specific block data */
 	unsigned int		max_seg_size;	/* see blk_queue_max_segment_size */
 	unsigned short		max_segs;	/* see blk_queue_max_segments */

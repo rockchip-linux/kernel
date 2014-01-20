@@ -13,11 +13,13 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
+#include <linux/clk.h>
 #include <linux/completion.h>
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/pagemap.h>
 #include <linux/err.h>
+#include <linux/gpio.h>
 #include <linux/leds.h>
 #include <linux/scatterlist.h>
 #include <linux/log2.h>
@@ -1519,6 +1521,43 @@ void mmc_set_driver_type(struct mmc_host *host, unsigned int drv_type)
 	mmc_host_clk_release(host);
 }
 
+static void mmc_card_power_up(struct mmc_host *host)
+{
+	int i;
+	struct gpio_desc **gds = host->card_reset_gpios;
+
+	for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++) {
+		if (gds[i]) {
+			dev_dbg(host->parent, "Asserting reset line %d", i);
+			gpiod_set_value(gds[i], 1);
+		}
+	}
+
+	if (host->card_regulator) {
+		dev_dbg(host->parent, "Enabling external regulator");
+		if (regulator_enable(host->card_regulator))
+			dev_err(host->parent, "Failed to enable external regulator");
+	}
+
+	if (host->card_clk) {
+		dev_dbg(host->parent, "Enabling external clock");
+		clk_prepare_enable(host->card_clk);
+	}
+
+	/* 2ms delay to let clocks and power settle */
+	mmc_delay(20);
+
+	for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++) {
+		if (gds[i]) {
+			dev_dbg(host->parent, "Deasserting reset line %d", i);
+			gpiod_set_value(gds[i], 0);
+		}
+	}
+
+	/* 2ms delay to after reset release */
+	mmc_delay(20);
+}
+
 /*
  * Apply power to the MMC stack.  This is a two-stage process.
  * First, we enable power to the card without the clock running.
@@ -1534,6 +1573,9 @@ void mmc_power_up(struct mmc_host *host, u32 ocr)
 {
 	if (host->ios.power_mode == MMC_POWER_ON)
 		return;
+
+	/* Power up the card/module first, if needed */
+	mmc_card_power_up(host);
 
 	mmc_host_clk_hold(host);
 

@@ -12,14 +12,18 @@
  *  MMC host class device management
  */
 
+#include <linux/kernel.h>
+#include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/err.h>
+#include <linux/gpio/consumer.h>
 #include <linux/idr.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/pagemap.h>
 #include <linux/export.h>
 #include <linux/leds.h>
+#include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/suspend.h>
 
@@ -312,7 +316,7 @@ int mmc_of_parse(struct mmc_host *host)
 	u32 bus_width;
 	bool explicit_inv_wp, gpio_inv_wp = false;
 	enum of_gpio_flags flags;
-	int len, ret, gpio;
+	int i, len, ret, gpio;
 
 	if (!host->parent || !host->parent->of_node)
 		return 0;
@@ -414,6 +418,30 @@ int mmc_of_parse(struct mmc_host *host)
 	}
 	if (explicit_inv_wp ^ gpio_inv_wp)
 		host->caps2 |= MMC_CAP2_RO_ACTIVE_HIGH;
+
+	/* Parse card power/reset/clock control */
+	if (of_find_property(np, "card-reset-gpios", NULL)) {
+		struct gpio_desc *gpd;
+		for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++) {
+			gpd = devm_gpiod_get_index(host->parent, "card-reset", i);
+			if (IS_ERR(gpd))
+				break;
+			gpiod_direction_output(gpd, 0);
+			host->card_reset_gpios[i] = gpd;
+		}
+
+		gpd = devm_gpiod_get_index(host->parent, "card-reset", ARRAY_SIZE(host->card_reset_gpios));
+		if (!IS_ERR(gpd)) {
+			dev_warn(host->parent, "More reset gpios than we can handle");
+			gpiod_put(gpd);
+		}
+	}
+
+	host->card_clk = of_clk_get_by_name(np, "card_ext_clock");
+	if (IS_ERR(host->card_clk))
+		host->card_clk = NULL;
+
+	host->card_regulator = regulator_get(host->parent, "card-external-vcc");
 
 	if (of_find_property(np, "cap-sd-highspeed", &len))
 		host->caps |= MMC_CAP_SD_HIGHSPEED;

@@ -5,6 +5,8 @@ these definitions.
 Interpreted by the OF core:
 - reg: Registers location and length.
 - interrupts: Interrupts used by the MMC controller.
+- clocks: Clocks needed for the host controller, if any.
+- clock-names: Goes with clocks above.
 
 Card detection:
 If no property below is supplied, host native card detect is used.
@@ -38,6 +40,15 @@ Optional properties:
 - mmc-ddr-1_2v: eMMC high-speed DDR mode(1.2V I/O) is supported
 - mmc-hs200-1_8v: eMMC HS200 mode(1.8V I/O) is supported
 - mmc-hs200-1_2v: eMMC HS200 mode(1.2V I/O) is supported
+
+Card power and reset control:
+The following properties can be specified for cases where the MMC
+peripheral needs additional reset, regulator and clock lines. It is for
+example common for WiFi/BT adapters to have these separate from the main
+MMC bus:
+  - card-reset-gpios: Specify GPIOs for card reset (reset active low)
+  - card-external-vcc-supply: Regulator to drive (independent) card VCC
+  - clock with name "card_ext_clock": External clock provided to the card
 
 *NOTE* on CD and WP polarity. To use common for all SD/MMC host controllers line
 polarity properties, we have to fix the meaning of the "normal" and "inverted"
