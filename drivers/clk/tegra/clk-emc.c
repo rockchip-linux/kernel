@@ -37,16 +37,11 @@ static unsigned long clk_emc_recalc_rate(struct clk_hw *hw,
 					    unsigned long parent_rate)
 {
 	struct tegra_clk_emc *emc = to_clk_emc(hw);
-	unsigned long rate;
+	const struct clk_ops *div_ops = emc->periph->div_ops;
+	struct clk_hw *div_hw = &emc->periph->divider.hw;
 
-	if (!emc->emc_ops)
-		return parent_rate;
-
-	rate = emc->emc_ops->emc_get_rate();
-	if (IS_ERR_VALUE(rate))
-		rate = parent_rate;
-
-	return rate;
+	div_hw->clk = hw->clk;
+	return div_ops->recalc_rate(div_hw, parent_rate);
 }
 
 static long clk_emc_round_rate(struct clk_hw *hw, unsigned long rate,
@@ -200,6 +195,7 @@ struct clk *tegra_clk_register_emc(const char *name, const char **parent_names,
 	periph->hw.init = &init;
 	periph->magic = TEGRA_CLK_PERIPH_MAGIC;
 	periph->mux.reg = clk_base + offset;
+	periph->divider.reg = clk_base + offset;
 	periph->gate.clk_base = clk_base;
 	periph->gate.regs = bank;
 	periph->gate.enable_refcnt = periph_clk_enb_refcnt;
@@ -214,7 +210,7 @@ struct clk *tegra_clk_register_emc(const char *name, const char **parent_names,
 	}
 
 	emc->periph->mux.hw.clk = clk;
-	emc->periph->divider.hw.clk = NULL;
+	emc->periph->divider.hw.clk = clk;
 	emc->periph->gate.hw.clk = clk;
 
 	return clk;
