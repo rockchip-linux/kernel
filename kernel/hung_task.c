@@ -120,6 +120,8 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	touch_nmi_watchdog();
 
 	if (sysctl_hung_task_panic) {
+		/* Dump all tasks. */
+		show_state_filter(TASK_UNINTERRUPTIBLE);
 		trigger_all_cpu_backtrace();
 		panic("hung_task: blocked tasks");
 	}
