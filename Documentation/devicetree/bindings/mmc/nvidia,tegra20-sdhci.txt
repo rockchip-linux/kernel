@@ -40,6 +40,13 @@ Optional properties:
 	Bit 5: SDR104
 	Bit 6: HS200
 - ddr-clk-limit : max clock frequency in DDR mode
+- nvidia,{vmin,vmax} : corresponding min/max core voltage (in mV) for tuning
+  coefficients
+- nvidia,t2t-{vmin,vmax,vnom}-{slope,int} : tap-to-tap tuning coefficients
+- per-frequency tuning data entries (should be in ascending order):
+  - compatible : should be "nvidia,sdhci-tuning-data"
+  - clock-frequency : tuning frequency in Hz
+  - nvidia,thole-{vmin,vmax,vnom}-{slope,int} : tap-hole tuning coefficients
 
 Example:
 
@@ -73,4 +80,44 @@ sdhci@700b0600 {
 	calib-1v8-offsets = <0x0202>;
 	calib-1v8-offsets-uhs-modes = <0x28>; /* DDR50 | HS200 */
 	uhs-mask = <0x00>;
+
+	nvidia,vmax = <1150>;
+	nvidia,vmin = <950>;
+	nvidia,t2t-vnom-slope = <27>;
+	nvidia,t2t-vnom-int = <118295>;
+	nvidia,t2t-vmax-slope = <27>;
+	nvidia,t2t-vmax-int = <118295>;
+	nvidia,t2t-vmin-slope = <48>;
+	nvidia,t2t-vmin-int = <188148>;
+
+	tuning-data@0 {
+		compatible = "nvidia,sdhci-tuning-data";
+		clock-frequency = <81600000>;
+		nvidia,thole-vnom-slope = <3090>;
+		nvidia,thole-vnom-int = <351666>;
+		nvidia,thole-vmax-slope = <3090>;
+		nvidia,thole-vmax-int = <351666>;
+		nvidia,thole-vmin-slope = <1583>;
+		nvidia,thole-vmin-int = <247913>;
+	};
+	tuning-data@1 {
+		compatible = "nvidia,sdhci-tuning-data";
+		clock-frequency = <136000000>;
+		nvidia,thole-vnom-slope = <1703>;
+		nvidia,thole-vnom-int = <186307>;
+		nvidia,thole-vmax-slope = <1703>;
+		nvidia,thole-vmax-int = <186307>;
+		nvidia,thole-vmin-slope = <890>;
+		nvidia,thole-vmin-int = <130617>;
+	};
+	tuning-data@2 {
+		compatible = "nvidia,sdhci-tuning-data";
+		clock-frequency = <204000000>;
+		nvidia,thole-vnom-slope = <1037>;
+		nvidia,thole-vnom-int = <106934>;
+		nvidia,thole-vmax-slope = <1037>;
+		nvidia,thole-vmax-int = <106934>;
+		nvidia,thole-vmin-slope = <558>;
+		nvidia,thole-vmin-int = <74315>;
+	};
 };
