@@ -93,6 +93,9 @@ static inline void set_fs(mm_segment_t fs)
 		: "cc"); \
 	flag; })
 
+#define __inttype(x) \
+	__typeof__(__builtin_choose_expr(sizeof(x) > sizeof(0UL), 0ULL, 0UL))
+
 /*
  * Single-value transfer routines.  They automatically use the right
  * size if we just have the right pointer type.  Note that the functions
@@ -107,14 +110,16 @@ static inline void set_fs(mm_segment_t fs)
 extern int __get_user_1(void *);
 extern int __get_user_2(void *);
 extern int __get_user_4(void *);
+extern int __get_user_8(void *);
 
-#define __GUP_CLOBBER_1	"lr", "cc"
+#define __GUP_CLOBBER_1 "lr", "cc"
 #ifdef CONFIG_CPU_USE_DOMAINS
-#define __GUP_CLOBBER_2	"ip", "lr", "cc"
+#define __GUP_CLOBBER_2 "ip", "lr", "cc"
 #else
 #define __GUP_CLOBBER_2 "lr", "cc"
 #endif
-#define __GUP_CLOBBER_4	"lr", "cc"
+#define __GUP_CLOBBER_4 "lr", "cc"
+#define __GUP_CLOBBER_8 "lr", "cc"
 
 #define __get_user_x(__r2,__p,__e,__l,__s)				\
 	   __asm__ __volatile__ (					\
@@ -129,7 +134,7 @@ extern int __get_user_4(void *);
 	({								\
 		unsigned long __limit = current_thread_info()->addr_limit - 1; \
 		register const typeof(*(p)) __user *__p asm("r0") = (p);\
-		register unsigned long __r2 asm("r2");			\
+		register __inttype(*p) __r2 asm("r2");			\
 		register unsigned long __l asm("r1") = __limit;		\
 		register int __e asm("r0");				\
 		switch (sizeof(*(__p))) {				\
@@ -142,6 +147,9 @@ extern int __get_user_4(void *);
 		case 4:							\
 			__get_user_x(__r2, __p, __e, __l, 4);		\
 			break;						\
+		case 8:							\
+			__get_user_x(__r2, __p, __e, __l, 8);		\
+			break;						\
 		default: __e = __get_user_bad(); break;			\
 		}							\
 		x = (typeof(*(p))) __r2;				\
@@ -150,6 +158,7 @@ extern int __get_user_4(void *);
 
 #define get_user(x,p)							\
 	({								\
+		__chk_user_ptr(ptr);					\
 		might_fault();						\
 		__get_user_check(x,p);					\
 	 })

@@ -18,7 +18,7 @@
  * Inputs:	r0 contains the address
  *		r1 contains the address limit, which must be preserved
  * Outputs:	r0 is the error code
- *		r2 contains the zero-extended value
+ *		r2/r3 contains the zero-extended value
  *		lr corrupted
  *
  * No other registers must be altered.  (see <asm/uaccess.h>
@@ -31,6 +31,14 @@
 #include <asm/assembler.h>
 #include <asm/errno.h>
 #include <asm/domain.h>
+
+#ifdef __ARMEB__
+#define rlo8	r3
+#define rhi8	r2
+#else
+#define	rlo8	r2
+#define rhi8	r3
+#endif
 
 ENTRY(__get_user_1)
 	check_uaccess r0, 1, r1, r2, __get_user_bad
@@ -66,15 +74,38 @@ ENTRY(__get_user_4)
 	mov	pc, lr
 ENDPROC(__get_user_4)
 
+ENTRY(__get_user_8)
+	check_uaccess r0, 4, r1, r2, __get_user_bad8
+#ifdef CONFIG_CPU_USE_DOMAINS
+#define	GU8_FIXUPS	5b, 6b
+5:	ldrt	rlo8, [r0], #4
+6:	ldrt	rhi8, [r0], #0
+#elif __LINUX_ARM_ARCH__ >= 6
+#define	GU8_FIXUPS	5b
+5:	ldrd	r2, [r0]
+#else
+#define	GU8_FIXUPS	5b, 6b
+5:	ldr	rlo8, [r0, #0]
+6:	ldr	rhi8, [r0, #4]
+#endif
+	mov	r0, #0
+	mov	pc, lr
+
+__get_user_bad8:
+	mov	r3, #0
 __get_user_bad:
 	mov	r2, #0
 	mov	r0, #-EFAULT
 	mov	pc, lr
 ENDPROC(__get_user_bad)
+ENDPROC(__get_user_bad8)
 
 .pushsection __ex_table, "a"
 	.long	1b, __get_user_bad
 	.long	2b, __get_user_bad
 	.long	3b, __get_user_bad
 	.long	4b, __get_user_bad
+	.irp	param, GU8_FIXUPS
+	.long	\param, __get_user_bad8
+	.endr
 .popsection
