@@ -1014,10 +1014,10 @@ void fb_edid_add_monspecs(unsigned char *edid, struct fb_monspecs *specs)
 		pr_debug("Data block %u of %u bytes\n", type, len);
 		if (type == 2)
 			for (i = pos; i < pos + len; i++) {
-				u8 idx = edid[pos + i] & 0x7f;
+				u8 idx = edid[1 + i] & 0x7f;
 				svd[svd_n++] = idx;
 				pr_debug("N%sative mode #%d\n",
-					 edid[pos + i] & 0x80 ? "" : "on-n", idx);
+					 edid[1 + i] & 0x80 ? "" : "on-n", idx);
 			}
 		pos += len + 1;
 	}
