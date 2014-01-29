@@ -147,3 +147,6 @@ config TEGRA_TIMER
 	def_bool y if !ARM64
 	help
 	  Support for Tegra SoC clocksource driver
+
+config CLKSRC_QCOM
+	bool
