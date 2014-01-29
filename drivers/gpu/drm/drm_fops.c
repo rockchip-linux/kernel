@@ -79,21 +79,20 @@ static int drm_setup(struct drm_device * dev)
  */
 int drm_open(struct inode *inode, struct file *filp)
 {
-	struct drm_device *dev = NULL;
-	int minor_id = iminor(inode);
+	struct drm_device *dev;
 	struct drm_minor *minor;
-	int retcode = 0;
+	int retcode;
 	int need_setup = 0;
 
-	minor = idr_find(&drm_minors_idr, minor_id);
-	if (!minor)
-		return -ENODEV;
+	minor = drm_minor_acquire(iminor(inode));
+	if (IS_ERR(minor))
+		return PTR_ERR(minor);
 
-	if (!(dev = minor->dev))
-		return -ENODEV;
-
-	if (drm_device_is_unplugged(dev))
-		return -ENODEV;
+	dev = minor->dev;
+	if (drm_device_is_unplugged(dev)) {
+		retcode = -ENODEV;
+		goto err_release;
+	}
 
 	if (!dev->open_count++)
 		need_setup = 1;
@@ -113,6 +112,8 @@ int drm_open(struct inode *inode, struct file *filp)
 
 err_undo:
 	dev->open_count--;
+err_release:
+	drm_minor_release(minor);
 	return retcode;
 }
 EXPORT_SYMBOL(drm_open);
@@ -128,33 +129,33 @@ EXPORT_SYMBOL(drm_open);
  */
 int drm_stub_open(struct inode *inode, struct file *filp)
 {
-	struct drm_device *dev = NULL;
+	struct drm_device *dev;
 	struct drm_minor *minor;
-	int minor_id = iminor(inode);
 	int err = -ENODEV;
 	const struct file_operations *new_fops;
 
 	DRM_DEBUG("\n");
 
 	mutex_lock(&drm_global_mutex);
-	minor = idr_find(&drm_minors_idr, minor_id);
-	if (!minor)
-		goto out;
+	minor = drm_minor_acquire(iminor(inode));
+	if (IS_ERR(minor))
+		goto out_unlock;
 
-	if (!(dev = minor->dev))
-		goto out;
-
+	dev = minor->dev;
 	if (drm_device_is_unplugged(dev))
-		goto out;
+		goto out_release;
 
 	new_fops = fops_get(dev->driver->fops);
 	if (!new_fops)
-		goto out;
+		goto out_release;
 
 	replace_fops(filp, new_fops);
 	if (filp->f_op->open)
 		err = filp->f_op->open(inode, filp);
-out:
+
+out_release:
+	drm_minor_release(minor);
+out_unlock:
 	mutex_unlock(&drm_global_mutex);
 	return err;
 }
@@ -445,7 +446,8 @@ int drm_lastclose(struct drm_device * dev)
 int drm_release(struct inode *inode, struct file *filp)
 {
 	struct drm_file *file_priv = filp->private_data;
-	struct drm_device *dev = file_priv->minor->dev;
+	struct drm_minor *minor = file_priv->minor;
+	struct drm_device *dev = minor->dev;
 	int retcode = 0;
 
 	mutex_lock(&drm_global_mutex);
@@ -563,6 +565,8 @@ int drm_release(struct inode *inode, struct file *filp)
 			drm_put_dev(dev);
 	}
 	mutex_unlock(&drm_global_mutex);
+
+	drm_minor_release(minor);
 
 	return retcode;
 }
