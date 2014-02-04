@@ -1216,9 +1216,7 @@ out:
 static int
 nouveau_bo_verify_access(struct ttm_buffer_object *bo, struct file *filp)
 {
-	struct nouveau_bo *nvbo = nouveau_bo(bo);
-
-	return drm_vma_node_verify_access(&nvbo->gem.vma_node, filp);
+	return 0;
 }
 
 static int
