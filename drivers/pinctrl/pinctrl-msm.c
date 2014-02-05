@@ -214,6 +214,11 @@ static int msm_config_reg(struct msm_pinctrl *pctrl,
 		*bit = g->drv_bit;
 		*mask = 7;
 		break;
+	case PIN_CONFIG_OUTPUT:
+		*reg = g->ctl_reg;
+		*bit = g->oe_bit;
+		*mask = 1;
+		break;
 	default:
 		dev_err(pctrl->dev, "Invalid config param %04x\n", param);
 		return -ENOTSUPP;
@@ -282,6 +287,14 @@ static int msm_config_group_get(struct pinctrl_dev *pctldev,
 	case PIN_CONFIG_DRIVE_STRENGTH:
 		arg = msm_regval_to_drive(arg);
 		break;
+	case PIN_CONFIG_OUTPUT:
+		/* Pin is not output */
+		if (!arg)
+			return -EINVAL;
+
+		val = readl(pctrl->regs + g->io_reg);
+		arg = !!(val & BIT(g->in_bit));
+		break;
 	default:
 		dev_err(pctrl->dev, "Unsupported config parameter: %x\n",
 			param);
@@ -336,6 +349,20 @@ static int msm_config_group_set(struct pinctrl_dev *pctldev,
 				arg = -1;
 			else
 				arg = (arg / 2) - 1;
+			break;
+		case PIN_CONFIG_OUTPUT:
+			/* set output value */
+			spin_lock_irqsave(&pctrl->lock, flags);
+			val = readl(pctrl->regs + g->io_reg);
+			if (arg)
+				val |= BIT(g->out_bit);
+			else
+				val &= ~BIT(g->out_bit);
+			writel(val, pctrl->regs + g->io_reg);
+			spin_unlock_irqrestore(&pctrl->lock, flags);
+
+			/* enable output */
+			arg = 1;
 			break;
 		default:
 			dev_err(pctrl->dev, "Unsupported config parameter: %x\n",
