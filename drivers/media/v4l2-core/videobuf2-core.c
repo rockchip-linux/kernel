@@ -1075,7 +1075,7 @@ void vb2_buffer_done(struct vb2_buffer *vb, enum vb2_buffer_state state)
 	spin_lock_irqsave(&q->done_lock, flags);
 	vb->state = state;
 	list_add_tail(&vb->done_entry, &q->done_list);
-	atomic_dec(&q->queued_count);
+	atomic_dec(&q->owned_by_drv_count);
 	spin_unlock_irqrestore(&q->done_lock, flags);
 
 	/* Inform any processes that may be waiting for buffers */
@@ -1418,7 +1418,7 @@ static void __enqueue_in_driver(struct vb2_buffer *vb)
 	unsigned int plane;
 
 	vb->state = VB2_BUF_STATE_ACTIVE;
-	atomic_inc(&q->queued_count);
+	atomic_inc(&q->owned_by_drv_count);
 
 	/* sync buffers */
 	for (plane = 0; plane < vb->num_planes; ++plane)
@@ -1574,7 +1574,7 @@ static int vb2_start_streaming(struct vb2_queue *q)
 	int ret;
 
 	/* Tell the driver to start streaming */
-	ret = call_qop(q, start_streaming, q, atomic_read(&q->queued_count));
+	ret = call_qop(q, start_streaming, q, atomic_read(&q->owned_by_drv_count));
 	if (ret)
 		fail_qop(q, start_streaming);
 
@@ -1806,7 +1806,7 @@ int vb2_wait_for_all_buffers(struct vb2_queue *q)
 	}
 
 	if (!q->retry_start_streaming)
-		wait_event(q->done_wq, !atomic_read(&q->queued_count));
+		wait_event(q->done_wq, !atomic_read(&q->owned_by_drv_count));
 	return 0;
 }
 EXPORT_SYMBOL_GPL(vb2_wait_for_all_buffers);
@@ -1938,7 +1938,7 @@ static void __vb2_queue_cancel(struct vb2_queue *q)
 	 * has not already dequeued before initiating cancel.
 	 */
 	INIT_LIST_HEAD(&q->done_list);
-	atomic_set(&q->queued_count, 0);
+	atomic_set(&q->owned_by_drv_count, 0);
 	wake_up_all(&q->done_wq);
 
 	/*
