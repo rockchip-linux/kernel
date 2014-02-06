@@ -56,6 +56,8 @@
 #define DW_MCI_FREQ_MAX	200000000	/* unit: HZ */
 #define DW_MCI_FREQ_MIN	400000		/* unit: HZ */
 
+#define DW_MCI_DEFAULT_CAPS (MMC_CAP_ERASE)
+
 #ifdef CONFIG_MMC_DW_IDMAC
 #define IDMAC_INT_CLR		(SDMMC_IDMAC_INT_AI | SDMMC_IDMAC_INT_NI | \
 				 SDMMC_IDMAC_INT_CES | SDMMC_IDMAC_INT_DU | \
@@ -2687,6 +2689,8 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		dev_err(dev, "could not allocate memory for pdata\n");
 		return ERR_PTR(-ENOMEM);
 	}
+
+	pdata->caps |= DW_MCI_DEFAULT_CAPS;
 
 	/* find out number of slots supported */
 	if (of_property_read_u32(dev->of_node, "num-slots",
