@@ -84,6 +84,12 @@ struct cros_ec_device {
 	struct class *cros_class;
 	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
 			   unsigned int bytes, void *dest);
+	int (*cmd_read_u32)(struct cros_ec_device *ec, unsigned int offset,
+			    u32 *dest);
+	int (*cmd_read_u16)(struct cros_ec_device *ec, unsigned int offset,
+			    u16 *dest);
+	int (*cmd_read_u8)(struct cros_ec_device *ec, unsigned int offset,
+			   u8 *dest);
 
 	/* These are used to implement the platform-specific interface */
 	void *priv;

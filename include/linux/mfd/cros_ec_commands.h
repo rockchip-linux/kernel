@@ -1,7 +1,7 @@
 /*
  * Host communication command constants for ChromeOS EC
  *
- * Copyright (C) 2012 Google, Inc
+ * Copyright (C) 2014 Google, Inc
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -93,6 +93,14 @@
 #define EC_MEMMAP_BATT_MODEL       0x68 /* Battery Model Number String */
 #define EC_MEMMAP_BATT_SERIAL      0x70 /* Battery Serial Number String */
 #define EC_MEMMAP_BATT_TYPE        0x78 /* Battery Type String */
+#define EC_MEMMAP_ALS              0x80 /* ALS readings in lux (uint16_t) */
+#define EC_MEMMAP_ACC_STATUS       0x90 /* Accelerometer status */
+#define EC_MEMMAP_ACC_DATA         0x92 /* Accelerometer data 0x92 - 0xa5 */
+
+/* Define the format of the accelerometer mapped memory status byte. */
+#define EC_MEMMAP_ACC_STATUS_SAMPLE_ID_MASK  0x0f
+#define EC_MEMMAP_ACC_STATUS_BUSY_BIT        (1 << 4)
+#define EC_MEMMAP_ACC_STATUS_PRESENCE_BIT    (1 << 7)
 
 /* Number of temp sensors at EC_MEMMAP_TEMP_SENSOR */
 #define EC_TEMP_SENSOR_ENTRIES     16

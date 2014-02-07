@@ -174,6 +174,37 @@ static int cros_ec_lpc_readmem(struct cros_ec_device *ec, unsigned int offset,
 	return cnt;
 }
 
+static int cros_ec_lpc_read_u32(struct cros_ec_device *ec,
+				unsigned int offset,
+				u32 *dest)
+{
+	u32 tmp;
+	int ret = cros_ec_lpc_readmem(ec, offset, 4, &tmp);
+
+	*dest = le32_to_cpu(tmp);
+
+	return ret;
+}
+
+static int cros_ec_lpc_read_u16(struct cros_ec_device *ec,
+				unsigned int offset,
+				u16 *dest)
+{
+	u16 tmp;
+	int ret = cros_ec_lpc_readmem(ec, offset, 2, &tmp);
+
+	*dest = le16_to_cpu(tmp);
+
+	return ret;
+}
+
+static int cros_ec_lpc_read_u8(struct cros_ec_device *ec,
+			       unsigned int offset,
+			       u8 *dest)
+{
+	return cros_ec_lpc_readmem(ec, offset, 1, dest);
+}
+
 static int cros_ec_lpc_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -215,6 +246,9 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	ec_dev->parent = dev;
 	ec_dev->cmd_xfer = cros_ec_cmd_xfer_lpc;
 	ec_dev->cmd_readmem = cros_ec_lpc_readmem;
+	ec_dev->cmd_read_u32 = cros_ec_lpc_read_u32;
+	ec_dev->cmd_read_u16 = cros_ec_lpc_read_u16;
+	ec_dev->cmd_read_u8 = cros_ec_lpc_read_u8;
 
 	err = cros_ec_register(ec_dev);
 	if (err) {

@@ -92,10 +92,53 @@ int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 }
 EXPORT_SYMBOL(cros_ec_cmd_xfer);
 
+static const struct mfd_cell cros_accel_devs[] = {
+	{
+		.name = "cros-ec-accel",
+	},
+	{
+		.name = "iio-trig-sysfs",
+	},
+};
+
+/**
+ * cros_ec_accel_register - register EC accelerometer devices
+ *
+ * @ec_dev Pointer to cros_ec_device
+ * @return 0 if ok, -ve on error
+ *
+ * Check if EC has accelerometers and register related drivers if it does.
+ * Return 0 if successfully registered EC drivers. Return -ENODEV if there
+ * are no accelerometers attached or we can't read from the EC.
+ */
+static int cros_ec_accel_register(struct cros_ec_device *ec_dev)
+{
+	u8 status;
+
+	/*
+	 * Try to read the accel status byte from EC shared memory. If the
+	 * read is successful and the status byte has the physical presence bit
+	 * set, then this machine has accelerometers. If it has accelerometers,
+	 * then register the cros_accel_devs.
+	 */
+	if (!ec_dev->cmd_read_u8)
+		return -ENODEV;
+
+	if (ec_dev->cmd_read_u8(ec_dev, EC_MEMMAP_ACC_STATUS, &status) < 0)
+		return -ENODEV;
+
+	if (status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)
+		return mfd_add_devices(ec_dev->dev, 0, cros_accel_devs,
+				      ARRAY_SIZE(cros_accel_devs),
+				      NULL, ec_dev->irq, NULL);
+	else
+		return -ENODEV;
+}
+
 static const struct mfd_cell cros_devs[] = {
 	{
 		.name = "cros-ec-dev",
-		.id = 1,
+		.id = 0,
 	},
 };
 
@@ -128,6 +171,11 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		dev_err(dev, "failed to add mfd devices\n");
 		return err;
 	}
+
+	err = cros_ec_accel_register(ec_dev);
+	if (err && err != -ENODEV)
+		dev_err(dev, "failed to add cros-ec-accel mfd devices\n");
+
 #ifdef CONFIG_OF
 	/*
 	 * Add sub-devices declared in the device tree.  NOTE they should NOT be
