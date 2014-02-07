@@ -53,6 +53,11 @@ static inline bool tegra124_mc_is_ready(void) { return false; }
 #ifdef CONFIG_TEGRA124_MC
 int tegra_mc_flush(int id);
 int tegra_mc_flush_done(int id);
+#else
+static inline int tegra_mc_flush(int id)
+{ return 0; }
+static inline int tegra_mc_flush_done(int id)
+{ return 0; }
 #endif
 
 static __maybe_unused inline int tegra_mc_get_effective_bytes_width(void)
