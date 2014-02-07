@@ -353,6 +353,7 @@ static bool tegra_emc_init_done;
 static void __iomem *tegra_emc_base;
 static void __iomem *tegra_clk_base;
 static unsigned long emc_backup_rate;
+static unsigned long emc_max_rate;
 static struct emc_stats tegra_emc_stats;
 static struct emc_table *tegra_emc_table;
 static struct emc_table *emc_timing;
@@ -1180,6 +1181,10 @@ static void tegra124_parse_dt_data(struct platform_device *pdev)
 	if (IS_ERR(tablenode))
 		return;
 
+	ret = of_property_read_u32(tablenode, "max-clock-frequency", &prop);
+	if (!ret)
+		emc_max_rate = prop * 1000;
+
 	i = 0;
 	for_each_child_of_node(tablenode, iter)
 		if (of_device_is_compatible(iter, "nvidia,tegra12-emc-table"))
@@ -1315,9 +1320,7 @@ static void tegra124_parse_dt_data(struct platform_device *pdev)
 static int tegra124_init_emc_data(struct platform_device *pdev)
 {
 	int i;
-	bool max_entry = false;
 	u32 val;
-	unsigned long max_rate;
 	unsigned long table_rate;
 	unsigned long old_rate;
 	int regs_count;
@@ -1359,7 +1362,6 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 		return -EINVAL;
 
 	old_rate = clk_get_rate(emc_clk);
-	max_rate = clk_get_rate(tegra_emc_src[TEGRA_EMC_SRC_PLLM_UD]);
 
 	emc_backup_src = ERR_PTR(-EINVAL);
 
@@ -1367,6 +1369,9 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 		table_rate = tegra_emc_table[i].rate;
 		if (!table_rate)
 			continue;
+
+		if (emc_max_rate && table_rate > emc_max_rate)
+			break;
 
 		if (i && (table_rate <= tegra_emc_table[i-1].rate))
 			continue;
@@ -1376,15 +1381,6 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 
 		if (table_rate == old_rate)
 			tegra_emc_stats.last_sel = i;
-
-		if (table_rate == max_rate)
-			max_entry = true;
-	}
-
-	if (!max_entry) {
-		pr_err("Tegra124: invalid EMC DFS table\n");
-		tegra_emc_table_size = 0;
-		return -ENODATA;
 	}
 
 	purge_emc_table();

@@ -8,6 +8,7 @@ Properties:
 - nvidia,mc : phandle to the mc bus connected to EMC.
 - clocks : phandle to EMC and all parent clocks.
 - clock-names : name of each clock.
+- max-clock-frequency : optional, specifies the maximum EMC rate in kHz.
 
 Child device nodes describe the memory settings for different configurations and
 clock rates.
