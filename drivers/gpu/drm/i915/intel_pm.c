@@ -3934,9 +3934,10 @@ static unsigned long __i915_chipset_val(struct drm_i915_private *dev_priv)
 
 unsigned long i915_chipset_val(struct drm_i915_private *dev_priv)
 {
+	struct drm_device *dev = dev_priv->dev;
 	unsigned long val;
 
-	if (dev_priv->info->gen != 5)
+	if (INTEL_INFO(dev)->gen != 5)
 		return 0;
 
 	spin_lock_irq(&mchdev_lock);
@@ -3965,6 +3966,7 @@ unsigned long i915_mch_val(struct drm_i915_private *dev_priv)
 
 static u16 pvid_to_extvid(struct drm_i915_private *dev_priv, u8 pxvid)
 {
+	struct drm_device *dev = dev_priv->dev;
 	static const struct v_table {
 		u16 vd; /* in .1 mil */
 		u16 vm; /* in .1 mil */
@@ -4098,7 +4100,7 @@ static u16 pvid_to_extvid(struct drm_i915_private *dev_priv, u8 pxvid)
 		{ 16000, 14875, },
 		{ 16125, 15000, },
 	};
-	if (dev_priv->info->is_mobile)
+	if (INTEL_INFO(dev)->is_mobile)
 		return v_table[pxvid].vm;
 	else
 		return v_table[pxvid].vd;
@@ -4141,7 +4143,9 @@ static void __i915_update_gfx_val(struct drm_i915_private *dev_priv)
 
 void i915_update_gfx_val(struct drm_i915_private *dev_priv)
 {
-	if (dev_priv->info->gen != 5)
+	struct drm_device *dev = dev_priv->dev;
+
+	if (INTEL_INFO(dev)->gen != 5)
 		return;
 
 	spin_lock_irq(&mchdev_lock);
@@ -4190,9 +4194,10 @@ static unsigned long __i915_gfx_val(struct drm_i915_private *dev_priv)
 
 unsigned long i915_gfx_val(struct drm_i915_private *dev_priv)
 {
+	struct drm_device *dev = dev_priv->dev;
 	unsigned long val;
 
-	if (dev_priv->info->gen != 5)
+	if (INTEL_INFO(dev)->gen != 5)
 		return 0;
 
 	spin_lock_irq(&mchdev_lock);
