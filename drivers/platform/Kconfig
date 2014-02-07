@@ -33,7 +33,7 @@ config CHROMEOS_VBC_BLK
 
 config CHROMEOS_VBC_EC
 	bool
-	depends on CHROMEOS
+	depends on CHROMEOS && MFC_CROS_EC
 
 	---help---
 	  Provides access to vboot context stored on EC's nvram.  Select this
