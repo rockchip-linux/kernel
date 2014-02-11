@@ -1736,6 +1736,7 @@ static void snb_uncore_imc_init_box(struct intel_uncore_box *box)
 	addr &= ~(PAGE_SIZE - 1);
 
 	box->io_addr = ioremap(addr, SNB_UNCORE_PCI_IMC_MAP_SIZE);
+	box->hrtimer_duration = UNCORE_SNB_IMC_HRTIMER_INTERVAL;
 }
 
 static void snb_uncore_imc_enable_box(struct intel_uncore_box *box)
@@ -3168,6 +3169,7 @@ again:
 static enum hrtimer_restart uncore_pmu_hrtimer(struct hrtimer *hrtimer)
 {
 	struct intel_uncore_box *box;
+	struct perf_event *event;
 	unsigned long flags;
 	int bit;
 
@@ -3179,6 +3181,14 @@ static enum hrtimer_restart uncore_pmu_hrtimer(struct hrtimer *hrtimer)
 	 * to interrupt the update process
 	 */
 	local_irq_save(flags);
+
+	/*
+	 * handle boxes with an active event list as opposed to active
+	 * counters
+	 */
+	list_for_each_entry(event, &box->active_list, active_entry) {
+		uncore_perf_event_update(box, event);
+	}
 
 	for_each_set_bit(bit, box->active_mask, UNCORE_PMC_IDX_MAX)
 		uncore_perf_event_update(box, box->events[bit]);
@@ -3228,6 +3238,8 @@ static struct intel_uncore_box *uncore_alloc_box(struct intel_uncore_type *type,
 
 	/* set default hrtimer timeout */
 	box->hrtimer_duration = UNCORE_PMU_HRTIMER_INTERVAL;
+
+	INIT_LIST_HEAD(&box->active_list);
 
 	return box;
 }
