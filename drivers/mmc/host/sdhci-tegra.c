@@ -38,6 +38,8 @@
 #define SDHCI_VNDR_CLK_CTRL_PADPIPE_CLKEN_OVERRIDE	0x8
 #define SDHCI_VNDR_CLK_CTRL_SPI_MODE_CLKEN_OVERRIDE	0x4
 #define SDHCI_VNDR_CLK_CTRL_INPUT_IO_CLK		0x2
+#define SDHCI_VNDR_CLK_CTRL_BASE_CLK_FREQ_SHIFT	8
+#define SDHCI_VNDR_CLK_CTRL_BASE_CLK_FREQ_MASK	0xff
 #define SDHCI_VNDR_CLK_CTRL_TAP_VALUE_SHIFT	16
 #define SDHCI_VNDR_CLK_CTRL_TRIM_VALUE_SHIFT	24
 #define SDHCI_VNDR_CLK_CTRL_SDR50_TUNING		0x20
@@ -288,53 +290,57 @@ static unsigned int tegra_sdhci_get_ro(struct sdhci_host *host)
 	return mmc_gpio_get_ro(host->mmc);
 }
 
-static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
+static void tegra_sdhci_clock_enable(struct sdhci_host *sdhci)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
-	struct sdhci_tegra *tegra_host = pltfm_host->priv;
-	unsigned int clk_rate;
-	u8 ctrl, i;
+	u8 ctrl;
 
-	if (!clock)
-		return;
-
+	clk_prepare_enable(pltfm_host->clk);
 	ctrl = sdhci_readb(sdhci, SDHCI_VNDR_CLK_CTRL);
 	ctrl |= SDHCI_VNDR_CLK_CTRL_SDMMC_CLK;
 	sdhci_writeb(sdhci, ctrl, SDHCI_VNDR_CLK_CTRL);
+}
 
-	/* Set clock freq to the lowest frequency in the
-	 * supported freq table that is higher than the
-	 * requested clock.
+static void tegra_sdhci_clock_disable(struct sdhci_host *sdhci)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
+	u8 ctrl;
+
+	ctrl = sdhci_readb(sdhci, SDHCI_VNDR_CLK_CTRL);
+	ctrl &= ~SDHCI_VNDR_CLK_CTRL_SDMMC_CLK;
+	sdhci_writeb(sdhci, ctrl, SDHCI_VNDR_CLK_CTRL);
+	clk_disable_unprepare(pltfm_host->clk);
+}
+
+static void tegra_sdhci_init_clock(struct sdhci_host *sdhci)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(sdhci);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	unsigned long rate;
+	u32 val;
+
+	/*
+	 * Choose the maximum available source clock frequency.
+	 * The divider in SDHCI_CLOCK_CONTROL will be used to scale down
+	 * the clock later in sdhci_set_clock().
 	 */
-	for (i = 0; i < tegra_host->nr_tuning_freqs; i++)
-		if (clock <= tegra_host->thole_coeffs[i].freq_hz)
-			break;
-	/* If requested freq is too high, use highest freq */
-	if (i == tegra_host->nr_tuning_freqs)
-		i = tegra_host->nr_tuning_freqs - 1;
+	tegra_host->tuning_freq_idx = tegra_host->nr_tuning_freqs - 1;
+	rate = tegra_host->thole_coeffs[tegra_host->tuning_freq_idx].freq_hz;
+	clk_set_rate(pltfm_host->clk, rate);
+	rate = clk_get_rate(pltfm_host->clk);
+	tegra_host->current_clk = rate;
 
-	clock = tegra_host->thole_coeffs[i].freq_hz;
-
-	if (sdhci->mmc->ios.timing == MMC_TIMING_UHS_DDR50) {
-		/*
-		 * In ddr mode, tegra sdmmc controller clock frequency
-		 * should be double the card clock frequency.
-		 */
-		if (tegra_host->ddr_clk_limit)
-			clk_rate = tegra_host->ddr_clk_limit * 2;
-		else
-			clk_rate = clock * 2;
-	} else {
-		clk_rate = clock;
-	}
-
-	if (sdhci->mmc->f_max && (clk_rate > sdhci->mmc->f_max))
-		clk_rate = sdhci->mmc->f_max;
-
-	clk_set_rate(pltfm_host->clk, clk_rate);
-	sdhci->max_clk = clk_get_rate(pltfm_host->clk);
-	tegra_host->current_clk = clock;
-	tegra_host->tuning_freq_idx = i;
+	/*
+	 * Program BASE_CLK_FREQ so that sdhci_add_host() reads the correct
+	 * clock frequency in SDHCI_CAPABILITIES.
+	 */
+	val = sdhci_readl(sdhci, SDHCI_VNDR_CLK_CTRL);
+	rate /= 1000000;
+	val &= ~(SDHCI_VNDR_CLK_CTRL_BASE_CLK_FREQ_MASK <<
+		 SDHCI_VNDR_CLK_CTRL_BASE_CLK_FREQ_SHIFT);
+	val |= (rate & SDHCI_VNDR_CLK_CTRL_BASE_CLK_FREQ_MASK) <<
+		SDHCI_VNDR_CLK_CTRL_BASE_CLK_FREQ_SHIFT;
+	sdhci_writel(sdhci, val, SDHCI_VNDR_CLK_CTRL);
 }
 
 static void tegra_sdhci_set_tap_delay(struct sdhci_host *sdhci,
@@ -1421,7 +1427,6 @@ static const struct sdhci_ops tegra_sdhci_ops = {
 	.platform_reset_exit = tegra_sdhci_reset_exit,
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.set_uhs_signaling	= tegra_sdhci_set_uhs_signaling,
-	.set_clock  = tegra_sdhci_set_clock,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
@@ -1659,11 +1664,10 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 		rc = PTR_ERR(clk);
 		goto err_clk_get;
 	}
-	clk_prepare_enable(clk);
 	pltfm_host->clk = clk;
+	tegra_sdhci_clock_enable(host);
 
-	/* Initialize clock to minimum frequency */
-	clk_set_rate(pltfm_host->clk, tegra_host->thole_coeffs[0].freq_hz);
+	tegra_sdhci_init_clock(host);
 
 	pm_runtime_set_active(&pdev->dev);
 	if (!tegra_host->no_runtime_pm)
@@ -1701,7 +1705,8 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 err_add_host:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
-	clk_disable_unprepare(pltfm_host->clk);
+
+	tegra_sdhci_clock_disable(host);
 	clk_put(pltfm_host->clk);
 err_clk_get:
 	if (gpio_is_valid(tegra_host->power_gpio))
@@ -1726,7 +1731,7 @@ static int sdhci_tegra_remove(struct platform_device *pdev)
 	if (gpio_is_valid(tegra_host->power_gpio))
 		gpio_free(tegra_host->power_gpio);
 
-	clk_disable_unprepare(pltfm_host->clk);
+	tegra_sdhci_clock_disable(host);
 	clk_put(pltfm_host->clk);
 
 	sdhci_pltfm_free(pdev);
@@ -1745,7 +1750,7 @@ static int tegra_sdhci_suspend(struct device *dev)
 	pm_runtime_get_sync(dev);
 
 	ret = sdhci_suspend_host(host);
-	clk_disable_unprepare(pltfm_host->clk);
+	tegra_sdhci_clock_disable(host);
 	if (!mmc_card_keep_power(host->mmc))
 		if (gpio_is_valid(tegra_host->power_gpio))
 			gpio_direction_output(tegra_host->power_gpio, 0);
@@ -1768,7 +1773,7 @@ static int tegra_sdhci_resume(struct device *dev)
 	if (!mmc_card_keep_power(host->mmc))
 		if (gpio_is_valid(tegra_host->power_gpio))
 			gpio_direction_output(tegra_host->power_gpio, 1);
-	clk_prepare_enable(pltfm_host->clk);
+	tegra_sdhci_clock_enable(host);
 	ret = sdhci_resume_host(host);
 
 	pm_runtime_mark_last_busy(dev);
@@ -1782,11 +1787,10 @@ static int tegra_sdhci_resume(struct device *dev)
 static int tegra_sdhci_runtime_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	int ret;
 
 	ret = sdhci_runtime_suspend_host(host);
-	clk_disable_unprepare(pltfm_host->clk);
+	tegra_sdhci_clock_disable(host);
 
 	return ret;
 }
@@ -1794,10 +1798,9 @@ static int tegra_sdhci_runtime_suspend(struct device *dev)
 static int tegra_sdhci_runtime_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
-	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	int ret;
 
-	clk_prepare_enable(pltfm_host->clk);
+	tegra_sdhci_clock_enable(host);
 	ret = sdhci_runtime_resume_host(host);
 
 	return ret;
