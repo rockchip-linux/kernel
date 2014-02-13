@@ -135,7 +135,9 @@ static int tegra_clk_rst_assert(struct reset_controller_dev *rcdev,
 	 * knowledge of which reset IDs represent which devices, simply do
 	 * this all the time.
 	 */
+#if 0
 	tegra_read_chipid();
+#endif
 
 	writel_relaxed(BIT(id % 32),
 			clk_base + periph_regs[id / 32].rst_set_reg);

@@ -113,8 +113,10 @@ static void clk_periph_disable(struct clk_hw *hw)
 	 * flush the write operation in apb bus. This will avoid the
 	 * peripheral access after disabling clock
 	 */
+#if 0
 	if (gate->flags & TEGRA_PERIPH_ON_APB)
 		tegra_read_chipid();
+#endif
 
 	write_enb_clr(periph_clk_to_bit(gate), gate);
 
