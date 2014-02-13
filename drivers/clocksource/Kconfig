@@ -140,3 +140,10 @@ config VF_PIT_TIMER
 	bool
 	help
 	  Support for Period Interrupt Timer on Freescale Vybrid Family SoCs.
+
+config TEGRA_TIMER
+	bool
+	depends on ARCH_TEGRA
+	def_bool y if !ARM64
+	help
+	  Support for Tegra SoC clocksource driver
