@@ -273,6 +273,7 @@ config SERIAL_SIRFSOC_CONSOLE
 config SERIAL_TEGRA
 	tristate "NVIDIA Tegra20/30 SoC serial controller"
 	depends on ARCH_TEGRA && TEGRA20_APB_DMA
+	depends on RESET_CONTROLLER
 	select SERIAL_CORE
 	help
 	  Support for the on-chip UARTs on the NVIDIA Tegra series SOCs
