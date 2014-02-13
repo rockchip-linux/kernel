@@ -44,6 +44,7 @@
 #define TWO_U32_OF_U64(x)	((x) & 0xffffffff) ((x) >> 32)
 #define TEGRA_SWGROUP_BIT(x)	(1ULL << TEGRA_SWGROUP_##x)
 #define TEGRA_SWGROUP_CELLS(x)	TWO_U32_OF_U64(TEGRA_SWGROUP_BIT(x))
+#define TEGRA_SWGROUP_MULT_CELLS(x)	TWO_U32_OF_U64(x)
 
 #define TEGRA_SWGROUP_MAX	64
 
