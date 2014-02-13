@@ -106,11 +106,6 @@ static int nabove_hispeed_delay = ARRAY_SIZE(default_above_hispeed_delay);
 
 static int input_boost_val;
 
-struct cpufreq_interactive_inputopen {
-	struct work_struct inputopen_work;
-	struct input_handle *handle;
-};
-
 /*
  * Non-zero means longer-term speed boost active.
  */
@@ -560,31 +555,11 @@ static void cpufreq_interactive_input_event(struct input_handle *handle,
 	}
 }
 
-static void cpufreq_interactive_input_open(struct work_struct *w)
-{
-	struct cpufreq_interactive_inputopen *io =
-		container_of(w, struct cpufreq_interactive_inputopen,
-			     inputopen_work);
-	struct input_handle *handle = io->handle;
-	int error;
-
-	error = input_open_device(handle);
-	if (error) {
-		pr_warn("%s: open(%s) failed, error %d\n", __func__,
-		    handle->dev->name, error);
-		input_unregister_handle(handle);
-	} else
-		pr_info("%s: monitoring input on %s\n",
-		    handle->name, handle->dev->name);
-	kfree(io);
-}
-
 static int cpufreq_interactive_input_connect(struct input_handler *handler,
 					     struct input_dev *dev,
 					     const struct input_device_id *id)
 {
 	struct input_handle *handle;
-	struct cpufreq_interactive_inputopen *inputopen;
 	int error;
 
 	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
@@ -604,18 +579,15 @@ static int cpufreq_interactive_input_connect(struct input_handler *handler,
 		goto err;
 	}
 
-	inputopen = kzalloc(sizeof(struct cpufreq_interactive_inputopen),
-	    GFP_KERNEL);
-	if (!inputopen) {
-		pr_warn("%s: failed to setup %s, no space for workq item\n",
-		    __func__, dev->name);
-		input_unregister_handle(handle);
-		goto err;
+	error = input_open_device(handle);
+	if (error) {
+		pr_warn("%s: open(%s) failed, error %d\n", __func__,
+		    handle->dev->name, error);
+		goto err_unregister;
 	}
-	INIT_WORK(&inputopen->inputopen_work, cpufreq_interactive_input_open);
-	inputopen->handle = handle;
-	schedule_work(&inputopen->inputopen_work);
 	return 0;
+err_unregister:
+	input_unregister_handle(handle);
 err:
 	kfree(handle);
 	return error;
