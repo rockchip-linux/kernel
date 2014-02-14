@@ -179,8 +179,12 @@ process_start:
 
 		if (IS_CARD_RX_RCVD(adapter)) {
 			adapter->pm_wakeup_fw_try = false;
-			if (adapter->ps_state == PS_STATE_SLEEP)
+			if (adapter->ps_state == PS_STATE_SLEEP) {
+				if (adapter->iface_type == MWIFIEX_PCIE &&
+				    adapter->if_ops.enable_int)
+					adapter->if_ops.enable_int(adapter);
 				adapter->ps_state = PS_STATE_AWAKE;
+			}
 		} else {
 			/* We have tried to wakeup the card already */
 			if (adapter->pm_wakeup_fw_try)

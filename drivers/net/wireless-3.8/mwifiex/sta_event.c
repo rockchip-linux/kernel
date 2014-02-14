@@ -239,6 +239,9 @@ int mwifiex_process_sta_event(struct mwifiex_private *priv)
 
 	case EVENT_PS_AWAKE:
 		dev_dbg(adapter->dev, "info: EVENT: AWAKE\n");
+		if (adapter->iface_type == MWIFIEX_PCIE &&
+		    adapter->if_ops.enable_int)
+			adapter->if_ops.enable_int(adapter);
 		if (!adapter->pps_uapsd_mode &&
 		    priv->media_connected && adapter->sleep_period.period) {
 				adapter->pps_uapsd_mode = true;
