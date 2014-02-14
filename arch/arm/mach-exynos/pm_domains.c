@@ -23,8 +23,6 @@
 #include <linux/of_platform.h>
 #include <linux/sched.h>
 
-#include <plat/devs.h>
-
 #include "regs-pmu.h"
 
 #define MAX_CLK_PER_DOMAIN	4
