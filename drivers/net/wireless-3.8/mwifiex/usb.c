@@ -781,6 +781,7 @@ static int mwifiex_register_dev(struct mwifiex_adapter *adapter)
 
 	card->adapter = adapter;
 	adapter->dev = &card->udev->dev;
+	adapter->tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K;
 	strcpy(adapter->fw_name, USB8797_DEFAULT_FW_NAME);
 
 	return 0;

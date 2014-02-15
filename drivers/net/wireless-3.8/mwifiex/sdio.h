@@ -287,6 +287,7 @@ struct sdio_mmc_card {
 	u8 mp_agg_pkt_limit;
 	bool supports_sdio_new_mode;
 	bool has_control_mask;
+	u16 tx_buf_size;
 
 	u32 mp_rd_bitmap;
 	u32 mp_wr_bitmap;
@@ -310,6 +311,7 @@ struct mwifiex_sdio_device {
 	u8 mp_agg_pkt_limit;
 	bool supports_sdio_new_mode;
 	bool has_control_mask;
+	u16 tx_buf_size;
 };
 
 static const struct mwifiex_sdio_card_reg mwifiex_reg_sd87xx = {
@@ -366,6 +368,7 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8786 = {
 	.mp_agg_pkt_limit = 8,
 	.supports_sdio_new_mode = false,
 	.has_control_mask = true,
+	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K,
 };
 
 static const struct mwifiex_sdio_device mwifiex_sdio_sd8787 = {
@@ -375,6 +378,7 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8787 = {
 	.mp_agg_pkt_limit = 8,
 	.supports_sdio_new_mode = false,
 	.has_control_mask = true,
+	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K,
 };
 
 static const struct mwifiex_sdio_device mwifiex_sdio_sd8797 = {
@@ -384,6 +388,7 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8797 = {
 	.mp_agg_pkt_limit = 8,
 	.supports_sdio_new_mode = false,
 	.has_control_mask = true,
+	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K,
 };
 
 static const struct mwifiex_sdio_device mwifiex_sdio_sd8897 = {
@@ -393,6 +398,7 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8897 = {
 	.mp_agg_pkt_limit = 16,
 	.supports_sdio_new_mode = true,
 	.has_control_mask = false,
+	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_4K,
 };
 
 /*
