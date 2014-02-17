@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.4.6
+ * Version: 1.5.0
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -38,7 +38,7 @@
 #include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.4.6"
+#define ELAN_DRIVER_VERSION	"1.5.0"
 #define ETP_PRESSURE_OFFSET	25
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
@@ -58,6 +58,7 @@
 #define ETP_ENABLE_ABS		0x0001
 #define ETP_ENABLE_CALIBRATE	0x0002
 #define ETP_DISABLE_CALIBRATE	0x0000
+#define ETP_DISABLE_POWER	0x0001
 
 /* Elan smbus command */
 #define ETP_SMBUS_IAP_CMD		0x00
@@ -104,14 +105,15 @@
 #define ETP_I2C_RESOLUTION_CMD		0x0108
 #define ETP_I2C_IAP_VERSION_CMD		0x0110
 #define ETP_I2C_SET_CMD			0x0300
-#define ETP_I2C_MAX_BASELINE_CMD	0x0306
-#define ETP_I2C_MIN_BASELINE_CMD	0x0307
+#define ETP_I2C_POWER_CMD		0x0307
 #define ETP_I2C_FW_CHECKSUM_CMD		0x030F
 #define ETP_I2C_IAP_CTRL_CMD		0x0310
 #define ETP_I2C_IAP_CMD			0x0311
 #define ETP_I2C_IAP_RESET_CMD		0x0314
 #define ETP_I2C_IAP_CHECKSUM_CMD	0x0315
 #define ETP_I2C_CALIBRATE_CMD		0x0316
+#define ETP_I2C_MAX_BASELINE_CMD	0x0317
+#define ETP_I2C_MIN_BASELINE_CMD	0x0318
 #define ETP_I2C_REPORT_LEN		34
 #define ETP_I2C_FINGER_DATA_OFFSET	4
 #define ETP_I2C_REPORT_ID_OFFSET	2
@@ -159,6 +161,7 @@ struct elan_tp_data {
 static int elan_i2c_read_cmd(struct i2c_client *client, u16 reg, u8 *val);
 static int elan_i2c_write_cmd(struct i2c_client *client, u16 reg, u16 cmd);
 static int elan_initialize(struct elan_tp_data *data);
+static int elan_i2c_reset(struct i2c_client *client);
 
 /*
  **********************************************************
@@ -614,7 +617,15 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 		/* only i2c interface need waiting for fw reset signal */
 		data->wait_signal_from_updatefw = true;
 		init_completion(&data->fw_completion);
-		ret = elan_wait_for_chg(data, 600);
+		msleep(600);
+
+		ret = elan_i2c_reset(data->client);
+		if (ret < 0) {
+			dev_err(dev, "device reset failed %d.\n", ret);
+			goto done;
+		}
+
+		ret = elan_wait_for_chg(data, 200);
 		if (ret) {
 			dev_err(dev, "Failed waiting for reset %d.\n", ret);
 			goto done;
@@ -811,6 +822,26 @@ static int elan_i2c_disable_calibrate(struct i2c_client *client)
 {
 	return elan_i2c_write_cmd(client, ETP_I2C_SET_CMD,
 				  ETP_ENABLE_ABS|ETP_DISABLE_CALIBRATE);
+}
+
+static int elan_i2c_enable_power(struct i2c_client *client)
+{
+	u8 val[2];
+	int reg;
+	elan_i2c_read_cmd(client, ETP_I2C_POWER_CMD, val);
+	reg = le16_to_cpup((__le16 *)val);
+	reg &= (~ETP_DISABLE_POWER);
+	return elan_i2c_write_cmd(client, ETP_I2C_POWER_CMD, reg);
+}
+
+static int elan_i2c_disable_power(struct i2c_client *client)
+{
+	u8 val[2];
+	int reg;
+	elan_i2c_read_cmd(client, ETP_I2C_POWER_CMD, val);
+	reg = le16_to_cpup((__le16 *)val);
+	reg |= ETP_DISABLE_POWER;
+	return elan_i2c_write_cmd(client, ETP_I2C_POWER_CMD, reg);
 }
 
 static int elan_i2c_initialize(struct i2c_client *client)
@@ -1091,6 +1122,39 @@ static int elan_disable_calibrate(struct elan_tp_data *data)
 		ret = elan_smbus_disable_calibrate(data->client);
 	else
 		ret = elan_i2c_disable_calibrate(data->client);
+	return ret;
+}
+
+static int elan_enable_power(struct elan_tp_data *data)
+{
+	int ret;
+	if (data->smbus)
+		/* no effect */
+		ret = 0;
+	else
+		ret = elan_i2c_enable_power(data->client);
+	return ret;
+}
+
+static int elan_disable_power(struct elan_tp_data *data)
+{
+	int ret;
+	if (data->smbus)
+		/* no effect */
+		ret = 0;
+	else
+		ret = elan_i2c_disable_power(data->client);
+	return ret;
+}
+
+static int elan_sleep(struct elan_tp_data *data)
+{
+	int ret;
+	if (data->smbus)
+		ret = i2c_smbus_write_byte(data->client,
+					   ETP_SMBUS_SLEEP_CMD);
+	else
+		ret = elan_i2c_sleep(data->client);
 	return ret;
 }
 
@@ -1600,12 +1664,16 @@ static int elan_probe(struct i2c_client *client,
 
 	/* Make sure there is something at this address */
 	if (i2c_smbus_xfer(client->adapter, client->addr, 0,
-			   I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0)
+			   I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0) {
+		dev_err(dev, "nothing at this address\n");
 		return -ENODEV;
+	}
 
 	data = kzalloc(sizeof(struct elan_tp_data), GFP_KERNEL);
-	if (!data)
+	if (!data) {
+		dev_err(dev, "allocate TP data structure fail.\n");
 		return -ENOMEM;
+	}
 
 	/* check protocol type */
 	if (adapter_func == ELAN_ADAPTER_FUNC_SMBUS)
@@ -1642,7 +1710,8 @@ static int elan_probe(struct i2c_client *client,
 		goto err_create_group;
 	}
 
-	device_init_wakeup(&client->dev, 1);
+	device_init_wakeup(&client->dev, true);
+	device_set_wakeup_enable(&client->dev, false);
 	i2c_set_clientdata(client, data);
 
 	return 0;
@@ -1676,11 +1745,11 @@ static int elan_suspend(struct device *dev)
 	struct elan_tp_data *data = dev_get_drvdata(dev);
 
 	disable_irq(data->irq);
-	if (data->smbus)
-		ret = i2c_smbus_write_byte(data->client,
-					   ETP_SMBUS_SLEEP_CMD);
+
+	if (device_may_wakeup(dev))
+		ret = elan_sleep(data);
 	else
-		ret = elan_i2c_sleep(data->client);
+		ret = elan_disable_power(data);
 
 	if (ret < 0)
 		dev_err(dev, "suspend mode failed, %d\n", ret);
@@ -1693,7 +1762,11 @@ static int elan_resume(struct device *dev)
 	int ret = 0;
 	struct elan_tp_data *data = dev_get_drvdata(dev);
 
-	ret = elan_initialize(data);
+	if (device_may_wakeup(dev))
+		ret = elan_initialize(data);
+	else
+		ret = elan_enable_power(data);
+
 	if (ret < 0)
 		dev_err(dev, "resume active power failed, %d\n", ret);
 
