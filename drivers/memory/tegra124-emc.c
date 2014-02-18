@@ -220,6 +220,7 @@ enum tegra124_mem_reg_type {
 	DEFINE_REG(TEGRA124_MEM_REG_MC, MC_EMEM_ARB_DA_TURNS),		\
 	DEFINE_REG(TEGRA124_MEM_REG_MC, MC_EMEM_ARB_DA_COVERS),		\
 	DEFINE_REG(TEGRA124_MEM_REG_MC, MC_EMEM_ARB_MISC0),		\
+	DEFINE_REG(TEGRA124_MEM_REG_MC, MC_EMEM_ARB_MISC1),		\
 	DEFINE_REG(TEGRA124_MEM_REG_MC, MC_EMEM_ARB_RING1_THROTTLE),	\
 }
 
@@ -1203,7 +1204,7 @@ static void tegra124_parse_dt_data(struct platform_device *pdev)
 			&tegra_emc_table[i].rev);
 		if (ret)
 			continue;
-		if (tegra_emc_table[i].rev < 0x18)
+		if (tegra_emc_table[i].rev < 0x19)
 			continue;
 		ret = of_property_read_u32(iter, "nvidia,src-sel-reg",
 			&tegra_emc_table[i].src_sel_reg);
