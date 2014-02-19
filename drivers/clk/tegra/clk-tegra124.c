@@ -1426,5 +1426,14 @@ static void __init tegra124_clock_init(struct device_node *np)
 	tegra_clk_apply_init_table = tegra124_clock_apply_init_table;
 
 	tegra_cpu_car_ops = &tegra124_cpu_car_ops;
+
+#ifdef CONFIG_ARCH_TEGRA_132_SOC
+	{
+		struct clk *c;
+		c = clk_get(NULL, "pll_p");
+		WARN_ON(IS_ERR_OR_NULL(c));
+		clk_prepare_enable(c);
+	}
+#endif
 }
 CLK_OF_DECLARE(tegra124, "nvidia,tegra124-car", tegra124_clock_init);
