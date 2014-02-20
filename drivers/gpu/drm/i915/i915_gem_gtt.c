@@ -255,13 +255,15 @@ err_out:
 }
 
 static void gen8_ppgtt_clear_range(struct i915_address_space *vm,
-				   unsigned first_entry,
-				   unsigned num_entries,
+				   uint64_t start,
+				   uint64_t length,
 				   bool use_scratch)
 {
 	struct i915_hw_ppgtt *ppgtt =
 		container_of(vm, struct i915_hw_ppgtt, base);
 	gen8_gtt_pte_t *pt_vaddr, scratch_pte;
+	unsigned first_entry = start >> PAGE_SHIFT;
+	unsigned num_entries = length >> PAGE_SHIFT;
 	unsigned act_pt = first_entry / GEN8_PTES_PER_PAGE;
 	unsigned first_pte = first_entry % GEN8_PTES_PER_PAGE;
 	unsigned last_pte, i;
@@ -291,12 +293,13 @@ static void gen8_ppgtt_clear_range(struct i915_address_space *vm,
 
 static void gen8_ppgtt_insert_entries(struct i915_address_space *vm,
 				      struct sg_table *pages,
-				      unsigned first_entry,
+				      uint64_t start,
 				      enum i915_cache_level cache_level)
 {
 	struct i915_hw_ppgtt *ppgtt =
 		container_of(vm, struct i915_hw_ppgtt, base);
 	gen8_gtt_pte_t *pt_vaddr;
+	unsigned first_entry = start >> PAGE_SHIFT;
 	unsigned act_pt = first_entry / GEN8_PTES_PER_PAGE;
 	unsigned act_pte = first_entry % GEN8_PTES_PER_PAGE;
 	struct sg_page_iter sg_iter;
@@ -544,7 +547,7 @@ static int gen8_ppgtt_init(struct i915_hw_ppgtt *ppgtt, uint64_t size)
 	ppgtt->base.total = ppgtt->num_pt_pages * GEN8_PTES_PER_PAGE * PAGE_SIZE;
 
 	ppgtt->base.clear_range(&ppgtt->base, 0,
-				ppgtt->num_pd_entries * GEN8_PTES_PER_PAGE,
+				ppgtt->num_pd_entries * GEN8_PTES_PER_PAGE * PAGE_SIZE,
 				true);
 
 	DRM_DEBUG_DRIVER("Allocated %d pages for page directories (%d wasted)\n",
@@ -643,13 +646,15 @@ static int gen6_ppgtt_enable(struct drm_device *dev)
 
 /* PPGTT support for Sandybdrige/Gen6 and later */
 static void gen6_ppgtt_clear_range(struct i915_address_space *vm,
-				   unsigned first_entry,
-				   unsigned num_entries,
+				   uint64_t start,
+				   uint64_t length,
 				   bool use_scratch)
 {
 	struct i915_hw_ppgtt *ppgtt =
 		container_of(vm, struct i915_hw_ppgtt, base);
 	gen6_gtt_pte_t *pt_vaddr, scratch_pte;
+	unsigned first_entry = start >> PAGE_SHIFT;
+	unsigned num_entries = length >> PAGE_SHIFT;
 	unsigned act_pt = first_entry / I915_PPGTT_PT_ENTRIES;
 	unsigned first_pte = first_entry % I915_PPGTT_PT_ENTRIES;
 	unsigned last_pte, i;
@@ -676,12 +681,13 @@ static void gen6_ppgtt_clear_range(struct i915_address_space *vm,
 
 static void gen6_ppgtt_insert_entries(struct i915_address_space *vm,
 				      struct sg_table *pages,
-				      unsigned first_entry,
+				      uint64_t start,
 				      enum i915_cache_level cache_level)
 {
 	struct i915_hw_ppgtt *ppgtt =
 		container_of(vm, struct i915_hw_ppgtt, base);
 	gen6_gtt_pte_t *pt_vaddr;
+	unsigned first_entry = start >> PAGE_SHIFT;
 	unsigned act_pt = first_entry / I915_PPGTT_PT_ENTRIES;
 	unsigned act_pte = first_entry % I915_PPGTT_PT_ENTRIES;
 	struct sg_page_iter sg_iter;
@@ -778,8 +784,7 @@ static int gen6_ppgtt_init(struct i915_hw_ppgtt *ppgtt)
 		ppgtt->pt_dma_addr[i] = pt_addr;
 	}
 
-	ppgtt->base.clear_range(&ppgtt->base, 0,
-				ppgtt->num_pd_entries * I915_PPGTT_PT_ENTRIES, true);
+	ppgtt->base.clear_range(&ppgtt->base, 0, ppgtt->base.total, true);
 
 	ppgtt->pd_offset = first_pd_entry_in_global_pt * sizeof(gen6_gtt_pte_t);
 
@@ -850,7 +855,7 @@ void i915_ppgtt_bind_object(struct i915_hw_ppgtt *ppgtt,
 			    enum i915_cache_level cache_level)
 {
 	ppgtt->base.insert_entries(&ppgtt->base, obj->pages,
-				   i915_gem_obj_ggtt_offset(obj) >> PAGE_SHIFT,
+				   i915_gem_obj_ggtt_offset(obj),
 				   cache_level);
 }
 
@@ -858,8 +863,8 @@ void i915_ppgtt_unbind_object(struct i915_hw_ppgtt *ppgtt,
 			      struct drm_i915_gem_object *obj)
 {
 	ppgtt->base.clear_range(&ppgtt->base,
-				i915_gem_obj_ggtt_offset(obj) >> PAGE_SHIFT,
-				obj->base.size >> PAGE_SHIFT,
+				i915_gem_obj_ggtt_offset(obj),
+				obj->base.size,
 				true);
 }
 
@@ -943,8 +948,8 @@ void i915_gem_suspend_gtt_mappings(struct drm_device *dev)
 	i915_check_and_clear_faults(dev);
 
 	dev_priv->gtt.base.clear_range(&dev_priv->gtt.base,
-				       dev_priv->gtt.base.start / PAGE_SIZE,
-				       dev_priv->gtt.base.total / PAGE_SIZE,
+				       dev_priv->gtt.base.start,
+				       dev_priv->gtt.base.total,
 				       true);
 }
 
@@ -957,8 +962,8 @@ void i915_gem_restore_gtt_mappings(struct drm_device *dev)
 
 	/* First fill our portion of the GTT with scratch pages */
 	dev_priv->gtt.base.clear_range(&dev_priv->gtt.base,
-				       dev_priv->gtt.base.start / PAGE_SIZE,
-				       dev_priv->gtt.base.total / PAGE_SIZE,
+				       dev_priv->gtt.base.start,
+				       dev_priv->gtt.base.total,
 				       true);
 
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, global_list) {
@@ -997,10 +1002,11 @@ static inline void gen8_set_pte(void __iomem *addr, gen8_gtt_pte_t pte)
 
 static void gen8_ggtt_insert_entries(struct i915_address_space *vm,
 				     struct sg_table *st,
-				     unsigned int first_entry,
+				     uint64_t start,
 				     enum i915_cache_level level)
 {
 	struct drm_i915_private *dev_priv = vm->dev->dev_private;
+	unsigned first_entry = start >> PAGE_SHIFT;
 	gen8_gtt_pte_t __iomem *gtt_entries =
 		(gen8_gtt_pte_t __iomem *)dev_priv->gtt.gsm + first_entry;
 	int i = 0;
@@ -1042,10 +1048,11 @@ static void gen8_ggtt_insert_entries(struct i915_address_space *vm,
  */
 static void gen6_ggtt_insert_entries(struct i915_address_space *vm,
 				     struct sg_table *st,
-				     unsigned int first_entry,
+				     uint64_t start,
 				     enum i915_cache_level level)
 {
 	struct drm_i915_private *dev_priv = vm->dev->dev_private;
+	unsigned first_entry = start >> PAGE_SHIFT;
 	gen6_gtt_pte_t __iomem *gtt_entries =
 		(gen6_gtt_pte_t __iomem *)dev_priv->gtt.gsm + first_entry;
 	int i = 0;
@@ -1077,11 +1084,13 @@ static void gen6_ggtt_insert_entries(struct i915_address_space *vm,
 }
 
 static void gen8_ggtt_clear_range(struct i915_address_space *vm,
-				  unsigned int first_entry,
-				  unsigned int num_entries,
+				  uint64_t start,
+				  uint64_t length,
 				  bool use_scratch)
 {
 	struct drm_i915_private *dev_priv = vm->dev->dev_private;
+	unsigned first_entry = start >> PAGE_SHIFT;
+	unsigned num_entries = length >> PAGE_SHIFT;
 	gen8_gtt_pte_t scratch_pte, __iomem *gtt_base =
 		(gen8_gtt_pte_t __iomem *) dev_priv->gtt.gsm + first_entry;
 	const int max_entries = gtt_total_entries(dev_priv->gtt) - first_entry;
@@ -1101,11 +1110,13 @@ static void gen8_ggtt_clear_range(struct i915_address_space *vm,
 }
 
 static void gen6_ggtt_clear_range(struct i915_address_space *vm,
-				  unsigned int first_entry,
-				  unsigned int num_entries,
+				  uint64_t start,
+				  uint64_t length,
 				  bool use_scratch)
 {
 	struct drm_i915_private *dev_priv = vm->dev->dev_private;
+	unsigned first_entry = start >> PAGE_SHIFT;
+	unsigned num_entries = length >> PAGE_SHIFT;
 	gen6_gtt_pte_t scratch_pte, __iomem *gtt_base =
 		(gen6_gtt_pte_t __iomem *) dev_priv->gtt.gsm + first_entry;
 	const int max_entries = gtt_total_entries(dev_priv->gtt) - first_entry;
@@ -1125,21 +1136,23 @@ static void gen6_ggtt_clear_range(struct i915_address_space *vm,
 
 static void i915_ggtt_insert_entries(struct i915_address_space *vm,
 				     struct sg_table *st,
-				     unsigned int pg_start,
+				     uint64_t start,
 				     enum i915_cache_level cache_level)
 {
 	unsigned int flags = (cache_level == I915_CACHE_NONE) ?
 		AGP_USER_MEMORY : AGP_USER_CACHED_MEMORY;
 
-	intel_gtt_insert_sg_entries(st, pg_start, flags);
+	intel_gtt_insert_sg_entries(st, start >> PAGE_SHIFT, flags);
 
 }
 
 static void i915_ggtt_clear_range(struct i915_address_space *vm,
-				  unsigned int first_entry,
-				  unsigned int num_entries,
+				  uint64_t start,
+				  uint64_t length,
 				  bool unused)
 {
+	unsigned first_entry = start >> PAGE_SHIFT;
+	unsigned num_entries = length >> PAGE_SHIFT;
 	intel_gtt_clear_range(first_entry, num_entries);
 }
 
@@ -1149,10 +1162,9 @@ void i915_gem_gtt_bind_object(struct drm_i915_gem_object *obj,
 {
 	struct drm_device *dev = obj->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	const unsigned long entry = i915_gem_obj_ggtt_offset(obj) >> PAGE_SHIFT;
 
 	dev_priv->gtt.base.insert_entries(&dev_priv->gtt.base, obj->pages,
-					  entry,
+					  i915_gem_obj_ggtt_offset(obj),
 					  cache_level);
 
 	obj->has_global_gtt_mapping = 1;
@@ -1162,11 +1174,10 @@ void i915_gem_gtt_unbind_object(struct drm_i915_gem_object *obj)
 {
 	struct drm_device *dev = obj->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	const unsigned long entry = i915_gem_obj_ggtt_offset(obj) >> PAGE_SHIFT;
 
 	dev_priv->gtt.base.clear_range(&dev_priv->gtt.base,
-				       entry,
-				       obj->base.size >> PAGE_SHIFT,
+				       i915_gem_obj_ggtt_offset(obj),
+				       obj->base.size,
 				       true);
 
 	obj->has_global_gtt_mapping = 0;
@@ -1251,14 +1262,14 @@ void i915_gem_setup_global_gtt(struct drm_device *dev,
 
 	/* Clear any non-preallocated blocks */
 	drm_mm_for_each_hole(entry, &ggtt_vm->mm, hole_start, hole_end) {
-		const unsigned long count = (hole_end - hole_start) / PAGE_SIZE;
 		DRM_DEBUG_KMS("clearing unused GTT space: [%lx, %lx]\n",
 			      hole_start, hole_end);
-		ggtt_vm->clear_range(ggtt_vm, hole_start / PAGE_SIZE, count, true);
+		ggtt_vm->clear_range(ggtt_vm, hole_start,
+				     hole_end - hole_start, true);
 	}
 
 	/* And finally clear the reserved guard page */
-	ggtt_vm->clear_range(ggtt_vm, end / PAGE_SIZE - 1, 1, true);
+	ggtt_vm->clear_range(ggtt_vm, end - PAGE_SIZE, PAGE_SIZE, true);
 }
 
 static bool
