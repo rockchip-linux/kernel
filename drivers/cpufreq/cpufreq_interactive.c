@@ -514,6 +514,13 @@ static void cpufreq_interactive_boost(void)
 	for_each_online_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
 
+		if (!down_read_trylock(&pcpu->enable_sem))
+			continue;
+		if (!pcpu->governor_enabled) {
+			up_read(&pcpu->enable_sem);
+			continue;
+		}
+
 		hispeed_freq = next_hispeed_freq(pcpu);
 		if (pcpu->target_freq < hispeed_freq) {
 			pcpu->target_freq = hispeed_freq;
@@ -531,6 +538,7 @@ static void cpufreq_interactive_boost(void)
 
 		pcpu->floor_freq = hispeed_freq;
 		pcpu->floor_validate_time = ktime_to_us(ktime_get());
+		up_read(&pcpu->enable_sem);
 	}
 
 	spin_unlock_irqrestore(&updown_state_lock, flags);
@@ -958,13 +966,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 	struct cpufreq_frequency_table *freq_table;
 
 	switch (event) {
-	case CPUFREQ_GOV_START:
-		if (!cpu_online(policy->cpu))
-			return -EINVAL;
-
-		freq_table =
-			cpufreq_frequency_get_table(policy->cpu);
-
+	case CPUFREQ_GOV_POLICY_INIT:
 		if (!hispeed_freqs) {
 			hispeed_freqs = kzalloc(sizeof(*hispeed_freqs),
 						GFP_KERNEL);
@@ -973,27 +975,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			nhispeed_freqs = 1;
 			hispeed_freqs[0].load = DEFAULT_GO_HISPEED_LOAD;
 			hispeed_freqs[0].freq = policy->max;
-		}
-
-		for_each_cpu(j, policy->cpus) {
-			pcpu = &per_cpu(cpuinfo, j);
-			pcpu->policy = policy;
-			pcpu->target_freq = policy->cur;
-			pcpu->freq_table = freq_table;
-			pcpu->target_set_time_in_idle =
-				get_cpu_idle_time(j, &pcpu->target_set_time, 1);
-			pcpu->floor_freq = pcpu->target_freq;
-			pcpu->floor_validate_time =
-				pcpu->target_set_time;
-			pcpu->hispeed_validate_time =
-				pcpu->target_set_time;
-			down_write(&pcpu->enable_sem);
-			del_timer_sync(&pcpu->cpu_timer);
-			pcpu->cpu_timer.expires =
-				jiffies + usecs_to_jiffies(timer_rate);
-			add_timer_on(&pcpu->cpu_timer, j);
-			pcpu->governor_enabled = 1;
-			up_write(&pcpu->enable_sem);
 		}
 
 		/*
@@ -1016,6 +997,42 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		idle_notifier_register(&cpufreq_interactive_idle_nb);
 		break;
 
+	case CPUFREQ_GOV_POLICY_EXIT:
+		if (atomic_dec_return(&active_count) > 0)
+			return 0;
+
+		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
+		input_unregister_handler(&cpufreq_interactive_input_handler);
+		sysfs_remove_group(cpufreq_global_kobject,
+				&interactive_attr_group);
+		break;
+
+	case CPUFREQ_GOV_START:
+		freq_table =
+			cpufreq_frequency_get_table(policy->cpu);
+
+		for_each_cpu(j, policy->cpus) {
+			pcpu = &per_cpu(cpuinfo, j);
+			pcpu->policy = policy;
+			pcpu->target_freq = policy->cur;
+			pcpu->freq_table = freq_table;
+			pcpu->target_set_time_in_idle =
+				get_cpu_idle_time(j, &pcpu->target_set_time, 1);
+			pcpu->floor_freq = pcpu->target_freq;
+			pcpu->floor_validate_time =
+				pcpu->target_set_time;
+			pcpu->hispeed_validate_time =
+				pcpu->target_set_time;
+			down_write(&pcpu->enable_sem);
+			del_timer_sync(&pcpu->cpu_timer);
+			pcpu->cpu_timer.expires =
+				jiffies + usecs_to_jiffies(timer_rate);
+			add_timer_on(&pcpu->cpu_timer, j);
+			pcpu->governor_enabled = 1;
+			up_write(&pcpu->enable_sem);
+		}
+		break;
+
 	case CPUFREQ_GOV_STOP:
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
@@ -1024,15 +1041,6 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			del_timer_sync(&pcpu->cpu_timer);
 			up_write(&pcpu->enable_sem);
 		}
-
-		if (atomic_dec_return(&active_count) > 0)
-			return 0;
-
-		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
-		input_unregister_handler(&cpufreq_interactive_input_handler);
-		sysfs_remove_group(cpufreq_global_kobject,
-				&interactive_attr_group);
-
 		break;
 
 	case CPUFREQ_GOV_LIMITS:
