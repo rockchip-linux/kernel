@@ -578,6 +578,7 @@ static int ahci_vt8251_hardreset(struct ata_link *link, unsigned int *class,
 				 unsigned long deadline)
 {
 	struct ata_port *ap = link->ap;
+	struct ahci_host_priv *hpriv = ap->host->private_data;
 	bool online;
 	int rc;
 
@@ -588,7 +589,7 @@ static int ahci_vt8251_hardreset(struct ata_link *link, unsigned int *class,
 	rc = sata_link_hardreset(link, sata_ehc_deb_timing(&link->eh_context),
 				 deadline, &online, NULL);
 
-	ahci_start_engine(ap);
+	hpriv->start_engine(ap);
 
 	DPRINTK("EXIT, rc=%d, class=%u\n", rc, *class);
 
@@ -603,6 +604,7 @@ static int ahci_p5wdh_hardreset(struct ata_link *link, unsigned int *class,
 {
 	struct ata_port *ap = link->ap;
 	struct ahci_port_priv *pp = ap->private_data;
+	struct ahci_host_priv *hpriv = ap->host->private_data;
 	u8 *d2h_fis = pp->rx_fis + RX_FIS_D2H_REG;
 	struct ata_taskfile tf;
 	bool online;
@@ -618,7 +620,7 @@ static int ahci_p5wdh_hardreset(struct ata_link *link, unsigned int *class,
 	rc = sata_link_hardreset(link, sata_ehc_deb_timing(&link->eh_context),
 				 deadline, &online, NULL);
 
-	ahci_start_engine(ap);
+	hpriv->start_engine(ap);
 
 	/* The pseudo configuration device on SIMG4726 attached to
 	 * ASUS P5W-DH Deluxe doesn't send signature FIS after
