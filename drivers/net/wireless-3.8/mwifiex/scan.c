@@ -696,9 +696,9 @@ mwifiex_scan_channel_list(struct mwifiex_private *priv,
 
 		/* Send the scan command to the firmware with the specified
 		   cfg */
-		ret = mwifiex_send_cmd_async(priv, HostCmd_CMD_802_11_SCAN,
-					     HostCmd_ACT_GEN_SET, 0,
-					     scan_cfg_out);
+		ret = mwifiex_send_cmd(priv, HostCmd_CMD_802_11_SCAN,
+				       HostCmd_ACT_GEN_SET, 0,
+				       scan_cfg_out, false);
 		if (ret)
 			break;
 	}
