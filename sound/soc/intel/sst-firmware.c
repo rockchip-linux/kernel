@@ -97,6 +97,22 @@ parse_err:
 }
 EXPORT_SYMBOL_GPL(sst_fw_new);
 
+int sst_fw_reload(struct sst_fw *sst_fw)
+{
+	struct sst_dsp *dsp = sst_fw->dsp;
+	int ret;
+
+	dev_dbg(dsp->dev, "reloading firmware\n");
+
+	/* call core specific FW paser to load FW data into DSP */
+	ret = dsp->ops->parse_fw(sst_fw);
+	if (ret < 0)
+		dev_err(dsp->dev, "error: parse fw failed %d\n", ret);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sst_fw_reload);
+
 /* free single firmware object */
 void sst_fw_free(struct sst_fw *sst_fw)
 {
