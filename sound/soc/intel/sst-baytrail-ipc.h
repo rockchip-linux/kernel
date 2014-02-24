@@ -51,6 +51,8 @@ int sst_byt_stream_buffer(struct sst_byt *byt, struct sst_byt_stream *stream,
 			  uint32_t buffer_addr, uint32_t buffer_size);
 int sst_byt_stream_commit(struct sst_byt *byt, struct sst_byt_stream *stream);
 int sst_byt_stream_free(struct sst_byt *byt, struct sst_byt_stream *stream);
+int sst_byt_stream_set_offset(struct sst_byt *byt,
+	struct sst_byt_stream *stream, u32 offset);
 
 /* stream ALSA trigger operations */
 int sst_byt_stream_start(struct sst_byt *byt, struct sst_byt_stream *stream);

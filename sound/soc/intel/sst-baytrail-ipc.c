@@ -596,6 +596,13 @@ int sst_byt_stream_set_rate(struct sst_byt *byt, struct sst_byt_stream *stream,
 	return 0;
 }
 
+int sst_byt_stream_set_offset(struct sst_byt *byt,
+	struct sst_byt_stream *stream, u32 offset)
+{
+	stream->start_offset = offset;
+	return 0;
+}
+
 /* stream sonfiguration */
 int sst_byt_stream_type(struct sst_byt *byt, struct sst_byt_stream *stream,
 			int codec_type, int stream_type, int operation)
