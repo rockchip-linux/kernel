@@ -1813,7 +1813,7 @@ static const int comp_pclk_rates[] = {
 };
 
 static const int dmic_micclk[] = {
-	2, 2, 2, 2, 4, 2
+	2, 2, 2, 2, 4, 4
 };
 
 static const int comp_lrclk_rates[] = {
@@ -1826,7 +1826,7 @@ static const int dmic_comp[6][6] = {
 	{7, 8, 3, 3, 3, 3},
 	{7, 8, 3, 1, 1, 1},
 	{7, 8, 3, 1, 2, 2},
-	{7, 8, 3, 3, 3, 3}
+	{7, 8, 1, 1, 2, 2}
 };
 
 static int max98090_dai_hw_params(struct snd_pcm_substream *substream,
