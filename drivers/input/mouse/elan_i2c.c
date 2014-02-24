@@ -640,8 +640,11 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 done:
 	if (ret != 0)
 		elan_iap_reset(data);
-	else
+	else {
+		disable_irq(data->irq);
 		elan_initialize(data);
+		enable_irq(data->irq);
+	}
 	release_firmware(fw);
 	return ret;
 }
@@ -1614,15 +1617,6 @@ static int elan_probe(struct i2c_client *client,
 	data->wait_signal_from_updatefw = false;
 	init_completion(&data->fw_completion);
 
-	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-				   client->name, data);
-	if (ret < 0) {
-		dev_err(&client->dev, "cannot register irq=%d\n",
-				client->irq);
-		goto err_irq;
-	}
-
 	/* initial elan touch pad */
 	ret = elan_initialize(data);
 	if (ret < 0)
@@ -1633,6 +1627,15 @@ static int elan_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto err_input_dev;
 
+	ret = request_threaded_irq(client->irq, NULL, elan_isr,
+				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   client->name, data);
+	if (ret < 0) {
+		dev_err(&client->dev, "cannot register irq=%d\n",
+				client->irq);
+		goto err_irq;
+	}
+
 	ret = sysfs_create_group(&client->dev.kobj, &elan_sysfs_group);
 	if (ret < 0) {
 		dev_err(&client->dev, "cannot register dev attribute %d", ret);
@@ -1641,14 +1644,15 @@ static int elan_probe(struct i2c_client *client,
 
 	device_init_wakeup(&client->dev, 1);
 	i2c_set_clientdata(client, data);
+
 	return 0;
 
 err_create_group:
+	free_irq(data->irq, data);
+err_irq:
 	input_unregister_device(data->input);
 err_input_dev:
 err_init:
-	free_irq(data->irq, data);
-err_irq:
 	kfree(data);
 	dev_err(&client->dev, "Elan Trackpad probe fail!\n");
 	return ret;
