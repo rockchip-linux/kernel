@@ -155,6 +155,7 @@ struct sst_byt_stream {
 	int str_id;
 	bool commited;
 	bool running;
+	u32 start_offset;
 
 	/* driver callback */
 	u32 (*notify_position)(struct sst_byt_stream *stream, void *data);
@@ -669,7 +670,7 @@ out:
 }
 
 static int sst_byt_stream_operations(struct sst_byt *byt, int type,
-				     int stream_id, int wait)
+				    struct sst_byt_stream *stream, int wait)
 {
 	struct sst_byt_start_stream_params start_stream;
 	u64 header;
@@ -677,12 +678,12 @@ static int sst_byt_stream_operations(struct sst_byt *byt, int type,
 	size_t size = 0;
 
 	if (type != IPC_IA_START_STREAM) {
-		header = sst_byt_header(type, 0, false, stream_id);
+		header = sst_byt_header(type, 0, false, stream->str_id);
 	} else {
-		start_stream.byte_offset = 0;
+		start_stream.byte_offset = stream->start_offset;
 		header = sst_byt_header(IPC_IA_START_STREAM,
 					sizeof(start_stream) + sizeof(u32),
-					true, stream_id);
+					true, stream->str_id);
 		tx_msg = &start_stream;
 		size = sizeof(start_stream);
 	}
@@ -699,12 +700,13 @@ int sst_byt_stream_start(struct sst_byt *byt, struct sst_byt_stream *stream)
 {
 	int ret;
 
-	ret = sst_byt_stream_operations(byt, IPC_IA_START_STREAM,
-					stream->str_id, 0);
+	ret = sst_byt_stream_operations(byt, IPC_IA_START_STREAM, stream, 0);
 	if (ret < 0)
 		dev_err(byt->dev, "ipc: error failed to start stream %d\n",
 			stream->str_id);
 
+	/* reset start offset */
+	stream->start_offset = 0;
 	return ret;
 }
 
@@ -716,8 +718,7 @@ int sst_byt_stream_stop(struct sst_byt *byt, struct sst_byt_stream *stream)
 	if (!stream->commited)
 		return 0;
 
-	ret = sst_byt_stream_operations(byt, IPC_IA_DROP_STREAM,
-					stream->str_id, 0);
+	ret = sst_byt_stream_operations(byt, IPC_IA_DROP_STREAM, stream, 0);
 	if (ret < 0)
 		dev_err(byt->dev, "ipc: error failed to stop stream %d\n",
 			stream->str_id);
@@ -728,8 +729,7 @@ int sst_byt_stream_pause(struct sst_byt *byt, struct sst_byt_stream *stream)
 {
 	int ret;
 
-	ret = sst_byt_stream_operations(byt, IPC_IA_PAUSE_STREAM,
-					stream->str_id, 0);
+	ret = sst_byt_stream_operations(byt, IPC_IA_PAUSE_STREAM, stream, 0);
 	if (ret < 0)
 		dev_err(byt->dev, "ipc: error failed to pause stream %d\n",
 			stream->str_id);
@@ -741,8 +741,7 @@ int sst_byt_stream_resume(struct sst_byt *byt, struct sst_byt_stream *stream)
 {
 	int ret;
 
-	ret = sst_byt_stream_operations(byt, IPC_IA_RESUME_STREAM,
-					stream->str_id, 0);
+	ret = sst_byt_stream_operations(byt, IPC_IA_RESUME_STREAM, stream, 0);
 	if (ret < 0)
 		dev_err(byt->dev, "ipc: error failed to resume stream %d\n",
 			stream->str_id);
