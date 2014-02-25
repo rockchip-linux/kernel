@@ -215,13 +215,21 @@ static u32 i2c_readl(struct tegra_i2c_dev *i2c_dev, unsigned long reg)
 static void i2c_writesl(struct tegra_i2c_dev *i2c_dev, void *data,
 	unsigned long reg, int len)
 {
-	writesl(i2c_dev->base + tegra_i2c_reg_addr(i2c_dev, reg), data, len);
+	unsigned long *p = data;
+	while (len--) {
+		writel(*p, i2c_dev->base + tegra_i2c_reg_addr(i2c_dev, reg));
+		p++;
+	}
 }
 
 static void i2c_readsl(struct tegra_i2c_dev *i2c_dev, void *data,
 	unsigned long reg, int len)
 {
-	readsl(i2c_dev->base + tegra_i2c_reg_addr(i2c_dev, reg), data, len);
+	unsigned long *p = data;
+	while (len--) {
+		*p = readl(i2c_dev->base + tegra_i2c_reg_addr(i2c_dev, reg));
+		p++;
+	}
 }
 
 static void tegra_i2c_mask_irq(struct tegra_i2c_dev *i2c_dev, u32 mask)
