@@ -30,6 +30,8 @@
 #include "sst-dsp.h"
 #include "sst-dsp-priv.h"
 
+static void block_module_remove(struct sst_module *module);
+
 static void sst_memcpy32(volatile void __iomem *dest, void *src, u32 bytes)
 {
 	u32 i;
@@ -112,6 +114,22 @@ int sst_fw_reload(struct sst_fw *sst_fw)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(sst_fw_reload);
+
+void sst_fw_unload(struct sst_fw *sst_fw)
+{
+	struct sst_dsp *dsp = sst_fw->dsp;
+	struct sst_module *module;
+
+	dev_dbg(dsp->dev, "unloading firmware\n");
+
+	mutex_lock(&dsp->mutex);
+	list_for_each_entry(module, &dsp->module_list, list) {
+		if (module->sst_fw == sst_fw)
+			block_module_remove(module);
+	}
+	mutex_unlock(&dsp->mutex);
+}
+EXPORT_SYMBOL_GPL(sst_fw_unload);
 
 /* free single firmware object */
 void sst_fw_free(struct sst_fw *sst_fw)
