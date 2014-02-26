@@ -71,3 +71,16 @@ config SND_SOC_INTEL_BYT_MAX98090_MACH
 	help
 	  This adds audio driver for Intel Baytrail platform based boards
 	  with the MAX98090 audio codec.
+
+config SND_BYT_RAMBI_HPDET_GPIO
+	int "Rambi headphone detect GPIO pin"
+	default 168
+	help
+	  The GPIO pin to be used for headphone detection on the Rambi platform.
+
+config SND_BYT_RAMBI_MICDET_GPIO
+	int "Rambi mic detect GPIO pin"
+	default 169
+	help
+	  The GPIO pin to be used for mic detection on the Rambi platform.
+
