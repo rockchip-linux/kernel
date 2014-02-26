@@ -1,4 +1,4 @@
-Tegra124 Embedded Memory Controller
+Tegra124 External Memory Controller
 
 Properties:
 - compatible : Should contain "nvidia,tegra124-emc".
@@ -8,6 +8,7 @@ Properties:
 - nvidia,mc : phandle to the mc bus connected to EMC.
 - clocks : phandle to EMC and all parent clocks.
 - clock-names : name of each clock.
+- nvidia,pmc : phandle to the PMC syscon node.
 - max-clock-frequency : optional, specifies the maximum EMC rate in kHz.
 
 Child device nodes describe the memory settings for different configurations and
@@ -21,6 +22,7 @@ Example:
 		#address-cells = <1>;
 		#size-cells = <0>;
 		nvidia,mc = <&mc>;
+		nvidia,pmc = <&pmc>;
 		clocks = <&tegra_car TEGRA124_CLK_EMC>,
 			<&tegra_car TEGRA124_CLK_PLL_M>,
 			<&tegra_car TEGRA124_CLK_PLL_C>,
@@ -35,7 +37,23 @@ Example:
 	};
 
 
-Embedded Memory Controller configuration table
+External Memory Controller ram-code table
+
+If the emc node has the nvidia,ram-code property present, then the next level
+of nodes below the emc table are used to specify which settings apply for
+which ram-code settings.
+
+If the emc node lacks the nvidia,use-ram-code property, this level is omitted
+and the tables are stored directly under the emc node (see below).
+
+Properties:
+
+- name : Should be emc-tables
+- nvidia,ram-code : the binary representation of the ram-code board strappings
+  for which this node (and children) are valid.
+
+
+External Memory Controller configuration table
 
 This is a table containing the EMC register settings for the various operating
 speeds of the memory controller. They are always located as subnodes of the emc

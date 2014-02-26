@@ -27,6 +27,8 @@
 #include <linux/tegra-soc.h>
 #include <linux/platform_data/tegra_emc.h>
 #include <linux/platform_data/tegra_mc.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 
 #include <asm/cputime.h>
 
@@ -46,6 +48,10 @@
 #define PRE_WAIT_SREF_US			5
 #define PRE_WAIT_BGBIAS_US			5
 #define PRE_WAIT_DQS_US				30
+
+#define STRAPPING_OPT_A			0x464
+#define STRAPPING_OPT_A_RAM_CODE_SHIFT	4
+#define STRAPPING_OPT_A_RAM_CODE_MASK	(0xF << STRAPPING_OPT_A_RAM_CODE_SHIFT)
 
 static bool emc_enable = true;
 module_param(emc_enable, bool, 0644);
@@ -350,6 +356,8 @@ static int clkchange_delay = 100;
 static int last_round_idx;
 static u32 tegra_dram_dev_num;
 static u32 tegra_dram_type = -1;
+static u32 tegra_ram_code;
+static struct regmap *tegra_pmc_regs;
 static bool tegra_emc_init_done;
 static void __iomem *tegra_emc_base;
 static void __iomem *tegra_clk_base;
@@ -1170,6 +1178,31 @@ static void purge_emc_table(void)
 	}
 }
 
+static struct device_node *tegra124_emc_find_table(struct device_node *np)
+{
+	struct device_node *iter;
+	struct property *prop;
+	const __be32 *p;
+	u32 u;
+	bool use_ram_code = false;
+
+	for_each_child_of_node(np, iter) {
+		if (of_find_property(iter, "nvidia,ram-code", NULL)) {
+			use_ram_code = true;
+			of_property_for_each_u32(iter, "nvidia,ram-code", prop,
+						 p, u) {
+				if (u == tegra_ram_code)
+					return iter;
+			}
+		}
+	}
+
+	if (use_ram_code)
+		return ERR_PTR(-ENODATA);
+
+	return np;
+}
+
 static void tegra124_parse_dt_data(struct platform_device *pdev)
 {
 	struct device_node *iter;
@@ -1178,7 +1211,7 @@ static void tegra124_parse_dt_data(struct platform_device *pdev)
 	u32 prop;
 	int ret;
 
-	tablenode = pdev->dev.of_node;
+	tablenode = tegra124_emc_find_table(pdev->dev.of_node);
 	if (IS_ERR(tablenode))
 		return;
 
@@ -1413,6 +1446,7 @@ static int tegra124_emc_probe(struct platform_device *pdev)
 	struct platform_device *mc_dev;
 	struct device_node *car_np;
 	struct platform_device *car_dev;
+	u32 val;
 	int ret;
 
 	mc_np = of_parse_phandle(pdev->dev.of_node, "nvidia,mc", 0);
@@ -1442,6 +1476,19 @@ static int tegra124_emc_probe(struct platform_device *pdev)
 		ret = -EINVAL;
 		goto out;
 	}
+
+	tegra_pmc_regs = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+							 "nvidia,pmc");
+	if (IS_ERR(tegra_pmc_regs)) {
+		ret = PTR_ERR(tegra_pmc_regs);
+		goto out;
+	}
+	ret = regmap_read(tegra_pmc_regs, STRAPPING_OPT_A, &val);
+	if (ret < 0)
+		goto out;
+	tegra_ram_code = (val & STRAPPING_OPT_A_RAM_CODE_MASK) >>
+		STRAPPING_OPT_A_RAM_CODE_SHIFT;
+	dev_info(&pdev->dev, "Ram code %u\n", tegra_ram_code);
 
 	tegra_clk_base = of_iomap(car_dev->dev.of_node, 0);
 	tegra_emc_base = of_iomap(pdev->dev.of_node, 0);
