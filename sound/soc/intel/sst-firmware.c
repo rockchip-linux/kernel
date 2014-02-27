@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  *
  */
-
+#define DEBUG
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
@@ -117,17 +117,21 @@ EXPORT_SYMBOL_GPL(sst_fw_reload);
 
 void sst_fw_unload(struct sst_fw *sst_fw)
 {
-	struct sst_dsp *dsp = sst_fw->dsp;
-	struct sst_module *module;
+        struct sst_dsp *dsp = sst_fw->dsp;
+        struct sst_module *module, *tmp;
 
-	dev_dbg(dsp->dev, "unloading firmware\n");
+        dev_dbg(dsp->dev, "unloading firmware\n");
 
-	mutex_lock(&dsp->mutex);
-	list_for_each_entry(module, &dsp->module_list, list) {
-		if (module->sst_fw == sst_fw)
-			block_module_remove(module);
-	}
-	mutex_unlock(&dsp->mutex);
+        mutex_lock(&dsp->mutex);
+        list_for_each_entry_safe(module, tmp, &dsp->module_list, list) {
+                if (module->sst_fw == sst_fw) {
+                        block_module_remove(module);
+                        list_del(&module->list);
+                        kfree(module);
+                }
+        }
+
+        mutex_unlock(&dsp->mutex);
 }
 EXPORT_SYMBOL_GPL(sst_fw_unload);
 
@@ -236,7 +240,11 @@ static int block_alloc_contiguous(struct sst_module *module,
 		size -= block->size;
 	}
 
+	list_for_each_entry(block, &tmp, list)
+		list_add(&block->module_list, &module->block_list);
+
 	list_splice(&tmp, &dsp->used_block_list);
+
 	return 0;
 }
 
@@ -281,8 +289,7 @@ static int block_alloc(struct sst_module *module,
 		/* do we span > 1 blocks */
 		if (data->size > block->size) {
 			ret = block_alloc_contiguous(module, data,
-				block->offset + block->size,
-				data->size - block->size);
+				block->offset, data->size);
 			if (ret == 0)
 				return ret;
 		}
@@ -375,10 +382,9 @@ static int block_alloc_fixed(struct sst_module *module,
 
 		/* does block span more than 1 section */
 		if (data->offset >= block->offset && data->offset < block_end) {
-
 			err = block_alloc_contiguous(module, data,
 				block->offset + block->size,
-				data->size - block->size + data->offset - block->offset);
+				data->size - block->size);
 			if (err < 0)
 				return -ENOMEM;
 
@@ -405,15 +411,9 @@ static int block_alloc_fixed(struct sst_module *module,
 		if (data->offset >= block->offset && data->offset < block_end) {
 
 			err = block_alloc_contiguous(module, data,
-				block->offset + block->size,
-				data->size - block->size);
+				block->offset, data->size);
 			if (err < 0)
 				return -ENOMEM;
-
-			/* add block */
-			block->data_type = data->data_type;
-			list_move(&block->list, &dsp->used_block_list);
-			list_add(&block->module_list, &module->block_list);
 			return 0;
 		}
 
@@ -452,7 +452,7 @@ int sst_module_insert_fixed_block(struct sst_module *module,
 	sst_memcpy32(dsp->addr.lpe + data->offset, data->data, data->size);
 
 	mutex_unlock(&dsp->mutex);
-	return ret;
+	return 0;
 
 err:
 	block_module_remove(module);

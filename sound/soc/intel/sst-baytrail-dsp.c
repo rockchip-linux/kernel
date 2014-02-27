@@ -12,6 +12,7 @@
  * more details.
  */
 
+#include <linux/acpi.h>
 #include <linux/delay.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
@@ -162,7 +163,7 @@ static int sst_byt_parse_fw_image(struct sst_fw *sst_fw)
 	return 0;
 }
 
-static void sst_byt_dump_shim(struct sst_dsp *sst)
+void sst_byt_dump_shim(struct sst_dsp *sst)
 {
 	int i;
 	u64 reg;
@@ -191,6 +192,7 @@ static irqreturn_t sst_byt_irq(int irq, void *context)
 	spin_lock(&sst->spinlock);
 
 	isrx = sst_dsp_shim_read64_unlocked(sst, SST_ISRX);
+
 	if (isrx & SST_ISRX_DONE) {
 		/* ADSP has processed the message request from IA */
 		sst_dsp_shim_update_bits64_unlocked(sst, SST_IPCX,
@@ -230,11 +232,19 @@ static void sst_byt_boot(struct sst_dsp *sst)
 
 static void sst_byt_reset(struct sst_dsp *sst)
 {
-	/* put DSP into reset, set reset vector and stall */
+	/* set reset vector and stall */
 	sst_dsp_shim_update_bits64(sst, SST_CSR,
-		SST_BYT_CSR_RST | SST_BYT_CSR_VECTOR_SEL | SST_BYT_CSR_STALL,
-		SST_BYT_CSR_RST | SST_BYT_CSR_VECTOR_SEL | SST_BYT_CSR_STALL);
+		SST_BYT_CSR_VECTOR_SEL | SST_BYT_CSR_STALL,
+		SST_BYT_CSR_VECTOR_SEL | SST_BYT_CSR_STALL);
 
+	udelay(10);
+
+	/* put DSP into reset */
+	sst_dsp_shim_update_bits64(sst, SST_CSR,
+		SST_BYT_CSR_RST, SST_BYT_CSR_RST);
+
+	/* dummy read to make sure clock is ungated */
+	sst_dsp_shim_read64_unlocked(sst, SST_IPCD);
 	udelay(10);
 
 	/* take DSP out of reset and keep stalled for FW loading */
@@ -289,6 +299,44 @@ static int sst_byt_resource_map(struct sst_dsp *sst, struct sst_pdata *pdata)
 	return 0;
 }
 
+static int byt_enable_shim(struct sst_dsp *sst)
+{
+	int tries = 10;
+	u32 reg;
+
+	/* enable shim */
+//	reg = readl(sst->addr.pci_cfg + 0x84);
+//	writel(reg & ~0x3, sst->addr.pci_cfg + 0x84);
+
+	/* check that ADSP shim is enabled */
+	while (tries--) {
+		reg = sst_dsp_shim_read_unlocked(sst, SST_CSR);
+		if (reg != 0xffffffff) {
+
+			mdelay(10);
+
+			/* enable Interrupt from both sides */
+			sst_dsp_shim_update_bits64(sst, SST_IMRX, 0x3, 0x0);
+			sst_dsp_shim_update_bits64(sst, SST_IMRD, 0x3, 0x0);
+
+			sst_dsp_shim_update_bits64(sst, 0x10, 0x20, 0x0); // unMask SSP2
+			sst_dsp_shim_update_bits64(sst, 0x78, 0x7, 0x5); // 200MHz
+
+			sst_byt_dump_shim(sst);
+			return 0;
+		}
+		msleep(1);
+	}
+
+	dev_err(sst->dev, "shim not available\n");
+	return -ENODEV;
+}
+
+int sst_byt_d0(struct sst_dsp *sst)
+{
+	return byt_enable_shim(sst);
+}
+
 static int sst_byt_init(struct sst_dsp *sst, struct sst_pdata *pdata)
 {
 	const struct sst_adsp_memregion *region;
@@ -316,6 +364,8 @@ static int sst_byt_init(struct sst_dsp *sst, struct sst_pdata *pdata)
 		dev_err(dev, "failed to map resources\n");
 		return ret;
 	}
+
+	sst_byt_d0(sst);
 
 	/*
 	 * save the physical address of extended firmware block in the first

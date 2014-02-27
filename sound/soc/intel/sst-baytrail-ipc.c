@@ -904,13 +904,15 @@ int sst_byt_dsp_suspend_noirq(struct device *dev, struct sst_pdata *pdata)
 }
 EXPORT_SYMBOL_GPL(sst_byt_dsp_suspend_noirq);
 
+int sst_byt_d0(struct sst_dsp *sst);
+
 int sst_byt_dsp_suspend_late(struct device *dev, struct sst_pdata *pdata)
 {
 	struct sst_byt *byt = pdata->dsp;
 
 	dev_dbg(byt->dev, "free all blocks and unload fw\n");
 	sst_fw_unload(byt->fw);
-
+	
 	return 0;
 }
 EXPORT_SYMBOL_GPL(sst_byt_dsp_suspend_late);
@@ -919,6 +921,12 @@ int sst_byt_dsp_boot(struct device *dev, struct sst_pdata *pdata)
 {
 	struct sst_byt *byt = pdata->dsp;
 	int ret;
+
+	ret = sst_byt_d0(byt->dsp);
+	if (ret < 0) {
+		dev_err(dev, "cannot wake SHIM up\n");
+		return ret;
+	}
 
 	dev_dbg(byt->dev, "reload dsp fw\n");
 
@@ -957,3 +965,5 @@ int sst_byt_dsp_wait_for_ready(struct device *dev, struct sst_pdata *pdata)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(sst_byt_dsp_wait_for_ready);
+
+
