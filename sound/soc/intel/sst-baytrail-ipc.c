@@ -923,6 +923,8 @@ int sst_byt_dsp_boot(struct device *dev, struct sst_pdata *pdata)
 
 	dev_dbg(byt->dev, "reload dsp fw\n");
 
+	sst_dsp_reset(byt->dsp);
+
 	ret = sst_fw_reload(byt->fw);
 	if (ret <  0) {
 		dev_err(dev, "error: failed to reload firmware\n");
