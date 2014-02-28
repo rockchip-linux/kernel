@@ -588,14 +588,11 @@ static unsigned int azx_rirb_get_response(struct hda_bus *bus,
 	}
 
 	if (chip->msi) {
-		snd_printk(KERN_WARNING SFX "%s: No response from codec, "
-			   "disabling MSI: last cmd=0x%08x\n",
-			   pci_name(chip->pci), chip->last_cmd[addr]);
-		free_irq(chip->irq, chip);
-		chip->irq = -1;
-		pci_disable_msi(chip->pci);
-		chip->msi = 0;
-		if (azx_acquire_irq(chip, 1) < 0) {
+		dev_warn(chip->card->dev,
+			 "No response from codec, disabling MSI: last cmd=0x%08x\n",
+			 chip->last_cmd[addr]);
+		if (chip->ops->disable_msi_reset_irq &&
+		    chip->ops->disable_msi_reset_irq(chip) < 0) {
 			bus->rirb_error = 1;
 			return -1;
 		}
@@ -3467,6 +3464,21 @@ static u8 pci_azx_readb(u8 *addr)
 	return readb(addr);
 }
 
+static int disable_msi_reset_irq(struct azx *chip)
+{
+	int err;
+
+	free_irq(chip->irq, chip);
+	chip->irq = -1;
+	pci_disable_msi(chip->pci);
+	chip->msi = 0;
+	err = azx_acquire_irq(chip, 1);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+
 static const struct hda_controller_ops pci_hda_ops = {
 	.writel = pci_azx_writel,
 	.readl = pci_azx_readl,
@@ -3474,6 +3486,7 @@ static const struct hda_controller_ops pci_hda_ops = {
 	.readw = pci_azx_readw,
 	.writeb = pci_azx_writeb,
 	.readb = pci_azx_readb,
+	.disable_msi_reset_irq = disable_msi_reset_irq,
 };
 
 static int azx_probe(struct pci_dev *pci,
