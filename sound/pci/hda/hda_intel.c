@@ -303,7 +303,10 @@ static char *driver_short_names[] = {
 };
 
 /* for pcm support */
-#define get_azx_dev(substream) (substream->runtime->private_data)
+static inline struct azx_dev *get_azx_dev(struct snd_pcm_substream *substream)
+{
+	return substream->runtime->private_data;
+}
 
 #ifdef CONFIG_X86
 static void __mark_pages_wc(struct azx *chip, struct snd_dma_buffer *dmab, bool on)
@@ -372,15 +375,11 @@ static int azx_alloc_cmd_io(struct azx *chip)
 	int err;
 
 	/* single page (at least 4096 bytes) must suffice for both ringbuffes */
-	err = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV,
-				  chip->card->dev,
-				  PAGE_SIZE, &chip->rb);
-	if (err < 0) {
-		snd_printk(KERN_ERR SFX "%s: cannot allocate CORB/RIRB\n", pci_name(chip->pci));
-		return err;
-	}
-	mark_pages_wc(chip, &chip->rb, true);
-	return 0;
+	err = chip->ops->dma_alloc_pages(chip, SNDRV_DMA_TYPE_DEV,
+					 PAGE_SIZE, &chip->rb);
+	if (err < 0)
+		dev_err(chip->card->dev, "cannot allocate CORB/RIRB\n");
+	return err;
 }
 
 static void azx_init_cmd_io(struct azx *chip)
@@ -1705,26 +1704,18 @@ static int azx_pcm_hw_params(struct snd_pcm_substream *substream,
 {
 	struct azx_pcm *apcm = snd_pcm_substream_chip(substream);
 	struct azx *chip = apcm->chip;
-	struct azx_dev *azx_dev = get_azx_dev(substream);
 	int ret;
 
-	dsp_lock(azx_dev);
-	if (dsp_is_locked(azx_dev)) {
+	dsp_lock(get_azx_dev(substream));
+	if (dsp_is_locked(get_azx_dev(substream))) {
 		ret = -EBUSY;
 		goto unlock;
 	}
 
-	mark_runtime_wc(chip, azx_dev, substream, false);
-	azx_dev->bufsize = 0;
-	azx_dev->period_bytes = 0;
-	azx_dev->format_val = 0;
-	ret = snd_pcm_lib_malloc_pages(substream,
-					params_buffer_bytes(hw_params));
-	if (ret < 0)
-		goto unlock;
-	mark_runtime_wc(chip, azx_dev, substream, true);
- unlock:
-	dsp_unlock(azx_dev);
+	ret = chip->ops->substream_alloc_pages(chip, substream,
+					       params_buffer_bytes(hw_params));
+unlock:
+	dsp_unlock(get_azx_dev(substream));
 	return ret;
 }
 
@@ -1734,6 +1725,7 @@ static int azx_pcm_hw_free(struct snd_pcm_substream *substream)
 	struct azx_dev *azx_dev = get_azx_dev(substream);
 	struct azx *chip = apcm->chip;
 	struct hda_pcm_stream *hinfo = apcm->hinfo[substream->stream];
+	int err;
 
 	/* reset BDL address */
 	dsp_lock(azx_dev);
@@ -1748,10 +1740,10 @@ static int azx_pcm_hw_free(struct snd_pcm_substream *substream)
 
 	snd_hda_codec_cleanup(apcm->codec, hinfo, substream);
 
-	mark_runtime_wc(chip, azx_dev, substream, false);
+	err = chip->ops->substream_free_pages(chip, substream);
 	azx_dev->prepared = 0;
 	dsp_unlock(azx_dev);
-	return snd_pcm_lib_free_pages(substream);
+	return err;
 }
 
 static int azx_pcm_prepare(struct snd_pcm_substream *substream)
@@ -2387,13 +2379,11 @@ static int azx_load_dsp_prepare(struct hda_bus *bus, unsigned int format,
 	azx_dev->locked = 1;
 	spin_unlock_irq(&chip->reg_lock);
 
-	err = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV_SG,
-				  chip->card->dev,
-				  byte_size, bufp);
+	err = chip->ops->dma_alloc_pages(chip, SNDRV_DMA_TYPE_DEV_SG,
+					 byte_size, bufp);
 	if (err < 0)
 		goto err_alloc;
 
-	mark_pages_wc(chip, bufp, true);
 	azx_dev->bufsize = byte_size;
 	azx_dev->period_bytes = byte_size;
 	azx_dev->format_val = format;
@@ -2415,8 +2405,7 @@ static int azx_load_dsp_prepare(struct hda_bus *bus, unsigned int format,
 	return azx_dev->stream_tag;
 
  error:
-	mark_pages_wc(chip, bufp, false);
-	snd_dma_free_pages(bufp);
+	chip->ops->dma_free_pages(chip, bufp);
  err_alloc:
 	spin_lock_irq(&chip->reg_lock);
 	if (azx_dev->opened)
@@ -2458,8 +2447,7 @@ static void azx_load_dsp_cleanup(struct hda_bus *bus,
 	azx_dev->period_bytes = 0;
 	azx_dev->format_val = 0;
 
-	mark_pages_wc(chip, dmab, false);
-	snd_dma_free_pages(dmab);
+	chip->ops->dma_free_pages(chip, dmab);
 	dmab->area = NULL;
 
 	spin_lock_irq(&chip->reg_lock);
@@ -2873,19 +2861,14 @@ static int azx_free(struct azx *chip)
 
 	if (chip->azx_dev) {
 		for (i = 0; i < chip->num_streams; i++)
-			if (chip->azx_dev[i].bdl.area) {
-				mark_pages_wc(chip, &chip->azx_dev[i].bdl, false);
-				snd_dma_free_pages(&chip->azx_dev[i].bdl);
-			}
+			if (chip->azx_dev[i].bdl.area)
+				chip->ops->dma_free_pages(
+					chip, &chip->azx_dev[i].bdl);
 	}
-	if (chip->rb.area) {
-		mark_pages_wc(chip, &chip->rb, false);
-		snd_dma_free_pages(&chip->rb);
-	}
-	if (chip->posbuf.area) {
-		mark_pages_wc(chip, &chip->posbuf, false);
-		snd_dma_free_pages(&chip->posbuf);
-	}
+	if (chip->rb.area)
+		chip->ops->dma_free_pages(chip, &chip->rb);
+	if (chip->posbuf.area)
+		chip->ops->dma_free_pages(chip, &chip->posbuf);
 	if (chip->region_requested)
 		pci_release_regions(chip->pci);
 	pci_disable_device(chip->pci);
@@ -3340,24 +3323,21 @@ static int azx_first_init(struct azx *chip)
 	for (i = 0; i < chip->num_streams; i++) {
 		dsp_lock_init(&chip->azx_dev[i]);
 		/* allocate memory for the BDL for each stream */
-		err = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV,
-					  chip->card->dev,
-					  BDL_SIZE, &chip->azx_dev[i].bdl);
+		err = chip->ops->dma_alloc_pages(chip, SNDRV_DMA_TYPE_DEV,
+						 BDL_SIZE,
+						 &chip->azx_dev[i].bdl);
 		if (err < 0) {
 			snd_printk(KERN_ERR SFX "%s: cannot allocate BDL\n", pci_name(chip->pci));
 			return -ENOMEM;
 		}
-		mark_pages_wc(chip, &chip->azx_dev[i].bdl, true);
 	}
 	/* allocate memory for the position buffer */
-	err = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV,
-				  chip->card->dev,
-				  chip->num_streams * 8, &chip->posbuf);
+	err = chip->ops->dma_alloc_pages(chip, SNDRV_DMA_TYPE_DEV,
+					 chip->num_streams * 8, &chip->posbuf);
 	if (err < 0) {
 		snd_printk(KERN_ERR SFX "%s: cannot allocate posbuf\n", pci_name(chip->pci));
 		return -ENOMEM;
 	}
-	mark_pages_wc(chip, &chip->posbuf, true);
 	/* allocate CORB/RIRB */
 	err = azx_alloc_cmd_io(chip);
 	if (err < 0)
@@ -3477,6 +3457,55 @@ static int disable_msi_reset_irq(struct azx *chip)
 	return 0;
 }
 
+/* DMA page allocation helpers.  */
+static int dma_alloc_pages(struct azx *chip,
+			   int type,
+			   size_t size,
+			   struct snd_dma_buffer *buf)
+{
+	int err;
+
+	err = snd_dma_alloc_pages(type,
+				  chip->card->dev,
+				  size, buf);
+	if (err < 0)
+		return err;
+	mark_pages_wc(chip, buf, true);
+	return 0;
+}
+
+static void dma_free_pages(struct azx *chip, struct snd_dma_buffer *buf)
+{
+	mark_pages_wc(chip, buf, false);
+	snd_dma_free_pages(buf);
+}
+
+static int substream_alloc_pages(struct azx *chip,
+				 struct snd_pcm_substream *substream,
+				 size_t size)
+{
+	struct azx_dev *azx_dev = get_azx_dev(substream);
+	int ret;
+
+	mark_runtime_wc(chip, azx_dev, substream, false);
+	azx_dev->bufsize = 0;
+	azx_dev->period_bytes = 0;
+	azx_dev->format_val = 0;
+	ret = snd_pcm_lib_malloc_pages(substream, size);
+	if (ret < 0)
+		return ret;
+	mark_runtime_wc(chip, azx_dev, substream, true);
+	return 0;
+}
+
+static int substream_free_pages(struct azx *chip,
+				struct snd_pcm_substream *substream)
+{
+	struct azx_dev *azx_dev = get_azx_dev(substream);
+	mark_runtime_wc(chip, azx_dev, substream, false);
+	return snd_pcm_lib_free_pages(substream);
+}
+
 static const struct hda_controller_ops pci_hda_ops = {
 	.writel = pci_azx_writel,
 	.readl = pci_azx_readl,
@@ -3485,6 +3514,10 @@ static const struct hda_controller_ops pci_hda_ops = {
 	.writeb = pci_azx_writeb,
 	.readb = pci_azx_readb,
 	.disable_msi_reset_irq = disable_msi_reset_irq,
+	.dma_alloc_pages = dma_alloc_pages,
+	.dma_free_pages = dma_free_pages,
+	.substream_alloc_pages = substream_alloc_pages,
+	.substream_free_pages = substream_free_pages,
 };
 
 static int azx_probe(struct pci_dev *pci,
