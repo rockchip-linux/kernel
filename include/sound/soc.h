@@ -1100,7 +1100,6 @@ struct soc_mreg_control {
 /* enumerated kcontrol */
 struct soc_enum {
 	unsigned short reg;
-	unsigned short reg2;
 	unsigned char shift_l;
 	unsigned char shift_r;
 	unsigned int items;
