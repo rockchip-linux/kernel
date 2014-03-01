@@ -72,6 +72,8 @@
 #define EDID_QUIRK_FORCE_8BPC			(1 << 8)
 /* The panel supports, but does not include a lower clocked mode for lvds */
 #define EDID_QUIRK_ADD_DOWNCLOCK_MODE           (1 << 9)
+/* The panel can reduce consumption with shorter blanking intervals */
+#define EDID_QUIRK_SHORT_BLANKING               (1 << 10)
 
 
 struct detailed_mode_closure {
@@ -143,6 +145,9 @@ static struct edid_quirk {
 	{ "AUO", 0x325c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
 	/* Lenovo B116XW03 */
 	{ "AUO", 0x315c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
+
+	/* CMN */
+	{ "CMN", 0x1132, EDID_QUIRK_SHORT_BLANKING },
 };
 
 static struct downclock_rate {
@@ -156,6 +161,17 @@ static struct downclock_rate {
 	{ "AUO", 0x325c, 46285 },
 	/* Lenovo B116XW03 */
 	{ "AUO", 0x315c, 46285 },
+};
+
+static struct short_blanking {
+	char *vendor;
+	int product_id;
+	int htotal;
+	int vtotal;
+	int clock;
+} short_blanking_list[] = {
+	/* CMN */
+	{ "CMN", 0x1132, 1512, 790, 71693 },
 };
 
 /*
@@ -1418,6 +1434,35 @@ static void edid_fixup_preferred(struct drm_connector *connector,
 	}
 
 	preferred_mode->type |= DRM_MODE_TYPE_PREFERRED;
+}
+
+static void edid_fixup_short_blanking(struct drm_connector *connector,
+				      struct edid *edid)
+{
+	struct drm_display_mode *cur_mode, *t;
+	struct short_blanking *fixup;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(short_blanking_list); i++) {
+		fixup = &short_blanking_list[i];
+
+		if (edid_vendor(edid, fixup->vendor) &&
+		    (EDID_PRODUCT_ID(edid) == fixup->product_id))
+			break;
+	}
+	if (i == ARRAY_SIZE(short_blanking_list))
+		return;
+
+	list_for_each_entry_safe(cur_mode, t, &connector->probed_modes, head) {
+		if (!(cur_mode->type & DRM_MODE_TYPE_PREFERRED))
+			continue;
+
+		cur_mode->clock = fixup->clock;
+		cur_mode->htotal = fixup->htotal;
+		cur_mode->vtotal = fixup->vtotal;
+		DRM_INFO("Modified preferred into a short blanking mode\n");
+		return;
+	}
 }
 
 static bool
@@ -3564,6 +3609,9 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 
 	if (quirks & (EDID_QUIRK_PREFER_LARGE_60 | EDID_QUIRK_PREFER_LARGE_75))
 		edid_fixup_preferred(connector, quirks);
+
+	if (quirks & EDID_QUIRK_SHORT_BLANKING)
+		edid_fixup_short_blanking(connector, edid);
 
 	if (quirks & EDID_QUIRK_ADD_DOWNCLOCK_MODE)
 		num_modes += edid_add_downclock(connector, edid);
