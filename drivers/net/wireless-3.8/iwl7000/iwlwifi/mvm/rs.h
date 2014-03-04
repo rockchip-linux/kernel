@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2003 - 2013 Intel Corporation. All rights reserved.
+ * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -277,7 +277,7 @@ enum rs_column {
 struct iwl_scale_tbl_info {
 	struct rs_rate rate;
 	enum rs_column column;
-	s32 *expected_tpt;	/* throughput metrics; expected_tpt_G, etc. */
+	const u16 *expected_tpt;	/* throughput metrics; expected_tpt_G, etc. */
 	struct iwl_rate_scale_data win[IWL_RATE_COUNT]; /* rate histories */
 };
 

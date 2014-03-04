@@ -5,7 +5,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2008 - 2013 Intel Corporation. All rights reserved.
+ * Copyright(c) 2008 - 2014 Intel Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,7 +30,7 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2005 - 2013 Intel Corporation. All rights reserved.
+ * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -266,9 +266,11 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 
 static void iwl_init_vht_hw_capab(const struct iwl_cfg *cfg,
 				  struct iwl_nvm_data *data,
-				  struct ieee80211_sta_vht_cap *vht_cap)
+				  struct ieee80211_sta_vht_cap *vht_cap,
+				  u8 tx_chains, u8 rx_chains)
 {
-	int num_ants = num_of_ant(data->valid_rx_ant);
+	int num_rx_ants = num_of_ant(rx_chains);
+	int num_tx_ants = num_of_ant(tx_chains);
 
 	vht_cap->vht_supported = true;
 
@@ -278,8 +280,10 @@ static void iwl_init_vht_hw_capab(const struct iwl_cfg *cfg,
 		       3 << IEEE80211_VHT_CAP_BEAMFORMEE_STS_SHIFT |
 		       7 << IEEE80211_VHT_CAP_MAX_A_MPDU_LENGTH_EXPONENT_SHIFT;
 
-	if (num_ants > 1)
+	if (num_tx_ants > 1)
 		vht_cap->cap |= IEEE80211_VHT_CAP_TXSTBC;
+	else
+		vht_cap->cap |= IEEE80211_VHT_CAP_TX_ANTENNA_PATTERN;
 
 	if (iwlwifi_mod_params.amsdu_size_8K)
 		vht_cap->cap |= IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_7991;
@@ -294,10 +298,8 @@ static void iwl_init_vht_hw_capab(const struct iwl_cfg *cfg,
 			    IEEE80211_VHT_MCS_NOT_SUPPORTED << 12 |
 			    IEEE80211_VHT_MCS_NOT_SUPPORTED << 14);
 
-	if (num_ants == 1 ||
-	    cfg->rx_with_siso_diversity) {
-		vht_cap->cap |= IEEE80211_VHT_CAP_RX_ANTENNA_PATTERN |
-				IEEE80211_VHT_CAP_TX_ANTENNA_PATTERN;
+	if (num_rx_ants == 1 || cfg->rx_with_siso_diversity) {
+		vht_cap->cap |= IEEE80211_VHT_CAP_RX_ANTENNA_PATTERN;
 		/* this works because NOT_SUPPORTED == 3 */
 		vht_cap->vht_mcs.rx_mcs_map |=
 			cpu_to_le16(IEEE80211_VHT_MCS_NOT_SUPPORTED << 2);
@@ -333,7 +335,8 @@ static void iwl_init_sbands(struct device *dev, const struct iwl_cfg *cfg,
 	iwl_init_ht_hw_capab(cfg, data, &sband->ht_cap, IEEE80211_BAND_5GHZ,
 			     tx_chains, rx_chains);
 	if (enable_vht)
-		iwl_init_vht_hw_capab(cfg, data, &sband->vht_cap);
+		iwl_init_vht_hw_capab(cfg, data, &sband->vht_cap,
+				      tx_chains, rx_chains);
 
 	if (n_channels != n_used)
 		IWL_ERR_DEV(dev, "NVM: used only %d of %d channels\n",
