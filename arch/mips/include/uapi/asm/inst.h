@@ -73,6 +73,7 @@ enum spec2_op {
 enum spec3_op {
 	ext_op, dextm_op, dextu_op, dext_op,
 	ins_op, dinsm_op, dinsu_op, dins_op,
+	yield_op  = 0x09,
 	lx_op = 0x0a,
 	bshfl_op = 0x20,
 	dbshfl_op = 0x24,
