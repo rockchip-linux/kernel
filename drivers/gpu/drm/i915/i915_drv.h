@@ -900,6 +900,12 @@ struct i915_suspend_saved_registers {
 	u32 savePCH_PORT_HOTPLUG;
 };
 
+struct intel_rps_ei_calc {
+	u32 cz_ts_ei;
+	u32 render_ei_c0;
+	u32 media_ei_c0;
+};
+
 struct intel_gen6_power_mgmt {
 	/* work and pm_iir are protected by dev_priv->irq_lock */
 	struct work_struct work;
@@ -914,9 +920,15 @@ struct intel_gen6_power_mgmt {
 	u8 rp1_delay;
 	u8 rp0_delay;
 	u8 hw_max;
+	u8 hw_min;
 
 	bool rp_up_masked;
 	bool rp_down_masked;
+
+	u32 cz_freq;
+	u32 ei_interrupt_count;
+
+	bool use_RC0_residency_for_turbo;
 
 	int last_adj;
 	enum { LOW_POWER, BETWEEN, HIGH_POWER } power;
@@ -1478,6 +1490,13 @@ typedef struct drm_i915_private {
 
 	/* gen6+ rps state */
 	struct intel_gen6_power_mgmt rps;
+
+	/* rps wa up ei calculation */
+	struct intel_rps_ei_calc rps_up_ei;
+
+	/* rps wa down ei calculation */
+	struct intel_rps_ei_calc rps_down_ei;
+
 
 	/* ilk-only ips/rps state. Everything in here is protected by the global
 	 * mchdev_lock in intel_pm.c */
