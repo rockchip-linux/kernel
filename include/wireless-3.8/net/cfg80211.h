@@ -3050,7 +3050,7 @@ void cfg80211_sched_scan_stopped(struct wiphy *wiphy);
  * cfg80211_inform_bss_frame - inform cfg80211 of a received BSS frame
  *
  * @wiphy: the wiphy reporting the BSS
- * @channel: The channel the frame was received on
+ * @rx_channel: The channel the frame was received on
  * @mgmt: the management frame (probe response or beacon)
  * @len: length of the management frame
  * @signal: the signal strength, type depends on the wiphy's signal_type
@@ -3063,7 +3063,7 @@ void cfg80211_sched_scan_stopped(struct wiphy *wiphy);
  */
 struct cfg80211_bss * __must_check
 cfg80211_inform_bss_frame(struct wiphy *wiphy,
-			  struct ieee80211_channel *channel,
+			  struct ieee80211_channel *rx_channel,
 			  struct ieee80211_mgmt *mgmt, size_t len,
 			  s32 signal, gfp_t gfp);
 
@@ -3071,7 +3071,7 @@ cfg80211_inform_bss_frame(struct wiphy *wiphy,
  * cfg80211_inform_bss - inform cfg80211 of a new BSS
  *
  * @wiphy: the wiphy reporting the BSS
- * @channel: The channel the frame was received on
+ * @rx_channel: The channel the frame was received on
  * @bssid: the BSSID of the BSS
  * @tsf: the TSF sent by the peer in the beacon/probe response (or 0)
  * @capability: the capability field sent by the peer
@@ -3088,7 +3088,7 @@ cfg80211_inform_bss_frame(struct wiphy *wiphy,
  */
 struct cfg80211_bss * __must_check
 cfg80211_inform_bss(struct wiphy *wiphy,
-		    struct ieee80211_channel *channel,
+		    struct ieee80211_channel *rx_channel,
 		    const u8 *bssid, u64 tsf, u16 capability,
 		    u16 beacon_interval, const u8 *ie, size_t ielen,
 		    s32 signal, gfp_t gfp);
