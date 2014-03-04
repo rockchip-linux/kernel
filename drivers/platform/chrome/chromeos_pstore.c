@@ -83,7 +83,7 @@ static struct platform_device chromeos_ramoops = {
 };
 
 #ifdef CONFIG_ACPI
-static struct acpi_device_id cros_ramoops_acpi_match[] __initdata = {
+static const struct acpi_device_id cros_ramoops_acpi_match[] = {
 	{ "GOOG9999", 0 },
 	{ }
 };
