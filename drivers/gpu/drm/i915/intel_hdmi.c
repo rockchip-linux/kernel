@@ -1273,6 +1273,8 @@ void intel_hdmi_init_connector(struct intel_digital_port *intel_dig_port,
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
 	drm_sysfs_connector_add(connector);
 
+	intel_i2c_register(dev, connector, intel_hdmi->ddc_bus);
+
 	/* For G4X desktop chip, PEG_BAND_GAP_DATA 3:0 must first be written
 	 * 0xd.  Failure to do so will result in spurious interrupts being
 	 * generated on the port when a cable is not attached.

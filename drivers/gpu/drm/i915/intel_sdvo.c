@@ -2400,6 +2400,9 @@ intel_sdvo_connector_init(struct intel_sdvo_connector *connector,
 
 	intel_connector_attach_encoder(&connector->base, &encoder->base);
 	drm_sysfs_connector_add(&connector->base.base);
+
+	intel_i2c_register(encoder->base.base.dev, &connector->base.base,
+			   encoder->ddc_bus);
 }
 
 static void

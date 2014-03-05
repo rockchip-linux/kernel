@@ -2396,6 +2396,9 @@ static inline bool intel_gmbus_is_port_valid(unsigned port)
 {
 	return (port >= GMBUS_PORT_SSC && port <= GMBUS_PORT_DPD);
 }
+extern void intel_i2c_register(struct drm_device *dev,
+			       struct drm_connector *connector,
+			       int ddc_bus);
 
 extern struct i2c_adapter *intel_gmbus_get_adapter(
 		struct drm_i915_private *dev_priv, unsigned port);

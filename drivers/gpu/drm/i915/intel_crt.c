@@ -838,6 +838,8 @@ void intel_crt_init(struct drm_device *dev)
 
 	drm_sysfs_connector_add(connector);
 
+	intel_i2c_register(dev, connector, dev_priv->vbt.crt_ddc_pin);
+
 	if (!I915_HAS_HOTPLUG(dev))
 		intel_connector->polled = DRM_CONNECTOR_POLL_CONNECT;
 
