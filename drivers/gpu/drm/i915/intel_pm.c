@@ -4824,8 +4824,8 @@ static void gen8_init_clock_gating(struct drm_device *dev)
 	/* WaPsrDPRSUnmaskVBlankInSRD:bdw */
 	for_each_pipe(i) {
 		I915_WRITE(CHICKEN_PIPESL_1(i),
-			   I915_READ(CHICKEN_PIPESL_1(i) |
-				     DPRS_MASK_VBLANK_SRD));
+			   I915_READ(CHICKEN_PIPESL_1(i)) |
+			   DPRS_MASK_VBLANK_SRD);
 	}
 
 	/* Use Force Non-Coherent whenever executing a 3D context. This is a
