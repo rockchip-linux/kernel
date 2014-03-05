@@ -13,7 +13,7 @@ if [ ! -f MAINTAINERS ] || [ ! -f Makefile ]; then
 fi
 
 mode=${1:?"Usage: $0 [oldconfig|editconfig]"}
-case "$mode" in
+case "${mode}" in
     oldconfig)  ;; # All is good
     editconfig) ;; # All is good
     genconfig)  ;; # All is good
@@ -21,13 +21,13 @@ case "$mode" in
        exit 1 ;;
 esac
 kerneldir="`pwd`"
-confdir="$kerneldir/chromeos/config"
+confdir="${kerneldir}/chromeos/config"
 archs="x86_64 i386 armel"
 bindir="`pwd`/chromeos/scripts"
-base_conf="$confdir/base.config"
+base_conf="${confdir}/base.config"
 tmpdir=`mktemp -d`
 
-if [ "$mode" = "genconfig" ]; then
+if [ "${mode}" = "genconfig" ]; then
 	keep=1
 	mode="oldconfig"
 	test -d CONFIGS || mkdir CONFIGS
@@ -35,80 +35,80 @@ fi
 
 test -d build || mkdir build
 
-for arch in $archs; do
+for arch in ${archs}; do
 	# Map debian archs to kernel archs
-	case "$arch" in
+	case "${arch}" in
 		amd64)	kernarch="x86_64"	;;
 		lpia)   kernarch="x86" ;;
 		sparc)	kernarch="sparc64"	;;
 		armel)  kernarch="arm" ;;
-		*)	kernarch="$arch"	;;
+		*)	kernarch="${arch}"	;;
 	esac
 
 	echo ""
 	echo "***************************************"
-	echo "* Processing $arch ($kernarch) ... "
-	archconfdir=$confdir/$arch
-	flavourconfigs=$(cd $archconfdir && ls *.flavour.config)
+	echo "* Processing ${arch} (${kernarch}) ... "
+	archconfdir=${confdir}/${arch}
+	flavourconfigs=$(cd ${archconfdir} && ls *.flavour.config)
 
 	# Merge configs
 	# We merge base.config + common.config + <flavour>.flavour.config
 
-	for config in $flavourconfigs; do
-		fullconf="$tmpdir/$arch-$config-full"
-		cp $base_conf "$fullconf"
-		cat $archconfdir/common.config >> "$fullconf"
-		cat $archconfdir/$config >> "$fullconf"
+	for config in ${flavourconfigs}; do
+		fullconf="${tmpdir}/${arch}-${config}-full"
+		cp ${base_conf} "${fullconf}"
+		cat ${archconfdir}/common.config >> "${fullconf}"
+		cat ${archconfdir}/${config} >> "${fullconf}"
 	done
 
-	for config in $flavourconfigs; do
-		fullconf="$tmpdir/$arch-$config-full"
-		mv "$fullconf" build/.config
+	for config in ${flavourconfigs}; do
+		fullconf="${tmpdir}/${arch}-${config}-full"
+		mv "${fullconf}" build/.config
 		# Call oldconfig or menuconfig
-		case "$mode" in
+		case "${mode}" in
 		    oldconfig)
 			# Weed out incorrect config parameters
-			echo "* Run silentoldconfig on $arch/$config ..."
-			make O=`pwd`/build ARCH=$kernarch silentoldconfig ;;
+			echo "* Run silentoldconfig on ${arch}/${config} ..."
+			make O=`pwd`/build ARCH=${kernarch} silentoldconfig ;;
 		    editconfig)
 			# Interactively edit config parameters
-			echo "* $arch/$config: press <Enter> to edit, S to skip"
+			echo "* ${arch}/${config}: press <Enter> to edit, S to skip"
 			read -s -n 1
-			if [ $REPLY = 's' -o $REPLY = 'S' ]; then
+			if [ ${REPLY} = 's' -o ${REPLY} = 'S' ]; then
 			    echo "* Skip: running silentoldconfig"
-			    make O=`pwd`/build ARCH=$kernarch silentoldconfig
+			    make O=`pwd`/build ARCH=${kernarch} silentoldconfig
 			else
 			    echo "* Running menuconfig"
-			    make O=`pwd`/build ARCH=$kernarch menuconfig
+			    make O=`pwd`/build ARCH=${kernarch} menuconfig
 			fi ;;
 		    *)  # Bad!
 			exit 1 ;;
 		esac
-		cat build/.config > $archconfdir/$config
-		if [ "$keep" = "1" ]; then
-			make O=`pwd`/build ARCH=$kernarch oldconfig
-			make O=`pwd`/build ARCH=$kernarch savedefconfig
-			mv build/.config CONFIGS/$arch-$config
-			mv build/defconfig CONFIGS/$arch-$config.def
+		cat build/.config > ${archconfdir}/${config}
+		if [ "${keep}" = "1" ]; then
+			make O=`pwd`/build ARCH=${kernarch} oldconfig
+			make O=`pwd`/build ARCH=${kernarch} savedefconfig
+			mv build/.config CONFIGS/${arch}-${config}
+			mv build/defconfig CONFIGS/${arch}-${config}.def
 		fi
 	done
 
-	echo "Running splitconfig for $arch"
+	echo "Running splitconfig for ${arch}"
 	echo
 
 	# Can we make this more robust by avoiding $tmpdir completely?
 	# This approach was used for now because I didn't want to change
 	# splitconfig
-	(cd $archconfdir; rm common.config; $bindir/splitconfig; \
-	    mv common.config $tmpdir/$arch.config)
+	(cd ${archconfdir}; rm common.config; ${bindir}/splitconfig; \
+	    mv common.config ${tmpdir}/${arch}.config)
 done
 
 # Now run splitconfig on all the <arch>.common.config copied to
 # $tmpdir
-(cd $tmpdir; $bindir/splitconfig)
-mv $tmpdir/common.config $base_conf
-for arch in $archs; do
-	mv $tmpdir/$arch.config $confdir/$arch/common.config
+(cd ${tmpdir}; ${bindir}/splitconfig)
+mv ${tmpdir}/common.config ${base_conf}
+for arch in ${archs}; do
+	mv ${tmpdir}/${arch}.config ${confdir}/${arch}/common.config
 done
 
-rm -rf $tmpdir
+rm -rf ${tmpdir}
