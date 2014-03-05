@@ -70,7 +70,9 @@ u32 iwl_read_direct32(struct iwl_trans *trans, u32 reg);
 void iwl_write_direct32(struct iwl_trans *trans, u32 reg, u32 value);
 
 
+u32 __iwl_read_prph(struct iwl_trans *trans, u32 ofs);
 u32 iwl_read_prph(struct iwl_trans *trans, u32 ofs);
+void __iwl_write_prph(struct iwl_trans *trans, u32 ofs, u32 val);
 void iwl_write_prph(struct iwl_trans *trans, u32 ofs, u32 val);
 void iwl_set_bits_prph(struct iwl_trans *trans, u32 ofs, u32 mask);
 void iwl_set_bits_mask_prph(struct iwl_trans *trans, u32 ofs,

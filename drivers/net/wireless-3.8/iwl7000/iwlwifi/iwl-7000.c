@@ -131,6 +131,7 @@ const struct iwl_cfg iwl7260_2ac_cfg = {
 	.nvm_ver = IWL7260_NVM_VERSION,
 	.nvm_calib_ver = IWL7260_TX_POWER_VERSION,
 	.host_interrupt_operation_mode = true,
+	.lp_xtal_workaround = true,
 };
 
 const struct iwl_cfg iwl7260_2ac_cfg_high_temp = {
@@ -142,6 +143,7 @@ const struct iwl_cfg iwl7260_2ac_cfg_high_temp = {
 	.nvm_calib_ver = IWL7260_TX_POWER_VERSION,
 	.high_temp = true,
 	.host_interrupt_operation_mode = true,
+	.lp_xtal_workaround = true,
 };
 
 const struct iwl_cfg iwl7260_2n_cfg = {
@@ -152,6 +154,7 @@ const struct iwl_cfg iwl7260_2n_cfg = {
 	.nvm_ver = IWL7260_NVM_VERSION,
 	.nvm_calib_ver = IWL7260_TX_POWER_VERSION,
 	.host_interrupt_operation_mode = true,
+	.lp_xtal_workaround = true,
 };
 
 const struct iwl_cfg iwl7260_n_cfg = {
@@ -162,6 +165,7 @@ const struct iwl_cfg iwl7260_n_cfg = {
 	.nvm_ver = IWL7260_NVM_VERSION,
 	.nvm_calib_ver = IWL7260_TX_POWER_VERSION,
 	.host_interrupt_operation_mode = true,
+	.lp_xtal_workaround = true,
 };
 
 const struct iwl_cfg iwl3160_2ac_cfg = {

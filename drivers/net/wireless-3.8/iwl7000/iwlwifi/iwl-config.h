@@ -250,6 +250,7 @@ struct iwl_cfg {
 	const bool host_interrupt_operation_mode;
 	bool high_temp;
 	bool d0i3;
+	bool lp_xtal_workaround;
 };
 
 /*
