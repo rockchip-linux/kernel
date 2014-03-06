@@ -309,11 +309,10 @@ static int byt_enable_shim(struct sst_dsp *sst)
 //	writel(reg & ~0x3, sst->addr.pci_cfg + 0x84);
 
 	/* check that ADSP shim is enabled */
+	mdelay(10);
 	while (tries--) {
 		reg = sst_dsp_shim_read_unlocked(sst, SST_CSR);
 		if (reg != 0xffffffff) {
-
-			mdelay(10);
 
 			/* enable Interrupt from both sides */
 			sst_dsp_shim_update_bits64(sst, SST_IMRX, 0x3, 0x0);
