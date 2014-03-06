@@ -36,7 +36,7 @@ static inline struct snd_soc_codec *byt_get_codec(struct snd_soc_card *card)
 	struct snd_soc_codec *codec;
 
 	list_for_each_entry(codec, &card->codec_dev_list, card_list) {
-		if (!strstr(codec->name, "i2c-193C9890:00")) {
+		if (!strstr(codec->name, "max98090.1-0010")) {
 			pr_debug("codec was %s", codec->name);
 			continue;
 		} else {
@@ -213,7 +213,7 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.stream_name = "Audio",
 		.cpu_dai_name = "Front-cpu-dai",
 		.codec_dai_name = "HiFi",
-		.codec_name = "i2c-193C9890:00",
+		.codec_name = "max98090.1-0010",
 		.platform_name = "baytrail-pcm-audio",
 		.init = byt_init,
 		.ignore_suspend = 1,
@@ -224,7 +224,7 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.stream_name = "Voice",
 		.cpu_dai_name = "Mic1-cpu-dai",
 		.codec_dai_name = "HiFi",
-		.codec_name = "i2c-193C9890:00",
+		.codec_name = "max98090.1-0010",
 		.platform_name = "baytrail-pcm-audio",
 		.init = NULL,
 		.ignore_suspend = 1,
