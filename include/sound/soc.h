@@ -472,6 +472,7 @@ int snd_soc_jack_add_gpiods(struct device *gpiod_dev,
 			    int count, struct snd_soc_jack_gpio *gpios);
 void snd_soc_jack_free_gpios(struct snd_soc_jack *jack, int count,
 			struct snd_soc_jack_gpio *gpios);
+void snd_soc_jack_gpio_detect(struct snd_soc_jack_gpio *gpio);
 #else
 static inline int snd_soc_jack_add_gpios(struct snd_soc_jack *jack, int count,
 					 struct snd_soc_jack_gpio *gpios)
@@ -489,6 +490,10 @@ static inline int snd_soc_jack_add_gpiods(struct device *gpiod_dev,
 
 static inline void snd_soc_jack_free_gpios(struct snd_soc_jack *jack, int count,
 					   struct snd_soc_jack_gpio *gpios)
+{
+}
+
+void snd_soc_jack_gpio_detect(struct snd_soc_jack_gpio *gpio)
 {
 }
 #endif
