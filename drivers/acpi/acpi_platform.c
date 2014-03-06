@@ -38,7 +38,7 @@ static const struct acpi_device_id acpi_platform_device_ids[] = {
 	{ "80860F28" },
 
 	{ "GOOG9999" },
-
+	{ "80860F28" },
 	{ }
 };
 
