@@ -126,7 +126,9 @@ void __init tegra_super_clk_gen4_init(void __iomem *clk_base,
 
 	tegra_sclk_init(clk_base, tegra_clks);
 
-#if defined(CONFIG_ARCH_TEGRA_114_SOC) || defined(CONFIG_ARCH_TEGRA_124_SOC)
+#if defined(CONFIG_ARCH_TEGRA_114_SOC) || \
+	defined(CONFIG_ARCH_TEGRA_124_SOC) || \
+	defined(CONFIG_ARCH_TEGRA_132_SOC)
 	/* PLLX */
 	dt_clk = tegra_lookup_dt_id(tegra_clk_pll_x, tegra_clks);
 	if (!dt_clk)
