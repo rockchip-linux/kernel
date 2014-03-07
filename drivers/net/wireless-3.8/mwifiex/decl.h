@@ -28,6 +28,14 @@
 #include <linux/ieee80211.h>
 #include <net/mac80211.h>
 
+/* This block adds some macros defined in cfg80211 after kernel
+ * v3.8. This makes backports work without touching any code in
+ * wireless-3.8 stack.
+ */
+#ifndef WLAN_EID_OPMODE_NOTIF
+#define WLAN_EID_OPMODE_NOTIF		199
+#endif
+/* end of cfg80211 definitions */
 
 #define MWIFIEX_MAX_BSS_NUM         (3)
 
