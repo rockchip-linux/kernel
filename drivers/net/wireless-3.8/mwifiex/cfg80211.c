@@ -1161,6 +1161,18 @@ static int mwifiex_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 	if (priv->adapter->hw_dev_mcs_support == HT_STREAM_2X2)
 		bitmap_rates[2] |= mask->control[band].mcs[1] << 8;
 
+	/* cfg80211 doesn't provide MCS mask for VHT in kernel v3.8 yet.
+	 * Let's fill all VHT MCS rates if HT MCS is present.
+	 */
+	if (priv->adapter->fw_api_ver == MWIFIEX_FW_V15 &&
+	    (mask->control[band].mcs[0] || mask->control[band].mcs[1])) {
+		/* Enable MCS0 to MCS9 for NSS 1 */
+		bitmap_rates[10] = 0x3FF;
+		if (priv->adapter->hw_dev_mcs_support == HT_STREAM_2X2)
+			/* Enable MCS0 to MCS9 for NSS 2 */
+			bitmap_rates[11] = 0x3FF;
+	}
+
 	return mwifiex_send_cmd(priv, HostCmd_CMD_TX_RATE_CFG,
 				HostCmd_ACT_GEN_SET, 0, bitmap_rates, true);
 }
