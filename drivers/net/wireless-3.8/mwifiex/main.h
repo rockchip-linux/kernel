@@ -747,6 +747,7 @@ struct mwifiex_adapter {
 
 	atomic_t is_tx_received;
 	atomic_t pending_bridged_pkts;
+	u8 fw_api_ver;
 };
 
 int mwifiex_init_lock_list(struct mwifiex_adapter *adapter);

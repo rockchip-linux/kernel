@@ -445,6 +445,8 @@ enum P2P_MODES {
 #define EVENT_GET_BSS_TYPE(event_cause)         \
 	(((event_cause) >> 24) & 0x00ff)
 
+#define MWIFIEX_FW_V15		   15
+
 struct mwifiex_ie_types_header {
 	__le16 type;
 	__le16 len;
