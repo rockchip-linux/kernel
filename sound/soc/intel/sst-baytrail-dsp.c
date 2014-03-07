@@ -301,34 +301,22 @@ static int sst_byt_resource_map(struct sst_dsp *sst, struct sst_pdata *pdata)
 
 static int byt_enable_shim(struct sst_dsp *sst)
 {
-	int tries = 10;
-	u32 reg;
+	/* enable shim - do dummy read */
+	writel(0, sst->addr.pci_cfg + 0x84);
+	dev_err(sst->dev, "PMCS read 0x%x\n", readl(sst->addr.pci_cfg + 0x84));
 
-	/* enable shim */
-//	reg = readl(sst->addr.pci_cfg + 0x84);
-//	writel(reg & ~0x3, sst->addr.pci_cfg + 0x84);
+	/* make sure that ADSP shim is enabled */
+	mdelay(11);
 
-	/* check that ADSP shim is enabled */
-	mdelay(10);
-	while (tries--) {
-		reg = sst_dsp_shim_read_unlocked(sst, SST_CSR);
-		if (reg != 0xffffffff) {
+	/* enable Interrupt from both sides */
+	sst_dsp_shim_update_bits64(sst, SST_IMRX, 0x3, 0x0);
+	sst_dsp_shim_update_bits64(sst, SST_IMRD, 0x3, 0x0);
 
-			/* enable Interrupt from both sides */
-			sst_dsp_shim_update_bits64(sst, SST_IMRX, 0x3, 0x0);
-			sst_dsp_shim_update_bits64(sst, SST_IMRD, 0x3, 0x0);
+	sst_dsp_shim_update_bits64(sst, 0x10, 0x20, 0x0); /* unMask SSP2 */
+	sst_dsp_shim_update_bits64(sst, 0x78, 0x7, 0x5); /* 200MHz */
 
-			sst_dsp_shim_update_bits64(sst, 0x10, 0x20, 0x0); // unMask SSP2
-			sst_dsp_shim_update_bits64(sst, 0x78, 0x7, 0x5); // 200MHz
-
-			sst_byt_dump_shim(sst);
-			return 0;
-		}
-		msleep(1);
-	}
-
-	dev_err(sst->dev, "shim not available\n");
-	return -ENODEV;
+	sst_byt_dump_shim(sst);
+	return 0;
 }
 
 int sst_byt_d0(struct sst_dsp *sst)
