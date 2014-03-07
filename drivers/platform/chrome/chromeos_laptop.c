@@ -36,11 +36,9 @@
 #define ATMEL_TS_I2C_ADDR	0x4a
 #define ATMEL_TS_I2C_BL_ADDR	0x26
 #define CYAPA_TP_I2C_ADDR	0x67
-#define ELAN_TP_I2C_ADDR	0x15
 #define ISL_ALS_I2C_ADDR	0x44
 #define TAOS_ALS_I2C_ADDR	0x29
 #define PN544_HCI_I2C_ADDR	0x28
-#define MAX98090_ADDR		0x10
 
 #define MAX_I2C_DEVICE_DEFERRALS	5
 
@@ -56,11 +54,6 @@ static const char *i2c_adapter_names[] = {
 	"i915 gmbus panel",
 	"i2c-designware-pci-0",
 	"i2c-designware-pci-1",
-	"i2c-designware-pci-2",
-	"i2c-designware-pci-3",
-	"i2c-designware-pci-4",
-	"i2c-designware-pci-5",
-	"i2c-designware-pci-6",
 };
 
 /* Keep this enum consistent with i2c_adapter_names */
@@ -70,11 +63,6 @@ enum i2c_adapter_type {
 	I2C_ADAPTER_PANEL,
 	I2C_ADAPTER_I2C0,
 	I2C_ADAPTER_I2C1,
-	I2C_ADAPTER_I2C2,
-	I2C_ADAPTER_I2C3,
-	I2C_ADAPTER_I2C4,
-	I2C_ADAPTER_I2C5,
-	I2C_ADAPTER_I2C6,
 };
 
 enum i2c_peripheral_state {
@@ -104,11 +92,6 @@ static struct i2c_board_info cyapa_device = {
 	.flags		= I2C_CLIENT_WAKE,
 };
 
-static struct i2c_board_info elantech_device = {
-	I2C_BOARD_INFO("elan_i2c", ELAN_TP_I2C_ADDR),
-	.flags		= I2C_CLIENT_WAKE,
-};
-
 static struct i2c_board_info isl_als_device = {
 	I2C_BOARD_INFO("isl29018", ISL_ALS_I2C_ADDR),
 };
@@ -129,16 +112,6 @@ static struct i2c_board_info atmel_224s_tp_device = {
 static struct i2c_board_info atmel_1664s_device = {
 	I2C_BOARD_INFO("atmel_mxt_ts", ATMEL_TS_I2C_ADDR),
 	.flags		= I2C_CLIENT_WAKE,
-};
-
-static struct i2c_board_info atmel_1664t_device = {
-	I2C_BOARD_INFO("atmel_mxt_ts", ATMEL_TP_I2C_ADDR),
-	.platform_data = NULL,
-	.flags      = I2C_CLIENT_WAKE,
-};
-
-static struct i2c_board_info max98090_device = {
-	I2C_BOARD_INFO("max98090", MAX98090_ADDR),
 };
 
 static int nfc_gpio_enable = -1;
@@ -375,16 +348,6 @@ static int setup_atmel_224s_tp(enum i2c_adapter_type type)
 	return (!tp) ? -EAGAIN : 0;
 }
 
-static int setup_elantech_tp(enum i2c_adapter_type type)
-{
-	if (tp)
-		return 0;
-
-	/* add elantech touchpad */
-	tp = add_i2c_device("trackpad", type, &elantech_device);
-	return (!tp) ? -EAGAIN : 0;
-}
-
 static int setup_atmel_1664s_ts(enum i2c_adapter_type type)
 {
 	const unsigned short addr_list[] = { ATMEL_TS_I2C_BL_ADDR,
@@ -396,20 +359,6 @@ static int setup_atmel_1664s_ts(enum i2c_adapter_type type)
 	/* add atmel mxt touch device */
 	ts = add_probed_i2c_device("touchscreen", type,
 				   &atmel_1664s_device, addr_list);
-	return (!ts) ? -EAGAIN : 0;
-}
-
-static int setup_atmel_1664t_ts(enum i2c_adapter_type type)
-{
-	const unsigned short addr_list[] = { ATMEL_TS_I2C_BL_ADDR,
-					     ATMEL_TS_I2C_ADDR,
-					     I2C_CLIENT_END };
-	if (ts)
-		return 0;
-
-	/* add atmel mxt touch device */
-	ts = add_probed_i2c_device("touchscreen", type,
-				   &atmel_1664t_device, addr_list);
 	return (!ts) ? -EAGAIN : 0;
 }
 
@@ -440,16 +389,6 @@ static int setup_atmel_samus_ts(enum i2c_adapter_type type)
 	ts = add_probed_i2c_device("touchscreen", type,
 				   &atmel_samus_device, addr_list);
 	return (!ts) ? -EAGAIN : 0;
-}
-
-static int setup_max98090_codec(enum i2c_adapter_type type)
-{
-	if (codec)
-		return 0;
-
-	/* add max98090 codec */
-	codec = add_i2c_device(NULL, type, &max98090_device);
-	return (!codec) ? -EAGAIN : 0;
 }
 
 static int setup_isl29018_als(enum i2c_adapter_type type)
@@ -681,50 +620,6 @@ static struct chromeos_laptop samus = {
 	.has_keyboard_backlight = true,
 };
 
-static struct chromeos_laptop rambi = {
-	.i2c_peripherals = {
-		/* Touchpad. */
-		{ .add = setup_atmel_224s_tp, I2C_ADAPTER_I2C0 },
-		/* Elan Touchpad. */
-		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
-		/* Touchscreen. */
-		{ .add = setup_atmel_1664s_ts, I2C_ADAPTER_I2C5 },
-		/* Audio Codec */
-		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
-	},
-};
-
-static struct chromeos_laptop squawks = {
-	.i2c_peripherals = {
-		/* Elan Touchpad. */
-		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
-		/* Audio Codec */
-		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
-	},
-};
-
-static struct chromeos_laptop glimmer = {
-	.i2c_peripherals = {
-		/* Elan Touchpad. */
-		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
-		/* Touchscreen. */
-		{ .add = setup_atmel_1664t_ts, I2C_ADAPTER_I2C5 },
-		/* Audio Codec */
-		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
-	},
-};
-
-static struct chromeos_laptop clapper = {
-	.i2c_peripherals = {
-		/* Elan Touchpad. */
-		{ .add = setup_elantech_tp, I2C_ADAPTER_I2C0 },
-		/* Touchscreen. */
-		{ .add = setup_atmel_1664t_ts, I2C_ADAPTER_I2C5 },
-		/* Audio Codec */
-		{ .add = setup_max98090_codec, I2C_ADAPTER_I2C1 },
-	},
-};
-
 #define _CBDD(board_) \
 	.callback = chromeos_laptop_dmi_matched, \
 	.driver_data = (void *)&board_
@@ -836,38 +731,6 @@ static struct dmi_system_id chromeos_laptop_dmi_table[] __initdata = {
 			DMI_MATCH(DMI_PRODUCT_NAME, "Samus"),
 		},
 		_CBDD(samus),
-	},
-	{
-		.ident = "Rambi",
-		.matches = {
-			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Rambi"),
-		},
-		_CBDD(rambi),
-	},
-	{
-		.ident = "Squawks",
-		.matches = {
-			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Squawks"),
-		},
-		_CBDD(squawks),
-	},
-	{
-		.ident = "Glimmer",
-		.matches = {
-			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Glimmer"),
-		},
-		_CBDD(glimmer),
-	},
-	{
-		.ident = "Clapper",
-		.matches = {
-			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
-			DMI_MATCH(DMI_PRODUCT_NAME, "Clapper"),
-		},
-		_CBDD(clapper),
 	},
 	{ }
 };
