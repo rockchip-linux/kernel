@@ -401,8 +401,6 @@ static int msm_gpio_direction_input(struct gpio_chip *chip, unsigned offset)
 	u32 val;
 
 	g = &pctrl->soc->groups[offset];
-	if (WARN_ON(g->io_reg < 0))
-		return -EINVAL;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
@@ -423,8 +421,6 @@ static int msm_gpio_direction_output(struct gpio_chip *chip, unsigned offset, in
 	u32 val;
 
 	g = &pctrl->soc->groups[offset];
-	if (WARN_ON(g->io_reg < 0))
-		return -EINVAL;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
@@ -451,8 +447,6 @@ static int msm_gpio_get(struct gpio_chip *chip, unsigned offset)
 	u32 val;
 
 	g = &pctrl->soc->groups[offset];
-	if (WARN_ON(g->io_reg < 0))
-		return -EINVAL;
 
 	val = readl(pctrl->regs + g->io_reg);
 	return !!(val & BIT(g->in_bit));
@@ -466,8 +460,6 @@ static void msm_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 	u32 val;
 
 	g = &pctrl->soc->groups[offset];
-	if (WARN_ON(g->io_reg < 0))
-		return;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
@@ -616,8 +608,6 @@ static void msm_gpio_irq_mask(struct irq_data *d)
 
 	pctrl = irq_data_get_irq_chip_data(d);
 	g = &pctrl->soc->groups[d->hwirq];
-	if (WARN_ON(g->intr_cfg_reg < 0))
-		return;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
@@ -639,8 +629,6 @@ static void msm_gpio_irq_unmask(struct irq_data *d)
 
 	pctrl = irq_data_get_irq_chip_data(d);
 	g = &pctrl->soc->groups[d->hwirq];
-	if (WARN_ON(g->intr_status_reg < 0))
-		return;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
@@ -666,8 +654,6 @@ static void msm_gpio_irq_ack(struct irq_data *d)
 
 	pctrl = irq_data_get_irq_chip_data(d);
 	g = &pctrl->soc->groups[d->hwirq];
-	if (WARN_ON(g->intr_status_reg < 0))
-		return;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
@@ -692,8 +678,6 @@ static int msm_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 
 	pctrl = irq_data_get_irq_chip_data(d);
 	g = &pctrl->soc->groups[d->hwirq];
-	if (WARN_ON(g->intr_cfg_reg < 0))
-		return -EINVAL;
 
 	spin_lock_irqsave(&pctrl->lock, flags);
 
