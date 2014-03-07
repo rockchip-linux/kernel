@@ -64,6 +64,20 @@ int mwifiex_cmd_amsdu_aggr_ctrl(struct host_cmd_ds_command *cmd,
 				struct mwifiex_ds_11n_amsdu_aggr_ctrl *aa_ctrl);
 void mwifiex_del_tx_ba_stream_tbl_by_ra(struct mwifiex_private *priv, u8 *ra);
 
+/* This function checks whether AMSDU is allowed for BA stream. */
+static inline u8
+mwifiex_is_amsdu_in_ampdu_allowed(struct mwifiex_private *priv,
+				  struct mwifiex_ra_list_tbl *ptr, int tid)
+{
+	struct mwifiex_tx_ba_stream_tbl *tx_tbl;
+
+	tx_tbl = mwifiex_get_ba_tbl(priv, tid, ptr->ra);
+	if (tx_tbl)
+		return tx_tbl->amsdu;
+
+	return false;
+}
+
 /*
  * This function checks whether AMPDU is allowed or not for a particular TID.
  */
