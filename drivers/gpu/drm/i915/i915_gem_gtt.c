@@ -359,6 +359,7 @@ static void gen8_ppgtt_cleanup(struct i915_address_space *vm)
  **/
 static int gen8_ppgtt_init(struct i915_hw_ppgtt *ppgtt, uint64_t size)
 {
+	struct drm_i915_private *dev_priv = ppgtt->base.dev->dev_private;
 	struct page *pt_pages;
 	int i, j, ret = -ENOMEM;
 	const int max_pdp = DIV_ROUND_UP(size, 1 << 30);
@@ -389,6 +390,7 @@ static int gen8_ppgtt_init(struct i915_hw_ppgtt *ppgtt, uint64_t size)
 	ppgtt->base.clear_range = gen8_ppgtt_clear_range;
 	ppgtt->base.insert_entries = gen8_ppgtt_insert_entries;
 	ppgtt->base.cleanup = gen8_ppgtt_cleanup;
+	ppgtt->base.scratch = dev_priv->gtt.base.scratch;
 	ppgtt->base.start = 0;
 	ppgtt->base.total = ppgtt->num_pt_pages * GEN8_PTES_PER_PAGE * PAGE_SIZE;
 
