@@ -680,6 +680,8 @@ struct snd_soc_component {
 	int num_dai;
 
 	const struct snd_soc_component_driver *driver;
+
+	struct list_head dai_list;
 };
 
 /* SoC Audio Codec device */
