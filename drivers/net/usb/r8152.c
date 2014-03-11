@@ -1373,6 +1373,11 @@ static int msdn_giant_send_check(struct sk_buff *skb)
 {
 	const struct ipv6hdr *ipv6h;
 	struct tcphdr *th;
+	int ret;
+
+	ret = skb_cow_head(skb, 0);
+	if (ret)
+		return ret;
 
 	ipv6h = ipv6_hdr(skb);
 	th = tcp_hdr(skb);
@@ -1380,7 +1385,7 @@ static int msdn_giant_send_check(struct sk_buff *skb)
 	th->check = 0;
 	th->check = ~tcp_v6_check(0, &ipv6h->saddr, &ipv6h->daddr, 0);
 
-	return 0;
+	return ret;
 }
 
 static int r8152_tx_csum(struct r8152 *tp, struct tx_desc *desc,
@@ -1409,8 +1414,11 @@ static int r8152_tx_csum(struct r8152 *tp, struct tx_desc *desc,
 			break;
 
 		case htons(ETH_P_IPV6):
+			if (msdn_giant_send_check(skb)) {
+				ret = TX_CSUM_TSO;
+				goto unavailable;
+			}
 			opts1 |= GTSENDV6;
-			msdn_giant_send_check(skb);
 			break;
 
 		default:
