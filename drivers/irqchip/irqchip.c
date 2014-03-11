@@ -11,8 +11,6 @@
 #include <linux/init.h>
 #include <linux/of_irq.h>
 
-#include "irqchip.h"
-
 /*
  * This special of_device_id is the sentinel at the end of the
  * of_device_id[] array of all irqchips. It is automatically placed at
