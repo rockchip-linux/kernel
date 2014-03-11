@@ -619,21 +619,9 @@ static struct snd_soc_dai_driver ak4671_dai = {
 
 static int ak4671_probe(struct snd_soc_codec *codec)
 {
-	struct ak4671_priv *ak4671 = snd_soc_codec_get_drvdata(codec);
-	int ret;
-
-	ret = snd_soc_codec_set_cache_io(codec, 8, 8, ak4671->control_type);
-	if (ret < 0) {
-		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
-		return ret;
-	}
-
 	snd_soc_add_codec_controls(codec, ak4671_snd_controls,
 			     ARRAY_SIZE(ak4671_snd_controls));
-
-	ak4671_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	return ret;
+	return ak4671_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 }
 
 static int ak4671_remove(struct snd_soc_codec *codec)
