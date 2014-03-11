@@ -28,7 +28,8 @@
 #include "../codecs/max98090.h"
 
 struct byt_mc_private {
-	struct snd_soc_jack jack;
+	struct snd_soc_jack hp_jack;
+	struct snd_soc_jack mic_jack;
 };
 
 static inline struct snd_soc_codec *byt_get_codec(struct snd_soc_card *card)
@@ -169,76 +170,29 @@ static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int byt_hp_jack_status_check(void)
-{
-	int spk_enable;
-	int report;
-
-	spk_enable = gpio_get_value_cansleep(CONFIG_SND_BYT_RAMBI_HPDET_GPIO);
-
-	if (spk_enable) {
-		pr_debug("Headphone Insert\n");
-		report = SND_JACK_HEADPHONE;
-	} else {
-		pr_debug("Headphone Remove\n");
-		report = SND_JACK_LINEOUT;
-	}
-
-	return report;
-}
-
-static int byt_mic_jack_status_check(void)
-{
-	int mic_enable;
-	int report;
-
-	mic_enable = !gpio_get_value_cansleep(CONFIG_SND_BYT_RAMBI_MICDET_GPIO);
-
-	if (mic_enable) {
-		pr_debug("Headset Mic Insert\n");
-		report = SND_JACK_MICROPHONE;
-	} else {
-		pr_debug("Headset Mic Remove\n");
-		report = SND_JACK_LINEIN;
-	}
-
-	return report;
-}
-
-static struct snd_soc_jack_pin hs_jack_pins[] = {
-	{
-		.pin	= "Headphone",
-		.mask	= SND_JACK_HEADPHONE,
-	},
-	{
-		.pin	= "Headset Mic",
-		.mask	= SND_JACK_MICROPHONE,
-	},
-	{
-		.pin	= "Ext Spk",
-		.mask	= SND_JACK_LINEOUT,
-	},
-	{
-		.pin	= "Int Mic",
-		.mask	= SND_JACK_LINEIN,
-	},
+static struct snd_soc_jack_pin hp_jack_pin = {
+	.pin	= "Headphone",
+	.mask	= SND_JACK_HEADPHONE,
 };
 
-static struct snd_soc_jack_gpio hs_jack_gpios[] = {
-	{
-		.name			= "hp-gpio",
-		.report			= SND_JACK_HEADPHONE | SND_JACK_LINEOUT,
-		.debounce_time		= 200,
-		.gpio			= CONFIG_SND_BYT_RAMBI_HPDET_GPIO,
-		.jack_status_check	= &byt_hp_jack_status_check,
-	},
-	{
-		.name			= "mic-gpio",
-		.report			= SND_JACK_MICROPHONE | SND_JACK_LINEIN,
-		.debounce_time		= 200,
-		.gpio			= CONFIG_SND_BYT_RAMBI_MICDET_GPIO,
-		.jack_status_check	= &byt_mic_jack_status_check,
-	},
+static struct snd_soc_jack_pin mic_jack_pin = {
+	.pin	= "Headset Mic",
+	.mask	= SND_JACK_MICROPHONE,
+};
+
+static struct snd_soc_jack_gpio hp_jack_gpio = {
+	.name			= "hp-gpio",
+	.report			= SND_JACK_HEADPHONE,
+	.debounce_time		= 200,
+	.gpio			= CONFIG_SND_BYT_RAMBI_HPDET_GPIO,
+};
+
+static struct snd_soc_jack_gpio mic_jack_gpio = {
+	.name			= "mic-gpio",
+	.report			= SND_JACK_MICROPHONE,
+	.debounce_time		= 200,
+	.gpio			= CONFIG_SND_BYT_RAMBI_MICDET_GPIO,
+	.invert			= 1,
 };
 
 static int byt_init(struct snd_soc_pcm_runtime *runtime)
@@ -248,7 +202,8 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct snd_soc_card *card = runtime->card;
 	struct byt_mc_private *drv = snd_soc_card_get_drvdata(card);
-	struct snd_soc_jack *jack = &drv->jack;
+	struct snd_soc_jack *hp_jack = &drv->hp_jack;
+	struct snd_soc_jack *mic_jack = &drv->mic_jack;
 
 	pr_debug("Enter:%s", __func__);
 	card->dapm.idle_bias_off = true;
@@ -277,25 +232,32 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 	snd_soc_dapm_sync(dapm);
 
 
-	/* Enable jack detection */
-	ret = snd_soc_jack_new(codec, "Headphone", SND_JACK_HEADPHONE, jack);
+	/* Enable headphone jack detection */
+	ret = snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+			       hp_jack);
 	if (ret)
 		return ret;
 
-	ret = snd_soc_jack_add_pins(jack, ARRAY_SIZE(hs_jack_pins),
-					hs_jack_pins);
+	ret = snd_soc_jack_add_pins(hp_jack, 1, &hp_jack_pin);
 	if (ret)
 		return ret;
 
 	snd_soc_update_bits(codec, M98090_REG_INTERRUPT_S, M98090_IJDET_MASK,
 				1 << M98090_IJDET_SHIFT);
 
-	snd_soc_jack_report(jack, SND_JACK_LINEOUT | SND_JACK_LINEIN,
-				SND_JACK_HEADSET | SND_JACK_LINEOUT |
-				SND_JACK_LINEIN);
+	ret = snd_soc_jack_add_gpios(hp_jack, 1, &hp_jack_gpio);
+	if (ret)
+		return ret;
 
-	ret = snd_soc_jack_add_gpios(jack, ARRAY_SIZE(hs_jack_gpios),
-					hs_jack_gpios);
+	/* Enable mic jack detection */
+	ret = snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
+			       mic_jack);
+	if (ret)
+		return ret;
+	ret = snd_soc_jack_add_pins(mic_jack, 1, &mic_jack_pin);
+	if (ret)
+		return ret;
+	ret = snd_soc_jack_add_gpios(mic_jack, 1, &mic_jack_gpio);
 
 	return ret;
 }
@@ -373,8 +335,8 @@ static int snd_byt_mc_remove(struct platform_device *pdev)
 	struct byt_mc_private *drv = snd_soc_card_get_drvdata(soc_card);
 
 	pr_debug("In %s\n", __func__);
-	snd_soc_jack_free_gpios(&drv->jack, ARRAY_SIZE(hs_jack_gpios),
-				hs_jack_gpios);
+	snd_soc_jack_free_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
+	snd_soc_jack_free_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
 
 	snd_soc_card_set_drvdata(soc_card, NULL);
 	snd_soc_unregister_card(soc_card);
