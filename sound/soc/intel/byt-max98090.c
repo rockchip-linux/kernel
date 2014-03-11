@@ -281,7 +281,7 @@ static struct snd_soc_dai_link byt_dailink[] = {
 	{
 		.name = "Baytrail Voice",
 		.stream_name = "Voice",
-		.cpu_dai_name = "Mic1-cpu-dai",
+		.cpu_dai_name = "Front-cpu-dai",
 		.codec_dai_name = "HiFi",
 		.codec_name = "max98090.1-0010",
 		.platform_name = "baytrail-pcm-audio",

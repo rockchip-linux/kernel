@@ -368,6 +368,13 @@ static struct snd_soc_dai_driver byt_dais[] = {
 			.formats = SNDRV_PCM_FMTBIT_S24_3LE |
 				   SNDRV_PCM_FMTBIT_S16_LE,
 		},
+		.capture = {
+			.stream_name = "Analog Capture",
+			.channels_min = 2,
+			.channels_max = 2,
+			.rates = SNDRV_PCM_RATE_48000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE,
+		},
 	},
 	{
 		.name  = "Mic1-cpu-dai",
