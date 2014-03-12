@@ -154,19 +154,7 @@ static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 		dev_err(codec_dai->dev, "Can't set codec clock %d\n", ret);
 		return ret;
 	}
-	/*
-	 * TODO:  The max98090 driver does not implement the set_pll op.  So I
-	 * strongly doubt that we actually want call the following.  The core
-	 * would return EINVAL.  For now the workaround is to print the error
-	 * but ignore it instead of returning it.
-	 */
-	ret = snd_soc_dai_set_pll(codec_dai, 0, M98090_REG_SYSTEM_CLOCK,
-				  params_rate(params) * 64,
-				  params_rate(params) * 256);
-	if (ret < 0) {
-		pr_err("can't set codec pll: %d\n", ret);
-		pr_err("Ignoring the error and proceeding anyway\n");
-	}
+
 	return 0;
 }
 
