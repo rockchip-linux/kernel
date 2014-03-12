@@ -128,20 +128,9 @@ static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	unsigned int fmt;
 	int ret;
 
 	pr_debug("Enter:%s", __func__);
-	/* I2S Slave Mode`*/
-	fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
-	      SND_SOC_DAIFMT_CBS_CFS;
-
-	/* Set codec DAI configuration */
-	ret = snd_soc_dai_set_fmt(codec_dai, fmt);
-	if (ret < 0) {
-		pr_err("can't set codec DAI configuration %d\n", ret);
-		return ret;
-	}
 
 	/*
 	 * The particular clock id specified below does not matter since the
@@ -265,6 +254,8 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.init = byt_init,
 		.ignore_suspend = 1,
 		.ops = &byt_aif1_ops,
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBS_CFS,
 	},
 	{
 		.name = "Baytrail Voice",
@@ -276,6 +267,8 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.init = NULL,
 		.ignore_suspend = 1,
 		.ops = &byt_aif1_ops,
+		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBS_CFS,
 	},
 };
 
