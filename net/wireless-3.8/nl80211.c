@@ -365,6 +365,7 @@ static const struct nla_policy nl80211_policy[NL80211_ATTR_MAX+1] = {
 	[NL80211_ATTR_SCAN_FLAGS] = { .type = NLA_U32 },
 	[NL80211_ATTR_P2P_CTWINDOW] = { .type = NLA_U8 },
 	[NL80211_ATTR_P2P_OPPPS] = { .type = NLA_U8 },
+	[NL80211_ATTR_DISABLE_VHT] = { .type = NLA_FLAG },
 };
 
 /* policy for the key attributes */
@@ -5359,6 +5360,9 @@ static int nl80211_associate(struct sk_buff *skb, struct genl_info *info)
 		ht_capa = nla_data(info->attrs[NL80211_ATTR_HT_CAPABILITY]);
 	}
 
+	if (nla_get_flag(info->attrs[NL80211_ATTR_DISABLE_VHT]))
+		flags |= ASSOC_REQ_DISABLE_VHT;
+
 	err = nl80211_crypto_settings(rdev, info, &crypto, 1);
 	if (!err)
 		err = cfg80211_mlme_assoc(rdev, dev, chan, bssid, prev_bssid,
@@ -5945,6 +5949,9 @@ static int nl80211_connect(struct sk_buff *skb, struct genl_info *info)
 		       nla_data(info->attrs[NL80211_ATTR_HT_CAPABILITY]),
 		       sizeof(connect.ht_capa));
 	}
+
+	if (nla_get_flag(info->attrs[NL80211_ATTR_DISABLE_VHT]))
+		connect.flags |= ASSOC_REQ_DISABLE_VHT;
 
 	err = cfg80211_connect(rdev, dev, &connect, connkeys);
 	if (err)
