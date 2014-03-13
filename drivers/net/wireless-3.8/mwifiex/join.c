@@ -515,7 +515,8 @@ int mwifiex_cmd_802_11_associate(struct mwifiex_private *priv,
 
 	if (ISSUPP_11ACENABLED(priv->adapter->fw_cap_info) &&
 	    !bss_desc->disable_11n && !bss_desc->disable_11ac &&
-	    priv->adapter->config_bands & BAND_AAC)
+	    priv->adapter->config_bands & BAND_AAC &&
+	    priv->sta_assoc_11ac_enabled)
 		mwifiex_cmd_append_11ac_tlv(priv, bss_desc, &pos);
 
 	/* Append vendor specific IE TLV */
@@ -1298,7 +1299,8 @@ int mwifiex_associate(struct mwifiex_private *priv,
 
 	if (ISSUPP_11ACENABLED(priv->adapter->fw_cap_info) &&
 	    !bss_desc->disable_11n && !bss_desc->disable_11ac &&
-	    priv->adapter->config_bands & BAND_AAC)
+	    priv->adapter->config_bands & BAND_AAC &&
+	    priv->sta_assoc_11ac_enabled)
 		mwifiex_set_11ac_ba_params(priv);
 	else
 		mwifiex_set_ba_params(priv);
@@ -1372,7 +1374,8 @@ int mwifiex_adhoc_join(struct mwifiex_private *priv,
 
 	if (ISSUPP_11ACENABLED(priv->adapter->fw_cap_info) &&
 	    !bss_desc->disable_11n && !bss_desc->disable_11ac &&
-	    priv->adapter->config_bands & BAND_AAC)
+	    priv->adapter->config_bands & BAND_AAC &&
+	    priv->sta_assoc_11ac_enabled)
 		mwifiex_set_11ac_ba_params(priv);
 	else
 		mwifiex_set_ba_params(priv);

@@ -1571,6 +1571,8 @@ mwifiex_cfg80211_assoc(struct mwifiex_private *priv, size_t ssid_len, u8 *ssid,
 					NL80211_AUTHTYPE_OPEN_SYSTEM;
 		}
 
+		priv->sta_assoc_11ac_enabled = false;
+
 		goto done;
 	}
 
@@ -1606,6 +1608,8 @@ mwifiex_cfg80211_assoc(struct mwifiex_private *priv, size_t ssid_len, u8 *ssid,
 						 NULL, 0);
 		}
 	}
+
+	priv->sta_assoc_11ac_enabled = !(sme->flags & ASSOC_REQ_DISABLE_VHT);
 done:
 	/*
 	 * Scan entries are valid for some time (15 sec). So we can save one
