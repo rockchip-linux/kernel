@@ -252,7 +252,6 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.codec_name = "max98090.1-0010",
 		.platform_name = "baytrail-pcm-audio",
 		.init = byt_init,
-		.ignore_suspend = 1,
 		.ops = &byt_aif1_ops,
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
@@ -265,7 +264,6 @@ static struct snd_soc_dai_link byt_dailink[] = {
 		.codec_name = "max98090.1-0010",
 		.platform_name = "baytrail-pcm-audio",
 		.init = NULL,
-		.ignore_suspend = 1,
 		.ops = &byt_aif1_ops,
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS,
@@ -283,6 +281,17 @@ static struct snd_soc_card snd_soc_card_byt = {
 	.controls = byt_mc_controls,
 	.num_controls = ARRAY_SIZE(byt_mc_controls),
 };
+
+#ifdef CONFIG_PM_SLEEP
+static const struct dev_pm_ops byt_max98090_pm_ops = {
+	.suspend = snd_soc_suspend,
+	.resume = snd_soc_resume,
+};
+
+#define BYT_MAX98090_PM_OPS	(&byt_max98090_pm_ops)
+#else
+#define BYT_MAX98090_PM_OPS	NULL
+#endif
 
 static int snd_byt_mc_probe(struct platform_device *pdev)
 {
@@ -331,6 +340,7 @@ static struct platform_driver snd_byt_mc_driver = {
 	.driver = {
 		.name = "byt-max98090",
 		.owner = THIS_MODULE,
+		.pm = BYT_MAX98090_PM_OPS,
 	},
 };
 module_platform_driver(snd_byt_mc_driver)
