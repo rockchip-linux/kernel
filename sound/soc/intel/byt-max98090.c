@@ -283,9 +283,31 @@ static struct snd_soc_card snd_soc_card_byt = {
 };
 
 #ifdef CONFIG_PM_SLEEP
+static int snd_byt_prepare(struct device *dev)
+{
+	struct snd_soc_card *card = dev_get_drvdata(dev);
+	struct byt_mc_private *drv = snd_soc_card_get_drvdata(card);
+
+	snd_soc_jack_free_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
+	snd_soc_jack_free_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
+
+	return snd_soc_suspend(dev);
+}
+
+static void snd_byt_complete(struct device *dev)
+{
+	struct snd_soc_card *card = dev_get_drvdata(dev);
+	struct byt_mc_private *drv = snd_soc_card_get_drvdata(card);
+
+	snd_soc_jack_add_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
+	snd_soc_jack_add_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
+
+	snd_soc_resume(dev);
+}
+
 static const struct dev_pm_ops byt_max98090_pm_ops = {
-	.suspend = snd_soc_suspend,
-	.resume = snd_soc_resume,
+	.prepare = snd_byt_prepare,
+	.complete = snd_byt_complete,
 };
 
 #define BYT_MAX98090_PM_OPS	(&byt_max98090_pm_ops)
