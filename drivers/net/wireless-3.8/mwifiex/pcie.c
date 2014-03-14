@@ -1202,6 +1202,12 @@ static int mwifiex_pcie_process_recv_data(struct mwifiex_adapter *adapter)
 		rd_index = card->rxbd_rdptr & reg->rx_mask;
 		skb_data = card->rx_buf_list[rd_index];
 
+		/* If skb allocation was failed earlier for Rx packet,
+		 * rx_buf_list[rd_index] would have been left with a NULL.
+		 */
+		if (!skb_data)
+			return -ENOMEM;
+
 		mwifiex_unmap_pci_memory(adapter, skb_data, PCI_DMA_FROMDEVICE);
 		card->rx_buf_list[rd_index] = NULL;
 
