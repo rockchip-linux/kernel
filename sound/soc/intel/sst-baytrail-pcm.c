@@ -48,6 +48,8 @@ struct sst_byt_pcm_data {
 
 	/* DSP suspend context */
 	u32 suspend_offset;
+
+	struct work_struct work;
 };
 
 /* private data for the driver */
@@ -133,22 +135,6 @@ static int sst_byt_pcm_hw_free(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static int sst_byt_pcm_save_stream_context(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct sst_byt_priv_data *pdata =
-		snd_soc_platform_get_drvdata(rtd->platform);
-	struct sst_byt_pcm_data *pcm_data = snd_soc_pcm_get_drvdata(rtd);
-	struct sst_byt *byt = pdata->byt;
-
-	/* get current position */
-	pcm_data->suspend_offset = sst_byt_get_dsp_position(byt,
-		pcm_data->stream, snd_pcm_lib_buffer_bytes(substream));
-	dev_dbg(rtd->dev, "stream context saved at offset %d\n",
-		pcm_data->suspend_offset);
-	return 0;
-}
-
 static int sst_byt_pcm_restore_stream_context(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -173,10 +159,20 @@ static int sst_byt_pcm_restore_stream_context(struct snd_pcm_substream *substrea
 		return ret;
 	}
 
+	sst_byt_stream_start(byt, pcm_data->stream);
+
 	dev_dbg(rtd->dev, "stream context restored at offset %d\n",
 		pcm_data->suspend_offset);
 
 	return 0;
+}
+
+static void sst_byt_pcm_work(struct work_struct *work)
+{
+	struct sst_byt_pcm_data *pcm_data =
+		container_of(work, struct sst_byt_pcm_data, work);
+
+	sst_byt_pcm_restore_stream_context(pcm_data->substream);
 }
 
 static int sst_byt_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
@@ -194,7 +190,8 @@ static int sst_byt_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		sst_byt_stream_start(byt, pcm_data->stream);
 		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
-		sst_byt_pcm_restore_stream_context(substream);
+		schedule_work(&pcm_data->work);
+		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		sst_byt_stream_resume(byt, pcm_data->stream);
 		break;
@@ -202,9 +199,8 @@ static int sst_byt_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		sst_byt_stream_stop(byt, pcm_data->stream);
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		sst_byt_stream_pause(byt, pcm_data->stream);
 	case SNDRV_PCM_TRIGGER_SUSPEND:
-		sst_byt_pcm_save_stream_context(substream);
+		sst_byt_stream_pause(byt, pcm_data->stream);
 		break;
 	default:
 		break;
@@ -245,6 +241,7 @@ static snd_pcm_uframes_t sst_byt_pcm_pointer(struct snd_pcm_substream *substream
 	pos = sst_byt_get_dsp_position(byt, pcm_data->stream,
 				       snd_pcm_lib_buffer_bytes(substream));
 	offset = bytes_to_frames(runtime, pos);
+	pcm_data->suspend_offset = pos;
 
 	dev_dbg(rtd->dev, "PCM: DMA pointer %zu bytes\n",
 		frames_to_bytes(runtime, (u32)offset));
@@ -402,8 +399,10 @@ static int sst_byt_pcm_probe(struct snd_soc_platform *platform)
 	priv_data->byt = plat_data->dsp;
 	snd_soc_platform_set_drvdata(platform, priv_data);
 
-	for (i = 0; i < ARRAY_SIZE(byt_dais); i++)
+	for (i = 0; i < ARRAY_SIZE(byt_dais); i++) {
 		mutex_init(&priv_data->pcm[i].mutex);
+		INIT_WORK(&priv_data->pcm[i].work, sst_byt_pcm_work);
+	}
 
 	return 0;
 }
