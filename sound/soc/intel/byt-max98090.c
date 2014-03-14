@@ -32,71 +32,11 @@ struct byt_mc_private {
 	struct snd_soc_jack mic_jack;
 };
 
-static inline struct snd_soc_codec *byt_get_codec(struct snd_soc_card *card)
-{
-	bool found = false;
-	struct snd_soc_codec *codec;
-
-	list_for_each_entry(codec, &card->codec_dev_list, card_list) {
-		if (!strstr(codec->name, "max98090.1-0010")) {
-			pr_debug("codec was %s", codec->name);
-			continue;
-		} else {
-			found = true;
-			break;
-		}
-	}
-	if (found == false) {
-		pr_err("%s: cant find codec", __func__);
-		return NULL;
-	}
-	return codec;
-}
-
-static int platform_clock_control(struct snd_soc_dapm_widget *w,
-		struct snd_kcontrol *k, int  event)
-{
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
-	struct snd_soc_codec *codec;
-
-	codec = byt_get_codec(card);
-	if (!codec) {
-		pr_err("Codec not found; Unable to set platform clock\n");
-		return -EIO;
-	}
-	if (SND_SOC_DAPM_EVENT_ON(event)) {
-		pr_debug("Platform clk turned ON\n");
-		/*
-		 * The particular clock id specified here does not really
-		 * matter since the driver ignores this paramter.
-		 */
-		snd_soc_codec_set_sysclk(codec, M98090_REG_SYSTEM_CLOCK,
-				0, 25000000, SND_SOC_CLOCK_IN);
-	} else {
-		/* Set codec clock source to internal clock before
-		   turning off the platform clock. Codec needs clock
-		   for Jack detection and button press */
-		/*
-		 * The particular clock id specified here does not really
-		 * matter since the driver ignores this paramter.
-		 */
-		snd_soc_codec_set_sysclk(codec, M98090_REG_SYSTEM_CLOCK,
-				0, 0, SND_SOC_CLOCK_IN);
-		pr_debug("Platform clk turned OFF\n");
-	}
-
-	return 0;
-}
-
 static const struct snd_soc_dapm_widget byt_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Headphone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Int Mic", NULL),
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
-	SND_SOC_DAPM_SUPPLY("Platform Clock", SND_SOC_NOPM, 0, 0,
-			platform_clock_control, SND_SOC_DAPM_PRE_PMU|
-			SND_SOC_DAPM_POST_PMD),
 };
 
 static const struct snd_soc_dapm_route byt_audio_map[] = {
@@ -108,11 +48,6 @@ static const struct snd_soc_dapm_route byt_audio_map[] = {
 	{"Headphone", NULL, "HPR"},
 	{"Ext Spk", NULL, "SPKL"},
 	{"Ext Spk", NULL, "SPKR"},
-
-	{"Headphone", NULL, "Platform Clock"},
-	{"Headset Mic", NULL, "Platform Clock"},
-	{"Int Mic", NULL, "Platform Clock"},
-	{"Ext Spk", NULL, "Platform Clock"},
 };
 
 static const struct snd_kcontrol_new byt_mc_controls[] = {
@@ -121,7 +56,6 @@ static const struct snd_kcontrol_new byt_mc_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Mic"),
 	SOC_DAPM_PIN_SWITCH("Ext Spk"),
 };
-
 
 static int byt_aif1_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params)
@@ -191,15 +125,6 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 		pr_err("unable to add card controls\n");
 		return ret;
 	}
-
-	/* Keep the voice call paths active during
-	suspend. Mark the end points ignore_suspend */
-	/*TODO: CHECK this */
-	snd_soc_dapm_ignore_suspend(dapm, "HPL");
-	snd_soc_dapm_ignore_suspend(dapm, "HPR");
-
-	snd_soc_dapm_ignore_suspend(dapm, "SPKL");
-	snd_soc_dapm_ignore_suspend(dapm, "SPKR");
 
 	snd_soc_dapm_enable_pin(dapm, "Headset Mic");
 	snd_soc_dapm_enable_pin(dapm, "Headphone");
