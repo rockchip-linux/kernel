@@ -1394,6 +1394,7 @@ typedef struct drm_i915_private {
 	};
 	u32 gt_irq_mask;
 	u32 pm_irq_mask;
+	u32 pm_rps_events;
 
 	struct work_struct hotplug_work;
 	bool enable_hotplug_processing;
