@@ -14,6 +14,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 #include "udl_drv.h"
 
 /*
@@ -403,6 +404,7 @@ static struct drm_crtc_helper_funcs udl_helper_funcs = {
 
 static const struct drm_crtc_funcs udl_crtc_funcs = {
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.destroy = udl_crtc_destroy,
 	.page_flip = udl_crtc_page_flip,
 };

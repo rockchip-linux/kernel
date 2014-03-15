@@ -369,14 +369,22 @@ static int omap_crtc_set_property(struct drm_crtc *crtc,
 {
 	struct omap_crtc *omap_crtc = to_omap_crtc(crtc);
 	struct omap_drm_private *priv = crtc->dev->dev_private;
+	struct drm_crtc_state *cstate = drm_atomic_get_crtc_state(crtc, state);
+	int ret;
+
+	if (IS_ERR(cstate))
+		return PTR_ERR(cstate);
 
 	if (property == priv->rotation_prop) {
-		crtc->invert_dimensions =
+		cstate->invert_dimensions =
 				!!(val & ((1LL << DRM_ROTATE_90) | (1LL << DRM_ROTATE_270)));
 	}
 
-	return omap_plane_set_property(omap_crtc->plane, state,
+	ret = omap_plane_set_property(omap_crtc->plane, state,
 			property, val, blob_data);
+	if (ret)
+		ret = drm_crtc_set_property(crtc, cstate, property, val, blob_data);
+	return ret;
 }
 
 static const struct drm_crtc_funcs omap_crtc_funcs = {

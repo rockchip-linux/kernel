@@ -573,7 +573,7 @@ static void dev_lastclose(struct drm_device *dev)
 		 */
 		for (i = 0; i < priv->num_crtcs; i++) {
 			drm_object_property_set_value(&priv->crtcs[i]->base,
-					&priv->crtcs[i]->propvals,
+					&priv->crtcs[i]->state->propvals,
 					priv->rotation_prop, 0, NULL);
 		}
 

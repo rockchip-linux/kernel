@@ -362,6 +362,7 @@ static void cirrus_crtc_destroy(struct drm_crtc *crtc)
 static const struct drm_crtc_funcs cirrus_crtc_funcs = {
 	.gamma_set = cirrus_crtc_gamma_set,
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.destroy = cirrus_crtc_destroy,
 };
 

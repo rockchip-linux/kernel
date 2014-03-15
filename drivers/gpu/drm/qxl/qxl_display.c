@@ -29,6 +29,7 @@
 #include "qxl_drv.h"
 #include "qxl_object.h"
 #include "drm_crtc_helper.h"
+#include "drm_atomic.h"
 
 static bool qxl_head_enabled(struct qxl_head *head)
 {
@@ -373,6 +374,7 @@ static const struct drm_crtc_funcs qxl_crtc_funcs = {
 	.cursor_set2 = qxl_crtc_cursor_set2,
 	.cursor_move = qxl_crtc_cursor_move,
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.destroy = qxl_crtc_destroy,
 };
 

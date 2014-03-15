@@ -619,6 +619,7 @@ static const struct drm_crtc_funcs ast_crtc_funcs = {
 	.cursor_move = ast_cursor_move,
 	.reset = ast_crtc_reset,
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.gamma_set = ast_crtc_gamma_set,
 	.destroy = ast_crtc_destroy,
 };

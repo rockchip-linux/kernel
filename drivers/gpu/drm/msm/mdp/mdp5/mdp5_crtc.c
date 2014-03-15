@@ -389,8 +389,10 @@ static int mdp5_crtc_set_property(struct drm_crtc *crtc,
 		struct drm_atomic_state *state, struct drm_property *property,
 		uint64_t val, void *blob_data)
 {
-	// XXX
-	return -EINVAL;
+	struct drm_crtc_state *cstate = drm_atomic_get_crtc_state(crtc, state);
+	if (IS_ERR(cstate))
+		return PTR_ERR(cstate);
+	return drm_crtc_set_property(crtc, cstate, property, val, blob_data);
 }
 
 static const struct drm_crtc_funcs mdp5_crtc_funcs = {

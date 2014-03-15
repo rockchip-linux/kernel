@@ -444,6 +444,7 @@ const struct drm_crtc_funcs psb_intel_crtc_funcs = {
 	.cursor_move = gma_crtc_cursor_move,
 	.gamma_set = gma_crtc_gamma_set,
 	.set_config = gma_crtc_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.destroy = gma_crtc_destroy,
 };
 

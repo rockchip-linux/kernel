@@ -300,6 +300,7 @@ static struct drm_crtc_funcs vmw_legacy_crtc_funcs = {
 	.cursor_move = vmw_du_crtc_cursor_move,
 	.gamma_set = vmw_du_crtc_gamma_set,
 	.destroy = vmw_ldu_crtc_destroy,
+	.set_property = drm_atomic_crtc_set_property,
 	.set_config = vmw_ldu_crtc_set_config,
 };
 

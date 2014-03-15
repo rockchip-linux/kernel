@@ -1296,6 +1296,7 @@ static const struct drm_crtc_funcs mga_crtc_funcs = {
 	.cursor_move = mga_crtc_cursor_move,
 	.gamma_set = mga_crtc_gamma_set,
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.destroy = mga_crtc_destroy,
 };
 

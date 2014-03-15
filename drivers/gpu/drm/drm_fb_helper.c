@@ -36,6 +36,7 @@
 #include <linux/module.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>
 
@@ -291,10 +292,11 @@ static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper,
 		bool lockless)
 {
 	struct drm_device *dev = fb_helper->dev;
+	struct drm_mode_config *config = &dev->mode_config;
 	struct drm_plane *plane;
 	bool error = false;
-	void *state;
-	int i;
+	struct drm_atomic_state *state;
+	int ret, i;
 
 	state = dev->driver->atomic_begin(dev, lockless ?
 			DRM_MODE_ATOMIC_NOLOCK : 0);
@@ -302,6 +304,14 @@ static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper,
 		DRM_ERROR("failed to restore fbdev mode\n");
 		return true;
 	}
+
+retry:
+	ret = drm_modeset_lock(&config->connection_mutex, &state->acquire_ctx);
+	if (ret)
+		goto out;
+	ret = drm_modeset_lock_all_crtcs(dev, &state->acquire_ctx);
+	if (ret)
+		goto out;
 
 	list_for_each_entry(plane, &dev->mode_config.plane_list, head)
 		if (plane->type != DRM_PLANE_TYPE_PRIMARY)
@@ -313,7 +323,14 @@ static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper,
 	else
 		dev->driver->atomic_commit(dev, state);
 
+out:
+	if (ret == -EDEADLK) {
+		drm_modeset_backoff(&state->acquire_ctx);
+		goto retry;
+	}
 	dev->driver->atomic_end(dev, state);
+
+	drm_modeset_lock_all(dev);
 
 	for (i = 0; i < fb_helper->crtc_count; i++) {
 		struct drm_mode_set *mode_set = &fb_helper->crtc_info[i].mode_set;
@@ -330,6 +347,9 @@ static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper,
 		if (ret)
 			error = true;
 	}
+
+	drm_modeset_unlock_all(dev);
+
 	return error;
 }
 /**

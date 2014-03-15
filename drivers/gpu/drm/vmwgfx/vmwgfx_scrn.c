@@ -397,6 +397,7 @@ static struct drm_crtc_funcs vmw_screen_object_crtc_funcs = {
 	.gamma_set = vmw_du_crtc_gamma_set,
 	.destroy = vmw_sou_crtc_destroy,
 	.set_config = vmw_sou_crtc_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.page_flip = vmw_du_page_flip,
 };
 

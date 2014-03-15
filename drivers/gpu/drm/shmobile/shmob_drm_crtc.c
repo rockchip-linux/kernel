@@ -17,6 +17,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_gem_cma_helper.h>
 
@@ -506,6 +507,7 @@ static int shmob_drm_crtc_page_flip(struct drm_crtc *crtc,
 static const struct drm_crtc_funcs crtc_funcs = {
 	.destroy = drm_crtc_cleanup,
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.page_flip = shmob_drm_crtc_page_flip,
 };
 

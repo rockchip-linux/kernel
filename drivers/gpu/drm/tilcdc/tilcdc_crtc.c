@@ -411,6 +411,7 @@ static int tilcdc_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 static const struct drm_crtc_funcs tilcdc_crtc_funcs = {
 		.destroy        = tilcdc_crtc_destroy,
 		.set_config     = drm_crtc_helper_set_config,
+		.set_property   = drm_atomic_crtc_set_property,
 		.page_flip      = tilcdc_crtc_page_flip,
 };
 

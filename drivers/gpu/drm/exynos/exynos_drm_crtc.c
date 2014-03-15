@@ -14,6 +14,7 @@
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 
 #include "exynos_drm_crtc.h"
 #include "exynos_drm_drv.h"
@@ -262,6 +263,10 @@ static int exynos_drm_crtc_set_property(struct drm_crtc *crtc,
 	struct drm_device *dev = crtc->dev;
 	struct exynos_drm_private *dev_priv = dev->dev_private;
 	struct exynos_drm_crtc *exynos_crtc = to_exynos_crtc(crtc);
+	struct drm_crtc_state *cstate = drm_atomic_get_crtc_state(crtc, state);
+
+	if (IS_ERR(cstate))
+		return PTR_ERR(cstate);
 
 	if (property == dev_priv->crtc_mode_property) {
 		enum exynos_crtc_mode mode = val;
@@ -286,7 +291,7 @@ static int exynos_drm_crtc_set_property(struct drm_crtc *crtc,
 		return 0;
 	}
 
-	return -EINVAL;
+	return drm_crtc_set_property(crtc, cstate, property, val, blob_data);
 }
 
 static struct drm_crtc_funcs exynos_crtc_funcs = {

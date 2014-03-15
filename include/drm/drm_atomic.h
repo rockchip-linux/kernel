@@ -70,6 +70,9 @@
 struct drm_atomic_funcs {
 	int (*check_plane_state)(struct drm_plane *plane, struct drm_plane_state *pstate);
 	int (*commit_plane_state)(struct drm_plane *plane, struct drm_plane_state *pstate);
+
+	int (*check_crtc_state)(struct drm_crtc *crtc, struct drm_crtc_state *cstate);
+	int (*commit_crtc_state)(struct drm_crtc *crtc, struct drm_crtc_state *cstate);
 };
 
 const extern struct drm_atomic_funcs drm_atomic_funcs;
@@ -109,6 +112,30 @@ drm_atomic_commit_plane_state(struct drm_plane *plane,
 	return funcs->commit_plane_state(plane, pstate);
 }
 
+int drm_atomic_crtc_set_property(struct drm_crtc *crtc,
+		struct drm_atomic_state *state, struct drm_property *property,
+		uint64_t val, void *blob_data);
+struct drm_crtc_state *drm_atomic_get_crtc_state(struct drm_crtc *crtc,
+		struct drm_atomic_state *state);
+
+static inline int
+drm_atomic_check_crtc_state(struct drm_crtc *crtc,
+		struct drm_crtc_state *cstate)
+{
+	const struct drm_atomic_funcs *funcs =
+			crtc->dev->driver->atomic_funcs;
+	return funcs->check_crtc_state(crtc, cstate);
+}
+
+static inline int
+drm_atomic_commit_crtc_state(struct drm_crtc *crtc,
+		struct drm_crtc_state *cstate)
+{
+	const struct drm_atomic_funcs *funcs =
+			crtc->dev->driver->atomic_funcs;
+	return funcs->commit_crtc_state(crtc, cstate);
+}
+
 /**
  * struct drm_atomic_state - the state object used by atomic helpers
  */
@@ -118,6 +145,8 @@ struct drm_atomic_state {
 	uint32_t flags;
 	struct drm_plane **planes;
 	struct drm_plane_state **pstates;
+	struct drm_crtc **crtcs;
+	struct drm_crtc_state **cstates;
 
 	bool committed;
 	bool checked;       /* just for debugging */
