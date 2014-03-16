@@ -42,7 +42,6 @@
 unsigned int drm_debug = 0;	/* 1 to enable debug output */
 EXPORT_SYMBOL(drm_debug);
 
-unsigned int drm_rnodes = 0;	/* 1 to enable experimental render nodes API */
 
 unsigned int drm_vblank_offdelay = 50;    /* Default to 50 msecs. */
 
@@ -58,13 +57,11 @@ MODULE_AUTHOR(CORE_AUTHOR);
 MODULE_DESCRIPTION(CORE_DESC);
 MODULE_LICENSE("GPL and additional rights");
 MODULE_PARM_DESC(debug, "Enable debug output");
-MODULE_PARM_DESC(rnodes, "Enable experimental render nodes API");
 MODULE_PARM_DESC(vblankoffdelay, "Delay until vblank irq auto-disable [msecs]");
 MODULE_PARM_DESC(timestamp_precision_usec, "Max. error on timestamps [usecs]");
 MODULE_PARM_DESC(timestamp_monotonic, "Use monotonic timestamps");
 
 module_param_named(debug, drm_debug, int, 0600);
-module_param_named(rnodes, drm_rnodes, int, 0600);
 module_param_named(vblankoffdelay, drm_vblank_offdelay, int, 0600);
 module_param_named(timestamp_precision_usec, drm_timestamp_precision, int, 0600);
 module_param_named(timestamp_monotonic, drm_timestamp_monotonic, int, 0600);
@@ -682,7 +679,7 @@ int drm_dev_register(struct drm_device *dev, unsigned long flags)
 			goto out_unlock;
 	}
 
-	if (drm_core_check_feature(dev, DRIVER_RENDER) && drm_rnodes) {
+	if (drm_core_check_feature(dev, DRIVER_RENDER)) {
 		ret = drm_get_minor(dev, &dev->render, DRM_MINOR_RENDER);
 		if (ret)
 			goto err_control_node;
