@@ -1,0 +1,39 @@
+Tegra SOC XHCI controller
+
+The device node for the Tegra XHCI host controller.
+
+Required properties:
+ - compatible: Should be "nvidia,tegra114-xhci" or "nvidia,tegra124-xhci" for
+   XHCI controllers used in host mode.
+ - reg: Address and length of the register sets.  There should be three
+   entries in the following order: XHCI host registers, FPCI registers, and
+   IPFS registers.
+ - interrupts: Interrupts used by the controller.  There should be two
+   entries in the following order: XHCI host interrupt and firmware mailbox
+   interrupt.
+ - clocks: Handles to XUSB host, falcon, and EMC clocks.
+ - clock-names: Should be "xusb_host", "xusb_falcon_src", and "xusb.emc"
+   respectively.
+ - nvidia,xusb-phy: Handle to the corresponding XUSB PHY.
+ - s1p05v-supply: 1.05V supply regulator.
+ - s1p8v-supply: 1.8V supply regulator.
+ - s3p3v-supply: 3.3V supply regulator.
+
+Example:
+	usb@70090000 {
+		compatible = "nvidia,tegra124-xhci";
+		reg = <0x0 0x70090000 0x8000>,
+		      <0x0 0x70098000 0x1000>,
+		      <0x0 0x70099000 0x1000>;
+		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&tegra_car TEGRA124_CLK_XUSB_HOST>,
+			 <&tegra_car TEGRA124_CLK_XUSB_FALCON_SRC>,
+			 <&tegra_car TEGRA124_CLK_XUSB_EMC>;
+		clock-names = "xusb_host", "xusb_falcon_src", "xusb.emc";
+		nvidia,xusb-phy = <&xusb_phy>;
+		s3p3v-supply = <&_3v3_lp0>;
+		s1p8v-supply = <&vddio_1v8>;
+		s1p05v-supply = <&avdd_hdmi_pex>;
+		status = "okay";
+	};
