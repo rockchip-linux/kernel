@@ -132,6 +132,15 @@ config SAMSUNG_USB3PHY
 	  Enable this to support Samsung USB 3.0 (Super Speed) phy controller
 	  for samsung SoCs.
 
+config TEGRA_XUSB_PHY
+	tristate "NVIDIA Tegra XUSB PHY Driver"
+	depends on ARCH_TEGRA && MFD_SYSCON
+	help
+	  Enable this to support the XUSB PHY present on NVIDIA Tegra114
+	  and later SoCs.  This driver supports UTMI, HSIC, and SuperSpeed
+	  interfaces and handles all PHY functionality for the Tegra XHCI
+	  host-controller driver.
+
 config TWL6030_USB
 	tristate "TWL6030 USB Transceiver Driver"
 	depends on TWL4030_CORE && OMAP_USB2 && USB_MUSB_OMAP2PLUS
