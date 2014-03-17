@@ -1764,14 +1764,14 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 						struct mmc_ios *ios)
 {
 	u16 ctrl;
-	int ret;
+	int ret = 0;
 
 	/*
 	 * Signal Voltage Switching is only applicable for Host Controllers
 	 * v3.00 and above.
 	 */
 	if (host->version < SDHCI_SPEC_300)
-		return 0;
+		goto out;
 
 	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 
@@ -1782,11 +1782,12 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
 
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc, 2700000, 3600000);
-			if (ret) {
+			if (regulator_set_voltage(host->vqmmc,
+					2700000, 3600000)) {
 				pr_warning("%s: Switching to 3.3V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
+				ret = -EIO;
+				break;
 			}
 		}
 		/* Wait for 5ms */
@@ -1795,20 +1796,21 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		/* 3.3V regulator output should be stable within 5 ms */
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 		if (!(ctrl & SDHCI_CTRL_VDD_180))
-			return 0;
+			break;
 
 		pr_warning("%s: 3.3V regulator output did not became stable\n",
 				mmc_hostname(host->mmc));
 
-		return -EAGAIN;
+		ret = -EAGAIN;
+		break;
 	case MMC_SIGNAL_VOLTAGE_180:
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc,
-					1700000, 1950000);
-			if (ret) {
+			if (regulator_set_voltage(host->vqmmc,
+					1700000, 1950000)) {
 				pr_warning("%s: Switching to 1.8V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
+				ret = -EIO;
+				break;
 			}
 		}
 
@@ -1825,26 +1827,33 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		/* 1.8V regulator output should be stable within 5 ms */
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 		if (ctrl & SDHCI_CTRL_VDD_180)
-			return 0;
+			break;
 
 		pr_warning("%s: 1.8V regulator output did not became stable\n",
 				mmc_hostname(host->mmc));
 
-		return -EAGAIN;
+		ret = -EAGAIN;
+		break;
 	case MMC_SIGNAL_VOLTAGE_120:
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc, 1100000, 1300000);
-			if (ret) {
+			if (regulator_set_voltage(host->vqmmc,
+				1100000, 1300000)) {
 				pr_warning("%s: Switching to 1.2V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
+				ret = -EIO;
+				break;
 			}
 		}
-		return 0;
+		break;
 	default:
 		/* No signal voltage switch required */
-		return 0;
+		break;
 	}
+
+out:
+	if (host->ops->switch_signal_voltage_exit)
+		host->ops->switch_signal_voltage_exit(host);
+	return ret;
 }
 
 static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
