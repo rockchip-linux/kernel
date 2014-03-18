@@ -20,6 +20,7 @@
 #include <linux/acpi.h>
 #include <linux/device.h>
 #include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/slab.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -95,14 +96,12 @@ static struct snd_soc_jack_gpio hp_jack_gpio = {
 	.name			= "hp-gpio",
 	.report			= SND_JACK_HEADPHONE,
 	.debounce_time		= 200,
-	.gpio			= CONFIG_SND_BYT_RAMBI_HPDET_GPIO,
 };
 
 static struct snd_soc_jack_gpio mic_jack_gpio = {
 	.name			= "mic-gpio",
 	.report			= SND_JACK_MICROPHONE,
 	.debounce_time		= 200,
-	.gpio			= CONFIG_SND_BYT_RAMBI_MICDET_GPIO,
 	.invert			= 1,
 };
 
@@ -244,6 +243,8 @@ static int snd_byt_mc_probe(struct platform_device *pdev)
 {
 	int ret_val = 0;
 	struct byt_mc_private *drv;
+	struct gpio_desc *mic_desc;
+	struct gpio_desc *hp_desc;
 
 	pr_debug("Entry %s\n", __func__);
 
@@ -252,6 +253,30 @@ static int snd_byt_mc_probe(struct platform_device *pdev)
 		pr_err("allocation failed\n");
 		return -ENOMEM;
 	}
+
+	/*
+	 * ASoC still uses legacy GPIOs so we look both GPIOs using
+	 * descriptors here, convert them to numbers and release the
+	 * acquired descriptors. Once ASoC switches over to GPIO descriptor
+	 * APIs we can pass them directly.
+	 */
+	hp_desc = gpiod_get_index(pdev->dev.parent, NULL, 0);
+	if (IS_ERR(hp_desc)) {
+		pr_err("unable to get hp-gpio\n");
+		return PTR_ERR(hp_desc);
+	}
+	mic_desc = gpiod_get_index(pdev->dev.parent, NULL, 1);
+	if (IS_ERR(mic_desc)) {
+		pr_err("unable to get mic-gpio\n");
+		gpiod_put(hp_desc);
+		return PTR_ERR(mic_desc);
+	}
+
+	hp_jack_gpio.gpio = desc_to_gpio(hp_desc);
+	mic_jack_gpio.gpio = desc_to_gpio(mic_desc);
+
+	gpiod_put(mic_desc);
+	gpiod_put(hp_desc);
 
 	/* register the soc card */
 	snd_soc_card_byt.dev = &pdev->dev;
