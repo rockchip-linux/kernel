@@ -3192,6 +3192,33 @@ static int intel_dp_get_modes(struct drm_connector *connector)
 	return 0;
 }
 
+static const struct drm_prop_enum_list psr_names[] = {
+	{ EDP_PSR_ON, "on" },
+	{ EDP_PSR_OFF, "off" }
+};
+
+static void intel_attach_psr_property(struct drm_connector *connector)
+{
+	struct drm_device *dev = connector->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_property *prop;
+
+	prop = dev_priv->psr_property;
+	if (prop == NULL) {
+		prop = drm_property_create_enum(
+			dev,
+			i915_enable_psr ? EDP_PSR_ON : EDP_PSR_OFF,
+			"psr",
+			psr_names,
+			ARRAY_SIZE(psr_names));
+		if (prop == NULL)
+			return;
+
+		dev_priv->psr_property = prop;
+	}
+	drm_object_attach_property(&connector->base, prop, 0);
+}
+
 static bool
 intel_dp_detect_audio(struct drm_connector *connector)
 {
@@ -3285,6 +3312,18 @@ intel_dp_set_property(struct drm_connector *connector,
 		intel_connector->panel.fitting_mode = val;
 
 		goto done;
+	}
+
+	if (is_edp(intel_dp) && property == dev_priv->psr_property) {
+		if (val == EDP_PSR_ON) {
+			i915_enable_psr = 1;
+			intel_edp_psr_enable(intel_dp);
+		} else {
+			i915_enable_psr = 0;
+			intel_edp_psr_disable(intel_dp);
+		}
+
+		return 0;
 	}
 
 	return -EINVAL;
@@ -3409,6 +3448,7 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 
+	intel_attach_psr_property(connector);
 	intel_attach_force_audio_property(connector);
 	intel_attach_broadcast_rgb_property(connector);
 	intel_dp->color_range_auto = true;
