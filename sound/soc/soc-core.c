@@ -3911,6 +3911,8 @@ EXPORT_SYMBOL_GPL(snd_soc_unregister_component);
 int snd_soc_add_platform(struct device *dev, struct snd_soc_platform *platform,
 		const struct snd_soc_platform_driver *platform_drv)
 {
+	int ret;
+
 	/* create platform component name */
 	platform->name = fmt_single_name(dev, &platform->id);
 	if (platform->name == NULL)
@@ -3922,6 +3924,16 @@ int snd_soc_add_platform(struct device *dev, struct snd_soc_platform *platform,
 	platform->dapm.platform = platform;
 	platform->dapm.stream_event = platform_drv->stream_event;
 	mutex_init(&platform->mutex);
+
+	/* register component */
+	ret = __snd_soc_register_component(dev, &platform->component,
+					   &platform_drv->component_driver,
+					   NULL, NULL, 0, false);
+	if (ret < 0) {
+		dev_err(platform->component.dev,
+			"ASoC: Failed to register component: %d\n", ret);
+		return ret;
+	}
 
 	mutex_lock(&client_mutex);
 	list_add(&platform->list, &platform_list);
@@ -3964,6 +3976,8 @@ EXPORT_SYMBOL_GPL(snd_soc_register_platform);
  */
 void snd_soc_remove_platform(struct snd_soc_platform *platform)
 {
+	snd_soc_unregister_component(platform->dev);
+
 	mutex_lock(&client_mutex);
 	list_del(&platform->list);
 	mutex_unlock(&client_mutex);
