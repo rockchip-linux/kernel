@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.5.0
+ * Version: 1.5.1
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -38,11 +38,12 @@
 #include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.5.0"
+#define ELAN_DRIVER_VERSION	"1.5.1"
 #define ETP_PRESSURE_OFFSET	25
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
 #define ETP_FINGER_WIDTH	15
+#define ETP_RETRY_COUNT		3
 
 #define ELAN_ADAPTER_FUNC_NONE   0
 #define ELAN_ADAPTER_FUNC_I2C    1
@@ -457,7 +458,7 @@ static int elan_smbus_write_fw_block(struct elan_tp_data *data,
 {
 	struct device *dev = &data->client->dev;
 	int half_page_size = ETP_FW_PAGE_SIZE / 2;
-	int repeat = 3;
+	int repeat = ETP_RETRY_COUNT;
 
 	do {
 		/* due to smbus can write 32 bytes one time,
@@ -490,7 +491,7 @@ static int elan_i2c_write_fw_block(struct elan_tp_data *data,
 {
 	struct device *dev = &data->client->dev;
 	int ret;
-	int repeat = 3;
+	int repeat = ETP_RETRY_COUNT;
 	u8 page_store[ETP_FW_PAGE_SIZE + 4];
 
 	page_store[0] = ETP_I2C_IAP_REG_L;
@@ -1128,72 +1129,107 @@ static int elan_disable_calibrate(struct elan_tp_data *data)
 static int elan_enable_power(struct elan_tp_data *data)
 {
 	int ret;
-	if (data->smbus)
-		/* no effect */
-		ret = 0;
-	else
-		ret = elan_i2c_enable_power(data->client);
+	int repeat = ETP_RETRY_COUNT;
+
+	do {
+		if (data->smbus)
+			/* no effect */
+			ret = 0;
+		else
+			ret = elan_i2c_enable_power(data->client);
+		if (ret >= 0)
+			break;
+		repeat--;
+		msleep(30);
+	} while (repeat > 0);
+
 	return ret;
 }
 
 static int elan_disable_power(struct elan_tp_data *data)
 {
 	int ret;
-	if (data->smbus)
-		/* no effect */
-		ret = 0;
-	else
-		ret = elan_i2c_disable_power(data->client);
+	int repeat = ETP_RETRY_COUNT;
+
+	do {
+		if (data->smbus)
+			/* no effect */
+			ret = 0;
+		else
+			ret = elan_i2c_disable_power(data->client);
+		if (ret >= 0)
+			break;
+		repeat--;
+		msleep(30);
+	} while (repeat > 0);
+
 	return ret;
 }
 
 static int elan_sleep(struct elan_tp_data *data)
 {
 	int ret;
-	if (data->smbus)
-		ret = i2c_smbus_write_byte(data->client,
-					   ETP_SMBUS_SLEEP_CMD);
-	else
-		ret = elan_i2c_sleep(data->client);
+	int repeat = ETP_RETRY_COUNT;
+
+	do {
+		if (data->smbus)
+			ret = i2c_smbus_write_byte(data->client,
+						   ETP_SMBUS_SLEEP_CMD);
+		else
+			ret = elan_i2c_sleep(data->client);
+		if (ret >= 0)
+			break;
+		repeat--;
+		msleep(30);
+	} while (repeat > 0);
+
 	return ret;
 }
 
 static int elan_initialize(struct elan_tp_data *data)
 {
 	int ret;
-	if (data->smbus) {
-		ret = elan_smbus_initialize(data->client);
-		if (ret < 0) {
-			dev_err(&data->client->dev,
-				"device initialize failed.\n");
-			goto err_initialize;
-		}
+	int repeat = ETP_RETRY_COUNT;
 
-		ret = elan_smbus_enable_absolute_mode(data->client);
-		if (ret < 0)
-			dev_err(&data->client->dev,
-				"cannot switch to absolute mode.\n");
-	} else {
-		ret = elan_i2c_initialize(data->client);
-		if (ret < 0) {
-			dev_err(&data->client->dev,
-				"device initialize failed.\n");
-			goto err_initialize;
-		}
+	do {
+		if (data->smbus) {
+			ret = elan_smbus_initialize(data->client);
+			if (ret < 0) {
+				dev_err(&data->client->dev,
+					"device initialize failed.\n");
+				goto err_initialize;
+			}
 
-		ret = elan_i2c_enable_absolute_mode(data->client);
-		if (ret < 0) {
-			dev_err(&data->client->dev,
-				"cannot switch to absolute mode.\n");
-			goto err_initialize;
-		}
+			ret = elan_smbus_enable_absolute_mode(data->client);
+			if (ret < 0)
+				dev_err(&data->client->dev,
+					"cannot switch to absolute mode.\n");
+		} else {
+			ret = elan_i2c_initialize(data->client);
+			if (ret < 0) {
+				dev_err(&data->client->dev,
+					"device initialize failed.\n");
+				goto err_initialize;
+			}
 
-		ret = elan_i2c_wake_up(data->client);
-		if (ret < 0)
-			dev_err(&data->client->dev,
-				"device wake up failed.\n");
-	}
+			ret = elan_i2c_enable_absolute_mode(data->client);
+			if (ret < 0) {
+				dev_err(&data->client->dev,
+					"cannot switch to absolute mode.\n");
+				goto err_initialize;
+			}
+
+			ret = elan_i2c_wake_up(data->client);
+			if (ret < 0)
+				dev_err(&data->client->dev,
+					"device wake up failed.\n");
+		}
+		if (ret >= 0)
+			break;
 err_initialize:
+		repeat--;
+		msleep(30);
+	} while (repeat > 0);
 	return ret;
 }
 
@@ -1709,7 +1745,6 @@ static int elan_probe(struct i2c_client *client,
 		dev_err(&client->dev, "cannot register dev attribute %d", ret);
 		goto err_create_group;
 	}
-
 	device_init_wakeup(&client->dev, true);
 	device_set_wakeup_enable(&client->dev, false);
 	i2c_set_clientdata(client, data);
