@@ -28,6 +28,8 @@
 #include "i915_trace.h"
 #include "intel_drv.h"
 
+static void gen8_setup_private_ppat(struct drm_i915_private *dev_priv);
+
 #define GEN6_PPGTT_PD_ENTRIES 512
 #define I915_PPGTT_PT_ENTRIES (PAGE_SIZE / sizeof(gen6_gtt_pte_t))
 typedef uint64_t gen8_gtt_pte_t;
@@ -864,6 +866,9 @@ void i915_gem_restore_gtt_mappings(struct drm_device *dev)
 		i915_gem_clflush_object(obj, obj->pin_display);
 		i915_gem_gtt_bind_object(obj, obj->cache_level);
 	}
+
+	if (INTEL_INFO(dev)->gen >= 8)
+		gen8_setup_private_ppat(dev_priv);
 
 	i915_gem_chipset_flush(dev);
 }
