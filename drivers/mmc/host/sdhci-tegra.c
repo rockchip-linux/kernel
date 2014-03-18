@@ -52,6 +52,7 @@
 #define SDHCI_MISC_CTRL_ENABLE_SDHCI_SPEC_300	0x20
 #define SDHCI_VNDR_MISC_CTRL_INFINITE_ERASE_TIMEOUT	0x1
 #define SDHCI_VNDR_MISC_CTRL_PIPE_STAGES_MASK	0x180
+#define SDHCI_VNDR_MISC_CTRL_EN_EXT_LOOPBACK	0x20000
 
 #define SDMMC_SDMEMCOMPPADCTRL	0x1E0
 #define SDMMC_SDMEMCOMPPADCTRL_VREF_SEL_MASK	0xF
@@ -195,6 +196,7 @@ struct tegra_tuning_data {
 struct sdhci_tegra {
 	const struct sdhci_tegra_soc_data *soc_data;
 	int power_gpio;
+	bool disable_ext_loopback;
 	bool no_runtime_pm;
 	/* max ddr clk supported by the platform */
 	unsigned int ddr_clk_limit;
@@ -1067,7 +1069,7 @@ static int tegra_sdhci_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	struct tegra_tuning_data *tuning_data;
 	int err;
-	u32 ier;
+	u32 ier, misc_ctrl;
 
 	/* Tuning should be done only for MMC_BUS_WIDTH_8 and MMC_BUS_WIDTH_4 */
 	if (sdhci->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
@@ -1076,6 +1078,12 @@ static int tegra_sdhci_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 		tegra_host->tuning_bsize = MMC_TUNING_BLOCK_SIZE_BUS_WIDTH_4;
 	else
 		return -EINVAL;
+
+	if (tegra_host->disable_ext_loopback) {
+		misc_ctrl = sdhci_readl(sdhci, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+		misc_ctrl &= ~SDHCI_VNDR_MISC_CTRL_EN_EXT_LOOPBACK;
+		sdhci_writel(sdhci, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
+	}
 
 	/* Set the tuning command to be used */
 	tegra_host->tuning_opcode = opcode;
@@ -1113,6 +1121,20 @@ static int tegra_sdhci_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 
 out:
 	tegra_dvfs_core_unlock();
+
+	if (tegra_host->disable_ext_loopback && err) {
+			/*
+			 * Tuning failed and card will try to enumerate in
+			 * Legacy High Speed mode.  So we reenable the loopback
+			 * if we had disabled it
+			 */
+			misc_ctrl = sdhci_readl(sdhci,
+						SDHCI_TEGRA_VENDOR_MISC_CTRL);
+			misc_ctrl |= SDHCI_VNDR_MISC_CTRL_EN_EXT_LOOPBACK;
+			sdhci_writel(sdhci, misc_ctrl,
+				     SDHCI_TEGRA_VENDOR_MISC_CTRL);
+	}
+
 	/* Enable interrupts */
 	sdhci_writel(sdhci, ier, SDHCI_INT_ENABLE);
 	sdhci_writel(sdhci, ier, SDHCI_SIGNAL_ENABLE);
@@ -1349,6 +1371,16 @@ static void tegra_sdhci_reset_exit(struct sdhci_host *host, u8 mask)
 		}
 		if (soc_data->nvquirks & NVQUIRK_SET_PIPE_STAGES_MASK_0)
 			misc_ctrl &= ~SDHCI_VNDR_MISC_CTRL_PIPE_STAGES_MASK;
+
+		if (tegra_host->disable_ext_loopback) {
+			if (tegra_host->tuning_done) {
+				misc_ctrl &=
+					~SDHCI_VNDR_MISC_CTRL_EN_EXT_LOOPBACK;
+			} else {
+				misc_ctrl |=
+					SDHCI_VNDR_MISC_CTRL_EN_EXT_LOOPBACK;
+			}
+		}
 		sdhci_writew(host, misc_ctrl, SDHCI_TEGRA_VENDOR_MISC_CTRL);
 
 		if (soc_data->nvquirks & NVQUIRK_DISABLE_AUTO_CMD23)
@@ -1518,6 +1550,9 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 
 	tegra_host->power_gpio = of_get_named_gpio(np, "power-gpios", 0);
 	ret = mmc_of_parse(host->mmc);
+
+	if (of_get_property(np, "nvidia,disable-ext-loopback", NULL))
+		tegra_host->disable_ext_loopback = true;
 
 	if (of_get_property(np, "nvidia,no-runtime-suspend", NULL))
 		tegra_host->no_runtime_pm = true;

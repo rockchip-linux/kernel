@@ -40,6 +40,7 @@ Optional properties:
 	Bit 5: SDR104
 	Bit 6: HS200
 - ddr-clk-limit : max clock frequency in DDR mode
+- nvidia,disable-ext-loopback : disable external loopback for controller in UHS modes
 - nvidia,{vmin,vmax} : corresponding min/max core voltage (in mV) for tuning
   coefficients
 - nvidia,t2t-{vmin,vmax,vnom}-{slope,int} : tap-to-tap tuning coefficients
