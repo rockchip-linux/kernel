@@ -790,7 +790,7 @@ static int totmaps_release(struct inode *inode, struct file *file)
 	kfree(priv->mss);
 	kfree(priv);
 	m->private = NULL;
-	return seq_release(inode, file);
+	return single_release(inode, file);
 }
 
 const struct file_operations proc_pid_smaps_operations = {
