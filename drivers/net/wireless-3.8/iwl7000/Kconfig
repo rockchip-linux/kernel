@@ -14,9 +14,6 @@ config IWL7000
 	# we can't really be modular ... at least I was too lazy for it
 	depends on m
 
-	# lazy too ... could be fixed
-	depends on IWLWIFI=n
-
 config IWL7000_DEBUGFS
 	def_bool y
 	depends on IWL7000
