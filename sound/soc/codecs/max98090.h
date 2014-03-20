@@ -1532,6 +1532,7 @@ struct max98090_priv {
 	int irq;
 	int jack_state;
 	struct delayed_work jack_work;
+	struct work_struct pll_work;
 	struct snd_soc_jack *jack;
 	unsigned int dai_fmt;
 	int tdm_slots;
