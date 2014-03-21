@@ -560,10 +560,12 @@ mwifiex_scan_channel_list(struct mwifiex_private *priv,
 			  *chan_tlv_out,
 			  struct mwifiex_chan_scan_param_set *scan_chan_list)
 {
+	struct mwifiex_adapter *adapter = priv->adapter;
 	int ret = 0;
 	struct mwifiex_chan_scan_param_set *tmp_chan_list;
 	struct mwifiex_chan_scan_param_set *start_chan;
-
+	struct cmd_ctrl_node *cmd_node, *tmp_node;
+	unsigned long flags;
 	u32 tlv_idx;
 	u32 total_scan_time;
 	u32 done_early;
@@ -699,8 +701,19 @@ mwifiex_scan_channel_list(struct mwifiex_private *priv,
 		ret = mwifiex_send_cmd(priv, HostCmd_CMD_802_11_SCAN,
 				       HostCmd_ACT_GEN_SET, 0,
 				       scan_cfg_out, false);
-		if (ret)
+		if (ret) {
+			spin_lock_irqsave(&adapter->scan_pending_q_lock, flags);
+			list_for_each_entry_safe(cmd_node, tmp_node,
+						 &adapter->scan_pending_q,
+						 list) {
+				list_del(&cmd_node->list);
+				cmd_node->wait_q_enabled = false;
+				mwifiex_insert_cmd_to_free_q(adapter, cmd_node);
+			}
+			spin_unlock_irqrestore(&adapter->scan_pending_q_lock,
+					       flags);
 			break;
+		}
 	}
 
 	if (ret)
