@@ -1114,6 +1114,15 @@ static const struct soc_enum mixhprsel_mux_enum =
 static const struct snd_kcontrol_new max98090_mixhprsel_mux =
 	SOC_DAPM_ENUM("MIXHPRSEL Mux", mixhprsel_mux_enum);
 
+/* HP output enables. */
+static const struct snd_kcontrol_new max98090_hpl_enable =
+	SOC_DAPM_SINGLE("Switch", M98090_REG_OUTPUT_ENABLE,
+			M98090_HPLEN_SHIFT, 1, 0);
+
+static const struct snd_kcontrol_new max98090_hpr_enable =
+	SOC_DAPM_SINGLE("Switch", M98090_REG_OUTPUT_ENABLE,
+			M98090_HPREN_SHIFT, 1, 0);
+
 static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 
 	SND_SOC_DAPM_INPUT("MIC1"),
@@ -1256,10 +1265,10 @@ static const struct snd_soc_dapm_widget max98090_dapm_widgets[] = {
 	SND_SOC_DAPM_MUX("MIXHPRSEL Mux", M98090_REG_HP_CONTROL,
 		M98090_MIXHPRSEL_SHIFT, 0, &max98090_mixhprsel_mux),
 
-	SND_SOC_DAPM_PGA("HP Left Out", M98090_REG_OUTPUT_ENABLE,
-		M98090_HPLEN_SHIFT, 0, NULL, 0),
-	SND_SOC_DAPM_PGA("HP Right Out", M98090_REG_OUTPUT_ENABLE,
-		M98090_HPREN_SHIFT, 0, NULL, 0),
+	SND_SOC_DAPM_SWITCH("HP Left Out", SND_SOC_NOPM, 0, 0,
+			    &max98090_hpl_enable),
+	SND_SOC_DAPM_SWITCH("HP Right Out", SND_SOC_NOPM, 0, 0,
+			    &max98090_hpr_enable),
 
 	SND_SOC_DAPM_PGA("SPK Left Out", M98090_REG_OUTPUT_ENABLE,
 		M98090_SPLEN_SHIFT, 0, NULL, 0),
@@ -1443,8 +1452,8 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	 * Disable this for lowest power if bypassing
 	 * the DAC with an analog signal
 	 */
-	{"HP Left Out", NULL, "DACL"},
-	{"HP Left Out", NULL, "MIXHPLSEL Mux"},
+	{"HP Left Out", "Switch", "DACL"},
+	{"HP Left Out", "Switch", "MIXHPLSEL Mux"},
 
 	{"MIXHPRSEL Mux", "HP Mixer", "Right Headphone Mixer"},
 
@@ -1452,8 +1461,8 @@ static const struct snd_soc_dapm_route max98090_dapm_routes[] = {
 	 * Disable this for lowest power if bypassing
 	 * the DAC with an analog signal
 	 */
-	{"HP Right Out", NULL, "DACR"},
-	{"HP Right Out", NULL, "MIXHPRSEL Mux"},
+	{"HP Right Out", "Switch", "DACR"},
+	{"HP Right Out", "Switch", "MIXHPRSEL Mux"},
 
 	{"SPK Left Out", NULL, "Left Speaker Mixer"},
 	{"SPK Right Out", NULL, "Right Speaker Mixer"},
