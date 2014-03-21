@@ -202,7 +202,6 @@ struct tegra_xhci_hcd {
 
 	bool hc_in_elpg;
 	phys_addr_t host_phys_base;
-	void __iomem *host_base;
 	void __iomem *fpci_base;
 	void __iomem *ipfs_base;
 
@@ -946,10 +945,6 @@ static int load_firmware(struct tegra_xhci_hcd *tegra)
 	u16 nblocks;
 	time_t fw_time;
 	struct tm fw_tm;
-	u8 hc_caplength;
-	u32 usbsts, count = 0xff;
-	struct xhci_cap_regs __iomem *cap_regs;
-	struct xhci_op_regs __iomem *op_regs;
 
 	/* Enable mbox interrupt */
 	writel(readl(tegra->fpci_base + XUSB_CFG_ARU_MBOX_CMD) | MBOX_INT_EN,
@@ -1032,21 +1027,6 @@ static int load_firmware(struct tegra_xhci_hcd *tegra)
 	/* Bail out if Falcon CPU is not in a good state */
 	if (csb_read(tegra, XUSB_FALC_CPUCTL) == XUSB_FALC_STATE_HALTED)
 		return -EFAULT;
-
-	cap_regs = tegra->host_base;
-	hc_caplength = HC_LENGTH(readl(&cap_regs->hc_capbase));
-	op_regs = tegra->host_base + hc_caplength;
-
-	/* Wait for USBSTS_CNR to get set */
-	do {
-		usbsts = readl(&op_regs->status);
-		usleep_range(1000, 2000);
-	} while ((usbsts & STS_CNR) && count--);
-
-	if (!count && (usbsts & STS_CNR)) {
-		dev_err(dev, "Controller not ready\n");
-		return -EFAULT;
-	}
 
 	return 0;
 }
@@ -1347,12 +1327,6 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	tegra->host_phys_base = res->start;
-	tegra->host_base = devm_ioremap(&pdev->dev, res->start,
-					resource_size(res));
-	if (!tegra->host_base) {
-		dev_err(&pdev->dev, "error mapping host virtual address\n");
-		return -ENOMEM;
-	}
 
 	/* Map FPCI registers */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
