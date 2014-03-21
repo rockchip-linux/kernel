@@ -3738,6 +3738,7 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 	/* We now know it's not a ghost, init power sequence regs. */
 	intel_dp_init_panel_power_sequencer_registers(dev, intel_dp, power_seq);
 
+	mutex_lock(&dev->mode_config.mutex);
 	edid = drm_get_edid(connector, &intel_dp->adapter);
 	if (edid) {
 		if (drm_add_edid_modes(connector, edid)) {
@@ -3768,6 +3769,7 @@ static bool intel_edp_init_connector(struct intel_dp *intel_dp,
 		if (fixed_mode)
 			fixed_mode->type |= DRM_MODE_TYPE_PREFERRED;
 	}
+	mutex_unlock(&dev->mode_config.mutex);
 
 	intel_panel_init(&intel_connector->panel, fixed_mode);
 	intel_connector->panel.backlight_power = intel_edp_backlight_power;
