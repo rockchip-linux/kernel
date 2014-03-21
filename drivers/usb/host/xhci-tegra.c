@@ -193,7 +193,6 @@ struct tegra_xhci_hcd {
 	u16 device_id;
 	struct resource xhci_resources[2];
 
-	spinlock_t lock;
 	struct mutex sync_lock;
 
 	int mbox_irq;
@@ -201,7 +200,6 @@ struct tegra_xhci_hcd {
 	struct raw_notifier_head mbox_notifiers;
 	struct notifier_block mbox_nb;
 
-	bool async_resume_req;
 	bool hc_in_elpg;
 	phys_addr_t host_phys_base;
 	void __iomem *host_base;
@@ -731,17 +729,11 @@ static int tegra_xhci_phy_notifier(struct notifier_block *nb,
 {
 	struct tegra_xhci_hcd *tegra = container_of(nb, struct tegra_xhci_hcd,
 						    phy_nb);
-	unsigned long flags;
 
 	if (action != USB_EVENT_VBUS)
 		return NOTIFY_DONE;
 
-	spin_lock_irqsave(&tegra->lock, flags);
-	if (tegra->hc_in_elpg && !tegra->async_resume_req) {
-		tegra->async_resume_req = true;
-		pm_runtime_get(&tegra->pdev->dev);
-	}
-	spin_unlock_irqrestore(&tegra->lock, flags);
+	pm_request_resume(&tegra->pdev->dev);
 
 	return NOTIFY_OK;
 }
@@ -892,8 +884,7 @@ static irqreturn_t tegra_xhci_mbox_irq(int irq, void *ptrdev)
 	}
 
 	mutex_unlock(&tegra->mbox_lock);
-	pm_runtime_mark_last_busy(dev);
-	pm_runtime_put_autosuspend(dev);
+	pm_runtime_put(dev);
 
 	return IRQ_HANDLED;
 }
@@ -1320,7 +1311,6 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	mutex_init(&tegra->sync_lock);
-	spin_lock_init(&tegra->lock);
 	mutex_init(&tegra->mbox_lock);
 	RAW_INIT_NOTIFIER_HEAD(&tegra->mbox_notifiers);
 	tegra->mbox_nb.notifier_call = tegra_xhci_default_mbox_notifier;
@@ -1543,8 +1533,6 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 
 	tegra->init_done = true;
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev, 500);
-	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
 	return 0;
@@ -1741,6 +1729,8 @@ static int tegra_xhci_elpg_enter(struct tegra_xhci_hcd *tegra)
 	tegra->log.dequeue = tegra->log.virt_addr;
 	tegra->log.seq = 0;
 
+	tegra->hc_in_elpg = true;
+
 	return ret;
 }
 
@@ -1807,13 +1797,14 @@ static int tegra_xhci_elpg_exit(struct tegra_xhci_hcd *tegra)
 
 	tegra_xusb_phy_postresume(tegra->phy);
 
+	tegra->hc_in_elpg = false;
+
 	return ret;
 }
 
 static int tegra_xhci_suspend(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
-	unsigned long flags;
 	int ret;
 
 	pm_runtime_get_sync(dev);
@@ -1825,9 +1816,6 @@ static int tegra_xhci_suspend(struct device *dev)
 		return -EBUSY;
 	}
 	WARN_ON(tegra->hc_in_elpg);
-	spin_lock_irqsave(&tegra->lock, flags);
-	tegra->hc_in_elpg = true;
-	spin_unlock_irqrestore(&tegra->lock, flags);
 
 	ret = tegra_xhci_elpg_enter(tegra);
 	if (ret) {
@@ -1839,15 +1827,8 @@ static int tegra_xhci_suspend(struct device *dev)
 	regulator_disable(tegra->xusb_s1p05v_reg);
 
 out:
-	if (ret) {
-		spin_lock_irqsave(&tegra->lock, flags);
-		tegra->hc_in_elpg = false;
-		spin_unlock_irqrestore(&tegra->lock, flags);
-	}
 	mutex_unlock(&tegra->sync_lock);
-
-	pm_runtime_mark_last_busy(dev);
-	pm_runtime_put_autosuspend(dev);
+	pm_runtime_put(dev);
 
 	return ret;
 }
@@ -1855,7 +1836,6 @@ out:
 static int tegra_xhci_resume(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
-	unsigned long flags;
 	int ret;
 
 	mutex_lock(&tegra->sync_lock);
@@ -1878,16 +1858,11 @@ static int tegra_xhci_resume(struct device *dev)
 		goto err;
 	}
 
-	spin_lock_irqsave(&tegra->lock, flags);
-	tegra->async_resume_req = false;
-	tegra->hc_in_elpg = false;
-	spin_unlock_irqrestore(&tegra->lock, flags);
 	mutex_unlock(&tegra->sync_lock);
 
 	pm_runtime_disable(dev);
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
-	pm_runtime_mark_last_busy(dev);
 
 	return 0;
 err:
@@ -1900,7 +1875,6 @@ static int tegra_xhci_runtime_suspend(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
 	struct xhci_hcd *xhci = tegra_to_xhci(tegra);
-	unsigned long flags;
 	int err = 0;
 
 	/* Wait for port to enter U3 state */
@@ -1908,9 +1882,6 @@ static int tegra_xhci_runtime_suspend(struct device *dev)
 
 	mutex_lock(&tegra->sync_lock);
 	WARN_ON(tegra->hc_in_elpg);
-	spin_lock_irqsave(&tegra->lock, flags);
-	tegra->hc_in_elpg = true;
-	spin_unlock_irqrestore(&tegra->lock, flags);
 
 	err = xhci_suspend(xhci);
 	if (err) {
@@ -1923,11 +1894,6 @@ static int tegra_xhci_runtime_suspend(struct device *dev)
 		dev_err(dev, "unable to perform elpg entry %d\n", err);
 
 out:
-	if (err) {
-		spin_lock_irqsave(&tegra->lock, flags);
-		tegra->hc_in_elpg = false;
-		spin_unlock_irqrestore(&tegra->lock, flags);
-	}
 	mutex_unlock(&tegra->sync_lock);
 	return err;
 }
@@ -1936,7 +1902,6 @@ static int tegra_xhci_runtime_resume(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
 	struct xhci_hcd *xhci = tegra_to_xhci(tegra);
-	unsigned long flags;
 	int err = 0;
 
 	mutex_lock(&tegra->sync_lock);
@@ -1944,26 +1909,16 @@ static int tegra_xhci_runtime_resume(struct device *dev)
 	err = tegra_xhci_elpg_exit(tegra);
 	if (err) {
 		dev_err(dev, "unable to perform elpg exit %d\n", err);
-		return err;
+		goto out;
 	}
 
 	err = xhci_resume(xhci, 0);
-	if (err) {
+	if (err)
 		dev_err(dev, "xhci_resume failed %d\n", err);
-		return err;
-	}
 
-	spin_lock_irqsave(&tegra->lock, flags);
-	if (tegra->async_resume_req) {
-		pm_runtime_mark_last_busy(dev);
-		pm_runtime_put_autosuspend(dev);
-		tegra->async_resume_req = false;
-	}
-	tegra->hc_in_elpg = false;
-	spin_unlock_irqrestore(&tegra->lock, flags);
+out:
 	mutex_unlock(&tegra->sync_lock);
-
-	return 0;
+	return err;
 }
 #endif /* CONFIG_PM_RUNTIME */
 #endif /* CONFIG_PM */
