@@ -71,5 +71,8 @@ int sst_byt_dsp_suspend_noirq(struct device *dev, struct sst_pdata *pdata);
 int sst_byt_dsp_suspend_late(struct device *dev, struct sst_pdata *pdata);
 int sst_byt_dsp_boot(struct device *dev, struct sst_pdata *pdata);
 int sst_byt_dsp_wait_for_ready(struct device *dev, struct sst_pdata *pdata);
+void sst_byt_register_notifier(struct device *dev, struct sst_pdata *pdata,
+	void (*start)(struct sst_dsp *, void *),
+	void (*stop)(struct sst_dsp *, void *), void *data);
 
 #endif

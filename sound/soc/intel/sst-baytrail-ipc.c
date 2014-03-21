@@ -145,6 +145,7 @@ struct sst_byt;
 /* stream infomation */
 struct sst_byt_stream {
 	struct list_head node;
+	struct work_struct notify_work;
 
 	/* configuration */
 	struct sst_byt_alloc_params request;
@@ -184,6 +185,11 @@ struct sst_byt {
 	struct kthread_worker kworker;
 	struct kthread_work kwork;
 	struct ipc_message *msg;
+
+	/* can be used to notfy that LRCLK and BCLK have started */
+	void (*notify_start)(struct sst_dsp *dsp, void *);
+	void (*notify_stop)(struct sst_dsp *dsp, void *);
+	void *notify_data;
 };
 
 static inline u64 sst_byt_header(int msg_id, int data, bool large, int str_id)
@@ -430,6 +436,21 @@ out:
 	return msg;
 }
 
+static void sst_byt_notify_work(struct work_struct *work)
+{
+	struct sst_byt_stream *stream =
+		container_of(work, struct sst_byt_stream, notify_work);
+	struct sst_byt *byt  = stream->byt;
+
+	if (stream->running) {
+		if (byt->notify_start)
+			byt->notify_start(byt->dsp, byt->notify_data);
+	} else {
+		if (byt->notify_stop)
+			byt->notify_stop(byt->dsp, byt->notify_data);
+	}
+}
+
 static void sst_byt_stream_update(struct sst_byt *byt, struct ipc_message *msg)
 {
 	struct sst_byt_stream *stream;
@@ -446,10 +467,12 @@ static void sst_byt_stream_update(struct sst_byt *byt, struct ipc_message *msg)
 	case IPC_IA_PAUSE_STREAM:
 	case IPC_IA_FREE_STREAM:
 		stream->running = false;
+		schedule_work(&stream->notify_work);
 		break;
 	case IPC_IA_START_STREAM:
 	case IPC_IA_RESUME_STREAM:
 		stream->running = true;
+		schedule_work(&stream->notify_work);
 		break;
 	}
 }
@@ -567,6 +590,7 @@ struct sst_byt_stream *sst_byt_stream_new(struct sst_byt *byt, int id,
 		return NULL;
 
 	list_add(&stream->node, &byt->stream_list);
+	INIT_WORK(&stream->notify_work, sst_byt_notify_work);
 	stream->notify_position = notify_position;
 	stream->pdata = data;
 	stream->byt = byt;
@@ -966,4 +990,14 @@ int sst_byt_dsp_wait_for_ready(struct device *dev, struct sst_pdata *pdata)
 }
 EXPORT_SYMBOL_GPL(sst_byt_dsp_wait_for_ready);
 
+void sst_byt_register_notifier(struct device *dev, struct sst_pdata *pdata,
+	void (*start)(struct sst_dsp *, void *),
+	void (*stop)(struct sst_dsp *, void *), void *data)
+{
+	struct sst_byt *byt = pdata->dsp;
 
+	byt->notify_start = start;
+	byt->notify_stop = stop;
+	byt->notify_data = data;
+}
+EXPORT_SYMBOL_GPL(sst_byt_register_notifier);
