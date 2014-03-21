@@ -27,6 +27,8 @@
 #include <sound/soc.h>
 #include <sound/jack.h>
 #include "../codecs/max98090.h"
+#include "sst-dsp.h"
+#include "sst-baytrail-ipc.h"
 
 #define BYT_PLAT_CLK_3_HZ      19200000
 
@@ -107,17 +109,32 @@ static struct snd_soc_jack_gpio mic_jack_gpio = {
 	.invert			= 1,
 };
 
+/* enable the codec SHDN after LRCLK and BCLK have been activated by DSP FW */
+static void byt_max98090_start(struct sst_dsp *dsp, void *data)
+{
+	struct snd_soc_pcm_runtime *runtime = data;
+	struct snd_soc_codec *codec = runtime->codec;
+
+	snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
+				M98090_SHDNN_MASK, M98090_SHDNN_MASK);
+}
+
 static int byt_init(struct snd_soc_pcm_runtime *runtime)
 {
 	int ret;
 	struct snd_soc_codec *codec = runtime->codec;
+	struct snd_soc_platform *platform = runtime->platform;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct snd_soc_card *card = runtime->card;
 	struct byt_mc_private *drv = snd_soc_card_get_drvdata(card);
+	struct sst_pdata *pdata = dev_get_platdata(platform->dev);
 	struct snd_soc_jack *hp_jack = &drv->hp_jack;
 	struct snd_soc_jack *mic_jack = &drv->mic_jack;
 
 	pr_debug("Enter:%s", __func__);
+	sst_byt_register_notifier(platform->dev, pdata,
+		byt_max98090_start, NULL, runtime);
+
 	card->dapm.idle_bias_off = true;
 
 	ret = snd_soc_add_card_controls(card, byt_mc_controls,
