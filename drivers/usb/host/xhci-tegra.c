@@ -255,9 +255,10 @@ static int tegra_xhci_mbox_send(struct tegra_xhci_hcd *tegra,
 static u32 tegra_xhci_read_portsc(struct tegra_xhci_hcd *tegra,
 				  unsigned int port)
 {
-	struct usb_hcd *hcd = tegra_to_hcd(tegra);
+	struct xhci_hcd *xhci = tegra_to_xhci(tegra);
 
-	return readl(hcd->regs + BAR0_XHCI_OP_PORTSC(port));
+	return readl(&xhci->op_regs->port_status_base +
+		     NUM_PORT_REGS * port);
 }
 
 enum usb_device_speed tegra_xhci_port_speed(struct tegra_xhci_hcd *tegra,
