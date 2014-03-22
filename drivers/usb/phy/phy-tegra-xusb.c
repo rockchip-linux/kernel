@@ -83,6 +83,7 @@ struct tegra_xusb_phy_config {
 	u32 hs_disc_lvl;
 	u32 spare_in;
 	u32 pmc_portmap[TEGRA_XUSB_UTMI_COUNT];
+	int utmi_port_offset;
 	int hsic_port_offset;
 	const struct tegra_xusb_padctl_regs *padctl_offsets;
 };
@@ -1153,7 +1154,8 @@ static void utmi_pmc_wake_enable(struct tegra_xusb_phy *tegra, unsigned int pad)
 	enum usb_device_speed port_speed;
 
 	port = tegra->soc_config->pmc_portmap[pad];
-	port_speed = tegra_xhci_port_speed(tegra->xhci, pad);
+	port_speed = tegra_xhci_port_speed(tegra->xhci, pad +
+					   tegra->soc_config->utmi_port_offset);
 	val = pmc_readl(tegra, PMC_SLEEP_CFG);
 	if (val & UTMIP_MASTER_ENABLE(port)) {
 		dev_info(tegra->dev, "UTMI wake already enabled on port %d\n",
@@ -1816,6 +1818,7 @@ static const struct tegra_xusb_phy_config tegra114_soc_config = {
 	.ls_rslew_pad = {0x3 << 14, 0x0 << 14, 0x0},
 	.hs_disc_lvl = (0x5 << 2),
 	.spare_in = 0x0,
+	.utmi_port_offset = 2,
 	.hsic_port_offset = 5,
 	.padctl_offsets = &tegra114_padctl_offsets,
 };
@@ -1840,6 +1843,7 @@ static const struct tegra_xusb_phy_config tegra124_soc_config = {
 	.ls_rslew_pad = {0x3 << 14, 0x0 << 14, 0x0 << 14},
 	.hs_disc_lvl = (0x5 << 2),
 	.spare_in = 0x1,
+	.utmi_port_offset = 2,
 	.hsic_port_offset = 6,
 	.padctl_offsets = &tegra124_padctl_offsets,
 };
