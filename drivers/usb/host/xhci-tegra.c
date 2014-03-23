@@ -1412,6 +1412,11 @@ static int tegra_xhci_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(&pdev->dev, "could not unpowergate xusbc partition\n");
 
+	/* Powergate device partition when device mode is not used */
+	ret = tegra_powergate_partition(TEGRA_POWERGATE_XUSBB);
+	if (ret)
+		dev_err(&pdev->dev, "could not powergate xusbb partition\n");
+
 	/* Setup IPFS access and BAR0 space */
 	tegra_xhci_cfg(tegra);
 
