@@ -191,7 +191,6 @@ struct tegra_xhci_hcd {
 	struct platform_device *pdev;
 	struct platform_device *xhci_pdev;
 	u16 device_id;
-	struct resource xhci_resources[2];
 
 	struct mutex sync_lock;
 
@@ -1437,6 +1436,7 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 	struct platform_device *pdev = tegra->pdev;
 	struct platform_device *xhci;
 	int ret;
+	struct resource xhci_resources[2];
 	struct resource	*res;
 
 	ret = load_firmware(tegra);
@@ -1447,25 +1447,26 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 
 	device_init_wakeup(&pdev->dev, 1);
 
+	memset(xhci_resources, 0, sizeof(xhci_resources));
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "missing XHCI IRQ\n");
 		return -ENODEV;
 	}
-	tegra->xhci_resources[0].start = res->start;
-	tegra->xhci_resources[0].end = res->end;
-	tegra->xhci_resources[0].flags = res->flags;
-	tegra->xhci_resources[0].name = res->name;
+	xhci_resources[0].start = res->start;
+	xhci_resources[0].end = res->end;
+	xhci_resources[0].flags = res->flags;
+	xhci_resources[0].name = res->name;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "missing XHCI registers\n");
 		return -ENODEV;
 	}
-	tegra->xhci_resources[1].start = res->start;
-	tegra->xhci_resources[1].end = res->end;
-	tegra->xhci_resources[1].flags = res->flags;
-	tegra->xhci_resources[1].name = res->name;
+	xhci_resources[1].start = res->start;
+	xhci_resources[1].end = res->end;
+	xhci_resources[1].flags = res->flags;
+	xhci_resources[1].name = res->name;
 
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
 	if (!res) {
@@ -1489,7 +1490,8 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 	xhci->dev.dma_mask = pdev->dev.dma_mask;
 	xhci->dev.dma_parms = pdev->dev.dma_parms;
 
-	ret = platform_device_add_resources(xhci, tegra->xhci_resources, 2);
+	ret = platform_device_add_resources(xhci, xhci_resources,
+					    ARRAY_SIZE(xhci_resources));
 	if (ret) {
 		dev_err(&pdev->dev, "failed to add XHCI resources\n");
 		goto err;
