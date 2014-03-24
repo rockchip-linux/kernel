@@ -83,7 +83,7 @@ asoc_simple_card_sub_parse_of(struct device_node *np,
 	 * bitclock-master,    frame-master
 	 * and specific "format" if it has
 	 */
-	dai->fmt = snd_soc_of_parse_daifmt(np, NULL);
+	dai->fmt = snd_soc_of_parse_daifmt(np, NULL, NULL, NULL);
 
 	/*
 	 * dai->sysclk come from
@@ -129,7 +129,8 @@ static int asoc_simple_card_parse_of(struct device_node *node,
 	int ret;
 
 	/* get CPU/CODEC common format via simple-audio-card,format */
-	info->daifmt = snd_soc_of_parse_daifmt(node, "simple-audio-card,") &
+	info->daifmt = snd_soc_of_parse_daifmt(node, "simple-audio-card,", NULL,
+					 NULL) &
 		(SND_SOC_DAIFMT_FORMAT_MASK | SND_SOC_DAIFMT_INV_MASK);
 
 	/* DAPM routes */
