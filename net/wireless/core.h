@@ -89,6 +89,10 @@ struct cfg80211_registered_device {
 	/* netlink port which started critical protocol (0 means not started) */
 	u32 crit_proto_nlportid;
 
+	spinlock_t destroy_list_lock;
+	struct list_head destroy_list;
+	struct work_struct destroy_work;
+
 	/* must be last because of the way we do wiphy_priv(),
 	 * and it should at least be aligned to NETDEV_ALIGN */
 	struct wiphy wiphy __aligned(NETDEV_ALIGN);
@@ -259,6 +263,13 @@ struct cfg80211_beacon_registration {
 	struct list_head list;
 	u32 nlportid;
 };
+
+struct cfg80211_iface_destroy {
+	struct list_head list;
+	u32 nlportid;
+};
+
+void cfg80211_destroy_ifaces(struct cfg80211_registered_device *rdev);
 
 /* free object */
 extern void cfg80211_dev_free(struct cfg80211_registered_device *rdev);
