@@ -240,6 +240,16 @@ enum iwl_mvm_smps_type_request {
 	NUM_IWL_MVM_SMPS_REQ,
 };
 
+enum iwl_mvm_ref_type {
+	IWL_MVM_REF_UCODE_DOWN,
+	IWL_MVM_REF_SCAN,
+	IWL_MVM_REF_ROC,
+	IWL_MVM_REF_P2P_CLIENT,
+	IWL_MVM_REF_AP_IBSS,
+
+	IWL_MVM_REF_COUNT,
+};
+
 /**
 * struct iwl_mvm_vif_bf_data - beacon filtering related data
 * @bf_enabled: indicates if beacon filtering is enabled
@@ -430,6 +440,28 @@ struct iwl_mvm_tt_mgmt {
 	bool throttle;
 };
 
+#define IWL_MVM_NUM_LAST_FRAMES_UCODE_RATES 8
+
+struct iwl_mvm_frame_stats {
+	u32 legacy_frames;
+	u32 ht_frames;
+	u32 vht_frames;
+	u32 bw_20_frames;
+	u32 bw_40_frames;
+	u32 bw_80_frames;
+	u32 bw_160_frames;
+	u32 sgi_frames;
+	u32 ngi_frames;
+	u32 siso_frames;
+	u32 mimo2_frames;
+	u32 agg_frames;
+	u32 ampdu_count;
+	u32 success_frames;
+	u32 fail_frames;
+	u32 last_rates[IWL_MVM_NUM_LAST_FRAMES_UCODE_RATES];
+	int last_frame_idx;
+};
+
 struct iwl_mvm {
 	/* for logger access */
 	struct device *dev;
@@ -474,7 +506,7 @@ struct iwl_mvm {
 
 	struct iwl_nvm_data *nvm_data;
 	/* NVM sections */
-	struct iwl_nvm_section nvm_sections[NVM_NUM_OF_SECTIONS];
+	struct iwl_nvm_section nvm_sections[NVM_MAX_NUM_SECTIONS];
 
 	/* EEPROM MAC addresses */
 	struct mac_address addresses[IWL_MVM_MAX_ADDRESSES];
@@ -498,6 +530,17 @@ struct iwl_mvm {
 	/* rx chain antennas set through debugfs for the scan command */
 	u8 scan_rx_ant;
 
+#ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
+	/* broadcast filters to configure for each associated station */
+	const struct iwl_fw_bcast_filter *bcast_filters;
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+	struct {
+		u32 override; /* u32 for debugfs_create_bool */
+		struct iwl_bcast_filter_cmd cmd;
+	} dbgfs_bcast_filtering;
+#endif
+#endif
+
 	/* Internal station */
 	struct iwl_mvm_int_sta aux_sta;
 
@@ -517,6 +560,9 @@ struct iwl_mvm {
 	struct debugfs_blob_wrapper nvm_sw_blob;
 	struct debugfs_blob_wrapper nvm_calib_blob;
 	struct debugfs_blob_wrapper nvm_prod_blob;
+
+	struct iwl_mvm_frame_stats drv_rx_stats;
+	spinlock_t drv_stats_lock;
 #endif
 
 	struct iwl_mvm_phy_ctxt phy_ctxts[NUM_PHY_CTX];
@@ -529,6 +575,9 @@ struct iwl_mvm {
 	 * can hold 16 keys at most. Reflect this fact.
 	 */
 	unsigned long fw_key_table[BITS_TO_LONGS(STA_KEY_MAX_NUM)];
+
+	/* A bitmap of reference types taken by the driver. */
+	unsigned long ref_bitmap[BITS_TO_LONGS(IWL_MVM_REF_COUNT)];
 
 	u8 vif_count;
 
@@ -551,6 +600,10 @@ struct iwl_mvm {
 	struct ieee80211_vif *keep_vif;
 #endif
 #endif
+
+	/* d0i3 */
+	u8 d0i3_ap_sta_id;
+	struct work_struct d0i3_exit_work;
 
 	/* BT-Coex */
 	u8 bt_kill_msk;
@@ -597,6 +650,24 @@ static inline bool iwl_mvm_is_radio_killed(struct iwl_mvm *mvm)
 {
 	return test_bit(IWL_MVM_STATUS_HW_RFKILL, &mvm->status) ||
 	       test_bit(IWL_MVM_STATUS_HW_CTKILL, &mvm->status);
+}
+
+static inline struct iwl_mvm_sta *
+iwl_mvm_sta_from_staid_protected(struct iwl_mvm *mvm, u8 sta_id)
+{
+	struct ieee80211_sta *sta;
+
+	if (sta_id >= ARRAY_SIZE(mvm->fw_id_to_mac_id))
+		return NULL;
+
+	sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[sta_id],
+					lockdep_is_held(&mvm->mutex));
+
+	/* This can happen if the station has been removed right now */
+	if (IS_ERR_OR_NULL(sta))
+		return NULL;
+
+	return iwl_mvm_sta_from_mac80211(sta);
 }
 
 extern const u8 iwl_mvm_ac_to_tx_fifo[];
@@ -649,6 +720,11 @@ static inline const char *iwl_mvm_get_tx_fail_reason(u32 status) { return ""; }
 int iwl_mvm_flush_tx_path(struct iwl_mvm *mvm, u32 tfd_msk, bool sync);
 void iwl_mvm_async_handlers_purge(struct iwl_mvm *mvm);
 
+static inline void iwl_mvm_wait_for_async_handlers(struct iwl_mvm *mvm)
+{
+	flush_work(&mvm->async_handlers_wk);
+}
+
 /* Statistics */
 int iwl_mvm_rx_reply_statistics(struct iwl_mvm *mvm,
 				struct iwl_rx_cmd_buffer *rxb,
@@ -665,6 +741,8 @@ int iwl_mvm_up(struct iwl_mvm *mvm);
 int iwl_mvm_load_d3_fw(struct iwl_mvm *mvm);
 
 int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm);
+bool iwl_mvm_bcast_filter_build_cmd(struct iwl_mvm *mvm,
+				    struct iwl_bcast_filter_cmd *cmd);
 
 /*
  * FW notifications / CMD responses handlers
@@ -748,7 +826,7 @@ int iwl_mvm_config_sched_scan_profiles(struct iwl_mvm *mvm,
 				       struct cfg80211_sched_scan_request *req);
 int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
 			     struct cfg80211_sched_scan_request *req);
-void iwl_mvm_sched_scan_stop(struct iwl_mvm *mvm);
+int iwl_mvm_sched_scan_stop(struct iwl_mvm *mvm);
 int iwl_mvm_rx_sched_scan_results(struct iwl_mvm *mvm,
 				  struct iwl_rx_cmd_buffer *rxb,
 				  struct iwl_device_cmd *cmd);
@@ -794,6 +872,10 @@ void iwl_mvm_testmode_event(struct iwl_op_mode *op_mode, struct sk_buff *skb);
 
 /* rate scaling */
 int iwl_mvm_send_lq_cmd(struct iwl_mvm *mvm, struct iwl_lq_cmd *lq, bool init);
+void iwl_mvm_update_frame_stats(struct iwl_mvm *mvm,
+				struct iwl_mvm_frame_stats *stats,
+				u32 rate, bool agg);
+int rs_pretty_print_rate(char *buf, const u32 rate);
 
 /* power managment */
 static inline int iwl_mvm_power_update_mode(struct iwl_mvm *mvm,
@@ -862,6 +944,10 @@ iwl_mvm_set_last_nonqos_seq(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 }
 #endif
 
+/* D0i3 */
+void iwl_mvm_ref(struct iwl_mvm *mvm, enum iwl_mvm_ref_type ref_type);
+void iwl_mvm_unref(struct iwl_mvm *mvm, enum iwl_mvm_ref_type ref_type);
+
 /* BT Coex */
 int iwl_send_bt_prio_tbl(struct iwl_mvm *mvm);
 int iwl_send_bt_init_conf(struct iwl_mvm *mvm);
@@ -875,6 +961,7 @@ u16 iwl_mvm_bt_coex_agg_time_limit(struct iwl_mvm *mvm,
 				   struct ieee80211_sta *sta);
 bool iwl_mvm_bt_coex_is_mimo_allowed(struct iwl_mvm *mvm,
 				     struct ieee80211_sta *sta);
+int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id, bool enable);
 
 enum iwl_bt_kill_msk {
 	BT_KILL_MSK_DEFAULT,
@@ -896,16 +983,24 @@ iwl_mvm_beacon_filter_debugfs_parameters(struct ieee80211_vif *vif,
 					 struct iwl_beacon_filter_cmd *cmd)
 {}
 #endif
+int iwl_mvm_update_d0i3_power_mode(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif,
+				   bool enable, u32 flags);
 int iwl_mvm_enable_beacon_filter(struct iwl_mvm *mvm,
-				 struct ieee80211_vif *vif);
+				 struct ieee80211_vif *vif,
+				 u32 flags);
 int iwl_mvm_disable_beacon_filter(struct iwl_mvm *mvm,
-				  struct ieee80211_vif *vif);
+				  struct ieee80211_vif *vif,
+				  u32 flags);
 int iwl_mvm_beacon_filter_send_cmd(struct iwl_mvm *mvm,
-				   struct iwl_beacon_filter_cmd *cmd);
+				   struct iwl_beacon_filter_cmd *cmd,
+				   u32 flags);
 int iwl_mvm_update_beacon_abort(struct iwl_mvm *mvm,
 				struct ieee80211_vif *vif, bool enable);
 int iwl_mvm_update_beacon_filter(struct iwl_mvm *mvm,
-				  struct ieee80211_vif *vif);
+				 struct ieee80211_vif *vif,
+				 bool force,
+				 u32 flags);
 
 /* SMPS */
 void iwl_mvm_update_smps(struct iwl_mvm *mvm, struct ieee80211_vif *vif,

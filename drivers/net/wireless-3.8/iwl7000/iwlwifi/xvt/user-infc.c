@@ -76,6 +76,9 @@
 #include "iwl-phy-db.h"
 #include "xvt.h"
 #include "user-infc.h"
+#include "iwl-tm-gnl.h"
+#include "iwl-dnt-cfg.h"
+#include "iwl-dnt-dispatch.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (2*HZ)
 
@@ -84,8 +87,7 @@ int iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	void *data = pkt->data;
-	u32 size = (le32_to_cpu(pkt->len_n_flags) & FH_RSCSR_FRAME_SIZE_MSK)
-		    - sizeof(struct iwl_cmd_header);
+	u32 size = iwl_rx_packet_payload_len(pkt);
 
 	switch (pkt->hdr.cmd) {
 	case GET_SET_PHY_DB_CMD:
@@ -115,6 +117,13 @@ int iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 		return iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_COMMIT_STATISTICS,
 					data, size, GFP_ATOMIC);
+
+	case MONITOR_DATA_OVER_IDI_NOTIFICATION:
+		return iwl_dnt_dispatch_collect_interface_monitor(xvt->trans,
+								  rxb);
+
+	case DEBUG_LOG_MSG:
+		return iwl_dnt_dispatch_collect_ucode_message(xvt->trans, rxb);
 
 	case REPLY_RX_PHY_CMD:
 		IWL_DEBUG_INFO(xvt,
@@ -170,7 +179,7 @@ static int iwl_xvt_send_hcmd(struct iwl_xvt *xvt,
 		IWL_ERR(xvt->trans, "HCMD received a null response packet\n");
 		return -ENOMSG;
 	}
-	reply_len = le32_to_cpu(pkt->len_n_flags) & FH_RSCSR_FRAME_SIZE_MSK;
+	reply_len = iwl_rx_packet_len(pkt);
 
 	/* Set response data */
 	resp_size = sizeof(struct iwl_tm_cmd_request) + reply_len;
@@ -437,6 +446,7 @@ static int iwl_xvt_set_sw_config(struct iwl_xvt *xvt,
 	if (data_in->len < sizeof(struct iwl_xvt_sw_cfg_request))
 		return -EINVAL;
 
+	xvt->sw_stack_cfg.fw_dbg_flags = sw_cfg->dbg_flags;
 	xvt->sw_stack_cfg.load_mask = sw_cfg->load_mask;
 	xvt->sw_stack_cfg.calib_override_mask = sw_cfg->cfg_mask;
 
@@ -502,6 +512,7 @@ static int iwl_xvt_get_sw_config(struct iwl_xvt *xvt,
 	sw_cfg->load_mask = xvt->sw_stack_cfg.load_mask;
 	sw_cfg->phy_config = xvt->fw->phy_config;
 	sw_cfg->cfg_mask = xvt->sw_stack_cfg.calib_override_mask;
+	sw_cfg->dbg_flags = xvt->sw_stack_cfg.fw_dbg_flags;
 	for (i = 0; i < IWL_UCODE_TYPE_MAX; i++) {
 		switch (i) {
 		case IWL_UCODE_INIT:
@@ -910,6 +921,90 @@ static int iwl_xvt_rx_hdrs_mode(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_allocate_dma(struct iwl_xvt *xvt,
+				struct iwl_tm_data *data_in,
+				struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_alloc_dma *dma_req = data_in->data;
+	struct iwl_xvt_alloc_dma *dma_res;
+
+	if (data_in->len < sizeof(struct iwl_xvt_alloc_dma))
+		return -EINVAL;
+
+	if (xvt->dma_cpu_addr) {
+		IWL_ERR(xvt, "XVT DMA already allocated\n");
+		return -EBUSY;
+	}
+
+	xvt->dma_cpu_addr = dma_alloc_coherent(xvt->trans->dev, dma_req->size,
+					       &(xvt->dma_addr), GFP_KERNEL);
+
+	if (!xvt->dma_cpu_addr) {
+		return false;
+	}
+
+	dma_res = kmalloc(sizeof(*dma_res), GFP_KERNEL);
+	if (!dma_res) {
+		dma_free_coherent(xvt->trans->dev, dma_req->size,
+				  xvt->dma_cpu_addr, xvt->dma_addr);
+		xvt->dma_cpu_addr = NULL;
+		xvt->dma_addr = 0;
+		return -ENOMEM;
+	}
+	dma_res->size = dma_req->size;
+	/* Casting to avoid compilation warnings when DMA address is 32bit */
+	dma_res->addr = (u64)xvt->dma_addr;
+
+	data_out->data = dma_res;
+	data_out->len = sizeof(struct iwl_xvt_alloc_dma);
+	xvt->dma_buffer_size = dma_req->size;
+
+	return 0;
+}
+
+static int iwl_xvt_get_dma(struct iwl_xvt *xvt,
+			   struct iwl_tm_data *data_in,
+			   struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_get_dma *get_dma_resp;
+	u32 resp_size;
+
+	if (!xvt->dma_cpu_addr) {
+		return -ENOMEM;
+	}
+
+	resp_size = sizeof(*get_dma_resp) + xvt->dma_buffer_size;
+	get_dma_resp = kmalloc(resp_size, GFP_KERNEL);
+	if (!get_dma_resp) {
+		return -ENOMEM;
+	}
+
+	get_dma_resp->size = xvt->dma_buffer_size;
+	memcpy(get_dma_resp->data, xvt->dma_cpu_addr, xvt->dma_buffer_size);
+	data_out->data = get_dma_resp;
+	data_out->len = resp_size;
+
+	return 0;
+}
+
+static int iwl_xvt_free_dma(struct iwl_xvt *xvt,
+			    struct iwl_tm_data *data_in)
+{
+
+	if (!xvt->dma_cpu_addr) {
+		IWL_ERR(xvt, "XVT DMA was not allocated\n");
+		return 0;
+	}
+
+	dma_free_coherent(xvt->trans->dev, xvt->dma_buffer_size,
+			  xvt->dma_cpu_addr, xvt->dma_addr);
+	xvt->dma_cpu_addr = NULL;
+	xvt->dma_addr = 0;
+	xvt->dma_buffer_size = 0;
+
+	return 0;
+}
+
 int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out)
@@ -978,6 +1073,18 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	case IWL_XVT_CMD_RX_HDRS_MODE:
 		ret = iwl_xvt_rx_hdrs_mode(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_ALLOC_DMA:
+		ret = iwl_xvt_allocate_dma(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_GET_DMA:
+		ret = iwl_xvt_get_dma(xvt, data_in, data_out);
+		break;
+
+	case IWL_XVT_CMD_FREE_DMA:
+		ret = iwl_xvt_free_dma(xvt, data_in);
 		break;
 
 	default:

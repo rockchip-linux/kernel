@@ -1101,17 +1101,17 @@ _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op)
 	dbgfs_dir = drv->dbgfs_op_mode;
 #endif
 
+	iwl_tm_gnl_add(drv->trans);
 	op_mode = ops->start(drv->trans, drv->cfg, &drv->fw, dbgfs_dir);
 
 	if (!op_mode) {
+		iwl_tm_gnl_remove(drv->trans);
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 		debugfs_remove_recursive(drv->dbgfs_op_mode);
 		drv->dbgfs_op_mode = NULL;
 		return NULL;
 #endif
 	}
-
-	iwl_tm_gnl_add(drv->trans);
 
 	return op_mode;
 }
@@ -1120,8 +1120,8 @@ static void _iwl_op_mode_stop(struct iwl_drv *drv)
 {
 	/* op_mode can be NULL if its start failed */
 	if (drv->op_mode) {
-		iwl_tm_gnl_remove(drv->trans);
 		iwl_op_mode_stop(drv->op_mode);
+		iwl_tm_gnl_remove(drv->trans);
 		drv->op_mode = NULL;
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS

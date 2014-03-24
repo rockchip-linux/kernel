@@ -506,6 +506,22 @@ TRACE_EVENT(iwlwifi_dev_ucode_event,
 	TP_printk("[%s] EVT_LOGT:%010u:0x%08x:%04u",
 		  __get_str(dev), __entry->time, __entry->data, __entry->ev)
 );
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+TRACE_EVENT(iwlwifi_dev_dnt_data,
+	    TP_PROTO(const struct device *dev,
+		     void *dnt_data, size_t len),
+	    TP_ARGS(dev, dnt_data, len),
+	    TP_STRUCT__entry(
+			     DEV_ENTRY
+			     __dynamic_array(u8, data, len)
+			    ),
+	    TP_fast_assign(
+			   DEV_ASSIGN;
+			   memcpy(__get_dynamic_array(data), dnt_data, len);
+			  ),
+	    TP_printk("[%s] DnT data", __get_str(dev))
+);
+#endif
 #endif /* __IWLWIFI_DEVICE_TRACE */
 
 #undef TRACE_INCLUDE_PATH

@@ -126,6 +126,7 @@ static void iwl_mvm_roc_finished(struct iwl_mvm *mvm)
 	 * in iwl_mvm_te_handle_notif).
 	 */
 	clear_bit(IWL_MVM_STATUS_ROC_RUNNING, &mvm->status);
+	iwl_mvm_unref(mvm, IWL_MVM_REF_ROC);
 
 	/*
 	 * Of course, our status bit is just as racy as mac80211, so in
@@ -210,6 +211,7 @@ static void iwl_mvm_te_handle_notif(struct iwl_mvm *mvm,
 
 		if (te_data->vif->type == NL80211_IFTYPE_P2P_DEVICE) {
 			set_bit(IWL_MVM_STATUS_ROC_RUNNING, &mvm->status);
+			iwl_mvm_ref(mvm, IWL_MVM_REF_ROC);
 			ieee80211_ready_on_channel(mvm->hw);
 		}
 	} else {
@@ -249,12 +251,12 @@ static bool iwl_mvm_time_event_response(struct iwl_notif_wait_data *notif_wait,
 		container_of(notif_wait, struct iwl_mvm, notif_wait);
 	struct iwl_mvm_time_event_data *te_data = data;
 	struct iwl_time_event_resp *resp;
-	int resp_len = le32_to_cpu(pkt->len_n_flags) & FH_RSCSR_FRAME_SIZE_MSK;
+	int resp_len = iwl_rx_packet_payload_len(pkt);
 
 	if (WARN_ON(pkt->hdr.cmd != TIME_EVENT_CMD))
 		return true;
 
-	if (WARN_ON_ONCE(resp_len != sizeof(pkt->hdr) + sizeof(*resp))) {
+	if (WARN_ON_ONCE(resp_len != sizeof(*resp))) {
 		IWL_ERR(mvm, "Invalid TIME_EVENT_CMD response\n");
 		return true;
 	}

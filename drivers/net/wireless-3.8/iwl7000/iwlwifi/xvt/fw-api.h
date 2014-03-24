@@ -97,6 +97,9 @@ enum {
 
 	/* Debug commands */
 	REPLY_DEBUG_XVT_CMD = 0xf3,
+	/* monitor data notification */
+	MONITOR_DATA_OVER_IDI_NOTIFICATION = 0xf4,
+	DEBUG_LOG_MSG = 0xf7,
 
 	REPLY_MAX = 0xff,
 };

@@ -408,6 +408,8 @@ int iwl_mvm_rx_scan_complete(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 	mvm->scan_status = IWL_MVM_SCAN_NONE;
 	ieee80211_scan_completed(mvm->hw, notif->status != SCAN_COMP_STATUS_OK);
 
+	iwl_mvm_unref(mvm, IWL_MVM_REF_SCAN);
+
 	return 0;
 }
 
@@ -476,6 +478,7 @@ void iwl_mvm_cancel_scan(struct iwl_mvm *mvm)
 
 	if (iwl_mvm_is_radio_killed(mvm)) {
 		ieee80211_scan_completed(mvm->hw, true);
+		iwl_mvm_unref(mvm, IWL_MVM_REF_SCAN);
 		mvm->scan_status = IWL_MVM_SCAN_NONE;
 		return;
 	}
@@ -488,7 +491,7 @@ void iwl_mvm_cancel_scan(struct iwl_mvm *mvm)
 	ret = iwl_mvm_send_cmd_pdu(mvm, SCAN_ABORT_CMD, CMD_SYNC, 0, NULL);
 	if (ret) {
 		IWL_ERR(mvm, "Couldn't send SCAN_ABORT_CMD: %d\n", ret);
-		/* mac80211's state will be cleaned in the fw_restart flow */
+		/* mac80211's state will be cleaned in the nic_restart flow */
 		goto out_remove_notif;
 	}
 
@@ -516,10 +519,11 @@ int iwl_mvm_rx_scan_offload_complete_notif(struct iwl_mvm *mvm,
 		       scan_notif->status == IWL_SCAN_OFFLOAD_COMPLETED ?
 		       "completed" : "aborted");
 
-	/* might already be something else again, don't reset if so */
-	if (mvm->scan_status == IWL_MVM_SCAN_SCHED)
+	/* only call mac80211 completion if the stop was initiated by FW */
+	if (mvm->scan_status == IWL_MVM_SCAN_SCHED) {
 		mvm->scan_status = IWL_MVM_SCAN_NONE;
-	ieee80211_sched_scan_stopped(mvm->hw);
+		ieee80211_sched_scan_stopped(mvm->hw);
+	}
 
 	return 0;
 }
@@ -807,6 +811,8 @@ int iwl_mvm_config_sched_scan_profiles(struct iwl_mvm *mvm,
 	profile_cfg->active_clients = SCAN_CLIENT_SCHED_SCAN;
 	profile_cfg->pass_match = SCAN_CLIENT_SCHED_SCAN;
 	profile_cfg->match_notify = SCAN_CLIENT_SCHED_SCAN;
+	if (!req->n_match_sets || !req->match_sets[0].ssid.ssid_len)
+		profile_cfg->any_beacon_notify = SCAN_CLIENT_SCHED_SCAN;
 
 	for (i = 0; i < req->n_match_sets; i++) {
 		profile = &profile_cfg->profiles[i];
@@ -886,26 +892,49 @@ static int iwl_mvm_send_sched_scan_abort(struct iwl_mvm *mvm)
 		 * microcode has notified us that a scan is completed.
 		 */
 		IWL_DEBUG_SCAN(mvm, "SCAN OFFLOAD ABORT ret %d.\n", status);
-		ret = -EIO;
+		ret = -ENOENT;
 	}
 
 	return ret;
 }
 
-void iwl_mvm_sched_scan_stop(struct iwl_mvm *mvm)
+int iwl_mvm_sched_scan_stop(struct iwl_mvm *mvm)
 {
 	int ret;
+	struct iwl_notification_wait wait_scan_done;
+	static const u8 scan_done_notif[] = { SCAN_OFFLOAD_COMPLETE, };
 
 	lockdep_assert_held(&mvm->mutex);
 
 	if (mvm->scan_status != IWL_MVM_SCAN_SCHED) {
 		IWL_DEBUG_SCAN(mvm, "No offloaded scan to stop\n");
-		return;
+		return 0;
 	}
 
+	iwl_init_notification_wait(&mvm->notif_wait, &wait_scan_done,
+				   scan_done_notif,
+				   ARRAY_SIZE(scan_done_notif),
+				   NULL, NULL);
+
 	ret = iwl_mvm_send_sched_scan_abort(mvm);
-	if (ret)
+	if (ret) {
 		IWL_DEBUG_SCAN(mvm, "Send stop offload scan failed %d\n", ret);
-	else
-		IWL_DEBUG_SCAN(mvm, "Successfully sent stop offload scan\n");
+		iwl_remove_notification(&mvm->notif_wait, &wait_scan_done);
+		return ret;
+	}
+
+	IWL_DEBUG_SCAN(mvm, "Successfully sent stop offload scan\n");
+
+	ret = iwl_wait_notification(&mvm->notif_wait, &wait_scan_done, 1 * HZ);
+	if (ret)
+		return ret;
+
+	/*
+	 * Clear the scan status so the next scan requests will succeed. This
+	 * also ensures the Rx handler doesn't do anything, as the scan was
+	 * stopped from above.
+	 */
+	mvm->scan_status = IWL_MVM_SCAN_NONE;
+
+	return 0;
 }

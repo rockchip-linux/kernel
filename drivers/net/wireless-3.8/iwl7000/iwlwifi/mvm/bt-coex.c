@@ -396,8 +396,10 @@ int iwl_send_bt_init_conf(struct iwl_mvm *mvm)
 					    BT_VALID_ANT_ISOLATION |
 					    BT_VALID_ANT_ISOLATION_THRS |
 					    BT_VALID_TXTX_DELTA_FREQ_THRS |
-					    BT_VALID_TXRX_MAX_FREQ_0 |
-					    BT_VALID_SYNC_TO_SCO);
+					    BT_VALID_TXRX_MAX_FREQ_0);
+
+	if (IWL_MVM_BT_COEX_SYNC2SCO)
+		bt_cmd->valid_bit_msk |= cpu_to_le32(BT_VALID_SYNC_TO_SCO);
 
 	if (mvm->cfg->bt_shared_single_ant)
 		memcpy(&bt_cmd->decision_lut, iwl_single_shared_ant,
@@ -489,8 +491,7 @@ static int iwl_mvm_bt_udpate_ctrl_kill_msk(struct iwl_mvm *mvm,
 	return ret;
 }
 
-static int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id,
-				       bool enable)
+int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id, bool enable)
 {
 	struct iwl_bt_coex_cmd *bt_cmd;
 	/* Send ASYNC since this can be sent from an atomic context */
@@ -500,25 +501,16 @@ static int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id,
 		.dataflags = { IWL_HCMD_DFL_DUP, },
 		.flags = CMD_ASYNC,
 	};
-
-	struct ieee80211_sta *sta;
 	struct iwl_mvm_sta *mvmsta;
 	int ret;
 
-	if (sta_id == IWL_MVM_STATION_COUNT)
+	mvmsta = iwl_mvm_sta_from_staid_protected(mvm, sta_id);
+	if (!mvmsta)
 		return 0;
-
-	sta = rcu_dereference_protected(mvm->fw_id_to_mac_id[sta_id],
-					lockdep_is_held(&mvm->mutex));
-
-	/* This can happen if the station has been removed right now */
-	if (IS_ERR_OR_NULL(sta))
-		return 0;
-
-	mvmsta = iwl_mvm_sta_from_mac80211(sta);
 
 	/* nothing to do */
-	if (mvmsta->bt_reduced_txpower == enable)
+	if (mvmsta->bt_reduced_txpower_dbg ||
+	    mvmsta->bt_reduced_txpower == enable)
 		return 0;
 
 	bt_cmd = kzalloc(sizeof(*bt_cmd), GFP_ATOMIC);
@@ -552,6 +544,7 @@ struct iwl_bt_iterator_data {
 	bool reduced_tx_power;
 	struct ieee80211_chanctx_conf *primary;
 	struct ieee80211_chanctx_conf *secondary;
+	bool primary_ll;
 };
 
 static inline
@@ -600,7 +593,14 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		return;
 	}
 
-	/* SoftAP / GO will always be primary */
+	/* low latency is always primary */
+	if (iwl_mvm_vif_low_latency(mvmvif)) {
+		data->primary_ll = true;
+
+		data->secondary = data->primary;
+		data->primary = chanctx_conf;
+	}
+
 	if (vif->type == NL80211_IFTYPE_AP) {
 		if (!mvmvif->ap_ibss_active)
 			return;
@@ -611,9 +611,17 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 		if (chanctx_conf == data->primary)
 			return;
 
-		/* downgrade the current primary no matter what its type is */
-		data->secondary = data->primary;
-		data->primary = chanctx_conf;
+		if (!data->primary_ll) {
+			/*
+			 * downgrade the current primary no matter what its
+			 * type is.
+			 */
+			data->secondary = data->primary;
+			data->primary = chanctx_conf;
+		} else {
+			/* there is low latency vif - we will be secondary */
+			data->secondary = chanctx_conf;
+		}
 		return;
 	}
 
@@ -623,7 +631,10 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 	if (!vif->bss_conf.assoc)
 		return;
 
-	/* STA / P2P Client, try to be primary if first vif */
+	/*
+	 * STA / P2P Client, try to be primary if first vif. If we are in low
+	 * latency mode, we are already in primary and just don't do much
+	 */
 	if (!data->primary || data->primary == chanctx_conf)
 		data->primary = chanctx_conf;
 	else if (!data->secondary)

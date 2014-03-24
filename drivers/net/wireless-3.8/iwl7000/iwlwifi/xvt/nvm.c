@@ -67,14 +67,6 @@
 #include "iwl-eeprom-read.h"
 #include "iwl-nvm-parse.h"
 
-/* list of NVM sections we are allowed/need to read */
-static const int nvm_to_read[] = {
-	NVM_SECTION_TYPE_HW,
-	NVM_SECTION_TYPE_SW,
-	NVM_SECTION_TYPE_CALIBRATION,
-	NVM_SECTION_TYPE_PRODUCTION,
-};
-
 /* Default NVM size to read */
 #define IWL_NVM_DEFAULT_CHUNK_SIZE	(2*1024)
 #define IWL_MAX_NVM_SECTION_SIZE	7000

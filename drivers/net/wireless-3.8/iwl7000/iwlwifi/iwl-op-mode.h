@@ -63,6 +63,7 @@
 #ifndef __iwl_op_mode_h__
 #define __iwl_op_mode_h__
 
+#include <linux/netdevice.h>
 #include <linux/debugfs.h>
 
 struct iwl_op_mode;
@@ -159,6 +160,10 @@ struct iwl_test_ops {
  * @rx: Rx notification to the op_mode. rxb is the Rx buffer itself. Cmd is the
  *	HCMD this Rx responds to.
  *	This callback may sleep, it is called from a threaded IRQ handler.
+ * @napi_add: NAPI initialisation. The transport is fully responsible for NAPI,
+ *	but the higher layers need to know about it (in particular mac80211 to
+ *	to able to call the right NAPI RX functions); this function is needed
+ *	to eventually call netif_napi_add() with higher layer involvement.
  * @queue_full: notifies that a HW queue is full.
  *	Must be atomic and called with BH disabled.
  * @queue_not_full: notifies that a HW queue is not full any more.
@@ -187,6 +192,11 @@ struct iwl_op_mode_ops {
 	void (*stop)(struct iwl_op_mode *op_mode);
 	int (*rx)(struct iwl_op_mode *op_mode, struct iwl_rx_cmd_buffer *rxb,
 		  struct iwl_device_cmd *cmd);
+	void (*napi_add)(struct iwl_op_mode *op_mode,
+			 struct napi_struct *napi,
+			 struct net_device *napi_dev,
+			 int (*poll)(struct napi_struct *, int),
+			 int weight);
 	void (*queue_full)(struct iwl_op_mode *op_mode, int queue);
 	void (*queue_not_full)(struct iwl_op_mode *op_mode, int queue);
 	void (*hw_rf_kill)(struct iwl_op_mode *op_mode, bool state);
@@ -227,7 +237,6 @@ static inline int iwl_op_mode_rx(struct iwl_op_mode *op_mode,
 				  struct iwl_rx_cmd_buffer *rxb,
 				  struct iwl_device_cmd *cmd)
 {
-	might_sleep();
 	return op_mode->ops->rx(op_mode, rxb, cmd);
 }
 
@@ -294,6 +303,17 @@ static inline int iwl_op_mode_exit_d0i3(struct iwl_op_mode *op_mode)
 	if (!op_mode->ops->exit_d0i3)
 		return 0;
 	return op_mode->ops->exit_d0i3(op_mode);
+}
+
+static inline void iwl_op_mode_napi_add(struct iwl_op_mode *op_mode,
+					struct napi_struct *napi,
+					struct net_device *napi_dev,
+					int (*poll)(struct napi_struct *, int),
+					int weight)
+{
+	if (!op_mode->ops->napi_add)
+		return;
+	op_mode->ops->napi_add(op_mode, napi, napi_dev, poll, weight);
 }
 
 #endif /* __iwl_op_mode_h__ */

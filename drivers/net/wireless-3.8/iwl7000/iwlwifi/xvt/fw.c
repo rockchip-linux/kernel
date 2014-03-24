@@ -65,6 +65,7 @@
 #include "iwl-fw.h"
 
 #include "xvt.h"
+#include "iwl-dnt-cfg.h"
 
 #define XVT_UCODE_ALIVE_TIMEOUT	HZ
 
@@ -123,7 +124,9 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 				   alive_cmd, ARRAY_SIZE(alive_cmd),
 				   iwl_alive_fn, &alive_data);
 
-	ret = iwl_trans_start_fw(xvt->trans, fw, ucode_type == IWL_UCODE_INIT);
+	ret = iwl_trans_start_fw_dbg(xvt->trans, fw,
+				     ucode_type == IWL_UCODE_INIT,
+				     xvt->sw_stack_cfg.fw_dbg_flags);
 	if (ret) {
 		xvt->cur_ucode = old_type;
 		iwl_remove_notification(&xvt->notif_wait, &alive_wait);
@@ -193,6 +196,7 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 		IWL_ERR(xvt, "Failed to start ucode: %d\n", ret);
 		iwl_trans_stop_device(xvt->trans);
 	}
+	iwl_dnt_start(xvt->trans);
 
 	return ret;
 }

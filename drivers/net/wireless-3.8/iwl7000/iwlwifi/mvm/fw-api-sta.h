@@ -97,9 +97,6 @@ enum iwl_sta_flags {
 					   STA_FLG_FLG_ANT_B),
 
 	STA_FLG_PS			= BIT(8),
-	STA_FLG_INVALID			= BIT(9),
-	STA_FLG_DLP_EN			= BIT(10),
-	STA_FLG_SET_ALL_KEYS		= BIT(11),
 	STA_FLG_DRAIN_FLOW		= BIT(12),
 	STA_FLG_PAN			= BIT(13),
 	STA_FLG_CLASS_AUTH		= BIT(14),
@@ -202,11 +199,14 @@ enum iwl_sta_modify_flag {
  * @STA_SLEEP_STATE_AWAKE:
  * @STA_SLEEP_STATE_PS_POLL:
  * @STA_SLEEP_STATE_UAPSD:
+ * @STA_SLEEP_STATE_MOREDATA: set more-data bit on
+ *	(last) released frame
  */
 enum iwl_sta_sleep_flag {
-	STA_SLEEP_STATE_AWAKE	= 0,
-	STA_SLEEP_STATE_PS_POLL	= BIT(0),
-	STA_SLEEP_STATE_UAPSD	= BIT(1),
+	STA_SLEEP_STATE_AWAKE		= 0,
+	STA_SLEEP_STATE_PS_POLL		= BIT(0),
+	STA_SLEEP_STATE_UAPSD		= BIT(1),
+	STA_SLEEP_STATE_MOREDATA	= BIT(2),
 };
 
 /* STA ID and color bits definitions */
@@ -321,13 +321,15 @@ struct iwl_mvm_add_sta_cmd_v5 {
 } __packed; /* ADD_STA_CMD_API_S_VER_5 */
 
 /**
- * struct iwl_mvm_add_sta_cmd_v6 - Add / modify a station
- * VER_6 of this command is quite similar to VER_5 except
+ * struct iwl_mvm_add_sta_cmd_v7 - Add / modify a station
+ * VER_7 of this command is quite similar to VER_5 except
  * exclusion of all fields related to the security key installation.
+ * It only differs from VER_6 by the "awake_acs" field that is
+ * reserved and ignored in VER_6.
  */
-struct iwl_mvm_add_sta_cmd_v6 {
+struct iwl_mvm_add_sta_cmd_v7 {
 	u8 add_modify;
-	u8 reserved1;
+	u8 awake_acs;
 	__le16 tid_disable_tx;
 	__le32 mac_id_n_color;
 	u8 addr[ETH_ALEN];	/* _STA_ID_MODIFY_INFO_API_S_VER_1 */
@@ -345,7 +347,7 @@ struct iwl_mvm_add_sta_cmd_v6 {
 	__le16 assoc_id;
 	__le16 beamform_flags;
 	__le32 tfd_queue_msk;
-} __packed; /* ADD_STA_CMD_API_S_VER_6 */
+} __packed; /* ADD_STA_CMD_API_S_VER_7 */
 
 /**
  * struct iwl_mvm_add_sta_key_cmd - add/modify sta key
@@ -435,5 +437,15 @@ struct iwl_mvm_wep_key_cmd {
 	struct iwl_mvm_wep_key wep_key[0];
 } __packed; /* SEC_CURR_WEP_KEY_CMD_API_S_VER_2 */
 
+/**
+ * struct iwl_mvm_eosp_notification - EOSP notification from firmware
+ * @remain_frame_count: # of frames remaining, non-zero if SP was cut
+ *	short by GO absence
+ * @sta_id: station ID
+ */
+struct iwl_mvm_eosp_notification {
+	__le32 remain_frame_count;
+	__le32 sta_id;
+} __packed; /* UAPSD_EOSP_NTFY_API_S_VER_1 */
 
 #endif /* __fw_api_sta_h__ */

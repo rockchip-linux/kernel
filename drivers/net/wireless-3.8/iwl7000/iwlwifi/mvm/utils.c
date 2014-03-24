@@ -168,8 +168,8 @@ int iwl_mvm_send_cmd_status(struct iwl_mvm *mvm, struct iwl_host_cmd *cmd,
 		goto out_free_resp;
 	}
 
-	resp_len = le32_to_cpu(pkt->len_n_flags) & FH_RSCSR_FRAME_SIZE_MSK;
-	if (WARN_ON_ONCE(resp_len != sizeof(pkt->hdr) + sizeof(*resp))) {
+	resp_len = iwl_rx_packet_payload_len(pkt);
+	if (WARN_ON_ONCE(resp_len != sizeof(*resp))) {
 		ret = -EIO;
 		goto out_free_resp;
 	}
@@ -459,7 +459,8 @@ void iwl_mvm_dump_sram(struct iwl_mvm *mvm)
 {
 	const struct fw_img *img;
 	int ofs, len = 0;
-	u8 *buf;
+	int i;
+	__le32 *buf;
 
 	if (!mvm->ucode_loaded)
 		return;
@@ -473,7 +474,12 @@ void iwl_mvm_dump_sram(struct iwl_mvm *mvm)
 		return;
 
 	iwl_trans_read_mem_bytes(mvm->trans, ofs, buf, len);
-	iwl_print_hex_error(mvm->trans, buf, len);
+	len = len >> 2;
+	for (i = 0; i < len; i++) {
+		IWL_ERR(mvm, "0x%08X\n", le32_to_cpu(buf[i]));
+		/* Add a small delay to let syslog catch up */
+		udelay(10);
+	}
 
 	kfree(buf);
 }
@@ -552,5 +558,8 @@ int iwl_mvm_update_low_latency(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	res = iwl_mvm_update_quotas(mvm, NULL);
 	if (res)
 		return res;
+
+	iwl_mvm_bt_coex_vif_change(mvm);
+
 	return iwl_mvm_power_update_mode(mvm, vif);
 }

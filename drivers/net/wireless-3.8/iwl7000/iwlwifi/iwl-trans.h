@@ -179,6 +179,16 @@ struct iwl_rx_packet {
 	u8 data[];
 } __packed;
 
+static inline u32 iwl_rx_packet_len(const struct iwl_rx_packet *pkt)
+{
+	return le32_to_cpu(pkt->len_n_flags) & FH_RSCSR_FRAME_SIZE_MSK;
+}
+
+static inline u32 iwl_rx_packet_payload_len(const struct iwl_rx_packet *pkt)
+{
+	return iwl_rx_packet_len(pkt) - sizeof(pkt->hdr);
+}
+
 /**
  * enum CMD_MODE - how to send the host commands ?
  *
@@ -190,6 +200,9 @@ struct iwl_rx_packet {
  *	command queue, but after other high priority commands. valid only
  *	with CMD_ASYNC.
  * @CMD_SEND_IN_IDLE: The command should be sent even when the trans is idle.
+ * @CMD_MAKE_TRANS_IDLE: The command response should mark the trans as idle.
+ * @CMD_WAKE_UP_TRANS: The command response should wake up the trans
+ *	(i.e. mark it as non-idle).
  */
 enum CMD_MODE {
 	CMD_SYNC		= 0,
@@ -198,6 +211,8 @@ enum CMD_MODE {
 	CMD_SEND_IN_RFKILL	= BIT(2),
 	CMD_HIGH_PRIO		= BIT(3),
 	CMD_SEND_IN_IDLE	= BIT(4),
+	CMD_MAKE_TRANS_IDLE	= BIT(5),
+	CMD_WAKE_UP_TRANS	= BIT(6),
 };
 
 #define DEF_CMD_PAYLOAD_SIZE 320
@@ -334,6 +349,8 @@ enum iwl_d3_status {
  * @STATUS_INT_ENABLED: interrupts are enabled
  * @STATUS_RFKILL: the HW RFkill switch is in KILL position
  * @STATUS_FW_ERROR: the fw is in error state
+ * @STATUS_TRANS_GOING_IDLE: shutting down the trans, only special commands
+ *	are sent
  * @STATUS_TRANS_IDLE: the trans is idle - general commands are not to be sent
  */
 enum iwl_trans_status {
@@ -343,6 +360,7 @@ enum iwl_trans_status {
 	STATUS_INT_ENABLED,
 	STATUS_RFKILL,
 	STATUS_FW_ERROR,
+	STATUS_TRANS_GOING_IDLE,
 	STATUS_TRANS_IDLE,
 };
 
@@ -454,6 +472,10 @@ struct iwl_trans_ops {
 
 	int (*start_hw)(struct iwl_trans *iwl_trans);
 	void (*op_mode_leave)(struct iwl_trans *iwl_trans);
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	int (*start_fw_dbg)(struct iwl_trans *trans, const struct fw_img *fw,
+			    bool run_in_rfkill, u32 fw_dbg_flags);
+#endif
 	int (*start_fw)(struct iwl_trans *trans, const struct fw_img *fw,
 			bool run_in_rfkill);
 	void (*fw_alive)(struct iwl_trans *trans, u32 scd_addr);
@@ -616,6 +638,31 @@ static inline int iwl_trans_start_fw(struct iwl_trans *trans,
 	clear_bit(STATUS_FW_ERROR, &trans->status);
 	return trans->ops->start_fw(trans, fw, run_in_rfkill);
 }
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+enum iwl_xvt_dbg_flags {
+	IWL_XVT_DBG_ADC_SAMP_TEST = BIT(0),
+	IWL_XVT_DBG_ADC_SAMP_SYNC_RX = BIT(1),
+};
+
+static inline int iwl_trans_start_fw_dbg(struct iwl_trans *trans,
+					 const struct fw_img *fw,
+					 bool run_in_rfkill,
+					 u32 dbg_flags)
+{
+	might_sleep();
+
+	if (WARN_ON_ONCE(!trans->ops->start_fw_dbg && dbg_flags))
+		return -ENOTSUPP;
+
+	clear_bit(STATUS_FW_ERROR, &trans->status);
+	if (trans->ops->start_fw_dbg)
+		return trans->ops->start_fw_dbg(trans, fw, run_in_rfkill,
+						dbg_flags);
+
+	return trans->ops->start_fw(trans, fw, run_in_rfkill);
+}
+#endif
 
 static inline void iwl_trans_stop_device(struct iwl_trans *trans)
 {

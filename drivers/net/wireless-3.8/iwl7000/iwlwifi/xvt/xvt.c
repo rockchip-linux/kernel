@@ -72,6 +72,7 @@
 #include "iwl-csr.h"
 #include "xvt.h"
 #include "user-infc.h"
+#include "iwl-dnt-cfg.h"
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 
@@ -164,6 +165,8 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	if (!xvt->phy_db)
 		goto out_free;
 
+	iwl_dnt_init(xvt->trans, dbgfs_dir);
+
 	init_waitqueue_head(&xvt->mod_tx_wq);
 
 	IWL_INFO(xvt, "Detected %s, REV=0x%X, xVT operation mode\n",
@@ -192,7 +195,7 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 
 	iwl_phy_db_free(xvt->phy_db);
 	xvt->phy_db = NULL;
-
+	iwl_dnt_free(xvt->trans);
 	kfree(op_mode);
 }
 

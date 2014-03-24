@@ -270,6 +270,9 @@ struct iwl_trans_pcie {
 	struct iwl_trans *trans;
 	struct iwl_drv *drv;
 
+	struct net_device napi_dev;
+	struct napi_struct napi;
+
 	/* INT ICT Table */
 	__le32 *ict_tbl;
 	dma_addr_t ict_tbl_dma;
@@ -490,5 +493,7 @@ static inline void __iwl_trans_pcie_set_bit(struct iwl_trans *trans,
 {
 	__iwl_trans_pcie_set_bits_mask(trans, reg, mask, mask);
 }
+
+int iwl_pcie_napi_poll(struct napi_struct *napi, int budget);
 
 #endif /* __iwl_trans_int_pcie_h__ */

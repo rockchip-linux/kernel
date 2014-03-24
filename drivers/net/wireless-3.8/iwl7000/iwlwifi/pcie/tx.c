@@ -703,8 +703,9 @@ void iwl_pcie_tx_start(struct iwl_trans *trans, u32 scd_base_addr)
 			   reg_val | FH_TX_CHICKEN_BITS_SCD_AUTO_RETRY_EN);
 
 	/* Enable L1-Active */
-	iwl_clear_bits_prph(trans, APMG_PCIDEV_STT_REG,
-			    APMG_PCIDEV_STT_VAL_L1_ACT_DIS);
+	if (trans->cfg->device_family != IWL_DEVICE_FAMILY_8000)
+		iwl_clear_bits_prph(trans, APMG_PCIDEV_STT_REG,
+				    APMG_PCIDEV_STT_VAL_L1_ACT_DIS);
 }
 
 void iwl_trans_pcie_tx_reset(struct iwl_trans *trans)
@@ -1515,7 +1516,6 @@ void iwl_pcie_hcmd_complete(struct iwl_trans *trans,
 }
 
 #define HOST_COMPLETE_TIMEOUT	(2 * HZ)
-#define COMMAND_POKE_TIMEOUT	(HZ / 10)
 
 static int iwl_pcie_send_hcmd_async(struct iwl_trans *trans,
 				    struct iwl_host_cmd *cmd)

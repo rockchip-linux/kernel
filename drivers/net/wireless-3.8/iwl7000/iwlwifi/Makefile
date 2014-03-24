@@ -16,7 +16,7 @@ iwlwifi-$(CPTCFG_IWLWIFI_MINI_PM_RUNTIME) += trans_slave/mini_rpm.o
 iwlwifi-objs += $(iwlwifi-y-y) $(iwlwifi-y-m)
 
 iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TRACING) += iwl-devtrace.o
-iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TESTMODE) += iwl-tm-gnl.o
+iwlwifi-$(CPTCFG_IWLWIFI_DEVICE_TESTMODE) += iwl-tm-gnl.o iwl-dnt-cfg.o iwl-dnt-dispatch.o iwl-dnt-dev-if.o
 
 ccflags-y += -D__CHECK_ENDIAN__ -I$(src)
 
