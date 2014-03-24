@@ -117,6 +117,7 @@
 #define MBOX_OWNER_ID_MASK	0xFF
 
 #define MBOX_SMI_INTR_EN	(1 << 3)
+#define MBOX_SMI_INTR_FW_HANG	(1 << 1)
 
 /* Nvidia Constants */
 #define IMEM_BLOCK_SIZE		256

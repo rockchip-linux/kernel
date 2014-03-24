@@ -840,7 +840,10 @@ static irqreturn_t tegra_xhci_mbox_irq(int irq, void *ptrdev)
 	 * Clear the mbox interrupt. Other bits are W1C bits, so just write
 	 * to SMI bit.
 	 */
-	writel(MBOX_SMI_INTR_EN, tegra->fpci_base + XUSB_CFG_ARU_SMI_INTR);
+	reg = readl(tegra->fpci_base + XUSB_CFG_ARU_SMI_INTR);
+	if (reg & MBOX_SMI_INTR_FW_HANG)
+		dev_err(dev, "Hang up inside firmware\n");
+	writel(reg, tegra->fpci_base + XUSB_CFG_ARU_SMI_INTR);
 
 	/* Get the mbox message from firmware */
 	reg = readl(tegra->fpci_base + XUSB_CFG_ARU_MBOX_DATA_OUT);
@@ -946,10 +949,6 @@ static int load_firmware(struct tegra_xhci_hcd *tegra)
 	u16 nblocks;
 	time_t fw_time;
 	struct tm fw_tm;
-
-	/* Enable mbox interrupt */
-	writel(readl(tegra->fpci_base + XUSB_CFG_ARU_MBOX_CMD) | MBOX_INT_EN,
-		tegra->fpci_base + XUSB_CFG_ARU_MBOX_CMD);
 
 	if (csb_read(tegra, XUSB_CSB_MP_ILOAD_BASE_LO) != 0) {
 		dev_info(dev, "Firmware already loaded, Falcon state 0x%x\n",
@@ -1468,9 +1467,6 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 	tegra->xhci_resources[1].flags = res->flags;
 	tegra->xhci_resources[1].name = res->name;
 
-	/* Enable firmware message */
-	tegra_xhci_mbox_send(tegra, MBOX_CMD_MSG_ENABLED, 0);
-
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
 	if (!res) {
 		dev_err(&pdev->dev, "missing MBOX IRQ\n");
@@ -1505,6 +1501,9 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 		goto err;
 	}
 	tegra->xhci_pdev = xhci;
+
+	/* Enable firmware message */
+	tegra_xhci_mbox_send(tegra, MBOX_CMD_MSG_ENABLED, 0);
 
 	tegra->init_done = true;
 	pm_runtime_set_active(&pdev->dev);
