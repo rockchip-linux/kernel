@@ -99,8 +99,6 @@ ieee80211_operating_class_to_band(u8 operating_class,
 	return false;
 }
 
-#define ASSOC_REQ_DISABLE_VHT 0
-
 static inline void
 cfg80211_report_wowlan_wakeup(struct wireless_dev *wdev,
 			      struct cfg80211_wowlan_wakeup *wakeup, gfp_t gfp)
