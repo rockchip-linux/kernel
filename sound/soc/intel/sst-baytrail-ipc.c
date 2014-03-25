@@ -694,6 +694,7 @@ int sst_byt_stream_free(struct sst_byt *byt, struct sst_byt_stream *stream)
 
 	stream->commited = false;
 out:
+	cancel_work_sync(&stream->notify_work);
 	list_del(&stream->node);
 	kfree(stream);
 
