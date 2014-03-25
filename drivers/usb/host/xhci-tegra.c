@@ -232,7 +232,9 @@ struct tegra_xhci_hcd {
 	/* Firmware loading related */
 	struct tegra_xhci_firmware firmware;
 
+#ifdef CONFIG_USB_XHCI_TEGRA_FW_LOG
 	struct tegra_xhci_firmware_log log;
+#endif
 
 	bool init_done;
 };
@@ -333,6 +335,7 @@ static void csb_write(struct tegra_xhci_hcd *tegra, u32 addr, u32 data)
 		input_addr, data);
 }
 
+#ifdef CONFIG_USB_XHCI_TEGRA_FW_LOG
 /**
  * fw_log_next - find next log entry in a tegra_xhci_firmware_log context.
  *	This function takes care of wrapping. That means when current log entry
@@ -723,6 +726,41 @@ static void fw_log_deinit(struct tegra_xhci_hcd *tegra)
 	}
 }
 
+static void fw_log_suspend(struct tegra_xhci_hcd *tegra)
+{
+	struct device *dev = &tegra->pdev->dev;
+
+	/* In ELPG, firmware log context is gone. Rewind shared log buffer. */
+	if (fw_log_wait_empty_timeout(tegra, 100))
+		dev_warn(dev, "fw still has logs\n");
+	tegra->log.dequeue = tegra->log.virt_addr;
+	tegra->log.seq = 0;
+}
+
+static void fw_log_init_cfgtbl(struct tegra_xhci_hcd *tegra)
+{
+	struct cfgtbl *cfg_tbl = (struct cfgtbl *)tegra->firmware.data;
+
+	/* Update the phys_log_buffer and total_entries */
+	cfg_tbl->phys_addr_log_buffer = tegra->log.phys_addr;
+	cfg_tbl->total_log_entries = FW_LOG_COUNT;
+}
+#else
+static inline int fw_log_init(struct tegra_xhci_hcd *tegra)
+{
+	return 0;
+}
+static inline void fw_log_deinit(struct tegra_xhci_hcd *tegra)
+{
+}
+static inline void fw_log_suspend(struct tegra_xhci_hcd *tegra)
+{
+}
+static inline void fw_log_init_cfgtbl(struct tegra_xhci_hcd *tegra)
+{
+}
+#endif
+
 static int tegra_xhci_phy_notifier(struct notifier_block *nb,
 				   unsigned long action, void *data)
 {
@@ -955,9 +993,7 @@ static int load_firmware(struct tegra_xhci_hcd *tegra)
 		return 0;
 	}
 
-	/* Update the phys_log_buffer and total_entries here */
-	cfg_tbl->phys_addr_log_buffer = tegra->log.phys_addr;
-	cfg_tbl->total_log_entries = FW_LOG_COUNT;
+	fw_log_init_cfgtbl(tegra);
 
 	phys_addr_lo = tegra->firmware.dma;
 	phys_addr_lo += sizeof(struct cfgtbl);
@@ -1699,11 +1735,7 @@ static int tegra_xhci_elpg_enter(struct tegra_xhci_hcd *tegra)
 
 	tegra_xusb_phy_postsuspend(tegra->phy);
 
-	/* In ELPG, firmware log context is gone. Rewind shared log buffer. */
-	if (fw_log_wait_empty_timeout(tegra, 100))
-		dev_warn(dev, "fw still has logs\n");
-	tegra->log.dequeue = tegra->log.virt_addr;
-	tegra->log.seq = 0;
+	fw_log_suspend(tegra);
 
 	tegra->hc_in_elpg = true;
 
