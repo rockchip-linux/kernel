@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.5.1
+ * Version: 1.5.2
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -38,7 +38,7 @@
 #include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.5.1"
+#define ELAN_DRIVER_VERSION	"1.5.2"
 #define ETP_PRESSURE_OFFSET	25
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
@@ -1465,7 +1465,7 @@ static int elan_check_packet(struct elan_tp_data *data, u8 *packet)
 
 static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 {
-	struct input_dev *input = data->input;
+	struct input_dev *input;
 	u8 *finger_data;
 	bool finger_on;
 	int pos_x, pos_y;
@@ -1474,6 +1474,16 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 	int finger_count = 0;
 	int btn_click;
 	u8  tp_info;
+
+	if (!data) {
+		dev_err(&data->client->dev, "tp data structure is null");
+		return;
+	}
+	input = data->input;
+	if (!input) {
+		dev_err(&data->client->dev, "input structure is null");
+		return;
+	}
 
 	if (data->smbus) {
 		finger_data = &packet[ETP_SMBUS_FINGER_DATA_OFFSET];
@@ -1541,6 +1551,11 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	u8 raw[ETP_MAX_REPORT_LEN];
 	int retval;
 	int report_len;
+
+	if (!data) {
+		dev_err(&data->client->dev, "tp data structure is null");
+		goto elan_isr_end;
+	}
 
 	/*
 	Only in I2C protocol, when IAP all page wrote finish, driver will
