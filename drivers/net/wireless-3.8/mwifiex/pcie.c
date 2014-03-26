@@ -119,6 +119,7 @@ static int mwifiex_pcie_suspend(struct pci_dev *pdev, pm_message_t state)
 
 	/* Indicate device suspended */
 	adapter->is_suspended = true;
+	adapter->hs_enabling = false;
 
 	return 0;
 }

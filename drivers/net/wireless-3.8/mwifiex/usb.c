@@ -445,6 +445,7 @@ static int mwifiex_usb_suspend(struct usb_interface *intf, pm_message_t message)
 	 * 'suspended' state and a 'disconnect' one.
 	 */
 	adapter->is_suspended = true;
+	adapter->hs_enabling = false;
 
 	for (i = 0; i < adapter->priv_num; i++)
 		netif_carrier_off(adapter->priv[i]->netdev);
