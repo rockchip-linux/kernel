@@ -250,6 +250,10 @@ static snd_pcm_uframes_t sst_byt_pcm_pointer(struct snd_pcm_substream *substream
 	snd_pcm_uframes_t offset;
 	int pos;
 
+	/* IPC delays can cause this to be called after close */
+	if (pcm_data->stream == NULL)
+		return 0;
+
 	pos = sst_byt_get_dsp_position(byt, pcm_data->stream,
 				       snd_pcm_lib_buffer_bytes(substream));
 	offset = bytes_to_frames(runtime, pos);
