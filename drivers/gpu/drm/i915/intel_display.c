@@ -4060,6 +4060,9 @@ static void valleyview_set_cdclk(struct drm_device *dev, int cdclk)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 val, cmd;
 
+	WARN_ON(valleyview_cur_cdclk(dev_priv) != dev_priv->vlv_cdclk_freq);
+	dev_priv->vlv_cdclk_freq = cdclk;
+
 	if (cdclk >= 320) /* jump to highest voltage for 400MHz too */
 		cmd = 2;
 	else if (cdclk == 266)
@@ -4114,7 +4117,7 @@ static void valleyview_set_cdclk(struct drm_device *dev, int cdclk)
 	intel_i2c_reset(dev);
 }
 
-static int valleyview_cur_cdclk(struct drm_i915_private *dev_priv)
+int valleyview_cur_cdclk(struct drm_i915_private *dev_priv)
 {
 	int cur_cdclk, vco;
 	int divider;
@@ -4135,10 +4138,6 @@ static int valleyview_cur_cdclk(struct drm_i915_private *dev_priv)
 static int valleyview_calc_cdclk(struct drm_i915_private *dev_priv,
 				 int max_pixclk)
 {
-	int cur_cdclk;
-
-	cur_cdclk = valleyview_cur_cdclk(dev_priv);
-
 	/*
 	 * Really only a few cases to deal with, as only 4 CDclks are supported:
 	 *   200MHz
@@ -4187,9 +4186,9 @@ static void valleyview_modeset_global_pipes(struct drm_device *dev,
 	struct intel_crtc *intel_crtc;
 	int max_pixclk = intel_mode_max_pixclk(dev_priv, modeset_pipes,
 					       pipe_config);
-	int cur_cdclk = valleyview_cur_cdclk(dev_priv);
 
-	if (valleyview_calc_cdclk(dev_priv, max_pixclk) == cur_cdclk)
+	if (valleyview_calc_cdclk(dev_priv, max_pixclk) ==
+	    dev_priv->vlv_cdclk_freq)
 		return;
 
 	list_for_each_entry(intel_crtc, &dev->mode_config.crtc_list,
@@ -4202,10 +4201,9 @@ static void valleyview_modeset_global_resources(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int max_pixclk = intel_mode_max_pixclk(dev_priv, 0, NULL);
-	int cur_cdclk = valleyview_cur_cdclk(dev_priv);
 	int req_cdclk = valleyview_calc_cdclk(dev_priv, max_pixclk);
 
-	if (req_cdclk != cur_cdclk)
+	if (req_cdclk != dev_priv->vlv_cdclk_freq)
 		valleyview_set_cdclk(dev, req_cdclk);
 }
 
