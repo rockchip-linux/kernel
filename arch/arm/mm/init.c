@@ -478,6 +478,8 @@ static inline void free_area_high(unsigned long pfn, unsigned long end)
 		}
 
 		__free_pages_bootmem(page, order);
+		totalram_pages += nr_pages;
+		totalhigh_pages += nr_pages;
 		pfn += nr_pages;
 	}
 }
