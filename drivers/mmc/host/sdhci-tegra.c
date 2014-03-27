@@ -197,6 +197,7 @@ struct sdhci_tegra {
 	const struct sdhci_tegra_soc_data *soc_data;
 	int power_gpio;
 	bool disable_ext_loopback;
+	bool non_removable;
 	bool no_runtime_pm;
 	/* max ddr clk supported by the platform */
 	unsigned int ddr_clk_limit;
@@ -1071,6 +1072,11 @@ static int tegra_sdhci_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 	int err;
 	u32 ier, misc_ctrl;
 
+	if (tegra_host->tuning_done && tegra_host->non_removable)
+		return 0;
+	else
+		tegra_host->tuning_done = false;
+
 	/* Tuning should be done only for MMC_BUS_WIDTH_8 and MMC_BUS_WIDTH_4 */
 	if (sdhci->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
 		tegra_host->tuning_bsize = MMC_TUNING_BLOCK_SIZE_BUS_WIDTH_8;
@@ -1554,6 +1560,9 @@ static int sdhci_tegra_parse_dt(struct device *dev)
 	if (of_get_property(np, "nvidia,disable-ext-loopback", NULL))
 		tegra_host->disable_ext_loopback = true;
 
+	if (of_get_property(np, "non-removable", NULL))
+		tegra_host->non_removable = true;
+
 	if (of_get_property(np, "nvidia,no-runtime-suspend", NULL))
 		tegra_host->no_runtime_pm = true;
 
@@ -1811,6 +1820,10 @@ static int tegra_sdhci_resume(struct device *dev)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	int ret;
+
+	/* If the device may have changed in sleep, we need to retune */
+	if (!tegra_host->non_removable)
+		tegra_host->tuning_done = false;
 
 	pm_runtime_get_sync(dev);
 
