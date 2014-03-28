@@ -1225,6 +1225,10 @@ int xhci_bus_resume(struct usb_hcd *hcd)
 			xhci_test_and_clear_bit(xhci, port_array, port_index,
 						PORT_PLC);
 
+			/* Mark port resumed, reinitialize transitional state */
+			clear_bit(port_index, &bus_state->resuming_ports);
+			bus_state->resume_done[port_index] = 0;
+
 			slot_id = xhci_find_slot_id_by_port(hcd,
 					xhci, port_index + 1);
 			if (slot_id)
