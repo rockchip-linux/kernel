@@ -294,6 +294,21 @@ static u32 _pp_stat_reg(struct intel_dp *intel_dp)
 		return VLV_PIPE_PP_STATUS(vlv_power_sequencer_pipe(intel_dp));
 }
 
+static void assert_pwm(struct drm_i915_private *dev_priv,
+		       struct intel_connector *connector,
+		       bool expected_state)
+{
+	bool state;
+
+	state = dev_priv->display.get_backlight(connector);
+
+	WARN(state != expected_state, "pwm state failure, expected %d, found "
+	     "%d\n", expected_state, state);
+}
+
+#define assert_pwm_enabled(d, p) assert_pwm((d), (p), true)
+#define assert_pwm_disabled(d, p) assert_pwm((d), (p), false)
+
 static bool ironlake_edp_have_panel_power(struct intel_dp *intel_dp)
 {
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
@@ -1251,6 +1266,8 @@ void ironlake_edp_panel_off(struct intel_dp *intel_dp)
 
 	WARN(!intel_dp->want_panel_vdd, "Need VDD to turn off panel\n");
 
+	assert_pwm_disabled(dev_priv, intel_dp->attached_connector);
+
 	pp = ironlake_get_pp_control(intel_dp);
 	/* We need to switch off panel power _and_ force vdd, for otherwise some
 	 * panels get very unhappy and cease to work. */
@@ -1285,6 +1302,8 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 	if (pp & EDP_BLC_ENABLE)
 		return;
 
+	assert_pwm_disabled(dev_priv, intel_dp->attached_connector);
+
 	/*
 	 * If we enable the backlight right away following a panel power
 	 * on, we may see slight flicker as the panel syncs with the eDP
@@ -1318,6 +1337,9 @@ void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 	pp = ironlake_get_pp_control(intel_dp);
 	if (!(pp & EDP_BLC_ENABLE))
 		return;
+
+	assert_pwm_enabled(dev_priv, intel_dp->attached_connector);
+
 	pp &= ~EDP_BLC_ENABLE;
 
 	pp_ctrl_reg = _pp_ctrl_reg(intel_dp);
