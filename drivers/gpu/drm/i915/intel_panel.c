@@ -404,7 +404,7 @@ static u32 vlv_get_backlight(struct intel_connector *connector)
 	return _vlv_get_backlight(dev, pipe);
 }
 
-static u32 intel_panel_get_backlight(struct intel_connector *connector)
+u32 intel_panel_get_backlight(struct intel_connector *connector)
 {
 	struct drm_device *dev = connector->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;

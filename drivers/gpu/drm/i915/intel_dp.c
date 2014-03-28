@@ -300,7 +300,7 @@ static void assert_pwm(struct drm_i915_private *dev_priv,
 {
 	bool state;
 
-	state = dev_priv->display.get_backlight(connector);
+	state = intel_panel_get_backlight(connector);
 
 	WARN(state != expected_state, "pwm state failure, expected %d, found "
 	     "%d\n", expected_state, state);
