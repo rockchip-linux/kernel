@@ -1304,6 +1304,8 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 
 	assert_pwm_disabled(dev_priv, intel_dp->attached_connector);
 
+	intel_panel_enable_backlight(intel_dp->attached_connector);
+
 	/*
 	 * If we enable the backlight right away following a panel power
 	 * on, we may see slight flicker as the panel syncs with the eDP
@@ -1317,8 +1319,6 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
-
-	intel_panel_enable_backlight(intel_dp->attached_connector);
 }
 
 void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
@@ -1330,8 +1330,6 @@ void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 
 	if (!is_edp(intel_dp))
 		return;
-
-	intel_panel_disable_backlight(intel_dp->attached_connector);
 
 	DRM_DEBUG_KMS("\n");
 	pp = ironlake_get_pp_control(intel_dp);
@@ -1346,7 +1344,9 @@ void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
+
 	msleep(intel_dp->backlight_off_delay);
+	intel_panel_disable_backlight(intel_dp->attached_connector);
 }
 
 static void ironlake_edp_pll_on(struct intel_dp *intel_dp)
