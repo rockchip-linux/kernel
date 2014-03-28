@@ -1857,6 +1857,16 @@ static const struct dev_pm_ops sdhci_tegra_pm_ops = {
 			   tegra_sdhci_runtime_resume, NULL)
 };
 
+static void sdhci_tegra_shutdown(struct platform_device *pdev)
+{
+	struct sdhci_host *host = platform_get_drvdata(pdev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+
+	if (gpio_is_valid(tegra_host->power_gpio))
+		gpio_direction_output(tegra_host->power_gpio, 0);
+}
+
 static struct platform_driver sdhci_tegra_driver = {
 	.driver		= {
 		.name	= "sdhci-tegra",
@@ -1866,6 +1876,7 @@ static struct platform_driver sdhci_tegra_driver = {
 	},
 	.probe		= sdhci_tegra_probe,
 	.remove		= sdhci_tegra_remove,
+	.shutdown	= sdhci_tegra_shutdown,
 };
 
 module_platform_driver(sdhci_tegra_driver);
