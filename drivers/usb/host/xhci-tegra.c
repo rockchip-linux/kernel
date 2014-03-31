@@ -237,6 +237,7 @@ struct tegra_xhci_hcd {
 #endif
 
 	bool init_done;
+	struct notifier_block bus_nb;
 };
 
 static inline struct usb_hcd *tegra_to_hcd(struct tegra_xhci_hcd *tegra)
@@ -1294,6 +1295,20 @@ static void tegra_xusb_clk_deinit(struct tegra_xhci_hcd *tegra)
 		clk_disable_unprepare(tegra->pll_re_vco_clk);
 }
 
+static int tegra_xhci_bus_notifier(struct notifier_block *nb,
+				   unsigned long action, void *data)
+{
+	struct tegra_xhci_hcd *tegra = container_of(nb, struct tegra_xhci_hcd,
+						    bus_nb);
+	struct device *dev = data;
+
+	if (tegra->xhci_pdev && dev == &tegra->xhci_pdev->dev &&
+	    action == BUS_NOTIFY_BOUND_DRIVER)
+		tegra->init_done = true;
+
+	return NOTIFY_DONE;
+}
+
 static const struct tegra_xusb_soc_config tegra114_soc_config = {
 	.use_hs_src_clk2 = true,
 	.firmware_file = "tegra11x/tegra_xusb_firmware",
@@ -1483,6 +1498,9 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 
 	device_init_wakeup(&pdev->dev, 1);
 
+	tegra->bus_nb.notifier_call = tegra_xhci_bus_notifier;
+	bus_register_notifier(&platform_bus_type, &tegra->bus_nb);
+
 	memset(xhci_resources, 0, sizeof(xhci_resources));
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
@@ -1525,6 +1543,7 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 	xhci->dev.parent = &pdev->dev;
 	xhci->dev.dma_mask = pdev->dev.dma_mask;
 	xhci->dev.dma_parms = pdev->dev.dma_parms;
+	tegra->xhci_pdev = xhci;
 
 	ret = platform_device_add_resources(xhci, xhci_resources,
 					    ARRAY_SIZE(xhci_resources));
@@ -1538,12 +1557,10 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 		dev_err(&pdev->dev, "failed to register xHCI device\n");
 		goto err;
 	}
-	tegra->xhci_pdev = xhci;
 
 	/* Enable firmware message */
 	tegra_xhci_mbox_send(tegra, MBOX_CMD_MSG_ENABLED, 0);
 
-	tegra->init_done = true;
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 
