@@ -119,6 +119,15 @@ static void byt_max98090_start(struct sst_dsp *dsp, void *data)
 				M98090_SHDNN_MASK, M98090_SHDNN_MASK);
 }
 
+static void byt_max98090_stop(struct sst_dsp *dsp, void *data)
+{
+	struct snd_soc_pcm_runtime *runtime = data;
+	struct snd_soc_codec *codec = runtime->codec;
+
+	snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
+					M98090_SHDNN_MASK, 0);
+}
+
 static int byt_init(struct snd_soc_pcm_runtime *runtime)
 {
 	int ret;
@@ -133,7 +142,7 @@ static int byt_init(struct snd_soc_pcm_runtime *runtime)
 
 	pr_debug("Enter:%s", __func__);
 	sst_byt_register_notifier(platform->dev, pdata,
-		byt_max98090_start, NULL, runtime);
+		byt_max98090_start, byt_max98090_stop, runtime);
 
 	card->dapm.idle_bias_off = true;
 

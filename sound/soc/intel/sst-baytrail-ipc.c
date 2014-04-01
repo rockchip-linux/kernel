@@ -170,6 +170,7 @@ struct sst_byt {
 
 	/* stream */
 	struct list_head stream_list;
+	int stream_count;
 
 	/* boot */
 	wait_queue_head_t boot_wait;
@@ -442,10 +443,11 @@ static void sst_byt_notify_work(struct work_struct *work)
 		container_of(work, struct sst_byt_stream, notify_work);
 	struct sst_byt *byt  = stream->byt;
 
-	if (stream->running) {
+	if (byt->stream_count > 0) {
 		if (byt->notify_start)
 			byt->notify_start(byt->dsp, byt->notify_data);
 	} else {
+		byt->stream_count = 0;
 		if (byt->notify_stop)
 			byt->notify_stop(byt->dsp, byt->notify_data);
 	}
@@ -739,6 +741,7 @@ int sst_byt_stream_start(struct sst_byt *byt, struct sst_byt_stream *stream)
 
 	/* reset start offset */
 	stream->start_offset = 0;
+	byt->stream_count++;
 	return ret;
 }
 
@@ -754,6 +757,7 @@ int sst_byt_stream_stop(struct sst_byt *byt, struct sst_byt_stream *stream)
 	if (ret < 0)
 		dev_err(byt->dev, "ipc: error failed to stop stream %d\n",
 			stream->str_id);
+	byt->stream_count--;
 	return ret;
 }
 
