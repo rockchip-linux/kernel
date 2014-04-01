@@ -1752,6 +1752,7 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 		goto err_add_host;
 
 	pm_runtime_put_autosuspend(&pdev->dev);
+	device_enable_async_suspend(&pdev->dev);
 
 	return 0;
 
