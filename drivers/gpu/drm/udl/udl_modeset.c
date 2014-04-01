@@ -310,7 +310,7 @@ static int udl_crtc_mode_set(struct drm_crtc *crtc,
 
 {
 	struct drm_device *dev = crtc->dev;
-	struct udl_framebuffer *ufb = to_udl_fb(crtc->fb);
+	struct udl_framebuffer *ufb = to_udl_fb(crtc->primary->fb);
 	struct udl_device *udl = dev->dev_private;
 	char *buf;
 	char *wrptr;
@@ -319,7 +319,7 @@ static int udl_crtc_mode_set(struct drm_crtc *crtc,
 	buf = (char *)udl->mode_buf;
 
 	/* for now we just clip 24 -> 16 - if we fix that fix this */
-	/*if  (crtc->fb->bits_per_pixel != 16)
+	/*if  (crtc->primary->fb->bits_per_pixel != 16)
 	  color_depth = 1; */
 
 	/* This first section has to do with setting the base address on the
@@ -378,7 +378,7 @@ static int udl_crtc_page_flip(struct drm_crtc *crtc,
 	if (event)
 		drm_send_vblank_event(dev, 0, event);
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-	crtc->fb = fb;
+	crtc->primary->fb = fb;
 
 	return 0;
 }
