@@ -1,13 +1,10 @@
 config ARCH_BCM
-	bool "Broadcom SoC Support"
-	depends on ARCH_MULTIPLATFORM
+	bool "Broadcom SoC Support" if ARCH_MULTI_V6_V7
 	help
-	  This enables support for Broadcom ARM based SoC
-          chips
-
-if ARCH_BCM
+	  This enables support for Broadcom ARM based SoC chips
 
 menu "Broadcom SoC Selection"
+	depends on ARCH_BCM
 
 config ARCH_BCM_MOBILE
 	bool "Broadcom Mobile SoC" if ARCH_MULTI_V7
@@ -33,5 +30,3 @@ config ARCH_BCM_MOBILE
 	  BCM28155 variants.
 
 endmenu
-
-endif
