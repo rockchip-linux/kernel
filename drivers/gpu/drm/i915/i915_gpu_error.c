@@ -259,7 +259,8 @@ static void i915_ring_error_state(struct drm_i915_error_state_buf *m,
 		err_printf(m, "  INSTPS: 0x%08x\n", error->instps[ring]);
 	}
 	err_printf(m, "  INSTPM: 0x%08x\n", error->instpm[ring]);
-	err_printf(m, "  FADDR: 0x%08x\n", error->faddr[ring]);
+	err_printf(m, "  FADDR: 0x%08x 0x%08x\n", upper_32_bits(error->faddr[ring]),
+		   lower_32_bits(error->faddr[ring]));
 	if (INTEL_INFO(dev)->gen >= 6) {
 		err_printf(m, "  RC PSMI: 0x%08x\n", error->rc_psmi[ring]);
 		err_printf(m, "  FAULT_REG: 0x%08x\n", error->fault_reg[ring]);
@@ -730,8 +731,10 @@ static void i915_record_ring_state(struct drm_device *dev,
 		error->instdone[ring->id] = I915_READ(RING_INSTDONE(ring->mmio_base));
 		error->instps[ring->id] = I915_READ(RING_INSTPS(ring->mmio_base));
 		error->bbaddr[ring->id] = I915_READ(RING_BBADDR(ring->mmio_base));
-		if (INTEL_INFO(dev)->gen >= 8)
+		if (INTEL_INFO(dev)->gen >= 8) {
+			error->faddr[ring->id] |= (u64) I915_READ(RING_DMA_FADD_UDW(ring->mmio_base)) << 32;
 			error->bbaddr[ring->id] |= (u64) I915_READ(RING_BBADDR_UDW(ring->mmio_base)) << 32;
+		}
 		error->bbstate[ring->id] = I915_READ(RING_BBSTATE(ring->mmio_base));
 	} else {
 		error->faddr[ring->id] = I915_READ(DMA_FADD_I8XX);

@@ -328,7 +328,7 @@ struct drm_i915_error_state {
 	u64 bbaddr[I915_NUM_RINGS];
 	u32 fault_reg[I915_NUM_RINGS];
 	u32 done_reg;
-	u32 faddr[I915_NUM_RINGS];
+	u64 faddr[I915_NUM_RINGS];
 	u64 fence[I915_MAX_NUM_FENCES];
 	struct timeval time;
 	struct drm_i915_error_ring {
