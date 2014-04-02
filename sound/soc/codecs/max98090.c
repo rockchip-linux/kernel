@@ -1787,15 +1787,14 @@ static int max98090_set_bias_level(struct snd_soc_codec *codec,
 
 	case SND_SOC_BIAS_STANDBY:
 		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
+			snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
+				M98090_SHDNN_MASK, M98090_SHDNN_MASK);
 			ret = regcache_sync(max98090->regmap);
 			if (ret != 0) {
 				dev_err(codec->dev,
 					"Failed to sync cache: %d\n", ret);
 				return ret;
 			}
-		} else {
-			snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
-				M98090_SHDNN_MASK, 0);
 		}
 		break;
 
@@ -1803,6 +1802,8 @@ static int max98090_set_bias_level(struct snd_soc_codec *codec,
 		/* Set internal pull-up to lowest power mode */
 		snd_soc_update_bits(codec, M98090_REG_JACK_DETECT,
 			M98090_JDWK_MASK, M98090_JDWK_MASK);
+		snd_soc_update_bits(codec, M98090_REG_DEVICE_SHUTDOWN,
+				M98090_SHDNN_MASK, 0);
 		regcache_mark_dirty(max98090->regmap);
 		break;
 	}
