@@ -1147,6 +1147,181 @@ enum ec_vboot_hash_status {
 #define EC_VBOOT_HASH_OFFSET_RW 0xfffffffd
 
 /*****************************************************************************/
+/*
+ * Motion sense commands. We'll make separate structs for sub-commands with
+ * different input args, so that we know how much to expect.
+ */
+#define EC_CMD_MOTION_SENSE_CMD 0x2B
+
+/* Motion sense commands */
+enum motionsense_command {
+	/*
+	 * Dump command returns all motion sensor data including motion sense
+	 * module flags and individual sensor flags.
+	 */
+	MOTIONSENSE_CMD_DUMP = 0,
+
+	/*
+	 * Info command returns data describing the details of a given sensor,
+	 * including enum motionsensor_type, enum motionsensor_location, and
+	 * enum motionsensor_chip.
+	 */
+	MOTIONSENSE_CMD_INFO = 1,
+
+	/*
+	 * EC Rate command is a setter/getter command for the EC sampling rate
+	 * of all motion sensors in milliseconds.
+	 */
+	MOTIONSENSE_CMD_EC_RATE = 2,
+
+	/*
+	 * Sensor ODR command is a setter/getter command for the output data
+	 * rate of a specific motion sensor in millihertz.
+	 */
+	MOTIONSENSE_CMD_SENSOR_ODR = 3,
+
+	/*
+	 * Sensor range command is a setter/getter command for the range of
+	 * a specified motion sensor in +/-G's or +/- deg/s.
+	 */
+	MOTIONSENSE_CMD_SENSOR_RANGE = 4,
+
+	/*
+	 * Setter/getter command for the keyboard wake angle. When the lid
+	 * angle is greater than this value, keyboard wake is disabled in S3,
+	 * and when the lid angle goes less than this value, keyboard wake is
+	 * enabled. Note, the lid angle measurement is an approximate,
+	 * un-calibrated value, hence the wake angle isn't exact.
+	 */
+	MOTIONSENSE_CMD_KB_WAKE_ANGLE = 5,
+
+	/* Number of motionsense sub-commands. */
+	MOTIONSENSE_NUM_CMDS
+};
+
+enum motionsensor_id {
+	EC_MOTION_SENSOR_ACCEL_BASE = 0,
+	EC_MOTION_SENSOR_ACCEL_LID = 1,
+	EC_MOTION_SENSOR_GYRO = 2,
+
+	/*
+	 * Note, if more sensors are added and this count changes, the padding
+	 * in ec_response_motion_sense dump command must be modified.
+	 */
+	EC_MOTION_SENSOR_COUNT = 3
+};
+
+/* List of motion sensor types. */
+enum motionsensor_type {
+	MOTIONSENSE_TYPE_ACCEL = 0,
+	MOTIONSENSE_TYPE_GYRO = 1,
+};
+
+/* List of motion sensor locations. */
+enum motionsensor_location {
+	MOTIONSENSE_LOC_BASE = 0,
+	MOTIONSENSE_LOC_LID = 1,
+};
+
+/* List of motion sensor chips. */
+enum motionsensor_chip {
+	MOTIONSENSE_CHIP_KXCJ9 = 0,
+};
+
+/* Module flag masks used for the dump sub-command. */
+#define MOTIONSENSE_MODULE_FLAG_ACTIVE (1<<0)
+
+/* Sensor flag masks used for the dump sub-command. */
+#define MOTIONSENSE_SENSOR_FLAG_PRESENT (1<<0)
+
+/*
+ * Send this value for the data element to only perform a read. If you
+ * send any other value, the EC will interpret it as data to set and will
+ * return the actual value set.
+ */
+#define EC_MOTION_SENSE_NO_VALUE -1
+
+struct ec_params_motion_sense {
+	uint8_t cmd;
+	union {
+		/* Used for MOTIONSENSE_CMD_DUMP. */
+		struct {
+			/* no args */
+		} dump;
+
+		/*
+		 * Used for MOTIONSENSE_CMD_EC_RATE and
+		 * MOTIONSENSE_CMD_KB_WAKE_ANGLE.
+		 */
+		struct {
+			/* Data to set or EC_MOTION_SENSE_NO_VALUE to read. */
+			int16_t data;
+		} ec_rate, kb_wake_angle;
+
+		/* Used for MOTIONSENSE_CMD_INFO. */
+		struct {
+			/* Should be element of enum motionsensor_id. */
+			uint8_t sensor_num;
+		} info;
+
+		/*
+		 * Used for MOTIONSENSE_CMD_SENSOR_ODR and
+		 * MOTIONSENSE_CMD_SENSOR_RANGE.
+		 */
+		struct {
+			/* Should be element of enum motionsensor_id. */
+			uint8_t sensor_num;
+
+			/* Rounding flag, true for round-up, false for down. */
+			uint8_t roundup;
+
+			uint16_t reserved;
+
+			/* Data to set or EC_MOTION_SENSE_NO_VALUE to read. */
+			int32_t data;
+		} sensor_odr, sensor_range;
+	};
+} __packed;
+
+struct ec_response_motion_sense {
+	union {
+		/* Used for MOTIONSENSE_CMD_DUMP. */
+		struct {
+			/* Flags representing the motion sensor module. */
+			uint8_t module_flags;
+
+			/* Flags for each sensor in enum motionsensor_id. */
+			uint8_t sensor_flags[EC_MOTION_SENSOR_COUNT];
+
+			/* Array of all sensor data. Each sensor is 3-axis. */
+			int16_t data[3*EC_MOTION_SENSOR_COUNT];
+		} dump;
+
+		/* Used for MOTIONSENSE_CMD_INFO. */
+		struct {
+			/* Should be element of enum motionsensor_type. */
+			uint8_t type;
+
+			/* Should be element of enum motionsensor_location. */
+			uint8_t location;
+
+			/* Should be element of enum motionsensor_chip. */
+			uint8_t chip;
+		} info;
+
+		/*
+		 * Used for MOTIONSENSE_CMD_EC_RATE, MOTIONSENSE_CMD_SENSOR_ODR,
+		 * MOTIONSENSE_CMD_SENSOR_RANGE, and
+		 * MOTIONSENSE_CMD_KB_WAKE_ANGLE.
+		 */
+		struct {
+			/* Current value of the parameter queried. */
+			int32_t ret;
+		} ec_rate, sensor_odr, sensor_range, kb_wake_angle;
+	};
+} __packed;
+
+/*****************************************************************************/
 /* USB charging control commands */
 
 /* Set USB port charging mode */

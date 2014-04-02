@@ -78,7 +78,10 @@ enum accel_data_format {
 			BIT(IIO_CHAN_INFO_PROCESSED) |			\
 			BIT(IIO_CHAN_INFO_CALIBSCALE) |			\
 			BIT(IIO_CHAN_INFO_CALIBBIAS),			\
-		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE),	\
+		.info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE) |	\
+			BIT(IIO_CHAN_INFO_PEAK_SCALE) |			\
+			BIT(IIO_CHAN_INFO_FREQUENCY) |			\
+			BIT(IIO_CHAN_INFO_SAMP_FREQ),			\
 		.scan_type = {						\
 			.sign = 's',					\
 			.realbits = 16,					\
@@ -126,7 +129,9 @@ static const struct iio_chan_spec ec_accel_channels[] = {
 	{
 		.type = IIO_ANGL,
 		.channel = 0,
-		.info_mask_separate = BIT(IIO_CHAN_INFO_PROCESSED),
+		.info_mask_separate =
+			BIT(IIO_CHAN_INFO_PROCESSED) |
+			BIT(IIO_CHAN_INFO_OFFSET),
 		.address = LID_ANGLE,
 		.scan_index = LID_ANGLE,
 		.scan_type = {
@@ -162,6 +167,18 @@ struct cros_ec_accel_state {
 	int calib_scale[NUM_EC_INPUTS];
 	int calib_offset[NUM_EC_INPUTS];
 };
+
+/**
+ * host_cmd_sensor_num - convert sensor index into host command sensor number.
+ *
+ * @idx sensor index (should be element of enum sensor_index)
+ * @return host command sensor number
+ */
+static inline int host_cmd_sensor_num(int idx)
+{
+	return idx <= ACC_BASE_Z ?
+		EC_MOTION_SENSOR_ACCEL_BASE : EC_MOTION_SENSOR_ACCEL_LID;
+}
 
 /**
  * apply_calibration - apply calibration to raw data from a sensor
@@ -298,11 +315,44 @@ static int read_ec_accel_data(struct cros_ec_accel_state *st,
 	return 0;
 }
 
+/**
+ * send_motion_host_cmd - send motion sense host command
+ *
+ * @st Pointer to state information for device.
+ * @param Pointer to motion sense host command parameter struct.
+ * @resp Pointer to motion sense host command response struct.
+ * @return 0 if ok, -ve on error.
+ *
+ * Note, when called, the sub-command is assumed to be set in param->cmd.
+ */
+static int send_motion_host_cmd(struct cros_ec_accel_state *st,
+				struct ec_params_motion_sense *param,
+				struct ec_response_motion_sense *resp)
+{
+	struct cros_ec_command msg;
+
+	/* Set up the host command structure. */
+	msg.version = 0;
+	msg.command = EC_CMD_MOTION_SENSE_CMD;
+	msg.outdata = (uint8_t *)param;
+	msg.outsize = sizeof(struct ec_params_motion_sense);
+	msg.indata = (uint8_t *)resp;
+	msg.insize = sizeof(struct ec_response_motion_sense);
+
+	/* Send host command. */
+	if (cros_ec_cmd_xfer(st->ec, &msg) > 0)
+		return 0;
+	else
+		return -EIO;
+}
+
 static int ec_accel_read(struct iio_dev *indio_dev,
 			  struct iio_chan_spec const *chan,
 			  int *val, int *val2, long mask)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
+	struct ec_params_motion_sense param;
+	struct ec_response_motion_sense resp;
 	u16 data = 0;
 	int ret = IIO_VAL_INT;
 
@@ -328,6 +378,53 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 	case IIO_CHAN_INFO_CALIBBIAS:
 		*val = st->calib_offset[chan->scan_index];
 		break;
+	case IIO_CHAN_INFO_OFFSET:
+		/* Only lid angle supports offset field. */
+		if (chan->scan_index != LID_ANGLE)
+			return -EIO;
+
+		param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
+		param.kb_wake_angle.data = EC_MOTION_SENSE_NO_VALUE;
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			return -EIO;
+		else
+			*val = resp.kb_wake_angle.ret;
+		break;
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		param.cmd = MOTIONSENSE_CMD_EC_RATE;
+		param.ec_rate.data = EC_MOTION_SENSE_NO_VALUE;
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			return -EIO;
+		else
+			*val = resp.ec_rate.ret;
+
+		break;
+	case IIO_CHAN_INFO_PEAK_SCALE:
+		param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
+		param.sensor_range.data = EC_MOTION_SENSE_NO_VALUE;
+		param.sensor_range.sensor_num =
+			host_cmd_sensor_num(chan->scan_index);
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			return -EIO;
+		else
+			*val = resp.sensor_range.ret;
+
+		break;
+	case IIO_CHAN_INFO_FREQUENCY:
+		param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
+		param.sensor_odr.data = EC_MOTION_SENSE_NO_VALUE;
+		param.sensor_range.sensor_num =
+			host_cmd_sensor_num(chan->scan_index);
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			ret = -EIO;
+		else
+			*val = resp.sensor_odr.ret;
+
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -341,6 +438,8 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 			       int val, int val2, long mask)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
+	struct ec_params_motion_sense param;
+	struct ec_response_motion_sense resp;
 	int ret = 0;
 
 	switch (mask) {
@@ -349,6 +448,53 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		break;
 	case IIO_CHAN_INFO_CALIBBIAS:
 		st->calib_offset[chan->scan_index] = val;
+		break;
+	case IIO_CHAN_INFO_OFFSET:
+		/* Only lid angle supports offset field. */
+		if (chan->scan_index != LID_ANGLE)
+			return -EIO;
+
+		param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
+		param.kb_wake_angle.data = val;
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			return -EIO;
+
+		break;
+	case IIO_CHAN_INFO_SAMP_FREQ:
+		param.cmd = MOTIONSENSE_CMD_EC_RATE;
+		param.ec_rate.data = val;
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			return -EIO;
+
+		break;
+
+	case IIO_CHAN_INFO_PEAK_SCALE:
+		param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
+		param.sensor_range.data = val;
+		param.sensor_range.sensor_num =
+			host_cmd_sensor_num(chan->scan_index);
+
+		/* Always roundup, so caller gets at least what it asks for. */
+		param.sensor_range.roundup = 1;
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			return -EIO;
+
+		break;
+	case IIO_CHAN_INFO_FREQUENCY:
+		param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
+		param.sensor_odr.data = val;
+		param.sensor_range.sensor_num =
+			host_cmd_sensor_num(chan->scan_index);
+
+		/* Always roundup, so caller gets at least what it asks for. */
+		param.sensor_odr.roundup = 1;
+
+		if (send_motion_host_cmd(st, &param, &resp))
+			ret = -EIO;
+
 		break;
 	default:
 		ret = -EINVAL;
@@ -386,7 +532,7 @@ static irqreturn_t accel_capture(int irq, void *p)
 
 	/*
 	 * Read data based on which channels are enabled in scan mask. Note
-	 * that on a capture we are always reading the calibrated
+	 * that on a capture we are always reading the calibrated data.
 	 */
 	read_ec_accel_data(st, *(indio_dev->active_scan_mask),
 			   st->capture_data.samples, CALIBRATED);
