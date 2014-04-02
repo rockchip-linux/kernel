@@ -30,16 +30,6 @@
 #define MXT_VER_21		21
 #define MXT_VER_22		22
 
-/* Slave addresses */
-#define MXT_APP_LOW		0x4a
-#define MXT_APP_HIGH		0x4b
-/*
- * MXT_BOOT_LOW disagrees with Atmel documentation, but has been
- * updated to support new touch hardware that pairs 0x26 boot with 0x4a app.
- */
-#define MXT_BOOT_LOW		0x26
-#define MXT_BOOT_HIGH		0x25
-
 /* Firmware */
 #define MXT_FW_NAME		"maxtouch.fw"
 
@@ -620,7 +610,15 @@ static void mxt_release_all_fingers(struct mxt_data *data)
 static bool mxt_in_bootloader(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
-	return (client->addr == MXT_BOOT_LOW || client->addr == MXT_BOOT_HIGH);
+	return (client->addr == 0x25 ||
+		client->addr == 0x26 ||
+		client->addr == 0x27);
+}
+
+static bool mxt_in_appmode(struct mxt_data *data)
+{
+	struct i2c_client *client = data->client;
+	return (client->addr == 0x4a || client->addr == 0x4b);
 }
 
 static int mxt_i2c_recv(struct i2c_client *client, u8 *buf, size_t count)
@@ -691,6 +689,47 @@ static int mxt_wait_for_chg(struct mxt_data *data, unsigned int timeout_ms)
 	}
 	return 0;
 }
+
+
+static int mxt_lookup_bootloader_address(struct mxt_data *data)
+{
+	u8 addr = data->client->addr;
+	u8 family_id = data->info.family_id;
+	u8 bootloader = 0;
+
+	if (mxt_in_bootloader(data))
+		return addr;
+
+	if (addr == 0x4a) {
+		bootloader = 0x26;
+	} else if (addr == 0x4b) {
+		bootloader = family_id >= 0xa2 ? 0x27 : 0x25;
+	} else {
+		dev_err(&data->client->dev,
+			"Appmode i2c address 0x%02x not found\n", addr);
+	}
+	return bootloader;
+}
+
+static int mxt_lookup_appmode_address(struct mxt_data *data)
+{
+	u8 addr = data->client->addr;
+	u8 appmode = 0;
+
+	if (mxt_in_appmode(data))
+		return addr;
+
+	if (addr == 0x26)
+		appmode = 0x4a;
+	else if (addr == 0x25 || addr == 0x27) {
+		appmode = 0x4b;
+	} else {
+		dev_err(&data->client->dev,
+			"Bootloader mode i2c address 0x%02x not found\n", addr);
+	}
+	return appmode;
+}
+
 
 static int mxt_check_bootloader(struct mxt_data *data, unsigned int state)
 {
@@ -1264,10 +1303,7 @@ static int mxt_enter_bl(struct mxt_data *data)
 	}
 
 	/* Change to slave address of bootloader */
-	if (client->addr == MXT_APP_LOW)
-		client->addr = MXT_BOOT_LOW;
-	else
-		client->addr = MXT_BOOT_HIGH;
+	client->addr = mxt_lookup_bootloader_address(data);
 
 	init_completion(&data->bl_completion);
 	enable_irq(data->irq);
@@ -1277,10 +1313,7 @@ static int mxt_enter_bl(struct mxt_data *data)
 	if (ret) {
 		dev_err(dev, "Failed waiting for reset to bootloader %d.\n",
 			ret);
-		if (client->addr == MXT_BOOT_LOW)
-			client->addr = MXT_APP_LOW;
-		else
-			client->addr = MXT_APP_HIGH;
+		client->addr = mxt_lookup_appmode_address(data);
 		return ret;
 	}
 	return 0;
@@ -1299,10 +1332,7 @@ static void mxt_exit_bl(struct mxt_data *data)
 	mxt_wait_for_chg(data, MXT_FWRESET_TIME);
 
 	disable_irq(data->irq);
-	if (client->addr == MXT_BOOT_LOW)
-		client->addr = MXT_APP_LOW;
-	else
-		client->addr = MXT_APP_HIGH;
+	client->addr = mxt_lookup_appmode_address(data);
 
 	mxt_free_object_table(data);
 
