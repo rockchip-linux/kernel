@@ -231,9 +231,11 @@ dtb-$(CONFIG_ARCH_OMAP2PLUS) += omap2420-h4.dtb \
 	dra7-evm.dtb
 dtb-$(CONFIG_ARCH_ORION5X) += orion5x-lacie-ethernet-disk-mini-v2.dtb
 dtb-$(CONFIG_ARCH_PRIMA2) += prima2-evb.dtb
-dtb-$(CONFIG_ARCH_QCOM) += qcom-msm8660-surf.dtb \
-	qcom-msm8960-cdp.dtb \
+dtb-$(CONFIG_ARCH_QCOM) += \
+	qcom-apq8064-ifc6410.dtb \
 	qcom-apq8074-dragonboard.dtb \
+	qcom-msm8660-surf.dtb \
+	qcom-msm8960-cdp.dtb \
 	qcom-ipq8064-ap148.dtb \
 	qcom-ipq8064-storm.dtb
 dtb-$(CONFIG_ARCH_U8500) += ste-snowball.dtb \
