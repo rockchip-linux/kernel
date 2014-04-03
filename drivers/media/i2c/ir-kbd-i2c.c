@@ -261,8 +261,9 @@ static int ir_key_poll(struct IR_i2c *ir)
 	}
 
 	if (rc) {
-		dprintk(1, "%s: keycode = 0x%04x\n", __func__, ir_key);
-		rc_keydown(ir->rc, ir_key, 0);
+		dprintk(1, "%s: proto = 0x%04x, scancode = 0x%08x\n",
+			__func__, protocol, scancode);
+		rc_keydown(ir->rc, protocol, scancode, toggle);
 	}
 	return 0;
 }
