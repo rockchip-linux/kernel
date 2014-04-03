@@ -51,17 +51,17 @@ static const struct ieee80211_regdomain mwifiex_world_regdom_custom = {
 			 NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS |
 			 NL80211_RRF_NO_OFDM),
 		/* Channel 36 - 48 */
-		REG_RULE(5180-10, 5240+10, 40, 3, 20,
+		REG_RULE(5180-10, 5240+10, 80, 3, 20,
 			 NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS),
 		/* Channel 149 - 165 */
-		REG_RULE(5745-10, 5825+10, 40, 3, 20,
+		REG_RULE(5745-10, 5825+10, 80, 3, 20,
 			 NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS),
 		/* Channel 52 - 64 */
-		REG_RULE(5260-10, 5320+10, 40, 3, 30,
+		REG_RULE(5260-10, 5320+10, 80, 3, 30,
 			 NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS |
 			 NL80211_RRF_DFS),
 		/* Channel 100 - 140 */
-		REG_RULE(5500-10, 5700+10, 40, 3, 30,
+		REG_RULE(5500-10, 5700+10, 80, 3, 30,
 			 NL80211_RRF_PASSIVE_SCAN | NL80211_RRF_NO_IBSS |
 			 NL80211_RRF_DFS),
 	}
@@ -1556,6 +1556,9 @@ mwifiex_cfg80211_assoc(struct mwifiex_private *priv, size_t ssid_len, u8 *ssid,
 	priv->sec_info.is_authtype_auto = 0;
 	ret = mwifiex_set_encode(priv, NULL, NULL, 0, 0, NULL, 1);
 
+	/* Enable 11ac by default if it is allowed on this channel. */
+	priv->sta_assoc_11ac_enabled = !(channel->flags &
+					 IEEE80211_CHAN_NO_80MHZ);
 	if (mode == NL80211_IFTYPE_ADHOC) {
 		/* "privacy" is set only for ad-hoc mode */
 		if (privacy) {
@@ -1570,8 +1573,6 @@ mwifiex_cfg80211_assoc(struct mwifiex_private *priv, size_t ssid_len, u8 *ssid,
 			priv->sec_info.authentication_mode =
 					NL80211_AUTHTYPE_OPEN_SYSTEM;
 		}
-
-		priv->sta_assoc_11ac_enabled = false;
 
 		goto done;
 	}
@@ -1609,7 +1610,9 @@ mwifiex_cfg80211_assoc(struct mwifiex_private *priv, size_t ssid_len, u8 *ssid,
 		}
 	}
 
-	priv->sta_assoc_11ac_enabled = !(sme->flags & ASSOC_REQ_DISABLE_VHT);
+	if (sme->flags & ASSOC_REQ_DISABLE_VHT)
+		priv->sta_assoc_11ac_enabled = false;
+
 done:
 	/*
 	 * Scan entries are valid for some time (15 sec). So we can save one
