@@ -1523,7 +1523,7 @@ static int __init tegra124_emc_init(void)
 {
 	return platform_driver_register(&tegra124_emc_driver);
 }
-device_initcall(tegra124_emc_init);
+subsys_initcall(tegra124_emc_init);
 
 #ifdef CONFIG_DEBUG_FS
 
