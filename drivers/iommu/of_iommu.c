@@ -22,6 +22,7 @@
 #include <linux/of.h>
 #include <linux/of_iommu.h>
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
 
 static DEFINE_MUTEX(iommus_lock);
 static LIST_HEAD(iommus_list);
@@ -133,6 +134,7 @@ int of_iommu_attach(struct device *dev)
 
 	of_property_for_each_phandle_with_args(dev->of_node, "iommus",
 				       "#iommu-cells", 0, args, cur, end) {
+		set_dma_ops(dev, ((struct dma_map_ops *)-ENXIO));
 		if (!of_find_iommu_by_node(args.np))
 			return -EPROBE_DEFER;
 	}
