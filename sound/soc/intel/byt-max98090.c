@@ -30,7 +30,7 @@
 #include "sst-dsp.h"
 #include "sst-baytrail-ipc.h"
 
-#define BYT_PLAT_CLK_3_HZ      19200000
+#define BYT_PLAT_CLK_3_HZ      25000000
 
 struct byt_mc_private {
 	struct snd_soc_jack hp_jack;
