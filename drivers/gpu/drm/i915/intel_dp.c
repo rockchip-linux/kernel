@@ -2768,9 +2768,6 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 	}
 	POSTING_READ(intel_dp->output_reg);
 
-	/* We don't really know why we're doing this */
-	intel_wait_for_vblank(dev, intel_crtc->pipe);
-
 	if (HAS_PCH_IBX(dev) &&
 	    I915_READ(intel_dp->output_reg) & DP_PIPEB_SELECT) {
 		struct drm_crtc *crtc = intel_dig_port->base.base.crtc;
@@ -2802,7 +2799,6 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 	DP &= ~DP_AUDIO_OUTPUT_ENABLE;
 	I915_WRITE(intel_dp->output_reg, DP & ~DP_PORT_EN);
 	POSTING_READ(intel_dp->output_reg);
-	msleep(intel_dp->panel_power_down_delay);
 }
 
 static bool
