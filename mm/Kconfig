@@ -605,3 +605,6 @@ config LOW_MEM_NOTIFY
 	  is meant to be used in systems with no or very little swap space.  In
 	  the presence of large swap space, the system is likely to become
 	  unusable before the OOM killer is triggered.
+
+config GENERIC_EARLY_IOREMAP
+	bool
