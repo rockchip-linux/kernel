@@ -253,6 +253,8 @@ enum iwl_mvm_agg_state {
  *	This is basically (last acked packet++).
  * @rate_n_flags: Rate at which Tx was attempted. Holds the data between the
  *	Tx response (TX_CMD), and the block ack notification (COMPRESSED_BA).
+ * @reduced_tpc: Reduced tx power. Holds the data between the
+ *	Tx response (TX_CMD), and the block ack notification (COMPRESSED_BA).
  * @state: state of the BA agreement establishment / tear down.
  * @txq_id: Tx queue used by the BA session
  * @ssn: the first packet to be sent in AGG HW queue in Tx AGG start flow, or
@@ -265,6 +267,7 @@ struct iwl_mvm_tid_data {
 	u16 next_reclaimed;
 	/* The rest is Tx AGG related */
 	u32 rate_n_flags;
+	u8 reduced_tpc;
 	enum iwl_mvm_agg_state state;
 	u16 txq_id;
 	u16 ssn;
@@ -384,7 +387,7 @@ int iwl_mvm_sta_tx_agg_flush(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 int iwl_mvm_add_aux_sta(struct iwl_mvm *mvm);
 int iwl_mvm_allocate_int_sta(struct iwl_mvm *mvm, struct iwl_mvm_int_sta *sta,
-			     u32 qmask);
+			     u32 qmask, enum nl80211_iftype iftype);
 void iwl_mvm_dealloc_int_sta(struct iwl_mvm *mvm,
 			     struct iwl_mvm_int_sta *sta);
 int iwl_mvm_send_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,

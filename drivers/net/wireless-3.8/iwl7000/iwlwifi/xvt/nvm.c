@@ -167,9 +167,9 @@ static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 	ret = request_firmware(&fw_entry, iwlwifi_mod_params.nvm_file,
 			       xvt->trans->dev);
 	if (ret) {
-		IWL_ERR(xvt, "ERROR: %s isn't available %d\n",
-			iwlwifi_mod_params.nvm_file, ret);
-		return ret;
+		IWL_WARN(xvt, "WARNING: %s isn't available %d\n",
+			 iwlwifi_mod_params.nvm_file, ret);
+		return 0;
 	}
 
 	IWL_INFO(xvt, "Loaded NVM file %s (%zu bytes)\n",

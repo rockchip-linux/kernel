@@ -86,4 +86,6 @@ void iwl_dnt_dispatch_free(struct iwl_dnt *dnt, struct iwl_trans *trans);
 
 struct dnt_collect_db *iwl_dnt_dispatch_allocate_collect_db(
 							struct iwl_dnt *dnt);
+
+void iwl_dnt_dispatch_handle_nic_err(struct iwl_trans *trans);
 #endif

@@ -94,6 +94,7 @@ enum {
 	IWL_TM_USER_CMD_END_TRACE,
 	IWL_TM_USER_CMD_TRACE_DUMP,
 	IWL_TM_USER_CMD_NOTIFICATIONS,
+	IWL_TM_USER_CMD_SWICTH_OP_MODE,
 
 	IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT = TM_CMD_NOTIF_BASE,
 	IWL_TM_USER_CMD_NOTIF_DRIVER,
@@ -121,6 +122,7 @@ enum {
 	IWL_XVT_CMD_ALLOC_DMA,
 	IWL_XVT_CMD_GET_DMA,
 	IWL_XVT_CMD_FREE_DMA,
+	IWL_XVT_CMD_GET_CHIP_ID,
 
 	/* Driver notifications */
 	IWL_XVT_CMD_SEND_REPLY_ALIVE = XVT_CMD_NOTIF_BASE,
@@ -210,6 +212,14 @@ struct iwl_tm_sram_read_request {
 } __packed __aligned(4);
 
 /**
+ * struct iwl_tm_dev_info_req - Request data for get info request
+ * @read_sv: rather or not read sv_srop
+ */
+struct iwl_tm_dev_info_req {
+	__u32 read_sv;
+} __packed __aligned(4);
+
+/**
  * struct iwl_tm_dev_info - Result data for get info request
  * @dev_id:
  * @vendor_id:
@@ -225,6 +235,15 @@ struct iwl_tm_dev_info {
 	__u32 fw_ver;
 	__u32 build_ver;
 	__u8 driver_ver[];
+} __packed __aligned(4);
+
+#define MAX_OP_MODE_LENGTH	16
+/**
+ * struct iwl_switch_op_mode - switch op_mode
+ * @new_op_mode:	size of data
+ */
+struct iwl_switch_op_mode {
+	__u8 new_op_mode[MAX_OP_MODE_LENGTH];
 } __packed __aligned(4);
 
 /* xVT defeinitions */
@@ -334,6 +353,14 @@ struct iwl_xvt_alloc_dma {
 struct iwl_xvt_get_dma {
 	__u32 size;
 	__u8 data[];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_xvt_chip_id - get the chip id from SCU
+ * @registers:	an array of registers to hold the chip id data
+ */
+struct iwl_xvt_chip_id {
+	__u32 registers[3];
 } __packed __aligned(4);
 
 #endif

@@ -71,7 +71,7 @@
 #include "iwl-op-mode.h"
 #include "iwl-config.h"
 
-#define IWL_DNT_ARRAY_SIZE	32
+#define IWL_DNT_ARRAY_SIZE	128
 
 #define BUS_TYPE_PCI	"pci"
 #define BUS_TYPE_IDI	"idi"
@@ -93,6 +93,7 @@ enum {
 	IWL_DNT_STATUS_FAILED_START_MONITOR		= BIT(4),
 	IWL_DNT_STATUS_INVALID_MONITOR_CONF		= BIT(5),
 	IWL_DNT_STATUS_FAILED_TO_ALLOCATE_DB		= BIT(6),
+	IWL_DNT_STATUS_FW_CRASH				= BIT(7),
 };
 
 /* input modes */
@@ -115,7 +116,8 @@ enum {
 	INTERFACE = BIT(1),
 	DMA = BIT(2),
 	MARBH = BIT(3),
-	ICCM = BIT(4)
+	ICCM = BIT(4),
+	SMEM = BIT(5)
 };
 
 /* monitor modes */
@@ -140,6 +142,16 @@ enum {
 	PULL
 };
 
+/* crash data */
+enum {
+	NONE = 0,
+	SRAM = BIT(0),
+	DBGM = BIT(1),
+	TX_FIFO = BIT(2),
+	RX_FIFO = BIT(3),
+	PERIPHERY = BIT(4)
+};
+
 struct dnt_collect_entry {
 	u8 *data;
 	u32 size;
@@ -148,13 +160,34 @@ struct dnt_collect_entry {
 /**
  * @list_read_ptr: list read pointer
  * @list_wr_ptr: list write pointer
- * @list_mutex: lock for the list
+ * @db_lock: lock for the list
  */
 struct dnt_collect_db {
 	struct dnt_collect_entry collect_array[IWL_DNT_ARRAY_SIZE];
 	unsigned int read_ptr;
 	unsigned int wr_ptr;
-	struct mutex db_mutex;	/*locks the array */
+	spinlock_t db_lock;	/*locks the array */
+};
+
+/**
+ * struct dnt_crash_data - holds pointers for crash data
+ * @sram: sram data pointer
+ * @dbgm: monitor data pointer
+ * @rx: rx fifo data pointer
+ * @tx: tx fifo data pointer
+ * @periph: perhphey registers data pointer
+ */
+struct dnt_crash_data {
+	u8 *sram;
+	u32 sram_buf_size;
+	u8 *dbgm;
+	u32 dbgm_buf_size;
+	u8 *rx;
+	u32 rx_buf_size;
+	u8 *tx;
+	u32 tx_buf_size;
+	u8 *periph;
+	u32 periph_buf_size;
 };
 
 /**
@@ -176,6 +209,8 @@ struct iwl_dnt_dispatch {
 
 	struct dnt_collect_db *dbgm_db;
 	struct dnt_collect_db *um_db;
+
+	struct dnt_crash_data crash;
 };
 
 /**
@@ -199,6 +234,7 @@ struct iwl_dnt_dispatch {
  */
 struct iwl_dnt {
 	struct device *dev;
+	const struct fw_img *image;
 
 	u32 iwl_dnt_status;
 	bool is_configuration_valid;
@@ -236,7 +272,7 @@ void iwl_dnt_free(struct iwl_trans *trans);
  * iwl_dnt_configure - configures iwl_dnt.
  *
  */
-void iwl_dnt_configure(struct iwl_trans *trans);
+void iwl_dnt_configure(struct iwl_trans *trans, const struct fw_img *image);
 
 /**
  * iwl_dnt_start - starts monitor and set log level

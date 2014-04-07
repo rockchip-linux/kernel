@@ -250,7 +250,7 @@ static ssize_t iwl_dbgfs_disable_power_off_write(struct iwl_mvm *mvm, char *buf,
 	}
 
 	mutex_lock(&mvm->mutex);
-	ret = iwl_mvm_power_update_device_mode(mvm);
+	ret = iwl_mvm_power_update_device(mvm);
 	mutex_unlock(&mvm->mutex);
 
 	return ret ?: count;
@@ -350,6 +350,9 @@ static ssize_t iwl_dbgfs_bt_notif_read(struct file *file, char __user *user_buf,
 			 le32_to_cpu(notif->secondary_ch_lut));
 	pos += scnprintf(buf+pos, bufsz-pos, "bt_activity_grading = %d\n",
 			 le32_to_cpu(notif->bt_activity_grading));
+	pos += scnprintf(buf+pos, bufsz-pos,
+			 "antenna isolation = %d CORUN LUT index = %d\n",
+			 mvm->last_ant_isol, mvm->last_corun_lut);
 
 	mutex_unlock(&mvm->mutex);
 
@@ -390,6 +393,22 @@ static ssize_t iwl_dbgfs_bt_cmd_read(struct file *file, char __user *user_buf,
 	mutex_unlock(&mvm->mutex);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+}
+
+static ssize_t
+iwl_dbgfs_bt_tx_prio_write(struct iwl_mvm *mvm, char *buf,
+			   size_t count, loff_t *ppos)
+{
+	u32 bt_tx_prio;
+
+	if (sscanf(buf, "%u", &bt_tx_prio) != 1)
+		return -EINVAL;
+	if (bt_tx_prio > 4)
+		return -EINVAL;
+
+	mvm->bt_tx_prio = bt_tx_prio;
+
+	return count;
 }
 
 #define PRINT_STATS_LE32(_str, _val)					\
@@ -536,56 +555,60 @@ static ssize_t iwl_dbgfs_frame_stats_read(struct iwl_mvm *mvm,
 					  loff_t *ppos,
 					  struct iwl_mvm_frame_stats *stats)
 {
-	char *buff;
-	int pos = 0, idx, i;
+	char *buff, *pos, *endpos;
+	int idx, i;
 	int ret;
-	size_t bufsz = 1024;
+	static const size_t bufsz = 1024;
 
 	buff = kmalloc(bufsz, GFP_KERNEL);
 	if (!buff)
 		return -ENOMEM;
 
 	spin_lock_bh(&mvm->drv_stats_lock);
-	pos += scnprintf(buff + pos, bufsz - pos,
+
+	pos = buff;
+	endpos = pos + bufsz;
+
+	pos += scnprintf(pos, endpos - pos,
 			 "Legacy/HT/VHT\t:\t%d/%d/%d\n",
 			 stats->legacy_frames,
 			 stats->ht_frames,
 			 stats->vht_frames);
-	pos += scnprintf(buff + pos, bufsz - pos, "20/40/80\t:\t%d/%d/%d\n",
+	pos += scnprintf(pos, endpos - pos, "20/40/80\t:\t%d/%d/%d\n",
 			 stats->bw_20_frames,
 			 stats->bw_40_frames,
 			 stats->bw_80_frames);
-	pos += scnprintf(buff + pos, bufsz - pos, "NGI/SGI\t\t:\t%d/%d\n",
+	pos += scnprintf(pos, endpos - pos, "NGI/SGI\t\t:\t%d/%d\n",
 			 stats->ngi_frames,
 			 stats->sgi_frames);
-	pos += scnprintf(buff + pos, bufsz - pos, "SISO/MIMO2\t:\t%d/%d\n",
+	pos += scnprintf(pos, endpos - pos, "SISO/MIMO2\t:\t%d/%d\n",
 			 stats->siso_frames,
 			 stats->mimo2_frames);
-	pos += scnprintf(buff + pos, bufsz - pos, "FAIL/SCSS\t:\t%d/%d\n",
+	pos += scnprintf(pos, endpos - pos, "FAIL/SCSS\t:\t%d/%d\n",
 			 stats->fail_frames,
 			 stats->success_frames);
-	pos += scnprintf(buff + pos, bufsz - pos, "MPDUs agg\t:\t%d\n",
+	pos += scnprintf(pos, endpos - pos, "MPDUs agg\t:\t%d\n",
 			 stats->agg_frames);
-	pos += scnprintf(buff + pos, bufsz - pos, "A-MPDUs\t\t:\t%d\n",
+	pos += scnprintf(pos, endpos - pos, "A-MPDUs\t\t:\t%d\n",
 			 stats->ampdu_count);
-	pos += scnprintf(buff + pos, bufsz - pos, "Avg MPDUs/A-MPDU:\t%d\n",
+	pos += scnprintf(pos, endpos - pos, "Avg MPDUs/A-MPDU:\t%d\n",
 			 stats->ampdu_count > 0 ?
 			 (stats->agg_frames / stats->ampdu_count) : 0);
 
-	pos += scnprintf(buff + pos, bufsz - pos, "Last Rates\n");
+	pos += scnprintf(pos, endpos - pos, "Last Rates\n");
 
 	idx = stats->last_frame_idx - 1;
 	for (i = 0; i < ARRAY_SIZE(stats->last_rates); i++) {
 		idx = (idx + 1) % ARRAY_SIZE(stats->last_rates);
 		if (stats->last_rates[idx] == 0)
 			continue;
-		pos += scnprintf(buff + pos, bufsz - pos, "Rate[%d]: ",
+		pos += scnprintf(pos, endpos - pos, "Rate[%d]: ",
 				 (int)(ARRAY_SIZE(stats->last_rates) - i));
-		pos += rs_pretty_print_rate(buff + pos, stats->last_rates[idx]);
+		pos += rs_pretty_print_rate(pos, stats->last_rates[idx]);
 	}
 	spin_unlock_bh(&mvm->drv_stats_lock);
 
-	ret = simple_read_from_buffer(user_buf, count, ppos, buff, pos);
+	ret = simple_read_from_buffer(user_buf, count, ppos, buff, pos - buff);
 	kfree(buff);
 
 	return ret;
@@ -661,7 +684,7 @@ iwl_dbgfs_scan_ant_rxchain_write(struct iwl_mvm *mvm, char *buf,
 		return -EINVAL;
 	if (scan_rx_ant > ANT_ABC)
 		return -EINVAL;
-	if (scan_rx_ant & ~iwl_fw_valid_rx_ant(mvm->fw))
+	if (scan_rx_ant & ~mvm->fw->valid_rx_ant)
 		return -EINVAL;
 
 	mvm->scan_rx_ant = scan_rx_ant;
@@ -932,8 +955,38 @@ static ssize_t iwl_dbgfs_d0i3_refs_read(struct file *file,
 	PRINT_MVM_REF(IWL_MVM_REF_ROC);
 	PRINT_MVM_REF(IWL_MVM_REF_P2P_CLIENT);
 	PRINT_MVM_REF(IWL_MVM_REF_AP_IBSS);
+	PRINT_MVM_REF(IWL_MVM_REF_USER);
+	PRINT_MVM_REF(IWL_MVM_REF_EXIT_WORK);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+}
+
+static ssize_t iwl_dbgfs_d0i3_refs_write(struct iwl_mvm *mvm, char *buf,
+					 size_t count, loff_t *ppos)
+{
+	unsigned long value;
+	int ret;
+	bool taken;
+
+	ret = kstrtoul(buf, 10, &value);
+	if (ret < 0)
+		return ret;
+
+	mutex_lock(&mvm->mutex);
+
+	taken = test_bit(IWL_MVM_REF_USER, mvm->ref_bitmap);
+	if (value == 1 && !taken)
+		iwl_mvm_ref(mvm, IWL_MVM_REF_USER);
+	else if (value == 0 && taken)
+		iwl_mvm_unref(mvm, IWL_MVM_REF_USER);
+	else
+		ret = -EINVAL;
+
+	mutex_unlock(&mvm->mutex);
+
+	if (ret < 0)
+		return ret;
+	return count;
 }
 
 #define MVM_DEBUGFS_WRITE_FILE_OPS(name, bufsz) \
@@ -948,6 +1001,49 @@ static ssize_t iwl_dbgfs_d0i3_refs_read(struct file *file,
 #define MVM_DEBUGFS_ADD_FILE(name, parent, mode) \
 	MVM_DEBUGFS_ADD_FILE_ALIAS(#name, name, parent, mode)
 
+static ssize_t
+iwl_dbgfs_prph_reg_read(struct file *file,
+			char __user *user_buf,
+			size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	int pos = 0;
+	char buf[32];
+	const size_t bufsz = sizeof(buf);
+
+	if (!mvm->dbgfs_prph_reg_addr)
+		return -EINVAL;
+
+	pos += scnprintf(buf + pos, bufsz - pos, "Reg 0x%x: (0x%x)\n",
+		mvm->dbgfs_prph_reg_addr,
+		iwl_read_prph(mvm->trans, mvm->dbgfs_prph_reg_addr));
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+}
+
+static ssize_t
+iwl_dbgfs_prph_reg_write(struct iwl_mvm *mvm, char *buf,
+			 size_t count, loff_t *ppos)
+{
+	u8 args;
+	u32 value;
+
+	args = sscanf(buf, "%i %i", &mvm->dbgfs_prph_reg_addr, &value);
+	/* if we only want to set the reg address - nothing more to do */
+	if (args == 1)
+		goto out;
+
+	/* otherwise, make sure we have both address and value */
+	if (args != 2)
+		return -EINVAL;
+
+	iwl_write_prph(mvm->trans, mvm->dbgfs_prph_reg_addr, value);
+out:
+	return count;
+}
+
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(prph_reg, 64);
+
 /* Device wide debugfs entries */
 MVM_DEBUGFS_WRITE_FILE_OPS(tx_flush, 16);
 MVM_DEBUGFS_WRITE_FILE_OPS(sta_drain, 8);
@@ -960,8 +1056,9 @@ MVM_DEBUGFS_READ_FILE_OPS(fw_rx_stats);
 MVM_DEBUGFS_READ_FILE_OPS(drv_rx_stats);
 MVM_DEBUGFS_WRITE_FILE_OPS(fw_restart, 10);
 MVM_DEBUGFS_WRITE_FILE_OPS(fw_nmi, 10);
+MVM_DEBUGFS_WRITE_FILE_OPS(bt_tx_prio, 10);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(scan_ant_rxchain, 8);
-MVM_DEBUGFS_READ_FILE_OPS(d0i3_refs);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(d0i3_refs, 8);
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters, 256);
@@ -994,9 +1091,11 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(drv_rx_stats, mvm->debugfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(fw_restart, mvm->debugfs_dir, S_IWUSR);
 	MVM_DEBUGFS_ADD_FILE(fw_nmi, mvm->debugfs_dir, S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE(bt_tx_prio, mvm->debugfs_dir, S_IWUSR);
 	MVM_DEBUGFS_ADD_FILE(scan_ant_rxchain, mvm->debugfs_dir,
 			     S_IWUSR | S_IRUSR);
-	MVM_DEBUGFS_ADD_FILE(d0i3_refs, mvm->debugfs_dir, S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE(prph_reg, mvm->debugfs_dir, S_IWUSR | S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE(d0i3_refs, mvm->debugfs_dir, S_IRUSR | S_IWUSR);
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {

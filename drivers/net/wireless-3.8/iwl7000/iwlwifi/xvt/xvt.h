@@ -127,6 +127,10 @@ struct iwl_xvt {
 	u32 dma_buffer_size;
 	u8 *dma_cpu_addr;
 	dma_addr_t dma_addr;
+	/* TX done conter */
+	u32 tx_counter;
+	u32 tot_tx;
+	wait_queue_head_t mod_tx_done_wq;
 };
 
 #define IWL_OP_MODE_GET_XVT(_op_mode) \

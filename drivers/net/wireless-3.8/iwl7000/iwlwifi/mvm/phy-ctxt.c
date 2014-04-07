@@ -163,19 +163,19 @@ static void iwl_mvm_phy_ctxt_cmd_data(struct iwl_mvm *mvm,
 	 * between the two antennas is sufficiently different to impact
 	 * performance.
 	 */
-	if (active_cnt == 1 && num_of_ant(iwl_fw_valid_rx_ant(mvm->fw)) > 1 &&
+	if (active_cnt == 1 && num_of_ant(mvm->fw->valid_rx_ant) > 1 &&
 	    !mvm->cfg->rx_with_siso_diversity) {
 		idle_cnt = 2;
 		active_cnt = 2;
 	}
 
-	cmd->rxchain_info = cpu_to_le32(iwl_fw_valid_rx_ant(mvm->fw) <<
+	cmd->rxchain_info = cpu_to_le32(mvm->fw->valid_rx_ant <<
 					PHY_RX_CHAIN_VALID_POS);
 	cmd->rxchain_info |= cpu_to_le32(idle_cnt << PHY_RX_CHAIN_CNT_POS);
 	cmd->rxchain_info |= cpu_to_le32(active_cnt <<
 					 PHY_RX_CHAIN_MIMO_CNT_POS);
 
-	cmd->txchain_info = cpu_to_le32(iwl_fw_valid_tx_ant(mvm->fw));
+	cmd->txchain_info = cpu_to_le32(mvm->fw->valid_tx_ant);
 }
 
 /*

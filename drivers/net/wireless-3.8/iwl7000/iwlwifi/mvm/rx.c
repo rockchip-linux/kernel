@@ -59,8 +59,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
+#include <linux/etherdevice.h>
 #include "iwl-trans.h"
-
 #include "mvm.h"
 #include "fw-api.h"
 
@@ -130,7 +130,7 @@ static void iwl_mvm_pass_packet_to_mac80211(struct iwl_mvm *mvm,
 
 	memcpy(IEEE80211_SKB_RXCB(skb), stats, sizeof(*stats));
 
-	ieee80211_rx_ni(mvm->hw, skb);
+	ieee80211_rx(mvm->hw, skb);
 }
 
 static void iwl_mvm_calc_rssi(struct iwl_mvm *mvm,
@@ -138,22 +138,16 @@ static void iwl_mvm_calc_rssi(struct iwl_mvm *mvm,
 			      struct ieee80211_rx_status *rx_status)
 {
 	int rssi_a, rssi_b, rssi_a_dbm, rssi_b_dbm, max_rssi_dbm;
-	int rssi_all_band_a, rssi_all_band_b;
-	u32 agc_a, agc_b, max_agc;
+	u32 agc_a, agc_b;
 	u32 val;
 
 	val = le32_to_cpu(phy_info->non_cfg_phy[IWL_RX_INFO_AGC_IDX]);
 	agc_a = (val & IWL_OFDM_AGC_A_MSK) >> IWL_OFDM_AGC_A_POS;
 	agc_b = (val & IWL_OFDM_AGC_B_MSK) >> IWL_OFDM_AGC_B_POS;
-	max_agc = max_t(u32, agc_a, agc_b);
 
 	val = le32_to_cpu(phy_info->non_cfg_phy[IWL_RX_INFO_RSSI_AB_IDX]);
 	rssi_a = (val & IWL_OFDM_RSSI_INBAND_A_MSK) >> IWL_OFDM_RSSI_A_POS;
 	rssi_b = (val & IWL_OFDM_RSSI_INBAND_B_MSK) >> IWL_OFDM_RSSI_B_POS;
-	rssi_all_band_a = (val & IWL_OFDM_RSSI_ALLBAND_A_MSK) >>
-				IWL_OFDM_RSSI_ALLBAND_A_POS;
-	rssi_all_band_b = (val & IWL_OFDM_RSSI_ALLBAND_B_MSK) >>
-				IWL_OFDM_RSSI_ALLBAND_B_POS;
 
 	/*
 	 * dBm = rssi dB - agc dB - constant.
@@ -300,6 +294,40 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 
 	memset(&rx_status, 0, sizeof(rx_status));
 
+#ifdef CPTCFG_IWLMVM_TCM
+	if (!mvm->tcm.paused && len >= sizeof(*hdr) &&
+	    !is_multicast_ether_addr(hdr->addr1) &&
+	    ieee80211_is_data(hdr->frame_control)) {
+		int ac = IEEE80211_AC_BE; /* treat non-QoS as BE */
+		struct ieee80211_sta *sta;
+
+		if (ieee80211_is_data_qos(hdr->frame_control)) {
+			int tid = *ieee80211_get_qos_ctl(hdr) &
+					IEEE80211_QOS_CTL_TID_MASK;
+
+			ac = tid_to_mac80211_ac[tid];
+		}
+
+		rcu_read_lock();
+		/* This is fine since we don't support multiple AP interfaces */
+		sta = ieee80211_find_sta_by_ifaddr(mvm->hw, hdr->addr2, NULL);
+		if (sta) {
+			struct iwl_mvm_sta *mvmsta;
+			int mac;
+
+			mvmsta = iwl_mvm_sta_from_mac80211(sta);
+			mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
+
+			if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
+				iwl_mvm_recalc_tcm(mvm);
+			mvm->tcm.data[mac].rx.pkts[ac]++;
+			mvm->tcm.data[mac].rx.airtime[ac] +=
+				le16_to_cpu(phy_info->frame_time);
+		}
+		rcu_read_unlock();
+	}
+#endif
+
 	/*
 	 * drop the packet if it has failed being decrypted by HW
 	 */
@@ -373,25 +401,35 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 		rx_status.flag |= RX_FLAG_40MHZ;
 		break;
 	case RATE_MCS_CHAN_WIDTH_80:
-		rx_status.flag |= RX_FLAG_80MHZ;
+		rx_status.vht_flag |= RX_VHT_FLAG_80MHZ;
 		break;
 	case RATE_MCS_CHAN_WIDTH_160:
-		rx_status.flag |= RX_FLAG_160MHZ;
+		rx_status.vht_flag |= RX_VHT_FLAG_160MHZ;
 		break;
 	}
 	if (rate_n_flags & RATE_MCS_SGI_MSK)
 		rx_status.flag |= RX_FLAG_SHORT_GI;
 	if (rate_n_flags & RATE_HT_MCS_GF_MSK)
 		rx_status.flag |= RX_FLAG_HT_GF;
+	if (rate_n_flags & RATE_MCS_LDPC_MSK)
+		rx_status.flag |= RX_FLAG_LDPC;
 	if (rate_n_flags & RATE_MCS_HT_MSK) {
+		u8 stbc = (rate_n_flags & RATE_MCS_HT_STBC_MSK) >>
+				RATE_MCS_STBC_POS;
 		rx_status.flag |= RX_FLAG_HT;
 		rx_status.rate_idx = rate_n_flags & RATE_HT_MCS_INDEX_MSK;
+		rx_status.flag |= stbc << RX_FLAG_STBC_SHIFT;
 	} else if (rate_n_flags & RATE_MCS_VHT_MSK) {
+		u8 stbc = (rate_n_flags & RATE_MCS_VHT_STBC_MSK) >>
+				RATE_MCS_STBC_POS;
 		rx_status.vht_nss =
 			((rate_n_flags & RATE_VHT_MCS_NSS_MSK) >>
 						RATE_VHT_MCS_NSS_POS) + 1;
 		rx_status.rate_idx = rate_n_flags & RATE_VHT_MCS_RATE_CODE_MSK;
 		rx_status.flag |= RX_FLAG_VHT;
+		rx_status.flag |= stbc << RX_FLAG_STBC_SHIFT;
+		if (rate_n_flags & RATE_MCS_BF_MSK)
+			rx_status.vht_flag |= RX_VHT_FLAG_BF;
 	} else {
 		rx_status.rate_idx =
 			iwl_mvm_legacy_rate_to_mac80211_idx(rate_n_flags,

@@ -155,4 +155,6 @@ static inline int iwl_tm_gnl_exit(void)
 #define GET_AL_ADDR(ofs) (ofs & ~(ADDR_IN_AL_MSK))
 #define IS_AL_ADDR(ofs) (!!(ofs & (ADDR_IN_AL_MSK)))
 
+#define DEFAULT_BUF_SIZE	(0x3cff * sizeof(u32))
+
 #endif

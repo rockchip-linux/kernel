@@ -155,37 +155,26 @@ static void iwl_pcie_rxq_inc_wr_ptr(struct iwl_trans *trans,
 	if (rxq->need_update == 0)
 		goto exit_unlock;
 
-	if (trans->cfg->base_params->shadow_reg_enable) {
-		/* shadow register enabled */
-		/* Device expects a multiple of 8 */
-		rxq->write_actual = (rxq->write & ~0x7);
-		iwl_write32(trans, FH_RSCSR_CHNL0_WPTR, rxq->write_actual);
-	} else {
-		/* If power-saving is in use, make sure device is awake */
-		if (test_bit(STATUS_TPOWER_PMI, &trans->status)) {
-			reg = iwl_read32(trans, CSR_UCODE_DRV_GP1);
+	/*
+	 * explicitly wake up the NIC if:
+	 * 1. shadow registers aren't enabled
+	 * 2. there is a chance that the NIC is asleep
+	 */
+	if (!trans->cfg->base_params->shadow_reg_enable &&
+	    test_bit(STATUS_TPOWER_PMI, &trans->status)) {
+		reg = iwl_read32(trans, CSR_UCODE_DRV_GP1);
 
-			if (reg & CSR_UCODE_DRV_GP1_BIT_MAC_SLEEP) {
-				IWL_DEBUG_INFO(trans,
-					"Rx queue requesting wakeup,"
-					" GP1 = 0x%x\n", reg);
-				iwl_set_bit(trans, CSR_GP_CNTRL,
-					CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
-				goto exit_unlock;
-			}
-
-			rxq->write_actual = (rxq->write & ~0x7);
-			iwl_write_direct32(trans, FH_RSCSR_CHNL0_WPTR,
-					   rxq->write_actual);
-
-		/* Else device is assumed to be awake */
-		} else {
-			/* Device expects a multiple of 8 */
-			rxq->write_actual = (rxq->write & ~0x7);
-			iwl_write_direct32(trans, FH_RSCSR_CHNL0_WPTR,
-					   rxq->write_actual);
+		if (reg & CSR_UCODE_DRV_GP1_BIT_MAC_SLEEP) {
+			IWL_DEBUG_INFO(trans, "Rx queue requesting wakeup, GP1 = 0x%x\n",
+				       reg);
+			iwl_set_bit(trans, CSR_GP_CNTRL,
+				    CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+			goto exit_unlock;
 		}
 	}
+
+	rxq->write_actual = round_down(rxq->write, 8);
+	iwl_write32(trans, FH_RSCSR_CHNL0_WPTR, rxq->write_actual);
 	rxq->need_update = 0;
 
  exit_unlock:
@@ -709,7 +698,7 @@ static void iwl_pcie_rx_handle_rb(struct iwl_trans *trans,
 /*
  * iwl_pcie_rx_handle - Main entry function for receiving responses from fw
  */
-static int iwl_pcie_rx_handle(struct iwl_trans *trans, int budget)
+static void iwl_pcie_rx_handle(struct iwl_trans *trans)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
 	struct iwl_rxq *rxq = &trans_pcie->rxq;
@@ -717,10 +706,9 @@ static int iwl_pcie_rx_handle(struct iwl_trans *trans, int budget)
 	u8 fill_rx = 0;
 	u32 count = 8;
 	int total_empty;
-	int handled = 0;
 
 restart:
-	spin_lock_bh(&rxq->lock);
+	spin_lock(&rxq->lock);
 	/* uCode's read index (stored in shared DRAM) indicates the last Rx
 	 * buffer that the driver may process (last buffer filled by ucode). */
 	r = le16_to_cpu(ACCESS_ONCE(rxq->rb_stts->closed_rb_num)) & 0x0FFF;
@@ -738,15 +726,14 @@ restart:
 	if (total_empty > (RX_QUEUE_SIZE / 2))
 		fill_rx = 1;
 
-	while (i != r && handled < budget) {
+	while (i != r) {
 		struct iwl_rx_mem_buffer *rxb;
 
 		rxb = rxq->queue[i];
 		rxq->queue[i] = NULL;
 
-		IWL_DEBUG_RX(trans, "rxbuf: HW = %d, SW = %d (%p), budget=%d\n",
-			     r, i, rxb, budget);
-		handled++;
+		IWL_DEBUG_RX(trans, "rxbuf: HW = %d, SW = %d (%p)\n",
+			     r, i, rxb);
 		iwl_pcie_rx_handle_rb(trans, rxb);
 
 		i = (i + 1) & RX_QUEUE_MASK;
@@ -756,7 +743,7 @@ restart:
 			count++;
 			if (count >= 8) {
 				rxq->read = i;
-				spin_unlock_bh(&rxq->lock);
+				spin_unlock(&rxq->lock);
 				iwl_pcie_rx_replenish_now(trans);
 				count = 0;
 				goto restart;
@@ -766,14 +753,15 @@ restart:
 
 	/* Backtrack one entry */
 	rxq->read = i;
-	spin_unlock_bh(&rxq->lock);
+	spin_unlock(&rxq->lock);
 
 	if (fill_rx)
 		iwl_pcie_rx_replenish_now(trans);
 	else
 		iwl_pcie_rxq_restock(trans);
 
-	return handled;
+	if (trans_pcie->napi.poll)
+		napi_gro_flush(&trans_pcie->napi, false);
 }
 
 /*
@@ -1013,7 +1001,7 @@ irqreturn_t iwl_pcie_irq_handler(int irq, void *dev_id)
 
 		isr_stats->rfkill++;
 
-		iwl_op_mode_hw_rf_kill(trans->op_mode, hw_rfkill);
+		iwl_trans_pcie_rf_kill(trans, hw_rfkill);
 		if (hw_rfkill) {
 			set_bit(STATUS_RFKILL, &trans->status);
 			if (test_and_clear_bit(STATUS_SYNC_HCMD_ACTIVE,
@@ -1100,24 +1088,9 @@ irqreturn_t iwl_pcie_irq_handler(int irq, void *dev_id)
 
 		isr_stats->rx++;
 
-		if (trans_pcie->napi.poll &&
-		    napi_schedule_prep(&trans_pcie->napi)) {
-			/* Disable RX interrupts while NAPI is scheduled.
-			 * This isn't reflected in trans_pcie->inta_mask,
-			 * but that shouldn't matter since the interrupt
-			 * is locked against the NAPI poll, so even if it
-			 * ends up being enabled again that won't hurt.
-			 */
-			iwl_write32(trans, CSR_INT_MASK,
-				    trans_pcie->inta_mask &
-					~(CSR_INT_BIT_FH_RX |
-					  CSR_INT_BIT_SW_RX));
-			local_bh_disable();
-			__napi_schedule(&trans_pcie->napi);
-			local_bh_enable();
-		} else {
-			iwl_pcie_rx_handle(trans, RX_QUEUE_SIZE);
-		}
+		local_bh_disable();
+		iwl_pcie_rx_handle(trans);
+		local_bh_enable();
 	}
 
 	/* This "Tx" DMA channel is used only for loading uCode */
@@ -1227,8 +1200,6 @@ void iwl_pcie_reset_ict(struct iwl_trans *trans)
 	IWL_DEBUG_ISR(trans, "CSR_DRAM_INT_TBL_REG =0x%x\n", val);
 
 	iwl_write32(trans, CSR_DRAM_INT_TBL_REG, val);
-	if (trans_pcie->napi.poll && !trans_pcie->use_ict)
-		napi_enable(&trans_pcie->napi);
 	trans_pcie->use_ict = true;
 	trans_pcie->ict_index = 0;
 	iwl_write32(trans, CSR_INT, trans_pcie->inta_mask);
@@ -1246,8 +1217,6 @@ void iwl_pcie_disable_ict(struct iwl_trans *trans)
 	old_use_ict = trans_pcie->use_ict;
 	trans_pcie->use_ict = false;
 	spin_unlock(&trans_pcie->irq_lock);
-	if (trans_pcie->napi.poll && old_use_ict)
-		napi_disable(&trans_pcie->napi);
 }
 
 irqreturn_t iwl_pcie_isr(int irq, void *data)
@@ -1265,22 +1234,4 @@ irqreturn_t iwl_pcie_isr(int irq, void *data)
 	iwl_write32(trans, CSR_INT_MASK, 0x00000000);
 
 	return IRQ_WAKE_THREAD;
-}
-
-int iwl_pcie_napi_poll(struct napi_struct *napi, int budget)
-{
-	struct iwl_trans_pcie *trans_pcie =
-		container_of(napi, struct iwl_trans_pcie, napi);
-	struct iwl_trans *trans = iwl_trans_pcie_get_trans(trans_pcie);
-	int done;
-
-	done = iwl_pcie_rx_handle(trans, budget);
-	if (done < budget) {
-		napi_complete(&trans_pcie->napi);
-		/* enable IRQ again */
-		iwl_write32(trans, CSR_INT_MASK, trans_pcie->inta_mask |
-						 CSR_INT_BIT_FH_RX |
-						 CSR_INT_BIT_SW_RX);
-	}
-	return done;
 }

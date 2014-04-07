@@ -345,6 +345,34 @@ static int iwl_tm_get_device_status(struct iwl_tm_gnl_dev *dev,
 	return 0;
 }
 
+#if IS_ENABLED(CPTCFG_IWLXVT)
+static int iwl_tm_switch_op_mode(struct iwl_tm_gnl_dev *dev,
+				 struct iwl_tm_data *data_in)
+{
+	struct iwl_switch_op_mode *switch_cmd = data_in->data;
+	struct iwl_drv *drv;
+	int ret = 0;
+
+	if (data_in->len < sizeof(*switch_cmd))
+		return -EINVAL;
+
+	drv = iwl_drv_get_dev_container(dev->trans->dev);
+	if (!drv) {
+		IWL_ERR(dev->trans, "Couldn't retrieve device information\n");
+		return -ENODEV;
+	}
+
+	/* Executing switch command */
+	ret = iwl_drv_switch_op_mode(drv, switch_cmd->new_op_mode);
+
+	if (ret < 0)
+		IWL_ERR(dev->trans, "Failed to switch op mode to %s (err:%d)\n",
+			switch_cmd->new_op_mode, ret);
+
+	return ret;
+}
+#endif
+
 /*
  * Testmode GNL family types (This NL family
  * will eventually replace nl80211 support in
@@ -376,27 +404,6 @@ struct iwl_tm_gnl_cmd {
 static struct list_head dev_list;
 static struct mutex dev_list_mtx; /* Protects dev_list */
 
-/*
- * iwl_tm_gnl_cmd_pre_do
- * Takes a lock on the devices list, so that the doit
- * operation will be protected
- */
-static int iwl_tm_gnl_cmd_pre_do(__genl_const struct genl_ops *ops,
-				 struct sk_buff *skb,
-				 struct genl_info *info)
-{
-	mutex_lock(&dev_list_mtx);
-
-	return 0;
-}
-
-static void iwl_tm_gnl_cmd_post_do(__genl_const struct genl_ops *ops,
-				   struct sk_buff *skb,
-				   struct genl_info *info)
-{
-	mutex_unlock(&dev_list_mtx);
-}
-
 /* Testmode GNL family command attributes  */
 enum iwl_tm_gnl_cmd_attr_t {
 	IWL_TM_GNL_MSG_ATTR_INVALID = 0,
@@ -423,8 +430,6 @@ static struct genl_family iwl_tm_gnl_family = {
 	.name		= IWL_TM_GNL_FAMILY_NAME,
 	.version	= IWL_TM_GNL_VERSION_NR,
 	.maxattr	= IWL_TM_GNL_MSG_ATTR_MAX,
-	.pre_doit	= iwl_tm_gnl_cmd_pre_do,
-	.post_doit	= iwl_tm_gnl_cmd_post_do,
 };
 
 static __genl_const struct genl_multicast_group iwl_tm_gnl_mcgrps[] = {
@@ -432,7 +437,8 @@ static __genl_const struct genl_multicast_group iwl_tm_gnl_mcgrps[] = {
 };
 
 /* TM GNL bus policy */
-static struct nla_policy iwl_tm_gnl_msg_policy[IWL_TM_GNL_MSG_ATTR_MAX] = {
+static const struct nla_policy
+iwl_tm_gnl_msg_policy[IWL_TM_GNL_MSG_ATTR_MAX] = {
 	[IWL_TM_GNL_MSG_ATTR_DEVNAME] =	{
 			.type = NLA_NUL_STRING,
 			.len = IWL_TM_GNL_DEVNAME_LEN-1 },
@@ -602,11 +608,11 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 	struct iwl_tm_gnl_dev *dev;
 	bool common_op = false;
 	int ret = 0;
-
+	mutex_lock(&dev_list_mtx);
 	dev = iwl_tm_gnl_get_dev(cmd_data->dev_name);
+	mutex_unlock(&dev_list_mtx);
 	if (!dev)
 		return -ENODEV;
-
 	switch (cmd_data->cmd) {
 
 	case IWL_TM_USER_CMD_HCMD:
@@ -650,6 +656,12 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 		ret = iwl_tm_get_device_status(dev, &cmd_data->data_in,
 					       &cmd_data->data_out);
 		break;
+#if IS_ENABLED(CPTCFG_IWLXVT)
+	case IWL_TM_USER_CMD_SWICTH_OP_MODE:
+		ret = iwl_tm_switch_op_mode(dev, &cmd_data->data_in);
+		common_op = true;
+		break;
+#endif
 	}
 	if (ret)
 		return ret;
@@ -691,17 +703,27 @@ static int iwl_tm_trace_dump(struct iwl_tm_gnl_dev *dev,
 			     struct iwl_tm_data *data_out)
 {
 	int ret;
+	u32 buf_size;
 
-	data_out->data =  kmalloc(dev->dnt->mon_buf_size, GFP_KERNEL);
+	if ((dev->dnt->iwl_dnt_status & IWL_DNT_STATUS_MON_CONFIGURED) &&
+	    dev->dnt->mon_buf_size == 0)
+		buf_size = DEFAULT_BUF_SIZE;
+	else
+		buf_size = dev->dnt->mon_buf_size;
+
+	data_out->data =  kmalloc(buf_size, GFP_KERNEL);
 	if (!data_out->data)
 		return -ENOMEM;
 
-	data_out->len = dev->dnt->mon_buf_size;
 	ret = iwl_dnt_dispatch_pull(dev->trans, data_out->data,
-				    dev->dnt->mon_buf_size, MONITOR);
-	if (ret)
+				    buf_size, MONITOR);
+	if (ret < 0) {
 		kfree(data_out->data);
-	return ret;
+		return ret;
+	}
+	data_out->len = ret;
+
+	return 0;
 }
 
 /**
@@ -920,6 +942,9 @@ void iwl_tm_gnl_add(struct iwl_trans *trans)
 	if (!trans)
 		return;
 
+	if (trans->tmdev)
+		return;
+
 	mutex_lock(&dev_list_mtx);
 
 	if (iwl_tm_gnl_get_dev(dev_name(trans->dev)))
@@ -977,24 +1002,12 @@ void iwl_tm_gnl_remove(struct iwl_trans *trans)
  */
 int iwl_tm_gnl_init(void)
 {
-	int ret;
-
 	INIT_LIST_HEAD(&dev_list);
 	mutex_init(&dev_list_mtx);
 
-	ret = genl_register_family_with_ops(&iwl_tm_gnl_family,
-					    iwl_tm_gnl_ops, IWL_TM_GNL_CMD_MAX);
-	if (ret) {
-		return ret;
-	}
-
-	ret = genl_register_mc_group(&iwl_tm_gnl_family, &iwl_tm_gnl_mcgrps[0]);
-	if (ret) {
-		genl_unregister_family(&iwl_tm_gnl_family);
-		return ret;
-	}
-
-	return 0;
+	return genl_register_family_with_ops_groups(&iwl_tm_gnl_family,
+						    iwl_tm_gnl_ops,
+						    iwl_tm_gnl_mcgrps);
 }
 
 /**

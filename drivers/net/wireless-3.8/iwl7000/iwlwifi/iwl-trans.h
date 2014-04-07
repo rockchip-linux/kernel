@@ -396,7 +396,7 @@ struct iwl_trans_config {
 	bool rx_buf_size_8k;
 	bool bc_table_dword;
 	unsigned int queue_watchdog_timeout;
-	const char **command_names;
+	const char *const *command_names;
 };
 
 struct iwl_trans;
@@ -553,6 +553,7 @@ enum iwl_trans_state {
  *	starting the firmware, used for tracing
  * @rx_mpdu_cmd_hdr_size: used for tracing, amount of data before the
  *	start of the 802.11 header in the @rx_mpdu_cmd
+ * @dflt_pwr_limit: default power limit fetched from the platform (ACPI)
  */
 struct iwl_trans {
 	const struct iwl_trans_ops *ops;
@@ -585,6 +586,8 @@ struct iwl_trans {
 #ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
 	struct iwl_dbg_cfg dbg_cfg;
 #endif
+
+	u64 dflt_pwr_limit;
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */

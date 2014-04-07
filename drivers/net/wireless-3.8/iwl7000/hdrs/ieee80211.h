@@ -597,6 +597,20 @@ static inline int ieee80211_is_qos_nullfunc(__le16 fc)
 }
 
 /**
+ * ieee80211_is_bufferable_mmpdu - check if frame is bufferable MMPDU
+ * @fc: frame control field in little-endian byteorder
+ */
+static inline bool ieee80211_is_bufferable_mmpdu(__le16 fc)
+{
+	/* IEEE 802.11-2012, definition of "bufferable management frame";
+	 * note that this ignores the IBSS special case. */
+	return ieee80211_is_mgmt(fc) &&
+	       (ieee80211_is_action(fc) ||
+		ieee80211_is_disassoc(fc) ||
+		ieee80211_is_deauth(fc));
+}
+
+/**
  * ieee80211_is_first_frag - check if IEEE80211_SCTL_FRAG is not set
  * @seq_ctrl: frame sequence control bytes in little-endian byteorder
  */
@@ -1898,6 +1912,7 @@ enum ieee80211_key_len {
 	WLAN_KEY_LEN_CCMP = 16,
 	WLAN_KEY_LEN_TKIP = 32,
 	WLAN_KEY_LEN_AES_CMAC = 16,
+	WLAN_KEY_LEN_SMS4 = 32,
 };
 
 #define IEEE80211_WEP_IV_LEN		4
@@ -1943,6 +1958,7 @@ enum ieee80211_tdls_actioncode {
 #define WLAN_EXT_CAPA5_TDLS_PROHIBITED	BIT(6)
 
 #define WLAN_EXT_CAPA8_OPMODE_NOTIF	BIT(6)
+#define WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED	BIT(7)
 
 /* TDLS specific payload type in the LLC/SNAP header */
 #define WLAN_TDLS_SNAP_RFTYPE	0x2
@@ -2231,10 +2247,10 @@ static inline u8 *ieee80211_get_DA(struct ieee80211_hdr *hdr)
 }
 
 /**
- * ieee80211_is_robust_mgmt_frame - check if frame is a robust management frame
+ * _ieee80211_is_robust_mgmt_frame - check if frame is a robust management frame
  * @hdr: the frame (buffer must include at least the first octet of payload)
  */
-static inline bool ieee80211_is_robust_mgmt_frame(struct ieee80211_hdr *hdr)
+static inline bool _ieee80211_is_robust_mgmt_frame(struct ieee80211_hdr *hdr)
 {
 	if (ieee80211_is_disassoc(hdr->frame_control) ||
 	    ieee80211_is_deauth(hdr->frame_control))
@@ -2263,6 +2279,17 @@ static inline bool ieee80211_is_robust_mgmt_frame(struct ieee80211_hdr *hdr)
 }
 
 /**
+ * ieee80211_is_robust_mgmt_frame - check if skb contains a robust mgmt frame
+ * @skb: the skb containing the frame, length will be checked
+ */
+static inline bool ieee80211_is_robust_mgmt_frame(struct sk_buff *skb)
+{
+	if (skb->len < 25)
+		return false;
+	return _ieee80211_is_robust_mgmt_frame((void *)skb->data);
+}
+
+/**
  * ieee80211_is_public_action - check if frame is a public action frame
  * @hdr: the frame
  * @len: length of the frame
@@ -2277,42 +2304,6 @@ static inline bool ieee80211_is_public_action(struct ieee80211_hdr *hdr,
 	if (!ieee80211_is_action(hdr->frame_control))
 		return false;
 	return mgmt->u.action.category == WLAN_CATEGORY_PUBLIC;
-}
-
-/**
- * ieee80211_dsss_chan_to_freq - get channel center frequency
- * @channel: the DSSS channel
- *
- * Convert IEEE802.11 DSSS channel to the center frequency (MHz).
- * Ref IEEE 802.11-2007 section 15.6
- */
-static inline int ieee80211_dsss_chan_to_freq(int channel)
-{
-	if ((channel > 0) && (channel < 14))
-		return 2407 + (channel * 5);
-	else if (channel == 14)
-		return 2484;
-	else
-		return -1;
-}
-
-/**
- * ieee80211_freq_to_dsss_chan - get channel
- * @freq: the frequency
- *
- * Convert frequency (MHz) to IEEE802.11 DSSS channel
- * Ref IEEE 802.11-2007 section 15.6
- *
- * This routine selects the channel with the closest center frequency.
- */
-static inline int ieee80211_freq_to_dsss_chan(int freq)
-{
-	if ((freq >= 2410) && (freq < 2475))
-		return (freq - 2405) / 5;
-	else if ((freq >= 2482) && (freq < 2487))
-		return 14;
-	else
-		return -1;
 }
 
 /**

@@ -86,19 +86,19 @@ static ssize_t iwl_dnt_debugfs_log_read(struct file *file,
 {
 	struct iwl_trans *trans = file->private_data;
 	unsigned char *temp_buf;
-	ssize_t ret = 0;
+	int ret = 0;
 
 	temp_buf = kzalloc(count, GFP_KERNEL);
 	if (!temp_buf)
 		return -ENOMEM;
 
 	ret = iwl_dnt_dispatch_pull(trans, temp_buf, count, UCODE_MESSAGES);
-	if (ret) {
+	if (ret < 0) {
 		IWL_DEBUG_INFO(trans, "Failed to retrieve debug data\n");
 		goto free_buf;
 	}
 
-	ret = simple_read_from_buffer(user_buf, count, ppos, temp_buf, count);
+	ret = simple_read_from_buffer(user_buf, ret, ppos, temp_buf, count);
 free_buf:
 	kfree(temp_buf);
 	return ret;
@@ -152,36 +152,16 @@ static bool iwl_dnt_validate_configuration(struct iwl_trans *trans)
 {
 	struct iwl_dbg_cfg *dbg_cfg = &trans->dbg_cfg;
 
-	if (!strcmp(trans->dev->bus->name, BUS_TYPE_PCI)) {
-		/* checking destination_path */
-		if (dbg_cfg->dbm_destination_path != DMA &&
-		    dbg_cfg->dbm_destination_path != MARBH) {
-			IWL_ERR(trans, "Invalid destination path for pci\n");
-			return false;
-		}
-		return true;
-	}
-
-	if (!strcmp(trans->dev->bus->name, BUS_TYPE_IDI)) {
-		/* checking destination_path */
-		if (dbg_cfg->dbm_destination_path != INTERFACE &&
-		    dbg_cfg->dbm_destination_path != MARBH &&
-		    dbg_cfg->dbm_destination_path != MIPI) {
-			IWL_ERR(trans, "Invalid destination path for idi\n");
-			return false;
-		}
-		return true;
-	}
-
-	if (!strcmp(trans->dev->bus->name, BUS_TYPE_SDIO)) {
-		/* checking destination_path */
-		if (dbg_cfg->dbm_destination_path != MARBH &&
-		    dbg_cfg->dbm_destination_path != MIPI) {
-			IWL_ERR(trans, "Invalid destination path for sdio\n");
-			return false;
-		}
-		return true;
-	}
+	if (!strcmp(trans->dev->bus->name, BUS_TYPE_PCI))
+		return dbg_cfg->dbm_destination_path == DMA ||
+		       dbg_cfg->dbm_destination_path == MARBH;
+	else if (!strcmp(trans->dev->bus->name, BUS_TYPE_IDI))
+		return dbg_cfg->dbm_destination_path == INTERFACE ||
+		       dbg_cfg->dbm_destination_path == MARBH ||
+		       dbg_cfg->dbm_destination_path == MIPI;
+	else if (!strcmp(trans->dev->bus->name, BUS_TYPE_SDIO))
+		return dbg_cfg->dbm_destination_path == MARBH ||
+		       dbg_cfg->dbm_destination_path == MIPI;
 
 	return false;
 }
@@ -215,6 +195,14 @@ static int iwl_dnt_conf_monitor(struct iwl_trans *trans, u32 output,
 	} else {
 		dnt->dispatch.mon_out_mode = PULL;
 		dnt->dispatch.mon_in_mode = RETRIEVE;
+
+		/*
+		 * If we're running a device that supports DBGC and monitor
+		 * was given value as MARBH, it should be interpreted as SMEM
+		 */
+		if ((trans->cfg->device_family == IWL_DEVICE_FAMILY_8000) &&
+		    (monitor_type == MARBH))
+			dnt->cur_mon_type = SMEM;
 	}
 	return iwl_dnt_dev_if_configure_monitor(dnt, trans);
 }
@@ -237,6 +225,7 @@ void iwl_dnt_start(struct iwl_trans *trans)
 }
 IWL_EXPORT_SYMBOL(iwl_dnt_start);
 
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
 static int iwl_dnt_conf_ucode_msgs_via_rx(struct iwl_trans *trans, u32 output)
 {
 	struct iwl_dnt *dnt = trans->tmdev->dnt;
@@ -260,12 +249,13 @@ static int iwl_dnt_conf_ucode_msgs_via_rx(struct iwl_trans *trans, u32 output)
 
 	return 0;
 }
+#endif
 
 void iwl_dnt_init(struct iwl_trans *trans, struct dentry *dbgfs_dir)
 {
 	struct iwl_dnt *dnt;
-	bool ret;
-	int err;
+	bool __maybe_unused ret;
+	int __maybe_unused err;
 
 	dnt = kzalloc(sizeof(struct iwl_dnt), GFP_KERNEL);
 	if (!dnt)
@@ -313,7 +303,7 @@ void iwl_dnt_free(struct iwl_trans *trans)
 }
 IWL_EXPORT_SYMBOL(iwl_dnt_free);
 
-void iwl_dnt_configure(struct iwl_trans *trans)
+void iwl_dnt_configure(struct iwl_trans *trans, const struct fw_img *image)
 {
 	struct iwl_dnt *dnt = trans->tmdev->dnt;
 	struct iwl_dbg_cfg *dbg_cfg = &trans->dbg_cfg;
@@ -321,6 +311,8 @@ void iwl_dnt_configure(struct iwl_trans *trans)
 
 	if (!dnt)
 		return;
+
+	dnt->image = image;
 
 	is_conf_invalid = (dnt->iwl_dnt_status &
 			   IWL_DNT_STATUS_INVALID_MONITOR_CONF);
@@ -348,4 +340,3 @@ void iwl_dnt_configure(struct iwl_trans *trans)
 		return;
 	}
 }
-IWL_EXPORT_SYMBOL(iwl_dnt_configure);

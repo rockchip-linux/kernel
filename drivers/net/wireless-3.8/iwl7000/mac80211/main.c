@@ -599,7 +599,9 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 	local->hw.uapsd_max_sp_len = IEEE80211_DEFAULT_MAX_SP_LEN;
 	local->user_power_level = IEEE80211_UNSET_POWER_LEVEL;
 	wiphy->ht_capa_mod_mask = &mac80211_ht_capa_mod_mask;
-//	wiphy->vht_capa_mod_mask = &mac80211_vht_capa_mod_mask;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,10,0)
+	wiphy->vht_capa_mod_mask = &mac80211_vht_capa_mod_mask;
+#endif
 
 	INIT_LIST_HEAD(&local->interfaces);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
@@ -856,17 +858,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		/* TODO: consider VHT for RX chains, hopefully it's the same */
 	}
 
-	local->int_scan_req = kzalloc(sizeof(*local->int_scan_req) +
-				      sizeof(void *) * channels, GFP_KERNEL);
-	if (!local->int_scan_req)
-		return -ENOMEM;
-
-	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
-		if (!local->hw.wiphy->bands[band])
-			continue;
-		local->int_scan_req->rates[band] = (u32) -1;
-	}
-
 	/* if low-level driver supports AP, we also support VLAN */
 	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_AP)) {
 		hw->wiphy->interface_modes |= BIT(NL80211_IFTYPE_AP_VLAN);
@@ -890,6 +881,17 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 				return -EINVAL;
 	}
 
+	local->int_scan_req = kzalloc(sizeof(*local->int_scan_req) +
+				      sizeof(void *) * channels, GFP_KERNEL);
+	if (!local->int_scan_req)
+		return -ENOMEM;
+
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		if (!local->hw.wiphy->bands[band])
+			continue;
+		local->int_scan_req->rates[band] = (u32) -1;
+	}
+
 #ifndef CPTCFG_MAC80211_MESH
 	/* mesh depends on Kconfig, but drivers should set it if they want */
 	local->hw.wiphy->interface_modes &= ~BIT(NL80211_IFTYPE_MESH_POINT);
@@ -903,10 +905,15 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	/* mac80211 supports control port protocol changing */
 	local->hw.wiphy->flags |= WIPHY_FLAG_CONTROL_PORT_PROTOCOL;
 
-	if (local->hw.flags & IEEE80211_HW_SIGNAL_DBM)
+	if (local->hw.flags & IEEE80211_HW_SIGNAL_DBM) {
 		local->hw.wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
-	else if (local->hw.flags & IEEE80211_HW_SIGNAL_UNSPEC)
+	} else if (local->hw.flags & IEEE80211_HW_SIGNAL_UNSPEC) {
 		local->hw.wiphy->signal_type = CFG80211_SIGNAL_TYPE_UNSPEC;
+		if (hw->max_signal <= 0) {
+			result = -EINVAL;
+			goto fail_wiphy_register;
+		}
+	}
 
 	WARN((local->hw.flags & IEEE80211_HW_SUPPORTS_UAPSD)
 	     && (local->hw.flags & IEEE80211_HW_PS_NULLFUNC_STACK),

@@ -61,6 +61,7 @@
  *
  *****************************************************************************/
 #include <linux/firmware.h>
+#include <linux/rtnetlink.h>
 #include "iwl-trans.h"
 #include "mvm.h"
 #include "iwl-eeprom-parse.h"
@@ -228,13 +229,23 @@ static struct iwl_nvm_data *
 iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 {
 	struct iwl_nvm_section *sections = mvm->nvm_sections;
-	const __le16 *hw, *sw, *calib;
+	const __le16 *hw, *sw, *calib, *regulatory, *mac_override;
 
 	/* Checking for required sections */
-	if (!mvm->nvm_sections[NVM_SECTION_TYPE_SW].data ||
-	    !mvm->nvm_sections[mvm->cfg->nvm_hw_section_num].data) {
-		IWL_ERR(mvm, "Can't parse empty NVM sections\n");
-		return NULL;
+	if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
+		if (!mvm->nvm_sections[NVM_SECTION_TYPE_SW].data ||
+		    !mvm->nvm_sections[mvm->cfg->nvm_hw_section_num].data) {
+			IWL_ERR(mvm, "Can't parse empty NVM sections\n");
+			return NULL;
+		}
+	} else {
+		if (!mvm->nvm_sections[NVM_SECTION_TYPE_SW].data ||
+		    !mvm->nvm_sections[NVM_SECTION_TYPE_MAC_OVERRIDE].data ||
+		    !mvm->nvm_sections[NVM_SECTION_TYPE_REGULATORY].data) {
+			IWL_ERR(mvm,
+				"Can't parse empty family 8000 NVM sections\n");
+			return NULL;
+		}
 	}
 
 	if (WARN_ON(!mvm->cfg))
@@ -243,9 +254,15 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 	hw = (const __le16 *)sections[mvm->cfg->nvm_hw_section_num].data;
 	sw = (const __le16 *)sections[NVM_SECTION_TYPE_SW].data;
 	calib = (const __le16 *)sections[NVM_SECTION_TYPE_CALIBRATION].data;
+	regulatory = (const __le16 *)sections[NVM_SECTION_TYPE_REGULATORY].data;
+	mac_override =
+		(const __le16 *)sections[NVM_SECTION_TYPE_MAC_OVERRIDE].data;
+
 	return iwl_parse_nvm_data(mvm->trans->dev, mvm->cfg, hw, sw, calib,
-				  iwl_fw_valid_tx_ant(mvm->fw),
-				  iwl_fw_valid_rx_ant(mvm->fw));
+				  regulatory, mac_override,
+				  mvm->fw->valid_tx_ant,
+				  mvm->fw->valid_rx_ant,
+				  iwl_mvm_is_lar_supported(mvm));
 }
 
 #define MAX_NVM_FILE_LEN	16384
@@ -285,6 +302,8 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 
 #define NVM_WORD1_LEN(x) (8 * (x & 0x03FF))
 #define NVM_WORD2_ID(x) (x >> 12)
+#define NVM_WORD2_LEN_FAMILY_8000(x) (2 * ((x & 0xFF) << 8 | x >> 8))
+#define NVM_WORD1_ID_FAMILY_8000(x) (x >> 4)
 
 	IWL_DEBUG_EEPROM(mvm->trans->dev, "Read from external NVM\n");
 
@@ -335,8 +354,16 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 			break;
 		}
 
-		section_size = 2 * NVM_WORD1_LEN(le16_to_cpu(file_sec->word1));
-		section_id = NVM_WORD2_ID(le16_to_cpu(file_sec->word2));
+		if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
+			section_size =
+				2 * NVM_WORD1_LEN(le16_to_cpu(file_sec->word1));
+			section_id = NVM_WORD2_ID(le16_to_cpu(file_sec->word2));
+		} else {
+			section_size = 2 * NVM_WORD2_LEN_FAMILY_8000(
+						le16_to_cpu(file_sec->word2));
+			section_id = NVM_WORD1_ID_FAMILY_8000(
+						le16_to_cpu(file_sec->word1));
+		}
 
 		if (section_size > IWL_MAX_NVM_SECTION_SIZE) {
 			IWL_ERR(mvm, "ERROR - section too large (%d)\n",
@@ -406,6 +433,8 @@ int iwl_nvm_init(struct iwl_mvm *mvm)
 {
 	int ret, i, section;
 	u8 *nvm_buffer, *temp;
+	int nvm_to_read[NVM_MAX_NUM_SECTIONS];
+	int num_of_sections_to_read;
 
 	if (WARN_ON_ONCE(mvm->cfg->nvm_hw_section_num >= NVM_MAX_NUM_SECTIONS))
 		return -EINVAL;
@@ -418,12 +447,20 @@ int iwl_nvm_init(struct iwl_mvm *mvm)
 			return ret;
 	} else {
 		/* list of NVM sections we are allowed/need to read */
-		int nvm_to_read[] = {
-			mvm->cfg->nvm_hw_section_num,
-			NVM_SECTION_TYPE_SW,
-			NVM_SECTION_TYPE_CALIBRATION,
-			NVM_SECTION_TYPE_PRODUCTION,
-		};
+		if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
+			nvm_to_read[0] = mvm->cfg->nvm_hw_section_num;
+			nvm_to_read[1] = NVM_SECTION_TYPE_SW;
+			nvm_to_read[2] = NVM_SECTION_TYPE_CALIBRATION;
+			nvm_to_read[3] = NVM_SECTION_TYPE_PRODUCTION;
+			num_of_sections_to_read = 4;
+		} else {
+			nvm_to_read[0] = NVM_SECTION_TYPE_SW;
+			nvm_to_read[1] = NVM_SECTION_TYPE_CALIBRATION;
+			nvm_to_read[2] = NVM_SECTION_TYPE_PRODUCTION;
+			nvm_to_read[3] = NVM_SECTION_TYPE_REGULATORY;
+			nvm_to_read[4] = NVM_SECTION_TYPE_MAC_OVERRIDE;
+			num_of_sections_to_read = 5;
+		}
 
 		/* Read From FW NVM */
 		IWL_DEBUG_EEPROM(mvm->trans->dev, "Read from NVM\n");
@@ -433,7 +470,7 @@ int iwl_nvm_init(struct iwl_mvm *mvm)
 				     GFP_KERNEL);
 		if (!nvm_buffer)
 			return -ENOMEM;
-		for (i = 0; i < ARRAY_SIZE(nvm_to_read); i++) {
+		for (i = 0; i < num_of_sections_to_read; i++) {
 			section = nvm_to_read[i];
 			/* we override the constness for initial read */
 			ret = iwl_nvm_read_section(mvm, section, nvm_buffer);
@@ -481,4 +518,117 @@ int iwl_nvm_init(struct iwl_mvm *mvm)
 		return -ENODATA;
 
 	return 0;
+}
+
+struct iwl_mcc_update_resp *
+iwl_mvm_update_mcc(struct iwl_mvm *mvm, const char *alpha2)
+{
+	struct iwl_mcc_update_cmd mcc_update_cmd = {
+		.mcc = cpu_to_le16(alpha2[0] << 8 | alpha2[1]),
+	};
+	struct iwl_mcc_update_resp *mcc_resp, *resp_cp = NULL;
+	struct iwl_rx_packet *pkt;
+	struct iwl_host_cmd cmd = {
+		.id = MCC_UPDATE_CMD,
+		.flags = CMD_SYNC | CMD_WANT_SKB,
+		.data = { &mcc_update_cmd },
+	};
+
+	int ret;
+	u32 status;
+	int resp_len, n_channels;
+	u16 mcc;
+
+	if (WARN_ON_ONCE(!iwl_mvm_is_lar_supported(mvm)))
+		return ERR_PTR(-EOPNOTSUPP);
+
+	cmd.len[0] = sizeof(struct iwl_mcc_update_cmd);
+
+	IWL_DEBUG_LAR(mvm, "send MCC update to FW with '%c%c'\n",
+		      alpha2[0], alpha2[1]);
+
+	ret = iwl_mvm_send_cmd(mvm, &cmd);
+	if (ret)
+		return ERR_PTR(ret);
+
+	pkt = cmd.resp_pkt;
+	if (pkt->hdr.flags & IWL_CMD_FAILED_MSK) {
+		IWL_ERR(mvm, "Bad return from MCC_UPDATE_COMMAND (0x%08X)\n",
+			pkt->hdr.flags);
+		ret = -EIO;
+		goto exit;
+	}
+
+	/* Extract MCC response */
+	mcc_resp = (void *)pkt->data;
+	status = le32_to_cpu(mcc_resp->status);
+
+	if (status == MCC_RESP_INVALID) {
+		IWL_ERR(mvm,
+			"FW ERROR: MCC update with invalid parameter '%c%c'\n",
+			alpha2[0], alpha2[1]);
+		ret = -EINVAL;
+		goto exit;
+	} else if (status == MCC_RESP_NVM_DISABLED) {
+		ret = 0;
+		/* resp_cp will be NULL */
+		goto exit;
+	}
+
+	mcc = le16_to_cpu(mcc_resp->mcc);
+	n_channels =  __le32_to_cpu(mcc_resp->n_channels);
+	IWL_DEBUG_LAR(mvm,
+		"MCC response status: 0x%x. new MCC: 0x%x ('%c%c') change: %d n_chans: %d\n",
+		 status, mcc, mcc >> 8, mcc & 0xff,
+		 !!(status == MCC_RESP_SAME_CHAN_PROFILE), n_channels);
+
+	resp_len = sizeof(*mcc_resp) + n_channels * sizeof(__le32);
+	resp_cp = kmemdup(mcc_resp, resp_len, GFP_KERNEL);
+	if (!resp_cp) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
+	ret = 0;
+exit:
+	iwl_free_resp(&cmd);
+	if (ret)
+		return ERR_PTR(ret);
+	return resp_cp;
+}
+
+int iwl_mvm_init_mcc(struct iwl_mvm *mvm)
+{
+	if (!iwl_mvm_is_lar_supported(mvm))
+		return 0;
+
+	/*
+	 * During HW restart, only replay the last set MCC to FW. Otherwise,
+	 * queue an update to cfg80211 to retrieve the default alpha2 from FW.
+	 */
+	if (test_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status)) {
+		/* This should only be called during vif up and hold RTNL */
+		const struct ieee80211_regdomain *r =
+				rtnl_dereference(mvm->hw->wiphy->regd);
+
+		if (r) {
+			struct iwl_mcc_update_resp *resp;
+
+			resp = iwl_mvm_update_mcc(mvm, r->alpha2);
+			if (IS_ERR_OR_NULL(resp))
+				return -EIO;
+
+			kfree(resp);
+		}
+
+		return 0;
+	}
+
+	/*
+	 * Driver regulatory hint for initial update - use the special
+	 * unknown-country "99" code. This will also clear the "custom reg"
+	 * flag and allow regdomain changes. It will happen after init since
+	 * RTNL is required.
+	 */
+	return regulatory_hint(mvm->hw->wiphy, "99");
 }

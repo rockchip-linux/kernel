@@ -67,6 +67,13 @@
 
 #define QUOTA_100	IWL_MVM_MAX_QUOTA
 #define QUOTA_LOWLAT_MIN ((QUOTA_100 * IWL_MVM_LOWLAT_QUOTA_MIN_PERCENT) / 100)
+#ifdef CPTCFG_IWLMVM_TCM
+#define QUOTA_LOWLAT_HIGH \
+	((QUOTA_100 * IWL_MVM_LOWLAT_QUOTA_LOWTRAF_PERCENT) / 100)
+/* threshold * 1000 usec/msec / 100 (percentage) * period length */
+#define QUOTA_AIRTIME_THRESH \
+	(IWL_MVM_QUOTA_AIRTIME_THRESH * 1000/100 * MVM_TCM_PERIOD_MSEC)
+#endif
 
 struct iwl_mvm_quota_iterator_data {
 	int n_interfaces[MAX_BINDINGS];
@@ -74,6 +81,9 @@ struct iwl_mvm_quota_iterator_data {
 	int low_latency[MAX_BINDINGS];
 	int n_low_latency_bindings;
 	struct ieee80211_vif *new_vif;
+#ifdef CPTCFG_IWLMVM_TCM
+	unsigned long non_ll_macs;
+#endif
 };
 
 static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
@@ -136,6 +146,11 @@ static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
 		data->n_low_latency_bindings++;
 		data->low_latency[id] = true;
 	}
+#ifdef CPTCFG_IWLMVM_TCM
+	else {
+		data->non_ll_macs |= BIT(mvmvif->id);
+	}
+#endif
 }
 
 static void iwl_mvm_adjust_quota_for_noa(struct iwl_mvm *mvm,
@@ -180,7 +195,6 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 		.colors = { -1, -1, -1, -1 },
 		.new_vif = newvif,
 	};
-	u32 ll_max_duration;
 
 	lockdep_assert_held(&mvm->mutex);
 
@@ -197,21 +211,6 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 	if (newvif) {
 		data.new_vif = NULL;
 		iwl_mvm_quota_iterator(&data, newvif->addr, newvif);
-	}
-
-	switch (data.n_low_latency_bindings) {
-	case 0: /* no low latency - use default */
-		ll_max_duration = 0;
-		break;
-	case 1: /* SingleBindingLowLatencyMode */
-		ll_max_duration = IWL_MVM_LOWLAT_SINGLE_BINDING_MAXDUR;
-		break;
-	case 2: /* DualBindingLowLatencyMode */
-		ll_max_duration = IWL_MVM_LOWLAT_DUAL_BINDING_MAXDUR;
-		break;
-	default: /* MultiBindingLowLatencyMode */
-		ll_max_duration = 0;
-		break;
 	}
 
 	/*
@@ -243,6 +242,20 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 		 * low latency one. Split the rest of the quota equally
 		 * between the other data interfaces.
 		 */
+#ifdef CPTCFG_IWLMVM_TCM
+		u32 airtime = 0;
+		int mac;
+
+		/* if the non-low-latency MACs are using more than 16% airtime,
+		 * give them more breathing room by adjusting the low-latency
+		 * quota down a bit...
+		 */
+		for_each_set_bit(mac, &data.non_ll_macs, NUM_MAC_INDEX_DRIVER)
+			airtime += mvm->tcm.result.airtime[mac];
+		if (airtime < QUOTA_AIRTIME_THRESH)
+			quota = (QUOTA_100 - QUOTA_LOWLAT_HIGH) / n_non_lowlat;
+		else
+#endif
 		quota = (QUOTA_100 - QUOTA_LOWLAT_MIN) / n_non_lowlat;
 		quota_rem = QUOTA_100 - n_non_lowlat * quota -
 			    QUOTA_LOWLAT_MIN;
@@ -287,11 +300,7 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 			  "Binding=%d, quota=%u > max=%u\n",
 			  idx, le32_to_cpu(cmd.quotas[idx].quota), QUOTA_100);
 
-		if (data.n_interfaces[i] && !data.low_latency[i])
-			cmd.quotas[idx].max_duration =
-				cpu_to_le32(ll_max_duration);
-		else
-			cmd.quotas[idx].max_duration = cpu_to_le32(0);
+		cmd.quotas[idx].max_duration = cpu_to_le32(0);
 
 		idx++;
 	}

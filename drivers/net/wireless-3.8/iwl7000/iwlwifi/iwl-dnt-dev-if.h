@@ -70,8 +70,20 @@
 
 struct iwl_dnt;
 
+#define RXF_SIZE_ADDR			0xA00C88
+#define RXF_SIZE_BYTE_CNT_MSK		0x00000ff8
+
+#define RXF_LD_FENCE_OFFSET_ADDR	0xA00c10
+#define RXF_FIFO_RD_FENCE_ADDR		0xA00C0C
+
 #define DNT_LDBG_CMD_SIZE	80
 #define DNT_MARBH_BUF_SIZE	(0x3cff * sizeof(u32))
+
+/* marbh access types */
+enum {
+	ACCESS_TYPE_DIRECT = 0,
+	ACCESS_TYPE_INDIRECT,
+};
 
 /**
  * iwl_dnt_dev_if_configure_monitor - configure monitor.
@@ -82,12 +94,12 @@ int iwl_dnt_dev_if_configure_monitor(struct iwl_dnt *dnt,
 				     struct iwl_trans *trans);
 
 /**
- * iwl_dnt_dev_if_retreive_monitor_data - retreive monitor data.
+ * iwl_dnt_dev_if_retrieve_monitor_data - retreive monitor data.
  *
  * retreive monitor data - depends on the monitor mode.
  * Note: monitor must be stopped in order to retreive data.
  */
-int iwl_dnt_dev_if_retreive_monitor_data(struct iwl_dnt *dnt,
+int iwl_dnt_dev_if_retrieve_monitor_data(struct iwl_dnt *dnt,
 					 struct iwl_trans *trans, u8 *buffer,
 					 u32 buffer_size);
 /**
@@ -102,5 +114,9 @@ int iwl_dnt_dev_if_start_monitor(struct iwl_dnt *dnt,
  */
 int iwl_dnt_dev_if_set_log_level(struct iwl_dnt *dnt,
 				 struct iwl_trans *trans);
+
+int iwl_dnt_dev_if_read_sram(struct iwl_dnt *dnt, struct iwl_trans *trans);
+
+int iwl_dnt_dev_if_read_rx(struct iwl_dnt *dnt, struct iwl_trans *trans);
 
 #endif

@@ -82,7 +82,7 @@ struct dnt_collect_db *iwl_dnt_dispatch_allocate_collect_db(struct iwl_dnt *dnt)
 		return NULL;
 	}
 
-	mutex_init(&db->db_mutex);
+	spin_lock_init(&db->db_lock);
 
 	return db;
 }
@@ -97,14 +97,13 @@ static void iwl_dnt_dispatch_free_collect_db(struct dnt_collect_db *db)
 	kfree(db);
 }
 
-static void iwl_dnt_dispatch_get_list_data(struct dnt_collect_db *db,
+static int iwl_dnt_dispatch_get_list_data(struct dnt_collect_db *db,
 					   u8 *buffer, u32 buffer_size)
 {
-	u32 data_offset = 0;
 	struct dnt_collect_entry *cur_entry;
-	int i, cur_index = 0;
+	int i, cur_index = 0, data_offset = 0;
 
-	mutex_lock(&db->db_mutex);
+	spin_lock_bh(&db->db_lock);
 	for (i = 0; i < ARRAY_SIZE(db->collect_array); i++) {
 		cur_index = (i + db->read_ptr) % IWL_DNT_ARRAY_SIZE;
 		cur_entry = &db->collect_array[cur_index];
@@ -118,7 +117,8 @@ static void iwl_dnt_dispatch_get_list_data(struct dnt_collect_db *db,
 	}
 
 	db->read_ptr = cur_index;
-	mutex_unlock(&db->db_mutex);
+	spin_unlock_bh(&db->db_lock);
+	return data_offset;
 }
 
 /**
@@ -151,10 +151,10 @@ static int iwl_dnt_dispatch_pull_monitor(struct iwl_dnt *dnt,
 	int ret = 0;
 
 	if (dnt->cur_mon_type == INTERFACE)
-		iwl_dnt_dispatch_get_list_data(dnt->dispatch.dbgm_db, buffer,
-					       buffer_size);
+		ret = iwl_dnt_dispatch_get_list_data(dnt->dispatch.dbgm_db,
+						     buffer, buffer_size);
 	else
-		ret = iwl_dnt_dev_if_retreive_monitor_data(dnt, trans, buffer,
+		ret = iwl_dnt_dev_if_retrieve_monitor_data(dnt, trans, buffer,
 							   buffer_size);
 	return ret;
 }
@@ -171,8 +171,8 @@ int iwl_dnt_dispatch_pull(struct iwl_trans *trans, u8 *buffer, u32 buffer_size,
 						    buffer_size);
 		break;
 	case UCODE_MESSAGES:
-		iwl_dnt_dispatch_get_list_data(dnt->dispatch.um_db, buffer,
-					       buffer_size);
+		ret = iwl_dnt_dispatch_get_list_data(dnt->dispatch.um_db,
+						     buffer, buffer_size);
 		break;
 	default:
 		WARN_ONCE(1, "Invalid input mode %d\n", input);
@@ -190,7 +190,7 @@ static int iwl_dnt_dispatch_collect_data(struct iwl_dnt *dnt,
 	u32 data_size;
 
 	data_size = GET_RX_PACKET_SIZE(pkt);
-	mutex_lock(&db->db_mutex);
+	spin_lock(&db->db_lock);
 	wr_entry = &db->collect_array[db->wr_ptr];
 
 	/*
@@ -209,15 +209,15 @@ static int iwl_dnt_dispatch_collect_data(struct iwl_dnt *dnt,
 	}
 
 	wr_entry->size = data_size;
-	wr_entry->data = kzalloc(data_size, GFP_KERNEL);
+	wr_entry->data = kzalloc(data_size, GFP_ATOMIC);
 	if (!wr_entry->data) {
-		mutex_unlock(&db->db_mutex);
+		spin_unlock(&db->db_lock);
 		return -ENOMEM;
 	}
 
 	memcpy(wr_entry->data, pkt->data, wr_entry->size);
 	db->wr_ptr = (db->wr_ptr + 1) % IWL_DNT_ARRAY_SIZE;
-	mutex_unlock(&db->db_mutex);
+	spin_unlock(&db->db_lock);
 
 	return 0;
 }
@@ -289,6 +289,7 @@ IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_collect_interface_monitor);
 void iwl_dnt_dispatch_free(struct iwl_dnt *dnt, struct iwl_trans *trans)
 {
 	struct iwl_dnt_dispatch *dispatch = &dnt->dispatch;
+	struct dnt_crash_data *crash = &dispatch->crash;
 
 	if (dispatch->dbgm_db)
 		iwl_dnt_dispatch_free_collect_db(dispatch->dbgm_db);
@@ -299,5 +300,61 @@ void iwl_dnt_dispatch_free(struct iwl_dnt *dnt, struct iwl_trans *trans)
 		dma_free_coherent(trans->dev, dnt->mon_buf_size,
 				  dnt->mon_buf_cpu_addr, dnt->mon_dma_addr);
 
+	kfree(crash->sram);
+	kfree(crash->rx);
+
 	memset(dispatch, 0, sizeof(*dispatch));
 }
+
+static void iwl_dnt_dispatch_retrieve_crash_sram(struct iwl_dnt *dnt,
+						 struct iwl_trans *trans)
+{
+	int ret;
+	struct dnt_crash_data *crash = &dnt->dispatch.crash;
+
+	if (crash->sram) {
+		crash->sram_buf_size = 0;
+		kfree(crash->sram);
+	}
+
+	ret = iwl_dnt_dev_if_read_sram(dnt, trans);
+	if (ret) {
+		IWL_ERR(dnt, "Failed to read sram\n");
+		return;
+	}
+}
+
+static void iwl_dnt_dispatch_retrieve_crash_rx(struct iwl_dnt *dnt,
+					       struct iwl_trans *trans)
+{
+	int ret;
+	struct dnt_crash_data *crash = &dnt->dispatch.crash;
+
+	if (crash->rx) {
+		crash->rx_buf_size = 0;
+		kfree(crash->rx);
+	}
+
+	ret = iwl_dnt_dev_if_read_rx(dnt, trans);
+	if (ret) {
+		IWL_ERR(dnt, "Failed to read rx\n");
+		return;
+	}
+}
+
+void iwl_dnt_dispatch_handle_nic_err(struct iwl_trans *trans)
+{
+	struct iwl_dnt *dnt = trans->tmdev->dnt;
+	struct iwl_dbg_cfg *dbg_cfg = &trans->dbg_cfg;
+
+	trans->tmdev->dnt->iwl_dnt_status |= IWL_DNT_STATUS_FW_CRASH;
+
+	if (!dbg_cfg->dbg_flags)
+		return;
+
+	if (dbg_cfg->dbg_flags & SRAM)
+		iwl_dnt_dispatch_retrieve_crash_sram(dnt, trans);
+	if (dbg_cfg->dbg_flags & RX_FIFO)
+		iwl_dnt_dispatch_retrieve_crash_rx(dnt, trans);
+}
+IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_handle_nic_err);

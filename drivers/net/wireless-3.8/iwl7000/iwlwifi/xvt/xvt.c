@@ -73,6 +73,7 @@
 #include "xvt.h"
 #include "user-infc.h"
 #include "iwl-dnt-cfg.h"
+#include "iwl-dnt-dispatch.h"
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
 
@@ -102,7 +103,7 @@ module_exit(iwl_xvt_exit);
 
 #define CMD(x) [x] = #x
 
-static const char *iwl_xvt_cmd_strings[REPLY_MAX] = {
+static const char *const iwl_xvt_cmd_strings[REPLY_MAX] = {
 	CMD(XVT_ALIVE),
 	CMD(INIT_COMPLETE_NOTIF),
 	CMD(TX_CMD),
@@ -168,6 +169,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	iwl_dnt_init(xvt->trans, dbgfs_dir);
 
 	init_waitqueue_head(&xvt->mod_tx_wq);
+	init_waitqueue_head(&xvt->mod_tx_done_wq);
 
 	IWL_INFO(xvt, "Detected %s, REV=0x%X, xVT operation mode\n",
 		 xvt->cfg->name, xvt->trans->hw_rev);
@@ -216,10 +218,12 @@ static void iwl_xvt_rx_tx_cmd_handler(struct iwl_xvt *xvt,
 	while (!skb_queue_empty(&skbs)) {
 		skb = __skb_dequeue(&skbs);
 		cb_dev_cmd = (void *)skb->cb;
-
+		xvt->tx_counter++;
 		iwl_trans_free_tx_cmd(xvt->trans, *cb_dev_cmd);
 		kfree_skb(skb);
 	}
+	if (xvt->tot_tx == xvt->tx_counter)
+		wake_up_interruptible(&xvt->mod_tx_done_wq);
 }
 
 static int iwl_xvt_rx_dispatch(struct iwl_op_mode *op_mode,
@@ -259,6 +263,8 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	int err;
 
+	iwl_dnt_dispatch_handle_nic_err(xvt->trans);
+
 	xvt->fw_error = true;
 	wake_up_interruptible(&xvt->mod_tx_wq);
 
@@ -270,7 +276,7 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 		IWL_WARN(xvt, "Error %d sending NIC error notification\n", err);
 }
 
-static void iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
+static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	u32 rfkill_state = state ? IWL_XVT_RFKILL_ON : IWL_XVT_RFKILL_OFF;
@@ -281,6 +287,8 @@ static void iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)
 				      GFP_ATOMIC);
 	if (err)
 		IWL_WARN(xvt, "Error %d sending RFKILL notification\n", err);
+
+	return false;
 }
 
 static bool iwl_xvt_valid_hw_addr(u32 addr)

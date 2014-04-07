@@ -260,7 +260,7 @@ struct ieee80211_if_ap {
 
 	/* to be used after channel switch. */
 	struct cfg80211_beacon_data *next_beacon;
-	struct list_head vlans;
+	struct list_head vlans; /* write-protected with RTNL and local->mtx */
 
 	struct ps_data ps;
 	atomic_t num_mcast_sta; /* number of stations receiving multicast */
@@ -276,7 +276,7 @@ struct ieee80211_if_wds {
 };
 
 struct ieee80211_if_vlan {
-	struct list_head list;
+	struct list_head list; /* write-protected with RTNL and local->mtx */
 
 	/* used for all tx if the VLAN is configured to 4-addr mode */
 	struct sta_info __rcu *sta;
@@ -616,7 +616,11 @@ struct ieee80211_if_mesh {
 	struct ps_data ps;
 	/* Channel Switching Support */
 	struct mesh_csa_settings __rcu *csa;
-	bool chsw_init;
+	enum {
+		IEEE80211_MESH_CSA_ROLE_NONE,
+		IEEE80211_MESH_CSA_ROLE_INIT,
+		IEEE80211_MESH_CSA_ROLE_REPEATER,
+	} csa_role;
 	u8 chsw_ttl;
 	u16 pre_value;
 
@@ -694,6 +698,13 @@ struct ieee80211_chanctx {
 	struct ieee80211_chanctx_conf conf;
 };
 
+#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
+struct mac80211_qos_map {
+	struct cfg80211_qos_map qos_map;
+	struct rcu_head rcu_head;
+};
+#endif
+
 struct ieee80211_sub_if_data {
 	struct list_head list;
 
@@ -739,12 +750,20 @@ struct ieee80211_sub_if_data {
 	int encrypt_headroom;
 
 	struct ieee80211_tx_queue_params tx_conf[IEEE80211_NUM_ACS];
+#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
+	struct mac80211_qos_map __rcu *qos_map;
+#endif
 
 	struct work_struct csa_finalize_work;
-	int csa_counter_offset_beacon;
-	int csa_counter_offset_presp;
+	u16 csa_counter_offset_beacon[IEEE80211_MAX_CSA_COUNTERS_NUM];
+	u16 csa_counter_offset_presp[IEEE80211_MAX_CSA_COUNTERS_NUM];
 	bool csa_radar_required;
 	struct cfg80211_chan_def csa_chandef;
+
+	/* context reservation -- protected with chanctx_mtx */
+	struct ieee80211_chanctx *reserved_chanctx;
+	struct cfg80211_chan_def reserved_chandef;
+	u8 csa_current_counter;
 
 	/* used to reconfigure hardware SM PS */
 	struct work_struct recalc_smps;
@@ -1406,8 +1425,7 @@ void ieee80211_mesh_work(struct ieee80211_sub_if_data *sdata);
 void ieee80211_mesh_rx_queued_mgmt(struct ieee80211_sub_if_data *sdata,
 				   struct sk_buff *skb);
 int ieee80211_mesh_csa_beacon(struct ieee80211_sub_if_data *sdata,
-			      struct cfg80211_csa_settings *csa_settings,
-			      bool csa_action);
+			      struct cfg80211_csa_settings *csa_settings);
 int ieee80211_mesh_finish_csa(struct ieee80211_sub_if_data *sdata);
 
 /* scan/BSS handling */
@@ -1551,6 +1569,9 @@ ieee80211_vht_cap_ie_to_sta_vht_cap(struct ieee80211_sub_if_data *sdata,
 				    struct sta_info *sta);
 enum ieee80211_sta_rx_bandwidth ieee80211_sta_cur_vht_bw(struct sta_info *sta);
 void ieee80211_sta_set_rx_nss(struct sta_info *sta);
+u32 __ieee80211_vht_handle_opmode(struct ieee80211_sub_if_data *sdata,
+                                  struct sta_info *sta, u8 opmode,
+                                  enum ieee80211_band band, bool nss_only);
 void ieee80211_vht_handle_opmode(struct ieee80211_sub_if_data *sdata,
 				 struct sta_info *sta, u8 opmode,
 				 enum ieee80211_band band, bool nss_only);
@@ -1603,7 +1624,7 @@ static inline int __ieee80211_resume(struct ieee80211_hw *hw)
 }
 
 /* utility functions/constants */
-extern void *mac80211_wiphy_privid; /* for wiphy privid */
+extern const void *const mac80211_wiphy_privid; /* for wiphy privid */
 u8 *ieee80211_get_bssid(struct ieee80211_hdr *hdr, size_t len,
 			enum nl80211_iftype type);
 int ieee80211_frame_duration(enum ieee80211_band band, size_t len,
@@ -1690,14 +1711,8 @@ void ieee80211_stop_queue_by_reason(struct ieee80211_hw *hw, int queue,
 void ieee80211_propagate_queue_wake(struct ieee80211_local *local, int queue);
 void ieee80211_add_pending_skb(struct ieee80211_local *local,
 			       struct sk_buff *skb);
-void ieee80211_add_pending_skbs_fn(struct ieee80211_local *local,
-				   struct sk_buff_head *skbs,
-				   void (*fn)(void *data), void *data);
-static inline void ieee80211_add_pending_skbs(struct ieee80211_local *local,
-					      struct sk_buff_head *skbs)
-{
-	ieee80211_add_pending_skbs_fn(local, skbs, NULL, NULL);
-}
+void ieee80211_add_pending_skbs(struct ieee80211_local *local,
+				struct sk_buff_head *skbs);
 void ieee80211_flush_queues(struct ieee80211_local *local,
 			    struct ieee80211_sub_if_data *sdata);
 
@@ -1766,6 +1781,15 @@ ieee80211_vif_use_channel(struct ieee80211_sub_if_data *sdata,
 			  const struct cfg80211_chan_def *chandef,
 			  enum ieee80211_chanctx_mode mode);
 int __must_check
+ieee80211_vif_reserve_chanctx(struct ieee80211_sub_if_data *sdata,
+			      const struct cfg80211_chan_def *chandef,
+			      enum ieee80211_chanctx_mode mode);
+int __must_check
+ieee80211_vif_use_reserved_context(struct ieee80211_sub_if_data *sdata,
+				   u32 *changed);
+int ieee80211_vif_unreserve_chanctx(struct ieee80211_sub_if_data *sdata);
+
+int __must_check
 ieee80211_vif_change_bandwidth(struct ieee80211_sub_if_data *sdata,
 			       const struct cfg80211_chan_def *chandef,
 			       u32 *changed);
@@ -1798,6 +1822,12 @@ ieee80211_cs_get(struct ieee80211_local *local, u32 cipher,
 int ieee80211_cs_headroom(struct ieee80211_local *local,
 			  struct cfg80211_crypto_settings *crypto,
 			  enum nl80211_iftype iftype);
+void ieee80211_recalc_dtim(struct ieee80211_local *local,
+			   struct ieee80211_sub_if_data *sdata);
+int ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
+				 const struct cfg80211_chan_def *chandef,
+				 enum ieee80211_chanctx_mode chanmode,
+				 u8 radar_detect);
 
 #ifdef CPTCFG_MAC80211_NOINLINE
 #define debug_noinline noinline

@@ -62,6 +62,7 @@
 #ifndef __iwl_nvm_parse_h__
 #define __iwl_nvm_parse_h__
 
+#include <net/cfg80211.h>
 #include "iwl-eeprom-parse.h"
 
 /**
@@ -75,6 +76,8 @@
 struct iwl_nvm_data *
 iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 		   const __le16 *nvm_hw, const __le16 *nvm_sw,
-		   const __le16 *nvm_calib, u8 tx_chains, u8 rx_chains);
+		   const __le16 *nvm_calib, const __le16 *regulatory,
+		   const __le16 *mac_override, u8 tx_chains, u8 rx_chains,
+		   bool lar_supported);
 
 #endif /* __iwl_nvm_parse_h__ */

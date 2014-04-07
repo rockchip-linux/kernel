@@ -185,7 +185,7 @@ static ssize_t iwl_dbgfs_pm_params_write(struct ieee80211_vif *vif, char *buf,
 
 	mutex_lock(&mvm->mutex);
 	iwl_dbgfs_update_pm(mvm, vif, param, val);
-	ret = iwl_mvm_power_update_mode(mvm, vif);
+	ret = iwl_mvm_power_update_mac(mvm, vif);
 	mutex_unlock(&mvm->mutex);
 
 	return ret ?: count;
@@ -202,7 +202,7 @@ static ssize_t iwl_dbgfs_pm_params_read(struct file *file,
 	int bufsz = sizeof(buf);
 	int pos;
 
-	pos = iwl_mvm_power_dbgfs_read(mvm, vif, buf, bufsz);
+	pos = iwl_mvm_power_mac_dbgfs_read(mvm, vif, buf, bufsz);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
@@ -224,6 +224,29 @@ static ssize_t iwl_dbgfs_mac_params_read(struct file *file,
 	mutex_lock(&mvm->mutex);
 
 	ap_sta_id = mvmvif->ap_sta_id;
+
+	switch (ieee80211_vif_type_p2p(vif)) {
+	case NL80211_IFTYPE_ADHOC:
+		pos += scnprintf(buf+pos, bufsz-pos, "type: ibss\n");
+		break;
+	case NL80211_IFTYPE_STATION:
+		pos += scnprintf(buf+pos, bufsz-pos, "type: bss\n");
+		break;
+	case NL80211_IFTYPE_AP:
+		pos += scnprintf(buf+pos, bufsz-pos, "type: ap\n");
+		break;
+	case NL80211_IFTYPE_P2P_CLIENT:
+		pos += scnprintf(buf+pos, bufsz-pos, "type: p2p client\n");
+		break;
+	case NL80211_IFTYPE_P2P_GO:
+		pos += scnprintf(buf+pos, bufsz-pos, "type: p2p go\n");
+		break;
+	case NL80211_IFTYPE_P2P_DEVICE:
+		pos += scnprintf(buf+pos, bufsz-pos, "type: p2p dev\n");
+		break;
+	default:
+		break;
+	}
 
 	pos += scnprintf(buf+pos, bufsz-pos, "mac id/color: %d / %d\n",
 			 mvmvif->id, mvmvif->color);
@@ -289,6 +312,11 @@ static ssize_t iwl_dbgfs_reduced_txp_write(struct ieee80211_vif *vif,
 	mutex_lock(&mvm->mutex);
 
 	mvmsta = iwl_mvm_sta_from_staid_protected(mvm, mvmvif->ap_sta_id);
+	if (IS_ERR_OR_NULL(mvmsta)) {
+		mutex_unlock(&mvm->mutex);
+		return -ENOTCONN;
+	}
+
 	mvmsta->bt_reduced_txpower_dbg = false;
 	ret = iwl_mvm_bt_coex_reduced_txp(mvm, mvmvif->ap_sta_id,
 					  reduced_tx_power);
@@ -564,10 +592,11 @@ void iwl_mvm_vif_dbgfs_register(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 		return;
 	}
 
-	if (iwlmvm_mod_params.power_scheme != IWL_POWER_SCHEME_CAM &&
+	if ((mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_PM_CMD_SUPPORT) &&
+	    iwlmvm_mod_params.power_scheme != IWL_POWER_SCHEME_CAM &&
 	    ((vif->type == NL80211_IFTYPE_STATION && !vif->p2p) ||
 	     (vif->type == NL80211_IFTYPE_STATION && vif->p2p &&
-	      mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_P2P_PS)))
+	      mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BSS_P2P_PS_DCM)))
 		MVM_DEBUGFS_ADD_FILE_VIF(pm_params, mvmvif->dbgfs_dir, S_IWUSR |
 					 S_IRUSR);
 

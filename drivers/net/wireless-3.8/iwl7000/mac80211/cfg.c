@@ -109,6 +109,15 @@ static int ieee80211_change_iface(struct wiphy *wiphy,
 static int ieee80211_start_p2p_device(struct wiphy *wiphy,
 				      struct wireless_dev *wdev)
 {
+	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
+	int ret;
+
+	mutex_lock(&sdata->local->chanctx_mtx);
+	ret = ieee80211_check_combinations(sdata, NULL, 0, 0);
+	mutex_unlock(&sdata->local->chanctx_mtx);
+	if (ret < 0)
+		return ret;
+
 	return ieee80211_do_open(wdev, true);
 }
 
@@ -451,11 +460,11 @@ void sta_set_rate_info_rx(struct sta_info *sta, struct rate_info *rinfo)
 		rinfo->flags |= RATE_INFO_FLAGS_40_MHZ_WIDTH;
 	if (sta->last_rx_rate_flag & RX_FLAG_SHORT_GI)
 		rinfo->flags |= RATE_INFO_FLAGS_SHORT_GI;
-	if (sta->last_rx_rate_flag & RX_FLAG_80MHZ)
+	if (sta->last_rx_rate_vht_flag & RX_VHT_FLAG_80MHZ)
 		rinfo->flags |= RATE_INFO_FLAGS_80_MHZ_WIDTH;
-	if (sta->last_rx_rate_flag & RX_FLAG_80P80MHZ)
+	if (sta->last_rx_rate_vht_flag & RX_VHT_FLAG_80P80MHZ)
 		rinfo->flags |= RATE_INFO_FLAGS_80P80_MHZ_WIDTH;
-	if (sta->last_rx_rate_flag & RX_FLAG_160MHZ)
+	if (sta->last_rx_rate_vht_flag & RX_VHT_FLAG_160MHZ)
 		rinfo->flags |= RATE_INFO_FLAGS_160_MHZ_WIDTH;
 }
 
@@ -960,10 +969,11 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 	mutex_lock(&local->mtx);
 	err = ieee80211_vif_use_channel(sdata, &params->chandef,
 					IEEE80211_CHANCTX_SHARED);
+	if (!err)
+		ieee80211_vif_copy_chanctx_to_vlans(sdata, false);
 	mutex_unlock(&local->mtx);
 	if (err)
 		return err;
-	ieee80211_vif_copy_chanctx_to_vlans(sdata, false);
 
 	/*
 	 * Apply control port protocol, this allows us to
@@ -1023,6 +1033,7 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		return err;
 	}
 
+	ieee80211_recalc_dtim(local, sdata);
 	ieee80211_bss_info_change_notify(sdata, changed);
 
 	netif_carrier_on(dev);
@@ -1040,6 +1051,7 @@ static int ieee80211_change_beacon(struct wiphy *wiphy, struct net_device *dev,
 	int err;
 
 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	sdata_assert_lock(sdata);
 
 	/* don't allow changing the beacon while CSA is in place - offset
 	 * of channel switch counter may change
@@ -1065,6 +1077,8 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 	struct ieee80211_local *local = sdata->local;
 	struct beacon_data *old_beacon;
 	struct probe_resp *old_probe_resp;
+
+	sdata_assert_lock(sdata);
 
 	old_beacon = sdata_dereference(sdata->u.ap.beacon, sdata);
 	if (!old_beacon)
@@ -1103,8 +1117,8 @@ static int ieee80211_stop_ap(struct wiphy *wiphy, struct net_device *dev)
 	local->total_ps_buffered -= skb_queue_len(&sdata->u.ap.ps.bc_buf);
 	skb_queue_purge(&sdata->u.ap.ps.bc_buf);
 
-	ieee80211_vif_copy_chanctx_to_vlans(sdata, true);
 	mutex_lock(&local->mtx);
+	ieee80211_vif_copy_chanctx_to_vlans(sdata, true);
 	ieee80211_vif_release_channel(sdata);
 	mutex_unlock(&local->mtx);
 
@@ -2495,8 +2509,13 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 		int j;
 
 		sdata->rc_rateidx_mask[i] = mask->control[i].legacy;
+#if CFG80211_VERSION < KERNEL_VERSION(3,14,0)
 		memcpy(sdata->rc_rateidx_mcs_mask[i], mask->control[i].mcs,
 		       sizeof(mask->control[i].mcs));
+#else
+		memcpy(sdata->rc_rateidx_mcs_mask[i], mask->control[i].ht_mcs,
+		       sizeof(mask->control[i].ht_mcs));
+#endif
 
 		sdata->rc_has_mcs_mask[i] = false;
 		if (!sband)
@@ -2802,7 +2821,110 @@ static int ieee80211_cancel_remain_on_channel(struct wiphy *wiphy,
 	return ieee80211_cancel_roc(local, cookie, false);
 }
 
+void ieee80211_csa_finish(struct ieee80211_vif *vif)
+{
+	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
+
+	ieee80211_queue_work(&sdata->local->hw,
+			     &sdata->csa_finalize_work);
+}
+EXPORT_SYMBOL(ieee80211_csa_finish);
+
+static void ieee80211_csa_finalize(struct ieee80211_sub_if_data *sdata)
+{
+	struct ieee80211_local *local = sdata->local;
+	int err, changed = 0;
+
+	sdata_assert_lock(sdata);
+
+	switch (sdata->vif.type) {
+	case NL80211_IFTYPE_AP:
+		mutex_lock(&local->mtx);
+		sdata->radar_required = sdata->csa_radar_required;
+		err = ieee80211_vif_use_reserved_context(sdata, &changed);
+		mutex_unlock(&local->mtx);
+		if (WARN_ON(err < 0))
+			return;
+
+		sdata->vif.csa_active = false;
+		err = ieee80211_assign_beacon(sdata, sdata->u.ap.next_beacon);
+		kfree(sdata->u.ap.next_beacon);
+		sdata->u.ap.next_beacon = NULL;
+
+		if (err < 0)
+			return;
+		changed |= err;
+		break;
+	case NL80211_IFTYPE_ADHOC:
+		mutex_lock(&local->mtx);
+		sdata->radar_required = sdata->csa_radar_required;
+		err = ieee80211_vif_change_channel(sdata, &changed);
+		mutex_unlock(&local->mtx);
+		if (WARN_ON(err < 0))
+			return;
+
+		if (!local->use_chanctx) {
+			local->_oper_chandef = sdata->csa_chandef;
+			ieee80211_hw_config(local, 0);
+		}
+
+		sdata->vif.csa_active = false;
+		err = ieee80211_ibss_finish_csa(sdata);
+		if (err < 0)
+			return;
+		changed |= err;
+		break;
+#ifdef CPTCFG_MAC80211_MESH
+	case NL80211_IFTYPE_MESH_POINT:
+		/* TODO: MESH CSA is not enabled yet */
+		WARN_ON(1);
+
+		err = ieee80211_mesh_finish_csa(sdata);
+		if (err < 0)
+			return;
+		changed |= err;
+		break;
+#endif
+	default:
+		WARN_ON(1);
+		return;
+	}
+
+	ieee80211_bss_info_change_notify(sdata, changed);
+
+	ieee80211_wake_queues_by_reason(&sdata->local->hw,
+					IEEE80211_MAX_QUEUE_MAP,
+					IEEE80211_QUEUE_STOP_REASON_CSA);
+
+	cfg80211_ch_switch_notify(sdata->dev, &sdata->csa_chandef);
+}
+
+void ieee80211_csa_finalize_work(struct work_struct *work)
+{
+	struct ieee80211_sub_if_data *sdata =
+		container_of(work, struct ieee80211_sub_if_data,
+			     csa_finalize_work);
+
+	sdata_lock(sdata);
+	/* AP might have been stopped while waiting for the lock. */
+	if (!sdata->vif.csa_active)
+		goto unlock;
+
+	if (!ieee80211_sdata_running(sdata))
+		goto unlock;
+
+	ieee80211_csa_finalize(sdata);
+
+unlock:
+	sdata_unlock(sdata);
+}
+
 static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
+#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
+			     struct cfg80211_mgmt_tx_params *params,
+			     u64 *cookie)
+{
+#else
 			     struct ieee80211_channel *chan, bool offchan,
 			     unsigned int wait, const u8 *buf, size_t len,
 			     bool no_cck, bool dont_wait_for_ack, u64 *cookie)
@@ -2816,6 +2938,7 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		.no_cck = no_cck,
 		.dont_wait_for_ack = dont_wait_for_ack,
 	}, *params = &_params;
+#endif
 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
 	struct ieee80211_local *local = sdata->local;
 	struct sk_buff *skb;
@@ -2824,6 +2947,7 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	bool need_offchan = false;
 	u32 flags;
 	int ret;
+	u8 *data;
 
 	if (params->dont_wait_for_ack)
 		flags = IEEE80211_TX_CTL_NO_ACK;
@@ -2917,7 +3041,8 @@ static int ieee80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 	}
 	skb_reserve(skb, local->hw.extra_tx_headroom);
 
-	memcpy(skb_put(skb, params->len), params->buf, params->len);
+	data = skb_put(skb, params->len);
+	memcpy(data, params->buf, params->len);
 
 	IEEE80211_SKB_CB(skb)->flags = flags;
 
@@ -3186,8 +3311,8 @@ ieee80211_prep_tdls_direct(struct wiphy *wiphy, struct net_device *dev,
 
 static int ieee80211_tdls_mgmt(struct wiphy *wiphy, struct net_device *dev,
 			       u8 *peer, u8 action_code, u8 dialog_token,
-			       u16 status_code, const u8 *extra_ies,
-			       size_t extra_ies_len)
+			       u16 status_code,
+			       const u8 *extra_ies, size_t extra_ies_len)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_local *local = sdata->local;
@@ -3453,7 +3578,34 @@ static void ieee80211_set_wakeup(struct wiphy *wiphy, bool enabled)
 }
 #endif
 
-struct cfg80211_ops mac80211_config_ops = {
+#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
+static int ieee80211_set_qos_map(struct wiphy *wiphy,
+				 struct net_device *dev,
+				 struct cfg80211_qos_map *qos_map)
+{
+	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct mac80211_qos_map *new_qos_map, *old_qos_map;
+
+	if (qos_map) {
+		new_qos_map = kzalloc(sizeof(*new_qos_map), GFP_KERNEL);
+		if (!new_qos_map)
+			return -ENOMEM;
+		memcpy(&new_qos_map->qos_map, qos_map, sizeof(*qos_map));
+	} else {
+		/* A NULL qos_map was passed to disable QoS mapping */
+		new_qos_map = NULL;
+	}
+
+	old_qos_map = sdata_dereference(sdata->qos_map, sdata);
+	rcu_assign_pointer(sdata->qos_map, new_qos_map);
+	if (old_qos_map)
+		kfree_rcu(old_qos_map, rcu_head);
+
+	return 0;
+}
+#endif
+
+const struct cfg80211_ops mac80211_config_ops = {
 	.add_virtual_intf = ieee80211_add_iface,
 	.del_virtual_intf = ieee80211_del_iface,
 	.change_virtual_intf = ieee80211_change_iface,
@@ -3530,4 +3682,7 @@ struct cfg80211_ops mac80211_config_ops = {
 	.get_et_stats = ieee80211_get_et_stats,
 	.get_et_strings = ieee80211_get_et_strings,
 	.get_channel = ieee80211_cfg_get_channel,
+#if CFG80211_VERSION >= KERNEL_VERSION(3,14,0)
+	.set_qos_map = ieee80211_set_qos_map,
+#endif
 };

@@ -5,7 +5,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2014 Intel Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,7 +30,7 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2014 Intel Corporation. All rights reserved.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,7 +67,7 @@
 #include "iwl-agn-hw.h"
 
 /* Highest firmware API version supported */
-#define IWL8000_UCODE_API_MAX	8
+#define IWL8000_UCODE_API_MAX	9
 
 /* Oldest version we won't warn about */
 #define IWL8000_UCODE_API_OK	8
@@ -113,6 +113,15 @@ static const struct iwl_ht_params iwl8000_ht_params = {
 
 const struct iwl_cfg iwl8260_2ac_cfg = {
 	.name = "Intel(R) Dual Band Wireless AC 8260",
+	.fw_name_pre = IWL8000_FW_PRE,
+	IWL_DEVICE_8000,
+	.ht_params = &iwl8000_ht_params,
+	.nvm_ver = IWL8000_NVM_VERSION,
+	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
+};
+
+const struct iwl_cfg iwl8260_n_cfg = {
+	.name = "Intel(R) Dual Band Wireless-AC 8260",
 	.fw_name_pre = IWL8000_FW_PRE,
 	IWL_DEVICE_8000,
 	.ht_params = &iwl8000_ht_params,

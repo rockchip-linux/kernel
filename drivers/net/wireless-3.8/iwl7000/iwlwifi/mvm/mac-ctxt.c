@@ -90,6 +90,7 @@ static void iwl_mvm_mac_tsf_id_iter(void *_data, u8 *mac,
 {
 	struct iwl_mvm_mac_iface_iterator_data *data = _data;
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	u16 min_bi;
 
 	/* Skip the interface for which we are trying to assign a tsf_id  */
 	if (vif == data->vif)
@@ -114,42 +115,57 @@ static void iwl_mvm_mac_tsf_id_iter(void *_data, u8 *mac,
 	switch (data->vif->type) {
 	case NL80211_IFTYPE_STATION:
 		/*
-		 * The new interface is client, so if the existing one
-		 * we're iterating is an AP, and both interfaces have the
-		 * same beacon interval, the same TSF should be used to
-		 * avoid drift between the new client and existing AP,
-		 * the existing AP will get drift updates from the new
-		 * client context in this case
+		 * The new interface is a client, so if the one we're iterating
+		 * is an AP, and the beacon interval of the AP is a multiple or
+		 * divisor of the beacon interval of the client, the same TSF
+		 * should be used to avoid drift between the new client and
+		 * existing AP. The existing AP will get drift updates from the
+		 * new client context in this case.
 		 */
-		if (vif->type == NL80211_IFTYPE_AP) {
-			if (data->preferred_tsf == NUM_TSF_IDS &&
-			    test_bit(mvmvif->tsf_id, data->available_tsf_ids) &&
-			    (vif->bss_conf.beacon_int ==
-			     data->vif->bss_conf.beacon_int)) {
-				data->preferred_tsf = mvmvif->tsf_id;
-				return;
-			}
+		if (vif->type != NL80211_IFTYPE_AP ||
+		    data->preferred_tsf != NUM_TSF_IDS ||
+		    !test_bit(mvmvif->tsf_id, data->available_tsf_ids))
+			break;
+
+		min_bi = min(data->vif->bss_conf.beacon_int,
+			     vif->bss_conf.beacon_int);
+
+		if (!min_bi)
+			break;
+
+		if ((data->vif->bss_conf.beacon_int -
+		     vif->bss_conf.beacon_int) % min_bi == 0) {
+			data->preferred_tsf = mvmvif->tsf_id;
+			return;
 		}
 		break;
+
 	case NL80211_IFTYPE_AP:
 		/*
-		 * The new interface is AP/GO, so in case both interfaces
-		 * have the same beacon interval, it should get drift
-		 * updates from an existing client or use the same
-		 * TSF as an existing GO. There's no drift between
-		 * TSFs internally but if they used different TSFs
-		 * then a new client MAC could update one of them
-		 * and cause drift that way.
+		 * The new interface is AP/GO, so if its beacon interval is a
+		 * multiple or a divisor of the beacon interval of an existing
+		 * interface, it should get drift updates from an existing
+		 * client or use the same TSF as an existing GO. There's no
+		 * drift between TSFs internally but if they used different
+		 * TSFs then a new client MAC could update one of them and
+		 * cause drift that way.
 		 */
-		if (vif->type == NL80211_IFTYPE_STATION ||
-		    vif->type == NL80211_IFTYPE_AP) {
-			if (data->preferred_tsf == NUM_TSF_IDS &&
-			    test_bit(mvmvif->tsf_id, data->available_tsf_ids) &&
-			    (vif->bss_conf.beacon_int ==
-			     data->vif->bss_conf.beacon_int)) {
-				data->preferred_tsf = mvmvif->tsf_id;
-				return;
-			}
+		if ((vif->type != NL80211_IFTYPE_AP &&
+		     vif->type != NL80211_IFTYPE_STATION) ||
+		    data->preferred_tsf != NUM_TSF_IDS ||
+		    !test_bit(mvmvif->tsf_id, data->available_tsf_ids))
+			break;
+
+		min_bi = min(data->vif->bss_conf.beacon_int,
+			     vif->bss_conf.beacon_int);
+
+		if (!min_bi)
+			break;
+
+		if ((data->vif->bss_conf.beacon_int -
+		     vif->bss_conf.beacon_int) % min_bi == 0) {
+			data->preferred_tsf = mvmvif->tsf_id;
+			return;
 		}
 		break;
 	default:
@@ -654,11 +670,9 @@ static void iwl_mvm_mac_ctxt_cmd_common(struct iwl_mvm *mvm,
 	/* Don't use cts to self as the fw doesn't support it currently. */
 	if (vif->bss_conf.use_cts_prot) {
 		cmd->protection_flags |= cpu_to_le32(MAC_PROT_FLG_TGG_PROTECT);
-#if 0
 		if (IWL_UCODE_API(mvm->fw->ucode_ver) >= 8)
 			cmd->protection_flags |=
 				cpu_to_le32(MAC_PROT_FLG_SELF_CTS_EN);
-#endif
 	}
 	IWL_DEBUG_RATE(mvm, "use_cts_prot %d, ht_operation_mode %d\n",
 		       vif->bss_conf.use_cts_prot,
@@ -938,7 +952,7 @@ static int iwl_mvm_mac_ctxt_send_beacon(struct iwl_mvm *mvm,
 					     TX_CMD_FLG_TSF);
 
 	mvm->mgmt_last_antenna_idx =
-		iwl_mvm_next_antenna(mvm, iwl_fw_valid_tx_ant(mvm->fw),
+		iwl_mvm_next_antenna(mvm, mvm->fw->valid_tx_ant,
 				     mvm->mgmt_last_antenna_idx);
 
 	beacon_cmd.tx.rate_n_flags =
@@ -983,7 +997,7 @@ int iwl_mvm_mac_ctxt_beacon_changed(struct iwl_mvm *mvm,
 	WARN_ON(vif->type != NL80211_IFTYPE_AP &&
 		vif->type != NL80211_IFTYPE_ADHOC);
 
-	beacon = ieee80211_beacon_get(mvm->hw, vif);
+	beacon = ieee80211_beacon_get_template(mvm->hw, vif, NULL);
 	if (!beacon)
 		return -ENOMEM;
 
@@ -1226,11 +1240,24 @@ int iwl_mvm_rx_beacon_notif(struct iwl_mvm *mvm,
 	u32 rate __maybe_unused =
 		le32_to_cpu(beacon->beacon_notify_hdr.initial_rate);
 
+	lockdep_assert_held(&mvm->mutex);
+
 	IWL_DEBUG_RX(mvm, "beacon status %#x retries:%d tsf:0x%16llX rate:%d\n",
 		     status & TX_STATUS_MSK,
 		     beacon->beacon_notify_hdr.failure_frame,
 		     le64_to_cpu(beacon->tsf),
 		     rate);
+
+	if (unlikely(mvm->csa_vif && mvm->csa_vif->csa_active)) {
+		if (!ieee80211_csa_is_complete(mvm->csa_vif)) {
+			ieee80211_csa_update_counter(mvm->csa_vif);
+			iwl_mvm_mac_ctxt_beacon_changed(mvm, mvm->csa_vif);
+		} else {
+			ieee80211_csa_finish(mvm->csa_vif);
+			mvm->csa_vif = NULL;
+		}
+	}
+
 	return 0;
 }
 

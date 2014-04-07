@@ -101,9 +101,8 @@ static u32 __ieee80211_idle_on(struct ieee80211_local *local)
 static u32 __ieee80211_recalc_idle(struct ieee80211_local *local,
 				   bool force_active)
 {
-	bool working = false, scanning, active;
+	bool working, scanning, active;
 	unsigned int led_trig_start = 0, led_trig_stop = 0;
-	struct ieee80211_roc_work *roc;
 
 	lockdep_assert_held(&local->mtx);
 
@@ -111,12 +110,8 @@ static u32 __ieee80211_recalc_idle(struct ieee80211_local *local,
 		 !list_empty(&local->chanctx_list) ||
 		 local->monitors;
 
-	if (!local->ops->remain_on_channel) {
-		list_for_each_entry(roc, &local->roc_list, list) {
-			working = true;
-			break;
-		}
-	}
+	working = !local->ops->remain_on_channel &&
+		  !list_empty(&local->roc_list);
 
 	scanning = test_bit(SCAN_SW_SCANNING, &local->scanning) ||
 		   test_bit(SCAN_ONCHANNEL_SCANNING, &local->scanning);
@@ -255,6 +250,7 @@ static int ieee80211_check_concurrent_iface(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_sub_if_data *nsdata;
+	int ret;
 
 	ASSERT_RTNL();
 
@@ -305,7 +301,10 @@ static int ieee80211_check_concurrent_iface(struct ieee80211_sub_if_data *sdata,
 		}
 	}
 
-	return 0;
+	mutex_lock(&local->chanctx_mtx);
+	ret = ieee80211_check_combinations(sdata, NULL, 0, 0);
+	mutex_unlock(&local->chanctx_mtx);
+	return ret;
 }
 
 static int ieee80211_check_queues(struct ieee80211_sub_if_data *sdata,
@@ -418,19 +417,23 @@ int ieee80211_add_virtual_monitor(struct ieee80211_local *local)
 		return ret;
 	}
 
+	mutex_lock(&local->iflist_mtx);
+	rcu_assign_pointer(local->monitor_sdata, sdata);
+	mutex_unlock(&local->iflist_mtx);
+
 	mutex_lock(&local->mtx);
 	ret = ieee80211_vif_use_channel(sdata, &local->monitor_chandef,
 					IEEE80211_CHANCTX_EXCLUSIVE);
 	mutex_unlock(&local->mtx);
 	if (ret) {
+		mutex_lock(&local->iflist_mtx);
+		rcu_assign_pointer(local->monitor_sdata, NULL);
+		mutex_unlock(&local->iflist_mtx);
+		synchronize_net();
 		drv_remove_interface(local, sdata);
 		kfree(sdata);
 		return ret;
 	}
-
-	mutex_lock(&local->iflist_mtx);
-	rcu_assign_pointer(local->monitor_sdata, sdata);
-	mutex_unlock(&local->iflist_mtx);
 
 	return 0;
 }
@@ -493,7 +496,9 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		if (!sdata->bss)
 			return -ENOLINK;
 
+		mutex_lock(&local->mtx);
 		list_add(&sdata->u.vlan.list, &sdata->bss->vlans);
+		mutex_unlock(&local->mtx);
 
 		master = container_of(sdata->bss,
 				      struct ieee80211_sub_if_data, u.ap);
@@ -723,8 +728,11 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		drv_stop(local);
  err_del_bss:
 	sdata->bss = NULL;
-	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN) {
+		mutex_lock(&local->mtx);
 		list_del(&sdata->u.vlan.list);
+		mutex_unlock(&local->mtx);
+	}
 	/* might already be clear but that doesn't matter */
 	clear_bit(SDATA_STATE_RUNNING, &sdata->state);
 	return res;
@@ -833,7 +841,9 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 	cancel_work_sync(&local->dynamic_ps_enable_work);
 
 	cancel_work_sync(&sdata->recalc_smps);
+	sdata_lock(sdata);
 	sdata->vif.csa_active = false;
+	sdata_unlock(sdata);
 	cancel_work_sync(&sdata->csa_finalize_work);
 
 	cancel_delayed_work_sync(&sdata->dfs_cac_timer_work);
@@ -867,7 +877,9 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 
 	switch (sdata->vif.type) {
 	case NL80211_IFTYPE_AP_VLAN:
+		mutex_lock(&local->mtx);
 		list_del(&sdata->u.vlan.list);
+		mutex_unlock(&local->mtx);
 		rcu_assign_pointer(sdata->vif.chanctx_conf, NULL);
 		/* no need to tell driver */
 		break;
@@ -1013,7 +1025,12 @@ static void ieee80211_set_multicast_list(struct net_device *dev)
 		sdata->flags ^= IEEE80211_SDATA_PROMISC;
 	}
 	spin_lock_bh(&local->filter_lock);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 	__hw_addr_sync(&local->mc_list, &dev->mc, dev->addr_len);
+#else
+	__dev_addr_sync(&local->mc_list, &local->mc_count,
+			&dev->mc_list, &dev->mc_count);
+#endif
 	spin_unlock_bh(&local->filter_lock);
 	ieee80211_queue_work(&local->hw, &local->reconfig_filter);
 }
@@ -1044,8 +1061,19 @@ static void ieee80211_uninit(struct net_device *dev)
 	ieee80211_teardown_sdata(IEEE80211_DEV_TO_SUB_IF(dev));
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
+static u16 ieee80211_netdev_select_queue(struct net_device *dev,
+					 struct sk_buff *skb,
+					 void *accel_priv,
+					 select_queue_fallback_t fallback)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+static u16 ieee80211_netdev_select_queue(struct net_device *dev,
+					 struct sk_buff *skb,
+					 void *accel_priv)
+#else
 static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 struct sk_buff *skb)
+#endif
 {
 	return ieee80211_select_queue(IEEE80211_DEV_TO_SUB_IF(dev), skb);
 }
@@ -1061,8 +1089,19 @@ static const struct net_device_ops ieee80211_dataif_ops = {
 	.ndo_select_queue	= ieee80211_netdev_select_queue,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
+static u16 ieee80211_monitor_select_queue(struct net_device *dev,
+					  struct sk_buff *skb,
+					  void *accel_priv,
+					  select_queue_fallback_t fallback)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+static u16 ieee80211_monitor_select_queue(struct net_device *dev,
+					  struct sk_buff *skb,
+					  void *accel_priv)
+#else
 static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  struct sk_buff *skb)
+#endif
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_local *local = sdata->local;
@@ -1479,8 +1518,8 @@ static void ieee80211_assign_perm_addr(struct ieee80211_local *local,
 			bool used = false;
 
 			list_for_each_entry(sdata, &local->interfaces, list) {
-				if (memcmp(local->hw.wiphy->addresses[i].addr,
-					   sdata->vif.addr, ETH_ALEN) == 0) {
+				if (ether_addr_equal(local->hw.wiphy->addresses[i].addr,
+						     sdata->vif.addr)) {
 					used = true;
 					break;
 				}
@@ -1540,8 +1579,7 @@ static void ieee80211_assign_perm_addr(struct ieee80211_local *local,
 			val += inc;
 
 			list_for_each_entry(sdata, &local->interfaces, list) {
-				if (memcmp(tmp_addr, sdata->vif.addr,
-							ETH_ALEN) == 0) {
+				if (ether_addr_equal(tmp_addr, sdata->vif.addr)) {
 					used = true;
 					break;
 				}

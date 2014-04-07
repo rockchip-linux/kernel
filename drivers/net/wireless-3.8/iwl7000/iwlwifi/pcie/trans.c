@@ -106,6 +106,7 @@ static void iwl_pcie_set_pwr(struct iwl_trans *trans, bool vaux)
 
 /* PCI registers */
 #define PCI_CFG_RETRY_TIMEOUT	0x041
+#define CPU1_CPU2_SEPARATOR_SECTION	0xFFFFCCCC
 
 static void iwl_pcie_apm_config(struct iwl_trans *trans)
 {
@@ -208,7 +209,7 @@ static int iwl_pcie_apm_init(struct iwl_trans *trans)
 		 *
 		 * This looks weird: read twice the same register, discard the
 		 * value, set a bit, and yet again, read that same register
-		 * just to discard the value. But that the way the hardware
+		 * just to discard the value. But that's the way the hardware
 		 * seems to like it.
 		 */
 		iwl_read_prph(trans, OSC_CLK);
@@ -573,70 +574,97 @@ static int iwl_pcie_load_section(struct iwl_trans *trans, u8 section_num,
 	return ret;
 }
 
-static int iwl_pcie_secure_set(struct iwl_trans *trans, int cpu)
+static int iwl_pcie_load_cpu_secured_sections(struct iwl_trans *trans,
+					      const struct fw_img *image,
+					      int cpu,
+					      int *first_ucode_section)
 {
 	int shift_param;
-	u32 address;
-	int ret = 0;
+	int i, ret = 0;
+	u32 last_read_idx = 0;
 
 	if (cpu == 1) {
 		shift_param = 0;
-		address = CSR_SECURE_BOOT_CPU1_STATUS_ADDR;
+		*first_ucode_section = 0;
 	} else {
 		shift_param = 16;
-		address = CSR_SECURE_BOOT_CPU2_STATUS_ADDR;
+		(*first_ucode_section)++;
 	}
 
-	/* set CPU to started */
-	iwl_trans_set_bits_mask(trans,
-				CSR_UCODE_LOAD_STATUS_ADDR,
-				CSR_CPU_STATUS_LOADING_STARTED << shift_param,
-				1);
+	for (i = *first_ucode_section; i < IWL_UCODE_SECTION_MAX; i++) {
+		last_read_idx = i;
 
-	/* set last complete descriptor number */
-	iwl_trans_set_bits_mask(trans,
-				CSR_UCODE_LOAD_STATUS_ADDR,
-				CSR_CPU_STATUS_NUM_OF_LAST_COMPLETED
-				<< shift_param,
-				1);
+		if (!image->sec[i].data ||
+		    image->sec[i].offset == CPU1_CPU2_SEPARATOR_SECTION) {
+			IWL_DEBUG_FW(trans,
+				     "Break since Data not valid or Empty section, sec = %d\n",
+				     i);
+			break;
+		}
 
-	/* set last loaded block */
-	iwl_trans_set_bits_mask(trans,
-				CSR_UCODE_LOAD_STATUS_ADDR,
-				CSR_CPU_STATUS_NUM_OF_LAST_LOADED_BLOCK
-				<< shift_param,
-				1);
+		if (i == (*first_ucode_section) + 1)
+			/* set CPU to started */
+			iwl_set_bits_prph(trans,
+					  CSR_UCODE_LOAD_STATUS_ADDR,
+					  LMPM_CPU_HDRS_LOADING_COMPLETED
+					  << shift_param);
 
+		ret = iwl_pcie_load_section(trans, i, &image->sec[i]);
+		if (ret)
+			return ret;
+	}
 	/* image loading complete */
-	iwl_trans_set_bits_mask(trans,
-				CSR_UCODE_LOAD_STATUS_ADDR,
-				CSR_CPU_STATUS_LOADING_COMPLETED
-				<< shift_param,
-				1);
+	iwl_set_bits_prph(trans,
+			  CSR_UCODE_LOAD_STATUS_ADDR,
+			  LMPM_CPU_UCODE_LOADING_COMPLETED << shift_param);
 
-	/* set FH_TCSR_0_REG  */
-	iwl_trans_set_bits_mask(trans, FH_TCSR_0_REG0, 0x00400000, 1);
+	*first_ucode_section = last_read_idx;
 
-	/* verify image verification started  */
-	ret = iwl_poll_bit(trans, address,
-			   CSR_SECURE_BOOT_CPU_STATUS_VERF_STATUS,
-			   CSR_SECURE_BOOT_CPU_STATUS_VERF_STATUS,
-			   CSR_SECURE_TIME_OUT);
-	if (ret < 0) {
-		IWL_ERR(trans, "secure boot process didn't start\n");
-		return ret;
+	return 0;
+}
+
+static int iwl_pcie_load_cpu_sections(struct iwl_trans *trans,
+				      const struct fw_img *image,
+				      int cpu,
+				      int *first_ucode_section)
+{
+	int shift_param;
+	int i, ret = 0;
+	u32 last_read_idx = 0;
+
+	if (cpu == 1) {
+		shift_param = 0;
+		*first_ucode_section = 0;
+	} else {
+		shift_param = 16;
+		(*first_ucode_section)++;
 	}
 
-	/* wait for image verification to complete  */
-	ret = iwl_poll_bit(trans, address,
-			   CSR_SECURE_BOOT_CPU_STATUS_VERF_COMPLETED,
-			   CSR_SECURE_BOOT_CPU_STATUS_VERF_COMPLETED,
-			   CSR_SECURE_TIME_OUT);
+	for (i = *first_ucode_section; i < IWL_UCODE_SECTION_MAX; i++) {
+		last_read_idx = i;
 
-	if (ret < 0) {
-		IWL_ERR(trans, "Time out on secure boot process\n");
-		return ret;
+		if (!image->sec[i].data ||
+		    image->sec[i].offset == CPU1_CPU2_SEPARATOR_SECTION) {
+			IWL_DEBUG_FW(trans,
+				     "Break since Data not valid or Empty section, sec = %d\n",
+				     i);
+			break;
+		}
+
+		ret = iwl_pcie_load_section(trans, i, &image->sec[i]);
+		if (ret)
+			return ret;
 	}
+
+	if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
+		iwl_set_bits_prph(trans,
+				  CSR_UCODE_LOAD_STATUS_ADDR,
+				  (LMPM_CPU_UCODE_LOADING_COMPLETED |
+				   LMPM_CPU_HDRS_LOADING_COMPLETED |
+				   LMPM_CPU_UCODE_LOADING_STARTED) <<
+					shift_param);
+
+	*first_ucode_section = last_read_idx;
 
 	return 0;
 }
@@ -644,7 +672,8 @@ static int iwl_pcie_secure_set(struct iwl_trans *trans, int cpu)
 static int iwl_pcie_load_given_ucode(struct iwl_trans *trans,
 				const struct fw_img *image)
 {
-	int i, ret = 0;
+	int ret = 0;
+	int first_ucode_section;
 
 	IWL_DEBUG_FW(trans,
 		     "working with %s image\n",
@@ -656,64 +685,73 @@ static int iwl_pcie_load_given_ucode(struct iwl_trans *trans,
 	/* configure the ucode to be ready to get the secured image */
 	if (image->is_secure) {
 		/* set secure boot inspector addresses */
-		iwl_write32(trans, CSR_SECURE_INSPECTOR_CODE_ADDR, 0);
-		iwl_write32(trans, CSR_SECURE_INSPECTOR_DATA_ADDR, 0);
+		iwl_write_prph(trans,
+			       LMPM_SECURE_INSPECTOR_CODE_ADDR,
+			       LMPM_SECURE_INSPECTOR_CODE_MEM_SPACE);
 
-		/* release CPU1 reset if secure inspector image burned in OTP */
-		iwl_write32(trans, CSR_RESET, 0);
-	}
+		iwl_write_prph(trans,
+			       LMPM_SECURE_INSPECTOR_DATA_ADDR,
+			       LMPM_SECURE_INSPECTOR_DATA_MEM_SPACE);
 
-	/* load to FW the binary sections of CPU1 */
-	IWL_DEBUG_INFO(trans, "Loading CPU1\n");
-	for (i = 0;
-	     i < IWL_UCODE_FIRST_SECTION_OF_SECOND_CPU;
-	     i++) {
-		if (!image->sec[i].data)
-			break;
-		ret = iwl_pcie_load_section(trans, i, &image->sec[i]);
+		/* set CPU1 header address */
+		iwl_write_prph(trans,
+			       LMPM_SECURE_UCODE_LOAD_CPU1_HDR_ADDR,
+			       LMPM_SECURE_CPU1_HDR_MEM_SPACE);
+
+		/* load to FW the binary Secured sections of CPU1 */
+		ret = iwl_pcie_load_cpu_secured_sections(trans, image, 1,
+							 &first_ucode_section);
 		if (ret)
 			return ret;
-	}
 
-	/* configure the ucode to start secure process on CPU1 */
-	if (image->is_secure) {
-		/* config CPU1 to start secure protocol */
-		ret = iwl_pcie_secure_set(trans, 1);
-		if (ret)
-			return ret;
 	} else {
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-		iwl_dnt_configure(trans);
-#endif
-		/* Remove all resets to allow NIC to operate */
-		iwl_write32(trans, CSR_RESET, 0);
+		/* load to FW the binary Non secured sections of CPU1 */
+		ret = iwl_pcie_load_cpu_sections(trans, image, 1,
+						 &first_ucode_section);
+		if (ret)
+			return ret;
 	}
 
 	if (image->is_dual_cpus) {
-		/* load to FW the binary sections of CPU2 */
-		IWL_DEBUG_INFO(trans, "working w/ DUAL CPUs - Loading CPU2\n");
-		for (i = IWL_UCODE_FIRST_SECTION_OF_SECOND_CPU;
-			i < IWL_UCODE_SECTION_MAX; i++) {
-			if (!image->sec[i].data)
-				break;
-			ret = iwl_pcie_load_section(trans, i, &image->sec[i]);
-			if (ret)
-				return ret;
-		}
+		/* set CPU2 header address */
+		iwl_write_prph(trans,
+			       LMPM_SECURE_UCODE_LOAD_CPU2_HDR_ADDR,
+			       LMPM_SECURE_CPU2_HDR_MEM_SPACE);
 
-		if (image->is_secure) {
-			/* set CPU2 for secure protocol */
-			ret = iwl_pcie_secure_set(trans, 2);
-			if (ret)
-				return ret;
-		}
+		/* load to FW the binary sections of CPU2 */
+		if (image->is_secure)
+			ret = iwl_pcie_load_cpu_secured_sections(
+							trans, image, 2,
+							&first_ucode_section);
+		else
+			ret = iwl_pcie_load_cpu_sections(trans, image, 2,
+							 &first_ucode_section);
+		if (ret)
+			return ret;
 	}
 
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	iwl_dnt_configure(trans, image);
+#endif
 	/* release CPU reset */
 	if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
 		iwl_write_prph(trans, RELEASE_CPU_RESET, RELEASE_CPU_RESET_BIT);
 	else
 		iwl_write32(trans, CSR_RESET, 0);
+
+	if (image->is_secure) {
+		/* wait for image verification to complete  */
+		ret = iwl_poll_prph_bit(trans,
+					LMPM_SECURE_BOOT_CPU1_STATUS_ADDR,
+					LMPM_SECURE_BOOT_STATUS_SUCCESS,
+					LMPM_SECURE_BOOT_STATUS_SUCCESS,
+					LMPM_SECURE_TIME_OUT);
+
+		if (ret < 0) {
+			IWL_ERR(trans, "Time out on secure boot process\n");
+			return ret;
+		}
+	}
 
 	return 0;
 }
@@ -738,7 +776,7 @@ static int iwl_trans_pcie_start_fw(struct iwl_trans *trans,
 		set_bit(STATUS_RFKILL, &trans->status);
 	else
 		clear_bit(STATUS_RFKILL, &trans->status);
-	iwl_op_mode_hw_rf_kill(trans->op_mode, hw_rfkill);
+	iwl_trans_pcie_rf_kill(trans, hw_rfkill);
 	if (hw_rfkill && !run_in_rfkill)
 		return -ERFKILL;
 
@@ -853,7 +891,13 @@ static void iwl_trans_pcie_stop_device(struct iwl_trans *trans)
 	else
 		clear_bit(STATUS_RFKILL, &trans->status);
 	if (hw_rfkill != was_hw_rfkill)
-		iwl_op_mode_hw_rf_kill(trans->op_mode, hw_rfkill);
+		iwl_trans_pcie_rf_kill(trans, hw_rfkill);
+}
+
+void iwl_trans_pcie_rf_kill(struct iwl_trans *trans, bool state)
+{
+	if (iwl_op_mode_hw_rf_kill(trans->op_mode, state))
+		iwl_trans_pcie_stop_device(trans);
 }
 
 static void iwl_trans_pcie_d3_suspend(struct iwl_trans *trans, bool test)
@@ -962,7 +1006,7 @@ static int iwl_trans_pcie_start_hw(struct iwl_trans *trans)
 		set_bit(STATUS_RFKILL, &trans->status);
 	else
 		clear_bit(STATUS_RFKILL, &trans->status);
-	iwl_op_mode_hw_rf_kill(trans->op_mode, hw_rfkill);
+	iwl_trans_pcie_rf_kill(trans, hw_rfkill);
 
 	return 0;
 }
@@ -1015,6 +1059,12 @@ static void iwl_trans_pcie_write_prph(struct iwl_trans *trans, u32 addr,
 	iwl_trans_pcie_write32(trans, HBUS_TARG_PRPH_WDAT, val);
 }
 
+static int iwl_pcie_dummy_napi_poll(struct napi_struct *napi, int budget)
+{
+	WARN_ON(1);
+	return 0;
+}
+
 static void iwl_trans_pcie_configure(struct iwl_trans *trans,
 				     const struct iwl_trans_config *trans_cfg)
 {
@@ -1050,8 +1100,8 @@ static void iwl_trans_pcie_configure(struct iwl_trans *trans,
 	if (!trans_pcie->napi.poll && trans->op_mode->ops->napi_add) {
 		init_dummy_netdev(&trans_pcie->napi_dev);
 		iwl_op_mode_napi_add(trans->op_mode, &trans_pcie->napi,
-				     &trans_pcie->napi_dev, iwl_pcie_napi_poll,
-				     64);
+				     &trans_pcie->napi_dev,
+				     iwl_pcie_dummy_napi_poll, 64);
 	}
 }
 
@@ -1580,16 +1630,15 @@ static ssize_t iwl_dbgfs_fh_reg_read(struct file *file,
 {
 	struct iwl_trans *trans = file->private_data;
 	char *buf = NULL;
-	int pos = 0;
-	ssize_t ret = -EFAULT;
+	ssize_t ret;
 
-	ret = pos = iwl_dump_fh(trans, &buf);
-	if (buf) {
-		ret = simple_read_from_buffer(user_buf,
-					      count, ppos, buf, pos);
-		kfree(buf);
-	}
-
+	ret = iwl_dump_fh(trans, &buf);
+	if (ret < 0)
+		return ret;
+	if (!buf)
+		return -EINVAL;
+	ret = simple_read_from_buffer(user_buf, count, ppos, buf, ret);
+	kfree(buf);
 	return ret;
 }
 

@@ -104,10 +104,68 @@ static void iwl_dnt_dev_if_configure_mipi(struct iwl_trans *trans)
 static void iwl_dnt_dev_if_configure_marbh(struct iwl_trans *trans)
 {
 	struct iwl_dbg_cfg *cfg = &trans->dbg_cfg;
+	u32 ret, reg_val = 0;
 
-	iwl_trans_set_bits_mask(trans, cfg->dbg_marbh_conf_reg,
-				cfg->dbg_marbh_conf_mask,
-				cfg->dbg_marbh_conf_mask);
+	if (cfg->dbg_marbh_access_type == ACCESS_TYPE_DIRECT) {
+		iwl_trans_set_bits_mask(trans, cfg->dbg_marbh_conf_reg,
+					cfg->dbg_marbh_conf_mask,
+					cfg->dbg_marbh_conf_mask);
+	} else if (cfg->dbg_marbh_access_type == ACCESS_TYPE_INDIRECT) {
+		ret = iwl_trans_read_mem(trans, cfg->dbg_marbh_conf_reg,
+					 &reg_val, 1);
+		if (ret) {
+			IWL_ERR(trans, "Failed to read MARBH conf reg\n");
+			return;
+		}
+		reg_val |= cfg->dbg_marbh_conf_mask;
+		ret = iwl_trans_write_mem(trans, cfg->dbg_marbh_conf_reg,
+							 &reg_val, 1);
+		if (ret) {
+			IWL_ERR(trans, "Failed to write MARBH conf reg\n");
+			return;
+		}
+	} else {
+		IWL_ERR(trans, "Invalid MARBH access type\n");
+	}
+}
+
+static void iwl_dnt_dev_if_configure_dbgc_registers(struct iwl_trans *trans,
+						    u32 base_addr,
+						    u32 end_addr)
+{
+	struct iwl_dbg_cfg *cfg = &trans->dbg_cfg;
+
+	switch (trans->tmdev->dnt->cur_mon_type) {
+	case MIPI:
+		iwl_write_prph(trans, cfg->dbgc_hb_base_addr,
+			       cfg->dbgc_hb_base_val_mipi);
+		iwl_write_prph(trans, cfg->dbgc_hb_end_addr,
+			       cfg->dbgc_hb_end_val_mipi);
+		break;
+
+	case SMEM:
+		iwl_write_prph(trans, cfg->dbgc_hb_base_addr,
+			       cfg->dbgc_hb_base_val_smem);
+		iwl_write_prph(trans, cfg->dbgc_hb_end_addr,
+			       cfg->dbgc_hb_end_val_smem);
+
+		/*
+		 * SMEM requires the same internal configuration as MARBH,
+		 * which preceeded it.
+		 */
+		iwl_dnt_dev_if_configure_marbh(trans);
+		break;
+
+	case DMA:
+	default:
+		/*
+		 * The given addresses are already shifted by 4 places so we
+		 * need to shift by another 4
+		 */
+		iwl_write_prph(trans, cfg->dbgc_hb_base_addr, base_addr >> 4);
+		iwl_write_prph(trans, cfg->dbgc_hb_end_addr, end_addr >> 4);
+		break;
+	};
 }
 
 static void iwl_dnt_dev_if_configure_dbgm_registers(struct iwl_trans *trans,
@@ -115,6 +173,13 @@ static void iwl_dnt_dev_if_configure_dbgm_registers(struct iwl_trans *trans,
 						    u32 end_addr)
 {
 	struct iwl_dbg_cfg *cfg = &trans->dbg_cfg;
+
+	/* If we're running a device that supports DBGC - use it */
+	if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000) {
+		iwl_dnt_dev_if_configure_dbgc_registers(trans, base_addr,
+							end_addr);
+		return;
+	}
 
 	/* configuring monitor */
 	iwl_write_prph(trans, cfg->dbg_mon_buff_base_addr_reg_addr, base_addr);
@@ -138,7 +203,7 @@ static void iwl_dnt_dev_if_configure_dbgm_registers(struct iwl_trans *trans,
 		       cfg->dbg_mon_sample_ctl_val);
 }
 
-static int iwl_dnt_dev_if_retreive_dma_monitor_data(struct iwl_dnt *dnt,
+static int iwl_dnt_dev_if_retrieve_dma_monitor_data(struct iwl_dnt *dnt,
 						    struct iwl_trans *trans,
 						    void *buffer,
 						    u32 buffer_size)
@@ -152,14 +217,22 @@ static int iwl_dnt_dev_if_retreive_dma_monitor_data(struct iwl_dnt *dnt,
 		return -ENOMEM;
 	}
 
-	wr_ptr = iwl_read_prph(trans, cfg->dbg_mon_wr_ptr_addr);
+	/* If we're running a device that supports DBGC - use it */
+	if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
+		wr_ptr = iwl_read_prph(trans, cfg->dbgc_dram_wrptr_addr);
+	else
+		wr_ptr = iwl_read_prph(trans, cfg->dbg_mon_wr_ptr_addr);
 	/* iwl_read_prph returns 0x5a5a5a5a when it fails to grab nic access */
 	if (wr_ptr == 0x5a5a5a5a) {
 		IWL_ERR(trans, "Can't read write pointer\n");
 		return -ENODEV;
 	}
 
-	wr_ptr = (wr_ptr << 4) - dnt->mon_base_addr;
+	/* If we're running a device that supports DBGC.... */
+	if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
+		wr_ptr = (wr_ptr - (dnt->mon_base_addr >> 6)) << 6;
+	else
+		wr_ptr = (wr_ptr << 4) - dnt->mon_base_addr;
 	temp_buf = kmemdup(dnt->mon_buf_cpu_addr, dnt->mon_buf_size,
 			   GFP_KERNEL);
 	if (!temp_buf)
@@ -169,10 +242,10 @@ static int iwl_dnt_dev_if_retreive_dma_monitor_data(struct iwl_dnt *dnt,
 	memcpy(buffer + dnt->mon_buf_size - wr_ptr, temp_buf, wr_ptr);
 	kfree(temp_buf);
 
-	return 0;
+	return dnt->mon_buf_size;
 }
 
-static int iwl_dnt_dev_if_retreive_iccm_monitor_data(struct iwl_dnt *dnt,
+static int iwl_dnt_dev_if_retrieve_iccm_monitor_data(struct iwl_dnt *dnt,
 						     struct iwl_trans *trans,
 						     void *buffer,
 						     u32 buffer_size)
@@ -180,7 +253,7 @@ static int iwl_dnt_dev_if_retreive_iccm_monitor_data(struct iwl_dnt *dnt,
 	return 0;
 }
 
-static int iwl_dnt_dev_if_retreive_marbh_monitor_data(struct iwl_dnt *dnt,
+static int iwl_dnt_dev_if_retrieve_marbh_monitor_data(struct iwl_dnt *dnt,
 						      struct iwl_trans *trans,
 						      u8 *buffer,
 						      u32 buffer_size)
@@ -198,13 +271,29 @@ static int iwl_dnt_dev_if_retreive_marbh_monitor_data(struct iwl_dnt *dnt,
 		return -ENODEV;
 	}
 
-	wr_ptr = (wr_ptr << 4) - dnt->mon_base_addr;
+	read_val = iwl_read_prph(trans, cfg->dbg_mon_buff_base_addr_reg_addr);
+	if (read_val == 0x5a5a5a5a) {
+		IWL_ERR(trans, "Can't read monitor base address\n");
+		return -ENODEV;
+	}
+	dnt->mon_base_addr = read_val;
+
+	read_val = iwl_read_prph(trans, cfg->dbg_mon_buff_end_addr_reg_addr);
+	if (read_val == 0x5a5a5a5a) {
+		IWL_ERR(trans, "Can't read monitor end address\n");
+		return -ENODEV;
+	}
+	dnt->mon_end_addr = read_val;
+
+	wr_ptr = wr_ptr - dnt->mon_base_addr;
 	iwl_write_prph(trans, cfg->dbg_mon_dmarb_rd_ctl_addr, 0x00000001);
 
-	buf_size_in_dwords = dnt->mon_buf_size / sizeof(u32);
+	/* buf size includes the end_addr as well */
+	buf_size_in_dwords = dnt->mon_end_addr - dnt->mon_base_addr + 1;
 	for (i = 0; i < buf_size_in_dwords; i++) {
 		/* reordering cyclic buffer */
-		buf_index = (wr_ptr + i) % buf_size_in_dwords;
+		buf_index = (i + (buf_size_in_dwords - wr_ptr)) %
+			    buf_size_in_dwords;
 		read_val = iwl_read_prph(trans,
 					 cfg->dbg_mon_dmarb_rd_data_addr);
 		memcpy(&buffer[buf_index * sizeof(u32)], &read_val,
@@ -212,7 +301,7 @@ static int iwl_dnt_dev_if_retreive_marbh_monitor_data(struct iwl_dnt *dnt,
 	}
 	iwl_write_prph(trans, cfg->dbg_mon_dmarb_rd_ctl_addr, 0x00000000);
 
-	return 0;
+	return buf_size_in_dwords * sizeof(u32);
 }
 
 int iwl_dnt_dev_if_configure_monitor(struct iwl_dnt *dnt,
@@ -225,11 +314,7 @@ int iwl_dnt_dev_if_configure_monitor(struct iwl_dnt *dnt,
 		IWL_INFO(trans, "Monitor is disabled\n");
 		dnt->iwl_dnt_status &= ~IWL_DNT_STATUS_MON_CONFIGURED;
 		break;
-	case MIPI:
-		iwl_dnt_dev_if_configure_mipi(trans);
-		break;
 	case MARBH:
-		dnt->mon_buf_size = DNT_MARBH_BUF_SIZE;
 		iwl_dnt_dev_if_configure_marbh(trans);
 		break;
 	case DMA:
@@ -240,6 +325,19 @@ int iwl_dnt_dev_if_configure_monitor(struct iwl_dnt *dnt,
 		}
 		base_addr = dnt->mon_base_addr >> 4;
 		end_addr = dnt->mon_end_addr >> 4;
+		iwl_dnt_dev_if_configure_dbgm_registers(trans, base_addr,
+							end_addr);
+		break;
+	case MIPI:
+		base_addr = 0;
+		end_addr = 0;
+
+		/* If not working with DBGC... */
+		if (trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
+			iwl_dnt_dev_if_configure_mipi(trans);
+			break;
+		}
+	case SMEM:
 		iwl_dnt_dev_if_configure_dbgm_registers(trans, base_addr,
 							end_addr);
 		break;
@@ -261,7 +359,6 @@ int iwl_dnt_dev_if_configure_monitor(struct iwl_dnt *dnt,
 
 	return 0;
 }
-IWL_EXPORT_SYMBOL(iwl_dnt_dev_if_configure_monitor);
 
 static int iwl_dnt_dev_if_send_dbgm(struct iwl_dnt *dnt,
 				    struct iwl_trans *trans)
@@ -327,7 +424,6 @@ int iwl_dnt_dev_if_start_monitor(struct iwl_dnt *dnt,
 		return -EINVAL;
 	}
 }
-IWL_EXPORT_SYMBOL(iwl_dnt_dev_if_start_monitor);
 
 int iwl_dnt_dev_if_set_log_level(struct iwl_dnt *dnt,
 				 struct iwl_trans *trans)
@@ -348,23 +444,22 @@ int iwl_dnt_dev_if_set_log_level(struct iwl_dnt *dnt,
 
 	return ret;
 }
-IWL_EXPORT_SYMBOL(iwl_dnt_dev_if_set_log_level);
 
-int iwl_dnt_dev_if_retreive_monitor_data(struct iwl_dnt *dnt,
+int iwl_dnt_dev_if_retrieve_monitor_data(struct iwl_dnt *dnt,
 					 struct iwl_trans *trans,
 					 u8 *buffer, u32 buffer_size)
 {
 	switch (dnt->cur_mon_type) {
 	case DMA:
-		return iwl_dnt_dev_if_retreive_dma_monitor_data(dnt, trans,
+		return iwl_dnt_dev_if_retrieve_dma_monitor_data(dnt, trans,
 								buffer,
 								buffer_size);
 	case MARBH:
-		return iwl_dnt_dev_if_retreive_marbh_monitor_data(dnt, trans,
+		return iwl_dnt_dev_if_retrieve_marbh_monitor_data(dnt, trans,
 								  buffer,
 								  buffer_size);
 	case ICCM:
-		return iwl_dnt_dev_if_retreive_iccm_monitor_data(dnt, trans,
+		return iwl_dnt_dev_if_retrieve_iccm_monitor_data(dnt, trans,
 								 buffer,
 								 buffer_size);
 	case INTERFACE:
@@ -373,3 +468,57 @@ int iwl_dnt_dev_if_retreive_monitor_data(struct iwl_dnt *dnt,
 		return -EINVAL;
 	}
 }
+
+int iwl_dnt_dev_if_read_sram(struct iwl_dnt *dnt, struct iwl_trans *trans)
+{
+	struct dnt_crash_data *crash = &dnt->dispatch.crash;
+	int ofs, len = 0;
+
+	ofs = dnt->image->sec[IWL_UCODE_SECTION_DATA].offset;
+	len = dnt->image->sec[IWL_UCODE_SECTION_DATA].len;
+
+	crash->sram =  kzalloc(len , GFP_ATOMIC);
+	if (!crash->sram)
+		return -ENOMEM;
+
+	crash->sram_buf_size = len;
+	return iwl_trans_read_mem(trans, ofs, crash->sram, len);
+}
+IWL_EXPORT_SYMBOL(iwl_dnt_dev_if_read_sram);
+
+int iwl_dnt_dev_if_read_rx(struct iwl_dnt *dnt, struct iwl_trans *trans)
+{
+	struct dnt_crash_data *crash = &dnt->dispatch.crash;
+	int i, reg_val;
+	u32 buf32_size, offset = 0;
+	u32 *buf32;
+	unsigned long flags;
+
+	/* reading buffer size */
+	reg_val = iwl_trans_read_prph(trans, RXF_SIZE_ADDR);
+	crash->rx_buf_size = (reg_val & RXF_SIZE_BYTE_CNT_MSK) >> 6;
+	if (!crash->rx_buf_size)
+		return -ENOMEM;
+
+	buf32_size = crash->rx_buf_size / sizeof(u32);
+
+	crash->rx =  kzalloc(crash->rx_buf_size , GFP_ATOMIC);
+	if (!crash->rx)
+		return -ENOMEM;
+
+	buf32 = (u32 *)crash->rx;
+
+	if (!iwl_trans_grab_nic_access(trans, false, &flags)) {
+		kfree(crash->rx);
+		return -EBUSY;
+	}
+	for (i = 0; i < buf32_size; i++) {
+		iwl_trans_write_prph(trans, RXF_LD_FENCE_OFFSET_ADDR, offset);
+		offset += sizeof(u32);
+		buf32[i] = iwl_trans_read_prph(trans, RXF_FIFO_RD_FENCE_ADDR);
+	}
+	iwl_trans_release_nic_access(trans, &flags);
+
+	return 0;
+}
+IWL_EXPORT_SYMBOL(iwl_dnt_dev_if_read_rx);

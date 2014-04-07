@@ -70,7 +70,7 @@
 #include "fw-api-mac.h"
 #include "fw-api-power.h"
 #include "fw-api-d3.h"
-#include "fw-api-bt-coex.h"
+#include "fw-api-coex.h"
 
 /* maximal number of Tx queues in any platform */
 #define IWL_MVM_MAX_QUEUES	20
@@ -95,6 +95,7 @@ enum {
 	/* PHY context commands */
 	PHY_CONTEXT_CMD = 0x8,
 	DBG_CFG = 0x9,
+	ANTENNA_COUPLING_NOTIFICATION = 0xa,
 
 	/* station table */
 	ADD_STA_KEY = 0x17,
@@ -178,6 +179,9 @@ enum {
 	REPLY_RX_PHY_CMD = 0xc0,
 	REPLY_RX_MPDU_CMD = 0xc1,
 	BA_NOTIF = 0xc5,
+
+	/* Location Aware Regulatory */
+	MCC_UPDATE_CMD = 0xc8,
 
 	/* BT Coex */
 	BT_COEX_PRIO_TABLE = 0xcc,
@@ -309,7 +313,6 @@ struct iwl_phy_cfg_cmd {
 #define PHY_CFG_RX_CHAIN_B	BIT(13)
 #define PHY_CFG_RX_CHAIN_C	BIT(14)
 
-#define NVM_MAX_NUM_SECTIONS	11
 
 /* Target of the NVM_ACCESS_CMD */
 enum {
@@ -321,8 +324,11 @@ enum {
 /* Section types for NVM_ACCESS_CMD */
 enum {
 	NVM_SECTION_TYPE_SW = 1,
+	NVM_SECTION_TYPE_REGULATORY = 3,
 	NVM_SECTION_TYPE_CALIBRATION = 4,
 	NVM_SECTION_TYPE_PRODUCTION = 5,
+	NVM_SECTION_TYPE_MAC_OVERRIDE = 11,
+	NVM_MAX_NUM_SECTIONS = 12,
 };
 
 /**
@@ -413,6 +419,35 @@ struct mvm_alive_resp {
 	__le32 alive_counter_ptr;
 	__le32 scd_base_ptr;		/* SRAM address for SCD */
 } __packed; /* ALIVE_RES_API_S_VER_1 */
+
+struct mvm_alive_resp_ver2 {
+	__le16 status;
+	__le16 flags;
+	u8 ucode_minor;
+	u8 ucode_major;
+	__le16 id;
+	u8 api_minor;
+	u8 api_major;
+	u8 ver_subtype;
+	u8 ver_type;
+	u8 mac;
+	u8 opt;
+	__le16 reserved2;
+	__le32 timestamp;
+	__le32 error_event_table_ptr;	/* SRAM address for error log */
+	__le32 log_event_table_ptr;	/* SRAM address for LMAC event log */
+	__le32 cpu_register_ptr;
+	__le32 dbgm_config_ptr;
+	__le32 alive_counter_ptr;
+	__le32 scd_base_ptr;		/* SRAM address for SCD */
+	__le32 st_fwrd_addr;		/* pointer to Store and forward */
+	__le32 st_fwrd_size;
+	u8 umac_minor;			/* UMAC version: minor */
+	u8 umac_major;			/* UMAC version: major */
+	__le16 umac_id;			/* UMAC version: id */
+	__le32 error_info_addr;		/* SRAM address for UMAC error log */
+	__le32 dbg_print_buff_addr;
+} __packed; /* ALIVE_RES_API_S_VER_2 */
 
 /* Error response/notification */
 enum {
@@ -684,6 +719,7 @@ enum {
 	TE_V2_NOTIF_HOST_FRAG_END = BIT(5),
 	TE_V2_NOTIF_INTERNAL_FRAG_START = BIT(6),
 	TE_V2_NOTIF_INTERNAL_FRAG_END = BIT(7),
+	T2_V2_START_IMMEDIATELY = BIT(11),
 
 	TE_V2_NOTIF_MSK = 0xff,
 
@@ -1513,5 +1549,50 @@ struct iwl_sf_cfg_cmd {
 	__le32 long_delay_timeouts[SF_NUM_SCENARIO][SF_NUM_TIMEOUT_TYPES];
 	__le32 full_on_timeouts[SF_NUM_SCENARIO][SF_NUM_TIMEOUT_TYPES];
 } __packed; /* SF_CFG_API_S_VER_2 */
+
+/***********************************
+ * Location Aware Regulatory (LAR) API - MCC updates
+ ***********************************/
+
+/**
+ * struct iwl_mcc_update_cmd - Request the device to update geographic
+ * regulatory profile according to the given MCC (Mobile Contry Code).
+ * The MCC is two letter-code, ascii upper case[A-Z] or '00' for world domain.
+ * 'ZZ' MCC will be used to switch to NVM default profile; in this case, the
+ * MCC in the cmd response will be the relevant MCC in the NVM.
+ * @mcc: given mobile contry code
+ * @reserved: reserved for alignment
+ */
+struct iwl_mcc_update_cmd {
+	__le16 mcc;
+	__le16 reserved;
+} __packed; /* LAR_UPDATE_MCC_CMD_API_S */
+
+/**
+ * iwl_mcc_update_resp - response to MCC_UPDATE_CMD.
+ * Contains the new channel control profile map, if changed, and the new MCC
+ * (mobile country code).
+ * The new MCC may be different than what was requested in MCC_UPDATE_CMD.
+ * @status: 0 for success, 1 no change in channel profile, 2 invalid input.
+ * @mcc: the new applied MCC
+ * @n_channels: number of channels in @channels_data (may be 14, 39, 50 or 51
+ *		channels, depending on platform)
+ * @channels: channel control data map, DWORD for each channel. Only the first
+ *	16bits are used.
+ */
+struct iwl_mcc_update_resp {
+	__le32 status;
+	__le16 mcc;
+	__le16 reserved;
+	__le32 n_channels;
+	__le32 channels[0];
+} __packed; /* LAR_UPDATE_MCC_CMD_RESP_S */
+
+enum iwl_mcc_update_status {
+	MCC_RESP_NEW_CHAN_PROFILE,
+	MCC_RESP_SAME_CHAN_PROFILE,
+	MCC_RESP_INVALID,
+	MCC_RESP_NVM_DISABLED,
+};
 
 #endif /* __fw_api_h__ */

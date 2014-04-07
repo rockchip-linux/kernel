@@ -195,6 +195,15 @@ struct iwl_eeprom_params {
 	bool enhanced_txpower;
 };
 
+/* Tx-backoff power threshold
+ * @pwr: The power limit in mw
+ * @backoff: The tx-backoff in uSec
+ */
+struct iwl_pwr_tx_backoff {
+	u32 pwr;
+	u32 backoff;
+};
+
 /**
  * struct iwl_cfg
  * @name: Offical name of the device
@@ -221,6 +230,8 @@ struct iwl_eeprom_params {
  * @host_interrupt_operation_mode: device needs host interrupt operation
  *	mode set
  * @d0i3: device uses d0i3 instead of d3
+ * @nvm_hw_section_num: the ID of the HW NVM section
+ * @pwr_tx_backoffs: translation table between power limits and backoffs
  *
  * We enable the driver to be backward compatible wrt. hardware features.
  * API differences in uCode shouldn't be handled here but through TLVs
@@ -254,6 +265,7 @@ struct iwl_cfg {
 	bool d0i3;
 	u8   nvm_hw_section_num;
 	bool lp_xtal_workaround;
+	const struct iwl_pwr_tx_backoff *pwr_tx_backoffs;
 };
 
 /*
@@ -271,6 +283,7 @@ extern const struct iwl_cfg iwl7265_2ac_cfg;
 extern const struct iwl_cfg iwl7265_2n_cfg;
 extern const struct iwl_cfg iwl7265_n_cfg;
 extern const struct iwl_cfg iwl8260_2ac_cfg;
+extern const struct iwl_cfg iwl8260_n_cfg;
 #endif /* CPTCFG_IWLMVM */
 
 #endif /* __IWL_CONFIG_H__ */

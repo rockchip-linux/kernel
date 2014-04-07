@@ -81,6 +81,11 @@
 #include "iwl-dnt-dispatch.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (2*HZ)
+#define XVT_SCU_BASE	(0xe6a00000)
+#define XVT_SCU_SNUM1	(XVT_SCU_BASE + 0x300)
+#define XVT_SCU_SNUM2	(XVT_SCU_SNUM1 + 0x4)
+#define XVT_SCU_SNUM3	(XVT_SCU_SNUM2 + 0x4)
+
 
 int iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 			       struct iwl_rx_cmd_buffer *rxb)
@@ -314,14 +319,22 @@ static int iwl_xvt_read_sv_drop(struct iwl_xvt *xvt)
 }
 
 static int iwl_xvt_get_dev_info(struct iwl_xvt *xvt,
+				struct iwl_tm_data *data_in,
 				struct iwl_tm_data *data_out)
 {
+	struct iwl_tm_dev_info_req *dev_info_req;
 	struct iwl_tm_dev_info *dev_info;
 	const u8 driver_ver[] = IWLWIFI_VERSION;
 	int sv_step = 0x00;
 	int dev_info_size;
+	bool read_sv_drop = true;
 
-	if (xvt->cur_ucode == IWL_UCODE_REGULAR) {
+	if (data_in) {
+		dev_info_req = (struct iwl_tm_dev_info_req *)data_in->data;
+		read_sv_drop = dev_info_req->read_sv ? true : false;
+	}
+
+	if (xvt->cur_ucode == IWL_UCODE_REGULAR && read_sv_drop) {
 		sv_step = iwl_xvt_read_sv_drop(xvt);
 		if (sv_step < 0)
 			return sv_step;
@@ -826,18 +839,18 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 	u32 tx_count;
 	int time_remain, err = 0;
 
+	xvt->tot_tx = tx_req->times;
+	xvt->tx_counter = 0;
 	for (tx_count = 0; tx_count < tx_req->times; tx_count++) {
 
 		if (xvt->fw_error) {
 			IWL_ERR(xvt, "FW Error while sending Tx\n");
-			err = -ENODEV;
-			break;
+			return -ENODEV;
 		}
 
 		skb = alloc_skb(tx_req->len, GFP_KERNEL);
 		if (!skb) {
-			err = -ENOMEM;
-			break;
+			return -ENOMEM;
 		}
 		memcpy(skb_put(skb, tx_req->len), tx_req->data, tx_req->len);
 
@@ -846,8 +859,7 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 						    tx_req->rate_flags);
 		if (!dev_cmd) {
 			kfree_skb(skb);
-			err = -ENOMEM;
-			break;
+			return -ENOMEM;
 		}
 
 		if (tx_req->trigger_led)
@@ -863,8 +875,7 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 			IWL_ERR(xvt, "Error while sending Tx\n");
 			iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
 			kfree_skb(skb);
-			err = -EIO;
-			break;
+			return -EIO;
 		}
 
 		if (xvt->fw_error) {
@@ -872,8 +883,7 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 			IWL_ERR(xvt, "FW Error while sending Tx\n");
 			iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
 			kfree_skb(skb);
-			err = -ENODEV;
-			break;
+			return -ENODEV;
 		}
 
 		/*
@@ -892,7 +902,7 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 			IWL_ERR(xvt, "Tx command failed (error %d)\n", err);
 			kfree_skb(skb);
 			iwl_trans_free_tx_cmd(xvt->trans, dev_cmd);
-			break;
+			return err;
 		}
 
 		if (tx_req->trigger_led)
@@ -900,6 +910,14 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 
 		if (tx_req->delay_us)
 			udelay(tx_req->delay_us);
+	}
+
+	time_remain = wait_event_timeout(xvt->mod_tx_done_wq,
+					 xvt->tx_counter != xvt->tot_tx,
+					 5 * HZ);
+	if (time_remain <= 0) {
+		IWL_ERR(xvt, "Not all Tx messages were sent\n");
+		return -EIO;
 	}
 
 	return err;
@@ -1005,6 +1023,26 @@ static int iwl_xvt_free_dma(struct iwl_xvt *xvt,
 	return 0;
 }
 
+static int iwl_xvt_get_chip_id(struct iwl_xvt *xvt,
+			       struct iwl_tm_data *data_out)
+{
+	struct iwl_xvt_chip_id *chip_id;
+
+	chip_id = kmalloc(sizeof(struct iwl_xvt_chip_id), GFP_KERNEL);
+	if (!chip_id)
+		return -ENOMEM;
+
+	chip_id->registers[0] = ioread32((void __iomem *)XVT_SCU_SNUM1);
+	chip_id->registers[1] = ioread32((void __iomem *)XVT_SCU_SNUM2);
+	chip_id->registers[2] = ioread32((void __iomem *)XVT_SCU_SNUM3);
+
+
+	data_out->data = chip_id;
+	data_out->len = sizeof(struct iwl_xvt_chip_id);
+
+	return 0;
+}
+
 int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out)
@@ -1038,7 +1076,7 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 		break;
 
 	case IWL_TM_USER_CMD_GET_DEVICE_INFO:
-		ret = iwl_xvt_get_dev_info(xvt, data_out);
+		ret = iwl_xvt_get_dev_info(xvt, data_in, data_out);
 		break;
 
 	/* xVT cases */
@@ -1086,7 +1124,9 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 	case IWL_XVT_CMD_FREE_DMA:
 		ret = iwl_xvt_free_dma(xvt, data_in);
 		break;
-
+	case IWL_XVT_CMD_GET_CHIP_ID:
+		ret = iwl_xvt_get_chip_id(xvt, data_out);
+		break;
 	default:
 		ret = -EOPNOTSUPP;
 		break;

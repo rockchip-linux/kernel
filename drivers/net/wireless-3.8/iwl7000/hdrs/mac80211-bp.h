@@ -1,9 +1,28 @@
 #include <linux/if_ether.h>
 #include <net/cfg80211.h>
 
-#define IEEE80211_MAX_CHAINS 4
+/* common backward compat code */
 
-/* some backport stuff for mac80211 from cfg80211/... */
+static inline void netdev_attach_ops(struct net_device *dev,
+				     const struct net_device_ops *ops)
+{
+	dev->netdev_ops = ops;
+}
+
+#define WIPHY_FLAG_HAS_CHANNEL_SWITCH 0
+
+#define mc_addr(ha)	(ha)->addr
+
+static inline void
+cfg80211_ch_switch_started_notify(struct net_device *dev,
+				  struct cfg80211_chan_def *chandef)
+{
+}
+
+/* cfg80211 version specific backward compat code follows */
+#define CFG80211_VERSION KERNEL_VERSION(3,8,0)
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,9,0)
 struct cfg80211_wowlan_wakeup {
 	bool disconnect, magic_pkt, gtk_rekey_failure,
 	     eap_identity_req, four_way_handshake,
@@ -14,7 +33,6 @@ struct cfg80211_wowlan_wakeup {
 	const void *packet;
 };
 
-/* nl80211 */
 struct wiphy_wowlan_tcp_support {
 	const struct nl80211_wowlan_tcp_data_token_feature *tok;
 	u32 data_payload_max;
@@ -23,40 +41,30 @@ struct wiphy_wowlan_tcp_support {
 	bool seq;
 };
 
-#define MONITOR_FLAG_ACTIVE 0
-#define NL80211_FEATURE_USERSPACE_MPM 0
+struct cfg80211_wowlan_tcp {
+	struct socket *sock;
+	__be32 src, dst;
+	u16 src_port, dst_port;
+	u8 dst_mac[ETH_ALEN];
+	int payload_len;
+	const u8 *payload;
+	struct nl80211_wowlan_tcp_data_seq payload_seq;
+	u32 data_interval;
+	u32 wake_len;
+	const u8 *wake_data, *wake_mask;
+	u32 tokens_size;
+	/* must be last, variable member */
+	struct nl80211_wowlan_tcp_data_token payload_tok;
+};
 
-static inline u32
-ieee80211_mandatory_rates(struct ieee80211_supported_band *sband)
+static inline void
+cfg80211_report_wowlan_wakeup(struct wireless_dev *wdev,
+			      struct cfg80211_wowlan_wakeup *wakeup, gfp_t gfp)
 {
-	struct ieee80211_rate *bitrates;
-	u32 mandatory_rates = 0;
-	enum ieee80211_rate_flags mandatory_flag;
-	int i;
-
-	if (WARN_ON(!sband))
-		return 1;
-
-	if (sband->band == IEEE80211_BAND_2GHZ)
-		mandatory_flag = IEEE80211_RATE_MANDATORY_B;
-	else
-		mandatory_flag = IEEE80211_RATE_MANDATORY_A;
-
-	bitrates = sband->bitrates;
-	for (i = 0; i < sband->n_bitrates; i++)
-		if (bitrates[i].flags & mandatory_flag)
-			mandatory_rates |= BIT(i);
-	return mandatory_rates;
 }
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,9,0) */
 
-static inline void netdev_attach_ops(struct net_device *dev,
-				     const struct net_device_ops *ops)
-{
-	dev->netdev_ops = ops;
-}
-
-#define IEEE80211_RADIOTAP_MCS_STBC_SHIFT	5
-
+#if CFG80211_VERSION < KERNEL_VERSION(3,10,0)
 static inline bool
 ieee80211_operating_class_to_band(u8 operating_class,
 				  enum ieee80211_band *band)
@@ -83,11 +91,15 @@ ieee80211_operating_class_to_band(u8 operating_class,
 	return false;
 }
 
-static inline void
-cfg80211_report_wowlan_wakeup(struct wireless_dev *wdev,
-			      struct cfg80211_wowlan_wakeup *wakeup, gfp_t gfp)
-{
-}
+#define NL80211_FEATURE_USERSPACE_MPM 0
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,10,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,11,0)
+#define IEEE80211_MAX_CHAINS 4
+
+#define MONITOR_FLAG_ACTIVE 0
+
+#define IEEE80211_RADIOTAP_MCS_HAVE_STBC 0
 
 static inline void cfg80211_rx_unprot_mlme_mgmt(struct net_device *dev,
 						void *data, int len)
@@ -143,22 +155,26 @@ static inline void cfg80211_rx_assoc_resp(struct net_device *dev,
 	cfg80211_send_rx_assoc(dev, bss, data, len);
 }
 
-static inline int
-ieee80211_chandef_max_power(struct cfg80211_chan_def *chandef)
-{
-	return chandef->chan->max_power;
-}
-
 static inline enum ieee80211_rate_flags
 ieee80211_chandef_rate_flags(struct cfg80211_chan_def *chandef)
 {
 	return 0;
 }
 
-static inline enum nl80211_bss_scan_width
-cfg80211_chandef_to_scan_width(const struct cfg80211_chan_def *chandef)
+#define IEEE80211_RADIOTAP_MCS_STBC_SHIFT	5
+
+/* on older versions this is safe - no RTNL use there */
+#define cfg80211_sched_scan_stopped_rtnl cfg80211_sched_scan_stopped
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,11,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,12,0)
+#define IEEE80211_CHAN_HALF 0
+#define IEEE80211_CHAN_QUARTER 0
+
+static inline int
+ieee80211_chandef_max_power(struct cfg80211_chan_def *chandef)
 {
-	return NL80211_BSS_CHAN_WIDTH_20;
+	return chandef->chan->max_power;
 }
 
 static inline struct cfg80211_bss * __must_check
@@ -172,10 +188,11 @@ cfg80211_inform_bss_width_frame(struct wiphy *wiphy,
 					 len, signal, gfp);
 }
 
-#define ieee80211_mandatory_rates(sband, width) ieee80211_mandatory_rates(sband)
-
-#define IEEE80211_CHAN_HALF 0
-#define IEEE80211_CHAN_QUARTER 0
+static inline enum nl80211_bss_scan_width
+cfg80211_chandef_to_scan_width(const struct cfg80211_chan_def *chandef)
+{
+	return NL80211_BSS_CHAN_WIDTH_20;
+}
 
 static inline bool
 iwl7000_cfg80211_rx_mgmt(struct wireless_dev *wdev, int freq, int sig_dbm,
@@ -195,6 +212,33 @@ struct cfg80211_csa_settings {
 	u8 count;
 };
 
+static inline u32
+ieee80211_mandatory_rates(struct ieee80211_supported_band *sband)
+{
+	struct ieee80211_rate *bitrates;
+	u32 mandatory_rates = 0;
+	enum ieee80211_rate_flags mandatory_flag;
+	int i;
+
+	if (WARN_ON(!sband))
+		return 1;
+
+	if (sband->band == IEEE80211_BAND_2GHZ)
+		mandatory_flag = IEEE80211_RATE_MANDATORY_B;
+	else
+		mandatory_flag = IEEE80211_RATE_MANDATORY_A;
+
+	bitrates = sband->bitrates;
+	for (i = 0; i < sband->n_bitrates; i++)
+		if (bitrates[i].flags & mandatory_flag)
+			mandatory_rates |= BIT(i);
+	return mandatory_rates;
+}
+
+#define ieee80211_mandatory_rates(sband, width) ieee80211_mandatory_rates(sband)
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,12,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,13,0)
 static inline int cfg80211_chandef_get_width(const struct cfg80211_chan_def *c)
 {
 	int width;
@@ -247,7 +291,6 @@ static inline int cfg80211_get_chans_dfs_required(struct wiphy *wiphy,
 	return 0;
 }
 
-
 static inline int
 cfg80211_chandef_dfs_required(struct wiphy *wiphy,
 			      const struct cfg80211_chan_def *chandef)
@@ -275,7 +318,9 @@ cfg80211_chandef_dfs_required(struct wiphy *wiphy,
 }
 
 #define cfg80211_radar_event(...) do { } while (0)
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,13,0) */
 
+#if CFG80211_VERSION < KERNEL_VERSION(3,14,0)
 struct cfg80211_mgmt_tx_params {
 	struct ieee80211_channel *chan;
 	bool offchan;
@@ -286,9 +331,127 @@ struct cfg80211_mgmt_tx_params {
 	bool dont_wait_for_ack;
 };
 
-#define IEEE80211_CHAN_NO_IR (IEEE80211_CHAN_PASSIVE_SCAN |\
-			      IEEE80211_CHAN_NO_IBSS)
-
 #define regulatory_flags flags
+
 #define REGULATORY_CUSTOM_REG WIPHY_FLAG_CUSTOM_REGULATORY
 #define REGULATORY_DISABLE_BEACON_HINTS WIPHY_FLAG_DISABLE_BEACON_HINTS
+
+#define IEEE80211_CHAN_NO_IR (IEEE80211_CHAN_PASSIVE_SCAN |\
+			      IEEE80211_CHAN_NO_IBSS)
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,14,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,15,0)
+#define IEEE80211_RADIOTAP_CODING_LDPC_USER0	0x1
+
+#define cfg80211_ibss_joined(dev, bssid, chan, gfp) \
+	cfg80211_ibss_joined(dev, bssid, gfp)
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,15,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,16,0)
+#define REGULATORY_ENABLE_RELAX_NO_IR 0
+
+#define cfg80211_reg_can_beacon(wiphy, chandef, iftype) \
+	cfg80211_reg_can_beacon(wiphy, chandef)
+#define cfg80211_chandef_dfs_required(wiphy, chandef, iftype) \
+	cfg80211_chandef_dfs_required(wiphy, chandef)
+
+static inline int
+cfg80211_iter_combinations(struct wiphy *wiphy,
+			   const int num_different_channels,
+			   const u8 radar_detect,
+			   const int iftype_num[NUM_NL80211_IFTYPES],
+			   void (*iter)(const struct ieee80211_iface_combination *c,
+					void *data),
+			   void *data)
+{
+	int i, j, iftype;
+	int num_interfaces = 0;
+	u32 used_iftypes = 0;
+
+	for (iftype = 0; iftype < NUM_NL80211_IFTYPES; iftype++) {
+		num_interfaces += iftype_num[iftype];
+		if (iftype_num[iftype] > 0 &&
+		    !(wiphy->software_iftypes & BIT(iftype)))
+			used_iftypes |= BIT(iftype);
+	}
+
+	for (i = 0; i < wiphy->n_iface_combinations; i++) {
+		const struct ieee80211_iface_combination *c;
+		struct ieee80211_iface_limit *limits;
+		u32 all_iftypes = 0;
+
+		c = &wiphy->iface_combinations[i];
+
+		if (num_interfaces > c->max_interfaces)
+			continue;
+		if (num_different_channels > c->num_different_channels)
+			continue;
+
+		limits = kmemdup(c->limits, sizeof(limits[0]) * c->n_limits,
+				 GFP_KERNEL);
+		if (!limits)
+			return -ENOMEM;
+
+		for (iftype = 0; iftype < NUM_NL80211_IFTYPES; iftype++) {
+			if (wiphy->software_iftypes & BIT(iftype))
+				continue;
+			for (j = 0; j < c->n_limits; j++) {
+				all_iftypes |= limits[j].types;
+				if (!(limits[j].types & BIT(iftype)))
+					continue;
+				if (limits[j].max < iftype_num[iftype])
+					goto cont;
+				limits[j].max -= iftype_num[iftype];
+			}
+		}
+
+		if (radar_detect)
+			goto cont;
+
+		/* Finally check that all iftypes that we're currently
+		 * using are actually part of this combination. If they
+		 * aren't then we can't use this combination and have
+		 * to continue to the next.
+		 */
+		if ((all_iftypes & used_iftypes) != used_iftypes)
+			goto cont;
+
+		/* This combination covered all interface types and
+		 * supported the requested numbers, so we're good.
+		 */
+
+		(*iter)(c, data);
+ cont:
+		kfree(limits);
+	}
+
+	return 0;
+}
+
+static void
+cfg80211_iter_sum_ifcombs(const struct ieee80211_iface_combination *c,
+			  void *data)
+{
+	int *num = data;
+	(*num)++;
+}
+
+static inline int
+cfg80211_check_combinations(struct wiphy *wiphy,
+			    const int num_different_channels,
+			    const u8 radar_detect,
+			    const int iftype_num[NUM_NL80211_IFTYPES])
+{
+	int err, num = 0;
+
+	err = cfg80211_iter_combinations(wiphy, num_different_channels,
+					 radar_detect, iftype_num,
+					 cfg80211_iter_sum_ifcombs, &num);
+	if (err)
+		return err;
+	if (num == 0)
+		return -EBUSY;
+
+	return 0;
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,16,0) */

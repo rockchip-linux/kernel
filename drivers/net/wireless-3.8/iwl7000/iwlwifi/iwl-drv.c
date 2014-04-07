@@ -135,7 +135,7 @@ struct iwl_drv {
 #endif
 
 	int fw_index;                   /* firmware we're trying to load */
-	char firmware_name[25];         /* name of firmware file to load */
+	char firmware_name[32];         /* name of firmware file to load */
 
 	struct completion request_firmware_complete;
 
@@ -175,13 +175,13 @@ static struct kobject *iwl_kobj;
 
 static struct iwl_op_mode *
 _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op);
-static void _iwl_op_mode_stop(struct iwl_drv *drv);
+static void _iwl_op_mode_stop(struct iwl_drv *drv, bool free_tm);
 
 /*
  * iwl_drv_get_dev_container - Given a device, returns the pointer
  * to it's corresponding driver's struct
  */
-static struct iwl_drv *iwl_drv_get_dev_container(struct device *dev)
+struct iwl_drv *iwl_drv_get_dev_container(struct device *dev)
 {
 	struct iwl_drv *drv_itr;
 	int i;
@@ -195,6 +195,7 @@ static struct iwl_drv *iwl_drv_get_dev_container(struct device *dev)
 
 	return NULL;
 }
+IWL_EXPORT_SYMBOL(iwl_drv_get_dev_container);
 
 /*
  * iwl_drv_get_op_mode - Returns the index of the device's
@@ -224,7 +225,7 @@ static int iwl_drv_get_op_mode_idx(struct iwl_drv *drv)
  * is supported by the device. Stops the current op mode
  * and starts the desired mode.
  */
-static int iwl_drv_switch_op_mode(struct iwl_drv *drv, const char *new_op_name)
+int iwl_drv_switch_op_mode(struct iwl_drv *drv, const char *new_op_name)
 {
 	struct iwlwifi_opmode_table *new_op = NULL;
 	int idx;
@@ -268,7 +269,7 @@ static int iwl_drv_switch_op_mode(struct iwl_drv *drv, const char *new_op_name)
 	drv->xvt_mode_on = (idx == XVT_OP_MODE);
 
 	/* Stopping the current op mode */
-	_iwl_op_mode_stop(drv);
+	_iwl_op_mode_stop(drv, false);
 
 	/* Changing operation mode */
 	mutex_lock(&iwlwifi_opmode_table_mtx);
@@ -288,6 +289,7 @@ static int iwl_drv_switch_op_mode(struct iwl_drv *drv, const char *new_op_name)
 
 	return 0;
 }
+IWL_EXPORT_SYMBOL(iwl_drv_switch_op_mode);
 
 /*
  * iwl_drv_sysfs_show - Returns device information to user
@@ -317,45 +319,9 @@ static ssize_t iwl_drv_sysfs_show(struct device *dev,
 	return ret;
 }
 
-/*
- * iwl_drv_sysfs_store - Receives commands from user
- */
-static ssize_t iwl_drv_sysfs_store(struct device *dev,
-					struct device_attribute *attr,
-					const char *buf, size_t count)
-{
-	struct iwl_drv *drv;
-	char *cmd_token_end = strpbrk(buf, "\n\r ");
-	ssize_t ret;
-
-	/* Retrieving containing driver */
-	drv = iwl_drv_get_dev_container(dev);
-	if (!drv) {
-		pr_err("Couldn't retrieve device information\n");
-		ret = -ENODEV;
-		goto sysfs_store_end;
-	}
-
-	/* Terminating string */
-	if (cmd_token_end)
-		*cmd_token_end = '\0';
-
-	/* Executing switch command */
-	ret = iwl_drv_switch_op_mode(drv, buf);
-	/*
-	 * Upon success, return value should be "count"
-	 * otherwise, negative value is returned
-	 */
-	if (!ret)
-		ret = count;
-
-sysfs_store_end:
-	return ret;
-}
-
 /* Attribute for device */
-static DEVICE_ATTR(op_mode, S_IRUGO | S_IWOTH,
-			iwl_drv_sysfs_show, iwl_drv_sysfs_store);
+static const DEVICE_ATTR(op_mode, S_IRUGO,
+			 iwl_drv_sysfs_show, NULL);
 
 /*
  * iwl_create_sysfs_file - Creates a sysfs entry (under PCI devices),
@@ -466,7 +432,8 @@ static int iwl_request_firmware(struct iwl_drv *drv, bool first)
 		return -ENOENT;
 	}
 
-	sprintf(drv->firmware_name, "%s%s%s", name_pre, tag, ".ucode");
+	snprintf(drv->firmware_name, sizeof(drv->firmware_name), "%s%s.ucode",
+		 name_pre, tag);
 
 	IWL_DEBUG_INFO(drv, "attempting to load firmware %s'%s'\n",
 		       (drv->fw_index == UCODE_EXPERIMENTAL_INDEX)
@@ -628,6 +595,38 @@ static int iwl_set_default_calib(struct iwl_drv *drv, const u8 *data)
 		def_calib->calib.flow_trigger;
 	drv->fw.default_calib[ucode_type].event_trigger =
 		def_calib->calib.event_trigger;
+
+	return 0;
+}
+
+static int iwl_set_ucode_api_flags(struct iwl_drv *drv, const u8 *data,
+				   struct iwl_ucode_capabilities *capa)
+{
+	const struct iwl_ucode_api *ucode_api = (void *)data;
+	u32 api_index = le32_to_cpu(ucode_api->api_index);
+
+	if (api_index >= IWL_API_ARRAY_SIZE) {
+		IWL_ERR(drv, "api_index larger than supported by driver\n");
+		return -EINVAL;
+	}
+
+	capa->api[api_index] = le32_to_cpu(ucode_api->api_flags);
+
+	return 0;
+}
+
+static int iwl_set_ucode_capabilities(struct iwl_drv *drv, const u8 *data,
+				      struct iwl_ucode_capabilities *capa)
+{
+	const struct iwl_ucode_capa *ucode_capa = (void *)data;
+	u32 api_index = le32_to_cpu(ucode_capa->api_index);
+
+	if (api_index >= IWL_CAPABILITIES_ARRAY_SIZE) {
+		IWL_ERR(drv, "api_index larger than supported by driver\n");
+		return -EINVAL;
+	}
+
+	capa->capa[api_index] = le32_to_cpu(ucode_capa->api_capa);
 
 	return 0;
 }
@@ -866,6 +865,18 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 			 */
 			capa->flags = le32_to_cpup((__le32 *)tlv_data);
 			break;
+		case IWL_UCODE_TLV_API_CHANGES_SET:
+			if (tlv_len != sizeof(struct iwl_ucode_api))
+				goto invalid_tlv_len;
+			if (iwl_set_ucode_api_flags(drv, tlv_data, capa))
+				goto tlv_error;
+			break;
+		case IWL_UCODE_TLV_ENABLED_CAPABILITIES:
+			if (tlv_len != sizeof(struct iwl_ucode_capa))
+				goto invalid_tlv_len;
+			if (iwl_set_ucode_capabilities(drv, tlv_data, capa))
+				goto tlv_error;
+			break;
 		case IWL_UCODE_TLV_INIT_EVTLOG_PTR:
 			if (tlv_len != sizeof(u32))
 				goto invalid_tlv_len;
@@ -956,6 +967,12 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 			if (tlv_len != sizeof(u32))
 				goto invalid_tlv_len;
 			drv->fw.phy_config = le32_to_cpup((__le32 *)tlv_data);
+			drv->fw.valid_tx_ant = (drv->fw.phy_config &
+						FW_PHY_CFG_TX_CHAIN) >>
+						FW_PHY_CFG_TX_CHAIN_POS;
+			drv->fw.valid_rx_ant = (drv->fw.phy_config &
+						FW_PHY_CFG_RX_CHAIN) >>
+						FW_PHY_CFG_RX_CHAIN_POS;
 			break;
 		 case IWL_UCODE_TLV_SECURE_SEC_RT:
 			iwl_store_ucode_sec(pieces, tlv_data, IWL_UCODE_REGULAR,
@@ -1116,12 +1133,13 @@ _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op)
 	return op_mode;
 }
 
-static void _iwl_op_mode_stop(struct iwl_drv *drv)
+static void _iwl_op_mode_stop(struct iwl_drv *drv, bool free_tm)
 {
 	/* op_mode can be NULL if its start failed */
 	if (drv->op_mode) {
 		iwl_op_mode_stop(drv->op_mode);
-		iwl_tm_gnl_remove(drv->trans);
+		if (free_tm)
+			iwl_tm_gnl_remove(drv->trans);
 		drv->op_mode = NULL;
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
@@ -1177,6 +1195,33 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 		IWL_ERR(drv, "File size way too small!\n");
 		goto try_again;
 	}
+
+#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
+
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	/*
+	* Check if different uCode is required, according to configuration.
+	* If so - overwrite existing firmware_name.
+	*/
+	if (drv->trans->dbg_cfg.d0_is_usniffer) {
+		char firmware_name[32];
+
+		release_firmware(ucode_raw);
+		snprintf(firmware_name, sizeof(firmware_name),
+			 "usniffer-%s", drv->firmware_name);
+		strcpy(drv->firmware_name, firmware_name);
+		IWL_DEBUG_INFO(drv, "attempting to load usniffer ucode %s\n",
+			       drv->firmware_name);
+		err = request_firmware(&ucode_raw, drv->firmware_name,
+				       drv->trans->dev);
+		if (err) {
+			IWL_ERR(drv, "Failed getting usniffer FW!\n");
+			goto out_unbind;
+		}
+	}
+#endif
+#endif
 
 	/* Data from ucode file:  header followed by uCode images */
 	ucode = (struct iwl_ucode_header *)ucode_raw->data;
@@ -1270,10 +1315,6 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 
 	/* We have our copies now, allow OS release its copies */
 	release_firmware(ucode_raw);
-
-#ifdef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
-	iwl_dbg_cfg_load_ini(drv->trans->dev, &drv->trans->dbg_cfg);
-#endif
 
 	mutex_lock(&iwlwifi_opmode_table_mtx);
 	if (fw->mvm_fw)
@@ -1420,7 +1461,7 @@ void iwl_drv_stop(struct iwl_drv *drv)
 {
 	wait_for_completion(&drv->request_firmware_complete);
 
-	_iwl_op_mode_stop(drv);
+	_iwl_op_mode_stop(drv, true);
 
 	iwl_dealloc_ucode(drv);
 
@@ -1498,7 +1539,7 @@ void iwl_opmode_deregister(const char *name)
 
 		/* call the stop routine for all devices */
 		list_for_each_entry(drv, &iwlwifi_opmode_table[i].drv, list)
-			_iwl_op_mode_stop(drv);
+			_iwl_op_mode_stop(drv, true);
 
 		mutex_unlock(&iwlwifi_opmode_table_mtx);
 		return;
@@ -1608,7 +1649,7 @@ module_param_named(swcrypto, iwlwifi_mod_params.sw_crypto, int, S_IRUGO);
 MODULE_PARM_DESC(swcrypto, "using crypto in software (default 0 [hardware])");
 module_param_named(11n_disable, iwlwifi_mod_params.disable_11n, uint, S_IRUGO);
 MODULE_PARM_DESC(11n_disable,
-	"disable 11n functionality, bitmap: 1: full, 2: agg TX, 4: agg RX");
+	"disable 11n functionality, bitmap: 1: full, 2: disable agg TX, 4: disable agg RX, 8 enable agg TX");
 module_param_named(amsdu_size_8K, iwlwifi_mod_params.amsdu_size_8K,
 		   int, S_IRUGO);
 MODULE_PARM_DESC(amsdu_size_8K, "enable 8K amsdu size (default 0)");
@@ -1622,8 +1663,7 @@ MODULE_PARM_DESC(antenna_coupling,
 
 module_param_named(wd_disable, iwlwifi_mod_params.wd_disable, int, S_IRUGO);
 MODULE_PARM_DESC(wd_disable,
-		"Disable stuck queue watchdog timer 0=system default, "
-		"1=disable, 2=enable (default: 0)");
+		"Disable stuck queue watchdog timer 0=system default, 1=disable (default: 1)");
 
 module_param_named(nvm_file, iwlwifi_mod_params.nvm_file, charp, S_IRUGO);
 MODULE_PARM_DESC(nvm_file, "NVM file name");
