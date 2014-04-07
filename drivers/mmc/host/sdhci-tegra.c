@@ -1455,6 +1455,11 @@ static int tegra_sdhci_buswidth(struct sdhci_host *host, int bus_width)
 	return 0;
 }
 
+static unsigned int tegra_sdhci_get_timeout_clock(struct sdhci_host *sdhci)
+{
+	return 0;
+}
+
 static const struct sdhci_ops tegra_sdhci_ops = {
 	.get_ro     = tegra_sdhci_get_ro,
 	.read_l     = tegra_sdhci_readl,
@@ -1466,6 +1471,7 @@ static const struct sdhci_ops tegra_sdhci_ops = {
 	.get_max_clock = sdhci_pltfm_clk_get_max_clock,
 	.set_uhs_signaling	= tegra_sdhci_set_uhs_signaling,
 	.switch_signal_voltage_exit = tegra_sdhci_do_calibration,
+	.get_timeout_clock	= tegra_sdhci_get_timeout_clock,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
@@ -1514,7 +1520,6 @@ static struct sdhci_tegra_soc_data soc_data_tegra114 = {
 
 static const struct sdhci_pltfm_data sdhci_tegra132_pdata = {
 	.quirks = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL |
-		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
 		  SDHCI_QUIRK_SINGLE_POWER_WRITE |
 		  SDHCI_QUIRK_NO_HISPD_BIT |
 		  SDHCI_QUIRK_BROKEN_ADMA |
