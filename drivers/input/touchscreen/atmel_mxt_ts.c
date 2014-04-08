@@ -1180,6 +1180,7 @@ static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 	int area = 0;
 	int pressure = 0;
 	int touch_major = 0;
+	int touch_peak = 0;
 	int next_index = 1;
 	int vector1 = 0, vector2 = 0;
 	int touch_type;
@@ -1208,14 +1209,13 @@ static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 
 	if (data->T100_enabled_area) {
 		area = payload[next_index];
+		touch_major = get_touch_major_pixels(data, area);
 		next_index += 1;
 	}
 
 	if (data->T100_enabled_peak) {
-		touch_major = payload[next_index];
+		touch_peak = payload[next_index];
 		next_index += 1;
-	} else {
-		touch_major = get_touch_major_pixels(data, area);
 	}
 
 	/*
