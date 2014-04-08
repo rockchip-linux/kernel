@@ -134,6 +134,7 @@ static const char recov_packet[HELLO_PACKET_LEN] = {0x55, 0x55, 0x80, 0x80};
 #define	BOOT_TIME_DELAY_MS	50
 
 /* FW read command, 0x53 0x?? 0x0, 0x01 */
+#define	E_ELAN_INFO_FW_VER	0x00
 #define	E_INFO_OSR	0xD6
 #define	E_INFO_PHY_SCAN	0xD7
 #define E_INFO_PHY_DRIVER	0xD8
@@ -171,6 +172,10 @@ struct mt_device {
 
 /* struct elants_data - represents a global define of elants device */
 struct elants_data {
+	bool wake_irq_enabled;
+
+	u8 fw_version[2];	/* [0]: solution version, [1]: minor version */
+
 	int osr;	/* interpolating  trace */
 	int x_res;	/* resolution in units/mm */
 	int y_res;
@@ -200,6 +205,10 @@ struct elants_data {
 	spinlock_t rx_kfifo_lock;
 
 	struct mt_device td;
+
+	/* fields required for debug fs */
+	struct mutex dbfs_mutex;
+	struct dentry *dbfs_root;
 
 	/* Add for TS driver debug */
 	long int irq_count;
@@ -293,6 +302,175 @@ static int elan_async_rw(struct i2c_client *client,
 
 	return (rc < 0) ? -EIO : 0;
 }
+
+static int elan_i2c_read_block(struct i2c_client *client,
+			       u8 *cmd, u8 *val, u16 len)
+{
+	struct i2c_msg msgs[2];
+	int ret;
+
+	ENTER_LOG();
+
+	msgs[0].addr = client->addr;
+	msgs[0].flags = client->flags & I2C_M_TEN;
+	msgs[0].len = 4;
+	msgs[0].buf = cmd;
+
+	msgs[1].addr = client->addr;
+	msgs[1].flags = client->flags & I2C_M_TEN;
+	msgs[1].flags |= I2C_M_RD;
+	msgs[1].len = len;
+	msgs[1].buf = val;
+
+	ret = i2c_transfer(client->adapter, msgs, 2);
+	return (ret == 2) ? len : ret;
+}
+
+static int elan_dbfs_open(struct inode *inode, struct file *file)
+{
+	int retval = 0;
+	struct elants_data *ts = inode->i_private;
+	struct i2c_client *client = ts->client;
+
+	ENTER_LOG();
+
+	if (!ts)
+		return -ENODEV;
+
+	disable_irq(ts->client->irq);
+
+	retval = mutex_lock_interruptible(&ts->dbfs_mutex);
+	if (retval)
+		return retval;
+
+	if (!kobject_get(&ts->client->dev.kobj)) {
+		retval = -ENODEV;
+		goto dbfs_out;
+	}
+
+	file->private_data = ts;
+dbfs_out:
+	mutex_unlock(&ts->dbfs_mutex);
+	return retval;
+}
+
+static ssize_t elan_dbfs_read(struct file *file,
+			      char __user *buffer, size_t count, loff_t *ppos)
+{
+	u8 rxbuf[256];
+	int ret = -1;
+	struct elants_data *ts = file->private_data;
+	struct i2c_adapter *adap = ts->client->adapter;
+	struct i2c_msg msg;
+
+	if (count > 256)
+		return -EMSGSIZE;
+	msg.addr = ts->i2caddr;
+	msg.flags = ts->client->flags & I2C_M_TEN;
+	msg.flags |= I2C_M_RD;
+	msg.len = count;
+	msg.buf = rxbuf;
+
+	ret = i2c_transfer(adap, &msg, 1);
+	if (ret == 1)
+		if (copy_to_user(buffer, rxbuf, count))
+			return -EFAULT;
+
+	/* If everything went ok (i.e. 1 msg transmitted), return #bytes
+	   transmitted, else error code. */
+	return (ret == 1) ? count : ret;
+}
+
+static ssize_t elan_dbfs_write(struct file *file,
+			       const char __user *buffer, size_t count,
+			       loff_t *ppos)
+{
+	int ret;
+	u8 txbuf[256];
+	struct elants_data *ts = file->private_data;
+	struct i2c_adapter *adap = ts->client->adapter;
+	struct i2c_msg msg;
+
+	if (count > 256)
+		return -EMSGSIZE;
+
+	if (copy_from_user(txbuf, buffer, count))
+		return -EFAULT;
+
+	msg.addr = ts->i2caddr;
+	msg.flags = ts->client->flags & I2C_M_TEN;
+	msg.len = count;
+	msg.buf = (char *)txbuf;
+
+	ret = i2c_transfer(adap, &msg, 1);
+	if (ret != 1)
+		dev_err(&ts->client->dev,
+			"i2c_master_send fail, ret=%d\n", ret);
+
+	/* If everything went ok (i.e. 1 msg transmitted), return #bytes
+	   transmitted, else error code. */
+	return (ret == 1) ? count : ret;
+}
+
+static int elan_dbfs_release(struct inode *inode, struct file *file)
+{
+	struct elants_data *ts = file->private_data;
+
+	if (!ts)
+		return -ENODEV;
+
+	enable_irq(ts->client->irq);
+	mutex_destroy(&ts->dbfs_mutex);
+
+	return 0;
+}
+
+static const struct file_operations elan_debug_fops = {
+	.owner = THIS_MODULE,
+	.open = elan_dbfs_open,
+	.release = elan_dbfs_release,
+	.read = elan_dbfs_read,
+	.write = elan_dbfs_write,
+};
+
+static int elan_dbfs_init(struct elants_data *ts)
+{
+	/* Create a global debugfs root for all elan ts devices */
+	ts->dbfs_root = debugfs_create_dir(DEVICE_NAME, NULL);
+	if (ts->dbfs_root == ERR_PTR(-ENODEV))
+		ts->dbfs_root = NULL;
+
+	mutex_init(&ts->dbfs_mutex);
+
+	debugfs_create_file("elan-iap",
+		0666, ts->dbfs_root, ts, &elan_debug_fops);
+
+	return 0;
+}
+
+/*
+ * sysfs interface
+ */
+static ssize_t show_fw_version_value(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%.2x%.2x\n", ts->fw_version[0], ts->fw_version[1]);
+}
+
+static DEVICE_ATTR(fw_version, S_IRUGO, show_fw_version_value, NULL);
+
+static struct attribute *elan_attributes[] = {
+	&dev_attr_fw_version.attr,
+	NULL
+};
+
+static struct attribute_group elan_attribute_group = {
+	.name = DEVICE_NAME,
+	.attrs = elan_attributes,
+};
 
 /*
  * Software reset to our TS.
@@ -389,6 +567,57 @@ static int __hello_packet_handler(struct i2c_client *client)
 	ts->i2caddr = DEV_MASTER;
 
 	return rc;
+}
+
+static int __fw_version_packet_handler(struct i2c_client *client)
+{
+	struct elants_data *ts = i2c_get_clientdata(client);
+	int rc, tries = 3;
+	const u8 cmd[] = {CMD_HEADER_READ, E_ELAN_INFO_FW_VER, 0x00, 0x01};
+	u8 buf_recv[4] = {0x0};
+
+	ENTER_LOG();
+
+	/* Command not support in IAP recovery mode */
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		return 0;
+retry:
+	rc = elan_i2c_read_block(client, (u8 *) cmd, buf_recv, 4);
+	if (rc < 0) {
+		elan_dbg(client,
+			 "read fw version rc=%d, buf=%*phC\n", rc, 4, buf_recv);
+	}
+
+	if (buf_recv[0] == CMD_HEADER_RESP) {
+		ts->fw_version[0] = ((buf_recv[1] & 0x0f) << 4) |
+		    ((buf_recv[2] & 0xf0) >> 4);
+		ts->fw_version[1] = ((buf_recv[2] & 0x0f) << 4) |
+		    ((buf_recv[3] & 0xf0) >> 4);
+
+		if (((ts->fw_version[0] == 0x00) && (ts->fw_version[1] == 0x00))
+		    || ((ts->fw_version[0] == 0xff)
+			&& (ts->fw_version[1] == 0xff))) {
+			dev_err(&client->dev,
+				"FW version is empty, "
+				"suggest IAP ELAN chip\n");
+			return -EINVAL;
+		}
+	} else {
+		elan_dbg(client, "read fw retry tries=%d\n", tries);
+		if (tries > 0) {
+			tries--;
+			goto retry;
+		}
+
+		ts->fw_version[0] = 0xff;
+		ts->fw_version[1] = 0xff;
+		dev_err(&client->dev,
+			"Fail to read fw version for 3 times, "
+			"suggest IAP ELAN chip\n");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int __ts_info_handler(struct i2c_client *client)
@@ -1091,6 +1320,16 @@ static int elan_initialize(struct i2c_client *client)
 	if (rc < 0)
 		dev_err(&client->dev, "hello packet error.\n");
 
+	rc = __fw_version_packet_handler(client);
+	if (rc < 0) {
+		dev_err(&client->dev, "firmware checking error rc=%d\n", rc);
+
+		if (rc == -EINVAL) {
+			set_bit(LOCK_FW_UPDATE, &ts->flags);
+			ts->iap_mode = IAP_MODE_ENABLE;
+		}
+	}
+
 	rc = __ts_info_handler(client);
 	if (rc < 0)
 		dev_err(&client->dev, "TS information checking error.\n");
@@ -1172,6 +1411,13 @@ static int elan_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	init_waitqueue_head(&ts->wait);
 	spin_lock_init(&ts->rx_kfifo_lock);
 
+	/* set dbfs for user-space program */
+	err = elan_dbfs_init(ts);
+	if (err < 0) {
+		dev_err(&client->dev, "error create elan debugfs.\n");
+		goto err_release;
+	}
+
 	if (!client->dev.platform_data)
 		dev_err(&client->dev,
 			"%s No platform data provided\n", DEVICE_NAME);
@@ -1196,6 +1442,14 @@ static int elan_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	/* Says HELLO to touch device */
 	async_schedule(elan_initialize_async, ts);
 
+#ifdef CONFIG_PM_SLEEP
+	device_init_wakeup(&client->dev, true);
+#endif
+
+	/* register sysfs */
+	if (sysfs_create_group(&client->dev.kobj, &elan_attribute_group))
+		dev_err(&client->dev, "sysfs create group error\n");
+
 	return 0;
 
 err_release:
@@ -1208,6 +1462,68 @@ static const struct i2c_device_id elan_ts_id[] = {
 	{}
 };
 
+#ifdef CONFIG_PM_SLEEP
+static int elan_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+	const u8 set_sleep_cmd[] = {0x54, 0x50, 0x00, 0x01};
+	int rc = 0;
+
+	ENTER_LOG();
+
+	/* Command not support in IAP recovery mode */
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		return 0;
+
+	mutex_lock(&ts->i2c_mutex);
+
+	rc = elan_set_data(client, set_sleep_cmd, sizeof(set_sleep_cmd));
+	if (rc < 0)
+		dev_err(&client->dev, "suspend command failed!\n");
+
+	if (device_may_wakeup(dev))
+		ts->wake_irq_enabled = (enable_irq_wake(client->irq) == 0);
+
+	disable_irq(client->irq);
+
+	mutex_unlock(&ts->i2c_mutex);
+
+	return 0;
+}
+
+static int elan_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+	const u8 set_active_cmd[] = {0x54, 0x58, 0x00, 0x01};
+	int rc = 0;
+
+	ENTER_LOG();
+
+	/* Command not support in IAP recovery mode */
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		return 0;
+
+	if (device_may_wakeup(dev) && ts->wake_irq_enabled)
+		disable_irq_wake(client->irq);
+
+	mutex_lock(&ts->i2c_mutex);
+
+	rc = elan_set_data(client, set_active_cmd, sizeof(set_active_cmd));
+	if (rc < 0)
+		dev_err(&client->dev, "resume command failed!\n");
+
+	enable_irq(client->irq);
+
+	mutex_unlock(&ts->i2c_mutex);
+
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(elan_pm_ops, elan_suspend, elan_resume);
+#endif
+
 MODULE_DEVICE_TABLE(i2c, elan_ts_id);
 
 static struct i2c_driver elan_ts_driver = {
@@ -1217,6 +1533,9 @@ static struct i2c_driver elan_ts_driver = {
 	.driver = {
 		   .name = DEVICE_NAME,
 		   .owner = THIS_MODULE,
+#ifdef CONFIG_PM_SLEEP
+		   .pm = &elan_pm_ops,
+#endif
 		   },
 };
 
