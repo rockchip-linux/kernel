@@ -239,8 +239,8 @@ void cfg80211_notify_new_peer_candidate(struct net_device *dev,
 }
 EXPORT_SYMBOL(cfg80211_notify_new_peer_candidate);
 
-static int __cfg80211_leave_mesh(struct cfg80211_registered_device *rdev,
-				 struct net_device *dev)
+int __cfg80211_leave_mesh(struct cfg80211_registered_device *rdev,
+			  struct net_device *dev)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	int err;

@@ -6,8 +6,8 @@
 #include "rdev-ops.h"
 
 
-static int __cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
-			      struct net_device *dev)
+int __cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
+		       struct net_device *dev)
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	int err;
