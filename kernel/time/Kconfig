@@ -202,3 +202,10 @@ config HIGH_RES_TIMERS
 
 endmenu
 endif
+
+config UDELAY_TEST
+	tristate "udelay test driver"
+	default n
+	help
+	  This builds the "udelay_test" module that helps to make sure
+	  that udelay() is working properly.
