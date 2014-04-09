@@ -188,6 +188,7 @@ static int wait_till_ready(struct m25p *flash)
 			break;
 		else if (!(sr & SR_WIP))
 			return 0;
+		cmd_sz = 1;
 
 		cond_resched();
 
@@ -501,45 +502,8 @@ static int sst_write(struct mtd_info *mtd, loff_t to, size_t len,
 	if (ret)
 		goto time_out;
 
-	write_enable(flash);
-
-	actual = to % 2;
-	/* Start write from odd address. */
-	if (actual) {
-		flash->command[0] = OPCODE_BP;
-		m25p_addr2cmd(flash, to, flash->command);
-
-		/* write one byte. */
-		t[1].len = 1;
-		spi_sync(flash->spi, &m);
-		ret = wait_till_ready(flash);
-		if (ret)
-			goto time_out;
-		*retlen += m.actual_length - m25p_cmdsz(flash);
-	}
-	to += actual;
-
-	flash->command[0] = OPCODE_AAI_WP;
-	m25p_addr2cmd(flash, to, flash->command);
-
-	/* Write out most of the data here. */
-	cmd_sz = m25p_cmdsz(flash);
-	for (; actual < len - 1; actual += 2) {
-		t[0].len = cmd_sz;
-		/* write two bytes. */
-		t[1].len = 2;
-		t[1].tx_buf = buf + actual;
-
-		spi_sync(flash->spi, &m);
-		ret = wait_till_ready(flash);
-		if (ret)
-			goto time_out;
-		*retlen += m.actual_length - cmd_sz;
-		cmd_sz = 1;
-		to += 2;
-	}
-	write_disable(flash);
-	ret = wait_till_ready(flash);
+	/* Send write enable, then erase commands. */
+	ret = nor->write_reg(nor, SPINOR_OP_WREN, NULL, 0, 0);
 	if (ret)
 		goto time_out;
 
