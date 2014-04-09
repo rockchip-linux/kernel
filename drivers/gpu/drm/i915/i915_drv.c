@@ -166,11 +166,18 @@ static struct drm_driver driver;
 	.palette_offsets = { PALETTE_A_OFFSET, PALETTE_B_OFFSET }
 
 
+#define CURSOR_OFFSETS \
+	.cursor_offsets = { CURSOR_A_OFFSET, CURSOR_B_OFFSET, CHV_CURSOR_C_OFFSET }
+
+#define IVB_CURSOR_OFFSETS \
+	.cursor_offsets = { CURSOR_A_OFFSET, IVB_CURSOR_B_OFFSET, IVB_CURSOR_C_OFFSET }
+
 static const struct intel_device_info intel_i830_info = {
 	.gen = 2, .is_mobile = 1, .cursor_needs_physical = 1, .num_pipes = 2,
 	.has_overlay = 1, .overlay_needs_physical = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_845g_info = {
@@ -178,6 +185,7 @@ static const struct intel_device_info intel_845g_info = {
 	.has_overlay = 1, .overlay_needs_physical = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_i85x_info = {
@@ -187,6 +195,7 @@ static const struct intel_device_info intel_i85x_info = {
 	.has_fbc = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_i865g_info = {
@@ -194,6 +203,7 @@ static const struct intel_device_info intel_i865g_info = {
 	.has_overlay = 1, .overlay_needs_physical = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_i915g_info = {
@@ -201,6 +211,7 @@ static const struct intel_device_info intel_i915g_info = {
 	.has_overlay = 1, .overlay_needs_physical = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 static const struct intel_device_info intel_i915gm_info = {
 	.gen = 3, .is_mobile = 1, .num_pipes = 2,
@@ -210,12 +221,14 @@ static const struct intel_device_info intel_i915gm_info = {
 	.has_fbc = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 static const struct intel_device_info intel_i945g_info = {
 	.gen = 3, .has_hotplug = 1, .cursor_needs_physical = 1, .num_pipes = 2,
 	.has_overlay = 1, .overlay_needs_physical = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 static const struct intel_device_info intel_i945gm_info = {
 	.gen = 3, .is_i945gm = 1, .is_mobile = 1, .num_pipes = 2,
@@ -225,6 +238,7 @@ static const struct intel_device_info intel_i945gm_info = {
 	.has_fbc = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_i965g_info = {
@@ -233,6 +247,7 @@ static const struct intel_device_info intel_i965g_info = {
 	.has_overlay = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_i965gm_info = {
@@ -242,6 +257,7 @@ static const struct intel_device_info intel_i965gm_info = {
 	.supports_tv = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_g33_info = {
@@ -250,6 +266,7 @@ static const struct intel_device_info intel_g33_info = {
 	.has_overlay = 1,
 	.ring_mask = RENDER_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_g45_info = {
@@ -257,6 +274,7 @@ static const struct intel_device_info intel_g45_info = {
 	.has_pipe_cxsr = 1, .has_hotplug = 1,
 	.ring_mask = RENDER_RING | BSD_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_gm45_info = {
@@ -266,6 +284,7 @@ static const struct intel_device_info intel_gm45_info = {
 	.supports_tv = 1,
 	.ring_mask = RENDER_RING | BSD_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_pineview_info = {
@@ -273,6 +292,7 @@ static const struct intel_device_info intel_pineview_info = {
 	.need_gfx_hws = 1, .has_hotplug = 1,
 	.has_overlay = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_ironlake_d_info = {
@@ -280,6 +300,7 @@ static const struct intel_device_info intel_ironlake_d_info = {
 	.need_gfx_hws = 1, .has_hotplug = 1,
 	.ring_mask = RENDER_RING | BSD_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_ironlake_m_info = {
@@ -288,6 +309,7 @@ static const struct intel_device_info intel_ironlake_m_info = {
 	.has_fbc = 1,
 	.ring_mask = RENDER_RING | BSD_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_sandybridge_d_info = {
@@ -297,6 +319,7 @@ static const struct intel_device_info intel_sandybridge_d_info = {
 	.ring_mask = RENDER_RING | BSD_RING | BLT_RING,
 	.has_llc = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_sandybridge_m_info = {
@@ -306,6 +329,7 @@ static const struct intel_device_info intel_sandybridge_m_info = {
 	.ring_mask = RENDER_RING | BSD_RING | BLT_RING,
 	.has_llc = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 #define GEN7_FEATURES  \
@@ -319,6 +343,7 @@ static const struct intel_device_info intel_ivybridge_d_info = {
 	GEN7_FEATURES,
 	.is_ivybridge = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_ivybridge_m_info = {
@@ -326,6 +351,7 @@ static const struct intel_device_info intel_ivybridge_m_info = {
 	.is_ivybridge = 1,
 	.is_mobile = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_ivybridge_q_info = {
@@ -333,6 +359,7 @@ static const struct intel_device_info intel_ivybridge_q_info = {
 	.is_ivybridge = 1,
 	.num_pipes = 0, /* legal, last one wins */
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_valleyview_m_info = {
@@ -344,6 +371,7 @@ static const struct intel_device_info intel_valleyview_m_info = {
 	.has_fbc = 0, /* legal, last one wins */
 	.has_llc = 0, /* legal, last one wins */
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_valleyview_d_info = {
@@ -354,6 +382,7 @@ static const struct intel_device_info intel_valleyview_d_info = {
 	.has_fbc = 0, /* legal, last one wins */
 	.has_llc = 0, /* legal, last one wins */
 	GEN_DEFAULT_PIPEOFFSETS,
+	CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_haswell_d_info = {
@@ -363,6 +392,7 @@ static const struct intel_device_info intel_haswell_d_info = {
 	.has_fpga_dbg = 1,
 	.ring_mask = RENDER_RING | BSD_RING | BLT_RING | VEBOX_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_haswell_m_info = {
@@ -373,6 +403,7 @@ static const struct intel_device_info intel_haswell_m_info = {
 	.has_fpga_dbg = 1,
 	.ring_mask = RENDER_RING | BSD_RING | BLT_RING | VEBOX_RING,
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_broadwell_d_info = {
@@ -382,6 +413,7 @@ static const struct intel_device_info intel_broadwell_d_info = {
 	.has_llc = 1,
 	.has_ddi = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 static const struct intel_device_info intel_broadwell_m_info = {
@@ -391,6 +423,7 @@ static const struct intel_device_info intel_broadwell_m_info = {
 	.has_llc = 1,
 	.has_ddi = 1,
 	GEN_DEFAULT_PIPEOFFSETS,
+	IVB_CURSOR_OFFSETS,
 };
 
 /*
