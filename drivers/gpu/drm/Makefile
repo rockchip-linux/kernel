@@ -25,7 +25,7 @@ drm-$(CONFIG_OF) += drm_of.o
 
 drm-usb-y   := drm_usb.o
 
-drm_kms_helper-y := drm_crtc_helper.o drm_dp_helper.o
+drm_kms_helper-y := drm_crtc_helper.o drm_dp_helper.o drm_probe_helper.o
 drm_kms_helper-$(CONFIG_DRM_LOAD_EDID_FIRMWARE) += drm_edid_load.o
 drm_kms_helper-$(CONFIG_DRM_KMS_FB_HELPER) += drm_fb_helper.o
 drm_kms_helper-$(CONFIG_DRM_KMS_CMA_HELPER) += drm_fb_cma_helper.o
