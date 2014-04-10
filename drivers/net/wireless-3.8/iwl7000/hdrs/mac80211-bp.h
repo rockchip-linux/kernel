@@ -15,46 +15,12 @@ struct cfg80211_wowlan_wakeup {
 };
 
 /* nl80211 */
-struct nl80211_wowlan_tcp_data_token_feature {
-	__u32 min_len, max_len, bufsize;
-};
-
-
 struct wiphy_wowlan_tcp_support {
 	const struct nl80211_wowlan_tcp_data_token_feature *tok;
 	u32 data_payload_max;
 	u32 data_interval_max;
 	u32 wake_payload_max;
 	bool seq;
-};
-
-struct nl80211_wowlan_tcp_data_seq {
-	__u32 start, offset, len;
-};
-
-struct nl80211_wowlan_tcp_data_token {
-	__u32 offset, len;
-	__u8 token_stream[];
-};
-
-struct cfg80211_wowlan_tcp {
-	struct socket *sock;
-	__be32 src, dst;
-	u16 src_port, dst_port;
-	u8 dst_mac[ETH_ALEN];
-	int payload_len;
-	const u8 *payload;
-	struct nl80211_wowlan_tcp_data_seq payload_seq;
-	u32 data_interval;
-	u32 wake_len;
-	const u8 *wake_data, *wake_mask;
-	u32 tokens_size;
-	/* must be last, variable member */
-	struct nl80211_wowlan_tcp_data_token payload_tok;
-};
-
-enum nl80211_mesh_power_mode {
-	__DUMMY_MESH_POWER_MODE,
 };
 
 #define MONITOR_FLAG_ACTIVE 0
@@ -176,10 +142,6 @@ static inline void cfg80211_rx_assoc_resp(struct net_device *dev,
 {
 	cfg80211_send_rx_assoc(dev, bss, data, len);
 }
-
-enum nl80211_bss_scan_width {
-	NL80211_BSS_CHAN_WIDTH_20,
-};
 
 static inline int
 ieee80211_chandef_max_power(struct cfg80211_chan_def *chandef)
