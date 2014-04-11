@@ -623,6 +623,7 @@ static void drm_dev_release(struct kref *ref)
 	drm_fs_inode_free(dev->anon_inode);
 
 	kfree(dev->devname);
+	kfree(dev->unique);
 	kfree(dev);
 }
 
@@ -756,3 +757,28 @@ void drm_dev_unregister(struct drm_device *dev)
 	drm_unplug_minor(dev->primary);
 }
 EXPORT_SYMBOL(drm_dev_unregister);
+
+/**
+ * drm_dev_set_unique - Set the unique name of a DRM device
+ * @dev: device of which to set the unique name
+ * @fmt: format string for unique name
+ *
+ * Sets the unique name of a DRM device using the specified format string and
+ * a variable list of arguments. Drivers can use this at driver probe time if
+ * the unique name of the devices they drive is static.
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+int drm_dev_set_unique(struct drm_device *dev, const char *fmt, ...)
+{
+	va_list ap;
+
+	kfree(dev->unique);
+
+	va_start(ap, fmt);
+	dev->unique = kvasprintf(GFP_KERNEL, fmt, ap);
+	va_end(ap);
+
+	return dev->unique ? 0 : -ENOMEM;
+}
+EXPORT_SYMBOL(drm_dev_set_unique);
