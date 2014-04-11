@@ -1978,6 +1978,8 @@ void gen6_set_pm_mask(struct drm_i915_private *dev_priv, u32 pm_iir,
 							int new_delay);
 extern void intel_irq_init(struct drm_device *dev);
 extern void intel_hpd_init(struct drm_device *dev);
+extern void vlv_set_power_well(struct drm_i915_private *dev_priv, u32 val);
+
 
 extern void intel_uncore_sanitize(struct drm_device *dev);
 extern void intel_uncore_early_sanitize(struct drm_device *dev);

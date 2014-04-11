@@ -571,6 +571,9 @@ static int i915_drm_freeze(struct drm_device *dev)
 
 	i915_save_state(dev);
 
+	if (IS_VALLEYVIEW(dev))
+		vlv_set_power_well(dev_priv, 0xcfcf);
+
 	intel_opregion_fini(dev);
 
 	console_lock();
@@ -657,6 +660,11 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
 	}
 
 	intel_power_domains_init_hw(dev);
+
+	if (IS_VALLEYVIEW(dev)) {
+		vlv_set_power_well(dev_priv, 0xcfcf);
+		vlv_set_power_well(dev_priv, 0xf);
+	}
 
 	i915_restore_state(dev);
 	intel_opregion_setup(dev);

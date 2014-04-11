@@ -5285,6 +5285,28 @@ static void hsw_power_well_post_disable(struct drm_i915_private *dev_priv)
 	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
 }
 
+void vlv_set_power_well(struct drm_i915_private *dev_priv, u32 val)
+{
+	BUG_ON(!IS_VALLEYVIEW(dev_priv->dev));
+
+	mutex_lock(&dev_priv->rps.hw_lock);
+
+#define COND \
+	((vlv_punit_read(dev_priv, PUNIT_REG_PWRGT_STATUS) & val) == val)
+
+	if (COND)
+		goto out;
+
+	vlv_punit_write(dev_priv, PUNIT_REG_PWRGT_CTRL, val);
+
+	wait_for(COND, 100);
+
+#undef COND
+
+out:
+	mutex_unlock(&dev_priv->rps.hw_lock);
+}
+
 static void hsw_set_power_well(struct drm_device *dev,
 			       struct i915_power_well *power_well, bool enable)
 {
