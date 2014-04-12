@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.5.2
+ * Version: 1.5.3
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -38,7 +38,7 @@
 #include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.5.2"
+#define ELAN_DRIVER_VERSION	"1.5.3"
 #define ETP_PRESSURE_OFFSET	25
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
@@ -626,15 +626,15 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 			goto done;
 		}
 
-		ret = elan_wait_for_chg(data, 200);
+		ret = elan_wait_for_chg(data, 300);
 		if (ret) {
 			dev_err(dev, "Failed waiting for reset %d.\n", ret);
 			goto done;
 		}
 
 		ret = i2c_master_recv(data->client, buffer, ETP_INF_LENGTH);
-		if (ret != 2 || le16_to_cpup((__le16 *)buffer) != 0) {
-			dev_err(dev, "Failed INT signal data %d.\n", ret);
+		if (ret != ETP_INF_LENGTH) {
+			dev_err(dev, "Failed INT signal data ret=%d\n", ret);
 			goto done;
 		}
 		data->wait_signal_from_updatefw = false;
@@ -652,11 +652,6 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 done:
 	if (ret != 0)
 		elan_iap_reset(data);
-	else {
-		disable_irq(data->irq);
-		elan_initialize(data);
-		enable_irq(data->irq);
-	}
 	release_firmware(fw);
 	return ret;
 }
