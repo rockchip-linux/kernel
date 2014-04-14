@@ -315,8 +315,8 @@ static unsigned long bootcache_get_ino(struct bio *bio)
 
 static void bootcache_record(struct bootcache *cache, struct bio *bio)
 {
-	u64 sector = bio->bi_sector;
-	u64 count = to_sector(bio->bi_size);
+	u64 sector = bio->bi_iter.bi_sector;
+	u64 count = to_sector(bio->bi_iter.bi_size);
 	struct bootcache_trace *tr;
 
 	if (!cache->trace)
@@ -334,8 +334,8 @@ static void bootcache_record(struct bootcache *cache, struct bio *bio)
 
 static bool is_in_cache(struct bootcache *cache, struct bio *bio)
 {
-	u64 sector = bio->bi_sector;
-	u32 count = bytes_to_pages(bio->bi_size);
+	u64 sector = bio->bi_iter.bi_sector;
+	u32 count = bytes_to_pages(bio->bi_iter.bi_size);
 	u32 i;
 
 	for (i = 0; i < count; i++, sector += SECTORS_PER_PAGE) {
@@ -349,8 +349,8 @@ static bool is_in_cache(struct bootcache *cache, struct bio *bio)
 static void bootcache_read_from_cache(struct bootcache *cache, struct bio *bio)
 {
 	struct bootcache_page *bp;
-	u64 sector = bio->bi_sector;
-	u32 count = bytes_to_pages(bio->bi_size);
+	u64 sector = bio->bi_iter.bi_sector;
+	u32 count = bytes_to_pages(bio->bi_iter.bi_size);
 	u8 *dst;
 	u8 *src;
 	u32 i;
@@ -365,7 +365,7 @@ static void bootcache_read_from_cache(struct bootcache *cache, struct bio *bio)
 			DMCRIT("Didn't find block %llx", sector);
 			BUG();
 		}
-		dst = kmap_atomic(bio_iovec_idx(bio, i)->bv_page);
+		dst = kmap_atomic(bio->bi_io_vec[i].bv_page);
 		src = kmap_atomic(bp->page);
 		memcpy(dst, src, PAGE_SIZE);
 		kunmap_atomic(src);
@@ -382,7 +382,7 @@ static void bootcache_read(struct bootcache *cache, struct bio *bio)
 	bio->bi_bdev = cache->dev->bdev;
 	/* Only record reads below the given size */
 	if ((atomic_read(&cache->state) == BC_BYPASS) ||
-		(to_sector(bio->bi_size) > cache->args.size_limit)) {
+		(bio_sectors(bio) > cache->args.size_limit)) {
 		generic_make_request(bio);
 		return;
 	}
@@ -551,7 +551,8 @@ static void bootcache_read_sectors_end(struct bio *bio, int error)
 		waiter->error = error;
 		DMERR("Error occurred in bootcache_read_sectors:"
 			" %d (%llx, %x)",
-			error, (u64)bio->bi_sector, bio->bi_size);
+			error, (u64)bio->bi_iter.bi_sector,
+			bio->bi_iter.bi_size);
 	}
 	complete(&waiter->completion);
 }
@@ -580,11 +581,12 @@ static int bootcache_read_sectors(struct bootcache *cache)
 			return -ENOMEM;
 		}
 		bio->bi_private = &waiter;
-		bio->bi_idx = 0;
+		bio->bi_iter.bi_idx = 0;
+		bio->bi_iter.bi_bvec_done = 0;
 		bio->bi_bdev = cache->dev->bdev;
 		bio->bi_end_io = bootcache_read_sectors_end;
 		bio->bi_rw = 0;
-		bio->bi_sector = sector;
+		bio->bi_iter.bi_sector = sector;
 		bvec = bio->bi_io_vec;
 		start_page = p;
 		for (j = 0; j < max_io; j++, bvec++, p++) {
@@ -594,7 +596,7 @@ static int bootcache_read_sectors(struct bootcache *cache)
 			bvec->bv_offset = 0;
 			bvec->bv_len = PAGE_SIZE;
 		}
-		bio->bi_size = j * PAGE_SIZE;
+		bio->bi_iter.bi_size = j * PAGE_SIZE;
 		bio->bi_vcnt = j;
 
 		init_completion(&waiter.completion);
@@ -628,7 +630,7 @@ static void bootcache_dev_read_end(struct bio *bio, int error)
 	if (unlikely(error)) {
 		waiter->error = error;
 		DMERR("Error occurred in bootcache_dev_read: %d (%llx, %x)",
-		      error, (u64)bio->bi_sector, bio->bi_size);
+		      error, (u64)bio->bi_iter.bi_sector, bio->bi_iter.bi_size);
 	}
 	complete(&waiter->completion);
 }
@@ -661,18 +663,19 @@ static int bootcache_dev_read(struct bootcache *cache, void *data,
 		for (i = 0; i < max_io; i++, bvec++)
 			bvec->bv_page = alloc_page(GFP_KERNEL);
 		bio->bi_private = &waiter;
-		bio->bi_idx = 0;
+		bio->bi_iter.bi_idx = 0;
+		bio->bi_iter.bi_bvec_done = 0;
 		bio->bi_bdev = cache->dev->bdev;
 		bio->bi_end_io = bootcache_dev_read_end;
 		bio->bi_rw = 0;
-		bio->bi_sector = sector;
+		bio->bi_iter.bi_sector = sector;
 		bvec = bio->bi_io_vec;
 		for (i = 0; i < max_io; i++, bvec++) {
 			bvec->bv_offset = 0;
 			bvec->bv_len = PAGE_SIZE;
 		}
 		pages_to_read -= max_io;
-		bio->bi_size = max_io * PAGE_SIZE;
+		bio->bi_iter.bi_size = max_io * PAGE_SIZE;
 		bio->bi_vcnt = max_io;
 
 		init_completion(&waiter.completion);
@@ -685,7 +688,7 @@ static int bootcache_dev_read(struct bootcache *cache, void *data,
 		}
 		for (i = 0; i < max_io; i++) {
 			bytes_to_copy = min(len, (int)PAGE_SIZE);
-			src = kmap_atomic(bio_iovec_idx(bio, i)->bv_page);
+			src = kmap_atomic(bio->bi_io_vec[i].bv_page);
 			memcpy(dst, src, bytes_to_copy);
 			kunmap_atomic(src);
 			len -= bytes_to_copy;

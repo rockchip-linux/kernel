@@ -434,7 +434,6 @@ table_bind_fail:
 suspend_fail:
 table_complete_fail:
 add_target_fail:
-	dm_table_put(table);
 dm_table_create_fail:
 	dm_put(md);
 dm_create_fail:

@@ -63,10 +63,11 @@ static int chromeos_invalidate_kernel_submit(struct bio *bio,
 	bio->bi_end_io = chromeos_invalidate_kernel_endio;
 	bio->bi_bdev = bdev;
 
-	bio->bi_sector = 0;
+	bio->bi_iter.bi_sector = 0;
 	bio->bi_vcnt = 1;
-	bio->bi_idx = 0;
-	bio->bi_size = 512;
+	bio->bi_iter.bi_idx = 0;
+	bio->bi_iter.bi_size = 512;
+	bio->bi_iter.bi_bvec_done = 0;
 	bio->bi_rw = rw;
 	bio->bi_io_vec[0].bv_page = page;
 	bio->bi_io_vec[0].bv_len = 512;
@@ -211,6 +212,11 @@ static int chromeos_invalidate_kernel(struct block_device *root_bdev)
 		ret = -1;
 		goto failed_to_write;
 	}
+
+	/* We re-use the same bio to do the write after the read. Need to reset
+	 * it to initialize bio->bi_remaining.
+	 */
+	bio_reset(bio);
 
 	rw |= REQ_WRITE;
 	if (chromeos_invalidate_kernel_submit(bio, bdev, rw, page)) {
