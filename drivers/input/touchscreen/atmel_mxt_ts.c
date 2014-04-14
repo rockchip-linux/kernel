@@ -3727,13 +3727,21 @@ static bool lid_event_filter(struct input_handle *handle,
 			data->T9_ctrl_valid = false;
 			mxt_start(data);
 		} else {
-			/* Save 1 byte T9 Ctrl config */
-			ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-					    &data->T9_ctrl, 1);
-			if (ret)
-				dev_err(dev, "Save T9 ctrl config failed, %d\n",
-					ret);
-			data->T9_ctrl_valid = (ret == 0);
+			/* Save 1 byte T9/T100 Ctrl config */
+			if (data->has_T9) {
+				ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+						    &data->T9_ctrl, 1);
+				if (ret)
+					dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
+				data->T9_ctrl_valid = (ret == 0);
+			}
+			if (data->has_T100) {
+				ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
+						    &data->T100_ctrl, 1);
+				if (ret)
+					dev_err(dev, "Save T100 ctrl config failed, %d\n", ret);
+				data->T100_ctrl_valid = (ret == 0);
+			}
 			mxt_stop(data);
 		}
 	}
