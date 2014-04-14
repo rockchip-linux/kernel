@@ -2034,6 +2034,9 @@ config MIPS_CPS
 	  no external assistance. It is safe to enable this when hardware
 	  support is unavailable.
 
+config MIPS_CPS_PM
+	bool
+
 config MIPS_GIC_IPI
 	bool
 
