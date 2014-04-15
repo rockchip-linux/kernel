@@ -540,10 +540,7 @@ intel_enable_primary(struct drm_crtc *crtc)
 	 * when going from primary only to sprite only and vice
 	 * versa.
 	 */
-	if (intel_crtc->config.ips_enabled) {
-		intel_wait_for_vblank(dev, intel_crtc->pipe);
-		hsw_enable_ips(intel_crtc);
-	}
+	hsw_enable_ips(intel_crtc);
 
 	mutex_lock(&dev->struct_mutex);
 	intel_update_fbc(dev);
