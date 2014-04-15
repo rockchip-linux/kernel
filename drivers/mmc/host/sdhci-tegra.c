@@ -1072,9 +1072,11 @@ static int tegra_sdhci_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 	int err;
 	u32 ier, misc_ctrl;
 
-	if (tegra_host->tuning_done && tegra_host->non_removable)
+	tuning_data = &tegra_host->tuning_data;
+	if (tegra_host->tuning_done && tegra_host->non_removable) {
+		tegra_sdhci_set_tap_delay(sdhci, tuning_data->best_tap_value);
 		return 0;
-	else
+	} else
 		tegra_host->tuning_done = false;
 
 	/* Tuning should be done only for MMC_BUS_WIDTH_8 and MMC_BUS_WIDTH_4 */
@@ -1104,7 +1106,6 @@ static int tegra_sdhci_execute_tuning(struct sdhci_host *sdhci, u32 opcode)
 	sdhci_writel(sdhci, SDHCI_INT_DATA_AVAIL |
 		SDHCI_INT_DATA_CRC, SDHCI_INT_ENABLE);
 
-	tuning_data = &tegra_host->tuning_data;
 	tegra_sdhci_estimate_tuning_values(sdhci, tuning_data);
 
 	/*
@@ -1332,10 +1333,27 @@ static void tegra_sdhci_reset_exit(struct sdhci_host *host, u8 mask)
 		}
 
 		if (soc_data->nvquirks & NVQUIRK_SET_TAP_DELAY) {
-			if (tegra_host->tuning_done) {
-				tuning_data = &tegra_host->tuning_data;
-				best_tap_value = tuning_data->best_tap_value;
-			} else {
+			tuning_data = &tegra_host->tuning_data;
+			switch (host->mmc->ios.timing) {
+			case MMC_TIMING_UHS_SDR50:
+				if (tegra_host->tuning_done &&
+				    (soc_data->nvquirks &
+				     NVQUIRK_ENABLE_SDR50_TUNING))
+					best_tap_value =
+						tuning_data->best_tap_value;
+				else
+					best_tap_value = tegra_host->tap_delay;
+				break;
+			case MMC_TIMING_UHS_DDR50:
+			case MMC_TIMING_UHS_SDR104:
+			case MMC_TIMING_MMC_HS200:
+				if (tegra_host->tuning_done)
+					best_tap_value =
+						tuning_data->best_tap_value;
+				else
+					best_tap_value = tegra_host->tap_delay;
+				break;
+			default:
 				best_tap_value = tegra_host->tap_delay;
 			}
 			vendor_ctrl &= ~(0xFF <<
