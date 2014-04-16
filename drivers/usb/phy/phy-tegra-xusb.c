@@ -65,6 +65,7 @@ struct tegra_xusb_phy_board_data {
 	u32 utmi_remote_wakeup;
 	u32 hsic_remote_wakeup;
 	struct tegra_xusb_hsic_config hsic[TEGRA_XUSB_HSIC_COUNT];
+	u32 hs_xcvr_setup_offset;
 };
 
 struct tegra_xusb_phy_config {
@@ -494,6 +495,8 @@ static void utmi_pad_init(struct tegra_xusb_phy *tegra, u8 port)
 	const struct tegra_xusb_padctl_regs *padregs;
 	u32 reg;
 	u32 ctl0_offset, ctl1_offset;
+	struct tegra_xusb_phy_board_data *bdata = &tegra->board_data;
+	u32 val;
 
 	padregs = tegra->soc_config->padctl_offsets;
 
@@ -516,7 +519,14 @@ static void utmi_pad_init(struct tegra_xusb_phy *tegra, u8 port)
 		USB2_OTG_PD | USB2_OTG_PD2 | USB2_OTG_PD_ZI);
 	reg |= tegra->soc_config->hs_slew;
 	reg |= tegra->soc_config->ls_rslew_pad[port];
-	reg |= tegra->calib_data.hs_curr_level_pad[port];
+	val = (bdata->hs_xcvr_setup_offset >> (8 * port)) & 0xff;
+	if ((tegra->calib_data.hs_curr_level_pad[port] + val) >
+	    USB2_OTG_HS_CURR_LVL_MAX)
+		dev_warn(tegra->dev,
+			"0x%X in nvidia,xusb-hs-xcvr-setup-offset too large\n",
+			val);
+	reg |= min(tegra->calib_data.hs_curr_level_pad[port] + val,
+		(u32) USB2_OTG_HS_CURR_LVL_MAX);
 	padctl_writel(tegra, reg, ctl0_offset);
 
 	reg = padctl_readl(tegra, ctl1_offset);
@@ -1907,6 +1917,8 @@ static int tegra_xusb_phy_parse_dt(struct tegra_xusb_phy *tegra)
 			     &bdata->utmi_remote_wakeup);
 	of_property_read_u32(np, "nvidia,hsic-remote-wakeup",
 			     &bdata->hsic_remote_wakeup);
+	of_property_read_u32(np, "nvidia,xusb-hs-xcvr-setup-offset",
+			     &bdata->hs_xcvr_setup_offset);
 
 	return 0;
 }

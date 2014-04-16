@@ -122,6 +122,7 @@
 #define SS_PORT_MAP_USB2_PORT1		0x1
 #define SS_PORT_MAP_USB2_PORT2		0x2
 /* USB2_OTG_PAD_CTL0_0 */
+#define USB2_OTG_HS_CURR_LVL_MAX	0x3f
 #define USB2_OTG_HS_CURR_LVL		(0x3f << 0)
 #define USB2_OTG_HS_SLEW		(0x3f << 6)
 #define USB2_OTG_FS_SLEW		(0x3 << 12)

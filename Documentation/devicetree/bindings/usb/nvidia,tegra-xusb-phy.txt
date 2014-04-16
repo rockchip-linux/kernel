@@ -57,6 +57,29 @@ Required properties:
 Optional properties:
  - nvidia,hsic-remote-wakeup: Bitmap of HSIC ports to enable remote wakeup on.
  - nvidia,utmi-remote-wakeup: Bitmap of UTMI ports to enable remote wakeup on.
+ - nvidia,xusb-hs-xcvr-setup-offset: used for high-speed transceiver setup
+     and for data eye swing.
+     bit   7-0: for PAD0 (port0)
+     bit  15-8: for PAD1 (port1)
+     bit 23-16: for PAD2 (port2)
+   USB parameter HS_CURR_LEVEL is calibrated and fused. Software reads
+   the fuse value and programs it to the correct level.
+   Actual product may have additional losses on the PCB (connectors).
+   This reduces the actual signal at the USB connector.
+
+   Software has the option of adding an offset to the FUSE value before
+   it is programmed to register.
+   Programmed value = Fuse value + Offset
+   This corrects any losses.
+
+   The objective is to get the data eye swing as close as possible to 400mv
+   without falling below the mark under typical operating conditions.
+
+   Offset (nvidia,xusb-hs-xcvr-setup-offset) is design dependant
+   (PCB type, length of PCB, switches used, etc).
+   If "nvidia,xusb-hs-xcvr-setup-offset" is not defined or has
+   value 0 for the pad, then
+   Programmed value = Fuse value
 
 	usb@70090000 {
 		...
@@ -89,4 +112,5 @@ Optional properties:
 		vbus2-supply = <&run_cam_2v8>;
 		vbus3-supply = <&usb3_vbus_reg>;
 		vddio-hsic-supply = <&gen_avdd_1v2>;
+		nvidia,xusb-hs-xcvr-setup-offset = <0x020004>;
 	};
