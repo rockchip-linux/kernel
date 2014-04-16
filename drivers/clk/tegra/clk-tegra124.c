@@ -660,6 +660,7 @@ static struct tegra_clk_pll_params tegra124_pll_d2_params = {
 	.ext_misc_reg[2] = 0x578,
 	.max_p = 15,
 	.freq_table = tegra124_pll_d2_freq_table,
+	.flags = TEGRA_PLL_ACCURATE,
 };
 
 static struct tegra_clk_pll_freq_table pll_dp_freq_table[] = {
