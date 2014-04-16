@@ -64,10 +64,8 @@
 #define UP_LD_CMD_PORT_HOST_INT_STATUS	(0x40U)
 #define DN_LD_CMD_PORT_HOST_INT_STATUS	(0x80U)
 
-#define SDIO_MP_TX_AGGR_DEF_BUF_SIZE        (8192)	/* 8K */
-
-/* Multi port RX aggregation buffer size */
-#define SDIO_MP_RX_AGGR_DEF_BUF_SIZE        (16384)	/* 16K */
+#define MWIFIEX_MP_AGGR_BUF_SIZE_16K	(16384)
+#define MWIFIEX_MP_AGGR_BUF_SIZE_32K	(32768)
 
 /* Misc. Config Register : Auto Re-enable interrupts */
 #define AUTO_RE_ENABLE_INT              BIT(4)
@@ -288,6 +286,8 @@ struct sdio_mmc_card {
 	bool supports_sdio_new_mode;
 	bool has_control_mask;
 	u16 tx_buf_size;
+	u32 mp_tx_agg_buf_size;
+	u32 mp_rx_agg_buf_size;
 
 	u32 mp_rd_bitmap;
 	u32 mp_wr_bitmap;
@@ -312,6 +312,8 @@ struct mwifiex_sdio_device {
 	bool supports_sdio_new_mode;
 	bool has_control_mask;
 	u16 tx_buf_size;
+	u32 mp_tx_agg_buf_size;
+	u32 mp_rx_agg_buf_size;
 };
 
 static const struct mwifiex_sdio_card_reg mwifiex_reg_sd87xx = {
@@ -369,6 +371,8 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8786 = {
 	.supports_sdio_new_mode = false,
 	.has_control_mask = true,
 	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K,
+	.mp_tx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_16K,
+	.mp_rx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_16K,
 };
 
 static const struct mwifiex_sdio_device mwifiex_sdio_sd8787 = {
@@ -379,6 +383,8 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8787 = {
 	.supports_sdio_new_mode = false,
 	.has_control_mask = true,
 	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K,
+	.mp_tx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_16K,
+	.mp_rx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_16K,
 };
 
 static const struct mwifiex_sdio_device mwifiex_sdio_sd8797 = {
@@ -389,6 +395,8 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8797 = {
 	.supports_sdio_new_mode = false,
 	.has_control_mask = true,
 	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_2K,
+	.mp_tx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_16K,
+	.mp_rx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_16K,
 };
 
 static const struct mwifiex_sdio_device mwifiex_sdio_sd8897 = {
@@ -399,6 +407,8 @@ static const struct mwifiex_sdio_device mwifiex_sdio_sd8897 = {
 	.supports_sdio_new_mode = true,
 	.has_control_mask = false,
 	.tx_buf_size = MWIFIEX_TX_DATA_BUF_SIZE_4K,
+	.mp_tx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_32K,
+	.mp_rx_agg_buf_size = MWIFIEX_MP_AGGR_BUF_SIZE_32K,
 };
 
 /*
