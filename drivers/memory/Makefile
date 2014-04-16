@@ -11,3 +11,4 @@ obj-$(CONFIG_TEGRA20_MC)	+= tegra20-mc.o
 obj-$(CONFIG_TEGRA30_MC)	+= tegra30-mc.o
 obj-$(CONFIG_TEGRA124_MC)	+= tegra124-mc.o
 obj-$(CONFIG_TEGRA124_EMC)	+= tegra124-emc.o
+obj-$(CONFIG_ARCH_TEGRA)	+= tegra/
