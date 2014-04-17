@@ -245,6 +245,29 @@ free_and_exit:
 }
 
 /*
+ * Proc firmware dump read handler.
+ *
+ * This function is called when the 'fw_dump' file is opened for
+ * reading.
+ * This function dumps firmware memory in different files
+ * (ex. DTCM, ITCM, SQRAM etc.) based on the the segments for
+ * debugging.
+ */
+static ssize_t
+mwifiex_fw_dump_read(struct file *file, char __user *ubuf,
+		     size_t count, loff_t *ppos)
+{
+	struct mwifiex_private *priv = file->private_data;
+
+	if (!priv->adapter->if_ops.fw_dump)
+		return -EIO;
+
+	priv->adapter->if_ops.fw_dump(priv->adapter);
+
+	return 0;
+}
+
+/*
  * Proc getlog file read handler.
  *
  * This function is called when the 'getlog' file is opened for reading
@@ -714,6 +737,7 @@ static const struct file_operations mwifiex_dfs_##name##_fops = {       \
 MWIFIEX_DFS_FILE_READ_OPS(info);
 MWIFIEX_DFS_FILE_READ_OPS(debug);
 MWIFIEX_DFS_FILE_READ_OPS(getlog);
+MWIFIEX_DFS_FILE_READ_OPS(fw_dump);
 MWIFIEX_DFS_FILE_OPS(regrdwr);
 MWIFIEX_DFS_FILE_OPS(rdeeprom);
 MWIFIEX_DFS_FILE_WRITE_OPS(reset);
@@ -736,6 +760,7 @@ mwifiex_dev_debugfs_init(struct mwifiex_private *priv)
 	MWIFIEX_DFS_ADD_FILE(info);
 	MWIFIEX_DFS_ADD_FILE(debug);
 	MWIFIEX_DFS_ADD_FILE(getlog);
+	MWIFIEX_DFS_ADD_FILE(fw_dump);
 	MWIFIEX_DFS_ADD_FILE(regrdwr);
 	MWIFIEX_DFS_ADD_FILE(rdeeprom);
 	MWIFIEX_DFS_ADD_FILE(reset);
