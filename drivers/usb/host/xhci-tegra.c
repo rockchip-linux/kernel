@@ -1840,6 +1840,7 @@ static int tegra_xhci_elpg_exit(struct tegra_xhci_hcd *tegra)
 static int tegra_xhci_suspend(struct device *dev)
 {
 	struct tegra_xhci_hcd *tegra = dev_get_drvdata(dev);
+	struct usb_hcd *hcd;
 	int ret;
 
 	pm_runtime_get_sync(dev);
@@ -1851,6 +1852,11 @@ static int tegra_xhci_suspend(struct device *dev)
 		return -EBUSY;
 	}
 	WARN_ON(tegra->hc_in_elpg);
+
+	/* Synchronize wake-enable of host with PHY */
+	hcd = tegra_to_hcd(tegra);
+	device_init_wakeup(tegra->phy->dev,
+			   device_may_wakeup(&hcd->self.root_hub->dev));
 
 	ret = tegra_xhci_elpg_enter(tegra);
 	if (ret) {
@@ -1923,6 +1929,12 @@ static int tegra_xhci_runtime_suspend(struct device *dev)
 		dev_err(dev, "xhci_suspend failed: %d\n", err);
 		goto out;
 	}
+
+	/*
+	 * Always enable wakeup for the PHY so that hotplug events may
+	 * bring the host out of runtime suspend.
+	 */
+	device_init_wakeup(tegra->phy->dev, true);
 
 	err = tegra_xhci_elpg_enter(tegra);
 	if (err)
