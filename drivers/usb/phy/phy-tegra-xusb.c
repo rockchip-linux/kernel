@@ -1316,7 +1316,24 @@ static void utmi_pmc_wake_enable(struct tegra_xusb_phy *tegra, unsigned int pad)
 	/* Turn over pad configuration to PMC for line wake events */
 	val = pmc_readl(tegra, PMC_SLEEP_CFG);
 	val &= ~UTMIP_WAKE_VAL(port, ~0);
-	val |= UTMIP_WAKE_VAL(port, WAKE_VAL_ANY);
+	if (device_may_wakeup(tegra->dev)) {
+		val |= UTMIP_WAKE_VAL(port, WAKE_VAL_ANY);
+	} else if (tegra_xhci_port_may_wakeup(tegra->xhci, pad)) {
+		switch (port_speed) {
+		case USB_SPEED_LOW:
+			val |= UTMIP_WAKE_VAL(port, WAKE_VAL_FSJ);
+			break;
+		case USB_SPEED_FULL:
+		case USB_SPEED_HIGH:
+			val |= UTMIP_WAKE_VAL(port, WAKE_VAL_FSK);
+			break;
+		default:
+			val |= UTMIP_WAKE_VAL(port, WAKE_VAL_NONE);
+		}
+	} else {
+		val |= UTMIP_WAKE_VAL(port, WAKE_VAL_NONE);
+	}
+	pmc_writel(tegra, val, PMC_SLEEP_CFG);
 	val |= UTMIP_RCTRL_USE_PMC(port) | UTMIP_TCTRL_USE_PMC(port);
 	val |= UTMIP_MASTER_ENABLE(port) | UTMIP_FSLS_USE_PMC(port);
 	pmc_writel(tegra, val, PMC_SLEEP_CFG);
@@ -1521,7 +1538,6 @@ static int tegra_xusb_phy_init(struct usb_phy *phy)
 	/* Pull SS out of reset */
 	tegra_periph_reset_deassert(tegra->ss_clk);
 
-	device_init_wakeup(tegra->dev, 1);
 	enable_irq(tegra->padctl_irq);
 
 	return 0;
