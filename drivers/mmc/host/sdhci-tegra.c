@@ -321,13 +321,28 @@ static void tegra_sdhci_init_clock(struct sdhci_host *sdhci)
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	unsigned long rate;
 	u32 val;
+	int i;
+
+	if (!sdhci->mmc->f_max) {
+		/*
+		 * If "max-frequency" wasn't specified in the DT, use the
+		 * maximum available from the tuning data table.
+		 */
+		tegra_host->tuning_freq_idx = tegra_host->nr_tuning_freqs - 1;
+	} else {
+		for (i = 0; i < tegra_host->nr_tuning_freqs; i++) {
+			if (tegra_host->thole_coeffs[i].freq_hz >
+			    sdhci->mmc->f_max)
+				break;
+		}
+		tegra_host->tuning_freq_idx = i ? i - 1 : 0;
+	}
 
 	/*
-	 * Choose the maximum available source clock frequency.
+	 * Set the source clock to the maximum frequency.
 	 * The divider in SDHCI_CLOCK_CONTROL will be used to scale down
 	 * the clock later in sdhci_set_clock().
 	 */
-	tegra_host->tuning_freq_idx = tegra_host->nr_tuning_freqs - 1;
 	rate = tegra_host->thole_coeffs[tegra_host->tuning_freq_idx].freq_hz;
 	clk_set_rate(pltfm_host->clk, rate);
 	rate = clk_get_rate(pltfm_host->clk);
