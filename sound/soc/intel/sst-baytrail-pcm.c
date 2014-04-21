@@ -175,7 +175,12 @@ static void sst_byt_pcm_work(struct work_struct *work)
 	struct sst_byt_pcm_data *pcm_data =
 		container_of(work, struct sst_byt_pcm_data, work);
 
-	sst_byt_pcm_restore_stream_context(pcm_data->substream);
+	mutex_lock(&pcm_data->mutex);
+
+	if (pcm_data->stream)
+		sst_byt_pcm_restore_stream_context(pcm_data->substream);
+
+	mutex_unlock(&pcm_data->mutex);
 }
 
 static int sst_byt_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
