@@ -39,9 +39,10 @@ static unsigned long clk_emc_recalc_rate(struct clk_hw *hw,
 	struct tegra_clk_emc *emc = to_clk_emc(hw);
 	const struct clk_ops *div_ops = emc->periph->div_ops;
 	struct clk_hw *div_hw = &emc->periph->divider.hw;
+	unsigned long new_rate = __clk_get_rate(clk_get_parent(hw->clk));
 
 	div_hw->clk = hw->clk;
-	return div_ops->recalc_rate(div_hw, parent_rate);
+	return div_ops->recalc_rate(div_hw, new_rate);
 }
 
 static long clk_emc_round_rate(struct clk_hw *hw, unsigned long rate,
