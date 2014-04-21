@@ -363,11 +363,13 @@ static void __iomem *tegra_emc_base;
 static void __iomem *tegra_clk_base;
 static unsigned long emc_backup_rate;
 static unsigned long emc_max_rate;
+static unsigned long emc_boot_rate;
 static struct emc_stats tegra_emc_stats;
 static struct emc_table *tegra_emc_table;
 static struct emc_table *emc_timing;
 static struct emc_table start_timing;
 static struct clk *emc_clk;
+static struct clk *emc_override_clk;
 static struct clk *emc_backup_src;
 static struct clk *tegra_emc_src[TEGRA_EMC_SRC_COUNT];
 static const char *tegra_emc_src_names[TEGRA_EMC_SRC_COUNT] = {
@@ -1364,6 +1366,11 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 		pr_err("Tegra124: Can not find EMC clock\n");
 		return -EINVAL;
 	}
+	emc_boot_rate = clk_get_rate(emc_clk);
+
+	emc_override_clk = devm_clk_get(&pdev->dev, "emc_override");
+	if (IS_ERR(emc_override_clk))
+		pr_err("Tegra124: Can not find EMC override clock\n");
 
 	for (i = 0; i < TEGRA_EMC_SRC_COUNT; i++) {
 		tegra_emc_src[i] = devm_clk_get(&pdev->dev,
@@ -1505,6 +1512,30 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int tegra124_emc_suspend(struct device *dev)
+{
+	if (!IS_ERR(emc_override_clk)) {
+		clk_set_rate(emc_override_clk, emc_boot_rate);
+		clk_prepare_enable(emc_override_clk);
+	}
+
+	return 0;
+}
+
+static int tegra124_emc_resume(struct device *dev)
+{
+	if (!IS_ERR(emc_override_clk))
+		clk_disable_unprepare(emc_override_clk);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops tegra124_emc_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(tegra124_emc_suspend, tegra124_emc_resume)
+};
+
 static struct of_device_id tegra124_emc_of_match[] = {
 	{ .compatible = "nvidia,tegra124-emc", },
 	{ },
@@ -1515,6 +1546,7 @@ static struct platform_driver tegra124_emc_driver = {
 		.name   = "tegra124-emc",
 		.owner  = THIS_MODULE,
 		.of_match_table = tegra124_emc_of_match,
+		.pm	= &tegra124_emc_pm_ops,
 	},
 	.probe          = tegra124_emc_probe,
 };
