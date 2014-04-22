@@ -1203,6 +1203,16 @@ struct intel_vbt_data {
 	struct {
 		u16 pwm_freq_hz;
 		bool active_low_pwm;
+
+		/* NB: We expect this to be an absolute value (percentage)
+		 * indicating the minimum duty cycle. This value is provided by
+		 * the panel spec, and should be provided in some way/shape/form
+		 * from VBIOS.  It's unclear as of this point whether or not
+		 * this is the proper way.
+		 *
+		 * Example, 5 = 5% = .05
+		 */
+		u8 min_duty_cycle_percentage;
 	} backlight;
 
 	/* MIPI DSI */
