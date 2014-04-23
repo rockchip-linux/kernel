@@ -2132,8 +2132,10 @@ static int tegra_xusb_phy_pm_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops tegra_xusb_phy_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(tegra_xusb_phy_pm_suspend,
-				tegra_xusb_phy_pm_resume)
+#ifdef CONFIG_PM_SLEEP
+	.suspend_late = tegra_xusb_phy_pm_suspend,
+	.resume_early = tegra_xusb_phy_pm_resume,
+#endif
 };
 
 static struct platform_driver tegra_xusb_phy_driver = {
