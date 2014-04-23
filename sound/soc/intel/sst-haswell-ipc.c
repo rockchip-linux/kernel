@@ -1158,11 +1158,14 @@ struct sst_hsw_stream *sst_hsw_stream_new(struct sst_hsw *hsw, int id,
 	void *data)
 {
 	struct sst_hsw_stream *stream;
+	struct sst_dsp *sst = hsw->dsp;
+	unsigned long flags;
 
 	stream = kzalloc(sizeof(*stream), GFP_KERNEL);
 	if (stream == NULL)
 		return NULL;
 
+	spin_lock_irqsave(&sst->spinlock, flags);
 	list_add(&stream->node, &hsw->stream_list);
 	stream->notify_position = notify_position;
 	stream->pdata = data;
@@ -1171,6 +1174,7 @@ struct sst_hsw_stream *sst_hsw_stream_new(struct sst_hsw *hsw, int id,
 
 	/* work to process notification messages */
 	INIT_WORK(&stream->notify_work, hsw_notification_work);
+	spin_unlock_irqrestore(&sst->spinlock, flags);
 
 	return stream;
 }
@@ -1179,6 +1183,8 @@ int sst_hsw_stream_free(struct sst_hsw *hsw, struct sst_hsw_stream *stream)
 {
 	u32 header;
 	int ret = 0;
+	struct sst_dsp *sst = hsw->dsp;
+	unsigned long flags;
 
 	/* dont free DSP streams that are not commited */
 	if (!stream->commited)
@@ -1200,8 +1206,10 @@ int sst_hsw_stream_free(struct sst_hsw *hsw, struct sst_hsw_stream *stream)
 	trace_hsw_stream_free_req(stream, &stream->free_req);
 
 out:
+	spin_lock_irqsave(&sst->spinlock, flags);
 	list_del(&stream->node);
 	kfree(stream);
+	spin_unlock_irqrestore(&sst->spinlock, flags);
 
 	return ret;
 }
