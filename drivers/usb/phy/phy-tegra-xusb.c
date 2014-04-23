@@ -62,8 +62,6 @@ struct tegra_xusb_phy_board_data {
 	 */
 	u32 ss_portmap;
 	u32 lane_owner;
-	u32 utmi_remote_wakeup;
-	u32 hsic_remote_wakeup;
 	struct tegra_xusb_hsic_config hsic[TEGRA_XUSB_HSIC_COUNT];
 	u32 hs_xcvr_setup_offset;
 };
@@ -1384,18 +1382,12 @@ static void pmc_wake_enable(struct tegra_xusb_phy *tegra)
 	int pad;
 
 	hsic_pads = tegra->board_data.hsic_pads;
-	for_each_set_bit(pad, &hsic_pads, TEGRA_XUSB_HSIC_COUNT) {
-		if (!(BIT(pad) & tegra->board_data.hsic_remote_wakeup))
-			continue;
+	for_each_set_bit(pad, &hsic_pads, TEGRA_XUSB_HSIC_COUNT)
 		hsic_pmc_wake_enable(tegra, pad);
-	}
 
 	utmi_pads = tegra->board_data.utmi_pads;
-	for_each_set_bit(pad, &utmi_pads, TEGRA_XUSB_UTMI_COUNT) {
-		if (!(BIT(pad) & tegra->board_data.utmi_remote_wakeup))
-			continue;
+	for_each_set_bit(pad, &utmi_pads, TEGRA_XUSB_UTMI_COUNT)
 		utmi_pmc_wake_enable(tegra, pad);
-	}
 }
 
 static void pmc_wake_disable(struct tegra_xusb_phy *tegra)
@@ -1404,18 +1396,12 @@ static void pmc_wake_disable(struct tegra_xusb_phy *tegra)
 	int pad;
 
 	hsic_pads = tegra->board_data.hsic_pads;
-	for_each_set_bit(pad, &hsic_pads, TEGRA_XUSB_HSIC_COUNT) {
-		if (!(BIT(pad) & tegra->board_data.hsic_remote_wakeup))
-			continue;
+	for_each_set_bit(pad, &hsic_pads, TEGRA_XUSB_HSIC_COUNT)
 		hsic_pmc_wake_disable(tegra, pad);
-	}
 
 	utmi_pads = tegra->board_data.utmi_pads;
-	for_each_set_bit(pad, &utmi_pads, TEGRA_XUSB_UTMI_COUNT) {
-		if (!(BIT(pad) & tegra->board_data.utmi_remote_wakeup))
-			continue;
+	for_each_set_bit(pad, &utmi_pads, TEGRA_XUSB_UTMI_COUNT)
 		utmi_pmc_wake_disable(tegra, pad);
-	}
 }
 
 static int tegra_xusb_phy_mbox_notifier(struct notifier_block *nb,
@@ -1929,10 +1915,6 @@ static int tegra_xusb_phy_parse_dt(struct tegra_xusb_phy *tegra)
 		dev_err(tegra->dev, "Missing lane owner\n");
 		return -EINVAL;
 	}
-	of_property_read_u32(np, "nvidia,utmi-remote-wakeup",
-			     &bdata->utmi_remote_wakeup);
-	of_property_read_u32(np, "nvidia,hsic-remote-wakeup",
-			     &bdata->hsic_remote_wakeup);
 	of_property_read_u32(np, "nvidia,xusb-hs-xcvr-setup-offset",
 			     &bdata->hs_xcvr_setup_offset);
 

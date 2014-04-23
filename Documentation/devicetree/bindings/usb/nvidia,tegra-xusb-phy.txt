@@ -55,8 +55,6 @@ Required properties:
  - vddio-hsic-supply: HSIC supply regulator.  Only required when HSIC ports
    are enabled.
 Optional properties:
- - nvidia,hsic-remote-wakeup: Bitmap of HSIC ports to enable remote wakeup on.
- - nvidia,utmi-remote-wakeup: Bitmap of UTMI ports to enable remote wakeup on.
  - nvidia,xusb-hs-xcvr-setup-offset: used for high-speed transceiver setup
      and for data eye swing.
      bit   7-0: for PAD0 (port0)
@@ -106,8 +104,6 @@ Optional properties:
 		nvidia,utmi-pads = <0x7>; /* USB2P0, USB2P1, USB2P2 */
 		nvidia,ss-portmap = <0x20>; /* SSP0->USB2P0, SSP1->USB2P2 */
 		nvidia,lane-owner = <0x6>; /* USB3P0 USB3P1 */
-		nvidia,hsic-remote-wakeup = <0x0>;
-		nvidia,utmi-remote-wakeup = <0x5>; /* USB2P0, USB2P2 */
 		vbus1-supply = <&usb1_vbus_reg>;
 		vbus2-supply = <&run_cam_2v8>;
 		vbus3-supply = <&usb3_vbus_reg>;
