@@ -289,6 +289,16 @@ bool tegra_xhci_port_connected(struct tegra_xhci_hcd *tegra, unsigned int port)
 }
 EXPORT_SYMBOL(tegra_xhci_port_connected);
 
+bool tegra_xhci_port_may_wakeup(struct tegra_xhci_hcd *tegra, unsigned int port)
+{
+	struct usb_hcd *hcd = tegra_to_hcd(tegra);
+	struct usb_device *rhdev = hcd_to_bus(hcd)->root_hub;
+
+	/* Note: this only applies to ports on the USB2.0 root hub. */
+	return usb_port_may_wakeup(rhdev, port + 1);
+}
+EXPORT_SYMBOL(tegra_xhci_port_may_wakeup);
+
 static u32 csb_read(struct tegra_xhci_hcd *tegra, u32 addr)
 {
 	struct device *dev = &tegra->pdev->dev;

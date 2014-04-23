@@ -76,6 +76,8 @@ extern enum usb_device_speed tegra_xhci_port_speed(struct tegra_xhci_hcd *tegra,
 						   unsigned int port);
 extern bool tegra_xhci_port_connected(struct tegra_xhci_hcd *tegra,
 				      unsigned int port);
+extern bool tegra_xhci_port_may_wakeup(struct tegra_xhci_hcd *tegra,
+				       unsigned int port);
 extern int tegra_xhci_register_mbox_notifier(struct tegra_xhci_hcd *tegra,
 					     struct notifier_block *nb);
 extern void tegra_xhci_unregister_mbox_notifier(struct tegra_xhci_hcd *tegra,
