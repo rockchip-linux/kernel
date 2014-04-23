@@ -1573,6 +1573,7 @@ static int tegra_xhci_probe2(struct tegra_xhci_hcd *tegra)
 
 	pm_runtime_set_active(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
+	device_enable_async_suspend(&pdev->dev);
 
 	return 0;
 err:
