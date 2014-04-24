@@ -78,14 +78,28 @@ mwifiex_is_amsdu_in_ampdu_allowed(struct mwifiex_private *priv,
 	return false;
 }
 
-/*
- * This function checks whether AMPDU is allowed or not for a particular TID.
- */
 static inline u8
-mwifiex_is_ampdu_allowed(struct mwifiex_private *priv, int tid)
+mwifiex_is_station_ampdu_allowed(struct mwifiex_private *priv,
+				 struct mwifiex_ra_list_tbl *ptr, int tid)
 {
-	return ((priv->aggr_prio_tbl[tid].ampdu_ap != BA_STREAM_NOT_ALLOWED)
-		? true : false);
+	struct mwifiex_sta_node *node = mwifiex_get_sta_entry(priv, ptr->ra);
+
+	if (unlikely(!node))
+		return false;
+
+	return (node->ampdu_sta[tid] != BA_STREAM_NOT_ALLOWED) ? true : false;
+}
+
+/* This function checks whether AMPDU is allowed or not for a particular TID. */
+static inline u8
+mwifiex_is_ampdu_allowed(struct mwifiex_private *priv,
+			 struct mwifiex_ra_list_tbl *ptr, int tid)
+{
+	if (GET_BSS_ROLE(priv) == MWIFIEX_BSS_ROLE_UAP)
+		return mwifiex_is_station_ampdu_allowed(priv, ptr, tid);
+	else
+		return (priv->aggr_prio_tbl[tid].ampdu_ap !=
+			BA_STREAM_NOT_ALLOWED) ? true : false;
 }
 
 /*
