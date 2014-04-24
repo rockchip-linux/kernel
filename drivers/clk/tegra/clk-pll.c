@@ -605,6 +605,7 @@ static long clk_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
 	struct tegra_clk_pll_freq_table cfg;
+	u64 output_rate = *prate;
 
 	if (pll->params->flags & TEGRA_PLL_FIXED)
 		return pll->params->fixed_rate;
@@ -617,7 +618,10 @@ static long clk_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 	    _calc_rate(hw, &cfg, rate, *prate))
 		return -EINVAL;
 
-	return cfg.output_rate;
+	output_rate *= cfg.n;
+	do_div(output_rate, cfg.m * _hw_to_p_div(hw, cfg.p));
+
+	return output_rate;
 }
 
 static unsigned long clk_pll_recalc_rate(struct clk_hw *hw,
