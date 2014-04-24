@@ -220,6 +220,7 @@ int mwifiex_init_priv(struct mwifiex_private *priv)
 	priv->csa_chan = 0;
 	priv->csa_expire_time = 0;
 
+	memcpy(priv->tos_to_tid_inv, tos_to_tid_inv, MAX_NUM_TID);
 	return mwifiex_add_bss_prio_tbl(priv);
 }
 
