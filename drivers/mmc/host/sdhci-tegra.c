@@ -1349,28 +1349,10 @@ static void tegra_sdhci_reset_exit(struct sdhci_host *host, u8 mask)
 
 		if (soc_data->nvquirks & NVQUIRK_SET_TAP_DELAY) {
 			tuning_data = &tegra_host->tuning_data;
-			switch (host->mmc->ios.timing) {
-			case MMC_TIMING_UHS_SDR50:
-				if (tegra_host->tuning_done &&
-				    (soc_data->nvquirks &
-				     NVQUIRK_ENABLE_SDR50_TUNING))
-					best_tap_value =
-						tuning_data->best_tap_value;
-				else
-					best_tap_value = tegra_host->tap_delay;
-				break;
-			case MMC_TIMING_UHS_DDR50:
-			case MMC_TIMING_UHS_SDR104:
-			case MMC_TIMING_MMC_HS200:
-				if (tegra_host->tuning_done)
-					best_tap_value =
-						tuning_data->best_tap_value;
-				else
-					best_tap_value = tegra_host->tap_delay;
-				break;
-			default:
+			if (tegra_host->tuning_done)
+				best_tap_value = tuning_data->best_tap_value;
+			else
 				best_tap_value = tegra_host->tap_delay;
-			}
 			vendor_ctrl &= ~(0xFF <<
 				SDHCI_VNDR_CLK_CTRL_TAP_VALUE_SHIFT);
 			vendor_ctrl |= (best_tap_value <<
@@ -1493,6 +1475,14 @@ static unsigned int tegra_sdhci_get_timeout_clock(struct sdhci_host *sdhci)
 	return 0;
 }
 
+static void tegra_sdhci_card_event(struct sdhci_host *host)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+
+	tegra_host->tuning_done = false;
+}
+
 static const struct sdhci_ops tegra_sdhci_ops = {
 	.get_ro     = tegra_sdhci_get_ro,
 	.read_l     = tegra_sdhci_readl,
@@ -1505,6 +1495,7 @@ static const struct sdhci_ops tegra_sdhci_ops = {
 	.set_uhs_signaling	= tegra_sdhci_set_uhs_signaling,
 	.switch_signal_voltage_exit = tegra_sdhci_do_calibration,
 	.get_timeout_clock	= tegra_sdhci_get_timeout_clock,
+	.card_event		= tegra_sdhci_card_event,
 };
 
 static const struct sdhci_pltfm_data sdhci_tegra20_pdata = {
