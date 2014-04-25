@@ -1895,7 +1895,6 @@ static void intel_enable_primary_plane(struct drm_i915_private *dev_priv,
 
 	I915_WRITE(reg, val | DISPLAY_PLANE_ENABLE);
 	intel_flush_primary_plane(dev_priv, plane);
-	intel_wait_for_vblank(dev_priv->dev, pipe);
 }
 
 /**
@@ -1925,7 +1924,6 @@ static void intel_disable_primary_plane(struct drm_i915_private *dev_priv,
 
 	I915_WRITE(reg, val & ~DISPLAY_PLANE_ENABLE);
 	intel_flush_primary_plane(dev_priv, plane);
-	intel_wait_for_vblank(dev_priv->dev, pipe);
 }
 
 static bool need_vtd_wa(struct drm_device *dev)
@@ -3624,15 +3622,6 @@ static void ironlake_crtc_enable(struct drm_crtc *crtc)
 	if (HAS_PCH_CPT(dev))
 		cpt_verify_modeset(dev, intel_crtc->pipe);
 
-	/*
-	 * There seems to be a race in PCH platform hw (at least on some
-	 * outputs) where an enabled pipe still completes any pageflip right
-	 * away (as if the pipe is off) instead of waiting for vblank. As soon
-	 * as the first vblank happend, everything works as expected. Hence just
-	 * wait for one vblank before returning to avoid strange things
-	 * happening.
-	 */
-	intel_wait_for_vblank(dev, intel_crtc->pipe);
 }
 
 /* IPS only exists on ULT machines and is tied to pipe A. */
@@ -4277,6 +4266,13 @@ static void i9xx_crtc_disable(struct drm_crtc *crtc)
 
 	for_each_encoder_on_crtc(dev, crtc, encoder)
 		encoder->disable(encoder);
+
+	/*
+	 * On gen2 planes are double buffered but the pipe isn't, so we must
+	 * wait for planes to fully turn off before disabling the pipe.
+	 */
+	if (IS_GEN2(dev))
+		intel_wait_for_vblank(dev, pipe);
 
 	/* Give the overlay scaler a chance to disable if it's on this pipe */
 	intel_crtc_wait_for_pending_flips(crtc);
