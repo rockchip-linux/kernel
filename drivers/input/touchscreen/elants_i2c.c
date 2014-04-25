@@ -140,7 +140,12 @@ static const char recov_packet[HELLO_PACKET_LEN] = {0x55, 0x55, 0x80, 0x80};
 #define	E_INFO_PHY_SCAN	0xD7
 #define	E_INFO_PHY_DRIVER	0xD8
 
-#define	MAX_RETRIES 3
+#define	MAX_RETRIES	3
+#define	MAX_FW_UPDATE_RETRIES	30
+
+#define	ELAN_FW_PAGENUM	351
+#define	ELAN_FW_PAGESIZE	132
+#define	ELAN_FW_FILENAME	"ElanFW.fw"
 
 /*
  * struct multi_queue_header - used by buffer queue header
@@ -227,6 +232,8 @@ struct elants_data {
 };
 
 static int elan_touch_pull_frame(struct elants_data *ts, u8 *buf);
+static int elan_initialize(struct i2c_client *client);
+static int elan_fw_update(struct i2c_client *client);
 
 /*
  *  Function implement
@@ -517,6 +524,22 @@ static ssize_t show_calibrate(struct device *dev,
 		       (ret == 0) ? "calibrate finish" : "calibrate fail");
 }
 
+static ssize_t show_set_fw(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	int ret;
+	u8 rbuf[32];
+	struct i2c_client *client = to_i2c_client(dev);
+
+	ret = elan_fw_update(client);
+	if (ret)
+		sprintf(rbuf, "firmware update failed.\n");
+	else
+		sprintf(rbuf, "firmware update succeeded.\n");
+
+	return scnprintf(buf, PAGE_SIZE, rbuf);
+}
+
 static ssize_t show_fw_version_value(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
@@ -551,11 +574,23 @@ static ssize_t show_drv_version_value(struct device *dev,
 	return sprintf(buf, "%s\n", DRV_VERSION);
 }
 
+static ssize_t show_iap_mode(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%s\n",
+		       (ts->iap_mode == 0) ? "Normal" : "Recovery");
+}
+
 static DEVICE_ATTR(calibrate, S_IRUGO, show_calibrate, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, show_fw_version_value, NULL);
 static DEVICE_ATTR(test_version, S_IRUGO, show_test_version_value, NULL);
 static DEVICE_ATTR(bc_version, S_IRUGO, show_bc_version_value, NULL);
 static DEVICE_ATTR(drv_version, S_IRUGO, show_drv_version_value, NULL);
+static DEVICE_ATTR(fw_update, S_IRUGO, show_set_fw, NULL);
+static DEVICE_ATTR(iap_mode, S_IRUGO, show_iap_mode, NULL);
 
 static struct attribute *elan_attributes[] = {
 	&dev_attr_calibrate.attr,
@@ -563,6 +598,8 @@ static struct attribute *elan_attributes[] = {
 	&dev_attr_test_version.attr,
 	&dev_attr_bc_version.attr,
 	&dev_attr_drv_version.attr,
+	&dev_attr_fw_update.attr,
+	&dev_attr_iap_mode.attr,
 	NULL
 };
 
@@ -904,6 +941,212 @@ static int __elan_fastboot(struct i2c_client *client)
 
 	/* Wait for Hello packets */
 	msleep(BOOT_TIME_DELAY_MS);
+
+	return rc;
+}
+
+/**
+ * elan_fw_update - Elan firmware update in driver
+ *
+ * client: our i2c client
+ *
+ * The firmware name is ElanFW.fw
+ * The file path is located /system/etc/firmware at Android.
+ * The file path usually is located at /lib/firmware.
+ */
+static int elan_fw_update(struct i2c_client *client)
+{
+	int rc = 0;
+	int page = 0;
+	int fw_size = 0, fw_pages;
+	int retry;
+	bool force = false;
+	u8 buf[4];
+	u16 send_id = DEV_MASTER;
+	const struct firmware *p_fw_entry;
+	const u8 *fw_data;
+	const u8 enter_iap[4] = { 0x45, 0x49, 0x41, 0x50 };
+	const u8 enter_iap2[4] = { 0x54, 0x00, 0x12, 0x34 };
+	const u8 iap_rc[4] = { 0x55, 0xaa, 0x33, 0xcc };
+	const u8 ack_ok[2] = { 0xaa, 0xaa };
+	struct elants_data *ts = i2c_get_clientdata(client);
+
+	ENTER_LOG();
+
+	ts->iap_mode = IAP_MODE_ENABLE;
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		force = true;
+
+	elan_dbg(client, "IAP Start.\n");
+
+	rc = test_and_set_bit(LOCK_FW_UPDATE, &ts->flags);
+	if (rc)
+		dev_info(&client->dev, "Recovery IAP detection\n");
+
+	/* avoid interrupt */
+	disable_irq(client->irq);
+
+	dev_info(&client->dev, "request_firmware name = %s\n",
+		 ELAN_FW_FILENAME);
+	rc = request_firmware(&p_fw_entry, ELAN_FW_FILENAME, &client->dev);
+	if (rc != 0) {
+		dev_err(&client->dev, "rc=%d, request_firmware fail\n", rc);
+		goto err;
+	} else
+		elan_dbg(client, "find FW!! Size=%zu\n", p_fw_entry->size);
+
+	fw_data = p_fw_entry->data;
+	fw_size = p_fw_entry->size;
+
+	if (fw_size % ELAN_FW_PAGESIZE) {
+		dev_err(&client->dev, "Wrong file length(size=%d)\n", fw_size);
+		goto err;
+	}
+
+	ts->i2caddr = DEV_MASTER;
+
+	/* Recovery mode detection! */
+	if (force) {
+		elan_set_data(client, enter_iap2, 4);
+	} else {
+		/* Start IAP Procedure */
+		elan_sw_reset(client);
+
+		ts->i2caddr = DEV_MASTER;
+		elan_set_data(client, enter_iap, 4);
+	}
+	elan_msleep(10);
+
+	/* check IAP state */
+	rc = elan_get_data(client, buf, 4);
+	if (rc < 0) {
+		dev_err(&client->dev, "Enter IAP fail!! [Read IAPRC=%d, addr-%.2x fail]\n",
+				rc, ts->i2caddr);
+		rc = -ENODEV;
+		goto err;
+	} else {
+		if (unlikely(memcmp(buf, iap_rc, 4))) {
+			dev_err(&client->dev, "Enter IAP fail!!");
+			rc = -ENODEV;
+			goto err;
+		} else {
+			dev_info(&client->dev, "Enter IAP success!");
+		}
+	}
+
+	ts->i2caddr = DEV_MASTER;
+	send_id = ts->i2caddr;
+	rc = elan_set_data(client, (const u8 *)&send_id, 1);
+	if (rc < 0) {
+		dev_err(&client->dev, "send dummy byte error addr=%.2x\n",
+			ts->i2caddr);
+		rc = -ENODEV;
+		goto err;
+	}
+
+	/* Clear the last page of Master */
+	ts->i2caddr = DEV_MASTER;
+	rc = elan_set_data(client, fw_data, ELAN_FW_PAGESIZE);
+	if (rc < 0) {
+		dev_err(&client->dev, "Clean the last page fail\n");
+		rc = -ENODEV;
+		goto err;
+	}
+
+	rc = elan_get_data(client, buf, 2);
+	if (rc < 0) {
+		dev_err(&client->dev, "Stage1 IAP get ack fail!\n");
+		rc = -ENODATA;
+		goto err;
+	}
+
+	fw_pages = (fw_size / ELAN_FW_PAGESIZE);
+	elan_dbg(client, "IAP Pages = %d\n", fw_pages);
+
+	ts->i2caddr = DEV_MASTER;
+	for (page = 0; page < fw_pages; page++) {
+		bool page_written_successfully = false;
+		for (retry = 0; retry < MAX_FW_UPDATE_RETRIES; retry++) {
+			rc = elan_set_data(
+				client, fw_data + (page * ELAN_FW_PAGESIZE),
+				ELAN_FW_PAGESIZE);
+			elan_dbg(client, "IAP_WRITE1...%d\n", page);
+			if (rc < 0) {
+				dev_err(&client->dev,
+					"IAP Write Page data err!! [rc=%d]\n",
+					rc);
+			}
+
+			rc = elan_get_data(client, buf, 2);
+			if (unlikely(rc < 0)) {
+				dev_err(&client->dev, "IAP Ack data err!!\n");
+				rc = -ENODATA;
+				goto err;
+			} else {
+				elan_dbg(client, "IAP_WRITE2...%d, ret=%x:%x\n",
+					 page, buf[0], buf[1]);
+				if (memcmp(buf, ack_ok, 2)) {
+					dev_err(&client->dev,
+						"IAP Get Ack Error [%02x:%02x]!!\n",
+						buf[0], buf[1]);
+					elan_dbg(client,
+						 "page_rewrite retry %d.\n",
+						 retry);
+				} else {
+					dev_info(&client->dev,
+						 "Elan fw update..page-%.2d OK\n",
+						 page);
+					page_written_successfully = true;
+					break;
+				}
+			}
+		}
+
+		if (!page_written_successfully) {
+			dev_err(&client->dev,
+				"IAP Write Page %.2d timed out!!\n", page);
+			rc = -ENODEV;
+			goto err;
+		}
+	}
+
+	dev_info(&client->dev, "fw update finish..check OK??\n");
+
+	/* old iap need wait 200ms for WDT and rest is for hello packets */
+	msleep(300);
+
+	clear_bit(LOCK_FW_UPDATE, &ts->flags);
+	ts->iap_mode = 0;
+
+	rc = elan_initialize(client);
+	if (rc < 0) {
+		dev_err(&client->dev, "TS Setup handshake fail!! (%d)\n", rc);
+
+		ts->fw_version = 0xffff;
+		ts->test_version = 0xffff;
+		ts->bc_version = 0xff;
+		ts->iap_version = 0xff;
+
+		dev_err(&client->dev, "IAP Update Failure!!\n");
+		goto err;
+	} else {
+		dev_info(&client->dev, "IAP Update Successful!\n");
+	}
+
+err:
+	/* We don't have update fw info ...
+	 * those is kept as previous fw data
+	 * and will update after reboot if err case.
+	 */
+	clear_bit(LOCK_FW_UPDATE, &ts->flags);
+	ts->iap_mode = 0;
+
+	release_firmware(p_fw_entry);
+	/* We don't release LOCK_FW_UPDATE flag if fail */
+	enable_irq(client->irq);
+	elan_msleep(100);
+	/* we need to calibrate touchscreen */
+	elan_calibrate(client);
 
 	return rc;
 }
