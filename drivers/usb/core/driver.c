@@ -28,6 +28,7 @@
 #include <linux/usb.h>
 #include <linux/usb/quirks.h>
 #include <linux/usb/hcd.h>
+#include <linux/pm_dark_resume.h>
 
 #include "usb.h"
 
@@ -1353,7 +1354,8 @@ static int usb_resume_both(struct usb_device *udev, pm_message_t msg)
 		status = usb_resume_device(udev, msg);
 
 	/* Resume the interfaces */
-	if (status == 0 && udev->actconfig) {
+	if (status == 0 && udev->actconfig &&
+			!dev_dark_resume_active(&udev->dev)) {
 		for (i = 0; i < udev->actconfig->desc.bNumInterfaces; i++) {
 			intf = udev->actconfig->interface[i];
 			usb_resume_interface(udev, intf, msg,
@@ -1438,7 +1440,7 @@ int usb_resume(struct device *dev, pm_message_t msg)
 	 * above because it doesn't own the right set of locks.)
 	 */
 	status = usb_resume_both(udev, msg);
-	if (status == 0) {
+	if (status == 0 && !dev_dark_resume_active(dev)) {
 		pm_runtime_disable(dev);
 		pm_runtime_set_active(dev);
 		pm_runtime_enable(dev);

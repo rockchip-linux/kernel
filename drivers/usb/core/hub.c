@@ -3234,6 +3234,11 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	int		status;
 	u16		portchange, portstatus;
 
+	if (dev_dark_resume_active(&udev->dev)) {
+		dev_info(&udev->dev, "disabled for dark resume\n");
+		return 0;
+	}
+
 	if (port_dev->did_runtime_put) {
 		status = pm_runtime_get_sync(&port_dev->dev);
 		port_dev->did_runtime_put = false;

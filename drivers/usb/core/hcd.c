@@ -41,6 +41,7 @@
 #include <linux/workqueue.h>
 #include <linux/pm_runtime.h>
 #include <linux/types.h>
+#include <linux/pm_dark_resume.h>
 
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
@@ -2195,6 +2196,10 @@ int hcd_bus_resume(struct usb_device *rhdev, pm_message_t msg)
 		return -ENOENT;
 	if (HCD_RH_RUNNING(hcd))
 		return 0;
+	if (dev_dark_resume_active(&rhdev->dev)) {
+		clear_bit(HCD_FLAG_WAKEUP_PENDING, &hcd->flags);
+		return 0;
+	}
 
 	hcd->state = HC_STATE_RESUMING;
 	status = hcd->driver->bus_resume(hcd);
