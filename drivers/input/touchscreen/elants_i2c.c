@@ -51,8 +51,7 @@ MODULE_PARM_DESC(debug, "print a lot of debug information");
 #define elan_dbg(client, fmt, arg...)   \
 	do {	\
 		if (debug)      \
-			dev_printk(KERN_DEBUG, &client->dev, \
-				fmt, ##arg);	\
+			dev_dbg(&client->dev, fmt, ##arg);	\
 	} while (0)
 
 #define ENTER_LOG() \
@@ -221,6 +220,7 @@ struct elants_data {
 	u16 mq_header_fail;
 };
 
+static int elan_touch_pull_frame(struct elants_data *ts, u8 *buf);
 
 /*
  *  Function implement
@@ -448,9 +448,69 @@ static int elan_dbfs_init(struct elants_data *ts)
 	return 0;
 }
 
+static int elan_calibrate(struct i2c_client *client)
+{
+	struct elants_data *ts = i2c_get_clientdata(client);
+	int ret = 0;
+	const u8 w_flashkey[4] = { 0x54, 0xC0, 0xE1, 0x5A };
+	const u8 rek[4] = { 0x54, 0x29, 0x00, 0x01 };
+	const u8 resp_rek[4] = { CMD_HEADER_REK, 0x66, 0x66, 0x66 };
+	u8 rbuf[4] = { 0 };
+
+	ENTER_LOG();
+
+	ts->i2caddr = DEV_MASTER;
+	elan_set_data(client, w_flashkey, 4);
+	elan_set_data(client, rek, 4);
+
+	/* We will wait for non O_NONBLOCK handles until a signal or data */
+	mutex_lock(&ts->fifo_mutex);
+
+	while (kfifo_len(&ts->fifo) == 0) {
+		mutex_unlock(&ts->fifo_mutex);
+		ret = wait_event_interruptible_timeout(ts->wait,
+						kfifo_len(&ts->fifo),
+						msecs_to_jiffies(3000));
+		if (ret <= 0) {
+			ret = -ETIMEDOUT;
+			dev_err(&client->dev, "timeout!! wake_up(ts->wait)\n");
+			goto err2;
+		}
+		mutex_lock(&ts->fifo_mutex);
+	}
+	if (elan_touch_pull_frame(ts, rbuf) < 0) {
+		ret = -EINVAL;
+		dev_err(&client->dev, "pull_frame fail!!\n");
+		goto err1;
+	}
+
+	dev_info(&client->dev, "Get Data [%*phC]\n", 4, rbuf);
+	ret = 0;
+err1:
+	mutex_unlock(&ts->fifo_mutex);
+err2:
+	if (memcmp(resp_rek, rbuf, 4)) {
+		ret = -EINVAL;
+		dev_err(&client->dev, "reK fail!!\n");
+	}
+
+	return ret;
+}
+
 /*
  * sysfs interface
  */
+static ssize_t show_calibrate(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	int ret = 0;
+
+	ret = elan_calibrate(client);
+	return sprintf(buf, "%s\n",
+		       (ret == 0) ? "calibrate finish" : "calibrate fail");
+}
+
 static ssize_t show_fw_version_value(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
@@ -460,9 +520,11 @@ static ssize_t show_fw_version_value(struct device *dev,
 	return sprintf(buf, "%.2x%.2x\n", ts->fw_version[0], ts->fw_version[1]);
 }
 
+static DEVICE_ATTR(calibrate, S_IRUGO, show_calibrate, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, show_fw_version_value, NULL);
 
 static struct attribute *elan_attributes[] = {
+	&dev_attr_calibrate.attr,
 	&dev_attr_fw_version.attr,
 	NULL
 };
