@@ -120,6 +120,7 @@ struct iwl_mod_params {
 	bool xvt_default_mode;
 #endif
 	char *nvm_file;
+	bool uapsd_disable;
 };
 
 #endif /* #__iwl_modparams_h__ */
