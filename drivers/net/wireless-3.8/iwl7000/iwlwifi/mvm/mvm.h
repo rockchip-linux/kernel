@@ -1027,6 +1027,9 @@ static inline bool iwl_mvm_vif_low_latency(struct iwl_mvm_vif *mvmvif)
 	return mvmvif->low_latency;
 }
 
+/* Assoc status */
+bool iwl_mvm_is_associated(struct iwl_mvm *mvm);
+
 /* Thermal management and CT-kill */
 void iwl_mvm_tt_handler(struct iwl_mvm *mvm);
 void iwl_mvm_tt_initialize(struct iwl_mvm *mvm);

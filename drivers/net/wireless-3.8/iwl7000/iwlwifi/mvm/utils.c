@@ -563,3 +563,22 @@ int iwl_mvm_update_low_latency(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	return iwl_mvm_power_update_mode(mvm, vif);
 }
+
+static void iwl_mvm_assoc_iter(void *_data, u8 *mac, struct ieee80211_vif *vif)
+{
+	bool *assoc = _data;
+
+	if (vif->bss_conf.assoc)
+		*assoc = true;
+}
+
+bool iwl_mvm_is_associated(struct iwl_mvm *mvm)
+{
+	bool assoc = false;
+
+	ieee80211_iterate_active_interfaces_atomic(
+			mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
+			iwl_mvm_assoc_iter, &assoc);
+
+	return assoc;
+}
