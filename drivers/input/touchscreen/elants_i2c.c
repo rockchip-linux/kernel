@@ -134,10 +134,13 @@ static const char recov_packet[HELLO_PACKET_LEN] = {0x55, 0x55, 0x80, 0x80};
 
 /* FW read command, 0x53 0x?? 0x0, 0x01 */
 #define	E_ELAN_INFO_FW_VER	0x00
+#define	E_ELAN_INFO_BC_VER	0x10
+#define	E_ELAN_INFO_TEST_VER	0xE0
 #define	E_INFO_OSR	0xD6
 #define	E_INFO_PHY_SCAN	0xD7
-#define E_INFO_PHY_DRIVER	0xD8
+#define	E_INFO_PHY_DRIVER	0xD8
 
+#define	MAX_RETRIES 3
 
 /*
  * struct multi_queue_header - used by buffer queue header
@@ -173,7 +176,10 @@ struct mt_device {
 struct elants_data {
 	bool wake_irq_enabled;
 
-	u8 fw_version[2];	/* [0]: solution version, [1]: minor version */
+	u16 fw_version;
+	u16 test_version;
+	u8 bc_version;
+	u8 iap_version;
 
 	int osr;	/* interpolating  trace */
 	int x_res;	/* resolution in units/mm */
@@ -517,15 +523,46 @@ static ssize_t show_fw_version_value(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elants_data *ts = i2c_get_clientdata(client);
 
-	return sprintf(buf, "%.2x%.2x\n", ts->fw_version[0], ts->fw_version[1]);
+	return sprintf(buf, "%.4x\n", ts->fw_version);
+}
+
+static ssize_t show_test_version_value(struct device *dev,
+				       struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%.4x\n", ts->test_version);
+}
+
+static ssize_t show_bc_version_value(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+
+	return sprintf(buf, "Bootcode:%.2x\n"
+		       "IAP:%.2x\n", ts->bc_version, ts->iap_version);
+}
+
+static ssize_t show_drv_version_value(struct device *dev,
+				      struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%s\n", DRV_VERSION);
 }
 
 static DEVICE_ATTR(calibrate, S_IRUGO, show_calibrate, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, show_fw_version_value, NULL);
+static DEVICE_ATTR(test_version, S_IRUGO, show_test_version_value, NULL);
+static DEVICE_ATTR(bc_version, S_IRUGO, show_bc_version_value, NULL);
+static DEVICE_ATTR(drv_version, S_IRUGO, show_drv_version_value, NULL);
 
 static struct attribute *elan_attributes[] = {
 	&dev_attr_calibrate.attr,
 	&dev_attr_fw_version.attr,
+	&dev_attr_test_version.attr,
+	&dev_attr_bc_version.attr,
+	&dev_attr_drv_version.attr,
 	NULL
 };
 
@@ -631,10 +668,23 @@ static int __hello_packet_handler(struct i2c_client *client)
 	return rc;
 }
 
+static u16 parse_version_number(u8 *buf, size_t len)
+{
+	u8 version_num[2] = {0};
+
+	if (len != 4)
+		return 0xffff;
+
+	version_num[0] = ((buf[1] & 0x0f) << 4) | ((buf[2] & 0xf0) >> 4);
+	version_num[1] = ((buf[2] & 0x0f) << 4) | ((buf[3] & 0xf0) >> 4);
+
+	return ((u16)version_num[0] << 8) + (u16)version_num[1];
+}
+
 static int __fw_version_packet_handler(struct i2c_client *client)
 {
 	struct elants_data *ts = i2c_get_clientdata(client);
-	int rc, tries = 3;
+	int rc, retry_cnt;
 	const u8 cmd[] = {CMD_HEADER_READ, E_ELAN_INFO_FW_VER, 0x00, 0x01};
 	u8 buf_recv[4] = {0x0};
 
@@ -643,42 +693,110 @@ static int __fw_version_packet_handler(struct i2c_client *client)
 	/* Command not support in IAP recovery mode */
 	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
 		return 0;
-retry:
-	rc = elan_i2c_read_block(client, (u8 *) cmd, buf_recv, 4);
+
+	for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
+		rc = elan_i2c_read_block(client, (u8 *) cmd, buf_recv, 4);
+		if (rc < 0) {
+			elan_dbg(client,
+				 "read fw version rc=%d, buf=%*phC\n", rc, 4,
+				 buf_recv);
+		}
+
+		if (buf_recv[0] == CMD_HEADER_RESP) {
+			ts->fw_version =
+			    parse_version_number(buf_recv, sizeof(buf_recv));
+			if ((ts->fw_version == 0x0000) ||
+			    (ts->fw_version == 0xffff)) {
+				dev_err(&client->dev,
+					"FW version is empty, "
+					"suggest IAP ELAN chip\n");
+				return -EINVAL;
+			}
+		} else {
+			elan_dbg(client, "read fw retry count=%d\n", retry_cnt);
+			if (retry_cnt == MAX_RETRIES - 1) {
+				ts->fw_version = 0xffff;
+				dev_err(&client->dev,
+					"Fail to read fw version for %d times, "
+					"suggest IAP ELAN chip\n", MAX_RETRIES);
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int __test_version_packet_handler(struct i2c_client *client)
+{
+	struct elants_data *ts = i2c_get_clientdata(client);
+	int rc, retry_cnt;
+	const u8 cmd[] = { CMD_HEADER_READ,
+		E_ELAN_INFO_TEST_VER, 0x00, 0x01
+	};
+	u8 buf_recv[4] = { 0x0 };
+
+	ENTER_LOG();
+
+	/* Command not support in IAP recovery mode */
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		return 0;
+
+	for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
+		rc = elan_i2c_read_block(client, (u8 *) cmd, buf_recv, 4);
+		if (rc < 0) {
+			elan_dbg(client,
+				 "read test version error rc=%d, buf=%*phC\n",
+				 rc, 4, buf_recv);
+			return rc;
+		}
+
+		if (buf_recv[0] == CMD_HEADER_RESP) {
+			ts->test_version =
+			    parse_version_number(buf_recv, sizeof(buf_recv));
+		} else {
+			elan_dbg(client, "read fw retry count=%d\n", retry_cnt);
+			if (retry_cnt == MAX_RETRIES - 1) {
+				ts->test_version = 0xffff;
+				dev_err(&client->dev,
+					"Fail to get test version for %d times.\n",
+					MAX_RETRIES);
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int __bc_version_packet_handler(struct i2c_client *client)
+{
+	struct elants_data *ts = i2c_get_clientdata(client);
+	const u8 get_bc_ver_cmd[] = { CMD_HEADER_READ,
+		E_ELAN_INFO_BC_VER, 0x00, 0x01
+	};
+	u8 buf_recv[4];
+	int rc;
+
+	ENTER_LOG();
+
+	/* Command not support in IAP recovery mode */
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		return 0;
+
+	rc = elan_i2c_read_block(client, (u8 *) get_bc_ver_cmd,
+				 buf_recv, sizeof(buf_recv));
 	if (rc < 0) {
-		elan_dbg(client,
-			 "read fw version rc=%d, buf=%*phC\n", rc, 4, buf_recv);
-	}
-
-	if (buf_recv[0] == CMD_HEADER_RESP) {
-		ts->fw_version[0] = ((buf_recv[1] & 0x0f) << 4) |
-		    ((buf_recv[2] & 0xf0) >> 4);
-		ts->fw_version[1] = ((buf_recv[2] & 0x0f) << 4) |
-		    ((buf_recv[3] & 0xf0) >> 4);
-
-		if (((ts->fw_version[0] == 0x00) && (ts->fw_version[1] == 0x00))
-		    || ((ts->fw_version[0] == 0xff)
-			&& (ts->fw_version[1] == 0xff))) {
-			dev_err(&client->dev,
-				"FW version is empty, "
-				"suggest IAP ELAN chip\n");
-			return -EINVAL;
-		}
-	} else {
-		elan_dbg(client, "read fw retry tries=%d\n", tries);
-		if (tries > 0) {
-			tries--;
-			goto retry;
-		}
-
-		ts->fw_version[0] = 0xff;
-		ts->fw_version[1] = 0xff;
 		dev_err(&client->dev,
-			"Fail to read fw version for 3 times, "
-			"suggest IAP ELAN chip\n");
-		return -EINVAL;
+			"Read BC version error rc=%d, buf=%*phC\n", rc, 4,
+			buf_recv);
+		return rc;
 	}
 
+	ts->bc_version = (((buf_recv[1] & 0x0f) << 4) |
+			  ((buf_recv[2] & 0xf0) >> 4));
+	ts->iap_version = (((buf_recv[2] & 0x0f) << 4) |
+			   ((buf_recv[3] & 0xf0) >> 4));
 	return 0;
 }
 
@@ -1362,25 +1480,35 @@ err_free_device:
 static int elan_initialize(struct i2c_client *client)
 {
 	struct elants_data *ts = i2c_get_clientdata(client);
-	int rc;
+	int rc = 0, retry_cnt = 0;
 
 	ENTER_LOG();
 
-	rc = elan_sw_reset(client);
-	if (rc < 0) {
-		dev_err(&client->dev, "Software reset failed\n");
-		/* Continue initializing anyway */
+	for (retry_cnt = 0; retry_cnt < 3; retry_cnt++) {
+		rc = elan_sw_reset(client);
+		if (rc < 0) {
+			dev_err(&client->dev, "Software reset failed\n");
+			/* Continue initializing if it's the last try */
+			if (retry_cnt < MAX_RETRIES - 1)
+				continue;
+		}
+
+		ts->rx_size = QUEUE_HEADER_SIZE;
+
+		rc = __elan_fastboot(client);
+		if (rc < 0) {
+			dev_err(&client->dev, "fastboot failed, rc=%d\n", rc);
+			/* Continue initializing if it's the last try */
+			if (retry_cnt < MAX_RETRIES - 1)
+				continue;
+		}
+
+		rc = __hello_packet_handler(client);
+		if (rc < 0)
+			dev_err(&client->dev, "hello packet error\n");
+		else
+			break;
 	}
-
-	ts->rx_size = QUEUE_HEADER_SIZE;
-
-	rc = __elan_fastboot(client);
-	if (rc < 0)
-		dev_err(&client->dev, "fastboot failed, rc=%d\n", rc);
-
-	rc = __hello_packet_handler(client);
-	if (rc < 0)
-		dev_err(&client->dev, "hello packet error.\n");
 
 	rc = __fw_version_packet_handler(client);
 	if (rc < 0) {
@@ -1392,9 +1520,17 @@ static int elan_initialize(struct i2c_client *client)
 		}
 	}
 
+	rc = __test_version_packet_handler(client);
+	if (rc < 0)
+		dev_err(&client->dev, "test version error\n");
+
+	rc = __bc_version_packet_handler(client);
+	if (rc < 0)
+		dev_err(&client->dev, "TS error getting BC version\n");
+
 	rc = __ts_info_handler(client);
 	if (rc < 0)
-		dev_err(&client->dev, "TS information checking error.\n");
+		dev_err(&client->dev, "TS information checking error\n");
 
 	return 0;
 }
@@ -1530,7 +1666,7 @@ static int elan_suspend(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elants_data *ts = i2c_get_clientdata(client);
 	const u8 set_sleep_cmd[] = {0x54, 0x50, 0x00, 0x01};
-	int rc = 0;
+	int rc = 0, retry_cnt;
 
 	ENTER_LOG();
 
@@ -1540,9 +1676,14 @@ static int elan_suspend(struct device *dev)
 
 	mutex_lock(&ts->i2c_mutex);
 
-	rc = elan_set_data(client, set_sleep_cmd, sizeof(set_sleep_cmd));
-	if (rc < 0)
-		dev_err(&client->dev, "suspend command failed!\n");
+	for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
+		rc = elan_set_data(client, set_sleep_cmd,
+				   sizeof(set_sleep_cmd));
+		if (rc < 0)
+			dev_err(&client->dev, "suspend command failed!\n");
+		else
+			break;
+	}
 
 	if (device_may_wakeup(dev))
 		ts->wake_irq_enabled = (enable_irq_wake(client->irq) == 0);
@@ -1559,7 +1700,7 @@ static int elan_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elants_data *ts = i2c_get_clientdata(client);
 	const u8 set_active_cmd[] = {0x54, 0x58, 0x00, 0x01};
-	int rc = 0;
+	int rc = 0, retry_cnt;
 
 	ENTER_LOG();
 
@@ -1572,9 +1713,14 @@ static int elan_resume(struct device *dev)
 
 	mutex_lock(&ts->i2c_mutex);
 
-	rc = elan_set_data(client, set_active_cmd, sizeof(set_active_cmd));
-	if (rc < 0)
-		dev_err(&client->dev, "resume command failed!\n");
+	for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
+		rc = elan_set_data(client, set_active_cmd,
+				   sizeof(set_active_cmd));
+		if (rc < 0)
+			dev_err(&client->dev, "resume command failed!\n");
+		else
+			break;
+	}
 
 	enable_irq(client->irq);
 
