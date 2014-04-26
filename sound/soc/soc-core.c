@@ -1272,13 +1272,9 @@ static int soc_aux_dev_init(struct snd_soc_card *card,
 {
 	struct snd_soc_aux_dev *aux_dev = &card->aux_dev[num];
 	struct snd_soc_pcm_runtime *rtd = &card->rtd_aux[num];
-	const char *temp;
 	int ret;
 
 	rtd->card = card;
-
-	temp = codec->name_prefix;
-	codec->name_prefix = NULL;
 
 	/* do machine specific initialization */
 	if (aux_dev->init) {
@@ -1286,8 +1282,6 @@ static int soc_aux_dev_init(struct snd_soc_card *card,
 		if (ret < 0)
 			return ret;
 	}
-
-	codec->name_prefix = temp;
 
 	rtd->codec = codec;
 
@@ -1300,14 +1294,9 @@ static int soc_dai_link_init(struct snd_soc_card *card,
 {
 	struct snd_soc_dai_link *dai_link =  &card->dai_link[num];
 	struct snd_soc_pcm_runtime *rtd = &card->rtd[num];
-	const char *temp;
 	int ret;
 
 	rtd->card = card;
-
-	/* machine controls, routes and widgets are not prefixed */
-	temp = codec->name_prefix;
-	codec->name_prefix = NULL;
 
 	/* do machine specific initialization */
 	if (dai_link->init) {
@@ -1315,8 +1304,6 @@ static int soc_dai_link_init(struct snd_soc_card *card,
 		if (ret < 0)
 			return ret;
 	}
-
-	codec->name_prefix = temp;
 
 	rtd->codec = codec;
 
