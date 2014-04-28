@@ -4048,6 +4048,18 @@ int snd_soc_register_component(struct device *dev,
 }
 EXPORT_SYMBOL_GPL(snd_soc_register_component);
 
+static void __snd_soc_unregister_component(struct snd_soc_component *cmpnt)
+{
+	snd_soc_unregister_dais(cmpnt);
+
+	mutex_lock(&client_mutex);
+	list_del(&cmpnt->list);
+	mutex_unlock(&client_mutex);
+
+	dev_dbg(cmpnt->dev, "ASoC: Unregistered component '%s'\n", cmpnt->name);
+	kfree(cmpnt->name);
+}
+
 /**
  * snd_soc_unregister_component - Unregister a component from the ASoC core
  *
@@ -4063,14 +4075,7 @@ void snd_soc_unregister_component(struct device *dev)
 	return;
 
 found:
-	snd_soc_unregister_dais(cmpnt);
-
-	mutex_lock(&client_mutex);
-	list_del(&cmpnt->list);
-	mutex_unlock(&client_mutex);
-
-	dev_dbg(dev, "ASoC: Unregistered component '%s'\n", cmpnt->name);
-	kfree(cmpnt->name);
+	__snd_soc_unregister_component(cmpnt);
 }
 EXPORT_SYMBOL_GPL(snd_soc_unregister_component);
 
@@ -4170,7 +4175,7 @@ EXPORT_SYMBOL_GPL(snd_soc_register_platform);
  */
 void snd_soc_remove_platform(struct snd_soc_platform *platform)
 {
-	snd_soc_unregister_component(platform->dev);
+	__snd_soc_unregister_component(&platform->component);
 
 	mutex_lock(&client_mutex);
 	list_del(&platform->list);
@@ -4375,7 +4380,7 @@ void snd_soc_unregister_codec(struct device *dev)
 	return;
 
 found:
-	snd_soc_unregister_component(dev);
+	__snd_soc_unregister_component(&codec->component);
 
 	mutex_lock(&client_mutex);
 	list_del(&codec->list);
