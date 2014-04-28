@@ -432,14 +432,18 @@ static int tegra_sdhci_issue_tuning_cmd(struct sdhci_host *sdhci)
 
 	timeout = TUNING_OP_TIMEOUT;
 	do {
-		timeout--;
 		usleep_range(1000, 1100);
 		intstatus = sdhci_readl(sdhci, SDHCI_INT_STATUS);
 		if (intstatus) {
 			sdhci_writel(sdhci, intstatus, SDHCI_INT_STATUS);
 			break;
 		}
-	} while (timeout);
+	} while (--timeout > 0);
+	if (timeout == 0) {
+		dev_err(mmc_dev(sdhci->mmc),
+			"Timed out waiting for interrupt\n");
+		return -ETIMEDOUT;
+	}
 
 	if ((intstatus & SDHCI_INT_DATA_AVAIL) &&
 		!(intstatus & SDHCI_INT_DATA_CRC)) {
@@ -474,6 +478,8 @@ static int tegra_sdhci_scan_tap_values(struct sdhci_host *sdhci,
 
 		/* Run frequency tuning */
 		err = tegra_sdhci_issue_tuning_cmd(sdhci);
+		if (err == -ETIMEDOUT)
+			return err;
 		if (err && retry) {
 			retry--;
 			continue;
@@ -710,6 +716,8 @@ static int tegra_sdhci_get_tap_window_data(struct sdhci_host *sdhci,
 		tap_data = &tuning_data->tap_data[num_of_wins];
 		/* Get the window start */
 		tap_value = tegra_sdhci_scan_tap_values(sdhci, tap_value, true);
+		if (tap_value < 0)
+			return tap_value;
 		tap_data->win_start = min_t(unsigned int, tap_value,
 					    MAX_TAP_VALUES);
 		tap_value++;
@@ -728,6 +736,8 @@ static int tegra_sdhci_get_tap_window_data(struct sdhci_host *sdhci,
 		/* Get the window end */
 		tap_value = tegra_sdhci_scan_tap_values(sdhci,
 				tap_value, false);
+		if (tap_value < 0)
+			return tap_value;
 		tap_data->win_end = min_t(int, (tap_value - 1), MAX_TAP_VALUES);
 		tap_data->win_size = tap_data->win_end - tap_data->win_start;
 		tap_value++;
