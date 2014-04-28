@@ -146,8 +146,10 @@ static struct edid_quirk {
 	/* Lenovo B116XW03 */
 	{ "AUO", 0x315c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
 
-	/* CMN */
+	/* CMN N116BGE-EA2 */
 	{ "CMN", 0x1132, EDID_QUIRK_SHORT_BLANKING },
+	/* CMN N116BGE-EB2 */
+	{ "CMN", 0x4400, EDID_QUIRK_SHORT_BLANKING },
 };
 
 static struct downclock_rate {
@@ -170,8 +172,10 @@ static struct short_blanking {
 	int vtotal;
 	int clock;
 } short_blanking_list[] = {
-	/* CMN */
+	/* CMN N116BGE-EA2 */
 	{ "CMN", 0x1132, 1512, 790, 71693 },
+	/* CMN N116BGE-EB2 */
+	{ "CMN", 0x4400, 1512, 790, 71693 },
 };
 
 /*
