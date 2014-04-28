@@ -337,10 +337,16 @@ static int m25p80_read(struct mtd_info *mtd, loff_t from, size_t len,
 	struct m25p *flash = mtd_to_m25p(mtd);
 	struct spi_transfer t[2];
 	struct spi_message m;
-	uint8_t opcode;
+	unsigned int dummy = nor->read_dummy;
+	int ret;
 
-	pr_debug("%s: %s from 0x%08x, len %zd\n", dev_name(&flash->spi->dev),
-			__func__, (u32)from, len);
+	/* convert the dummy cycles to the number of bytes */
+	dummy /= 8;
+
+	/* Wait till previous write/erase is done. */
+	ret = nor->wait_till_ready(nor);
+	if (ret)
+		return ret;
 
 	spi_message_init(&m);
 	memset(t, 0, (sizeof t));
