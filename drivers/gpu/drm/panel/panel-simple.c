@@ -265,6 +265,13 @@ static int panel_simple_remove(struct device *dev)
 	return 0;
 }
 
+static void panel_simple_shutdown(struct device *dev)
+{
+	struct panel_simple *panel = dev_get_drvdata(dev);
+
+	panel_simple_disable(&panel->base);
+}
+
 static const struct drm_display_mode auo_b101aw03_mode = {
 	.clock = 51450,
 	.hdisplay = 1024,
@@ -501,6 +508,11 @@ static int panel_simple_platform_remove(struct platform_device *pdev)
 	return panel_simple_remove(&pdev->dev);
 }
 
+static void panel_simple_platform_shutdown(struct platform_device *pdev)
+{
+	panel_simple_shutdown(&pdev->dev);
+}
+
 static struct platform_driver panel_simple_platform_driver = {
 	.driver = {
 		.name = "panel-simple",
@@ -509,6 +521,7 @@ static struct platform_driver panel_simple_platform_driver = {
 	},
 	.probe = panel_simple_platform_probe,
 	.remove = panel_simple_platform_remove,
+	.shutdown = panel_simple_platform_shutdown,
 };
 
 struct panel_desc_dsi {
@@ -650,6 +663,11 @@ static int panel_simple_dsi_remove(struct mipi_dsi_device *dsi)
 	return panel_simple_remove(&dsi->dev);
 }
 
+static void panel_simple_dsi_shutdown(struct mipi_dsi_device *dsi)
+{
+	panel_simple_shutdown(&dsi->dev);
+}
+
 static struct mipi_dsi_driver panel_simple_dsi_driver = {
 	.driver = {
 		.name = "panel-simple-dsi",
@@ -658,6 +676,7 @@ static struct mipi_dsi_driver panel_simple_dsi_driver = {
 	},
 	.probe = panel_simple_dsi_probe,
 	.remove = panel_simple_dsi_remove,
+	.shutdown = panel_simple_dsi_shutdown,
 };
 
 static int __init panel_simple_init(void)
