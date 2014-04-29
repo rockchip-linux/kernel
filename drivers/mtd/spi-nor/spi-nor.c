@@ -101,6 +101,25 @@ static int read_sr(struct spi_nor *nor)
 }
 
 /*
+ * Read the flag status register, returning its value in the location
+ * Return the status register value.
+ * Returns negative if error occurred.
+ */
+static int read_fsr(struct spi_nor *nor)
+{
+	int ret;
+	u8 val;
+
+	ret = nor->read_reg(nor, SPINOR_OP_RDFSR, &val, 1);
+	if (ret < 0) {
+		pr_err("error %d reading FSR\n", ret);
+		return ret;
+	}
+
+	return val;
+}
+
+/*
  * Read configuration register, returning its value in the
  * location. Return the configuration register value.
  * Returns negative if error occured.
@@ -977,10 +996,6 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 	return ERR_PTR(-ENODEV);
 }
 
-static const struct spi_device_id *jedec_probe(struct spi_nor *nor)
-{
-	return nor->read_id(nor);
-}
 
 static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char *buf)
@@ -1318,7 +1333,9 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	} else if (info->flags & SECT_4K_PMC) {
 		nor->erase_opcode = SPINOR_OP_BE_4K_PMC;
 		mtd->erasesize = 4096;
-	} else {
+	} else
+#endif
+	{
 		nor->erase_opcode = SPINOR_OP_SE;
 		mtd->erasesize = info->sector_size;
 	}
