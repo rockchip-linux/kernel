@@ -378,4 +378,16 @@ enum {
 	MWIFIEX_FUNC_SHUTDOWN,
 };
 
+struct mwifiex_ds_tdls_oper {
+	u16 tdls_action;
+	u8 peer_mac[ETH_ALEN];
+	u16 capability;
+	u8 qos_info;
+	u8 *ext_capab;
+	u8 ext_capab_len;
+	u8 *supp_rates;
+	u8 supp_rates_len;
+	u8 *ht_capab;
+};
+
 #endif /* !_MWIFIEX_IOCTL_H_ */

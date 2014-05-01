@@ -315,6 +315,7 @@ enum MWIFIEX_802_11_PRIVACY_FILTER {
 #define HostCmd_CMD_MGMT_FRAME_REG                    0x010c
 #define HostCmd_CMD_REMAIN_ON_CHAN                    0x010d
 #define HostCmd_CMD_11AC_CFG			      0x0112
+#define HostCmd_CMD_TDLS_OPER                         0x0122
 
 #define PROTOCOL_NO_SECURITY        0x01
 #define PROTOCOL_STATIC_WEP         0x02
@@ -465,6 +466,10 @@ enum P2P_MODES {
 	(((event_cause) >> 24) & 0x00ff)
 
 #define MWIFIEX_FW_V15		   15
+
+#define ACT_TDLS_DELETE            0x00
+#define ACT_TDLS_CREATE            0x01
+#define ACT_TDLS_CONFIG            0x02
 
 struct mwifiex_ie_types_header {
 	__le16 type;
@@ -1612,6 +1617,12 @@ struct mwifiex_ie_list {
 	struct mwifiex_ie ie_list[MAX_MGMT_IE_INDEX];
 } __packed;
 
+struct host_cmd_ds_tdls_oper {
+	__le16 tdls_action;
+	__le16 reason;
+	u8 peer_mac[ETH_ALEN];
+} __packed;
+
 struct host_cmd_ds_command {
 	__le16 command;
 	__le16 size;
@@ -1670,6 +1681,7 @@ struct host_cmd_ds_command {
 		struct host_cmd_ds_802_11_subsc_evt subsc_evt;
 		struct host_cmd_ds_sys_config uap_sys_config;
 		struct host_cmd_11ac_vht_cfg vht_cfg;
+		struct host_cmd_ds_tdls_oper tdls_oper;
 	} params;
 } __packed;
 
