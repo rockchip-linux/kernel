@@ -532,6 +532,7 @@ struct mwifiex_private {
 	u8 csa_chan;
 	unsigned long csa_expire_time;
 	struct station_parameters *sta_params;
+	struct sk_buff_head tdls_txq;
 };
 
 enum mwifiex_ba_status {

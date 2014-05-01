@@ -539,6 +539,7 @@ void
 mwifiex_clean_txrx(struct mwifiex_private *priv)
 {
 	unsigned long flags;
+	struct sk_buff *skb, *tmp;
 
 	mwifiex_11n_cleanup_reorder_tbl(priv);
 	spin_lock_irqsave(&priv->wmm.ra_list_spinlock, flags);
@@ -556,6 +557,9 @@ mwifiex_clean_txrx(struct mwifiex_private *priv)
 	    !priv->adapter->surprise_removed)
 		priv->adapter->if_ops.clean_pcie_ring(priv->adapter);
 	spin_unlock_irqrestore(&priv->wmm.ra_list_spinlock, flags);
+
+	skb_queue_walk_safe(&priv->tdls_txq, skb, tmp)
+		mwifiex_write_data_complete(priv->adapter, skb, 0, -1);
 }
 
 /*
