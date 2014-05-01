@@ -1104,6 +1104,8 @@ int mwifiex_process_sta_cmdresp(struct mwifiex_private *priv, u16 cmdresp_no,
 	case HostCmd_CMD_UAP_BSS_STOP:
 		priv->bss_started = 0;
 		break;
+	case HostCmd_CMD_UAP_STA_DEAUTH:
+		break;
 	case HostCmd_CMD_TDLS_OPER:
 		ret = mwifiex_ret_tdls_oper(priv, resp);
 		break;
