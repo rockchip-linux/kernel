@@ -465,6 +465,7 @@ enum P2P_MODES {
 #define EVENT_UAP_MIC_COUNTERMEASURES   0x0000004c
 #define EVENT_HOSTWAKE_STAIE		0x0000004d
 #define EVENT_CHANNEL_SWITCH_ANN        0x00000050
+#define EVENT_TDLS_GENERIC_EVENT        0x00000052
 #define EVENT_EXT_SCAN_REPORT           0x00000058
 #define EVENT_REMAIN_ON_CHAN_EXPIRED    0x0000005f
 
@@ -482,6 +483,7 @@ enum P2P_MODES {
 #define ACT_TDLS_DELETE            0x00
 #define ACT_TDLS_CREATE            0x01
 #define ACT_TDLS_CONFIG            0x02
+#define TDLS_EVENT_LINK_TEAR_DOWN  3
 
 struct mwifiex_ie_types_header {
 	__le16 type;
@@ -1692,6 +1694,15 @@ struct mwifiex_ie_types_rssi_threshold {
 struct host_cmd_ds_802_11_subsc_evt {
 	__le16 action;
 	__le16 events;
+} __packed;
+
+struct mwifiex_tdls_generic_event {
+	__le16 type;
+	u8 peer_mac[ETH_ALEN];
+	union {
+		__le16 reason_code;
+		__le16 reserved;
+	} u;
 } __packed;
 
 struct mwifiex_ie {
