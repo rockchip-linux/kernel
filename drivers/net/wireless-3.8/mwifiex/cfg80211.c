@@ -2405,6 +2405,23 @@ mwifiex_cfg80211_tdls_oper(struct wiphy *wiphy, struct net_device *dev,
 	return mwifiex_tdls_oper(priv, peer, action);
 }
 
+static int
+mwifiex_cfg80211_add_station(struct wiphy *wiphy,
+			     struct net_device *dev,
+			     u8 *mac, struct station_parameters *params)
+{
+	struct mwifiex_private *priv = mwifiex_netdev_get_priv(dev);
+
+	if (!(params->sta_flags_set & BIT(NL80211_STA_FLAG_TDLS_PEER)))
+		return -ENOTSUPP;
+
+	/* make sure we are in station mode and connected */
+	if ((priv->bss_type != MWIFIEX_BSS_TYPE_STA) || !priv->media_connected)
+		return -ENOTSUPP;
+
+	return mwifiex_tdls_oper(priv, mac, MWIFIEX_TDLS_CREATE_LINK);
+}
+
 /* station cfg80211 operations */
 static struct cfg80211_ops mwifiex_cfg80211_ops = {
 	.add_virtual_intf = mwifiex_add_virtual_intf,
@@ -2435,6 +2452,7 @@ static struct cfg80211_ops mwifiex_cfg80211_ops = {
 	.set_antenna = mwifiex_cfg80211_set_antenna,
 	.tdls_mgmt = mwifiex_cfg80211_tdls_mgmt,
 	.tdls_oper = mwifiex_cfg80211_tdls_oper,
+	.add_station = mwifiex_cfg80211_add_station,
 };
 
 /*
