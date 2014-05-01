@@ -1377,6 +1377,10 @@ static void intel_reset_dpio(struct drm_device *dev)
 	if (!IS_VALLEYVIEW(dev))
 		return;
 
+	/* Reset common lane in PHY */
+	vlv_set_power_well(dev_priv, 0xc0f);
+	vlv_set_power_well(dev_priv, 0xf);
+
 	/*
 	 * Enable the CRI clock source so we can get at the display and the
 	 * reference clock for VGA hotplug / manual detection.
