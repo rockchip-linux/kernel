@@ -276,6 +276,21 @@ struct ieee_types_extcap {
 	u8 ext_capab[8];
 } __packed;
 
+struct ieee_types_vht_cap {
+	struct ieee_types_header ieee_hdr;
+	struct ieee80211_vht_cap vhtcap;
+} __packed;
+
+struct ieee_types_vht_oper {
+	struct ieee_types_header ieee_hdr;
+	struct ieee80211_vht_operation vhtoper;
+} __packed;
+
+struct ieee_types_aid {
+	struct ieee_types_header ieee_hdr;
+	u16 aid;
+} __packed;
+
 struct mwifiex_bssdescriptor {
 	u8 mac_address[ETH_ALEN];
 	struct cfg80211_ssid ssid;
@@ -608,10 +623,13 @@ struct mwifiex_tdls_capab {
 	u8 rates_len;
 	u8 qos_info;
 	u8 coex_2040;
+	u16 aid;
 	struct ieee80211_ht_cap ht_capb;
 	struct ieee80211_ht_operation ht_oper;
 	struct ieee_types_extcap extcap;
 	struct ieee_types_generic rsn_ie;
+	struct ieee80211_vht_cap vhtcap;
+	struct ieee80211_vht_operation vhtoper;
 };
 
 /* This is AP/TDLS specific structure which stores information
@@ -622,6 +640,7 @@ struct mwifiex_sta_node {
 	u8 mac_addr[ETH_ALEN];
 	u8 is_wmm_enabled;
 	u8 is_11n_enabled;
+	u8 is_11ac_enabled;
 	u8 ampdu_sta[MAX_NUM_TID];
 	u16 rx_seq[MAX_NUM_TID];
 	u16 max_amsdu;
@@ -1210,6 +1229,9 @@ void mwifiex_process_tdls_action_frame(struct mwifiex_private *priv,
 				       u8 *buf, int len);
 int mwifiex_tdls_oper(struct mwifiex_private *priv, u8 *peer, u8 action);
 int mwifiex_get_tdls_link_status(struct mwifiex_private *priv, u8 *mac);
+bool mwifiex_is_bss_in_11ac_mode(struct mwifiex_private *priv);
+u8 mwifiex_get_center_freq_index(struct mwifiex_private *priv, u8 band,
+				 u32 pri_chan, u8 chan_bw);
 
 #ifdef CONFIG_DEBUG_FS
 void mwifiex_debugfs_init(void);
