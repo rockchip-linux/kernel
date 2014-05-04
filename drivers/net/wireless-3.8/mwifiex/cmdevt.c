@@ -584,7 +584,8 @@ int mwifiex_send_cmd(struct mwifiex_private *priv, u16 cmd_no,
 	}
 
 	/* Send command */
-	if (cmd_no == HostCmd_CMD_802_11_SCAN) {
+	if (cmd_no == HostCmd_CMD_802_11_SCAN ||
+	    cmd_no == HostCmd_CMD_802_11_SCAN_EXT) {
 		mwifiex_queue_scan_cmd(priv, cmd_node);
 	} else {
 		mwifiex_insert_cmd_to_pending_q(adapter, cmd_node, true);
