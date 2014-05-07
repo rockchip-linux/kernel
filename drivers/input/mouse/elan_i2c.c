@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.5.3
+ * Version: 1.5.4
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -38,7 +38,7 @@
 #include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.5.3"
+#define ELAN_DRIVER_VERSION	"1.5.4"
 #define ETP_PRESSURE_OFFSET	25
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
@@ -1466,17 +1466,17 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 	int pos_x, pos_y;
 	int pressure, mk_x, mk_y;
 	int i, area_x, area_y, major, minor, new_pressure;
-	int finger_count = 0;
 	int btn_click;
 	u8  tp_info;
+	struct device *dev = &data->client->dev;
 
 	if (!data) {
-		dev_err(&data->client->dev, "tp data structure is null");
+		dev_err(dev, "tp data structure is null");
 		return;
 	}
 	input = data->input;
 	if (!input) {
-		dev_err(&data->client->dev, "input structure is null");
+		dev_err(dev, "input structure is null");
 		return;
 	}
 
@@ -1503,6 +1503,20 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 			mk_y = (finger_data[3] >> 4);
 			pressure = finger_data[4];
 
+			if (pos_x > data->max_x) {
+				dev_err(dev, "[%d] x=%d y=%d over max_x (%d)",
+					i, pos_x, pos_y, data->max_x);
+				finger_data += ETP_FINGER_DATA_LEN;
+				continue;
+			}
+
+			if (pos_y > data->max_y) {
+				dev_err(dev, "[%d] x=%d y=%d over max_y (%d)",
+					i, pos_x, pos_y, data->max_y);
+				finger_data += ETP_FINGER_DATA_LEN;
+				continue;
+			}
+
 			/*
 			 * to avoid fat finger be as palm, so reduce the
 			 * width x and y per trace
@@ -1527,7 +1541,6 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 			input_report_abs(input, ABS_MT_TOUCH_MAJOR, major);
 			input_report_abs(input, ABS_MT_TOUCH_MINOR, minor);
 			finger_data += ETP_FINGER_DATA_LEN;
-			finger_count++;
 		} else {
 			input_mt_slot(input, i);
 			input_mt_report_slot_state(input,
