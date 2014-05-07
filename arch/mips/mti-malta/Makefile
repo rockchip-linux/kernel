@@ -11,3 +11,5 @@ obj-y				:= malta-amon.o malta-display.o malta-init.o \
 
 # FIXME FIXME FIXME
 obj-$(CONFIG_MIPS_MT_SMTC)	+= malta-smtc.o
+
+obj-$(CONFIG_MIPS_MALTA_PM)	+= malta-pm.o
