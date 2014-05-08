@@ -1272,6 +1272,7 @@ static int elan_get_repo_info(struct i2c_client *client, u8 *buf)
 		mq->report_count = 1;
 		mq->report_length = PACKET_SIZE;
 		ts->rx_size = mq->report_length;
+		ts->packet_size = mq->report_length / mq->report_count;
 		return ts->rx_size;
 	default:
 		dev_err(&client->dev,
@@ -1727,7 +1728,7 @@ static int elan_initialize(struct i2c_client *client)
 
 	ENTER_LOG();
 
-	for (retry_cnt = 0; retry_cnt < 3; retry_cnt++) {
+	for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
 		rc = elan_sw_reset(client);
 		if (rc < 0) {
 			dev_err(&client->dev, "Software reset failed\n");
