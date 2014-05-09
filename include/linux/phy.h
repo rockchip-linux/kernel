@@ -432,6 +432,12 @@ struct phy_driver {
 	 */
 	int (*did_interrupt)(struct phy_device *phydev);
 
+	/*
+	 * Called before an ethernet device is detached
+	 * from the PHY.
+	 */
+	void (*detach)(struct phy_device *phydev);
+
 	/* Clears up any memory if needed */
 	void (*remove)(struct phy_device *phydev);
 

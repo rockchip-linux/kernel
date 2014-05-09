@@ -662,6 +662,9 @@ EXPORT_SYMBOL(phy_attach);
 void phy_detach(struct phy_device *phydev)
 {
 	int i;
+	if (phydev->drv && phydev->drv->detach)
+		phydev->drv->detach(phydev);
+
 	phydev->attached_dev->phydev = NULL;
 	phydev->attached_dev = NULL;
 	phy_suspend(phydev);
