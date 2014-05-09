@@ -161,6 +161,12 @@ __be16 eth_type_trans(struct sk_buff *skb, struct net_device *dev)
 	const struct ethhdr *eth;
 
 	skb->dev = dev;
+
+#ifdef CONFIG_ETHERNET_PACKET_MANGLE
+	if (dev->eth_mangle_rx)
+		dev->eth_mangle_rx(dev, skb);
+#endif
+
 	skb_reset_mac_header(skb);
 	skb_pull_inline(skb, ETH_HLEN);
 	eth = eth_hdr(skb);
