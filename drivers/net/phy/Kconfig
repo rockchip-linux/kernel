@@ -12,6 +12,16 @@ menuconfig PHYLIB
 
 if PHYLIB
 
+config SWCONFIG
+	tristate "Switch configuration API"
+	---help---
+	  Switch configuration API using netlink. This allows
+	  you to configure the VLAN features of certain switches.
+
+config SWCONFIG_LEDS
+	bool "Switch LED trigger support"
+	depends on (SWCONFIG && LEDS_TRIGGERS)
+
 comment "MII PHY device drivers"
 
 config AT803X_PHY
