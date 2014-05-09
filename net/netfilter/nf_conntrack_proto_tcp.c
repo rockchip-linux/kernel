@@ -33,6 +33,9 @@
 #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 
+/* Do not check the TCP window for incoming packets  */
+static int nf_ct_tcp_no_window_check __read_mostly = 0;
+
 /* "Be conservative in what you do,
     be liberal in what you accept from others."
     If it's non-zero, we mark only out of window RST segments as INVALID. */
@@ -514,6 +517,9 @@ static bool tcp_in_window(const struct nf_conn *ct,
 	__u32 seq, ack, sack, end, win, swin;
 	s32 receiver_offset;
 	bool res, in_recv_win;
+
+	if (nf_ct_tcp_no_window_check)
+		return true;
 
 	/*
 	 * Get the required data from the packet.
@@ -1451,6 +1457,13 @@ static struct ctl_table tcp_sysctl_table[] = {
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname       = "nf_conntrack_tcp_no_window_check",
+		.data           = &nf_ct_tcp_no_window_check,
+		.maxlen         = sizeof(unsigned int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec,
 	},
 	{ }
 };
