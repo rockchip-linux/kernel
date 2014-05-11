@@ -100,6 +100,11 @@
 		};
 	};
 
+	nss-common {
+		reg = <0x03000000 0x00001000>;
+		reg-names = "nss_fpb_base";
+	};
+
 	soc: soc {
 		#address-cells = <1>;
 		#size-cells = <1>;

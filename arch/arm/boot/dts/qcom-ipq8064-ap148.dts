@@ -14,8 +14,15 @@
 		};
 	};
 
+	aliases {
+		mdio-gpio0 = &mdio0;
+	};
+
 	soc {
 		pinmux@800000 {
+			pinctrl-0 = <&mdio0_pins_default &rgmii2_pins_default>;
+			pinctrl-names = "default";
+
 			i2c4_pins: i2c4_pinmux {
 				pins = "gpio12", "gpio13";
 				function = "gsbi4";
@@ -71,6 +78,35 @@
 						"gpio43", "gpio44", "gpio45",
 						"gpio46", "gpio47";
 					bias-bus-hold;
+				};
+			};
+
+			mdio0_pins_default: mdio0_pins_default {
+				mux {
+					pins = "gpio0", "gpio1";
+					function = "mdio";
+					drive-strength = <8>;
+					bias-disable;
+				};
+
+				clk {
+					pins = "gpio1";
+					input-disable;
+				};
+			};
+
+			rgmii2_pins_default: rgmii2_pins_default {
+				mux {
+					pins = "gpio27", "gpio28", "gpio29", "gpio30", "gpio31", "gpio32",
+					       "gpio51", "gpio52", "gpio59", "gpio60", "gpio61", "gpio62" ;
+					function = "rgmii2";
+					drive-strength = <8>;
+					bias-disable;
+				};
+
+				tx {
+					pins = "gpio27", "gpio28", "gpio29", "gpio30", "gpio31", "gpio32" ;
+					input-disable;
 				};
 			};
 		};
@@ -200,6 +236,101 @@
 
 		usb30@1 {
 			status = "ok";
+		};
+
+		mdio0: mdio {
+			compatible = "virtual,mdio-gpio";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			gpios = <&qcom_pinmux 1 0 &qcom_pinmux 0 0>;
+
+			phy0: ethernet-phy@0 {
+				device_type = "ethernet-phy";
+				reg = <0>;
+				qca,ar8327-initvals = <
+					0x00004 0x7600000   /* PAD0_MODE */
+					0x00008 0x1000000   /* PAD5_MODE */
+					0x0000c 0x80        /* PAD6_MODE */
+					0x000e4 0xaa545     /* MAC_POWER_SEL */
+					0x000e0 0xc74164de  /* SGMII_CTRL */
+					0x0007c 0x4e        /* PORT0_STATUS */
+					0x00094 0x4e        /* PORT6_STATUS */
+				>;
+			};
+
+			phy4: ethernet-phy@4 {
+				device_type = "ethernet-phy";
+				reg = <4>;
+			};
+		};
+
+		nss0: nss@40000000 {
+			compatible = "qcom,nss0";
+			interrupts = <0 213 0x4>;
+			reg = <0x36000000 0x1000 0x39000000 0x20000>;
+			reg-names = "nphys", "vphys";
+			clocks = <&gcc NSS_CORE_CLK>, <&gcc NSSTCM_CLK_SRC>, <&gcc NSSTCM_CLK>;
+			clock-names = "nss_core_clk", "nss_tcm_src", "nss_tcm_clk";
+			resets = <&gcc UBI32_CORE1_CLKRST_CLAMP_RESET>,
+				 <&gcc UBI32_CORE1_CLAMP_RESET>,
+				 <&gcc UBI32_CORE1_AHB_RESET>,
+				 <&gcc UBI32_CORE1_AXI_RESET>;
+			reset-names = "clkrst_clamp", "clamp", "ahb", "axi";
+			qcom,id = <0>;
+			qcom,num_irq = <1>;
+			qcom,rst_addr = <0x40000000>;
+			qcom,load_addr = <0x40000000>;
+			qcom,turbo_frequency = <1>;
+			qcom,ipv4_enabled = <1>;
+			qcom,ipv6_enabled = <1>;
+			qcom,l2switch_enabled = <1>;
+			qcom,crypto_enabled = <0>;
+			qcom,ipsec_enabled = <0>;
+			qcom,wlan_enabled = <0>;
+			qcom,tun6rd_enabled = <1>;
+			qcom,tunipip6_enabled = <1>;
+			qcom,shaping_enabled = <1>;
+			qcom,gmac0_enabled = <1>;
+			qcom,gmac1_enabled = <1>;
+			qcom,gmac2_enabled = <1>;
+			qcom,gmac3_enabled = <1>;
+		};
+
+		nss-gmac-common {
+			reg = <0x03000000 0x0000FFFF 0x1bb00000 0x0000FFFF 0x00900000 0x00004000>;
+			reg-names = "nss_reg_base" , "qsgmii_reg_base", "clk_ctl_base";
+		};
+
+		gmac1: ethernet@37200000 {
+			device_type = "network";
+			compatible = "qcom,nss-gmac1";
+			reg = <0x37200000 0x200000>;
+			qcom,id = <1>;
+			qcom,phy_mdio_addr = <4>;
+			qcom,poll_required = <1>;
+			qcom,rgmii_delay = <0>;
+			qcom,phy_mii_type = <0>;
+			qcom,emulation = <0>;
+			qcom,forced_speed = <1000>;
+			qcom,forced_duplex = <1>;
+			local-mac-address = [000000000000];
+			mdiobus = <&mdio0>;
+		};
+
+		gmac2: ethernet@37400000 {
+			device_type = "network";
+			compatible = "qcom,nss-gmac2";
+			reg = <0x37400000 0x200000>;
+			qcom,id = <2>;
+			qcom,phy_mdio_addr = <0>;
+			qcom,poll_required = <0>;
+			qcom,rgmii_delay = <0>;
+			qcom,phy_mii_type = <1>;
+			qcom,emulation = <0>;
+			qcom,forced_speed = <1000>;
+			qcom,forced_duplex = <1>;
+			local-mac-address = [000000000000];
+			mdiobus = <&mdio0>;
 		};
 	};
 };
