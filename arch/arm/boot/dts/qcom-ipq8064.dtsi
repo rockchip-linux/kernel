@@ -2,6 +2,7 @@
 
 #include "skeleton.dtsi"
 #include <dt-bindings/clock/qcom,gcc-ipq806x.h>
+#include <dt-bindings/reset/qcom,gcc-ipq806x.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 
 / {
@@ -245,6 +246,98 @@
 			reg = <0x00900000 0x4000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+		};
+
+		pci@1b500000 {
+			compatible = "qcom,pcie-ipq8064";
+			reg = <0x1b500000 0x1000
+			       0x1b502000 0x80
+			       0x1b600000 0x100
+				>;
+			reg-names = "base", "elbi", "parf";
+
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			interrupts = <0 35 0x0
+				      0 36 0x0
+				      0 37 0x0
+				      0 38 0x0
+				      0 39 0x0>;
+			resets = <&gcc PCIE_ACLK_RESET>,
+				 <&gcc PCIE_HCLK_RESET>,
+				 <&gcc PCIE_POR_RESET>,
+				 <&gcc PCIE_PCI_RESET>,
+				 <&gcc PCIE_PHY_RESET>;
+			reset-names = "axi", "ahb", "por", "pci", "phy";
+
+			clocks = <&gcc PCIE_A_CLK>,
+				 <&gcc PCIE_H_CLK>,
+				 <&gcc PCIE_PHY_CLK>;
+			clock-names = "core", "iface", "phy";
+			status = "disabled";
+		};
+
+		pci@1b700000 {
+			compatible = "qcom,pcie-ipq8064";
+			reg = <0x1b700000 0x1000
+			       0x1b702000 0x80
+			       0x1b800000 0x100
+				>;
+			reg-names = "base", "elbi", "parf";
+
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+
+			interrupts = <0 57 0x0
+				      0 58 0x0
+				      0 59 0x0
+				      0 60 0x0
+				      0 61 0x0>;
+			resets = <&gcc PCIE_1_ACLK_RESET>,
+				 <&gcc PCIE_1_HCLK_RESET>,
+				 <&gcc PCIE_1_POR_RESET>,
+				 <&gcc PCIE_1_PCI_RESET>,
+				 <&gcc PCIE_1_PHY_RESET>;
+			reset-names = "axi", "ahb", "por", "pci", "phy";
+
+			clocks = <&gcc PCIE_1_A_CLK>,
+				 <&gcc PCIE_1_H_CLK>,
+				 <&gcc PCIE_1_PHY_CLK>;
+			clock-names = "core", "iface", "phy";
+			status = "disabled";
+		};
+
+		pci@1b900000 {
+			compatible = "qcom,pcie-ipq8064";
+			reg = <0x1b900000 0x1000
+			       0x1b902000 0x80
+			       0x1ba00000 0x100
+				>;
+			reg-names = "base", "elbi", "parf";
+
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+
+			interrupts = <0 71 0x0
+				      0 72 0x0
+				      0 73 0x0
+				      0 74 0x0
+				      0 75 0x0>;
+			resets = <&gcc PCIE_2_ACLK_RESET>,
+				 <&gcc PCIE_2_HCLK_RESET>,
+				 <&gcc PCIE_2_POR_RESET>,
+				 <&gcc PCIE_2_PCI_RESET>,
+				 <&gcc PCIE_2_PHY_RESET>;
+			reset-names = "axi", "ahb", "por", "pci", "phy";
+
+			clocks = <&gcc PCIE_2_A_CLK>,
+				 <&gcc PCIE_2_H_CLK>,
+				 <&gcc PCIE_2_PHY_CLK>;
+			clock-names = "core", "iface", "phy";
+			status = "disabled";
 		};
 	};
 };
