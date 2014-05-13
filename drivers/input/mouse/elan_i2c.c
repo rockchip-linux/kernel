@@ -18,6 +18,7 @@
  */
 
 #include <linux/acpi.h>
+#include <linux/async.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
@@ -1706,11 +1707,56 @@ static u8 elan_check_adapter_functionality(struct i2c_client *client)
 	return ret;
 }
 
+static void elan_async_init(void *arg, async_cookie_t cookie)
+{
+	struct elan_tp_data *data = arg;
+	struct i2c_client *client = data->client;
+	int ret;
+
+	/* initial elan touch pad */
+	ret = elan_initialize(data);
+	if (ret < 0)
+		goto err_init;
+
+	/* create input device */
+	ret = elan_input_dev_create(data);
+	if (ret < 0)
+		goto err_input_dev;
+
+	ret = request_threaded_irq(client->irq, NULL, elan_isr,
+				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   client->name, data);
+	if (ret < 0) {
+		dev_err(&client->dev, "cannot register irq=%d\n",
+				client->irq);
+		goto err_irq;
+	}
+
+	ret = sysfs_create_group(&client->dev.kobj, &elan_sysfs_group);
+	if (ret < 0) {
+		dev_err(&client->dev, "cannot register dev attribute %d", ret);
+		goto err_create_group;
+	}
+	device_init_wakeup(&client->dev, true);
+	device_set_wakeup_enable(&client->dev, false);
+	i2c_set_clientdata(client, data);
+
+	return;
+
+err_create_group:
+	free_irq(data->irq, data);
+err_irq:
+	input_unregister_device(data->input);
+err_input_dev:
+err_init:
+	kfree(data);
+	dev_err(&client->dev, "Elan Trackpad probe fail!\n");
+}
+
 static int elan_probe(struct i2c_client *client,
 		      const struct i2c_device_id *dev_id)
 {
 	struct elan_tp_data *data;
-	int ret;
 	u8 adapter_func;
 	union i2c_smbus_data dummy;
 	struct device *dev = &client->dev;
@@ -1744,45 +1790,10 @@ static int elan_probe(struct i2c_client *client,
 	data->wait_signal_from_updatefw = false;
 	init_completion(&data->fw_completion);
 
-	/* initial elan touch pad */
-	ret = elan_initialize(data);
-	if (ret < 0)
-		goto err_init;
-
-	/* create input device */
-	ret = elan_input_dev_create(data);
-	if (ret < 0)
-		goto err_input_dev;
-
-	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-				   client->name, data);
-	if (ret < 0) {
-		dev_err(&client->dev, "cannot register irq=%d\n",
-				client->irq);
-		goto err_irq;
-	}
-
-	ret = sysfs_create_group(&client->dev.kobj, &elan_sysfs_group);
-	if (ret < 0) {
-		dev_err(&client->dev, "cannot register dev attribute %d", ret);
-		goto err_create_group;
-	}
-	device_init_wakeup(&client->dev, true);
-	device_set_wakeup_enable(&client->dev, false);
-	i2c_set_clientdata(client, data);
+	/* Do slower init steps asynchonously. */
+	async_schedule(elan_async_init, data);
 
 	return 0;
-
-err_create_group:
-	free_irq(data->irq, data);
-err_irq:
-	input_unregister_device(data->input);
-err_input_dev:
-err_init:
-	kfree(data);
-	dev_err(&client->dev, "Elan Trackpad probe fail!\n");
-	return ret;
 }
 
 static int elan_remove(struct i2c_client *client)
