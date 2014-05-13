@@ -394,7 +394,7 @@ static int _calc_rate(struct clk_hw *hw, struct tegra_clk_pll_freq_table *cfg,
 		      unsigned long rate, unsigned long parent_rate)
 {
 	struct tegra_clk_pll *pll = to_clk_pll(hw);
-	unsigned long cfreq;
+	unsigned long cfreq, vco_rate;
 	u32 p_div = 0;
 	int ret;
 
@@ -424,7 +424,8 @@ static int _calc_rate(struct clk_hw *hw, struct tegra_clk_pll_freq_table *cfg,
 	}
 
 	/* Raise VCO to guarantee 0.5% accuracy */
-	for (cfg->output_rate = rate; cfg->output_rate < 200 * cfreq;
+	vco_rate = max(200 * cfreq, pll->params->vco_min);
+	for (cfg->output_rate = rate; cfg->output_rate < vco_rate;
 	     cfg->output_rate <<= 1)
 		p_div++;
 
