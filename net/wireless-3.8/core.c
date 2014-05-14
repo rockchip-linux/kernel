@@ -220,15 +220,13 @@ static void cfg80211_rfkill_poll(struct rfkill *rfkill, void *data)
 	rdev_rfkill_poll(rdev);
 }
 
-static int cfg80211_rfkill_set_block(void *data, bool blocked)
+void cfg80211_shutdown_all_interfaces(struct wiphy *wiphy)
 {
-	struct cfg80211_registered_device *rdev = data;
+	struct cfg80211_registered_device *rdev = wiphy_to_dev(wiphy);
 	struct wireless_dev *wdev;
 
-	if (!blocked)
-		return 0;
+	ASSERT_RTNL();
 
-	rtnl_lock();
 	mutex_lock(&rdev->devlist_mtx);
 
 	list_for_each_entry(wdev, &rdev->wdev_list, list) {
@@ -251,6 +249,18 @@ static int cfg80211_rfkill_set_block(void *data, bool blocked)
 	}
 
 	mutex_unlock(&rdev->devlist_mtx);
+}
+EXPORT_SYMBOL(cfg80211_shutdown_all_interfaces);
+
+static int cfg80211_rfkill_set_block(void *data, bool blocked)
+{
+	struct cfg80211_registered_device *rdev = data;
+
+	if (!blocked)
+		return 0;
+
+	rtnl_lock();
+	cfg80211_shutdown_all_interfaces(&rdev->wiphy);
 	rtnl_unlock();
 
 	return 0;
