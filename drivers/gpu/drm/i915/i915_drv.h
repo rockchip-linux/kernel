@@ -2333,6 +2333,8 @@ static inline void i915_gem_chipset_flush(struct drm_device *dev)
 }
 
 
+/* i915_gem_render_state.c */
+int i915_gem_render_state_init(struct intel_ring_buffer *ring);
 /* i915_gem_evict.c */
 int __must_check i915_gem_evict_something(struct drm_device *dev,
 					  struct i915_address_space *vm,

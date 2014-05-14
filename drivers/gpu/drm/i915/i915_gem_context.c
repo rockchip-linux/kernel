@@ -486,6 +486,12 @@ static int do_switch(struct i915_hw_context *to)
 		/* obj is kept alive until the next request by its active ref */
 		i915_gem_object_unpin(from->obj);
 		i915_gem_context_unreference(from);
+	} else {
+		if (to->is_initialized == false) {
+			ret = i915_gem_render_state_init(ring);
+			if (ret)
+				DRM_ERROR("init render state: %d\n", ret);
+		}
 	}
 
 	i915_gem_context_reference(to);
