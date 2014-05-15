@@ -595,6 +595,8 @@ void snb_enable_pm_irq(struct drm_i915_private *dev_priv, uint32_t mask);
 void snb_disable_pm_irq(struct drm_i915_private *dev_priv, uint32_t mask);
 void hsw_pc8_disable_interrupts(struct drm_device *dev);
 void hsw_pc8_restore_interrupts(struct drm_device *dev);
+void bdw_enable_pm_irq(struct drm_i915_private *dev_priv, uint32_t mask);
+void bdw_disable_pm_irq(struct drm_i915_private *dev_priv, uint32_t mask);
 
 
 /* intel_crt.c */
