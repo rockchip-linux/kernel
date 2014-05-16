@@ -58,13 +58,13 @@ module_param_named(powersave, i915_powersave, int, 0600);
 MODULE_PARM_DESC(powersave,
 		"Enable powersavings, fbc, downclocking, etc. (default: true)");
 
-int i915_semaphores __read_mostly = -1;
+int i915_semaphores __read_mostly = 1;
 module_param_named(semaphores, i915_semaphores, int, 0400);
 MODULE_PARM_DESC(semaphores,
-		"Use semaphores for inter-ring sync (default: -1 (use per-chip defaults))");
+		"Use semaphores for inter-ring sync (default: true)");
 
 int i915_enable_rc6 __read_mostly = -1;
-module_param_named(i915_enable_rc6, i915_enable_rc6, int, 0400);
+module_param_named(i915_enable_rc6, i915_enable_rc6, int, 0600);
 MODULE_PARM_DESC(i915_enable_rc6,
 		"Enable power-saving render C-state 6. "
 		"Different stages can be selected via bitmask values "
@@ -72,13 +72,13 @@ MODULE_PARM_DESC(i915_enable_rc6,
 		"For example, 3 would enable rc6 and deep rc6, and 7 would enable everything. "
 		"default: -1 (use per-chip default)");
 
-int i915_enable_fbc __read_mostly = -1;
+int i915_enable_fbc __read_mostly = 1;
 module_param_named(i915_enable_fbc, i915_enable_fbc, int, 0600);
 MODULE_PARM_DESC(i915_enable_fbc,
 		"Enable frame buffer compression for power savings "
-		"(default: -1 (use per-chip default))");
+		"(default: true)");
 
-unsigned int i915_lvds_downclock __read_mostly = 0;
+unsigned int i915_lvds_downclock __read_mostly = 1;
 module_param_named(lvds_downclock, i915_lvds_downclock, int, 0400);
 MODULE_PARM_DESC(lvds_downclock,
 		"Use panel (LVDS/eDP) downclocking for power savings "
@@ -493,6 +493,32 @@ bool i915_semaphore_is_enabled(struct drm_device *dev)
 	return true;
 }
 
+/* Repin all fbs which are currently bound to a crtc on resume */
+static void i915_repin_bound_fbs(struct drm_device *dev)
+{
+	struct drm_crtc *crtc;
+	struct drm_i915_gem_object *obj;
+	int ret;
+
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+		if (!crtc || !crtc->fb)
+			continue;
+		obj = to_intel_framebuffer(crtc->fb)->obj;
+		if (!obj)
+			continue;
+
+		/* Install a fence for tiled scan-out. */
+		if (obj->tiling_mode != I915_TILING_NONE) {
+			ret = i915_gem_object_get_fence(obj);
+			if (ret)
+				DRM_ERROR("Couldn't get a fence\n");
+			else
+				i915_gem_object_pin_fence(obj);
+		}
+
+	}
+}
+
 static int i915_drm_freeze(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -544,6 +570,9 @@ static int i915_drm_freeze(struct drm_device *dev)
 	i915_gem_suspend_gtt_mappings(dev);
 
 	i915_save_state(dev);
+
+	if (IS_VALLEYVIEW(dev))
+		vlv_set_power_well(dev_priv, 0xcfcf);
 
 	intel_opregion_fini(dev);
 
@@ -632,6 +661,11 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
 
 	intel_power_domains_init_hw(dev);
 
+	if (IS_VALLEYVIEW(dev)) {
+		vlv_set_power_well(dev_priv, 0xcfcf);
+		vlv_set_power_well(dev_priv, 0xf);
+	}
+
 	i915_restore_state(dev);
 	intel_opregion_setup(dev);
 
@@ -647,6 +681,7 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
 		/* We need working interrupts for modeset enabling ... */
 		drm_irq_install(dev);
 
+		i915_repin_bound_fbs(dev);
 		intel_modeset_init_hw(dev);
 
 		drm_modeset_lock_all(dev);
@@ -810,10 +845,50 @@ int i915_reset(struct drm_device *dev)
 	return 0;
 }
 
+static ssize_t
+set_i2c_mutex(struct device* dev, struct device_attribute* attr, const char* buf, size_t count)
+{
+	struct pci_dev* pdev = to_pci_dev(dev);
+	struct drm_device* drm_dev = pci_get_drvdata(pdev);
+	struct drm_i915_private* p = drm_dev->dev_private;
+	u8 status;
+
+	if (kstrtou8(buf, 10, &status)) {
+		count = -EINVAL;
+		goto done;
+	}
+
+	if (status) {
+		if (mutex_trylock(&p->gmbus_mutex)) {
+			goto done;
+		} else {
+			DRM_ERROR("Could not lock I2C mutex\n");
+			count = -EBUSY;
+			goto done;
+		}
+	} else {
+		mutex_unlock(&p->gmbus_mutex);
+	}
+done:
+	return count;
+}
+
+static DEVICE_ATTR(i2c_mutex, S_IRUGO | S_IWUSR, NULL, set_i2c_mutex);
+
+static struct attribute* set_mutex_ctrl_attributes[] = {
+	&dev_attr_i2c_mutex.attr,
+	NULL
+};
+
+static const struct attribute_group mutex_ctrl_group = {
+	.attrs = set_mutex_ctrl_attributes
+};
+
 static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	struct intel_device_info *intel_info =
 		(struct intel_device_info *) ent->driver_data;
+	int ret;
 
 	if (IS_PRELIMINARY_HW(intel_info) && !i915_preliminary_hw_support) {
 		DRM_INFO("This hardware requires preliminary hardware support.\n"
@@ -831,7 +906,11 @@ static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	driver.driver_features &= ~(DRIVER_USE_AGP);
 
-	return drm_get_pci_dev(pdev, ent, &driver);
+	ret = drm_get_pci_dev(pdev, ent, &driver);
+	if (ret == 0)
+		ret = sysfs_create_group(&pdev->dev.kobj, &mutex_ctrl_group);
+
+	return ret;
 }
 
 static void

@@ -5110,8 +5110,14 @@ i915_gem_inactive_scan(struct shrinker *shrinker, struct shrink_control *sc)
 		freed += __i915_gem_shrink(dev_priv,
 					   sc->nr_to_scan - freed,
 					   false);
-	if (freed < sc->nr_to_scan)
-		freed += i915_gem_shrink_all(dev_priv);
+
+	/* We don't want to shrink all objects. When the shrinker is
+	 * called too often, this causes bouncing of GEM objects in
+	 * and out of the GTT, as well as GPU synchronization which
+	 * slows the system to a crawl.
+	 */
+	/*if (freed < sc->nr_to_scan)
+		freed += i915_gem_shrink_all(dev_priv);*/
 
 	if (unlock)
 		mutex_unlock(&dev->struct_mutex);

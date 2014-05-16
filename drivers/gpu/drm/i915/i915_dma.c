@@ -1609,6 +1609,22 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 		goto out_mtrrfree;
 	}
 
+	/* intel_crtc_page_flip runs with the mode_config mutex having been
+	 * taken in the DRM layer.  It synchronously waits for pending unpin
+	 * work items while holding this mutex.  Therefore this queue cannot
+	 * contain work items that take this mutex, such as HPD event
+	 * handling, or we deadlock.  There is also no reason for flipping to
+	 * wait on such events.  Therefore put flip unpinning in its own
+	 * work queue.
+	 */
+	dev_priv->flip_unpin_wq = alloc_ordered_workqueue("i915", 0);
+	if (dev_priv->flip_unpin_wq == NULL) {
+		DRM_ERROR("Failed to create flip unpin workqueue.\n");
+		destroy_workqueue(dev_priv->wq);
+		ret = -ENOMEM;
+		goto out_mtrrfree;
+	}
+
 	intel_irq_init(dev);
 	intel_uncore_sanitize(dev);
 
@@ -1687,6 +1703,7 @@ out_gem_unload:
 	intel_teardown_mchbar(dev);
 	pm_qos_remove_request(&dev_priv->pm_qos);
 	destroy_workqueue(dev_priv->wq);
+	destroy_workqueue(dev_priv->flip_unpin_wq);
 out_mtrrfree:
 	arch_phys_wc_del(dev_priv->gtt.mtrr);
 	io_mapping_free(dev_priv->gtt.mappable);
@@ -1769,7 +1786,8 @@ int i915_driver_unload(struct drm_device *dev)
 	intel_opregion_fini(dev);
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-		/* Flush any outstanding unpin_work. */
+		/* Flush any outstanding unpin, HPD, etc. work. */
+		flush_workqueue(dev_priv->flip_unpin_wq);
 		flush_workqueue(dev_priv->wq);
 
 		mutex_lock(&dev->struct_mutex);
@@ -1793,6 +1811,7 @@ int i915_driver_unload(struct drm_device *dev)
 	intel_teardown_mchbar(dev);
 
 	destroy_workqueue(dev_priv->wq);
+	destroy_workqueue(dev_priv->flip_unpin_wq);
 	pm_qos_remove_request(&dev_priv->pm_qos);
 
 	dev_priv->gtt.base.cleanup(&dev_priv->gtt.base);

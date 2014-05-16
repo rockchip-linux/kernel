@@ -294,6 +294,26 @@ static u32 _pp_stat_reg(struct intel_dp *intel_dp)
 		return VLV_PIPE_PP_STATUS(vlv_power_sequencer_pipe(intel_dp));
 }
 
+static void assert_pwm(struct drm_i915_private *dev_priv,
+		       struct intel_connector *connector,
+		       bool expected_state)
+{
+	enum pipe pipe = intel_get_pipe_from_connector(connector);
+	bool state;
+
+	if (IS_VALLEYVIEW(dev_priv->dev) &&
+	    !(I915_READ(VLV_BLC_PWM_CTL2(pipe) & BLM_PWM_ENABLE)))
+		state = false;
+	else
+		state = (intel_panel_get_backlight(connector) != 0);
+
+	WARN(state != expected_state, "pwm state failure, expected %d, found "
+	     "%d\n", expected_state, state);
+}
+
+#define assert_pwm_enabled(d, p) assert_pwm((d), (p), true)
+#define assert_pwm_disabled(d, p) assert_pwm((d), (p), false)
+
 static bool ironlake_edp_have_panel_power(struct intel_dp *intel_dp)
 {
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
@@ -1251,10 +1271,12 @@ void ironlake_edp_panel_off(struct intel_dp *intel_dp)
 
 	WARN(!intel_dp->want_panel_vdd, "Need VDD to turn off panel\n");
 
+	assert_pwm_disabled(dev_priv, intel_dp->attached_connector);
+
 	pp = ironlake_get_pp_control(intel_dp);
 	/* We need to switch off panel power _and_ force vdd, for otherwise some
 	 * panels get very unhappy and cease to work. */
-	pp &= ~(POWER_TARGET_ON | EDP_FORCE_VDD | PANEL_POWER_RESET | EDP_BLC_ENABLE);
+	pp &= ~(POWER_TARGET_ON | EDP_FORCE_VDD | PANEL_POWER_RESET);
 
 	pp_ctrl_reg = _pp_ctrl_reg(intel_dp);
 
@@ -1281,6 +1303,14 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 		return;
 
 	DRM_DEBUG_KMS("\n");
+	pp = ironlake_get_pp_control(intel_dp);
+	if (pp & EDP_BLC_ENABLE)
+		return;
+
+	assert_pwm_disabled(dev_priv, intel_dp->attached_connector);
+
+	intel_panel_enable_backlight(intel_dp->attached_connector);
+
 	/*
 	 * If we enable the backlight right away following a panel power
 	 * on, we may see slight flicker as the panel syncs with the eDP
@@ -1288,15 +1318,12 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 	 * allowing it to appear.
 	 */
 	msleep(intel_dp->backlight_on_delay);
-	pp = ironlake_get_pp_control(intel_dp);
 	pp |= EDP_BLC_ENABLE;
 
 	pp_ctrl_reg = _pp_ctrl_reg(intel_dp);
 
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
-
-	intel_panel_enable_backlight(intel_dp->attached_connector);
 }
 
 void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
@@ -1309,17 +1336,22 @@ void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 	if (!is_edp(intel_dp))
 		return;
 
-	intel_panel_disable_backlight(intel_dp->attached_connector);
-
 	DRM_DEBUG_KMS("\n");
 	pp = ironlake_get_pp_control(intel_dp);
+	if (!(pp & EDP_BLC_ENABLE))
+		return;
+
+	assert_pwm_enabled(dev_priv, intel_dp->attached_connector);
+
 	pp &= ~EDP_BLC_ENABLE;
 
 	pp_ctrl_reg = _pp_ctrl_reg(intel_dp);
 
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
+
 	msleep(intel_dp->backlight_off_delay);
+	intel_panel_disable_backlight(intel_dp->attached_connector);
 }
 
 static void ironlake_edp_pll_on(struct intel_dp *intel_dp)
@@ -1374,13 +1406,9 @@ static void ironlake_edp_pll_off(struct intel_dp *intel_dp)
 }
 
 /* If the sink supports it, try to set the power state appropriately */
-void intel_dp_sink_dpms(struct intel_dp *intel_dp, int mode)
+static void intel_dp_do_sink_dpms(struct intel_dp *intel_dp, int mode)
 {
 	int ret, i;
-
-	/* Should have a valid DPCD by this point */
-	if (intel_dp->dpcd[DP_DPCD_REV] < 0x11)
-		return;
 
 	if (mode != DRM_MODE_DPMS_ON) {
 		ret = intel_dp_aux_native_write_1(intel_dp, DP_SET_POWER,
@@ -1401,6 +1429,16 @@ void intel_dp_sink_dpms(struct intel_dp *intel_dp, int mode)
 			msleep(1);
 		}
 	}
+}
+
+/* If we have a valid DPCD, set the power state. */
+void intel_dp_sink_dpms(struct intel_dp *intel_dp, int mode)
+{
+	/* Should have a valid DPCD by this point */
+	if (intel_dp->dpcd[DP_DPCD_REV] < 0x11)
+		return;
+
+	intel_dp_do_sink_dpms(intel_dp, mode);
 }
 
 static bool intel_dp_get_hw_state(struct intel_encoder *encoder,
@@ -2757,9 +2795,6 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 	}
 	POSTING_READ(intel_dp->output_reg);
 
-	/* We don't really know why we're doing this */
-	intel_wait_for_vblank(dev, intel_crtc->pipe);
-
 	if (HAS_PCH_IBX(dev) &&
 	    I915_READ(intel_dp->output_reg) & DP_PIPEB_SELECT) {
 		struct drm_crtc *crtc = intel_dig_port->base.base.crtc;
@@ -2791,7 +2826,6 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 	DP &= ~DP_AUDIO_OUTPUT_ENABLE;
 	I915_WRITE(intel_dp->output_reg, DP & ~DP_PORT_EN);
 	POSTING_READ(intel_dp->output_reg);
-	msleep(intel_dp->panel_power_down_delay);
 }
 
 static bool
@@ -3115,6 +3149,12 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 
 	intel_dp->has_audio = false;
 
+	/* Ensure the sink is awake for DPCD/EDID reads. */
+	if (!is_edp(intel_dp) && connector->dpms != DRM_MODE_DPMS_ON) {
+		/* Bypass DPCD check, since we obtain it during detection. */
+		intel_dp_do_sink_dpms(intel_dp, DRM_MODE_DPMS_ON);
+	}
+
 	if (HAS_PCH_SPLIT(dev))
 		status = ironlake_dp_detect(intel_dp);
 	else
@@ -3140,6 +3180,10 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 	status = connector_status_connected;
 
 out:
+	/* Restore the sink state */
+	if (!is_edp(intel_dp) && connector->dpms != DRM_MODE_DPMS_ON)
+		intel_dp_do_sink_dpms(intel_dp, connector->dpms);
+
 	intel_runtime_pm_put(dev_priv);
 	return status;
 }
@@ -3169,6 +3213,33 @@ static int intel_dp_get_modes(struct drm_connector *connector)
 		}
 	}
 	return 0;
+}
+
+static const struct drm_prop_enum_list psr_names[] = {
+	{ EDP_PSR_ON, "on" },
+	{ EDP_PSR_OFF, "off" }
+};
+
+static void intel_attach_psr_property(struct drm_connector *connector)
+{
+	struct drm_device *dev = connector->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_property *prop;
+
+	prop = dev_priv->psr_property;
+	if (prop == NULL) {
+		prop = drm_property_create_enum(
+			dev,
+			i915_enable_psr ? EDP_PSR_ON : EDP_PSR_OFF,
+			"psr",
+			psr_names,
+			ARRAY_SIZE(psr_names));
+		if (prop == NULL)
+			return;
+
+		dev_priv->psr_property = prop;
+	}
+	drm_object_attach_property(&connector->base, prop, 0);
 }
 
 static bool
@@ -3264,6 +3335,18 @@ intel_dp_set_property(struct drm_connector *connector,
 		intel_connector->panel.fitting_mode = val;
 
 		goto done;
+	}
+
+	if (is_edp(intel_dp) && property == dev_priv->psr_property) {
+		if (val == EDP_PSR_ON) {
+			i915_enable_psr = 1;
+			intel_edp_psr_enable(intel_dp);
+		} else {
+			i915_enable_psr = 0;
+			intel_edp_psr_disable(intel_dp);
+		}
+
+		return 0;
 	}
 
 	return -EINVAL;
@@ -3388,6 +3471,7 @@ intel_dp_add_properties(struct intel_dp *intel_dp, struct drm_connector *connect
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 
+	intel_attach_psr_property(connector);
 	intel_attach_force_audio_property(connector);
 	intel_attach_broadcast_rgb_property(connector);
 	intel_dp->color_range_auto = true;

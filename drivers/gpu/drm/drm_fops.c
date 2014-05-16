@@ -260,9 +260,11 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 	 * any master object for render clients */
 	mutex_lock(&dev->struct_mutex);
 	if (!priv->minor->master && !drm_is_render_client(priv)) {
-		/* create a new master */
-		priv->minor->master = drm_master_create(priv->minor);
-		if (!priv->minor->master) {
+		/* create a new master but don't assign it yet
+		 * to ensure master->driver_priv is set up first
+		 */
+		struct drm_master* master_ptr = drm_master_create(priv->minor);
+		if (!master_ptr) {
 			mutex_unlock(&dev->struct_mutex);
 			ret = -ENOMEM;
 			goto out_close;
@@ -270,7 +272,7 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 
 		priv->is_master = 1;
 		/* take another reference for the copy in the local file priv */
-		priv->master = drm_master_get(priv->minor->master);
+		priv->master = drm_master_get(master_ptr);
 
 		priv->authenticated = 1;
 
@@ -280,7 +282,7 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 			if (ret) {
 				mutex_lock(&dev->struct_mutex);
 				/* drop both references if this fails */
-				drm_master_put(&priv->minor->master);
+				drm_master_put(&master_ptr);
 				drm_master_put(&priv->master);
 				mutex_unlock(&dev->struct_mutex);
 				goto out_close;
@@ -291,12 +293,13 @@ static int drm_open_helper(struct inode *inode, struct file *filp,
 			ret = dev->driver->master_set(dev, priv, true);
 			if (ret) {
 				/* drop both references if this fails */
-				drm_master_put(&priv->minor->master);
+				drm_master_put(&master_ptr);
 				drm_master_put(&priv->master);
 				mutex_unlock(&dev->struct_mutex);
 				goto out_close;
 			}
 		}
+		priv->minor->master = master_ptr;
 	} else if (!drm_is_render_client(priv)) {
 		/* get a reference to the master */
 		priv->master = drm_master_get(priv->minor->master);

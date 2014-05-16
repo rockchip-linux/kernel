@@ -281,6 +281,20 @@ parse_lfp_panel_data(struct drm_i915_private *dev_priv,
 	}
 }
 
+#define VLV_DEFAULT_MIN_DUTY_CYCLE_RATIO 5
+static void fake_vlv_backlight(struct drm_i915_private *dev_priv)
+{
+	dev_priv->vbt.backlight.pwm_freq_hz = 200;
+	dev_priv->vbt.backlight.active_low_pwm = 0;
+	dev_priv->vbt.backlight.min_duty_cycle_percentage = VLV_DEFAULT_MIN_DUTY_CYCLE_RATIO;
+
+	DRM_DEBUG_KMS("VBT backlight PWM modulation frequency %u Hz, "
+		      "active %s, min brightness %u\n",
+		      dev_priv->vbt.backlight.pwm_freq_hz,
+		      dev_priv->vbt.backlight.active_low_pwm ? "low" : "high",
+		      dev_priv->vbt.backlight.min_duty_cycle_percentage);
+}
+
 static void
 parse_lfp_backlight(struct drm_i915_private *dev_priv, struct bdb_header *bdb)
 {
@@ -288,8 +302,10 @@ parse_lfp_backlight(struct drm_i915_private *dev_priv, struct bdb_header *bdb)
 	const struct bdb_lfp_backlight_data_entry *entry;
 
 	backlight_data = find_section(bdb, BDB_LVDS_BACKLIGHT);
-	if (!backlight_data)
+	if (!backlight_data && IS_VALLEYVIEW(dev_priv->dev)) {
+		fake_vlv_backlight(dev_priv);
 		return;
+	}
 
 	if (backlight_data->entry_size != sizeof(backlight_data->data[0])) {
 		DRM_DEBUG_KMS("Unsupported backlight data entry size %u\n",
@@ -301,6 +317,23 @@ parse_lfp_backlight(struct drm_i915_private *dev_priv, struct bdb_header *bdb)
 
 	dev_priv->vbt.backlight.pwm_freq_hz = entry->pwm_freq_hz;
 	dev_priv->vbt.backlight.active_low_pwm = entry->active_low_pwm;
+
+	/* NB: It's probably safe to do this for !VLV platforms too. */
+	if (IS_VALLEYVIEW(dev_priv->dev) && !entry->min_brightness)
+		dev_priv->vbt.backlight.min_duty_cycle_percentage = VLV_DEFAULT_MIN_DUTY_CYCLE_RATIO;
+	else if (entry->min_brightness) {
+		/* Scale min_duty_cycle_percentage down to an absolute value */
+		u32 scaled_bright = entry->min_brightness;
+		u32 abs_bright = scaled_bright * 100 / 255;
+		DRM_DEBUG_KMS("Scaling VBT brightness from %d down to absolute %d\n",
+				scaled_bright, abs_bright);
+		dev_priv->vbt.backlight.min_duty_cycle_percentage = abs_bright;
+	}
+
+	/* All platforms should have a PWM */
+	if (WARN_ON(!dev_priv->vbt.backlight.pwm_freq_hz))
+		dev_priv->vbt.backlight.pwm_freq_hz = 200;
+
 	DRM_DEBUG_KMS("VBT backlight PWM modulation frequency %u Hz, "
 		      "active %s, min brightness %u, level %u\n",
 		      dev_priv->vbt.backlight.pwm_freq_hz,

@@ -762,7 +762,7 @@ static void g4x_wait_for_vblank(struct drm_device *dev, int pipe)
 	frame = I915_READ(frame_reg);
 
 	if (wait_for(I915_READ_NOTRACE(frame_reg) != frame, 50))
-		DRM_DEBUG_KMS("vblank wait timed out\n");
+		WARN(1, "vblank wait timed out\n");
 }
 
 /**
@@ -777,6 +777,9 @@ void intel_wait_for_vblank(struct drm_device *dev, int pipe)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int pipestat_reg = PIPESTAT(pipe);
+	struct drm_crtc *crtc = dev_priv->pipe_to_crtc_mapping[pipe];
+	int timeout = crtc->hwmode.vrefresh ?
+		DIV_ROUND_UP(1000, crtc->hwmode.vrefresh) : 50;
 
 	if (IS_G4X(dev) || INTEL_INFO(dev)->gen >= 5) {
 		g4x_wait_for_vblank(dev, pipe);
@@ -802,7 +805,7 @@ void intel_wait_for_vblank(struct drm_device *dev, int pipe)
 	/* Wait for vblank interrupt bit to set */
 	if (wait_for(I915_READ(pipestat_reg) &
 		     PIPE_VBLANK_INTERRUPT_STATUS,
-		     50))
+		     timeout))
 		DRM_DEBUG_KMS("vblank wait timed out\n");
 }
 
@@ -1373,6 +1376,10 @@ static void intel_reset_dpio(struct drm_device *dev)
 
 	if (!IS_VALLEYVIEW(dev))
 		return;
+
+	/* Reset common lane in PHY */
+	vlv_set_power_well(dev_priv, 0xc0f);
+	vlv_set_power_well(dev_priv, 0xf);
 
 	/*
 	 * Enable the CRI clock source so we can get at the display and the
@@ -4608,12 +4615,12 @@ static int intel_crtc_compute_config(struct intel_crtc *crtc,
 		 * otherwise pipe A only.
 		 */
 		if ((crtc->pipe == PIPE_A || IS_I915G(dev)) &&
-		    adjusted_mode->crtc_clock > clock_limit * 9 / 10) {
+		    adjusted_mode->crtc_clock > clock_limit * 17 / 20) {
 			clock_limit *= 2;
 			pipe_config->double_wide = true;
 		}
 
-		if (adjusted_mode->crtc_clock > clock_limit * 9 / 10)
+		if (adjusted_mode->crtc_clock > clock_limit * 17 / 20)
 			return -EINVAL;
 	}
 
@@ -5327,8 +5334,11 @@ static void i9xx_set_pipeconf(struct intel_crtc *intel_crtc)
 		}
 	}
 
-	if (!IS_GEN2(dev) &&
+	if (IS_VALLEYVIEW(dev) &&
 	    intel_crtc->config.adjusted_mode.flags & DRM_MODE_FLAG_INTERLACE)
+		pipeconf |= PIPECONF_INTERLACE_W_SYNC_SHIFT;
+	else if (!IS_GEN2(dev) &&
+		 intel_crtc->config.adjusted_mode.flags & DRM_MODE_FLAG_INTERLACE)
 		pipeconf |= PIPECONF_INTERLACE_W_FIELD_INDICATION;
 	else
 		pipeconf |= PIPECONF_PROGRESSIVE;
@@ -5732,6 +5742,14 @@ static void ironlake_init_pch_refclk(struct drm_device *dev)
 	}
 
 	BUG_ON(val != final);
+
+	/*
+	 * On resume, the PPT PCH doesn't seem to work right away, and
+	 * sometimes ignores register read/writes until it's completely up.
+	 * Waiting 60ms seems to be long enough to avoid this.
+	 */
+	if (dev_priv->pch_id == INTEL_PCH_PPT_DEVICE_ID_TYPE)
+		msleep(60);
 }
 
 static void lpt_reset_fdi_mphy(struct drm_i915_private *dev_priv)
@@ -8318,7 +8336,7 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 
 	wake_up_all(&dev_priv->pending_flip_queue);
 
-	queue_work(dev_priv->wq, &work->work);
+	queue_work(dev_priv->flip_unpin_wq, &work->work);
 
 	trace_i915_flip_complete(intel_crtc->plane, work->pending_flip_obj);
 }
@@ -8703,7 +8721,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	if (atomic_read(&intel_crtc->unpin_work_count) >= 2)
-		flush_workqueue(dev_priv->wq);
+		flush_workqueue(dev_priv->flip_unpin_wq);
 
 	ret = i915_mutex_lock_interruptible(dev);
 	if (ret)
@@ -10316,7 +10334,7 @@ static void intel_setup_outputs(struct drm_device *dev)
 
 	intel_lvds_init(dev);
 
-	if (!IS_ULT(dev))
+	if (!IS_ULT(dev) && dev_priv->vbt.int_crt_support)
 		intel_crt_init(dev);
 
 	if (HAS_DDI(dev)) {
@@ -10869,6 +10887,7 @@ static void i915_disable_vga(struct drm_device *dev)
 	u8 sr1;
 	u32 vga_reg = i915_vgacntrl_reg(dev);
 
+	/* WaEnableVGAAccessThroughIOPort:ctg,elk,ilk,snb,ivb,vlv,hsw */
 	vga_get_uninterruptible(dev->pdev, VGA_RSRC_LEGACY_IO);
 	outb(SR01, VGA_SR_INDEX);
 	sr1 = inb(VGA_SR_DATA);
@@ -11311,9 +11330,15 @@ void intel_modeset_setup_hw_state(struct drm_device *dev,
 		for_each_pipe(pipe) {
 			struct drm_crtc *crtc =
 				dev_priv->pipe_to_crtc_mapping[pipe];
+			struct intel_crtc *intel_crtc;
 
 			__intel_set_mode(crtc, &crtc->mode, crtc->x, crtc->y,
 					 crtc->fb);
+
+			/* Force-cycle the cursor */
+			intel_crtc = to_intel_crtc(crtc);
+			intel_crtc->cursor_visible = false;
+			intel_crtc_update_cursor(crtc, true);
 		}
 	} else {
 		intel_modeset_update_staged_output_state(dev);

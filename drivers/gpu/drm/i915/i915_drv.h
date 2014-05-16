@@ -900,6 +900,12 @@ struct i915_suspend_saved_registers {
 	u32 savePCH_PORT_HOTPLUG;
 };
 
+struct intel_rps_ei_calc {
+	u32 cz_ts_ei;
+	u32 render_ei_c0;
+	u32 media_ei_c0;
+};
+
 struct intel_gen6_power_mgmt {
 	/* work and pm_iir are protected by dev_priv->irq_lock */
 	struct work_struct work;
@@ -914,6 +920,15 @@ struct intel_gen6_power_mgmt {
 	u8 rp1_delay;
 	u8 rp0_delay;
 	u8 hw_max;
+	u8 hw_min;
+
+	bool rp_up_masked;
+	bool rp_down_masked;
+
+	u32 cz_freq;
+	u32 ei_interrupt_count;
+
+	bool use_RC0_residency_for_turbo;
 
 	int last_adj;
 	enum { LOW_POWER, BETWEEN, HIGH_POWER } power;
@@ -1188,6 +1203,16 @@ struct intel_vbt_data {
 	struct {
 		u16 pwm_freq_hz;
 		bool active_low_pwm;
+
+		/* NB: We expect this to be an absolute value (percentage)
+		 * indicating the minimum duty cycle. This value is provided by
+		 * the panel spec, and should be provided in some way/shape/form
+		 * from VBIOS.  It's unclear as of this point whether or not
+		 * this is the proper way.
+		 *
+		 * Example, 5 = 5% = .05
+		 */
+		u8 min_duty_cycle_percentage;
 	} backlight;
 
 	/* MIPI DSI */
@@ -1423,6 +1448,7 @@ typedef struct drm_i915_private {
 	 * result in deadlocks.
 	 */
 	struct workqueue_struct *wq;
+	struct workqueue_struct *flip_unpin_wq;
 
 	/* Display functions */
 	struct drm_i915_display_funcs display;
@@ -1475,6 +1501,13 @@ typedef struct drm_i915_private {
 	/* gen6+ rps state */
 	struct intel_gen6_power_mgmt rps;
 
+	/* rps wa up ei calculation */
+	struct intel_rps_ei_calc rps_up_ei;
+
+	/* rps wa down ei calculation */
+	struct intel_rps_ei_calc rps_down_ei;
+
+
 	/* ilk-only ips/rps state. Everything in here is protected by the global
 	 * mchdev_lock in intel_pm.c */
 	struct intel_ilk_power_mgmt ips;
@@ -1500,6 +1533,7 @@ typedef struct drm_i915_private {
 
 	struct drm_property *broadcast_rgb_property;
 	struct drm_property *force_audio_property;
+	struct drm_property *psr_property;
 
 	uint32_t hw_context_size;
 	struct list_head context_list;
@@ -1551,6 +1585,11 @@ enum hdmi_force_audio {
 	HDMI_AUDIO_OFF,			/* force turn off HDMI audio */
 	HDMI_AUDIO_AUTO,		/* trust EDID */
 	HDMI_AUDIO_ON,			/* force turn on HDMI audio */
+};
+
+enum psr_state {
+	EDP_PSR_ON,
+	EDP_PSR_OFF
 };
 
 #define I915_GTT_OFFSET_NONE ((u32)-1)
@@ -1945,8 +1984,12 @@ extern void intel_console_resume(struct work_struct *work);
 void i915_queue_hangcheck(struct drm_device *dev);
 void i915_handle_error(struct drm_device *dev, bool wedged);
 
+void gen6_set_pm_mask(struct drm_i915_private *dev_priv, u32 pm_iir,
+							int new_delay);
 extern void intel_irq_init(struct drm_device *dev);
 extern void intel_hpd_init(struct drm_device *dev);
+extern void vlv_set_power_well(struct drm_i915_private *dev_priv, u32 val);
+
 
 extern void intel_uncore_sanitize(struct drm_device *dev);
 extern void intel_uncore_early_sanitize(struct drm_device *dev);
@@ -2371,6 +2414,9 @@ static inline bool intel_gmbus_is_port_valid(unsigned port)
 {
 	return (port >= GMBUS_PORT_SSC && port <= GMBUS_PORT_DPD);
 }
+extern void intel_i2c_register(struct drm_device *dev,
+			       struct drm_connector *connector,
+			       int ddc_bus);
 
 extern struct i2c_adapter *intel_gmbus_get_adapter(
 		struct drm_i915_private *dev_priv, unsigned port);

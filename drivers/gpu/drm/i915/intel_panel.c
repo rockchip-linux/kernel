@@ -404,7 +404,7 @@ static u32 vlv_get_backlight(struct intel_connector *connector)
 	return _vlv_get_backlight(dev, pipe);
 }
 
-static u32 intel_panel_get_backlight(struct intel_connector *connector)
+u32 intel_panel_get_backlight(struct intel_connector *connector)
 {
 	struct drm_device *dev = connector->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -1037,15 +1037,24 @@ static int vlv_setup_backlight(struct intel_connector *connector)
 	u32 ctl, ctl2, val;
 
 	for_each_pipe(pipe) {
-		u32 cur_val = I915_READ(VLV_BLC_PWM_CTL(pipe));
+		u32 duty = I915_READ(VLV_BLC_PWM_CTL(pipe)) & BACKLIGHT_DUTY_CYCLE_MASK;
+		u32 freq = I915_READ(VLV_BLC_PWM_CTL(pipe)) & ~BACKLIGHT_DUTY_CYCLE_MASK;
 
-		/* Skip if the modulation freq is already set */
-		if (cur_val & ~BACKLIGHT_DUTY_CYCLE_MASK)
+		if (freq) {
+			/* Skip if the modulation freq is already set */
 			continue;
+		}
 
-		cur_val &= BACKLIGHT_DUTY_CYCLE_MASK;
-		I915_WRITE(VLV_BLC_PWM_CTL(pipe), (0xf42 << 16) |
-			   cur_val);
+		if (WARN_ON(pipe == PIPE_A)) {
+			/* Assume BLC for pipe A is the default. Therefore, A
+			 * must be non-zero. */
+			freq = (0xf42 << 16);
+		} else
+			freq = I915_READ(VLV_BLC_PWM_CTL(PIPE_A)) & ~BACKLIGHT_DUTY_CYCLE_MASK;
+
+		if (WARN_ON(freq == 0))
+			freq = (0xf42 << 16);
+		I915_WRITE(VLV_BLC_PWM_CTL(pipe), freq | duty);
 	}
 
 	ctl2 = I915_READ(VLV_BLC_PWM_CTL2(PIPE_A));

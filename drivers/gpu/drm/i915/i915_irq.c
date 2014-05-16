@@ -979,6 +979,157 @@ static void notify_ring(struct drm_device *dev,
 	i915_queue_hangcheck(dev);
 }
 
+void gen6_set_pm_mask(struct drm_i915_private *dev_priv,
+			     u32 pm_iir, int new_delay)
+{
+	if (pm_iir & GEN6_PM_RP_UP_THRESHOLD) {
+		if (new_delay >= dev_priv->rps.max_delay) {
+			/* Mask UP THRESHOLD Interrupts */
+			I915_WRITE(GEN6_PMINTRMSK,
+				   I915_READ(GEN6_PMINTRMSK) |
+				   GEN6_PM_RP_UP_THRESHOLD);
+			dev_priv->rps.rp_up_masked = true;
+		}
+		if (dev_priv->rps.rp_down_masked) {
+			/* UnMask DOWN THRESHOLD Interrupts */
+			I915_WRITE(GEN6_PMINTRMSK,
+				   I915_READ(GEN6_PMINTRMSK) &
+				   ~GEN6_PM_RP_DOWN_THRESHOLD);
+			dev_priv->rps.rp_down_masked = false;
+		}
+	} else if (pm_iir & GEN6_PM_RP_DOWN_THRESHOLD) {
+		if (new_delay <= dev_priv->rps.min_delay) {
+			/* Mask DOWN THRESHOLD Interrupts */
+			I915_WRITE(GEN6_PMINTRMSK,
+				   I915_READ(GEN6_PMINTRMSK) |
+				   GEN6_PM_RP_DOWN_THRESHOLD);
+			dev_priv->rps.rp_down_masked = true;
+		}
+
+		if (dev_priv->rps.rp_up_masked) {
+			/* UnMask UP THRESHOLD Interrupts */
+			I915_WRITE(GEN6_PMINTRMSK,
+				   I915_READ(GEN6_PMINTRMSK) &
+				   ~GEN6_PM_RP_UP_THRESHOLD);
+			dev_priv->rps.rp_up_masked = false;
+		}
+	}
+}
+
+static u32 vlv_c0_residency(struct drm_i915_private *dev_priv,
+				struct  intel_rps_ei_calc *rps_ei)
+{
+	u32 cz_ts, cz_freq_khz;
+	u32 render_count, media_count;
+	u32 elapsed_render, elapsed_media, elapsed_time;
+	u32 residency = 0;
+
+	cz_ts = vlv_punit_read(dev_priv, PUNIT_REG_CZ_TIMESTAMP);
+	cz_freq_khz = DIV_ROUND_CLOSEST(dev_priv->mem_freq * 1000, 4);
+
+	render_count = I915_READ(VLV_RENDER_C0_COUNT_REG);
+	media_count = I915_READ(VLV_MEDIA_C0_COUNT_REG);
+
+	if (rps_ei->cz_ts_ei == 0) {
+		rps_ei->cz_ts_ei = cz_ts;
+		rps_ei->render_ei_c0 = render_count;
+		rps_ei->media_ei_c0 = media_count;
+
+		return dev_priv->rps.cur_delay;
+	}
+
+	elapsed_time = cz_ts - rps_ei->cz_ts_ei;
+	rps_ei->cz_ts_ei = cz_ts;
+
+	elapsed_render = render_count - rps_ei->render_ei_c0;
+	rps_ei->render_ei_c0 = render_count;
+
+	elapsed_media = media_count - rps_ei->media_ei_c0;
+	rps_ei->media_ei_c0 = media_count;
+
+	/* Convert all the counters into common unit of milli sec */
+	elapsed_time /= VLV_CZ_CLOCK_TO_MILLI_SEC;
+	elapsed_render /=  cz_freq_khz;
+	elapsed_media /= cz_freq_khz;
+
+	/* Calculate overall C0 residency percentage only
+	* if elapsed time is non zero
+	*/
+	if (elapsed_time) {
+		residency =
+			((max(elapsed_render, elapsed_media) * 100)
+				/ elapsed_time);
+	}
+
+	return residency;
+}
+
+
+/**
+ * vlv_calc_delay_from_C0_counters - Increase/Decrease freq based on GPU
+ * busy-ness calculated from C0 counters of render & media power wells
+ * @dev_priv: DRM device private
+ *
+ */
+static u32 vlv_calc_delay_from_C0_counters(struct drm_i915_private *dev_priv)
+{
+	u32 residency_C0_up = 0, residency_C0_down = 0;
+	u8 new_delay;
+
+	dev_priv->rps.ei_interrupt_count++;
+
+	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
+
+
+	if (dev_priv->rps_up_ei.cz_ts_ei == 0) {
+		vlv_c0_residency(dev_priv, &dev_priv->rps_up_ei);
+		vlv_c0_residency(dev_priv, &dev_priv->rps_down_ei);
+		return dev_priv->rps.cur_delay;
+	}
+
+
+	/* To down throttle, C0 residency should be less than down threshold
+	* for continous EI intervals. So calculate down EI counters
+	* once in VLV_INT_COUNT_FOR_DOWN_EI
+	*/
+	if (dev_priv->rps.ei_interrupt_count == VLV_INT_COUNT_FOR_DOWN_EI) {
+
+		dev_priv->rps.ei_interrupt_count = 0;
+
+		residency_C0_down =  vlv_c0_residency(dev_priv,
+						&dev_priv->rps_down_ei);
+	} else {
+		residency_C0_up =  vlv_c0_residency(dev_priv,
+						&dev_priv->rps_up_ei);
+	}
+
+	new_delay = dev_priv->rps.cur_delay;
+
+	/* C0 residency is greater than UP threshold. Increase Frequency */
+	if (residency_C0_up >= VLV_RP_UP_EI_THRESHOLD) {
+
+		if (dev_priv->rps.cur_delay < dev_priv->rps.max_delay)
+			new_delay = dev_priv->rps.cur_delay + 1;
+
+		/*
+		 * For better performance, jump directly
+		 * to RPe if we're below it.
+		 */
+		if (new_delay < dev_priv->rps.rpe_delay)
+			new_delay = dev_priv->rps.rpe_delay;
+
+	} else if (!dev_priv->rps.ei_interrupt_count &&
+			(residency_C0_down < VLV_RP_DOWN_EI_THRESHOLD)) {
+		/* This means, C0 residency is less than down threshold over
+		* a period of VLV_INT_COUNT_FOR_DOWN_EI. So, reduce the freq
+		*/
+		if (dev_priv->rps.cur_delay > dev_priv->rps.min_delay)
+			new_delay = dev_priv->rps.cur_delay - 1;
+	}
+
+	return new_delay;
+}
+
 static void gen6_pm_rps_work(struct work_struct *work)
 {
 	drm_i915_private_t *dev_priv = container_of(work, drm_i915_private_t,
@@ -990,13 +1141,16 @@ static void gen6_pm_rps_work(struct work_struct *work)
 	pm_iir = dev_priv->rps.pm_iir;
 	dev_priv->rps.pm_iir = 0;
 	/* Make sure not to corrupt PMIMR state used by ringbuffer code */
-	snb_enable_pm_irq(dev_priv, GEN6_PM_RPS_EVENTS);
+	if (dev_priv->rps.use_RC0_residency_for_turbo)
+		snb_enable_pm_irq(dev_priv, GEN6_PM_RP_UP_EI_EXPIRED);
+	else
+		snb_enable_pm_irq(dev_priv, GEN6_PM_RPS_EVENTS);
 	spin_unlock_irq(&dev_priv->irq_lock);
 
 	/* Make sure we didn't queue anything we're not going to process. */
-	WARN_ON(pm_iir & ~GEN6_PM_RPS_EVENTS);
+	WARN_ON(pm_iir & ~(GEN6_PM_RPS_EVENTS | GEN6_PM_RP_UP_EI_EXPIRED));
 
-	if ((pm_iir & GEN6_PM_RPS_EVENTS) == 0)
+	if ((pm_iir & (GEN6_PM_RPS_EVENTS | GEN6_PM_RP_UP_EI_EXPIRED)) == 0)
 		return;
 
 	mutex_lock(&dev_priv->rps.hw_lock);
@@ -1021,6 +1175,8 @@ static void gen6_pm_rps_work(struct work_struct *work)
 		else
 			new_delay = dev_priv->rps.min_delay;
 		adj = 0;
+	} else if (pm_iir & GEN6_PM_RP_UP_EI_EXPIRED) {
+		new_delay = vlv_calc_delay_from_C0_counters(dev_priv);
 	} else if (pm_iir & GEN6_PM_RP_DOWN_THRESHOLD) {
 		if (adj < 0)
 			adj *= 2;
@@ -1036,6 +1192,8 @@ static void gen6_pm_rps_work(struct work_struct *work)
 	 */
 	new_delay = clamp_t(int, new_delay,
 			    dev_priv->rps.min_delay, dev_priv->rps.max_delay);
+
+	gen6_set_pm_mask(dev_priv, pm_iir, new_delay);
 	dev_priv->rps.last_adj = new_delay - dev_priv->rps.cur_delay;
 
 	if (IS_VALLEYVIEW(dev_priv->dev))
@@ -1417,6 +1575,16 @@ static void gen6_rps_irq_handler(struct drm_i915_private *dev_priv, u32 pm_iir)
 		queue_work(dev_priv->wq, &dev_priv->rps.work);
 	}
 
+	if (pm_iir & GEN6_PM_RP_UP_EI_EXPIRED) {
+		spin_lock(&dev_priv->irq_lock);
+		dev_priv->rps.pm_iir |= pm_iir & GEN6_PM_RP_UP_EI_EXPIRED;
+		snb_disable_pm_irq(dev_priv, pm_iir & GEN6_PM_RP_UP_EI_EXPIRED);
+		spin_unlock(&dev_priv->irq_lock);
+		DRM_DEBUG_DRIVER("\nQueueing RPS Work - RC6 WA Turbo");
+
+		queue_work(dev_priv->wq, &dev_priv->rps.work);
+	}
+
 	if (HAS_VEBOX(dev_priv->dev)) {
 		if (pm_iir & PM_VEBOX_USER_INTERRUPT)
 			notify_ring(dev_priv->dev, &dev_priv->ring[VECS]);
@@ -1502,7 +1670,7 @@ static irqreturn_t valleyview_irq_handler(int irq, void *arg)
 		if (pipe_stats[0] & PIPE_GMBUS_INTERRUPT_STATUS)
 			gmbus_irq_handler(dev);
 
-		if (pm_iir)
+		if (pm_iir & (GEN6_PM_RPS_EVENTS | GEN6_PM_RP_UP_EI_EXPIRED))
 			gen6_rps_irq_handler(dev_priv, pm_iir);
 
 		I915_WRITE(GTIIR, gt_iir);
@@ -2827,6 +2995,15 @@ static void gen5_gt_irq_postinstall(struct drm_device *dev)
 			pm_irqs |= PM_VEBOX_USER_INTERRUPT;
 
 		dev_priv->pm_irq_mask = 0xffffffff;
+
+		if (dev_priv->rps.use_RC0_residency_for_turbo) {
+			dev_priv->pm_irq_mask &= ~GEN6_PM_RP_UP_EI_EXPIRED;
+			pm_irqs |= GEN6_PM_RP_UP_EI_EXPIRED;
+		} else {
+			dev_priv->pm_irq_mask &= ~GEN6_PM_RPS_EVENTS;
+			pm_irqs |= GEN6_PM_RPS_EVENTS;
+		}
+
 		I915_WRITE(GEN6_PMIIR, I915_READ(GEN6_PMIIR));
 		I915_WRITE(GEN6_PMIMR, dev_priv->pm_irq_mask);
 		I915_WRITE(GEN6_PMIER, pm_irqs);

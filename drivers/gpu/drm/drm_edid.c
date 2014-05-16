@@ -70,6 +70,11 @@
 #define EDID_QUIRK_FORCE_REDUCED_BLANKING	(1 << 7)
 /* Force 8bpc */
 #define EDID_QUIRK_FORCE_8BPC			(1 << 8)
+/* The panel supports, but does not include a lower clocked mode for lvds */
+#define EDID_QUIRK_ADD_DOWNCLOCK_MODE           (1 << 9)
+/* The panel can reduce consumption with shorter blanking intervals */
+#define EDID_QUIRK_SHORT_BLANKING               (1 << 10)
+
 
 struct detailed_mode_closure {
 	struct drm_connector *connector;
@@ -133,6 +138,44 @@ static struct edid_quirk {
 
 	/* Panel in Samsung NP700G7A-S01PL notebook reports 6bpc */
 	{ "SEC", 0xd033, EDID_QUIRK_FORCE_8BPC },
+
+	/* Samsung TFT-LCD LTN121AT10-301 */
+	{ "SEC", 0x3142, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
+	/* Acer B116XW03 */
+	{ "AUO", 0x325c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
+	/* Lenovo B116XW03 */
+	{ "AUO", 0x315c, EDID_QUIRK_ADD_DOWNCLOCK_MODE },
+
+	/* CMN N116BGE-EA2 */
+	{ "CMN", 0x1132, EDID_QUIRK_SHORT_BLANKING },
+	/* CMN N116BGE-EB2 */
+	{ "CMN", 0x4400, EDID_QUIRK_SHORT_BLANKING },
+};
+
+static struct downclock_rate {
+	char *vendor;
+	int product_id;
+	int clock;
+} downclock_rate_list[] = {
+	/* Samsung TFT-LCD LTN121AT10-301 */
+	{ "SEC", 0x3142, 56428 },
+	/* Acer B116XW03 */
+	{ "AUO", 0x325c, 46285 },
+	/* Lenovo B116XW03 */
+	{ "AUO", 0x315c, 46285 },
+};
+
+static struct short_blanking {
+	char *vendor;
+	int product_id;
+	int htotal;
+	int vtotal;
+	int clock;
+} short_blanking_list[] = {
+	/* CMN N116BGE-EA2 */
+	{ "CMN", 0x1132, 1512, 790, 71693 },
+	/* CMN N116BGE-EB2 */
+	{ "CMN", 0x4400, 1512, 790, 71693 },
 };
 
 /*
@@ -1251,8 +1294,18 @@ bool
 drm_probe_ddc(struct i2c_adapter *adapter)
 {
 	unsigned char out;
+	int tries = 5;
+	int ret;
 
-	return (drm_do_probe_ddc_edid(adapter, &out, 0, 1) == 0);
+	/*
+	 * Some monitors NAK the first EDID read request when connected over
+	 * a DVI-DP cable, so we try 5 times before giving up.
+	 */
+	do {
+		ret = drm_do_probe_ddc_edid(adapter, &out, 0, 1);
+	} while (ret && --tries);
+
+	return ret == 0;
 }
 EXPORT_SYMBOL(drm_probe_ddc);
 
@@ -1387,6 +1440,35 @@ static void edid_fixup_preferred(struct drm_connector *connector,
 	preferred_mode->type |= DRM_MODE_TYPE_PREFERRED;
 }
 
+static void edid_fixup_short_blanking(struct drm_connector *connector,
+				      struct edid *edid)
+{
+	struct drm_display_mode *cur_mode, *t;
+	struct short_blanking *fixup;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(short_blanking_list); i++) {
+		fixup = &short_blanking_list[i];
+
+		if (edid_vendor(edid, fixup->vendor) &&
+		    (EDID_PRODUCT_ID(edid) == fixup->product_id))
+			break;
+	}
+	if (i == ARRAY_SIZE(short_blanking_list))
+		return;
+
+	list_for_each_entry_safe(cur_mode, t, &connector->probed_modes, head) {
+		if (!(cur_mode->type & DRM_MODE_TYPE_PREFERRED))
+			continue;
+
+		cur_mode->clock = fixup->clock;
+		cur_mode->htotal = fixup->htotal;
+		cur_mode->vtotal = fixup->vtotal;
+		DRM_INFO("Modified preferred into a short blanking mode\n");
+		return;
+	}
+}
+
 static bool
 mode_is_rb(const struct drm_display_mode *mode)
 {
@@ -1394,6 +1476,37 @@ mode_is_rb(const struct drm_display_mode *mode)
 	       (mode->hsync_end - mode->hdisplay == 80) &&
 	       (mode->hsync_end - mode->hsync_start == 32) &&
 	       (mode->vsync_start - mode->vdisplay == 3);
+}
+
+static int edid_add_downclock(struct drm_connector *connector,
+			       struct edid *edid)
+{
+	struct drm_display_mode *t, *cur_mode, *downclock_mode;
+	struct downclock_rate *rate;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(downclock_rate_list); i++) {
+		rate = &downclock_rate_list[i];
+
+		if (edid_vendor(edid, rate->vendor) &&
+		    (EDID_PRODUCT_ID(edid) == rate->product_id))
+			break;
+	}
+	if (i == ARRAY_SIZE(downclock_rate_list))
+		return 0;
+
+	list_for_each_entry_safe(cur_mode, t, &connector->probed_modes, head) {
+		if (!(cur_mode->type & DRM_MODE_TYPE_PREFERRED))
+			continue;
+
+		downclock_mode = drm_mode_duplicate(connector->dev, cur_mode);
+		downclock_mode->type &= ~DRM_MODE_TYPE_PREFERRED;
+		downclock_mode->clock = rate->clock;
+		drm_mode_probed_add(connector, downclock_mode);
+		DRM_INFO("Adding LVDS downclock mode\n");
+		return 1;
+	}
+	return 0;
 }
 
 /*
@@ -3500,6 +3613,12 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 
 	if (quirks & (EDID_QUIRK_PREFER_LARGE_60 | EDID_QUIRK_PREFER_LARGE_75))
 		edid_fixup_preferred(connector, quirks);
+
+	if (quirks & EDID_QUIRK_SHORT_BLANKING)
+		edid_fixup_short_blanking(connector, edid);
+
+	if (quirks & EDID_QUIRK_ADD_DOWNCLOCK_MODE)
+		num_modes += edid_add_downclock(connector, edid);
 
 	drm_add_display_info(edid, &connector->display_info);
 

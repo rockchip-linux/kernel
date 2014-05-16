@@ -423,7 +423,7 @@ static void g4x_set_infoframes(struct drm_encoder *encoder,
 	struct intel_hdmi *intel_hdmi = &intel_dig_port->hdmi;
 	u32 reg = VIDEO_DIP_CTL;
 	u32 val = I915_READ(reg);
-	u32 port;
+	u32 port = VIDEO_DIP_PORT(intel_dig_port->port);
 
 	assert_hdmi_port_disabled(intel_hdmi);
 
@@ -444,18 +444,6 @@ static void g4x_set_infoframes(struct drm_encoder *encoder,
 		val &= ~VIDEO_DIP_ENABLE;
 		I915_WRITE(reg, val);
 		POSTING_READ(reg);
-		return;
-	}
-
-	switch (intel_dig_port->port) {
-	case PORT_B:
-		port = VIDEO_DIP_PORT_B;
-		break;
-	case PORT_C:
-		port = VIDEO_DIP_PORT_C;
-		break;
-	default:
-		BUG();
 		return;
 	}
 
@@ -489,7 +477,7 @@ static void ibx_set_infoframes(struct drm_encoder *encoder,
 	struct intel_hdmi *intel_hdmi = &intel_dig_port->hdmi;
 	u32 reg = TVIDEO_DIP_CTL(intel_crtc->pipe);
 	u32 val = I915_READ(reg);
-	u32 port;
+	u32 port = VIDEO_DIP_PORT(intel_dig_port->port);
 
 	assert_hdmi_port_disabled(intel_hdmi);
 
@@ -502,21 +490,6 @@ static void ibx_set_infoframes(struct drm_encoder *encoder,
 		val &= ~VIDEO_DIP_ENABLE;
 		I915_WRITE(reg, val);
 		POSTING_READ(reg);
-		return;
-	}
-
-	switch (intel_dig_port->port) {
-	case PORT_B:
-		port = VIDEO_DIP_PORT_B;
-		break;
-	case PORT_C:
-		port = VIDEO_DIP_PORT_C;
-		break;
-	case PORT_D:
-		port = VIDEO_DIP_PORT_D;
-		break;
-	default:
-		BUG();
 		return;
 	}
 
@@ -582,10 +555,12 @@ static void vlv_set_infoframes(struct drm_encoder *encoder,
 			       struct drm_display_mode *adjusted_mode)
 {
 	struct drm_i915_private *dev_priv = encoder->dev->dev_private;
+	struct intel_digital_port *intel_dig_port = enc_to_dig_port(encoder);
 	struct intel_crtc *intel_crtc = to_intel_crtc(encoder->crtc);
 	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(encoder);
 	u32 reg = VLV_TVIDEO_DIP_CTL(intel_crtc->pipe);
 	u32 val = I915_READ(reg);
+	u32 port = VIDEO_DIP_PORT(intel_dig_port->port);
 
 	assert_hdmi_port_disabled(intel_hdmi);
 
@@ -601,9 +576,19 @@ static void vlv_set_infoframes(struct drm_encoder *encoder,
 		return;
 	}
 
+	if (port != (val & VIDEO_DIP_PORT_MASK)) {
+		if (val & VIDEO_DIP_ENABLE) {
+			val &= ~VIDEO_DIP_ENABLE;
+			I915_WRITE(reg, val);
+			POSTING_READ(reg);
+		}
+		val &= ~VIDEO_DIP_PORT_MASK;
+		val |= port;
+	}
+
 	val |= VIDEO_DIP_ENABLE;
-	val &= ~(VIDEO_DIP_ENABLE_VENDOR | VIDEO_DIP_ENABLE_GAMUT |
-		 VIDEO_DIP_ENABLE_GCP);
+	val &= ~(VIDEO_DIP_ENABLE_AVI | VIDEO_DIP_ENABLE_VENDOR |
+		 VIDEO_DIP_ENABLE_GAMUT | VIDEO_DIP_ENABLE_GCP);
 
 	I915_WRITE(reg, val);
 	POSTING_READ(reg);
@@ -663,8 +648,8 @@ static void intel_hdmi_mode_set(struct intel_encoder *encoder)
 	else
 		hdmi_val |= SDVO_COLOR_FORMAT_8bpc;
 
-	/* Required on CPT */
-	if (intel_hdmi->has_hdmi_sink && HAS_PCH_CPT(dev))
+	if (intel_hdmi->has_hdmi_sink &&
+	    (HAS_PCH_CPT(dev) || IS_VALLEYVIEW(dev)))
 		hdmi_val |= HDMI_MODE_SELECT_HDMI;
 
 	if (intel_hdmi->has_audio) {
@@ -682,8 +667,6 @@ static void intel_hdmi_mode_set(struct intel_encoder *encoder)
 
 	I915_WRITE(intel_hdmi->hdmi_reg, hdmi_val);
 	POSTING_READ(intel_hdmi->hdmi_reg);
-
-	intel_hdmi->set_infoframes(&encoder->base, adjusted_mode);
 }
 
 static bool intel_hdmi_get_hw_state(struct intel_encoder *encoder,
@@ -839,6 +822,12 @@ static void intel_disable_hdmi(struct intel_encoder *encoder)
 		I915_WRITE(intel_hdmi->hdmi_reg, temp);
 		POSTING_READ(intel_hdmi->hdmi_reg);
 	}
+
+	/* Workaround for disappearing AVI Infoframe on SNB on resume */
+	if (HAS_PCH_SPLIT(dev)) {
+		I915_WRITE(_VIDEO_DIP_CTL_A, I915_READ(_VIDEO_DIP_CTL_A));
+		I915_WRITE(_VIDEO_DIP_CTL_B, I915_READ(_VIDEO_DIP_CTL_B));
+	}
 }
 
 static int hdmi_portclock_limit(struct intel_hdmi *hdmi)
@@ -924,6 +913,53 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 	return true;
 }
 
+static bool g4x_hdmi_connected(struct drm_i915_private *dev_priv,
+				struct intel_digital_port *intel_dig_port)
+{
+	uint32_t bit;
+
+	switch (intel_dig_port->port) {
+	case PORT_B:
+		bit = PORTB_HOTPLUG_LIVE_STATUS_G4X;
+		break;
+	case PORT_C:
+		bit = PORTC_HOTPLUG_LIVE_STATUS_G4X;
+		break;
+	case PORT_D:
+		bit = PORTD_HOTPLUG_LIVE_STATUS_G4X;
+		break;
+	default:
+		bit = 0;
+		break;
+	}
+
+	return I915_READ(PORT_HOTPLUG_STAT) & bit;
+}
+
+static bool valleyview_hdmi_connected(struct drm_i915_private *dev_priv,
+				struct intel_digital_port *intel_dig_port)
+{
+	uint32_t bit;
+
+	switch (intel_dig_port->port) {
+	case PORT_B:
+		bit = PORTB_HOTPLUG_LIVE_STATUS_VLV;
+		break;
+	case PORT_C:
+		bit = PORTC_HOTPLUG_LIVE_STATUS_VLV;
+		break;
+	case PORT_D:
+		bit = PORTD_HOTPLUG_LIVE_STATUS_VLV;
+		break;
+	default:
+		bit = 0;
+		break;
+	}
+
+	return I915_READ(PORT_HOTPLUG_STAT) & bit;
+}
+
+
 static enum drm_connector_status
 intel_hdmi_detect(struct drm_connector *connector, bool force)
 {
@@ -938,6 +974,15 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 		      connector->base.id, drm_get_connector_name(connector));
+
+	if (IS_G4X(dev) && !g4x_hdmi_connected(dev_priv, intel_dig_port))
+		return status;
+	else if (HAS_PCH_SPLIT(dev) &&
+		 !ibx_digital_port_connected(dev_priv, intel_dig_port))
+		 return status;
+	else if (IS_VALLEYVIEW(dev) &&
+		 !valleyview_hdmi_connected(dev_priv, intel_dig_port))
+		return status;
 
 	intel_hdmi->has_hdmi_sink = false;
 	intel_hdmi->has_audio = false;
@@ -1075,13 +1120,26 @@ done:
 	return 0;
 }
 
+static void intel_hdmi_pre_enable(struct intel_encoder *encoder)
+{
+	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(&encoder->base);
+	struct intel_crtc *intel_crtc = to_intel_crtc(encoder->base.crtc);
+	struct drm_display_mode *adjusted_mode =
+		&intel_crtc->config.adjusted_mode;
+
+	intel_hdmi->set_infoframes(&encoder->base, adjusted_mode);
+}
+
 static void vlv_hdmi_pre_enable(struct intel_encoder *encoder)
 {
 	struct intel_digital_port *dport = enc_to_dig_port(&encoder->base);
+	struct intel_hdmi *intel_hdmi = &dport->hdmi;
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc =
 		to_intel_crtc(encoder->base.crtc);
+	struct drm_display_mode *adjusted_mode =
+		&intel_crtc->config.adjusted_mode;
 	enum dpio_channel port = vlv_dport_to_channel(dport);
 	int pipe = intel_crtc->pipe;
 	u32 val;
@@ -1114,6 +1172,8 @@ static void vlv_hdmi_pre_enable(struct intel_encoder *encoder)
 	vlv_dpio_write(dev_priv, pipe, VLV_PCS_DW14(port), 0x00760018);
 	vlv_dpio_write(dev_priv, pipe, VLV_PCS_DW23(port), 0x00400888);
 	mutex_unlock(&dev_priv->dpio_lock);
+
+	intel_hdmi->set_infoframes(&encoder->base, adjusted_mode);
 
 	intel_enable_hdmi(encoder);
 
@@ -1267,6 +1327,8 @@ void intel_hdmi_init_connector(struct intel_digital_port *intel_dig_port,
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
 	drm_sysfs_connector_add(connector);
 
+	intel_i2c_register(dev, connector, intel_hdmi->ddc_bus);
+
 	/* For G4X desktop chip, PEG_BAND_GAP_DATA 3:0 must first be written
 	 * 0xd.  Failure to do so will result in spurious interrupts being
 	 * generated on the port when a cable is not attached.
@@ -1309,6 +1371,7 @@ void intel_hdmi_init(struct drm_device *dev, int hdmi_reg, enum port port)
 		intel_encoder->enable = vlv_enable_hdmi;
 		intel_encoder->post_disable = vlv_hdmi_post_disable;
 	} else {
+		intel_encoder->pre_enable = intel_hdmi_pre_enable;
 		intel_encoder->enable = intel_enable_hdmi;
 	}
 

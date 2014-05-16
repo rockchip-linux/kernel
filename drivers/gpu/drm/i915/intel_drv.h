@@ -52,7 +52,7 @@
 			break;						\
 		}							\
 		if (W && drm_can_sleep())  {				\
-			msleep(W);					\
+			usleep_range(W * 50, W * 100);			\
 		} else {						\
 			cpu_relax();					\
 		}							\
@@ -820,6 +820,7 @@ void intel_gmch_panel_fitting(struct intel_crtc *crtc,
 			      int fitting_mode);
 void intel_panel_set_backlight(struct intel_connector *connector, u32 level,
 			       u32 max);
+u32 intel_panel_get_backlight(struct intel_connector *connector);
 int intel_panel_setup_backlight(struct drm_connector *connector);
 void intel_panel_enable_backlight(struct intel_connector *connector);
 void intel_panel_disable_backlight(struct intel_connector *connector);
