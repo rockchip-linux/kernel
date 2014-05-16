@@ -571,6 +571,8 @@ struct hid_descriptor {
 	.bus = BUS_USB, .vendor = (ven), .product = (prod)
 #define HID_BLUETOOTH_DEVICE(ven, prod)					\
 	.bus = BUS_BLUETOOTH, .vendor = (ven), .product = (prod)
+#define HID_DJ_DEVICE(ven, prod)                                 \
+        .bus = BUS_DJ, .vendor = (ven), .product = (prod)
 
 #define HID_REPORT_ID(rep) \
 	.report_type = (rep)

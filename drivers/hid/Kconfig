@@ -346,12 +346,29 @@ config HID_LOGITECH_DJ
 	tristate "Logitech Unifying receivers full support"
 	depends on HIDRAW
 	depends on HID_LOGITECH
+	select HID_LOGITECH_HIDPP
+	default m
 	---help---
 	Say Y if you want support for Logitech Unifying receivers and devices.
 	Unifying receivers are capable of pairing up to 6 Logitech compliant
 	devices to the same receiver. Without this driver it will be handled by
 	generic USB_HID driver and all incoming events will be multiplexed
 	into a single mouse and a single keyboard device.
+
+config HID_LOGITECH_HIDPP
+	tristate "Support for Logitech Vendor Specific HID commands"
+	---help---
+	This module allows sending vendor specific commands to Logitech
+	devices
+
+config HID_LOGITECH_WTP
+	tristate "Logitech Unifying Wireless Touchpad full multitouch support"
+	depends on HID_LOGITECH_DJ
+	select HID_LOGITECH_HIDPP
+	---help---
+	Say Y if you want full multitouch support for the Logitech Unifying Wireless
+	Touchpad. Information of up to 4 fingers is transmitted to the kernel which
+	enables complex gestures to be recognized.
 
 config LOGITECH_FF
 	bool "Logitech force feedback support"
