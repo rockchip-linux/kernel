@@ -17,8 +17,12 @@
 #include "dm-bufio.h"
 
 #include <linux/module.h>
+#include <linux/async.h>
+#include <linux/delay.h>
 #include <linux/device-mapper.h>
+#include <linux/mount.h>
 #include <crypto/hash.h>
+#include "dm-verity.h"
 
 #define DM_MSG_PREFIX			"verity"
 
@@ -27,6 +31,7 @@
 #define DM_VERITY_DEFAULT_PREFETCH_SIZE	262144
 
 #define DM_VERITY_MAX_LEVELS		63
+#define DM_VERITY_NUM_POSITIONAL_ARGS	10
 
 static unsigned dm_verity_prefetch_cluster = DM_VERITY_DEFAULT_PREFETCH_SIZE;
 
@@ -54,6 +59,7 @@ struct dm_verity {
 	unsigned digest_size;	/* digest size for the current hash algorithm */
 	unsigned shash_descsize;/* the size of temporary space for crypto */
 	int hash_failed;	/* set to 1 if hash of any block failed */
+	int error_behavior;	/* selects error behavior on io erros */
 
 	mempool_t *vec_mempool;	/* mempool of bio vector */
 
@@ -94,6 +100,118 @@ struct dm_verity_prefetch_work {
 	sector_t block;
 	unsigned n_blocks;
 };
+
+/* Provide a lightweight means of specifying the global default for
+ * error behavior: eio, reboot, or none
+ * Legacy support for 0 = eio, 1 = reboot/panic, 2 = none, 3 = notify.
+ * This is matched to the enum in dm-verity.h.
+ */
+static const char *allowed_error_behaviors[] = { "eio", "panic", "none",
+						 "notify", NULL };
+static char *error_behavior = "eio";
+module_param(error_behavior, charp, 0644);
+MODULE_PARM_DESC(error_behavior, "Behavior on error "
+				 "(eio, panic, none, notify)");
+
+/* Controls whether verity_get_device will wait forever for a device. */
+static int dev_wait;
+module_param(dev_wait, int, 0444);
+MODULE_PARM_DESC(dev_wait, "Wait forever for a backing device");
+
+static BLOCKING_NOTIFIER_HEAD(verity_error_notifier);
+
+int dm_verity_register_error_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&verity_error_notifier, nb);
+}
+EXPORT_SYMBOL_GPL(dm_verity_register_error_notifier);
+
+int dm_verity_unregister_error_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&verity_error_notifier, nb);
+}
+EXPORT_SYMBOL_GPL(dm_verity_unregister_error_notifier);
+
+/* If the request is not successful, this handler takes action.
+ * TODO make this call a registered handler.
+ */
+static void verity_error(struct dm_verity *v, struct dm_verity_io *io,
+			 int error)
+{
+	const char *message = v->hash_failed ? "integrity" : "block";
+	int error_behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
+	dev_t devt = 0;
+	u64 block = ~0;
+	struct dm_verity_error_state error_state;
+	/* If the hash did not fail, then this is likely transient. */
+	int transient = !v->hash_failed;
+
+	devt = v->data_dev->bdev->bd_dev;
+	error_behavior = v->error_behavior;
+
+	DMERR_LIMIT("verification failure occurred: %s failure", message);
+
+	if (error_behavior == DM_VERITY_ERROR_BEHAVIOR_NOTIFY) {
+		error_state.code = error;
+		error_state.transient = transient;
+		error_state.block = block;
+		error_state.message = message;
+		error_state.dev_start = v->data_start;
+		error_state.dev_len = v->data_blocks;
+		error_state.dev = v->data_dev->bdev;
+		error_state.hash_dev_start = v->hash_start;
+		error_state.hash_dev_len = v->hash_blocks;
+		error_state.hash_dev = v->hash_dev->bdev;
+
+		/* Set default fallthrough behavior. */
+		error_state.behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
+		error_behavior = DM_VERITY_ERROR_BEHAVIOR_PANIC;
+
+		if (!blocking_notifier_call_chain(
+		    &verity_error_notifier, transient, &error_state)) {
+			error_behavior = error_state.behavior;
+		}
+	}
+
+	switch (error_behavior) {
+	case DM_VERITY_ERROR_BEHAVIOR_EIO:
+		break;
+	case DM_VERITY_ERROR_BEHAVIOR_NONE:
+		break;
+	default:
+		if (!transient)
+			goto do_panic;
+	}
+	return;
+
+do_panic:
+	panic("dm-verity failure: "
+	      "device:%u:%u error:%d block:%llu message:%s",
+	      MAJOR(devt), MINOR(devt), error, (u64)block, message);
+}
+
+/**
+ * verity_parse_error_behavior - parse a behavior charp to the enum
+ * @behavior:	NUL-terminated char array
+ *
+ * Checks if the behavior is valid either as text or as an index digit
+ * and returns the proper enum value or -1 on error.
+ */
+static int verity_parse_error_behavior(const char *behavior)
+{
+	const char **allowed = allowed_error_behaviors;
+	char index = '0';
+
+	for (; *allowed; allowed++, index++)
+		if (!strcmp(*allowed, behavior) || behavior[0] == index)
+			break;
+
+	if (!*allowed)
+		return -1;
+
+	/* Convert to the integer index matching the enum. */
+	return allowed - allowed_error_behaviors;
+}
 
 static struct shash_desc *io_hash_desc(struct dm_verity *v, struct dm_verity_io *io)
 {
@@ -382,6 +500,8 @@ static void verity_finish_io(struct dm_verity_io *io, int error)
 	struct dm_verity *v = io->v;
 	struct bio *bio = dm_bio_from_per_bio_data(io, v->ti->per_bio_data_size);
 
+	if (error)
+		verity_error(v, io, error);
 	bio->bi_end_io = io->orig_bi_end_io;
 	bio->bi_private = io->orig_bi_private;
 
@@ -403,7 +523,6 @@ static void verity_end_io(struct bio *bio, int error)
 		verity_finish_io(io, error);
 		return;
 	}
-
 	INIT_WORK(&io->work, verity_work);
 	queue_work(io->v->verify_wq, &io->work);
 }
@@ -489,8 +608,9 @@ static int verity_map(struct dm_target *ti, struct bio *bio)
 		return -EIO;
 	}
 
-	if (bio_data_dir(bio) == WRITE)
+	if (bio_data_dir(bio) == WRITE) {
 		return -EIO;
+	}
 
 	io = dm_per_bio_data(bio, ti->per_bio_data_size);
 	io->v = v;
@@ -627,6 +747,187 @@ static void verity_dtr(struct dm_target *ti)
 	kfree(v);
 }
 
+static int verity_get_device(struct dm_target *ti, char *devname,
+			     struct dm_dev **dm_dev)
+{
+	do {
+		/* Try the normal path first since if everything is ready, it
+		 * will be the fastest.
+		 */
+		if (!dm_get_device(ti, devname, /*FMODE_READ*/
+				   dm_table_get_mode(ti->table), dm_dev))
+			return 0;
+
+		/* No need to be too aggressive since this is a slow path. */
+		msleep(500);
+	} while (dev_wait && (driver_probe_done() != 0 || *dm_dev == NULL));
+	async_synchronize_full();
+	return -1;
+}
+
+struct verity_args {
+	int version;
+	char *data_device;
+	char *hash_device;
+	int data_block_size_bits;
+	int hash_block_size_bits;
+	u64 num_data_blocks;
+	u64 hash_start_block;
+	char *algorithm;
+	char *digest;
+	char *salt;
+	char *error_behavior;
+};
+
+static void pr_args(struct verity_args *args)
+{
+	printk(KERN_INFO "VERITY args: version=%d data_device=%s hash_device=%s"
+		" data_block_size_bits=%d hash_block_size_bits=%d"
+		" num_data_blocks=%lld hash_start_block=%lld"
+		" algorithm=%s digest=%s salt=%s error_behavior=%s\n",
+		args->version,
+		args->data_device,
+		args->hash_device,
+		args->data_block_size_bits,
+		args->hash_block_size_bits,
+		args->num_data_blocks,
+		args->hash_start_block,
+		args->algorithm,
+		args->digest,
+		args->salt,
+		args->error_behavior);
+}
+
+/*
+ * positional_args - collects the argments using the positional
+ * parameters.
+ * arg# - parameter
+ *    0 - version
+ *    1 - data device
+ *    2 - hash device - may be same as data device
+ *    3 - data block size log2
+ *    4 - hash block size log2
+ *    5 - number of data blocks
+ *    6 - hash start block
+ *    7 - algorithm
+ *    8 - digest
+ *    9 - salt
+ */
+static char *positional_args(unsigned argc, char **argv,
+				struct verity_args *args)
+{
+	unsigned num;
+	unsigned long long num_ll;
+	char dummy;
+
+	if (argc != DM_VERITY_NUM_POSITIONAL_ARGS)
+		return "Invalid argument count: exactly 10 arguments required";
+
+	if (sscanf(argv[0], "%d%c", &num, &dummy) != 1 ||
+	    num < 0 || num > 1)
+		return "Invalid version";
+	args->version = num;
+
+	args->data_device = argv[1];
+	args->hash_device = argv[2];
+
+
+	if (sscanf(argv[3], "%u%c", &num, &dummy) != 1 ||
+	    !num || (num & (num - 1)) ||
+	    num > PAGE_SIZE)
+		return "Invalid data device block size";
+	args->data_block_size_bits = ffs(num) - 1;
+
+	if (sscanf(argv[4], "%u%c", &num, &dummy) != 1 ||
+	    !num || (num & (num - 1)) ||
+	    num > INT_MAX)
+		return "Invalid hash device block size";
+	args->hash_block_size_bits = ffs(num) - 1;
+
+	if (sscanf(argv[5], "%llu%c", &num_ll, &dummy) != 1 ||
+	    (sector_t)(num_ll << (args->data_block_size_bits - SECTOR_SHIFT))
+	    >> (args->data_block_size_bits - SECTOR_SHIFT) != num_ll)
+		return "Invalid data blocks";
+	args->num_data_blocks = num_ll;
+
+
+	if (sscanf(argv[6], "%llu%c", &num_ll, &dummy) != 1 ||
+	    (sector_t)(num_ll << (args->hash_block_size_bits - SECTOR_SHIFT))
+	    >> (args->hash_block_size_bits - SECTOR_SHIFT) != num_ll)
+		return "Invalid hash start";
+	args->hash_start_block = num_ll;
+
+
+	args->algorithm = argv[7];
+	args->digest = argv[8];
+	args->salt = argv[9];
+
+	return NULL;
+}
+
+static void splitarg(char *arg, char **key, char **val)
+{
+	*key = strsep(&arg, "=");
+	*val = strsep(&arg, "");
+}
+
+static char *chromeos_args(unsigned argc, char **argv, struct verity_args *args)
+{
+	char *key, *val;
+	unsigned long num;
+	int i;
+
+	args->version = 0;
+	args->data_block_size_bits = 12;
+	args->hash_block_size_bits = 12;
+	for (i = 0; i < argc; ++i) {
+		DMWARN("Argument %d: '%s'", i, argv[i]);
+		splitarg(argv[i], &key, &val);
+		if (!key) {
+			DMWARN("Bad argument %d: missing key?", i);
+			return "Bad argument: missing key";
+		}
+		if (!val) {
+			DMWARN("Bad argument %d='%s': missing value", i, key);
+			return "Bad argument: missing value";
+		}
+		if (!strcmp(key, "alg")) {
+			args->algorithm = val;
+		} else if (!strcmp(key, "payload")) {
+			args->data_device = val;
+		} else if (!strcmp(key, "hashtree")) {
+			args->hash_device = val;
+		} else if (!strcmp(key, "root_hexdigest")) {
+			args->digest = val;
+		} else if (!strcmp(key, "hashstart")) {
+			if (strict_strtoul(val, 10, &num))
+				return "Invalid hashstart";
+			args->hash_start_block =
+				num >> (args->hash_block_size_bits - SECTOR_SHIFT);
+			args->num_data_blocks = args->hash_start_block;
+		} else if (!strcmp(key, "error_behavior")) {
+			args->error_behavior = val;
+		} else if (!strcmp(key, "salt")) {
+			args->salt = val;
+		}
+	}
+	if (!args->salt)
+		args->salt = "";
+
+#define NEEDARG(n) \
+	if (!(n)) { \
+		return "Missing argument: " #n; \
+	}
+
+	NEEDARG(args->algorithm);
+	NEEDARG(args->data_device);
+	NEEDARG(args->hash_device);
+	NEEDARG(args->digest);
+
+#undef NEEDARG
+	return NULL;
+}
+
 /*
  * Target parameters:
  *	<version>	The current format is version 1.
@@ -643,13 +944,22 @@ static void verity_dtr(struct dm_target *ti)
  */
 static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 {
+	struct verity_args args = { 0 };
 	struct dm_verity *v;
-	unsigned num;
-	unsigned long long num_ll;
 	int r;
 	int i;
 	sector_t hash_position;
-	char dummy;
+
+	args.error_behavior = error_behavior;
+	if (argc == DM_VERITY_NUM_POSITIONAL_ARGS)
+		ti->error = positional_args(argc, argv, &args);
+	else
+		ti->error = chromeos_args(argc, argv, &args);
+	if (ti->error)
+		return -EINVAL;
+	if (0)
+		pr_args(&args);
+
 
 	v = kzalloc(sizeof(struct dm_verity), GFP_KERNEL);
 	if (!v) {
@@ -659,83 +969,46 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	ti->private = v;
 	v->ti = ti;
 
-	if ((dm_table_get_mode(ti->table) & ~FMODE_READ)) {
-		ti->error = "Device must be readonly";
-		r = -EINVAL;
-		goto bad;
-	}
+	v->version = args.version;
 
-	if (argc != 10) {
-		ti->error = "Invalid argument count: exactly 10 arguments required";
-		r = -EINVAL;
-		goto bad;
-	}
-
-	if (sscanf(argv[0], "%u%c", &num, &dummy) != 1 ||
-	    num > 1) {
-		ti->error = "Invalid version";
-		r = -EINVAL;
-		goto bad;
-	}
-	v->version = num;
-
-	r = dm_get_device(ti, argv[1], FMODE_READ, &v->data_dev);
+	r = verity_get_device(ti, args.data_device, &v->data_dev);
 	if (r) {
 		ti->error = "Data device lookup failed";
 		goto bad;
 	}
 
-	r = dm_get_device(ti, argv[2], FMODE_READ, &v->hash_dev);
+	r = verity_get_device(ti, args.hash_device, &v->hash_dev);
 	if (r) {
 		ti->error = "Data device lookup failed";
 		goto bad;
 	}
 
-	if (sscanf(argv[3], "%u%c", &num, &dummy) != 1 ||
-	    !num || (num & (num - 1)) ||
-	    num < bdev_logical_block_size(v->data_dev->bdev) ||
-	    num > PAGE_SIZE) {
+	v->data_dev_block_bits = args.data_block_size_bits;
+	if ((1 << v->data_dev_block_bits) <
+	    bdev_logical_block_size(v->data_dev->bdev)) {
 		ti->error = "Invalid data device block size";
 		r = -EINVAL;
 		goto bad;
 	}
-	v->data_dev_block_bits = __ffs(num);
 
-	if (sscanf(argv[4], "%u%c", &num, &dummy) != 1 ||
-	    !num || (num & (num - 1)) ||
-	    num < bdev_logical_block_size(v->hash_dev->bdev) ||
-	    num > INT_MAX) {
+	v->hash_dev_block_bits = args.hash_block_size_bits;
+	if ((1 << v->data_dev_block_bits) <
+	    bdev_logical_block_size(v->hash_dev->bdev)) {
 		ti->error = "Invalid hash device block size";
 		r = -EINVAL;
 		goto bad;
 	}
-	v->hash_dev_block_bits = __ffs(num);
 
-	if (sscanf(argv[5], "%llu%c", &num_ll, &dummy) != 1 ||
-	    (sector_t)(num_ll << (v->data_dev_block_bits - SECTOR_SHIFT))
-	    >> (v->data_dev_block_bits - SECTOR_SHIFT) != num_ll) {
-		ti->error = "Invalid data blocks";
-		r = -EINVAL;
-		goto bad;
-	}
-	v->data_blocks = num_ll;
-
+	v->data_blocks = args.num_data_blocks;
 	if (ti->len > (v->data_blocks << (v->data_dev_block_bits - SECTOR_SHIFT))) {
 		ti->error = "Data device is too small";
 		r = -EINVAL;
 		goto bad;
 	}
 
-	if (sscanf(argv[6], "%llu%c", &num_ll, &dummy) != 1 ||
-	    (sector_t)(num_ll << (v->hash_dev_block_bits - SECTOR_SHIFT))
-	    >> (v->hash_dev_block_bits - SECTOR_SHIFT) != num_ll) {
-		ti->error = "Invalid hash start";
-		r = -EINVAL;
-		goto bad;
-	}
-	v->hash_start = num_ll;
+	v->hash_start = args.hash_start_block;
 
-	v->alg_name = kstrdup(argv[7], GFP_KERNEL);
+	v->alg_name = kstrdup(args.algorithm, GFP_KERNEL);
 	if (!v->alg_name) {
 		ti->error = "Cannot allocate algorithm name";
 		r = -ENOMEM;
@@ -764,23 +1037,23 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 		r = -ENOMEM;
 		goto bad;
 	}
-	if (strlen(argv[8]) != v->digest_size * 2 ||
-	    hex2bin(v->root_digest, argv[8], v->digest_size)) {
+	if (strlen(args.digest) != v->digest_size * 2 ||
+	    hex2bin(v->root_digest, args.digest, v->digest_size)) {
 		ti->error = "Invalid root digest";
 		r = -EINVAL;
 		goto bad;
 	}
 
-	if (strcmp(argv[9], "-")) {
-		v->salt_size = strlen(argv[9]) / 2;
+	if (strcmp(args.salt, "-")) {
+		v->salt_size = strlen(args.salt) / 2;
 		v->salt = kmalloc(v->salt_size, GFP_KERNEL);
 		if (!v->salt) {
 			ti->error = "Cannot allocate salt";
 			r = -ENOMEM;
 			goto bad;
 		}
-		if (strlen(argv[9]) != v->salt_size * 2 ||
-		    hex2bin(v->salt, argv[9], v->salt_size)) {
+		if (strlen(args.salt) != v->salt_size * 2 ||
+		    hex2bin(v->salt, args.salt, v->salt_size)) {
 			ti->error = "Invalid salt";
 			r = -EINVAL;
 			goto bad;
@@ -849,6 +1122,16 @@ static int verity_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	if (!v->verify_wq) {
 		ti->error = "Cannot allocate workqueue";
 		r = -ENOMEM;
+		goto bad;
+	}
+
+	/* chromeos allows setting error_behavior from both the module
+	 * parameters and the device args.
+	 */
+	v->error_behavior = verity_parse_error_behavior(args.error_behavior);
+	if (v->error_behavior == -1) {
+		ti->error = "Bad error_behavior supplied";
+		r = -EINVAL;
 		goto bad;
 	}
 
