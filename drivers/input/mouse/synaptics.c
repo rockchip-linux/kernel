@@ -72,33 +72,65 @@
  ****************************************************************************/
 
 /*
+ * Send a "synaptics" command to the device and retry on PS/2 communication
+ * error
+ */
+static int synaptics_send_cmd_retry(struct psmouse *psmouse, unsigned char cmd,
+				    unsigned char *param, int param_c)
+{
+	int tries = 2;
+	do {
+		if (!psmouse_sliced_command(psmouse, cmd) &&
+		    !ps2_command(&psmouse->ps2dev, param, param_c)) {
+			return 0;
+		}
+		/*
+		 * If the touchpad did not ACK a previous command byte,
+		 * it may also respond to the next command byte with 'FE'.
+		 * Send a dummy command to clear this possible 'FE'.
+		 */
+		ps2_command(&psmouse->ps2dev, NULL, PSMOUSE_CMD_SETSCALE11);
+	} while (--tries > 0);
+	psmouse_err(psmouse, "synaptics_retry failed cmd:0x%02x param_c 0x%x",
+		    cmd, param_c);
+	return -1;
+}
+
+/*
  * Set the synaptics touchpad mode byte by special commands
  */
 static int synaptics_mode_cmd(struct psmouse *psmouse, unsigned char mode)
 {
 	unsigned char param[1];
 
-	if (psmouse_sliced_command(psmouse, mode))
-		return -1;
 	param[0] = SYN_PS_SET_MODE2;
-	if (ps2_command(&psmouse->ps2dev, param, PSMOUSE_CMD_SETRATE))
-		return -1;
-	return 0;
+	return synaptics_send_cmd_retry(psmouse, mode,
+					param, PSMOUSE_CMD_SETRATE);
 }
 
 int synaptics_detect(struct psmouse *psmouse, bool set_properties)
 {
 	struct ps2dev *ps2dev = &psmouse->ps2dev;
 	unsigned char param[4];
+	int tries = 2;
 
-	param[0] = 0;
+	do {
+		param[0] = 0;
+		if (!ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES) &&
+		    !ps2_command(ps2dev, param, PSMOUSE_CMD_GETINFO)) {
+			goto ps2_command_success;
+		}
+		/* dummy command to reset the communication channel */
+		ps2_command(ps2dev, NULL, PSMOUSE_CMD_SETSCALE11);
+	} while (--tries > 0);
 
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_SETRES);
-	ps2_command(ps2dev, param, PSMOUSE_CMD_GETINFO);
+	psmouse_err(psmouse, "synaptics_retry failed in detect()");
+	return -1;
 
+ps2_command_success:
 	if (param[1] != 0x47)
 		return -ENODEV;
 
@@ -117,6 +149,8 @@ void synaptics_reset(struct psmouse *psmouse)
 }
 
 #ifdef CONFIG_MOUSE_PS2_SYNAPTICS
+
+static bool cr48_profile_sensor;
 
 /*****************************************************************************
  *	Synaptics communications functions
@@ -137,11 +171,7 @@ static int synaptics_invert_y(int y)
  */
 static int synaptics_send_cmd(struct psmouse *psmouse, unsigned char c, unsigned char *param)
 {
-	if (psmouse_sliced_command(psmouse, c))
-		return -1;
-	if (ps2_command(&psmouse->ps2dev, param, PSMOUSE_CMD_GETINFO))
-		return -1;
-	return 0;
+	return synaptics_send_cmd_retry(psmouse, c, param, PSMOUSE_CMD_GETINFO);
 }
 
 /*
@@ -343,11 +373,10 @@ static int synaptics_set_advanced_gesture_mode(struct psmouse *psmouse)
 	      SYN_CAP_IMAGE_SENSOR(priv->ext_cap_0c)))
 		return 0;
 
-	if (psmouse_sliced_command(psmouse, SYN_QUE_MODEL))
+	if (synaptics_send_cmd_retry(psmouse, SYN_QUE_MODEL,
+				     &param, PSMOUSE_CMD_SETRATE)) {
 		return -1;
-
-	if (ps2_command(&psmouse->ps2dev, &param, PSMOUSE_CMD_SETRATE))
-		return -1;
+	}
 
 	/* Advanced gesture mode also sends multi finger data */
 	priv->capabilities |= BIT(1);
@@ -404,11 +433,8 @@ static int synaptics_pt_write(struct serio *serio, unsigned char c)
 	struct psmouse *parent = serio_get_drvdata(serio->parent);
 	char rate_param = SYN_PS_CLIENT_CMD; /* indicates that we want pass-through port */
 
-	if (psmouse_sliced_command(parent, c))
-		return -1;
-	if (ps2_command(&parent->ps2dev, &rate_param, PSMOUSE_CMD_SETRATE))
-		return -1;
-	return 0;
+	return synaptics_send_cmd_retry(parent, c,
+					&rate_param, PSMOUSE_CMD_SETRATE);
 }
 
 static int synaptics_pt_start(struct serio *serio)
@@ -1075,6 +1101,80 @@ static void synaptics_image_sensor_process(struct psmouse *psmouse,
 	priv->agm_pending = false;
 }
 
+static int synaptics_distsq(const struct input_mt_slot *slot,
+			    const struct synaptics_hw_state *hw)
+{
+	int slot_x = input_mt_get_value(slot, ABS_MT_POSITION_X);
+	int slot_y = input_mt_get_value(slot, ABS_MT_POSITION_Y);
+	int dx = hw->x - slot_x;
+	int dy = synaptics_invert_y(hw->y) - slot_y;
+	return dx * dx + dy * dy;
+}
+
+static bool synaptics_is_sgm_slot(const struct input_mt_slot *slot,
+				  const struct synaptics_hw_state *sgm,
+				  const struct synaptics_hw_state *agm)
+{
+	return (synaptics_distsq(slot, sgm) < synaptics_distsq(slot, agm));
+}
+
+static int synaptics_get_sgm_slot(const struct input_mt_slot *slots,
+				  const struct synaptics_hw_state *sgm)
+{
+	int distsq_slot0 = synaptics_distsq(&slots[0], sgm);
+	int distsq_slot1 = synaptics_distsq(&slots[1], sgm);
+	return (distsq_slot0 < distsq_slot1 ? 0 : 1);
+}
+
+static void synaptics_profile_sensor_process(struct psmouse *psmouse,
+					     struct synaptics_hw_state *sgm,
+					     int num_fingers)
+{
+	struct input_dev *dev = psmouse->dev;
+	struct synaptics_data *priv = psmouse->private;
+	struct synaptics_hw_state *agm = &priv->agm;
+	struct synaptics_mt_state mt_state;
+
+	/* Initialize using current mt_state (as updated by last agm) */
+	mt_state = agm->mt_state;
+
+	if (num_fingers >= 2) {
+		/* Get previous sgm slot if exists */
+		int sgm_slot = (mt_state.count != 0) ? mt_state.sgm : 0;
+		if (mt_state.count == 1) {
+			const struct input_mt_slot *mt;
+			mt = &dev->mt->slots[sgm_slot];
+			if (!synaptics_is_sgm_slot(mt, sgm, agm))
+				sgm_slot = 1 - sgm_slot;
+		}
+		synaptics_report_slot(dev, sgm_slot, sgm);
+		synaptics_report_slot(dev, 1 - sgm_slot, agm);
+		synaptics_mt_state_set(&mt_state, num_fingers,
+				       sgm_slot, 1 - sgm_slot);
+	} else if (num_fingers == 1) {
+		int sgm_slot = (mt_state.count != 0) ? mt_state.sgm : 0;
+		if (mt_state.count >= 2)
+			sgm_slot = synaptics_get_sgm_slot(dev->mt->slots, sgm);
+		synaptics_report_slot(dev, sgm_slot, sgm);
+		synaptics_report_slot(dev, 1 - sgm_slot, NULL);
+		synaptics_mt_state_set(&mt_state, 1, sgm_slot, -1);
+	} else {
+		synaptics_report_slot(dev, 0, NULL);
+		synaptics_report_slot(dev, 1, NULL);
+		synaptics_mt_state_set(&mt_state, 0, -1, -1);
+	}
+	/* Store updated mt_state */
+	priv->mt_state = agm->mt_state = mt_state;
+
+	/* report ABS_X, ABS_Y positions */
+	input_mt_report_pointer_emulation(dev, false);
+
+	/* Send the number of fingers reported by touchpad itself. */
+	input_mt_report_finger_count(dev, mt_state.count);
+	synaptics_report_buttons(psmouse, sgm);
+	input_sync(dev);
+}
+
 /*
  *  called for each full received packet from the touchpad
  */
@@ -1137,6 +1237,12 @@ static void synaptics_process_packet(struct psmouse *psmouse)
 		num_fingers = 0;
 		finger_width = 0;
 	}
+
+	if (cr48_profile_sensor) {
+		synaptics_profile_sensor_process(psmouse, &hw, num_fingers);
+		return;
+	}
+
 
 	if (SYN_CAP_ADV_GESTURE(priv->ext_cap_0c))
 		synaptics_report_semi_mt_data(dev, &hw, &priv->agm,
@@ -1246,7 +1352,8 @@ static void set_abs_position_params(struct input_dev *dev,
 	int x_max = priv->x_max ?: XMAX_NOMINAL;
 	int y_min = priv->y_min ?: YMIN_NOMINAL;
 	int y_max = priv->y_max ?: YMAX_NOMINAL;
-	int fuzz = SYN_CAP_REDUCED_FILTERING(priv->ext_cap_0c) ?
+	int fuzz = (SYN_CAP_REDUCED_FILTERING(priv->ext_cap_0c) &&
+			!SYN_CAP_IMAGE_SENSOR(priv->ext_cap_0c)) ?
 			SYN_REDUCED_FILTER_FUZZ : 0;
 
 	input_set_abs_params(dev, x_code, x_min, x_max, fuzz, 0);
@@ -1299,6 +1406,9 @@ static void set_input_params(struct input_dev *dev, struct synaptics_data *priv)
 					ABS_MT_POSITION_Y);
 	}
 
+	if (cr48_profile_sensor)
+		input_set_abs_params(dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
+
 	if (SYN_CAP_PALMDETECT(priv->capabilities))
 		input_set_abs_params(dev, ABS_TOOL_WIDTH, 0, 15, 0, 0);
 
@@ -1329,6 +1439,17 @@ static void set_input_params(struct input_dev *dev, struct synaptics_data *priv)
 		__clear_bit(BTN_RIGHT, dev->keybit);
 		__clear_bit(BTN_MIDDLE, dev->keybit);
 	}
+}
+
+/*****************************************************************************
+ *	sysfs interface
+ ****************************************************************************/
+/* Sysfs entry for board ID */
+static ssize_t synaptics_show_board_id(struct psmouse *psmouse, void *data,
+				       char *buf)
+{
+	struct synaptics_data *priv = psmouse->private;
+	return scnprintf(buf, PAGE_SIZE, "%lu\n", priv->board_id);
 }
 
 static ssize_t synaptics_show_disable_gesture(struct psmouse *psmouse,
@@ -1369,9 +1490,30 @@ static ssize_t synaptics_set_disable_gesture(struct psmouse *psmouse,
 	return len;
 }
 
+/* Sysfs entry for firmware ID */
+static ssize_t synaptics_show_firmware_id(struct psmouse *psmouse, void *data,
+					  char *buf)
+{
+	struct synaptics_data *priv = psmouse->private;
+	return scnprintf(buf, PAGE_SIZE, "%lu\n", priv->firmware_id);
+}
+
+PSMOUSE_DEFINE_RO_ATTR(board_id, S_IRUGO, NULL, synaptics_show_board_id);
 PSMOUSE_DEFINE_ATTR(disable_gesture, S_IWUSR | S_IRUGO, NULL,
 		    synaptics_show_disable_gesture,
 		    synaptics_set_disable_gesture);
+PSMOUSE_DEFINE_RO_ATTR(firmware_id, S_IRUGO, NULL, synaptics_show_firmware_id);
+
+static struct attribute *synaptics_attrs[] = {
+	&psmouse_attr_board_id.dattr.attr,
+	&psmouse_attr_firmware_id.dattr.attr,
+	NULL
+};
+
+static struct attribute_group synaptics_attr_group = {
+	.attrs = synaptics_attrs,
+};
+
 
 static void synaptics_disconnect(struct psmouse *psmouse)
 {
@@ -1380,6 +1522,9 @@ static void synaptics_disconnect(struct psmouse *psmouse)
 	if (!priv->absolute_mode && SYN_ID_DISGEST_SUPPORTED(priv->identity))
 		device_remove_file(&psmouse->ps2dev.serio->dev,
 				   &psmouse_attr_disable_gesture.dattr);
+
+	sysfs_remove_group(&psmouse->ps2dev.serio->dev.kobj,
+			   &synaptics_attr_group);
 
 	synaptics_reset(psmouse);
 	kfree(priv);
@@ -1395,7 +1540,10 @@ static int synaptics_reconnect(struct psmouse *psmouse)
 	int error;
 
 	do {
-		psmouse_reset(psmouse);
+		if (psmouse_reset(psmouse))
+			psmouse_err(psmouse, "psmouse_reset() failed.\n");
+
+
 		if (retry) {
 			/*
 			 * On some boxes, right after resuming, the touchpad
@@ -1534,6 +1682,19 @@ static const struct dmi_system_id min_max_dmi_table[] __initconst = {
 	{ }
 };
 
+static const struct dmi_system_id __initconst cr48_dmi_table[] = {
+#if defined(CONFIG_DMI) && defined(CONFIG_X86)
+	{
+		/* Cr-48 Chromebook (Codename Mario) */
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "IEC"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Mario"),
+		},
+	},
+#endif
+	{ }
+};
+
 void __init synaptics_module_init(void)
 {
 	const struct dmi_system_id *min_max_dmi;
@@ -1544,6 +1705,8 @@ void __init synaptics_module_init(void)
 	min_max_dmi = dmi_first_match(min_max_dmi_table);
 	if (min_max_dmi)
 		quirk_min_max = min_max_dmi->driver_data;
+
+	cr48_profile_sensor = dmi_check_system(cr48_dmi_table);
 }
 
 static int __synaptics_init(struct psmouse *psmouse, bool absolute_mode)
@@ -1646,6 +1809,12 @@ static int __synaptics_init(struct psmouse *psmouse, bool absolute_mode)
 			goto init_fail;
 		}
 	}
+
+	err = sysfs_create_group(&psmouse->ps2dev.serio->dev.kobj,
+				 &synaptics_attr_group);
+	if (err)
+		psmouse_warn(psmouse,
+			    "Failed to create sysfs attributes (%d)", err);
 
 	return 0;
 
