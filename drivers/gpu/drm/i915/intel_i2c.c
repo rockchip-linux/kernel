@@ -445,6 +445,7 @@ gmbus_xfer(struct i2c_adapter *adapter,
 	struct drm_i915_private *dev_priv = bus->dev_priv;
 	int i, reg_offset;
 	int ret = 0;
+	u32 gmbus0;
 
 	intel_aux_display_runtime_get(dev_priv);
 	mutex_lock(&dev_priv->gmbus_mutex);
@@ -456,7 +457,16 @@ gmbus_xfer(struct i2c_adapter *adapter,
 
 	reg_offset = dev_priv->gpio_mmio_base;
 
-	I915_WRITE(GMBUS0 + reg_offset, bus->reg0);
+	/* Hack to use 400kHz only for touch i2c devices on ddc ports */
+	gmbus0 = bus->reg0;
+	if (((gmbus0 & GMBUS_PORT_MASK) == GMBUS_PORT_VGADDC &&
+	     (msgs[0].addr == 0x4b || msgs[0].addr == 0x67 ||
+	      msgs[0].addr == 0x25)) ||
+	    ((gmbus0 & GMBUS_PORT_MASK) == GMBUS_PORT_PANEL &&
+	     (msgs[0].addr == 0x4a || msgs[0].addr == 0x26))) {
+		gmbus0 = (gmbus0 & ~GMBUS_RATE_MASK) | GMBUS_RATE_400KHZ;
+	}
+	I915_WRITE(GMBUS0 + reg_offset, gmbus0);
 
 	for (i = 0; i < num; i++) {
 		if (gmbus_is_index_read(msgs, i, num)) {

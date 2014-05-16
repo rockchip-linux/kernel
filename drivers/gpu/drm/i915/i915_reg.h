@@ -1158,6 +1158,7 @@
 #define   GMBUS_RATE_50KHZ	(1<<8)
 #define   GMBUS_RATE_400KHZ	(2<<8) /* reserved on Pineview */
 #define   GMBUS_RATE_1MHZ	(3<<8) /* reserved on Pineview */
+#define   GMBUS_RATE_MASK	(3<<8)
 #define   GMBUS_HOLD_EXT	(1<<7) /* 300ns hold time, rsvd on Pineview */
 #define   GMBUS_PORT_DISABLED	0
 #define   GMBUS_PORT_SSC	1
@@ -1168,6 +1169,7 @@
 #define   GMBUS_PORT_DPD	6 /* HDMID */
 #define   GMBUS_PORT_RESERVED	7 /* 7 reserved */
 #define   GMBUS_NUM_PORTS	(GMBUS_PORT_DPD - GMBUS_PORT_SSC + 1)
+#define   GMBUS_PORT_MASK	7
 #define GMBUS1			0x5104 /* command/status */
 #define   GMBUS_SW_CLR_INT	(1<<31)
 #define   GMBUS_SW_RDY		(1<<30)
