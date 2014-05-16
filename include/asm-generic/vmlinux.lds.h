@@ -192,6 +192,11 @@
 	VMLINUX_SYMBOL(__start___verbose) = .;                          \
 	*(__verbose)                                                    \
 	VMLINUX_SYMBOL(__stop___verbose) = .;				\
+	. = ALIGN(8192);					\
+	VMLINUX_SYMBOL(__start_suspend_volatile_data) = .;	\
+	*(.data.suspend_volatile)				\
+	. = ALIGN(8192);					\
+	VMLINUX_SYMBOL(__stop_suspend_volatile_data) = .;	\
 	LIKELY_PROFILE()		       				\
 	BRANCH_PROFILE()						\
 	TRACE_PRINTKS()							\
@@ -537,6 +542,11 @@
 		*(.dynbss)						\
 		*(.bss)							\
 		*(COMMON)						\
+		. = ALIGN(8192);					\
+		VMLINUX_SYMBOL(__start_suspend_volatile_bss) = .;	\
+		*(.bss.suspend_volatile)				\
+		. = ALIGN(8192);					\
+		VMLINUX_SYMBOL(__stop_suspend_volatile_bss) = .;	\
 	}
 
 /*

@@ -29,6 +29,7 @@
 #include <linux/efi.h>
 #include <linux/module.h>
 #include <linux/ucs2_string.h>
+#include <linux/thermal.h>
 
 #define GSMI_SHUTDOWN_CLEAN	0	/* Clean Shutdown */
 /* TODO(mikew@google.com): Tie in HARDLOCKUP_DETECTOR with NMIWDT */
@@ -40,6 +41,7 @@
 #define GSMI_SHUTDOWN_SOFTWDT	6	/* Software Watchdog */
 #define GSMI_SHUTDOWN_MBE	7	/* Uncorrected ECC */
 #define GSMI_SHUTDOWN_TRIPLE	8	/* Triple Fault */
+#define GSMI_SHUTDOWN_THERMAL	9	/* Critical Thermal Threshold */
 
 #define DRIVER_VERSION		"1.0"
 #define GSMI_GUID_SIZE		16
@@ -289,6 +291,10 @@ static int gsmi_exec(u8 func, u8 sub)
 	return rc;
 }
 
+#ifdef CONFIG_EFI_VARS
+
+static struct efivars efivars;
+
 static efi_status_t gsmi_get_variable(efi_char16_t *name,
 				      efi_guid_t *vendor, u32 *attr,
 				      unsigned long *data_size,
@@ -466,6 +472,8 @@ static const struct efivar_operations efivar_ops = {
 	.get_next_variable = gsmi_get_next_variable,
 };
 
+#endif /* CONFIG_EFI_VARS */
+
 static ssize_t eventlog_write(struct file *filp, struct kobject *kobj,
 			       struct bin_attribute *bin_attr,
 			       char *buf, loff_t pos, size_t count)
@@ -480,11 +488,10 @@ static ssize_t eventlog_write(struct file *filp, struct kobject *kobj,
 	if (count < sizeof(u32))
 		return -EINVAL;
 	param.type = *(u32 *)buf;
-	count -= sizeof(u32);
 	buf += sizeof(u32);
 
 	/* The remaining buffer is the data payload */
-	if (count > gsmi_dev.data_buf->length)
+	if ((count - sizeof(u32)) > gsmi_dev.data_buf->length)
 		return -EINVAL;
 	param.data_len = count - sizeof(u32);
 
@@ -504,7 +511,7 @@ static ssize_t eventlog_write(struct file *filp, struct kobject *kobj,
 
 	spin_unlock_irqrestore(&gsmi_dev.lock, flags);
 
-	return rc;
+	return (rc == 0) ? count : rc;
 
 }
 
@@ -670,6 +677,18 @@ static struct notifier_block gsmi_panic_notifier = {
 	.notifier_call = gsmi_panic_callback,
 };
 
+static int gsmi_thermal_callback(struct notifier_block *nb,
+				 unsigned long reason, void *arg)
+{
+	if (reason == THERMAL_TRIP_CRITICAL)
+		gsmi_shutdown_reason(GSMI_SHUTDOWN_THERMAL);
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block gsmi_thermal_notifier = {
+	.notifier_call = gsmi_thermal_callback
+};
+
 /*
  * This hash function was blatantly copied from include/linux/hash.h.
  * It is used by this driver to obfuscate a board name that requires a
@@ -714,6 +733,12 @@ static struct dmi_system_id gsmi_dmi_table[] __initdata = {
 		.ident = "Google Board",
 		.matches = {
 			DMI_MATCH(DMI_BOARD_VENDOR, "Google, Inc."),
+		},
+	},
+	{
+		.ident = "Coreboot Firmware",
+		.matches = {
+			DMI_MATCH(DMI_BIOS_VENDOR, "coreboot"),
 		},
 	},
 	{}
@@ -762,7 +787,6 @@ static __init int gsmi_system_valid(void)
 }
 
 static struct kobject *gsmi_kobj;
-static struct efivars efivars;
 
 static const struct platform_device_info gsmi_dev_info = {
 	.name		= "gsmi",
@@ -886,19 +910,24 @@ static __init int gsmi_init(void)
 		goto out_remove_bin_file;
 	}
 
+#ifdef CONFIG_EFI_VARS
 	ret = efivars_register(&efivars, &efivar_ops, gsmi_kobj);
 	if (ret) {
 		printk(KERN_INFO "gsmi: Failed to register efivars\n");
-		goto out_remove_sysfs_files;
+		sysfs_remove_files(gsmi_kobj, gsmi_attrs);
+		goto out_remove_bin_file;
 	}
 
 	ret = efivars_sysfs_init();
 	if (ret) {
 		printk(KERN_INFO "gsmi: Failed to create efivars files\n");
 		efivars_unregister(&efivars);
-		goto out_remove_sysfs_files;
+		sysfs_remove_files(gsmi_kobj, gsmi_attrs);
+		goto out_remove_bin_file;
 	}
+#endif
 
+	register_thermal_notifier(&gsmi_thermal_notifier);
 	register_reboot_notifier(&gsmi_reboot_notifier);
 	register_die_notifier(&gsmi_die_notifier);
 	atomic_notifier_chain_register(&panic_notifier_list,
@@ -908,8 +937,6 @@ static __init int gsmi_init(void)
 
 	return 0;
 
-out_remove_sysfs_files:
-	sysfs_remove_files(gsmi_kobj, gsmi_attrs);
 out_remove_bin_file:
 	sysfs_remove_bin_file(gsmi_kobj, &eventlog_bin_attr);
 out_err:
@@ -926,11 +953,14 @@ out_err:
 
 static void __exit gsmi_exit(void)
 {
+	unregister_thermal_notifier(&gsmi_thermal_notifier);
 	unregister_reboot_notifier(&gsmi_reboot_notifier);
 	unregister_die_notifier(&gsmi_die_notifier);
 	atomic_notifier_chain_unregister(&panic_notifier_list,
 					 &gsmi_panic_notifier);
+#ifdef CONFIG_EFI_VARS
 	efivars_unregister(&efivars);
+#endif
 
 	sysfs_remove_files(gsmi_kobj, gsmi_attrs);
 	sysfs_remove_bin_file(gsmi_kobj, &eventlog_bin_attr);

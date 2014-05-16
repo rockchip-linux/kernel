@@ -46,6 +46,7 @@
 #include <linux/jiffies.h>
 #include <linux/syscalls.h>
 #include <linux/of.h>
+#include <linux/delay.h>
 
 #include <asm/ptrace.h>
 #include <asm/irq_regs.h>
@@ -407,6 +408,66 @@ static struct sysrq_key_op sysrq_unrt_op = {
 	.enable_mask	= SYSRQ_ENABLE_RTNICE,
 };
 
+/* send a signal to a process named comm if it has a certain parent */
+/* if parent is NULL, send to the first matching process */
+static void sysrq_x_cros_signal_process(char *comm, char *parent, int sig)
+{
+	struct task_struct *p;
+
+	read_lock(&tasklist_lock);
+	for_each_process(p) {
+		if (p->flags & (PF_KTHREAD | PF_EXITING))
+			continue;
+		if (is_global_init(p))
+			continue;
+		if (strncmp(p->comm, comm, TASK_COMM_LEN))
+			continue;
+		if (parent && strncmp(p->parent->comm, parent, TASK_COMM_LEN))
+			continue;
+
+		printk(KERN_INFO "%s: signal %d %s pid %u tgid %u\n",
+		       __func__, sig, comm, p->pid, p->tgid);
+		do_send_sig_info(sig, SEND_SIG_FORCED, p, true);
+	}
+	read_unlock(&tasklist_lock);
+}
+
+/* how many seconds do we wait for subsequent keypresses after the first */
+#define CROS_SYSRQ_WAIT 20
+
+static void sysrq_handle_cros_xkey(int key)
+{
+	static unsigned long first_jiffies;
+	static unsigned int xkey_iteration;
+
+	if ((!first_jiffies) ||
+	    (jiffies - first_jiffies) > CROS_SYSRQ_WAIT * HZ) {
+		first_jiffies = jiffies;
+		xkey_iteration = 0;
+	} else
+		xkey_iteration++;
+
+	if (!xkey_iteration)
+		sysrq_x_cros_signal_process("chrome", "session_manager",
+					    SIGABRT);
+	else if (xkey_iteration == 1)
+		sysrq_x_cros_signal_process("X", NULL, SIGABRT);
+	else {
+		sysrq_handle_showstate_blocked(key);
+		sysrq_handle_sync(key);
+		/* Delay for a bit to give time for sync to complete */
+		mdelay(1000);
+		panic("ChromeOS X Key");
+	}
+}
+
+static struct sysrq_key_op sysrq_cros_xkey = {
+	.handler	= sysrq_handle_cros_xkey,
+	.help_msg	= "Cros-dump-and-crash",
+	.action_msg	= "Cros dump and crash",
+	.enable_mask	= SYSRQ_ENABLE_CROS_XKEY,
+};
+
 /* Key Operations table and lock */
 static DEFINE_SPINLOCK(sysrq_key_table_lock);
 
@@ -462,7 +523,8 @@ static struct sysrq_key_op *sysrq_key_table[36] = {
 	&sysrq_showstate_blocked_op,	/* w */
 	/* x: May be registered on ppc/powerpc for xmon */
 	/* x: May be registered on sparc64 for global PMU dump */
-	NULL,				/* x */
+	/* x: On Chrome OS, this is the dump and crash key */
+	&sysrq_cros_xkey,		/* x */
 	/* y: May be registered on sparc64 for global register dump */
 	NULL,				/* y */
 	&sysrq_ftrace_dump_op,		/* z */
@@ -766,6 +828,7 @@ static bool sysrq_handle_keypress(struct sysrq_state *sysrq,
 		break;
 
 	case KEY_SYSRQ:
+	case KEY_F10:
 		if (value == 1 && sysrq->alt != KEY_RESERVED) {
 			sysrq->active = true;
 			sysrq->alt_use = sysrq->alt;

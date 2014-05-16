@@ -22,6 +22,7 @@
 #include <linux/export.h>
 #include <linux/mutex.h>
 #include <linux/pm.h>
+#include <linux/pm_dark_resume.h>
 #include <linux/pm_runtime.h>
 #include <linux/resume-trace.h>
 #include <linux/interrupt.h>
@@ -537,6 +538,9 @@ static void dpm_resume_noirq(pm_message_t state)
 		put_device(dev);
 	}
 	mutex_unlock(&dpm_list_mtx);
+	pm_dark_resume_check();
+	pr_debug("Dark resume of system: %s\n", pm_dark_resume_active() ?
+		 "true" : "false");
 	dpm_show_time(starttime, state, "noirq");
 	resume_device_irqs();
 	cpuidle_resume();
@@ -880,7 +884,6 @@ void dpm_resume_end(pm_message_t state)
 	dpm_complete(state);
 }
 EXPORT_SYMBOL_GPL(dpm_resume_end);
-
 
 /*------------------------- Suspend routines -------------------------*/
 

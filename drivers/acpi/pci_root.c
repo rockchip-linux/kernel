@@ -34,6 +34,7 @@
 #include <linux/pci-acpi.h>
 #include <linux/pci-aspm.h>
 #include <linux/acpi.h>
+#include <linux/dmi.h>
 #include <linux/slab.h>
 #include <acpi/apei.h>	/* for acpi_hest_init() */
 
@@ -504,6 +505,26 @@ static void negotiate_os_control(struct acpi_pci_root *root, int *no_aspm,
 	}
 }
 
+const struct dmi_system_id acpi_pci_retain_aspm[] = {
+	{
+		.callback = NULL,
+		.ident = "IEC Mario",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "IEC"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Mario"),
+		},
+	},
+	{
+		.callback = NULL,
+		.ident = "SAMSUNG Alex",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "SAMSUNG"),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Alex"),
+		},
+	},
+	{ }
+};
+
 static int acpi_pci_root_add(struct acpi_device *device,
 			     const struct acpi_device_id *not_used)
 {
@@ -590,7 +611,8 @@ static int acpi_pci_root_add(struct acpi_device *device,
 
 	if (clear_aspm) {
 		dev_info(&device->dev, "Disabling ASPM (FADT indicates it is unsupported)\n");
-		pcie_clear_aspm(root->bus);
+		if (!dmi_check_system(acpi_pci_retain_aspm))
+			pcie_clear_aspm(root->bus);
 	}
 	if (no_aspm)
 		pcie_no_aspm();

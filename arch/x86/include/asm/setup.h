@@ -30,6 +30,12 @@
 
 extern u64 relocated_ramdisk;
 
+#ifdef CONFIG_CHROMEOS
+void cpu_control_vmx(int cpu);
+#else
+static inline void cpu_control_vmx(int cpu) { }
+#endif
+
 /* Interrupt control for vSMPowered x86_64 systems */
 #ifdef CONFIG_X86_64
 void vsmp_init(void);

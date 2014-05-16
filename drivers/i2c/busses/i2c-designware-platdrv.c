@@ -43,6 +43,10 @@
 #include <linux/acpi.h>
 #include "i2c-designware-core.h"
 
+static bool force_std_mode;
+module_param(force_std_mode, bool, 0);
+MODULE_PARM_DESC(force_std_mode, "Force standard mode (100 kHz)");
+
 static struct i2c_algorithm i2c_dw_algo = {
 	.master_xfer	= i2c_dw_xfer,
 	.functionality	= i2c_dw_func,
@@ -169,7 +173,10 @@ static int dw_i2c_probe(struct platform_device *pdev)
 		I2C_FUNC_SMBUS_WORD_DATA |
 		I2C_FUNC_SMBUS_I2C_BLOCK;
 	dev->master_cfg =  DW_IC_CON_MASTER | DW_IC_CON_SLAVE_DISABLE |
-		DW_IC_CON_RESTART_EN | DW_IC_CON_SPEED_FAST;
+		DW_IC_CON_RESTART_EN;
+
+	dev->master_cfg |= (force_std_mode ? DW_IC_CON_SPEED_STD :
+		DW_IC_CON_SPEED_FAST);
 
 	/* Try first if we can configure the device from ACPI */
 	r = dw_i2c_acpi_configure(pdev);

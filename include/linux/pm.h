@@ -48,6 +48,37 @@ static inline void pm_vt_switch_unregister(struct device *dev)
 #endif /* CONFIG_VT_CONSOLE_SLEEP */
 
 /*
+ * Globals that might change at suspend time should be stored in a special
+ * section.  This allows us to detect memory corruption by doing a checksum
+ * of all other memory.
+ */
+#define __suspend_volatile_bss	__section(.bss.suspend_volatile)
+#define __suspend_volatile	__section(.data.suspend_volatile)
+
+extern u8 __start_suspend_volatile_bss[];
+extern u8 __stop_suspend_volatile_bss[];
+
+extern u8 __start_suspend_volatile_data[];
+extern u8 __stop_suspend_volatile_data[];
+
+/*
+ * Data that can't be marked __suspend_volatile because it's allocated on
+ * a dynamic heap should be registered with pm_register_suspend_volatile().
+ */
+struct pm_suspend_volatile_chunk {
+	phys_addr_t start;
+	size_t num_bytes;
+	struct list_head list;
+};
+
+extern void pm_register_suspend_volatile(
+	struct pm_suspend_volatile_chunk *chunk);
+extern void pm_unregister_suspend_volatile(
+	struct pm_suspend_volatile_chunk *chunk);
+extern bool pm_does_overlap_suspend_volatile(phys_addr_t start,
+					     size_t num_bytes);
+
+/*
  * Device power management
  */
 
@@ -519,6 +550,7 @@ enum rpm_request {
 };
 
 struct wakeup_source;
+struct dev_dark_resume;
 
 struct pm_domain_data {
 	struct list_head list_node;
@@ -549,8 +581,10 @@ struct dev_pm_info {
 	struct list_head	entry;
 	struct completion	completion;
 	struct wakeup_source	*wakeup;
+	struct dev_dark_resume	*dark_resume;
 	bool			wakeup_path:1;
 	bool			syscore:1;
+	bool			use_dark_resume:1;
 #else
 	unsigned int		should_wakeup:1;
 #endif

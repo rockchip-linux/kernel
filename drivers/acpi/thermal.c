@@ -221,6 +221,17 @@ static int acpi_thermal_get_polling_frequency(struct acpi_thermal *tz)
 	if (!tz)
 		return -EINVAL;
 
+	if (tz->tz_enabled == THERMAL_DEVICE_DISABLED) {
+		tz->polling_frequency = 0;
+		return 0;
+	}
+
+	/* Get default polling frequency [_TZP] (optional) */
+	if (tzp) {
+		tz->polling_frequency = tzp;
+		return 0;
+	}
+
 	status = acpi_evaluate_integer(tz->device->handle, "_TZP", NULL, &tmp);
 	if (ACPI_FAILURE(status))
 		return -ENODEV;
@@ -580,6 +591,14 @@ static int thermal_set_mode(struct thermal_zone_device *thermal,
 		ACPI_DEBUG_PRINT((ACPI_DB_INFO,
 			"%s kernel ACPI thermal control\n",
 			tz->tz_enabled ? "Enable" : "Disable"));
+
+		acpi_thermal_get_polling_frequency(tz);
+
+		mutex_lock(&tz->thermal_zone->lock);
+		tz->thermal_zone->polling_delay = tz->polling_frequency*100;
+		tz->thermal_zone->passive_delay = tz->polling_frequency*100;
+		mutex_unlock(&tz->thermal_zone->lock);
+
 		acpi_thermal_check(tz);
 	}
 	return 0;
@@ -927,8 +946,6 @@ static int acpi_thermal_register_thermal_zone(struct acpi_thermal *tz)
 		return -ENODEV;
 	}
 
-	tz->tz_enabled = 1;
-
 	dev_info(&tz->device->dev, "registered as thermal_zone%d\n",
 		 tz->thermal_zone->id);
 	return 0;
@@ -1036,11 +1053,7 @@ static int acpi_thermal_get_info(struct acpi_thermal *tz)
 	if (!result)
 		tz->flags.cooling_mode = 1;
 
-	/* Get default polling frequency [_TZP] (optional) */
-	if (tzp)
-		tz->polling_frequency = tzp;
-	else
-		acpi_thermal_get_polling_frequency(tz);
+	acpi_thermal_get_polling_frequency(tz);
 
 	return 0;
 }
@@ -1078,6 +1091,7 @@ static int acpi_thermal_add(struct acpi_device *device)
 		return -ENOMEM;
 
 	tz->device = device;
+	tz->tz_enabled = 1;
 	strcpy(tz->name, device->pnp.bus_id);
 	strcpy(acpi_device_name(device), ACPI_THERMAL_DEVICE_NAME);
 	strcpy(acpi_device_class(device), ACPI_THERMAL_CLASS);

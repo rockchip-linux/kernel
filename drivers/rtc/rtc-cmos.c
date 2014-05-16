@@ -36,6 +36,7 @@
 #include <linux/platform_device.h>
 #include <linux/log2.h>
 #include <linux/pm.h>
+#include <linux/pm_dark_resume.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/dmi.h>
@@ -44,6 +45,7 @@
 #include <asm-generic/rtc.h>
 
 struct cmos_rtc {
+	struct dev_dark_resume	dark_resume;
 	struct rtc_device	*rtc;
 	struct device		*dev;
 	int			irq;
@@ -59,6 +61,8 @@ struct cmos_rtc {
 	u8			day_alrm;
 	u8			mon_alrm;
 	u8			century;
+	unsigned char		stored_mask;
+	bool			wake_source_checked;
 };
 
 /* both platform and pnp busses use negative numbers for invalid irqs */
@@ -482,6 +486,33 @@ static int cmos_procfs(struct device *dev, struct seq_file *seq)
 #define	cmos_procfs	NULL
 #endif
 
+static bool cmos_caused_resume(struct device *dev)
+{
+	struct cmos_rtc *cmos = dev_get_drvdata(dev);
+	unsigned char mask;
+	bool ret = false;
+
+	if (!cmos)
+		return false;
+
+	mask = cmos->suspend_ctrl;
+	if (!(mask & RTC_IRQMASK))
+		return false;
+
+	spin_lock_irq(&rtc_lock);
+
+	cmos->wake_source_checked = true;
+	CMOS_WRITE(mask, RTC_CONTROL);
+	hpet_set_rtc_irq_bit(mask & RTC_IRQMASK);
+	cmos->stored_mask = CMOS_READ(RTC_INTR_FLAGS);
+	cmos->stored_mask &= (mask & RTC_IRQMASK) | RTC_IRQF;
+	ret = is_intr(cmos->stored_mask);
+
+	spin_unlock_irq(&rtc_lock);
+
+	return ret;
+}
+
 static const struct rtc_class_ops cmos_rtc_ops = {
 	.read_time		= cmos_read_time,
 	.set_time		= cmos_set_time,
@@ -784,6 +815,11 @@ cmos_do_probe(struct device *dev, struct resource *ports, int rtc_irq)
 		goto cleanup2;
 	}
 
+	/* setup dark resume source sysfs files and structs */
+	cmos_rtc.wake_source_checked = false;
+	dev_dark_resume_init(cmos_rtc.dev, &cmos_rtc.dark_resume, -1,
+			cmos_caused_resume);
+
 	dev_info(dev, "%s%s, %zd bytes nvram%s\n",
 		!is_valid_irq(rtc_irq) ? "no alarms" :
 			cmos_rtc.mon_alrm ? "alarms up to one year" :
@@ -827,6 +863,7 @@ static void __exit cmos_do_remove(struct device *dev)
 		hpet_unregister_irq_handler(cmos_interrupt);
 	}
 
+	dev_dark_resume_remove(dev);
 	rtc_device_unregister(cmos->rtc);
 	cmos->rtc = NULL;
 
@@ -912,11 +949,17 @@ static int cmos_resume(struct device *dev)
 			hpet_rtc_timer_init();
 
 		do {
-			CMOS_WRITE(tmp, RTC_CONTROL);
-			hpet_set_rtc_irq_bit(tmp & RTC_IRQMASK);
+			if (cmos->wake_source_checked) {
+				cmos->wake_source_checked = false;
+				mask = cmos->stored_mask;
+			} else {
+				CMOS_WRITE(tmp, RTC_CONTROL);
+				hpet_set_rtc_irq_bit(tmp & RTC_IRQMASK);
 
-			mask = CMOS_READ(RTC_INTR_FLAGS);
-			mask &= (tmp & RTC_IRQMASK) | RTC_IRQF;
+				mask = CMOS_READ(RTC_INTR_FLAGS);
+				mask &= (tmp & RTC_IRQMASK) | RTC_IRQF;
+			}
+
 			if (!is_hpet_enabled() || !is_intr(mask))
 				break;
 

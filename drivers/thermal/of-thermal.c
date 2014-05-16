@@ -97,7 +97,7 @@ struct __thermal_zone {
 	/* sensor interface */
 	void *sensor_data;
 	int (*get_temp)(void *, long *);
-	int (*get_trend)(void *, long *);
+	int (*get_trend)(void *, int, long *);
 };
 
 /***   DT thermal zone device callbacks   ***/
@@ -123,17 +123,11 @@ static int of_thermal_get_trend(struct thermal_zone_device *tz, int trip,
 	if (!data->get_trend)
 		return -EINVAL;
 
-	r = data->get_trend(data->sensor_data, &dev_trend);
+	r = data->get_trend(data->sensor_data, trip, &dev_trend);
 	if (r)
 		return r;
 
-	/* TODO: These intervals might have some thresholds, but in core code */
-	if (dev_trend > 0)
-		*trend = THERMAL_TREND_RAISING;
-	else if (dev_trend < 0)
-		*trend = THERMAL_TREND_DROPPING;
-	else
-		*trend = THERMAL_TREND_STABLE;
+	*trend = dev_trend;
 
 	return 0;
 }
@@ -325,12 +319,12 @@ static struct thermal_zone_device *
 thermal_zone_of_add_sensor(struct device_node *zone,
 			   struct device_node *sensor, void *data,
 			   int (*get_temp)(void *, long *),
-			   int (*get_trend)(void *, long *))
+			   int (*get_trend)(void *, int, long *))
 {
 	struct thermal_zone_device *tzd;
 	struct __thermal_zone *tz;
 
-	tzd = thermal_zone_get_zone_by_name(zone->name);
+	tzd = thermal_zone_get_zone_by_node(zone);
 	if (IS_ERR(tzd))
 		return ERR_PTR(-EPROBE_DEFER);
 
@@ -384,7 +378,7 @@ thermal_zone_of_add_sensor(struct device_node *zone,
 struct thermal_zone_device *
 thermal_zone_of_sensor_register(struct device *dev, int sensor_id,
 				void *data, int (*get_temp)(void *, long *),
-				int (*get_trend)(void *, long *))
+				int (*get_trend)(void *, int, long *))
 {
 	struct device_node *np, *child, *sensor_np;
 
@@ -804,6 +798,8 @@ int __init of_parse_thermal_zones(void)
 			of_thermal_free_zone(tz);
 			/* attempting to build remaining zones still */
 		}
+
+		zone->np = child;
 	}
 
 	return 0;
@@ -837,7 +833,7 @@ void of_thermal_destroy_zones(void)
 	for_each_child_of_node(np, child) {
 		struct thermal_zone_device *zone;
 
-		zone = thermal_zone_get_zone_by_name(child->name);
+		zone = thermal_zone_get_zone_by_node(child);
 		if (IS_ERR(zone))
 			continue;
 

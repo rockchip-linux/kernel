@@ -695,6 +695,13 @@ config INTEL_IPS
 	  along with the CPU frequency and i915 drivers, provides that
 	  functionality.  If in doubt, say Y here; it will only load on
 	  supported platforms.
+config ACPI_CHROMEOS
+	bool "ChromeOS specific ACPI extensions"
+	depends on ACPI
+	select CHROMEOS
+	---help---
+	  This driver provides the firmware interface for the services exported
+	  through the CHROMEOS interfaces when using ChromeOS ACPI firmware.
 
 config IBM_RTL
 	tristate "Device driver to enable PRTL support"

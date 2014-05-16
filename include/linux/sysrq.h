@@ -27,6 +27,7 @@
 #define SYSRQ_ENABLE_SIGNAL	0x0040
 #define SYSRQ_ENABLE_BOOT	0x0080
 #define SYSRQ_ENABLE_RTNICE	0x0100
+#define SYSRQ_ENABLE_CROS_XKEY	0x1000
 
 struct sysrq_key_op {
 	void (*handler)(int);

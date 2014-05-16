@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/pci.h>
+#include <linux/dmi.h>
 #include <linux/pci_regs.h>
 #include <linux/errno.h>
 #include <linux/pm.h>
@@ -479,10 +480,12 @@ static void free_link_state(struct pcie_link_state *link)
 	kfree(link);
 }
 
+
 static int pcie_aspm_sanity_check(struct pci_dev *pdev)
 {
 	struct pci_dev *child;
 	u32 reg32;
+	extern const struct dmi_system_id acpi_pci_retain_aspm[];
 
 	/*
 	 * Some functions in a slot might not all be PCIe functions,
@@ -506,8 +509,10 @@ static int pcie_aspm_sanity_check(struct pci_dev *pdev)
 		 * RBER bit to determine if a function is 1.1 version device
 		 */
 		pcie_capability_read_dword(child, PCI_EXP_DEVCAP, &reg32);
-		if (!(reg32 & PCI_EXP_DEVCAP_RBER) && !aspm_force) {
-			dev_info(&child->dev, "disabling ASPM on pre-1.1 PCIe device.  You can enable it with 'pcie_aspm=force'\n");
+		if (!(reg32 & PCI_EXP_DEVCAP_RBER) && !aspm_force &&
+				!dmi_check_system(acpi_pci_retain_aspm)) {
+			dev_info(&child->dev, "disabling ASPM on pre-1.1 PCIe device.  You can en\
+able it with 'pcie_aspm=force'\n");
 			return -EINVAL;
 		}
 	}

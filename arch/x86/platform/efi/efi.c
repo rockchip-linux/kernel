@@ -44,6 +44,7 @@
 #include <linux/io.h>
 #include <linux/reboot.h>
 #include <linux/bcd.h>
+#include <linux/debugfs.h>
 
 #include <asm/setup.h>
 #include <asm/efi.h>
@@ -114,6 +115,20 @@ static int __init setup_storage_paranoia(char *arg)
 	return 0;
 }
 early_param("efi_no_storage_paranoia", setup_storage_paranoia);
+
+static int __init efi_debugfs_setup(void)
+{
+	static u64 efi_smbios_base;
+
+	efi_smbios_base = (u64) efi.smbios;
+
+	if (efi_smbios_base && efi_smbios_base != EFI_INVALID_TABLE_ADDR)
+		debugfs_create_u64("efi_smbios_base", 0444, NULL,
+							&efi_smbios_base);
+
+	return 0;
+}
+late_initcall(efi_debugfs_setup);
 
 static efi_status_t virt_efi_get_time(efi_time_t *tm, efi_time_cap_t *tc)
 {

@@ -409,6 +409,13 @@ config BACKLIGHT_PANDORA
 	depends on TWL4030_CORE
 	help
 	  If you have a Pandora console, say Y to enable the
+          backlight driver.
+
+config BACKLIGHT_CHROMEOS_KEYBOARD
+	tristate "EC-based Keyboard Backlight for Chrome OS"
+	depends on BACKLIGHT_CLASS_DEVICE && ACPI
+	help
+	  If you have a EC-based keyboard backlight say Y to enable the
 	  backlight driver.
 
 config BACKLIGHT_TPS65217

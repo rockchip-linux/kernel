@@ -15,6 +15,8 @@
 #include <linux/workqueue.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
+#include <linux/pm.h>
+#include <linux/pm_dark_resume.h>
 
 #include "power.h"
 
@@ -511,6 +513,25 @@ static ssize_t wake_unlock_store(struct kobject *kobj,
 power_attr(wake_unlock);
 
 #endif /* CONFIG_PM_WAKELOCKS */
+
+/*
+ * State that user space can query to check if a dark resume happened.
+ */
+static ssize_t dark_resume_state_show(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				char *buf)
+{
+	return sprintf(buf, "%u\n", pm_dark_resume_active() ? 1 : 0);
+}
+
+static ssize_t dark_resume_state_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t n)
+{
+	return -EINVAL;
+}
+
+power_attr(dark_resume_state);
 #endif /* CONFIG_PM_SLEEP */
 
 #ifdef CONFIG_PM_TRACE
@@ -599,6 +620,7 @@ static struct attribute * g[] = {
 	&wake_lock_attr.attr,
 	&wake_unlock_attr.attr,
 #endif
+	&dark_resume_state_attr.attr,
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,
 #endif

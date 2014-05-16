@@ -978,6 +978,11 @@ int acpi_dev_pm_attach(struct device *dev, bool power_on)
 	if (!adev)
 		return -ENODEV;
 
+	if (!strcmp(dev_name(dev), "80860F28:00")) {
+		dev_info(dev, "Skipping ACPI power domain attach\n");
+		return -ENODEV;
+	}
+
 	if (dev->pm_domain)
 		return -EEXIST;
 

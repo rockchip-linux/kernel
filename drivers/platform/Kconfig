@@ -1,3 +1,5 @@
+# drivers/platform/Kconfig
+
 if X86
 source "drivers/platform/x86/Kconfig"
 endif
@@ -5,4 +7,35 @@ if GOLDFISH
 source "drivers/platform/goldfish/Kconfig"
 endif
 
+if ARM
+source "drivers/platform/arm/Kconfig"
+endif
+
 source "drivers/platform/chrome/Kconfig"
+
+config CHROMEOS
+	bool
+	depends on ARM_CHROMEOS_FIRMWARE || (NVRAM && ACPI_CHROMEOS)
+
+	---help---
+	  Provides abstracted interfaces to the firmware features provided on
+	  ChromeOS devices. It depends on a lowlevel driver to implement the
+	  firmware interface on the platform.
+
+config CHROMEOS_VBC_BLK
+	bool
+	depends on CHROMEOS
+
+	---help---
+	  Provides access to vboot context stored on block device.  Select this
+	  if you have a ChromeOS firmware that does not support storing vboot
+	  context in EC's nvram.
+
+config CHROMEOS_VBC_EC
+	bool
+	depends on CHROMEOS && MFD_CROS_EC
+
+	---help---
+	  Provides access to vboot context stored on EC's nvram.  Select this
+	  if you have a ChromeOS firmware that supports storing vboot context
+	  in EC's nvram.
