@@ -1,0 +1,9 @@
+config SECURITY_CHROMIUMOS
+	tristate "Chromium OS Security Module"
+	depends on SECURITY
+	help
+	  The purpose of the Chromium OS security module is to reduce attacking
+	  surface by preventing access to general purpose access modes not
+	  required by Chromium OS. Currently: the mount operation is
+	  restricted by requiring a mount point path without symbolic links,
+	  and loading modules is limited to only the root filesystem.

@@ -347,6 +347,7 @@ static int handle_remove(const char *nodename, struct device *dev)
 int devtmpfs_mount(const char *mntdir)
 {
 	int err;
+	int mflags = MS_SILENT;
 
 	if (!mount_dev)
 		return 0;
@@ -354,7 +355,10 @@ int devtmpfs_mount(const char *mntdir)
 	if (!thread)
 		return 0;
 
-	err = sys_mount("devtmpfs", (char *)mntdir, "devtmpfs", MS_SILENT, NULL);
+#ifdef CONFIG_DEVTMPFS_SAFE
+	mflags |= MS_NOEXEC | MS_NOSUID;
+#endif
+	err = sys_mount("devtmpfs", (char *)mntdir, "devtmpfs", mflags, NULL);
 	if (err)
 		printk(KERN_INFO "devtmpfs: error mounting %i\n", err);
 	else

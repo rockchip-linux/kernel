@@ -37,6 +37,7 @@
 #include <linux/notifier.h>
 #include <linux/uaccess.h>
 #include <linux/gfp.h>
+#include <linux/ratelimit.h>
 
 #include <asm/processor.h>
 #include <asm/msr.h>
@@ -93,6 +94,28 @@ static ssize_t msr_read(struct file *file, char __user *buf,
 	return bytes ? bytes : err;
 }
 
+/*
+ * TODO(keescook): This check should just return -EPERM for all registers.
+ * crosbug.com/38756
+ */
+static int msr_write_allowed(u32 reg)
+{
+	switch (reg) {
+	case 0x19a:
+	case 0x610:
+	case 0x64c:
+		/* Allowed: i915 thermal controls. */
+		return 0;
+	default:
+		break;
+	}
+
+	/* Everything else: denied. */
+	printk_ratelimited(KERN_ERR "msr: write denied: register 0x%x " \
+			   "not whitelisted by driver.\n", reg);
+	return -EPERM;
+}
+
 static ssize_t msr_write(struct file *file, const char __user *buf,
 			 size_t count, loff_t *ppos)
 {
@@ -105,6 +128,9 @@ static ssize_t msr_write(struct file *file, const char __user *buf,
 
 	if (count % 8)
 		return -EINVAL;	/* Invalid chunk size */
+	err = msr_write_allowed(reg);
+	if (err)
+		return err;
 
 	for (; count; count -= 8) {
 		if (copy_from_user(&data, tmp, 8)) {
@@ -154,6 +180,9 @@ static long msr_ioctl(struct file *file, unsigned int ioc, unsigned long arg)
 			err = -EFAULT;
 			break;
 		}
+		err = msr_write_allowed(regs[1]);
+		if (err)
+			break;
 		err = wrmsr_safe_regs_on_cpu(cpu, regs);
 		if (err)
 			break;
