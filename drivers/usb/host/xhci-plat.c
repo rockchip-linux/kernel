@@ -162,6 +162,10 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (ret)
 		goto put_usb3_hcd;
 
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+	device_enable_async_suspend(&pdev->dev);
+
 	return 0;
 
 put_usb3_hcd:
@@ -187,6 +191,8 @@ static int xhci_plat_remove(struct platform_device *dev)
 	struct usb_hcd	*hcd = platform_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
 
+	pm_runtime_disable(&dev->dev);
+
 	usb_remove_hcd(xhci->shared_hcd);
 	usb_put_hcd(xhci->shared_hcd);
 
@@ -204,16 +210,27 @@ static int xhci_plat_suspend(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
+	int ret;
 
-	return xhci_suspend(xhci);
+	pm_runtime_get_sync(dev);
+	usleep_range(10000, 11000);
+	ret = xhci_suspend(xhci);
+	pm_runtime_put(dev);
+
+	return ret;
 }
 
 static int xhci_plat_resume(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct xhci_hcd	*xhci = hcd_to_xhci(hcd);
+	int ret;
 
-	return xhci_resume(xhci, 0);
+	pm_runtime_get_sync(dev);
+	ret = xhci_resume(xhci, 0);
+	pm_runtime_put(dev);
+
+	return ret;
 }
 
 static const struct dev_pm_ops xhci_plat_pm_ops = {

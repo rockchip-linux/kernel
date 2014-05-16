@@ -29,6 +29,28 @@ if USB_XHCI_HCD
 config USB_XHCI_PLATFORM
 	tristate
 
+config USB_XHCI_TEGRA
+	bool "Support for NVIDIA's Tegra XHCI host controller"
+	depends on ARCH_TEGRA
+	select USB_XHCI_PLATFORM
+	select TEGRA_XUSB_PHY
+	---help---
+	  Say 'Y' to turn on support for NVIDIA xHCI Host controller
+	  driver.
+
+	  This will enable USB3.0 functionality on the USB3.0 ports.
+	  If unsure, say N.
+
+config USB_XHCI_TEGRA_FW_LOG
+	bool "Firmware log support for NVIDIA's Tegra XHCI host controller"
+	depends on USB_XHCI_TEGRA
+	---help---
+	  Say 'Y' to support collection of firmware logs from the Tegra
+	  XHCI controller.  The controller will only generate logs if it's
+	  running debug firmware.
+
+	  If unsure, say N.
+
 endif # USB_XHCI_HCD
 
 config USB_EHCI_HCD

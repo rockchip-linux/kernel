@@ -109,6 +109,21 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);
 
 static int usb_reset_and_verify_device(struct usb_device *udev);
 
+#define PORT_RESET_TRIES	5
+#define SET_ADDRESS_TRIES	2
+#define GET_DESCRIPTOR_TRIES	2
+#define SET_CONFIG_TRIES	(2 * (use_both_schemes + 1))
+#define USE_NEW_SCHEME(i)	((i) / 2 == (int)old_scheme_first)
+
+#define HUB_ROOT_RESET_TIME	50	/* times are in msec */
+#define HUB_SHORT_RESET_TIME	10
+#define HUB_BH_RESET_TIME	50
+#define HUB_LONG_RESET_TIME	200
+#define HUB_RESET_TIMEOUT	800
+
+static int hub_port_reset(struct usb_hub *hub, int port1,
+			struct usb_device *udev, unsigned int delay, bool warm);
+
 static inline char *portspeed(struct usb_hub *hub, int portstatus)
 {
 	if (hub_is_superspeed(hub->hdev))
@@ -874,7 +889,8 @@ static int hub_set_port_link_state(struct usb_hub *hub, int port1,
  *
  * Instead, set the link state to Disabled, wait for the link to settle into
  * that state, clear any change bits, and then put the port into the RxDetect
- * state.
+ * state.  If the device fails to enter RxDetect state and is instead stuck
+ * in the Polling state then issue a warm reset to recover it.
  */
 static int hub_usb3_port_disable(struct usb_hub *hub, int port1)
 {
@@ -906,7 +922,39 @@ static int hub_usb3_port_disable(struct usb_hub *hub, int port1)
 		dev_warn(hub->intfdev, "Could not disable port %d after %d ms\n",
 				port1, total_time);
 
-	return hub_set_port_link_state(hub, port1, USB_SS_PORT_LS_RX_DETECT);
+	ret = hub_set_port_link_state(hub, port1, USB_SS_PORT_LS_RX_DETECT);
+	if (ret) {
+		dev_err(hub->intfdev, "cannot enable port %d (err = %d)\n",
+				port1, ret);
+		return ret;
+	}
+
+	/* Wait for the link to enter the rxdetect state. */
+	for (total_time = 0; ; total_time += HUB_DEBOUNCE_STEP) {
+		ret = hub_port_status(hub, port1, &portstatus, &portchange);
+		if (ret < 0)
+			return ret;
+
+		portstatus &= USB_PORT_STAT_LINK_STATE;
+		if (portstatus == USB_SS_PORT_LS_RX_DETECT ||
+		    portstatus == USB_SS_PORT_LS_U0 ||
+		    portstatus == USB_SS_PORT_LS_U1 ||
+		    portstatus == USB_SS_PORT_LS_U2)
+			break;
+		if (total_time >= HUB_DEBOUNCE_TIMEOUT)
+			break;
+		msleep(HUB_DEBOUNCE_STEP);
+	}
+	if (total_time >= HUB_DEBOUNCE_TIMEOUT) {
+		dev_warn(hub->intfdev, "Could not enable port %d after %d ms\n",
+				port1, total_time);
+
+		/* Issue warm reset if the port is stuck polling. */
+		if (portstatus == USB_SS_PORT_LS_POLLING)
+			return hub_port_reset(hub, port1, NULL,
+					      HUB_BH_RESET_TIME, true);
+	}
+	return 0;
 }
 
 static int hub_port_disable(struct usb_hub *hub, int port1, int set_state)
@@ -2481,19 +2529,6 @@ static unsigned hub_is_wusb(struct usb_hub *hub)
 	return hcd->wireless;
 }
 
-
-#define PORT_RESET_TRIES	5
-#define SET_ADDRESS_TRIES	2
-#define GET_DESCRIPTOR_TRIES	2
-#define SET_CONFIG_TRIES	(2 * (use_both_schemes + 1))
-#define USE_NEW_SCHEME(i)	((i) / 2 == (int)old_scheme_first)
-
-#define HUB_ROOT_RESET_TIME	50	/* times are in msec */
-#define HUB_SHORT_RESET_TIME	10
-#define HUB_BH_RESET_TIME	50
-#define HUB_LONG_RESET_TIME	200
-#define HUB_RESET_TIMEOUT	800
-
 /*
  * "New scheme" enumeration causes an extra state transition to be
  * exposed to an xhci host and causes USB3 devices to receive control
@@ -2508,9 +2543,6 @@ static bool use_new_scheme(struct usb_device *udev, int retry)
 
 	return USE_NEW_SCHEME(retry);
 }
-
-static int hub_port_reset(struct usb_hub *hub, int port1,
-			struct usb_device *udev, unsigned int delay, bool warm);
 
 /* Is a USB 3.0 port in the Inactive or Compliance Mode state?
  * Port worm reset is required to recover
@@ -2907,6 +2939,20 @@ static unsigned wakeup_enabled_descendants(struct usb_device *udev)
 	return udev->do_remote_wakeup +
 			(hub ? hub->wakeup_enabled_descendants : 0);
 }
+
+bool usb_port_may_wakeup(struct usb_device *hdev, int port1)
+{
+	struct usb_hub *hub = usb_hub_to_struct_hub(hdev);
+	struct usb_device *udev;
+
+	if (hub) {
+		udev = hub->ports[port1 - 1]->child;
+		if (udev)
+			return wakeup_enabled_descendants(udev) > 0;
+	}
+	return false;
+}
+EXPORT_SYMBOL_GPL(usb_port_may_wakeup);
 
 /*
  * usb_port_suspend - suspend a usb device's upstream port

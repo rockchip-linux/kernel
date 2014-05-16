@@ -1,0 +1,112 @@
+Tegra SOC XUSB PHY
+
+The device node for the Tegra SOC XUSB PHY:
+
+Required properties:
+ - compatible: Should be "nvidia,tegra114-xusb-phy" or
+   "nvidia,tegra124-xusb-phy".
+ - reg: Address and length of the register sets.  There should be two
+   entries in the following order: XUSB_PADCTL registers and USB2.0 PHY
+   registers.
+ - interrupts: PADCTL interrupt, used for wake from runtime and LP0 suspend.
+ - clocks: Handles to XUSB SS, SS source, PLL_U_480M, CLK_M, and pad clocks.
+ - clock-names: Should be "xusb_ss", "xusb_ss_src", "pll_u_480M", "clk_m",
+   and "pad_clk" respectively.
+ - nvidia,pmc: Handle to the PMC syscon node.
+ - nvidia,clkrst: Handle to the clock-reset module syscon node.
+ - nvidia,ss-pads: Bitmap of enabled SuperSpeed pads:
+     bit 0 - SuperSpeed port 0
+     bit 1 - SuperSpeed port 1
+ - nvidia,utmi-pads: Bitmap of enabled USB2.0 UTMI pads:
+     bit 0 - UTMI port 0
+     bit 1 - UTMI port 1
+     bit 2 - UTMI port 2
+ - nvidia,hsic-pads: Bitmap of enabled USB2.0 HSIC pads:
+     bit 0 - HSIC port 0
+     bit 1 - HSIC port 1
+ - nvidia,hsic{0,1}-config: byte array with 9 elements specifiying the
+   configuration for the corresponding HISC port:
+     byte 0 - rx_strobe_trim
+     byte 1 - rx_data_trim
+     byte 2 - tx_rtune_n
+     byte 3 - tx_rtune_p
+     byte 4 - tx_slew_n
+     byte 5 - tx_slew_p
+     byte 6 - auto_term_en
+     byte 7 - strb_trim_val
+     byte 8 - pretend_connect
+   Only required for enabled HISC ports.
+ - nvidia,ss-portmap: Mapping from SS ports to their corresponding USB2.0 port:
+     bits 3-0 - SuperSpeed port 0
+     bits 7-4 - SuperSpeed port 1
+   Both fields have valid values from 0 to 2 (USB2.0 ports 0, 1, 2).
+ - nvidia,lane-owner: Program ownership of lanes owned by USB3.0:
+     bit 0 - set when super-speed port 1 uses SATA lane. Valid for Tegra124.
+	   = 0 (SATA lane owner = SATA)
+	   = 1 (SATA lane owner = USB3_SS port1)
+     bit 1 - set when super-speed port 0 uses PCIe lane 0 (always).
+           = 0 (PCIe lane0 owner = PCIe),
+           = 1 (PCIe lane0 owner = USB3_SS port0)
+     bit 2 - set when super-speed port 1 uses PCIe lane 1.
+           = 0 (PCIe lane1 owner = PCIe),
+           = 1 (PCIe lane1 owner = USB3_SS port1)
+ - vbus{1,2,3}-supply: VBUS regulator for the corresponding UTMI pad.
+   Only required when the respective UTMI pad is enabled.
+ - vddio-hsic-supply: HSIC supply regulator.  Only required when HSIC ports
+   are enabled.
+Optional properties:
+ - nvidia,xusb-hs-xcvr-setup-offset: used for high-speed transceiver setup
+     and for data eye swing.
+     bit   7-0: for PAD0 (port0)
+     bit  15-8: for PAD1 (port1)
+     bit 23-16: for PAD2 (port2)
+   USB parameter HS_CURR_LEVEL is calibrated and fused. Software reads
+   the fuse value and programs it to the correct level.
+   Actual product may have additional losses on the PCB (connectors).
+   This reduces the actual signal at the USB connector.
+
+   Software has the option of adding an offset to the FUSE value before
+   it is programmed to register.
+   Programmed value = Fuse value + Offset
+   This corrects any losses.
+
+   The objective is to get the data eye swing as close as possible to 400mv
+   without falling below the mark under typical operating conditions.
+
+   Offset (nvidia,xusb-hs-xcvr-setup-offset) is design dependant
+   (PCB type, length of PCB, switches used, etc).
+   If "nvidia,xusb-hs-xcvr-setup-offset" is not defined or has
+   value 0 for the pad, then
+   Programmed value = Fuse value
+
+	usb@70090000 {
+		...
+		nvidia,xusb-phy = <&xusb_phy>;
+		...
+	};
+
+	xusb_phy: phy@7009f000 {
+		compatible = "nvidia,tegra124-xusb-phy";
+		reg = <0x0 0x7009f000 0x1000>,
+		      <0x0 0x7000e400 0x800>;
+		interrupts = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&tegra_car TEGRA124_CLK_XUSB_SS>,
+			 <&tegra_car TEGRA124_CLK_XUSB_SS_SRC>,
+			 <&tegra_car TEGRA124_CLK_PLL_U_480M>,
+			 <&tegra_car TEGRA124_CLK_CLK_M>,
+			 <&tegra_car TEGRA124_CLK_USBD>;
+		clock-names = "xusb_ss", "xusb_ss_src", "pll_u_480M",
+			      "clk_m", "pad_clk";
+		nvidia,pmc = <&pmc>;
+		nvidia,clkrst = <&tegra_car>;
+		nvidia,ss-pads = <0x3>; /* SSP0, SSP1 */
+		nvidia,hsic-pads = <0x0>;
+		nvidia,utmi-pads = <0x7>; /* USB2P0, USB2P1, USB2P2 */
+		nvidia,ss-portmap = <0x20>; /* SSP0->USB2P0, SSP1->USB2P2 */
+		nvidia,lane-owner = <0x6>; /* USB3P0 USB3P1 */
+		vbus1-supply = <&usb1_vbus_reg>;
+		vbus2-supply = <&run_cam_2v8>;
+		vbus3-supply = <&usb3_vbus_reg>;
+		vddio-hsic-supply = <&gen_avdd_1v2>;
+		nvidia,xusb-hs-xcvr-setup-offset = <0x020004>;
+	};
