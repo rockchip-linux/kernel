@@ -16,6 +16,11 @@
 /* One can override the Linux version here with an explicit version number */
 #define M98090_LINUX_VERSION LINUX_VERSION_CODE
 
+/* If using a digital microphone then set FS_DMIC_TARGET to the desired
+ * operating frequency in Hertz
+ */
+#define FS_DMIC_TARGET	2500000
+
 /*
  * MAX98090 Register Definitions
  */
@@ -1526,12 +1531,14 @@ struct max98090_priv {
 	void *control_data;
 	struct max98090_pdata *pdata;
 	unsigned int sysclk;
+	unsigned int pclk;
 	unsigned int bclk;
 	unsigned int lrclk;
 	struct max98090_cdata dai[1];
 	int irq;
 	int jack_state;
 	struct delayed_work jack_work;
+	struct work_struct pll_work;
 	struct snd_soc_jack *jack;
 	unsigned int dai_fmt;
 	int tdm_slots;
@@ -1541,6 +1548,7 @@ struct max98090_priv {
 	unsigned int pa2en;
 	unsigned int extmic_mux;
 	unsigned int sidetone;
+	bool master;
 };
 
 int max98090_mic_detect(struct snd_soc_codec *codec,

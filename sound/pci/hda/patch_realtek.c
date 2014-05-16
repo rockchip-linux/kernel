@@ -259,6 +259,13 @@ static void set_eapd(struct hda_codec *codec, hda_nid_t nid, int on)
 {
 	if (get_wcaps_type(get_wcaps(codec, nid)) != AC_WID_PIN)
 		return;
+
+	/* delay de-assert of eapd to allow biasing of amp
+	 * inputs to settle avoiding an audible 'pop'.
+	 */
+	if ((nid == 0x14) && codec->subsystem_id == 0x144dc0a7)
+		msleep(25);
+
 	if (snd_hda_query_pin_caps(codec, nid) & AC_PINCAP_EAPD)
 		snd_hda_codec_write(codec, nid, 0, AC_VERB_SET_EAPD_BTLENABLE,
 				    on ? 2 : 0);
@@ -2850,7 +2857,7 @@ static void alc283_shutup(struct hda_codec *codec)
 
 	if (hp_pin_sense)
 		msleep(100);
-	snd_hda_shutup_pins(codec);
+	alc_eapd_shutup(codec);
 	alc_write_coef_idx(codec, 0x43, 0x9614);
 }
 

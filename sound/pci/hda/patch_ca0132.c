@@ -73,9 +73,11 @@
 #define SCP_SET    0
 #define SCP_GET    1
 
+#define SPEQ_FILE  "ctspeq.bin"
 #define EFX_FILE   "ctefx.bin"
 
 #ifdef CONFIG_SND_HDA_CODEC_CA0132_DSP
+MODULE_FIRMWARE(SPEQ_FILE);
 MODULE_FIRMWARE(EFX_FILE);
 #endif
 
@@ -118,6 +120,7 @@ enum {
 	VOICE_FOCUS,
 	MIC_SVM,
 	NOISE_REDUCTION,
+	KEY_CLICK,
 	IN_EFFECT_END_NID,
 #define IN_EFFECTS_COUNT  (IN_EFFECT_END_NID - IN_EFFECT_START_NID)
 
@@ -236,6 +239,14 @@ static struct ct_effect ca0132_effects[EFFECTS_COUNT] = {
 	  .params = 1,
 	  .def_vals = {0x3F800000, 0x3F000000}
 	},
+	{ .name = "Key-Click Reduction",
+	  .nid = KEY_CLICK,
+	  .mid = 0x47,
+	  .reqs = {0},
+	  .direct = EFX_DIR_IN,
+	  .params = 0,
+	  .def_vals = {0x3F800000}
+	},
 	{ .name = "VoiceFX",
 	  .nid = VOICEFX,
 	  .mid = 0x95,
@@ -265,6 +276,7 @@ enum {
 	EQUALIZER_BAND_7,
 	EQUALIZER_BAND_8,
 	EQUALIZER_BAND_9,
+	AEC_LEVEL,
 	TUNING_CTL_END_NID
 #define TUNING_CTLS_COUNT  (TUNING_CTL_END_NID - TUNING_CTL_START_NID)
 };
@@ -375,6 +387,14 @@ static struct ct_tuning_ctl ca0132_tuning_ctls[] = {
 	  .req = 20,
 	  .direct = EFX_DIR_OUT,
 	  .def_val = 0x00000000
+	},
+	{ .name = "AEC Level",
+	  .parent_nid = ECHO_CANCELLATION,
+	  .nid = AEC_LEVEL,
+	  .mid = 0x86,
+	  .req = 5,
+	  .direct = EFX_DIR_IN,
+	  .def_val = 0x41F00000
 	}
 };
 #endif
@@ -793,7 +813,7 @@ static int chipio_send(struct hda_codec *codec,
 		       unsigned int data)
 {
 	unsigned int res;
-	unsigned long timeout = jiffies + msecs_to_jiffies(1000);
+	unsigned long timeout = jiffies + msecs_to_jiffies(2000);
 
 	/* send bits of data specified by reg */
 	do {
@@ -801,7 +821,7 @@ static int chipio_send(struct hda_codec *codec,
 					 reg, data);
 		if (res == VENDOR_STATUS_CHIPIO_OK)
 			return 0;
-		msleep(20);
+		msleep(1);
 	} while (time_before(jiffies, timeout));
 
 	return -EIO;
@@ -1076,7 +1096,7 @@ static int dspio_send(struct hda_codec *codec, unsigned int reg,
 		res = snd_hda_codec_read(codec, WIDGET_DSP_CTRL, 0, reg, data);
 		if ((res >= 0) && (res != VENDOR_STATUS_DSPIO_BUSY))
 			return res;
-		msleep(20);
+		msleep(1);
 	} while (time_before(jiffies, timeout));
 
 	return -EIO;
@@ -1358,7 +1378,7 @@ static int dspio_send_scp_message(struct hda_codec *codec,
 		unsigned long timeout = jiffies + msecs_to_jiffies(1000);
 		memset(return_buf, 0, return_buf_size);
 		do {
-			msleep(20);
+			msleep(1);
 		} while (spec->wait_scp && time_before(jiffies, timeout));
 		waiting_for_resp = false;
 		if (!spec->wait_scp) {
@@ -2387,7 +2407,7 @@ static int dspxfr_one_seg(struct hda_codec *codec,
 			dma_active = dsp_is_dma_active(codec, dma_chan);
 			if (!dma_active)
 				break;
-			msleep(20);
+			msleep(1);
 		} while (time_before(jiffies, timeout));
 		if (dma_active)
 			break;
@@ -2543,6 +2563,42 @@ exit:
 	return status;
 }
 
+/**
+ * Write the SpeakerEQ coefficient data to DSP memories
+ *
+ * @codec: the HDA codec
+ * @x,y:   location to write x and y coeff data to
+ *
+ * Returns zero or a negative error code.
+ */
+static int dspload_get_speakereq_addx(struct hda_codec *codec,
+				unsigned int *x,
+				unsigned int *y)
+{
+	int status = 0;
+	struct { unsigned short y, x; } speakereq_info;
+	unsigned int size = sizeof(speakereq_info);
+
+	snd_printdd(KERN_INFO "dspload_get_speakereq_addx() -- begin");
+	status = dspio_scp(codec, MASTERCONTROL,
+			MASTERCONTROL_QUERY_SPEAKER_EQ_ADDRESS,
+			SCP_GET, NULL, 0, &speakereq_info, &size);
+
+	if (status < 0) {
+		snd_printdd(KERN_INFO "dspload_get_speakereq_addx: SCP Failed");
+		return -EIO;
+	}
+
+	*x = speakereq_info.x;
+	*y = speakereq_info.y;
+	snd_printdd(KERN_INFO "dspload_get_speakereq_addx: X=0x%x Y=0x%x\n",
+		    *x, *y);
+
+	snd_printdd(KERN_INFO "dspload_get_speakereq_addx() -- complete");
+
+	return status;
+}
+
 /*
  * CA0132 DSP download stuffs.
  */
@@ -2629,6 +2685,35 @@ static int dspload_image(struct hda_codec *codec,
 	return status;
 }
 
+static int dspload_speakereq(struct hda_codec *codec)
+{
+	int status = 0;
+	const struct dsp_image_seg *image;
+	unsigned int x, y;
+	const struct firmware *fw_speq;
+
+	snd_printdd(KERN_INFO "dspload_speakereq() -- begin");
+
+	if (request_firmware(&fw_speq, SPEQ_FILE,
+			     codec->bus->card->dev) != 0)
+		return -EIO;
+
+	image = (struct dsp_image_seg *)(fw_speq->data);
+
+	status = dspload_get_speakereq_addx(codec, &x, &y);
+	if (status < 0)
+		goto done;
+
+	status = dspload_image(codec, image, 1, y, 0, 8);
+
+done:
+	release_firmware(fw_speq);
+
+	snd_printdd(KERN_INFO "dspload_speakereq() -- complete");
+
+	return status;
+}
+
 #ifdef CONFIG_SND_HDA_CODEC_CA0132_DSP
 static bool dspload_is_loaded(struct hda_codec *codec)
 {
@@ -2654,7 +2739,7 @@ static bool dspload_wait_loaded(struct hda_codec *codec)
 			pr_info("ca0132 DOWNLOAD OK :-) DSP IS RUNNING.\n");
 			return true;
 		}
-		msleep(20);
+		msleep(1);
 	} while (time_before(jiffies, timeout));
 
 	pr_err("ca0132 DOWNLOAD FAILED!!! DSP IS NOT RUNNING.\n");
@@ -2664,6 +2749,19 @@ static bool dspload_wait_loaded(struct hda_codec *codec)
 /*
  * PCM callbacks
  */
+
+/* Toggles the audio format to serial and back to parallel. Needed to make sure
+ * the codec does what we tell it. */
+static void ca0132_toggle_dac_format(struct hda_codec *codec)
+{
+	unsigned int aicr;
+	chipio_read(codec, 0x18B008, &aicr);
+	aicr = aicr | 0x8;
+	chipio_write(codec, 0x18B008, aicr);
+	aicr = aicr & ~0x8;
+	chipio_write(codec, 0x18B008, aicr);
+}
+
 static int ca0132_playback_pcm_prepare(struct hda_pcm_stream *hinfo,
 			struct hda_codec *codec,
 			unsigned int stream_tag,
@@ -2671,6 +2769,8 @@ static int ca0132_playback_pcm_prepare(struct hda_pcm_stream *hinfo,
 			struct snd_pcm_substream *substream)
 {
 	struct ca0132_spec *spec = codec->spec;
+
+	ca0132_toggle_dac_format(codec);
 
 	snd_hda_codec_setup_stream(codec, spec->dacs[0], stream_tag, 0, format);
 
@@ -2904,6 +3004,20 @@ static unsigned int equalizer_vals_lookup[] = {
 0x41C00000
 };
 
+static unsigned int aec_vals_lookup[] = {
+0x00000000, 0x3F800000, 0x40000000, 0x40400000, 0x40800000, 0x40A00000,
+0x40C00000, 0x40E00000, 0x41000000, 0x41100000, 0x41200000, 0x41300000,
+0x41400000, 0x41500000, 0x41600000, 0x41700000, 0x41800000, 0x41880000,
+0x41900000, 0x41980000, 0x41A00000, 0x41A80000, 0x41B00000, 0x41B80000,
+0x41C00000, 0x41C80000, 0x41D00000, 0x41D80000, 0x41E00000, 0x41E80000,
+0x41F00000, 0x41F80000, 0x42000000, 0x42040000, 0x42080000, 0x420C0000,
+0x42100000, 0x42140000, 0x42180000, 0x421C0000, 0x42200000, 0x42240000,
+0x42280000, 0x422C0000, 0x42300000, 0x42340000, 0x42380000, 0x423C0000,
+0x42400000, 0x42440000, 0x42480000, 0x424C0000, 0x42500000, 0x42540000,
+0x42580000, 0x425C0000, 0x42600000, 0x42640000, 0x42680000, 0x426C0000,
+0x42700000
+};
+
 static int tuning_ctl_set(struct hda_codec *codec, hda_nid_t nid,
 			  unsigned int *lookup, int idx)
 {
@@ -3005,6 +3119,41 @@ static int mic_svm_ctl_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int aec_ctl_info(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_info *uinfo)
+{
+	int chs = get_amp_channels(kcontrol);
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = chs == 3 ? 2 : 1;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 60;
+	uinfo->value.integer.step = 1;
+
+	return 0;
+}
+
+static int aec_ctl_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct ca0132_spec *spec = codec->spec;
+	hda_nid_t nid = get_amp_nid(kcontrol);
+	long *valp = ucontrol->value.integer.value;
+	int idx;
+
+	idx = nid - TUNING_CTL_START_NID;
+	/* any change? */
+	if (spec->cur_ctl_vals[idx] == *valp)
+		return 0;
+
+	spec->cur_ctl_vals[idx] = *valp;
+
+	idx = *valp;
+	tuning_ctl_set(codec, nid, aec_vals_lookup, idx);
+
+	return 0;
+}
+
 static int equalizer_ctl_info(struct snd_kcontrol *kcontrol,
 			      struct snd_ctl_elem_info *uinfo)
 {
@@ -3073,6 +3222,11 @@ static int add_tuning_control(struct hda_codec *codec,
 		knew.get = tuning_ctl_get;
 		knew.put = equalizer_ctl_put;
 		knew.tlv.p = eq_db_scale;
+		break;
+	case ECHO_CANCELLATION:
+		knew.info = aec_ctl_info;
+		knew.get = tuning_ctl_get;
+		knew.put = aec_ctl_put;
 		break;
 	default:
 		return 0;
@@ -4133,6 +4287,21 @@ static void refresh_amp_caps(struct hda_codec *codec, hda_nid_t nid, int dir)
 }
 
 /*
+ * Set the input gain applied to the dmic input before the DSP.
+ */
+static void ca0132_set_dmic_gain(struct hda_codec *codec, unsigned int gain)
+{
+	unsigned int mic_gain_reg;
+	chipio_read(codec, 0x18B098, &mic_gain_reg);
+	mic_gain_reg = (mic_gain_reg & ~0x1F) | gain;
+	chipio_write(codec, 0x18B098, mic_gain_reg);
+
+	chipio_read(codec, 0x18B09C, &mic_gain_reg);
+	mic_gain_reg = (mic_gain_reg & ~0x1F) | gain;
+	chipio_write(codec, 0x18B09C, mic_gain_reg);
+}
+
+/*
  * Switch between Digital built-in mic and analog mic.
  */
 static void ca0132_set_dmic(struct hda_codec *codec, int enable)
@@ -4158,6 +4327,8 @@ static void ca0132_set_dmic(struct hda_codec *codec, int enable)
 
 		if (!(spec->dmic_ctl & 0x20))
 			chipio_set_control_flag(codec, CONTROL_FLAG_DMIC, 1);
+
+		ca0132_set_dmic_gain(codec, 0x14);
 	} else {
 		/* set AMic input as mono */
 		tmp = FLOAT_ONE;
@@ -4171,6 +4342,8 @@ static void ca0132_set_dmic(struct hda_codec *codec, int enable)
 
 		if (!(spec->dmic_ctl & 0x20))
 			chipio_set_control_flag(codec, CONTROL_FLAG_DMIC, 0);
+
+		ca0132_set_dmic_gain(codec, 0x0);
 	}
 	ca0132_set_vipsource(codec, 1);
 	resume_mic1(codec, oldval);
@@ -4368,6 +4541,9 @@ static bool ca0132_download_dsp_images(struct hda_codec *codec)
 exit_download:
 	release_firmware(fw_entry);
 
+	if (dsp_loaded)
+		dspload_speakereq(codec);
+
 	return dsp_loaded;
 }
 
@@ -4495,6 +4671,13 @@ static struct hda_verb ca0132_init_verbs0[] = {
 static struct hda_verb ca0132_init_verbs1[] = {
 	{0x10, AC_VERB_SET_UNSOLICITED_ENABLE, AC_USRSP_EN | UNSOL_TAG_HP},
 	{0x12, AC_VERB_SET_UNSOLICITED_ENABLE, AC_USRSP_EN | UNSOL_TAG_AMIC1},
+	/* Set the default configuration for the mic pin because the
+	 * value set in BIOS will be reset after ct extension is enabled.
+	 */
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_0, 0xf0},
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_1, 0x10},
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_2, 0xa1},
+	{0x12, AC_VERB_SET_CONFIG_DEFAULT_BYTES_3, 0x03},
 	/* config EAPD */
 	{0x0b, 0x78D, 0x00},
 	/*{0x0b, AC_VERB_SET_EAPD_BTLENABLE, 0x02},*/
@@ -4566,6 +4749,8 @@ static int ca0132_init(struct hda_codec *codec)
 	ca0132_download_dsp(codec);
 	ca0132_refresh_widget_caps(codec);
 	ca0132_setup_defaults(codec);
+	ca0132_pe_switch_set(codec);
+	ca0132_cvoice_switch_set(codec);
 	ca0132_init_analog_mic2(codec);
 	ca0132_init_dmic(codec);
 

@@ -74,6 +74,7 @@ enum {
 	CS421X_CDB4210,
 	CS421X_SENSE_B,
 	CS421X_STUMPY,
+	CS421X_LUMPY,
 };
 
 /* Vendor-specific processing widget */
@@ -778,6 +779,7 @@ static int patch_cs4208(struct hda_codec *codec)
 static const struct hda_model_fixup cs421x_models[] = {
 	{ .id = CS421X_CDB4210, .name = "cdb4210" },
 	{ .id = CS421X_STUMPY, .name = "stumpy" },
+	{ .id = CS421X_LUMPY, .name = "lumpy" },
 	{}
 };
 
@@ -810,6 +812,17 @@ static const struct hda_pintbl stumpy_pincfgs[] = {
 	{} /* terminator */
 };
 
+/* Lumpy ChromeBook */
+static const struct hda_pintbl lumpy_pincfgs[] = {
+	{ 0x05, 0x022110f0 },
+	{ 0x06, 0x901700f0 },
+	{ 0x07, 0x02a110f0 },
+	{ 0x08, 0x77a70037 },
+	{ 0x09, 0xb7a6003e },
+	{ 0x0a, 0x400000f0 },
+	{} /* terminator */
+};
+
 /* Setup GPIO/SENSE for each board (if used) */
 static void cs421x_fixup_sense_b(struct hda_codec *codec,
 				 const struct hda_fixup *fix, int action)
@@ -833,6 +846,10 @@ static const struct hda_fixup cs421x_fixups[] = {
 	[CS421X_STUMPY] = {
 		.type = HDA_FIXUP_PINS,
 		.v.pins = stumpy_pincfgs,
+	},
+	[CS421X_LUMPY] = {
+		.type = HDA_FIXUP_PINS,
+		.v.pins = lumpy_pincfgs,
 	},
 };
 

@@ -1,0 +1,14 @@
+NVIDIA Tegra30 HDA controller
+
+Required properties:
+- compatible : "nvidia,tegra30-hda"
+- reg : Should contain the HDA registers location and length.
+- interrupts : The interrupt from the hda controller.
+
+Example:
+
+hda@70030000 {
+	compatible = "nvidia,tegra-hda";
+	reg = <0x0 0x70030000 0x10000>;
+	interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+};
