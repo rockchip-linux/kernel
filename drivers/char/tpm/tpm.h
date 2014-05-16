@@ -103,6 +103,9 @@ struct tpm_chip {
 	unsigned long is_open;	/* only one allowed */
 	int time_expired;
 
+	int needs_resume;
+	struct mutex resume_mutex;
+
 	struct mutex tpm_mutex;	/* tpm is processing */
 
 	struct tpm_vendor_specific vendor;
@@ -111,6 +114,7 @@ struct tpm_chip {
 
 	struct list_head list;
 	void (*release) (struct device *);
+	struct notifier_block shutdown_nb;
 };
 
 #define to_tpm_chip(n) container_of(n, struct tpm_chip, vendor)
@@ -336,6 +340,8 @@ int tpm_sysfs_add_device(struct tpm_chip *chip);
 void tpm_sysfs_del_device(struct tpm_chip *chip);
 
 int tpm_pcr_read_dev(struct tpm_chip *chip, int pcr_idx, u8 *res_buf);
+
+void tpm_resume_if_needed(struct tpm_chip *chip);
 
 #ifdef CONFIG_ACPI
 extern int tpm_add_ppi(struct kobject *);

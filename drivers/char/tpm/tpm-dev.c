@@ -128,6 +128,8 @@ static ssize_t tpm_write(struct file *file, const char __user *buf,
 	if (atomic_read(&priv->data_pending) != 0)
 		return -EBUSY;
 
+	tpm_resume_if_needed(priv->chip);
+
 	if (in_size > TPM_BUFSIZE)
 		return -E2BIG;
 

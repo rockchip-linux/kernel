@@ -373,6 +373,73 @@ out_err:
 	return rc;
 }
 
+struct tis_vendor_timeout_override {
+	u32 did_vid;
+	unsigned long timeout_us[4];
+};
+
+static struct tis_vendor_timeout_override vendor_timeout_overrides[] = {
+	{ 0x32041114, { 50000, 50000, 50000, 50000 } }, /* Atmel 3204 */
+};
+
+static void report_updated_timeout(struct tpm_chip *chip, const char *id,
+				   unsigned long old, unsigned long new)
+{
+	dev_info(chip->dev, "  timeout_%s %d -> %d\n", id,
+		 jiffies_to_usecs(old), jiffies_to_usecs(new));
+}
+
+static void tpm_tis_update_timeouts(struct tpm_chip *chip)
+{
+	int i;
+	u32 did_vid;
+
+	did_vid = ioread32(chip->vendor.iobase + TPM_DID_VID(0));
+
+	for (i = 0; i < ARRAY_SIZE(vendor_timeout_overrides); i++) {
+		struct tis_vendor_timeout_override *tod;
+		unsigned long new;
+
+		if (vendor_timeout_overrides[i].did_vid != did_vid)
+			continue;
+
+		tod = &vendor_timeout_overrides[i];
+
+		dev_info(chip->dev, "Adjusting reported timeouts:\n");
+
+		new = usecs_to_jiffies(tod->timeout_us[0]);
+		if (new != 0) {
+			report_updated_timeout(chip, "a",
+					       chip->vendor.timeout_a, new);
+			chip->vendor.timeout_a = new;
+		}
+
+		new = usecs_to_jiffies(tod->timeout_us[1]);
+		if (new != 0) {
+			report_updated_timeout(chip, "b",
+					       chip->vendor.timeout_b, new);
+			chip->vendor.timeout_b = new;
+		}
+
+		new = usecs_to_jiffies(tod->timeout_us[2]);
+		if (new != 0) {
+			report_updated_timeout(chip, "c",
+					       chip->vendor.timeout_c, new);
+			chip->vendor.timeout_c = new;
+		}
+
+		new = usecs_to_jiffies(tod->timeout_us[3]);
+		if (new != 0) {
+			report_updated_timeout(chip, "d",
+					       chip->vendor.timeout_d, new);
+			chip->vendor.timeout_d = new;
+		}
+
+		chip->vendor.timeout_adjusted = true;
+		break;
+	}
+}
+
 /*
  * Early probing for iTPM with STS_DATA_EXPECT flaw.
  * Try sending command without itpm flag set and if that
@@ -437,6 +504,7 @@ static const struct tpm_class_ops tpm_tis = {
 	.recv = tpm_tis_recv,
 	.send = tpm_tis_send,
 	.cancel = tpm_tis_ready,
+	.update_timeouts = tpm_tis_update_timeouts,
 	.req_complete_mask = TPM_STS_DATA_AVAIL | TPM_STS_VALID,
 	.req_complete_val = TPM_STS_DATA_AVAIL | TPM_STS_VALID,
 	.req_canceled = tpm_tis_req_canceled,
@@ -533,7 +601,7 @@ static int tpm_tis_init(struct device *dev, resource_size_t start,
 	chip->vendor.manufacturer_id = vendor;
 
 	dev_info(dev,
-		 "1.2 TPM (device-id 0x%X, rev-id %d)\n",
+		 "1.2 TPM (device-id 0x%X, rev-id %d) [gentle shutdown]\n",
 		 vendor >> 16, ioread8(chip->vendor.iobase + TPM_RID(0)));
 
 	if (!itpm) {
