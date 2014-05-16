@@ -1462,7 +1462,7 @@ static void _clk_plle_tegra_init_parent(struct tegra_clk_pll *pll)
 					"pll_re_vco");
 	} else {
 		val_aux &= ~(PLLE_AUX_PLLRE_SEL | PLLE_AUX_PLLP_SEL);
-		pll_writel(val, pll->params->aux_reg, pll);
+		pll_writel(val_aux, pll->params->aux_reg, pll);
 	}
 
 }
