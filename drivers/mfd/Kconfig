@@ -60,8 +60,8 @@ config MFD_AAT2870_CORE
 	  functionality of the device.
 
 config MFD_CROS_EC
-	tristate "ChromeOS Embedded Controller"
-	select MFD_CORE
+	tristate "Support ChromeOS Embedded Controller"
+	depends on MFD_CORE
 	help
 	  If you say Y here you get support for the ChromeOS Embedded
 	  Controller (EC) providing keyboard, battery and power services.
@@ -78,6 +78,16 @@ config MFD_CROS_EC_I2C
 	  a checksum. Failing accesses will be retried three times to
 	  improve reliability.
 
+config MFD_CROS_EC_LPC
+	tristate "ChromeOS Embedded Controller (LPC)"
+	depends on MFD_CROS_EC
+
+	help
+	  If you say Y here, you get support for talking to the ChromeOS EC
+	  over an LPC bus. This uses a simple byte-level protocol with a
+	  checksum. This is used for userspace access only. The kernel
+	  typically has its own communication methods.
+
 config MFD_CROS_EC_SPI
 	tristate "ChromeOS Embedded Controller (SPI)"
 	depends on MFD_CROS_EC && SPI && OF
@@ -87,6 +97,18 @@ config MFD_CROS_EC_SPI
 	  through a SPI bus, using a byte-level protocol. Since the EC's
 	  response time cannot be guaranteed, we support ignoring
 	  'pre-amble' bytes before the response actually starts.
+
+config MFD_CROS_EC_DEV
+	tristate "ChromeOS Embedded Controller userspace device interface"
+	depends on MFD_CROS_EC
+
+	help
+	  If you say Y here, you get support for talking to the ChromeOS
+	  EC from userspace. This is separate from the normal kernel
+	  interfaces.
+
+	  To compile this driver as a module, choose M here: the module will be
+	  called cros_ec_dev.
 
 config MFD_ASIC3
 	bool "Compaq ASIC3"

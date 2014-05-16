@@ -29,8 +29,8 @@ static inline struct cros_ec_device *to_ec_dev(struct device *dev)
 	return i2c_get_clientdata(client);
 }
 
-static int cros_ec_command_xfer(struct cros_ec_device *ec_dev,
-				struct cros_ec_msg *msg)
+static int cros_ec_cmd_xfer_i2c(struct cros_ec_device *ec_dev,
+				struct cros_ec_command *msg)
 {
 	struct i2c_client *client = ec_dev->priv;
 	int ret = -ENOMEM;
@@ -50,7 +50,7 @@ static int cros_ec_command_xfer(struct cros_ec_device *ec_dev,
 	 * allocate larger packet (one byte for checksum, one byte for
 	 * length, and one for result code)
 	 */
-	packet_len = msg->in_len + 3;
+	packet_len = msg->insize + 3;
 	in_buf = kzalloc(packet_len, GFP_KERNEL);
 	if (!in_buf)
 		goto done;
@@ -61,7 +61,7 @@ static int cros_ec_command_xfer(struct cros_ec_device *ec_dev,
 	 * allocate larger packet (one byte for checksum, one for
 	 * command code, one for length, and one for command version)
 	 */
-	packet_len = msg->out_len + 4;
+	packet_len = msg->outsize + 4;
 	out_buf = kzalloc(packet_len, GFP_KERNEL);
 	if (!out_buf)
 		goto done;
@@ -69,16 +69,16 @@ static int cros_ec_command_xfer(struct cros_ec_device *ec_dev,
 	i2c_msg[0].buf = (char *)out_buf;
 
 	out_buf[0] = EC_CMD_VERSION0 + msg->version;
-	out_buf[1] = msg->cmd;
-	out_buf[2] = msg->out_len;
+	out_buf[1] = msg->command;
+	out_buf[2] = msg->outsize;
 
 	/* copy message payload and compute checksum */
 	sum = out_buf[0] + out_buf[1] + out_buf[2];
-	for (i = 0; i < msg->out_len; i++) {
-		out_buf[3 + i] = msg->out_buf[i];
+	for (i = 0; i < msg->outsize; i++) {
+		out_buf[3 + i] = msg->outdata[i];
 		sum += out_buf[3 + i];
 	}
-	out_buf[3 + msg->out_len] = sum;
+	out_buf[3 + msg->outsize] = sum;
 
 	/* send command to EC and read answer */
 	ret = i2c_transfer(client->adapter, i2c_msg, 2);
@@ -92,28 +92,35 @@ static int cros_ec_command_xfer(struct cros_ec_device *ec_dev,
 	}
 
 	/* check response error code */
-	if (i2c_msg[1].buf[0]) {
-		dev_warn(ec_dev->dev, "command 0x%02x returned an error %d\n",
-			 msg->cmd, i2c_msg[1].buf[0]);
-		ret = -EINVAL;
+	msg->result = i2c_msg[1].buf[0];
+	switch (msg->result) {
+	case EC_RES_SUCCESS:
+		break;
+	case EC_RES_IN_PROGRESS:
+		ret = -EAGAIN;
+		dev_dbg(ec_dev->dev, "command 0x%02x in progress\n",
+			msg->command);
 		goto done;
+	default:
+		dev_dbg(ec_dev->dev, "command 0x%02x returned %d\n",
+			msg->command, msg->result);
 	}
 
 	/* copy response packet payload and compute checksum */
 	sum = in_buf[0] + in_buf[1];
-	for (i = 0; i < msg->in_len; i++) {
-		msg->in_buf[i] = in_buf[2 + i];
+	for (i = 0; i < msg->insize; i++) { /* FIXME: Use len from EC? */
+		msg->indata[i] = in_buf[2 + i];
 		sum += in_buf[2 + i];
 	}
 	dev_dbg(ec_dev->dev, "packet: %*ph, sum = %02x\n",
 		i2c_msg[1].len, in_buf, sum);
-	if (sum != in_buf[2 + msg->in_len]) {
+	if (sum != in_buf[2 + msg->insize]) {
 		dev_err(ec_dev->dev, "bad packet checksum\n");
 		ret = -EBADMSG;
 		goto done;
 	}
 
-	ret = 0;
+	ret = i2c_msg[1].buf[1];
  done:
 	kfree(in_buf);
 	kfree(out_buf);
@@ -132,11 +139,10 @@ static int cros_ec_i2c_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, ec_dev);
-	ec_dev->name = "I2C";
 	ec_dev->dev = dev;
 	ec_dev->priv = client;
 	ec_dev->irq = client->irq;
-	ec_dev->command_xfer = cros_ec_command_xfer;
+	ec_dev->cmd_xfer = cros_ec_cmd_xfer_i2c;
 	ec_dev->ec_name = client->name;
 	ec_dev->phys_name = client->adapter->name;
 	ec_dev->parent = &client->dev;
@@ -195,7 +201,17 @@ static struct i2c_driver cros_ec_driver = {
 	.id_table	= cros_ec_i2c_id,
 };
 
-module_i2c_driver(cros_ec_driver);
+static int __init cros_ec_init(void)
+{
+	return i2c_add_driver(&cros_ec_driver);
+}
+subsys_initcall(cros_ec_init);
+
+static void __exit cros_ec_exit(void)
+{
+	i2c_del_driver(&cros_ec_driver);
+}
+module_exit(cros_ec_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ChromeOS EC multi function device");
