@@ -21,6 +21,7 @@ static void of_get_regulation_constraints(struct device_node *np,
 {
 	const __be32 *min_uV, *max_uV, *uV_offset;
 	const __be32 *min_uA, *max_uA, *ramp_delay;
+	const __be32 *state_disk_uV, *state_mem_uV, *state_standby_uV;
 	struct property *prop;
 	struct regulation_constraints *constraints = &(*init_data)->constraints;
 	int ret;
@@ -79,6 +80,42 @@ static void of_get_regulation_constraints(struct device_node *np,
 	ret = of_property_read_u32(np, "regulator-enable-ramp-delay", &pval);
 	if (!ret)
 		constraints->enable_time = pval;
+
+	/* regulator state for suspend to disk */
+	state_disk_uV = of_get_property(np, "regulator-suspend-disk-microvolt",
+					NULL);
+	if (state_disk_uV) {
+		constraints->state_disk.uV = be32_to_cpu(*state_disk_uV);
+		constraints->state_disk.enabled = true;
+	}
+	if (of_find_property(np, "regulator-suspend-disk-enabled", NULL))
+		constraints->state_disk.enabled = true;
+	if (of_find_property(np, "regulator-suspend-disk-disabled", NULL))
+		constraints->state_disk.disabled = true;
+
+	/* regulator state for suspend to RAM */
+	state_mem_uV = of_get_property(np, "regulator-suspend-mem-microvolt",
+					NULL);
+	if (state_mem_uV) {
+		constraints->state_mem.uV = be32_to_cpu(*state_mem_uV);
+		constraints->state_mem.enabled = true;
+	}
+	if (of_find_property(np, "regulator-suspend-mem-enabled", NULL))
+		constraints->state_mem.enabled = true;
+	if (of_find_property(np, "regulator-suspend-mem-disabled", NULL))
+		constraints->state_mem.disabled = true;
+
+	/* regulator state for standby */
+	state_standby_uV = of_get_property(np,
+		"regulator-suspend-standby-microvolt", NULL);
+	if (state_standby_uV) {
+		constraints->state_standby.uV = be32_to_cpu(*state_standby_uV);
+		constraints->state_standby.enabled = true;
+	}
+	if (of_find_property(np, "regulator-suspend-standby-enabled", NULL))
+		constraints->state_standby.enabled = true;
+	if (of_find_property(np, "regulator-suspend-standby-disabled", NULL))
+		constraints->state_standby.disabled = true;
 }
 
 /**

@@ -73,6 +73,7 @@ static int cdc_ncm_setup(struct usbnet *dev)
 	u8 iface_no;
 	int err;
 	int eth_hlen;
+	u16 mbim_mtu;
 	u16 ntb_fmt_supported;
 	__le16 max_datagram_size;
 
@@ -252,6 +253,14 @@ out:
 	/* set MTU to max supported by the device if necessary */
 	if (dev->net->mtu > ctx->max_datagram_size - eth_hlen)
 		dev->net->mtu = ctx->max_datagram_size - eth_hlen;
+
+	/* do not exceed operater preferred MTU */
+	if (ctx->mbim_extended_desc) {
+		mbim_mtu = le16_to_cpu(ctx->mbim_extended_desc->wMTU);
+		if (mbim_mtu != 0 && mbim_mtu < dev->net->mtu)
+			dev->net->mtu = mbim_mtu;
+	}
+
 	return 0;
 }
 
@@ -388,6 +397,14 @@ int cdc_ncm_bind_common(struct usbnet *dev, struct usb_interface *intf, u8 data_
 				break;
 
 			ctx->mbim_desc = (const struct usb_cdc_mbim_desc *)buf;
+			break;
+
+		case USB_CDC_MBIM_EXTENDED_TYPE:
+			if (buf[0] < sizeof(*(ctx->mbim_extended_desc)))
+				break;
+
+			ctx->mbim_extended_desc =
+				(const struct usb_cdc_mbim_extended_desc *)buf;
 			break;
 
 		default:
@@ -1175,6 +1192,13 @@ static const struct usb_device_id cdc_devs[] = {
 	  .driver_info = (unsigned long) &wwan_info,
 	},
 
+	/* Temporarily prevent the cdc_ncm driver from being associated with
+	 * Huawei modems. See crosbug.com/p/20334 for details.
+	 *
+	 * TODO(benchan): Revert this change once shill can identify and ignore
+	 * a Huawei PPP dongle that is associated with the cdc_ncm driver.
+	 */
+#if 0
 	/* tag Huawei devices as wwan */
 	{ USB_VENDOR_AND_INTERFACE_INFO(0x12d1,
 					USB_CLASS_COMM,
@@ -1182,6 +1206,7 @@ static const struct usb_device_id cdc_devs[] = {
 					USB_CDC_PROTO_NONE),
 	  .driver_info = (unsigned long)&wwan_info,
 	},
+#endif
 
 	/* Infineon(now Intel) HSPA Modem platform */
 	{ USB_DEVICE_AND_INTERFACE_INFO(0x1519, 0x0443,

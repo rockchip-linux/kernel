@@ -1170,11 +1170,16 @@ void __init tsc_init(void)
 {
 	u64 lpj;
 	int cpu;
+	u64 initial_tsc;
 
 	x86_init.timers.tsc_pre_init();
 
 	if (!cpu_has_tsc)
 		return;
+
+	rdtscll(initial_tsc);
+	printk(KERN_INFO "Initial TSC value: %llu\n",
+               (unsigned long long)initial_tsc);
 
 	tsc_khz = x86_platform.calibrate_tsc();
 	cpu_khz = tsc_khz;
@@ -1183,6 +1188,10 @@ void __init tsc_init(void)
 		mark_tsc_unstable("could not calculate TSC khz");
 		return;
 	}
+
+	do_div(initial_tsc, cpu_khz / 1000);
+	printk(KERN_INFO "Initial usec timer %llu\n",
+		(unsigned long long)initial_tsc);
 
 	pr_info("Detected %lu.%03lu MHz processor\n",
 		(unsigned long)cpu_khz / 1000,

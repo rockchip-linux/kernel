@@ -24,6 +24,7 @@
 #include <net/bluetooth/hci_core.h>
 
 #include "btmrvl_drv.h"
+#include "btmrvl_sdio.h"
 
 #define VERSION "1.0"
 
@@ -212,6 +213,23 @@ int btmrvl_send_module_cfg_cmd(struct btmrvl_private *priv, int subcmd)
 }
 EXPORT_SYMBOL_GPL(btmrvl_send_module_cfg_cmd);
 
+int btmrvl_pscan_window_reporting(struct btmrvl_private *priv, u8 subcmd)
+{
+	struct btmrvl_sdio_card *card = priv->btmrvl_dev.card;
+	int ret;
+
+	if (!card->support_pscan_win_report)
+		return 0;
+
+	ret = btmrvl_send_sync_cmd(priv, BT_CMD_PSCAN_WIN_REPORT_ENABLE,
+				   &subcmd, 1);
+	if (ret)
+		BT_ERR("PSCAN_WIN_REPORT_ENABLE command failed: %#x", ret);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(btmrvl_pscan_window_reporting);
+
 int btmrvl_send_hscfg_cmd(struct btmrvl_private *priv)
 {
 	int ret;
@@ -336,9 +354,24 @@ static int btmrvl_tx_pkt(struct btmrvl_private *priv, struct sk_buff *skb)
 
 static void btmrvl_init_adapter(struct btmrvl_private *priv)
 {
+	int buf_size;
+
 	skb_queue_head_init(&priv->adapter->tx_queue);
 
 	priv->adapter->ps_state = PS_AWAKE;
+
+	buf_size = ALIGN_SZ(SDIO_BLOCK_SIZE, BTSDIO_DMA_ALIGN);
+	priv->adapter->hw_regs_buf = kzalloc(buf_size, GFP_KERNEL);
+	if (!priv->adapter->hw_regs_buf) {
+		priv->adapter->hw_regs = NULL;
+		BT_ERR("Unable to allocate buffer for hw_regs.");
+	} else {
+		priv->adapter->hw_regs =
+			(u8 *)ALIGN_ADDR(priv->adapter->hw_regs_buf,
+					 BTSDIO_DMA_ALIGN);
+		BT_DBG("hw_regs_buf=%p hw_regs=%p",
+		       priv->adapter->hw_regs_buf, priv->adapter->hw_regs);
+	}
 
 	init_waitqueue_head(&priv->adapter->cmd_wait_q);
 }
@@ -347,6 +380,7 @@ static void btmrvl_free_adapter(struct btmrvl_private *priv)
 {
 	skb_queue_purge(&priv->adapter->tx_queue);
 
+	kfree(priv->adapter->hw_regs_buf);
 	kfree(priv->adapter);
 
 	priv->adapter = NULL;
@@ -470,6 +504,8 @@ static int btmrvl_setup(struct hci_dev *hdev)
 	btmrvl_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
 
 	btmrvl_cal_data_dt(priv);
+
+	btmrvl_pscan_window_reporting(priv, 0x01);
 
 	priv->btmrvl_dev.psmode = 1;
 	btmrvl_enable_ps(priv);

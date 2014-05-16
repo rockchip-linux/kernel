@@ -349,7 +349,44 @@ const struct fb_videomode cea_modes[64] = {
 	},
 };
 
-const struct fb_videomode vesa_modes[] = {
+const struct fb_videomode hdmi_ext_modes[HDMI_EXT_MODEDB_SIZE] = {
+	{},
+	/* HDMI_VIC 0x01: 3840x2160p @ 29.97/30Hz */
+	{.refresh = 30, .xres = 3840, .yres = 2160, .pixclock = 3367,
+	 .left_margin = 296, .right_margin = 176,
+	 .upper_margin = 72, .lower_margin = 8,
+	 .hsync_len = 88, .vsync_len = 10,
+	 .sync = 0,
+	 .flag = FB_FLAG_RATIO_16_9,
+	 .vmode = FB_VMODE_NONINTERLACED},
+	/* HDMI_VIC 0x02: 3840x2160p @ 25Hz */
+	{.refresh = 30, .xres = 3840, .yres = 2160, .pixclock = 3367,
+	 .left_margin = 296, .right_margin = 1056,
+	 .upper_margin = 72, .lower_margin = 8,
+	 .hsync_len = 88, .vsync_len = 10,
+	 .sync = 0,
+	 .flag = FB_FLAG_RATIO_16_9,
+	 .vmode = FB_VMODE_NONINTERLACED},
+	/* HDMI_VIC 0x03: 3840x2160p @ 23.98/24Hz */
+	{.refresh = 30, .xres = 3840, .yres = 2160, .pixclock = 3367,
+	 .left_margin = 296, .right_margin = 1276,
+	 .upper_margin = 72, .lower_margin = 8,
+	 .hsync_len = 88, .vsync_len = 10,
+	 .sync = 0,
+	 .flag = FB_FLAG_RATIO_16_9,
+	 .vmode = FB_VMODE_NONINTERLACED},
+	/* HDMI_VIC 0x04: 4096x2160p @ 24Hz */
+	{.refresh = 30, .xres = 4096, .yres = 2160, .pixclock = 3367,
+	 .left_margin = 296, .right_margin = 1020,
+	 .upper_margin = 72, .lower_margin = 8,
+	 .hsync_len = 88, .vsync_len = 10,
+	 .sync = 0,
+	 .flag = FB_FLAG_RATIO_16_9,
+	 .vmode = FB_VMODE_NONINTERLACED},
+};
+EXPORT_SYMBOL(hdmi_ext_modes);
+
+const struct fb_videomode vesa_modes[VESA_MODEDB_SIZE] = {
 	/* 0 640x350-85 VESA */
 	{ NULL, 85, 640, 350, 31746,  96, 32, 60, 32, 64, 3,
 	  FB_SYNC_HOR_HIGH_ACT, FB_VMODE_NONINTERLACED, FB_MODE_IS_VESA},

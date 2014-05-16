@@ -490,7 +490,8 @@ struct bio *bio_alloc_bioset(gfp_t gfp_mask, int nr_iovecs, struct bio_set *bs)
 	return bio;
 
 err_free:
-	mempool_free(p, bs->bio_pool);
+	if (bs)
+		mempool_free(p, bs->bio_pool);
 	return NULL;
 }
 EXPORT_SYMBOL(bio_alloc_bioset);

@@ -1154,6 +1154,23 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 			return;
 	}
 
+	if (host->quirks2 & SDHCI_QUIRK2_BROADCOM_REGISTERS) {
+		u32 tmp;
+
+		tmp = sdhci_readl(host, 0x198);
+		tmp &= ~0x3000;
+		sdhci_writel(host, tmp, 0x198);
+
+		tmp = sdhci_readl(host, 0x19c);
+		tmp &= ~(0x01a03f30);
+		tmp |= (0x00500000);
+
+		if ((sdhci_readw(host, SDHCI_HOST_CONTROL2) &
+			    SDHCI_CTRL_VDD_180) && (clock >= 200000000))
+			tmp |= (1<<24);
+		sdhci_writel(host, tmp, 0x19c);
+	}
+
 	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
 
 	if (clock == 0)
@@ -1340,6 +1357,7 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	u32 tuning_opcode;
 
 	host = mmc_priv(mmc);
+	present = mmc_gpio_get_cd(host->mmc);
 
 	sdhci_runtime_pm_get(host);
 
@@ -1371,7 +1389,6 @@ static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	 *     zero: cd-gpio is used, and card is removed
 	 *     one: cd-gpio is used, and card is present
 	 */
-	present = mmc_gpio_get_cd(host->mmc);
 	if (present < 0) {
 		/* If polling, assume that the card is always present. */
 		if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
@@ -1564,9 +1581,13 @@ static void sdhci_do_set_ios(struct sdhci_host *host, struct mmc_ios *ios)
 			if ((ios->timing == MMC_TIMING_MMC_HS200) ||
 			    (ios->timing == MMC_TIMING_UHS_SDR104))
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR104;
-			else if (ios->timing == MMC_TIMING_UHS_SDR12)
+			else if ((ios->timing == MMC_TIMING_UHS_SDR12) &&
+				    /* Also is MMC_TIMING_LEGACY */
+				    (host->mmc->caps & MMC_CAP_UHS_SDR12))
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
-			else if (ios->timing == MMC_TIMING_UHS_SDR25)
+			else if ((ios->timing == MMC_TIMING_UHS_SDR25) &&
+				    /* Also is MMC_TIMING_SD_HS */
+				    (host->mmc->caps & MMC_CAP_UHS_SDR25))
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR25;
 			else if (ios->timing == MMC_TIMING_UHS_SDR50)
 				ctrl_2 |= SDHCI_CTRL_UHS_SDR50;
@@ -1743,14 +1764,14 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 						struct mmc_ios *ios)
 {
 	u16 ctrl;
-	int ret;
+	int ret = 0;
 
 	/*
 	 * Signal Voltage Switching is only applicable for Host Controllers
 	 * v3.00 and above.
 	 */
 	if (host->version < SDHCI_SPEC_300)
-		return 0;
+		goto out;
 
 	ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 
@@ -1761,11 +1782,12 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);
 
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc, 2700000, 3600000);
-			if (ret) {
+			if (regulator_set_voltage(host->vqmmc,
+					2700000, 3600000)) {
 				pr_warning("%s: Switching to 3.3V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
+				ret = -EIO;
+				break;
 			}
 		}
 		/* Wait for 5ms */
@@ -1774,20 +1796,21 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		/* 3.3V regulator output should be stable within 5 ms */
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 		if (!(ctrl & SDHCI_CTRL_VDD_180))
-			return 0;
+			break;
 
 		pr_warning("%s: 3.3V regulator output did not became stable\n",
 				mmc_hostname(host->mmc));
 
-		return -EAGAIN;
+		ret = -EAGAIN;
+		break;
 	case MMC_SIGNAL_VOLTAGE_180:
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc,
-					1700000, 1950000);
-			if (ret) {
+			if (regulator_set_voltage(host->vqmmc,
+					1700000, 1950000)) {
 				pr_warning("%s: Switching to 1.8V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
+				ret = -EIO;
+				break;
 			}
 		}
 
@@ -1804,26 +1827,33 @@ static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
 		/* 1.8V regulator output should be stable within 5 ms */
 		ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 		if (ctrl & SDHCI_CTRL_VDD_180)
-			return 0;
+			break;
 
 		pr_warning("%s: 1.8V regulator output did not became stable\n",
 				mmc_hostname(host->mmc));
 
-		return -EAGAIN;
+		ret = -EAGAIN;
+		break;
 	case MMC_SIGNAL_VOLTAGE_120:
 		if (host->vqmmc) {
-			ret = regulator_set_voltage(host->vqmmc, 1100000, 1300000);
-			if (ret) {
+			if (regulator_set_voltage(host->vqmmc,
+				1100000, 1300000)) {
 				pr_warning("%s: Switching to 1.2V signalling voltage "
 						" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
+				ret = -EIO;
+				break;
 			}
 		}
-		return 0;
+		break;
 	default:
 		/* No signal voltage switch required */
-		return 0;
+		break;
 	}
+
+out:
+	if (host->ops->switch_signal_voltage_exit)
+		host->ops->switch_signal_voltage_exit(host);
+	return ret;
 }
 
 static int sdhci_start_signal_voltage_switch(struct mmc_host *mmc,
@@ -2804,11 +2834,17 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	caps[0] = (host->quirks & SDHCI_QUIRK_MISSING_CAPS) ? host->caps :
 		sdhci_readl(host, SDHCI_CAPABILITIES);
+	if (host->quirks2 & SDHCI_QUIRK2_BROKEN_UHS)
+		caps[0] &= ~(SDHCI_CAN_VDD_180);
 
 	if (host->version >= SDHCI_SPEC_300)
 		caps[1] = (host->quirks & SDHCI_QUIRK_MISSING_CAPS) ?
 			host->caps1 :
 			sdhci_readl(host, SDHCI_CAPABILITIES_1);
+
+	if (host->quirks2 & SDHCI_QUIRK2_BROKEN_UHS)
+		caps[1] &= ~(SDHCI_SUPPORT_SDR50 | SDHCI_SUPPORT_SDR104 |
+			    SDHCI_SUPPORT_DDR50 | SDHCI_USE_SDR50_TUNING);
 
 	if (host->quirks & SDHCI_QUIRK_FORCE_DMA)
 		host->flags |= SDHCI_USE_SDMA;
@@ -2941,7 +2977,10 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (host->quirks & SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK)
 		host->timeout_clk = mmc->f_max / 1000;
 
-	mmc->max_discard_to = (1 << 27) / host->timeout_clk;
+	if (host->timeout_clk)
+		mmc->max_discard_to = (1 << 27) / host->timeout_clk;
+	else
+		mmc->max_discard_to = 0;
 
 	mmc->caps |= MMC_CAP_SDIO_IRQ | MMC_CAP_ERASE | MMC_CAP_CMD23;
 

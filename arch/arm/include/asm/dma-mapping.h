@@ -181,8 +181,9 @@ extern void *arm_dma_alloc(struct device *dev, size_t size, dma_addr_t *handle,
 			   gfp_t gfp, struct dma_attrs *attrs);
 
 #define dma_alloc_coherent(d, s, h, f) dma_alloc_attrs(d, s, h, f, NULL)
+#define dma_alloc_at_coherent(d, s, h, f) dma_alloc_at_attrs(d, s, h, f, NULL)
 
-static inline void *dma_alloc_attrs(struct device *dev, size_t size,
+static inline void *dma_alloc_at_attrs(struct device *dev, size_t size,
 				       dma_addr_t *dma_handle, gfp_t flag,
 				       struct dma_attrs *attrs)
 {
@@ -193,6 +194,14 @@ static inline void *dma_alloc_attrs(struct device *dev, size_t size,
 	cpu_addr = ops->alloc(dev, size, dma_handle, flag, attrs);
 	debug_dma_alloc_coherent(dev, size, *dma_handle, cpu_addr);
 	return cpu_addr;
+}
+
+static inline void *dma_alloc_attrs(struct device *dev, size_t size,
+				       dma_addr_t *dma_handle, gfp_t flag,
+				       struct dma_attrs *attrs)
+{
+	*dma_handle = DMA_ERROR_CODE;
+	return dma_alloc_at_attrs(dev, size, dma_handle, flag, attrs);
 }
 
 /**

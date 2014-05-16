@@ -111,7 +111,7 @@
  */
 
 static atomic_t stopping_cpu = ATOMIC_INIT(-1);
-static bool smp_no_nmi_ipi = false;
+static bool smp_no_nmi_ipi = true;
 
 /*
  * this function sends a 'reschedule' IPI to another CPU.

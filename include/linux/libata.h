@@ -834,6 +834,7 @@ struct ata_port {
 	struct ata_host		*host;
 	struct device 		*dev;
 	struct device		tdev;
+	struct work_struct	resume_work;
 
 	struct mutex		scsi_scan_mutex;
 	struct delayed_work	hotplug_task;

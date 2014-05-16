@@ -41,3 +41,25 @@ save_stack_trace_regs(struct pt_regs *regs, struct stack_trace *trace)
 {
 	WARN_ONCE(1, KERN_INFO "save_stack_trace_regs() not implemented yet.\n");
 }
+
+/*
+ * Architectures that do not implement the task stack dedup will fallback to
+ * the default functionality.
+ */
+__weak void
+clear_dup_stack_traces(void)
+{
+}
+
+__weak unsigned int
+save_dup_stack_trace(struct task_struct *tsk)
+{
+	return 0;
+}
+
+__weak void
+show_stack_dedup(struct task_struct *task, unsigned long *sp,
+			pid_t dup_stack_pid)
+{
+	show_stack(task, sp);
+}

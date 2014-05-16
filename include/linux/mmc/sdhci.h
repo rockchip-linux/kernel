@@ -100,6 +100,10 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_BROKEN_HOST_CONTROL		(1<<5)
 /* Controller does not support HS200 */
 #define SDHCI_QUIRK2_BROKEN_HS200			(1<<6)
+/* UHS modes do not work */
+#define SDHCI_QUIRK2_BROKEN_UHS				(1<<7)
+/* Has additional Broadcom-specific registers */
+#define SDHCI_QUIRK2_BROADCOM_REGISTERS			(1<<8)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */

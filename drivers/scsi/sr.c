@@ -76,6 +76,19 @@ MODULE_ALIAS_SCSI_DEVICE(TYPE_WORM);
 	 CDC_CD_R|CDC_CD_RW|CDC_DVD|CDC_DVD_R|CDC_DVD_RAM|CDC_GENERIC_PACKET| \
 	 CDC_MRW|CDC_MRW_W|CDC_RAM)
 
+static const char *const VENDOR_BLACKLIST[] = {
+	/*
+	 * Entries should be eight characters or less (w/o the terminator),
+	 * to match the vendor field in SCSI Inquiry response.
+	 */
+	"HSPA",
+	"HUAWEI",
+	"Micromax",
+	"USBModem",
+	"ZTE",
+	NULL
+};
+
 static DEFINE_MUTEX(sr_mutex);
 static int sr_probe(struct device *);
 static int sr_remove(struct device *);
@@ -661,11 +674,22 @@ static int sr_probe(struct device *dev)
 	struct scsi_device *sdev = to_scsi_device(dev);
 	struct gendisk *disk;
 	struct scsi_cd *cd;
-	int minor, error;
+	int minor, error, i;
 
 	error = -ENODEV;
 	if (sdev->type != TYPE_ROM && sdev->type != TYPE_WORM)
 		goto fail;
+
+	for (i = 0; VENDOR_BLACKLIST[i]; ++i) {
+		const char *blacklisted_vendor = VENDOR_BLACKLIST[i];
+		if (!strncasecmp(sdev->vendor, blacklisted_vendor,
+				 strlen(blacklisted_vendor))) {
+			sdev_printk(KERN_DEBUG, sdev,
+				    "Skipping blacklisted device by %s",
+				    blacklisted_vendor);
+			goto fail;
+		}
+	}
 
 	error = -ENOMEM;
 	cd = kzalloc(sizeof(*cd), GFP_KERNEL);

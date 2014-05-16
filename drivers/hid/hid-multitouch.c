@@ -320,12 +320,21 @@ static void mt_feature_mapping(struct hid_device *hdev,
 			dev_err(&hdev->dev, "HID_DG_INPUTMODE out of range\n");
 			break;
 		}
+		/* Ignore if value index is out of bounds. */
+		if (td->inputmode_index < 0 ||
+		    td->inputmode_index >= field->report_count) {
+			dev_err(&hdev->dev, "HID_DG_INPUTMODE out of range\n");
+			td->inputmode = -1;
+		}
 
 		td->inputmode = field->report->id;
 		td->inputmode_index = usage->usage_index;
 
 		break;
 	case HID_DG_CONTACTMAX:
+		/* Ignore if value count is out of bounds. */
+		if (field->report_count < 1)
+			break;
 		td->maxcontact_report_id = field->report->id;
 		td->maxcontacts = field->value[0];
 		if (!td->maxcontacts &&
@@ -1255,6 +1264,9 @@ static const struct hid_device_id mt_devices[] = {
 	{ .driver_data = MT_CLS_DEFAULT,
 		MT_USB_DEVICE(USB_VENDOR_ID_NEXIO,
 			USB_DEVICE_ID_NEXIO_MULTITOUCH_420)},
+	{ .driver_data = MT_CLS_DEFAULT,
+		MT_USB_DEVICE(USB_VENDOR_ID_NEXIO,
+			USB_DEVICE_ID_NEXIO_MULTITOUCH_PTI0750)},
 
 	/* Panasonic panels */
 	{ .driver_data = MT_CLS_PANASONIC,

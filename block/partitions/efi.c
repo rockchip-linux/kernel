@@ -112,7 +112,11 @@ static int force_gpt;
 static int __init
 force_gpt_fn(char *str)
 {
-	force_gpt = 1;
+	/* Do not force GPT even if 'gpt' command line option is
+	 * specified for ChromeOS kernel.
+	 */
+	force_gpt = 0;
+	pr_warn("Not forcing GPT even though 'gpt' specified on cmd line.\n");
 	return 1;
 }
 __setup("gpt", force_gpt_fn);
@@ -623,7 +627,7 @@ static int find_valid_gpt(struct parsed_partitions *state, gpt_header **gpt,
 		good_agpt = is_gpt_valid(state,
 					 le64_to_cpu(pgpt->alternate_lba),
 					 &agpt, &aptes);
-        if (!good_agpt && force_gpt)
+	if (!good_agpt && force_gpt)
                 good_agpt = is_gpt_valid(state, lastlba, &agpt, &aptes);
 
         /* The obviously unsuccessful case */

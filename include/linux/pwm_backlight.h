@@ -25,4 +25,7 @@ struct platform_pwm_backlight_data {
 	int (*check_fb)(struct device *dev, struct fb_info *info);
 };
 
+int pwm_backlight_parse_dt(struct device *dev,
+				struct platform_pwm_backlight_data *data);
+
 #endif

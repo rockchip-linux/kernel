@@ -103,6 +103,28 @@ static const struct sdhci_pci_fixes sdhci_cafe = {
 			  SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
 };
 
+#define BRCM_SDHCI_QUIRKS ( \
+	SDHCI_QUIRK_32BIT_DMA_ADDR | \
+	SDHCI_QUIRK_32BIT_DMA_SIZE | \
+	SDHCI_QUIRK_32BIT_ADMA_SIZE | \
+	SDHCI_QUIRK_BROKEN_TIMEOUT_VAL | \
+	SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12 | \
+	0)
+#define BRCM_SDHCI_QUIRKS2 ( \
+	SDHCI_QUIRK2_BROADCOM_REGISTERS | \
+	0)
+
+static const struct sdhci_pci_fixes sdhci_brcm = {
+	.quirks		= BRCM_SDHCI_QUIRKS,
+	.quirks2	= BRCM_SDHCI_QUIRKS2,
+};
+
+static const struct sdhci_pci_fixes sdhci_nouhs_brcm = {
+	.quirks		= BRCM_SDHCI_QUIRKS | SDHCI_QUIRK_DELAY_AFTER_POWER |
+				SDHCI_QUIRK_BROKEN_ADMA,
+	.quirks2	= BRCM_SDHCI_QUIRKS2 | SDHCI_QUIRK2_BROKEN_UHS,
+};
+
 static int mrst_hc_probe_slot(struct sdhci_pci_slot *slot)
 {
 	slot->host->mmc->caps |= MMC_CAP_8_BIT_DATA;
@@ -969,6 +991,22 @@ static const struct pci_device_id pci_ids[] = {
 		.subvendor	= PCI_ANY_ID,
 		.subdevice	= PCI_ANY_ID,
 		.driver_data	= (kernel_ulong_t)&sdhci_o2,
+	},
+
+	{
+		.vendor		= PCI_VENDOR_ID_BROADCOM,
+		.device		= 0x16bc,
+		.subvendor	= PCI_VENDOR_ID_AI,
+		.subdevice	= 0x0742,
+		.driver_data	= (kernel_ulong_t)&sdhci_nouhs_brcm,
+	},
+
+	{
+		.vendor		= PCI_VENDOR_ID_BROADCOM,
+		.device		= 0x16bc,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.driver_data	= (kernel_ulong_t)&sdhci_brcm,
 	},
 
 	{	/* Generic SD host controller */

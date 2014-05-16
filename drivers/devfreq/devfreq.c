@@ -77,11 +77,27 @@ static int devfreq_get_freq_level(struct devfreq *devfreq, unsigned long freq)
 {
 	int lev;
 
-	for (lev = 0; lev < devfreq->profile->max_state; lev++)
-		if (freq == devfreq->profile->freq_table[lev])
-			return lev;
+	if (!devfreq->profile->max_state)
+		return -EINVAL;
 
-	return -EINVAL;
+	for (lev = 0; lev < devfreq->profile->max_state; lev++) {
+		if (devfreq->profile->freq_table[lev] >= freq) {
+			/* below minimum frequency? just return zero level */
+			if (lev == 0)
+				return 0;
+
+			/* select high freq if the freq is closer to that */
+			if ((devfreq->profile->freq_table[lev] - freq) <
+			    (freq - devfreq->profile->freq_table[lev - 1]))
+				return lev;
+
+			/* ..otherwise return the low freq */
+			return lev - 1;
+		}
+	}
+
+	/* above max freq */
+	return devfreq->profile->max_state - 1;
 }
 
 /**
@@ -97,13 +113,14 @@ static int devfreq_update_status(struct devfreq *devfreq, unsigned long freq)
 	lev = devfreq_get_freq_level(devfreq, freq);
 	if (lev < 0)
 		return lev;
+	prev_lev = devfreq_get_freq_level(devfreq, devfreq->previous_freq);
+	if (prev_lev < 0)
+		return prev_lev;
 
 	cur_time = jiffies;
 	devfreq->time_in_state[lev] +=
 			 cur_time - devfreq->last_stat_updated;
-	if (freq != devfreq->previous_freq) {
-		prev_lev = devfreq_get_freq_level(devfreq,
-						devfreq->previous_freq);
+	if (lev != prev_lev) {
 		devfreq->trans_table[(prev_lev *
 				devfreq->profile->max_state) + lev]++;
 		devfreq->total_trans++;
@@ -935,10 +952,21 @@ static ssize_t trans_stat_show(struct device *dev,
 	ssize_t len;
 	int i, j;
 	unsigned int max_state = devfreq->profile->max_state;
+	int prev_freq_level;
+	unsigned long prev_freq;
 
 	if (!devfreq->stop_polling &&
 			devfreq_update_status(devfreq, devfreq->previous_freq))
 		return 0;
+
+	/* round the current frequency */
+	prev_freq_level = devfreq_get_freq_level(devfreq,
+						 devfreq->previous_freq);
+
+	if (prev_freq_level < 0)
+		prev_freq = devfreq->previous_freq;
+	else
+		prev_freq = devfreq->profile->freq_table[prev_freq_level];
 
 	len = sprintf(buf, "   From  :   To\n");
 	len += sprintf(buf + len, "         :");
@@ -949,8 +977,7 @@ static ssize_t trans_stat_show(struct device *dev,
 	len += sprintf(buf + len, "   time(ms)\n");
 
 	for (i = 0; i < max_state; i++) {
-		if (devfreq->profile->freq_table[i]
-					== devfreq->previous_freq) {
+		if (devfreq->profile->freq_table[i] == prev_freq) {
 			len += sprintf(buf + len, "*");
 		} else {
 			len += sprintf(buf + len, " ");

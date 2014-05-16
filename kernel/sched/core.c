@@ -71,6 +71,7 @@
 #include <linux/ftrace.h>
 #include <linux/slab.h>
 #include <linux/init_task.h>
+#include <linux/stacktrace.h>
 #include <linux/binfmts.h>
 #include <linux/context_tracking.h>
 
@@ -2554,8 +2555,7 @@ static noinline void __schedule_bug(struct task_struct *prev)
 	print_modules();
 	if (irqs_disabled())
 		print_irqtrace_events(prev);
-	dump_stack();
-	add_taint(TAINT_WARN, LOCKDEP_STILL_OK);
+	BUG();
 }
 
 /*
@@ -4374,11 +4374,12 @@ out_unlock:
 
 static const char stat_nam[] = TASK_STATE_TO_CHAR_STR;
 
-void sched_show_task(struct task_struct *p)
+void _sched_show_task(struct task_struct *p, int dedup)
 {
 	unsigned long free = 0;
 	int ppid;
 	unsigned state;
+	pid_t dup_stack_pid = 0;
 
 	state = p->state ? __ffs(p->state) + 1 : 0;
 	printk(KERN_INFO "%-15.15s %c", p->comm,
@@ -4405,12 +4406,36 @@ void sched_show_task(struct task_struct *p)
 		(unsigned long)task_thread_info(p)->flags);
 
 	print_worker_info(KERN_INFO, p);
-	show_stack(p, NULL);
+	if (dedup) {
+		dup_stack_pid = save_dup_stack_trace(p);
+		show_stack_dedup(p, NULL, dup_stack_pid);
+	} else
+		show_stack(p, NULL);
+}
+
+void sched_show_task(struct task_struct *p)
+{
+	_sched_show_task(p, 0);
+}
+
+/*
+ * Eliminate task stack trace duplication in multi-task stackdump.
+ * Note only x86-specific code now implements the feature.
+ */
+void sched_show_task_dedup(struct task_struct *p)
+{
+	_sched_show_task(p, 1);
 }
 
 void show_state_filter(unsigned long state_filter)
 {
 	struct task_struct *g, *p;
+
+	/*
+	 * Prevent below printed stack traces from referring to previously
+	 * printed ones.
+	 */
+	clear_dup_stack_traces();
 
 #if BITS_PER_LONG == 32
 	printk(KERN_INFO
@@ -4427,7 +4452,7 @@ void show_state_filter(unsigned long state_filter)
 		 */
 		touch_nmi_watchdog();
 		if (!state_filter || (p->state & state_filter))
-			sched_show_task(p);
+			sched_show_task_dedup(p);
 	} while_each_thread(g, p);
 
 	touch_all_softlockup_watchdogs();

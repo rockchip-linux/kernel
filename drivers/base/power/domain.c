@@ -585,6 +585,19 @@ static int pm_genpd_poweroff(struct generic_pm_domain *genpd)
 	return ret;
 }
 
+static int __pm_genpd_poweroff(struct generic_pm_domain *genpd)
+{
+	int ret = 0;
+
+	mutex_lock(&genpd->lock);
+	genpd->in_progress++;
+	ret = pm_genpd_poweroff(genpd);
+	genpd->in_progress--;
+	mutex_unlock(&genpd->lock);
+
+	return ret;
+}
+
 /**
  * genpd_power_off_work_fn - Power off PM domain whose subdomain count is 0.
  * @work: Work structure used for scheduling the execution of this function.
@@ -598,6 +611,21 @@ static void genpd_power_off_work_fn(struct work_struct *work)
 	genpd_acquire_lock(genpd);
 	pm_genpd_poweroff(genpd);
 	genpd_release_lock(genpd);
+}
+
+/**
+ * genpd_delayed_power_off_work_fn - Power off PM domain after the delay.
+ * @work: Work structure used for scheduling the execution of this function.
+ */
+static void genpd_delayed_power_off_work_fn(struct work_struct *work)
+{
+	struct generic_pm_domain *genpd;
+	struct delayed_work *delay_work = to_delayed_work(work);
+
+	genpd = container_of(delay_work, struct generic_pm_domain,
+		power_off_delayed_work);
+
+	__pm_genpd_poweroff(genpd);
 }
 
 /**
@@ -637,11 +665,11 @@ static int pm_genpd_runtime_suspend(struct device *dev)
 	if (dev->power.irq_safe)
 		return 0;
 
-	mutex_lock(&genpd->lock);
-	genpd->in_progress++;
-	pm_genpd_poweroff(genpd);
-	genpd->in_progress--;
-	mutex_unlock(&genpd->lock);
+	if (genpd->power_off_delay)
+		queue_delayed_work(pm_wq, &genpd->power_off_delayed_work,
+			msecs_to_jiffies(genpd->power_off_delay));
+	else
+		__pm_genpd_poweroff(genpd);
 
 	return 0;
 }
@@ -671,6 +699,12 @@ static int pm_genpd_runtime_resume(struct device *dev)
 	/* If power.irq_safe, the PM domain is never powered off. */
 	if (dev->power.irq_safe)
 		return genpd_start_dev_no_timing(genpd, dev);
+
+	if (genpd->power_off_delay) {
+		if (delayed_work_pending(&genpd->power_off_delayed_work))
+			cancel_delayed_work_sync(
+				&genpd->power_off_delayed_work);
+	}
 
 	mutex_lock(&genpd->lock);
 	ret = __pm_genpd_poweron(genpd);
@@ -730,6 +764,7 @@ static inline int genpd_dev_pm_qos_notifier(struct notifier_block *nb,
 }
 
 static inline void genpd_power_off_work_fn(struct work_struct *work) {}
+static inline void genpd_delayed_power_off_work_fn(struct work_struct *work) {}
 
 #define pm_genpd_runtime_suspend	NULL
 #define pm_genpd_runtime_resume		NULL
@@ -926,6 +961,15 @@ static int pm_genpd_prepare(struct device *dev)
 
 	if (resume_needed(dev, genpd))
 		pm_runtime_resume(dev);
+
+	/* If a delayed power-off for the domain is pending, turn it off now */
+	if (genpd->power_off_delay) {
+		if (delayed_work_pending(&genpd->power_off_delayed_work)) {
+			cancel_delayed_work_sync(
+				&genpd->power_off_delayed_work);
+			__pm_genpd_poweroff(genpd);
+		}
+	}
 
 	genpd_acquire_lock(genpd);
 
@@ -2132,7 +2176,10 @@ void pm_genpd_init(struct generic_pm_domain *genpd,
 	mutex_init(&genpd->lock);
 	genpd->gov = gov;
 	INIT_WORK(&genpd->power_off_work, genpd_power_off_work_fn);
+	INIT_DELAYED_WORK(&genpd->power_off_delayed_work,
+		genpd_delayed_power_off_work_fn);
 	genpd->in_progress = 0;
+	genpd->power_off_delay = 0;
 	atomic_set(&genpd->sd_count, 0);
 	genpd->status = is_off ? GPD_STATE_POWER_OFF : GPD_STATE_ACTIVE;
 	init_waitqueue_head(&genpd->status_wait_queue);

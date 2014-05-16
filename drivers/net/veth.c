@@ -268,7 +268,7 @@ static const struct net_device_ops veth_netdev_ops = {
 };
 
 #define VETH_FEATURES (NETIF_F_SG | NETIF_F_FRAGLIST | NETIF_F_ALL_TSO |    \
-		       NETIF_F_HW_CSUM | NETIF_F_RXCSUM | NETIF_F_HIGHDMA | \
+		       NETIF_F_RXCSUM | NETIF_F_HIGHDMA | \
 		       NETIF_F_GSO_GRE | NETIF_F_GSO_UDP_TUNNEL |	    \
 		       NETIF_F_GSO_IPIP | NETIF_F_GSO_SIT | NETIF_F_UFO	|   \
 		       NETIF_F_HW_VLAN_CTAG_TX | NETIF_F_HW_VLAN_CTAG_RX | \

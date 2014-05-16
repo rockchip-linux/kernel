@@ -867,6 +867,15 @@ static int taos_probe(struct i2c_client *clientp,
 		return ret;
 	}
 
+	/*
+	 * This device is slow to resume - make it asynchronous
+	 * To get full async, we must enable this on both i2c and iio devs
+	 * and the i2c master.
+	 */
+	device_enable_async_suspend(&indio_dev->dev);
+	device_enable_async_suspend(&clientp->dev);
+	device_enable_async_suspend(&clientp->adapter->dev);
+
 	/* Load up the V2 defaults (these are hard coded defaults for now) */
 	taos_defaults(chip);
 

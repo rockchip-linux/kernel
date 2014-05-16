@@ -10,6 +10,15 @@ Optional properties:
 - regulator-always-on: boolean, regulator should never be disabled
 - regulator-boot-on: bootloader/firmware enabled regulator
 - regulator-allow-bypass: allow the regulator to go into bypass mode
+- regulator-suspend-disk-microvolt: voltage applied when entering S2D
+- regulator-suspend-disk-enabled: turn on when entering S2D
+- regulator-suspend-disk-disabled: turn off when entering S2D
+- regulator-suspend-mem-microvolt: voltage applied when entering S2M
+- regulator-suspend-mem-enabled: turn on when entering S2M
+- regulator-suspend-mem-disabled: turn off when entering S2M
+- regulator-suspend-standby-microvolt: voltage applied when entering standby
+- regulator-suspend-standby-enabled: turn on when entering standby
+- regulator-suspend-standby-disabled: turn off when entering standby
 - <name>-supply: phandle to the parent supply/regulator node
 - regulator-ramp-delay: ramp delay for regulator(in uV/uS)
   For hardwares which support disabling ramp rate, it should be explicitly

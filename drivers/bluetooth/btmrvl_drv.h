@@ -59,6 +59,8 @@ struct btmrvl_device {
 };
 
 struct btmrvl_adapter {
+	void *hw_regs_buf;
+	u8 *hw_regs;
 	u32 int_count;
 	struct sk_buff_head tx_queue;
 	u8 psmode;
@@ -87,6 +89,7 @@ struct btmrvl_private {
 #define MRVL_VENDOR_PKT			0xFE
 
 /* Vendor specific Bluetooth commands */
+#define BT_CMD_PSCAN_WIN_REPORT_ENABLE	0xFC03
 #define BT_CMD_AUTO_SLEEP_MODE		0xFC23
 #define BT_CMD_HOST_SLEEP_CONFIG	0xFC59
 #define BT_CMD_HOST_SLEEP_ENABLE	0xFC5A

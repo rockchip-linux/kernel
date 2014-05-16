@@ -167,16 +167,20 @@ static const struct stacktrace_ops print_trace_ops = {
 
 void
 show_trace_log_lvl(struct task_struct *task, struct pt_regs *regs,
-		unsigned long *stack, unsigned long bp, char *log_lvl)
+		unsigned long *stack, unsigned long bp, char *log_lvl,
+		pid_t dup_stack_pid)
 {
 	printk("%sCall Trace:\n", log_lvl);
-	dump_trace(task, regs, stack, bp, &print_trace_ops, log_lvl);
+	if (dup_stack_pid)
+		printk("%s<Same stack as pid %d>", log_lvl, dup_stack_pid);
+	else
+		dump_trace(task, regs, stack, bp, &print_trace_ops, log_lvl);
 }
 
 void show_trace(struct task_struct *task, struct pt_regs *regs,
 		unsigned long *stack, unsigned long bp)
 {
-	show_trace_log_lvl(task, regs, stack, bp, "");
+	show_trace_log_lvl(task, regs, stack, bp, "", 0);
 }
 
 void show_stack(struct task_struct *task, unsigned long *sp)
@@ -193,7 +197,19 @@ void show_stack(struct task_struct *task, unsigned long *sp)
 		bp = stack_frame(current, NULL);
 	}
 
-	show_stack_log_lvl(task, NULL, sp, bp, "");
+	show_stack_log_lvl(task, NULL, sp, 0, "", 0);
+}
+
+/*
+ * Similar to show_stack except accepting the dup_stack_pid parameter.
+ * The parameter indicates whether or not the caller side tries to do
+ * a stack dedup, and the non-zero value indicates the pid of the
+ * task with the same stack trace.
+ */
+void show_stack_dedup(struct task_struct *task, unsigned long *sp,
+			pid_t dup_stack_pid)
+{
+	show_stack_log_lvl(task, NULL, sp, 0, "", dup_stack_pid);
 }
 
 static arch_spinlock_t die_lock = __ARCH_SPIN_LOCK_UNLOCKED;
