@@ -7,6 +7,8 @@ config ARCH_QCOM
 	select GENERIC_CLOCKEVENTS
 	select HAVE_SMP
 	select PINCTRL
+	select MIGHT_HAVE_PCI
+	select PCI_DOMAINS if PCI
 	select QCOM_SCM if SMP
 	help
 	  Support for Qualcomm's devicetree based systems.
