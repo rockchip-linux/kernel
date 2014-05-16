@@ -28,6 +28,7 @@ Contents:
 2.3  Userspace
 2.4  Ondemand
 2.5  Conservative
+2.6  Interactive
 
 3.   The Governor Interface in the CPUfreq Core
 
@@ -217,6 +218,64 @@ But in "conservative", it controls the rate at which the kernel makes
 a decision on when to decrease the frequency while running in any
 speed. Load for frequency increase is still evaluated every
 sampling rate.
+
+2.6 Interactive
+---------------
+
+The CPUfreq governor "interactive" is designed for latency-sensitive,
+interactive workloads. This governor sets the CPU speed depending on
+usage, similar to "ondemand" and "conservative" governors.  However,
+the governor is more aggressive about scaling the CPU speed up in
+response to CPU-intensive activity.
+
+Sampling the CPU load every X ms can lead to under-powering the CPU
+for X ms, leading to dropped frames, stuttering UI, etc.  Instead of
+sampling the cpu at a specified rate, the interactive governor will
+check whether to scale the cpu frequency up soon after coming out of
+idle.  When the cpu comes out of idle, a timer is configured to fire
+within 1-2 ticks.  If the cpu is very busy between exiting idle and
+when the timer fires then we assume the cpu is underpowered and ramp
+to MAX speed.
+
+If the cpu was not sufficiently busy to immediately ramp to MAX speed,
+then governor evaluates the cpu load since the last speed adjustment,
+choosing the highest value between that longer-term load or the
+short-term load since idle exit to determine the cpu speed to ramp to.
+
+The tuneable values for this governor are:
+
+min_sample_time: The minimum amount of time to spend at the current
+frequency before ramping down. This is to ensure that the governor has
+seen enough historic cpu load data to determine the appropriate
+workload.  Default is 80000 uS.
+
+hispeed_freq: List of frequency to load mappings. When CPU load meets
+or exceeds one of the load levels, immediately ramp up to the associated
+frequency. The format is a list of entries of the form <frequency>:<load>
+specified in ascending order. For example:
+
+   650000:75 1600000:95
+
+will cause the governor to jump to 650Mhz if the load is between 75% and
+95%. If CPU load exceeds 95% it will jump to 1.6Ghz instead. Default is
+one level: the maximum available frequency at 85% load.
+
+above_hispeed_delay: When speed is at or above hispeed_freq, wait for
+this long before raising speed in response to continued high load.
+The format is a single delay value, optionally followed by pairs of
+CPU speeds and the delay to use at or above those speeds.  Colons can
+be used between the speeds and associated delays for readability.  For
+example:
+
+   80000 1300000:200000 1500000:40000
+
+uses delay 80000 uS until CPU speed 1.3 GHz, at which speed delay
+200000 uS is used until speed 1.5 GHz, at which speed (and above)
+delay 40000 uS is used.  If speeds are specified these must appear in
+ascending order.  Default is 20000 uS.
+
+timer_rate: Sample rate for reevaluating cpu load when the system is
+not idle.  Default is 30000 uS.
 
 3. The Governor Interface in the CPUfreq Core
 =============================================
