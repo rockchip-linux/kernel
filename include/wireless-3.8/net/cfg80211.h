@@ -2417,6 +2417,13 @@ struct wiphy_wowlan_support {
  *	802.11-2012 8.4.2.29 for the defined fields.
  * @extended_capabilities_mask: mask of the valid values
  * @extended_capabilities_len: length of the extended capabilities
+ *
+ * @max_adj_channel_rssi_comp: max offset of between the channel on which the
+ *	frame was sent and the channel on which the frame was heard for which
+ *	the reported rssi is still valid. If a driver is able to compensate the
+ *	low rssi when a frame is heard on different channel, then it should set
+ *	this variable to the maximal offset for which it can compensate.
+ *	This value should be set in MHz.
  */
 struct wiphy {
 	/* assign these fields before you register the wiphy */
@@ -2522,6 +2529,8 @@ struct wiphy {
 #ifdef CONFIG_CFG80211_WEXT
 	const struct iw_handler_def *wext;
 #endif
+
+	u8 max_adj_channel_rssi_comp;
 
 	char priv[0] __attribute__((__aligned__(NETDEV_ALIGN)));
 };
