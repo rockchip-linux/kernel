@@ -683,6 +683,9 @@ static void tegra_crtc_disable(struct drm_crtc *crtc)
 	}
 
 	drm_vblank_off(drm, dc->pipe);
+
+	if (dc->emc_clk)
+		clk_set_rate(dc->emc_clk, 0);
 }
 
 static bool tegra_crtc_mode_fixup(struct drm_crtc *crtc,
@@ -760,6 +763,50 @@ static int tegra_crtc_setup_clk(struct drm_crtc *crtc,
 	return 0;
 }
 
+static unsigned long tegra_emc_bw_to_freq_req(unsigned long bw)
+{
+	int bytes_per_emc_clock;
+
+	if (of_machine_is_compatible("nvidia,tegra124"))
+		bytes_per_emc_clock = 16;
+	else
+		bytes_per_emc_clock = 8;
+
+	return (bw + bytes_per_emc_clock - 1) / bytes_per_emc_clock;
+}
+
+#define EMC_FREQ_CUTOFF_USE_130_PERCENT 100000000UL
+#define EMC_FREQ_CUTOFF_USE_140_PERCENT 50000000UL
+
+static int tegra_dc_program_bandwidth(struct tegra_dc *dc,
+				      struct drm_display_mode *mode,
+				      struct tegra_dc_window *window)
+{
+	unsigned long bandwidth = mode->clock * window->bits_per_pixel / 8;
+	unsigned long freq;
+	struct clk *emc_master;
+
+	if (!dc->emc_clk)
+		return 0;
+
+	emc_master = clk_get_parent(dc->emc_clk);
+	freq = tegra_emc_bw_to_freq_req(bandwidth) * 1000;
+	freq = clk_round_rate(emc_master, freq);
+
+	/* XXX: Add safety margins for DVFS */
+
+	if (freq < EMC_FREQ_CUTOFF_USE_140_PERCENT)
+		bandwidth += 4 * bandwidth / 10;
+	else if (freq < EMC_FREQ_CUTOFF_USE_130_PERCENT)
+		bandwidth += 3 * bandwidth / 10;
+	else
+		bandwidth += bandwidth / 10;
+
+	freq = tegra_emc_bw_to_freq_req(bandwidth) * 1000;
+
+	return clk_set_rate(dc->emc_clk, freq);
+}
+
 static int tegra_crtc_mode_set(struct drm_crtc *crtc,
 			       struct drm_display_mode *mode,
 			       struct drm_display_mode *adjusted,
@@ -809,7 +856,11 @@ static int tegra_crtc_mode_set(struct drm_crtc *crtc,
 	if (err < 0)
 		dev_err(dc->dev, "failed to enable root plane\n");
 
-	return 0;
+	err = tegra_dc_program_bandwidth(dc, mode, &window);
+	if (err)
+		dev_err(dc->dev, "failed to program the EMC clock\n");
+
+	return err;
 }
 
 static int tegra_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
@@ -1379,6 +1430,12 @@ static int tegra_dc_probe(struct platform_device *pdev)
 	if (err < 0)
 		return err;
 
+	dc->emc_clk = devm_clk_get(&pdev->dev, "emc");
+	if (IS_ERR(dc->emc_clk))
+		dc->emc_clk = NULL;
+	else
+		clk_prepare_enable(dc->emc_clk);
+
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dc->regs = devm_ioremap_resource(&pdev->dev, regs);
 	if (IS_ERR(dc->regs))
@@ -1431,6 +1488,8 @@ static int tegra_dc_remove(struct platform_device *pdev)
 	}
 
 	clk_disable_unprepare(dc->clk);
+	if (dc->emc_clk)
+		clk_disable_unprepare(dc->emc_clk);
 
 	return 0;
 }

@@ -101,6 +101,7 @@ struct tegra_dc {
 
 	struct clk *clk;
 	struct reset_control *rst;
+	struct clk *emc_clk;
 	void __iomem *regs;
 	int irq;
 
