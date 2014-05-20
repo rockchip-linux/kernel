@@ -329,12 +329,13 @@ int tpm_add_ppi(struct kobject *parent)
 	acpi_walk_namespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT, ACPI_UINT32_MAX,
 			    ppi_callback, NULL, NULL, &tpm_ppi_handle);
 	if (tpm_ppi_handle == NULL)
-		return -ENODEV;
+		return 0;
 
 	return sysfs_create_group(parent, &ppi_attr_grp);
 }
 
 void tpm_remove_ppi(struct kobject *parent)
 {
-	sysfs_remove_group(parent, &ppi_attr_grp);
+	if (tpm_ppi_handle)
+		sysfs_remove_group(parent, &ppi_attr_grp);
 }
