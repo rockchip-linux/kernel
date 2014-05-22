@@ -386,6 +386,7 @@ static int tegra_sdhci_issue_tuning_cmd(struct sdhci_host *sdhci)
 	unsigned int timeout = TUNING_INHIBIT_TIMEOUT;
 	int flags;
 	u32 intstatus;
+	int timeout_val;
 
 	mask = SDHCI_CMD_INHIBIT | SDHCI_DATA_INHIBIT;
 	while (sdhci_readl(sdhci, SDHCI_PRESENT_STATE) & mask) {
@@ -418,7 +419,15 @@ static int tegra_sdhci_issue_tuning_cmd(struct sdhci_host *sdhci)
 	sdhci_writew(sdhci, SDHCI_MAKE_BLKSZ(7, tegra_host->tuning_bsize),
 		SDHCI_BLOCK_SIZE);
 
-	sdhci_writeb(sdhci, 0xE, SDHCI_TIMEOUT_CONTROL);
+	/*
+	 * Choose a HW timeout value to match what we'll wait for before
+	 * timing out in SW.  The hardware timeout value is equal to:
+	 *    2 << (SDHCI_TIMEOUT_CONTROL + 13) / SDCLK
+	 * where SDHCI_TIMEOUT_CONTROL is between 0 and 14.
+	 */
+	timeout_val = TUNING_OP_TIMEOUT * (tegra_host->current_clk / 1000);
+	timeout_val = clamp(fls(timeout_val) - 13, 0, 14);
+	sdhci_writeb(sdhci, timeout_val, SDHCI_TIMEOUT_CONTROL);
 
 	sdhci_writew(sdhci, SDHCI_TRNS_READ, SDHCI_TRANSFER_MODE);
 
