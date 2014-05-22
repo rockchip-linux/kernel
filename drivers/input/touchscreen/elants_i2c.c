@@ -182,7 +182,8 @@ struct elants_data {
 	bool wake_irq_enabled;
 
 	u16 fw_version;
-	u16 test_version;
+	u8 test_version;
+	u8 solution_version;
 	u8 bc_version;
 	u8 iap_version;
 
@@ -555,7 +556,8 @@ static ssize_t show_test_version_value(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elants_data *ts = i2c_get_clientdata(client);
 
-	return sprintf(buf, "%.4x\n", ts->test_version);
+	return sprintf(buf, "Test:%.2x\nSolution:%.2x\n",
+		       ts->test_version, ts->solution_version);
 }
 
 static ssize_t show_bc_version_value(struct device *dev,
@@ -790,11 +792,16 @@ static int __test_version_packet_handler(struct i2c_client *client)
 
 		if (buf_recv[0] == CMD_HEADER_RESP) {
 			ts->test_version =
-			    parse_version_number(buf_recv, sizeof(buf_recv));
+			    (((buf_recv[1] & 0x0f) << 4) |
+			     ((buf_recv[2] & 0xf0) >> 4));
+			ts->solution_version =
+			    (((buf_recv[2] & 0x0f) << 4) |
+			     ((buf_recv[3] & 0xf0) >> 4));
 		} else {
 			elan_dbg(client, "read fw retry count=%d\n", retry_cnt);
 			if (retry_cnt == MAX_RETRIES - 1) {
-				ts->test_version = 0xffff;
+				ts->test_version = 0xff;
+				ts->solution_version = 0xff;
 				dev_err(&client->dev,
 					"Fail to get test version for %d times.\n",
 					MAX_RETRIES);
@@ -1123,7 +1130,8 @@ static int elan_fw_update(struct i2c_client *client)
 		dev_err(&client->dev, "TS Setup handshake fail!! (%d)\n", rc);
 
 		ts->fw_version = 0xffff;
-		ts->test_version = 0xffff;
+		ts->test_version = 0xff;
+		ts->solution_version = 0xff;
 		ts->bc_version = 0xff;
 		ts->iap_version = 0xff;
 
@@ -1481,7 +1489,7 @@ static int elan_mt_event(struct elants_data *ts, int num_fingers, u8 *buf)
 	elan_parse_widths(&buf[FW_POS_WIDTH], widths);
 	elan_parse_pressures(&buf[FW_POS_PRESSURE], pressures);
 
-	for (i = 0; i < MAX_CONTACT_NUM && i < num_fingers; i++) {
+	for (i = 0; (i < MAX_CONTACT_NUM) && (num_fingers > 0); i++) {
 		/* tracking id */
 		td->curdata.contactid = (fid[i] > 0) ? i + 1 : 0;
 
@@ -1495,6 +1503,8 @@ static int elan_mt_event(struct elants_data *ts, int num_fingers, u8 *buf)
 					(u16 *)&td->curdata.y);
 		td->curdata.p = pressures[i];
 		td->curdata.w = td->curdata.h = widths[i];
+
+		num_fingers--;
 
 		elan_mt_complete_slot(td);
 	}
