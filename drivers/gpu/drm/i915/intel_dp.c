@@ -1605,7 +1605,7 @@ static void intel_edp_psr_setup(struct intel_dp *intel_dp)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct edp_vsc_psr psr_vsc;
 
-	if (intel_dp->psr_setup_done)
+	if (dev_priv->psr.setup_done)
 		return;
 
 	/* Prepare VSC packet as per EDP 1.3 spec, Table 3.10 */
@@ -1620,7 +1620,7 @@ static void intel_edp_psr_setup(struct intel_dp *intel_dp)
 	I915_WRITE(EDP_PSR_DEBUG_CTL(dev), EDP_PSR_DEBUG_MASK_MEMUP |
 		   EDP_PSR_DEBUG_MASK_HPD | EDP_PSR_DEBUG_MASK_LPSP);
 
-	intel_dp->psr_setup_done = true;
+	dev_priv->psr.setup_done = true;
 }
 
 static void intel_edp_psr_enable_sink(struct intel_dp *intel_dp)
@@ -3834,8 +3834,6 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 	error = intel_dp_i2c_init(intel_dp, intel_connector, name);
 	WARN(error, "intel_dp_i2c_init failed with error %d for port %c\n",
 	     error, port_name(port));
-
-	intel_dp->psr_setup_done = false;
 
 	if (!intel_edp_init_connector(intel_dp, intel_connector)) {
 		i2c_del_adapter(&intel_dp->adapter);
