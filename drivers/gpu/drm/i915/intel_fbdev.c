@@ -24,6 +24,7 @@
  *     David Airlie
  */
 
+#include <linux/async.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -288,9 +289,9 @@ int intel_fbdev_init(struct drm_device *dev)
 	return 0;
 }
 
-void intel_fbdev_initial_config(struct drm_device *dev)
+void intel_fbdev_initial_config(void *data, async_cookie_t cookie)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct drm_i915_private *dev_priv = data;
 
 	/* Due to peculiar init order wrt to hpd handling this is separate. */
 	drm_fb_helper_initial_config(&dev_priv->fbdev->helper, 32);
@@ -302,6 +303,7 @@ void intel_fbdev_fini(struct drm_device *dev)
 	if (!dev_priv->fbdev)
 		return;
 
+	async_synchronize_full();
 	intel_fbdev_destroy(dev, dev_priv->fbdev);
 	kfree(dev_priv->fbdev);
 	dev_priv->fbdev = NULL;
