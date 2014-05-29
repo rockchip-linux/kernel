@@ -3863,7 +3863,7 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 			  ironlake_panel_vdd_work);
 
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
-	drm_sysfs_connector_add(connector);
+	drm_connector_register(connector);
 
 	if (HAS_DDI(dev))
 		intel_connector->get_hw_state = intel_ddi_connector_get_hw_state;
@@ -3928,7 +3928,7 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 			ironlake_panel_vdd_off_sync(intel_dp);
 			drm_modeset_unlock(&dev->mode_config.connection_mutex);
 		}
-		drm_sysfs_connector_remove(connector);
+		drm_connector_unregister(connector);
 		drm_connector_cleanup(connector);
 		return false;
 	}

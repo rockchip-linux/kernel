@@ -461,7 +461,7 @@ rockchip_connector_detect(struct drm_connector *connector, bool force)
 
 static void rockchip_connector_destroy(struct drm_connector *connector)
 {
-	drm_sysfs_connector_remove(connector);
+	drm_connector_unregister(connector);
 	drm_connector_cleanup(connector);
 }
 
@@ -725,9 +725,9 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 	drm_connector_helper_add(connector,
 				 &rockchip_connector_helper_funcs);
 
-	ret = drm_sysfs_connector_add(connector);
+	ret = drm_connector_register(connector);
 	if (ret) {
-		DRM_ERROR("failed to add drm_sysfs\n");
+		DRM_ERROR("failed to register connector\n");
 		goto err_free_connector;
 	}
 
@@ -746,7 +746,7 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 	return 0;
 
 err_free_connector_sysfs:
-	drm_sysfs_connector_remove(connector);
+	drm_connector_unregister(connector);
 err_free_connector:
 	drm_connector_cleanup(connector);
 err_free_encoder:
@@ -767,7 +767,7 @@ static void rockchip_edp_unbind(struct device *dev, struct device *master,
 
 	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_OFF);
 	encoder->funcs->destroy(encoder);
-	drm_sysfs_connector_remove(&edp->connector);
+	drm_connector_unregister(&edp->connector);
 	drm_connector_cleanup(&edp->connector);
 	drm_encoder_cleanup(encoder);
 }

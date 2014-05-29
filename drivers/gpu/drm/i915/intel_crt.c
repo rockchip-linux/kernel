@@ -840,7 +840,7 @@ void intel_crt_init(struct drm_device *dev)
 
 	drm_connector_helper_add(connector, &intel_crt_connector_helper_funcs);
 
-	drm_sysfs_connector_add(connector);
+	drm_connector_register(connector);
 
 	intel_i2c_register(dev, connector, dev_priv->vbt.crt_ddc_pin);
 

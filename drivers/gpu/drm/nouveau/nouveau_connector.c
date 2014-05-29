@@ -102,7 +102,7 @@ nouveau_connector_destroy(struct drm_connector *connector)
 	struct nouveau_connector *nv_connector = nouveau_connector(connector);
 	nouveau_event_ref(NULL, &nv_connector->hpd_func);
 	kfree(nv_connector->edid);
-	drm_sysfs_connector_remove(connector);
+	drm_connector_unregister(connector);
 	drm_connector_cleanup(connector);
 	kfree(connector);
 }
@@ -1172,6 +1172,6 @@ nouveau_connector_create(struct drm_device *dev, int index)
 	if (nv_connector->hpd.func != DCB_GPIO_UNUSED)
 		connector->polled = DRM_CONNECTOR_POLL_HPD;
 
-	drm_sysfs_connector_add(connector);
+	drm_connector_register(connector);
 	return connector;
 }
