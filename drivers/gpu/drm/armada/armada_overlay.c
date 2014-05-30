@@ -7,6 +7,7 @@
  * published by the Free Software Foundation.
  */
 #include <drm/drmP.h>
+#include <drm/drm_atomic.h>
 #include "armada_crtc.h"
 #include "armada_drm.h"
 #include "armada_fb.h"
@@ -288,7 +289,12 @@ static int armada_plane_set_property(struct drm_plane *plane,
 {
 	struct armada_private *priv = plane->dev->dev_private;
 	struct armada_plane *dplane = drm_to_armada_plane(plane);
+	struct drm_plane_state *pstate = drm_atomic_get_plane_state(plane, state);
 	bool update_attr = false;
+	int ret = 0;
+
+	if (IS_ERR(pstate))
+		return PTR_ERR(pstate);
 
 	if (property == priv->colorkey_prop) {
 #define CCC(v) ((v) << 24 | (v) << 16 | (v) << 8)
@@ -342,13 +348,16 @@ static int armada_plane_set_property(struct drm_plane *plane,
 	} else if (property == priv->saturation_prop) {
 		dplane->prop.saturation = val;
 		update_attr = true;
+	} else {
+		ret = drm_plane_set_property(plane, pstate, property,
+				val, blob_data);
 	}
 
 	if (update_attr && dplane->base.crtc)
 		armada_ovl_update_attr(&dplane->prop,
 				       drm_to_armada_crtc(dplane->base.crtc));
 
-	return 0;
+	return ret;
 }
 
 static const struct drm_plane_funcs armada_plane_funcs = {

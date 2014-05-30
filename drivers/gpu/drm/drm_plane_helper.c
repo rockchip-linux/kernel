@@ -28,6 +28,7 @@
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_rect.h>
 #include <drm/drm_plane_helper.h>
+#include <drm/drm_atomic.h>
 
 #define SUBPIXEL_MASK 0xffff
 
@@ -309,6 +310,7 @@ EXPORT_SYMBOL(drm_primary_helper_destroy);
 const struct drm_plane_funcs drm_primary_helper_funcs = {
 	.update_plane = drm_primary_helper_update,
 	.disable_plane = drm_primary_helper_disable,
+	.set_property = drm_atomic_plane_set_property,
 	.destroy = drm_primary_helper_destroy,
 };
 EXPORT_SYMBOL(drm_primary_helper_funcs);

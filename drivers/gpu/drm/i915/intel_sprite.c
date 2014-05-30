@@ -1034,6 +1034,7 @@ static const struct drm_plane_funcs intel_plane_funcs = {
 	.update_plane = intel_update_plane,
 	.disable_plane = intel_disable_plane,
 	.destroy = intel_destroy_plane,
+	.set_property = drm_atomic_plane_set_property,
 };
 
 static uint32_t ilk_plane_formats[] = {

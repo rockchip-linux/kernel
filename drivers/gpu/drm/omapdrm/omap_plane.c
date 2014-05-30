@@ -333,7 +333,11 @@ int omap_plane_set_property(struct drm_plane *plane,
 {
 	struct omap_plane *omap_plane = to_omap_plane(plane);
 	struct omap_drm_private *priv = plane->dev->dev_private;
+	struct drm_plane_state *pstate = drm_atomic_get_plane_state(plane, state);
 	int ret = -EINVAL;
+
+	if (IS_ERR(pstate))
+		return PTR_ERR(pstate);
 
 	if (property == priv->rotation_prop) {
 		DBG("%s: rotation: %02x", omap_plane->name, (uint32_t)val);
@@ -343,6 +347,9 @@ int omap_plane_set_property(struct drm_plane *plane,
 		DBG("%s: zorder: %02x", omap_plane->name, (uint32_t)val);
 		omap_plane->info.zorder = val;
 		ret = apply(plane);
+	} else {
+		ret = drm_plane_set_property(plane, pstate, property,
+				val, blob_data);
 	}
 
 	return ret;

@@ -287,18 +287,33 @@ int drm_fb_helper_debug_leave(struct fb_info *info)
 }
 EXPORT_SYMBOL(drm_fb_helper_debug_leave);
 
-static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper)
+static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper,
+		bool lockless)
 {
 	struct drm_device *dev = fb_helper->dev;
 	struct drm_plane *plane;
 	bool error = false;
+	void *state;
 	int i;
 
-	drm_warn_on_modeset_not_all_locked(dev);
+	state = dev->driver->atomic_begin(dev, lockless ?
+			DRM_MODE_ATOMIC_NOLOCK : 0);
+	if (IS_ERR(state)) {
+		DRM_ERROR("failed to restore fbdev mode\n");
+		return true;
+	}
 
 	list_for_each_entry(plane, &dev->mode_config.plane_list, head)
 		if (plane->type != DRM_PLANE_TYPE_PRIMARY)
-			drm_plane_force_disable(plane);
+			drm_plane_force_disable(plane, state);
+
+	/* just disabling stuff shouldn't fail, hopefully: */
+	if(dev->driver->atomic_check(dev, state))
+		DRM_ERROR("failed to restore fbdev mode\n");
+	else
+		dev->driver->atomic_commit(dev, state);
+
+	dev->driver->atomic_end(dev, state);
 
 	for (i = 0; i < fb_helper->crtc_count; i++) {
 		struct drm_mode_set *mode_set = &fb_helper->crtc_info[i].mode_set;
@@ -330,7 +345,7 @@ static bool restore_fbdev_mode(struct drm_fb_helper *fb_helper)
  */
 static bool drm_fb_helper_restore_fbdev_mode(struct drm_fb_helper *fb_helper)
 {
-	return restore_fbdev_mode(fb_helper);
+	return restore_fbdev_mode(fb_helper, true);
 }
 
 /**
@@ -343,12 +358,7 @@ static bool drm_fb_helper_restore_fbdev_mode(struct drm_fb_helper *fb_helper)
  */
 bool drm_fb_helper_restore_fbdev_mode_unlocked(struct drm_fb_helper *fb_helper)
 {
-	struct drm_device *dev = fb_helper->dev;
-	bool ret;
-	drm_modeset_lock_all(dev);
-	ret = restore_fbdev_mode(fb_helper);
-	drm_modeset_unlock_all(dev);
-	return ret;
+	return restore_fbdev_mode(fb_helper, false);
 }
 EXPORT_SYMBOL(drm_fb_helper_restore_fbdev_mode_unlocked);
 

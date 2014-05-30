@@ -10,6 +10,7 @@
  */
 
 #include <drm/drmP.h>
+#include <drm/drm_atomic.h>
 
 #include <drm/exynos_drm.h>
 #include "exynos_drm_drv.h"
@@ -225,13 +226,17 @@ static int exynos_plane_set_property(struct drm_plane *plane,
 	struct drm_device *dev = plane->dev;
 	struct exynos_plane *exynos_plane = to_exynos_plane(plane);
 	struct exynos_drm_private *dev_priv = dev->dev_private;
+	struct drm_plane_state *pstate = drm_atomic_get_plane_state(plane, state);
+
+	if (IS_ERR(pstate))
+		return PTR_ERR(pstate);
 
 	if (property == dev_priv->plane_zpos_property) {
 		exynos_plane->overlay.zpos = val;
 		return 0;
 	}
 
-	return -EINVAL;
+	return drm_plane_set_property(plane, pstate, property, val, blob_data);
 }
 
 static struct drm_plane_funcs exynos_plane_funcs = {

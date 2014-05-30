@@ -68,7 +68,8 @@
  * struct drm_atomic_funcs - helper funcs used by the atomic helpers
  */
 struct drm_atomic_funcs {
-	int dummy; /* for now */
+	int (*check_plane_state)(struct drm_plane *plane, struct drm_plane_state *pstate);
+	int (*commit_plane_state)(struct drm_plane *plane, struct drm_plane_state *pstate);
 };
 
 const extern struct drm_atomic_funcs drm_atomic_funcs;
@@ -84,6 +85,30 @@ int drm_atomic_commit_unlocked(struct drm_device *dev,
 		struct drm_atomic_state *state);
 void drm_atomic_end(struct drm_device *dev, struct drm_atomic_state *state);
 
+int drm_atomic_plane_set_property(struct drm_plane *plane,
+		struct drm_atomic_state *state, struct drm_property *property,
+		uint64_t val, void *blob_data);
+struct drm_plane_state *drm_atomic_get_plane_state(struct drm_plane *plane,
+		struct drm_atomic_state *state);
+
+static inline int
+drm_atomic_check_plane_state(struct drm_plane *plane,
+		struct drm_plane_state *pstate)
+{
+	const struct drm_atomic_funcs *funcs =
+			plane->dev->driver->atomic_funcs;
+	return funcs->check_plane_state(plane, pstate);
+}
+
+static inline int
+drm_atomic_commit_plane_state(struct drm_plane *plane,
+		struct drm_plane_state *pstate)
+{
+	const struct drm_atomic_funcs *funcs =
+			plane->dev->driver->atomic_funcs;
+	return funcs->commit_plane_state(plane, pstate);
+}
+
 /**
  * struct drm_atomic_state - the state object used by atomic helpers
  */
@@ -91,6 +116,8 @@ struct drm_atomic_state {
 	struct kref refcount;
 	struct drm_device *dev;
 	uint32_t flags;
+	struct drm_plane **planes;
+	struct drm_plane_state **pstates;
 
 	bool committed;
 	bool checked;       /* just for debugging */

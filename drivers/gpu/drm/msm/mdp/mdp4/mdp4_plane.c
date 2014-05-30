@@ -88,8 +88,10 @@ int mdp4_plane_set_property(struct drm_plane *plane,
 		struct drm_atomic_state *state, struct drm_property *property,
 		uint64_t val, void *blob_data)
 {
-	// XXX
-	return -EINVAL;
+	struct drm_plane_state *pstate = drm_atomic_get_plane_state(plane, state);
+	if (IS_ERR(pstate))
+		return PTR_ERR(pstate);
+	return drm_plane_set_property(plane, pstate, property, val, blob_data);
 }
 
 static const struct drm_plane_funcs mdp4_plane_funcs = {

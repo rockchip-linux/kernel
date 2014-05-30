@@ -579,7 +579,7 @@ static void dev_lastclose(struct drm_device *dev)
 
 		for (i = 0; i < priv->num_planes; i++) {
 			drm_object_property_set_value(&priv->planes[i]->base,
-					&priv->planes[i]->propvals,
+					&priv->planes[i]->state->propvals,
 					priv->rotation_prop, 0, NULL);
 		}
 	}

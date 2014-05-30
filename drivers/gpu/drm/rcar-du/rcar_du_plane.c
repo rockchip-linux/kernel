@@ -14,6 +14,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_gem_cma_helper.h>
 
@@ -404,6 +405,10 @@ static int rcar_du_plane_set_property(struct drm_plane *plane,
 {
 	struct rcar_du_plane *rplane = to_rcar_plane(plane);
 	struct rcar_du_group *rgrp = rplane->group;
+	struct drm_plane_state *pstate = drm_atomic_get_plane_state(plane, state);
+
+	if (IS_ERR(pstate))
+		return PTR_ERR(pstate);
 
 	if (property == rgrp->planes.alpha)
 		rcar_du_plane_set_alpha(rplane, value);
@@ -412,7 +417,8 @@ static int rcar_du_plane_set_property(struct drm_plane *plane,
 	else if (property == rgrp->planes.zpos)
 		rcar_du_plane_set_zpos(rplane, value);
 	else
-		return -EINVAL;
+		return drm_plane_set_property(plane, pstate,
+				property, value, blob_data);
 
 	return 0;
 }

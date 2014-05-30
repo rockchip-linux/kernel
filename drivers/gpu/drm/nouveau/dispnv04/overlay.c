@@ -24,6 +24,7 @@
  */
 
 #include <drm/drmP.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fourcc.h>
 
@@ -226,6 +227,10 @@ nv_set_property(struct drm_plane *plane,
 		  uint64_t value, void *blob_data)
 {
 	struct nouveau_plane *nv_plane = (struct nouveau_plane *)plane;
+	struct drm_plane_state *pstate = drm_atomic_get_plane_state(plane, state);
+
+	if (IS_ERR(pstate))
+		return PTR_ERR(pstate);
 
 	if (property == nv_plane->props.colorkey)
 		nv_plane->colorkey = value;
@@ -240,7 +245,8 @@ nv_set_property(struct drm_plane *plane,
 	else if (property == nv_plane->props.iturbt_709)
 		nv_plane->iturbt_709 = value;
 	else
-		return -EINVAL;
+		return drm_plane_set_property(plane, pstate,
+				property, value, blob_data);
 
 	if (nv_plane->set_params)
 		nv_plane->set_params(nv_plane);
