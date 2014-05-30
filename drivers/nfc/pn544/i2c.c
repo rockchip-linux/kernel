@@ -461,6 +461,12 @@ static int pn544_hci_i2c_fw_read_status(struct pn544_i2c_phy *phy)
 	}
 }
 
+static irqreturn_t pn544_irq_primary_handler(int irq, void *dev_id)
+{
+	struct pn544_i2c_phy *phy = dev_id;
+	return gpio_get_value(phy->gpio_irq) ? IRQ_WAKE_THREAD : IRQ_NONE;
+}
+
 /*
  * Reads an shdlc frame from the chip. This is not as straightforward as it
  * seems. There are cases where we could loose the frame start synchronization.
@@ -499,6 +505,8 @@ static irqreturn_t pn544_hci_i2c_irq_thread_fn(int irq, void *phy_id)
 		phy->fw_cmd_result = pn544_hci_i2c_fw_read_status(phy);
 		schedule_work(&phy->fw_work);
 	} else {
+		if (!phy->hdev)
+			return IRQ_HANDLED;
 		r = pn544_hci_i2c_read(phy, &skb);
 		if (r == -EREMOTEIO) {
 			phy->hard_fault = r;
@@ -909,7 +917,8 @@ static int pn544_hci_i2c_probe(struct i2c_client *client,
 
 	pn544_hci_i2c_platform_init(phy);
 
-	r = request_threaded_irq(client->irq, NULL, pn544_hci_i2c_irq_thread_fn,
+	r = request_threaded_irq(client->irq, pn544_irq_primary_handler,
+				 pn544_hci_i2c_irq_thread_fn,
 				 IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 				 PN544_HCI_I2C_DRIVER_NAME, phy);
 	if (r < 0) {
