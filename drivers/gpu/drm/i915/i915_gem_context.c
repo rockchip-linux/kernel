@@ -408,6 +408,7 @@ static int do_switch(struct i915_hw_context *to)
 	struct intel_ring_buffer *ring = to->ring;
 	struct i915_hw_context *from = ring->last_context;
 	u32 hw_flags = 0;
+	bool uninitialized = false;
 	int ret, i;
 
 	BUG_ON(from != NULL && from->obj != NULL && from->obj->pin_count == 0);
@@ -488,16 +489,17 @@ static int do_switch(struct i915_hw_context *to)
 		i915_gem_context_unreference(from);
 	}
 
+	uninitialized = !to->is_initialized && from == NULL;
+	to->is_initialized = true;
+
 	i915_gem_context_reference(to);
 	ring->last_context = to;
 
-	if (ring->id == RCS && !to->is_initialized && from == NULL) {
+	if (uninitialized) {
 		ret = i915_gem_render_state_init(ring);
 		if (ret)
 			DRM_ERROR("init render state: %d\n", ret);
 	}
-
-	to->is_initialized = true;
 
 	return 0;
 }
