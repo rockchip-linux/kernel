@@ -123,6 +123,14 @@ config ARM_OMAP2PLUS_CPUFREQ
 	depends on ARCH_OMAP2PLUS
 	default ARCH_OMAP2PLUS
 
+config ARM_QCOM_CPUFREQ
+	tristate "Qualcomm based"
+	depends on ARCH_QCOM
+	help
+	  This adds the CPUFreq driver for Qualcomm SoC based boards.
+
+	  If in doubt, say N.
+
 config ARM_S3C_CPUFREQ
 	bool
 	help
