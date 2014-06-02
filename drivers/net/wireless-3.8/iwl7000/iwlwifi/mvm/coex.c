@@ -109,6 +109,9 @@ int iwl_send_bt_prio_tbl(struct iwl_mvm *mvm)
 	if (!(mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_NEWBT_COEX))
 		return 0;
 
+	if (unlikely(mvm->bt_force_ant_mode != BT_FORCE_ANT_DIS))
+		return 0;
+
 	return iwl_mvm_send_cmd_pdu(mvm, BT_COEX_PRIO_TABLE, CMD_SYNC,
 				    sizeof(struct iwl_bt_coex_prio_tbl_cmd),
 				    &iwl_bt_prio_tbl);
@@ -581,6 +584,29 @@ int iwl_send_bt_init_conf(struct iwl_mvm *mvm)
 		return -ENOMEM;
 	cmd.data[0] = bt_cmd;
 
+	lockdep_assert_held(&mvm->mutex);
+
+	if (unlikely(mvm->bt_force_ant_mode != BT_FORCE_ANT_DIS)) {
+		switch (mvm->bt_force_ant_mode) {
+		case BT_FORCE_ANT_AUTO:
+			flags = BT_COEX_AUTO;
+			break;
+		case BT_FORCE_ANT_BT:
+			flags = BT_COEX_BT;
+			break;
+		case BT_FORCE_ANT_WIFI:
+			flags = BT_COEX_WIFI;
+			break;
+		default:
+			WARN_ON(1);
+			flags = 0;
+		}
+
+		bt_cmd->flags = cpu_to_le32(flags);
+		bt_cmd->valid_bit_msk = cpu_to_le32(BT_VALID_ENABLE);
+		goto send_cmd;
+	}
+
 	bt_cmd->max_kill = 5;
 	bt_cmd->bt4_antenna_isolation_thr = BT_ANTENNA_COUPLING_THRESHOLD,
 	bt_cmd->bt4_antenna_isolation = iwlwifi_mod_params.ant_coupling,
@@ -643,6 +669,7 @@ int iwl_send_bt_init_conf(struct iwl_mvm *mvm)
 	bt_cmd->kill_cts_msk =
 		cpu_to_le32(iwl_bt_cts_kill_msk[BT_KILL_MSK_DEFAULT]);
 
+send_cmd:
 	memset(&mvm->last_bt_notif, 0, sizeof(mvm->last_bt_notif));
 	memset(&mvm->last_bt_ci_cmd, 0, sizeof(mvm->last_bt_ci_cmd));
 
@@ -965,6 +992,10 @@ static void iwl_mvm_bt_coex_notif_handle(struct iwl_mvm *mvm)
 	struct iwl_bt_coex_ci_cmd cmd = {};
 	u8 ci_bw_idx;
 
+	/* Ignore updates if we are in force mode */
+	if (unlikely(mvm->bt_force_ant_mode != BT_FORCE_ANT_DIS))
+		return;
+
 	rcu_read_lock();
 	ieee80211_iterate_active_interfaces_atomic(
 					mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
@@ -1132,6 +1163,10 @@ void iwl_mvm_bt_rssi_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	lockdep_assert_held(&mvm->mutex);
 
+	/* Ignore updates if we are in force mode */
+	if (unlikely(mvm->bt_force_ant_mode != BT_FORCE_ANT_DIS))
+		return;
+
 	/*
 	 * Rssi update while not associated - can happen since the statistics
 	 * are handled asynchronously
@@ -1287,6 +1322,10 @@ int iwl_mvm_rx_ant_coupling_notif(struct iwl_mvm *mvm,
 		return 0;
 
 	lockdep_assert_held(&mvm->mutex);
+
+	/* Ignore updates if we are in force mode */
+	if (unlikely(mvm->bt_force_ant_mode != BT_FORCE_ANT_DIS))
+		return 0;
 
 	if (ant_isolation ==  mvm->last_ant_isol)
 		return 0;
