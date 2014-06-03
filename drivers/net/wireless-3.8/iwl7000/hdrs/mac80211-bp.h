@@ -291,32 +291,6 @@ static inline int cfg80211_get_chans_dfs_required(struct wiphy *wiphy,
 	return 0;
 }
 
-static inline int
-cfg80211_chandef_dfs_required(struct wiphy *wiphy,
-			      const struct cfg80211_chan_def *chandef)
-{
-	int width;
-	int r;
-
-	if (WARN_ON(!cfg80211_chandef_valid(chandef)))
-		return -EINVAL;
-
-	width = cfg80211_chandef_get_width(chandef);
-	if (width < 0)
-		return -EINVAL;
-
-	r = cfg80211_get_chans_dfs_required(wiphy, chandef->center_freq1,
-					    width);
-	if (r)
-		return r;
-
-	if (!chandef->center_freq2)
-		return 0;
-
-	return cfg80211_get_chans_dfs_required(wiphy, chandef->center_freq2,
-					       width);
-}
-
 #define cfg80211_radar_event(...) do { } while (0)
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,13,0) */
 
@@ -352,8 +326,61 @@ struct cfg80211_mgmt_tx_params {
 
 #define cfg80211_reg_can_beacon(wiphy, chandef, iftype) \
 	cfg80211_reg_can_beacon(wiphy, chandef)
-#define cfg80211_chandef_dfs_required(wiphy, chandef, iftype) \
-	cfg80211_chandef_dfs_required(wiphy, chandef)
+
+static inline int
+cfg80211_chandef_dfs_required(struct wiphy *wiphy,
+			      const struct cfg80211_chan_def *chandef,
+			      enum nl80211_iftype iftype)
+{
+	int width;
+	int ret;
+
+	if (WARN_ON(!cfg80211_chandef_valid(chandef)))
+		return -EINVAL;
+
+	switch (iftype) {
+	case NL80211_IFTYPE_ADHOC:
+	case NL80211_IFTYPE_AP:
+	case NL80211_IFTYPE_P2P_GO:
+	case NL80211_IFTYPE_MESH_POINT:
+		width = cfg80211_chandef_get_width(chandef);
+		if (width < 0)
+			return -EINVAL;
+
+		ret = cfg80211_get_chans_dfs_required(wiphy,
+						      chandef->center_freq1,
+						      width);
+		if (ret < 0)
+			return ret;
+		else if (ret > 0)
+			return BIT(chandef->width);
+
+		if (!chandef->center_freq2)
+			return 0;
+
+		ret = cfg80211_get_chans_dfs_required(wiphy,
+						      chandef->center_freq2,
+						      width);
+		if (ret < 0)
+			return ret;
+		else if (ret > 0)
+			return BIT(chandef->width);
+
+		break;
+	case NL80211_IFTYPE_STATION:
+	case NL80211_IFTYPE_P2P_CLIENT:
+	case NL80211_IFTYPE_MONITOR:
+	case NL80211_IFTYPE_AP_VLAN:
+	case NL80211_IFTYPE_WDS:
+	case NL80211_IFTYPE_P2P_DEVICE:
+		break;
+	case NL80211_IFTYPE_UNSPECIFIED:
+	case NUM_NL80211_IFTYPES:
+		WARN_ON(1);
+	}
+
+	return 0;
+}
 
 static inline int
 cfg80211_iter_combinations(struct wiphy *wiphy,
