@@ -1460,6 +1460,15 @@ mwifiex_cmd_tdls_oper(struct mwifiex_private *priv,
 			memcpy(&ht_capab->ht_cap, params->ht_capa,
 			       sizeof(struct ieee80211_ht_cap));
 			config_len += sizeof(struct mwifiex_ie_types_htcap);
+		} else if (sta_ptr->is_11n_enabled) {
+			ht_capab = (void *)(pos + config_len);
+			ht_capab->header.type =
+					    cpu_to_le16(WLAN_EID_HT_CAPABILITY);
+			ht_capab->header.len =
+				   cpu_to_le16(sizeof(struct ieee80211_ht_cap));
+			memcpy(&ht_capab->ht_cap, &sta_ptr->tdls_cap.ht_capb,
+			       sizeof(struct ieee80211_ht_cap));
+			config_len += sizeof(struct mwifiex_ie_types_htcap);
 		}
 
 		if (params->supported_rates && params->supported_rates_len) {
