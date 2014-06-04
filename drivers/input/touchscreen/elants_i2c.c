@@ -136,6 +136,7 @@ static const char recov_packet[HELLO_PACKET_LEN] = {0x55, 0x55, 0x80, 0x80};
 #define	E_ELAN_INFO_FW_VER	0x00
 #define	E_ELAN_INFO_BC_VER	0x10
 #define	E_ELAN_INFO_TEST_VER	0xE0
+#define	E_ELAN_INFO_FW_ID	0xF0
 #define	E_INFO_OSR	0xD6
 #define	E_INFO_PHY_SCAN	0xD7
 #define	E_INFO_PHY_DRIVER	0xD8
@@ -145,7 +146,7 @@ static const char recov_packet[HELLO_PACKET_LEN] = {0x55, 0x55, 0x80, 0x80};
 
 #define	ELAN_FW_PAGENUM	351
 #define	ELAN_FW_PAGESIZE	132
-#define	ELAN_FW_FILENAME	"ElanFW.fw"
+#define	ELAN_FW_FILENAME	"elants_i2c.bin"
 
 /*
  * struct multi_queue_header - used by buffer queue header
@@ -181,6 +182,7 @@ struct mt_device {
 struct elants_data {
 	bool wake_irq_enabled;
 
+	u16 fw_id;
 	u16 fw_version;
 	u8 test_version;
 	u8 solution_version;
@@ -525,20 +527,20 @@ static ssize_t show_calibrate(struct device *dev,
 		       (ret == 0) ? "calibrate finish" : "calibrate fail");
 }
 
-static ssize_t show_set_fw(struct device *dev,
-			   struct device_attribute *attr, char *buf)
+static ssize_t write_update_fw(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
 {
 	int ret;
-	u8 rbuf[32];
 	struct i2c_client *client = to_i2c_client(dev);
 
 	ret = elan_fw_update(client);
 	if (ret)
-		sprintf(rbuf, "firmware update failed.\n");
+		dev_err(dev, "firmware update failed.\n");
 	else
-		sprintf(rbuf, "firmware update succeeded.\n");
+		dev_dbg(dev, "firmware update succeeded.\n");
 
-	return scnprintf(buf, PAGE_SIZE, rbuf);
+	return ret ? ret : count;
 }
 
 static ssize_t show_fw_version_value(struct device *dev,
@@ -548,6 +550,15 @@ static ssize_t show_fw_version_value(struct device *dev,
 	struct elants_data *ts = i2c_get_clientdata(client);
 
 	return sprintf(buf, "%.4x\n", ts->fw_version);
+}
+
+static ssize_t show_hw_version_value(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	struct elants_data *ts = i2c_get_clientdata(client);
+
+	return sprintf(buf, "%.4x\n", ts->fw_id);
 }
 
 static ssize_t show_test_version_value(struct device *dev,
@@ -588,25 +599,26 @@ static ssize_t show_iap_mode(struct device *dev,
 
 static DEVICE_ATTR(calibrate, S_IRUGO, show_calibrate, NULL);
 static DEVICE_ATTR(fw_version, S_IRUGO, show_fw_version_value, NULL);
+static DEVICE_ATTR(hw_version, S_IRUGO, show_hw_version_value, NULL);
 static DEVICE_ATTR(test_version, S_IRUGO, show_test_version_value, NULL);
 static DEVICE_ATTR(bc_version, S_IRUGO, show_bc_version_value, NULL);
 static DEVICE_ATTR(drv_version, S_IRUGO, show_drv_version_value, NULL);
-static DEVICE_ATTR(fw_update, S_IRUGO, show_set_fw, NULL);
 static DEVICE_ATTR(iap_mode, S_IRUGO, show_iap_mode, NULL);
+static DEVICE_ATTR(update_fw, S_IWUSR, NULL, write_update_fw);
 
 static struct attribute *elan_attributes[] = {
 	&dev_attr_calibrate.attr,
 	&dev_attr_fw_version.attr,
+	&dev_attr_hw_version.attr,
 	&dev_attr_test_version.attr,
 	&dev_attr_bc_version.attr,
 	&dev_attr_drv_version.attr,
-	&dev_attr_fw_update.attr,
+	&dev_attr_update_fw.attr,
 	&dev_attr_iap_mode.attr,
 	NULL
 };
 
 static struct attribute_group elan_attribute_group = {
-	.name = DEVICE_NAME,
 	.attrs = elan_attributes,
 };
 
@@ -718,6 +730,52 @@ static u16 parse_version_number(u8 *buf, size_t len)
 	version_num[1] = ((buf[2] & 0x0f) << 4) | ((buf[3] & 0xf0) >> 4);
 
 	return ((u16)version_num[0] << 8) + (u16)version_num[1];
+}
+
+static int __fw_id_packet_handler(struct i2c_client *client)
+{
+	struct elants_data *ts = i2c_get_clientdata(client);
+	int rc, retry_cnt;
+	const u8 cmd[] = {CMD_HEADER_READ, E_ELAN_INFO_FW_ID, 0x00, 0x01};
+	u8 buf_recv[4] = {0x0};
+
+	ENTER_LOG();
+
+	/* Command not support in IAP recovery mode */
+	if (test_bit(LOCK_FW_UPDATE, &ts->flags))
+		return 0;
+
+	for (retry_cnt = 0; retry_cnt < MAX_RETRIES; retry_cnt++) {
+		rc = elan_i2c_read_block(client, (u8 *) cmd, buf_recv, 4);
+		if (rc < 0) {
+			elan_dbg(client,
+				 "read fw id rc=%d, buf=%*phC\n", rc, 4,
+				 buf_recv);
+		}
+
+		if (buf_recv[0] == CMD_HEADER_RESP) {
+			ts->fw_id =
+			    parse_version_number(buf_recv, sizeof(buf_recv));
+			if ((ts->fw_id == 0x0000) ||
+			    (ts->fw_id == 0xffff)) {
+				dev_err(&client->dev,
+					"FW id is empty, "
+					"suggest IAP ELAN chip\n");
+				return -EINVAL;
+			}
+		} else {
+			elan_dbg(client, "read fw retry count=%d\n", retry_cnt);
+			if (retry_cnt == MAX_RETRIES - 1) {
+				ts->fw_id = 0xffff;
+				dev_err(&client->dev,
+					"Fail to read fw id for %d times, "
+					"suggest IAP ELAN chip\n", MAX_RETRIES);
+				return -EINVAL;
+			}
+		}
+	}
+
+	return 0;
 }
 
 static int __fw_version_packet_handler(struct i2c_client *client)
@@ -957,7 +1015,7 @@ static int __elan_fastboot(struct i2c_client *client)
  *
  * client: our i2c client
  *
- * The firmware name is ElanFW.fw
+ * The firmware name is elants_i2c.bin
  * The file path is located /system/etc/firmware at Android.
  * The file path usually is located at /lib/firmware.
  */
@@ -1129,6 +1187,7 @@ static int elan_fw_update(struct i2c_client *client)
 	if (rc < 0) {
 		dev_err(&client->dev, "TS Setup handshake fail!! (%d)\n", rc);
 
+		ts->fw_id = 0xffff;
 		ts->fw_version = 0xffff;
 		ts->test_version = 0xff;
 		ts->solution_version = 0xff;
@@ -1764,9 +1823,20 @@ static int elan_initialize(struct i2c_client *client)
 			break;
 	}
 
+	rc = __fw_id_packet_handler(client);
+	if (rc < 0) {
+		dev_err(&client->dev, "firmware id checking error rc=%d\n", rc);
+
+		if (rc == -EINVAL) {
+			set_bit(LOCK_FW_UPDATE, &ts->flags);
+			ts->iap_mode = IAP_MODE_ENABLE;
+		}
+	}
+
 	rc = __fw_version_packet_handler(client);
 	if (rc < 0) {
-		dev_err(&client->dev, "firmware checking error rc=%d\n", rc);
+		dev_err(&client->dev, "firmware version checking error rc=%d\n",
+			rc);
 
 		if (rc == -EINVAL) {
 			set_bit(LOCK_FW_UPDATE, &ts->flags);
