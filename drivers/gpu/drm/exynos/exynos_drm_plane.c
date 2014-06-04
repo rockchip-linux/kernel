@@ -217,8 +217,10 @@ static void exynos_plane_destroy(struct drm_plane *plane)
 }
 
 static int exynos_plane_set_property(struct drm_plane *plane,
+				     struct drm_atomic_state *state,
 				     struct drm_property *property,
-				     uint64_t val)
+				     uint64_t val,
+				     void *blob_data)
 {
 	struct drm_device *dev = plane->dev;
 	struct exynos_plane *exynos_plane = to_exynos_plane(plane);

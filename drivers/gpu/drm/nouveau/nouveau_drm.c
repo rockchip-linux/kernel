@@ -858,6 +858,13 @@ driver = {
 	.dumb_map_offset = nouveau_display_dumb_map_offset,
 	.dumb_destroy = drm_gem_dumb_destroy,
 
+	.atomic_begin     = drm_atomic_begin,
+	.atomic_set_event = drm_atomic_set_event,
+	.atomic_check     = drm_atomic_check,
+	.atomic_commit    = drm_atomic_commit,
+	.atomic_end       = drm_atomic_end,
+	.atomic_funcs     = &drm_atomic_funcs,
+
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
 #ifdef GIT_REVISION

@@ -21,6 +21,7 @@
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_gem_cma_helper.h>
 
 #include "shmob_drm_crtc.h"
@@ -285,6 +286,12 @@ static struct drm_driver shmob_drm_driver = {
 	.dumb_create		= drm_gem_cma_dumb_create,
 	.dumb_map_offset	= drm_gem_cma_dumb_map_offset,
 	.dumb_destroy		= drm_gem_dumb_destroy,
+	.atomic_begin     = drm_atomic_begin,
+	.atomic_set_event = drm_atomic_set_event,
+	.atomic_check     = drm_atomic_check,
+	.atomic_commit    = drm_atomic_commit,
+	.atomic_end       = drm_atomic_end,
+	.atomic_funcs     = &drm_atomic_funcs,
 	.fops			= &shmob_drm_fops,
 	.name			= "shmob-drm",
 	.desc			= "Renesas SH Mobile DRM",

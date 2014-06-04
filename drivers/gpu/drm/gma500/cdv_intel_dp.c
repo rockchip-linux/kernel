@@ -1645,8 +1645,10 @@ cdv_intel_dp_detect_audio(struct drm_connector *connector)
 
 static int
 cdv_intel_dp_set_property(struct drm_connector *connector,
+		      struct drm_atomic_state *state,
 		      struct drm_property *property,
-		      uint64_t val)
+		      uint64_t val,
+		      void *blob_data)
 {
 	struct drm_psb_private *dev_priv = connector->dev->dev_private;
 	struct gma_encoder *encoder = gma_attached_encoder(connector);

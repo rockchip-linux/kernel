@@ -283,7 +283,8 @@ static void armada_plane_destroy(struct drm_plane *plane)
 }
 
 static int armada_plane_set_property(struct drm_plane *plane,
-	struct drm_property *property, uint64_t val)
+	struct drm_atomic_state *state, struct drm_property *property,
+	uint64_t val, void *blob_data)
 {
 	struct armada_private *priv = plane->dev->dev_private;
 	struct armada_plane *dplane = drm_to_armada_plane(plane);

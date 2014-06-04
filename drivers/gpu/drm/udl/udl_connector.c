@@ -115,9 +115,9 @@ udl_best_single_encoder(struct drm_connector *connector)
 	return encoder;
 }
 
-static int udl_connector_set_property(struct drm_connector *connector,
-				      struct drm_property *property,
-				      uint64_t val)
+static int udl_connector_set_property(struct drm_connector *connector, 
+			       struct drm_atomic_state *state, struct drm_property *property,
+			       uint64_t val, void *blob_data)
 {
 	return 0;
 }

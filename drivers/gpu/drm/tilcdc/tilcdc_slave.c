@@ -206,7 +206,8 @@ static struct drm_encoder *slave_connector_best_encoder(
 }
 
 static int slave_connector_set_property(struct drm_connector *connector,
-		struct drm_property *property, uint64_t value)
+		struct drm_atomic_state *state, struct drm_property *property,
+		uint64_t value, void *blob_data)
 {
 	struct drm_encoder *encoder = to_slave_connector(connector)->encoder;
 	return get_slave_funcs(encoder)->set_property(encoder,

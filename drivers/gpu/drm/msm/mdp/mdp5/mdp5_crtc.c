@@ -386,7 +386,8 @@ static int mdp5_crtc_page_flip(struct drm_crtc *crtc,
 }
 
 static int mdp5_crtc_set_property(struct drm_crtc *crtc,
-		struct drm_property *property, uint64_t val)
+		struct drm_atomic_state *state, struct drm_property *property,
+		uint64_t val, void *blob_data)
 {
 	// XXX
 	return -EINVAL;

@@ -141,8 +141,10 @@ vmw_du_connector_detect(struct drm_connector *connector, bool force);
 int vmw_du_connector_fill_modes(struct drm_connector *connector,
 				uint32_t max_width, uint32_t max_height);
 int vmw_du_connector_set_property(struct drm_connector *connector,
+				  struct drm_atomic_state *state,
 				  struct drm_property *property,
-				  uint64_t val);
+				  uint64_t val,
+				  void *blob_data);
 
 
 /*

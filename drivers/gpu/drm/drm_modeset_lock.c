@@ -66,8 +66,17 @@ void drm_modeset_acquire_init(struct drm_modeset_acquire_ctx *ctx,
 {
 	ww_acquire_init(&ctx->ww_ctx, &crtc_ww_class);
 	INIT_LIST_HEAD(&ctx->locked);
+	mutex_init(&ctx->mutex);
+	ctx->nolock = !!(flags & DRM_MODESET_ACQUIRE_NOLOCK);
+	ctx->nonblock = !!(flags & DRM_MODESET_ACQUIRE_NONBLOCK);
 }
 EXPORT_SYMBOL(drm_modeset_acquire_init);
+
+/* special version for atomic.. which needs to ww_acquire_fini() itself */
+void __drm_modeset_acquire_fini(struct drm_modeset_acquire_ctx *ctx)
+{
+	mutex_destroy(&ctx->mutex);
+}
 
 /**
  * drm_modeset_acquire_fini - cleanup acquire context
@@ -76,6 +85,7 @@ EXPORT_SYMBOL(drm_modeset_acquire_init);
 void drm_modeset_acquire_fini(struct drm_modeset_acquire_ctx *ctx)
 {
 	ww_acquire_fini(&ctx->ww_ctx);
+	__drm_modeset_acquire_fini(ctx);
 }
 EXPORT_SYMBOL(drm_modeset_acquire_fini);
 
@@ -88,6 +98,7 @@ EXPORT_SYMBOL(drm_modeset_acquire_fini);
 void drm_modeset_drop_locks(struct drm_modeset_acquire_ctx *ctx)
 {
 	WARN_ON(ctx->contended);
+	mutex_lock(&ctx->mutex);
 	while (!list_empty(&ctx->locked)) {
 		struct drm_modeset_lock *lock;
 
@@ -96,6 +107,7 @@ void drm_modeset_drop_locks(struct drm_modeset_acquire_ctx *ctx)
 
 		drm_modeset_unlock(lock);
 	}
+	mutex_unlock(&ctx->mutex);
 }
 EXPORT_SYMBOL(drm_modeset_drop_locks);
 
@@ -105,8 +117,13 @@ static inline int modeset_lock(struct drm_modeset_lock *lock,
 {
 	int ret;
 
+	if (ctx->nolock)
+		return 0;
+
+	WARN_ON(ctx->frozen);    /* all locks should be held by now! */
 	WARN_ON(ctx->contended);
 
+retry:
 	if (interruptible && slow) {
 		ret = ww_mutex_lock_slow_interruptible(&lock->mutex, &ctx->ww_ctx);
 	} else if (interruptible) {
@@ -118,6 +135,15 @@ static inline int modeset_lock(struct drm_modeset_lock *lock,
 		ret = ww_mutex_lock(&lock->mutex, &ctx->ww_ctx);
 	}
 	if (!ret) {
+		if (lock->atomic_pending) {
+			/* some other pending update with dropped locks */
+			ww_mutex_unlock(&lock->mutex);
+			if (ctx->nonblock)
+				return -EBUSY;
+			wait_event(lock->event, !lock->atomic_pending);
+			goto retry;
+		}
+		lock->atomic_pending = true;
 		WARN_ON(!list_empty(&lock->head));
 		list_add(&lock->head, &ctx->locked);
 	} else if (ret == -EALREADY) {
@@ -221,7 +247,9 @@ EXPORT_SYMBOL(drm_modeset_lock_interruptible);
 void drm_modeset_unlock(struct drm_modeset_lock *lock)
 {
 	list_del_init(&lock->head);
+	lock->atomic_pending = false;
 	ww_mutex_unlock(&lock->mutex);
+	wake_up_all(&lock->event);
 }
 EXPORT_SYMBOL(drm_modeset_unlock);
 

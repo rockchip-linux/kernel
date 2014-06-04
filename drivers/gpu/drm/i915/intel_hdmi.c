@@ -1052,8 +1052,10 @@ intel_hdmi_detect_audio(struct drm_connector *connector)
 
 static int
 intel_hdmi_set_property(struct drm_connector *connector,
+			struct drm_atomic_state *state,
 			struct drm_property *property,
-			uint64_t val)
+			uint64_t val,
+			void *blob_data)
 {
 	struct intel_hdmi *intel_hdmi = intel_attached_hdmi(connector);
 	struct intel_digital_port *intel_dig_port =

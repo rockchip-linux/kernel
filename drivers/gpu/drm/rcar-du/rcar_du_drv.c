@@ -21,6 +21,7 @@
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_gem_cma_helper.h>
 
@@ -175,6 +176,12 @@ static struct drm_driver rcar_du_driver = {
 	.dumb_create		= rcar_du_dumb_create,
 	.dumb_map_offset	= drm_gem_cma_dumb_map_offset,
 	.dumb_destroy		= drm_gem_dumb_destroy,
+	.atomic_begin     = drm_atomic_begin,
+	.atomic_set_event = drm_atomic_set_event,
+	.atomic_check     = drm_atomic_check,
+	.atomic_commit    = drm_atomic_commit,
+	.atomic_end       = drm_atomic_end,
+	.atomic_funcs     = &drm_atomic_funcs,
 	.fops			= &rcar_du_fops,
 	.name			= "rcar-du",
 	.desc			= "Renesas R-Car Display Unit",

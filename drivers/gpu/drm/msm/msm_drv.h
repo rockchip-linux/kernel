@@ -49,6 +49,7 @@ static inline struct device *msm_iommu_get_ctx(const char *ctx_name)
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_fb_helper.h>
+#include <drm/drm_atomic.h>
 #include <drm/msm_drm.h>
 
 struct msm_kms;

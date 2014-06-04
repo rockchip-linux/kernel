@@ -519,6 +519,12 @@ static struct drm_driver tilcdc_driver = {
 	.dumb_create        = drm_gem_cma_dumb_create,
 	.dumb_map_offset    = drm_gem_cma_dumb_map_offset,
 	.dumb_destroy       = drm_gem_dumb_destroy,
+	.atomic_begin       = drm_atomic_begin,
+	.atomic_set_event   = drm_atomic_set_event,
+	.atomic_check       = drm_atomic_check,
+	.atomic_commit      = drm_atomic_commit,
+	.atomic_end         = drm_atomic_end,
+	.atomic_funcs       = &drm_atomic_funcs,
 #ifdef CONFIG_DEBUG_FS
 	.debugfs_init       = tilcdc_debugfs_init,
 	.debugfs_cleanup    = tilcdc_debugfs_cleanup,

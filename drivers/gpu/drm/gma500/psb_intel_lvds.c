@@ -569,8 +569,10 @@ void psb_intel_lvds_destroy(struct drm_connector *connector)
 }
 
 int psb_intel_lvds_set_property(struct drm_connector *connector,
+				       struct drm_atomic_state *state,
 				       struct drm_property *property,
-				       uint64_t value)
+				       uint64_t value,
+				       void *blob_data)
 {
 	struct drm_encoder *encoder = connector->encoder;
 

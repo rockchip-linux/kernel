@@ -54,7 +54,8 @@ static void armada_drm_connector_destroy(struct drm_connector *conn)
 }
 
 static int armada_drm_connector_set_property(struct drm_connector *conn,
-	struct drm_property *property, uint64_t value)
+	struct drm_atomic_state *state, struct drm_property *property,
+	uint64_t value, void *blob_data)
 {
 	struct armada_connector *dconn = drm_to_armada_conn(conn);
 

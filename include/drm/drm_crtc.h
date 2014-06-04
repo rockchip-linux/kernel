@@ -334,6 +334,8 @@ struct drm_encoder;
 struct drm_pending_vblank_event;
 struct drm_plane;
 struct drm_bridge;
+struct drm_atomic_state;
+struct drm_atomic_funcs;
 
 /**
  * drm_crtc_funcs - control CRTCs for a given device
@@ -396,7 +398,9 @@ struct drm_crtc_funcs {
 			 uint32_t flags);
 
 	int (*set_property)(struct drm_crtc *crtc,
-			    struct drm_property *property, uint64_t val);
+			    struct drm_atomic_state *state,
+			    struct drm_property *property, uint64_t val,
+			    void *blob_data);
 };
 
 /**
@@ -515,8 +519,9 @@ struct drm_connector_funcs {
 	enum drm_connector_status (*detect)(struct drm_connector *connector,
 					    bool force);
 	int (*fill_modes)(struct drm_connector *connector, uint32_t max_width, uint32_t max_height);
-	int (*set_property)(struct drm_connector *connector, struct drm_property *property,
-			     uint64_t val);
+	int (*set_property)(struct drm_connector *connector,
+			struct drm_atomic_state *state,
+			struct drm_property *property, uint64_t val, void *blob_data);
 	void (*destroy)(struct drm_connector *connector);
 	void (*force)(struct drm_connector *connector);
 };
@@ -694,7 +699,9 @@ struct drm_plane_funcs {
 	void (*destroy)(struct drm_plane *plane);
 
 	int (*set_property)(struct drm_plane *plane,
-			    struct drm_property *property, uint64_t val);
+			    struct drm_atomic_state *state,
+			    struct drm_property *property, uint64_t val,
+			    void *blob_data);
 };
 
 enum drm_plane_type {

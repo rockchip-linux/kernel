@@ -38,6 +38,7 @@
 #include <drm/drm_edid.h>
 #include <drm/drm_fourcc.h>
 #include <drm/drm_modeset_lock.h>
+#include <drm/drm_atomic.h>
 
 static struct drm_framebuffer *add_framebuffer_internal(struct drm_device *dev,
 							struct drm_mode_fb_cmd2 *r,
@@ -4058,20 +4059,21 @@ int drm_mode_connector_property_set_ioctl(struct drm_device *dev,
 	return drm_mode_obj_set_property_ioctl(dev, &obj_set_prop, file_priv);
 }
 
-static int drm_mode_connector_set_obj_prop(struct drm_mode_object *obj,
-					   struct drm_property *property,
-					   uint64_t value)
+static int drm_mode_connector_set_obj_prop(struct drm_connector *connector,
+					   struct drm_atomic_state *state, struct drm_property *property,
+					   uint64_t value, void *blob_data)
 {
 	int ret = -EINVAL;
-	struct drm_connector *connector = obj_to_connector(obj);
 
 	/* Do DPMS ourselves */
 	if (property == connector->dev->mode_config.dpms_property) {
 		if (connector->funcs->dpms)
 			(*connector->funcs->dpms)(connector, (int)value);
 		ret = 0;
-	} else if (connector->funcs->set_property)
-		ret = connector->funcs->set_property(connector, property, value);
+	} else if (connector->funcs->set_property) {
+		ret = connector->funcs->set_property(connector, state,
+				property, value, blob_data);
+	}
 
 	/* store the property value if successful */
 	if (!ret)
@@ -4079,38 +4081,90 @@ static int drm_mode_connector_set_obj_prop(struct drm_mode_object *obj,
 	return ret;
 }
 
-static int drm_mode_crtc_set_obj_prop(struct drm_mode_object *obj,
-				      struct drm_property *property,
-				      uint64_t value)
+static int drm_mode_crtc_set_obj_prop(struct drm_crtc *crtc,
+				      struct drm_atomic_state *state, struct drm_property *property,
+				      uint64_t value, void *blob_data)
 {
 	int ret = -EINVAL;
-	struct drm_crtc *crtc = obj_to_crtc(obj);
 
 	if (crtc->funcs->set_property)
-		ret = crtc->funcs->set_property(crtc, property, value);
+		ret = crtc->funcs->set_property(crtc, state, property,
+				value, blob_data);
 	if (!ret)
-		drm_object_property_set_value(obj, property, value);
+		drm_object_property_set_value(&crtc->base, property, value);
 
 	return ret;
 }
 
-static int drm_mode_plane_set_obj_prop(struct drm_mode_object *obj,
-				      struct drm_property *property,
-				      uint64_t value)
+static int drm_mode_plane_set_obj_prop(struct drm_plane *plane,
+				      struct drm_atomic_state *state, struct drm_property *property,
+				      uint64_t value, void *blob_data)
 {
 	int ret = -EINVAL;
-	struct drm_plane *plane = obj_to_plane(obj);
 
 	if (plane->funcs->set_property)
-		ret = plane->funcs->set_property(plane, property, value);
+		ret = plane->funcs->set_property(plane, state, property,
+				value, blob_data);
 	if (!ret)
-		drm_object_property_set_value(obj, property, value);
+		drm_object_property_set_value(&plane->base, property, value);
 
 	return ret;
+}
+
+static int drm_mode_set_obj_prop(struct drm_device *dev,
+		struct drm_mode_object *obj, struct drm_atomic_state *state,
+		struct drm_property *property, uint64_t value, void *blob_data)
+{
+	if (drm_property_change_is_valid(property, value)) {
+		switch (obj->type) {
+		case DRM_MODE_OBJECT_CONNECTOR:
+			return drm_mode_connector_set_obj_prop(obj_to_connector(obj),
+					state, property, value, blob_data);
+		case DRM_MODE_OBJECT_CRTC:
+			return drm_mode_crtc_set_obj_prop(obj_to_crtc(obj),
+					state, property, value, blob_data);
+		case DRM_MODE_OBJECT_PLANE:
+			return drm_mode_plane_set_obj_prop(obj_to_plane(obj),
+					state, property, value, blob_data);
+		}
+	}
+
+	return -EINVAL;
+}
+
+/* call with mode_config mutex held */
+static int drm_mode_set_obj_prop_id(struct drm_device *dev,
+		struct drm_atomic_state *state,
+		uint32_t obj_id, uint32_t obj_type,
+		uint32_t prop_id, uint64_t value, void *blob_data)
+{
+	struct drm_mode_object *arg_obj;
+	struct drm_property *property;
+	int i;
+
+	arg_obj = drm_mode_object_find(dev, obj_id, obj_type);
+	if (!arg_obj)
+		return -ENOENT;
+	if (!arg_obj->properties)
+		return -EINVAL;
+
+	for (i = 0; i < arg_obj->properties->count; i++)
+		if (arg_obj->properties->ids[i] == prop_id)
+			break;
+
+	if (i == arg_obj->properties->count)
+		return -EINVAL;
+
+	property = drm_property_find(dev, prop_id);
+	if (!property)
+		return -ENOENT;
+
+	return drm_mode_set_obj_prop(dev, arg_obj, state, property,
+			value, blob_data);
 }
 
 /**
- * drm_mode_getproperty_ioctl - get the current value of a object's property
+ * drm_mode_obj_get_properties_ioctl - get the current value of a object's property
  * @dev: DRM device
  * @data: ioctl data
  * @file_priv: DRM file info
@@ -4200,58 +4254,41 @@ int drm_mode_obj_set_property_ioctl(struct drm_device *dev, void *data,
 				    struct drm_file *file_priv)
 {
 	struct drm_mode_obj_set_property *arg = data;
-	struct drm_mode_object *arg_obj;
-	struct drm_mode_object *prop_obj;
-	struct drm_property *property;
+	struct drm_mode_config *config = &dev->mode_config;
+	struct drm_atomic_state *state;
 	int ret = -EINVAL;
-	int i;
 
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-	drm_modeset_lock_all(dev);
+retry:
+	state = dev->driver->atomic_begin(dev, 0);
+	if (IS_ERR(state))
+		return PTR_ERR(state);
 
-	arg_obj = drm_mode_object_find(dev, arg->obj_id, arg->obj_type);
-	if (!arg_obj) {
-		ret = -ENOENT;
+	ret = drm_modeset_lock(&config->connection_mutex, &state->acquire_ctx);
+	if (ret)
 		goto out;
-	}
-	if (!arg_obj->properties)
-		goto out;
-
-	for (i = 0; i < arg_obj->properties->count; i++)
-		if (arg_obj->properties->ids[i] == arg->prop_id)
-			break;
-
-	if (i == arg_obj->properties->count)
+	ret = drm_modeset_lock_all_crtcs(dev, &state->acquire_ctx);
+	if (ret)
 		goto out;
 
-	prop_obj = drm_mode_object_find(dev, arg->prop_id,
-					DRM_MODE_OBJECT_PROPERTY);
-	if (!prop_obj) {
-		ret = -ENOENT;
-		goto out;
-	}
-	property = obj_to_property(prop_obj);
-
-	if (!drm_property_change_is_valid(property, arg->value))
+	ret = drm_mode_set_obj_prop_id(dev, state,
+			arg->obj_id, arg->obj_type,
+			arg->prop_id, arg->value, NULL);
+	if (ret)
 		goto out;
 
-	switch (arg_obj->type) {
-	case DRM_MODE_OBJECT_CONNECTOR:
-		ret = drm_mode_connector_set_obj_prop(arg_obj, property,
-						      arg->value);
-		break;
-	case DRM_MODE_OBJECT_CRTC:
-		ret = drm_mode_crtc_set_obj_prop(arg_obj, property, arg->value);
-		break;
-	case DRM_MODE_OBJECT_PLANE:
-		ret = drm_mode_plane_set_obj_prop(arg_obj, property, arg->value);
-		break;
-	}
+	ret = dev->driver->atomic_check(dev, state);
+	if (ret)
+		goto out;
+
+	ret = dev->driver->atomic_commit(dev, state);
 
 out:
-	drm_modeset_unlock_all(dev);
+	dev->driver->atomic_end(dev, state);
+	if (ret == -EDEADLK)
+		goto retry;
 	return ret;
 }
 

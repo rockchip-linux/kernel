@@ -777,6 +777,12 @@ static struct drm_driver msm_driver = {
 	.gem_prime_import_sg_table = msm_gem_prime_import_sg_table,
 	.gem_prime_vmap     = msm_gem_prime_vmap,
 	.gem_prime_vunmap   = msm_gem_prime_vunmap,
+	.atomic_begin       = drm_atomic_begin,
+	.atomic_set_event   = drm_atomic_set_event,
+	.atomic_check       = drm_atomic_check,
+	.atomic_commit      = drm_atomic_commit,
+	.atomic_end         = drm_atomic_end,
+	.atomic_funcs       = &drm_atomic_funcs,
 #ifdef CONFIG_DEBUG_FS
 	.debugfs_init       = msm_debugfs_init,
 	.debugfs_cleanup    = msm_debugfs_cleanup,

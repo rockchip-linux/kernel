@@ -960,7 +960,8 @@ static int armada_drm_crtc_page_flip(struct drm_crtc *crtc,
 
 static int
 armada_drm_crtc_set_property(struct drm_crtc *crtc,
-	struct drm_property *property, uint64_t val)
+	struct drm_atomic_state *state, struct drm_property *property,
+	uint64_t val, void *blob_data)
 {
 	struct armada_private *priv = crtc->dev->dev_private;
 	struct armada_crtc *dcrtc = drm_to_armada_crtc(crtc);

@@ -986,6 +986,86 @@ struct drm_driver {
 			    struct drm_device *dev,
 			    uint32_t handle);
 
+	/*
+	 * Atomic functions:
+	 */
+
+	/**
+	 * atomic_begin - start a sequence of atomic updates
+	 * @dev: DRM device
+	 * @flags: the modifier flags that userspace has requested
+	 *
+	 * Begin a sequence of atomic property sets.  Returns a driver
+	 * private state object that is passed back into the various
+	 * object's set_property() fxns, and into the remainder of the
+	 * atomic funcs.  The state object should accumulate the changes
+	 * from one o more set_property()'s.  At the end, the state can
+	 * be checked, and optionally committed.
+	 *
+	 * RETURNS
+	 *   a driver state object, which is passed back in to the
+	 *   various other atomic fxns, or error (such as -EBUSY if
+	 *   there is still a pending async update)
+	 */
+	struct drm_atomic_state *(*atomic_begin)(struct drm_device *dev, uint32_t flags);
+
+	/**
+	 * atomic_set_event - set a pending event on mode object
+	 * @dev: DRM device
+	 * @state: the driver state object
+	 * @obj: the object to set the event on
+	 * @event: the event to send back
+	 *
+	 * Set pending event for an update on the specified object.  The
+	 * event is to be sent back to userspace after the update completes.
+	 */
+	int (*atomic_set_event)(struct drm_device *dev,
+			struct drm_atomic_state *state, struct drm_mode_object *obj,
+			struct drm_pending_vblank_event *event);
+
+	/**
+	 * atomic_check - validate state object
+	 * @dev: DRM device
+	 * @state: the driver state object
+	 *
+	 * Check the state object to see if the requested state is
+	 * physically possible.
+	 *
+	 * RETURNS
+	 * Zero for success or -errno
+	 */
+	int (*atomic_check)(struct drm_device *dev,
+			struct drm_atomic_state *state);
+
+	/**
+	 * atomic_commit - commit state
+	 * @dev: DRM device
+	 * @state: the driver state object
+	 *
+	 * Commit the state.  This will only be called if atomic_check()
+	 * succeeds.
+	 *
+	 * RETURNS
+	 * Zero for success or -errno
+	 */
+	int (*atomic_commit)(struct drm_device *dev,
+			struct drm_atomic_state *state);
+
+	/**
+	 * atomic_end - conclude the atomic update
+	 * @dev: DRM device
+	 * @state: the driver state object
+
+	 * Release resources associated with the state object.
+	 */
+	void (*atomic_end)(struct drm_device *dev,
+			struct drm_atomic_state *state);
+
+	/**
+	 * Funcs used by drm-atomic-helpers
+	 */
+	const struct drm_atomic_funcs *atomic_funcs;
+
 	/* Driver private ops for this object */
 	const struct vm_operations_struct *gem_vm_ops;
 

@@ -25,6 +25,7 @@
 #include <linux/types.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_atomic.h>
 #include <drm/omap_drm.h>
 #include <linux/platform_data/omap_drm.h>
 
@@ -177,7 +178,8 @@ int omap_plane_mode_set(struct drm_plane *plane,
 void omap_plane_install_properties(struct drm_plane *plane,
 		struct drm_mode_object *obj);
 int omap_plane_set_property(struct drm_plane *plane,
-		struct drm_property *property, uint64_t val);
+		struct drm_atomic_state *state, struct drm_property *property,
+		uint64_t val, void *blob_data);
 
 struct drm_encoder *omap_encoder_init(struct drm_device *dev,
 		struct omap_dss_device *dssdev);

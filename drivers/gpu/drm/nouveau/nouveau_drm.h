@@ -29,6 +29,7 @@
 #include <subdev/vm.h>
 
 #include <drmP.h>
+#include <drm/drm_atomic.h>
 #include <drm/nouveau_drm.h>
 
 #include <drm/ttm/ttm_bo_api.h>

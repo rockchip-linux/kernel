@@ -397,8 +397,10 @@ done:
 }
 
 static int rcar_du_plane_set_property(struct drm_plane *plane,
+				      struct drm_atomic_state *state,
 				      struct drm_property *property,
-				      uint64_t value)
+				      uint64_t value,
+				      void *blob_data)
 {
 	struct rcar_du_plane *rplane = to_rcar_plane(plane);
 	struct rcar_du_group *rgrp = rplane->group;

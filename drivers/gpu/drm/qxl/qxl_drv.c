@@ -34,6 +34,7 @@
 #include "drmP.h"
 #include "drm/drm.h"
 #include "drm_crtc_helper.h"
+#include "drm_atomic.h"
 #include "qxl_drv.h"
 #include "qxl_object.h"
 
@@ -221,6 +222,14 @@ static struct drm_driver qxl_driver = {
 	.dumb_create = qxl_mode_dumb_create,
 	.dumb_map_offset = qxl_mode_dumb_mmap,
 	.dumb_destroy = drm_gem_dumb_destroy,
+
+	.atomic_begin     = drm_atomic_begin,
+	.atomic_set_event = drm_atomic_set_event,
+	.atomic_check     = drm_atomic_check,
+	.atomic_commit    = drm_atomic_commit,
+	.atomic_end       = drm_atomic_end,
+	.atomic_funcs     = &drm_atomic_funcs,
+
 #if defined(CONFIG_DEBUG_FS)
 	.debugfs_init = qxl_debugfs_init,
 	.debugfs_cleanup = qxl_debugfs_takedown,

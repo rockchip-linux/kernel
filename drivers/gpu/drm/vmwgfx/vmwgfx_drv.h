@@ -30,6 +30,7 @@
 
 #include "vmwgfx_reg.h"
 #include <drm/drmP.h>
+#include <drm/drm_atomic.h>
 #include <drm/vmwgfx_drm.h>
 #include <drm/drm_hashtab.h>
 #include <linux/suspend.h>
