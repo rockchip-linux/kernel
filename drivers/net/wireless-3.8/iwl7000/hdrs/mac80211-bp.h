@@ -94,12 +94,14 @@ ieee80211_operating_class_to_band(u8 operating_class,
 #define NL80211_FEATURE_USERSPACE_MPM 0
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,10,0) */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,11,0)
+#define IEEE80211_RADIOTAP_MCS_HAVE_STBC 0
+#endif
+
 #if CFG80211_VERSION < KERNEL_VERSION(3,11,0)
 #define IEEE80211_MAX_CHAINS 4
 
 #define MONITOR_FLAG_ACTIVE 0
-
-#define IEEE80211_RADIOTAP_MCS_HAVE_STBC 0
 
 static inline void cfg80211_rx_unprot_mlme_mgmt(struct net_device *dev,
 						void *data, int len)
@@ -167,10 +169,12 @@ ieee80211_chandef_rate_flags(struct cfg80211_chan_def *chandef)
 #define cfg80211_sched_scan_stopped_rtnl cfg80211_sched_scan_stopped
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,11,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(3,12,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,12,0)
 #define IEEE80211_CHAN_HALF 0
 #define IEEE80211_CHAN_QUARTER 0
+#endif
 
+#if CFG80211_VERSION < KERNEL_VERSION(3,12,0)
 static inline int
 ieee80211_chandef_max_power(struct cfg80211_chan_def *chandef)
 {
