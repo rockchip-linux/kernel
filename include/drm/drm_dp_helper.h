@@ -466,6 +466,7 @@ struct drm_dp_aux_msg {
  * struct drm_dp_aux - DisplayPort AUX channel
  * @ddc: I2C adapter that can be used for I2C-over-AUX communication
  * @dev: pointer to struct device that is the parent for this AUX channel
+ * @hw_mutex: internal mutex used for locking transfers
  * @transfer: transfers a message representing a single AUX transaction
  *
  * The .dev field should be set to a pointer to the device that implements
@@ -498,7 +499,7 @@ struct drm_dp_aux {
 	const char *name;
 	struct i2c_adapter ddc;
 	struct device *dev;
-
+	struct mutex hw_mutex;
 	ssize_t (*transfer)(struct drm_dp_aux *aux,
 			    struct drm_dp_aux_msg *msg);
 };
@@ -557,8 +558,8 @@ int drm_dp_link_probe(struct drm_dp_aux *aux, struct drm_dp_link *link);
 int drm_dp_link_power_up(struct drm_dp_aux *aux, struct drm_dp_link *link);
 int drm_dp_link_configure(struct drm_dp_aux *aux, struct drm_dp_link *link);
 
-int drm_dp_aux_register_i2c_bus(struct drm_dp_aux *aux);
-void drm_dp_aux_unregister_i2c_bus(struct drm_dp_aux *aux);
+int drm_dp_aux_register(struct drm_dp_aux *aux);
+void drm_dp_aux_unregister(struct drm_dp_aux *aux);
 
 #define DP_APPLE_OUI 0x10fa
 #define DP_PS8617_OUI 0x1cf8
