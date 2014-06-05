@@ -69,12 +69,15 @@ MODULE_LICENSE("GPL");
 #define BUTTON_MIDDLE_MASK (1 << BUTTON_MIDDLE)
 #define BUTTON_MIDDLE_ALT_MASK (1 << BUTTON_MIDDLE_ALT)
 
+#define UNIFYING_KBD_INPUT_REPORT_SIZE 8
+
 #define ARRAYSIZE(array) (sizeof(array) / sizeof(*(array)))
 
 /* Supported Devices */
 static const struct hid_device_id wtp_devices[] = {
 	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD) },
 	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_WIRELESS_TOUCHPAD_T650) },
+	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_ALLINONE_KBD_TK820) },
 	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_ZONE_MOUSE_T400) },
 	{HID_DJ_DEVICE(USB_VENDOR_ID_LOGITECH, UNIFYING_DEVICE_ID_TOUCH_MOUSE_T620) },
 	{HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_LOGITECH, USB_DEVICE_ID_WIRELESS_TOUCHPAD_T651) },
@@ -105,6 +108,9 @@ struct wtp_event {
 	/* bitmask of button states. 1=down, 0=up. */
 	u8 buttons;
 
+	/* stores an incoming keyboard report to transmit to hid_input */
+	u8 kbd_report[UNIFYING_KBD_INPUT_REPORT_SIZE];
+
 	/* bitmask of buttons included within this event */
 	u8 has_buttons;
 
@@ -113,6 +119,9 @@ struct wtp_event {
 
 	/* true if this event includes mouse movement data */
 	bool has_rel:1;
+
+	/* true if this event includes keyboard input */
+	bool has_keys:1;
 
 	/* false if there are events following with more data,
 		true if this is the last one */
@@ -224,6 +233,13 @@ static void generic_parse_mouse_rel(u8 *raw,
 	event->has_rel = true;
 }
 
+static void generic_parse_kbd_keys(u8 *raw,
+	     struct wtp_event *event) {
+	dbg_hid("%s\n", __func__);
+	memcpy(event->kbd_report, raw, UNIFYING_KBD_INPUT_REPORT_SIZE);
+	event->has_keys = true;
+}
+
 /*
 	TouchPadRawXY (TPRXY) Feature
 */
@@ -315,7 +331,12 @@ static int tprxy_parse_other_event(struct wtp_data *wtp,
 	u8 *raw = (u8 *)report;
 	u8 *buf = &report->rap.params[0];
 
-	dbg_hid("%s\n", __func__);
+	dbg_hid("%s:report_id:%x\n", __func__,report->report_id);
+
+	if (report->report_id == GENERIC_EVENT_KEYBOARD) {
+		generic_parse_kbd_keys(&raw[0], event);
+		return 0;
+	}
 
 	if (report->report_id != GENERIC_EVENT_MOUSE)
 		return -1;
@@ -671,6 +692,14 @@ static int wtp_process_event(struct hidpp_device *hidpp_dev,
 			get_bit(fd->buttons, BUTTON_MIDDLE_ALT));
 	}
 
+	if (event->has_keys) {
+		hid_report_raw_event(hidpp_dev->hid_dev, HID_INPUT_REPORT,
+				event->kbd_report, UNIFYING_KBD_INPUT_REPORT_SIZE, 1);
+		input_sync(fd->input);
+		return 1;
+	}
+
+
 	/* report relative mouse movement */
 	if (event->has_rel) {
 		dbg_hid("REL: (%d, %d)\n", event->rel_x, event->rel_y);
@@ -747,6 +776,10 @@ static int wtp_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	int res_x_mm, res_y_mm;
 
 	dbg_hid("%s:\n", __func__);
+
+	if ( ((usage->hid & HID_USAGE_PAGE) == HID_UP_KEYBOARD) ||
+		((usage->hid & HID_USAGE_PAGE) == HID_UP_LED) )
+		return 0;
 
 	if ((usage->hid & HID_USAGE_PAGE) != HID_UP_BUTTON)
 		return -1;
