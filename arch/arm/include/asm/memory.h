@@ -158,6 +158,7 @@
  */
 #ifndef PLAT_PHYS_OFFSET
 #define PLAT_PHYS_OFFSET	UL(CONFIG_PHYS_OFFSET)
+#endif
 
 /* Max physical memory supported */
 #ifndef MAX_PHYSMEM_BITS
