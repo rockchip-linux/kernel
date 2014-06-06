@@ -94,11 +94,12 @@ static int vbc_blk_access(struct page *page, sector_t sector, bool is_read)
 		err = -ENOMEM;
 		goto unwind_bdev;
 	}
-	bio->bi_bdev	= bdev;
-	bio->bi_sector	= sector;
-	bio->bi_vcnt	= 1;
-	bio->bi_idx	= 0;
-	bio->bi_size	= SECTOR_SIZE;
+	bio->bi_bdev			= bdev;
+	bio->bi_iter.bi_sector		= sector;
+	bio->bi_iter.bi_idx		= 0;
+	bio->bi_iter.bi_size		= SECTOR_SIZE;
+	bio->bi_iter.bi_bvec_done	= 0;
+	bio->bi_vcnt			= 1;
 	bio->bi_io_vec[0].bv_page	= page;
 	bio->bi_io_vec[0].bv_len	= SECTOR_SIZE;
 	bio->bi_io_vec[0].bv_offset	= 0;
