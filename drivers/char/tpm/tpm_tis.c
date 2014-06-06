@@ -380,6 +380,7 @@ struct tis_vendor_timeout_override {
 
 static struct tis_vendor_timeout_override vendor_timeout_overrides[] = {
 	{ 0x32041114, { 50000, 50000, 50000, 50000 } }, /* Atmel 3204 */
+	{ 0x53544d20, { 4000000, 4000000, 4000000, 4000000 } }, /* STMicro */
 };
 
 static void report_updated_timeout(struct tpm_chip *chip, const char *id,
