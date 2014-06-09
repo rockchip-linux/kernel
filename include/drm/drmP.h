@@ -270,8 +270,6 @@ int drm_err(const char *func, const char *format, ...);
 /** \name Internal types and structures */
 /*@{*/
 
-#define DRM_ARRAY_SIZE(x) ARRAY_SIZE(x)
-
 #define DRM_IF_VERSION(maj, min) (maj << 16 | min)
 
 /**
