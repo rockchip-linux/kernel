@@ -191,11 +191,6 @@ enum cyapa_state {
 	CYAPA_STATE_NO_DEVICE,
 };
 
-enum lid_state {
-	LID_UNKNOWN,
-	LID_OPEN,
-	LID_CLOSED
-};
 
 struct cyapa_touch {
 	/*
@@ -276,9 +271,6 @@ struct cyapa {
 
 	/* Buffer to store firmware read using debugfs */
 	u8 *read_fw_image;
-
-	/* lid state */
-	enum lid_state lid;
 };
 
 static const u8 bl_activate[] = { 0x00, 0xff, 0x38, 0x00, 0x01, 0x02, 0x03,
@@ -408,7 +400,6 @@ static const struct cyapa_cmd_len cyapa_smbus_cmds[] = {
 #define CYAPA_CMD_LEN		16
 
 static void cyapa_detect(struct cyapa *cyapa);
-static int cyapa_resume(struct device *dev);
 
 #define BYTE_PER_LINE  8
 void cyapa_dump_data(struct cyapa *cyapa, size_t length, const u8 *data)
@@ -2155,15 +2146,12 @@ static bool lid_event_filter(struct input_handle *handle,
 			     unsigned int type, unsigned int code, int value)
 {
 	struct cyapa *cyapa = handle->private;
-	struct input_dev *input_dev = cyapa->input;
 	struct device *dev = &cyapa->client->dev;
 
 	if (type == EV_SW && code == SW_LID) {
 		pr_info("cyapa %s: %s touch device\n",
 			dev_name(&cyapa->client->dev),
 			(value ? "disable" : "enable"));
-		mutex_lock(&input_dev->mutex);
-		cyapa->lid = (value ? LID_CLOSED : LID_OPEN);
 		if (cyapa->suspended) {
 			/*
 			 * If the lid event filter is called while suspended,
@@ -2175,9 +2163,6 @@ static bool lid_event_filter(struct input_handle *handle,
 			 */
 			pr_info("cyapa %s: skipping lid pm change in suspend\n",
 				dev_name(&cyapa->client->dev));
-			if (cyapa->lid == LID_OPEN)
-				cyapa_resume(dev);
-			mutex_unlock(&input_dev->mutex);
 			return false;
 		}
 		if (value == 0) {
@@ -2188,7 +2173,6 @@ static bool lid_event_filter(struct input_handle *handle,
 			pm_runtime_disable(dev);
 			cyapa_set_power_mode(cyapa, PWR_MODE_OFF);
 		}
-		mutex_unlock(&input_dev->mutex);
 	}
 
 	return false;
@@ -2267,7 +2251,6 @@ static int cyapa_probe(struct i2c_client *client,
 	cyapa->debug = false;
 	cyapa->gen = CYAPA_GEN3;
 	cyapa->client = client;
-	cyapa->lid = LID_UNKNOWN;
 	i2c_set_clientdata(client, cyapa);
 	sprintf(cyapa->phys, "i2c-%d-%04x/input0", client->adapter->nr,
 		client->addr);
@@ -2376,10 +2359,6 @@ static int cyapa_resume(struct device *dev)
 	int ret;
 	struct cyapa *cyapa = dev_get_drvdata(dev);
 	cyapa_dbg(cyapa, "======< cyapa_resume >======");
-
-	/* Do not activate touchpad if lid is closed */
-	if (cyapa->lid == LID_CLOSED)
-		return 0;
 
 	if (device_may_wakeup(dev) && cyapa->irq_wake)
 		disable_irq_wake(cyapa->irq);
