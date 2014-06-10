@@ -1,6 +1,5 @@
 config GOOGLE_FIRMWARE
 	bool "Google Firmware Drivers"
-	depends on X86
 	default n
 	help
 	  These firmware drivers are used by Google's servers.  They are
@@ -12,7 +11,7 @@ menu "Google Firmware Drivers"
 
 config GOOGLE_SMI
 	tristate "SMI interface for Google platforms"
-	depends on ACPI && DMI
+	depends on X86 && ACPI && DMI
 	help
 	  Say Y here if you want to enable SMI callbacks for Google
 	  platforms.  This provides an interface for writing to and
@@ -20,12 +19,20 @@ config GOOGLE_SMI
 	  driver provides an interface for reading and writing NVRAM
 	  variables.
 
-config GOOGLE_MEMCONSOLE
-	tristate "Firmware Memory Console"
-	depends on DMI
+config GOOGLE_MEMCONSOLE_X86
+	tristate "Firmware Memory Console - X86"
+	depends on X86 && ACPI && DMI
 	help
 	  This option enables the kernel to search for a firmware log in
-	  the EBDA on Google servers.  If found, this log is exported to
-	  userland in the file /sys/firmware/log.
+	  the EBDA / ACPI on Google servers on x86.  If found, this log is
+	  exported to userland in the file /sys/firmware/log.
+
+config GOOGLE_MEMCONSOLE_OF
+	tristate "Firmware Memory Console - OF"
+	depends on OF
+	help
+	  This option enables the kernel to search for a firmware log on
+	  coreboot platforms using device tree.  If found, this log is exported
+	  to userland in the file /sys/firmware/log.
 
 endmenu
