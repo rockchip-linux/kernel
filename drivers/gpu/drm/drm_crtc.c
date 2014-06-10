@@ -689,7 +689,7 @@ EXPORT_SYMBOL(drm_framebuffer_remove);
  */
 int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 			      struct drm_plane *primary,
-			      void *cursor,
+			      struct drm_plane *cursor,
 			      const struct drm_crtc_funcs *funcs)
 {
 	int ret;
@@ -712,8 +712,11 @@ int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 	dev->mode_config.num_crtc++;
 
 	crtc->primary = primary;
+	crtc->cursor = cursor;
 	if (primary)
 		primary->possible_crtcs = 1 << drm_crtc_index(crtc);
+	if (cursor)
+		cursor->possible_crtcs = 1 << drm_crtc_index(crtc);
 
  out:
 	drm_modeset_unlock_all(dev);
