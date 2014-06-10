@@ -423,4 +423,6 @@ EXPORT(sysn32_call_table)
 	PTR	sys_finit_module
 	PTR	sys_sched_setattr
 	PTR	sys_sched_getattr
+	PTR	sys_ni_syscall			/* 6315 */ /* renameat2 */
+	PTR	sys_seccomp
 	.size	sysn32_call_table,.-sysn32_call_table

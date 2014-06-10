@@ -576,3 +576,5 @@ EXPORT(sys_call_table)
 	PTR	sys_finit_module
 	PTR	sys_sched_setattr
 	PTR	sys_sched_getattr		/* 4350 */
+	PTR	sys_ni_syscall			/* renameat2 */
+	PTR	sys_seccomp
