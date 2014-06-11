@@ -265,6 +265,7 @@ static int tegra_ahb_probe(struct platform_device *pdev)
 	ahb->dev = &pdev->dev;
 	platform_set_drvdata(pdev, ahb);
 	tegra_ahb_gizmo_init(ahb);
+	pr_info("Tegra AHB driver loaded\n");
 	return 0;
 }
 
