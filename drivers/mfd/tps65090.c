@@ -69,7 +69,7 @@ enum tps65090_cells {
 	CHARGER = 1,
 };
 
-static const struct mfd_cell tps65090s[] = {
+static struct mfd_cell tps65090s[] = {
 	[PMIC] = {
 		.name = "tps65090-pmic",
 	},
