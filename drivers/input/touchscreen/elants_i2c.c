@@ -150,6 +150,9 @@ static const char recov_packet[HELLO_PACKET_LEN] = {0x55, 0x55, 0x80, 0x80};
 #define	ELAN_FW_PAGESIZE	132
 #define	ELAN_FW_FILENAME	"elants_i2c.bin"
 
+/* calibration timeout definition */
+#define	ELAN_CALI_TIMEOUT_MSEC	10000
+
 /*
  * struct multi_queue_header - used by buffer queue header
  *
@@ -494,9 +497,11 @@ static int elan_calibrate(struct i2c_client *client)
 
 	while (kfifo_len(&ts->fifo) == 0) {
 		mutex_unlock(&ts->fifo_mutex);
-		ret = wait_event_interruptible_timeout(ts->wait,
-						kfifo_len(&ts->fifo),
-						msecs_to_jiffies(3000));
+		ret =
+		    wait_event_interruptible_timeout(ts->wait,
+						     kfifo_len(&ts->fifo),
+						     msecs_to_jiffies
+						     (ELAN_CALI_TIMEOUT_MSEC));
 		if (ret <= 0) {
 			ret = -ETIMEDOUT;
 			dev_err(&client->dev, "timeout!! wake_up(ts->wait)\n");
