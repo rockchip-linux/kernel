@@ -623,6 +623,8 @@ static int i915_drm_freeze(struct drm_device *dev)
 	intel_fbdev_set_suspend(dev, FBINFO_STATE_SUSPENDED);
 	console_unlock();
 
+	intel_display_set_init_power(dev, false);
+
 	return 0;
 }
 
