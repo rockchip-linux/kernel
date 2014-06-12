@@ -1,0 +1,40 @@
+* Qualcomm AHCI SATA Controller
+
+SATA nodes are defined to describe on-chip Serial ATA controllers.
+Each SATA controller should have its own node.
+
+Required properties:
+- compatible		: compatible list, contains "qcom,msm-ahci"
+- interrupts		: <interrupt mapping for SATA IRQ>
+- reg			: <registers mapping>
+- phys			: Must contain exactly one entry as specified
+			  in phy-bindings.txt
+- phy-names		: Must be "sata-phy"
+
+Required properties for "qcom,ipq806x-ahci" compatible:
+- clocks		: Must contain an entry for each entry in clock-names.
+- clock-names		: Shall be:
+				"slave_iface" - Fabric port AHB clock for SATA
+				"iface" - AHB clock
+				"core" - core clock
+				"rxoob" - RX out-of-band clock
+				"pmalive" - Power Module Alive clock
+
+Example:
+	sata@29000000 {
+		compatible = "qcom,ipq806x-ahci", "qcom,msm-ahci";
+		reg = <0x29000000 0x180>;
+
+		interrupts = <0 209 0x0>;
+
+		clocks = <&gcc SFAB_SATA_S_H_CLK>,
+			 <&gcc SATA_H_CLK>,
+			 <&gcc SATA_A_CLK>,
+			 <&gcc SATA_RXOOB_CLK>,
+			 <&gcc SATA_PMALIVE_CLK>;
+		clock-names = "slave_iface", "iface", "core",
+				"rxoob", "pmalive";
+
+		phys = <&sata_phy>;
+		phy-names = "sata-phy";
+	};
