@@ -71,7 +71,7 @@ static void __init zone_sizes_init(unsigned long min, unsigned long max)
 	/* 4GB maximum for 32-bit only capable devices */
 	if (IS_ENABLED(CONFIG_ZONE_DMA)) {
 		unsigned long max_dma_phys =
-			(unsigned long)dma_to_phys(NULL, DMA_BIT_MASK(32) + 1);
+			(unsigned long)(dma_to_phys(NULL, DMA_BIT_MASK(32)) + 1);
 		max_dma = max(min, min(max, max_dma_phys >> PAGE_SHIFT));
 		zone_size[ZONE_DMA] = max_dma - min;
 	}
@@ -128,6 +128,8 @@ void __init arm64_memblock_init(void)
 {
 	u64 *reserve_map, base, size;
 
+	phys_addr_t dma_phys_limit = 0;
+
 	/* Register the kernel text, kernel data and initrd with memblock */
 	memblock_reserve(__pa(_text), _end - _text);
 #ifdef CONFIG_BLK_DEV_INITRD
@@ -161,7 +163,10 @@ void __init arm64_memblock_init(void)
 		memblock_reserve(base, size);
 	}
 
-	dma_contiguous_reserve(0);
+	/* 4GB maximum for 32-bit only capable devices */
+	if (IS_ENABLED(CONFIG_ZONE_DMA))
+		dma_phys_limit = dma_to_phys(NULL, DMA_BIT_MASK(32)) + 1;
+	dma_contiguous_reserve(dma_phys_limit);
 
 	memblock_allow_resize();
 	memblock_dump_all();
