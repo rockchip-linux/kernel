@@ -4091,7 +4091,7 @@ static void valleyview_set_cdclk(struct drm_device *dev, int cdclk)
 		mutex_lock(&dev_priv->dpio_lock);
 		/* adjust cdclk divider */
 		val = vlv_cck_read(dev_priv, CCK_DISPLAY_CLOCK_CONTROL);
-		val &= ~0xf;
+		val &= ~DISPLAY_FREQUENCY_VALUES;
 		val |= divider;
 		vlv_cck_write(dev_priv, CCK_DISPLAY_CLOCK_CONTROL, val);
 		mutex_unlock(&dev_priv->dpio_lock);
@@ -4128,7 +4128,7 @@ int valleyview_cur_cdclk(struct drm_i915_private *dev_priv)
 	divider = vlv_cck_read(dev_priv, CCK_DISPLAY_CLOCK_CONTROL);
 	mutex_unlock(&dev_priv->dpio_lock);
 
-	divider &= 0xf;
+	divider &= DISPLAY_FREQUENCY_VALUES;
 
 	cur_cdclk = (vco << 1) / (divider + 1);
 

@@ -445,6 +445,11 @@
 #define  DSI_PLL_M1_DIV_SHIFT			0
 #define  DSI_PLL_M1_DIV_MASK			(0x1ff << 0)
 #define CCK_DISPLAY_CLOCK_CONTROL		0x6b
+#define  DISPLAY_TRUNK_FORCE_ON			(1 << 17)
+#define  DISPLAY_TRUNK_FORCE_OFF		(1 << 16)
+#define  DISPLAY_FREQUENCY_STATUS		(0x1f << 8)
+#define  DISPLAY_FREQUENCY_STATUS_SHIFT		8
+#define  DISPLAY_FREQUENCY_VALUES		(0x1f << 0)
 
 /*
  * DPIO - a special bus for various display related registers to hide behind
