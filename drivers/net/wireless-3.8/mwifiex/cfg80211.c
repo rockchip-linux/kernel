@@ -1572,8 +1572,10 @@ mwifiex_cfg80211_assoc(struct mwifiex_private *priv, size_t ssid_len, u8 *ssid,
 	priv->sec_info.is_authtype_auto = 0;
 	ret = mwifiex_set_encode(priv, NULL, NULL, 0, 0, NULL, 1);
 
-	/* Enable 11ac by default if it is allowed on this channel. */
-	priv->sta_assoc_11ac_enabled = !(channel->flags &
+	/* Enable 11ac by default if it is allowed on this channel
+	   or channel information is not provided.
+	 */
+	priv->sta_assoc_11ac_enabled = !(channel && channel->flags &
 					 IEEE80211_CHAN_NO_80MHZ);
 	if (mode == NL80211_IFTYPE_ADHOC) {
 		/* "privacy" is set only for ad-hoc mode */
