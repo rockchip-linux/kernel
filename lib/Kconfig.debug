@@ -1631,6 +1631,15 @@ config TEST_MODULE
 	  on printk when loaded. It is designed to be used for basic
 	  evaluation of the module loading subsystem.
 
+config TEST_UDELAY
+	tristate "udelay test driver"
+	default n
+	help
+	  This builds the "udelay_test" module that helps to make sure
+	  that udelay() is working properly.
+
+	  If unsure, say N.
+
 source "samples/Kconfig"
 
 source "lib/Kconfig.kgdb"
