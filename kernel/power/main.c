@@ -134,6 +134,44 @@ static ssize_t pm_test_store(struct kobject *kobj, struct kobj_attribute *attr,
 }
 
 power_attr(pm_test);
+
+int pm_test_delay = DEFAULT_PM_TEST_DELAY;
+
+static ssize_t pm_test_delay_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	s += sprintf(s, "Min delay: %d ms\n", MIN_PM_TEST_DELAY);
+	s += sprintf(s, "Max delay: %d ms\n", MAX_PM_TEST_DELAY);
+	s += sprintf(s, "Current delay: %d ms\n", pm_test_delay);
+
+	return s - buf;
+}
+
+static ssize_t pm_test_delay_store(struct kobject *kobj,
+				struct kobj_attribute *attr, const char *buf,
+				size_t n)
+{
+	int val;
+	int count;
+	int err = -EINVAL;
+
+	lock_system_sleep();
+
+	count = sscanf(buf, "%d", &val);
+	if (count == 1 && MIN_PM_TEST_DELAY < val &&
+		val < MAX_PM_TEST_DELAY) {
+		pm_test_delay = val;
+		err = 0;
+	}
+
+	unlock_system_sleep();
+
+	return err ? err : n;
+}
+
+power_attr(pm_test_delay);
 #endif /* CONFIG_PM_DEBUG */
 
 #ifdef CONFIG_DEBUG_FS
@@ -623,6 +661,7 @@ static struct attribute * g[] = {
 	&dark_resume_state_attr.attr,
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,
+	&pm_test_delay_attr.attr,
 #endif
 #ifdef CONFIG_PM_SLEEP_DEBUG
 	&pm_print_times_attr.attr,

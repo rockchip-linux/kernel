@@ -229,6 +229,13 @@ enum {
 
 extern int pm_test_level;
 
+/* TODO(chirantan): Revert this once selective resume is ready. */
+#define MIN_PM_TEST_DELAY	0
+#define MAX_PM_TEST_DELAY	10000
+#define DEFAULT_PM_TEST_DELAY	5000
+
+extern int pm_test_delay;
+
 #ifdef CONFIG_SUSPEND_FREEZER
 static inline int suspend_freeze_processes(void)
 {
