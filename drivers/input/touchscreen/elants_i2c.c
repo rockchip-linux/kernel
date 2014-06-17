@@ -42,6 +42,7 @@
 #include <linux/firmware.h>
 #include <linux/version.h>
 #include <linux/input/mt.h>
+#include <linux/acpi.h>
 
 /* debug option */
 static bool debug = false;
@@ -2058,6 +2059,14 @@ static SIMPLE_DEV_PM_OPS(elan_pm_ops, elan_suspend, elan_resume);
 
 MODULE_DEVICE_TABLE(i2c, elan_ts_id);
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id elants_acpi_id[] = {
+	{ "ELAN0001", 0 },
+	{ }
+}
+MODULE_DEVICE_TABLE(acpi, elants_acpi_id);
+#endif
+
 static struct i2c_driver elan_ts_driver = {
 	.probe = elan_probe,
 	.remove = elan_remove,
@@ -2067,6 +2076,9 @@ static struct i2c_driver elan_ts_driver = {
 		   .owner = THIS_MODULE,
 #ifdef CONFIG_PM_SLEEP
 		   .pm = &elan_pm_ops,
+#endif
+#ifdef CONFIG_ACPI
+		   .acpi_match_table = ACPI_PTR(elants_acpi_id),
 #endif
 		   },
 };
