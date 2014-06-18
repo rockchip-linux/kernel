@@ -292,6 +292,7 @@ config PINCTRL_TEGRA_XUSB
 	select GENERIC_PHY
 	select PINCONF
 	select PINMUX
+	select MAILBOX
 
 config PINCTRL_TZ1090
 	bool "Toumaz Xenif TZ1090 pin control driver"

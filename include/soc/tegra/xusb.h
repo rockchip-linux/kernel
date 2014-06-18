@@ -10,6 +10,13 @@
 #ifndef __SOC_TEGRA_XUSB_H__
 #define __SOC_TEGRA_XUSB_H__
 
+#define TEGRA_XUSB_USB3_PHYS 2
+#define TEGRA_XUSB_UTMI_PHYS 3
+#define TEGRA_XUSB_HSIC_PHYS 2
+#define TEGRA_XUSB_NUM_USB_PHYS (TEGRA_XUSB_USB3_PHYS + TEGRA_XUSB_UTMI_PHYS + \
+				 TEGRA_XUSB_HSIC_PHYS)
+#define TEGRA_XUSB_NUM_PHYS (TEGRA_XUSB_NUM_USB_PHYS + 2) /* + SATA & PCIe */
+
 /* Two virtual channels: host + phy */
 #define TEGRA_XUSB_MBOX_NUM_CHANS 2
 
