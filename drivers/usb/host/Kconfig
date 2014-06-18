@@ -50,6 +50,15 @@ config USB_XHCI_RCAR
 	  Say 'Y' to enable the support for the xHCI host controller
 	  found in Renesas R-Car ARM SoCs.
 
+config USB_XHCI_TEGRA
+	tristate "NVIDIA Tegra XHCI support"
+	depends on ARCH_TEGRA
+	select MAILBOX
+	select FW_LOADER
+	---help---
+	  Say 'Y' to enable the support for the xHCI host controller
+	  found in NVIDIA Tegra124 and later SoCs.
+
 endif # USB_XHCI_HCD
 
 config USB_EHCI_HCD
