@@ -38,6 +38,8 @@ struct tegra_sor {
 	struct mutex lock;
 	bool enabled;
 
+	struct drm_minor *minor;
+	struct drm_info_list *debugfs_files;
 	struct dentry *debugfs;
 };
 
@@ -1239,11 +1241,145 @@ static const struct file_operations tegra_sor_crc_fops = {
 	.release = tegra_sor_crc_release,
 };
 
+static int tegra_sor_show_regs(struct seq_file *s, void *data)
+{
+	struct drm_info_node *node = s->private;
+	struct tegra_sor *sor = node->info_ent->data;
+
+#define DUMP_REG(name)						\
+	seq_printf(s, "%-40s %#05x %08lx\n", #name, name,	\
+		   tegra_sor_readl(sor, name))
+
+	DUMP_REG(SOR_CTXSW);
+	DUMP_REG(SOR_SUPER_STATE_0);
+	DUMP_REG(SOR_SUPER_STATE_1);
+	DUMP_REG(SOR_STATE_0);
+	DUMP_REG(SOR_STATE_1);
+	DUMP_REG(SOR_HEAD_STATE_0(0));
+	DUMP_REG(SOR_HEAD_STATE_0(1));
+	DUMP_REG(SOR_HEAD_STATE_1(0));
+	DUMP_REG(SOR_HEAD_STATE_1(1));
+	DUMP_REG(SOR_HEAD_STATE_2(0));
+	DUMP_REG(SOR_HEAD_STATE_2(1));
+	DUMP_REG(SOR_HEAD_STATE_3(0));
+	DUMP_REG(SOR_HEAD_STATE_3(1));
+	DUMP_REG(SOR_HEAD_STATE_4(0));
+	DUMP_REG(SOR_HEAD_STATE_4(1));
+	DUMP_REG(SOR_HEAD_STATE_5(0));
+	DUMP_REG(SOR_HEAD_STATE_5(1));
+	DUMP_REG(SOR_CRC_CNTRL);
+	DUMP_REG(SOR_DP_DEBUG_MVID);
+	DUMP_REG(SOR_CLK_CNTRL);
+	DUMP_REG(SOR_CAP);
+	DUMP_REG(SOR_PWR);
+	DUMP_REG(SOR_TEST);
+	DUMP_REG(SOR_PLL_0);
+	DUMP_REG(SOR_PLL_1);
+	DUMP_REG(SOR_PLL_2);
+	DUMP_REG(SOR_PLL_3);
+	DUMP_REG(SOR_CSTM);
+	DUMP_REG(SOR_LVDS);
+	DUMP_REG(SOR_CRC_A);
+	DUMP_REG(SOR_CRC_B);
+	DUMP_REG(SOR_BLANK);
+	DUMP_REG(SOR_SEQ_CTL);
+	DUMP_REG(SOR_LANE_SEQ_CTL);
+	DUMP_REG(SOR_SEQ_INST(0x0));
+	DUMP_REG(SOR_SEQ_INST(0x1));
+	DUMP_REG(SOR_SEQ_INST(0x2));
+	DUMP_REG(SOR_SEQ_INST(0x3));
+	DUMP_REG(SOR_SEQ_INST(0x4));
+	DUMP_REG(SOR_SEQ_INST(0x5));
+	DUMP_REG(SOR_SEQ_INST(0x6));
+	DUMP_REG(SOR_SEQ_INST(0x7));
+	DUMP_REG(SOR_SEQ_INST(0x8));
+	DUMP_REG(SOR_SEQ_INST(0x9));
+	DUMP_REG(SOR_SEQ_INST(0xa));
+	DUMP_REG(SOR_SEQ_INST(0xb));
+	DUMP_REG(SOR_SEQ_INST(0xc));
+	DUMP_REG(SOR_SEQ_INST(0xd));
+	DUMP_REG(SOR_SEQ_INST(0xe));
+	DUMP_REG(SOR_SEQ_INST(0xf));
+	DUMP_REG(SOR_PWM_DIV);
+	DUMP_REG(SOR_PWM_CTL);
+	DUMP_REG(SOR_VCRC_A_0);
+	DUMP_REG(SOR_VCRC_A_1);
+	DUMP_REG(SOR_VCRC_B_0);
+	DUMP_REG(SOR_VCRC_B_1);
+	DUMP_REG(SOR_CCRC_A_0);
+	DUMP_REG(SOR_CCRC_A_1);
+	DUMP_REG(SOR_CCRC_B_0);
+	DUMP_REG(SOR_CCRC_B_1);
+	DUMP_REG(SOR_EDATA_A_0);
+	DUMP_REG(SOR_EDATA_A_1);
+	DUMP_REG(SOR_EDATA_B_0);
+	DUMP_REG(SOR_EDATA_B_1);
+	DUMP_REG(SOR_COUNT_A_0);
+	DUMP_REG(SOR_COUNT_A_1);
+	DUMP_REG(SOR_COUNT_B_0);
+	DUMP_REG(SOR_COUNT_B_1);
+	DUMP_REG(SOR_DEBUG_A_0);
+	DUMP_REG(SOR_DEBUG_A_1);
+	DUMP_REG(SOR_DEBUG_B_0);
+	DUMP_REG(SOR_DEBUG_B_1);
+	DUMP_REG(SOR_TRIG);
+	DUMP_REG(SOR_MSCHECK);
+	DUMP_REG(SOR_XBAR_CTRL);
+	DUMP_REG(SOR_XBAR_POL);
+	DUMP_REG(SOR_DP_LINKCTL_0);
+	DUMP_REG(SOR_DP_LINKCTL_1);
+	DUMP_REG(SOR_LANE_DRIVE_CURRENT_0);
+	DUMP_REG(SOR_LANE_DRIVE_CURRENT_1);
+	DUMP_REG(SOR_LANE4_DRIVE_CURRENT_0);
+	DUMP_REG(SOR_LANE4_DRIVE_CURRENT_1);
+	DUMP_REG(SOR_LANE_PREEMPHASIS_0);
+	DUMP_REG(SOR_LANE_PREEMPHASIS_1);
+	DUMP_REG(SOR_LANE4_PREEMPHASIS_0);
+	DUMP_REG(SOR_LANE4_PREEMPHASIS_1);
+	DUMP_REG(SOR_LANE_POST_CURSOR_0);
+	DUMP_REG(SOR_LANE_POST_CURSOR_1);
+	DUMP_REG(SOR_DP_CONFIG_0);
+	DUMP_REG(SOR_DP_CONFIG_1);
+	DUMP_REG(SOR_DP_MN_0);
+	DUMP_REG(SOR_DP_MN_1);
+	DUMP_REG(SOR_DP_PADCTL_0);
+	DUMP_REG(SOR_DP_PADCTL_1);
+	DUMP_REG(SOR_DP_DEBUG_0);
+	DUMP_REG(SOR_DP_DEBUG_1);
+	DUMP_REG(SOR_DP_SPARE_0);
+	DUMP_REG(SOR_DP_SPARE_1);
+	DUMP_REG(SOR_DP_AUDIO_CTRL);
+	DUMP_REG(SOR_DP_AUDIO_HBLANK_SYMBOLS);
+	DUMP_REG(SOR_DP_AUDIO_VBLANK_SYMBOLS);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_HEADER);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_0);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_1);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_2);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_3);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_4);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_5);
+	DUMP_REG(SOR_DP_GENERIC_INFOFRAME_SUBPACK_6);
+	DUMP_REG(SOR_DP_TPG);
+	DUMP_REG(SOR_DP_TPG_CONFIG);
+	DUMP_REG(SOR_DP_LQ_CSTM_0);
+	DUMP_REG(SOR_DP_LQ_CSTM_1);
+	DUMP_REG(SOR_DP_LQ_CSTM_2);
+
+#undef DUMP_REG
+
+	return 0;
+}
+
+static struct drm_info_list debugfs_files[] = {
+	{ "regs", tegra_sor_show_regs, 0, NULL },
+};
+
 static int tegra_sor_debugfs_init(struct tegra_sor *sor,
 				  struct drm_minor *minor)
 {
 	struct dentry *entry;
 	int err = 0;
+	int i;
 
 	sor->debugfs = debugfs_create_dir("sor", minor->debugfs_root);
 	if (!sor->debugfs)
@@ -1259,16 +1395,42 @@ static int tegra_sor_debugfs_init(struct tegra_sor *sor,
 		goto remove;
 	}
 
+	sor->debugfs_files = kmemdup(debugfs_files, sizeof(debugfs_files),
+				    GFP_KERNEL);
+	if (!sor->debugfs_files) {
+		err = -ENOMEM;
+		goto remove;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(debugfs_files); i++)
+		sor->debugfs_files[i].data = sor;
+
+	err = drm_debugfs_create_files(sor->debugfs_files,
+				       ARRAY_SIZE(debugfs_files),
+				       sor->debugfs, minor);
+	if (err < 0)
+		goto free;
+
+	sor->minor = minor;
+
 	return err;
 
+free:
+	kfree(sor->debugfs_files);
+	sor->debugfs_files = NULL;
 remove:
-	debugfs_remove(sor->debugfs);
+	debugfs_remove_recursive(sor->debugfs);
 	sor->debugfs = NULL;
 	return err;
 }
 
 static int tegra_sor_debugfs_exit(struct tegra_sor *sor)
 {
+	sor->minor = NULL;
+
+	kfree(sor->debugfs_files);
+	sor->debugfs_files = NULL;
+
 	debugfs_remove_recursive(sor->debugfs);
 	sor->debugfs = NULL;
 
