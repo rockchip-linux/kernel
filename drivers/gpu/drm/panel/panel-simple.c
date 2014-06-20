@@ -38,6 +38,8 @@ struct panel_desc {
 	const struct drm_display_mode *modes;
 	unsigned int num_modes;
 
+	unsigned int bpc;
+
 	struct {
 		unsigned int width;
 		unsigned int height;
@@ -92,6 +94,7 @@ static int panel_simple_get_fixed_modes(struct panel_simple *panel)
 		num++;
 	}
 
+	connector->display_info.bpc = panel->desc->bpc;
 	connector->display_info.width_mm = panel->desc->size.width;
 	connector->display_info.height_mm = panel->desc->size.height;
 
@@ -311,6 +314,7 @@ static const struct drm_display_mode auo_b101aw03_mode = {
 static const struct panel_desc auo_b101aw03 = {
 	.modes = &auo_b101aw03_mode,
 	.num_modes = 1,
+	.bpc = 6,
 	.size = {
 		.width = 223,
 		.height = 125,
@@ -333,6 +337,7 @@ static const struct drm_display_mode chunghwa_claa101wa01a_mode = {
 static const struct panel_desc chunghwa_claa101wa01a = {
 	.modes = &chunghwa_claa101wa01a_mode,
 	.num_modes = 1,
+	.bpc = 6,
 	.size = {
 		.width = 220,
 		.height = 120,
@@ -355,6 +360,7 @@ static const struct drm_display_mode chunghwa_claa101wb01_mode = {
 static const struct panel_desc chunghwa_claa101wb01 = {
 	.modes = &chunghwa_claa101wb01_mode,
 	.num_modes = 1,
+	.bpc = 6,
 	.size = {
 		.width = 223,
 		.height = 125,
@@ -377,6 +383,7 @@ static const struct drm_display_mode samsung_ltn101nt05_mode = {
 static const struct panel_desc samsung_ltn101nt05 = {
 	.modes = &samsung_ltn101nt05_mode,
 	.num_modes = 1,
+	.bpc = 6,
 	.size = {
 		.width = 1024,
 		.height = 600,
