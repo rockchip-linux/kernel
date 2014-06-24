@@ -957,7 +957,7 @@ static int _calc_dynamic_ramp_rate_accurate(struct clk_hw *hw,
 		if (target_vco_rate > pll->params->vco_max)
 			continue;
 
-		n = target_vco_rate / cf;
+		n = DIV_ROUND_CLOSEST(target_vco_rate, cf);
 		if (n > divn_mask(pll))
 			continue;
 
