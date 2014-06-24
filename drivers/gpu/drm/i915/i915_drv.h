@@ -1227,6 +1227,7 @@ struct intel_vbt_data {
 		 * Example, 5 = 5% = .05
 		 */
 		u8 min_duty_cycle_percentage;
+		u8 min_brightness;	/* min_brightness/255 of max */
 	} backlight;
 
 	/* MIPI DSI */

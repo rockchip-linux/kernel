@@ -317,6 +317,7 @@ parse_lfp_backlight(struct drm_i915_private *dev_priv, struct bdb_header *bdb)
 
 	dev_priv->vbt.backlight.pwm_freq_hz = entry->pwm_freq_hz;
 	dev_priv->vbt.backlight.active_low_pwm = entry->active_low_pwm;
+	dev_priv->vbt.backlight.min_brightness = entry->min_brightness;
 
 	/* NB: It's probably safe to do this for !VLV platforms too. */
 	if (IS_VALLEYVIEW(dev_priv->dev) && !entry->min_brightness)
@@ -338,7 +339,7 @@ parse_lfp_backlight(struct drm_i915_private *dev_priv, struct bdb_header *bdb)
 		      "active %s, min brightness %u, level %u\n",
 		      dev_priv->vbt.backlight.pwm_freq_hz,
 		      dev_priv->vbt.backlight.active_low_pwm ? "low" : "high",
-		      entry->min_brightness,
+		      dev_priv->vbt.backlight.min_brightness,
 		      backlight_data->level[panel_type]);
 }
 
