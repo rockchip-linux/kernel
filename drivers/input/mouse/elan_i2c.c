@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.5.4
+ * Version: 1.5.5
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -39,7 +39,7 @@
 #include <linux/completion.h>
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.5.4"
+#define ELAN_DRIVER_VERSION	"1.5.5"
 #define ETP_PRESSURE_OFFSET	25
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
@@ -136,7 +136,17 @@
 #define ETP_FW_PAGE_SIZE	64
 #define ETP_FW_PAGE_COUNT	768
 #define ETP_FW_SIZE		(ETP_FW_PAGE_SIZE * ETP_FW_PAGE_COUNT)
-enum {UNKNOWN_MODE, IAP_MODE, MAIN_MODE};
+
+enum tp_mode {
+	UNKNOWN_MODE,
+	IAP_MODE,
+	MAIN_MODE
+};
+enum lid_state {
+	LID_UNKNOWN,
+	LID_OPEN,
+	LID_CLOSED
+};
 
 /* The main device structure */
 struct elan_tp_data {
@@ -144,7 +154,7 @@ struct elan_tp_data {
 	struct input_dev	*input;
 
 	/* for fw update */
-	struct completion fw_completion;
+	struct completion	fw_completion;
 
 	unsigned int		max_x;
 	unsigned int		max_y;
@@ -158,12 +168,22 @@ struct elan_tp_data {
 	u16			iap_start_addr;
 	bool			smbus;
 	bool			wait_signal_from_updatefw;
+	bool			irq_wake;
+
+	bool			lid_handler_registered;
+	struct input_handler	lid_handler;
+	/* lid state */
+	enum lid_state		lid_status;
+	/* touchpad is active or off based on irq */
+	bool			active;
+	bool			suspended;
 };
 
 static int elan_i2c_read_cmd(struct i2c_client *client, u16 reg, u8 *val);
 static int elan_i2c_write_cmd(struct i2c_client *client, u16 reg, u16 cmd);
 static int elan_initialize(struct elan_tp_data *data);
 static int elan_i2c_reset(struct i2c_client *client);
+static int elan_resume(struct device *dev);
 
 /*
  **********************************************************
@@ -171,7 +191,7 @@ static int elan_i2c_reset(struct i2c_client *client);
  **********************************************************
  */
 
-static int elan_iap_getmode(struct elan_tp_data *data)
+static enum tp_mode elan_iap_getmode(struct elan_tp_data *data)
 {
 	u16 constant;
 	int retval;
@@ -304,7 +324,7 @@ static int elan_smbus_prepare_fw_update(struct elan_tp_data *data)
 	u8 cmd[4] = {0x0F, 0x78, 0x00, 0x06};
 
 	/* Get FW in which mode	(IAP_MODE/MAIN_MODE)  */
-	int mode = elan_iap_getmode(data);
+	enum tp_mode mode = elan_iap_getmode(data);
 	if (mode == UNKNOWN_MODE)
 		return -EIO;
 
@@ -369,7 +389,7 @@ static int elan_i2c_prepare_fw_update(struct elan_tp_data *data)
 	u16 password;
 
 	/* Get FW in which mode	(IAP_MODE/MAIN_MODE)  */
-	int mode = elan_iap_getmode(data);
+	enum tp_mode mode = elan_iap_getmode(data);
 	if (mode == UNKNOWN_MODE)
 		return -EIO;
 
@@ -653,6 +673,14 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 done:
 	if (ret != 0)
 		elan_iap_reset(data);
+	else {
+		/* Reinitialize TP after fw is updated */
+		disable_irq(data->irq);
+		data->active = false;
+		elan_initialize(data);
+		enable_irq(data->irq);
+		data->active = true;
+	}
 	release_firmware(fw);
 	return ret;
 }
@@ -1000,8 +1028,8 @@ static int elan_get_sm_version(struct elan_tp_data *data)
 		i2c_smbus_read_block_data(data->client,
 					  ETP_SMBUS_SM_VERSION_CMD, val);
 	else
-		elan_i2c_read_block(data->client,
-				    ETP_I2C_SM_VERSION_CMD, val, 1);
+		elan_i2c_read_cmd(data->client,
+				  ETP_I2C_SM_VERSION_CMD, val);
 	ret = val[0];
 	return ret;
 }
@@ -1338,6 +1366,7 @@ static ssize_t elan_sysfs_calibrate(struct device *dev,
 	val[0] = 0;
 
 	disable_irq(data->irq);
+	data->active = false;
 	elan_enable_calibrate(data);
 	if (data->smbus)
 		i2c_smbus_write_block_data(data->client,
@@ -1365,6 +1394,7 @@ static ssize_t elan_sysfs_calibrate(struct device *dev,
 
 	elan_disable_calibrate(data);
 	enable_irq(data->irq);
+	data->active = true;
 
 	if (tries == 0) {
 		dev_err(dev, "Failed to calibrate. Timeout.\n");
@@ -1382,13 +1412,23 @@ static ssize_t elan_sysfs_read_baseline(struct device *dev,
 	int max_baseline, min_baseline;
 
 	disable_irq(data->irq);
+	data->active = false;
 	elan_enable_calibrate(data);
 	msleep(250);
 	max_baseline = elan_get_max_baseline(data);
 	min_baseline = elan_get_min_baseline(data);
 	elan_disable_calibrate(data);
 	enable_irq(data->irq);
+	data->active = true;
 	return sprintf(buf, "max:%d min:%d\n", max_baseline, min_baseline);
+}
+
+static ssize_t elan_sysfs_read_mode(struct device *dev,
+				    struct device_attribute *attr,
+				    char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", (int)elan_iap_getmode(data));
 }
 
 static ssize_t elan_sysfs_reinitialize(struct device *dev,
@@ -1399,8 +1439,10 @@ static ssize_t elan_sysfs_reinitialize(struct device *dev,
 	int ret;
 
 	disable_irq(data->irq);
+	data->active = false;
 	ret = elan_initialize(data);
 	enable_irq(data->irq);
+	data->active = true;
 
 	if (ret < 0)
 		return sprintf(buf, "reinitialize fail\n");
@@ -1417,6 +1459,7 @@ static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
 static DEVICE_ATTR(baseline, S_IRUGO, elan_sysfs_read_baseline, NULL);
 static DEVICE_ATTR(reinitialize, S_IRUGO, elan_sysfs_reinitialize, NULL);
 static DEVICE_ATTR(calibrate, S_IRUGO, elan_sysfs_calibrate, NULL);
+static DEVICE_ATTR(mode, S_IRUGO, elan_sysfs_read_mode, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, elan_sysfs_update_fw);
 
 static struct attribute *elan_sysfs_entries[] = {
@@ -1429,6 +1472,7 @@ static struct attribute *elan_sysfs_entries[] = {
 	&dev_attr_baseline.attr,
 	&dev_attr_reinitialize.attr,
 	&dev_attr_calibrate.attr,
+	&dev_attr_mode.attr,
 	&dev_attr_update_fw.attr,
 	NULL,
 };
@@ -1436,6 +1480,141 @@ static struct attribute *elan_sysfs_entries[] = {
 static const struct attribute_group elan_sysfs_group = {
 	.attrs = elan_sysfs_entries,
 };
+
+/*
+ ******************************************************************
+ * lid event functions
+ ******************************************************************
+ */
+/*
+ * We rely on EV_SW and SW_LID bits to identify a LID device, and hook
+ * up our filter to listen for SW_LID events to enable/disable touchpad when
+ * LID is open/closed.
+ */
+static const struct input_device_id lid_device_ids[] = {
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+			 INPUT_DEVICE_ID_MATCH_SWBIT,
+		.evbit = { BIT_MASK(EV_SW) },
+		.swbit = { BIT_MASK(SW_LID) },
+	},
+	{ },
+};
+
+static int lid_device_connect(struct input_handler *handler,
+			      struct input_dev *input_dev,
+			      const struct input_device_id *id)
+{
+	struct input_handle *lid_handle;
+	struct elan_tp_data *data = handler->private;
+	struct device *dev = &data->client->dev;
+	int error;
+
+	dev_dbg(dev, "elan: LID device: %s connected", input_dev->name);
+	lid_handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
+	if (!lid_handle)
+		return -ENOMEM;
+
+	lid_handle->dev = input_dev;
+	lid_handle->handler = handler;
+	lid_handle->name = "lid_event_handler";
+	lid_handle->private = handler->private;
+
+	error = input_register_handle(lid_handle);
+	if (error) {
+		dev_err(dev, "Failed to register lid_event_handler, error %d\n",
+		       error);
+		goto err_free;
+	}
+
+	error = input_open_device(lid_handle);
+	if (error) {
+		dev_err(dev, "Failed to open input device, error %d\n", error);
+		goto err_unregister;
+	}
+
+	return 0;
+err_unregister:
+	input_unregister_handle(lid_handle);
+err_free:
+	kfree(lid_handle);
+	return error;
+}
+
+static void lid_device_disconnect(struct input_handle *handle)
+{
+	input_close_device(handle);
+	input_unregister_handle(handle);
+	kfree(handle);
+}
+
+static bool lid_event_filter(struct input_handle *handle,
+			     unsigned int type, unsigned int code, int value)
+{
+	struct elan_tp_data *data = handle->private;
+	struct device *dev = &data->client->dev;
+	struct input_dev *input = data->input;
+
+	if (type == EV_SW && code == SW_LID && data->smbus == false) {
+		dev_dbg(dev, "elan %s: %s touch device\n",
+			dev_name(&data->client->dev),
+			(value ? "disable" : "enable"));
+
+		mutex_lock(&input->mutex);
+		data->lid_status = (value ? LID_CLOSED : LID_OPEN);
+		if (data->suspended) {
+			mutex_unlock(&input->mutex);
+			return false;
+		}
+
+		if (value == 0)	{
+			/* activate touchpad if it was resumed before. */
+			if (!data->active)
+				elan_resume(dev);
+			else
+				elan_enable_power(data);
+		} else {
+			elan_disable_power(data);
+		}
+		mutex_unlock(&input->mutex);
+	}
+
+	return false;
+}
+
+static void lid_event_register_handler(struct elan_tp_data *data)
+{
+	int error;
+	struct input_handler *lid_handler = &data->lid_handler;
+	struct device *dev = &data->client->dev;
+
+	if (data->lid_handler_registered) {
+		dev_err(dev, "lid handler is registered already\n");
+		return;
+	}
+
+	lid_handler->filter	= lid_event_filter;
+	lid_handler->connect	= lid_device_connect;
+	lid_handler->disconnect	= lid_device_disconnect;
+	lid_handler->name	= "elan_lid_event_handler";
+	lid_handler->id_table	= lid_device_ids;
+	lid_handler->private	= data;
+
+	error = input_register_handler(lid_handler);
+	if (error) {
+		dev_err(dev, "Failed to register lid handler(%d)\n", error);
+		return;
+	}
+	data->lid_handler_registered = true;
+}
+
+static void lid_event_unregister_handler(struct elan_tp_data *data)
+{
+	if (data->lid_handler_registered) {
+		input_unregister_handler(&data->lid_handler);
+		data->lid_handler_registered = false;
+	}
+}
 
 /*
  ******************************************************************
@@ -1560,9 +1739,10 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	u8 raw[ETP_MAX_REPORT_LEN];
 	int retval;
 	int report_len;
+	struct device *dev = &data->client->dev;
 
 	if (!data) {
-		dev_err(&data->client->dev, "tp data structure is null");
+		dev_err(dev, "tp data structure is null");
 		goto elan_isr_end;
 	}
 
@@ -1587,12 +1767,12 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	}
 
 	if (retval != report_len) {
-		dev_err(&data->client->dev, "wrong packet len(%d)", retval);
+		dev_err(dev, "wrong packet len(%d)", retval);
 		goto elan_isr_end;
 	}
 
 	if (elan_check_packet(data, raw) < 0) {
-		dev_err(&data->client->dev, "wrong packet format.");
+		dev_err(dev, "wrong packet format.");
 		goto elan_isr_end;
 	}
 	elan_report_absolute(data, raw);
@@ -1737,8 +1917,13 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 		dev_err(&client->dev, "cannot register dev attribute %d", ret);
 		goto err_create_group;
 	}
+
+	/* register lid event handler */
+	lid_event_register_handler(data);
+
 	device_init_wakeup(&client->dev, true);
 	device_set_wakeup_enable(&client->dev, false);
+	data->active = true;
 	i2c_set_clientdata(client, data);
 
 	return;
@@ -1758,20 +1943,12 @@ static int elan_probe(struct i2c_client *client,
 {
 	struct elan_tp_data *data;
 	u8 adapter_func;
-	union i2c_smbus_data dummy;
 	struct device *dev = &client->dev;
 
 	adapter_func = elan_check_adapter_functionality(client);
 	if (adapter_func == ELAN_ADAPTER_FUNC_NONE) {
 		dev_err(dev, "not a supported I2C/SMBus adapter\n");
 		return -EIO;
-	}
-
-	/* Make sure there is something at this address */
-	if (i2c_smbus_xfer(client->adapter, client->addr, 0,
-			   I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &dummy) < 0) {
-		dev_err(dev, "nothing at this address\n");
-		return -ENODEV;
 	}
 
 	data = kzalloc(sizeof(struct elan_tp_data), GFP_KERNEL);
@@ -1788,6 +1965,7 @@ static int elan_probe(struct i2c_client *client,
 	data->client = client;
 	data->irq = client->irq;
 	data->wait_signal_from_updatefw = false;
+	data->lid_status = LID_UNKNOWN;
 	init_completion(&data->fw_completion);
 
 	/* Do slower init steps asynchonously. */
@@ -1803,6 +1981,7 @@ static int elan_remove(struct i2c_client *client)
 	sysfs_remove_group(&client->dev.kobj, &elan_sysfs_group);
 	free_irq(data->irq, data);
 	input_unregister_device(data->input);
+	lid_event_unregister_handler(data);
 	kfree(data);
 	return 0;
 }
@@ -1813,16 +1992,29 @@ static int elan_suspend(struct device *dev)
 	int ret = 0;
 	struct elan_tp_data *data = dev_get_drvdata(dev);
 
-	disable_irq(data->irq);
+	/* Set suspended flag true as system suspends. */
+	data->suspended = true;
 
-	if (device_may_wakeup(dev))
-		ret = elan_sleep(data);
-	else
+	/* Skip the step if it was turned off before. */
+	if (!data->active)
+		return 0;
+
+	disable_irq(data->irq);
+	data->active = false;
+
+	if (device_may_wakeup(dev)) {
+		if (data->lid_status == LID_CLOSED) {
+			ret = elan_disable_power(data);
+		} else {
+			ret = elan_sleep(data);
+			/* Enable wake from IRQ */
+			data->irq_wake = (enable_irq_wake(data->irq) == 0);
+		}
+	} else
 		ret = elan_disable_power(data);
 
 	if (ret < 0)
 		dev_err(dev, "suspend mode failed, %d\n", ret);
-
 	return ret;
 }
 
@@ -1831,15 +2023,27 @@ static int elan_resume(struct device *dev)
 	int ret = 0;
 	struct elan_tp_data *data = dev_get_drvdata(dev);
 
-	if (device_may_wakeup(dev))
-		ret = elan_initialize(data);
-	else
-		ret = elan_enable_power(data);
+	/* set suspended flag false as system resumes. */
+	data->suspended = false;
+	/*
+	 * Do not activate touchpad if lid is closed, defer the activation
+	 * until lid is open
+	 */
+	if (data->lid_status == LID_CLOSED)
+		return 0;
 
+	if (device_may_wakeup(dev) && data->irq_wake)
+		disable_irq_wake(data->irq);
+
+	ret = elan_enable_power(data);
 	if (ret < 0)
 		dev_err(dev, "resume active power failed, %d\n", ret);
+	ret = elan_initialize(data);
+	if (ret < 0)
+		dev_err(dev, "resume initialize tp failed, %d\n", ret);
 
 	enable_irq(data->irq);
+	data->active = true;
 	return ret;
 }
 #endif
