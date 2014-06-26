@@ -375,19 +375,21 @@
 			compatible = "qcom,adm";
 			reg = <0x18300000 0x100000>;
 			interrupts = <0 170 0>;
+			#dma-cells = <2>;
 
 			clocks = <&gcc ADM0_CLK>, <&gcc ADM0_PBUS_CLK>;
-			clock-names = "core_clk", "iface_clk";
+			clock-names = "core", "iface";
 
 			resets = <&gcc ADM0_RESET>,
 				<&gcc ADM0_PBUS_RESET>,
 				<&gcc ADM0_C0_RESET>,
 				<&gcc ADM0_C1_RESET>,
 				<&gcc ADM0_C2_RESET>;
-
-			reset-names = "adm", "pbus", "c0", "c1", "c2";
+			reset-names = "clk", "pbus", "c0", "c1", "c2";
+			qcom,ee = <0>;
 
 			status = "disabled";
+
 		};
 
 		tcsr: tcsr@1a400000 {
