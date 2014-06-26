@@ -371,6 +371,25 @@
 			status = "disabled";
 		};
 
+		adm_dma: dma@18300000 {
+			compatible = "qcom,adm";
+			reg = <0x18300000 0x100000>;
+			interrupts = <0 170 0>;
+
+			clocks = <&gcc ADM0_CLK>, <&gcc ADM0_PBUS_CLK>;
+			clock-names = "core_clk", "iface_clk";
+
+			resets = <&gcc ADM0_RESET>,
+				<&gcc ADM0_PBUS_RESET>,
+				<&gcc ADM0_C0_RESET>,
+				<&gcc ADM0_C1_RESET>,
+				<&gcc ADM0_C2_RESET>;
+
+			reset-names = "adm", "pbus", "c0", "c1", "c2";
+
+			status = "disabled";
+		};
+
 		tcsr: tcsr@1a400000 {
 			compatible = "qcom,tcsr";
 			reg = <0x1a400000 0x100>;
