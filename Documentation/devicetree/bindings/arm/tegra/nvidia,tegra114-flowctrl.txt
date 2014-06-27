@@ -1,0 +1,12 @@
+NVIDIA Tegra114 Flow Controller
+
+Required properties:
+- compatible: "nvidia,tegra114-flowctrl"
+- reg: Should contain one register range (address and length)
+
+Example:
+
+	flow-controller@60007000 {
+		compatible = "nvidia,tegra114-flowctrl";
+		reg = <0x60007000 0x1000>;
+	};
