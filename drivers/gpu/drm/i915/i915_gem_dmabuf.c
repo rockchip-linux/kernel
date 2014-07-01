@@ -233,7 +233,8 @@ static const struct dma_buf_ops i915_dmabuf_ops =  {
 struct dma_buf *i915_gem_prime_export(struct drm_device *dev,
 				      struct drm_gem_object *gem_obj, int flags)
 {
-	return dma_buf_export(gem_obj, &i915_dmabuf_ops, gem_obj->size, flags);
+	return dma_buf_export(gem_obj, &i915_dmabuf_ops, gem_obj->size, flags,
+			      NULL);
 }
 
 static int i915_gem_object_get_pages_dmabuf(struct drm_i915_gem_object *obj)
