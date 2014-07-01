@@ -488,6 +488,7 @@ struct intel_dp {
 	bool want_panel_vdd;
 	bool psr_setup_done;
 	bool use_tps3;
+	bool is_apple_vga;
 	struct intel_connector *attached_connector;
 };
 
