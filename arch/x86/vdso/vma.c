@@ -130,6 +130,9 @@ struct linux_binprm;
  */
 static unsigned long vdso_addr(unsigned long start, unsigned len)
 {
+#ifdef CONFIG_X86_32
+	return 0;
+#else
 	unsigned long addr, end;
 	unsigned offset;
 
@@ -159,6 +162,7 @@ static unsigned long vdso_addr(unsigned long start, unsigned len)
 	addr = align_vdso_addr(addr);
 
 	return addr;
+#endif
 }
 
 /* Setup a VMA at program startup for the vsyscall page.
