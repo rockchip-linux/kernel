@@ -6598,6 +6598,16 @@ static void assert_can_disable_lcpll(struct drm_i915_private *dev_priv)
 	WARN(!dev_priv->pc8.irqs_disabled, "IRQs enabled\n");
 }
 
+static uint32_t hsw_read_dcomp(struct drm_i915_private *dev_priv)
+{
+	struct drm_device *dev = dev_priv->dev;
+
+	if (IS_HASWELL(dev))
+		return I915_READ(D_COMP_HSW);
+	else
+		return I915_READ(D_COMP_BDW);
+}
+
 static void hsw_write_dcomp(struct drm_i915_private *dev_priv, uint32_t val)
 {
 	struct drm_device *dev = dev_priv->dev;
@@ -6609,9 +6619,9 @@ static void hsw_write_dcomp(struct drm_i915_private *dev_priv, uint32_t val)
 			DRM_ERROR("Failed to disable D_COMP\n");
 		mutex_unlock(&dev_priv->rps.hw_lock);
 	} else {
-		I915_WRITE(D_COMP, val);
+		I915_WRITE(D_COMP_BDW, val);
+		POSTING_READ(D_COMP_BDW);
 	}
-	POSTING_READ(D_COMP);
 }
 
 /*
@@ -6649,12 +6659,13 @@ static void hsw_disable_lcpll(struct drm_i915_private *dev_priv,
 	if (wait_for((I915_READ(LCPLL_CTL) & LCPLL_PLL_LOCK) == 0, 1))
 		DRM_ERROR("LCPLL still locked\n");
 
-	val = I915_READ(D_COMP);
+	val = hsw_read_dcomp(dev_priv);
 	val |= D_COMP_COMP_DISABLE;
 	hsw_write_dcomp(dev_priv, val);
 	ndelay(100);
 
-	if (wait_for((I915_READ(D_COMP) & D_COMP_RCOMP_IN_PROGRESS) == 0, 1))
+	if (wait_for((hsw_read_dcomp(dev_priv) & D_COMP_RCOMP_IN_PROGRESS) == 0,
+		     1))
 		DRM_ERROR("D_COMP RCOMP still in progress\n");
 
 	if (allow_power_down) {
@@ -6689,7 +6700,7 @@ static void hsw_restore_lcpll(struct drm_i915_private *dev_priv)
 		POSTING_READ(LCPLL_CTL);
 	}
 
-	val = I915_READ(D_COMP);
+	val = hsw_read_dcomp(dev_priv);
 	val |= D_COMP_COMP_FORCE;
 	val &= ~D_COMP_COMP_DISABLE;
 	hsw_write_dcomp(dev_priv, val);
