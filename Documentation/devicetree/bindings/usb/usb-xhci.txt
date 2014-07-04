@@ -6,6 +6,9 @@ Required properties:
     register set for the device.
   - interrupts: one XHCI interrupt should be described here.
 
+Optional properties:
+  - usb3-lpm-capable: determines if platform is USB3 LPM capable
+
 Example:
 	usb@f0931000 {
 		compatible = "xhci-platform";
