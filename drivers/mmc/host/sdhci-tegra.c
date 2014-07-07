@@ -1852,10 +1852,16 @@ static int tegra_sdhci_suspend(struct device *dev)
 	pm_runtime_get_sync(dev);
 
 	ret = sdhci_suspend_host(host);
-	tegra_sdhci_clock_disable(host);
 	if (!mmc_card_keep_power(host->mmc))
 		if (gpio_is_valid(tegra_host->power_gpio))
 			gpio_direction_output(tegra_host->power_gpio, 0);
+
+	/*
+	 * We should be able to gate the controller clock here, but the
+	 * Marvell SD8897 is generating SDIO interrupts after it ought to
+	 * have been suspended, causing a hard hang if the SDIO IRQ thread
+	 * runs after the clock is gated.
+	 */
 
 	pm_runtime_mark_last_busy(dev);
 	pm_runtime_put_autosuspend(dev);
@@ -1879,7 +1885,6 @@ static int tegra_sdhci_resume(struct device *dev)
 	if (!mmc_card_keep_power(host->mmc))
 		if (gpio_is_valid(tegra_host->power_gpio))
 			gpio_direction_output(tegra_host->power_gpio, 1);
-	tegra_sdhci_clock_enable(host);
 	ret = sdhci_resume_host(host);
 
 	pm_runtime_mark_last_busy(dev);
