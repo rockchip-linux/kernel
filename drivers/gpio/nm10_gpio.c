@@ -257,8 +257,8 @@ static int nm10_gpio_probe(struct pci_dev *pdev,
 	struct nm10_gpio *pgpio;
 
 	retval = pci_enable_device(pdev);
-	printk(KERN_INFO "%s version %s built on %s at %s\n", gpio_driver_name,
-	       gpio_driver_version, __DATE__, __TIME__);
+	printk(KERN_INFO "%s version %s.\n", gpio_driver_name,
+	       gpio_driver_version);
 
 	if (retval) {
 		goto done;
