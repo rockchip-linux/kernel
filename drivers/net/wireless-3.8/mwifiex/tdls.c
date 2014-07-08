@@ -253,8 +253,7 @@ static int mwifiex_tdls_add_vht_oper(struct mwifiex_private *priv,
 	}
 
 	if (!mwifiex_is_bss_in_11ac_mode(priv)) {
-		if (sta_ptr->tdls_cap.extcap.ext_capab[7] &
-		   WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED) {
+		if (!ISSUPP_TDLS_WIDE_BAND(sta_ptr)) {
 			dev_dbg(adapter->dev,
 				"TDLS peer doesn't support wider bandwitdh\n");
 			return 0;
@@ -282,8 +281,7 @@ static int mwifiex_tdls_add_vht_oper(struct mwifiex_private *priv,
 
 	/* We need check AP's bandwidth when TDLS_WIDER_BANDWIDTH is off */
 
-	if (ap_vht_cap && sta_ptr->tdls_cap.extcap.ext_capab[7] &
-	    WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED) {
+	if (ap_vht_cap && ISSUPP_TDLS_WIDE_BAND(sta_ptr)) {
 		ap_supp_chwd_set =
 		      GET_VHTCAP_CHWDSET(le32_to_cpu(ap_vht_cap->vht_cap_info));
 		supp_chwd_set = min_t(u8, supp_chwd_set, ap_supp_chwd_set);

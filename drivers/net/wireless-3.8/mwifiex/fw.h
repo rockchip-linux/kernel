@@ -229,6 +229,9 @@ enum MWIFIEX_802_11_PRIVACY_FILTER {
 #define ISSUPP_BEAMFORMING(Dot11nDevCap) (Dot11nDevCap & BIT(30))
 #define ISALLOWED_CHANWIDTH40(ht_param) (ht_param & BIT(2))
 
+#define ISSUPP_TDLS_WIDE_BAND(sta_ptr)\
+		  (sta_ptr->tdls_cap.extcap.ext_capab[7] & \
+		   WLAN_EXT_CAPA8_TDLS_WIDE_BW_ENABLED)
 /* httxcfg bitmap
  * 0		reserved
  * 1		20/40 Mhz enable(1)/disable(0)
