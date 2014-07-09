@@ -187,8 +187,8 @@ static int mwifiex_tdls_add_vht_capab(struct mwifiex_private *priv,
 }
 
 static int
-mwifiex_tdls_add_ht_oper(struct mwifiex_private *priv,
-			 u8 *mac, u8 vht_enabled, struct sk_buff *skb)
+mwifiex_tdls_add_ht_oper(struct mwifiex_private *priv, u8 *mac,
+			 struct sk_buff *skb)
 {
 	struct ieee80211_ht_operation *ht_oper;
 	struct mwifiex_sta_node *sta_ptr;
@@ -213,16 +213,8 @@ mwifiex_tdls_add_ht_oper(struct mwifiex_private *priv,
 	ht_oper->primary_chan = bss_desc->channel;
 
 	/* follow AP's channel bandwidth */
-	if (ISSUPP_CHANWIDTH40(priv->adapter->hw_dot_11n_dev_cap) &&
-	    bss_desc->bcn_ht_cap &&
-	    ISALLOWED_CHANWIDTH40(bss_desc->bcn_ht_oper->ht_param))
+	if (bss_desc->bcn_ht_oper)
 		ht_oper->ht_param = bss_desc->bcn_ht_oper->ht_param;
-
-	if (vht_enabled) {
-		ht_oper->ht_param =
-			  mwifiex_get_sec_chan_offset(bss_desc->channel);
-		ht_oper->ht_param |= BIT(2);
-	}
 
 	memcpy(&sta_ptr->tdls_cap.ht_oper, ht_oper,
 	       sizeof(struct ieee80211_ht_operation));
@@ -471,13 +463,13 @@ static int mwifiex_prep_tdls_encap_data(struct mwifiex_private *priv,
 				dev_kfree_skb_any(skb);
 				return ret;
 			}
-			ret = mwifiex_tdls_add_ht_oper(priv, peer, 1, skb);
+			ret = mwifiex_tdls_add_ht_oper(priv, peer, skb);
 			if (ret) {
 				dev_kfree_skb_any(skb);
 				return ret;
 			}
 		} else {
-			ret = mwifiex_tdls_add_ht_oper(priv, peer, 0, skb);
+			ret = mwifiex_tdls_add_ht_oper(priv, peer, skb);
 			if (ret) {
 				dev_kfree_skb_any(skb);
 				return ret;
