@@ -30,10 +30,10 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/spinlock.h>
 
-#include "core.h"
-#include "pinconf.h"
+#include "../core.h"
+#include "../pinconf.h"
 #include "pinctrl-msm.h"
-#include "pinctrl-utils.h"
+#include "../pinctrl-utils.h"
 
 #define MAX_NR_GPIO 300
 
