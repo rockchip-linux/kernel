@@ -138,11 +138,11 @@ EXPORT_SYMBOL_GPL(dev_dark_resume_init);
 void dev_dark_resume_remove(struct device *dev)
 {
 	dev_dark_resume_set_active(dev, false);
+	dark_resume_sysfs_remove(dev);
 	if (!dev->power.dark_resume)
 		return;
 
 	dev_dark_resume_set_source(dev, false);
-	dark_resume_sysfs_remove(dev);
 	dev->power.dark_resume->caused_resume = NULL;
 	dev->power.dark_resume->irq = 0;
 	dev->power.dark_resume->dev = NULL;
