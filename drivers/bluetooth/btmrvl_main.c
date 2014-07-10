@@ -533,7 +533,7 @@ static int btmrvl_setup(struct hci_dev *hdev)
 	priv->btmrvl_dev.psmode = 1;
 	btmrvl_enable_ps(priv);
 
-	priv->btmrvl_dev.gpio_gap = 0xffff;
+	priv->btmrvl_dev.gpio_gap = 0xfffe;
 	btmrvl_send_hscfg_cmd(priv);
 
 	return 0;
