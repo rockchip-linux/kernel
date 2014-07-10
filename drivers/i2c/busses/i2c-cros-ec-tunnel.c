@@ -23,7 +23,6 @@
 #include <linux/i2c.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
-#include <linux/of_i2c.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
@@ -375,8 +374,6 @@ static int ec_i2c_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, bus);
 
 	dev_dbg(dev, "ChromeOS EC I2C tunnel adapter\n");
-
-	of_i2c_register_devices(&bus->adap);
 
 	return err;
 }
