@@ -215,7 +215,7 @@ static u32 i2c_readl(struct tegra_i2c_dev *i2c_dev, unsigned long reg)
 static void i2c_writesl(struct tegra_i2c_dev *i2c_dev, void *data,
 	unsigned long reg, int len)
 {
-	unsigned long *p = data;
+	u32 *p = data;
 	while (len--) {
 		writel(*p, i2c_dev->base + tegra_i2c_reg_addr(i2c_dev, reg));
 		p++;
@@ -225,7 +225,7 @@ static void i2c_writesl(struct tegra_i2c_dev *i2c_dev, void *data,
 static void i2c_readsl(struct tegra_i2c_dev *i2c_dev, void *data,
 	unsigned long reg, int len)
 {
-	unsigned long *p = data;
+	u32 *p = data;
 	while (len--) {
 		*p = readl(i2c_dev->base + tegra_i2c_reg_addr(i2c_dev, reg));
 		p++;
