@@ -244,16 +244,6 @@ static int mwifiex_tdls_add_vht_oper(struct mwifiex_private *priv,
 		return -1;
 	}
 
-	if (!mwifiex_is_bss_in_11ac_mode(priv)) {
-		if (!ISSUPP_TDLS_WIDE_BAND(sta_ptr)) {
-			dev_dbg(adapter->dev,
-				"TDLS peer doesn't support wider bandwitdh\n");
-			return 0;
-		}
-	} else {
-		ap_vht_cap = bss_desc->bcn_vht_cap;
-	}
-
 	pos = (void *)skb_put(skb, sizeof(struct ieee80211_vht_operation) + 2);
 	*pos++ = WLAN_EID_VHT_OPERATION;
 	*pos++ = sizeof(struct ieee80211_vht_operation);
@@ -264,19 +254,31 @@ static int mwifiex_tdls_add_vht_oper(struct mwifiex_private *priv,
 	else
 		usr_vht_cap_info = adapter->usr_dot_11ac_dev_cap_bg;
 
-	/* find the minmum bandwith between AP/TDLS peers */
+	/* find the minimum bandwidth between TDLS peers */
 	vht_cap = &sta_ptr->tdls_cap.vhtcap;
-	supp_chwd_set = GET_VHTCAP_CHWDSET(usr_vht_cap_info);
 	peer_supp_chwd_set =
-			 GET_VHTCAP_CHWDSET(le32_to_cpu(vht_cap->vht_cap_info));
-	supp_chwd_set = min_t(u8, supp_chwd_set, peer_supp_chwd_set);
+		GET_VHTCAP_CHWDSET(le32_to_cpu(vht_cap->vht_cap_info));
+	supp_chwd_set = min_t(u8, GET_VHTCAP_CHWDSET(usr_vht_cap_info),
+			      peer_supp_chwd_set);
 
-	/* We need check AP's bandwidth when TDLS_WIDER_BANDWIDTH is off */
-
-	if (ap_vht_cap && ISSUPP_TDLS_WIDE_BAND(sta_ptr)) {
+	if (mwifiex_is_bss_in_11ac_mode(priv)) {
+		/* Always follow AP's VHT operation parameters if available */
+		ap_vht_cap = bss_desc->bcn_vht_cap;
 		ap_supp_chwd_set =
 		      GET_VHTCAP_CHWDSET(le32_to_cpu(ap_vht_cap->vht_cap_info));
 		supp_chwd_set = min_t(u8, supp_chwd_set, ap_supp_chwd_set);
+	} else {
+		if (ISSUPP_TDLS_WIDE_BAND(sta_ptr) &&
+		    ISSUPP_CHANWIDTH40(priv->adapter->hw_dot_11n_dev_cap) &&
+		    bss_desc->bcn_ht_oper &&
+		    ISALLOWED_CHANWIDTH40(bss_desc->bcn_ht_oper->ht_param)) {
+			dev_dbg(priv->adapter->dev,
+				"Use TDLS wide band bandwidth when AP in HT40");
+		} else {
+			dev_dbg(adapter->dev,
+				"TDLS Wider bandwidth cannot be enabled\n");
+			supp_chwd_set = IEEE80211_VHT_CHANWIDTH_USE_HT;
+		}
 	}
 
 	switch (supp_chwd_set) {
