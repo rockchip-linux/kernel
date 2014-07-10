@@ -10,7 +10,9 @@ extensions to the Synopsys Designware Mobile Storage Host Controller.
 Required Properties:
 
 * compatible: should be
-	- "rockchip,rk2928-dw-mshc": for Rockchip RK2928 and following
+	- "rockchip,rk2928-dw-mshc": for Rockchip RK2928 and following,
+							before RK3288
+	- "rockchip,rk3288-dw-mshc": for Rockchip RK3288
 
 Example:
 
