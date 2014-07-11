@@ -1352,8 +1352,7 @@ static void set_abs_position_params(struct input_dev *dev,
 	int x_max = priv->x_max ?: XMAX_NOMINAL;
 	int y_min = priv->y_min ?: YMIN_NOMINAL;
 	int y_max = priv->y_max ?: YMAX_NOMINAL;
-	int fuzz = (SYN_CAP_REDUCED_FILTERING(priv->ext_cap_0c) &&
-			!SYN_CAP_IMAGE_SENSOR(priv->ext_cap_0c)) ?
+	int fuzz = SYN_CAP_REDUCED_FILTERING(priv->ext_cap_0c) ?
 			SYN_REDUCED_FILTER_FUZZ : 0;
 
 	input_set_abs_params(dev, x_code, x_min, x_max, fuzz, 0);
