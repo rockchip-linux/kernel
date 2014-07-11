@@ -104,7 +104,6 @@ static void __init tegra_init_early(void)
 	tegra_cpu_reset_handler_init();
 	tegra_init_cache();
 	tegra_powergate_init();
-	tegra_hotplug_init();
 }
 
 static void __init tegra_dt_init_irq(void)
