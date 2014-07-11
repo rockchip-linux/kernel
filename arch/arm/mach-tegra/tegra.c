@@ -100,7 +100,6 @@ static void __init tegra_init_cache(void)
 static void __init tegra_init_early(void)
 {
 	of_register_trusted_foundations();
-	tegra_init_fuse();
 	tegra_cpu_reset_handler_init();
 	tegra_init_cache();
 	tegra_powergate_init();
