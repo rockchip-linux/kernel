@@ -19,6 +19,7 @@ struct tegra_dc_soc_info {
 	bool supports_interlacing;
 	bool supports_cursor;
 	bool supports_block_linear;
+	unsigned int pitch_align;
 };
 
 struct tegra_plane {
@@ -1340,6 +1341,13 @@ static int tegra_dc_init(struct host1x_client *client)
 	drm_mode_crtc_set_gamma_size(&dc->base, 256);
 	drm_crtc_helper_add(&dc->base, &tegra_crtc_helper_funcs);
 
+	/*
+	 * Keep track of the minimum pitch alignment across all display
+	 * controllers.
+	 */
+	if (dc->soc->pitch_align > tegra->pitch_align)
+		tegra->pitch_align = dc->soc->pitch_align;
+
 	err = tegra_dc_rgb_init(tegra->drm, dc);
 	if (err < 0 && err != -ENODEV) {
 		dev_err(dc->dev, "failed to initialize RGB output: %d\n", err);
@@ -1398,18 +1406,28 @@ static const struct tegra_dc_soc_info tegra20_dc_soc_info = {
 	.supports_interlacing = false,
 	.supports_cursor = false,
 	.supports_block_linear = false,
+	.pitch_align = 8,
 };
 
 static const struct tegra_dc_soc_info tegra30_dc_soc_info = {
 	.supports_interlacing = false,
 	.supports_cursor = false,
 	.supports_block_linear = false,
+	.pitch_align = 8,
+};
+
+static const struct tegra_dc_soc_info tegra114_dc_soc_info = {
+	.supports_interlacing = false,
+	.supports_cursor = false,
+	.supports_block_linear = false,
+	.pitch_align = 64,
 };
 
 static const struct tegra_dc_soc_info tegra124_dc_soc_info = {
 	.supports_interlacing = true,
 	.supports_cursor = true,
 	.supports_block_linear = true,
+	.pitch_align = 64,
 };
 
 static const struct of_device_id tegra_dc_of_match[] = {
