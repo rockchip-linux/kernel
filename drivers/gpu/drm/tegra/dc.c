@@ -1577,6 +1577,7 @@ static int tegra_dc_remove(struct platform_device *pdev)
 		return err;
 	}
 
+	reset_control_assert(dc->rst);
 	clk_disable_unprepare(dc->clk);
 	if (dc->emc_clk)
 		clk_disable_unprepare(dc->emc_clk);
