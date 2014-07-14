@@ -103,10 +103,17 @@ static int keyboard_led_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct acpi_device_id keyboard_led_id[] = {
+	{ "GOOG0002", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, keyboard_led_id);
+
 static struct platform_driver keyboard_led_driver = {
 	.driver		= {
 		.name	= "chromeos-keyboard-leds",
 		.owner	= THIS_MODULE,
+		.acpi_match_table = ACPI_PTR(keyboard_led_id),
 	},
 	.probe		= keyboard_led_probe,
 	.remove		= keyboard_led_remove,
