@@ -682,7 +682,7 @@ struct mwifiex_ie_types_rsn_param_set {
 	u8 rsn_ie[1];
 } __packed;
 
-#define MWIFIEX_TDLS_IDLE_TIMEOUT        60
+#define MWIFIEX_TDLS_IDLE_TIMEOUT_IN_SEC	60
 
 struct mwifiex_ie_types_tdls_idle_timeout {
 	struct mwifiex_ie_types_header header;
