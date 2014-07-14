@@ -1165,10 +1165,6 @@ static void synaptics_profile_sensor_process(struct psmouse *psmouse,
 	}
 	/* Store updated mt_state */
 	priv->mt_state = agm->mt_state = mt_state;
-
-	/* report ABS_X, ABS_Y positions */
-	input_mt_report_pointer_emulation(dev, false);
-
 	/* Send the number of fingers reported by touchpad itself. */
 	input_mt_report_finger_count(dev, mt_state.count);
 	synaptics_report_buttons(psmouse, sgm);
