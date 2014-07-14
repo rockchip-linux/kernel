@@ -536,7 +536,6 @@ int mwifiex_send_addba(struct mwifiex_private *priv, int tid, u8 *peer_mac)
 {
 	struct host_cmd_ds_11n_addba_req add_ba_req;
 	static u8 dialog_tok;
-	struct mwifiex_sta_node *sta_ptr;
 	u32 tx_win_size = priv->add_ba_param.tx_win_size;
 	int ret;
 	u16 block_ack_param_set;
@@ -547,6 +546,8 @@ int mwifiex_send_addba(struct mwifiex_private *priv, int tid, u8 *peer_mac)
 	    ISSUPP_TDLS_ENABLED(priv->adapter->fw_cap_info) &&
 	    priv->adapter->is_hw_11ac_capable &&
 	    memcmp(priv->cfg_bssid, peer_mac, ETH_ALEN)) {
+		struct mwifiex_sta_node *sta_ptr;
+
 		sta_ptr = mwifiex_get_sta_entry(priv, peer_mac);
 		if (!sta_ptr) {
 			dev_warn(priv->adapter->dev,
