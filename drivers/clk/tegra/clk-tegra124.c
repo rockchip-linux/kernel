@@ -1385,6 +1385,7 @@ static struct tegra_clk_init_table init_table[] __initdata = {
 	{TEGRA124_CLK_I2C4, TEGRA124_CLK_PLL_P, 0, 0},
 	{TEGRA124_CLK_I2C5, TEGRA124_CLK_PLL_P, 0, 0},
 	{TEGRA124_CLK_I2C6, TEGRA124_CLK_PLL_P, 0, 0},
+	{TEGRA124_CLK_SOC_THERM, TEGRA124_CLK_PLL_P, 51000000, 0},
 	/* This MUST be the last entry. */
 	{TEGRA124_CLK_CLK_MAX, TEGRA124_CLK_CLK_MAX, 0, 0},
 };
@@ -1394,9 +1395,25 @@ static void __init tegra124_clock_apply_init_table(void)
 	tegra_init_from_table(init_table, clks, TEGRA124_CLK_CLK_MAX);
 }
 
+enum {
+	TEGRA124_CLK,
+	TEGRA132_CLK,
+};
+
+static const struct of_device_id tegra_clock_of_match[] = {
+	{ .compatible = "nvidia,tegra124-car", .data = (void *)TEGRA124_CLK },
+	{ .compatible = "nvidia,tegra132-car", .data = (void *)TEGRA132_CLK },
+	{},
+};
+
 static void __init tegra124_clock_init(struct device_node *np)
 {
 	struct device_node *node;
+	const struct of_device_id *match;
+	uintptr_t id;
+
+	match = of_match_node(tegra_clock_of_match, np);
+	id = (uintptr_t)match->data;
 
 	clk_base = of_iomap(np, 0);
 	if (!clk_base) {
@@ -1432,6 +1449,20 @@ static void __init tegra124_clock_init(struct device_node *np)
 	tegra_audio_clk_init(clk_base, pmc_base, tegra124_clks, &pll_a_params);
 	tegra_pmc_clk_init(pmc_base, tegra124_clks);
 
+	if (id == TEGRA132_CLK) {
+		int i;
+
+		tegra124_clks[tegra_clk_cclk_g].present = false;
+		tegra124_clks[tegra_clk_cclk_lp].present = false;
+		tegra124_clks[tegra_clk_pll_x].present = false;
+		tegra124_clks[tegra_clk_pll_x_out0].present = false;
+
+		/* Tegra132 requires the soc_therm clock to be always on */
+		for (i = 0; i < ARRAY_SIZE(init_table); i++) {
+			if (init_table[i].clk_id == TEGRA124_CLK_SOC_THERM)
+				init_table[i].state = 1;
+		}
+	}
 	tegra_super_clk_gen4_init(clk_base, pmc_base, tegra124_clks,
 					&pll_x_params);
 	tegra_add_of_provider(np);
@@ -1451,3 +1482,4 @@ static void __init tegra124_clock_init(struct device_node *np)
 #endif
 }
 CLK_OF_DECLARE(tegra124, "nvidia,tegra124-car", tegra124_clock_init);
+CLK_OF_DECLARE(tegra132, "nvidia,tegra132-car", tegra124_clock_init);
