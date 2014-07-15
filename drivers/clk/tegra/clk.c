@@ -210,7 +210,7 @@ void __init tegra_init_from_table(struct tegra_clk_init_table *tbl,
 	for (; tbl->clk_id < clk_max; tbl++) {
 		clk = clks[tbl->clk_id];
 		if (IS_ERR_OR_NULL(clk))
-			return;
+			continue;
 
 		if (tbl->parent_id < clk_max) {
 			struct clk *parent = clks[tbl->parent_id];
