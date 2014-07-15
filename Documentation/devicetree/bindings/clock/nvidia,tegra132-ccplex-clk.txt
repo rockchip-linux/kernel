@@ -1,0 +1,27 @@
+NVIDIA Tegra132 ccplex clocks
+
+This binding uses the common clock binding:
+Documentation/devicetree/bindings/clock/clock-bindings.txt
+
+The Tegra132 ccplex clock module on Tegra132 is the HW module responsible
+for the ccplex related clocks.
+
+Required properties :
+- compatible : Should be "nvidia,tegra132-ccplex-clk"
+- reg : Should contain ccplex clock registers location and length
+- #clock-cells : Should be 1.
+  In clock consumers, this cell represents the clock ID exposed by the
+  ccplex clock module. The assignments may be found in header file
+  <dt-bindings/clock/tegra132-ccplex.h>.
+
+Example SoC include file:
+
+/ {
+	ccplex-clock@0,70040000 {
+		compatible = "nvidia,tegra132-ccplex-clk";
+		reg = <0x0 0x70040000 0x0 0x1000>;
+		status = "okay";
+		#clock-cells = <1>;
+	};
+
+};
