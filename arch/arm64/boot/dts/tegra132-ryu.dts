@@ -1,0 +1,472 @@
+/dts-v1/;
+
+#include <dt-bindings/input/input.h>
+#include "tegra132.dtsi"
+#include "tegra132-ryu-gpio-default.dtsi"
+#include "tegra132-ryu-pinmux.dtsi"
+
+/ {
+	model = "Google Tegra132 Ryu";
+	compatible = "google,ryu", "nvidia,tegra132", "nvidia,tegra124";
+
+	aliases {
+		rtc0 = "/i2c@7000d000/palmas";
+		rtc1 = "/rtc@7000e000";
+	};
+
+	memory {
+		reg = <0x0 0x80000000 0x80000000>; /* XXX should be 4GiB */
+	};
+
+	serial@70006000 {
+		status = "okay";
+	};
+
+	rtc {
+		nvidia,pmc-wakeup = <&pmc 1 16 4>;
+	};
+
+	// I2C1 (GEN1_I2C)
+	i2c@7000c000 {
+		status = "okay";
+		clock-frequency = <400000>;
+	};
+
+	// I2C2 (GEN2_I2C)
+	i2c@7000c400 {
+		status = "okay";
+		clock-frequency = <400000>;
+	};
+
+	// I2C3 (CAM_I2C)
+	i2c@7000c500 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		trusted-platform-module {
+			compatible = "infineon,slb9645tt";
+			reg = <0x20>;
+			powered-while-suspended;
+		};
+	};
+
+	// I2C4 (HDMI_DDC)
+	i2c@7000c700 {
+		status = "okay";
+		clock-frequency = <400000>;
+	};
+
+	// I2C5 (I2C_PMU, PWR_I2C)
+	i2c@7000d000 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		palmas: tps65913 {
+			compatible = "ti,palmas";
+			reg = <0x58>;
+			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
+
+			#interrupt-cells = <2>;
+			interrupt-controller;
+
+			ti,system-power-controller;
+
+			palmas_gpio: gpio {
+				compatible = "ti,palmas-gpio";
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+
+			rtc {
+				compatible = "ti,palmas-rtc";
+				interrupt-parent = <&palmas>;
+				interrupts = <8 0>;
+			};
+
+			pinmux {
+				compatible = "ti,tps65913-pinctrl";
+				pinctrl-names = "default";
+				pinctrl-0 = <&palmas_default>;
+
+				palmas_default: pinmux {
+					powergood {
+						pins = "powergood";
+						function = "powergood";
+					};
+
+					vac {
+						pins = "vac";
+						function = "vac";
+					};
+
+					camera_en {
+						pins = "gpio4";
+						function = "gpio";
+					};
+
+					clk_mdm_32k {
+						pins = "gpio5";
+						function = "clk32kgaudio";
+					};
+
+					lcd_en {
+						pins = "gpio6";
+						function = "gpio";
+					};
+				};
+			};
+
+#if 0
+			palmas_extcon: extcon {
+				compatible = "ti,palmas-usb";
+				#extcon-cells = <1>;
+				ti,wakeup;
+				ti,enable-id-detection;
+				ti,enable-vbus-detection;
+			};
+
+			power_pm {
+				compatible = "ti,palmas-pm";
+				system-pmic-power-off;
+				system-pmic-power-reset;
+			};
+
+			palams_gpadc: gpadc {
+				compatible = "ti,palmas-gpadc";
+				interrupt-parent = <&palmas>;
+				interrupts = <18 0
+						  16 0
+						  17 0>;
+				#io-channel-cells = <1>;
+			};
+#endif
+
+			clock {
+				compatible = "ti,palmas-clk";
+
+				clk32k_kg {
+					ti,clock-boot-enable;
+				};
+
+				clk32k_kg_audio {
+					ti,clock-boot-enable;
+				};
+			};
+
+			pmic {
+				compatible = "ti,tps65913-pmic", "ti,palmas-pmic";
+#if 0
+				ldo1-in-supply = <&palmas_smps6>;
+				ldo2-in-supply = <&palmas_smps6>;
+				ldo5-in-supply = <&palmas_smps8>;
+				ldo6-in-supply = <&palmas_smps9>;
+				ldo7-in-supply = <&palmas_smps9>;
+				ldo9-in-supply = <&palmas_smps9>;
+				ldoln-in-supply = <&palmas_smps10_out2>;
+				// TODO: From nvidia
+				// 1 Program LDOUSB_OUT to 2.8V
+				// 2 LDOUSB should be switched LDOUSB_IN1
+#endif
+
+				regulators {
+					smps123 {
+						regulator-name = "vdd-cpu";
+						regulator-min-microvolt = <750000>;
+						regulator-max-microvolt = <1260000>;
+						regulator-always-on;
+						regulator-boot-on;
+						ti,roof-floor = <1>;
+					};
+
+					smps457 {
+						regulator-name = "vdd-gpu";
+						regulator-min-microvolt = <750000>;
+						regulator-max-microvolt = <1200000>;
+						regulator-init-microvolt = <1000000>;
+						// TODO: driver should enable as needed
+						// regulator-always-on;
+						// regulator-boot-on;
+					};
+
+					palmas_smps6: smps6 {
+						regulator-name = "vddio-ddr";
+						regulator-min-microvolt = <800000>;
+						regulator-max-microvolt = <1150000>;
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					palmas_smps8: smps8 {
+						regulator-name = "vdd-1v8";
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					palmas_smps10_out2: smps10_out2 {
+						regulator-name = "vdd-out2-5v0";
+						regulator-min-microvolt = <5000000>;
+						regulator-max-microvolt = <5000000>;
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					ldo1 {
+						regulator-name = "avdd-pll";
+						regulator-min-microvolt = <1050000>;
+						regulator-max-microvolt = <1050000>;
+						regulator-always-on;
+						regulator-boot-on;
+						ti,roof-floor = <3>;
+					};
+
+					ldo2 {
+						regulator-name = "vdd-usb3";
+						regulator-min-microvolt = <1050000>;
+						regulator-max-microvolt = <1050000>;
+					};
+
+					ldo3 {
+						regulator-name = "vdd-camera";
+						regulator-min-microvolt = <1200000>;
+						regulator-max-microvolt = <1200000>;
+					};
+
+					ldo4 {
+						regulator-name = "avdd-rear-camera";
+						regulator-min-microvolt = <2800000>;
+						regulator-max-microvolt = <2800000>;
+					};
+
+					palmas_ldo5: ldo5 {
+						regulator-name = "avdd-dsi-csi";
+						regulator-min-microvolt = <1200000>;
+						regulator-max-microvolt = <1200000>;
+					};
+
+					ldo6 {
+						regulator-name = "vdd-fuse";
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+
+					ldo7 {
+						regulator-name = "avdd-front-camera";
+						regulator-min-microvolt = <2800000>;
+						regulator-max-microvolt = <2800000>;
+					};
+
+					ldo8 {
+						regulator-name = "vdd-rtc";
+						regulator-min-microvolt = <800000>;
+						regulator-max-microvolt = <1150000>;
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					palmas_ldousb: ldousb {
+						regulator-name = "avdd-usb";
+						regulator-always-on;
+						regulator-boot-on;
+					};
+
+					regen1 {
+						regulator-name = "regen1";
+						regulator-always-on;
+						regulator-boot-on;
+					};
+				};
+			};
+		};
+	};
+
+	// I2C6
+	i2c@7000d100 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		tmp451: temperature-sensor@4c {
+			compatible = "ti,tmp451";
+			reg = <0x4c>;
+			interrupt-parent = <&gpio>;
+			interrupts = <TEGRA_GPIO(I, 6) IRQ_TYPE_LEVEL_LOW>;
+			vcc-supply = <&palmas_smps8>;
+
+			#thermal-sensor-cells = <1>;
+		};
+	};
+
+	/* USB A connector */
+	usb@7d000000 {
+		status = "okay";
+	};
+
+	usb-phy@7d000000 {
+		status = "okay";
+	};
+
+	usb@7d008000 {
+		status = "okay";
+	};
+
+	usb-phy@7d008000 {
+		status = "okay";
+		vbus-supply = <&vdd_usb3_vbus>;
+	};
+
+	sdhci@700b0000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		power-gpios = <&gpio TEGRA_GPIO(X, 7) GPIO_ACTIVE_HIGH>;
+		bus-width = <4>;
+		no-1-8-v;
+		non-removable;
+		status = "okay";
+		nvidia,host-off-card-on;
+		keep-power-in-suspend;
+		tap-delay = <2>;
+	};
+
+	sdhci@700b0600 {
+		power-gpios = <&gpio TEGRA_GPIO(R, 0) GPIO_ACTIVE_HIGH>;
+		bus-width = <8>;
+		non-removable;
+		status = "okay";
+	};
+
+	spi@7000da00 {
+		status = "okay";
+		spidev@0 {
+			compatible = "spidev";
+			reg = <0>;
+			spi-max-frequency = <25000000>;
+		};
+	};
+
+	pmc {
+		nvidia,invert-interrupt;
+		nvidia,suspend-mode = <0>;
+		#wake-cells = <3>;
+		nvidia,cpu-pwr-good-time = <500>;
+		nvidia,cpu-pwr-off-time = <300>;
+		nvidia,core-pwr-good-time = <641 3845>;
+		nvidia,core-pwr-off-time = <61036>;
+		nvidia,core-power-req-active-high;
+		nvidia,sys-clock-req-active-high;
+		nvidia,reset-gpio = <&gpio TEGRA_GPIO(I, 5) GPIO_ACTIVE_LOW>;
+	};
+
+	clocks {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		clk32k_in: clock@0 {
+			compatible = "fixed-clock";
+			reg=<0>;
+			#clock-cells = <0>;
+			clock-frequency = <32768>;
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		power {
+			label = "Power";
+			gpios = <&gpio TEGRA_GPIO(Q, 0) GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_POWER>;
+			debounce-interval = <30>;
+			gpio-key,wakeup;
+		};
+
+		lid {
+			label = "Lid";
+			gpios = <&gpio TEGRA_GPIO(O, 4) GPIO_ACTIVE_LOW>;
+			linux,input-type = <5>; /* EV_SW */
+			linux,code = <0>; /* SW_LID */
+			gpio-key,wakeup;
+		};
+
+		dock {
+			label = "Dock";
+			gpios = <&gpio TEGRA_GPIO(V, 2) GPIO_ACTIVE_LOW>;
+			linux,input-type = <5>; /* EV_SW */
+			linux,code = <5>; /* SW_DOCK */
+			gpio-key,wakeup;
+		};
+
+		volume_down {
+			label = "Volume Down";
+			gpios = <&gpio TEGRA_GPIO(Q, 6) GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_VOLUMEDOWN>;
+			gpio-key,wakeup;
+		};
+
+		volume_up {
+			label = "Volume Up";
+			gpios = <&gpio TEGRA_GPIO(Q, 7) GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_VOLUMEUP>;
+			gpio-key,wakeup;
+		};
+	};
+
+	regulators {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		floating: regulator@0 {
+			compatible = "regulator-fixed";
+			reg = <0>;
+			regulator-name = "floating";
+		};
+
+		vdd_3v3_reg: regulator@1 {
+			compatible = "regulator-fixed";
+			reg = <1>;
+			regulator-name = "vdd_3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			enable-active-high;
+			// gpio = <&as3722 1 GPIO_ACTIVE_HIGH>;
+		};
+
+		vdd_mux: regulator@2 {
+			compatible = "regulator-fixed";
+			reg = <2>;
+			regulator-name = "+VDD_MUX";
+			regulator-min-microvolt = <19000000>;
+			regulator-max-microvolt = <19000000>;
+			regulator-always-on;
+			regulator-boot-on;
+		};
+
+		vdd_5v0_sys: regulator@3 {
+			compatible = "regulator-fixed";
+			reg = <3>;
+			regulator-name = "+5V_SYS";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
+			regulator-boot-on;
+			vin-supply = <&vdd_mux>;
+		};
+
+		vdd_usb3_vbus: regulator@4 {
+			compatible = "regulator-fixed";
+			reg = <4>;
+			regulator-name = "+5V_USB_HS";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
+			regulator-boot-on;
+			vin-supply = <&vdd_5v0_sys>;
+		};
+
+	};
+};
