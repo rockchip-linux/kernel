@@ -441,7 +441,7 @@ remove_mapping:
 	dma_common_free_remap(addr, atomic_pool_size, VM_USERMAP);
 destroy_genpool:
 	gen_pool_destroy(atomic_pool);
-	atomic_pool == NULL;
+	atomic_pool = NULL;
 free_page:
 	if (!dma_release_from_contiguous(NULL, page, nr_pages))
 		__free_pages(page, get_order(atomic_pool_size));
