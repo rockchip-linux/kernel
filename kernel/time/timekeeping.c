@@ -114,7 +114,7 @@ static void tk_setup_internals(struct timekeeper *tk, struct clocksource *clock)
 
 	old_clock = tk->clock;
 	tk->clock = clock;
-	tk->cycle_last = clock->cycle_last = clock->read(clock);
+	tk->cycle_last = clock->read(clock);
 
 	/* Do the ns -> cycle conversion first, using original mult */
 	tmp = NTP_INTERVAL_LENGTH;
@@ -181,7 +181,7 @@ static inline s64 timekeeping_get_ns(struct timekeeper *tk)
 	cycle_now = clock->read(clock);
 
 	/* calculate the delta since the last update_wall_time: */
-	delta = clocksource_delta(cycle_now, clock->cycle_last, clock->mask);
+	delta = clocksource_delta(cycle_now, tk->cycle_last, clock->mask);
 
 	nsec = delta * tk->mult + tk->xtime_nsec;
 	nsec >>= tk->shift;
@@ -201,7 +201,7 @@ static inline s64 timekeeping_get_ns_raw(struct timekeeper *tk)
 	cycle_now = clock->read(clock);
 
 	/* calculate the delta since the last update_wall_time: */
-	delta = clocksource_delta(cycle_now, clock->cycle_last, clock->mask);
+	delta = clocksource_delta(cycle_now, tk->cycle_last, clock->mask);
 
 	/* convert delta to nanoseconds. */
 	nsec = clocksource_cyc2ns(delta, clock->mult, clock->shift);
@@ -304,8 +304,8 @@ static void timekeeping_forward_now(struct timekeeper *tk)
 
 	clock = tk->clock;
 	cycle_now = clock->read(clock);
-	delta = clocksource_delta(cycle_now, clock->cycle_last, clock->mask);
-	tk->cycle_last = clock->cycle_last = cycle_now;
+	delta = clocksource_delta(cycle_now, tk->cycle_last, clock->mask);
+	tk->cycle_last = cycle_now;
 
 	tk->xtime_nsec += delta * tk->mult;
 
@@ -932,13 +932,13 @@ static void timekeeping_resume(void)
 	 */
 	cycle_now = clock->read(clock);
 	if ((clock->flags & CLOCK_SOURCE_SUSPEND_NONSTOP) &&
-		cycle_now > clock->cycle_last) {
+		cycle_now > tk->cycle_last) {
 		u64 num, max = ULLONG_MAX;
 		u32 mult = clock->mult;
 		u32 shift = clock->shift;
 		s64 nsec = 0;
 
-		cycle_delta = clocksource_delta(cycle_now, clock->cycle_last,
+		cycle_delta = clocksource_delta(cycle_now, tk->cycle_last,
 						clock->mask);
 
 		/*
@@ -965,7 +965,7 @@ static void timekeeping_resume(void)
 		__timekeeping_inject_sleeptime(tk, &ts_delta);
 
 	/* Re-base the last cycle value */
-	tk->cycle_last = clock->cycle_last = cycle_now;
+	tk->cycle_last = cycle_now;
 	tk->ntp_error = 0;
 	timekeeping_suspended = 0;
 	timekeeping_update(tk, TK_MIRROR | TK_CLOCK_WAS_SET);
@@ -1370,7 +1370,7 @@ void update_wall_time(void)
 #ifdef CONFIG_ARCH_USES_GETTIMEOFFSET
 	offset = real_tk->cycle_interval;
 #else
-	offset = clocksource_delta(clock->read(clock), clock->cycle_last,
+	offset = clocksource_delta(clock->read(clock), tk->cycle_last,
 				   clock->mask);
 #endif
 
@@ -1414,8 +1414,6 @@ void update_wall_time(void)
 	clock_set |= accumulate_nsecs_to_secs(tk);
 
 	write_seqcount_begin(&tk_core.seq);
-	/* Update clock->cycle_last with the new value */
-	clock->cycle_last = tk->cycle_last;
 	/*
 	 * Update the real timekeeper.
 	 *
