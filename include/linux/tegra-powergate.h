@@ -81,7 +81,8 @@ struct reset_control;
 #define TEGRA_IO_RAIL_LVDS	57
 #define TEGRA_IO_RAIL_SYS_DDC	58
 
-#ifdef CONFIG_ARCH_TEGRA
+/*#ifdef CONFIG_ARCH_TEGRA*/
+#if 0
 int tegra_powergate_is_powered(int id);
 int tegra_powergate_power_on(int id);
 int tegra_powergate_power_off(int id);
