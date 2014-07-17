@@ -49,10 +49,10 @@ static bool debug = false;
 module_param(debug, bool, 0444);
 MODULE_PARM_DESC(debug, "print a lot of debug information");
 
-#define elan_dbg(client, fmt, arg...)   \
-	do {	\
-		if (debug)      \
-			dev_dbg(&client->dev, fmt, ##arg);	\
+#define elan_dbg(client, fmt, arg...) \
+	do { \
+		if (debug) \
+			dev_printk(KERN_DEBUG, &client->dev, fmt, ##arg); \
 	} while (0)
 
 #define ENTER_LOG() \
@@ -61,7 +61,7 @@ MODULE_PARM_DESC(debug, "print a lot of debug information");
 
 /* Device, Driver information */
 #define DEVICE_NAME	"elants_i2c"
-#define DRV_VERSION	"1.0.7"
+#define DRV_VERSION	"1.0.8"
 
 /* Finger report description */
 #define MAX_CONTACT_NUM	10
@@ -437,7 +437,7 @@ static int elan_dbfs_release(struct inode *inode, struct file *file)
 		return -ENODEV;
 
 	enable_irq(ts->client->irq);
-	mutex_destroy(&ts->dbfs_mutex);
+	mutex_unlock(&ts->dbfs_mutex);
 
 	return 0;
 }
@@ -463,6 +463,14 @@ static int elan_dbfs_init(struct elants_data *ts)
 		0666, ts->dbfs_root, ts, &elan_debug_fops);
 
 	return 0;
+}
+
+static void elan_dbfs_remove(struct elants_data *ts)
+{
+	debugfs_remove_recursive(ts->dbfs_root);
+	mutex_destroy(&ts->dbfs_mutex);
+
+	return;
 }
 
 static int elan_calibrate(struct i2c_client *client)
@@ -757,8 +765,7 @@ static int __fw_id_packet_handler(struct i2c_client *client)
 		if (buf_recv[0] == CMD_HEADER_RESP) {
 			ts->fw_id =
 			    parse_version_number(buf_recv, sizeof(buf_recv));
-			if ((ts->fw_id == 0x0000) ||
-			    (ts->fw_id == 0xffff)) {
+			if (ts->fw_id == 0xffff) {
 				dev_err(&client->dev,
 					"FW id is empty, "
 					"suggest IAP ELAN chip\n");
@@ -1692,6 +1699,12 @@ static int elan_remove(struct i2c_client *client)
 	int ret = 0;
 	struct elants_data *ts = i2c_get_clientdata(client);
 
+	/* remove dbfs */
+	elan_dbfs_remove(ts);
+
+	/* remove sysfs */
+	sysfs_remove_group(&client->dev.kobj, &elan_attribute_group);
+
 	if (client->irq)
 		free_irq(client->irq, ts);
 
@@ -2057,14 +2070,15 @@ static int elan_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(elan_pm_ops, elan_suspend, elan_resume);
 #endif
 
-MODULE_DEVICE_TABLE(i2c, elan_ts_id);
-
 #ifdef CONFIG_ACPI
 static const struct acpi_device_id elants_acpi_id[] = {
 	{ "ELAN0001", 0 },
 	{ }
-}
+};
+
 MODULE_DEVICE_TABLE(acpi, elants_acpi_id);
+#else
+MODULE_DEVICE_TABLE(i2c, elan_ts_id);
 #endif
 
 static struct i2c_driver elan_ts_driver = {
