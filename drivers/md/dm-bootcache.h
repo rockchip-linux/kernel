@@ -15,6 +15,7 @@
 #define DM_BOOTCACHE_H
 
 #include <linux/types.h>
+#include <linux/utsname.h>
 
 enum {	BOOTCACHE_MAGIC = 1651470196,
 	BOOTCACHE_VERSION = 3,
@@ -38,8 +39,8 @@ struct bootcache_hdr {
 	__u32	max_sectors;	/* Max sectors that can to read */
 	__u32	max_hw_sectors;	/* Max hardware sectore that can be read */
 	__u32	alignment;	/* Alignement on disk */
-	char	date[12];	/* Date and time dm-bootcache was compiled */
-	char	time[12];
+	/* Date and time dm-bootcache was compiled */
+	char	timestamp[__NEW_UTS_LEN + 1];
 	char	signature[MAX_SIGNATURE];
 };
 

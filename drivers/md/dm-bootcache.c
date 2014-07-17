@@ -727,9 +727,7 @@ static int is_valid_hdr(struct bootcache *cache, struct bootcache_hdr *hdr)
 		return 0;
 	if (hdr->max_hw_sectors != cache->hdr.max_hw_sectors)
 		return 0;
-	if (strncmp(hdr->date, __DATE__, strlen(__DATE__) + 1) != 0)
-		return 0;
-	if (strncmp(hdr->time, __TIME__, strlen(__TIME__) + 1) != 0)
+	if (strncmp(hdr->timestamp, utsname()->version, sizeof(hdr->timestamp)))
 		return 0;
 	if (strncmp(hdr->signature, cache->hdr.signature,
 			sizeof(hdr->signature)) != 0)
@@ -884,8 +882,7 @@ static void bootcache_init_hdr(struct bootcache_hdr *hdr, u64 cache_start,
 	hdr->alignment = PAGE_SIZE;
 	hdr->max_hw_sectors = queue_max_hw_sectors(bdev_get_queue(bdev));
 	hdr->max_sectors = queue_max_sectors(bdev_get_queue(bdev));
-	strncpy(hdr->date, __DATE__, sizeof(hdr->date));
-	strncpy(hdr->time, __TIME__, sizeof(hdr->time));
+	strncpy(hdr->timestamp, utsname()->version, sizeof(hdr->timestamp));
 	strncpy(hdr->signature, signature, sizeof(hdr->signature));
 }
 
