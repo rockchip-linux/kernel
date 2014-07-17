@@ -704,6 +704,7 @@ struct snd_soc_component {
 	int id;
 	const char *name_prefix;
 	struct device *dev;
+	struct snd_soc_card *card;
 
 	unsigned int active;
 
@@ -738,7 +739,6 @@ struct snd_soc_codec {
 	const struct snd_soc_codec_driver *driver;
 
 	struct mutex mutex;
-	struct snd_soc_card *card;
 	struct list_head list;
 	struct list_head card_list;
 
@@ -876,7 +876,6 @@ struct snd_soc_platform {
 	unsigned int suspended:1; /* platform is suspended */
 	unsigned int probed:1;
 
-	struct snd_soc_card *card;
 	struct list_head list;
 
 	struct snd_soc_component component;
