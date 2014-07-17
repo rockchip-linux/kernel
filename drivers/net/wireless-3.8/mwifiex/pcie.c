@@ -2223,7 +2223,6 @@ static void mwifiex_pcie_fw_dump_work(struct work_struct *work)
 			container_of(work, struct mwifiex_adapter, iface_work);
 	unsigned int reg, reg_start, reg_end;
 	u8 *dbg_ptr;
-	struct timeval t;
 	u8 dump_num = 0, idx, i, read_reg, doneflag = 0;
 	enum rdwr_status stat;
 	u32 memory_size;
@@ -2244,9 +2243,7 @@ static void mwifiex_pcie_fw_dump_work(struct work_struct *work)
 		return;
 	}
 
-	do_gettimeofday(&t);
-	dev_info(adapter->dev, "== mwifiex firmware dump start: %u.%06u ==\n",
-		 (u32)t.tv_sec, (u32)t.tv_usec);
+	dev_info(adapter->dev, "== mwifiex firmware dump start ==\n");
 
 	/* Read the number of the memories which will dump */
 	stat = mwifiex_pcie_rdwr_firmware(adapter, doneflag);
@@ -2289,9 +2286,8 @@ static void mwifiex_pcie_fw_dump_work(struct work_struct *work)
 		end_ptr = dbg_ptr + memory_size;
 
 		doneflag = entry->done_flag;
-		do_gettimeofday(&t);
-		dev_info(adapter->dev, "Start %s output %u.%06u, please wait...\n",
-			 entry->mem_name, (u32)t.tv_sec, (u32)t.tv_usec);
+		dev_info(adapter->dev, "Start %s output, please wait...\n",
+			 entry->mem_name);
 
 		do {
 			stat = mwifiex_pcie_rdwr_firmware(adapter, doneflag);
@@ -2317,7 +2313,6 @@ static void mwifiex_pcie_fw_dump_work(struct work_struct *work)
 			memset(filename, 0, sizeof(filename));
 			memcpy(filename, name_prefix, strlen(name_prefix));
 			strcat(filename, entry->mem_name);
-			do_gettimeofday(&t);
 			entry->file_mem = filp_open(filename, O_CREAT | O_RDWR,
 						    0644);
 			if (IS_ERR(entry->file_mem)) {
@@ -2333,8 +2328,7 @@ static void mwifiex_pcie_fw_dump_work(struct work_struct *work)
 			}
 			if (!IS_ERR(entry->file_mem)) {
 				dev_info(adapter->dev,
-					 "Start to save the output : %u.%06u, please wait...\n",
-					 (u32)t.tv_sec, (u32)t.tv_usec);
+					 "Start to save the output, please wait...\n");
 				fs = get_fs();
 				set_fs(KERNEL_DS);
 				pos = 0;
@@ -2355,9 +2349,7 @@ static void mwifiex_pcie_fw_dump_work(struct work_struct *work)
 			break;
 		} while (true);
 	}
-	do_gettimeofday(&t);
-	dev_info(adapter->dev, "== mwifiex firmware dump end: %u.%06u ==\n",
-		 (u32)t.tv_sec, (u32)t.tv_usec);
+	dev_info(adapter->dev, "== mwifiex firmware dump end ==\n");
 
 done:
 	for (idx = 0; idx < ARRAY_SIZE(mem_type_mapping_tbl); idx++) {
