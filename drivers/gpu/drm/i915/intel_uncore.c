@@ -346,7 +346,9 @@ void intel_uncore_sanitize(struct drm_device *dev)
 	u32 reg_val;
 
 	/* BIOS often leaves RC6 enabled, but disable it for hw init */
+	mutex_lock(&dev->struct_mutex);
 	intel_disable_gt_powersave(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	/* Turn off power gate, require especially for the BIOS less system */
 	if (IS_VALLEYVIEW(dev)) {
