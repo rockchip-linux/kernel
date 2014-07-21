@@ -88,6 +88,17 @@ fffffdfbffff0000	fffffdfbffffffff	  64KB		[guard page]
 
 fffffdfc00000000	fffffdfdffffffff	   8GB		vmemmap
 
+AArch64 Linux memory layout with 64KB pages + 3 levels:
+
+Start			End			Size		Use
+-----------------------------------------------------------------------
+0000000000000000	0000ffffffffffff	 256TB		user
+ffff000000000000	ffffffffffffffff	 256TB		kernel
+
+
+For details of the virtual kernel memory layout please see the kernel
+booting log.
+
 fffffdfe00000000	fffffdfffbbfffff	  ~8GB		[guard, future vmmemap]
 
 fffffdfffa000000	fffffdfffaffffff	  16MB		PCI I/O space
