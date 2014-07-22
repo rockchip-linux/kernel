@@ -442,7 +442,7 @@ static int gpio_setup_irq(struct gpio_desc *desc, struct device *dev,
 	desc->flags &= ~GPIO_TRIGGER_MASK;
 
 	if (!gpio_flags) {
-		gpiod_unlock_as_irq(desc);
+		gpio_unlock_as_irq(desc->chip, gpio_chip_hwgpio(desc));
 		ret = 0;
 		goto free_id;
 	}
@@ -481,7 +481,7 @@ static int gpio_setup_irq(struct gpio_desc *desc, struct device *dev,
 	if (ret < 0)
 		goto free_id;
 
-	ret = gpiod_lock_as_irq(desc);
+	ret = gpio_lock_as_irq(desc->chip, gpio_chip_hwgpio(desc));
 	if (ret < 0) {
 		gpiod_warn(desc, "failed to flag the GPIO for IRQ\n");
 		goto free_id;
@@ -2448,54 +2448,44 @@ int gpiod_to_irq(const struct gpio_desc *desc)
 EXPORT_SYMBOL_GPL(gpiod_to_irq);
 
 /**
- * gpiod_lock_as_irq() - lock a GPIO to be used as IRQ
- * @gpio: the GPIO line to lock as used for IRQ
+ * gpio_lock_as_irq() - lock a GPIO to be used as IRQ
+ * @chip: the chip the GPIO to lock belongs to
+ * @offset: the offset of the GPIO to lock as IRQ
  *
  * This is used directly by GPIO drivers that want to lock down
  * a certain GPIO line to be used for IRQs.
  */
-int gpiod_lock_as_irq(struct gpio_desc *desc)
+int gpio_lock_as_irq(struct gpio_chip *chip, unsigned int offset)
 {
-	if (!desc)
+	if (offset >= chip->ngpio)
 		return -EINVAL;
 
-	if (test_bit(FLAG_IS_OUT, &desc->flags)) {
-		gpiod_err(desc,
+	if (test_bit(FLAG_IS_OUT, &chip->desc[offset].flags)) {
+		chip_err(chip,
 			  "%s: tried to flag a GPIO set as output for IRQ\n",
 			  __func__);
 		return -EIO;
 	}
 
-	set_bit(FLAG_USED_AS_IRQ, &desc->flags);
+	set_bit(FLAG_USED_AS_IRQ, &chip->desc[offset].flags);
 	return 0;
-}
-EXPORT_SYMBOL_GPL(gpiod_lock_as_irq);
-
-int gpio_lock_as_irq(struct gpio_chip *chip, unsigned int offset)
-{
-	return gpiod_lock_as_irq(gpiochip_get_desc(chip, offset));
 }
 EXPORT_SYMBOL_GPL(gpio_lock_as_irq);
 
 /**
- * gpiod_unlock_as_irq() - unlock a GPIO used as IRQ
- * @gpio: the GPIO line to unlock from IRQ usage
+ * gpio_unlock_as_irq() - unlock a GPIO used as IRQ
+ * @chip: the chip the GPIO to lock belongs to
+ * @offset: the offset of the GPIO to lock as IRQ
  *
  * This is used directly by GPIO drivers that want to indicate
  * that a certain GPIO is no longer used exclusively for IRQ.
  */
-void gpiod_unlock_as_irq(struct gpio_desc *desc)
-{
-	if (!desc)
-		return;
-
-	clear_bit(FLAG_USED_AS_IRQ, &desc->flags);
-}
-EXPORT_SYMBOL_GPL(gpiod_unlock_as_irq);
-
 void gpio_unlock_as_irq(struct gpio_chip *chip, unsigned int offset)
 {
-	return gpiod_unlock_as_irq(gpiochip_get_desc(chip, offset));
+	if (offset >= chip->ngpio)
+		return;
+
+	clear_bit(FLAG_USED_AS_IRQ, &chip->desc[offset].flags);
 }
 EXPORT_SYMBOL_GPL(gpio_unlock_as_irq);
 
