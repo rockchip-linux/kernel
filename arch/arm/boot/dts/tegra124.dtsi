@@ -387,9 +387,6 @@
 		clock-names = "pclk", "clk32k_in";
 	};
 
-<<<<<<< HEAD
-	sdhci@700b0000 {
-=======
 	fuse@0,7000f800 {
 		compatible = "nvidia,tegra124-efuse";
 		reg = <0x0 0x7000f800 0x0 0x400>;
@@ -399,8 +396,7 @@
 		reset-names = "fuse";
 	};
 
-	sdhci@0,700b0000 {
->>>>>>> 155dfc7b5433... soc/tegra: Add efuse and apbmisc bindings
+	sdhci@700b0000 {
 		compatible = "nvidia,tegra124-sdhci";
 		reg = <0x700b0000 0x200>;
 		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
