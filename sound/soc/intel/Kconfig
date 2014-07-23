@@ -72,3 +72,14 @@ config SND_SOC_INTEL_BROADWELL_MACH
 	  Ultrabook platforms.
 	  Say Y if you have such a device
 	  If unsure select "N".
+
+config SND_SOC_INTEL_BDW_RT5677_MACH
+	tristate "ASoC driver for Intel Broadwell platforms with RT5677 codec"
+	depends on SND_SOC_INTEL_SST && X86_INTEL_LPSS && DW_DMAC
+	select SND_SOC_INTEL_HASWELL
+	select SND_COMPRESS_OFFLOAD
+	select SND_SOC_RT5677
+	help
+	  This adds the ASoC machine driver for Intel Broadwell platforms with RT5677 codec
+	  Say Y if you have such a device
+	  If unsure select "N".
