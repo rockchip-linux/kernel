@@ -37,6 +37,7 @@
 #include <soc/tegra/common.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/pmc.h>
+#include <asm/system_misc.h>
 
 #define PMC_CNTRL			0x0
 #define  PMC_CNTRL_SYSCLK_POLARITY	(1 << 10)  /* sys clk polarity */
@@ -362,7 +363,7 @@ int tegra_pmc_cpu_remove_clamping(int cpuid)
  * @mode: which mode to reboot in
  * @cmd: reboot command
  */
-void tegra_pmc_restart(enum reboot_mode mode, const char *cmd)
+static void tegra_pmc_restart(enum reboot_mode mode, const char *cmd)
 {
 	u32 value;
 
@@ -735,6 +736,8 @@ static int tegra_pmc_probe(struct platform_device *pdev)
 		if (err < 0)
 			return err;
 	}
+
+	arm_pm_restart = tegra_pmc_restart;
 
 	return 0;
 }
