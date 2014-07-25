@@ -1005,6 +1005,7 @@ struct device *regmap_get_device(struct regmap *map)
 {
 	return map->dev;
 }
+EXPORT_SYMBOL_GPL(regmap_get_device);
 
 static int _regmap_select_page(struct regmap *map, unsigned int *reg,
 			       struct regmap_range_node *range,
