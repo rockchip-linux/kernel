@@ -1474,6 +1474,8 @@ static void gpiochip_irqchip_remove(struct gpio_chip *gpiochip)
 {
 	unsigned int offset;
 
+	acpi_gpiochip_free_interrupts(gpiochip);
+
 	/* Remove all IRQ mappings and delete the domain */
 	if (gpiochip->irqdomain) {
 		for (offset = 0; offset < gpiochip->ngpio; offset++)
@@ -1566,6 +1568,8 @@ int gpiochip_irqchip_add(struct gpio_chip *gpiochip,
 			 */
 			gpiochip->irq_base = irq_base;
 	}
+
+	acpi_gpiochip_request_interrupts(gpiochip);
 
 	return 0;
 }
