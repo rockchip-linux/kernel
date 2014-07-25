@@ -37,6 +37,7 @@
 #include <linux/uaccess.h>
 #include <linux/jiffies.h>
 #include <linux/completion.h>
+#include <linux/of.h>
 
 #define DRIVER_NAME		"elan_i2c"
 #define ELAN_DRIVER_VERSION	"1.5.5"
@@ -1990,6 +1991,7 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 {
 	struct elan_tp_data *data = arg;
 	struct i2c_client *client = data->client;
+	unsigned long irqflags;
 	int ret;
 
 	/* initial elan touch pad */
@@ -2002,8 +2004,14 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	if (ret < 0)
 		goto err_input_dev;
 
+	/*
+	 * Systems using device tree should set up interrupt via DTS,
+	 * the rest will use the default falling edge interrupts.
+	 */
+	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
+
 	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   irqflags | IRQF_ONESHOT,
 				   client->name, data);
 	if (ret < 0) {
 		dev_err(&client->dev, "cannot register irq=%d\n",
@@ -2020,8 +2028,13 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	/* register lid event handler */
 	lid_event_register_handler(data);
 
-	device_init_wakeup(&client->dev, true);
-	device_set_wakeup_enable(&client->dev, false);
+	/*
+	 * Systems using device tree should set up wakeup via DTS,
+	 * the rest will configure device as wakeup source by default.
+	 */
+	if (!client->dev.of_node)
+		device_init_wakeup(&client->dev, true);
+
 	data->active = true;
 	data->initialized = true;
 
@@ -2178,12 +2191,21 @@ static const struct acpi_device_id elan_acpi_id[] = {
 MODULE_DEVICE_TABLE(acpi, elan_acpi_id);
 #endif
 
+#ifdef CONFIG_OF
+static const struct of_device_id elan_of_match[] = {
+	{ .compatible = "elan,i2c_touchpad" },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, elan_of_match);
+#endif
+
 static struct i2c_driver elan_driver = {
 	.driver = {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
 		.pm	= &elan_pm_ops,
 		.acpi_match_table = ACPI_PTR(elan_acpi_id),
+		.of_match_table = of_match_ptr(elan_of_match),
 	},
 	.probe		= elan_probe,
 	.remove		= elan_remove,

@@ -30,6 +30,7 @@ dallas	Maxim Integrated Products (formerly Dallas Semiconductor)
 davicom	DAVICOM Semiconductor, Inc.
 denx	Denx Software Engineering
 edt	Emerging Display Technologies
+elan	Elan Microelectronic Corp.
 emmicro	EM Microelectronic
 epfl	Ecole Polytechnique Fédérale de Lausanne
 epson	Seiko Epson Corp.
