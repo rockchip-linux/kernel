@@ -156,6 +156,8 @@ struct elan_tp_data {
 	/* for fw update */
 	struct completion	fw_completion;
 
+	struct mutex		sysfs_mutex;
+
 	unsigned int		max_x;
 	unsigned int		max_y;
 	unsigned int		width_x;
@@ -169,6 +171,10 @@ struct elan_tp_data {
 	bool			smbus;
 	bool			wait_signal_from_updatefw;
 	bool			irq_wake;
+
+	u16			min_baseline;
+	u16			max_baseline;
+	bool			baseline_ready;
 
 	bool			lid_handler_registered;
 	struct input_handler	lid_handler;
@@ -1099,55 +1105,77 @@ static int elan_get_fw_checksum(struct elan_tp_data *data)
 	return ret;
 }
 
-static int elan_get_max_baseline(struct elan_tp_data *data)
+static int elan_get_max_baseline(struct elan_tp_data *data, u16 *value)
 {
-	int ret;
-	u8 val[3];
+	int error;
+	u8 buf[3];
+
 	if (data->smbus) {
-		i2c_smbus_read_block_data(data->client,
-					  ETP_SMBUS_MAX_BASELINE_CMD, val);
-		ret = be16_to_cpup((__be16 *)val);
+		error = i2c_smbus_read_block_data(data->client,
+						  ETP_SMBUS_MAX_BASELINE_CMD,
+						  buf);
+		if (error)
+			return error;
+
+		*value = be16_to_cpup((__be16 *)buf);
 	} else {
-		elan_i2c_read_cmd(data->client,
-				  ETP_I2C_MAX_BASELINE_CMD, val);
-		ret = le16_to_cpup((__le16 *)val);
+		error = elan_i2c_read_cmd(data->client,
+					  ETP_I2C_MAX_BASELINE_CMD, buf);
+		if (error)
+			return error;
+
+		*value = le16_to_cpup((__le16 *)buf);
 	}
-	return ret;
+
+	return 0;
 }
 
-static int elan_get_min_baseline(struct elan_tp_data *data)
+static int elan_get_min_baseline(struct elan_tp_data *data, u16 *value)
 {
-	int ret;
-	u8 val[3];
+	int error;
+	u8 buf[3];
+
 	if (data->smbus) {
-		i2c_smbus_read_block_data(data->client,
-					  ETP_SMBUS_MIN_BASELINE_CMD, val);
-		ret = be16_to_cpup((__be16 *)val);
+		error = i2c_smbus_read_block_data(data->client,
+						  ETP_SMBUS_MIN_BASELINE_CMD,
+						  buf);
+		if (error)
+			return error;
+
+		*value = be16_to_cpup((__be16 *)buf);
 	} else {
-		elan_i2c_read_cmd(data->client,
-				  ETP_I2C_MIN_BASELINE_CMD, val);
-		ret = le16_to_cpup((__le16 *)val);
+		error = elan_i2c_read_cmd(data->client,
+					  ETP_I2C_MIN_BASELINE_CMD, buf);
+		if (error)
+			return error;
+
+		*value = le16_to_cpup((__le16 *)buf);
 	}
-	return ret;
+
+	return 0;
 }
 
 static int elan_enable_calibrate(struct elan_tp_data *data)
 {
 	int ret;
+
 	if (data->smbus)
 		ret = elan_smbus_enable_calibrate(data->client);
 	else
 		ret = elan_i2c_enable_calibrate(data->client);
+
 	return ret;
 }
 
 static int elan_disable_calibrate(struct elan_tp_data *data)
 {
 	int ret;
+
 	if (data->smbus)
 		ret = elan_smbus_disable_calibrate(data->client);
 	else
 		ret = elan_i2c_disable_calibrate(data->client);
+
 	return ret;
 }
 
@@ -1397,26 +1425,6 @@ static ssize_t elan_sysfs_calibrate(struct device *dev,
 	return sprintf(buf, "calibration finish\n");
 }
 
-
-static ssize_t elan_sysfs_read_baseline(struct device *dev,
-					struct device_attribute *attr,
-					char *buf)
-{
-	struct elan_tp_data *data = dev_get_drvdata(dev);
-	int max_baseline, min_baseline;
-
-	disable_irq(data->irq);
-	data->active = false;
-	elan_enable_calibrate(data);
-	msleep(250);
-	max_baseline = elan_get_max_baseline(data);
-	min_baseline = elan_get_min_baseline(data);
-	elan_disable_calibrate(data);
-	enable_irq(data->irq);
-	data->active = true;
-	return sprintf(buf, "max:%d min:%d\n", max_baseline, min_baseline);
-}
-
 static ssize_t elan_sysfs_read_mode(struct device *dev,
 				    struct device_attribute *attr,
 				    char *buf)
@@ -1430,7 +1438,6 @@ static DEVICE_ATTR(firmware_version, S_IRUGO, elan_sysfs_read_fw_ver, NULL);
 static DEVICE_ATTR(sample_version, S_IRUGO, elan_sysfs_read_sm_ver, NULL);
 static DEVICE_ATTR(iap_version, S_IRUGO, elan_sysfs_read_iap_ver, NULL);
 static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
-static DEVICE_ATTR(baseline, S_IRUGO, elan_sysfs_read_baseline, NULL);
 static DEVICE_ATTR(calibrate, S_IRUGO, elan_sysfs_calibrate, NULL);
 static DEVICE_ATTR(mode, S_IRUGO, elan_sysfs_read_mode, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, elan_sysfs_update_fw);
@@ -1441,7 +1448,6 @@ static struct attribute *elan_sysfs_entries[] = {
 	&dev_attr_sample_version.attr,
 	&dev_attr_iap_version.attr,
 	&dev_attr_fw_checksum.attr,
-	&dev_attr_baseline.attr,
 	&dev_attr_calibrate.attr,
 	&dev_attr_mode.attr,
 	&dev_attr_update_fw.attr,
@@ -1450,6 +1456,125 @@ static struct attribute *elan_sysfs_entries[] = {
 
 static const struct attribute_group elan_sysfs_group = {
 	.attrs = elan_sysfs_entries,
+};
+
+static ssize_t acquire_store(struct device *dev, struct device_attribute *attr,
+			     const char *buf, size_t count)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int retval;
+
+	retval = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (retval)
+		return retval;
+
+	disable_irq(data->irq);
+	data->active = false;
+
+	data->baseline_ready = false;
+
+	retval = elan_enable_calibrate(data);
+	if (retval) {
+		dev_dbg(dev, "Failed to enable calibration mode to get baseline: %d\n",
+			retval);
+		goto out;
+	}
+
+	msleep(250);
+
+	retval = elan_get_max_baseline(data, &data->max_baseline);
+	if (retval) {
+		dev_dbg(dev, "Failed to read max baseline form device: %d\n",
+			retval);
+		goto out_disable_calibrate;
+	}
+
+	retval = elan_get_min_baseline(data, &data->min_baseline);
+	if (retval) {
+		dev_dbg(dev, "Failed to read min baseline form device: %d\n",
+			retval);
+		goto out_disable_calibrate;
+	}
+
+	data->baseline_ready = true;
+
+out_disable_calibrate:
+	retval = elan_disable_calibrate(data);
+	if (retval)
+		dev_dbg(dev, "Failed to disable calibration mode after acquiring baseline: %d\n",
+			retval);
+out:
+	data->active = true;
+	enable_irq(data->irq);
+	mutex_unlock(&data->sysfs_mutex);
+	return retval ?: count;
+}
+
+static ssize_t min_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int retval;
+
+	retval = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (retval)
+		return retval;
+
+	if (!data->baseline_ready) {
+		retval = -ENODATA;
+		goto out;
+	}
+
+	retval = snprintf(buf, PAGE_SIZE, "%d", data->min_baseline);
+
+out:
+	mutex_unlock(&data->sysfs_mutex);
+	return retval;
+}
+
+static ssize_t max_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int retval;
+
+	retval = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (retval)
+		return retval;
+
+	if (!data->baseline_ready) {
+		retval = -ENODATA;
+		goto out;
+	}
+
+	retval = snprintf(buf, PAGE_SIZE, "%d", data->max_baseline);
+
+out:
+	mutex_unlock(&data->sysfs_mutex);
+	return retval;
+}
+
+
+static DEVICE_ATTR_WO(acquire);
+static DEVICE_ATTR_RO(min);
+static DEVICE_ATTR_RO(max);
+
+static struct attribute *elan_baseline_sysfs_entries[] = {
+	&dev_attr_acquire.attr,
+	&dev_attr_min.attr,
+	&dev_attr_max.attr,
+	NULL,
+};
+
+static const struct attribute_group elan_baseline_sysfs_group = {
+	.name = "baseline",
+	.attrs = elan_baseline_sysfs_entries,
+};
+
+static const struct attribute_group *elan_sysfs_groups[] = {
+	&elan_sysfs_group,
+	&elan_baseline_sysfs_group,
+	NULL
 };
 
 /*
@@ -1883,7 +2008,7 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 		goto err_irq;
 	}
 
-	ret = sysfs_create_group(&client->dev.kobj, &elan_sysfs_group);
+	ret = sysfs_create_groups(&client->dev.kobj, elan_sysfs_groups);
 	if (ret < 0) {
 		dev_err(&client->dev, "cannot register dev attribute %d", ret);
 		goto err_create_group;
@@ -1938,6 +2063,7 @@ static int elan_probe(struct i2c_client *client,
 	data->wait_signal_from_updatefw = false;
 	data->lid_status = LID_UNKNOWN;
 	init_completion(&data->fw_completion);
+	mutex_init(&data->sysfs_mutex);
 
 	/* Do slower init steps asynchonously. */
 	async_schedule(elan_async_init, data);
@@ -1949,7 +2075,7 @@ static int elan_remove(struct i2c_client *client)
 {
 	struct elan_tp_data *data = i2c_get_clientdata(client);
 
-	sysfs_remove_group(&client->dev.kobj, &elan_sysfs_group);
+	sysfs_remove_groups(&client->dev.kobj, elan_sysfs_groups);
 	free_irq(data->irq, data);
 	input_unregister_device(data->input);
 	lid_event_unregister_handler(data);
