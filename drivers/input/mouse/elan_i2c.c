@@ -1425,32 +1425,12 @@ static ssize_t elan_sysfs_read_mode(struct device *dev,
 	return sprintf(buf, "%d\n", (int)elan_iap_getmode(data));
 }
 
-static ssize_t elan_sysfs_reinitialize(struct device *dev,
-				       struct device_attribute *attr,
-				       char *buf)
-{
-	struct elan_tp_data *data = dev_get_drvdata(dev);
-	int ret;
-
-	disable_irq(data->irq);
-	data->active = false;
-	ret = elan_initialize(data);
-	enable_irq(data->irq);
-	data->active = true;
-
-	if (ret < 0)
-		return sprintf(buf, "reinitialize fail\n");
-
-	return sprintf(buf, "reinitialize success\n");
-}
-
 static DEVICE_ATTR(product_id, S_IRUGO, elan_sysfs_read_product_id, NULL);
 static DEVICE_ATTR(firmware_version, S_IRUGO, elan_sysfs_read_fw_ver, NULL);
 static DEVICE_ATTR(sample_version, S_IRUGO, elan_sysfs_read_sm_ver, NULL);
 static DEVICE_ATTR(iap_version, S_IRUGO, elan_sysfs_read_iap_ver, NULL);
 static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
 static DEVICE_ATTR(baseline, S_IRUGO, elan_sysfs_read_baseline, NULL);
-static DEVICE_ATTR(reinitialize, S_IRUGO, elan_sysfs_reinitialize, NULL);
 static DEVICE_ATTR(calibrate, S_IRUGO, elan_sysfs_calibrate, NULL);
 static DEVICE_ATTR(mode, S_IRUGO, elan_sysfs_read_mode, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, elan_sysfs_update_fw);
@@ -1462,7 +1442,6 @@ static struct attribute *elan_sysfs_entries[] = {
 	&dev_attr_iap_version.attr,
 	&dev_attr_fw_checksum.attr,
 	&dev_attr_baseline.attr,
-	&dev_attr_reinitialize.attr,
 	&dev_attr_calibrate.attr,
 	&dev_attr_mode.attr,
 	&dev_attr_update_fw.attr,
