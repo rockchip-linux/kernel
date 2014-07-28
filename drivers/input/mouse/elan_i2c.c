@@ -1285,13 +1285,6 @@ static ssize_t elan_sysfs_read_product_id(struct device *dev,
 	return sprintf(buf, "%d.0\n", data->product_id);
 }
 
-static ssize_t elan_sysfs_read_driver_ver(struct device *dev,
-					  struct device_attribute *attr,
-					  char *buf)
-{
-	return sprintf(buf, "%s\n", ELAN_DRIVER_VERSION);
-}
-
 static ssize_t elan_sysfs_read_fw_ver(struct device *dev,
 				      struct device_attribute *attr,
 				      char *buf)
@@ -1454,7 +1447,6 @@ static ssize_t elan_sysfs_reinitialize(struct device *dev,
 static DEVICE_ATTR(product_id, S_IRUGO, elan_sysfs_read_product_id, NULL);
 static DEVICE_ATTR(firmware_version, S_IRUGO, elan_sysfs_read_fw_ver, NULL);
 static DEVICE_ATTR(sample_version, S_IRUGO, elan_sysfs_read_sm_ver, NULL);
-static DEVICE_ATTR(driver_version, S_IRUGO, elan_sysfs_read_driver_ver, NULL);
 static DEVICE_ATTR(iap_version, S_IRUGO, elan_sysfs_read_iap_ver, NULL);
 static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
 static DEVICE_ATTR(baseline, S_IRUGO, elan_sysfs_read_baseline, NULL);
@@ -1467,7 +1459,6 @@ static struct attribute *elan_sysfs_entries[] = {
 	&dev_attr_product_id.attr,
 	&dev_attr_firmware_version.attr,
 	&dev_attr_sample_version.attr,
-	&dev_attr_driver_version.attr,
 	&dev_attr_iap_version.attr,
 	&dev_attr_fw_checksum.attr,
 	&dev_attr_baseline.attr,
@@ -2082,3 +2073,4 @@ module_i2c_driver(elan_driver);
 MODULE_AUTHOR("Duson Lin <dusonlin@emc.com.tw>");
 MODULE_DESCRIPTION("Elan I2C/SMBus Touchpad driver");
 MODULE_LICENSE("GPL");
+MODULE_VERSION(ELAN_DRIVER_VERSION);
