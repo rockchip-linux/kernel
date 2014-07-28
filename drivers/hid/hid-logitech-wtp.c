@@ -904,6 +904,10 @@ static int wtp_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	hidpp_device->raw_event = wtp_hidpp_event_handler;
 
 	hdev->quirks |= HID_QUIRK_NO_INIT_REPORTS;
+	/* Needed because some input reports are split across multiple
+	 * incoming packets, and we need the HID system to not call
+	 * input_sync() after each incoming packet: */
+	hdev->quirks |= HID_QUIRK_NO_INPUT_SYNC;
 	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
 	if (ret) {
 		ret = -ENODEV;
