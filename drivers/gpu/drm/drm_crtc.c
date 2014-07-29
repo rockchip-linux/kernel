@@ -1098,7 +1098,30 @@ int drm_crtc_set_property(struct drm_crtc *crtc,
 }
 EXPORT_SYMBOL(drm_crtc_set_property);
 
-/*
+/**
+ * drm_connector_index - find the index of a registered connector
+ * @connector: connector to find index for
+ *
+ * Given a registered connector, return the index of that connector within a DRM
+ * device's list of connectors.
+ */
+unsigned int drm_connector_index(struct drm_connector *connector)
+{
+	unsigned int index = 0;
+	struct drm_connector *tmp;
+
+	list_for_each_entry(tmp, &connector->dev->mode_config.connector_list, head) {
+		if (tmp == connector)
+			return index;
+
+		index++;
+	}
+
+	BUG();
+}
+EXPORT_SYMBOL(drm_connector_index);
+
+/**
  * drm_mode_remove - remove and free a mode
  * @connector: connector list to modify
  * @mode: mode to remove
@@ -1666,6 +1689,29 @@ int drm_plane_set_property(struct drm_plane *plane,
 	return 0;
 }
 EXPORT_SYMBOL(drm_plane_set_property);
+
+/**
+ * drm_plane_index - find the index of a registered plane
+ * @plane: plane to find index for
+ *
+ * Given a registered plane, return the index of that CRTC within a DRM
+ * device's list of planes.
+ */
+unsigned int drm_plane_index(struct drm_plane *plane)
+{
+	unsigned int index = 0;
+	struct drm_plane *tmp;
+
+	list_for_each_entry(tmp, &plane->dev->mode_config.plane_list, head) {
+		if (tmp == plane)
+			return index;
+
+		index++;
+	}
+
+	BUG();
+}
+EXPORT_SYMBOL(drm_plane_index);
 
 /**
  * drm_plane_force_disable - Forcibly disable a plane
