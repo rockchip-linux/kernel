@@ -218,7 +218,8 @@ static int tmp102_probe(struct i2c_client *client,
 
 	tmp102->tz = thermal_zone_of_sensor_register(&client->dev, 0,
 						     &client->dev,
-						     tmp102_read_temp, NULL);
+						     tmp102_read_temp, NULL,
+						     NULL);
 	if (IS_ERR(tmp102->tz))
 		tmp102->tz = NULL;
 

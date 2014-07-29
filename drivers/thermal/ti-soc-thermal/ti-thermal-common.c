@@ -334,7 +334,7 @@ int ti_thermal_expose_sensor(struct ti_bandgap *bgp, int id,
 	/* in case this is specified by DT */
 	data->ti_thermal = thermal_zone_of_sensor_register(bgp->dev, id,
 					data, __ti_thermal_get_temp,
-					__ti_thermal_get_trend);
+					__ti_thermal_get_trend, NULL);
 	if (IS_ERR(data->ti_thermal)) {
 		/* Create thermal zone */
 		data->ti_thermal = thermal_zone_device_register(domain,

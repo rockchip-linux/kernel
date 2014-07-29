@@ -293,7 +293,7 @@ lm75_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	data->tz = thermal_zone_of_sensor_register(&client->dev,
 						   0,
 						   &client->dev,
-						   lm75_read_temp, NULL);
+						   lm75_read_temp, NULL, NULL);
 	if (IS_ERR(data->tz))
 		data->tz = NULL;
 

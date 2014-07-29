@@ -261,7 +261,8 @@ struct thermal_genl_event {
 struct thermal_zone_device *
 thermal_zone_of_sensor_register(struct device *dev, int id,
 				void *data, int (*get_temp)(void *, long *),
-				int (*get_trend)(void *, int, long *));
+				int (*get_trend)(void *, int, long *),
+				int (*set_trips)(void *, long, long));
 void thermal_zone_of_sensor_unregister(struct device *dev,
 				       struct thermal_zone_device *tz);
 #else
