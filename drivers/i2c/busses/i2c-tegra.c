@@ -726,6 +726,33 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
+#ifdef CONFIG_ARCH_TEGRA_132_SOC
+	{
+		struct clk *c;
+		void *reg;
+
+		/*
+		 * I2C6 needs DPAUX_HYBRID_PADCTL_0 set to 0xc001 which
+		 * requires bringing up the dpaux and sor0 blocks.
+		 */
+		if (res->start == 0x7000d100) {
+			c = clk_get_sys(NULL, "dpaux");
+			WARN_ON(IS_ERR_OR_NULL(c));
+			clk_prepare_enable(c);
+
+			c = clk_get_sys(NULL, "sor0");
+			WARN_ON(IS_ERR_OR_NULL(c));
+			clk_prepare_enable(c);
+
+			reg = ioremap(0x545c0124, 4);
+			pr_info("0x545c0124 value was %08x\n", readl(reg));
+			writel(0xc001, reg);
+			pr_info("0x545c0124 value is %08x\n", readl(reg));
+			iounmap(reg);
+		}
+	}
+#endif
+
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "no irq resource\n");

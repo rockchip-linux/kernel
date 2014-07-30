@@ -1024,6 +1024,11 @@ static struct tegra_devclk devclks[] __initdata = {
 	{ .con_id = "fuse", .dt_id = TEGRA124_CLK_FUSE },
 	{ .dev_id = "rtc-tegra", .dt_id = TEGRA124_CLK_RTC },
 	{ .dev_id = "timer", .dt_id = TEGRA124_CLK_TIMER },
+#ifdef CONFIG_ARCH_TEGRA_132_SOC
+	/* Hack to enable I2C6 requires enabling these clocks */
+	{ .con_id = "dpaux", .dt_id = TEGRA124_CLK_DPAUX },
+	{ .con_id = "sor0", .dt_id = TEGRA124_CLK_SOR0 },
+#endif
 };
 
 static struct clk **clks;
