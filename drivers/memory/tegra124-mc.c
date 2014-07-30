@@ -14,12 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/of_address.h>
-#include <linux/soc/tegra/mc.h>
+
+#include <soc/tegra/mc.h>
 
 #define DRV_NAME "tegra124-mc"
 

@@ -19,7 +19,7 @@
 #ifndef __TEGRA_EMC_H_
 #define __TEGRA_EMC_H_
 
-#include <linux/platform_data/tegra_mc.h>
+#include <soc/tegra/mc.h>
 
 #define TEGRA_EMC_NUM_REGS 46
 

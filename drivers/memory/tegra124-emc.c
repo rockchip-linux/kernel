@@ -24,11 +24,12 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
-#include <linux/tegra-soc.h>
 #include <linux/platform_data/tegra_emc.h>
-#include <linux/platform_data/tegra_mc.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+
+#include <soc/tegra/pmc.h>
+#include <soc/tegra/mc.h>
 
 #include <asm/cputime.h>
 
