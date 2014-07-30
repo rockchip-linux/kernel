@@ -398,6 +398,35 @@
 		reset-names = "fuse";
 	};
 
+	mc: memory-controller@70019000 {
+		compatible = "nvidia,tegra124-mc";
+		reg = <0x0 0x70019000 0x0 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	memory-controller@7001b000 {
+		compatible = "nvidia,tegra124-emc";
+		reg = <0x0 0x7001b000 0x0 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		nvidia,mc = <&mc>;
+		nvidia,pmc = <&pmc>;
+		clocks = <&tegra_car TEGRA124_CLK_EMC>,
+			 <&tegra_car TEGRA124_CLK_PLL_M>,
+			 <&tegra_car TEGRA124_CLK_PLL_C>,
+			 <&tegra_car TEGRA124_CLK_PLL_P>,
+			 <&tegra_car TEGRA124_CLK_CLK_M>,
+			 <&tegra_car TEGRA124_CLK_PLL_M_UD>,
+			 <&tegra_car TEGRA124_CLK_PLL_C2>,
+			 <&tegra_car TEGRA124_CLK_PLL_C3>,
+			 <&tegra_car TEGRA124_CLK_PLL_C_UD>,
+			 <&tegra_car TEGRA124_CLK_OVERRIDE_EMC>;
+		clock-names = "emc", "pll_m", "pll_c", "pll_p", "clk_m",
+			"pll_m_ud", "pll_c2", "pll_c3", "pll_c_ud",
+			"emc_override";
+	};
+
 	ccplex_clock: ccplex-clock@70040000 {
 		compatible = "nvidia,tegra132-ccplex-clk";
 		reg = <0x0 0x70040000 0x0 0x1000>;
