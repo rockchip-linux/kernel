@@ -6,6 +6,9 @@ config DW_DMAC_CORE
 	tristate "Synopsys DesignWare AHB DMA support"
 	select DMA_ENGINE
 
+config DW_DMAC_PRIVATE
+	bool
+
 config DW_DMAC
 	tristate "Synopsys DesignWare AHB DMA platform driver"
 	select DW_DMAC_CORE

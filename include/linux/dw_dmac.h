@@ -111,4 +111,7 @@ dma_addr_t dw_dma_get_src_addr(struct dma_chan *chan);
 
 dma_addr_t dw_dma_get_dst_addr(struct dma_chan *chan);
 
+void *dw_priv_probe(struct device *dev, struct resource *mem, int irq, u64 mask);
+int dw_priv_remove(void *dma);
+
 #endif /* DW_DMAC_H */
