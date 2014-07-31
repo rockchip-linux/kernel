@@ -383,8 +383,8 @@
 	};
 
 	pmc: pmc@7000e400 {
-		compatible = "nvidia,tegra124-pmc";
-		reg = <0x0 0x7000e400 0x0 0x400>;
+		compatible = "nvidia,tegra124-pmc", "syscon";
+		reg = <0x0 0x7000e400 0x0 0x800>;
 		clocks = <&tegra_car TEGRA124_CLK_PCLK>, <&clk32k_in>;
 		clock-names = "pclk", "clk32k_in";
 	};
