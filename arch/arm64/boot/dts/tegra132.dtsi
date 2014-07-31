@@ -3,6 +3,7 @@
 #include <dt-bindings/memory/tegra-swgroup.h>
 #include <dt-bindings/gpio/tegra-gpio.h>
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
+#include <dt-bindings/pinctrl/pinctrl-tegra-xusb.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/thermal/tegra124-soctherm.h>
 #include <dt-bindings/thermal/tegra132-dfll-trips.h>
@@ -587,6 +588,15 @@
 		nvidia,ci = <0>;
 		nvidia,cg = <2>;
 		status = "disabled";
+	};
+
+	padctl: padctl@0,7009f000 {
+		compatible = "nvidia,tegra124-xusb-padctl";
+		reg = <0x0 0x7009f000 0x0 0x1000>;
+		resets = <&tegra_car 142>;
+		reset-names = "padctl";
+
+		#phy-cells = <1>;
 	};
 
 	sdhci@700b0600 {
