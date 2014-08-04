@@ -1161,6 +1161,26 @@ struct sst_module *sst_module_get_from_id(struct sst_dsp *dsp, u32 id)
 }
 EXPORT_SYMBOL_GPL(sst_module_get_from_id);
 
+struct sst_module_runtime *sst_module_runtime_get_from_id(
+	struct sst_module *module, u32 id)
+{
+	struct sst_module_runtime *runtime;
+	struct sst_dsp *dsp = module->dsp;
+
+	mutex_lock(&dsp->mutex);
+
+	list_for_each_entry(runtime, &module->runtime_list, list) {
+		if (runtime->id == id) {
+			mutex_unlock(&dsp->mutex);
+			return runtime;
+		}
+	}
+
+	mutex_unlock(&dsp->mutex);
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(sst_module_runtime_get_from_id);
+
 /* returns block address in DSP address space */
 u32 sst_dsp_get_offset(struct sst_dsp *dsp, u32 offset,
 	enum sst_mem_type type)
