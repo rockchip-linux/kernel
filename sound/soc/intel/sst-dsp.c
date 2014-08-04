@@ -367,6 +367,10 @@ struct sst_dsp *sst_dsp_new(struct device *dev,
 	if (err)
 		goto irq_err;
 
+	err = sst_dma_new(sst);
+	if (err)
+		dev_warn(dev, "sst_dma_new failed %d\n", err);
+
 	return sst;
 
 irq_err:
@@ -382,6 +386,9 @@ void sst_dsp_free(struct sst_dsp *sst)
 	free_irq(sst->irq, sst);
 	if (sst->ops->free)
 		sst->ops->free(sst);
+
+	if (sst->dma)
+		sst_dma_free(sst->dma);
 }
 EXPORT_SYMBOL_GPL(sst_dsp_free);
 
