@@ -258,6 +258,45 @@ static int enforce_temp_range(struct device *dev, long trip_temp)
 }
 
 /**
+ * thermtrip_clear() - disable thermtrip for a sensor
+ * @dev: ptr to the struct device for the SOC_THERM IP block
+ * @sg: pointer to the sensor group to disable thermtrip for
+ *
+ * Disables thermtrip for the sensor group @sg on SOC_THERM device @dev.
+ * Intended to be used when THERMTRIP is not explicitly configured for
+ * a sensor, and the sensor's calibration is bad or not supplied.
+ *
+ * Return: 0 upon success, or %-EINVAL upon failure.
+ */
+static int thermtrip_clear(struct device *dev, struct tegra_tsensor_group *sg)
+{
+	struct tegra_soctherm *ts = dev_get_drvdata(dev);
+	u32 r;
+
+	if (!dev || !sg)
+		return -EINVAL;
+
+	if (!sg->thermtrip_threshold_mask)
+		return -EINVAL;
+
+	r = soctherm_readl(ts, THERMTRIP);
+
+	r &= ~sg->thermtrip_threshold_mask;
+	r |= 0 << sg->thermtrip_enable_shift;
+
+	dev_err(dev, "thermtrip mask %08x\n", sg->thermtrip_threshold_mask);
+	dev_err(dev, "thermtrip enable shift %d\n", sg->thermtrip_enable_shift);
+
+	r &= ~THERMTRIP_ANY_EN_MASK;
+
+	dev_err(dev, "write %08x to thermtrip\n", r);
+	soctherm_writel(ts, r, THERMTRIP);
+	soctherm_barrier(ts);
+
+	return 0;
+}
+
+/**
  * thermtrip_program() - Configures the hardware to shut down the
  * system if a given sensor group reaches a given temperature
  * @dev: ptr to the struct device for the SOC_THERM IP block
@@ -363,6 +402,13 @@ static int thermtrip_configure_limits_from_dt(struct device *dev,
 		if (!sg) {
 			dev_err(dev, "thermtrip: %s: could not find sensor group - could not enable\n",
 				name);
+			continue;
+		}
+
+		if (sg->flags & SKIP_THERMTRIP_REGISTRATION) {
+			dev_info(dev, "thermtrip: %s: skipping due to chip revision\n",
+				 name);
+			thermtrip_clear(dev, sg);
 			continue;
 		}
 
@@ -542,23 +588,30 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		zone->sensor_group = tegra_tsensor_groups[i];
 		zone->tegra = tegra;
 
-		tz = thermal_zone_of_sensor_register(
-			&pdev->dev, i, zone, tegra_thermctl_get_temp, NULL,
-			tegra_thermctl_set_trips);
-		if (IS_ERR(tz)) {
-			err = PTR_ERR(tz);
-			dev_err(&pdev->dev, "failed to register sensor: %d\n",
-				err);
-			--i;
-			goto unregister_tzs;
-		}
+		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION)) {
 
-		zone->tz = tz;
-		tegra->thermctl_tzs[i] = tz;
+			tz = thermal_zone_of_sensor_register(
+						&pdev->dev, i,
+						zone,
+						tegra_thermctl_get_temp,
+						NULL,
+						tegra_thermctl_set_trips);
+			if (IS_ERR(tz)) {
+				err = PTR_ERR(tz);
+				dev_err(&pdev->dev, "failed to register sensor: %d\n",
+					err);
+				--i;
+				goto unregister_tzs;
+			}
 
-		soctherm_writel(tegra,
+			zone->tz = tz;
+			tegra->thermctl_tzs[i] = tz;
+
+			soctherm_writel(
+				tegra,
 				0x3 << zone->sensor_group->thermctl_isr_shift,
 				THERMCTL_INTR_EN);
+		}
 	}
 
 	/* Set up hardware thermal limits */

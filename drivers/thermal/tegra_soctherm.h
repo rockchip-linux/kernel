@@ -56,6 +56,13 @@
 
 #define NOMINAL_CALIB_FT_T124			105
 
+/*
+ * struct tegra_tsensor_group.flags meanings
+ */
+#define SKIP_THERMAL_FW_REGISTRATION		BIT(0)
+#define SKIP_THERMTRIP_REGISTRATION		BIT(1)
+
+
 /**
  * struct tegra_tsensor_group - SOC_THERM sensor group data
  * @name: short name of the temperature sensor group
@@ -71,6 +78,7 @@
  * @pdiv: the sensor count post-divider to use during runtime
  * @pdiv_ate: the sensor count post-divider used during automated test
  * @pdiv_mask: register bitfield mask for the PDIV field for this sensor
+ * @flags: any per-tsensor-group flags
  *
  * @pllx_hotspot_diff must be 0 for the PLLX sensor group.
  * The GPU and MEM sensor groups share a thermtrip temperature threshold.
@@ -82,6 +90,7 @@ struct tegra_tsensor_group {
 	u8		thermtrip_enable_shift;
 	u8		pdiv;
 	u8		pdiv_ate;
+	u8		flags;
 	u16		thermctl_level0_offset;
 	u16		sensor_temp_offset;
 	u32		sensor_temp_mask;
