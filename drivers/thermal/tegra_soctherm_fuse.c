@@ -120,6 +120,7 @@ int tegra_soctherm_calculate_shared_calibration(
 
 int tegra_soctherm_calculate_tsensor_calibration(
 				struct tegra_tsensor *sensor,
+				struct tegra_tsensor_group *sensor_group,
 				struct tsensor_shared_calibration shared,
 				u32 *calib)
 {
@@ -142,8 +143,8 @@ int tegra_soctherm_calculate_tsensor_calibration(
 	delta_sens = actual_tsensor_ft - actual_tsensor_cp;
 	delta_temp = shared.actual_temp_ft - shared.actual_temp_cp;
 
-	mult = sensor->config->pdiv * sensor->config->tsample_ate;
-	div = sensor->config->tsample * sensor->config->pdiv_ate;
+	mult = sensor_group->pdiv * sensor->config->tsample_ate;
+	div = sensor->config->tsample * sensor_group->pdiv_ate;
 
 	therma = div64_s64_precise((s64)delta_temp * (1LL << 13) * mult,
 			(s64)delta_sens * div);

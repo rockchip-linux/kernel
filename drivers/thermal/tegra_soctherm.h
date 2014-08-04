@@ -27,9 +27,7 @@
 #define THERMCTL_LEVEL0_GROUP_TSENSE		0xc
 
 #define SENSOR_PDIV				0x1c0
-#define		SENSOR_PDIV_T124		0x8888
 #define SENSOR_HOTSPOT_OFF			0x1c4
-#define		SENSOR_HOTSPOT_OFF_T124		0x00060600
 
 #define SENSOR_TEMP1				0x1c8
 #define		SENSOR_TEMP1_CPU_TEMP_MASK	(0xffff << 16)
@@ -48,19 +46,30 @@
  * @thermctl_level0_offset: offset of the THERMCTL_LEVEL0_GROUP_* reg
  * @sensor_temp_offset: offset of the SENSOR_TEMP* register
  * @sensor_temp_mask: bit mask for this sensor group in SENSOR_TEMP* register
+ * @pllx_hotspot_diff: hotspot offset from the PLLX sensor
+ * @pllx_hotspot_mask: register bitfield mask for the HOTSPOT field
+ * @pdiv: the sensor count post-divider to use during runtime
+ * @pdiv_ate: the sensor count post-divider used during automated test
+ * @pdiv_mask: register bitfield mask for the PDIV field for this sensor
+ *
+ * @pllx_hotspot_diff must be 0 for the PLLX sensor group.
  */
 struct tegra_tsensor_group {
 	const char	*name;
 	u8		id;
 	u8		thermctl_isr_shift;
+	u8		pdiv;
+	u8		pdiv_ate;
 	u16		thermctl_level0_offset;
 	u16		sensor_temp_offset;
 	u32		sensor_temp_mask;
+	u32		pdiv_mask;
+	u32		pllx_hotspot_mask;
+	int		pllx_hotspot_diff;
 };
 
 struct tegra_tsensor_configuration {
-	u32 tall, tsample, tiddq_en, ten_count;
-	u32 pdiv, tsample_ate, pdiv_ate;
+	u32 tall, tsample, tiddq_en, ten_count, tsample_ate;
 };
 
 struct tegra_tsensor {
@@ -83,6 +92,7 @@ int tegra_soctherm_calculate_shared_calibration(
 				u8 nominal_calib_ft);
 int tegra_soctherm_calculate_tsensor_calibration(
 				struct tegra_tsensor *sensor,
+				struct tegra_tsensor_group *tegra_tsensor_group,
 				struct tsensor_shared_calibration shared,
 				u32 *calib);
 
@@ -91,7 +101,6 @@ int tegra_soctherm_probe(
 		struct tegra_tsensor_configuration *tegra_tsensor_config,
 		struct tegra_tsensor *tsensors,
 		struct tegra_tsensor_group **tegra_tsensor_groups,
-		u32 sensor_pdiv, u32 sensor_hotspot_offset,
 		u8 nominal_calib_cp, u8 nominal_calib_ft);
 int tegra_soctherm_remove(struct platform_device *pdev);
 

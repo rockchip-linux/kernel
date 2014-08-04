@@ -33,9 +33,6 @@
 
 #include "tegra_soctherm.h"
 
-#define		SENSOR_PDIV_T124		0x8888
-#define		SENSOR_HOTSPOT_OFF_T124		0x00060600
-
 #define NOMINAL_CALIB_FT_T124			105
 #define NOMINAL_CALIB_CP_T124			25
 
@@ -53,9 +50,7 @@ static struct tegra_tsensor_configuration tegra124_tsensor_config = {
 	.tsample = 120,
 	.tiddq_en = 1,
 	.ten_count = 1,
-	.pdiv = 8,
-	.tsample_ate = 480,
-	.pdiv_ate = 8
+	.tsample_ate = 481,
 };
 
 static struct tegra_tsensor_group tegra124_tsensor_group_cpu = {
@@ -65,6 +60,11 @@ static struct tegra_tsensor_group tegra124_tsensor_group_cpu = {
 	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_CPU,
 	.sensor_temp_offset		= SENSOR_TEMP1,
 	.sensor_temp_mask		= SENSOR_TEMP1_CPU_TEMP_MASK,
+	.pdiv				= 8,
+	.pdiv_ate			= 8,
+	.pdiv_mask			= SENSOR_PDIV_CPU_MASK,
+	.pllx_hotspot_mask		= SENSOR_HOTSPOT_CPU_MASK,
+	.pllx_hotspot_diff		= 10000,
 };
 
 static struct tegra_tsensor_group tegra124_tsensor_group_gpu = {
@@ -74,6 +74,11 @@ static struct tegra_tsensor_group tegra124_tsensor_group_gpu = {
 	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_GPU,
 	.sensor_temp_offset		= SENSOR_TEMP1,
 	.sensor_temp_mask		= SENSOR_TEMP1_GPU_TEMP_MASK,
+	.pdiv				= 8,
+	.pdiv_ate			= 8,
+	.pdiv_mask			= SENSOR_PDIV_GPU_MASK,
+	.pllx_hotspot_mask		= SENSOR_HOTSPOT_GPU_MASK,
+	.pllx_hotspot_diff		= 5000,
 };
 
 static struct tegra_tsensor_group tegra124_tsensor_group_pll = {
@@ -83,6 +88,9 @@ static struct tegra_tsensor_group tegra124_tsensor_group_pll = {
 	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_TSENSE,
 	.sensor_temp_offset		= SENSOR_TEMP2,
 	.sensor_temp_mask		= SENSOR_TEMP2_PLLX_TEMP_MASK,
+	.pdiv				= 8,
+	.pdiv_ate			= 8,
+	.pdiv_mask			= SENSOR_PDIV_PLLX_MASK,
 };
 
 static struct tegra_tsensor_group tegra124_tsensor_group_mem = {
@@ -92,6 +100,10 @@ static struct tegra_tsensor_group tegra124_tsensor_group_mem = {
 	.thermctl_level0_offset		= THERMCTL_LEVEL0_GROUP_MEM,
 	.sensor_temp_offset		= SENSOR_TEMP2,
 	.sensor_temp_mask		= SENSOR_TEMP2_MEM_TEMP_MASK,
+	.pdiv				= 8,
+	.pdiv_ate			= 8,
+	.pdiv_mask			= SENSOR_PDIV_MEM_MASK,
+	.pllx_hotspot_mask		= SENSOR_HOTSPOT_MEM_MASK,
 };
 
 static struct tegra_tsensor_group *tegra124_tsensor_groups[] = {
@@ -194,7 +206,6 @@ static int tegra124_soctherm_probe(struct platform_device *pdev)
 	return tegra_soctherm_probe(pdev, &tegra124_tsensor_config,
 				    tegra124_tsensors,
 				    tegra124_tsensor_groups,
-				    SENSOR_PDIV_T124, SENSOR_HOTSPOT_OFF_T124,
 				    NOMINAL_CALIB_CP_T124,
 				    NOMINAL_CALIB_FT_T124);
 }
