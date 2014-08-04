@@ -433,8 +433,7 @@ int sst_hsw_stream_set_map_config(struct sst_hsw *hsw,
 int sst_hsw_stream_set_style(struct sst_hsw *hsw, struct sst_hsw_stream *stream,
 	enum sst_hsw_interleaving style);
 int sst_hsw_stream_set_module_info(struct sst_hsw *hsw,
-	struct sst_hsw_stream *stream, enum sst_hsw_module_id module_id,
-	u32 entry_point);
+	struct sst_hsw_stream *stream, struct sst_module_runtime *runtime);
 int sst_hsw_stream_set_pmemory_info(struct sst_hsw *hsw,
 	struct sst_hsw_stream *stream, u32 offset, u32 size);
 int sst_hsw_stream_set_smemory_info(struct sst_hsw *hsw,

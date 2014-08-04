@@ -1351,10 +1351,11 @@ int sst_hsw_stream_buffer(struct sst_hsw *hsw, struct sst_hsw_stream *stream,
 }
 
 int sst_hsw_stream_set_module_info(struct sst_hsw *hsw,
-	struct sst_hsw_stream *stream, enum sst_hsw_module_id module_id,
-	u32 entry_point)
+	struct sst_hsw_stream *stream, struct sst_module_runtime *runtime)
 {
 	struct sst_hsw_module_map *map = &stream->request.map;
+	struct sst_dsp *dsp = sst_hsw_get_dsp(hsw);
+	struct sst_module *module = runtime->module;
 
 	if (stream->commited) {
 		dev_err(hsw->dev, "error: stream committed for set module\n");
@@ -1363,36 +1364,25 @@ int sst_hsw_stream_set_module_info(struct sst_hsw *hsw,
 
 	/* only support initial module atm */
 	map->module_entries_count = 1;
-	map->module_entries[0].module_id = module_id;
-	map->module_entries[0].entry_point = entry_point;
+	map->module_entries[0].module_id = module->id;
+	map->module_entries[0].entry_point = module->entry;
 
-	return 0;
-}
+	stream->request.persistent_mem.offset =
+		sst_dsp_get_offset(dsp, runtime->persistent_offset, SST_MEM_DRAM);
+	stream->request.persistent_mem.size = module->persistent_size;
 
-int sst_hsw_stream_set_pmemory_info(struct sst_hsw *hsw,
-	struct sst_hsw_stream *stream, u32 offset, u32 size)
-{
-	if (stream->commited) {
-		dev_err(hsw->dev, "error: stream committed for set pmem\n");
-		return -EINVAL;
-	}
+	stream->request.scratch_mem.offset =
+		sst_dsp_get_offset(dsp, dsp->scratch_offset, SST_MEM_DRAM);
+	stream->request.scratch_mem.size = dsp->scratch_size;
 
-	stream->request.persistent_mem.offset = offset;
-	stream->request.persistent_mem.size = size;
-
-	return 0;
-}
-
-int sst_hsw_stream_set_smemory_info(struct sst_hsw *hsw,
-	struct sst_hsw_stream *stream, u32 offset, u32 size)
-{
-	if (stream->commited) {
-		dev_err(hsw->dev, "error: stream committed for set smem\n");
-		return -EINVAL;
-	}
-
-	stream->request.scratch_mem.offset = offset;
-	stream->request.scratch_mem.size = size;
+	dev_dbg(hsw->dev, "module %d runtime %d using:\n", module->id,
+		runtime->id);
+	dev_dbg(hsw->dev, " persistent offset 0x%x bytes 0x%x\n",
+		stream->request.persistent_mem.offset,
+		stream->request.persistent_mem.size);
+	dev_dbg(hsw->dev, " scratch offset 0x%x bytes 0x%x\n",
+		stream->request.scratch_mem.offset,
+		stream->request.scratch_mem.size);
 
 	return 0;
 }
