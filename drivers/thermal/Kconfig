@@ -184,8 +184,12 @@ config ARMADA_THERMAL
 	  controller present in Armada 370 and Armada XP SoC.
 
 config TEGRA_SOCTHERM
-	tristate "Tegra SOCTHERM thermal management"
+	bool
+
+config TEGRA124_SOCTHERM
+	bool "Tegra124 SOCTHERM thermal management"
 	depends on ARCH_TEGRA
+	select TEGRA_SOCTHERM
 	help
 	  Enable this option for integrated thermal management support on NVIDIA
 	  Tegra124 systems-on-chip. The driver supports four thermal zones
