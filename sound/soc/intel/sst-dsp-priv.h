@@ -26,6 +26,9 @@ struct sst_mem_block;
 struct sst_module;
 struct sst_fw;
 
+/* do we need to remove or keep */
+#define DSP_DRAM_ADDR_OFFSET		0x400000
+
 /*
  * DSP Operations exported by platform Audio DSP driver.
  */
@@ -67,6 +70,8 @@ struct sst_addr {
 	u32 shim_offset;
 	u32 iram_offset;
 	u32 dram_offset;
+	u32 dsp_iram_offset;
+	u32 dsp_dram_offset;
 	void __iomem *lpe;
 	void __iomem *shim;
 	void __iomem *pci_cfg;
@@ -319,4 +324,6 @@ struct sst_mem_block *sst_mem_block_register(struct sst_dsp *dsp, u32 offset,
 	void *private);
 void sst_mem_block_unregister_all(struct sst_dsp *dsp);
 
+u32 sst_dsp_get_offset(struct sst_dsp *dsp, u32 offset,
+	enum sst_mem_type type);
 #endif

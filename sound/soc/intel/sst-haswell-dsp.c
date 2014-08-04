@@ -42,6 +42,10 @@
 #define SST_LP_SHIM_OFFSET	0xE7000
 #define SST_WPT_IRAM_OFFSET	0xA0000
 #define SST_LP_IRAM_OFFSET	0x80000
+#define SST_WPT_DSP_DRAM_OFFSET	0x400000
+#define SST_WPT_DSP_IRAM_OFFSET	0x00000
+#define SST_LPT_DSP_DRAM_OFFSET	0x400000
+#define SST_LPT_DSP_IRAM_OFFSET	0x00000
 
 #define SST_SHIM_PM_REG		0x84
 
@@ -462,12 +466,16 @@ static int hsw_init(struct sst_dsp *sst, struct sst_pdata *pdata)
 		region = lp_region;
 		region_count = ARRAY_SIZE(lp_region);
 		sst->addr.iram_offset = SST_LP_IRAM_OFFSET;
+		sst->addr.dsp_iram_offset = SST_LPT_DSP_IRAM_OFFSET;
+		sst->addr.dsp_dram_offset = SST_LPT_DSP_DRAM_OFFSET;
 		sst->addr.shim_offset = SST_LP_SHIM_OFFSET;
 		break;
 	case SST_DEV_ID_WILDCAT_POINT:
 		region = wpt_region;
 		region_count = ARRAY_SIZE(wpt_region);
 		sst->addr.iram_offset = SST_WPT_IRAM_OFFSET;
+		sst->addr.dsp_iram_offset = SST_WPT_DSP_IRAM_OFFSET;
+		sst->addr.dsp_dram_offset = SST_WPT_DSP_DRAM_OFFSET;
 		sst->addr.shim_offset = SST_WPT_SHIM_OFFSET;
 		break;
 	default:

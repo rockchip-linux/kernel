@@ -234,9 +234,8 @@ struct sst_module *sst_module_new(struct sst_fw *sst_fw,
 	sst_module->id = template->id;
 	sst_module->dsp = dsp;
 	sst_module->sst_fw = sst_fw;
-
-	memcpy(&sst_module->s, &template->s, sizeof(struct sst_module_data));
-	memcpy(&sst_module->p, &template->p, sizeof(struct sst_module_data));
+	sst_module->scratch_size = template->scratch_size;
+	sst_module->persistent_size = template->persistent_size;
 
 	INIT_LIST_HEAD(&sst_module->block_list);
 
@@ -712,3 +711,20 @@ struct sst_module *sst_module_get_from_id(struct sst_dsp *dsp, u32 id)
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(sst_module_get_from_id);
+
+/* returns block address in DSP address space */
+u32 sst_dsp_get_offset(struct sst_dsp *dsp, u32 offset,
+	enum sst_mem_type type)
+{
+	switch (type) {
+	case SST_MEM_IRAM:
+		return offset - dsp->addr.iram_offset +
+			dsp->addr.dsp_iram_offset;
+	case SST_MEM_DRAM:
+		return offset - dsp->addr.dram_offset +
+			dsp->addr.dsp_dram_offset;
+	default:
+		return 0;
+	}
+}
+EXPORT_SYMBOL_GPL(sst_dsp_get_offset);
