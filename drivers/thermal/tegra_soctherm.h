@@ -26,6 +26,24 @@
 #define THERMCTL_LEVEL0_GROUP_MEM		0x8
 #define THERMCTL_LEVEL0_GROUP_TSENSE		0xc
 
+#define THERMTRIP				0x80
+#define		THERMTRIP_ANY_EN_SHIFT		28
+#define		THERMTRIP_ANY_EN_MASK		(0x1 << THERMTRIP_ANY_EN_SHIFT)
+#define		THERMTRIP_MEM_EN_SHIFT		27
+#define		THERMTRIP_MEM_EN_MASK		(0x1 << THERMTRIP_MEM_EN_SHIFT)
+#define		THERMTRIP_GPU_EN_SHIFT		26
+#define		THERMTRIP_GPU_EN_MASK		(0x1 << THERMTRIP_GPU_EN_SHIFT)
+#define		THERMTRIP_CPU_EN_SHIFT		25
+#define		THERMTRIP_CPU_EN_MASK		(0x1 << THERMTRIP_CPU_EN_SHIFT)
+#define		THERMTRIP_TSENSE_EN_SHIFT	24
+#define		THERMTRIP_TSENSE_EN_MASK	(0x1 << THERMTRIP_TSENSE_EN_SHIFT)
+#define		THERMTRIP_GPUMEM_THRESH_SHIFT	16
+#define		THERMTRIP_GPUMEM_THRESH_MASK	(0xff << THERMTRIP_GPUMEM_THRESH_SHIFT)
+#define		THERMTRIP_CPU_THRESH_SHIFT	8
+#define		THERMTRIP_CPU_THRESH_MASK	(0xff << THERMTRIP_CPU_THRESH_SHIFT)
+#define		THERMTRIP_TSENSE_THRESH_SHIFT	0
+#define		THERMTRIP_TSENSE_THRESH_MASK	(0xff << THERMTRIP_TSENSE_THRESH_SHIFT)
+
 #define SENSOR_PDIV				0x1c0
 #define SENSOR_HOTSPOT_OFF			0x1c4
 
@@ -44,6 +62,8 @@
  * @id: numeric ID of the temperature sensor group
  * @thermctl_isr_shift: bit shift for interrupt status/enable register
  * @thermctl_level0_offset: offset of the THERMCTL_LEVEL0_GROUP_* reg
+ * @thermtrip_enable_shift: register bit shift to enable the THERMTRIP feature
+ * @thermtrip_threshold_mask: register mask to program the THERMTRIP threshold
  * @sensor_temp_offset: offset of the SENSOR_TEMP* register
  * @sensor_temp_mask: bit mask for this sensor group in SENSOR_TEMP* register
  * @pllx_hotspot_diff: hotspot offset from the PLLX sensor
@@ -53,16 +73,19 @@
  * @pdiv_mask: register bitfield mask for the PDIV field for this sensor
  *
  * @pllx_hotspot_diff must be 0 for the PLLX sensor group.
+ * The GPU and MEM sensor groups share a thermtrip temperature threshold.
  */
 struct tegra_tsensor_group {
 	const char	*name;
 	u8		id;
 	u8		thermctl_isr_shift;
+	u8		thermtrip_enable_shift;
 	u8		pdiv;
 	u8		pdiv_ate;
 	u16		thermctl_level0_offset;
 	u16		sensor_temp_offset;
 	u32		sensor_temp_mask;
+	u32		thermtrip_threshold_mask;
 	u32		pdiv_mask;
 	u32		pllx_hotspot_mask;
 	int		pllx_hotspot_diff;

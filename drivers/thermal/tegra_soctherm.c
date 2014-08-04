@@ -20,6 +20,7 @@
 #include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
+#include <linux/string.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -73,7 +74,7 @@ struct tegra_soctherm {
 	void __iomem *regs;
 
 	struct thermal_zone_device *thermctl_tzs[4];
-	struct tegra_tsensor_group *sensor_groups;
+	struct tegra_tsensor_group **sensor_groups;
 };
 
 struct tegra_thermctl_zone {
@@ -224,6 +225,210 @@ static irqreturn_t soctherm_isr_thread(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/*
+ * Thermtrip
+ */
+
+
+/**
+ * enforce_temp_range() - check and enforce temperature range [min, max]
+ * @trip_temp: the trip temperature to check
+ *
+ * Checks and enforces the permitted temperature range that SOC_THERM
+ * HW can support with 8-bit registers to specify temperature. This is
+ * done while taking care of precision.
+ *
+ * Return: The precision adjusted capped temperature in millicelsius.
+ */
+static int enforce_temp_range(struct device *dev, long trip_temp)
+{
+	long temp = trip_temp;
+
+	if (temp < min_low_temp) {
+		dev_info(dev, "soctherm: trip_point temp %ld forced to %d\n",
+			 trip_temp, min_low_temp);
+		temp = min_low_temp;
+	} else if (temp > max_high_temp) {
+		dev_info(dev, "soctherm: trip_point temp %ld forced to %d\n",
+			 trip_temp, max_high_temp);
+		temp = max_high_temp;
+	}
+
+	return temp;
+}
+
+/**
+ * thermtrip_program() - Configures the hardware to shut down the
+ * system if a given sensor group reaches a given temperature
+ * @dev: ptr to the struct device for the SOC_THERM IP block
+ * @sg: pointer to the sensor group to set the thermtrip temperature for
+ * @trip_temp: the temperature in millicelsius to trigger the thermal trip at
+ *
+ * Sets the thermal trip threshold of the given sensor group to be the
+ * @trip_temp.  If this threshold is crossed, the hardware will shut
+ * down.
+ *
+ * Note that, although @trip_temp is specified in millicelsius, the
+ * hardware is programmed in degrees Celsius.
+ *
+ * Return: 0 upon success, or %-EINVAL upon failure.
+ */
+static int thermtrip_program(struct device *dev, struct tegra_tsensor_group *sg,
+			     long trip_temp)
+{
+	struct tegra_soctherm *ts = dev_get_drvdata(dev);
+	u32 r;
+	int temp;
+
+	if (!dev || !sg)
+		return -EINVAL;
+
+	if (!sg->thermtrip_threshold_mask)
+		return -EINVAL;
+
+	temp = enforce_temp_range(dev, trip_temp) / 1000;
+
+	/* XXX Do some sanity-checking here */
+
+	r = soctherm_readl(ts, THERMTRIP);
+
+	r &= ~sg->thermtrip_threshold_mask;
+	r |= temp << (ffs(sg->thermtrip_threshold_mask) - 1);
+
+	r |= 1 << sg->thermtrip_enable_shift;
+
+	r &= ~THERMTRIP_ANY_EN_MASK;
+
+	soctherm_writel(ts, r, THERMTRIP);
+	soctherm_barrier(ts);
+
+	return 0;
+}
+
+/**
+ * find_sensor_group_by_name() - look up a thermal sensor group by name
+ * @name: name of the thermal sensor group to look up
+ *
+ * Look up a SOC_THERM thermal sensor group by its name @name, and
+ * return a pointer to that thermal sensor group's data record if
+ * found.
+ *
+ * Return: a pointer to a struct tegra_tsensor_group upon success, or
+ * NULL upon failure.
+ */
+static struct tegra_tsensor_group *find_sensor_group_by_name(
+						struct tegra_soctherm *ts,
+						const char *name)
+{
+	int i;
+
+	for (i = 0; ts->sensor_groups[i]->name; i++)
+		if (!strcmp(ts->sensor_groups[i]->name, name))
+			return ts->sensor_groups[i];
+
+	return NULL;
+}
+
+/**
+ * thermtrip_configure_limits_from_dt() - configure thermal shutdown limits
+ * @dev: struct device * of the SOC_THERM instance
+ * @ttn: struct device_node * of the "thermtrip" node in DT
+ *
+ * Read the maximum thermal limits that the SoC has been configured to
+ * operate at from DT data, and configure the SOC_THERM IP block @dev
+ * to reset the SoC and turn off the PMIC when the internal sensor
+ * group temperatures cross those limits.
+ *
+ * Return: 0 upon success or a negative error code upon failure.
+ */
+static int thermtrip_configure_limits_from_dt(struct device *dev,
+					      struct device_node *ttn)
+{
+	struct tegra_soctherm *ts = dev_get_drvdata(dev);
+	struct tegra_tsensor_group *sg;
+	struct device_node *sgn, *sgsn;
+	const char *name;
+	u32 temperature;
+	int r;
+
+	/* Read the limits */
+	sgsn = of_find_node_by_name(dev->of_node, "sensor-groups");
+	if (!sgsn) {
+		dev_info(dev, "thermtrip: no sensor-groups node - not enabling\n");
+		return 0;
+	}
+	for_each_child_of_node(sgsn, sgn) {
+		name = sgn->name;
+		sg = find_sensor_group_by_name(ts, name);
+		if (!sg) {
+			dev_err(dev, "thermtrip: %s: could not find sensor group - could not enable\n",
+				name);
+			continue;
+		}
+
+		r = of_property_read_u32(sgn, "temperature", &temperature);
+		if (r) {
+			dev_err(dev, "thermtrip: %s: missing temperature property - could not enable\n",
+				name);
+			continue;
+		}
+
+		r = thermtrip_program(dev, sg, temperature);
+		if (r) {
+			dev_err(dev, "thermtrip: %s: error during enable\n",
+				name);
+			continue;
+		}
+
+		dev_info(dev, "thermtrip: will shut down when %s sensor group reaches %d degrees millicelsius\n",
+			 name, temperature);
+	}
+
+	return 0;
+}
+
+/**
+ * thermtrip_configure_from_dt() - configure thermal shutdown from DT data
+ * @dev: struct device * of the SOC_THERM instance
+ *
+ * Configure the SOC_THERM "THERMTRIP" feature, using data from DT.
+ * After it's been configured, THERMTRIP will take action when the
+ * configured SoC thermal sensor group reaches a certain temperature.
+ * It will assert an internal SoC reset line, and will signal the
+ * boot-ROM to tell the PMIC to turn off (if PMIC information has been
+ * provided).
+ *
+ * SOC_THERM registers are in the VDD_SOC voltage domain.  This means
+ * that SOC_THERM THERMTRIP programming does not survive an LP0/SC7
+ * transition, unless this driver has been modified to save those
+ * registers before entering SC7 and restore them upon exiting SC7.
+ *
+ * Return: 0 upon success, or a negative error code on failure.
+ * "Success" does not mean that thermtrip was enabled; it could also
+ * mean that no "thermtrip" node was found in DT.  THERMTRIP has been
+ * enabled successfully when a message similar to this one appears on
+ * the serial console: "thermtrip: will shut down when sensor group
+ * XXX reaches YYYYYY millidegrees C"
+ */
+static int thermtrip_configure_from_dt(struct device *dev)
+{
+	struct device_node *ttn;
+	int r;
+
+	ttn = of_find_node_by_name(dev->of_node, "thermtrip");
+	if (!ttn) {
+		dev_info(dev, "thermtrip: no DT node - not enabling\n");
+		return 0;
+	}
+
+	r = thermtrip_configure_limits_from_dt(dev, ttn);
+	if (r)
+		return r;
+
+	return 0;
+}
+
+
 int tegra_soctherm_probe(struct platform_device *pdev,
 		struct tegra_tsensor_configuration *tegra_tsensor_configs,
 		struct tegra_tsensor *tsensors,
@@ -243,7 +448,8 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	if (!tegra)
 		return -ENOMEM;
 
-	tegra->sensor_groups = *tegra_tsensor_groups;
+	dev_set_drvdata(&pdev->dev, tegra);
+	tegra->sensor_groups = tegra_tsensor_groups;
 
 	tegra->regs = devm_ioremap_resource(&pdev->dev,
 		platform_get_resource(pdev, IORESOURCE_MEM, 0));
@@ -350,20 +556,13 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		zone->tz = tz;
 		tegra->thermctl_tzs[i] = tz;
 
-		err = devm_request_threaded_irq(&pdev->dev, irq, soctherm_isr,
-						soctherm_isr_thread,
-						IRQF_SHARED, "tegra_soctherm",
-						zone);
-		if (err) {
-			dev_err(&pdev->dev, "unable to register isr: %d\n",
-				err);
-			goto unregister_tzs;
-		}
-
 		soctherm_writel(tegra,
 				0x3 << zone->sensor_group->thermctl_isr_shift,
 				THERMCTL_INTR_EN);
 	}
+
+	/* Set up hardware thermal limits */
+	thermtrip_configure_from_dt(&pdev->dev);
 
 	return 0;
 
