@@ -172,10 +172,8 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 static int hsw_parse_fw_image(struct sst_fw *sst_fw)
 {
 	struct fw_header *header;
-	struct sst_module *scratch;
 	struct fw_module_header *module;
 	struct sst_dsp *dsp = sst_fw->dsp;
-	struct sst_hsw *hsw = sst_fw->private;
 	int ret, count;
 
 	/* Read the header information from the data pointer */
@@ -205,12 +203,8 @@ static int hsw_parse_fw_image(struct sst_fw *sst_fw)
 		module = (void *)module + sizeof(*module) + module->mod_size;
 	}
 
-	/* allocate persistent/scratch mem regions */
-	scratch = sst_mem_block_alloc_scratch(dsp);
-	if (scratch == NULL)
-		return -ENOMEM;
-
-	sst_hsw_set_scratch_module(hsw, scratch);
+	/* allocate scratch mem regions */
+	sst_block_alloc_scratch(dsp);
 
 	return 0;
 }

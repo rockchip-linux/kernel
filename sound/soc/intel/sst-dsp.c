@@ -352,6 +352,7 @@ struct sst_dsp *sst_dsp_new(struct device *dev,
 	INIT_LIST_HEAD(&sst->free_block_list);
 	INIT_LIST_HEAD(&sst->module_list);
 	INIT_LIST_HEAD(&sst->fw_list);
+	INIT_LIST_HEAD(&sst->scratch_block_list);
 
 	/* Initialise SST Audio DSP */
 	if (sst->ops->init) {

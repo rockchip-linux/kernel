@@ -1718,12 +1718,6 @@ static int msg_empty_list_init(struct sst_hsw *hsw)
 	return 0;
 }
 
-void sst_hsw_set_scratch_module(struct sst_hsw *hsw,
-	struct sst_module *scratch)
-{
-	hsw->scratch = scratch;
-}
-
 struct sst_dsp *sst_hsw_get_dsp(struct sst_hsw *hsw)
 {
 	return hsw->dsp;

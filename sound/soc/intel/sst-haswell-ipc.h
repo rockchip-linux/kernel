@@ -486,7 +486,5 @@ int sst_hsw_dx_get_state(struct sst_hsw *hsw, u32 item,
 int sst_hsw_dsp_init(struct device *dev, struct sst_pdata *pdata);
 void sst_hsw_dsp_free(struct device *dev, struct sst_pdata *pdata);
 struct sst_dsp *sst_hsw_get_dsp(struct sst_hsw *hsw);
-void sst_hsw_set_scratch_module(struct sst_hsw *hsw,
-	struct sst_module *scratch);
 
 #endif

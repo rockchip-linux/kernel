@@ -630,80 +630,69 @@ void sst_mem_block_unregister_all(struct sst_dsp *dsp)
 EXPORT_SYMBOL_GPL(sst_mem_block_unregister_all);
 
 /* allocate scratch buffer blocks */
-struct sst_module *sst_mem_block_alloc_scratch(struct sst_dsp *dsp)
+int sst_block_alloc_scratch(struct sst_dsp *dsp)
 {
-	struct sst_module *sst_module, *scratch;
-	struct sst_mem_block *block, *tmp;
-	u32 block_size;
-	int ret = 0;
-
-	scratch = kzalloc(sizeof(struct sst_module), GFP_KERNEL);
-	if (scratch == NULL)
-		return NULL;
+	struct sst_module *module;
+	struct sst_block_allocator ba;
+	int ret;
 
 	mutex_lock(&dsp->mutex);
 
 	/* calculate required scratch size */
-	list_for_each_entry(sst_module, &dsp->module_list, list) {
-		if (scratch->s.size < sst_module->s.size)
-			scratch->s.size = sst_module->s.size;
+	dsp->scratch_size = 0;
+	list_for_each_entry(module, &dsp->module_list, list) {
+		dev_dbg(dsp->dev, "module %d scratch req 0x%x bytes\n",
+			module->id, module->scratch_size);
+		if (dsp->scratch_size < module->scratch_size)
+			dsp->scratch_size = module->scratch_size;
 	}
 
-	dev_dbg(dsp->dev, "scratch buffer required is %d bytes\n",
-		scratch->s.size);
+	dev_dbg(dsp->dev, "scratch buffer required is 0x%x bytes\n",
+		dsp->scratch_size);
 
-	/* init scratch module */
-	scratch->dsp = dsp;
-	scratch->s.type = SST_MEM_DRAM;
-	scratch->s.data_type = SST_DATA_S;
-	INIT_LIST_HEAD(&scratch->block_list);
+	if (dsp->scratch_size == 0) {
+		dev_info(dsp->dev, "no modules need scratch buffer\n");
+		mutex_unlock(&dsp->mutex);
+		return 0;
+	}
 
-	/* check free blocks before looking at used blocks for space */
-	if (!list_empty(&dsp->free_block_list))
-		block = list_first_entry(&dsp->free_block_list,
-			struct sst_mem_block, list);
-	else
-		block = list_first_entry(&dsp->used_block_list,
-			struct sst_mem_block, list);
-	block_size = block->size;
+	ba.size = dsp->scratch_size;
+	ba.type = SST_MEM_DRAM;
+	ba.offset = 0;
+
+	dev_dbg(dsp->dev, "block request 0x%x bytes type %d\n",
+		ba.size, ba.type);
 
 	/* allocate blocks for module scratch buffers */
 	dev_dbg(dsp->dev, "allocating scratch blocks\n");
-	ret = block_alloc(scratch, &scratch->s);
+	ret = block_alloc(dsp, &ba, &dsp->scratch_block_list);
 	if (ret < 0) {
 		dev_err(dsp->dev, "error: can't alloc scratch blocks\n");
-		goto err;
+		mutex_unlock(&dsp->mutex);
+		return ret;
+	}
+
+	ret = block_list_prepare(dsp, &dsp->scratch_block_list);
+	if (ret < 0) {
+		dev_err(dsp->dev, "error: scratch block prepare failed\n");
+		return ret;
 	}
 
 	/* assign the same offset of scratch to each module */
-	list_for_each_entry(sst_module, &dsp->module_list, list)
-		sst_module->s.offset = scratch->s.offset;
-
+	dsp->scratch_offset = ba.offset;
 	mutex_unlock(&dsp->mutex);
-	return scratch;
-
-err:
-	list_for_each_entry_safe(block, tmp, &scratch->block_list, module_list)
-		list_del(&block->module_list);
-	mutex_unlock(&dsp->mutex);
-	return NULL;
+	return dsp->scratch_size;
 }
-EXPORT_SYMBOL_GPL(sst_mem_block_alloc_scratch);
+EXPORT_SYMBOL_GPL(sst_block_alloc_scratch);
 
 /* free all scratch blocks */
-void sst_mem_block_free_scratch(struct sst_dsp *dsp,
-	struct sst_module *scratch)
+void sst_block_free_scratch(struct sst_dsp *dsp)
 {
-	struct sst_mem_block *block, *tmp;
-
 	mutex_lock(&dsp->mutex);
-
-	list_for_each_entry_safe(block, tmp, &scratch->block_list, module_list)
-		list_del(&block->module_list);
-
+	block_list_remove(dsp, &dsp->scratch_block_list);
 	mutex_unlock(&dsp->mutex);
 }
-EXPORT_SYMBOL_GPL(sst_mem_block_free_scratch);
+EXPORT_SYMBOL_GPL(sst_block_free_scratch);
 
 /* get a module from it's unique ID */
 struct sst_module *sst_module_get_from_id(struct sst_dsp *dsp, u32 id)

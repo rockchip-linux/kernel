@@ -257,6 +257,11 @@ struct sst_dsp {
 	struct list_head module_list;
 	struct list_head fw_list;
 
+	/* scratch buffer */
+	struct list_head scratch_block_list;
+	u32 scratch_offset;
+	u32 scratch_size;
+
 	/* platform data */
 	struct sst_pdata *pdata;
 
@@ -296,11 +301,6 @@ struct sst_module *sst_module_new(struct sst_fw *sst_fw,
 	struct sst_module_template *template, void *private);
 void sst_module_free(struct sst_module *module);
 struct sst_module *sst_module_get_from_id(struct sst_dsp *dsp, u32 id);
-
-/* allocate/free pesistent/scratch memory regions managed by drv */
-struct sst_module *sst_mem_block_alloc_scratch(struct sst_dsp *dsp);
-void sst_mem_block_free_scratch(struct sst_dsp *dsp,
-	struct sst_module *scratch);
 int sst_module_alloc_blocks(struct sst_module *module);
 int sst_module_free_blocks(struct sst_module *module);
 
@@ -308,6 +308,11 @@ int sst_module_free_blocks(struct sst_module *module);
 int sst_alloc_blocks(struct sst_dsp *dsp, struct sst_block_allocator *ba,
 	struct list_head *block_list);
 int sst_free_blocks(struct sst_dsp *dsp, struct list_head *block_list);
+
+/* scratch allocation */
+int sst_block_alloc_scratch(struct sst_dsp *dsp);
+void sst_block_free_scratch(struct sst_dsp *dsp);
+
 /* Register the DSPs memory blocks - would be nice to read from ACPI */
 struct sst_mem_block *sst_mem_block_register(struct sst_dsp *dsp, u32 offset,
 	u32 size, enum sst_mem_type type, struct sst_block_ops *ops, u32 index,
