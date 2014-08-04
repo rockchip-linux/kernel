@@ -595,6 +595,21 @@
 		resets = <&tegra_car 78>;
 		reset-names = "soctherm";
 		#thermal-sensor-cells = <1>;
+
+		thermtrip {
+			  sensor-groups {
+				  cpu {
+					  temperature = <104000>;
+				  };
+				  gpu {
+					  temperature = <105000>;
+				  };
+				  mem {
+					  temperature = <105000>;
+				  };
+			  };
+		};
+
 	};
 
 	cpus {
