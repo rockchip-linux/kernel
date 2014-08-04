@@ -152,11 +152,21 @@ struct sst_module_runtime {
 	int id;
 	struct sst_module *module;	/* parent module we belong too */
 
-	u32 persistent_offset;		/* private memory size */
+	u32 persistent_offset;		/* private memory offset */
 	void *private;
 
 	struct list_head list;
 	struct list_head block_list;	/* list of blocks used */
+};
+
+/*
+ * Runtime Module Context - The runtime context must be manually stored by the
+ * driver prior to enter S3 and restored after leaving S3. This should really be
+ * part of the memory context saved by the enter D3 message IPC ???
+ */
+struct sst_module_runtime_context {
+	dma_addr_t dma_buffer;
+	u32 *buffer;
 };
 
 /*
@@ -308,6 +318,20 @@ void sst_module_free(struct sst_module *module);
 struct sst_module *sst_module_get_from_id(struct sst_dsp *dsp, u32 id);
 int sst_module_alloc_blocks(struct sst_module *module);
 int sst_module_free_blocks(struct sst_module *module);
+
+/* Create/Free firmware module runtime instances */
+struct sst_module_runtime *sst_module_runtime_new(struct sst_module *module,
+	int id, void *private);
+void sst_module_runtime_free(struct sst_module_runtime *runtime);
+struct sst_module_runtime *sst_module_runtime_get_from_id(
+	struct sst_module *module, u32 id);
+int sst_module_runtime_alloc_blocks(struct sst_module_runtime *runtime,
+	int offset);
+int sst_module_runtime_free_blocks(struct sst_module_runtime *runtime);
+int sst_module_runtime_save(struct sst_module_runtime *runtime,
+	struct sst_module_runtime_context *context);
+int sst_module_runtime_restore(struct sst_module_runtime *runtime,
+	struct sst_module_runtime_context *context);
 
 /* generic block allocation */
 int sst_alloc_blocks(struct sst_dsp *dsp, struct sst_block_allocator *ba,

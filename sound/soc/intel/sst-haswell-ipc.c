@@ -1673,24 +1673,49 @@ int sst_hsw_dx_set_state(struct sst_hsw *hsw,
 	dev_dbg(hsw->dev, "ipc: got %d entry numbers for state %d\n",
 		dx->entries_no, state);
 
-	memcpy(&hsw->dx, dx, sizeof(*dx));
-	return 0;
+	return ret;
 }
 
-/* Used to save state into hsw->dx_reply */
-int sst_hsw_dx_get_state(struct sst_hsw *hsw, u32 item,
-	u32 *offset, u32 *size, u32 *source)
+struct sst_module_runtime *sst_hsw_runtime_module_create(struct sst_hsw *hsw,
+	int mod_id, int offset)
 {
-	struct sst_hsw_ipc_dx_memory_item *dx_mem;
-	struct sst_hsw_ipc_dx_reply *dx_reply;
-	int entry_no;
+	struct sst_dsp *dsp = hsw->dsp;
+	struct sst_module *module;
+	struct sst_module_runtime *runtime;
+	int err;
 
-	dx_reply = &hsw->dx;
-	entry_no = dx_reply->entries_no;
+	module = sst_module_get_from_id(dsp, mod_id);
+	if (module == NULL) {
+		dev_err(dsp->dev, "error: failed to get module %d for pcm\n",
+			mod_id);
+		return NULL;
+	}
 
-	trace_ipc_request("PM get Dx state", entry_no);
+	runtime = sst_module_runtime_new(module, mod_id, NULL);
+	if (runtime == NULL) {
+		dev_err(dsp->dev, "error: failed to create module %d runtime\n",
+			mod_id);
+		return NULL;
+	}
 
-	if (item >= entry_no)
+	err = sst_module_runtime_alloc_blocks(runtime, offset);
+	if (err < 0) {
+		dev_err(dsp->dev, "error: failed to alloc blocks for module %d runtime\n",
+			mod_id);
+		sst_module_runtime_free(runtime);
+		return NULL;
+	}
+
+	dev_dbg(dsp->dev, "runtime id %d created for module %d\n", runtime->id,
+		mod_id);
+	return runtime;
+}
+
+void sst_hsw_runtime_module_free(struct sst_module_runtime *runtime)
+{
+	sst_module_runtime_free_blocks(runtime);
+	sst_module_runtime_free(runtime);
+}
 		return -EINVAL;
 
 	dx_mem = &dx_reply->mem_info[item];

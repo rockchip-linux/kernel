@@ -170,21 +170,37 @@ EXPORT_SYMBOL_GPL(sst_fw_reload);
 
 void sst_fw_unload(struct sst_fw *sst_fw)
 {
-        struct sst_dsp *dsp = sst_fw->dsp;
-        struct sst_module *module, *tmp;
+	struct sst_dsp *dsp = sst_fw->dsp;
+	struct sst_module *module, *mtmp;
+	struct sst_module_runtime *runtime, *rtmp;
 
-        dev_dbg(dsp->dev, "unloading firmware\n");
+	dev_dbg(dsp->dev, "unloading firmware\n");
 
-        mutex_lock(&dsp->mutex);
-        list_for_each_entry_safe(module, tmp, &dsp->module_list, list) {
-                if (module->sst_fw == sst_fw) {
-                        block_module_remove(module);
-                        list_del(&module->list);
-                        kfree(module);
-                }
-        }
+	mutex_lock(&dsp->mutex);
 
-        mutex_unlock(&dsp->mutex);
+	/* check module by module */
+	list_for_each_entry_safe(module, mtmp, &dsp->module_list, list) {
+		if (module->sst_fw == sst_fw) {
+
+			/* remove runtime modules */
+			list_for_each_entry_safe(runtime, rtmp, &module->runtime_list, list) {
+
+				block_list_remove(dsp, &runtime->block_list);
+				list_del(&runtime->list);
+				kfree(runtime);
+			}
+
+			/* now remove the module */
+			block_list_remove(dsp, &module->block_list);
+			list_del(&module->list);
+			kfree(module);
+		}
+	}
+
+	/* remove all scratch blocks */
+	block_list_remove(dsp, &dsp->scratch_block_list);
+
+	mutex_unlock(&dsp->mutex);
 }
 EXPORT_SYMBOL_GPL(sst_fw_unload);
 
@@ -238,6 +254,7 @@ struct sst_module *sst_module_new(struct sst_fw *sst_fw,
 	sst_module->persistent_size = template->persistent_size;
 
 	INIT_LIST_HEAD(&sst_module->block_list);
+	INIT_LIST_HEAD(&sst_module->runtime_list);
 
 	mutex_lock(&dsp->mutex);
 	list_add(&sst_module->list, &dsp->module_list);
@@ -573,10 +590,169 @@ int sst_module_free_blocks(struct sst_module *module)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(sst_module_free_blocks);
+
+int sst_module_runtime_alloc_blocks(struct sst_module_runtime *runtime,
+	int offset)
+{
+	struct sst_dsp *dsp = runtime->dsp;
+	struct sst_module *module = runtime->module;
+	struct sst_block_allocator ba;
+	int ret;
+
+	if (module->persistent_size == 0)
+		return 0;
+
+	ba.size = module->persistent_size;
+	ba.type = SST_MEM_DRAM;
+
+	mutex_lock(&dsp->mutex);
+
+	/* do we need to allocate at a fixed address ? */
+	if (offset != 0) {
+
+		ba.offset = offset;
+
+		dev_dbg(dsp->dev, "persistent fixed block request 0x%x bytes type %d offset 0x%x\n",
+			ba.size, ba.type, ba.offset);
+
+		/* alloc blocks that includes this section */
+		ret = block_alloc_fixed(dsp, &ba, &runtime->block_list);
+
+	} else {
+		dev_dbg(dsp->dev, "persistent block request 0x%x bytes type %d\n",
+			ba.size, ba.type);
+
+		/* alloc blocks that includes this section */
+		ret = block_alloc(dsp, &ba, &runtime->block_list);
+	}
+	if (ret < 0) {
+		dev_err(dsp->dev,
+		"error: no free blocks for runtime module size 0x%x\n",
+			module->persistent_size);
+		mutex_unlock(&dsp->mutex);
+		return -ENOMEM;
+	}
+	runtime->persistent_offset = ba.offset;
+
+	/* prepare DSP blocks for module copy */
+	ret = block_list_prepare(dsp, &runtime->block_list);
+	if (ret < 0) {
+		dev_err(dsp->dev, "error: runtime block prepare failed\n");
+		goto err;
+	}
+
+	mutex_unlock(&dsp->mutex);
+	return ret;
+
+err:
+	block_list_remove(dsp, &module->block_list);
+	mutex_unlock(&dsp->mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sst_module_runtime_alloc_blocks);
+
+int sst_module_runtime_free_blocks(struct sst_module_runtime *runtime)
+{
+	struct sst_dsp *dsp = runtime->dsp;
+
+	mutex_lock(&dsp->mutex);
+	block_list_remove(dsp, &runtime->block_list);
 	mutex_unlock(&dsp->mutex);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(sst_block_module_remove);
+EXPORT_SYMBOL_GPL(sst_module_runtime_free_blocks);
+
+int sst_module_runtime_save(struct sst_module_runtime *runtime,
+	struct sst_module_runtime_context *context)
+{
+	struct sst_dsp *dsp = runtime->dsp;
+	struct sst_module *module = runtime->module;
+	int ret = 0;
+
+	dev_dbg(dsp->dev, "saving runtime %d memory at 0x%x size 0x%x\n",
+		runtime->id, runtime->persistent_offset,
+		module->persistent_size);
+
+	context->buffer = dma_alloc_coherent(dsp->dma_dev,
+		module->persistent_size,
+		&context->dma_buffer, GFP_DMA | GFP_KERNEL);
+	if (!context->buffer) {
+		dev_err(dsp->dev, "error: DMA context alloc failed\n");
+		return -ENOMEM;
+	}
+
+	mutex_lock(&dsp->mutex);
+
+	if (dsp->fw_use_dma) {
+
+		ret = sst_dsp_dma_get_channel(dsp, 0);
+		if (ret < 0)
+			goto err;
+
+		ret = sst_dsp_dma_copyfrom(dsp, context->dma_buffer,
+			dsp->addr.lpe_base + runtime->persistent_offset,
+			module->persistent_size);
+		sst_dsp_dma_put_channel(dsp);
+		if (ret < 0) {
+			dev_err(dsp->dev, "error: context copy failed\n");
+			goto err;
+		}
+	} else
+		sst_memcpy32(context->buffer, dsp->addr.lpe +
+			runtime->persistent_offset,
+			module->persistent_size);
+
+err:
+	mutex_unlock(&dsp->mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sst_module_runtime_save);
+
+int sst_module_runtime_restore(struct sst_module_runtime *runtime,
+	struct sst_module_runtime_context *context)
+{
+	struct sst_dsp *dsp = runtime->dsp;
+	struct sst_module *module = runtime->module;
+	int ret = 0;
+
+	dev_dbg(dsp->dev, "restoring runtime %d memory at 0x%x size 0x%x\n",
+		runtime->id, runtime->persistent_offset,
+		module->persistent_size);
+
+	mutex_lock(&dsp->mutex);
+
+	if (!context->buffer) {
+		dev_info(dsp->dev, "no context buffer need to restore!\n");
+		goto err;
+	}
+
+	if (dsp->fw_use_dma) {
+
+		ret = sst_dsp_dma_get_channel(dsp, 0);
+		if (ret < 0)
+			goto err;
+
+		ret = sst_dsp_dma_copyto(dsp,
+			dsp->addr.lpe_base + runtime->persistent_offset,
+			context->dma_buffer, module->persistent_size);
+		sst_dsp_dma_put_channel(dsp);
+		if (ret < 0) {
+			dev_err(dsp->dev, "error: module copy failed\n");
+			goto err;
+		}
+	} else
+		sst_memcpy32(dsp->addr.lpe + runtime->persistent_offset,
+			context->buffer, module->persistent_size);
+
+	dma_free_coherent(dsp->dma_dev, module->persistent_size,
+				context->buffer, context->dma_buffer);
+	context->buffer = NULL;
+
+err:
+	mutex_unlock(&dsp->mutex);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(sst_module_runtime_restore);
 
 /* register a DSP memory block for use with FW based modules */
 struct sst_mem_block *sst_mem_block_register(struct sst_dsp *dsp, u32 offset,
@@ -655,16 +831,30 @@ int sst_block_alloc_scratch(struct sst_dsp *dsp)
 		return 0;
 	}
 
-	ba.size = dsp->scratch_size;
-	ba.type = SST_MEM_DRAM;
-	ba.offset = 0;
-
-	dev_dbg(dsp->dev, "block request 0x%x bytes type %d\n",
-		ba.size, ba.type);
-
 	/* allocate blocks for module scratch buffers */
 	dev_dbg(dsp->dev, "allocating scratch blocks\n");
-	ret = block_alloc(dsp, &ba, &dsp->scratch_block_list);
+
+	ba.size = dsp->scratch_size;
+	ba.type = SST_MEM_DRAM;
+
+	/* do we need to allocate at fixed offset */
+	if (dsp->scratch_offset != 0) {
+
+		dev_dbg(dsp->dev, "block request 0x%x bytes type %d at 0x%x\n",
+			ba.size, ba.type, ba.offset);
+
+		ba.offset = dsp->scratch_offset;
+
+		/* alloc blocks that includes this section */
+		ret = block_alloc_fixed(dsp, &ba, &dsp->scratch_block_list);
+
+	} else {
+		dev_dbg(dsp->dev, "block request 0x%x bytes type %d\n",
+			ba.size, ba.type);
+
+		ba.offset = 0;
+		ret = block_alloc(dsp, &ba, &dsp->scratch_block_list);
+	}
 	if (ret < 0) {
 		dev_err(dsp->dev, "error: can't alloc scratch blocks\n");
 		mutex_unlock(&dsp->mutex);
