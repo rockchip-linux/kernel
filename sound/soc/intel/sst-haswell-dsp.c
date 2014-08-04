@@ -86,9 +86,8 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 {
 	struct dma_block_info *block;
 	struct sst_module *mod;
-	struct sst_module_data block_data;
 	struct sst_module_template template;
-	int count;
+	int count, ret;
 	void __iomem *ram;
 
 	/* TODO: allowed module types need to be configurable */
@@ -109,13 +108,9 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 
 	memset(&template, 0, sizeof(template));
 	template.id = module->type;
-	template.entry = module->entry_point;
-	template.p.size = module->info.persistent_size;
-	template.p.type = SST_MEM_DRAM;
-	template.p.data_type = SST_DATA_P;
-	template.s.size = module->info.scratch_size;
-	template.s.type = SST_MEM_DRAM;
-	template.s.data_type = SST_DATA_S;
+	template.entry = module->entry_point - 4;
+	template.persistent_size = module->info.persistent_size;
+	template.scratch_size = module->info.scratch_size;
 
 	mod = sst_module_new(fw, &template, NULL);
 	if (mod == NULL)
@@ -135,14 +130,14 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 		switch (block->type) {
 		case SST_HSW_IRAM:
 			ram = dsp->addr.lpe;
-			block_data.offset =
+			mod->offset =
 				block->ram_offset + dsp->addr.iram_offset;
-			block_data.type = SST_MEM_IRAM;
+			mod->type = SST_MEM_IRAM;
 			break;
 		case SST_HSW_DRAM:
 			ram = dsp->addr.lpe;
-			block_data.offset = block->ram_offset;
-			block_data.type = SST_MEM_DRAM;
+			mod->offset = block->ram_offset;
+			mod->type = SST_MEM_DRAM;
 			break;
 		default:
 			dev_err(dsp->dev, "error: bad type 0x%x for block 0x%x\n",
@@ -151,20 +146,26 @@ static int hsw_parse_module(struct sst_dsp *dsp, struct sst_fw *fw,
 			return -EINVAL;
 		}
 
-		block_data.size = block->size;
-		block_data.data_type = SST_DATA_M;
-		block_data.data = (void *)block + sizeof(*block);
-		block_data.data_offset = block_data.data - fw->dma_buf;
+		mod->size = block->size;
+		mod->data = (void *)block + sizeof(*block);
+		mod->data_offset = mod->data - fw->dma_buf;
 
-		dev_dbg(dsp->dev, "copy firmware block %d type 0x%x "
+		dev_dbg(dsp->dev, "module block %d type 0x%x "
 			"size 0x%x ==> ram %p offset 0x%x\n",
-			count, block->type, block->size, ram,
+			count, mod->type, block->size, ram,
 			block->ram_offset);
 
-		sst_module_insert_fixed_block(mod, &block_data);
+		ret = sst_module_alloc_blocks(mod);
+		if (ret < 0) {
+			dev_err(dsp->dev, "error: could not allocate blocks for module %d\n",
+				count);
+			sst_module_free(mod);
+			return ret;
+		}
 
 		block = (void *)block + sizeof(*block) + block->size;
 	}
+
 	return 0;
 }
 

@@ -84,15 +84,6 @@ struct sst_mailbox {
 };
 
 /*
- * Audio DSP Firmware data types.
- */
-enum sst_data_type {
-	SST_DATA_M	= 0, /* module block data */
-	SST_DATA_P	= 1, /* peristant data (text, data) */
-	SST_DATA_S	= 2, /* scratch data (usually buffers) */
-};
-
-/*
  * Audio DSP memory block types.
  */
 enum sst_mem_type {
@@ -125,23 +116,6 @@ struct sst_fw {
 };
 
 /*
- * Audio DSP Generic Module data.
- *
- * This is used to dsecribe any sections of persistent (text and data) and
- * scratch (buffers) of module data in ADSP memory space.
- */
-struct sst_module_data {
-
-	enum sst_mem_type type;		/* destination memory type */
-	enum sst_data_type data_type;	/* type of module data */
-
-	u32 size;		/* size in bytes */
-	int32_t offset;		/* offset in FW file */
-	u32 data_offset;	/* offset in ADSP memory space */
-	void *data;		/* module data */
-};
-
-/*
  * Audio DSP Generic Module Template.
  *
  * Used to define and register a new FW module. This data is extracted from
@@ -150,15 +124,42 @@ struct sst_module_data {
 struct sst_module_template {
 	u32 id;
 	u32 entry;			/* entry point */
-	struct sst_module_data s;	/* scratch data */
-	struct sst_module_data p;	/* peristant data */
+	u32 scratch_size;
+	u32 persistent_size;
+};
+
+/*
+ * Block Allocator - Used to allocate blocks of DSP memory.
+ */
+struct sst_block_allocator {
+	u32 id;
+	u32 offset;
+	int size;
+	enum sst_mem_type type;
+};
+
+/*
+ * Runtime Module Instance - A module object can be instanciated multiple
+ * times within the DSP FW.
+ */
+struct sst_module_runtime {
+	struct sst_dsp *dsp;
+	int id;
+	struct sst_module *module;	/* parent module we belong too */
+
+	u32 persistent_offset;		/* private memory size */
+	void *private;
+
+	struct list_head list;
+	struct list_head block_list;	/* list of blocks used */
 };
 
 /*
  * Audio DSP Generic Module.
  *
  * Each Firmware file can consist of 1..N modules. A module can span multiple
- * ADSP memory blocks. The simplest FW will be a file with 1 module.
+ * ADSP memory blocks. The simplest FW will be a file with 1 module. A module
+ * can be instanciated multiple times in the DSP.
  */
 struct sst_module {
 	struct sst_dsp *dsp;
@@ -167,10 +168,13 @@ struct sst_module {
 	/* module configuration */
 	u32 id;
 	u32 entry;			/* module entry point */
-	u32 offset;			/* module offset in firmware file */
+	s32 offset;			/* module offset in firmware file */
 	u32 size;			/* module size */
-	struct sst_module_data s;	/* scratch data */
-	struct sst_module_data p;	/* peristant data */
+	u32 scratch_size;		/* global scratch memory required */
+	u32 persistent_size;		/* private memory required */
+	enum sst_mem_type type;		/* destination memory type */
+	u32 data_offset;		/* offset in ADSP memory space */
+	void *data;			/* module data */
 
 	/* runtime */
 	u32 usage_count;		/* can be unloaded if count == 0 */
@@ -180,6 +184,7 @@ struct sst_module {
 	struct list_head block_list;	/* Module list of blocks in use */
 	struct list_head list;		/* DSP list of modules */
 	struct list_head list_fw;	/* FW list of modules */
+	struct list_head runtime_list;	/* list of runtime module objects*/
 };
 
 /*
@@ -208,7 +213,6 @@ struct sst_mem_block {
 	struct sst_block_ops *ops;	/* block operations, if any */
 
 	/* block status */
-	enum sst_data_type data_type;	/* data type held in this block */
 	u32 bytes_used;			/* bytes in use by modules */
 	void *private;			/* generic core does not touch this */
 	int users;			/* number of modules using this block */
@@ -290,19 +294,20 @@ void sst_fw_unload(struct sst_fw *sst_fw);
 /* Create/Free firmware modules */
 struct sst_module *sst_module_new(struct sst_fw *sst_fw,
 	struct sst_module_template *template, void *private);
-void sst_module_free(struct sst_module *sst_module);
-int sst_module_insert(struct sst_module *sst_module);
-int sst_module_remove(struct sst_module *sst_module);
-int sst_module_insert_fixed_block(struct sst_module *module,
-	struct sst_module_data *data);
+void sst_module_free(struct sst_module *module);
 struct sst_module *sst_module_get_from_id(struct sst_dsp *dsp, u32 id);
 
 /* allocate/free pesistent/scratch memory regions managed by drv */
 struct sst_module *sst_mem_block_alloc_scratch(struct sst_dsp *dsp);
 void sst_mem_block_free_scratch(struct sst_dsp *dsp,
 	struct sst_module *scratch);
-int sst_block_module_remove(struct sst_module *module);
+int sst_module_alloc_blocks(struct sst_module *module);
+int sst_module_free_blocks(struct sst_module *module);
 
+/* generic block allocation */
+int sst_alloc_blocks(struct sst_dsp *dsp, struct sst_block_allocator *ba,
+	struct list_head *block_list);
+int sst_free_blocks(struct sst_dsp *dsp, struct list_head *block_list);
 /* Register the DSPs memory blocks - would be nice to read from ACPI */
 struct sst_mem_block *sst_mem_block_register(struct sst_dsp *dsp, u32 offset,
 	u32 size, enum sst_mem_type type, struct sst_block_ops *ops, u32 index,
