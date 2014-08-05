@@ -68,6 +68,45 @@ static struct generic_pm_domain *pm_genpd_lookup_name(const char *domain_name)
 	return genpd;
 }
 
+int pm_genpd_register_notifier(struct device *dev, struct notifier_block *nb)
+{
+	struct pm_domain_data *pdd;
+	int ret = -EINVAL;
+
+	spin_lock_irq(&dev->power.lock);
+	if (dev->power.subsys_data) {
+		pdd = dev->power.subsys_data->domain_data;
+		ret = blocking_notifier_chain_register(&pdd->notify_chain_head,
+						       nb);
+	}
+	spin_unlock_irq(&dev->power.lock);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(pm_genpd_register_notifier);
+
+void pm_genpd_unregister_notifier(struct device *dev, struct notifier_block *nb)
+{
+	struct pm_domain_data *pdd;
+
+	spin_lock_irq(&dev->power.lock);
+	if (dev->power.subsys_data) {
+		pdd = dev->power.subsys_data->domain_data;
+		blocking_notifier_chain_unregister(&pdd->notify_chain_head, nb);
+	}
+	spin_unlock_irq(&dev->power.lock);
+}
+EXPORT_SYMBOL_GPL(pm_genpd_unregister_notifier);
+
+static void pm_genpd_notifier_call(unsigned long event,
+				   struct generic_pm_domain *genpd)
+{
+	struct pm_domain_data *pdd;
+
+	list_for_each_entry(pdd, &genpd->dev_list, list_node)
+		blocking_notifier_call_chain(&pdd->notify_chain_head,
+					     event, pdd->dev);
+}
+
 struct generic_pm_domain *dev_to_genpd(struct device *dev)
 {
 	if (IS_ERR_OR_NULL(dev->pm_domain))
@@ -161,12 +200,17 @@ static int genpd_power_on(struct generic_pm_domain *genpd)
 	if (!genpd->power_on)
 		return 0;
 
+	pm_genpd_notifier_call(PM_GENPD_POWER_ON_PREPARE, genpd);
+
 	time_start = ktime_get();
 	ret = genpd->power_on(genpd);
 	if (ret)
 		return ret;
 
 	elapsed_ns = ktime_to_ns(ktime_sub(ktime_get(), time_start));
+
+	pm_genpd_notifier_call(PM_GENPD_POST_POWER_ON, genpd);
+
 	if (elapsed_ns <= genpd->power_on_latency_ns)
 		return ret;
 
@@ -188,12 +232,17 @@ static int genpd_power_off(struct generic_pm_domain *genpd)
 	if (!genpd->power_off)
 		return 0;
 
+	pm_genpd_notifier_call(PM_GENPD_POWER_OFF_PREPARE, genpd);
+
 	time_start = ktime_get();
 	ret = genpd->power_off(genpd);
 	if (ret == -EBUSY)
 		return ret;
 
 	elapsed_ns = ktime_to_ns(ktime_sub(ktime_get(), time_start));
+
+	pm_genpd_notifier_call(PM_GENPD_POST_POWER_OFF, genpd);
+
 	if (elapsed_ns <= genpd->power_off_latency_ns)
 		return ret;
 
@@ -1518,6 +1567,7 @@ int __pm_genpd_add_device(struct generic_pm_domain *genpd, struct device *dev,
 		genpd->attach_dev(genpd, dev);
 
 	mutex_lock(&gpd_data->lock);
+	BLOCKING_INIT_NOTIFIER_HEAD(&gpd_data->base.notify_chain_head);
 	gpd_data->base.dev = dev;
 	list_add_tail(&gpd_data->base.list_node, &genpd->dev_list);
 	gpd_data->need_restore = -1;

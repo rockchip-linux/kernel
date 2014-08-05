@@ -17,6 +17,12 @@
 #include <linux/notifier.h>
 #include <linux/cpuidle.h>
 
+/* PM domain state transition notifications */
+#define PM_GENPD_POWER_ON_PREPARE	0x01
+#define PM_GENPD_POST_POWER_ON		0x02
+#define PM_GENPD_POWER_OFF_PREPARE	0x03
+#define PM_GENPD_POST_POWER_OFF		0x04
+
 enum gpd_status {
 	GPD_STATE_ACTIVE = 0,	/* PM domain is active */
 	GPD_STATE_WAIT_MASTER,	/* PM domain's master is being waited for */
@@ -157,6 +163,11 @@ extern int pm_genpd_poweron(struct generic_pm_domain *genpd);
 extern int pm_genpd_name_poweron(const char *domain_name);
 
 extern struct dev_power_governor simple_qos_governor;
+extern int pm_genpd_register_notifier(struct device *dev,
+				      struct notifier_block *nb);
+extern void pm_genpd_unregister_notifier(struct device *dev,
+					struct notifier_block *nb);
+
 extern struct dev_power_governor pm_domain_always_on_gov;
 #else
 
@@ -231,6 +242,14 @@ static inline int pm_genpd_name_poweron(const char *domain_name)
 {
 	return -ENOSYS;
 }
+static inline int pm_genpd_register_notifier(struct device *dev,
+					     struct notifier_block *nb)
+{
+	return -ENOSYS;
+}
+static inline void pm_genpd_unregister_notifier(struct device *dev,
+						struct notifier_block *nb) {}
+
 #define simple_qos_governor NULL
 #define pm_domain_always_on_gov NULL
 #endif

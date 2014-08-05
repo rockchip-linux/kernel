@@ -53,3 +53,17 @@ NULL).  To register and/or unregister a suspend notifier use the functions
 register_pm_notifier() and unregister_pm_notifier(), respectively, defined in
 include/linux/suspend.h .  If you don't need to unregister the notifier, you can
 also use the pm_notifier() macro defined in include/linux/suspend.h .
+
+Power Domain notifiers
+----------------------
+
+The power domain notifiers allow subsystems or drivers to register for power
+domain on/off notifications, should they need to perform any actions right
+before or right after the power domain on/off.  The device must be already
+added to a power domain before its subsystem or driver registers the notifier.
+Following events are supported:
+
+PM_GENPD_POWER_ON_PREPARE	The power domain is about to turn on.
+PM_GENPD_POST_POWER_ON		The power domain has just turned on.
+PM_GENPD_POWER_OFF_PREPARE	The power domain is about to turn off.
+PM_GENPD_POST_POWER_OFF		The power domain has just turned off.
