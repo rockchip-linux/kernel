@@ -497,6 +497,10 @@ ssize_t mipi_dsi_dcs_write(struct mipi_dsi_device *dsi, u8 cmd,
 	if (dsi->mode_flags & MIPI_DSI_MODE_LPM)
 		msg.flags = MIPI_DSI_MSG_USE_LPM;
 
+	/* devices don't usually ACK reset commands */
+	if (cmd != MIPI_DCS_SOFT_RESET)
+		msg.flags |= MIPI_DSI_MSG_REQ_ACK;
+
 	err = dsi->host->ops->transfer(dsi->host, &msg);
 
 	if (len > 0)
