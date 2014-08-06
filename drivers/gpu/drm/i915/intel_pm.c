@@ -3071,14 +3071,10 @@ static void vlv_set_rps_idle(struct drm_i915_private *dev_priv)
 		I915_READ(VLV_GTLC_SURVIVABILITY_REG) &
 				~VLV_GFX_CLK_FORCE_ON_BIT);
 
-	/* Unmask Turbo interrupts */
-	if (dev_priv->rps.use_RC0_residency_for_turbo)
-		I915_WRITE(GEN6_PMINTRMSK, ~GEN6_PM_RP_UP_EI_EXPIRED);
-	else {
-		dev_priv->rps.rp_up_masked = true;
-		gen6_set_pm_mask(dev_priv, GEN6_PM_RP_DOWN_THRESHOLD,
+	/* Unmask Up interrupts */
+	dev_priv->rps.rp_up_masked = true;
+	gen6_set_pm_mask(dev_priv, GEN6_PM_RP_DOWN_THRESHOLD,
 						dev_priv->rps.min_delay);
-	}
 }
 
 void gen6_rps_idle(struct drm_i915_private *dev_priv)
@@ -3139,13 +3135,7 @@ static void gen6_disable_rps_interrupts(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	I915_WRITE(GEN6_PMINTRMSK, 0xffffffff);
-	if (dev_priv->rps.use_RC0_residency_for_turbo) {
-		I915_WRITE(GEN6_PMIER, I915_READ(GEN6_PMIER) &
-						~GEN6_PM_RP_UP_EI_EXPIRED);
-	} else {
-		I915_WRITE(GEN6_PMIER, I915_READ(GEN6_PMIER) &
-						~GEN6_PM_RPS_EVENTS);
-	}
+	I915_WRITE(GEN6_PMIER, I915_READ(GEN6_PMIER) & ~GEN6_PM_RPS_EVENTS);
 	/* Complete PM interrupt masking here doesn't race with the rps work
 	 * item again unmasking PM interrupts because that is using a different
 	 * register (PMIMR) to mask PM interrupts. The only risk is in leaving
@@ -3155,10 +3145,7 @@ static void gen6_disable_rps_interrupts(struct drm_device *dev)
 	dev_priv->rps.pm_iir = 0;
 	spin_unlock_irq(&dev_priv->irq_lock);
 
-	if (dev_priv->rps.use_RC0_residency_for_turbo)
-		I915_WRITE(GEN6_PMIIR, GEN6_PM_RP_UP_EI_EXPIRED);
-	else
-		I915_WRITE(GEN6_PMIIR, GEN6_PM_RPS_EVENTS);
+	I915_WRITE(GEN6_PMIIR, GEN6_PM_RPS_EVENTS);
 }
 
 static void gen6_disable_rps(struct drm_device *dev)
@@ -3228,29 +3215,19 @@ static void gen6_enable_rps_interrupts(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 enabled_intrs;
 
-	/* Clear out any stale interrupts first */
 	spin_lock_irq(&dev_priv->irq_lock);
 	WARN_ON(dev_priv->rps.pm_iir);
-	if (dev_priv->rps.use_RC0_residency_for_turbo) {
-		snb_enable_pm_irq(dev_priv, GEN6_PM_RP_UP_EI_EXPIRED);
-		I915_WRITE(GEN6_PMIIR, GEN6_PM_RP_UP_EI_EXPIRED);
-	} else {
-		snb_enable_pm_irq(dev_priv, GEN6_PM_RPS_EVENTS);
-		I915_WRITE(GEN6_PMIIR, GEN6_PM_RPS_EVENTS);
-	}
+	snb_enable_pm_irq(dev_priv, GEN6_PM_RPS_EVENTS);
+	I915_WRITE(GEN6_PMIIR, GEN6_PM_RPS_EVENTS);
 	spin_unlock_irq(&dev_priv->irq_lock);
 
 	/* only unmask PM interrupts we need. Mask all others. */
-	if (dev_priv->rps.use_RC0_residency_for_turbo)
-		enabled_intrs = GEN6_PM_RP_UP_EI_EXPIRED;
-	else
-		enabled_intrs = GEN6_PM_RPS_EVENTS;
+	enabled_intrs = GEN6_PM_RPS_EVENTS;
 
 	/* IVB and SNB hard hangs on looping batchbuffer
 	 * if GEN6_PM_UP_EI_EXPIRED is masked.
 	 */
-	if (INTEL_INFO(dev)->gen <= 7 && !IS_HASWELL(dev) &&
-			!dev_priv->rps.use_RC0_residency_for_turbo)
+	if (INTEL_INFO(dev)->gen <= 7 && !IS_HASWELL(dev))
 		enabled_intrs |= GEN6_PM_RP_UP_EI_EXPIRED;
 
 	I915_WRITE(GEN6_PMINTRMSK, ~enabled_intrs);
@@ -3618,7 +3595,6 @@ static void valleyview_enable_rps(struct drm_device *dev)
 	I915_WRITE(GEN6_RP_DOWN_EI, 350000);
 
 	I915_WRITE(GEN6_RP_IDLE_HYSTERSIS, 10);
-	I915_WRITE(GEN6_RP_DOWN_TIMEOUT, 0xf4240);
 
 	I915_WRITE(GEN6_RP_CONTROL,
 		   GEN6_RP_MEDIA_TURBO |
@@ -3638,7 +3614,10 @@ static void valleyview_enable_rps(struct drm_device *dev)
 	I915_WRITE(GEN6_RC6_THRESHOLD, 0x200);
 
 	/* allows RC6 residency counter to work */
-	I915_WRITE(VLV_COUNTER_CONTROL, VLV_RC_COUNTER_CONTROL);
+	I915_WRITE(VLV_COUNTER_CONTROL,
+		   _MASKED_BIT_ENABLE(VLV_COUNT_RANGE_HIGH |
+				      VLV_MEDIA_RC6_COUNT_EN |
+				      VLV_RENDER_RC6_COUNT_EN));
 	if (intel_enable_rc6(dev) & INTEL_RC6_ENABLE)
 		rc6_mode = GEN7_RC_CTL_TO_MODE | VLV_RC_CTL_CTX_RST_PARALLEL;
 
@@ -3680,9 +3659,6 @@ static void valleyview_enable_rps(struct drm_device *dev)
 
 	dev_priv->rps.rp_up_masked = false;
 	dev_priv->rps.rp_down_masked = false;
-
-	/* enable WA for RC6+turbo to work together */
-	dev_priv->rps.use_RC0_residency_for_turbo = true;
 
 	gen6_enable_rps_interrupts(dev);
 
