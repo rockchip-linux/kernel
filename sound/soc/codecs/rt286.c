@@ -414,6 +414,39 @@ int rt286_mic_detect(struct snd_soc_codec *codec, struct snd_soc_jack *jack)
 }
 EXPORT_SYMBOL_GPL(rt286_mic_detect);
 
+/**
+ * rt286_set_jack_type - Configure the HW supported jack type
+ *
+ * @codec:   RT286 codec
+ * @type:    supported jack type
+ *
+ * RT286 need to configure the jack type (combo or non-combo) according to the
+ * HW design. This function is given a easy way to set the correct jacy type
+ * for those without platform data supported.
+ */
+void rt286_set_jack_type(struct snd_soc_codec *codec,
+				enum rt286_jack_type type)
+{
+	struct rt286_priv *rt286 = snd_soc_codec_get_drvdata(codec);
+
+	if (RT286_TYPE_COMBO == type)
+		rt286->pdata.cbj_en = true;
+	else
+		rt286->pdata.cbj_en = false;
+
+	if (!rt286->pdata.cbj_en) {
+		regmap_write(rt286->regmap, RT286_CBJ_CTRL2, 0x0000);
+		regmap_write(rt286->regmap, RT286_MIC1_DET_CTRL, 0x0816);
+		regmap_write(rt286->regmap, RT286_MISC_CTRL1, 0x0000);
+		regmap_update_bits(rt286->regmap,
+					RT286_CBJ_CTRL1, 0xf000, 0xb000);
+	} else {
+		regmap_update_bits(rt286->regmap,
+					RT286_CBJ_CTRL1, 0xf000, 0x5000);
+	}
+}
+EXPORT_SYMBOL_GPL(rt286_set_jack_type);
+
 static const DECLARE_TLV_DB_SCALE(out_vol_tlv, -6350, 50, 0);
 static const DECLARE_TLV_DB_SCALE(mic_vol_tlv, 0, 1000, 0);
 

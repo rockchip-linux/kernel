@@ -192,7 +192,14 @@ enum {
 	RT286_AIFS,
 };
 
+enum rt286_jack_type {
+	RT286_TYPE_COMBO,
+	RT286_TYPE_NONCOMBO,
+};
+
 int rt286_mic_detect(struct snd_soc_codec *codec, struct snd_soc_jack *jack);
+void rt286_set_jack_type(struct snd_soc_codec *codec,
+				enum rt286_jack_type type);
 
 #endif /* __RT286_H__ */
 
