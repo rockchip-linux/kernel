@@ -289,5 +289,8 @@
 #define UBI32_CORE2_CLK_SRC			278
 #define UBI32_CORE1_CLK				279
 #define UBI32_CORE2_CLK				280
+#define NSSTCM_CLK_SRC				281
+#define NSSTCM_CLK				282
+#define NSS_CORE_CLK				283 /* Virtual */
 
 #endif
