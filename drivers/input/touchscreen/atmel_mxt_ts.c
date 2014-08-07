@@ -461,7 +461,7 @@ static int get_touch_major_pixels(struct mxt_data *data, int touch_channels);
 static void lid_event_register_handler(struct mxt_data *data);
 static void lid_event_unregister_handler(struct mxt_data *data);
 
-static inline is_mxt_336t(struct mxt_data *data)
+static inline bool is_mxt_336t(struct mxt_data *data)
 {
 	struct mxt_info *info = &data->info;
 	return ((info->family_id == 164) && (info->variant_id == 5));
