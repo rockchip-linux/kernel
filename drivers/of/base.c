@@ -856,6 +856,27 @@ struct device_node *of_find_matching_node_and_match(struct device_node *from,
 EXPORT_SYMBOL(of_find_matching_node_and_match);
 
 /**
+ * of_match_machine - Tell if root of device tree has a matching of_match struct
+ *	@matches:	array of of device match structures to search in
+ *
+ *	Returns the result of of_match_node for the root node.
+ */
+const struct of_device_id *of_match_machine(const struct of_device_id *matches)
+{
+	const struct of_device_id *match;
+	struct device_node *root;
+
+	root = of_find_node_by_path("/");
+	if (!root)
+		return NULL;
+
+	match = of_match_node(matches, root);
+	of_node_put(root);
+	return match;
+}
+EXPORT_SYMBOL(of_match_machine);
+
+/**
  * of_modalias_node - Lookup appropriate modalias for a device node
  * @node:	pointer to a device tree node
  * @modalias:	Pointer to buffer that modalias value will be copied into
