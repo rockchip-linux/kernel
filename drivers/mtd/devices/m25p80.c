@@ -338,15 +338,9 @@ static int m25p80_read(struct mtd_info *mtd, loff_t from, size_t len,
 	struct spi_transfer t[2];
 	struct spi_message m;
 	unsigned int dummy = nor->read_dummy;
-	int ret;
 
 	/* convert the dummy cycles to the number of bytes */
 	dummy /= 8;
-
-	/* Wait till previous write/erase is done. */
-	ret = nor->wait_till_ready(nor);
-	if (ret)
-		return ret;
 
 	spi_message_init(&m);
 	memset(t, 0, (sizeof t));
@@ -419,94 +413,6 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 	spi_message_add_tail(&t[1], &m);
 
 	mutex_lock(&flash->lock);
-
-	/* Wait until finished previous write command. */
-	if (wait_till_ready(flash)) {
-		mutex_unlock(&flash->lock);
-		return 1;
-	}
-
-	write_enable(flash);
-
-	/* Set up the opcode in the write buffer. */
-	flash->command[0] = OPCODE_PP;
-	m25p_addr2cmd(flash, to, flash->command);
-
-	page_offset = to & (flash->page_size - 1);
-
-	/* do all the bytes fit onto one page? */
-	if (page_offset + len <= flash->page_size) {
-		t[1].len = len;
-
-		spi_sync(flash->spi, &m);
-
-		*retlen = m.actual_length - m25p_cmdsz(flash);
-	} else {
-		u32 i;
-
-		/* the size of data remaining on the first page */
-		page_size = flash->page_size - page_offset;
-
-		t[1].len = page_size;
-		spi_sync(flash->spi, &m);
-
-		*retlen = m.actual_length - m25p_cmdsz(flash);
-
-		/* write everything in flash->page_size chunks */
-		for (i = page_size; i < len; i += page_size) {
-			page_size = len - i;
-			if (page_size > flash->page_size)
-				page_size = flash->page_size;
-
-			/* write the next page to flash */
-			m25p_addr2cmd(flash, to + i, flash->command);
-
-			t[1].tx_buf = buf + i;
-			t[1].len = page_size;
-
-			wait_till_ready(flash);
-
-			write_enable(flash);
-
-			spi_sync(flash->spi, &m);
-
-			*retlen += m.actual_length - m25p_cmdsz(flash);
-		}
-	}
-
-	mutex_unlock(&flash->lock);
-
-	return 0;
-}
-
-static int sst_write(struct mtd_info *mtd, loff_t to, size_t len,
-		size_t *retlen, const u_char *buf)
-{
-	struct m25p *flash = mtd_to_m25p(mtd);
-	struct spi_transfer t[2];
-	struct spi_message m;
-	size_t actual;
-	int cmd_sz, ret;
-
-	pr_debug("%s: %s to 0x%08x, len %zd\n", dev_name(&flash->spi->dev),
-			__func__, (u32)to, len);
-
-	spi_message_init(&m);
-	memset(t, 0, (sizeof t));
-
-	t[0].tx_buf = flash->command;
-	t[0].len = m25p_cmdsz(flash);
-	spi_message_add_tail(&t[0], &m);
-
-	t[1].tx_buf = buf;
-	spi_message_add_tail(&t[1], &m);
-
-	mutex_lock(&flash->lock);
-
-	/* Wait until finished previous write command. */
-	ret = wait_till_ready(flash);
-	if (ret)
-		goto time_out;
 
 	/* Send write enable, then erase commands. */
 	ret = nor->write_reg(nor, SPINOR_OP_WREN, NULL, 0, 0);
