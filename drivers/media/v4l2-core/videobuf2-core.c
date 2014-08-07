@@ -866,7 +866,9 @@ static int __reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req)
 		 * We already have buffers allocated, so first check if they
 		 * are not in use and can be freed.
 		 */
+		mutex_lock(&q->mmap_lock);
 		if (q->memory == V4L2_MEMORY_MMAP && __buffers_in_use(q)) {
+			mutex_unlock(&q->mmap_lock);
 			dprintk(1, "memory in use, cannot free\n");
 			return -EBUSY;
 		}
@@ -878,6 +880,7 @@ static int __reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req)
 		 */
 		__vb2_queue_cancel(q);
 		ret = __vb2_queue_free(q, q->num_buffers);
+		mutex_unlock(&q->mmap_lock);
 		if (ret)
 			return ret;
 
@@ -939,6 +942,7 @@ static int __reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req)
 		 */
 	}
 
+	mutex_lock(&q->mmap_lock);
 	q->num_buffers = allocated_buffers;
 
 	if (ret < 0) {
@@ -947,8 +951,10 @@ static int __reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req)
 		 * from q->num_buffers.
 		 */
 		__vb2_queue_free(q, allocated_buffers);
+		mutex_unlock(&q->mmap_lock);
 		return ret;
 	}
+	mutex_unlock(&q->mmap_lock);
 
 	/*
 	 * Return the number of successfully allocated buffers
@@ -1045,6 +1051,7 @@ static int __create_bufs(struct vb2_queue *q, struct v4l2_create_buffers *create
 		 */
 	}
 
+	mutex_lock(&q->mmap_lock);
 	q->num_buffers += allocated_buffers;
 
 	if (ret < 0) {
@@ -1053,8 +1060,10 @@ static int __create_bufs(struct vb2_queue *q, struct v4l2_create_buffers *create
 		 * from q->num_buffers.
 		 */
 		__vb2_queue_free(q, allocated_buffers);
+		mutex_unlock(&q->mmap_lock);
 		return -ENOMEM;
 	}
+	mutex_unlock(&q->mmap_lock);
 
 	/*
 	 * Return the number of successfully allocated buffers
@@ -1532,7 +1541,6 @@ static void __enqueue_in_driver(struct vb2_buffer *vb)
 static int __buf_prepare(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 {
 	struct vb2_queue *q = vb->vb2_queue;
-	struct rw_semaphore *mmap_sem;
 	int ret;
 
 	ret = __verify_length(vb, b);
@@ -1564,26 +1572,7 @@ static int __buf_prepare(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 		ret = __qbuf_mmap(vb, b);
 		break;
 	case V4L2_MEMORY_USERPTR:
-		/*
-		 * In case of user pointer buffers vb2 allocators need to get
-		 * direct access to userspace pages. This requires getting
-		 * the mmap semaphore for read access in the current process
-		 * structure. The same semaphore is taken before calling mmap
-		 * operation, while both qbuf/prepare_buf and mmap are called
-		 * by the driver or v4l2 core with the driver's lock held.
-		 * To avoid an AB-BA deadlock (mmap_sem then driver's lock in
-		 * mmap and driver's lock then mmap_sem in qbuf/prepare_buf),
-		 * the videobuf2 core releases the driver's lock, takes
-		 * mmap_sem and then takes the driver's lock again.
-		 */
-		mmap_sem = &current->mm->mmap_sem;
-		call_void_qop(q, wait_prepare, q);
-		down_read(mmap_sem);
-		call_void_qop(q, wait_finish, q);
-
 		ret = __qbuf_userptr(vb, b);
-
-		up_read(mmap_sem);
 		break;
 	case V4L2_MEMORY_DMABUF:
 		ret = __qbuf_dmabuf(vb, b);
@@ -2402,7 +2391,9 @@ int vb2_mmap(struct vb2_queue *q, struct vm_area_struct *vma)
 		return -EINVAL;
 	}
 
+	mutex_lock(&q->mmap_lock);
 	ret = call_memop(vb, mmap, vb->planes[plane].mem_priv, vma);
+	mutex_unlock(&q->mmap_lock);
 	if (ret)
 		return ret;
 
@@ -2421,6 +2412,7 @@ unsigned long vb2_get_unmapped_area(struct vb2_queue *q,
 	unsigned long off = pgoff << PAGE_SHIFT;
 	struct vb2_buffer *vb;
 	unsigned int buffer, plane;
+	void *vaddr;
 	int ret;
 
 	if (q->memory != V4L2_MEMORY_MMAP) {
@@ -2437,7 +2429,8 @@ unsigned long vb2_get_unmapped_area(struct vb2_queue *q,
 
 	vb = q->bufs[buffer];
 
-	return (unsigned long)vb2_plane_vaddr(vb, plane);
+	vaddr = vb2_plane_vaddr(vb, plane);
+	return vaddr ? (unsigned long)vaddr : -EINVAL;
 }
 EXPORT_SYMBOL_GPL(vb2_get_unmapped_area);
 #endif
@@ -2573,6 +2566,7 @@ int vb2_queue_init(struct vb2_queue *q)
 	INIT_LIST_HEAD(&q->queued_list);
 	INIT_LIST_HEAD(&q->done_list);
 	spin_lock_init(&q->done_lock);
+	mutex_init(&q->mmap_lock);
 	init_waitqueue_head(&q->done_wq);
 
 	if (q->buf_struct_size == 0)
@@ -2594,7 +2588,9 @@ void vb2_queue_release(struct vb2_queue *q)
 {
 	__vb2_cleanup_fileio(q);
 	__vb2_queue_cancel(q);
+	mutex_lock(&q->mmap_lock);
 	__vb2_queue_free(q, q->num_buffers);
+	mutex_unlock(&q->mmap_lock);
 }
 EXPORT_SYMBOL_GPL(vb2_queue_release);
 
@@ -3087,15 +3083,8 @@ EXPORT_SYMBOL_GPL(vb2_ioctl_expbuf);
 int vb2_fop_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct video_device *vdev = video_devdata(file);
-	struct mutex *lock = vdev->queue->lock ? vdev->queue->lock : vdev->lock;
-	int err;
 
-	if (lock && mutex_lock_interruptible(lock))
-		return -ERESTARTSYS;
-	err = vb2_mmap(vdev->queue, vma);
-	if (lock)
-		mutex_unlock(lock);
-	return err;
+	return vb2_mmap(vdev->queue, vma);
 }
 EXPORT_SYMBOL_GPL(vb2_fop_mmap);
 
@@ -3214,15 +3203,8 @@ unsigned long vb2_fop_get_unmapped_area(struct file *file, unsigned long addr,
 		unsigned long len, unsigned long pgoff, unsigned long flags)
 {
 	struct video_device *vdev = video_devdata(file);
-	struct mutex *lock = vdev->queue->lock ? vdev->queue->lock : vdev->lock;
-	int ret;
 
-	if (lock && mutex_lock_interruptible(lock))
-		return -ERESTARTSYS;
-	ret = vb2_get_unmapped_area(vdev->queue, addr, len, pgoff, flags);
-	if (lock)
-		mutex_unlock(lock);
-	return ret;
+	return vb2_get_unmapped_area(vdev->queue, addr, len, pgoff, flags);
 }
 EXPORT_SYMBOL_GPL(vb2_fop_get_unmapped_area);
 #endif
