@@ -20,6 +20,7 @@
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/mm.h>
+#include <linux/pm_dark_resume.h>
 #include <linux/slab.h>
 #include <linux/export.h>
 #include <linux/suspend.h>
@@ -115,6 +116,7 @@ static int suspend_test(int level)
 {
 #ifdef CONFIG_PM_DEBUG
 	if (pm_test_level == level) {
+		pm_dark_resume_clear_state_for_pm_test();
 		pr_info("suspend debug: Waiting for %d milliseconds.\n",
 			pm_test_delay);
 		mdelay(pm_test_delay);

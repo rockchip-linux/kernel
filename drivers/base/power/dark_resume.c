@@ -186,3 +186,8 @@ void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops)
 {
 	dark_resume_ops = ops;
 }
+
+void pm_dark_resume_clear_state_for_pm_test(void)
+{
+	dark_resume_state = false;
+}

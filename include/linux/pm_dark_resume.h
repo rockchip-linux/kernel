@@ -48,6 +48,14 @@ extern bool pm_dark_resume_check(void);
 extern bool pm_dark_resume_active(void);
 extern void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops);
 
+/**
+ * The chrome os power manager will use the pm_test mechanism to indicate that
+ * it wants to transition from a dark resume to fully resumed.  When that
+ * happens, we need to clear the dark resume state so that all the drivers will
+ * follow their proper resume path.
+ */
+extern void pm_dark_resume_clear_state_for_pm_test(void);
+
 /*
  * Wrapper for device drivers to check if it should do anything different for a
  * dark resume and whether the global dark resume state is set.
