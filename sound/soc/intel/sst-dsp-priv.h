@@ -286,6 +286,10 @@ struct sst_dsp {
 	/* DMA FW loading */
 	struct sst_dma *dma;
 	bool fw_use_dma;
+
+	/* debugfs support */
+	void *debugfs_bar0;	/* DRAM and IRAM */
+	void *debugfs_bar1;	/* configuration space */
 };
 
 /* Size optimised DRAM/IRAM memcpy */

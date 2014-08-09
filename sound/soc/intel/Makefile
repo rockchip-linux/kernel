@@ -14,6 +14,10 @@ obj-$(CONFIG_SND_SOC_INTEL_SST_ACPI) += snd-soc-sst-acpi.o
 # Platform Support
 snd-soc-sst-haswell-pcm-objs := \
 	sst-haswell-ipc.o sst-haswell-pcm.o sst-haswell-dsp.o
+ifdef CONFIG_DEBUG_FS
+	snd-soc-sst-haswell-pcm-objs += sst-debugfs.o
+endif
+
 snd-soc-sst-baytrail-pcm-objs := \
 	sst-baytrail-ipc.o sst-baytrail-pcm.o sst-baytrail-dsp.o
 

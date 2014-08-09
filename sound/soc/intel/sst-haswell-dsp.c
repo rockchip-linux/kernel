@@ -31,6 +31,7 @@
 #include "sst-dsp.h"
 #include "sst-dsp-priv.h"
 #include "sst-haswell-ipc.h"
+#include "sst-debugfs.h"
 
 #include <trace/events/hswadsp.h>
 
@@ -441,6 +442,13 @@ static int hsw_acpi_resource_map(struct sst_dsp *sst, struct sst_pdata *pdata)
 
 	/* SST Shim */
 	sst->addr.shim = sst->addr.lpe + sst->addr.shim_offset;
+
+	sst_debugfs_init("intel_adsp");
+	sst_debugfs_add_mmio_entry("mem", sst->addr.lpe, pdata->lpe_size,
+				   &sst->debugfs_bar0);
+	sst_debugfs_add_mmio_entry("cfg", sst->addr.pci_cfg, pdata->pcicfg_size,
+				   &sst->debugfs_bar1);
+
 	return 0;
 }
 
@@ -613,6 +621,9 @@ static int hsw_init(struct sst_dsp *sst, struct sst_pdata *pdata)
 
 static void hsw_free(struct sst_dsp *sst)
 {
+	sst_debugfs_remove_mmio_entry(sst->debugfs_bar0);
+	sst_debugfs_remove_mmio_entry(sst->debugfs_bar1);
+	sst_debugfs_exit();
 	sst_mem_block_unregister_all(sst);
 	iounmap(sst->addr.lpe);
 	iounmap(sst->addr.pci_cfg);
