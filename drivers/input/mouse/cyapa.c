@@ -2391,6 +2391,7 @@ static int cyapa_suspend(struct device *dev)
 		cyapa->irq_wake = (enable_irq_wake(cyapa->irq) == 0);
 	return 0;
 }
+#endif /* CONFIG_PM_SLEEP */
 
 static int cyapa_resume(struct device *dev)
 {
@@ -2425,7 +2426,6 @@ static int cyapa_resume(struct device *dev)
 	cyapa->active = true;
 	return 0;
 }
-#endif /* CONFIG_PM_SLEEP */
 
 #ifdef CONFIG_PM_RUNTIME
 static int cyapa_runtime_suspend(struct device *dev)
