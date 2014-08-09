@@ -638,7 +638,8 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 	} else {
 		/* only i2c interface need waiting for fw reset signal */
 		data->wait_signal_from_updatefw = true;
-		init_completion(&data->fw_completion);
+		reinit_completion(&data->fw_completion);
+
 		msleep(600);
 
 		ret = elan_i2c_reset(data->client);
