@@ -53,7 +53,7 @@ config TEGRA30_MC
 config TEGRA124_MC
 	bool "Tegra124 Memory Controller(MC) driver"
 	default y
-	depends on ARCH_TEGRA_124_SOC
+	depends on ARCH_TEGRA_124_SOC || ARCH_TEGRA_132_SOC
 	help
 	  This driver is for the Memory Controller(MC) module available
 	  in Tegra124 SoCs.
