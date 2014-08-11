@@ -15,6 +15,10 @@
 	compatible = "google,veyron-pinky-rev0", "google,veyron-pinky",
 		     "google,veyron", "rockchip,rk3288";
 
+	aliases {
+		i2c20 = &i2c20;
+	};
+
 	memory {
 		reg = <0x0 0x80000000>;
 	};
@@ -100,6 +104,34 @@
 	status = "okay";
 };
 
+&spi0 {
+	status = "okay";
+
+	cros_ec: ec@0 {
+		compatible = "google,cros-ec-spi";
+		spi-max-frequency = <3000000>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_int>;
+		reg = <0>;
+
+		i2c20: i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			battery: sbs-battery@b {
+				compatible = "sbs,sbs-battery";
+				reg = <0xb>;
+				sbs,i2c-retry-count = <2>;
+				sbs,poll-retry-count = <1>;
+			};
+		};
+	};
+};
+
 &i2c0 {
 	status = "okay";
 };
@@ -147,6 +179,12 @@
 		};
 	};
 
+	cros-ec {
+		ec_int: ec-int {
+			rockchip,pins = <7 7 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
 	usb-host {
 		usb0_pwr_en: usb0-pwr-en {
 			rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
@@ -169,3 +207,5 @@
 &usb_host1 {
 	status = "okay";
 };
+
+#include "cros-ec-keyboard.dtsi"
