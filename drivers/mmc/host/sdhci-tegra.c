@@ -25,6 +25,7 @@
 #include <linux/mmc/card.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/slot-gpio.h>
+#include <linux/pm_runtime.h>
 
 #include "sdhci-pltfm.h"
 
@@ -41,6 +42,8 @@
 #define NVQUIRK_DISABLE_SDR50		BIT(3)
 #define NVQUIRK_DISABLE_SDR104		BIT(4)
 #define NVQUIRK_DISABLE_DDR50		BIT(5)
+
+#define TEGRA_SDHCI_AUTOSUSPEND_DELAY	1500
 
 struct sdhci_tegra_soc_data {
 	const struct sdhci_pltfm_data *pdata;
@@ -306,14 +309,25 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 	clk_prepare_enable(clk);
 	pltfm_host->clk = clk;
 
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_get_sync(&pdev->dev);
+	pm_runtime_set_autosuspend_delay(&pdev->dev,
+					 TEGRA_SDHCI_AUTOSUSPEND_DELAY);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_suspend_ignore_children(&pdev->dev, true);
+
 	rc = sdhci_add_host(host);
 	if (rc)
 		goto err_add_host;
 
+	pm_runtime_put_autosuspend(&pdev->dev);
+
 	return 0;
 
 err_add_host:
-	clk_disable_unprepare(pltfm_host->clk);
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 	clk_put(pltfm_host->clk);
 err_clk_get:
 	if (gpio_is_valid(tegra_host->power_gpio))
@@ -332,7 +346,9 @@ static int sdhci_tegra_remove(struct platform_device *pdev)
 	struct sdhci_tegra *tegra_host = pltfm_host->priv;
 	int dead = (readl(host->ioaddr + SDHCI_INT_STATUS) == 0xffffffff);
 
+	pm_runtime_get_sync(&pdev->dev);
 	sdhci_remove_host(host, dead);
+	pm_runtime_disable(&pdev->dev);
 
 	if (gpio_is_valid(tegra_host->power_gpio))
 		gpio_free(tegra_host->power_gpio);
@@ -345,12 +361,88 @@ static int sdhci_tegra_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int tegra_sdhci_suspend(struct device *dev)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	int ret;
+
+	pm_runtime_get_sync(dev);
+
+	ret = sdhci_suspend_host(host);
+	clk_disable_unprepare(pltfm_host->clk);
+	if (!mmc_card_keep_power(host->mmc))
+		if (gpio_is_valid(tegra_host->power_gpio))
+			gpio_direction_output(tegra_host->power_gpio, 0);
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+
+	return ret;
+}
+
+static int tegra_sdhci_resume(struct device *dev)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct sdhci_tegra *tegra_host = pltfm_host->priv;
+	int ret;
+
+	pm_runtime_get_sync(dev);
+
+	if (!mmc_card_keep_power(host->mmc))
+		if (gpio_is_valid(tegra_host->power_gpio))
+			gpio_direction_output(tegra_host->power_gpio, 1);
+	clk_prepare_enable(pltfm_host->clk);
+	ret = sdhci_resume_host(host);
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+
+	return ret;
+}
+#endif
+
+#ifdef CONFIG_PM_RUNTIME
+static int tegra_sdhci_runtime_suspend(struct device *dev)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	int ret;
+
+	ret = sdhci_runtime_suspend_host(host);
+	clk_disable_unprepare(pltfm_host->clk);
+
+	return ret;
+}
+
+static int tegra_sdhci_runtime_resume(struct device *dev)
+{
+	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	int ret;
+
+	clk_prepare_enable(pltfm_host->clk);
+	ret = sdhci_runtime_resume_host(host);
+
+	return ret;
+}
+#endif
+
+static const struct dev_pm_ops sdhci_tegra_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(tegra_sdhci_suspend, tegra_sdhci_resume)
+	SET_RUNTIME_PM_OPS(tegra_sdhci_runtime_suspend,
+			   tegra_sdhci_runtime_resume, NULL)
+};
+
 static struct platform_driver sdhci_tegra_driver = {
 	.driver		= {
 		.name	= "sdhci-tegra",
 		.owner	= THIS_MODULE,
 		.of_match_table = sdhci_tegra_dt_match,
-		.pm	= SDHCI_PLTFM_PMOPS,
+		.pm	= &sdhci_tegra_pm_ops,
 	},
 	.probe		= sdhci_tegra_probe,
 	.remove		= sdhci_tegra_remove,
