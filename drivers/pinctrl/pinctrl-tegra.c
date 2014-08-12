@@ -21,6 +21,7 @@
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/list.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -29,12 +30,14 @@
 #include <linux/pinctrl/pinmux.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/slab.h>
+#include <linux/syscore_ops.h>
 
 #include "core.h"
 #include "pinctrl-tegra.h"
 #include "pinctrl-utils.h"
 
 struct tegra_pmx {
+	struct list_head list;
 	struct device *dev;
 	struct pinctrl_dev *pctl;
 
@@ -43,6 +46,8 @@ struct tegra_pmx {
 
 	int nbanks;
 	void __iomem **regs;
+
+	u32 *pg_data;
 };
 
 static inline u32 pmx_readl(struct tegra_pmx *pmx, u32 bank, u32 reg)
@@ -609,6 +614,64 @@ static struct pinctrl_desc tegra_pinctrl_desc = {
 	.owner = THIS_MODULE,
 };
 
+#ifdef CONFIG_PM_SLEEP
+static LIST_HEAD(tegra_pmx_list);
+
+static void tegra_pinctrl_suspend_one(struct tegra_pmx *pmx)
+{
+	int i;
+	u32 *ctx = pmx->pg_data;
+
+	for (i = 0; i < pmx->soc->ngroups; i++) {
+		const struct tegra_pingroup *grp = &pmx->soc->groups[i];
+
+		if (grp->drv_reg < 0)
+			*ctx++ = pmx_readl(pmx, grp->mux_bank, grp->mux_reg);
+		else
+			*ctx++ = pmx_readl(pmx, grp->drv_bank, grp->drv_reg);
+	}
+	pinctrl_force_sleep(pmx->pctl);
+}
+
+static int tegra_pinctrl_syscore_suspend(void)
+{
+	struct tegra_pmx *pmx;
+
+	list_for_each_entry(pmx, &tegra_pmx_list, list)
+		tegra_pinctrl_suspend_one(pmx);
+
+	return 0;
+}
+
+static void tegra_pinctrl_resume_one(struct tegra_pmx *pmx)
+{
+	int i;
+	u32 *ctx = pmx->pg_data;
+
+	for (i = 0; i < pmx->soc->ngroups; i++) {
+		const struct tegra_pingroup *grp = &pmx->soc->groups[i];
+
+		if (grp->drv_reg < 0)
+			pmx_writel(pmx, *ctx++, grp->mux_bank, grp->mux_reg);
+		else
+			pmx_writel(pmx, *ctx++, grp->drv_bank, grp->drv_reg);
+	}
+}
+
+static void tegra_pinctrl_syscore_resume(void)
+{
+	struct tegra_pmx *pmx;
+
+	list_for_each_entry_reverse(pmx, &tegra_pmx_list, list)
+		tegra_pinctrl_resume_one(pmx);
+}
+
+static struct syscore_ops pinctrl_syscore_ops = {
+	.suspend = tegra_pinctrl_syscore_suspend,
+	.resume = tegra_pinctrl_syscore_resume,
+};
+#endif
+
 int tegra_pinctrl_probe(struct platform_device *pdev,
 			const struct tegra_pinctrl_soc_data *soc_data)
 {
@@ -680,6 +743,13 @@ int tegra_pinctrl_probe(struct platform_device *pdev,
 		return -ENOMEM;
 	}
 
+#ifdef CONFIG_PM_SLEEP
+	pmx->pg_data = devm_kcalloc(&pdev->dev, pmx->soc->ngroups,
+				    sizeof(*pmx->pg_data), GFP_KERNEL);
+	if (!pmx->pg_data)
+		return -ENOMEM;
+#endif
+
 	for (i = 0; i < pmx->nbanks; i++) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
 		pmx->regs[i] = devm_ioremap_resource(&pdev->dev, res);
@@ -697,6 +767,12 @@ int tegra_pinctrl_probe(struct platform_device *pdev,
 
 	platform_set_drvdata(pdev, pmx);
 
+#ifdef CONFIG_PM_SLEEP
+	if (list_empty(&tegra_pmx_list))
+		register_syscore_ops(&pinctrl_syscore_ops);
+	list_add_tail(&pmx->list, &tegra_pmx_list);
+#endif
+
 	dev_dbg(&pdev->dev, "Probed Tegra pinctrl driver\n");
 
 	return 0;
@@ -706,6 +782,12 @@ EXPORT_SYMBOL_GPL(tegra_pinctrl_probe);
 int tegra_pinctrl_remove(struct platform_device *pdev)
 {
 	struct tegra_pmx *pmx = platform_get_drvdata(pdev);
+
+#ifdef CONFIG_PM_SLEEP
+	list_del(&pmx->list);
+	if (list_empty(&tegra_pmx_list))
+		unregister_syscore_ops(&pinctrl_syscore_ops);
+#endif
 
 	pinctrl_unregister(pmx->pctl);
 
