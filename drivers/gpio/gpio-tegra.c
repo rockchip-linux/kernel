@@ -390,7 +390,14 @@ static struct irq_chip tegra_gpio_irq_chip = {
 };
 
 static const struct dev_pm_ops tegra_gpio_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(tegra_gpio_suspend, tegra_gpio_resume)
+#ifdef CONFIG_PM_SLEEP
+	.suspend_noirq = tegra_gpio_suspend,
+	.resume_noirq = tegra_gpio_resume,
+	.freeze_noirq = tegra_gpio_suspend,
+	.thaw_noirq = tegra_gpio_resume,
+	.poweroff_noirq = tegra_gpio_suspend,
+	.restore_noirq = tegra_gpio_resume,
+#endif
 };
 
 struct tegra_gpio_soc_config {
