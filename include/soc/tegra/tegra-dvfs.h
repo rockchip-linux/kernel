@@ -18,6 +18,8 @@
 #define _TEGRA_DVFS_H_
 
 #define MAX_DVFS_FREQS		40
+#define DVFS_RAIL_STATS_TOP_BIN	100
+#define DVFS_RAIL_STATS_BIN	10000
 
 /*
  * dvfs_relationship between to rails, "from" and "to"
@@ -48,6 +50,14 @@ struct cpu_dvfs {
 	int max_mv;
 	int min_mv;
 	struct cpu_pll_fv_table fv_table[MAX_DVFS_FREQS];
+};
+
+struct rail_stats {
+	ktime_t time_at_mv[DVFS_RAIL_STATS_TOP_BIN + 1];
+	ktime_t last_update;
+	int last_index;
+	bool off;
+	int bin_uv;
 };
 
 struct rail_alignment {
@@ -82,6 +92,7 @@ struct dvfs_rail {
 	bool dfll_mode;
 
 	struct rail_alignment alignment;
+	struct rail_stats stats;
 };
 
 enum dfll_range {
