@@ -744,5 +744,8 @@ void tegra_clk_sync_state_pllcx(struct clk *c);
 void tegra_clk_sync_state_iddq(struct clk *c);
 void tegra_clk_sync_state_pll(struct clk *c);
 void tegra_clk_sync_state_pll_out(struct clk *clk);
+void tegra_clk_periph_suspend(void __iomem *clk_base);
+void tegra_clk_periph_resume(void __iomem *clk_base);
+void tegra_clk_periph_force_on(u32 *clks_on, int count, void __iomem *clk_base);
 #endif
 #endif /* TEGRA_CLK_H */
