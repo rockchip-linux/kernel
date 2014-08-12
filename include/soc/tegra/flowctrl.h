@@ -1,6 +1,4 @@
 /*
- * arch/arm/mach-tegra/flowctrl.h
- *
  * functions and macros to control the flowcontroller
  *
  * Copyright (c) 2010-2012, NVIDIA Corporation. All rights reserved.
@@ -18,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MACH_TEGRA_FLOWCTRL_H
-#define __MACH_TEGRA_FLOWCTRL_H
+#ifndef __SOC_TEGRA_FLOWCTRL_H__
+#define __SOC_TEGRA_FLOWCTRL_H__
 
 #define FLOW_CTRL_HALT_CPU0_EVENTS	0x0
 #define FLOW_CTRL_WAITEVENT		(2 << 29)
@@ -59,8 +57,6 @@ void flowctrl_write_cpu_halt(unsigned int cpuid, u32 value);
 
 void flowctrl_cpu_suspend_enter(unsigned int cpuid);
 void flowctrl_cpu_suspend_exit(unsigned int cpuid);
-
-void tegra_flowctrl_init(void);
 #endif
 
 #endif
