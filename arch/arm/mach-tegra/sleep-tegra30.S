@@ -51,6 +51,8 @@
 #define PMC_PLLP_WB0_OVERRIDE		0xf8
 #define PMC_IO_DPD_REQ			0x1b8
 #define PMC_IO_DPD_STATUS		0x1bc
+#define PMC_PLLM_WB0_OVERRIDE		0x1dc
+#define PMC_SCRATCH1_ECO		0x264
 
 #define CLK_RESET_CCLK_BURST		0x20
 #define CLK_RESET_CCLK_DIVIDER		0x24
@@ -607,6 +609,25 @@ tegra30_tear_down_core:
  * r10= SoC ID
  */
 tegra30_switch_cpu_to_clk32k:
+	ldr	r0, [r4, #PMC_CTRL]
+	tst	r0, #PMC_CTRL_SIDE_EFFECT_LP0
+	beq	lp1_clocks_prepare
+
+	/* enable PLLM auto-restart via PMC in LP0; restore override settings */
+	ldr	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+	orr	r0, r0, #(1 << 12) | (1 << 11)
+	str	r0, [r4, #PMC_PLLP_WB0_OVERRIDE]
+	ldr	r0, [r4, #PMC_SCRATCH2]
+	str	r0, [r4, #PMC_PLLM_WB0_OVERRIDE]
+
+	cmp	r10, #(TEGRA114 << 8)
+	ldreq	r1, [r4, #PMC_SCRATCH1_ECO]
+	orreq	r1, r1, #0x3f
+	streq	r1, [r4, #PMC_SCRATCH1_ECO]
+
+	mov	pc, lr
+
+lp1_clocks_prepare:
 	/*
 	 * start by jumping to CLKM to safely disable PLLs, then jump to
 	 * CLKS.
