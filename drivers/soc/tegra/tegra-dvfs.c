@@ -492,6 +492,14 @@ void tegra_dvfs_core_unlock(void)
 }
 EXPORT_SYMBOL(tegra_dvfs_core_unlock);
 
+int tegra_dvfs_get_core_nominal_millivolts(void)
+{
+	if (tegra_core_rail)
+		return tegra_core_rail->nominal_millivolts;
+	return -ENOENT;
+}
+EXPORT_SYMBOL(tegra_dvfs_get_core_nominal_millivolts);
+
 static struct dvfs *tegra_clk_to_dvfs(struct clk *c)
 {
 	struct dvfs *d;
