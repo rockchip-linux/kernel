@@ -402,6 +402,28 @@
 		#clock-cells = <1>;
 	};
 
+	dfll: dfll@70040084 {
+		compatible = "nvidia,tegra132-dfll";
+		reg = <0 0x70040084 0x100>, /* DFLL control */
+		      <0 0x70110000 0x100>, /* I2C output control */
+		      <0 0x70110100 0x100>, /* Integrated I2C controller */
+		      <0 0x70110200 0x100>; /* Look-up table RAM */
+		interrupts = <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&tegra_car TEGRA124_CLK_DFLL_SOC>,
+			 <&tegra_car TEGRA124_CLK_DFLL_REF>,
+			 <&tegra_car TEGRA124_CLK_I2C5>;
+		clock-names = "soc", "ref", "i2c";
+		#clock-cells = <0>;
+		clock-output-names = "dfllCPU_out";
+		nvidia,sample-rate = <12500>;
+		nvidia,droop-ctrl = <0x00000f00>;
+		nvidia,force-mode = <1>;
+		nvidia,cf = <10>;
+		nvidia,ci = <0>;
+		nvidia,cg = <2>;
+		status = "disabled";
+	};
+
 	sdhci@700b0600 {
 		compatible = "nvidia,tegra132-sdhci", "nvidia,tegra124-sdhci", "nvidia,tegra114-sdhci";
 		reg = <0x0 0x700b0600 0x200>;
