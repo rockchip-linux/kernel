@@ -24,15 +24,22 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/export.h>
+#include <linux/gpio.h>
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/irq.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_gpio.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
 #include <linux/reset.h>
 #include <linux/seq_file.h>
+#include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <dt-bindings/soc/tegra-pmc.h>
 
 #include <soc/tegra/common.h>
 #include <soc/tegra/fuse.h>
@@ -154,6 +161,28 @@ struct tegra_pmc {
 
 	struct mutex powergates_lock;
 };
+
+#ifdef CONFIG_PM_SLEEP
+#define PMC_WAKE_TYPE_INDEX	0
+#define PMC_WAKE_MASK_INDEX	1
+#define PMC_TRIGGER_TYPE_INDEX	2
+#define PMC_OF_ARGS_COUNT	3
+struct pmc_wakeup {
+	u32 wake_type;
+	u32 wake_mask_offset;
+	u32 irq_num;
+	struct list_head list;
+};
+
+struct pmc_lp0_wakeup {
+	struct device_node *of_node;
+	u64 enable;
+	u64 level;
+	u64 level_any;
+	struct list_head wake_list;
+};
+static struct pmc_lp0_wakeup tegra_lp0_wakeup;
+#endif
 
 static struct tegra_pmc *pmc = &(struct tegra_pmc) {
 	.base = NULL,
@@ -610,6 +639,129 @@ void tegra_tsc_resume(void)
 		tegra_pmc_writel(reg, PMC_DPD_ENABLE);
 	}
 }
+
+static void tegra_pmc_add_wakeup_event(struct of_phandle_args *ph_args,
+				       struct device *dev,
+				       struct device_node *np)
+{
+	struct platform_device *pdev;
+	struct pmc_wakeup *pmc_wake_source;
+	struct irq_desc *irqd;
+	struct irq_data *irq_data;
+	int pmc_wake_type, wake;
+	int irq, pmc_trigger_type;
+
+	if (ph_args->np != tegra_lp0_wakeup.of_node)
+		return;
+	if (ph_args->args_count != PMC_OF_ARGS_COUNT)
+		return;
+
+	pdev = to_platform_device(dev);
+	irq = platform_get_irq(pdev, 0);
+	pmc_wake_type = ph_args->args[PMC_WAKE_TYPE_INDEX];
+
+	switch (pmc_wake_type) {
+	case PMC_WAKE_TYPE_GPIO:
+		if (irq < 0) {
+			int gpio;
+
+			gpio = of_get_named_gpio(np, "gpios", 0);
+			irq = gpio_to_irq(gpio);
+			if (WARN_ON(irq < 0))
+				return;
+		}
+		irqd = irq_to_desc(irq);
+		irq_data = &irqd->irq_data;
+		pmc_trigger_type = irqd_get_trigger_type(irq_data);
+		break;
+	case PMC_WAKE_TYPE_EVENT:
+		pmc_trigger_type = ph_args->args[PMC_TRIGGER_TYPE_INDEX];
+		break;
+	default:
+		return;
+	}
+
+	pmc_wake_source = kzalloc(sizeof(*pmc_wake_source), GFP_KERNEL);
+	if (!pmc_wake_source)
+		return;
+
+	pmc_wake_source->wake_type = pmc_wake_type;
+	pmc_wake_source->irq_num = irq;
+	pmc_wake_source->wake_mask_offset = ph_args->args[PMC_WAKE_MASK_INDEX];
+	wake = pmc_wake_source->wake_mask_offset;
+
+	list_add_tail(&pmc_wake_source->list, &tegra_lp0_wakeup.wake_list);
+
+	tegra_lp0_wakeup.enable |= 1ULL << wake;
+	switch (pmc_trigger_type) {
+	case IRQF_TRIGGER_FALLING:
+	case IRQF_TRIGGER_LOW:
+		tegra_lp0_wakeup.level &= ~(1ULL << wake);
+		tegra_lp0_wakeup.level_any &= ~(1ULL << wake);
+		break;
+	case IRQF_TRIGGER_HIGH:
+	case IRQF_TRIGGER_RISING:
+		tegra_lp0_wakeup.level |= (1ULL << wake);
+		tegra_lp0_wakeup.level_any &= ~(1ULL << wake);
+		break;
+	case IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING:
+		tegra_lp0_wakeup.level_any |= (1ULL << wake);
+		break;
+	default:
+		break;
+	}
+}
+
+static void tegra_of_device_add_pmc_wake(struct device *dev)
+{
+	struct of_phandle_args ph_args;
+	struct device_node *np = NULL;
+	int child_node_num;
+
+	child_node_num = of_get_child_count(dev->of_node);
+	if (child_node_num == 0) {
+		if (!of_parse_phandle_with_args(dev->of_node,
+					       "nvidia,pmc-wakeup",
+					       "#wake-cells", 0, &ph_args))
+			tegra_pmc_add_wakeup_event(&ph_args, dev, dev->of_node);
+	} else {
+		for_each_child_of_node(dev->of_node, np)
+			if (!of_parse_phandle_with_args(np,
+						"nvidia,pmc-wakeup",
+						"#wake-cells", 0, &ph_args))
+				tegra_pmc_add_wakeup_event(&ph_args, dev, np);
+	}
+
+	of_node_put(ph_args.np);
+}
+
+static int tegra_pmc_wake_notifier_call(struct notifier_block *nb,
+				      unsigned long event, void *data)
+{
+	struct device *dev = data;
+
+	switch (event) {
+	case BUS_NOTIFY_BOUND_DRIVER:
+		if (dev->of_node)
+			tegra_of_device_add_pmc_wake(dev);
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block tegra_pmc_wake_notifier = {
+	.notifier_call = tegra_pmc_wake_notifier_call,
+};
+
+static int __init tegra_pmc_lp0_wakeup_init(void)
+{
+	if (!soc_is_tegra())
+		return 0;
+
+	bus_register_notifier(&platform_bus_type, &tegra_pmc_wake_notifier);
+	return 0;
+}
+arch_initcall(tegra_pmc_lp0_wakeup_init);
 
 enum tegra_suspend_mode tegra_pmc_get_suspend_mode(void)
 {
@@ -1110,6 +1262,11 @@ static int __init tegra_pmc_early_init(void)
 		value &= ~PMC_CNTRL_INTR_POLARITY;
 
 	tegra_pmc_writel(value, PMC_CNTRL);
+
+#ifdef CONFIG_PM_SLEEP
+	tegra_lp0_wakeup.of_node = np;
+	INIT_LIST_HEAD(&tegra_lp0_wakeup.wake_list);
+#endif
 
 	return 0;
 }

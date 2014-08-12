@@ -94,3 +94,67 @@ pmc@7000f400 {
 	};
 	...
 };
+
+Wake up events
+
+The PMC is the only device that can wake up the system from deep sleep
+mode (i.e. LP0). There are some wake up events in the PMC wake mask
+register that can be used to trigger PMC to wake up the system. The PMC
+wake mask register defines which devices or siganls can be the source to
+trigger the PMC waking up. If the devices support waking up the system
+from deep sleep mode, then it needs to describe a property for PMC wake
+up events. This property defines the usage.
+
+Required properties when nvidia,suspend-mode=<0>:
+- nvidia,pmc-wakeup : <pmc_phandle event_type event_offset trigger_type>
+		     pmc_phandle: the phandle of PMC device tree node
+		     event_type: 0 = PMC_WAKE_TYPE_GPIO
+				 1 = PMC_WAKE_TYPE_EVENT
+		     event_offset: the offset of PMC wake mask register
+		     trigger_type: set 0 when event_type is PMC_WAKE_TYPE_GPIO
+				   if event_type is PMC_WAKE_TYPE_EVENT
+				   0 = PMC_TRIGGER_TYPE_NONE
+				   1 = PMC_TRIGGER_TYPE_RISING
+				   2 = PMC_TRIGGER_TYPE_FALLING
+				   4 = PMC_TRIGGER_TYPE_HIGH
+				   8 = PMC_TRIGGER_TYPE_LOW
+		     The assignments of event_type and trigger_type could be
+		     found in header file <dt-bindings/soc/tegra-pmc.h>.
+- #wake-cells : should be 3
+
+Example:
+
+/ SoC dts including file
+pmc: pmc {
+	compatible = "nvidia,tegra114-pmc";
+	reg = <0x7000e400 0x400>;
+	clocks = <&tegra_car 261>, <&clk32k_in>;
+	clock-names = "pclk", "clk32k_in";
+};
+
+/ Tegra board dts file
+{
+	...
+	pmc {
+		...
+		nvidia,suspend-mode = <0>;
+		#wake-cells = <3>;
+		...
+	};
+	...
+	pmic {
+		...
+		nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_EVENT 18 PMC_TRIGGER_TYPE_LOW>;
+		...
+	};
+	...
+	gpio-keys {
+		power {
+			...
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 16 PMC_TRIGGER_TYPE_NONE>;
+			...
+		};
+	};
+};
