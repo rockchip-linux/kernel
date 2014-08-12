@@ -582,25 +582,51 @@ EXPORT_SYMBOL(tegra_dvfs_predict_millivolts);
  */
 int tegra_dvfs_set_rate(struct clk *c, unsigned long rate)
 {
-	int ret;
+	int ret = 0;
 	struct dvfs *d;
+
+	if (!core_dvfs_started)
+		return ret;
 
 	mutex_lock(&dvfs_lock);
 
 	d = tegra_clk_to_dvfs(c);
-	if (d == NULL) {
-		pr_err("Failed to get dvfs structure\n");
-		mutex_unlock(&dvfs_lock);
-		return -EINVAL;
-	}
-
-	ret = __tegra_dvfs_set_rate(d, rate);
+	if (d)
+		ret = __tegra_dvfs_set_rate(d, rate);
 
 	mutex_unlock(&dvfs_lock);
 
 	return ret;
 }
 EXPORT_SYMBOL(tegra_dvfs_set_rate);
+
+/**
+ * tegra_dvfs_get_rate - get current rate used for determining rail voltage
+ *
+ * @c: struct clk * clock we want to know the rate of used for determining
+ *		    rail voltage
+ *
+ * Returns 0 if there is no dvfs for the clock.
+ */
+unsigned long tegra_dvfs_get_rate(struct clk *c)
+{
+	unsigned long rate = 0;
+	struct dvfs *d;
+
+	if (!core_dvfs_started)
+		return rate;
+
+	mutex_lock(&dvfs_lock);
+
+	d = tegra_clk_to_dvfs(c);
+	if (d)
+		rate = d->cur_rate;
+
+	mutex_unlock(&dvfs_lock);
+
+	return rate;
+}
+EXPORT_SYMBOL(tegra_dvfs_get_rate);
 
 /**
  * tegra_dvfs_get_freqs - export dvfs frequency array associated with the clock
@@ -993,14 +1019,17 @@ static int tegra_config_dvfs(struct dvfs_rail *rail)
 	struct dvfs *d;
 
 	list_for_each_entry(d, &rail->dvfs, reg_node) {
-		d->cur_rate = clk_get_rate(d->clk);
+		if (__clk_is_enabled(d->clk) || __clk_is_prepared(d->clk)) {
+			d->cur_rate = clk_get_rate(d->clk);
+			d->cur_millivolts = d->max_millivolts;
 
-		for (i = 0; i < d->num_freqs; i++)
-			if (d->cur_rate <= d->freqs[i])
-				break;
+			for (i = 0; i < d->num_freqs; i++)
+				if (d->cur_rate <= d->freqs[i])
+					break;
 
-		if (i != d->num_freqs)
-			d->cur_millivolts = d->millivolts[i];
+			if (i != d->num_freqs)
+				d->cur_millivolts = d->millivolts[i];
+		}
 
 		clk_notifier_register(d->clk, &tegra_dvfs_nb);
 	}

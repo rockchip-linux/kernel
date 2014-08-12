@@ -159,6 +159,7 @@ int tegra_dvfs_dfll_mode_set(struct clk *c, unsigned long rate);
 int tegra_dvfs_dfll_mode_clear(struct clk *c, unsigned long rate);
 int tegra_dvfs_get_dfll_threshold(struct clk *c, unsigned long *rate);
 int tegra_dvfs_set_rate(struct clk *c, unsigned long rate);
+unsigned long tegra_dvfs_get_rate(struct clk *c);
 int tegra_dvfs_get_freqs(struct clk *c, unsigned long **freqs, int *num_freqs);
 int tegra_setup_dvfs(struct clk *c, struct dvfs *d);
 int tegra_dvfs_init_rails(struct dvfs_rail *dvfs_rails[], int n);
@@ -181,6 +182,8 @@ static inline int tegra_dvfs_get_dfll_threshold(
 { return -EINVAL; }
 static inline int tegra_dvfs_set_rate(struct clk *c, unsigned long rate)
 { return -EINVAL; }
+static inline unsigned long tegra_dvfs_get_rate(struct clk *c)
+{ return 0; }
 static inline int tegra_dvfs_get_freqs(
 		struct clk *c, unsigned long **freqs, int *num_freqs)
 { return -EINVAL; }
