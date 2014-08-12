@@ -121,3 +121,27 @@ struct clk *tegra_clk_register_pll_out(const char *name,
 
 	return clk;
 }
+
+#if defined(CONFIG_PM_SLEEP)
+void tegra_clk_pll_out_resume(struct clk *clk, unsigned long rate)
+{
+	struct clk *parent = clk_get_parent(clk);
+	struct clk_hw *hw = __clk_get_hw(clk);
+
+	if (IS_ERR(parent)) {
+		WARN_ON(1);
+		return;
+	}
+
+	tegra_clk_divider_resume(parent, rate);
+	clk_pll_out_enable(hw);
+}
+
+void tegra_clk_sync_state_pll_out(struct clk *clk)
+{
+	struct clk_hw *hw = __clk_get_hw(clk);
+
+	if (!__clk_get_enable_count(clk))
+		clk_pll_out_disable(hw);
+}
+#endif

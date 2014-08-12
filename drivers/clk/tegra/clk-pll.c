@@ -1413,6 +1413,28 @@ static void clk_plle_tegra114_disable(struct clk_hw *hw)
 	if (pll->lock)
 		spin_unlock_irqrestore(pll->lock, flags);
 }
+
+static void _clk_plle_tegra_init_parent(struct tegra_clk_pll *pll)
+{
+	u32 val, val_aux;
+
+	/* ensure parent is set to pll_ref */
+
+	val = pll_readl_base(pll);
+	val_aux = pll_readl(pll->params->aux_reg, pll);
+
+	if (val & PLL_BASE_ENABLE) {
+		if ((val_aux & PLLE_AUX_PLLRE_SEL) ||
+			(val_aux & PLLE_AUX_PLLP_SEL))
+			WARN(1, "pll_e enabled with unsupported parent %s\n",
+			  (val_aux & PLLE_AUX_PLLP_SEL) ? "pllp_out0" :
+					"pll_re_vco");
+	} else {
+		val_aux &= ~(PLLE_AUX_PLLRE_SEL | PLLE_AUX_PLLP_SEL);
+		pll_writel(val, pll->params->aux_reg, pll);
+	}
+
+}
 #endif
 
 static struct tegra_clk_pll *_tegra_init_pll(void __iomem *clk_base,
@@ -1498,6 +1520,32 @@ struct clk *tegra_clk_register_plle(const char *name, const char *parent_name,
 
 	return clk;
 }
+
+#if defined(CONFIG_PM_SLEEP)
+void tegra_clk_pll_resume(struct clk *c, unsigned long rate)
+{
+	struct clk *parent = clk_get_parent(c);
+	struct clk_hw *hw = __clk_get_hw(c);
+	unsigned long parent_rate;
+
+	if (IS_ERR(parent)) {
+		WARN_ON(1);
+		return;
+	}
+	parent_rate = clk_get_rate(parent);
+
+	clk_pll_set_rate(hw, rate, parent_rate);
+	clk_pll_enable(hw);
+}
+
+void tegra_clk_sync_state_pll(struct clk *c)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+
+	if (!__clk_get_enable_count(c))
+		clk_pll_disable(hw);
+}
+#endif
 
 #if defined(CONFIG_ARCH_TEGRA_114_SOC) || \
     defined(CONFIG_ARCH_TEGRA_124_SOC) || \
@@ -1767,28 +1815,13 @@ struct clk *tegra_clk_register_plle_tegra114(const char *name,
 {
 	struct tegra_clk_pll *pll;
 	struct clk *clk;
-	u32 val, val_aux;
 
 	pll_params->flags |= TEGRA_PLL_HAS_LOCK_ENABLE;
 	pll = _tegra_init_pll(clk_base, NULL, pll_params, lock);
 	if (IS_ERR(pll))
 		return ERR_CAST(pll);
 
-	/* ensure parent is set to pll_re_vco */
-
-	val = pll_readl_base(pll);
-	val_aux = pll_readl(pll_params->aux_reg, pll);
-
-	if (val & PLL_BASE_ENABLE) {
-		if ((val_aux & PLLE_AUX_PLLRE_SEL) ||
-			(val_aux & PLLE_AUX_PLLP_SEL))
-			WARN(1, "pll_e enabled with unsupported parent %s\n",
-			  (val_aux & PLLE_AUX_PLLP_SEL) ? "pllp_out0" :
-					"pll_re_vco");
-	} else {
-		val_aux &= ~(PLLE_AUX_PLLRE_SEL | PLLE_AUX_PLLP_SEL);
-		pll_writel(val, pll_params->aux_reg, pll);
-	}
+	_clk_plle_tegra_init_parent(pll);
 
 	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
 				      &tegra_clk_plle_tegra114_ops);
@@ -1797,6 +1830,107 @@ struct clk *tegra_clk_register_plle_tegra114(const char *name,
 
 	return clk;
 }
+
+#ifdef CONFIG_PM_SLEEP
+void tegra_clk_pllcx_resume(struct clk *c, unsigned long rate)
+{
+	struct clk *parent = clk_get_parent(c);
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	struct tegra_clk_pll_freq_table cfg;
+	unsigned long parent_rate;
+
+	if (IS_ERR(parent)) {
+		WARN_ON(1);
+		return;
+	}
+	parent_rate = clk_get_rate(parent);
+
+	cfg.n = 0;
+	cfg.p = 0;
+	cfg.m = _pll_fixed_mdiv(pll->params, parent_rate);
+
+	pll_writel_base(0, pll);
+	_update_pll_mnp(pll, &cfg);
+
+	pll_writel_misc(PLLCX_MISC_DEFAULT, pll);
+	pll_writel(PLLCX_MISC1_DEFAULT, pll->params->ext_misc_reg[0], pll);
+	pll_writel(PLLCX_MISC2_DEFAULT, pll->params->ext_misc_reg[1], pll);
+	pll_writel(PLLCX_MISC3_DEFAULT, pll->params->ext_misc_reg[2], pll);
+
+	_pllcx_update_dynamic_coef(pll, parent_rate, cfg.n);
+
+	clk_pllc_set_rate(hw, rate, parent_rate);
+	clk_pllc_enable(hw);
+}
+
+void tegra_clk_pllxc_resume(struct clk *c, unsigned long rate)
+{
+	struct clk *parent = clk_get_parent(c);
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	unsigned long parent_rate;
+
+	if (IS_ERR(parent)) {
+		WARN_ON(1);
+		return;
+	}
+	parent_rate = clk_get_rate(parent);
+
+	if (_setup_dynamic_ramp(pll->params, pll->clk_base, parent_rate))
+		return;
+
+	clk_pllxc_set_rate(hw, rate, parent_rate);
+	clk_pll_iddq_enable(hw);
+}
+
+void tegra_clk_pllre_vco_resume(struct clk *c, unsigned long rate)
+{
+	struct clk *parent = clk_get_parent(c);
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	unsigned long parent_rate;
+	u32 val;
+
+	if (IS_ERR(parent)) {
+		WARN_ON(1);
+		return;
+	}
+	parent_rate = clk_get_rate(parent);
+
+	/* disable lock override */
+	val = pll_readl_misc(pll);
+	val &= ~PLL_MISC_OVERRIDE;
+	pll_writel_misc(val, pll);
+
+	clk_pllre_set_rate(hw, rate, parent_rate);
+	clk_pll_iddq_enable(hw);
+}
+
+void tegra_clk_plle_tegra114_resume(struct clk *c)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+
+	_clk_plle_tegra_init_parent(pll);
+}
+
+void tegra_clk_sync_state_pllcx(struct clk *c)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+
+	if (!__clk_get_enable_count(c))
+		clk_pllc_disable(hw);
+}
+
+void tegra_clk_sync_state_iddq(struct clk *c)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+
+	if (!__clk_get_enable_count(c))
+		clk_pll_iddq_disable(hw);
+}
+#endif
 #endif
 
 #if defined(CONFIG_ARCH_TEGRA_124_SOC) || defined(CONFIG_ARCH_TEGRA_132_SOC)
@@ -1808,6 +1942,21 @@ static const struct clk_ops tegra_clk_pllss_ops = {
 	.round_rate = clk_pll_ramp_round_rate,
 	.set_rate = clk_pllxc_set_rate,
 };
+
+static void _pllss_set_defaults(struct tegra_clk_pll *pll)
+{
+	u32 val;
+
+	pll_writel_misc(PLLSS_MISC_DEFAULT, pll);
+	pll_writel(PLLSS_CFG_DEFAULT, pll->params->ext_misc_reg[0], pll);
+	pll_writel(PLLSS_CTRL1_DEFAULT, pll->params->ext_misc_reg[1], pll);
+	pll_writel(PLLSS_CTRL1_DEFAULT, pll->params->ext_misc_reg[2], pll);
+
+	val = pll_readl_base(pll);
+	val &= ~PLLSS_LOCK_OVERRIDE;
+	pll_writel_base(val, pll);
+
+}
 
 struct clk *tegra_clk_register_pllss(const char *name, const char *parent_name,
 				void __iomem *clk_base, unsigned long flags,
@@ -1860,10 +2009,7 @@ struct clk *tegra_clk_register_pllss(const char *name, const char *parent_name,
 
 	_update_pll_mnp(pll, &cfg);
 
-	pll_writel_misc(PLLSS_MISC_DEFAULT, pll);
-	pll_writel(PLLSS_CFG_DEFAULT, pll_params->ext_misc_reg[0], pll);
-	pll_writel(PLLSS_CTRL1_DEFAULT, pll_params->ext_misc_reg[1], pll);
-	pll_writel(PLLSS_CTRL1_DEFAULT, pll_params->ext_misc_reg[2], pll);
+	_pllss_set_defaults(pll);
 
 	val = pll_readl_base(pll);
 	if (val & PLL_BASE_ENABLE) {
@@ -1872,11 +2018,10 @@ struct clk *tegra_clk_register_pllss(const char *name, const char *parent_name,
 			kfree(pll);
 			return ERR_PTR(-EINVAL);
 		}
-	} else
+	} else {
 		val |= BIT(pll_params->iddq_bit_idx);
-
-	val &= ~PLLSS_LOCK_OVERRIDE;
-	pll_writel_base(val, pll);
+		pll_writel_base(val, pll);
+	}
 
 	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
 					&tegra_clk_pllss_ops);
@@ -1886,4 +2031,32 @@ struct clk *tegra_clk_register_pllss(const char *name, const char *parent_name,
 
 	return clk;
 }
+
+#ifdef CONFIG_PM_SLEEP
+void tegra_clk_pllss_resume(struct clk *c, unsigned long rate)
+{
+	struct clk_hw *hw = __clk_get_hw(c);
+	struct clk *parent = clk_get_parent(c);
+	struct tegra_clk_pll *pll = to_clk_pll(hw);
+	struct tegra_clk_pll_freq_table cfg;
+	unsigned long parent_rate;
+
+	if (clk_pll_is_enabled(hw))
+		return; /* already resumed */
+
+	if (IS_ERR(parent)) {
+		WARN_ON(1);
+		return;
+	}
+	parent_rate = clk_get_rate(parent);
+
+	_get_pll_mnp(pll, &cfg);
+	cfg.m = _pll_fixed_mdiv(pll->params, parent_rate);
+	_update_pll_mnp(pll, &cfg);
+
+	_pllss_set_defaults(pll);
+	clk_pllxc_set_rate(hw, rate, parent_rate);
+	clk_pll_iddq_enable(hw);
+}
+#endif
 #endif
