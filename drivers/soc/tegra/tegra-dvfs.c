@@ -742,9 +742,17 @@ static int tegra_dvfs_suspend_one(void)
 
 static void tegra_dvfs_resume(void)
 {
+	unsigned long rate;
+	struct dvfs *d;
 	struct dvfs_rail *rail;
 
 	mutex_lock(&dvfs_lock);
+
+	list_for_each_entry(d, &tegra_core_rail->dvfs, reg_node) {
+		rate = clk_get_rate(d->clk);
+		if (d->cur_rate != rate)
+			__tegra_dvfs_set_rate(d, rate);
+	}
 
 	list_for_each_entry(rail, &dvfs_rail_list, node)
 		rail->suspended = false;
