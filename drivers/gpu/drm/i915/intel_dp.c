@@ -1278,7 +1278,8 @@ void ironlake_edp_panel_off(struct intel_dp *intel_dp)
 	intel_runtime_pm_put(dev_priv);
 }
 
-void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
+/* Enable backlight in the panel power control. */
+static void _ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 {
 	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
 	struct drm_device *dev = intel_dig_port->base.base.dev;
@@ -1286,17 +1287,11 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 	u32 pp;
 	u32 pp_ctrl_reg;
 
-	if (!is_edp(intel_dp))
-		return;
-
-	DRM_DEBUG_KMS("\n");
 	pp = ironlake_get_pp_control(intel_dp);
 	if (pp & EDP_BLC_ENABLE)
 		return;
 
 	assert_pwm_disabled(dev_priv, intel_dp->attached_connector);
-
-	intel_panel_enable_backlight(intel_dp->attached_connector);
 
 	/*
 	 * If we enable the backlight right away following a panel power
@@ -1313,17 +1308,26 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 	POSTING_READ(pp_ctrl_reg);
 }
 
-void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
+/* Enable backlight PWM and backlight PP control. */
+void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
+{
+	if (!is_edp(intel_dp))
+		return;
+
+	DRM_DEBUG_KMS("\n");
+
+	intel_panel_enable_backlight(intel_dp->attached_connector);
+	_ironlake_edp_backlight_on(intel_dp);
+}
+
+/* Disable backlight in the panel power control. */
+static void _ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 {
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 pp;
 	u32 pp_ctrl_reg;
 
-	if (!is_edp(intel_dp))
-		return;
-
-	DRM_DEBUG_KMS("\n");
 	pp = ironlake_get_pp_control(intel_dp);
 	if (!(pp & EDP_BLC_ENABLE))
 		return;
@@ -1336,7 +1340,17 @@ void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 
 	I915_WRITE(pp_ctrl_reg, pp);
 	POSTING_READ(pp_ctrl_reg);
+}
 
+/* Disable backlight PP control and backlight PWM. */
+void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
+{
+	if (!is_edp(intel_dp))
+		return;
+
+	DRM_DEBUG_KMS("\n");
+
+	_ironlake_edp_backlight_off(intel_dp);
 	msleep(intel_dp->backlight_off_delay);
 	intel_panel_disable_backlight(intel_dp->attached_connector);
 }
