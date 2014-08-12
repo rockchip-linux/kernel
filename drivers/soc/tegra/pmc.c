@@ -51,6 +51,10 @@
 #define  DPD_SAMPLE_ENABLE		(1 << 0)
 #define  DPD_SAMPLE_DISABLE		(0 << 0)
 
+#define PMC_DPD_ENABLE			0x24
+#define PMC_DPD_ENABLE_ON		(1 << 0)
+#define PMC_DPD_ENABLE_TSC_MULT_ENABLE	(1 << 1)
+
 #define PWRGATE_TOGGLE			0x30
 #define  PWRGATE_TOGGLE_START		(1 << 8)
 
@@ -576,6 +580,37 @@ int tegra_io_rail_power_off(int id)
 EXPORT_SYMBOL(tegra_io_rail_power_off);
 
 #ifdef CONFIG_PM_SLEEP
+void tegra_tsc_suspend(void)
+{
+	if (IS_ENABLED(CONFIG_ARM_ARCH_TIMER)) {
+		u32 reg;
+
+		reg = tegra_pmc_readl(PMC_DPD_ENABLE);
+		reg |= PMC_DPD_ENABLE_TSC_MULT_ENABLE;
+		tegra_pmc_writel(reg, PMC_DPD_ENABLE);
+	}
+}
+
+void tegra_tsc_resume(void)
+{
+	if (IS_ENABLED(CONFIG_ARM_ARCH_TIMER)) {
+		u32 reg;
+
+		reg = tegra_pmc_readl(PMC_DPD_ENABLE);
+		reg &= ~PMC_DPD_ENABLE_TSC_MULT_ENABLE;
+		switch (tegra_get_chip_id()) {
+		case TEGRA124:
+		case TEGRA132:
+			/* WAR to avoid PMC wake status getting cleared */
+			reg &= ~PMC_DPD_ENABLE_ON;
+			break;
+		default:
+			break;
+		}
+		tegra_pmc_writel(reg, PMC_DPD_ENABLE);
+	}
+}
+
 enum tegra_suspend_mode tegra_pmc_get_suspend_mode(void)
 {
 	return pmc->suspend_mode;
