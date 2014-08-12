@@ -39,6 +39,7 @@
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/syscore_ops.h>
 #include <dt-bindings/soc/tegra-pmc.h>
 
 #include <soc/tegra/common.h>
@@ -47,12 +48,18 @@
 #include <asm/system_misc.h>
 
 #define PMC_CNTRL			0x0
+#define  PMC_CNTRL_LATCH_WAKEUPS	(1 << 5)
 #define  PMC_CNTRL_SYSCLK_POLARITY	(1 << 10)  /* sys clk polarity */
 #define  PMC_CNTRL_SYSCLK_OE		(1 << 11)  /* system clock enable */
 #define  PMC_CNTRL_SIDE_EFFECT_LP0	(1 << 14)  /* LP0 when CPU pwr gated */
 #define  PMC_CNTRL_CPU_PWRREQ_POLARITY	(1 << 15)  /* CPU pwr req polarity */
 #define  PMC_CNTRL_CPU_PWRREQ_OE	(1 << 16)  /* CPU pwr req enable */
 #define  PMC_CNTRL_INTR_POLARITY	(1 << 17)  /* inverts INTR polarity */
+
+#define PMC_WAKE_MASK			0xc
+#define PMC_WAKE_LEVEL			0x10
+#define PMC_WAKE_STATUS			0x14
+#define PMC_SW_WAKE_STATUS		0x18
 
 #define DPD_SAMPLE			0x020
 #define  DPD_SAMPLE_ENABLE		(1 << 0)
@@ -81,6 +88,11 @@
 #define PMC_CPUPWROFF_TIMER		0xcc
 
 #define PMC_SCRATCH41			0x140
+
+#define PMC_WAKE2_MASK			0x160
+#define PMC_WAKE2_LEVEL			0x164
+#define PMC_WAKE2_STATUS		0x168
+#define PMC_SW_WAKE2_STATUS		0x16c
 
 #define IO_DPD_REQ			0x1b8
 #define  IO_DPD_REQ_CODE_IDLE		(0 << 30)
@@ -763,6 +775,161 @@ static int __init tegra_pmc_lp0_wakeup_init(void)
 }
 arch_initcall(tegra_pmc_lp0_wakeup_init);
 
+static inline void write_pmc_wake_mask(u64 value)
+{
+	pr_info("PMC wake enable = 0x%llx\n", value);
+	tegra_pmc_writel((u32)value, PMC_WAKE_MASK);
+	if (tegra_get_chip_id() != TEGRA20)
+		tegra_pmc_writel((u32)(value >> 32), PMC_WAKE2_MASK);
+}
+
+static inline u64 read_pmc_wake_level(void)
+{
+	u64 reg;
+
+	reg = tegra_pmc_readl(PMC_WAKE_LEVEL);
+	if (tegra_get_chip_id() != TEGRA20)
+		reg |= ((u64)tegra_pmc_readl(PMC_WAKE2_LEVEL)) << 32;
+
+	return reg;
+}
+
+static inline void write_pmc_wake_level(u64 value)
+{
+	pr_info("PMC wake level = 0x%llx\n", value);
+	tegra_pmc_writel((u32)value, PMC_WAKE_LEVEL);
+	if (tegra_get_chip_id() != TEGRA20)
+		tegra_pmc_writel((u32)(value >> 32), PMC_WAKE2_LEVEL);
+}
+
+static inline u64 read_pmc_wake_status(void)
+{
+	u64 reg;
+
+	reg = tegra_pmc_readl(PMC_WAKE_STATUS);
+	if (tegra_get_chip_id() != TEGRA20)
+		reg |= ((u64)tegra_pmc_readl(PMC_WAKE2_STATUS)) << 32;
+
+	return reg;
+}
+
+static inline void clear_pmc_wake_status(void)
+{
+	u32 reg;
+
+	reg = tegra_pmc_readl(PMC_WAKE_STATUS);
+	if (reg)
+		tegra_pmc_writel(reg, PMC_WAKE_STATUS);
+	if (tegra_get_chip_id() != TEGRA20) {
+		reg = tegra_pmc_readl(PMC_WAKE2_STATUS);
+		if (reg)
+			tegra_pmc_writel(reg, PMC_WAKE2_STATUS);
+	}
+}
+
+static inline u64 read_pmc_sw_wake_status(void)
+{
+	u64 reg;
+
+	reg = tegra_pmc_readl(PMC_SW_WAKE_STATUS);
+	if (tegra_get_chip_id() != TEGRA20)
+		reg |= ((u64)tegra_pmc_readl(PMC_SW_WAKE2_STATUS)) << 32;
+
+	return reg;
+}
+
+static inline void clear_pmc_sw_wake_status(void)
+{
+	tegra_pmc_writel(0, PMC_SW_WAKE_STATUS);
+	if (tegra_get_chip_id() != TEGRA20)
+		tegra_pmc_writel(0, PMC_SW_WAKE2_STATUS);
+}
+
+/* translate lp0 wake sources back into irqs to catch edge triggered wakeups */
+static void tegra_pmc_wake_syscore_resume(void)
+{
+	struct pmc_wakeup *wake;
+	struct irq_desc *desc;
+	u64 wake_status = read_pmc_wake_status();
+
+	pr_info("PMC wake status = 0x%llx\n", wake_status);
+
+	list_for_each_entry(wake, &tegra_lp0_wakeup.wake_list, list) {
+		if (!(wake_status & BIT(wake->wake_mask_offset)))
+			continue;
+
+		if (wake->irq_num <= 0) {
+			pr_info("Resume caused by PMC WAKE%d\n",
+				wake->wake_mask_offset);
+			continue;
+		}
+
+		desc = irq_to_desc(wake->irq_num);
+		if (!desc || !desc->action || !desc->action->name) {
+			pr_info("Resume caused by PMC WAKE%d, irq %d\n",
+				wake->wake_mask_offset, wake->irq_num);
+			continue;
+		}
+
+		pr_info("Resume caused by PMC WAKE%d, %s\n",
+			wake->wake_mask_offset, desc->action->name);
+		generic_handle_irq(wake->irq_num);
+	}
+}
+
+static int tegra_pmc_wake_syscore_suspend(void)
+{
+	u32 reg;
+	u64 status;
+	u64 lvl;
+	u64 wake_level;
+	u64 wake_enb;
+
+	clear_pmc_sw_wake_status();
+
+	/* enable PMC wake */
+	reg = tegra_pmc_readl(PMC_CNTRL);
+	reg |= PMC_CNTRL_LATCH_WAKEUPS;
+	tegra_pmc_writel(reg, PMC_CNTRL);
+	udelay(120);
+
+	reg &= ~PMC_CNTRL_LATCH_WAKEUPS;
+	tegra_pmc_writel(reg, PMC_CNTRL);
+	udelay(120);
+
+	status = read_pmc_sw_wake_status();
+
+	lvl = read_pmc_wake_level();
+
+	/*
+	 * flip the wakeup trigger for any-edge triggered pads
+	 * which are currently asserting as wakeups
+	 */
+	lvl ^= status;
+
+	lvl &= tegra_lp0_wakeup.level_any;
+
+	wake_level = lvl | tegra_lp0_wakeup.level;
+	wake_enb = tegra_lp0_wakeup.enable;
+
+	/* Clear PMC Wake Status registers while going to suspend */
+	clear_pmc_wake_status();
+	write_pmc_wake_level(wake_level);
+	write_pmc_wake_mask(wake_enb);
+
+	return 0;
+}
+
+static struct syscore_ops tegra_pmc_wake_syscore_ops = {
+	.suspend = tegra_pmc_wake_syscore_suspend,
+	.resume = tegra_pmc_wake_syscore_resume,
+};
+
+static void tegra_pmc_wake_syscore_init(void)
+{
+	register_syscore_ops(&tegra_pmc_wake_syscore_ops);
+}
+
 enum tegra_suspend_mode tegra_pmc_get_suspend_mode(void)
 {
 	return pmc->suspend_mode;
@@ -1135,6 +1302,10 @@ static void tegra_pmc_init(struct tegra_pmc *pmc)
 	value = tegra_pmc_readl(PMC_CNTRL);
 	value |= PMC_CNTRL_SYSCLK_OE;
 	tegra_pmc_writel(value, PMC_CNTRL);
+
+#ifdef CONFIG_PM_SLEEP
+	tegra_pmc_wake_syscore_init();
+#endif
 }
 
 static int tegra_pmc_probe(struct platform_device *pdev)
