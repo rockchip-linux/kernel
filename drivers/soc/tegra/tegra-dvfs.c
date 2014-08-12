@@ -668,6 +668,9 @@ static int tegra_dvfs_clk_event(struct notifier_block *this,
 	if (d->dvfs_rail == tegra_core_rail && !core_dvfs_started)
 		return NOTIFY_DONE;
 
+	if (!__clk_is_enabled(cnd->clk) && !__clk_is_prepared(cnd->clk))
+		return NOTIFY_DONE;
+
 	switch (event) {
 	case PRE_RATE_CHANGE:
 		if (cnd->old_rate < cnd->new_rate)
