@@ -35,7 +35,7 @@
 
 static bool is_enabled;
 
-static void __init tegra_cpu_reset_handler_set(const u32 reset_address)
+static void tegra_cpu_reset_handler_set(const u32 reset_address)
 {
 	void __iomem *evp_cpu_reset =
 		IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE + 0x100);
@@ -60,7 +60,7 @@ static void __init tegra_cpu_reset_handler_set(const u32 reset_address)
 	wmb();
 }
 
-static void __init tegra_cpu_reset_handler_enable(void)
+static void tegra_cpu_reset_handler_enable(void)
 {
 	void __iomem *iram_base = IO_ADDRESS(TEGRA_IRAM_RESET_BASE);
 	const u32 reset_address = TEGRA_IRAM_RESET_BASE +
@@ -86,6 +86,19 @@ static void __init tegra_cpu_reset_handler_enable(void)
 		BUG();
 	}
 }
+
+#ifdef CONFIG_PM_SLEEP
+void tegra_cpu_reset_handler_save(void)
+{
+	WARN_ON(!is_enabled);
+	is_enabled = false;
+}
+
+void tegra_cpu_reset_handler_restore(void)
+{
+	tegra_cpu_reset_handler_enable();
+}
+#endif
 
 void __init tegra_cpu_reset_handler_init(void)
 {

@@ -57,6 +57,10 @@ void tegra_secondary_startup(void);
 		(__tegra_cpu_reset_handler_end - \
 		 __tegra_cpu_reset_handler_start)
 
+#ifdef CONFIG_PM_SLEEP
+void tegra_cpu_reset_handler_save(void);
+void tegra_cpu_reset_handler_restore(void);
+#endif
 void __init tegra_cpu_reset_handler_init(void);
 
 #endif
