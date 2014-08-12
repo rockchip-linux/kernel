@@ -19,4 +19,5 @@ obj-$(CONFIG_ARCH_TEGRA_124_SOC)	+= clk-tegra124.o
 obj-$(CONFIG_ARCH_TEGRA_124_SOC)	+= clk-tegra124-dfll-fcpu.o
 obj-$(CONFIG_ARCH_TEGRA_132_SOC)	+= clk-tegra124.o
 obj-$(CONFIG_ARCH_TEGRA_132_SOC)	+= clk-tegra132-ccplex.o
+obj-$(CONFIG_ARCH_TEGRA_132_SOC)	+= clk-tegra124-dfll-fcpu.o
 obj-y					+= cvb.o

@@ -156,6 +156,7 @@ config ARCH_TEGRA_132_SOC
 	bool "Enable support for Tegra132 family"
 	select HAVE_ARM_ARCH_TIMER
 	select PINCTRL_TEGRA124
+	select PM_OPP
 	help
 	  Support for NVIDIA Tegra T132 processor family, based on the
 	  Denver ARMv8 CPU
