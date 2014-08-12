@@ -192,6 +192,14 @@ static void __init tegra_smp_prepare_cpus(unsigned int max_cpus)
 		scu_enable(IO_ADDRESS(scu_a9_get_base()));
 }
 
+#ifdef CONFIG_PM_SLEEP
+void tegra_smp_clear_cpu_init_mask(void)
+{
+	cpumask_clear(&tegra_cpu_init_mask);
+	cpumask_set_cpu(0, &tegra_cpu_init_mask);
+}
+#endif
+
 struct smp_operations tegra_smp_ops __initdata = {
 	.smp_prepare_cpus	= tegra_smp_prepare_cpus,
 	.smp_secondary_init	= tegra_secondary_init,
