@@ -922,14 +922,6 @@ static int tegra_pmc_parse_dt(struct tegra_pmc *pmc, struct device_node *np)
 	pmc->cpu_pwr_good_en = of_property_read_bool(np,
 				"nvidia,cpu-pwr-good-en");
 
-	if (of_property_read_u32_array(np, "nvidia,lp0-vec", values,
-				       ARRAY_SIZE(values)))
-		if (pmc->suspend_mode == TEGRA_SUSPEND_LP0)
-			pmc->suspend_mode = TEGRA_SUSPEND_LP1;
-
-	pmc->lp0_vec_phys = values[0];
-	pmc->lp0_vec_size = values[1];
-
 	return 0;
 }
 

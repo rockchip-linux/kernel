@@ -38,15 +38,6 @@ Required properties when nvidia,suspend-mode is specified:
 			      Core power good time in uS.
 - nvidia,core-pwr-off-time : Core power off time in uS.
 
-Required properties when nvidia,suspend-mode=<0>:
-- nvidia,lp0-vec : <start length> Starting address and length of LP0 vector
-  The LP0 vector contains the warm boot code that is executed by AVP when
-  resuming from the LP0 state. The AVP (Audio-Video Processor) is an ARM7
-  processor and always being the first boot processor when chip is power on
-  or resume from deep sleep mode. When the system is resumed from the deep
-  sleep mode, the warm boot code will restore some PLLs, clocks and then
-  bring up CPU0 for resuming the system.
-
 Hardware-triggered thermal reset:
 On Tegra30, Tegra114 and Tegra124, if the 'i2c-thermtrip' subnode exists,
 hardware-triggered thermal reset will be enabled.
@@ -76,7 +67,6 @@ pmc@7000f400 {
 	nvidia,core-pwr-off-time = <458>;
 	nvidia,core-power-req-active-high;
 	nvidia,sys-clock-req-active-high;
-	nvidia,lp0-vec = <0xbdffd000 0x2000>;
 };
 
 / Tegra board dts file
