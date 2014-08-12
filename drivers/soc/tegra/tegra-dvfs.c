@@ -771,16 +771,19 @@ static int tegra_dvfs_suspend_one(void)
 
 static void tegra_dvfs_resume(void)
 {
-	unsigned long rate;
 	struct dvfs *d;
 	struct dvfs_rail *rail;
 
 	mutex_lock(&dvfs_lock);
 
 	list_for_each_entry(d, &tegra_core_rail->dvfs, reg_node) {
-		rate = clk_get_rate(d->clk);
-		if (d->cur_rate != rate)
-			__tegra_dvfs_set_rate(d, rate);
+		if (!__clk_is_enabled(d->clk) && d->cur_rate == 0)
+			continue;
+		d->cur_rate = clk_get_rate(d->clk);
+		d->cur_millivolts = predict_millivolts(d, d->millivolts,
+							d->cur_rate);
+		if (d->cur_millivolts < 0)
+			d->cur_millivolts = d->max_millivolts;
 	}
 
 	list_for_each_entry(rail, &dvfs_rail_list, node)
