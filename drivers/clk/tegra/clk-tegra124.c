@@ -24,6 +24,7 @@
 #include <linux/export.h>
 #include <linux/clk/tegra.h>
 #include <linux/platform_data/tegra_emc.h>
+#include <linux/syscore_ops.h>
 #include <dt-bindings/clock/tegra124-car.h>
 
 #include "clk.h"
@@ -78,6 +79,7 @@
 #define PLL_BASE_LOCK BIT(27)
 #define PLLE_MISC_LOCK BIT(11)
 #define PLLRE_MISC_LOCK BIT(24)
+#define PLLU_OVERRIDE BIT(24)
 
 #define PLL_MISC_LOCK_ENABLE 18
 #define PLLC_MISC_LOCK_ENABLE 24
@@ -1360,7 +1362,7 @@ static void __init tegra124_pll_init(void __iomem *clk_base,
 
 	/* PLLU */
 	val = readl(clk_base + pll_u_params.base_reg);
-	val &= ~BIT(24); /* disable PLLU_OVERRIDE */
+	val &= ~PLLU_OVERRIDE; /* disable PLLU_OVERRIDE */
 	writel(val, clk_base + pll_u_params.base_reg);
 
 	clk = tegra_clk_register_pll("pll_u", "pll_ref", clk_base, pmc, 0,
@@ -1559,6 +1561,278 @@ static struct tegra_cpu_car_ops tegra124_cpu_car_ops = {
 #endif
 };
 
+#ifdef CONFIG_PM_SLEEP
+#define car_readl(_base, _off) readl_relaxed(clk_base + (_base) + (_off * 4))
+#define car_writel(_val, _base, _off) \
+		writel_relaxed(_val, clk_base + (_base) + (_off * 4))
+
+#define SCLK_BURST_POLICY	0x28
+#define SYSTEM_CLK_RATE		0x30
+#define CLK_MASK_ARM		0x44
+#define MISC_CLK_ENB		0x48
+#define CCLKG_BURST_POLICY	0x368
+#define CCLKLP_BURST_POLICY	0x370
+#define CPU_SOFTRST_CTRL	0x380
+#define SPARE_REG		0x55c
+
+#define BURST_POLICY_REG_SIZE	2
+
+static u32 *periph_clk_src_ctx;
+struct periph_source_bank {
+	u32 start;
+	u32 end;
+};
+
+static struct periph_source_bank periph_srcs[] = {
+	[0] = {
+		.start = 0x100,
+		.end = 0x198,
+	},
+	[1] = {
+		.start = 0x1a0,
+		.end = 0x1f8,
+	},
+	[2] = {
+		.start = 0x3b4,
+		.end = 0x42c,
+	},
+	[3] = {
+		.start = 0x49c,
+		.end = 0x4b4,
+	},
+	[4] = {
+		.start = 0x600,
+		.end = 0x678,
+	},
+};
+
+/* This array lists the valid clocks for each periph clk bank */
+static u32 periph_clks_on[] = {
+	0xfcd7dff1,
+	0xefddfff7,
+	0xfbfefbfa,
+	0xffc1fffb,
+	0x3f7fbfff,
+	0x00170979,
+};
+
+static unsigned long pll_c_rate, pll_c2_rate, pll_c3_rate, pll_x_rate;
+static unsigned long pll_c4_rate, pll_d2_rate, pll_dp_rate;
+static unsigned long pll_re_vco_rate, pll_d_rate, pll_a_rate;
+static unsigned long pll_m_out1_rate, pll_c_out1_rate;
+static unsigned long pll_a_out0_rate;
+static unsigned long pll_p_out_rate[5];
+static u32 pll_re_out_div;
+static u32 cpu_softrst_ctx[3];
+#if !IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC)
+static u32 cclkg_burst_policy_ctx[2];
+static u32 cclklp_burst_policy_ctx[2];
+#endif
+static u32 sclk_burst_policy_ctx[2];
+static u32 sclk_ctx, spare_ctx, misc_clk_enb_ctx, clk_arm_ctx;
+
+static inline struct clk *pll_p_clk(unsigned int x)
+{
+	if (x < 4)
+		return clks[TEGRA124_CLK_PLL_P_OUT1 + x];
+	else if (x == 4)
+		return clks[TEGRA124_CLK_PLL_P_OUT5];
+
+	WARN_ON(1);
+	return NULL;
+}
+
+static u32 * __init tegra124_init_suspend_ctx(void)
+{
+	int i, size = 0;
+
+	for (i = 0; i < ARRAY_SIZE(periph_srcs); i++)
+		size += periph_srcs[i].end - periph_srcs[i].start + 1;
+
+	periph_clk_src_ctx = kmalloc(size, GFP_KERNEL);
+
+	return periph_clk_src_ctx;
+}
+
+static int tegra124_clk_suspend(void)
+{
+	int i;
+	unsigned long off;
+	u32 *clk_rst_ctx = periph_clk_src_ctx;
+
+	pll_a_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_A]);
+	pll_a_out0_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_A_OUT0]);
+	pll_c2_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_C2]);
+	pll_c3_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_C3]);
+	pll_c_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_C]);
+	pll_c_out1_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_C_OUT1]);
+	pll_m_out1_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_M_OUT1]);
+	if (!IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC))
+		pll_x_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_X]);
+	pll_c4_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_C4]);
+	pll_dp_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_DP]);
+	pll_d_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_D]);
+	pll_d2_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_D2]);
+	pll_re_vco_rate = clk_get_rate(clks[TEGRA124_CLK_PLL_RE_VCO]);
+	pll_re_out_div = car_readl(PLLRE_BASE, 0) & (0xf << 16);
+
+	for (i = 0; i < ARRAY_SIZE(cpu_softrst_ctx); i++)
+		cpu_softrst_ctx[i] = car_readl(CPU_SOFTRST_CTRL, i);
+
+	for (i = 0; i < ARRAY_SIZE(pll_p_out_rate); i++)
+		pll_p_out_rate[i] = clk_get_rate(pll_p_clk(i));
+
+	for (i = 0; i < BURST_POLICY_REG_SIZE; i++) {
+#if !IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC)
+		cclkg_burst_policy_ctx[i] = car_readl(CCLKG_BURST_POLICY, i);
+		cclklp_burst_policy_ctx[i] = car_readl(CCLKLP_BURST_POLICY, i);
+#endif
+		sclk_burst_policy_ctx[i] = car_readl(SCLK_BURST_POLICY, i);
+	}
+
+	sclk_ctx = car_readl(SYSTEM_CLK_RATE, 0);
+	spare_ctx = car_readl(SPARE_REG, 0);
+	misc_clk_enb_ctx = car_readl(MISC_CLK_ENB, 0);
+	clk_arm_ctx = car_readl(CLK_MASK_ARM, 0);
+
+	for (i = 0; i < ARRAY_SIZE(periph_srcs); i++)
+		for (off = periph_srcs[i].start; off <= periph_srcs[i].end;
+			off += 4)
+			*clk_rst_ctx++ = car_readl(off, 0);
+
+	tegra_clk_periph_suspend(clk_base);
+
+	return 0;
+}
+
+static void tegra124_clk_resume(void)
+{
+	int i;
+	unsigned long off;
+	u32 val;
+#if !IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC)
+	struct clk *parent;
+#endif
+
+	u32 *clk_rst_ctx = periph_clk_src_ctx;
+
+	tegra_clk_osc_resume(clk_base);
+
+	for (i = 0; i < ARRAY_SIZE(cpu_softrst_ctx); i++)
+		car_writel(cpu_softrst_ctx[i], CPU_SOFTRST_CTRL, i);
+
+	/*
+	 * Since we are going to reset devices and switch clock sources in this
+	 * function, plls and secondary dividers is required to be enabled. The
+	 * actual value will be restored back later. Note that boot plls: pllm,
+	 * pllp, and pllu are already configured and enabled
+	 */
+
+	for (i = 0; i < ARRAY_SIZE(pll_p_out_rate); i++)
+		tegra_clk_pll_out_resume(pll_p_clk(i), pll_p_out_rate[i]);
+
+	tegra_clk_pllcx_resume(clks[TEGRA124_CLK_PLL_C2], pll_c2_rate);
+	tegra_clk_pllcx_resume(clks[TEGRA124_CLK_PLL_C3], pll_c3_rate);
+	tegra_clk_pllxc_resume(clks[TEGRA124_CLK_PLL_C], pll_c_rate);
+	if (!IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC))
+		tegra_clk_pllxc_resume(clks[TEGRA124_CLK_PLL_X], pll_x_rate);
+	tegra_clk_pllss_resume(clks[TEGRA124_CLK_PLL_C4], pll_c4_rate);
+	tegra_clk_pllss_resume(clks[TEGRA124_CLK_PLL_D2], pll_d2_rate);
+	tegra_clk_pllss_resume(clks[TEGRA124_CLK_PLL_DP], pll_dp_rate);
+
+	/* reprogram PLLRE VCO */
+	tegra_clk_pllre_vco_resume(clks[TEGRA124_CLK_PLL_RE_VCO],
+					pll_re_vco_rate);
+
+       /* reprogram PLLE post divider */
+	val = car_readl(PLLRE_BASE, 0);
+	val &= ~(0xf << 16);
+	car_writel(val | pll_re_out_div, PLLRE_BASE, 0);
+
+	tegra_clk_pll_resume(clks[TEGRA124_CLK_PLL_A], pll_a_rate);
+	tegra_clk_pll_resume(clks[TEGRA124_CLK_PLL_D], pll_d_rate);
+
+	tegra_clk_pll_out_resume(clks[TEGRA124_CLK_PLL_C_OUT1],
+					pll_c_out1_rate);
+	tegra_clk_pll_out_resume(clks[TEGRA124_CLK_PLL_M_OUT1],
+					pll_m_out1_rate);
+	tegra_clk_pll_out_resume(clks[TEGRA124_CLK_PLL_A_OUT0],
+					pll_a_out0_rate);
+
+	for (i = 0; i < BURST_POLICY_REG_SIZE; i++) {
+#if !IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC)
+		car_writel(cclklp_burst_policy_ctx[i], CCLKLP_BURST_POLICY, i);
+#endif
+		car_writel(sclk_burst_policy_ctx[i], SCLK_BURST_POLICY, i);
+	}
+
+	car_writel(sclk_ctx, SYSTEM_CLK_RATE, 0);
+
+	/* enable all clocks before configuring clock sources */
+	tegra_clk_periph_force_on(periph_clks_on, ARRAY_SIZE(periph_clks_on),
+				clk_base);
+
+	wmb();
+
+	for (i = 0; i < ARRAY_SIZE(periph_srcs); i++)
+		for (off = periph_srcs[i].start; off <= periph_srcs[i].end;
+			off += 4)
+			car_writel(*clk_rst_ctx++, off, 0);
+
+	tegra_clk_periph_resume(clk_base);
+
+	car_writel(spare_ctx, SPARE_REG, 0);
+	car_writel(misc_clk_enb_ctx, MISC_CLK_ENB, 0);
+	car_writel(clk_arm_ctx, CLK_MASK_ARM, 0);
+
+	for (i = 0; i < ARRAY_SIZE(pll_p_out_rate); i++)
+		tegra_clk_sync_state_pll_out(pll_p_clk(i));
+
+	tegra_clk_sync_state_pllcx(clks[TEGRA124_CLK_PLL_C2]);
+	tegra_clk_sync_state_pllcx(clks[TEGRA124_CLK_PLL_C3]);
+	tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_C]);
+
+#if !IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC)
+	parent = clk_get_parent(clks[TEGRA124_CLK_CCLK_G]);
+	if (parent != clks[TEGRA124_CLK_PLL_X])
+		tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_X]);
+#endif
+
+	tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_RE_VCO]);
+	tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_C4]);
+	tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_D2]);
+	tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_DP]);
+	tegra_clk_sync_state_pll(clks[TEGRA124_CLK_PLL_A]);
+	tegra_clk_sync_state_pll(clks[TEGRA124_CLK_PLL_D]);
+
+	tegra_clk_sync_state_pll_out(clks[TEGRA124_CLK_PLL_C_OUT1]);
+	tegra_clk_sync_state_pll_out(clks[TEGRA124_CLK_PLL_M_OUT1]);
+	tegra_clk_sync_state_pll_out(clks[TEGRA124_CLK_PLL_A_OUT0]);
+	tegra_clk_sync_state_iddq(clks[TEGRA124_CLK_PLL_M]);
+
+	tegra124_emc_timing_invalidate();
+
+	val = car_readl(PLLU_BASE, 0);
+	val &= ~PLLU_OVERRIDE; /* disable PLLU_OVERRIDE */
+	car_writel(val, PLLU_BASE, 0);
+
+	tegra124_utmi_param_configure(clk_base);
+
+	tegra_clk_plle_tegra114_resume(clks[TEGRA124_CLK_PLL_E]);
+
+#if !IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC)
+	/* CPU G clock restored after DFLL and PLLs */
+	for (i = 0; i < BURST_POLICY_REG_SIZE; i++)
+		car_writel(cclkg_burst_policy_ctx[i], CCLKG_BURST_POLICY, i);
+#endif
+}
+
+static struct syscore_ops tegra_clk_syscore_ops = {
+	.suspend = tegra124_clk_suspend,
+	.resume = tegra124_clk_resume,
+};
+#endif
+
 static const struct of_device_id pmc_match[] __initconst = {
 	{ .compatible = "nvidia,tegra124-pmc" },
 	{},
@@ -1747,6 +2021,11 @@ static void __init tegra124_clock_init(struct device_node *np)
 	tegra_clk_apply_init_table = tegra124_clock_apply_init_table;
 
 	tegra_cpu_car_ops = &tegra124_cpu_car_ops;
+
+#ifdef CONFIG_PM_SLEEP
+	if (tegra124_init_suspend_ctx())
+		register_syscore_ops(&tegra_clk_syscore_ops);
+#endif
 
 #ifdef CONFIG_ARCH_TEGRA_132_SOC
 	{
