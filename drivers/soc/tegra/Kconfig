@@ -1,0 +1,20 @@
+config TEGRA_DVFS
+	bool "Tegra DVFS support"
+	depends on ARCH_TEGRA
+	help
+	  This adds Tegra DVFS support. There could be several power
+	  rails involved and there might be rails dependency based
+	  on different SoCs, this config enable the generic DVFS
+	  library needed by each SoCs DVFS files.
+
+	  If in doubt, say N.
+
+config TEGRA_124_DVFS
+	bool "Tegra124 DVFS support"
+	depends on ARCH_TEGRA_124_SOC
+	select TEGRA_DVFS
+	help
+	  This enable Tegra124 DVFS functionality, it implements SoC
+	  specific initialization code to be invoked by probe function
+	  defined in generic Tegra DVFS driver, so while enabled it
+	  needs the config TEGRA_DVFS to be enabled as well.
