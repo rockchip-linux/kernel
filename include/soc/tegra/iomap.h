@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef __MACH_TEGRA_IOMAP_H
-#define __MACH_TEGRA_IOMAP_H
+#ifndef __SOC_TEGRA_IOMAP_H__
+#define __SOC_TEGRA_IOMAP_H__
 
 #include <asm/pgtable.h>
 #include <asm/sizes.h>

@@ -19,12 +19,12 @@
 
 #include <soc/tegra/flowctrl.h>
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/iomap.h>
 
 #include <asm/asm-offsets.h>
 #include <asm/cache.h>
 #include <asm/hardware/cache-l2x0.h>
 
-#include "iomap.h"
 #include "reset.h"
 #include "sleep.h"
 

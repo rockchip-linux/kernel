@@ -20,12 +20,12 @@
 #include <linux/io.h>
 
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/iomap.h>
 
 #include <asm/cacheflush.h>
 #include <asm/firmware.h>
 #include <asm/hardware/cache-l2x0.h>
 
-#include "iomap.h"
 #include "irammap.h"
 #include "reset.h"
 #include "sleep.h"

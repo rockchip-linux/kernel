@@ -36,6 +36,7 @@
 #include <linux/usb/tegra_usb_phy.h>
 
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/iomap.h>
 #include <soc/tegra/pmc.h>
 
 #include <asm/hardware/cache-l2x0.h>
@@ -48,7 +49,6 @@
 #include "board.h"
 #include "common.h"
 #include "cpuidle.h"
-#include "iomap.h"
 #include "irq.h"
 #include "pm.h"
 #include "reset.h"

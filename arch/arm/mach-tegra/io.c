@@ -24,11 +24,12 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 
+#include <soc/tegra/iomap.h>
+
 #include <asm/mach/map.h>
 #include <asm/page.h>
 
 #include "board.h"
-#include "iomap.h"
 
 static struct map_desc tegra_io_desc[] __initdata = {
 	{

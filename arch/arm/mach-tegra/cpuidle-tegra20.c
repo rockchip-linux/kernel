@@ -27,13 +27,13 @@
 #include <linux/module.h>
 
 #include <soc/tegra/flowctrl.h>
+#include <soc/tegra/iomap.h>
 
 #include <asm/cpuidle.h>
 #include <asm/proc-fns.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 
-#include "iomap.h"
 #include "irq.h"
 #include "pm.h"
 #include "sleep.h"

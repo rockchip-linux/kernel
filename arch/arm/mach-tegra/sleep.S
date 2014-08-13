@@ -25,13 +25,13 @@
 #include <linux/linkage.h>
 
 #include <soc/tegra/flowctrl.h>
+#include <soc/tegra/iomap.h>
 
 #include <asm/assembler.h>
 #include <asm/cache.h>
 #include <asm/cp15.h>
 #include <asm/hardware/cache-l2x0.h>
 
-#include "iomap.h"
 #include "sleep.h"
 
 #define CLK_RESET_CCLK_BURST	0x20

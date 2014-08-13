@@ -27,8 +27,9 @@
 #include <linux/of.h>
 #include <linux/syscore_ops.h>
 
+#include <soc/tegra/iomap.h>
+
 #include "board.h"
-#include "iomap.h"
 
 #define ICTLR_CPU_IEP_VFIQ	0x08
 #define ICTLR_CPU_IEP_FIR	0x14
