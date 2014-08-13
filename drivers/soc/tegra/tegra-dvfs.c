@@ -779,7 +779,7 @@ static void tegra_dvfs_resume(void)
 	list_for_each_entry(d, &tegra_core_rail->dvfs, reg_node) {
 		if (!__clk_is_enabled(d->clk) && d->cur_rate == 0)
 			continue;
-		d->cur_rate = clk_get_rate(d->clk);
+		d->cur_rate = __clk_get_rate(d->clk);
 		d->cur_millivolts = predict_millivolts(d, d->millivolts,
 							d->cur_rate);
 		if (d->cur_millivolts < 0)
@@ -1026,7 +1026,7 @@ static int tegra_config_dvfs(struct dvfs_rail *rail)
 
 	list_for_each_entry(d, &rail->dvfs, reg_node) {
 		if (__clk_is_enabled(d->clk) || __clk_is_prepared(d->clk)) {
-			d->cur_rate = clk_get_rate(d->clk);
+			d->cur_rate = __clk_get_rate(d->clk);
 			d->cur_millivolts = d->max_millivolts;
 
 			for (i = 0; i < d->num_freqs; i++)
@@ -1037,7 +1037,9 @@ static int tegra_config_dvfs(struct dvfs_rail *rail)
 				d->cur_millivolts = d->millivolts[i];
 		}
 
+		mutex_unlock(&dvfs_lock);
 		clk_notifier_register(d->clk, &tegra_dvfs_nb);
+		mutex_lock(&dvfs_lock);
 	}
 
 	return 0;
