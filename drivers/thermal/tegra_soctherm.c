@@ -45,12 +45,24 @@
 #define		SENSOR_CONFIG2_THERMA_SHIFT	16
 #define		SENSOR_CONFIG2_THERMB_SHIFT	0
 
+#define THERMCTL_LEVEL0_GROUP_CPU		0x0
+#define		THERMCTL_LEVEL0_GROUP_EN	BIT(8)
+#define		THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT 9
+#define		THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT 17
+
+#define THERMCTL_INTR_STATUS			0x84
+#define THERMCTL_INTR_EN			0x88
+
 #define SENSOR_PDIV				0x1c0
 #define		SENSOR_PDIV_T124		0x8888
 #define SENSOR_HOTSPOT_OFF			0x1c4
 #define		SENSOR_HOTSPOT_OFF_T124		0x00060600
 #define SENSOR_TEMP1				0x1c8
+#define		SENSOR_TEMP1_CPU_TEMP_SHIFT	16
+#define		SENSOR_TEMP1_GPU_TEMP_MASK	0xffff
 #define SENSOR_TEMP2				0x1cc
+#define		SENSOR_TEMP2_MEM_TEMP_SHIFT	16
+#define		SENSOR_TEMP2_PLLX_TEMP_MASK	0xffff
 
 #define FUSE_TSENSOR8_CALIB			0x180
 #define FUSE_SPARE_REALIGNMENT_REG_0		0x1fc
@@ -64,18 +76,22 @@ struct tegra_tsensor_configuration {
 };
 
 struct tegra_tsensor {
+	const char *name;
 	u32 base;
+	struct tegra_tsensor_configuration *config;
 	u32 calib_fuse_offset;
 	/* Correction values used to modify values read from calibration fuses */
 	s32 fuse_corr_alpha, fuse_corr_beta;
 };
 
 struct tegra_thermctl_zone {
+	struct tegra_soctherm *tegra;
+	int sensor;
 	void __iomem *temp_reg;
 	int temp_shift;
 };
 
-static const struct tegra_tsensor_configuration t124_tsensor_config = {
+static struct tegra_tsensor_configuration t124_tsensor_config = {
 	.tall = 16300,
 	.tsample = 120,
 	.tiddq_en = 1,
@@ -88,52 +104,74 @@ static const struct tegra_tsensor_configuration t124_tsensor_config = {
 static struct tegra_tsensor t124_tsensors[] = {
 	{
 		.base = 0xc0,
+		.name = "cpu0",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x098,
 		.fuse_corr_alpha = 1135400,
 		.fuse_corr_beta = -6266900,
 	},
 	{
 		.base = 0xe0,
+		.name = "cpu1",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x084,
 		.fuse_corr_alpha = 1122220,
 		.fuse_corr_beta = -5700700,
 	},
 	{
 		.base = 0x100,
+		.name = "cpu2",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x088,
 		.fuse_corr_alpha = 1127000,
 		.fuse_corr_beta = -6768200,
 	},
 	{
 		.base = 0x120,
+		.name = "cpu3",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x12c,
 		.fuse_corr_alpha = 1110900,
 		.fuse_corr_beta = -6232000,
 	},
 	{
 		.base = 0x140,
+		.name = "mem0",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x158,
 		.fuse_corr_alpha = 1122300,
 		.fuse_corr_beta = -5936400,
 	},
 	{
 		.base = 0x160,
+		.name = "mem1",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x15c,
 		.fuse_corr_alpha = 1145700,
 		.fuse_corr_beta = -7124600,
 	},
 	{
 		.base = 0x180,
+		.name = "gpu",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x154,
 		.fuse_corr_alpha = 1120100,
 		.fuse_corr_beta = -6000500,
 	},
 	{
 		.base = 0x1a0,
+		.name = "pllx",
+		.config = &t124_tsensor_config,
 		.calib_fuse_offset = 0x160,
 		.fuse_corr_alpha = 1106500,
 		.fuse_corr_beta = -6729300,
 	},
+	{ .name = NULL },
+};
+
+static int t124_thermctl_shifts[] = {
+/*      CPU MEM GPU PLLX */
+	8,  24, 16, 0
 };
 
 struct tegra_soctherm {
@@ -199,8 +237,8 @@ static int calculate_tsensor_calibration(
 	delta_sens = actual_tsensor_ft - actual_tsensor_cp;
 	delta_temp = shared.actual_temp_ft - shared.actual_temp_cp;
 
-	mult = t124_tsensor_config.pdiv * t124_tsensor_config.tsample_ate;
-	div = t124_tsensor_config.tsample * t124_tsensor_config.pdiv_ate;
+	mult = sensor->config->pdiv * sensor->config->tsample_ate;
+	div = sensor->config->tsample * sensor->config->pdiv_ate;
 
 	therma = div_s64((s64) delta_temp * (1LL << 13) * mult,
 		(s64) delta_sens * div);
@@ -234,14 +272,13 @@ static int enable_tsensor(struct tegra_soctherm *tegra,
 		return err;
 
 	val = 0;
-	val |= t124_tsensor_config.tall << SENSOR_CONFIG0_TALL_SHIFT;
+	val |= sensor->config->tall << SENSOR_CONFIG0_TALL_SHIFT;
 	writel(val, base + SENSOR_CONFIG0);
 
 	val = 0;
-	val |= (t124_tsensor_config.tsample - 1) <<
-		SENSOR_CONFIG1_TSAMPLE_SHIFT;
-	val |= t124_tsensor_config.tiddq_en << SENSOR_CONFIG1_TIDDQ_EN_SHIFT;
-	val |= t124_tsensor_config.ten_count << SENSOR_CONFIG1_TEN_COUNT_SHIFT;
+	val |= (sensor->config->tsample - 1) << SENSOR_CONFIG1_TSAMPLE_SHIFT;
+	val |= sensor->config->tiddq_en << SENSOR_CONFIG1_TIDDQ_EN_SHIFT;
+	val |= sensor->config->ten_count << SENSOR_CONFIG1_TEN_COUNT_SHIFT;
 	val |= SENSOR_CONFIG1_TEMP_ENABLE;
 	writel(val, base + SENSOR_CONFIG1);
 
@@ -274,6 +311,53 @@ static int tegra_thermctl_get_temp(void *data, long *out_temp)
 	return 0;
 }
 
+static int tegra_thermctl_set_trips(void *data, long low, long high)
+{
+	struct tegra_thermctl_zone *zone = data;
+	u32 val;
+
+	low /= 1000;
+	high /= 1000;
+
+	low = clamp_val(low, -127, 127);
+	high = clamp_val(high, -127, 127);
+
+	val = 0;
+	val |= ((u8) low) << THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT;
+	val |= ((u8) high) << THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT;
+	val |= THERMCTL_LEVEL0_GROUP_EN;
+
+	writel(val, zone->tegra->regs +
+		THERMCTL_LEVEL0_GROUP_CPU + zone->sensor * 4);
+
+	return 0;
+}
+
+static irqreturn_t soctherm_isr(int irq, void *dev_id)
+{
+	struct tegra_thermctl_zone *zone = dev_id;
+	u32 val;
+	u32 intr_mask = 0x03 << t124_thermctl_shifts[zone->sensor];
+
+	val = readl(zone->tegra->regs + THERMCTL_INTR_STATUS);
+
+	if ((val & intr_mask) == 0)
+		return IRQ_NONE;
+
+	writel(val & intr_mask, zone->tegra->regs + THERMCTL_INTR_STATUS);
+
+	return IRQ_WAKE_THREAD;
+}
+
+static irqreturn_t soctherm_isr_thread(int irq, void *dev_id)
+{
+	struct tegra_thermctl_zone *zone = dev_id;
+
+	thermal_zone_device_update(zone->tegra->thermctl_tzs[zone->sensor]);
+
+	return IRQ_HANDLED;
+}
+
 static struct of_device_id tegra_soctherm_of_match[] = {
 	{ .compatible = "nvidia,tegra124-soctherm" },
 	{ },
@@ -295,6 +379,7 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 	struct tsensor_shared_calibration shared_calib;
 	int i;
 	int err = 0;
+	int irq;
 
 	struct tegra_tsensor *tsensors = t124_tsensors;
 
@@ -327,6 +412,12 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 		return PTR_ERR(tegra->clock_soctherm);
 	}
 
+	irq = platform_get_irq(pdev, 0);
+	if (irq <= 0) {
+		dev_err(&pdev->dev, "can't get interrupt\n");
+		return -EINVAL;
+	}
+
 	reset_control_assert(tegra->reset);
 
 	err = clk_prepare_enable(tegra->clock_soctherm);
@@ -350,7 +441,7 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 	if (err)
 		goto disable_clocks;
 
-	for (i = 0; i < ARRAY_SIZE(t124_tsensors); ++i) {
+	for (i = 0; tsensors[i].name; ++i) {
 		err = enable_tsensor(tegra, tsensors + i, shared_calib);
 		if (err)
 			goto disable_clocks;
@@ -369,11 +460,14 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 			goto unregister_tzs;
 		}
 
+		zone->sensor = i;
+		zone->tegra = tegra;
 		zone->temp_reg = tegra->regs + thermctl_temp_offsets[i];
 		zone->temp_shift = thermctl_temp_shifts[i];
 
 		tz = thermal_zone_of_sensor_register(
-			&pdev->dev, i, zone, tegra_thermctl_get_temp, NULL);
+			&pdev->dev, i, zone, tegra_thermctl_get_temp, NULL,
+			tegra_thermctl_set_trips);
 		if (IS_ERR(tz)) {
 			err = PTR_ERR(tz);
 			dev_err(&pdev->dev, "failed to register sensor: %d\n",
@@ -383,6 +477,19 @@ static int tegra_soctherm_probe(struct platform_device *pdev)
 		}
 
 		tegra->thermctl_tzs[i] = tz;
+
+		err = devm_request_threaded_irq(&pdev->dev, irq, soctherm_isr,
+						soctherm_isr_thread,
+						IRQF_SHARED, "tegra_soctherm",
+						zone);
+		if (err) {
+			dev_err(&pdev->dev, "unable to register isr: %d\n",
+				err);
+			goto unregister_tzs;
+		}
+
+		writel(0x3 << t124_thermctl_shifts[i],
+		       tegra->regs + THERMCTL_INTR_EN);
 	}
 
 	return 0;
@@ -420,6 +527,7 @@ static struct platform_driver tegra_soctherm_driver = {
 	.remove = tegra_soctherm_remove,
 	.driver = {
 		.name = "tegra_soctherm",
+		.owner = THIS_MODULE,
 		.of_match_table = tegra_soctherm_of_match,
 	},
 };
