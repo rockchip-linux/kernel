@@ -176,6 +176,9 @@ struct elan_tp_data {
 	u16			max_baseline;
 	bool			baseline_ready;
 
+	async_cookie_t		async_init_cookie;
+	bool			initialized;
+
 	bool			lid_handler_registered;
 	struct input_handler	lid_handler;
 	/* lid state */
@@ -2020,7 +2023,7 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	device_init_wakeup(&client->dev, true);
 	device_set_wakeup_enable(&client->dev, false);
 	data->active = true;
-	i2c_set_clientdata(client, data);
+	data->initialized = true;
 
 	return;
 
@@ -2030,7 +2033,6 @@ err_irq:
 	input_unregister_device(data->input);
 err_input_dev:
 err_init:
-	kfree(data);
 	dev_err(&client->dev, "Elan Trackpad probe fail!\n");
 }
 
@@ -2065,8 +2067,10 @@ static int elan_probe(struct i2c_client *client,
 	init_completion(&data->fw_completion);
 	mutex_init(&data->sysfs_mutex);
 
-	/* Do slower init steps asynchonously. */
-	async_schedule(elan_async_init, data);
+	i2c_set_clientdata(client, data);
+
+	/* Do slower init steps asynchronously. */
+	data->async_init_cookie = async_schedule(elan_async_init, data);
 
 	return 0;
 }
@@ -2075,11 +2079,24 @@ static int elan_remove(struct i2c_client *client)
 {
 	struct elan_tp_data *data = i2c_get_clientdata(client);
 
-	sysfs_remove_groups(&client->dev.kobj, elan_sysfs_groups);
-	free_irq(data->irq, data);
-	input_unregister_device(data->input);
-	lid_event_unregister_handler(data);
+	/*
+	 * First let's make sure our asynchronous probe has completed.
+	 * Note that async_synchronize_cookie ensures that calls
+	 * happened _prior_ to the one for which a cookie was given
+	 * out have completed, but we need to make sure that _our_
+	 * call is done.
+	 */
+	async_synchronize_cookie(data->async_init_cookie + 1);
+
+	if (data->initialized) {
+		lid_event_unregister_handler(data);
+		sysfs_remove_groups(&client->dev.kobj, &elan_sysfs_groups);
+		free_irq(data->irq, data);
+		input_unregister_device(data->input);
+	}
+
 	kfree(data);
+
 	return 0;
 }
 
