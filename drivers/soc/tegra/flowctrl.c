@@ -87,6 +87,7 @@ void flowctrl_cpu_suspend_enter(unsigned int cpuid)
 	case TEGRA30:
 	case TEGRA114:
 	case TEGRA124:
+	case TEGRA132:
 		/* clear wfe bitmap */
 		reg &= ~TEGRA30_FLOW_CTRL_CSR_WFE_BITMAP;
 		/* clear wfi bitmap */
@@ -126,6 +127,7 @@ void flowctrl_cpu_suspend_exit(unsigned int cpuid)
 	case TEGRA30:
 	case TEGRA114:
 	case TEGRA124:
+	case TEGRA132:
 		/* clear wfe bitmap */
 		reg &= ~TEGRA30_FLOW_CTRL_CSR_WFE_BITMAP;
 		/* clear wfi bitmap */
@@ -139,6 +141,7 @@ void flowctrl_cpu_suspend_exit(unsigned int cpuid)
 }
 
 static const struct of_device_id matches[] __initconst = {
+	{ .compatible = "nvidia,tegra132-flowctrl" },
 	{ .compatible = "nvidia,tegra124-flowctrl" },
 	{ .compatible = "nvidia,tegra114-flowctrl" },
 	{ .compatible = "nvidia,tegra30-flowctrl" },
