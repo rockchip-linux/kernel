@@ -395,7 +395,7 @@
 		reset-names = "fuse";
 	};
 
-	ccplex-clock@70040000 {
+	ccplex_clock: ccplex-clock@70040000 {
 		compatible = "nvidia,tegra132-ccplex-clk";
 		reg = <0x0 0x70040000 0x1000>;
 		status = "okay";
@@ -642,6 +642,14 @@
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x80000008>;
 			power-states = <&power_states>;
+
+			clocks = <&ccplex_clock TEGRA132_CCPLEX_CCLK_G>,
+				 <&ccplex_clock TEGRA132_PLL_X>,
+				 <&tegra_car TEGRA124_CLK_PLL_P>,
+				 <&dfll>;
+			clock-names = "cpu_g", "pll_x", "pll_p", "dfll";
+			/* FIXME: what's the actual transition time? */
+			clock-latency = <300000>;
 		};
 
 		cpu@1 {
