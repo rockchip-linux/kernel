@@ -25,12 +25,16 @@
 #include <asm/cpu_ops.h>
 #include <asm/cputype.h>
 #include <asm/smp_plat.h>
+#include <asm/smp_spin_table.h>
 
 extern void secondary_holding_pen(void);
 volatile unsigned long secondary_holding_pen_release = INVALID_HWID;
 
 static phys_addr_t cpu_release_addr[NR_CPUS];
 
+#ifdef CONFIG_HOTPLUG_CPU
+static struct spin_table_soc_ops *soc_ops;
+#endif
 /*
  * Write secondary_holding_pen_release in a way that is guaranteed to be
  * visible to all observers, irrespective of whether they're taking part
@@ -93,6 +97,10 @@ static int smp_spin_table_cpu_prepare(unsigned int cpu)
 
 static int smp_spin_table_cpu_boot(unsigned int cpu)
 {
+#ifdef CONFIG_HOTPLUG_CPU
+	if (soc_ops && soc_ops->cpu_on)
+		soc_ops->cpu_on(cpu);
+#endif
 	/*
 	 * Update the pen release flag.
 	 */
@@ -106,9 +114,36 @@ static int smp_spin_table_cpu_boot(unsigned int cpu)
 	return 0;
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+static int smp_spin_table_cpu_disable(unsigned int cpu)
+{
+	/* Fail early if we don't have CPU_OFF support */
+	if (!soc_ops || !soc_ops->cpu_off)
+		return -EOPNOTSUPP;
+	return 0;
+}
+
+static void smp_spin_table_cpu_die(unsigned int cpu)
+{
+	soc_ops->cpu_off(cpu);
+}
+#endif
+
 const struct cpu_operations smp_spin_table_ops = {
 	.name		= "spin-table",
 	.cpu_init	= smp_spin_table_cpu_init,
 	.cpu_prepare	= smp_spin_table_cpu_prepare,
 	.cpu_boot	= smp_spin_table_cpu_boot,
+#ifdef CONFIG_HOTPLUG_CPU
+	.cpu_disable	= smp_spin_table_cpu_disable,
+	.cpu_die	= smp_spin_table_cpu_die,
+#endif
 };
+
+#ifdef CONFIG_HOTPLUG_CPU
+void smp_spin_table_set_soc_ops(struct spin_table_soc_ops *ops)
+{
+	if (ops)
+		soc_ops = ops;
+}
+#endif
