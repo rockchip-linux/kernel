@@ -114,7 +114,10 @@
 #define UTMIPLL_HW_PWRDN_CFG0_IDDQ_SWCTL	BIT(0)
 
 /* Tegra CPU clock and reset control regs */
+#define TEGRA_CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR	0x344
 #define CLK_RST_CONTROLLER_CPU_CMPLX_STATUS	0x470
+
+#define CPU_RESET(cpu)	(0x1111ul << (cpu))
 
 #ifdef CONFIG_PM_SLEEP
 static struct cpu_clk_suspend_context {
@@ -1324,6 +1327,13 @@ static void tegra124_wait_cpu_in_reset(u32 cpu)
 	} while (!(reg & (1 << cpu)));  /* check CPU been reset or not */
 }
 
+static void tegra124_cpu_out_of_reset(u32 cpu)
+{
+	writel(CPU_RESET(cpu),
+	       clk_base + TEGRA_CLK_RST_CONTROLLER_RST_CPU_CMPLX_CLR);
+	wmb();
+}
+
 static void tegra124_disable_cpu_clock(u32 cpu)
 {
 	/* flow controller would take care in the power sequence. */
@@ -1347,6 +1357,7 @@ static void tegra124_cpu_clock_resume(void)
 
 static struct tegra_cpu_car_ops tegra124_cpu_car_ops = {
 	.wait_for_reset	= tegra124_wait_cpu_in_reset,
+	.out_of_reset	= tegra124_cpu_out_of_reset,
 	.disable_clock	= tegra124_disable_cpu_clock,
 #ifdef CONFIG_PM_SLEEP
 	.suspend	= tegra124_cpu_clock_suspend,
