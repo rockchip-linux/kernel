@@ -14,14 +14,66 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/clk/tegra.h>
 #include <linux/init.h>
 #include <linux/io.h>
 
 #include <soc/tegra/common.h>
+#include <soc/tegra/flowctrl.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
+#include <soc/tegra/pmc.h>
+
+#include <asm/smp_spin_table.h>
 
 #define NS_RST_VEC_WR_DIS	0x2
+#define TEGRA132_PM_CORE_C7	0x3
+
+#ifdef CONFIG_HOTPLUG_CPU
+static int tegra132_cpu_off(unsigned long cpu)
+{
+	unsigned long pmstate = TEGRA132_PM_CORE_C7;
+
+	flowctrl_cpu_suspend_enter(cpu);
+	flowctrl_write_cpu_halt(cpu, FLOW_CTRL_WAITEVENT);
+
+	do {
+		asm volatile(
+		"       isb\n"
+		"       msr actlr_el1, %0\n"
+		"       wfi\n"
+		:
+		: "r" (pmstate));
+	} while (0);
+
+	return 0;
+}
+
+static int tegra132_cpu_on(unsigned long cpu)
+{
+	int ret;
+
+	if (!tegra_pmc_cpu_is_powered(cpu)) {
+		ret = tegra_pmc_cpu_power_on(cpu);
+		if (ret)
+			return ret;
+	}
+	flowctrl_write_cpu_halt(cpu, 0);
+	tegra_cpu_out_of_reset(cpu);
+
+	return 0;
+}
+
+static struct spin_table_soc_ops tegra_soc_ops = {
+	.cpu_off = tegra132_cpu_off,
+	.cpu_on = tegra132_cpu_on,
+};
+
+static void tegra132_cpu_hotplug_init(void)
+{
+	smp_spin_table_set_soc_ops(&tegra_soc_ops);
+}
+#endif
 
 static int __init tegra132_pm_init(void)
 {
@@ -49,6 +101,10 @@ static int __init tegra132_pm_init(void)
 
 	iounmap(sb_ctrl);
 	iounmap(evp_cpu_reset);
+
+#ifdef CONFIG_HOTPLUG_CPU
+	tegra132_cpu_hotplug_init();
+#endif
 
 out:
 	return 0;
