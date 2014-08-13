@@ -180,6 +180,7 @@ static struct platform_driver tegra124_cpufreq_platdrv = {
 };
 
 static const struct of_device_id soc_of_matches[] = {
+	{ .compatible = "nvidia,tegra132", },
 	{ .compatible = "nvidia,tegra124", },
 	{}
 };
