@@ -40,6 +40,11 @@
 		#reset-cells = <1>;
 	};
 
+	flow-controller@60007000 {
+		compatible = "nvidia,tegra132-flowctrl";
+		reg = <0x0 0x60007000 0x1000>;
+	};
+
 	ahb: ahb {
 		compatible = "nvidia,tegra114-ahb", "nvidia,tegra30-ahb";
 		reg = <0x0 0x6000c004 0x14c>;
