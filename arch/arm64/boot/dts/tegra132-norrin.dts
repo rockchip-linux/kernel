@@ -725,6 +725,12 @@
 		};
 	};
 
+	dfll@70040084 {
+		vdd-cpu-supply = <&vdd_cpu>;
+		nvidia,i2c-fs-rate = <400000>;
+		status = "okay";
+	};
+
 	/* USB A connector */
 	usb@7d000000 {
 		status = "okay";
