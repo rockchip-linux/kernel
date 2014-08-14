@@ -1841,15 +1841,10 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	int report_len;
 	struct device *dev = &data->client->dev;
 
-	if (!data) {
-		dev_err(dev, "tp data structure is null");
-		goto elan_isr_end;
-	}
-
 	/*
-	Only in I2C protocol, when IAP all page wrote finish, driver will
-	get one INT signal from high to low, and driver must get 0000
-	to confirm IAP is finished.
+	 * When device is connected to i2c bus, when all IAP page writes
+	 * complete, the driver will receive interrupt and must read
+	 * 0000 to confirm that IAP is finished.
 	*/
 	if (data->wait_signal_from_updatefw) {
 		complete(&data->fw_completion);
@@ -1875,6 +1870,7 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 		dev_err(dev, "wrong packet format.");
 		goto elan_isr_end;
 	}
+
 	elan_report_absolute(data, raw);
 
 elan_isr_end:
@@ -1883,26 +1879,15 @@ elan_isr_end:
 
 /*
  ******************************************************************
- * Elan initial functions
+ * Elan initialization functions
  ******************************************************************
  */
-static int elan_input_dev_create(struct elan_tp_data *data)
+static int elan_setup_input_device(struct elan_tp_data *data)
 {
 	struct i2c_client *client = data->client;
-	struct input_dev *input;
+	struct input_dev *input = data->input;
 	unsigned int x_res, y_res;
-	int ret, max_width, min_width;
-
-	data->input = input = input_allocate_device();
-	if (!input)
-		return -ENOMEM;
-	input->name = "Elan Touchpad";
-	input->id.bustype = BUS_I2C;
-	input->dev.parent = &data->client->dev;
-
-	__set_bit(EV_ABS, input->evbit);
-	__set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
-	__set_bit(BTN_LEFT, input->keybit);
+	int max_width, min_width;
 
 	data->product_id = elan_get_product_id(data);
 	data->fw_version = elan_get_fw_version(data);
@@ -1934,6 +1919,11 @@ static int elan_input_dev_create(struct elan_tp_data *data)
 		data->width_x, data->width_y,
 		x_res, y_res);
 
+	__set_bit(EV_ABS, input->evbit);
+	__set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
+	__set_bit(BTN_LEFT, input->keybit);
+
+	/* Set up ST parameters */
 	input_set_abs_params(input, ABS_X, 0, data->max_x, 0, 0);
 	input_set_abs_params(input, ABS_Y, 0, data->max_y, 0, 0);
 	input_abs_set_res(input, ABS_X, x_res);
@@ -1941,13 +1931,7 @@ static int elan_input_dev_create(struct elan_tp_data *data)
 	input_set_abs_params(input, ABS_PRESSURE, 0, ETP_MAX_PRESSURE, 0, 0);
 	input_set_abs_params(input, ABS_TOOL_WIDTH, 0, ETP_FINGER_WIDTH, 0, 0);
 
-	/* handle pointer emulation and unused slots in core */
-	ret = input_mt_init_slots(input, ETP_MAX_FINGERS,
-				  INPUT_MT_POINTER | INPUT_MT_DROP_UNUSED);
-	if (ret) {
-		dev_err(&client->dev, "allocate MT slots failed, %d\n", ret);
-		goto err_free_device;
-	}
+	/* And MT parameters */
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, data->max_x, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0, data->max_y, 0, 0);
 	input_abs_set_res(input, ABS_MT_POSITION_X, x_res);
@@ -1959,18 +1943,7 @@ static int elan_input_dev_create(struct elan_tp_data *data)
 	input_set_abs_params(input, ABS_MT_TOUCH_MINOR, 0,
 			     ETP_FINGER_WIDTH * min_width, 0, 0);
 
-	/* Register the device in input subsystem */
-	ret = input_register_device(input);
-	if (ret) {
-		dev_err(&client->dev, "input_dev register failed, %d\n", ret);
-		goto err_free_device;
-	}
-
 	return 0;
-
-err_free_device:
-	input_free_device(input);
-	return ret;
 }
 
 static u8 elan_check_adapter_functionality(struct i2c_client *client)
@@ -1992,17 +1965,24 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	struct elan_tp_data *data = arg;
 	struct i2c_client *client = data->client;
 	unsigned long irqflags;
-	int ret;
+	int error;
 
-	/* initial elan touch pad */
-	ret = elan_initialize(data);
-	if (ret < 0)
-		goto err_init;
+	/* Initialize the touchpad. */
+	error = elan_initialize(data);
+	if (error < 0)
+		goto err_out;
 
-	/* create input device */
-	ret = elan_input_dev_create(data);
-	if (ret < 0)
-		goto err_input_dev;
+	/* Read touchpad parameters and set up input device properties. */
+	error = elan_setup_input_device(data);
+	if (error)
+		goto err_out;
+
+	error = input_register_device(data->input);
+	if (error) {
+		dev_err(&client->dev, "failed to register input device: %d\n",
+			error);
+		goto err_out;
+	}
 
 	/*
 	 * Systems using device tree should set up interrupt via DTS,
@@ -2010,51 +1990,52 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	 */
 	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
 
-	ret = request_threaded_irq(client->irq, NULL, elan_isr,
-				   irqflags | IRQF_ONESHOT,
-				   client->name, data);
-	if (ret < 0) {
-		dev_err(&client->dev, "cannot register irq=%d\n",
-				client->irq);
-		goto err_irq;
+	error = devm_request_threaded_irq(&client->dev, client->irq,
+					  NULL, elan_isr,
+					  irqflags | IRQF_ONESHOT,
+					  client->name, data);
+	if (error) {
+		dev_err(&client->dev, "cannot register irq=%d\n", client->irq);
+		goto err_unregister_input;
 	}
 
-	ret = sysfs_create_groups(&client->dev.kobj, elan_sysfs_groups);
-	if (ret < 0) {
-		dev_err(&client->dev, "cannot register dev attribute %d", ret);
-		goto err_create_group;
+	data->active = true;
+
+	error = sysfs_create_groups(&client->dev.kobj, elan_sysfs_groups);
+	if (error) {
+		dev_err(&client->dev, "failed to create sysfs attributes: %d\n",
+			error);
+		goto err_free_irq;
 	}
 
 	/* register lid event handler */
 	lid_event_register_handler(data);
 
-	/*
-	 * Systems using device tree should set up wakeup via DTS,
-	 * the rest will configure device as wakeup source by default.
-	 */
-	if (!client->dev.of_node)
-		device_init_wakeup(&client->dev, true);
-
-	data->active = true;
 	data->initialized = true;
 
 	return;
 
-err_create_group:
-	free_irq(data->irq, data);
-err_irq:
+err_free_irq:
+	devm_free_irq(&client->dev, client->irq, data);
+err_unregister_input:
+	/*
+	 * Even though input device is managed we want to explicitly
+	 * unregister it here so we do not end up with input device
+	 * but without corresponding sysfs attributes.
+	 */
 	input_unregister_device(data->input);
-err_input_dev:
-err_init:
-	dev_err(&client->dev, "Elan Trackpad probe fail!\n");
+err_out:
+	dev_err(&client->dev, "Elan Trackpad probe failed: %d\n", error);
 }
 
 static int elan_probe(struct i2c_client *client,
 		      const struct i2c_device_id *dev_id)
 {
-	struct elan_tp_data *data;
-	u8 adapter_func;
 	struct device *dev = &client->dev;
+	struct elan_tp_data *data;
+	struct input_dev *input;
+	int error;
+	u8 adapter_func;
 
 	adapter_func = elan_check_adapter_functionality(client);
 	if (adapter_func == ELAN_ADAPTER_FUNC_NONE) {
@@ -2062,23 +2043,47 @@ static int elan_probe(struct i2c_client *client,
 		return -EIO;
 	}
 
-	data = kzalloc(sizeof(struct elan_tp_data), GFP_KERNEL);
+	data = devm_kzalloc(&client->dev, sizeof(struct elan_tp_data),
+			    GFP_KERNEL);
 	if (!data) {
 		dev_err(dev, "allocate TP data structure fail.\n");
 		return -ENOMEM;
 	}
 
 	/* check protocol type */
-	if (adapter_func == ELAN_ADAPTER_FUNC_SMBUS)
-		data->smbus = true;
-	else
-		data->smbus = false;
+	data->smbus = adapter_func == ELAN_ADAPTER_FUNC_SMBUS;
 	data->client = client;
-	data->irq = client->irq;
 	data->wait_signal_from_updatefw = false;
 	data->lid_status = LID_UNKNOWN;
 	init_completion(&data->fw_completion);
 	mutex_init(&data->sysfs_mutex);
+
+	data->input = input = devm_input_allocate_device(&client->dev);
+	if (!input)
+		return -ENOMEM;
+
+	input->name = "Elan Touchpad";
+	input->id.bustype = BUS_I2C;
+	input->dev.parent = &data->client->dev;
+
+	error = input_mt_init_slots(input, ETP_MAX_FINGERS,
+				    INPUT_MT_POINTER | INPUT_MT_DROP_UNUSED);
+	if (error) {
+		dev_err(&client->dev, "allocate MT slots failed, %d\n", error);
+		return error;
+	}
+
+	/*
+	 * The rest of input device's parameters will be set later,
+	 * in asynchronous portion of probe.
+	 */
+
+	/*
+	 * Systems using device tree should set up wakeup via DTS,
+	 * the rest will configure device as wakeup source by default.
+	 */
+	if (!client->dev.of_node)
+		device_init_wakeup(&client->dev, true);
 
 	i2c_set_clientdata(client, data);
 
@@ -2104,12 +2109,9 @@ static int elan_remove(struct i2c_client *client)
 	if (data->initialized) {
 		lid_event_unregister_handler(data);
 		sysfs_remove_groups(&client->dev.kobj, elan_sysfs_groups);
-		free_irq(data->irq, data);
-		input_unregister_device(data->input);
 	}
 
-	kfree(data);
-
+	/* The rest of resources are managed ones. */
 	return 0;
 }
 
