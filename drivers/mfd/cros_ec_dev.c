@@ -19,6 +19,7 @@
 
 #define pr_fmt(fmt) "cros_ec_dev: " fmt
 
+#include <linux/compat.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
@@ -115,7 +116,7 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	long ret;
 	struct cros_ec_command s_cmd;
 	uint8_t *user_indata;
-	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE]; /* FIXME: crosbug.com/p/20820 */
+	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE]; /* FIXME: crbug.com/399057 */
 
 	if (copy_from_user(&s_cmd, argp, sizeof(s_cmd)))
 		return -EFAULT;
@@ -183,12 +184,103 @@ static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 	return -ENOTTY;
 }
 
-/* FIXME: Handle 32-bit apps on 64-bit kernels */
+#ifdef CONFIG_COMPAT
+struct compat_cros_ec_command {
+	uint32_t version;
+	uint32_t command;
+	compat_uptr_t outdata;
+	uint32_t outsize;
+	compat_uptr_t indata;
+	uint32_t insize;
+	uint32_t result;
+};
+
+struct compat_cros_ec_readmem {
+	uint32_t offset;
+	uint32_t bytes;
+	compat_uptr_t buffer;
+};
+
+#define CROS_EC_DEV_COMPAT_IOCXCMD  _IOWR(':', 0, struct compat_cros_ec_command)
+#define CROS_EC_DEV_COMPAT_IOCRDMEM _IOWR(':', 1, struct compat_cros_ec_readmem)
+
+static long ec_device_compat_ioctl_readmem(void __user *argp)
+{
+	struct compat_cros_ec_readmem compat_s_mem;
+	char buf[EC_MEMMAP_SIZE];
+	long num;
+
+	/* Not every platform supports direct reads */
+	if (!ec->cmd_readmem)
+		return -ENOTTY;
+
+	if (copy_from_user(&compat_s_mem, argp, sizeof(compat_s_mem)))
+		return -EFAULT;
+
+	num = ec->cmd_readmem(ec, compat_s_mem.offset, compat_s_mem.bytes, buf);
+	if (num <= 0)
+		return num;
+
+	if (copy_to_user(compat_ptr(compat_s_mem.buffer), buf, num))
+		return -EFAULT;
+	return num;
+}
+
+static long ec_device_compat_ioctl_xcmd(void __user *argp)
+{
+	long ret;
+	struct cros_ec_command s_cmd;
+	struct compat_cros_ec_command compat_s_cmd;
+	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE]; /* FIXME: crbug.com/399057 */
+
+	if (copy_from_user(&compat_s_cmd, argp, sizeof(compat_s_cmd)))
+		return -EFAULT;
+
+	s_cmd.version = compat_s_cmd.version;
+	s_cmd.command = compat_s_cmd.command;
+	s_cmd.insize = compat_s_cmd.insize;
+	s_cmd.outsize = compat_s_cmd.outsize;
+
+	if (s_cmd.outsize &&
+	    copy_from_user(&buf, compat_ptr(compat_s_cmd.outdata), sizeof(buf)))
+		return -EFAULT;
+
+	s_cmd.indata = buf;
+	s_cmd.outdata = buf;
+	ret = cros_ec_cmd_xfer(ec, &s_cmd);
+
+	compat_s_cmd.result = s_cmd.result;
+
+	/* Only copy data to userland if data was received. */
+	if (ret > 0 && s_cmd.insize) {
+		unsigned size = ret;
+		size = min(size, s_cmd.insize);
+		if (copy_to_user(compat_ptr(compat_s_cmd.indata), buf, size))
+			return -EFAULT;
+	}
+
+	if (copy_to_user(argp, &compat_s_cmd, sizeof(compat_s_cmd)))
+		return -EFAULT;
+
+	return ret;
+}
+
 static long ec_device_compat_ioctl(struct file *filp, unsigned int cmd,
 				   unsigned long arg)
 {
+	void __user
+	*argp = (void __user *)arg;
+	switch (cmd) {
+	case CROS_EC_DEV_COMPAT_IOCXCMD:
+		return ec_device_compat_ioctl_xcmd(argp);
+		break;
+	case CROS_EC_DEV_COMPAT_IOCRDMEM:
+		return ec_device_compat_ioctl_readmem(argp);
+		break;
+	}
 	return -ENOTTY;
 }
+#endif /* CONFIG_COMPAT */
 
 /* Module initialization */
 static const struct file_operations fops = {
@@ -196,7 +288,9 @@ static const struct file_operations fops = {
 	.release = ec_device_release,
 	.read = ec_device_read,
 	.unlocked_ioctl = ec_device_ioctl,
+#ifdef CONFIG_COMPAT
 	.compat_ioctl = ec_device_compat_ioctl,
+#endif
 };
 
 static int ec_device_probe(struct platform_device *pdev)
