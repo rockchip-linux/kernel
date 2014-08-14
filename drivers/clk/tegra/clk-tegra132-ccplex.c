@@ -40,6 +40,9 @@
 #define PLL_BASE_LOCK BIT(27)
 #define PLL_MISC_LOCK_ENABLE 18
 
+#define RST_DFLL_DVCO		0x80
+#define DVFS_DFLL_RESET_SHIFT	0
+
 static struct div_nmp pllxc_nmp = {
 	.divm_shift = 0,
 	.divm_width = 8,
@@ -120,6 +123,40 @@ static const char *cclk_g_parents[] = { "clk_m", "unused", "unused", "pll_ref",
 					"pll_x", "unused", "unused", "unused",
 					"unused", "unused", "unused",
 					"dfllCPU_out", };
+
+
+/**
+ * tegra132_clock_assert_dfll_dvco_reset - assert the DFLL's DVCO reset
+ *
+ * Assert the reset line of the DFLL's DVCO.  No return value.
+ */
+void tegra132_clock_assert_dfll_dvco_reset(void)
+{
+	u32 v;
+
+	v = readl_relaxed(clk_base + RST_DFLL_DVCO);
+	v |= (1 << DVFS_DFLL_RESET_SHIFT);
+	writel_relaxed(v, clk_base + RST_DFLL_DVCO);
+	readl_relaxed(clk_base + RST_DFLL_DVCO);
+}
+EXPORT_SYMBOL(tegra132_clock_assert_dfll_dvco_reset);
+
+/**
+ * tegra132_clock_deassert_dfll_dvco_reset - deassert the DFLL's DVCO reset
+ *
+ * Deassert the reset line of the DFLL's DVCO, allowing the DVCO to
+ * operate.  No return value.
+ */
+void tegra132_clock_deassert_dfll_dvco_reset(void)
+{
+	u32 v;
+
+	v = readl_relaxed(clk_base + RST_DFLL_DVCO);
+	v &= ~(1 << DVFS_DFLL_RESET_SHIFT);
+	writel_relaxed(v, clk_base + RST_DFLL_DVCO);
+	readl_relaxed(clk_base + RST_DFLL_DVCO);
+}
+EXPORT_SYMBOL(tegra132_clock_deassert_dfll_dvco_reset);
 
 static void __init tegra132_ccplex(struct device_node *np)
 {
