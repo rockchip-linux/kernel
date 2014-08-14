@@ -22,6 +22,32 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
+/**
+ * Request format for protocol v3
+ * byte 0	0xda (EC_COMMAND_PROTOCOL_3)
+ * byte 1-8	struct ec_host_request
+ * byte 10-	response data
+ */
+struct ec_host_request_i2c {
+	/* Always 0xda to backward compatible with v2 struct */
+	uint8_t  command_protocol;
+	struct ec_host_request ec_request;
+} __packed;
+
+
+/*
+ * Response format for protocol v3
+ * byte 0	result code
+ * byte 1	packet_length
+ * byte 2-9	struct ec_host_response
+ * byte 10-	response data
+ */
+struct ec_host_response_i2c {
+	uint8_t result;
+	uint8_t packet_length;
+	struct ec_host_response ec_response;
+} __packed;
+
 static inline struct cros_ec_device *to_ec_dev(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
@@ -29,8 +55,8 @@ static inline struct cros_ec_device *to_ec_dev(struct device *dev)
 	return i2c_get_clientdata(client);
 }
 
-static int cros_ec_cmd_xfer_i2c(struct cros_ec_device *ec_dev,
-				struct cros_ec_command *msg)
+static int cros_ec_cmd_xfer_i2c_v2(struct cros_ec_device *ec_dev,
+				   struct cros_ec_command *msg)
 {
 	struct i2c_client *client = ec_dev->priv;
 	int ret = -ENOMEM;
@@ -126,6 +152,168 @@ static int cros_ec_cmd_xfer_i2c(struct cros_ec_device *ec_dev,
 	kfree(out_buf);
 	return ret;
 }
+
+static int cros_ec_cmd_xfer_i2c_v3(struct cros_ec_device *ec_dev,
+				   struct cros_ec_command *msg)
+{
+	struct i2c_client *client = ec_dev->priv;
+	int ret = -ENOMEM;
+	int i;
+	int packet_len;
+	u8 *out_buf = NULL;
+	u8 *in_buf = NULL;
+	u8 sum;
+	struct i2c_msg i2c_msg[2];
+	struct ec_host_request *ec_request;
+	struct ec_host_response *ec_response;
+	struct ec_host_request_i2c *ec_request_i2c;
+	struct ec_host_response_i2c *ec_response_i2c;
+	int request_header_size = sizeof(struct ec_host_request_i2c);
+	int response_header_size = sizeof(struct ec_host_response_i2c);
+
+	i2c_msg[0].addr = client->addr;
+	i2c_msg[0].flags = 0;
+	i2c_msg[1].addr = client->addr;
+	i2c_msg[1].flags = I2C_M_RD;
+
+	/* Allocate response buffer */
+	packet_len = msg->insize + response_header_size;
+	in_buf = kzalloc(packet_len, GFP_KERNEL);
+	if (!in_buf)
+		goto done;
+	i2c_msg[1].len = packet_len;
+	i2c_msg[1].buf = (char *) in_buf;
+
+
+	/* Allocate request buffer */
+	packet_len = msg->outsize + request_header_size;
+	out_buf = kzalloc(packet_len, GFP_KERNEL);
+	if (!out_buf)
+		goto done;
+	i2c_msg[0].len = packet_len;
+	i2c_msg[0].buf = (char *) out_buf;
+
+	/* create request data */
+	ec_request_i2c = (struct ec_host_request_i2c *) out_buf;
+	ec_request_i2c->command_protocol = EC_COMMAND_PROTOCOL_3;
+
+	ec_request = &ec_request_i2c->ec_request;
+	ec_request->struct_version = EC_HOST_REQUEST_VERSION;
+	ec_request->command = msg->command;
+	ec_request->command_version = msg->version;
+	ec_request->reserved = 0;
+	ec_request->data_len = msg->outsize;
+	ec_request->checksum = 0;
+
+	memcpy(&out_buf[sizeof(ec_request) + 1], msg->outdata, msg->outsize);
+
+	/* Calculate checksum: Sum of struct ec_host_request and data = 0 */
+	sum = 0;
+	for (i = 1; i < packet_len; i++)
+		sum += out_buf[i];
+
+	/* All byte should sum to zero so we use minus here */
+	ec_request->checksum = -sum;
+
+
+	/* send command to EC and read answer */
+	ret = i2c_transfer(client->adapter, i2c_msg, 2);
+	if (ret < 0) {
+		dev_err(ec_dev->dev, "i2c transfer failed: %d\n", ret);
+		goto done;
+	} else if (ret != 2) {
+		dev_err(ec_dev->dev, "failed to get response: %d\n", ret);
+		ret = -EIO;
+		goto done;
+	}
+
+	ec_response_i2c = (struct ec_host_response_i2c *) in_buf;
+	msg->result = ec_response_i2c->result;
+	ec_response = &ec_response_i2c->ec_response;
+
+	switch (msg->result) {
+	case EC_RES_SUCCESS:
+		break;
+	case EC_RES_IN_PROGRESS:
+		ret = -EAGAIN;
+		dev_dbg(ec_dev->dev, "command 0x%02x in progress\n",
+			msg->command);
+		goto done;
+
+	default:
+		dev_dbg(ec_dev->dev, "command 0x%02x returned %d\n",
+			msg->command, msg->result);
+		/*
+		 * When we send v3 request to v2 ec, ec won't recognize the
+		 * 0xda (EC_COMMAND_PROTOCOL_3) and will return with status
+		 * EC_RES_INVALID_COMMAND with zero data length.
+		 *
+		 * In case of invalid command for v3 protocol the data length
+		 * will be at least sizeof(struct ec_host_response)
+		 */
+		if (ec_response_i2c->result == EC_RES_INVALID_COMMAND &&
+		    ec_response_i2c->packet_length == 0) {
+			ret = -EPROTONOSUPPORT;
+			goto done;
+		}
+	}
+
+	if (msg->insize < ec_response->data_len) {
+		dev_err(ec_dev->dev, "response data size is too large\n");
+		ret = -EBADMSG;
+		goto done;
+	}
+
+	/* copy response packet payload and compute checksum */
+	sum = 0;
+	for (i = 0; i < sizeof(struct ec_host_response); i++)
+		sum += ((u8 *)ec_response)[i];
+	for (i = 0; i < ec_response->data_len; i++) {
+		msg->indata[i] = in_buf[i + response_header_size];
+		sum += msg->indata[i];
+	}
+
+	/* All byte should sum to zero */
+	if (sum) {
+		dev_err(ec_dev->dev, "bad packet checksum\n");
+		ret = -EBADMSG;
+		goto done;
+	}
+
+	ret = ec_response->data_len;
+
+done:
+	kfree(in_buf);
+	kfree(out_buf);
+	return ret;
+}
+
+/* FIXME: Unified v3 code with lpc/spi. http://crbug.com/399057 */
+static int cros_ec_cmd_xfer_i2c(struct cros_ec_device *ec_dev,
+				struct cros_ec_command *msg)
+{
+	/* default to v3 and fall back to version 2 if v3 not supported */
+	static int version = 3;
+	int ret;
+
+	switch (version) {
+	case 2:
+		ret = cros_ec_cmd_xfer_i2c_v2(ec_dev, msg);
+		break;
+	case 3:
+		ret = cros_ec_cmd_xfer_i2c_v3(ec_dev, msg);
+		if (ret == -EPROTONOSUPPORT) {
+			version = 2;
+			ret = cros_ec_cmd_xfer_i2c_v2(ec_dev, msg);
+		}
+		break;
+	default:
+		dev_err(ec_dev->dev, "Unknown protocol version: %d\n", version);
+		ret = -EPROTONOSUPPORT;
+	}
+	return ret;
+}
+
 
 static int cros_ec_i2c_probe(struct i2c_client *client,
 			     const struct i2c_device_id *dev_id)
