@@ -43,6 +43,7 @@
 #include <linux/version.h>
 #include <linux/input/mt.h>
 #include <linux/acpi.h>
+#include <linux/of.h>
 
 /* debug option */
 static bool debug = false;
@@ -1881,6 +1882,7 @@ static void elan_initialize_async(void *data, async_cookie_t cookie)
 {
 	struct elants_data *ts = data;
 	struct i2c_client *client = ts->client;
+	unsigned long irqflags;
 	int err = 0;
 
 	mutex_lock(&ts->i2c_mutex);
@@ -1895,9 +1897,15 @@ static void elan_initialize_async(void *data, async_cookie_t cookie)
 		goto err_release;
 	}
 
+	/*
+	 * Systems using device tree should set up interrupt via DTS,
+	 * the rest will use the default falling edge interrupts.
+	 */
+	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
+
 	err = request_threaded_irq(client->irq, NULL,
 				   elan_work_func,
-				   IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				   irqflags | IRQF_ONESHOT,
 				   client->name, ts);
 	if (err) {
 		dev_err(&client->dev, "Failed to register interrupt\n");
@@ -1978,9 +1986,12 @@ static int elan_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	/* Says HELLO to touch device */
 	async_schedule(elan_initialize_async, ts);
 
-#ifdef CONFIG_PM_SLEEP
-	device_init_wakeup(&client->dev, true);
-#endif
+	/*
+	 * Systems using device tree should set up wakeup via DTS,
+	 * the rest will configure device as wakeup source by default.
+	 */
+	if (!client->dev.of_node)
+		device_init_wakeup(&client->dev, true);
 
 	/* register sysfs */
 	if (sysfs_create_group(&client->dev.kobj, &elan_attribute_group))
@@ -2081,20 +2092,29 @@ MODULE_DEVICE_TABLE(acpi, elants_acpi_id);
 MODULE_DEVICE_TABLE(i2c, elan_ts_id);
 #endif
 
+#ifdef CONFIG_OF
+static const struct of_device_id elan_of_match[] = {
+	{ .compatible = "elan,i2c_touchscreen" },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, elan_of_match);
+#endif
+
 static struct i2c_driver elan_ts_driver = {
 	.probe = elan_probe,
 	.remove = elan_remove,
 	.id_table = elan_ts_id,
 	.driver = {
-		   .name = DEVICE_NAME,
-		   .owner = THIS_MODULE,
+		.name = DEVICE_NAME,
+		.owner = THIS_MODULE,
 #ifdef CONFIG_PM_SLEEP
-		   .pm = &elan_pm_ops,
+		.pm = &elan_pm_ops,
 #endif
 #ifdef CONFIG_ACPI
-		   .acpi_match_table = ACPI_PTR(elants_acpi_id),
+		.acpi_match_table = ACPI_PTR(elants_acpi_id),
 #endif
-		   },
+		.of_match_table = of_match_ptr(elan_of_match),
+	},
 };
 
 module_i2c_driver(elan_ts_driver);
