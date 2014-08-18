@@ -1,4 +1,5 @@
 #include <dt-bindings/clock/tegra124-car.h>
+#include <dt-bindings/clock/tegra132-ccplex.h>
 #include <dt-bindings/gpio/tegra-gpio.h>
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -392,6 +393,13 @@
 		clock-names = "fuse";
 		resets = <&tegra_car 39>;
 		reset-names = "fuse";
+	};
+
+	ccplex-clock@70040000 {
+		compatible = "nvidia,tegra132-ccplex-clk";
+		reg = <0x0 0x70040000 0x1000>;
+		status = "okay";
+		#clock-cells = <1>;
 	};
 
 	sdhci@700b0600 {
