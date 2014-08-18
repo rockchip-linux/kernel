@@ -184,7 +184,9 @@ static void __init tegra132_ccplex(struct device_node *np)
 	}
 
 	clk = clk_register_mux(NULL, "cclk_g", cclk_g_parents,
-			       ARRAY_SIZE(cclk_g_parents), 0,
+			       ARRAY_SIZE(cclk_g_parents),
+				   CLK_SET_RATE_NO_REPARENT |
+				   CLK_SET_RATE_PARENT,
 			       clk_base + CCLK_BURST_POLICY, 28, 4, 0, NULL);
 	clks[TEGRA132_CCPLEX_CCLK_G] = clk;
 
