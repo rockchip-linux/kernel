@@ -80,6 +80,20 @@
 		};
 	};
 
+	/* This enables the regulator for vcc33_sd */
+	vcc33_sd_regulator: vcc33-sd-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio7 21 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sd_en>;
+		regulator-always-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-name = "vcc33_sd";
+		vin-supply = <&vcc33_io>;
+	};
+
 	/* This turns on vbus for host1 (dwc2) */
 	vcc5_host1: vcc5-host1-regulator {
 		compatible = "regulator-fixed";
@@ -118,22 +132,17 @@
 };
 
 &sdmmc {
-        /* This is 1 because we get errors with width 4 at 25Mhz */
-	bus-width = <1>;
+	bus-width = <4>;
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
 	card-detect-delay = <200>;
 	cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
 	num-slots = <1>;
 	pinctrl-names = "default";
-	/*
-	 * We seem to need to configure the default card detect pin to be
-	 * pulled-up even though we are not using that line, otherwise we
-	 * get a hang, hence the use of both sdmmc_cd and sdmmc_cd_gpio.
-	 */
-	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_cd_gpio
-		     &sdmmc_wp_gpio &sdmmc_bus4>;
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_gpio &sdmmc_wp_gpio
+		     &sdmmc_bus4>;
 	status = "okay";
+	vmmc-supply = <&vcc33_sd_regulator>;
 	wp-gpios = <&gpio7 10 GPIO_ACTIVE_LOW>;
 };
 
@@ -318,6 +327,17 @@
 };
 
 &pinctrl {
+
+	/* Add this for sdmmc pins to SD card */
+	pcfg_pull_none_drv_8ma: pcfg-pull-none-drv-8ma {
+		drive-strength = <8>;
+	};
+
+	pcfg_pull_up_drv_8ma: pcfg-pull-up-drv-8ma {
+		bias-pull-up;
+		drive-strength = <8>;
+	};
+
 	backlight {
 		bl_en: bl-en {
 			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
@@ -337,12 +357,31 @@
 	};
 
 	sdmmc {
+		sdmmc_bus4: sdmmc-bus4 {
+			rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+				        <6 17 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 18 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 19 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+		};
+
+		sdmmc_clk: sdmmc-clk {
+			rockchip,pins = <6 20 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdmmc_cmd: sdmmc-cmd {
+			rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+		};
+
 		sdmmc_cd_gpio: sdmmc-cd-gpio {
 			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 
 		sdmmc_wp_gpio: sdmmc-wp-gpio {
 			rockchip,pins = <7 10 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+	        sd_en: sd-en {
+		        rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
