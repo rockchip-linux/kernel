@@ -627,6 +627,9 @@ void tegra114_clock_tune_cpu_trimmers_init(void);
 void tegra114_clock_assert_dfll_dvco_reset(void);
 void tegra114_clock_deassert_dfll_dvco_reset(void);
 
+void tegra124_clock_assert_dfll_dvco_reset(void);
+void tegra124_clock_deassert_dfll_dvco_reset(void);
+
 typedef void (*tegra_clk_apply_init_table_func)(void);
 extern tegra_clk_apply_init_table_func tegra_clk_apply_init_table;
 
