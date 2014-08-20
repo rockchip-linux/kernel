@@ -33,6 +33,9 @@
 
 /* Indices for EC sensor values. */
 enum sensor_index {
+	GYRO_X,
+	GYRO_Y,
+	GYRO_Z,
 	ACC_BASE_X,
 	ACC_BASE_Y,
 	ACC_BASE_Z,
@@ -52,6 +55,9 @@ static const unsigned int ec_regs[NUM_EC_INPUTS] = {
 	[ACC_LID_X] =  (EC_MEMMAP_ACC_DATA+8),
 	[ACC_LID_Y] =  (EC_MEMMAP_ACC_DATA+10),
 	[ACC_LID_Z] =  (EC_MEMMAP_ACC_DATA+12),
+	[GYRO_X] =  (EC_MEMMAP_ACC_DATA+14),
+	[GYRO_Y] =  (EC_MEMMAP_ACC_DATA+16),
+	[GYRO_Z] =  (EC_MEMMAP_ACC_DATA+18),
 	[LID_ANGLE] =  (EC_MEMMAP_ACC_DATA)
 };
 
@@ -90,6 +96,24 @@ enum accel_data_format {
 		}							\
 
 static const struct iio_chan_spec ec_accel_channels[] = {
+	{
+		EC_ACCEL_CHAN_COMMON,
+		.extend_name = "gyro",
+		.channel2 = IIO_MOD_X,
+		.scan_index = GYRO_X,
+	},
+	{
+		EC_ACCEL_CHAN_COMMON,
+		.extend_name = "gyro",
+		.channel2 = IIO_MOD_Y,
+		.scan_index = GYRO_Y,
+	},
+	{
+		EC_ACCEL_CHAN_COMMON,
+		.extend_name = "gyro",
+		.channel2 = IIO_MOD_Z,
+		.scan_index = GYRO_Z,
+	},
 	{
 		EC_ACCEL_CHAN_COMMON,
 		.extend_name = "base",
@@ -176,8 +200,12 @@ struct cros_ec_accel_state {
  */
 static inline int host_cmd_sensor_num(int idx)
 {
-	return idx <= ACC_BASE_Z ?
-		EC_MOTION_SENSOR_ACCEL_BASE : EC_MOTION_SENSOR_ACCEL_LID;
+	if (idx <= GYRO_Z)
+		return EC_MOTION_SENSOR_GYRO;
+	else if (idx <= ACC_BASE_Z)
+		return EC_MOTION_SENSOR_ACCEL_BASE;
+	else
+		return EC_MOTION_SENSOR_ACCEL_LID;
 }
 
 /**
