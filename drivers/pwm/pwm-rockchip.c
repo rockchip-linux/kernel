@@ -16,7 +16,12 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
+#include <linux/regmap.h>
 #include <linux/time.h>
+#include <linux/mfd/syscon.h>
+
+#define RK3288_GRF_PWM_ENABLE_OFFSET	0x024c
+#define RK3288_GRF_PWM_ENABLE_BIT	0
 
 #define PWM_CTRL_TIMER_EN	(1 << 0)
 #define PWM_CTRL_OUTPUT_EN	(1 << 3)
@@ -231,6 +236,7 @@ MODULE_DEVICE_TABLE(of, rockchip_pwm_dt_ids);
 
 static int rockchip_pwm_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *id;
 	struct rockchip_pwm_chip *pc;
 	struct resource *r;
@@ -239,6 +245,29 @@ static int rockchip_pwm_probe(struct platform_device *pdev)
 	id = of_match_device(rockchip_pwm_dt_ids, &pdev->dev);
 	if (!id)
 		return -EINVAL;
+
+	/*
+	 * Switch to new interface on rk3288.
+	 * The control bit is located in the GRF register space.
+	 */
+	if (of_device_is_compatible(np, "rockchip,rk3288-pwm")) {
+		struct regmap *grf;
+
+		grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+		if (IS_ERR(grf)) {
+			dev_err(&pdev->dev, "Missing rockchip,grf property\n");
+			return PTR_ERR(grf);
+		}
+
+		/* Set bit 16 for write mask, 0 for switch to new IP */
+		ret = regmap_write(grf, RK3288_GRF_PWM_ENABLE_OFFSET,
+				   BIT(RK3288_GRF_PWM_ENABLE_BIT + 16) |
+				   BIT(RK3288_GRF_PWM_ENABLE_BIT));
+		if (ret != 0) {
+			dev_err(&pdev->dev, "Could not access GRF: %d\n", ret);
+			return ret;
+		}
+	}
 
 	pc = devm_kzalloc(&pdev->dev, sizeof(*pc), GFP_KERNEL);
 	if (!pc)
