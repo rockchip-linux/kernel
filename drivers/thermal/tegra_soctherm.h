@@ -110,6 +110,7 @@ struct tegra_tsensor {
 	struct tegra_tsensor_configuration *config;
 	u32 calib_fuse_offset;
 	s32 fuse_corr_alpha, fuse_corr_beta;
+	u32 calib;
 	struct tegra_tsensor_group *group;
 };
 
@@ -124,9 +125,7 @@ int tegra_soctherm_calculate_shared_calibration(
 				u8 nominal_calib_ft);
 int tegra_soctherm_calculate_tsensor_calibration(
 				struct tegra_tsensor *sensor,
-				struct tegra_tsensor_group *tegra_tsensor_group,
-				struct tsensor_shared_calibration shared,
-				u32 *calib);
+				struct tsensor_shared_calibration *shared);
 int tegra_soctherm_probe(
 		struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,

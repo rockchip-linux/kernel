@@ -71,10 +71,15 @@ struct tegra_soctherm {
 	struct reset_control *reset;
 	struct clk *clock_tsensor;
 	struct clk *clock_soctherm;
+
+	unsigned int thermal_irq;
+
 	void __iomem *regs;
 
 	struct thermal_zone_device *thermctl_tzs[4];
 	struct tegra_tsensor_group **sensor_groups;
+	struct tegra_tsensor *tsensors;
+	struct tsensor_shared_calibration *shared_calib;
 };
 
 struct tegra_thermctl_zone {
@@ -120,19 +125,10 @@ static void soctherm_barrier(struct tegra_soctherm *ts)
 	soctherm_readl(ts, THERMCTL_LEVEL0_GROUP_CPU);
 }
 
-static int enable_tsensor(struct tegra_soctherm *tegra,
-			  struct tegra_tsensor *sensor,
-			  struct tsensor_shared_calibration shared)
+static void enable_tsensor(struct tegra_soctherm *tegra,
+			   struct tegra_tsensor *sensor)
 {
 	unsigned int val;
-	u32 calib;
-	int err;
-
-	err = tegra_soctherm_calculate_tsensor_calibration(sensor,
-							   sensor->group,
-							   shared, &calib);
-	if (err)
-		return err;
 
 	val = 0;
 	val |= sensor->config->tall << SENSOR_CONFIG0_TALL_SHIFT;
@@ -145,9 +141,7 @@ static int enable_tsensor(struct tegra_soctherm *tegra,
 	val |= SENSOR_CONFIG1_TEMP_ENABLE;
 	soctherm_writel(tegra, val, sensor->base + SENSOR_CONFIG1);
 
-	soctherm_writel(tegra, calib, sensor->base + SENSOR_CONFIG2);
-
-	return 0;
+	soctherm_writel(tegra, sensor->calib, sensor->base + SENSOR_CONFIG2);
 }
 
 static inline long translate_temp(u32 val)
@@ -474,6 +468,93 @@ static int thermtrip_configure_from_dt(struct device *dev)
 	return 0;
 }
 
+static int soctherm_clk_enable(struct platform_device *pdev, bool enable)
+{
+	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
+	int err;
+
+	if (tegra->clock_soctherm == NULL || tegra->clock_tsensor == NULL)
+		return -EINVAL;
+
+	reset_control_assert(tegra->reset);
+
+	if (enable) {
+		err = clk_prepare_enable(tegra->clock_soctherm);
+		if (err) {
+			reset_control_deassert(tegra->reset);
+			return err;
+		}
+		err = clk_prepare_enable(tegra->clock_tsensor);
+		if (err) {
+			clk_disable_unprepare(tegra->clock_soctherm);
+			reset_control_deassert(tegra->reset);
+			return err;
+		}
+	} else {
+		clk_disable_unprepare(tegra->clock_tsensor);
+		clk_disable_unprepare(tegra->clock_soctherm);
+	}
+
+	reset_control_deassert(tegra->reset);
+
+	return 0;
+}
+
+static int soctherm_init_platform_data(struct platform_device *pdev)
+{
+	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
+	struct tegra_tsensor *tsensors = tegra->tsensors;
+	struct tegra_tsensor_group **tegra_tsensor_groups;
+	int i;
+
+	tegra_tsensor_groups = tegra->sensor_groups;
+
+	/* Enable thermal clocks */
+	if (soctherm_clk_enable(pdev, true) < 0) {
+		dev_err(&pdev->dev, "enable clocks failed\n");
+		return -EINVAL;
+	}
+
+	/* Initialize raw sensors */
+	for (i = 0; tsensors[i].name; ++i)
+		enable_tsensor(tegra, tsensors + i);
+
+	/* Wait for sensor data to be ready */
+	usleep_range(1000, 5000);
+
+	/* Initialize thermctl sensors */
+	for (i = 0; tegra_tsensor_groups[i]; ++i) {
+		struct tegra_tsensor_group *ttg;
+		u32 v;
+
+		ttg = tegra_tsensor_groups[i];
+
+		v = soctherm_readl(tegra, SENSOR_PDIV);
+		v &= ~ttg->pdiv_mask;
+		v |= ttg->pdiv << (ffs(ttg->pdiv_mask) - 1);
+		soctherm_writel(tegra, v, SENSOR_PDIV);
+
+		v = soctherm_readl(tegra, SENSOR_HOTSPOT_OFF);
+		v &= ~ttg->pllx_hotspot_mask;
+		v |= (ttg->pllx_hotspot_diff / 1000) <<
+			(ffs(ttg->pllx_hotspot_mask) - 1);
+		soctherm_writel(tegra, v, SENSOR_HOTSPOT_OFF);
+
+		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION)) {
+			soctherm_writel(tegra,
+			     0x3 << tegra_tsensor_groups[i]->thermctl_isr_shift,
+			     THERMCTL_INTR_EN);
+		}
+	}
+
+	/* Set up hardware thermal limits */
+	if (thermtrip_configure_from_dt(&pdev->dev)) {
+		dev_err(&pdev->dev, "configure thermtrip failed\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
 
 int tegra_soctherm_probe(struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
@@ -483,11 +564,9 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	struct tegra_soctherm *tegra;
 	struct thermal_zone_device *tz;
 	struct tegra_tsensor_group *ttg;
-	struct tsensor_shared_calibration shared_calib;
+	struct tsensor_shared_calibration *shared_calib;
 	int i;
 	int err = 0;
-	int irq;
-	u32 v;
 
 	tegra = devm_kzalloc(&pdev->dev, sizeof(*tegra), GFP_KERNEL);
 	if (!tegra)
@@ -495,6 +574,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 
 	dev_set_drvdata(&pdev->dev, tegra);
 	tegra->sensor_groups = tegra_tsensor_groups;
+	tegra->tsensors = tsensors;
 
 	tegra->regs = devm_ioremap_resource(&pdev->dev,
 		platform_get_resource(pdev, IORESOURCE_MEM, 0));
@@ -521,45 +601,38 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		return PTR_ERR(tegra->clock_soctherm);
 	}
 
-	irq = platform_get_irq(pdev, 0);
-	if (irq <= 0) {
+	tegra->thermal_irq = platform_get_irq(pdev, 0);
+	if (tegra->thermal_irq <= 0) {
 		dev_err(&pdev->dev, "can't get interrupt\n");
 		return -EINVAL;
 	}
 
-	reset_control_assert(tegra->reset);
-
-	err = clk_prepare_enable(tegra->clock_soctherm);
-	if (err) {
-		reset_control_deassert(tegra->reset);
-		return err;
-	}
-
-	err = clk_prepare_enable(tegra->clock_tsensor);
-	if (err) {
-		clk_disable_unprepare(tegra->clock_soctherm);
-		reset_control_deassert(tegra->reset);
-		return err;
-	}
-
-	reset_control_deassert(tegra->reset);
-
-	/* Initialize raw sensors */
-
-	err = tegra_soctherm_calculate_shared_calibration(&shared_calib,
+	/* calculate shared calibration data */
+	shared_calib = devm_kzalloc(&pdev->dev,
+				    sizeof(*shared_calib), GFP_KERNEL);
+	if (!shared_calib)
+		return -ENOMEM;
+	tegra->shared_calib = shared_calib;
+	err = tegra_soctherm_calculate_shared_calibration(shared_calib,
 							  nominal_calib_cp,
 							  nominal_calib_ft);
 	if (err)
 		goto disable_clocks;
 
-	for (i = 0; tsensors[i].name; ++i) {
-		err = enable_tsensor(tegra, tsensors + i, shared_calib);
-		if (err)
-			goto disable_clocks;
+	/* calculate tsensor calibaration data */
+	for (i = 0; tsensors[i].name; ++i)
+		err = tegra_soctherm_calculate_tsensor_calibration(tsensors + i,
+							   shared_calib);
+	if (err)
+		goto disable_clocks;
+
+	err = soctherm_init_platform_data(pdev);
+	if (err) {
+		dev_err(&pdev->dev, "Initialize platform data failed\n");
+		goto disable_clocks;
 	}
 
 	/* Initialize thermctl sensors */
-
 	for (i = 0; tegra_tsensor_groups[i]; ++i) {
 		struct tegra_thermctl_zone *zone =
 			devm_kzalloc(&pdev->dev, sizeof(*zone), GFP_KERNEL);
@@ -568,22 +641,10 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 			goto unregister_tzs;
 		}
 
-		ttg = tegra_tsensor_groups[i];
-
-		v = soctherm_readl(tegra, SENSOR_PDIV);
-		v &= ~ttg->pdiv_mask;
-		v |= ttg->pdiv << (ffs(ttg->pdiv_mask) - 1);
-		soctherm_writel(tegra, v, SENSOR_PDIV);
-
-		v = soctherm_readl(tegra, SENSOR_HOTSPOT_OFF);
-		v &= ~ttg->pllx_hotspot_mask;
-		v |= (ttg->pllx_hotspot_diff / 1000) <<
-			(ffs(ttg->pllx_hotspot_mask) - 1);
-		soctherm_writel(tegra, v, SENSOR_HOTSPOT_OFF);
-
 		zone->sensor_group = tegra_tsensor_groups[i];
 		zone->tegra = tegra;
 
+		ttg = tegra_tsensor_groups[i];
 		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION)) {
 
 			tz = thermal_zone_of_sensor_register(
@@ -602,16 +663,8 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 
 			zone->tz = tz;
 			tegra->thermctl_tzs[i] = tz;
-
-			soctherm_writel(
-				tegra,
-				0x3 << zone->sensor_group->thermctl_isr_shift,
-				THERMCTL_INTR_EN);
 		}
 	}
-
-	/* Set up hardware thermal limits */
-	thermtrip_configure_from_dt(&pdev->dev);
 
 	return 0;
 

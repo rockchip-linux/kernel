@@ -120,28 +120,29 @@ int tegra_soctherm_calculate_shared_calibration(
 
 int tegra_soctherm_calculate_tsensor_calibration(
 				struct tegra_tsensor *sensor,
-				struct tegra_tsensor_group *sensor_group,
-				struct tsensor_shared_calibration shared,
-				u32 *calib)
+				struct tsensor_shared_calibration *shared)
 {
-	u32 val;
+	struct tegra_tsensor_group *sensor_group;
+	u32 val, calib;
 	s32 actual_tsensor_ft, actual_tsensor_cp;
 	s32 delta_sens, delta_temp;
 	s32 mult, div;
 	s16 therma, thermb;
 	int err;
 
+	sensor_group = sensor->group;
+
 	err = tegra_fuse_readl(sensor->calib_fuse_offset, &val);
 	if (err)
 		return err;
 
-	actual_tsensor_cp = (shared.base_cp * 64) + sign_extend32(val, 12);
+	actual_tsensor_cp = (shared->base_cp * 64) + sign_extend32(val, 12);
 	val = (val & FUSE_TSENSOR_CALIB_FT_TS_BASE_MASK)
 		>> FUSE_TSENSOR_CALIB_FT_TS_BASE_SHIFT;
-	actual_tsensor_ft = (shared.base_ft * 32) + sign_extend32(val, 12);
+	actual_tsensor_ft = (shared->base_ft * 32) + sign_extend32(val, 12);
 
 	delta_sens = actual_tsensor_ft - actual_tsensor_cp;
-	delta_temp = shared.actual_temp_ft - shared.actual_temp_cp;
+	delta_temp = shared->actual_temp_ft - shared->actual_temp_cp;
 
 	mult = sensor_group->pdiv * sensor->config->tsample_ate;
 	div = sensor->config->tsample * sensor_group->pdiv_ate;
@@ -149,8 +150,8 @@ int tegra_soctherm_calculate_tsensor_calibration(
 	therma = div64_s64_precise((s64)delta_temp * (1LL << 13) * mult,
 			(s64)delta_sens * div);
 	thermb = div64_s64_precise(
-			((s64)actual_tsensor_ft * shared.actual_temp_cp) -
-			((s64)actual_tsensor_cp * shared.actual_temp_ft),
+			((s64)actual_tsensor_ft * shared->actual_temp_cp) -
+			((s64)actual_tsensor_cp * shared->actual_temp_ft),
 			(s64)delta_sens);
 
 	therma = div64_s64_precise((s64)therma * sensor->fuse_corr_alpha,
@@ -159,8 +160,10 @@ int tegra_soctherm_calculate_tsensor_calibration(
 			sensor->fuse_corr_beta,
 			(s64)1000000LL);
 
-	*calib = ((u16)therma << SENSOR_CONFIG2_THERMA_SHIFT) |
+	calib = ((u16)therma << SENSOR_CONFIG2_THERMA_SHIFT) |
 		 ((u16)thermb << SENSOR_CONFIG2_THERMB_SHIFT);
+
+	sensor->calib = calib;
 
 	return 0;
 }
