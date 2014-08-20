@@ -210,7 +210,7 @@ MODULE_DEVICE_TABLE(of, tegra_soctherm_of_match);
 
 static int tegra124_soctherm_probe(struct platform_device *pdev)
 {
-	return tegra_soctherm_probe(pdev, &tegra124_tsensor_config,
+	return tegra_soctherm_probe(pdev,
 				    tegra124_tsensors,
 				    tegra124_tsensor_groups,
 				    NOMINAL_CALIB_CP_T124,

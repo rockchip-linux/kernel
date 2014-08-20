@@ -428,7 +428,7 @@ static int tegra132_soctherm_probe(struct platform_device *pdev)
 			tegra132_tsensor_groups_0_12_plus;
 	}
 
-	return tegra_soctherm_probe(pdev, &tegra132_tsensor_config,
+	return tegra_soctherm_probe(pdev,
 				    tegra132_tsensors, tegra132_tsensor_groups,
 				    NOMINAL_CALIB_CP_T132,
 				    NOMINAL_CALIB_FT_T132);
