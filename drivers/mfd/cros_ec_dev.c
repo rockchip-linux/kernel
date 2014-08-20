@@ -36,7 +36,7 @@
 
 /* Device variables */
 #define CROS_CLASS_NAME "chromeos"
-static struct cros_ec_device *ec;
+#define CROS_MAX_DEV 128
 static struct class *cros_class;
 static int ec_major;
 
@@ -78,6 +78,8 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 /* Device file ops */
 static int ec_device_open(struct inode *inode, struct file *filp)
 {
+	filp->private_data = container_of(inode->i_cdev,
+			struct cros_ec_device, cdev);
 	return 0;
 }
 
@@ -89,6 +91,7 @@ static int ec_device_release(struct inode *inode, struct file *filp)
 static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 			      size_t length, loff_t *offset)
 {
+	struct cros_ec_device *ec = filp->private_data;
 	char msg[sizeof(struct ec_response_get_version) +
 		 sizeof(CROS_EC_DEV_VERSION)];
 	size_t count;
@@ -111,7 +114,7 @@ static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 
 
 /* Ioctls */
-static long ec_device_ioctl_xcmd(void __user *argp)
+static long ec_device_ioctl_xcmd(struct cros_ec_device *ec, void __user *argp)
 {
 	long ret;
 	struct cros_ec_command s_cmd;
@@ -144,7 +147,8 @@ static long ec_device_ioctl_xcmd(void __user *argp)
 	return ret;
 }
 
-static long ec_device_ioctl_readmem(void __user *argp)
+static long ec_device_ioctl_readmem(struct cros_ec_device *ec,
+				    void __user *argp)
 {
 	struct cros_ec_readmem s_mem;
 	char buf[EC_MEMMAP_SIZE];
@@ -168,16 +172,17 @@ static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
+	struct cros_ec_device *ec = filp->private_data;
 
 	if (_IOC_TYPE(cmd) != CROS_EC_DEV_IOC)
 		return -ENOTTY;
 
 	switch (cmd) {
 	case CROS_EC_DEV_IOCXCMD:
-		return ec_device_ioctl_xcmd(argp);
+		return ec_device_ioctl_xcmd(ec, argp);
 		break;
 	case CROS_EC_DEV_IOCRDMEM:
-		return ec_device_ioctl_readmem(argp);
+		return ec_device_ioctl_readmem(ec, argp);
 		break;
 	}
 
@@ -204,7 +209,8 @@ struct compat_cros_ec_readmem {
 #define CROS_EC_DEV_COMPAT_IOCXCMD  _IOWR(':', 0, struct compat_cros_ec_command)
 #define CROS_EC_DEV_COMPAT_IOCRDMEM _IOWR(':', 1, struct compat_cros_ec_readmem)
 
-static long ec_device_compat_ioctl_readmem(void __user *argp)
+static long ec_device_compat_ioctl_readmem(struct cros_ec_device *ec,
+					   void __user *argp)
 {
 	struct compat_cros_ec_readmem compat_s_mem;
 	char buf[EC_MEMMAP_SIZE];
@@ -226,7 +232,8 @@ static long ec_device_compat_ioctl_readmem(void __user *argp)
 	return num;
 }
 
-static long ec_device_compat_ioctl_xcmd(void __user *argp)
+static long ec_device_compat_ioctl_xcmd(struct cros_ec_device *ec,
+					void __user *argp)
 {
 	long ret;
 	struct cros_ec_command s_cmd;
@@ -268,14 +275,15 @@ static long ec_device_compat_ioctl_xcmd(void __user *argp)
 static long ec_device_compat_ioctl(struct file *filp, unsigned int cmd,
 				   unsigned long arg)
 {
+	struct cros_ec_device *ec = filp->private_data;
 	void __user
 	*argp = (void __user *)arg;
 	switch (cmd) {
 	case CROS_EC_DEV_COMPAT_IOCXCMD:
-		return ec_device_compat_ioctl_xcmd(argp);
+		return ec_device_compat_ioctl_xcmd(ec, argp);
 		break;
 	case CROS_EC_DEV_COMPAT_IOCRDMEM:
-		return ec_device_compat_ioctl_readmem(argp);
+		return ec_device_compat_ioctl_readmem(ec, argp);
 		break;
 	}
 	return -ENOTTY;
@@ -296,31 +304,26 @@ static const struct file_operations fops = {
 static int ec_device_probe(struct platform_device *pdev)
 {
 	int retval = -ENOTTY;
-
-	ec = dev_get_drvdata(pdev->dev.parent);
-
-	cros_class = class_create(THIS_MODULE, CROS_CLASS_NAME);
-	if (IS_ERR(cros_class)) {
-		pr_err("failed to register device class\n");
-		retval = PTR_ERR(cros_class);
-		goto failed_class;
-	}
-
-	/* Let the kernel pick the major num for us */
-	ec_major = register_chrdev(0, CROS_EC_DEV_NAME, &fops);
-	if (ec_major < 0) {
-		pr_err("failed to register device\n");
-		retval = ec_major;
-		goto failed_chrdevreg;
-	}
+	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
+	dev_t devno = MKDEV(ec_major, ec->id);
 
 	/* Instantiate it (and remember the EC) */
-	ec->vdev = device_create(cros_class, NULL, MKDEV(ec_major, 0),
-				 ec, CROS_EC_DEV_NAME);
+	cdev_init(&ec->cdev, &fops);
+	ec->cdev.owner = THIS_MODULE;
+
+	retval = cdev_add(&ec->cdev, devno, 1);
+	if (retval) {
+		dev_err(&pdev->dev, ": failed to add character device\n");
+		return retval;
+	}
+
+	ec->vdev = device_create(cros_class, NULL, devno,
+			ec, CROS_EC_DEV_NAME "%d", ec->id);
 	if (IS_ERR(ec->vdev)) {
-		pr_err("failed to create device\n");
 		retval = PTR_ERR(ec->vdev);
-		goto failed_devreg;
+		dev_err(&pdev->dev, ": failed to create device\n");
+		cdev_del(&ec->cdev);
+		return retval;
 	}
 
 	/* Initialize extra interfaces */
@@ -329,21 +332,17 @@ static int ec_device_probe(struct platform_device *pdev)
 
 	return 0;
 
-failed_devreg:
-	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
-failed_chrdevreg:
-	class_destroy(cros_class);
-failed_class:
 	return retval;
 }
 
 static int ec_device_remove(struct platform_device *pdev)
 {
+	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
 	ec_dev_lightbar_remove(ec);
 	ec_dev_sysfs_remove(ec);
-	device_destroy(cros_class, MKDEV(ec_major, 0));
-	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
-	class_destroy(cros_class);
+
+	device_destroy(cros_class, MKDEV(ec_major, ec->id));
+	cdev_del(&ec->cdev);
 	return 0;
 }
 
@@ -356,7 +355,51 @@ static struct platform_driver cros_ec_dev_driver = {
 	.remove = ec_device_remove,
 };
 
-module_platform_driver(cros_ec_dev_driver);
+static int __init cros_ec_dev_init(void)
+{
+	int ret;
+	dev_t dev = 0;
+
+	cros_class = class_create(THIS_MODULE, CROS_CLASS_NAME);
+	if (IS_ERR(cros_class)) {
+		pr_err(CROS_EC_DEV_NAME ": failed to register device class\n");
+		ret = PTR_ERR(cros_class);
+		goto failed_class;
+	}
+
+	/* Get a range of minor numbers (starting with 0) to work with */
+	ret = alloc_chrdev_region(&dev, 0, CROS_MAX_DEV, CROS_EC_DEV_NAME);
+	if (ret < 0) {
+		pr_err(CROS_EC_DEV_NAME ": alloc_chrdev_region() failed\n");
+		goto failed_chrdevreg;
+	}
+	ec_major = MAJOR(dev);
+
+	/* Register the driver */
+	ret = platform_driver_register(&cros_ec_dev_driver);
+	if (ret < 0) {
+		pr_warn(CROS_EC_DEV_NAME ": can't register driver: %d\n", ret);
+		goto failed_devreg;
+	}
+	return 0;
+
+failed_devreg:
+	unregister_chrdev_region(MKDEV(ec_major, 0), CROS_MAX_DEV);
+failed_chrdevreg:
+	class_destroy(cros_class);
+failed_class:
+	return ret;
+}
+
+static void __exit cros_ec_dev_exit(void)
+{
+	platform_driver_unregister(&cros_ec_dev_driver);
+	unregister_chrdev_region(MKDEV(ec_major, 0), CROS_MAX_DEV);
+	class_destroy(cros_class);
+}
+
+module_init(cros_ec_dev_init);
+module_exit(cros_ec_dev_exit);
 
 MODULE_AUTHOR("Bill Richardson <wfrichar@chromium.org>");
 MODULE_DESCRIPTION("Userspace interface to the Chrome OS Embedded Controller");
