@@ -54,14 +54,168 @@
 #define		THERMCTL_LEVEL0_GROUP_DN_THRESH_SHIFT 9
 #define		THERMCTL_LEVEL0_GROUP_UP_THRESH_SHIFT 17
 
+#define CTL_LVL0_CPU0			0x0
+#define CTL_LVL0_CPU0_UP_THRESH_SHIFT	17
+#define CTL_LVL0_CPU0_UP_THRESH_MASK	0xff
+#define CTL_LVL0_CPU0_DN_THRESH_SHIFT	9
+#define CTL_LVL0_CPU0_DN_THRESH_MASK	0xff
+#define CTL_LVL0_CPU0_EN_SHIFT		8
+#define CTL_LVL0_CPU0_EN_MASK		0x1
+#define CTL_LVL0_CPU0_DEV_THROT_LIGHT	0x1
+#define CTL_LVL0_CPU0_DEV_THROT_HEAVY	0x2
+#define CTL_LVL0_CPU0_CPU_THROT_SHIFT	5
+#define CTL_LVL0_CPU0_CPU_THROT_MASK	0x3
+#define CTL_LVL0_CPU0_GPU_THROT_SHIFT	3
+#define CTL_LVL0_CPU0_GPU_THROT_MASK	0x3
+#define CTL_LVL0_CPU0_STATUS_SHIFT	0
+#define CTL_LVL0_CPU0_STATUS_MASK	0x3
+
 #define THERMCTL_INTR_STATUS			0x84
 #define THERMCTL_INTR_EN			0x88
+
+#define STATS_CTL		0x94
+#define STATS_CTL_CLR_DN	0x8
+#define STATS_CTL_EN_DN		0x4
+#define STATS_CTL_CLR_UP	0x2
+#define STATS_CTL_EN_UP		0x1
 
 #define SENSOR_PDIV				0x1c0
 #define SENSOR_HOTSPOT_OFF			0x1c4
 
 #define FUSE_TSENSOR8_CALIB			0x180
 #define FUSE_SPARE_REALIGNMENT_REG_0		0x1fc
+
+#define THROT_GLOBAL_CFG	0x400
+#define THROT_GLOBAL_ENB_SHIFT	0
+#define THROT_GLOBAL_ENB_MASK	0x1
+
+#define THROT_PRIORITY_LOCK			0x424
+#define THROT_PRIORITY_LOCK_PRIORITY_SHIFT	0
+#define THROT_PRIORITY_LOCK_PRIORITY_MASK	0xff
+
+#define THROT_PSKIP_CTRL_LITE_CPU		0x430
+#define THROT_PSKIP_CTRL_ENABLE_SHIFT		31
+#define THROT_PSKIP_CTRL_ENABLE_MASK		0x1
+#define THROT_PSKIP_CTRL_DIVIDEND_SHIFT		8
+#define THROT_PSKIP_CTRL_DIVIDEND_MASK		0xff
+#define THROT_PSKIP_CTRL_DIVISOR_SHIFT		0
+#define THROT_PSKIP_CTRL_DIVISOR_MASK		0xff
+#define THROT_PSKIP_CTRL_VECT_GPU_SHIFT		16
+#define THROT_PSKIP_CTRL_VECT_GPU_MASK		0x7
+#define THROT_PSKIP_CTRL_VECT_CPU_SHIFT		8
+#define THROT_PSKIP_CTRL_VECT_CPU_MASK		0x7
+#define THROT_PSKIP_CTRL_VECT2_CPU_SHIFT	0
+#define THROT_PSKIP_CTRL_VECT2_CPU_MASK		0x7
+
+#define THROT_PSKIP_RAMP_LITE_CPU		0x434
+#define THROT_PSKIP_RAMP_SEQ_BYPASS_MODE_SHIFT	31
+#define THROT_PSKIP_RAMP_SEQ_BYPASS_MODE_MASK	0x1
+#define THROT_PSKIP_RAMP_DURATION_SHIFT		8
+#define THROT_PSKIP_RAMP_DURATION_MASK		0xffff
+#define THROT_PSKIP_RAMP_STEP_SHIFT		0
+#define THROT_PSKIP_RAMP_STEP_MASK		0xff
+
+#define THROT_PRIORITY_LITE			0x444
+#define THROT_PRIORITY_LITE_PRIO_SHIFT		0
+#define THROT_PRIORITY_LITE_PRIO_MASK		0xff
+
+#define THROT_DELAY_LITE			0x448
+#define THROT_DELAY_LITE_DELAY_SHIFT		0
+#define THROT_DELAY_LITE_DELAY_MASK		0xff
+
+#define CCROC_GLOBAL_CFG	0x148
+
+#define CCROC_THROT_PSKIP_CTRL_CPU		0x154
+#define CCROC_THROT_PSKIP_CTRL_ENB_SHIFT	31
+#define CCROC_THROT_PSKIP_CTRL_ENB_MASK		0x1
+#define CCROC_THROT_PSKIP_CTRL_DIVIDEND_SHIFT	8
+#define CCROC_THROT_PSKIP_CTRL_DIVIDEND_MASK	0xff
+#define CCROC_THROT_PSKIP_CTRL_DIVISOR_SHIFT	0
+#define CCROC_THROT_PSKIP_CTRL_DIVISOR_MASK	0xff
+
+#define CCROC_THROT_PSKIP_RAMP_CPU		0x150
+#define CCROC_THROT_PSKIP_RAMP_SEQ_BYPASS_MODE_SHIFT	31
+#define CCROC_THROT_PSKIP_RAMP_SEQ_BYPASS_MODE_MASK	0x1
+#define CCROC_THROT_PSKIP_RAMP_DURATION_SHIFT	8
+#define CCROC_THROT_PSKIP_RAMP_DURATION_MASK	0xffff
+#define CCROC_THROT_PSKIP_RAMP_STEP_SHIFT	0
+#define CCROC_THROT_PSKIP_RAMP_STEP_MASK	0xff
+
+/* car register offsets needed for enabling HW throttling */
+#define CAR_SUPER_CCLKG_DIVIDER			0x36c
+#define CDIVG_ENABLE_SHIFT			31
+#define CDIVG_ENABLE_MASK			0x1
+#define CDIVG_USE_THERM_CONTROLS_SHIFT		30
+#define CDIVG_USE_THERM_CONTROLS_MASK		0x1
+#define CDIVG_DIVIDEND_MASK			0xff
+#define CDIVG_DIVIDEND_SHIFT			8
+#define CDIVG_DIVISOR_MASK			0xff
+#define CDIVG_DIVISOR_SHIFT			0
+
+#define CCROC_SUPER_CCLKG_DIVIDER		0x024
+
+#define UP_STATS_L0				0x10
+#define DN_STATS_L0				0x14
+
+#define THROT_VECT_NONE				0x0 /* 3'b000 */
+#define THROT_VECT_LOW				0x1 /* 3'b001 */
+#define THROT_VECT_MED				0x3 /* 3'b011 */
+#define THROT_VECT_HIGH				0x7 /* 3'b111 */
+
+#define THROT_OFFSET				0x30
+#define CCROC_THROT_OFFSET			0x0c
+
+#define CCROC_THROT_PSKIP_CTRL_CPU_REG(vect)	(CCROC_THROT_PSKIP_CTRL_CPU + \
+						(CCROC_THROT_OFFSET * vect))
+#define CCROC_THROT_PSKIP_RAMP_CPU_REG(vect)	(CCROC_THROT_PSKIP_RAMP_CPU + \
+						(CCROC_THROT_OFFSET * vect))
+
+#define THROT_PSKIP_CTRL(throt, dev)		(THROT_PSKIP_CTRL_LITE_CPU + \
+						(THROT_OFFSET * throt) + \
+						(8 * dev))
+#define THROT_PSKIP_RAMP(throt, dev)		(THROT_PSKIP_RAMP_LITE_CPU + \
+						(THROT_OFFSET * throt) + \
+						(8 * dev))
+
+#define THROT_PRIORITY_CTRL(throt)		(THROT_PRIORITY_LITE + \
+						(THROT_OFFSET * throt))
+#define THROT_DELAY_CTRL(throt)			(THROT_DELAY_LITE + \
+						(THROT_OFFSET * throt))
+
+#define REG_SET(r, _name, val)	(((r) & ~(_name##_MASK << _name##_SHIFT)) | \
+				(((val) & _name##_MASK) << _name##_SHIFT))
+
+#define TS_TSENSE_REGS_SIZE		0x20
+#define TS_TSENSE_REG_OFFSET(reg, ts)	((reg) + ((ts) * TS_TSENSE_REGS_SIZE))
+
+#define TS_THERM_LVL_REGS_SIZE		0x20
+#define TS_THERM_GRP_REGS_SIZE		0x04
+#define TS_THERM_REG_OFFSET(rg, lv, gr)	((rg) + ((lv) * TS_THERM_LVL_REGS_SIZE)\
+					+ ((gr) * TS_THERM_GRP_REGS_SIZE))
+
+#define THROT_DEPTH_DIVIDEND(depth)	((256 * (100 - (depth)) / 100) - 1)
+
+enum soctherm_throttle_id {
+	THROTTLE_LIGHT = 0,
+	THROTTLE_HEAVY,
+	THROTTLE_SIZE,
+};
+
+enum soctherm_throttle_level {
+	THROTTLE_LEVEL_LOW = 0,
+	THROTTLE_LEVEL_MED,
+	THROTTLE_LEVEL_HIGH,
+	THROTTLE_LEVEL_SIZE,
+	THROTTLE_LEVEL_NONE = -1,
+
+};
+
+enum soctherm_throttle_dev_id {
+	THROTTLE_DEV_CPU = 0,
+	THROTTLE_DEV_GPU,
+	THROTTLE_DEV_SIZE,
+	THROTTLE_DEV_NONE,
+};
 
 static const int min_low_temp = -127000;
 static const int max_high_temp = 127000;
@@ -75,11 +229,15 @@ struct tegra_soctherm {
 	unsigned int thermal_irq;
 
 	void __iomem *regs;
+	void __iomem *clk_regs;
+	void __iomem *ccroc_regs;
 
 	struct thermal_zone_device *thermctl_tzs[4];
 	struct tegra_tsensor_group **sensor_groups;
 	struct tegra_tsensor *tsensors;
 	struct tsensor_shared_calibration *shared_calib;
+
+	bool is_ccroc;
 };
 
 struct tegra_thermctl_zone {
@@ -123,6 +281,56 @@ static u32 soctherm_readl(struct tegra_soctherm *ts, u16 reg)
 static void soctherm_barrier(struct tegra_soctherm *ts)
 {
 	soctherm_readl(ts, THERMCTL_LEVEL0_GROUP_CPU);
+}
+
+/**
+ * clk_writel() - writes a value to a CAR register
+ * @ts: pointer to a struct tegra_soctherm
+ * @v: the value to write
+ * @reg: the register offset
+ *
+ * Writes @v to @reg.  No return value.
+ */
+static inline void clk_writel(struct tegra_soctherm *ts, u32 value, u32 reg)
+{
+	__raw_writel(value, (ts->clk_regs + reg));
+}
+
+/**
+ * clk_readl() - reads specified register from CAR IP block
+ * @ts: pointer to a struct tegra_soctherm
+ * @reg: register address to be read
+ *
+ * Return: the value of the register
+ */
+static inline u32 clk_readl(struct tegra_soctherm *ts, u32 reg)
+{
+	return __raw_readl(ts->clk_regs + reg);
+}
+
+/**
+ * ccroc_writel() - writes a value to a CCROC register
+ * @ts: pointer to a struct tegra_soctherm
+ * @v: the value to write
+ * @reg: the register offset
+ *
+ * Writes @v to @reg.  No return value.
+ */
+static inline void ccroc_writel(struct tegra_soctherm *ts, u32 value, u32 reg)
+{
+	__raw_writel(value, (ts->ccroc_regs + reg));
+}
+
+/**
+ * ccroc_readl() - reads specified register from CCROC IP block
+ * @ts: pointer to a struct tegra_soctherm
+ * @reg: register address to be read
+ *
+ * Return: the value of the register
+ */
+static inline u32 ccroc_readl(struct tegra_soctherm *ts, u32 reg)
+{
+	return __raw_readl(ts->ccroc_regs + reg);
 }
 
 static void enable_tsensor(struct tegra_soctherm *tegra,
@@ -406,7 +614,7 @@ static int thermtrip_configure_limits_from_dt(struct device *dev,
 			continue;
 		}
 
-		r = of_property_read_u32(sgn, "temperature", &temperature);
+		r = of_property_read_u32(sgn, "therm-temp", &temperature);
 		if (r) {
 			dev_err(dev, "thermtrip: %s: missing temperature property - could not enable\n",
 				name);
@@ -455,13 +663,123 @@ static int thermtrip_configure_from_dt(struct device *dev)
 	struct device_node *ttn;
 	int r;
 
-	ttn = of_find_node_by_name(dev->of_node, "thermtrip");
+	ttn = of_find_node_by_name(dev->of_node, "hw-trips");
 	if (!ttn) {
 		dev_info(dev, "thermtrip: no DT node - not enabling\n");
 		return 0;
 	}
 
 	r = thermtrip_configure_limits_from_dt(dev, ttn);
+	if (r)
+		return r;
+
+	return 0;
+}
+
+static inline void prog_hw_threshold(struct device *dev,
+				     long trip_temp,
+				     struct tegra_tsensor_group *sg,
+				     int throt)
+{
+	struct tegra_soctherm *ts = dev_get_drvdata(dev);
+	int temp;
+	u32 r, reg_off;
+
+	temp = enforce_temp_range(dev, trip_temp) / 1000;
+
+	/* Hardcode LITE on level-1 and HEAVY on level-2 */
+	reg_off = TS_THERM_REG_OFFSET(CTL_LVL0_CPU0, throt + 1, sg->id);
+
+	r = soctherm_readl(ts, reg_off);
+	r = REG_SET(r, CTL_LVL0_CPU0_UP_THRESH, temp);
+	r = REG_SET(r, CTL_LVL0_CPU0_DN_THRESH, temp);
+	r = REG_SET(r, CTL_LVL0_CPU0_EN, 1);
+	r = REG_SET(r, CTL_LVL0_CPU0_CPU_THROT,
+		    throt == THROTTLE_HEAVY ?
+		    CTL_LVL0_CPU0_DEV_THROT_HEAVY :
+		    CTL_LVL0_CPU0_DEV_THROT_LIGHT);
+	r = REG_SET(r, CTL_LVL0_CPU0_GPU_THROT,
+		    throt == THROTTLE_HEAVY ?
+		    CTL_LVL0_CPU0_DEV_THROT_HEAVY :
+		    CTL_LVL0_CPU0_DEV_THROT_LIGHT);
+
+	soctherm_writel(ts, r, reg_off);
+}
+
+static int throttrip_program(struct device *dev, struct tegra_tsensor_group *sg,
+			     long trip_temp)
+{
+	if (!dev || !sg)
+		return -EINVAL;
+
+	prog_hw_threshold(dev, trip_temp, sg, THROTTLE_HEAVY);
+
+	return 0;
+}
+
+static int throttrip_configure_limits_from_dt(struct device *dev,
+					      struct device_node *ttn)
+{
+	struct tegra_soctherm *ts = dev_get_drvdata(dev);
+	struct tegra_tsensor_group *sg;
+	struct device_node *sgn, *sgsn;
+	const char *name;
+	u32 temperature;
+	int r;
+
+	/* Read the limits */
+	sgsn = of_find_node_by_name(dev->of_node, "sensor-groups");
+	if (!sgsn) {
+		dev_info(dev,
+			"throttle-trip: no sensor-groups node - not enabling\n");
+		return 0;
+	}
+	for_each_child_of_node(sgsn, sgn) {
+		name = sgn->name;
+		sg = find_sensor_group_by_name(ts, name);
+		if (!sg) {
+			dev_err(dev,
+				"throtlte-trip: %s: could not find sensor group - could not enable\n",
+				name);
+			continue;
+		}
+
+		r = of_property_read_u32(sgn, "throt-temp", &temperature);
+		if (r) {
+			dev_info(dev,
+				"throttle-trip: %s: missing temperature property - could not enable\n",
+				name);
+			continue;
+		}
+
+		r = throttrip_program(dev, sg, temperature);
+		if (r) {
+			dev_err(dev, "throttle-trip: %s: error during enable\n",
+				name);
+			continue;
+		}
+
+		dev_info(dev,
+			"throttle-trip: will hw throttle when %s sensor group reaches %d degrees millicelsius\n",
+			name, temperature);
+	}
+
+	return 0;
+}
+
+static int throttrip_configure_from_dt(struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *ttn;
+	int r;
+
+	ttn = of_find_node_by_name(dev->of_node, "hw-trips");
+	if (!ttn) {
+		dev_info(dev, "throttle-trip: no DT node - not enabling\n");
+		return 0;
+	}
+
+	r = throttrip_configure_limits_from_dt(dev, ttn);
 	if (r)
 		return r;
 
@@ -500,12 +818,212 @@ static int soctherm_clk_enable(struct platform_device *pdev, bool enable)
 	return 0;
 }
 
+/**
+ * throttlectl_cpu_level_cfg() - programs CCROC NV_THERM level config
+ * @throt	soctherm_throttle_id describing the level of throttling
+ *
+ * It's necessary to set up the CPU-local CCROC NV_THERM instance with
+ * the M/N values desired for each level. This function does this.
+ *
+ * This function pre-programs the CCROC NV_THERM levels in terms of
+ * pre-configured "Low", "Medium" or "Heavy" throttle levels which are
+ * mapped to THROT_LEVEL_LOW, THROT_LEVEL_MED and THROT_LEVEL_HVY.
+ *
+ * Return: boolean true if HW was programmed
+ */
+static void throttlectl_cpu_level_cfg(struct tegra_soctherm *ts, int level)
+{
+	u8 depth, dividend;
+	u32 r;
+
+	switch (level) {
+	case THROTTLE_LEVEL_LOW:
+		depth = 50;
+		break;
+	case THROTTLE_LEVEL_MED:
+		depth = 75;
+		break;
+	case THROTTLE_LEVEL_HIGH:
+		depth = 80;
+		break;
+	case THROTTLE_LEVEL_NONE:
+		return;
+	default:
+		return;
+	}
+
+	dividend = THROT_DEPTH_DIVIDEND(depth);
+
+	/* setup PSKIP in ccroc nv_therm registers */
+	r = ccroc_readl(ts, CCROC_THROT_PSKIP_RAMP_CPU_REG(level));
+	r = REG_SET(r, CCROC_THROT_PSKIP_RAMP_DURATION, 0xff);
+	r = REG_SET(r, CCROC_THROT_PSKIP_RAMP_STEP, 0xf);
+	ccroc_writel(ts, r, CCROC_THROT_PSKIP_RAMP_CPU_REG(level));
+
+	r = ccroc_readl(ts, CCROC_THROT_PSKIP_CTRL_CPU_REG(level));
+	r = REG_SET(r, CCROC_THROT_PSKIP_CTRL_ENB, 1);
+	r = REG_SET(r, CCROC_THROT_PSKIP_CTRL_DIVIDEND, dividend);
+	r = REG_SET(r, CCROC_THROT_PSKIP_CTRL_DIVISOR, 0xff);
+	ccroc_writel(ts, r, CCROC_THROT_PSKIP_CTRL_CPU_REG(level));
+}
+
+/**
+ * throttlectl_cpu_level_select() - program CPU pulse skipper config
+ * @throt: soctherm_throttle_id describing the level of throttling
+ *
+ * Pulse skippers are used to throttle clock frequencies.  This
+ * function programs the pulse skippers based on @throt and platform
+ * data.  This function is used on SoCs which have CPU-local pulse
+ * skipper control, such as T13x. It programs soctherm's interface to
+ * Denver:CCROC NV_THERM in terms of Low, Medium and Heavy throttling
+ * vectors. PSKIP_BYPASS mode is set as required per HW spec.
+ *
+ * Return: boolean true if HW was programmed, or false if the desired
+ * configuration is not supported.
+ */
+static bool throttlectl_cpu_level_select(struct tegra_soctherm *ts,
+					 enum soctherm_throttle_id throt)
+{
+	u32 r, throt_vect;
+
+	/* Denver:CCROC NV_THERM interface N:3 Mapping */
+	switch (throt) {
+	case THROTTLE_LIGHT:
+		throt_vect = THROT_VECT_LOW;
+		break;
+	case THROTTLE_HEAVY:
+		throt_vect = THROT_VECT_HIGH;
+		break;
+	default:
+		throt_vect = THROT_VECT_NONE;
+		break;
+	}
+
+	r = soctherm_readl(ts, THROT_PSKIP_CTRL(throt, THROTTLE_DEV_CPU));
+	r = REG_SET(r, THROT_PSKIP_CTRL_ENABLE, 1);
+	r = REG_SET(r, THROT_PSKIP_CTRL_VECT_CPU, throt_vect);
+	r = REG_SET(r, THROT_PSKIP_CTRL_VECT2_CPU, throt_vect);
+	soctherm_writel(ts, r, THROT_PSKIP_CTRL(throt, THROTTLE_DEV_CPU));
+
+	/* bypass sequencer in soc_therm as it is programmed in ccroc */
+	r = REG_SET(0, THROT_PSKIP_RAMP_SEQ_BYPASS_MODE, 1);
+	soctherm_writel(ts, r, THROT_PSKIP_RAMP(throt, THROTTLE_DEV_CPU));
+
+	return true;
+}
+
+/**
+ * throttlectl_cpu_mn() - program CPU pulse skipper configuration
+ * @throt: soctherm_throttle_id describing the level of throttling
+ *
+ * Pulse skippers are used to throttle clock frequencies.  This
+ * function programs the pulse skippers based on @throt and platform
+ * data.  This function is used for CPUs that have "remote" pulse
+ * skipper control, e.g., the CPU pulse skipper is controlled by the
+ * SOC_THERM IP block.  (SOC_THERM is located outside the CPU
+ * complex.)
+ *
+ * Return: boolean true if HW was programmed, or false if the desired
+ * configuration is not supported.
+ */
+static bool throttlectl_cpu_mn(struct tegra_soctherm *ts,
+			       enum soctherm_throttle_id throt)
+{
+	u32 r;
+	u8 dividend;
+
+	switch (throt) {
+	case THROTTLE_LIGHT:
+		dividend = 229;
+		break;
+	case THROTTLE_HEAVY:
+		dividend = 51;
+		break;
+	default:
+		return false;
+	}
+
+	r = soctherm_readl(ts, THROT_PSKIP_CTRL(throt, THROTTLE_DEV_CPU));
+	r = REG_SET(r, THROT_PSKIP_CTRL_ENABLE, 1);
+	r = REG_SET(r, THROT_PSKIP_CTRL_DIVIDEND, dividend);
+	r = REG_SET(r, THROT_PSKIP_CTRL_DIVISOR, 0xff);
+	soctherm_writel(ts, r, THROT_PSKIP_CTRL(throt, THROTTLE_DEV_CPU));
+
+	r = soctherm_readl(ts, THROT_PSKIP_RAMP(throt, THROTTLE_DEV_CPU));
+	r = REG_SET(r, THROT_PSKIP_RAMP_DURATION, 0xff);
+	r = REG_SET(r, THROT_PSKIP_RAMP_STEP, 0xf);
+	soctherm_writel(ts, r, THROT_PSKIP_RAMP(throt, THROTTLE_DEV_CPU));
+
+	return true;
+}
+
+/**
+ * soctherm_throttle_program() - programs pulse skippers' configuration
+ * @throt	soctherm_throttle_id describing the level of throttling
+ *
+ * Pulse skippers are used to throttle clock frequencies.
+ * This function programs the pulse skippers based on @throt and platform data.
+ *
+ * Return: Nothing is returned (void).
+ */
+static void soctherm_throttle_program(struct tegra_soctherm *ts,
+				      enum soctherm_throttle_id throt)
+{
+	u32 r;
+	u8 priority;
+
+	/* Setup PSKIP parameters */
+	if (ts->is_ccroc)
+		throttlectl_cpu_level_select(ts, throt);
+	else
+		throttlectl_cpu_mn(ts, throt);
+
+	priority = 0xE + throt;
+	r = REG_SET(0, THROT_PRIORITY_LITE_PRIO, priority);
+	soctherm_writel(ts, r, THROT_PRIORITY_CTRL(throt));
+
+	r = REG_SET(0, THROT_DELAY_LITE_DELAY, 0);
+	soctherm_writel(ts, r, THROT_DELAY_CTRL(throt));
+
+	r = soctherm_readl(ts, THROT_PRIORITY_LOCK);
+	if (r < priority) {
+		r = REG_SET(0, THROT_PRIORITY_LOCK_PRIORITY, priority);
+		soctherm_writel(ts, r, THROT_PRIORITY_LOCK);
+	}
+}
+
+static int tegra_soctherm_hw_throttle(struct platform_device *pdev)
+{
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	bool is_ccroc;
+
+	if (!ts)
+		return -EINVAL;
+
+	is_ccroc = ts->is_ccroc;
+
+	/* configure low, med and heavy levels for CCROC NV_THERM */
+	if (is_ccroc) {
+		throttlectl_cpu_level_cfg(ts, THROTTLE_LEVEL_LOW);
+		throttlectl_cpu_level_cfg(ts, THROTTLE_LEVEL_MED);
+		throttlectl_cpu_level_cfg(ts, THROTTLE_LEVEL_HIGH);
+	}
+
+	/* Thermal HW throttle programming */
+	soctherm_throttle_program(ts, THROTTLE_HEAVY);
+
+	throttrip_configure_from_dt(pdev);
+
+	return 0;
+}
+
 static int soctherm_init_platform_data(struct platform_device *pdev)
 {
 	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
 	struct tegra_tsensor *tsensors = tegra->tsensors;
 	struct tegra_tsensor_group **tegra_tsensor_groups;
 	int i;
+	u32 v;
 
 	tegra_tsensor_groups = tegra->sensor_groups;
 
@@ -525,7 +1043,6 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 	/* Initialize thermctl sensors */
 	for (i = 0; tegra_tsensor_groups[i]; ++i) {
 		struct tegra_tsensor_group *ttg;
-		u32 v;
 
 		ttg = tegra_tsensor_groups[i];
 
@@ -553,18 +1070,47 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	/* Set up hardware throttle */
+	if (tegra_soctherm_hw_throttle(pdev)) {
+		dev_err(&pdev->dev, "configure HW throttle trip failed\n");
+		return -EINVAL;
+	}
+
+	v = REG_SET(0, THROT_GLOBAL_ENB, 1);
+	if (tegra->is_ccroc)
+		ccroc_writel(tegra, v, CCROC_GLOBAL_CFG);
+	else
+		soctherm_writel(tegra, v, THROT_GLOBAL_CFG);
+
+	if (tegra->is_ccroc) {
+		v = ccroc_readl(tegra, CCROC_SUPER_CCLKG_DIVIDER);
+		v = REG_SET(v, CDIVG_USE_THERM_CONTROLS, 1);
+		ccroc_writel(tegra, v, CCROC_SUPER_CCLKG_DIVIDER);
+	} else {
+		v = clk_readl(tegra, CAR_SUPER_CCLKG_DIVIDER);
+		v = REG_SET(v, CDIVG_USE_THERM_CONTROLS, 1);
+		clk_writel(tegra, v, CAR_SUPER_CCLKG_DIVIDER);
+	}
+
+	/* initialize stats collection */
+	v = STATS_CTL_CLR_DN | STATS_CTL_EN_DN |
+		STATS_CTL_CLR_UP | STATS_CTL_EN_UP;
+	soctherm_writel(tegra, v, STATS_CTL);
+
 	return 0;
 }
 
 int tegra_soctherm_probe(struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
 		struct tegra_tsensor_group **tegra_tsensor_groups,
-		u8 nominal_calib_cp, u8 nominal_calib_ft)
+		u8 nominal_calib_cp, u8 nominal_calib_ft,
+		bool is_ccroc)
 {
 	struct tegra_soctherm *tegra;
 	struct thermal_zone_device *tz;
 	struct tegra_tsensor_group *ttg;
 	struct tsensor_shared_calibration *shared_calib;
+	struct resource *reg_res;
 	int i;
 	int err = 0;
 
@@ -575,12 +1121,35 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	dev_set_drvdata(&pdev->dev, tegra);
 	tegra->sensor_groups = tegra_tsensor_groups;
 	tegra->tsensors = tsensors;
+	tegra->is_ccroc = is_ccroc;
 
-	tegra->regs = devm_ioremap_resource(&pdev->dev,
-		platform_get_resource(pdev, IORESOURCE_MEM, 0));
+	reg_res = platform_get_resource_byname(pdev,
+						IORESOURCE_MEM,
+						"soctherm-reg");
+	tegra->regs = devm_ioremap_resource(&pdev->dev, reg_res);
 	if (IS_ERR(tegra->regs)) {
 		dev_err(&pdev->dev, "can't get registers");
 		return PTR_ERR(tegra->regs);
+	}
+
+	reg_res = platform_get_resource_byname(pdev,
+						IORESOURCE_MEM,
+						"car-reg");
+	tegra->clk_regs = devm_ioremap_resource(&pdev->dev, reg_res);
+	if (IS_ERR(tegra->clk_regs)) {
+		dev_err(&pdev->dev, "can't get clk registers");
+		return PTR_ERR(tegra->clk_regs);
+	}
+
+	if (is_ccroc) {
+		reg_res = platform_get_resource_byname(pdev,
+							IORESOURCE_MEM,
+							"ccroc-reg");
+		tegra->ccroc_regs = devm_ioremap_resource(&pdev->dev, reg_res);
+		if (IS_ERR(tegra->ccroc_regs)) {
+			dev_err(&pdev->dev, "can't get ccroc registers");
+			return PTR_ERR(tegra->ccroc_regs);
+		}
 	}
 
 	tegra->reset = devm_reset_control_get(&pdev->dev, "soctherm");
@@ -646,9 +1215,8 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 
 		ttg = tegra_tsensor_groups[i];
 		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION)) {
-
 			tz = thermal_zone_of_sensor_register(
-						&pdev->dev, i,
+						&pdev->dev, ttg->id,
 						zone,
 						tegra_thermctl_get_temp,
 						NULL,

@@ -130,7 +130,8 @@ int tegra_soctherm_probe(
 		struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
 		struct tegra_tsensor_group **tegra_tsensor_groups,
-		u8 nominal_calib_cp, u8 nominal_calib_ft);
+		u8 nominal_calib_cp, u8 nominal_calib_ft,
+		bool is_ccroc);
 int tegra_soctherm_remove(struct platform_device *pdev);
 
 #endif

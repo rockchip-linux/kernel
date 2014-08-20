@@ -214,7 +214,8 @@ static int tegra124_soctherm_probe(struct platform_device *pdev)
 				    tegra124_tsensors,
 				    tegra124_tsensor_groups,
 				    NOMINAL_CALIB_CP_T124,
-				    NOMINAL_CALIB_FT_T124);
+				    NOMINAL_CALIB_FT_T124,
+				    false);
 }
 
 static struct platform_driver tegra124_soctherm_driver = {
