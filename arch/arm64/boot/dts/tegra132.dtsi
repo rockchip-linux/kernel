@@ -530,7 +530,7 @@
 			compatible = "nvidia,denver", "arm,armv8";
 			reg = <0x0 0x0>;
 			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
+			cpu-release-addr = <0x0 0x80000008>;
 			power-states = <&power_states>;
 		};
 
@@ -539,7 +539,7 @@
 			compatible = "nvidia,denver", "arm,armv8";
 			reg = <0x0 0x1>;
 			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
+			cpu-release-addr = <0x0 0x80000008>;
 			power-states = <&power_states>;
 		};
 	};
