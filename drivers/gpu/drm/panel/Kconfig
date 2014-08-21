@@ -16,4 +16,10 @@ config DRM_PANEL_SIMPLE
 	  that it can be automatically turned off when the panel goes into a
 	  low power state.
 
+config DRM_PANEL_JDI_LPM102A188A
+	tristate "support for jdi lpm102a188a"
+	depends on OF
+	help
+	  DRM panel driver for JDI lpm102a188a
+
 endmenu

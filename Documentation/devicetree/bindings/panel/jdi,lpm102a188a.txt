@@ -1,0 +1,27 @@
+JDI LPM102A188A panel
+
+Required properties for master panel:
+- power-supply: regulator controlling avdd(vdd_30) line into the panel
+- ddi-supply: regulator controlling vddi(vdd_18) line into the panel
+- enable-gpio: gpio controlling the power_en line into the panel
+- reset-gpio: gpio controlling the rstx(resx) line into the panel
+
+Required properties for slave panel:
+- master: phandle pointing to the master panel
+
+Optional properties:
+- None
+
+Example:
+	panel: panel@0 {
+		compatible = "jdi,lpm102a188a";
+
+		reg = <0 0>;
+
+		power-supply = <&pplcd_vdd>;
+		ddi-supply = <&pp1800_lcdio>;
+
+		enable-gpio = <&gpio TEGRA_GPIO(H, 5) GPIO_ACTIVE_HIGH>;
+		reset-gpio = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_LOW>;
+	};
+
