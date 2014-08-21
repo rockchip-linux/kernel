@@ -176,7 +176,7 @@
 
 				regulators {
 					smps123 {
-						regulator-name = "vdd-cpu";
+						regulator-name = "vdd_cpu";
 						regulator-min-microvolt = <750000>;
 						regulator-max-microvolt = <1260000>;
 						regulator-always-on;
@@ -195,7 +195,7 @@
 					};
 
 					palmas_smps6: smps6 {
-						regulator-name = "vddio-ddr";
+						regulator-name = "vdd_core";
 						regulator-min-microvolt = <800000>;
 						regulator-max-microvolt = <1150000>;
 						regulator-always-on;
