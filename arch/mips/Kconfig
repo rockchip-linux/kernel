@@ -1395,6 +1395,7 @@ config CPU_CAVIUM_OCTEON
 	select USB_EHCI_BIG_ENDIAN_MMIO
 	select SYS_HAS_DMA_OPS
 	select MIPS_L1_CACHE_SHIFT_7
+	select BUILTIN_DTB
 	help
 	  The Cavium Octeon processor is a highly integrated chip containing
 	  many ethernet hardware widgets for networking tasks. The processor
