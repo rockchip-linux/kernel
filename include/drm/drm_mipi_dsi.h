@@ -189,6 +189,15 @@ int mipi_dsi_dcs_set_column_address(struct mipi_dsi_device *dsi, u16 start,
 				    u16 end);
 int mipi_dsi_dcs_set_page_address(struct mipi_dsi_device *dsi, u16 start,
 				  u16 end);
+int mipi_dsi_dcs_set_address_mode(struct mipi_dsi_device *dsi,
+				  bool reverse_page_address,
+				  bool reverse_col_address,
+				  bool reverse_page_col_address,
+				  bool refresh_from_bottom,
+				  bool reverse_rgb,
+				  bool latch_right_to_left,
+				  bool flip_horizontal,
+				  bool flip_vertical);
 int mipi_dsi_dcs_set_tear_off(struct mipi_dsi_device *dsi);
 int mipi_dsi_dcs_set_tear_on(struct mipi_dsi_device *dsi,
 			     enum mipi_dsi_dcs_tear_mode mode);

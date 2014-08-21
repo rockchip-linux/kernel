@@ -805,6 +805,51 @@ int mipi_dsi_dcs_set_pixel_format(struct mipi_dsi_device *dsi, u8 format)
 }
 EXPORT_SYMBOL(mipi_dsi_dcs_set_pixel_format);
 
+/**
+ * mipi_dsi_dcs_set_address_mode() - sets the data order for forward transfers
+ *    from the host to the peripheral
+ * @dsi: DSI peripheral device
+ * @reverse_page_address: reverses the page addressing to bottom->top
+ * @reverse_col_address: reverses the column addressing to right->left
+ * @reverse_page_col_address: reverses the page/column addressing order
+ * @refresh_from_bottom: refresh the display bottom to top
+ * @reverse_rgb: send pixel data bgr instead of rgb
+ * @latch_right_to_left: latch the incoming display data right to left
+ * @flip_horizontal: flip the image horizontally, left to right
+ * @flip_vertical: flip the image vertically, top to bottom
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+int mipi_dsi_dcs_set_address_mode(struct mipi_dsi_device *dsi,
+			bool reverse_page_address,
+			bool reverse_col_address,
+			bool reverse_page_col_address,
+			bool refresh_from_bottom,
+			bool reverse_rgb,
+			bool latch_right_to_left,
+			bool flip_horizontal,
+			bool flip_vertical)
+{
+	ssize_t err;
+	u8 data;
+
+	data = (flip_vertical ? 1 << 0 : 0) |
+		(flip_horizontal ? 1 << 1 : 0) |
+		(latch_right_to_left ? 1 << 2 : 0) |
+		(reverse_rgb ? 1 << 3 : 0) |
+		(refresh_from_bottom ? 1 << 4 : 0) |
+		(reverse_page_col_address ? 1 << 5 : 0) |
+		(reverse_col_address ? 1 << 6 : 0) |
+		(reverse_page_address ? 1 << 7 : 0);
+
+	err = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_ADDRESS_MODE, &data, 1);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+EXPORT_SYMBOL(mipi_dsi_dcs_set_address_mode);
+
 static int mipi_dsi_drv_probe(struct device *dev)
 {
 	struct mipi_dsi_driver *drv = to_mipi_dsi_driver(dev->driver);
