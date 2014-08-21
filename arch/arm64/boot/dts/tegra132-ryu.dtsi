@@ -175,7 +175,7 @@
 #endif
 
 				regulators {
-					smps123 {
+					vdd_cpu: smps123 {
 						regulator-name = "vdd_cpu";
 						regulator-min-microvolt = <750000>;
 						regulator-max-microvolt = <1260000>;
@@ -301,6 +301,12 @@
 
 			#thermal-sensor-cells = <1>;
 		};
+	};
+
+	dfll@70040084 {
+		vdd-cpu-supply = <&vdd_cpu>;
+		nvidia,i2c-fs-rate = <400000>;
+		status = "okay";
 	};
 
 	/* USB A connector */
