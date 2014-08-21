@@ -292,6 +292,11 @@ enum clk_id {
 	tegra_clk_usbd_emc,
 	tegra_clk_usbd_sclk,
 	tegra_clk_wake_sclk,
+	tegra_clk_gk20a_emc,
+	tegra_clk_vic03_emc,
+	tegra_clk_ispa_emc,
+	tegra_clk_ispb_emc,
+	tegra_clk_xusb_emc,
 	tegra_clk_max,
 };
 

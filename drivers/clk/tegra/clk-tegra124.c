@@ -969,6 +969,60 @@ static struct tegra_clk tegra124_clks[tegra_clk_max] __initdata = {
 	[tegra_clk_dsia_mux] = { .dt_id = TEGRA124_CLK_DSIA_MUX, .present = true },
 	[tegra_clk_dsib_mux] = { .dt_id = TEGRA124_CLK_DSIB_MUX, .present = true },
 	[tegra_clk_uarte] = { .dt_id = TEGRA124_CLK_UARTE, .present = true },
+	[tegra_clk_cap_c2bus] = { .dt_id = TEGRA124_CLK_CAP_C2BUS, .present = true },
+	[tegra_clk_cap_throttle_c2bus] = { .dt_id = TEGRA124_CLK_CAP_THROTTLE_C2BUS, .present = true },
+	[tegra_clk_floor_c2bus] = { .dt_id = TEGRA124_CLK_FLOOR_C2BUS, .present = true },
+	[tegra_clk_override_c2bus] = { .dt_id = TEGRA124_CLK_OVERRIDE_C2BUS, .present = true },
+	[tegra_clk_edp_c2bus] = { .dt_id = TEGRA124_CLK_EDP_C2BUS, .present = true },
+	[tegra_clk_battery_c2bus] = { .dt_id = TEGRA124_CLK_BATTERY_C2BUS, .present = true },
+	[tegra_clk_cap_profile_c2bus] = { .dt_id = TEGRA124_CLK_CAP_PROFILE_C2BUS, .present = true },
+	[tegra_clk_cap_c3bus] = { .dt_id = TEGRA124_CLK_CAP_C3BUS, .present = true },
+	[tegra_clk_cap_throttle_c3bus] = { .dt_id = TEGRA124_CLK_CAP_THROTTLE_C3BUS, .present = true },
+	[tegra_clk_override_c3bus] = { .dt_id = TEGRA124_CLK_OVERRIDE_C3BUS, .present = true },
+	[tegra_clk_avp_sclk] = { .dt_id = TEGRA124_CLK_AVP_SCLK, .present = true },
+	[tegra_clk_bsea_sclk] = { .dt_id = TEGRA124_CLK_BSEA_SCLK, .present = true },
+	[tegra_clk_usbd_sclk] = { .dt_id = TEGRA124_CLK_USBD_SCLK, .present = true },
+	[tegra_clk_usb1_sclk] = { .dt_id = TEGRA124_CLK_USB1_SCLK, .present = true },
+	[tegra_clk_usb2_sclk] = { .dt_id = TEGRA124_CLK_USB2_SCLK, .present = true },
+	[tegra_clk_usb3_sclk] = { .dt_id = TEGRA124_CLK_USB3_SCLK, .present = true },
+	[tegra_clk_wake_sclk] = { .dt_id = TEGRA124_CLK_WAKE_SCLK, .present = true },
+	[tegra_clk_mon_avp] = { .dt_id = TEGRA124_CLK_MON_AVP, .present = true },
+	[tegra_clk_cap_sclk] = { .dt_id = TEGRA124_CLK_CAP_SCLK, .present = true },
+	[tegra_clk_cap_throttle_sclk] = { .dt_id = TEGRA124_CLK_CAP_THROTTLE_SCLK, .present = true },
+	[tegra_clk_floor_sclk] = { .dt_id = TEGRA124_CLK_FLOOR_SCLK, .present = true },
+	[tegra_clk_override_sclk] = { .dt_id = TEGRA124_CLK_OVERRIDE_SCLK, .present = true },
+	[tegra_clk_sbc1_sclk] = { .dt_id = TEGRA124_CLK_SBC1_SCLK, .present = true },
+	[tegra_clk_sbc2_sclk] = { .dt_id = TEGRA124_CLK_SBC2_SCLK, .present = true },
+	[tegra_clk_sbc3_sclk] = { .dt_id = TEGRA124_CLK_SBC3_SCLK, .present = true },
+	[tegra_clk_sbc4_sclk] = { .dt_id = TEGRA124_CLK_SBC4_SCLK, .present = true },
+	[tegra_clk_sbc5_sclk] = { .dt_id = TEGRA124_CLK_SBC5_SCLK, .present = true },
+	[tegra_clk_sbc6_sclk] = { .dt_id = TEGRA124_CLK_SBC6_SCLK, .present = true },
+	[tegra_clk_avp_emc] = { .dt_id = TEGRA124_CLK_AVP_EMC, .present = true },
+	[tegra_clk_cpu_emc] = { .dt_id = TEGRA124_CLK_CPU_EMC, .present = true },
+	[tegra_clk_disp1_emc] = { .dt_id = TEGRA124_CLK_DISP1_EMC, .present = true },
+	[tegra_clk_disp2_emc] = { .dt_id = TEGRA124_CLK_DISP2_EMC, .present = true },
+	[tegra_clk_hdmi_emc] = { .dt_id = TEGRA124_CLK_HDMI_EMC, .present = true },
+	[tegra_clk_usbd_emc] = { .dt_id = TEGRA124_CLK_USBD_EMC, .present = true },
+	[tegra_clk_usb1_emc] = { .dt_id = TEGRA124_CLK_USB1_EMC, .present = true },
+	[tegra_clk_usb2_emc] = { .dt_id = TEGRA124_CLK_USB2_EMC, .present = true },
+	[tegra_clk_usb3_emc] = { .dt_id = TEGRA124_CLK_USB3_EMC, .present = true },
+	[tegra_clk_mon_emc] = { .dt_id = TEGRA124_CLK_MON_EMC, .present = true },
+	[tegra_clk_msenc_emc] = { .dt_id = TEGRA124_CLK_MSENC_EMC, .present = true },
+	[tegra_clk_tsec_emc] = { .dt_id = TEGRA124_CLK_TSEC_EMC, .present = true },
+	[tegra_clk_sdmmc4_emc] = { .dt_id = TEGRA124_CLK_SDMMC4_EMC, .present = true },
+	[tegra_clk_camera_emc] = { .dt_id = TEGRA124_CLK_CAMERA_EMC, .present = true },
+	[tegra_clk_iso_emc] = { .dt_id = TEGRA124_CLK_ISO_EMC, .present = true },
+	[tegra_clk_floor_emc] = { .dt_id = TEGRA124_CLK_FLOOR_EMC, .present = true },
+	[tegra_clk_cap_emc] = { .dt_id = TEGRA124_CLK_CAP_EMC, .present = true },
+	[tegra_clk_cap_throttle_emc] = { .dt_id = TEGRA124_CLK_CAP_THROTTLE_EMC, .present = true },
+	[tegra_clk_edp_emc] = { .dt_id = TEGRA124_CLK_EDP_EMC, .present = true },
+	[tegra_clk_battery_emc] = { .dt_id = TEGRA124_CLK_BATTERY_EMC, .present = true },
+	[tegra_clk_override_emc] = { .dt_id = TEGRA124_CLK_OVERRIDE_EMC, .present = true },
+	[tegra_clk_gk20a_emc] = { .dt_id = TEGRA124_CLK_GK20A_EMC, .present = true },
+	[tegra_clk_vic03_emc] = { .dt_id = TEGRA124_CLK_VIC03_EMC, .present = true },
+	[tegra_clk_ispa_emc] = { .dt_id = TEGRA124_CLK_ISPA_EMC, .present = true },
+	[tegra_clk_ispb_emc] = { .dt_id = TEGRA124_CLK_ISPB_EMC, .present = true },
+	[tegra_clk_xusb_emc] = { .dt_id = TEGRA124_CLK_XUSB_EMC, .present = true },
 };
 
 static struct tegra_devclk devclks[] __initdata = {
@@ -1081,6 +1135,8 @@ static struct tegra_devclk devclks[] __initdata = {
 	{ .con_id = "hda", .dt_id = TEGRA124_CLK_HDA },
 	{ .con_id = "hda2codec_2x", .dt_id = TEGRA124_CLK_HDA2CODEC_2X },
 	{ .con_id = "hda2hdmi", .dt_id = TEGRA124_CLK_HDA2HDMI },
+	{ .con_id = "cpu.emc", .dt_id = TEGRA124_CLK_CPU_EMC },
+	{ .con_id = "xusb.emc", .dt_id = TEGRA124_CLK_XUSB_EMC },
 };
 
 static struct clk **clks;
@@ -1365,6 +1421,55 @@ static void __init tegra124_pll_init(void __iomem *clk_base,
 
 }
 
+static const char *cbus_parents[] = { "c2bus", "c3bus" };
+
+static __init void tegra124_shared_clk_init(void)
+{
+	struct clk *clk;
+
+	clk = tegra_clk_register_cbus("c2bus", "pll_c2", 0, "pll_p", 0,
+					700000000);
+	clk_register_clkdev(clk, "c2bus", NULL);
+	clks[TEGRA124_CLK_C2BUS] = clk;
+
+	clk = tegra_clk_register_cbus("c3bus", "pll_c3", 0, "pll_p", 0,
+					700000000);
+	clk_register_clkdev(clk, "c3bus", NULL);
+	clks[TEGRA124_CLK_C3BUS] = clk;
+
+	clk = tegra_clk_register_shared("msenc.cbus", &cbus_parents[0], 1, 0, 0,
+					"msenc");
+	clks[TEGRA124_CLK_MSENC_CBUS] = clk;
+
+	clk = tegra_clk_register_shared("vde.cbus", &cbus_parents[0], 1, 0, 0,
+					"vde");
+	clks[TEGRA124_CLK_VDE_CBUS] = clk;
+
+	clk = tegra_clk_register_shared("se.cbus", &cbus_parents[0], 1, 0, 0,
+					"se");
+	clks[TEGRA124_CLK_SE_CBUS] = clk;
+
+	clk = tegra_clk_register_shared("tsec.cbus", &cbus_parents[1], 1, 0, 0,
+					"tsec");
+	clks[TEGRA124_CLK_TSEC_CBUS] = clk;
+
+	clk = tegra_clk_register_shared("vic03.cbus", &cbus_parents[1], 1, 0, 0,
+					"vic03");
+	clks[TEGRA124_CLK_VIC03_CBUS] = clk;
+
+	clk = tegra_clk_register_sbus_cmplx("sbus", "sclk", 0, "pclk",
+					"hclk", "pll_p_out2", "pll_c_out1",
+					108000000, 12000000, 384000000);
+	clk_register_clkdev(clk, "sbus", NULL);
+	clks[TEGRA124_CLK_SBUS] = clk;
+
+	clk = tegra_clk_register_shared_master("emc_master", "emc", 0,
+						12750000, 1066000000);
+	clks[TEGRA124_CLK_EMC_MASTER] = clk;
+
+	tegra_shared_clk_init(tegra124_clks);
+}
+
 /* Tegra124 CPU clock and reset control functions */
 static void tegra124_wait_cpu_in_reset(u32 cpu)
 {
@@ -1444,7 +1549,6 @@ static struct tegra_clk_init_table init_table[] __initdata = {
 	{TEGRA124_CLK_I2S2, TEGRA124_CLK_PLL_A_OUT0, 11289600, 0},
 	{TEGRA124_CLK_I2S3, TEGRA124_CLK_PLL_A_OUT0, 11289600, 0},
 	{TEGRA124_CLK_I2S4, TEGRA124_CLK_PLL_A_OUT0, 11289600, 0},
-	{TEGRA124_CLK_VDE, TEGRA124_CLK_PLL_P, 0, 0},
 	{TEGRA124_CLK_HOST1X, TEGRA124_CLK_PLL_P, 136000000, 1},
 	{TEGRA124_CLK_SCLK, TEGRA124_CLK_PLL_P_OUT2, 102000000, 1},
 	{TEGRA124_CLK_DFLL_SOC, TEGRA124_CLK_PLL_P, 51000000, 1},
@@ -1453,7 +1557,6 @@ static struct tegra_clk_init_table init_table[] __initdata = {
 	{TEGRA124_CLK_PLL_C_OUT1, TEGRA124_CLK_CLK_MAX, 100000000, 0},
 	{TEGRA124_CLK_SBC4, TEGRA124_CLK_PLL_P, 12000000, 1},
 	{TEGRA124_CLK_TSEC, TEGRA124_CLK_PLL_C3, 0, 0},
-	{TEGRA124_CLK_MSENC, TEGRA124_CLK_PLL_C3, 0, 0},
 	{TEGRA124_CLK_I2C1, TEGRA124_CLK_PLL_P, 0, 0},
 	{TEGRA124_CLK_I2C2, TEGRA124_CLK_PLL_P, 0, 0},
 	{TEGRA124_CLK_I2C3, TEGRA124_CLK_PLL_P, 0, 0},
@@ -1465,6 +1568,13 @@ static struct tegra_clk_init_table init_table[] __initdata = {
 #ifdef CONFIG_ARCH_TEGRA_124_SOC
 	{TEGRA124_CLK_CCLK_G, TEGRA124_CLK_CLK_MAX, 0, 1},
 #endif
+	{TEGRA124_CLK_VIC03, TEGRA124_CLK_PLL_C3, 0, 0},
+	{TEGRA124_CLK_MSENC, TEGRA124_CLK_PLL_C2, 0, 0},
+	{TEGRA124_CLK_SE, TEGRA124_CLK_PLL_C2, 0, 0},
+	{TEGRA124_CLK_VDE, TEGRA124_CLK_PLL_C2, 0, 0},
+	{TEGRA124_CLK_VI, TEGRA124_CLK_PLL_C4, 0, 0},
+	{TEGRA124_CLK_ISP, TEGRA124_CLK_PLL_C4, 0, 0},
+	{TEGRA124_CLK_PLL_M_UD, TEGRA124_CLK_CLK_MAX, 0, 1},
 	/* This MUST be the last entry. */
 	{TEGRA124_CLK_CLK_MAX, TEGRA124_CLK_CLK_MAX, 0, 0},
 };
@@ -1588,6 +1698,9 @@ static void __init tegra124_clock_init(struct device_node *np)
 	}
 	tegra_super_clk_gen4_init(clk_base, pmc_base, tegra124_clks,
 					&pll_x_params);
+
+	tegra124_shared_clk_init();
+
 	tegra_add_of_provider(np);
 	tegra_register_devclks(devclks, ARRAY_SIZE(devclks));
 
