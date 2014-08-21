@@ -60,7 +60,8 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_pre_0_12 = {
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_CPU_MASK,
 	.pllx_hotspot_diff		= 10000,
 	.thermtrip_enable_shift		= THERMTRIP_CPU_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_CPU_THRESH_MASK,
+	.thermtrip_threshold_mask	= THERMTRIP_CPU_THRESH_MASK <<
+					  THERMTRIP_CPU_THRESH_SHIFT,
 	.flags				= SKIP_THERMAL_FW_REGISTRATION |
 					  SKIP_THERMTRIP_REGISTRATION,
 };
@@ -78,7 +79,8 @@ static struct tegra_tsensor_group tegra132_tsensor_group_cpu_0_12_plus = {
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_CPU_MASK,
 	.pllx_hotspot_diff		= 10000,
 	.thermtrip_enable_shift		= THERMTRIP_CPU_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_CPU_THRESH_MASK,
+	.thermtrip_threshold_mask	= THERMTRIP_CPU_THRESH_MASK <<
+					  THERMTRIP_CPU_THRESH_SHIFT,
 };
 
 static struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
@@ -94,7 +96,8 @@ static struct tegra_tsensor_group tegra132_tsensor_group_gpu = {
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_GPU_MASK,
 	.pllx_hotspot_diff		= 5000,
 	.thermtrip_enable_shift		= THERMTRIP_GPU_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_GPUMEM_THRESH_MASK,
+	.thermtrip_threshold_mask	= THERMTRIP_GPUMEM_THRESH_MASK <<
+					  THERMTRIP_GPUMEM_THRESH_SHIFT,
 };
 
 static struct tegra_tsensor_group tegra132_tsensor_group_pll_pre_0_12 = {
@@ -108,7 +111,8 @@ static struct tegra_tsensor_group tegra132_tsensor_group_pll_pre_0_12 = {
 	.pdiv_ate			= 8,
 	.pdiv_mask			= SENSOR_PDIV_PLLX_MASK,
 	.thermtrip_enable_shift		= THERMTRIP_TSENSE_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_TSENSE_THRESH_MASK,
+	.thermtrip_threshold_mask	= THERMTRIP_TSENSE_THRESH_MASK <<
+					  THERMTRIP_TSENSE_THRESH_SHIFT,
 };
 
 static struct tegra_tsensor_group tegra132_tsensor_group_pll_0_12_plus = {
@@ -122,7 +126,8 @@ static struct tegra_tsensor_group tegra132_tsensor_group_pll_0_12_plus = {
 	.pdiv_ate			= 8,
 	.pdiv_mask			= SENSOR_PDIV_PLLX_MASK,
 	.thermtrip_enable_shift		= THERMTRIP_TSENSE_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_TSENSE_THRESH_MASK,
+	.thermtrip_threshold_mask	= THERMTRIP_TSENSE_THRESH_MASK <<
+					  THERMTRIP_TSENSE_THRESH_SHIFT,
 	.flags				= SKIP_THERMAL_FW_REGISTRATION |
 					  SKIP_THERMTRIP_REGISTRATION,
 };
@@ -139,7 +144,8 @@ static struct tegra_tsensor_group tegra132_tsensor_group_mem = {
 	.pdiv_mask			= SENSOR_PDIV_MEM_MASK,
 	.pllx_hotspot_mask		= SENSOR_HOTSPOT_MEM_MASK,
 	.thermtrip_enable_shift		= THERMTRIP_MEM_EN_SHIFT,
-	.thermtrip_threshold_mask	= THERMTRIP_GPUMEM_THRESH_MASK,
+	.thermtrip_threshold_mask	= THERMTRIP_GPUMEM_THRESH_MASK <<
+					  THERMTRIP_GPUMEM_THRESH_SHIFT,
 };
 
 static struct tegra_tsensor_group *tegra132_tsensor_groups_pre_0_12[] = {
