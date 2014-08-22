@@ -192,12 +192,6 @@ enum cyapa_state {
 	CYAPA_STATE_NO_DEVICE,
 };
 
-enum lid_state {
-	LID_UNKNOWN,
-	LID_OPEN,
-	LID_CLOSED
-};
-
 struct cyapa_touch {
 	/*
 	 * high bits or x/y position value
@@ -254,7 +248,6 @@ struct cyapa {
 #ifdef CONFIG_PM_RUNTIME
 	u8 runtime_suspend_power_mode;
 #endif /* CONFIG_PM_RUNTIME */
-	bool suspended;
 
 	/* read from query data region. */
 	char product_id[16];
@@ -277,12 +270,6 @@ struct cyapa {
 
 	/* Buffer to store firmware read using debugfs */
 	u8 *read_fw_image;
-
-	/* lid state */
-	enum lid_state lid;
-
-	/* touchpad is active or off based on irq */
-	bool active;
 };
 
 static const u8 bl_activate[] = { 0x00, 0xff, 0x38, 0x00, 0x01, 0x02, 0x03,
@@ -719,7 +706,6 @@ static int cyapa_bl_enter(struct cyapa *cyapa)
 
 	if (cyapa->input) {
 		disable_irq(cyapa->irq);
-		cyapa->active = false;
 		input_unregister_device(cyapa->input);
 		cyapa->input = NULL;
 	}
@@ -1440,6 +1426,39 @@ static u8 cyapa_check_adapter_functionality(struct i2c_client *client)
 	return ret;
 }
 
+static int cyapa_inhibit(struct input_dev *input)
+{
+	struct device *dev = &input->dev;
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+
+	pm_runtime_disable(dev);
+
+	disable_irq(cyapa->irq);
+	cyapa_set_power_mode(cyapa, PWR_MODE_OFF);
+
+	pm_runtime_set_suspended(dev);
+
+	return 0;
+}
+
+static int cyapa_uninhibit(struct input_dev *input)
+{
+	struct device *dev = &input->dev;
+	struct cyapa *cyapa = dev_get_drvdata(dev);
+
+	pm_runtime_set_active(dev);
+
+	/* Activate device if it was powered off during resume. */
+	cyapa_detect(cyapa);
+
+	cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
+	enable_irq(cyapa->irq);
+
+	pm_runtime_enable(dev);
+
+	return 0;
+}
+
 static int cyapa_create_input_dev(struct cyapa *cyapa)
 {
 	struct device *dev = &cyapa->client->dev;
@@ -1462,6 +1481,8 @@ static int cyapa_create_input_dev(struct cyapa *cyapa)
 	input->id.version = 1;
 	input->id.product = 0;  /* means any product in eventcomm. */
 	input->dev.parent = &cyapa->client->dev;
+	input->inhibit = cyapa_inhibit;
+	input->uninhibit = cyapa_uninhibit;
 
 	input_set_drvdata(input, cyapa);
 
@@ -1538,7 +1559,6 @@ static void cyapa_detect(struct cyapa *cyapa)
 				ret);
 
 		enable_irq(cyapa->irq);
-		cyapa->active = true;
 		/*
 		 * On some systems, a system crash / warm boot does not reset
 		 * the device's current power mode to FULL_ACTIVE.
@@ -1935,7 +1955,6 @@ static ssize_t cyapa_calibrate_store(struct device *dev,
 	cyapa_dbg(cyapa, "======< cyapa_calibrate_store >======");
 
 	disable_irq(cyapa->irq);
-	cyapa->active = false;
 
 	ret = cyapa_read_byte(cyapa, CYAPA_CMD_DEV_STATUS);
 	if (ret < 0) {
@@ -1984,7 +2003,6 @@ static ssize_t cyapa_calibrate_store(struct device *dev,
 
 out:
 	enable_irq(cyapa->irq);
-	cyapa->active = true;
 	return ret < 0 ? ret : count;
 }
 
@@ -1998,7 +2016,6 @@ static ssize_t cyapa_show_baseline(struct device *dev,
 	cyapa_dbg(cyapa, "======< cyapa_show_baseline >======");
 
 	disable_irq(cyapa->irq);
-	cyapa->active = false;
 
 	ret = cyapa_read_byte(cyapa, CYAPA_CMD_DEV_STATUS);
 	if (ret < 0) {
@@ -2059,7 +2076,6 @@ static ssize_t cyapa_show_baseline(struct device *dev,
 
 out:
 	enable_irq(cyapa->irq);
-	cyapa->active = true;
 	return ret;
 }
 
@@ -2100,148 +2116,6 @@ static void cyapa_start_runtime(struct cyapa *cyapa)
 static void cyapa_start_runtime(struct cyapa *cyapa) {}
 #endif /* CONFIG_PM_RUNTIME */
 
-
-/*
- * We rely on EV_SW and SW_LID bits to identify a LID device, and hook
- * up our filter to listen for SW_LID events to enable/disable touchpad when
- * LID is open/closed.
- */
-static const struct input_device_id lid_device_ids[] = {
-	{
-		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-			 INPUT_DEVICE_ID_MATCH_SWBIT,
-		.evbit = { BIT_MASK(EV_SW) },
-		.swbit = { BIT_MASK(SW_LID) },
-	},
-	{ },
-};
-
-static int lid_device_connect(struct input_handler *handler,
-			      struct input_dev *dev,
-			      const struct input_device_id *id)
-{
-	struct input_handle *lid_handle;
-	int error;
-
-	pr_info("cyapa: LID device: '%s' connected\n", dev->name);
-	lid_handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
-	if (!lid_handle)
-		return -ENOMEM;
-
-	lid_handle->dev = dev;
-	lid_handle->handler = handler;
-	lid_handle->name = "lid_event_handler";
-	lid_handle->private = handler->private;
-
-	error = input_register_handle(lid_handle);
-	if (error) {
-		pr_err("Failed to register lid_event_handler, error %d\n",
-		       error);
-		goto err_free;
-	}
-
-	error = input_open_device(lid_handle);
-	if (error) {
-		pr_err("Failed to open input device, error %d\n", error);
-		goto err_unregister;
-	}
-
-	return 0;
-err_unregister:
-	input_unregister_handle(lid_handle);
-err_free:
-	kfree(lid_handle);
-	return error;
-}
-
-static void lid_device_disconnect(struct input_handle *handle)
-{
-	input_close_device(handle);
-	input_unregister_handle(handle);
-	kfree(handle);
-}
-
-static bool lid_event_filter(struct input_handle *handle,
-			     unsigned int type, unsigned int code, int value)
-{
-	struct cyapa *cyapa = handle->private;
-	struct input_dev *input_dev = cyapa->input;
-	struct device *dev = &cyapa->client->dev;
-
-	if (type == EV_SW && code == SW_LID) {
-		pr_info("cyapa %s: %s touch device\n",
-			dev_name(&cyapa->client->dev),
-			(value ? "disable" : "enable"));
-		mutex_lock(&input_dev->mutex);
-		cyapa->lid = (value ? LID_CLOSED : LID_OPEN);
-		if (cyapa->suspended) {
-			/*
-			 * If the lid event filter is called while suspended,
-			 * there is no guarantee that the underlying i2cs are
-			 * resumed at this point, so it is not safe to issue
-			 * the command to change power modes.
-			 * Instead, rely on cyapa_resume to set us back to
-			 * PWR_MODE_FULL_ACTIVE.
-			 */
-			pr_info("cyapa %s: skipping lid pm change in suspend\n",
-				dev_name(&cyapa->client->dev));
-			mutex_unlock(&input_dev->mutex);
-			return false;
-		}
-		if (value == 0) {
-			/* Activate touchpad if it was suspended before. */
-			if (!cyapa->active) {
-				cyapa_resume(dev);
-			} else {
-				cyapa_set_power_mode(cyapa,
-						     PWR_MODE_FULL_ACTIVE);
-				pm_runtime_set_active(dev);
-				pm_runtime_enable(dev);
-			}
-		} else {
-			pm_runtime_disable(dev);
-			cyapa_set_power_mode(cyapa, PWR_MODE_OFF);
-		}
-		mutex_unlock(&input_dev->mutex);
-	}
-
-	return false;
-}
-
-static void lid_event_register_handler(struct cyapa *cyapa)
-{
-	int error;
-	struct input_handler *lid_handler = &cyapa->lid_handler;
-
-	if (cyapa->lid_handler_registered) {
-		pr_err("lid handler is registered already\n");
-		return;
-	}
-
-	lid_handler->filter	= lid_event_filter;
-	lid_handler->connect	= lid_device_connect;
-	lid_handler->disconnect	= lid_device_disconnect;
-	lid_handler->name	= "cyapa_lid_event_handler";
-	lid_handler->id_table	= lid_device_ids;
-	lid_handler->private	= cyapa;
-
-	error = input_register_handler(lid_handler);
-	if (error) {
-		pr_err("Failed to register lid handler(%d)\n", error);
-		return;
-	}
-	cyapa->lid_handler_registered = true;
-}
-
-static void lid_event_unregister_handler(struct cyapa *cyapa)
-{
-	if (cyapa->lid_handler_registered) {
-		input_unregister_handler(&cyapa->lid_handler);
-		cyapa->lid_handler_registered = false;
-	}
-
-}
-
 static void cyapa_detect_and_start(void *data, async_cookie_t cookie)
 {
 	struct cyapa *cyapa = data;
@@ -2249,7 +2123,6 @@ static void cyapa_detect_and_start(void *data, async_cookie_t cookie)
 	cyapa_detect(cyapa);
 
 	cyapa_start_runtime(cyapa);
-	lid_event_register_handler(cyapa);
 }
 
 static int cyapa_probe(struct i2c_client *client,
@@ -2281,7 +2154,6 @@ static int cyapa_probe(struct i2c_client *client,
 	cyapa->debug = false;
 	cyapa->gen = CYAPA_GEN3;
 	cyapa->client = client;
-	cyapa->lid = LID_UNKNOWN;
 	i2c_set_clientdata(client, cyapa);
 	sprintf(cyapa->phys, "i2c-%d-%04x/input0", client->adapter->nr,
 		client->addr);
@@ -2305,7 +2177,6 @@ static int cyapa_probe(struct i2c_client *client,
 		goto err_unregister_device;
 	}
 	disable_irq(cyapa->irq);
-	cyapa->active = false;
 
 	if (sysfs_create_group(&client->dev.kobj, &cyapa_sysfs_group))
 		dev_warn(dev, "error creating sysfs entries.\n");
@@ -2353,7 +2224,6 @@ static int cyapa_remove(struct i2c_client *client)
 	}
 
 	input_unregister_device(cyapa->input);
-	lid_event_unregister_handler(cyapa);
 	cyapa_set_power_mode(cyapa, PWR_MODE_OFF);
 	kfree(cyapa);
 
@@ -2368,15 +2238,11 @@ static int cyapa_suspend(struct device *dev)
 	struct cyapa *cyapa = dev_get_drvdata(dev);
 	cyapa_dbg(cyapa, "======< cyapa_suspend >======");
 
-	/* Set suspended flag true as system suspends. */
-	cyapa->suspended = true;
-
-	/* Skip the step if it was turned off before. */
-	if (!cyapa->active)
+	/* Skip the following steps if device is already powered off. */
+	if (cyapa->input && cyapa->input->inhibited)
 		return 0;
 
 	disable_irq(cyapa->irq);
-	cyapa->active = false;
 
 	/*
 	 * Set trackpad device to idle mode if wakeup is allowed,
@@ -2400,31 +2266,28 @@ static int cyapa_resume(struct device *dev)
 	struct cyapa *cyapa = dev_get_drvdata(dev);
 	cyapa_dbg(cyapa, "======< cyapa_resume >======");
 
-	/* Set suspended flag false as system resumes. */
-	cyapa->suspended = false;
-
-	/*
-	 * Do not activate touchpad if lid is closed, defer the activation
-	 * until lid is open.
-	 */
-	if (cyapa->lid == LID_CLOSED)
+	/* If inhibited, defer activation until later. */
+	if (cyapa->input && cyapa->input->inhibited)
 		return 0;
 
-	if (device_may_wakeup(dev) && cyapa->irq_wake)
+	if (cyapa->irq_wake) {
 		disable_irq_wake(cyapa->irq);
+		cyapa->irq_wake = false;
+	}
+
+	/* runtime set active to reflect active state. */
+	pm_runtime_disable(dev);
+	pm_runtime_set_active(dev);
 
 	cyapa_detect(cyapa);
 
 	ret = cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
 	if (ret)
-		dev_warn(dev, "resume active power failed, %d\n", ret);
+		dev_warn(dev, "set_power_mode after resume failed, %d\n", ret);
 
-	/* runtime set active to reflect active state. */
-	pm_runtime_disable(dev);
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
 	enable_irq(cyapa->irq);
-	cyapa->active = true;
+	pm_runtime_enable(dev);
+
 	return 0;
 }
 
