@@ -77,6 +77,22 @@
 
 #define THERMCTL_INTR_STATUS			0x84
 #define THERMCTL_INTR_EN			0x88
+#define THERMCTL_INTR_DISABLE			0x8c
+
+#define TH_INTR_POS_GD0_SHIFT		17
+#define TH_INTR_POS_GD0_MASK		0x1
+#define TH_INTR_POS_GU0_SHIFT		16
+#define TH_INTR_POS_GU0_MASK		0x1
+#define TH_INTR_POS_CD0_SHIFT		9
+#define TH_INTR_POS_CD0_MASK		0x1
+#define TH_INTR_POS_CU0_SHIFT		8
+#define TH_INTR_POS_CU0_MASK		0x1
+#define TH_INTR_POS_PD0_SHIFT		1
+#define TH_INTR_POS_PD0_MASK		0x1
+#define TH_INTR_POS_PU0_SHIFT		0
+#define TH_INTR_POS_PU0_MASK		0x1
+
+#define TH_INTR_POS_IGNORE_MASK		0xfffbfbfb
 
 #define STATS_CTL				0x94
 #define STATS_CTL_CLR_DN			0x8
@@ -501,27 +517,93 @@ static int tegra_thermctl_set_trips(void *data, long low, long high)
 	return 0;
 }
 
-static irqreturn_t soctherm_isr(int irq, void *dev_id)
+/**
+ * soctherm_thermal_isr() - thermal interrupt request handler
+ * @irq:	Interrupt request number
+ * @arg:	Not used.
+ *
+ * Reads the thermal interrupt status and then disables any asserted
+ * interrupts. The thread woken by this isr services the asserted
+ * interrupts and re-enables them.
+ *
+ * Return: %IRQ_WAKE_THREAD
+ */
+static irqreturn_t soctherm_thermal_isr(int irq, void *dev_id)
 {
-	struct tegra_thermctl_zone *zone = dev_id;
-	u32 val;
-	u32 intr_mask = 0x03 << zone->sensor_group->thermctl_isr_shift;
+	struct tegra_soctherm *ts = dev_id;
+	u32 r;
 
-	val = soctherm_readl(zone->tegra, THERMCTL_INTR_STATUS);
+	r = soctherm_readl(ts, THERMCTL_INTR_STATUS);
 
-	if ((val & intr_mask) == 0)
-		return IRQ_NONE;
-
-	soctherm_writel(zone->tegra, val & intr_mask, THERMCTL_INTR_STATUS);
+	soctherm_writel(ts, r, THERMCTL_INTR_DISABLE);
 
 	return IRQ_WAKE_THREAD;
 }
 
-static irqreturn_t soctherm_isr_thread(int irq, void *dev_id)
+/**
+ * soctherm_thermal_isr_thread() - Handles a thermal interrupt request
+ * @irq:	The interrupt number being requested; not used
+ * @arg:	Opaque pointer to an argument; not used
+ *
+ * Clears the interrupt status register if there are expected
+ * interrupt bits set.
+ * The interrupt(s) are then handled by updating the corresponding
+ * thermal zones.
+ *
+ * An error is logged if any unexpected interrupt bits are set.
+ *
+ * Disabled interrupts are re-enabled.
+ *
+ * Return: %IRQ_HANDLED. Interrupt was handled and no further processing
+ * is needed.
+ */
+static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 {
-	struct tegra_thermctl_zone *zone = dev_id;
+	struct tegra_soctherm *ts = dev_id;
+	struct thermal_zone_device *tz;
+	u32 st, ex = 0, cp = 0, gp = 0, pl = 0;
 
-	thermal_zone_device_update(zone->tz);
+	st = soctherm_readl(ts, THERMCTL_INTR_STATUS);
+
+	/* deliberately clear expected interrupts handled in SW */
+	cp |= REG_GET_BIT(st, TH_INTR_POS_CD0);
+	cp |= REG_GET_BIT(st, TH_INTR_POS_CU0);
+	ex |= cp;
+
+	gp |= REG_GET_BIT(st, TH_INTR_POS_GD0);
+	gp |= REG_GET_BIT(st, TH_INTR_POS_GU0);
+	ex |= gp;
+
+	pl |= REG_GET_BIT(st, TH_INTR_POS_PD0);
+	pl |= REG_GET_BIT(st, TH_INTR_POS_PU0);
+	ex |= pl;
+
+	if (ex) {
+		soctherm_writel(ts, ex, THERMCTL_INTR_STATUS);
+		st &= ~ex;
+		if (cp) {
+			tz = ts->thermctl_tzs[TEGRA124_SOCTHERM_SENSOR_CPU];
+			thermal_zone_device_update(tz);
+		}
+		if (gp) {
+			tz = ts->thermctl_tzs[TEGRA124_SOCTHERM_SENSOR_GPU];
+			thermal_zone_device_update(tz);
+		}
+		if (pl) {
+			tz = ts->thermctl_tzs[TEGRA124_SOCTHERM_SENSOR_PLLX];
+			thermal_zone_device_update(tz);
+		}
+	}
+
+	/* deliberately ignore expected interrupts NOT handled in SW */
+	ex |= TH_INTR_POS_IGNORE_MASK;
+	st &= ~ex;
+
+	if (st) {
+		/* Whine about any other unexpected INTR bits still set */
+		pr_err("soctherm: Ignored unexpected INTRs 0x%08x\n", st);
+		soctherm_writel(ts, st, THERMCTL_INTR_STATUS);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -1565,7 +1647,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	struct tegra_tsensor_group *ttg;
 	struct tsensor_shared_calibration *shared_calib;
 	struct resource *reg_res;
-	int i;
+	int i, irq_num;
 	int err = 0;
 
 	tegra = devm_kzalloc(&pdev->dev, sizeof(*tegra), GFP_KERNEL);
@@ -1686,6 +1768,23 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 			zone->tz = tz;
 			tegra->thermctl_tzs[i] = tz;
 		}
+	}
+
+	irq_num = platform_get_irq(pdev, 0);
+	if (irq_num < 0) {
+		dev_err(&pdev->dev, "get 'thermal irq' failed.\n");
+		goto unregister_tzs;
+	}
+	err = devm_request_threaded_irq(&pdev->dev,
+					irq_num,
+					soctherm_thermal_isr,
+					soctherm_thermal_isr_thread,
+					IRQF_ONESHOT,
+					"soctherm_thermal",
+					tegra);
+	if (err < 0) {
+		dev_err(&pdev->dev, "request_irq 'thermal_irq' failed.\n");
+		goto unregister_tzs;
 	}
 
 	soctherm_debug_init(pdev);
