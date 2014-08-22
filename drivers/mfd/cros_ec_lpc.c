@@ -245,10 +245,14 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	ec_dev->phys_name = dev_name(dev);
 	ec_dev->parent = dev;
 	ec_dev->cmd_xfer = cros_ec_cmd_xfer_lpc;
+	ec_dev->pkt_xfer = NULL;
 	ec_dev->cmd_readmem = cros_ec_lpc_readmem;
 	ec_dev->cmd_read_u32 = cros_ec_lpc_read_u32;
 	ec_dev->cmd_read_u16 = cros_ec_lpc_read_u16;
 	ec_dev->cmd_read_u8 = cros_ec_lpc_read_u8;
+	ec_dev->din_size = sizeof(struct ec_host_response) +
+			   sizeof(struct ec_response_get_protocol_info);
+	ec_dev->dout_size = sizeof(struct ec_host_request);
 
 	err = cros_ec_register(ec_dev);
 	if (err) {
