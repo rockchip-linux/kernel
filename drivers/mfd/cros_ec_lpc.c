@@ -44,6 +44,86 @@ static int ec_response_timed_out(void)
 	return 1;
 }
 
+static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
+				struct cros_ec_command *msg)
+{
+	struct ec_host_request *request;
+	struct ec_host_response response;
+	u8 sum = 0;
+	int i;
+	int ret = 0;
+	u8 *dout;
+
+	ret = cros_ec_prepare_tx(ec, msg);
+
+	/* Write buffer */
+	for (i = 0; i < ret; i++)
+		outb(ec->dout[i], EC_LPC_ADDR_HOST_PACKET + i);
+
+	request = (struct ec_host_request *)ec->dout;
+
+	/* Here we go */
+	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
+
+	if (ec_response_timed_out()) {
+		dev_warn(ec->dev, "EC responsed timed out\n");
+		ret = -EIO;
+		goto done;
+	}
+
+	/* Check result */
+	msg->result = inb(EC_LPC_ADDR_HOST_DATA);
+	switch (msg->result) {
+	case EC_RES_SUCCESS:
+		break;
+	case EC_RES_IN_PROGRESS:
+		ret = -EAGAIN;
+		dev_dbg(ec->dev, "command 0x%02x in progress\n",
+			msg->command);
+		goto done;
+	default:
+		dev_dbg(ec->dev, "command 0x%02x returned %d\n",
+			msg->command, msg->result);
+	}
+
+	/* Read back response */
+	dout = (u8 *)&response;
+	for (i = 0; i < sizeof(response); i++) {
+		dout[i] = inb(EC_LPC_ADDR_HOST_PACKET + i);
+		sum += dout[i];
+	}
+
+	msg->result = response.result;
+
+	if (response.data_len > msg->insize) {
+		dev_err(ec->dev,
+			"packet too long (%d bytes, expected %d)",
+			response.data_len, msg->insize);
+		ret = -EMSGSIZE;
+		goto done;
+	}
+
+	/* Read response and process checksum */
+	for (i = 0; i < response.data_len; i++) {
+		msg->indata[i] =
+			inb(EC_LPC_ADDR_HOST_PACKET + sizeof(response) + i);
+		sum += msg->indata[i];
+	}
+
+	if (sum) {
+		dev_err(ec->dev,
+			"bad packet checksum %02x\n",
+			response.checksum);
+		ret = -EBADMSG;
+		goto done;
+	}
+
+	/* Return actual amount of data received */
+	ret = response.data_len;
+done:
+	return ret;
+}
+
 static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 				struct cros_ec_command *msg)
 {
@@ -245,7 +325,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	ec_dev->phys_name = dev_name(dev);
 	ec_dev->parent = dev;
 	ec_dev->cmd_xfer = cros_ec_cmd_xfer_lpc;
-	ec_dev->pkt_xfer = NULL;
+	ec_dev->pkt_xfer = cros_ec_pkt_xfer_lpc;
 	ec_dev->cmd_readmem = cros_ec_lpc_readmem;
 	ec_dev->cmd_read_u32 = cros_ec_lpc_read_u32;
 	ec_dev->cmd_read_u16 = cros_ec_lpc_read_u16;
