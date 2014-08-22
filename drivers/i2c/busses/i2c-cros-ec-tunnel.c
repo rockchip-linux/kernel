@@ -165,9 +165,6 @@ static int ec_i2c_construct_message(u8 *buf, const struct i2c_msg i2c_msgs[],
 		msg->len = i2c_msg->len;
 		msg->addr_flags = i2c_msg->addr;
 
-		if (i2c_msg->flags & I2C_M_TEN)
-			msg->addr_flags |= EC_I2C_FLAG_10BIT;
-
 		if (i2c_msg->flags & I2C_M_RD) {
 			msg->addr_flags |= EC_I2C_FLAG_READ;
 		} else {

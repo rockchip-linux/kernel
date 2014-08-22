@@ -168,8 +168,8 @@ static ssize_t store_brightness(struct device *dev,
 	ret = sscanf(buf, "%i", &val);
 	if (ret != 1)
 		return -EINVAL;
-	param.cmd = LIGHTBAR_CMD_BRIGHTNESS;
-	param.brightness.num = val;
+	param.cmd = LIGHTBAR_CMD_SET_BRIGHTNESS;
+	param.set_brightness.num = val;
 	ret = lb_throttle();
 	if (ret)
 		return ret;
@@ -212,11 +212,11 @@ static ssize_t store_rgb(struct device *dev, struct device_attribute *attr,
 			return -EINVAL;
 
 		if (i == 4) {
-			param.cmd = LIGHTBAR_CMD_RGB;
-			param.rgb.led = val[0];
-			param.rgb.red = val[1];
-			param.rgb.green = val[2];
-			param.rgb.blue = val[3];
+			param.cmd = LIGHTBAR_CMD_SET_RGB;
+			param.set_rgb.led = val[0];
+			param.set_rgb.red = val[1];
+			param.set_rgb.green = val[2];
+			param.set_rgb.blue = val[3];
 			/*
 			 * Throttle only the first of every four transactions,
 			 * so that the user can update all four LEDs at once.

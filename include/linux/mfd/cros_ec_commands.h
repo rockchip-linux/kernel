@@ -25,8 +25,13 @@
 #ifndef __CROS_EC_COMMANDS_H
 #define __CROS_EC_COMMANDS_H
 
-/* Current version of this protocol */
-/* TODO: This is effectively useless; protocol is determined in other ways */
+/*
+ * Current version of this protocol
+ *
+ * TODO(crosbug.com/p/11223): This is effectively useless; protocol is
+ * determined in other ways.  Remove this once the kernel code no longer
+ * depends on it.
+ */
 #define EC_PROTO_VERSION          0x00000002
 
 /* Command version mask */
@@ -69,18 +74,22 @@
 #define EC_MEMMAP_TEXT_MAX     8   /* Size of a string in the memory map */
 
 /* The offset address of each type of data in mapped memory. */
-#define EC_MEMMAP_TEMP_SENSOR      0x00 /* Temp sensors */
-#define EC_MEMMAP_FAN              0x10 /* Fan speeds */
-#define EC_MEMMAP_TEMP_SENSOR_B    0x18 /* Temp sensors (second set) */
-#define EC_MEMMAP_ID               0x20 /* 'E' 'C' */
+#define EC_MEMMAP_TEMP_SENSOR      0x00 /* Temp sensors 0x00 - 0x0f */
+#define EC_MEMMAP_FAN              0x10 /* Fan speeds 0x10 - 0x17 */
+#define EC_MEMMAP_TEMP_SENSOR_B    0x18 /* More temp sensors 0x18 - 0x1f */
+#define EC_MEMMAP_ID               0x20 /* 0x20 == 'E', 0x21 == 'C' */
 #define EC_MEMMAP_ID_VERSION       0x22 /* Version of data in 0x20 - 0x2f */
 #define EC_MEMMAP_THERMAL_VERSION  0x23 /* Version of data in 0x00 - 0x1f */
 #define EC_MEMMAP_BATTERY_VERSION  0x24 /* Version of data in 0x40 - 0x7f */
 #define EC_MEMMAP_SWITCHES_VERSION 0x25 /* Version of data in 0x30 - 0x33 */
 #define EC_MEMMAP_EVENTS_VERSION   0x26 /* Version of data in 0x34 - 0x3f */
-#define EC_MEMMAP_HOST_CMD_FLAGS   0x27 /* Host command interface flags */
-#define EC_MEMMAP_SWITCHES         0x30
-#define EC_MEMMAP_HOST_EVENTS      0x34
+#define EC_MEMMAP_HOST_CMD_FLAGS   0x27 /* Host cmd interface flags (8 bits) */
+/* Unused 0x28 - 0x2f */
+#define EC_MEMMAP_SWITCHES         0x30	/* 8 bits */
+/* Unused 0x31 - 0x33 */
+#define EC_MEMMAP_HOST_EVENTS      0x34 /* 32 bits */
+/* Reserve 0x38 - 0x3f for additional host event-related stuff */
+/* Battery values are all 32 bits */
 #define EC_MEMMAP_BATT_VOLT        0x40 /* Battery Present Voltage */
 #define EC_MEMMAP_BATT_RATE        0x44 /* Battery Present Rate */
 #define EC_MEMMAP_BATT_CAP         0x48 /* Battery Remaining Capacity */
@@ -89,13 +98,19 @@
 #define EC_MEMMAP_BATT_DVLT        0x54 /* Battery Design Voltage */
 #define EC_MEMMAP_BATT_LFCC        0x58 /* Battery Last Full Charge Capacity */
 #define EC_MEMMAP_BATT_CCNT        0x5c /* Battery Cycle Count */
+/* Strings are all 8 bytes (EC_MEMMAP_TEXT_MAX) */
 #define EC_MEMMAP_BATT_MFGR        0x60 /* Battery Manufacturer String */
 #define EC_MEMMAP_BATT_MODEL       0x68 /* Battery Model Number String */
 #define EC_MEMMAP_BATT_SERIAL      0x70 /* Battery Serial Number String */
 #define EC_MEMMAP_BATT_TYPE        0x78 /* Battery Type String */
-#define EC_MEMMAP_ALS              0x80 /* ALS readings in lux (uint16_t) */
-#define EC_MEMMAP_ACC_STATUS       0x90 /* Accelerometer status */
-#define EC_MEMMAP_ACC_DATA         0x92 /* Accelerometer data 0x92 - 0xa5 */
+#define EC_MEMMAP_ALS              0x80 /* ALS readings in lux (2 X 16 bits) */
+/* Unused 0x84 - 0x8f */
+#define EC_MEMMAP_ACC_STATUS       0x90 /* Accelerometer status (8 bits )*/
+/* Unused 0x91 */
+#define EC_MEMMAP_ACC_DATA         0x92 /* Accelerometer data 0x92 - 0x9f */
+#define EC_MEMMAP_GYRO_DATA        0xa0 /* Gyroscope data 0xa0 - 0xa5 */
+/* Unused 0xa6 - 0xfe (remember, 0xff is NOT part of the memmap region) */
+
 
 /* Define the format of the accelerometer mapped memory status byte. */
 #define EC_MEMMAP_ACC_STATUS_SAMPLE_ID_MASK  0x0f
@@ -110,6 +125,8 @@
  * Valid only if EC_MEMMAP_THERMAL_VERSION returns >= 2.
  */
 #define EC_TEMP_SENSOR_B_ENTRIES      8
+
+/* Special values for mapped temperature sensors */
 #define EC_TEMP_SENSOR_NOT_PRESENT    0xff
 #define EC_TEMP_SENSOR_ERROR          0xfe
 #define EC_TEMP_SENSOR_NOT_POWERED    0xfd
@@ -119,6 +136,18 @@
  * reporting a temperature range of 200K to 454K = -73C to 181C.
  */
 #define EC_TEMP_SENSOR_OFFSET      200
+
+/*
+ * Number of ALS readings at EC_MEMMAP_ALS
+ */
+#define EC_ALS_ENTRIES             2
+
+/*
+ * The default value a temperature sensor will return when it is present but
+ * has not been read this boot.  This is a reasonable number to avoid
+ * triggering alarms on the host.
+ */
+#define EC_TEMP_SENSOR_DEFAULT     (296 - EC_TEMP_SENSOR_OFFSET)
 
 #define EC_FAN_SPEED_ENTRIES       4       /* Number of fans at EC_MEMMAP_FAN */
 #define EC_FAN_SPEED_NOT_PRESENT   0xffff  /* Entry not present */
@@ -253,6 +282,11 @@ enum host_event_code {
 	EC_HOST_EVENT_THROTTLE_START = 18,
 	/* Suggest that the AP resume normal speed */
 	EC_HOST_EVENT_THROTTLE_STOP = 19,
+
+	/* Hang detect logic detected a hang and host event timeout expired */
+	EC_HOST_EVENT_HANG_DETECT = 20,
+	/* Hang detect logic detected a hang and warm rebooted the AP */
+	EC_HOST_EVENT_HANG_REBOOT = 21,
 
 	/*
 	 * The high bit of the event mask is not used as a host event code.  If
@@ -483,7 +517,7 @@ struct ec_host_response {
 /*
  * Notes on commands:
  *
- * Each command is an 8-byte command value.  Commands which take params or
+ * Each command is an 16-bit command value.  Commands which take params or
  * return response data specify structs for that data.  If no struct is
  * specified, the command does not input or output data, respectively.
  * Parameter/response length is implicit in the structs.  Some underlying
@@ -619,10 +653,7 @@ struct ec_response_get_comms_status {
 	uint32_t flags;		/* Mask of enum ec_comms_status */
 } __packed;
 
-/*
- * Fake a variety of responses, purely for testing purposes.
- * FIXME: Would be nice to force checksum errors.
- */
+/* Fake a variety of responses, purely for testing purposes. */
 #define EC_CMD_TEST_PROTOCOL		0x0a
 
 /* Tell the EC what to send back to us. */
@@ -937,20 +968,63 @@ struct rgb_s {
 /* List of tweakable parameters. NOTE: It's __packed so it can be sent in a
  * host command, but the alignment is the same regardless. Keep it that way.
  */
-struct lightbar_params {
+struct lightbar_params_v0 {
 	/* Timing */
-	int google_ramp_up;
-	int google_ramp_down;
-	int s3s0_ramp_up;
-	int s0_tick_delay[2];			/* AC=0/1 */
-	int s0a_tick_delay[2];			/* AC=0/1 */
-	int s0s3_ramp_down;
-	int s3_sleep_for;
-	int s3_ramp_up;
-	int s3_ramp_down;
+	int32_t google_ramp_up;
+	int32_t google_ramp_down;
+	int32_t s3s0_ramp_up;
+	int32_t s0_tick_delay[2];		/* AC=0/1 */
+	int32_t s0a_tick_delay[2];		/* AC=0/1 */
+	int32_t s0s3_ramp_down;
+	int32_t s3_sleep_for;
+	int32_t s3_ramp_up;
+	int32_t s3_ramp_down;
 
 	/* Oscillation */
 	uint8_t new_s0;
+	uint8_t osc_min[2];			/* AC=0/1 */
+	uint8_t osc_max[2];			/* AC=0/1 */
+	uint8_t w_ofs[2];			/* AC=0/1 */
+
+	/* Brightness limits based on the backlight and AC. */
+	uint8_t bright_bl_off_fixed[2];		/* AC=0/1 */
+	uint8_t bright_bl_on_min[2];		/* AC=0/1 */
+	uint8_t bright_bl_on_max[2];		/* AC=0/1 */
+
+	/* Battery level thresholds */
+	uint8_t battery_threshold[LB_BATTERY_LEVELS - 1];
+
+	/* Map [AC][battery_level] to color index */
+	uint8_t s0_idx[2][LB_BATTERY_LEVELS];	/* AP is running */
+	uint8_t s3_idx[2][LB_BATTERY_LEVELS];	/* AP is sleeping */
+
+	/* Color palette */
+	struct rgb_s color[8];			/* 0-3 are Google colors */
+} __packed;
+
+struct lightbar_params_v1 {
+	/* Timing */
+	int32_t google_ramp_up;
+	int32_t google_ramp_down;
+	int32_t s3s0_ramp_up;
+	int32_t s0_tick_delay[2];		/* AC=0/1 */
+	int32_t s0a_tick_delay[2];		/* AC=0/1 */
+	int32_t s0s3_ramp_down;
+	int32_t s3_sleep_for;
+	int32_t s3_ramp_up;
+	int32_t s3_ramp_down;
+	int32_t tap_tick_delay;
+	int32_t tap_display_time;
+
+	/* Tap-for-battery params */
+	uint8_t tap_pct_red;
+	uint8_t tap_pct_green;
+	uint8_t tap_seg_min_on;
+	uint8_t tap_seg_max_on;
+	uint8_t tap_seg_osc;
+	uint8_t tap_idx[3];
+
+	/* Oscillation */
 	uint8_t osc_min[2];			/* AC=0/1 */
 	uint8_t osc_max[2];			/* AC=0/1 */
 	uint8_t w_ofs[2];			/* AC=0/1 */
@@ -976,27 +1050,33 @@ struct ec_params_lightbar {
 	union {
 		struct {
 			/* no args */
-		} dump, off, on, init, get_seq, get_params, version;
+		} dump, off, on, init, get_seq, get_params_v0, get_params_v1,
+			version, get_brightness, get_demo;
 
-		struct num {
+		struct {
 			uint8_t num;
-		} brightness, seq, demo;
+		} set_brightness, seq, demo;
 
-		struct reg {
+		struct {
 			uint8_t ctrl, reg, value;
 		} reg;
 
-		struct rgb {
+		struct {
 			uint8_t led, red, green, blue;
-		} rgb;
+		} set_rgb;
 
-		struct lightbar_params set_params;
+		struct {
+			uint8_t led;
+		} get_rgb;
+
+		struct lightbar_params_v0 set_params_v0;
+		struct lightbar_params_v1 set_params_v1;
 	};
 } __packed;
 
 struct ec_response_lightbar {
 	union {
-		struct dump {
+		struct {
 			struct {
 				uint8_t reg;
 				uint8_t ic0;
@@ -1004,20 +1084,26 @@ struct ec_response_lightbar {
 			} vals[23];
 		} dump;
 
-		struct get_seq {
+		struct  {
 			uint8_t num;
-		} get_seq;
+		} get_seq, get_brightness, get_demo;
 
-		struct lightbar_params get_params;
+		struct lightbar_params_v0 get_params_v0;
+		struct lightbar_params_v1 get_params_v1;
 
-		struct version {
+		struct {
 			uint32_t num;
 			uint32_t flags;
 		} version;
 
 		struct {
+			uint8_t red, green, blue;
+		} get_rgb;
+
+		struct {
 			/* no return params */
-		} off, on, init, brightness, seq, reg, rgb, demo, set_params;
+		} off, on, init, set_brightness, seq, reg, set_rgb,
+			demo, set_params_v0, set_params_v1;
 	};
 } __packed;
 
@@ -1027,15 +1113,20 @@ enum lightbar_command {
 	LIGHTBAR_CMD_OFF = 1,
 	LIGHTBAR_CMD_ON = 2,
 	LIGHTBAR_CMD_INIT = 3,
-	LIGHTBAR_CMD_BRIGHTNESS = 4,
+	LIGHTBAR_CMD_SET_BRIGHTNESS = 4,
 	LIGHTBAR_CMD_SEQ = 5,
 	LIGHTBAR_CMD_REG = 6,
-	LIGHTBAR_CMD_RGB = 7,
+	LIGHTBAR_CMD_SET_RGB = 7,
 	LIGHTBAR_CMD_GET_SEQ = 8,
 	LIGHTBAR_CMD_DEMO = 9,
-	LIGHTBAR_CMD_GET_PARAMS = 10,
-	LIGHTBAR_CMD_SET_PARAMS = 11,
+	LIGHTBAR_CMD_GET_PARAMS_V0 = 10,
+	LIGHTBAR_CMD_SET_PARAMS_V0 = 11,
 	LIGHTBAR_CMD_VERSION = 12,
+	LIGHTBAR_CMD_GET_BRIGHTNESS = 13,
+	LIGHTBAR_CMD_GET_RGB = 14,
+	LIGHTBAR_CMD_GET_DEMO = 15,
+	LIGHTBAR_CMD_GET_PARAMS_V1 = 16,
+	LIGHTBAR_CMD_SET_PARAMS_V1 = 17,
 	LIGHTBAR_NUM_CMDS
 };
 
@@ -1392,8 +1483,40 @@ struct ec_response_rtc {
 /*****************************************************************************/
 /* Port80 log access */
 
+/* Maximum entries that can be read/written in a single command */
+#define EC_PORT80_SIZE_MAX 32
+
 /* Get last port80 code from previous boot */
 #define EC_CMD_PORT80_LAST_BOOT 0x48
+#define EC_CMD_PORT80_READ 0x48
+
+enum ec_port80_subcmd {
+	EC_PORT80_GET_INFO = 0,
+	EC_PORT80_READ_BUFFER,
+};
+
+struct ec_params_port80_read {
+	uint16_t subcmd;
+	union {
+		struct {
+			uint32_t offset;
+			uint32_t num_entries;
+		} read_buffer;
+	};
+} __packed;
+
+struct ec_response_port80_read {
+	union {
+		struct {
+			uint32_t writes;
+			uint32_t history_size;
+			uint32_t last_boot;
+		} get_info;
+		struct {
+			uint16_t codes[EC_PORT80_SIZE_MAX];
+		} data;
+	};
+} __packed;
 
 struct ec_response_port80_last_boot {
 	uint16_t code;
@@ -1493,6 +1616,18 @@ struct ec_params_tmp006_set_calibration {
 	float b1;
 	float b2;
 } __packed;
+
+/* Read raw TMP006 data */
+#define EC_CMD_TMP006_GET_RAW 0x55
+
+struct ec_params_tmp006_get_raw {
+	uint8_t index;
+} __packed;
+
+struct ec_response_tmp006_get_raw {
+	int32_t t;  /* In 1/100 K */
+	int32_t v;  /* In nV */
+};
 
 /*****************************************************************************/
 /* MKBP - Matrix KeyBoard Protocol */
@@ -1692,9 +1827,39 @@ struct ec_params_switch_enable_backlight {
 
 /* Enable/disable WLAN/Bluetooth */
 #define EC_CMD_SWITCH_ENABLE_WIRELESS 0x91
+#define EC_VER_SWITCH_ENABLE_WIRELESS 1
 
-struct ec_params_switch_enable_wireless {
+/* Version 0 params; no response */
+struct ec_params_switch_enable_wireless_v0 {
 	uint8_t enabled;
+} __packed;
+
+/* Version 1 params */
+struct ec_params_switch_enable_wireless_v1 {
+	/* Flags to enable now */
+	uint8_t now_flags;
+
+	/* Which flags to copy from now_flags */
+	uint8_t now_mask;
+
+	/*
+	 * Flags to leave enabled in S3, if they're on at the S0->S3
+	 * transition.  (Other flags will be disabled by the S0->S3
+	 * transition.)
+	 */
+	uint8_t suspend_flags;
+
+	/* Which flags to copy from suspend_flags */
+	uint8_t suspend_mask;
+} __packed;
+
+/* Version 1 response */
+struct ec_response_switch_enable_wireless_v1 {
+	/* Flags to enable now */
+	uint8_t now_flags;
+
+	/* Flags to leave enabled in S3 */
+	uint8_t suspend_flags;
 } __packed;
 
 /*****************************************************************************/
@@ -1711,6 +1876,7 @@ struct ec_params_gpio_set {
 /* Get GPIO value */
 #define EC_CMD_GPIO_GET 0x93
 
+/* Version 0 of input params and response */
 struct ec_params_gpio_get {
 	char name[32];
 } __packed;
@@ -1718,8 +1884,45 @@ struct ec_response_gpio_get {
 	uint8_t val;
 } __packed;
 
+/* Version 1 of input params and response */
+struct ec_params_gpio_get_v1 {
+	uint8_t subcmd;
+	union {
+		struct {
+			char name[32];
+		} get_value_by_name;
+		struct {
+			uint8_t index;
+		} get_info;
+	};
+} __packed;
+
+struct ec_response_gpio_get_v1 {
+	union {
+		struct {
+			uint8_t val;
+		} get_value_by_name, get_count;
+		struct {
+			uint8_t val;
+			char name[32];
+			uint32_t flags;
+		} get_info;
+	};
+} __packed;
+
+enum gpio_get_subcmd {
+	EC_GPIO_GET_BY_NAME = 0,
+	EC_GPIO_GET_COUNT = 1,
+	EC_GPIO_GET_INFO = 2,
+};
+
 /*****************************************************************************/
 /* I2C commands. Only available when flash write protect is unlocked. */
+
+/*
+ * TODO(crosbug.com/p/23570): These commands are deprecated, and will be
+ * removed soon.  Use EC_CMD_I2C_XFER instead.
+ */
 
 /* Read I2C bus */
 #define EC_CMD_I2C_READ 0x94
@@ -1781,12 +1984,19 @@ struct ec_params_charge_control {
 /*****************************************************************************/
 
 /*
- * Cut off battery power output if the battery supports.
+ * Cut off battery power immediately or after the host has shut down.
  *
- * For unsupported battery, just don't implement this command and lets EC
- * return EC_RES_INVALID_COMMAND.
+ * return EC_RES_INVALID_COMMAND if unsupported by a board/battery.
+ *	  EC_RES_SUCCESS if the command was successful.
+ *	  EC_RES_ERROR if the cut off command failed.
  */
 #define EC_CMD_BATTERY_CUT_OFF 0x99
+
+#define EC_BATTERY_CUTOFF_FLAG_AT_SHUTDOWN	(1 << 0)
+
+struct ec_params_battery_cutoff {
+	uint8_t flags;
+} __packed;
 
 /*****************************************************************************/
 /* USB port mux control. */
@@ -1852,9 +2062,6 @@ struct ec_response_power_info {
 
 #define EC_CMD_I2C_PASSTHRU 0x9e
 
-/* Slave address is 10 (not 7) bit */
-#define EC_I2C_FLAG_10BIT	(1 << 16)
-
 /* Read data; if not present, message is a write */
 #define EC_I2C_FLAG_READ	(1 << 15)
 
@@ -1885,16 +2092,135 @@ struct ec_response_i2c_passthru {
 	uint8_t data[];		/* Data read by messages concatenated here */
 } __packed;
 
-
 /*****************************************************************************/
-/* Temporary debug commands. TODO: remove this crosbug.com/p/13849 */
+/* Power button hang detect */
+
+#define EC_CMD_HANG_DETECT 0x9f
+
+/* Reasons to start hang detection timer */
+/* Power button pressed */
+#define EC_HANG_START_ON_POWER_PRESS  (1 << 0)
+
+/* Lid closed */
+#define EC_HANG_START_ON_LID_CLOSE    (1 << 1)
+
+ /* Lid opened */
+#define EC_HANG_START_ON_LID_OPEN     (1 << 2)
+
+/* Start of AP S3->S0 transition (booting or resuming from suspend) */
+#define EC_HANG_START_ON_RESUME       (1 << 3)
+
+/* Reasons to cancel hang detection */
+
+/* Power button released */
+#define EC_HANG_STOP_ON_POWER_RELEASE (1 << 8)
+
+/* Any host command from AP received */
+#define EC_HANG_STOP_ON_HOST_COMMAND  (1 << 9)
+
+/* Stop on end of AP S0->S3 transition (suspending or shutting down) */
+#define EC_HANG_STOP_ON_SUSPEND       (1 << 10)
 
 /*
- * Dump charge state machine context.
- *
- * Response is a binary dump of charge state machine context.
+ * If this flag is set, all the other fields are ignored, and the hang detect
+ * timer is started.  This provides the AP a way to start the hang timer
+ * without reconfiguring any of the other hang detect settings.  Note that
+ * you must previously have configured the timeouts.
  */
-#define EC_CMD_CHARGE_DUMP 0xa0
+#define EC_HANG_START_NOW             (1 << 30)
+
+/*
+ * If this flag is set, all the other fields are ignored (including
+ * EC_HANG_START_NOW).  This provides the AP a way to stop the hang timer
+ * without reconfiguring any of the other hang detect settings.
+ */
+#define EC_HANG_STOP_NOW              (1 << 31)
+
+struct ec_params_hang_detect {
+	/* Flags; see EC_HANG_* */
+	uint32_t flags;
+
+	/* Timeout in msec before generating host event, if enabled */
+	uint16_t host_event_timeout_msec;
+
+	/* Timeout in msec before generating warm reboot, if enabled */
+	uint16_t warm_reboot_timeout_msec;
+} __packed;
+
+/*****************************************************************************/
+/* Commands for battery charging */
+
+/*
+ * This is the single catch-all host command to exchange data regarding the
+ * charge state machine (v2 and up).
+ */
+#define EC_CMD_CHARGE_STATE 0xa0
+
+/* Subcommands for this host command */
+enum charge_state_command {
+	CHARGE_STATE_CMD_GET_STATE,
+	CHARGE_STATE_CMD_GET_PARAM,
+	CHARGE_STATE_CMD_SET_PARAM,
+	CHARGE_STATE_NUM_CMDS
+};
+
+/*
+ * Known param numbers are defined here. Ranges are reserved for board-specific
+ * params, which are handled by the particular implementations.
+ */
+enum charge_state_params {
+	CS_PARAM_CHG_VOLTAGE,	      /* charger voltage limit */
+	CS_PARAM_CHG_CURRENT,	      /* charger current limit */
+	CS_PARAM_CHG_INPUT_CURRENT,   /* charger input current limit */
+	CS_PARAM_CHG_STATUS,	      /* charger-specific status */
+	CS_PARAM_CHG_OPTION,	      /* charger-specific options */
+	/* How many so far? */
+	CS_NUM_BASE_PARAMS,
+
+	/* Range for CONFIG_CHARGER_PROFILE_OVERRIDE params */
+	CS_PARAM_CUSTOM_PROFILE_MIN = 0x10000,
+	CS_PARAM_CUSTOM_PROFILE_MAX = 0x1ffff,
+
+	/* Other custom param ranges go here... */
+};
+
+struct ec_params_charge_state {
+	uint8_t cmd;				/* enum charge_state_command */
+	union {
+		struct {
+			/* no args */
+		} get_state;
+
+		struct {
+			uint32_t param;		/* enum charge_state_param */
+		} get_param;
+
+		struct {
+			uint32_t param;		/* param to set */
+			uint32_t value;		/* value to set */
+		} set_param;
+	};
+} __packed;
+
+struct ec_response_charge_state {
+	union {
+		struct {
+			int ac;
+			int chg_voltage;
+			int chg_current;
+			int chg_input_current;
+			int batt_state_of_charge;
+		} get_state;
+
+		struct {
+			uint32_t value;
+		} get_param;
+		struct {
+			/* no return values */
+		} set_param;
+	};
+} __packed;
+
 
 /*
  * Set maximum battery charging current.
@@ -1949,12 +2275,39 @@ struct ec_params_sb_wr_block {
 	uint16_t data[32];
 } __packed;
 
+
+/*****************************************************************************/
+/* Battery vendor parameters
+ *
+ * Get or set vendor-specific parameters in the battery. Implementations may
+ * differ between boards or batteries. On a set operation, the response
+ * contains the actual value set, which may be rounded or clipped from the
+ * requested value.
+ */
+
+#define EC_CMD_BATTERY_VENDOR_PARAM 0xb4
+
+enum ec_battery_vendor_param_mode {
+	BATTERY_VENDOR_PARAM_MODE_GET = 0,
+	BATTERY_VENDOR_PARAM_MODE_SET,
+};
+
+struct ec_params_battery_vendor_param {
+	uint32_t param;
+	uint32_t value;
+	uint8_t mode;
+} __packed;
+
+struct ec_response_battery_vendor_param {
+	uint32_t value;
+} __packed;
+
 /*****************************************************************************/
 /* System commands */
 
 /*
- * TODO: this is a confusing name, since it doesn't necessarily reboot the EC.
- * Rename to "set image" or something similar.
+ * TODO(crosbug.com/p/23747): This is a confusing name, since it doesn't
+ * necessarily reboot the EC.  Rename to "image" or something similar?
  */
 #define EC_CMD_REBOOT_EC 0xd2
 
@@ -2033,6 +2386,7 @@ struct ec_params_reboot_ec {
 #define EC_CMD_ACPI_QUERY_EVENT 0x84
 
 /* Valid addresses in ACPI memory space, for read/write commands */
+
 /* Memory space version; set to EC_ACPI_MEM_VERSION_CURRENT */
 #define EC_ACPI_MEM_VERSION            0x00
 /*
@@ -2042,8 +2396,60 @@ struct ec_params_reboot_ec {
 #define EC_ACPI_MEM_TEST               0x01
 /* Test compliment; writes here are ignored. */
 #define EC_ACPI_MEM_TEST_COMPLIMENT    0x02
+
 /* Keyboard backlight brightness percent (0 - 100) */
 #define EC_ACPI_MEM_KEYBOARD_BACKLIGHT 0x03
+/* DPTF Target Fan Duty (0-100, 0xff for auto/none) */
+#define EC_ACPI_MEM_FAN_DUTY           0x04
+
+/*
+ * DPTF temp thresholds. Any of the EC's temp sensors can have up to two
+ * independent thresholds attached to them. The current value of the ID
+ * register determines which sensor is affected by the THRESHOLD and COMMIT
+ * registers. The THRESHOLD register uses the same EC_TEMP_SENSOR_OFFSET scheme
+ * as the memory-mapped sensors. The COMMIT register applies those settings.
+ *
+ * The spec does not mandate any way to read back the threshold settings
+ * themselves, but when a threshold is crossed the AP needs a way to determine
+ * which sensor(s) are responsible. Each reading of the ID register clears and
+ * returns one sensor ID that has crossed one of its threshold (in either
+ * direction) since the last read. A value of 0xFF means "no new thresholds
+ * have tripped". Setting or enabling the thresholds for a sensor will clear
+ * the unread event count for that sensor.
+ */
+#define EC_ACPI_MEM_TEMP_ID            0x05
+#define EC_ACPI_MEM_TEMP_THRESHOLD     0x06
+#define EC_ACPI_MEM_TEMP_COMMIT        0x07
+/*
+ * Here are the bits for the COMMIT register:
+ *   bit 0 selects the threshold index for the chosen sensor (0/1)
+ *   bit 1 enables/disables the selected threshold (0 = off, 1 = on)
+ * Each write to the commit register affects one threshold.
+ */
+#define EC_ACPI_MEM_TEMP_COMMIT_SELECT_MASK (1 << 0)
+#define EC_ACPI_MEM_TEMP_COMMIT_ENABLE_MASK (1 << 1)
+/*
+ * Example:
+ *
+ * Set the thresholds for sensor 2 to 50 C and 60 C:
+ *   write 2 to [0x05]      --  select temp sensor 2
+ *   write 0x7b to [0x06]   --  C_TO_K(50) - EC_TEMP_SENSOR_OFFSET
+ *   write 0x2 to [0x07]    --  enable threshold 0 with this value
+ *   write 0x85 to [0x06]   --  C_TO_K(60) - EC_TEMP_SENSOR_OFFSET
+ *   write 0x3 to [0x07]    --  enable threshold 1 with this value
+ *
+ * Disable the 60 C threshold, leaving the 50 C threshold unchanged:
+ *   write 2 to [0x05]      --  select temp sensor 2
+ *   write 0x1 to [0x07]    --  disable threshold 1
+ */
+
+/* DPTF battery charging current limit */
+#define EC_ACPI_MEM_CHARGING_LIMIT     0x08
+
+/* Charging limit is specified in 64 mA steps */
+#define EC_ACPI_MEM_CHARGING_LIMIT_STEP_MA   64
+/* Value to disable DPTF battery charging limit */
+#define EC_ACPI_MEM_CHARGING_LIMIT_DISABLED  0xff
 
 /* Current version of ACPI memory address space */
 #define EC_ACPI_MEM_VERSION_CURRENT 1
@@ -2085,11 +2491,85 @@ struct ec_params_reboot_ec {
  * Header bytes greater than this indicate a later version. For example,
  * EC_CMD_VERSION0 + 1 means we are using version 1.
  *
- * The old EC interface must not use commands 0dc or higher.
+ * The old EC interface must not use commands 0xdc or higher.
  */
 #define EC_CMD_VERSION0 0xdc
 
 #endif  /* !__ACPI__ */
+
+/*****************************************************************************/
+/*
+ * PD commands
+ *
+ * These commands are for PD MCU communication.
+ */
+
+/* EC to PD MCU exchange status command */
+#define EC_CMD_PD_EXCHANGE_STATUS 0x100
+
+/* Status of EC being sent to PD */
+struct ec_params_pd_status {
+	int8_t batt_soc; /* battery state of charge */
+} __packed;
+
+/* Status of PD being sent back to EC */
+struct ec_response_pd_status {
+	int8_t status;        /* PD MCU status */
+	uint32_t curr_lim_ma; /* input current limit */
+} __packed;
+
+/* Set USB type-C port role and muxes */
+#define EC_CMD_USB_PD_CONTROL 0x101
+
+enum usb_pd_control_role {
+	USB_PD_CTRL_ROLE_NO_CHANGE = 0,
+	USB_PD_CTRL_ROLE_TOGGLE_ON = 1, /* == AUTO */
+	USB_PD_CTRL_ROLE_TOGGLE_OFF = 2,
+	USB_PD_CTRL_ROLE_FORCE_SINK = 3,
+	USB_PD_CTRL_ROLE_FORCE_SOURCE = 4,
+};
+
+enum usb_pd_control_mux {
+	USB_PD_CTRL_MUX_NO_CHANGE = 0,
+	USB_PD_CTRL_MUX_NONE = 1,
+	USB_PD_CTRL_MUX_USB = 2,
+	USB_PD_CTRL_MUX_DP = 3,
+	USB_PD_CTRL_MUX_DOCK = 4,
+	USB_PD_CTRL_MUX_AUTO = 5,
+};
+
+struct ec_params_usb_pd_control {
+	uint8_t port;
+	uint8_t role;
+	uint8_t mux;
+} __packed;
+
+/*****************************************************************************/
+/*
+ * Passthru commands
+ *
+ * Some platforms have sub-processors chained to each other.  For example.
+ *
+ *     AP <--> EC <--> PD MCU
+ *
+ * The top 2 bits of the command number are used to indicate which device the
+ * command is intended for.  Device 0 is always the device receiving the
+ * command; other device mapping is board-specific.
+ *
+ * When a device receives a command to be passed to a sub-processor, it passes
+ * it on with the device number set back to 0.  This allows the sub-processor
+ * to remain blissfully unaware of whether the command originated on the next
+ * device up the chain, or was passed through from the AP.
+ *
+ * In the above example, if the AP wants to send command 0x0002 to the PD MCU,
+ *     AP sends command 0x4002 to the EC
+ *     EC sends command 0x0002 to the PD MCU
+ *     EC forwards PD MCU response back to the AP
+ */
+
+/* Offset and max command number for sub-device n */
+#define EC_CMD_PASSTHRU_OFFSET(n) (0x4000 * (n))
+#define EC_CMD_PASSTHRU_MAX(n) (EC_CMD_PASSTHRU_OFFSET(n) + 0x3fff)
 
 /*****************************************************************************/
 /*
