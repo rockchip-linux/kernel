@@ -70,7 +70,7 @@ static int ec_i2c_forward_msg(struct ec_i2c_device *bus, int cmd,
 	msg.outsize = outmsg ? outmsg->len : 0;
 	msg.indata = inmsg ? inmsg->buf : NULL;
 	msg.insize = inmsg ? inmsg->len : 0;
-	return bus->ec->cmd_xfer(bus->ec, &msg);
+	return cros_ec_cmd_xfer(bus->ec, &msg);
 }
 
 static int ec_i2c_limited_xfer(struct i2c_adapter *adap, struct i2c_msg msgs[],
