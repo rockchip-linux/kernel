@@ -25,6 +25,7 @@
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
 #include <soc/tegra/pmc.h>
+#include <soc/tegra/reset.h>
 
 #include <asm/cacheflush.h>
 #include <asm/mach-types.h>
@@ -32,7 +33,6 @@
 #include <asm/smp_scu.h>
 
 #include "common.h"
-#include "reset.h"
 
 static cpumask_t tegra_cpu_init_mask;
 

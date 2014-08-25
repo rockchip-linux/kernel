@@ -22,12 +22,12 @@
 #include <soc/tegra/irammap.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
+#include <soc/tegra/reset.h>
 
 #include <asm/cacheflush.h>
 #include <asm/firmware.h>
 #include <asm/hardware/cache-l2x0.h>
 
-#include "reset.h"
 #include "sleep.h"
 
 #define TEGRA_IRAM_RESET_BASE (TEGRA_IRAM_BASE + \

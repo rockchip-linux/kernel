@@ -1,6 +1,4 @@
 /*
- * arch/arm/mach-tegra/reset.h
- *
  * CPU reset dispatcher.
  *
  * Copyright (c) 2011, NVIDIA Corporation.
@@ -16,8 +14,8 @@
  *
  */
 
-#ifndef __MACH_TEGRA_RESET_H
-#define __MACH_TEGRA_RESET_H
+#ifndef __SOC_TEGRA_RESET_H__
+#define __SOC_TEGRA_RESET_H__
 
 #define TEGRA_RESET_MASK_PRESENT	0
 #define TEGRA_RESET_MASK_LP1		1
