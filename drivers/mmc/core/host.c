@@ -438,10 +438,20 @@ int mmc_of_parse(struct mmc_host *host)
 	}
 
 	host->card_clk = of_clk_get_by_name(np, "card_ext_clock");
-	if (IS_ERR(host->card_clk))
+	if (IS_ERR(host->card_clk)) {
+		if (PTR_ERR(host->card_clk) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto out;
+		}
+
 		host->card_clk = NULL;
+	}
 
 	host->card_regulator = regulator_get(host->parent, "card-external-vcc");
+	if (PTR_ERR(host->card_regulator) == -EPROBE_DEFER) {
+		ret = -EPROBE_DEFER;
+		goto out;
+	}
 
 	if (of_find_property(np, "cap-sd-highspeed", &len))
 		host->caps |= MMC_CAP_SD_HIGHSPEED;
