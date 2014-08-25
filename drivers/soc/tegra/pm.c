@@ -27,6 +27,7 @@
 #include <linux/spinlock.h>
 #include <linux/suspend.h>
 
+#include <soc/tegra/common.h>
 #include <soc/tegra/flowctrl.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
@@ -36,17 +37,24 @@
 #include <soc/tegra/sleep.h>
 
 #include <asm/cacheflush.h>
+#ifdef CONFIG_ARM64
+#include <asm/mmu.h>
+#else
 #include <asm/idmap.h>
+#endif
 #include <asm/proc-fns.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
 
 #ifdef CONFIG_PM_SLEEP
+
+#ifdef CONFIG_ARM
 static DEFINE_SPINLOCK(tegra_lp2_lock);
 static u32 iram_save_size;
 static void *iram_save_addr;
 struct tegra_lp1_iram tegra_lp1_iram;
+#endif
 void (*tegra_tear_down_cpu)(void);
 void (*tegra_sleep_core_finish)(unsigned long v2p);
 static int (*tegra_sleep_func)(unsigned long v2p);
@@ -118,8 +126,12 @@ static void suspend_cpu_complex(void)
 
 void tegra_clear_cpu_in_lp2(void)
 {
-	int phy_cpu_id = cpu_logical_map(smp_processor_id());
-	u32 *cpu_in_lp2 = tegra_cpu_lp2_mask;
+#ifdef CONFIG_ARM
+	int phy_cpu_id;
+	u32 *cpu_in_lp2;
+
+	phy_cpu_id = cpu_logical_map(smp_processor_id());
+	cpu_in_lp2 = (u32 *)ioremap(tegra_cpu_lp2_mask, sizeof(u32));
 
 	spin_lock(&tegra_lp2_lock);
 
@@ -127,14 +139,24 @@ void tegra_clear_cpu_in_lp2(void)
 	*cpu_in_lp2 &= ~BIT(phy_cpu_id);
 
 	spin_unlock(&tegra_lp2_lock);
+
+	iounmap((void * __iomem)cpu_in_lp2);
+#endif
 }
 
 bool tegra_set_cpu_in_lp2(void)
 {
-	int phy_cpu_id = cpu_logical_map(smp_processor_id());
+#ifdef CONFIG_ARM64
+	return true;
+#else
+	int phy_cpu_id;
 	bool last_cpu = false;
-	cpumask_t *cpu_lp2_mask = tegra_cpu_lp2_mask;
-	u32 *cpu_in_lp2 = tegra_cpu_lp2_mask;
+	cpumask_t *cpu_lp2_mask;
+	u32 *cpu_in_lp2;
+
+	phy_cpu_id = cpu_logical_map(smp_processor_id());
+	cpu_in_lp2 = (u32 *)ioremap(tegra_cpu_lp2_mask, sizeof(u32));
+	cpu_lp2_mask = (cpumask_t *)cpu_in_lp2;
 
 	spin_lock(&tegra_lp2_lock);
 
@@ -147,19 +169,29 @@ bool tegra_set_cpu_in_lp2(void)
 		tegra20_cpu_set_resettable_soon();
 
 	spin_unlock(&tegra_lp2_lock);
+
+	iounmap((void * __iomem)cpu_in_lp2);
+
 	return last_cpu;
+#endif
 }
 
 int tegra_cpu_do_idle(void)
 {
+#ifdef CONFIG_ARM64
+	cpu_do_idle();
+	return 0;
+#else
 	return cpu_do_idle();
+#endif
 }
 
 static int tegra_sleep_cpu(unsigned long v2p)
 {
+#ifdef CONFIG_ARM
 	setup_mm_for_reboot();
 	tegra_sleep_cpu_finish(v2p);
-
+#endif
 	/* should never here */
 	BUG();
 
@@ -173,6 +205,7 @@ static void tegra_pm_set(enum tegra_suspend_mode mode)
 	switch (tegra_get_chip_id()) {
 	case TEGRA20:
 	case TEGRA30:
+	case TEGRA132:
 		break;
 	default:
 		/* Turn off CRAIL */
@@ -193,7 +226,11 @@ void tegra_idle_lp2_last(void)
 	cpu_cluster_pm_enter();
 	suspend_cpu_complex();
 
+#ifdef CONFIG_ARM64
+	cpu_suspend(TEGRA_SUSPEND_LP2);
+#else
 	cpu_suspend(PHYS_OFFSET - PAGE_OFFSET, &tegra_sleep_cpu);
+#endif
 
 	restore_cpu_complex();
 	cpu_cluster_pm_exit();
@@ -210,6 +247,7 @@ enum tegra_suspend_mode tegra_pm_validate_suspend_mode(
 	switch (tegra_get_chip_id()) {
 	case TEGRA114:
 	case TEGRA124:
+	case TEGRA132:
 		avail_mode = mode;
 		break;
 	default:
@@ -242,6 +280,9 @@ static int tegra_sleep_core(unsigned long v2p)
  */
 static bool tegra_lp1_iram_hook(void)
 {
+#ifdef CONFIG_ARM64
+	return true;
+#else
 	switch (tegra_get_chip_id()) {
 	case TEGRA20:
 		if (IS_ENABLED(CONFIG_ARCH_TEGRA_2x_SOC))
@@ -268,6 +309,7 @@ static bool tegra_lp1_iram_hook(void)
 		return false;
 
 	return true;
+#endif
 }
 
 static bool tegra_sleep_core_init(void)
@@ -297,8 +339,10 @@ static bool tegra_sleep_core_init(void)
 
 static void tegra_suspend_enter_lp0(void)
 {
+#ifdef CONFIG_ARM
 	tegra_smp_clear_cpu_init_mask();
 	tegra_cpu_reset_handler_save();
+#endif
 	tegra_tsc_suspend();
 }
 
@@ -306,27 +350,40 @@ static void tegra_suspend_exit_lp0(void)
 {
 	tegra_tsc_resume();
 	tegra_pmc_lp0_resume();
+#ifdef CONFIG_ARM
 	tegra_cpu_reset_handler_restore();
+#endif
 }
 
 static void tegra_suspend_enter_lp1(void)
 {
+#ifdef CONFIG_ARM
+	void __iomem *iram_resume_area;
+
+	iram_resume_area = ioremap(TEGRA_IRAM_LPx_RESUME_AREA, sizeof(u32));
 	/* copy the reset vector & SDRAM shutdown code into IRAM */
-	memcpy(iram_save_addr, IO_ADDRESS(TEGRA_IRAM_LPx_RESUME_AREA),
-		iram_save_size);
-	memcpy(IO_ADDRESS(TEGRA_IRAM_LPx_RESUME_AREA),
-		tegra_lp1_iram.start_addr, iram_save_size);
+	memcpy(iram_save_addr, iram_resume_area, iram_save_size);
+	memcpy(iram_resume_area, tegra_lp1_iram.start_addr, iram_save_size);
 
 	*((u32 *)tegra_cpu_lp1_mask) = 1;
+
+	iounmap(iram_resume_area);
+#endif
 }
 
 static void tegra_suspend_exit_lp1(void)
 {
+#ifdef CONFIG_ARM
+	void __iomem *iram_resume_area;
+
+	iram_resume_area = ioremap(TEGRA_IRAM_LPx_RESUME_AREA, sizeof(u32));
 	/* restore IRAM */
-	memcpy(IO_ADDRESS(TEGRA_IRAM_LPx_RESUME_AREA), iram_save_addr,
-		iram_save_size);
+	memcpy(iram_resume_area, iram_save_addr, iram_save_size);
 
 	*(u32 *)tegra_cpu_lp1_mask = 0;
+
+	iounmap(iram_resume_area);
+#endif
 }
 
 static const char *lp_state[TEGRA_MAX_SUSPEND_MODE] = {
@@ -364,7 +421,11 @@ static int tegra_suspend_enter(suspend_state_t state)
 		break;
 	}
 
+#ifdef CONFIG_ARM64
+	cpu_suspend(mode);
+#else
 	cpu_suspend(PHYS_OFFSET - PAGE_OFFSET, tegra_sleep_func);
+#endif
 
 	switch (mode) {
 	case TEGRA_SUSPEND_LP0:
@@ -390,12 +451,16 @@ static const struct platform_suspend_ops tegra_suspend_ops = {
 	.enter		= tegra_suspend_enter,
 };
 
-void __init tegra_init_suspend(void)
+static int __init tegra_init_suspend(void)
 {
-	enum tegra_suspend_mode mode = tegra_pmc_get_suspend_mode();
+	enum tegra_suspend_mode mode;
 
+	if (!soc_is_tegra())
+		goto out;
+
+	mode = tegra_pmc_get_suspend_mode();
 	if (mode == TEGRA_SUSPEND_NONE)
-		return;
+		goto out;
 
 	tegra_tear_down_cpu_init();
 
@@ -423,5 +488,8 @@ void __init tegra_init_suspend(void)
 	}
 
 	suspend_set_ops(&tegra_suspend_ops);
+out:
+	return 0;
 }
+late_initcall(tegra_init_suspend);
 #endif

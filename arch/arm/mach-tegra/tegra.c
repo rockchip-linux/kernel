@@ -37,7 +37,6 @@
 
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
-#include <soc/tegra/pm.h>
 #include <soc/tegra/pmc.h>
 #include <soc/tegra/reset.h>
 #include <soc/tegra/sleep.h>
@@ -162,7 +161,6 @@ static void __init tegra_dt_init_late(void)
 {
 	int i;
 
-	tegra_init_suspend();
 	tegra_cpuidle_init();
 
 	for (i = 0; i < ARRAY_SIZE(board_init_funcs); i++) {
