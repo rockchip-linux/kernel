@@ -1026,8 +1026,6 @@ static struct tegra_devclk devclks[] __initdata = {
 	{ .con_id = "extern2", .dev_id = "clk_out_2", .dt_id = TEGRA124_CLK_EXTERN2 },
 	{ .con_id = "extern3", .dev_id = "clk_out_3", .dt_id = TEGRA124_CLK_EXTERN3 },
 	{ .con_id = "blink", .dt_id = TEGRA124_CLK_BLINK },
-	{ .con_id = "cclk_g", .dt_id = TEGRA124_CLK_CCLK_G },
-	{ .con_id = "cclk_lp", .dt_id = TEGRA124_CLK_CCLK_LP },
 	{ .con_id = "sclk", .dt_id = TEGRA124_CLK_SCLK },
 	{ .con_id = "hclk", .dt_id = TEGRA124_CLK_HCLK },
 	{ .con_id = "pclk", .dt_id = TEGRA124_CLK_PCLK },
