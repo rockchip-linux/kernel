@@ -616,6 +616,56 @@ int tegra_dvfs_predict_millivolts(struct clk *c, unsigned long rate)
 }
 EXPORT_SYMBOL(tegra_dvfs_predict_millivolts);
 
+int tegra_dvfs_set_fmax_at_vmin(struct clk *c, unsigned long f_max, int v_min)
+{
+	int i, ret = 0;
+	struct dvfs *d;
+	unsigned long f_min = 1000;	/* 1kHz min rate in DVFS tables */
+
+	d = tegra_clk_to_dvfs(c);
+
+	mutex_lock(&dvfs_lock);
+
+	if (v_min >= d->max_millivolts) {
+		pr_err("%s: new vmin %dmV is at/above max voltage %dmV\n",
+		       __func__, v_min, d->max_millivolts);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * dvfs table update:
+	 * - for voltages below new v_min the respective frequencies are shifted
+	 * below new f_max to the levels already present in the table; if the
+	 * 1st table entry has frequency above new fmax, all entries below v_min
+	 * are filled in with 1kHz (min rate used in DVFS tables).
+	 * - for voltages above new v_min, the respective frequencies are
+	 * increased to at least new f_max
+	 * - if new v_min is already in the table set the respective frequency
+	 * to new f_max
+	 */
+	for (i = 0; i < d->num_freqs; i++) {
+		int mv = d->millivolts[i];
+		unsigned long f = d->freqs[i];
+
+		if (mv < v_min) {
+			if (f >= f_max)
+				d->freqs[i] = i ? d->freqs[i-1] : f_min;
+		} else if (mv > v_min) {
+			d->freqs[i] = max(f, f_max);
+		} else {
+			d->freqs[i] = f_max;
+		}
+	}
+	ret = __tegra_dvfs_set_rate(d, d->cur_rate);
+
+out:
+	mutex_unlock(&dvfs_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(tegra_dvfs_set_fmax_at_vmin);
+
 /**
  * tegra_dvfs_set_rate - update rail voltage due to the clock rate change
  *
