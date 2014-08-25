@@ -14,10 +14,9 @@
 
 #include <soc/tegra/common.h>
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/sleep.h>
 
 #include <asm/smp_plat.h>
-
-#include "sleep.h"
 
 static void (*tegra_hotplug_shutdown)(void);
 

@@ -23,12 +23,11 @@
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
 #include <soc/tegra/reset.h>
+#include <soc/tegra/sleep.h>
 
 #include <asm/cacheflush.h>
 #include <asm/firmware.h>
 #include <asm/hardware/cache-l2x0.h>
-
-#include "sleep.h"
 
 #define TEGRA_IRAM_RESET_BASE (TEGRA_IRAM_BASE + \
 				TEGRA_IRAM_RESET_HANDLER_OFFSET)

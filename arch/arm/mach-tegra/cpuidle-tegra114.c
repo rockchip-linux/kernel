@@ -21,12 +21,13 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
+#include <soc/tegra/sleep.h>
+
 #include <asm/cpuidle.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
 
 #include "pm.h"
-#include "sleep.h"
 
 #ifdef CONFIG_PM_SLEEP
 #define TEGRA114_MAX_STATES 2

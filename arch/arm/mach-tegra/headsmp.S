@@ -1,7 +1,7 @@
 #include <linux/linkage.h>
 #include <linux/init.h>
 
-#include "sleep.h"
+#include <soc/tegra/sleep.h>
 
         .section ".text.head", "ax"
 

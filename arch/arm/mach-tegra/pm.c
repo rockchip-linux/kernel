@@ -33,6 +33,7 @@
 #include <soc/tegra/pm.h>
 #include <soc/tegra/pmc.h>
 #include <soc/tegra/reset.h>
+#include <soc/tegra/sleep.h>
 
 #include <asm/cacheflush.h>
 #include <asm/idmap.h>
@@ -42,7 +43,6 @@
 #include <asm/tlbflush.h>
 
 #include "pm.h"
-#include "sleep.h"
 
 #ifdef CONFIG_PM_SLEEP
 static DEFINE_SPINLOCK(tegra_lp2_lock);

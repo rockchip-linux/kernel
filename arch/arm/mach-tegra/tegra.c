@@ -39,6 +39,7 @@
 #include <soc/tegra/iomap.h>
 #include <soc/tegra/pmc.h>
 #include <soc/tegra/reset.h>
+#include <soc/tegra/sleep.h>
 
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/mach/arch.h>
@@ -52,7 +53,6 @@
 #include "cpuidle.h"
 #include "irq.h"
 #include "pm.h"
-#include "sleep.h"
 
 /*
  * Storage for debug-macro.S's state.

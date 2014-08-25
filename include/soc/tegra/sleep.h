@@ -14,20 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MACH_TEGRA_SLEEP_H
-#define __MACH_TEGRA_SLEEP_H
+#ifndef __SOC_TEGRA_SLEEP_H__
+#define __SOC_TEGRA_SLEEP_H__
 
 #include <soc/tegra/iomap.h>
-
-#define TEGRA_ARM_PERIF_VIRT (TEGRA_ARM_PERIF_BASE - IO_CPU_PHYS \
-					+ IO_CPU_VIRT)
-#define TEGRA_FLOW_CTRL_VIRT (TEGRA_FLOW_CTRL_BASE - IO_PPSB_PHYS \
-					+ IO_PPSB_VIRT)
-#define TEGRA_CLK_RESET_VIRT (TEGRA_CLK_RESET_BASE - IO_PPSB_PHYS \
-					+ IO_PPSB_VIRT)
-#define TEGRA_APB_MISC_VIRT (TEGRA_APB_MISC_BASE - IO_APB_PHYS \
-					+ IO_APB_VIRT)
-#define TEGRA_PMC_VIRT	(TEGRA_PMC_BASE - IO_APB_PHYS + IO_APB_VIRT)
 
 /* PMC_SCRATCH2 is used for PLLM boot state if PLLM auto-restart is enabled */
 #define PMC_SCRATCH2	0x58
@@ -48,6 +38,16 @@
 #define TEGRA_FLUSH_CACHE_ALL	1
 
 #ifdef __ASSEMBLY__
+#define TEGRA_ARM_PERIF_VIRT (TEGRA_ARM_PERIF_BASE - IO_CPU_PHYS \
+					+ IO_CPU_VIRT)
+#define TEGRA_FLOW_CTRL_VIRT (TEGRA_FLOW_CTRL_BASE - IO_PPSB_PHYS \
+					+ IO_PPSB_VIRT)
+#define TEGRA_CLK_RESET_VIRT (TEGRA_CLK_RESET_BASE - IO_PPSB_PHYS \
+					+ IO_PPSB_VIRT)
+#define TEGRA_APB_MISC_VIRT (TEGRA_APB_MISC_BASE - IO_APB_PHYS \
+					+ IO_APB_VIRT)
+#define TEGRA_PMC_VIRT	(TEGRA_PMC_BASE - IO_APB_PHYS + IO_APB_VIRT)
+
 /* waits until the microsecond counter (base) is > rn */
 .macro wait_until, rn, base, tmp
 	add	\rn, \rn, #1

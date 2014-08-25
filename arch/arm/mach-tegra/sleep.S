@@ -32,7 +32,7 @@
 #include <asm/cp15.h>
 #include <asm/hardware/cache-l2x0.h>
 
-#include "sleep.h"
+#include <soc/tegra/sleep.h>
 
 #define CLK_RESET_CCLK_BURST	0x20
 #define CLK_RESET_CCLK_DIVIDER  0x24

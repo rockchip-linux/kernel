@@ -19,12 +19,11 @@
 #include <soc/tegra/irammap.h>
 #include <soc/tegra/flowctrl.h>
 #include <soc/tegra/fuse.h>
+#include <soc/tegra/sleep.h>
 
 #include <asm/asm-offsets.h>
 #include <asm/assembler.h>
 #include <asm/cache.h>
-
-#include "sleep.h"
 
 #define EMC_CFG				0xc
 #define EMC_ADR_CFG			0x10
