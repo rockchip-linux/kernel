@@ -107,4 +107,16 @@ config QCA_NSS_DRV
 
 	  The module will be called qca-nss-drv.
 
+config QCA_NSS_GMAC
+	tristate "Qualcomm/Atheros IPQ806x GMAC Ethernet support (EXPERIMENTAL)"
+	depends on EXPERIMENTAL && ARCH_QCOM
+	select QCA_NSS_DRV
+	select NET_CORE
+	select MII
+	---help---
+	  This driver supports the Qualcomm/Atheros GMAC ports in IPQ806x
+	  chipset. Presents an ethernet interface to user space.
+
+	  The module will be called qca-nss-gmac.
+
 endif # NET_VENDOR_ATHEROS

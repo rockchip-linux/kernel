@@ -1,0 +1,14 @@
+Linux Driver for 3504 DWC Ether MAC 10/100/1000 Universal
+Linux Driver for 3507 DWC Ether MAC 10/100 Universal
+
+IMPORTANT: Synopsys Ethernet MAC Linux Software Drivers and documentation (hereinafter, "Software") are unsupported proprietary works of Synopsys, Inc. unless otherwise expressly agreed to in writing between Synopsys and you.
+
+The Software uses certain Linux kernel functionality and may therefore be subject to the GNU Public License which is available at:
+http://www.gnu.org/licenses/gpl.html
+
+The Software IS NOT an item of Licensed Software or Licensed Product under any End User Software License Agreement or Agreement for Licensed Product with Synopsys or any supplement thereto. Synopsys permits you to use and redistribute this Software in source and binary forms, with or without modification, provided that redistributions of source code must retain this notice.  Synopsys does not permit you to view, use, disclose, copy or distribute this file or any information contained herein except pursuant to this license grant from Synopsys, or to the extent it applies, the GNU Public License.  If you do not agree with this notice, including the disclaimer below, then you are not authorized by Synopsys to use the Software.
+
+THIS SOFTWARE IS BEING DISTRIBUTED BY SYNOPSYS SOLELY ON AN "AS IS" BASIS AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE HEREBY DISCLAIMED. IN NO EVENT SHALL SYNOPSYS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+
