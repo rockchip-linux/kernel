@@ -37,6 +37,7 @@
 
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
+#include <soc/tegra/pm.h>
 #include <soc/tegra/pmc.h>
 #include <soc/tegra/reset.h>
 #include <soc/tegra/sleep.h>
@@ -52,7 +53,6 @@
 #include "common.h"
 #include "cpuidle.h"
 #include "irq.h"
-#include "pm.h"
 
 /*
  * Storage for debug-macro.S's state.

@@ -16,7 +16,7 @@
 
 #include <linux/kernel.h>
 
-#include "pm.h"
+#include <soc/tegra/pm.h>
 
 #ifdef CONFIG_PM_SLEEP
 extern u32 tegra20_iram_start, tegra20_iram_end;

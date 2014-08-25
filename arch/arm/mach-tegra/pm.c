@@ -42,8 +42,6 @@
 #include <asm/suspend.h>
 #include <asm/tlbflush.h>
 
-#include "pm.h"
-
 #ifdef CONFIG_PM_SLEEP
 static DEFINE_SPINLOCK(tegra_lp2_lock);
 static u32 iram_save_size;
