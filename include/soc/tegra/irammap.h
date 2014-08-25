@@ -14,8 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __MACH_TEGRA_IRAMMAP_H
-#define __MACH_TEGRA_IRAMMAP_H
+#ifndef __SOC_TEGRA_IRAMMAP_H__
+#define __SOC_TEGRA_IRAMMAP_H__
 
 #include <asm/sizes.h>
 

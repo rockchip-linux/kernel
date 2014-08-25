@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 
+#include <soc/tegra/irammap.h>
 #include <soc/tegra/fuse.h>
 #include <soc/tegra/iomap.h>
 
@@ -26,7 +27,6 @@
 #include <asm/firmware.h>
 #include <asm/hardware/cache-l2x0.h>
 
-#include "irammap.h"
 #include "reset.h"
 #include "sleep.h"
 

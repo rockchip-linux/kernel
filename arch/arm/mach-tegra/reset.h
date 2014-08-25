@@ -29,7 +29,7 @@
 
 #ifndef __ASSEMBLY__
 
-#include "irammap.h"
+#include <soc/tegra/irammap.h>
 
 extern unsigned long __tegra_cpu_reset_handler_data[TEGRA_RESET_DATA_SIZE];
 
