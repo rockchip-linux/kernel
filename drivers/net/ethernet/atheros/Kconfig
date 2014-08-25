@@ -94,4 +94,17 @@ config QCA8337_LITE
 
 	  The module will be called qca3887-lite.
 
+config QCA_NSS_DRV
+	tristate "Qualcomm/Atheros IPQ806x NSS driver support (EXPERIMENTAL)"
+	depends on EXPERIMENTAL && ARCH_QCOM
+	select NET_CORE
+	select MII
+	---help---
+	  This driver supports the Qualcomm/Atheros IPQ806x internal NSS core.
+	  It contains routines to load firmware and basic methods to communicate
+	  with it. The NSS based GMAC relies on this driver to communicate with
+	  the NSS firmware.
+
+	  The module will be called qca-nss-drv.
+
 endif # NET_VENDOR_ATHEROS
