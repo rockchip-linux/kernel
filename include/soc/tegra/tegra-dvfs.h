@@ -170,6 +170,8 @@ int tegra_dvfs_predict_millivolts(struct clk *c, unsigned long rate);
 bool tegra_dvfs_is_dfll_range(struct clk *c, unsigned long rate);
 int tegra_dvfs_set_dfll_range(struct clk *c, int range);
 int tegra_get_cpu_fv_table(int *num_freqs, unsigned long **freqs, int **mvs);
+void tegra_dvfs_core_lock(void);
+void tegra_dvfs_core_unlock(void);
 #else
 static inline int tegra_dvfs_init(void)
 { return 0; }
@@ -208,6 +210,10 @@ static inline int tegra_dvfs_set_dfll_range(struct clk *c, int range)
 static inline int tegra_get_cpu_fv_table(
 		int *num_freqs, unsigned long **freqs, int **mvs)
 { return -EINVAL; }
+static inline void tegra_dvfs_core_lock(void)
+{ return; }
+static inline void tegra_dvfs_core_unlock(void)
+{ return; }
 #endif
 
 #ifdef CONFIG_TEGRA_124_DVFS

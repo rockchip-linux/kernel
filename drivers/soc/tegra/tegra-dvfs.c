@@ -42,6 +42,7 @@ struct dvfs_rail *tegra_cpu_rail;
 struct dvfs_rail *tegra_core_rail;
 
 bool core_dvfs_started;
+int core_dvfs_lock_cnt;
 
 static LIST_HEAD(dvfs_rail_list);
 static DEFINE_MUTEX(dvfs_lock);
@@ -446,6 +447,50 @@ static int __tegra_dvfs_set_rate(struct dvfs *d, unsigned long rate)
 
 	return ret;
 }
+
+void tegra_dvfs_core_lock(void)
+{
+	int ret;
+	struct dvfs_rail *rail = tegra_core_rail;
+
+	if (!rail)
+		return;
+
+	mutex_lock(&dvfs_lock);
+	if (core_dvfs_lock_cnt++ == 0) {
+		rail->override_millivolts = rail->nominal_millivolts;
+		if (!rail->disabled && !rail->suspended) {
+			ret = dvfs_rail_update(rail);
+			if (ret)
+				pr_err("%s: failed to set override level: %d\n",
+				       __func__, ret);
+		}
+	}
+	mutex_unlock(&dvfs_lock);
+}
+EXPORT_SYMBOL(tegra_dvfs_core_lock);
+
+void tegra_dvfs_core_unlock(void)
+{
+	int ret;
+	struct dvfs_rail *rail = tegra_core_rail;
+
+	if (!rail)
+		return;
+
+	mutex_lock(&dvfs_lock);
+	if (--core_dvfs_lock_cnt == 0) {
+		rail->override_millivolts = 0;
+		if (!rail->disabled && !rail->suspended) {
+			ret = dvfs_rail_update(rail);
+			if (ret)
+				pr_err("%s: failed to clear override level: %d\n",
+				       __func__, ret);
+		}
+	}
+	mutex_unlock(&dvfs_lock);
+}
+EXPORT_SYMBOL(tegra_dvfs_core_unlock);
 
 static struct dvfs *tegra_clk_to_dvfs(struct clk *c)
 {
