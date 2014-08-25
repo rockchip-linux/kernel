@@ -38,6 +38,7 @@
 #include <linux/jiffies.h>
 #include <linux/completion.h>
 #include <linux/of.h>
+#include <linux/regulator/consumer.h>
 
 #define DRIVER_NAME		"elan_i2c"
 #define ELAN_DRIVER_VERSION	"1.5.5"
@@ -153,6 +154,7 @@ enum lid_state {
 struct elan_tp_data {
 	struct i2c_client	*client;
 	struct input_dev	*input;
+	struct regulator	*vcc;
 
 	/* for fw update */
 	struct completion	fw_completion;
@@ -1185,42 +1187,62 @@ static int elan_disable_calibrate(struct elan_tp_data *data)
 
 static int elan_enable_power(struct elan_tp_data *data)
 {
-	int ret;
 	int repeat = ETP_RETRY_COUNT;
+	int error;
+
+	error = regulator_enable(data->vcc);
+	if (error) {
+		dev_err(&data->client->dev,
+			"Failed to enable regulator: %d\n", error);
+		return error;
+	}
 
 	do {
 		if (data->smbus)
 			/* no effect */
-			ret = 0;
+			error = 0;
 		else
-			ret = elan_i2c_enable_power(data->client);
-		if (ret >= 0)
-			break;
+			error = elan_i2c_enable_power(data->client);
+		if (error >= 0)
+			return 0;
+
 		repeat--;
 		msleep(30);
 	} while (repeat > 0);
 
-	return ret;
+	return error;
 }
 
 static int elan_disable_power(struct elan_tp_data *data)
 {
-	int ret;
 	int repeat = ETP_RETRY_COUNT;
+	int error;
 
 	do {
 		if (data->smbus)
 			/* no effect */
-			ret = 0;
+			error = 0;
 		else
-			ret = elan_i2c_disable_power(data->client);
-		if (ret >= 0)
-			break;
+			error = elan_i2c_disable_power(data->client);
+		if (error >= 0) {
+			error = regulator_disable(data->vcc);
+			if (error) {
+				dev_err(&data->client->dev,
+					"Failed to disable regulator: %d\n",
+					error);
+				if (!data->smbus)
+					elan_i2c_enable_power(data->client);
+				break;
+			}
+
+			return 0;
+		}
+
 		repeat--;
 		msleep(30);
 	} while (repeat > 0);
 
-	return ret;
+	return error;
 }
 
 static int elan_sleep(struct elan_tp_data *data)
@@ -2028,6 +2050,13 @@ err_out:
 	dev_err(&client->dev, "Elan Trackpad probe failed: %d\n", error);
 }
 
+static void elan_disable_regulator(void *_data)
+{
+	struct elan_tp_data *data = _data;
+
+	regulator_disable(data->vcc);
+}
+
 static int elan_probe(struct i2c_client *client,
 		      const struct i2c_device_id *dev_id)
 {
@@ -2077,6 +2106,33 @@ static int elan_probe(struct i2c_client *client,
 	 * The rest of input device's parameters will be set later,
 	 * in asynchronous portion of probe.
 	 */
+
+	data->vcc = devm_regulator_get(&client->dev, "vcc");
+	if (IS_ERR(data->vcc)) {
+		error = PTR_ERR(data->vcc);
+		if (error != -EPROBE_DEFER)
+			dev_err(&client->dev,
+				"Failed to get 'vcc' regulator: %d\n",
+				error);
+		return error;
+	}
+
+	error = regulator_enable(data->vcc);
+	if (error) {
+		dev_err(&client->dev,
+			"Failed to enable regulator: %d\n", error);
+		return error;
+	}
+
+	error = devm_add_action(&client->dev,
+				elan_disable_regulator, data);
+	if (error) {
+		regulator_disable(data->vcc);
+		dev_err(&client->dev,
+			"Failed to add disable regulator action: %d\n",
+			error);
+		return error;
+	}
 
 	/*
 	 * Systems using device tree should set up wakeup via DTS,
