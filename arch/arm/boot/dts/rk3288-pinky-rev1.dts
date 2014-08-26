@@ -342,7 +342,7 @@
 	status = "okay";
 
 	trackpad@15 {
-		compatible = "elan_i2c";
+		compatible = "elan,i2c_touchpad";
 		interrupt-parent = <&gpio7>;
 		interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
 		pinctrl-names = "default";
