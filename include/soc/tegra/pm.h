@@ -29,6 +29,7 @@ void tegra20_lp1_iram_hook(void);
 void tegra20_sleep_core_init(void);
 void tegra30_lp1_iram_hook(void);
 void tegra30_sleep_core_init(void);
+void tegra132_sleep_core_init(void);
 
 extern unsigned long l2x0_saved_regs_addr;
 
@@ -43,6 +44,7 @@ void tegra_smp_clear_cpu_init_mask(void);
 enum tegra_suspend_mode
 tegra_pm_validate_suspend_mode(enum tegra_suspend_mode mode);
 
+int tegra_sleep_core(unsigned long v2p);
 /* low-level resume entry point */
 void tegra_resume(void);
 #else
@@ -52,6 +54,10 @@ tegra_pm_validate_suspend_mode(enum tegra_suspend_mode mode)
 	return TEGRA_SUSPEND_NONE;
 }
 
+static inline int tegra_sleep_core(unsigned long v2p)
+{
+	return 0;
+}
 static inline void tegra_resume(void)
 {
 }

@@ -259,7 +259,7 @@ enum tegra_suspend_mode tegra_pm_validate_suspend_mode(
 	return avail_mode;
 }
 
-static int tegra_sleep_core(unsigned long v2p)
+int tegra_sleep_core(unsigned long v2p)
 {
 	setup_mm_for_reboot();
 	tegra_sleep_core_finish(v2p);
@@ -326,6 +326,10 @@ static bool tegra_sleep_core_init(void)
 		    IS_ENABLED(CONFIG_ARCH_TEGRA_114_SOC) ||
 		    IS_ENABLED(CONFIG_ARCH_TEGRA_124_SOC))
 			tegra30_sleep_core_init();
+		break;
+	case TEGRA132:
+		if (IS_ENABLED(CONFIG_ARCH_TEGRA_132_SOC))
+			tegra132_sleep_core_init();
 		break;
 	default:
 		break;
