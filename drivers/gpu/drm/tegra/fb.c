@@ -208,8 +208,7 @@ static int tegra_fbdev_probe(struct drm_fb_helper *helper,
 
 	cmd.width = sizes->surface_width;
 	cmd.height = sizes->surface_height;
-	cmd.pitches[0] = round_up(sizes->surface_width * bytes_per_pixel,
-				  DC_PITCH_ALIGNMENT);
+	cmd.pitches[0] = sizes->surface_width * bytes_per_pixel;
 	cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
 						     sizes->surface_depth);
 
