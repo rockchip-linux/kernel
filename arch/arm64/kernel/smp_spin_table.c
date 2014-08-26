@@ -129,6 +129,15 @@ static void smp_spin_table_cpu_die(unsigned int cpu)
 }
 #endif
 
+#ifdef CONFIG_PM_SLEEP
+static int smp_spin_table_cpu_suspend(unsigned long arg)
+{
+	if (!soc_ops || !soc_ops->cpu_suspend)
+		return -EOPNOTSUPP;
+	return soc_ops->cpu_suspend(arg);
+}
+#endif
+
 const struct cpu_operations smp_spin_table_ops = {
 	.name		= "spin-table",
 	.cpu_init	= smp_spin_table_cpu_init,
@@ -138,12 +147,13 @@ const struct cpu_operations smp_spin_table_ops = {
 	.cpu_disable	= smp_spin_table_cpu_disable,
 	.cpu_die	= smp_spin_table_cpu_die,
 #endif
+#ifdef CONFIG_PM_SLEEP
+	.cpu_suspend	= smp_spin_table_cpu_suspend,
+#endif
 };
 
-#ifdef CONFIG_HOTPLUG_CPU
 void smp_spin_table_set_soc_ops(struct spin_table_soc_ops *ops)
 {
 	if (ops)
 		soc_ops = ops;
 }
-#endif

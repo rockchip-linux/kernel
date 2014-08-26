@@ -14,11 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef CONFIG_HOTPLUG_CPU
 struct spin_table_soc_ops {
+#ifdef CONFIG_HOTPLUG_CPU
 	int (*cpu_off)(unsigned long cpuid);
 	int (*cpu_on)(unsigned long cpuid);
+#endif
+#ifdef CONFIG_PM_SLEEP
+	int (*cpu_suspend)(unsigned long arg);
+#endif
 };
 
 void smp_spin_table_set_soc_ops(struct spin_table_soc_ops *ops);
-#endif
