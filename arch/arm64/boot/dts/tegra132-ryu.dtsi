@@ -50,6 +50,42 @@
 			interrupts = <TEGRA_GPIO(J, 0) IRQ_TYPE_LEVEL_LOW>;
 			wakeup-source;
 		};
+
+		sh: cros-ec@1f {
+			compatible = "google,cros-ec-i2c";
+			reg = <0x1f>;
+
+			interrupt-parent = <&gpio>;
+			interrupts = <TEGRA_GPIO(W, 2) IRQ_TYPE_LEVEL_LOW>;
+
+			i2c_20: i2c-tunnel {
+				compatible = "google,cros-ec-i2c-tunnel";
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				google,remote-bus = <1>;
+
+				accel: lsm6ds0@6b {
+					compatible = "st,lsm6ds0";
+					reg = <0x6b>;
+					rot-matrix = /bits/ 16 <(1) (0) (0)
+								(0) (1) (0)
+								(0) (0) (1)>;
+					g-poll-interval = <100>;
+					g-min-interval = <2>;
+					g-fs-range = <0>;
+					x-poll-interval = <100>;
+					x-min-interval = <1>;
+					x-fs-range = <0>;
+					aa-filter-bw = <0>;
+				};
+
+				compass: ak09912@c {
+					compatible = "akm,ak09912";
+					reg = <0xc>;
+				};
+			};
+		};
 	};
 
 	// I2C3 (CAM_I2C)
