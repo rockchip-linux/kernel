@@ -67,11 +67,23 @@
 
 /* returns the offset of the flow controller csr register for a cpu */
 .macro cpu_to_csr_reg rd, rcpu
+#ifndef CONFIG_ARM64
 	cmp	\rcpu, #0
 	subne	\rd, \rcpu, #1
 	movne	\rd, \rd, lsl #3
 	addne	\rd, \rd, #0x18
 	moveq	\rd, #8
+#else
+	cmp	\rcpu, #0
+	beq 1f
+	sub	\rd, \rcpu, #1
+	lsl	\rd, \rd, #3
+	add	\rd, \rd, #0x18
+	b	2f
+1:
+	mov	\rd, #8
+2:
+#endif
 .endm
 
 /* returns the ID of the current processor */
