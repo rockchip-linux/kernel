@@ -180,7 +180,6 @@ static int rockchip_saradc_probe(struct platform_device *pdev)
 	const struct of_device_id *match;
 	int ret;
 	int irq;
-	u32 rate;
 
 	if (!np)
 		return -ENODEV;
