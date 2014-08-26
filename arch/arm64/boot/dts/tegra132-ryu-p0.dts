@@ -1,0 +1,10 @@
+/dts-v1/;
+
+#include "tegra132-ryu.dtsi"
+
+/ {
+	model = "Google Tegra132 Ryu P0";
+	compatible = "google,ryu-p0", "google,ryu", "nvidia,tegra132", \
+			"nvidia,tegra124";
+};
+

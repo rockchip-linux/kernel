@@ -1,12 +1,9 @@
-/dts-v1/;
-
 #include <dt-bindings/input/input.h>
 #include "tegra132.dtsi"
 #include "tegra132-ryu-gpio-default.dtsi"
 #include "tegra132-ryu-pinmux.dtsi"
 
 / {
-	model = "Google Tegra132 Ryu";
 	compatible = "google,ryu", "nvidia,tegra132", "nvidia,tegra124";
 
 	aliases {
