@@ -58,6 +58,9 @@
 #define ETP_MAX_FINGERS		5
 #define ETP_FINGER_DATA_LEN	5
 #define ETP_REPORT_ID		0x5D
+#define ETP_REPORT_ID_OFFSET	0
+#define ETP_TOUCH_INFO_OFFSET	1
+#define ETP_FINGER_DATA_OFFSET	2
 #define ETP_MAX_REPORT_LEN	34
 #define ETP_ENABLE_ABS		0x0001
 #define ETP_ENABLE_CALIBRATE	0x0002
@@ -87,8 +90,9 @@
 #define ETP_SMBUS_MAX_BASELINE_CMD	0xC3
 #define ETP_SMBUS_MIN_BASELINE_CMD	0xC4
 #define ETP_SMBUS_CALIBRATE_QUERY	0xC5
+
 #define ETP_SMBUS_REPORT_LEN		32
-#define ETP_SMBUS_FINGER_DATA_OFFSET	2
+#define ETP_SMBUS_PACKET_OFFSET		0
 #define ETP_SMBUS_HELLOPACKET_LEN	5
 #define ETP_SMBUS_IAP_PASSWORD		0x1234
 #define ETP_SMBUS_IAP_MODE_ON		(1<<6)
@@ -118,9 +122,9 @@
 #define ETP_I2C_CALIBRATE_CMD		0x0316
 #define ETP_I2C_MAX_BASELINE_CMD	0x0317
 #define ETP_I2C_MIN_BASELINE_CMD	0x0318
+
 #define ETP_I2C_REPORT_LEN		34
-#define ETP_I2C_FINGER_DATA_OFFSET	4
-#define ETP_I2C_REPORT_ID_OFFSET	2
+#define ETP_I2C_PACKET_OFFSET		2
 #define ETP_I2C_DESC_LENGTH		30
 #define ETP_I2C_REPORT_DESC_LENGTH	158
 #define ETP_I2C_IAP_PASSWORD		0x1EA5
@@ -1622,114 +1626,78 @@ static const struct attribute_group *elan_sysfs_groups[] = {
  * Elan isr functions
  ******************************************************************
  */
-static int elan_check_packet(struct elan_tp_data *data, u8 *packet)
+static void elan_report_contact(struct elan_tp_data *data,
+				int contact_num, bool contact_valid,
+				u8 *finger_data)
 {
-	u8 rid;
+	struct input_dev *input = data->input;
+	unsigned int pos_x, pos_y;
+	unsigned int pressure, mk_x, mk_y;
+	unsigned int area_x, area_y, major, minor, new_pressure;
 
-	if (data->smbus)
-		rid = packet[0];
-	else
-		rid = packet[ETP_I2C_REPORT_ID_OFFSET];
 
-	/* check report id */
-	if (rid != ETP_REPORT_ID) {
-		dev_err(&data->client->dev, "report id [%x] fail.\n", rid);
-		return -1;
+	if (contact_valid) {
+		pos_x = ((finger_data[0] & 0xf0) << 4) |
+						finger_data[1];
+		pos_y = ((finger_data[0] & 0x0f) << 8) |
+						finger_data[2];
+		mk_x = (finger_data[3] & 0x0f);
+		mk_y = (finger_data[3] >> 4);
+		pressure = finger_data[4];
+
+		if (pos_x > data->max_x || pos_y > data->max_y) {
+			dev_dbg(input->dev.parent,
+				"[%d] x=%d y=%d over max (%d, %d)",
+				contact_num, pos_x, pos_y,
+				data->max_x, data->max_y);
+			return;
+		}
+
+		/*
+		 * To avoid treating large finger as palm, let's reduce the
+		 * width x and y per trace.
+		 */
+		area_x = mk_x * (data->width_x - ETP_FWIDTH_REDUCE);
+		area_y = mk_y * (data->width_y - ETP_FWIDTH_REDUCE);
+
+		major = max(area_x, area_y);
+		minor = min(area_x, area_y);
+
+		new_pressure = pressure + ETP_PRESSURE_OFFSET;
+		if (new_pressure > ETP_MAX_PRESSURE)
+			new_pressure = ETP_MAX_PRESSURE;
+
+		input_mt_slot(input, contact_num);
+		input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
+		input_report_abs(input, ABS_MT_POSITION_X, pos_x);
+		input_report_abs(input, ABS_MT_POSITION_Y, data->max_y - pos_y);
+		input_report_abs(input, ABS_MT_PRESSURE, new_pressure);
+		input_report_abs(input, ABS_TOOL_WIDTH, mk_x);
+		input_report_abs(input, ABS_MT_TOUCH_MAJOR, major);
+		input_report_abs(input, ABS_MT_TOUCH_MINOR, minor);
+	} else {
+		input_mt_slot(input, contact_num);
+		input_mt_report_slot_state(input, MT_TOOL_FINGER, false);
 	}
-	return 0;
 }
 
 static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 {
-	struct input_dev *input;
-	u8 *finger_data;
-	bool finger_on;
-	int pos_x, pos_y;
-	int pressure, mk_x, mk_y;
-	int i, area_x, area_y, major, minor, new_pressure;
-	int btn_click;
-	u8  tp_info;
-	struct device *dev = &data->client->dev;
+	struct input_dev *input = data->input;
+	u8 *finger_data = &packet[ETP_FINGER_DATA_OFFSET];
+	int i;
+	u8 tp_info = packet[ETP_TOUCH_INFO_OFFSET];
+	bool contact_valid;
 
-	if (!data) {
-		dev_err(dev, "tp data structure is null");
-		return;
-	}
-	input = data->input;
-	if (!input) {
-		dev_err(dev, "input structure is null");
-		return;
-	}
-
-	if (data->smbus) {
-		finger_data = &packet[ETP_SMBUS_FINGER_DATA_OFFSET];
-		tp_info = packet[1];
-	} else {
-		finger_data = &packet[ETP_I2C_FINGER_DATA_OFFSET];
-		tp_info = packet[3];
-	}
-
-	btn_click = (tp_info & 0x01);
 	for (i = 0; i < ETP_MAX_FINGERS; i++) {
-		finger_on = (tp_info >> (3 + i)) & 0x01;
+		contact_valid = tp_info & (1U << (3 + i));
+		elan_report_contact(data, i, contact_valid, finger_data);
 
-		/* analyze touched finger raw data*/
-		if (finger_on) {
-			pos_x = ((finger_data[0] & 0xf0) << 4) |
-							finger_data[1];
-			pos_y = ((finger_data[0] & 0x0f) << 8) |
-							finger_data[2];
-			pos_y =  data->max_y - pos_y;
-			mk_x = (finger_data[3] & 0x0f);
-			mk_y = (finger_data[3] >> 4);
-			pressure = finger_data[4];
-
-			if (pos_x > data->max_x) {
-				dev_err(dev, "[%d] x=%d y=%d over max_x (%d)",
-					i, pos_x, pos_y, data->max_x);
-				finger_data += ETP_FINGER_DATA_LEN;
-				continue;
-			}
-
-			if (pos_y > data->max_y) {
-				dev_err(dev, "[%d] x=%d y=%d over max_y (%d)",
-					i, pos_x, pos_y, data->max_y);
-				finger_data += ETP_FINGER_DATA_LEN;
-				continue;
-			}
-
-			/*
-			 * to avoid fat finger be as palm, so reduce the
-			 * width x and y per trace
-			 */
-			area_x = mk_x * (data->width_x - ETP_FWIDTH_REDUCE);
-			area_y = mk_y * (data->width_y - ETP_FWIDTH_REDUCE);
-
-			major = max(area_x, area_y);
-			minor = min(area_x, area_y);
-
-			new_pressure = pressure + ETP_PRESSURE_OFFSET;
-			if (new_pressure > ETP_MAX_PRESSURE)
-				new_pressure = ETP_MAX_PRESSURE;
-
-			input_mt_slot(input, i);
-			input_mt_report_slot_state(input, MT_TOOL_FINGER,
-						   true);
-			input_report_abs(input, ABS_MT_POSITION_X, pos_x);
-			input_report_abs(input, ABS_MT_POSITION_Y, pos_y);
-			input_report_abs(input, ABS_MT_PRESSURE, new_pressure);
-			input_report_abs(input, ABS_TOOL_WIDTH, mk_x);
-			input_report_abs(input, ABS_MT_TOUCH_MAJOR, major);
-			input_report_abs(input, ABS_MT_TOUCH_MINOR, minor);
+		if (contact_valid)
 			finger_data += ETP_FINGER_DATA_LEN;
-		} else {
-			input_mt_slot(input, i);
-			input_mt_report_slot_state(input,
-						   MT_TOOL_FINGER, false);
-		}
 	}
 
-	input_report_key(input, BTN_LEFT, (btn_click == 1));
+	input_report_key(input, BTN_LEFT, tp_info & 0x01);
 	input_mt_report_pointer_emulation(input, true);
 	input_sync(input);
 }
@@ -1737,10 +1705,11 @@ static void elan_report_absolute(struct elan_tp_data *data, u8 *packet)
 static irqreturn_t elan_isr(int irq, void *dev_id)
 {
 	struct elan_tp_data *data = dev_id;
-	u8 raw[ETP_MAX_REPORT_LEN];
+	struct device *dev = &data->client->dev;
+	u8 *packet;
 	int retval;
 	int report_len;
-	struct device *dev = &data->client->dev;
+	u8 report[ETP_MAX_REPORT_LEN];
 
 	/*
 	 * When device is connected to i2c bus, when all IAP page writes
@@ -1749,32 +1718,31 @@ static irqreturn_t elan_isr(int irq, void *dev_id)
 	*/
 	if (data->wait_signal_from_updatefw) {
 		complete(&data->fw_completion);
-		goto elan_isr_end;
+		goto out;
 	}
 
 	if (data->smbus) {
 		report_len = ETP_SMBUS_REPORT_LEN;
 		retval = i2c_smbus_read_block_data(data->client,
 						   ETP_SMBUS_PACKET_QUERY,
-						   raw);
+						   report);
+		packet = &report[ETP_SMBUS_PACKET_OFFSET];
 	} else {
 		report_len = ETP_I2C_REPORT_LEN;
-		retval = i2c_master_recv(data->client, raw, report_len);
+		retval = i2c_master_recv(data->client, report, report_len);
+		packet = &report[ETP_I2C_PACKET_OFFSET];
 	}
 
-	if (retval != report_len) {
-		dev_err(dev, "wrong packet len(%d)", retval);
-		goto elan_isr_end;
-	}
+	if (retval != report_len)
+		dev_err(dev, "wrong report length (%d vs %d expected)",
+			retval, report_len);
+	else if (packet[ETP_REPORT_ID_OFFSET] != ETP_REPORT_ID)
+		dev_err(dev, "invalid report id data (%x)\n",
+			packet[ETP_REPORT_ID_OFFSET]);
+	else
+		elan_report_absolute(data, packet);
 
-	if (elan_check_packet(data, raw) < 0) {
-		dev_err(dev, "wrong packet format.");
-		goto elan_isr_end;
-	}
-
-	elan_report_absolute(data, raw);
-
-elan_isr_end:
+out:
 	return IRQ_HANDLED;
 }
 
