@@ -22,15 +22,15 @@
 
 	rk808: pmic@1b {
 		compatible = "rockchip,rk808";
-		clock-output-names = "xin32k", "rk808-clkout2";
+		reg = <0x1b>;
 		interrupt-parent = <&gpio0>;
 		interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pmic_int>;
-		reg = <0x1b>;
 		rockchip,system-power-controller;
 		wakeup-source;
 		#clock-cells = <1>;
+		clock-output-names = "xin32k", "rk808-clkout2";
 
 		vcc8-supply = <&vcc_18>;
 		vcc9-supply = <&vcc_io>;
