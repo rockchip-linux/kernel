@@ -364,7 +364,6 @@
 		nvidia,core-pwr-off-time = <61036>;
 		nvidia,core-power-req-active-high;
 		nvidia,sys-clock-req-active-high;
-		nvidia,reset-gpio = <&gpio TEGRA_GPIO(I, 5) GPIO_ACTIVE_LOW>;
 	};
 
 	clocks {
@@ -477,5 +476,11 @@
 			vin-supply = <&vdd_5v0_sys>;
 		};
 
+	};
+
+	gpio-restart {
+		compatible = "gpio-restart";
+		gpios = <&gpio TEGRA_GPIO(I, 5) GPIO_ACTIVE_LOW>;
+		priority = /bits/ 8 <200>;
 	};
 };
