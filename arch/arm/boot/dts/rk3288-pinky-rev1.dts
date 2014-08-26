@@ -80,6 +80,47 @@
 		};
 	};
 
+	vcc38_sys: vcc38-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc38_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3800000>;
+		regulator-max-microvolt = <3800000>;
+	};
+
+	vcc20_sys: vcc20-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc20_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <2000000>;
+		regulator-max-microvolt = <2000000>;
+		vin-supply = <&vcc38_sys>;
+	};
+
+	vcc18_flashio: vcc18-flashio {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc18_flashio";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&vcc20_sys>;
+	};
+
+	vcc33_lcd: vcc33-lcd-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio7 15 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_en>;
+		regulator-name = "vcc33_lcd";
+		regulator-always-on;		/* TODO: remove */
+		regulator-boot-on;
+		vin-supply = <&vcc33_io>;
+	};
+
 	/* This enables the regulator for vcc33_sd */
 	vcc33_sd_regulator: vcc33-sd-regulator {
 		compatible = "regulator-fixed";
@@ -161,9 +202,18 @@
 		wakeup-source;
 		#clock-cells = <1>;
 
+		vcc1-supply = <&vcc38_sys>;
+		vcc2-supply = <&vcc38_sys>;
+		vcc3-supply = <&vcc38_sys>;
+		vcc4-supply = <&vcc38_sys>;
+		vcc6-supply = <&vcc38_sys>;
+		vcc7-supply = <&vcc20_sys>;
 		vcc8-supply = <&vcc33_io>;
+		vcc9-supply = <&vcc20_sys>;
+		vcc10-supply = <&vcc20_sys>;
 		vcc11-supply = <&vcc33_io>;
 		vcc12-supply = <&vcc_18>;
+
 		vddio-supply = <&vcc33_pmuio>;
 
 		regulators {
@@ -347,6 +397,12 @@
 	buttons {
 		pwrbtn: pwrbtn {
 			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	lcd {
+		lcd_en: lcd-en {
+			rockchip,pins = <7 15 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
