@@ -24,6 +24,8 @@
 #include <linux/pm_opp.h>
 #include <linux/regulator/consumer.h>
 #include <linux/types.h>
+#include <linux/clk-provider.h>
+#include <soc/tegra/tegra-dvfs.h>
 
 struct tegra124_cpufreq_priv {
 	struct regulator *vdd_cpu_reg;
@@ -51,6 +53,8 @@ static int tegra124_cpu_switch_to_dfll(struct tegra124_cpufreq_priv *priv)
 		goto out;
 
 	clk_set_parent(priv->cpu_clk, priv->dfll_clk);
+
+	tegra_dvfs_dfll_mode_set(priv->cpu_clk, __clk_get_rate(priv->dfll_clk));
 
 	return 0;
 
