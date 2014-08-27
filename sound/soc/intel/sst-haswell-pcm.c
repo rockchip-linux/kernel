@@ -32,6 +32,7 @@
 #include "sst-haswell-ipc.h"
 #include "sst-dsp-priv.h"
 #include "sst-dsp.h"
+#include "sst-debugfs.h"
 
 #define HSW_PCM_COUNT		6
 #define HSW_VOLUME_MAX		0x7FFFFFFF	/* 0dB */
@@ -957,6 +958,8 @@ static const struct snd_soc_component_driver hsw_dai_component = {
 static int hsw_pcm_dev_probe(struct platform_device *pdev)
 {
 	struct sst_pdata *sst_pdata = dev_get_platdata(&pdev->dev);
+	struct hsw_priv_data *priv_data;
+	struct dentry root;
 	int ret;
 
 	ret = sst_hsw_dsp_init(&pdev->dev, sst_pdata);
@@ -971,6 +974,12 @@ static int hsw_pcm_dev_probe(struct platform_device *pdev)
 		hsw_dais, ARRAY_SIZE(hsw_dais));
 	if (ret < 0)
 		goto err_comp;
+
+#ifdef CONFIG_DEBUG_FS
+	priv_data->hsw = sst_pdata->dsp;
+	sst_debugfs_get_root(&root);
+	sst_hsw_dbg_enable(priv_data->hsw, &root);
+#endif
 
 	return 0;
 

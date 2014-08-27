@@ -31,6 +31,10 @@
 #include <linux/dma-mapping.h>
 #include <linux/debugfs.h>
 #include <linux/pm_runtime.h>
+//#include <asm/page.h>
+//#include <asm/pgtable.h>
+#include <sound/memalloc.h>
+
 
 #include "sst-haswell-ipc.h"
 #include "sst-dsp.h"
@@ -177,6 +181,13 @@ enum ipc_debug_operation {
 	IPC_DEBUG_MAX_DEBUG_LOG
 };
 
+enum dx_state {
+	d0_state = 0,
+	idle_state = 1,
+	d3_state = 3,
+	unknown_state,
+};
+
 /* Firmware Ready */
 struct sst_hsw_ipc_fw_ready {
 	u32 inbox_offset;
@@ -293,6 +304,12 @@ struct sst_hsw {
 	struct sst_hsw_ipc_dx_reply dx;
 	void *dx_context;
 	dma_addr_t dx_context_paddr;
+	int dx_state;
+	int cnt_state_idle;
+	int cnt_state_d0;
+	int cnt_state_d3;
+	int cnt_state_s0;
+	int cnt_state_s3;
 
 	/* boot */
 	wait_queue_head_t boot_wait;
@@ -656,6 +673,26 @@ static void hsw_notification_work(struct work_struct *work)
 
 	/* unmask busy interrupt */
 	sst_dsp_shim_update_bits_unlocked(hsw->dsp, SST_IMRX, SST_IMRX_BUSY, 0);
+}
+
+static void hsw_log_notification_work(struct work_struct *work)
+{
+	struct sst_hsw_log_stream *stream = container_of(work,
+	struct sst_hsw_log_stream, notify_work);
+	struct sst_hsw *hsw = stream->hsw;
+	u32 header;
+	int ret;
+
+	header = IPC_GLB_TYPE(IPC_GLB_DEBUG_LOG_MESSAGE);
+	header |= IPC_LOG_OP_TYPE(IPC_DEBUG_NOTIFY_LOG_DUMP);
+	header |= IPC_LOG_ID(SST_HSW_GLOBAL_LOG);
+	ret = ipc_tx_message_nowait(hsw, header,
+		&stream->curr_pos, sizeof(stream->curr_pos));
+	if (ret < 0)
+		dev_err(hsw->dev,
+			"ipc: send ipc to notify fw log position failed\n");
+
+	wake_up_interruptible(&stream->readers_wait_q);
 }
 
 static struct ipc_message *reply_find_msg(struct sst_hsw *hsw, u32 header)
@@ -1791,6 +1828,384 @@ static int sst_hsw_dx_state_restore(struct sst_hsw *hsw)
 		}
 	}
 
+	return 0;
+}
+
+static int fw_log_open_data(struct inode *inode, struct file *file)
+{
+	struct sst_hsw_log_stream *log_stream = inode->i_private;
+	struct sst_hsw_ipc_debug_log_enable_req req;
+	u32 header;
+	int ret;
+
+	pm_runtime_get(log_stream->hsw->dev);
+	file->private_data = inode->i_private;
+
+	req.ringinfo.ring_pt_address = virt_to_phys(log_stream->ring_descr);
+	req.ringinfo.num_pages = log_stream->pages;
+	req.ringinfo.ring_size = log_stream->size;
+	req.ringinfo.ring_offset = 0;
+	req.ringinfo.ring_first_pfn = virt_to_phys(log_stream->dma_area);
+	memcpy(req.config, log_stream->config, sizeof(log_stream->config));
+
+	header = IPC_GLB_TYPE(IPC_GLB_DEBUG_LOG_MESSAGE);
+	header |= IPC_LOG_OP_TYPE(IPC_DEBUG_ENABLE_LOG);
+	header |= IPC_LOG_ID(SST_HSW_GLOBAL_LOG);
+
+	dev_info(log_stream->hsw->dev, "send ipc to enable fw log\n");
+
+	ret = ipc_tx_message_wait(log_stream->hsw, header, &req, sizeof(req), NULL, 0);
+	if (ret < 0) {
+		dev_err(log_stream->hsw->dev, "ipc: enable fw log failed\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int fw_log_release(struct inode *inode, struct file *file)
+{
+	struct sst_hsw_log_stream *log_stream = inode->i_private;
+	u32 header;
+	int ret;
+
+	header = IPC_GLB_TYPE(IPC_GLB_DEBUG_LOG_MESSAGE);
+	header |= IPC_LOG_OP_TYPE(IPC_DEBUG_DISABLE_LOG);
+	header |= IPC_LOG_ID(SST_HSW_GLOBAL_LOG);
+
+	dev_info(log_stream->hsw->dev, "send ipc to disable fw log\n");
+
+	ret = ipc_tx_message_nowait(log_stream->hsw, header, NULL, 0);
+	if (ret < 0) {
+		dev_err(log_stream->hsw->dev,
+			"ipc: disable fw log failed, returned %d\n", ret);
+		return ret;
+	}
+
+	pm_runtime_put(log_stream->hsw->dev);
+	return 0;
+}
+
+static ssize_t fw_log_copy_to_user(struct sst_hsw_log_stream *log_stream,
+					char __user *user_buf, size_t count)
+{
+	/* check for reader buffer wrap */
+	if (log_stream->reader_pos + count > log_stream->size) {
+		size_t size = log_stream->size - log_stream->reader_pos;
+
+		/* wrap */
+		if (copy_to_user(user_buf,
+			log_stream->dma_area + log_stream->reader_pos, size))
+			return -EFAULT;
+
+		if (copy_to_user(user_buf + size,
+			log_stream->dma_area, count - size))
+			return -EFAULT;
+
+		log_stream->reader_pos = count - size;
+
+		return count;
+
+	} else {
+		/* no wrap */
+		if (copy_to_user(user_buf,
+			log_stream->dma_area + log_stream->reader_pos, count))
+			return -EFAULT;
+
+		log_stream->reader_pos += count;
+
+		return count;
+	}
+}
+
+static ssize_t fw_log_read_data(struct file *file, char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	struct sst_hsw_log_stream *log_stream = file->private_data;
+	size_t bytes;
+	ssize_t ret = 0;
+
+	do {
+		mutex_lock(&log_stream->rw_mutex);
+
+		if (log_stream->last_pos < log_stream->curr_pos) {
+			if (log_stream->reader_pos < log_stream->last_pos
+			|| log_stream->reader_pos > log_stream->curr_pos)
+
+				log_stream->reader_pos = log_stream->last_pos;
+		} else {
+			if (log_stream->reader_pos < log_stream->last_pos
+			&& log_stream->reader_pos > log_stream->curr_pos)
+
+				log_stream->reader_pos = log_stream->last_pos;
+		}
+
+		if (log_stream->curr_pos >= log_stream->reader_pos) {
+			bytes = log_stream->curr_pos - log_stream->reader_pos;
+		} else {
+			bytes = log_stream->curr_pos + log_stream->size -
+				log_stream->reader_pos;
+		}
+		mutex_unlock(&log_stream->rw_mutex);
+
+		if (bytes > count)
+			bytes = count;
+
+		if (bytes > 0) {
+			ret = fw_log_copy_to_user(log_stream, user_buf, bytes);
+			break;
+		}
+
+		if (file->f_flags & O_NONBLOCK) {
+			ret = -EAGAIN;
+			break;
+		}
+
+		if (wait_event_interruptible(log_stream->readers_wait_q,
+			log_stream->curr_pos != log_stream->reader_pos)) {
+			ret = -ERESTARTSYS;
+			break;
+		}
+
+	} while (1);
+
+	return ret;
+}
+
+static const struct file_operations fw_log_fops = {
+	.open = fw_log_open_data,
+	.read = fw_log_read_data,
+	.release = fw_log_release,
+};
+
+static int fw_log_config_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t fw_log_config_read(struct file *file, char __user *buffer,
+						size_t count, loff_t *ppos)
+{
+	struct sst_hsw_log_stream *log_stream = file->private_data;
+	int max_size = sizeof(log_stream->config);
+
+	if (*ppos >= max_size)
+		return 0;
+	if (*ppos + count > max_size)
+		count = max_size - *ppos;
+
+	if (copy_to_user(buffer, log_stream->config + *ppos, count))
+		return -EFAULT;
+
+	*ppos += count;
+
+	return count;
+}
+
+static ssize_t fw_log_config_write(struct file *file,
+	const char __user *buffer, size_t count, loff_t *ppos)
+{
+	struct sst_hsw_log_stream *log_stream = file->private_data;
+	struct sst_hsw_ipc_debug_log_enable_req req;
+	u32 header;
+	int max_size = sizeof(log_stream->config);
+	int ret;
+
+	if (*ppos >= max_size)
+		return 0;
+	if (*ppos + count > max_size)
+		count = max_size - *ppos;
+
+	if (copy_from_user(log_stream->config + *ppos, buffer, count))
+		return -EFAULT;
+
+	*ppos += count;
+
+	req.ringinfo.ring_pt_address = virt_to_phys(log_stream->ring_descr);
+	req.ringinfo.num_pages = log_stream->pages;
+	req.ringinfo.ring_size = log_stream->size;
+	req.ringinfo.ring_offset = 0;
+	req.ringinfo.ring_first_pfn = virt_to_phys(log_stream->dma_area);
+	memcpy(req.config, log_stream->config, sizeof(log_stream->config));
+
+	header = IPC_GLB_TYPE(IPC_GLB_DEBUG_LOG_MESSAGE);
+	header |= IPC_LOG_OP_TYPE(IPC_DEBUG_ENABLE_LOG);
+	header |= IPC_LOG_ID(SST_HSW_GLOBAL_LOG);
+
+	dev_info(log_stream->hsw->dev, "send ipc to configure fw log\n");
+
+	ret = ipc_tx_message_nowait(log_stream->hsw, header, &req, sizeof(req));
+	if (ret < 0) {
+		dev_err(log_stream->hsw->dev, "ipc: setting config fw log failed\n");
+		return ret;
+	}
+
+	return count;
+}
+
+static const struct file_operations fw_log_config_fops = {
+	.open = fw_log_config_open,
+	.read = fw_log_config_read,
+	.write = fw_log_config_write,
+};
+
+#ifdef CONFIG_PM
+static int suspend_stats_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+	return 0;
+}
+
+static const char *get_dstate_name(int state)
+{
+	const char *state_name[] = {"D0", "IDLE", "D3", "UNKNOWN"};
+	switch (state) {
+	case d0_state: return state_name[0];
+	case idle_state: return state_name[1];
+	case d3_state: return state_name[2];
+	default: return state_name[3];
+	}
+}
+
+static ssize_t suspend_stats_read(struct file *file, char __user *buffer,
+				  size_t count, loff_t *ppos)
+{
+	struct sst_hsw_log_stream *log_stream = file->private_data;
+	struct sst_hsw *hsw = log_stream->hsw;
+	char *buf = NULL;
+
+	if (*ppos)
+		return 0;
+
+	buf = kzalloc(PAGE_SIZE, GFP_DMA);
+	if (buf == NULL) {
+		pr_err("suspend stats buf kzalloc failed\n");
+		return -ENOMEM;
+	}
+
+	count = snprintf(buf, PAGE_SIZE,
+		"current state %s (%d)\ncount of :\n"
+		"Idle %d\n"
+		"D0 %d\nD3 %d\nS0 %d\nS3 %d\n",
+		get_dstate_name(hsw->dx_state), hsw->dx_state,
+		hsw->cnt_state_idle,
+		hsw->cnt_state_d0, hsw->cnt_state_d3,
+		hsw->cnt_state_s0, hsw->cnt_state_s3);
+
+	if (copy_to_user(buffer, buf, count)) {
+		pr_err("suspend stats copy_to_user failed\n");
+		kfree(buf);
+		return -EFAULT;
+	}
+
+	*ppos = count;
+	kfree(buf);
+
+	return count;
+}
+
+static const struct file_operations suspend_stats_fops = {
+	.open = suspend_stats_open,
+	.read = suspend_stats_read,
+};
+#endif
+
+/* debug control - sysFS */
+int sst_hsw_dbg_enable(struct sst_hsw *hsw,
+	struct dentry *debugfs_card_root)
+{
+	struct sst_hsw_log_stream *log_stream = &hsw->log_stream;
+	int i;
+	struct snd_dma_buffer *dma_buf[2];
+	static struct dentry *fwdir;
+	
+	dma_buf[0] = devm_kzalloc(hsw->dsp->dev, sizeof(*dma_buf[0]), GFP_KERNEL);
+	dma_buf[1] = devm_kzalloc(hsw->dsp->dev, sizeof(*dma_buf[1]), GFP_KERNEL);
+	memset(log_stream->config, 0xFF, sizeof(log_stream->config));
+	log_stream->size = 32 * PAGE_SIZE;
+	log_stream->hsw = hsw;
+
+//	log_stream->dma_area = dma_alloc_coherent(/*hsw->dsp->dma_dev*/log_stream->hsw->dev,
+//		log_stream->size, &log_stream->dma_addr, GFP_KERNEL);
+	snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, hsw->dsp->dma_dev,
+				log_stream->size, dma_buf[0]);
+	log_stream->dma_addr = dma_buf[0]->addr;
+	log_stream->dma_area = dma_buf[0]->area;
+	dev_info(log_stream->hsw->dev,
+		"alloc dma buffer: area=%p, addr=%p, size=%d\n",
+		(void *)log_stream->dma_area,
+		(void *)log_stream->dma_addr,
+		log_stream->size);
+
+	if (!log_stream->dma_area) {
+		dev_err(log_stream->hsw->dev, "alloc dma buffer failed\n");
+		return -EINVAL;
+	}
+
+//	log_stream->ring_descr = kzalloc(PAGE_SIZE, GFP_DMA);
+	snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, hsw->dsp->dma_dev,
+				PAGE_SIZE, dma_buf[1]);
+	log_stream->ring_descr = dma_buf[1]->area;
+
+	if (!log_stream->ring_descr) {
+		dev_err(log_stream->hsw->dev, "alloc ring descriptor failed\n");
+		return -EINVAL;
+	}
+
+	if (log_stream->size % PAGE_SIZE)
+		log_stream->pages = (log_stream->size / PAGE_SIZE) + 1;
+	else
+		log_stream->pages = log_stream->size / PAGE_SIZE;
+
+	dev_info(log_stream->hsw->dev,
+		"generating page table for %p size 0x%x pages %d\n",
+		log_stream->dma_area, log_stream->size, log_stream->pages);
+
+	for (i = 0; i < log_stream->pages; i++) {
+		u32 idx = (((i << 2) + i)) >> 1;
+		u32 pfn = (virt_to_phys(log_stream->dma_area + i * PAGE_SIZE))
+				>> PAGE_SHIFT;
+		u32 *pg_table;
+
+		pg_table = (u32 *)(log_stream->ring_descr + idx);
+
+		if (i & 1)
+			*pg_table |= (pfn << 4);
+		else
+			*pg_table |= pfn;
+	}
+
+	INIT_WORK(&log_stream->notify_work, hsw_log_notification_work);
+	init_waitqueue_head(&log_stream->readers_wait_q);
+	mutex_init(&log_stream->rw_mutex);
+
+	dev_dbg(log_stream->hsw->dev,"debugfs_card_root:%s", debugfs_card_root->d_name.name);
+
+	fwdir = debugfs_create_dir("fw_logs", NULL);
+
+	if (!debugfs_create_file("fw_log", 0444, fwdir,
+			&hsw->log_stream, &fw_log_fops))
+		pr_warn("ASoC: Failed to create fw_log debugfs file\n");
+
+#if 1
+	if (!debugfs_create_file("fw_log_config", 0644, fwdir,
+			&hsw->log_stream, &fw_log_config_fops))
+		pr_warn("ASoC: Failed to create fw_log_config debugfs file\n");
+
+#ifdef CONFIG_PM_RUNTIME
+	if (!debugfs_create_file("suspend_stats", 0444, fwdir,
+			&hsw->log_stream, &suspend_stats_fops))
+		pr_warn("ASoC: Failed to create suspend_stats file\n");
+#endif
+#endif
+	return 0;
+}
+EXPORT_SYMBOL(sst_hsw_dbg_enable);
+
+int sst_hsw_dbg_disable(struct sst_hsw *hsw,
+	struct sst_hsw_stream *stream, u32 log_id)
+{
 	return 0;
 }
 
