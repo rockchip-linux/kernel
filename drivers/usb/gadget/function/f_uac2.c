@@ -920,6 +920,7 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 	struct snd_uac2_chip *uac2 = &agdev->uac2;
 	struct usb_composite_dev *cdev = cfg->cdev;
 	struct usb_gadget *gadget = cdev->gadget;
+	struct device *dev = &uac2->pdev.dev;
 	struct uac2_rtd_params *prm;
 	struct f_uac2_opts *uac2_opts;
 	struct usb_string *us;
@@ -963,8 +964,7 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 
 	ret = usb_interface_id(cfg, fn);
 	if (ret < 0) {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		return ret;
 	}
 	std_ac_if_desc.bInterfaceNumber = ret;
@@ -973,8 +973,7 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 
 	ret = usb_interface_id(cfg, fn);
 	if (ret < 0) {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		return ret;
 	}
 	std_as_out_if0_desc.bInterfaceNumber = ret;
@@ -984,8 +983,7 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 
 	ret = usb_interface_id(cfg, fn);
 	if (ret < 0) {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		return ret;
 	}
 	std_as_in_if0_desc.bInterfaceNumber = ret;
@@ -995,16 +993,14 @@ afunc_bind(struct usb_configuration *cfg, struct usb_function *fn)
 
 	agdev->out_ep = usb_ep_autoconfig(gadget, &fs_epout_desc);
 	if (!agdev->out_ep) {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		goto err;
 	}
 	agdev->out_ep->driver_data = agdev;
 
 	agdev->in_ep = usb_ep_autoconfig(gadget, &fs_epin_desc);
 	if (!agdev->in_ep) {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		goto err;
 	}
 	agdev->in_ep->driver_data = agdev;
@@ -1063,6 +1059,7 @@ afunc_set_alt(struct usb_function *fn, unsigned intf, unsigned alt)
 	struct audio_dev *agdev = func_to_agdev(fn);
 	struct snd_uac2_chip *uac2 = &agdev->uac2;
 	struct usb_gadget *gadget = cdev->gadget;
+	struct device *dev = &uac2->pdev.dev;
 	struct usb_request *req;
 	struct usb_ep *ep;
 	struct uac2_rtd_params *prm;
@@ -1070,16 +1067,14 @@ afunc_set_alt(struct usb_function *fn, unsigned intf, unsigned alt)
 
 	/* No i/f has more than 2 alt settings */
 	if (alt > 1) {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
 	if (intf == agdev->ac_intf) {
 		/* Control I/f has only 1 AltSetting - 0 */
 		if (alt) {
-			dev_err(&uac2->pdev.dev,
-				"%s:%d Error!\n", __func__, __LINE__);
+			dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 			return -EINVAL;
 		}
 		return 0;
@@ -1096,8 +1091,7 @@ afunc_set_alt(struct usb_function *fn, unsigned intf, unsigned alt)
 		config_ep_by_speed(gadget, fn, ep);
 		agdev->as_in_alt = alt;
 	} else {
-		dev_err(&uac2->pdev.dev,
-			"%s:%d Error!\n", __func__, __LINE__);
+		dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
@@ -1126,8 +1120,7 @@ afunc_set_alt(struct usb_function *fn, unsigned intf, unsigned alt)
 		}
 
 		if (usb_ep_queue(ep, prm->ureq[i].req, GFP_ATOMIC))
-			dev_err(&uac2->pdev.dev, "%s:%d Error!\n",
-				__func__, __LINE__);
+			dev_err(dev, "%s:%d Error!\n", __func__, __LINE__);
 	}
 
 	return 0;
