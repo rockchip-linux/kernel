@@ -6,5 +6,11 @@
 	model = "Google Tegra132 Ryu P0";
 	compatible = "google,ryu-p0", "google,ryu", "nvidia,tegra132", \
 			"nvidia,tegra124";
+
+	regulators {
+		pplcd_vdd: fixed-regulator@5 {
+			gpio = <&palmas_gpio 6 0>;
+		};
+	};
 };
 
