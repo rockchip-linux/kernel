@@ -37,6 +37,14 @@
 				};
 			};
 
+			pcie3_pins: pcie3_pinmux {
+				mux {
+					pins = "gpio63";
+					drive-strength = <2>;
+					bias-disable;
+				};
+			};
+
 			spi_pins: spi_pins {
 				mux {
 					pins = "gpio18", "gpio19", "gpio21";
@@ -129,6 +137,17 @@
 
 		};
 
+		pci@1b900000 {
+			status = "ok";
+			reset-gpio = <&qcom_pinmux 63 0>;
+			pinctrl-0 = <&pcie3_pins>;
+			pinctrl-names = "default";
+
+			ranges = <0x00000000 0 0x00000000 0x35f00000 0 0x00100000   /* configuration space */
+				  0x81000000 0 0	  0x35e00000 0 0x00100000   /* downstream I/O */
+				  0x82000000 0 0x00000000 0x32000000 0 0x03e00000>; /* non-prefetchable memory */
+
+		};
 
 		sata-phy@1b400000 {
 			status = "ok";
