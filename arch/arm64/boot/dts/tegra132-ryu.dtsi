@@ -24,6 +24,37 @@
 		nvidia,pmc-wakeup = <&pmc 1 16 4>;
 	};
 
+	host1x@50000000 {
+		dsia: dsi@54300000 {
+			status = "okay";
+
+			secondary_panel: panel@0 {
+				compatible = "jdi,lpm102a188a";
+
+				reg = <0 0 0 0>;
+			};
+		};
+
+		dsi@54400000 {
+			status = "okay";
+			nvidia,slave = <&dsia>;
+
+			panel@0 {
+				compatible = "jdi,lpm102a188a";
+
+				reg = <0 0 0 0>;
+
+				power-supply = <&pplcd_vdd>;
+				ddi-supply = <&pp1800_lcdio>;
+
+				enable-gpio = <&gpio TEGRA_GPIO(H, 5) GPIO_ACTIVE_HIGH>;
+				reset-gpio = <&gpio TEGRA_GPIO(H, 3) GPIO_ACTIVE_LOW>;
+
+				slave = <&secondary_panel>;
+			};
+		};
+	};
+
 	// I2C1 (GEN1_I2C)
 	i2c@7000c000 {
 		status = "okay";
