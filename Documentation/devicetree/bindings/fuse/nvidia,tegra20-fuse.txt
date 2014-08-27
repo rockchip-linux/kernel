@@ -6,6 +6,7 @@ Required properties:
 	"nvidia,tegra30-efuse"
 	"nvidia,tegra114-efuse"
 	"nvidia,tegra124-efuse"
+	"nvidia,tegra132-efuse"
   Details:
   nvidia,tegra20-efuse: Tegra20 requires using APB DMA to read the fuse data
 	due to a hardware bug. Tegra20 also lacks certain information which is
