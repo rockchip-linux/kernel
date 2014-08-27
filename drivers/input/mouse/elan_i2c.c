@@ -2103,7 +2103,7 @@ static int elan_remove(struct i2c_client *client)
 
 	if (data->initialized) {
 		lid_event_unregister_handler(data);
-		sysfs_remove_groups(&client->dev.kobj, &elan_sysfs_groups);
+		sysfs_remove_groups(&client->dev.kobj, elan_sysfs_groups);
 		free_irq(data->irq, data);
 		input_unregister_device(data->input);
 	}
