@@ -1419,28 +1419,46 @@ static ssize_t elan_sysfs_update_fw(struct device *dev,
 	return ret ? ret : count;
 }
 
-static ssize_t elan_sysfs_calibrate(struct device *dev,
-				    struct device_attribute *attr,
-				    char *buf)
+static ssize_t calibrate_store(struct device *dev,
+			       struct device_attribute *attr,
+			       const char *buf, size_t count)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
 	/* start calibarate cmd */
 	u8 smbus_cmd[4] = {0x00, 0x08, 0x00, 0x01};
 	u8 val[3];
 	int tries = 20;
-	int ret = 0;
-	val[0] = 0;
+	int retval;
+	int error;
+
+	retval = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (retval)
+		return retval;
 
 	disable_irq(data->irq);
 	data->active = false;
-	elan_enable_calibrate(data);
-	if (data->smbus)
-		i2c_smbus_write_block_data(data->client,
-					   ETP_SMBUS_IAP_CMD, 4, smbus_cmd);
-	else
-		elan_i2c_write_cmd(data->client,
-				   ETP_I2C_CALIBRATE_CMD, 1);
 
+	retval = elan_enable_calibrate(data);
+	if (retval) {
+		dev_err(dev, "Failed to enable calibration mode to get baseline: %d\n",
+			retval);
+		goto out;
+	}
+
+	if (data->smbus)
+		retval = i2c_smbus_write_block_data(data->client,
+						    ETP_SMBUS_IAP_CMD,
+						    4, smbus_cmd);
+	else
+		retval = elan_i2c_write_cmd(data->client,
+					    ETP_I2C_CALIBRATE_CMD, 1);
+	if (retval) {
+		dev_err(dev, "Failed to start calibration: %d\n",
+			retval);
+		goto out_disable_calibrate;
+	}
+
+	val[0] = 0xff;
 	do {
 		/* wait 250ms and check finish or not */
 		msleep(250);
@@ -1458,15 +1476,24 @@ static ssize_t elan_sysfs_calibrate(struct device *dev,
 			break;
 	} while (--tries);
 
-	elan_disable_calibrate(data);
-	enable_irq(data->irq);
-	data->active = true;
-
 	if (tries == 0) {
 		dev_err(dev, "Failed to calibrate. Timeout.\n");
-		ret = -ETIMEDOUT;
+		retval = -ETIMEDOUT;
 	}
-	return sprintf(buf, "calibration finish\n");
+
+out_disable_calibrate:
+	error = elan_disable_calibrate(data);
+	if (error) {
+		dev_err(dev, "Failed to disable calibration mode: %d\n",
+			error);
+		if (!retval)
+			retval = error;
+	}
+out:
+	enable_irq(data->irq);
+	data->active = true;
+	mutex_unlock(&data->sysfs_mutex);
+	return retval ?: count;
 }
 
 static ssize_t elan_sysfs_read_mode(struct device *dev,
@@ -1482,9 +1509,10 @@ static DEVICE_ATTR(firmware_version, S_IRUGO, elan_sysfs_read_fw_ver, NULL);
 static DEVICE_ATTR(sample_version, S_IRUGO, elan_sysfs_read_sm_ver, NULL);
 static DEVICE_ATTR(iap_version, S_IRUGO, elan_sysfs_read_iap_ver, NULL);
 static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
-static DEVICE_ATTR(calibrate, S_IRUGO, elan_sysfs_calibrate, NULL);
 static DEVICE_ATTR(mode, S_IRUGO, elan_sysfs_read_mode, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, elan_sysfs_update_fw);
+
+static DEVICE_ATTR_WO(calibrate);
 
 static struct attribute *elan_sysfs_entries[] = {
 	&dev_attr_product_id.attr,
@@ -1506,6 +1534,7 @@ static ssize_t acquire_store(struct device *dev, struct device_attribute *attr,
 			     const char *buf, size_t count)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
+	int error;
 	int retval;
 
 	retval = mutex_lock_interruptible(&data->sysfs_mutex);
@@ -1519,7 +1548,7 @@ static ssize_t acquire_store(struct device *dev, struct device_attribute *attr,
 
 	retval = elan_enable_calibrate(data);
 	if (retval) {
-		dev_dbg(dev, "Failed to enable calibration mode to get baseline: %d\n",
+		dev_err(dev, "Failed to enable calibration mode to get baseline: %d\n",
 			retval);
 		goto out;
 	}
@@ -1528,14 +1557,14 @@ static ssize_t acquire_store(struct device *dev, struct device_attribute *attr,
 
 	retval = elan_get_max_baseline(data, &data->max_baseline);
 	if (retval) {
-		dev_dbg(dev, "Failed to read max baseline form device: %d\n",
+		dev_err(dev, "Failed to read max baseline form device: %d\n",
 			retval);
 		goto out_disable_calibrate;
 	}
 
 	retval = elan_get_min_baseline(data, &data->min_baseline);
 	if (retval) {
-		dev_dbg(dev, "Failed to read min baseline form device: %d\n",
+		dev_err(dev, "Failed to read min baseline form device: %d\n",
 			retval);
 		goto out_disable_calibrate;
 	}
@@ -1543,10 +1572,13 @@ static ssize_t acquire_store(struct device *dev, struct device_attribute *attr,
 	data->baseline_ready = true;
 
 out_disable_calibrate:
-	retval = elan_disable_calibrate(data);
-	if (retval)
-		dev_dbg(dev, "Failed to disable calibration mode after acquiring baseline: %d\n",
-			retval);
+	error = elan_disable_calibrate(data);
+	if (error) {
+		dev_err(dev, "Failed to disable calibration mode after acquiring baseline: %d\n",
+			error);
+		if (!retval)
+			retval = error;
+	}
 out:
 	data->active = true;
 	enable_irq(data->irq);
