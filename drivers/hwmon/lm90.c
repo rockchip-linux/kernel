@@ -1691,7 +1691,7 @@ static int lm90_probe(struct i2c_client *client,
 							LOCAL,
 							&client->dev,
 							lm90_read_local_temp,
-							NULL);
+							NULL, NULL);
 	if (IS_ERR(data->tz[LOCAL]))
 		data->tz[LOCAL] = NULL;
 
@@ -1699,7 +1699,7 @@ static int lm90_probe(struct i2c_client *client,
 							REMOTE,
 							&client->dev,
 							lm90_read_remote_temp,
-							NULL);
+							NULL, NULL);
 	if (IS_ERR(data->tz[REMOTE]))
 		data->tz[REMOTE] = NULL;
 
@@ -1709,7 +1709,7 @@ static int lm90_probe(struct i2c_client *client,
 							REMOTE2,
 							&client->dev,
 							lm90_read_remote2_temp,
-							NULL);
+							NULL, NULL);
 		if (IS_ERR(data->tz[REMOTE2]))
 			data->tz[REMOTE2] = NULL;
 	}
