@@ -559,9 +559,6 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 			goto disable_clocks;
 	}
 
-	soctherm_writel(tegra, sensor_pdiv, SENSOR_PDIV);
-	soctherm_writel(tegra, sensor_hotspot_offset, SENSOR_HOTSPOT_OFF);
-
 	/* Initialize thermctl sensors */
 
 	for (i = 0; tegra_tsensor_groups[i]; ++i) {
