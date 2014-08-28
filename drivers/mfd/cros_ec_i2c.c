@@ -101,7 +101,7 @@ static int cros_ec_pkt_xfer_i2c(struct cros_ec_device *ec_dev,
 	/* send command to EC and read answer */
 	ret = i2c_transfer(client->adapter, i2c_msg, 2);
 	if (ret < 0) {
-		dev_err(ec_dev->dev, "i2c transfer failed: %d\n", ret);
+		dev_dbg(ec_dev->dev, "i2c transfer failed: %d\n", ret);
 		goto done;
 	} else if (ret != 2) {
 		dev_err(ec_dev->dev, "failed to get response: %d\n", ret);
@@ -140,8 +140,19 @@ static int cros_ec_pkt_xfer_i2c(struct cros_ec_device *ec_dev,
 		}
 	}
 
+	if (ec_response_i2c->packet_length < sizeof(struct ec_host_response)) {
+		dev_err(ec_dev->dev,
+			"response of %u bytes too short; not a full header\n",
+			ec_response_i2c->packet_length);
+		ret = -EBADMSG;
+		goto done;
+	}
+
 	if (msg->insize < ec_response->data_len) {
-		dev_err(ec_dev->dev, "response data size is too large\n");
+		dev_err(ec_dev->dev,
+			"response data size is too large: expected %u, got %u\n",
+			msg->insize,
+			ec_response->data_len);
 		ret = -EMSGSIZE;
 		goto done;
 	}

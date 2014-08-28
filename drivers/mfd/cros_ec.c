@@ -135,7 +135,7 @@ static int cros_ec_host_command_proto_probe(struct cros_ec_device *ec_dev,
 	ret = send_command(ec_dev, &msg);
 
 	if (ret < 0) {
-		dev_err(ec_dev->dev,
+		dev_dbg(ec_dev->dev,
 			"failed to probe for EC[%d] protocol version: %d\n",
 			devidx, ret);
 		return ret;
@@ -145,6 +145,130 @@ static int cros_ec_host_command_proto_probe(struct cros_ec_device *ec_dev,
 		return -ENODEV;
 	else if (msg.result != EC_RES_SUCCESS)
 		return msg.result;
+
+	return 0;
+}
+
+static int cros_ec_host_command_proto_probe_v2(struct cros_ec_device *ec_dev)
+{
+	struct cros_ec_command msg;
+	struct ec_params_hello hello_params;
+	struct ec_response_hello hello_response;
+	int ret;
+
+	hello_params.in_data = 0xa0b0c0d0;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.command = EC_CMD_HELLO;
+	msg.outdata = (u8 *)&hello_params;
+	msg.outsize = sizeof(hello_params);
+	msg.indata = (u8 *)&hello_response;
+	msg.insize = sizeof(hello_response);
+
+	ret = send_command(ec_dev, &msg);
+
+	if (ret < 0) {
+		dev_dbg(ec_dev->dev,
+			"EC failed to respond to v2 hello: %d\n",
+			ret);
+		return ret;
+	} else if (msg.result != EC_RES_SUCCESS) {
+		dev_err(ec_dev->dev,
+			"EC responded to v2 hello with error: %d\n",
+			msg.result);
+		return msg.result;
+	} else if (hello_response.out_data != 0xa1b2c3d4) {
+		dev_err(ec_dev->dev,
+			"EC responded to v2 hello with bad result: %u\n",
+			hello_response.out_data);
+		return -EBADMSG;
+	}
+
+	return 0;
+}
+
+static int cros_ec_probe_all(struct cros_ec_device *ec_dev)
+{
+	struct device *dev = ec_dev->dev;
+	struct ec_response_get_protocol_info proto_info;
+	int ret;
+
+	/* First try sending with proto v3. */
+	ec_dev->proto_version = 3;
+	ret = cros_ec_host_command_proto_probe(ec_dev, 0, &proto_info);
+
+	if (ret == 0) {
+		ec_dev->max_request = proto_info.max_request_packet_size -
+			sizeof(struct ec_host_request);
+		ec_dev->max_response = proto_info.max_response_packet_size -
+			sizeof(struct ec_host_response);
+		ec_dev->proto_version =
+			min(EC_HOST_REQUEST_VERSION,
+					fls(proto_info.protocol_versions) - 1);
+		dev_dbg(ec_dev->dev,
+			"using proto v%u\n",
+			ec_dev->proto_version);
+
+		ec_dev->din_size = ec_dev->max_response +
+			sizeof(struct ec_host_response) +
+			EC_MAX_RESPONSE_OVERHEAD;
+		ec_dev->dout_size = ec_dev->max_request +
+			sizeof(struct ec_host_request) +
+			EC_MAX_REQUEST_OVERHEAD;
+
+		/*
+		 * Check for PD
+		 * TODO(gwendal):crbug/31456: add specific driver for samus PD
+		 */
+		ret = cros_ec_host_command_proto_probe(ec_dev, 1, &proto_info);
+
+		if (ret) {
+			dev_dbg(ec_dev->dev, "no PD chip found: %d\n", ret);
+			ec_dev->max_passthru = 0;
+		} else {
+			dev_dbg(ec_dev->dev, "found PD chip\n");
+			ec_dev->max_passthru =
+				proto_info.max_request_packet_size -
+				sizeof(struct ec_host_request);
+		}
+	} else {
+		/* Try probing with a v2 hello message. */
+		ec_dev->proto_version = 2;
+		ret = cros_ec_host_command_proto_probe_v2(ec_dev);
+
+		if (ret == 0) {
+			/* V2 hello succeeded. */
+			dev_dbg(ec_dev->dev, "falling back to proto v2\n");
+
+			ec_dev->max_request = EC_PROTO2_MAX_PARAM_SIZE;
+			ec_dev->max_response = EC_PROTO2_MAX_PARAM_SIZE;
+			ec_dev->max_passthru = 0;
+			ec_dev->pkt_xfer = NULL;
+			ec_dev->din_size = EC_MSG_BYTES;
+			ec_dev->dout_size = EC_MSG_BYTES;
+		} else {
+			/*
+			 * It's possible for a probe to occur too early when
+			 * the EC isn't listening. If this happens, we'll
+			 * probe later when the first command is run.
+			 */
+			ec_dev->proto_version = EC_PROTO_VERSION_UNKNOWN;
+			dev_dbg(ec_dev->dev, "EC probe failed: %d\n", ret);
+			return ret;
+		}
+	}
+
+	devm_kfree(dev, ec_dev->din);
+	devm_kfree(dev, ec_dev->dout);
+
+	ec_dev->din = devm_kzalloc(dev, ec_dev->din_size, GFP_KERNEL);
+	if (!ec_dev->din)
+		return -ENOMEM;
+	ec_dev->dout = devm_kzalloc(dev, ec_dev->dout_size, GFP_KERNEL);
+	if (!ec_dev->dout) {
+		devm_kfree(dev, ec_dev->din);
+		return -ENOMEM;
+	}
 
 	return 0;
 }
@@ -178,6 +302,18 @@ int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 {
 	int ret;
 
+	mutex_lock(&ec_dev->lock);
+
+	if (ec_dev->proto_version == EC_PROTO_VERSION_UNKNOWN) {
+		ret = cros_ec_probe_all(ec_dev);
+		if (ret) {
+			dev_err(ec_dev->dev,
+				"EC version unknown and probe failed; aborting command\n");
+			mutex_unlock(&ec_dev->lock);
+			return ret;
+		}
+	}
+
 	if (msg->insize > ec_dev->max_response) {
 		dev_dbg(ec_dev->dev, "clamping message receive buffer\n");
 		msg->insize = ec_dev->max_response;
@@ -189,6 +325,7 @@ int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 				"request of size %u is too big (max: %u)\n",
 				msg->outsize,
 				ec_dev->max_request);
+			mutex_unlock(&ec_dev->lock);
 			return -EMSGSIZE;
 		}
 	} else {
@@ -197,11 +334,11 @@ int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 				"passthru request of size %u is too big (max: %u)\n",
 				msg->outsize,
 				ec_dev->max_passthru);
+			mutex_unlock(&ec_dev->lock);
 			return -EMSGSIZE;
 		}
 	}
 
-	mutex_lock(&ec_dev->lock);
 	ret = send_command(ec_dev, msg);
 	mutex_unlock(&ec_dev->lock);
 
@@ -263,15 +400,13 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 {
 	struct device *dev = ec_dev->dev;
 	int err = 0;
-	struct ec_response_get_protocol_info proto_info;
-	int ret;
 #ifdef CONFIG_OF
 	struct device_node *node;
 	int id = ARRAY_SIZE(cros_devs);
 #endif
 
-	ec_dev->max_request = 0;
-	ec_dev->max_response = sizeof(proto_info);
+	ec_dev->max_request = sizeof(struct ec_params_hello);
+	ec_dev->max_response = sizeof(struct ec_response_get_protocol_info);
 	ec_dev->max_passthru = 0;
 
 	ec_dev->din = devm_kzalloc(dev, ec_dev->din_size, GFP_KERNEL);
@@ -285,67 +420,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 
 	mutex_init(&ec_dev->lock);
 
-	ec_dev->proto_version = 3;
-	ret = cros_ec_host_command_proto_probe(ec_dev, 0, &proto_info);
-
-	if (ret) {
-		ec_dev->proto_version = 2;
-		dev_info(ec_dev->dev, "falling back to proto v2\n");
-
-		ec_dev->max_request = EC_PROTO2_MAX_PARAM_SIZE;
-		ec_dev->max_response = EC_PROTO2_MAX_PARAM_SIZE;
-		ec_dev->max_passthru = 0;
-		ec_dev->pkt_xfer = NULL;
-		ec_dev->din_size = EC_MSG_BYTES;
-		ec_dev->dout_size = EC_MSG_BYTES;
-
-	} else {
-		ec_dev->max_request = proto_info.max_request_packet_size -
-				      sizeof(struct ec_host_request);
-		ec_dev->max_response = proto_info.max_response_packet_size -
-				       sizeof(struct ec_host_response);
-		ec_dev->proto_version =
-			min(EC_HOST_REQUEST_VERSION,
-			    fls(proto_info.protocol_versions) - 1);
-		dev_info(ec_dev->dev,
-			 "using proto v%u\n",
-			 ec_dev->proto_version);
-
-		ec_dev->din_size = ec_dev->max_response +
-			sizeof(struct ec_host_response) +
-			EC_MAX_RESPONSE_OVERHEAD;
-		ec_dev->dout_size = ec_dev->max_request +
-			sizeof(struct ec_host_request) +
-			EC_MAX_REQUEST_OVERHEAD;
-
-		/*
-		 * Check for PD
-		 * TODO(gwendal):crbug/31456: add specific driver for samus PD
-		 */
-		ret = cros_ec_host_command_proto_probe(ec_dev, 1, &proto_info);
-
-		if (ret) {
-			dev_info(ec_dev->dev, "no PD chip found: %d\n", ret);
-			ec_dev->max_passthru = 0;
-		} else {
-			dev_info(ec_dev->dev, "found PD chip\n");
-			ec_dev->max_passthru =
-				proto_info.max_request_packet_size -
-				sizeof(struct ec_host_request);
-		}
-	}
-
-	devm_kfree(dev, ec_dev->din);
-	devm_kfree(dev, ec_dev->dout);
-
-	ec_dev->din = devm_kzalloc(dev, ec_dev->din_size, GFP_KERNEL);
-	if (!ec_dev->din)
-		return -ENOMEM;
-	ec_dev->dout = devm_kzalloc(dev, ec_dev->dout_size, GFP_KERNEL);
-	if (!ec_dev->dout) {
-		devm_kfree(dev, ec_dev->din);
-		return -ENOMEM;
-	}
+	cros_ec_probe_all(ec_dev);
 
 	err = mfd_add_devices(dev, 0, cros_devs,
 			      ARRAY_SIZE(cros_devs),

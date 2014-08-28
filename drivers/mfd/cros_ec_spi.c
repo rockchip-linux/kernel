@@ -503,6 +503,7 @@ static int cros_ec_cmd_xfer_spi(struct cros_ec_device *ec_dev,
 	struct spi_message msg;
 	int i, len;
 	u8 *ptr;
+	u8 *rx_buf;
 	int sum;
 	int ret = 0, final_ret;
 
@@ -520,10 +521,17 @@ static int cros_ec_cmd_xfer_spi(struct cros_ec_device *ec_dev,
 			ndelay(EC_SPI_RECOVERY_TIME_NS - delay);
 	}
 
+	rx_buf = kzalloc(len, GFP_KERNEL);
+	if (!rx_buf) {
+		ret = -ENOMEM;
+		goto exit;
+	}
+
 	/* Transmit phase - send our message */
 	debug_packet(ec_dev->dev, "out", ec_dev->dout, len);
 	memset(&trans, 0, sizeof(trans));
 	trans.tx_buf = ec_dev->dout;
+	trans.rx_buf = rx_buf;
 	trans.len = len;
 	trans.cs_change = 1;
 	spi_message_init(&msg);
@@ -532,8 +540,23 @@ static int cros_ec_cmd_xfer_spi(struct cros_ec_device *ec_dev,
 
 	/* Get the response */
 	if (!ret) {
-		ret = cros_ec_spi_receive_response(ec_dev,
-				ec_msg->insize + EC_MSG_TX_PROTO_BYTES);
+		/* Verify that EC can process command */
+		for (i = 0; i < len; i++) {
+			switch (rx_buf[i]) {
+			case EC_SPI_PAST_END:
+			case EC_SPI_RX_BAD_DATA:
+			case EC_SPI_NOT_READY:
+				ret = -EAGAIN;
+				ec_msg->result = EC_RES_IN_PROGRESS;
+			default:
+				break;
+			}
+			if (ret)
+				break;
+		}
+		if (!ret)
+			ret = cros_ec_spi_receive_response(ec_dev,
+					ec_msg->insize + EC_MSG_TX_PROTO_BYTES);
 	} else {
 		dev_err(ec_dev->dev, "spi transfer failed: %d\n", ret);
 	}
@@ -590,6 +613,7 @@ static int cros_ec_cmd_xfer_spi(struct cros_ec_device *ec_dev,
 
 	ret = len;
 exit:
+	kfree(rx_buf);
 	if (ec_msg->command == EC_CMD_REBOOT_EC)
 		msleep(EC_REBOOT_DELAY_MS);
 

@@ -35,6 +35,8 @@
 #define EC_MAX_REQUEST_OVERHEAD		1
 #define EC_MAX_RESPONSE_OVERHEAD	2
 
+#define EC_PROTO_VERSION_UNKNOWN	0
+
 /*
  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
  */
