@@ -1,0 +1,19 @@
+NVIDIA Tegra Legacy Interrupt Controller
+
+The legacy interrupt controller is divided into units that serve 32 interrupts
+each. Tegra20 implements four units, whereas Tegra30 and later implement five.
+
+Required properties:
+- compatible: "nvidia,tegra<chip>-ictlr"
+- reg: Physical base address and length of the controller's registers. There
+  should be one entry for each unit.
+
+Example:
+
+	interrupt-controller@60004000 {
+		compatible = "nvidia,tegra20-ictlr";
+		reg = <0x60004000 0x40>, /* primary controller */
+		      <0x60004100 0x40>, /* secondary controller */
+		      <0x60004200 0x40>, /* tertiary controller */
+		      <0x60004300 0x40>; /* quaternary controller */
+	};
