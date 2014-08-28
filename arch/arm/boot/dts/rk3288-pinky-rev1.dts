@@ -9,6 +9,7 @@
  */
 
 /dts-v1/;
+#include <dt-bindings/clock/rockchip,rk808.h>
 #include "rk3288.dtsi"
 
 / {
@@ -159,6 +160,15 @@
 		regulator-boot-on;
 	};
 
+	wifi_regulator: wifi-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_reg_on>;
+		regulator-name = "wifi_regulator";
+	};
+
 	io-domains {
 		compatible = "rockchip,rk3288-iodomain";
 		rockchip,grf = <&grf>;
@@ -185,6 +195,22 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_pwr &emmc_bus8>;
 	status = "okay";
+};
+
+&sdio0 {
+	broken-cd;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	card-external-vcc-supply = <&wifi_regulator>;
+	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&rk808 RK808_CLKOUT1>;
+	clock-names = "biu", "ciu", "card_ext_clock";
+	keep-power-in-suspend;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_bus4>;
+	status = "okay";
+	vmmc-supply = <&vcc33_io>;
+	vqmmc-supply = <&vcc18_wl>;
 };
 
 &sdmmc {
@@ -425,6 +451,12 @@
 	pmic {
 		pmic_int: pmic-int {
 			rockchip,pins = <RK_GPIO0 4 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	sdio0 {
+		wifi_reg_on: wifi-reg-on {
+			rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
