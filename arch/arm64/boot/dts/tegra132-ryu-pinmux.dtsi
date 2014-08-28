@@ -840,6 +840,11 @@
 				nvidia,tristate = <TEGRA_PIN_DISABLE>;
 				nvidia,enable-input = <TEGRA_PIN_DISABLE>;
 			};
+
+			mipi_pad_ctrl_dsi_b {
+				nvidia,pins = "mipi_pad_ctrl_dsi_b";
+				nvidia,function = "dsi_b";
+			};
 		};
 
 		pinmux_unused_lowpower: unused_lowpower {
