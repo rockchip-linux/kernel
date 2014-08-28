@@ -365,14 +365,5 @@ void __init tegra_init_irq(void)
 	gic_arch_extn.irq_set_wake = tegra_set_wake;
 	gic_arch_extn.flags = IRQCHIP_MASK_ON_SUSPEND;
 
-	/*
-	 * Check if there is a devicetree present, since the GIC will be
-	 * initialized elsewhere under DT.
-	 */
-	if (!of_have_populated_dt()) {
-		void __iomem *cpubase = ioremap_nocache(0x50040000, 0x2000);
-		gic_init(0, 29, distbase, cpubase);
-	}
-
 	tegra114_gic_cpu_pm_registration();
 }
