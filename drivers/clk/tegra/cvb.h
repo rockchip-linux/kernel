@@ -20,6 +20,8 @@
 struct device;
 
 #define MAX_DVFS_FREQS	40
+#define MAX_THERMAL_FLOORS	8
+#define MAX_THERMAL_CAPS	8
 
 struct rail_alignment {
 	int offset_uv;
@@ -44,6 +46,19 @@ struct cvb_cpu_dfll_data {
 	unsigned int tune_high_min_millivolts;
 };
 
+struct thermal_coefficients {
+	struct cvb_coefficients cvb_coef;
+	int c3;
+	int c4;
+	int c5;
+};
+
+/* Thermal trips and voltages */
+struct thermal_tv {
+	int temp;
+	unsigned int millivolts;
+};
+
 struct cvb_table {
 	int speedo_id;
 	int process_id;
@@ -58,6 +73,18 @@ struct cvb_table {
 	struct cvb_cpu_dfll_data cpu_dfll_data;
 };
 
+struct thermal_table {
+	struct thermal_tv thermal_floor_table[MAX_THERMAL_FLOORS];
+	struct thermal_coefficients coefficients;
+	int thermal_floor_table_size;
+	int speedo_scale;
+	int voltage_scale;
+	int temp_scale;
+
+	struct thermal_tv thermal_cap_table[MAX_THERMAL_CAPS];
+	int thermal_cap_table_size;
+};
+
 const struct cvb_table *tegra_cvb_build_opp_table(
 		const struct cvb_table *cvb_tables,
 		size_t sz, int process_id,
@@ -65,4 +92,7 @@ const struct cvb_table *tegra_cvb_build_opp_table(
 		unsigned long max_rate,
 		struct device *opp_dev);
 
+int tegra_cvb_build_thermal_table(const struct thermal_table *table,
+		int speedo_value,
+		struct thermal_tv *thermal_floor_table);
 #endif

@@ -32,6 +32,7 @@
  * @deassert_dvco_reset: fn ptr to release the DVCO reset
  * @set_clock_trimmers_high: fn ptr to tune clock trimmers for high voltage
  * @set_clock_trimmers_low: fn ptr to tune clock trimmers for low voltage
+ * @get_thermal_floor: fn ptr to get minimum voltage by given trip temperature
  */
 struct tegra_dfll_soc_data {
 	struct device *opp_dev;
@@ -45,6 +46,10 @@ struct tegra_dfll_soc_data {
 	void (*init_clock_trimmers)(void);
 	void (*set_clock_trimmers_high)(void);
 	void (*set_clock_trimmers_low)(void);
+	int (*get_thermal_floor)(unsigned int);
+	int (*get_thermal_cap)(unsigned int);
+	unsigned int thermal_floor_table_size;
+	unsigned int thermal_cap_table_size;
 };
 
 int tegra_dfll_register(struct platform_device *pdev,
@@ -52,5 +57,4 @@ int tegra_dfll_register(struct platform_device *pdev,
 int tegra_dfll_unregister(struct platform_device *pdev);
 int tegra_dfll_runtime_suspend(struct device *dev);
 int tegra_dfll_runtime_resume(struct device *dev);
-
 #endif /* __DRIVERS_CLK_TEGRA_CLK_DFLL_H */

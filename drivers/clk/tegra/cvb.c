@@ -61,6 +61,25 @@ static int round_voltage(int mv, const struct rail_alignment *align, int up)
 	return mv;
 }
 
+/**
+ * cvb_t_mv =
+ * ((c2 * speedo / s_scale + c1) * speedo / s_scale + c0) +
+ * ((c3 * speedo / s_scale + c4 + c5 * T / t_scale) * T / t_scale)
+ */
+static inline int get_cvb_thermal_floor(int speedo, int temp,
+					int s_scale, int t_scale,
+					const struct thermal_coefficients *coef)
+{
+	int cvb_mv, mv;
+
+	cvb_mv = get_cvb_voltage(speedo, s_scale, &coef->cvb_coef);
+
+	mv = DIV_ROUND_CLOSEST(coef->c3 * speedo, s_scale) + coef->c4 +
+		DIV_ROUND_CLOSEST(coef->c5 * temp, t_scale);
+	mv = DIV_ROUND_CLOSEST(mv * temp, t_scale) + cvb_mv;
+	return mv;
+}
+
 static int build_opp_table(const struct cvb_table *d,
 			   int speedo_value,
 			   unsigned long max_freq,
@@ -130,4 +149,53 @@ const struct cvb_table *tegra_cvb_build_opp_table(
 	}
 
 	return ERR_PTR(-EINVAL);
+}
+
+/**
+ * tegra_cvb_build_thermal_table - build thermal table from Tegra CVB tables
+ * @table: the hardware characterization thermal table
+ * @speedo_value: speedo value of the HW module
+ * @floor_table: pointer to the thermal floor array
+ *
+ * The minimum voltage for the IP blocks inside Tegra SoCs might depend on
+ * the current temperature. This function calculates the voltage-thermal
+ * relations according to the coefficients it given and returns 0. Otherwise
+ * returns -EINVAL on failure. Note that if the coefficients are not defined,
+ * the fixed thermal floors in the @table will be used.
+ */
+int tegra_cvb_build_thermal_table(const struct thermal_table *table,
+		int speedo_value,
+		struct thermal_tv *floor_table)
+{
+	int i;
+
+	if (!table)
+		return -EINVAL;
+
+	for (i = 0; i < MAX_THERMAL_FLOORS; i++) {
+		unsigned int mv;
+
+		if (!table->thermal_floor_table[i].millivolts)
+			break;
+
+		/* Give default */
+		floor_table[i].temp = table->thermal_floor_table[i].temp;
+		floor_table[i].millivolts =
+			table->thermal_floor_table[i].millivolts;
+
+		/* The vmin for the lowest trip point is fixed */
+		if (!i)
+			continue;
+
+		mv = get_cvb_thermal_floor(speedo_value,
+				table->thermal_floor_table[i-1].temp,
+				table->speedo_scale,
+				table->temp_scale,
+				&table->coefficients);
+		mv = DIV_ROUND_UP(mv, table->voltage_scale);
+		floor_table[i].millivolts = max(mv,
+				table->thermal_floor_table[i].millivolts);
+	}
+
+	return 0;
 }
