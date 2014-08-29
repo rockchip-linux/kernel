@@ -779,6 +779,12 @@
 		nvidia,core-power-req-active-high;
 		nvidia,sys-clock-req-active-high;
 		nvidia,reset-gpio = <&gpio TEGRA_GPIO(I, 5) GPIO_ACTIVE_LOW>;
+
+		i2c-thermtrip {
+			nvidia,pmu = <&as3722>;
+			nvidia,reg-addr = <0x36>;
+			nvidia,reg-data = <0x2>;
+		};
 	};
 
 	clocks {
@@ -847,14 +853,6 @@
 			regulator-always-on;
 			regulator-boot-on;
 			vin-supply = <&vdd_5v0_sys>;
-		};
-	};
-
-	pmc: pmc@7000e400 {
-		i2c-thermtrip {
-			nvidia,pmu = <&as3722>;
-			nvidia,reg-addr = <0x36>;
-			nvidia,reg-data = <0x2>;
 		};
 	};
 };
