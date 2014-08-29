@@ -348,6 +348,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&trackpad_int>;
 		reg = <0x15>;
+		vcc-supply = <&vcc33_tp>;
 		wakeup-source;
 	};
 };
