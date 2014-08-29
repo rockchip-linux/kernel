@@ -164,9 +164,12 @@ struct elan_tp_data {
 	unsigned int		max_y;
 	unsigned int		width_x;
 	unsigned int		width_y;
+	unsigned int		x_res;
+	unsigned int		y_res;
 	unsigned int		irq;
 	u16			product_id;
 	u16			fw_version;
+	u16			fw_checksum;
 	u16			sm_version;
 	u16			iap_version;
 	u16			iap_start_addr;
@@ -190,6 +193,7 @@ struct elan_tp_data {
 static int elan_i2c_read_cmd(struct i2c_client *client, u16 reg, u8 *val);
 static int elan_i2c_write_cmd(struct i2c_client *client, u16 reg, u16 cmd);
 static int elan_initialize(struct elan_tp_data *data);
+static void elan_query_device_info(struct elan_tp_data *data);
 static int elan_i2c_reset(struct i2c_client *client);
 static int elan_reactivate(struct elan_tp_data *data);
 
@@ -687,6 +691,7 @@ done:
 		disable_irq(data->irq);
 		data->active = false;
 		elan_initialize(data);
+		elan_query_device_info(data);
 		enable_irq(data->irq);
 		data->active = true;
 	}
@@ -1342,10 +1347,9 @@ static ssize_t elan_sysfs_read_fw_checksum(struct device *dev,
 					   struct device_attribute *attr,
 					   char *buf)
 {
-	unsigned int checksum = 0;
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	checksum = elan_get_fw_checksum(data);
-	return sprintf(buf, "0x%04x\n", checksum);
+
+	return sprintf(buf, "0x%04x\n", data->fw_checksum);
 }
 
 static ssize_t elan_sysfs_read_product_id(struct device *dev,
@@ -1353,7 +1357,7 @@ static ssize_t elan_sysfs_read_product_id(struct device *dev,
 					 char *buf)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	data->product_id = elan_get_product_id(data);
+
 	return sprintf(buf, "%d.0\n", data->product_id);
 }
 
@@ -1362,7 +1366,7 @@ static ssize_t elan_sysfs_read_fw_ver(struct device *dev,
 				      char *buf)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	data->fw_version = elan_get_fw_version(data);
+
 	return sprintf(buf, "%d.0\n", data->fw_version);
 }
 
@@ -1371,7 +1375,7 @@ static ssize_t elan_sysfs_read_sm_ver(struct device *dev,
 				      char *buf)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	data->sm_version = elan_get_sm_version(data);
+
 	return sprintf(buf, "%d.0\n", data->sm_version);
 }
 
@@ -1380,10 +1384,9 @@ static ssize_t elan_sysfs_read_iap_ver(struct device *dev,
 				       char *buf)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	data->iap_version = elan_get_iap_version(data);
+
 	return sprintf(buf, "%d.0\n", data->iap_version);
 }
-
 
 static ssize_t elan_sysfs_update_fw(struct device *dev,
 				    struct device_attribute *attr,
@@ -1783,42 +1786,31 @@ out:
  * Elan initialization functions
  ******************************************************************
  */
-static int elan_setup_input_device(struct elan_tp_data *data)
-{
-	struct i2c_client *client = data->client;
-	struct input_dev *input = data->input;
-	unsigned int x_res, y_res;
-	int max_width, min_width;
 
+static void elan_query_device_info(struct elan_tp_data *data)
+{
 	data->product_id = elan_get_product_id(data);
 	data->fw_version = elan_get_fw_version(data);
+	data->fw_checksum = elan_get_fw_checksum(data);
 	data->sm_version = elan_get_sm_version(data);
 	data->iap_version = elan_get_iap_version(data);
+}
+
+static void elan_query_device_parameters(struct elan_tp_data *data)
+{
 	data->max_x = elan_get_x_max(data);
 	data->max_y = elan_get_y_max(data);
 	data->width_x = data->max_x / elan_get_x_tracenum(data);
 	data->width_y = data->max_y / elan_get_y_tracenum(data);
-	x_res = elan_get_x_resolution(data);
-	y_res = elan_get_y_resolution(data);
-	max_width = max(data->width_x, data->width_y);
-	min_width = min(data->width_x, data->width_y);
+	data->x_res = elan_get_x_resolution(data);
+	data->y_res = elan_get_y_resolution(data);
+}
 
-	dev_dbg(&client->dev,
-		"Elan Touchpad Information:\n"
-		"    Module product ID:  0x%04x\n"
-		"    Firmware Version:  0x%04x\n"
-		"    Sample Version:  0x%04x\n"
-		"    IAP Version:  0x%04x\n"
-		"    Max ABS X,Y:   %d,%d\n"
-		"    Width X,Y:   %d,%d\n"
-		"    Resolution X,Y:   %d,%d (dots/mm)\n",
-		data->product_id,
-		data->fw_version,
-		data->sm_version,
-		data->iap_version,
-		data->max_x, data->max_y,
-		data->width_x, data->width_y,
-		x_res, y_res);
+static int elan_setup_input_device(struct elan_tp_data *data)
+{
+	struct input_dev *input = data->input;
+	unsigned int max_width = max(data->width_x, data->width_y);
+	unsigned int min_width = min(data->width_x, data->width_y);
 
 	__set_bit(EV_ABS, input->evbit);
 	__set_bit(INPUT_PROP_BUTTONPAD, input->propbit);
@@ -1827,16 +1819,16 @@ static int elan_setup_input_device(struct elan_tp_data *data)
 	/* Set up ST parameters */
 	input_set_abs_params(input, ABS_X, 0, data->max_x, 0, 0);
 	input_set_abs_params(input, ABS_Y, 0, data->max_y, 0, 0);
-	input_abs_set_res(input, ABS_X, x_res);
-	input_abs_set_res(input, ABS_Y, y_res);
+	input_abs_set_res(input, ABS_X, data->x_res);
+	input_abs_set_res(input, ABS_Y, data->y_res);
 	input_set_abs_params(input, ABS_PRESSURE, 0, ETP_MAX_PRESSURE, 0, 0);
 	input_set_abs_params(input, ABS_TOOL_WIDTH, 0, ETP_FINGER_WIDTH, 0, 0);
 
 	/* And MT parameters */
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, data->max_x, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0, data->max_y, 0, 0);
-	input_abs_set_res(input, ABS_MT_POSITION_X, x_res);
-	input_abs_set_res(input, ABS_MT_POSITION_Y, y_res);
+	input_abs_set_res(input, ABS_MT_POSITION_X, data->x_res);
+	input_abs_set_res(input, ABS_MT_POSITION_Y, data->y_res);
 	input_set_abs_params(input, ABS_MT_PRESSURE, 0,
 			     ETP_MAX_PRESSURE, 0, 0);
 	input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0,
@@ -1876,7 +1868,27 @@ static void elan_async_init(void *arg, async_cookie_t cookie)
 	if (error < 0)
 		goto err_out;
 
-	/* Read touchpad parameters and set up input device properties. */
+	elan_query_device_info(data);
+	elan_query_device_parameters(data);
+
+	dev_dbg(&client->dev,
+		"Elan Touchpad Information:\n"
+		"    Module product ID:  0x%04x\n"
+		"    Firmware Version:  0x%04x\n"
+		"    Sample Version:  0x%04x\n"
+		"    IAP Version:  0x%04x\n"
+		"    Max ABS X,Y:   %d,%d\n"
+		"    Width X,Y:   %d,%d\n"
+		"    Resolution X,Y:   %d,%d (dots/mm)\n",
+		data->product_id,
+		data->fw_version,
+		data->sm_version,
+		data->iap_version,
+		data->max_x, data->max_y,
+		data->width_x, data->width_y,
+		data->x_res, data->y_res);
+
+	/* Set up input device properties based on queried parameters. */
 	error = elan_setup_input_device(data);
 	if (error)
 		goto err_out;
@@ -2086,6 +2098,7 @@ static int elan_reactivate(struct elan_tp_data *data)
 	ret = elan_enable_power(data);
 	if (ret < 0)
 		dev_err(dev, "resume active power failed, %d\n", ret);
+
 	ret = elan_initialize(data);
 	if (ret < 0)
 		dev_err(dev, "resume initialize tp failed, %d\n", ret);
