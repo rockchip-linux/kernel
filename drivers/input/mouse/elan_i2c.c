@@ -1393,33 +1393,16 @@ static ssize_t elan_sysfs_update_fw(struct device *dev,
 				    const char *buf, size_t count)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	int ret, i;
-	const char *fw_name;
-	char tmp[count];
+	int error;
 
-	/* Do not allow paths that step out of /lib/firmware  */
-	if (strstr(buf, "../") != NULL)
-		return -EINVAL;
+	error = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (error)
+		return error;
 
-	if (!strncmp(buf, "1", count) || !strncmp(buf, "1\n", count)) {
-		fw_name = ETP_FW_NAME;
-	} else {
-		/* check input file name buffer include '\n' or not */
-		for (i = 0; i < count; i++) {
-			if (buf[i] != '\n')
-				tmp[i] = buf[i];
-			else
-				tmp[i] = '\0';
-		}
-		fw_name = tmp;
-	}
+	error = elan_firmware(data, ETP_FW_NAME);
 
-	ret = elan_firmware(data, fw_name);
-	if (ret)
-		dev_err(dev, "firmware update failed.\n");
-	else
-		dev_dbg(dev, "firmware update succeeded.\n");
-	return ret ? ret : count;
+	mutex_unlock(&data->sysfs_mutex);
+	return error?: count;
 }
 
 static ssize_t calibrate_store(struct device *dev,
@@ -1504,7 +1487,18 @@ static ssize_t elan_sysfs_read_mode(struct device *dev,
 				    char *buf)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", (int)elan_iap_getmode(data));
+	int error;
+	enum tp_mode mode;
+
+	error = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (error)
+		return error;
+
+	mode = elan_iap_getmode(data);
+
+	mutex_unlock(&data->sysfs_mutex);
+
+	return sprintf(buf, "%d\n", (int)mode);
 }
 
 static DEVICE_ATTR(product_id, S_IRUGO, elan_sysfs_read_product_id, NULL);
