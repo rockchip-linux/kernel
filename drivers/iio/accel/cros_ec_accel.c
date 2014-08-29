@@ -76,8 +76,7 @@ enum accel_data_format {
  */
 #define CALIB_SCALE_SCALAR 1024
 
-#define EC_ACCEL_CHAN_COMMON						\
-		.type = IIO_ACCEL,					\
+#define EC_CHAN_COMMON						\
 		.modified = 1,					        \
 		.info_mask_separate =					\
 			BIT(IIO_CHAN_INFO_RAW) |			\
@@ -95,21 +94,29 @@ enum accel_data_format {
 			.shift = 0,					\
 		}							\
 
+#define EC_ACCEL_CHAN_COMMON						\
+		.type = IIO_ACCEL,					\
+		EC_CHAN_COMMON
+
+#define EC_GYRO_CHAN_COMMON						\
+		.type = IIO_ANGL_VEL,					\
+		EC_CHAN_COMMON
+
 static const struct iio_chan_spec ec_accel_channels[] = {
 	{
-		EC_ACCEL_CHAN_COMMON,
+		EC_GYRO_CHAN_COMMON,
 		.extend_name = "gyro",
 		.channel2 = IIO_MOD_X,
 		.scan_index = GYRO_X,
 	},
 	{
-		EC_ACCEL_CHAN_COMMON,
+		EC_GYRO_CHAN_COMMON,
 		.extend_name = "gyro",
 		.channel2 = IIO_MOD_Y,
 		.scan_index = GYRO_Y,
 	},
 	{
-		EC_ACCEL_CHAN_COMMON,
+		EC_GYRO_CHAN_COMMON,
 		.extend_name = "gyro",
 		.channel2 = IIO_MOD_Z,
 		.scan_index = GYRO_Z,
