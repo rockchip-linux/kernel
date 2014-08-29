@@ -188,7 +188,7 @@ config TEGRA_SOCTHERM
 
 config TEGRA124_SOCTHERM
 	bool "Tegra124 SOCTHERM thermal management"
-	depends on ARCH_TEGRA
+	depends on ARCH_TEGRA_124_SOC
 	select TEGRA_SOCTHERM
 	help
 	  Enable this option for integrated thermal management support on NVIDIA
@@ -199,6 +199,7 @@ config TEGRA124_SOCTHERM
 
 config TEGRA132_SOCTHERM
 	bool "Tegra132 SOCTHERM thermal management"
+	depends on ARCH_TEGRA_132_SOC
 	select TEGRA_SOCTHERM
 	help
 	  Enable this option for integrated thermal management support on NVIDIA
