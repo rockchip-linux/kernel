@@ -30,6 +30,8 @@ struct rt5677_platform_data {
 
 	/* configures GPIO, 0 - floating, 1 - pulldown, 2 - pullup */
 	u8 gpio_config[6];
+	/* Asynchronous Sample Rate Converter can be optionally enabled */
+	bool asrc_en;
 };
 
 #endif

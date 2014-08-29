@@ -3753,6 +3753,8 @@ static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 					"realtek,lout2-differential");
 	rt5677->pdata.lout3_diff = of_property_read_bool(np,
 					"realtek,lout3-differential");
+	rt5677->pdata.asrc_en = of_property_read_bool(np,
+					"realtek,asrc-en");
 
 	rt5677->pow_ldo2 = of_get_named_gpio(np,
 					"realtek,pow-ldo2-gpio", 0);
@@ -3867,6 +3869,21 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 		regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL2,
 					RT5677_GPIO5_DIR_MASK,
 					RT5677_GPIO5_DIR_OUT);
+	}
+
+	if (rt5677->pdata.asrc_en) {
+		/* Enable I2S1 ASRC Function */
+		regmap_write(rt5677->regmap, RT5677_ASRC_1, 0x0001);
+		/*
+		 * Enable DAC ASRC for Stereo DAC
+		 * Enable DMIC ASRC for Stereo1 ADC
+		 * Enable ADC ASRC for Stereo1
+		 */
+		regmap_write(rt5677->regmap, RT5677_ASRC_2, 0x4820);
+		/* ASRC Clock Source for Stereo DAC = clk_i2s1_asrc */
+		regmap_write(rt5677->regmap, RT5677_ASRC_3, 0x1000);
+		/* ASRC Clock Source for Stereo1 ADC = clk_i2s1_asrc */
+		regmap_write(rt5677->regmap, RT5677_ASRC_5, 0x1000);
 	}
 
 	rt5677_init_gpio(i2c);

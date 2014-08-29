@@ -32,6 +32,8 @@ Optional properties:
     0 - floating (reset value)
     1 - pull down
     2 - pull up
+- realtek,asrc-en : Boolean. Indicate the Asynchronous Sample Rate Converter
+  function should be enabled.
 
 Pins on the device (for linking into audio routes):
 
@@ -63,4 +65,5 @@ rt5677 {
 		<&gpio TEGRA_GPIO(V, 3) GPIO_ACTIVE_HIGH>;
 	realtek,in1-differential = "true";
 	realtek,gpio-config = /bits/ 8  <0 0 0 0 0 2>;   /* pull up GPIO6 */
+	realtek,asrc-en = "true";
 };
