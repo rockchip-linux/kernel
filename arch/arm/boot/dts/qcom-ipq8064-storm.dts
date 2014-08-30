@@ -15,6 +15,33 @@
 
 	soc {
 		pinmux@800000 {
+			sdcc1_pins: sdcc1_pinmux {
+				mux {
+					pins = "gpio38", "gpio39", "gpio40",
+					       "gpio41", "gpio42", "gpio43",
+					       "gpio44", "gpio45", "gpio46",
+					       "gpio47";
+					function = "sdc1";
+				};
+				cmd {
+					pins = "gpio45";
+					drive-strength = <10>;
+					bias-pull-up;
+				};
+				data {
+					pins = "gpio38", "gpio39", "gpio40",
+					       "gpio41", "gpio43", "gpio44",
+					       "gpio46", "gpio47";
+					drive-strength = <10>;
+					bias-pull-up;
+				};
+				clk {
+					pins = "gpio42";
+					drive-strength = <16>;
+					bias-pull-down;
+				};
+			};
+
 			i2c4_pins: i2c4_pinmux {
 				pins = "gpio12", "gpio13";
 				function = "gsbi4";
@@ -175,6 +202,20 @@
 
 		usb30@1 {
 			status = "ok";
+		};
+
+		amba {
+			/* eMMC */
+			sdcc1: sdcc@12400000 {
+				status = "okay";
+				pinctrl-0 = <&sdcc1_pins>;
+				pinctrl-names = "default";
+			};
+
+			/* External micro SD card */
+			sdcc3: sdcc@12180000 {
+				status = "okay";
+			};
 		};
 	};
 };
