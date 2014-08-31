@@ -39,6 +39,7 @@
 #include <linux/completion.h>
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
+#include <asm/unaligned.h>
 
 #define DRIVER_NAME		"elan_i2c"
 #define ELAN_DRIVER_VERSION	"1.5.5"
@@ -172,7 +173,6 @@ struct elan_tp_data {
 	u16			fw_checksum;
 	u16			sm_version;
 	u16			iap_version;
-	u16			iap_start_addr;
 	bool			smbus;
 	bool			wait_signal_from_updatefw;
 	bool			irq_wake;
@@ -307,26 +307,6 @@ static bool elan_iap_setflashkey(struct elan_tp_data *data)
 	return true;
 }
 
-static int elan_check_fw(struct elan_tp_data *data,
-			const struct firmware *fw)
-{
-	struct device *dev = &data->client->dev;
-	u8 val[3];
-
-	/* Firmware must match exact PAGE_NUM * PAGE_SIZE bytes */
-	if (fw->size != ETP_FW_SIZE) {
-		dev_err(dev, "invalid firmware size = %zu, expected %d.\n",
-			fw->size, ETP_FW_SIZE);
-		return -EBADF;
-	}
-
-	/* Get IAP Start Address*/
-	memcpy(val, &fw->data[ETP_IAP_START_ADDR * 2], 2);
-	data->iap_start_addr = le16_to_cpup((__le16 *)val);
-	return 0;
-}
-
-
 static int elan_smbus_prepare_fw_update(struct elan_tp_data *data)
 {
 	struct i2c_client *client = data->client;
@@ -456,114 +436,122 @@ static int elan_i2c_prepare_fw_update(struct elan_tp_data *data)
 	return 0;
 }
 
-static bool elan_iap_page_write_ok(struct elan_tp_data *data)
-{
-	u16 constant;
-	int retval = 0;
-	u8 val[3];
-	struct i2c_client *client = data->client;
-
-
-	if (data->smbus) {
-		retval = i2c_smbus_read_block_data(client,
-						   ETP_SMBUS_IAP_CTRL_CMD, val);
-		if (retval < 0)
-			return false;
-		constant = be16_to_cpup((__be16 *)val);
-	} else {
-		retval = elan_i2c_read_cmd(client,
-					   ETP_I2C_IAP_CTRL_CMD, val);
-		if (retval < 0)
-			return false;
-		constant = le16_to_cpup((__le16 *)val);
-	}
-
-	if (constant & ETP_FW_IAP_PAGE_ERR)
-		return false;
-
-	if (constant & ETP_FW_IAP_INTERFACE_ERR)
-		return false;
-	return true;
-}
-
 static int elan_smbus_write_fw_block(struct elan_tp_data *data,
 				     const u8 *page, u16 checksum, int idx)
 {
 	struct device *dev = &data->client->dev;
-	int half_page_size = ETP_FW_PAGE_SIZE / 2;
-	int repeat = ETP_RETRY_COUNT;
+	int error;
+	u16 result;
+	u8 val[3];
 
-	do {
-		/* due to smbus can write 32 bytes one time,
-		so, we must write data 2 times.
-		*/
-		i2c_smbus_write_block_data(data->client,
+	/*
+	 * Due to the limitation of smbus protocol limiting
+	 * transfer to 32 bytes at a time, we must split block
+	 * in 2 transfers.
+	 */
+	error = i2c_smbus_write_block_data(data->client,
 					   ETP_SMBUS_WRITE_FW_BLOCK,
-					   half_page_size,
+					   ETP_FW_PAGE_SIZE / 2,
 					   page);
-		i2c_smbus_write_block_data(data->client,
+	if (error) {
+		dev_err(dev, "Failed to write page %d (part %d): %d\n",
+			idx, 1, error);
+		return error;
+	}
+
+	error = i2c_smbus_write_block_data(data->client,
 					   ETP_SMBUS_WRITE_FW_BLOCK,
-					   half_page_size,
-					   (page + half_page_size));
-		/* Wait for F/W to update one page ROM data. */
-		usleep_range(8000, 10000);
-		if (elan_iap_page_write_ok(data))
-			break;
-		dev_dbg(dev, "IAP retry this page! [%d]\n", idx);
-		repeat--;
-	} while (repeat > 0);
+					   ETP_FW_PAGE_SIZE / 2,
+					   page + ETP_FW_PAGE_SIZE / 2);
+	if (error) {
+		dev_err(dev, "Failed to write page %d (part %d): %d\n",
+			idx, 2, error);
+		return error;
+	}
 
-	if (repeat > 0)
-		return 0;
-	return -EIO;
 
+	/* Wait for F/W to update one page ROM data. */
+	usleep_range(8000, 10000);
+
+	error = i2c_smbus_read_block_data(data->client,
+					  ETP_SMBUS_IAP_CTRL_CMD, val);
+	if (error < 0) {
+		dev_err(dev, "Failed to read IAP write result: %d\n",
+			error);
+		return error;
+	}
+
+	result = be16_to_cpup((__be16 *)val);
+	if (result & (ETP_FW_IAP_PAGE_ERR | ETP_FW_IAP_INTERFACE_ERR)) {
+		dev_err(dev, "IAP reports failed write: %04hx\n",
+			result);
+		return -EIO;
+	}
+
+	return 0;
 }
 
 static int elan_i2c_write_fw_block(struct elan_tp_data *data,
 				   const u8 *page, u16 checksum, int idx)
 {
 	struct device *dev = &data->client->dev;
-	int ret;
-	int repeat = ETP_RETRY_COUNT;
 	u8 page_store[ETP_FW_PAGE_SIZE + 4];
+	u8 val[3];
+	u16 result;
+	int ret;
 
 	page_store[0] = ETP_I2C_IAP_REG_L;
 	page_store[1] = ETP_I2C_IAP_REG_H;
 	memcpy(&page_store[2], page, ETP_FW_PAGE_SIZE);
-
 	/* recode checksum at last two bytes */
-	page_store[ETP_FW_PAGE_SIZE+2] = (u8)(checksum & 0xFF);
-	page_store[ETP_FW_PAGE_SIZE+3] = (u8)((checksum >> 8)&0xFF);
+	put_unaligned_le16(checksum, &page_store[ETP_FW_PAGE_SIZE + 2]);
 
-	do {
-		ret = i2c_master_send(data->client, page_store,
-				      ETP_FW_PAGE_SIZE + 4);
+	ret = i2c_master_send(data->client, page_store, sizeof(page_store));
+	if (ret != sizeof(page_store)) {
+		if (ret >= 0)
+			ret = -EIO;
+		dev_err(dev, "Failed to write page %d: %d\n", idx, ret);
+		return ret;
+	}
 
-		/* Wait for F/W to update one page ROM data. */
-		msleep(20);
+	/* Wait for F/W to update one page ROM data. */
+	msleep(20);
 
-		if (ret == (ETP_FW_PAGE_SIZE + 4)) {
-			if (elan_iap_page_write_ok(data))
-				break;
-		}
-		dev_dbg(dev, "IAP retry this page! [%d]\n", idx);
-		repeat--;
-	} while (repeat > 0);
+	ret = elan_i2c_read_cmd(data->client, ETP_I2C_IAP_CTRL_CMD, val);
+	if (ret) {
+		dev_err(dev, "Failed to read IAP write result: %d\n", ret);
+		return ret;
+	}
 
-	if (repeat > 0)
-		return 0;
-	return -1;
+
+	result = le16_to_cpup((__le16 *)val);
+	if (result & (ETP_FW_IAP_PAGE_ERR | ETP_FW_IAP_INTERFACE_ERR)) {
+		dev_err(dev, "IAP reports failed write: %04hx\n",
+			result);
+		return -EIO;
+	}
+
+	return 0;
 }
 
 static int elan_write_fw_block(struct elan_tp_data *data,
 			       const u8 *page, u16 checksum, int idx)
 {
-	int ret;
-	if (data->smbus)
-		ret = elan_smbus_write_fw_block(data, page, checksum, idx);
-	else
-		ret = elan_i2c_write_fw_block(data, page, checksum, idx);
-	return ret;
+	int retry = ETP_RETRY_COUNT;
+	int error;
+
+	do {
+		error = data->smbus ?
+			elan_smbus_write_fw_block(data, page, checksum, idx) :
+			elan_i2c_write_fw_block(data, page, checksum, idx);
+		if (!error)
+			return 0;
+
+		dev_dbg(&data->client->dev,
+			"IAP retrying page %d (error: %d)\n", idx, error);
+	} while (--retry > 0);
+
+	return error;
 }
 
 static int elan_prepare_fw_update(struct elan_tp_data *data)
@@ -598,37 +586,29 @@ static int elan_wait_for_chg(struct elan_tp_data *data, unsigned int timeout_ms)
 	return 0;
 }
 
-static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
+static int elan_update_firmware(struct elan_tp_data *data,
+				const struct firmware *fw)
 {
 	struct device *dev = &data->client->dev;
-	const struct firmware *fw;
 	int i, j, ret;
+	u16 iap_start_addr;
 	u16 boot_page_count;
 	u16 sw_checksum, fw_checksum;
 	u8 buffer[ETP_INF_LENGTH];
 
-	dev_dbg(dev, "Start firmware update....\n");
+	dev_dbg(dev, "Starting firmware update....\n");
 
-	ret = request_firmware(&fw, fw_name, dev);
-	if (ret) {
-		dev_err(dev, "cannot load firmware from %s, %d\n",
-			fw_name, ret);
-		goto done;
-	}
-	/* check fw data match current iap version */
-	ret = elan_check_fw(data, fw);
-	if (ret) {
-		dev_err(dev, "Invalid Elan firmware from %s, %d\n",
-			fw_name, ret);
-		goto done;
-	}
 	/* setup IAP status */
 	ret = elan_prepare_fw_update(data);
 	if (ret)
 		goto done;
+
 	sw_checksum = 0;
 	fw_checksum = 0;
-	boot_page_count = (data->iap_start_addr * 2) / ETP_FW_PAGE_SIZE;
+
+	iap_start_addr = get_unaligned_le16(&fw->data[ETP_IAP_START_ADDR * 2]);
+
+	boot_page_count = (iap_start_addr * 2) / ETP_FW_PAGE_SIZE;
 	for (i = boot_page_count; i < ETP_FW_PAGE_COUNT; i++) {
 		u16 checksum = 0;
 		const u8 *page = &fw->data[i * ETP_FW_PAGE_SIZE];
@@ -645,14 +625,12 @@ static int elan_firmware(struct elan_tp_data *data, const char *fw_name)
 	}
 
 	/* Wait WDT reset and power on reset */
-	if (data->smbus) {
-		msleep(600);
-	} else {
+	msleep(600);
+
+	if (!data->smbus) {
 		/* only i2c interface need waiting for fw reset signal */
 		data->wait_signal_from_updatefw = true;
 		reinit_completion(&data->fw_completion);
-
-		msleep(600);
 
 		ret = elan_i2c_reset(data->client);
 		if (ret < 0) {
@@ -695,7 +673,6 @@ done:
 		enable_irq(data->irq);
 		data->active = true;
 	}
-	release_firmware(fw);
 	return ret;
 }
 
@@ -1393,15 +1370,36 @@ static ssize_t elan_sysfs_update_fw(struct device *dev,
 				    const char *buf, size_t count)
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
+	const struct firmware *fw;
 	int error;
+
+	error = request_firmware(&fw, ETP_FW_NAME, dev);
+	if (error) {
+		dev_err(dev, "cannot load firmware %s: %d\n",
+			ETP_FW_NAME, error);
+		return error;
+	}
+
+	/* Firmware must be exactly PAGE_NUM * PAGE_SIZE bytes */
+	if (fw->size != ETP_FW_SIZE) {
+		dev_err(dev, "invalid firmware size = %zu, expected %d.\n",
+			fw->size, ETP_FW_SIZE);
+		error = -EBADF;
+		goto out_release_fw;
+	}
 
 	error = mutex_lock_interruptible(&data->sysfs_mutex);
 	if (error)
-		return error;
+		goto out_release_fw;
 
-	error = elan_firmware(data, ETP_FW_NAME);
+	error = elan_update_firmware(data, fw);
+	if (error)
+		dev_err(dev, "failed to update firmware: %d\n", error);
 
 	mutex_unlock(&data->sysfs_mutex);
+
+out_release_fw:
+	release_firmware(fw);
 	return error?: count;
 }
 
