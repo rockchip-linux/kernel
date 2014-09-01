@@ -1588,6 +1588,13 @@ int mwifiex_ret_get_hw_spec(struct mwifiex_private *priv,
 						adapter->key_api_major_ver,
 						adapter->key_api_minor_ver);
 					break;
+				case FW_API_VER_ID:
+					adapter->fw_api_ver =
+							api_rev->major_ver;
+					dev_dbg(adapter->dev,
+						"Firmware api version %d\n",
+						adapter->fw_api_ver);
+					break;
 				default:
 					dev_warn(adapter->dev,
 						 "Unknown api_id: %d\n",
