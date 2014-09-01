@@ -1269,7 +1269,13 @@ static int mwifiex_pcie_process_recv_data(struct mwifiex_adapter *adapter)
 				"info: RECV DATA: Rd=%#x, Wr=%#x, Len=%d\n",
 				card->rxbd_rdptr, wrptr, rx_len);
 			skb_pull(skb_data, INTF_HEADER_LEN);
-			mwifiex_handle_rx_packet(adapter, skb_data);
+			if (adapter->rx_work_enabled) {
+				skb_queue_tail(&adapter->rx_data_q, skb_data);
+				adapter->data_received = true;
+				atomic_inc(&adapter->rx_pending);
+			} else {
+				mwifiex_handle_rx_packet(adapter, skb_data);
+			}
 		}
 
 		skb_tmp = dev_alloc_skb(MWIFIEX_RX_DATA_BUF_SIZE);

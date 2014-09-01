@@ -1032,7 +1032,13 @@ static int mwifiex_decode_rx_packet(struct mwifiex_adapter *adapter,
 	switch (upld_typ) {
 	case MWIFIEX_TYPE_DATA:
 		dev_dbg(adapter->dev, "info: --- Rx: Data packet ---\n");
-		mwifiex_handle_rx_packet(adapter, skb);
+		if (adapter->rx_work_enabled) {
+			skb_queue_tail(&adapter->rx_data_q, skb);
+			adapter->data_received = true;
+			atomic_inc(&adapter->rx_pending);
+		} else {
+			mwifiex_handle_rx_packet(adapter, skb);
+		}
 		break;
 
 	case MWIFIEX_TYPE_CMD:

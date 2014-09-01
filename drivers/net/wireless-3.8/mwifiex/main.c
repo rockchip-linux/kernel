@@ -123,6 +123,41 @@ static int mwifiex_unregister(struct mwifiex_adapter *adapter)
 	return 0;
 }
 
+static int mwifiex_process_rx(struct mwifiex_adapter *adapter)
+{
+	unsigned long flags;
+	struct sk_buff *skb;
+
+	spin_lock_irqsave(&adapter->rx_proc_lock, flags);
+	if (adapter->rx_processing || adapter->rx_locked) {
+		spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+		goto exit_rx_proc;
+	} else {
+		adapter->rx_processing = true;
+		spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+	}
+
+	/* Check for Rx data */
+	while ((skb = skb_dequeue(&adapter->rx_data_q)) != NULL) {
+		atomic_dec(&adapter->rx_pending);
+		if (adapter->delay_main_work &&
+		    (atomic_read(&adapter->rx_pending) <
+		     LOW_RX_PENDING)) {
+			adapter->delay_main_work = false;
+			queue_work(adapter->workqueue, &adapter->main_work);
+		}
+		mwifiex_handle_rx_packet(adapter, skb);
+
+	};
+
+	spin_lock_irqsave(&adapter->rx_proc_lock, flags);
+	adapter->rx_processing = false;
+	spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+
+exit_rx_proc:
+	return 0;
+}
+
 /*
  * The main process.
  *
@@ -160,6 +195,19 @@ process_start:
 		    (adapter->hw_status == MWIFIEX_HW_STATUS_NOT_READY))
 			break;
 
+		/* If we process interrupts first, it would increase RX pending
+		 * even further. Avoid this by checking if rx_pending has
+		 * crossed high threshold and schedule rx work queue
+		 * and then process interrupts
+		 */
+		if (atomic_read(&adapter->rx_pending) >= HIGH_RX_PENDING) {
+			adapter->delay_main_work = true;
+			if (!adapter->rx_processing)
+				queue_work(adapter->rx_workqueue,
+					   &adapter->rx_work);
+			break;
+		}
+
 		/* Handle pending interrupt if any */
 		if (adapter->int_status) {
 			if (adapter->hs_activated)
@@ -167,6 +215,9 @@ process_start:
 			if (adapter->if_ops.process_int_status)
 				adapter->if_ops.process_int_status(adapter);
 		}
+
+		if (adapter->rx_work_enabled && adapter->data_received)
+			queue_work(adapter->rx_workqueue, &adapter->rx_work);
 
 		/* Need to wake up the card ? */
 		if ((adapter->ps_state == PS_STATE_SLEEP) &&
@@ -180,6 +231,7 @@ process_start:
 		}
 
 		if (IS_CARD_RX_RCVD(adapter)) {
+			adapter->data_received = false;
 			adapter->pm_wakeup_fw_try = false;
 			if (adapter->ps_state == PS_STATE_SLEEP) {
 				if (adapter->iface_type == MWIFIEX_PCIE &&
@@ -278,7 +330,8 @@ process_start:
 	} while (true);
 
 	spin_lock_irqsave(&adapter->main_proc_lock, flags);
-	if ((adapter->int_status) || IS_CARD_RX_RCVD(adapter)) {
+	if (!adapter->delay_main_work &&
+	    (adapter->int_status || IS_CARD_RX_RCVD(adapter))) {
 		spin_unlock_irqrestore(&adapter->main_proc_lock, flags);
 		goto process_start;
 	}
@@ -706,6 +759,20 @@ int is_command_pending(struct mwifiex_adapter *adapter)
 	return !is_cmd_pend_q_empty;
 }
 
+/* This is the RX work queue function.
+ *
+ * It handles the RX operations.
+ */
+static void mwifiex_rx_work_queue(struct work_struct *work)
+{
+	struct mwifiex_adapter *adapter =
+		container_of(work, struct mwifiex_adapter, rx_work);
+
+	if (adapter->surprise_removed)
+		return;
+	mwifiex_process_rx(adapter);
+}
+
 /*
  * This is the main work queue function.
  *
@@ -732,6 +799,12 @@ mwifiex_terminate_workqueue(struct mwifiex_adapter *adapter)
 	flush_workqueue(adapter->workqueue);
 	destroy_workqueue(adapter->workqueue);
 	adapter->workqueue = NULL;
+
+	if (adapter->rx_workqueue) {
+		flush_workqueue(adapter->rx_workqueue);
+		destroy_workqueue(adapter->rx_workqueue);
+		adapter->rx_workqueue = NULL;
+	}
 }
 
 /*
@@ -773,11 +846,29 @@ mwifiex_add_card(void *card, struct semaphore *sem,
 	adapter->cmd_wait_q.status = 0;
 	adapter->scan_wait_q_woken = false;
 
+	if (num_possible_cpus() > 1) {
+		adapter->rx_work_enabled = true;
+		pr_notice("info: %s rx work enabled, cpus %d :\n", __func__,
+			  num_possible_cpus());
+	}
+
 	adapter->workqueue = create_workqueue("MWIFIEX_WORK_QUEUE");
 	if (!adapter->workqueue)
 		goto err_kmalloc;
 
 	INIT_WORK(&adapter->main_work, mwifiex_main_work_queue);
+
+	if (adapter->rx_work_enabled) {
+		adapter->rx_workqueue = alloc_workqueue("MWIFIEX_RX_WORK_QUEUE",
+							WQ_HIGHPRI |
+							WQ_MEM_RECLAIM |
+							WQ_UNBOUND, 1);
+		if (!adapter->rx_workqueue)
+			goto err_kmalloc;
+
+		INIT_WORK(&adapter->rx_work, mwifiex_rx_work_queue);
+	}
+
 	if (adapter->if_ops.iface_work)
 		INIT_WORK(&adapter->iface_work, adapter->if_ops.iface_work);
 
