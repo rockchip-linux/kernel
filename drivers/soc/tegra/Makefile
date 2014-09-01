@@ -10,3 +10,5 @@ obj-$(CONFIG_ARCH_TEGRA_132_SOC) += pm-tegra132.o
 obj-$(CONFIG_ARCH_TEGRA_132_SOC) += sleep-tegra132.o
 obj-$(CONFIG_TEGRA_DVFS)	+= tegra-dvfs.o
 obj-$(CONFIG_TEGRA_124_DVFS)	+= tegra124-dvfs.o
+
+obj-$(CONFIG_TEGRA_CPU_EDP_LIMITS)      += tegra_cpu_edp.o

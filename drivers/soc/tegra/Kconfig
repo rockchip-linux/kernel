@@ -17,3 +17,28 @@ config TEGRA_124_DVFS
 	  specific initialization code to be invoked by probe function
 	  defined in generic Tegra DVFS driver, so while enabled it
 	  needs the config TEGRA_DVFS to be enabled as well.
+
+config EDP_MANAGEMENT
+	bool "EDP management"
+	help
+	  Power "sources" like batteries and regulators have limits
+	  on how much current they can supply, the maximum current
+	  the power source can supply is its "EDP limit".
+	  This is the NVIDIA technique for managing the peak current
+	  consumption of the power rail.
+	  EDP management manages the components to avoid exceeding
+	  the design limits, it limits peak current consumption
+	  while maximizing performance.
+
+config TEGRA_CPU_EDP_LIMITS
+	bool "Enforce electrical design limits on CPU rail (CPU EDP)"
+	depends on ARCH_TEGRA
+	depends on CPU_FREQ && THERMAL && EDP_MANAGEMENT
+	help
+	  Enforce electrical design limits on CPU rail.
+	  VDD_CPU EDP prevents the CPU from drawing more current than
+	  its voltage regulator can supply.
+	  Limit maximum CPU frequency based on temperature and number
+	  of on-line CPUs to keep CPU rail current within power supply
+	  capabilities.
+	  If in doubt, say "Y".
