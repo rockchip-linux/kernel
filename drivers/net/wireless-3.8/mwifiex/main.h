@@ -809,7 +809,7 @@ struct mwifiex_adapter {
 	bool ext_scan;
 	u8 fw_api_ver;
 	struct work_struct iface_work;
-	u8 fw_key_api_major_ver, fw_key_api_minor_ver;
+	u8 key_api_major_ver, key_api_minor_ver;
 };
 
 int mwifiex_init_lock_list(struct mwifiex_adapter *adapter);

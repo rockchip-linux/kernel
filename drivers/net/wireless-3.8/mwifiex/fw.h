@@ -83,7 +83,7 @@ enum KEY_TYPE_ID {
 #define WPA_PN_SIZE		8
 #define KEY_PARAMS_FIXED_LEN	10
 #define KEY_INDEX_MASK		0xf
-#define FW_KEY_API_VER_MAJOR_V2	2
+#define KEY_API_VER_MAJOR_V2	2
 
 #define KEY_MCAST	BIT(0)
 #define KEY_UNICAST	BIT(1)
@@ -172,7 +172,7 @@ enum MWIFIEX_802_11_PRIVACY_FILTER {
 #define TLV_TYPE_GWK_CIPHER         (PROPRIETARY_TLV_BASE_ID + 146)
 #define TLV_TYPE_KEY_PARAM_V2       (PROPRIETARY_TLV_BASE_ID + 156)
 #define TLV_TYPE_TDLS_IDLE_TIMEOUT  (PROPRIETARY_TLV_BASE_ID + 194)
-#define TLV_TYPE_FW_API_REV         (PROPRIETARY_TLV_BASE_ID + 199)
+#define TLV_TYPE_API_REV	    (PROPRIETARY_TLV_BASE_ID + 199)
 
 #define MWIFIEX_TX_DATA_BUF_SIZE_2K        2048
 
@@ -808,11 +808,11 @@ struct host_cmd_ds_802_11_ps_mode_enh {
 	} params;
 } __packed;
 
-enum FW_API_VER_ID {
+enum API_VER_ID {
 	KEY_API_VER_ID = 1,
 };
 
-struct hw_spec_fw_api_rev {
+struct hw_spec_api_rev {
 	struct mwifiex_ie_types_header header;
 	__le16 api_id;
 	u8 major_ver;
