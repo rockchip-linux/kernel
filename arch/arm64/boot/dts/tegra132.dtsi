@@ -436,9 +436,9 @@
 
 	ahub@70300000 {
 		compatible = "nvidia,tegra124-ahub";
-		reg = <0x70300000 0x200>,
-		      <0x70300800 0x800>,
-		      <0x70300200 0x600>;
+		reg = <0x0 0x70300000 0x200>,
+		      <0x0 0x70300800 0x800>,
+		      <0x0 0x70300200 0x600>;
 		interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA124_CLK_D_AUDIO>,
 			 <&tegra_car TEGRA124_CLK_APBIF>;
