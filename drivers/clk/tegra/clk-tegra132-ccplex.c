@@ -200,6 +200,7 @@ static void __init tegra132_ccplex(struct device_node *np)
 				   CLK_SET_RATE_PARENT,
 			       clk_base + CCLK_BURST_POLICY, 28, 4, 0, NULL);
 	clks[TEGRA132_CCPLEX_CCLK_G] = clk;
+	clk_register_clkdev(clk, "cclk_g", NULL);
 
 	clk = tegra_clk_register_pllxc("pll_x", "pll_ref", clk_base,
 			pmc_base, CLK_IGNORE_UNUSED, &pll_x_params, NULL);
