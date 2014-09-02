@@ -506,6 +506,10 @@
 	status = "okay";
 };
 
+&gpu {
+	status = "okay";
+};
+
 &pinctrl {
 
 	/* Add this for sdmmc pins to SD card */
