@@ -461,10 +461,12 @@ static int get_touch_major_pixels(struct mxt_data *data, int touch_channels);
 static void lid_event_register_handler(struct mxt_data *data);
 static void lid_event_unregister_handler(struct mxt_data *data);
 
-static inline bool is_mxt_336t(struct mxt_data *data)
+static inline bool is_mxt_33x_t(struct mxt_data *data)
 {
 	struct mxt_info *info = &data->info;
-	return ((info->family_id == 164) && (info->variant_id == 5));
+	/* vairant_id: 336t(5), 337t(17) */
+	return ((info->family_id == 164) &&
+		((info->variant_id == 5) || (info->variant_id == 17)));
 }
 
 static inline size_t mxt_obj_size(const struct mxt_object *obj)
@@ -948,7 +950,7 @@ static void mxt_input_button(struct mxt_data *data, u8 *message)
 		/* Active-low switch */
 		if (data->has_T100) {
 			/* mXT336T GPIO bitmask is different */
-			if (is_mxt_336t(data))
+			if (is_mxt_33x_t(data))
 				button = !(payload[0] & (MXT_GPIO3_MASK >> 2));
 			else
 				button = !(payload[0] & MXT_GPIO2_MASK);
