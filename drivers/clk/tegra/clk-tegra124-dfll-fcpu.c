@@ -138,6 +138,7 @@ static const struct cvb_table tegra132_cpu_cvb_tables[] = {
 			.tune0_low = 0x008a15ff,
 			.tune0_high = 0x008a40ff,
 			.tune1 = 0x00000095,
+			.tune_high_min_millivolts = 950,
 		},
 	},
 };
@@ -231,14 +232,18 @@ static int __init tegra124_dfll_fcpu_init(void)
 	soc.tune0_low = cvb->cpu_dfll_data.tune0_low;
 	soc.tune0_high = cvb->cpu_dfll_data.tune0_high;
 	soc.tune1 = cvb->cpu_dfll_data.tune1;
+	soc.tune_high_min_millivolts =
+		cvb->cpu_dfll_data.tune_high_min_millivolts;
 	/* Tegra132 has different tunning data based on speedo values */
 	if (chip_id == TEGRA132) {
 		if (speedo_value >= 2336) {
 			soc.tune0_low = 0x008315ff;
 			soc.tune0_high = 0x008340ff;
+			soc.tune_high_min_millivolts = 900;
 		} else if (speedo_value  > 2180) {
 			soc.tune0_low = 0x008715ff;
 			soc.tune0_high = 0x008740ff;
+			soc.tune_high_min_millivolts = 900;
 		}
 	}
 
