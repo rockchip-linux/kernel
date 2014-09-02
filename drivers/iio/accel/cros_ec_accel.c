@@ -33,9 +33,6 @@
 
 /* Indices for EC sensor values. */
 enum sensor_index {
-	GYRO_X,
-	GYRO_Y,
-	GYRO_Z,
 	ACC_BASE_X,
 	ACC_BASE_Y,
 	ACC_BASE_Z,
@@ -43,9 +40,28 @@ enum sensor_index {
 	ACC_LID_Y,
 	ACC_LID_Z,
 	LID_ANGLE,
+	GYRO_X,
+	GYRO_Y,
+	GYRO_Z,
 
 	NUM_EC_INPUTS
 };
+
+/**
+ * host_cmd_sensor_num - convert sensor index into host command sensor number.
+ *
+ * @idx sensor index (should be element of enum sensor_index)
+ * @return host command sensor number
+ */
+static inline int host_cmd_sensor_num(int idx)
+{
+	if ((idx >= GYRO_X) && (idx <= GYRO_Z))
+		return EC_MOTION_SENSOR_GYRO;
+	else if ((idx >= ACC_BASE_X) && (idx <= ACC_BASE_Z))
+		return EC_MOTION_SENSOR_ACCEL_BASE;
+	else
+		return EC_MOTION_SENSOR_ACCEL_LID;
+}
 
 /* Register addresses for EC accelerometer data. */
 static const unsigned int ec_regs[NUM_EC_INPUTS] = {
@@ -55,10 +71,10 @@ static const unsigned int ec_regs[NUM_EC_INPUTS] = {
 	[ACC_LID_X] =  (EC_MEMMAP_ACC_DATA+8),
 	[ACC_LID_Y] =  (EC_MEMMAP_ACC_DATA+10),
 	[ACC_LID_Z] =  (EC_MEMMAP_ACC_DATA+12),
-	[GYRO_X] =  (EC_MEMMAP_ACC_DATA+14),
-	[GYRO_Y] =  (EC_MEMMAP_ACC_DATA+16),
-	[GYRO_Z] =  (EC_MEMMAP_ACC_DATA+18),
-	[LID_ANGLE] =  (EC_MEMMAP_ACC_DATA)
+	[LID_ANGLE] =  (EC_MEMMAP_ACC_DATA),
+	[GYRO_X] =  (EC_MEMMAP_GYRO_DATA),
+	[GYRO_Y] =  (EC_MEMMAP_GYRO_DATA+2),
+	[GYRO_Z] =  (EC_MEMMAP_GYRO_DATA+4)
 };
 
 /* ADC counts per 1G. */
@@ -103,24 +119,6 @@ enum accel_data_format {
 		EC_CHAN_COMMON
 
 static const struct iio_chan_spec ec_accel_channels[] = {
-	{
-		EC_GYRO_CHAN_COMMON,
-		.extend_name = "gyro",
-		.channel2 = IIO_MOD_X,
-		.scan_index = GYRO_X,
-	},
-	{
-		EC_GYRO_CHAN_COMMON,
-		.extend_name = "gyro",
-		.channel2 = IIO_MOD_Y,
-		.scan_index = GYRO_Y,
-	},
-	{
-		EC_GYRO_CHAN_COMMON,
-		.extend_name = "gyro",
-		.channel2 = IIO_MOD_Z,
-		.scan_index = GYRO_Z,
-	},
 	{
 		EC_ACCEL_CHAN_COMMON,
 		.extend_name = "base",
@@ -172,6 +170,24 @@ static const struct iio_chan_spec ec_accel_channels[] = {
 			.shift = 0,
 		},
 	},
+	{
+		EC_GYRO_CHAN_COMMON,
+		.extend_name = "gyro",
+		.channel2 = IIO_MOD_X,
+		.scan_index = GYRO_X,
+	},
+	{
+		EC_GYRO_CHAN_COMMON,
+		.extend_name = "gyro",
+		.channel2 = IIO_MOD_Y,
+		.scan_index = GYRO_Y,
+	},
+	{
+		EC_GYRO_CHAN_COMMON,
+		.extend_name = "gyro",
+		.channel2 = IIO_MOD_Z,
+		.scan_index = GYRO_Z,
+	},
 	IIO_CHAN_SOFT_TIMESTAMP(NUM_EC_INPUTS)
 };
 
@@ -198,22 +214,6 @@ struct cros_ec_accel_state {
 	int calib_scale[NUM_EC_INPUTS];
 	int calib_offset[NUM_EC_INPUTS];
 };
-
-/**
- * host_cmd_sensor_num - convert sensor index into host command sensor number.
- *
- * @idx sensor index (should be element of enum sensor_index)
- * @return host command sensor number
- */
-static inline int host_cmd_sensor_num(int idx)
-{
-	if (idx <= GYRO_Z)
-		return EC_MOTION_SENSOR_GYRO;
-	else if (idx <= ACC_BASE_Z)
-		return EC_MOTION_SENSOR_ACCEL_BASE;
-	else
-		return EC_MOTION_SENSOR_ACCEL_LID;
-}
 
 /**
  * apply_calibration - apply calibration to raw data from a sensor
