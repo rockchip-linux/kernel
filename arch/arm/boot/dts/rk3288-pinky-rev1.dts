@@ -71,7 +71,7 @@
 		pinctrl-0 = <&pwrbtn>;
 
 		button@0 {
-			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
 			linux,code = <116>;
 			label = "GPIO Key Power";
 			linux,input-type = <1>;
@@ -396,7 +396,7 @@
 
 	buttons {
 		pwrbtn: pwrbtn {
-			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
