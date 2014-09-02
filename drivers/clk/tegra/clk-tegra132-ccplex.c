@@ -158,6 +158,17 @@ void tegra132_clock_deassert_dfll_dvco_reset(void)
 }
 EXPORT_SYMBOL(tegra132_clock_deassert_dfll_dvco_reset);
 
+static struct tegra_clk_init_table init_table[] __initdata = {
+	{TEGRA132_CCPLEX_CCLK_G, TEGRA132_CCPLEX_CLK_MAX, 0, 1},
+	/* This MUST be the last entry. */
+	{TEGRA132_CCPLEX_CLK_MAX, TEGRA132_CCPLEX_CLK_MAX, 0, 0},
+};
+
+static void __init tegra132_clock_apply_init_table(void)
+{
+	tegra_init_from_table(init_table, clks, TEGRA132_CCPLEX_CLK_MAX);
+}
+
 static void __init tegra132_ccplex(struct device_node *np)
 {
 	struct clk *clk;
@@ -195,6 +206,8 @@ static void __init tegra132_ccplex(struct device_node *np)
 	clks[TEGRA132_PLL_X] = clk;
 
 	of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data);
+
+	tegra132_clock_apply_init_table();
 }
 
 CLK_OF_DECLARE(tegra132_ccplex, "nvidia,tegra132-ccplex-clk", tegra132_ccplex);
