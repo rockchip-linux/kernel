@@ -135,7 +135,6 @@ config ARCH_TEGRA
 	select ARCH_REQUIRE_GPIOLIB
 	select HAVE_CLK
 	select HAVE_SMP
-	select ARCH_HAS_CPUFREQ
 	select ARCH_HAS_RESET_CONTROLLER
 	select ARM_GIC
 	select CLKSRC_OF
