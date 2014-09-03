@@ -367,6 +367,12 @@
 		nvidia,core-pwr-off-time = <61036>;
 		nvidia,core-power-req-active-high;
 		nvidia,sys-clock-req-active-high;
+
+		i2c-thermtrip {
+			nvidia,pmu = <&palmas>;
+			nvidia,reg-addr = <0xa0>;
+			nvidia,reg-data = <0x0>;
+		};
 	};
 
 	clocks {
