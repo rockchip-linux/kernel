@@ -414,16 +414,14 @@ static int tegra132_soctherm_probe(struct platform_device *pdev)
 	rev_major = (rev >> 5) & 0x3f;
 	pr_debug("%s: CP rev %d.%d\n", __func__, rev_major, rev_minor);
 
-	if (rev_major == 0) {
-		if (rev_minor <= 8) {
-			tegra132_tsensors = tegra132_tsensors_pre_0_09;
-			tegra132_tsensor_groups =
-				tegra132_tsensor_groups_pre_0_12;
-		} else if (rev_minor <= 11) {
-			tegra132_tsensors = tegra132_tsensors_0_09_to_0_11;
-			tegra132_tsensor_groups =
-				tegra132_tsensor_groups_pre_0_12;
-		}
+	if (rev_major == 0 && rev_minor <= 8) {
+		tegra132_tsensors = tegra132_tsensors_pre_0_09;
+		tegra132_tsensor_groups =
+			tegra132_tsensor_groups_pre_0_12;
+	} else if (rev_major == 0 && rev_minor <= 11) {
+		tegra132_tsensors = tegra132_tsensors_0_09_to_0_11;
+		tegra132_tsensor_groups =
+			tegra132_tsensor_groups_pre_0_12;
 	} else {
 		tegra132_tsensors = tegra132_tsensors_0_12_plus;
 		tegra132_tsensor_groups =
