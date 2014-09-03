@@ -423,7 +423,7 @@ static bool genpd_abort_poweroff(struct generic_pm_domain *genpd)
  * Queue up the execution of pm_genpd_poweroff() unless it's already been done
  * before.
  */
-void genpd_queue_power_off_work(struct generic_pm_domain *genpd)
+static void genpd_queue_power_off_work(struct generic_pm_domain *genpd)
 {
 	queue_work(pm_wq, &genpd->power_off_work);
 }
@@ -750,6 +750,9 @@ static inline int genpd_dev_pm_qos_notifier(struct notifier_block *nb,
 {
 	return NOTIFY_DONE;
 }
+
+static inline void
+genpd_queue_power_off_work(struct generic_pm_domain *genpd) {}
 
 static inline void genpd_power_off_work_fn(struct work_struct *work) {}
 static inline void genpd_delayed_power_off_work_fn(struct work_struct *work) {}
