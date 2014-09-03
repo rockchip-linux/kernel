@@ -313,8 +313,6 @@ void __init exynos_init_late(void)
 	if (of_machine_is_compatible("samsung,exynos5440"))
 		/* to be supported later */
 		return;
-
-	pm_genpd_poweroff_unused();
 }
 
 static int __init exynos_fdt_map_chipid(unsigned long node, const char *uname,
