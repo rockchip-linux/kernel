@@ -11,7 +11,6 @@ config TEGRA_DVFS
 
 config TEGRA_124_DVFS
 	bool "Tegra124 DVFS support"
-	depends on ARCH_TEGRA_124_SOC
 	select TEGRA_DVFS
 	help
 	  This enable Tegra124 DVFS functionality, it implements SoC
