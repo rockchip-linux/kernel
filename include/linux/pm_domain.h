@@ -125,8 +125,6 @@ static inline void pm_genpd_set_poweroff_delay(struct generic_pm_domain *genpd,
 	genpd->power_off_delay = delay;
 }
 
-extern struct dev_power_governor simple_qos_governor;
-
 extern struct generic_pm_domain *dev_to_genpd(struct device *dev);
 extern int __pm_genpd_add_device(struct generic_pm_domain *genpd,
 				 struct device *dev,
@@ -159,6 +157,7 @@ extern void pm_genpd_init(struct generic_pm_domain *genpd,
 extern int pm_genpd_poweron(struct generic_pm_domain *genpd);
 extern int pm_genpd_name_poweron(const char *domain_name);
 
+extern struct dev_power_governor simple_qos_governor;
 extern struct dev_power_governor pm_domain_always_on_gov;
 #else
 
