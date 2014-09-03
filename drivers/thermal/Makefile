@@ -37,4 +37,6 @@ obj-$(CONFIG_TEGRA_SOCTHERM)	+= tegra_soctherm.o
 obj-$(CONFIG_TEGRA_SOCTHERM)	+= tegra_soctherm.o tegra_soctherm_fuse.o
 obj-$(CONFIG_TEGRA124_SOCTHERM)	+= tegra124_soctherm.o
 obj-$(CONFIG_TEGRA132_SOCTHERM)	+= tegra132_soctherm.o
+# platform thermally-reactive drivers
 obj-$(CONFIG_TEGRA_DFLL_THERMAL_REACTION)	+= tegra_dfll_action.o
+obj-$(CONFIG_TEGRA_CPU_EDP_LIMITS)	+= tegra_cpu_edp_action.o
