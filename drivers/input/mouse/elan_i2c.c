@@ -2082,6 +2082,7 @@ static int elan_probe(struct i2c_client *client,
 	/* check protocol type */
 	data->smbus = adapter_func == ELAN_ADAPTER_FUNC_SMBUS;
 	data->client = client;
+	data->irq = client->irq;
 	data->wait_signal_from_updatefw = false;
 	data->lid_status = LID_UNKNOWN;
 	init_completion(&data->fw_completion);
