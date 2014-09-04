@@ -116,7 +116,6 @@ static struct regmap_irq_chip rk808_irq_chip = {
 	.status_base = RK808_INT_STS_REG1,
 	.mask_base = RK808_INT_STS_MSK_REG1,
 	.ack_base = RK808_INT_STS_REG1,
-	.init_ack_masked = true,
 };
 
 static struct i2c_client *rk808_i2c_client;
