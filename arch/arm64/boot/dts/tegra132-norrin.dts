@@ -774,7 +774,7 @@
 		};
 	};
 
-	pmc {
+	pmc@7000e400 {
 		nvidia,invert-interrupt;
 		nvidia,suspend-mode = <0>;
 		#wake-cells = <3>;
