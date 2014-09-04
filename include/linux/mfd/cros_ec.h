@@ -81,7 +81,6 @@ enum {
  * to using dword.
  * @din_size: size of din buffer to allocate (zero to use static din)
  * @dout_size: size of dout buffer to allocate (zero to use static dout)
- * @parent: pointer to parent device (e.g. i2c or spi device)
  * @wake_enabled: true if this device can wake the system from sleep
  * @lock: one transaction at a time
  * @cmd_xfer: send command to EC and get response
@@ -118,7 +117,6 @@ struct cros_ec_device {
 	u8 *dout;
 	int din_size;
 	int dout_size;
-	struct device *parent;
 	bool wake_enabled;
 	struct mutex lock;
 	int (*cmd_xfer)(struct cros_ec_device *ec,
