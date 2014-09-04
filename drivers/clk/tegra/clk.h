@@ -630,8 +630,13 @@ void tegra114_clock_deassert_dfll_dvco_reset(void);
 void tegra124_clock_assert_dfll_dvco_reset(void);
 void tegra124_clock_deassert_dfll_dvco_reset(void);
 
+#ifdef CONFIG_ARCH_TEGRA_132_SOC
 void tegra132_clock_assert_dfll_dvco_reset(void);
 void tegra132_clock_deassert_dfll_dvco_reset(void);
+#else
+static inline void tegra132_clock_assert_dfll_dvco_reset(void) {}
+static inline void tegra132_clock_deassert_dfll_dvco_reset(void) {}
+#endif
 
 typedef void (*tegra_clk_apply_init_table_func)(void);
 extern tegra_clk_apply_init_table_func tegra_clk_apply_init_table;
