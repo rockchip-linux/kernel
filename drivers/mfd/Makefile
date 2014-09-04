@@ -14,6 +14,7 @@ obj-$(CONFIG_MFD_CROS_EC_LPC)	+= cros_ec_lpc.o
 obj-$(CONFIG_MFD_CROS_EC_SPI)	+= cros_ec_spi.o
 cros_ec_devs-objs               := cros_ec_dev.o cros_ec_sysfs.o cros_ec_lightbar.o
 obj-$(CONFIG_MFD_CROS_EC_DEV)	+= cros_ec_devs.o
+obj-$(CONFIG_MFD_CROS_EC_PD_UPDATE)	+= cros_ec_pd_update.o
 
 rtsx_pci-objs			:= rtsx_pcr.o rts5209.o rts5229.o rtl8411.o rts5227.o rts5249.o
 obj-$(CONFIG_MFD_RTSX_PCI)	+= rtsx_pci.o

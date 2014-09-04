@@ -53,5 +53,6 @@ struct cros_ec_dev {
 /* sysfs stuff */
 extern struct attribute_group cros_ec_attr_group;
 extern struct attribute_group cros_ec_lightbar_attr_group;
+extern struct attribute_group cros_ec_pd_attr_group;
 
 #endif	/* _DRV_CROS_EC_DEV_H_ */
