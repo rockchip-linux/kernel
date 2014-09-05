@@ -841,4 +841,9 @@
 			};
 		};
 	};
+
+	cpu_edp {
+		compatible = "nvidia,tegra132-cpu-edp";
+		nvidia,edp-limit = <15000>;
+	};
 };

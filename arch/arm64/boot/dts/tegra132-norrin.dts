@@ -1823,6 +1823,11 @@
 		};
 	};
 
+	cpu_edp {
+		compatible = "nvidia,tegra132-cpu-edp";
+		nvidia,edp-limit = <16800>;
+	};
+
 	thermal-zones {
 		pllx {
 			trips {
