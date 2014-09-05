@@ -609,7 +609,8 @@
 			0x0 0x60006000 0x0 0x400 /* 1: T124: CAR reg_base */
 			0x0 0x70040000 0x0 0x200>; /* 2: T132: CCROC reg_base */
 		reg-names = "soctherm-reg", "car-reg", "ccroc-reg";
-		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH
+				GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA124_CLK_TSENSOR>,
 			<&tegra_car TEGRA124_CLK_SOC_THERM>;
 		clock-names = "tsensor", "soctherm";
