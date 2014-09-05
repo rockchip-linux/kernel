@@ -10,5 +10,3 @@ targets += $(dtb-y)
 dtbs: $(addprefix $(obj)/, $(dtb-y))
 
 clean-files := *.dtb
-
-dtbs_install: $(addsuffix _dtbinst_, $(dtb-y))
