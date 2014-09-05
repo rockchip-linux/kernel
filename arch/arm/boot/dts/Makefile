@@ -336,13 +336,7 @@ dtb-$(CONFIG_ARCH_ZYNQ) += zynq-zc702.dtb \
 	zynq-zc706.dtb \
 	zynq-zed.dtb
 
-targets += dtbs dtbs_install
-targets += $(dtb-y)
 endif
 
-# *.dtb used to be generated in the directory above. Clean out the
-# old build results so people don't accidentally use them.
-dtbs: $(addprefix $(obj)/, $(dtb-y))
-	$(Q)rm -f $(obj)/../*.dtb
-
-clean-files := *.dtb
+always		:= $(dtb-y)
+clean-files	:= *.dtb
