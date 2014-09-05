@@ -443,9 +443,6 @@ struct mxt_data {
 
 	/* map for the tracking id currently being used */
 	bool *current_id;
-
-	bool lid_handler_registered;
-	struct input_handler lid_handler;
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -457,9 +454,6 @@ static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
 static int get_touch_major_pixels(struct mxt_data *data, int touch_channels);
-
-static void lid_event_register_handler(struct mxt_data *data);
-static void lid_event_unregister_handler(struct mxt_data *data);
 
 static inline bool is_mxt_33x_t(struct mxt_data *data)
 {
@@ -3068,6 +3062,113 @@ static int mxt_set_regs(struct mxt_data *data, u8 type, u8 instance,
 	return 0;
 }
 
+static void mxt_save_all_regs(struct mxt_data *data)
+{
+	struct device *dev = &data->client->dev;
+	int ret;
+	u8 current_T9_ctrl = 0;
+	u8 current_T100_ctrl = 0;
+
+	/* Save 3 bytes T7 Power config */
+	ret = mxt_save_regs(data, MXT_GEN_POWER_T7, 0, 0,
+			    data->T7_config, 3);
+	if (ret)
+		dev_err(dev, "Save T7 Power config failed, %d\n", ret);
+	data->T7_config_valid = (ret == 0);
+
+	if (data->has_T9) {
+		/* Save 1 byte T9 Ctrl config */
+		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+				    &current_T9_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
+		if (!data->T9_ctrl_valid && !ret) {
+			data->T9_ctrl_valid = true;
+			data->T9_ctrl = current_T9_ctrl;
+		}
+	}
+	if (data->has_T100) {
+		/* Save 1 byte T100 Ctrl config */
+		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
+				    &current_T100_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T100 ctrl config failed, %d\n", ret);
+		if (!data->T100_ctrl_valid && !ret) {
+			data->T100_ctrl_valid = true;
+			data->T100_ctrl = current_T100_ctrl;
+		}
+	}
+
+
+	ret = mxt_save_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
+			    &data->T42_ctrl, 1);
+	if (ret)
+		dev_err(dev, "Save T42 ctrl config failed, %d\n", ret);
+	data->T42_ctrl_valid = (ret == 0);
+
+	ret = mxt_save_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
+			    &data->T19_ctrl, 1);
+	if (ret)
+		dev_err(dev, "Save T19 ctrl config failed, %d\n", ret);
+	data->T19_ctrl_valid = (ret == 0);
+}
+
+static void mxt_restore_all_regs(struct mxt_data *data)
+{
+	struct device *dev = &data->client->dev;
+	int ret;
+
+	/* Restore the T9 Ctrl config to before-suspend value */
+	if (data->has_T9 && data->T9_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
+				   &data->T9_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
+	}
+	data->T9_ctrl_valid = false;
+
+	if (data->has_T100 && data->T100_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
+				   &data->T100_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T100 ctrl config failed, %d\n", ret);
+	}
+	data->T100_ctrl_valid = false;
+
+	/* Restore the T7 Power config to before-suspend value */
+	if (data->T7_config_valid) {
+		ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
+				   data->T7_config, 3);
+		if (ret)
+			dev_err(dev, "Set T7 power config failed, %d\n", ret);
+	} else {
+		u8 fallback_T7_config[3] = {FALLBACK_MXT_POWER_IDLEACQINT,
+					    FALLBACK_MXT_POWER_ACTVACQINT,
+					    FALLBACK_MXT_POWER_ACTV2IDLETO};
+		dev_err(dev, "No T7 values found, setting to fallback value\n");
+		ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
+				   fallback_T7_config, 3);
+		if (ret)
+			dev_err(dev, "Set T7 to fallbacks failed, %d\n", ret);
+	}
+
+	/* Restore the T42 ctrl to before-suspend value */
+	if (data->T42_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
+				   &data->T42_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T42 ctrl failed, %d\n", ret);
+	}
+
+	/* Restore the T19 ctrl to before-suspend value */
+	if (data->T19_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
+				   &data->T19_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T19 ctrl failed, %d\n", ret);
+	}
+}
+
 static void mxt_start(struct mxt_data *data)
 {
 	/* Enable touch reporting */
@@ -3104,6 +3205,40 @@ static void mxt_input_close(struct input_dev *dev)
 	struct mxt_data *data = input_get_drvdata(dev);
 
 	mxt_stop(data);
+}
+
+static int mxt_input_inhibit(struct input_dev *input)
+{
+	static const u8 T7_config_deepsleep[3] = { 0x00, 0x00, 0x00 };
+	struct mxt_data *data = input_get_drvdata(input);
+	struct device *dev = &data->client->dev;
+	int ret;
+
+	dev_dbg(dev, "inhibit\n");
+
+	mxt_stop(data);
+	mxt_save_all_regs(data);
+
+	ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
+			   T7_config_deepsleep, 3);
+	if (ret)
+		dev_err(dev, "Set T7 Power config failed, %d\n", ret);
+
+	return 0;
+}
+
+static int mxt_input_uninhibit(struct input_dev *input)
+{
+	struct mxt_data *data = input_get_drvdata(input);
+	struct device *dev = &data->client->dev;
+
+	dev_dbg(dev, "uninhibit\n");
+
+	data->T9_ctrl_valid = false;
+	mxt_restore_all_regs(data);
+	mxt_start(data);
+
+	return 0;
 }
 
 static int mxt_input_dev_create(struct mxt_data *data)
@@ -3152,6 +3287,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	input_dev->dev.parent = &data->client->dev;
 	input_dev->open = mxt_input_open;
 	input_dev->close = mxt_input_close;
+	input_dev->inhibit = mxt_input_inhibit;
+	input_dev->uninhibit = mxt_input_uninhibit;
 
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(EV_KEY, input_dev->evbit);
@@ -3284,8 +3421,6 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 	if (error)
 		dev_warn(&client->dev, "error creating debugfs entries.\n");
 
-	lid_event_register_handler(data);
-
 	return;
 
 error_free_irq:
@@ -3383,7 +3518,6 @@ static int mxt_remove(struct i2c_client *client)
 	free_irq(data->irq, data);
 	if (data->input_dev)
 		input_unregister_device(data->input_dev);
-	lid_event_unregister_handler(data);
 
 	kfree(data->object_table);
 	kfree(data->fw_file);
@@ -3447,22 +3581,17 @@ static int mxt_suspend(struct device *dev)
 			0x00 };
 	static const u8 T7_config_deepsleep[3] = { 0x00, 0x00, 0x00 };
 	const u8 *power_config;
-	u8 current_T9_ctrl = 0;
-	u8 current_T100_ctrl = 0;
 	int ret;
 
 	if (mxt_in_bootloader(data))
+		return 0;
+	if (input_dev->inhibited)
 		return 0;
 
 	mutex_lock(&input_dev->mutex);
 	data->suspended = true;
 
-	/* Save 3 bytes T7 Power config */
-	ret = mxt_save_regs(data, MXT_GEN_POWER_T7, 0, 0,
-			    data->T7_config, 3);
-	if (ret)
-		dev_err(dev, "Save T7 Power config failed, %d\n", ret);
-	data->T7_config_valid = (ret == 0);
+	mxt_save_all_regs(data);
 
 	/*
 	 * Set T7 to idle mode if we allow wakeup from touch, otherwise
@@ -3475,30 +3604,6 @@ static int mxt_suspend(struct device *dev)
 			   power_config, 3);
 	if (ret)
 		dev_err(dev, "Set T7 Power config failed, %d\n", ret);
-
-	if (data->has_T9) {
-		/* Save 1 byte T9 Ctrl config */
-		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-				    &current_T9_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
-		if (!data->T9_ctrl_valid && !ret) {
-			data->T9_ctrl_valid = true;
-			data->T9_ctrl = current_T9_ctrl;
-		}
-	}
-	if (data->has_T100) {
-		/* Save 1 byte T100 Ctrl config */
-		ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
-				    &current_T100_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Save T100 ctrl config failed, %d\n", ret);
-		if (!data->T100_ctrl_valid && !ret) {
-			data->T100_ctrl_valid = true;
-			data->T100_ctrl = current_T100_ctrl;
-		}
-	}
-
 	/*
 	 *  For tpads, save T42 and T19 ctrl registers if may wakeup,
 	 *  enable large object suppression, and disable button wake.
@@ -3507,19 +3612,6 @@ static int mxt_suspend(struct device *dev)
 	if (data->is_tp && device_may_wakeup(dev)) {
 		u8 T42_sleep = 0x01;
 		u8 T19_sleep = 0x00;
-
-		ret = mxt_save_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
-				    &data->T42_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Save T42 ctrl config failed, %d\n", ret);
-		data->T42_ctrl_valid = (ret == 0);
-
-		ret = mxt_save_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
-				    &data->T19_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Save T19 ctrl config failed, %d\n", ret);
-		data->T19_ctrl_valid = (ret == 0);
-
 
 		/* Enable Large Object Suppression */
 		ret = mxt_set_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
@@ -3545,7 +3637,7 @@ static int mxt_suspend(struct device *dev)
 
 		/* Set proper T9 ENABLE & REPTN bits */
 		if (data->has_T9 && data->T9_ctrl_valid)
-			mxt_suspend_enable_T9(data, current_T9_ctrl);
+			mxt_suspend_enable_T9(data, data->T9_ctrl);
 
 		/* Enable wake from IRQ */
 		data->irq_wake = (enable_irq_wake(data->irq) == 0);
@@ -3569,6 +3661,8 @@ static int mxt_resume(struct device *dev)
 
 	if (mxt_in_bootloader(data))
 		return 0;
+	if (input_dev->inhibited)
+		return 0;
 
 	/* Process any pending message so that CHG line can be de-asserted */
 	ret = mxt_handle_messages(data, false);
@@ -3579,55 +3673,7 @@ static int mxt_resume(struct device *dev)
 
 	mutex_lock(&input_dev->mutex);
 
-	/* Restore the T9 Ctrl config to before-suspend value */
-	if (data->has_T9 && data->T9_ctrl_valid) {
-		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-				   &data->T9_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Set T9 ctrl config failed, %d\n", ret);
-	}
-	data->T9_ctrl_valid = false;
-
-	if (data->has_T100 && data->T100_ctrl_valid) {
-		ret = mxt_set_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
-				   &data->T100_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Set T100 ctrl config failed, %d\n", ret);
-	}
-	data->T100_ctrl_valid = false;
-
-	/* Restore the T7 Power config to before-suspend value */
-	if (data->T7_config_valid) {
-		ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
-				   data->T7_config, 3);
-		if (ret)
-			dev_err(dev, "Set T7 power config failed, %d\n", ret);
-	} else {
-		u8 fallback_T7_config[3] = {FALLBACK_MXT_POWER_IDLEACQINT,
-					    FALLBACK_MXT_POWER_ACTVACQINT,
-					    FALLBACK_MXT_POWER_ACTV2IDLETO};
-		dev_err(dev, "No T7 values found, setting to fallback value\n");
-		ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
-				   fallback_T7_config, 3);
-		if (ret)
-			dev_err(dev, "Set T7 to fallbacks failed, %d\n", ret);
-	}
-
-	/* Restore the T42 ctrl to before-suspend value */
-	if (data->T42_ctrl_valid) {
-		ret = mxt_set_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
-				   &data->T42_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Set T42 ctrl failed, %d\n", ret);
-	}
-
-	/* Restore the T19 ctrl to before-suspend value */
-	if (data->T19_ctrl_valid) {
-		ret = mxt_set_regs(data, MXT_SPT_GPIOPWM_T19, 0, 0,
-				   &data->T19_ctrl, 1);
-		if (ret)
-			dev_err(dev, "Set T19 ctrl failed, %d\n", ret);
-	}
+	mxt_restore_all_regs(data);
 
 	if (!device_may_wakeup(dev)) {
 		/* Recalibration in case of environment change */
@@ -3643,157 +3689,14 @@ static int mxt_resume(struct device *dev)
 
 	enable_irq(data->irq);
 
-	if (device_may_wakeup(dev) && data->irq_wake)
+	if (data->irq_wake) {
 		disable_irq_wake(data->irq);
+		data->irq_wake = false;
+	}
 
 	return 0;
 }
 #endif
-
-/*
- * We rely on EV_SW and SW_LID bits to identify a LID device, and hook
- * up our filter to listen for SW_LID events to enable/disable touchpad when
- * LID is open/closed.
- */
-static const struct input_device_id lid_device_ids[] = {
-	{
-		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-			 INPUT_DEVICE_ID_MATCH_SWBIT,
-		.evbit = { BIT_MASK(EV_SW) },
-		.swbit = { BIT_MASK(SW_LID) },
-	},
-	{ },
-};
-
-static int lid_device_connect(struct input_handler *handler,
-			      struct input_dev *dev,
-			      const struct input_device_id *id)
-{
-	struct input_handle *lid_handle;
-	int error;
-
-	pr_info("atmel_mxt_ts: LID device: '%s' connected\n", dev->name);
-	lid_handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
-	if (!lid_handle)
-		return -ENOMEM;
-
-	lid_handle->dev = dev;
-	lid_handle->handler = handler;
-	lid_handle->name = "lid_event_handler";
-	lid_handle->private = handler->private;
-
-	error = input_register_handle(lid_handle);
-	if (error) {
-		pr_err("atmel_mxt_ts: Failed to register lid_event_handler, error %d\n", error);
-		goto err_free;
-	}
-
-	error = input_open_device(lid_handle);
-	if (error) {
-		pr_err("atmel_mxt_ts: Failed to open input device, error %d\n",
-		       error);
-		goto err_unregister;
-	}
-
-	return 0;
-err_unregister:
-	input_unregister_handle(lid_handle);
-err_free:
-	kfree(lid_handle);
-	return error;
-}
-
-static void lid_device_disconnect(struct input_handle *handle)
-{
-	input_close_device(handle);
-	input_unregister_handle(handle);
-	kfree(handle);
-}
-
-static bool lid_event_filter(struct input_handle *handle,
-			     unsigned int type, unsigned int code, int value)
-{
-	struct mxt_data *data = handle->private;
-	struct device *dev = &data->client->dev;
-	int ret;
-
-	if (type == EV_SW && code == SW_LID) {
-		if (mxt_in_bootloader(data))
-			return false;
-
-		pr_info("atmel_mxt_ts %s: %s touch device\n",
-			dev_name(&data->client->dev),
-			(value ? "disable" : "enable"));
-		if (data->suspended) {
-			/*
-			 * If the lid event filter is called while suspended,
-			 * there is no guarantee that the underlying i2cs are
-			 * resumed at this point, so it is not safe to try to
-			 * resume the device.
-			 * Instead, rely on mxt_resume to resume the device.
-			 */
-			pr_info("atmel_mxt_ts %s: skipping lid pm change in suspend\n",
-				dev_name(&data->client->dev));
-			return false;
-		}
-		if (value == 0) {
-			data->T9_ctrl_valid = false;
-			mxt_start(data);
-		} else {
-			/* Save 1 byte T9/T100 Ctrl config */
-			if (data->has_T9) {
-				ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T9, 0, 0,
-						    &data->T9_ctrl, 1);
-				if (ret)
-					dev_err(dev, "Save T9 ctrl config failed, %d\n", ret);
-				data->T9_ctrl_valid = (ret == 0);
-			}
-			if (data->has_T100) {
-				ret = mxt_save_regs(data, MXT_TOUCH_MULTI_T100, 0, 0,
-						    &data->T100_ctrl, 1);
-				if (ret)
-					dev_err(dev, "Save T100 ctrl config failed, %d\n", ret);
-				data->T100_ctrl_valid = (ret == 0);
-			}
-			mxt_stop(data);
-		}
-	}
-	return false;
-}
-
-static void lid_event_register_handler(struct mxt_data *data)
-{
-	int error;
-	struct input_handler *lid_handler = &data->lid_handler;
-
-	if (data->lid_handler_registered) {
-		pr_err("atmel_mxt_ts: lid handler is registered already\n");
-		return;
-	}
-
-	lid_handler->filter	= lid_event_filter;
-	lid_handler->connect	= lid_device_connect;
-	lid_handler->disconnect	= lid_device_disconnect;
-	lid_handler->name	= "atmel_lid_event_handler";
-	lid_handler->id_table	= lid_device_ids;
-	lid_handler->private	= data;
-
-	error = input_register_handler(lid_handler);
-	if (error) {
-		pr_err("atmel_mxt_ts: Failed to register lid handler(%d)\n", error);
-		return;
-	}
-	data->lid_handler_registered = true;
-}
-
-static void lid_event_unregister_handler(struct mxt_data *data)
-{
-	if (data->lid_handler_registered) {
-		input_unregister_handler(&data->lid_handler);
-		data->lid_handler_registered = false;
-	}
-
-}
 
 static SIMPLE_DEV_PM_OPS(mxt_pm_ops, mxt_suspend, mxt_resume);
 
