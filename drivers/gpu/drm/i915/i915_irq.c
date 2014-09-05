@@ -1667,8 +1667,9 @@ static irqreturn_t valleyview_irq_handler(int irq, void *arg)
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
 
 		for_each_pipe(pipe) {
-			if (pipe_stats[pipe] & PIPE_START_VBLANK_INTERRUPT_STATUS)
-				drm_handle_vblank(dev, pipe);
+			if (pipe_stats[pipe] & PIPE_START_VBLANK_INTERRUPT_STATUS &&
+			    drm_handle_vblank(dev, pipe))
+				intel_check_page_flip(dev, pipe);
 
 			if (pipe_stats[pipe] & PLANE_FLIPDONE_INT_STATUS_VLV) {
 				intel_prepare_page_flip(dev, pipe);
@@ -1870,8 +1871,9 @@ static void ilk_display_irq_handler(struct drm_device *dev, u32 de_iir)
 		DRM_ERROR("Poison interrupt\n");
 
 	for_each_pipe(pipe) {
-		if (de_iir & DE_PIPE_VBLANK(pipe))
-			drm_handle_vblank(dev, pipe);
+		if (de_iir & DE_PIPE_VBLANK(pipe) &&
+		    drm_handle_vblank(dev, pipe))
+			intel_check_page_flip(dev, pipe);
 
 		if (de_iir & DE_PIPE_FIFO_UNDERRUN(pipe))
 			if (intel_set_cpu_fifo_underrun_reporting(dev, pipe, false))
@@ -1920,8 +1922,9 @@ static void ivb_display_irq_handler(struct drm_device *dev, u32 de_iir)
 		intel_opregion_asle_intr(dev);
 
 	for_each_pipe(i) {
-		if (de_iir & (DE_PIPE_VBLANK_IVB(i)))
-			drm_handle_vblank(dev, i);
+		if (de_iir & (DE_PIPE_VBLANK_IVB(i)) &&
+		    drm_handle_vblank(dev, i))
+			intel_check_page_flip(dev, i);
 
 		/* plane/pipes map 1:1 on ilk+ */
 		if (de_iir & DE_PLANE_FLIP_DONE_IVB(i)) {
@@ -2067,8 +2070,9 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 			continue;
 
 		pipe_iir = I915_READ(GEN8_DE_PIPE_IIR(pipe));
-		if (pipe_iir & GEN8_PIPE_VBLANK)
-			drm_handle_vblank(dev, pipe);
+		if (pipe_iir & GEN8_PIPE_VBLANK &&
+		    drm_handle_vblank(dev, pipe))
+			intel_check_page_flip(dev, pipe);
 
 		if (pipe_iir & GEN8_PIPE_FLIP_DONE) {
 			intel_prepare_page_flip(dev, pipe);
@@ -2358,52 +2362,6 @@ void i915_handle_error(struct drm_device *dev, bool wedged)
 	 * code will deadlock.
 	 */
 	schedule_work(&dev_priv->gpu_error.work);
-}
-
-static void __always_unused i915_pageflip_stall_check(struct drm_device *dev, int pipe)
-{
-	drm_i915_private_t *dev_priv = dev->dev_private;
-	struct drm_crtc *crtc = dev_priv->pipe_to_crtc_mapping[pipe];
-	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
-	struct drm_i915_gem_object *obj;
-	struct intel_unpin_work *work;
-	unsigned long flags;
-	bool stall_detected;
-
-	/* Ignore early vblank irqs */
-	if (intel_crtc == NULL)
-		return;
-
-	spin_lock_irqsave(&dev->event_lock, flags);
-	work = intel_crtc->unpin_work;
-
-	if (work == NULL ||
-	    atomic_read(&work->pending) >= INTEL_FLIP_COMPLETE ||
-	    !work->enable_stall_check) {
-		/* Either the pending flip IRQ arrived, or we're too early. Don't check */
-		spin_unlock_irqrestore(&dev->event_lock, flags);
-		return;
-	}
-
-	/* Potential stall - if we see that the flip has happened, assume a missed interrupt */
-	obj = work->pending_flip_obj;
-	if (INTEL_INFO(dev)->gen >= 4) {
-		int dspsurf = DSPSURF(intel_crtc->plane);
-		stall_detected = I915_HI_DISPBASE(I915_READ(dspsurf)) ==
-					i915_gem_obj_ggtt_offset(obj);
-	} else {
-		int dspaddr = DSPADDR(intel_crtc->plane);
-		stall_detected = I915_READ(dspaddr) == (i915_gem_obj_ggtt_offset(obj) +
-							crtc->y * crtc->primary->fb->pitches[0] +
-							crtc->x * crtc->primary->fb->bits_per_pixel/8);
-	}
-
-	spin_unlock_irqrestore(&dev->event_lock, flags);
-
-	if (stall_detected) {
-		DRM_DEBUG_DRIVER("Pageflip stall detected\n");
-		intel_prepare_page_flip(dev, intel_crtc->plane);
-	}
 }
 
 /* Called from drm generic code, passed 'crtc' which
@@ -3367,7 +3325,7 @@ static bool i8xx_handle_vblank(struct drm_device *dev,
 		return false;
 
 	if ((iir & flip_pending) == 0)
-		return false;
+		goto check_page_flip;
 
 	intel_prepare_page_flip(dev, plane);
 
@@ -3378,11 +3336,14 @@ static bool i8xx_handle_vblank(struct drm_device *dev,
 	 * an interrupt per se, we watch for the change at vblank.
 	 */
 	if (I915_READ16(ISR) & flip_pending)
-		return false;
+		goto check_page_flip;
 
 	intel_finish_page_flip(dev, pipe);
-
 	return true;
+
+check_page_flip:
+	intel_check_page_flip(dev, pipe);
+	return false;
 }
 
 static irqreturn_t i8xx_irq_handler(int irq, void *arg)
@@ -3554,7 +3515,7 @@ static bool i915_handle_vblank(struct drm_device *dev,
 		return false;
 
 	if ((iir & flip_pending) == 0)
-		return false;
+		goto check_page_flip;
 
 	intel_prepare_page_flip(dev, plane);
 
@@ -3565,11 +3526,14 @@ static bool i915_handle_vblank(struct drm_device *dev,
 	 * an interrupt per se, we watch for the change at vblank.
 	 */
 	if (I915_READ(ISR) & flip_pending)
-		return false;
+		goto check_page_flip;
 
 	intel_finish_page_flip(dev, pipe);
-
 	return true;
+
+check_page_flip:
+	intel_check_page_flip(dev, pipe);
+	return false;
 }
 
 static irqreturn_t i915_irq_handler(int irq, void *arg)
