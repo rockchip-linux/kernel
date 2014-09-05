@@ -15,6 +15,8 @@
  */
 
 #include <linux/clk/tegra.h>
+#include <linux/cpu.h>
+#include <linux/cpu_pm.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/smp.h>
@@ -40,6 +42,37 @@
 
 #define HALT_REG_CORE1 FLOW_CTRL_WAITEVENT
 
+#define BG_CLR_SHIFT    16
+#define BG_STATUS_SHIFT 32
+
+static bool denver_get_bg_allowed(int cpu)
+{
+	unsigned long regval;
+
+	asm volatile("mrs %0, s3_0_c15_c0_2" : "=r" (regval) : );
+	regval = (regval >> BG_STATUS_SHIFT) & 0xffff;
+
+	return !!(regval & (1 << cpu));
+}
+
+static void denver_set_bg_allowed(int cpu, bool enable)
+{
+	unsigned long regval;
+
+	BUG_ON(cpu >= num_present_cpus());
+
+	regval = 1 << cpu;
+	if (!enable)
+		regval <<= BG_CLR_SHIFT;
+
+	asm volatile("msr s3_0_c15_c0_2, %0" : : "r" (regval));
+
+	/* Flush all background work for disable */
+	if (!enable)
+		while (denver_get_bg_allowed(cpu))
+			;
+}
+
 static void tegra132_enter_sleep(unsigned long pmstate)
 {
 	u32 reg;
@@ -60,6 +93,37 @@ static void tegra132_enter_sleep(unsigned long pmstate)
 }
 
 #ifdef CONFIG_PM_SLEEP
+static int cpu_pm_notify(struct notifier_block *self,
+					 unsigned long action, void *hcpu)
+{
+	int cpu = smp_processor_id();
+
+	switch (action) {
+	case CPU_CLUSTER_PM_ENTER:
+		denver_set_bg_allowed(cpu, false);
+		break;
+	case CPU_CLUSTER_PM_EXIT:
+		denver_set_bg_allowed(cpu, true);
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpu_pm_notifier_block = {
+	.notifier_call = cpu_pm_notify,
+};
+
+static int __init tegra132_cpu_pm_notifier_init(void)
+{
+	if (!soc_is_tegra() || tegra_get_chip_id() != TEGRA132)
+		goto out;
+	cpu_pm_register_notifier(&cpu_pm_notifier_block);
+out:
+	return 0;
+}
+late_initcall(tegra132_cpu_pm_notifier_init);
+
 static void tegra132_sleep_core_finish(unsigned long arg)
 {
 	tegra132_enter_sleep(TEGRA132_PM_SYSTEM_LP0);
@@ -79,6 +143,37 @@ void tegra132_sleep_core_init(void)
 #endif
 
 #ifdef CONFIG_HOTPLUG_CPU
+static int cpu_hotplug_notify(struct notifier_block *self,
+					 unsigned long action, void *hcpu)
+{
+	long cpu = (long) hcpu;
+
+	switch (action) {
+	case CPU_DOWN_PREPARE:
+		denver_set_bg_allowed(cpu, false);
+		break;
+	case CPU_ONLINE:
+		denver_set_bg_allowed(cpu, true);
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpu_hotplug_notifier_block = {
+	.notifier_call = cpu_hotplug_notify,
+};
+
+static int __init tegra132_cpu_hotplug_notifier_init(void)
+{
+	if (!soc_is_tegra() || tegra_get_chip_id() != TEGRA132)
+		goto out;
+	register_hotcpu_notifier(&cpu_hotplug_notifier_block);
+out:
+	return 0;
+}
+late_initcall(tegra132_cpu_hotplug_notifier_init);
+
 static int tegra132_cpu_off(unsigned long cpu)
 {
 	tegra132_enter_sleep(TEGRA132_PM_CORE_C7);
