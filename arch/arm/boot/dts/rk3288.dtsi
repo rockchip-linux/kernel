@@ -177,7 +177,7 @@
 	};
 
 	spi0: spi@ff110000 {
-		compatible = "rockchip,rk3066-spi";
+		compatible = "rockchip,rk3288-spi", "rockchip,rk3066-spi";
 		clocks = <&cru SCLK_SPI0>, <&cru PCLK_SPI0>;
 		clock-names = "spiclk", "apb_pclk";
 		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
@@ -190,7 +190,7 @@
 	};
 
 	spi1: spi@ff120000 {
-		compatible = "rockchip,rk3066-spi";
+		compatible = "rockchip,rk3288-spi", "rockchip,rk3066-spi";
 		clocks = <&cru SCLK_SPI1>, <&cru PCLK_SPI1>;
 		clock-names = "spiclk", "apb_pclk";
 		interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
@@ -203,7 +203,7 @@
 	};
 
 	spi2: spi@ff130000 {
-		compatible = "rockchip,rk3066-spi";
+		compatible = "rockchip,rk3288-spi", "rockchip,rk3066-spi";
 		clocks = <&cru SCLK_SPI2>, <&cru PCLK_SPI2>;
 		clock-names = "spiclk", "apb_pclk";
 		interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
