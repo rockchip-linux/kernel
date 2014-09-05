@@ -944,12 +944,24 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		goto err;
 
 	if (oldcard) {
-		if (memcmp(cid, oldcard->raw_cid, sizeof(cid)) != 0) {
+		/*
+		 * When comparing the CID, we should exclude the product
+		 * revision (Field PRV, offset 55:48), because it can change if
+		 * the firmware is upgraded. The new CRC can then be different.
+		 * Therefore we test if offset 8 - 48 and 128 - 56 are checked.
+		 */
+		if ((cid[0] != oldcard->raw_cid[0]) ||
+		    (cid[1] != oldcard->raw_cid[1]) ||
+		    ((cid[2] & 0xFF00FFFF) !=
+		     (oldcard->raw_cid[2] & 0xFF00FFFF)) ||
+		    ((cid[3] & 0xFFFFFF00) !=
+		     (oldcard->raw_cid[3] & 0xFFFFFF00))) {
 			err = -ENOENT;
 			goto err;
 		}
 
 		card = oldcard;
+		memcpy(card->raw_cid, cid, sizeof(cid));
 	} else {
 		/*
 		 * Allocate card structure.
@@ -994,10 +1006,10 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		err = mmc_decode_csd(card);
 		if (err)
 			goto free_card;
-		err = mmc_decode_cid(card);
-		if (err)
-			goto free_card;
 	}
+	err = mmc_decode_cid(card);
+	if (err)
+		goto free_card;
 
 	/*
 	 * Select card, as all following commands rely on that.
