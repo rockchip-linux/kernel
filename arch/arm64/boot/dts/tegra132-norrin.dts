@@ -1823,9 +1823,17 @@
 		};
 	};
 
-	cpu_edp {
+	cpu_edp: cpu_edp {
 		compatible = "nvidia,tegra132-cpu-edp";
 		nvidia,edp-limit = <16800>;
+	};
+
+	cpu_edp_cdev_cap {
+		compatible = "nvidia,tegra132-cpu-edp-cdev-action";
+		act-dev = <&cpu_edp>;
+		cdev-type = "CPU-EDP-cap";
+
+		#cooling-cells = <2>; /* min followed by max */
 	};
 
 	thermal-zones {
