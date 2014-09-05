@@ -605,7 +605,10 @@
 
 	soctherm: soctherm@0,700e2000 {
 		compatible = "nvidia,tegra132-soctherm";
-		reg = <0x0 0x700e2000 0x0 0x1000>;
+		reg = <0x0 0x700e2000 0x0 0x1000 /* 0: SOC_THERM reg_base */
+			0x0 0x60006000 0x0 0x400 /* 1: T124: CAR reg_base */
+			0x0 0x70040000 0x0 0x200>; /* 2: T132: CCROC reg_base */
+		reg-names = "soctherm-reg", "car-reg", "ccroc-reg";
 		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&tegra_car TEGRA124_CLK_TSENSOR>,
 			<&tegra_car TEGRA124_CLK_SOC_THERM>;
@@ -615,21 +618,23 @@
 
 		#thermal-sensor-cells = <1>;
 
-		thermtrip {
-			  sensor-groups {
-				  cpu {
-					  temperature = <105000>;
-				  };
-				  gpu {
-					  temperature = <102000>;
-				  };
-				  mem {
-					  temperature = <102000>;
-				  };
-				  pll {
-					  temperature = <98000>;
-				  };
-			  };
+		hw-trips {
+			sensor-groups {
+				cpu {
+					therm-temp = <105000>;
+					throt-temp = <101000>;
+				};
+				gpu {
+					therm-temp = <102000>;
+					throt-temp = <99000>;
+				};
+				mem {
+					therm-temp = <102000>;
+				};
+				pll {
+					therm-temp = <98000>;
+				};
+			};
 		};
 	};
 
