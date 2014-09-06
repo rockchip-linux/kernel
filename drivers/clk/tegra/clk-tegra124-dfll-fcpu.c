@@ -86,7 +86,13 @@ static const struct cvb_table tegra124_cpu_cvb_tables[] = {
 /* Maximum CPU frequency, indexed by CPU speedo id */
 static const unsigned long tegra132_max_freq_table[] = {
 	/* We don't support A01 (speedo id == 1) */
+
+	/* Artifically limit max CPU frequency without thermal throttling */
+#if 0
 	[1] = 2499000000UL,
+#else
+	[1] = 1938000000UL,
+#endif
 };
 
 static const struct cvb_table tegra132_cpu_cvb_tables[] = {
