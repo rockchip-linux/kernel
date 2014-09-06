@@ -576,8 +576,8 @@
 				cap-sd-highspeed;
 				cap-mmc-highspeed;
 				vmmc-supply = <&vsdcc_fixed>;
-				#dmas = <&sdcc1bam 2>, <&sdcc1bam 1>;
-				#dma-names = "tx", "rx";
+				dmas = <&sdcc1bam 2>, <&sdcc1bam 1>;
+				dma-names = "tx", "rx";
 			};
 
 			sdcc3: sdcc@12180000 {
@@ -596,8 +596,8 @@
 				#mmc-ddr-1_8v;
 				sd-uhs-sdr50;
 				vmmc-supply = <&vsdcc_fixed>;
-				#dmas = <&sdcc3bam 2>, <&sdcc3bam 1>;
-				#dma-names = "tx", "rx";
+				dmas = <&sdcc3bam 2>, <&sdcc3bam 1>;
+				dma-names = "tx", "rx";
 			};
 		};
 	};
