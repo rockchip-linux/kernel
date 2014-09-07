@@ -22,6 +22,8 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
 
@@ -59,7 +61,7 @@ struct clk_slow_rc_osc {
 
 struct clk_sam9260_slow {
 	struct clk_hw hw;
-	struct at91_pmc *pmc;
+	struct regmap *regmap;
 };
 
 #define to_clk_sam9260_slow(hw) container_of(hw, struct clk_sam9260_slow, hw)
@@ -393,8 +395,11 @@ void __init of_at91sam9x5_clk_slow_setup(struct device_node *np,
 static u8 clk_sam9260_slow_get_parent(struct clk_hw *hw)
 {
 	struct clk_sam9260_slow *slowck = to_clk_sam9260_slow(hw);
+	unsigned int status;
 
-	return !!(pmc_read(slowck->pmc, AT91_PMC_SR) & AT91_PMC_OSCSEL);
+	regmap_read(slowck->regmap, AT91_PMC_SR, &status);
+
+	return status & AT91_PMC_OSCSEL ? 1 : 0;
 }
 
 static const struct clk_ops sam9260_slow_ops = {
@@ -402,7 +407,7 @@ static const struct clk_ops sam9260_slow_ops = {
 };
 
 static struct clk * __init
-at91_clk_register_sam9260_slow(struct at91_pmc *pmc,
+at91_clk_register_sam9260_slow(struct regmap *regmap,
 			       const char *name,
 			       const char **parent_names,
 			       int num_parents)
@@ -411,7 +416,7 @@ at91_clk_register_sam9260_slow(struct at91_pmc *pmc,
 	struct clk *clk = NULL;
 	struct clk_init_data init;
 
-	if (!pmc || !name)
+	if (!name)
 		return ERR_PTR(-EINVAL);
 
 	if (!parent_names || !num_parents)
@@ -428,7 +433,7 @@ at91_clk_register_sam9260_slow(struct at91_pmc *pmc,
 	init.flags = 0;
 
 	slowck->hw.init = &init;
-	slowck->pmc = pmc;
+	slowck->regmap = regmap;
 
 	clk = clk_register(NULL, &slowck->hw);
 	if (IS_ERR(clk))
@@ -439,29 +444,34 @@ at91_clk_register_sam9260_slow(struct at91_pmc *pmc,
 	return clk;
 }
 
-void __init of_at91sam9260_clk_slow_setup(struct device_node *np,
-					  struct at91_pmc *pmc)
+static void __init of_at91sam9260_clk_slow_setup(struct device_node *np)
 {
 	struct clk *clk;
 	const char *parent_names[2];
 	int num_parents;
 	const char *name = np->name;
+	struct regmap *regmap;
 
 	num_parents = of_clk_get_parent_count(np);
 	if (num_parents != 2)
 		return;
 
 	of_clk_parent_fill(np, parent_names, num_parents);
+	regmap = syscon_node_to_regmap(of_get_parent(np));
+	if (IS_ERR(regmap))
+		return;
 
 	of_property_read_string(np, "clock-output-names", &name);
 
-	clk = at91_clk_register_sam9260_slow(pmc, name, parent_names,
+	clk = at91_clk_register_sam9260_slow(regmap, name, parent_names,
 					     num_parents);
 	if (IS_ERR(clk))
 		return;
 
 	of_clk_add_provider(np, of_clk_src_simple_get, clk);
 }
+CLK_OF_DECLARE(at91sam9260_clk_slow, "atmel,at91sam9260-clk-slow",
+	       of_at91sam9260_clk_slow_setup);
 
 /*
  * FIXME: All slow clk users are not properly claiming it (get + prepare +
