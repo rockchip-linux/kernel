@@ -18,7 +18,6 @@
  */
 
 #include <linux/acpi.h>
-#include <linux/async.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/firmware.h>
@@ -90,9 +89,6 @@ struct elan_tp_data {
 	u8			min_baseline;
 	u8			max_baseline;
 	bool			baseline_ready;
-
-	async_cookie_t		async_init_cookie;
-	bool			initialized;
 
 	/* touchpad is active or off based on irq */
 	bool			active;
@@ -878,9 +874,28 @@ out:
  */
 static int elan_setup_input_device(struct elan_tp_data *data)
 {
-	struct input_dev *input = data->input;
+	struct device *dev = &data->client->dev;
+	struct input_dev *input;
 	unsigned int max_width = max(data->width_x, data->width_y);
 	unsigned int min_width = min(data->width_x, data->width_y);
+	int error;
+
+	input = devm_input_allocate_device(dev);
+	if (!input)
+		return -ENOMEM;
+
+	input->name = "Elan Touchpad";
+	input->id.bustype = BUS_I2C;
+	input->inhibit = elan_inhibit;
+	input->uninhibit = elan_uninhibit;
+	input_set_drvdata(input, data);
+
+	error = input_mt_init_slots(input, ETP_MAX_FINGERS,
+				    INPUT_MT_POINTER | INPUT_MT_DROP_UNUSED);
+	if (error) {
+		dev_err(dev, "failed to initialize MT slots: %d\n", error);
+		return error;
+	}
 
 	__set_bit(EV_ABS, input->evbit);
 	__set_bit(INPUT_PROP_POINTER, input->propbit);
@@ -907,97 +922,9 @@ static int elan_setup_input_device(struct elan_tp_data *data)
 	input_set_abs_params(input, ABS_MT_TOUCH_MINOR, 0,
 			     ETP_FINGER_WIDTH * min_width, 0, 0);
 
+	data->input = input;
+
 	return 0;
-}
-
-static void elan_async_init(void *arg, async_cookie_t cookie)
-{
-	struct elan_tp_data *data = arg;
-	struct i2c_client *client = data->client;
-	unsigned long irqflags;
-	int error;
-
-	/* Initialize the touchpad. */
-	error = elan_initialize(data);
-	if (error)
-		goto err_out;
-
-	error = elan_query_device_info(data);
-	if (error)
-		goto err_out;
-
-	error = elan_query_device_parameters(data);
-	if (error)
-		goto err_out;
-
-	dev_dbg(&client->dev,
-		"Elan Touchpad Information:\n"
-		"    Module product ID:  0x%04x\n"
-		"    Firmware Version:  0x%04x\n"
-		"    Sample Version:  0x%04x\n"
-		"    IAP Version:  0x%04x\n"
-		"    Max ABS X,Y:   %d,%d\n"
-		"    Width X,Y:   %d,%d\n"
-		"    Resolution X,Y:   %d,%d (dots/mm)\n",
-		data->product_id,
-		data->fw_version,
-		data->sm_version,
-		data->iap_version,
-		data->max_x, data->max_y,
-		data->width_x, data->width_y,
-		data->x_res, data->y_res);
-
-	/* Set up input device properties based on queried parameters. */
-	error = elan_setup_input_device(data);
-	if (error)
-		goto err_out;
-
-	error = input_register_device(data->input);
-	if (error) {
-		dev_err(&client->dev, "failed to register input device: %d\n",
-			error);
-		goto err_out;
-	}
-
-	/*
-	 * Systems using device tree should set up interrupt via DTS,
-	 * the rest will use the default falling edge interrupts.
-	 */
-	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
-
-	error = devm_request_threaded_irq(&client->dev, client->irq,
-					  NULL, elan_isr,
-					  irqflags | IRQF_ONESHOT,
-					  client->name, data);
-	if (error) {
-		dev_err(&client->dev, "cannot register irq=%d\n", client->irq);
-		goto err_unregister_input;
-	}
-
-	data->active = true;
-
-	error = sysfs_create_groups(&client->dev.kobj, elan_sysfs_groups);
-	if (error) {
-		dev_err(&client->dev, "failed to create sysfs attributes: %d\n",
-			error);
-		goto err_free_irq;
-	}
-
-	data->initialized = true;
-
-	return;
-
-err_free_irq:
-	devm_free_irq(&client->dev, client->irq, data);
-err_unregister_input:
-	/*
-	 * Even though input device is managed we want to explicitly
-	 * unregister it here so we do not end up with input device
-	 * but without corresponding sysfs attributes.
-	 */
-	input_unregister_device(data->input);
-err_out:
-	dev_err(&client->dev, "Elan Trackpad probe failed: %d\n", error);
 }
 
 static void elan_disable_regulator(void *_data)
@@ -1007,13 +934,20 @@ static void elan_disable_regulator(void *_data)
 	regulator_disable(data->vcc);
 }
 
+static void elan_remove_sysfs_groups(void *_data)
+{
+	struct elan_tp_data *data = _data;
+
+	sysfs_remove_groups(&data->client->dev.kobj, elan_sysfs_groups);
+}
+
 static int elan_probe(struct i2c_client *client,
 		      const struct i2c_device_id *dev_id)
 {
 	const struct elan_transport_ops *transport_ops;
 	struct device *dev = &client->dev;
 	struct elan_tp_data *data;
-	struct input_dev *input;
+	unsigned long irqflags;
 	int error;
 
 	if (IS_ENABLED(CONFIG_MOUSE_ELAN_I2C_I2C) &&
@@ -1042,29 +976,6 @@ static int elan_probe(struct i2c_client *client,
 	init_completion(&data->fw_completion);
 	mutex_init(&data->sysfs_mutex);
 
-	data->input = input = devm_input_allocate_device(&client->dev);
-	if (!input)
-		return -ENOMEM;
-
-	input->name = "Elan Touchpad";
-	input->id.bustype = BUS_I2C;
-	input->dev.parent = &data->client->dev;
-	input->inhibit = elan_inhibit;
-	input->uninhibit = elan_uninhibit;
-	input_set_drvdata(input, data);
-
-	error = input_mt_init_slots(input, ETP_MAX_FINGERS,
-				    INPUT_MT_POINTER | INPUT_MT_DROP_UNUSED);
-	if (error) {
-		dev_err(&client->dev, "allocate MT slots failed, %d\n", error);
-		return error;
-	}
-
-	/*
-	 * The rest of input device's parameters will be set later,
-	 * in asynchronous portion of probe.
-	 */
-
 	data->vcc = devm_regulator_get(&client->dev, "vcc");
 	if (IS_ERR(data->vcc)) {
 		error = PTR_ERR(data->vcc);
@@ -1092,6 +1003,82 @@ static int elan_probe(struct i2c_client *client,
 		return error;
 	}
 
+	/* Initialize the touchpad. */
+	error = elan_initialize(data);
+	if (error)
+		return error;
+
+	error = elan_query_device_info(data);
+	if (error)
+		return error;
+
+	error = elan_query_device_parameters(data);
+	if (error)
+		return error;
+
+	dev_dbg(&client->dev,
+		"Elan Touchpad Information:\n"
+		"    Module product ID:  0x%04x\n"
+		"    Firmware Version:  0x%04x\n"
+		"    Sample Version:  0x%04x\n"
+		"    IAP Version:  0x%04x\n"
+		"    Max ABS X,Y:   %d,%d\n"
+		"    Width X,Y:   %d,%d\n"
+		"    Resolution X,Y:   %d,%d (dots/mm)\n",
+		data->product_id,
+		data->fw_version,
+		data->sm_version,
+		data->iap_version,
+		data->max_x, data->max_y,
+		data->width_x, data->width_y,
+		data->x_res, data->y_res);
+
+	/* Set up input device properties based on queried parameters. */
+	error = elan_setup_input_device(data);
+	if (error)
+		return error;
+
+	/*
+	 * Systems using device tree should set up interrupt via DTS,
+	 * the rest will use the default falling edge interrupts.
+	 */
+	irqflags = client->dev.of_node ? 0 : IRQF_TRIGGER_FALLING;
+
+	error = devm_request_threaded_irq(&client->dev, client->irq,
+					  NULL, elan_isr,
+					  irqflags | IRQF_ONESHOT,
+					  client->name, data);
+	if (error) {
+		dev_err(&client->dev, "cannot register irq=%d\n", client->irq);
+		return error;
+	}
+
+	data->active = true;
+
+	error = sysfs_create_groups(&client->dev.kobj, elan_sysfs_groups);
+	if (error) {
+		dev_err(&client->dev, "failed to create sysfs attributes: %d\n",
+			error);
+		return error;
+	}
+
+	error = devm_add_action(&client->dev,
+				elan_remove_sysfs_groups, data);
+	if (error) {
+		elan_remove_sysfs_groups(data);
+		dev_err(&client->dev,
+			"Failed to add sysfs cleanup action: %d\n",
+			error);
+		return error;
+	}
+
+	error = input_register_device(data->input);
+	if (error) {
+		dev_err(&client->dev, "failed to register input device: %d\n",
+			error);
+		return error;
+	}
+
 	/*
 	 * Systems using device tree should set up wakeup via DTS,
 	 * the rest will configure device as wakeup source by default.
@@ -1101,29 +1088,6 @@ static int elan_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, data);
 
-	/* Do slower init steps asynchronously. */
-	data->async_init_cookie = async_schedule(elan_async_init, data);
-
-	return 0;
-}
-
-static int elan_remove(struct i2c_client *client)
-{
-	struct elan_tp_data *data = i2c_get_clientdata(client);
-
-	/*
-	 * First let's make sure our asynchronous probe has completed.
-	 * Note that async_synchronize_cookie ensures that calls
-	 * happened _prior_ to the one for which a cookie was given
-	 * out have completed, but we need to make sure that _our_
-	 * call is done.
-	 */
-	async_synchronize_cookie(data->async_init_cookie + 1);
-
-	if (data->initialized)
-		sysfs_remove_groups(&client->dev.kobj, elan_sysfs_groups);
-
-	/* The rest of resources are managed ones. */
 	return 0;
 }
 
@@ -1199,9 +1163,9 @@ static struct i2c_driver elan_driver = {
 		.pm	= &elan_pm_ops,
 		.acpi_match_table = ACPI_PTR(elan_acpi_id),
 		.of_match_table = of_match_ptr(elan_of_match),
+		.async_probe = true,
 	},
 	.probe		= elan_probe,
-	.remove		= elan_remove,
 	.id_table	= elan_id,
 };
 
