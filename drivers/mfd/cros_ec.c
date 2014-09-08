@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/delay.h>
+#include <cros_ec_dev.h>
 
 #define EC_COMMAND_RETRIES	50
 #define EC_RETRY_DELAY_MS	10
@@ -391,12 +392,41 @@ static int cros_ec_accel_register(struct cros_ec_device *ec_dev)
 		return -ENODEV;
 }
 
-static const struct mfd_cell cros_devs[] = {
-	{
-		.id = 0,
+static int cros_ec_dev_register(struct cros_ec_device *ec_dev,
+				int dev_id, int devidx)
+{
+	struct device *dev = ec_dev->dev;
+	struct cros_ec_platform ec_p = {
+		.cmd_offset = 0,
+	};
+	struct mfd_cell ec_cell = {
 		.name = "cros-ec-dev",
-	},
-};
+		.id = 0,
+		.platform_data = &ec_p,
+		.pdata_size = sizeof(ec_p),
+	};
+	switch (devidx) {
+	case 0:
+#ifdef CONFIG_OF
+		ec_p.ec_name = of_get_property(dev->of_node, "devname", NULL);
+		if (ec_p.ec_name == NULL) {
+			dev_dbg(dev, "Name of device not found, using default");
+			ec_p.ec_name = CROS_EC_DEV_NAME;
+		}
+#else
+		ec_p.ec_name = CROS_EC_DEV_NAME;
+#endif
+		break;
+	case 1:
+		ec_p.ec_name = CROS_EC_DEV_PD_NAME;
+		break;
+	default:
+		return -EINVAL;
+	}
+	ec_p.cmd_offset = EC_CMD_PASSTHRU_OFFSET(devidx);
+	return mfd_add_devices(dev, dev_id, &ec_cell, 1,
+			       NULL, ec_dev->irq, NULL);
+}
 
 int cros_ec_register(struct cros_ec_device *ec_dev)
 {
@@ -404,6 +434,11 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	int err = 0;
 #ifdef CONFIG_OF
 	struct device_node *node;
+	char name[128];
+	struct mfd_cell cell = {
+		.name = name,
+		.id = 0,
+	};
 #endif
 
 	ec_dev->max_request = sizeof(struct ec_params_hello);
@@ -411,7 +446,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	ec_dev->max_passthru = 0;
 
 	ec_dev->din = devm_kzalloc(dev, ec_dev->din_size, GFP_KERNEL);
-	ec_dev->id = dev_id;
 	if (!ec_dev->din)
 		return -ENOMEM;
 	ec_dev->dout = devm_kzalloc(dev, ec_dev->dout_size, GFP_KERNEL);
@@ -423,18 +457,27 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	mutex_init(&ec_dev->lock);
 
 	cros_ec_probe_all(ec_dev);
-
-	err = mfd_add_devices(dev, dev_id, cros_devs, ARRAY_SIZE(cros_devs),
-			      NULL, ec_dev->irq, NULL);
+	err = cros_ec_dev_register(ec_dev, dev_id++, 0);
 	if (err) {
-		dev_err(dev, "failed to add mfd devices\n");
+		dev_err(dev, "failed to add ec\n");
 		return err;
 	}
-	dev_id += ARRAY_SIZE(cros_devs);
 
-	err = cros_ec_accel_register(ec_dev);
-	if (err && err != -ENODEV)
-		dev_err(dev, "failed to add cros-ec-accel mfd devices\n");
+	if (ec_dev->max_passthru) {
+		/*
+		 * Register a PD device as well on top of this device.
+		 * We make the following assumptions:
+		 * - behind an EC, we have a pd
+		 * - only one device added.
+		 * - the EC is responsive at init time (it is not true for a
+		 *   sensor hub.
+		 */
+		err = cros_ec_dev_register(ec_dev, dev_id++, 1);
+		if (err) {
+			dev_err(dev, "failed to add additional ec\n");
+			return err;
+		}
+	}
 
 #ifdef CONFIG_OF
 	/*
@@ -442,12 +485,6 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	 * declared in cros_devs
 	 */
 	for_each_child_of_node(dev->of_node, node) {
-		char name[128];
-		struct mfd_cell cell = {
-			.id = 0,
-			.name = name,
-		};
-
 		if (of_modalias_node(node, name, sizeof(name)) < 0) {
 			dev_err(dev, "modalias failure on %s\n",
 				node->full_name);
@@ -461,6 +498,10 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 			dev_err(dev, "fail to add %s\n", node->full_name);
 	}
 #endif
+
+	err = cros_ec_accel_register(ec_dev);
+	if (err && err != -ENODEV)
+		dev_err(dev, "failed to add cros-ec-accel mfd devices\n");
 
 	dev_info(dev, "Chrome EC device registered\n");
 

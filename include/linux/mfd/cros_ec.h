@@ -56,11 +56,8 @@ enum {
 /**
  * struct cros_ec_device - Information about a ChromeOS EC device
  *
- * @ec_name: name of EC device (e.g. 'chromeos-ec')
  * @phys_name: name of physical comms layer (e.g. 'i2c-4')
  * @dev: Device pointer for physical comms device
- * @vdev: Device pointer for virtual comms device
- * @cdev: Character device structure for virtual comms device
  * @was_wake_device: true if this device was set to wake the system from
  * sleep at the last suspend
  * @cmd_read_mem: direct read of the EC memory-mapped region, if supported
@@ -93,11 +90,8 @@ enum {
 struct cros_ec_device {
 
 	/* These are used by other drivers that want to talk to the EC */
-	const char *ec_name;
 	const char *phys_name;
 	struct device *dev;
-	struct device *vdev;
-	struct cdev cdev;
 	bool was_wake_device;
 	struct class *cros_class;
 	int (*cmd_readmem)(struct cros_ec_device *ec, unsigned int offset,
@@ -116,7 +110,6 @@ struct cros_ec_device {
 	u16 proto_version;
 	void *priv;
 	int irq;
-	int id;
 	u8 *din;
 	u8 *dout;
 	int din_size;

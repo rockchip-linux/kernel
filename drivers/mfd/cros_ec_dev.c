@@ -17,8 +17,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define pr_fmt(fmt) "cros_ec_dev: " fmt
-
 #include <linux/compat.h>
 #include <linux/delay.h>
 #include <linux/device.h>
@@ -29,19 +27,31 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/printk.h>
+#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 
 #include "cros_ec_dev.h"
 
 /* Device variables */
-#define CROS_CLASS_NAME "chromeos"
 #define CROS_MAX_DEV 128
-static struct class *cros_class;
 static int ec_major;
 
+static const struct attribute_group *cros_ec_groups[] = {
+	&cros_ec_attr_group,
+	&cros_ec_lightbar_attr_group,
+	NULL,
+};
+
+static struct class cros_class = {
+	.owner          = THIS_MODULE,
+	.name           = "chromeos",
+	.dev_groups     = cros_ec_groups,
+};
+
+
 /* Basic communication */
-static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
+static int ec_get_version(struct cros_ec_dev *ec, char *str, int maxlen)
 {
 	struct ec_response_get_version resp;
 	static const char * const current_image_name[] = {
@@ -57,7 +67,7 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 	};
 	int ret;
 
-	ret = cros_ec_cmd_xfer(ec, &msg);
+	ret = cros_ec_cmd_xfer(ec->ec_dev, &msg);
 	if (ret < 0)
 		return ret;
 	if (msg.result != EC_RES_SUCCESS) {
@@ -78,8 +88,11 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 /* Device file ops */
 static int ec_device_open(struct inode *inode, struct file *filp)
 {
-	filp->private_data = container_of(inode->i_cdev,
-			struct cros_ec_device, cdev);
+
+	struct cros_ec_dev *ec = container_of(inode->i_cdev,
+			struct cros_ec_dev, cdev);
+	filp->private_data = ec;
+	nonseekable_open(inode, filp);
 	return 0;
 }
 
@@ -91,7 +104,7 @@ static int ec_device_release(struct inode *inode, struct file *filp)
 static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 			      size_t length, loff_t *offset)
 {
-	struct cros_ec_device *ec = filp->private_data;
+	struct cros_ec_dev *ec = filp->private_data;
 	char msg[sizeof(struct ec_response_get_version) +
 		 sizeof(CROS_EC_DEV_VERSION)];
 	size_t count;
@@ -114,7 +127,7 @@ static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 
 
 /* Ioctls */
-static long ec_device_ioctl_xcmd(struct cros_ec_device *ec, void __user *argp)
+static long ec_device_ioctl_xcmd(struct cros_ec_dev *ec, void __user *argp)
 {
 	long ret;
 	struct cros_ec_command s_cmd;
@@ -128,9 +141,10 @@ static long ec_device_ioctl_xcmd(struct cros_ec_device *ec, void __user *argp)
 		return -EFAULT;
 
 	user_indata = s_cmd.indata;
+	s_cmd.command += ec->cmd_offset;
 	s_cmd.indata = buf;
 	s_cmd.outdata = buf;
-	ret = cros_ec_cmd_xfer(ec, &s_cmd);
+	ret = cros_ec_cmd_xfer(ec->ec_dev, &s_cmd);
 	s_cmd.indata = user_indata;
 
 	/* Only copy data to userland if data was received. */
@@ -147,20 +161,21 @@ static long ec_device_ioctl_xcmd(struct cros_ec_device *ec, void __user *argp)
 	return ret;
 }
 
-static long ec_device_ioctl_readmem(struct cros_ec_device *ec,
+static long ec_device_ioctl_readmem(struct cros_ec_dev *ec,
 				    void __user *argp)
 {
+	struct cros_ec_device *ec_dev = ec->ec_dev;
 	struct cros_ec_readmem s_mem;
 	char buf[EC_MEMMAP_SIZE];
 	long num;
 
 	/* Not every platform supports direct reads */
-	if (!ec->cmd_readmem)
+	if (!ec_dev->cmd_readmem)
 		return -ENOTTY;
 
 	if (copy_from_user(&s_mem, argp, sizeof(s_mem)))
 		return -EFAULT;
-	num = ec->cmd_readmem(ec, s_mem.offset, s_mem.bytes, buf);
+	num = ec_dev->cmd_readmem(ec_dev, s_mem.offset, s_mem.bytes, buf);
 	if (num <= 0)
 		return num;
 	if (copy_to_user((void __user *)s_mem.buffer, buf, num))
@@ -172,7 +187,7 @@ static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
 {
 	void __user *argp = (void __user *)arg;
-	struct cros_ec_device *ec = filp->private_data;
+	struct cros_ec_dev *ec = filp->private_data;
 
 	if (_IOC_TYPE(cmd) != CROS_EC_DEV_IOC)
 		return -ENOTTY;
@@ -209,21 +224,23 @@ struct compat_cros_ec_readmem {
 #define CROS_EC_DEV_COMPAT_IOCXCMD  _IOWR(':', 0, struct compat_cros_ec_command)
 #define CROS_EC_DEV_COMPAT_IOCRDMEM _IOWR(':', 1, struct compat_cros_ec_readmem)
 
-static long ec_device_compat_ioctl_readmem(struct cros_ec_device *ec,
+static long ec_device_compat_ioctl_readmem(struct cros_ec_dev *ec,
 					   void __user *argp)
 {
 	struct compat_cros_ec_readmem compat_s_mem;
+	struct cros_ec_device *ec_dev = ec->ec_dev;
 	char buf[EC_MEMMAP_SIZE];
 	long num;
 
 	/* Not every platform supports direct reads */
-	if (!ec->cmd_readmem)
+	if (!ec_dev->cmd_readmem)
 		return -ENOTTY;
 
 	if (copy_from_user(&compat_s_mem, argp, sizeof(compat_s_mem)))
 		return -EFAULT;
 
-	num = ec->cmd_readmem(ec, compat_s_mem.offset, compat_s_mem.bytes, buf);
+	num = ec_dev->cmd_readmem(ec_dev, compat_s_mem.offset,
+				  compat_s_mem.bytes, buf);
 	if (num <= 0)
 		return num;
 
@@ -232,7 +249,7 @@ static long ec_device_compat_ioctl_readmem(struct cros_ec_device *ec,
 	return num;
 }
 
-static long ec_device_compat_ioctl_xcmd(struct cros_ec_device *ec,
+static long ec_device_compat_ioctl_xcmd(struct cros_ec_dev *ec,
 					void __user *argp)
 {
 	long ret;
@@ -244,7 +261,7 @@ static long ec_device_compat_ioctl_xcmd(struct cros_ec_device *ec,
 		return -EFAULT;
 
 	s_cmd.version = compat_s_cmd.version;
-	s_cmd.command = compat_s_cmd.command;
+	s_cmd.command = compat_s_cmd.command + ec->cmd_offset;
 	s_cmd.insize = compat_s_cmd.insize;
 	s_cmd.outsize = compat_s_cmd.outsize;
 
@@ -254,7 +271,7 @@ static long ec_device_compat_ioctl_xcmd(struct cros_ec_device *ec,
 
 	s_cmd.indata = buf;
 	s_cmd.outdata = buf;
-	ret = cros_ec_cmd_xfer(ec, &s_cmd);
+	ret = cros_ec_cmd_xfer(ec->ec_dev, &s_cmd);
 
 	compat_s_cmd.result = s_cmd.result;
 
@@ -275,7 +292,7 @@ static long ec_device_compat_ioctl_xcmd(struct cros_ec_device *ec,
 static long ec_device_compat_ioctl(struct file *filp, unsigned int cmd,
 				   unsigned long arg)
 {
-	struct cros_ec_device *ec = filp->private_data;
+	struct cros_ec_dev *ec = filp->private_data;
 	void __user
 	*argp = (void __user *)arg;
 	switch (cmd) {
@@ -292,6 +309,7 @@ static long ec_device_compat_ioctl(struct file *filp, unsigned int cmd,
 
 /* Module initialization */
 static const struct file_operations fops = {
+	.owner = THIS_MODULE,
 	.open = ec_device_open,
 	.release = ec_device_release,
 	.read = ec_device_read,
@@ -301,48 +319,81 @@ static const struct file_operations fops = {
 #endif
 };
 
+static void __remove(struct device *dev)
+{
+	struct cros_ec_dev *ec = container_of(
+			dev, struct cros_ec_dev, class_dev);
+	kfree(ec);
+}
+
 static int ec_device_probe(struct platform_device *pdev)
 {
-	int retval = -ENOTTY;
-	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
-	dev_t devno = MKDEV(ec_major, ec->id);
+	int retval = -ENOMEM;
+	struct device *dev = &pdev->dev;
+	struct cros_ec_platform *ec_platform = dev_get_platdata(dev);
+	dev_t devno = MKDEV(ec_major, pdev->id);
 
-	/* Instantiate it (and remember the EC) */
+	struct cros_ec_dev *ec = kzalloc(sizeof(*ec), GFP_KERNEL);
+	if (ec == NULL) {
+		dev_err(&pdev->dev, ": failed to allocate memory\n");
+		return retval;
+	}
+
+	dev_set_drvdata(dev, ec);
+	ec->ec_dev = dev_get_drvdata(dev->parent);
+	ec->dev = dev;
+	ec->cmd_offset = ec_platform->cmd_offset;
+	device_initialize(&ec->class_dev);
 	cdev_init(&ec->cdev, &fops);
-	ec->cdev.owner = THIS_MODULE;
 
+	/*
+	 * Add the character device
+	 * Link cdev to the class device to be sure device is not used
+	 * before unbinding it.
+	 */
+	ec->cdev.kobj.parent = &ec->class_dev.kobj;
 	retval = cdev_add(&ec->cdev, devno, 1);
 	if (retval) {
-		dev_err(&pdev->dev, ": failed to add character device\n");
-		return retval;
+		dev_err(dev, ": failed to add character device\n");
+		goto cdev_add_failed;
 	}
 
-	ec->vdev = device_create(cros_class, NULL, devno,
-			ec, CROS_EC_DEV_NAME "%d", ec->id);
-	if (IS_ERR(ec->vdev)) {
-		retval = PTR_ERR(ec->vdev);
-		dev_err(&pdev->dev, ": failed to create device\n");
-		cdev_del(&ec->cdev);
-		return retval;
+	/*
+	 * Add the class device
+	 * Link to the character device for creating the /dev entry
+	 * in devtmpfs.
+	 */
+	ec->class_dev.devt = ec->cdev.dev;
+	ec->class_dev.class = &cros_class;
+	ec->class_dev.parent = dev;
+	ec->class_dev.release = __remove;
+	retval = dev_set_name(&ec->class_dev, "%s", ec_platform->ec_name);
+	if (retval) {
+		dev_err(dev, "dev_set_name failed => %d\n", retval);
+		goto set_named_failed;
 	}
-
-	/* Initialize extra interfaces */
-	ec_dev_sysfs_init(ec);
-	ec_dev_lightbar_init(ec);
+	retval = device_add(&ec->class_dev);
+	if (retval) {
+		dev_err(dev, "device_register failed => %d\n", retval);
+		goto dev_reg_failed;
+	}
 
 	return 0;
-
+dev_reg_failed:
+set_named_failed:
+	dev_set_drvdata(dev, NULL);
+	cdev_del(&ec->cdev);
+cdev_add_failed:
+	kfree(ec);
 	return retval;
+
 }
 
 static int ec_device_remove(struct platform_device *pdev)
 {
-	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
-	ec_dev_lightbar_remove(ec);
-	ec_dev_sysfs_remove(ec);
-
-	device_destroy(cros_class, MKDEV(ec_major, ec->id));
+	struct cros_ec_dev *ec = dev_get_drvdata(&pdev->dev);
 	cdev_del(&ec->cdev);
+	device_unregister(&ec->class_dev);
 	return 0;
 }
 
@@ -360,10 +411,9 @@ static int __init cros_ec_dev_init(void)
 	int ret;
 	dev_t dev = 0;
 
-	cros_class = class_create(THIS_MODULE, CROS_CLASS_NAME);
-	if (IS_ERR(cros_class)) {
+	ret  = class_register(&cros_class);
+	if (ret) {
 		pr_err(CROS_EC_DEV_NAME ": failed to register device class\n");
-		ret = PTR_ERR(cros_class);
 		goto failed_class;
 	}
 
@@ -386,7 +436,7 @@ static int __init cros_ec_dev_init(void)
 failed_devreg:
 	unregister_chrdev_region(MKDEV(ec_major, 0), CROS_MAX_DEV);
 failed_chrdevreg:
-	class_destroy(cros_class);
+	class_unregister(&cros_class);
 failed_class:
 	return ret;
 }
@@ -395,7 +445,7 @@ static void __exit cros_ec_dev_exit(void)
 {
 	platform_driver_unregister(&cros_ec_dev_driver);
 	unregister_chrdev_region(MKDEV(ec_major, 0), CROS_MAX_DEV);
-	class_destroy(cros_class);
+	class_unregister(&cros_class);
 }
 
 module_init(cros_ec_dev_init);
