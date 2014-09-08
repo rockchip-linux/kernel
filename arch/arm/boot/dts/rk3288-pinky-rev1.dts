@@ -205,6 +205,10 @@
 	};
 };
 
+&cpu0 {
+	cpu0-supply = <&vdd_cpu>;
+};
+
 &emmc {
 	broken-cd;
 	bus-width = <8>;
@@ -321,7 +325,7 @@
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
-				regulator-max-microvolt = <1300000>;
+				regulator-max-microvolt = <1350000>;
 				regulator-name = "vdd_arm";
 				regulator-ramp-delay = <2000>;
 			};
