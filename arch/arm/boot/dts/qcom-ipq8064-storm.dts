@@ -327,5 +327,11 @@
 			local-mac-address = [000000000000];
 			mdiobus = <&mdio0>;
 		};
+
+		switch0: qca8337-lite {
+			device-type = "network";
+			compatible = "qca8337-lite";
+			mdiobus = <&mdio0>;
+		};
 	};
 };
