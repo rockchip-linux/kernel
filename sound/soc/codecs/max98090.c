@@ -2226,7 +2226,7 @@ static void max98090_pll_work(struct work_struct *work)
 	unsigned int pll;
 	int i;
 
-	if (!codec->active)
+	if (!snd_soc_codec_is_active(codec))
 		return;
 
 	for (i = 0; i < 10; i++) {
