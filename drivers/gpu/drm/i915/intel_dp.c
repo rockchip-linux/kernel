@@ -3252,7 +3252,7 @@ static void intel_attach_psr_property(struct drm_connector *connector)
 	if (prop == NULL) {
 		prop = drm_property_create_enum(
 			dev,
-			i915_enable_psr ? EDP_PSR_ON : EDP_PSR_OFF,
+			0,
 			"psr",
 			psr_names,
 			ARRAY_SIZE(psr_names));
@@ -3261,7 +3261,8 @@ static void intel_attach_psr_property(struct drm_connector *connector)
 
 		dev_priv->psr_property = prop;
 	}
-	drm_object_attach_property(&connector->base, prop, 0);
+	drm_object_attach_property(&connector->base, prop,
+				   i915_enable_psr ? EDP_PSR_ON : EDP_PSR_OFF);
 }
 
 static bool
