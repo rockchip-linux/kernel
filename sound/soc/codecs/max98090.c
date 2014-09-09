@@ -914,7 +914,7 @@ static int put_dmic_mux_shdn(struct snd_kcontrol *kcontrol,
 	struct max98090_shdn_state state;
 
 	max98090_shdn_save(codec, &state);
-	ret = snd_soc_dapm_put_enum_virt(kcontrol, ucontrol);
+	ret = snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
 	max98090_shdn_restore(codec, &state);
 
 	return ret;
@@ -922,7 +922,7 @@ static int put_dmic_mux_shdn(struct snd_kcontrol *kcontrol,
 
 static const struct snd_kcontrol_new max98090_dmic_mux =
 	SOC_DAPM_ENUM_EXT("DMIC Mux", dmic_mux_enum,
-		snd_soc_dapm_get_enum_virt, put_dmic_mux_shdn);
+			snd_soc_dapm_get_enum_double, put_dmic_mux_shdn);
 
 static const char *max98090_micpre_text[] = { "Off", "On" };
 
