@@ -1767,6 +1767,8 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 
 			zone->tz = tz;
 			tegra->thermctl_tzs[i] = tz;
+
+			thermal_update_governor(tz, "pid_thermal_gov");
 		}
 	}
 
