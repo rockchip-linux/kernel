@@ -54,6 +54,7 @@
 		sh: cros-ec@1f {
 			compatible = "google,cros-ec-i2c";
 			reg = <0x1f>;
+			devname = "cros_sh";
 
 			interrupt-parent = <&gpio>;
 			interrupts = <TEGRA_GPIO(W, 2) IRQ_TYPE_LEVEL_LOW>;
