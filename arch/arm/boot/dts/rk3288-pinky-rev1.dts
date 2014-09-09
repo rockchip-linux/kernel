@@ -430,6 +430,7 @@
 };
 
 &i2c4 {
+	clock-frequency = <400000>;
 	status = "okay";
 
 	trackpad@15 {
