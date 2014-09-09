@@ -1111,19 +1111,19 @@ static int find_matching_input(struct emc_table *table)
 	src_value = emc_src_val(table->src_sel_reg);
 
 	if (div_value & 0x1) {
-		pr_warn("Tegra124: invalid odd divider for EMC rate %lu\n",
+		pr_warn("Tegra EMC: invalid odd divider for EMC rate %lu\n",
 			table->rate);
 		return -EINVAL;
 	}
 
 	if (src_value >= __clk_get_num_parents(emc_clk)) {
-		pr_warn("Tegra124: no matching input found for EMC rate %lu\n",
+		pr_warn("Tegra EMC: no matching input found for rate %lu\n",
 			table->rate);
 		return -EINVAL;
 	}
 
 	if (div_value && (table->src_sel_reg & EMC_CLK_LOW_JITTER_ENABLE)) {
-		pr_warn("Tegra124: invalid LJ path for EMC rate %lu\n",
+		pr_warn("Tegra EMC: invalid LJ path for EMC rate %lu\n",
 			table->rate);
 		return -EINVAL;
 	}
@@ -1131,7 +1131,7 @@ static int find_matching_input(struct emc_table *table)
 	if (!(table->src_sel_reg & EMC_CLK_MC_SAME_FREQ) !=
 		!(MC_EMEM_ARB_MISC0_EMC_SAME_FREQ &
 		table->burst_regs[MC_EMEM_ARB_MISC0_INDEX])) {
-		pr_warn("Tegra124: ambiguous EMC to MC ratio for rate %lu\n",
+		pr_warn("Tegra EMC: ambiguous EMC to MC ratio for rate %lu\n",
 			table->rate);
 		return -EINVAL;
 	}
@@ -1143,7 +1143,7 @@ static int find_matching_input(struct emc_table *table)
 	else {
 		input_rate = clk_get_rate(input_clk);
 		if (input_rate != (table->rate * (1 + div_value / 2))) {
-			pr_warn("Tegra124: EMC rate %lu does not match input\n",
+			pr_warn("Tegra EMC: rate %lu doesn't match input\n",
 				table->rate);
 			return -EINVAL;
 		}
@@ -1364,20 +1364,20 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 
 	emc_clk = devm_clk_get(&pdev->dev, "emc");
 	if (IS_ERR(emc_clk)) {
-		pr_err("Tegra124: Can not find EMC clock\n");
+		dev_err(&pdev->dev, "Can not find EMC clock\n");
 		return -EINVAL;
 	}
 	emc_boot_rate = clk_get_rate(emc_clk);
 
 	emc_override_clk = devm_clk_get(&pdev->dev, "emc_override");
 	if (IS_ERR(emc_override_clk))
-		pr_err("Tegra124: Can not find EMC override clock\n");
+		dev_err(&pdev->dev, "Cannot find EMC override clock\n");
 
 	for (i = 0; i < TEGRA_EMC_SRC_COUNT; i++) {
 		tegra_emc_src[i] = devm_clk_get(&pdev->dev,
 			tegra_emc_src_names[i]);
 		if (IS_ERR(tegra_emc_src[i])) {
-			pr_err("Tegra124: Can not find EMC source clock\n");
+			dev_err(&pdev->dev, "Can not find EMC source clock\n");
 			return -ENODATA;
 		}
 	}
@@ -1393,15 +1393,18 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 	tegra_dram_dev_num = (tegra124_mc_readl(MC_EMEM_ADR_CFG) & 0x1) + 1;
 
 	if (tegra_dram_type != DRAM_TYPE_DDR3) {
-		pr_err("Tegra124: DRAM not supported\n");
+		dev_err(&pdev->dev, "DRAM not supported\n");
 		return -ENODATA;
 	}
 
 	tegra124_parse_dt_data(pdev);
 
 	if (!tegra_emc_table_size ||
-		tegra_emc_table_size > TEGRA_EMC_TABLE_MAX_SIZE)
+		tegra_emc_table_size > TEGRA_EMC_TABLE_MAX_SIZE) {
+		dev_err(&pdev->dev, "Error invalid table size %d\n",
+			tegra_emc_table_size);
 		return -EINVAL;
+	}
 
 	old_rate = clk_get_rate(emc_clk);
 
@@ -1427,7 +1430,7 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 
 	purge_emc_table();
 
-	pr_info("Tegra124: validated EMC DFS table\n");
+	dev_info(&pdev->dev, "validated EMC DFS table\n");
 
 	val = emc_readl(EMC_CFG_2) & (~EMC_CFG_2_MODE_MASK);
 	val |= ((tegra_dram_type == DRAM_TYPE_LPDDR2) ? EMC_CFG_2_PD_MODE :
@@ -1459,41 +1462,51 @@ static int tegra124_emc_probe(struct platform_device *pdev)
 
 	mc_np = of_parse_phandle(pdev->dev.of_node, "nvidia,mc", 0);
 	if (!mc_np) {
-		ret = -EINVAL;
-		goto out;
+		dev_err(&pdev->dev, "Error parsing MC phandle.\n");
+		return -EINVAL;
 	}
 
 	mc_dev = of_find_device_by_node(mc_np);
 	if (!mc_dev) {
+		dev_err(&pdev->dev, "Error finding MC device.\n");
 		ret = -EINVAL;
-		goto out;
+		goto err_mc;
 	}
+
 	if (!mc_dev->dev.driver) {
+		dev_err(&pdev->dev, "Error MC driver not ready.\n");
 		ret = -EPROBE_DEFER;
-		goto out;
+		goto err_mc;
 	}
 
 	car_np = of_parse_phandle(pdev->dev.of_node, "clocks", 0);
 	if (!car_np) {
+		dev_err(&pdev->dev, "Error parsing clocks phandle.");
 		ret = -EINVAL;
-		goto out;
+		goto err_mc;
 	}
 
 	car_dev = of_find_device_by_node(car_np);
 	if (!car_dev) {
+		dev_err(&pdev->dev, "Error finding clocks device.");
 		ret = -EINVAL;
-		goto out;
+		goto err_car;
 	}
 
 	tegra_pmc_regs = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
 							 "nvidia,pmc");
 	if (IS_ERR(tegra_pmc_regs)) {
+		dev_err(&pdev->dev, "Error finding PMC regmap.");
 		ret = PTR_ERR(tegra_pmc_regs);
-		goto out;
+		goto err_car;
 	}
 	ret = regmap_read(tegra_pmc_regs, STRAPPING_OPT_A, &val);
-	if (ret < 0)
-		goto out;
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Error reading PMC reg 0x%d\n",
+			STRAPPING_OPT_A);
+		goto err_car;
+	}
+
 	tegra_ram_code = (val & STRAPPING_OPT_A_RAM_CODE_MASK) >>
 		STRAPPING_OPT_A_RAM_CODE_SHIFT;
 	dev_info(&pdev->dev, "Ram code %u\n", tegra_ram_code);
@@ -1502,14 +1515,18 @@ static int tegra124_emc_probe(struct platform_device *pdev)
 	tegra_emc_base = of_iomap(pdev->dev.of_node, 0);
 
 	ret = tegra124_init_emc_data(pdev);
-
-out:
-	if (mc_np)
-		of_node_put(mc_np);
-	if (car_np)
-		of_node_put(car_np);
+	if (ret)
+		goto err_car;
 
 	tegra_emc_init_done = true;
+
+	return 0;
+
+err_car:
+	of_node_put(car_np);
+err_mc:
+	of_node_put(mc_np);
+
 	return ret;
 }
 
