@@ -296,6 +296,7 @@
 						regulator-max-microvolt = <1150000>;
 						regulator-always-on;
 						regulator-boot-on;
+						ti,roof-floor = <3>;
 					};
 
 					palmas_smps8: smps8 {
