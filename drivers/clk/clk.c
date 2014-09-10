@@ -1477,6 +1477,7 @@ static struct clk *clk_propagate_rate_change(struct clk *clk, unsigned long even
 	case PRE_RATE_CHANGE:
 		if (clk->safe_parent)
 			clk->ops->set_parent(clk->hw, clk->safe_parent_index);
+		clk->old_rate = clk->rate;
 		break;
 	case POST_RATE_CHANGE:
 		if (clk->safe_parent) {
@@ -1499,8 +1500,8 @@ static struct clk *clk_propagate_rate_change(struct clk *clk, unsigned long even
 	}
 
 	if (clk->notifier_count) {
-		if (event != POST_RATE_CHANGE)
-			ret = __clk_notify(clk, event, clk->rate,
+		if (event != POST_RATE_CHANGE || clk->old_rate != clk->rate)
+			ret = __clk_notify(clk, event, clk->old_rate,
 					   clk->new_rate);
 		if (ret & NOTIFY_STOP_MASK && event != POST_RATE_CHANGE)
 			fail_clk = clk;

@@ -40,6 +40,7 @@ struct clk {
 	u8			new_parent_index;
 	u8			safe_parent_index;
 	unsigned long		rate;
+	unsigned long		old_rate;
 	unsigned long		new_rate;
 	struct clk		*safe_parent;
 	struct clk		*new_parent;
