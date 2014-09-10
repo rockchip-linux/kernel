@@ -556,6 +556,8 @@
 			linux,code = <KEY_POWER>;
 			debounce-interval = <30>;
 			gpio-key,wakeup;
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 51 PMC_TRIGGER_TYPE_NONE>;
 		};
 
 		lid {
@@ -564,6 +566,8 @@
 			linux,input-type = <5>; /* EV_SW */
 			linux,code = <0>; /* SW_LID */
 			gpio-key,wakeup;
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 32 PMC_TRIGGER_TYPE_NONE>;
 		};
 
 		dock {
@@ -572,6 +576,8 @@
 			linux,input-type = <5>; /* EV_SW */
 			linux,code = <5>; /* SW_DOCK */
 			gpio-key,wakeup;
+			nvidia,pmc-wakeup = <&pmc
+				PMC_WAKE_TYPE_GPIO 56 PMC_TRIGGER_TYPE_NONE>;
 		};
 
 		volume_down {
