@@ -1392,7 +1392,8 @@ static int tegra124_init_emc_data(struct platform_device *pdev)
 
 	tegra_dram_dev_num = (tegra124_mc_readl(MC_EMEM_ADR_CFG) & 0x1) + 1;
 
-	if (tegra_dram_type != DRAM_TYPE_DDR3) {
+	if (tegra_dram_type != DRAM_TYPE_DDR3 &&
+	    tegra_dram_type != DRAM_TYPE_LPDDR2) {
 		dev_err(&pdev->dev, "DRAM not supported\n");
 		return -ENODATA;
 	}
