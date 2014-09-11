@@ -902,18 +902,30 @@ static void dfll_init_i2c_if(struct tegra_dfll *td)
 static void dfll_init_out_if(struct tegra_dfll *td)
 {
 	u32 val;
+	int index, mv;
 
 	td->thermal_floor_output = 0;
 	if (td->soc->get_thermal_floor) {
-		int mv = td->soc->get_thermal_floor(0);
+		index = 0;
+		mv = td->soc->get_thermal_floor(index);
+		if (IS_ERR_VALUE(mv)) {
+			dev_err(td->dev, "failed to get default thermal floor\n");
+			return;
+		}
 		td->thermal_floor_output = find_mv_out_cap(td, mv);
+		td->thermal_floor_index = index;
 	}
 
 	td->thermal_cap_output = td->i2c_lut_size - 1;
 	if (td->soc->get_thermal_cap) {
-		int mv = td->soc->get_thermal_cap(
-					td->soc->thermal_cap_table_size - 1);
+		index = td->soc->thermal_cap_table_size - 1;
+		mv = td->soc->get_thermal_cap(index);
+		if (IS_ERR_VALUE(mv)) {
+			dev_err(td->dev, "failed to get default thermal cap\n");
+			return;
+		}
 		td->thermal_cap_output = find_mv_out_floor(td, mv);
+		td->thermal_cap_index = index;
 	}
 
 	set_dvco_rate_min(td);
