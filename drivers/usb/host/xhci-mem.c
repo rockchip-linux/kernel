@@ -1711,6 +1711,7 @@ void xhci_mem_cleanup(struct xhci_hcd *xhci)
 
 	if (xhci->lpm_command)
 		xhci_free_command(xhci, xhci->lpm_command);
+	xhci->lpm_command = NULL;
 	xhci->cmd_ring_reserved_trbs = 0;
 	if (xhci->cmd_ring)
 		xhci_ring_free(xhci, xhci->cmd_ring);
