@@ -840,4 +840,18 @@
 			     <GIC_PPI 10
 				(GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
 	};
+
+	dfll_cdev_cap {
+		compatible = "nvidia,tegra-dfll-cdev-action";
+		act-dev = <&dfll>;
+		cdev-type = "DFLL-cap";
+		#cooling-cells = <2>; /* min followed by max */
+	};
+
+	dfll_cdev_floor {
+		compatible = "nvidia,tegra-dfll-cdev-action";
+		act-dev = <&dfll>;
+		cdev-type = "DFLL-floor";
+		#cooling-cells = <2>; /* min followed by max */
+	};
 };
