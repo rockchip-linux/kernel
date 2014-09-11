@@ -30,6 +30,11 @@ Required properties (LPC):
 - compatible: "google,cros-ec-lpc"
 - reg: List of (IO address, size) pairs defining the interface uses
 
+Optional properties (All):
+- devname: name of the EC. Can be based on its function: for instance,
+  for Sensor Hub, 'cros_sh', for Power Delivery MCU 'cros_pd'.
+  If not present, 'cros_ec' can be assumed.
+
 
 Example for I2C:
 
