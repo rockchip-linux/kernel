@@ -22,6 +22,12 @@ to deliver its interrupts via SPIs.
 - always-on : a boolean property. If present, the timer is powered through an
   always-on power domain, therefore it never loses context.
 
+** Optional properties:
+
+- arm,use-physical-timer : Don't ever use the virtual timer, just use the
+  physical one.  Only supported for ARM (not ARM64).
+
+
 Example:
 
 	timer {
