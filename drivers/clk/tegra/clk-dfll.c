@@ -38,6 +38,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/clkdev.h>
 #include <linux/clk-provider.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -1367,8 +1368,16 @@ static int dfll_register_clk(struct tegra_dfll *td)
 		goto out_unregister_clk;
 	}
 
+	ret = clk_register_clkdev(td->dfll_clk, td->output_clock_name, NULL);
+	if (ret) {
+		dev_err(td->dev, "DFLL clkdev registration error\n");
+		goto out_del_clk_provider;
+	}
+
 	return 0;
 
+out_del_clk_provider:
+	of_clk_del_provider(td->dev->of_node);
 out_unregister_clk:
 	clk_unregister(td->dfll_clk);
 
