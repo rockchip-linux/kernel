@@ -10,6 +10,7 @@
 
 /dts-v1/;
 #include <dt-bindings/clock/rockchip,rk808.h>
+#include <dt-bindings/input/input.h>
 #include "rk3288.dtsi"
 
 / {
@@ -73,16 +74,23 @@
 		autorepeat;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwrbtn>;
-
-		button@0 {
+		pinctrl-0 = <&pwr_key_h &lid_int>;
+		power {
+			label = "Power";
 			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
-			linux,code = <116>;
-			label = "GPIO Key Power";
-			linux,input-type = <1>;
-			gpio-key,wakeup = <1>;
+			linux,code = <KEY_POWER>;
 			debounce-interval = <100>;
+			gpio-key,wakeup;
 		};
+
+		lid {
+			label = "Lid";
+			gpios = <&gpio7 13 GPIO_ACTIVE_LOW>;
+			linux,code = <0>; /* SW_LID */
+			linux,input-type = <5>; /* EV_SW */
+			debounce-interval = <1>;
+			gpio-key,wakeup;
+                };
 	};
 
 	gpio-restart {
@@ -489,8 +497,12 @@
 	};
 
 	buttons {
-		pwrbtn: pwrbtn {
+		pwr_key_h: pwr-key-h {
 			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		lid_int: lid-int {
+			rockchip,pins = <7 13 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
