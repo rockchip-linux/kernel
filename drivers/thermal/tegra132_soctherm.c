@@ -37,7 +37,7 @@
 #define		SENSOR_HOTSPOT_GPU_MASK		(0xff << 8)
 #define		SENSOR_HOTSPOT_MEM_MASK		(0xff << 0)
 
-#define FUSE_CP_REV				0x190
+#define FUSE_CP_REV				0x90
 
 static struct tegra_tsensor_configuration tegra132_tsensor_config = {
 	.tall = 16300,
