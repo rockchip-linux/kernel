@@ -46,7 +46,7 @@ config SND_SOC_TEGRA20_SPDIF
 
 config SND_SOC_TEGRA30_AHUB
 	tristate
-	depends on SND_SOC_TEGRA && ARCH_TEGRA_3x_SOC
+	depends on SND_SOC_TEGRA && (ARCH_TEGRA_3x_SOC || ARCH_TEGRA_132_SOC)
 	help
 	  Say Y or M if you want to add support for the Tegra20 AHUB module.
 	  You will also need to select the individual machine drivers to
@@ -54,7 +54,7 @@ config SND_SOC_TEGRA30_AHUB
 
 config SND_SOC_TEGRA30_I2S
 	tristate
-	depends on SND_SOC_TEGRA && ARCH_TEGRA_3x_SOC
+	depends on SND_SOC_TEGRA && (ARCH_TEGRA_3x_SOC || ARCH_TEGRA_132_SOC)
 	select SND_SOC_TEGRA30_AHUB
 	help
 	  Say Y or M if you want to add support for codecs attached to the
@@ -133,7 +133,7 @@ config SND_SOC_TEGRA_RT5677
 	tristate "SoC Audio support for Tegra boards using a RT5677 codec"
 	depends on SND_SOC_TEGRA && I2C && GPIOLIB
 	select SND_SOC_TEGRA20_I2S if ARCH_TEGRA_2x_SOC
-	select SND_SOC_TEGRA30_I2S if ARCH_TEGRA_3x_SOC
+	select SND_SOC_TEGRA30_I2S if (ARCH_TEGRA_3x_SOC || ARCH_TEGRA_132_SOC)
 	select SND_SOC_RT5677
 	help
 	  Say Y or M here if you want to add support for SoC audio on Tegra
