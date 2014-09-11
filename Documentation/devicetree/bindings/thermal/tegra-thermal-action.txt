@@ -1,0 +1,16 @@
+* Tegra thermal reaction node
+
+** Required properties:
+
+- compatible : "nvidia,tegra-dfll-cdev-action".
+- act-dev: Node of the device which will implement the real cooling action.
+- cdev-type: Name of the cooling device. Valid values are "DFLL-floor" and
+             "DFLL-cap".
+
+Example node:
+
+dfll_cdev_floor {
+	compatible = "nvidia,tegra-dfll-cdev-action";
+	act-dev = <&{/dfll@70110000}>;
+	cdev-type = "DFLL-floor";
+};

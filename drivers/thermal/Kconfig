@@ -208,6 +208,16 @@ config TEGRA132_SOCTHERM
 	  zones to manage temperatures. This option is also required for the
 	  emergency thermal reset (thermtrip) feature to function.
 
+config TEGRA_DFLL_THERMAL_REACTION
+	bool "Tegra DFLL thermal reaction driver"
+	depends on THERMAL
+	depends on ARCH_TEGRA_124_SOC || ARCH_TEGRA_132_SOC
+	help
+	  Enable this to add the ability to automatically adjust the
+	  DFLL's minimum voltage floor, based on the SoC temperature.
+	  As the SoC temperature increases, the minimum voltage floor
+	  can decrease, reducing energy consumption.
+
 config DB8500_CPUFREQ_COOLING
 	tristate "DB8500 cpufreq cooling"
 	depends on ARCH_U8500
