@@ -3775,6 +3775,34 @@ static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 	return 0;
 }
 
+static unsigned long long rt5677_parse_acpi_entry(struct device *dev,
+		const char *name)
+{
+	acpi_handle handle = ACPI_HANDLE(dev);
+	unsigned long long val;
+	acpi_status status;
+
+	status = acpi_evaluate_integer(handle, name, NULL, &val);
+	if (ACPI_FAILURE(status)) {
+		dev_err(dev, "Failed to parse ACPI entry %s, default to 0: %d\n",
+				name, status);
+		return 0;
+	}
+	return val;
+}
+
+static void rt5677_parse_acpi(struct rt5677_priv *rt5677, struct device *dev)
+{
+	rt5677->pdata.dmic2_clk_pin = (enum rt5677_dmic2_clk)
+		rt5677_parse_acpi_entry(dev, "DCLK");
+	rt5677->pdata.in1_diff = (bool)rt5677_parse_acpi_entry(dev, "IN1");
+	rt5677->pdata.in2_diff = (bool)rt5677_parse_acpi_entry(dev, "IN2");
+	rt5677->pdata.lout1_diff = (bool)rt5677_parse_acpi_entry(dev, "OUT1");
+	rt5677->pdata.lout2_diff = (bool)rt5677_parse_acpi_entry(dev, "OUT2");
+	rt5677->pdata.lout3_diff = (bool)rt5677_parse_acpi_entry(dev, "OUT3");
+	rt5677->pdata.asrc_en = (bool)rt5677_parse_acpi_entry(dev, "ASRC");
+}
+
 static int rt5677_i2c_probe(struct i2c_client *i2c,
 		    const struct i2c_device_id *id)
 {
@@ -3793,6 +3821,7 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 	if (pdata)
 		rt5677->pdata = *pdata;
 
+	rt5677->pow_ldo2 = -EINVAL;
 	if (i2c->dev.of_node) {
 		ret = rt5677_parse_dt(rt5677, i2c->dev.of_node);
 		if (ret) {
@@ -3800,8 +3829,8 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 				ret);
 			return ret;
 		}
-	} else {
-		rt5677->pow_ldo2 = -EINVAL;
+	} else if (ACPI_HANDLE(&i2c->dev)) {
+		rt5677_parse_acpi(rt5677, &i2c->dev);
 	}
 
 	if (gpio_is_valid(rt5677->pow_ldo2)) {
