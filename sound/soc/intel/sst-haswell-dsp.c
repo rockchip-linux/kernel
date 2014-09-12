@@ -302,11 +302,9 @@ static int hsw_set_dsp_D0(struct sst_dsp *sst)
 finish:
 	hsw_reset(sst);
 
-	/* switch on audio PLL, DRAM & IRAM blocks */
-	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
-	reg &= ~(SST_VDRTCL0_APLLSE_MASK | SST_VDRTCL0_DSRAMPGE_MASK |
-		SST_VDRTCL0_ISRAMPGE_MASK);
-	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL0);
+	/* set default power gating control, enable power gating control for all blocks. that is,
+	can't be accessed, please enable each block before accessing. */
+	writel(0xffffffff, sst->addr.pci_cfg + SST_VDRTCTL0);
 
 	/* select SSP1 19.2MHz base clock, SSP clock 0, turn off Low Power Clock */
 	sst_dsp_shim_update_bits_unlocked(sst, SST_CSR,
