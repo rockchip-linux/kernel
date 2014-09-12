@@ -356,6 +356,8 @@ struct tegra_dfll {
 	unsigned int	thermal_floor_index;
 	unsigned int	thermal_cap_output;
 	unsigned int	thermal_cap_index;
+
+	spinlock_t	lock;
 };
 
 #define clk_hw_to_dfll(_hw) container_of(_hw, struct tegra_dfll, dfll_clk_hw)
@@ -642,6 +644,9 @@ static void dfll_tune_timer_cb(unsigned long data)
 {
 	struct tegra_dfll *td = (struct tegra_dfll *)data;
 	u32 val, out_min, out_last;
+	unsigned long flags;
+
+	spin_lock_irqsave(&td->lock, flags);
 
 	if (td->tune_range == DFLL_TUNE_WAIT_DFLL) {
 		out_min = td->lut_min;
@@ -661,6 +666,8 @@ static void dfll_tune_timer_cb(unsigned long data)
 	} else if (td->tune_range == DFLL_TUNE_WAIT_PMIC) {
 		dfll_tune_high(td);
 	}
+
+	spin_unlock_irqrestore(&td->lock, flags);
 }
 
 /*
@@ -1133,18 +1140,22 @@ static void dfll_set_frequency_request(struct tegra_dfll *td,
  */
 static int dfll_request_rate(struct tegra_dfll *td, unsigned long rate)
 {
-	int ret;
+	int ret = 0;
 	struct dfll_rate_req req;
+	unsigned long flags;
+
+	spin_lock_irqsave(&td->lock, flags);
 
 	if (td->mode == DFLL_UNINITIALIZED) {
 		dev_err(td->dev, "%s: Cannot set DFLL rate in %s mode\n",
 			__func__, mode_name[td->mode]);
-		return -EPERM;
+		ret = -EPERM;
+		goto error;
 	}
 
 	ret = dfll_calculate_rate_request(td, &req, rate);
 	if (ret)
-		return ret;
+		goto error;
 
 	td->last_req = req;
 
@@ -1153,7 +1164,9 @@ static int dfll_request_rate(struct tegra_dfll *td, unsigned long rate)
 		dfll_set_frequency_request(td, &td->last_req);
 	}
 
-	return 0;
+error:
+	spin_unlock_irqrestore(&td->lock, flags);
+	return ret;
 }
 
 /*
@@ -1169,13 +1182,18 @@ static int dfll_request_rate(struct tegra_dfll *td, unsigned long rate)
  */
 static int dfll_disable(struct tegra_dfll *td)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&td->lock, flags);
 	if (td->mode != DFLL_OPEN_LOOP) {
 		dev_err(td->dev, "cannot disable DFLL in %s mode\n",
 			mode_name[td->mode]);
+		spin_unlock_irqrestore(&td->lock, flags);
 		return -EINVAL;
 	}
-
 	dfll_set_mode(td, DFLL_DISABLED);
+	spin_unlock_irqrestore(&td->lock, flags);
+
 	pm_runtime_put_sync(td->dev);
 
 	return 0;
@@ -1190,14 +1208,22 @@ static int dfll_disable(struct tegra_dfll *td)
  */
 static int dfll_enable(struct tegra_dfll *td)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&td->lock, flags);
 	if (td->mode != DFLL_DISABLED) {
 		dev_err(td->dev, "cannot enable DFLL in %s mode\n",
 			mode_name[td->mode]);
+		spin_unlock_irqrestore(&td->lock, flags);
 		return -EPERM;
 	}
+	spin_unlock_irqrestore(&td->lock, flags);
 
 	pm_runtime_get_sync(td->dev);
+
+	spin_lock_irqsave(&td->lock, flags);
 	dfll_set_mode(td, DFLL_OPEN_LOOP);
+	spin_unlock_irqrestore(&td->lock, flags);
 
 	return 0;
 }
@@ -1213,30 +1239,39 @@ static int dfll_enable(struct tegra_dfll *td)
 static int dfll_lock(struct tegra_dfll *td)
 {
 	struct dfll_rate_req *req = &td->last_req;
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&td->lock, flags);
 
 	switch (td->mode) {
 	case DFLL_CLOSED_LOOP:
-		return 0;
+		break;
 
 	case DFLL_OPEN_LOOP:
 		if (req->rate == 0) {
 			dev_err(td->dev, "%s: Cannot lock DFLL at rate 0\n",
 				__func__);
-			return -EINVAL;
+			ret = -EINVAL;
+			break;
 		}
 
 		dfll_i2c_set_output_enabled(td, true);
 		dfll_set_mode(td, DFLL_CLOSED_LOOP);
 		dfll_set_close_loop_config(td, req);
 		dfll_set_frequency_request(td, req);
-		return 0;
+		break;
 
 	default:
 		BUG_ON(td->mode > DFLL_CLOSED_LOOP);
 		dev_err(td->dev, "%s: Cannot lock DFLL in %s mode\n",
 			__func__, mode_name[td->mode]);
-		return -EPERM;
+		ret = -EPERM;
+		break;
 	}
+
+	spin_unlock_irqrestore(&td->lock, flags);
+	return ret;
 }
 
 /**
@@ -1248,22 +1283,31 @@ static int dfll_lock(struct tegra_dfll *td)
  */
 static int dfll_unlock(struct tegra_dfll *td)
 {
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&td->lock, flags);
+
 	switch (td->mode) {
 	case DFLL_CLOSED_LOOP:
 		dfll_set_open_loop_config(td);
 		dfll_set_mode(td, DFLL_OPEN_LOOP);
 		dfll_i2c_set_output_enabled(td, false);
-		return 0;
+		break;
 
 	case DFLL_OPEN_LOOP:
-		return 0;
+		break;
 
 	default:
 		BUG_ON(td->mode > DFLL_CLOSED_LOOP);
 		dev_err(td->dev, "%s: Cannot unlock DFLL in %s mode\n",
 			__func__, mode_name[td->mode]);
-		return -EPERM;
+		ret = -EPERM;
+		break;
 	}
+
+	spin_unlock_irqrestore(&td->lock, flags);
+	return ret;
 }
 
 /*
@@ -1323,8 +1367,11 @@ static long dfll_clk_round_rate(struct clk_hw *hw,
 	struct tegra_dfll *td = clk_hw_to_dfll(hw);
 	struct dfll_rate_req req;
 	int ret;
+	unsigned long flags;
 
+	spin_lock_irqsave(&td->lock, flags);
 	ret = dfll_calculate_rate_request(td, &req, rate);
+	spin_unlock_irqrestore(&td->lock, flags);
 	if (ret)
 		return ret;
 
@@ -1455,8 +1502,11 @@ DEFINE_SIMPLE_ATTRIBUTE(lock_fops, attr_lock_get, attr_lock_set,
 static int attr_rate_get(void *data, u64 *val)
 {
 	struct tegra_dfll *td = data;
+	unsigned long flags;
 
+	spin_lock_irqsave(&td->lock, flags);
 	*val = dfll_read_monitor_rate(td);
+	spin_unlock_irqrestore(&td->lock, flags);
 
 	return 0;
 }
@@ -1484,6 +1534,9 @@ static int attr_registers_show(struct seq_file *s, void *data)
 {
 	u32 val, offs;
 	struct tegra_dfll *td = s->private;
+	unsigned long flags;
+
+	spin_lock_irqsave(&td->lock, flags);
 
 	seq_puts(s, "CONTROL REGISTERS:\n");
 	for (offs = 0; offs <= DFLL_MONITOR_DATA; offs += 4) {
@@ -1512,6 +1565,7 @@ static int attr_registers_show(struct seq_file *s, void *data)
 		seq_printf(s, "[0x%02x] = 0x%08x\n", offs,
 			   __raw_readl(td->lut_base + offs));
 
+	spin_unlock_irqrestore(&td->lock, flags);
 	return 0;
 }
 
@@ -1590,11 +1644,17 @@ int tegra_dfll_update_thermal_index(struct platform_device *pdev,
 {
 	struct tegra_dfll *td = dev_get_drvdata(&pdev->dev);
 	int mv;
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&td->lock, flags);
 
 	if (type == TEGRA_DFLL_THERMAL_FLOOR && td->soc->get_thermal_floor) {
 		mv = td->soc->get_thermal_floor(new_index);
-		if (IS_ERR_VALUE(mv))
-			return -ERANGE;
+		if (IS_ERR_VALUE(mv)) {
+			ret = -ERANGE;
+			goto error;
+		}
 
 		td->thermal_floor_output = find_mv_out_cap(td, mv);
 		td->thermal_floor_index = new_index;
@@ -1607,8 +1667,10 @@ int tegra_dfll_update_thermal_index(struct platform_device *pdev,
 		}
 	} else if (type == TEGRA_DFLL_THERMAL_CAP && td->soc->get_thermal_cap) {
 		mv = td->soc->get_thermal_cap(new_index);
-		if (IS_ERR_VALUE(mv))
-			return -ERANGE;
+		if (IS_ERR_VALUE(mv)) {
+			ret = -ERANGE;
+			goto error;
+		}
 
 		td->thermal_cap_output = find_mv_out_floor(td, mv);
 		td->thermal_cap_index = new_index;
@@ -1619,6 +1681,8 @@ int tegra_dfll_update_thermal_index(struct platform_device *pdev,
 		}
 	}
 
+error:
+	spin_unlock_irqrestore(&td->lock, flags);
 	return 0;
 }
 EXPORT_SYMBOL(tegra_dfll_update_thermal_index);
@@ -1813,6 +1877,8 @@ static int dfll_init(struct tegra_dfll *td)
 		dev_err(td->dev, "failed to prepare soc_clk\n");
 		goto di_err2;
 	}
+
+	spin_lock_init(&td->lock);
 
 	pm_runtime_enable(td->dev);
 	pm_runtime_get_sync(td->dev);
