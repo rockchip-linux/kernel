@@ -26,7 +26,8 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/delay.h>
-#include <cros_ec_dev.h>
+
+#include "cros_ec_dev.h"
 
 #define EC_COMMAND_RETRIES	50
 #define EC_RETRY_DELAY_MS	10
