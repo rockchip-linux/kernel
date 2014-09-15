@@ -80,4 +80,18 @@ config ALX
 	  To compile this driver as a module, choose M here.  The module
 	  will be called alx.
 
+config QCA8337_LITE
+	tristate "Qualcomm/Atheros QCA8337 driver for minimal initialization (EXPERIMENTAL)"
+	depends on EXPERIMENTAL
+	select NET_CORE
+	select MII
+	---help---
+	  This driver performs a minimal initialization of the Qualcom/Atheros QCA8337
+
+	  Normally, U-boot (BIOS) performs this initialization. Systems using CoreBoot
+	  (instead of U-Boot) need this driver to use Wired Ethernet.
+	  If in doubt, select M.
+
+	  The module will be called qca3887-lite.
+
 endif # NET_VENDOR_ATHEROS
