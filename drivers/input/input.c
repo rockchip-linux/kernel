@@ -1387,8 +1387,8 @@ static ssize_t input_dev_show_properties(struct device *dev,
 }
 static DEVICE_ATTR(properties, S_IRUGO, input_dev_show_properties, NULL);
 
-static void input_inhibit(struct input_dev *dev);
-static void input_uninhibit(struct input_dev *dev);
+static int input_inhibit(struct input_dev *dev);
+static int input_uninhibit(struct input_dev *dev);
 
 static ssize_t input_dev_show_inhibited(struct device *dev,
 					struct device_attribute *attr,
@@ -1404,15 +1404,19 @@ static ssize_t input_dev_store_inhibited(struct device *dev,
 					 size_t len)
 {
 	struct input_dev *input_dev = to_input_dev(dev);
+	ssize_t rv;
 	bool inhibited;
 
 	if (strtobool(buf, &inhibited))
 		return -EINVAL;
 
 	if (inhibited)
-		input_inhibit(input_dev);
+		rv = input_inhibit(input_dev);
 	else
-		input_uninhibit(input_dev);
+		rv = input_uninhibit(input_dev);
+
+	if (rv != 0)
+		return rv;
 
 	return len;
 }
@@ -1709,37 +1713,55 @@ void input_reset_device(struct input_dev *dev)
 }
 EXPORT_SYMBOL(input_reset_device);
 
-static void input_inhibit(struct input_dev *dev)
+static int input_inhibit(struct input_dev *dev)
 {
+	int rv = 0;
+
 	mutex_lock(&dev->mutex);
 
-	if (!dev->inhibited) {
-		if (dev->inhibit)
-			dev->inhibit(dev);
+	if (dev->inhibited)
+		goto out;
 
-		input_dev_release_keys(dev);
-		input_dev_toggle(dev, false);
-
-		dev->inhibited = true;
+	if (dev->inhibit) {
+		rv = dev->inhibit(dev);
+		if (rv != 0)
+			goto out;
 	}
 
+	input_dev_release_keys(dev);
+	input_dev_toggle(dev, false);
+
+	dev->inhibited = true;
+
+out:
 	mutex_unlock(&dev->mutex);
+	return rv;
 }
 
-static void input_uninhibit(struct input_dev *dev)
+static int input_uninhibit(struct input_dev *dev)
 {
+	int rv = 0;
+
 	mutex_lock(&dev->mutex);
 
-	if (dev->inhibited) {
-		input_dev_toggle(dev, true);
+	if (!dev->inhibited)
+		goto out;
 
-		if (dev->uninhibit)
-			dev->uninhibit(dev);
+	input_dev_toggle(dev, true);
 
-		dev->inhibited = false;
+	if (dev->uninhibit) {
+		rv = dev->uninhibit(dev);
+		if (rv != 0) {
+			input_dev_toggle(dev, false);
+			goto out;
+		}
 	}
 
+	dev->inhibited = false;
+
+out:
 	mutex_unlock(&dev->mutex);
+	return rv;
 }
 
 #ifdef CONFIG_PM_SLEEP

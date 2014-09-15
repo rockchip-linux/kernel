@@ -117,6 +117,10 @@ struct input_value {
  * @vals: array of values queued in the current frame
  * @devres_managed: indicates that devices is managed with devres framework
  *	and needs not be explicitly unregistered or freed.
+ * @inhibit: method to ignore all events and power off device.
+ *      inhibit..uninhibit are always called outside of suspend..resume.
+ * @uninhibit: undo effects of inhibit
+ * @inhibited: whether the input device is currently inhibited
  */
 struct input_dev {
 	const char *name;
@@ -188,8 +192,8 @@ struct input_dev {
 
 	bool devres_managed;
 
-	void (*inhibit)(struct input_dev *dev);
-	void (*uninhibit)(struct input_dev *dev);
+	int (*inhibit)(struct input_dev *dev);
+	int (*uninhibit)(struct input_dev *dev);
 
 	bool inhibited;
 };
