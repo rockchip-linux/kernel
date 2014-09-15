@@ -251,10 +251,11 @@ static void hsw_set_dsp_D3(struct sst_dsp *sst)
 {
 	u32 val;
 
-	/* switch off audio PLL, DRAM & IRAM blocks */
+	/* enable power gating and switch off DRAM & IRAM blocks */
 	val = readl(sst->addr.pci_cfg + SST_VDRTCTL0);
-	val |= SST_VDRTCL0_APLLSE_MASK | SST_VDRTCL0_DSRAMPGE_MASK |
+	val |= SST_VDRTCL0_DSRAMPGE_MASK |
 		SST_VDRTCL0_ISRAMPGE_MASK;
+	val &= ~(SST_VDRTCL0_D3PGD | SST_VDRTCL0_D3SRAMPGD);
 	writel(val, sst->addr.pci_cfg + SST_VDRTCTL0);
 
 	/* Set D3 state */
