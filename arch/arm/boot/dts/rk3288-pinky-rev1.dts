@@ -323,6 +323,7 @@
 				regulator-min-microvolt = <750000>;
 				regulator-max-microvolt = <1300000>;
 				regulator-name = "vdd_arm";
+				regulator-ramp-delay = <2000>;
 			};
 
 			vdd_gpu: DCDC_REG2 {
@@ -331,6 +332,7 @@
 				regulator-min-microvolt = <850000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-name = "vdd_gpu";
+				regulator-ramp-delay = <2000>;
 			};
 
 			vcc125_ddr: DCDC_REG3 {
