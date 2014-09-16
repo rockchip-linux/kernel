@@ -93,23 +93,10 @@
 					<&adm_dma 5 10>;
 				dma-names = "rx", "tx";
 
-				flash: m25p80@0 {
-					compatible = "s25fl256s1";
-					#address-cells = <1>;
-					#size-cells = <1>;
-					spi-max-frequency = <50000000>;
+				spidev@0 {
+					compatible = "spidev";
 					reg = <0>;
-					m25p,fast-read;
-
-					partition@0 {
-						label = "rootfs";
-						reg = <0x0 0x1000000>;
-					};
-
-					partition@1 {
-						label = "scratch";
-						reg = <0x1000000 0x1000000>;
-					};
+					spi-max-frequency = <25000000>;
 				};
 			};
 		};
