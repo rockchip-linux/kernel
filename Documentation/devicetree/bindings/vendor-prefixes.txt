@@ -85,6 +85,8 @@ schindler	Schindler
 sil	Silicon Image
 silabs	Silicon Laboratories
 simtek
+sii	Seiko Instruments, Inc.
+silergy	Silergy Corp.
 sirf	SiRF Technology, Inc.
 snps 	Synopsys, Inc.
 spansion	Spansion Inc.
