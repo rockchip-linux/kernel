@@ -60,7 +60,7 @@ static void pmu_set_power_domain(int pd, bool on)
  * Handling of CPU cores
  */
 
-static int __cpuinit rockchip_boot_secondary(unsigned int cpu,
+static int __cpuinit rk3066_boot_secondary(unsigned int cpu,
 					     struct task_struct *idle)
 {
 	if (!sram_base_addr || !pmu_base_addr) {
@@ -76,6 +76,28 @@ static int __cpuinit rockchip_boot_secondary(unsigned int cpu,
 
 	/* start the core */
 	pmu_set_power_domain(0 + cpu, true);
+
+	return 0;
+}
+
+static int __cpuinit rk3288_boot_secondary(unsigned int cpu,
+					     struct task_struct *idle)
+{
+	if (!sram_base_addr) {
+		pr_err("%s: sram missing for cpu boot\n", __func__);
+		return -ENXIO;
+	}
+
+	if (cpu >= ncores) {
+		pr_err("%s: cpu %d outside maximum number of cpus %d\n",
+							__func__, cpu, ncores);
+		return -ENXIO;
+	}
+	/* start the core */
+	writel(virt_to_phys(rk3288_secondary_startup), sram_base_addr + 8);
+	writel(0xDEADBEAF, sram_base_addr + 4);
+	writel(cpu, sram_base_addr + 0);
+	dsb_sev();
 
 	return 0;
 }
@@ -125,7 +147,7 @@ static int __init rockchip_smp_prepare_sram(struct device_node *node)
 	return 0;
 }
 
-static void __init rockchip_smp_prepare_cpus(unsigned int max_cpus)
+static void __init rk3066_smp_prepare_cpus(unsigned int max_cpus)
 {
 	struct device_node *node;
 	unsigned int i;
@@ -194,12 +216,41 @@ static void rockchip_cpu_die(unsigned int cpu)
 }
 #endif
 
-static struct smp_operations rockchip_smp_ops __initdata = {
-	.smp_prepare_cpus	= rockchip_smp_prepare_cpus,
-	.smp_boot_secondary	= rockchip_boot_secondary,
+static void __init rk3288_smp_prepare_cpus(unsigned int max_cpus)
+{
+	struct device_node *node;
+
+	node = of_find_compatible_node(NULL, NULL, "rockchip,rk3066-smp-sram");
+	if (!node) {
+		pr_err("%s: could not find sram dt node\n", __func__);
+		return;
+	}
+
+	sram_base_addr = of_iomap(node, 0);
+	if (!sram_base_addr) {
+		pr_err("%s: could not map pmu registers\n", __func__);
+		return;
+	}
+
+	ncores = 4;
+}
+
+static struct smp_operations rockchip3066_smp_ops __initdata = {
+	.smp_prepare_cpus	= rk3066_smp_prepare_cpus,
+	.smp_boot_secondary	= rk3066_boot_secondary,
 #ifdef CONFIG_HOTPLUG_CPU
 	.cpu_kill		= rockchip_cpu_kill,
 	.cpu_die		= rockchip_cpu_die,
 #endif
 };
-CPU_METHOD_OF_DECLARE(rk3066_smp, "rockchip,rk3066-smp", &rockchip_smp_ops);
+CPU_METHOD_OF_DECLARE(rk3066_smp, "rockchip,rk3066-smp", &rockchip3066_smp_ops);
+
+static struct smp_operations rockchip3288_smp_ops __initdata = {
+	.smp_prepare_cpus	= rk3288_smp_prepare_cpus,
+	.smp_boot_secondary	= rk3288_boot_secondary,
+#ifdef CONFIG_HOTPLUG_CPU
+	.cpu_kill		= rockchip_cpu_kill,
+	.cpu_die		= rockchip_cpu_die,
+#endif
+};
+CPU_METHOD_OF_DECLARE(rk3288_smp, "rockchip,rk3288-smp", &rockchip3288_smp_ops);

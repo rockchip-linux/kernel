@@ -20,6 +20,20 @@ ENTRY(rockchip_secondary_startup)
 	b	secondary_startup
 ENDPROC(rockchip_secondary_startup)
 
+ENTRY(rk3288_secondary_startup)
+	mrc p15, 0, r0, c0, c0, 5
+	mov r2, #3
+	and r0, r0, r2
+	ldr r1, =0xff700000
+	ldr r1, [r1]
+	cmp r0, r1
+	beq 2f
+	ldr r2, =0xfffd0000
+	mov pc, r2
+2:
+	b	secondary_startup
+ENDPROC(rk3288_secondary_startup)
+
 ENTRY(rockchip_secondary_trampoline)
 	ldr	pc, 1f
 ENDPROC(rockchip_secondary_trampoline)
