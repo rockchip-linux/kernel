@@ -258,6 +258,11 @@ static void hsw_set_dsp_D3(struct sst_dsp *sst)
 	val &= ~(SST_VDRTCL0_D3PGD | SST_VDRTCL0_D3SRAMPGD);
 	writel(val, sst->addr.pci_cfg + SST_VDRTCTL0);
 
+	/* switch off audio PLL */
+	val = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
+	val |= SST_VDRTCL2_APLLSE_MASK;
+	writel(val, sst->addr.pci_cfg + SST_VDRTCTL2);
+
 	/* Set D3 state */
 	val = readl(sst->addr.pci_cfg + SST_PMCS);
 	val |= SST_PMCS_PS_MASK;
@@ -302,6 +307,11 @@ static int hsw_set_dsp_D0(struct sst_dsp *sst)
 
 finish:
 	hsw_reset(sst);
+
+	/* switch on audio PLL */
+	reg = readl(sst->addr.pci_cfg + SST_VDRTCTL2);
+	reg &= ~SST_VDRTCL2_APLLSE_MASK;
+	writel(reg, sst->addr.pci_cfg + SST_VDRTCTL2);
 
 	/* set default power gating control, enable power gating control for all blocks. that is,
 	can't be accessed, please enable each block before accessing. */
