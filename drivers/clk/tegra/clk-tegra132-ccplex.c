@@ -20,13 +20,16 @@
 #include <linux/clkdev.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_platform.h>
 #include <linux/delay.h>
 #include <linux/export.h>
 #include <linux/clk/tegra.h>
+#include <linux/syscore_ops.h>
 #include <soc/tegra/fuse.h>
 #include <dt-bindings/clock/tegra132-ccplex.h>
 
 #include "clk.h"
+#include "clk-dfll.h"
 
 #define PLLX_BASE 0x0
 #define PLLX_MISC 0x4
@@ -158,6 +161,63 @@ void tegra132_clock_deassert_dfll_dvco_reset(void)
 }
 EXPORT_SYMBOL(tegra132_clock_deassert_dfll_dvco_reset);
 
+#ifdef CONFIG_PM_SLEEP
+#define car_readl(_base, _off) readl_relaxed(clk_base + (_base) + (_off * 4))
+#define car_writel(_val, _base, _off) \
+		writel_relaxed(_val, clk_base + (_base) + (_off * 4))
+
+#define BURST_POLICY_REG_SIZE	2
+
+static unsigned long pll_x_rate;
+static u32 cclk_burst_policy_ctx[BURST_POLICY_REG_SIZE];
+static struct platform_device *dfll_pdev;
+
+static int tegra132_ccplex_suspend(void)
+{
+	int i;
+	struct device_node *node;
+
+	pll_x_rate = clk_get_rate(clks[TEGRA132_PLL_X]);
+
+	for (i = 0; i < BURST_POLICY_REG_SIZE; i++)
+		cclk_burst_policy_ctx[i] = car_readl(CCLK_BURST_POLICY, i);
+
+	if (!dfll_pdev) {
+		node = of_find_compatible_node(NULL, NULL,
+					       "nvidia,tegra132-dfll");
+		if (node)
+			dfll_pdev = of_find_device_by_node(node);
+		of_node_put(node);
+
+		if (!dfll_pdev)
+			pr_err("dfll node not found. no suspend for dfll\n");
+	}
+
+	if (dfll_pdev)
+		tegra_dfll_suspend(dfll_pdev);
+
+	return 0;
+}
+
+static void tegra132_ccplex_resume(void)
+{
+	int i;
+
+	tegra_clk_pllxc_resume(clks[TEGRA132_PLL_X], pll_x_rate);
+
+	if (dfll_pdev)
+		tegra_dfll_resume(dfll_pdev);
+
+	for (i = 0; i < BURST_POLICY_REG_SIZE; i++)
+		car_writel(cclk_burst_policy_ctx[i], CCLK_BURST_POLICY, i);
+}
+
+static struct syscore_ops tegra_clk_syscore_ops = {
+	.suspend = tegra132_ccplex_suspend,
+	.resume = tegra132_ccplex_resume,
+};
+#endif
+
 static struct tegra_clk_init_table init_table[] __initdata = {
 	{TEGRA132_CCPLEX_CCLK_G, TEGRA132_CCPLEX_CLK_MAX, 0, 1},
 	/* This MUST be the last entry. */
@@ -209,6 +269,10 @@ static void __init tegra132_ccplex(struct device_node *np)
 	of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data);
 
 	tegra132_clock_apply_init_table();
+
+#ifdef CONFIG_PM_SLEEP
+	register_syscore_ops(&tegra_clk_syscore_ops);
+#endif
 }
 
 CLK_OF_DECLARE(tegra132_ccplex, "nvidia,tegra132-ccplex-clk", tegra132_ccplex);
