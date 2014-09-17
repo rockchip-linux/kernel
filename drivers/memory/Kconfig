@@ -40,13 +40,6 @@ config TEGRA20_MC
 	  analysis, especially for IOMMU/GART(Graphics Address
 	  Relocation Table) module.
 
-config TEGRA124_EMC
-	bool "Tegra124 External Memory Controller(EMC) driver"
-	default y
-	depends on TEGRA124_MC && MFD_SYSCON
-	help
-	  This driver is for the External Memory Controller(EMC) module
-	  available in Tegra124 SoCs.
-
+source "drivers/memory/tegra/Kconfig"
 
 endif

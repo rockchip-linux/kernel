@@ -8,5 +8,4 @@ endif
 obj-$(CONFIG_TI_EMIF)		+= emif.o
 obj-$(CONFIG_MVEBU_DEVBUS)	+= mvebu-devbus.o
 obj-$(CONFIG_TEGRA20_MC)	+= tegra20-mc.o
-obj-$(CONFIG_TEGRA124_EMC)	+= tegra124-emc.o
 obj-$(CONFIG_ARCH_TEGRA)	+= tegra/
