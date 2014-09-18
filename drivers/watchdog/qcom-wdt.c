@@ -15,6 +15,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/reboot.h>
 #include <linux/watchdog.h>
 
 #define WDT_RST		0x0
@@ -24,6 +25,7 @@
 struct qcom_wdt {
 	struct watchdog_device	wdd;
 	unsigned long		freq;
+	struct notifier_block	restart_nb;
 	void __iomem		*base;
 };
 
@@ -82,6 +84,24 @@ static const struct watchdog_info qcom_wdt_info = {
 	.identity	= KBUILD_MODNAME,
 };
 
+static int qcom_wdt_restart(struct notifier_block *nb, unsigned long action,
+			    void *data)
+{
+	struct qcom_wdt *wdt = container_of(nb, struct qcom_wdt, restart_nb);
+
+	/*
+	 * Trigger watchdog bite:
+	 *    Setup BITE_TIME to be very low, and enable WDT.
+	 */
+	mutex_lock(&wdt->wdd.lock);
+	writel(0, wdt->base + WDT_EN);
+	writel(1, wdt->base + WDT_RST);
+	writel(0x31F3, wdt->base + WDT_BITE_TIME);
+	writel(1, wdt->base + WDT_EN);
+	mutex_unlock(&wdt->wdd.lock);
+	return NOTIFY_DONE;
+}
+
 static int qcom_watchdog_probe(struct platform_device *pdev)
 {
 	struct qcom_wdt *wdt;
@@ -118,6 +138,17 @@ static int qcom_watchdog_probe(struct platform_device *pdev)
 	ret = watchdog_register_device(&wdt->wdd);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register watchdog\n");
+		return ret;
+	}
+
+	/*
+	 * WDT restart notifier has priority 0 (use as a last resort)
+	 */
+	wdt->restart_nb.notifier_call = qcom_wdt_restart;
+	ret = register_restart_handler(&wdt->restart_nb);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to setup restart handler\n");
+		watchdog_unregister_device(&wdt->wdd);
 		return ret;
 	}
 
