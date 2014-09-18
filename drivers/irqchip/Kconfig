@@ -73,3 +73,7 @@ config XTENSA_MX
 config TEGRA_IRQC
 	bool
 	depends on ARCH_TEGRA
+
+config MIPS_GIC
+	bool
+	select MIPS_CM

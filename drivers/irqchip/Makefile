@@ -27,3 +27,4 @@ obj-$(CONFIG_TB10X_IRQC)		+= irq-tb10x.o
 obj-$(CONFIG_XTENSA)			+= irq-xtensa-pic.o
 obj-$(CONFIG_XTENSA_MX)			+= irq-xtensa-mx.o
 obj-$(CONFIG_ARCH_TEGRA)		+= irq-tegra.o
+obj-$(CONFIG_MIPS_GIC)			+= irq-mips-gic.o
