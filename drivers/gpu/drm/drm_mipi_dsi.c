@@ -248,6 +248,7 @@ int mipi_dsi_set_maximum_return_packet_size(struct mipi_dsi_device *dsi,
 	msg.type = MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE;
 	msg.tx_len = sizeof(tx);
 	msg.tx_buf = tx;
+	msg.flags = MIPI_DSI_MSG_USE_LPM;
 
 	err = dsi->host->ops->transfer(dsi->host, &msg);
 	if (err < 0)
