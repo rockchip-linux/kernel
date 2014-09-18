@@ -570,6 +570,33 @@ static ssize_t dark_resume_state_store(struct kobject *kobj,
 }
 
 power_attr(dark_resume_state);
+
+/*
+ * Debug configuration for always waking up in dark resume.
+ */
+static ssize_t dark_resume_always_show(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				char *buf)
+{
+	return sprintf(buf, "%u\n", pm_dark_resume_always() ? 1 : 0);
+}
+
+static ssize_t dark_resume_always_store(struct kobject *kobj,
+				struct kobj_attribute *attr,
+				const char *buf, size_t n)
+{
+	unsigned int val;
+
+	if (sscanf(buf, "%u", &val) == 1) {
+		if (val == 0 || val == 1) {
+			pm_dark_resume_set_always(val ? true : false);
+			return n;
+		}
+	}
+	return -EINVAL;
+}
+
+power_attr(dark_resume_always);
 #endif /* CONFIG_PM_SLEEP */
 
 #ifdef CONFIG_PM_TRACE
@@ -659,6 +686,7 @@ static struct attribute * g[] = {
 	&wake_unlock_attr.attr,
 #endif
 	&dark_resume_state_attr.attr,
+	&dark_resume_always_attr.attr,
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,
 	&pm_test_delay_attr.attr,

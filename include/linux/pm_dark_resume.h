@@ -46,6 +46,8 @@ extern int dev_dark_resume_init(struct device *dev,
 extern void dev_dark_resume_remove(struct device *dev);
 extern bool pm_dark_resume_check(void);
 extern bool pm_dark_resume_active(void);
+extern bool pm_dark_resume_always(void);
+extern void pm_dark_resume_set_always(bool always);
 extern void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops);
 
 /**

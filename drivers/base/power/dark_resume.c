@@ -34,6 +34,7 @@
 LIST_HEAD(source_list);
 static DEFINE_MUTEX(source_list_lock);
 static bool dark_resume_state;
+static bool dark_resume_always;
 static struct pm_dark_resume_ops *dark_resume_ops;
 
 /**
@@ -156,6 +157,11 @@ EXPORT_SYMBOL_GPL(dev_dark_resume_remove);
  */
 bool pm_dark_resume_check(void)
 {
+	if (dark_resume_always) {
+		dark_resume_state = true;
+		return dark_resume_state;
+	}
+
 	if (!dark_resume_ops || !dark_resume_ops->check) {
 		dark_resume_state = false;
 		return dark_resume_state;
@@ -176,6 +182,27 @@ bool pm_dark_resume_active(void)
 	return dark_resume_state;
 }
 EXPORT_SYMBOL_GPL(pm_dark_resume_active);
+
+/**
+ * pm_dark_resume_always - Returns whether we always wake up in dark resume from
+ * a suspend.
+ */
+bool pm_dark_resume_always(void)
+{
+	return dark_resume_always;
+}
+EXPORT_SYMBOL_GPL(pm_dark_resume_always);
+
+/**
+ * pm_dark_resume_set_always - Sets whether we always wake up in dark resume
+ * from a suspend.
+ * @always: bool that tells whether we always wake up in dark resume
+ */
+void pm_dark_resume_set_always(bool always)
+{
+	dark_resume_always = always;
+}
+EXPORT_SYMBOL_GPL(pm_dark_resume_set_always);
 
 /**
  * pm_dark_resume_register_ops - Registers the callback function to check
