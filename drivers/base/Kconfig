@@ -186,6 +186,8 @@ config DEBUG_DEVRES
 
 	  If you are unsure about this, Say N here.
 
+source "drivers/base/test/Kconfig"
+
 config SYS_HYPERVISOR
 	bool
 	default n
