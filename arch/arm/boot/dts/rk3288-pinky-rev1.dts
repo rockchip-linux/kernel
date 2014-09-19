@@ -93,6 +93,14 @@
                 };
 	};
 
+	gpio-charger {
+		compatible = "gpio-charger";
+		gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ac_present_ap>;
+		charger-type = "mains";
+	};
+
 	gpio-restart {
 		compatible = "gpio-restart";
 		gpios = <&gpio0 10 GPIO_ACTIVE_HIGH>;
@@ -523,6 +531,12 @@
 
 		lid_int: lid-int {
 			rockchip,pins = <7 13 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	charger {
+		ac_present_ap: ac-present-ap {
+			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
