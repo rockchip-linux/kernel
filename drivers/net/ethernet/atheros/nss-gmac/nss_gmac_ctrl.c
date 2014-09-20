@@ -807,6 +807,8 @@ static int32_t nss_gmac_of_get_pdata(struct device_node *np,
 	maddr = (uint8_t *)of_get_mac_address(np);
 	if (maddr) {
 		memcpy(gmaccfg->mac_addr, maddr, ETH_ALEN);
+	} else {
+		memset(gmaccfg->mac_addr, 0, ETH_ALEN);
 	}
 
 	if (of_address_to_resource(np, 0, &memres_devtree) != 0) {
