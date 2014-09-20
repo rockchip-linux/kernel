@@ -1160,8 +1160,9 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 		random_ether_addr(netdev->dev_addr);
 		nss_gmac_msg("GMAC%d(%p) Invalid MAC@ - using %02x:%02x:%02x:%02x:%02x:%02x",
 			gmacdev->macid, gmacdev,
-			*netdev->dev_addr, *netdev->dev_addr+1, *netdev->dev_addr+2,
-			*netdev->dev_addr+3, *netdev->dev_addr+4, *netdev->dev_addr+5);
+			netdev->dev_addr[0], netdev->dev_addr[1],
+			netdev->dev_addr[2], netdev->dev_addr[3],
+			netdev->dev_addr[4], netdev->dev_addr[5]);
 	}
 
 	netdev->watchdog_timeo = 5 * HZ;
