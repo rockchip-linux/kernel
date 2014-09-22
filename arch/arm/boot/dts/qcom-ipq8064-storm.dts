@@ -341,5 +341,11 @@
 			compatible = "qca8337-lite";
 			mdiobus = <&mdio0>;
 		};
+		watchdog@208a038 {
+			compatible = "qcom,kpss-wdt-ipq8064";
+			reg = <0x0208a038 0x40>;
+			clock-frequency = <32768>;
+			timeout-sec = <10>;
+		};
 	};
 };
