@@ -1095,6 +1095,9 @@ static int rt286_probe(struct snd_soc_codec *codec)
 	rt286->codec = codec;
 	codec->dapm.bias_level = SND_SOC_BIAS_OFF;
 
+	if (rt286->pdata.suspend_power_off)
+		codec->dapm.idle_bias_off = false;
+
 	if (rt286->i2c->irq) {
 		regmap_update_bits(rt286->regmap,
 					RT286_IRQ_CTRL, 0x2, 0x2);
@@ -1236,6 +1239,7 @@ MODULE_DEVICE_TABLE(i2c, rt286_i2c_id);
 static struct rt286_platform_data rt286_acpi_data = {
 	.cbj_en = true,
 	.gpio2_en = false,
+	.suspend_power_off = true,
 };
 
 static const struct acpi_device_id rt286_acpi_match[] = {

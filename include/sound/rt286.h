@@ -14,6 +14,7 @@
 struct rt286_platform_data {
 	bool cbj_en; /*combo jack enable*/
 	bool gpio2_en; /*GPIO2 enable*/
+	bool suspend_power_off; /* power is off during suspend */
 };
 
 #endif
