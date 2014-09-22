@@ -421,6 +421,16 @@ config SIRFSOC_WATCHDOG
 	  Support for CSR SiRFprimaII and SiRFatlasVI watchdog. When
 	  the watchdog triggers the system will be reset.
 
+config QCOM_WDT
+	bool "QCOM watchdog"
+	depends on HAS_IOMEM
+	depends on ARCH_QCOM
+	select WATCHDOG_CORE
+	help
+	  Say Y here to include Watchdog timer support for the watchdog found
+	  on QCOM chipsets.  Currently supported targets are the MSM8960,
+	  APQ8064, and IPQ8064.
+
 # AVR32 Architecture
 
 config AT32AP700X_WDT
