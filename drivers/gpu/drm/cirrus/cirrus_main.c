@@ -55,8 +55,9 @@ cirrus_user_framebuffer_create(struct drm_device *dev,
 	u32 bpp, depth;
 
 	drm_fb_get_bpp_depth(mode_cmd->pixel_format, &depth, &bpp);
-	/* cirrus can't handle > 24bpp framebuffers at all */
-	if (bpp > 24)
+
+	if (!cirrus_check_framebuffer(mode_cmd->width, mode_cmd->height,
+				      bpp, mode_cmd->pitches[0]))
 		return ERR_PTR(-EINVAL);
 
 	obj = drm_gem_object_lookup(dev, filp, mode_cmd->handles[0]);
@@ -310,4 +311,21 @@ out_unlock:
 	mutex_unlock(&dev->struct_mutex);
 	return ret;
 
+}
+
+bool cirrus_check_framebuffer(int width, int height, int bpp, int pitch)
+{
+	const int max_pitch = 0x1FF << 3; /* (4096 - 1) & ~111b bytes */
+	const int max_size = 0x400000; /* 4MB */
+
+	if (bpp > 32)
+		return false;
+
+	if (pitch > max_pitch)
+		return false;
+
+	if (pitch * height > max_size)
+		return false;
+
+	return true;
 }

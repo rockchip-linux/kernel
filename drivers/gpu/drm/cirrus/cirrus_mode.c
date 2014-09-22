@@ -307,8 +307,7 @@ static int cirrus_crtc_mode_set(struct drm_crtc *crtc,
 	WREG_GFX(VGA_GFX_MISC, 0x01);
 
 	WREG_HDR(hdr);
-	cirrus_crtc_do_set_base(crtc, old_fb, x, y, 0);
-	return 0;
+	return cirrus_crtc_do_set_base(crtc, old_fb, x, y, 0);
 }
 
 /*
