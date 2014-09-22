@@ -294,8 +294,6 @@
 
 /* Define for TOUCH_MOUTITOUCHSCREEN_T100 Touch Status */
 #define TOUCH_STATUS_DETECT			0x80
-#define TOUCH_STATUS_TYPE_FINGER	0x10
-#define TOUCH_STATUS_TYPE_STYLUS	0x20
 #define TOUCH_STATUS_EVENT_MOVE		0x01
 #define TOUCH_STATUS_EVENT_UNSUP	0x02
 #define TOUCH_STATUS_EVENT_SUP		0x03
@@ -306,6 +304,16 @@
 #define TOUCH_STATUS_EVENT_DOWNSUP	0x08
 #define TOUCH_STATUS_EVENT_DOWNUP	0x09
 
+/* MXT touch types */
+#define TOUCH_STATUS_TYPE_RESERVED	0
+#define TOUCH_STATUS_TYPE_FINGER	1
+#define TOUCH_STATUS_TYPE_STYLUS	2
+#define TOUCH_STATUS_TYPE_HOVERING	4
+#define TOUCH_STATUS_TYPE_GLOVE		5
+#define TOUCH_STATUS_TYPE_LARGE_TOUCH	6
+
+#define DISTANCE_ACTIVE_TOUCH		0
+#define DISTANCE_HOVERING		1
 
 struct mxt_cfg_file_hdr {
 	bool valid;
@@ -587,6 +595,8 @@ static void __maybe_unused mxt_release_all_fingers(struct mxt_data *data)
 			input_report_abs(input_dev, ABS_MT_POSITION_X, 0);
 			input_report_abs(input_dev, ABS_MT_POSITION_Y, 0);
 			input_report_abs(input_dev, ABS_MT_PRESSURE, 255);
+			input_report_abs(input_dev, ABS_MT_DISTANCE,
+					 DISTANCE_ACTIVE_TOUCH);
 			input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR,
 					 max_touch_major);
 			need_update = true;
@@ -1094,6 +1104,8 @@ static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 	int touch_major = 0;
 	int next_index = 1;
 	int vector1 = 0, vector2 = 0;
+	int touch_type;
+	int distance;
 
 	id = reportid - data->T100_reportid_min - 2;
 
@@ -1128,12 +1140,23 @@ static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 		touch_major = get_touch_major_pixels(data, area);
 	}
 
+	/*
+	 * Currently there is no distance information for hovering,
+	 * however, this can be used as hovering indication in user space.
+	 */
+	touch_type = ((payload[0] & 0x70) >> 4);
+	if (touch_type == TOUCH_STATUS_TYPE_HOVERING) {
+		distance = DISTANCE_HOVERING;
+		pressure = 0;
+	} else {
+		distance = DISTANCE_ACTIVE_TOUCH;
+	}
+
 	dev_dbg(dev,
-		"[%u] %c%c%c%c%c%c%c%c%c%c%c%c x: %5u y: %5u a: %5u p: %5u m: %d v: [%d,%d]\n",
+		"[%u] T%d%c%c%c%c%c%c%c%c%c%c x: %5u y: %5u a: %5u p: %5u m: %d v: [%d,%d]\n",
 		id,
+		touch_type,
 		(status & TOUCH_STATUS_DETECT) ? 'D' : '.',
-		(status & TOUCH_STATUS_TYPE_FINGER) ? 'F' : '.',
-		(status & TOUCH_STATUS_TYPE_STYLUS) ? 'S' : '.',
 		(status & TOUCH_STATUS_EVENT_MOVE) ? 'M' : '.',
 		(status & TOUCH_STATUS_EVENT_UNSUP) ? 'U' : '.',
 		(status & TOUCH_STATUS_EVENT_SUP) ? 'S' : '.',
@@ -1146,7 +1169,7 @@ static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 		x, y, area, pressure, touch_major, vector1, vector2);
 
 
-	if (status & TOUCH_STATUS_TYPE_FINGER) {
+	if (touch_type != TOUCH_STATUS_TYPE_STYLUS) {
 		if (status & TOUCH_STATUS_DETECT) {
 			if (event & TOUCH_STATUS_EVENT_MOVE ||
 					event & TOUCH_STATUS_EVENT_DOWN ||
@@ -1163,6 +1186,8 @@ static void mxt_input_touchevent_T100(struct mxt_data *data, u8 *message)
 						 ABS_MT_POSITION_Y, y);
 				input_report_abs(input_dev,
 						 ABS_MT_PRESSURE, pressure);
+				input_report_abs(input_dev,
+						 ABS_MT_DISTANCE, distance);
 				input_report_abs(input_dev,
 						 ABS_MT_TOUCH_MAJOR,
 						 touch_major);
@@ -3359,6 +3384,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 			     0, data->max_y, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
 			     0, 255, 0, 0);
+	input_set_abs_params(input_dev, ABS_MT_DISTANCE,
+			     DISTANCE_ACTIVE_TOUCH, DISTANCE_HOVERING, 0, 0);
 	input_abs_set_res(input_dev, ABS_MT_POSITION_X, MXT_PIXELS_PER_MM);
 	input_abs_set_res(input_dev, ABS_MT_POSITION_Y, MXT_PIXELS_PER_MM);
 
