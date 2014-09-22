@@ -91,11 +91,19 @@
 				mux {
 					pins = "gpio18", "gpio19", "gpio21";
 					function = "gsbi5";
+					bias-pull-down;
+				};
+				data {
+					pins = "gpio18", "gpio19";
 					drive-strength = <10>;
-					bias-none;
 				};
 				cs {
 					pins = "gpio20";
+					drive-strength = <10>;
+					bias-pull-up;
+				};
+				clk {
+					pins = "gpio21";
 					drive-strength = <12>;
 				};
 			};
@@ -138,7 +146,7 @@
 				spidev@0 {
 					compatible = "spidev";
 					reg = <0>;
-					spi-max-frequency = <25000000>;
+					spi-max-frequency = <50000000>;
 				};
 			};
 		};
