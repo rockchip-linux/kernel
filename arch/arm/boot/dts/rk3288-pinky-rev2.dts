@@ -118,6 +118,25 @@
 		regulator-always-on;
 	};
 
+	vdd_logic: pwm-regulator {
+		compatible = "pwm-regulator";
+		pwms = <&pwm1 0 2000 0>;
+
+		voltage-table = <1350000 0>,
+				<1300000 10>,
+				<1250000 20>,
+				<1200000 31>,
+				<1150000 41>,
+				<1100000 52>,
+				<1050000 62>,
+				<1000000 72>,
+				< 950000 83>;
+
+		regulator-min-microvolt = <950000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-name = "vdd_logic";
+	};
+
 	/* vcc33_sys is controlled by the EC (system_power_h).  Off in S5. */
 	vcc33_sys: vcc33-sys {
 		compatible = "regulator-fixed";
@@ -496,6 +515,10 @@
 };
 
 &pwm0 {
+	status = "okay";
+};
+
+&pwm1 {
 	status = "okay";
 };
 
