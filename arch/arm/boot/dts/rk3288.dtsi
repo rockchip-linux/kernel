@@ -510,6 +510,23 @@
 		status = "disabled";
 	};
 
+	gpu: gpu@0xffa30000 {
+		compatible = "arm,malit764",
+			     "arm,malit76x",
+			     "arm,malit7xx",
+			     "arm,mali-midgard";
+		reg = <0xffa30000 0x10000>;
+		interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "JOB", "MMU", "GPU";
+		clocks = <&cru ACLK_GPU>;
+		clock-names = "aclk_gpu";
+		assigned-clocks = <&cru ACLK_GPU>;
+		assigned-clock-rates = <100000000>;
+		status = "disabled";
+	};
+
 	gic: interrupt-controller@ffc01000 {
 		compatible = "arm,gic-400";
 		interrupt-controller;
