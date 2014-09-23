@@ -571,7 +571,7 @@ static void mxt_dump_message(struct device *dev, u8 *message)
  * Userspace apps can use these info to filter out these events and/or cancel
  * existing gestures.
  */
-static void mxt_release_all_fingers(struct mxt_data *data)
+static void __maybe_unused mxt_release_all_fingers(struct mxt_data *data)
 {
 	struct device *dev = &data->client->dev;
 	struct input_dev *input_dev = data->input_dev;
@@ -3527,9 +3527,8 @@ static int mxt_remove(struct i2c_client *client)
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-
-static void mxt_suspend_enable_T9(struct mxt_data *data, u8 current_T9_ctrl)
+static void __maybe_unused mxt_suspend_enable_T9(struct mxt_data *data,
+						 u8 current_T9_ctrl)
 {
 	struct device *dev = &data->client->dev;
 	u8 T9_ctrl = MXT_TOUCH_CTRL_ENABLE | MXT_TOUCH_CTRL_RPTEN;
@@ -3570,7 +3569,7 @@ static void mxt_suspend_enable_T9(struct mxt_data *data, u8 current_T9_ctrl)
 	}
 }
 
-static int mxt_suspend(struct device *dev)
+static int __maybe_unused mxt_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mxt_data *data = i2c_get_clientdata(client);
@@ -3652,7 +3651,7 @@ static int mxt_suspend(struct device *dev)
 	return 0;
 }
 
-static int mxt_resume(struct device *dev)
+static int __maybe_unused mxt_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mxt_data *data = i2c_get_clientdata(client);
@@ -3696,7 +3695,6 @@ static int mxt_resume(struct device *dev)
 
 	return 0;
 }
-#endif
 
 static SIMPLE_DEV_PM_OPS(mxt_pm_ops, mxt_suspend, mxt_resume);
 
