@@ -129,7 +129,7 @@
 		palmas: tps65913 {
 			compatible = "ti,palmas";
 			reg = <0x58>;
-			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_LOW>;
 
 			#interrupt-cells = <2>;
 			interrupt-controller;
