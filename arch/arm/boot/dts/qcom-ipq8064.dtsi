@@ -71,6 +71,13 @@
 		L2: l2-cache {
 			compatible = "cache";
 			cache-level = <2>;
+			clocks = <&kraitcc 4>;
+			clock-names = "cache";
+			cache-points-kHz = <
+				/* kHz   CPU kHz */
+				1000000  600000
+				 384000  384000
+			>;
 		};
 	};
 
