@@ -89,9 +89,6 @@ struct elan_tp_data {
 	u8			min_baseline;
 	u8			max_baseline;
 	bool			baseline_ready;
-
-	/* touchpad is active or off based on irq */
-	bool			active;
 };
 
 static int elan_enable_power(struct elan_tp_data *data)
@@ -223,7 +220,6 @@ static int elan_reactivate(struct elan_tp_data *data)
 		dev_err(dev, "resume initialize tp failed, %d\n", ret);
 
 	enable_irq(data->client->irq);
-	data->active = true;
 
 	return ret;
 }
@@ -233,21 +229,42 @@ static int elan_inhibit(struct input_dev *input_dev)
 {
 	struct elan_tp_data *data = input_get_drvdata(input_dev);
 	struct i2c_client *client = data->client;
+	int ret;
 
 	dev_dbg(&client->dev, "inhibit\n");
 
+	/*
+	 * We are taking the mutex to make sure sysfs operations are
+	 * complete before we attempt to bring the device into low[er]
+	 * power mode.
+	 */
+	ret = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (ret)
+		return ret;
+
 	disable_irq(client->irq);
-	data->active = false;
-	return elan_disable_power(data);
+
+	ret = elan_disable_power(data);
+
+	mutex_unlock(&data->sysfs_mutex);
+	return ret;
 }
 
 static int elan_uninhibit(struct input_dev *input_dev)
 {
 	struct elan_tp_data *data = input_get_drvdata(input_dev);
+	int ret;
 
 	dev_dbg(&data->client->dev, "uninhibit\n");
 
-	return elan_reactivate(data);
+	ret = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (ret)
+		return ret;
+
+	ret = elan_reactivate(data);
+
+	mutex_unlock(&data->sysfs_mutex);
+	return ret;
 }
 
 static int elan_query_device_info(struct elan_tp_data *data)
@@ -404,7 +421,6 @@ static int elan_update_firmware(struct elan_tp_data *data,
 	dev_dbg(&client->dev, "Starting firmware update....\n");
 
 	disable_irq(client->irq);
-	data->active = false;
 	data->in_fw_update = true;
 
 	retval = __elan_update_firmware(data, fw);
@@ -419,7 +435,6 @@ static int elan_update_firmware(struct elan_tp_data *data,
 
 	data->in_fw_update = false;
 	enable_irq(client->irq);
-	data->active = true;
 
 	return retval;
 }
@@ -527,7 +542,6 @@ static ssize_t calibrate_store(struct device *dev,
 		return retval;
 
 	disable_irq(client->irq);
-	data->active = false;
 
 	data->mode |= ETP_ENABLE_CALIBRATE;
 	retval = data->ops->set_mode(client, data->mode);
@@ -574,7 +588,6 @@ out_disable_calibrate:
 	}
 out:
 	enable_irq(client->irq);
-	data->active = true;
 	mutex_unlock(&data->sysfs_mutex);
 	return retval ?: count;
 }
@@ -640,7 +653,6 @@ static ssize_t acquire_store(struct device *dev, struct device_attribute *attr,
 		return retval;
 
 	disable_irq(client->irq);
-	data->active = false;
 
 	data->baseline_ready = false;
 
@@ -682,7 +694,6 @@ out_disable_calibrate:
 			retval = error;
 	}
 out:
-	data->active = true;
 	enable_irq(client->irq);
 	mutex_unlock(&data->sysfs_mutex);
 	return retval ?: count;
@@ -1053,8 +1064,6 @@ static int elan_probe(struct i2c_client *client,
 		return error;
 	}
 
-	data->active = true;
-
 	error = sysfs_create_groups(&client->dev.kobj, elan_sysfs_groups);
 	if (error) {
 		dev_err(&client->dev, "failed to create sysfs attributes: %d\n",
@@ -1097,12 +1106,16 @@ static int __maybe_unused elan_suspend(struct device *dev)
 	struct elan_tp_data *data = i2c_get_clientdata(client);
 	int ret;
 
-	/* Skip the step if it was turned off before. */
-	if (!data->active)
-		return 0;
+	/*
+	 * We are taking the mutex to make sure sysfs operations are
+	 * complete before we attempt to bring the device into low[er]
+	 * power mode.
+	 */
+	ret = mutex_lock_interruptible(&data->sysfs_mutex);
+	if (ret)
+		return ret;
 
 	disable_irq(client->irq);
-	data->active = false;
 
 	if (device_may_wakeup(dev) && !data->input->inhibited) {
 		ret = elan_sleep(data);
@@ -1112,6 +1125,7 @@ static int __maybe_unused elan_suspend(struct device *dev)
 		ret = elan_disable_power(data);
 	}
 
+	mutex_unlock(&data->sysfs_mutex);
 	return ret;
 }
 
