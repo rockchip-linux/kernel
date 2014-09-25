@@ -73,6 +73,8 @@ struct generic_pm_domain {
 	bool cached_power_down_ok;
 	struct device_node *of_node; /* Node in device tree */
 	struct gpd_cpu_data *cpu_data;
+	void (*attach_dev)(struct device *dev);
+	void (*detach_dev)(struct device *dev);
 	struct delayed_work power_off_delayed_work;
 	s64 power_off_delay;
 };
