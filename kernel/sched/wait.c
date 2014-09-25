@@ -394,6 +394,22 @@ __wait_on_bit(wait_queue_head_t *wq, struct wait_bit_queue *q,
 }
 EXPORT_SYMBOL(__wait_on_bit);
 
+static int __wait_on_bit_with_action_f(wait_queue_head_t *wq,
+						struct wait_bit_queue *q,
+						wait_bit_action_f *action,
+						unsigned mode)
+{
+	int ret = 0;
+
+	do {
+		prepare_to_wait(wq, &q->wait, mode);
+		if (test_bit(q->key.bit_nr, q->key.flags))
+			ret = (*action)(&q->key);
+	} while (test_bit(q->key.bit_nr, q->key.flags) && !ret);
+	finish_wait(wq, &q->wait);
+	return ret;
+}
+
 int __sched out_of_line_wait_on_bit(void *word, int bit,
 					int (*action)(void *), unsigned mode)
 {
@@ -403,6 +419,18 @@ int __sched out_of_line_wait_on_bit(void *word, int bit,
 	return __wait_on_bit(wq, &wait, action, mode);
 }
 EXPORT_SYMBOL(out_of_line_wait_on_bit);
+
+int __sched out_of_line_wait_on_bit_timeout(
+	void *word, int bit, wait_bit_action_f *action,
+	unsigned mode, unsigned long timeout)
+{
+	wait_queue_head_t *wq = bit_waitqueue(word, bit);
+	DEFINE_WAIT_BIT(wait, word, bit);
+
+	wait.key.timeout = jiffies + timeout;
+	return __wait_on_bit_with_action_f(wq, &wait, action, mode);
+}
+EXPORT_SYMBOL_GPL(out_of_line_wait_on_bit_timeout);
 
 int __sched
 __wait_on_bit_lock(wait_queue_head_t *wq, struct wait_bit_queue *q,
@@ -563,3 +591,27 @@ void wake_up_atomic_t(atomic_t *p)
 	__wake_up_bit(atomic_t_waitqueue(p), p, WAIT_ATOMIC_T_BIT_NR);
 }
 EXPORT_SYMBOL(wake_up_atomic_t);
+
+__sched int bit_wait_timeout(struct wait_bit_key *word)
+{
+	unsigned long now = ACCESS_ONCE(jiffies);
+	if (signal_pending_state(current->state, current))
+		return 1;
+	if (time_after_eq(now, word->timeout))
+		return -EAGAIN;
+	schedule_timeout(word->timeout - now);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bit_wait_timeout);
+
+__sched int bit_wait_io_timeout(struct wait_bit_key *word)
+{
+	unsigned long now = ACCESS_ONCE(jiffies);
+	if (signal_pending_state(current->state, current))
+		return 1;
+	if (time_after_eq(now, word->timeout))
+		return -EAGAIN;
+	io_schedule_timeout(word->timeout - now);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(bit_wait_io_timeout);
