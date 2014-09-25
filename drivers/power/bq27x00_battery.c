@@ -438,7 +438,7 @@ static void bq27x00_update(struct bq27x00_device_info *di)
 
 	cache.flags = bq27x00_read(di, BQ27x00_REG_FLAGS, !is_bq27500);
 	if (cache.flags >= 0) {
-		if (!is_bq27500 && !is_bq27425
+		if (!is_bq27500 && !is_bq27425 && !is_bq27742
 				&& (cache.flags & BQ27000_FLAG_CI)) {
 			dev_info(di->dev, "battery is not calibrated! ignoring capacity values\n");
 			cache.capacity = -ENODATA;
