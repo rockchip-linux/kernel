@@ -20,6 +20,7 @@
 #include <linux/wait.h>
 #include <linux/sched.h>
 #include "hid-ids.h"
+#include "hid-rmi-compat.h"
 
 #define RMI_MOUSE_REPORT_ID		0x01 /* Mouse emulation Report */
 #define RMI_WRITE_REPORT_ID		0x09 /* Output Report */
