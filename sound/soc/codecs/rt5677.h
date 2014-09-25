@@ -1372,6 +1372,47 @@
 #define RT5677_SEL_SRC_IB01			(0x1 << 0)
 #define RT5677_SEL_SRC_IB01_SFT			0
 
+/* Jack Detection Control 1 (0xb5) */
+#define RT5677_JD1_SRC_SEL_MASK			(0x3 << 14)
+#define RT5677_JD1_SRC_GPIO1			(0x1 << 14)
+#define RT5677_JD1_SRC_GPIO2			(0x2 << 14)
+#define RT5677_JD1_SRC_GPIO3			(0x3 << 14)
+#define RT5677_JD2_SRC_SEL_MASK			(0x3 << 12)
+#define RT5677_JD2_SRC_SEL_SFT			12
+#define RT5677_JD2_SRC_GPIO4			(0x1 << 12)
+#define RT5677_JD2_SRC_GPIO5			(0x2 << 12)
+#define RT5677_JD2_SRC_GPIO6			(0x3 << 12)
+#define RT5677_JD3_SRC_SEL_MASK			(0x3 << 10)
+#define RT5677_JD3_SRC_SEL_SFT			10
+#define RT5677_JD3_SRC_GPIO4			(0x1 << 10)
+#define RT5677_JD3_SRC_GPIO5			(0x2 << 10)
+#define RT5677_JD3_SRC_GPIO6			(0x3 << 10)
+
+/* IRQ Control 1 (0xbd) */
+#define RT5677_JD1_STATUS_MASK			(0x1 << 15)
+#define RT5677_JD1_STATUS_SFT			15
+#define RT5677_JD1_IRQ_EN_MASK			(0x1 << 14)
+#define RT5677_JD1_IRQ_EN_SFT			14
+#define RT5677_JD1_POLARITY_MASK		(0x1 << 12)
+#define RT5677_JD1_POLARITY_NOR			(0x0 << 12)
+#define RT5677_JD1_POLARITY_INV			(0x1 << 12)
+
+#define RT5677_JD2_STATUS_MASK			(0x1 << 11)
+#define RT5677_JD2_STATUS_SFT			11
+#define RT5677_JD2_IRQ_EN_MASK			(0x1 << 10)
+#define RT5677_JD2_IRQ_EN_SFT			10
+#define RT5677_JD2_POLARITY_MASK		(0x1 << 8)
+#define RT5677_JD2_POLARITY_NOR			(0x0 << 8)
+#define RT5677_JD2_POLARITY_INV			(0x1 << 8)
+
+#define RT5677_JD3_STATUS_MASK			(0x1 << 3)
+#define RT5677_JD3_STATUS_SFT			3
+#define RT5677_JD3_IRQ_EN_MASK			(0x1 << 2)
+#define RT5677_JD3_IRQ_EN_SFT			2
+#define RT5677_JD3_POLARITY_MASK		(0x1 << 0)
+#define RT5677_JD3_POLARITY_NOR			(0x0 << 0)
+#define RT5677_JD3_POLARITY_INV			(0x1 << 0)
+
 /* GPIO status (0xbf) */
 #define RT5677_GPIO6_STATUS_MASK		(0x1 << 5)
 #define RT5677_GPIO6_STATUS_SFT			5
@@ -1476,6 +1517,28 @@
 #define RT5677_GPIO6_P_NOR			(0x0 << 0)
 #define RT5677_GPIO6_P_INV			(0x1 << 0)
 
+/* General Control (0xfa) */
+#define RT5677_IRQ_DEBOUNCE_SEL_MASK		(0x3 << 3)
+#define RT5677_IRQ_DEBOUNCE_SEL_MCLK		(0x0 << 3)
+#define RT5677_IRQ_DEBOUNCE_SEL_RC		(0x1 << 3)
+#define RT5677_IRQ_DEBOUNCE_SEL_SLIM		(0x2 << 3)
+
+/* General Control (0xfb) */
+#define RT5677_AUTO_RC_ON_GPIO_CHANGE_MASK	(0x1 << 7)
+#define RT5677_AUTO_RC_ON_GPIO_CHANGE_SFT	7
+#define RT5677_AUTO_RC_ON_GPIO6_MASK		(0x1 << 5)
+#define RT5677_AUTO_RC_ON_GPIO6_SFT		5
+#define RT5677_AUTO_RC_ON_GPIO5_MASK		(0x1 << 4)
+#define RT5677_AUTO_RC_ON_GPIO5_SFT		4
+#define RT5677_AUTO_RC_ON_GPIO4_MASK		(0x1 << 3)
+#define RT5677_AUTO_RC_ON_GPIO4_SFT		3
+#define RT5677_AUTO_RC_ON_GPIO3_MASK		(0x1 << 2)
+#define RT5677_AUTO_RC_ON_GPIO3_SFT		2
+#define RT5677_AUTO_RC_ON_GPIO2_MASK		(0x1 << 1)
+#define RT5677_AUTO_RC_ON_GPIO2_SFT		1
+#define RT5677_AUTO_RC_ON_GPIO1_MASK		(0x1 << 0)
+#define RT5677_AUTO_RC_ON_GPIO1_SFT		0
+
 /* Virtual DSP Mixer Control (0xf7 0xf8 0xf9) */
 #define RT5677_DSP_IB_01_H			(0x1 << 15)
 #define RT5677_DSP_IB_01_H_SFT			15
@@ -1546,10 +1609,20 @@ enum {
 	RT5677_GPIO_NUM,
 };
 
+enum {
+	RT5677_GPIO_PLUG_DET,
+	RT5677_GPIO_MIC_PRESENT_L,
+	RT5677_GPIO_HOTWORD_DET_L,
+	RT5677_GPIO_DSP_INT,
+	RT5677_GPIO_HP_AMP_SHDN_L,
+};
+
 struct rt5677_priv {
 	struct snd_soc_codec *codec;
 	struct rt5677_platform_data pdata;
 	struct regmap *regmap;
+	struct snd_soc_jack *headphone_jack;
+	struct snd_soc_jack *mic_jack;
 
 	int sysclk;
 	int sysclk_src;
@@ -1563,6 +1636,25 @@ struct rt5677_priv {
 #ifdef CONFIG_GPIOLIB
 	struct gpio_chip gpio_chip;
 #endif
+	/*
+	 * Predefined common codec GPIO tasks. Codec GPIO number is
+	 * 1-based, 0 means no GPIO is assigned to the corresponding task.
+	 *
+	 * gpio_hp_plug_det: A codec GPIO used for headphone jack detect
+	 * Low - headphone is not present
+	 * High - headphone is plugged in
+	 * Supported GPIO: 4,5,6
+	 *
+	 * gpio_mic_present_l: A codec GPIO used for mic jack detect
+	 * Low - mic is plugged in
+	 * High - mic is not present
+	 * Supported GPIO: 4,5,6
+	 */
+	int gpio_hp_plug_det;
+	int gpio_mic_present_l;
 };
+
+int rt5677_register_jack_detect(struct snd_soc_codec *codec,
+	struct snd_soc_jack *headphone_jack, struct snd_soc_jack *mic_jack);
 
 #endif /* __RT5677_H__ */

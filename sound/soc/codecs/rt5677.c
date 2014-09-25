@@ -29,6 +29,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
+#include <sound/jack.h>
 
 #include "rl6231.h"
 #include "rt5677.h"
@@ -3302,6 +3303,25 @@ static void rt5677_free_gpio(struct i2c_client *i2c)
 	if (ret != 0)
 		dev_err(&i2c->dev, "Failed to remove GPIOs: %d\n", ret);
 }
+
+static void rt5677_request_codec_gpios(struct rt5677_priv *rt5677,
+		struct i2c_client *i2c)
+{
+	struct gpio_desc *desc;
+
+	desc = devm_gpiod_get_index(&i2c->dev, "RT5677_GPIO",
+			RT5677_GPIO_PLUG_DET);
+	if (!IS_ERR(desc) && !gpiod_direction_input(desc))
+		rt5677->gpio_hp_plug_det = desc_to_gpio(desc)
+				- rt5677->gpio_chip.base + 1;
+
+	desc = devm_gpiod_get_index(&i2c->dev, "RT5677_GPIO",
+			RT5677_GPIO_MIC_PRESENT_L);
+	if (!IS_ERR(desc) && !gpiod_direction_input(desc))
+		rt5677->gpio_mic_present_l = desc_to_gpio(desc)
+				- rt5677->gpio_chip.base + 1;
+}
+
 #else
 static void rt5677_init_gpio(struct i2c_client *i2c)
 {
@@ -3310,7 +3330,160 @@ static void rt5677_init_gpio(struct i2c_client *i2c)
 static void rt5677_free_gpio(struct i2c_client *i2c)
 {
 }
+static void rt5677_request_codec_gpios(struct rt5677_priv *rt5677,
+		struct i2c_client *i2c)
+{
+}
 #endif
+
+static void rt5677_report_jack_status(struct rt5677_priv *rt5677, int reg_irq)
+{
+	/* reg_irq: IRQ Control register MX-BDh */
+	int polarity;
+	if (reg_irq & RT5677_JD2_STATUS_MASK) {
+		polarity = reg_irq & RT5677_JD2_POLARITY_MASK;
+		if (rt5677->headphone_jack) {
+			snd_soc_jack_report(rt5677->headphone_jack,
+				polarity ? SND_JACK_HEADPHONE : 0,
+				SND_JACK_HEADPHONE);
+		}
+	}
+
+	if (reg_irq & RT5677_JD3_STATUS_MASK) {
+		polarity = reg_irq & RT5677_JD3_POLARITY_MASK;
+		if (rt5677->mic_jack) {
+			snd_soc_jack_report(rt5677->mic_jack,
+				polarity ? 0 : SND_JACK_MICROPHONE,
+				SND_JACK_MICROPHONE);
+		}
+	}
+}
+
+static irqreturn_t rt5677_irq(int unused, void *data)
+{
+	struct rt5677_priv *rt5677 = data;
+	int ret = 0, i;
+	bool irq_fired;
+	int reg_irq;
+
+	/*
+	 * Loop to handle interrupts until the last i2c read shows no pending
+	 * irqs with a safeguard of 20 loops
+	 */
+	for (i = 0; i < 20; i++) {
+		/* Read interrupt status */
+		ret = regmap_read(rt5677->regmap, RT5677_IRQ_CTRL1, &reg_irq);
+		if (ret)
+			break;
+
+		/*
+		 * Clear the interrupt by flipping the polarity of the
+		 * interrupt source lines that just fired
+		 */
+		irq_fired = false;
+		if (reg_irq & RT5677_JD2_STATUS_MASK) {
+			reg_irq ^= RT5677_JD2_POLARITY_MASK;
+			irq_fired = true;
+		}
+
+		if (reg_irq & RT5677_JD3_STATUS_MASK) {
+			reg_irq ^= RT5677_JD3_POLARITY_MASK;
+			irq_fired = true;
+		}
+
+		if (!irq_fired)
+			break;
+
+		ret = regmap_write(rt5677->regmap, RT5677_IRQ_CTRL1, reg_irq);
+		if (ret)
+			break;
+
+		/* Process interrupts */
+		rt5677_report_jack_status(rt5677, reg_irq);
+	}
+	return IRQ_HANDLED;
+}
+
+int rt5677_register_jack_detect(struct snd_soc_codec *codec,
+	struct snd_soc_jack *headphone_jack, struct snd_soc_jack *mic_jack)
+{
+	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
+
+	rt5677->headphone_jack = headphone_jack;
+	rt5677->mic_jack = mic_jack;
+
+	/* Report initial jack status */
+	rt5677_irq(0, rt5677);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5677_register_jack_detect);
+
+static void rt5677_setup_jack_detect(struct snd_soc_codec *codec,
+		struct rt5677_priv *rt5677)
+{
+	unsigned int val;
+
+	/* Skip jack detect setup if there are no assigned GPIOs */
+	if (!rt5677->gpio_hp_plug_det && !rt5677->gpio_mic_present_l)
+		return;
+	/* GPIO range check */
+	if (rt5677->gpio_hp_plug_det < 4 || rt5677->gpio_hp_plug_det > 6) {
+		dev_err(codec->dev, "PLUG_DET can only use GPIO 4~6, given %d\n",
+				rt5677->gpio_hp_plug_det);
+	}
+	if (rt5677->gpio_mic_present_l < 4 || rt5677->gpio_mic_present_l > 6) {
+		dev_err(codec->dev, "MIC_PRESENT_L can only use GPIO 4~6, given %d\n",
+				rt5677->gpio_mic_present_l);
+	}
+
+	/*
+	 * Select RC as the debounce clock so that GPIO works even when
+	 * MCLK is gated which happens when there is no audio stream
+	 * (SND_SOC_BIAS_OFF).
+	 */
+	regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC,
+			RT5677_IRQ_DEBOUNCE_SEL_MASK,
+			RT5677_IRQ_DEBOUNCE_SEL_RC);
+	/* Enable auto power on RC when GPIO states are changed */
+	val = RT5677_AUTO_RC_ON_GPIO_CHANGE_MASK;
+	if (rt5677->gpio_hp_plug_det)
+		val |= 1 << (rt5677->gpio_hp_plug_det - 1);
+	if (rt5677->gpio_mic_present_l)
+		val |= 1 << (rt5677->gpio_mic_present_l - 1);
+	regmap_update_bits(rt5677->regmap, RT5677_GEN_CTRL1,
+			RT5677_AUTO_RC_ON_GPIO_CHANGE_MASK |
+			(1 << (rt5677->gpio_hp_plug_det - 1)) |
+			(1 << (rt5677->gpio_mic_present_l - 1)),
+			val);
+
+	/*
+	 * Select jack detection source
+	 * JD2: PLUG_DET
+	 * JD3: !MIC_PRESENT_L
+	 */
+	val = 0;
+	if (rt5677->gpio_hp_plug_det)
+		val |= (rt5677->gpio_hp_plug_det - 3)
+			<< RT5677_JD2_SRC_SEL_SFT;
+	if (rt5677->gpio_mic_present_l)
+		val |= (rt5677->gpio_mic_present_l - 3)
+			<< RT5677_JD3_SRC_SEL_SFT;
+	regmap_update_bits(rt5677->regmap, RT5677_JD_CTRL1,
+			RT5677_JD2_SRC_SEL_MASK | RT5677_JD3_SRC_SEL_MASK,
+			val);
+
+	/* Enable JD2 and/or JD3 as IRQ source */
+	val = 0;
+	if (rt5677->gpio_hp_plug_det)
+		val |= RT5677_JD2_IRQ_EN_MASK;
+	if (rt5677->gpio_mic_present_l)
+		val |= RT5677_JD3_IRQ_EN_MASK | RT5677_JD3_POLARITY_INV;
+	regmap_update_bits(rt5677->regmap, RT5677_IRQ_CTRL1, val, val);
+
+	/* Set GPIO1 to be IRQ */
+	regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL1,
+			RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_IRQ);
+}
 
 static int rt5677_probe(struct snd_soc_codec *codec)
 {
@@ -3333,6 +3506,7 @@ static int rt5677_probe(struct snd_soc_codec *codec)
 	regmap_write(rt5677->regmap, RT5677_DIG_MISC, 0x0020);
 	regmap_write(rt5677->regmap, RT5677_PWR_DSP2, 0x0c00);
 
+	rt5677_setup_jack_detect(codec, rt5677);
 	return 0;
 }
 
@@ -3651,6 +3825,17 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 	}
 
 	rt5677_init_gpio(i2c);
+	rt5677_request_codec_gpios(rt5677, i2c);
+
+	if (i2c->irq) {
+		ret = request_threaded_irq(i2c->irq, NULL, rt5677_irq,
+			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+			"rt5677", rt5677);
+		if (ret) {
+			dev_err(&i2c->dev, "Failed to request IRQ: %d\n", ret);
+			return ret;
+		}
+	}
 
 	return snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5677,
 				      rt5677_dai, ARRAY_SIZE(rt5677_dai));
