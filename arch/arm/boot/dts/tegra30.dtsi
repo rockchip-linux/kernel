@@ -256,6 +256,7 @@
 
 	interrupt-controller@60004000 {
 		compatible = "nvidia,tegra30-ictlr";
+		interrupt-controller;
 		reg = <0x60004000 0x40>, /* primary controller */
 		      <0x60004100 0x40>, /* secondary controller */
 		      <0x60004200 0x40>, /* tertiary controller */
