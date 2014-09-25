@@ -458,6 +458,14 @@
 
 &i2c1 {
 	status = "okay";
+
+	tpm: tpm@20 {
+		compatible = "infineon,slb9645tt";
+		reg = <0x20>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tpm_int>;
+		powered-while-suspended;
+	};
 };
 
 &i2c2 {
@@ -602,6 +610,12 @@
 
 	        sd_en: sd-en {
 		        rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	tpm {
+		tpm_int: tpm-int {
+			rockchip,pins = <7 4 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
