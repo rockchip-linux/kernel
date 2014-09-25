@@ -1,0 +1,216 @@
+/*
+ * Copyright (C) 2012 Imagination Technologies Ltd.
+ * Copyright (C) 2014 Google, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/mips-gic.h>
+
+/ {
+	model = "IMG Pistachio SoC FPGA";
+	compatible = "img,pistachio-fpga";
+
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	interrupt-parent = <&gic>;
+
+	aliases {
+		i2c0 = &i2c0;
+		spi0 = &spfi0;
+		spi1 = &spfi1;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200 earlycon=uart8250,mmio32,0x18101400,115200";
+	};
+
+	memory {
+		device_type = "memory";
+		reg =  <0x00000000 0x08000000>;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "mti,interaptiv";
+			reg = <0>;
+			clocks = <&system_clk>;
+		};
+	};
+
+	i2c0: i2c@18100000 {
+		compatible = "img,scb-i2c";
+		reg = <0x18100000 0x200>;
+		interrupts = <GIC_SHARED 2 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&system_clk>, <&system_clk>;
+		clock-names = "scb", "sys";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	spfi0: spi@18100f00 {
+		compatible = "img,spfi";
+		reg = <0x18100f00 0x100>;
+		interrupts = <GIC_SHARED 22 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&system_clk>, <&system_clk>;
+		clock-names = "spfi", "sys";
+		dmas = <&mdc 9 0xffffffff 0>, <&mdc 10 0xffffffff 0>;
+		dma-names = "rx", "tx";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	spfi1: spi@18101000 {
+		compatible = "img,spfi";
+		reg = <0x18101000 0x100>;
+		interrupts = <GIC_SHARED 26 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&system_clk>, <&system_clk>;
+		clock-names = "spfi", "sys";
+		dmas = <&mdc 1 0xffffffff 0>, <&mdc 2 0xffffffff 0>;
+		dma-names = "rx", "tx";
+
+		img,supports-quad-mode;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		flash@0 {
+			compatible = "w25q80";
+			reg = <0>;
+			spi-max-frequency = <6250000>;
+		};
+	};
+
+	uart@18101400 {
+		compatible = "snps,dw-apb-uart";
+		reg = <0x18101400 0x100>;
+		interrupts = <GIC_SHARED 24 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&uart_clk>;
+		clock-names = "baudclk";
+		reg-shift = <2>;
+		reg-io-width = <4>;
+	};
+
+	ir@18102200 {
+		compatible = "img,ir-rev1";
+		reg = <0x18102200 0x100>;
+		interrupts = <GIC_SHARED 51 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_32k>, <&system_clk>;
+		clock-names = "core", "sys";
+	};
+
+	usb@18120000 {
+		compatible = "img,pistachio-usb";
+		reg = <0x18120000 0x1c000>;
+		interrupts = <GIC_SHARED 49 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&system_clk>;
+		clock-names = "otg";
+	};
+
+	ethernet@18140000 {
+		compatible = "snps,dwmac";
+		reg = <0x18140000 0x2000>;
+		interrupts = <GIC_SHARED 50 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "macirq";
+		clocks = <&system_clk>;
+		clock-names = "stmmaceth";
+		mac-address = [000000000000];
+		phy-mode = "rmii";
+	};
+
+	mmc@18142000 {
+		compatible = "img,pistachio-dw-mshc";
+		reg = <0x18142000 0x400>;
+		interrupts = <GIC_SHARED 39 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&system_clk>;
+		clock-names = "ciu";
+
+		fifo-depth = <0x20>;
+		bus-width = <4>;
+		num-slots = <1>;
+		disable-wp;
+	};
+
+	mdc: dma-controller@18143000 {
+		compatible = "img,pistachio-mdc-dma";
+		reg = <0x18143000 0x1000>;
+		interrupts = <GIC_SHARED 27 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 28 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 29 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 30 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 31 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 32 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 33 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 34 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 35 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 36 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 37 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SHARED 38 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&system_clk>;
+		clock-names = "sys";
+
+		img,max-burst-multiplier = <16>;
+		img,cr-periph = <&cr_periph>;
+
+		#dma-cells = <3>;
+	};
+
+	cr_periph: peripheral-control@18148000 {
+		compatible = "img,pistachio-cr-periph", "syscon";
+		reg = <0x18148000 0x1000>;
+	};
+
+	gic: interrupt-controller@1bdc0000 {
+		compatible = "mti,gic";
+		reg = <0x1bdc0000 0x20000>;
+
+		interrupt-controller;
+		#interrupt-cells = <3>;
+
+		timer {
+			compatible = "mti,gic-timer";
+			interrupts = <GIC_LOCAL 1 IRQ_TYPE_NONE>;
+			clock-frequency = <50000000>;
+		};
+	};
+
+	system_clk: system-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <50000000>;
+		clock-output-names = "system_clk";
+	};
+
+	utmi_clk: utmi-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <60000000>;
+		clock-output-names = "utmi_clk";
+	};
+
+	uart_clk: uart-clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <1843200>;
+		clock-output-names = "uart_clk";
+	};
+
+	clk_32k: clock-32khz {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <32768>;
+		clock-output-names = "clk_32k";
+	};
+};
