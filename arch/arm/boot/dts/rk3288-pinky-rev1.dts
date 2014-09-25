@@ -285,6 +285,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&ec_int>;
 		reg = <0>;
+		google,cros-ec-spi-pre-delay = <30>;
 
 		i2c20: i2c-tunnel {
 			compatible = "google,cros-ec-i2c-tunnel";
