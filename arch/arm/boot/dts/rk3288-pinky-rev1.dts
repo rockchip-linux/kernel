@@ -14,6 +14,7 @@
 #include "rk3288.dtsi"
 
 / {
+	model = "Google Pinky";
 	compatible = "google,veyron-pinky-rev1", "google,veyron-pinky",
 		     "google,veyron", "rockchip,rk3288";
 
