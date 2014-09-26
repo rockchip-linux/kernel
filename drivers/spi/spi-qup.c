@@ -643,7 +643,8 @@ static irqreturn_t spi_qup_qup_irq(int irq, void *dev_id)
 	controller->xfer = xfer;
 	spin_unlock_irqrestore(&controller->lock, flags);
 
-	if (controller->rx_bytes == xfer->len || error)
+	if ((controller->rx_bytes == xfer->len &&
+		(opflags & QUP_OP_MAX_INPUT_DONE_FLAG)) || error)
 		complete(&controller->done);
 
 	return IRQ_HANDLED;
