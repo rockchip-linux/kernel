@@ -49,6 +49,12 @@
 				};
 			};
 
+			i2c1_pins: i2c1_pinmux {
+				pins = "gpio53", "gpio54";
+				function = "gsbi1";
+				bias-disable;
+			};
+
 			i2c4_pins: i2c4_pinmux {
 				pins = "gpio12", "gpio13";
 				function = "gsbi4";
@@ -105,6 +111,26 @@
 				clk {
 					pins = "gpio21";
 					drive-strength = <12>;
+				};
+			};
+		};
+
+		gsbi1: gsbi@12440000 {
+			qcom,mode = <GSBI_PROT_I2C_UART>;
+			status = "ok";
+
+			i2c1: i2c@12460000 {
+				status = "ok";
+
+				clock-frequency = <100000>;
+
+				pinctrl-0 = <&i2c1_pins>;
+				pinctrl-names = "default";
+
+				trusted-platform-module {
+					compatible = "infineon,slb9645tt";
+					reg = <0x20>;
+					powered-while-suspended;
 				};
 			};
 		};
