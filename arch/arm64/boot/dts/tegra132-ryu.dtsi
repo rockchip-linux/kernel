@@ -319,7 +319,7 @@
 						regulator-boot-on;
 					};
 
-					ldo1 {
+					avdd_1v05_run: ldo1 {
 						regulator-name = "avdd-pll";
 						regulator-min-microvolt = <1050000>;
 						regulator-max-microvolt = <1050000>;
@@ -328,7 +328,7 @@
 						ti,roof-floor = <3>;
 					};
 
-					ldo2 {
+					vdd_1v05_run: ldo2 {
 						regulator-name = "vdd-usb3";
 						regulator-min-microvolt = <1050000>;
 						regulator-max-microvolt = <1050000>;
@@ -470,24 +470,6 @@
 		status = "okay";
 	};
 
-	/* USB A connector */
-	usb@7d000000 {
-		status = "okay";
-	};
-
-	usb-phy@7d000000 {
-		status = "okay";
-	};
-
-	usb@7d008000 {
-		status = "okay";
-	};
-
-	usb-phy@7d008000 {
-		status = "okay";
-		vbus-supply = <&vdd_usb3_vbus>;
-	};
-
 	sdhci@700b0000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -500,6 +482,53 @@
 		nvidia,host-off-card-on;
 		keep-power-in-suspend;
 		tap-delay = <2>;
+	};
+
+	usb@0,70090000 {
+		status = "okay";
+		phys = <&padctl TEGRA_XUSB_PADCTL_UTMI_P0>, /* USB 2.0 to port */
+		       <&padctl TEGRA_XUSB_PADCTL_UTMI_P2>, /* WWAN USB 2.0 */
+		       <&padctl TEGRA_XUSB_PADCTL_USB3_P0>, /* 1st USB 3.0 */
+		       <&padctl TEGRA_XUSB_PADCTL_USB3_P1>; /* 2nd USB 3.0 */
+		phy-names = "utmi-0", "utmi-2", "usb3-0", "usb3-1";
+		avddio-pex-supply = <&vdd_1v05_run>;
+		dvddio-pex-supply = <&vdd_1v05_run>;
+		avdd-usb-supply = <&vdd_3v3_reg>;
+		avdd-pll-utmip-supply = <&palmas_smps8>;
+		avdd-pll-erefe-supply = <&avdd_1v05_run>;
+		avdd-pex-pll-supply = <&vdd_1v05_run>;
+		hvdd-pex-supply = <&vdd_3v3_reg>;
+		hvdd-pex-plle-supply = <&vdd_3v3_reg>;
+	};
+
+	padctl@0,7009f000 {
+		pinctrl-0 = <&padctl_default>;
+		pinctrl-names = "default";
+
+		vbus-2-supply = <&vdd_usb3_vbus>;
+		nvidia,usb3-port-0-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_0>;
+		nvidia,usb3-port-1-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_1>;
+
+		padctl_default: pinmux {
+			otg {
+				nvidia,lanes = "otg-0", "otg-1", "otg-2";
+				nvidia,function = "xusb";
+			};
+
+			usb3p0 {
+				nvidia,lanes = "pcie-0";
+				nvidia,function = "usb3";
+				nvidia,iddq = <0>;
+				nvidia,usb2-port-num = <0>;
+			};
+
+			usb3p1 {
+				nvidia,lanes = "pcie-1";
+				nvidia,function = "usb3";
+				nvidia,iddq = <0>;
+				nvidia,usb2-port-num = <0>;
+			};
+		};
 	};
 
 	sdhci@700b0600 {
