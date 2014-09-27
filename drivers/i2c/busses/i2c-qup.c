@@ -664,6 +664,11 @@ static int qup_i2c_probe(struct platform_device *pdev)
 		qup->in_blk_sz, qup->in_fifo_sz,
 		qup->out_blk_sz, qup->out_fifo_sz);
 
+	pm_runtime_set_autosuspend_delay(qup->dev, MSEC_PER_SEC);
+	pm_runtime_use_autosuspend(qup->dev);
+	pm_runtime_set_active(qup->dev);
+	pm_runtime_enable(qup->dev);
+
 	i2c_set_adapdata(&qup->adap, qup);
 	qup->adap.algo = &qup_i2c_algo;
 	qup->adap.dev.parent = qup->dev;
@@ -672,14 +677,13 @@ static int qup_i2c_probe(struct platform_device *pdev)
 
 	ret = i2c_add_adapter(&qup->adap);
 	if (ret)
-		goto fail;
+		goto pm_disable;
 
-	pm_runtime_set_autosuspend_delay(qup->dev, MSEC_PER_SEC);
-	pm_runtime_use_autosuspend(qup->dev);
-	pm_runtime_set_active(qup->dev);
-	pm_runtime_enable(qup->dev);
 	return 0;
 
+pm_disable:
+	pm_runtime_disable(qup->dev);
+	pm_runtime_set_suspended(qup->dev);
 fail:
 	qup_i2c_disable_clocks(qup);
 	return ret;
