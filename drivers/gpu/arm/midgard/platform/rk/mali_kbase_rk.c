@@ -6,7 +6,7 @@
  * published by the Free Software FoundatIon.
  */
 
-#include <mali_kbase_rk.h>
+#include "mali_kbase_rk.h"
 
 static int kbase_rk_power_on_callback(struct kbase_device *kbdev)
 {
