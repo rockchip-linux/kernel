@@ -868,63 +868,15 @@ static int m25p_probe(struct spi_device *spi)
 {
 	const struct spi_device_id	*id = spi_get_device_id(spi);
 	struct flash_platform_data	*data;
-	struct m25p			*flash;
-	struct flash_info		*info;
-	unsigned			i;
-	struct mtd_part_parser_data	ppdata;
-	struct device_node __maybe_unused *np = spi->dev.of_node;
+	const struct spi_device_id *id = NULL;
+	struct m25p *flash;
+	struct spi_nor *nor;
+	enum read_mode mode = SPI_NOR_NORMAL;
+	int ret;
 
-#ifdef CONFIG_MTD_OF_PARTS
-	if (!of_device_is_available(np))
-		return -ENODEV;
-#endif
+	data = dev_get_platdata(&spi->dev);
 
-	/* Platform data helps sort out which chip type we have, as
-	 * well as how this board partitions it.  If we don't have
-	 * a chip ID, try the JEDEC id commands; they'll work for most
-	 * newer chips, even if we don't recognize the particular chip.
-	 */
-	data = spi->dev.platform_data;
-	if (data && data->type) {
-		const struct spi_device_id *plat_id;
-
-		for (i = 0; i < ARRAY_SIZE(m25p_ids) - 1; i++) {
-			plat_id = &m25p_ids[i];
-			if (strcmp(data->type, plat_id->name))
-				continue;
-			break;
-		}
-
-		if (i < ARRAY_SIZE(m25p_ids) - 1)
-			id = plat_id;
-		else
-			dev_warn(&spi->dev, "unrecognized id %s\n", data->type);
-	}
-
-	info = (void *)id->driver_data;
-
-	if (info->jedec_id) {
-		const struct spi_device_id *jid;
-
-		jid = jedec_probe(spi);
-		if (IS_ERR(jid)) {
-			return PTR_ERR(jid);
-		} else if (jid != id) {
-			/*
-			 * JEDEC knows better, so overwrite platform ID. We
-			 * can't trust partitions any longer, but we'll let
-			 * mtd apply them anyway, since some partitions may be
-			 * marked read-only, and we don't want to lose that
-			 * information, even if it's not 100% accurate.
-			 */
-			dev_warn(&spi->dev, "found %s, expected %s\n",
-				 jid->name, id->name);
-			id = jid;
-			info = (void *)jid->driver_data;
-		}
-	}
-
-	flash = kzalloc(sizeof *flash, GFP_KERNEL);
+	flash = devm_kzalloc(&spi->dev, sizeof(*flash), GFP_KERNEL);
 	if (!flash)
 		return -ENOMEM;
 	flash->command = kmalloc(MAX_CMD_SIZE + (flash->fast_read ? 1 : 0),
@@ -955,36 +907,29 @@ static int m25p_probe(struct spi_device *spi)
 	else
 		flash->mtd.name = dev_name(&spi->dev);
 
-	flash->mtd.type = MTD_NORFLASH;
-	flash->mtd.writesize = 1;
-	flash->mtd.flags = MTD_CAP_NORFLASH;
-	flash->mtd.size = info->sector_size * info->n_sectors;
-	flash->mtd._erase = m25p80_erase;
-	flash->mtd._read = m25p80_read;
+	if (spi->mode & SPI_RX_QUAD)
+		mode = SPI_NOR_QUAD;
+	else if (spi->mode & SPI_RX_DUAL)
+		mode = SPI_NOR_DUAL;
 
-	/* flash protection support for STmicro chips */
-	if (JEDEC_MFR(info->jedec_id) == CFI_MFR_ST) {
-		flash->mtd._lock = m25p80_lock;
-		flash->mtd._unlock = m25p80_unlock;
-	}
+	if (data && data->name)
+		flash->mtd.name = data->name;
 
-	/* sst flash chips use AAI word program */
-	if (info->flags & SST_WRITE)
-		flash->mtd._write = sst_write;
-	else
-		flash->mtd._write = m25p80_write;
+	/* For some (historical?) reason many platforms provide two different
+	 * names in flash_platform_data: "name" and "type". Quite often name is
+	 * set to "m25p80" and then "type" provides a real chip name.
+	 * If that's the case, respect "type" and ignore a "name".
+	 */
+	if (data && data->type)
+		id = spi_nor_match_id(data->type);
 
-	/* prefer "small sector" erase if possible */
-	if (info->flags & SECT_4K) {
-		flash->erase_opcode = OPCODE_BE_4K;
-		flash->mtd.erasesize = 4096;
-	} else {
-		flash->erase_opcode = OPCODE_SE;
-		flash->mtd.erasesize = info->sector_size;
-	}
+	/* If we didn't get name from platform, simply use "modalias". */
+	if (!id)
+		id = spi_get_device_id(spi);
 
-	if (info->flags & M25P_NO_ERASE)
-		flash->mtd.flags |= MTD_NO_ERASE;
+	ret = spi_nor_scan(nor, id, mode);
+	if (ret)
+		return ret;
 
 	ppdata.of_node = spi->dev.of_node;
 	flash->mtd.dev.parent = &spi->dev;
