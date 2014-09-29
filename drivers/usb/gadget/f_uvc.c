@@ -373,7 +373,7 @@ uvc_function_get_alt(struct usb_function *f, unsigned interface)
 		 * alt-setting.
 		 */
 		if (!bulk_streaming_ep)
-			return uvc->state == UVC_STATE_STREAMING ? 1 : 0;
+			return uvc->video.ep->driver_data ? 1 : 0;
 		else
 			return 0;
 }
