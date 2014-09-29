@@ -524,6 +524,16 @@ uvc_function_disable(struct usb_function *f)
 
 	INFO(f->config->cdev, "uvc_function_disable\n");
 
+	if (uvc->video.ep->driver_data) {
+		usb_ep_disable(uvc->video.ep);
+		uvc->video.ep->driver_data = NULL;
+	}
+
+	if (uvc->control_ep->driver_data) {
+		usb_ep_disable(uvc->control_ep);
+		uvc->control_ep->driver_data = NULL;
+	}
+
 	memset(&v4l2_event, 0, sizeof(v4l2_event));
 	v4l2_event.type = UVC_EVENT_DISCONNECT;
 	v4l2_event_queue(uvc->vdev, &v4l2_event);
