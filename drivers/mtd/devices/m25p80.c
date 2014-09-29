@@ -871,6 +871,7 @@ static int m25p_probe(struct spi_device *spi)
 	struct m25p *flash;
 	struct spi_nor *nor;
 	enum read_mode mode = SPI_NOR_NORMAL;
+	char *flash_name = NULL;
 	int ret;
 
 	data = dev_get_platdata(&spi->dev);
@@ -920,13 +921,12 @@ static int m25p_probe(struct spi_device *spi)
 	 * If that's the case, respect "type" and ignore a "name".
 	 */
 	if (data && data->type)
-		id = spi_nor_match_id(data->type);
+		flash_name = data->type;
+	else
+		flash_name = spi->modalias;
 
-	/* If we didn't get name from platform, simply use "modalias". */
-	if (!id)
-		id = spi_get_device_id(spi);
-
-	ret = spi_nor_scan(nor, flash_name, mode);
+	id = spi_nor_match_id(flash_name);
+	ret = spi_nor_scan(nor, id, mode);
 	if (ret)
 		return ret;
 
