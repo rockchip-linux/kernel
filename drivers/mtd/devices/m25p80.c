@@ -868,7 +868,6 @@ static int m25p_probe(struct spi_device *spi)
 {
 	const struct spi_device_id	*id = spi_get_device_id(spi);
 	struct flash_platform_data	*data;
-	const struct spi_device_id *id = NULL;
 	struct m25p *flash;
 	struct spi_nor *nor;
 	enum read_mode mode = SPI_NOR_NORMAL;
@@ -927,7 +926,7 @@ static int m25p_probe(struct spi_device *spi)
 	if (!id)
 		id = spi_get_device_id(spi);
 
-	ret = spi_nor_scan(nor, id, mode);
+	ret = spi_nor_scan(nor, flash_name, mode);
 	if (ret)
 		return ret;
 
