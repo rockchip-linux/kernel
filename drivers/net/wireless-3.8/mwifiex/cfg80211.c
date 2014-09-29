@@ -1987,7 +1987,8 @@ mwifiex_cfg80211_scan(struct wiphy *wiphy,
 		user_scan_cfg->chan_list[i].chan_number = chan->hw_value;
 		user_scan_cfg->chan_list[i].radio_type = chan->band;
 
-		if (chan->flags & IEEE80211_CHAN_PASSIVE_SCAN)
+		if ((chan->flags & IEEE80211_CHAN_PASSIVE_SCAN) ||
+		    !request->n_ssids)
 			user_scan_cfg->chan_list[i].scan_type =
 						MWIFIEX_SCAN_TYPE_PASSIVE;
 		else
