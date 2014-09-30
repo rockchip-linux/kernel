@@ -407,7 +407,6 @@ struct mxt_data {
 	u8 T7_config[3];
 	bool T7_config_valid;
 
-	bool suspended;
 	/* T7 IDLEACQINT & ACTVACQINT setting when in suspend mode*/
 	u8 suspend_acq_interval;
 
@@ -3216,13 +3215,16 @@ static int mxt_input_inhibit(struct input_dev *input)
 
 	dev_dbg(dev, "inhibit\n");
 
-	mxt_stop(data);
+	disable_irq(data->client->irq);
+
 	mxt_save_all_regs(data);
 
 	ret = mxt_set_regs(data, MXT_GEN_POWER_T7, 0, 0,
 			   T7_config_deepsleep, 3);
 	if (ret)
 		dev_err(dev, "Set T7 Power config failed, %d\n", ret);
+
+	mxt_stop(data);
 
 	return 0;
 }
@@ -3234,9 +3236,14 @@ static int mxt_input_uninhibit(struct input_dev *input)
 
 	dev_dbg(dev, "uninhibit\n");
 
+	mxt_release_all_fingers(data);
+
 	data->T9_ctrl_valid = false;
 	mxt_restore_all_regs(data);
+
 	mxt_start(data);
+
+	enable_irq(data->client->irq);
 
 	return 0;
 }
@@ -3582,13 +3589,25 @@ static int __maybe_unused mxt_suspend(struct device *dev)
 	const u8 *power_config;
 	int ret;
 
-	if (mxt_in_bootloader(data))
-		return 0;
-	if (input_dev->inhibited)
-		return 0;
+	/*
+	 * Note that holding mutex here is not strictly necessary
+	 * if inhibit/uninhibit/open/close can only be invoked by
+	 * userspace activity (as they currently are) and not from
+	 * within the kernel, since userspace is stunned during
+	 * system suspend transition. But to be protected against
+	 * possible future changes we are taking the mutex anyway.
+	 */
+	ret = mutex_lock_interruptible(&input_dev->mutex);
+	if (ret)
+		return ret;
 
-	mutex_lock(&input_dev->mutex);
-	data->suspended = true;
+	if (input_dev->inhibited)
+		goto out;
+
+	if (mxt_in_bootloader(data))
+		goto out;
+
+	disable_irq(data->irq);
 
 	mxt_save_all_regs(data);
 
@@ -3644,10 +3663,8 @@ static int __maybe_unused mxt_suspend(struct device *dev)
 		mxt_stop(data);
 	}
 
-	disable_irq(data->irq);
-
+out:
 	mutex_unlock(&input_dev->mutex);
-
 	return 0;
 }
 
@@ -3656,12 +3673,15 @@ static int __maybe_unused mxt_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mxt_data *data = i2c_get_clientdata(client);
 	struct input_dev *input_dev = data->input_dev;
-	int ret;
+	int ret = 0;
+
+	mutex_lock(&input_dev->mutex);
+
+	if (input_dev->inhibited)
+		goto out;
 
 	if (mxt_in_bootloader(data))
-		return 0;
-	if (input_dev->inhibited)
-		return 0;
+		goto out;
 
 	/* Process any pending message so that CHG line can be de-asserted */
 	ret = mxt_handle_messages(data, false);
@@ -3669,8 +3689,6 @@ static int __maybe_unused mxt_resume(struct device *dev)
 		dev_err(dev, "Handling message fails upon resume, %d\n", ret);
 
 	mxt_release_all_fingers(data);
-
-	mutex_lock(&input_dev->mutex);
 
 	mxt_restore_all_regs(data);
 
@@ -3683,9 +3701,6 @@ static int __maybe_unused mxt_resume(struct device *dev)
 		msleep(MXT_CAL_TIME);
 	}
 
-	data->suspended = false;
-	mutex_unlock(&input_dev->mutex);
-
 	enable_irq(data->irq);
 
 	if (data->irq_wake) {
@@ -3693,6 +3708,8 @@ static int __maybe_unused mxt_resume(struct device *dev)
 		data->irq_wake = false;
 	}
 
+out:
+	mutex_unlock(&input_dev->mutex);
 	return 0;
 }
 
