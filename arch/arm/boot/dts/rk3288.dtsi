@@ -522,8 +522,14 @@
 		interrupt-names = "JOB", "MMU", "GPU";
 		clocks = <&cru ACLK_GPU>;
 		clock-names = "aclk_gpu";
-		assigned-clocks = <&cru ACLK_GPU>;
-		assigned-clock-rates = <100000000>;
+		operating-points = <
+			/* KHz uV */
+			100000 800000
+			200000 850000
+			300000 950000
+			400000 1000000
+			600000 1150000
+		>;
 		status = "disabled";
 	};
 
