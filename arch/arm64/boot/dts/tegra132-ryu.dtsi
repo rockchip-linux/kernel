@@ -390,7 +390,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		power-gpios = <&gpio TEGRA_GPIO(X, 7) GPIO_ACTIVE_HIGH>;
+		card-reset-gpios = <&gpio TEGRA_GPIO(X, 7) GPIO_ACTIVE_LOW>;
 		bus-width = <4>;
 		no-1-8-v;
 		non-removable;
