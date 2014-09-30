@@ -107,6 +107,120 @@ int kbase_platform_early_init(void)
 	return 0;
 }
 
+#ifdef CONFIG_MALI_MIDGARD_DEBUG_SYS
+static ssize_t show_clock(struct device *dev,
+			  struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+
+	return scnprintf(buf, PAGE_SIZE, "%lu\n", clk_get_rate(kbase_rk->clk));
+}
+
+static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
+			 const char *buf, size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	unsigned long  clkrate;
+	ssize_t ret;
+
+	ret = kstrtoul(buf, 10, &clkrate);
+	if (ret)
+		return ret;
+
+	/* TODO(xxm): allow all freq in opp table once voltage can be set */
+	if (clkrate != kbase_rk->fv_table[0].freq)
+		return -EINVAL;
+
+	ret = clk_set_rate(kbase_rk->clk, clkrate);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static ssize_t show_available_frequencies(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	ssize_t ret = 0;
+	u32 i;
+
+	for (i = 0; i < kbase_rk->fv_table_length; i++)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%lu\n",
+				 kbase_rk->fv_table[i].freq);
+
+	return ret;
+}
+
+static ssize_t show_memory(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%lu bytes\n",
+			 atomic_read(&kbdev->memdev.used_pages) * PAGE_SIZE);
+}
+
+DEVICE_ATTR(memory, S_IRUGO, show_memory, NULL);
+DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
+DEVICE_ATTR(available_frequencies, S_IRUGO, show_available_frequencies, NULL);
+
+static int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
+{
+	int ret;
+
+	ret = device_create_file(kbdev->dev, &dev_attr_clock);
+	if (ret) {
+		dev_err(kbdev->dev, "Couldn't create sysfs file [clock], %d\n",
+			ret);
+		return ret;
+	}
+
+	ret = device_create_file(kbdev->dev, &dev_attr_available_frequencies);
+	if (ret) {
+		dev_err(kbdev->dev, "Couldn't create sysfs file [available_frequencies], %d\n",
+			ret);
+		goto err_remove_clock;
+	}
+
+	ret = device_create_file(kbdev->dev, &dev_attr_memory);
+	if (ret) {
+		dev_err(kbdev->dev, "Couldn't create sysfs file [memory], %d\n",
+			ret);
+		goto err_remove_available_frequencies;
+	}
+
+	return 0;
+
+err_remove_available_frequencies:
+	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
+err_remove_clock:
+	device_remove_file(kbdev->dev, &dev_attr_clock);
+
+	return ret;
+}
+
+void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
+{
+	device_remove_file(kbdev->dev, &dev_attr_memory);
+	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
+	device_remove_file(kbdev->dev, &dev_attr_clock);
+}
+#else
+static inline int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
+{
+	return 0;
+}
+
+static inline void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
+{
+}
+#endif
+
 static int kbase_rk_get_opp_table(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
@@ -187,7 +301,14 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 	dev_info(kbdev->dev, "initial freq = %lu\n",
 		 clk_get_rate(kbase_rk->clk));
 
+	ret = kbase_rk_create_sysfs_file(kbdev);
+	if (ret)
+		goto unprepare_clk;
+
 	return MALI_TRUE;
+unprepare_clk:
+	clk_unprepare(kbase_rk->clk);
+	return MALI_FALSE;
 }
 
 static void kbase_rk_platform_term(struct kbase_device *kbdev)
@@ -195,6 +316,7 @@ static void kbase_rk_platform_term(struct kbase_device *kbdev)
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
 
 	clk_unprepare(kbase_rk->clk);
+	kbase_rk_remove_sysfs_file(kbdev);
 	kbdev->platform_context = NULL;
 }
 
