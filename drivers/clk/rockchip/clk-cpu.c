@@ -10,9 +10,8 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- * This file contains the utility function to register CPU clock for Samsung
- * Exynos platforms. A CPU clock is defined as a clock supplied to a CPU or a
- * group of CPUs. The CPU clock is typically derived from a hierarchy of clock
+ * A CPU clock is defined as a clock supplied to a CPU or a group of CPUs.
+ * The CPU clock is typically derived from a hierarchy of clock
  * blocks which includes mux and divider blocks. There are a number of other
  * auxiliary clocks supplied to the CPU domain such as the debug blocks and AXI
  * clock for CPU domain. The rates of these auxiliary clocks are related to the
@@ -102,20 +101,29 @@ static const struct clk_ops rockchip_cpuclk_ops = {
 	.recalc_rate = rockchip_cpuclk_recalc_rate,
 };
 
+static void rockchip_cpuclk_set_dividers(struct rockchip_cpuclk *cpuclk,
+				const struct rockchip_cpuclk_rate_table *rate)
+{
+	int i;
+
+	/* alternate parent is active now. set the dividers */
+	for (i = 0; i < ARRAY_SIZE(rate->divs); i++) {
+		const struct rockchip_cpuclk_clksel *clksel = &rate->divs[i];
+
+		if (!clksel->reg)
+			continue;
+
+		pr_debug("%s: setting reg 0x%x to 0x%x\n",
+			 __func__, clksel->reg, clksel->val);
+		writel(clksel->val , cpuclk->reg_base + clksel->reg);
+	}
+}
+
 static int rockchip_cpuclk_pre_rate_change(struct rockchip_cpuclk *cpuclk,
 					   struct clk_notifier_data *ndata)
 {
 	const struct rockchip_cpuclk_reg_data *reg_data = cpuclk->reg_data;
-	const struct rockchip_cpuclk_rate_table *rate;
 	unsigned long alt_prate, alt_div;
-	int i;
-
-	rate = rockchip_get_cpuclk_settings(cpuclk, ndata->new_rate);
-	if (!rate) {
-		pr_err("%s: Invalid rate : %lu for cpuclk\n",
-		       __func__, ndata->new_rate);
-		return -EINVAL;
-	}
 
 	alt_prate = clk_get_rate(cpuclk->alt_parent);
 
@@ -156,18 +164,6 @@ static int rockchip_cpuclk_pre_rate_change(struct rockchip_cpuclk *cpuclk,
 			cpuclk->reg_base + reg_data->core_reg);
 	}
 
-	/* alternate parent is active now. set the dividers */
-	for (i = 0; i < ARRAY_SIZE(rate->divs); i++) {
-		const struct rockchip_cpuclk_clksel *clksel = &rate->divs[i];
-
-		if (!clksel->reg)
-			continue;
-
-		pr_debug("%s: setting reg 0x%x to 0x%x\n",
-			 __func__, clksel->reg, clksel->val);
-		writel(clksel->val , cpuclk->reg_base + clksel->reg);
-	}
-
 	spin_unlock(cpuclk->lock);
 	return 0;
 }
@@ -176,8 +172,19 @@ static int rockchip_cpuclk_post_rate_change(struct rockchip_cpuclk *cpuclk,
 					    struct clk_notifier_data *ndata)
 {
 	const struct rockchip_cpuclk_reg_data *reg_data = cpuclk->reg_data;
+	const struct rockchip_cpuclk_rate_table *rate;
+
+	rate = rockchip_get_cpuclk_settings(cpuclk, ndata->new_rate);
+	if (!rate) {
+		pr_err("%s: Invalid rate : %lu for cpuclk\n",
+		       __func__, ndata->new_rate);
+		return -EINVAL;
+	}
 
 	spin_lock(cpuclk->lock);
+
+	if (ndata->old_rate < ndata->new_rate)
+		rockchip_cpuclk_set_dividers(cpuclk, rate);
 
 	/*
 	 * post-rate change event, re-mux to primary parent and remove dividers.
@@ -190,6 +197,9 @@ static int rockchip_cpuclk_post_rate_change(struct rockchip_cpuclk *cpuclk,
 				reg_data->div_core_shift) |
 	       HIWORD_UPDATE(0, 1, reg_data->mux_core_shift),
 	       cpuclk->reg_base + reg_data->core_reg);
+
+	if (ndata->old_rate > ndata->new_rate)
+		rockchip_cpuclk_set_dividers(cpuclk, rate);
 
 	spin_unlock(cpuclk->lock);
 	return 0;
@@ -221,18 +231,13 @@ static int rockchip_cpuclk_notifier_cb(struct notifier_block *nb,
 struct clk *rockchip_clk_register_cpuclk(const char *name,
 			const char **parent_names, u8 num_parents,
 			const struct rockchip_cpuclk_reg_data *reg_data,
-			struct rockchip_cpuclk_rate_table *rate_table,
-			void __iomem *reg_base, spinlock_t *lock)
+			const struct rockchip_cpuclk_rate_table *rates,
+			int nrates, void __iomem *reg_base, spinlock_t *lock)
 {
 	struct rockchip_cpuclk *cpuclk;
 	struct clk_init_data init;
 	struct clk *clk, *cclk;
 	int ret;
-
-	if (!reg_data) {
-		pr_err("%s: no soc register information\n", __func__);
-		return ERR_PTR(-EINVAL);
-	}
 
 	if (num_parents != 2) {
 		pr_err("%s: needs two parent clocks\n", __func__);
@@ -249,7 +254,7 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 	init.ops = &rockchip_cpuclk_ops;
 
 	/* only allow rate changes when we have a rate table */
-	init.flags = rate_table ? CLK_SET_RATE_PARENT : 0;
+	init.flags = (nrates > 0) ? CLK_SET_RATE_PARENT : 0;
 
 	/* disallow automatic parent changes by ccf */
 	init.flags |= CLK_SET_RATE_NO_REPARENT;
@@ -292,16 +297,10 @@ struct clk *rockchip_clk_register_cpuclk(const char *name,
 		goto free_cpuclk;
 	}
 
-	if (rate_table) {
-		int nrates;
-
-		/* find count of rates in rate_table */
-		for (nrates = 0; rate_table[nrates].prate != 0; )
-			nrates++;
-
+	if (nrates > 0) {
 		cpuclk->rate_count = nrates;
-		cpuclk->rate_table = kmemdup(rate_table,
-					     sizeof(*rate_table) * nrates,
+		cpuclk->rate_table = kmemdup(rates,
+					     sizeof(*rates) * nrates,
 					     GFP_KERNEL);
 		if (!cpuclk->rate_table) {
 			pr_err("%s: could not allocate memory for cpuclk rates\n",
