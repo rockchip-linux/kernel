@@ -141,7 +141,7 @@ struct rockchip_pll_rate_table rk3288_pll_rates[] = {
 		},							\
 	}
 
-static struct rockchip_cpuclk_rate_table rk3288_cpuclk_rates[] = {
+static struct rockchip_cpuclk_rate_table rk3288_cpuclk_rates[] __initdata = {
 	RK3288_CPUCLK_RATE(1800000000, 2, 4, 2, 4, 4),
 	RK3288_CPUCLK_RATE(1704000000, 2, 4, 2, 4, 4),
 	RK3288_CPUCLK_RATE(1608000000, 2, 4, 2, 4, 4),
@@ -156,7 +156,6 @@ static struct rockchip_cpuclk_rate_table rk3288_cpuclk_rates[] = {
 	RK3288_CPUCLK_RATE( 312000000, 2, 4, 2, 4, 4),
 	RK3288_CPUCLK_RATE( 216000000, 2, 4, 2, 4, 4),
 	RK3288_CPUCLK_RATE( 126000000, 2, 4, 2, 4, 4),
-	{ /* sentinel */ },
 };
 
 static const struct rockchip_cpuclk_reg_data rk3288_cpuclk_data = {
@@ -803,7 +802,8 @@ static void __init rk3288_clk_init(struct device_node *np)
 
 	rockchip_clk_register_armclk(ARMCLK, "armclk",
 			mux_armclk_p, ARRAY_SIZE(mux_armclk_p),
-			&rk3288_cpuclk_data, rk3288_cpuclk_rates);
+			&rk3288_cpuclk_data, rk3288_cpuclk_rates,
+			ARRAY_SIZE(rk3288_cpuclk_rates));
 
 	rockchip_register_softrst(np, 12, reg_base + RK3288_SOFTRST_CON(0),
 				  ROCKCHIP_SOFTRST_HIWORD_MASK);

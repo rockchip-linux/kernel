@@ -140,7 +140,7 @@ struct rockchip_pll_rate_table rk3188_pll_rates[] = {
 		},							\
 	}
 
-static struct rockchip_cpuclk_rate_table rk3066_cpuclk_rates[] = {
+static struct rockchip_cpuclk_rate_table rk3066_cpuclk_rates[] __initdata = {
 	RK3066_CPUCLK_RATE(1416000000, 2, 3, 1, 2, 1),
 	RK3066_CPUCLK_RATE(1200000000, 2, 3, 1, 2, 1),
 	RK3066_CPUCLK_RATE(1008000000, 2, 2, 1, 2, 1),
@@ -148,7 +148,6 @@ static struct rockchip_cpuclk_rate_table rk3066_cpuclk_rates[] = {
 	RK3066_CPUCLK_RATE( 600000000, 1, 2, 1, 2, 1),
 	RK3066_CPUCLK_RATE( 504000000, 1, 1, 1, 2, 1),
 	RK3066_CPUCLK_RATE( 312000000, 0, 1, 1, 1, 0),
-	{ /* sentinel */ },
 };
 
 static const struct rockchip_cpuclk_reg_data rk3066_cpuclk_data = {
@@ -176,7 +175,7 @@ static const struct rockchip_cpuclk_reg_data rk3066_cpuclk_data = {
 		},						\
 	}
 
-static struct rockchip_cpuclk_rate_table rk3188_cpuclk_rates[] = {
+static struct rockchip_cpuclk_rate_table rk3188_cpuclk_rates[] __initdata = {
 	RK3188_CPUCLK_RATE(1608000000, 2, 3),
 	RK3188_CPUCLK_RATE(1416000000, 2, 3),
 	RK3188_CPUCLK_RATE(1200000000, 2, 3),
@@ -185,7 +184,6 @@ static struct rockchip_cpuclk_rate_table rk3188_cpuclk_rates[] = {
 	RK3188_CPUCLK_RATE( 600000000, 1, 3),
 	RK3188_CPUCLK_RATE( 504000000, 1, 3),
 	RK3188_CPUCLK_RATE( 312000000, 0, 1),
-	{ /* sentinel */ },
 };
 
 static const struct rockchip_cpuclk_reg_data rk3188_cpuclk_data = {
@@ -750,7 +748,8 @@ static void __init rk3066a_clk_init(struct device_node *np)
 				  ARRAY_SIZE(rk3066a_clk_branches));
 	rockchip_clk_register_armclk(ARMCLK, "armclk",
 			mux_armclk_p, ARRAY_SIZE(mux_armclk_p),
-			&rk3066_cpuclk_data, rk3066_cpuclk_rates);
+			&rk3066_cpuclk_data, rk3066_cpuclk_rates,
+			ARRAY_SIZE(rk3066_cpuclk_rates));
 }
 CLK_OF_DECLARE(rk3066a_cru, "rockchip,rk3066a-cru", rk3066a_clk_init);
 
@@ -768,7 +767,8 @@ static void __init rk3188a_clk_init(struct device_node *np)
 				  ARRAY_SIZE(rk3188_clk_branches));
 	rockchip_clk_register_armclk(ARMCLK, "armclk",
 				  mux_armclk_p, ARRAY_SIZE(mux_armclk_p),
-				  &rk3188_cpuclk_data, rk3188_cpuclk_rates);
+				  &rk3188_cpuclk_data, rk3188_cpuclk_rates,
+				  ARRAY_SIZE(rk3188_cpuclk_rates));
 
 	/* reparent aclk_cpu_pre from apll */
 	clk1 = __clk_lookup("aclk_cpu_pre");
