@@ -199,7 +199,7 @@
 	};
 
 	io-domains {
-		compatible = "rockchip,rk3288-iodomain";
+		compatible = "rockchip,rk3288-io-voltage-domain";
 		rockchip,grf = <&grf>;
 
 		audio-supply = <&vcc18_codec>;
