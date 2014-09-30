@@ -275,21 +275,7 @@
 			#size-cells = <0>;
 			gpios = <&qcom_pinmux 1 0 &qcom_pinmux 0 0>;
 
-			phy0: ethernet-phy@0 {
-				device_type = "ethernet-phy";
-				reg = <0>;
-				qca,ar8327-initvals = <
-					0x00004 0x7600000   /* PAD0_MODE */
-					0x00008 0x1000000   /* PAD5_MODE */
-					0x0000c 0x80        /* PAD6_MODE */
-					0x000e4 0xaa545     /* MAC_POWER_SEL */
-					0x000e0 0xc74164de  /* SGMII_CTRL */
-					0x0007c 0x4e        /* PORT0_STATUS */
-					0x00094 0x4e        /* PORT6_STATUS */
-				>;
-			};
-
-			phy4: ethernet-phy@4 {
+			phy4: ethernet-phy@0 {
 				device_type = "ethernet-phy";
 				reg = <4>;
 			};
@@ -336,14 +322,14 @@
 			device_type = "network";
 			compatible = "qcom,nss-gmac0";
 			reg = <0x37000000 0x200000>;
-			qcom,id = <0>;
-			qcom,phy_mdio_addr = <4>;
-			qcom,poll_required = <1>;
+			qcom,id = <0>;			/* gmac0 */
+			qcom,phy_mdio_addr = <4>;	/* phy4 */
+			qcom,poll_required = <1>;	/* enable polling */
 			qcom,rgmii_delay = <0>;
-			qcom,phy_mii_type = <0>;
+			qcom,phy_mii_type = <0>;	/* RGMII */
 			qcom,emulation = <0>;
-			qcom,forced_speed = <1000>;
-			qcom,forced_duplex = <1>;
+			qcom,forced_speed = <0>;	/* speed auto */
+			qcom,forced_duplex = <255>;	/* duplex auto */
 			local-mac-address = [000000000000];
 			mdiobus = <&mdio0>;
 		};
@@ -353,13 +339,13 @@
 			compatible = "qcom,nss-gmac2";
 			reg = <0x37400000 0x200000>;
 			qcom,id = <2>;
-			qcom,phy_mdio_addr = <0>;
-			qcom,poll_required = <0>;
+			qcom,phy_mdio_addr = <32>;	/* none */
+			qcom,poll_required = <0>;	/* no polling */
 			qcom,rgmii_delay = <0>;
-			qcom,phy_mii_type = <1>;
+			qcom,phy_mii_type = <1>;	/* SGMII */
 			qcom,emulation = <0>;
-			qcom,forced_speed = <1000>;
-			qcom,forced_duplex = <1>;
+			qcom,forced_speed = <1000>;	/* Force speed 1G */
+			qcom,forced_duplex = <1>;	/* Force duplex FD */
 			local-mac-address = [000000000000];
 			mdiobus = <&mdio0>;
 		};
