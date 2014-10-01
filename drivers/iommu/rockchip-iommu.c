@@ -18,6 +18,7 @@
 #include <linux/mm.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_iommu.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -85,6 +86,7 @@ struct rk_iommu {
 	struct device *dev;
 	void __iomem *base;
 	int irq;
+	struct iommu iommu_wrapper;
 	struct list_head node; /* entry in rk_iommu_domain.iommus */
 	struct iommu_domain *domain; /* domain to which iommu is attached */
 };
@@ -874,11 +876,16 @@ static int rk_iommu_probe(struct platform_device *pdev)
 		return -ENXIO;
 	}
 
+	iommu->iommu_wrapper.dev = iommu->dev;
+	iommu_add(&iommu->iommu_wrapper);
+
 	return 0;
 }
 
 static int rk_iommu_remove(struct platform_device *pdev)
 {
+	struct rk_iommu *iommu = platform_get_drvdata(pdev);
+	iommu_del(&iommu->iommu_wrapper);
 	return 0;
 }
 
