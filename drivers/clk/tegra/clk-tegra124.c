@@ -1104,6 +1104,8 @@ static struct tegra_devclk devclks[] __initdata = {
 	{ .con_id = "sor0", .dt_id = TEGRA124_CLK_SOR0},
 	{ .con_id = "dsia", .dt_id = TEGRA124_CLK_DSIA},
 	{ .con_id = "dsib", .dt_id = TEGRA124_CLK_DSIB},
+	{ .con_id = "dsialp", .dt_id = TEGRA124_CLK_DSIALP},
+	{ .con_id = "dsiblp", .dt_id = TEGRA124_CLK_DSIBLP},
 	{ .con_id = "hdmi", .dt_id = TEGRA124_CLK_HDMI},
 	{ .con_id = "mipi-cal", .dt_id = TEGRA124_CLK_MIPI_CAL},
 #ifdef CONFIG_ARCH_TEGRA_132_SOC
