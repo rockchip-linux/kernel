@@ -6,6 +6,8 @@
  * published by the Free Software FoundatIon.
  */
 
+#include <linux/of.h>
+
 #include "mali_kbase_rk.h"
 
 static int kbase_rk_power_on_callback(struct kbase_device *kbdev)
@@ -105,6 +107,50 @@ int kbase_platform_early_init(void)
 	return 0;
 }
 
+static int kbase_rk_get_opp_table(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	const struct property *prop;
+	int nr;
+	const __be32 *val;
+	int i;
+
+	prop = of_find_property(kbdev->dev->of_node, "operating-points", NULL);
+	if (!prop)
+		return -ENODEV;
+	if (!prop->value)
+		return -ENODATA;
+	/*
+	 * Each OPP is a set of tuples consisting of frequency and
+	 * voltage like <freq-kHz vol-uV>.
+	 */
+	nr = prop->length / sizeof(u32);
+	if (nr % 2) {
+		dev_err(kbdev->dev, "Invalid OPP list\n");
+		return -EINVAL;
+	}
+
+	kbase_rk->fv_table_length = nr / 2;
+	kbase_rk->fv_table = devm_kcalloc(kbdev->dev,
+			kbase_rk->fv_table_length, sizeof(*kbase_rk->fv_table),
+			GFP_KERNEL);
+	if (!kbase_rk->fv_table)
+		return -ENOMEM;
+
+	val = prop->value;
+
+	for (i = 0; i < kbase_rk->fv_table_length; ++i) {
+		unsigned long freq = be32_to_cpup(val++) * 1000;
+		unsigned long volt = be32_to_cpup(val++);
+
+		kbase_rk->fv_table[i].freq = freq;
+		kbase_rk->fv_table[i].volt = volt;
+		dev_info(kbdev->dev, "freq:%lu Hz volt:%lu uV\n", freq, volt);
+	}
+
+	return 0;
+}
+
 static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk;
@@ -115,6 +161,12 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 	if (!kbase_rk)
 		return MALI_FALSE;
 
+	kbdev->platform_context = kbase_rk;
+
+	ret = kbase_rk_get_opp_table(kbdev);
+	if (ret)
+		return MALI_FALSE;
+
 	kbase_rk->clk = devm_clk_get(kbdev->dev, "aclk_gpu");
 	if (IS_ERR(kbase_rk->clk)) {
 		ret = PTR_ERR(kbase_rk->clk);
@@ -122,7 +174,9 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 		return MALI_FALSE;
 	}
 
-	dev_err(kbdev->dev, "initial clk = %lu\n", clk_get_rate(kbase_rk->clk));
+	ret = clk_set_rate(kbase_rk->clk, kbase_rk->fv_table[0].freq);
+	if (ret)
+		return MALI_FALSE;
 
 	ret = clk_prepare(kbase_rk->clk);
 	if (ret) {
@@ -130,7 +184,8 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 		return MALI_FALSE;
 	}
 
-	kbdev->platform_context = kbase_rk;
+	dev_info(kbdev->dev, "initial freq = %lu\n",
+		 clk_get_rate(kbase_rk->clk));
 
 	return MALI_TRUE;
 }

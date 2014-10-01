@@ -36,8 +36,15 @@
 
 kbase_platform_funcs_conf kbase_rk_platform_funcs;
 
+struct kbase_rk_fv {
+	unsigned long freq;
+	unsigned long volt;
+};
+
 struct kbase_rk {
 	struct clk *clk;
+	struct kbase_rk_fv *fv_table;
+	unsigned int fv_table_length;
 	bool is_powered;
 };
 
