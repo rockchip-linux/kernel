@@ -193,11 +193,11 @@ static int tegra_bo_iommu_unmap(struct tegra_drm *tegra, struct tegra_bo *bo)
 
 static void tegra_bo_destroy(struct drm_device *drm, struct tegra_bo *bo)
 {
-	if (!bo->pages)
+	if (bo->pages)
+		drm_gem_put_pages(&bo->gem, bo->pages, true, true);
+	else if (bo->vaddr)
 		dma_free_writecombine(drm->dev, bo->gem.size, bo->vaddr,
 				      bo->paddr);
-	else
-		drm_gem_put_pages(&bo->gem, bo->pages, true, true);
 }
 
 static int tegra_bo_get_pages(struct drm_device *drm, struct tegra_bo *bo,
@@ -251,21 +251,21 @@ struct tegra_bo *tegra_bo_create(struct drm_device *drm, unsigned int size,
 	if (tegra->domain) {
 		err = tegra_bo_get_pages(drm, bo, size);
 		if (err < 0)
-			goto release;
+			goto free_mmap_offset;
 
 		bo->sgt = drm_prime_pages_to_sg(bo->pages, bo->num_pages);
 		if (IS_ERR(bo->sgt)) {
 			err = PTR_ERR(bo->sgt);
-			goto release;
+			goto free_mmap_offset;
 		}
 
 		err = tegra_bo_iommu_map(tegra, bo);
 		if (err < 0)
-			goto release;
+			goto free_mmap_offset;
 	} else {
 		err = tegra_bo_alloc(drm, bo, size);
 		if (err < 0)
-			goto release;
+			goto free_mmap_offset;
 	}
 
 	if (flags & DRM_TEGRA_GEM_CREATE_TILED)
@@ -276,6 +276,8 @@ struct tegra_bo *tegra_bo_create(struct drm_device *drm, unsigned int size,
 
 	return bo;
 
+free_mmap_offset:
+	drm_gem_free_mmap_offset(&bo->gem);
 release:
 	drm_gem_object_release(&bo->gem);
 	tegra_bo_destroy(drm, bo);
