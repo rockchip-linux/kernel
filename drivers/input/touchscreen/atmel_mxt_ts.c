@@ -3233,8 +3233,16 @@ static int mxt_input_uninhibit(struct input_dev *input)
 {
 	struct mxt_data *data = input_get_drvdata(input);
 	struct device *dev = &data->client->dev;
+	int error;
 
 	dev_dbg(dev, "uninhibit\n");
+
+	/* Read all pending messages so that CHG line can be de-asserted */
+	error = mxt_handle_messages(data, false);
+	if (error)
+		dev_warn(dev,
+			 "error while clearing pending messages when un-inhibiting: %d\n",
+			 error);
 
 	mxt_release_all_fingers(data);
 
