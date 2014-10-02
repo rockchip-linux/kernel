@@ -59,8 +59,6 @@ struct dw_dma_platform_data {
 	unsigned short	block_size;
 	unsigned char	nr_masters;
 	unsigned char	data_width[4];
-	struct clk_hw		*hw_clk;
-	struct clk_lookup	*lookup_clk;
 };
 
 /* bursts size */
