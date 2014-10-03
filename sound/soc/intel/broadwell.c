@@ -27,16 +27,21 @@
 
 #include "../codecs/rt286.h"
 
-static struct snd_soc_jack broadwell_headset;
+static struct snd_soc_jack broadwell_hp;
+static struct snd_soc_jack broadwell_mic;
+
 /* Headset jack detection DAPM pins */
-static struct snd_soc_jack_pin broadwell_headset_pins[] = {
-	{
-		.pin = "Mic Jack",
-		.mask = SND_JACK_MICROPHONE,
-	},
+static struct snd_soc_jack_pin broadwell_hp_pins[] = {
 	{
 		.pin = "Headphone Jack",
 		.mask = SND_JACK_HEADPHONE,
+	},
+};
+
+static struct snd_soc_jack_pin broadwell_mic_pins[] = {
+	{
+		.pin = "Mic Jack",
+		.mask = SND_JACK_MICROPHONE,
 	},
 };
 
@@ -80,19 +85,26 @@ static int broadwell_rt286_codec_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	int ret = 0;
-	ret = snd_soc_jack_new(codec, "Headset",
-		SND_JACK_HEADSET | SND_JACK_BTN_0, &broadwell_headset);
 
+	ret = snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+				&broadwell_hp);
 	if (ret)
 		return ret;
 
-	ret = snd_soc_jack_add_pins(&broadwell_headset,
-		ARRAY_SIZE(broadwell_headset_pins),
-		broadwell_headset_pins);
+	ret = snd_soc_jack_add_pins(&broadwell_hp, 1, broadwell_hp_pins);
 	if (ret)
 		return ret;
 
-	rt286_mic_detect(codec, &broadwell_headset);
+	ret = snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
+				&broadwell_mic);
+	if (ret)
+		return ret;
+
+	ret = snd_soc_jack_add_pins(&broadwell_mic, 1, broadwell_mic_pins);
+	if (ret)
+		return ret;
+
+	rt286_mic_detect(codec, &broadwell_hp, &broadwell_mic);
 	return 0;
 }
 

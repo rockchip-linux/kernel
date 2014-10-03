@@ -39,7 +39,8 @@ struct rt286_priv {
 	struct snd_soc_codec *codec;
 	struct rt286_platform_data pdata;
 	struct i2c_client *i2c;
-	struct snd_soc_jack *jack;
+	struct snd_soc_jack *hp_jack;
+	struct snd_soc_jack *mic_jack;
 	struct delayed_work jack_detect_work;
 	int sys_clk;
 	int clk_id;
@@ -411,19 +412,21 @@ static void rt286_jack_detect_work(struct work_struct *work)
 	if (mic == true)
 		status |= SND_JACK_MICROPHONE;
 
-	snd_soc_jack_report(rt286->jack, status,
-		SND_JACK_MICROPHONE | SND_JACK_HEADPHONE);
+	snd_soc_jack_report(rt286->hp_jack, status, SND_JACK_HEADPHONE);
+	snd_soc_jack_report(rt286->mic_jack, status, SND_JACK_MICROPHONE);
 }
 
-int rt286_mic_detect(struct snd_soc_codec *codec, struct snd_soc_jack *jack)
+int rt286_mic_detect(struct snd_soc_codec *codec, struct snd_soc_jack *hp_jack,
+			struct snd_soc_jack *mic_jack)
 {
 	struct rt286_priv *rt286 = snd_soc_codec_get_drvdata(codec);
 
-	rt286->jack = jack;
+	rt286->hp_jack = hp_jack;
+	rt286->mic_jack = mic_jack;
 
 	/* Send an initial empty report */
-	snd_soc_jack_report(rt286->jack, 0,
-		SND_JACK_MICROPHONE | SND_JACK_HEADPHONE);
+	snd_soc_jack_report(rt286->hp_jack, 0, SND_JACK_HEADPHONE);
+	snd_soc_jack_report(rt286->mic_jack, 0, SND_JACK_MICROPHONE);
 
 	return 0;
 }
@@ -1080,8 +1083,8 @@ static irqreturn_t rt286_irq(int irq, void *data)
 	if (mic == true)
 		status |= SND_JACK_MICROPHONE;
 
-	snd_soc_jack_report(rt286->jack, status,
-		SND_JACK_MICROPHONE | SND_JACK_HEADPHONE);
+	snd_soc_jack_report(rt286->hp_jack, status, SND_JACK_HEADPHONE);
+	snd_soc_jack_report(rt286->mic_jack, status, SND_JACK_MICROPHONE);
 
 	pm_wakeup_event(&rt286->i2c->dev, 300);
 
