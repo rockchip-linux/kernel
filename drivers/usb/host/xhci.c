@@ -4883,21 +4883,6 @@ MODULE_LICENSE("GPL");
 
 static int __init xhci_hcd_init(void)
 {
-	int retval;
-
-	if (usb_disabled())
-		return -ENODEV;
-
-	retval = xhci_register_pci();
-	if (retval < 0) {
-		printk(KERN_DEBUG "Problem registering PCI driver.");
-		return retval;
-	}
-	retval = xhci_register_plat();
-	if (retval < 0) {
-		printk(KERN_DEBUG "Problem registering platform driver.");
-		goto unreg_pci;
-	}
 	/*
 	 * Check the compiler generated sizes of structures that must be laid
 	 * out in specific ways for hardware access.
@@ -4917,15 +4902,5 @@ static int __init xhci_hcd_init(void)
 	BUILD_BUG_ON(sizeof(struct xhci_run_regs) != (8+8*128)*32/8);
 
 	return 0;
-unreg_pci:
-	xhci_unregister_pci();
-	return retval;
 }
 module_init(xhci_hcd_init);
-
-static void __exit xhci_hcd_cleanup(void)
-{
-	xhci_unregister_pci();
-	xhci_unregister_plat();
-}
-module_exit(xhci_hcd_cleanup);
