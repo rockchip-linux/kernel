@@ -93,6 +93,11 @@
 #define MEDIA_CENTER				0x00000100
 #define KBD_LEDS				0x00004000
 
+/* Device connection state */
+#define CONNECTION_STATE_UNKNOWN	0x00
+#define CONNECTION_STATE_CONNECTED	0x01
+#define CONNECTION_STATE_DISCONNECTED	0x02
+
 struct dj_report {
 	u8 report_id;
 	u8 device_index;
@@ -108,7 +113,7 @@ struct dj_receiver_dev {
 	struct kfifo notif_fifo;
 	spinlock_t lock;
 	bool querying_devices;
-	bool connected[DJ_MAX_PAIRED_DEVICES + DJ_DEVICE_INDEX_MIN];
+	u8 connection_state[DJ_MAX_PAIRED_DEVICES + DJ_DEVICE_INDEX_MIN];
 };
 
 struct dj_device {
@@ -416,7 +421,7 @@ static void delayedwork_callback(struct work_struct *work)
 	int count;
 	int retval;
 	u8 param_status;
-	bool connected;
+	u8 connection_state;
 
 	dbg_hid("%s\n", __func__);
 
@@ -447,9 +452,16 @@ static void delayedwork_callback(struct work_struct *work)
 		break;
 	case REPORT_TYPE_NOTIF_DEVICE_PAIRED:
 		retval = logi_dj_recv_add_djhid_device(djrcv_dev, &dj_report);
-		if (!djrcv_dev->connected[dj_report.device_index] || retval < 0)
+		if (retval < 0)
 			break;
-		connected = djrcv_dev->connected[dj_report.device_index];
+		/* Break if we did not yet receive
+		 * REPORT_TYPE_NOTIF_CONNECTION_STATUS
+		 */
+		if (djrcv_dev->connection_state[dj_report.device_index] ==
+				CONNECTION_STATE_UNKNOWN)
+			break;
+		connection_state =
+			djrcv_dev->connection_state[dj_report.device_index];
 		/* Device is connected, but only now paired. Fallthrough.
 		   Note: If we fallthrough here, we should not fallthrough
 		   the next case, since that's the case for connection status
@@ -458,13 +470,24 @@ static void delayedwork_callback(struct work_struct *work)
 		if (dj_report.report_type == REPORT_TYPE_NOTIF_CONNECTION_STATUS) {
 			param_status = dj_report.report_params[
 						CONNECTION_STATUS_PARAM_STATUS];
-			connected = param_status != STATUS_LINKLOSS;
-			djrcv_dev->connected[dj_report.device_index] = connected;
+			if (param_status != STATUS_LINKLOSS)
+				connection_state =
+					CONNECTION_STATE_CONNECTED;
+			else
+				connection_state =
+					CONNECTION_STATE_DISCONNECTED;
+			djrcv_dev->connection_state[dj_report.device_index]
+			= connection_state;
 		}
 		djdev = djrcv_dev->paired_dj_devices[dj_report.device_index];
-		dbg_hid("%s: got REPORT_TYPE_NOTIF_CONNECTION_STATUS %d %d\n", __func__, djdev ? djdev->hid_device_started : -1, connected);
+		dbg_hid("%s: got REPORT_TYPE_NOTIF_CONNECTION_STATUS %d %d\n",
+			__func__,
+			djdev ? djdev->hid_device_started : -1,
+			connection_state);
 		if (djdev) {
-			if (!djdev->hid_device_started && connected) {
+			if (!djdev->hid_device_started &&
+					(connection_state ==
+					CONNECTION_STATE_CONNECTED)) {
 				if (hid_add_device(djdev->hdev)) {
 					dev_err(&djrcv_hdev->dev,
 						"%s: failed adding dj_device\n",
@@ -479,7 +502,8 @@ static void delayedwork_callback(struct work_struct *work)
 				dbg_hid("%s: hidpp_dev is NULL\n", __func__);
 				return;
 			}
-			hidpp_connect_change(hidpp_dev, connected);
+			hidpp_connect_change(hidpp_dev, (connection_state ==
+				CONNECTION_STATE_CONNECTED));
 		}
 		/* Fallthrough for case where djdev is NULL. */
 	default:
@@ -520,7 +544,7 @@ static void logi_dj_recv_queue_notification(struct dj_receiver_dev *djrcv_dev,
 }
 
 static void logi_dj_recv_forward_null_report(struct dj_receiver_dev *djrcv_dev,
-					     struct dj_report *dj_report)
+					    struct dj_report *dj_report)
 {
 	/* We are called from atomic context (tasklet && djrcv->lock held) */
 	unsigned int i;
@@ -782,7 +806,8 @@ static int logi_dj_ll_parse(struct hid_device *hid)
 	if (djdev->reports_supported & POWER_KEYS) {
 		dbg_hid("%s: sending a power keys report descriptor: %x\n",
 			__func__, djdev->reports_supported);
-		rdcat(rdesc, &rsize, syscontrol_descriptor, sizeof(syscontrol_descriptor));
+		rdcat(rdesc, &rsize, syscontrol_descriptor,
+				sizeof(syscontrol_descriptor));
 	}
 
 	if (djdev->reports_supported & MEDIA_CENTER) {
@@ -939,7 +964,35 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 			logi_dj_recv_queue_notification(djrcv_dev, dj_report);
 			break;
 		default:
-			logi_dj_recv_forward_report(djrcv_dev, dj_report);
+			{
+				u8 connection_state =
+					djrcv_dev->connection_state[
+						dj_report->device_index];
+				if (connection_state ==
+						CONNECTION_STATE_CONNECTED) {
+					logi_dj_recv_forward_report(djrcv_dev,
+						dj_report);
+				} else if (connection_state ==
+						CONNECTION_STATE_UNKNOWN) {
+					/* Queue a fake connection status
+					 * report. */
+					struct dj_report fake_connection = {
+					    REPORT_ID_DJ_SHORT,
+					    dj_report->device_index,
+					    REPORT_TYPE_NOTIF_CONNECTION_STATUS
+					};
+					djrcv_dev->connection_state[
+						dj_report->device_index]
+						= CONNECTION_STATE_CONNECTED;
+					dbg_hid("%s:device %d not connected\n",
+						__func__,
+						dj_report->device_index);
+					dbg_hid("queing fake connection\n");
+					logi_dj_recv_queue_notification(
+						djrcv_dev,
+						&fake_connection);
+				}
+			}
 		}
 		report_processed = true;
 	} else {
