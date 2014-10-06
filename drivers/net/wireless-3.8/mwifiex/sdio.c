@@ -1941,8 +1941,9 @@ static void sdio_card_reset_worker(struct work_struct *work)
 
 	pr_err("Resetting card...\n");
 	mmc_remove_host(reset_host);
-	/* 20ms delay is based on experiment with sdhci controller */
-	mdelay(20);
+	/* 40ms delay is based on experiment with sdhci controller */
+	mdelay(40);
+	reset_host->rescan_entered = 0;
 	mmc_add_host(reset_host);
 }
 static DECLARE_WORK(card_reset_work, sdio_card_reset_worker);
