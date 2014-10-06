@@ -480,7 +480,53 @@
 		status = "okay";
 		nvidia,host-off-card-on;
 		keep-power-in-suspend;
-		tap-delay = <2>;
+		tap-delay = <0>;
+
+		trim-delay = <0x2>;
+		calib-3v3-offsets = <0x7676>;
+		calib-1v8-offsets = <0x7676>;
+		calib-1v8-offsets-uhs-modes = <0x3f>;
+		max-frequency = <204000000>;
+
+		nvidia,vmax = <1150>;
+		nvidia,vmin = <950>;
+		nvidia,t2t-vnom-slope = <25>;
+		nvidia,t2t-vnom-int = <115933>;
+		nvidia,t2t-vmax-slope = <25>;
+		nvidia,t2t-vmax-int = <115933>;
+		nvidia,t2t-vmin-slope = <47>;
+		nvidia,t2t-vmin-int = <187224>;
+
+		tuning-data@0 {
+			compatible = "nvidia,sdhci-tuning-data";
+			clock-frequency = <81600000>;
+			nvidia,thole-vnom-slope = <2916>;
+			nvidia,thole-vnom-int = <331143>;
+			nvidia,thole-vmax-slope = <2916>;
+			nvidia,thole-vmax-int = <331143>;
+			nvidia,thole-vmin-slope = <1480>;
+			nvidia,thole-vmin-int = <232373>;
+		};
+		tuning-data@1 {
+			compatible = "nvidia,sdhci-tuning-data";
+			clock-frequency = <136000000>;
+			nvidia,thole-vnom-slope = <1554>;
+			nvidia,thole-vnom-int = <167210>;
+			nvidia,thole-vmax-slope = <1554>;
+			nvidia,thole-vmax-int = <167210>;
+			nvidia,thole-vmin-slope = <793>;
+			nvidia,thole-vmin-int = <115672>;
+		};
+		tuning-data@2 {
+			compatible = "nvidia,sdhci-tuning-data";
+			clock-frequency = <204000000>;
+			nvidia,thole-vnom-slope = <874>;
+			nvidia,thole-vnom-int = <85243>;
+			nvidia,thole-vmax-slope = <874>;
+			nvidia,thole-vmax-int = <85243>;
+			nvidia,thole-vmin-slope = <449>;
+			nvidia,thole-vmin-int = <57321>;
+		};
 	};
 
 	usb@0,70090000 {
@@ -535,6 +581,53 @@
 		bus-width = <8>;
 		non-removable;
 		status = "okay";
+
+		trim-delay = <0x4>;
+		ddr-trim-delay = <0x0>;
+		calib-3v3-offsets = <0x0202>;
+		calib-1v8-offsets = <0x0202>;
+		calib-1v8-offsets-uhs-modes = <0x3f>;
+		max-frequency = <200000000>;
+
+		nvidia,vmax = <1150>;
+		nvidia,vmin = <950>;
+		nvidia,t2t-vnom-slope = <27>;
+		nvidia,t2t-vnom-int = <118295>;
+		nvidia,t2t-vmax-slope = <27>;
+		nvidia,t2t-vmax-int = <118295>;
+		nvidia,t2t-vmin-slope = <48>;
+		nvidia,t2t-vmin-int = <188148>;
+
+		tuning-data@0 {
+			compatible = "nvidia,sdhci-tuning-data";
+			clock-frequency = <81600000>;
+			nvidia,thole-vnom-slope = <3090>;
+			nvidia,thole-vnom-int = <351666>;
+			nvidia,thole-vmax-slope = <3090>;
+			nvidia,thole-vmax-int = <351666>;
+			nvidia,thole-vmin-slope = <1583>;
+			nvidia,thole-vmin-int = <247913>;
+		};
+		tuning-data@1 {
+			compatible = "nvidia,sdhci-tuning-data";
+			clock-frequency = <136000000>;
+			nvidia,thole-vnom-slope = <1703>;
+			nvidia,thole-vnom-int = <186307>;
+			nvidia,thole-vmax-slope = <1703>;
+			nvidia,thole-vmax-int = <186307>;
+			nvidia,thole-vmin-slope = <890>;
+			nvidia,thole-vmin-int = <130617>;
+		};
+		tuning-data@2 {
+			compatible = "nvidia,sdhci-tuning-data";
+			clock-frequency = <200000000>;
+			nvidia,thole-vnom-slope = <1037>;
+			nvidia,thole-vnom-int = <106934>;
+			nvidia,thole-vmax-slope = <1037>;
+			nvidia,thole-vmax-int = <106934>;
+			nvidia,thole-vmin-slope = <558>;
+			nvidia,thole-vmin-int = <74315>;
+		};
 	};
 
 	spi@7000da00 {
