@@ -203,6 +203,11 @@ static void __init legacy_fuse_init(void)
 	fuse_base = ioremap(TEGRA_FUSE_BASE, TEGRA_FUSE_SIZE);
 }
 
+int tegra_get_cpu_speedo_value(void)
+{
+	return tegra_sku_info.cpu_speedo_value;
+}
+
 bool __init tegra30_spare_fuse(int spare_bit)
 {
 	u32 offset = fuse_info->spare_bit + spare_bit * 4;

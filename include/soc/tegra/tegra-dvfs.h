@@ -174,6 +174,7 @@ void tegra_dvfs_core_lock(void);
 void tegra_dvfs_core_unlock(void);
 int tegra_dvfs_set_fmax_at_vmin(struct clk *c, unsigned long f_max, int v_min);
 int tegra_dvfs_get_core_nominal_millivolts(void);
+int tegra_get_cpu_speedo_value(void);
 #else
 static inline int tegra_dvfs_init(void)
 { return 0; }
