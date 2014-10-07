@@ -320,6 +320,7 @@ struct tegra_dfll {
 	unsigned long			out_rate_min;
 
 	enum dfll_ctrl_mode		mode;
+	enum dfll_ctrl_mode		resume_mode;
 	enum dfll_tune_range		tune_range;
 	struct dentry			*debugfs_dir;
 	struct clk_hw			dfll_clk_hw;
@@ -2138,6 +2139,85 @@ static int dfll_fetch_common_params(struct tegra_dfll *td)
 	}
 
 	return ok ? 0 : -EINVAL;
+}
+
+/**
+ * tegra_dfll_suspend
+ * @pdev: DFLL instance
+ *
+ * dfll controls clock/voltage to other devices, including CPU. Therefore,
+ * dfll driver pm suspend callback does not stop cl-dvfs operations. It is
+ * only used to enforce cold voltage limit, since SoC may cool down during
+ * suspend without waking up. The correct temperature zone after suspend will
+ * be updated via dfll cooling device interface during resume of temperature
+ * sensor.
+ */
+void tegra_dfll_suspend(struct platform_device *pdev)
+{
+	struct tegra_dfll *td = dev_get_drvdata(&pdev->dev);
+
+	if (td->mode <= DFLL_DISABLED)
+		return;
+
+	td->thermal_cap_index =
+		tegra_dfll_count_thermal_states(pdev, TEGRA_DFLL_THERMAL_CAP);
+	td->thermal_floor_index = 0;
+	set_dvco_rate_min(td);
+
+	td->resume_mode = td->mode;
+	switch (td->mode) {
+	case DFLL_CLOSED_LOOP:
+		dfll_set_close_loop_config(td, &td->last_req);
+		dfll_set_frequency_request(td, &td->last_req);
+
+		dfll_unlock(td);
+		break;
+	default:
+		break;
+	}
+}
+
+/**
+ * tegra_dfll_resume - reprogram the DFLL after context-loss
+ * @pdev: DFLL instance
+ *
+ * Re-initialize and enable target device clock in open loop mode. Called
+ * directly from SoC clock resume syscore operation. Closed loop will be
+ * re-entered in platform syscore ops as well.
+ */
+void tegra_dfll_resume(struct platform_device *pdev)
+{
+	struct tegra_dfll *td = dev_get_drvdata(&pdev->dev);
+
+	if (td->soc->deassert_dvco_reset)
+		td->soc->deassert_dvco_reset();
+
+	pm_runtime_get_sync(td->dev);
+
+	/* Re-init DFLL */
+	dfll_init_out_if(td);
+	dfll_init_tuning_thresholds(td);
+	dfll_set_default_params(td);
+	dfll_set_open_loop_config(td);
+
+	pm_runtime_put_sync(td->dev);
+
+	if (td->mode <= DFLL_DISABLED)
+		return;
+
+	/* Restore last request and mode */
+	switch (td->resume_mode) {
+	case DFLL_OPEN_LOOP:
+		dfll_set_mode(td, DFLL_OPEN_LOOP);
+		dfll_i2c_set_output_enabled(td, false);
+		break;
+	case DFLL_CLOSED_LOOP:
+		dfll_lock(td);
+		break;
+	default:
+		break;
+	}
+	td->resume_mode = DFLL_DISABLED;
 }
 
 /*
