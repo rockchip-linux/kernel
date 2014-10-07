@@ -43,8 +43,10 @@ struct kbase_rk_fv {
 
 struct kbase_rk {
 	struct clk *clk;
+	struct regulator *regulator;
 	struct kbase_rk_fv *fv_table;
 	unsigned int fv_table_length;
+	unsigned int current_level;
 	bool is_powered;
 };
 

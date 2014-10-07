@@ -7,6 +7,7 @@
  */
 
 #include <linux/of.h>
+#include <linux/regulator/driver.h>
 
 #include "mali_kbase_rk.h"
 
@@ -18,8 +19,16 @@ static int kbase_rk_power_on_callback(struct kbase_device *kbdev)
 	if (kbase_rk->is_powered)
 		return 0;
 
+	ret = regulator_enable(kbase_rk->regulator);
+	if (ret) {
+		dev_err(kbdev->dev,
+			"regulator enable error at power on, %d\n", ret);
+		return ret;
+	}
+
 	ret = clk_enable(kbase_rk->clk);
 	if (ret) {
+		regulator_disable(kbase_rk->regulator);
 		dev_err(kbdev->dev, "enable clk failed, %d\n", ret);
 		return ret;
 	}
@@ -38,6 +47,7 @@ static void kbase_rk_power_off_callback(struct kbase_device *kbdev)
 		return;
 
 	clk_disable(kbase_rk->clk);
+	regulator_disable(kbase_rk->regulator);
 	kbase_rk->is_powered = false;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 0);
 }
@@ -107,6 +117,52 @@ int kbase_platform_early_init(void)
 	return 0;
 }
 
+static int kbase_rk_set_level(struct kbase_device *kbdev, int level)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	unsigned long volt;
+	unsigned long freq;
+	int ret;
+	unsigned int current_level;
+
+	current_level = kbase_rk->current_level;
+	volt = kbase_rk->fv_table[level].volt;
+	freq = kbase_rk->fv_table[level].freq;
+
+	if (level == current_level)
+		return 0;
+
+	if (level > current_level) {
+		ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
+		if (ret)
+			return ret;
+
+		ret = clk_set_rate(kbase_rk->clk, freq);
+		if (ret) {
+			volt = kbase_rk->fv_table[current_level].volt;
+			regulator_set_voltage(kbase_rk->regulator, volt, volt);
+
+			return ret;
+		}
+	} else {
+		ret = clk_set_rate(kbase_rk->clk, freq);
+		if (ret)
+			return ret;
+
+		ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
+		if (ret) {
+			freq = kbase_rk->fv_table[current_level].freq;
+			clk_set_rate(kbase_rk->clk, freq);
+
+			return ret;
+		}
+	}
+
+	kbase_rk->current_level = level;
+
+	return 0;
+}
+
 #ifdef CONFIG_MALI_MIDGARD_DEBUG_SYS
 static ssize_t show_clock(struct device *dev,
 			  struct device_attribute *attr, char *buf)
@@ -124,16 +180,20 @@ static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
 	unsigned long  clkrate;
 	ssize_t ret;
+	int i;
 
 	ret = kstrtoul(buf, 10, &clkrate);
 	if (ret)
 		return ret;
 
-	/* TODO(xxm): allow all freq in opp table once voltage can be set */
-	if (clkrate != kbase_rk->fv_table[0].freq)
+	for (i = 0; i < kbase_rk->fv_table_length; ++i)
+		if (kbase_rk->fv_table[i].freq == clkrate)
+			break;
+
+	if (i == kbase_rk->fv_table_length)
 		return -EINVAL;
 
-	ret = clk_set_rate(kbase_rk->clk, clkrate);
+	ret = kbase_rk_set_level(kbdev, i);
 	if (ret)
 		return ret;
 
@@ -221,6 +281,28 @@ static inline void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
 }
 #endif
 
+static int kbase_rk_freq_init(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	unsigned long volt = kbase_rk->fv_table[0].volt;
+	unsigned long freq = kbase_rk->fv_table[0].freq;
+	int ret;
+
+	ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
+	if (ret)
+		return ret;
+
+	ret = clk_set_rate(kbase_rk->clk, freq);
+	if (ret)
+		return ret;
+
+	kbase_rk->current_level = 0;
+	dev_info(kbdev->dev, "initial freq = %lu\n",
+		 clk_get_rate(kbase_rk->clk));
+
+	return 0;
+}
+
 static int kbase_rk_get_opp_table(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
@@ -265,6 +347,54 @@ static int kbase_rk_get_opp_table(struct kbase_device *kbdev)
 	return 0;
 }
 
+static int kbase_rk_regulator_init(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	int ret;
+
+	kbase_rk->regulator = devm_regulator_get(kbdev->dev, "vdd_gpu");
+	if (IS_ERR(kbase_rk->regulator)) {
+		ret = PTR_ERR(kbase_rk->regulator);
+		dev_err(kbdev->dev,
+			"failed to get kbase rk regulator, %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int kbase_rk_clk_init(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	int ret;
+
+	kbase_rk->clk = devm_clk_get(kbdev->dev, "aclk_gpu");
+	if (IS_ERR(kbase_rk->clk)) {
+		ret = PTR_ERR(kbase_rk->clk);
+		dev_err(kbdev->dev, "get clk failed, %d\n", ret);
+		return ret;
+	}
+
+	ret = kbase_rk_freq_init(kbdev);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare(kbase_rk->clk);
+	if (ret) {
+		dev_err(kbdev->dev, "prepare clk failed, %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static void kbase_rk_clk_term(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+
+	clk_unprepare(kbase_rk->clk);
+}
+
 static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk;
@@ -279,44 +409,33 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 
 	ret = kbase_rk_get_opp_table(kbdev);
 	if (ret)
-		return MALI_FALSE;
+		goto err_init;
 
-	kbase_rk->clk = devm_clk_get(kbdev->dev, "aclk_gpu");
-	if (IS_ERR(kbase_rk->clk)) {
-		ret = PTR_ERR(kbase_rk->clk);
-		dev_err(kbdev->dev, "get clk failed, %d\n", ret);
-		return MALI_FALSE;
-	}
-
-	ret = clk_set_rate(kbase_rk->clk, kbase_rk->fv_table[0].freq);
+	ret = kbase_rk_regulator_init(kbdev);
 	if (ret)
-		return MALI_FALSE;
+		goto err_init;
 
-	ret = clk_prepare(kbase_rk->clk);
-	if (ret) {
-		dev_err(kbdev->dev, "prepare clk failed, %d\n", ret);
-		return MALI_FALSE;
-	}
-
-	dev_info(kbdev->dev, "initial freq = %lu\n",
-		 clk_get_rate(kbase_rk->clk));
+	ret = kbase_rk_clk_init(kbdev);
+	if (ret)
+		goto err_init;
 
 	ret = kbase_rk_create_sysfs_file(kbdev);
 	if (ret)
-		goto unprepare_clk;
+		goto term_clk;
 
 	return MALI_TRUE;
-unprepare_clk:
-	clk_unprepare(kbase_rk->clk);
+term_clk:
+	kbase_rk_clk_term(kbdev);
+err_init:
+	kbdev->platform_context = NULL;
+
 	return MALI_FALSE;
 }
 
 static void kbase_rk_platform_term(struct kbase_device *kbdev)
 {
-	struct kbase_rk *kbase_rk = kbdev->platform_context;
-
-	clk_unprepare(kbase_rk->clk);
 	kbase_rk_remove_sysfs_file(kbdev);
+	kbase_rk_clk_term(kbdev);
 	kbdev->platform_context = NULL;
 }
 
