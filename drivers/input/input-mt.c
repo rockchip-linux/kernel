@@ -204,6 +204,7 @@ void input_mt_report_pointer_emulation(struct input_dev *dev, bool use_count)
 	for (i = 0; i < mt->num_slots; ++i) {
 		struct input_mt_slot *ps = &mt->slots[i];
 		int id = input_mt_get_value(ps, ABS_MT_TRACKING_ID);
+		int distance = input_mt_get_value(ps, ABS_MT_DISTANCE);
 
 		if (id < 0)
 			continue;
@@ -211,7 +212,8 @@ void input_mt_report_pointer_emulation(struct input_dev *dev, bool use_count)
 			oldest = ps;
 			oldid = id;
 		}
-		count++;
+		if (distance == 0)
+			count++;
 	}
 
 	input_event(dev, EV_KEY, BTN_TOUCH, count > 0);
