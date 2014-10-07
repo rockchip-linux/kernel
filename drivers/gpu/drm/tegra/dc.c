@@ -1513,6 +1513,7 @@ static int tegra_dc_probe(struct platform_device *pdev)
 	const struct of_device_id *id;
 	struct resource *regs;
 	struct tegra_dc *dc;
+	struct clk *parent_clk;
 	int err;
 
 	dc = devm_kzalloc(&pdev->dev, sizeof(*dc), GFP_KERNEL);
@@ -1536,6 +1537,18 @@ static int tegra_dc_probe(struct platform_device *pdev)
 	if (IS_ERR(dc->clk)) {
 		dev_err(&pdev->dev, "failed to get clock\n");
 		return PTR_ERR(dc->clk);
+	}
+
+	parent_clk = devm_clk_get(&pdev->dev, "parent");
+	if (IS_ERR(parent_clk)) {
+		dev_err(&pdev->dev, "failed to get parent clock\n");
+		return PTR_ERR(parent_clk);
+	}
+
+	err = clk_set_parent(dc->clk, parent_clk);
+	if (err) {
+		dev_err(&pdev->dev, "failed to set parent clock\n");
+		return err;
 	}
 
 	dc->rst = devm_reset_control_get(&pdev->dev, "dc");
