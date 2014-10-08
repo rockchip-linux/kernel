@@ -16,6 +16,15 @@
 
 #include "../codecs/rt5677.h"
 
+/* GPIO indexes defined by ACPI */
+enum {
+	RT5677_GPIO_PLUG_DET,
+	RT5677_GPIO_MIC_PRESENT_L,
+	RT5677_GPIO_HOTWORD_DET_L,
+	RT5677_GPIO_DSP_INT,
+	RT5677_GPIO_HP_AMP_SHDN_L,
+};
+
 struct bdw_rt5677_priv {
 	struct gpio_desc *gpio_hp_en;
 };
@@ -88,6 +97,21 @@ static struct snd_soc_jack_pin mic_jack_pin = {
 	.mask	= SND_JACK_MICROPHONE,
 };
 
+static struct snd_soc_jack_gpio headphone_jack_gpio = {
+	.name			= "RT5677_GPIO_PLUG_DET",
+	.idx			= RT5677_GPIO_PLUG_DET,
+	.report			= SND_JACK_HEADPHONE,
+	.debounce_time		= 200,
+};
+
+static struct snd_soc_jack_gpio mic_jack_gpio = {
+	.name			= "RT5677_GPIO_MIC_PRESENT_L",
+	.idx			= RT5677_GPIO_MIC_PRESENT_L,
+	.report			= SND_JACK_MICROPHONE,
+	.debounce_time		= 200,
+	.invert			= 1,
+};
+
 static int broadwell_ssp0_fixup(struct snd_soc_pcm_runtime *rtd,
 			struct snd_pcm_hw_params *params)
 {
@@ -153,7 +177,7 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_codec *codec = rtd->codec;
 	int ret;
 
-	/* Request GPIOs */
+	/* Request rt5677 GPIO for headphone amp control */
 	bdw_rt5677->gpio_hp_en = devm_gpiod_get_index(codec->dev,
 		"RT5677_GPIO_HP_AMP_SHDN_L", RT5677_GPIO_HP_AMP_SHDN_L);
 	if (IS_ERR(bdw_rt5677->gpio_hp_en)) {
@@ -162,7 +186,7 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	}
 	gpiod_direction_output(bdw_rt5677->gpio_hp_en, 0);
 
-	/* Create and initialize headphone jack and mic jack */
+	/* Create and initialize headphone jack */
 	ret = snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
 				&headphone_jack);
 	if (ret)
@@ -170,7 +194,14 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	ret = snd_soc_jack_add_pins(&headphone_jack, 1, &headphone_jack_pin);
 	if (ret)
 		return ret;
+	headphone_jack_gpio.gpiod_dev = codec->dev;
+	ret = snd_soc_jack_add_gpios(&headphone_jack, 1, &headphone_jack_gpio);
+	if (ret) {
+		dev_err(rtd->dev, "Can't add headphone jack gpio\n");
+		return ret;
+	}
 
+	/* Create and initialize mic jack */
 	ret = snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
 				&mic_jack);
 	if (ret)
@@ -178,8 +209,12 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	ret = snd_soc_jack_add_pins(&mic_jack, 1, &mic_jack_pin);
 	if (ret)
 		return ret;
-
-	rt5677_register_jack_detect(codec, &headphone_jack, &mic_jack);
+	mic_jack_gpio.gpiod_dev = codec->dev;
+	ret = snd_soc_jack_add_gpios(&mic_jack, 1, &mic_jack_gpio);
+	if (ret) {
+		dev_err(rtd->dev, "Can't add mic jack gpio\n");
+		return ret;
+	}
 
 	return 0;
 }
