@@ -103,7 +103,8 @@ unsigned int kbase_rk_dvfs_utilisation(struct kbase_device *kbdev)
 	return dvfs->utilisation;
 }
 
-int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation)
+int kbase_platform_dvfs_event(struct kbase_device *kbdev, u32 utilisation,
+		u32 util_gl_share, u32 util_cl_share[2])
 {
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
 	struct kbase_rk_dvfs *dvfs = &kbase_rk->dvfs;

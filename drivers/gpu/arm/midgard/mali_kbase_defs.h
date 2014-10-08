@@ -31,6 +31,7 @@
 #include <mali_base_hwconfig.h>
 #include <mali_kbase_mem_lowlevel.h>
 #include <mali_kbase_mem_alloc.h>
+#include <mali_kbase_mmu_hw.h>
 
 
 #include <linux/atomic.h>
@@ -46,8 +47,12 @@
 #endif				/* CONFIG_DRM_DMA_SYNC */
 
 #ifdef CONFIG_SYNC
-#include <linux/sync.h>
+#include "sync.h"
 #endif				/* CONFIG_SYNC */
+
+#ifdef CONFIG_DEBUG_FS
+#include <linux/debugfs.h>
+#endif				/* CONFIG_DEBUG_FS */
 
 /** Enable SW tracing when set */
 #ifdef CONFIG_MALI_MIDGARD_ENABLE_TRACE
@@ -88,7 +93,6 @@
  * @note if not in use, define this value to 0 instead of \#undef'ing it
  */
 #define KBASE_DISABLE_SCHEDULING_SOFT_STOPS 0
-
 /**
  * Prevent hard-stops from occuring in scheduling situations
  *
@@ -99,11 +103,6 @@
  * @note if not in use, define this value to 0 instead of \#undef'ing it
  */
 #define KBASE_DISABLE_SCHEDULING_HARD_STOPS 0
-
-/* Forward declarations+defintions */
-typedef struct kbase_context kbase_context;
-typedef struct kbase_jd_atom kbasep_jd_atom;
-typedef struct kbase_device kbase_device;
 
 /**
  * The maximum number of Job Slots to support in the Hardware.
@@ -189,7 +188,7 @@ typedef struct kbase_device kbase_device;
  * problem to just waiting for current jobs to finish (which can be bounded if
  * the Job Scheduling Policy has a timer).
  */
-typedef enum {
+enum kbase_atom_coreref_state {
 	/** Starting state: No affinity chosen, and cores must be requested. kbase_jd_atom::affinity==0 */
 	KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED,
 	/** Cores requested, but waiting for them to be powered. Requested cores given by kbase_jd_atom::affinity */
@@ -200,9 +199,9 @@ typedef enum {
 	KBASE_ATOM_COREREF_STATE_CHECK_AFFINITY_VIOLATIONS,
 	/** Cores are powered, kbase_jd_atom::affinity up-to-date, no affinity violations: atom can be submitted to HW */
 	KBASE_ATOM_COREREF_STATE_READY
-} kbase_atom_coreref_state;
+};
 
-typedef enum {
+enum kbase_jd_atom_state {
 	/** Atom is not used */
 	KBASE_JD_ATOM_STATE_UNUSED,
 	/** Atom is queued in JD */
@@ -211,7 +210,7 @@ typedef enum {
 	KBASE_JD_ATOM_STATE_IN_JS,
 	/** Atom has been completed, but not yet handed back to userspace */
 	KBASE_JD_ATOM_STATE_COMPLETED
-} kbase_jd_atom_state;
+};
 
 /** Atom has been previously soft-stoppped */
 #define KBASE_KATOM_FLAG_BEEN_SOFT_STOPPPED (1<<1)
@@ -219,7 +218,81 @@ typedef enum {
 #define KBASE_KATOM_FLAGS_RERUN (1<<2)
 #define KBASE_KATOM_FLAGS_JOBCHAIN (1<<3)
 
-typedef struct kbase_jd_atom kbase_jd_atom;
+struct kbase_jd_atom_dependency
+{
+	struct kbase_jd_atom *atom;
+	u8 dep_type;
+};
+
+/**
+ * @brief The function retrieves a read-only reference to the atom field from 
+ * the  kbase_jd_atom_dependency structure
+ *
+ * @param[in] dep kbase jd atom dependency.
+ *
+ * @return readonly reference to dependent ATOM.
+ */
+static INLINE const struct kbase_jd_atom* const kbase_jd_katom_dep_atom(const struct kbase_jd_atom_dependency* dep)
+{
+	LOCAL_ASSERT(dep != NULL);
+	
+	return (const struct kbase_jd_atom* const )(dep->atom);
+}
+ 
+/**
+ * @brief The function retrieves a read-only reference to the dependency type field from 
+ * the  kbase_jd_atom_dependency structure
+ *
+ * @param[in] dep kbase jd atom dependency.
+ *
+ * @return A dependency type value.
+ */
+static INLINE const u8 kbase_jd_katom_dep_type(const struct kbase_jd_atom_dependency* dep)
+{
+	LOCAL_ASSERT(dep != NULL);
+
+	return dep->dep_type;
+}
+
+/**
+ * @brief Setter macro for dep_atom array entry in kbase_jd_atom
+ *
+ * @param[in] dep    The kbase jd atom dependency.
+ * @param[in] a      The ATOM to be set as a dependency.
+ * @param     type   The ATOM dependency type to be set.
+ *
+ */
+static INLINE void kbase_jd_katom_dep_set(const struct kbase_jd_atom_dependency* const_dep, 
+	struct kbase_jd_atom * a,
+	u8 type)
+{
+	struct kbase_jd_atom_dependency* dep;
+	
+	LOCAL_ASSERT(const_dep != NULL);
+
+	dep = (REINTERPRET_CAST(struct kbase_jd_atom_dependency* )const_dep);
+
+	dep->atom = a;
+	dep->dep_type = type; 
+}
+
+/**
+ * @brief Setter macro for dep_atom array entry in kbase_jd_atom
+ *
+ * @param[in] dep    The kbase jd atom dependency to be cleared.
+ *
+ */
+static INLINE void kbase_jd_katom_dep_clear(const struct kbase_jd_atom_dependency* const_dep)
+{
+	struct kbase_jd_atom_dependency* dep;
+
+	LOCAL_ASSERT(const_dep != NULL);
+
+	dep = (REINTERPRET_CAST(struct kbase_jd_atom_dependency* )const_dep);
+
+	dep->atom = NULL;
+	dep->dep_type = BASE_JD_DEP_TYPE_INVALID; 
+}
 
 struct kbase_ext_res
 {
@@ -230,13 +303,14 @@ struct kbase_ext_res
 struct kbase_jd_atom {
 	struct work_struct work;
 	ktime_t start_timestamp;
+	u64 time_spent_us; /**< Total time spent on the GPU in microseconds */
 
-	base_jd_udata udata;
-	kbase_context *kctx;
+	struct base_jd_udata udata;
+	struct kbase_context *kctx;
 
 	struct list_head dep_head[2];
 	struct list_head dep_item[2];
-	struct kbase_jd_atom *dep_atom[2];
+	const struct kbase_jd_atom_dependency dep[2];
 
 	u16 nr_extres;
 	struct kbase_ext_res * extres;
@@ -244,7 +318,7 @@ struct kbase_jd_atom {
 	u32 device_nr;
 	u64 affinity;
 	u64 jc;
-	kbase_atom_coreref_state coreref_state;
+	enum kbase_atom_coreref_state coreref_state;
 #if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
 	struct list_head node;
 	mali_bool dep_satisfied;
@@ -262,21 +336,21 @@ struct kbase_jd_atom {
 #endif				/* CONFIG_SYNC */
 
 	/* Note: refer to kbasep_js_atom_retained_state, which will take a copy of some of the following members */
-	base_jd_event_code event_code;
+	enum base_jd_event_code event_code;
 	base_jd_core_req core_req;	    /**< core requirements */
 	/** Job Slot to retry submitting to if submission from IRQ handler failed
 	 *
 	 * NOTE: see if this can be unified into the another member e.g. the event */
 	int retry_submit_on_slot;
 
-	kbasep_js_policy_job_info sched_info;
+	union kbasep_js_policy_job_info sched_info;
 	/* atom priority scaled to nice range with +20 offset 0..39 */
 	int nice_prio;
 
 	int poking;		/* BASE_HW_ISSUE_8316 */
 
 	wait_queue_head_t completed;
-	kbase_jd_atom_state status;
+	enum kbase_jd_atom_state status;
 #ifdef CONFIG_GPU_TRACEPOINTS
 	int work_id;
 #endif
@@ -300,10 +374,10 @@ struct kbase_jd_atom {
 
 #define KBASE_JD_DEP_QUEUE_SIZE 256
 
-typedef struct kbase_jd_context {
+struct kbase_jd_context {
 	struct mutex lock;
-	kbasep_js_kctx_info sched_info;
-	kbase_jd_atom atoms[BASE_JD_ATOM_COUNT];
+	struct kbasep_js_kctx_info sched_info;
+	struct kbase_jd_atom atoms[BASE_JD_ATOM_COUNT];
 
 	/** Tracks all job-dispatch jobs.  This includes those not tracked by
 	 * the scheduler: 'not ready to run' and 'dependency-only' jobs. */
@@ -349,34 +423,26 @@ typedef struct kbase_jd_context {
 #ifdef CONFIG_GPU_TRACEPOINTS
 	atomic_t work_id;
 #endif
-} kbase_jd_context;
+};
 
-typedef struct kbase_jm_slot {
+struct kbase_jm_slot {
 	/* The number of slots must be a power of two */
 #define BASE_JM_SUBMIT_SLOTS        16
 #define BASE_JM_SUBMIT_SLOTS_MASK   (BASE_JM_SUBMIT_SLOTS - 1)
 
 	struct kbase_jd_atom *submitted[BASE_JM_SUBMIT_SLOTS];
 
-	kbase_context *last_context;
+	struct kbase_context *last_context;
 
 	u8 submitted_head;
 	u8 submitted_nr;
 	u8 job_chain_flag;
 
-} kbase_jm_slot;
+};
 
-typedef enum kbase_midgard_type {
-	KBASE_MALI_T601,
-	KBASE_MALI_T604,
-	KBASE_MALI_T608,
-	KBASE_MALI_COUNT
-} kbase_midgard_type;
-
-typedef struct kbase_device_info {
-	kbase_midgard_type dev_type;
+struct kbase_device_info {
 	u32 features;
-} kbase_device_info;
+};
 
 /** Poking state for BASE_HW_ISSUE_8316  */
 enum {
@@ -387,22 +453,30 @@ enum {
 /** Poking state for BASE_HW_ISSUE_8316  */
 typedef u32 kbase_as_poke_state;
 
+struct kbase_mmu_setup {
+	u64	transtab;
+	u64	memattr;
+};
+
 /**
- * Important: Our code makes assumptions that a kbase_as structure is always at
+ * Important: Our code makes assumptions that a struct kbase_as structure is always at
  * kbase_device->as[number]. This is used to recover the containing
- * kbase_device from a kbase_as structure.
+ * struct kbase_device from a struct kbase_as structure.
  *
- * Therefore, kbase_as structures must not be allocated anywhere else.
+ * Therefore, struct kbase_as structures must not be allocated anywhere else.
  */
-typedef struct kbase_as {
+struct kbase_as {
 	int number;
 
 	struct workqueue_struct *pf_wq;
 	struct work_struct work_pagefault;
 	struct work_struct work_busfault;
-	mali_addr64 fault_addr;
+	enum kbase_mmu_fault_type fault_type;
 	u32 fault_status;
+	mali_addr64 fault_addr;
 	struct mutex transaction_mutex;
+
+	struct kbase_mmu_setup current_setup;
 
 	/* BASE_HW_ISSUE_8316  */
 	struct workqueue_struct *poke_wq;
@@ -412,12 +486,22 @@ typedef struct kbase_as {
 	/** Protected by kbasep_js_device_data::runpool_irq::lock */
 	kbase_as_poke_state poke_state;
 	struct hrtimer poke_timer;
-} kbase_as;
+};
+
+static inline int kbase_as_has_bus_fault(struct kbase_as *as)
+{
+	return as->fault_type == KBASE_MMU_FAULT_TYPE_BUS;
+}
+
+static inline int kbase_as_has_page_fault(struct kbase_as *as)
+{
+	return as->fault_type == KBASE_MMU_FAULT_TYPE_PAGE;
+}
 
 /**
  * Instrumentation State Machine States
  */
-typedef enum {
+enum kbase_instr_state {
 	/** State where instrumentation is not active */
 	KBASE_INSTR_STATE_DISABLED = 0,
 	/** State machine is active and ready for a command. */
@@ -437,19 +521,22 @@ typedef enum {
 	KBASE_INSTR_STATE_RESETTING,
 	/** An error has occured during DUMPING (page fault). */
 	KBASE_INSTR_STATE_FAULT
-} kbase_instr_state;
+};
 
-typedef struct kbasep_mem_device {
+void kbasep_reset_timeout_worker(struct work_struct *data);
+enum hrtimer_restart kbasep_reset_timer_callback(struct hrtimer *data);
+
+struct kbasep_mem_device {
 	atomic_t used_pages;   /* Tracks usage of OS shared memory. Updated
 				   when OS memory is allocated/freed. */
 
-} kbasep_mem_device;
+};
 
 
 
 #define KBASE_TRACE_CODE(X) KBASE_TRACE_CODE_ ## X
 
-typedef enum {
+enum kbase_trace_code {
 	/* IMPORTANT: USE OF SPECIAL #INCLUDE OF NON-STANDARD HEADER FILE
 	 * THIS MUST BE USED AT THE START OF THE ENUM */
 #define KBASE_TRACE_CODE_MAKE_CODE(X) KBASE_TRACE_CODE(X)
@@ -459,12 +546,12 @@ typedef enum {
 	,
 	/* Must be the last in the enum */
 	KBASE_TRACE_CODE_COUNT
-} kbase_trace_code;
+};
 
 #define KBASE_TRACE_FLAG_REFCOUNT (((u8)1) << 0)
 #define KBASE_TRACE_FLAG_JOBSLOT  (((u8)1) << 1)
 
-typedef struct kbase_trace {
+struct kbase_trace {
 	struct timespec timestamp;
 	u32 thread_id;
 	u32 cpu;
@@ -478,7 +565,7 @@ typedef struct kbase_trace {
 	u8 jobslot;
 	u8 refcount;
 	u8 flags;
-} kbase_trace;
+};
 
 /** Event IDs for the power management framework.
  *
@@ -486,7 +573,7 @@ typedef struct kbase_trace {
  * find the precise state of the GPU at a particular time in the
  * trace. Overall, we should get a high percentage of these events for
  * statisical purposes, and so a few missing should not be a problem */
-typedef enum kbase_timeline_pm_event {
+enum kbase_timeline_pm_event {
 	/* helper for tests */
 	KBASEP_TIMELINE_PM_EVENT_FIRST,
 
@@ -532,15 +619,15 @@ typedef enum kbase_timeline_pm_event {
 	KBASE_TIMELINE_PM_EVENT_CHANGE_GPU_STATE,
 
 	KBASEP_TIMELINE_PM_EVENT_LAST = KBASE_TIMELINE_PM_EVENT_CHANGE_GPU_STATE,
-} kbase_timeline_pm_event;
+};
 
 #ifdef CONFIG_MALI_TRACE_TIMELINE
-typedef struct kbase_trace_kctx_timeline {
+struct kbase_trace_kctx_timeline {
 	atomic_t jd_atoms_in_flight;
 	u32 owner_tgid;
-} kbase_trace_kctx_timeline;
+};
 
-typedef struct kbase_trace_kbdev_timeline {
+struct kbase_trace_kbdev_timeline {
 	/** DebugFS entry */
 	struct dentry *dentry;
 
@@ -562,20 +649,20 @@ typedef struct kbase_trace_kbdev_timeline {
 	 * L2 transition state - MALI_TRUE indicates that the transition is ongoing
 	 * Expected to be protected by pm.power_change_lock */
 	mali_bool l2_transitioning;
-} kbase_trace_kbdev_timeline;
+};
 #endif /* CONFIG_MALI_TRACE_TIMELINE */
 
 
-typedef struct kbasep_kctx_list_element {
+struct kbasep_kctx_list_element {
 	struct list_head link;
-	kbase_context    *kctx;
-} kbasep_kctx_list_element;
+	struct kbase_context    *kctx;
+};
 
 #define DEVNAME_SIZE	16
 
 struct kbase_device {
 	/** jm_slots is protected by kbasep_js_device_data::runpool_irq::lock */
-	kbase_jm_slot jm_slots[BASE_JM_MAX_NR_SLOTS];
+	struct kbase_jm_slot jm_slots[BASE_JM_MAX_NR_SLOTS];
 	s8 slot_submit_count_irq[BASE_JM_MAX_NR_SLOTS];
 
 	struct list_head entry;
@@ -601,11 +688,10 @@ struct kbase_device {
 	spinlock_t reg_op_lock;
 #endif				/* CONFIG_MALI_NO_MALI */
 
-	kbase_pm_device_data pm;
-	kbasep_js_device_data js_data;
-	kbasep_mem_device memdev;
-
-	kbase_as as[BASE_MAX_NR_AS];
+	struct kbase_pm_device_data pm;
+	struct kbasep_js_device_data js_data;
+	struct kbasep_mem_device memdev;
+	struct kbase_as as[BASE_MAX_NR_AS];
 
 	spinlock_t              mmu_mask_change;
 
@@ -669,17 +755,17 @@ struct kbase_device {
 		/* The lock should be used when accessing any of the following members */
 		spinlock_t lock;
 
-		kbase_context *kctx;
+		struct kbase_context *kctx;
 		u64 addr;
 		wait_queue_head_t wait;
 		int triggered;
-		kbase_instr_state state;
+		enum kbase_instr_state state;
 		wait_queue_head_t   cache_clean_wait;
 		struct workqueue_struct *cache_clean_wq;
 		struct work_struct  cache_clean_work;
 
-		kbase_context *suspended_kctx;
-		kbase_uk_hwcnt_setup suspended_state;
+		struct kbase_context *suspended_kctx;
+		struct kbase_uk_hwcnt_setup suspended_state;
 	} hwcnt;
 
 	/* Set when we're about to reset the GPU */
@@ -700,16 +786,16 @@ struct kbase_device {
 	/*value to be written to the irq_throttle register each time an irq is served */
 	atomic_t irq_throttle_cycles;
 
-	const kbase_attribute *config_attributes;
+	const struct kbase_attribute *config_attributes;
 
-#if KBASE_TRACE_ENABLE != 0
+#if KBASE_TRACE_ENABLE
 	spinlock_t              trace_lock;
 	u16                     trace_first_out;
 	u16                     trace_next_in;
-	kbase_trace            *trace_rbuf;
+	struct kbase_trace            *trace_rbuf;
 #endif
 
-#if MALI_CUSTOMER_RELEASE == 0
+#if !MALI_CUSTOMER_RELEASE
 	/* This is used to override the current job scheduler values for
 	 * KBASE_CONFIG_ATTR_JS_STOP_STOP_TICKS_SS
 	 * KBASE_CONFIG_ATTR_JS_STOP_STOP_TICKS_CL
@@ -749,7 +835,7 @@ struct kbase_device {
 #endif
 
 #ifdef CONFIG_MALI_TRACE_TIMELINE
-	kbase_trace_kbdev_timeline timeline;
+	struct kbase_trace_kbdev_timeline timeline;
 #endif
 
 #ifdef CONFIG_DEBUG_FS
@@ -759,6 +845,10 @@ struct kbase_device {
 	struct dentry *gpu_memory_dentry;
 	/* debugfs entry for trace */
 	struct dentry *trace_dentry;
+	/* directory for per-ctx memory profiling data */
+	struct dentry *memory_profile_directory;
+	/* Root directory for job dispatcher data */
+	struct dentry *jd_directory;
 #endif /* CONFIG_DEBUG_FS */
 
 	/* fbdump profiling controls set by gator */
@@ -781,10 +871,14 @@ struct kbase_device {
 	 */
 	mali_bool force_replay_random;
 #endif
+
+	/* Total number of created contexts */
+	atomic_t ctx_num;
 };
 
 struct kbase_context {
-	kbase_device *kbdev;
+	struct kbase_device *kbdev;
+	int id; /* System wide unique id */
 	phys_addr_t pgd;
 	struct list_head event_list;
 	struct mutex event_mutex;
@@ -812,12 +906,12 @@ struct kbase_context {
 	pid_t tgid;
 	pid_t pid;
 
-	kbase_jd_context jctx;
+	struct kbase_jd_context jctx;
 	atomic_t used_pages;
 	atomic_t         nonmapped_pages;
 
-	kbase_mem_allocator osalloc;
-	kbase_mem_allocator * pgd_allocator;
+	struct kbase_mem_allocator osalloc;
+	struct kbase_mem_allocator * pgd_allocator;
 
 	struct list_head waiting_soft_jobs;
 #if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
@@ -847,20 +941,32 @@ struct kbase_context {
 	struct mm_struct * process_mm;
 
 #ifdef CONFIG_MALI_TRACE_TIMELINE
-	kbase_trace_kctx_timeline timeline;
+	struct kbase_trace_kctx_timeline timeline;
 #endif
+#ifdef CONFIG_DEBUG_FS
+	/* debugfs entry for memory profile */
+	struct dentry *mem_dentry;
+	/* Content of mem_profile file */
+	char *mem_profile_data;
+	/* Size of @c mem_profile_data */
+	size_t mem_profile_size;
+	/* Spinlock guarding data */
+	spinlock_t mem_profile_lock;
+	/* Per-context directory for JD data */
+	struct dentry *jd_ctx_dir;
+#endif /* CONFIG_DEBUG_FS */
 };
 
-typedef enum kbase_reg_access_type {
+enum kbase_reg_access_type {
 	REG_READ,
 	REG_WRITE
-} kbase_reg_access_type;
+};
 
-typedef enum kbase_share_attr_bits {
+enum kbase_share_attr_bits {
 	/* (1ULL << 8) bit is reserved */
 	SHARE_BOTH_BITS = (2ULL << 8),	/* inner and outer shareable coherency */
 	SHARE_INNER_BITS = (3ULL << 8)	/* inner shareable coherency */
-} kbase_share_attr_bits;
+};
 
 /* Conversion helpers for setting up high resolution timers */
 #define HR_TIMER_DELAY_MSEC(x) (ns_to_ktime((x)*1000000U))
@@ -870,17 +976,6 @@ typedef enum kbase_share_attr_bits {
 #define KBASE_CLEAN_CACHE_MAX_LOOPS     100000
 /* Maximum number of loops polling the GPU for an AS flush to complete before we assume the GPU has hung */
 #define KBASE_AS_FLUSH_MAX_LOOPS        100000
-
-/* Return values from kbase_replay_process */
-
-/* Replay job has completed */
-#define MALI_REPLAY_STATUS_COMPLETE  0
-/* Replay job is replaying and will continue once replayed jobs have completed.
- */
-#define MALI_REPLAY_STATUS_REPLAYING 1
-#define MALI_REPLAY_STATUS_MASK      0xff
-/* Caller must call kbasep_js_try_schedule_head_ctx */
-#define MALI_REPLAY_FLAG_JS_RESCHED  0x100
 
 /* Maximum number of times a job can be replayed */
 #define BASEP_JD_REPLAY_LIMIT 15

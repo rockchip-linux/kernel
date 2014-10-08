@@ -24,7 +24,7 @@
 
 #ifdef CONFIG_SYNC
 
-#include <linux/sync.h>
+#include "sync.h"
 #include <mali_kbase.h>
 
 struct mali_sync_timeline {
@@ -35,7 +35,7 @@ struct mali_sync_timeline {
 
 struct mali_sync_pt {
 	struct sync_pt pt;
-	u32 order;
+	int order;
 	int result;
 };
 
@@ -72,7 +72,7 @@ static int timeline_has_signaled(struct sync_pt *pt)
 	struct mali_sync_timeline *mtl = to_mali_sync_timeline(pt->parent);
 	int result = mpt->result;
 
-	long diff = atomic_read(&mtl->signalled) - mpt->order;
+	int diff = atomic_read(&mtl->signalled) - mpt->order;
 
 	if (diff >= 0)
 	{
@@ -87,7 +87,7 @@ static int timeline_compare(struct sync_pt *a, struct sync_pt *b)
 	struct mali_sync_pt *ma = container_of(a, struct mali_sync_pt, pt);
 	struct mali_sync_pt *mb = container_of(b, struct mali_sync_pt, pt);
 
-	long diff = ma->order - mb->order;
+	int diff = ma->order - mb->order;
 
 	if (diff < 0)
 		return -1;

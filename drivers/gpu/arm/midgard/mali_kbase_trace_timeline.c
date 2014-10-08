@@ -95,7 +95,7 @@ static const struct file_operations kbasep_trace_timeline_debugfs_fops = {
 	.release = seq_release_private,
 };
 
-mali_error kbasep_trace_timeline_debugfs_init(kbase_device *kbdev)
+mali_error kbasep_trace_timeline_debugfs_init(struct kbase_device *kbdev)
 {
 	kbdev->timeline.dentry = debugfs_create_file("mali_timeline_defs",
 			S_IRUGO, kbdev->mali_debugfs_directory, NULL,
@@ -106,17 +106,17 @@ mali_error kbasep_trace_timeline_debugfs_init(kbase_device *kbdev)
 	return MALI_ERROR_NONE;
 }
 
-void kbasep_trace_timeline_debugfs_term(kbase_device *kbdev)
+void kbasep_trace_timeline_debugfs_term(struct kbase_device *kbdev)
 {
 	debugfs_remove(kbdev->timeline.dentry);
 }
 
-void kbase_timeline_job_slot_submit(kbase_device *kbdev, kbase_context *kctx,
-                                    kbase_jd_atom *katom, int js)
+void kbase_timeline_job_slot_submit(struct kbase_device *kbdev, struct kbase_context *kctx,
+                                    struct kbase_jd_atom *katom, int js)
 {
 	lockdep_assert_held(&kbdev->js_data.runpool_irq.lock);
 
-	if(kbdev->timeline.slot_atoms_submitted[js] > 0) {
+	if (kbdev->timeline.slot_atoms_submitted[js] > 0) {
 		KBASE_TIMELINE_JOB_START_NEXT(kctx, js, 1);
 	} else {
 		base_atom_id atom_number = kbase_jd_atom_id(kctx, katom);
@@ -128,8 +128,8 @@ void kbase_timeline_job_slot_submit(kbase_device *kbdev, kbase_context *kctx,
 	KBASE_TIMELINE_ATOMS_SUBMITTED(kctx, js, kbdev->timeline.slot_atoms_submitted[js]);
 }
 
-void kbase_timeline_job_slot_done(kbase_device *kbdev, kbase_context *kctx,
-                                  kbase_jd_atom *katom, int js,
+void kbase_timeline_job_slot_done(struct kbase_device *kbdev, struct kbase_context *kctx,
+                                  struct kbase_jd_atom *katom, int js,
                                   kbasep_js_atom_done_code done_code)
 {
 	lockdep_assert_held(&kbdev->js_data.runpool_irq.lock);
@@ -144,9 +144,9 @@ void kbase_timeline_job_slot_done(kbase_device *kbdev, kbase_context *kctx,
 		/* see if we need to trace the job in JSn_NEXT moving to JSn_HEAD */
 		if (kbdev->timeline.slot_atoms_submitted[js] > 1) {
 			/* Tag events with next_katom's kctx */
-			kbase_jm_slot *slot = &kbdev->jm_slots[js];
-			kbase_jd_atom *next_katom;
-			kbase_context *next_kctx;
+			struct kbase_jm_slot *slot = &kbdev->jm_slots[js];
+			struct kbase_jd_atom *next_katom;
+			struct kbase_context *next_kctx;
 			KBASE_DEBUG_ASSERT(kbasep_jm_nr_jobs_submitted(slot) > 0);
 
 			/* Peek the next atom - note that the atom in JSn_HEAD will already
@@ -164,7 +164,7 @@ void kbase_timeline_job_slot_done(kbase_device *kbdev, kbase_context *kctx,
 	KBASE_TIMELINE_ATOMS_SUBMITTED(kctx, js, kbdev->timeline.slot_atoms_submitted[js]);
 }
 
-void kbase_timeline_pm_send_event(kbase_device *kbdev, kbase_timeline_pm_event event_sent)
+void kbase_timeline_pm_send_event(struct kbase_device *kbdev, enum kbase_timeline_pm_event event_sent)
 {
 	int uid = 0;
 	int old_uid;
@@ -178,14 +178,14 @@ void kbase_timeline_pm_send_event(kbase_device *kbdev, kbase_timeline_pm_event e
 		uid = atomic_inc_return(&kbdev->timeline.pm_event_uid_counter);
 
 	/* Try to use this UID */
-	if ( old_uid != atomic_cmpxchg(&kbdev->timeline.pm_event_uid[event_sent], old_uid, uid))
+	if (old_uid != atomic_cmpxchg(&kbdev->timeline.pm_event_uid[event_sent], old_uid, uid))
 		/* If it changed, raced with another producer: we've lost this UID */
 		uid = 0;
 
 	KBASE_TIMELINE_PM_SEND_EVENT(kbdev, event_sent, uid);
 }
 
-void kbase_timeline_pm_check_handle_event(kbase_device *kbdev, kbase_timeline_pm_event event)
+void kbase_timeline_pm_check_handle_event(struct kbase_device *kbdev, enum kbase_timeline_pm_event event)
 {
 	int uid = atomic_read(&kbdev->timeline.pm_event_uid[event]);
 
@@ -198,7 +198,7 @@ void kbase_timeline_pm_check_handle_event(kbase_device *kbdev, kbase_timeline_pm
 	}
 }
 
-void kbase_timeline_pm_handle_event(kbase_device *kbdev, kbase_timeline_pm_event event)
+void kbase_timeline_pm_handle_event(struct kbase_device *kbdev, enum kbase_timeline_pm_event event)
 {
 	int uid = atomic_read(&kbdev->timeline.pm_event_uid[event]);
 
@@ -209,7 +209,7 @@ void kbase_timeline_pm_handle_event(kbase_device *kbdev, kbase_timeline_pm_event
 	KBASE_TIMELINE_PM_HANDLE_EVENT(kbdev, event, uid);
 }
 
-void kbase_timeline_pm_l2_transition_start(kbase_device *kbdev)
+void kbase_timeline_pm_l2_transition_start(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->pm.power_change_lock);
 	/* Simply log the start of the transition */
@@ -217,11 +217,11 @@ void kbase_timeline_pm_l2_transition_start(kbase_device *kbdev)
 	KBASE_TIMELINE_POWERING_L2(kbdev);
 }
 
-void kbase_timeline_pm_l2_transition_done(kbase_device *kbdev)
+void kbase_timeline_pm_l2_transition_done(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->pm.power_change_lock);
 	/* Simply log the end of the transition */
-	if( MALI_FALSE != kbdev->timeline.l2_transitioning )
+	if (MALI_FALSE != kbdev->timeline.l2_transitioning)
 	{
 		kbdev->timeline.l2_transitioning = MALI_FALSE;
 		KBASE_TIMELINE_POWERED_L2(kbdev);

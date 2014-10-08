@@ -41,16 +41,16 @@ static struct platform_device *mali_device;
 
 #ifndef CONFIG_OF
 /**
- * @brief Convert data in kbase_io_resources struct to Linux-specific resources
+ * @brief Convert data in struct kbase_io_resources struct to Linux-specific resources
  *
- * Function converts data in kbase_io_resources struct to an array of Linux resource structures. Note that function
+ * Function converts data in struct kbase_io_resources struct to an array of Linux resource structures. Note that function
  * assumes that size of linux_resource array is at least PLATFORM_CONFIG_RESOURCE_COUNT.
  * Resources are put in fixed order: I/O memory region, job IRQ, MMU IRQ, GPU IRQ.
  *
  * @param[in]  io_resource      Input IO resource data
  * @param[out] linux_resources  Pointer to output array of Linux resource structures
  */
-static void kbasep_config_parse_io_resources(const kbase_io_resources *io_resources, struct resource *const linux_resources)
+static void kbasep_config_parse_io_resources(const struct kbase_io_resources *io_resources, struct resource *const linux_resources)
 {
 	if (!io_resources || !linux_resources) {
 		pr_err("%s: couldn't find proper resources\n", __func__);
@@ -62,7 +62,6 @@ static void kbasep_config_parse_io_resources(const kbase_io_resources *io_resour
 	linux_resources[0].start = io_resources->io_memory_region.start;
 	linux_resources[0].end = io_resources->io_memory_region.end;
 	linux_resources[0].flags = IORESOURCE_MEM;
-
 	linux_resources[1].start = linux_resources[1].end = io_resources->job_irq_number;
 	linux_resources[1].flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL;
 
@@ -76,7 +75,7 @@ static void kbasep_config_parse_io_resources(const kbase_io_resources *io_resour
 
 int kbase_platform_fake_register(void)
 {
-	kbase_platform_config *config;
+	struct kbase_platform_config *config;
 	int attribute_count;
 #ifndef CONFIG_OF
 	struct resource resources[PLATFORM_CONFIG_RESOURCE_COUNT];

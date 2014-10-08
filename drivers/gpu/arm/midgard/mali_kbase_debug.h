@@ -22,34 +22,6 @@
 
 #include <linux/bug.h>
 
-extern int mali_debug_level;
-/**
- * @def KBASEP_LOG(level, ...)
- * @brief Logs a debug message using dev_dbg().
- *
- * Logs a debug message using dev_dbg if the debug level specified for the
- * message is lower or equal than the current debug level. Use higher
- * numbers to log messages with increasing verbosity.
- *
- * The current debug level is controlled by the module parameter
- * 'mali_debug_level' which is 0 by default.
- * 
- * No special meaning is assigned to debug levels but the recommendation is
- * 0 = driver init/exit messages
- * 1 = function entry/exit messages
- * 2 = function detailed messages
- * 3 = irq/callback messages
- * 4 = register read/write messages
- *
- * @param level debug level for the message    
- * @param ... Arguments you would normally pass to dev_dbg()
- */
-#define KBASE_LOG(level, ...) \
-	do { \
-		if ((level) <= mali_debug_level) \
-			dev_dbg(__VA_ARGS__); \
-	} while (MALI_FALSE)
-
 /** @brief If equals to 0, a trace containing the file, line, and function will be displayed before each message. */
 #define KBASE_DEBUG_SKIP_TRACE 0
 
@@ -78,10 +50,10 @@ typedef struct kbasep_debug_assert_cb {
  * @brief Private macro containing the format of the trace to display before every message
  * @sa KBASE_DEBUG_SKIP_TRACE, KBASE_DEBUG_SKIP_FUNCTION_NAME
  */
-#if KBASE_DEBUG_SKIP_TRACE == 0
+#if !KBASE_DEBUG_SKIP_TRACE
 #define KBASEP_DEBUG_PRINT_TRACE \
 		"In file: " __FILE__ " line: " CSTD_STR2(__LINE__)
-#if KBASE_DEBUG_SKIP_FUNCTION_NAME == 0
+#if !KBASE_DEBUG_SKIP_FUNCTION_NAME
 #define KBASEP_DEBUG_PRINT_FUNCTION CSTD_FUNC
 #else
 #define KBASEP_DEBUG_PRINT_FUNCTION ""
@@ -141,7 +113,7 @@ typedef struct kbasep_debug_assert_cb {
 	 */
 #define KBASE_DEBUG_ASSERT_MSG(expr, ...) \
 		do { \
-			if (MALI_FALSE == (expr)) { \
+			if (!(expr)) { \
 				KBASEP_DEBUG_ASSERT_OUT(KBASEP_DEBUG_PRINT_TRACE, KBASEP_DEBUG_PRINT_FUNCTION, __VA_ARGS__);\
 				KBASE_CALL_ASSERT_HOOK();\
 				BUG();\

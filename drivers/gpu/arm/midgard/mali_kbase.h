@@ -53,7 +53,9 @@
 #include "mali_kbase_mem.h"
 #include "mali_kbase_security.h"
 #include "mali_kbase_utility.h"
-#include <mali_kbase_gpu_memory_debugfs.h>
+#include "mali_kbase_gpu_memory_debugfs.h"
+#include "mali_kbase_mem_profile_debugfs.h"
+#include "mali_kbase_jd_debugfs.h"
 #include "mali_kbase_cpuprops.h"
 #include "mali_kbase_gpuprops.h"
 #ifdef CONFIG_GPU_TRACEPOINTS
@@ -70,7 +72,7 @@
  * @defgroup base_kbase_api Kernel-side Base (KBase) APIs
  */
 
-kbase_device *kbase_device_alloc(void);
+struct kbase_device *kbase_device_alloc(void);
 /*
 * note: configuration attributes member of kbdev needs to have
 * been setup before calling kbase_device_init
@@ -84,11 +86,10 @@ const struct list_head *kbase_dev_list_get(void);
 /* API to release the device list semaphore */
 void kbase_dev_list_put(const struct list_head *dev_list);
 
-mali_error kbase_device_init(kbase_device * const kbdev);
-void kbase_device_term(kbase_device *kbdev);
-void kbase_device_free(kbase_device *kbdev);
-int kbase_device_has_feature(kbase_device *kbdev, u32 feature);
-kbase_midgard_type kbase_device_get_type(kbase_device *kbdev);
+mali_error kbase_device_init(struct kbase_device * const kbdev);
+void kbase_device_term(struct kbase_device *kbdev);
+void kbase_device_free(struct kbase_device *kbdev);
+int kbase_device_has_feature(struct kbase_device *kbdev, u32 feature);
 struct kbase_device *kbase_find_device(int minor);	/* Only needed for gator integration */
 
 void kbase_set_profiling_control(struct kbase_device *kbdev, u32 control, u32 value);
@@ -100,78 +101,88 @@ u32 kbase_get_profiling_control(struct kbase_device *kbdev, u32 control);
  *
  * @param kbdev     The kbase device
  */
-void kbase_synchronize_irqs(kbase_device *kbdev);
+void kbase_synchronize_irqs(struct kbase_device *kbdev);
+void kbase_synchronize_irqs(struct kbase_device *kbdev);
 
-kbase_context *kbase_create_context(kbase_device *kbdev);
-void kbase_destroy_context(kbase_context *kctx);
-mali_error kbase_context_set_create_flags(kbase_context *kctx, u32 flags);
+struct kbase_context *kbase_create_context(struct kbase_device *kbdev);
+void kbase_destroy_context(struct kbase_context *kctx);
+mali_error kbase_context_set_create_flags(struct kbase_context *kctx, u32 flags);
 
-mali_error kbase_instr_hwcnt_setup(kbase_context *kctx, kbase_uk_hwcnt_setup *setup);
-mali_error kbase_instr_hwcnt_enable(kbase_context *kctx, kbase_uk_hwcnt_setup *setup);
-mali_error kbase_instr_hwcnt_disable(kbase_context *kctx);
-mali_error kbase_instr_hwcnt_clear(kbase_context *kctx);
-mali_error kbase_instr_hwcnt_dump(kbase_context *kctx);
-mali_error kbase_instr_hwcnt_dump_irq(kbase_context *kctx);
-mali_bool kbase_instr_hwcnt_dump_complete(kbase_context *kctx, mali_bool * const success);
-void kbase_instr_hwcnt_suspend(kbase_device *kbdev);
-void kbase_instr_hwcnt_resume(kbase_device *kbdev);
+mali_error kbase_instr_hwcnt_setup(struct kbase_context *kctx, struct kbase_uk_hwcnt_setup *setup);
+mali_error kbase_instr_hwcnt_enable(struct kbase_context *kctx, struct kbase_uk_hwcnt_setup *setup);
+mali_error kbase_instr_hwcnt_disable(struct kbase_context *kctx);
+mali_error kbase_instr_hwcnt_clear(struct kbase_context *kctx);
+mali_error kbase_instr_hwcnt_dump(struct kbase_context *kctx);
+mali_error kbase_instr_hwcnt_dump_irq(struct kbase_context *kctx);
+mali_bool kbase_instr_hwcnt_dump_complete(struct kbase_context *kctx, mali_bool * const success);
+void kbase_instr_hwcnt_suspend(struct kbase_device *kbdev);
+void kbase_instr_hwcnt_resume(struct kbase_device *kbdev);
 
 void kbasep_cache_clean_worker(struct work_struct *data);
-void kbase_clean_caches_done(kbase_device *kbdev);
+void kbase_clean_caches_done(struct kbase_device *kbdev);
 
 /**
  * The GPU has completed performance count sampling successfully.
  */
-void kbase_instr_hwcnt_sample_done(kbase_device *kbdev);
+void kbase_instr_hwcnt_sample_done(struct kbase_device *kbdev);
 
-mali_error kbase_jd_init(kbase_context *kctx);
-void kbase_jd_exit(kbase_context *kctx);
-mali_error kbase_jd_submit(kbase_context *kctx, const kbase_uk_job_submit *user_bag);
-void kbase_jd_done(kbase_jd_atom *katom, int slot_nr, ktime_t *end_timestamp,
+mali_error kbase_jd_init(struct kbase_context *kctx);
+void kbase_jd_exit(struct kbase_context *kctx);
+#ifdef BASE_LEGACY_UK6_SUPPORT
+mali_error kbase_jd_submit(struct kbase_context *kctx,
+		const struct kbase_uk_job_submit *submit_data,
+		int uk6_atom);
+#else
+mali_error kbase_jd_submit(struct kbase_context *kctx,
+		const struct kbase_uk_job_submit *submit_data);
+#endif
+void kbase_jd_done(struct kbase_jd_atom *katom, int slot_nr, ktime_t *end_timestamp,
                    kbasep_js_atom_done_code done_code);
-void kbase_jd_cancel(kbase_device *kbdev, kbase_jd_atom *katom);
-void kbase_jd_zap_context(kbase_context *kctx);
-mali_bool jd_done_nolock(kbase_jd_atom *katom);
-void kbase_jd_free_external_resources(kbase_jd_atom *katom);
-mali_bool jd_submit_atom(kbase_context *kctx,
-			 const base_jd_atom_v2 *user_atom,
-			 kbase_jd_atom *katom);
+void kbase_jd_cancel(struct kbase_device *kbdev, struct kbase_jd_atom *katom);
+void kbase_jd_zap_context(struct kbase_context *kctx);
+mali_bool jd_done_nolock(struct kbase_jd_atom *katom);
+void kbase_jd_free_external_resources(struct kbase_jd_atom *katom);
+mali_bool jd_submit_atom(struct kbase_context *kctx,
+			 const struct base_jd_atom_v2 *user_atom,
+			 struct kbase_jd_atom *katom);
 
-mali_error kbase_job_slot_init(kbase_device *kbdev);
-void kbase_job_slot_halt(kbase_device *kbdev);
-void kbase_job_slot_term(kbase_device *kbdev);
-void kbase_job_done(kbase_device *kbdev, u32 done);
-void kbase_job_zap_context(kbase_context *kctx);
+mali_error kbase_job_slot_init(struct kbase_device *kbdev);
+void kbase_job_slot_halt(struct kbase_device *kbdev);
+void kbase_job_slot_term(struct kbase_device *kbdev);
+void kbase_job_done(struct kbase_device *kbdev, u32 done);
+void kbase_job_zap_context(struct kbase_context *kctx);
 
-void kbase_job_slot_softstop(kbase_device *kbdev, int js, kbase_jd_atom *target_katom);
-void kbase_job_slot_hardstop(kbase_context *kctx, int js, kbase_jd_atom *target_katom);
+void kbase_job_slot_softstop(struct kbase_device *kbdev, int js, struct kbase_jd_atom *target_katom);
+void kbase_job_slot_hardstop(struct kbase_context *kctx, int js, struct kbase_jd_atom *target_katom);
 
-void kbase_event_post(kbase_context *ctx, kbase_jd_atom *event);
-int kbase_event_dequeue(kbase_context *ctx, base_jd_event_v2 *uevent);
-int kbase_event_pending(kbase_context *ctx);
-mali_error kbase_event_init(kbase_context *kctx);
-void kbase_event_close(kbase_context *kctx);
-void kbase_event_cleanup(kbase_context *kctx);
-void kbase_event_wakeup(kbase_context *kctx);
+void kbase_event_post(struct kbase_context *ctx, struct kbase_jd_atom *event);
+int kbase_event_dequeue(struct kbase_context *ctx, struct base_jd_event_v2 *uevent);
+int kbase_event_pending(struct kbase_context *ctx);
+mali_error kbase_event_init(struct kbase_context *kctx);
+void kbase_event_close(struct kbase_context *kctx);
+void kbase_event_cleanup(struct kbase_context *kctx);
+void kbase_event_wakeup(struct kbase_context *kctx);
 
-int kbase_process_soft_job(kbase_jd_atom *katom);
-mali_error kbase_prepare_soft_job(kbase_jd_atom *katom);
-void kbase_finish_soft_job(kbase_jd_atom *katom);
-void kbase_cancel_soft_job(kbase_jd_atom *katom);
-void kbase_resume_suspended_soft_jobs(kbase_device *kbdev);
+int kbase_process_soft_job(struct kbase_jd_atom *katom);
+mali_error kbase_prepare_soft_job(struct kbase_jd_atom *katom);
+void kbase_finish_soft_job(struct kbase_jd_atom *katom);
+void kbase_cancel_soft_job(struct kbase_jd_atom *katom);
+void kbase_resume_suspended_soft_jobs(struct kbase_device *kbdev);
 
-int kbase_replay_process(kbase_jd_atom *katom);
+bool kbase_replay_process(struct kbase_jd_atom *katom);
 
 /* api used internally for register access. Contains validation and tracing */
-void kbase_reg_write(kbase_device *kbdev, u16 offset, u32 value, kbase_context *kctx);
-u32 kbase_reg_read(kbase_device *kbdev, u16 offset, kbase_context *kctx);
-void kbase_device_trace_register_access(kbase_context *kctx, kbase_reg_access_type type, u16 reg_offset, u32 reg_value);
-void kbase_device_trace_buffer_install(kbase_context *kctx, u32 *tb, size_t size);
-void kbase_device_trace_buffer_uninstall(kbase_context *kctx);
+void kbase_reg_write(struct kbase_device *kbdev, u16 offset, u32 value, struct kbase_context *kctx);
+u32 kbase_reg_read(struct kbase_device *kbdev, u16 offset, struct kbase_context *kctx);
+void kbase_device_trace_register_access(struct kbase_context *kctx, enum kbase_reg_access_type type, u16 reg_offset, u32 reg_value);
+void kbase_device_trace_buffer_install(struct kbase_context *kctx, u32 *tb, size_t size);
+void kbase_device_trace_buffer_uninstall(struct kbase_context *kctx);
 
 /* api to be ported per OS, only need to do the raw register access */
-void kbase_os_reg_write(kbase_device *kbdev, u16 offset, u32 value);
-u32 kbase_os_reg_read(kbase_device *kbdev, u16 offset);
+void kbase_os_reg_write(struct kbase_device *kbdev, u16 offset, u32 value);
+u32 kbase_os_reg_read(struct kbase_device *kbdev, u16 offset);
+
+void kbasep_as_do_poke(struct work_struct *work);
 
 /** Report a GPU fault.
  *
@@ -181,7 +192,7 @@ u32 kbase_os_reg_read(kbase_device *kbdev, u16 offset);
  * @param kbdev     The kbase device that the GPU fault occurred from.
  * @param multiple  Zero if only GPU_FAULT was raised, non-zero if MULTIPLE_GPU_FAULTS was also set
  */
-void kbase_report_gpu_fault(kbase_device *kbdev, int multiple);
+void kbase_report_gpu_fault(struct kbase_device *kbdev, int multiple);
 
 /** Kill all jobs that are currently running from a context
  *
@@ -189,7 +200,7 @@ void kbase_report_gpu_fault(kbase_device *kbdev, int multiple);
  *
  * @param kctx      The context to kill jobs from
  */
-void kbase_job_kill_jobs_from_context(kbase_context *kctx);
+void kbase_job_kill_jobs_from_context(struct kbase_context *kctx);
 
 /**
  * GPU interrupt handler
@@ -199,7 +210,7 @@ void kbase_job_kill_jobs_from_context(kbase_context *kctx);
  * @param kbdev The kbase device to handle an IRQ for
  * @param val   The value of the GPU IRQ status register which triggered the call
  */
-void kbase_gpu_interrupt(kbase_device *kbdev, u32 val);
+void kbase_gpu_interrupt(struct kbase_device *kbdev, u32 val);
 
 /**
  * Prepare for resetting the GPU.
@@ -211,7 +222,7 @@ void kbase_gpu_interrupt(kbase_device *kbdev, u32 val);
  *
  * @return See description
  */
-mali_bool kbase_prepare_to_reset_gpu(kbase_device *kbdev);
+mali_bool kbase_prepare_to_reset_gpu(struct kbase_device *kbdev);
 
 /**
  * Pre-locked version of @a kbase_prepare_to_reset_gpu.
@@ -221,7 +232,7 @@ mali_bool kbase_prepare_to_reset_gpu(kbase_device *kbdev);
  *
  * @see kbase_prepare_to_reset_gpu
  */
-mali_bool kbase_prepare_to_reset_gpu_locked(kbase_device *kbdev);
+mali_bool kbase_prepare_to_reset_gpu_locked(struct kbase_device *kbdev);
 
 /** Reset the GPU
  *
@@ -231,7 +242,7 @@ mali_bool kbase_prepare_to_reset_gpu_locked(kbase_device *kbdev);
  * After this function is called (or not called if kbase_prepare_to_reset_gpu returned MALI_FALSE),
  * the caller should wait for kbdev->reset_waitq to be signalled to know when the reset has completed.
  */
-void kbase_reset_gpu(kbase_device *kbdev);
+void kbase_reset_gpu(struct kbase_device *kbdev);
 
 /**
  * Pre-locked version of @a kbase_reset_gpu.
@@ -241,7 +252,7 @@ void kbase_reset_gpu(kbase_device *kbdev);
  *
  * @see kbase_reset_gpu
  */
-void kbase_reset_gpu_locked(kbase_device *kbdev);
+void kbase_reset_gpu_locked(struct kbase_device *kbdev);
 
 /** Returns the name associated with a Mali exception code
  *
@@ -268,7 +279,7 @@ static INLINE mali_bool kbase_pm_is_suspending(struct kbase_device *kbdev) {
  * Return the atom's ID, as was originally supplied by userspace in
  * base_jd_atom_v2::atom_number
  */
-static INLINE int kbase_jd_atom_id(kbase_context *kctx, kbase_jd_atom *katom)
+static INLINE int kbase_jd_atom_id(struct kbase_context *kctx, struct kbase_jd_atom *katom)
 {
 	int result;
 	KBASE_DEBUG_ASSERT(kctx);
@@ -280,7 +291,7 @@ static INLINE int kbase_jd_atom_id(kbase_context *kctx, kbase_jd_atom *katom)
 	return result;
 }
 
-#if KBASE_TRACE_ENABLE != 0
+#if KBASE_TRACE_ENABLE
 /** Add trace values about a job-slot
  *
  * @note Any functions called through this macro will still be evaluated in
@@ -349,42 +360,42 @@ static INLINE int kbase_jd_atom_id(kbase_context *kctx, kbase_jd_atom *katom)
 	kbasep_trace_dump(kbdev)
 
 /** PRIVATE - do not use directly. Use KBASE_TRACE_ADD() instead */
-void kbasep_trace_add(kbase_device *kbdev, kbase_trace_code code, void *ctx, kbase_jd_atom *katom, u64 gpu_addr, u8 flags, int refcount, int jobslot, unsigned long info_val);
+void kbasep_trace_add(struct kbase_device *kbdev, enum kbase_trace_code code, void *ctx, struct kbase_jd_atom *katom, u64 gpu_addr, u8 flags, int refcount, int jobslot, unsigned long info_val);
 /** PRIVATE - do not use directly. Use KBASE_TRACE_CLEAR() instead */
-void kbasep_trace_clear(kbase_device *kbdev);
+void kbasep_trace_clear(struct kbase_device *kbdev);
 #else
 #ifdef CONFIG_MALI_SYSTEM_TRACE
 /* Dispatch kbase trace events as system trace events */
 #include <mali_linux_kbase_trace.h>
-#define KBASE_TRACE_ADD_SLOT( kbdev, code, ctx, katom, gpu_addr, jobslot )\
+#define KBASE_TRACE_ADD_SLOT(kbdev, code, ctx, katom, gpu_addr, jobslot)\
 	trace_mali_##code(jobslot, 0)
 
-#define KBASE_TRACE_ADD_SLOT_INFO( kbdev, code, ctx, katom, gpu_addr, jobslot, info_val )\
+#define KBASE_TRACE_ADD_SLOT_INFO(kbdev, code, ctx, katom, gpu_addr, jobslot, info_val)\
 	trace_mali_##code(jobslot, info_val)
 
-#define KBASE_TRACE_ADD_REFCOUNT( kbdev, code, ctx, katom, gpu_addr, refcount )\
+#define KBASE_TRACE_ADD_REFCOUNT(kbdev, code, ctx, katom, gpu_addr, refcount)\
 	trace_mali_##code(refcount, 0)
 
-#define KBASE_TRACE_ADD_REFCOUNT_INFO( kbdev, code, ctx, katom, gpu_addr, refcount, info_val )\
+#define KBASE_TRACE_ADD_REFCOUNT_INFO(kbdev, code, ctx, katom, gpu_addr, refcount, info_val)\
 	trace_mali_##code(refcount, info_val)
 
-#define KBASE_TRACE_ADD( kbdev, code, ctx, katom, gpu_addr, info_val )\
+#define KBASE_TRACE_ADD(kbdev, code, ctx, katom, gpu_addr, info_val)\
 	trace_mali_##code(gpu_addr, info_val)
 
-#define KBASE_TRACE_CLEAR( kbdev )\
-	do{\
+#define KBASE_TRACE_CLEAR(kbdev)\
+	do {\
 		CSTD_UNUSED(kbdev);\
 		CSTD_NOP(0);\
-	}while(0)
-#define KBASE_TRACE_DUMP( kbdev )\
-	do{\
+	} while (0)
+#define KBASE_TRACE_DUMP(kbdev)\
+	do {\
 		CSTD_UNUSED(kbdev);\
 		CSTD_NOP(0);\
-	}while(0)
+	} while (0)
 
 #else /* CONFIG_MALI_SYSTEM_TRACE */
-#define KBASE_TRACE_ADD_SLOT( kbdev, code, ctx, katom, gpu_addr, jobslot )\
-	do{\
+#define KBASE_TRACE_ADD_SLOT(kbdev, code, ctx, katom, gpu_addr, jobslot)\
+	do {\
 		CSTD_UNUSED(kbdev);\
 		CSTD_NOP(code);\
 		CSTD_UNUSED(ctx);\
@@ -436,20 +447,20 @@ void kbasep_trace_clear(kbase_device *kbdev);
 		CSTD_UNUSED(katom);\
 		CSTD_UNUSED(val);\
 		CSTD_NOP(0);\
-	}while(0)
+	} while (0)
 
-#define KBASE_TRACE_CLEAR( kbdev )\
-	do{\
+#define KBASE_TRACE_CLEAR(kbdev)\
+	do {\
 		CSTD_UNUSED(kbdev);\
 		CSTD_NOP(0);\
-	}while(0)
-#define KBASE_TRACE_DUMP( kbdev )\
-	do{\
+	} while (0)
+#define KBASE_TRACE_DUMP(kbdev)\
+	do {\
 		CSTD_UNUSED(kbdev);\
 		CSTD_NOP(0);\
-	}while(0)
+	} while (0)
 #endif /* CONFIG_MALI_SYSTEM_TRACE */
 #endif
 /** PRIVATE - do not use directly. Use KBASE_TRACE_DUMP() instead */
-void kbasep_trace_dump(kbase_device *kbdev);
+void kbasep_trace_dump(struct kbase_device *kbdev);
 #endif

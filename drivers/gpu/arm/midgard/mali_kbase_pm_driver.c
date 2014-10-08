@@ -23,10 +23,13 @@
  */
 
 #include <mali_kbase.h>
+#include <mali_kbase_config_defaults.h>
 #include <mali_midg_regmap.h>
 #include <mali_kbase_gator.h>
 #include <mali_kbase_pm.h>
 #include <mali_kbase_config_defaults.h>
+
+#if KBASE_PM_EN
 
 #if MALI_MOCK_TEST
 #define MOCKABLE(function) function##_original
@@ -39,14 +42,14 @@
  * This enumeration is private to the file. Its values are set to allow @ref core_type_to_reg function,
  * which decodes this enumeration, to be simpler and more efficient.
  */
-typedef enum kbasep_pm_action {
+enum kbasep_pm_action {
 	ACTION_PRESENT = 0,
 	ACTION_READY = (SHADER_READY_LO - SHADER_PRESENT_LO),
 	ACTION_PWRON = (SHADER_PWRON_LO - SHADER_PRESENT_LO),
 	ACTION_PWROFF = (SHADER_PWROFF_LO - SHADER_PRESENT_LO),
 	ACTION_PWRTRANS = (SHADER_PWRTRANS_LO - SHADER_PRESENT_LO),
 	ACTION_PWRACTIVE = (SHADER_PWRACTIVE_LO - SHADER_PRESENT_LO)
-} kbasep_pm_action;
+};
 
 /** Decode a core type and action to a register.
  *
@@ -60,9 +63,9 @@ typedef enum kbasep_pm_action {
  * @return The register offset of the \c _LO register that performs an action of type \c action on a core of type \c
  * core_type.
  */
-static u32 core_type_to_reg(kbase_pm_core_type core_type, kbasep_pm_action action)
+static u32 core_type_to_reg(enum kbase_pm_core_type core_type, enum kbasep_pm_action action)
 {
-	return core_type + action;
+	return (u32)core_type + (u32)action;
 }
 
 /** Invokes an action on a core set
@@ -75,7 +78,7 @@ static u32 core_type_to_reg(kbase_pm_core_type core_type, kbasep_pm_action actio
  * @param cores     A bit mask of cores to perform the action on (low 32 bits)
  * @param action    The action to perform on the cores
  */
-STATIC void kbase_pm_invoke(kbase_device *kbdev, kbase_pm_core_type core_type, u64 cores, kbasep_pm_action action)
+STATIC void kbase_pm_invoke(struct kbase_device *kbdev, enum kbase_pm_core_type core_type, u64 cores, enum kbasep_pm_action action)
 {
 	u32 reg;
 	u32 lo = cores & 0xFFFFFFFF;
@@ -147,7 +150,7 @@ STATIC void kbase_pm_invoke(kbase_device *kbdev, kbase_pm_core_type core_type, u
  *
  * @return A bit mask specifying the state of the cores
  */
-static u64 kbase_pm_get_state(kbase_device *kbdev, kbase_pm_core_type core_type, kbasep_pm_action action)
+static u64 kbase_pm_get_state(struct kbase_device *kbdev, enum kbase_pm_core_type core_type, enum kbasep_pm_action action)
 {
 	u32 reg;
 	u32 lo, hi;
@@ -162,7 +165,7 @@ static u64 kbase_pm_get_state(kbase_device *kbdev, kbase_pm_core_type core_type,
 	return (((u64) hi) << 32) | ((u64) lo);
 }
 
-void kbasep_pm_read_present_cores(kbase_device *kbdev)
+void kbasep_pm_read_present_cores(struct kbase_device *kbdev)
 {
 	kbdev->shader_present_bitmap = kbase_pm_get_state(kbdev, KBASE_PM_CORE_SHADER, ACTION_PRESENT);
 	kbdev->tiler_present_bitmap = kbase_pm_get_state(kbdev, KBASE_PM_CORE_TILER, ACTION_PRESENT);
@@ -185,7 +188,7 @@ KBASE_EXPORT_TEST_API(kbasep_pm_read_present_cores)
 
 /** Get the cores that are present
  */
-u64 kbase_pm_get_present_cores(kbase_device *kbdev, kbase_pm_core_type type)
+u64 kbase_pm_get_present_cores(struct kbase_device *kbdev, enum kbase_pm_core_type type)
 {
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
@@ -211,7 +214,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_get_present_cores)
 
 /** Get the cores that are "active" (busy processing work)
  */
-u64 kbase_pm_get_active_cores(kbase_device *kbdev, kbase_pm_core_type type)
+u64 kbase_pm_get_active_cores(struct kbase_device *kbdev, enum kbase_pm_core_type type)
 {
 	return kbase_pm_get_state(kbdev, type, ACTION_PWRACTIVE);
 }
@@ -220,7 +223,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_get_active_cores)
 
 /** Get the cores that are transitioning between power states
  */
-u64 kbase_pm_get_trans_cores(kbase_device *kbdev, kbase_pm_core_type type)
+u64 kbase_pm_get_trans_cores(struct kbase_device *kbdev, enum kbase_pm_core_type type)
 {
 	return kbase_pm_get_state(kbdev, type, ACTION_PWRTRANS);
 }
@@ -228,7 +231,7 @@ u64 kbase_pm_get_trans_cores(kbase_device *kbdev, kbase_pm_core_type type)
 KBASE_EXPORT_TEST_API(kbase_pm_get_trans_cores)
 /** Get the cores that are powered on
  */
-u64 kbase_pm_get_ready_cores(kbase_device *kbdev, kbase_pm_core_type type)
+u64 kbase_pm_get_ready_cores(struct kbase_device *kbdev, enum kbase_pm_core_type type)
 {
 	u64 result;
 	result = kbase_pm_get_state(kbdev, type, ACTION_READY);
@@ -272,7 +275,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_get_ready_cores)
  *
  * @return MALI_TRUE if the desired state has been reached, MALI_FALSE otherwise
  */
-STATIC mali_bool kbase_pm_transition_core_type(kbase_device *kbdev, kbase_pm_core_type type, u64 desired_state,
+STATIC mali_bool kbase_pm_transition_core_type(struct kbase_device *kbdev, enum kbase_pm_core_type type, u64 desired_state,
 					       u64 in_use, u64 * const available, u64 *powering_on)
 {
 	u64 present;
@@ -407,6 +410,7 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 	u64 shader_ready_bitmap;
 	u64 shader_transitioning_bitmap;
 	u64 l2_available_bitmap;
+	u64 prev_l2_available_bitmap;
 
 	KBASE_DEBUG_ASSERT(NULL != kbdev);
 	lockdep_assert_held(&kbdev->pm.power_change_lock);
@@ -447,13 +451,13 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 	}
 
 	desired_l3_state = get_desired_cache_status(kbdev->l3_present_bitmap, desired_l2_state);
-
+	prev_l2_available_bitmap = l2_available_bitmap;
 	in_desired_state &= kbase_pm_transition_core_type(kbdev, KBASE_PM_CORE_L3, desired_l3_state, 0, NULL, &kbdev->pm.powering_on_l3_state);
 	in_desired_state &= kbase_pm_transition_core_type(kbdev, KBASE_PM_CORE_L2, desired_l2_state, 0, &l2_available_bitmap, &kbdev->pm.powering_on_l2_state);
 
-	if( kbdev->l2_available_bitmap != l2_available_bitmap)
+	if (kbdev->l2_available_bitmap != l2_available_bitmap)
 	{
-		KBASE_TIMELINE_POWER_L2(kbdev,l2_available_bitmap);
+		KBASE_TIMELINE_POWER_L2(kbdev, l2_available_bitmap);
 	}
 
 	kbdev->l2_available_bitmap = l2_available_bitmap;
@@ -544,9 +548,10 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 		kbase_pm_ca_update_core_status(kbdev, shader_ready_bitmap, shader_transitioning_bitmap);
 	}
 
-	/* The core availability policy is not allowed to keep core group 0 off */
+	/* The core availability policy is not allowed to keep core group 0 turned off (unless it was changing the l2 power state) */
 	if (!((shader_ready_bitmap | shader_transitioning_bitmap) & kbdev->gpu_props.props.coherency_info.group[0].core_mask) &&
-	    !(kbase_pm_ca_get_core_mask(kbdev) & kbdev->gpu_props.props.coherency_info.group[0].core_mask))
+		(prev_l2_available_bitmap == desired_l2_state) &&
+	    !(kbase_pm_ca_get_core_mask(kbdev) & kbdev->gpu_props.props.coherency_info.group[0].core_mask)) 
 		BUG();
 
 	/* The core availability policy is allowed to keep core group 1 off, 
@@ -581,7 +586,7 @@ void kbase_pm_check_transitions_sync(struct kbase_device *kbdev)
 }
 KBASE_EXPORT_TEST_API(kbase_pm_check_transitions_sync)
 
-void kbase_pm_enable_interrupts(kbase_device *kbdev)
+void kbase_pm_enable_interrupts(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 
@@ -604,7 +609,7 @@ void kbase_pm_enable_interrupts(kbase_device *kbdev)
 
 KBASE_EXPORT_TEST_API(kbase_pm_enable_interrupts)
 
-void kbase_pm_disable_interrupts(kbase_device *kbdev)
+void kbase_pm_disable_interrupts(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 
@@ -633,7 +638,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_disable_interrupts)
  * 0x0004: PMU VERSION ID (RO) (0x00000000)
  * 0x0008: CLOCK ENABLE (RW) (31:1 SBZ, 0 CLOCK STATE)
  */
-void kbase_pm_clock_on(kbase_device *kbdev, mali_bool is_resume)
+void kbase_pm_clock_on(struct kbase_device *kbdev, mali_bool is_resume)
 {
 	mali_bool reset_required = is_resume;
 	unsigned long flags;
@@ -651,9 +656,17 @@ void kbase_pm_clock_on(kbase_device *kbdev, mali_bool is_resume)
 	if (is_resume && kbdev->pm.callback_power_resume) {
 		kbdev->pm.callback_power_resume(kbdev);
 	} else if (kbdev->pm.callback_power_on) {
-		if (kbdev->pm.callback_power_on(kbdev))
-			reset_required = MALI_TRUE;
+		kbdev->pm.callback_power_on(kbdev);
+		/* If your platform properly keeps the GPU state you may use the return
+		 * value of the callback_power_on function to conditionally reset the
+		 * GPU on power up. Currently we are conservative and always reset the
+		 * GPU. */
+		reset_required = MALI_TRUE;
 	}
+
+	spin_lock_irqsave(&kbdev->pm.gpu_powered_lock, flags);
+	kbdev->pm.gpu_powered = MALI_TRUE;
+	spin_unlock_irqrestore(&kbdev->pm.gpu_powered_lock, flags);
 
 	if (reset_required) {
 		/* GPU state was lost, reset GPU to ensure it is in a
@@ -661,17 +674,13 @@ void kbase_pm_clock_on(kbase_device *kbdev, mali_bool is_resume)
 		kbase_pm_init_hw(kbdev, MALI_TRUE);
 	}
 
-	spin_lock_irqsave(&kbdev->pm.gpu_powered_lock, flags);
-	kbdev->pm.gpu_powered = MALI_TRUE;
-	spin_unlock_irqrestore(&kbdev->pm.gpu_powered_lock, flags);
-
 	/* Lastly, enable the interrupts */
 	kbase_pm_enable_interrupts(kbdev);
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_clock_on)
 
-void kbase_pm_clock_off(kbase_device *kbdev, mali_bool is_suspend)
+void kbase_pm_clock_off(struct kbase_device *kbdev, mali_bool is_suspend)
 {
 	unsigned long flags;
 	KBASE_DEBUG_ASSERT(NULL != kbdev);
@@ -710,10 +719,10 @@ KBASE_EXPORT_TEST_API(kbase_pm_clock_off)
 struct kbasep_reset_timeout_data {
 	struct hrtimer timer;
 	mali_bool timed_out;
-	kbase_device *kbdev;
+	struct kbase_device *kbdev;
 };
 
-void kbase_pm_reset_done(kbase_device *kbdev)
+void kbase_pm_reset_done(struct kbase_device *kbdev)
 {
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 	kbdev->pm.reset_done = MALI_TRUE;
@@ -723,7 +732,7 @@ void kbase_pm_reset_done(kbase_device *kbdev)
 /**
  * Wait for the RESET_COMPLETED IRQ to occur, then reset the waiting state.
  */
-STATIC void kbase_pm_wait_for_reset(kbase_device *kbdev)
+STATIC void kbase_pm_wait_for_reset(struct kbase_device *kbdev)
 {
 	lockdep_assert_held(&kbdev->pm.lock);
 
@@ -745,13 +754,15 @@ static enum hrtimer_restart kbasep_reset_timeout(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
-static void kbase_pm_hw_issues(kbase_device *kbdev)
+static void kbase_pm_hw_issues(struct kbase_device *kbdev)
 {
 	u32 value = 0;
-	u32 config_value;
 
-	/* Needed due to MIDBASE-1494: LS_PAUSEBUFFER_DISABLE. See PRLAM-8443. */
-	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_8443))
+	/* Needed due to MIDBASE-1494: LS_PAUSEBUFFER_DISABLE. See PRLAM-8443.
+	 * and
+	 * needed due to MIDGLES-3539. See PRLAM-11035 */
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_8443) ||
+			kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_11035))
 		value |= SC_LS_PAUSEBUFFER_DISABLE;
 
 	/* Needed due to MIDBASE-2054: SDC_DISABLE_OQ_DISCARD. See PRLAM-10327. */
@@ -777,19 +788,17 @@ static void kbase_pm_hw_issues(kbase_device *kbdev)
 	value = kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_MMU_CONFIG), NULL);
 
 	/* Limit read ID width for AXI */
-	config_value = (u32) kbasep_get_config_value(kbdev, kbdev->config_attributes, KBASE_CONFIG_ATTR_ARID_LIMIT);
 	value &= ~(L2_MMU_CONFIG_LIMIT_EXTERNAL_READS);
-	value |= (config_value & 0x3) << L2_MMU_CONFIG_LIMIT_EXTERNAL_READS_SHIFT;
+	value |= (DEFAULT_ARID_LIMIT & 0x3) << L2_MMU_CONFIG_LIMIT_EXTERNAL_READS_SHIFT;
 
 	/* Limit write ID width for AXI */
-	config_value = (u32) kbasep_get_config_value(kbdev, kbdev->config_attributes, KBASE_CONFIG_ATTR_AWID_LIMIT);
 	value &= ~(L2_MMU_CONFIG_LIMIT_EXTERNAL_WRITES);
-	value |= (config_value & 0x3) << L2_MMU_CONFIG_LIMIT_EXTERNAL_WRITES_SHIFT;
+	value |= (DEFAULT_AWID_LIMIT & 0x3) << L2_MMU_CONFIG_LIMIT_EXTERNAL_WRITES_SHIFT;
 
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(L2_MMU_CONFIG), value, NULL);
 }
 
-mali_error kbase_pm_init_hw(kbase_device *kbdev, mali_bool enable_irqs )
+mali_error kbase_pm_init_hw(struct kbase_device *kbdev, mali_bool enable_irqs)
 {
 	unsigned long flags;
 	struct kbasep_reset_timeout_data rtdata;
@@ -888,18 +897,25 @@ mali_error kbase_pm_init_hw(kbase_device *kbdev, mali_bool enable_irqs )
 	return MALI_ERROR_FUNCTION_FAILED;
 
  out:
-	/* Re-enable interrupts if requested*/
-	if ( enable_irqs )
-	{
-		kbase_pm_enable_interrupts(kbdev);
-	}
-	/* If cycle counter was in use-re enable it */
-	spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
 
-	if (kbdev->pm.gpu_cycle_counter_requests)
-		kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND), GPU_COMMAND_CYCLE_COUNT_START, NULL);
+    /* If cycle counter was in use-re enable it enable_irqs will only be false when called from kbase_pm_powerup */
+    if (kbdev->pm.gpu_cycle_counter_requests && enable_irqs) {
+    	/* enable interrupts as the L2 may have to be powered on */
+    	kbase_pm_enable_interrupts(kbdev);
+    	kbase_pm_request_l2_caches(kbdev);
 
-	spin_unlock_irqrestore(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
+    	/* Re-enable the counters if we need to */
+    	spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
+    	if (kbdev->pm.gpu_cycle_counter_requests)
+    		kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND), GPU_COMMAND_CYCLE_COUNT_START, NULL);
+    	spin_unlock_irqrestore(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
+
+    	kbase_pm_release_l2_caches(kbdev);
+    	kbase_pm_disable_interrupts(kbdev);
+ 	}
+
+    if (enable_irqs)
+    	kbase_pm_enable_interrupts(kbdev);
 
 	kbase_pm_hw_issues(kbdev);
 
@@ -908,12 +924,14 @@ mali_error kbase_pm_init_hw(kbase_device *kbdev, mali_bool enable_irqs )
 
 KBASE_EXPORT_TEST_API(kbase_pm_init_hw)
 
-void kbase_pm_request_gpu_cycle_counter(kbase_device *kbdev)
+void kbase_pm_request_gpu_cycle_counter(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
 	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_powered);
+
+    kbase_pm_request_l2_caches(kbdev);
 
 	spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
 
@@ -929,7 +947,7 @@ void kbase_pm_request_gpu_cycle_counter(kbase_device *kbdev)
 
 KBASE_EXPORT_TEST_API(kbase_pm_request_gpu_cycle_counter)
 
-void kbase_pm_release_gpu_cycle_counter(kbase_device *kbdev)
+void kbase_pm_release_gpu_cycle_counter(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
@@ -944,6 +962,9 @@ void kbase_pm_release_gpu_cycle_counter(kbase_device *kbdev)
 		kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND), GPU_COMMAND_CYCLE_COUNT_STOP, NULL);
 
 	spin_unlock_irqrestore(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
+
+	kbase_pm_release_l2_caches(kbdev);
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_release_gpu_cycle_counter)
+#endif /* KBASE_PM_EN */

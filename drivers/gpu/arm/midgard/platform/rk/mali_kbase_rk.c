@@ -479,12 +479,6 @@ static kbase_attribute kbase_rk_config_attributes[] = {
 	}, {
 	 KBASE_CONFIG_ATTR_PLATFORM_FUNCS,
 	 (uintptr_t) &kbase_rk_platform_funcs
-	}, {
-	 KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MAX,
-	 KBASE_RK_GPU_FREQ_KHZ_MAX
-	}, {
-	 KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MIN,
-	 KBASE_RK_GPU_FREQ_KHZ_MIN
 	},
 #ifdef CONFIG_MALI_DEBUG
 	/* Use more aggressive scheduling timeouts in debug builds. */

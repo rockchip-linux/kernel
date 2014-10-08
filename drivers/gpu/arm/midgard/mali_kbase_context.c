@@ -33,9 +33,9 @@
  *
  * Allocate and init a kernel base context.
  */
-kbase_context *kbase_create_context(kbase_device *kbdev)
+struct kbase_context *kbase_create_context(struct kbase_device *kbdev)
 {
-	kbase_context *kctx;
+	struct kbase_context *kctx;
 	mali_error mali_err;
 
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
@@ -58,7 +58,9 @@ kbase_context *kbase_create_context(kbase_device *kbdev)
 	kctx->process_mm = NULL;
 	atomic_set(&kctx->nonmapped_pages, 0);
 
-	if (MALI_ERROR_NONE != kbase_mem_allocator_init(&kctx->osalloc, MEMPOOL_PAGES))
+	if (MALI_ERROR_NONE != kbase_mem_allocator_init(&kctx->osalloc,
+							MEMPOOL_PAGES,
+							kctx->kbdev))
 		goto free_kctx;
 
 	kctx->pgd_allocator = &kctx->osalloc;
@@ -109,8 +111,19 @@ kbase_context *kbase_create_context(kbase_device *kbdev)
 	atomic_set(&kctx->timeline.jd_atoms_in_flight, 0);
 #endif
 
+	kctx->id = atomic_add_return(1, &(kbdev->ctx_num)) - 1;
+
+	mali_err = kbasep_mem_profile_debugfs_add(kctx);
+	if (MALI_ERROR_NONE != mali_err)
+		goto no_region_tracker;
+
+	if (kbasep_jd_debugfs_ctx_add(kctx))
+		goto free_mem_profile;
+
 	return kctx;
 
+free_mem_profile:
+	kbasep_mem_profile_debugfs_remove(kctx);
 no_region_tracker:
 no_sink_page:
 	kbase_mem_allocator_free(&kctx->osalloc, 1, &kctx->aliasing_sink_page, 0);
@@ -135,7 +148,7 @@ KBASE_EXPORT_SYMBOL(kbase_create_context)
 
 static void kbase_reg_pending_dtor(struct kbase_va_region *reg)
 {
-	KBASE_LOG(2, reg->kctx->kbdev->dev, "Freeing pending unmapped region\n");
+	dev_dbg(reg->kctx->kbdev->dev, "Freeing pending unmapped region\n");
 	kbase_mem_phy_alloc_put(reg->alloc);
 	kfree(reg);
 }
@@ -146,9 +159,9 @@ static void kbase_reg_pending_dtor(struct kbase_va_region *reg)
  * Destroy a kernel base context. Calls kbase_destroy_os_context() to
  * free OS specific structures. Will release all outstanding regions.
  */
-void kbase_destroy_context(kbase_context *kctx)
+void kbase_destroy_context(struct kbase_context *kctx)
 {
-	kbase_device *kbdev;
+	struct kbase_device *kbdev;
 	int pages;
 	unsigned long pending_regions_to_clean;
 
@@ -158,6 +171,10 @@ void kbase_destroy_context(kbase_context *kctx)
 	KBASE_DEBUG_ASSERT(NULL != kbdev);
 
 	KBASE_TRACE_ADD(kbdev, CORE_CTX_DESTROY, kctx, NULL, 0u, 0u);
+
+	kbasep_jd_debugfs_ctx_remove(kctx);
+
+	kbasep_mem_profile_debugfs_remove(kctx);
 
 	/* Ensure the core is powered up for the destroy process */
 	/* A suspend won't happen here, because we're in a syscall from a userspace
@@ -224,10 +241,10 @@ KBASE_EXPORT_SYMBOL(kbase_destroy_context)
 /**
  * Set creation flags on a context
  */
-mali_error kbase_context_set_create_flags(kbase_context *kctx, u32 flags)
+mali_error kbase_context_set_create_flags(struct kbase_context *kctx, u32 flags)
 {
 	mali_error err = MALI_ERROR_NONE;
-	kbasep_js_kctx_info *js_kctx_info;
+	struct kbasep_js_kctx_info *js_kctx_info;
 	KBASE_DEBUG_ASSERT(NULL != kctx);
 
 	js_kctx_info = &kctx->jctx.sched_info;

@@ -25,8 +25,15 @@
 #ifndef _BASE_KERNEL_H_
 #define _BASE_KERNEL_H_
 
+#ifndef __user
+#define __user
+#endif
+
 /* For now we support the legacy API as well as the new API */
 #define BASE_LEGACY_JD_API 1
+
+/* Support UK6 IOCTLS */
+#define BASE_LEGACY_UK6_SUPPORT 1
 
 typedef mali_addr64 base_mem_handle;
 
@@ -77,7 +84,7 @@ typedef mali_addr64 base_mem_handle;
 
 /** 32/64-bit neutral way to represent pointers */
 typedef union kbase_pointer {
-	void *value;	  /**< client should store their pointers here */
+	void __user *value;	  /**< client should store their pointers here */
 	u32 compat_value; /**< 64-bit kernels should fetch value here when handling 32-bit clients */
 	u64 sizer;	  /**< Force 64-bit storage for all clients regardless */
 } kbase_pointer;
@@ -102,7 +109,7 @@ typedef union kbase_pointer {
  * heavily read by the CPU...
  * Other flags are only meaningful to a particular allocator.
  * More flags can be added to this list, as long as they don't clash
- * (see ::BASE_MEM_FLAGS_NR_BITS for the number of the first free bit).
+ * (see ::BASE_MEM_FLAGS_NR_TOTAL_BITS for the number of the first free bit).
  */
 typedef u32 base_mem_alloc_flags;
 
@@ -113,28 +120,57 @@ typedef u32 base_mem_alloc_flags;
  *
  */
 enum {
+/* IN */
 	BASE_MEM_PROT_CPU_RD = (1U << 0),      /**< Read access CPU side */
 	BASE_MEM_PROT_CPU_WR = (1U << 1),      /**< Write access CPU side */
 	BASE_MEM_PROT_GPU_RD = (1U << 2),      /**< Read access GPU side */
 	BASE_MEM_PROT_GPU_WR = (1U << 3),      /**< Write access GPU side */
-	BASE_MEM_PROT_GPU_EX = (1U << 4),      /**< Execute allowed on the GPU side */
+	BASE_MEM_PROT_GPU_EX = (1U << 4),      /**< Execute allowed on the GPU
+						    side */
 
 	/* Note that the HINT flags are obsolete now. If you want the memory
 	 * to be cached on the CPU please use the BASE_MEM_CACHED_CPU flag
 	 */
-	BASE_MEM_HINT_CPU_RD = (1U << 5),      /**< Heavily read CPU side - OBSOLETE */
-	BASE_MEM_HINT_CPU_WR = (1U << 6),      /**< Heavily written CPU side - OBSOLETE */
-	BASE_MEM_HINT_GPU_RD = (1U << 7),      /**< Heavily read GPU side  - OBSOLETE */
-	BASE_MEM_HINT_GPU_WR = (1U << 8),      /**< Heavily written GPU side - OBSOLETE */
+	BASE_MEM_HINT_CPU_RD = (1U << 5),      /**< Heavily read CPU side
+						    - OBSOLETE */
+	BASE_MEM_HINT_CPU_WR = (1U << 6),      /**< Heavily written CPU side
+						    - OBSOLETE */
+	BASE_MEM_HINT_GPU_RD = (1U << 7),      /**< Heavily read GPU side
+						    - OBSOLETE */
+	BASE_MEM_HINT_GPU_WR = (1U << 8),      /**< Heavily written GPU side
+						    - OBSOLETE */
 
-	BASE_MEM_GROW_ON_GPF = (1U << 9),      /**< Grow backing store on GPU Page Fault */
+	BASE_MEM_GROW_ON_GPF = (1U << 9),      /**< Grow backing store on GPU
+						    Page Fault */
 
-	BASE_MEM_COHERENT_SYSTEM = (1U << 10), /**< Page coherence Outer shareable */
-	BASE_MEM_COHERENT_LOCAL = (1U << 11),  /**< Page coherence Inner shareable */
-	BASE_MEM_CACHED_CPU = (1U << 12),      /**< Should be cached on the CPU */
+	BASE_MEM_COHERENT_SYSTEM = (1U << 10), /**< Page coherence Outer
+						    shareable */
+	BASE_MEM_COHERENT_LOCAL = (1U << 11),  /**< Page coherence Inner
+						    shareable */
+	BASE_MEM_CACHED_CPU = (1U << 12),      /**< Should be cached on the
+						    CPU */
 
-	BASE_MEM_SAME_VA = (1U << 13) /**< Must have same VA on both the GPU and the CPU */
+/* IN/OUT */
+	BASE_MEM_SAME_VA = (1U << 13), /**< Must have same VA on both the GPU
+					    and the CPU */
+/* OUT */
+	BASE_MEM_NEED_MMAP = (1U << 14) /**< Must call mmap to aquire a GPU
+					     address for the alloc */
 };
+
+/**
+ * @brief Number of bits used as flags for base memory management
+ *
+ * Must be kept in sync with the ::base_mem_alloc_flags flags
+ */
+#define BASE_MEM_FLAGS_NR_INPUT_BITS  14
+#define BASE_MEM_FLAGS_NR_OUTPUT_BITS 1
+#define BASE_MEM_FLAGS_NR_TOTAL_BITS  ((BASE_MEM_FLAGS_NR_INPUT_BITS) + (BASE_MEM_FLAGS_NR_OUTPUT_BITS))
+#define BASE_MEM_FLAGS_NR_BITS 15
+
+#if BASE_MEM_FLAGS_NR_TOTAL_BITS > BASE_MEM_FLAGS_NR_BITS
+#error "Too many flag bits, will require change in cmem"
+#endif
 
 /**
  * @brief Memory types supported by @a base_mem_import
@@ -178,12 +214,6 @@ typedef enum base_mem_import_type {
 /* Bit mask of cookies used for for memory allocation setup */
 #define KBASE_COOKIE_MASK  ~1UL /* bit 0 is reserved */
 
-/**
- * @brief Number of bits used as flags for base memory management
- *
- * Must be kept in sync with the ::base_mem_alloc_flags flags
- */
-#define BASE_MEM_FLAGS_NR_BITS  14
 
 /**
  * @brief Result codes of changing the size of the backing store allocated to a tmem region
@@ -208,7 +238,7 @@ typedef enum base_backing_threshold_status {
  * by the accessors.
  */
 typedef struct base_syncset {
-	basep_syncset basep_sset;
+	struct basep_syncset basep_sset;
 } base_syncset;
 
 /** @} end group base_user_api_memory_defered */
@@ -314,6 +344,22 @@ struct base_mem_aliasing_info {
 	u64 offset;
 	u64 length;
 };
+
+/**
+ * @brief Job dependency type.
+ *
+ * A flags field will be inserted into the atom structure to specify whether a dependency is a data or 
+ * ordering dependency (by putting it before/after 'core_req' in the structure it should be possible to add without 
+ * changing the structure size).
+ * When the flag is set for a particular dependency to signal that it is an ordering only dependency then 
+ * errors will not be propagated.
+ */
+typedef u8 base_jd_dep_type;
+
+
+#define BASE_JD_DEP_TYPE_INVALID  (0) 	/**< Invalid dependency */
+#define BASE_JD_DEP_TYPE_DATA     (1U << 0) 	/**< Data dependency */
+#define BASE_JD_DEP_TYPE_ORDER    (1U << 1) 	/**< Order dependency */
 
 /**
  * @brief Job chain hardware requirements.
@@ -493,9 +539,9 @@ typedef u16 base_jd_core_req;
  */
 typedef struct base_jd_atom {
 	mali_addr64 jc;			    /**< job-chain GPU address */
-	base_jd_udata udata;		    /**< user data */
-	base_jd_dep pre_dep;		    /**< pre-dependencies */
-	base_jd_dep post_dep;		    /**< post-dependencies */
+	struct base_jd_udata udata;		    /**< user data */
+	struct base_jd_dep pre_dep;		    /**< pre-dependencies */
+	struct base_jd_dep post_dep;		    /**< post-dependencies */
 	base_jd_core_req core_req;	    /**< core requirements */
 	u16 nr_syncsets;		    /**< nr of syncsets following the atom */
 	u16 nr_extres;			    /**< nr of external resources following the atom */
@@ -542,24 +588,45 @@ typedef struct base_jd_atom {
 
 typedef u8 base_atom_id; /**< Type big enough to store an atom number in */
 
+struct base_dependency {
+	base_atom_id  atom_id;               /**< An atom number */
+	base_jd_dep_type dependency_type;    /**< Dependency type */
+}; 
+
 typedef struct base_jd_atom_v2 {
 	mali_addr64 jc;			    /**< job-chain GPU address */
-	base_jd_udata udata;		    /**< user data */
+	struct base_jd_udata udata;		    /**< user data */
 	kbase_pointer extres_list;	    /**< list of external resources */
 	u16 nr_extres;			    /**< nr of external resources */
 	base_jd_core_req core_req;	    /**< core requirements */
-	base_atom_id pre_dep[2];	    /**< pre-dependencies */
+	const struct base_dependency pre_dep[2]; /**< pre-dependencies, one need to use SETTER function to assign this field,
+	this is done in order to reduce possibility of improper assigment of a dependency field */
+	base_atom_id atom_number;	    /**< unique number to identify the atom */
+	s8 prio;			    /**< priority - smaller is higher priority */
+	u8 device_nr;			    /**< coregroup when BASE_JD_REQ_SPECIFIC_COHERENT_GROUP specified */
+	u8 padding[5];
+} base_jd_atom_v2;
+
+#ifdef BASE_LEGACY_UK6_SUPPORT
+struct base_jd_atom_v2_uk6 {
+	mali_addr64 jc;			    /**< job-chain GPU address */
+	struct base_jd_udata udata;		    /**< user data */
+	kbase_pointer extres_list;	    /**< list of external resources */
+	u16 nr_extres;			    /**< nr of external resources */
+	base_jd_core_req core_req;	    /**< core requirements */
+	base_atom_id pre_dep[2]; /**< pre-dependencies */
 	base_atom_id atom_number;	    /**< unique number to identify the atom */
 	s8 prio;			    /**< priority - smaller is higher priority */
 	u8 device_nr;			    /**< coregroup when BASE_JD_REQ_SPECIFIC_COHERENT_GROUP specified */
 	u8 padding[7];
-} base_jd_atom_v2;
+};
+#endif
 
 #if BASE_LEGACY_JD_API
 /* Structure definition works around the fact that C89 doesn't allow arrays of size 0 */
 typedef struct basep_jd_atom_ss {
-	base_jd_atom atom;
-	base_syncset syncsets[1];
+	struct base_jd_atom atom;
+	struct base_syncset syncsets[1];
 } basep_jd_atom_ss;
 #endif				/* BASE_LEGACY_JD_API */
 
@@ -575,8 +642,8 @@ typedef struct base_external_resource {
 #if BASE_LEGACY_JD_API
 /* Structure definition works around the fact that C89 doesn't allow arrays of size 0 */
 typedef struct basep_jd_atom_ext_res {
-	base_jd_atom atom;
-	base_external_resource resources[1];
+	struct base_jd_atom atom;
+	struct base_external_resource resources[1];
 } basep_jd_atom_ext_res;
 
 static INLINE size_t base_jd_atom_size_ex(u32 syncset_count, u32 external_res_count)
@@ -617,14 +684,52 @@ static INLINE size_t base_jd_atom_size(u32 nr)
  * @param     n    The number of the syncset to be returned
  * @return a pointer to the nth syncset.
  */
-static INLINE base_syncset *base_jd_get_atom_syncset(base_jd_atom *atom, u16 n)
+static INLINE struct base_syncset *base_jd_get_atom_syncset(struct base_jd_atom *atom, u16 n)
 {
 	LOCAL_ASSERT(atom != NULL);
 	LOCAL_ASSERT(0 == (atom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES));
 	LOCAL_ASSERT(n <= atom->nr_syncsets);
-	return &((basep_jd_atom_ss *) atom)->syncsets[n];
+	return &((struct basep_jd_atom_ss *)atom)->syncsets[n];
 }
 #endif				/* BASE_LEGACY_JD_API */
+
+
+/**
+ * @brief Setter for a dependency structure
+ *
+ * @param[in] dep          The kbase jd atom dependency to be initialized.
+ * @param     id           The atom_id to be assigned.
+ * @param     dep_type     The dep_type to be assigned.
+ *
+ */
+static INLINE void base_jd_atom_dep_set(const struct base_dependency* const_dep, base_atom_id id, base_jd_dep_type dep_type)
+{
+	struct base_dependency* dep;
+	
+	LOCAL_ASSERT(const_dep != NULL);
+	/* make sure we don't set not allowed combinations of atom_id/dependency_type */
+	LOCAL_ASSERT( ( id == 0 && dep_type == BASE_JD_DEP_TYPE_INVALID) || 
+				(id > 0 && dep_type != BASE_JD_DEP_TYPE_INVALID) );
+
+	dep = REINTERPRET_CAST(struct base_dependency*)const_dep;
+
+	dep->atom_id = id;
+	dep->dependency_type = dep_type;
+}
+
+/**
+ * @brief Make a copy of a dependency structure
+ *
+ * @param[in,out] dep          The kbase jd atom dependency to be written.
+ * @param[in]     from         The dependency to make a copy from.
+ *
+ */
+static INLINE void base_jd_atom_dep_copy(const struct base_dependency* const_dep, const struct base_dependency* from)
+{
+	LOCAL_ASSERT(const_dep != NULL);
+
+	base_jd_atom_dep_set(const_dep, from->atom_id, from->dependency_type);
+}
 
 /**
  * @brief Soft-atom fence trigger setup.
@@ -644,7 +749,7 @@ static INLINE base_syncset *base_jd_get_atom_syncset(base_jd_atom *atom, u16 n)
  * @param[out] atom A pre-allocated atom to configure as a fence trigger SW atom
  * @param[in] fence The base fence object to trigger.
  */
-static INLINE void base_jd_fence_trigger_setup(base_jd_atom * const atom, base_fence *fence)
+static INLINE void base_jd_fence_trigger_setup(struct base_jd_atom * const atom, struct base_fence *fence)
 {
 	LOCAL_ASSERT(atom);
 	LOCAL_ASSERT(fence);
@@ -654,7 +759,7 @@ static INLINE void base_jd_fence_trigger_setup(base_jd_atom * const atom, base_f
 	atom->core_req = BASE_JD_REQ_SOFT_FENCE_TRIGGER;
 }
 
-static INLINE void base_jd_fence_trigger_setup_v2(base_jd_atom_v2 *atom, base_fence *fence)
+static INLINE void base_jd_fence_trigger_setup_v2(struct base_jd_atom_v2 *atom, struct base_fence *fence)
 {
 	LOCAL_ASSERT(atom);
 	LOCAL_ASSERT(fence);
@@ -683,7 +788,7 @@ static INLINE void base_jd_fence_trigger_setup_v2(base_jd_atom_v2 *atom, base_fe
  * @param[out] atom A pre-allocated atom to configure as a fence wait SW atom
  * @param[in] fence The base fence object to wait on
  */
-static INLINE void base_jd_fence_wait_setup(base_jd_atom * const atom, base_fence *fence)
+static INLINE void base_jd_fence_wait_setup(struct base_jd_atom * const atom, struct base_fence *fence)
 {
 	LOCAL_ASSERT(atom);
 	LOCAL_ASSERT(fence);
@@ -692,7 +797,7 @@ static INLINE void base_jd_fence_wait_setup(base_jd_atom * const atom, base_fenc
 	atom->core_req = BASE_JD_REQ_SOFT_FENCE_WAIT;
 }
 
-static INLINE void base_jd_fence_wait_setup_v2(base_jd_atom_v2 *atom, base_fence *fence)
+static INLINE void base_jd_fence_wait_setup_v2(struct base_jd_atom_v2 *atom, struct base_fence *fence)
 {
 	LOCAL_ASSERT(atom);
 	LOCAL_ASSERT(fence);
@@ -711,12 +816,12 @@ static INLINE void base_jd_fence_wait_setup_v2(base_jd_atom_v2 *atom, base_fence
  * @param     n    The number of the external resource to return a pointer to
  * @return a pointer to the nth external resource
  */
-static INLINE base_external_resource * base_jd_get_external_resource(base_jd_atom *atom, u16 n)
+static INLINE struct base_external_resource * base_jd_get_external_resource(struct base_jd_atom *atom, u16 n)
 {
 	LOCAL_ASSERT(atom != NULL);
 	LOCAL_ASSERT(BASE_JD_REQ_EXTERNAL_RESOURCES == (atom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES));
 	LOCAL_ASSERT(n <= atom->nr_extres);
-	return &((basep_jd_atom_ext_res *) atom)->resources[n];
+	return &((struct basep_jd_atom_ext_res *)atom)->resources[n];
 }
 #endif				/* BASE_LEGACY_JD_API */
 
@@ -730,7 +835,7 @@ static INLINE base_external_resource * base_jd_get_external_resource(base_jd_ato
  * @param     handle  The handle to the imported memory object
  * @param     access  The type of access requested
  */
-static INLINE void base_external_resource_init(base_external_resource * res, base_import_handle handle, base_external_resource_access access)
+static INLINE void base_external_resource_init(struct base_external_resource * res, struct base_import_handle handle, base_external_resource_access access)
 {
 	mali_addr64 address;
 	address = handle.basep.handle;
@@ -753,10 +858,10 @@ static INLINE void base_external_resource_init(base_external_resource * res, bas
  * @param[in] atom The allocated atom
  * @return a pointer to the next atom.
  */
-static INLINE base_jd_atom *base_jd_get_next_atom(base_jd_atom *atom)
+static INLINE struct base_jd_atom *base_jd_get_next_atom(struct base_jd_atom *atom)
 {
 	LOCAL_ASSERT(atom != NULL);
-	return (atom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES) ? (base_jd_atom *) base_jd_get_external_resource(atom, atom->nr_extres) : (base_jd_atom *) base_jd_get_atom_syncset(atom, atom->nr_syncsets);
+	return (atom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES) ? (struct base_jd_atom *) base_jd_get_external_resource(atom, atom->nr_extres) : (struct base_jd_atom *)base_jd_get_atom_syncset(atom, atom->nr_syncsets);
 }
 #endif				/* BASE_LEGACY_JD_API */
 
@@ -918,19 +1023,19 @@ typedef enum base_jd_event_code {
  */
 #if BASE_LEGACY_JD_API
 typedef struct base_jd_event {
-	base_jd_event_code event_code;	    /**< event code */
-	void *data;			    /**< event specific data */
+	base_jd_event_code event_code;  /**< event code */
+	void *data;                     /**< event specific data */
 } base_jd_event;
 #endif
 
 typedef struct base_jd_event_v2 {
-	base_jd_event_code event_code;	    /**< event code */
-	base_atom_id atom_number;	    /**< the atom number that has completed */
-	base_jd_udata udata;		    /**< user data */
+	base_jd_event_code event_code;  /**< event code */
+	base_atom_id atom_number;       /**< the atom number that has completed */
+	struct base_jd_udata udata;     /**< user data */
 } base_jd_event_v2;
 
 /**
- * Padding required to ensure that the @ref base_dump_cpu_gpu_counters structure fills
+ * Padding required to ensure that the @ref struct base_dump_cpu_gpu_counters structure fills
  * a full cache line.
  */
 
@@ -1596,7 +1701,7 @@ typedef struct base_cpu_id_props
 	u8 valid;  
 
 	u8 padding[1];
-}base_cpu_id_props;
+} base_cpu_id_props;
 
 
 /** @brief Platform Dynamic CPU properties structure */
@@ -1656,7 +1761,7 @@ typedef struct base_cpu_props {
 	/**
 	 * CPU ID detailed info
 	 */
-	base_cpu_id_props cpu_id;
+	struct base_cpu_id_props cpu_id;
 
 	u32 padding;
 } base_cpu_props;
