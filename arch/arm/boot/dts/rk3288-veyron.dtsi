@@ -112,6 +112,17 @@
 		priority = /bits/ 8 <200>;
 	};
 
+	sound {
+		compatible = "rockchip,rockchip-audio-max98090";
+		rockchip,model = "ROCKCHIP-I2S";
+		rockchip,i2s-controller = <&i2s>;
+		rockchip,audio-codec = <&max98090>;
+		rockchip,hp-det-gpios = <&gpio6 5 GPIO_ACTIVE_HIGH>;
+		rockchip,mic-det-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mic_det>, <&hp_det>;
+	};
+
 	/* A non-regulated voltage from power supply or battery */
 	vccsys: vccsys {
 		compatible = "regulator-fixed";
@@ -487,6 +498,15 @@
 
 &i2c2 {
 	status = "okay";
+
+	max98090: max98090@10 {
+		compatible = "maxim,max98090";
+		reg = <0x10>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&int_codec>;
+	};
 };
 
 &i2c3 {
@@ -510,6 +530,10 @@
 };
 
 &i2c5 {
+	status = "okay";
+};
+
+&i2s {
 	status = "okay";
 };
 
@@ -589,6 +613,18 @@
 	charger {
 		ac_present_ap: ac-present-ap {
 			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	codec {
+		hp_det: hp-det {
+			rockchip,pins = <6 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+		int_codec: int-codec {
+			rockchip,pins = <6 7 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+		mic_det: mic-det {
+			rockchip,pins = <6 11 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
