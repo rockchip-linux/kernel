@@ -2958,7 +2958,18 @@ static struct platform_driver kbase_platform_driver = {
  * anymore when using Device Tree.
  */
 #ifdef CONFIG_OF
-module_platform_driver(kbase_platform_driver);
+static int __init kbase_driver_init(void)
+{
+	return platform_driver_register(&kbase_platform_driver);
+}
+
+static void __exit kbase_driver_exit(void)
+{
+	platform_driver_unregister(&kbase_platform_driver);
+}
+
+late_initcall(kbase_driver_init);
+module_exit(kbase_driver_exit);
 #else /* CONFIG_MALI_PLATFORM_FAKE */
 
 extern int kbase_platform_early_init(void);
