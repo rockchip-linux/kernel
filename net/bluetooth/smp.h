@@ -102,6 +102,8 @@ struct smp_cmd_security_req {
 	__u8	auth_req;
 } __packed;
 
+#define SMP_CMD_MAX		0x0b
+
 #define SMP_PASSKEY_ENTRY_FAILED	0x01
 #define SMP_OOB_NOT_AVAIL		0x02
 #define SMP_AUTH_REQUIREMENTS		0x03
@@ -111,50 +113,35 @@ struct smp_cmd_security_req {
 #define SMP_CMD_NOTSUPP			0x07
 #define SMP_UNSPECIFIED			0x08
 #define SMP_REPEATED_ATTEMPTS		0x09
+#define SMP_INVALID_PARAMS		0x0a
 
 #define SMP_MIN_ENC_KEY_SIZE		7
 #define SMP_MAX_ENC_KEY_SIZE		16
 
-#define SMP_FLAG_TK_VALID	1
-#define SMP_FLAG_CFM_PENDING	2
-#define SMP_FLAG_MITM_AUTH	3
-#define SMP_FLAG_COMPLETE	4
-#define SMP_FLAG_INITIATOR	5
-
-struct smp_chan {
-	struct l2cap_conn *conn;
-	u8		preq[7]; /* SMP Pairing Request */
-	u8		prsp[7]; /* SMP Pairing Response */
-	u8		prnd[16]; /* SMP Pairing Random (local) */
-	u8		rrnd[16]; /* SMP Pairing Random (remote) */
-	u8		pcnf[16]; /* SMP Pairing Confirm */
-	u8		tk[16]; /* SMP Temporary Key */
-	u8		enc_key_size;
-	u8		remote_key_dist;
-	bdaddr_t	id_addr;
-	u8		id_addr_type;
-	u8		irk[16];
-	struct smp_csrk	*csrk;
-	struct smp_csrk	*slave_csrk;
-	struct smp_ltk	*ltk;
-	struct smp_ltk	*slave_ltk;
-	struct smp_irk	*remote_irk;
-	unsigned long	smp_flags;
-	struct work_struct confirm;
-	struct work_struct random;
+/* LTK types used in internal storage (struct smp_ltk) */
+enum {
+	SMP_STK,
+	SMP_LTK,
+	SMP_LTK_SLAVE,
 };
+
+static inline u8 smp_ltk_sec_level(struct smp_ltk *key)
+{
+	if (key->authenticated)
+		return BT_SECURITY_HIGH;
+
+	return BT_SECURITY_MEDIUM;
+}
 
 /* SMP Commands */
 bool smp_sufficient_security(struct hci_conn *hcon, u8 sec_level);
 int smp_conn_security(struct hci_conn *hcon, __u8 sec_level);
-int smp_sig_channel(struct l2cap_conn *conn, struct sk_buff *skb);
-int smp_distribute_keys(struct l2cap_conn *conn);
 int smp_user_confirm_reply(struct hci_conn *conn, u16 mgmt_op, __le32 passkey);
 
-void smp_chan_destroy(struct l2cap_conn *conn);
+bool smp_irk_matches(struct hci_dev *hdev, u8 irk[16], bdaddr_t *bdaddr);
+int smp_generate_rpa(struct hci_dev *hdev, u8 irk[16], bdaddr_t *rpa);
 
-bool smp_irk_matches(struct crypto_blkcipher *tfm, u8 irk[16],
-		     bdaddr_t *bdaddr);
-int smp_generate_rpa(struct crypto_blkcipher *tfm, u8 irk[16], bdaddr_t *rpa);
+int smp_register(struct hci_dev *hdev);
+void smp_unregister(struct hci_dev *hdev);
 
 #endif /* __SMP_H */
