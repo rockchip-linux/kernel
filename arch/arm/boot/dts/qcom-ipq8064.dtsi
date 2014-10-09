@@ -68,6 +68,7 @@
 			>;
 
 			clock-latency = <100000>;
+			voltage-tolerance = <5>;
 
 			cooling-min-state = <0>;
 			cooling-max-state = <10>;
