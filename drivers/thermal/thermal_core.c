@@ -347,6 +347,8 @@ static void bind_cdev(struct thermal_cooling_device *cdev)
 			ret = pos->ops->bind(pos, cdev);
 			if (ret)
 				print_bind_err_msg(pos, cdev, ret);
+			else
+				thermal_zone_device_update(pos);
 			continue;
 		}
 
@@ -363,6 +365,7 @@ static void bind_cdev(struct thermal_cooling_device *cdev)
 			__bind(pos, tzp->tbp[i].trip_mask, cdev,
 			       tzp->tbp[i].binding_limits);
 		}
+		thermal_zone_device_update(pos);
 	}
 
 	mutex_unlock(&thermal_list_lock);
