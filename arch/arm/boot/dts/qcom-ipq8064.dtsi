@@ -3,6 +3,7 @@
 #include "skeleton.dtsi"
 #include <dt-bindings/clock/qcom,gcc-ipq806x.h>
 #include <dt-bindings/clock/qcom,lcc-ipq806x.h>
+#include <dt-bindings/mfd/qcom-rpm.h>
 #include <dt-bindings/reset/qcom,gcc-ipq806x.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/soc/qcom,tcsr.h>
@@ -28,6 +29,7 @@
 			clocks = <&kraitcc 0>;
 			clock-names = "cpu";
 			qcom,imem = <&imem>;
+			core-supply = <&smb208_s2a>;
 			operating-points-0-0 = <
 				/* kHz      uV */
 				1400000 1250000
@@ -80,6 +82,7 @@
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc1>;
 			qcom,saw = <&saw1>;
+			core-supply = <&smb208_s2b>;
 			clocks = <&kraitcc 1>;
 			clock-names = "cpu";
 			qcom,imem = <&imem>;
@@ -136,6 +139,7 @@
 				1000000  600000
 				 384000  384000
 			>;
+			vdd_dig-supply = <&smb208_s1a>;
 		};
 	};
 
@@ -198,6 +202,63 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges = <0x0 0x00700000 0x1000>;
+		};
+
+		rpm@108000 {
+			compatible = "qcom,rpm-ipq8064";
+			reg = <0x108000 0x1000>;
+			qcom,ipc = <&l2cc 0x8 2>;
+
+			interrupts = <0 19 0>,
+				     <0 21 0>,
+				     <0 22 0>;
+			interrupt-names = "ack",
+					  "err",
+					  "wakeup";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			smb208_s1a: smb208-s1a {
+				compatible = "qcom,rpm-smb208";
+				reg = <QCOM_RPM_SMB208_S1a>;
+
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1150000>;
+
+				qcom,switch-mode-frequency = <1200000>;
+
+			};
+
+			smb208_s1b: smb208-s1b {
+				compatible = "qcom,rpm-smb208";
+				reg = <QCOM_RPM_SMB208_S1b>;
+
+				regulator-min-microvolt = <1050000>;
+				regulator-max-microvolt = <1150000>;
+
+				qcom,switch-mode-frequency = <1200000>;
+			};
+
+			smb208_s2a: smb208-s2a {
+				compatible = "qcom,rpm-smb208";
+				reg = <QCOM_RPM_SMB208_S2a>;
+
+				regulator-min-microvolt = < 800000>;
+				regulator-max-microvolt = <1250000>;
+
+				qcom,switch-mode-frequency = <1200000>;
+			};
+
+			smb208_s2b: smb208-s2b {
+				compatible = "qcom,rpm-smb208";
+				reg = <QCOM_RPM_SMB208_S2b>;
+
+				regulator-min-microvolt = < 800000>;
+				regulator-max-microvolt = <1250000>;
+
+				qcom,switch-mode-frequency = <1200000>;
+			};
 		};
 
 		qcom_pinmux: pinmux@800000 {
