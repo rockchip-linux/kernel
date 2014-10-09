@@ -273,7 +273,7 @@ int intel_fbdev_init(struct drm_device *dev)
 		return -ENOMEM;
 
 	dev_priv->fbdev = ifbdev;
-	ifbdev->helper.funcs = &intel_fb_helper_funcs;
+	drm_fb_helper_prepare(dev, &ifbdev->helper, &intel_fb_helper_funcs);
 
 	ret = drm_fb_helper_init(dev, &ifbdev->helper,
 				 INTEL_INFO(dev)->num_pipes,

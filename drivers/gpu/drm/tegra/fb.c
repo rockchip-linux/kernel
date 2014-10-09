@@ -290,7 +290,6 @@ static const struct drm_fb_helper_funcs tegra_fb_helper_funcs = {
 
 static struct tegra_fbdev *tegra_fbdev_create(struct drm_device *drm)
 {
-	struct drm_fb_helper *helper;
 	struct tegra_fbdev *fbdev;
 
 	fbdev = kzalloc(sizeof(*fbdev), GFP_KERNEL);
@@ -299,8 +298,7 @@ static struct tegra_fbdev *tegra_fbdev_create(struct drm_device *drm)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	fbdev->base.funcs = &tegra_fb_helper_funcs;
-	helper = &fbdev->base;
+	drm_fb_helper_prepare(drm, &fbdev->base, &tegra_fb_helper_funcs);
 
 	return fbdev;
 }
