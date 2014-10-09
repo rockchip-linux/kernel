@@ -136,9 +136,10 @@
 			clocks = <&kraitcc 4>;
 			clock-names = "cache";
 			cache-points-kHz = <
-				/* kHz   CPU kHz */
-				1000000  600000
-				 384000  384000
+				/* kHz    uV    CPU kHz */
+				1200000 1150000 1200000
+				1000000 1100000  600000
+				 384000 1100000  384000
 			>;
 			vdd_dig-supply = <&smb208_s1a>;
 		};
