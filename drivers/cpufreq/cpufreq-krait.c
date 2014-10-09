@@ -35,9 +35,11 @@ static struct thermal_cooling_device *cdev;
 
 struct cache_points {
 	unsigned long cache_freq;
+	unsigned int cache_volt;
 	unsigned long cpu_freq;
 };
 
+static struct regulator *krait_l2_reg;
 static struct clk *krait_l2_clk;
 static struct cache_points *krait_l2_points;
 static int nr_krait_l2_points;
@@ -57,14 +59,14 @@ static int krait_parse_cache_points(struct device *dev,
 
 	/*
 	 * Each OPP is a set of tuples consisting of frequency and
-	 * cpu-frequency like <freq-kHz freq-kHz>.
+	 * cpu-frequency like <freq-kHz volt-uV freq-kHz>.
 	 */
 	nr = prop->length / sizeof(u32);
-	if (nr % 2) {
+	if (nr % 3) {
 		dev_err(dev, "%s: Invalid cache points\n", __func__);
 		return -EINVAL;
 	}
-	nr /= 2;
+	nr /= 3;
 
 	krait_l2_points = devm_kcalloc(dev, nr, sizeof(*krait_l2_points),
 				       GFP_KERNEL);
@@ -74,9 +76,11 @@ static int krait_parse_cache_points(struct device *dev,
 
 	for (i = 0, val = prop->value; i < nr; i++) {
 		unsigned long cache_freq = be32_to_cpup(val++) * 1000;
+		unsigned int cache_volt = be32_to_cpup(val++);
 		unsigned long cpu_freq = be32_to_cpup(val++) * 1000;
 
 		krait_l2_points[i].cache_freq = cache_freq;
+		krait_l2_points[i].cache_volt = cache_volt;
 		krait_l2_points[i].cpu_freq = cpu_freq;
 	}
 
@@ -154,10 +158,22 @@ static int krait_set_target(struct cpufreq_policy *policy, unsigned int index)
 
 	for (i = 0; i < nr_krait_l2_points; i++) {
 		if (max_cpu_freq >= krait_l2_points[i].cpu_freq) {
+			if (krait_l2_reg) {
+				ret = regulator_set_voltage_tol(krait_l2_reg,
+						krait_l2_points[i].cache_volt,
+						tol);
+				if (ret) {
+					pr_err("failed to scale l2 voltage: %d\n",
+						ret);
+				}
+			}
 			ret = clk_set_rate(krait_l2_clk,
 					krait_l2_points[i].cache_freq);
+			if (ret)
+				pr_err("failed to scale l2 clk: %d\n", ret);
 			break;
 		}
+
 	}
 
 	return ret;
@@ -251,6 +267,18 @@ static int krait_cpufreq_probe(struct platform_device *pdev)
 
 	cache = of_find_next_cache_node(np);
 	if (cache) {
+		struct device_node *vdd;
+
+		vdd = of_parse_phandle(cache, "vdd_dig-supply", 0);
+		if (vdd) {
+			krait_l2_reg = regulator_get(NULL, vdd->name);
+			if (IS_ERR(krait_l2_reg)) {
+				pr_warn("failed to get l2 vdd_dig supply\n");
+				krait_l2_reg = NULL;
+			}
+			of_node_put(vdd);
+		}
+
 		krait_l2_clk = of_clk_get(cache, 0);
 		if (!IS_ERR(krait_l2_clk)) {
 			ret = krait_parse_cache_points(&pdev->dev, cache);
@@ -287,6 +315,7 @@ static int krait_cpufreq_probe(struct platform_device *pdev)
 	return 0;
 
 out_free_table:
+	regulator_put(krait_l2_reg);
 	clk_put(krait_l2_clk);
 	dev_pm_opp_free_cpufreq_table(cpu_dev, &freq_table);
 out_put_node:
@@ -300,6 +329,7 @@ static int krait_cpufreq_remove(struct platform_device *pdev)
 	cpufreq_unregister_driver(&krait_cpufreq_driver);
 	dev_pm_opp_free_cpufreq_table(cpu_dev, &freq_table);
 	clk_put(krait_l2_clk);
+	regulator_put(krait_l2_reg);
 
 	return 0;
 }
