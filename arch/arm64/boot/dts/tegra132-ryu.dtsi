@@ -51,19 +51,19 @@
 			interrupts = <TEGRA_GPIO(J, 0) IRQ_TYPE_LEVEL_LOW>;
 			wakeup-source;
 
-	                i2c_21: i2c-tunnel {
-	                        compatible = "google,cros-ec-i2c-tunnel";
-	                        #address-cells = <1>;
-	                        #size-cells = <0>;
+			i2c_21: i2c-tunnel {
+				compatible = "google,cros-ec-i2c-tunnel";
+				#address-cells = <1>;
+				#size-cells = <0>;
 
-	                        google,remote-bus = <0>;
+				google,remote-bus = <0>;
 
-	                        battery: bq27742@55 {
-	                                compatible = "ti,bq27742";
-	                                reg = <0x55>;
-	                                battery-name = "battery";
-	                        };
-	                };
+				battery: bq27742@55 {
+					compatible = "ti,bq27742";
+					reg = <0x55>;
+					battery-name = "battery";
+				};
+			};
 		};
 
 		sh: cros-ec@1f {
@@ -99,6 +99,11 @@
 				compass: ak09912@c {
 					compatible = "akm,ak09912";
 					reg = <0xc>;
+				};
+
+				als: si114x@5a {
+					compatible = "sl,si114x";
+					reg = <0x5a>;
 				};
 			};
 		};
