@@ -14,7 +14,7 @@
 #include "rk3288.dtsi"
 
 / {
-	model = "Google Pinky";
+	model = "Google Pinky Rev 1 (DEPRECATED)";
 	compatible = "google,veyron-pinky-rev1", "google,veyron-pinky",
 		     "google,veyron", "rockchip,rk3288";
 
@@ -273,6 +273,7 @@
 	status = "okay";
 	vmmc-supply = <&vcc33_sd_regulator>;
 	wp-gpios = <&gpio7 10 GPIO_ACTIVE_LOW>;
+	wp-inverted;					/* AKA active low */
 };
 
 &spi0 {
@@ -357,7 +358,7 @@
 			vdd_gpu: DCDC_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
-				regulator-min-microvolt = <850000>;
+				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-name = "vdd_gpu";
 				regulator-ramp-delay = <2000>;
