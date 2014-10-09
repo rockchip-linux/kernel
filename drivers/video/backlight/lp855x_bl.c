@@ -443,6 +443,17 @@ static int lp855x_probe(struct i2c_client *cl, const struct i2c_device_id *id)
 		}
 	}
 
+	/*
+	 * This is a hack to defer probe of this device until we can transact on
+	 * the i2c bus.
+	 *
+	 * The reason we need this is b/c this backlight sits on the i2c6 bus on
+	 * tegra products. The bus is non-functional until host1x et al is
+	 * running. Once this is fixed, we should remove this hack.
+	 */
+	if (i2c_smbus_read_byte_data(cl, 0x0) < 0)
+		return -EPROBE_DEFER;
+
 	i2c_set_clientdata(cl, lp);
 
 	ret = lp855x_configure(lp);
