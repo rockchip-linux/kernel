@@ -19,7 +19,9 @@ usage() {
 	Usage: ${0##*/} [options] <oldconfig|editconfig|genconfig>
 
 	Options:
-	  -h   This screen.
+	  -f filter   Only attempt to edit configs which match filter.
+	  -h          This screen.
+	  -y          Edit all configs which match unconditionally.
 	EOF
 
 	if [[ $# -gt 0 ]]; then
@@ -69,8 +71,18 @@ build_one() {
 			;;
 		editconfig)
 			# Interactively edit config parameters
-			echo "* ${arch}/${config}: press <Enter> to edit, S to skip"
-			read -s -n 1
+			if [[ -z "${filter}" || \
+			      "${arch}/${config}" == *"${filter}"* ]]; then
+				if [[ ${prompt} == "true" ]]; then
+					echo "* ${arch}/${config}: press <Enter> to edit, S to skip"
+					read -s -n 1
+				else
+					REPLY=""
+				fi
+			else
+				REPLY=s
+			fi
+
 			case ${REPLY} in
 			s|S)
 				echo "* Skip: running silentoldconfig"
@@ -130,9 +142,13 @@ cd_kerneldir() {
 main() {
 	# Process use flags first (so -h works nicely).
 	local opt
-	while getopts "h" opt; do
+	local filter
+	local prompt="true"
+	while getopts "f:hy" opt; do
 		case ${opt} in
+		f) filter=${OPTARG} ;;
 		h) usage ;;
+		y) prompt="false" ;;
 		*) usage "Invalid option ${opt}" ;;
 		esac
 	done
