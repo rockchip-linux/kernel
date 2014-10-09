@@ -557,6 +557,14 @@ static unsigned int bst_tlv[] = {
 	8, 8, TLV_DB_SCALE_ITEM(5200, 0, 0),
 };
 
+static const char * const rt5677_if1_slot01_swap[] = {
+	"LR", "RL", "LL", "RR",
+};
+
+static SOC_ENUM_SINGLE_DECL(
+	rt5677_if1_slot01_swap_enum, RT5677_TDM1_CTRL1,
+	RT5677_IF1_SLOT01_SWAP_SFT, rt5677_if1_slot01_swap);
+
 static const struct snd_kcontrol_new rt5677_snd_controls[] = {
 	/* OUTPUT Control */
 	SOC_SINGLE("OUT1 Playback Switch", RT5677_LOUT1,
@@ -628,6 +636,9 @@ static const struct snd_kcontrol_new rt5677_snd_controls[] = {
 	SOC_DOUBLE_TLV("Mono ADC Boost Volume", RT5677_ADC_BST_CTRL2,
 		RT5677_MONO_ADC_L_BST_SFT, RT5677_MONO_ADC_R_BST_SFT, 3, 0,
 		adc_bst_tlv),
+
+	/* TDM Control */
+	SOC_ENUM("IF1 Slot01 Swap", rt5677_if1_slot01_swap_enum),
 };
 
 /**

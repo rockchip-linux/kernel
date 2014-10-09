@@ -798,7 +798,11 @@
 #define RT5677_PDM2_I2C_EXE			(0x1 << 1)
 #define RT5677_PDM2_I2C_BUSY			(0x1 << 0)
 
-/* MX3C TDM1 control 1 (0x3c) */
+/* MX3B TDM1 control 1 (0x3b) */
+#define RT5677_IF1_SLOT01_SWAP_MASK		(0x3 << 6)
+#define RT5677_IF1_SLOT01_SWAP_SFT		6
+
+/* MX3C TDM1 control 2 (0x3c) */
 #define RT5677_IF1_ADC4_MASK			(0x3 << 10)
 #define RT5677_IF1_ADC4_SFT			10
 #define RT5677_IF1_ADC3_MASK			(0x3 << 8)
