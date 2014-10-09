@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/platform_data/lp855x.h>
 #include <linux/pwm.h>
+#include <linux/regulator/consumer.h>
 
 /* LP8550/1/2/3/6 Registers */
 #define LP855X_BRIGHTNESS_CTRL		0x00
@@ -387,6 +388,13 @@ static int lp855x_parse_dt(struct lp855x *lp)
 		pdata->rom_data = &rom[0];
 	}
 
+	pdata->supply = devm_regulator_get(dev, "power");
+	if (IS_ERR(pdata->supply)) {
+		pdata->supply = NULL;
+		if (PTR_ERR(pdata->supply) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+	}
+
 	lp->pdata = pdata;
 
 	return 0;
@@ -427,6 +435,14 @@ static int lp855x_probe(struct i2c_client *cl, const struct i2c_device_id *id)
 	else
 		lp->mode = REGISTER_BASED;
 
+	if (lp->pdata->supply) {
+		ret = regulator_enable(lp->pdata->supply);
+		if (ret < 0) {
+			dev_err(&cl->dev, "failed to enable supply: %d\n", ret);
+			return ret;
+		}
+	}
+
 	i2c_set_clientdata(cl, lp);
 
 	ret = lp855x_configure(lp);
@@ -458,6 +474,7 @@ static int lp855x_remove(struct i2c_client *cl)
 
 	lp->bl->props.brightness = 0;
 	backlight_update_status(lp->bl);
+	regulator_disable(lp->pdata->supply);
 	sysfs_remove_group(&lp->dev->kobj, &lp855x_attr_group);
 
 	return 0;
