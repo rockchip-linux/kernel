@@ -507,13 +507,15 @@ int tegra_drm_mmap(struct file *file, struct vm_area_struct *vma)
 	bo = to_tegra_bo(gem);
 
 	if (!bo->pages) {
-		unsigned long size = vma->vm_end - vma->vm_start;
-		unsigned long pfn = bo->paddr >> PAGE_SHIFT;
+		unsigned long vm_pgoff = vma->vm_pgoff;
 
-		ret = remap_pfn_range(vma, vma->vm_start, pfn, size,
-				      vma->vm_page_prot);
-		if (ret)
-			drm_gem_vm_close(vma);
+		vma->vm_flags &= ~VM_PFNMAP;
+		vma->vm_pgoff = 0;
+
+		ret = dma_mmap_writecombine(gem->dev->dev, vma, bo->vaddr,
+					    bo->paddr, gem->size);
+
+		vma->vm_pgoff = vm_pgoff;
 	} else {
 		pgprot_t prot = vm_get_page_prot(vma->vm_flags);
 
