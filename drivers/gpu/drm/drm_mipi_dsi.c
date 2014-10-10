@@ -225,6 +225,121 @@ int mipi_dsi_set_maximum_return_packet_size(struct mipi_dsi_device *dsi,
 EXPORT_SYMBOL(mipi_dsi_set_maximum_return_packet_size);
 
 /**
+ * mipi_dsi_generic_write() - transmit data using a generic write packet
+ * @dsi: DSI peripheral device
+ * @payload: buffer containing the payload
+ * @size: size of payload buffer
+ *
+ * This function will automatically choose the right data type depending on
+ * the payload length.
+ *
+ * Return: The number of bytes transmitted on success or a negative error code
+ * on failure.
+ */
+ssize_t mipi_dsi_generic_write(struct mipi_dsi_device *dsi, const void *payload,
+			       size_t size)
+{
+	struct mipi_dsi_msg msg;
+	ssize_t err;
+	u8 *tx;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.channel = dsi->channel;
+	msg.flags = MIPI_DSI_MSG_USE_LPM | MIPI_DSI_MSG_REQ_ACK;
+
+	if (size > 2) {
+		tx = kmalloc(2 + size, GFP_KERNEL);
+		if (!tx)
+			return -ENOMEM;
+
+		tx[0] = (size >> 0) & 0xff;
+		tx[1] = (size >> 8) & 0xff;
+
+		memcpy(tx + 2, payload, size);
+
+		msg.tx_len = 2 + size;
+		msg.tx_buf = tx;
+	} else {
+		msg.tx_buf = payload;
+		msg.tx_len = size;
+	}
+
+	switch (size) {
+	case 0:
+		msg.type = MIPI_DSI_GENERIC_SHORT_WRITE_0_PARAM;
+		break;
+
+	case 1:
+		msg.type = MIPI_DSI_GENERIC_SHORT_WRITE_1_PARAM;
+		break;
+
+	case 2:
+		msg.type = MIPI_DSI_GENERIC_SHORT_WRITE_2_PARAM;
+		break;
+
+	default:
+		msg.type = MIPI_DSI_GENERIC_LONG_WRITE;
+		break;
+	}
+
+	err = dsi->host->ops->transfer(dsi->host, &msg);
+
+	if (size > 2)
+		kfree(tx);
+
+	return err;
+}
+EXPORT_SYMBOL(mipi_dsi_generic_write);
+
+/**
+ * mipi_dsi_generic_read() - receive data using a generic read packet
+ * @dsi: DSI peripheral device
+ * @params: buffer containing the request parameters
+ * @num_params: number of request parameters
+ * @data: buffer in which to return the received data
+ * @size: size of receive buffer
+ *
+ * This function will automatically choose the right data type depending on
+ * the number of parameters passed in.
+ *
+ * Return: The number of bytes successfully read or a negative error code on
+ * failure.
+ */
+ssize_t mipi_dsi_generic_read(struct mipi_dsi_device *dsi, const void *params,
+			      size_t num_params, void *data, size_t size)
+{
+	struct mipi_dsi_msg msg;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.channel = dsi->channel;
+	msg.flags = MIPI_DSI_MSG_USE_LPM;
+	msg.tx_len = num_params;
+	msg.tx_buf = params;
+	msg.rx_len = size;
+	msg.rx_buf = data;
+
+	switch (num_params) {
+	case 0:
+		msg.type = MIPI_DSI_GENERIC_READ_REQUEST_0_PARAM;
+		break;
+
+	case 1:
+		msg.type = MIPI_DSI_GENERIC_READ_REQUEST_1_PARAM;
+		break;
+
+	case 2:
+		msg.type = MIPI_DSI_GENERIC_READ_REQUEST_2_PARAM;
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return dsi->host->ops->transfer(dsi->host, &msg);
+}
+EXPORT_SYMBOL(mipi_dsi_generic_read);
+
+/**
  * mipi_dsi_dcs_write_buffer() - transmit a DCS command with payload
  * @dsi: DSI peripheral device
  * @data: buffer containing data to be transmitted
