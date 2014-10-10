@@ -8,6 +8,7 @@
  */
 
 #include <linux/host1x.h>
+#include <linux/iommu.h>
 
 #include "drm.h"
 #include "gem.h"
@@ -34,6 +35,18 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 		return -ENOMEM;
 
 	dev_set_drvdata(drm->dev, tegra);
+
+	if (iommu_present(&platform_bus_type)) {
+		tegra->domain = iommu_domain_alloc(&platform_bus_type);
+		if (IS_ERR(tegra->domain)) {
+			kfree(tegra);
+			return PTR_ERR(tegra->domain);
+		}
+
+		DRM_DEBUG("IOMMU context initialized\n");
+		drm_mm_init(&tegra->mm, 0, SZ_2G);
+	}
+
 	mutex_init(&tegra->clients_lock);
 	INIT_LIST_HEAD(&tegra->clients);
 	drm->dev_private = tegra;
@@ -72,6 +85,7 @@ static int tegra_drm_load(struct drm_device *drm, unsigned long flags)
 static int tegra_drm_unload(struct drm_device *drm)
 {
 	struct host1x_device *device = to_host1x_device(drm->dev);
+	struct tegra_drm *tegra = drm->dev_private;
 	int err;
 
 	drm_kms_helper_poll_fini(drm);
@@ -82,6 +96,11 @@ static int tegra_drm_unload(struct drm_device *drm)
 	err = host1x_device_exit(device);
 	if (err < 0)
 		return err;
+
+	if (tegra->domain) {
+		iommu_domain_free(tegra->domain);
+		drm_mm_takedown(&tegra->mm);
+	}
 
 	return 0;
 }

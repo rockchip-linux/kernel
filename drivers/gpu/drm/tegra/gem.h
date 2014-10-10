@@ -37,6 +37,10 @@ struct tegra_bo {
 	dma_addr_t paddr;
 	void *vaddr;
 
+	struct drm_mm_node *mm;
+	unsigned long num_pages;
+	struct page **pages;
+
 	struct tegra_bo_tiling tiling;
 };
 

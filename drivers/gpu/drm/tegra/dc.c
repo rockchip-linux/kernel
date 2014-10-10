@@ -9,6 +9,7 @@
 
 #include <linux/clk.h>
 #include <linux/debugfs.h>
+#include <linux/iommu.h>
 #include <linux/reset.h>
 
 #include <soc/tegra/pmc.h>
@@ -1340,6 +1341,17 @@ static int tegra_dc_init(struct host1x_client *client)
 	struct tegra_dc *dc = host1x_client_to_dc(client);
 	int err;
 
+	if (tegra->domain) {
+		err = iommu_attach_device(tegra->domain, dc->dev);
+		if (err < 0) {
+			dev_err(dc->dev, "failed to attach to domain: %d\n",
+				err);
+			return err;
+		}
+
+		dc->domain = tegra->domain;
+	}
+
 	drm_crtc_init(tegra->drm, &dc->base, &tegra_crtc_funcs);
 	drm_mode_crtc_set_gamma_size(&dc->base, 256);
 	drm_crtc_helper_add(&dc->base, &tegra_crtc_helper_funcs);
@@ -1395,6 +1407,11 @@ static int tegra_dc_exit(struct host1x_client *client)
 	if (err) {
 		dev_err(dc->dev, "failed to shutdown RGB output: %d\n", err);
 		return err;
+	}
+
+	if (dc->domain) {
+		iommu_detach_device(dc->domain, dc->dev);
+		dc->domain = NULL;
 	}
 
 	return 0;
