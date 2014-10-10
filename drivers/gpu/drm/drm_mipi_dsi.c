@@ -366,6 +366,7 @@ ssize_t mipi_dsi_dcs_write_buffer(struct mipi_dsi_device *dsi,
 {
 	struct mipi_dsi_msg msg = {
 		.channel = dsi->channel,
+		.flags = MIPI_DSI_MSG_USE_LPM,
 		.tx_buf = data,
 		.tx_len = len
 	};
@@ -453,6 +454,7 @@ ssize_t mipi_dsi_dcs_write(struct mipi_dsi_device *dsi, u8 cmd,
 	}
 
 	memset(&msg, 0, sizeof(msg));
+	msg.flags = MIPI_DSI_MSG_USE_LPM;
 	msg.channel = dsi->channel;
 	msg.tx_len = size;
 	msg.tx_buf = tx;
@@ -496,6 +498,7 @@ ssize_t mipi_dsi_dcs_read(struct mipi_dsi_device *dsi, u8 cmd, void *data,
 	struct mipi_dsi_msg msg = {
 		.channel = dsi->channel,
 		.type = MIPI_DSI_DCS_READ,
+		.flags = MIPI_DSI_MSG_USE_LPM,
 		.tx_buf = &cmd,
 		.tx_len = 1,
 		.rx_buf = data,
