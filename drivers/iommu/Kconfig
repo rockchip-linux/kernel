@@ -160,6 +160,7 @@ config ROCKCHIP_IOMMU
 	bool "Rockchip IOMMU Support"
 	depends on ARCH_ROCKCHIP
 	select IOMMU_API
+	select ARM_DMA_USE_IOMMU
 	help
 	  Support for IOMMUs found on Rockchip rk32xx SOCs.
 	  These IOMMUs allow virtualization of the address space used by most
