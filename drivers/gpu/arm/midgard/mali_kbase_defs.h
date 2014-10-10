@@ -41,10 +41,6 @@
 #include <linux/kds.h>
 #endif				/* CONFIG_KDS */
 
-#ifdef CONFIG_DRM_DMA_SYNC
-#include <drm/drm_sync_helper.h>
-#endif				/* CONFIG_DRM_DMA_SYNC */
-
 #ifdef CONFIG_SYNC
 #include <linux/sync.h>
 #endif				/* CONFIG_SYNC */
@@ -245,17 +241,11 @@ struct kbase_jd_atom {
 	u64 affinity;
 	u64 jc;
 	kbase_atom_coreref_state coreref_state;
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	struct list_head node;
-	mali_bool dep_satisfied;
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
 #ifdef CONFIG_KDS
+	struct list_head node;
 	struct kds_resource_set *kds_rset;
+	mali_bool kds_dep_satisfied;
 #endif				/* CONFIG_KDS */
-#ifdef CONFIG_DRM_DMA_SYNC
-	struct drm_reservation_cb rcb;
-	struct fence *rendered_fence;
-#endif				/* CONFIG_DRM_DMA_SYNC */
 #ifdef CONFIG_SYNC
 	struct sync_fence *fence;
 	struct sync_fence_waiter sync_waiter;
@@ -341,10 +331,6 @@ typedef struct kbase_jd_context {
 
 #ifdef CONFIG_KDS
 	struct kds_callback kds_cb;
-#endif
-#ifdef CONFIG_DRM_DMA_SYNC
-	unsigned fence_context;
-	atomic_t fence_seqno;
 #endif				/* CONFIG_KDS */
 #ifdef CONFIG_GPU_TRACEPOINTS
 	atomic_t work_id;
@@ -820,10 +806,9 @@ struct kbase_context {
 	kbase_mem_allocator * pgd_allocator;
 
 	struct list_head waiting_soft_jobs;
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	struct list_head waiting_resource;
+#ifdef CONFIG_KDS
+	struct list_head waiting_kds_resource;
 #endif
-
 	/** This is effectively part of the Run Pool, because it only has a valid
 	 * setting (!=KBASEP_AS_NR_INVALID) whilst the context is scheduled in
 	 *

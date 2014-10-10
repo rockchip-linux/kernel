@@ -102,33 +102,34 @@ static int jd_run_atom(kbase_jd_atom *katom)
 	return kbasep_js_add_job(kctx, katom);
 }
 
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-/* Add the katom to the resource waiting list.
+#ifdef CONFIG_KDS
+
+/* Add the katom to the kds waiting list.
  * Atoms must be added to the waiting list after a successful call to kds_async_waitall.
  * The caller must hold the kbase_jd_context.lock */
 
-static void kbase_jd_resource_waiters_add(kbase_jd_atom *katom)
+static void kbase_jd_kds_waiters_add(kbase_jd_atom *katom)
 {
 	kbase_context *kctx;
 	KBASE_DEBUG_ASSERT(katom);
 
 	kctx = katom->kctx;
 
-	list_add_tail(&katom->node, &kctx->waiting_resource);
+	list_add_tail(&katom->node, &kctx->waiting_kds_resource);
 }
 
-/* Remove the katom from the resource waiting list.
- * Atoms must be removed from the waiting list before a call to kds_resource_set_release_sync or fence_signal.
- * The supplied katom must first have been added to the list with a call to kbase_jd_resource_waiters_add.
+/* Remove the katom from the kds waiting list.
+ * Atoms must be removed from the waiting list before a call to kds_resource_set_release_sync.
+ * The supplied katom must first have been added to the list with a call to kbase_jd_kds_waiters_add.
  * The caller must hold the kbase_jd_context.lock */
 
-static void kbase_jd_resource_waiters_remove(kbase_jd_atom *katom)
+static void kbase_jd_kds_waiters_remove(kbase_jd_atom *katom)
 {
 	KBASE_DEBUG_ASSERT(katom);
 	list_del(&katom->node);
 }
 
-static void resource_dep_clear(void *callback_parameter, void *callback_extra_parameter)
+static void kds_dep_clear(void *callback_parameter, void *callback_extra_parameter)
 {
 	kbase_jd_atom *katom;
 	kbase_jd_context *ctx;
@@ -142,12 +143,12 @@ static void resource_dep_clear(void *callback_parameter, void *callback_extra_pa
 
 	mutex_lock(&ctx->lock);
 
-	/* resource dependency has already been satisfied (e.g. due to zapping) */
-	if (katom->dep_satisfied)
+	/* KDS resource has already been satisfied (e.g. due to zapping) */
+	if (katom->kds_dep_satisfied)
 		goto out;
 
-	/* This atom's resource dependency has now been met */
-	katom->dep_satisfied = MALI_TRUE;
+	/* This atom's KDS dependency has now been met */
+	katom->kds_dep_satisfied = MALI_TRUE;
 
 	/* Check whether the atom's other dependencies were already met */
 	if (!katom->dep_atom[0] && !katom->dep_atom[1]) {
@@ -167,14 +168,7 @@ static void resource_dep_clear(void *callback_parameter, void *callback_extra_pa
 	mutex_unlock(&ctx->lock);
 }
 
-#ifdef CONFIG_DRM_DMA_SYNC
-static void resv_resource_dep_clear(struct drm_reservation_cb *rcb, void *callback_parameter)
-{
-	resource_dep_clear(callback_parameter, NULL);
-}
-#endif
-
-void kbase_cancel_resource_wait_job(kbase_jd_atom *katom)
+void kbase_cancel_kds_wait_job(kbase_jd_atom *katom)
 {
 	KBASE_DEBUG_ASSERT(katom);
 
@@ -189,7 +183,7 @@ void kbase_cancel_resource_wait_job(kbase_jd_atom *katom)
 		}
 	}
 }
-#endif			/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#endif				/* CONFIG_KDS */
 
 #ifdef CONFIG_DMA_SHARED_BUFFER
 static mali_error kbase_jd_umm_map(kbase_context *kctx, struct kbase_va_region *reg)
@@ -268,34 +262,10 @@ static void kbase_jd_umm_unmap(kbase_context *kctx, struct kbase_va_region *reg,
 }
 #endif				/* CONFIG_DMA_SHARED_BUFFER */
 
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-static bool kbase_atom_has_sync_obj(kbase_jd_atom *katom)
-{
-#ifdef CONFIG_KDS
-	return (katom->kds_rset != NULL);
-#elif defined(CONFIG_DRM_DMA_SYNC)
-	return (katom->rendered_fence != NULL);
-#else
-	return false;
-#endif
-}
-
-static void kbase_atom_release_sync(kbase_jd_atom *katom)
-{
-#ifdef CONFIG_KDS
-	kds_resource_set_release_sync(&katom->kds_rset);
-#elif defined(CONFIG_DRM_DMA_SYNC)
-	/* clean up rcb in case context was zapped and callback wasn't called */
-	drm_reservation_cb_fini(&katom->rcb);
-	drm_fence_signal_and_put(&katom->rendered_fence);
-#endif
-}
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
-
 void kbase_jd_free_external_resources(kbase_jd_atom *katom)
 {
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	if (kbase_atom_has_sync_obj(katom)) {
+#ifdef CONFIG_KDS
+	if (katom->kds_rset) {
 		kbase_jd_context * jctx = &katom->kctx->jctx;
 
 		/*
@@ -304,12 +274,13 @@ void kbase_jd_free_external_resources(kbase_jd_atom *katom)
 		 */
 
 		mutex_lock(&jctx->lock);
-		kbase_jd_resource_waiters_remove( katom );
+		kbase_jd_kds_waiters_remove( katom );
 		mutex_unlock(&jctx->lock);
 
-		kbase_atom_release_sync(katom);
+		/* Release the kds resource or cancel if zapping */
+		kds_resource_set_release_sync(&katom->kds_rset);
 	}
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#endif				/* CONFIG_KDS */
 }
 
 static void kbase_jd_post_external_resources(kbase_jd_atom *katom)
@@ -317,11 +288,11 @@ static void kbase_jd_post_external_resources(kbase_jd_atom *katom)
 	KBASE_DEBUG_ASSERT(katom);
 	KBASE_DEBUG_ASSERT(katom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES);
 
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	/* Prevent the sync object from triggering the atom in case of zapping */
-	if (kbase_atom_has_sync_obj(katom))
-		katom->dep_satisfied = MALI_TRUE;
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#ifdef CONFIG_KDS
+	/* Prevent the KDS resource from triggering the atom in case of zapping */
+	if (katom->kds_rset)
+		katom->kds_dep_satisfied = MALI_TRUE;
+#endif				/* CONFIG_KDS */
 
 #if defined(CONFIG_DMA_SHARED_BUFFER) || defined(CONFIG_MALI_DEBUG)
 	/* Lock also used in debug mode just for lock order checking */
@@ -372,74 +343,6 @@ static void add_kds_resource(struct kds_resource *kds_res, struct kds_resource *
 }
 #endif
 
-#ifdef CONFIG_DRM_DMA_SYNC
-static int reservation_sync(kbase_jd_atom *katom,
-				struct reservation_object **resvs,
-				unsigned int num_resvs,
-				unsigned long *excl_resvs_bitmap)
-{
-	struct ww_acquire_ctx ww_ctx;
-	int ret = 0;
-	unsigned int r;
-	struct fence *fence;
-
-	katom->dep_satisfied = MALI_FALSE;
-	fence = drm_sw_fence_new(katom->kctx->jctx.fence_context,
-			atomic_inc_return(&katom->kctx->jctx.fence_seqno));
-	if (IS_ERR(fence)) {
-		ret = PTR_ERR(fence);
-		dev_err(katom->kctx->kbdev->dev, "Error creating fence %d.\n", ret);
-		return ret;
-	}
-	katom->rendered_fence = fence;
-
-	ret = drm_lock_reservations(resvs, num_resvs, &ww_ctx);
-	if (ret < 0) {
-		dev_err(katom->kctx->kbdev->dev,
-			"Error locking reservations %d.\n", ret);
-		return ret;
-	}
-
-	/* reserve space for shared fences */
-	for (r = 0; r < num_resvs; r++) {
-		if (!test_bit(r, excl_resvs_bitmap)) {
-			ret = reservation_object_reserve_shared(resvs[r]);
-			if (ret < 0) {
-				drm_unlock_reservations(resvs, num_resvs, &ww_ctx);
-				dev_err(katom->kctx->kbdev->dev,
-					"Error reserving space for shared fence %d.\n", ret);
-				return ret;
-			}
-		}
-	}
-
-	drm_reservation_cb_init(&katom->rcb, resv_resource_dep_clear, katom);
-	for (r = 0; r < num_resvs; r++) {
-		ret = drm_reservation_cb_add(&katom->rcb, resvs[r],
-						test_bit(r, excl_resvs_bitmap));
-		if (ret < 0) {
-			drm_unlock_reservations(resvs, num_resvs, &ww_ctx);
-			dev_err(katom->kctx->kbdev->dev,
-				"Error adding reservation to callback %d.\n", ret);
-			return ret;
-		}
-	}
-	drm_reservation_cb_done(&katom->rcb);
-
-	for (r = 0; r < num_resvs; r++) {
-		if (test_bit(r, excl_resvs_bitmap))
-			reservation_object_add_excl_fence(resvs[r],
-							katom->rendered_fence);
-		else
-			reservation_object_add_shared_fence(resvs[r],
-							katom->rendered_fence);
-	}
-	drm_unlock_reservations(resvs, num_resvs, &ww_ctx);
-	kbase_jd_resource_waiters_add(katom);
-	return ret;
-}
-#endif
-
 /*
  * Set up external resources needed by this job.
  *
@@ -455,11 +358,6 @@ static mali_error kbase_jd_pre_external_resources(kbase_jd_atom *katom, const ba
 	struct kds_resource **kds_resources = NULL;
 	unsigned long *kds_access_bitmap = NULL;
 #endif				/* CONFIG_KDS */
-#ifdef CONFIG_DRM_DMA_SYNC
-	struct reservation_object **resvs;
-	unsigned int num_resvs = 0;
-	unsigned long *excl_resvs_bitmap;
-#endif
 	struct base_external_resource * input_extres;
 
 	KBASE_DEBUG_ASSERT(katom);
@@ -503,23 +401,6 @@ static mali_error kbase_jd_pre_external_resources(kbase_jd_atom *katom, const ba
 		goto early_err_out;
 	}
 #endif				/* CONFIG_KDS */
-#ifdef CONFIG_DRM_DMA_SYNC
-	resvs = kmalloc(sizeof(struct reservation_object *) * katom->nr_extres,
-			GFP_KERNEL);
-	if (NULL == resvs) {
-		err_ret_val = MALI_ERROR_OUT_OF_MEMORY;
-		goto early_err_out;
-	}
-	excl_resvs_bitmap =
-		kzalloc(sizeof(unsigned long)
-			* ((katom->nr_extres + BITS_PER_LONG - 1)
-			/ BITS_PER_LONG), GFP_KERNEL);
-
-	if (NULL == excl_resvs_bitmap) {
-		err_ret_val = MALI_ERROR_OUT_OF_MEMORY;
-		goto early_err_out;
-	}
-#endif
 
 #if defined(CONFIG_DMA_SHARED_BUFFER) || defined(CONFIG_MALI_DEBUG)
 	/* need to keep the GPU VM locked while we set up UMM buffers */
@@ -559,16 +440,6 @@ static mali_error kbase_jd_pre_external_resources(kbase_jd_atom *katom, const ba
 				kds_res = get_dma_buf_kds_resource(reg->alloc->imported.umm.dma_buf);
 				if (kds_res)
 					add_kds_resource(kds_res, kds_resources, &kds_res_count, kds_access_bitmap, res->ext_resource & BASE_EXT_RES_ACCESS_EXCLUSIVE);
-#endif
-#ifdef CONFIG_DRM_DMA_SYNC
-				struct reservation_object *resv =
-					reg->alloc->imported.umm.dma_buf->resv;
-				if (resv) {
-					drm_add_reservation(resv,
-						resvs, excl_resvs_bitmap,
-						&num_resvs,
-						!!(res->ext_resource & BASE_EXT_RES_ACCESS_EXCLUSIVE));
-				}
 #endif
 				reg->alloc->imported.umm.current_mapping_usage_count++;
 				if (1 == reg->alloc->imported.umm.current_mapping_usage_count) {
@@ -611,7 +482,7 @@ static mali_error kbase_jd_pre_external_resources(kbase_jd_atom *katom, const ba
 	if (kds_res_count) {
 		int wait_failed;
 		/* We have resources to wait for with kds */
-		katom->dep_satisfied = MALI_FALSE;
+		katom->kds_dep_satisfied = MALI_FALSE;
 
 		wait_failed = kds_async_waitall(&katom->kds_rset,
 										&katom->kctx->jctx.kds_cb,
@@ -621,44 +492,33 @@ static mali_error kbase_jd_pre_external_resources(kbase_jd_atom *katom, const ba
 										kds_access_bitmap,
 										kds_resources);
 		if (wait_failed) {
-			goto failed_sync_setup;
+			goto failed_kds_setup;
 		} else {
-			kbase_jd_resource_waiters_add( katom );
+			kbase_jd_kds_waiters_add( katom );
 		}
 	} else {
 		/* Nothing to wait for, so kds dep met */
-		katom->dep_satisfied = MALI_TRUE;
+		katom->kds_dep_satisfied = MALI_TRUE;
 	}
 	kfree(kds_resources);
 	kfree(kds_access_bitmap);
 #endif				/* CONFIG_KDS */
-#ifdef CONFIG_DRM_DMA_SYNC
-	if (num_resvs) {
-		int ret;
-		ret = reservation_sync(katom, resvs, num_resvs,
-					excl_resvs_bitmap);
-		if (ret < 0)
-			goto failed_sync_setup;
-	} else {
-		katom->dep_satisfied = MALI_TRUE;
-	}
-	kfree(resvs);
-	kfree(excl_resvs_bitmap);
-#endif
 
 	/* all done OK */
 	return MALI_ERROR_NONE;
 
 /* error handling section */
 
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
- failed_sync_setup:
+#ifdef CONFIG_KDS
+ failed_kds_setup:
+
 #if defined(CONFIG_DMA_SHARED_BUFFER) || defined(CONFIG_MALI_DEBUG)
 	/* lock before we unmap */
 	/* Lock also used in debug mode just for lock order checking */
 	kbase_gpu_vm_lock(katom->kctx);
 #endif				/* defined(CONFIG_DMA_SHARED_BUFFER) || defined(CONFIG_MALI_DEBUG) */
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#endif				/* CONFIG_KDS */
+
  failed_loop:
 	/* undo the loop work */
 	while (res_no-- > 0) {
@@ -688,11 +548,6 @@ static mali_error kbase_jd_pre_external_resources(kbase_jd_atom *katom, const ba
 	kfree(kds_resources);
 	kfree(kds_access_bitmap);
 #endif				/* CONFIG_KDS */
-#ifdef CONFIG_DRM_DMA_SYNC
-	drm_fence_signal_and_put(&katom->rendered_fence);
-	kfree(resvs);
-	kfree(excl_resvs_bitmap);
-#endif
 	return err_ret_val;
 }
 
@@ -711,15 +566,14 @@ STATIC INLINE void jd_resolve_dep(struct list_head *out_list, kbase_jd_atom *kat
 				list_del(&dep_atom->dep_item[other_d]);
 				dep_atom->dep_atom[other_d] = NULL;
 			}
-
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-			if (!dep_atom->dep_satisfied) {
+#ifdef CONFIG_KDS
+			if (!dep_atom->kds_dep_satisfied) {
 				/* Just set kds_dep_satisfied to true. If the callback happens after this then it will early out and
 				 * do nothing. If the callback doesn't happen then kbase_jd_post_external_resources will clean up
 				 */
-				dep_atom->dep_satisfied = MALI_TRUE;
+				dep_atom->kds_dep_satisfied = MALI_TRUE;
 			}
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#endif
 
 			dep_atom->event_code = katom->event_code;
 			KBASE_DEBUG_ASSERT(dep_atom->status != KBASE_JD_ATOM_STATE_UNUSED);
@@ -727,10 +581,10 @@ STATIC INLINE void jd_resolve_dep(struct list_head *out_list, kbase_jd_atom *kat
 
 			list_add_tail(&dep_atom->dep_item[0], out_list);
 		} else if (!dep_atom->dep_atom[other_d]) {
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-			if (dep_atom->dep_satisfied)
+#ifdef CONFIG_KDS
+			if (dep_atom->kds_dep_satisfied)
+#endif
 				list_add_tail(&dep_atom->dep_item[0], out_list);
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
 		}
 	}
 }
@@ -987,12 +841,10 @@ mali_bool jd_submit_atom(kbase_context *kctx,
 	katom->nice_prio = user_atom->prio;
 	katom->atom_flags = 0;
 	katom->retry_count = 0;
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	/* Start by assuming that the resource dependencies are satisfied,
-	 * kbase_jd_pre_external_resources will correct this if there are dependencies */
-	katom->dep_satisfied = MALI_TRUE;
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
 #ifdef CONFIG_KDS
+	/* Start by assuming that the KDS dependencies are satisfied,
+	 * kbase_jd_pre_external_resources will correct this if there are dependencies */
+	katom->kds_dep_satisfied = MALI_TRUE;
 	katom->kds_rset = NULL;
 #endif				/* CONFIG_KDS */
 
@@ -1117,13 +969,13 @@ mali_bool jd_submit_atom(kbase_context *kctx,
 		ret = MALI_FALSE;
 		goto out;
 	}
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	if (!katom->dep_satisfied) {
-		/* Queue atom due to resource dependency */
+#ifdef CONFIG_KDS
+	if (!katom->kds_dep_satisfied) {
+		/* Queue atom due to KDS dependency */
 		ret = MALI_FALSE;
 		goto out;
 	}
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#endif				/* CONFIG_KDS */
 
 	if ((katom->core_req & BASEP_JD_REQ_ATOM_TYPE)
 						  == BASE_JD_REQ_SOFT_REPLAY) {
@@ -1613,8 +1465,9 @@ void kbase_jd_zap_context(kbase_context *kctx)
 	}
 	/* kctx->waiting_soft_jobs is not valid after this point */
 
-#if defined(CONFIG_KDS) || defined(CONFIG_DRM_DMA_SYNC)
-	/* For each job waiting on a resource, cancel the wait and force the job to
+#ifdef CONFIG_KDS
+
+	/* For each job waiting on a kds resource, cancel the wait and force the job to
 	 * complete early, this is done so that we don't leave jobs outstanding waiting
 	 * on kds resources which may never be released when contexts are zapped, resulting
 	 * in a hang.
@@ -1623,12 +1476,12 @@ void kbase_jd_zap_context(kbase_context *kctx)
 	 * this prevents items being removed when calling job_done_nolock in kbase_cancel_kds_wait_job.
 	 */
 
-	list_for_each( entry, &kctx->waiting_resource) {
+	list_for_each( entry, &kctx->waiting_kds_resource) {
 		katom = list_entry(entry, kbase_jd_atom, node);
 
-		kbase_cancel_resource_wait_job(katom);
+		kbase_cancel_kds_wait_job(katom);
 	}
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
+#endif
 
 	mutex_unlock(&kctx->jctx.lock);
 
@@ -1710,16 +1563,13 @@ mali_error kbase_jd_init(kbase_context *kctx)
 	spin_lock_init(&kctx->jctx.tb_lock);
 
 #ifdef CONFIG_KDS
-	err = kds_callback_init(&kctx->jctx.kds_cb, 0, resource_dep_clear);
+	err = kds_callback_init(&kctx->jctx.kds_cb, 0, kds_dep_clear);
 	if (0 != err) {
 		mali_err = MALI_ERROR_FUNCTION_FAILED;
 		goto out2;
 	}
 #endif				/* CONFIG_KDS */
-#ifdef CONFIG_DRM_DMA_SYNC
-	kctx->jctx.fence_context = fence_context_alloc(1);
-	atomic_set(&kctx->jctx.fence_seqno, 0);
-#endif
+
 	kctx->jctx.job_nr = 0;
 
 	return MALI_ERROR_NONE;
