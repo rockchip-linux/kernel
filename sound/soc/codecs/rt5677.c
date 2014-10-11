@@ -3269,6 +3269,38 @@ static int rt5677_gpio_direction_in(struct gpio_chip *chip, unsigned offset)
 	return 0;
 }
 
+/** Configures the gpio as
+ *   0 - floating
+ *   1 - pull down
+ *   2 - pull up
+ */
+static void rt5677_gpio_config(struct rt5677_priv *rt5677, unsigned offset,
+		int value)
+{
+	int shift;
+
+	switch (offset) {
+	case RT5677_GPIO1 ... RT5677_GPIO2:
+		shift = 2 * (1 - offset);
+		regmap_update_bits(rt5677->regmap,
+			RT5677_PR_BASE + RT5677_DIG_IN_PIN_ST_CTRL2,
+			0x3 << shift,
+			(value & 0x3) << shift);
+		break;
+
+	case RT5677_GPIO3 ... RT5677_GPIO6:
+		shift = 2 * (9 - offset);
+		regmap_update_bits(rt5677->regmap,
+			RT5677_PR_BASE + RT5677_DIG_IN_PIN_ST_CTRL3,
+			0x3 << shift,
+			(value & 0x3) << shift);
+		break;
+
+	default:
+		break;
+	}
+}
+
 static struct gpio_chip rt5677_template_chip = {
 	.label			= "rt5677",
 	.owner			= THIS_MODULE,
@@ -3323,6 +3355,11 @@ static void rt5677_request_codec_gpios(struct rt5677_priv *rt5677,
 }
 
 #else
+static void rt5677_gpio_config(struct rt5677_priv *rt5677, unsigned offset,
+		int value)
+{
+}
+
 static void rt5677_init_gpio(struct i2c_client *i2c)
 {
 }
@@ -3488,6 +3525,7 @@ static void rt5677_setup_jack_detect(struct snd_soc_codec *codec,
 static int rt5677_probe(struct snd_soc_codec *codec)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
+	int i;
 
 	rt5677->codec = codec;
 
@@ -3507,6 +3545,10 @@ static int rt5677_probe(struct snd_soc_codec *codec)
 	regmap_write(rt5677->regmap, RT5677_PWR_DSP2, 0x0c00);
 
 	rt5677_setup_jack_detect(codec, rt5677);
+
+	for (i = 0; i < RT5677_GPIO_NUM; i++)
+		rt5677_gpio_config(rt5677, i, rt5677->pdata.gpio_config[i]);
+
 	return 0;
 }
 
@@ -3724,6 +3766,9 @@ static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 	if (!gpio_is_valid(rt5677->pow_ldo2) &&
 			(rt5677->pow_ldo2 != -ENOENT))
 		return rt5677->pow_ldo2;
+
+	of_property_read_u8_array(np, "realtek,gpio-config",
+		rt5677->pdata.gpio_config, RT5677_GPIO_NUM);
 
 	return 0;
 }
