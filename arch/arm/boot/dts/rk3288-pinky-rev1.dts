@@ -252,6 +252,7 @@
 	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&rk808 RK808_CLKOUT1>;
 	clock-names = "biu", "ciu", "card_ext_clock";
 	keep-power-in-suspend;
+	non-removable;
 	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_bus4>;
