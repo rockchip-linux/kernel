@@ -539,7 +539,7 @@
 		status = "disabled";
 	};
 
-	vopb_mmu: iommu@0xff930300 {
+	vopb_mmu: iommu@ff930300 {
 		compatible = "rockchip,iommu";
 		reg = <0xff930300 0x100>;
 		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
@@ -548,7 +548,7 @@
 		status = "disabled";
 	};
 
-	vopl_mmu: iommu@0xff940300 {
+	vopl_mmu: iommu@ff940300 {
 		compatible = "rockchip,iommu";
 		reg = <0xff940300 0x100>;
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
@@ -557,7 +557,7 @@
 		status = "disabled";
 	};
 
-	gpu: gpu@0xffa30000 {
+	gpu: gpu@ffa30000 {
 		compatible = "arm,malit764",
 			     "arm,malit76x",
 			     "arm,malit7xx",

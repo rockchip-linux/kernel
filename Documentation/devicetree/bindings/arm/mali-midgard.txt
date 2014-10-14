@@ -32,7 +32,7 @@ Optional:
 
 Example for a Mali-T602:
 
-gpu@0xfc010000 {
+gpu@fc010000 {
 	compatible = "arm,malit602", "arm,malit60x", "arm,malit6xx", "arm,mali-midgard";
 	reg = <0xfc010000 0x4000>;
 	interrupts = <0 36 4>, <0 37 4>, <0 38 4>;
@@ -44,7 +44,7 @@ gpu@0xfc010000 {
 
 Example for a Mali-T7642:
 
-gpu@0xffa30000 {
+gpu@ffa30000 {
 	compatible = "arm,malit764", "arm,malit76x", "arm,malit7xx", "arm,mali-midgard";
 	reg = <0xffa30000 0x10000>;
 	interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,

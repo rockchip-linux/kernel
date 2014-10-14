@@ -17,7 +17,7 @@ Required properties:
 
 Example:
 
-	vopl_mmu: iommu@0xff940300 {
+	vopl_mmu: iommu@ff940300 {
 		compatible = "rockchip,iommu";
 		reg = <0xff940300 0x100>;
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
