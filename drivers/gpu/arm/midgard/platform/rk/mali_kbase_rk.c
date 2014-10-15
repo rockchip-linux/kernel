@@ -57,60 +57,6 @@ static kbase_pm_callback_conf kbase_rk_pm_callbacks = {
 	.power_off_callback = kbase_rk_power_off_callback,
 };
 
-static kbase_attribute kbase_rk_config_attributes[] = {
-	{
-	 KBASE_CONFIG_ATTR_POWER_MANAGEMENT_CALLBACKS,
-	 (uintptr_t)&kbase_rk_pm_callbacks
-	}, {
-	 KBASE_CONFIG_ATTR_PLATFORM_FUNCS,
-	 (uintptr_t) &kbase_rk_platform_funcs
-	}, {
-	 KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MAX,
-	 KBASE_RK_GPU_FREQ_KHZ_MAX
-	}, {
-	 KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MIN,
-	 KBASE_RK_GPU_FREQ_KHZ_MIN
-	},
-#ifdef CONFIG_MALI_DEBUG
-	/* Use more aggressive scheduling timeouts in debug builds. */
-	{
-	 KBASE_CONFIG_ATTR_JS_SCHEDULING_TICK_NS,
-	 KBASE_RK_JS_SCHEDULING_TICK_NS_DEBUG
-	}, {
-	 KBASE_CONFIG_ATTR_JS_SOFT_STOP_TICKS,
-	 KBASE_RK_JS_SOFT_STOP_TICKS_DEBUG
-	}, {
-	 KBASE_CONFIG_ATTR_JS_HARD_STOP_TICKS_SS,
-	 KBASE_RK_JS_HARD_STOP_TICKS_SS_DEBUG
-	}, {
-	 KBASE_CONFIG_ATTR_JS_HARD_STOP_TICKS_NSS,
-	 KBASE_RK_JS_HARD_STOP_TICKS_NSS_DEBUG
-	}, {
-	 KBASE_CONFIG_ATTR_JS_RESET_TICKS_SS,
-	 KBASE_RK_JS_RESET_TICKS_SS_DEBUG
-	}, {
-	 KBASE_CONFIG_ATTR_JS_RESET_TICKS_NSS,
-	 KBASE_RK_JS_RESET_TICKS_NSS_DEBUG
-	},
-#endif /* CONFIG_MALI_DEBUG */
-	{
-	 KBASE_CONFIG_ATTR_JS_RESET_TIMEOUT_MS,
-	 KBASE_RK_JS_RESET_TIMEOUT_MS
-	}, {
-	 KBASE_CONFIG_ATTR_END,
-	 0
-	}
-};
-
-static kbase_platform_config kbase_rk_platform_config = {
-	.attributes = kbase_rk_config_attributes,
-};
-
-kbase_platform_config *kbase_get_platform_config(void)
-{
-	return &kbase_rk_platform_config;
-}
-
 int kbase_platform_early_init(void)
 {
 	/* Nothing needed at this stage */
@@ -443,3 +389,57 @@ kbase_platform_funcs_conf kbase_rk_platform_funcs = {
 	.platform_init_func = kbase_rk_platform_init,
 	.platform_term_func = kbase_rk_platform_term,
 };
+
+static kbase_attribute kbase_rk_config_attributes[] = {
+	{
+	 KBASE_CONFIG_ATTR_POWER_MANAGEMENT_CALLBACKS,
+	 (uintptr_t)&kbase_rk_pm_callbacks
+	}, {
+	 KBASE_CONFIG_ATTR_PLATFORM_FUNCS,
+	 (uintptr_t) &kbase_rk_platform_funcs
+	}, {
+	 KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MAX,
+	 KBASE_RK_GPU_FREQ_KHZ_MAX
+	}, {
+	 KBASE_CONFIG_ATTR_GPU_FREQ_KHZ_MIN,
+	 KBASE_RK_GPU_FREQ_KHZ_MIN
+	},
+#ifdef CONFIG_MALI_DEBUG
+	/* Use more aggressive scheduling timeouts in debug builds. */
+	{
+	 KBASE_CONFIG_ATTR_JS_SCHEDULING_TICK_NS,
+	 KBASE_RK_JS_SCHEDULING_TICK_NS_DEBUG
+	}, {
+	 KBASE_CONFIG_ATTR_JS_SOFT_STOP_TICKS,
+	 KBASE_RK_JS_SOFT_STOP_TICKS_DEBUG
+	}, {
+	 KBASE_CONFIG_ATTR_JS_HARD_STOP_TICKS_SS,
+	 KBASE_RK_JS_HARD_STOP_TICKS_SS_DEBUG
+	}, {
+	 KBASE_CONFIG_ATTR_JS_HARD_STOP_TICKS_NSS,
+	 KBASE_RK_JS_HARD_STOP_TICKS_NSS_DEBUG
+	}, {
+	 KBASE_CONFIG_ATTR_JS_RESET_TICKS_SS,
+	 KBASE_RK_JS_RESET_TICKS_SS_DEBUG
+	}, {
+	 KBASE_CONFIG_ATTR_JS_RESET_TICKS_NSS,
+	 KBASE_RK_JS_RESET_TICKS_NSS_DEBUG
+	},
+#endif /* CONFIG_MALI_DEBUG */
+	{
+	 KBASE_CONFIG_ATTR_JS_RESET_TIMEOUT_MS,
+	 KBASE_RK_JS_RESET_TIMEOUT_MS
+	}, {
+	 KBASE_CONFIG_ATTR_END,
+	 0
+	}
+};
+
+static kbase_platform_config kbase_rk_platform_config = {
+	.attributes = kbase_rk_config_attributes,
+};
+
+kbase_platform_config *kbase_get_platform_config(void)
+{
+	return &kbase_rk_platform_config;
+}

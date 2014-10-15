@@ -34,8 +34,6 @@
 #define KBASE_RK_JS_RESET_TIMEOUT_MS            500
 /* 3s before cancelling stuck jobs */
 
-kbase_platform_funcs_conf kbase_rk_platform_funcs;
-
 struct kbase_rk_fv {
 	unsigned long freq;
 	unsigned long volt;
