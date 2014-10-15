@@ -135,8 +135,9 @@ config TSL4531
 config SI114X
 	tristate "SI114x combined ALS and proximity sensor"
 	depends on I2C
-	default n
-	---help---
+	select IIO_BUFFER
+	select IIO_TRIGGERED_BUFFER
+	help
 	  Say Y here if you want to build a driver for the Silicon Labs SI114x
 	  combined ambient light and proximity sensor chips (SI1141, SI1142,
 	  SI1143). The driver supports forced (with and w/o IRQ) and autonomous

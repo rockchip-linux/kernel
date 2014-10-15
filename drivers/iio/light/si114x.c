@@ -349,7 +349,7 @@ static irqreturn_t si114x_trigger_handler(int irq, void *private)
 	if (indio_dev->scan_timestamp)
 		*(s64 *)(buffer + ALIGN(len, sizeof(s64)))
 			= iio_get_time_ns();
-	iio_push_to_buffer(indio_dev->buffer, buffer);
+	iio_push_to_buffers(indio_dev, buffer);
 
 done:
 	iio_trigger_notify_done(indio_dev->trig);
@@ -387,7 +387,7 @@ static irqreturn_t si114x_irq(int irq, void *private)
 
 static int si114x_trigger_set_state(struct iio_trigger *trig, bool state)
 {
-	struct iio_dev *indio_dev = trig->private_data;
+	struct iio_dev *indio_dev = iio_trigger_get_drvdata(trig);
 	struct si114x_data *data = iio_priv(indio_dev);
 	int ret;
 	int cmd;
@@ -422,7 +422,6 @@ static int si114x_probe_trigger(struct iio_dev *indio_dev)
 
 	data->trig->dev.parent = &data->client->dev;
 	data->trig->ops = &si114x_trigger_ops;
-	data->trig->private_data = indio_dev;
 	ret = iio_trigger_register(data->trig);
 	if (ret)
 		goto error_free_trig;
@@ -638,7 +637,8 @@ static int si114x_revisions(struct si114x_data *data)
 	data->seq = ret;
 
 	if (data->seq < SI114X_SEQ_REV_A03)
-		dev_info(&data->client->dev, "WARNING: old sequencer revision\n");
+		dev_info(&data->client->dev,
+			 "WARNING: old sequencer revision\n");
 
 	return 0;
 }
@@ -650,8 +650,8 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 
 #define SI114X_INTENSITY_CHANNEL(_si) { \
 	.type = IIO_INTENSITY, \
-	.info_mask = IIO_CHAN_INFO_RAW_SEPARATE_BIT | \
-		IIO_CHAN_INFO_HARDWAREGAIN_SEPARATE_BIT, \
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
+			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
 	.scan_type = IIO_ST('u', 16, 16, 0), \
 	.scan_index = _si, \
 	.address = SI114X_REG_ALSVIS_DATA0, \
@@ -659,8 +659,8 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 
 #define SI114X_INTENSITY_IR_CHANNEL(_si) { \
 	.type = IIO_INTENSITY, \
-	.info_mask = IIO_CHAN_INFO_RAW_SEPARATE_BIT | \
-		IIO_CHAN_INFO_HARDWAREGAIN_SEPARATE_BIT, \
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
+			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
 	.modified = 1, \
 	.channel2 = IIO_MOD_LIGHT_IR, \
 	.scan_type = IIO_ST('u', 16, 16, 0), \
@@ -670,7 +670,7 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 
 #define SI114X_TEMP_CHANNEL(_si) { \
 	.type = IIO_TEMP, \
-	.info_mask = IIO_CHAN_INFO_RAW_SEPARATE_BIT, \
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW), \
 	.scan_type = IIO_ST('u', 16, 16, 0), \
 	.scan_index = _si, \
 	.address = SI114X_REG_AUX_DATA0 \
@@ -680,8 +680,8 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 	.type = IIO_PROXIMITY, \
 	.indexed = 1, \
 	.channel = _ch, \
-	.info_mask = IIO_CHAN_INFO_RAW_SEPARATE_BIT | \
-		IIO_CHAN_INFO_HARDWAREGAIN_SHARED_BIT, \
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
+			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
 	.scan_type = IIO_ST('u', 16, 16, 0), \
 	.scan_index = _si, \
 	.address = SI114X_REG_PS1_DATA0 + _ch*2 \
@@ -692,7 +692,7 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 	.indexed = 1, \
 	.channel = _ch, \
 	.output = 1, \
-	.info_mask = IIO_CHAN_INFO_RAW_SEPARATE_BIT \
+	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) \
 }
 
 static const struct iio_chan_spec si114x_channels[] = {
@@ -1024,7 +1024,7 @@ static int si114x_buffer_preenable(struct iio_dev *indio_dev)
 	if (!bitmap_weight(buffer->scan_mask, indio_dev->masklength))
 		return -EINVAL;
 
-	return iio_sw_buffer_preenable(indio_dev);
+	return 0;
 }
 
 static int si114x_buffer_postenable(struct iio_dev *indio_dev)
@@ -1061,7 +1061,7 @@ static const struct iio_buffer_setup_ops si114x_buffer_setup_ops = {
 	.predisable = si114x_buffer_predisable,
 };
 
-static int __devinit si114x_probe(struct i2c_client *client,
+static int si114x_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
 	struct si114x_data *data;
@@ -1152,7 +1152,7 @@ static const struct i2c_device_id si114x_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, si114x_id);
 
-static int __devexit si114x_remove(struct i2c_client *client)
+static int si114x_remove(struct i2c_client *client)
 {
 	struct iio_dev *indio_dev = i2c_get_clientdata(client);
 	struct si114x_data *data = iio_priv(indio_dev);
@@ -1174,7 +1174,7 @@ static struct i2c_driver si114x_driver = {
 		.owner  = THIS_MODULE,
 	},
 	.probe  = si114x_probe,
-	.remove = __devexit_p(si114x_remove),
+	.remove = si114x_remove,
 	.id_table = si114x_id,
 };
 
