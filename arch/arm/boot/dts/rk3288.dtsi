@@ -575,6 +575,7 @@
 		resets = <&cru SRST_LCDC0_AXI>, <&cru SRST_LCDC0_AHB>, <&cru SRST_LCDC0_DCLK>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vopb_mmu>;
+		power-domains = <&power RK3288_PD_VIO>;
 		status = "disabled";
 		vopb_out: port {
 			#address-cells = <1>;
@@ -604,6 +605,7 @@
 		resets = <&cru SRST_LCDC1_AXI>, <&cru SRST_LCDC1_AHB>, <&cru SRST_LCDC1_DCLK>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vopl_mmu>;
+		power-domains = <&power RK3288_PD_VIO>;
 		status = "disabled";
 		vopl_out: port {
 			#address-cells = <1>;
@@ -633,6 +635,7 @@
 		clock-names = "clk_edp", "clk_edp_24m", "pclk_edp";
 		resets = <&cru 111>;
 		reset-names = "edp";
+		power-domains = <&power RK3288_PD_VIO>;
 		status = "disabled";
 		ports {
 			edp_in: port {
@@ -671,6 +674,7 @@
 			500000 1200000
 			600000 1250000
 		>;
+		power-domains = <&power RK3288_PD_GPU>;
 		status = "disabled";
 	};
 
