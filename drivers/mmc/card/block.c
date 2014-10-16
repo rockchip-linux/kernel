@@ -45,6 +45,7 @@
 #include <linux/mmc/sd.h>
 
 #include <asm/uaccess.h>
+#include <linux/mmc/ffu.h>
 
 #include "queue.h"
 
@@ -486,6 +487,11 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	card = md->queue.card;
 	if (IS_ERR(card)) {
 		err = PTR_ERR(card);
+		goto cmd_done;
+	}
+
+	if (idata->ic.opcode == MMC_FFU_INVOKE_OP) {
+		err = mmc_ffu_invoke(card, idata->buf);
 		goto cmd_done;
 	}
 
