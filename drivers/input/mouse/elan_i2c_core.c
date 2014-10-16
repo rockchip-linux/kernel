@@ -212,14 +212,12 @@ static int elan_reactivate(struct elan_tp_data *data)
 	int ret;
 
 	ret = elan_enable_power(data);
-	if (ret < 0)
+	if (ret)
 		dev_err(dev, "resume active power failed, %d\n", ret);
 
 	ret = elan_initialize(data);
-	if (ret < 0)
+	if (ret)
 		dev_err(dev, "resume initialize tp failed, %d\n", ret);
-
-	enable_irq(data->client->irq);
 
 	return ret;
 }
@@ -245,6 +243,8 @@ static int elan_inhibit(struct input_dev *input_dev)
 	disable_irq(client->irq);
 
 	ret = elan_disable_power(data);
+	if (ret)
+		enable_irq(client->irq);
 
 	mutex_unlock(&data->sysfs_mutex);
 	return ret;
@@ -253,15 +253,18 @@ static int elan_inhibit(struct input_dev *input_dev)
 static int elan_uninhibit(struct input_dev *input_dev)
 {
 	struct elan_tp_data *data = input_get_drvdata(input_dev);
+	struct i2c_client *client = data->client;
 	int ret;
 
-	dev_dbg(&data->client->dev, "uninhibit\n");
+	dev_dbg(&client->dev, "uninhibit\n");
 
 	ret = mutex_lock_interruptible(&data->sysfs_mutex);
 	if (ret)
 		return ret;
 
 	ret = elan_reactivate(data);
+	if (ret == 0)
+		enable_irq(client->irq);
 
 	mutex_unlock(&data->sysfs_mutex);
 	return ret;
@@ -982,6 +985,8 @@ static int elan_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
+	i2c_set_clientdata(client, data);
+
 	data->ops = transport_ops;
 	data->client = client;
 	init_completion(&data->fw_completion);
@@ -1095,8 +1100,6 @@ static int elan_probe(struct i2c_client *client,
 	if (!client->dev.of_node)
 		device_init_wakeup(&client->dev, true);
 
-	i2c_set_clientdata(client, data);
-
 	return 0;
 }
 
@@ -1115,14 +1118,17 @@ static int __maybe_unused elan_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	disable_irq(client->irq);
+	if (!data->input->inhibited) {
 
-	if (device_may_wakeup(dev) && !data->input->inhibited) {
-		ret = elan_sleep(data);
-		/* Enable wake from IRQ */
-		data->irq_wake = (enable_irq_wake(client->irq) == 0);
-	} else {
-		ret = elan_disable_power(data);
+		disable_irq(client->irq);
+
+		if (device_may_wakeup(dev)) {
+			ret = elan_sleep(data);
+			/* Enable wake from IRQ */
+			data->irq_wake = (enable_irq_wake(client->irq) == 0);
+		} else {
+			ret = elan_disable_power(data);
+		}
 	}
 
 	mutex_unlock(&data->sysfs_mutex);
@@ -1134,14 +1140,17 @@ static int __maybe_unused elan_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elan_tp_data *data = i2c_get_clientdata(client);
 
-	if (device_may_wakeup(dev) && data->irq_wake) {
-		disable_irq_wake(client->irq);
-		data->irq_wake = false;
-	}
-
 	/* Defer activation if inhibited */
-	if (!data->input->inhibited)
+	if (!data->input->inhibited) {
+
+		if (data->irq_wake) {
+			disable_irq_wake(client->irq);
+			data->irq_wake = false;
+		}
+
 		elan_reactivate(data);
+		enable_irq(client->irq);
+	}
 
 	return 0;
 }
