@@ -180,17 +180,28 @@ int cirrus_driver_load(struct drm_device *dev, unsigned long flags)
 	}
 
 	r = cirrus_mm_init(cdev);
-	if (r)
+	if (r) {
 		dev_err(&dev->pdev->dev, "fatal err on mm init\n");
+		goto out;
+	}
 
 	r = cirrus_modeset_init(cdev);
-	if (r)
+	if (r) {
 		dev_err(&dev->pdev->dev, "Fatal error during modeset init: %d\n", r);
+		goto out;
+	}
 
 	dev->mode_config.funcs = (void *)&cirrus_mode_funcs;
+
+	r = drm_vblank_init(dev, 1);
+	if (r) {
+		dev_err(&dev->pdev->dev, "Fatal error during vblank init: %d\n", r);
+		goto out;
+	}
+
+	return 0;
 out:
-	if (r)
-		cirrus_driver_unload(dev);
+	cirrus_driver_unload(dev);
 	return r;
 }
 
