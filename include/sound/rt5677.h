@@ -32,6 +32,13 @@ struct rt5677_platform_data {
 	u8 gpio_config[6];
 	/* Asynchronous Sample Rate Converter can be optionally enabled */
 	bool asrc_en;
+
+	/* jd1 can select 0 ~ 3 as OFF, GPIO1, GPIO2 and GPIO3 respectively */
+	unsigned int jd1_gpio;
+	/* jd2 and jd3 can select 0 ~ 3 as
+		OFF, GPIO4, GPIO5 and GPIO6 respectively */
+	unsigned int jd2_gpio;
+	unsigned int jd3_gpio;
 };
 
 #endif
