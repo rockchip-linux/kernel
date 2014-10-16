@@ -328,8 +328,8 @@
 			qcom,rgmii_delay = <0>;
 			qcom,phy_mii_type = <0>;	/* RGMII */
 			qcom,emulation = <0>;
-			qcom,forced_speed = <0>;	/* speed auto */
-			qcom,forced_duplex = <255>;	/* duplex auto */
+			qcom,forced_speed = <1000>;	/* Force speed 1G */
+			qcom,forced_duplex = <1>;	/* Force duplex FD */
 			local-mac-address = [000000000000];
 			mdiobus = <&mdio0>;
 		};
