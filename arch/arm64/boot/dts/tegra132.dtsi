@@ -1,5 +1,6 @@
 #include <dt-bindings/clock/tegra124-car.h>
 #include <dt-bindings/clock/tegra132-ccplex.h>
+#include <dt-bindings/memory/tegra-swgroup.h>
 #include <dt-bindings/gpio/tegra-gpio.h>
 #include <dt-bindings/pinctrl/pinctrl-tegra.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -516,10 +517,13 @@
 	};
 
 	mc: memory-controller@70019000 {
-		compatible = "nvidia,tegra124-mc";
+		compatible = "nvidia,tegra132-mc";
 		reg = <0x0 0x70019000 0x0 0x1000>;
-		#address-cells = <1>;
-		#size-cells = <0>;
+		clocks = <&tegra_car TEGRA124_CLK_MC>;
+		clock-names = "mc";
+		interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+
+		#iommu-cells = <1>;
 	};
 
 	memory-controller@7001b000 {
