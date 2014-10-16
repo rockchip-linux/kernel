@@ -76,13 +76,11 @@ struct cvb_table {
 struct thermal_table {
 	struct thermal_tv thermal_floor_table[MAX_THERMAL_FLOORS];
 	struct thermal_coefficients coefficients;
-	int thermal_floor_table_size;
 	int speedo_scale;
 	int voltage_scale;
 	int temp_scale;
 
 	struct thermal_tv thermal_cap_table[MAX_THERMAL_CAPS];
-	int thermal_cap_table_size;
 };
 
 const struct cvb_table *tegra_cvb_build_opp_table(

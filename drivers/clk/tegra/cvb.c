@@ -159,9 +159,10 @@ const struct cvb_table *tegra_cvb_build_opp_table(
  *
  * The minimum voltage for the IP blocks inside Tegra SoCs might depend on
  * the current temperature. This function calculates the voltage-thermal
- * relations according to the coefficients it given and returns 0. Otherwise
- * returns -EINVAL on failure. Note that if the coefficients are not defined,
- * the fixed thermal floors in the @table will be used.
+ * relations according to the coefficients it given and returns thermal table
+ * size on success. Otherwise returns -EINVAL on failure. Note that if the
+ * coefficients are not defined, the fixed thermal floors in the @table will
+ * be used.
  */
 int tegra_cvb_build_thermal_table(const struct thermal_table *table,
 		int speedo_value,
@@ -197,5 +198,5 @@ int tegra_cvb_build_thermal_table(const struct thermal_table *table,
 				table->thermal_floor_table[i].millivolts);
 	}
 
-	return 0;
+	return i;
 }
