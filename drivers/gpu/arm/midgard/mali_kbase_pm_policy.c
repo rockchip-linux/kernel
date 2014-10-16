@@ -79,8 +79,7 @@ enum kbase_pm_func_id {
 
 
 /* State changes during request/unrequest/release-ing cores */
-enum
-{
+enum {
 	KBASE_PM_CHANGE_STATE_SHADER = (1u << 0),
 	KBASE_PM_CHANGE_STATE_TILER  = (1u << 1),
 
@@ -93,8 +92,7 @@ typedef u32 kbase_pm_change_state;
 
 #ifdef CONFIG_MALI_TRACE_TIMELINE
 /* Timeline Trace code lookups for each function */
-static u32 kbase_pm_change_state_trace_code[KBASE_PM_FUNC_ID_COUNT][KBASE_PM_CHANGE_STATE_COUNT] =
-{
+static u32 kbase_pm_change_state_trace_code[KBASE_PM_FUNC_ID_COUNT][KBASE_PM_CHANGE_STATE_COUNT] = {
 	/* kbase_pm_request_cores */
 	[KBASE_PM_FUNC_ID_REQUEST_CORES_START][0] = 0,
 	[KBASE_PM_FUNC_ID_REQUEST_CORES_START][KBASE_PM_CHANGE_STATE_SHADER] =
@@ -131,10 +129,11 @@ static u32 kbase_pm_change_state_trace_code[KBASE_PM_FUNC_ID_COUNT][KBASE_PM_CHA
 };
 
 STATIC INLINE void kbase_timeline_pm_cores_func(struct kbase_device *kbdev,
-                                                enum kbase_pm_func_id func_id,
-                                                kbase_pm_change_state state)
+		enum kbase_pm_func_id func_id,
+		kbase_pm_change_state state)
 {
 	int trace_code;
+
 	KBASE_DEBUG_ASSERT(func_id >= 0 && func_id < KBASE_PM_FUNC_ID_COUNT);
 	KBASE_DEBUG_ASSERT(state != 0 && (state & KBASE_PM_CHANGE_STATE_MASK) == state);
 
@@ -144,8 +143,7 @@ STATIC INLINE void kbase_timeline_pm_cores_func(struct kbase_device *kbdev,
 
 #else /* CONFIG_MALI_TRACE_TIMELINE */
 STATIC INLINE void kbase_timeline_pm_cores_func(struct kbase_device *kbdev,
-                                                enum kbase_pm_func_id func_id,
-                                                kbase_pm_change_state state)
+		enum kbase_pm_func_id func_id, kbase_pm_change_state state)
 {
 }
 
@@ -190,7 +188,7 @@ static enum hrtimer_restart kbasep_pm_do_gpu_poweroff_callback(struct hrtimer *t
 
 					KBASE_TIMELINE_PM_CHECKTRANS(kbdev, SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_DEFERRED_START);
 					cores_are_available = kbase_pm_check_transitions_nolock(kbdev);
-					KBASE_TIMELINE_PM_CHECKTRANS(kbdev, SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_DEFERRED_END);		
+					KBASE_TIMELINE_PM_CHECKTRANS(kbdev, SW_FLOW_PM_CHECKTRANS_PM_RELEASE_CORES_DEFERRED_END);
 
 					/* Don't need 'cores_are_available', because we don't return anything */
 					CSTD_UNUSED(cores_are_available);
@@ -376,7 +374,6 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 	/* Are any cores being powered on? */
 	if (~kbdev->pm.desired_shader_state & desired_bitmap ||
 	    kbdev->pm.ca_in_transition != MALI_FALSE) {
-
 		/* Check if we are powering off any cores before updating shader state */
 		if (kbdev->pm.desired_shader_state & ~desired_bitmap) {
 			/* Start timer to power off cores */
@@ -493,8 +490,8 @@ KBASE_EXPORT_TEST_API(kbase_pm_set_policy)
 /** Check whether a state change has finished, and trace it as completed */
 STATIC void kbase_pm_trace_check_and_finish_state_change(struct kbase_device *kbdev)
 {
-	if ((kbdev->shader_available_bitmap & kbdev->pm.desired_shader_state) == kbdev->pm.desired_shader_state
-		&& (kbdev->tiler_available_bitmap & kbdev->pm.desired_tiler_state) == kbdev->pm.desired_tiler_state)
+	if ((kbdev->shader_available_bitmap & kbdev->pm.desired_shader_state) == kbdev->pm.desired_shader_state &&
+		(kbdev->tiler_available_bitmap & kbdev->pm.desired_tiler_state) == kbdev->pm.desired_tiler_state)
 		kbase_timeline_pm_check_handle_event(kbdev, KBASE_TIMELINE_PM_EVENT_GPU_STATE_CHANGED);
 }
 
@@ -515,8 +512,8 @@ void kbase_pm_request_cores(struct kbase_device *kbdev, mali_bool tiler_required
 		u64 bit = 1ULL << bitnum;
 
 		/* It should be almost impossible for this to overflow. It would require 2^32 atoms
-		 * to request a particular core, which would require 2^24 contexts to submit. This 
-		 * would require an amount of memory that is impossible on a 32-bit system and 
+		 * to request a particular core, which would require 2^24 contexts to submit. This
+		 * would require an amount of memory that is impossible on a 32-bit system and
 		 * extremely unlikely on a 64-bit system. */
 		int cnt = ++kbdev->shader_needed_cnt[bitnum];
 
@@ -534,7 +531,7 @@ void kbase_pm_request_cores(struct kbase_device *kbdev, mali_bool tiler_required
 		KBASE_DEBUG_ASSERT(kbdev->tiler_needed_cnt != 0);
 
 		/* For tiler jobs, we must make sure that core 0 is not turned off if it's already on.
-	         * However, it's safe for core 0 to be left off and turned on later whilst a tiler job
+		 * However, it's safe for core 0 to be left off and turned on later whilst a tiler job
 		 * is running. Hence, we don't need to update the cores state immediately. Also,
 		 * attempts to turn off cores will always check the tiler_needed/inuse state first anyway.
 		 *
@@ -761,6 +758,7 @@ void kbase_pm_request_l2_caches(struct kbase_device *kbdev)
 {
 	unsigned long flags;
 	u32 prior_l2_users_count;
+
 	spin_lock_irqsave(&kbdev->pm.power_change_lock, flags);
 
 	prior_l2_users_count = kbdev->l2_users_count++;
@@ -780,6 +778,18 @@ void kbase_pm_request_l2_caches(struct kbase_device *kbdev)
 }
 
 KBASE_EXPORT_TEST_API(kbase_pm_request_l2_caches)
+
+void kbase_pm_request_l2_caches_l2_is_on(struct kbase_device *kbdev)
+{
+	unsigned long flags;
+	spin_lock_irqsave(&kbdev->pm.power_change_lock, flags);
+
+	kbdev->l2_users_count++;
+
+	spin_unlock_irqrestore(&kbdev->pm.power_change_lock, flags);
+}
+
+KBASE_EXPORT_TEST_API(kbase_pm_request_l2_caches_l2_is_on)
 
 void kbase_pm_release_l2_caches(struct kbase_device *kbdev)
 {

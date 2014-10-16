@@ -15,17 +15,10 @@
 
 
 
-/**
- * @file
- * Software workarounds configuration for Hardware issues.
- */
+#ifndef _BASE_DEVFREQ_H_
+#define _BASE_DEVFREQ_H_
 
-#ifndef _BASE_HWCONFIG_H_
-#define _BASE_HWCONFIG_H_
+int kbase_devfreq_init(struct kbase_device *kbdev);
+void kbase_devfreq_term(struct kbase_device *kbdev);
 
-#include <malisw/mali_malisw.h>
-
-#include "mali_base_hwconfig_issues.h"
-#include "mali_base_hwconfig_features.h"
-
-#endif /* _BASE_HWCONFIG_H_ */
+#endif /* _BASE_DEVFREQ_H_ */

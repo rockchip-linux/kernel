@@ -145,8 +145,7 @@ mali_bool kbase_js_choose_affinity(u64 * const affinity, struct kbase_device *kb
 	 * If no cores are currently available (core availability policy is
 	 * transitioning) then fail.
 	 */
-	if (0 == core_availability_mask)
-	{
+	if (0 == core_availability_mask) {
 		spin_unlock_irqrestore(&kbdev->pm.power_change_lock, flags);
 		*affinity = 0;
 		return MALI_FALSE;
@@ -154,8 +153,7 @@ mali_bool kbase_js_choose_affinity(u64 * const affinity, struct kbase_device *kb
 
 	KBASE_DEBUG_ASSERT(js >= 0);
 
-	if ((core_req & (BASE_JD_REQ_FS | BASE_JD_REQ_CS | BASE_JD_REQ_T)) == BASE_JD_REQ_T)
-	{
+	if ((core_req & (BASE_JD_REQ_FS | BASE_JD_REQ_CS | BASE_JD_REQ_T)) == BASE_JD_REQ_T) {
 		spin_unlock_irqrestore(&kbdev->pm.power_change_lock, flags);
 		/* Tiler only job, bit 0 needed to enable tiler but no shader cores required */
 		*affinity = 1;
@@ -173,6 +171,7 @@ mali_bool kbase_js_choose_affinity(u64 * const affinity, struct kbase_device *kb
 			} else {
 				/* js[1], js[2] use core groups 0, 1 for dual-core-group systems */
 				u32 core_group_idx = ((u32) js) - 1;
+
 				KBASE_DEBUG_ASSERT(core_group_idx < num_core_groups);
 				*affinity = kbdev->gpu_props.props.coherency_info.group[core_group_idx].core_mask & core_availability_mask;
 
@@ -237,6 +236,7 @@ STATIC INLINE mali_bool kbase_js_affinity_is_violating(struct kbase_device *kbde
 	u64 affinity_set_left;
 	u64 affinity_set_right;
 	u64 intersection;
+
 	KBASE_DEBUG_ASSERT(affinities != NULL);
 
 	affinity_set_left = affinities[1];
@@ -297,7 +297,6 @@ void kbase_js_affinity_retain_slot_cores(struct kbase_device *kbdev, int js, u64
 
 		cores &= ~bit;
 	}
-
 }
 
 void kbase_js_affinity_release_slot_cores(struct kbase_device *kbdev, int js, u64 affinity)
@@ -353,6 +352,7 @@ void kbase_js_affinity_submit_to_blocked_slots(struct kbase_device *kbdev)
 
 	while (slots) {
 		int bitnum = fls(slots) - 1;
+
 		u16 bit = 1u << bitnum;
 		slots &= ~bit;
 

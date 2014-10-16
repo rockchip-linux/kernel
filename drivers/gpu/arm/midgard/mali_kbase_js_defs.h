@@ -198,7 +198,7 @@ enum kbasep_js_ctx_attr {
 enum {
 	/** Bit indicating that new atom should be started because this atom completed */
 	KBASE_JS_ATOM_DONE_START_NEW_ATOMS = (1u << 0),
-	/** Bit indicating that the atom was evicted from the JSn_NEXT registers */
+	/** Bit indicating that the atom was evicted from the JS_NEXT registers */
 	KBASE_JS_ATOM_DONE_EVICTED_FROM_NEXT = (1u << 1)
 };
 

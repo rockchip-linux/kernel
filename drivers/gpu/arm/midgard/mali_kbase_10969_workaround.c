@@ -192,7 +192,6 @@ int kbasep_10969_workaround_clamp_coordinates(struct kbase_jd_atom *katom)
 					JOB_HEADER_SIZE - copy_size,
 					DMA_TO_DEVICE);
 		}
-
 	}
 	if (copy_size < JOB_HEADER_SIZE)
 		kunmap_atomic(page_2);

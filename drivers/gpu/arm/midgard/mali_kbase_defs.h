@@ -54,6 +54,10 @@
 #include <linux/debugfs.h>
 #endif				/* CONFIG_DEBUG_FS */
 
+#ifdef CONFIG_PM_DEVFREQ
+#include <linux/devfreq.h>
+#endif /* CONFIG_DEVFREQ */
+
 /** Enable SW tracing when set */
 #ifdef CONFIG_MALI_MIDGARD_ENABLE_TRACE
 #define KBASE_TRACE_ENABLE 1
@@ -162,61 +166,34 @@
 /* Maximum force replay limit when randomization is enabled */
 #define KBASEP_FORCE_REPLAY_RANDOM_LIMIT 16
 
-/**
- * @brief States to model state machine processed by kbasep_js_job_check_ref_cores(), which
- * handles retaining cores for power management and affinity management.
- *
- * The state @ref KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY prevents an attack
- * where lots of atoms could be submitted before powerup, and each has an
- * affinity chosen that causes other atoms to have an affinity
- * violation. Whilst the affinity was not causing violations at the time it
- * was chosen, it could cause violations thereafter. For example, 1000 jobs
- * could have had their affinity chosen during the powerup time, so any of
- * those 1000 jobs could cause an affinity violation later on.
- *
- * The attack would otherwise occur because other atoms/contexts have to wait for:
- * -# the currently running atoms (which are causing the violation) to
- * finish
- * -# and, the atoms that had their affinity chosen during powerup to
- * finish. These are run preferrentially because they don't cause a
- * violation, but instead continue to cause the violation in others.
- * -# or, the attacker is scheduled out (which might not happen for just 2
- * contexts)
- *
- * By re-choosing the affinity (which is designed to avoid violations at the
- * time it's chosen), we break condition (2) of the wait, which minimizes the
- * problem to just waiting for current jobs to finish (which can be bounded if
- * the Job Scheduling Policy has a timer).
- */
-enum kbase_atom_coreref_state {
-	/** Starting state: No affinity chosen, and cores must be requested. kbase_jd_atom::affinity==0 */
-	KBASE_ATOM_COREREF_STATE_NO_CORES_REQUESTED,
-	/** Cores requested, but waiting for them to be powered. Requested cores given by kbase_jd_atom::affinity */
-	KBASE_ATOM_COREREF_STATE_WAITING_FOR_REQUESTED_CORES,
-	/** Cores given by kbase_jd_atom::affinity are powered, but affinity might be out-of-date, so must recheck */
-	KBASE_ATOM_COREREF_STATE_RECHECK_AFFINITY,
-	/** Cores given by kbase_jd_atom::affinity are powered, and affinity is up-to-date, but must check for violations */
-	KBASE_ATOM_COREREF_STATE_CHECK_AFFINITY_VIOLATIONS,
-	/** Cores are powered, kbase_jd_atom::affinity up-to-date, no affinity violations: atom can be submitted to HW */
-	KBASE_ATOM_COREREF_STATE_READY
-};
-
-enum kbase_jd_atom_state {
-	/** Atom is not used */
-	KBASE_JD_ATOM_STATE_UNUSED,
-	/** Atom is queued in JD */
-	KBASE_JD_ATOM_STATE_QUEUED,
-	/** Atom has been given to JS (is runnable/running) */
-	KBASE_JD_ATOM_STATE_IN_JS,
-	/** Atom has been completed, but not yet handed back to userspace */
-	KBASE_JD_ATOM_STATE_COMPLETED
-};
-
 /** Atom has been previously soft-stoppped */
 #define KBASE_KATOM_FLAG_BEEN_SOFT_STOPPPED (1<<1)
 /** Atom has been previously retried to execute */
 #define KBASE_KATOM_FLAGS_RERUN (1<<2)
 #define KBASE_KATOM_FLAGS_JOBCHAIN (1<<3)
+/** Atom has been previously hard-stopped. */
+#define KBASE_KATOM_FLAG_BEEN_HARD_STOPPED (1<<4)
+/** Atom has caused us to enter disjoint state */
+#define KBASE_KATOM_FLAG_IN_DISJOINT (1<<5)
+
+/* SW related flags about types of JS_COMMAND action
+ * NOTE: These must be masked off by JS_COMMAND_MASK */
+
+/** This command causes a disjoint event */
+#define JS_COMMAND_SW_CAUSES_DISJOINT 0x100
+
+/** Bitmask of all SW related flags */
+#define JS_COMMAND_SW_BITS  (JS_COMMAND_SW_CAUSES_DISJOINT)
+
+#if (JS_COMMAND_SW_BITS & JS_COMMAND_MASK)
+#error JS_COMMAND_SW_BITS not masked off by JS_COMMAND_MASK. Must update JS_COMMAND_SW_<..> bitmasks
+#endif
+
+/** Soft-stop command that causes a Disjoint event. This of course isn't
+ *  entirely masked off by JS_COMMAND_MASK */
+#define JS_COMMAND_SOFT_STOP_WITH_SW_DISJOINT \
+		(JS_COMMAND_SW_CAUSES_DISJOINT | JS_COMMAND_SOFT_STOP)
+
 
 struct kbase_jd_atom_dependency
 {
@@ -676,6 +653,9 @@ struct kbase_device {
 		int irq;
 		int flags;
 	} irqs[3];
+#ifdef CONFIG_HAVE_CLK
+	struct clk *clock;
+#endif
 	char devname[DEVNAME_SIZE];
 
 #ifdef CONFIG_MALI_NO_MALI
@@ -730,6 +710,16 @@ struct kbase_device {
 	u32 tiler_inuse_cnt;
 
 	u32 tiler_needed_cnt;
+
+	/* struct for keeping track of the disjoint information
+	 *
+	 * The state  is > 0 if the GPU is in a disjoint state. Otherwise 0
+	 * The count is the number of disjoint events that have occurred on the GPU
+	 */
+	struct {
+		atomic_t count;
+		atomic_t state;
+	} disjoint_event;
 
 	/* Refcount for tracking users of the l2 cache, e.g. when using hardware counter instrumentation. */
 	u32 l2_users_count;
@@ -834,6 +824,18 @@ struct kbase_device {
 	struct delayed_work runtime_pm_workqueue;
 #endif
 
+#ifdef CONFIG_PM_DEVFREQ
+	struct devfreq_dev_profile devfreq_profile;
+	struct devfreq *devfreq;
+	unsigned long freq;
+#ifdef CONFIG_DEVFREQ_THERMAL
+	struct devfreq_cooling_device *devfreq_cooling;
+#ifdef CONFIG_MALI_POWER_ACTOR
+	struct power_actor *power_actor;
+#endif
+#endif
+#endif
+
 #ifdef CONFIG_MALI_TRACE_TIMELINE
 	struct kbase_trace_kbdev_timeline timeline;
 #endif
@@ -886,6 +888,7 @@ struct kbase_context {
 	struct workqueue_struct *event_workq;
 
 	u64 mem_attrs;
+	bool is_compat;
 
 	atomic_t                setup_complete;
 	atomic_t                setup_in_progress;
@@ -974,8 +977,8 @@ enum kbase_share_attr_bits {
 
 /* Maximum number of loops polling the GPU for a cache flush before we assume it must have completed */
 #define KBASE_CLEAN_CACHE_MAX_LOOPS     100000
-/* Maximum number of loops polling the GPU for an AS flush to complete before we assume the GPU has hung */
-#define KBASE_AS_FLUSH_MAX_LOOPS        100000
+/* Maximum number of loops polling the GPU for an AS command to complete before we assume the GPU has hung */
+#define KBASE_AS_INACTIVE_MAX_LOOPS     100000
 
 /* Maximum number of times a job can be replayed */
 #define BASEP_JD_REPLAY_LIMIT 15

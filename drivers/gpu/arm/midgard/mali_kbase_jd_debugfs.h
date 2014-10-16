@@ -1,5 +1,6 @@
 /*
- * (C) COPYRIGHT 2014 ARM Limited. All rights reserved.
+ *
+ * (C) COPYRIGHT ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -11,6 +12,8 @@
  * Boston, MA  02110-1301, USA.
  *
  */
+
+
 
 /**
  * @file mali_kbase_jd_debugfs.h
@@ -32,7 +35,7 @@
  *
  * @param[in] kbdev Pointer to kbase_device
  */
-int kbasep_jd_debugfs_init(struct kbase_device* kbdev);
+int kbasep_jd_debugfs_init(struct kbase_device *kbdev);
 
 /**
  * @brief Clean up all JD debugfs entries and related data
@@ -42,7 +45,7 @@ int kbasep_jd_debugfs_init(struct kbase_device* kbdev);
  *
  * @param[in] kbdev Pointer to kbase_device
  */
-void kbasep_jd_debugfs_term(struct kbase_device* kbdev);
+void kbasep_jd_debugfs_term(struct kbase_device *kbdev);
 
 /**
  * @brief Add new entry to JD debugfs

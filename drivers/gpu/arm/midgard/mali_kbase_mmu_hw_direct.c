@@ -46,6 +46,7 @@ static inline u64 lock_region(struct kbase_device *kbdev, u64 pfn,
 		region |= 11;
 	} else {
 		u8 region_width;
+
 		region_width = 10 + fls(num_pages);
 		if (num_pages != (1ul << (region_width - 11))) {
 			/* not pow2, so must go up to the next pow2 */
@@ -59,11 +60,37 @@ static inline u64 lock_region(struct kbase_device *kbdev, u64 pfn,
 	return region;
 }
 
-static inline u32 kbase_mmu_hw_is_busy(struct kbase_device *kbdev, int as_nr,
+static int wait_ready(struct kbase_device *kbdev,
+		unsigned int as_nr, struct kbase_context *kctx)
+{
+	unsigned int max_loops = KBASE_AS_INACTIVE_MAX_LOOPS;
+
+	/* Wait for the MMU status to indicate there is no active command. */
+	while (--max_loops && kbase_reg_read(kbdev,
+			MMU_AS_REG(as_nr, AS_STATUS),
+			kctx) & AS_STATUS_AS_ACTIVE) {
+		;
+	}
+
+	if (max_loops == 0) {
+		dev_err(kbdev->dev, "AS_ACTIVE bit stuck\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int write_cmd(struct kbase_device *kbdev, int as_nr, u32 cmd,
 		struct kbase_context *kctx)
 {
-	return kbase_reg_read(kbdev, MMU_AS_REG(as_nr, ASn_STATUS), kctx)
-			& ASn_STATUS_FLUSH_ACTIVE;
+	int status;
+
+	/* write AS_COMMAND when MMU is ready to accept another command */
+	status = wait_ready(kbdev, as_nr, kctx);
+	if (status == 0)
+		kbase_reg_write(kbdev, MMU_AS_REG(as_nr, AS_COMMAND), cmd, kctx);
+
+	return status;
 }
 
 void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
@@ -112,16 +139,16 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat)
 
 		/* find faulting address */
 		as->fault_addr = kbase_reg_read(kbdev,
-						MMU_AS_REG(as_no, ASn_FAULTADDRESS_HI),
+						MMU_AS_REG(as_no, AS_FAULTADDRESS_HI),
 						kctx);
 		as->fault_addr <<= 32;
 		as->fault_addr |= kbase_reg_read(kbdev,
-						MMU_AS_REG(as_no, ASn_FAULTADDRESS_LO),
+						MMU_AS_REG(as_no, AS_FAULTADDRESS_LO),
 						kctx);
 
 		/* record the fault status */
 		as->fault_status = kbase_reg_read(kbdev,
-						  MMU_AS_REG(as_no, ASn_FAULTSTATUS),
+						  MMU_AS_REG(as_no, AS_FAULTSTATUS),
 						  kctx);
 
 		/* find the fault type */
@@ -183,63 +210,49 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev, struct kbase_as *as,
 {
 	struct kbase_mmu_setup *current_setup = &as->current_setup;
 
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_TRANSTAB_LO),
+	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSTAB_LO),
 			current_setup->transtab & 0xFFFFFFFFUL, kctx);
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_TRANSTAB_HI),
+	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_TRANSTAB_HI),
 			(current_setup->transtab >> 32) & 0xFFFFFFFFUL, kctx);
 
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_MEMATTR_LO),
+	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_MEMATTR_LO),
 			current_setup->memattr & 0xFFFFFFFFUL, kctx);
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_MEMATTR_HI),
+	kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_MEMATTR_HI),
 			(current_setup->memattr >> 32) & 0xFFFFFFFFUL, kctx);
-	kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_COMMAND),
-			ASn_COMMAND_UPDATE, kctx);
+	write_cmd(kbdev, as->number, AS_COMMAND_UPDATE, kctx);
 }
 
 int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 		struct kbase_context *kctx, u64 vpfn, u32 nr, u32 op,
-		unsigned int timeout, unsigned int handling_irq)
+		unsigned int handling_irq)
 {
-	int ret = -1;
+	int ret;
 
-	if (op == ASn_COMMAND_UNLOCK) {
+	if (op == AS_COMMAND_UNLOCK) {
 		/* Unlock doesn't require a lock first */
-		kbase_reg_write(kbdev,
-				MMU_AS_REG(as->number, ASn_COMMAND),
-				ASn_COMMAND_UNLOCK, kctx);
-		ret = 0;
+		ret = write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK, kctx);
 	} else {
-		u32 loop = timeout;
 		u64 lock_addr = lock_region(kbdev, vpfn, nr);
 
 		/* Lock the region that needs to be updated */
-		kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_LOCKADDR_LO),
-						lock_addr & 0xFFFFFFFFUL, kctx);
-		kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_LOCKADDR_HI),
-						(lock_addr >> 32) & 0xFFFFFFFFUL, kctx);
-		kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_COMMAND),
-						ASn_COMMAND_LOCK, kctx);
+		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_LOCKADDR_LO),
+				lock_addr & 0xFFFFFFFFUL, kctx);
+		kbase_reg_write(kbdev, MMU_AS_REG(as->number, AS_LOCKADDR_HI),
+				(lock_addr >> 32) & 0xFFFFFFFFUL, kctx);
+		write_cmd(kbdev, as->number, AS_COMMAND_LOCK, kctx);
 
 		if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_T76X_3285) &&
 				handling_irq) {
 			kbase_reg_write(kbdev, MMU_REG(MMU_IRQ_CLEAR),
 					(1UL << as->number), NULL);
-			kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_COMMAND),
-					ASn_COMMAND_LOCK, kctx);
+			write_cmd(kbdev, as->number, AS_COMMAND_LOCK, kctx);
 		}
 
 		/* Run the MMU operation */
-		kbase_reg_write(kbdev, MMU_AS_REG(as->number, ASn_COMMAND),
-				op, kctx);
+		write_cmd(kbdev, as->number, op, kctx);
 
-		/* wait for the flush to complete */
-		if (timeout) {
-			while (--loop && kbase_mmu_hw_is_busy(kbdev, as->number, kctx))
-				;
-		} else {
-			while (kbase_mmu_hw_is_busy(kbdev, as->number, kctx))
-				;
-		}
+		/* Wait for the flush to complete */
+		ret = wait_ready(kbdev, as->number, kctx);
 
 		if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_9630)) {
 			/* Issue an UNLOCK command to ensure that valid page
@@ -256,14 +269,9 @@ int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 			   commands in order to flush the MMU/uTLB,
 			   see PRLAM-8812.
 			 */
-			kbase_reg_write(kbdev,
-					MMU_AS_REG(as->number, ASn_COMMAND),
-					ASn_COMMAND_UNLOCK, kctx);
-			kbase_reg_write(kbdev,
-					MMU_AS_REG(as->number, ASn_COMMAND),
-					ASn_COMMAND_UNLOCK, kctx);
+			write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK, kctx);
+			write_cmd(kbdev, as->number, AS_COMMAND_UNLOCK, kctx);
 		}
-		ret = ((timeout != 0) && (loop == 0)) ? -1 : 0;
 	}
 
 	return ret;

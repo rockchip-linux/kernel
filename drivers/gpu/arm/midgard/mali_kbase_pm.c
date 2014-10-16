@@ -155,7 +155,7 @@ void kbase_pm_do_poweroff(struct kbase_device *kbdev, mali_bool is_suspend)
 	/* Force all cores off */
 	kbdev->pm.desired_shader_state = 0;
 
-	/* Force all cores to be unavailable, in the situation where 
+	/* Force all cores to be unavailable, in the situation where
 	 * transitions are in progress for some cores but not others,
 	 * and kbase_pm_check_transitions_nolock can not immediately
 	 * power off the cores */
@@ -239,7 +239,7 @@ void kbase_pm_context_active(struct kbase_device *kbdev)
 }
 
 int kbase_pm_context_active_handle_suspend(struct kbase_device *kbdev, enum kbase_pm_suspend_handler suspend_handler)
-{	
+{
 	int c;
 	int old_count;
 
@@ -254,8 +254,7 @@ int kbase_pm_context_active_handle_suspend(struct kbase_device *kbdev, enum kbas
 		kbase_timeline_pm_send_event(kbdev, KBASE_TIMELINE_PM_EVENT_GPU_ACTIVE);
 
 	mutex_lock(&kbdev->pm.lock);
-	if (kbase_pm_is_suspending(kbdev))
-	{
+	if (kbase_pm_is_suspending(kbdev)) {
 		switch (suspend_handler) {
 		case KBASE_PM_SUSPEND_HANDLER_DONT_REACTIVATE:
 			if (kbdev->pm.active_count != 0)
@@ -374,6 +373,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_term)
 void kbase_pm_suspend(struct kbase_device *kbdev)
 {
 	int nr_keep_gpu_powered_ctxs;
+
 	KBASE_DEBUG_ASSERT(kbdev);
 
 	mutex_lock(&kbdev->pm.lock);

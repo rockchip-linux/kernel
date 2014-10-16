@@ -83,7 +83,7 @@ void kbasep_trace_timeline_debugfs_term(struct kbase_device *kbdev);
 	} while (0)
 
 
-/* Trace atoms present in JSn_NEXT */
+/* Trace atoms present in JS_NEXT */
 #define KBASE_TIMELINE_JOB_START_NEXT(kctx, js, count)                             \
 	do                                                                          \
 	{                                                                           \
@@ -95,7 +95,7 @@ void kbasep_trace_timeline_debugfs_term(struct kbase_device *kbdev);
 		                                    js, count);                     \
 	} while (0)
 
-/* Trace atoms present in JSn_HEAD */
+/* Trace atoms present in JS_HEAD */
 #define KBASE_TIMELINE_JOB_START_HEAD(kctx, js, count)                             \
 	do                                                                          \
 	{                                                                           \
@@ -208,7 +208,7 @@ void kbasep_trace_timeline_debugfs_term(struct kbase_device *kbdev);
 	} while (0)
 
 
-/* Trace atom_id starting in JSn_HEAD */
+/* Trace atom_id starting in JS_HEAD */
 #define KBASE_TIMELINE_JOB_START(kctx, js, _consumerof_atom_number)     \
 	do                                                                  \
 	{                                                                   \
@@ -220,7 +220,7 @@ void kbasep_trace_timeline_debugfs_term(struct kbase_device *kbdev);
 		                              js, _consumerof_atom_number);     \
 	} while (0)
 
-/* Trace atom_id stopping on JSn_HEAD */
+/* Trace atom_id stopping on JS_HEAD */
 #define KBASE_TIMELINE_JOB_STOP(kctx, js, _producerof_atom_number_completed) \
 	do                                                                  \
 	{                                                                   \
@@ -269,8 +269,8 @@ void kbase_timeline_job_slot_submit(struct kbase_device *kbdev, struct kbase_con
  * Trace that an atom has done on a job slot
  *
  * 'Done' in this sense can occur either because:
- * - the atom in JSn_HEAD finished
- * - the atom in JSn_NEXT was evicted
+ * - the atom in JS_HEAD finished
+ * - the atom in JS_NEXT was evicted
  *
  * Whether the atom finished or was evicted is passed in @a done_code
  *

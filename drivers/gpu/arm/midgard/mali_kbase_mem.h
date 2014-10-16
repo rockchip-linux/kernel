@@ -285,12 +285,13 @@ static INLINE size_t kbase_reg_current_backed_size(struct kbase_va_region * reg)
 
 static INLINE struct kbase_mem_phy_alloc * kbase_alloc_create(size_t nr_pages, enum kbase_memory_type type)
 {
-	struct kbase_mem_phy_alloc * alloc;
-	const size_t extra_pages = (sizeof(*alloc) + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
-	const size_t alloc_size = sizeof(*alloc) + sizeof(*alloc->pages) * nr_pages;
+	struct kbase_mem_phy_alloc *alloc;
+	const size_t alloc_size =
+			sizeof(*alloc) + sizeof(*alloc->pages) * nr_pages;
 
 	/* Prevent nr_pages*sizeof + sizeof(*alloc) from wrapping around. */
-	if (nr_pages > (((size_t) -1 / sizeof(*alloc->pages))) - extra_pages)
+	if (nr_pages > ((((size_t) -1) - sizeof(*alloc))
+			/ sizeof(*alloc->pages)))
 		return ERR_PTR(-ENOMEM);
 
 	/* Allocate based on the size to reduce internal fragmentation of vmem */
@@ -299,7 +300,7 @@ static INLINE struct kbase_mem_phy_alloc * kbase_alloc_create(size_t nr_pages, e
 	else
 		alloc = kzalloc(alloc_size, GFP_KERNEL);
 
-	if (!alloc) 
+	if (!alloc)
 		return ERR_PTR(-ENOMEM);
 
 	/* Store allocation method */
@@ -514,6 +515,8 @@ void kbase_mmu_interrupt(struct kbase_device *kbdev, u32 irq_stat);
 void *kbase_mmu_dump(struct kbase_context *kctx, int nr_pages);
 
 mali_error kbase_sync_now(struct kbase_context *kctx, struct base_syncset *syncset);
+void kbase_sync_single(struct kbase_context *kctx, phys_addr_t pa,
+		size_t size, kbase_sync_kmem_fn sync_fn);
 void kbase_pre_job_sync(struct kbase_context *kctx, struct base_syncset *syncsets, size_t nr);
 void kbase_post_job_sync(struct kbase_context *kctx, struct base_syncset *syncsets, size_t nr);
 

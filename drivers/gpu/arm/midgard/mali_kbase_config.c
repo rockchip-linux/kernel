@@ -19,7 +19,6 @@
 
 #include <mali_kbase.h>
 #include <mali_kbase_defs.h>
-#include <mali_kbase_cpuprops.h>
 #include <mali_kbase_config_defaults.h>
 
 /* Specifies how many attributes are permitted in the config (excluding terminating attribute).
@@ -56,6 +55,14 @@ const struct kbase_attribute *kbasep_get_next_attribute(const struct kbase_attri
 }
 
 KBASE_EXPORT_TEST_API(kbasep_get_next_attribute)
+
+int kbase_cpuprops_get_default_clock_speed(u32 * const clock_speed)
+{
+	KBASE_DEBUG_ASSERT(NULL != clock_speed);
+
+	*clock_speed = 100;
+	return 0;
+}
 
 uintptr_t kbasep_get_config_value(struct kbase_device *kbdev, const struct kbase_attribute *attributes, int attribute_id)
 {
@@ -115,6 +122,8 @@ uintptr_t kbasep_get_config_value(struct kbase_device *kbdev, const struct kbase
 		return DEFAULT_PM_POWEROFF_TICK_SHADER;
 	case KBASE_CONFIG_ATTR_PM_POWEROFF_TICK_GPU:
 		return DEFAULT_PM_POWEROFF_TICK_GPU;
+	case KBASE_CONFIG_ATTR_POWER_MODEL_CALLBACKS:
+		return 0;
 
 	default:
 		dev_err(kbdev->dev, "kbasep_get_config_value. Cannot get value of attribute with id=%d and no default value defined", attribute_id);
@@ -182,11 +191,10 @@ mali_bool kbasep_validate_configuration_attributes(struct kbase_device *kbdev, c
 			/* Only non-zero unsigned 32-bit values accepted */
 		case KBASE_CONFIG_ATTR_JS_SCHEDULING_TICK_NS:
 #if CSTD_CPU_64BIT
-			if (attributes[i].data == 0u || (u64) attributes[i].data > (u64) U32_MAX)
+			if (attributes[i].data == 0u || (u64) attributes[i].data > (u64) U32_MAX) {
 #else
-			if (attributes[i].data == 0u)
+			if (attributes[i].data == 0u) {
 #endif
-			{
 				dev_warn(kbdev->dev, "Invalid Job Scheduling Configuration attribute for " "KBASE_CONFIG_ATTR_JS_SCHEDULING_TICKS_NS: %d", (int)attributes[i].data);
 				return MALI_FALSE;
 			}
@@ -264,6 +272,14 @@ mali_bool kbasep_validate_configuration_attributes(struct kbase_device *kbdev, c
 				return MALI_FALSE;
 			}
 #endif
+			break;
+
+		case KBASE_CONFIG_ATTR_POWER_MODEL_CALLBACKS:
+			if (0 == attributes[i].data) {
+				dev_warn(kbdev->dev, "Power model callbacks is specified but NULL: " "id==%d val==%d",
+						attributes[i].id, (int)attributes[i].data);
+				return MALI_FALSE;
+			}
 			break;
 
 		default:

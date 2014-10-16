@@ -298,6 +298,7 @@ STATIC u64 priority_weight(struct kbasep_js_policy_cfs_ctx *ctx_info, u64 time_u
 {
 	u64 time_delta_us;
 	int priority;
+
 	priority = ctx_info->process_priority + ctx_info->bag_priority;
 
 	/* Adjust runtime_us using priority weight if required */
@@ -385,7 +386,11 @@ STATIC void kbasep_js_debug_check(struct kbasep_js_policy_cfs *policy_info, stru
 	if (check_flag & KBASEP_JS_CHECKFLAG_QUEUED) {
 		mali_bool is_queued;
 		mali_bool expect_queued;
-		is_queued = (kbasep_list_member_of(&policy_info->ctx_queue_head, &kctx->jctx.sched_info.runpool.policy_ctx.cfs.list)) ? MALI_TRUE : MALI_FALSE;
+
+		is_queued = (kbasep_list_member_of(
+				&policy_info->ctx_queue_head,
+				&kctx->jctx.sched_info.runpool.policy_ctx.cfs.list)) ?
+				MALI_TRUE : MALI_FALSE;
 
 		if (!is_queued)
 			is_queued = (kbasep_list_member_of(&policy_info->ctx_rt_queue_head, &kctx->jctx.sched_info.runpool.policy_ctx.cfs.list)) ? MALI_TRUE : MALI_FALSE;
@@ -399,11 +404,14 @@ STATIC void kbasep_js_debug_check(struct kbasep_js_policy_cfs *policy_info, stru
 	if (check_flag & KBASEP_JS_CHECKFLAG_SCHEDULED) {
 		mali_bool is_scheduled;
 		mali_bool expect_scheduled;
-		is_scheduled = (kbasep_list_member_of(&policy_info->scheduled_ctxs_head, &kctx->jctx.sched_info.runpool.policy_ctx.cfs.list)) ? MALI_TRUE : MALI_FALSE;
+
+		is_scheduled = (kbasep_list_member_of(
+			&policy_info->scheduled_ctxs_head,
+			&kctx->jctx.sched_info.runpool.policy_ctx.cfs.list)) ?
+			MALI_TRUE : MALI_FALSE;
 
 		expect_scheduled = (check_flag & KBASEP_JS_CHECKFLAG_IS_SCHEDULED) ? MALI_TRUE : MALI_FALSE;
-		KBASE_DEBUG_ASSERT_MSG(expect_scheduled == is_scheduled, "Expected context %p to be %s but it was %s", kctx, (expect_scheduled) ? "scheduled" : "not scheduled", (is_scheduled) ? "scheduled" : "not scheduled");
-
+		KBASE_DEBUG_ASSERT_MSG(expect_scheduled == is_scheduled, "Expected context %p to be %s but it was %s\n", kctx, (expect_scheduled) ? "scheduled" : "not scheduled", (is_scheduled) ? "scheduled" : "not scheduled");
 	}
 
 }
@@ -413,7 +421,6 @@ STATIC void kbasep_js_debug_check(struct kbasep_js_policy_cfs *policy_info, stru
 	CSTD_UNUSED(policy_info);
 	CSTD_UNUSED(kctx);
 	CSTD_UNUSED(check_flag);
-	return;
 }
 #endif				/* CONFIG_MALI_DEBUG */
 
@@ -468,6 +475,7 @@ STATIC void debug_check_core_req_variants(struct kbase_device *kbdev, struct kba
 		job_core_req = js_devdata->js_reqs[j];
 		for (i = 0; i < policy_info->num_core_req_variants; ++i) {
 			base_jd_core_req var_core_req;
+
 			var_core_req = policy_info->core_req_variants[i].core_req;
 
 			if ((var_core_req & job_core_req) == job_core_req) {
@@ -555,7 +563,7 @@ STATIC mali_error cached_variant_idx_init(const struct kbasep_js_policy_cfs *pol
 	/* Initial check for atoms targetting a specific coregroup */
 	if ((job_core_req & BASE_JD_REQ_SPECIFIC_COHERENT_GROUP) != MALI_FALSE && job_device_nr >= kbdev->gpu_props.num_core_groups) {
 		/* device_nr exceeds the number of coregroups - not allowed by
-		 * @ref struct base_jd_atom API contract */
+		 * @ref struct base_jd_atom_v2 API contract */
 		return MALI_ERROR_FUNCTION_FAILED;
 	}
 
@@ -604,13 +612,16 @@ STATIC mali_bool dequeue_job(struct kbase_device *kbdev,
 		while (variants_supported != 0) {
 			long variant_idx;
 			struct list_head *job_list;
+
 			variant_idx = ffs(variants_supported) - 1;
 			job_list = &ctx_info->job_list_head[variant_idx];
 
 			if (!list_empty(job_list)) {
 				/* Found a context with a matching job */
 				{
-					struct kbase_jd_atom *front_atom = list_entry(job_list->next, struct kbase_jd_atom, sched_info.cfs.list);
+					struct kbase_jd_atom *front_atom = 
+							list_entry(job_list->next, struct kbase_jd_atom, sched_info.cfs.list);
+
 					KBASE_TRACE_ADD_SLOT(kbdev, JS_POLICY_DEQUEUE_JOB, front_atom->kctx, front_atom, front_atom->jc, job_slot_idx);
 				}
 				*katom_ptr = list_entry(job_list->next, struct kbase_jd_atom, sched_info.cfs.list);
@@ -730,13 +741,30 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 
 				/* Job is Soft-Stoppable */
 				if (ticks == soft_stop_ticks) {
+					int disjoint_threshold =
+							KBASE_DISJOINT_STATE_INTERLEAVED_CONTEXT_COUNT_THRESHOLD;
+					u32 softstop_flags = 0u;
 					/* Job has been scheduled for at least js_devdata->soft_stop_ticks ticks.
 					 * Soft stop the slot so we can run other jobs.
 					 */
 					dev_dbg(kbdev->dev, "Soft-stop");
 
 #if !KBASE_DISABLE_SCHEDULING_SOFT_STOPS
-					kbase_job_slot_softstop(kbdev, s, atom);
+					/* nr_user_contexts_running is updated with the runpool_mutex,
+					 * but we can't take that here.
+					 *
+					 * However, if it's about to be increased then the new context
+					 * can't run any jobs until they take the runpool_irq lock, so
+					 * it's OK to observe the older value.
+					 *
+					 * Similarly, if it's about to be decreased, the last job from
+					 * another context has already finished, so it's not too bad
+					 * that we observe the older value and register a disjoint
+					 * event when we try soft-stopping */
+					if (js_devdata->nr_user_contexts_running >= disjoint_threshold)
+						softstop_flags |= JS_COMMAND_SW_CAUSES_DISJOINT;
+					kbase_job_slot_softstop_swflags(kbdev,
+							s, atom, softstop_flags);
 #endif
 				} else if (ticks == hard_stop_ticks) {
 					/* Job has been scheduled for at least js_devdata->hard_stop_ticks_ss ticks.
@@ -752,7 +780,7 @@ static enum hrtimer_restart timer_callback(struct hrtimer *timer)
 					 */
 					reset_needed = MALI_TRUE;
 				}
-#else 				/* !CINSTR_DUMPING_ENABLED */
+#else				/* !CINSTR_DUMPING_ENABLED */
 				/* NOTE: During CINSTR_DUMPING_ENABLED, we use the alternate timeouts, which
 				 * makes the hard-stop and GPU reset timeout much longer. We also ensure that
 				 * we don't soft-stop at all. */
@@ -838,6 +866,7 @@ mali_error kbasep_js_policy_init(struct kbase_device *kbdev)
 void kbasep_js_policy_term(union kbasep_js_policy *js_policy)
 {
 	struct kbasep_js_policy_cfs *policy_info;
+
 	KBASE_DEBUG_ASSERT(js_policy != NULL);
 	policy_info = &js_policy->cfs;
 
@@ -1092,6 +1121,7 @@ mali_bool kbasep_js_policy_try_evict_ctx(union kbasep_js_policy *js_policy, stru
 
 	if (is_present != MALI_FALSE) {
 		struct kbase_context *head_ctx;
+
 		qhead = queue_head;
 
 		/* If dequeuing will empty the list, then set least_runtime_us prior to deletion */
@@ -1200,6 +1230,7 @@ void kbasep_js_policy_runpool_remove_ctx(union kbasep_js_policy *js_policy, stru
 
 	{
 		struct kbase_device *kbdev = container_of(js_policy, struct kbase_device, js_data.policy);
+
 		KBASE_TRACE_ADD_REFCOUNT(kbdev, JS_POLICY_RUNPOOL_REMOVE_CTX, kctx, NULL, 0u, kbasep_js_policy_trace_get_refcnt_nolock(kbdev, kctx));
 	}
 
@@ -1208,7 +1239,6 @@ void kbasep_js_policy_runpool_remove_ctx(union kbasep_js_policy *js_policy, stru
 
 	/* No searching or significant list maintenance required to remove this context */
 	list_del(&kctx->jctx.sched_info.runpool.policy_ctx.cfs.list);
-
 }
 
 mali_bool kbasep_js_policy_should_remove_ctx(union kbasep_js_policy *js_policy, struct kbase_context *kctx)

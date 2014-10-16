@@ -101,33 +101,33 @@ STATIC void kbase_pm_invoke(struct kbase_device *kbdev, enum kbase_pm_core_type 
 	if (cores) {
 		if (action == ACTION_PWRON)
 			switch (core_type) {
-				case KBASE_PM_CORE_SHADER:
-					KBASE_TRACE_ADD(kbdev, PM_PWRON, NULL, NULL, 0u, lo);
-					break;
-				case KBASE_PM_CORE_TILER:
-					KBASE_TRACE_ADD(kbdev, PM_PWRON_TILER, NULL, NULL, 0u, lo);
-					break;
-				case KBASE_PM_CORE_L2:
-					KBASE_TRACE_ADD(kbdev, PM_PWRON_L2, NULL, NULL, 0u, lo);
-					break;
-				default:
-					/* L3 not handled */
-					break;
+			case KBASE_PM_CORE_SHADER:
+				KBASE_TRACE_ADD(kbdev, PM_PWRON, NULL, NULL, 0u, lo);
+				break;
+			case KBASE_PM_CORE_TILER:
+				KBASE_TRACE_ADD(kbdev, PM_PWRON_TILER, NULL, NULL, 0u, lo);
+				break;
+			case KBASE_PM_CORE_L2:
+				KBASE_TRACE_ADD(kbdev, PM_PWRON_L2, NULL, NULL, 0u, lo);
+				break;
+			default:
+				/* L3 not handled */
+				break;
 			}
 		else if (action == ACTION_PWROFF)
 			switch (core_type) {
-				case KBASE_PM_CORE_SHADER:
-					KBASE_TRACE_ADD(kbdev, PM_PWROFF, NULL, NULL, 0u, lo);
-					break;
-				case KBASE_PM_CORE_TILER:
-					KBASE_TRACE_ADD(kbdev, PM_PWROFF_TILER, NULL, NULL, 0u, lo);
-					break;
-				case KBASE_PM_CORE_L2:
-					KBASE_TRACE_ADD(kbdev, PM_PWROFF_L2, NULL, NULL, 0u, lo);
-					break;
-				default:
-					/* L3 not handled */
-					break;
+			case KBASE_PM_CORE_SHADER:
+				KBASE_TRACE_ADD(kbdev, PM_PWROFF, NULL, NULL, 0u, lo);
+				break;
+			case KBASE_PM_CORE_TILER:
+				KBASE_TRACE_ADD(kbdev, PM_PWROFF_TILER, NULL, NULL, 0u, lo);
+				break;
+			case KBASE_PM_CORE_L2:
+				KBASE_TRACE_ADD(kbdev, PM_PWROFF_L2, NULL, NULL, 0u, lo);
+				break;
+			default:
+				/* L3 not handled */
+				break;
 			}
 	}
 
@@ -234,21 +234,22 @@ KBASE_EXPORT_TEST_API(kbase_pm_get_trans_cores)
 u64 kbase_pm_get_ready_cores(struct kbase_device *kbdev, enum kbase_pm_core_type type)
 {
 	u64 result;
+
 	result = kbase_pm_get_state(kbdev, type, ACTION_READY);
 
 	switch (type) {
-		case KBASE_PM_CORE_SHADER:
-			KBASE_TRACE_ADD(kbdev, PM_CORES_POWERED, NULL, NULL, 0u, (u32) result);
-			break;
-		case KBASE_PM_CORE_TILER:
-			KBASE_TRACE_ADD(kbdev, PM_CORES_POWERED_TILER, NULL, NULL, 0u, (u32) result);
-			break;
-		case KBASE_PM_CORE_L2:
-			KBASE_TRACE_ADD(kbdev, PM_CORES_POWERED_L2, NULL, NULL, 0u, (u32) result);
-			break;
-		default:
-			/* NB: L3 not currently traced */
-			break;
+	case KBASE_PM_CORE_SHADER:
+		KBASE_TRACE_ADD(kbdev, PM_CORES_POWERED, NULL, NULL, 0u, (u32) result);
+		break;
+	case KBASE_PM_CORE_TILER:
+		KBASE_TRACE_ADD(kbdev, PM_CORES_POWERED_TILER, NULL, NULL, 0u, (u32) result);
+		break;
+	case KBASE_PM_CORE_L2:
+		KBASE_TRACE_ADD(kbdev, PM_CORES_POWERED_L2, NULL, NULL, 0u, (u32) result);
+		break;
+	default:
+		/* NB: L3 not currently traced */
+		break;
 	}
 
 	return result;
@@ -292,6 +293,8 @@ STATIC mali_bool kbase_pm_transition_core_type(struct kbase_device *kbdev, enum 
 	present = kbase_pm_get_present_cores(kbdev, type);
 	trans = kbase_pm_get_trans_cores(kbdev, type);
 	ready = kbase_pm_get_ready_cores(kbdev, type);
+	/* mask off ready from trans in case transitions finished between the register reads */
+	trans &= ~ready;
 
 	powering_on_trans = trans & *powering_on;
 	*powering_on = powering_on_trans;
@@ -333,7 +336,7 @@ STATIC mali_bool kbase_pm_transition_core_type(struct kbase_device *kbdev, enum 
 	 * Mali cores that support the following case:
 	 *
 	 * If the SHADER_PWRON or TILER_PWRON registers are written to turn on
-	 * a core that is currently transitioning to power off, then this is 
+	 * a core that is currently transitioning to power off, then this is
 	 * remembered and the shader core is automatically powered up again once
 	 * the original transition completes. Once the automatic power on is
 	 * complete any job scheduled on the shader core should start.
@@ -455,15 +458,13 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 	in_desired_state &= kbase_pm_transition_core_type(kbdev, KBASE_PM_CORE_L3, desired_l3_state, 0, NULL, &kbdev->pm.powering_on_l3_state);
 	in_desired_state &= kbase_pm_transition_core_type(kbdev, KBASE_PM_CORE_L2, desired_l2_state, 0, &l2_available_bitmap, &kbdev->pm.powering_on_l2_state);
 
-	if (kbdev->l2_available_bitmap != l2_available_bitmap)
-	{
+	if (kbdev->l2_available_bitmap != l2_available_bitmap) {
 		KBASE_TIMELINE_POWER_L2(kbdev, l2_available_bitmap);
 	}
 
 	kbdev->l2_available_bitmap = l2_available_bitmap;
 
 	if (in_desired_state) {
-
 		in_desired_state &= kbase_pm_transition_core_type(kbdev, KBASE_PM_CORE_TILER, kbdev->pm.desired_tiler_state, 0, &tiler_available_bitmap, &kbdev->pm.powering_on_tiler_state);
 		in_desired_state &= kbase_pm_transition_core_type(kbdev, KBASE_PM_CORE_SHADER, kbdev->pm.desired_shader_state, kbdev->shader_inuse_bitmap, &shader_available_bitmap, &kbdev->pm.powering_on_shader_state);
 
@@ -500,8 +501,8 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 	/* Determine whether the cores are now available (even if the set of
 	 * available cores is empty). Note that they can be available even if we've
 	 * not finished transitioning to the desired state */
-	if ((kbdev->shader_available_bitmap & kbdev->pm.desired_shader_state) == kbdev->pm.desired_shader_state
-		&& (kbdev->tiler_available_bitmap & kbdev->pm.desired_tiler_state) == kbdev->pm.desired_tiler_state) {
+	if ((kbdev->shader_available_bitmap & kbdev->pm.desired_shader_state) == kbdev->pm.desired_shader_state &&
+			(kbdev->tiler_available_bitmap & kbdev->pm.desired_tiler_state) == kbdev->pm.desired_tiler_state) {
 		cores_are_available = MALI_TRUE;
 
 		KBASE_TRACE_ADD(kbdev, PM_CORES_AVAILABLE, NULL, NULL, 0u, (u32)(kbdev->shader_available_bitmap & kbdev->pm.desired_shader_state));
@@ -533,7 +534,7 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 		KBASE_TRACE_ADD(kbdev, PM_WAKE_WAITERS, NULL, NULL, 0u, 0);
 		wake_up(&kbdev->pm.gpu_in_desired_state_wait);
 	}
-	
+
 	spin_unlock(&kbdev->pm.gpu_powered_lock);
 
 	/* kbase_pm_ca_update_core_status can cause one-level recursion into
@@ -550,14 +551,14 @@ mali_bool MOCKABLE(kbase_pm_check_transitions_nolock) (struct kbase_device *kbde
 
 	/* The core availability policy is not allowed to keep core group 0 turned off (unless it was changing the l2 power state) */
 	if (!((shader_ready_bitmap | shader_transitioning_bitmap) & kbdev->gpu_props.props.coherency_info.group[0].core_mask) &&
-		(prev_l2_available_bitmap == desired_l2_state) &&
-	    !(kbase_pm_ca_get_core_mask(kbdev) & kbdev->gpu_props.props.coherency_info.group[0].core_mask)) 
+			(prev_l2_available_bitmap == desired_l2_state) &&
+			!(kbase_pm_ca_get_core_mask(kbdev) & kbdev->gpu_props.props.coherency_info.group[0].core_mask))
 		BUG();
 
-	/* The core availability policy is allowed to keep core group 1 off, 
+	/* The core availability policy is allowed to keep core group 1 off,
 	 * but all jobs specifically targeting CG1 must fail */
 	if (!((shader_ready_bitmap | shader_transitioning_bitmap) & kbdev->gpu_props.props.coherency_info.group[1].core_mask) &&
-	    !(kbase_pm_ca_get_core_mask(kbdev) & kbdev->gpu_props.props.coherency_info.group[1].core_mask))
+		!(kbase_pm_ca_get_core_mask(kbdev) & kbdev->gpu_props.props.coherency_info.group[1].core_mask))
 		kbdev->pm.cg1_disabled = MALI_TRUE;
 	else
 		kbdev->pm.cg1_disabled = MALI_FALSE;
@@ -642,6 +643,7 @@ void kbase_pm_clock_on(struct kbase_device *kbdev, mali_bool is_resume)
 {
 	mali_bool reset_required = is_resume;
 	unsigned long flags;
+
 	KBASE_DEBUG_ASSERT(NULL != kbdev);
 	lockdep_assert_held(&kbdev->pm.lock);
 
@@ -683,6 +685,7 @@ KBASE_EXPORT_TEST_API(kbase_pm_clock_on)
 void kbase_pm_clock_off(struct kbase_device *kbdev, mali_bool is_suspend)
 {
 	unsigned long flags;
+
 	KBASE_DEBUG_ASSERT(NULL != kbdev);
 	lockdep_assert_held(&kbdev->pm.lock);
 
@@ -783,6 +786,13 @@ static void kbase_pm_hw_issues(struct kbase_device *kbdev)
 
 	if (value != 0)
 		kbase_reg_write(kbdev, GPU_CONTROL_REG(SHADER_CONFIG), value, NULL);
+
+	/* Set tiler clock gate override if required */
+	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_T76X_3953)) {
+		value = kbase_reg_read(kbdev, GPU_CONTROL_REG(TILER_CONFIG), NULL);
+		value |= TC_CLOCK_GATE_OVERRIDE;
+		kbase_reg_write(kbdev, GPU_CONTROL_REG(TILER_CONFIG), value, NULL);
+	}
 
 	/* Limit the GPU bus bandwidth if the platform needs this. */
 	value = kbase_reg_read(kbdev, GPU_CONTROL_REG(L2_MMU_CONFIG), NULL);
@@ -898,24 +908,24 @@ mali_error kbase_pm_init_hw(struct kbase_device *kbdev, mali_bool enable_irqs)
 
  out:
 
-    /* If cycle counter was in use-re enable it enable_irqs will only be false when called from kbase_pm_powerup */
-    if (kbdev->pm.gpu_cycle_counter_requests && enable_irqs) {
-    	/* enable interrupts as the L2 may have to be powered on */
-    	kbase_pm_enable_interrupts(kbdev);
-    	kbase_pm_request_l2_caches(kbdev);
+	/* If cycle counter was in use-re enable it enable_irqs will only be false when called from kbase_pm_powerup */
+	if (kbdev->pm.gpu_cycle_counter_requests && enable_irqs) {
+		/* enable interrupts as the L2 may have to be powered on */
+		kbase_pm_enable_interrupts(kbdev);
+		kbase_pm_request_l2_caches(kbdev);
 
-    	/* Re-enable the counters if we need to */
-    	spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
-    	if (kbdev->pm.gpu_cycle_counter_requests)
-    		kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND), GPU_COMMAND_CYCLE_COUNT_START, NULL);
-    	spin_unlock_irqrestore(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
+		/* Re-enable the counters if we need to */
+		spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
+		if (kbdev->pm.gpu_cycle_counter_requests)
+			kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND), GPU_COMMAND_CYCLE_COUNT_START, NULL);
+		spin_unlock_irqrestore(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
 
-    	kbase_pm_release_l2_caches(kbdev);
-    	kbase_pm_disable_interrupts(kbdev);
- 	}
+		kbase_pm_release_l2_caches(kbdev);
+		kbase_pm_disable_interrupts(kbdev);
+	}
 
-    if (enable_irqs)
-    	kbase_pm_enable_interrupts(kbdev);
+	if (enable_irqs)
+		kbase_pm_enable_interrupts(kbdev);
 
 	kbase_pm_hw_issues(kbdev);
 
@@ -924,18 +934,22 @@ mali_error kbase_pm_init_hw(struct kbase_device *kbdev, mali_bool enable_irqs)
 
 KBASE_EXPORT_TEST_API(kbase_pm_init_hw)
 
-void kbase_pm_request_gpu_cycle_counter(struct kbase_device *kbdev)
+/** Increase the count of cycle counter users and turn the cycle counters on if they were previously off
+ *
+ * this function is designed to be called by @ref kbase_pm_request_gpu_cycle_counter or
+ * @ref kbase_pm_request_gpu_cycle_counter_l2_is_on only
+ *
+ * When this function is called the l2 cache must be on and the l2 cache users count must
+ * have been incremented by a call to (@ref kbase_pm_request_l2_caches or @ref kbase_pm_request_l2_caches_l2_on)
+ *
+ * @param kbdev     The kbase device structure of the device
+ *
+ */
+static void kbase_pm_request_gpu_cycle_counter_do_request(struct kbase_device *kbdev)
 {
 	unsigned long flags;
-	KBASE_DEBUG_ASSERT(kbdev != NULL);
-
-	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_powered);
-
-    kbase_pm_request_l2_caches(kbdev);
 
 	spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
-
-	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_cycle_counter_requests < INT_MAX);
 
 	++kbdev->pm.gpu_cycle_counter_requests;
 
@@ -945,11 +959,40 @@ void kbase_pm_request_gpu_cycle_counter(struct kbase_device *kbdev)
 	spin_unlock_irqrestore(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);
 }
 
+void kbase_pm_request_gpu_cycle_counter(struct kbase_device *kbdev)
+{
+	KBASE_DEBUG_ASSERT(kbdev != NULL);
+
+	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_powered);
+
+	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_cycle_counter_requests < INT_MAX);
+
+	kbase_pm_request_l2_caches(kbdev);
+
+	kbase_pm_request_gpu_cycle_counter_do_request(kbdev);
+}
+
 KBASE_EXPORT_TEST_API(kbase_pm_request_gpu_cycle_counter)
+
+void kbase_pm_request_gpu_cycle_counter_l2_is_on(struct kbase_device *kbdev)
+{
+	KBASE_DEBUG_ASSERT(kbdev != NULL);
+
+	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_powered);
+
+	KBASE_DEBUG_ASSERT(kbdev->pm.gpu_cycle_counter_requests < INT_MAX);
+
+	kbase_pm_request_l2_caches_l2_is_on(kbdev);
+
+	kbase_pm_request_gpu_cycle_counter_do_request(kbdev);
+}
+
+KBASE_EXPORT_TEST_API(kbase_pm_request_gpu_cycle_counter_l2_is_on)
 
 void kbase_pm_release_gpu_cycle_counter(struct kbase_device *kbdev)
 {
 	unsigned long flags;
+
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
 	spin_lock_irqsave(&kbdev->pm.gpu_cycle_counter_requests_lock, flags);

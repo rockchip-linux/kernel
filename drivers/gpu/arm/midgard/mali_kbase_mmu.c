@@ -126,7 +126,7 @@ static void page_fault_worker(struct work_struct *data)
 
 			/* Switch to unmapped mode */
 			current_setup->transtab &= ~(u64)MMU_TRANSTAB_ADRMODE_MASK;
-			current_setup->transtab |= ASn_TRANSTAB_ADRMODE_UNMAPPED;
+			current_setup->transtab |= AS_TRANSTAB_ADRMODE_UNMAPPED;
 
 			/* Apply new address space settings */
 			kbase_mmu_hw_configure(kbdev, faulting_as, kctx);
@@ -154,7 +154,7 @@ static void page_fault_worker(struct work_struct *data)
 		goto fault_done;
 	}
 
-	if ((((faulting_as->fault_status & ASn_FAULTSTATUS_ACCESS_TYPE_MASK) == ASn_FAULTSTATUS_ACCESS_TYPE_READ) && !(region->flags & KBASE_REG_GPU_RD)) || (((faulting_as->fault_status & ASn_FAULTSTATUS_ACCESS_TYPE_MASK) == ASn_FAULTSTATUS_ACCESS_TYPE_WRITE) && !(region->flags & KBASE_REG_GPU_WR)) || (((faulting_as->fault_status & ASn_FAULTSTATUS_ACCESS_TYPE_MASK) == ASn_FAULTSTATUS_ACCESS_TYPE_EX) && (region->flags & KBASE_REG_GPU_NX))) {
+	if ((((faulting_as->fault_status & AS_FAULTSTATUS_ACCESS_TYPE_MASK) == AS_FAULTSTATUS_ACCESS_TYPE_READ) && !(region->flags & KBASE_REG_GPU_RD)) || (((faulting_as->fault_status & AS_FAULTSTATUS_ACCESS_TYPE_MASK) == AS_FAULTSTATUS_ACCESS_TYPE_WRITE) && !(region->flags & KBASE_REG_GPU_WR)) || (((faulting_as->fault_status & AS_FAULTSTATUS_ACCESS_TYPE_MASK) == AS_FAULTSTATUS_ACCESS_TYPE_EX) && (region->flags & KBASE_REG_GPU_NX))) {
 		dev_warn(kbdev->dev, "Access permissions don't match: region->flags=0x%lx", region->flags);
 		kbase_gpu_vm_unlock(kctx);
 		kbase_mmu_report_fault_and_kill(kctx, faulting_as);
@@ -214,14 +214,14 @@ static void page_fault_worker(struct work_struct *data)
 
 		/* flush L2 and unlock the VA (resumes the MMU) */
 		if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_6367))
-			op = ASn_COMMAND_FLUSH;
+			op = AS_COMMAND_FLUSH;
 		else
-			op = ASn_COMMAND_FLUSH_PT;
+			op = AS_COMMAND_FLUSH_PT;
 
 		kbase_mmu_hw_do_operation(kbdev, faulting_as, kctx,
 					  faulting_as->fault_addr >> PAGE_SHIFT,
 					  new_pages,
-					  op, 0, 1);
+					  op, 1);
 
 		mutex_unlock(&faulting_as->transaction_mutex);
 		/* AS transaction end */
@@ -731,15 +731,14 @@ static void kbase_mmu_flush(struct kbase_context *kctx, u64 vpfn, size_t nr)
 			mutex_lock(&kbdev->as[kctx->as_nr].transaction_mutex);
 
 			if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_6367))
-				op = ASn_COMMAND_FLUSH;
+				op = AS_COMMAND_FLUSH;
 			else
-				op = ASn_COMMAND_FLUSH_MEM;
+				op = AS_COMMAND_FLUSH_MEM;
 
 			ret = kbase_mmu_hw_do_operation(kbdev,
 							&kbdev->as[kctx->as_nr],
 							kctx, vpfn, nr,
-							op,
-							KBASE_AS_FLUSH_MAX_LOOPS, 0);
+							op, 0);
 #if KBASE_GPU_RESET_EN
 			if (ret) {
 				/* Flush failed to complete, assume the GPU has hung and perform a reset to recover */
@@ -979,12 +978,12 @@ mali_error kbase_mmu_init(struct kbase_context *kctx)
 	/* Preallocate MMU depth of four pages for mmu_teardown_level to use */
 	kctx->mmu_teardown_pages = kmalloc(PAGE_SIZE * 4, GFP_KERNEL);
 
-	kctx->mem_attrs = (ASn_MEMATTR_IMPL_DEF_CACHE_POLICY <<
-			   (ASn_MEMATTR_INDEX_IMPL_DEF_CACHE_POLICY * 8)) |
-			  (ASn_MEMATTR_FORCE_TO_CACHE_ALL    <<
-			   (ASn_MEMATTR_INDEX_FORCE_TO_CACHE_ALL * 8)) |
-			  (ASn_MEMATTR_WRITE_ALLOC           <<
-			   (ASn_MEMATTR_INDEX_WRITE_ALLOC * 8)) |
+	kctx->mem_attrs = (AS_MEMATTR_IMPL_DEF_CACHE_POLICY <<
+			   (AS_MEMATTR_INDEX_IMPL_DEF_CACHE_POLICY * 8)) |
+			  (AS_MEMATTR_FORCE_TO_CACHE_ALL    <<
+			   (AS_MEMATTR_INDEX_FORCE_TO_CACHE_ALL * 8)) |
+			  (AS_MEMATTR_WRITE_ALLOC           <<
+			   (AS_MEMATTR_INDEX_WRITE_ALLOC * 8)) |
 			  0; /* The other indices are unused for now */
 
 	if (NULL == kctx->mmu_teardown_pages)
@@ -1157,7 +1156,7 @@ static void bus_fault_worker(struct work_struct *data)
 
 		/* Set the MMU into unmapped mode */
 		current_setup->transtab &= ~(u64)MMU_TRANSTAB_ADRMODE_MASK;
-		current_setup->transtab |= ASn_TRANSTAB_ADRMODE_UNMAPPED;
+		current_setup->transtab |= AS_TRANSTAB_ADRMODE_UNMAPPED;
 
 		/* Apply the new settings */
 		kbase_mmu_hw_configure(kbdev, faulting_as, kctx);
@@ -1258,7 +1257,7 @@ const char *kbase_exception_name(u32 exception_code)
 	case 0x80:
 		e = "DELAYED_BUS_FAULT";
 		break;
-	case 0x81:
+	case 0x88:
 		e = "SHAREABILITY_FAULT";
 		break;
 		/* MMU exceptions */
@@ -1376,7 +1375,7 @@ static void kbase_mmu_report_fault_and_kill(struct kbase_context *kctx, struct k
 	current_setup = &as->current_setup;
 
 	current_setup->transtab &= ~(u64)MMU_TRANSTAB_ADRMODE_MASK;
-	current_setup->transtab |= ASn_TRANSTAB_ADRMODE_UNMAPPED;
+	current_setup->transtab |= AS_TRANSTAB_ADRMODE_UNMAPPED;
 
 	/* Apply the new address space setting */
 	kbase_mmu_hw_configure(kbdev, as, kctx);
@@ -1419,7 +1418,7 @@ void kbasep_as_do_poke(struct work_struct *work)
 	mutex_lock(&as->transaction_mutex);
 	/* Force a uTLB invalidate */
 	kbase_mmu_hw_do_operation(kbdev, as, kctx, 0, 0,
-				  ASn_COMMAND_UNLOCK, 0, 0);
+				  AS_COMMAND_UNLOCK, 0);
 	mutex_unlock(&as->transaction_mutex);
 	/* AS transaction end */
 

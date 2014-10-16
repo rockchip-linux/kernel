@@ -137,11 +137,11 @@ void kbase_timeline_job_slot_done(struct kbase_device *kbdev, struct kbase_conte
 	if (done_code & KBASE_JS_ATOM_DONE_EVICTED_FROM_NEXT) {
 		KBASE_TIMELINE_JOB_START_NEXT(kctx, js, 0);
 	} else {
-		/* Job finished in JSn_HEAD */
+		/* Job finished in JS_HEAD */
 		base_atom_id atom_number = kbase_jd_atom_id(kctx, katom);
 		KBASE_TIMELINE_JOB_START_HEAD(kctx, js, 0);
 		KBASE_TIMELINE_JOB_STOP(kctx, js, atom_number);
-		/* see if we need to trace the job in JSn_NEXT moving to JSn_HEAD */
+		/* see if we need to trace the job in JS_NEXT moving to JS_HEAD */
 		if (kbdev->timeline.slot_atoms_submitted[js] > 1) {
 			/* Tag events with next_katom's kctx */
 			struct kbase_jm_slot *slot = &kbdev->jm_slots[js];
@@ -149,7 +149,7 @@ void kbase_timeline_job_slot_done(struct kbase_device *kbdev, struct kbase_conte
 			struct kbase_context *next_kctx;
 			KBASE_DEBUG_ASSERT(kbasep_jm_nr_jobs_submitted(slot) > 0);
 
-			/* Peek the next atom - note that the atom in JSn_HEAD will already
+			/* Peek the next atom - note that the atom in JS_HEAD will already
 			 * have been dequeued */
 			next_katom = kbasep_jm_peek_idx_submit_slot(slot, 0);
 			next_kctx = next_katom->kctx;

@@ -25,14 +25,6 @@
 #ifndef _KBASE_MEM_LINUX_H_
 #define _KBASE_MEM_LINUX_H_
 
-/* This define is used by the gator kernel module compile to select which DDK
- * API calling convention to use. If not defined (legacy DDK) gator assumes
- * version 1. The version to DDK release mapping is:
- *     Version 1 API: DDK versions r1px, r2px
- *     Version 2 API: DDK versions r3px and newer
- **/
-#define MALI_DDK_GATOR_API_VERSION 2
-
 /** A HWC dump mapping */
 typedef struct kbase_hwc_dma_mapping {
 	void       *cpu_va;
@@ -47,6 +39,18 @@ u64 kbase_mem_alias(struct kbase_context *kctx, u64* flags, u64 stride, u64 nent
 mali_error kbase_mem_flags_change(struct kbase_context *kctx, mali_addr64 gpu_addr, unsigned int flags, unsigned int mask);
 int kbase_mem_commit(struct kbase_context * kctx, mali_addr64 gpu_addr, u64 new_pages, enum base_backing_threshold_status * failure_reason);
 int kbase_mmap(struct file *file, struct vm_area_struct *vma);
+
+struct kbase_vmap_struct {
+	mali_addr64 gpu_addr;
+	struct kbase_mem_phy_alloc *alloc;
+	phys_addr_t *pages;
+	void *addr;
+	size_t size;
+	bool is_cached;
+};
+void *kbase_vmap(struct kbase_context *kctx, mali_addr64 gpu_addr, size_t size,
+		struct kbase_vmap_struct *map);
+void kbase_vunmap(struct kbase_context *kctx, struct kbase_vmap_struct *map);
 
 /** @brief Allocate memory from kernel space and map it onto the GPU
  *

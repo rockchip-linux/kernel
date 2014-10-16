@@ -91,6 +91,7 @@ void kbase_device_term(struct kbase_device *kbdev);
 void kbase_device_free(struct kbase_device *kbdev);
 int kbase_device_has_feature(struct kbase_device *kbdev, u32 feature);
 struct kbase_device *kbase_find_device(int minor);	/* Only needed for gator integration */
+void kbase_release_device(struct kbase_device *kbdev);
 
 void kbase_set_profiling_control(struct kbase_device *kbdev, u32 control, u32 value);
 
@@ -104,7 +105,8 @@ u32 kbase_get_profiling_control(struct kbase_device *kbdev, u32 control);
 void kbase_synchronize_irqs(struct kbase_device *kbdev);
 void kbase_synchronize_irqs(struct kbase_device *kbdev);
 
-struct kbase_context *kbase_create_context(struct kbase_device *kbdev);
+struct kbase_context *
+kbase_create_context(struct kbase_device *kbdev, bool is_compat);
 void kbase_destroy_context(struct kbase_context *kctx);
 mali_error kbase_context_set_create_flags(struct kbase_context *kctx, u32 flags);
 
@@ -152,8 +154,16 @@ void kbase_job_slot_term(struct kbase_device *kbdev);
 void kbase_job_done(struct kbase_device *kbdev, u32 done);
 void kbase_job_zap_context(struct kbase_context *kctx);
 
-void kbase_job_slot_softstop(struct kbase_device *kbdev, int js, struct kbase_jd_atom *target_katom);
-void kbase_job_slot_hardstop(struct kbase_context *kctx, int js, struct kbase_jd_atom *target_katom);
+void kbase_job_slot_softstop(struct kbase_device *kbdev, int js,
+		struct kbase_jd_atom *target_katom);
+void kbase_job_slot_softstop_swflags(struct kbase_device *kbdev, int js,
+		struct kbase_jd_atom *target_katom, u32 sw_flags);
+void kbase_job_slot_hardstop(struct kbase_context *kctx, int js,
+		struct kbase_jd_atom *target_katom);
+void kbase_job_check_enter_disjoint(struct kbase_device *kbdev, u32 action,
+		u16 core_reqs, struct kbase_jd_atom *target_katom);
+void kbase_job_check_leave_disjoint(struct kbase_device *kbdev,
+		struct kbase_jd_atom *target_katom);
 
 void kbase_event_post(struct kbase_context *ctx, struct kbase_jd_atom *event);
 int kbase_event_dequeue(struct kbase_context *ctx, struct base_jd_event_v2 *uevent);
@@ -291,7 +301,90 @@ static INLINE int kbase_jd_atom_id(struct kbase_context *kctx, struct kbase_jd_a
 	return result;
 }
 
+/**
+ * Initialize the disjoint state
+ *
+ * The disjoint event count and state are both set to zero.
+ *
+ * Disjoint functions usage:
+ *
+ * The disjoint event count should be incremented whenever a disjoint event occurs.
+ *
+ * There are several cases which are regarded as disjoint behavior. Rather than just increment
+ * the counter during disjoint events we also increment the counter when jobs may be affected
+ * by what the GPU is currently doing. To facilitate this we have the concept of disjoint state.
+ *
+ * Disjoint state is entered during GPU reset and for the entire time that an atom is replaying
+ * (as part of the replay workaround). Increasing the disjoint state also increases the count of
+ * disjoint events.
+ *
+ * The disjoint state is then used to increase the count of disjoint events during job submission
+ * and job completion. Any atom submitted or completed while the disjoint state is greater than
+ * zero is regarded as a disjoint event.
+ *
+ * The disjoint event counter is also incremented immediately whenever a job is soft stopped
+ * and during context creation.
+ *
+ * @param kbdev The kbase device
+ */
+void kbase_disjoint_init(struct kbase_device *kbdev);
+
+/**
+ * Increase the count of disjoint events
+ * called when a disjoint event has happened
+ *
+ * @param kbdev The kbase device
+ */
+void kbase_disjoint_event(struct kbase_device *kbdev);
+
+/**
+ * Increase the count of disjoint events only if the GPU is in a disjoint state
+ *
+ * This should be called when something happens which could be disjoint if the GPU
+ * is in a disjoint state. The state refcount keeps track of this.
+ *
+ * @param kbdev The kbase device
+ */
+void kbase_disjoint_event_potential(struct kbase_device *kbdev);
+
+/**
+ * Returns the count of disjoint events
+ *
+ * @param kbdev The kbase device
+ * @return the count of disjoint events
+ */
+u32 kbase_disjoint_event_get(struct kbase_device *kbdev);
+
+/**
+ * Increment the refcount state indicating that the GPU is in a disjoint state.
+ *
+ * Also Increment the disjoint event count (calls @ref kbase_disjoint_event)
+ * eventually after the disjoint state has completed @ref kbase_disjoint_state_down
+ * should be called
+ *
+ * @param kbdev The kbase device
+ */
+void kbase_disjoint_state_up(struct kbase_device *kbdev);
+
+/**
+ * Decrement the refcount state
+ *
+ * Also Increment the disjoint event count (calls @ref kbase_disjoint_event)
+ *
+ * Called after @ref kbase_disjoint_state_up once the disjoint state is over
+ *
+ * @param kbdev The kbase device
+ */
+void kbase_disjoint_state_down(struct kbase_device *kbdev);
+
+/**
+ * If a job is soft stopped and the number of contexts is >= this value
+ * it is reported as a disjoint event
+ */
+#define KBASE_DISJOINT_STATE_INTERLEAVED_CONTEXT_COUNT_THRESHOLD 2
+
 #if KBASE_TRACE_ENABLE
+#ifndef CONFIG_MALI_SYSTEM_TRACE
 /** Add trace values about a job-slot
  *
  * @note Any functions called through this macro will still be evaluated in
@@ -363,8 +456,7 @@ static INLINE int kbase_jd_atom_id(struct kbase_context *kctx, struct kbase_jd_a
 void kbasep_trace_add(struct kbase_device *kbdev, enum kbase_trace_code code, void *ctx, struct kbase_jd_atom *katom, u64 gpu_addr, u8 flags, int refcount, int jobslot, unsigned long info_val);
 /** PRIVATE - do not use directly. Use KBASE_TRACE_CLEAR() instead */
 void kbasep_trace_clear(struct kbase_device *kbdev);
-#else
-#ifdef CONFIG_MALI_SYSTEM_TRACE
+#else /* #ifndef CONFIG_MALI_SYSTEM_TRACE */
 /* Dispatch kbase trace events as system trace events */
 #include <mali_linux_kbase_trace.h>
 #define KBASE_TRACE_ADD_SLOT(kbdev, code, ctx, katom, gpu_addr, jobslot)\
@@ -393,7 +485,8 @@ void kbasep_trace_clear(struct kbase_device *kbdev);
 		CSTD_NOP(0);\
 	} while (0)
 
-#else /* CONFIG_MALI_SYSTEM_TRACE */
+#endif /* #ifndef CONFIG_MALI_SYSTEM_TRACE */
+#else
 #define KBASE_TRACE_ADD_SLOT(kbdev, code, ctx, katom, gpu_addr, jobslot)\
 	do {\
 		CSTD_UNUSED(kbdev);\
@@ -459,8 +552,7 @@ void kbasep_trace_clear(struct kbase_device *kbdev);
 		CSTD_UNUSED(kbdev);\
 		CSTD_NOP(0);\
 	} while (0)
-#endif /* CONFIG_MALI_SYSTEM_TRACE */
-#endif
+#endif /* KBASE_TRACE_ENABLE */
 /** PRIVATE - do not use directly. Use KBASE_TRACE_DUMP() instead */
 void kbasep_trace_dump(struct kbase_device *kbdev);
 #endif

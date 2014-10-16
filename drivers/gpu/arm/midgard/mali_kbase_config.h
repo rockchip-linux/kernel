@@ -409,6 +409,12 @@ enum {
 	 */
 	KBASE_CONFIG_ATTR_PM_POWEROFF_TICK_GPU,
 
+	/** Power model for IPA
+	 *
+	 * Attached value: pointer to @ref mali_pa_model_ops
+	 */
+	KBASE_CONFIG_ATTR_POWER_MODEL_CALLBACKS,
+
 	/**
 	 * End of attribute list indicator.
 	 * The configuration loader will stop processing any more elements
@@ -550,6 +556,17 @@ typedef struct kbase_pm_callback_conf {
 	int (*power_runtime_on_callback)(struct kbase_device *kbdev);
 
 } kbase_pm_callback_conf;
+
+/**
+ * @brief Default implementation of @ref KBASE_CONFIG_ATTR_CPU_SPEED_FUNC.
+ *
+ * This function sets clock_speed to 100, so will be an underestimate for
+ * any real system.
+ *
+ * See @ref kbase_cpuprops_clock_speed_function for details on the parameters
+ * and return value.
+ */
+int kbase_cpuprops_get_default_clock_speed(u32 * const clock_speed);
 
 /**
  * Type of the function pointer for KBASE_CONFIG_ATTR_CPU_SPEED_FUNC.

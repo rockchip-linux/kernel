@@ -15,7 +15,7 @@
 
 
 # Driver version string which is returned to userspace via an ioctl
-MALI_RELEASE_NAME ?= "r5p0-14wk28"
+MALI_RELEASE_NAME ?= "r5p0-14wk42"
 
 # Paths required for build
 KBASE_PATH = $(src)
@@ -112,13 +112,15 @@ SRC := \
 	mali_kbase_sync_user.c \
 	mali_kbase_replay.c \
 	mali_kbase_mem_profile_debugfs.c \
-	mali_kbase_mmu_hw_direct.c
+	mali_kbase_mmu_hw_direct.c \
+	mali_kbase_disjoint_events.c \
+	mali_kbase_gator_api.c
 
 ifeq ($(MALI_CUSTOMER_RELEASE),0)
 SRC += \
-     mali_kbase_pm_ca_random.c \
-     mali_kbase_pm_demand_always_powered.c \
-     mali_kbase_pm_fast_start.c
+	mali_kbase_pm_ca_random.c \
+	mali_kbase_pm_demand_always_powered.c \
+	mali_kbase_pm_fast_start.c
 endif
 
 # Job Scheduler Policy: Completely Fair Scheduler
@@ -182,7 +184,7 @@ ifeq ($(CONFIG_MALI_PLATFORM_FAKE),y)
 	endif
 
 	ifeq ($(CONFIG_MALI_PLATFORM_JUNO_SOC),y)
-		SRC += platform/juno_soc/mali_kbase_config_vexpress.c
+		SRC += platform/juno_soc/mali_kbase_config_juno_soc.c
 		ccflags-y += -I$(src)/platform/juno_soc
 	endif
 
@@ -248,10 +250,13 @@ obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 
 # Tell the Linux build system to enable building of our .c files
 mali_kbase-y := $(SRC:.c=.o)
+
+mali_kbase-$(CONFIG_MALI_DEVFREQ) += mali_kbase_devfreq.o
+mali_kbase-$(CONFIG_MALI_POWER_ACTOR) += mali_kbase_power_actor.o
+
 ifneq ($(wildcard $(src)/internal/Kbuild),)
 ifeq ($(MALI_CUSTOMER_RELEASE),0)
 include  $(src)/internal/Kbuild
 mali_kbase-y += $(INTERNAL:.c=.o)
 endif
 endif
-

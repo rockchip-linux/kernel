@@ -50,12 +50,12 @@ static INLINE int kbasep_jm_is_js_free(struct kbase_device *kbdev, int js, struc
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 	KBASE_DEBUG_ASSERT(0 <= js && js < kbdev->gpu_props.num_job_slots);
 
-	return !kbase_reg_read(kbdev, JOB_SLOT_REG(js, JSn_COMMAND_NEXT), kctx);
+	return !kbase_reg_read(kbdev, JOB_SLOT_REG(js, JS_COMMAND_NEXT), kctx);
 }
 
 /**
  * This checks that:
- * - there is enough space in the GPU's buffers (JSn_NEXT and JSn_HEAD registers) to accomodate the job.
+ * - there is enough space in the GPU's buffers (JS_NEXT and JS_HEAD registers) to accomodate the job.
  * - there is enough space to track the job in a our Submit Slots. Note that we have to maintain space to
  *   requeue one job in case the next registers on the hardware need to be cleared.
  */

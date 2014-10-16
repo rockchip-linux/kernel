@@ -80,8 +80,6 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev,
  *                           operation on.
  * @param[in]  nr            Number of pages to work on.
  * @param[in]  type          Operation type (written to ASn_COMMAND).
- * @param[in]  timeout       Number of cycles to wait for the operation to
- *                           complete, or zero for infinitity.
  * @param[in]  handling_irq  Is this operation being called during the handling
  *                           of an interrupt?
  *
@@ -89,7 +87,7 @@ void kbase_mmu_hw_configure(struct kbase_device *kbdev,
  */
 int kbase_mmu_hw_do_operation(struct kbase_device *kbdev, struct kbase_as *as,
 		struct kbase_context *kctx, u64 vpfn, u32 nr, u32 type,
-		unsigned int timeout, unsigned int handling_irq);
+		unsigned int handling_irq);
 
 /** @brief Clear a fault that has been previously reported by the MMU.
  *

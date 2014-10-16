@@ -115,6 +115,8 @@ struct kbasep_pm_metrics_data {
 	ktime_t time_period_start;
 	u32 time_busy;
 	u32 time_idle;
+	u32 prev_busy;
+	u32 prev_idle;
 	mali_bool gpu_active;
 	u32 busy_cl[2];
 	u32 busy_gl;
@@ -123,8 +125,10 @@ struct kbasep_pm_metrics_data {
 
 	spinlock_t lock;
 
+#ifdef CONFIG_MALI_MIDGARD_DVFS
 	struct hrtimer timer;
 	mali_bool timer_active;
+#endif
 
 	void *platform_data;
 	struct kbase_device *kbdev;
@@ -740,14 +744,24 @@ void kbase_pm_unregister_vsync_callback(struct kbase_device *kbdev);
 enum kbase_pm_dvfs_action kbase_pm_get_dvfs_action(struct kbase_device *kbdev);
 
 /** Mark that the GPU cycle counter is needed, if the caller is the first caller
- *  then the GPU cycle counters will be enabled.
+ *  then the GPU cycle counters will be enabled along with the l2 cache
  *
  * The GPU must be powered when calling this function (i.e. @ref kbase_pm_context_active must have been called).
  *
  * @param kbdev    The kbase device structure for the device (must be a valid pointer)
  */
-
 void kbase_pm_request_gpu_cycle_counter(struct kbase_device *kbdev);
+
+/** This is a version of the above function (@ref kbase_pm_request_gpu_cycle_counter) suitable for being 
+ *  called when the l2 cache is known to be on and assured to be on until the subsequent call of 
+ *  kbase_pm_release_gpu_cycle_counter such as when a job is submitted. 
+ *  It does not sleep and can be called from atomic functions. 
+ *
+ *  The GPU must be powered when calling this function (i.e. @ref kbase_pm_context_active must have been called).
+ *  and the l2 cache must be powered on 
+ *  @param kbdev    The kbase device structure for the device (must be a valid pointer)
+ */
+void kbase_pm_request_gpu_cycle_counter_l2_is_on(struct kbase_device *kbdev);
 
 /** Mark that the GPU cycle counter is no longer in use, if the caller is the last
  *  caller then the GPU cycle counters will be disabled. A request must have been made
@@ -847,6 +861,12 @@ void kbase_pm_do_poweron(struct kbase_device *kbdev, mali_bool is_resume);
  *                     MALI_FALSE otherwise
  */
 void kbase_pm_do_poweroff(struct kbase_device *kbdev, mali_bool is_suspend);
+
+#ifdef CONFIG_PM_DEVFREQ
+void kbase_pm_get_dvfs_utilisation(struct kbase_device *kbdev,
+		unsigned long *total, unsigned long *busy);
+void kbase_pm_reset_dvfs_utilisation(struct kbase_device *kbdev);
+#endif
 
 #ifdef CONFIG_MALI_MIDGARD_DVFS
 

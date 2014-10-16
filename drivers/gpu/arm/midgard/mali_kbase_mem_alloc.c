@@ -43,6 +43,7 @@ static unsigned long kbase_mem_allocator_count(struct shrinker *s,
 						struct shrink_control *sc)
 {
 	struct kbase_mem_allocator *allocator;
+
 	allocator = container_of(s, struct kbase_mem_allocator, free_list_reclaimer);
 	return atomic_read(&allocator->free_list_size);
 }
@@ -81,7 +82,7 @@ static unsigned long kbase_mem_allocator_scan(struct shrinker *s,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 static int kbase_mem_allocator_shrink(struct shrinker *s,
-					struct shrink_control *sc)
+		struct shrink_control *sc)
 {
 	if (sc->nr_to_scan == 0)
 		return kbase_mem_allocator_count(s, sc);
@@ -133,6 +134,7 @@ void kbase_mem_allocator_term(struct kbase_mem_allocator *allocator)
 	mutex_lock(&allocator->free_list_lock);
 	while (!list_empty(&allocator->free_list_head)) {
 		struct page *p;
+
 		p = list_first_entry(&allocator->free_list_head, struct page,
 				     lru);
 		list_del(&p->lru);
@@ -150,8 +152,8 @@ KBASE_EXPORT_TEST_API(kbase_mem_allocator_term)
 
 mali_error kbase_mem_allocator_alloc(struct kbase_mem_allocator *allocator, size_t nr_pages, phys_addr_t *pages)
 {
-	struct page * p;
-	void * mp;
+	struct page *p;
+	void *mp;
 	int i;
 	int num_from_free_list;
 	struct list_head from_free_list = LIST_HEAD_INIT(from_free_list);
@@ -174,8 +176,7 @@ mali_error kbase_mem_allocator_alloc(struct kbase_mem_allocator *allocator, size
 	i = 0;
 
 	/* Allocate as many pages from the pool of already allocated pages. */
-	list_for_each_entry(p, &from_free_list, lru)
-	{
+	list_for_each_entry(p, &from_free_list, lru) {
 		pages[i] = PFN_PHYS(page_to_pfn(p));
 		i++;
 	}
@@ -184,22 +185,18 @@ mali_error kbase_mem_allocator_alloc(struct kbase_mem_allocator *allocator, size
 		return MALI_ERROR_NONE;
 
 	/* If not all pages were sourced from the pool, request new ones. */
-	for (; i < nr_pages; i++)
-	{
+	for (; i < nr_pages; i++) {
 		dma_addr_t dma_addr;
-#if defined(CONFIG_ARM) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
+#if defined(CONFIG_ARM) && !defined(CONFIG_HAVE_DMA_ATTRS) && LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
 		/* DMA cache sync fails for HIGHMEM before 3.5 on ARM */
 		p = alloc_page(GFP_USER);
 #else
 		p = alloc_page(GFP_HIGHUSER);
 #endif
 		if (NULL == p)
-		{
 			goto err_out_roll_back;
-		}
 		mp = kmap(p);
-		if (NULL == mp)
-		{
+		if (NULL == mp) {
 			__free_page(p);
 			goto err_out_roll_back;
 		}
@@ -279,7 +276,7 @@ void kbase_mem_allocator_free(struct kbase_mem_allocator *allocator, size_t nr_p
 			/* Sync back the memory to ensure that future cache
 			 * invalidations don't trample on memory.
 			 */
-			if(sync_back)
+			if (sync_back)
 				dma_sync_single_for_cpu(allocator->kbdev->dev,
 						page_private(p),
 						PAGE_SIZE,
