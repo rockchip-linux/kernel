@@ -659,6 +659,16 @@ static void __init arch_timer_common_init(void)
 static void __init arch_timer_init(struct device_node *np)
 {
 	int i;
+	void __iomem *timer7_base_addr;
+	timer7_base_addr = ioremap(0xff810020, 0x20);
+	if (!timer7_base_addr) {
+		pr_err("%s: could not map timer registers\n", __func__);
+		return;
+	}
+	writel(0, timer7_base_addr + 0x10);
+	writel(0xFFFFFFFF, timer7_base_addr + 0x00);
+	writel(0xFFFFFFFF, timer7_base_addr + 0x04);
+	writel(1, timer7_base_addr + 0x10);
 
 	if (arch_timers_present & ARCH_CP15_TIMER) {
 		pr_warn("arch_timer: multiple nodes in dt, skipping\n");
