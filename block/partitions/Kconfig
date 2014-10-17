@@ -267,3 +267,13 @@ config CMDLINE_PARTITION
 	help
 	  Say Y here if you want to read the partition table from bootargs.
 	  The format for the command line is just like mtdparts.
+
+config RK_PARTITION
+	bool "Rockchip partition table support" if PARTITION_ADVANCED
+	default y if ARCH_ROCKCHIP
+	---help---
+	  Like most systems, Rockchip use its own hard disk partition table
+	  format,incompatible with all others. Say Y here if you would like
+	  to be able to read the hard diskpartition table format used by Rockchip
+	  Soc inside machines with eMMC as main storage disk. Otherwise, as well
+	  as you don't know what all this about, say N.
