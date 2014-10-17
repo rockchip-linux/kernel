@@ -3776,6 +3776,8 @@ static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 	return 0;
 }
 
+#ifdef CONFIG_ACPI
+
 static unsigned long long rt5677_parse_acpi_entry(struct device *dev,
 		const char *name)
 {
@@ -3803,6 +3805,11 @@ static void rt5677_parse_acpi(struct rt5677_priv *rt5677, struct device *dev)
 	rt5677->pdata.lout3_diff = (bool)rt5677_parse_acpi_entry(dev, "OUT3");
 	rt5677->pdata.asrc_en = (bool)rt5677_parse_acpi_entry(dev, "ASRC");
 }
+#else
+static void rt5677_parse_acpi(struct rt5677_priv *rt5677, struct device *dev)
+{
+}
+#endif
 
 static int rt5677_i2c_probe(struct i2c_client *i2c,
 		    const struct i2c_device_id *id)
