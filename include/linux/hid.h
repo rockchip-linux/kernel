@@ -230,6 +230,9 @@ struct hid_item {
 #define HID_DG_BARRELSWITCH	0x000d0044
 #define HID_DG_ERASER		0x000d0045
 #define HID_DG_TABLETPICK	0x000d0046
+
+#define HID_CP_CONSUMERCONTROL	0x000c0001
+
 /*
  * as of May 20, 2009 the usages below are not yet in the official USB spec
  * but are being pushed by Microsft as described in their paper "Digitizer
