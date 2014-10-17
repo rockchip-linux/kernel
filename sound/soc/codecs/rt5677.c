@@ -807,7 +807,7 @@ static SOC_ENUM_SINGLE_DECL(
 static int rt5677_dsp_vad_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
 	ucontrol->value.integer.value[0] = rt5677->dsp_vad_en;
@@ -818,7 +818,7 @@ static int rt5677_dsp_vad_get(struct snd_kcontrol *kcontrol,
 static int rt5677_dsp_vad_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
 	rt5677->dsp_vad_en = !!ucontrol->value.integer.value[0];
