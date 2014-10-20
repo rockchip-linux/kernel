@@ -150,3 +150,7 @@ config TEGRA_TIMER
 
 config CLKSRC_QCOM
 	bool
+
+config CLKSRC_MIPS_GIC
+	bool
+	depends on MIPS_GIC
