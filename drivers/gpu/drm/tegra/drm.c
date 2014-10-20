@@ -10,6 +10,9 @@
 #include <linux/host1x.h>
 #include <linux/iommu.h>
 
+#include <drm/drmP.h>
+#include <drm/drm_atomic.h>
+
 #include "drm.h"
 #include "gem.h"
 
@@ -800,6 +803,13 @@ static struct drm_driver tegra_drm_driver = {
 	.dumb_create = tegra_bo_dumb_create,
 	.dumb_map_offset = tegra_bo_dumb_map_offset,
 	.dumb_destroy = drm_gem_dumb_destroy,
+
+	.atomic_begin = drm_atomic_begin,
+	.atomic_set_event = drm_atomic_set_event,
+	.atomic_check = drm_atomic_check,
+	.atomic_commit = drm_atomic_commit,
+	.atomic_end = drm_atomic_end,
+	.atomic_funcs = &drm_atomic_funcs,
 
 	.ioctls = tegra_drm_ioctls,
 	.num_ioctls = ARRAY_SIZE(tegra_drm_ioctls),
