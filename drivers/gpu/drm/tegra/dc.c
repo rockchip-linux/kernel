@@ -14,6 +14,9 @@
 
 #include <soc/tegra/pmc.h>
 
+#include <drm/drmP.h>
+#include <drm/drm_atomic.h>
+
 #include "dc.h"
 #include "drm.h"
 #include "gem.h"
@@ -397,6 +400,7 @@ static void tegra_plane_destroy(struct drm_plane *plane)
 static const struct drm_plane_funcs tegra_plane_funcs = {
 	.update_plane = tegra_plane_update,
 	.disable_plane = tegra_plane_disable,
+	.set_property = drm_atomic_plane_set_property,
 	.destroy = tegra_plane_destroy,
 };
 
@@ -735,6 +739,7 @@ static const struct drm_crtc_funcs tegra_crtc_funcs = {
 	.cursor_move = tegra_dc_cursor_move,
 	.page_flip = tegra_dc_page_flip,
 	.set_config = drm_crtc_helper_set_config,
+	.set_property = drm_atomic_crtc_set_property,
 	.destroy = tegra_dc_destroy,
 };
 
