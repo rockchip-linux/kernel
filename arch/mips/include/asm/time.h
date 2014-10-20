@@ -60,7 +60,7 @@ static inline int mips_clockevent_init(void)
 {
 #ifdef CONFIG_MIPS_MT_SMTC
 	return smtc_clockevent_init();
-#elif defined(CONFIG_CEVT_GIC)
+#elif defined(CONFIG_CLKSRC_MIPS_GIC)
 	return (gic_clockevent_init() | r4k_clockevent_init());
 #elif defined(CONFIG_CEVT_R4K)
 	return r4k_clockevent_init();
