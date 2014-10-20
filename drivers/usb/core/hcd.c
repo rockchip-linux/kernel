@@ -2196,8 +2196,12 @@ int hcd_bus_resume(struct usb_device *rhdev, pm_message_t msg)
 		return -ENOENT;
 	if (HCD_RH_RUNNING(hcd))
 		return 0;
+
 	if (dev_dark_resume_active(&rhdev->dev)) {
-		clear_bit(HCD_FLAG_WAKEUP_PENDING, &hcd->flags);
+		/* This bit only gets set by asynchronous work that should
+		 * not be scheduled in dark resume.
+		 */
+		WARN_ON(HCD_WAKEUP_PENDING(hcd));
 		return 0;
 	}
 
@@ -2268,6 +2272,12 @@ static void hcd_resume_work(struct work_struct *work)
 void usb_hcd_resume_root_hub (struct usb_hcd *hcd)
 {
 	unsigned long flags;
+	struct device *dev = &hcd->self.root_hub->dev;
+
+	if (dev_dark_resume_active(dev)) {
+		dev_info(dev, "disabled for dark resume\n");
+		return;
+	}
 
 	spin_lock_irqsave (&hcd_root_hub_lock, flags);
 	if (hcd->rh_registered) {
