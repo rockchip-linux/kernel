@@ -11,11 +11,11 @@
 #include <linux/percpu.h>
 #include <linux/smp.h>
 #include <linux/irq.h>
+#include <linux/irqchip/mips-gic.h>
 
 #include <asm/smtc_ipi.h>
 #include <asm/time.h>
 #include <asm/cevt-r4k.h>
-#include <asm/gic.h>
 
 /*
  * The SMTC Kernel for the 34K, 1004K, et. al. replaces several
