@@ -3140,7 +3140,8 @@ static int drm_mode_cursor_universal(struct drm_crtc *crtc,
 				crtc->base.id, fb ? fb->base.id : 0,
 				crtc_x, crtc_y, crtc_w, crtc_h,
 				0, 0, src_w, src_h);
-	drm_framebuffer_unreference(fb);
+	if (fb)
+		drm_framebuffer_unreference(fb);
 	/* Update successful; save new cursor position, if necessary */
 	if (ret == 0 && req->flags & DRM_MODE_CURSOR_MOVE) {
 		crtc->cursor_x = req->x;
