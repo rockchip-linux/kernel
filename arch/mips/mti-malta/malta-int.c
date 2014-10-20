@@ -37,7 +37,7 @@
 #include <asm/setup.h>
 #include <asm/rtlx.h>
 
-static unsigned long _msc01_biu_base;
+static void __iomem *_msc01_biu_base;
 
 static DEFINE_RAW_SPINLOCK(mips_irq_lock);
 
@@ -293,10 +293,9 @@ void __init arch_init_irq(void)
 		gic_present = 1;
 	} else {
 		if (mips_revision_sconid == MIPS_REVISION_SCON_ROCIT) {
-			_msc01_biu_base = (unsigned long)
-					ioremap_nocache(MSC01_BIU_REG_BASE,
+			_msc01_biu_base = ioremap_nocache(MSC01_BIU_REG_BASE,
 						MSC01_BIU_ADDRSPACE_SZ);
-			gic_present = (REG(_msc01_biu_base, MSC01_SC_CFG) &
+			gic_present = (readl(_msc01_biu_base + MSC01_SC_CFG_OFS) &
 					MSC01_SC_CFG_GICPRES_MSK) >>
 					MSC01_SC_CFG_GICPRES_SHF;
 		}
@@ -336,9 +335,9 @@ void __init arch_init_irq(void)
 			 MIPS_GIC_IRQ_BASE);
 		if (!mips_cm_present()) {
 			/* Enable the GIC */
-			i = REG(_msc01_biu_base, MSC01_SC_CFG);
-			REG(_msc01_biu_base, MSC01_SC_CFG) =
-				(i | (0x1 << MSC01_SC_CFG_GICENA_SHF));
+			i = readl(_msc01_biu_base + MSC01_SC_CFG_OFS);
+			writel(i | (0x1 << MSC01_SC_CFG_GICENA_SHF),
+				 _msc01_biu_base + MSC01_SC_CFG_OFS);
 			pr_debug("GIC Enabled\n");
 		}
 		i8259_irq = MIPS_GIC_IRQ_BASE + GIC_INT_I8259A;
