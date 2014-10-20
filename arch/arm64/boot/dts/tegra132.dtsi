@@ -45,6 +45,7 @@
 			clock-names = "dc", "parent";
 			resets = <&tegra_car TEGRA124_CLK_DISP1>;
 			reset-names = "dc";
+			iommus = <&mc 1>;
 			nvidia,head = <0>;
 		};
 
@@ -59,6 +60,7 @@
 			clock-names = "dc", "parent";
 			resets = <&tegra_car TEGRA124_CLK_DISP2>;
 			reset-names = "dc";
+			iommus = <&mc 2>;
 			nvidia,head = <1>;
 		};
 
