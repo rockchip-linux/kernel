@@ -70,9 +70,7 @@ static void __init estimate_frequencies(void)
 {
 	unsigned long flags;
 	unsigned int count, start;
-#ifdef CONFIG_MIPS_GIC
-	unsigned int giccount = 0, gicstart = 0;
-#endif
+	cycle_t giccount = 0, gicstart = 0;
 
 #if defined (CONFIG_KVM_GUEST) && defined (CONFIG_KVM_HOST_FREQ)
 	unsigned int prid = read_c0_prid() & (PRID_COMP_MASK | PRID_IMP_MASK);
@@ -97,32 +95,26 @@ static void __init estimate_frequencies(void)
 
 	/* Initialize counters. */
 	start = read_c0_count();
-#ifdef CONFIG_MIPS_GIC
 	if (gic_present)
-		GICREAD(GIC_REG(SHARED, GIC_SH_COUNTER_31_00), gicstart);
-#endif
+		gicstart = gic_read_count();
 
 	/* Read counter exactly on falling edge of update flag. */
 	while (CMOS_READ(RTC_REG_A) & RTC_UIP);
 	while (!(CMOS_READ(RTC_REG_A) & RTC_UIP));
 
 	count = read_c0_count();
-#ifdef CONFIG_MIPS_GIC
 	if (gic_present)
-		GICREAD(GIC_REG(SHARED, GIC_SH_COUNTER_31_00), giccount);
-#endif
+		giccount = gic_read_count();
 
 	local_irq_restore(flags);
 
 	count -= start;
 	mips_hpt_frequency = count;
 
-#ifdef CONFIG_MIPS_GIC
 	if (gic_present) {
 		giccount -= gicstart;
 		gic_frequency = giccount;
 	}
-#endif
 }
 
 void read_persistent_clock(struct timespec *ts)
