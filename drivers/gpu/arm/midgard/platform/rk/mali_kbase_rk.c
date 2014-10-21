@@ -110,6 +110,23 @@ static int kbase_rk_set_level(struct kbase_device *kbdev, int level)
 }
 
 #ifdef CONFIG_MALI_MIDGARD_DEBUG_SYS
+
+static ssize_t show_available_frequencies(struct device *dev,
+					  struct device_attribute *attr,
+					  char *buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	ssize_t ret = 0;
+	u32 i;
+
+	for (i = 0; i < kbase_rk->fv_table_length; i++)
+		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%lu\n",
+				 kbase_rk->fv_table[i].freq);
+
+	return ret;
+}
+
 static ssize_t show_clock(struct device *dev,
 			  struct device_attribute *attr, char *buf)
 {
@@ -124,7 +141,7 @@ static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
 {
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
-	unsigned long  clkrate;
+	unsigned long clkrate;
 	ssize_t ret;
 	int i;
 
@@ -146,22 +163,6 @@ static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
-static ssize_t show_available_frequencies(struct device *dev,
-					  struct device_attribute *attr,
-					  char *buf)
-{
-	struct kbase_device *kbdev = dev_get_drvdata(dev);
-	struct kbase_rk *kbase_rk = kbdev->platform_context;
-	ssize_t ret = 0;
-	u32 i;
-
-	for (i = 0; i < kbase_rk->fv_table_length; i++)
-		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "%lu\n",
-				 kbase_rk->fv_table[i].freq);
-
-	return ret;
-}
-
 static ssize_t show_memory(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
@@ -171,41 +172,40 @@ static ssize_t show_memory(struct device *dev,
 			 atomic_read(&kbdev->memdev.used_pages) * PAGE_SIZE);
 }
 
-DEVICE_ATTR(memory, S_IRUGO, show_memory, NULL);
-DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
 DEVICE_ATTR(available_frequencies, S_IRUGO, show_available_frequencies, NULL);
+DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
+DEVICE_ATTR(memory, S_IRUGO, show_memory, NULL);
 
 static int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
 {
 	int ret;
 
-	ret = device_create_file(kbdev->dev, &dev_attr_clock);
-	if (ret) {
-		dev_err(kbdev->dev, "Couldn't create sysfs file [clock], %d\n",
-			ret);
-		return ret;
-	}
-
 	ret = device_create_file(kbdev->dev, &dev_attr_available_frequencies);
 	if (ret) {
 		dev_err(kbdev->dev, "Couldn't create sysfs file [available_frequencies], %d\n",
 			ret);
-		goto err_remove_clock;
+		return ret;
+	}
+
+	ret = device_create_file(kbdev->dev, &dev_attr_clock);
+	if (ret) {
+		dev_err(kbdev->dev, "Couldn't create sysfs file [clock], %d\n",
+			ret);
+		goto err_remove_available_frequencies;
 	}
 
 	ret = device_create_file(kbdev->dev, &dev_attr_memory);
 	if (ret) {
 		dev_err(kbdev->dev, "Couldn't create sysfs file [memory], %d\n",
 			ret);
-		goto err_remove_available_frequencies;
+		goto err_remove_clock;
 	}
 
 	return 0;
-
-err_remove_available_frequencies:
-	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
 err_remove_clock:
 	device_remove_file(kbdev->dev, &dev_attr_clock);
+err_remove_available_frequencies:
+	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
 
 	return ret;
 }
@@ -213,10 +213,12 @@ err_remove_clock:
 void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
 {
 	device_remove_file(kbdev->dev, &dev_attr_memory);
-	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
 	device_remove_file(kbdev->dev, &dev_attr_clock);
+	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
 }
+
 #else
+
 static inline int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
 {
 	return 0;
@@ -225,6 +227,7 @@ static inline int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
 static inline void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
 {
 }
+
 #endif
 
 static int kbase_rk_freq_init(struct kbase_device *kbdev)
