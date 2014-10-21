@@ -130,7 +130,7 @@ err_rockchip_gem_free_object:
 	return ret;
 }
 
-static struct drm_fb_helper_funcs rockchip_drm_fb_helper_funcs = {
+static const struct drm_fb_helper_funcs rockchip_drm_fb_helper_funcs = {
 	.fb_probe = rockchip_drm_fbdev_create,
 };
 
