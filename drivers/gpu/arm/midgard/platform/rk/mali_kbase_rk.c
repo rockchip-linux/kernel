@@ -71,40 +71,89 @@ static int kbase_rk_set_level(struct kbase_device *kbdev, int level)
 	int ret;
 	unsigned int current_level;
 
+	mutex_lock(&kbase_rk->set_level_lock);
+
 	current_level = kbase_rk->current_level;
 	volt = kbase_rk->fv_table[level].volt;
 	freq = kbase_rk->fv_table[level].freq;
 
-	if (level == current_level)
+	if (level == current_level) {
+		mutex_unlock(&kbase_rk->set_level_lock);
 		return 0;
-
+	}
 	if (level > current_level) {
 		ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
 		if (ret)
-			return ret;
+			goto err_set_level;
 
 		ret = clk_set_rate(kbase_rk->clk, freq);
 		if (ret) {
 			volt = kbase_rk->fv_table[current_level].volt;
 			regulator_set_voltage(kbase_rk->regulator, volt, volt);
 
-			return ret;
+			goto err_set_level;
 		}
 	} else {
 		ret = clk_set_rate(kbase_rk->clk, freq);
 		if (ret)
-			return ret;
+			goto err_set_level;
 
 		ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
 		if (ret) {
 			freq = kbase_rk->fv_table[current_level].freq;
 			clk_set_rate(kbase_rk->clk, freq);
 
-			return ret;
+			goto err_set_level;
 		}
 	}
 
 	kbase_rk->current_level = level;
+
+	mutex_unlock(&kbase_rk->set_level_lock);
+
+	return 0;
+err_set_level:
+	mutex_unlock(&kbase_rk->set_level_lock);
+
+	return ret;
+}
+
+/*
+ * Set the gpu operating point (frequency and voltage) to a frequency no
+ * greater than the requested frequency.
+ *
+ * The gpu can only operate at a certain fixed set of operating points
+ * (frequency, voltage) pairs, as defined in the device's device tree.
+ * This function looks through the operating point table and choose an entry
+ * whose frequency is closest to, but not greater than the requested 'freq.
+ * If a frequency is requested that is less than the lowest operating point,
+ * the lowest frequency operating point is used.
+ */
+int kbase_rk_set_freq(struct kbase_device *kbdev, unsigned long freq)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	int ret;
+	int level;
+
+	/*
+	 * Start at highest operating point, and iterate backwards.
+	 * Stop when we find a frequency <= freq, or no more entries.
+	 */
+	for (level = kbase_rk->fv_table_length - 1; level > 0; level--) {
+		struct kbase_rk_fv *fv  = &kbase_rk->fv_table[level];
+		if (fv->freq <= freq)
+			break;
+	}
+
+	dev_dbg(kbdev->dev, "Using operating point #d: (%lu Hz, %lu mV) for %lu Hz\n",
+		level, kbase_rk->fv_table[level].freq,
+		kbase_rk->fv_table[level].volt, freq);
+
+	ret = kbase_rk_set_level(kbdev, level);
+	if (ret) {
+		dev_err(kbdev->dev, "set level error, %d\n", ret);
+		return ret;
+	}
 
 	return 0;
 }
@@ -140,25 +189,47 @@ static ssize_t set_clock(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
 {
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
-	struct kbase_rk *kbase_rk = kbdev->platform_context;
-	unsigned long clkrate;
+	unsigned long freq;
 	ssize_t ret;
-	int i;
 
-	ret = kstrtoul(buf, 10, &clkrate);
+	ret = kstrtoul(buf, 10, &freq);
 	if (ret)
 		return ret;
 
-	for (i = 0; i < kbase_rk->fv_table_length; ++i)
-		if (kbase_rk->fv_table[i].freq == clkrate)
-			break;
+	ret = kbase_rk_set_freq(kbdev, freq);
+	if (ret)
+		return ret;
 
-	if (i == kbase_rk->fv_table_length)
+	return count;
+}
+
+static ssize_t show_dvfs_enable(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			kbase_rk_dvfs_is_enabled(kbdev));
+}
+
+static ssize_t set_dvfs_enable(struct device *dev,
+			       struct device_attribute *attr, const char *buf,
+			       size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	unsigned long enable;
+	ssize_t ret;
+
+	ret = kstrtoul(buf, 0, &enable);
+	if (ret)
+		return ret;
+
+	if (enable == 1)
+		kbase_rk_dvfs_enable(kbdev);
+	else if (enable == 0)
+		kbase_rk_dvfs_disable(kbdev);
+	else
 		return -EINVAL;
-
-	ret = kbase_rk_set_level(kbdev, i);
-	if (ret)
-		return ret;
 
 	return count;
 }
@@ -172,14 +243,27 @@ static ssize_t show_memory(struct device *dev,
 			 atomic_read(&kbdev->memdev.used_pages) * PAGE_SIZE);
 }
 
+static ssize_t show_utilisation(struct device *dev,
+			   struct device_attribute *attr, char *buf)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			kbase_rk_dvfs_utilisation(kbdev));
+}
+
 DEVICE_ATTR(available_frequencies, S_IRUGO, show_available_frequencies, NULL);
 DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
+DEVICE_ATTR(dvfs_enable, S_IRUGO | S_IWUSR, show_dvfs_enable, set_dvfs_enable);
 DEVICE_ATTR(memory, S_IRUGO, show_memory, NULL);
+DEVICE_ATTR(utilisation, S_IRUGO, show_utilisation, NULL);
 
 static struct attribute *mali_kbase_rk_sysfs_entries[] = {
 	&dev_attr_available_frequencies.attr,
 	&dev_attr_clock.attr,
+	&dev_attr_dvfs_enable.attr,
 	&dev_attr_memory.attr,
+	&dev_attr_utilisation.attr,
 	NULL,
 };
 
@@ -341,6 +425,8 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 		return MALI_FALSE;
 
 	kbdev->platform_context = kbase_rk;
+	kbase_rk->kbdev = kbdev;
+	mutex_init(&kbase_rk->set_level_lock);
 
 	ret = kbase_rk_get_opp_table(kbdev);
 	if (ret)
@@ -358,7 +444,13 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 	if (ret)
 		goto term_clk;
 
+	ret = kbase_rk_dvfs_init(kbdev);
+	if (ret)
+		goto remove_sysfs;
+
 	return MALI_TRUE;
+remove_sysfs:
+	kbase_rk_remove_sysfs(kbdev);
 term_clk:
 	kbase_rk_clk_term(kbdev);
 err_init:
@@ -371,6 +463,7 @@ static void kbase_rk_platform_term(struct kbase_device *kbdev)
 {
 	kbase_rk_remove_sysfs(kbdev);
 	kbase_rk_clk_term(kbdev);
+	kbase_rk_dvfs_term(kbdev);
 	kbdev->platform_context = NULL;
 }
 

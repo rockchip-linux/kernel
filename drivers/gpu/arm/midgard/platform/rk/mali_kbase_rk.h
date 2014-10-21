@@ -11,6 +11,7 @@
 
 #include <linux/clk.h>
 #include <mali_kbase.h>
+#include "mali_kbase_rk_dvfs.h"
 
 #define KBASE_RK_GPU_FREQ_KHZ_MAX               600000
 #define KBASE_RK_GPU_FREQ_KHZ_MIN               100000
@@ -40,12 +41,17 @@ struct kbase_rk_fv {
 };
 
 struct kbase_rk {
+	struct kbase_device *kbdev;
 	struct clk *clk;
 	struct regulator *regulator;
 	struct kbase_rk_fv *fv_table;
 	unsigned int fv_table_length;
 	unsigned int current_level;
+	struct kbase_rk_dvfs dvfs;
+	struct mutex set_level_lock;
 	bool is_powered;
 };
+
+int kbase_rk_set_freq(struct kbase_device *kbdev, unsigned long freq);
 
 #endif				/* _KBASE_PLATFORM_H_ */
