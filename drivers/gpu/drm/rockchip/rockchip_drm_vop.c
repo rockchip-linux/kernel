@@ -906,10 +906,6 @@ static int rockchip_drm_crtc_mode_set(struct drm_crtc *crtc,
 	 */
 	clk_disable(ctx->dclk);
 
-	ret = rockchip_drm_crtc_mode_set_base(crtc, x, y, fb);
-	if (ret)
-		return ret;
-
 	switch (ctx->connector_type) {
 	case DRM_MODE_CONNECTOR_LVDS:
 		VOP_CTRL_SET(ctx, rgb_en, 1);
@@ -943,6 +939,11 @@ static int rockchip_drm_crtc_mode_set(struct drm_crtc *crtc,
 	val |= vact_end;
 	VOP_CTRL_SET(ctx, vact_st_end, val);
 	VOP_CTRL_SET(ctx, vpost_st_end, val);
+
+	ret = rockchip_drm_crtc_mode_set_base(crtc, x, y, fb);
+	if (ret)
+		return ret;
+
 	/*
 	 * reset dclk, take all mode config affect, so the clk would run in
 	 * correct frame.
