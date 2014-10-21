@@ -17,6 +17,7 @@
 #ifndef _ROCKCHIP_DRM_DRV_H
 #define _ROCKCHIP_DRM_DRV_H
 
+#include <drm/drm_atomic.h>
 #include <drm/drm_fb_helper.h>
 
 #include <linux/module.h>

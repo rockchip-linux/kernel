@@ -728,6 +728,7 @@ static const struct drm_plane_funcs rockchip_plane_funcs = {
 	.update_plane = rockchip_update_plane,
 	.disable_plane = rockchip_disable_plane,
 	.destroy = rockchip_plane_destroy,
+	.set_property = drm_atomic_plane_set_property
 };
 
 static struct drm_plane *rockchip_plane_init(struct vop_context *ctx,
@@ -1050,6 +1051,7 @@ static const struct drm_crtc_funcs rockchip_crtc_funcs = {
 	.set_config = drm_crtc_helper_set_config,
 	.page_flip = rockchip_drm_crtc_page_flip,
 	.destroy = rockchip_drm_crtc_destroy,
+	.set_property = drm_atomic_crtc_set_property
 };
 
 static void rockchip_vsync_worker(struct work_struct *work)
@@ -1180,7 +1182,7 @@ static int vop_create_crtc(struct vop_context *ctx)
 
 	drm_modeset_lock_all(drm_dev);
 	crtc->port = port;
-	ctx->pipe = drm_crtc_index(crtc);
+	ctx->pipe = crtc->index;
 	drm_modeset_unlock_all(drm_dev);
 
 	return 0;
