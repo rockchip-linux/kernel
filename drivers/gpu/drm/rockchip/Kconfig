@@ -15,3 +15,12 @@ config DRM_ROCKCHIP
 	  management to userspace. This driver does not provide
 	  2D or 3D acceleration; acceleration is performed by other
 	  IP found on the SoC.
+
+config ROCKCHIP_EDP
+	bool "Rockchip edp support"
+	depends on DRM_ROCKCHIP
+	help
+	  Choose this option if you have a Rockchip eDP.
+	  Rockchip rk3288 SoC has eDP TX Controller can be used.
+	  If you have an Embedded DisplayPort Panel, say Y to enable its
+	  driver.
