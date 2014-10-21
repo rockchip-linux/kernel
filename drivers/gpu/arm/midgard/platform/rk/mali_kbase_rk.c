@@ -176,55 +176,41 @@ DEVICE_ATTR(available_frequencies, S_IRUGO, show_available_frequencies, NULL);
 DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
 DEVICE_ATTR(memory, S_IRUGO, show_memory, NULL);
 
-static int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
+static struct attribute *mali_kbase_rk_sysfs_entries[] = {
+	&dev_attr_available_frequencies.attr,
+	&dev_attr_clock.attr,
+	&dev_attr_memory.attr,
+	NULL,
+};
+
+static const struct attribute_group mali_kbase_rk_attr_group = {
+	.attrs	= mali_kbase_rk_sysfs_entries,
+};
+
+static int kbase_rk_create_sysfs(struct kbase_device *kbdev)
 {
 	int ret;
 
-	ret = device_create_file(kbdev->dev, &dev_attr_available_frequencies);
-	if (ret) {
-		dev_err(kbdev->dev, "Couldn't create sysfs file [available_frequencies], %d\n",
-			ret);
-		return ret;
-	}
-
-	ret = device_create_file(kbdev->dev, &dev_attr_clock);
-	if (ret) {
-		dev_err(kbdev->dev, "Couldn't create sysfs file [clock], %d\n",
-			ret);
-		goto err_remove_available_frequencies;
-	}
-
-	ret = device_create_file(kbdev->dev, &dev_attr_memory);
-	if (ret) {
-		dev_err(kbdev->dev, "Couldn't create sysfs file [memory], %d\n",
-			ret);
-		goto err_remove_clock;
-	}
-
-	return 0;
-err_remove_clock:
-	device_remove_file(kbdev->dev, &dev_attr_clock);
-err_remove_available_frequencies:
-	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
+	ret = sysfs_create_group(&kbdev->dev->kobj, &mali_kbase_rk_attr_group);
+	if (ret)
+		dev_err(kbdev->dev, "create sysfs group error, %d\n", ret);
 
 	return ret;
 }
 
-void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
+void kbase_rk_remove_sysfs(struct kbase_device *kbdev)
 {
-	device_remove_file(kbdev->dev, &dev_attr_memory);
-	device_remove_file(kbdev->dev, &dev_attr_clock);
-	device_remove_file(kbdev->dev, &dev_attr_available_frequencies);
+	sysfs_remove_group(&kbdev->dev->kobj, &mali_kbase_rk_attr_group);
 }
 
 #else
 
-static inline int kbase_rk_create_sysfs_file(struct kbase_device *kbdev)
+static inline int kbase_rk_create_sysfs(struct kbase_device *kbdev)
 {
 	return 0;
 }
 
-static inline void kbase_rk_remove_sysfs_file(struct kbase_device *kbdev)
+static inline void kbase_rk_remove_sysfs(struct kbase_device *kbdev)
 {
 }
 
@@ -368,7 +354,7 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 	if (ret)
 		goto err_init;
 
-	ret = kbase_rk_create_sysfs_file(kbdev);
+	ret = kbase_rk_create_sysfs(kbdev);
 	if (ret)
 		goto term_clk;
 
@@ -383,7 +369,7 @@ err_init:
 
 static void kbase_rk_platform_term(struct kbase_device *kbdev)
 {
-	kbase_rk_remove_sysfs_file(kbdev);
+	kbase_rk_remove_sysfs(kbdev);
 	kbase_rk_clk_term(kbdev);
 	kbdev->platform_context = NULL;
 }
