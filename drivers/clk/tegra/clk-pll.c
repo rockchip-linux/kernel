@@ -36,6 +36,7 @@
 #define PLL_BASE_DIVM_WIDTH 5
 #define PLLU_POST_DIVP_MASK 0x1
 
+#define PLL_MISC_OVERRIDE BIT(29)
 #define PLL_MISC_DCCON_SHIFT 20
 #define PLL_MISC_CPCON_SHIFT 8
 #define PLL_MISC_CPCON_WIDTH 4
@@ -57,6 +58,7 @@
 
 #define PLLDU_LFCON_SET_DIVN 600
 
+#define PLLE_BASE_OVERRIDE BIT(29)
 #define PLLE_BASE_DIVCML_SHIFT 24
 #define PLLE_BASE_DIVCML_WIDTH 4
 #define PLLE_BASE_DIVP_SHIFT 16
@@ -1334,7 +1336,7 @@ static int clk_plle_tegra114_enable(struct clk_hw *hw)
 		spin_lock_irqsave(pll->lock, flags);
 
 	val = pll_readl_base(pll);
-	val &= ~BIT(29); /* Disable lock override */
+	val &= ~PLLE_BASE_OVERRIDE;
 	pll_writel_base(val, pll);
 
 	val = pll_readl(pll->params->aux_reg, pll);
@@ -1633,7 +1635,7 @@ struct clk *tegra_clk_register_pllre(const char *name, const char *parent_name,
 	/* disable lock override */
 
 	val = pll_readl_misc(pll);
-	val &= ~BIT(29);
+	val &= ~PLL_MISC_OVERRIDE;
 	pll_writel_misc(val, pll);
 
 	clk = _tegra_clk_register_pll(pll, name, parent_name, flags,
