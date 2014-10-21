@@ -421,7 +421,7 @@ static void delayedwork_callback(struct work_struct *work)
 	int count;
 	int retval;
 	u8 param_status;
-	u8 connection_state;
+	u8 connection_state = CONNECTION_STATE_UNKNOWN;
 
 	dbg_hid("%s\n", __func__);
 
