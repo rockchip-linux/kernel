@@ -1,4 +1,5 @@
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/soc/tegra-pmc.h>
 #include "tegra132.dtsi"
 #include "tegra132-ryu-emc.dtsi"
 #include "tegra132-ryu-gpio-default.dtsi"
@@ -21,7 +22,8 @@
 	};
 
 	rtc {
-		nvidia,pmc-wakeup = <&pmc 1 16 4>;
+		nvidia,pmc-wakeup = <&pmc
+			PMC_WAKE_TYPE_EVENT 16 PMC_TRIGGER_TYPE_HIGH>;
 	};
 
 	host1x@50000000 {
