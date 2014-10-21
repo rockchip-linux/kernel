@@ -800,14 +800,6 @@ static unsigned int bst_tlv[] = {
 	8, 8, TLV_DB_SCALE_ITEM(5200, 0, 0),
 };
 
-static const char * const rt5677_if1_slot01_swap[] = {
-	"LR", "RL", "LL", "RR",
-};
-
-static SOC_ENUM_SINGLE_DECL(
-	rt5677_if1_slot01_swap_enum, RT5677_TDM1_CTRL1,
-	RT5677_IF1_SLOT01_SWAP_SFT, rt5677_if1_slot01_swap);
-
 static int rt5677_dsp_vad_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
@@ -908,8 +900,6 @@ static const struct snd_kcontrol_new rt5677_snd_controls[] = {
 	/* TDM Control */
 	SOC_SINGLE_EXT("DSP VAD Switch", SND_SOC_NOPM, 0, 1, 0,
 		rt5677_dsp_vad_get, rt5677_dsp_vad_put),
-
-	SOC_ENUM("IF1 Slot01 Swap", rt5677_if1_slot01_swap_enum),
 };
 
 /**
