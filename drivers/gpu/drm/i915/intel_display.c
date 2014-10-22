@@ -40,6 +40,7 @@
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_crtc_helper.h>
 #include <linux/dma_remapping.h>
+#include <linux/pm_dark_resume.h>
 
 static void intel_increase_pllclock(struct drm_crtc *crtc);
 static void intel_crtc_update_cursor(struct drm_crtc *crtc, bool on);
@@ -11472,6 +11473,11 @@ void intel_modeset_setup_hw_state(struct drm_device *dev,
 	int i;
 
 	intel_modeset_readout_hw_state(dev);
+
+	if (dev_dark_resume_active(dev->dev)) {
+		dev_info(dev->dev, "disabled for dark resume\n");
+		return;
+	}
 
 	/*
 	 * Now that we have the config, copy it to each CRTC struct

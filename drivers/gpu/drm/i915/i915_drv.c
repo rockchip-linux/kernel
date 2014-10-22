@@ -36,6 +36,7 @@
 
 #include <linux/console.h>
 #include <linux/module.h>
+#include <linux/pm_dark_resume.h>
 #include <drm/drm_crtc_helper.h>
 
 static int i915_modeset __read_mostly = -1;
@@ -959,8 +960,10 @@ static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	driver.driver_features &= ~(DRIVER_USE_AGP);
 
 	ret = drm_get_pci_dev(pdev, ent, &driver);
-	if (ret == 0)
+	if (ret == 0) {
 		ret = sysfs_create_group(&pdev->dev.kobj, &mutex_ctrl_group);
+		dev_dark_resume_init(&pdev->dev, NULL, -1, NULL);
+	}
 
 	return ret;
 }
@@ -969,6 +972,8 @@ static void
 i915_pci_remove(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
+
+	dev_dark_resume_remove(&pdev->dev);
 
 	drm_put_dev(dev);
 }
