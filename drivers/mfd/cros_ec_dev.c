@@ -21,6 +21,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/mfd/core.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/mfd/cros_ec_dev.h>
@@ -329,6 +330,26 @@ static void __remove(struct device *dev)
 	kfree(ec);
 }
 
+static const struct mfd_cell cros_usb_pd_charger_devs[] = {
+	{
+		.name = "cros-usb-pd-charger",
+	},
+};
+
+int cros_usb_pd_charger_idx;
+
+static int cros_ec_usb_pd_charger_register(struct cros_ec_dev *ec)
+{
+	/*
+	 * TODO (crbug.com/428364): Query the EC to know whether it supports
+	 * charger functionality and add the chrger device only if does.
+	 */
+	return mfd_add_devices(ec->dev, cros_usb_pd_charger_idx++,
+			       cros_usb_pd_charger_devs,
+			       ARRAY_SIZE(cros_usb_pd_charger_devs),
+			       NULL, 0, NULL);
+}
+
 static int ec_device_probe(struct platform_device *pdev)
 {
 	int retval = -ENOMEM;
@@ -380,6 +401,10 @@ static int ec_device_probe(struct platform_device *pdev)
 		dev_err(dev, "device_register failed => %d\n", retval);
 		goto dev_reg_failed;
 	}
+
+	retval = cros_ec_usb_pd_charger_register(ec);
+	if (retval && retval != -ENODEV)
+		dev_err(dev, "failed to add cros-usb-pd-charger mfd device\n");
 
 	return 0;
 dev_reg_failed:

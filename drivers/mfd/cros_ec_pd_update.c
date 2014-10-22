@@ -281,6 +281,14 @@ static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
 		return;
 	}
 
+	/*
+	 * If there is an EC based charger, send a notification to it to
+	 * trigger a refresh of the power supply state.
+	 */
+	if (pd_ec->ec_dev->charger) {
+		power_supply_changed(pd_ec->ec_dev->charger);
+	}
+
 	/* Received notification, send command to check on PD status. */
 	for (port = 0; port < PD_MAX_PORTS; ++port) {
 		ret = cros_ec_pd_get_status(dev, pd_ec, port, &result,
