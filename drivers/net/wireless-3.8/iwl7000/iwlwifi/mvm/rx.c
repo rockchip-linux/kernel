@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -185,13 +187,13 @@ static void iwl_mvm_get_signal_strength(struct iwl_mvm *mvm,
 	    le32_to_cpu(phy_info->non_cfg_phy[IWL_RX_INFO_ENERGY_ANT_ABC_IDX]);
 	energy_a = (val & IWL_RX_INFO_ENERGY_ANT_A_MSK) >>
 						IWL_RX_INFO_ENERGY_ANT_A_POS;
-	energy_a = energy_a ? -energy_a : -256;
+	energy_a = energy_a ? -energy_a : S8_MIN;
 	energy_b = (val & IWL_RX_INFO_ENERGY_ANT_B_MSK) >>
 						IWL_RX_INFO_ENERGY_ANT_B_POS;
-	energy_b = energy_b ? -energy_b : -256;
+	energy_b = energy_b ? -energy_b : S8_MIN;
 	energy_c = (val & IWL_RX_INFO_ENERGY_ANT_C_MSK) >>
 						IWL_RX_INFO_ENERGY_ANT_C_POS;
-	energy_c = energy_c ? -energy_c : -256;
+	energy_c = energy_c ? -energy_c : S8_MIN;
 	max_energy = max(energy_a, energy_b);
 	max_energy = max(max_energy, energy_c);
 
@@ -280,6 +282,7 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
 	struct iwl_rx_phy_info *phy_info;
 	struct iwl_rx_mpdu_res_start *rx_res;
+	struct ieee80211_sta *sta;
 	u32 len;
 	u32 ampdu_status;
 	u32 rate_n_flags;
@@ -293,40 +296,6 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 		(pkt->data + sizeof(*rx_res) + len));
 
 	memset(&rx_status, 0, sizeof(rx_status));
-
-#ifdef CPTCFG_IWLMVM_TCM
-	if (!mvm->tcm.paused && len >= sizeof(*hdr) &&
-	    !is_multicast_ether_addr(hdr->addr1) &&
-	    ieee80211_is_data(hdr->frame_control)) {
-		int ac = IEEE80211_AC_BE; /* treat non-QoS as BE */
-		struct ieee80211_sta *sta;
-
-		if (ieee80211_is_data_qos(hdr->frame_control)) {
-			int tid = *ieee80211_get_qos_ctl(hdr) &
-					IEEE80211_QOS_CTL_TID_MASK;
-
-			ac = tid_to_mac80211_ac[tid];
-		}
-
-		rcu_read_lock();
-		/* This is fine since we don't support multiple AP interfaces */
-		sta = ieee80211_find_sta_by_ifaddr(mvm->hw, hdr->addr2, NULL);
-		if (sta) {
-			struct iwl_mvm_sta *mvmsta;
-			int mac;
-
-			mvmsta = iwl_mvm_sta_from_mac80211(sta);
-			mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
-
-			if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
-				iwl_mvm_recalc_tcm(mvm);
-			mvm->tcm.data[mac].rx.pkts[ac]++;
-			mvm->tcm.data[mac].rx.airtime[ac] +=
-				le16_to_cpu(phy_info->frame_time);
-		}
-		rcu_read_unlock();
-	}
-#endif
 
 	/*
 	 * drop the packet if it has failed being decrypted by HW
@@ -378,6 +347,46 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 
 	IWL_DEBUG_STATS_LIMIT(mvm, "Rssi %d, TSF %llu\n", rx_status.signal,
 			      (unsigned long long)rx_status.mactime);
+
+	rcu_read_lock();
+	/* This is fine since we don't support multiple AP interfaces */
+	sta = ieee80211_find_sta_by_ifaddr(mvm->hw, hdr->addr2, NULL);
+	if (sta) {
+		struct iwl_mvm_sta *mvmsta;
+		mvmsta = iwl_mvm_sta_from_mac80211(sta);
+		rs_update_last_rssi(mvm, &mvmsta->lq_sta,
+				    &rx_status);
+	}
+
+#ifdef CPTCFG_IWLMVM_TCM
+	if (!mvm->tcm.paused && len >= sizeof(*hdr) &&
+	    !is_multicast_ether_addr(hdr->addr1) &&
+	    ieee80211_is_data(hdr->frame_control)) {
+		int ac = IEEE80211_AC_BE; /* treat non-QoS as BE */
+
+		if (ieee80211_is_data_qos(hdr->frame_control)) {
+			int tid = *ieee80211_get_qos_ctl(hdr) &
+					IEEE80211_QOS_CTL_TID_MASK;
+
+			ac = tid_to_mac80211_ac[tid];
+		}
+
+		if (sta) {
+			struct iwl_mvm_sta *mvmsta;
+			int mac;
+
+			mvmsta = iwl_mvm_sta_from_mac80211(sta);
+			mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
+
+			if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
+				iwl_mvm_recalc_tcm(mvm);
+			mvm->tcm.data[mac].rx.pkts[ac]++;
+			mvm->tcm.data[mac].rx.airtime[ac] +=
+				le16_to_cpu(phy_info->frame_time);
+		}
+	}
+#endif
+	rcu_read_unlock();
 
 	/* set the preamble flag if appropriate */
 	if (phy_info->phy_flags & cpu_to_le16(RX_RES_PHY_FLAGS_SHORT_PREAMBLE))
@@ -547,10 +556,29 @@ int iwl_mvm_rx_statistics(struct iwl_mvm *mvm,
 		.mvm = mvm,
 	};
 
+	/*
+	 * set temperature debug enabled - ignore FW temperature updates
+	 * and use the user set temperature.
+	 */
+	if (mvm->temperature_test) {
+		if (mvm->temperature < le32_to_cpu(common->temperature))
+			IWL_DEBUG_TEMP(mvm,
+				       "Ignoring FW temperature update that is greater than the debug set temperature (debug temp = %d, fw temp = %d)\n",
+				       mvm->temperature,
+				       le32_to_cpu(common->temperature));
+		/*
+		 * skip iwl_mvm_tt_handler since we are in
+		 * temperature debug mode and we are ignoring
+		 * the new temperature value
+		 */
+		goto update;
+	}
+
 	if (mvm->temperature != le32_to_cpu(common->temperature)) {
 		mvm->temperature = le32_to_cpu(common->temperature);
 		iwl_mvm_tt_handler(mvm);
 	}
+update:
 	iwl_mvm_update_rx_statistics(mvm, stats);
 
 	ieee80211_iterate_active_interfaces(mvm->hw,

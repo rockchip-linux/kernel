@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -126,6 +128,10 @@ int iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 	case MONITOR_DATA_OVER_IDI_NOTIFICATION:
 		return iwl_dnt_dispatch_collect_interface_monitor(xvt->trans,
 								  rxb);
+	case REPLY_HD_PARAMS_CMD:
+		return iwl_xvt_user_send_notif(xvt,
+				IWL_TM_USER_CMD_NOTIF_BFE,
+				data, size, GFP_ATOMIC);
 
 	case DEBUG_LOG_MSG:
 		return iwl_dnt_dispatch_collect_ucode_message(xvt->trans, rxb);
@@ -912,8 +918,8 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 			udelay(tx_req->delay_us);
 	}
 
-	time_remain = wait_event_timeout(xvt->mod_tx_done_wq,
-					 xvt->tx_counter != xvt->tot_tx,
+	time_remain = wait_event_interruptible_timeout(xvt->mod_tx_done_wq,
+					 xvt->tx_counter == xvt->tot_tx,
 					 5 * HZ);
 	if (time_remain <= 0) {
 		IWL_ERR(xvt, "Not all Tx messages were sent\n");
@@ -1053,6 +1059,7 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 	if (WARN_ON_ONCE(!op_mode || !data_in))
 		return -EINVAL;
 
+	IWL_DEBUG_INFO(xvt, "%s cmd=0x%X\n", __func__, cmd);
 	mutex_lock(&xvt->mutex);
 
 	switch (cmd) {
@@ -1134,5 +1141,9 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	mutex_unlock(&xvt->mutex);
 
+	if (ret)
+		IWL_ERR(xvt, "%s ret=%d\n", __func__, ret);
+	else
+		IWL_DEBUG_INFO(xvt, "%s ended Ok\n", __func__);
 	return ret;
 }

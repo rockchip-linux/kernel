@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -329,15 +331,14 @@ int iwl_dnt_dev_if_configure_monitor(struct iwl_dnt *dnt,
 							end_addr);
 		break;
 	case MIPI:
-		base_addr = 0;
-		end_addr = 0;
-
 		/* If not working with DBGC... */
 		if (trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
 			iwl_dnt_dev_if_configure_mipi(trans);
 			break;
 		}
 	case SMEM:
+		base_addr = 0;
+		end_addr = 0;
 		iwl_dnt_dev_if_configure_dbgm_registers(trans, base_addr,
 							end_addr);
 		break;

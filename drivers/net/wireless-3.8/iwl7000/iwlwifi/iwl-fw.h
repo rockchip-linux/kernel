@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2008 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -187,6 +189,7 @@ enum iwl_ucode_sec {
 #define IWL_UCODE_SECTION_MAX 12
 #define IWL_API_ARRAY_SIZE	1
 #define IWL_CAPABILITIES_ARRAY_SIZE	1
+#define CPU1_CPU2_SEPARATOR_SECTION    0xFFFFCCCC
 
 struct iwl_ucode_capabilities {
 	u32 max_probe_length;

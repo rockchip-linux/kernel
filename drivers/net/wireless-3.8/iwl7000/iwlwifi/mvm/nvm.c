@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -576,6 +578,13 @@ iwl_mvm_update_mcc(struct iwl_mvm *mvm, const char *alpha2)
 	}
 
 	mcc = le16_to_cpu(mcc_resp->mcc);
+
+	/* W/A for a FW/NVM issue - returns 0x00 for the world domain */
+	if (mcc == 0) {
+		mcc = 0x3030;  /* "00" - world */
+		mcc_resp->mcc = cpu_to_le16(mcc);
+	}
+
 	n_channels =  __le32_to_cpu(mcc_resp->n_channels);
 	IWL_DEBUG_LAR(mvm,
 		"MCC response status: 0x%x. new MCC: 0x%x ('%c%c') change: %d n_chans: %d\n",
@@ -599,6 +608,8 @@ exit:
 
 int iwl_mvm_init_mcc(struct iwl_mvm *mvm)
 {
+	const char *alpha2;
+
 	if (!iwl_mvm_is_lar_supported(mvm))
 		return 0;
 
@@ -628,7 +639,13 @@ int iwl_mvm_init_mcc(struct iwl_mvm *mvm)
 	 * Driver regulatory hint for initial update - use the special
 	 * unknown-country "99" code. This will also clear the "custom reg"
 	 * flag and allow regdomain changes. It will happen after init since
-	 * RTNL is required.
+	 * RTNL is required. If an update arrived while the FW was down,
+	 * use the saved one.
+	 * Disallow scans that might crash the FW while the LAR regdomain
+	 * is not set.
 	 */
-	return regulatory_hint(mvm->hw->wiphy, "99");
+	alpha2 = mvm->use_last_alpha2 ? mvm->last_alpha2 : "99";
+	mvm->use_last_alpha2 = false;
+	mvm->lar_regdom_set = false;
+	return regulatory_hint(mvm->hw->wiphy, alpha2);
 }

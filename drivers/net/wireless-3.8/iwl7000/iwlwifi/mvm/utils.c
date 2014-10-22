@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -870,17 +872,17 @@ void iwl_mvm_recalc_tcm(struct iwl_mvm *mvm)
 
 void iwl_mvm_pause_tcm(struct iwl_mvm *mvm)
 {
-	spin_lock(&mvm->tcm.lock);
+	spin_lock_bh(&mvm->tcm.lock);
 	del_timer(&mvm->tcm.timer);
 	mvm->tcm.paused = true;
-	spin_unlock(&mvm->tcm.lock);
+	spin_unlock_bh(&mvm->tcm.lock);
 }
 
 void iwl_mvm_resume_tcm(struct iwl_mvm *mvm)
 {
 	int mac;
 
-	spin_lock(&mvm->tcm.lock);
+	spin_lock_bh(&mvm->tcm.lock);
 	mvm->tcm.ts = jiffies;
 	mvm->tcm.ll_ts = jiffies;
 	for (mac = 0; mac < NUM_MAC_INDEX_DRIVER; mac++) {
@@ -897,6 +899,6 @@ void iwl_mvm_resume_tcm(struct iwl_mvm *mvm)
 	/* The TCM data needs to be reset before "paused" flag changes */
 	smp_mb();
 	mvm->tcm.paused = false;
-	spin_unlock(&mvm->tcm.lock);
+	spin_unlock_bh(&mvm->tcm.lock);
 }
 #endif

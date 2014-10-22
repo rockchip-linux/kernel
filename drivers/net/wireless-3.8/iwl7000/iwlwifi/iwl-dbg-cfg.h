@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -122,6 +124,8 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(bool, MVM_BT_COEX_SYNC2SCO)
 	IWL_DBG_CFG(bool, MVM_BT_COEX_CORUNNING)
 	IWL_DBG_CFG(bool, MVM_BT_COEX_MPLUT)
+	IWL_DBG_CFG(bool, MVM_FW_MCAST_FILTER_PASS_ALL)
+	IWL_DBG_CFG(bool, MVM_FW_BCAST_FILTER_PASS_ALL)
 #ifdef CPTCFG_IWLMVM_TCM
 	IWL_DBG_CFG(u32, MVM_TCM_LOAD_MEDIUM_THRESH)
 	IWL_DBG_CFG(u32, MVM_TCM_LOAD_HIGH_THRESH)
@@ -129,6 +133,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(u32, MVM_QUOTA_AIRTIME_THRESH)
 	IWL_DBG_CFG(u8, MVM_LOWLAT_QUOTA_LOWTRAF_PERCENT)
 #endif /* CPTCFG_IWLMVM_TCM */
+	IWL_DBG_CFG(u8, MVM_RS_RSSI_BASED_INIT_RATE)
 #endif /* CPTCFG_IWLMVM */
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	IWL_DBG_CFG_NODEF(u32, dnt_out_mode)

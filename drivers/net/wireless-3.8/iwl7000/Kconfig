@@ -4,9 +4,6 @@ config IWL7000
 	# normal iwlwifi dependencies
 	depends on PCI && HAS_IOMEM
 	select FW_LOADER
-	select NEW_LEDS
-	select LEDS_CLASS
-	select LEDS_TRIGGERS
 
 	# this is because we don't depend on mac80211
 	depends on CFG80211
@@ -20,6 +17,13 @@ config IWL7000
 
 	# we can't really be modular ... at least I was too lazy for it
 	depends on m
+
+config IWLWIFI_LEDS
+	def_bool y
+	depends on IWL7000
+	select NEW_LEDS
+	select LEDS_CLAS
+	select LEDS_TRIGGERS
 
 config IWL7000_DEBUGFS
 	def_bool y

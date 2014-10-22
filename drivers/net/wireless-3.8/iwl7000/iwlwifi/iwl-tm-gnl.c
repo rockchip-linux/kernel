@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2010 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -617,6 +619,8 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 	mutex_unlock(&dev_list_mtx);
 	if (!dev)
 		return -ENODEV;
+
+	IWL_DEBUG_INFO(dev->trans, "%s cmd=0x%X\n", __func__, cmd_data->cmd);
 	switch (cmd_data->cmd) {
 
 	case IWL_TM_USER_CMD_HCMD:
@@ -667,14 +671,20 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 		break;
 #endif
 	}
-	if (ret)
+	if (ret) {
+		IWL_ERR(dev->trans, "%s Error=%d\n", __func__, ret);
 		return ret;
+	}
 
 	if (!common_op)
 		ret = iwl_op_mode_tm_execute_cmd(dev, cmd_data->cmd,
 						 &cmd_data->data_in,
 						 &cmd_data->data_out);
 
+	if (ret)
+		IWL_ERR(dev->trans, "%s ret=%d\n", __func__, ret);
+	else
+		IWL_DEBUG_INFO(dev->trans, "%s ended Ok\n", __func__);
 	return ret;
 }
 

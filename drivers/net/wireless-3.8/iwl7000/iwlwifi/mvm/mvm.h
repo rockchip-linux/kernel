@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -170,6 +172,7 @@ enum iwl_dbgfs_pm_mask {
 	MVM_DEBUGFS_PM_LPRX_RSSI_THRESHOLD = BIT(7),
 	MVM_DEBUGFS_PM_SNOOZE_ENABLE = BIT(8),
 	MVM_DEBUGFS_PM_UAPSD_MISBEHAVING = BIT(9),
+	MVM_DEBUGFS_PM_USE_PS_POLL = BIT(10),
 };
 
 struct iwl_dbgfs_pm {
@@ -183,6 +186,7 @@ struct iwl_dbgfs_pm {
 	u32 lprx_rssi_threshold;
 	bool snooze_ena;
 	bool uapsd_misbehaving;
+	bool use_ps_poll;
 	int mask;
 };
 
@@ -233,6 +237,16 @@ enum iwl_mvm_ref_type {
 	IWL_MVM_REF_USER,
 	IWL_MVM_REF_TX,
 	IWL_MVM_REF_TX_AGG,
+	IWL_MVM_REF_ADD_IF,
+	IWL_MVM_REF_START_AP,
+	IWL_MVM_REF_BSS_CHANGED,
+	IWL_MVM_REF_PREPARE_TX,
+	IWL_MVM_REF_PROTECT_TDLS,
+	IWL_MVM_REF_CHECK_CTKILL,
+	IWL_MVM_REF_PRPH_READ,
+	IWL_MVM_REF_PRPH_WRITE,
+	IWL_MVM_REF_NMI,
+	IWL_MVM_REF_TM_CMD,
 	IWL_MVM_REF_EXIT_WORK,
 
 	IWL_MVM_REF_COUNT,
@@ -273,6 +287,9 @@ struct iwl_mvm_vif_bf_data {
  * @id: between 0 and 3
  * @color: to solve races upon MAC addition and removal
  * @ap_sta_id: the sta_id of the AP - valid only if VIF type is STA
+ * @bssid: BSSID for this (client) interface
+ * @associated: indicates that we're currently associated, used only for
+ *	managing the firmware state in iwl_mvm_bss_info_changed_station()
  * @uploaded: indicates the MAC context has been added to the device
  * @ap_ibss_active: indicates that AP/IBSS is configured and that the interface
  *	should get quota etc.
@@ -291,6 +308,9 @@ struct iwl_mvm_vif {
 	u16 id;
 	u16 color;
 	u8 ap_sta_id;
+
+	u8 bssid[ETH_ALEN];
+	bool associated;
 
 	bool uploaded;
 	bool ap_ibss_active;
@@ -467,6 +487,10 @@ enum {
 	D0I3_PENDING_WAKEUP,
 };
 
+#define IWL_MVM_DEBUG_SET_TEMPERATURE_DISABLE 0xff
+#define IWL_MVM_DEBUG_SET_TEMPERATURE_MIN -100
+#define IWL_MVM_DEBUG_SET_TEMPERATURE_MAX 200
+
 struct iwl_mvm {
 	/* for logger access */
 	struct device *dev;
@@ -584,8 +608,9 @@ struct iwl_mvm {
 	 */
 	unsigned long fw_key_table[BITS_TO_LONGS(STA_KEY_MAX_NUM)];
 
-	/* A bitmap of reference types taken by the driver. */
-	unsigned long ref_bitmap[BITS_TO_LONGS(IWL_MVM_REF_COUNT)];
+	/* references taken by the driver and spinlock protecting them */
+	spinlock_t refs_lock;
+	u8 refs[IWL_MVM_REF_COUNT];
 
 	u8 vif_count;
 
@@ -635,6 +660,12 @@ struct iwl_mvm {
 	/* Thermal Throttling and CTkill */
 	struct iwl_mvm_tt_mgmt thermal_throttle;
 	s32 temperature;	/* Celsius */
+	/*
+	 * Debug option to set the NIC temperature. This option makes the
+	 * driver think this is the actual NIC temperature, and ignore the
+	 * real temperature that is received from the fw
+	 */
+	bool temperature_test;  /* Debug test temperature is enabled */
 
 #ifdef CPTCFG_IWLMVM_TCM
 	struct {
@@ -681,6 +712,12 @@ struct iwl_mvm {
 	bool pm_disabled;
 
 	struct ieee80211_vif *csa_vif;
+
+	bool lar_regdom_set;
+
+	/* when doing ifup, should we use last_alpha2 for regdom info */
+	bool use_last_alpha2;
+	char last_alpha2[2];
 };
 
 /* Extract MVM priv from op_mode and _hw */
@@ -742,6 +779,9 @@ struct iwl_rate_info {
 	u8 plcp_mimo3;  /* uCode API:  IWL_RATE_MIMO3_6M_PLCP, etc. */
 	u8 ieee;	/* MAC header:  IWL_RATE_6M_IEEE, etc. */
 };
+
+void __iwl_mvm_mac_stop(struct iwl_mvm *mvm);
+int __iwl_mvm_mac_start(struct iwl_mvm *mvm);
 
 /******************
  * MVM Methods
@@ -848,7 +888,8 @@ void iwl_mvm_phy_ctxt_unref(struct iwl_mvm *mvm,
 int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 void iwl_mvm_mac_ctxt_release(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 int iwl_mvm_mac_ctxt_add(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
-int iwl_mvm_mac_ctxt_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+int iwl_mvm_mac_ctxt_changed(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			     const u8 *bssid_override);
 int iwl_mvm_mac_ctxt_remove(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 u32 iwl_mvm_mac_get_queues_mask(struct iwl_mvm *mvm,
 				struct ieee80211_vif *vif);
@@ -942,6 +983,9 @@ void iwl_mvm_update_frame_stats(struct iwl_mvm *mvm,
 				struct iwl_mvm_frame_stats *stats,
 				u32 rate, bool agg);
 int rs_pretty_print_rate(char *buf, const u32 rate);
+void rs_update_last_rssi(struct iwl_mvm *mvm,
+			 struct iwl_lq_sta *lq_sta,
+			 struct ieee80211_rx_status *rx_status);
 
 /* power management */
 int iwl_power_legacy_set_cam_mode(struct iwl_mvm *mvm);
@@ -1000,6 +1044,7 @@ int iwl_mvm_send_proto_offload(struct iwl_mvm *mvm,
 /* D0i3 */
 void iwl_mvm_ref(struct iwl_mvm *mvm, enum iwl_mvm_ref_type ref_type);
 void iwl_mvm_unref(struct iwl_mvm *mvm, enum iwl_mvm_ref_type ref_type);
+int iwl_mvm_ref_sync(struct iwl_mvm *mvm, enum iwl_mvm_ref_type ref_type);
 void iwl_mvm_d0i3_enable_tx(struct iwl_mvm *mvm, __le16 *qos_seq);
 int _iwl_mvm_exit_d0i3(struct iwl_mvm *mvm);
 
@@ -1053,11 +1098,6 @@ int iwl_mvm_disable_beacon_filter(struct iwl_mvm *mvm,
 				  u32 flags);
 int iwl_mvm_update_beacon_abort(struct iwl_mvm *mvm,
 				struct ieee80211_vif *vif, bool enable);
-int iwl_mvm_update_beacon_filter(struct iwl_mvm *mvm,
-				 struct ieee80211_vif *vif,
-				 bool force,
-				 u32 flags);
-
 /* SMPS */
 void iwl_mvm_update_smps(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 				enum iwl_mvm_smps_type_request req_type,

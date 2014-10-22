@@ -88,6 +88,9 @@ enum {
 
 	GET_SET_PHY_DB_CMD = 0x8f,
 
+	/* BFE */
+	REPLY_HD_PARAMS_CMD = 0xa6,
+
 	/* Rx command */
 	REPLY_RX_PHY_CMD = 0xc0,
 	REPLY_RX_MPDU_CMD = 0xc1,

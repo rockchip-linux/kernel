@@ -6,6 +6,7 @@
  * Copyright 2005, Devicescape Software, Inc.
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2007, Michael Wu <flamingice@sourmilk.net>
+ * Copyright 2013-2014  Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1059,12 +1060,8 @@ void ieee80211_sched_scan_results(struct ieee80211_hw *hw)
 }
 EXPORT_SYMBOL(ieee80211_sched_scan_results);
 
-void ieee80211_sched_scan_stopped_work(struct work_struct *work)
+void ieee80211_sched_scan_end(struct ieee80211_local *local)
 {
-	struct ieee80211_local *local =
-		container_of(work, struct ieee80211_local,
-			     sched_scan_stopped_work);
-
 	mutex_lock(&local->mtx);
 
 	if (!rcu_access_pointer(local->sched_scan_sdata)) {
@@ -1080,6 +1077,15 @@ void ieee80211_sched_scan_stopped_work(struct work_struct *work)
 	mutex_unlock(&local->mtx);
 
 	cfg80211_sched_scan_stopped(local->hw.wiphy);
+}
+
+void ieee80211_sched_scan_stopped_work(struct work_struct *work)
+{
+	struct ieee80211_local *local =
+		container_of(work, struct ieee80211_local,
+			     sched_scan_stopped_work);
+
+	ieee80211_sched_scan_end(local);
 }
 
 void ieee80211_sched_scan_stopped(struct ieee80211_hw *hw)

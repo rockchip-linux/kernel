@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -123,28 +125,6 @@ void iwl_mvm_beacon_filter_set_cqm_params(struct iwl_mvm *mvm,
 	cmd->ba_enable_beacon_abort = cpu_to_le32(mvmvif->bf_data.ba_enabled);
 }
 
-int iwl_mvm_update_beacon_abort(struct iwl_mvm *mvm,
-				struct ieee80211_vif *vif, bool enable)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-	struct iwl_beacon_filter_cmd cmd = {
-		IWL_BF_CMD_CONFIG_DEFAULTS,
-		.bf_enable_beacon_filter = cpu_to_le32(1),
-		.ba_enable_beacon_abort = cpu_to_le32(enable),
-	};
-
-	if (!mvmvif->bf_data.bf_enabled)
-		return 0;
-
-	if (mvm->cur_ucode == IWL_UCODE_WOWLAN)
-		cmd.ba_escape_timer = cpu_to_le32(IWL_BA_ESCAPE_TIMER_D3);
-
-	mvmvif->bf_data.ba_enabled = enable;
-	iwl_mvm_beacon_filter_set_cqm_params(mvm, vif, &cmd);
-	iwl_mvm_beacon_filter_debugfs_parameters(vif, &cmd);
-	return iwl_mvm_beacon_filter_send_cmd(mvm, &cmd, CMD_SYNC);
-}
-
 static void iwl_mvm_power_log(struct iwl_mvm *mvm,
 			      struct iwl_mac_power_cmd *cmd)
 {
@@ -220,8 +200,15 @@ static void iwl_mvm_power_configure_uapsd(struct iwl_mvm *mvm,
 		}
 	}
 
-	if (!(cmd->flags & cpu_to_le16(POWER_FLAGS_ADVANCE_PM_ENA_MSK)))
+	if (!(cmd->flags & cpu_to_le16(POWER_FLAGS_ADVANCE_PM_ENA_MSK))) {
+#ifdef CPTCFG_IWLWIFI_DEBUGFS
+		/* set advanced pm flag with no uapsd ACs to enable ps-poll */
+		if (mvmvif->dbgfs_pm.use_ps_poll)
+			cmd->flags |=
+				cpu_to_le16(POWER_FLAGS_ADVANCE_PM_ENA_MSK);
+#endif
 		return;
+	}
 
 	cmd->flags |= cpu_to_le16(POWER_FLAGS_UAPSD_MISBEHAVING_ENA_MSK);
 
@@ -268,12 +255,28 @@ static void iwl_mvm_power_configure_uapsd(struct iwl_mvm *mvm,
 		IWL_MVM_PS_HEAVY_RX_THLD_PERCENT;
 }
 
+static bool iwl_mvm_power_is_radar(struct ieee80211_vif *vif)
+{
+	struct ieee80211_chanctx_conf *chanctx_conf;
+	struct ieee80211_channel *chan;
+	bool radar_detect = false;
+
+	rcu_read_lock();
+	chanctx_conf = rcu_dereference(vif->chanctx_conf);
+	WARN_ON(!chanctx_conf);
+	if (chanctx_conf) {
+		chan = chanctx_conf->def.chan;
+		radar_detect = chan->flags & IEEE80211_CHAN_RADAR;
+	}
+	rcu_read_unlock();
+
+	return radar_detect;
+}
+
 static void iwl_mvm_power_build_cmd(struct iwl_mvm *mvm,
 				    struct ieee80211_vif *vif,
 				    struct iwl_mac_power_cmd *cmd)
 {
-	struct ieee80211_chanctx_conf *chanctx_conf;
-	struct ieee80211_channel *chan;
 	int dtimper, dtimper_msec;
 	int keep_alive;
 	bool radar_detect = false;
@@ -321,14 +324,7 @@ static void iwl_mvm_power_build_cmd(struct iwl_mvm *mvm,
 	}
 
 	/* Check if radar detection is required on current channel */
-	rcu_read_lock();
-	chanctx_conf = rcu_dereference(vif->chanctx_conf);
-	WARN_ON(!chanctx_conf);
-	if (chanctx_conf) {
-		chan = chanctx_conf->def.chan;
-		radar_detect = chan->flags & IEEE80211_CHAN_RADAR;
-	}
-	rcu_read_unlock();
+	radar_detect = iwl_mvm_power_is_radar(vif);
 
 	/* Check skip over DTIM conditions */
 	if (!radar_detect && (dtimper <= 10) &&
@@ -789,7 +785,7 @@ static int _iwl_mvm_enable_beacon_filter(struct iwl_mvm *mvm,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	int ret;
 
-	if (mvmvif != mvm->bf_allowed_vif ||
+	if (mvmvif != mvm->bf_allowed_vif || !vif->bss_conf.dtim_period ||
 	    vif->type != NL80211_IFTYPE_STATION || vif->p2p)
 		return 0;
 
@@ -815,6 +811,25 @@ int iwl_mvm_enable_beacon_filter(struct iwl_mvm *mvm,
 	};
 
 	return _iwl_mvm_enable_beacon_filter(mvm, vif, &cmd, flags, false);
+}
+
+int iwl_mvm_update_beacon_abort(struct iwl_mvm *mvm,
+				struct ieee80211_vif *vif, bool enable)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_beacon_filter_cmd cmd = {
+		IWL_BF_CMD_CONFIG_DEFAULTS,
+		.bf_enable_beacon_filter = cpu_to_le32(1),
+	};
+
+	if (!mvmvif->bf_data.bf_enabled)
+		return 0;
+
+	if (mvm->cur_ucode == IWL_UCODE_WOWLAN)
+		cmd.ba_escape_timer = cpu_to_le32(IWL_BA_ESCAPE_TIMER_D3);
+
+	mvmvif->bf_data.ba_enabled = enable;
+	return _iwl_mvm_enable_beacon_filter(mvm, vif, &cmd, 0, false);
 }
 
 int iwl_mvm_disable_beacon_filter(struct iwl_mvm *mvm,
@@ -853,17 +868,22 @@ int iwl_mvm_update_d0i3_power_mode(struct iwl_mvm *mvm,
 
 	iwl_mvm_power_build_cmd(mvm, vif, &cmd);
 	if (enable) {
-		/* configure skip over dtim up to 300 msec */
+		/* configure skip over dtim up to 306TU - 314 msec */
 		int dtimper = vif->bss_conf.dtim_period ?: 1;
-		int dtimper_msec = dtimper * vif->bss_conf.beacon_int;
+		int dtimper_tu = dtimper * vif->bss_conf.beacon_int;
+		bool radar_detect = iwl_mvm_power_is_radar(vif);
 
-		if (WARN_ON(!dtimper_msec))
+		if (WARN_ON(!dtimper_tu))
 			return 0;
 
-		cmd.skip_dtim_periods = 300 / dtimper_msec;
-		if (cmd.skip_dtim_periods)
-			cmd.flags |=
-				cpu_to_le16(POWER_FLAGS_SKIP_OVER_DTIM_MSK);
+		/* Check skip over DTIM conditions */
+		/* TODO: check that multicast wake lock is off */
+		if (!radar_detect && (dtimper < 10)) {
+			cmd.skip_dtim_periods = 306 / dtimper_tu;
+			if (cmd.skip_dtim_periods)
+				cmd.flags |= cpu_to_le16(
+					POWER_FLAGS_SKIP_OVER_DTIM_MSK);
+		}
 	}
 	iwl_mvm_power_log(mvm, &cmd);
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
@@ -893,26 +913,6 @@ int iwl_mvm_update_d0i3_power_mode(struct iwl_mvm *mvm,
 	}
 
 	return ret;
-}
-
-int iwl_mvm_update_beacon_filter(struct iwl_mvm *mvm,
-				 struct ieee80211_vif *vif,
-				 bool force,
-				 u32 flags)
-{
-	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
-
-	if (mvmvif != mvm->bf_allowed_vif)
-		return 0;
-
-	if (!mvmvif->bf_data.bf_enabled) {
-		/* disable beacon filtering explicitly if force is true */
-		if (force)
-			return iwl_mvm_disable_beacon_filter(mvm, vif, flags);
-		return 0;
-	}
-
-	return iwl_mvm_enable_beacon_filter(mvm, vif, flags);
 }
 
 int iwl_power_legacy_set_cam_mode(struct iwl_mvm *mvm)
