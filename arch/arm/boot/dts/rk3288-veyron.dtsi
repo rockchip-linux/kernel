@@ -379,6 +379,7 @@
 				regulator-max-microvolt = <1450000>;
 				regulator-name = "vdd_arm";
 				regulator-ramp-delay = <2000>;
+				regulator-suspend-mem-disabled;
 			};
 
 			vdd_gpu: DCDC_REG2 {
@@ -388,12 +389,14 @@
 				regulator-max-microvolt = <1250000>;
 				regulator-name = "vdd_gpu";
 				regulator-ramp-delay = <2000>;
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc135_ddr: DCDC_REG3 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "vcc135_ddr";
+				regulator-suspend-mem-enabled;
 			};
 
 			/*
@@ -409,6 +412,7 @@
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-name = "vcc_18";
+				regulator-suspend-mem-microvolt = <1800000>;
 			};
 
 			vcc33_pmuio: LDO_REG1 {
@@ -417,6 +421,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc33_pmuio";
+				regulator-suspend-mem-microvolt = <3300000>;
 			};
 
 			vdd_10: LDO_REG3 {
@@ -425,6 +430,7 @@
 				regulator-min-microvolt = <1000000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-name = "vdd_10";
+				regulator-suspend-mem-microvolt = <1000000>;
 			};
 
 			vccio_sd: LDO_REG4 {
@@ -433,6 +439,7 @@
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vccio_sd";
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc33_sd: LDO_REG5 {
@@ -441,6 +448,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc33_sd";
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc18_codec: LDO_REG6 {
@@ -449,6 +457,7 @@
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-name = "vcc18_codec";
+				regulator-suspend-mem-disabled;
 			};
 
 			vdd10_lcd_pwren_h: LDO_REG7 {
@@ -457,6 +466,7 @@
 				regulator-min-microvolt = <2500000>;
 				regulator-max-microvolt = <2500000>;
 				regulator-name = "vdd10_lcd_pwren_h";
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc33_ccd: LDO_REG8 {
@@ -465,18 +475,21 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc33_ccd";
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc33_lcd: SWITCH_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "vcc33_lcd";
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc18_lcd: SWITCH_REG2 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "vcc18_lcd";
+				regulator-suspend-mem-disabled;
 			};
 		};
 	};
@@ -590,6 +603,25 @@
 };
 
 &pinctrl {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <
+		/* Common for sleep and wake, but no owners */
+		&ddr0_retention
+		&ddrio_pwroff
+		&global_pwroff
+
+		/* Wake only */
+		&suspend_l_wake
+	>;
+	pinctrl-1 = <
+		/* Common for sleep and wake, but no owners */
+		&ddr0_retention
+		&ddrio_pwroff
+		&global_pwroff
+
+		/* Sleep only */
+		&suspend_l_sleep
+	>;
 
 	/* Add this for sdmmc pins to SD card */
 	pcfg_pull_none_drv_8ma: pcfg-pull-none-drv-8ma {
@@ -603,6 +635,10 @@
 
 	pcfg_output_high: pcfg-output-high {
 		output-high;
+	};
+
+	pcfg_output_low: pcfg-output-low {
+		output-low;
 	};
 
 	backlight {
@@ -709,6 +745,16 @@
 
 		sdmmc_wp_gpio: sdmmc-wp-gpio {
 			rockchip,pins = <7 10 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	suspend {
+		suspend_l_wake: suspend-l-wake {
+			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+
+		suspend_l_sleep: suspend-l-sleep {
+			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_output_high>;
 		};
 	};
 
