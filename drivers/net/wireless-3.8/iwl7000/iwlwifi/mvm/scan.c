@@ -288,21 +288,21 @@ static void iwl_mvm_scan_calc_params(struct iwl_mvm *mvm,
 	switch (mvm->tcm.result.global_load) {
 	case IWL_MVM_VENDOR_LOAD_HIGH:
 	case IWL_MVM_VENDOR_LOAD_MEDIUM:
-		params->suspend_time = 250;
-		params->max_out_time = 250;
+		params->suspend_time = 120;
+		params->max_out_time = 120;
 		break;
 	default:
-		params->suspend_time = 100;
-		params->max_out_time = 600;
+		params->suspend_time = 30;
+		params->max_out_time = 170;
 	}
 #else
-	params->suspend_time = 100;
-	params->max_out_time = 600;
+	params->suspend_time = 30;
+	params->max_out_time = 170;
 #endif
 
 	if (iwl_mvm_low_latency(mvm)) {
-		params->suspend_time = 250;
-		params->max_out_time = 250;
+		params->suspend_time = 120;
+		params->max_out_time = 120;
 	}
 
 	if (flags & NL80211_SCAN_FLAG_LOW_PRIORITY)
