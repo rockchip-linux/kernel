@@ -557,6 +557,10 @@
 		vopb_out: port {
 			#address-cells = <1>;
 			#size-cells = <0>;
+			vopb_out_edp: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&edp_in_vopb>;
+			};
 		};
 	};
 
@@ -582,6 +586,10 @@
 		vopl_out: port {
 			#address-cells = <1>;
 			#size-cells = <0>;
+			vopl_out_edp: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&edp_in_vopl>;
+			};
 		};
 	};
 
@@ -592,6 +600,32 @@
 		interrupt-names = "vopl_mmu";
 		#iommu-cells = <0>;
 		status = "disabled";
+	};
+
+	edp: edp@ff970000 {
+		compatible = "rockchip,rk3288-edp";
+		reg = <0xff970000 0x4000>;
+		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru SCLK_EDP>, <&cru SCLK_EDP_24M>, <&cru PCLK_EDP_CTRL>;
+		rockchip,grf = <&grf>;
+		clock-names = "clk_edp", "clk_edp_24m", "pclk_edp";
+		resets = <&cru 111>;
+		reset-names = "edp";
+		status = "disabled";
+		ports {
+			edp_in: port {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				edp_in_vopb: endpoint@0 {
+					reg = <0>;
+					remote-endpoint = <&vopb_out_edp>;
+				};
+				edp_in_vopl: endpoint@1 {
+					reg = <1>;
+					remote-endpoint = <&vopl_out_edp>;
+				};
+			};
+		};
 	};
 
 	gpu: gpu@ffa30000 {
