@@ -882,9 +882,9 @@ int __init of_parse_thermal_zones(void)
 			kfree(ops);
 			of_thermal_free_zone(tz);
 			/* attempting to build remaining zones still */
+		} else {
+			zone->np = child;
 		}
-
-		zone->np = child;
 	}
 
 	return 0;
