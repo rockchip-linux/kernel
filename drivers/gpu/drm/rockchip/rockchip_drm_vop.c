@@ -780,7 +780,7 @@ int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc,
 static struct drm_crtc *rockchip_drm_find_crtc(struct drm_device *drm, int pipe)
 {
 	struct drm_crtc *c, *crtc = NULL;
-	int i;
+	int i = 0;
 
 	list_for_each_entry(c, &drm->mode_config.crtc_list, head)
 		if (i++ == pipe) {
