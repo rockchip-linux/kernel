@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/phy.h>
 #include <linux/platform_device.h>
+#include <linux/regmap.h>
 
 #include "qca8337-lite.h"
 
@@ -33,6 +34,7 @@
 struct qca8337_dev {
 	struct device *dev;
 	struct mii_bus *mii_bus;
+	struct regmap *regmap;
 };
 
 static inline void split_addr(uint32_t regaddr, uint16_t *r1, uint16_t *r2,
@@ -49,7 +51,7 @@ static inline void split_addr(uint32_t regaddr, uint16_t *r1, uint16_t *r2,
 }
 
 /* from qca-ssdk driver */
-uint32_t qca8337_lite_reg_read(struct qca8337_dev *qca8337, int reg)
+uint32_t qca8337_lite_reg_read(struct qca8337_dev *qca8337, uint32_t reg)
 {
 	struct mii_bus *bus = qca8337->mii_bus;
 	uint16_t r1, r2, page;
@@ -250,6 +252,39 @@ static int qca8337_get_mii_bus(struct qca8337_dev *qca8337)
 	return 0;
 }
 
+static int qca8337_lite_regmap_read(void *context, uint32_t reg, uint32_t *val)
+{
+	struct qca8337_dev *qca8337 = (struct qca8337_dev *)context;
+
+	*val = qca8337_lite_reg_read(qca8337, reg);
+
+	return 0;
+}
+
+static const struct regmap_range qca8337_lite_readable_ranges[] = {
+	regmap_reg_range(0x0000, 0x00e0), /* Global control */
+	regmap_reg_range(0x0100, 0x0168), /* EEE control */
+	regmap_reg_range(0x0200, 0x0270), /* Parser control */
+	regmap_reg_range(0x0400, 0x0454), /* ACL */
+	regmap_reg_range(0x0600, 0x0718), /* Lookup */
+	regmap_reg_range(0x0800, 0x0b70), /* QM */
+	regmap_reg_range(0x0C00, 0x0c80), /* PKT */
+};
+
+static struct regmap_access_table qca8337_lite_readable_table = {
+	.yes_ranges = qca8337_lite_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(qca8337_lite_readable_ranges),
+};
+
+struct regmap_config qca8337_lite_regmap_config = {
+	.reg_bits = 16,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = 0x0c80, /* end PKT range */
+	.reg_read = qca8337_lite_regmap_read,
+	.rd_table = &qca8337_lite_readable_table,
+};
+
 static int qca8337_lite_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -274,6 +309,12 @@ static int qca8337_lite_probe(struct platform_device *pdev)
 	qca8337_lite_reg_init(qca8337);
 	qca8337_lite_reg_init_lan(qca8337);
 	qca8337_lite_vlan_config(qca8337);
+
+	qca8337->regmap = devm_regmap_init(qca8337->dev, NULL, qca8337,
+					   &qca8337_lite_regmap_config);
+
+	if (IS_ERR(qca8337->regmap))
+		dev_warn(qca8337->dev, "regmap initialization failed\n");
 
 	dev_info(qca8337->dev, "version %s initialized\n", DRV_VERSION);
 
