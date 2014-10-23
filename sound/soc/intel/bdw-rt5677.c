@@ -175,7 +175,6 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	struct bdw_rt5677_priv *bdw_rt5677 =
 			snd_soc_card_get_drvdata(rtd->card);
 	struct snd_soc_codec *codec = rtd->codec;
-	int ret;
 
 	/* Request rt5677 GPIO for headphone amp control */
 	bdw_rt5677->gpio_hp_en = devm_gpiod_get_index(codec->dev,
@@ -187,35 +186,32 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	gpiod_direction_output(bdw_rt5677->gpio_hp_en, 0);
 
 	/* Create and initialize headphone jack */
-	ret = snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
-				&headphone_jack);
-	if (ret)
-		return ret;
-	ret = snd_soc_jack_add_pins(&headphone_jack, 1, &headphone_jack_pin);
-	if (ret)
-		return ret;
-	headphone_jack_gpio.gpiod_dev = codec->dev;
-	ret = snd_soc_jack_add_gpios(&headphone_jack, 1, &headphone_jack_gpio);
-	if (ret) {
-		dev_err(rtd->dev, "Can't add headphone jack gpio\n");
-		return ret;
+	if (!snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+			&headphone_jack)) {
+		if (snd_soc_jack_add_pins(&headphone_jack, 1,
+				&headphone_jack_pin))
+			dev_err(codec->dev, "Can't add headphone jack pin\n");
+
+		headphone_jack_gpio.gpiod_dev = codec->dev;
+		if (snd_soc_jack_add_gpios(&headphone_jack, 1,
+				&headphone_jack_gpio))
+			dev_err(codec->dev, "Can't add headphone jack gpio\n");
+	} else {
+		dev_err(codec->dev, "Can't create headphone jack\n");
 	}
 
 	/* Create and initialize mic jack */
-	ret = snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
-				&mic_jack);
-	if (ret)
-		return ret;
-	ret = snd_soc_jack_add_pins(&mic_jack, 1, &mic_jack_pin);
-	if (ret)
-		return ret;
-	mic_jack_gpio.gpiod_dev = codec->dev;
-	ret = snd_soc_jack_add_gpios(&mic_jack, 1, &mic_jack_gpio);
-	if (ret) {
-		dev_err(rtd->dev, "Can't add mic jack gpio\n");
-		return ret;
-	}
+	if (!snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
+			&mic_jack)) {
+		if (snd_soc_jack_add_pins(&mic_jack, 1, &mic_jack_pin))
+			dev_err(codec->dev, "Can't add mic jack pin\n");
 
+		mic_jack_gpio.gpiod_dev = codec->dev;
+		if (snd_soc_jack_add_gpios(&mic_jack, 1, &mic_jack_gpio))
+			dev_err(codec->dev, "Can't add mic jack gpio\n");
+	} else {
+		dev_err(codec->dev, "Can't create mic jack\n");
+	}
 	return 0;
 }
 
