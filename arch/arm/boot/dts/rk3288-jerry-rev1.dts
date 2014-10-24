@@ -1,5 +1,5 @@
 /*
- * Google Veyron Pinky Rev 2 board device tree source
+ * Google Veyron Jerry Rev 0 board device tree source
  *
  * Copyright 2014 Google, Inc
  *
@@ -12,7 +12,7 @@
 #include "rk3288-veyron.dtsi"
 
 / {
-        model = "Google Pinky";
-        compatible = "google,veyron-pinky-rev2", "google,veyron-pinky",
-                     "google,veyron", "rockchip,rk3288";
+	model = "Google Jerry";
+	compatible = "google,veyron-jerry-rev1", "google,veyron-jerry",
+		     "google,veyron", "rockchip,rk3288";
 };

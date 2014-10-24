@@ -1,0 +1,698 @@
+/*
+ * Google Veyron (and derivatives) board device tree source
+ *
+ * Copyright 2014 Google, Inc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include <dt-bindings/clock/rockchip,rk808.h>
+#include <dt-bindings/input/input.h>
+#include "rk3288.dtsi"
+
+/ {
+	aliases {
+		i2c20 = &i2c20;
+	};
+
+	memory {
+		reg = <0x0 0x80000000>;
+	};
+
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		brightness-levels = <
+			  0   1   2   3   4   5   6   7
+			  8   9  10  11  12  13  14  15
+			 16  17  18  19  20  21  22  23
+			 24  25  26  27  28  29  30  31
+			 32  33  34  35  36  37  38  39
+			 40  41  42  43  44  45  46  47
+			 48  49  50  51  52  53  54  55
+			 56  57  58  59  60  61  62  63
+			 64  65  66  67  68  69  70  71
+			 72  73  74  75  76  77  78  79
+			 80  81  82  83  84  85  86  87
+			 88  89  90  91  92  93  94  95
+			 96  97  98  99 100 101 102 103
+			104 105 106 107 108 109 110 111
+			112 113 114 115 116 117 118 119
+			120 121 122 123 124 125 126 127
+			128 129 130 131 132 133 134 135
+			136 137 138 139 140 141 142 143
+			144 145 146 147 148 149 150 151
+			152 153 154 155 156 157 158 159
+			160 161 162 163 164 165 166 167
+			168 169 170 171 172 173 174 175
+			176 177 178 179 180 181 182 183
+			184 185 186 187 188 189 190 191
+			192 193 194 195 196 197 198 199
+			200 201 202 203 204 205 206 207
+			208 209 210 211 212 213 214 215
+			216 217 218 219 220 221 222 223
+			224 225 226 227 228 229 230 231
+			232 233 234 235 236 237 238 239
+			240 241 242 243 244 245 246 247
+			248 249 250 251 252 253 254 255>;
+		default-brightness-level = <128>;
+		enable-gpios = <&gpio7 2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bl_en>;
+		pwms = <&pwm0 0 1000000 0>;
+	};
+
+	panel: panel {
+		compatible ="cnm,n116bgeea2","simple-panel";
+		status = "okay";
+		power-supply = <&vcc33_lcd>;
+		backlight = <&backlight>;
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwr_key_h &ap_lid_int_l>;
+		power {
+			label = "Power";
+			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+			linux,code = <KEY_POWER>;
+			debounce-interval = <100>;
+			gpio-key,wakeup;
+		};
+
+		lid {
+			label = "Lid";
+			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+			linux,code = <0>; /* SW_LID */
+			linux,input-type = <5>; /* EV_SW */
+			debounce-interval = <1>;
+			gpio-key,wakeup;
+                };
+	};
+
+	gpio-charger {
+		compatible = "gpio-charger";
+		gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ac_present_ap>;
+		charger-type = "mains";
+	};
+
+	gpio-restart {
+		compatible = "gpio-restart";
+		gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap_warm_reset_h>;
+		priority = /bits/ 8 <200>;
+	};
+
+	/* A non-regulated voltage from power supply or battery */
+	vccsys: vccsys {
+		compatible = "regulator-fixed";
+		regulator-name = "vccsys";
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	vdd_logic: pwm-regulator {
+		compatible = "pwm-regulator";
+		pwms = <&pwm1 0 2000 0>;
+
+		voltage-table = <1350000 0>,
+				<1300000 10>,
+				<1250000 20>,
+				<1200000 31>,
+				<1150000 41>,
+				<1100000 52>,
+				<1050000 62>,
+				<1000000 72>,
+				< 950000 83>;
+
+		regulator-min-microvolt = <950000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-name = "vdd_logic";
+	};
+
+	/* vcc33_sys is controlled by the EC (system_power_h).  Off in S5. */
+	vcc33_sys: vcc33-sys {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_sys";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&vccsys>;
+	};
+
+	/*
+	 * Note that vcc33_io comes from vcc33_sys (as we've modeled here )but
+	 * goes through a discreet FET.  The enable line for the FET is
+	 * vcc33_pmuio.  That means (ignoring noise, efficiency, and maximum
+	 * current considerations) that vcc33_io is really (vcc33_sys &&
+	 * vcc33_pmuio).  Note that we currently consider both both of these
+	 * always_on from the point of view of the AP (they may turn off in S3
+	 * or S5).
+	 *
+	 * I'm not quite sure how to model that, but since everything is
+	 * always_on and the voltages aren't changing we'll just ingore the
+	 * enable line.
+	 */
+	vcc33_io: vcc33-io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_io";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+	};
+
+	vcc_5v: vcc-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_5v";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&vccsys>;
+	};
+
+	/* This turns on vbus for host1 (dwc2) */
+	vcc5_host1: vcc5-host1-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&host1_pwr_en>;
+		regulator-name = "vcc5_host1";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* This turns on vbus for otg for host mode (dwc2) */
+	vcc5v_otg: vcc5v-otg-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbotg_pwren_h>;
+		regulator-name = "vcc5_host2";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	wifi_regulator: wifi-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+		regulator-name = "wifi_regulator";
+	};
+
+	io-domains {
+		compatible = "rockchip,rk3288-io-voltage-domain";
+		rockchip,grf = <&grf>;
+
+		audio-supply = <&vcc18_codec>;
+		bb-supply = <&vcc33_io>;
+		dvp-supply = <&vcc_18>;
+		flash0-supply = <&vcc18_flashio>;
+		gpio1830-supply = <&vcc33_io>;
+		gpio30-supply = <&vcc33_pmuio>;
+		lcdc-supply = <&vcc33_lcd>;
+		sdcard-supply = <&vccio_sd>;
+		wifi-supply = <&vcc18_wl>;
+	};
+};
+
+&cpu0 {
+	cpu0-supply = <&vdd_cpu>;
+
+	operating-points = <
+		/* KHz    uV */
+		1800000 1300000
+		1608000 1200000
+		1416000 1150000
+		1200000 1100000
+		1008000 1050000
+		 816000 1000000
+		 600000  900000
+		 408000  850000
+		 216000  850000
+		 126000  850000
+	>;
+};
+
+&emmc {
+	broken-cd;
+	bus-width = <8>;
+	cap-mmc-highspeed;
+	disable-wp;
+	non-removable;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8 &emmc_deassert_reset>;
+	status = "okay";
+};
+
+&sdio0 {
+	broken-cd;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	card-external-vcc-supply = <&wifi_regulator>;
+	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&rk808 RK808_CLKOUT1>;
+	clock-names = "biu", "ciu", "card_ext_clock";
+	keep-power-in-suspend;
+	non-removable;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_bus4>;
+	status = "okay";
+	vmmc-supply = <&vcc33_sys>;
+	vqmmc-supply = <&vcc18_wl>;
+};
+
+&sdmmc {
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	cap-sd-highspeed;
+	card-detect-delay = <200>;
+	cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_disabled &sdmmc_cd_gpio
+		     &sdmmc_wp_gpio &sdmmc_bus4>;
+	status = "okay";
+	vmmc-supply = <&vcc33_sd>;
+	wp-gpios = <&gpio7 10 GPIO_ACTIVE_LOW>;
+	wp-inverted;					/* AKA active low */
+};
+
+&spi0 {
+	status = "okay";
+
+	cros_ec: ec@0 {
+		compatible = "google,cros-ec-spi";
+		spi-max-frequency = <3000000>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ec_int>;
+		reg = <0>;
+		google,cros-ec-spi-pre-delay = <30>;
+
+		i2c20: i2c-tunnel {
+			compatible = "google,cros-ec-i2c-tunnel";
+			google,remote-bus = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			battery: sbs-battery@b {
+				compatible = "sbs,sbs-battery";
+				reg = <0xb>;
+				sbs,i2c-retry-count = <2>;
+				sbs,poll-retry-count = <1>;
+			};
+		};
+	};
+};
+
+&spi2 {
+	status = "okay";
+
+	spiflash@0 {
+		compatible = "spidev";
+		spi-max-frequency = <50000000>;
+		reg = <0>;
+	};
+};
+
+&i2c0 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	rk808: pmic@1b {
+		compatible = "rockchip,rk808";
+		clock-output-names = "xin32k", "wifibt_32kin";
+		interrupt-parent = <&gpio0>;
+		interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pmic_int_l>;
+		reg = <0x1b>;
+		rockchip,system-power-controller;
+		wakeup-source;
+		#clock-cells = <1>;
+
+		vcc1-supply = <&vcc33_sys>;
+		vcc2-supply = <&vcc33_sys>;
+		vcc3-supply = <&vcc33_sys>;
+		vcc4-supply = <&vcc33_sys>;
+		vcc6-supply = <&vcc_5v>;
+		vcc7-supply = <&vcc33_sys>;
+		vcc8-supply = <&vcc33_sys>;
+		vcc9-supply = <&vcc_5v>;
+		vcc10-supply = <&vcc33_sys>;
+		vcc11-supply = <&vcc_5v>;
+		vcc12-supply = <&vcc_18>;
+
+		vddio-supply = <&vcc33_pmuio>;
+
+		regulators {
+			vdd_cpu: DCDC_REG1 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <750000>;
+				regulator-max-microvolt = <1350000>;
+				regulator-name = "vdd_arm";
+				regulator-ramp-delay = <2000>;
+			};
+
+			vdd_gpu: DCDC_REG2 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1250000>;
+				regulator-name = "vdd_gpu";
+				regulator-ramp-delay = <2000>;
+			};
+
+			vcc135_ddr: DCDC_REG3 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-name = "vcc135_ddr";
+			};
+
+			/*
+			 * vcc_18 has several aliases.  (vcc18_flashio and
+			 * vcc18_wl).  We'll add those aliases here just to
+			 * make it easier to follow the schematic.  The signals
+			 * are actually hooked together and only separated for
+			 * power measurement purposes).
+			 */
+			vcc18_wl: vcc18_flashio: vcc_18: DCDC_REG4 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-name = "vcc_18";
+			};
+
+			vcc33_pmuio: LDO_REG1 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vcc33_pmuio";
+			};
+
+			vdd_10: LDO_REG3 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1000000>;
+				regulator-name = "vdd_10";
+			};
+
+			vccio_sd: LDO_REG4 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vccio_sd";
+			};
+
+			vcc33_sd: LDO_REG5 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vcc33_sd";
+			};
+
+			vcc18_codec: LDO_REG6 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-name = "vcc18_codec";
+			};
+
+			vdd10_lcd_pwren_h: LDO_REG7 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <2500000>;
+				regulator-max-microvolt = <2500000>;
+				regulator-name = "vdd10_lcd_pwren_h";
+			};
+
+			vcc33_ccd: LDO_REG8 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-name = "vcc33_ccd";
+			};
+
+			vcc33_lcd: SWITCH_REG1 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-name = "vcc33_lcd";
+			};
+
+			vcc18_lcd: SWITCH_REG2 {
+				regulator-always-on;
+				regulator-boot-on;
+				regulator-name = "vcc18_lcd";
+			};
+		};
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	tpm: tpm@20 {
+		compatible = "infineon,slb9645tt";
+		reg = <0x20>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tpm_int_h>;
+		powered-while-suspended;
+	};
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c4 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	trackpad@15 {
+		compatible = "elan,i2c_touchpad";
+		interrupt-parent = <&gpio7>;
+		interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&trackpad_int>;
+		reg = <0x15>;
+		vcc-supply = <&vcc33_io>;
+		wakeup-source;
+	};
+};
+
+&i2c5 {
+	status = "okay";
+};
+
+&wdt {
+	status = "okay";
+};
+
+&pwm0 {
+	status = "okay";
+};
+
+&pwm1 {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
+&edp {
+	status = "okay";
+	rockchip,panel = <&panel>;
+};
+
+&gpu {
+	status = "okay";
+};
+
+&pinctrl {
+
+	/* Add this for sdmmc pins to SD card */
+	pcfg_pull_none_drv_8ma: pcfg-pull-none-drv-8ma {
+		drive-strength = <8>;
+	};
+
+	pcfg_pull_up_drv_8ma: pcfg-pull-up-drv-8ma {
+		bias-pull-up;
+		drive-strength = <8>;
+	};
+
+	pcfg_output_high: pcfg-output-high {
+		output-high;
+	};
+
+	backlight {
+		bl_en: bl-en {
+			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	buttons {
+		pwr_key_h: pwr-key-h {
+			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		ap_lid_int_l: ap-lid-int-l {
+			rockchip,pins = <0 6 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	charger {
+		ac_present_ap: ac-present-ap {
+			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	cros-ec {
+		ec_int: ec-int {
+			rockchip,pins = <7 7 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	emmc {
+		/* Make sure eMMC is not in reset */
+		emmc_deassert_reset: emmc-deassert-reset {
+			rockchip,pins = <7 12 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+	};
+
+	pmic {
+		pmic_int_l: pmic-int-l {
+			rockchip,pins = <RK_GPIO0 4 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	reboot {
+		ap_warm_reset_h: ap-warm-reset-h {
+			rockchip,pins = <RK_GPIO0 13 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdio0 {
+		wifi_enable_h: wifienable-h {
+			rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdmmc {
+		sdmmc_bus4: sdmmc-bus4 {
+			rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+				        <6 17 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 18 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<6 19 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+		};
+
+		sdmmc_clk: sdmmc-clk {
+			rockchip,pins = <6 20 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdmmc_cmd: sdmmc-cmd {
+			rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+		};
+
+		/*
+		 * Builtin CD line is hooked to ground to prevent JTAG at boot
+		 * (and also to get the voltage rail correct).  Make we
+		 * configure gpio6_C6 as GPIO so dw_mmc builtin CD doesn't
+		 * think there's a card inserted
+		 */
+		sdmmc_cd_disabled: sdmmc-cd-disabled {
+			rockchip,pins = <6 22 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		/* This is where we actually hook up CD */
+		sdmmc_cd_gpio: sdmmc-cd-gpio {
+			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		sdmmc_wp_gpio: sdmmc-wp-gpio {
+			rockchip,pins = <7 10 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	tpm {
+		tpm_int_h: tpm-int-h {
+			rockchip,pins = <7 4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	trackpad {
+		trackpad_int: trackpad-int {
+			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	usb-host {
+		host1_pwr_en: host1-pwr-en {
+			rockchip,pins = <0 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		usbotg_pwren_h: usbotg-pwren-h {
+			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host1 {
+	status = "okay";
+};
+
+&usb_otg {
+	dr_mode = "host";
+	status = "okay";
+};
+
+#include "cros-ec-keyboard.dtsi"
