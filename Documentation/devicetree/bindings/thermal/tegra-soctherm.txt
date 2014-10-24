@@ -29,7 +29,38 @@ Required properties :
 - #thermal-sensor-cells : Should be 1. See ./thermal.txt for a description
     of this property. See <dt-bindings/thermal/tegra124-soctherm.h> for a
     list of valid values when referring to thermal sensors.
+- throttle-cfgs: A sub-node which is a container of throttle configs.
 - hw-trips : A sub-node which is a container of sensor group.
+
+* throttle-cfgs
+* throttle-control:
+These node is used to describe the HW throttle info, named as
+"light", "heavy", "oc1", "oc2", "oc3", "oc4", "oc5".
+"light"/"heavy" correspond to soctherm internal alarm/interrupt event.
+"oc1" to "oc5" correspond to specific pins, which connect to the chip.
+
+Required properties:
+- priority: Each throttles has its own throttle settings, so the SW need
+    to set priorities for various throttle, the HW arbiter can select the
+    final throttle settings.
+    Bigger value indicates higher priority, In general, higher priority
+    translates to lower target frequency. SW needs to ensure that critical
+    thermal/OC alarms are given higher priority, and ensure that there is
+    no race if priority of two vectors is set to the same value.
+- cpu-throt-level: Level of pulse skippers, which used to throttle
+    clock frequencies. It indicates cpu clock throttling depth, and
+    the depth can be programmed.
+    Must set as following values:
+    TEGRA_SOCTHERM_THROT_LEVEL_LOW, TEGRA_SOCTHERM_THROT_LEVEL_MED
+    TEGRA_SOCTHERM_THROT_LEVEL_HIGH, TEGRA_SOCTHERM_THROT_LEVEL_NONE
+Optional properties:
+- alarm-filter: Number of clocks to filter event. When the filter expires
+   (which means the OC event has not occurred for a long time), the counter
+   is cleared and filter is rearmed. Required for OCx.
+- alarm-cnt-threshold: Event count threshold to raise interrupt,
+    0-rise interrupt for every event. Required for OCx.
+- polarity: Alarm polarity, 1-assert low, 0-assert high.
+    Required for OCx.
 
 * hw-trips
 Required properties:
@@ -66,6 +97,16 @@ Example :
 		reset-names = "soctherm";
 
 		#thermal-sensor-cells = <1>;
+
+		throttle-cfgs {
+			heavy {
+				alarm-filter = <5100000>;
+				alarm-cnt-threshold = <0>;
+				polarity = <1>; /* ACTIVE_LOW */
+				priority = <100>;
+				cpu_throt_level = <TEGRA_SOCTHERM_THROT_LEVEL_HIGH>;
+			};
+		};
 
 		hw-trips {
 			sensor-groups {

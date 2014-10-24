@@ -29,6 +29,9 @@
 #include <linux/thermal.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/irq.h>
+#include <linux/irqdomain.h>
+#include <linux/gpio.h>
 #include <linux/bitops.h>
 #include <soc/tegra/fuse.h>
 
@@ -170,6 +173,45 @@
 #define TS_TEMP2_PLLX_TEMP_SHIFT		0
 #define TS_TEMP2_PLLX_TEMP_MASK			0xffff
 
+#define OC1_CFG				0x310
+#define OC1_CFG_LONG_LATENCY_SHIFT	6
+#define OC1_CFG_LONG_LATENCY_MASK	0x1
+#define OC1_CFG_HW_RESTORE_SHIFT	5
+#define OC1_CFG_HW_RESTORE_MASK		0x1
+#define OC1_CFG_PWR_GOOD_MASK_SHIFT	4
+#define OC1_CFG_PWR_GOOD_MASK_MASK	0x1
+#define OC1_CFG_THROTTLE_MODE_SHIFT	2
+#define OC1_CFG_THROTTLE_MODE_MASK	0x3
+#define OC1_CFG_ALARM_POLARITY_SHIFT	1
+#define OC1_CFG_ALARM_POLARITY_MASK	0x1
+#define OC1_CFG_EN_THROTTLE_SHIFT	0
+#define OC1_CFG_EN_THROTTLE_MASK	0x1
+
+#define OC1_CNT_THRESHOLD		0x314
+#define OC1_THROTTLE_PERIOD		0x318
+#define OC1_ALARM_COUNT			0x31c
+#define OC1_FILTER			0x320
+
+#define OC1_STATS			0x3a8
+
+#define OC_INTR_STATUS			0x39c
+#define OC_INTR_ENABLE			0x3a0
+#define OC_INTR_DISABLE			0x3a4
+#define OC_INTR_POS_OC1_SHIFT		0
+#define OC_INTR_POS_OC1_MASK		0x1
+#define OC_INTR_POS_OC2_SHIFT		1
+#define OC_INTR_POS_OC2_MASK		0x1
+#define OC_INTR_POS_OC3_SHIFT		2
+#define OC_INTR_POS_OC3_MASK		0x1
+#define OC_INTR_POS_OC4_SHIFT		3
+#define OC_INTR_POS_OC4_MASK		0x1
+#define OC_INTR_POS_OC5_SHIFT		4
+#define OC_INTR_POS_OC5_MASK		0x1
+
+#define OC_STATS_CTL			0x3c4
+#define OC_STATS_CTL_CLR_ALL		0x2
+#define OC_STATS_CTL_EN_ALL		0x1
+
 #define THROT_GLOBAL_CFG			0x400
 #define THROT_GLOBAL_ENB_SHIFT			0
 #define THROT_GLOBAL_ENB_MASK			0x1
@@ -268,6 +310,7 @@
 
 #define THROT_OFFSET				0x30
 #define CCROC_THROT_OFFSET			0x0c
+#define ALARM_OFFSET				0x14
 
 #define THROT_PSKIP_CTRL(throt, dev)		(THROT_PSKIP_CTRL_LITE_CPU + \
 						(THROT_OFFSET * throt) + \
@@ -285,6 +328,24 @@
 #define THROT_DELAY_CTRL(throt)			(THROT_DELAY_LITE + \
 						(THROT_OFFSET * throt))
 
+#define ALARM_CFG(throt)			(OC1_CFG + \
+						(ALARM_OFFSET * (throt - \
+								THROTTLE_OC1)))
+#define ALARM_CNT_THRESHOLD(throt)		(OC1_CNT_THRESHOLD + \
+						(ALARM_OFFSET * (throt - \
+								THROTTLE_OC1)))
+#define ALARM_THROTTLE_PERIOD(throt)		(OC1_THROTTLE_PERIOD + \
+						(ALARM_OFFSET * (throt - \
+								THROTTLE_OC1)))
+#define ALARM_ALARM_COUNT(throt)		(OC1_ALARM_COUNT + \
+						(ALARM_OFFSET * (throt - \
+								THROTTLE_OC1)))
+#define ALARM_FILTER(throt)			(OC1_FILTER + \
+						(ALARM_OFFSET * (throt - \
+								THROTTLE_OC1)))
+#define ALARM_STATS(throt)			(OC1_STATS + \
+						(4 * (throt - THROTTLE_OC1)))
+
 #define REG_SET(r, _name, val)	(((r) & ~(_name##_MASK << _name##_SHIFT)) | \
 				(((val) & _name##_MASK) << _name##_SHIFT))
 #define REG_GET_BIT(r, _name)	((r) & (_name##_MASK << _name##_SHIFT))
@@ -300,19 +361,17 @@
 
 #define THROT_DEPTH_DIVIDEND(depth)	((256 * (100 - (depth)) / 100) - 1)
 
+#define LOG_THROT_STATE_PERIOD		1000 /* in ms */
+
 enum soctherm_throttle_id {
 	THROTTLE_LIGHT = 0,
 	THROTTLE_HEAVY,
+	THROTTLE_OC1,
+	THROTTLE_OC2,
+	THROTTLE_OC3,
+	THROTTLE_OC4,
+	THROTTLE_OC5,
 	THROTTLE_SIZE,
-};
-
-enum soctherm_throttle_level {
-	THROTTLE_LEVEL_LOW = 0,
-	THROTTLE_LEVEL_MED,
-	THROTTLE_LEVEL_HIGH,
-	THROTTLE_LEVEL_SIZE,
-	THROTTLE_LEVEL_NONE = -1,
-
 };
 
 enum soctherm_throttle_dev_id {
@@ -322,9 +381,30 @@ enum soctherm_throttle_dev_id {
 	THROTTLE_DEV_NONE,
 };
 
+enum soctherm_oc_irq_id {
+	TEGRA_SOC_OC_IRQ_1,
+	TEGRA_SOC_OC_IRQ_2,
+	TEGRA_SOC_OC_IRQ_3,
+	TEGRA_SOC_OC_IRQ_4,
+	TEGRA_SOC_OC_IRQ_5,
+	TEGRA_SOC_OC_IRQ_NUM,
+};
+
+enum throt_mode {
+	DISABLED = 0,
+	STICKY,
+	BRIEF,
+	RESERVED,
+};
+
 static const char *const throt_names[] = {
 	[THROTTLE_LIGHT]   = "light",
 	[THROTTLE_HEAVY]   = "heavy",
+	[THROTTLE_OC1]     = "oc1",
+	[THROTTLE_OC2]     = "oc2",
+	[THROTTLE_OC3]     = "oc3",
+	[THROTTLE_OC4]     = "oc4",
+	[THROTTLE_OC5]     = "oc5", /* reserved */
 };
 
 static const char *const throt_dev_names[] = {
@@ -334,6 +414,23 @@ static const char *const throt_dev_names[] = {
 
 static const int min_low_temp = -127000;
 static const int max_high_temp = 127000;
+
+struct soctherm_oc_irq_chip_data {
+	struct mutex		irq_lock; /* serialize OC IRQs */
+	struct irq_chip		irq_chip;
+	struct irq_domain	*domain;
+	int			irq_enable;
+};
+
+struct soctherm_throttle {
+	const char *name;
+	u8 polarity;
+	u8 priority;
+	u32 alarm_cnt_threshold;
+	u32 alarm_filter;
+	u8 cpu_throt_level;
+	bool intr;
+};
 
 struct tegra_soctherm {
 	struct platform_device *pdev;
@@ -351,8 +448,13 @@ struct tegra_soctherm {
 	struct tegra_tsensor_group **sensor_groups;
 	struct tegra_tsensor *tsensors;
 	struct tsensor_shared_calibration *shared_calib;
+	struct soctherm_oc_irq_chip_data *soc_irq_cdata;
+
+	struct soctherm_throttle throttle[THROTTLE_SIZE];
 
 	bool is_ccroc;
+
+	struct delayed_work throt_state_work;
 };
 
 struct tegra_thermctl_zone {
@@ -604,6 +706,196 @@ static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 		/* Whine about any other unexpected INTR bits still set */
 		pr_err("soctherm: Ignored unexpected INTRs 0x%08x\n", st);
 		soctherm_writel(ts, st, THERMCTL_INTR_STATUS);
+	}
+
+	return IRQ_HANDLED;
+}
+
+/**
+ * soctherm_edp_isr() - Disables any active interrupts
+ * @irq:	The interrupt request number
+ * @arg:	Opaque pointer to an argument
+ *
+ * Writes to the OC_INTR_DISABLE register the over current interrupt status,
+ * masking any asserted interrupts. Doing this prevents the same interrupts
+ * from triggering this isr repeatedly. The thread woken by this isr will
+ * handle asserted interrupts and subsequently unmask/re-enable them.
+ *
+ * The OC_INTR_DISABLE register indicates which OC interrupts
+ * have been disabled.
+ *
+ * Return: %IRQ_WAKE_THREAD, handler requests to wake the handler thread
+ */
+static irqreturn_t soctherm_edp_isr(int irq, void *dev_id)
+{
+	struct tegra_soctherm *ts = dev_id;
+	u32 r;
+
+	r = soctherm_readl(ts, OC_INTR_STATUS);
+	soctherm_writel(ts, r, OC_INTR_DISABLE);
+
+	return IRQ_WAKE_THREAD;
+}
+
+/**
+ * soctherm_oc_intr_enable() - Enables the soctherm over-current interrupt
+ * @alarm:		The soctherm throttle id
+ * @enable:		Flag indicating enable the soctherm over-current
+ *			interrupt or disable it
+ *
+ * Enables a specific over-current pins @alarm to raise an interrupt if the flag
+ * is set and the alarm corresponds to OC1, OC2, OC3, or OC4.
+ */
+static void soctherm_oc_intr_enable(struct tegra_soctherm *ts,
+				    enum soctherm_throttle_id alarm,
+				    bool enable)
+{
+	u32 r;
+
+	if (!enable)
+		return;
+
+	r = soctherm_readl(ts, OC_INTR_ENABLE);
+	switch (alarm) {
+	case THROTTLE_OC1:
+		r = REG_SET(r, OC_INTR_POS_OC1, 1);
+		break;
+	case THROTTLE_OC2:
+		r = REG_SET(r, OC_INTR_POS_OC2, 1);
+		break;
+	case THROTTLE_OC3:
+		r = REG_SET(r, OC_INTR_POS_OC3, 1);
+		break;
+	case THROTTLE_OC4:
+		r = REG_SET(r, OC_INTR_POS_OC4, 1);
+		break;
+	default:
+		r = 0;
+		break;
+	}
+	soctherm_writel(ts, r, OC_INTR_ENABLE);
+}
+
+/**
+ * soctherm_handle_alarm() - Handles soctherm alarms
+ * @alarm:		The soctherm throttle id
+ *
+ * "Handles" over-current alarms (OC1, OC2, OC3, and OC4) by printing
+ * a warning or informative message.
+ *
+ * Return: -EINVAL for @alarm = THROTTLE_OC3, otherwise 0 (success).
+ */
+static int soctherm_handle_alarm(struct tegra_soctherm *ts,
+				 enum soctherm_throttle_id alarm)
+{
+	struct platform_device *pdev = ts->pdev;
+	int rv = -EINVAL;
+
+	switch (alarm) {
+	case THROTTLE_OC1:
+		dev_warn(&pdev->dev,
+			"soctherm: Successfully handled OC1 alarm\n");
+		/* add OC1 alarm handling code here */
+		rv = 0;
+		break;
+
+	case THROTTLE_OC2:
+		dev_warn(&pdev->dev,
+			"soctherm: Successfully handled OC2 alarm\n");
+		/* TODO: add OC2 alarm handling code here */
+		rv = 0;
+		break;
+
+	case THROTTLE_OC3:
+		dev_warn(&pdev->dev,
+			"soctherm: Unexpected OC3 alarm\n");
+		/* add OC3 alarm handling code here */
+		break;
+
+	case THROTTLE_OC4:
+		dev_warn(&pdev->dev,
+			"soctherm: Successfully handled OC4 alarm\n");
+		/* TODO: add OC4 alarm handling code here */
+		rv = 0;
+		break;
+
+	default:
+		break;
+	}
+
+	if (rv)
+		dev_err(&pdev->dev,
+			"soctherm: ERROR in handling %s alarm\n",
+			throt_names[alarm]);
+
+	return rv;
+}
+
+/**
+ * soctherm_edp_isr_thread() - log an over-current interrupt request
+ * @irq:	OC irq number. Currently not being used. See description
+ * @arg:	a void pointer for callback, currently not being used
+ *
+ * Over-current events are handled in hardware. This function is called to log
+ * and handle any OC events that happened. Additionally, it checks every
+ * over-current interrupt registers for registers are set but
+ * was not expected (i.e. any discrepancy in interrupt status) by the function,
+ * the discrepancy will logged.
+ *
+ * Return: %IRQ_HANDLED
+ */
+static irqreturn_t soctherm_edp_isr_thread(int irq, void *dev_id)
+{
+	struct tegra_soctherm *ts = dev_id;
+	struct soctherm_oc_irq_chip_data *soc_irq_cdata = ts->soc_irq_cdata;
+	u32 st, ex, oc1, oc2, oc3, oc4;
+
+	st = soctherm_readl(ts, OC_INTR_STATUS);
+
+	/* deliberately clear expected interrupts handled in SW */
+	oc1 = REG_GET_BIT(st, OC_INTR_POS_OC1);
+	oc2 = REG_GET_BIT(st, OC_INTR_POS_OC2);
+	oc3 = REG_GET_BIT(st, OC_INTR_POS_OC3);
+	oc4 = REG_GET_BIT(st, OC_INTR_POS_OC4);
+	ex = oc1 | oc2 | oc3 | oc4;
+
+	if (ex) {
+		soctherm_writel(ts, st, OC_INTR_STATUS);
+		st &= ~ex;
+
+		if (oc1 && !soctherm_handle_alarm(ts, THROTTLE_OC1))
+			soctherm_oc_intr_enable(ts, THROTTLE_OC1, true);
+
+		if (oc2 && !soctherm_handle_alarm(ts, THROTTLE_OC2))
+			soctherm_oc_intr_enable(ts, THROTTLE_OC2, true);
+
+		if (oc3 && !soctherm_handle_alarm(ts, THROTTLE_OC3))
+			soctherm_oc_intr_enable(ts, THROTTLE_OC3, true);
+
+		if (oc4 && !soctherm_handle_alarm(ts, THROTTLE_OC4))
+			soctherm_oc_intr_enable(ts, THROTTLE_OC4, true);
+
+		if (oc1 && soc_irq_cdata->irq_enable & BIT(0))
+			handle_nested_irq(
+				irq_find_mapping(soc_irq_cdata->domain, 0));
+
+		if (oc2 && soc_irq_cdata->irq_enable & BIT(1))
+			handle_nested_irq(
+				irq_find_mapping(soc_irq_cdata->domain, 1));
+
+		if (oc3 && soc_irq_cdata->irq_enable & BIT(2))
+			handle_nested_irq(
+				irq_find_mapping(soc_irq_cdata->domain, 2));
+
+		if (oc4 && soc_irq_cdata->irq_enable & BIT(3))
+			handle_nested_irq(
+				irq_find_mapping(soc_irq_cdata->domain, 3));
+	}
+
+	if (st) {
+		dev_err(&ts->pdev->dev,
+			"soctherm: Ignored unexpected OC ALARM 0x%08x\n", st);
+		soctherm_writel(ts, st, OC_INTR_STATUS);
 	}
 
 	/* enable interrupt */
@@ -1011,6 +1303,104 @@ static int soctherm_clk_enable(struct platform_device *pdev, bool enable)
 	return 0;
 }
 
+static struct soctherm_throttle *find_throttle_by_name(
+						struct tegra_soctherm *ts,
+						const char *name)
+{
+	int i;
+
+	for (i = 0; ts->throttle[i].name; i++)
+		if (!strcmp(ts->throttle[i].name, name))
+			return &ts->throttle[i];
+
+	return NULL;
+}
+
+static void soctherm_init_throttle_data(struct platform_device *pdev)
+{
+
+	struct device *dev = &pdev->dev;
+	struct tegra_soctherm *ts = dev_get_drvdata(dev);
+	struct soctherm_throttle *st;
+	struct device_node *dn_stc, *dn_st;
+	const char *name;
+	u32 val;
+	int i, r;
+
+	for (i = 0; i < THROTTLE_SIZE; i++)
+		ts->throttle[i].name = throt_names[i];
+
+	dn_stc = of_find_node_by_name(dev->of_node, "throttle-cfgs");
+	if (!dn_stc) {
+		dev_info(dev,
+			"throttle-cfg: no throttle-cfgs node - not enabling\n");
+		return;
+	}
+	for_each_child_of_node(dn_stc, dn_st) {
+		name = dn_st->name;
+		st = find_throttle_by_name(ts, name);
+		if (!st) {
+			dev_err(dev,
+				"throttle-cfg: could not find %s\n",
+				name);
+			continue;
+		}
+
+		r = of_property_read_u32(dn_st, "priority", &val);
+		if (r) {
+			dev_info(dev,
+				"throttle-cfg: %s: missing priority\n",
+				name);
+			continue;
+		} else
+			st->priority = val;
+
+		r = of_property_read_u32(dn_st, "cpu-throt-level", &val);
+		if (r) {
+			dev_info(dev,
+				"throttle-cfg: %s: missing cpu_throt_level\n",
+				name);
+			continue;
+		} else
+			st->cpu_throt_level = val;
+
+		if (!strcmp(name, throt_names[THROTTLE_LIGHT]) ||
+		    !strcmp(name, throt_names[THROTTLE_HEAVY])) {
+			st->intr = true;
+			continue;
+		}
+
+		r = of_property_read_u32(dn_st, "alarm-filter", &val);
+		if (r) {
+			dev_info(dev,
+				"throttle-cfg: %s: missing alarm-filter\n",
+				name);
+			continue;
+		} else
+			st->alarm_filter = val;
+
+		r = of_property_read_u32(dn_st, "alarm-cnt-threshold", &val);
+		if (r) {
+			dev_info(dev,
+				"throttle-cfg: %s: missing alarm-cnt-threshold\n",
+				name);
+			continue;
+		} else
+			st->alarm_cnt_threshold = val;
+
+		r = of_property_read_u32(dn_st, "polarity", &val);
+		if (r) {
+			dev_info(dev,
+				"throttle-cfg: %s: missing polarity\n",
+				name);
+			continue;
+		} else
+			st->polarity = val;
+
+		st->intr = true;
+	}
+}
+
 /**
  * throttlectl_cpu_level_cfg() - programs CCROC NV_THERM level config
  * @throt	soctherm_throttle_id describing the level of throttling
@@ -1030,16 +1420,16 @@ static void throttlectl_cpu_level_cfg(struct tegra_soctherm *ts, int level)
 	u32 r;
 
 	switch (level) {
-	case THROTTLE_LEVEL_LOW:
+	case TEGRA_SOCTHERM_THROT_LEVEL_LOW:
 		depth = 50;
 		break;
-	case THROTTLE_LEVEL_MED:
+	case TEGRA_SOCTHERM_THROT_LEVEL_MED:
 		depth = 75;
 		break;
-	case THROTTLE_LEVEL_HIGH:
+	case TEGRA_SOCTHERM_THROT_LEVEL_HIGH:
 		depth = 80;
 		break;
-	case THROTTLE_LEVEL_NONE:
+	case TEGRA_SOCTHERM_THROT_LEVEL_NONE:
 		return;
 	default:
 		return;
@@ -1080,11 +1470,14 @@ static bool throttlectl_cpu_level_select(struct tegra_soctherm *ts,
 	u32 r, throt_vect;
 
 	/* Denver:CCROC NV_THERM interface N:3 Mapping */
-	switch (throt) {
-	case THROTTLE_LIGHT:
+	switch (ts->throttle[throt].cpu_throt_level) {
+	case TEGRA_SOCTHERM_THROT_LEVEL_LOW:
 		throt_vect = THROT_VECT_LOW;
 		break;
-	case THROTTLE_HEAVY:
+	case TEGRA_SOCTHERM_THROT_LEVEL_MED:
+		throt_vect = THROT_VECT_MED;
+		break;
+	case TEGRA_SOCTHERM_THROT_LEVEL_HIGH:
 		throt_vect = THROT_VECT_HIGH;
 		break;
 	default:
@@ -1163,7 +1556,10 @@ static void soctherm_throttle_program(struct tegra_soctherm *ts,
 				      enum soctherm_throttle_id throt)
 {
 	u32 r;
-	u8 priority;
+	struct soctherm_throttle st = ts->throttle[throt];
+
+	if (!ts->throttle[throt].intr)
+		return;
 
 	/* Setup PSKIP parameters */
 	if (ts->is_ccroc)
@@ -1171,24 +1567,46 @@ static void soctherm_throttle_program(struct tegra_soctherm *ts,
 	else
 		throttlectl_cpu_mn(ts, throt);
 
-	priority = 0xE + throt;
-	r = REG_SET(0, THROT_PRIORITY_LITE_PRIO, priority);
+	r = REG_SET(0, THROT_PRIORITY_LITE_PRIO, st.priority);
 	soctherm_writel(ts, r, THROT_PRIORITY_CTRL(throt));
 
 	r = REG_SET(0, THROT_DELAY_LITE_DELAY, 0);
 	soctherm_writel(ts, r, THROT_DELAY_CTRL(throt));
 
 	r = soctherm_readl(ts, THROT_PRIORITY_LOCK);
-	if (r < priority) {
-		r = REG_SET(0, THROT_PRIORITY_LOCK_PRIORITY, priority);
+	if (r < st.priority) {
+		r = REG_SET(0, THROT_PRIORITY_LOCK_PRIORITY, st.priority);
 		soctherm_writel(ts, r, THROT_PRIORITY_LOCK);
 	}
+
+	if (throt < THROTTLE_OC1)
+		return;
+
+	/* ----- reserved OC5 alarm ----- */
+	if (throt == THROTTLE_OC5)
+		return;
+
+	/* ----- configure other OC alarms ----- */
+	r = soctherm_readl(ts, ALARM_CFG(throt));
+	r = REG_SET(r, OC1_CFG_HW_RESTORE, 1);
+	r = REG_SET(r, OC1_CFG_PWR_GOOD_MASK, 0);
+	r = REG_SET(r, OC1_CFG_THROTTLE_MODE, BRIEF);
+	r = REG_SET(r, OC1_CFG_ALARM_POLARITY, st.polarity);
+	r = REG_SET(r, OC1_CFG_EN_THROTTLE, 1);
+	soctherm_writel(ts, r, ALARM_CFG(throt));
+
+	soctherm_oc_intr_enable(ts, throt, true);
+
+	soctherm_writel(ts, 0, ALARM_THROTTLE_PERIOD(throt)); /* usec */
+	soctherm_writel(ts, st.alarm_cnt_threshold, ALARM_CNT_THRESHOLD(throt));
+	soctherm_writel(ts, st.alarm_filter, ALARM_FILTER(throt));
 }
 
 static int tegra_soctherm_hw_throttle(struct platform_device *pdev)
 {
 	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
 	bool is_ccroc;
+	int i;
 
 	if (!ts)
 		return -EINVAL;
@@ -1197,13 +1615,14 @@ static int tegra_soctherm_hw_throttle(struct platform_device *pdev)
 
 	/* configure low, med and heavy levels for CCROC NV_THERM */
 	if (is_ccroc) {
-		throttlectl_cpu_level_cfg(ts, THROTTLE_LEVEL_LOW);
-		throttlectl_cpu_level_cfg(ts, THROTTLE_LEVEL_MED);
-		throttlectl_cpu_level_cfg(ts, THROTTLE_LEVEL_HIGH);
+		throttlectl_cpu_level_cfg(ts, TEGRA_SOCTHERM_THROT_LEVEL_LOW);
+		throttlectl_cpu_level_cfg(ts, TEGRA_SOCTHERM_THROT_LEVEL_MED);
+		throttlectl_cpu_level_cfg(ts, TEGRA_SOCTHERM_THROT_LEVEL_HIGH);
 	}
 
 	/* Thermal HW throttle programming */
-	soctherm_throttle_program(ts, THROTTLE_HEAVY);
+	for (i = 0; i < THROTTLE_SIZE; i++)
+		soctherm_throttle_program(ts, i);
 
 	throttrip_configure_from_dt(pdev);
 
@@ -1216,7 +1635,7 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 	struct tegra_tsensor *tsensors = tegra->tsensors;
 	struct tegra_tsensor_group **tegra_tsensor_groups;
 	int i;
-	u32 v;
+	u32 v, state;
 
 	tegra_tsensor_groups = tegra->sensor_groups;
 
@@ -1289,7 +1708,200 @@ static int soctherm_init_platform_data(struct platform_device *pdev)
 	v = STATS_CTL_CLR_DN | STATS_CTL_EN_DN |
 		STATS_CTL_CLR_UP | STATS_CTL_EN_UP;
 	soctherm_writel(tegra, v, STATS_CTL);
+	soctherm_writel(tegra, OC_STATS_CTL_EN_ALL, OC_STATS_CTL);
 
+	v = soctherm_readl(tegra, THROT_STATUS);
+	state = REG_GET(v, THROT_STATUS_STATE);
+	if (state)
+		dev_warn(&pdev->dev,
+			"HW throttle is active, the state is %d\n", state);
+
+	return 0;
+}
+
+/**
+ * soctherm_oc_irq_lock() - locks the over-current interrupt request
+ * @data:	Interrupt request data
+ *
+ * Looks up the chip data from @data and locks the mutex associated with
+ * a particular over-current interrupt request.
+ */
+static void soctherm_oc_irq_lock(struct irq_data *data)
+{
+	struct soctherm_oc_irq_chip_data *d = irq_data_get_irq_chip_data(data);
+
+	mutex_lock(&d->irq_lock);
+}
+
+/**
+ * soctherm_oc_irq_sync_unlock() - Unlocks the OC interrupt request
+ * @data:		Interrupt request data
+ *
+ * Looks up the interrupt request data @data and unlocks the mutex associated
+ * with a particular over-current interrupt request.
+ */
+static void soctherm_oc_irq_sync_unlock(struct irq_data *data)
+{
+	struct soctherm_oc_irq_chip_data *d = irq_data_get_irq_chip_data(data);
+
+	mutex_unlock(&d->irq_lock);
+}
+
+/**
+ * soctherm_oc_irq_enable() - Enables the SOC_THERM over-current interrupt queue
+ * @data:       irq_data structure of the chip
+ *
+ * Sets the irq_enable bit of SOC_THERM allowing SOC_THERM
+ * to respond to over-current interrupts.
+ *
+ */
+static void soctherm_oc_irq_enable(struct irq_data *data)
+{
+	struct soctherm_oc_irq_chip_data *d = irq_data_get_irq_chip_data(data);
+
+	d->irq_enable |= BIT(data->hwirq);
+}
+
+/**
+ * soctherm_oc_irq_disable() - Disables overcurrent interrupt requests
+ * @irq_data:	The interrupt request information
+ *
+ * Clears the interrupt request enable bit of the overcurrent
+ * interrupt request chip data.
+ *
+ * Return: Nothing is returned (void)
+ */
+static void soctherm_oc_irq_disable(struct irq_data *data)
+{
+	struct soctherm_oc_irq_chip_data *d = irq_data_get_irq_chip_data(data);
+
+	d->irq_enable &= ~BIT(data->hwirq);
+}
+
+static int soctherm_oc_irq_set_type(struct irq_data *data, unsigned int type)
+{
+	return 0;
+}
+
+/**
+ * soctherm_oc_irq_map() - SOC_THERM interrupt request domain mapper
+ * @h:		Interrupt request domain
+ * @virq:	Virtual interrupt request number
+ * @hw:		Hardware interrupt request number
+ *
+ * Mapping callback function for SOC_THERM's irq_domain. When a SOC_THERM
+ * interrupt request is called, the irq_domain takes the request's virtual
+ * request number (much like a virtual memory address) and maps it to a
+ * physical hardware request number.
+ *
+ * When a mapping doesn't already exist for a virtual request number, the
+ * irq_domain calls this function to associate the virtual request number with
+ * a hardware request number.
+ *
+ * Return: 0
+ */
+static int soctherm_oc_irq_map(struct irq_domain *h, unsigned int virq,
+		irq_hw_number_t hw)
+{
+	struct soctherm_oc_irq_chip_data *data = h->host_data;
+
+	irq_set_chip_data(virq, data);
+	irq_set_chip(virq, &data->irq_chip);
+	irq_set_nested_thread(virq, 1);
+	set_irq_flags(virq, IRQF_VALID);
+	return 0;
+}
+
+/**
+ * soctherm_irq_domain_xlate_twocell() - xlate for soctherm interrupts
+ * @d:      Interrupt request domain
+ * @intspec:    Array of u32s from DTs "interrupt" property
+ * @intsize:    Number of values inside the intspec array
+ * @out_hwirq:  HW IRQ value associated with this interrupt
+ * @out_type:   The IRQ SENSE type for this interrupt.
+ *
+ * This Device Tree IRQ specifier translation function will translate a
+ * specific "interrupt" as defined by 2 DT values where the cell values map
+ * the hwirq number + 1 and linux irq flags. Since the output is the hwirq
+ * number, this function will subtract 1 from the value listed in DT.
+ *
+ * Return: 0
+ */
+static int soctherm_irq_domain_xlate_twocell(struct irq_domain *d,
+	struct device_node *ctrlr, const u32 *intspec, unsigned int intsize,
+	irq_hw_number_t *out_hwirq, unsigned int *out_type)
+{
+	if (WARN_ON(intsize < 2))
+		return -EINVAL;
+
+	/*
+	 * The HW value is 1 index less than the DT IRQ values.
+	 * i.e. OC4 goes to HW index 3.
+	 */
+	*out_hwirq = intspec[0] - 1;
+	*out_type = intspec[1] & IRQ_TYPE_SENSE_MASK;
+	return 0;
+}
+
+static struct irq_domain_ops soctherm_oc_domain_ops = {
+	.map	= soctherm_oc_irq_map,
+	.xlate	= soctherm_irq_domain_xlate_twocell,
+};
+
+/**
+ * soctherm_oc_int_init() - Initial enabling of the over
+ * current interrupts
+ * @pdev:	platform device
+ * @num_irqs:	The number of new interrupt requests
+
+ *
+ * Sets the over current interrupt request chip data
+ *
+ * Return: 0 on success or if overcurrent interrupts are not enabled,
+ * -ENOMEM (out of memory), or irq_base if the function failed to
+ * allocate the irqs
+ */
+static int soctherm_oc_int_init(struct platform_device *pdev, int num_irqs)
+{
+	struct device_node *np = pdev->dev.of_node;
+	struct tegra_soctherm *ts = platform_get_drvdata(pdev);
+	struct soctherm_oc_irq_chip_data *soc_irq_cdata;
+
+	if (!num_irqs) {
+		pr_info("%s(): OC interrupts are not enabled\n", __func__);
+		return 0;
+	}
+
+	soc_irq_cdata = devm_kzalloc(&pdev->dev, sizeof(*soc_irq_cdata),
+				     GFP_KERNEL);
+	if (!soc_irq_cdata)
+		return -ENOMEM;
+
+	ts->soc_irq_cdata = soc_irq_cdata;
+
+	mutex_init(&soc_irq_cdata->irq_lock);
+	soc_irq_cdata->irq_enable = 0;
+
+	soc_irq_cdata->irq_chip.name = "soc_therm_oc";
+	soc_irq_cdata->irq_chip.irq_bus_lock = soctherm_oc_irq_lock;
+	soc_irq_cdata->irq_chip.irq_bus_sync_unlock =
+		soctherm_oc_irq_sync_unlock;
+	soc_irq_cdata->irq_chip.irq_disable = soctherm_oc_irq_disable;
+	soc_irq_cdata->irq_chip.irq_enable = soctherm_oc_irq_enable;
+	soc_irq_cdata->irq_chip.irq_set_type = soctherm_oc_irq_set_type;
+	soc_irq_cdata->irq_chip.irq_set_wake = NULL;
+
+	soc_irq_cdata->domain = irq_domain_add_linear(np, num_irqs,
+				&soctherm_oc_domain_ops, soc_irq_cdata);
+
+	if (!soc_irq_cdata->domain) {
+		dev_err(&pdev->dev,
+			"%s: Failed to create IRQ domain\n", __func__);
+		return -ENOMEM;
+	}
+
+	dev_dbg(&pdev->dev,
+		"%s(): OC interrupts enabled successful\n", __func__);
 	return 0;
 }
 
@@ -1499,19 +2111,19 @@ static int regs_show(struct seq_file *s, void *data)
 				continue;
 			}
 
-			level = THROTTLE_LEVEL_NONE; /* invalid */
+			level = TEGRA_SOCTHERM_THROT_LEVEL_NONE; /* invalid */
 			depth = "";
 			q = 0;
 			if (ts->is_ccroc && j == THROTTLE_DEV_CPU) {
 				state = REG_GET(r, THROT_PSKIP_CTRL_VECT_CPU);
 				if (state == THROT_VECT_HIGH) {
-					level = THROTTLE_LEVEL_HIGH;
+					level = TEGRA_SOCTHERM_THROT_LEVEL_HIGH;
 					depth = "hi";
 				} else if (state == THROT_VECT_MED) {
-					level = THROTTLE_LEVEL_MED;
+					level = TEGRA_SOCTHERM_THROT_LEVEL_MED;
 					depth = "med";
 				} else if (state == THROT_VECT_LOW) {
-					level = THROTTLE_LEVEL_LOW;
+					level = TEGRA_SOCTHERM_THROT_LEVEL_LOW;
 					depth = "low";
 				}
 			}
@@ -1530,7 +2142,7 @@ static int regs_show(struct seq_file *s, void *data)
 				}
 			}
 
-			if (level == THROTTLE_LEVEL_NONE)
+			if (level == TEGRA_SOCTHERM_THROT_LEVEL_NONE)
 				r = 0;
 			else if (ts->is_ccroc && j == THROTTLE_DEV_CPU)
 				r = ccroc_readl(ts,
@@ -1564,6 +2176,33 @@ static int regs_show(struct seq_file *s, void *data)
 			state = REG_GET(r, THROT_DELAY_LITE_DELAY);
 			seq_printf(s, "%5d  ", state);
 
+			if (i >= THROTTLE_OC1) {
+				r = soctherm_readl(ts, ALARM_CFG(i));
+				state = REG_GET(r, OC1_CFG_LONG_LATENCY);
+				seq_printf(s, "%2d  ", state);
+				state = REG_GET(r, OC1_CFG_HW_RESTORE);
+				seq_printf(s, "%2d  ", state);
+				state = REG_GET(r, OC1_CFG_PWR_GOOD_MASK);
+				seq_printf(s, "%2d  ", state);
+				state = REG_GET(r, OC1_CFG_THROTTLE_MODE);
+				seq_printf(s, "%2d  ", state);
+				state = REG_GET(r, OC1_CFG_ALARM_POLARITY);
+				seq_printf(s, "%2d  ", state);
+				state = REG_GET(r, OC1_CFG_EN_THROTTLE);
+				seq_printf(s, "%2d  ", state);
+
+				r = soctherm_readl(ts, ALARM_CNT_THRESHOLD(i));
+				seq_printf(s, "%8d  ", r);
+				r = soctherm_readl(ts,
+						ALARM_THROTTLE_PERIOD(i));
+				seq_printf(s, "%8d  ", r);
+				r = soctherm_readl(ts, ALARM_ALARM_COUNT(i));
+				seq_printf(s, "%8d  ", r);
+				r = soctherm_readl(ts, ALARM_FILTER(i));
+				seq_printf(s, "%8d  ", r);
+				r = soctherm_readl(ts, ALARM_STATS(i));
+				seq_printf(s, "%8d  ", r);
+			}
 			seq_puts(s, "\n");
 		}
 	}
@@ -1645,6 +2284,26 @@ static inline int soctherm_debug_init(struct platform_device *pdev)
 { return 0; }
 #endif
 
+/* Pooling the throttle state, if the throttling is active, print warning */
+static void throt_state_update(struct work_struct *work)
+{
+	u32 r;
+	struct tegra_soctherm *tegra = container_of(work,
+						struct tegra_soctherm,
+						throt_state_work.work);
+	struct platform_device *pdev = tegra->pdev;
+
+	r = soctherm_readl(tegra, THROT_STATUS);
+
+	if (REG_GET(r, THROT_STATUS_ENABLED) && REG_GET(r, THROT_STATUS_STATE))
+		dev_warn(&pdev->dev,
+			"HW throttle is active, the state is %d\n",
+			REG_GET(r, THROT_STATUS_STATE));
+
+	schedule_delayed_work(to_delayed_work(work),
+			msecs_to_jiffies(LOG_THROT_STATE_PERIOD));
+}
+
 int tegra_soctherm_probe(struct platform_device *pdev,
 		struct tegra_tsensor *tsensors,
 		struct tegra_tsensor_group **tegra_tsensor_groups,
@@ -1664,6 +2323,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		return -ENOMEM;
 
 	dev_set_drvdata(&pdev->dev, tegra);
+	tegra->pdev = pdev;
 	tegra->sensor_groups = tegra_tsensor_groups;
 	tegra->tsensors = tsensors;
 	tegra->is_ccroc = is_ccroc;
@@ -1740,6 +2400,8 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	if (err)
 		goto disable_clocks;
 
+	soctherm_init_throttle_data(pdev);
+
 	err = soctherm_init_platform_data(pdev);
 	if (err) {
 		dev_err(&pdev->dev, "Initialize platform data failed\n");
@@ -1798,7 +2460,34 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		goto unregister_tzs;
 	}
 
+	err = soctherm_oc_int_init(pdev, TEGRA_SOC_OC_IRQ_NUM);
+	if (err < 0) {
+		dev_err(&pdev->dev,
+			"soctherm_oc_int_init failed\n");
+		goto unregister_tzs;
+	}
+
+	irq_num = platform_get_irq(pdev, 1);
+	if (irq_num < 0) {
+		dev_err(&pdev->dev, "get 'edp irq' failed.\n");
+		goto unregister_tzs;
+	}
+	err = devm_request_threaded_irq(&pdev->dev,
+					irq_num,
+					soctherm_edp_isr,
+					soctherm_edp_isr_thread,
+					IRQF_ONESHOT,
+					"soctherm_edp",
+					tegra);
+	if (err < 0) {
+		dev_err(&pdev->dev, "request_irq 'edp_irq' failed.\n");
+		goto unregister_tzs;
+	}
+
 	soctherm_debug_init(pdev);
+
+	INIT_DEFERRABLE_WORK(&(tegra->throt_state_work), throt_state_update);
+	schedule_delayed_work(&(tegra->throt_state_work), 0);
 
 	return 0;
 
