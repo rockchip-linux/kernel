@@ -370,15 +370,9 @@ static int adm_slave_config(struct adm_chan *achan,
 			achan->blk_size = 5;
 			break;
 		default:
-			achan->slave.src_maxburst = 0;
-			achan->slave.dst_maxburst = 0;
 			ret = -EINVAL;
 			break;
 		}
-
-		if (!ret)
-			writel(achan->blk_size,
-				adev->regs + HI_CRCI_CTL(achan->id, adev->ee));
 	}
 
 	return ret;
@@ -487,6 +481,11 @@ static void adm_start_dma(struct adm_chan *achan)
 		achan->initialized = 1;
 	}
 
+	/* set the crci block size */
+	if (achan->crci)
+		writel(achan->blk_size,
+			adev->regs + HI_CRCI_CTL(achan->id, adev->ee));
+
 	/* make sure IRQ enable doesn't get reordered */
 	wmb();
 
@@ -571,17 +570,22 @@ static enum dma_status adm_tx_status(struct dma_chan *chan, dma_cookie_t cookie,
 	size_t residue = 0;
 
 	ret = dma_cookie_status(chan, cookie, txstate);
+	if (ret == DMA_COMPLETE || !txstate)
+		return ret;
 
 	spin_lock_irqsave(&achan->vc.lock, flags);
 
 	vd = vchan_find_desc(&achan->vc, cookie);
 	if (vd)
 		residue = container_of(vd, struct adm_async_desc, vd)->length;
-	else if (achan->curr_txd && achan->curr_txd->vd.tx.cookie == cookie)
-		residue = achan->curr_txd->length;
 
 	spin_unlock_irqrestore(&achan->vc.lock, flags);
 
+	/*
+	 * residue is either the full length if it is in the issued list, or 0
+	 * if it is in progress.  We have no reliable way of determining
+	 * anything inbetween
+	*/
 	dma_set_residue(txstate, residue);
 
 	if (achan->error)
