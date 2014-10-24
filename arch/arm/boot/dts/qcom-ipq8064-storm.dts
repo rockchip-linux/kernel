@@ -113,6 +113,15 @@
 					drive-strength = <12>;
 				};
 			};
+
+			leds_pins: led_pinmux {
+				mux {
+					pins = "gpio7", "gpio9";
+					drive-strength = <2>;
+					bias-none;
+					output-high;
+				};
+			};
 		};
 
 		gsbi1: gsbi@12440000 {
@@ -253,6 +262,23 @@
 
 		usb30@1 {
 			status = "ok";
+		};
+
+		gpio-leds {
+			compatible = "gpio-leds";
+			pinctrl-0 = <&leds_pins>;
+
+			led1 {
+				gpios = <&qcom_pinmux 7 0>;
+				label = "LED1";
+				default-state = "off";
+			};
+
+			statusfail {
+				gpios = <&qcom_pinmux 9 0>;
+				label = "STATUS_FAIL";
+				default-state = "off";
+			};
 		};
 
 		amba {
