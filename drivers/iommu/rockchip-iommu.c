@@ -769,15 +769,9 @@ static void rk_iommu_detach_device(struct iommu_domain *domain,
 	if (!iommu)
 		return;
 
-	iommu->domain = NULL;
-
 	spin_lock_irqsave(&rk_domain->iommus_lock, flags);
 	list_del_init(&iommu->node);
 	spin_unlock_irqrestore(&rk_domain->iommus_lock, flags);
-
-	devm_free_irq(dev, iommu->irq, iommu);
-
-	iommu->domain = NULL;
 
 	/* Ignore error while disabling, just keep going */
 	rk_iommu_enable_stall(iommu);
@@ -785,6 +779,10 @@ static void rk_iommu_detach_device(struct iommu_domain *domain,
 	rk_iommu_write(iommu, RK_MMU_INT_MASK, 0);
 	rk_iommu_write(iommu, RK_MMU_DTE_ADDR, 0);
 	rk_iommu_disable_stall(iommu);
+
+	devm_free_irq(dev, iommu->irq, iommu);
+
+	iommu->domain = NULL;
 
 	dev_info(dev, "Detached from iommu domain\n");
 }
