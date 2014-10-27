@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_iommu.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
@@ -707,10 +708,26 @@ static size_t rk_iommu_unmap(struct iommu_domain *domain, unsigned long _iova,
 	return unmap_size;
 }
 
+static struct rk_iommu *rk_iommu_from_dev(struct device *dev)
+{
+	struct iommu_group *group;
+	struct device *iommu_dev;
+	struct rk_iommu *rk_iommu;
+
+	group = iommu_group_get(dev);
+	if (!group)
+		return NULL;
+	iommu_dev = iommu_group_get_iommudata(group);
+	rk_iommu = dev_get_drvdata(iommu_dev);
+	iommu_group_put(group);
+
+	return rk_iommu;
+}
+
 static int rk_iommu_attach_device(struct iommu_domain *domain,
 				  struct device *dev)
 {
-	struct rk_iommu *iommu = dev_get_drvdata(dev->archdata.iommu);
+	struct rk_iommu *iommu;
 	struct rk_iommu_domain *rk_domain = domain->priv;
 	unsigned long flags;
 	int ret;
@@ -718,8 +735,9 @@ static int rk_iommu_attach_device(struct iommu_domain *domain,
 
 	/*
 	 * Allow 'virtual devices' (e.g., drm) to attach to domain.
-	 * Such a device has a NULL archdata.iommu.
+	 * Such a device does not belong to an iommu group.
 	 */
+	iommu = rk_iommu_from_dev(dev);
 	if (!iommu)
 		return 0;
 
@@ -761,11 +779,12 @@ static int rk_iommu_attach_device(struct iommu_domain *domain,
 static void rk_iommu_detach_device(struct iommu_domain *domain,
 				   struct device *dev)
 {
-	struct rk_iommu *iommu = dev_get_drvdata(dev->archdata.iommu);
+	struct rk_iommu *iommu;
 	struct rk_iommu_domain *rk_domain = domain->priv;
 	unsigned long flags;
 
 	/* Allow 'virtual devices' (eg drm) to detach from domain */
+	iommu = rk_iommu_from_dev(dev);
 	if (!iommu)
 		return;
 
@@ -839,6 +858,101 @@ static void rk_iommu_domain_destroy(struct iommu_domain *domain)
 	domain->priv = NULL;
 }
 
+static bool rk_iommu_is_dev_iommu_master(struct device *dev)
+{
+	struct device_node *np = dev->of_node;
+	int ret;
+
+	/*
+	 * An iommu master has an iommus property containing a list of phandles
+	 * to iommu nodes, each with an #iommu-cells property with value 0.
+	 */
+	ret = of_count_phandle_with_args(np, "iommus", "#iommu-cells");
+	return (ret > 0);
+}
+
+static int rk_iommu_group_set_iommudata(struct iommu_group *group,
+					struct device *dev)
+{
+	struct device_node *np = dev->of_node;
+	struct platform_device *pd;
+	int ret;
+	struct of_phandle_args args;
+
+	/*
+	 * An iommu master has an iommus property containing a list of phandles
+	 * to iommu nodes, each with an #iommu-cells property with value 0.
+	 */
+	ret = of_parse_phandle_with_args(np, "iommus", "#iommu-cells", 0,
+					 &args);
+	if (ret) {
+		dev_err(dev, "of_parse_phandle_with_args(%s) => %d\n",
+			np->full_name, ret);
+		return ret;
+	}
+	if (args.args_count != 0) {
+		dev_err(dev, "incorrect number of iommu params found for %s (found %d, expected 0)\n",
+			args.np->full_name, args.args_count);
+		return -EINVAL;
+	}
+
+	pd = of_find_device_by_node(args.np);
+	of_node_put(args.np);
+	if (!pd) {
+		dev_err(dev, "iommu %s not found\n", args.np->full_name);
+		return -EPROBE_DEFER;
+	}
+
+	/* TODO(djkurtz): handle multiple slave iommus for a single master */
+	iommu_group_set_iommudata(group, &pd->dev, NULL);
+
+	return 0;
+}
+
+static int rk_iommu_add_device(struct device *dev)
+{
+	struct iommu_group *group;
+	int ret;
+
+	if (!rk_iommu_is_dev_iommu_master(dev))
+		return -ENODEV;
+
+	group = iommu_group_get(dev);
+	if (!group) {
+		group = iommu_group_alloc();
+		if (IS_ERR(group)) {
+			dev_err(dev, "Failed to allocate IOMMU group\n");
+			return PTR_ERR(group);
+		}
+	}
+
+	ret = iommu_group_add_device(group, dev);
+	if (ret)
+		goto err_put_group;
+
+	ret = rk_iommu_group_set_iommudata(group, dev);
+	if (ret)
+		goto err_remove_device;
+
+	iommu_group_put(group);
+
+	return 0;
+
+err_remove_device:
+	iommu_group_remove_device(dev);
+err_put_group:
+	iommu_group_put(group);
+	return ret;
+}
+
+static void rk_iommu_remove_device(struct device *dev)
+{
+	if (!rk_iommu_is_dev_iommu_master(dev))
+		return;
+
+	iommu_group_remove_device(dev);
+}
+
 static const struct iommu_ops rk_iommu_ops = {
 	.domain_init = rk_iommu_domain_init,
 	.domain_destroy = rk_iommu_domain_destroy,
@@ -846,6 +960,8 @@ static const struct iommu_ops rk_iommu_ops = {
 	.detach_dev = rk_iommu_detach_device,
 	.map = rk_iommu_map,
 	.unmap = rk_iommu_unmap,
+	.add_device = rk_iommu_add_device,
+	.remove_device = rk_iommu_remove_device,
 	.iova_to_phys = rk_iommu_iova_to_phys,
 	.pgsize_bitmap = RK_IOMMU_PGSIZE_BITMAP,
 };

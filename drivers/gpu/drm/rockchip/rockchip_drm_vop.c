@@ -408,50 +408,6 @@ static bool is_alpha_support(uint32_t format)
 	}
 }
 
-/* TODO(djkurtz): move generic 'setup slave rk_iommu' code somewhere common */
-static int vop_iommu_init(struct vop_context *ctx)
-{
-	struct device *dev = ctx->dev;
-	struct device_node *np = dev->of_node;
-	struct platform_device *pd;
-	int count;
-	int ret;
-	struct of_phandle_args args;
-
-	/* Each VOP must have exactly one iommu node, with no args */
-	count = of_count_phandle_with_args(np, "iommus", "#iommu-cells");
-	if (count != 1) {
-		dev_err(dev, "of_count_phandle_with_args(%s) => %d\n",
-			np->full_name, count);
-		return -EINVAL;
-	}
-
-	ret = of_parse_phandle_with_args(np, "iommus", "#iommu-cells", 0,
-					 &args);
-	if (ret) {
-		dev_err(dev, "of_parse_phandle_with_args(%s) => %d\n",
-			np->full_name, ret);
-		return ret;
-	}
-	if (args.args_count != 0) {
-		dev_err(dev, "incorrect number of iommu params found for %s (found %d, expected 0)\n",
-			args.np->full_name, args.args_count);
-		return -EINVAL;
-	}
-
-	pd = of_find_device_by_node(args.np);
-	of_node_put(args.np);
-	if (!pd) {
-		dev_err(dev, "iommu %s not found\n", args.np->full_name);
-		return -EPROBE_DEFER;
-	}
-
-	/* TODO(djkurtz): handle multiple slave iommus for a single master */
-	dev->archdata.iommu = &pd->dev;
-
-	return 0;
-}
-
 static void rockchip_power_on(struct drm_crtc *crtc)
 {
 	struct vop_context *ctx = to_vop_ctx(crtc);
@@ -1348,12 +1304,6 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 
 	init_waitqueue_head(&ctx->wait_vsync_queue);
 	atomic_set(&ctx->wait_vsync_event, 0);
-
-	ret = vop_iommu_init(ctx);
-	if (ret) {
-		DRM_ERROR("Failed to setup iommu, %d\n", ret);
-		return ret;
-	}
 
 	ctx->vsync_wq = create_singlethread_workqueue("vsync");
 	if (!ctx->vsync_wq) {
