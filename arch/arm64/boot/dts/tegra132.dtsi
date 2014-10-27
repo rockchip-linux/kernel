@@ -833,6 +833,13 @@
 
 		#thermal-sensor-cells = <1>;
 
+		throttle-cfgs {
+			heavy {
+				priority = <100>;
+				cpu-throt-level = <TEGRA_SOCTHERM_THROT_LEVEL_HIGH>;
+			};
+		};
+
 		hw-trips {
 			sensor-groups {
 				cpu {
