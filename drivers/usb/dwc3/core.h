@@ -209,6 +209,9 @@
 #define DWC3_GHWPARAMS4_HIBER_SCRATCHBUFS(n)	(((n) & (0x0f << 13)) >> 13)
 #define DWC3_MAX_HIBER_SCRATCHBUFS		15
 
+/* Global HWPARAMS6 Register */
+#define DWC3_GHWPARAMS6_EN_FPGA			(1 << 7)
+
 /* Device Configuration Register */
 #define DWC3_DCFG_LPM_CAP	(1 << 22)
 #define DWC3_DCFG_DEVADDR(addr)	((addr) << 3)
@@ -660,6 +663,7 @@ struct dwc3_scratchpad_array {
  * @u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
  * @dis_enblslpm_quirk: set if we clear enblslpm in GUSB2PHYCFG,
  *                      disabling the suspend signal to the PHY.
+ * @is_fpga: true when we are using the FPGA board
  */
 struct dwc3 {
 	struct usb_ctrlrequest	*ctrl_req;
@@ -755,6 +759,8 @@ struct dwc3 {
 	u8			test_mode_nr;
 	unsigned		u2ss_inp3_quirk:1;
 	unsigned		dis_enblslpm_quirk:1;
+
+	unsigned		is_fpga:1;
 };
 
 /* -------------------------------------------------------------------------- */
