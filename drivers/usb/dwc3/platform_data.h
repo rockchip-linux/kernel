@@ -31,4 +31,5 @@ struct dwc3_platform_data {
 	unsigned dis_u3_susphy_quirk:1;
 	unsigned dis_u2_susphy_quirk:1;
 	unsigned dis_u2_freeclk_exists_quirk:1;
+	unsigned del_phy_power_chg_quirk:1;
 };

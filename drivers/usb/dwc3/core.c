@@ -300,6 +300,9 @@ static void dwc3_phy_setup(struct dwc3 *dwc)
 	if (dwc->dis_u3_susphy_quirk && dwc->is_fpga)
 		reg &= ~DWC3_GUSB3PIPECTL_SUSPHY;
 
+	if (dwc->del_phy_power_chg_quirk)
+		reg |= DWC3_GUSB3PIPECTL_DEPOCHANGE;
+
 	dwc3_writel(dwc->regs, DWC3_GUSB3PIPECTL(0), reg);
 
 	reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
@@ -525,6 +528,8 @@ static int dwc3_probe(struct platform_device *pdev)
 				"snps,dis_u2_susphy_quirk");
 		dwc->dis_u2_freeclk_exists_quirk = of_property_read_bool(node,
 				"snps,dis-u2-freeclk-exists-quirk");
+		dwc->del_phy_power_chg_quirk = of_property_read_bool(node,
+				"snps,del_phy_power_chg_quirk");
 	} else if (pdata) {
 		dwc->maximum_speed = pdata->maximum_speed;
 
@@ -538,6 +543,7 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->dis_u2_susphy_quirk = pdata->dis_u2_susphy_quirk;
 		dwc->dis_u2_freeclk_exists_quirk =
 			pdata->dis_u2_freeclk_exists_quirk;
+		dwc->del_phy_power_chg_quirk = pdata->del_phy_power_chg_quirk;
 	}
 
 	/* default to superspeed if no maximum_speed passed */
