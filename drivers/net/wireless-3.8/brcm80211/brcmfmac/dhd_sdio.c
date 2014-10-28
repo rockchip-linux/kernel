@@ -44,7 +44,7 @@
 #include "chip.h"
 #include "firmware.h"
 
-#define DCMD_RESP_TIMEOUT  2000	/* In milli second */
+#define DCMD_RESP_TIMEOUT  2500	/* In milli second */
 
 #ifdef DEBUG
 
