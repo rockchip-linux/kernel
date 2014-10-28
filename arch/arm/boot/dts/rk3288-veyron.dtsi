@@ -578,6 +578,12 @@
 	status = "okay";
 };
 
+&tsadc {
+	tsadc-tshut-mode = <1>; /* tshut mode 0:CRU 1:GPIO */
+	tsadc-tshut-polarity = <1>; /* tshut polarity 0:LOW 1:HIGH */
+	status = "okay";
+};
+
 &pinctrl {
 
 	/* Add this for sdmmc pins to SD card */
