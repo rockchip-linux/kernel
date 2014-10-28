@@ -134,4 +134,9 @@ int tegra_soctherm_probe(
 		bool is_ccroc);
 int tegra_soctherm_remove(struct platform_device *pdev);
 
+#ifdef CONFIG_PM_SLEEP
+int soctherm_suspend(struct device *dev);
+int soctherm_resume(struct device *dev);
+#endif
+
 #endif

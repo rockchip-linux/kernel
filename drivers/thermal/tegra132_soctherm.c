@@ -441,12 +441,21 @@ static int tegra132_soctherm_probe(struct platform_device *pdev)
 				    true);
 }
 
+#ifdef CONFIG_PM_SLEEP
+static SIMPLE_DEV_PM_OPS(tegra_soctherm_pm,
+			 soctherm_suspend, soctherm_resume);
+#define TEGRA_SOC_THERM_PM      (&tegra_soctherm_pm)
+#else
+#define TEGRA_SOC_THERM_PM      NULL
+#endif
+
 static struct platform_driver tegra132_soctherm_driver = {
 	.probe = tegra132_soctherm_probe,
 	.remove = tegra_soctherm_remove,
 	.driver = {
 		.name = "tegra132_soctherm",
 		.owner = THIS_MODULE,
+		.pm = TEGRA_SOC_THERM_PM,
 		.of_match_table = tegra132_soctherm_of_match,
 	},
 };

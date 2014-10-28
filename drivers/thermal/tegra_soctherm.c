@@ -439,12 +439,14 @@ struct tegra_soctherm {
 	struct clk *clock_soctherm;
 
 	unsigned int thermal_irq;
+	unsigned int edp_irq;
 
 	void __iomem *regs;
 	void __iomem *clk_regs;
 	void __iomem *ccroc_regs;
 
-	struct thermal_zone_device *thermctl_tzs[4];
+	struct thermal_zone_device *therm_tzs[4];
+	struct tegra_thermctl_zone *thermctl_tzs[4];
 	struct tegra_tsensor_group **sensor_groups;
 	struct tegra_tsensor *tsensors;
 	struct tsensor_shared_calibration *shared_calib;
@@ -461,6 +463,8 @@ struct tegra_thermctl_zone {
 	struct tegra_soctherm *tegra;
 	struct tegra_tsensor_group *sensor_group;
 	struct thermal_zone_device *tz;
+	long cur_low_trip;
+	long cur_high_trip;
 };
 
 /**
@@ -602,6 +606,9 @@ static int tegra_thermctl_set_trips(void *data, long low, long high)
 	struct tegra_thermctl_zone *zone = data;
 	u32 val;
 
+	zone->cur_low_trip = low;
+	zone->cur_high_trip = high;
+
 	low /= 1000;
 	high /= 1000;
 
@@ -685,15 +692,15 @@ static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 		soctherm_writel(ts, ex, THERMCTL_INTR_STATUS);
 		st &= ~ex;
 		if (cp) {
-			tz = ts->thermctl_tzs[TEGRA124_SOCTHERM_SENSOR_CPU];
+			tz = ts->therm_tzs[TEGRA124_SOCTHERM_SENSOR_CPU];
 			thermal_zone_device_update(tz);
 		}
 		if (gp) {
-			tz = ts->thermctl_tzs[TEGRA124_SOCTHERM_SENSOR_GPU];
+			tz = ts->therm_tzs[TEGRA124_SOCTHERM_SENSOR_GPU];
 			thermal_zone_device_update(tz);
 		}
 		if (pl) {
-			tz = ts->thermctl_tzs[TEGRA124_SOCTHERM_SENSOR_PLLX];
+			tz = ts->therm_tzs[TEGRA124_SOCTHERM_SENSOR_PLLX];
 			thermal_zone_device_update(tz);
 		}
 	}
@@ -2376,12 +2383,6 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		return PTR_ERR(tegra->clock_soctherm);
 	}
 
-	tegra->thermal_irq = platform_get_irq(pdev, 0);
-	if (tegra->thermal_irq <= 0) {
-		dev_err(&pdev->dev, "can't get interrupt\n");
-		return -EINVAL;
-	}
-
 	/* calculate shared calibration data */
 	shared_calib = devm_kzalloc(&pdev->dev,
 				    sizeof(*shared_calib), GFP_KERNEL);
@@ -2438,7 +2439,9 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 			}
 
 			zone->tz = tz;
-			tegra->thermctl_tzs[i] = tz;
+
+			tegra->therm_tzs[ttg->id] = tz;
+			tegra->thermctl_tzs[ttg->id] = zone;
 
 			thermal_update_governor(tz, "pid_thermal_gov");
 		}
@@ -2449,6 +2452,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		dev_err(&pdev->dev, "get 'thermal irq' failed.\n");
 		goto unregister_tzs;
 	}
+	tegra->thermal_irq = irq_num;
 	err = devm_request_threaded_irq(&pdev->dev,
 					irq_num,
 					soctherm_thermal_isr,
@@ -2473,6 +2477,7 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 		dev_err(&pdev->dev, "get 'edp irq' failed.\n");
 		goto unregister_tzs;
 	}
+	tegra->edp_irq = irq_num;
 	err = devm_request_threaded_irq(&pdev->dev,
 					irq_num,
 					soctherm_edp_isr,
@@ -2493,9 +2498,12 @@ int tegra_soctherm_probe(struct platform_device *pdev,
 	return 0;
 
 unregister_tzs:
-	for (; i >= 0; i--)
+	for (i = 0; i  < ARRAY_SIZE(tegra->therm_tzs); ++i) {
 		thermal_zone_of_sensor_unregister(&pdev->dev,
-						  tegra->thermctl_tzs[i]);
+						  tegra->therm_tzs[i]);
+		tegra->therm_tzs[i] = NULL;
+		tegra->thermctl_tzs[i] = NULL;
+	}
 
 disable_clocks:
 	clk_disable_unprepare(tegra->clock_tsensor);
@@ -2509,12 +2517,60 @@ int tegra_soctherm_remove(struct platform_device *pdev)
 	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(tegra->thermctl_tzs); ++i)
+	for (i = 0; i < ARRAY_SIZE(tegra->therm_tzs); ++i)
 		thermal_zone_of_sensor_unregister(&pdev->dev,
-						  tegra->thermctl_tzs[i]);
+						  tegra->therm_tzs[i]);
 
 	clk_disable_unprepare(tegra->clock_tsensor);
 	clk_disable_unprepare(tegra->clock_soctherm);
+
+	return 0;
+}
+
+int soctherm_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
+
+	cancel_delayed_work_sync(&tegra->throt_state_work);
+	soctherm_writel(tegra, (u32)-1, THERMCTL_INTR_DISABLE);
+	disable_irq(tegra->edp_irq);
+	disable_irq(tegra->thermal_irq);
+	soctherm_clk_enable(pdev, false);
+
+	return 0;
+}
+
+int soctherm_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct tegra_soctherm *tegra = platform_get_drvdata(pdev);
+	int err, i;
+
+	err = soctherm_init_platform_data(pdev);
+	if (err) {
+		dev_err(&pdev->dev,
+			"Resume failed: initialize platform data failed\n");
+		soctherm_clk_enable(pdev, false);
+		return err;
+	}
+
+
+	for (i = 0; i < ARRAY_SIZE(tegra->therm_tzs); ++i) {
+		struct tegra_thermctl_zone *zone = tegra->thermctl_tzs[i];
+		if (zone)
+			tegra_thermctl_set_trips(zone,
+						zone->cur_low_trip,
+						zone->cur_high_trip);
+
+		if (tegra->therm_tzs[i])
+			thermal_zone_device_update(tegra->therm_tzs[i]);
+	}
+
+	enable_irq(tegra->thermal_irq);
+	enable_irq(tegra->edp_irq);
+
+	schedule_delayed_work(&tegra->throt_state_work, 0);
 
 	return 0;
 }
