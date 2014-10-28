@@ -130,7 +130,7 @@
 				};
 
 				compass: ak09912@c {
-					compatible = "akm,ak09912";
+					compatible = "asahi-kasei,ak09912";
 					reg = <0xc>;
 				};
 
