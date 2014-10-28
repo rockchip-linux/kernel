@@ -328,6 +328,7 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 err_add_host:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
+	clk_disable_unprepare(pltfm_host->clk);
 	clk_put(pltfm_host->clk);
 err_clk_get:
 	if (gpio_is_valid(tegra_host->power_gpio))
