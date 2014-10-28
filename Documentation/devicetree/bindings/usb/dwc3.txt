@@ -10,6 +10,7 @@ Required properties:
 
 Optional properties:
  - tx-fifo-resize: determines if the FIFO *has* to be reallocated.
+ - snps,u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
 
 This is usually a subnode to DWC3 glue to which it is connected.
 
