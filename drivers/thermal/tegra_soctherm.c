@@ -1985,9 +1985,10 @@ static int regs_show(struct seq_file *s, void *data)
 	for (i = 0; tsensor_groups[i]; i++) {
 		seq_printf(s, "%s:\n", tsensor_groups[i]->name);
 		for (level = 0; level < 4; level++) {
+			u8 id = tsensor_groups[i]->id;
 			r = soctherm_readl(ts,
 					TS_THERM_REG_OFFSET(CTL_LVL0_CPU0,
-					level, i));
+					level, id));
 			state = REG_GET(r, CTL_LVL0_CPU0_UP_THRESH);
 			seq_printf(s, "   %d: Up/Dn(%d/", level, state);
 			state = REG_GET(r, CTL_LVL0_CPU0_DN_THRESH);
