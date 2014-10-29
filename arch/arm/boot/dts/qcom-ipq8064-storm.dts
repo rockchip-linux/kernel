@@ -122,6 +122,13 @@
 					output-high;
 				};
 			};
+
+			switch_reset: switch_reset {
+				rst {
+					pins = "gpio26";
+					output-low;
+				};
+			};
 		};
 
 		gsbi1: gsbi@12440000 {
@@ -300,6 +307,8 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			gpios = <&qcom_pinmux 1 0 &qcom_pinmux 0 0>;
+			pinctrl-0 = <&switch_reset>;
+			pinctrl-names = "default";
 
 			phy4: ethernet-phy@0 {
 				device_type = "ethernet-phy";
@@ -381,6 +390,7 @@
 			compatible = "qca8337-lite";
 			mdiobus = <&mdio0>;
 		};
+
 		watchdog@208a038 {
 			compatible = "qcom,kpss-wdt-ipq8064";
 			reg = <0x0208a038 0x40>;
