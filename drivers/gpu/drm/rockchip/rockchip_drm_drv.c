@@ -130,10 +130,13 @@ static int rockchip_drm_load(struct drm_device *drm_dev, unsigned long flags)
 	if (ret)
 		goto err_kms_helper_poll_fini;
 
-	rockchip_drm_fbdev_init(drm_dev);
+	ret = rockchip_drm_fbdev_init(drm_dev);
+	if (ret)
+		goto err_vblank_cleanup;
 
 	return 0;
-
+err_vblank_cleanup:
+	drm_vblank_cleanup(drm_dev);
 err_kms_helper_poll_fini:
 	drm_kms_helper_poll_fini(drm_dev);
 	component_unbind_all(dev, drm_dev);
@@ -151,6 +154,7 @@ static int rockchip_drm_unload(struct drm_device *drm_dev)
 {
 	struct device *dev = drm_dev->dev;
 
+	drm_vblank_cleanup(drm_dev);
 	drm_kms_helper_poll_fini(drm_dev);
 	component_unbind_all(dev, drm_dev);
 	arm_iommu_detach_device(dev);
