@@ -895,14 +895,9 @@ static int register_vga_switcheroo(struct azx *chip)
  */
 static int azx_free(struct azx *chip)
 {
-	struct pci_dev *pci = chip->pci;
 	struct hda_intel *hda = container_of(chip, struct hda_intel, chip);
 
 	int i;
-
-	if ((chip->driver_caps & AZX_DCAPS_PM_RUNTIME)
-			&& chip->running)
-		pm_runtime_get_noresume(&pci->dev);
 
 	azx_del_card_list(chip);
 
@@ -1653,6 +1648,8 @@ static int azx_probe(struct pci_dev *pci,
 	if (schedule_probe)
 		schedule_work(&chip->probe_work);
 
+	if (pci_dev_run_wake(pci))
+		pm_runtime_put_noidle(&pci->dev);
 	dev++;
 	if (chip->disabled)
 		complete_all(&chip->probe_wait);
@@ -1671,7 +1668,6 @@ static unsigned int azx_max_codecs[AZX_NUM_DRIVERS] = {
 
 static int azx_probe_continue(struct azx *chip)
 {
-	struct pci_dev *pci = chip->pci;
 	int dev = chip->dev_index;
 	int err;
 
@@ -1738,8 +1734,6 @@ static int azx_probe_continue(struct azx *chip)
 	power_down_all_codecs(chip);
 	azx_notifier_register(chip);
 	azx_add_card_list(chip);
-	if ((chip->driver_caps & AZX_DCAPS_PM_RUNTIME) || chip->use_vga_switcheroo)
-		pm_runtime_put_noidle(&pci->dev);
 
 out_free:
 	if (err < 0)
@@ -1751,6 +1745,8 @@ out_free:
 static void azx_remove(struct pci_dev *pci)
 {
 	struct snd_card *card = pci_get_drvdata(pci);
+	if (pci_dev_run_wake(pci))
+		pm_runtime_get_noresume(&pci->dev);
 
 	if (card)
 		snd_card_free(card);
