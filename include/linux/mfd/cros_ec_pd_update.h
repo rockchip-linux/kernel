@@ -37,6 +37,13 @@ struct cros_ec_pd_firmware_image {
 	uint8_t hash[PD_RW_HASH_SIZE];
 };
 
+struct cros_ec_pd_update_data {
+	struct device *dev;
+
+	struct delayed_work work;
+	struct workqueue_struct *workqueue;
+};
+
 #define PD_ID_MAJOR_SHIFT 0
 #define PD_ID_MAJOR_MASK  0x03ff
 #define PD_ID_MINOR_SHIFT 10
@@ -50,5 +57,12 @@ struct cros_ec_pd_firmware_image {
 
 /* Send 96 bytes per write command when flashing PD device */
 #define PD_FLASH_WRITE_STEP 96
+
+/*
+ * Wait 1s to start an update check after scheduling. This helps to remove
+ * needless extra update checks (ex. if a PD device is reset several times
+ * immediately after insertion) and fixes load issues on resume.
+ */
+#define PD_UPDATE_CHECK_DELAY msecs_to_jiffies(1000)
 
 #endif /* __LINUX_MFD_CROS_EC_H */

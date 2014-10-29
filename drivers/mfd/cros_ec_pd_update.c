@@ -263,18 +263,24 @@ static int find_firmware_image(uint16_t dev_id)
 }
 
 /**
- * acpi_cros_ec_pd_notify - Upon receiving a notification host event from the
- * EC, probe the status of attached PD devices and kick off an RW firmware
- * update if needed.
+ * cros_ec_pd_update_check - Probe the status of attached PD devices and kick
+ * off an RW firmware update if needed. This is run as a deferred task on
+ * module load, resume, and when an ACPI event is received (typically on
+ * PD device insertion).
+ *
+ * @work: Delayed work pointer
  */
-static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
+static void cros_ec_pd_update_check(struct work_struct *work)
 {
 	const struct firmware *fw;
 	struct ec_params_usb_pd_rw_hash_entry hash_entry;
-	struct device *dev = &acpi_device->dev;
 	char *file;
 	uint32_t result;
 	int ret, port, i;
+	struct cros_ec_pd_update_data *drv_data =
+		container_of(to_delayed_work(work),
+		struct cros_ec_pd_update_data, work);
+	struct device *dev = drv_data->dev;
 
 	if (!pd_ec) {
 		dev_err(dev, "No pd_ec device found\n");
@@ -343,16 +349,76 @@ done:
 		else
 			break;
 	}
+}
 
+/**
+ * acpi_cros_ec_pd_notify - Called upon receiving an ACPI event (typically
+ * due to PD device insertion). Queue a delayed task to check if a PD
+ * device FW update is necessary.
+ */
+static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
+{
+	struct cros_ec_pd_update_data *drv_data =
+		(struct cros_ec_pd_update_data *)
+		dev_get_drvdata(&acpi_device->dev);
+
+	if (drv_data)
+		queue_delayed_work(drv_data->workqueue, &drv_data->work,
+			PD_UPDATE_CHECK_DELAY);
+	else
+		dev_warn(&acpi_device->dev,
+			"ACPI notification skipped due to missing drv_data\n");
 }
 
 static int acpi_cros_ec_pd_add(struct acpi_device *acpi_device)
 {
+	struct cros_ec_pd_update_data *drv_data;
+
+	drv_data =
+		devm_kzalloc(&acpi_device->dev, sizeof(*drv_data), GFP_KERNEL);
+	if (!drv_data)
+		return -ENOMEM;
+
+	drv_data->dev = &acpi_device->dev;
+	INIT_DELAYED_WORK(&drv_data->work, cros_ec_pd_update_check);
+	drv_data->workqueue =
+		create_singlethread_workqueue("cros_ec_pd_update");
+	dev_set_drvdata(&acpi_device->dev, drv_data);
+
+	queue_delayed_work(drv_data->workqueue, &drv_data->work,
+		PD_UPDATE_CHECK_DELAY);
+	return 0;
+}
+
+static int acpi_cros_ec_pd_resume(struct device *dev)
+{
+	struct cros_ec_pd_update_data *drv_data =
+		(struct cros_ec_pd_update_data *)dev_get_drvdata(dev);
+
+	if (drv_data)
+		queue_delayed_work(drv_data->workqueue, &drv_data->work,
+			PD_UPDATE_CHECK_DELAY);
 	return 0;
 }
 
 static int acpi_cros_ec_pd_remove(struct acpi_device *acpi_device)
 {
+	struct cros_ec_pd_update_data *drv_data =
+		(struct cros_ec_pd_update_data *)
+		dev_get_drvdata(&acpi_device->dev);
+
+	if (drv_data)
+		flush_delayed_work(&drv_data->work);
+	return 0;
+}
+
+static int acpi_cros_ec_pd_suspend(struct device *dev)
+{
+	struct cros_ec_pd_update_data *drv_data =
+		(struct cros_ec_pd_update_data *)dev_get_drvdata(dev);
+
+	if (drv_data)
+		flush_delayed_work(&drv_data->work);
 	return 0;
 }
 
@@ -422,6 +488,9 @@ static const struct acpi_device_id pd_device_ids[] = {
 
 MODULE_DEVICE_TABLE(acpi, pd_device_ids);
 
+static SIMPLE_DEV_PM_OPS(acpi_cros_ec_pd_pm,
+	acpi_cros_ec_pd_suspend, acpi_cros_ec_pd_resume);
+
 static struct acpi_driver acpi_cros_ec_pd_driver = {
 	.name = "cros_ec_pd_update",
 	.class = "cros_ec_pd_update",
@@ -431,6 +500,7 @@ static struct acpi_driver acpi_cros_ec_pd_driver = {
 		.remove = acpi_cros_ec_pd_remove,
 		.notify = acpi_cros_ec_pd_notify,
 	},
+	.drv.pm = &acpi_cros_ec_pd_pm,
 };
 
 module_acpi_driver(acpi_cros_ec_pd_driver);
