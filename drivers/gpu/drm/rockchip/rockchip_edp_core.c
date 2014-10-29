@@ -375,13 +375,6 @@ static int rockchip_edp_commit(struct drm_encoder *encoder)
 		return ret;
 	}
 
-	ret = drm_dp_link_probe(&edp->aux, &edp->link);
-	if (ret < 0) {
-		dev_err(edp->dev, "failed to probe eDP link: %d\n",
-			ret);
-		return ret;
-	}
-
 	ret = drm_dp_link_power_up(&edp->aux, &edp->link);
 	if (ret < 0) {
 		dev_err(edp->dev, "failed to power up eDP link: %d\n",
