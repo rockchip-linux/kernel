@@ -51,13 +51,13 @@ Valid values for qcom,pins are:
 
 
 Valid values for function are:
-  mdio, mi2s, pdm, ssbi, spmi, audio_pcm, gpio, gsbi1, gsbi2, gsbi4, gsbi5,
-  gsbi5_spi_cs1, gsbi5_spi_cs2, gsbi5_spi_cs3, gsbi6, gsbi7, nss_spi, sdc1,
-  spdif, nand, tsif1, tsif2, usb_fs_n, usb_fs, usb2_hsic, rgmii2, sata,
-  pcie1_rst, pcie1_prsnt, pcie1_pwren_n, pcie1_pwren, pcie1_pwrflt,
-  pcie1_clk_req, pcie2_rst, pcie2_prsnt, pcie2_pwren_n, pcie2_pwren,
-  pcie2_pwrflt, pcie2_clk_req, pcie3_rst, pcie3_prsnt, pcie3_pwren_n,
-  pcie3_pwren, pcie3_pwrflt, pcie3_clk_req, ps_hold
+  mdio, mi2s_a, mi2s_b, mi2s, pdm, ssbi, spmi, audio_pcm, gpio, gsbi1, gsbi2,
+  gsbi4, gsbi5, gsbi5_spi_cs1, gsbi5_spi_cs2, gsbi5_spi_cs3, gsbi6_a, gsbi6_b,
+  gsbi7, nss_spi, sdc1, spdif, nand, tsif1, tsif2, usb_fs_n, usb_fs, usb2_hsic,
+  rgmii2, sata, pcie1_rst, pcie1_prsnt, pcie1_pwren_n, pcie1_pwren,
+  pcie1_pwrflt, pcie1_clk_req, pcie2_rst, pcie2_prsnt, pcie2_pwren_n,
+  pcie2_pwren, pcie2_pwrflt, pcie2_clk_req, pcie3_rst, pcie3_prsnt,
+  pcie3_pwren_n, pcie3_pwren, pcie3_pwrflt, pcie3_clk_req, ps_hold
 
 Example:
 
