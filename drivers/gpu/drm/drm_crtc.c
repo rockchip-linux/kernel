@@ -4416,8 +4416,10 @@ int drm_mode_connector_update_edid_property(struct drm_connector *connector,
 	struct drm_property *edid_prop = dev->mode_config.edid_property;
 	int i, ret, size;
 
-	if (connector->edid_blob_ptr)
+	if (connector->edid_blob_ptr) {
 		drm_property_destroy_blob(dev, connector->edid_blob_ptr);
+		connector->edid_blob_ptr = NULL;
+	}
 
 	/* Delete edid, when there is none. */
 	if (!edid) {
