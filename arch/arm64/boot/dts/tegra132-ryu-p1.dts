@@ -12,4 +12,77 @@
 			gpio = <&gpio TEGRA_GPIO(BB, 6) GPIO_ACTIVE_HIGH>;
 		};
 	};
+
+	thermal-zones {
+		cpu {
+			trips {
+				dfll_floor_trip0: dfll_floor_trip0 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_0>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_floor_trip1: dfll_floor_trip1 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_1>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_floor_trip2: dfll_floor_trip2 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_2>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_floor_trip3: dfll_floor_trip3 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_3>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_cap_trip0: dfll_cap_trip0 {
+					temperature = <TEGRA132_DFLL_THERMAL_CAP_0>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_cap_trip1: dfll_cap_trip1 {
+					temperature = <TEGRA132_DFLL_THERMAL_CAP_1>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_cap_trip2: dfll_cap_trip2 {
+					temperature = <TEGRA132_DFLL_THERMAL_CAP_2>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&dfll_floor_trip0>;
+					cooling-device = <&dfll_floor 1 1>;
+				};
+				map1 {
+					trip = <&dfll_floor_trip1>;
+					cooling-device = <&dfll_floor 2 2>;
+				};
+				map2 {
+					trip = <&dfll_floor_trip2>;
+					cooling-device = <&dfll_floor 3 3>;
+				};
+				map3 {
+					trip = <&dfll_floor_trip3>;
+					cooling-device = <&dfll_floor 4 4>;
+				};
+				map5 {
+					trip = <&dfll_cap_trip0>;
+					cooling-device = <&dfll_cap 1 1>;
+				};
+				map6 {
+					trip = <&dfll_cap_trip1>;
+					cooling-device = <&dfll_cap 2 2>;
+				};
+				map7 {
+					trip = <&dfll_cap_trip2>;
+					cooling-device = <&dfll_cap 3 3>;
+				};
+			};
+		};
+	};
 };
