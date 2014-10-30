@@ -303,14 +303,9 @@ static void assert_pwm(struct drm_i915_private *dev_priv,
 		       struct intel_connector *connector,
 		       bool expected_state)
 {
-	enum pipe pipe = intel_get_pipe_from_connector(connector);
 	bool state;
 
-	if (IS_VALLEYVIEW(dev_priv->dev) &&
-	    !(I915_READ(VLV_BLC_PWM_CTL2(pipe) & BLM_PWM_ENABLE)))
-		state = false;
-	else
-		state = (intel_panel_get_backlight(connector) != 0);
+	state = intel_panel_get_backlight(connector);
 
 	WARN(state != expected_state, "pwm state failure, expected %d, found "
 	     "%d\n", expected_state, state);
