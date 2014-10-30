@@ -73,7 +73,8 @@
 #define CH_RSLT_CONF_IRQ_EN	BIT(0)
 
 /* CRCI CTL */
-#define CRCI_CTL_RST	BIT(17)
+#define CRCI_CTL_MUX_SEL	BIT(18)
+#define CRCI_CTL_RST		BIT(17)
 
 /* CI configuration */
 #define CI_RANGE_END(x)		(x << 24)
@@ -138,6 +139,7 @@ struct adm_chan {
 
 	/* parsed from DT */
 	u32 id;			/* channel id */
+	u32 crci_mux;		/* determines primary/secondary crci mux */
 	u32 crci;		/* CRCI to be used for transfers */
 	u32 blk_size;		/* block size for CRCI, default 16 byte */
 
@@ -342,7 +344,6 @@ static int adm_slave_config(struct adm_chan *achan,
 {
 	int ret = 0;
 	u32 burst;
-	struct adm_device *adev = achan->adev;
 
 	memcpy(&achan->slave, cfg, sizeof(*cfg));
 
@@ -474,16 +475,12 @@ static void adm_start_dma(struct adm_chan *achan)
 		writel(CH_RSLT_CONF_IRQ_EN | CH_RSLT_CONF_FLUSH_EN,
 			adev->regs + HI_CH_RSLT_CONF(achan->id, adev->ee));
 
-		if (achan->crci)
-			writel(achan->blk_size, adev->regs +
-				HI_CRCI_CTL(achan->crci, adev->ee));
-
 		achan->initialized = 1;
 	}
 
 	/* set the crci block size */
 	if (achan->crci)
-		writel(achan->blk_size,
+		writel(achan->crci_mux | achan->blk_size,
 			adev->regs + HI_CRCI_CTL(achan->id, adev->ee));
 
 	/* make sure IRQ enable doesn't get reordered */
@@ -621,7 +618,10 @@ static struct dma_chan *adm_dma_xlate(struct of_phandle_args *dma_spec,
 		return NULL;
 
 	achan = to_adm_chan(chan);
-	achan->crci = crci;
+
+	/* lower 4 bits denotes crci port, upper bits denote mux setting */
+	achan->crci = crci & 0xf;
+	achan->crci_mux = (crci >> 4) ? CRCI_CTL_MUX_SEL : 0;
 
 	return chan;
 }
