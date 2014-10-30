@@ -177,6 +177,16 @@ static const unsigned int sdc3_data_pins[] = { 71 };
 		.ngroups = ARRAY_SIZE(fname##_groups),	\
 	}
 
+#define FUNCTION_MULTI_COPY(fname, reg, value)		\
+	[IPQ_MUX_##fname] = {				\
+		.name = #fname,				\
+		.groups = fname##_groups,		\
+		.ngroups = ARRAY_SIZE(fname##_groups),	\
+		.requires_copy_select = 1,		\
+		.copy_select_reg = reg,			\
+		.copy_select_value = value,		\
+	}
+
 #define PINGROUP(id, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) \
 	{						\
 		.name = "gpio" #id,			\
@@ -245,6 +255,8 @@ static const unsigned int sdc3_data_pins[] = { 71 };
 enum ipq8064_functions {
 	IPQ_MUX_gpio,
 	IPQ_MUX_mdio,
+	IPQ_MUX_mi2s_a,
+	IPQ_MUX_mi2s_b,
 	IPQ_MUX_mi2s,
 	IPQ_MUX_pdm,
 	IPQ_MUX_ssbi,
@@ -257,7 +269,8 @@ enum ipq8064_functions {
 	IPQ_MUX_gsbi5_spi_cs1,
 	IPQ_MUX_gsbi5_spi_cs2,
 	IPQ_MUX_gsbi5_spi_cs3,
-	IPQ_MUX_gsbi6,
+	IPQ_MUX_gsbi6_a,
+	IPQ_MUX_gsbi6_b,
 	IPQ_MUX_gsbi7,
 	IPQ_MUX_nss_spi,
 	IPQ_MUX_sdc1,
@@ -309,9 +322,16 @@ static const char * const mdio_groups[] = {
 	"gpio0", "gpio1", "gpio10", "gpio11",
 };
 
+static const char * const mi2s_a_groups[] = {
+	"gpio27", "gpio28", "gpio29", "gpio32",
+};
+
+static const char * const mi2s_b_groups[] = {
+	"gpio55", "gpio56", "gpio57", "gpio58",
+};
+
 static const char * const mi2s_groups[] = {
-	"gpio27", "gpio28", "gpio29", "gpio30", "gpio31", "gpio32",
-	"gpio33", "gpio55", "gpio56", "gpio57", "gpio58",
+	"gpio30", "gpio31", "gpio33",
 };
 
 static const char * const pdm_groups[] = {
@@ -360,9 +380,12 @@ static const char * const gsbi5_spi_cs3_groups[] = {
 	"gpio2",
 };
 
-static const char * const gsbi6_groups[] = {
-	"gpio27", "gpio28", "gpio29", "gpio30", "gpio55", "gpio56",
-	"gpio57", "gpio58",
+static const char * const gsbi6_a_groups[] = {
+	"gpio27", "gpio28", "gpio29", "gpio30",
+};
+
+static const char *const gsbi6_b_groups[] = {
+	"gpio55", "gpio56", "gpio57", "gpio58",
 };
 
 static const char * const gsbi7_groups[] = {
@@ -499,6 +522,8 @@ static const struct msm_function ipq8064_functions[] = {
 	FUNCTION(mdio),
 	FUNCTION(ssbi),
 	FUNCTION(spmi),
+	FUNCTION_MULTI_COPY(mi2s_a, 0x2074, 0x0),
+	FUNCTION_MULTI_COPY(mi2s_b, 0x2074, 0x1),
 	FUNCTION(mi2s),
 	FUNCTION(pdm),
 	FUNCTION(audio_pcm),
@@ -509,7 +534,8 @@ static const struct msm_function ipq8064_functions[] = {
 	FUNCTION(gsbi5_spi_cs1),
 	FUNCTION(gsbi5_spi_cs2),
 	FUNCTION(gsbi5_spi_cs3),
-	FUNCTION(gsbi6),
+	FUNCTION_MULTI_COPY(gsbi6_a, 0x2088, 0x0),
+	FUNCTION_MULTI_COPY(gsbi6_b, 0x2088, 0x1),
 	FUNCTION(gsbi7),
 	FUNCTION(nss_spi),
 	FUNCTION(sdc1),
@@ -571,12 +597,12 @@ static const struct msm_pingroup ipq8064_groups[] = {
 	PINGROUP(24, gsbi2, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(25, gsbi2, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(26, ps_hold, NA, NA, NA, NA, NA, NA, NA, NA, NA),
-	PINGROUP(27, mi2s, rgmii2, gsbi6, NA, NA, NA, NA, NA, NA, NA),
-	PINGROUP(28, mi2s, rgmii2, gsbi6, NA, NA, NA, NA, NA, NA, NA),
-	PINGROUP(29, mi2s, rgmii2, gsbi6, NA, NA, NA, NA, NA, NA, NA),
-	PINGROUP(30, mi2s, rgmii2, gsbi6, pdm, NA, NA, NA, NA, NA, NA),
+	PINGROUP(27, mi2s_a, rgmii2, gsbi6_a, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(28, mi2s_a, rgmii2, gsbi6_a, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(29, mi2s_a, rgmii2, gsbi6_a, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(30, mi2s, rgmii2, gsbi6_a, pdm, NA, NA, NA, NA, NA, NA),
 	PINGROUP(31, mi2s, rgmii2, pdm, NA, NA, NA, NA, NA, NA, NA),
-	PINGROUP(32, mi2s, rgmii2, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(32, mi2s_a, rgmii2, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(33, mi2s, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(34, nand, pdm, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(35, nand, pdm, NA, NA, NA, NA, NA, NA, NA, NA),
@@ -599,10 +625,10 @@ static const struct msm_pingroup ipq8064_groups[] = {
 	PINGROUP(52, gsbi1, rgmii2, pdm, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(53, gsbi1, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(54, gsbi1, NA, NA, NA, NA, NA, NA, NA, NA, NA),
-	PINGROUP(55, tsif1, mi2s, gsbi6, pdm, nss_spi, NA, NA, NA, NA, NA),
-	PINGROUP(56, tsif1, mi2s, gsbi6, pdm, nss_spi, NA, NA, NA, NA, NA),
-	PINGROUP(57, tsif1, mi2s, gsbi6, nss_spi, NA, NA, NA, NA, NA, NA),
-	PINGROUP(58, tsif1, mi2s, gsbi6, pdm, nss_spi, NA, NA, NA, NA, NA),
+	PINGROUP(55, tsif1, mi2s_b, gsbi6_b, pdm, nss_spi, NA, NA, NA, NA, NA),
+	PINGROUP(56, tsif1, mi2s_b, gsbi6_b, pdm, nss_spi, NA, NA, NA, NA, NA),
+	PINGROUP(57, tsif1, mi2s_b, gsbi6_b, nss_spi, NA, NA, NA, NA, NA, NA),
+	PINGROUP(58, tsif1, mi2s_b, gsbi6_b, pdm, nss_spi, NA, NA, NA, NA, NA),
 	PINGROUP(59, tsif2, rgmii2, pdm, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(60, tsif2, rgmii2, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(61, tsif2, rgmii2, gsbi5_spi_cs1, NA, NA, NA, NA, NA, NA, NA),
