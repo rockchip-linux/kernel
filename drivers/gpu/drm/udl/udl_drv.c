@@ -86,7 +86,9 @@ static struct drm_driver driver = {
 	.dumb_destroy = drm_gem_dumb_destroy,
 	.fops = &udl_driver_fops,
 
+	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
+	.gem_prime_export = udl_gem_prime_export,
 	.gem_prime_import = udl_gem_prime_import,
 
 	.atomic_begin     = drm_atomic_begin,
