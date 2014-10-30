@@ -145,7 +145,7 @@ int kbase_rk_set_freq(struct kbase_device *kbdev, unsigned long freq)
 			break;
 	}
 
-	dev_dbg(kbdev->dev, "Using operating point #d: (%lu Hz, %lu mV) for %lu Hz\n",
+	dev_dbg(kbdev->dev, "Using operating point %d: (%lu Hz, %lu mV) for %lu Hz\n",
 		level, kbase_rk->fv_table[level].freq,
 		kbase_rk->fv_table[level].volt, freq);
 
