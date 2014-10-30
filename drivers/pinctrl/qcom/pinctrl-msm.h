@@ -25,6 +25,10 @@ struct msm_function {
 	const char *name;
 	const char * const *groups;
 	unsigned ngroups;
+
+	unsigned requires_copy_select;
+	unsigned copy_select_reg;
+	unsigned copy_select_value;
 };
 
 /**

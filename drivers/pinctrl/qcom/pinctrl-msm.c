@@ -136,11 +136,13 @@ static int msm_pinmux_enable(struct pinctrl_dev *pctldev,
 {
 	struct msm_pinctrl *pctrl = pinctrl_dev_get_drvdata(pctldev);
 	const struct msm_pingroup *g;
+	const struct msm_function *f;
 	unsigned long flags;
 	u32 val;
 	int i;
 
 	g = &pctrl->soc->groups[group];
+	f = &pctrl->soc->functions[function];
 
 	if (WARN_ON(g->mux_bit < 0))
 		return -EINVAL;
@@ -159,6 +161,14 @@ static int msm_pinmux_enable(struct pinctrl_dev *pctldev,
 	val &= ~(0x7 << g->mux_bit);
 	val |= i << g->mux_bit;
 	writel(val, pctrl->regs + g->ctl_reg);
+
+	/*
+	* if an alternate copy configuration is required, configure the pins to
+	* steer the function to the correct set of pins.  This is used in cases
+	* where we have more than one copy of the pins for a function
+	*/
+	if (f->requires_copy_select)
+	writel(f->copy_select_value, pctrl->regs + f->copy_select_reg);
 
 	spin_unlock_irqrestore(&pctrl->lock, flags);
 
