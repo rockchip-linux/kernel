@@ -199,39 +199,6 @@ static struct snd_soc_card snd_soc_card_rk = {
 	.num_controls = ARRAY_SIZE(rk_mc_controls),
 };
 
-#ifdef CONFIG_PM_SLEEP
-static int snd_rk_prepare(struct device *dev)
-{
-	struct snd_soc_card *card = dev_get_drvdata(dev);
-	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
-
-	snd_soc_jack_free_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
-	snd_soc_jack_free_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
-
-	return snd_soc_suspend(dev);
-}
-
-static void snd_rk_complete(struct device *dev)
-{
-	struct snd_soc_card *card = dev_get_drvdata(dev);
-	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
-
-	snd_soc_jack_add_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
-	snd_soc_jack_add_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
-
-	snd_soc_resume(dev);
-}
-
-static const struct dev_pm_ops rk_max98090_pm_ops = {
-	.prepare = snd_rk_prepare,
-	.complete = snd_rk_complete,
-};
-
-#define RK_MAX98090_PM_OPS	(&rk_max98090_pm_ops)
-#else
-#define RK_MAX98090_PM_OPS	NULL
-#endif
-
 static int snd_rk_mc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -313,7 +280,6 @@ static struct platform_driver snd_rk_mc_driver = {
 	.driver = {
 		.name = DRV_NAME,
 		.owner = THIS_MODULE,
-		.pm = RK_MAX98090_PM_OPS,
 		.of_match_table = rockchip_max98090_of_match,
 	},
 };
