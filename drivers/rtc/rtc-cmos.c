@@ -1003,6 +1003,8 @@ static inline int cmos_poweroff(struct device *dev)
 
 #include <linux/acpi.h>
 
+#define SB_SWS_INDEX 10
+
 static u32 rtc_handler(void *context)
 {
 	struct device *dev = context;
@@ -1041,6 +1043,10 @@ static void rtc_wake_off(struct device *dev)
  * that this board's RTC is wakeup-capable (per ACPI spec).
  */
 static struct cmos_rtc_board_info acpi_rtc_info;
+static struct acpi_wakeup_data rtc_wake_data = {
+	.sb = SB_SWS_INDEX,
+	.gpe = (u64)-1,
+};
 
 static void cmos_wake_setup(struct device *dev)
 {
@@ -1070,6 +1076,7 @@ static void cmos_wake_setup(struct device *dev)
 
 	/* RTC always wakes from S1/S2/S3, and often S4/STD */
 	device_init_wakeup(dev, 1);
+	device_set_wakeup_data(dev, &rtc_wake_data);
 }
 
 #else
