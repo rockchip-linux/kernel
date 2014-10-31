@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2009 Felix Fietkau <nbd@openwrt.org>
  * Copyright (C) 2011-2012 Gabor Juhos <juhosg@openwrt.org>
+ * Copyright (C) 2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,6 +37,7 @@
 #include <linux/of_device.h>
 #include <linux/leds.h>
 #include <linux/gpio.h>
+#include <linux/regmap.h>
 
 #include "ar8216.h"
 
@@ -154,6 +156,8 @@ struct ar8xxx_priv {
 
 	struct list_head list;
 	unsigned int use_count;
+
+	struct regmap *regmap;
 
 	/* all fields below are cleared on reset */
 	bool vlan;
@@ -2825,6 +2829,47 @@ ar8xxx_is_possible(struct mii_bus *bus)
 	return true;
 }
 
+static int ar8xxx_regmap_read(void *ctx, uint32_t reg, uint32_t *val) {
+	struct ar8xxx_priv *priv = (struct ar8xxx_priv *) ctx;
+
+	*val = ar8xxx_mii_read(priv, reg);
+
+	return 0;
+}
+
+static int ar8xxx_regmap_write(void *ctx, uint32_t reg, uint32_t val) {
+	struct ar8xxx_priv *priv = (struct ar8xxx_priv *) ctx;
+
+	ar8xxx_mii_write(priv, reg, val);
+
+	return 0;
+}
+
+static const struct regmap_range ar8xxx_readable_ranges[] = {
+	regmap_reg_range(0x0000, 0x00e0), /* Global control */
+	regmap_reg_range(0x0100, 0x0168), /* EEE control */
+	regmap_reg_range(0x0200, 0x0270), /* Parser control */
+	regmap_reg_range(0x0400, 0x0454), /* ACL */
+	regmap_reg_range(0x0600, 0x0718), /* Lookup */
+	regmap_reg_range(0x0800, 0x0b70), /* QM */
+	regmap_reg_range(0x0C00, 0x0c80), /* PKT */
+};
+
+static struct regmap_access_table ar8xxx_readable_table = {
+	.yes_ranges = ar8xxx_readable_ranges,
+	.n_yes_ranges = ARRAY_SIZE(ar8xxx_readable_ranges),
+};
+
+struct regmap_config ar8xxx_regmap_config = {
+	.reg_bits = 16,
+	.val_bits = 32,
+	.reg_stride = 4,
+	.max_register = 0x0c80, /* end PKT range */
+	.reg_read = ar8xxx_regmap_read,
+	.reg_write = ar8xxx_regmap_write,
+	.rd_table = &ar8xxx_readable_table,
+};
+
 static int
 ar8xxx_phy_probe(struct phy_device *phydev)
 {
@@ -2859,6 +2904,12 @@ ar8xxx_phy_probe(struct phy_device *phydev)
 	ret = register_switch(swdev, NULL);
 	if (ret)
 		goto free_priv;
+
+	priv->regmap = devm_regmap_init(&phydev->dev, NULL, priv,
+					&ar8xxx_regmap_config);
+
+	if (IS_ERR(priv->regmap))
+		pr_warn("%s: regmap initialization failed", swdev->devname);
 
 	pr_info("%s: %s rev. %u switch registered on %s\n",
 		swdev->devname, swdev->name, priv->chip_rev,
@@ -2941,6 +2992,7 @@ ar8xxx_phy_remove(struct phy_device *phydev)
 	list_del(&priv->list);
 	mutex_unlock(&ar8xxx_dev_list_lock);
 
+	regmap_exit(priv->regmap);
 	unregister_switch(&priv->dev);
 	ar8xxx_mib_stop(priv);
 	ar8xxx_free(priv);

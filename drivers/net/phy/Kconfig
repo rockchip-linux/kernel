@@ -120,6 +120,7 @@ config AR8216_PHY
 	tristate "Driver for Atheros AR8216 switches"
 	select ETHERNET_PACKET_MANGLE
 	select SWCONFIG
+	select REGMAP
 
 config FIXED_PHY
 	bool "Driver for MDIO Bus/PHY emulation with fixed speed/link PHYs"
