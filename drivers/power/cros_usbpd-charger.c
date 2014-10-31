@@ -337,9 +337,13 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 	platform_set_drvdata(pd, charger);
 
 	if (get_ec_num_ports(charger, &charger->num_charger_ports)) {
+		/*
+		 * This can happen on a system that doesn't supprt USB PD.
+		 * Log a message, but no need to warn.
+		 */
 		dev_info(dev, "No charging ports found\n");
-		ret = -EINVAL;
-		goto fail;
+		ret = -ENODEV;
+		goto fail_nowarn;
 	}
 
 	for (i = 0; i < charger->num_charger_ports; i++) {
@@ -385,6 +389,9 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 	return 0;
 
 fail:
+	WARN(1, "%s: Failing probe (err:0x%x)\n", dev_name(dev), ret);
+
+fail_nowarn:
 	if (charger) {
 		ec_device->charger = NULL;
 		for (i = 0; i < charger->num_registered_psy; i++) {
@@ -396,7 +403,6 @@ fail:
 		devm_kfree(dev, charger);
 	}
 
-	WARN(1, "%s: Failing probe (err:0x%x)\n", dev_name(dev), ret);
 	return ret;
 }
 

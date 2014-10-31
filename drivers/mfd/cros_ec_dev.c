@@ -342,7 +342,7 @@ static int cros_ec_usb_pd_charger_register(struct cros_ec_dev *ec)
 {
 	/*
 	 * TODO (crbug.com/428364): Query the EC to know whether it supports
-	 * charger functionality and add the chrger device only if does.
+	 * charger functionality and add the charger device only if it does.
 	 */
 	return mfd_add_devices(ec->dev, cros_usb_pd_charger_idx++,
 			       cros_usb_pd_charger_devs,
