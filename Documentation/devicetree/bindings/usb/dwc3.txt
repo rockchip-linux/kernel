@@ -13,6 +13,7 @@ Optional properties:
  - snps,u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
  - snps,dis_enblslpm_quirk: when set clears the enblslpm in GUSB2PHYCFG,
 			disabling the suspend signal to the PHY.
+ - snps,dis_u3_susphy_quirk: when set core will disable USB3 suspend phy.
 
 This is usually a subnode to DWC3 glue to which it is connected.
 

@@ -664,6 +664,7 @@ struct dwc3_scratchpad_array {
  * @dis_enblslpm_quirk: set if we clear enblslpm in GUSB2PHYCFG,
  *                      disabling the suspend signal to the PHY.
  * @is_fpga: true when we are using the FPGA board
+ * @dis_u3_susphy_quirk: set if we disable usb3 suspend phy
  */
 struct dwc3 {
 	struct usb_ctrlrequest	*ctrl_req;
@@ -761,6 +762,8 @@ struct dwc3 {
 	unsigned		dis_enblslpm_quirk:1;
 
 	unsigned		is_fpga:1;
+
+	unsigned		dis_u3_susphy_quirk:1;
 };
 
 /* -------------------------------------------------------------------------- */
