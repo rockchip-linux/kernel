@@ -18,6 +18,11 @@
 void rockchip_slp_cpu_resume(void);
 void __init rockchip_suspend_init(void);
 
+struct rk3288_ddr_save_data;
+int __init rk3288_ddr_suspend_init(struct rk3288_ddr_save_data *ddr_save);
+int rk3288_ddr_suspend(struct rk3288_ddr_save_data *ddr_save);
+void rk3288_ddr_resume(void);
+
 /****** following is rk3288 defined **********/
 #define RK3288_PMU_WAKEUP_CFG0          0x00
 #define RK3288_PMU_WAKEUP_CFG1          0x04

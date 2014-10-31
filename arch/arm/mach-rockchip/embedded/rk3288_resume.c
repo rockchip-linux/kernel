@@ -51,6 +51,9 @@ static void __noreturn rk3288_resume_c(void)
 		asm("mcr p15, 1, %0, c9, c0, 2" : :
 			"r" (rk3288_resume_params.l2ctlr));
 
+	if (rk3288_resume_params.ddr_resume_f)
+		rk3288_ddr_resume_early(&rk3288_resume_params.ddr_save_data);
+
 	rk3288_resume_params.cpu_resume();
 }
 

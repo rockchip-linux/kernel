@@ -21,7 +21,7 @@
 
 obj-$(CONFIG_PM_SLEEP) += rk3288_resume.bin.o
 
-targets := rk3288_resume.o \
+targets := rk3288_resume.o rk3288_ddr_resume.o \
 	rk3288_resume.elf rk3288_resume.lds \
 	rk3288_resume.bin rk3288_resume.bin.o
 
@@ -38,7 +38,9 @@ KBUILD_CFLAGS += -fno-stack-protector
 
 # This is the ELF for the embedded binary
 LDFLAGS_rk3288_resume.elf := -Bstatic -nostdlib -T
-$(obj)/rk3288_resume.elf: $(obj)/rk3288_resume.lds $(obj)/rk3288_resume.o \
+$(obj)/rk3288_resume.elf: $(obj)/rk3288_resume.lds \
+			  $(obj)/rk3288_resume.o \
+			  $(obj)/rk3288_ddr_resume.o \
 			  FORCE
 	$(call if_changed,ld)
 

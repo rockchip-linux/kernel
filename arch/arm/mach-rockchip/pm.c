@@ -22,6 +22,7 @@
 #include <linux/suspend.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regulator/machine.h>
+#include <linux/moduleparam.h>
 
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
@@ -40,6 +41,10 @@ struct rockchip_pm_data {
 	const struct platform_suspend_ops *ops;
 	int (*init)(struct device_node *np);
 };
+
+static bool deep_sleep = true;
+module_param(deep_sleep, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(deep_sleep, "Go into deep sleep");
 
 static void __iomem *rk3288_bootram_base;
 static phys_addr_t rk3288_bootram_phy;
@@ -78,6 +83,8 @@ static void __init rk3288_init_pmu_sram(void)
 
 	params->l2ctlr_f = 1;
 	params->l2ctlr = rk3288_l2_config();
+
+	rk3288_ddr_suspend_init(&params->ddr_save_data);
 }
 
 static void rk3288_slp_mode_set(int level)
@@ -120,6 +127,11 @@ static void rk3288_slp_mode_set(int level)
 
 		mode_set1 |= BIT(PMU_CLR_ALIVE) | BIT(PMU_CLR_BUS) |
 			     BIT(PMU_CLR_PERI) | BIT(PMU_CLR_DMA);
+
+		params->ddr_resume_f = true;
+
+		/* TODO: check error from ddr_suspend() and pass back */
+		rk3288_ddr_suspend(&params->ddr_save_data);
 	} else {
 		/*
 		 * arm off, logic normal
@@ -127,19 +139,24 @@ static void rk3288_slp_mode_set(int level)
 		 * wakeup will be error
 		 */
 		mode_set |= BIT(PMU_CLK_CORE_SRC_GATE_EN);
+
+		params->ddr_resume_f = false;
 	}
 
 	regmap_write(pmu_regmap, RK3288_PMU_PWRMODE_CON, mode_set);
 	regmap_write(pmu_regmap, RK3288_PMU_PWRMODE_CON1, mode_set1);
 }
 
-static void rk3288_slp_mode_set_resume(void)
+static void rk3288_slp_mode_set_resume(int level)
 {
 	regmap_write(pmu_regmap, RK3288_PMU_PWRMODE_CON,
 		     rk3288_pmu_pwr_mode_con);
 
 	regmap_write(sgrf_regmap, RK3288_SGRF_SOC_CON0,
 		     rk3288_sgrf_soc_con0 | SGRF_FAST_BOOT_EN_WRITE);
+
+	if (level == ROCKCHIP_ARM_OFF_LOGIC_DEEP)
+		rk3288_ddr_resume();
 }
 
 static int rockchip_lpmode_enter(unsigned long arg)
@@ -155,13 +172,17 @@ static int rockchip_lpmode_enter(unsigned long arg)
 
 static int rk3288_suspend_enter(suspend_state_t state)
 {
+	int level = deep_sleep ?
+		ROCKCHIP_ARM_OFF_LOGIC_DEEP :
+		ROCKCHIP_ARM_OFF_LOGIC_NORMAL;
+
 	local_fiq_disable();
 
-	rk3288_slp_mode_set(ROCKCHIP_ARM_OFF_LOGIC_NORMAL);
+	rk3288_slp_mode_set(level);
 
 	cpu_suspend(0, rockchip_lpmode_enter);
 
-	rk3288_slp_mode_set_resume();
+	rk3288_slp_mode_set_resume(level);
 
 	local_fiq_enable();
 
