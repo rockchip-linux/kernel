@@ -295,13 +295,8 @@
 	card-detect-delay = <200>;
 	cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
 	num-slots = <1>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_disabled &sdmmc_cd_gpio
-		     &sdmmc_wp_gpio &sdmmc_bus4>;
 	status = "okay";
 	vmmc-supply = <&vcc33_sd>;
-	wp-gpios = <&gpio7 10 GPIO_ACTIVE_LOW>;
-	wp-inverted;					/* AKA active low */
 };
 
 &spi0 {

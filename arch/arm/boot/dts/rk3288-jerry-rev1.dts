@@ -28,3 +28,10 @@
 		};
 	};
 };
+
+&sdmmc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_disabled &sdmmc_cd_gpio
+			&sdmmc_bus4>;
+	disable-wp;
+};
