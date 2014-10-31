@@ -296,9 +296,14 @@ struct acpi_device_wakeup_flags {
 	u8 notifier_present:1;  /* Wake-up notify handler has been installed */
 };
 
+struct acpi_wakeup_data {
+	u64 sb;
+	u64 gpe;
+};
+
 struct acpi_device_wakeup {
 	acpi_handle gpe_device;
-	u64 gpe_number;
+	struct acpi_wakeup_data wake_numbers;
 	u64 sleep_state;
 	struct list_head resources;
 	struct acpi_device_wakeup_flags flags;

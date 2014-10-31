@@ -1354,11 +1354,13 @@ static int acpi_bus_extract_wakeup_device_power_package(acpi_handle handle,
 
 		wakeup->gpe_device =
 		    element->package.elements[0].reference.handle;
-		wakeup->gpe_number =
+		wakeup->wake_numbers.gpe =
 		    (u32) element->package.elements[1].integer.value;
+		wakeup->wake_numbers.sb = -1;
 	} else if (element->type == ACPI_TYPE_INTEGER) {
 		wakeup->gpe_device = NULL;
-		wakeup->gpe_number = element->integer.value;
+		wakeup->wake_numbers.gpe = element->integer.value;
+		wakeup->wake_numbers.sb = -1;
 	} else {
 		goto out;
 	}
@@ -1391,7 +1393,8 @@ static int acpi_bus_extract_wakeup_device_power_package(acpi_handle handle,
 			wakeup->sleep_state = sleep_state;
 		}
 	}
-	acpi_setup_gpe_for_wake(handle, wakeup->gpe_device, wakeup->gpe_number);
+	acpi_setup_gpe_for_wake(handle, wakeup->gpe_device,
+				wakeup->wake_numbers.gpe);
 
  out:
 	kfree(buffer.pointer);
@@ -1424,7 +1427,7 @@ static void acpi_bus_set_run_wake_flags(struct acpi_device *device)
 	}
 
 	status = acpi_get_gpe_status(device->wakeup.gpe_device,
-					device->wakeup.gpe_number,
+					device->wakeup.wake_numbers.gpe,
 						&event_status);
 	if (status == AE_OK)
 		device->wakeup.flags.run_wake =
@@ -2148,6 +2151,8 @@ static int acpi_bus_scan_fixed(void)
 			return result;
 
 		device_init_wakeup(&device->dev, true);
+		device_set_wakeup_data(&device->dev,
+				       &device->wakeup.wake_numbers);
 	}
 
 	if (!(acpi_gbl_FADT.flags & ACPI_FADT_SLEEP_BUTTON)) {

@@ -641,13 +641,14 @@ int __acpi_device_run_wake(struct acpi_device *adev, bool enable)
 		if (error)
 			return error;
 
-		res = acpi_enable_gpe(wakeup->gpe_device, wakeup->gpe_number);
+		res = acpi_enable_gpe(wakeup->gpe_device,
+				      wakeup->wake_numbers.gpe);
 		if (ACPI_FAILURE(res)) {
 			acpi_disable_wakeup_device_power(adev);
 			return -EIO;
 		}
 	} else {
-		acpi_disable_gpe(wakeup->gpe_device, wakeup->gpe_number);
+		acpi_disable_gpe(wakeup->gpe_device, wakeup->wake_numbers.gpe);
 		acpi_disable_wakeup_device_power(adev);
 	}
 	return 0;
