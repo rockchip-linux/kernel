@@ -135,6 +135,14 @@
 			reg-names = "lpass-lpaif-mem";
 		};
 
+		imem: memory@700000 {
+			compatible = "qcom,imem-ipq8064", "syscon";
+			reg = <0x00700000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x00700000 0x1000>;
+		};
+
 		qcom_pinmux: pinmux@800000 {
 			compatible = "qcom,ipq8064-pinctrl";
 			reg = <0x800000 0x4000>;
