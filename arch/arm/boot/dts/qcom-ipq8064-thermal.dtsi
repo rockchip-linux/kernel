@@ -1,0 +1,91 @@
+/*
+ * Device Tree Source for ipq8064 SoC thermal
+ *
+ * Copyright (c) 2015 The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ */
+
+#include <dt-bindings/thermal/thermal.h>
+
+cpu_thermal0: cpu_thermal0 {
+	polling-delay-passive = <2000>; /* milliseconds */
+	polling-delay = <5000>; /* milliseconds */
+
+			/* sensor	ID */
+	thermal-sensors = <&tsens	0>;
+	linux,hwmon;
+
+	trips {
+		thermal0_cpu_alert: thermal0_cpu_alert {
+			temperature = <50000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "passive";
+		};
+		thermal0_cpu_crit: thermal0_cpu_crit {
+			temperature = <100000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "critical";
+		};
+	};
+
+	cooling-maps {
+			map0 {
+				trip = <&thermal0_cpu_alert>;
+				cooling-device =
+					<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+	};
+};
+
+cpu_thermal1: cpu_thermal1 {
+	polling-delay-passive = <2000>; /* milliseconds */
+	polling-delay = <5000>; /* milliseconds */
+
+			/* sensor	ID */
+	thermal-sensors = <&tsens	1>;
+	linux,hwmon;
+
+	trips {
+		thermal1_cpu_alert: thermal1_cpu_alert {
+			temperature = <50000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "passive";
+		};
+		thermal1_cpu_crit: thermal1_cpu_crit {
+			temperature = <100000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "critical";
+		};
+	};
+};
+
+cpu_thermal2: cpu_thermal2 {
+	polling-delay-passive = <2000>; /* milliseconds */
+	polling-delay = <5000>; /* milliseconds */
+
+			/* sensor	ID */
+	thermal-sensors = <&tsens	2>;
+	linux,hwmon;
+
+	trips {
+		thermal2_cpu_alert: thermal2_cpu_alert {
+			temperature = <50000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "passive";
+		};
+		thermal2_cpu_crit: thermal2_cpu_crit {
+			temperature = <100000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "critical";
+		};
+	};
+};

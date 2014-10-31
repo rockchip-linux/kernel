@@ -18,7 +18,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		cpu@0 {
+		cpu0: cpu@0 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v1";
 			device_type = "cpu";
@@ -75,7 +75,7 @@
 			#cooling-cells = <2>;
 		};
 
-		cpu@1 {
+		cpu1: cpu@1 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v1";
 			device_type = "cpu";
@@ -563,11 +563,26 @@
 			qcom,controller-type = "pmic-arbiter";
 		};
 
+		thermal-zones {
+			#include "qcom-ipq8064-thermal.dtsi"
+		};
+
 		gcc: clock-controller@900000 {
 			compatible = "qcom,gcc-ipq8064";
 			reg = <0x00900000 0x4000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+
+			tsens: tsens-msm8960 {
+				compatible = "qcom,qcom-tsens";
+				qcom,calib-offsets = <0x400 0x410>;
+				qcom,tsens-slopes = <1176 1176 1154 1176 1111
+						     1132 1132 1199 1132 1199
+						     1132>;
+				qcom,qfprom = <&imem 0x400 11>, <&imem 0x410 11>;
+				qcom,qfprom-names = "calib", "backup_calib";
+				#thermal-sensor-cells = <1>;
+			};
 		};
 
 		lcc: clock-controller@28000000 {
