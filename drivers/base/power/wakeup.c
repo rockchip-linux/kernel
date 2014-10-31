@@ -14,6 +14,7 @@
 #include <linux/suspend.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
+#include <linux/syscore_ops.h>
 #include <trace/events/power.h>
 
 #include "power.h"
@@ -52,6 +53,10 @@ static void pm_wakeup_timer_fn(unsigned long data);
 static LIST_HEAD(wakeup_sources);
 
 static DECLARE_WAIT_QUEUE_HEAD(wakeup_count_wait_queue);
+
+static enum wakeup_type wakeup_source_type;
+
+static struct platform_wakeup_source_ops *platform_wakeup_ops;
 
 /**
  * wakeup_source_prepare - Prepare a new wakeup source for initialization.
@@ -205,6 +210,7 @@ static int device_wakeup_attach(struct device *dev, struct wakeup_source *ws)
 		return -EEXIST;
 	}
 	dev->power.wakeup = ws;
+	ws->dev = dev;
 	spin_unlock_irq(&dev->power.lock);
 	return 0;
 }
@@ -273,6 +279,24 @@ int device_wakeup_disable(struct device *dev)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(device_wakeup_disable);
+
+/**
+ * device_set_wakeup_type - Set the wakeup type for a device
+ * @dev: Device to handle.
+ * @type: device wakeup type.
+ *
+ * Sets the wakeup type to user, automatic, unknown, or invalid. The default
+ * type for a device is unknown. Device must be able to wake the system.
+ */
+int device_set_wakeup_type(struct device *dev, enum wakeup_type type)
+{
+	if (!dev->power.can_wakeup)
+		return -EINVAL;
+
+	dev->power.wakeup_source_type = type;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(device_set_wakeup_type);
 
 /**
  * device_set_wakeup_capable - Set/reset device wakeup capability flag.
@@ -347,6 +371,22 @@ int device_set_wakeup_enable(struct device *dev, bool enable)
 	return enable ? device_wakeup_enable(dev) : device_wakeup_disable(dev);
 }
 EXPORT_SYMBOL_GPL(device_set_wakeup_enable);
+
+/**
+ * device_set_wakeup_data - This is used to store platform specific data used to
+ * determine which device woke the system for a system resume.
+ * @dev: Device to set data for
+ * @data: platform specific data
+ */
+int device_set_wakeup_data(struct device *dev, void *data)
+{
+	if (!dev || !dev->power.can_wakeup)
+		return -EINVAL;
+
+	dev->power.wakeup_data = data;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(device_set_wakeup_data);
 
 /*
  * The functions below use the observation that each wakeup event starts a
@@ -889,6 +929,75 @@ static int wakeup_sources_stats_open(struct inode *inode, struct file *file)
 	return single_open(file, wakeup_sources_stats_show, NULL);
 }
 
+/**
+ * wakeup_syscore_find_source - syscore resume function to find what woke the
+ * system.
+ *
+ * This uses the platform wakeup ops to figure out which wakeup source woke the
+ * system. The name of the wakeup source is logged and the type of wakeup source
+ * is stored.
+ */
+static void wakeup_syscore_find_source(void)
+{
+	struct wakeup_source *ws;
+	void *plat_data;
+
+	wakeup_source_type = WAKEUP_UNKNOWN;
+
+	if (!platform_wakeup_ops || !platform_wakeup_ops->get ||
+	    !platform_wakeup_ops->put || !platform_wakeup_ops->match)
+		return;
+
+	/* The platform data is defined by the platform/arch. Rather than
+	 * retrieve the data everytime in the match function, just get it once
+	 * here. */
+	plat_data = platform_wakeup_ops->get();
+	if (!plat_data)
+		return;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
+		/* Wakeup source must have a device associated with it. */
+		if (!ws->dev)
+			continue;
+		if (platform_wakeup_ops->match(ws->dev->power.wakeup_data,
+					     plat_data)) {
+			wakeup_source_type = ws->dev->power.wakeup_source_type;
+			pr_info("System wakeup from source: %s\n", ws->name);
+			goto out;
+		}
+	}
+	pr_info("System wakeup source unknown\n");
+out:
+	rcu_read_unlock();
+	platform_wakeup_ops->put(plat_data);
+}
+
+/**
+ * pm_get_wakeup_source_type - return the wakeup source type that woke the
+ * system. Returns WAKEUP_INVALID if there was no system wakeup yet.
+ */
+enum wakeup_type pm_get_wakeup_source_type(void)
+{
+	return wakeup_source_type;
+}
+EXPORT_SYMBOL_GPL(pm_get_wakeup_source_type);
+
+/**
+ * wakeup_register_platform_ops - register platform ops for figuring out what
+ * woke the system.
+ * @ops: Contains the get, put, and match functions for wakeup data
+ */
+int wakeup_register_platform_ops(struct platform_wakeup_source_ops *ops)
+{
+	if (!ops)
+		return -EINVAL;
+
+	platform_wakeup_ops = ops;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(wakeup_register_platform_ops);
+
 static const struct file_operations wakeup_sources_stats_fops = {
 	.owner = THIS_MODULE,
 	.open = wakeup_sources_stats_open,
@@ -905,3 +1014,16 @@ static int __init wakeup_sources_debugfs_init(void)
 }
 
 postcore_initcall(wakeup_sources_debugfs_init);
+
+static struct syscore_ops wakeup_syscore = {
+	.resume = wakeup_syscore_find_source,
+};
+
+static int __init wakeup_syscore_init(void)
+{
+	wakeup_source_type = WAKEUP_INVALID;
+	register_syscore_ops(&wakeup_syscore);
+	return 0;
+}
+
+late_initcall(wakeup_syscore_init);

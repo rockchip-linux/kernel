@@ -552,6 +552,28 @@ enum rpm_request {
 struct wakeup_source;
 struct dev_dark_resume;
 
+/**
+ * System wakeup types.
+ *
+ * WAKEUP_UNKNOWN	The system was woken up, but the wakeup device type was
+ *			not set (default state).
+ *
+ * WAKEUP_AUTOMATIC	Wakeup type indicating the system woke up to handle an
+ *			automated behavior.
+ *
+ * WAKEUP_USER		The user woke the system (expected full functionality).
+ *
+ * WAKEUP_INVALID	No wakeup type available. The system either has not
+ *			suspended or some invalid state.
+ */
+
+enum wakeup_type {
+	WAKEUP_UNKNOWN = 0,
+	WAKEUP_AUTOMATIC,
+	WAKEUP_USER,
+	WAKEUP_INVALID,
+};
+
 struct pm_domain_data {
 	struct list_head list_node;
 	struct device *dev;
@@ -581,7 +603,9 @@ struct dev_pm_info {
 	struct list_head	entry;
 	struct completion	completion;
 	struct wakeup_source	*wakeup;
+	void			*wakeup_data;
 	struct dev_dark_resume	*dark_resume;
+	enum wakeup_type	wakeup_source_type;
 	bool			wakeup_path:1;
 	bool			syscore:1;
 	bool			use_dark_resume:1;

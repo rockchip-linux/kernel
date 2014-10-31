@@ -44,6 +44,7 @@
  * @has_timeout: The wakeup source has been activated with a timeout.
  */
 struct wakeup_source {
+	struct device		*dev;
 	const char 		*name;
 	struct list_head	entry;
 	spinlock_t		lock;
@@ -61,6 +62,12 @@ struct wakeup_source {
 	unsigned long		wakeup_count;
 	bool			active:1;
 	bool			autosleep_enabled:1;
+};
+
+struct platform_wakeup_source_ops {
+	void *(*get)(void);
+	void (*put)(void *data);
+	bool (*match)(void *device_data, void *platform_data);
 };
 
 #ifdef CONFIG_PM_SLEEP
@@ -90,15 +97,19 @@ extern struct wakeup_source *wakeup_source_register(const char *name);
 extern void wakeup_source_unregister(struct wakeup_source *ws);
 extern int device_wakeup_enable(struct device *dev);
 extern int device_wakeup_disable(struct device *dev);
+extern int device_set_wakeup_type(struct device *dev, enum wakeup_type type);
 extern void device_set_wakeup_capable(struct device *dev, bool capable);
 extern int device_init_wakeup(struct device *dev, bool val);
 extern int device_set_wakeup_enable(struct device *dev, bool enable);
+extern int device_set_wakeup_data(struct device *dev, void *data);
 extern void __pm_stay_awake(struct wakeup_source *ws);
 extern void pm_stay_awake(struct device *dev);
 extern void __pm_relax(struct wakeup_source *ws);
 extern void pm_relax(struct device *dev);
 extern void __pm_wakeup_event(struct wakeup_source *ws, unsigned int msec);
 extern void pm_wakeup_event(struct device *dev, unsigned int msec);
+extern enum wakeup_type pm_get_wakeup_source_type(void);
+extern int wakeup_register_platform_ops(struct platform_wakeup_source_ops *ops);
 
 #else /* !CONFIG_PM_SLEEP */
 
@@ -153,6 +164,11 @@ static inline int device_set_wakeup_enable(struct device *dev, bool enable)
 	return 0;
 }
 
+static inline int device_set_wakeup_data(struct device *dev, void *data)
+{
+	return 0;
+}
+
 static inline int device_init_wakeup(struct device *dev, bool val)
 {
 	device_set_wakeup_capable(dev, val);
@@ -176,6 +192,17 @@ static inline void pm_relax(struct device *dev) {}
 static inline void __pm_wakeup_event(struct wakeup_source *ws, unsigned int msec) {}
 
 static inline void pm_wakeup_event(struct device *dev, unsigned int msec) {}
+
+static enum wakeup_type pm_get_wakeup_source_type(void)
+{
+	return WAKEUP_INVALID;
+}
+
+static inline int wakeup_register_platform_ops(
+		struct platform_wakeup_source_ops *ops)
+{
+	return 0;
+}
 
 #endif /* !CONFIG_PM_SLEEP */
 
