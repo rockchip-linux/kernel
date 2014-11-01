@@ -122,7 +122,7 @@ static int cros_ec_pd_send_hash_entry(struct device *dev,
 	msg.outdata = (uint8_t *)&hash_entry;
 	msg.outsize = sizeof(hash_entry);
 	hash_entry.dev_id = MAJOR_MINOR_TO_DEV_ID(fw->id_major, fw->id_minor);
-	memcpy(hash_entry.dev_rw_hash.b, fw->hash, PD_RW_HASH_SIZE);
+	memcpy(hash_entry.dev_rw_hash, fw->hash, PD_RW_HASH_SIZE);
 
 	ret = cros_ec_cmd_xfer(pd_dev->ec_dev, &msg);
 	if (ret < 0)
@@ -305,7 +305,7 @@ static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
 
 			/* Device found, should we update firmware? */
 			if (i != PD_NO_IMAGE &&
-			    memcmp(hash_entry.dev_rw_hash.b,
+			    memcmp(hash_entry.dev_rw_hash,
 				   firmware_images[i].hash,
 				   PD_RW_HASH_SIZE) != 0) {
 				file = firmware_images[i].filename;
