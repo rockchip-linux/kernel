@@ -1039,4 +1039,10 @@
 		cdev-type = "DFLL-floor";
 		#cooling-cells = <2>; /* min followed by max */
 	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 145 IRQ_TYPE_LEVEL_HIGH>;
+	};
 };
