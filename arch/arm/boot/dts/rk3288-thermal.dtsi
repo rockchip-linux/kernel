@@ -25,6 +25,7 @@ cpu_thermal: cpu_thermal {
 
 			/* sensor	ID */
 	thermal-sensors = <&tsadc	1>;
+	linux,hwmon;
 
 	trips {
 		cpu_alert0: cpu_alert0 {
@@ -54,6 +55,7 @@ gpu_thermal: gpu_thermal {
 
 			/* sensor	ID */
 	thermal-sensors = <&tsadc	2>;
+	linux,hwmon;
 
 	trips {
 		gpu_alert0: gpu_alert0 {
