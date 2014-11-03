@@ -15,6 +15,8 @@
 
 	aliases {
 		mdio-gpio0 = &mdio0;
+		spi5 = &spi5; /* flashrom requires this bus to be the lowest */
+		spi6 = &spi6;
 	};
 
 	firmware {
@@ -149,6 +151,28 @@
 					bias-none;
 				};
 			};
+
+			spi6_pins: spi6_pins {
+				mux {
+					pins = "gpio55", "gpio56", "gpio58";
+					function = "gsbi6_b";
+					bias-pull-down;
+				};
+				data {
+					pins = "gpio55", "gpio56";
+					drive-strength = <10>;
+				};
+				cs {
+					pins = "gpio57";
+					drive-strength = <10>;
+					bias-pull-up;
+					output-high;
+				};
+				clk {
+					pins = "gpio58";
+					drive-strength = <12>;
+				};
+			};
 		};
 
 		gsbi1: gsbi@12440000 {
@@ -192,7 +216,7 @@
 			qcom,mode = <GSBI_PROT_SPI>;
 			status = "ok";
 
-			spi4: spi@1a280000 {
+			spi5: spi@1a280000 {
 				status = "ok";
 				spi-max-frequency = <50000000>;
 
@@ -209,6 +233,31 @@
 					compatible = "spidev";
 					reg = <0>;
 					spi-max-frequency = <50000000>;
+				};
+			};
+		};
+
+		gsbi6: gsbi@16500000 {
+			qcom,mode = <GSBI_PROT_SPI>;
+			status = "ok";
+
+			spi6: spi@16580000 {
+				status = "ok";
+				spi-max-frequency = <25000000>;
+
+				pinctrl-0 = <&spi6_pins>;
+				pinctrl-names = "default";
+
+				cs-gpios = <&qcom_pinmux 57 0>;
+
+				dmas = <&adm_dma 8 0xb>,
+					<&adm_dma 7 0x14>;
+				dma-names = "rx", "tx";
+
+				spidev@0 {
+					compatible = "spidev";
+					reg = <0>;
+					spi-max-frequency = <25000000>;
 				};
 			};
 		};
