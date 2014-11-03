@@ -650,16 +650,26 @@ static struct attribute_group pm_wakeup_attr_group = {
 	.attrs	= wakeup_attrs,
 };
 
-static struct attribute *dark_resume_attrs[] = {
+static struct attribute *dark_resume_source_attrs[] = {
 #ifdef CONFIG_PM_SLEEP
-	&dev_attr_dark_resume_active.attr,
 	&dev_attr_dark_resume_source.attr,
 #endif
 	NULL,
 };
-static struct attribute_group pm_dark_resume_attr_group = {
+static struct attribute_group pm_dark_resume_source_attr_group = {
 	.name	= power_group_name,
-	.attrs	= dark_resume_attrs,
+	.attrs	= dark_resume_source_attrs,
+};
+
+static struct attribute *dark_resume_consumer_attrs[] = {
+#ifdef CONFIG_PM_SLEEP
+	&dev_attr_dark_resume_active.attr,
+#endif
+	NULL,
+};
+static struct attribute_group pm_dark_resume_consumer_attr_group = {
+	.name	= power_group_name,
+	.attrs	= dark_resume_consumer_attrs,
 };
 
 static struct attribute *runtime_attrs[] = {
@@ -775,12 +785,22 @@ void dpm_sysfs_remove(struct device *dev)
 	sysfs_remove_group(&dev->kobj, &pm_attr_group);
 }
 
-int dark_resume_sysfs_add(struct device *dev)
+void dark_resume_source_sysfs_add(struct device *dev)
 {
-	return sysfs_merge_group(&dev->kobj, &pm_dark_resume_attr_group);
+	sysfs_merge_group(&dev->kobj, &pm_dark_resume_source_attr_group);
 }
 
-void dark_resume_sysfs_remove(struct device *dev)
+void dark_resume_source_sysfs_remove(struct device *dev)
 {
-	sysfs_unmerge_group(&dev->kobj, &pm_dark_resume_attr_group);
+	sysfs_unmerge_group(&dev->kobj, &pm_dark_resume_source_attr_group);
+}
+
+void dark_resume_consumer_sysfs_add(struct device *dev)
+{
+	sysfs_merge_group(&dev->kobj, &pm_dark_resume_consumer_attr_group);
+}
+
+void dark_resume_consumer_sysfs_remove(struct device *dev)
+{
+	sysfs_unmerge_group(&dev->kobj, &pm_dark_resume_consumer_attr_group);
 }

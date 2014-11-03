@@ -962,7 +962,7 @@ static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	ret = drm_get_pci_dev(pdev, ent, &driver);
 	if (ret == 0) {
 		ret = sysfs_create_group(&pdev->dev.kobj, &mutex_ctrl_group);
-		dev_dark_resume_init(&pdev->dev, NULL, -1, NULL);
+		dev_dark_resume_add_consumer(&pdev->dev);
 	}
 
 	return ret;
@@ -973,7 +973,7 @@ i915_pci_remove(struct pci_dev *pdev)
 {
 	struct drm_device *dev = pci_get_drvdata(pdev);
 
-	dev_dark_resume_remove(&pdev->dev);
+	dev_dark_resume_remove_consumer(&pdev->dev);
 
 	drm_put_dev(dev);
 }

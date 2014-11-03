@@ -390,7 +390,7 @@ struct backlight_device *backlight_device_register(const char *name,
 		return ERR_PTR(rc);
 	}
 
-	dev_dark_resume_init(&new_bd->dev, NULL, -1, NULL);
+	dev_dark_resume_add_consumer(&new_bd->dev);
 	new_bd->ops = ops;
 
 #ifdef CONFIG_PMAC_BACKLIGHT
@@ -452,7 +452,7 @@ void backlight_device_unregister(struct backlight_device *bd)
 	mutex_unlock(&bd->ops_lock);
 
 	backlight_unregister_fb(bd);
-	dev_dark_resume_remove(&bd->dev);
+	dev_dark_resume_remove_consumer(&bd->dev);
 	device_unregister(&bd->dev);
 }
 EXPORT_SYMBOL(backlight_device_unregister);

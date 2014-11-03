@@ -39,11 +39,13 @@ struct pm_dark_resume_ops {
 #ifdef CONFIG_PM_SLEEP
 extern int dev_dark_resume_set_source(struct device *dev, bool is_source);
 extern void dev_dark_resume_set_active(struct device *dev, bool is_active);
-extern int dev_dark_resume_init(struct device *dev,
+extern void dev_dark_resume_add_source(struct device *dev,
 				struct dev_dark_resume *dark_resume,
 				int irq,
 				bool (*caused_resume)(struct device *dev));
-extern void dev_dark_resume_remove(struct device *dev);
+extern void dev_dark_resume_add_consumer(struct device *dev);
+extern void dev_dark_resume_remove_source(struct device *dev);
+extern void dev_dark_resume_remove_consumer(struct device *dev);
 extern bool pm_dark_resume_check(void);
 extern bool pm_dark_resume_active(void);
 extern bool pm_dark_resume_always(void);
@@ -77,20 +79,21 @@ static inline int dev_dark_resume_set_source(struct device *dev, bool is_source)
 static inline void dev_dark_resume_set_active(struct device *dev,
 					      bool is_active) { }
 
-static inline int dev_dark_resume_init(struct device *dev,
+static inline void dev_dark_resume_add_source(struct device *dev,
 		struct dev_dark_resume *dark_resume,
 		int irq,
-		bool (*caused_resume)(struct device *dev))
-{
-	return 0;
-}
+		bool (*caused_resume)(struct device *dev)) { }
+
+static inline void dev_dark_resume_add_consumer(struct device *dev) { }
 
 static inline bool pm_dark_resume_check(void)
 {
 	return false;
 }
 
-static inline void dev_dark_resume_remove(struct device *dev) { }
+static inline void dev_dark_resume_remove_source(struct device *dev) { }
+
+static inline void dev_dark_resume_remove_consumer(struct device *dev) { }
 
 static inline bool pm_dark_resume_active(void)
 {

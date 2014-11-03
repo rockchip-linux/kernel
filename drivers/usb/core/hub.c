@@ -2121,7 +2121,7 @@ void usb_disconnect(struct usb_device **pdev)
 	usb_remove_ep_devs(&udev->ep0);
 	usb_unlock_device(udev);
 
-	dev_dark_resume_remove(&udev->dev);
+	dev_dark_resume_remove_consumer(&udev->dev);
 	/* Unregister the device.  The device driver is responsible
 	 * for de-configuring the device and invoking the remove-device
 	 * notifier chain (used by usbfs and possibly others).
@@ -2435,7 +2435,7 @@ int usb_new_device(struct usb_device *udev)
 	(void) usb_create_ep_devs(&udev->dev, &udev->ep0, udev);
 	usb_mark_last_busy(udev);
 	pm_runtime_put_sync_autosuspend(&udev->dev);
-	dev_dark_resume_init(&udev->dev, NULL, -1, NULL);
+	dev_dark_resume_add_consumer(&udev->dev);
 	return err;
 
 fail:

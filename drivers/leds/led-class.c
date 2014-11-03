@@ -240,7 +240,7 @@ int led_classdev_register(struct device *parent, struct led_classdev *led_cdev)
 	led_cdev->blink_timer.function = led_timer_function;
 	led_cdev->blink_timer.data = (unsigned long)led_cdev;
 
-	dev_dark_resume_init(led_cdev->dev, NULL, -1, NULL);
+	dev_dark_resume_add_consumer(led_cdev->dev);
 
 #ifdef CONFIG_LEDS_TRIGGERS
 	led_trigger_set_default(led_cdev);
@@ -274,7 +274,7 @@ void led_classdev_unregister(struct led_classdev *led_cdev)
 	led_stop_software_blink(led_cdev);
 	led_set_brightness(led_cdev, LED_OFF);
 
-	dev_dark_resume_remove(led_cdev->dev);
+	dev_dark_resume_remove_consumer(led_cdev->dev);
 	device_unregister(led_cdev->dev);
 
 	down_write(&leds_list_lock);

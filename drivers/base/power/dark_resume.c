@@ -90,7 +90,7 @@ void dev_dark_resume_set_active(struct device *dev, bool is_active)
 EXPORT_SYMBOL_GPL(dev_dark_resume_set_active);
 
 /**
- * dev_dark_resume_init - Initialize the dev_dark_resume struct.
+ * dev_dark_resume_add_source - Initialize the dev_dark_resume struct.
  * @dev: The device struct that the dev_dark_resume struct will be associated
  * with.
  * @dark_resume: The dev_dark_resume struct to initialize.
@@ -99,57 +99,76 @@ EXPORT_SYMBOL_GPL(dev_dark_resume_set_active);
  * @caused_resume: The function pointer that is called by the platform callback
  * (if supported) before devices are resumed to see if dev caused the resume of
  * the system.
- *
- * Devices that query dark resume, but cannot be a source should call this
- * function when initialized with dark_resume and caused_resume as NULL.
  */
-int dev_dark_resume_init(struct device *dev,
-			 struct dev_dark_resume *dark_resume,
-			 int irq,
-			 bool (*caused_resume)(struct device *dev))
+void dev_dark_resume_add_source(struct device *dev,
+				struct dev_dark_resume *dark_resume,
+				int irq,
+				bool (*caused_resume)(struct device *dev))
 {
 	/* Must be called after device_add since sysfs attributes are added */
-	if (!device_is_registered(dev))
-		return -EINVAL;
+	if (!device_is_registered(dev) || !dark_resume)
+		return;
 
 	dev->power.dark_resume = dark_resume;
 	dev_dark_resume_set_active(dev, false);
-	/* Happens for devices that cannot be a dark resume source. */
-	if (!dark_resume)
-		return dark_resume_sysfs_add(dev);
-
 	dark_resume->dev = dev;
 	dark_resume->is_source = false;
 	dark_resume->irq = irq;
 	dark_resume->caused_resume = caused_resume;
 	INIT_LIST_HEAD(&dark_resume->list_node);
-	/* Don't really need to clean up anything if this fails */
-	return dark_resume_sysfs_add(dev);
+	dark_resume_source_sysfs_add(dev);
 }
-EXPORT_SYMBOL_GPL(dev_dark_resume_init);
+EXPORT_SYMBOL_GPL(dev_dark_resume_add_source);
 
 /**
- * dev_dark_resume_remove - Remove all of the associations of the device to dark
- * resume.
+ * dev_dark_resume_add_consumer - Initialize dark resume consumer state and adds
+ * a sysfs within the devices power directory.
+ * @dev: The device which will observe dark resumes if enabled via sysfs
+ */
+void dev_dark_resume_add_consumer(struct device *dev)
+{
+	/* Must be called after device_add since sysfs attributes are added */
+	if (!device_is_registered(dev))
+		return;
+
+	dev_dark_resume_set_active(dev, false);
+	dark_resume_consumer_sysfs_add(dev);
+}
+EXPORT_SYMBOL_GPL(dev_dark_resume_add_consumer);
+
+/**
+ * dev_dark_resume_remove_source - Remove all of the associations of the device
+ * to dark resume.
  * @dev: device struct to remove associations to dark resume from.
  *
  * Makes sure that the device is no longer active for dark resume and is not a
  * source.
  */
-void dev_dark_resume_remove(struct device *dev)
+void dev_dark_resume_remove_source(struct device *dev)
 {
-	dev_dark_resume_set_active(dev, false);
-	dark_resume_sysfs_remove(dev);
 	if (!dev->power.dark_resume)
 		return;
 
 	dev_dark_resume_set_source(dev, false);
+	dark_resume_source_sysfs_remove(dev);
 	dev->power.dark_resume->caused_resume = NULL;
 	dev->power.dark_resume->irq = 0;
 	dev->power.dark_resume->dev = NULL;
 	dev->power.dark_resume = NULL;
 }
-EXPORT_SYMBOL_GPL(dev_dark_resume_remove);
+EXPORT_SYMBOL_GPL(dev_dark_resume_remove_source);
+
+/**
+ * dev_dark_resume_remove_consumer - Set dark resume consumer state and remove
+ * sysfs file.
+ * @dev: device struct to remove associations to dark resume from.
+ */
+void dev_dark_resume_remove_consumer(struct device *dev)
+{
+	dev_dark_resume_set_active(dev, false);
+	dark_resume_consumer_sysfs_remove(dev);
+}
+EXPORT_SYMBOL_GPL(dev_dark_resume_remove_consumer);
 
 /**
  * pm_dark_resume_check - Call into the platform specific check function if it

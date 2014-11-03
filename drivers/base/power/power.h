@@ -93,8 +93,10 @@ extern int pm_qos_sysfs_add_latency(struct device *dev);
 extern void pm_qos_sysfs_remove_latency(struct device *dev);
 extern int pm_qos_sysfs_add_flags(struct device *dev);
 extern void pm_qos_sysfs_remove_flags(struct device *dev);
-extern int dark_resume_sysfs_add(struct device *dev);
-extern void dark_resume_sysfs_remove(struct device *dev);
+extern void dark_resume_source_sysfs_add(struct device *dev);
+extern void dark_resume_source_sysfs_remove(struct device *dev);
+extern void dark_resume_consumer_sysfs_add(struct device *dev);
+extern void dark_resume_consumer_sysfs_remove(struct device *dev);
 
 #else /* CONFIG_PM */
 
