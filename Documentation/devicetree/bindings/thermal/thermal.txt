@@ -169,6 +169,10 @@ Optional property:
 			by means of sensor ID. Additional coefficients are
 			interpreted as constant offset.
 
+- linux,hwmon:		A boolean property that instructs Linux thermal core
+			to create an instance of hwmon device representing
+			this thermal zone.
+
 Note: The delay properties are bound to the maximum dT/dt (temperature
 derivative over time) in two situations for a thermal zone:
 (i)  - when passive cooling is activated (polling-delay-passive); and

@@ -867,8 +867,11 @@ int __init of_parse_thermal_zones(void)
 			goto exit_free;
 		}
 
-		/* No hwmon because there might be hwmon drivers registering */
-		tzp->no_hwmon = true;
+		/*
+		 * Do not attach hwmon device unless explicitly requested,
+		 * since there might be dedicated hwmon drivers registering.
+		 */
+		tzp->no_hwmon = !of_property_read_bool(child, "linux,hwmon");
 
 		zone = thermal_zone_device_register(child->name, tz->ntrips,
 						    0, tz,
