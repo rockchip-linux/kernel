@@ -198,7 +198,7 @@ static struct mbox_chan *tegra_xusb_mbox_of_xlate(struct mbox_controller *ctlr,
 					const struct of_phandle_args *sp)
 {
 	struct tegra_xusb_mbox *mbox = dev_get_drvdata(ctlr->dev);
-	struct mbox_chan *chan = NULL;
+	struct mbox_chan *chan = ERR_PTR(-EBUSY);
 	unsigned long flags;
 	int i;
 
