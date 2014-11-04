@@ -21,6 +21,14 @@
 		reg = <0x0 0x80000000>;
 	};
 
+	firmware {
+		chromeos {
+			pinctrl-names = "default";
+			pinctrl-0 = <&fw_wp_ap>;
+			write-protect-gpio = <&gpio7 6 GPIO_ACTIVE_LOW>;
+		};
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		brightness-levels = <
@@ -715,6 +723,12 @@
 
 		usbotg_pwren_h: usbotg-pwren-h {
 			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	write-protect {
+		fw_wp_ap: fw-wp-ap {
+			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
