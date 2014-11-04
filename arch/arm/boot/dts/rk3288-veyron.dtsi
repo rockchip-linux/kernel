@@ -646,6 +646,14 @@
 	status = "okay";
 };
 
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
 &vopl {
 	status = "okay";
 };
@@ -657,6 +665,10 @@
 &edp {
 	status = "okay";
 	rockchip,panel = <&panel>;
+};
+
+&hdmi {
+	status = "okay";
 };
 
 &gpu {
