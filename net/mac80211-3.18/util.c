@@ -1949,7 +1949,7 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 	 * We may want to change that later, however.
 	 */
 	if (!local->suspended || reconfig_due_to_wowlan)
-		drv_restart_complete(local);
+		drv_reconfig_complete(local, IEEE80211_RECONFIG_TYPE_RESTART);
 
 	if (!local->suspended)
 		return 0;
@@ -1959,6 +1959,9 @@ int ieee80211_reconfig(struct ieee80211_local *local)
 	local->suspended = false;
 	mb();
 	local->resuming = false;
+
+	if (!reconfig_due_to_wowlan)
+		drv_reconfig_complete(local, IEEE80211_RECONFIG_TYPE_SUSPEND);
 
 	list_for_each_entry(sdata, &local->interfaces, list) {
 		if (!ieee80211_sdata_running(sdata))
