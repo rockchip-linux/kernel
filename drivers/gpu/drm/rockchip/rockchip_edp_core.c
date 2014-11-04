@@ -488,17 +488,8 @@ static struct drm_encoder *
 	return &edp->encoder;
 }
 
-static enum drm_mode_status rockchip_connector_mode_valid(
-		struct drm_connector *connector,
-		struct drm_display_mode *mode)
-{
-	/* TODO(rk): verify that the mode is really valid */
-	return MODE_OK;
-}
-
 static struct drm_connector_helper_funcs rockchip_connector_helper_funcs = {
 	.get_modes = rockchip_connector_get_modes,
-	.mode_valid = rockchip_connector_mode_valid,
 	.best_encoder = rockchip_connector_best_encoder,
 };
 
