@@ -92,6 +92,7 @@ static struct dvfs cpu_dvfs = {
 	.millivolts	= cpu_millivolts,
 	.dfll_millivolts = cpu_dfll_millivolts,
 	.auto_dvfs	= true,
+	.range		= DFLL_RANGE_ALL_RATES,
 };
 
 /* Tegra124 CPU DVFS tables */
