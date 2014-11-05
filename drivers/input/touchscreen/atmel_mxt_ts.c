@@ -106,6 +106,8 @@
 #define MXT_T6_CMD_REFS			0x11
 #define MXT_T6_CMD_DEVICE_ID		0x80
 #define MXT_T6_CMD_TOUCH_THRESH		0xF4
+#define MXT_T6_CMD_SELF_DELTAS		0xF7
+#define MXT_T6_CMD_SELF_REFS		0xF8
 
 /* MXT_GEN_POWER_T7 field */
 #define MXT_POWER_IDLEACQINT	0
@@ -401,6 +403,9 @@ struct mxt_data {
 	struct dentry *dentry_deltas;
 	struct dentry *dentry_refs;
 	struct dentry *dentry_object;
+	/* for self-capacitance information */
+	struct dentry *dentry_self_deltas;
+	struct dentry *dentry_self_refs;
 
 	/* Protect access to the T37 object buffer, used by debugfs */
 	struct mutex T37_buf_mutex;
@@ -468,6 +473,14 @@ static inline bool is_mxt_33x_t(struct mxt_data *data)
 	/* vairant_id: 336t(5), 337t(17) */
 	return ((info->family_id == 164) &&
 		((info->variant_id == 5) || (info->variant_id == 17)));
+}
+
+static inline bool is_hovering_supported(struct mxt_data *data)
+{
+	struct mxt_info *info = &data->info;
+	/* vairant_id: 337t(164.17), 2954t2(164.13) */
+	return ((info->family_id == 164) &&
+		((info->variant_id == 13) || (info->variant_id == 17)));
 }
 
 static inline size_t mxt_obj_size(const struct mxt_object *obj)
@@ -2860,6 +2873,10 @@ static int mxt_debugfs_T37_open(struct inode *inode, struct file *file)
 		cmd = MXT_T6_CMD_DELTAS;
 	else if (file->f_dentry == mxt->dentry_refs)
 		cmd = MXT_T6_CMD_REFS;
+	else if (file->f_dentry == mxt->dentry_self_deltas)
+		cmd = MXT_T6_CMD_SELF_DELTAS;
+	else if (file->f_dentry == mxt->dentry_self_refs)
+		cmd = MXT_T6_CMD_SELF_REFS;
 	else
 		return -EINVAL;
 
@@ -3029,6 +3046,16 @@ static int mxt_debugfs_init(struct mxt_data *mxt)
 	mxt->dentry_refs = debugfs_create_file("refs", S_IRUSR,
 					       mxt->dentry_dev, mxt,
 					       &mxt_debugfs_T37_fops);
+	if (is_hovering_supported(mxt)) {
+		mxt->dentry_self_deltas =
+			debugfs_create_file("self_deltas", S_IRUSR,
+					    mxt->dentry_dev, mxt,
+					    &mxt_debugfs_T37_fops);
+		mxt->dentry_self_refs =
+			debugfs_create_file("self_refs", S_IRUSR,
+					    mxt->dentry_dev, mxt,
+					    &mxt_debugfs_T37_fops);
+	}
 	mutex_init(&mxt->object_str_mutex);
 
 	mxt->dentry_object = debugfs_create_file("object", S_IRUGO,
