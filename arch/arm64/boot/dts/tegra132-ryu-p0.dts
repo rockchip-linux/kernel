@@ -4,8 +4,8 @@
 
 / {
 	model = "Google Tegra132 Ryu P0";
-	compatible = "google,ryu-p0", "google,ryu", "nvidia,tegra132", \
-			"nvidia,tegra124";
+	compatible = "google,ryu-rev0", "google,ryu-p0", "google,ryu", \
+			"nvidia,tegra132", "nvidia,tegra124";
 
 	regulators {
 		pplcd_vdd: fixed-regulator@5 {
