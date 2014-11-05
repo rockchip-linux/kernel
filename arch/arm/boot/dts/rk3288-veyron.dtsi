@@ -292,6 +292,10 @@
 	logic-supply = <&vdd_logic>;
 };
 
+&efuse {
+	status = "okay";
+};
+
 &emmc {
 	broken-cd;
 	bus-width = <8>;
