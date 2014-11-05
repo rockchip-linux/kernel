@@ -72,8 +72,10 @@ struct generic_pm_domain {
 	bool max_off_time_changed;
 	bool cached_power_down_ok;
 	struct gpd_cpuidle_data *cpuidle_data;
-	void (*attach_dev)(struct device *dev);
-	void (*detach_dev)(struct device *dev);
+	int (*attach_dev)(struct generic_pm_domain *domain,
+			  struct device *dev);
+	void (*detach_dev)(struct generic_pm_domain *domain,
+			   struct device *dev);
 	struct delayed_work power_off_delayed_work;
 	s64 power_off_delay;
 };
