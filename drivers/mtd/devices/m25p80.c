@@ -394,16 +394,7 @@ static int m25p80_read(struct mtd_info *mtd, loff_t from, size_t len,
 static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 	size_t *retlen, const u_char *buf)
 {
-	struct m25p *flash = mtd_to_m25p(mtd);
-	u32 page_offset, page_size;
-	struct spi_transfer t[2];
-	struct spi_message m;
-
-	pr_debug("%s: %s to 0x%08x, len %zd\n", dev_name(&flash->spi->dev),
-			__func__, (u32)to, len);
-
-	spi_message_init(&m);
-	memset(t, 0, (sizeof t));
+	struct m25p *flash = nor->priv;
 
 	t[0].tx_buf = flash->command;
 	t[0].len = m25p_cmdsz(flash);
@@ -414,32 +405,9 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 
 	mutex_lock(&flash->lock);
 
-	/* Send write enable, then erase commands. */
-	ret = nor->write_reg(nor, SPINOR_OP_WREN, NULL, 0, 0);
-	if (ret)
-		goto time_out;
-
-	/* Write out trailing byte if it exists. */
-	if (actual != len) {
-		write_enable(flash);
-		flash->command[0] = OPCODE_BP;
-		m25p_addr2cmd(flash, to, flash->command);
-		t[0].len = m25p_cmdsz(flash);
-		t[1].len = 1;
-		t[1].tx_buf = buf + actual;
-
-		spi_sync(flash->spi, &m);
-		ret = wait_till_ready(flash);
-		if (ret)
-			goto time_out;
-		*retlen += m.actual_length - m25p_cmdsz(flash);
-		write_disable(flash);
-	}
-
-time_out:
-	mutex_unlock(&flash->lock);
-	return ret;
-}
+	/* Set up command buffer. */
+	flash->command[0] = nor->erase_opcode;
+	m25p_addr2cmd(nor, offset, flash->command);
 
 static int m25p80_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
 {
