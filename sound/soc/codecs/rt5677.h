@@ -1675,7 +1675,7 @@ enum {
 struct rt5677_priv {
 	struct snd_soc_codec *codec;
 	struct rt5677_platform_data pdata;
-	struct regmap *regmap;
+	struct regmap *regmap, *regmap_physical;
 	const struct firmware *fw1, *fw2;
 	struct mutex dsp_cmd_lock;
 
@@ -1692,6 +1692,7 @@ struct rt5677_priv {
 	struct gpio_chip gpio_chip;
 #endif
 	bool dsp_vad_en;
+	bool is_dsp_mode;
 	bool is_vref_slow;
 
 	/* Interrupt handling */
