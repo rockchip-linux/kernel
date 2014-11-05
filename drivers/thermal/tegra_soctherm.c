@@ -562,6 +562,7 @@ static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 	struct tegra_soctherm *ts = dev_id;
 	struct thermal_zone_device *tz;
 	u32 st, ex = 0, cp = 0, gp = 0, pl = 0;
+	int i;
 
 	st = soctherm_readl(ts, THERMCTL_INTR_STATUS);
 
@@ -604,6 +605,14 @@ static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 		pr_err("soctherm: Ignored unexpected INTRs 0x%08x\n", st);
 		soctherm_writel(ts, st, THERMCTL_INTR_STATUS);
 	}
+
+	/* enable interrupt */
+	for (i = 0; ts->sensor_groups[i]; ++i) {
+		struct tegra_tsensor_group *ttg = ts->sensor_groups[i];
+		if (!(ttg->flags & SKIP_THERMAL_FW_REGISTRATION))
+			st |= 0x3 << ttg->thermctl_isr_shift;
+	}
+	soctherm_writel(ts, st, THERMCTL_INTR_EN);
 
 	return IRQ_HANDLED;
 }
