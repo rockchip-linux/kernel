@@ -752,6 +752,12 @@
 		reg = <0xffac0000 0x2000>;
 	};
 
+	efuse: efuse@ffb40000 {
+		compatible = "rockchip,rk3288-efuse";
+		reg = <0xffb40000 0x10000>;
+		status = "disabled";
+	};
+
 	gic: interrupt-controller@ffc01000 {
 		compatible = "arm,gic-400";
 		interrupt-controller;
