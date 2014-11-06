@@ -847,7 +847,7 @@
 		nvidia,edp-limit = <15000>;
 	};
 
-	cpu_edp_cdev_cap {
+	cpu_edp_cap: cpu_edp_cdev_cap {
 		compatible = "nvidia,tegra132-cpu-edp-cdev-action";
 		act-dev = <&cpu_edp>;
 		cdev-type = "CPU-EDP-cap";

@@ -1828,7 +1828,7 @@
 		nvidia,edp-limit = <16800>;
 	};
 
-	cpu_edp_cdev_cap {
+	cpu_edp_cap: cpu_edp_cdev_cap {
 		compatible = "nvidia,tegra132-cpu-edp-cdev-action";
 		act-dev = <&cpu_edp>;
 		cdev-type = "CPU-EDP-cap";
@@ -1874,6 +1874,69 @@
 					hysteresis = <1000>; /* millicelsius */
 					type = "active";
 				};
+
+				/* trip points for CPU EDP */
+				cpu_edp_cap_trip0: cpu_edp_cap_trip0 {
+					/* margin is 5000 for ryu p0 */
+					temperature = <18000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip1: cpu_edp_cap_trip1 {
+					temperature = <35000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip2: cpu_edp_cap_trip2 {
+					temperature = <45000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip3: cpu_edp_cap_trip3 {
+					temperature = <55000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip4: cpu_edp_cap_trip4 {
+					temperature = <65000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip5: cpu_edp_cap_trip5 {
+					temperature = <69000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip6: cpu_edp_cap_trip6 {
+					temperature = <73000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip7: cpu_edp_cap_trip7 {
+					temperature = <77000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip8: cpu_edp_cap_trip8 {
+					temperature = <81000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip9: cpu_edp_cap_trip9 {
+					temperature = <85000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip10: cpu_edp_cap_trip10 {
+					temperature = <89000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip11: cpu_edp_cap_trip11 {
+					temperature = <93000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
 			};
 
 			cooling-maps {
@@ -1904,6 +1967,56 @@
 				map7 {
 					trip = <&dfll_cap_trip2>;
 					cooling-device = <&dfll_cap 3 3>;
+				};
+
+				/* cooling maps for CPU EDP */
+				map8 {
+					trip = <&cpu_edp_cap_trip0>;
+					cooling-device = <&cpu_edp_cap 1 1>;
+				};
+				map9 {
+					trip = <&cpu_edp_cap_trip1>;
+					cooling-device = <&cpu_edp_cap 2 2>;
+				};
+				map10 {
+					trip = <&cpu_edp_cap_trip2>;
+					cooling-device = <&cpu_edp_cap 3 3>;
+				};
+				map11 {
+					trip = <&cpu_edp_cap_trip3>;
+					cooling-device = <&cpu_edp_cap 4 4>;
+				};
+				map12 {
+					trip = <&cpu_edp_cap_trip4>;
+					cooling-device = <&cpu_edp_cap 5 5>;
+				};
+				map13 {
+					trip = <&cpu_edp_cap_trip5>;
+					cooling-device = <&cpu_edp_cap 6 6>;
+				};
+				map14 {
+					trip = <&cpu_edp_cap_trip6>;
+					cooling-device = <&cpu_edp_cap 7 7>;
+				};
+				map15 {
+					trip = <&cpu_edp_cap_trip7>;
+					cooling-device = <&cpu_edp_cap 8 8>;
+				};
+				map16 {
+					trip = <&cpu_edp_cap_trip8>;
+					cooling-device = <&cpu_edp_cap 9 9>;
+				};
+				map17 {
+					trip = <&cpu_edp_cap_trip9>;
+					cooling-device = <&cpu_edp_cap 10 10>;
+				};
+				map18 {
+					trip = <&cpu_edp_cap_trip10>;
+					cooling-device = <&cpu_edp_cap 11 11>;
+				};
+				map19 {
+					trip = <&cpu_edp_cap_trip11>;
+					cooling-device = <&cpu_edp_cap 12 12>;
 				};
 			};
 		};
