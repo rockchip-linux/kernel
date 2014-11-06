@@ -296,10 +296,10 @@ static int rockchip_drm_sys_resume(struct device *dev)
 		if (connector->funcs->dpms)
 			connector->funcs->dpms(connector, desired_mode);
 	}
+	drm_modeset_unlock_all(drm);
 
 	drm_helper_resume_force_mode(drm);
 
-	drm_modeset_unlock_all(drm);
 	if (changed)
 		drm_kms_helper_hotplug_event(drm);
 
