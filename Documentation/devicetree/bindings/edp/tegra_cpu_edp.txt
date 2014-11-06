@@ -1,0 +1,21 @@
+* Tegra VDD_CPU EDP Management
+
+The CPU EDP management prevents the CPU from drawing more
+current from voltage regulator. Limit maximum CPU frequency
+based on temperature and number of on-line CPUs to keep
+CPU rail current within power supply capabilities.
+
+.. CPU EDP node required properties:
+
+- compatible : "nvidia,tegra124-cpu-edp", "nvidia,tegra132-cpu-edp"
+- nvidia,edp-limit: maximum cpu current support, in milliampere.
+                This vlaue is platform dependent. The CPU EDP management
+                will limit the cpu frequency as neccessary to keep
+                VDD CPU consumption within this value.
+
+Example:
+
+cpu_edp {
+	compatible = "nvidia,tegra124-cpu-edp";
+	nvidia,edp-limit = <8000>;
+};
