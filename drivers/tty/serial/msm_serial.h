@@ -72,6 +72,7 @@
 #define UART_IMR_RXLEV		(1 << 4)
 #define UART_IMR_DELTA_CTS	(1 << 5)
 #define UART_IMR_CURRENT_CTS	(1 << 6)
+#define UART_IMR_RXBREAK_START	(1 << 10)
 
 #define UART_IPR_RXSTALE_LAST		0x20
 #define UART_IPR_STALE_LSB		0x1F
