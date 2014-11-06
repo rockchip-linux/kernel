@@ -973,9 +973,19 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 					logi_dj_recv_forward_report(djrcv_dev,
 						dj_report);
 				} else if (connection_state ==
-						CONNECTION_STATE_UNKNOWN) {
-					/* Queue a fake connection status
-					 * report. */
+						CONNECTION_STATE_UNKNOWN ||
+					connection_state ==
+						CONNECTION_STATE_DISCONNECTED) {
+					/* In case we receive data from the
+					 * device, but receiver fails to send
+					 * REPORT_TYPE_NOTIF_CONNECTION_STATUS,
+					 * it is safe to consider device as
+					 * connected.
+					 * We update device state and queue a
+					 * fake connection status report, so as
+					 * to create device node if not already
+					 * done, and call hidpp_connect_change.
+					 */
 					struct dj_report fake_connection = {
 					    REPORT_ID_DJ_SHORT,
 					    dj_report->device_index,
@@ -991,6 +1001,17 @@ static int logi_dj_raw_event(struct hid_device *hdev,
 					logi_dj_recv_queue_notification(
 						djrcv_dev,
 						&fake_connection);
+
+					/* If device is disconnected, it means
+					 * that device node exists. We forward
+					 * report so as not to loose it.
+					 */
+					if (connection_state ==
+					    CONNECTION_STATE_DISCONNECTED) {
+						logi_dj_recv_forward_report(
+							djrcv_dev,
+							dj_report);
+					}
 				}
 			}
 		}
