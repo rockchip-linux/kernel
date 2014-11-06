@@ -1,16 +1,70 @@
 * Tegra thermal reaction node
+* This device can act as cooling device in of-thermal framework, and can set
+* trips and cooling-maps node in the thermal-zones node.
+----------------------------------------------------
 
+Tegra DFLL cdev action device.
 ** Required properties:
-
 - compatible : "nvidia,tegra-dfll-cdev-action".
 - act-dev: Node of the device which will implement the real cooling action.
 - cdev-type: Name of the cooling device. Valid values are "DFLL-floor" and
              "DFLL-cap".
 
+Note: for the trips, the corresponding temperatures are defined in the
+include/dt-bindings/thermal/tegra132-dfll-trips.h.
+
+Tegra CPU-EDP cdev action device.
+** Required properties:
+- compatible : "nvidia,tegra132-cpu-edp-cdev-action".
+- act-dev: Node of the device which will implement the real cooling action.
+- cdev-type: Name of the cooling device. Valid value is "CPU-EDP-cap".
+
+Note: for the trips, the corresponding temperatures are defined in the
+include/dt-bindings/thermal/tegra-cpu-edp-trips.h.
+For the cpu edp trips, there may be a margin on the trip temperature,
+so we need to set trip as (TEGRA_CPU_EDP_THERMAL_CAP_* - margin).
+
 Example node:
 
-dfll_cdev_floor {
+dfll_floor: dfll_cdev_floor {
 	compatible = "nvidia,tegra-dfll-cdev-action";
 	act-dev = <&{/dfll@70110000}>;
 	cdev-type = "DFLL-floor";
+};
+
+cpu_edp_cap: cpu_edp_cdev_cap {
+	compatible = "nvidia,tegra132-cpu-edp-cdev-action";
+	act-dev = <&cpu_edp>;
+	cdev-type = "CPU-EDP-cap";
+	#cooling-cells = <2>; /* min followed by max */
+};
+
+thermal-zones {
+	cpu {
+		trips {
+			dfll_floor_trip0: dfll_floor_trip0 {
+				temperature = <TEGRA132_DFLL_THERMAL_FLOOR_0>; /* millicelsius */
+				hysteresis = <1000>; /* millicelsius */
+				type = "active";
+			};
+			cpu_edp_cap_trip0: cpu_edp_cap_trip0 {
+				/* margin is 5000,
+				 * temperature is TEGRA_CPU_EDP_THERMAL_CAP_0 - 5000
+				 */
+				temperature = <18000>; /* millicelsius */
+				hysteresis = <1000>;
+				type = "active";
+			};
+		};
+		cooling-maps {
+			map0 {
+				trip = <&dfll_floor_trip0>;
+				cooling-device = <&dfll_floor 1 1>;
+			};
+			map1 {
+				trip = <&cpu_edp_cap_trip0>;
+				cooling-device = <&cpu_edp_cap 1 1>;
+			};
+		};
+	};
 };
