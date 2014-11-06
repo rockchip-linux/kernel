@@ -50,7 +50,7 @@ $(obj)/rk3288_resume.elf: $(obj)/rk3288_resume.lds \
 			  FORCE
 	$(call if_changed,ld)
 
-LDFLAGS_rk3288_sram.elf := -Bstatic -nostdlib -T
+LDFLAGS_rk3288_sram.elf := -Bstatic -nostdlib --check-sections -T
 $(obj)/rk3288_sram.elf: $(obj)/rk3288_sram.lds $(obj)/rk3288-dmc-sram.o \
 			  FORCE
 	$(call if_changed,ld)
