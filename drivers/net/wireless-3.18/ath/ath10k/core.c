@@ -29,6 +29,7 @@
 #include "htt.h"
 #include "testmode.h"
 #include "wmi-ops.h"
+#include "decode64.h"
 
 unsigned int ath10k_debug_mask;
 static bool uart_print;
@@ -249,6 +250,73 @@ static int ath10k_download_cal_file(struct ath10k *ar)
 	ath10k_dbg(ar, ATH10K_DBG_BOOT, "boot cal file downloaded\n");
 
 	return 0;
+}
+
+static int ath10k_download_cal_dt_base64(struct ath10k *ar)
+{
+	struct device_node *node;
+	int data_len;
+	void *data = NULL;
+	int ret;
+
+	node = pci_device_to_OF_node(ath10k_pci_priv(ar)->pdev);
+	if (!node)
+		/* Device Tree is optional, don't print any warnings if
+		 * there's no node for ath10k.
+		 */
+		return -ENOENT;
+
+	if (!of_get_property(node, "qcom,ath10k-calibration-data-base64",
+			     &data_len)) {
+		/* The calibration data node is optional */
+		return -ENOENT;
+	}
+
+	data = kmalloc(data_len, GFP_KERNEL);
+	if (!data) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	ret = of_property_read_u8_array(node,
+					"qcom,ath10k-calibration-data-base64",
+					data, data_len);
+	if (ret) {
+		ath10k_warn(ar,
+		    "failed to read calibration data (base64) from DT: %d\n",
+			    ret);
+		goto out_free;
+	}
+
+	data_len = strip_nl(data, data + data_len, data);
+	data_len = decode64(data, data + data_len, data);
+	if (data_len < 0) {
+		ath10k_warn(ar,
+			    "base64 decoder found invalid input\n");
+		ret = -EINVAL;
+		goto out_free;
+	}
+
+	if (data_len != QCA988X_CAL_DATA_LEN) {
+		ath10k_warn(ar, "invalid calibration data length in DT: %d\n",
+			    data_len);
+		ret = -EMSGSIZE;
+		goto out_free;
+	}
+
+	ret = ath10k_download_board_data(ar, data, data_len);
+	if (ret) {
+		ath10k_warn(ar, "failed to download calibration data: %d\n",
+			    ret);
+		goto out_free;
+	}
+
+	ret = 0;
+out_free:
+	kfree(data);
+
+out:
+	return ret;
 }
 
 static int ath10k_download_cal_dt(struct ath10k *ar)
@@ -744,6 +812,12 @@ static int ath10k_download_cal_data(struct ath10k *ar)
 	ath10k_dbg(ar, ATH10K_DBG_BOOT,
 		   "boot did not find DT entry, try OTP next: %d\n",
 		   ret);
+
+	ret = ath10k_download_cal_dt_base64(ar);
+	if (ret == 0) {
+		ar->cal_mode = ATH10K_CAL_MODE_DT;
+		goto done;
+	}
 
 	ret = ath10k_download_and_run_otp(ar);
 	if (ret) {
