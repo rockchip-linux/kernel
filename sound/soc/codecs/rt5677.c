@@ -4111,6 +4111,8 @@ static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 					"realtek,lout2-differential");
 	rt5677->pdata.lout3_diff = of_property_read_bool(np,
 					"realtek,lout3-differential");
+	of_property_read_u32(np, "realtek,pdm_clk_div",
+					&rt5677->pdata.pdm_clk_div);
 	rt5677->pdata.asrc_en = of_property_read_bool(np,
 					"realtek,asrc-en");
 
@@ -4159,6 +4161,8 @@ static void rt5677_parse_acpi(struct rt5677_priv *rt5677, struct device *dev)
 {
 	rt5677->pdata.dmic2_clk_pin = (enum rt5677_dmic2_clk)
 		rt5677_parse_acpi_entry(dev, "DCLK");
+	rt5677->pdata.pdm_clk_div = (enum rt5677_pdm_clk_div)
+		rt5677_parse_acpi_entry(dev, "PCLK");
 	rt5677->pdata.in1_diff = (bool)rt5677_parse_acpi_entry(dev, "IN1");
 	rt5677->pdata.in2_diff = (bool)rt5677_parse_acpi_entry(dev, "IN2");
 	rt5677->pdata.lout1_diff = (bool)rt5677_parse_acpi_entry(dev, "OUT1");
@@ -4485,6 +4489,9 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 					RT5677_GPIO5_DIR_MASK,
 					RT5677_GPIO5_DIR_OUT);
 	}
+
+	regmap_update_bits(rt5677->regmap, RT5677_PDM_DATA_CTRL1,
+			RT5677_PDM_DIV_MASK, rt5677->pdata.pdm_clk_div);
 
 	if (rt5677->pdata.asrc_en) {
 		/* Enable I2S1 ASRC Function */

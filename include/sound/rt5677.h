@@ -17,6 +17,12 @@ enum rt5677_dmic2_clk {
 	RT5677_DMIC_CLK2 = 1,
 };
 
+enum rt5677_pdm_clk_div {
+	RT5677_PDM_CLK_DIV1 = 0,
+	RT5677_PDM_CLK_DIV2 = 1,
+	RT5677_PDM_CLK_DIV4 = 2,
+	RT5677_PDM_CLK_DIV3 = 3,
+};
 
 struct rt5677_platform_data {
 	/* IN1/IN2/LOUT1/LOUT2/LOUT3 can optionally be differential */
@@ -27,6 +33,8 @@ struct rt5677_platform_data {
 	bool lout3_diff;
 	/* DMIC2 clock source selection */
 	enum rt5677_dmic2_clk dmic2_clk_pin;
+	/* System clock to PDM filter divider */
+	enum rt5677_pdm_clk_div pdm_clk_div;
 
 	/* configures GPIO, 0 - floating, 1 - pulldown, 2 - pullup */
 	u8 gpio_config[6];

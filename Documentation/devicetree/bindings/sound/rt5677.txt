@@ -27,6 +27,10 @@ Optional properties:
   Boolean. Indicate MIC1/2 input and LOUT1/2/3 outputs are differential,
   rather than single-ended.
 
+- realtek,pdm_clk_div
+  Select 0/1/2/3 as PDM clock divider 1/2/4/3 respectively.
+  PDM clock = system clock / PDM clock divider
+
 - realtek,gpio-config
   Array of six 8bit elements that configures GPIO.
     0 - floating (reset value)
@@ -73,6 +77,7 @@ rt5677 {
 	realtek,pow-ldo2-gpio =
 		<&gpio TEGRA_GPIO(V, 3) GPIO_ACTIVE_HIGH>;
 	realtek,in1-differential = "true";
+	realtek,pdm_clk_div = <1>  /* PDM clock = system clock / 2 */
 	realtek,gpio-config = /bits/ 8  <0 0 0 0 0 2>;   /* pull up GPIO6 */
 	realtek,jd2-gpio = <3>;  /* Enables Jack detection for GPIO6 */
 	realtek,asrc-en = "true";
