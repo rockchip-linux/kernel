@@ -322,6 +322,10 @@
 	broken-cd;
 	bus-width = <4>;
 	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
 	cap-sdio-irq;
 	card-external-vcc-supply = <&wifi_regulator>;
 	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&cru SCLK_SDIO0_DRV>,
