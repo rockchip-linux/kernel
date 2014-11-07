@@ -716,6 +716,12 @@
 		};
 	};
 
+	hdmi_audio: hdmi_audio {
+		compatible = "rockchip,rk3288-hdmi-audio";
+		i2s-controller = <&i2s>;
+		status = "disable";
+	};
+
 	gpu: gpu@ffa30000 {
 		compatible = "arm,malit764",
 			     "arm,malit76x",
