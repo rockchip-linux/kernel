@@ -60,6 +60,9 @@ enum accel_data_format {
  */
 #define CALIB_SCALE_SCALAR 1024
 
+typedef int (*read_ec_accel_data_t)(struct iio_dev *indio_dev,
+		long unsigned int scan_mask, s16 *data,
+		enum accel_data_format ret_format);
 /* State data for ec_accel iio driver. */
 struct cros_ec_accel_state {
 	struct cros_ec_device *ec;
@@ -92,6 +95,23 @@ struct cros_ec_accel_state {
 	 * is always last and is always 8-byte aligned.
 	 */
 	u8 *samples;
+
+	/*
+	 *  Location to store command and response to the EC.
+	 */
+	struct mutex cmd_lock;
+
+	/*
+	 * Statically allocated command structure that holds parameters
+	 * and response. Response is dynamically allocated, to match the number
+	 * of sensors.
+	 */
+	struct cros_ec_command msg;
+	struct ec_params_motion_sense param;
+	struct ec_response_motion_sense *resp;
+
+	/* Pointer to function used for accessing sensors values. */
+	read_ec_accel_data_t read_ec_accel_data;
 };
 
 /*
@@ -225,7 +245,7 @@ static void read_ec_accel_data_unsafe(struct iio_dev *indio_dev,
  * Note: this is the safe function for reading the EC data. It guarantees
  * that the data sampled was not modified by the EC while being read.
  */
-static int read_ec_accel_data(struct iio_dev *indio_dev,
+static int read_ec_accel_data_lpc(struct iio_dev *indio_dev,
 			      long unsigned int scan_mask, s16 *data,
 			      enum accel_data_format ret_format)
 {
@@ -272,53 +292,84 @@ static int read_ec_accel_data(struct iio_dev *indio_dev,
  * send_motion_host_cmd - send motion sense host command
  *
  * @st Pointer to state information for device.
- * @param Pointer to motion sense host command parameter struct.
  * @resp Pointer to motion sense host command response struct.
+ * @extra_resp_size request more data after the usual response structure.
  * @return 0 if ok, -ve on error.
  *
  * Note, when called, the sub-command is assumed to be set in param->cmd.
  */
-static int send_motion_host_cmd(struct cros_ec_device *ec,
-				struct ec_params_motion_sense *param,
-				struct ec_response_motion_sense *resp)
+static int send_motion_host_cmd(struct cros_ec_accel_state *st,
+				struct ec_response_motion_sense *resp,
+				int extra_resp_size)
 {
-	struct cros_ec_command msg;
-
 	/* Set up the host command structure. */
-	msg.version = 1;
-	msg.command = EC_CMD_MOTION_SENSE_CMD;
-	msg.outdata = (u8 *)param;
-	msg.outsize = sizeof(struct ec_params_motion_sense);
-	msg.indata = (u8 *)resp;
-	msg.insize = sizeof(struct ec_response_motion_sense);
+	st->msg.indata = (u8 *)resp;
+	st->msg.insize = extra_resp_size +
+		sizeof(struct ec_response_motion_sense);
 
 	/* Send host command. */
-	if (cros_ec_cmd_xfer(ec, &msg) > 0)
+	if (cros_ec_cmd_xfer(st->ec, &st->msg) > 0)
 		return 0;
 	else
 		return -EIO;
 }
+
+static int read_ec_accel_data_cmd(struct iio_dev *indio_dev,
+			      long unsigned int scan_mask, s16 *data,
+			      enum accel_data_format ret_format)
+{
+	struct cros_ec_accel_state *st = iio_priv(indio_dev);
+	int ret, sensor_num;
+	unsigned i = 0;
+
+	/*
+	 * read all sensor data through a command.
+	 */
+	st->param.cmd = MOTIONSENSE_CMD_DUMP;
+	st->param.dump.max_sensor_count = st->sensor_num;
+	ret = send_motion_host_cmd(st, st->resp, st->sensor_num *
+			sizeof(struct ec_response_motion_sensor_data));
+	if (ret != 0) {
+		dev_warn(&indio_dev->dev, "Unable to read sensor data\n");
+		return ret;
+	}
+
+	for_each_set_bit(i, &scan_mask, indio_dev->masklength) {
+		sensor_num = idx_to_sensor_num(st, i);
+		if (sensor_num == UNKNOWN_SENSOR_NUM)
+			*data = 0;
+		else
+			*data = st->resp->dump.sensor[
+				sensor_num].data[i % MAX_AXIS];
+		/* Calibrate the data if desired. */
+		if (ret_format == CALIBRATED)
+			*data = apply_calibration(st, *data, i);
+
+		data++;
+	}
+	return 0;
+}
+
 
 static int ec_accel_read(struct iio_dev *indio_dev,
 			  struct iio_chan_spec const *chan,
 			  int *val, int *val2, long mask)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
-	struct ec_params_motion_sense param;
-	struct ec_response_motion_sense resp;
 	s16 data = 0;
 	int ret = IIO_VAL_INT;
 	int sensor_num = idx_to_sensor_num(st, chan->scan_index);
+	mutex_lock(&st->cmd_lock);
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
-		if (read_ec_accel_data(indio_dev, (1 << chan->scan_index),
+		if (st->read_ec_accel_data(indio_dev, (1 << chan->scan_index),
 					&data, RAW) < 0)
 			ret = -EIO;
 		*val = (s16)data;
 		break;
 	case IIO_CHAN_INFO_PROCESSED:
-		if (read_ec_accel_data(indio_dev, (1 << chan->scan_index),
+		if (st->read_ec_accel_data(indio_dev, (1 << chan->scan_index),
 					&data, CALIBRATED) < 0)
 			ret = -EIO;
 		*val = (s16)data;
@@ -341,22 +392,22 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 			return -EIO;
 		}
 
-		param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
-		param.kb_wake_angle.data = EC_MOTION_SENSE_NO_VALUE;
+		st->param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
+		st->param.kb_wake_angle.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			return -EIO;
 		else
-			*val = resp.kb_wake_angle.ret;
+			*val = st->resp->kb_wake_angle.ret;
 		break;
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		param.cmd = MOTIONSENSE_CMD_EC_RATE;
-		param.ec_rate.data = EC_MOTION_SENSE_NO_VALUE;
+		st->param.cmd = MOTIONSENSE_CMD_EC_RATE;
+		st->param.ec_rate.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			return -EIO;
 		else
-			*val = resp.ec_rate.ret;
+			*val = st->resp->ec_rate.ret;
 		break;
 	case IIO_CHAN_INFO_PEAK_SCALE:
 		if (sensor_num == UNKNOWN_SENSOR_NUM) {
@@ -365,14 +416,14 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 			return -EIO;
 		}
 
-		param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
-		param.sensor_range.data = EC_MOTION_SENSE_NO_VALUE;
-		param.sensor_range.sensor_num = sensor_num;
+		st->param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
+		st->param.sensor_range.data = EC_MOTION_SENSE_NO_VALUE;
+		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			return -EIO;
 		else
-			*val = resp.sensor_range.ret;
+			*val = st->resp->sensor_range.ret;
 
 		break;
 	case IIO_CHAN_INFO_FREQUENCY:
@@ -382,21 +433,21 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 			return -EIO;
 		}
 
-		param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
-		param.sensor_odr.data = EC_MOTION_SENSE_NO_VALUE;
-		param.sensor_range.sensor_num = sensor_num;
+		st->param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
+		st->param.sensor_odr.data = EC_MOTION_SENSE_NO_VALUE;
+		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			ret = -EIO;
 		else
-			*val = resp.sensor_odr.ret;
+			*val = st->resp->sensor_odr.ret;
 
 		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
-
+	mutex_unlock(&st->cmd_lock);
 	return ret;
 }
 
@@ -405,9 +456,8 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 			       int val, int val2, long mask)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
-	struct ec_params_motion_sense param;
-	struct ec_response_motion_sense resp;
 	int ret = 0, sensor_num = idx_to_sensor_num(st, chan->scan_index);
+	mutex_lock(&st->cmd_lock);
 
 	switch (mask) {
 	case IIO_CHAN_INFO_CALIBSCALE:
@@ -426,18 +476,18 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		}
 
 
-		param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
-		param.kb_wake_angle.data = val;
+		st->param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
+		st->param.kb_wake_angle.data = val;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			return -EIO;
 
 		break;
 	case IIO_CHAN_INFO_SAMP_FREQ:
-		param.cmd = MOTIONSENSE_CMD_EC_RATE;
-		param.ec_rate.data = val;
+		st->param.cmd = MOTIONSENSE_CMD_EC_RATE;
+		st->param.ec_rate.data = val;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			return -EIO;
 
 		break;
@@ -449,14 +499,14 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 			return -EIO;
 		}
 
-		param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
-		param.sensor_range.data = val;
-		param.sensor_range.sensor_num = sensor_num;
+		st->param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
+		st->param.sensor_range.data = val;
+		st->param.sensor_range.sensor_num = sensor_num;
 
 		/* Always roundup, so caller gets at least what it asks for. */
-		param.sensor_range.roundup = 1;
+		st->param.sensor_range.roundup = 1;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		if (send_motion_host_cmd(st, st->resp, 0))
 			return -EIO;
 
 		break;
@@ -467,13 +517,14 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 			return -EIO;
 		}
 
-		param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
-		param.sensor_odr.data = val;
-		param.sensor_range.sensor_num = sensor_num;
-		/* Always roundup, so caller gets at least what it asks for. */
-		param.sensor_odr.roundup = 1;
+		st->param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
+		st->param.sensor_odr.data = val;
+		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st->ec, &param, &resp))
+		/* Always roundup, so caller gets at least what it asks for. */
+		st->param.sensor_odr.roundup = 1;
+
+		if (send_motion_host_cmd(st, st->resp, 0))
 			ret = -EIO;
 
 		break;
@@ -482,6 +533,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		break;
 	}
 
+	mutex_unlock(&st->cmd_lock);
 	return ret;
 }
 
@@ -508,6 +560,7 @@ static irqreturn_t accel_capture(int irq, void *p)
 	struct iio_dev *indio_dev = pf->indio_dev;
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
 
+	mutex_lock(&st->cmd_lock);
 	/* Clear capture data. */
 	memset(st->samples, 0, indio_dev->scan_bytes);
 
@@ -515,7 +568,7 @@ static irqreturn_t accel_capture(int irq, void *p)
 	 * Read data based on which channels are enabled in scan mask. Note
 	 * that on a capture we are always reading the calibrated data.
 	 */
-	read_ec_accel_data(indio_dev, *(indio_dev->active_scan_mask),
+	st->read_ec_accel_data(indio_dev, *(indio_dev->active_scan_mask),
 			   (s16 *)st->samples, CALIBRATED);
 
 	/* Store the timestamp last 8 bytes of data. */
@@ -532,6 +585,7 @@ static irqreturn_t accel_capture(int irq, void *p)
 	 * next one.
 	 */
 	iio_trigger_notify_done(indio_dev->trig);
+	mutex_unlock(&st->cmd_lock);
 
 	return IRQ_HANDLED;
 }
@@ -594,7 +648,6 @@ static int ec_accel_probe(struct platform_device *pdev)
 	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
 	struct iio_dev *indio_dev;
 	struct cros_ec_accel_state *state;
-	struct ec_params_motion_sense param;
 	struct ec_response_motion_sense resp;
 	struct iio_chan_spec *channel, *channels;
 	int ret, i, j, samples_size, idx, channel_num;
@@ -604,13 +657,6 @@ static int ec_accel_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	/* Check how many accel sensors */
-	param.cmd = MOTIONSENSE_CMD_DUMP;
-	param.dump.max_sensor_count = 0;
-	if ((send_motion_host_cmd(ec, &param, &resp)) ||
-	    (resp.dump.sensor_count == 0))
-		return -ENODEV;
-
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(*state));
 	if (indio_dev == NULL)
 		return -ENOMEM;
@@ -619,6 +665,20 @@ static int ec_accel_probe(struct platform_device *pdev)
 
 	state = iio_priv(indio_dev);
 	state->ec = ec;
+	mutex_init(&state->cmd_lock);
+	/* Set up the host command structure. */
+	state->msg.version = 1;
+	state->msg.command = EC_CMD_MOTION_SENSE_CMD;
+	state->msg.outdata = (u8 *)&state->param;
+	state->msg.outsize = sizeof(struct ec_params_motion_sense);
+
+	/* Check how many accel sensors */
+	state->param.cmd = MOTIONSENSE_CMD_DUMP;
+	state->param.dump.max_sensor_count = 0;
+	if ((send_motion_host_cmd(state, &resp, 0)) ||
+	    (resp.dump.sensor_count == 0))
+		return -ENODEV;
+
 	state->sensor_num = resp.dump.sensor_count;
 	state->accel_num = 0;
 
@@ -631,16 +691,11 @@ static int ec_accel_probe(struct platform_device *pdev)
 	if (channels == NULL)
 		return -ENOMEM;
 
-	channel = channels;
-	idx = 0;
-
-
 	/* For each retrieve type and location */
-
-	for (i = 0; i < state->sensor_num; i++) {
-		param.cmd = MOTIONSENSE_CMD_INFO;
-		param.sensor_odr.sensor_num = i;
-		if (send_motion_host_cmd(ec, &param, &resp)) {
+	for (i = 0, idx = 0, channel = channels; i < state->sensor_num; i++) {
+		state->param.cmd = MOTIONSENSE_CMD_INFO;
+		state->param.sensor_odr.sensor_num = i;
+		if (send_motion_host_cmd(state, &resp, 0)) {
 			dev_warn(&pdev->dev,
 				 "Can not access sensor %d info\n", i);
 			return -EIO;
@@ -730,6 +785,22 @@ static int ec_accel_probe(struct platform_device *pdev)
 		sizeof(s64);
 	state->samples = devm_kzalloc(&pdev->dev, samples_size, GFP_KERNEL);
 	if (state->samples == NULL)
+		return -ENOMEM;
+
+	if (ec->cmd_read_u8 != NULL) {
+		state->read_ec_accel_data = read_ec_accel_data_lpc;
+		state->resp = devm_kzalloc(&pdev->dev,
+				sizeof(struct ec_params_motion_sense),
+				GFP_KERNEL);
+	} else {
+		state->read_ec_accel_data = read_ec_accel_data_cmd;
+		state->resp = devm_kzalloc(&pdev->dev,
+				sizeof(struct ec_params_motion_sense) +
+				state->sensor_num *
+				sizeof(struct ec_response_motion_sensor_data),
+				GFP_KERNEL);
+	}
+	if (state->resp == NULL)
 		return -ENOMEM;
 
 	indio_dev->dev.parent = &pdev->dev;
