@@ -1318,32 +1318,8 @@ enum motionsense_command {
 	 */
 	MOTIONSENSE_CMD_KB_WAKE_ANGLE = 5,
 
-	/*
-	 * Sensor subsytem status.
-	 * Same format as EC_MEMMAP_ACC_STATUS
-	 * - for system without LPC -
-	 */
-	MOTIONSENSE_CMD_GET_STATUS = 6,
-
-	/*
-	 * Retrieve data and flags from all accel/gyro sensors.
-	 */
-	MOTIONSENSE_CMD_GET_DATA = 7,
-
 	/* Number of motionsense sub-commands. */
 	MOTIONSENSE_NUM_CMDS
-};
-
-enum motionsensor_id {
-	EC_MOTION_SENSOR_ACCEL_BASE = 0,
-	EC_MOTION_SENSOR_ACCEL_LID = 1,
-	EC_MOTION_SENSOR_GYRO = 2,
-
-	/*
-	 * Note, if more sensors are added and this count changes, the padding
-	 * in ec_response_motion_sense dump command must be modified.
-	 */
-	EC_MOTION_SENSOR_COUNT = 3
 };
 
 /* List of motion sensor types. */
@@ -1380,10 +1356,15 @@ enum motionsensor_chip {
 struct ec_params_motion_sense {
 	uint8_t cmd;
 	union {
-		/* Used for MOTIONSENSE_CMD_DUMP, GET_STATUS, GET_DATA. */
+		/* Used for MOTIONSENSE_CMD_DUMP */
 		struct {
-			/* no args */
-		} data, dump, status;
+			/*
+			 * Maximal number of sensor the host is expecting.
+			 * 0 means the host is only interested in the number
+			 * of sensors controlled by the EC.
+			 */
+			uint8_t max_sensor_count;
+		} dump;
 
 		/*
 		 * Used for MOTIONSENSE_CMD_EC_RATE and
@@ -1417,6 +1398,15 @@ struct ec_params_motion_sense {
 	};
 } __packed;
 
+struct ec_response_motion_sensor_data {
+	/* Flags for each sensor. */
+	uint8_t flags;
+	uint8_t padding;
+
+	/* Each sensor is up to 3-axis. */
+	int16_t data[3];
+} __packed;
+
 struct ec_response_motion_sense {
 	union {
 		/* Used for MOTIONSENSE_CMD_DUMP */
@@ -1424,34 +1414,15 @@ struct ec_response_motion_sense {
 			/* Flags representing the motion sensor module. */
 			uint8_t module_flags;
 
-			/* Flags for each sensor. */
-			uint8_t sensor_flags[EC_MOTION_SENSOR_COUNT];
-
-			/* Array of all sensor data. Each sensor is 3-axis. */
-			int16_t data[3*EC_MOTION_SENSOR_COUNT];
-		} dump;
-
-		/* Used for MOTIONSENSE_CMD_GET_DATA */
-		struct {
-			/* Flags representing the motion sensor module. */
-			uint8_t module_flags;
-
 			/* Number of sensors managed directly by the EC */
-			uint8_t sensor_number;
+			uint8_t sensor_count;
 
 			/*
 			 * sensor data is truncated if response_max is too small
 			 * for holding all the data.
 			 */
-			struct sensor_data {
-				/* Flags for each sensor. */
-				uint8_t flags;
-				uint8_t padding;
-
-				/* Each sensor is up to 3-axis. */
-				int16_t data[3];
-			} sensor[0];
-		} data;
+			struct ec_response_motion_sensor_data sensor[0];
+		} dump;
 
 		/* Used for MOTIONSENSE_CMD_INFO. */
 		struct {
@@ -1464,11 +1435,6 @@ struct ec_response_motion_sense {
 			/* Should be element of enum motionsensor_chip. */
 			uint8_t chip;
 		} info;
-
-		/* Used for MOTIONSENSE_CMD_GET_STATUS */
-		struct {
-			uint8_t value;
-		} status;
 
 		/*
 		 * Used for MOTIONSENSE_CMD_EC_RATE, MOTIONSENSE_CMD_SENSOR_ODR,
