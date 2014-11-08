@@ -32,8 +32,6 @@
 #define EC_COMMAND_RETRIES	50
 #define EC_RETRY_DELAY_MS	10
 
-static int dev_id;
-
 static int prepare_packet(struct cros_ec_device *ec_dev,
 			  struct cros_ec_command *msg)
 {
@@ -371,26 +369,11 @@ static const struct mfd_cell cros_accel_devs[] = {
  */
 static int cros_ec_accel_register(struct cros_ec_device *ec_dev)
 {
-	u8 status;
+	static int accel_dev_id;
 
-	/*
-	 * Try to read the accel status byte from EC shared memory. If the
-	 * read is successful and the status byte has the physical presence bit
-	 * set, then this machine has accelerometers. If it has accelerometers,
-	 * then register the cros_accel_devs.
-	 */
-	if (!ec_dev->cmd_read_u8)
-		return -ENODEV;
-
-	if (ec_dev->cmd_read_u8(ec_dev, EC_MEMMAP_ACC_STATUS, &status) < 0)
-		return -ENODEV;
-
-	if (status & EC_MEMMAP_ACC_STATUS_PRESENCE_BIT)
-		return mfd_add_devices(ec_dev->dev, 0, cros_accel_devs,
-				      ARRAY_SIZE(cros_accel_devs),
-				      NULL, ec_dev->irq, NULL);
-	else
-		return -ENODEV;
+	return mfd_add_devices(ec_dev->dev, accel_dev_id++, cros_accel_devs,
+			ARRAY_SIZE(cros_accel_devs),
+			NULL, ec_dev->irq, NULL);
 }
 
 static int cros_ec_dev_register(struct cros_ec_device *ec_dev,
@@ -431,6 +414,7 @@ static int cros_ec_dev_register(struct cros_ec_device *ec_dev,
 
 int cros_ec_register(struct cros_ec_device *ec_dev)
 {
+	static int ec_dev_id;
 	struct device *dev = ec_dev->dev;
 	int err = 0;
 #ifdef CONFIG_OF
@@ -458,7 +442,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 	mutex_init(&ec_dev->lock);
 
 	cros_ec_probe_all(ec_dev);
-	err = cros_ec_dev_register(ec_dev, dev_id++, 0);
+	err = cros_ec_dev_register(ec_dev, ec_dev_id++, 0);
 	if (err) {
 		dev_err(dev, "failed to add ec\n");
 		return err;
@@ -473,7 +457,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		 * - the EC is responsive at init time (it is not true for a
 		 *   sensor hub.
 		 */
-		err = cros_ec_dev_register(ec_dev, dev_id++, 1);
+		err = cros_ec_dev_register(ec_dev, ec_dev_id++, 1);
 		if (err) {
 			dev_err(dev, "failed to add additional ec\n");
 			return err;
@@ -493,7 +477,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
 		}
 		dev_dbg(dev, "adding MFD sub-device %s\n", node->name);
 		cell.of_compatible = of_get_property(node, "compatible", NULL);
-		err = mfd_add_devices(dev, dev_id++, &cell, 1, NULL,
+		err = mfd_add_devices(dev, ec_dev_id++, &cell, 1, NULL,
 				ec_dev->irq, NULL);
 		if (err)
 			dev_err(dev, "fail to add %s\n", node->full_name);
