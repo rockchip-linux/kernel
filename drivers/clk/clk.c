@@ -1733,6 +1733,22 @@ void __clk_reparent(struct clk *clk, struct clk *new_parent)
 	__clk_recalc_rates(clk, POST_RATE_CHANGE);
 }
 
+static void __clk_reparent_orphan(struct clk *clk, struct clk *new_parent)
+{
+	__clk_reparent(clk, new_parent);
+
+	if (clk->prepare_count) {
+		unsigned long flags;
+
+		__clk_prepare(new_parent);
+
+		flags = clk_enable_lock();
+		if (clk->enable_count)
+			__clk_enable(new_parent);
+		clk_enable_unlock(flags);
+	}
+}
+
 /**
  * clk_set_parent - switch the parent of a mux clk
  * @clk: the mux clk whose input we are switching
@@ -2037,13 +2053,13 @@ int __clk_init(struct device *dev, struct clk *clk)
 		if (orphan->num_parents && orphan->ops->get_parent) {
 			i = orphan->ops->get_parent(orphan->hw);
 			if (!strcmp(clk->name, orphan->parent_names[i]))
-				__clk_reparent(orphan, clk);
+				__clk_reparent_orphan(orphan, clk);
 			continue;
 		}
 
 		for (i = 0; i < orphan->num_parents; i++)
 			if (!strcmp(clk->name, orphan->parent_names[i])) {
-				__clk_reparent(orphan, clk);
+				__clk_reparent_orphan(orphan, clk);
 				break;
 			}
 	 }
