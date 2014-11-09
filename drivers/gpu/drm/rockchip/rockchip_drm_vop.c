@@ -882,6 +882,7 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 	spin_lock_irq(&dev->event_lock);
 	if (vop->event) {
 		spin_unlock_irq(&dev->event_lock);
+		drm_vblank_put(dev, pipe);
 		DRM_ERROR("already pending flip!\n");
 		return -EBUSY;
 	}
