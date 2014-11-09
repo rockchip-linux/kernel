@@ -127,6 +127,9 @@
 #define LINE_FLAG_INTR			(1 << 2)
 #define BUS_ERROR_INTR			(1 << 3)
 
+#define INTR_MASK			(DSP_HOLD_VALID_INTR | FS_INTR | \
+					 LINE_FLAG_INTR | BUS_ERROR_INTR)
+
 #define DSP_HOLD_VALID_INTR_EN(x)	((x) << 4)
 #define FS_INTR_EN(x)			((x) << 5)
 #define LINE_FLAG_INTR_EN(x)		((x) << 6)
@@ -136,10 +139,12 @@
 #define LINE_FLAG_INTR_MASK		(1 << 6)
 #define BUS_ERROR_INTR_MASK		(1 << 7)
 
-#define DSP_HOLD_VALID_INTR_CLR		(1 << 8)
-#define FS_INTR_CLR			(1 << 9)
-#define LINE_FLAG_INTR_CLR		(1 << 10)
-#define BUS_ERROR_INTR_CLR		(1 << 11)
+#define INTR_CLR_SHIFT			8
+#define DSP_HOLD_VALID_INTR_CLR		(1 << (INTR_CLR_SHIFT + 0))
+#define FS_INTR_CLR			(1 << (INTR_CLR_SHIFT + 1))
+#define LINE_FLAG_INTR_CLR		(1 << (INTR_CLR_SHIFT + 2))
+#define BUS_ERROR_INTR_CLR		(1 << (INTR_CLR_SHIFT + 3))
+
 #define DSP_LINE_NUM(x)			(((x) & 0x1fff) << 12)
 #define DSP_LINE_NUM_MASK		(0x1fff << 12)
 

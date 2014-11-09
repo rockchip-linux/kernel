@@ -995,7 +995,7 @@ static void vop_vsync_worker(struct work_struct *work)
 static irqreturn_t vop_isr(int irq, void *data)
 {
 	struct vop *vop = data;
-	uint32_t intr0_reg;
+	uint32_t intr0_reg, active_irqs;
 	unsigned long flags;
 
 	/*
@@ -1004,11 +1004,20 @@ static irqreturn_t vop_isr(int irq, void *data)
 	*/
 	spin_lock_irqsave(&vop->irq_lock, flags);
 	intr0_reg = vop_readl(vop, INTR_CTRL0);
-	if (intr0_reg & FS_INTR) {
-		vop_writel(vop, INTR_CTRL0, intr0_reg | FS_INTR_CLR);
-		spin_unlock_irqrestore(&vop->irq_lock, flags);
-	} else {
-		spin_unlock_irqrestore(&vop->irq_lock, flags);
+	active_irqs = intr0_reg & INTR_MASK;
+	/* Clear all active interrupt sources */
+	if (active_irqs)
+		vop_writel(vop, INTR_CTRL0,
+			   intr0_reg | (active_irqs << INTR_CLR_SHIFT));
+	spin_unlock_irqrestore(&vop->irq_lock, flags);
+
+	/* This is expected for vop iommu irqs, since the irq is shared */
+	if (!active_irqs)
+		return IRQ_NONE;
+
+	/* Only Frame Start Interrupt is enabled; other irqs are spurious. */
+	if (!(active_irqs & FS_INTR)) {
+		DRM_ERROR("Unknown VOP IRQs: %#02x\n", active_irqs);
 		return IRQ_NONE;
 	}
 
