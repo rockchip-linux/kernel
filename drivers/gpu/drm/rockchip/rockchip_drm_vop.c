@@ -998,12 +998,17 @@ static irqreturn_t vop_isr(int irq, void *data)
 	uint32_t intr0_reg;
 	unsigned long flags;
 
+	/*
+	 * INTR_CTRL0 register has interrupt status, enable and clear bits, we
+	 * must hold irq_lock to avoid a race with enable/disable_vblank().
+	*/
+	spin_lock_irqsave(&vop->irq_lock, flags);
 	intr0_reg = vop_readl(vop, INTR_CTRL0);
 	if (intr0_reg & FS_INTR) {
-		spin_lock_irqsave(&vop->irq_lock, flags);
 		vop_writel(vop, INTR_CTRL0, intr0_reg | FS_INTR_CLR);
 		spin_unlock_irqrestore(&vop->irq_lock, flags);
 	} else {
+		spin_unlock_irqrestore(&vop->irq_lock, flags);
 		return IRQ_NONE;
 	}
 
