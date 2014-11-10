@@ -26,16 +26,6 @@
 #include "11n.h"
 #include "11ac.h"
 
-/* This function reads data from PCIE card register */
-static int mwifiex_read_reg(struct mwifiex_adapter *adapter, int reg, u32 *data)
-{
-	struct pcie_service_card *card = adapter->card;
-
-	*data = ioread32(card->pci_mmap1 + reg);
-
-	return 0;
-}
-
 /*
  * This function initializes a command node.
  *
@@ -903,7 +893,6 @@ mwifiex_cmd_timeout_func(unsigned long function_context)
 	struct mwifiex_adapter *adapter =
 		(struct mwifiex_adapter *) function_context;
 	struct cmd_ctrl_node *cmd_node;
-	u32 value, reg;
 
 	adapter->num_cmd_timeout++;
 	adapter->dbg.num_cmd_timeout++;
@@ -968,29 +957,8 @@ mwifiex_cmd_timeout_func(unsigned long function_context)
 	if (adapter->hw_status == MWIFIEX_HW_STATUS_INITIALIZING)
 		mwifiex_init_fw_complete(adapter);
 
-	reg = 0x00000CF0;
-	mwifiex_read_reg(adapter, reg, &value);
-	dev_err(adapter->dev, "reg:%x 32-bit value=%x\n", reg, value);
-	reg = 0x00000CF8;
-	mwifiex_read_reg(adapter, reg, &value);
-	dev_err(adapter->dev, "reg:%x 32-bit value=%x\n", reg, value);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n", reg, value & 0xff);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
-		reg + 1, (value >> 8) & 0xff);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
-		reg + 2, (value >> 16) & 0xff);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
-		reg + 3, (value >> 24) & 0xff);
-	reg = 0x00000CFC;
-	mwifiex_read_reg(adapter, reg, &value);
-	dev_err(adapter->dev, "reg:%x 32-bit value=%x\n", reg, value);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n", reg, value & 0xff);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
-		reg + 1, (value >> 8) & 0xff);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
-		reg + 2, (value >> 16) & 0xff);
-	dev_err(adapter->dev, "reg:%x 8-bit value=%x\n",
-		reg + 3, (value >> 24) & 0xff);
+	if (adapter->if_ops.read_regs)
+		adapter->if_ops.read_regs(adapter);
 
 	if (adapter->if_ops.fw_dump)
 		adapter->if_ops.fw_dump(adapter);

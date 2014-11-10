@@ -672,6 +672,7 @@ struct mwifiex_if_ops {
 	void (*fw_dump)(struct mwifiex_adapter *);
 	int (*clean_pcie_ring) (struct mwifiex_adapter *adapter);
 	void (*iface_work)(struct work_struct *work);
+	void (*read_regs)(struct mwifiex_adapter *adapter);
 };
 
 struct mwifiex_adapter {
