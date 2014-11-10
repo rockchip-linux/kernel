@@ -375,6 +375,8 @@
 		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru SCLK_TSADC>, <&cru PCLK_TSADC>;
 		clock-names = "tsadc", "apb_pclk";
+		resets = <&cru SRST_TSADC>;
+		reset-names = "tsadc-apb";
 		pinctrl-names = "otp_out";
 		pinctrl-0 = <&otp_out>;
 		#thermal-sensor-cells = <1>;
