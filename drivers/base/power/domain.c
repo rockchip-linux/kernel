@@ -152,6 +152,59 @@ static void genpd_recalc_cpu_exit_latency(struct generic_pm_domain *genpd)
 	genpd->cpuidle_data->idle_state->exit_latency = usecs64;
 }
 
+static int genpd_power_on(struct generic_pm_domain *genpd)
+{
+	ktime_t time_start;
+	s64 elapsed_ns;
+	int ret;
+
+	if (!genpd->power_on)
+		return 0;
+
+	time_start = ktime_get();
+	ret = genpd->power_on(genpd);
+	if (ret)
+		return ret;
+
+	elapsed_ns = ktime_to_ns(ktime_sub(ktime_get(), time_start));
+	if (elapsed_ns <= genpd->power_on_latency_ns)
+		return ret;
+
+	genpd->power_on_latency_ns = elapsed_ns;
+	genpd->max_off_time_changed = true;
+	genpd_recalc_cpu_exit_latency(genpd);
+	pr_warn("%s: Power-%s latency exceeded, new value %lld ns\n",
+		genpd->name, "on", elapsed_ns);
+
+	return ret;
+}
+
+static int genpd_power_off(struct generic_pm_domain *genpd)
+{
+	ktime_t time_start;
+	s64 elapsed_ns;
+	int ret;
+
+	if (!genpd->power_off)
+		return 0;
+
+	time_start = ktime_get();
+	ret = genpd->power_off(genpd);
+	if (ret == -EBUSY)
+		return ret;
+
+	elapsed_ns = ktime_to_ns(ktime_sub(ktime_get(), time_start));
+	if (elapsed_ns <= genpd->power_off_latency_ns)
+		return ret;
+
+	genpd->power_off_latency_ns = elapsed_ns;
+	genpd->max_off_time_changed = true;
+	pr_warn("%s: Power-%s latency exceeded, new value %lld ns\n",
+		genpd->name, "off", elapsed_ns);
+
+	return ret;
+}
+
 /**
  * __pm_genpd_poweron - Restore power to a given PM domain and its masters.
  * @genpd: PM domain to power up.
@@ -223,25 +276,9 @@ static int __pm_genpd_poweron(struct generic_pm_domain *genpd)
 		}
 	}
 
-	if (genpd->power_on) {
-		ktime_t time_start = ktime_get();
-		s64 elapsed_ns;
-
-		ret = genpd->power_on(genpd);
-		if (ret)
-			goto err;
-
-		elapsed_ns = ktime_to_ns(ktime_sub(ktime_get(), time_start));
-		if (elapsed_ns > genpd->power_on_latency_ns) {
-			genpd->power_on_latency_ns = elapsed_ns;
-			genpd->max_off_time_changed = true;
-			genpd_recalc_cpu_exit_latency(genpd);
-			if (genpd->name)
-				pr_warning("%s: Power-on latency exceeded, "
-					"new value %lld ns\n", genpd->name,
-					elapsed_ns);
-		}
-	}
+	ret = genpd_power_on(genpd);
+	if (ret)
+		goto err;
 
  out:
 	genpd_set_active(genpd);
@@ -545,15 +582,10 @@ static int pm_genpd_poweroff(struct generic_pm_domain *genpd)
 	}
 
 	if (genpd->power_off) {
-		ktime_t time_start;
-		s64 elapsed_ns;
-
 		if (atomic_read(&genpd->sd_count) > 0) {
 			ret = -EBUSY;
 			goto out;
 		}
-
-		time_start = ktime_get();
 
 		/*
 		 * If sd_count > 0 at this point, one of the subdomains hasn't
@@ -563,20 +595,10 @@ static int pm_genpd_poweroff(struct generic_pm_domain *genpd)
 		 * the pm_genpd_poweron() restore power for us (this shouldn't
 		 * happen very often).
 		 */
-		ret = genpd->power_off(genpd);
+		ret = genpd_power_off(genpd);
 		if (ret == -EBUSY) {
 			genpd_set_active(genpd);
 			goto out;
-		}
-
-		elapsed_ns = ktime_to_ns(ktime_sub(ktime_get(), time_start));
-		if (elapsed_ns > genpd->power_off_latency_ns) {
-			genpd->power_off_latency_ns = elapsed_ns;
-			genpd->max_off_time_changed = true;
-			if (genpd->name)
-				pr_warning("%s: Power-off latency exceeded, "
-					"new value %lld ns\n", genpd->name,
-					elapsed_ns);
 		}
 	}
 
@@ -846,8 +868,7 @@ static void pm_genpd_sync_poweroff(struct generic_pm_domain *genpd)
 	    || atomic_read(&genpd->sd_count) > 0)
 		return;
 
-	if (genpd->power_off)
-		genpd->power_off(genpd);
+	genpd_power_off(genpd);
 
 	genpd->status = GPD_STATE_POWER_OFF;
 
@@ -878,8 +899,7 @@ static void pm_genpd_sync_poweron(struct generic_pm_domain *genpd)
 		genpd_sd_counter_inc(link->master);
 	}
 
-	if (genpd->power_on)
-		genpd->power_on(genpd);
+	genpd_power_on(genpd);
 
 	genpd->status = GPD_STATE_ACTIVE;
 }
@@ -1310,8 +1330,7 @@ static int pm_genpd_restore_noirq(struct device *dev)
 			 * If the domain was off before the hibernation, make
 			 * sure it will be off going forward.
 			 */
-			if (genpd->power_off)
-				genpd->power_off(genpd);
+			genpd_power_off(genpd);
 
 			return 0;
 		}
