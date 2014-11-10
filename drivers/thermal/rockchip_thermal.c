@@ -12,6 +12,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -19,6 +20,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/reset.h>
 #include <linux/thermal.h>
 
 /**
@@ -56,8 +58,7 @@ struct rockchip_tsadc_chip {
 	enum tshut_polarity tshut_polarity;
 
 	/* Chip-wide methods */
-	void (*initialize)(void __iomem *reg, enum tshut_polarity p,
-			   unsigned long clk_rate);
+	void (*initialize)(void __iomem *reg, enum tshut_polarity p);
 	void (*irq_ack)(void __iomem *reg);
 	void (*control)(void __iomem *reg, bool on);
 
@@ -79,6 +80,7 @@ struct rockchip_thermal_sensor {
 struct rockchip_thermal_data {
 	const struct rockchip_tsadc_chip *chip;
 	struct platform_device *pdev;
+	struct reset_control *reset;
 
 	struct rockchip_thermal_sensor sensors[NUM_SENSORS];
 
@@ -86,8 +88,6 @@ struct rockchip_thermal_data {
 	struct clk *pclk;
 
 	void __iomem *regs;
-
-	unsigned long clk_rate;
 
 	long hw_shut_temp;
 	enum tshut_mode tshut_mode;
@@ -229,11 +229,8 @@ static long rk_tsadcv2_code_to_temp(u32 code)
  * "debounce" times, TSADC controller will generate interrupt or TSHUT.
  */
 static void rk_tsadcv2_initialize(void __iomem *regs,
-				  enum tshut_polarity tshut_polarity,
-				  unsigned long clk_rate)
+				  enum tshut_polarity tshut_polarity)
 {
-	u32 val;
-
 	if (tshut_polarity == TSHUT_HIGH_ACTIVE)
 		writel_relaxed(0 | (TSADCV2_AUTO_TSHUT_POLARITY_HIGH),
 			       regs + TSADCV2_AUTO_CON);
@@ -241,13 +238,11 @@ static void rk_tsadcv2_initialize(void __iomem *regs,
 		writel_relaxed(0 | (TSADCV2_AUTO_TSHUT_POLARITY_LOW),
 			       regs + TSADCV2_AUTO_CON);
 
-	val = TSADCV2_AUTO_PERIOD_TIME * clk_rate / 1000;
-	writel_relaxed(val, regs + TSADCV2_AUTO_PERIOD);
+	writel_relaxed(TSADCV2_AUTO_PERIOD_TIME, regs + TSADCV2_AUTO_PERIOD);
 	writel_relaxed(TSADCV2_HIGHT_INT_DEBOUNCE_COUNT,
 		       regs + TSADCV2_HIGHT_INT_DEBOUNCE);
-
-	val = TSADCV2_AUTO_PERIOD_HT_TIME * clk_rate / 1000;
-	writel_relaxed(val, regs + TSADCV2_AUTO_PERIOD_HT);
+	writel_relaxed(TSADCV2_AUTO_PERIOD_HT_TIME,
+		       regs + TSADCV2_AUTO_PERIOD_HT);
 	writel_relaxed(TSADCV2_HIGHT_TSHUT_DEBOUNCE_COUNT,
 		       regs + TSADCV2_HIGHT_TSHUT_DEBOUNCE);
 }
@@ -488,6 +483,16 @@ rockchip_thermal_register_sensor(struct platform_device *pdev,
 	return 0;
 }
 
+/*
+ * Reset TSADC Controller, reset all tsadc registers.
+ */
+static void rockchip_thermal_reset_controller(struct reset_control *reset)
+{
+	reset_control_assert(reset);
+	usleep_range(10, 20);
+	reset_control_deassert(reset);
+}
+
 static int rockchip_thermal_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -524,6 +529,13 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 	if (IS_ERR(thermal->regs))
 		return PTR_ERR(thermal->regs);
 
+	thermal->reset = devm_reset_control_get(&pdev->dev, "tsadc-apb");
+	if (IS_ERR(thermal->reset)) {
+		error = PTR_ERR(thermal->reset);
+		dev_err(&pdev->dev, "failed to get tsadc reset: %d\n", error);
+		return error;
+	}
+
 	thermal->clk = devm_clk_get(&pdev->dev, "tsadc");
 	if (IS_ERR(thermal->clk)) {
 		error = PTR_ERR(thermal->clk);
@@ -552,9 +564,7 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 		goto err_disable_clk;
 	}
 
-	thermal->clk_rate = clk_get_rate(thermal->clk);
-	if (thermal->clk_rate == 0)
-		return -EPROBE_DEFER;
+	rockchip_thermal_reset_controller(thermal->reset);
 
 	error = rockchip_configure_from_dt(&pdev->dev, np, thermal);
 	if (error) {
@@ -563,8 +573,7 @@ static int rockchip_thermal_probe(struct platform_device *pdev)
 		goto err_disable_pclk;
 	}
 
-	thermal->chip->initialize(thermal->regs, thermal->tshut_polarity,
-				  thermal->clk_rate);
+	thermal->chip->initialize(thermal->regs, thermal->tshut_polarity);
 
 	error = rockchip_thermal_register_sensor(pdev, thermal,
 						 &thermal->sensors[0],
@@ -667,8 +676,9 @@ static int __maybe_unused rockchip_thermal_resume(struct device *dev)
 	if (error)
 		return error;
 
-	thermal->chip->initialize(thermal->regs, thermal->tshut_polarity,
-				  thermal->clk_rate);
+	rockchip_thermal_reset_controller(thermal->reset);
+
+	thermal->chip->initialize(thermal->regs, thermal->tshut_polarity);
 
 	for (i = 0; i < ARRAY_SIZE(thermal->sensors); i++) {
 		enum sensor_id id = thermal->sensors[i].id;

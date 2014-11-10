@@ -9,6 +9,9 @@ Required properties:
 - clocks : Must contain an entry for each entry in clock-names.
 - clock-names : Shall be "tsadc" for the converter-clock, and "apb_pclk" for
 		the peripheral clock.
+- resets : Must contain an entry for each entry in reset-names.
+	   See ../reset/reset.txt for details.
+- reset-names : Must include the name "tsadc-apb".
 - #thermal-sensor-cells : Should be 1. See ./thermal.txt for a description.
 - hw-shut-temp : The hardware-controlled shutdown temperature value.
 - tsadc-tshut-mode : The hardware-controlled shutdown mode 0:CRU 1:GPIO.
@@ -23,6 +26,8 @@ tsadc: tsadc@ff280000 {
 	clock-names = "tsadc", "apb_pclk";
 	pinctrl-names = "default";
 	pinctrl-0 = <&otp_out>;
+	resets = <&cru SRST_TSADC>;
+	reset-names = "tsadc-apb";
 	#thermal-sensor-cells = <1>;
 	hw-shut-temp = <125000>;
 	tsadc-tshut-mode = <0>;
