@@ -78,7 +78,7 @@
 		backlight = <&backlight>;
 	};
 
-	gpio-keys {
+	gpio_keys: gpio-keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -493,8 +493,6 @@
 	tpm: tpm@20 {
 		compatible = "infineon,slb9645tt";
 		reg = <0x20>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&tpm_int_h>;
 		powered-while-suspended;
 	};
 };
