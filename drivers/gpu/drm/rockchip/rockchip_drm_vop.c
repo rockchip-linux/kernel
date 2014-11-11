@@ -866,6 +866,7 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 	struct drm_framebuffer *old_fb = crtc->primary->fb;
 	int pipe = vop->pipe;
 	int ret;
+	unsigned long flags;
 
 	/* when the page flip is requested, crtc's dpms should be on */
 	if (vop->dpms > DRM_MODE_DPMS_ON) {
@@ -879,7 +880,7 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 		return ret;
 	}
 
-	spin_lock_irq(&dev->event_lock);
+	spin_lock_irqsave(&dev->event_lock, flags);
 	if (vop->event) {
 		spin_unlock_irq(&dev->event_lock);
 		drm_vblank_put(dev, pipe);
@@ -887,7 +888,7 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 		return -EBUSY;
 	}
 	vop->event = event;
-	spin_unlock_irq(&dev->event_lock);
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	crtc->primary->fb = fb;
 
@@ -895,9 +896,9 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 	if (ret) {
 		crtc->primary->fb = old_fb;
 
-		spin_lock_irq(&dev->event_lock);
+		spin_lock_irqsave(&dev->event_lock, flags);
 		vop->event = NULL;
-		spin_unlock_irq(&dev->event_lock);
+		spin_unlock_irqrestore(&dev->event_lock, flags);
 
 		drm_vblank_put(dev, pipe);
 	}
