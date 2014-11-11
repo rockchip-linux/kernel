@@ -13,7 +13,7 @@
 
 / {
 	model = "Google Jerry";
-	compatible = "google,veyron-jerry-rev1", "google,veyron-jerry",
+	compatible = "google,veyron-jerry-rev0", "google,veyron-jerry",
 		     "google,veyron", "rockchip,rk3288";
 };
 
