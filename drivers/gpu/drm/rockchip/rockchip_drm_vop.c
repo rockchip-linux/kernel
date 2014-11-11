@@ -454,11 +454,14 @@ static void vop_disable(struct drm_crtc *crtc)
 	clk_disable(vop->hclk);
 }
 
-static int vop_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
-			    struct drm_framebuffer *fb, int crtc_x, int crtc_y,
-			    unsigned int crtc_w, unsigned int crtc_h,
-			    uint32_t src_x, uint32_t src_y, uint32_t src_w,
-			    uint32_t src_h)
+static int vop_update_plane_event(struct drm_plane *plane,
+				  struct drm_crtc *crtc,
+				  struct drm_framebuffer *fb, int crtc_x,
+				  int crtc_y, unsigned int crtc_w,
+				  unsigned int crtc_h, uint32_t src_x,
+				  uint32_t src_y, uint32_t src_w,
+				  uint32_t src_h,
+				  struct drm_pending_vblank_event *event)
 {
 	struct vop_win *vop_win = to_vop_win(plane);
 	const struct vop_win_data *win = vop_win->data;
@@ -592,16 +595,29 @@ static int vop_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	return 0;
 }
 
-static inline int vop_update_primary_plane(struct drm_crtc *crtc)
+static int vop_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
+			    struct drm_framebuffer *fb, int crtc_x, int crtc_y,
+			    unsigned int crtc_w, unsigned int crtc_h,
+			    uint32_t src_x, uint32_t src_y, uint32_t src_w,
+			    uint32_t src_h)
+{
+	return vop_update_plane_event(plane, crtc, fb, crtc_x, crtc_y, crtc_w,
+				      crtc_h, src_x, src_y, src_w, src_h,
+				      NULL);
+}
+
+static int vop_update_primary_plane(struct drm_crtc *crtc,
+				    struct drm_pending_vblank_event *event)
 {
 	unsigned int crtc_w, crtc_h;
 
 	crtc_w = crtc->primary->fb->width - crtc->x;
 	crtc_h = crtc->primary->fb->height - crtc->y;
 
-	return vop_update_plane(crtc->primary, crtc, crtc->primary->fb, 0, 0,
-				crtc_w, crtc_h, crtc->x << 16, crtc->y << 16,
-				crtc_w << 16, crtc_h << 16);
+	return vop_update_plane_event(crtc->primary, crtc, crtc->primary->fb,
+				      0, 0, crtc_w, crtc_h, crtc->x << 16,
+				      crtc->y << 16, crtc_w << 16,
+				      crtc_h << 16, event);
 }
 
 static int vop_disable_plane(struct drm_plane *plane)
@@ -757,7 +773,7 @@ static int vop_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	crtc->x = x;
 	crtc->y = y;
 
-	ret = vop_update_primary_plane(crtc);
+	ret = vop_update_primary_plane(crtc, NULL);
 	if (ret < 0) {
 		DRM_ERROR("fail to update plane\n");
 		return ret;
@@ -896,7 +912,7 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 
 	crtc->primary->fb = fb;
 
-	ret = vop_update_primary_plane(crtc);
+	ret = vop_update_primary_plane(crtc, event);
 	if (ret) {
 		crtc->primary->fb = old_fb;
 
