@@ -23,6 +23,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/thermal.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 
 static unsigned int transition_latency;
 static unsigned int voltage_tolerance; /* in percentage */
@@ -206,14 +208,67 @@ static struct cpufreq_driver krait_cpufreq_driver = {
 	.attr = cpufreq_generic_attr,
 };
 
+static int krait_cpufreq_get_speed_pvs(struct device_node *np,
+				       u8 *speed, u8 *pvs)
+{
+	struct regmap *regmap;
+	unsigned int val;
+	int ret;
+
+	regmap = syscon_regmap_lookup_by_phandle(np, "qcom,imem");
+	if (IS_ERR(regmap))
+		return PTR_ERR(regmap);
+
+	ret = regmap_read(regmap, 0xC0, &val);
+	if (ret)
+		return ret;
+
+	/*
+	 * If the fuse isn't blown, then setup defaults.
+	 */
+	if (!(val & BIT(31))) {
+		*speed = 0;
+		*pvs = 1;
+		pr_warn("SPEED BIN: Defaulting to 0\n");
+		pr_warn("ACPU PVS: Defaulting to 1\n");
+		return 0;
+	}
+
+	*speed = val;
+	if (*speed == 0xF)
+		*speed = val >> 4;
+
+	if (*speed == 0xF) {
+		*speed = 0;
+		pr_warn("SPEED BIN: Unknown value. Defaulting to 0\n");
+	} else {
+		pr_info("SPEED BIN: %d\n", *speed);
+	}
+
+	*pvs = (val >> 10) & 0x7;
+	if (*pvs == 0x7)
+		*pvs = (val >> 13) & 0x7;
+
+	if (*pvs == 0x7) {
+		*pvs = 0;
+		pr_warn("ACPU PVS: Unknown value. Defaulting to 0\n");
+	} else {
+		pr_info("ACPU PVS: %d\n", *pvs);
+	}
+
+	return 0;
+}
+
 static int krait_cpufreq_probe(struct platform_device *pdev)
 {
+	char opp_name[sizeof("operating-points-N-M")];
 	struct device_node *np, *cache;
 	int ret;
 	unsigned int cpu;
 	struct device *dev;
 	struct clk *clk;
 	struct regulator *core;
+	u8 speed = 0, pvs = 0;
 
 	cpu_dev = get_cpu_device(0);
 	if (!cpu_dev) {
@@ -248,7 +303,15 @@ static int krait_cpufreq_probe(struct platform_device *pdev)
 		per_cpu(krait_supply_core, cpu) = core;
 	}
 
-	ret = of_init_opp_table(cpu_dev);
+	ret = krait_cpufreq_get_speed_pvs(np, &speed, &pvs);
+	if (ret) {
+		pr_err("failed to retrieve chip characteristics\n");
+		goto out_put_node;
+	}
+
+	sprintf(opp_name, "operating-points-%x-%x", speed & 0xF, pvs & 0xF);
+
+	ret = of_init_opp_table_named(cpu_dev, opp_name);
 	if (ret) {
 		pr_err("failed to init OPP table: %d\n", ret);
 		goto out_put_node;
