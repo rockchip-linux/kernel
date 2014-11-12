@@ -400,7 +400,7 @@
 			power-supply = <&pplcd_vdd>;
 
 			bl-name = "lp8557-backlight";
-			dev-ctrl = /bits/ 8 <0x02>;
+			dev-ctrl = /bits/ 8 <0x01>;
 			init-brt = /bits/ 8 <0xFF>;
 
 			/* Full scale current, 20mA */
@@ -415,7 +415,7 @@
 				rom-val = /bits/ 8 <0x29>;
 			};
 
-			/* Boost freq = 500KHz, BComp option = 1 */
+			/* Boost freq = 1MHz, BComp option = 1 */
 			rom_13h {
 				rom-addr = /bits/ 8 <0x13>;
 				rom-val = /bits/ 8 <0x03>;
