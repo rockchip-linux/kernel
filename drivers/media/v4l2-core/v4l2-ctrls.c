@@ -1210,12 +1210,15 @@ static void std_log(const struct v4l2_ctrl *ctrl)
 /* Round towards the closest legal value */
 #define ROUND_TO_RANGE(val, offset_type, ctrl)			\
 ({								\
-	offset_type offset;					\
-	val += (ctrl)->step / 2;				\
+	offset_type offset, v;					\
+	v = (ctrl)->step;					\
+	do_div(v, 2);						\
+	val += v;				\
 	val = clamp_t(typeof(val), val,				\
 		      (ctrl)->minimum, (ctrl)->maximum);	\
 	offset = (val) - (ctrl)->minimum;			\
-	offset = (ctrl)->step * (offset / (ctrl)->step);	\
+	do_div(offset, (ctrl)->step);				\
+	offset *= (ctrl)->step;					\
 	val = (ctrl)->minimum + offset;				\
 	0;							\
 })
@@ -1225,6 +1228,7 @@ static int std_validate(const struct v4l2_ctrl *ctrl,
 			union v4l2_ctrl_ptr ptr)
 {
 	size_t len;
+	u64 val;
 
 	switch (ctrl->type) {
 	case V4L2_CTRL_TYPE_INTEGER:
@@ -1260,7 +1264,8 @@ static int std_validate(const struct v4l2_ctrl *ctrl,
 		len = strlen(ptr.p_char);
 		if (len < ctrl->minimum)
 			return -ERANGE;
-		if ((len - ctrl->minimum) % ctrl->step)
+		val = len - ctrl->minimum;
+		if (do_div(val, ctrl->step))
 			return -ERANGE;
 		return 0;
 
