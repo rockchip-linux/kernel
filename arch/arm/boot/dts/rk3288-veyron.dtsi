@@ -345,11 +345,16 @@
 	bus-width = <4>;
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
 	card-detect-delay = <200>;
 	cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
 	num-slots = <1>;
 	status = "okay";
 	vmmc-supply = <&vcc33_sd>;
+	vqmmc-supply = <&vccio_sd>;
 };
 
 &spi0 {
@@ -487,8 +492,6 @@
 			};
 
 			vccio_sd: LDO_REG4 {
-				regulator-always-on;
-				regulator-boot-on;
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vccio_sd";
@@ -496,8 +499,6 @@
 			};
 
 			vcc33_sd: LDO_REG5 {
-				regulator-always-on;
-				regulator-boot-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc33_sd";
