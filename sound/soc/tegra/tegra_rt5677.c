@@ -247,6 +247,11 @@ static int tegra_rt5677_probe(struct platform_device *pdev)
 	struct snd_soc_dai_link *codec_dai = &tegra_rt5677_dai[0];
 	struct snd_soc_dai_link *speaker_dai = &tegra_rt5677_dai[1];
 
+
+#if defined(CONFIG_MODULES) && defined(MODULE)
+	request_module("snd_soc_tegra30_i2s");
+#endif
+
 	machine = devm_kzalloc(&pdev->dev,
 			sizeof(struct tegra_rt5677), GFP_KERNEL);
 	if (!machine)
