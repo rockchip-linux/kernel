@@ -2,7 +2,6 @@ obj-$(CONFIG_ATH10K) += ath10k_core.o
 ath10k_core-y += mac.o \
 		 debug.o \
 		 core.o \
-		 decode64.o \
 		 htc.o \
 		 htt.o \
 		 htt_rx.o \
