@@ -896,9 +896,10 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 		crtc->primary->fb = old_fb;
 
 		spin_lock_irq(&dev->event_lock);
-		drm_vblank_put(dev, pipe);
 		vop->event = NULL;
 		spin_unlock_irq(&dev->event_lock);
+
+		drm_vblank_put(dev, pipe);
 	}
 
 	return ret;
