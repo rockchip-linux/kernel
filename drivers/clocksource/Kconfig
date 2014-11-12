@@ -154,3 +154,4 @@ config CLKSRC_QCOM
 config CLKSRC_MIPS_GIC
 	bool
 	depends on MIPS_GIC
+	select CLKSRC_OF
