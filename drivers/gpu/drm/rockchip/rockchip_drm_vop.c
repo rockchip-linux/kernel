@@ -524,7 +524,6 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	rk_obj = to_rockchip_obj(obj);
 
-	yrgb_mst = rk_obj->dma_addr;
 	actual_w = (src.x2 - src.x1) >> 16;
 	actual_h = (src.y2 - src.y1) >> 16;
 	crtc_x = max(0, crtc_x);
@@ -535,14 +534,32 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	offset = (src.x1 >> 16) * (fb->bits_per_pixel >> 3);
 	offset += (src.y1 >> 16) * fb->pitches[0];
+	yrgb_mst = rk_obj->dma_addr + offset;
 
 	y_vir_stride = fb->pitches[0] / (fb->bits_per_pixel >> 3);
+
+	/*
+	 * Because the buffer set to vop take effect at frame start time,
+	 * we need make sure old buffer is not in use before we release
+	 * it.
+	 * reference the framebuffer, and unref it when it swap out of vop.
+	 */
+	mutex_lock(&vop->vsync_mutex);
+	if (fb != vop_win->front_fb) {
+		drm_framebuffer_reference(fb);
+		if (vop_win->pending_fb)
+			drm_framebuffer_unreference(vop_win->pending_fb);
+		vop_win->pending_fb = fb;
+		vop_win->pending_yrgb_mst = yrgb_mst;
+		vop->vsync_work_pending = true;
+	}
+	vop_win->enabled = true;
+	mutex_unlock(&vop->vsync_mutex);
 
 	spin_lock(&vop->reg_lock);
 
 	VOP_WIN_SET(vop, win, format, format);
 	VOP_WIN_SET(vop, win, yrgb_vir, y_vir_stride);
-	yrgb_mst += offset;
 	VOP_WIN_SET(vop, win, yrgb_mst, yrgb_mst);
 	val = (actual_h - 1) << 16;
 	val |= (actual_w - 1) & 0xffff;
@@ -567,29 +584,6 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	VOP_WIN_SET(vop, win, enable, 1);
 
-	spin_unlock(&vop->reg_lock);
-
-	mutex_lock(&vop->vsync_mutex);
-
-	/*
-	 * Because the buffer set to vop take effect at frame start time,
-	 * we need make sure old buffer is not in use before we release
-	 * it.
-	 * reference the framebuffer, and unference it when it swap out of vop.
-	 */
-	if (fb != vop_win->front_fb) {
-		drm_framebuffer_reference(fb);
-		if (vop_win->pending_fb)
-			drm_framebuffer_unreference(vop_win->pending_fb);
-		vop_win->pending_fb = fb;
-		vop_win->pending_yrgb_mst = yrgb_mst;
-		vop->vsync_work_pending = true;
-	}
-	vop_win->enabled = true;
-
-	mutex_unlock(&vop->vsync_mutex);
-
-	spin_lock(&vop->reg_lock);
 	vop_cfg_done(vop);
 	spin_unlock(&vop->reg_lock);
 
@@ -631,28 +625,25 @@ static int vop_disable_plane(struct drm_plane *plane)
 		return 0;
 
 	vop = to_vop(plane->crtc);
-	spin_lock(&vop->reg_lock);
-
-	VOP_WIN_SET(vop, win, enable, 0);
-	vop_cfg_done(vop);
-
-	spin_unlock(&vop->reg_lock);
-
-	mutex_lock(&vop->vsync_mutex);
 
 	/*
-	* clear the pending framebuffer and set vsync_work_pending true,
-	* so that the framebuffer will unref at the next vblank.
-	*/
+	 * clear the pending framebuffer so that the framebuffer will unref at
+	 * the next vblank.
+	 */
+	mutex_lock(&vop->vsync_mutex);
 	if (vop_win->pending_fb) {
 		drm_framebuffer_unreference(vop_win->pending_fb);
 		vop_win->pending_fb = NULL;
 	}
-
 	vop_win->enabled = false;
 	vop->vsync_work_pending = true;
 
 	mutex_unlock(&vop->vsync_mutex);
+
+	spin_lock(&vop->reg_lock);
+	VOP_WIN_SET(vop, win, enable, 0);
+	vop_cfg_done(vop);
+	spin_unlock(&vop->reg_lock);
 
 	return 0;
 }
