@@ -390,9 +390,9 @@ static int lp855x_parse_dt(struct lp855x *lp)
 
 	pdata->supply = devm_regulator_get(dev, "power");
 	if (IS_ERR(pdata->supply)) {
-		pdata->supply = NULL;
 		if (PTR_ERR(pdata->supply) == -EPROBE_DEFER)
 			return -EPROBE_DEFER;
+		pdata->supply = NULL;
 	}
 
 	lp->pdata = pdata;
