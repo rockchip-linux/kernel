@@ -597,7 +597,7 @@ static int azx_suspend(struct device *dev)
 		return 0;
 
 	chip = card->private_data;
-	if (chip->disabled || chip->init_failed)
+	if (chip->disabled || chip->init_failed || !chip->running)
 		return 0;
 
 	snd_power_change_state(card, SNDRV_CTL_POWER_D3hot);
@@ -633,7 +633,7 @@ static int azx_resume(struct device *dev)
 		return 0;
 
 	chip = card->private_data;
-	if (chip->disabled || chip->init_failed)
+	if (chip->disabled || chip->init_failed || !chip->running)
 		return 0;
 
 	if (chip->driver_caps & AZX_DCAPS_I915_POWERWELL) {
@@ -674,7 +674,7 @@ static int azx_runtime_suspend(struct device *dev)
 		return 0;
 
 	chip = card->private_data;
-	if (chip->disabled || chip->init_failed)
+	if (chip->disabled || chip->init_failed || !chip->running)
 		return 0;
 
 	if (!(chip->driver_caps & AZX_DCAPS_PM_RUNTIME))
@@ -705,7 +705,7 @@ static int azx_runtime_resume(struct device *dev)
 		return 0;
 
 	chip = card->private_data;
-	if (chip->disabled || chip->init_failed)
+	if (chip->disabled || chip->init_failed || !chip->running)
 		return 0;
 
 	if (!(chip->driver_caps & AZX_DCAPS_PM_RUNTIME))
@@ -746,7 +746,7 @@ static int azx_runtime_idle(struct device *dev)
 		return 0;
 
 	chip = card->private_data;
-	if (chip->disabled || chip->init_failed)
+	if (chip->disabled || chip->init_failed || !chip->running)
 		return 0;
 
 	if (!power_save_controller ||
