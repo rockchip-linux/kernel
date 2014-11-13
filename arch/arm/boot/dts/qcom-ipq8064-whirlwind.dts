@@ -17,6 +17,15 @@
 		mdio-gpio0 = &mdio0;
 	};
 
+	firmware {
+		chromeos {
+			pinctrl-0 = <&fw_pins>;
+			pinctrl-names = "default";
+			write-protect-gpio = <&qcom_pinmux 17 1>;
+			recovery-switch = <&qcom_pinmux 16 1>;
+		};
+	};
+
 	soc {
 		pinmux@800000 {
 			pinctrl-0 = <&rgmii0_pinmux>;
@@ -127,6 +136,17 @@
 				rst {
 					pins = "gpio26";
 					output-low;
+				};
+			};
+
+			fw_pins: fw_pinmux {
+				wp {
+					pins = "gpio17";
+					output-low;
+				};
+				recovery {
+					pins = "gpio16";
+					bias-none;
 				};
 			};
 		};
