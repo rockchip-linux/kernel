@@ -176,9 +176,9 @@ static int rockchip_pd_power_off(struct generic_pm_domain *domain)
 	return rockchip_pd_power(pd, false);
 }
 
-static void rockchip_pd_attach_dev(struct device *dev)
+static int rockchip_pd_attach_dev(struct generic_pm_domain *genpd,
+				  struct device *dev)
 {
-	struct generic_pm_domain *genpd = pd_to_genpd(dev->pm_domain);
 	struct clk *clk;
 	int i;
 	int error;
@@ -188,7 +188,7 @@ static void rockchip_pd_attach_dev(struct device *dev)
 	error = pm_clk_create(dev);
 	if (error) {
 		dev_err(dev, "pm_clk_create failed %d\n", error);
-		return;
+		return error;
 	}
 
 	while ((clk = of_clk_get(dev->of_node, i++)) && !IS_ERR(clk)) {
@@ -197,18 +197,19 @@ static void rockchip_pd_attach_dev(struct device *dev)
 		if (error) {
 			dev_err(dev, "pm_clk_add_clk failed %d\n", error);
 			pm_clk_destroy(dev);
-			return;
+			return error;
 		}
 		dev_dbg(dev, "added clock '%s' to list of PM clocks\n",
 			__clk_get_name(clk));
 	}
+
+	return 0;
 }
 
-static void rockchip_pd_detach_dev(struct device *dev)
+static void rockchip_pd_detach_dev(struct generic_pm_domain *genpd,
+				   struct device *dev)
 {
-	struct generic_pm_domain *genpd = pd_to_genpd(dev->pm_domain);
-
-	dev_dbg(dev, "detaching from power domain %s\n", genpd->name);
+	dev_dbg(dev, "detaching from power domain '%s'\n", genpd->name);
 
 	pm_clk_destroy(dev);
 }
