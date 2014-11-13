@@ -119,16 +119,16 @@ static int rockchip_drm_load(struct drm_device *drm_dev, unsigned long flags)
 	 */
 	drm_dev->irq_enabled = true;
 
+	ret = drm_vblank_init(drm_dev, ROCKCHIP_MAX_CRTC);
+	if (ret)
+		goto err_kms_helper_poll_fini;
+
 	/*
 	 * with vblank_disable_allowed = true, vblank interrupt will be disabled
 	 * by drm timer once a current process gives up ownership of
 	 * vblank event.(after drm_vblank_put function is called)
 	 */
 	drm_dev->vblank_disable_allowed = true;
-
-	ret = drm_vblank_init(drm_dev, ROCKCHIP_MAX_CRTC);
-	if (ret)
-		goto err_kms_helper_poll_fini;
 
 	ret = rockchip_drm_fbdev_init(drm_dev);
 	if (ret)
