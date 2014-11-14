@@ -47,3 +47,4 @@ obj-$(CONFIG_MOXART_DMA) += moxart-dma.o
 obj-$(CONFIG_FSL_EDMA) += fsl-edma.o
 obj-$(CONFIG_QCOM_BAM_DMA) += qcom_bam_dma.o
 obj-$(CONFIG_QCOM_ADM) += qcom_adm.o
+obj-$(CONFIG_IMG_MDC_DMA) += img-mdc-dma.o
