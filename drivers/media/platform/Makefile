@@ -47,6 +47,8 @@ obj-$(CONFIG_SOC_CAMERA)		+= soc_camera/
 
 obj-$(CONFIG_VIDEO_RENESAS_VSP1)	+= vsp1/
 
+obj-$(CONFIG_VIDEO_RK3288_VPU)		+= rk3288-vpu/
+
 obj-y	+= davinci/
 
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
