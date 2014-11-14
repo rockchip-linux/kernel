@@ -4839,6 +4839,10 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 		regmap_write(rt5677->regmap, RT5677_ASRC_3, 0x1000);
 		/* ASRC Clock Source for Stereo1 ADC = clk_i2s1_asrc */
 		regmap_write(rt5677->regmap, RT5677_ASRC_5, 0x1000);
+		/* Initial value of ASRC tracking for I2S1 of 48K sample rate
+		and 24M MCLK */
+		regmap_write(rt5677->regmap, RT5677_ASRC_13, 0x126e);
+		regmap_write(rt5677->regmap, RT5677_ASRC_19, 0x0003);
 	}
 
 	rt5677_init_gpio(i2c);
