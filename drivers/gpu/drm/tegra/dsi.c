@@ -51,7 +51,6 @@ struct tegra_dsi {
 	struct mipi_dsi_host host;
 
 	struct regulator *vdd;
-	bool enabled;
 
 	unsigned int video_fifo_depth;
 	unsigned int host_fifo_depth;
@@ -625,9 +624,6 @@ static int tegra_output_dsi_enable(struct tegra_output *output)
 	u32 value;
 	int err;
 
-	if (dsi->enabled)
-		return 0;
-
 	err = tegra_dsi_configure(dsi, dc->pipe, mode);
 	if (err < 0)
 		return err;
@@ -652,8 +648,6 @@ static int tegra_output_dsi_enable(struct tegra_output *output)
 
 	/* enable DSI controller */
 	tegra_dsi_enable(dsi);
-
-	dsi->enabled = true;
 
 	return 0;
 }
@@ -720,9 +714,6 @@ static int tegra_output_dsi_disable(struct tegra_output *output)
 	unsigned long value;
 	int err;
 
-	if (!dsi->enabled)
-		return 0;
-
 	tegra_dsi_video_disable(dsi);
 
 	/*
@@ -752,8 +743,6 @@ static int tegra_output_dsi_disable(struct tegra_output *output)
 		dev_dbg(dsi->dev, "failed to idle DSI: %d\n", err);
 
 	tegra_dsi_disable(dsi);
-
-	dsi->enabled = false;
 
 	return 0;
 }
