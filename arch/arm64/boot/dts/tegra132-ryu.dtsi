@@ -688,6 +688,7 @@
 			regulator-min-microvolt = <3000000>;
 			regulator-max-microvolt = <3000000>;
 			enable-active-high;
+			regulator-boot-on;
 		};
 
 		pp1800_lcdio: fixed-regulator@6 {
@@ -698,6 +699,7 @@
 			regulator-max-microvolt = <1800000>;
 			enable-active-high;
 			gpio = <&gpio TEGRA_GPIO(X, 0) GPIO_ACTIVE_HIGH>;
+			regulator-boot-on;
 		};
 	};
 
