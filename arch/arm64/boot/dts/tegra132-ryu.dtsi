@@ -507,7 +507,7 @@
 
 		vbus-2-supply = <&vdd_usb3_vbus>;
 		nvidia,usb3-port-0-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_0>;
-		nvidia,usb3-port-1-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_1>;
+		nvidia,usb3-port-1-lane = <TEGRA_XUSB_PADCTL_PIN_SATA_0>;
 
 		padctl_default: pinmux {
 			otg {
@@ -523,7 +523,7 @@
 			};
 
 			usb3p1 {
-				nvidia,lanes = "pcie-1";
+				nvidia,lanes = "sata-0";
 				nvidia,function = "usb3";
 				nvidia,iddq = <0>;
 				nvidia,usb2-port-num = <0>;
