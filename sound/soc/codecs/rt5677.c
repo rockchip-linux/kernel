@@ -4140,7 +4140,7 @@ static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 #ifdef CONFIG_ACPI
 
 static unsigned long long rt5677_parse_acpi_entry(struct device *dev,
-		const char *name)
+		acpi_string name)
 {
 	acpi_handle handle = ACPI_HANDLE(dev);
 	unsigned long long val;
