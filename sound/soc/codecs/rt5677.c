@@ -4530,9 +4530,7 @@ static struct i2c_driver rt5677_i2c_driver = {
 	.driver = {
 		.name = "rt5677",
 		.owner = THIS_MODULE,
-#ifdef CONFIG_ACPI
 		.acpi_match_table = ACPI_PTR(rt5677_acpi_id),
-#endif
 	},
 	.probe = rt5677_i2c_probe,
 	.remove   = rt5677_i2c_remove,
