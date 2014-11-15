@@ -37,6 +37,9 @@
 #define DW_UART_CPR	0xf4 /* Component Parameter Register */
 #define DW_UART_UCV	0xf8 /* UART Component Version */
 
+/* We'll place this canary in SCR while suspending; if gone we've lost state */
+#define DW_UART_SCR_STATE		0x22
+
 /* Component Parameter Register bits */
 #define DW_UART_CPR_ABP_DATA_WIDTH	(3 << 0)
 #define DW_UART_CPR_AFCE_MODE		(1 << 4)
@@ -61,6 +64,13 @@ struct dw8250_data {
 	struct clk		*clk;
 	struct clk		*pclk;
 	struct uart_8250_dma	dma;
+
+	int			suspending;
+	int			saved_lcr;
+	int			saved_dll;
+	int			saved_dlm;
+	int			saved_ier;
+	int			saved_fcr;
 };
 
 static inline int dw8250_modify_msr(struct uart_port *p, int offset, int value)
@@ -83,9 +93,34 @@ static void dw8250_force_idle(struct uart_port *p)
 	(void)p->serial_in(p, UART_RX);
 }
 
+static void dw8250_serial_restore(struct uart_port *p)
+{
+	struct dw8250_data *data = p->private_data;
+	struct uart_8250_port *port8250 = serial8250_get_port(data->line);
+
+	data->suspending = 0;
+
+	serial_out(port8250, UART_LCR, data->saved_lcr | UART_LCR_DLAB);
+	serial_out(port8250, UART_DLL, data->saved_dll);
+	serial_out(port8250, UART_DLM, data->saved_dlm);
+	serial_out(port8250, UART_LCR, data->saved_lcr);
+
+	serial_out(port8250, UART_IER, data->saved_ier);
+	serial_out(port8250, UART_FCR, data->saved_fcr);
+	serial_out(port8250, UART_MCR, data->last_mcr);
+}
+
 static void dw8250_serial_out(struct uart_port *p, int offset, int value)
 {
 	struct dw8250_data *d = p->private_data;
+
+	/*
+	 * If we started suspending and we see SCR went back to 0, assume we've
+	 * suspended and resumed and lost state.  Restore it now.
+	 */
+	if (d->suspending &&
+	    readb(p->membase + (UART_SCR << p->regshift)) != DW_UART_SCR_STATE)
+		dw8250_serial_restore(p);
 
 	if (offset == UART_MCR)
 		d->last_mcr = value;
@@ -123,6 +158,14 @@ static void dw8250_serial_out_rb(struct uart_port *p, int offset, int value)
 static void dw8250_serial_out32(struct uart_port *p, int offset, int value)
 {
 	struct dw8250_data *d = p->private_data;
+
+	/*
+	 * If we started suspending and we see SCR went back to 0, assume we've
+	 * suspended and resumed and lost state.  Restore it now.
+	 */
+	if (d->suspending &&
+	    readb(p->membase + (UART_SCR << p->regshift)) != DW_UART_SCR_STATE)
+		dw8250_serial_restore(p);
 
 	if (offset == UART_MCR)
 		d->last_mcr = value;
@@ -414,8 +457,28 @@ static int dw8250_remove(struct platform_device *pdev)
 static int dw8250_suspend(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
+	struct uart_8250_port *port8250 = serial8250_get_port(data->line);
+	struct uart_port *port = &port8250->port;
 
 	serial8250_suspend_port(data->line);
+
+	/* We only deal with ports that were left on (no_console_suspend) */
+	if (port->suspended)
+		return 0;
+
+	/* We'll save our registers in case we lose state in suspend */
+	data->saved_fcr = serial_in(port8250, UART_FCR);
+	data->saved_ier = serial_in(port8250, UART_IER);
+	data->saved_lcr = serial_in(port8250, UART_LCR);
+
+	serial_out(port8250, UART_LCR, data->saved_lcr | UART_LCR_DLAB);
+	data->saved_dlm = serial_in(port8250, UART_DLM);
+	data->saved_dll = serial_in(port8250, UART_DLL);
+	serial_out(port8250, UART_LCR, data->saved_lcr);
+
+	/* Put a special canary in the scratch so we tell when state is lost */
+	serial_out(port8250, UART_SCR, DW_UART_SCR_STATE);
+	data->suspending = 1;
 
 	return 0;
 }
@@ -423,6 +486,10 @@ static int dw8250_suspend(struct device *dev)
 static int dw8250_resume(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
+
+	/* We never lost state; stop checking for canary */
+	if (data->suspending)
+		data->suspending = 0;
 
 	serial8250_resume_port(data->line);
 
