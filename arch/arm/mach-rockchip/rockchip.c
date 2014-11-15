@@ -23,10 +23,12 @@
 #include <asm/mach/map.h>
 #include <asm/hardware/cache-l2x0.h>
 #include "core.h"
+#include "pm.h"
 
 static void __init rockchip_dt_init(void)
 {
 	l2x0_of_init(0, ~0UL);
+	rockchip_suspend_init();
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	platform_device_register_simple("cpufreq-cpu0", 0, NULL, 0);
 }
