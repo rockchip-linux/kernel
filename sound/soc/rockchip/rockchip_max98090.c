@@ -28,12 +28,12 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include "rockchip_i2s.h"
+#include "../codecs/ts3a227e.h"
 
 #define DRV_NAME "rockchip-snd-max98090"
 
 struct rk_mc_private {
-	struct snd_soc_jack hp_jack;
-	struct snd_soc_jack mic_jack;
+	struct snd_soc_jack headset_jack;
 };
 
 static const struct snd_soc_dapm_widget rk_dapm_widgets[] = {
@@ -98,30 +98,6 @@ static int rk_aif1_hw_params(struct snd_pcm_substream *substream,
 	return ret;
 }
 
-static struct snd_soc_jack_pin hp_jack_pin = {
-	.pin	= "Headphone",
-	.mask	= SND_JACK_HEADPHONE,
-};
-
-static struct snd_soc_jack_pin mic_jack_pin = {
-	.pin	= "Headset Mic",
-	.mask	= SND_JACK_MICROPHONE,
-};
-
-static struct snd_soc_jack_gpio hp_jack_gpio = {
-	.name			= "hp-gpio",
-	.report			= SND_JACK_HEADPHONE,
-	.debounce_time		= 200,
-	.invert			= 0,
-};
-
-static struct snd_soc_jack_gpio mic_jack_gpio = {
-	.name			= "mic-gpio",
-	.report			= SND_JACK_MICROPHONE,
-	.debounce_time		= 200,
-	.invert			= 1,
-};
-
 static int rk_init(struct snd_soc_pcm_runtime *runtime)
 {
 	int ret = 0;
@@ -129,8 +105,6 @@ static int rk_init(struct snd_soc_pcm_runtime *runtime)
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct snd_soc_card *card = runtime->card;
 	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
-	struct snd_soc_jack *hp_jack = &drv->hp_jack;
-	struct snd_soc_jack *mic_jack = &drv->mic_jack;
 
 	card->dapm.idle_bias_off = true;
 
@@ -139,41 +113,36 @@ static int rk_init(struct snd_soc_pcm_runtime *runtime)
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk");
 	snd_soc_dapm_enable_pin(dapm, "Int Mic");
 
+	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS");
+
 	snd_soc_dapm_sync(dapm);
 
 	/* Enable headphone jack detection */
-	ret = snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
-			       hp_jack);
-	if (ret)
-		return ret;
-
-	ret = snd_soc_jack_add_pins(hp_jack, 1, &hp_jack_pin);
-	if (ret)
-		return ret;
-
-	ret = snd_soc_jack_add_gpios(hp_jack, 1, &hp_jack_gpio);
-	if (ret)
-		return ret;
-
-	/* Enable mic jack detection */
-	ret = snd_soc_jack_new(codec, "Mic Jack", SND_JACK_MICROPHONE,
-			       mic_jack);
-	if (ret)
-		return ret;
-
-	ret = snd_soc_jack_add_pins(mic_jack, 1, &mic_jack_pin);
-	if (ret)
-		return ret;
-
-	ret = snd_soc_jack_add_gpios(mic_jack, 1, &mic_jack_gpio);
-	if (ret)
-		return ret;
-
+	ret = snd_soc_jack_new(codec, "Headset Jack",
+			       SND_JACK_HEADPHONE | SND_JACK_MICROPHONE |
+			       SND_JACK_BTN_0 | SND_JACK_BTN_1 |
+			       SND_JACK_BTN_2 | SND_JACK_BTN_3,
+			       &drv->headset_jack);
 	return ret;
+}
+
+static int rk_98090_headset_init(struct snd_soc_dapm_context *dapm)
+{
+	struct snd_soc_codec *codec =
+		snd_soc_component_to_codec(dapm->component);
+	struct snd_soc_card *card = dapm->component->card;
+	struct rk_mc_private *drv = snd_soc_card_get_drvdata(card);
+
+	return ts3a227e_enable_jack_detect(codec, &drv->headset_jack);
 }
 
 static struct snd_soc_ops rk_aif1_ops = {
 	.hw_params = rk_aif1_hw_params,
+};
+
+static struct snd_soc_aux_dev rk_98090_headset_dev = {
+	.name = "Headset Chip",
+	.init = rk_98090_headset_init,
 };
 
 static struct snd_soc_dai_link rk_dailink = {
@@ -191,6 +160,8 @@ static struct snd_soc_card snd_soc_card_rk = {
 	.name = "ROCKCHIP-I2S",
 	.dai_link = &rk_dailink,
 	.num_links = 1,
+	.aux_dev = &rk_98090_headset_dev,
+	.num_aux_devs = 1,
 	.dapm_widgets = rk_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(rk_dapm_widgets),
 	.dapm_routes = rk_audio_map,
@@ -209,14 +180,6 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
 	if (!drv)
 		return -ENOMEM;
-
-	hp_jack_gpio.gpio = of_get_named_gpio(np, "rockchip,hp-det-gpios", 0);
-	if (hp_jack_gpio.gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-
-	mic_jack_gpio.gpio = of_get_named_gpio(np, "rockchip,mic-det-gpios", 0);
-	if (mic_jack_gpio.gpio == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
 
 	/* register the soc card */
 	card->dev = &pdev->dev;
@@ -241,6 +204,14 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 
 	rk_dailink.platform_of_node = rk_dailink.cpu_of_node;
 
+	rk_98090_headset_dev.codec_of_node = of_parse_phandle(np,
+			"rockchip,headset-codec", 0);
+	if (!rk_98090_headset_dev.codec_of_node) {
+		dev_err(&pdev->dev,
+			"Property 'rockchip,headset-codec' missing/invalid\n");
+		return -EINVAL;
+	}
+
 	ret = snd_soc_register_card(card);
 	if (ret) {
 		pr_err("snd_soc_register_card failed %d\n", ret);
@@ -258,10 +229,6 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 static int snd_rk_mc_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *soc_card = platform_get_drvdata(pdev);
-	struct rk_mc_private *drv = snd_soc_card_get_drvdata(soc_card);
-
-	snd_soc_jack_free_gpios(&drv->hp_jack, 1, &hp_jack_gpio);
-	snd_soc_jack_free_gpios(&drv->mic_jack, 1, &mic_jack_gpio);
 
 	snd_soc_card_set_drvdata(soc_card, NULL);
 	snd_soc_unregister_card(soc_card);
