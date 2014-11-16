@@ -127,6 +127,7 @@
 		rockchip,audio-codec = <&max98090>;
 		rockchip,hp-det-gpios = <&gpio6 5 GPIO_ACTIVE_HIGH>;
 		rockchip,mic-det-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
+		rockchip,headset-codec = <&headsetcodec>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&mic_det>, <&hp_det>;
 	};
@@ -522,6 +523,15 @@
 		vcc-supply = <&vcc33_io>;
 		wakeup-source;
 	};
+
+	headsetcodec: ts3a227e@3b {
+		compatible = "ti,ts3a227e";
+		reg = <0x3b>;
+		interrupt-parent = <&gpio0>;
+		interrupts = <3 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ts3a227e_int_l>;
+	};
 };
 
 &i2c5 {
@@ -639,6 +649,12 @@
 		/* Make sure eMMC is not in reset */
 		emmc_deassert_reset: emmc-deassert-reset {
 			rockchip,pins = <7 12 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	headset {
+		ts3a227e_int_l: ts3a227e-int-l {
+			rockchip,pins = <0 3 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
