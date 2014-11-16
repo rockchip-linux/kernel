@@ -38,6 +38,9 @@
 
 #define EC_PROTO_VERSION_UNKNOWN	0
 
+/* ec_command return value for non-success result from EC */
+#define EECRESULT 1000
+
 /*
  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
  */
