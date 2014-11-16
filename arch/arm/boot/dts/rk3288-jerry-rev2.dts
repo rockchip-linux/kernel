@@ -49,7 +49,7 @@
 };
 
 &vcc_5v {
-	gpio = <&gpio7 26 GPIO_ACTIVE_HIGH>;
+	gpio = <&gpio7 21 GPIO_ACTIVE_HIGH>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&drv_5v>;
 };
