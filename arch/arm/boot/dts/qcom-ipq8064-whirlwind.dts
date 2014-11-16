@@ -264,7 +264,9 @@
 		};
 
 		pci@1b900000 {
-			status = "ok";
+			/* TODO(mka): temporarily disable the bus with the aux wlan interface as
+			   workaround for chrome-os-partner:32322 */
+			status = "disabled";
 			reset-gpio = <&qcom_pinmux 63 0>;
 			pinctrl-0 = <&pcie3_pins>;
 			pinctrl-names = "default";
