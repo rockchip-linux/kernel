@@ -115,7 +115,6 @@ struct vop_context {
 	struct reset_control *dclk_rst;
 
 	int pipe;
-	bool is_iommu_attach;
 };
 
 enum vop_data_format {
@@ -419,18 +418,17 @@ static void rockchip_power_on(struct drm_crtc *crtc)
 		dev_err(ctx->dev, "failed to enable aclk - %d\n", ret);
 		goto err_disable_dclk;
 	}
-	if (!ctx->is_iommu_attach) {
-		/*
-		 * when we attach iommu device, we sould sure the vop scan at
-		 * correct address.
-		 */
-		ret = rockchip_drm_dma_attach_device(ctx->drm_dev, ctx->dev);
-		if (ret) {
-			dev_err(ctx->dev, "failed to attach dma mapping, %d\n",
-				ret);
-			goto err_disable_aclk;
-		}
-		ctx->is_iommu_attach = true;
+
+	/*
+	 * Slave iommu shares power, irq and clock with vop.  It was associated
+	 * automatically with this master device via common driver code.
+	 * Now that we have enabled the clock we attach it to the shared drm
+	 * mapping.
+	 */
+	ret = rockchip_drm_dma_attach_device(ctx->drm_dev, ctx->dev);
+	if (ret) {
+		dev_err(ctx->dev, "failed to attach dma mapping, %d\n", ret);
+		goto err_disable_aclk;
 	}
 
 	spin_lock(&ctx->reg_lock);
@@ -465,10 +463,7 @@ static void rockchip_power_off(struct drm_crtc *crtc)
 	 */
 	clk_disable(ctx->dclk);
 
-	if (ctx->is_iommu_attach) {
-		rockchip_drm_dma_detach_device(ctx->drm_dev, ctx->dev);
-		ctx->is_iommu_attach = false;
-	}
+	rockchip_drm_dma_detach_device(ctx->drm_dev, ctx->dev);
 
 	clk_disable(ctx->aclk);
 	clk_disable(ctx->hclk);
