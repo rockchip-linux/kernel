@@ -1074,20 +1074,16 @@ static int vop_create_crtc(struct vop *vop)
 		goto err_cleanup_crtc;
 	}
 
-	drm_modeset_lock_all(drm_dev);
 	crtc->port = port;
 	vop->pipe = crtc->index;
-	drm_modeset_unlock_all(drm_dev);
 
 	return 0;
 
 err_cleanup_crtc:
 	drm_crtc_cleanup(crtc);
 err_destroy_plane:
-	mutex_lock(&drm_dev->mode_config.mutex);
 	list_for_each_entry(plane, &drm_dev->mode_config.plane_list, head)
 		plane->funcs->destroy(plane);
-	mutex_unlock(&drm_dev->mode_config.mutex);
 	return ret;
 }
 
