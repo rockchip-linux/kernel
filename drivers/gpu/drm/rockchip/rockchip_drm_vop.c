@@ -69,9 +69,9 @@ struct vop_win {
 };
 
 struct vop {
+	struct drm_crtc crtc;
 	struct device *dev;
 	struct drm_device *drm_dev;
-	struct drm_crtc crtc;
 	struct drm_pending_vblank_event *event;
 	unsigned int dpms;
 
