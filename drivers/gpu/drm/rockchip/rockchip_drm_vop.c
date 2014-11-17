@@ -434,6 +434,10 @@ static void vop_disable(struct drm_crtc *crtc)
 
 	disable_irq(vop->irq);
 
+	/*
+	 * TODO: Since standby doesn't take effect until the next vblank,
+	 * when we turn off dclk below, the vop is probably still active.
+	 */
 	spin_lock(&vop->reg_lock);
 
 	VOP_CTRL_SET(vop, standby, 1);
