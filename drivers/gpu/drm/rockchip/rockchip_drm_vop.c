@@ -81,8 +81,6 @@ struct vop_context {
 
 	int connector_type;
 	int connector_out_mode;
-	wait_queue_head_t wait_vsync_queue;
-	atomic_t wait_vsync_event;
 
 	struct workqueue_struct *vsync_wq;
 	struct work_struct vsync_work;
@@ -952,7 +950,6 @@ static int rockchip_drm_crtc_page_flip(struct drm_crtc *crtc,
 		return -EBUSY;
 	}
 	ctx->event = event;
-	atomic_set(&ctx->wait_vsync_event, 1);
 	spin_unlock_irq(&dev->event_lock);
 
 	crtc->primary->fb = fb;
@@ -963,7 +960,6 @@ static int rockchip_drm_crtc_page_flip(struct drm_crtc *crtc,
 
 		spin_lock_irq(&dev->event_lock);
 		drm_vblank_put(dev, pipe);
-		atomic_set(&ctx->wait_vsync_event, 0);
 		ctx->event = NULL;
 		spin_unlock_irq(&dev->event_lock);
 	}
@@ -982,8 +978,6 @@ static void rockchip_drm_crtc_finish_pageflip(struct drm_crtc *crtc)
 	if (ctx->event) {
 		drm_send_vblank_event(drm, -1, ctx->event);
 		drm_vblank_put(drm, ctx->pipe);
-		atomic_set(&ctx->wait_vsync_event, 0);
-		wake_up(&ctx->wait_vsync_queue);
 		ctx->event = NULL;
 	}
 
@@ -1293,8 +1287,6 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	spin_lock_init(&ctx->reg_lock);
 	spin_lock_init(&ctx->irq_lock);
 
-	init_waitqueue_head(&ctx->wait_vsync_queue);
-	atomic_set(&ctx->wait_vsync_event, 0);
 
 	ctx->vsync_wq = create_singlethread_workqueue("vsync");
 	if (!ctx->vsync_wq) {
