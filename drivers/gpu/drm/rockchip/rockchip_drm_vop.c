@@ -714,23 +714,21 @@ int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc,
 	return 0;
 }
 
-static struct drm_crtc *vop_find_crtc(struct drm_device *drm, int pipe)
+static struct vop *vop_from_pipe(struct drm_device *drm, int pipe)
 {
-	struct drm_crtc *c, *crtc = NULL;
+	struct drm_crtc *crtc;
 	int i = 0;
 
-	list_for_each_entry(c, &drm->mode_config.crtc_list, head)
-		if (i++ == pipe) {
-			crtc = c;
-			break;
-		}
+	list_for_each_entry(crtc, &drm->mode_config.crtc_list, head)
+		if (i++ == pipe)
+			return to_vop(crtc);
 
-	return crtc;
+	return NULL;
 }
 
 int rockchip_drm_crtc_enable_vblank(struct drm_device *dev, int pipe)
 {
-	struct vop *vop = to_vop(vop_find_crtc(dev, pipe));
+	struct vop *vop = vop_from_pipe(dev, pipe);
 	unsigned long flags;
 
 	if (vop->dpms != DRM_MODE_DPMS_ON)
@@ -747,7 +745,7 @@ int rockchip_drm_crtc_enable_vblank(struct drm_device *dev, int pipe)
 
 void rockchip_drm_crtc_disable_vblank(struct drm_device *dev, int pipe)
 {
-	struct vop *vop = to_vop(vop_find_crtc(dev, pipe));
+	struct vop *vop = vop_from_pipe(dev, pipe);
 	unsigned long flags;
 
 	if (vop->dpms != DRM_MODE_DPMS_ON)
