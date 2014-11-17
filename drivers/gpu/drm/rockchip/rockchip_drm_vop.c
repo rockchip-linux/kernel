@@ -412,6 +412,8 @@ static void vop_enable(struct drm_crtc *crtc)
 
 	spin_unlock(&vop->reg_lock);
 
+	enable_irq(vop->irq);
+
 	drm_vblank_on(vop->drm_dev, vop->pipe);
 
 	return;
@@ -429,6 +431,8 @@ static void vop_disable(struct drm_crtc *crtc)
 	struct vop *vop = to_vop(crtc);
 
 	drm_vblank_off(crtc->dev, vop->pipe);
+
+	disable_irq(vop->irq);
 
 	spin_lock(&vop->reg_lock);
 
@@ -1296,6 +1300,9 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 		dev_err(dev, "cannot requeset irq%d - err %d\n", vop->irq, ret);
 		return ret;
 	}
+
+	/* IRQ is initially disabled; it gets enabled in power_on */
+	disable_irq(vop->irq);
 
 	ret = vop_create_crtc(vop);
 	if (ret)
