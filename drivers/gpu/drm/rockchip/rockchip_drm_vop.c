@@ -61,6 +61,7 @@
 struct vop_win {
 	struct drm_plane base;
 	const struct vop_win_data *data;
+	struct vop *vop;
 
 	uint32_t pending_yrgb_mst;
 	struct drm_framebuffer *front_fb;
@@ -958,20 +959,19 @@ static const struct drm_crtc_funcs vop_crtc_funcs = {
 static void vop_vsync_worker(struct work_struct *work)
 {
 	struct vop *vop = container_of(work, struct vop, vsync_work);
-	struct drm_device *drm = vop->drm_dev;
 	struct drm_crtc *crtc = &vop->crtc;
-	struct vop_win *vop_win;
-	struct drm_plane *plane;
+	const struct vop_data *vop_data = vop->data;
 	uint32_t yrgb_mst;
+	unsigned int i;
 
 	mutex_lock(&vop->vsync_mutex);
 
 	vop->vsync_work_pending = false;
 
-	list_for_each_entry(plane, &drm->mode_config.plane_list, head) {
-		vop_win = to_vop_win(plane);
+	for (i = 0; i < vop_data->win_size; i++) {
+		struct vop_win *vop_win = &vop->win[i];
 
-		if (plane->crtc != crtc)
+		if (vop_win->vop != vop)
 			continue;
 		if (vop_win->enabled && !vop_win->pending_fb)
 			continue;
@@ -1005,7 +1005,7 @@ static void vop_vsync_worker(struct work_struct *work)
 		 * if primary plane flip complete, sending the event to
 		 * userspace
 		 */
-		if (&vop_win->base == crtc->primary)
+		if (vop_win->data->type == DRM_PLANE_TYPE_PRIMARY)
 			vop_finish_pageflip(crtc);
 	}
 
@@ -1265,6 +1265,7 @@ static void vop_win_init(struct vop *vop)
 		const struct vop_win_data *win_data = &vop_data->win[i];
 
 		vop_win->data = win_data;
+		vop_win->vop = vop;
 	}
 }
 
