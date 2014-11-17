@@ -49,6 +49,7 @@
 };
 
 &vcc_5v {
+	enable-active-high;
 	gpio = <&gpio7 21 GPIO_ACTIVE_HIGH>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&drv_5v>;
@@ -57,7 +58,7 @@
 &pinctrl {
 	buck-5v {
 		drv_5v: drv-5v {
-			rockchip,pins = <7 26 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
