@@ -34,9 +34,6 @@
 #include "rockchip_drm_fb.h"
 #include "rockchip_drm_vop.h"
 
-#define VOP_MAX_WIN_SUPPORT	5
-#define VOP_DEFAULT_PRIMARY	0
-#define VOP_DEFAULT_CURSOR	1
 #define VOP_REG(off, _mask, s) \
 		{.offset = off, \
 		 .mask = _mask, \
@@ -64,7 +61,7 @@
 struct vop_win {
 	int id;
 	struct drm_plane base;
-	const struct vop_win_data *win;
+	const struct vop_win_data *data;
 
 	uint32_t pending_yrgb_mst;
 	struct drm_framebuffer *front_fb;
@@ -180,13 +177,15 @@ struct vop_win_phy {
 struct vop_win_data {
 	uint32_t base;
 	const struct vop_win_phy *phy;
+	enum drm_plane_type type;
 };
 
 struct vop_data {
 	const struct vop_reg_data *init_table;
 	unsigned int table_size;
 	const struct vop_ctrl *ctrl;
-	const struct vop_win_data *win[VOP_MAX_WIN_SUPPORT];
+	const struct vop_win_data *win;
+	unsigned int win_size;
 };
 
 static const uint32_t formats_01[] = {
@@ -244,31 +243,6 @@ static const struct vop_win_phy cursor_data = {
 	.yrgb_mst = VOP_REG(HWC_MST, 0xffffffff, 0),
 };
 
-static const struct vop_win_data win0 = {
-	.base = 0,
-	.phy = &win01_data,
-};
-
-static const struct vop_win_data win1 = {
-	.base = 0x40,
-	.phy = &win01_data,
-};
-
-static const struct vop_win_data win2 = {
-	.base = 0,
-	.phy = &win23_data,
-};
-
-static const struct vop_win_data win3 = {
-	.base = 0x50,
-	.phy = &win23_data,
-};
-
-static const struct vop_win_data win_cursor = {
-	.base = 0,
-	.phy = &cursor_data,
-};
-
 static const struct vop_ctrl ctrl_data = {
 	.standby = VOP_REG(SYS_CTRL, 0x1, 22),
 	.gate_en = VOP_REG(SYS_CTRL, 0x1, 23),
@@ -297,15 +271,25 @@ static const struct vop_reg_data vop_init_reg_table[] = {
 	{WIN1_CTRL0, 0x00000080},
 };
 
+/*
+ * Note: rk3288 has a dedicated 'cursor' window, however, that window requires
+ * special support to get alpha blending working.  For now, just use overlay
+ * window 1 for the drm cursor.
+ */
+static const struct vop_win_data rk3288_vop_win_data[] = {
+	{ .base = 0x00, .phy = &win01_data, .type = DRM_PLANE_TYPE_PRIMARY },
+	{ .base = 0x40, .phy = &win01_data, .type = DRM_PLANE_TYPE_CURSOR },
+	{ .base = 0x00, .phy = &win23_data, .type = DRM_PLANE_TYPE_OVERLAY },
+	{ .base = 0x50, .phy = &win23_data, .type = DRM_PLANE_TYPE_OVERLAY },
+	{ .base = 0x00, .phy = &cursor_data, .type = DRM_PLANE_TYPE_OVERLAY },
+};
+
 static const struct vop_data rk3288_vop = {
 	.init_table = vop_init_reg_table,
 	.table_size = ARRAY_SIZE(vop_init_reg_table),
 	.ctrl = &ctrl_data,
-	.win[0] = &win0,
-	.win[1] = &win1,
-	.win[2] = &win2,
-	.win[3] = &win3,
-	.win[4] = &win_cursor,
+	.win = rk3288_vop_win_data,
+	.win_size = ARRAY_SIZE(rk3288_vop_win_data),
 };
 
 static const struct of_device_id vop_driver_dt_match[] = {
@@ -466,7 +450,7 @@ static int vop_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 			    uint32_t src_h)
 {
 	struct vop_win *vop_win = to_vop_win(plane);
-	const struct vop_win_data *win = vop_win->win;
+	const struct vop_win_data *win = vop_win->data;
 	struct vop *vop = to_vop(crtc);
 	struct drm_gem_object *obj;
 	struct rockchip_gem_object *rk_obj;
@@ -612,7 +596,7 @@ static inline int vop_update_primary_plane(struct drm_crtc *crtc)
 static int vop_disable_plane(struct drm_plane *plane)
 {
 	struct vop_win *vop_win = to_vop_win(plane);
-	const struct vop_win_data *win = vop_win->win;
+	const struct vop_win_data *win = vop_win->data;
 	struct vop *vop;
 
 	if (!plane->crtc || !vop_win->enabled)
@@ -663,35 +647,36 @@ static const struct drm_plane_funcs vop_plane_funcs = {
 
 static struct drm_plane *vop_win_init(struct vop *vop,
 				      unsigned long possible_crtcs,
-				      enum drm_plane_type type, int index)
+				      int index)
 {
-	struct vop_win *vop_win;
+	struct vop_win *win;
 	const struct vop_data *vop_data = vop->data;
-	const struct vop_win_data *win;
+	const struct vop_win_data *win_data;
 	int err;
 
-	if (index >= VOP_MAX_WIN_SUPPORT)
+	if (index >= vop_data->win_size)
 		return ERR_PTR(-EINVAL);
 
-	vop_win = kzalloc(sizeof(*vop_win), GFP_KERNEL);
-	if (!vop_win)
+	win = kzalloc(sizeof(*win), GFP_KERNEL);
+	if (!win)
 		return ERR_PTR(-ENOMEM);
 
-	win = vop_data->win[index];
-	vop_win->id = index;
-	vop_win->win = win;
+	win_data = &vop_data->win[index];
+	win->id = index;
+	win->data = win_data;
 
-	err = drm_universal_plane_init(vop->drm_dev, &vop_win->base,
+	err = drm_universal_plane_init(vop->drm_dev, &win->base,
 				       possible_crtcs, &vop_plane_funcs,
-				       win->phy->data_formats,
-				       win->phy->nformats, type);
+				       win_data->phy->data_formats,
+				       win_data->phy->nformats,
+				       win_data->type);
 	if (err) {
 		DRM_ERROR("failed to initialize plane\n");
-		kfree(vop_win);
+		kfree(win);
 		return ERR_PTR(err);
 	}
 
-	return &vop_win->base;
+	return &win->base;
 }
 
 int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc,
@@ -1003,7 +988,7 @@ static void vop_vsync_worker(struct work_struct *work)
 		 * make sure the yrgb_mst take effect, so that
 		 * we can unreference the old framebuffer.
 		 */
-		yrgb_mst = VOP_WIN_GET_YRGBADDR(vop, vop_win->win);
+		yrgb_mst = VOP_WIN_GET_YRGBADDR(vop, vop_win->data);
 		if (vop_win->pending_yrgb_mst != yrgb_mst) {
 			/*
 			 * some plane no complete, unref at next vblank
@@ -1061,30 +1046,22 @@ static int vop_create_crtc(struct vop *vop)
 	struct device *dev = vop->dev;
 	struct drm_device *drm_dev = vop->drm_dev;
 	struct drm_plane *primary, *cursor, *plane;
-	enum drm_plane_type plane_type;
 	struct drm_crtc *crtc = &vop->crtc;
 	struct device_node *port;
 	int ret;
 	int nr;
 
-	for (nr = 0; nr < VOP_MAX_WIN_SUPPORT; nr++) {
-		if (nr == VOP_DEFAULT_PRIMARY)
-			plane_type = DRM_PLANE_TYPE_PRIMARY;
-		else if (nr == VOP_DEFAULT_CURSOR)
-			plane_type = DRM_PLANE_TYPE_CURSOR;
-		else
-			plane_type = DRM_PLANE_TYPE_OVERLAY;
-
-		plane = vop_win_init(vop, 0xff, plane_type, nr);
+	for (nr = 0; nr < vop->data->win_size; nr++) {
+		plane = vop_win_init(vop, 0xff, nr);
 		if (IS_ERR(plane)) {
 			ret = PTR_ERR(plane);
 			DRM_ERROR("fail to init overlay plane - %d\n", ret);
 			goto err_destroy_plane;
 		}
 
-		if (plane_type == DRM_PLANE_TYPE_PRIMARY)
+		if (plane->type == DRM_PLANE_TYPE_PRIMARY)
 			primary = plane;
-		else if (plane_type == DRM_PLANE_TYPE_CURSOR)
+		else if (plane->type == DRM_PLANE_TYPE_CURSOR)
 			cursor = plane;
 	}
 
@@ -1186,8 +1163,10 @@ static int vop_initial(struct vop *vop)
 	for (i = 0; i < vop_data->table_size; i++)
 		vop_writel(vop, init_table[i].offset, init_table[i].value);
 
-	for (i = 0; i < VOP_MAX_WIN_SUPPORT; i++)
-		VOP_WIN_SET(vop, vop_data->win[i], enable, 0);
+	for (i = 0; i < vop_data->win_size; i++) {
+		const struct vop_win_data *win = &vop_data->win[i];
+		VOP_WIN_SET(vop, win, enable, 0);
+	}
 
 	vop_cfg_done(vop);
 
