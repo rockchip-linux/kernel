@@ -89,7 +89,7 @@ struct vop {
 	struct mutex vsync_mutex;
 	bool vsync_work_pending;
 
-	struct vop_data *data;
+	const struct vop_data *data;
 
 	uint32_t *regsbak;
 	void __iomem *regs;
@@ -183,8 +183,8 @@ struct vop_win_data {
 };
 
 struct vop_data {
-	const void *init_table;
-	int table_size;
+	const struct vop_reg_data *init_table;
+	unsigned int table_size;
 	const struct vop_ctrl *ctrl;
 	const struct vop_win_data *win[VOP_MAX_WIN_SUPPORT];
 };
@@ -310,7 +310,7 @@ static const struct vop_data rk3288_vop = {
 
 static const struct of_device_id vop_driver_dt_match[] = {
 	{ .compatible = "rockchip,rk3288-vop",
-	  .data = (void *)&rk3288_vop },
+	  .data = &rk3288_vop },
 	{},
 };
 
@@ -352,14 +352,6 @@ static inline void vop_mask_write_relaxed(struct vop *vop, uint32_t offset,
 		writel_relaxed(cached_val, vop->regs + offset);
 		vop->regsbak[offset >> 2] = cached_val;
 	}
-}
-
-static inline struct vop_data *vop_get_driver_data(struct device *dev)
-{
-	const struct of_device_id *of_id =
-			of_match_device(vop_driver_dt_match, dev);
-
-	return (struct vop_data *)of_id->data;
 }
 
 static enum vop_data_format vop_convert_format(uint32_t format)
@@ -674,7 +666,7 @@ static struct drm_plane *vop_win_init(struct vop *vop,
 				      enum drm_plane_type type, int index)
 {
 	struct vop_win *vop_win;
-	struct vop_data *vop_data = vop->data;
+	const struct vop_data *vop_data = vop->data;
 	const struct vop_win_data *win;
 	int err;
 
@@ -1129,7 +1121,7 @@ err_destroy_plane:
 
 static int vop_initial(struct vop *vop)
 {
-	struct vop_data *vop_data = vop->data;
+	const struct vop_data *vop_data = vop->data;
 	const struct vop_reg_data *init_table = vop_data->init_table;
 	struct reset_control *ahb_rst;
 	int i, ret;
@@ -1232,12 +1224,15 @@ err_unprepare_hclk:
 static int vop_bind(struct device *dev, struct device *master, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
-	struct vop_data *vop_data = vop_get_driver_data(dev);
+	const struct of_device_id *of_id;
+	const struct vop_data *vop_data;
 	struct drm_device *drm_dev = data;
 	struct vop *vop;
 	struct resource *res;
 	int ret;
 
+	of_id = of_match_device(vop_driver_dt_match, dev);
+	vop_data = of_id->data;
 	if (!vop_data)
 		return -ENODEV;
 
