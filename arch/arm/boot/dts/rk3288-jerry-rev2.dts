@@ -55,6 +55,13 @@
 	pinctrl-0 = <&drv_5v>;
 };
 
+&vcc50_hdmi {
+	enable-active-high;
+	gpio = <&gpio5 19 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vcc50_hdmi_en>;
+};
+
 &pinctrl {
 	buck-5v {
 		drv_5v: drv-5v {

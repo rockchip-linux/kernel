@@ -200,6 +200,14 @@
 		vin-supply = <&vccsys>;
 	};
 
+	vcc50_hdmi: vcc50-hdmi {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc50_hdmi";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc_5v>;
+	};
+
 	/* This turns on vbus for host1 (dwc2) */
 	vcc5_host1: vcc5-host1-regulator {
 		compatible = "regulator-fixed";
