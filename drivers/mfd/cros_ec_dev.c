@@ -63,7 +63,7 @@ static int ec_get_version(struct cros_ec_dev *ec, char *str, int maxlen)
 	};
 	struct cros_ec_command msg = {
 		.version = 0,
-		.command = EC_CMD_GET_VERSION,
+		.command = EC_CMD_GET_VERSION + ec->cmd_offset,
 		.outdata = NULL,
 		.outsize = 0,
 		.indata = (uint8_t *)&resp,
