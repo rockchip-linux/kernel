@@ -241,7 +241,6 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 	int clk_cnt;
 	int i;
 	u32 id;
-	bool is_on;
 	int error;
 
 	error = of_property_read_u32(node, "reg", &id);
@@ -272,20 +271,8 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 	if (!pd)
 		return -ENOMEM;
 
-	pd->genpd.name = node->name;
-	pd->genpd.power_off = rockchip_pd_power_off;
-	pd->genpd.power_on = rockchip_pd_power_on;
-	pd->genpd.attach_dev = rockchip_pd_attach_dev;
-	pd->genpd.detach_dev = rockchip_pd_detach_dev;
-	pd->genpd.dev_ops.start = rockchip_pd_start_dev;
-	pd->genpd.dev_ops.stop = rockchip_pd_stop_dev;
-
 	pd->info = pd_info;
 	pd->pmu = pmu;
-	pd->num_clks = clk_cnt;
-
-	is_on = rockchip_pmu_domain_is_on(pd);
-	pm_genpd_init(&pd->genpd, NULL, !is_on);
 
 	for (i = 0; i < clk_cnt; i++) {
 		clk = of_clk_get(node, i);
@@ -306,11 +293,28 @@ static int rockchip_pm_add_one_domain(struct rockchip_pmu *pmu,
 			goto err_out;
 		}
 
-		pd->clks[i] = clk;
+		pd->clks[pd->num_clks++] = clk;
 
 		dev_dbg(pmu->dev, "added clock '%s' to domain '%s'\n",
 			__clk_get_name(clk), node->name);
 	}
+
+	error = rockchip_pd_power(pd, true);
+	if (error) {
+		dev_err(pmu->dev,
+			"failed to power on domain '%s': %d\n",
+			node->name, error);
+		goto err_out;
+	}
+
+	pd->genpd.name = node->name;
+	pd->genpd.power_off = rockchip_pd_power_off;
+	pd->genpd.power_on = rockchip_pd_power_on;
+	pd->genpd.attach_dev = rockchip_pd_attach_dev;
+	pd->genpd.detach_dev = rockchip_pd_detach_dev;
+	pd->genpd.dev_ops.start = rockchip_pd_start_dev;
+	pd->genpd.dev_ops.stop = rockchip_pd_stop_dev;
+	pm_genpd_init(&pd->genpd, NULL, false);
 
 	pmu->genpd_data.domains[id] = &pd->genpd;
 	return 0;
