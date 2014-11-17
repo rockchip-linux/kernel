@@ -112,6 +112,8 @@ struct vop {
 	struct reset_control *dclk_rst;
 
 	int pipe;
+
+	struct vop_win win[];
 };
 
 enum vop_data_format {
@@ -631,11 +633,8 @@ static int vop_disable_plane(struct drm_plane *plane)
 
 static void vop_plane_destroy(struct drm_plane *plane)
 {
-	struct vop_win *vop_win = to_vop_win(plane);
-
 	vop_disable_plane(plane);
 	drm_plane_cleanup(plane);
-	kfree(vop_win);
 }
 
 static const struct drm_plane_funcs vop_plane_funcs = {
@@ -657,10 +656,7 @@ static struct drm_plane *vop_win_init(struct vop *vop,
 	if (index >= vop_data->win_size)
 		return ERR_PTR(-EINVAL);
 
-	win = kzalloc(sizeof(*win), GFP_KERNEL);
-	if (!win)
-		return ERR_PTR(-ENOMEM);
-
+	win = &vop->win[index];
 	win_data = &vop_data->win[index];
 	win->id = index;
 	win->data = win_data;
@@ -672,7 +668,6 @@ static struct drm_plane *vop_win_init(struct vop *vop,
 				       win_data->type);
 	if (err) {
 		DRM_ERROR("failed to initialize plane\n");
-		kfree(win);
 		return ERR_PTR(err);
 	}
 
@@ -1208,6 +1203,7 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm_dev = data;
 	struct vop *vop;
 	struct resource *res;
+	size_t alloc_size;
 	int ret;
 
 	of_id = of_match_device(vop_driver_dt_match, dev);
@@ -1215,7 +1211,9 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	if (!vop_data)
 		return -ENODEV;
 
-	vop = devm_kzalloc(dev, sizeof(*vop), GFP_KERNEL);
+	/* Allocate vop struct and its vop_win array */
+	alloc_size = sizeof(*vop) + sizeof(*vop->win) * vop_data->win_size;
+	vop = devm_kzalloc(dev, alloc_size, GFP_KERNEL);
 	if (!vop)
 		return -ENOMEM;
 
