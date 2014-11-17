@@ -450,6 +450,12 @@ reset_plane(struct drm_plane *plane, struct drm_plane_state *pstate)
 }
 
 static bool
+is_plane_disabled(struct drm_plane *plane)
+{
+	return !plane->crtc || !plane->fb;
+}
+
+static bool
 is_primary_helper(struct drm_plane *plane)
 {
 #ifdef CONFIG_DRM_KMS_HELPER
@@ -482,7 +488,8 @@ commit_plane_state(struct drm_plane *plane, struct drm_plane_state *pstate)
 			old_fb = NULL;
 			ret = 0;
 		} else {
-			ret = plane->funcs->disable_plane(plane);
+			if (!is_plane_disabled(plane))
+				ret = plane->funcs->disable_plane(plane);
 			reset_plane(plane, pstate);
 		}
 	} else {
