@@ -412,6 +412,8 @@ static void vop_enable(struct drm_crtc *crtc)
 
 	spin_unlock(&vop->reg_lock);
 
+	drm_vblank_on(vop->drm_dev, vop->pipe);
+
 	return;
 
 err_disable_aclk:
