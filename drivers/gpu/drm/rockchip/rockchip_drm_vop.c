@@ -1279,7 +1279,6 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	INIT_WORK(&vop->vsync_work, vop_vsync_worker);
 
 	mutex_init(&vop->vsync_mutex);
-	pm_runtime_enable(&pdev->dev);
 
 	ret = devm_request_irq(dev, vop->irq, vop_isr, IRQF_SHARED,
 			       dev_name(dev), vop);
@@ -1288,7 +1287,12 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 		return ret;
 	}
 
-	return vop_create_crtc(vop);
+	ret = vop_create_crtc(vop);
+	if (ret)
+		return ret;
+
+	pm_runtime_enable(&pdev->dev);
+	return 0;
 }
 
 static void vop_unbind(struct device *dev, struct device *master, void *data)
@@ -1296,9 +1300,9 @@ static void vop_unbind(struct device *dev, struct device *master, void *data)
 	struct vop *vop = dev_get_drvdata(dev);
 	struct drm_crtc *crtc = &vop->crtc;
 
+	pm_runtime_disable(dev);
 	of_node_put(crtc->port);
 	drm_crtc_cleanup(crtc);
-	pm_runtime_disable(dev);
 }
 
 static const struct component_ops vop_component_ops = {
