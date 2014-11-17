@@ -1097,6 +1097,14 @@ err_cleanup_planes:
 	return ret;
 }
 
+static void vop_destroy_crtc(struct vop *vop)
+{
+	struct drm_crtc *crtc = &vop->crtc;
+
+	of_node_put(crtc->port);
+	drm_crtc_cleanup(crtc);
+}
+
 static int vop_initial(struct vop *vop)
 {
 	const struct vop_data *vop_data = vop->data;
@@ -1298,11 +1306,9 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 static void vop_unbind(struct device *dev, struct device *master, void *data)
 {
 	struct vop *vop = dev_get_drvdata(dev);
-	struct drm_crtc *crtc = &vop->crtc;
 
 	pm_runtime_disable(dev);
-	of_node_put(crtc->port);
-	drm_crtc_cleanup(crtc);
+	vop_destroy_crtc(vop);
 }
 
 static const struct component_ops vop_component_ops = {
