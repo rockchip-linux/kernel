@@ -59,7 +59,6 @@
 #define to_vop_win(x) container_of(x, struct vop_win, base)
 
 struct vop_win {
-	int id;
 	struct drm_plane base;
 	const struct vop_win_data *data;
 
@@ -644,36 +643,6 @@ static const struct drm_plane_funcs vop_plane_funcs = {
 	.set_property = drm_atomic_plane_set_property
 };
 
-static struct drm_plane *vop_win_init(struct vop *vop,
-				      unsigned long possible_crtcs,
-				      int index)
-{
-	struct vop_win *win;
-	const struct vop_data *vop_data = vop->data;
-	const struct vop_win_data *win_data;
-	int err;
-
-	if (index >= vop_data->win_size)
-		return ERR_PTR(-EINVAL);
-
-	win = &vop->win[index];
-	win_data = &vop_data->win[index];
-	win->id = index;
-	win->data = win_data;
-
-	err = drm_universal_plane_init(vop->drm_dev, &win->base,
-				       possible_crtcs, &vop_plane_funcs,
-				       win_data->phy->data_formats,
-				       win_data->phy->nformats,
-				       win_data->type);
-	if (err) {
-		DRM_ERROR("failed to initialize plane\n");
-		return ERR_PTR(err);
-	}
-
-	return &win->base;
-}
-
 int rockchip_drm_crtc_mode_config(struct drm_crtc *crtc,
 				  int connector_type,
 				  int out_mode)
@@ -1038,22 +1007,39 @@ static irqreturn_t vop_isr(int irq, void *data)
 
 static int vop_create_crtc(struct vop *vop)
 {
+	const struct vop_data *vop_data = vop->data;
 	struct device *dev = vop->dev;
 	struct drm_device *drm_dev = vop->drm_dev;
 	struct drm_plane *primary, *cursor, *plane;
 	struct drm_crtc *crtc = &vop->crtc;
 	struct device_node *port;
 	int ret;
-	int nr;
+	int i;
 
-	for (nr = 0; nr < vop->data->win_size; nr++) {
-		plane = vop_win_init(vop, 0xff, nr);
-		if (IS_ERR(plane)) {
-			ret = PTR_ERR(plane);
-			DRM_ERROR("fail to init overlay plane - %d\n", ret);
-			goto err_destroy_plane;
+	/*
+	 * Create drm_plane for primary and cursor planes first, since we need
+	 * to pass them to drm_crtc_init_with_planes, which sets the
+	 * "possible_crtcs" to the newly initialized crtc.
+	 */
+	for (i = 0; i < vop_data->win_size; i++) {
+		struct vop_win *vop_win = &vop->win[i];
+		const struct vop_win_data *win_data = vop_win->data;
+
+		if (win_data->type != DRM_PLANE_TYPE_PRIMARY &&
+		    win_data->type != DRM_PLANE_TYPE_CURSOR)
+			continue;
+
+		ret = drm_universal_plane_init(vop->drm_dev, &vop_win->base,
+					       0, &vop_plane_funcs,
+					       win_data->phy->data_formats,
+					       win_data->phy->nformats,
+					       win_data->type);
+		if (ret) {
+			DRM_ERROR("failed to initialize plane\n");
+			goto err_cleanup_planes;
 		}
 
+		plane = &vop_win->base;
 		if (plane->type == DRM_PLANE_TYPE_PRIMARY)
 			primary = plane;
 		else if (plane->type == DRM_PLANE_TYPE_CURSOR)
@@ -1063,9 +1049,33 @@ static int vop_create_crtc(struct vop *vop)
 	ret = drm_crtc_init_with_planes(drm_dev, crtc, primary, cursor,
 					&vop_crtc_funcs);
 	if (ret)
-		goto err_destroy_plane;
+		return ret;
 
 	drm_crtc_helper_add(crtc, &vop_crtc_helper_funcs);
+
+	/*
+	 * Create drm_planes for overlay windows with possible_crtcs restricted
+	 * to the newly created crtc.
+	 */
+	for (i = 0; i < vop_data->win_size; i++) {
+		struct vop_win *vop_win = &vop->win[i];
+		const struct vop_win_data *win_data = vop_win->data;
+		unsigned long possible_crtcs = 1 << crtc->index;
+
+		if (win_data->type != DRM_PLANE_TYPE_OVERLAY)
+			continue;
+
+		ret = drm_universal_plane_init(vop->drm_dev, &vop_win->base,
+					       possible_crtcs,
+					       &vop_plane_funcs,
+					       win_data->phy->data_formats,
+					       win_data->phy->nformats,
+					       win_data->type);
+		if (ret) {
+			DRM_ERROR("failed to initialize overlay plane\n");
+			goto err_cleanup_crtc;
+		}
+	}
 
 	port = of_get_child_by_name(dev->of_node, "port");
 	if (!port) {
@@ -1081,9 +1091,9 @@ static int vop_create_crtc(struct vop *vop)
 
 err_cleanup_crtc:
 	drm_crtc_cleanup(crtc);
-err_destroy_plane:
+err_cleanup_planes:
 	list_for_each_entry(plane, &drm_dev->mode_config.plane_list, head)
-		plane->funcs->destroy(plane);
+		drm_plane_cleanup(plane);
 	return ret;
 }
 
@@ -1191,6 +1201,22 @@ err_unprepare_hclk:
 	return ret;
 }
 
+/*
+ * Initialize the vop->win array elements.
+ */
+static void vop_win_init(struct vop *vop)
+{
+	const struct vop_data *vop_data = vop->data;
+	unsigned int i;
+
+	for (i = 0; i < vop_data->win_size; i++) {
+		struct vop_win *vop_win = &vop->win[i];
+		const struct vop_win_data *win_data = &vop_data->win[i];
+
+		vop_win->data = win_data;
+	}
+}
+
 static int vop_bind(struct device *dev, struct device *master, void *data)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1217,6 +1243,8 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	vop->data = vop_data;
 	vop->drm_dev = drm_dev;
 	dev_set_drvdata(dev, vop);
+
+	vop_win_init(vop);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	vop->len = resource_size(res);
