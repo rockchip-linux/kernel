@@ -1322,14 +1322,11 @@ static const struct component_ops vop_component_ops = {
 static int vop_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct vop_context *ctx;
 
 	if (!dev->of_node) {
 		dev_err(dev, "can't find vop devices\n");
 		return -ENODEV;
 	}
-
-	platform_set_drvdata(pdev, ctx);
 
 	return component_add(dev, &vop_component_ops);
 }
