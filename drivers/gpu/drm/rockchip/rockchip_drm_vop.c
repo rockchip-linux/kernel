@@ -17,7 +17,6 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_plane_helper.h>
-#include <drm/drm_rect.h>
 
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
@@ -28,19 +27,13 @@
 #include <linux/component.h>
 
 #include <linux/reset.h>
-#include <linux/iommu.h>
 #include <linux/delay.h>
 
-#include <video/of_display_timing.h>
-#include <video/of_videomode.h>
-
 #include "rockchip_drm_drv.h"
-#include "rockchip_drm_fbdev.h"
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_fb.h"
 #include "rockchip_drm_vop.h"
 
-#define VOP_DEFAULT_FRAMERATE	60
 #define VOP_MAX_WIN_SUPPORT	5
 #define VOP_DEFAULT_PRIMARY	0
 #define VOP_DEFAULT_CURSOR	1
@@ -84,7 +77,6 @@ struct vop_context {
 	struct drm_device *drm_dev;
 	struct drm_crtc crtc;
 	struct drm_pending_vblank_event *event;
-	struct vop_driver *drv;
 	unsigned int dpms;
 
 	int connector_type;
@@ -125,7 +117,6 @@ struct vop_context {
 	struct reset_control *dclk_rst;
 
 	int pipe;
-	bool clk_on;
 	bool is_iommu_attach;
 };
 
