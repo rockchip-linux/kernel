@@ -2804,6 +2804,14 @@ struct ec_params_usb_pd_info_request {
 	uint8_t port;
 } __packed;
 
+/* Read USB-PD Device discovery info */
+#define EC_CMD_USB_PD_DISCOVERY 0x113
+struct ec_params_usb_pd_discovery_entry {
+	uint16_t vid;  /* USB-IF VID */
+	uint16_t pid;  /* USB-IF PID */
+	uint8_t ptype; /* product type (hub,periph,cable,ama) */
+} __packed;
+
 #endif  /* !__ACPI__ */
 
 /*****************************************************************************/
