@@ -7,6 +7,12 @@
 	compatible = "google,ryu-rev1", "google,ryu-p1", "google,ryu", \
 			"nvidia,tegra132", "nvidia,tegra124";
 
+	gpio-keys {
+		power {
+			gpios = <&gpio TEGRA_GPIO(Q, 0) GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	regulators {
 		pplcd_vdd: fixed-regulator@5 {
 			gpio = <&gpio TEGRA_GPIO(BB, 6) GPIO_ACTIVE_HIGH>;
