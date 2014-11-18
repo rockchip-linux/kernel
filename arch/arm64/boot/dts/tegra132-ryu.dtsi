@@ -67,7 +67,6 @@
 			reg = <0x20>;
 			hid-descr-addr = <0x0020>;
 			interrupt-parent = <&gpio>;
-			interrupts = <TEGRA_GPIO(K, 2) IRQ_TYPE_EDGE_FALLING>;
 		};
 	};
 

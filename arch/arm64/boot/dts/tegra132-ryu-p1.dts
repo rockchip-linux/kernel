@@ -19,6 +19,12 @@
 		};
 	};
 
+	i2c@7000c000 {
+		touchscreen: i2c-hid-dev@20 {
+			interrupts = <TEGRA_GPIO(K, 2) IRQ_TYPE_EDGE_FALLING>;
+		};
+	};
+
 	thermal-zones {
 		cpu {
 			trips {
