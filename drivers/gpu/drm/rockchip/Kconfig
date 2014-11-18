@@ -16,6 +16,16 @@ config DRM_ROCKCHIP
 	  2D or 3D acceleration; acceleration is performed by other
 	  IP found on the SoC.
 
+config ROCKCHIP_DW_HDMI
+	bool "Rockchip specific extensions for Synopsys DW HDMI"
+	depends on DRM_ROCKCHIP
+	select DRM_DW_HDMI
+	help
+	 This selects support for Rockchip SoC specific extensions
+	 for the Synopsys DesignWare HDMI driver. If you want to
+	 enable HDMI on RK3288 based SoC, you should selet this
+	 option.
+
 config ROCKCHIP_EDP
 	bool "Rockchip edp support"
 	depends on DRM_ROCKCHIP
