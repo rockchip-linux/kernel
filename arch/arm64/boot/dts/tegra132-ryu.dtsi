@@ -95,6 +95,13 @@
 					reg = <0x55>;
 					battery-name = "battery";
 				};
+
+				battery_charger: bq24773@6a {
+					compatible = "ti,bq24773";
+					reg = <0x6a>;
+					monitor-mode;
+					ti,charger-detect-gpio = <&gpio TEGRA_GPIO(Q, 5) GPIO_ACTIVE_LOW>;
+				};
 			};
 		};
 
