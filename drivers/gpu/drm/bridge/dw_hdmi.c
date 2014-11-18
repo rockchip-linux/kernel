@@ -106,6 +106,7 @@ struct dw_hdmi {
 	struct drm_encoder *encoder;
 	struct drm_bridge *bridge;
 
+	struct platform_device *audio_pdev;
 	enum dw_hdmi_devtype dev_type;
 	struct device *dev;
 	struct clk *isfr_clk;
@@ -369,6 +370,11 @@ static void hdmi_clk_regenerator_update_pixel_clock(struct dw_hdmi *hdmi)
 	hdmi_set_clk_regenerator(hdmi, hdmi->hdmi_data.video_mode.mpixelclock);
 }
 
+static void hdmi_set_sample_rate(struct dw_hdmi *hdmi, unsigned int sample_rate)
+{
+	hdmi->sample_rate = sample_rate;
+	hdmi_set_clk_regenerator(hdmi, hdmi->hdmi_data.video_mode.mpixelclock);
+}
 /*
  * this submodule is responsible for the video data synchronization.
  * for example, for RGB 4:4:4 input, the data map is defined as
@@ -1558,6 +1564,8 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 		 struct resource *iores, int irq,
 		 const struct dw_hdmi_plat_data *plat_data)
 {
+	struct platform_device_info pdevinfo;
+	struct dw_hdmi_audio_data audio;
 	struct drm_device *drm = data;
 	struct device_node *np = dev->of_node;
 	struct device_node *ddc_node;
@@ -1679,6 +1687,23 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 
 	dev_set_drvdata(dev, hdmi);
 
+	memset(&pdevinfo, 0, sizeof(pdevinfo));
+	pdevinfo.parent = dev;
+	pdevinfo.id = PLATFORM_DEVID_NONE;
+
+	audio.irq = irq;
+	audio.dw = hdmi;
+	audio.mod = hdmi_modb;
+	audio.read = hdmi_readb;
+	audio.write = hdmi_writeb;
+	audio.set_sample_rate = hdmi_set_sample_rate;
+
+	pdevinfo.name = "dw-hdmi-audio";
+	pdevinfo.data = &audio;
+	pdevinfo.size_data = sizeof(audio);
+	pdevinfo.dma_mask = DMA_BIT_MASK(32);
+	hdmi->audio_pdev = platform_device_register_full(&pdevinfo);
+
 	return 0;
 
 err_iahb:
@@ -1693,6 +1718,9 @@ EXPORT_SYMBOL_GPL(dw_hdmi_bind);
 void dw_hdmi_unbind(struct device *dev, struct device *master, void *data)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
+
+	if (!IS_ERR(hdmi->audio_pdev))
+		platform_device_unregister(hdmi->audio_pdev);
 
 	/* Disable all interrupts */
 	hdmi_writeb(hdmi, ~0, HDMI_IH_MUTE_PHY_STAT0);

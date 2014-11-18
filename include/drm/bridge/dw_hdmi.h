@@ -19,6 +19,18 @@ enum {
 	DW_HDMI_RES_MAX,
 };
 
+struct dw_hdmi;
+
+struct dw_hdmi_audio_data {
+	int irq;
+	struct dw_hdmi *dw;
+
+	u8 (*read)(struct dw_hdmi *hdmi, int offset);
+	void (*write)(struct dw_hdmi *hdmi, u8 val, int offset);
+	void (*mod)(struct dw_hdmi *hdmi, u8 data, u8 mask, unsigned reg);
+	void (*set_sample_rate)(struct dw_hdmi *hdmi, unsigned int rate);
+};
+
 enum dw_hdmi_devtype {
 	IMX6Q_HDMI,
 	IMX6DL_HDMI,
