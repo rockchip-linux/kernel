@@ -7,54 +7,149 @@
  */
 
 #include <linux/of.h>
+#include <linux/pm_runtime.h>
 #include <linux/regulator/driver.h>
-
 #include "mali_kbase_rk.h"
+
+static int kbase_rk_rt_power_on_callback(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	int error;
+
+	dev_dbg(kbdev->dev, "%s: enabling regulator\n", __func__);
+
+	error = regulator_enable(kbase_rk->regulator);
+	if (error) {
+		dev_err(kbdev->dev, "failed to enable regulator: %d\n",
+			error);
+		return error;
+	}
+
+	return 0;
+}
+
+static void kbase_rk_rt_power_off_callback(struct kbase_device *kbdev)
+{
+	struct kbase_rk *kbase_rk = kbdev->platform_context;
+
+	dev_dbg(kbdev->dev, "%s: shutting down regulator\n", __func__);
+
+	regulator_disable(kbase_rk->regulator);
+}
+
+static int kbase_rk_rt_idle_callback(struct kbase_device *kbdev)
+{
+	/*
+	 * We are ready to power off as soon as the last PM use is
+	 * dropped via pm_runtime_put[_sync].
+	 */
+	return 0;
+}
 
 static int kbase_rk_power_on_callback(struct kbase_device *kbdev)
 {
-	int ret;
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
+	int ret = 1; /* Assume GPU has been powered off */
+	int error;
 
-	if (kbase_rk->is_powered)
+	if (kbase_rk->is_powered) {
+		dev_warn(kbdev->dev,
+			 "called %s for already powered device\n", __func__);
 		return 0;
-
-	ret = regulator_enable(kbase_rk->regulator);
-	if (ret) {
-		dev_err(kbdev->dev,
-			"regulator enable error at power on, %d\n", ret);
-		return ret;
 	}
 
-	ret = clk_enable(kbase_rk->clk);
-	if (ret) {
-		regulator_disable(kbase_rk->regulator);
-		dev_err(kbdev->dev, "enable clk failed, %d\n", ret);
-		return ret;
+	dev_dbg(kbdev->dev, "%s: powering on\n", __func__);
+
+	if (pm_runtime_enabled(kbdev->dev)) {
+		error = pm_runtime_get_sync(kbdev->dev);
+		if (error < 0) {
+			dev_err(kbdev->dev,
+				"failed to runtime resume device: %d\n",
+				error);
+			return error;
+		} else if (error == 1) {
+			/*
+			 * Let core know that the chip has not been
+			 * powered off, so we can save on re-initialization.
+			 */
+			ret = 0;
+		}
+	} else {
+		error = kbase_rk_rt_power_on_callback(kbdev);
+		if (error)
+			return error;
+	}
+
+	error = clk_enable(kbase_rk->clk);
+	if (error) {
+		dev_err(kbdev->dev, "failed to enable clock: %d\n", error);
+
+		if (pm_runtime_enabled(kbdev->dev))
+			pm_runtime_put_sync(kbdev->dev);
+		else
+			kbase_rk_rt_power_off_callback(kbdev);
+
+		return error;
 	}
 
 	kbase_rk->is_powered = true;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 1);
 
-	return 0;
+	return ret;
 }
 
 static void kbase_rk_power_off_callback(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
 
-	if (!kbase_rk->is_powered)
+	if (!kbase_rk->is_powered) {
+		dev_warn(kbdev->dev,
+			 "called %s for powered off device\n", __func__);
 		return;
+	}
 
-	clk_disable(kbase_rk->clk);
-	regulator_disable(kbase_rk->regulator);
+	dev_dbg(kbdev->dev, "%s: powering off\n", __func__);
+
 	kbase_rk->is_powered = false;
 	KBASE_TIMELINE_GPU_POWER(kbdev, 0);
+
+	clk_disable(kbase_rk->clk);
+
+	if (pm_runtime_enabled(kbdev->dev)) {
+		pm_runtime_mark_last_busy(kbdev->dev);
+		pm_runtime_put_autosuspend(kbdev->dev);
+	} else {
+		kbase_rk_rt_power_off_callback(kbdev);
+	}
+}
+
+static mali_error kbase_rk_power_runtime_init_callback(
+		struct kbase_device *kbdev)
+{
+	pm_runtime_set_autosuspend_delay(kbdev->dev, 200);
+	pm_runtime_use_autosuspend(kbdev->dev);
+
+	pm_runtime_set_active(kbdev->dev);
+	pm_runtime_enable(kbdev->dev);
+
+	return MALI_ERROR_NONE;
+}
+
+static void kbase_rk_power_runtime_term_callback(
+		struct kbase_device *kbdev)
+{
+	pm_runtime_disable(kbdev->dev);
 }
 
 static kbase_pm_callback_conf kbase_rk_pm_callbacks = {
 	.power_on_callback = kbase_rk_power_on_callback,
 	.power_off_callback = kbase_rk_power_off_callback,
+
+	.power_runtime_init_callback = kbase_rk_power_runtime_init_callback,
+	.power_runtime_term_callback = kbase_rk_power_runtime_term_callback,
+	.power_runtime_on_callback = kbase_rk_rt_power_on_callback,
+	.power_runtime_off_callback = kbase_rk_rt_power_off_callback,
+	.power_runtime_idle_callback = kbase_rk_rt_idle_callback,
 };
 
 int kbase_platform_early_init(void)
