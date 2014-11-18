@@ -61,6 +61,7 @@ struct bq2477x_chip {
 	int	dac_iin;
 	int	suspended;
 	int	wdt_refresh_timeout;
+	int	monitor_mode;
 	struct kthread_worker	bq_kworker;
 	struct task_struct	*bq_kworker_task;
 	struct kthread_work	bq_wdt_work;
@@ -152,6 +153,10 @@ static int bq2477x_hw_init(struct bq2477x_chip *bq2477x)
 {
 	int ret = 0;
 
+	/* Do nothing in monitor mode */
+	if (bq2477x->monitor_mode)
+		return 0;
+
 	/* Configure control */
 	ret = bq2477x_write(bq2477x, BQ2477X_CHARGE_OPTION_0_MSB,
 			BQ2477X_CHARGE_OPTION_POR_MSB);
@@ -230,6 +235,9 @@ static void of_bq2477x_parse_platform_data(struct i2c_client *client,
 	enum of_gpio_flags flags;
 	u32 pval;
 	int ret;
+
+	if (of_find_property(np, "monitor-mode", NULL))
+		pdata->monitor_mode = true;
 
 	ret = of_property_read_u32(np, "ti,dac-ichg", &pval);
 	if (!ret)
@@ -322,6 +330,7 @@ static int bq2477x_probe(struct i2c_client *client,
 	bq2477x->charger_detect_gpio = pdata->charger_detect_gpio;
 	bq2477x->charger_detect_gpio_active_low =
 					pdata->charger_detect_gpio_active_low;
+	bq2477x->monitor_mode = pdata->monitor_mode;
 
 	i2c_set_clientdata(client, bq2477x);
 	mutex_init(&bq2477x->mutex);
@@ -395,20 +404,23 @@ static int bq2477x_probe(struct i2c_client *client,
 		goto psy_err;
 	}
 
-	init_kthread_worker(&bq2477x->bq_kworker);
-	bq2477x->bq_kworker_task = kthread_run(kthread_worker_fn,
-				&bq2477x->bq_kworker,
-				dev_name(bq2477x->dev));
-	if (IS_ERR(bq2477x->bq_kworker_task)) {
-		ret = PTR_ERR(bq2477x->bq_kworker_task);
-		dev_err(&client->dev, "Kworker task creation failed %d\n", ret);
-		goto psy_err;
-	}
+	if (!bq2477x->monitor_mode) {
+		init_kthread_worker(&bq2477x->bq_kworker);
+		bq2477x->bq_kworker_task = kthread_run(kthread_worker_fn,
+					&bq2477x->bq_kworker,
+					dev_name(bq2477x->dev));
+		if (IS_ERR(bq2477x->bq_kworker_task)) {
+			ret = PTR_ERR(bq2477x->bq_kworker_task);
+			dev_err(&client->dev,
+				"Kworker task creation failed %d\n", ret);
+			goto psy_err;
+		}
 
-	init_kthread_work(&bq2477x->bq_wdt_work, bq2477x_work_thread);
-	sched_setscheduler(bq2477x->bq_kworker_task,
-		SCHED_FIFO, &bq2477x_param);
-	queue_kthread_work(&bq2477x->bq_kworker, &bq2477x->bq_wdt_work);
+		init_kthread_work(&bq2477x->bq_wdt_work, bq2477x_work_thread);
+		sched_setscheduler(bq2477x->bq_kworker_task,
+			SCHED_FIFO, &bq2477x_param);
+		queue_kthread_work(&bq2477x->bq_kworker, &bq2477x->bq_wdt_work);
+	}
 
 	dev_info(bq2477x->dev, "bq2477x charger registerd\n");
 

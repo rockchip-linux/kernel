@@ -69,5 +69,6 @@ struct bq2477x_platform_data {
 	int     gpio;
 	int	charger_detect_gpio;
 	int	charger_detect_gpio_active_low;
+	int	monitor_mode;
 };
 #endif /* __LINUX_POWER_BQ2477X_CHARGER_H */
