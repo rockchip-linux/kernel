@@ -887,7 +887,6 @@ void intel_panel_enable_backlight(struct intel_connector *connector)
 	WARN_ON(panel->backlight.max == 0);
 
 	if (panel->backlight.level == 0) {
-		panel->backlight.level = panel->backlight.max;
 		if (panel->backlight.device)
 			panel->backlight.device->props.brightness =
 				scale_hw_to_user(connector,
