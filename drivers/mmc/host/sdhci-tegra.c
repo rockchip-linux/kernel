@@ -1770,14 +1770,22 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 
 	tegra_sdhci_init_clock(host);
 
-	pm_runtime_set_active(&pdev->dev);
-	if (!tegra_host->no_runtime_pm)
-		pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
-	pm_runtime_set_autosuspend_delay(&pdev->dev,
-					 TEGRA_SDHCI_AUTOSUSPEND_DELAY);
-	pm_runtime_use_autosuspend(&pdev->dev);
-	pm_suspend_ignore_children(&pdev->dev, true);
+	/*
+	 * Temporary disable runtime PM when soc support high speed bus.
+	 * It seems like mmc autocal will fail if we enable runtime PM
+	 * presumably because the clocks are off while we are trying to autocal.
+	 */
+	if (!((soc_data->nvquirks & NVQUIRK_ENABLE_HS200) ||
+	    (soc_data->nvquirks & NVQUIRK_ENABLE_SDR104))) {
+		pm_runtime_set_active(&pdev->dev);
+		if (!tegra_host->no_runtime_pm)
+			pm_runtime_enable(&pdev->dev);
+		pm_runtime_get_sync(&pdev->dev);
+		pm_runtime_set_autosuspend_delay(&pdev->dev,
+						 TEGRA_SDHCI_AUTOSUSPEND_DELAY);
+		pm_runtime_use_autosuspend(&pdev->dev);
+		pm_suspend_ignore_children(&pdev->dev, true);
+	}
 
 	if (soc_data->nvquirks & NVQUIRK_ENABLE_HS200)
 		host->mmc->caps2 |= MMC_CAP2_HS200;
