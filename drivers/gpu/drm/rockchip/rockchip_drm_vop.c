@@ -84,9 +84,6 @@ struct vop {
 	int connector_type;
 	int connector_out_mode;
 
-	struct workqueue_struct *vsync_wq;
-	struct work_struct vsync_work;
-
 	/* mutex vsync_ work */
 	struct mutex vsync_mutex;
 	bool vsync_work_pending;
@@ -1044,9 +1041,9 @@ static bool vop_win_pending_complete(struct vop_win *vop_win)
 	return true;
 }
 
-static void vop_vsync_worker(struct work_struct *work)
+static irqreturn_t vop_isr_thread(int irq, void *data)
 {
-	struct vop *vop = container_of(work, struct vop, vsync_work);
+	struct vop *vop = data;
 	unsigned int i;
 
 	mutex_lock(&vop->vsync_mutex);
@@ -1058,6 +1055,8 @@ static void vop_vsync_worker(struct work_struct *work)
 			vop->vsync_work_pending = true;
 
 	mutex_unlock(&vop->vsync_mutex);
+
+	return IRQ_HANDLED;
 }
 
 static irqreturn_t vop_isr(int irq, void *data)
@@ -1090,10 +1089,8 @@ static irqreturn_t vop_isr(int irq, void *data)
 	}
 
 	drm_handle_vblank(vop->drm_dev, vop->pipe);
-	if (vop->vsync_work_pending)
-		queue_work(vop->vsync_wq, &vop->vsync_work);
 
-	return IRQ_HANDLED;
+	return (vop->vsync_work_pending) ? IRQ_WAKE_THREAD : IRQ_HANDLED;
 }
 
 static int vop_create_crtc(struct vop *vop)
@@ -1374,19 +1371,12 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 	spin_lock_init(&vop->reg_lock);
 	spin_lock_init(&vop->irq_lock);
 
-	vop->vsync_wq = create_singlethread_workqueue("vsync");
-	if (!vop->vsync_wq) {
-		dev_err(dev, "failed to create workqueue\n");
-		return -EINVAL;
-	}
-	INIT_WORK(&vop->vsync_work, vop_vsync_worker);
-
 	mutex_init(&vop->vsync_mutex);
 
-	ret = devm_request_irq(dev, vop->irq, vop_isr, IRQF_SHARED,
-			       dev_name(dev), vop);
+	ret = devm_request_threaded_irq(dev, vop->irq, vop_isr, vop_isr_thread,
+					IRQF_SHARED, dev_name(dev), vop);
 	if (ret) {
-		dev_err(dev, "cannot requeset irq%d - err %d\n", vop->irq, ret);
+		dev_err(dev, "cannot request irq%d - err %d\n", vop->irq, ret);
 		return ret;
 	}
 
