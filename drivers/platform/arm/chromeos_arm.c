@@ -156,10 +156,36 @@ fail1:
 	return ret;
 }
 
-static int chromeos_arm_probe(struct platform_device *pdev)
+static int dt_gpio_init(struct platform_device *pdev, const char *of_list_name,
+			const char *gpio_desc_name, const char *sysfs_name)
 {
 	int gpio, err, active_low;
 	enum of_gpio_flags flags;
+	struct device_node *np = pdev->dev.of_node;
+
+	gpio = of_get_named_gpio_flags(np, of_list_name, 0, &flags);
+	if (!gpio_is_valid(gpio)) {
+		dev_err(&pdev->dev, "invalid %s descriptor\n", of_list_name);
+		return -EINVAL;
+	}
+
+	err = gpio_request_one(gpio, GPIOF_DIR_IN, gpio_desc_name);
+	if (err)
+		return err;
+
+	active_low = !!(flags & OF_GPIO_ACTIVE_LOW);
+	err = gpio_sysfs_set_active_low(gpio, active_low);
+	if (err)
+		return err;
+
+	gpio_export(gpio, 0);
+	gpio_export_link(&pdev->dev, sysfs_name, gpio);
+	return 0;
+}
+
+static int chromeos_arm_probe(struct platform_device *pdev)
+{
+	int err;
 	u32 elog_panic_event[2];
 	struct device_node *np = pdev->dev.of_node;
 
@@ -168,23 +194,14 @@ static int chromeos_arm_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	gpio = of_get_named_gpio_flags(np, "write-protect-gpio", 0, &flags);
-	if (!gpio_is_valid(gpio)) {
-		dev_err(&pdev->dev, "invalid write-protect gpio descriptor\n");
-		err = -EINVAL;
-		goto err;
-	}
-
-	active_low = !!(flags & OF_GPIO_ACTIVE_LOW);
-
-	err = gpio_request_one(gpio, GPIOF_DIR_IN, "firmware-write-protect");
+	err = dt_gpio_init(pdev, "write-protect-gpio",
+			   "firmware-write-protect", "write-protect");
 	if (err)
 		goto err;
-	err = gpio_sysfs_set_active_low(gpio, active_low);
+	err = dt_gpio_init(pdev, "recovery-switch",
+			   "firmware-recovery-switch", "recovery-switch");
 	if (err)
 		goto err;
-	gpio_export(gpio, 0);
-	gpio_export_link(&pdev->dev, "write-protect", gpio);
 
 	if (!of_property_read_u32_array(np, "elog-panic-event",
 					elog_panic_event,
