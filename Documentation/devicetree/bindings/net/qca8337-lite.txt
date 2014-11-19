@@ -1,0 +1,25 @@
+QCA8337 is a switch product family used in home gateway. The QCA8337-lite driver
+is a temporary driver done to initialize the QCA8337 hardware at init.
+
+The following device-tree properties may be used to describe the expected
+default switch configuration.
+
+Compatible: Should contain "qca8337-lite"
+
+Optional Properies:
+
+- qca,vlan-portmap: one or more sets of 2 cells. Each set represent a certain
+  VLAN port base group. The first cell indicates the VLAN ID, while the second
+  set represents a bitmask of all the switch ports to include in this VLAN.
+
+Example:
+
+	qca8337-lite {
+		device-type = "network";
+		compatible = "qca8337-lite";
+		mdiobus = <&mdio>;
+		qca,vlan-portmap = <
+			0x1	0x42	/* VLAN1 Ports 1/6 */
+			0x2	0x5	/* VLAN2 Ports 0/2 */
+		>;
+	}

@@ -84,6 +84,7 @@
 #define S17_ACL_FUNC4_REG               0x0410
 #define S17_ACL_FUNC5_REG               0x0414
 #define S17_PRIVATE_IP_REG              0x0418
+#define S17_VLAN_CTRL0_REG(x)           (0x0420 + 0x8*x)
 #define S17_P0VLAN_CTRL0_REG            0x0420
 #define S17_P0VLAN_CTRL1_REG            0x0424
 #define S17_P1VLAN_CTRL0_REG            0x0428
@@ -120,6 +121,7 @@
 #define S17_TOS_PRIMAP_REG7             0x064c
 #define S17_VLAN_PRIMAP_REG0            0x0650
 #define S17_LOOP_CHECK_REG              0x0654
+#define S17_LOOKUP_CTRL_REG(x)          (0x660 + 0xc*x)
 #define S17_P0LOOKUP_CTRL_REG           0x0660
 #define S17_P0PRI_CTRL_REG              0x0664
 #define S17_P0LEARN_LMT_REG             0x0668

@@ -197,26 +197,35 @@ void qca8337_lite_reg_init_lan(struct qca8337_dev *qca8337)
 
 void qca8337_lite_vlan_config(struct qca8337_dev *qca8337)
 {
-	qca8337_lite_reg_write(qca8337, S17_P0LOOKUP_CTRL_REG, 0x00140020);
-	qca8337_lite_reg_write(qca8337, S17_P0VLAN_CTRL0_REG, 0x20001);
+	struct device_node *np = NULL;
+	const __be32 *paddr;
+	int i, len;
 
-	qca8337_lite_reg_write(qca8337, S17_P1LOOKUP_CTRL_REG, 0x0014005c);
-	qca8337_lite_reg_write(qca8337, S17_P1VLAN_CTRL0_REG, 0x10001);
+	np = of_node_get(qca8337->dev->of_node);
 
-	qca8337_lite_reg_write(qca8337, S17_P2LOOKUP_CTRL_REG, 0x0014005a);
-	qca8337_lite_reg_write(qca8337, S17_P2VLAN_CTRL0_REG, 0x10001);
+	paddr = of_get_property(np, "qca,vlan-portmap", &len);
+	if (!paddr)
+		return;
 
-	qca8337_lite_reg_write(qca8337, S17_P3LOOKUP_CTRL_REG, 0x00140056);
-	qca8337_lite_reg_write(qca8337, S17_P3VLAN_CTRL0_REG, 0x10001);
+	len /= sizeof(*paddr);
 
-	qca8337_lite_reg_write(qca8337, S17_P4LOOKUP_CTRL_REG, 0x0014004e);
-	qca8337_lite_reg_write(qca8337, S17_P4VLAN_CTRL0_REG, 0x10001);
+	for (i = 0; i < len - 1; i += 2) {
+		u32 vlanid, portmap;
+		int bit;
+		vlanid = be32_to_cpup(paddr + i);
+		portmap = be32_to_cpup(paddr + i + 1);
 
-	qca8337_lite_reg_write(qca8337, S17_P5LOOKUP_CTRL_REG, 0x00140001);
-	qca8337_lite_reg_write(qca8337, S17_P5VLAN_CTRL0_REG, 0x20001);
+		for_each_set_bit(bit, (const long unsigned int *) &portmap, S17_MAC_MAX+1) {
+			qca8337_lite_reg_write(qca8337,
+					S17_LOOKUP_CTRL_REG(bit),
+					0x140000 | (portmap & ~ (1 << bit)));
+			qca8337_lite_reg_write(qca8337,
+					S17_VLAN_CTRL0_REG(bit),
+					(vlanid << 16) | 0x1);
+		}
+	}
 
-	qca8337_lite_reg_write(qca8337, S17_P6LOOKUP_CTRL_REG, 0x0014001e);
-	qca8337_lite_reg_write(qca8337, S17_P6VLAN_CTRL0_REG, 0x10001);
+	return;
 }
 
 static int qca8337_get_mii_bus(struct qca8337_dev *qca8337)
