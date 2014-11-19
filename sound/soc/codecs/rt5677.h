@@ -1692,6 +1692,7 @@ struct rt5677_priv {
 	struct gpio_chip gpio_chip;
 #endif
 	bool dsp_vad_en;
+	bool is_vref_slow;
 
 	/* Interrupt handling */
 	struct irq_domain *domain;
