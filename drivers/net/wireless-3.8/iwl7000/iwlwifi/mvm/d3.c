@@ -105,11 +105,7 @@ void iwl_mvm_ipv6_addr_change(struct ieee80211_hw *hw,
 	int idx = 0;
 
 	read_lock_bh(&idev->lock);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 	list_for_each_entry(ifa, &idev->addr_list, if_list) {
-#else
-	for (ifa = idev->addr_list; ifa; ifa = ifa->if_next) {
-#endif
 		mvmvif->target_ipv6_addrs[idx] = ifa->addr;
 		idx++;
 		if (idx >= IWL_PROTO_OFFLOAD_NUM_IPV6_ADDRS_MAX)
@@ -199,8 +195,7 @@ static void iwl_mvm_wowlan_program_keys(struct ieee80211_hw *hw,
 			wkc.wep_key.key_offset = data->wep_key_idx;
 		}
 
-		ret = iwl_mvm_send_cmd_pdu(mvm, WEP_KEY, CMD_SYNC,
-					   sizeof(wkc), &wkc);
+		ret = iwl_mvm_send_cmd_pdu(mvm, WEP_KEY, 0, sizeof(wkc), &wkc);
 		data->error = ret != 0;
 
 		mvm->ptk_ivlen = key->iv_len;
@@ -347,7 +342,6 @@ static int iwl_mvm_send_patterns(struct iwl_mvm *mvm,
 	struct iwl_host_cmd cmd = {
 		.id = WOWLAN_PATTERNS,
 		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
-		.flags = CMD_SYNC,
 	};
 	int i, err;
 
@@ -446,10 +440,8 @@ static int iwl_mvm_d3_reprogram(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 
 	if (WARN_ON(!vif->bss_conf.assoc))
 		return -EINVAL;
-	/* hack */
-	vif->bss_conf.assoc = false;
+
 	ret = iwl_mvm_mac_ctxt_add(mvm, vif);
-	vif->bss_conf.assoc = true;
 	if (ret)
 		return ret;
 
@@ -485,7 +477,7 @@ static int iwl_mvm_d3_reprogram(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 		return ret;
 	rcu_assign_pointer(mvm->fw_id_to_mac_id[mvmvif->ap_sta_id], ap_sta);
 
-	ret = iwl_mvm_mac_ctxt_changed(mvm, vif, NULL);
+	ret = iwl_mvm_mac_ctxt_changed(mvm, vif, false, NULL);
 	if (ret)
 		return ret;
 
@@ -499,7 +491,7 @@ static int iwl_mvm_d3_reprogram(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	for (i = 1; i < MAX_BINDINGS; i++)
 		quota_cmd.quotas[i].id_and_color = cpu_to_le32(FW_CTXT_INVALID);
 
-	ret = iwl_mvm_send_cmd_pdu(mvm, TIME_QUOTA_CMD, CMD_SYNC,
+	ret = iwl_mvm_send_cmd_pdu(mvm, TIME_QUOTA_CMD, 0,
 				   sizeof(quota_cmd), &quota_cmd);
 	if (ret)
 		IWL_ERR(mvm, "Failed to send quota: %d\n", ret);
@@ -519,15 +511,13 @@ static int iwl_mvm_get_last_nonqos_seq(struct iwl_mvm *mvm,
 	};
 	struct iwl_host_cmd cmd = {
 		.id = NON_QOS_TX_COUNTER_CMD,
-		.flags = CMD_SYNC | CMD_WANT_SKB,
+		.flags = CMD_WANT_SKB,
 	};
 	int err;
 	u32 size;
 
-	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API) {
-		cmd.data[0] = &query_cmd;
-		cmd.len[0] = sizeof(query_cmd);
-	}
+	cmd.data[0] = &query_cmd;
+	cmd.len[0] = sizeof(query_cmd);
 
 	err = iwl_mvm_send_cmd(mvm, &cmd);
 	if (err)
@@ -538,10 +528,8 @@ static int iwl_mvm_get_last_nonqos_seq(struct iwl_mvm *mvm,
 		err = -EINVAL;
 	} else {
 		err = le16_to_cpup((__le16 *)cmd.resp_pkt->data);
-		/* new API returns next, not last-used seqno */
-		if (mvm->fw->ucode_capa.flags &
-				IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API)
-			err = (u16) (err - 0x10);
+		/* firmware returns next, not last-used seqno */
+		err = (u16) (err - 0x10);
 	}
 
 	iwl_free_resp(&cmd);
@@ -565,11 +553,7 @@ void iwl_mvm_set_last_nonqos_seq(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 
 	mvmvif->seqno_valid = false;
 
-	if (!(mvm->fw->ucode_capa.flags &
-			IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API))
-		return;
-
-	if (iwl_mvm_send_cmd_pdu(mvm, NON_QOS_TX_COUNTER_CMD, CMD_SYNC,
+	if (iwl_mvm_send_cmd_pdu(mvm, NON_QOS_TX_COUNTER_CMD, 0,
 				 sizeof(query_cmd), &query_cmd))
 		IWL_ERR(mvm, "failed to set non-QoS seqno\n");
 }
@@ -584,7 +568,7 @@ iwl_mvm_send_wowlan_config_cmd(struct iwl_mvm *mvm,
 	if (mvm->fw->ucode_capa.api[0] & IWL_UCODE_TLV_API_WOWLAN_CONFIG_TID)
 		cmd_len = sizeof(*cmd);
 
-	return iwl_mvm_send_cmd_pdu(mvm, WOWLAN_CONFIGURATION, CMD_SYNC,
+	return iwl_mvm_send_cmd_pdu(mvm, WOWLAN_CONFIGURATION, 0,
 				    cmd_len, cmd);
 }
 
@@ -613,7 +597,7 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	};
 	struct iwl_host_cmd d3_cfg_cmd = {
 		.id = D3_CONFIG_CMD,
-		.flags = CMD_SYNC | CMD_WANT_SKB,
+		.flags = CMD_WANT_SKB,
 		.data[0] = &d3_cfg_cmd_data,
 		.len[0] = sizeof(d3_cfg_cmd_data),
 	};
@@ -751,7 +735,6 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 		if (key_data.use_rsc_tsc) {
 			struct iwl_host_cmd rsc_tsc_cmd = {
 				.id = WOWLAN_TSC_RSC_PARAM,
-				.flags = CMD_SYNC,
 				.data[0] = key_data.rsc_tsc,
 				.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
 				.len[0] = sizeof(*key_data.rsc_tsc),
@@ -765,7 +748,7 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 		if (key_data.use_tkip) {
 			ret = iwl_mvm_send_cmd_pdu(mvm,
 						   WOWLAN_TKIP_PARAM,
-						   CMD_SYNC, sizeof(tkip_cmd),
+						   0, sizeof(tkip_cmd),
 						   &tkip_cmd);
 			if (ret)
 				goto out;
@@ -782,8 +765,7 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 			kek_kck_cmd.replay_ctr = mvmvif->rekey_data.replay_ctr;
 
 			ret = iwl_mvm_send_cmd_pdu(mvm,
-						   WOWLAN_KEK_KCK_MATERIAL,
-						   CMD_SYNC,
+						   WOWLAN_KEK_KCK_MATERIAL, 0,
 						   sizeof(kek_kck_cmd),
 						   &kek_kck_cmd);
 			if (ret)
@@ -799,7 +781,7 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	if (ret)
 		goto out;
 
-	ret = iwl_mvm_send_proto_offload(mvm, vif, false, CMD_SYNC);
+	ret = iwl_mvm_send_proto_offload(mvm, vif, false, 0);
 	if (ret)
 		goto out;
 
@@ -807,7 +789,7 @@ static int __iwl_mvm_suspend(struct ieee80211_hw *hw,
 	if (ret)
 		goto out;
 
-	ret = iwl_mvm_power_update_mac(mvm, vif);
+	ret = iwl_mvm_power_update_mac(mvm);
 	if (ret)
 		goto out;
 
@@ -1050,7 +1032,7 @@ static void iwl_mvm_set_tkip_rx_seq(struct tkip_sc *scs,
 }
 
 static void iwl_mvm_set_key_rx_seq(struct ieee80211_key_conf *key,
-				   struct iwl_wowlan_status_v6 *status)
+				   struct iwl_wowlan_status *status)
 {
 	union iwl_all_tsc_rsc *rsc = &status->gtk.rsc.all_tsc_rsc;
 
@@ -1067,7 +1049,7 @@ static void iwl_mvm_set_key_rx_seq(struct ieee80211_key_conf *key,
 }
 
 struct iwl_mvm_d3_gtk_iter_data {
-	struct iwl_wowlan_status_v6 *status;
+	struct iwl_wowlan_status *status;
 	void *last_gtk;
 	u32 cipher;
 	bool find_phase, unhandled_cipher;
@@ -1143,7 +1125,7 @@ static void iwl_mvm_d3_update_gtks(struct ieee80211_hw *hw,
 
 static bool iwl_mvm_setup_connection_keep(struct iwl_mvm *mvm,
 					  struct ieee80211_vif *vif,
-					  struct iwl_wowlan_status_v6 *status)
+					  struct iwl_wowlan_status *status)
 {
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_mvm_d3_gtk_iter_data gtkdata = {
@@ -1238,10 +1220,10 @@ static bool iwl_mvm_query_wakeup_reasons(struct iwl_mvm *mvm,
 	} err_info;
 	struct iwl_host_cmd cmd = {
 		.id = WOWLAN_GET_STATUSES,
-		.flags = CMD_SYNC | CMD_WANT_SKB,
+		.flags = CMD_WANT_SKB,
 	};
 	struct iwl_wowlan_status_data status;
-	struct iwl_wowlan_status_v6 *status_v6;
+	struct iwl_wowlan_status *fw_status;
 	int ret, len, status_size, i;
 	bool keep;
 	struct ieee80211_sta *ap_sta;
@@ -1264,7 +1246,7 @@ static bool iwl_mvm_query_wakeup_reasons(struct iwl_mvm *mvm,
 	}
 
 	/* only for tracing for now */
-	ret = iwl_mvm_send_cmd_pdu(mvm, OFFLOADS_QUERY_CMD, CMD_SYNC, 0, NULL);
+	ret = iwl_mvm_send_cmd_pdu(mvm, OFFLOADS_QUERY_CMD, 0, 0, NULL);
 	if (ret)
 		IWL_ERR(mvm, "failed to query offload statistics (%d)\n", ret);
 
@@ -1278,10 +1260,7 @@ static bool iwl_mvm_query_wakeup_reasons(struct iwl_mvm *mvm,
 	if (!cmd.resp_pkt)
 		goto out_unlock;
 
-	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API)
-		status_size = sizeof(struct iwl_wowlan_status_v6);
-	else
-		status_size = sizeof(struct iwl_wowlan_status_v4);
+	status_size = sizeof(*fw_status);
 
 	len = iwl_rx_packet_payload_len(cmd.resp_pkt);
 	if (len < status_size) {
@@ -1289,35 +1268,18 @@ static bool iwl_mvm_query_wakeup_reasons(struct iwl_mvm *mvm,
 		goto out_free_resp;
 	}
 
-	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API) {
-		status_v6 = (void *)cmd.resp_pkt->data;
+	fw_status = (void *)cmd.resp_pkt->data;
 
-		status.pattern_number = le16_to_cpu(status_v6->pattern_number);
-		for (i = 0; i < 8; i++)
-			status.qos_seq_ctr[i] =
-				le16_to_cpu(status_v6->qos_seq_ctr[i]);
-		status.wakeup_reasons = le32_to_cpu(status_v6->wakeup_reasons);
-		status.wake_packet_length =
-			le32_to_cpu(status_v6->wake_packet_length);
-		status.wake_packet_bufsize =
-			le32_to_cpu(status_v6->wake_packet_bufsize);
-		status.wake_packet = status_v6->wake_packet;
-	} else {
-		struct iwl_wowlan_status_v4 *status_v4;
-		status_v6 = NULL;
-		status_v4 = (void *)cmd.resp_pkt->data;
-
-		status.pattern_number = le16_to_cpu(status_v4->pattern_number);
-		for (i = 0; i < 8; i++)
-			status.qos_seq_ctr[i] =
-				le16_to_cpu(status_v4->qos_seq_ctr[i]);
-		status.wakeup_reasons = le32_to_cpu(status_v4->wakeup_reasons);
-		status.wake_packet_length =
-			le32_to_cpu(status_v4->wake_packet_length);
-		status.wake_packet_bufsize =
-			le32_to_cpu(status_v4->wake_packet_bufsize);
-		status.wake_packet = status_v4->wake_packet;
-	}
+	status.pattern_number = le16_to_cpu(fw_status->pattern_number);
+	for (i = 0; i < 8; i++)
+		status.qos_seq_ctr[i] =
+			le16_to_cpu(fw_status->qos_seq_ctr[i]);
+	status.wakeup_reasons = le32_to_cpu(fw_status->wakeup_reasons);
+	status.wake_packet_length =
+		le32_to_cpu(fw_status->wake_packet_length);
+	status.wake_packet_bufsize =
+		le32_to_cpu(fw_status->wake_packet_bufsize);
+	status.wake_packet = fw_status->wake_packet;
 
 	if (len != status_size + ALIGN(status.wake_packet_bufsize, 4)) {
 		IWL_ERR(mvm, "Invalid WoWLAN status response!\n");
@@ -1344,7 +1306,7 @@ static bool iwl_mvm_query_wakeup_reasons(struct iwl_mvm *mvm,
 
 	iwl_mvm_report_wakeup_reasons(mvm, vif, &status);
 
-	keep = iwl_mvm_setup_connection_keep(mvm, vif, status_v6);
+	keep = iwl_mvm_setup_connection_keep(mvm, vif, fw_status);
 
 	iwl_free_resp(&cmd);
 	return keep;
@@ -1440,6 +1402,7 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 
 	/* return 1 to reconfigure the device */
 	set_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status);
+	set_bit(IWL_MVM_STATUS_D3_RECONFIG, &mvm->status);
 	return 1;
 }
 

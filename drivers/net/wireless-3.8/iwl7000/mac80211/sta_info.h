@@ -32,7 +32,6 @@
  *	when virtual port control is not in use.
  * @WLAN_STA_SHORT_PREAMBLE: Station is capable of receiving short-preamble
  *	frames.
- * @WLAN_STA_WME: Station is a QoS-STA.
  * @WLAN_STA_WDS: Station is one of our WDS peers.
  * @WLAN_STA_CLEAR_PS_FILT: Clear PS filter in hardware (using the
  *	IEEE80211_TX_CTL_CLEAR_PS_FILT control flag) when the next
@@ -48,6 +47,8 @@
  * @WLAN_STA_TDLS_PEER: Station is a TDLS peer.
  * @WLAN_STA_TDLS_PEER_AUTH: This TDLS peer is authorized to send direct
  *	packets. This means the link is enabled.
+ * @WLAN_STA_TDLS_INITIATOR: We are the initiator of the TDLS link with this
+ *	station.
  * @WLAN_STA_UAPSD: Station requested unscheduled SP while driver was
  *	keeping station in power-save mode, reply when the driver
  *	unblocks the station.
@@ -59,6 +60,8 @@
  * @WLAN_STA_TOFFSET_KNOWN: toffset calculated for this station is valid.
  * @WLAN_STA_MPSP_OWNER: local STA is owner of a mesh Peer Service Period.
  * @WLAN_STA_MPSP_RECIPIENT: local STA is recipient of a MPSP.
+ * @WLAN_STA_PS_DELIVER: station woke up, but we're still blocking TX
+ *	until pending frames are delivered
  */
 enum ieee80211_sta_info_flags {
 	WLAN_STA_AUTH,
@@ -66,7 +69,6 @@ enum ieee80211_sta_info_flags {
 	WLAN_STA_PS_STA,
 	WLAN_STA_AUTHORIZED,
 	WLAN_STA_SHORT_PREAMBLE,
-	WLAN_STA_WME,
 	WLAN_STA_WDS,
 	WLAN_STA_CLEAR_PS_FILT,
 	WLAN_STA_MFP,
@@ -75,6 +77,7 @@ enum ieee80211_sta_info_flags {
 	WLAN_STA_PSPOLL,
 	WLAN_STA_TDLS_PEER,
 	WLAN_STA_TDLS_PEER_AUTH,
+	WLAN_STA_TDLS_INITIATOR,
 	WLAN_STA_UAPSD,
 	WLAN_STA_SP,
 	WLAN_STA_4ADDR_EVENT,
@@ -151,7 +154,8 @@ struct tid_ampdu_tx {
 /**
  * struct tid_ampdu_rx - TID aggregation information (Rx).
  *
- * @reorder_buf: buffer to reorder incoming aggregated MPDUs
+ * @reorder_buf: buffer to reorder incoming aggregated MPDUs. An MPDU may be an
+ *	A-MSDU with individually reported subframes.
  * @reorder_time: jiffies when skb was added
  * @session_timer: check if peer keeps Tx-ing on the TID (by timeout value)
  * @reorder_timer: releases expired frames from the reorder buffer.
@@ -176,7 +180,7 @@ struct tid_ampdu_tx {
 struct tid_ampdu_rx {
 	struct rcu_head rcu_head;
 	spinlock_t reorder_lock;
-	struct sk_buff **reorder_buf;
+	struct sk_buff_head *reorder_buf;
 	unsigned long *reorder_time;
 	struct timer_list session_timer;
 	struct timer_list reorder_timer;
@@ -220,6 +224,32 @@ struct sta_ampdu_mlme {
 	unsigned long last_addba_req_time[IEEE80211_NUM_TIDS];
 	u8 addba_req_num[IEEE80211_NUM_TIDS];
 	u8 dialog_token_allocator;
+};
+
+/*
+ * struct ieee80211_tx_consec_loss_stat - Tx consecutive loss statistics
+ *
+ * Measures TX consecutive loss for a station per TID.
+ *
+ * @consec_late_loss: number of consecutive frames that passed the late
+ *	threshold and are considered  lost
+ * @consec_total_loss: number of consecutive frames that passed the late
+ *	threshold and are considered lost or were actually lost.
+ * @late_bins: each bin counts how many consecutive frames latency is
+ *	greater than the threshold in a certain range, and considered lost.
+ * @loss_bins: each bin counts how many consecutive frames were lost in a
+ *	certain range.
+ * @total_loss_bins: counts how mant consecutive packets were lost & late
+ *	within a certain range.
+ * @bin_count: amount of bins.
+ */
+struct ieee80211_tx_consec_loss_stat {
+	u32 consec_late_loss;
+	u32 consec_total_loss;
+	u32 *late_bins;
+	u32 *loss_bins;
+	u32 *total_loss_bins;
+	u32 bin_count;
 };
 
 /*
@@ -280,7 +310,6 @@ struct ieee80211_tx_latency_stat {
  * @driver_buffered_tids: bitmap of TIDs the driver has data buffered on
  * @rx_packets: Number of MSDUs received from this STA
  * @rx_bytes: Number of bytes received from this STA
- * @wep_weak_iv_count: number of weak WEP IVs received from this station
  * @last_rx: time (in jiffies) when last frame was received from this STA
  * @last_connected: time (in seconds) when a station got connected
  * @num_duplicates: number of duplicate frames received from this STA
@@ -300,12 +329,12 @@ struct ieee80211_tx_latency_stat {
  * @tid_seq: per-TID sequence numbers for sending to this STA
  * @ampdu_mlme: A-MPDU state machine state
  * @timer_to_tid: identity mapping to ID timers
+ * @tx_consec: Tx consecutive loss statistics
  * @tx_lat: Tx latency statistics
  * @llid: Local link ID
  * @plid: Peer link ID
  * @reason: Cancel reason on PLINK_HOLDING state
  * @plink_retries: Retries in establishment
- * @ignore_plink_timer: ignore the peer-link timer (used internally)
  * @plink_state: peer link state
  * @plink_timeout: timeout of peer link
  * @plink_timer: peer link watch timer
@@ -369,7 +398,6 @@ struct sta_info {
 	/* Updated from RX path only, no locking requirements */
 	unsigned long rx_packets;
 	u64 rx_bytes;
-	unsigned long wep_weak_iv_count;
 	unsigned long last_rx;
 	long last_connected;
 	unsigned long num_duplicates;
@@ -409,6 +437,7 @@ struct sta_info {
 	struct sta_ampdu_mlme ampdu_mlme;
 	u8 timer_to_tid[IEEE80211_NUM_TIDS];
 
+	struct ieee80211_tx_consec_loss_stat *tx_consec;
 	struct ieee80211_tx_latency_stat *tx_lat;
 
 #ifdef CPTCFG_MAC80211_MESH
@@ -420,7 +449,6 @@ struct sta_info {
 	u16 plid;
 	u16 reason;
 	u8 plink_retries;
-	bool ignore_plink_timer;
 	enum nl80211_plink_state plink_state;
 	u32 plink_timeout;
 	struct timer_list plink_timer;
@@ -630,6 +658,8 @@ void sta_set_rate_info_tx(struct sta_info *sta,
 			  struct rate_info *rinfo);
 void sta_set_rate_info_rx(struct sta_info *sta,
 			  struct rate_info *rinfo);
+void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo);
+
 void ieee80211_sta_expire(struct ieee80211_sub_if_data *sdata,
 			  unsigned long exp_time);
 u8 sta_info_tx_streams(struct sta_info *sta);

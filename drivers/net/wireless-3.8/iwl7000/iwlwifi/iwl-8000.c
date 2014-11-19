@@ -69,7 +69,7 @@
 #include "iwl-agn-hw.h"
 
 /* Highest firmware API version supported */
-#define IWL8000_UCODE_API_MAX	9
+#define IWL8000_UCODE_API_MAX	10
 
 /* Oldest version we won't warn about */
 #define IWL8000_UCODE_API_OK	8
@@ -85,9 +85,13 @@
 #define IWL8000_MODULE_FIRMWARE(api) IWL8000_FW_PRE __stringify(api) ".ucode"
 
 #define NVM_HW_SECTION_NUM_FAMILY_8000		10
+#define DEFAULT_NVM_FILE_FAMILY_8000		"iwl_nvm_8000.bin"
+
+/* Max SDIO RX aggregation size of the ADDBA request/response */
+#define MAX_RX_AGG_SIZE_8260_SDIO	28
 
 static const struct iwl_base_params iwl8000_base_params = {
-	.eeprom_size = OTP_LOW_IMAGE_SIZE,
+	.eeprom_size = OTP_LOW_IMAGE_SIZE_FAMILY_8000,
 	.num_of_queues = IWLAGN_NUM_QUEUES,
 	.pll_cfg_val = 0,
 	.shadow_ram_support = true,
@@ -122,13 +126,15 @@ const struct iwl_cfg iwl8260_2ac_cfg = {
 	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
 };
 
-const struct iwl_cfg iwl8260_n_cfg = {
+const struct iwl_cfg iwl8260_2ac_sdio_cfg = {
 	.name = "Intel(R) Dual Band Wireless-AC 8260",
 	.fw_name_pre = IWL8000_FW_PRE,
 	IWL_DEVICE_8000,
 	.ht_params = &iwl8000_ht_params,
 	.nvm_ver = IWL8000_NVM_VERSION,
 	.nvm_calib_ver = IWL8000_TX_POWER_VERSION,
+	.default_nvm_file = DEFAULT_NVM_FILE_FAMILY_8000,
+	.max_rx_agg_size = MAX_RX_AGG_SIZE_8260_SDIO,
 };
 
 MODULE_FIRMWARE(IWL8000_MODULE_FIRMWARE(IWL8000_UCODE_API_OK));

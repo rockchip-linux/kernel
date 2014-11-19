@@ -64,6 +64,8 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/export.h>
+#include <linux/etherdevice.h>
+#include <linux/pci.h>
 #include "iwl-drv.h"
 #include "iwl-modparams.h"
 #include "iwl-nvm-parse.h"
@@ -88,8 +90,10 @@ enum wkp_nvm_offsets {
 
 enum family_8000_nvm_offsets {
 	/* NVM HW-Section offset (in words) definitions */
-	HW_ADDR0_FAMILY_8000 = 0x12,
-	HW_ADDR1_FAMILY_8000 = 0x16,
+	HW_ADDR0_WFPM_FAMILY_8000 = 0x12,
+	HW_ADDR1_WFPM_FAMILY_8000 = 0x16,
+	HW_ADDR0_PCIE_FAMILY_8000 = 0x8A,
+	HW_ADDR1_PCIE_FAMILY_8000 = 0x8E,
 	MAC_ADDRESS_OVERRIDE_FAMILY_8000 = 1,
 
 	/* NVM SW-Section offset (in words) definitions */
@@ -101,6 +105,8 @@ enum family_8000_nvm_offsets {
 
 	/* NVM REGULATORY -Section offset (in words) definitions */
 	NVM_CHANNELS_FAMILY_8000 = 0,
+	NVM_LAR_OFFSET_FAMILY_8000 = 0x4C7,
+	NVM_LAR_ENABLED_FAMILY_8000 = 0x7,
 
 	/* NVM calibration section offset (in words) definitions */
 	NVM_CALIB_SECTION_FAMILY_8000 = 0x2B8,
@@ -129,7 +135,7 @@ static const u8 iwl_nvm_channels[] = {
 
 static const u8 iwl_nvm_channels_family_8000[] = {
 	/* 2.4 GHz */
-	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
 	/* 5 GHz */
 	36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92,
 	96, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144,
@@ -139,10 +145,11 @@ static const u8 iwl_nvm_channels_family_8000[] = {
 #define IWL_NUM_CHANNELS		ARRAY_SIZE(iwl_nvm_channels)
 #define IWL_NUM_CHANNELS_FAMILY_8000	ARRAY_SIZE(iwl_nvm_channels_family_8000)
 #define NUM_2GHZ_CHANNELS		14
-#define NUM_2GHZ_CHANNELS_FAMILY_8000	13
+#define NUM_2GHZ_CHANNELS_FAMILY_8000	14
 #define FIRST_2GHZ_HT_MINUS		5
 #define LAST_2GHZ_HT_PLUS		9
-#define LAST_5GHZ_HT			161
+#define LAST_5GHZ_HT			165
+#define LAST_5GHZ_HT_FAMILY_8000	181
 
 /* rate data (static) */
 static struct ieee80211_rate iwl_cfg80211_rates[] = {
@@ -198,16 +205,20 @@ enum iwl_nvm_channel_flags {
 	((ch_flags & NVM_CHANNEL_##x) ? # x " " : "")
 
 static u32 iwl_get_channel_flags(u8 ch_num, int ch_idx, bool is_5ghz,
-				 u16 nvm_flags)
+				 u16 nvm_flags, const struct iwl_cfg *cfg)
 {
 	u32 flags = IEEE80211_CHAN_NO_HT40;
+	u32 last_5ghz_ht = LAST_5GHZ_HT;
+
+	if (cfg->device_family == IWL_DEVICE_FAMILY_8000)
+		last_5ghz_ht = LAST_5GHZ_HT_FAMILY_8000;
 
 	if (!is_5ghz && (nvm_flags & NVM_CHANNEL_40MHZ)) {
 		if (ch_num <= LAST_2GHZ_HT_PLUS)
 			flags &= ~IEEE80211_CHAN_NO_HT40PLUS;
 		if (ch_num >= FIRST_2GHZ_HT_MINUS)
 			flags &= ~IEEE80211_CHAN_NO_HT40MINUS;
-	} else if (ch_num <= LAST_5GHZ_HT && (nvm_flags & NVM_CHANNEL_40MHZ)) {
+	} else if (ch_num <= last_5ghz_ht && (nvm_flags & NVM_CHANNEL_40MHZ)) {
 		if ((ch_idx - NUM_2GHZ_CHANNELS) % 2 == 0)
 			flags &= ~IEEE80211_CHAN_NO_HT40PLUS;
 		else
@@ -298,7 +309,7 @@ static int iwl_init_channel_map(struct device *dev, const struct iwl_cfg *cfg,
 		if (!lar_supported)
 			channel->flags = iwl_get_channel_flags(nvm_chan[ch_idx],
 							       ch_idx, is_5ghz,
-							       ch_flags);
+							       ch_flags, cfg);
 		else
 			channel->flags = 0;
 
@@ -477,13 +488,7 @@ static void iwl_set_hw_address(const struct iwl_cfg *cfg,
 			       struct iwl_nvm_data *data,
 			       const __le16 *nvm_sec)
 {
-	u8 hw_addr[ETH_ALEN];
-
-	if (cfg->device_family != IWL_DEVICE_FAMILY_8000)
-		memcpy(hw_addr, nvm_sec + HW_ADDR, ETH_ALEN);
-	else
-		memcpy(hw_addr, nvm_sec + MAC_ADDRESS_OVERRIDE_FAMILY_8000,
-		       ETH_ALEN);
+	const u8 *hw_addr = (const u8 *)(nvm_sec + HW_ADDR);
 
 	/* The byte order is little endian 16 bit, meaning 214365 */
 	data->hw_addr[0] = hw_addr[1];
@@ -494,16 +499,97 @@ static void iwl_set_hw_address(const struct iwl_cfg *cfg,
 	data->hw_addr[5] = hw_addr[4];
 }
 
+static void iwl_set_hw_address_family_8000(struct device *dev,
+					   const struct iwl_cfg *cfg,
+					   struct iwl_nvm_data *data,
+					   const __le16 *mac_override,
+					   const __le16 *nvm_hw)
+{
+	const u8 *hw_addr;
+
+	if (mac_override) {
+		hw_addr = (const u8 *)(mac_override +
+				 MAC_ADDRESS_OVERRIDE_FAMILY_8000);
+
+		/* The byte order is little endian 16 bit, meaning 214365 */
+		data->hw_addr[0] = hw_addr[1];
+		data->hw_addr[1] = hw_addr[0];
+		data->hw_addr[2] = hw_addr[3];
+		data->hw_addr[3] = hw_addr[2];
+		data->hw_addr[4] = hw_addr[5];
+		data->hw_addr[5] = hw_addr[4];
+
+		if (is_valid_ether_addr(data->hw_addr))
+			return;
+
+		IWL_ERR_DEV(dev,
+			    "mac address from nvm override section is not valid\n");
+	}
+
+	if (nvm_hw) {
+		/* read the MAC address from OTP */
+		if (!dev_is_pci(dev) || (data->nvm_version < 0xE08)) {
+			/* read the mac address from the WFPM location */
+			hw_addr = (const u8 *)(nvm_hw +
+					       HW_ADDR0_WFPM_FAMILY_8000);
+			data->hw_addr[0] = hw_addr[3];
+			data->hw_addr[1] = hw_addr[2];
+			data->hw_addr[2] = hw_addr[1];
+			data->hw_addr[3] = hw_addr[0];
+
+			hw_addr = (const u8 *)(nvm_hw +
+					       HW_ADDR1_WFPM_FAMILY_8000);
+			data->hw_addr[4] = hw_addr[1];
+			data->hw_addr[5] = hw_addr[0];
+		} else if ((data->nvm_version >= 0xE08) &&
+			   (data->nvm_version < 0xE0B)) {
+			/* read "reverse order"  from the PCIe location */
+			hw_addr = (const u8 *)(nvm_hw +
+					       HW_ADDR0_PCIE_FAMILY_8000);
+			data->hw_addr[5] = hw_addr[2];
+			data->hw_addr[4] = hw_addr[1];
+			data->hw_addr[3] = hw_addr[0];
+
+			hw_addr = (const u8 *)(nvm_hw +
+					       HW_ADDR1_PCIE_FAMILY_8000);
+			data->hw_addr[2] = hw_addr[3];
+			data->hw_addr[1] = hw_addr[2];
+			data->hw_addr[0] = hw_addr[1];
+		} else {
+			/* read from the PCIe location */
+			hw_addr = (const u8 *)(nvm_hw +
+					       HW_ADDR0_PCIE_FAMILY_8000);
+			data->hw_addr[5] = hw_addr[0];
+			data->hw_addr[4] = hw_addr[1];
+			data->hw_addr[3] = hw_addr[2];
+
+			hw_addr = (const u8 *)(nvm_hw +
+					       HW_ADDR1_PCIE_FAMILY_8000);
+			data->hw_addr[2] = hw_addr[1];
+			data->hw_addr[1] = hw_addr[2];
+			data->hw_addr[0] = hw_addr[3];
+		}
+		if (!is_valid_ether_addr(data->hw_addr))
+			IWL_ERR_DEV(dev,
+				    "mac address from hw section is not valid\n");
+
+		return;
+	}
+
+	IWL_ERR_DEV(dev, "mac address is not found\n");
+}
+
 struct iwl_nvm_data *
 iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 		   const __le16 *nvm_hw, const __le16 *nvm_sw,
 		   const __le16 *nvm_calib, const __le16 *regulatory,
 		   const __le16 *mac_override, u8 tx_chains, u8 rx_chains,
-		   bool lar_supported)
+		   bool lar_fw_supported)
 {
 	struct iwl_nvm_data *data;
 	u32 sku;
 	u32 radio_cfg;
+	u16 lar_config;
 
 	if (cfg->device_family != IWL_DEVICE_FAMILY_8000)
 		data = kzalloc(sizeof(*data) +
@@ -551,14 +637,21 @@ iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 
 		iwl_init_sbands(dev, cfg, data, nvm_sw,
 				sku & NVM_SKU_CAP_11AC_ENABLE, tx_chains,
-				rx_chains, lar_supported);
+				rx_chains, lar_fw_supported);
 	} else {
+		lar_config = le16_to_cpup(regulatory +
+					  NVM_LAR_OFFSET_FAMILY_8000);
+		data->lar_enabled = !!(lar_config &
+				       NVM_LAR_ENABLED_FAMILY_8000);
+
 		/* MAC address in family 8000 */
-		iwl_set_hw_address(cfg, data, mac_override);
+		iwl_set_hw_address_family_8000(dev, cfg, data, mac_override,
+					       nvm_hw);
 
 		iwl_init_sbands(dev, cfg, data, regulatory,
 				sku & NVM_SKU_CAP_11AC_ENABLE, tx_chains,
-				rx_chains, lar_supported);
+				rx_chains, lar_fw_supported &&
+				data->lar_enabled);
 	}
 
 	data->calib_version = 255;
@@ -566,3 +659,4 @@ iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 	return data;
 }
 IWL_EXPORT_SYMBOL(iwl_parse_nvm_data);
+

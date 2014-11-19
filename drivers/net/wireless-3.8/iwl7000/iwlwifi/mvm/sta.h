@@ -75,6 +75,7 @@
 #include "rs.h"
 
 struct iwl_mvm;
+struct iwl_mvm_vif;
 
 /**
  * DOC: station table - introduction
@@ -289,8 +290,6 @@ static inline u16 iwl_mvm_tid_queued(struct iwl_mvm_tid_data *tid_data)
  * @tid_disable_agg: bitmap: if bit(tid) is set, the fw won't send ampdus for
  *	tid.
  * @max_agg_bufsize: the maximal size of the AGG buffer for this station
- * @bt_reduced_txpower_dbg: debug mode in which %bt_reduced_txpower is forced
- *	by debugfs.
  * @bt_reduced_txpower: is reduced tx power enabled for this station
  * @next_status_eosp: the next reclaimed packet is a PS-Poll response and
  *	we need to signal the EOSP
@@ -299,6 +298,8 @@ static inline u16 iwl_mvm_tid_queued(struct iwl_mvm_tid_data *tid_data)
  * @tid_data: per tid data. Look at %iwl_mvm_tid_data.
  * @tx_protection: reference counter for controlling the Tx protection.
  * @tt_tx_protection: is thermal throttling enable Tx protection?
+ * @disable_tx: is tx to this STA disabled?
+ * @agg_tids: bitmap of tids whose status is operational aggregated (IWL_AGG_ON)
  *
  * When mac80211 creates a station it reserves some space (hw->sta_data_size)
  * in the structure for use by driver. This structure is placed in that
@@ -311,7 +312,6 @@ struct iwl_mvm_sta {
 	u32 mac_id_n_color;
 	u16 tid_disable_agg;
 	u8 max_agg_bufsize;
-	bool bt_reduced_txpower_dbg;
 	bool bt_reduced_txpower;
 	bool next_status_eosp;
 	spinlock_t lock;
@@ -322,6 +322,9 @@ struct iwl_mvm_sta {
 	/* Temporary, until the new TLC will control the Tx protection */
 	s8 tx_protection;
 	bool tt_tx_protection;
+
+	bool disable_tx;
+	u8 agg_tids;
 };
 
 static inline struct iwl_mvm_sta *
@@ -388,17 +391,15 @@ int iwl_mvm_sta_tx_agg_flush(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 			    struct ieee80211_sta *sta, u16 tid);
 
 int iwl_mvm_add_aux_sta(struct iwl_mvm *mvm);
-int iwl_mvm_allocate_int_sta(struct iwl_mvm *mvm, struct iwl_mvm_int_sta *sta,
-			     u32 qmask, enum nl80211_iftype iftype);
-void iwl_mvm_dealloc_int_sta(struct iwl_mvm *mvm,
-			     struct iwl_mvm_int_sta *sta);
-int iwl_mvm_send_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			   struct iwl_mvm_int_sta *bsta);
-int iwl_mvm_send_rm_bcast_sta(struct iwl_mvm *mvm,
-			      struct iwl_mvm_int_sta *bsta);
-int iwl_mvm_add_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			  struct iwl_mvm_int_sta *bsta);
-int iwl_mvm_rm_bcast_sta(struct iwl_mvm *mvm, struct iwl_mvm_int_sta *bsta);
+void iwl_mvm_del_aux_sta(struct iwl_mvm *mvm);
+
+int iwl_mvm_alloc_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+int iwl_mvm_send_add_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+int iwl_mvm_add_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+int iwl_mvm_send_rm_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+int iwl_mvm_rm_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+void iwl_mvm_dealloc_bcast_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
+
 void iwl_mvm_sta_drained_wk(struct work_struct *wk);
 void iwl_mvm_sta_modify_ps_wake(struct iwl_mvm *mvm,
 				struct ieee80211_sta *sta);
@@ -409,5 +410,13 @@ void iwl_mvm_sta_modify_sleep_tx_count(struct iwl_mvm *mvm,
 				       bool agg);
 int iwl_mvm_drain_sta(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta,
 		      bool drain);
+void iwl_mvm_sta_modify_disable_tx(struct iwl_mvm *mvm,
+				   struct iwl_mvm_sta *mvmsta, bool disable);
+void iwl_mvm_sta_modify_disable_tx_ap(struct iwl_mvm *mvm,
+				      struct ieee80211_sta *sta,
+				      bool disable);
+void iwl_mvm_modify_all_sta_disable_tx(struct iwl_mvm *mvm,
+				       struct iwl_mvm_vif *mvmvif,
+				       bool disable);
 
 #endif /* __sta_h__ */

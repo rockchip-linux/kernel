@@ -72,11 +72,7 @@ void ieee80211_configure_filter(struct ieee80211_local *local)
 	spin_lock_bh(&local->filter_lock);
 	changed_flags = local->filter_flags ^ new_flags;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 	mc = drv_prepare_multicast(local, &local->mc_list);
-#else
-	mc = drv_prepare_multicast(local, local->mc_count, local->mc_list);
-#endif
 	spin_unlock_bh(&local->filter_lock);
 
 	/* be a bit nasty */
@@ -153,6 +149,8 @@ static u32 ieee80211_hw_conf_chan(struct ieee80211_local *local)
 	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
 		if (!rcu_access_pointer(sdata->vif.chanctx_conf))
 			continue;
+		if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+			continue;
 		power = min(power, sdata->vif.bss_conf.txpower);
 	}
 	rcu_read_unlock();
@@ -204,7 +202,7 @@ void ieee80211_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 
-	if (!changed)
+	if (!changed || sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
 		return;
 
 	drv_bss_info_changed(local, sdata, &sdata->vif.bss_conf, changed);
@@ -275,7 +273,8 @@ void ieee80211_restart_hw(struct ieee80211_hw *hw)
 
 	/* use this reason, ieee80211_reconfig will unblock it */
 	ieee80211_stop_queues_by_reason(hw, IEEE80211_MAX_QUEUE_MAP,
-					IEEE80211_QUEUE_STOP_REASON_SUSPEND);
+					IEEE80211_QUEUE_STOP_REASON_SUSPEND,
+					false);
 
 	/*
 	 * Stop all Rx during the reconfig. We don't want state changes
@@ -349,7 +348,7 @@ static int ieee80211_ifa_changed(struct notifier_block *nb,
 
 	sdata_unlock(sdata);
 
-	return NOTIFY_DONE;
+	return NOTIFY_OK;
 }
 #endif
 
@@ -386,7 +385,7 @@ static int ieee80211_ifa6_changed(struct notifier_block *nb,
 
 	drv_ipv6_addr_change(local, sdata, idev);
 
-	return NOTIFY_DONE;
+	return NOTIFY_OK;
 }
 #endif
 
@@ -461,7 +460,9 @@ static const struct ieee80211_ht_cap mac80211_ht_capa_mod_mask = {
 	.cap_info = cpu_to_le16(IEEE80211_HT_CAP_SUP_WIDTH_20_40 |
 				IEEE80211_HT_CAP_MAX_AMSDU |
 				IEEE80211_HT_CAP_SGI_20 |
-				IEEE80211_HT_CAP_SGI_40),
+				IEEE80211_HT_CAP_SGI_40 |
+				IEEE80211_HT_CAP_LDPC_CODING |
+				IEEE80211_HT_CAP_40MHZ_INTOLERANT),
 	.mcs = {
 		.rx_mask = { 0xff, 0xff, 0xff, 0xff, 0xff,
 			     0xff, 0xff, 0xff, 0xff, 0xff, },
@@ -487,11 +488,6 @@ static const struct ieee80211_vht_cap mac80211_vht_capa_mod_mask = {
 		.rx_mcs_map = cpu_to_le16(~0),
 		.tx_mcs_map = cpu_to_le16(~0),
 	},
-};
-
-static const u8 extended_capabilities[] = {
-	0, 0, 0, 0, 0, 0, 0,
-	WLAN_EXT_CAPA8_OPMODE_NOTIF,
 };
 
 struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
@@ -550,10 +546,6 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 			WIPHY_FLAG_REPORTS_OBSS |
 			WIPHY_FLAG_OFFCHAN_TX;
 
-	wiphy->extended_capabilities = extended_capabilities;
-	wiphy->extended_capabilities_mask = extended_capabilities;
-	wiphy->extended_capabilities_len = ARRAY_SIZE(extended_capabilities);
-
 	if (ops->remain_on_channel)
 		wiphy->flags |= WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL;
 
@@ -604,12 +596,17 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 	wiphy->vht_capa_mod_mask = &mac80211_vht_capa_mod_mask;
 #endif
 
+	local->ext_capa[7] = WLAN_EXT_CAPA8_OPMODE_NOTIF;
+
+	wiphy->extended_capabilities = local->ext_capa;
+	wiphy->extended_capabilities_mask = local->ext_capa;
+	wiphy->extended_capabilities_len =
+		ARRAY_SIZE(local->ext_capa);
+
 	INIT_LIST_HEAD(&local->interfaces);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
 
 	__hw_addr_init(&local->mc_list);
 
-#endif
 	mutex_init(&local->iflist_mtx);
 	mutex_init(&local->mtx);
 
@@ -965,6 +962,10 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	if (local->hw.wiphy->flags & WIPHY_FLAG_SUPPORTS_TDLS)
 		local->hw.wiphy->flags |= WIPHY_FLAG_TDLS_EXTERNAL_SETUP;
 
+	/* mac80211 supports eCSA, if the driver supports STA CSA at all */
+	if (local->hw.flags & IEEE80211_HW_CHANCTX_STA_CSA)
+		local->ext_capa[0] |= WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING;
+
 	result = wiphy_register(local->hw.wiphy);
 	if (result < 0)
 		goto fail_wiphy_register;
@@ -1171,6 +1172,7 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
 		     ieee80211_free_ack_frame, NULL);
 	idr_destroy(&local->ack_status_frames);
 
+	kfree(rcu_access_pointer(local->tx_consec));
 	kfree(rcu_access_pointer(local->tx_latency));
 
 	wiphy_free(local->hw.wiphy);
@@ -1194,18 +1196,12 @@ static int __init ieee80211_init(void)
 	if (ret)
 		goto err_minstrel;
 
-	ret = rc80211_pid_init();
-	if (ret)
-		goto err_pid;
-
 	ret = ieee80211_iface_init();
 	if (ret)
 		goto err_netdev;
 
 	return 0;
  err_netdev:
-	rc80211_pid_exit();
- err_pid:
 	rc80211_minstrel_ht_exit();
  err_minstrel:
 	rc80211_minstrel_exit();
@@ -1215,13 +1211,8 @@ static int __init ieee80211_init(void)
 
 static void __exit ieee80211_exit(void)
 {
-	rc80211_pid_exit();
 	rc80211_minstrel_ht_exit();
 	rc80211_minstrel_exit();
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37))
-	flush_scheduled_work();
-#endif
 
 	ieee80211s_stop();
 

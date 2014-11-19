@@ -67,6 +67,8 @@
 #include <linux/types.h>
 #include <net/mac80211.h>
 
+#include "iwl-fw-file.h"
+
 /**
  * enum iwl_ucode_tlv_flag - ucode API flags
  * @IWL_UCODE_TLV_FLAGS_PAN: This is PAN capable microcode; this previously
@@ -76,29 +78,25 @@
  * @IWL_UCODE_TLV_FLAGS_MFP: This uCode image supports MFP (802.11w).
  * @IWL_UCODE_TLV_FLAGS_P2P: This uCode image supports P2P.
  * @IWL_UCODE_TLV_FLAGS_DW_BC_TABLE: The SCD byte count table is in DWORDS
- * @IWL_UCODE_TLV_FLAGS_UAPSD: This uCode image supports uAPSD
+ * @IWL_UCODE_TLV_FLAGS_UAPSD_SUPPORT: This uCode image supports uAPSD
  * @IWL_UCODE_TLV_FLAGS_SHORT_BL: 16 entries of black list instead of 64 in scan
  *	offload profile config command.
- * @IWL_UCODE_TLV_FLAGS_RX_ENERGY_API: supports rx signal strength api
- * @IWL_UCODE_TLV_FLAGS_TIME_EVENT_API_V2: using the new time event API.
  * @IWL_UCODE_TLV_FLAGS_D3_6_IPV6_ADDRS: D3 image supports up to six
  *	(rather than two) IPv6 addresses
- * @IWL_UCODE_TLV_FLAGS_BF_UPDATED: new beacon filtering API
  * @IWL_UCODE_TLV_FLAGS_NO_BASIC_SSID: not sending a probe with the SSID element
  *	from the probe request template.
- * @IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API: modified D3 API to allow keeping
- *	connection when going back to D0
  * @IWL_UCODE_TLV_FLAGS_NEW_NSOFFL_SMALL: new NS offload (small version)
  * @IWL_UCODE_TLV_FLAGS_NEW_NSOFFL_LARGE: new NS offload (large version)
- * @IWL_UCODE_TLV_FLAGS_SCHED_SCAN: this uCode image supports scheduled scan.
- * @IWL_UCODE_TLV_FLAGS_STA_KEY_CMD: new ADD_STA and ADD_STA_KEY command API
- * @IWL_UCODE_TLV_FLAGS_DEVICE_PS_CMD: support device wide power command
- *	containing CAM (Continuous Active Mode) indication.
+ * @IWL_UCODE_TLV_FLAGS_P2P_PM: P2P client supports PM as a stand alone MAC
  * @IWL_UCODE_TLV_FLAGS_P2P_BSS_PS_DCM: support power save on BSS station and
  *	P2P client interfaces simultaneously if they are in different bindings.
+ * @IWL_UCODE_TLV_FLAGS_P2P_BSS_PS_SCM: support power save on BSS station and
+ *	P2P client interfaces simultaneously if they are in same bindings.
+ * @IWL_UCODE_TLV_FLAGS_UAPSD_SUPPORT: General support for uAPSD
  * @IWL_UCODE_TLV_FLAGS_P2P_PS_UAPSD: P2P client supports uAPSD power save
  * @IWL_UCODE_TLV_FLAGS_BCAST_FILTERING: uCode supports broadcast filtering.
  * @IWL_UCODE_TLV_FLAGS_GO_UAPSD: AP/GO interfaces support uAPSD clients
+ * @IWL_UCODE_TLV_FLAGS_EBS_SUPPORT: this uCode image supports EBS.
  */
 enum iwl_ucode_tlv_flag {
 	IWL_UCODE_TLV_FLAGS_PAN			= BIT(0),
@@ -106,22 +104,16 @@ enum iwl_ucode_tlv_flag {
 	IWL_UCODE_TLV_FLAGS_MFP			= BIT(2),
 	IWL_UCODE_TLV_FLAGS_P2P			= BIT(3),
 	IWL_UCODE_TLV_FLAGS_DW_BC_TABLE		= BIT(4),
-	IWL_UCODE_TLV_FLAGS_NEWBT_COEX		= BIT(5),
-	IWL_UCODE_TLV_FLAGS_PM_CMD_SUPPORT	= BIT(6),
 	IWL_UCODE_TLV_FLAGS_SHORT_BL		= BIT(7),
-	IWL_UCODE_TLV_FLAGS_RX_ENERGY_API	= BIT(8),
-	IWL_UCODE_TLV_FLAGS_TIME_EVENT_API_V2	= BIT(9),
 	IWL_UCODE_TLV_FLAGS_D3_6_IPV6_ADDRS	= BIT(10),
-	IWL_UCODE_TLV_FLAGS_BF_UPDATED		= BIT(11),
 	IWL_UCODE_TLV_FLAGS_NO_BASIC_SSID	= BIT(12),
-	IWL_UCODE_TLV_FLAGS_D3_CONTINUITY_API	= BIT(14),
 	IWL_UCODE_TLV_FLAGS_NEW_NSOFFL_SMALL	= BIT(15),
 	IWL_UCODE_TLV_FLAGS_NEW_NSOFFL_LARGE	= BIT(16),
-	IWL_UCODE_TLV_FLAGS_SCHED_SCAN		= BIT(17),
-	IWL_UCODE_TLV_FLAGS_STA_KEY_CMD		= BIT(19),
-	IWL_UCODE_TLV_FLAGS_DEVICE_PS_CMD	= BIT(20),
+	IWL_UCODE_TLV_FLAGS_P2P_PM		= BIT(21),
 	IWL_UCODE_TLV_FLAGS_BSS_P2P_PS_DCM	= BIT(22),
+	IWL_UCODE_TLV_FLAGS_BSS_P2P_PS_SCM	= BIT(23),
 	IWL_UCODE_TLV_FLAGS_UAPSD_SUPPORT	= BIT(24),
+	IWL_UCODE_TLV_FLAGS_EBS_SUPPORT		= BIT(25),
 	IWL_UCODE_TLV_FLAGS_P2P_PS_UAPSD	= BIT(26),
 	IWL_UCODE_TLV_FLAGS_BCAST_FILTERING	= BIT(29),
 	IWL_UCODE_TLV_FLAGS_GO_UAPSD		= BIT(30),
@@ -130,21 +122,44 @@ enum iwl_ucode_tlv_flag {
 /**
  * enum iwl_ucode_tlv_api - ucode api
  * @IWL_UCODE_TLV_API_WOWLAN_CONFIG_TID: wowlan config includes tid field.
+ * @IWL_UCODE_TLV_CAPA_EXTENDED_BEACON: Support Extended beacon notification
+ * @IWL_UCODE_TLV_API_BT_COEX_SPLIT: new API for BT Coex
  * @IWL_UCODE_TLV_API_CSA_FLOW: ucode can do unbind-bind flow for CSA.
+ * @IWL_UCODE_TLV_API_DISABLE_STA_TX: ucode supports tx_disable bit.
+ * @IWL_UCODE_TLV_API_LMAC_SCAN: This ucode uses LMAC unified scan API.
+ * @IWL_UCODE_TLV_API_FRAGMENTED_SCAN: This ucode supports active dwell time
+ *	longer than the passive one, which is essential for fragmented scan.
  */
 enum iwl_ucode_tlv_api {
 	IWL_UCODE_TLV_API_WOWLAN_CONFIG_TID	= BIT(0),
+	IWL_UCODE_TLV_CAPA_EXTENDED_BEACON	= BIT(1),
+	IWL_UCODE_TLV_API_BT_COEX_SPLIT         = BIT(3),
 	IWL_UCODE_TLV_API_CSA_FLOW		= BIT(4),
+	IWL_UCODE_TLV_API_DISABLE_STA_TX	= BIT(5),
+	IWL_UCODE_TLV_API_LMAC_SCAN		= BIT(6),
+	IWL_UCODE_TLV_API_FRAGMENTED_SCAN	= BIT(8),
 };
 
 /**
  * enum iwl_ucode_tlv_capa - ucode capabilities
  * @IWL_UCODE_TLV_CAPA_D0I3_SUPPORT: supports D0i3
  * @IWL_UCODE_TLV_CAPA_LAR_SUPPORT: supports Location Aware Regulatory
+ * @IWL_UCODE_TLV_CAPA_TXPOWER_INSERTION_SUPPORT: supports insertion of current
+ *	tx power value into TPC Report action frame and Link Measurement Report
+ *	action frame
+ * @IWL_UCODE_TLV_CAPA_DS_PARAM_SET_IE_SUPPORT: supports adding DS params
+ *	element in probe requests.
+ * @IWL_UCODE_TLV_CAPA_WFA_TPC_REP_IE_SUPPORT: supports adding TPC Report IE in
+ *	probe requests.
+ * @IWL_UCODE_TLV_CAPA_QUIET_PERIOD_SUPPORT: supports Quiet Period requests
  */
 enum iwl_ucode_tlv_capa {
-	IWL_UCODE_TLV_CAPA_D0I3_SUPPORT		= BIT(0),
-	IWL_UCODE_TLV_CAPA_LAR_SUPPORT		= BIT(1),
+	IWL_UCODE_TLV_CAPA_D0I3_SUPPORT			= BIT(0),
+	IWL_UCODE_TLV_CAPA_LAR_SUPPORT			= BIT(1),
+	IWL_UCODE_TLV_CAPA_TXPOWER_INSERTION_SUPPORT	= BIT(8),
+	IWL_UCODE_TLV_CAPA_DS_PARAM_SET_IE_SUPPORT	= BIT(9),
+	IWL_UCODE_TLV_CAPA_WFA_TPC_REP_IE_SUPPORT	= BIT(10),
+	IWL_UCODE_TLV_CAPA_QUIET_PERIOD_SUPPORT		= BIT(11),
 };
 
 /* The default calibrate table size if not specified by firmware file */
@@ -189,10 +204,11 @@ enum iwl_ucode_sec {
 #define IWL_UCODE_SECTION_MAX 12
 #define IWL_API_ARRAY_SIZE	1
 #define IWL_CAPABILITIES_ARRAY_SIZE	1
-#define CPU1_CPU2_SEPARATOR_SECTION    0xFFFFCCCC
+#define CPU1_CPU2_SEPARATOR_SECTION	0xFFFFCCCC
 
 struct iwl_ucode_capabilities {
 	u32 max_probe_length;
+	u32 n_scan_channels;
 	u32 standard_phy_calibration_size;
 	u32 flags;
 	u32 api[IWL_API_ARRAY_SIZE];
@@ -210,6 +226,11 @@ struct fw_img {
 	struct fw_desc sec[IWL_UCODE_SECTION_MAX];
 	bool is_secure;
 	bool is_dual_cpus;
+};
+
+struct iwl_sf_region {
+	u32 addr;
+	u32 size;
 };
 
 /* uCode version contains 4 values: Major/Minor/API/Serial */
@@ -321,6 +342,7 @@ struct iwl_fw {
 	bool mvm_fw;
 
 	struct ieee80211_cipher_scheme cs[IWL_UCODE_MAX_CS];
+	u8 human_readable[FW_VER_HUMAN_READABLE_SZ];
 };
 
 #endif  /* __iwl_fw_h__ */

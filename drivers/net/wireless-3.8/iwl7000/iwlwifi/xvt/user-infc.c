@@ -81,6 +81,7 @@
 #include "iwl-tm-gnl.h"
 #include "iwl-dnt-cfg.h"
 #include "iwl-dnt-dispatch.h"
+#include "iwl-trans.h"
 
 #define XVT_UCODE_CALIB_TIMEOUT (2*HZ)
 #define XVT_SCU_BASE	(0xe6a00000)
@@ -114,7 +115,13 @@ int iwl_xvt_send_user_rx_notif(struct iwl_xvt *xvt,
 		return iwl_xvt_user_send_notif(xvt,
 					       IWL_TM_USER_CMD_NOTIF_RX_HDR,
 					       data, size, GFP_ATOMIC);
+	case APMG_PD_SV_CMD:
+		if (!xvt->apmg_pd_en)
+			break;
 
+		return iwl_xvt_user_send_notif(xvt,
+						IWL_TM_USER_CMD_NOTIF_APMG_PD,
+						   data, size, GFP_ATOMIC);
 	case REPLY_RX_MPDU_CMD:
 		return iwl_xvt_user_send_notif(xvt,
 					IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT,
@@ -157,6 +164,15 @@ static void iwl_xvt_led_disable(struct iwl_xvt *xvt)
 	iwl_write32(xvt->trans, CSR_LED_REG, CSR_LED_REG_TURN_OFF);
 }
 
+static int iwl_xvt_sdio_io_toggle(struct iwl_xvt *xvt,
+				 struct iwl_tm_data *data_in,
+				 struct iwl_tm_data *data_out)
+{
+	struct iwl_tm_sdio_io_toggle *sdio_io_toggle = data_in->data;
+
+	return iwl_trans_test_mode_cmd(xvt->trans, sdio_io_toggle->enable);
+}
+
 static int iwl_xvt_send_hcmd(struct iwl_xvt *xvt,
 			     struct iwl_tm_data *data_in,
 			     struct iwl_tm_data *data_out)
@@ -170,7 +186,6 @@ static int iwl_xvt_send_hcmd(struct iwl_xvt *xvt,
 		.data[0] = hcmd_req->data,
 		.len[0] = hcmd_req->len,
 		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
-		.flags = CMD_SYNC,
 	};
 	int ret;
 
@@ -299,7 +314,7 @@ static int iwl_xvt_read_sv_drop(struct iwl_xvt *xvt)
 		.data[0] = &debug_cmd,
 		.len[0] = sizeof(debug_cmd),
 		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
-		.flags = CMD_SYNC | CMD_WANT_SKB,
+		.flags = CMD_WANT_SKB,
 	};
 	int ret;
 
@@ -576,7 +591,7 @@ static int iwl_xvt_send_phy_cfg_cmd(struct iwl_xvt *xvt, u32 ucode_type)
 		       calib_cmd_cfg->phy_cfg);
 
 	/* Sending calibration configuration control data */
-	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, CMD_SYNC,
+	err = iwl_xvt_send_cmd_pdu(xvt, PHY_CONFIGURATION_CMD, 0,
 				   sizeof(*calib_cmd_cfg), calib_cmd_cfg);
 	if (err)
 		IWL_ERR(xvt, "Error (%d) running INIT calibrations control\n",
@@ -696,7 +711,8 @@ static void iwl_xvt_stop_op_mode(struct iwl_xvt *xvt)
 		return;
 
 	if (xvt->fw_running) {
-		iwl_trans_txq_disable(xvt->trans, IWL_XVT_DEFAULT_TX_QUEUE);
+		iwl_trans_txq_disable(xvt->trans, IWL_XVT_DEFAULT_TX_QUEUE,
+				      true);
 		xvt->fw_running = false;
 	}
 	iwl_trans_stop_device(xvt->trans);
@@ -752,7 +768,7 @@ static int iwl_xvt_continue_init(struct iwl_xvt *xvt)
 
 error:
 	xvt->state = IWL_XVT_STATE_UNINITIALIZED;
-	iwl_trans_txq_disable(xvt->trans, IWL_XVT_DEFAULT_TX_QUEUE);
+	iwl_trans_txq_disable(xvt->trans, IWL_XVT_DEFAULT_TX_QUEUE, true);
 	iwl_trans_stop_device(xvt->trans);
 
 cont_init_end:
@@ -821,6 +837,7 @@ iwl_xvt_set_mod_tx_params(struct iwl_xvt *xvt, struct sk_buff *skb,
 
 	tx_cmd->sta_id = sta_id;
 	tx_cmd->rate_n_flags = cpu_to_le32(rate_flags);
+	tx_cmd->tx_flags = TX_CMD_FLG_ACK_MSK;
 
 	/* the skb should already hold the data */
 	memcpy(tx_cmd->hdr, skb->data, sizeof(struct ieee80211_hdr));
@@ -941,6 +958,19 @@ static int iwl_xvt_rx_hdrs_mode(struct iwl_xvt *xvt,
 		xvt->rx_hdr_enabled = true;
 	else
 		xvt->rx_hdr_enabled = false;
+
+	return 0;
+}
+
+static int iwl_xvt_apmg_pd_mode(struct iwl_xvt *xvt,
+				  struct iwl_tm_data *data_in)
+{
+	struct iwl_xvt_apmg_pd_mode_request *apmg_pd = data_in->data;
+
+	if (apmg_pd->mode)
+		xvt->apmg_pd_en = true;
+	else
+		xvt->apmg_pd_en = false;
 
 	return 0;
 }
@@ -1086,6 +1116,10 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 		ret = iwl_xvt_get_dev_info(xvt, data_in, data_out);
 		break;
 
+	case IWL_TM_USER_CMD_SV_IO_TOGGLE:
+		ret = iwl_xvt_sdio_io_toggle(xvt, data_in, data_out);
+		break;
+
 	/* xVT cases */
 
 	case IWL_XVT_CMD_START:
@@ -1118,6 +1152,10 @@ int iwl_xvt_user_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	case IWL_XVT_CMD_RX_HDRS_MODE:
 		ret = iwl_xvt_rx_hdrs_mode(xvt, data_in);
+		break;
+
+	case IWL_XVT_CMD_APMG_PD_MODE:
+		ret = iwl_xvt_apmg_pd_mode(xvt, data_in);
 		break;
 
 	case IWL_XVT_CMD_ALLOC_DMA:

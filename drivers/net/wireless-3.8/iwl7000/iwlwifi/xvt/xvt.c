@@ -154,6 +154,8 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	trans_cfg.cmd_queue = IWL_XVT_CMD_QUEUE;
 	trans_cfg.cmd_fifo = IWL_XVT_CMD_FIFO;
 	trans_cfg.rx_buf_size_8k = false;
+	if (xvt->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_DW_BC_TABLE)
+		trans_cfg.bc_table_dword = true;
 
 	/* Configure transport layer */
 	iwl_trans_configure(xvt->trans, &trans_cfg);
@@ -189,7 +191,8 @@ static void iwl_xvt_stop(struct iwl_op_mode *op_mode)
 	if (xvt->state != IWL_XVT_STATE_UNINITIALIZED) {
 		if (xvt->fw_running) {
 			iwl_trans_txq_disable(xvt->trans,
-					      IWL_XVT_DEFAULT_TX_QUEUE);
+					      IWL_XVT_DEFAULT_TX_QUEUE,
+					      true);
 			xvt->fw_running = false;
 		}
 		iwl_trans_stop_device(xvt->trans);
@@ -262,8 +265,6 @@ static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
 	int err;
-
-	iwl_dnt_dispatch_handle_nic_err(xvt->trans);
 
 	xvt->fw_error = true;
 	wake_up_interruptible(&xvt->mod_tx_wq);

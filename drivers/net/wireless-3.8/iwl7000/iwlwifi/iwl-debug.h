@@ -47,12 +47,32 @@ void __iwl_warn(struct device *dev, const char *fmt, ...) __printf(2, 3);
 void __iwl_info(struct device *dev, const char *fmt, ...) __printf(2, 3);
 void __iwl_crit(struct device *dev, const char *fmt, ...) __printf(2, 3);
 
+/* not all compilers can evaluate strlen() at compile time, so use sizeof() */
+#define CHECK_FOR_NEWLINE(f) BUILD_BUG_ON(f[sizeof(f) - 2] != '\n')
+
 /* No matter what is m (priv, bus, trans), this will work */
-#define IWL_ERR(m, f, a...) __iwl_err((m)->dev, false, false, f, ## a)
-#define IWL_ERR_DEV(d, f, a...) __iwl_err((d), false, false, f, ## a)
-#define IWL_WARN(m, f, a...) __iwl_warn((m)->dev, f, ## a)
-#define IWL_INFO(m, f, a...) __iwl_info((m)->dev, f, ## a)
-#define IWL_CRIT(m, f, a...) __iwl_crit((m)->dev, f, ## a)
+#define IWL_ERR_DEV(d, f, a...)						\
+	do {								\
+		CHECK_FOR_NEWLINE(f);					\
+		__iwl_err((d), false, false, f, ## a);			\
+	} while (0)
+#define IWL_ERR(m, f, a...)						\
+	IWL_ERR_DEV((m)->dev, f, ## a)
+#define IWL_WARN(m, f, a...)						\
+	do {								\
+		CHECK_FOR_NEWLINE(f);					\
+		__iwl_warn((m)->dev, f, ## a);				\
+	} while (0)
+#define IWL_INFO(m, f, a...)						\
+	do {								\
+		CHECK_FOR_NEWLINE(f);					\
+		__iwl_info((m)->dev, f, ## a);				\
+	} while (0)
+#define IWL_CRIT(m, f, a...)						\
+	do {								\
+		CHECK_FOR_NEWLINE(f);					\
+		__iwl_crit((m)->dev, f, ## a);				\
+	} while (0)
 
 #if defined(CPTCFG_IWLWIFI_DEBUG) || defined(CPTCFG_IWLWIFI_DEVICE_TRACING)
 void __iwl_dbg(struct device *dev,
@@ -72,12 +92,17 @@ do {									\
 		       DUMP_PREFIX_OFFSET, 16, 1, p, len, 1);		\
 } while (0)
 
+#define __IWL_DEBUG_DEV(dev, level, limit, fmt, args...)		\
+	do {								\
+		CHECK_FOR_NEWLINE(fmt);					\
+		__iwl_dbg(dev, level, limit, __func__, fmt, ##args);	\
+	} while (0)
 #define IWL_DEBUG(m, level, fmt, args...)				\
-	__iwl_dbg((m)->dev, level, false, __func__, fmt, ##args)
+	__IWL_DEBUG_DEV((m)->dev, level, false, fmt, ##args)
 #define IWL_DEBUG_DEV(dev, level, fmt, args...)				\
-	__iwl_dbg((dev), level, false, __func__, fmt, ##args)
+	__IWL_DEBUG_DEV(dev, level, false, fmt, ##args)
 #define IWL_DEBUG_LIMIT(m, level, fmt, args...)				\
-	__iwl_dbg((m)->dev, level, true, __func__, fmt, ##args)
+	__IWL_DEBUG_DEV((m)->dev, level, true, fmt, ##args)
 
 #ifdef CPTCFG_IWLWIFI_DEBUG
 #define iwl_print_hex_dump(m, level, p, len)				\
@@ -120,6 +145,7 @@ do {                                            			\
 #define IWL_DL_HCMD		0x00000004
 #define IWL_DL_STATE		0x00000008
 /* 0x000000F0 - 0x00000010 */
+#define IWL_DL_QUOTA		0x00000010
 #define IWL_DL_TE		0x00000020
 #define IWL_DL_EEPROM		0x00000040
 #define IWL_DL_RADIO		0x00000080
@@ -165,6 +191,7 @@ do {                                            			\
 #define IWL_DEBUG_LED(p, f, a...)	IWL_DEBUG(p, IWL_DL_LED, f, ## a)
 #define IWL_DEBUG_WEP(p, f, a...)	IWL_DEBUG(p, IWL_DL_WEP, f, ## a)
 #define IWL_DEBUG_HC(p, f, a...)	IWL_DEBUG(p, IWL_DL_HCMD, f, ## a)
+#define IWL_DEBUG_QUOTA(p, f, a...)	IWL_DEBUG(p, IWL_DL_QUOTA, f, ## a)
 #define IWL_DEBUG_TE(p, f, a...)	IWL_DEBUG(p, IWL_DL_TE, f, ## a)
 #define IWL_DEBUG_EEPROM(d, f, a...)	IWL_DEBUG_DEV(d, IWL_DL_EEPROM, f, ## a)
 #define IWL_DEBUG_CALIB(p, f, a...)	IWL_DEBUG(p, IWL_DL_CALIB, f, ## a)

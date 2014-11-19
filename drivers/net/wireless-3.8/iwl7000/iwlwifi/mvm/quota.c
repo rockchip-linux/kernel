@@ -82,7 +82,7 @@ struct iwl_mvm_quota_iterator_data {
 	int colors[MAX_BINDINGS];
 	int low_latency[MAX_BINDINGS];
 	int n_low_latency_bindings;
-	struct ieee80211_vif *new_vif;
+	struct ieee80211_vif *disabled_vif;
 #ifdef CPTCFG_IWLMVM_TCM
 	unsigned long non_ll_macs;
 #endif
@@ -95,13 +95,8 @@ static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
 	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	u16 id;
 
-	/*
-	 * We'll account for the new interface (if any) below,
-	 * skip it here in case we're not called from within
-	 * the add_interface callback (otherwise it won't show
-	 * up in iteration)
-	 */
-	if (vif == data->new_vif)
+	/* skip disabled interfaces here immediately */
+	if (vif == data->disabled_vif)
 		return;
 
 	if (!mvmvif->phy_ctxt)
@@ -183,20 +178,26 @@ static void iwl_mvm_adjust_quota_for_noa(struct iwl_mvm *mvm,
 		quota *= (beacon_int - mvm->noa_duration);
 		quota /= beacon_int;
 
+		IWL_DEBUG_QUOTA(mvm, "quota: adjust for NoA from %d to %d\n",
+				le32_to_cpu(cmd->quotas[i].quota), quota);
+
 		cmd->quotas[i].quota = cpu_to_le32(quota);
 	}
 #endif
 }
 
-int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
+int iwl_mvm_update_quotas(struct iwl_mvm *mvm,
+			  struct ieee80211_vif *disabled_vif)
 {
 	struct iwl_time_quota_cmd cmd = {};
-	int i, idx, ret, num_active_macs, quota, quota_rem, n_non_lowlat;
+	int i, idx, err, num_active_macs, quota, quota_rem, n_non_lowlat;
 	struct iwl_mvm_quota_iterator_data data = {
 		.n_interfaces = {},
 		.colors = { -1, -1, -1, -1 },
-		.new_vif = newvif,
+		.disabled_vif = disabled_vif,
 	};
+	struct iwl_time_quota_cmd *last = &mvm->last_quota_cmd;
+	bool send = false;
 
 	lockdep_assert_held(&mvm->mutex);
 
@@ -210,10 +211,6 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 	ieee80211_iterate_active_interfaces_atomic(
 		mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
 		iwl_mvm_quota_iterator, &data);
-	if (newvif) {
-		data.new_vif = NULL;
-		iwl_mvm_quota_iterator(&data, newvif->addr, newvif);
-	}
 
 	/*
 	 * The FW's scheduling session consists of
@@ -261,6 +258,9 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 		quota = (QUOTA_100 - QUOTA_LOWLAT_MIN) / n_non_lowlat;
 		quota_rem = QUOTA_100 - n_non_lowlat * quota -
 			    QUOTA_LOWLAT_MIN;
+		IWL_DEBUG_QUOTA(mvm,
+				"quota: low-latency binding active, remaining quota per other binding: %d\n",
+				quota);
 	} else if (num_active_macs) {
 		/*
 		 * There are 0 or more than 1 low latency bindings, or all the
@@ -269,6 +269,9 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 		 */
 		quota = QUOTA_100 / num_active_macs;
 		quota_rem = QUOTA_100 % num_active_macs;
+		IWL_DEBUG_QUOTA(mvm,
+				"quota: splitting evenly per binding: %d\n",
+				quota);
 	} else {
 		/* values don't really matter - won't be used */
 		quota = 0;
@@ -293,7 +296,6 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 			 * binding.
 			 */
 			cmd.quotas[idx].quota = cpu_to_le32(QUOTA_LOWLAT_MIN);
-
 		else
 			cmd.quotas[idx].quota =
 				cpu_to_le32(quota * data.n_interfaces[i]);
@@ -311,15 +313,44 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm, struct ieee80211_vif *newvif)
 	for (i = 0; i < MAX_BINDINGS; i++) {
 		if (le32_to_cpu(cmd.quotas[i].quota) != 0) {
 			le32_add_cpu(&cmd.quotas[i].quota, quota_rem);
+			IWL_DEBUG_QUOTA(mvm,
+					"quota: giving remainder of %d to binding %d\n",
+					quota_rem, i);
 			break;
 		}
 	}
 
 	iwl_mvm_adjust_quota_for_noa(mvm, &cmd);
 
-	ret = iwl_mvm_send_cmd_pdu(mvm, TIME_QUOTA_CMD, CMD_SYNC,
-				   sizeof(cmd), &cmd);
-	if (ret)
-		IWL_ERR(mvm, "Failed to send quota: %d\n", ret);
-	return ret;
+	/* check that we have non-zero quota for all valid bindings */
+	for (i = 0; i < MAX_BINDINGS; i++) {
+		if (cmd.quotas[i].id_and_color != last->quotas[i].id_and_color)
+			send = true;
+		if (cmd.quotas[i].max_duration != last->quotas[i].max_duration)
+			send = true;
+		if (abs((int)le32_to_cpu(cmd.quotas[i].quota) -
+			(int)le32_to_cpu(last->quotas[i].quota))
+						> IWL_MVM_QUOTA_THRESHOLD)
+			send = true;
+		if (cmd.quotas[i].id_and_color == cpu_to_le32(FW_CTXT_INVALID))
+			continue;
+		WARN_ONCE(cmd.quotas[i].quota == 0,
+			  "zero quota on binding %d\n", i);
+	}
+
+	if (!send) {
+		/* don't send a practically unchanged command, the firmware has
+		 * to re-initialize a lot of state and that can have an adverse
+		 * impact on it
+		 */
+		return 0;
+	}
+
+	err = iwl_mvm_send_cmd_pdu(mvm, TIME_QUOTA_CMD, 0, sizeof(cmd), &cmd);
+
+	if (err)
+		IWL_ERR(mvm, "Failed to send quota: %d\n", err);
+	else
+		mvm->last_quota_cmd = cmd;
+	return err;
 }

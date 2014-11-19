@@ -72,10 +72,18 @@
 
 /* Default NVM size to read */
 #define IWL_NVM_DEFAULT_CHUNK_SIZE (2*1024)
-#define IWL_MAX_NVM_SECTION_SIZE 7000
+#define IWL_MAX_NVM_SECTION_SIZE	0x1b58
+#define IWL_MAX_NVM_8000A_SECTION_SIZE	0xffc
+#define IWL_MAX_NVM_8000B_SECTION_SIZE	0x1ffc
 
 #define NVM_WRITE_OPCODE 1
 #define NVM_READ_OPCODE 0
+
+/* load nvm chunk response */
+enum {
+	READ_NVM_CHUNK_SUCCEED = 0,
+	READ_NVM_CHUNK_NOT_VALID_ADDRESS = 1
+};
 
 /*
  * prepare the NVM host command w/ the pointers to the nvm buffer
@@ -93,7 +101,7 @@ static int iwl_nvm_write_chunk(struct iwl_mvm *mvm, u16 section,
 	struct iwl_host_cmd cmd = {
 		.id = NVM_ACCESS_CMD,
 		.len = { sizeof(struct iwl_nvm_access_cmd), length },
-		.flags = CMD_SYNC | CMD_SEND_IN_RFKILL,
+		.flags = CMD_SEND_IN_RFKILL,
 		.data = { &nvm_access_cmd, data },
 		/* data may come from vmalloc, so use _DUP */
 		.dataflags = { 0, IWL_HCMD_DFL_DUP },
@@ -115,7 +123,7 @@ static int iwl_nvm_read_chunk(struct iwl_mvm *mvm, u16 section,
 	struct iwl_rx_packet *pkt;
 	struct iwl_host_cmd cmd = {
 		.id = NVM_ACCESS_CMD,
-		.flags = CMD_SYNC | CMD_WANT_SKB | CMD_SEND_IN_RFKILL,
+		.flags = CMD_WANT_SKB | CMD_SEND_IN_RFKILL,
 		.data = { &nvm_access_cmd, },
 	};
 	int ret, bytes_read, offset_read;
@@ -142,10 +150,26 @@ static int iwl_nvm_read_chunk(struct iwl_mvm *mvm, u16 section,
 	offset_read = le16_to_cpu(nvm_resp->offset);
 	resp_data = nvm_resp->data;
 	if (ret) {
-		IWL_ERR(mvm,
-			"NVM access command failed with status %d (device: %s)\n",
-			ret, mvm->cfg->name);
-		ret = -EINVAL;
+		if ((offset != 0) &&
+		    (ret == READ_NVM_CHUNK_NOT_VALID_ADDRESS)) {
+			/*
+			 * meaning of NOT_VALID_ADDRESS:
+			 * driver try to read chunk from address that is
+			 * multiple of 2K and got an error since addr is empty.
+			 * meaning of (offset != 0): driver already
+			 * read valid data from another chunk so this case
+			 * is not an error.
+			 */
+			IWL_DEBUG_EEPROM(mvm->trans->dev,
+					 "NVM access command failed on offset 0x%x since that section size is multiple 2K\n",
+					 offset);
+			ret = 0;
+		} else {
+			IWL_DEBUG_EEPROM(mvm->trans->dev,
+					 "NVM access command failed with status %d (device: %s)\n",
+					 ret, mvm->cfg->name);
+			ret = -EIO;
+		}
 		goto exit;
 	}
 
@@ -200,7 +224,7 @@ static int iwl_nvm_write_section(struct iwl_mvm *mvm, u16 section,
  * without overflowing, so no check is needed.
  */
 static int iwl_nvm_read_section(struct iwl_mvm *mvm, u16 section,
-				u8 *data)
+				u8 *data, u32 size_read)
 {
 	u16 length, offset = 0;
 	int ret;
@@ -212,11 +236,18 @@ static int iwl_nvm_read_section(struct iwl_mvm *mvm, u16 section,
 
 	/* Read the NVM until exhausted (reading less than requested) */
 	while (ret == length) {
+		/* Check no memory assumptions fail and cause an overflow */
+		if ((size_read + offset + length) >
+		    mvm->cfg->base_params->eeprom_size) {
+			IWL_ERR(mvm, "EEPROM size is too small for NVM\n");
+			return -ENOBUFS;
+		}
+
 		ret = iwl_nvm_read_chunk(mvm, section, offset, length, data);
 		if (ret < 0) {
-			IWL_ERR(mvm,
-				"Cannot read NVM from section %d offset %d, length %d\n",
-				section, offset, length);
+			IWL_DEBUG_EEPROM(mvm->trans->dev,
+					 "Cannot read NVM from section %d offset %d, length %d\n",
+					 section, offset, length);
 			return ret;
 		}
 		offset += ret;
@@ -237,15 +268,22 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 	if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
 		if (!mvm->nvm_sections[NVM_SECTION_TYPE_SW].data ||
 		    !mvm->nvm_sections[mvm->cfg->nvm_hw_section_num].data) {
-			IWL_ERR(mvm, "Can't parse empty NVM sections\n");
+			IWL_ERR(mvm, "Can't parse empty OTP/NVM sections\n");
 			return NULL;
 		}
 	} else {
+		/* SW and REGULATORY sections are mandatory */
 		if (!mvm->nvm_sections[NVM_SECTION_TYPE_SW].data ||
-		    !mvm->nvm_sections[NVM_SECTION_TYPE_MAC_OVERRIDE].data ||
 		    !mvm->nvm_sections[NVM_SECTION_TYPE_REGULATORY].data) {
 			IWL_ERR(mvm,
-				"Can't parse empty family 8000 NVM sections\n");
+				"Can't parse empty family 8000 OTP/NVM sections\n");
+			return NULL;
+		}
+		/* MAC_OVERRIDE or at least HW section must exist */
+		if (!mvm->nvm_sections[mvm->cfg->nvm_hw_section_num].data &&
+		    !mvm->nvm_sections[NVM_SECTION_TYPE_MAC_OVERRIDE].data) {
+			IWL_ERR(mvm,
+				"Can't parse mac_address, empty sections\n");
 			return NULL;
 		}
 	}
@@ -264,7 +302,8 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 				  regulatory, mac_override,
 				  mvm->fw->valid_tx_ant,
 				  mvm->fw->valid_rx_ant,
-				  iwl_mvm_is_lar_supported(mvm));
+				  mvm->fw->ucode_capa.capa[0] &
+				  IWL_UCODE_TLV_CAPA_LAR_SUPPORT);
 }
 
 #define MAX_NVM_FILE_LEN	16384
@@ -301,6 +340,7 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 		u8 data[];
 	} *file_sec;
 	const u8 *eof, *temp;
+	int max_section_size;
 
 #define NVM_WORD1_LEN(x) (8 * (x & 0x03FF))
 #define NVM_WORD2_ID(x) (x >> 12)
@@ -309,22 +349,30 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 
 	IWL_DEBUG_EEPROM(mvm->trans->dev, "Read from external NVM\n");
 
+	/* Maximal size depends on HW family and step */
+	if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000)
+		max_section_size = IWL_MAX_NVM_SECTION_SIZE;
+	else if ((mvm->trans->hw_rev & 0xc) == 0) /* Family 8000 A-step */
+		max_section_size = IWL_MAX_NVM_8000A_SECTION_SIZE;
+	else /* Family 8000 B-step */
+		max_section_size = IWL_MAX_NVM_8000B_SECTION_SIZE;
+
 	/*
 	 * Obtain NVM image via request_firmware. Since we already used
 	 * request_firmware_nowait() for the firmware binary load and only
 	 * get here after that we assume the NVM request can be satisfied
 	 * synchronously.
 	 */
-	ret = request_firmware(&fw_entry, iwlwifi_mod_params.nvm_file,
+	ret = request_firmware(&fw_entry, mvm->nvm_file_name,
 			       mvm->trans->dev);
 	if (ret) {
 		IWL_ERR(mvm, "ERROR: %s isn't available %d\n",
-			iwlwifi_mod_params.nvm_file, ret);
+			mvm->nvm_file_name, ret);
 		return ret;
 	}
 
 	IWL_INFO(mvm, "Loaded NVM file %s (%zu bytes)\n",
-		 iwlwifi_mod_params.nvm_file, fw_entry->size);
+		 mvm->nvm_file_name, fw_entry->size);
 
 	if (fw_entry->size < sizeof(*file_sec)) {
 		IWL_ERR(mvm, "NVM file too small\n");
@@ -367,7 +415,7 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 						le16_to_cpu(file_sec->word1));
 		}
 
-		if (section_size > IWL_MAX_NVM_SECTION_SIZE) {
+		if (section_size > max_section_size) {
 			IWL_ERR(mvm, "ERROR - section too large (%d)\n",
 				section_size);
 			ret = -EINVAL;
@@ -431,53 +479,31 @@ int iwl_mvm_load_nvm_to_nic(struct iwl_mvm *mvm)
 	return ret;
 }
 
-int iwl_nvm_init(struct iwl_mvm *mvm)
+int iwl_nvm_init(struct iwl_mvm *mvm, bool read_nvm_from_nic)
 {
-	int ret, i, section;
+	int ret, section;
+	u32 size_read = 0;
 	u8 *nvm_buffer, *temp;
-	int nvm_to_read[NVM_MAX_NUM_SECTIONS];
-	int num_of_sections_to_read;
 
 	if (WARN_ON_ONCE(mvm->cfg->nvm_hw_section_num >= NVM_MAX_NUM_SECTIONS))
 		return -EINVAL;
 
-	/* load external NVM if configured */
-	if (iwlwifi_mod_params.nvm_file) {
-		/* move to External NVM flow */
-		ret = iwl_mvm_read_external_nvm(mvm);
-		if (ret)
-			return ret;
-	} else {
-		/* list of NVM sections we are allowed/need to read */
-		if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
-			nvm_to_read[0] = mvm->cfg->nvm_hw_section_num;
-			nvm_to_read[1] = NVM_SECTION_TYPE_SW;
-			nvm_to_read[2] = NVM_SECTION_TYPE_CALIBRATION;
-			nvm_to_read[3] = NVM_SECTION_TYPE_PRODUCTION;
-			num_of_sections_to_read = 4;
-		} else {
-			nvm_to_read[0] = NVM_SECTION_TYPE_SW;
-			nvm_to_read[1] = NVM_SECTION_TYPE_CALIBRATION;
-			nvm_to_read[2] = NVM_SECTION_TYPE_PRODUCTION;
-			nvm_to_read[3] = NVM_SECTION_TYPE_REGULATORY;
-			nvm_to_read[4] = NVM_SECTION_TYPE_MAC_OVERRIDE;
-			num_of_sections_to_read = 5;
-		}
-
+	/* load NVM values from nic */
+	if (read_nvm_from_nic) {
 		/* Read From FW NVM */
 		IWL_DEBUG_EEPROM(mvm->trans->dev, "Read from NVM\n");
 
-		/* TODO: find correct NVM max size for a section */
 		nvm_buffer = kmalloc(mvm->cfg->base_params->eeprom_size,
 				     GFP_KERNEL);
 		if (!nvm_buffer)
 			return -ENOMEM;
-		for (i = 0; i < num_of_sections_to_read; i++) {
-			section = nvm_to_read[i];
+		for (section = 0; section < NVM_MAX_NUM_SECTIONS; section++) {
 			/* we override the constness for initial read */
-			ret = iwl_nvm_read_section(mvm, section, nvm_buffer);
+			ret = iwl_nvm_read_section(mvm, section, nvm_buffer,
+						   size_read);
 			if (ret < 0)
-				break;
+				continue;
+			size_read += ret;
 			temp = kmemdup(nvm_buffer, ret, GFP_KERNEL);
 			if (!temp) {
 				ret = -ENOMEM;
@@ -506,15 +532,23 @@ int iwl_nvm_init(struct iwl_mvm *mvm)
 					mvm->nvm_hw_blob.size = ret;
 					break;
 				}
-				WARN(1, "section: %d", section);
 			}
 #endif
 		}
+		if (!size_read)
+			IWL_ERR(mvm, "OTP is blank\n");
 		kfree(nvm_buffer);
-		if (ret < 0)
+	}
+
+	/* load external NVM if configured */
+	if (mvm->nvm_file_name) {
+		/* move to External NVM flow */
+		ret = iwl_mvm_read_external_nvm(mvm);
+		if (ret)
 			return ret;
 	}
 
+	/* parse the relevant nvm sections */
 	mvm->nvm_data = iwl_parse_nvm_sections(mvm);
 	if (!mvm->nvm_data)
 		return -ENODATA;
@@ -532,7 +566,7 @@ iwl_mvm_update_mcc(struct iwl_mvm *mvm, const char *alpha2)
 	struct iwl_rx_packet *pkt;
 	struct iwl_host_cmd cmd = {
 		.id = MCC_UPDATE_CMD,
-		.flags = CMD_SYNC | CMD_WANT_SKB,
+		.flags = CMD_WANT_SKB,
 		.data = { &mcc_update_cmd },
 	};
 
@@ -608,7 +642,19 @@ exit:
 
 int iwl_mvm_init_mcc(struct iwl_mvm *mvm)
 {
-	const char *alpha2;
+	bool tlv_lar;
+	bool nvm_lar;
+
+	if (mvm->cfg->device_family == IWL_DEVICE_FAMILY_8000) {
+		tlv_lar = mvm->fw->ucode_capa.capa[0] &
+			IWL_UCODE_TLV_CAPA_LAR_SUPPORT;
+		nvm_lar = mvm->nvm_data->lar_enabled;
+		if (tlv_lar != nvm_lar)
+			IWL_INFO(mvm,
+				 "Conflict between TLV & NVM regarding enabling LAR (TLV = %s NVM =%s)\n",
+				 tlv_lar ? "enabled" : "disabled",
+				 nvm_lar ? "enabled" : "disabled");
+	}
 
 	if (!iwl_mvm_is_lar_supported(mvm))
 		return 0;
@@ -639,13 +685,32 @@ int iwl_mvm_init_mcc(struct iwl_mvm *mvm)
 	 * Driver regulatory hint for initial update - use the special
 	 * unknown-country "99" code. This will also clear the "custom reg"
 	 * flag and allow regdomain changes. It will happen after init since
-	 * RTNL is required. If an update arrived while the FW was down,
-	 * use the saved one.
+	 * RTNL is required.
 	 * Disallow scans that might crash the FW while the LAR regdomain
 	 * is not set.
 	 */
-	alpha2 = mvm->use_last_alpha2 ? mvm->last_alpha2 : "99";
-	mvm->use_last_alpha2 = false;
 	mvm->lar_regdom_set = false;
-	return regulatory_hint(mvm->hw->wiphy, alpha2);
+	return regulatory_hint(mvm->hw->wiphy, "99");
+}
+
+int iwl_mvm_rx_chub_update_mcc(struct iwl_mvm *mvm,
+			       struct iwl_rx_cmd_buffer *rxb,
+			       struct iwl_device_cmd *cmd)
+{
+	struct iwl_rx_packet *pkt = rxb_addr(rxb);
+	struct iwl_mcc_chub_notif *notif = (void *)pkt->data;
+	char mcc[3];
+
+	if (WARN_ON_ONCE(!iwl_mvm_is_lar_supported(mvm)))
+		return -EOPNOTSUPP;
+
+	mcc[0] = notif->mcc >> 8;
+	mcc[1] = notif->mcc & 0xff;
+	mcc[2] = '\0';
+
+	IWL_DEBUG_LAR(mvm,
+		      "RX: received chub update mcc command (mcc 0x%x '%s')\n",
+		      notif->mcc, mcc);
+
+	return 0;
 }

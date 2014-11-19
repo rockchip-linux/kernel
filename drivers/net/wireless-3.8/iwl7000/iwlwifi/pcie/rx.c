@@ -146,15 +146,13 @@ int iwl_pcie_rx_stop(struct iwl_trans *trans)
 /*
  * iwl_pcie_rxq_inc_wr_ptr - Update the write pointer for the RX queue
  */
-static void iwl_pcie_rxq_inc_wr_ptr(struct iwl_trans *trans,
-				    struct iwl_rxq *rxq)
+static void iwl_pcie_rxq_inc_wr_ptr(struct iwl_trans *trans)
 {
+	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
+	struct iwl_rxq *rxq = &trans_pcie->rxq;
 	u32 reg;
 
-	spin_lock_bh(&rxq->lock);
-
-	if (rxq->need_update == 0)
-		goto exit_unlock;
+	lockdep_assert_held(&rxq->lock);
 
 	/*
 	 * explicitly wake up the NIC if:
@@ -170,16 +168,30 @@ static void iwl_pcie_rxq_inc_wr_ptr(struct iwl_trans *trans,
 				       reg);
 			iwl_set_bit(trans, CSR_GP_CNTRL,
 				    CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
-			goto exit_unlock;
+			rxq->need_update = true;
+			return;
 		}
 	}
 
 	rxq->write_actual = round_down(rxq->write, 8);
 	iwl_write32(trans, FH_RSCSR_CHNL0_WPTR, rxq->write_actual);
-	rxq->need_update = 0;
+}
+
+static void iwl_pcie_rxq_check_wrptr(struct iwl_trans *trans)
+{
+	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
+	struct iwl_rxq *rxq = &trans_pcie->rxq;
+
+	spin_lock(&rxq->lock);
+
+	if (!rxq->need_update)
+		goto exit_unlock;
+
+	iwl_pcie_rxq_inc_wr_ptr(trans);
+	rxq->need_update = false;
 
  exit_unlock:
-	spin_unlock_bh(&rxq->lock);
+	spin_unlock(&rxq->lock);
 }
 
 /*
@@ -210,7 +222,7 @@ static void iwl_pcie_rxq_restock(struct iwl_trans *trans)
 	if (!test_bit(STATUS_DEVICE_ENABLED, &trans->status))
 		return;
 
-	spin_lock_bh(&rxq->lock);
+	spin_lock(&rxq->lock);
 	while ((iwl_rxq_space(rxq) > 0) && (rxq->free_count)) {
 		/* The overwritten rxb must be a used one */
 		rxb = rxq->queue[rxq->write];
@@ -227,7 +239,7 @@ static void iwl_pcie_rxq_restock(struct iwl_trans *trans)
 		rxq->write = (rxq->write + 1) & RX_QUEUE_MASK;
 		rxq->free_count--;
 	}
-	spin_unlock_bh(&rxq->lock);
+	spin_unlock(&rxq->lock);
 	/* If the pre-allocated buffer pool is dropping low, schedule to
 	 * refill it */
 	if (rxq->free_count <= RX_LOW_WATERMARK)
@@ -236,10 +248,9 @@ static void iwl_pcie_rxq_restock(struct iwl_trans *trans)
 	/* If we've added more space for the firmware to place data, tell it.
 	 * Increment device's write pointer in multiples of 8. */
 	if (rxq->write_actual != (rxq->write & ~0x7)) {
-		spin_lock_bh(&rxq->lock);
-		rxq->need_update = 1;
-		spin_unlock_bh(&rxq->lock);
-		iwl_pcie_rxq_inc_wr_ptr(trans, rxq);
+		spin_lock(&rxq->lock);
+		iwl_pcie_rxq_inc_wr_ptr(trans);
+		spin_unlock(&rxq->lock);
 	}
 }
 
@@ -261,12 +272,12 @@ static void iwl_pcie_rxq_alloc_rbs(struct iwl_trans *trans, gfp_t priority)
 	gfp_t gfp_mask = priority;
 
 	while (1) {
-		spin_lock_bh(&rxq->lock);
+		spin_lock(&rxq->lock);
 		if (list_empty(&rxq->rx_used)) {
-			spin_unlock_bh(&rxq->lock);
+			spin_unlock(&rxq->lock);
 			return;
 		}
-		spin_unlock_bh(&rxq->lock);
+		spin_unlock(&rxq->lock);
 
 		if (rxq->free_count > RX_LOW_WATERMARK)
 			gfp_mask |= __GFP_NOWARN;
@@ -295,17 +306,17 @@ static void iwl_pcie_rxq_alloc_rbs(struct iwl_trans *trans, gfp_t priority)
 			return;
 		}
 
-		spin_lock_bh(&rxq->lock);
+		spin_lock(&rxq->lock);
 
 		if (list_empty(&rxq->rx_used)) {
-			spin_unlock_bh(&rxq->lock);
+			spin_unlock(&rxq->lock);
 			__free_pages(page, trans_pcie->rx_page_order);
 			return;
 		}
 		rxb = list_first_entry(&rxq->rx_used, struct iwl_rx_mem_buffer,
 				       list);
 		list_del(&rxb->list);
-		spin_unlock_bh(&rxq->lock);
+		spin_unlock(&rxq->lock);
 
 		BUG_ON(rxb->page);
 		rxb->page = page;
@@ -316,9 +327,9 @@ static void iwl_pcie_rxq_alloc_rbs(struct iwl_trans *trans, gfp_t priority)
 				     DMA_FROM_DEVICE);
 		if (dma_mapping_error(trans->dev, rxb->page_dma)) {
 			rxb->page = NULL;
-			spin_lock_bh(&rxq->lock);
+			spin_lock(&rxq->lock);
 			list_add(&rxb->list, &rxq->rx_used);
-			spin_unlock_bh(&rxq->lock);
+			spin_unlock(&rxq->lock);
 			__free_pages(page, trans_pcie->rx_page_order);
 			return;
 		}
@@ -327,12 +338,12 @@ static void iwl_pcie_rxq_alloc_rbs(struct iwl_trans *trans, gfp_t priority)
 		/* and also 256 byte aligned! */
 		BUG_ON(rxb->page_dma & DMA_BIT_MASK(8));
 
-		spin_lock_bh(&rxq->lock);
+		spin_lock(&rxq->lock);
 
 		list_add_tail(&rxb->list, &rxq->rx_free);
 		rxq->free_count++;
 
-		spin_unlock_bh(&rxq->lock);
+		spin_unlock(&rxq->lock);
 	}
 }
 
@@ -363,20 +374,9 @@ static void iwl_pcie_rxq_free_rbs(struct iwl_trans *trans)
  * Also restock the Rx queue via iwl_pcie_rxq_restock.
  * This is called as a scheduled work item (except for during initialization)
  */
-static void iwl_pcie_rx_replenish(struct iwl_trans *trans)
+static void iwl_pcie_rx_replenish(struct iwl_trans *trans, gfp_t gfp)
 {
-	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
-
-	iwl_pcie_rxq_alloc_rbs(trans, GFP_KERNEL);
-
-	spin_lock(&trans_pcie->irq_lock);
-	iwl_pcie_rxq_restock(trans);
-	spin_unlock(&trans_pcie->irq_lock);
-}
-
-static void iwl_pcie_rx_replenish_now(struct iwl_trans *trans)
-{
-	iwl_pcie_rxq_alloc_rbs(trans, GFP_ATOMIC);
+	iwl_pcie_rxq_alloc_rbs(trans, gfp);
 
 	iwl_pcie_rxq_restock(trans);
 }
@@ -386,7 +386,7 @@ static void iwl_pcie_rx_replenish_work(struct work_struct *data)
 	struct iwl_trans_pcie *trans_pcie =
 	    container_of(data, struct iwl_trans_pcie, rx_replenish);
 
-	iwl_pcie_rx_replenish(trans_pcie->trans);
+	iwl_pcie_rx_replenish(trans_pcie->trans, GFP_KERNEL);
 }
 
 static int iwl_pcie_rx_alloc(struct iwl_trans *trans)
@@ -504,7 +504,7 @@ int iwl_pcie_rx_init(struct iwl_trans *trans)
 			return err;
 	}
 
-	spin_lock_bh(&rxq->lock);
+	spin_lock(&rxq->lock);
 
 	INIT_WORK(&trans_pcie->rx_replenish, iwl_pcie_rx_replenish_work);
 
@@ -520,16 +520,15 @@ int iwl_pcie_rx_init(struct iwl_trans *trans)
 	rxq->read = rxq->write = 0;
 	rxq->write_actual = 0;
 	memset(rxq->rb_stts, 0, sizeof(*rxq->rb_stts));
-	spin_unlock_bh(&rxq->lock);
+	spin_unlock(&rxq->lock);
 
-	iwl_pcie_rx_replenish(trans);
+	iwl_pcie_rx_replenish(trans, GFP_KERNEL);
 
 	iwl_pcie_rx_hw_init(trans, rxq);
 
-	spin_lock(&trans_pcie->irq_lock);
-	rxq->need_update = 1;
-	iwl_pcie_rxq_inc_wr_ptr(trans, rxq);
-	spin_unlock(&trans_pcie->irq_lock);
+	spin_lock(&rxq->lock);
+	iwl_pcie_rxq_inc_wr_ptr(trans);
+	spin_unlock(&rxq->lock);
 
 	return 0;
 }
@@ -548,9 +547,9 @@ void iwl_pcie_rx_free(struct iwl_trans *trans)
 
 	cancel_work_sync(&trans_pcie->rx_replenish);
 
-	spin_lock_bh(&rxq->lock);
+	spin_lock(&rxq->lock);
 	iwl_pcie_rxq_free_rbs(trans);
-	spin_unlock_bh(&rxq->lock);
+	spin_unlock(&rxq->lock);
 
 	dma_free_coherent(trans->dev, sizeof(__le32) * RX_QUEUE_SIZE,
 			  rxq->bd, rxq->bd_dma);
@@ -745,7 +744,7 @@ restart:
 			if (count >= 8) {
 				rxq->read = i;
 				spin_unlock(&rxq->lock);
-				iwl_pcie_rx_replenish_now(trans);
+				iwl_pcie_rx_replenish(trans, GFP_ATOMIC);
 				count = 0;
 				goto restart;
 			}
@@ -757,7 +756,7 @@ restart:
 	spin_unlock(&rxq->lock);
 
 	if (fill_rx)
-		iwl_pcie_rx_replenish_now(trans);
+		iwl_pcie_rx_replenish(trans, GFP_ATOMIC);
 	else
 		iwl_pcie_rxq_restock(trans);
 
@@ -852,7 +851,7 @@ static u32 iwl_pcie_int_cause_ict(struct iwl_trans *trans)
 				trans_pcie->ict_index, read);
 		trans_pcie->ict_tbl[trans_pcie->ict_index] = 0;
 		trans_pcie->ict_index =
-			iwl_queue_inc_wrap(trans_pcie->ict_index, ICT_COUNT);
+			((trans_pcie->ict_index + 1) & (ICT_COUNT - 1));
 
 		read = le32_to_cpu(trans_pcie->ict_tbl[trans_pcie->ict_index]);
 		trace_iwlwifi_dev_ict_read(trans->dev, trans_pcie->ict_index,
@@ -884,7 +883,6 @@ irqreturn_t iwl_pcie_irq_handler(int irq, void *dev_id)
 	struct isr_statistics *isr_stats = &trans_pcie->isr_stats;
 	u32 inta = 0;
 	u32 handled = 0;
-	u32 i;
 
 	lock_map_acquire(&trans->sync_cmd_lockdep_map);
 
@@ -1036,9 +1034,8 @@ irqreturn_t iwl_pcie_irq_handler(int irq, void *dev_id)
 	/* uCode wakes up after power-down sleep */
 	if (inta & CSR_INT_BIT_WAKEUP) {
 		IWL_DEBUG_ISR(trans, "Wakeup interrupt\n");
-		iwl_pcie_rxq_inc_wr_ptr(trans, &trans_pcie->rxq);
-		for (i = 0; i < trans->cfg->base_params->num_of_queues; i++)
-			iwl_pcie_txq_inc_wr_ptr(trans, &trans_pcie->txq[i]);
+		iwl_pcie_rxq_check_wrptr(trans);
+		iwl_pcie_txq_check_wrptrs(trans);
 
 		isr_stats->wakeup++;
 
@@ -1212,10 +1209,8 @@ void iwl_pcie_reset_ict(struct iwl_trans *trans)
 void iwl_pcie_disable_ict(struct iwl_trans *trans)
 {
 	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
-	bool old_use_ict;
 
 	spin_lock(&trans_pcie->irq_lock);
-	old_use_ict = trans_pcie->use_ict;
 	trans_pcie->use_ict = false;
 	spin_unlock(&trans_pcie->irq_lock);
 }

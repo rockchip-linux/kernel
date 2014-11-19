@@ -19,10 +19,9 @@
 #include <hdrs/mac80211.h>
 
 /* artifacts of backports - never in upstream */
-#define compat_pci_suspend(fn)
-#define compat_pci_resume(fn)
 #define genl_info_snd_portid(__genl_info) (__genl_info->snd_portid)
 #define NETLINK_CB_PORTID(__skb) NETLINK_CB(cb->skb).portid
+#define netlink_notify_portid(__notify) __notify->portid
 
 /* things that may or may not be upstream depending on the version */
 #ifndef ETH_P_802_3_MIN

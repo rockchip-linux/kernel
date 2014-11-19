@@ -174,7 +174,7 @@ static int iwl_mvm_sf_config(struct iwl_mvm *mvm, u8 sta_id,
 			     enum iwl_sf_state new_state)
 {
 	struct iwl_sf_cfg_cmd sf_cmd = {
-		.state = new_state,
+		.state = cpu_to_le32(new_state),
 	};
 	struct ieee80211_sta *sta;
 	int ret = 0;
@@ -238,9 +238,6 @@ int iwl_mvm_sf_update(struct iwl_mvm *mvm, struct ieee80211_vif *changed_vif,
 		.sta_vif_state = SF_UNINIT,
 		.sta_vif_ap_sta_id = IWL_MVM_STATION_COUNT,
 	};
-
-	if (IWL_UCODE_API(mvm->fw->ucode_ver) < 8)
-		return 0;
 
 	/*
 	 * Ignore the call if we are in HW Restart flow, or if the handled

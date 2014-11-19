@@ -63,6 +63,7 @@
 #include "iwl-trans.h"
 #include "iwl-op-mode.h"
 #include "iwl-fw.h"
+#include "iwl-csr.h"
 
 #include "xvt.h"
 #include "iwl-dnt-cfg.h"
@@ -91,15 +92,40 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 		container_of(notif_wait, struct iwl_xvt, notif_wait);
 	struct iwl_xvt_alive_data *alive_data = data;
 	struct xvt_alive_resp *palive;
+	struct xvt_alive_resp_ver2 *palive2;
 
-	palive = (void *)pkt->data;
-	xvt->error_event_table = le32_to_cpu(palive->error_event_table_ptr);
-	alive_data->scd_base_addr = le32_to_cpu(palive->scd_base_ptr);
-	alive_data->valid = le16_to_cpu(palive->status) == IWL_ALIVE_STATUS_OK;
+	if (iwl_rx_packet_payload_len(pkt) == sizeof(*palive)) {
+		palive = (void *)pkt->data;
+		xvt->error_event_table = le32_to_cpu(
+						palive->error_event_table_ptr);
+		alive_data->scd_base_addr = le32_to_cpu(
+						palive->scd_base_ptr);
+		alive_data->valid = le16_to_cpu(palive->status) ==
+							IWL_ALIVE_STATUS_OK;
 
-	IWL_DEBUG_FW(xvt, "Alive ucode status 0x%04x revision 0x%01X 0x%01X\n",
-		     le16_to_cpu(palive->status), palive->ver_type,
-		     palive->ver_subtype);
+		IWL_DEBUG_FW(xvt, "Alive ucode status 0x%04x revision 0x%01X "
+			     "0x%01X\n", le16_to_cpu(palive->status),
+			     palive->ver_type, palive->ver_subtype);
+	} else {
+		palive2 = (void *)pkt->data;
+
+		alive_data->scd_base_addr = le32_to_cpu(palive2->scd_base_ptr);
+		xvt->sf_space.addr = le32_to_cpu(palive2->st_fwrd_addr);
+		xvt->sf_space.size = le32_to_cpu(palive2->st_fwrd_size);
+
+		alive_data->valid = le16_to_cpu(palive2->status) ==
+				    IWL_ALIVE_STATUS_OK;
+
+		IWL_DEBUG_FW(xvt,
+			     "Alive VER2 ucode status 0x%04x revision 0x%01X "
+			     "0x%01X flags 0x%01X\n",
+			     le16_to_cpu(palive2->status), palive2->ver_type,
+			     palive2->ver_subtype, palive2->flags);
+
+		IWL_DEBUG_FW(xvt,
+			     "UMAC version: Major - 0x%x, Minor - 0x%x\n",
+			     palive2->umac_major, palive2->umac_minor);
+	}
 
 	return true;
 }
@@ -153,6 +179,12 @@ static int iwl_xvt_load_ucode_wait_alive(struct iwl_xvt *xvt,
 	/* fresh firmware was loaded */
 	xvt->fw_error = false;
 
+	/*
+	 * update the sdio allocation according to the pointer we get in the
+	 * alive notification.
+	 */
+	ret = iwl_trans_update_sf(xvt->trans, &xvt->sf_space);
+
 	iwl_trans_fw_alive(xvt->trans, alive_data.scd_base_addr);
 
 	if (ucode_type == IWL_UCODE_REGULAR)
@@ -179,7 +211,8 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 			xvt->fw_running = false;
 			if (xvt->cur_ucode == IWL_UCODE_REGULAR)
 				iwl_trans_txq_disable(xvt->trans,
-						      IWL_XVT_DEFAULT_TX_QUEUE);
+						      IWL_XVT_DEFAULT_TX_QUEUE,
+						      true);
 		}
 		iwl_trans_stop_device(xvt->trans);
 	}
@@ -189,6 +222,11 @@ int iwl_xvt_run_fw(struct iwl_xvt *xvt, u32 ucode_type)
 		IWL_ERR(xvt, "Failed to start HW\n");
 		return ret;
 	}
+
+	iwl_trans_set_bits_mask(xvt->trans,
+				CSR_HW_IF_CONFIG_REG,
+				CSR_HW_IF_CONFIG_REG_BIT_MAC_SI,
+				CSR_HW_IF_CONFIG_REG_BIT_MAC_SI);
 
 	/* Will also start the device */
 	ret = iwl_xvt_load_ucode_wait_alive(xvt, ucode_type);

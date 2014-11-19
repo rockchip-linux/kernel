@@ -131,9 +131,7 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 	if (!ret) {
 		key->flags |= KEY_FLAG_UPLOADED_TO_HARDWARE;
 
-		if (!((key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC) ||
-		      (key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_IV) ||
-		      (key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE)))
+		if (!(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC))
 			sdata->crypto_tx_tailroom_needed_cnt--;
 
 		WARN_ON((key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE) &&
@@ -181,9 +179,7 @@ static void ieee80211_key_disable_hw_accel(struct ieee80211_key *key)
 	sta = key->sta;
 	sdata = key->sdata;
 
-	if (!((key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC) ||
-	      (key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_IV) ||
-	      (key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE)))
+	if (!(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC))
 		increment_tailroom_need_count(sdata);
 
 	ret = drv_set_key(key->local, DISABLE_KEY, sdata,
@@ -326,7 +322,8 @@ ieee80211_key_alloc(u32 cipher, int idx, size_t key_len,
 	struct ieee80211_key *key;
 	int i, j, err;
 
-	BUG_ON(idx < 0 || idx >= NUM_DEFAULT_KEYS + NUM_DEFAULT_MGMT_KEYS);
+	if (WARN_ON(idx < 0 || idx >= NUM_DEFAULT_KEYS + NUM_DEFAULT_MGMT_KEYS))
+		return ERR_PTR(-EINVAL);
 
 	key = kzalloc(sizeof(struct ieee80211_key) + key_len, GFP_KERNEL);
 	if (!key)
@@ -878,9 +875,7 @@ void ieee80211_remove_key(struct ieee80211_key_conf *keyconf)
 	if (key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE) {
 		key->flags &= ~KEY_FLAG_UPLOADED_TO_HARDWARE;
 
-		if (!((key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC) ||
-		      (key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_IV) ||
-		      (key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE)))
+		if (!(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC))
 			increment_tailroom_need_count(key->sdata);
 	}
 

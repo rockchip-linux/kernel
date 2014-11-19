@@ -73,6 +73,7 @@
 enum {
 	XVT_ALIVE = 0x1,
 	INIT_COMPLETE_NOTIF = 0x4,
+	APMG_PD_SV_CMD = 0x43,
 
 	/* Tx */
 	TX_CMD = 0x1C,
@@ -155,7 +156,38 @@ struct xvt_alive_resp {
 	__le32 scd_base_ptr;		/* SRAM address for SCD */
 } __packed; /* ALIVE_RES_API_S_VER_1 */
 
+struct xvt_alive_resp_ver2 {
+	__le16 status;
+	__le16 flags;
+	u8 ucode_minor;
+	u8 ucode_major;
+	__le16 id;
+	u8 api_minor;
+	u8 api_major;
+	u8 ver_subtype;
+	u8 ver_type;
+	u8 mac;
+	u8 opt;
+	__le16 reserved2;
+	__le32 timestamp;
+	__le32 error_event_table_ptr;	/* SRAM address for error log */
+	__le32 log_event_table_ptr;	/* SRAM address for LMAC event log */
+	__le32 cpu_register_ptr;
+	__le32 dbgm_config_ptr;
+	__le32 alive_counter_ptr;
+	__le32 scd_base_ptr;		/* SRAM address for SCD */
+	__le32 st_fwrd_addr;		/* pointer to Store and forward */
+	__le32 st_fwrd_size;
+	u8 umac_minor;			/* UMAC version: minor */
+	u8 umac_major;			/* UMAC version: major */
+	__le16 umac_id;			/* UMAC version: id */
+	__le32 error_info_addr;		/* SRAM address for UMAC error log */
+	__le32 dbg_print_buff_addr;
+} __packed; /* ALIVE_RES_API_S_VER_2 */
+
 #define TX_CMD_LIFE_TIME_INFINITE	0xFFFFFFFF
+
+#define TX_CMD_FLG_ACK_MSK cpu_to_le32(1 << 3)
 
 struct iwl_tx_cmd {
 	__le16 len;

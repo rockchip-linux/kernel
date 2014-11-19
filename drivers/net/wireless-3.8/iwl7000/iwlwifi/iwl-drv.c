@@ -177,7 +177,7 @@ static struct kobject *iwl_kobj;
 
 static struct iwl_op_mode *
 _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op);
-static void _iwl_op_mode_stop(struct iwl_drv *drv, bool free_tm);
+static void _iwl_op_mode_stop(struct iwl_drv *drv);
 
 /*
  * iwl_drv_get_dev_container - Given a device, returns the pointer
@@ -271,7 +271,7 @@ int iwl_drv_switch_op_mode(struct iwl_drv *drv, const char *new_op_name)
 	drv->xvt_mode_on = (idx == XVT_OP_MODE);
 
 	/* Stopping the current op mode */
-	_iwl_op_mode_stop(drv, false);
+	_iwl_op_mode_stop(drv);
 
 	/* Changing operation mode */
 	mutex_lock(&iwlwifi_opmode_table_mtx);
@@ -351,6 +351,8 @@ static void iwl_remove_sysfs_file(struct iwl_drv *drv)
 	device_remove_file(drv->dev, &dev_attr_op_mode);
 }
 #endif /* CPTCFG_IWLXVT */
+
+#define IWL_DEFAULT_SCAN_CHANNELS 40
 
 /*
  * struct fw_sec: Just for the image parsing proccess.
@@ -762,6 +764,8 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 	}
 
 	drv->fw.ucode_ver = le32_to_cpu(ucode->ver);
+	memcpy(drv->fw.human_readable, ucode->human_readable,
+	       sizeof(drv->fw.human_readable));
 	build = le32_to_cpu(ucode->build);
 
 	if (build)
@@ -1016,6 +1020,12 @@ static int iwl_parse_tlv_firmware(struct iwl_drv *drv,
 			if (iwl_store_cscheme(&drv->fw, tlv_data, tlv_len))
 				goto invalid_tlv_len;
 			break;
+		case IWL_UCODE_TLV_N_SCAN_CHANNELS:
+			if (tlv_len != sizeof(u32))
+				goto invalid_tlv_len;
+			capa->n_scan_channels =
+				le32_to_cpup((__le32 *)tlv_data);
+			break;
 		default:
 			IWL_DEBUG_INFO(drv, "unknown TLV: %d\n", tlv_type);
 			break;
@@ -1120,11 +1130,9 @@ _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op)
 	dbgfs_dir = drv->dbgfs_op_mode;
 #endif
 
-	iwl_tm_gnl_add(drv->trans);
 	op_mode = ops->start(drv->trans, drv->cfg, &drv->fw, dbgfs_dir);
 
 	if (!op_mode) {
-		iwl_tm_gnl_remove(drv->trans);
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 		debugfs_remove_recursive(drv->dbgfs_op_mode);
 		drv->dbgfs_op_mode = NULL;
@@ -1135,13 +1143,11 @@ _iwl_op_mode_start(struct iwl_drv *drv, struct iwlwifi_opmode_table *op)
 	return op_mode;
 }
 
-static void _iwl_op_mode_stop(struct iwl_drv *drv, bool free_tm)
+static void _iwl_op_mode_stop(struct iwl_drv *drv)
 {
 	/* op_mode can be NULL if its start failed */
 	if (drv->op_mode) {
 		iwl_op_mode_stop(drv->op_mode);
-		if (free_tm)
-			iwl_tm_gnl_remove(drv->trans);
 		drv->op_mode = NULL;
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
@@ -1175,6 +1181,7 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 	fw->ucode_capa.max_probe_length = IWL_DEFAULT_MAX_PROBE_LENGTH;
 	fw->ucode_capa.standard_phy_calibration_size =
 			IWL_DEFAULT_STANDARD_PHY_CALIBRATE_TBL_SIZE;
+	fw->ucode_capa.n_scan_channels = IWL_DEFAULT_SCAN_CHANNELS;
 
 	if (!api_ok)
 		api_ok = api_max;
@@ -1446,6 +1453,10 @@ struct iwl_drv *iwl_drv_start(struct iwl_trans *trans,
 	}
 #endif
 
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	iwl_tm_gnl_add(drv->trans);
+#endif
+
 	return drv;
 
 err_fw:
@@ -1463,7 +1474,7 @@ void iwl_drv_stop(struct iwl_drv *drv)
 {
 	wait_for_completion(&drv->request_firmware_complete);
 
-	_iwl_op_mode_stop(drv, true);
+	_iwl_op_mode_stop(drv);
 
 	iwl_dealloc_ucode(drv);
 
@@ -1487,6 +1498,10 @@ void iwl_drv_stop(struct iwl_drv *drv)
 
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	iwl_remove_sysfs_file(drv);
+#endif
+
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	iwl_tm_gnl_remove(drv->trans);
 #endif
 
 	kfree(drv);
@@ -1543,7 +1558,7 @@ void iwl_opmode_deregister(const char *name)
 
 		/* call the stop routine for all devices */
 		list_for_each_entry(drv, &iwlwifi_opmode_table[i].drv, list)
-			_iwl_op_mode_stop(drv, true);
+			_iwl_op_mode_stop(drv);
 
 		mutex_unlock(&iwlwifi_opmode_table_mtx);
 		return;
@@ -1564,7 +1579,15 @@ static int iwl_register_bus_drivers(void)
 	if (ret)
 		return ret;
 
+	ret = iwl_slv_register_drivers();
+	if (ret)
+		goto unregister_pci_driver;
+
 	return 0;
+
+unregister_pci_driver:
+	iwl_pci_unregister_driver();
+	return ret;
 }
 
 /*
@@ -1576,6 +1599,7 @@ static int iwl_register_bus_drivers(void)
 static void iwl_unregister_bus_drivers(void)
 {
 	iwl_pci_unregister_driver();
+	iwl_slv_unregister_drivers();
 }
 
 static int __init iwl_drv_init(void)
@@ -1713,4 +1737,8 @@ module_param_named(power_level, iwlwifi_mod_params.power_level,
 		int, S_IRUGO);
 MODULE_PARM_DESC(power_level,
 		 "default power save level (range from 1 - 5, default: 1)");
+
+module_param_named(fw_monitor, iwlwifi_mod_params.fw_monitor, bool, S_IRUGO);
+MODULE_PARM_DESC(fw_monitor,
+		 "firmware monitor - to debug FW (default: false - needs lots of memory)");
 

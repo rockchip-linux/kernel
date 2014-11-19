@@ -72,14 +72,11 @@
 
 struct iwl_dnt;
 
-#define RXF_SIZE_ADDR			0xA00C88
-#define RXF_SIZE_BYTE_CNT_MSK		0x00000ff8
-
-#define RXF_LD_FENCE_OFFSET_ADDR	0xA00c10
-#define RXF_FIFO_RD_FENCE_ADDR		0xA00C0C
-
 #define DNT_LDBG_CMD_SIZE	80
 #define DNT_MARBH_BUF_SIZE	(0x3cff * sizeof(u32))
+#define DNT_SMEM_BUF_SIZE	(0x18004)
+
+#define DNT_CHUNK_SIZE 512
 
 /* marbh access types */
 enum {

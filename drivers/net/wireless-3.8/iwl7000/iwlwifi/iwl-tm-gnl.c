@@ -218,6 +218,11 @@ static int iwl_tm_validate_sram_write_req(struct iwl_tm_gnl_dev *dev,
 	struct iwl_tm_sram_write_request *cmd_in;
 	u32 data_buf_size;
 
+	if (!dev->trans->op_mode) {
+		IWL_ERR(dev->trans, "No op_mode!\n");
+		return -ENODEV;
+	}
+
 	if (!data_in->data ||
 	    data_in->len < sizeof(struct iwl_tm_sram_write_request))
 		return -EINVAL;
@@ -248,6 +253,11 @@ static int iwl_tm_validate_sram_read_req(struct iwl_tm_gnl_dev *dev,
 					 struct iwl_tm_data *data_in)
 {
 	struct iwl_tm_sram_read_request *cmd_in;
+
+	if (!dev->trans->op_mode) {
+		IWL_ERR(dev->trans, "No op_mode!\n");
+		return -ENODEV;
+	}
 
 	if (!data_in->data ||
 	    data_in->len < sizeof(struct iwl_tm_sram_read_request))
@@ -329,6 +339,28 @@ static int iwl_tm_validate_rx_hdrs_mode_req(struct iwl_tm_data *data_in)
 	return 0;
 }
 
+static int iwl_tm_validate_get_chip_id(struct iwl_trans *trans)
+{
+	if (strcmp(trans->dev->bus->name, BUS_TYPE_IDI))
+		return -EINVAL;
+	return 0;
+
+}
+
+/**
+ * iwl_tm_validate_apmg_pd_mode_req() - Validates apmg rx mode request
+ * @data_in:	Input to be validated
+ *
+ */
+static int iwl_tm_validate_apmg_pd_mode_req(struct iwl_tm_data *data_in)
+{
+	if (!data_in->data ||
+	    (data_in->len != sizeof(struct iwl_xvt_apmg_pd_mode_request)))
+		return -EINVAL;
+
+	return 0;
+}
+
 static int iwl_tm_get_device_status(struct iwl_tm_gnl_dev *dev,
 				    struct iwl_tm_data *data_in,
 				    struct iwl_tm_data *data_out)
@@ -403,8 +435,8 @@ struct iwl_tm_gnl_cmd {
 	struct iwl_tm_data data_out;
 };
 
-static struct list_head dev_list;
-static struct mutex dev_list_mtx; /* Protects dev_list */
+static struct list_head dev_list; /* protected by mutex or RCU */
+static struct mutex dev_list_mtx;
 
 /* Testmode GNL family command attributes  */
 enum iwl_tm_gnl_cmd_attr_t {
@@ -413,16 +445,6 @@ enum iwl_tm_gnl_cmd_attr_t {
 	IWL_TM_GNL_MSG_ATTR_CMD,
 	IWL_TM_GNL_MSG_ATTR_DATA,
 	IWL_TM_GNL_MSG_ATTR_MAX
-};
-
-/*
- * Testmode GNL family command.
- * There is only one NL command, not to be
- * confused with testmode commands
- */
-enum iwl_tm_gnl_cmd_t {
-	IWL_TM_GNL_CMD_EXECUTE = 0,
-	IWL_TM_GNL_CMD_MAX
 };
 
 /* TM GNL family definition */
@@ -526,7 +548,7 @@ send_msg_err:
 }
 
 /**
- * iwl_tm_gnl_send_msg() - Sends a message to a multicast group
+ * iwl_tm_gnl_send_msg() - Sends a message to mcast or userspace listener
  * @trans:	transport
  * @cmd:	Command index
  * @check_notify: only send when notify is set
@@ -542,6 +564,7 @@ int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 	struct iwl_tm_gnl_dev *dev;
 	struct iwl_tm_gnl_cmd cmd_data;
 	struct sk_buff *skb;
+	u32 nlportid;
 
 	if (WARN_ON_ONCE(!trans))
 		return -EINVAL;
@@ -549,6 +572,8 @@ int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 	if (!trans->tmdev)
 		return 0;
 	dev = trans->tmdev;
+
+	nlportid = ACCESS_ONCE(dev->nl_events_portid);
 
 	if (check_notify && !dev->tst.notify)
 		return 0;
@@ -559,10 +584,12 @@ int iwl_tm_gnl_send_msg(struct iwl_trans *trans, u32 cmd, bool check_notify,
 	cmd_data.data_out.data = data_out;
 	cmd_data.data_out.len = data_len;
 
-	skb = iwl_tm_gnl_create_msg(0, 0, cmd_data, flags);
+	skb = iwl_tm_gnl_create_msg(nlportid, 0, cmd_data, flags);
 	if (!skb)
 		return -EINVAL;
 
+	if (nlportid)
+		return genlmsg_unicast(&init_net, skb, nlportid);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
 	return genlmsg_multicast(skb, 0, iwl_tm_gnl_mcgrps[0].id, flags);
 #else
@@ -595,6 +622,11 @@ static int iwl_op_mode_tm_execute_cmd(struct iwl_tm_gnl_dev *dev,
 				      struct iwl_tm_data *data_out)
 {
 	const struct iwl_test_ops *test_ops;
+
+	if (!dev->trans->op_mode) {
+		IWL_ERR(dev->trans, "No op_mode!\n");
+		return -ENODEV;
+	}
 
 	test_ops = &dev->trans->op_mode->ops->test_ops;
 
@@ -655,6 +687,10 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 		ret =  iwl_tm_validate_rx_hdrs_mode_req(&cmd_data->data_in);
 		break;
 
+	case IWL_XVT_CMD_APMG_PD_MODE:
+		ret =  iwl_tm_validate_apmg_pd_mode_req(&cmd_data->data_in);
+		break;
+
 	case IWL_TM_USER_CMD_NOTIFICATIONS:
 		ret = iwl_tm_notifications_en(&dev->tst, &cmd_data->data_in);
 		common_op = true;
@@ -665,11 +701,14 @@ static int iwl_tm_gnl_cmd_execute(struct iwl_tm_gnl_cmd *cmd_data)
 					       &cmd_data->data_out);
 		break;
 #if IS_ENABLED(CPTCFG_IWLXVT)
-	case IWL_TM_USER_CMD_SWICTH_OP_MODE:
+	case IWL_TM_USER_CMD_SWITCH_OP_MODE:
 		ret = iwl_tm_switch_op_mode(dev, &cmd_data->data_in);
 		common_op = true;
 		break;
 #endif
+	case IWL_XVT_CMD_GET_CHIP_ID:
+		ret = iwl_tm_validate_get_chip_id(dev->trans);
+		break;
 	}
 	if (ret) {
 		IWL_ERR(dev->trans, "%s Error=%d\n", __func__, ret);
@@ -719,12 +758,17 @@ static int iwl_tm_trace_dump(struct iwl_tm_gnl_dev *dev,
 	int ret;
 	u32 buf_size;
 
-	if ((dev->dnt->iwl_dnt_status & IWL_DNT_STATUS_MON_CONFIGURED) &&
-	    dev->dnt->mon_buf_size == 0)
-		buf_size = DEFAULT_BUF_SIZE;
-	else
-		buf_size = dev->dnt->mon_buf_size;
+	if (!(dev->dnt->iwl_dnt_status & IWL_DNT_STATUS_MON_CONFIGURED)) {
+		IWL_ERR(dev->trans, "Invalid monitor status\n");
+		return -EINVAL;
+	}
 
+	if (dev->dnt->mon_buf_size == 0) {
+		IWL_ERR(dev->trans, "No available monitor buffer\n");
+		return -ENOMEM;
+	}
+
+	buf_size = dev->dnt->mon_buf_size;
 	data_out->data =  kmalloc(buf_size, GFP_KERNEL);
 	if (!data_out->data)
 		return -ENOMEM;
@@ -930,6 +974,37 @@ static int iwl_tm_gnl_done(struct netlink_callback *cb)
 	return -EOPNOTSUPP;
 }
 
+static int iwl_tm_gnl_cmd_subscribe(struct sk_buff *skb, struct genl_info *info)
+{
+	struct iwl_tm_gnl_dev *dev;
+	const char *dev_name;
+	int ret;
+
+	if (!info->attrs[IWL_TM_GNL_MSG_ATTR_DEVNAME])
+		return -EINVAL;
+
+	dev_name = nla_data(info->attrs[IWL_TM_GNL_MSG_ATTR_DEVNAME]);
+
+	mutex_lock(&dev_list_mtx);
+	dev = iwl_tm_gnl_get_dev(dev_name);
+	if (!dev) {
+		ret = -ENODEV;
+		goto unlock;
+	}
+
+	if (dev->nl_events_portid) {
+		ret = -EBUSY;
+		goto unlock;
+	}
+
+	dev->nl_events_portid = genl_info_snd_portid(info);
+	ret = 0;
+
+ unlock:
+	mutex_unlock(&dev_list_mtx);
+	return ret;
+}
+
 /*
  * iwl_tm_gnl_ops - GNL Family commands.
  * There is only one NL command, and only one callback,
@@ -942,6 +1017,11 @@ static __genl_const struct genl_ops iwl_tm_gnl_ops[] = {
 	  .doit = iwl_tm_gnl_cmd_do,
 	  .dumpit = iwl_tm_gnl_dump,
 	  .done = iwl_tm_gnl_done,
+	},
+	{
+		.cmd = IWL_TM_GNL_CMD_SUBSCRIBE_EVENTS,
+		.policy = iwl_tm_gnl_msg_policy,
+		.doit = iwl_tm_gnl_cmd_subscribe,
 	},
 };
 
@@ -971,7 +1051,7 @@ void iwl_tm_gnl_add(struct iwl_trans *trans)
 	dev->dev_name = dev_name(trans->dev);
 	trans->tmdev = dev;
 	dev->trans = trans;
-	list_add_tail(&dev->list, &dev_list);
+	list_add_tail_rcu(&dev->list, &dev_list);
 
 unlock:
 	mutex_unlock(&dev_list_mtx);
@@ -998,7 +1078,8 @@ void iwl_tm_gnl_remove(struct iwl_trans *trans)
 			 * Device found. Removing it from list
 			 * and releasing it's resources
 			 */
-			list_del(&dev_itr->list);
+			list_del_rcu(&dev_itr->list);
+			synchronize_rcu();
 			kfree(dev_itr);
 			break;
 		}
@@ -1008,6 +1089,28 @@ void iwl_tm_gnl_remove(struct iwl_trans *trans)
 	mutex_unlock(&dev_list_mtx);
 }
 
+static int iwl_tm_gnl_netlink_notify(struct notifier_block *nb,
+				     unsigned long state,
+				     void *_notify)
+{
+	struct netlink_notify *notify = _notify;
+	struct iwl_tm_gnl_dev *dev;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(dev, &dev_list, list) {
+		if (dev->nl_events_portid == netlink_notify_portid(notify))
+			dev->nl_events_portid = 0;
+	}
+	rcu_read_unlock();
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block iwl_tm_gnl_netlink_notifier = {
+	.notifier_call = iwl_tm_gnl_netlink_notify,
+};
+
+
 /**
  * iwl_tm_gnl_init() - Registers tm-gnl module
  *
@@ -1016,12 +1119,20 @@ void iwl_tm_gnl_remove(struct iwl_trans *trans)
  */
 int iwl_tm_gnl_init(void)
 {
+	int ret;
+
 	INIT_LIST_HEAD(&dev_list);
 	mutex_init(&dev_list_mtx);
 
-	return genl_register_family_with_ops_groups(&iwl_tm_gnl_family,
-						    iwl_tm_gnl_ops,
-						    iwl_tm_gnl_mcgrps);
+	ret = genl_register_family_with_ops_groups(&iwl_tm_gnl_family,
+						   iwl_tm_gnl_ops,
+						   iwl_tm_gnl_mcgrps);
+	if (ret)
+		return ret;
+	ret = netlink_register_notifier(&iwl_tm_gnl_netlink_notifier);
+	if (ret)
+		genl_unregister_family(&iwl_tm_gnl_family);
+	return ret;
 }
 
 /**
@@ -1029,5 +1140,6 @@ int iwl_tm_gnl_init(void)
  */
 int iwl_tm_gnl_exit(void)
 {
+	netlink_unregister_notifier(&iwl_tm_gnl_netlink_notifier);
 	return genl_unregister_family(&iwl_tm_gnl_family);
 }

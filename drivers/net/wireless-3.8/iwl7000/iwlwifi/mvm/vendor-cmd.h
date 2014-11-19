@@ -71,11 +71,24 @@
  *	virtual interface
  * @IWL_MVM_VENDOR_CMD_GET_LOW_LATENCY: query low-latency mode
  * @IWL_MVM_VENDOR_CMD_TCM_EVENT: TCM event
+ * @IWL_MVM_VENDOR_CMD_LTE_STATE: inform the LTE modem state
+ * @IWL_MVM_VENDOR_CMD_LTE_COEX_CONFIG_INFO: configure LTE-Coex static
+ *	parameters
+ * @IWL_MVM_VENDOR_CMD_LTE_COEX_DYNAMIC_INFO: configure LTE dynamic parameters
+ * @IWL_MVM_VENDOR_CMD_LTE_COEX_SPS_INFO: configure semi oersistent info
+ * @IWL_MVM_VENDOR_CMD_LTE_COEX_WIFI_RPRTD_CHAN: Wifi reported channel as
+ *	calculated by the coex-manager
  */
+
 enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_SET_LOW_LATENCY,
 	IWL_MVM_VENDOR_CMD_GET_LOW_LATENCY,
 	IWL_MVM_VENDOR_CMD_TCM_EVENT,
+	IWL_MVM_VENDOR_CMD_LTE_STATE,
+	IWL_MVM_VENDOR_CMD_LTE_COEX_CONFIG_INFO,
+	IWL_MVM_VENDOR_CMD_LTE_COEX_DYNAMIC_INFO,
+	IWL_MVM_VENDOR_CMD_LTE_COEX_SPS_INFO,
+	IWL_MVM_VENDOR_CMD_LTE_COEX_WIFI_RPRTD_CHAN,
 };
 
 /**

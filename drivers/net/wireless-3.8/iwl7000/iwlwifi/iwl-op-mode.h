@@ -160,8 +160,7 @@ struct iwl_test_ops {
  * @stop: stop the op_mode. Must free all the memory allocated.
  *	May sleep
  * @rx: Rx notification to the op_mode. rxb is the Rx buffer itself. Cmd is the
- *	HCMD this Rx responds to.
- *	This callback may sleep, it is called from a threaded IRQ handler.
+ *	HCMD this Rx responds to. Can't sleep.
  * @napi_add: NAPI initialisation. The transport is fully responsible for NAPI,
  *	but the higher layers need to know about it (in particular mac80211 to
  *	to able to call the right NAPI RX functions); this function is needed

@@ -112,6 +112,12 @@ static const struct file_operations iwl_dnt_debugfs_log_ops = {
 	.llseek = generic_file_llseek,
 };
 
+static const struct file_operations iwl_dnt_debugfs_crash_ops = {
+	.read = iwl_dnt_dispatch_get_crash_data,
+	.open = iwl_dnt_dispatch_open_crash_data,
+	.release = iwl_dnt_dispatch_release_crash_data,
+};
+
 static bool iwl_dnt_register_debugfs_entries(struct iwl_trans *trans,
 					    struct dentry *dbgfs_dir)
 {
@@ -124,6 +130,13 @@ static bool iwl_dnt_register_debugfs_entries(struct iwl_trans *trans,
 	if (!debugfs_create_file("log", S_IRUSR, dnt->debugfs_entry,
 				 trans, &iwl_dnt_debugfs_log_ops))
 		return false;
+
+	dnt->crash_entry = debugfs_create_file("crash_collect", S_IRUSR,
+					       dbgfs_dir, trans,
+					       &iwl_dnt_debugfs_crash_ops);
+	if (!dnt->crash_entry)
+		return false;
+
 	return true;
 }
 #endif
@@ -156,13 +169,17 @@ static bool iwl_dnt_validate_configuration(struct iwl_trans *trans)
 
 	if (!strcmp(trans->dev->bus->name, BUS_TYPE_PCI))
 		return dbg_cfg->dbm_destination_path == DMA ||
-		       dbg_cfg->dbm_destination_path == MARBH;
+		       dbg_cfg->dbm_destination_path == MARBH_ADC ||
+		       dbg_cfg->dbm_destination_path == MARBH_DBG ||
+		       dbg_cfg->dbm_destination_path == MIPI;
 	else if (!strcmp(trans->dev->bus->name, BUS_TYPE_IDI))
 		return dbg_cfg->dbm_destination_path == INTERFACE ||
-		       dbg_cfg->dbm_destination_path == MARBH ||
+		       dbg_cfg->dbm_destination_path == MARBH_ADC ||
+		       dbg_cfg->dbm_destination_path == MARBH_DBG ||
 		       dbg_cfg->dbm_destination_path == MIPI;
 	else if (!strcmp(trans->dev->bus->name, BUS_TYPE_SDIO))
-		return dbg_cfg->dbm_destination_path == MARBH ||
+		return dbg_cfg->dbm_destination_path == MARBH_ADC ||
+		       dbg_cfg->dbm_destination_path == MARBH_DBG ||
 		       dbg_cfg->dbm_destination_path == MIPI;
 
 	return false;
@@ -203,7 +220,7 @@ static int iwl_dnt_conf_monitor(struct iwl_trans *trans, u32 output,
 		 * was given value as MARBH, it should be interpreted as SMEM
 		 */
 		if ((trans->cfg->device_family == IWL_DEVICE_FAMILY_8000) &&
-		    (monitor_type == MARBH))
+		    (monitor_type == MARBH_ADC || monitor_type == MARBH_DBG))
 			dnt->cur_mon_type = SMEM;
 	}
 	return iwl_dnt_dev_if_configure_monitor(dnt, trans);
@@ -266,6 +283,7 @@ void iwl_dnt_init(struct iwl_trans *trans, struct dentry *dbgfs_dir)
 	trans->tmdev->dnt = dnt;
 
 	dnt->dev = trans->dev;
+	spin_lock_init(&dnt->dispatch.crash_lock);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	ret = iwl_dnt_register_debugfs_entries(trans, dbgfs_dir);
@@ -273,6 +291,7 @@ void iwl_dnt_init(struct iwl_trans *trans, struct dentry *dbgfs_dir)
 		IWL_ERR(trans, "Failed to create dnt debugfs entries\n");
 		return;
 	}
+	dnt->dispatch.crash_out_mode |= DEBUGFS;
 	err = iwl_dnt_conf_ucode_msgs_via_rx(trans, DEBUGFS);
 	if (err)
 		IWL_DEBUG_INFO(trans, "Failed to configure uCodeMessages\n");
@@ -331,8 +350,8 @@ void iwl_dnt_configure(struct iwl_trans *trans, const struct fw_img *image)
 	case NO_MONITOR:
 	case MIPI:
 	case INTERFACE:
-	case ICCM:
-	case MARBH:
+	case MARBH_ADC:
+	case MARBH_DBG:
 		iwl_dnt_conf_monitor(trans, dbg_cfg->dnt_out_mode,
 				     dbg_cfg->dbm_destination_path,
 				     dbg_cfg->dbgm_enable_mode);
@@ -341,4 +360,6 @@ void iwl_dnt_configure(struct iwl_trans *trans, const struct fw_img *image)
 		IWL_INFO(trans, "Invalid monitor type\n");
 		return;
 	}
+
+	dnt->dispatch.crash_out_mode |= dbg_cfg->dnt_out_mode;
 }

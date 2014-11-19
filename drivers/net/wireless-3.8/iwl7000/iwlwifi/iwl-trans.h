@@ -194,10 +194,9 @@ static inline u32 iwl_rx_packet_payload_len(const struct iwl_rx_packet *pkt)
 /**
  * enum CMD_MODE - how to send the host commands ?
  *
- * @CMD_SYNC: The caller will be stalled until the fw responds to the command
  * @CMD_ASYNC: Return right away and don't wait for the response
- * @CMD_WANT_SKB: valid only with CMD_SYNC. The caller needs the buffer of the
- *	response. The caller needs to call iwl_free_resp when done.
+ * @CMD_WANT_SKB: Not valid with CMD_ASYNC. The caller needs the buffer of
+ *	the response. The caller needs to call iwl_free_resp when done.
  * @CMD_HIGH_PRIO: The command is high priority - it goes to the front of the
  *	command queue, but after other high priority commands. valid only
  *	with CMD_ASYNC.
@@ -207,7 +206,6 @@ static inline u32 iwl_rx_packet_payload_len(const struct iwl_rx_packet *pkt)
  *	(i.e. mark it as non-idle).
  */
 enum CMD_MODE {
-	CMD_SYNC		= 0,
 	CMD_ASYNC		= BIT(0),
 	CMD_WANT_SKB		= BIT(1),
 	CMD_SEND_IN_RFKILL	= BIT(2),
@@ -354,6 +352,7 @@ enum iwl_d3_status {
  * @STATUS_TRANS_GOING_IDLE: shutting down the trans, only special commands
  *	are sent
  * @STATUS_TRANS_IDLE: the trans is idle - general commands are not to be sent
+ * @STATUS_TA_ACTIVE: target access is in progress
  */
 enum iwl_trans_status {
 	STATUS_SYNC_HCMD_ACTIVE,
@@ -364,6 +363,7 @@ enum iwl_trans_status {
 	STATUS_FW_ERROR,
 	STATUS_TRANS_GOING_IDLE,
 	STATUS_TRANS_IDLE,
+	STATUS_TA_ACTIVE,
 };
 
 /**
@@ -401,7 +401,20 @@ struct iwl_trans_config {
 	const char *const *command_names;
 };
 
+struct iwl_trans_dump_data {
+	u32 len;
+	u8 data[];
+};
+
 struct iwl_trans;
+
+struct iwl_trans_txq_scd_cfg {
+	u8 fifo;
+	s8 sta_id;
+	u8 tid;
+	bool aggregate;
+	int frame_limit;
+};
 
 /**
  * struct iwl_trans_ops - transport specific operations
@@ -432,18 +445,19 @@ struct iwl_trans;
  * @send_cmd:send a host command. Must return -ERFKILL if RFkill is asserted.
  *	If RFkill is asserted in the middle of a SYNC host command, it must
  *	return -ERFKILL straight away.
- *	May sleep only if CMD_SYNC is set
+ *	May sleep only if CMD_ASYNC is not set
  * @tx: send an skb
  *	Must be atomic
  * @reclaim: free packet until ssn. Returns a list of freed packets.
  *	Must be atomic
  * @txq_enable: setup a queue. To setup an AC queue, use the
  *	iwl_trans_ac_txq_enable wrapper. fw_alive must have been called before
- *	this one. The op_mode must not configure the HCMD queue. May sleep.
+ *	this one. The op_mode must not configure the HCMD queue. The scheduler
+ *	configuration may be %NULL, in which case the hardware will not be
+ *	configured. May sleep.
  * @txq_disable: de-configure a Tx queue to send AMPDUs
  *	Must be atomic
- * @wait_tx_queue_empty: wait until all tx queues are empty
- *	May sleep
+ * @wait_tx_queue_empty: wait until tx queues are empty. May sleep.
  * @dbgfs_register: add the dbgfs files under this directory. Files will be
  *	automatically deleted.
  * @write8: write a u8 to a register at offset ofs from the BAR
@@ -469,6 +483,9 @@ struct iwl_trans;
  * @unref: release a reference previously taken with @ref. Note that
  *	initially the reference count is 1, making an initial @unref
  *	necessary to allow low power states.
+ * @dump_data: return a vmalloc'ed buffer with debug data, maybe containing last
+ *	TX'ed commands and similar. The buffer will be vfree'd by the caller.
+ *	Note that the transport must fill in the proper file headers.
  */
 struct iwl_trans_ops {
 
@@ -477,9 +494,12 @@ struct iwl_trans_ops {
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	int (*start_fw_dbg)(struct iwl_trans *trans, const struct fw_img *fw,
 			    bool run_in_rfkill, u32 fw_dbg_flags);
+	int (*test_mode_cmd)(struct iwl_trans *trans, bool enable);
 #endif
 	int (*start_fw)(struct iwl_trans *trans, const struct fw_img *fw,
 			bool run_in_rfkill);
+	int (*update_sf)(struct iwl_trans *trans,
+			 struct iwl_sf_region *st_fwrd_space);
 	void (*fw_alive)(struct iwl_trans *trans, u32 scd_addr);
 	void (*stop_device)(struct iwl_trans *trans);
 
@@ -494,12 +514,13 @@ struct iwl_trans_ops {
 	void (*reclaim)(struct iwl_trans *trans, int queue, int ssn,
 			struct sk_buff_head *skbs);
 
-	void (*txq_enable)(struct iwl_trans *trans, int queue, int fifo,
-			   int sta_id, int tid, int frame_limit, u16 ssn);
-	void (*txq_disable)(struct iwl_trans *trans, int queue);
+	void (*txq_enable)(struct iwl_trans *trans, int queue, u16 ssn,
+			   const struct iwl_trans_txq_scd_cfg *cfg);
+	void (*txq_disable)(struct iwl_trans *trans, int queue,
+			    bool configure_scd);
 
 	int (*dbgfs_register)(struct iwl_trans *trans, struct dentry* dir);
-	int (*wait_tx_queue_empty)(struct iwl_trans *trans);
+	int (*wait_tx_queue_empty)(struct iwl_trans *trans, u32 txq_bm);
 
 	void (*write8)(struct iwl_trans *trans, u32 ofs, u8 val);
 	void (*write32)(struct iwl_trans *trans, u32 ofs, u32 val);
@@ -521,6 +542,8 @@ struct iwl_trans_ops {
 			      u32 value);
 	void (*ref)(struct iwl_trans *trans);
 	void (*unref)(struct iwl_trans *trans);
+
+	struct iwl_trans_dump_data *(*dump_data)(struct iwl_trans *trans);
 };
 
 /**
@@ -646,6 +669,17 @@ static inline int iwl_trans_start_fw(struct iwl_trans *trans,
 	return trans->ops->start_fw(trans, fw, run_in_rfkill);
 }
 
+static inline int iwl_trans_update_sf(struct iwl_trans *trans,
+				      struct iwl_sf_region *st_fwrd_space)
+{
+	might_sleep();
+
+	if (trans->ops->update_sf)
+		return trans->ops->update_sf(trans, st_fwrd_space);
+
+	return 0;
+}
+
 #if IS_ENABLED(CPTCFG_IWLXVT)
 enum iwl_xvt_dbg_flags {
 	IWL_XVT_DBG_ADC_SAMP_TEST = BIT(0),
@@ -706,6 +740,14 @@ static inline void iwl_trans_unref(struct iwl_trans *trans)
 		trans->ops->unref(trans);
 }
 
+static inline struct iwl_trans_dump_data *
+iwl_trans_dump_data(struct iwl_trans *trans)
+{
+	if (!trans->ops->dump_data)
+		return NULL;
+	return trans->ops->dump_data(trans);
+}
+
 static inline int iwl_trans_send_cmd(struct iwl_trans *trans,
 				     struct iwl_host_cmd *cmd)
 {
@@ -719,7 +761,7 @@ static inline int iwl_trans_send_cmd(struct iwl_trans *trans,
 		return -EIO;
 
 	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE)) {
-		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
+		IWL_ERR(trans, "%s bad state = %d\n", __func__, trans->state);
 		return -EIO;
 	}
 
@@ -761,7 +803,7 @@ static inline int iwl_trans_tx(struct iwl_trans *trans, struct sk_buff *skb,
 		return -EIO;
 
 	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE))
-		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
+		IWL_ERR(trans, "%s bad state = %d\n", __func__, trans->state);
 
 	return trans->ops->tx(trans, skb, dev_cmd, queue);
 }
@@ -770,43 +812,81 @@ static inline void iwl_trans_reclaim(struct iwl_trans *trans, int queue,
 				     int ssn, struct sk_buff_head *skbs)
 {
 	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE))
-		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
+		IWL_ERR(trans, "%s bad state = %d\n", __func__, trans->state);
 
 	trans->ops->reclaim(trans, queue, ssn, skbs);
 }
 
-static inline void iwl_trans_txq_disable(struct iwl_trans *trans, int queue)
+static inline void iwl_trans_txq_disable(struct iwl_trans *trans, int queue,
+					 bool configure_scd)
 {
-	trans->ops->txq_disable(trans, queue);
+	trans->ops->txq_disable(trans, queue, configure_scd);
+}
+
+static inline void
+iwl_trans_txq_enable_cfg(struct iwl_trans *trans, int queue, u16 ssn,
+			 const struct iwl_trans_txq_scd_cfg *cfg)
+{
+	might_sleep();
+
+	if (unlikely((trans->state != IWL_TRANS_FW_ALIVE)))
+		IWL_ERR(trans, "%s bad state = %d\n", __func__, trans->state);
+
+	trans->ops->txq_enable(trans, queue, ssn, cfg);
 }
 
 static inline void iwl_trans_txq_enable(struct iwl_trans *trans, int queue,
 					int fifo, int sta_id, int tid,
 					int frame_limit, u16 ssn)
 {
-	might_sleep();
+	struct iwl_trans_txq_scd_cfg cfg = {
+		.fifo = fifo,
+		.sta_id = sta_id,
+		.tid = tid,
+		.frame_limit = frame_limit,
+		.aggregate = sta_id >= 0,
+	};
 
-	if (unlikely((trans->state != IWL_TRANS_FW_ALIVE)))
-		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
-
-	trans->ops->txq_enable(trans, queue, fifo, sta_id, tid,
-				 frame_limit, ssn);
+	iwl_trans_txq_enable_cfg(trans, queue, ssn, &cfg);
 }
 
 static inline void iwl_trans_ac_txq_enable(struct iwl_trans *trans, int queue,
 					   int fifo)
 {
-	iwl_trans_txq_enable(trans, queue, fifo, -1,
-			     IWL_MAX_TID_COUNT, IWL_FRAME_LIMIT, 0);
+	struct iwl_trans_txq_scd_cfg cfg = {
+		.fifo = fifo,
+		.sta_id = -1,
+		.tid = IWL_MAX_TID_COUNT,
+		.frame_limit = IWL_FRAME_LIMIT,
+		.aggregate = false,
+	};
+
+	iwl_trans_txq_enable_cfg(trans, queue, 0, &cfg);
 }
 
-static inline int iwl_trans_wait_tx_queue_empty(struct iwl_trans *trans)
+static inline void
+iwl_trans_txq_enable_no_scd(struct iwl_trans *trans, int queue, u16 ssn)
+{
+	iwl_trans_txq_enable_cfg(trans, queue, ssn, NULL);
+}
+
+static inline int iwl_trans_wait_tx_queue_empty(struct iwl_trans *trans,
+						u32 txq_bm)
 {
 	if (unlikely(trans->state != IWL_TRANS_FW_ALIVE))
-		IWL_ERR(trans, "%s bad state = %d", __func__, trans->state);
+		IWL_ERR(trans, "%s bad state = %d\n", __func__, trans->state);
 
-	return trans->ops->wait_tx_queue_empty(trans);
+	return trans->ops->wait_tx_queue_empty(trans, txq_bm);
 }
+
+#if IS_ENABLED(CPTCFG_IWLXVT)
+static inline int iwl_trans_test_mode_cmd(struct iwl_trans *trans, bool enable)
+{
+	if (trans->ops->test_mode_cmd)
+		return trans->ops->test_mode_cmd(trans, enable);
+	return -ENOTSUPP;
+}
+#endif
 
 static inline int iwl_trans_dbgfs_register(struct iwl_trans *trans,
 					   struct dentry *dir)
@@ -925,9 +1005,8 @@ static inline void iwl_pci_unregister_driver(void)
 
 #endif /* CPTCFG_IWLWIFI_PCIE */
 
-/* SDIO */
-
-/* IDI */
+static inline int __must_check iwl_slv_register_drivers(void) {return 0; }
+static inline void iwl_slv_unregister_drivers(void) {}
 
 static inline void trans_lockdep_init(struct iwl_trans *trans)
 {

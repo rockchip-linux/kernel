@@ -107,6 +107,9 @@
 
 /* Device NMI register */
 #define DEVICE_SET_NMI_REG 0x00a01c30
+#define DEVICE_SET_NMI_VAL 0x1
+#define DEVICE_SET_NMI_8000B_REG 0x00a01c24
+#define DEVICE_SET_NMI_8000B_VAL 0x1000000
 
 /* Shared registers (0x0..0x3ff, via target indirect or periphery */
 #define SHR_BASE	0x00a10000
@@ -284,6 +287,7 @@
 #define SCD_INTERRUPT_MASK	(SCD_BASE + 0x108)
 #define SCD_CB_SIZE		(SCD_BASE + 0x1a4)
 #define SCD_GP_CTRL		(SCD_BASE + 0x1a8)
+#define SCD_EN_CTRL		(SCD_BASE + 0x254)
 
 static inline unsigned int SCD_QUEUE_WRPTR(unsigned int chnl)
 {
@@ -324,6 +328,8 @@ enum secure_boot_config_reg {
 
 #define LMPM_SECURE_BOOT_CPU1_STATUS_ADDR	(0x1E30)
 #define LMPM_SECURE_BOOT_CPU2_STATUS_ADDR	(0x1E34)
+#define LMPM_SECURE_BOOT_STATUS_ADDR		(0x1E38)
+
 enum secure_boot_status_reg {
 	LMPM_SECURE_BOOT_CPU_STATUS_VERF_STATUS		= 0x00000001,
 	LMPM_SECURE_BOOT_CPU_STATUS_VERF_COMPLETED	= 0x00000002,
@@ -333,6 +339,7 @@ enum secure_boot_status_reg {
 	LMPM_SECURE_BOOT_STATUS_SUCCESS			= 0x00000003,
 };
 
+#define FH_UCODE_LOAD_STATUS		(0x1AF0)
 #define CSR_UCODE_LOAD_STATUS_ADDR	(0x1E70)
 enum secure_load_status_reg {
 	LMPM_CPU_UCODE_LOADING_STARTED			= 0x00000001,
@@ -349,9 +356,36 @@ enum secure_load_status_reg {
 
 #define LMPM_SECURE_INSPECTOR_CODE_MEM_SPACE	(0x400000)
 #define LMPM_SECURE_INSPECTOR_DATA_MEM_SPACE	(0x402000)
-#define LMPM_SECURE_CPU1_HDR_MEM_SPACE		(0x420000)
-#define LMPM_SECURE_CPU2_HDR_MEM_SPACE		(0x420400)
+#define LMPM_SECURE_CPU1_HDR_MEM_SPACE		(0x404000)
+#define LMPM_SECURE_CPU2_HDR_MEM_SPACE		(0x405000)
+#define LMPM_ROM_READ_ONLY_DATA_ADDR		(0x403010)
 
-#define LMPM_SECURE_TIME_OUT	(100)
+#define LMPM_SECURE_TIME_OUT	(50000) /* 5 msec */
+
+/* Rx FIFO */
+#define RXF_SIZE_ADDR			(0xa00c88)
+#define RXF_SIZE_BYTE_CND_POS		(7)
+#define RXF_SIZE_BYTE_CNT_MSK		(0x3ff << RXF_SIZE_BYTE_CND_POS)
+
+#define RXF_LD_FENCE_OFFSET_ADDR	(0xa00c10)
+#define RXF_FIFO_RD_FENCE_ADDR		(0xa00c0c)
+
+/* FW monitor */
+#define MON_BUFF_BASE_ADDR		(0xa03c3c)
+#define MON_BUFF_END_ADDR		(0xa03c40)
+#define MON_BUFF_WRPTR			(0xa03c44)
+#define MON_BUFF_CYCLE_CNT		(0xa03c48)
+
+/* enable the ID buf for read */
+#define WFPM_PS_CTL_CLR			0xA0300C
+#define LMPM_PMG_EN			0xA01CEC
+#define RADIO_REG_SYS_MANUAL_DFT_0	0xAD4078
+#define RFIC_REG_RD			0xAD0470
+
+/* FW chicken bits */
+#define LMPM_CHICK			0xA01FF8
+enum {
+	LMPM_CHICK_EXTENDED_ADDR_SPACE = BIT(0),
+};
 
 #endif				/* __iwl_prph_h__ */

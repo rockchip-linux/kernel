@@ -155,6 +155,10 @@ static inline u16 ieee80211_sn_sub(u16 sn1, u16 sn2)
    802.11e clarifies the figure in section 7.1.2. The frame body is
    up to 2304 octets long (maximum MSDU size) plus any crypt overhead. */
 #define IEEE80211_MAX_DATA_LEN		2304
+/* 802.11ad extends maximum MSDU size for DMG (freq > 40Ghz) networks
+ * to 7920 bytes, see 8.2.3 General frame format
+ */
+#define IEEE80211_MAX_DATA_LEN_DMG	7920
 /* 30 byte 4 addr hdr, 2 byte QoS, 2304 byte MSDU, 12 byte crypt, 4 byte FCS */
 #define IEEE80211_MAX_FRAME_LEN		2352
 
@@ -835,6 +839,16 @@ enum ieee80211_vht_opmode_bits {
 
 #define WLAN_SA_QUERY_TR_ID_LEN 2
 
+/**
+ * struct ieee80211_tpc_report_ie
+ *
+ * This structure refers to "TPC Report element"
+ */
+struct ieee80211_tpc_report_ie {
+	u8 tx_power;
+	u8 link_margin;
+} __packed;
+
 struct ieee80211_mgmt {
 	__le16 frame_control;
 	__le16 duration;
@@ -970,6 +984,13 @@ struct ieee80211_mgmt {
 					u8 action_code;
 					u8 operating_mode;
 				} __packed vht_opmode_notif;
+				struct {
+					u8 action_code;
+					u8 dialog_token;
+					u8 tpc_elem_id;
+					u8 tpc_elem_length;
+					struct ieee80211_tpc_report_ie tpc;
+				} __packed tpc_report;
 			} u;
 		} __packed action;
 	} u;
@@ -996,6 +1017,26 @@ struct ieee80211_vendor_ie {
 	u8 len;
 	u8 oui[3];
 	u8 oui_type;
+} __packed;
+
+struct ieee80211_wmm_ac_param {
+	u8 aci_aifsn; /* AIFSN, ACM, ACI */
+	u8 cw; /* ECWmin, ECWmax (CW = 2^ECW - 1) */
+	__le16 txop_limit;
+} __packed;
+
+struct ieee80211_wmm_param_ie {
+	u8 element_id; /* Element ID: 221 (0xdd); */
+	u8 len; /* Length: 24 */
+	/* required fields for WMM version 1 */
+	u8 oui[3]; /* 00:50:f2 */
+	u8 oui_type; /* 2 */
+	u8 oui_subtype; /* 1 */
+	u8 version; /* 1 for WMM version 1.0 */
+	u8 qos_info; /* AP/STA specific QoS info */
+	u8 reserved; /* 0 */
+	/* AC_BE, AC_BK, AC_VI, AC_VO */
+	struct ieee80211_wmm_ac_param ac[4];
 } __packed;
 
 /* Control frames */
@@ -1618,6 +1659,9 @@ enum ieee80211_reasoncode {
 	WLAN_REASON_INVALID_RSN_IE_CAP = 22,
 	WLAN_REASON_IEEE8021X_FAILED = 23,
 	WLAN_REASON_CIPHER_SUITE_REJECTED = 24,
+	/* TDLS (802.11z) */
+	WLAN_REASON_TDLS_TEARDOWN_UNREACHABLE = 25,
+	WLAN_REASON_TDLS_TEARDOWN_UNSPECIFIED = 26,
 	/* 802.11e */
 	WLAN_REASON_DISASSOC_UNSPECIFIED_QOS = 32,
 	WLAN_REASON_DISASSOC_QAP_NO_BANDWIDTH = 33,
@@ -1707,6 +1751,7 @@ enum ieee80211_eid {
 	WLAN_EID_RRM_ENABLED_CAPABILITIES = 70,
 	WLAN_EID_MULTIPLE_BSSID = 71,
 	WLAN_EID_BSS_COEX_2040 = 72,
+	WLAN_EID_BSS_INTOLERANT_CHL_REPORT = 73,
 	WLAN_EID_OVERLAP_BSS_SCAN_PARAM = 74,
 	WLAN_EID_RIC_DESCRIPTOR = 75,
 	WLAN_EID_MMIE = 76,
@@ -1837,6 +1882,7 @@ enum ieee80211_category {
 	WLAN_CATEGORY_DLS = 2,
 	WLAN_CATEGORY_BACK = 3,
 	WLAN_CATEGORY_PUBLIC = 4,
+	WLAN_CATEGORY_RADIO_MEASUREMENT = 5,
 	WLAN_CATEGORY_HT = 7,
 	WLAN_CATEGORY_SA_QUERY = 8,
 	WLAN_CATEGORY_PROTECTED_DUAL_OF_ACTION = 9,
@@ -1945,6 +1991,11 @@ enum ieee80211_tdls_actioncode {
 	WLAN_TDLS_PEER_TRAFFIC_RESPONSE = 9,
 	WLAN_TDLS_DISCOVERY_REQUEST = 10,
 };
+
+/* Extended Channel Switching capability to be set in the 1st byte of
+ * the @WLAN_EID_EXT_CAPABILITY information element
+ */
+#define WLAN_EXT_CAPA1_EXT_CHANNEL_SWITCHING	BIT(2)
 
 /* Interworking capabilities are set in 7th bit of 4th byte of the
  * @WLAN_EID_EXT_CAPABILITY information element
@@ -2349,5 +2400,52 @@ static inline bool ieee80211_check_tim(const struct ieee80211_tim_ie *tim,
 /* convert time units */
 #define TU_TO_JIFFIES(x)	(usecs_to_jiffies((x) * 1024))
 #define TU_TO_EXP_TIME(x)	(jiffies + TU_TO_JIFFIES(x))
+
+/**
+ * ieee80211_action_contains_tpc - checks if the frame contains TPC element
+ * @skb: the skb containing the frame, length will be checked
+ *
+ * This function checks if it's either TPC report action frame or Link
+ * Measurement report action frame as defined in IEEE Std. 802.11-2012 8.5.2.5
+ * and 8.5.7.5 accordingly.
+ */
+static inline bool ieee80211_action_contains_tpc(struct sk_buff *skb)
+{
+	struct ieee80211_mgmt *mgmt = (void *)skb->data;
+
+	if (!ieee80211_is_action(mgmt->frame_control))
+		return false;
+
+	if (skb->len < IEEE80211_MIN_ACTION_SIZE +
+		       sizeof(mgmt->u.action.u.tpc_report))
+		return false;
+
+	/*
+	 * TPC report - check that:
+	 * category = 0 (Spectrum Management) or 5 (Radio Measurement)
+	 * spectrum management action = 3 (TPC/Link Measurement report)
+	 * TPC report EID = 35
+	 * TPC report element length = 2
+	 *
+	 * The spectrum management's tpc_report struct is used here both for
+	 * parsing tpc_report and radio measurement's link measurement report
+	 * frame, since the relevant part is identical in both frames.
+	 */
+	if (mgmt->u.action.category != WLAN_CATEGORY_SPECTRUM_MGMT &&
+	    mgmt->u.action.category != WLAN_CATEGORY_RADIO_MEASUREMENT)
+		return false;
+
+	/* both spectrum mgmt and link measurement have same action code */
+	if (mgmt->u.action.u.tpc_report.action_code !=
+	    WLAN_ACTION_SPCT_TPC_RPRT)
+		return false;
+
+	if (mgmt->u.action.u.tpc_report.tpc_elem_id != WLAN_EID_TPC_REPORT ||
+	    mgmt->u.action.u.tpc_report.tpc_elem_length !=
+	    sizeof(struct ieee80211_tpc_report_ie))
+		return false;
+
+	return true;
+}
 
 #endif /* LINUX_IEEE80211_H */

@@ -62,11 +62,13 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
+#include <linux/vmalloc.h>
+
 #include "mvm.h"
 #include "sta.h"
 #include "iwl-io.h"
-#include "iwl-prph.h"
 #include "debugfs.h"
+#include "iwl-fw-error-dump.h"
 
 static ssize_t iwl_dbgfs_tx_flush_write(struct iwl_mvm *mvm, char *buf,
 					size_t count, loff_t *ppos)
@@ -337,20 +339,10 @@ static ssize_t iwl_dbgfs_disable_power_off_write(struct iwl_mvm *mvm, char *buf,
 					 BT_MBOX_MSG(notif, _num, _field),  \
 					 true ? "\n" : ", ");
 
-static ssize_t iwl_dbgfs_bt_notif_read(struct file *file, char __user *user_buf,
-				       size_t count, loff_t *ppos)
+static
+int iwl_mvm_coex_dump_mbox(struct iwl_bt_coex_profile_notif *notif, char *buf,
+			   int pos, int bufsz)
 {
-	struct iwl_mvm *mvm = file->private_data;
-	struct iwl_bt_coex_profile_notif *notif = &mvm->last_bt_notif;
-	char *buf;
-	int ret, pos = 0, bufsz = sizeof(char) * 1024;
-
-	buf = kmalloc(bufsz, GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-
-	mutex_lock(&mvm->mutex);
-
 	pos += scnprintf(buf+pos, bufsz-pos, "MBOX dw0:\n");
 
 	BT_MBOX_PRINT(0, LE_SLAVE_LAT, false);
@@ -403,25 +395,118 @@ static ssize_t iwl_dbgfs_bt_notif_read(struct file *file, char __user *user_buf,
 	BT_MBOX_PRINT(3, SSN_2, false);
 	BT_MBOX_PRINT(3, UPDATE_REQUEST, true);
 
-	pos += scnprintf(buf+pos, bufsz-pos, "bt_status = %d\n",
-			 notif->bt_status);
-	pos += scnprintf(buf+pos, bufsz-pos, "bt_open_conn = %d\n",
-			 notif->bt_open_conn);
-	pos += scnprintf(buf+pos, bufsz-pos, "bt_traffic_load = %d\n",
-			 notif->bt_traffic_load);
-	pos += scnprintf(buf+pos, bufsz-pos, "bt_agg_traffic_load = %d\n",
-			 notif->bt_agg_traffic_load);
-	pos += scnprintf(buf+pos, bufsz-pos, "bt_ci_compliance = %d\n",
-			 notif->bt_ci_compliance);
-	pos += scnprintf(buf+pos, bufsz-pos, "primary_ch_lut = %d\n",
-			 le32_to_cpu(notif->primary_ch_lut));
-	pos += scnprintf(buf+pos, bufsz-pos, "secondary_ch_lut = %d\n",
-			 le32_to_cpu(notif->secondary_ch_lut));
-	pos += scnprintf(buf+pos, bufsz-pos, "bt_activity_grading = %d\n",
-			 le32_to_cpu(notif->bt_activity_grading));
-	pos += scnprintf(buf+pos, bufsz-pos,
-			 "antenna isolation = %d CORUN LUT index = %d\n",
-			 mvm->last_ant_isol, mvm->last_corun_lut);
+	return pos;
+}
+
+static
+int iwl_mvm_coex_dump_mbox_old(struct iwl_bt_coex_profile_notif_old *notif,
+			       char *buf, int pos, int bufsz)
+{
+	pos += scnprintf(buf+pos, bufsz-pos, "MBOX dw0:\n");
+
+	BT_MBOX_PRINT(0, LE_SLAVE_LAT, false);
+	BT_MBOX_PRINT(0, LE_PROF1, false);
+	BT_MBOX_PRINT(0, LE_PROF2, false);
+	BT_MBOX_PRINT(0, LE_PROF_OTHER, false);
+	BT_MBOX_PRINT(0, CHL_SEQ_N, false);
+	BT_MBOX_PRINT(0, INBAND_S, false);
+	BT_MBOX_PRINT(0, LE_MIN_RSSI, false);
+	BT_MBOX_PRINT(0, LE_SCAN, false);
+	BT_MBOX_PRINT(0, LE_ADV, false);
+	BT_MBOX_PRINT(0, LE_MAX_TX_POWER, false);
+	BT_MBOX_PRINT(0, OPEN_CON_1, true);
+
+	pos += scnprintf(buf+pos, bufsz-pos, "MBOX dw1:\n");
+
+	BT_MBOX_PRINT(1, BR_MAX_TX_POWER, false);
+	BT_MBOX_PRINT(1, IP_SR, false);
+	BT_MBOX_PRINT(1, LE_MSTR, false);
+	BT_MBOX_PRINT(1, AGGR_TRFC_LD, false);
+	BT_MBOX_PRINT(1, MSG_TYPE, false);
+	BT_MBOX_PRINT(1, SSN, true);
+
+	pos += scnprintf(buf+pos, bufsz-pos, "MBOX dw2:\n");
+
+	BT_MBOX_PRINT(2, SNIFF_ACT, false);
+	BT_MBOX_PRINT(2, PAG, false);
+	BT_MBOX_PRINT(2, INQUIRY, false);
+	BT_MBOX_PRINT(2, CONN, false);
+	BT_MBOX_PRINT(2, SNIFF_INTERVAL, false);
+	BT_MBOX_PRINT(2, DISC, false);
+	BT_MBOX_PRINT(2, SCO_TX_ACT, false);
+	BT_MBOX_PRINT(2, SCO_RX_ACT, false);
+	BT_MBOX_PRINT(2, ESCO_RE_TX, false);
+	BT_MBOX_PRINT(2, SCO_DURATION, true);
+
+	pos += scnprintf(buf+pos, bufsz-pos, "MBOX dw3:\n");
+
+	BT_MBOX_PRINT(3, SCO_STATE, false);
+	BT_MBOX_PRINT(3, SNIFF_STATE, false);
+	BT_MBOX_PRINT(3, A2DP_STATE, false);
+	BT_MBOX_PRINT(3, ACL_STATE, false);
+	BT_MBOX_PRINT(3, MSTR_STATE, false);
+	BT_MBOX_PRINT(3, OBX_STATE, false);
+	BT_MBOX_PRINT(3, OPEN_CON_2, false);
+	BT_MBOX_PRINT(3, TRAFFIC_LOAD, false);
+	BT_MBOX_PRINT(3, CHL_SEQN_LSB, false);
+	BT_MBOX_PRINT(3, INBAND_P, false);
+	BT_MBOX_PRINT(3, MSG_TYPE_2, false);
+	BT_MBOX_PRINT(3, SSN_2, false);
+	BT_MBOX_PRINT(3, UPDATE_REQUEST, true);
+
+	return pos;
+}
+
+static ssize_t iwl_dbgfs_bt_notif_read(struct file *file, char __user *user_buf,
+				       size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	char *buf;
+	int ret, pos = 0, bufsz = sizeof(char) * 1024;
+
+	buf = kmalloc(bufsz, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	mutex_lock(&mvm->mutex);
+
+	if (!(mvm->fw->ucode_capa.api[0] & IWL_UCODE_TLV_API_BT_COEX_SPLIT)) {
+		struct iwl_bt_coex_profile_notif_old *notif =
+			&mvm->last_bt_notif_old;
+
+		pos += iwl_mvm_coex_dump_mbox_old(notif, buf, pos, bufsz);
+
+		pos += scnprintf(buf+pos, bufsz-pos, "bt_ci_compliance = %d\n",
+				 notif->bt_ci_compliance);
+		pos += scnprintf(buf+pos, bufsz-pos, "primary_ch_lut = %d\n",
+				 le32_to_cpu(notif->primary_ch_lut));
+		pos += scnprintf(buf+pos, bufsz-pos, "secondary_ch_lut = %d\n",
+				 le32_to_cpu(notif->secondary_ch_lut));
+		pos += scnprintf(buf+pos,
+				 bufsz-pos, "bt_activity_grading = %d\n",
+				 le32_to_cpu(notif->bt_activity_grading));
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "antenna isolation = %d CORUN LUT index = %d\n",
+				 mvm->last_ant_isol, mvm->last_corun_lut);
+	} else {
+		struct iwl_bt_coex_profile_notif *notif =
+			&mvm->last_bt_notif;
+
+		pos += iwl_mvm_coex_dump_mbox(notif, buf, pos, bufsz);
+
+		pos += scnprintf(buf+pos, bufsz-pos, "bt_ci_compliance = %d\n",
+				 notif->bt_ci_compliance);
+		pos += scnprintf(buf+pos, bufsz-pos, "primary_ch_lut = %d\n",
+				 le32_to_cpu(notif->primary_ch_lut));
+		pos += scnprintf(buf+pos, bufsz-pos, "secondary_ch_lut = %d\n",
+				 le32_to_cpu(notif->secondary_ch_lut));
+		pos += scnprintf(buf+pos,
+				 bufsz-pos, "bt_activity_grading = %d\n",
+				 le32_to_cpu(notif->bt_activity_grading));
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "antenna isolation = %d CORUN LUT index = %d\n",
+				 mvm->last_ant_isol, mvm->last_corun_lut);
+	}
 
 	mutex_unlock(&mvm->mutex);
 
@@ -436,28 +521,57 @@ static ssize_t iwl_dbgfs_bt_cmd_read(struct file *file, char __user *user_buf,
 				     size_t count, loff_t *ppos)
 {
 	struct iwl_mvm *mvm = file->private_data;
-	struct iwl_bt_coex_ci_cmd *cmd = &mvm->last_bt_ci_cmd;
 	char buf[256];
 	int bufsz = sizeof(buf);
 	int pos = 0;
 
 	mutex_lock(&mvm->mutex);
 
-	pos += scnprintf(buf+pos, bufsz-pos, "Channel inhibition CMD\n");
-	pos += scnprintf(buf+pos, bufsz-pos,
-		       "\tPrimary Channel Bitmap 0x%016llx Fat: %d\n",
-		       le64_to_cpu(cmd->bt_primary_ci),
-		       !!cmd->co_run_bw_primary);
-	pos += scnprintf(buf+pos, bufsz-pos,
-		       "\tSecondary Channel Bitmap 0x%016llx Fat: %d\n",
-		       le64_to_cpu(cmd->bt_secondary_ci),
-		       !!cmd->co_run_bw_secondary);
+	if (!(mvm->fw->ucode_capa.api[0] & IWL_UCODE_TLV_API_BT_COEX_SPLIT)) {
+		struct iwl_bt_coex_ci_cmd_old *cmd = &mvm->last_bt_ci_cmd_old;
 
-	pos += scnprintf(buf+pos, bufsz-pos, "BT Configuration CMD\n");
-	pos += scnprintf(buf+pos, bufsz-pos, "\tACK Kill Mask 0x%08x\n",
-			 iwl_bt_ack_kill_msk[mvm->bt_kill_msk]);
-	pos += scnprintf(buf+pos, bufsz-pos, "\tCTS Kill Mask 0x%08x\n",
-			 iwl_bt_cts_kill_msk[mvm->bt_kill_msk]);
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "Channel inhibition CMD\n");
+		pos += scnprintf(buf+pos, bufsz-pos,
+			       "\tPrimary Channel Bitmap 0x%016llx\n",
+			       le64_to_cpu(cmd->bt_primary_ci));
+		pos += scnprintf(buf+pos, bufsz-pos,
+			       "\tSecondary Channel Bitmap 0x%016llx\n",
+			       le64_to_cpu(cmd->bt_secondary_ci));
+
+		pos += scnprintf(buf+pos, bufsz-pos, "BT Configuration CMD\n");
+		pos += scnprintf(buf+pos, bufsz-pos, "\tACK Kill Mask 0x%08x\n",
+				 iwl_bt_ctl_kill_msk[mvm->bt_ack_kill_msk[0]]);
+		pos += scnprintf(buf+pos, bufsz-pos, "\tCTS Kill Mask 0x%08x\n",
+				 iwl_bt_ctl_kill_msk[mvm->bt_cts_kill_msk[0]]);
+
+	} else {
+		struct iwl_bt_coex_ci_cmd *cmd = &mvm->last_bt_ci_cmd;
+
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "Channel inhibition CMD\n");
+		pos += scnprintf(buf+pos, bufsz-pos,
+			       "\tPrimary Channel Bitmap 0x%016llx\n",
+			       le64_to_cpu(cmd->bt_primary_ci));
+		pos += scnprintf(buf+pos, bufsz-pos,
+			       "\tSecondary Channel Bitmap 0x%016llx\n",
+			       le64_to_cpu(cmd->bt_secondary_ci));
+
+		pos += scnprintf(buf+pos, bufsz-pos, "BT Configuration CMD\n");
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "\tPrimary: ACK Kill Mask 0x%08x\n",
+				 iwl_bt_ctl_kill_msk[mvm->bt_ack_kill_msk[0]]);
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "\tPrimary: CTS Kill Mask 0x%08x\n",
+				 iwl_bt_ctl_kill_msk[mvm->bt_cts_kill_msk[0]]);
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "\tSecondary: ACK Kill Mask 0x%08x\n",
+				 iwl_bt_ctl_kill_msk[mvm->bt_ack_kill_msk[1]]);
+		pos += scnprintf(buf+pos, bufsz-pos,
+				 "\tSecondary: CTS Kill Mask 0x%08x\n",
+				 iwl_bt_ctl_kill_msk[mvm->bt_cts_kill_msk[1]]);
+
+	}
 
 	mutex_unlock(&mvm->mutex);
 
@@ -742,7 +856,7 @@ static ssize_t iwl_dbgfs_fw_restart_write(struct iwl_mvm *mvm, char *buf,
 		mvm->restart_fw++;
 
 	/* take the return value to make compiler happy - it will fail anyway */
-	ret = iwl_mvm_send_cmd_pdu(mvm, REPLY_ERROR, CMD_SYNC, 0, NULL);
+	ret = iwl_mvm_send_cmd_pdu(mvm, REPLY_ERROR, 0, 0, NULL);
 
 	mutex_unlock(&mvm->mutex);
 
@@ -756,7 +870,7 @@ static ssize_t iwl_dbgfs_fw_nmi_write(struct iwl_mvm *mvm, char *buf,
 	if (ret)
 		return ret;
 
-	iwl_write_prph(mvm->trans, DEVICE_SET_NMI_REG, 1);
+	iwl_force_nmi(mvm->trans);
 
 	iwl_mvm_unref(mvm, IWL_MVM_REF_NMI);
 
@@ -905,7 +1019,7 @@ static ssize_t iwl_dbgfs_bcast_filters_write(struct iwl_mvm *mvm, char *buf,
 	/* send updated bcast filtering configuration */
 	if (mvm->dbgfs_bcast_filtering.override &&
 	    iwl_mvm_bcast_filter_build_cmd(mvm, &cmd))
-		err = iwl_mvm_send_cmd_pdu(mvm, BCAST_FILTER_CMD, CMD_SYNC,
+		err = iwl_mvm_send_cmd_pdu(mvm, BCAST_FILTER_CMD, 0,
 					   sizeof(cmd), &cmd);
 	mutex_unlock(&mvm->mutex);
 
@@ -977,7 +1091,7 @@ static ssize_t iwl_dbgfs_bcast_filters_macs_write(struct iwl_mvm *mvm,
 	/* send updated bcast filtering configuration */
 	if (mvm->dbgfs_bcast_filtering.override &&
 	    iwl_mvm_bcast_filter_build_cmd(mvm, &cmd))
-		err = iwl_mvm_send_cmd_pdu(mvm, BCAST_FILTER_CMD, CMD_SYNC,
+		err = iwl_mvm_send_cmd_pdu(mvm, BCAST_FILTER_CMD, 0,
 					   sizeof(cmd), &cmd);
 	mutex_unlock(&mvm->mutex);
 
@@ -1219,9 +1333,8 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(stations, dbgfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(bt_notif, dbgfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(bt_cmd, dbgfs_dir, S_IRUSR);
-	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_DEVICE_PS_CMD)
-		MVM_DEBUGFS_ADD_FILE(disable_power_off, mvm->debugfs_dir,
-				     S_IRUSR | S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE(disable_power_off, mvm->debugfs_dir,
+			     S_IRUSR | S_IWUSR);
 	MVM_DEBUGFS_ADD_FILE(fw_rx_stats, mvm->debugfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(drv_rx_stats, mvm->debugfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(fw_restart, mvm->debugfs_dir, S_IWUSR);
@@ -1259,6 +1372,13 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 		goto err;
 #endif
 
+	if (!debugfs_create_u8("low_latency_agg_frame_limit", S_IRUSR | S_IWUSR,
+			       mvm->debugfs_dir,
+			       &mvm->low_latency_agg_frame_limit))
+		goto err;
+	if (!debugfs_create_u8("ps_disabled", S_IRUSR,
+			       mvm->debugfs_dir, &mvm->ps_disabled))
+		goto err;
 	if (!debugfs_create_blob("nvm_hw", S_IRUSR,
 				  mvm->debugfs_dir, &mvm->nvm_hw_blob))
 		goto err;

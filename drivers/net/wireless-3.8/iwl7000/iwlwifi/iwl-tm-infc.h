@@ -67,6 +67,17 @@
 
 #include <linux/types.h>
 
+/*
+ * Testmode GNL family command.
+ * There is only one NL command, not to be
+ * confused with testmode commands
+ */
+enum iwl_tm_gnl_cmd_t {
+	IWL_TM_GNL_CMD_EXECUTE = 0,
+	IWL_TM_GNL_CMD_SUBSCRIBE_EVENTS,
+};
+
+
 /* uCode trace buffer */
 #define TRACE_BUFF_SIZE_MAX	0x200000
 #define TRACE_BUFF_SIZE_MIN	0x1000
@@ -76,6 +87,7 @@
 #define TM_CMD_NOTIF_BASE	0x200
 #define XVT_CMD_BASE		0x300
 #define XVT_CMD_NOTIF_BASE	0x400
+#define XVT_BUS_TESTER_BASE	0x500
 
 /*
  * Periphery registers absolute lower bound. This is used in order to
@@ -96,7 +108,7 @@ enum {
 	IWL_TM_USER_CMD_END_TRACE,
 	IWL_TM_USER_CMD_TRACE_DUMP,
 	IWL_TM_USER_CMD_NOTIFICATIONS,
-	IWL_TM_USER_CMD_SWICTH_OP_MODE,
+	IWL_TM_USER_CMD_SWITCH_OP_MODE,
 
 	IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT = TM_CMD_NOTIF_BASE,
 	IWL_TM_USER_CMD_NOTIF_DRIVER,
@@ -106,6 +118,9 @@ enum {
 	IWL_TM_USER_CMD_NOTIF_DTS_MEASUREMENTS,
 	IWL_TM_USER_CMD_NOTIF_MONITOR_DATA,
 	IWL_TM_USER_CMD_NOTIF_UCODE_MSGS_DATA,
+	IWL_TM_USER_CMD_NOTIF_APMG_PD,
+	IWL_TM_USER_CMD_NOTIF_RETRIEVE_MONITOR,
+	IWL_TM_USER_CMD_NOTIF_CRASH_DATA,
 	IWL_TM_USER_CMD_NOTIF_BFE,
 };
 
@@ -126,11 +141,21 @@ enum {
 	IWL_XVT_CMD_GET_DMA,
 	IWL_XVT_CMD_FREE_DMA,
 	IWL_XVT_CMD_GET_CHIP_ID,
+	IWL_XVT_CMD_APMG_PD_MODE,
 
 	/* Driver notifications */
 	IWL_XVT_CMD_SEND_REPLY_ALIVE = XVT_CMD_NOTIF_BASE,
 	IWL_XVT_CMD_SEND_RFKILL,
 	IWL_XVT_CMD_SEND_NIC_ERROR,
+
+	/* Bus Tester Commands*/
+	IWL_TM_USER_CMD_SV_BUS_CONFIG = XVT_BUS_TESTER_BASE,
+	IWL_TM_USER_CMD_SV_BUS_RESET,
+	IWL_TM_USER_CMD_SV_IO_TOGGLE,
+	IWL_TM_USER_CMD_SV_GET_STATUS,
+	IWL_TM_USER_CMD_SV_RD_WR_UINT8,
+	IWL_TM_USER_CMD_SV_RD_WR_UINT32,
+	IWL_TM_USER_CMD_SV_RD_WR_BUFFER,
 };
 
 enum {
@@ -151,6 +176,14 @@ struct iwl_tm_cmd_request {
 	__u32 want_resp;
 	__u32 len;
 	__u8 data[];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_svt_sdio_enable - SV Tester SDIO bus enable command
+ * @enable:	Function enable/disable 1/0
+ */
+struct iwl_tm_sdio_io_toggle {
+	__u32 enable;
 } __packed __aligned(4);
 
 /* Register operations - Operation type */
@@ -339,6 +372,15 @@ struct iwl_xvt_rx_hdrs_mode_request {
 } __packed __aligned(4);
 
 /**
+ * struct iwl_xvt_apmg_pd_mode_request - Start/Stop gathering apmg_pd info.
+ * @mode: 0 - stop
+ *        1 - start
+ */
+struct iwl_xvt_apmg_pd_mode_request {
+	__u32 mode;
+} __packed __aligned(4);
+
+/**
  * struct iwl_xvt_alloc_dma - Data for alloc dma requests
  * @addr:	Resulting DMA address of trace buffer LSB
  * @size:	Requested size of dma buffer
@@ -364,6 +406,17 @@ struct iwl_xvt_get_dma {
  */
 struct iwl_xvt_chip_id {
 	__u32 registers[3];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_tm_crash_data - Notifications containing crash data
+ * @data_type:	type of the data
+ * @size:	data size
+ * @data:	data
+ */
+struct iwl_tm_crash_data {
+	__u32 size;
+	__u8 data[];
 } __packed __aligned(4);
 
 #endif

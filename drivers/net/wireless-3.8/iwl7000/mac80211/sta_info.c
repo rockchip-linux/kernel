@@ -240,9 +240,18 @@ void sta_info_free(struct ieee80211_local *local, struct sta_info *sta)
 			kfree(sta->tx_lat[i].bins);
 		kfree(sta->tx_lat);
 	}
+	if (sta->tx_consec) {
+		for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+			kfree(sta->tx_consec[i].late_bins);
+			kfree(sta->tx_consec[i].loss_bins);
+			kfree(sta->tx_consec[i].total_loss_bins);
+		}
+		kfree(sta->tx_consec);
+	}
 
 	sta_dbg(sta->sdata, "Destroyed STA %pM\n", sta->sta.addr);
 
+	kfree(rcu_dereference_raw(sta->sta.rates));
 	kfree(sta);
 }
 
@@ -296,7 +305,8 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 	struct sta_info *sta;
 	struct timespec uptime;
 	struct ieee80211_tx_latency_bin_ranges *tx_latency;
-	int i;
+	struct ieee80211_tx_consec_loss_ranges *tx_consec;
+	size_t i, size;
 
 	sta = kzalloc(sizeof(*sta) + local->hw.sta_data_size, gfp);
 	if (!sta)
@@ -329,6 +339,39 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 			}
 		}
 	}
+	tx_consec = rcu_dereference(local->tx_consec);
+	/* init stations Tx consecutive loss statistics */
+	if (tx_consec) {
+		size = sizeof(struct ieee80211_tx_consec_loss_stat);
+		sta->tx_consec = kzalloc(IEEE80211_NUM_TIDS * size,
+					 GFP_ATOMIC);
+		if (!sta->tx_consec) {
+			rcu_read_unlock();
+			goto free;
+		}
+
+		for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+			sta->tx_consec[i].bin_count =
+				tx_consec->n_ranges;
+			sta->tx_consec[i].loss_bins =
+				kcalloc(sta->tx_consec[i].bin_count,
+					sizeof(u32), GFP_ATOMIC);
+			sta->tx_consec[i].late_bins =
+				kcalloc(sta->tx_consec[i].bin_count,
+					sizeof(u32), GFP_ATOMIC);
+			sta->tx_consec[i].total_loss_bins =
+				kcalloc(sta->tx_consec[i].bin_count,
+					sizeof(u32), GFP_ATOMIC);
+
+			if (!sta->tx_consec[i].loss_bins ||
+			    !sta->tx_consec[i].late_bins ||
+			    !sta->tx_consec[i].total_loss_bins) {
+				rcu_read_unlock();
+				goto free;
+			}
+		}
+	}
+
 	rcu_read_unlock();
 
 	spin_lock_init(&sta->lock);
@@ -350,7 +393,7 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 
 	sta->sta_state = IEEE80211_STA_NONE;
 
-	do_posix_clock_monotonic_gettime(&uptime);
+	ktime_get_ts(&uptime);
 	sta->last_connected = uptime.tv_sec;
 	ewma_init(&sta->avg_signal, 1024, 8);
 	for (i = 0; i < ARRAY_SIZE(sta->chain_signal_avg); i++)
@@ -410,6 +453,15 @@ free:
 			kfree(sta->tx_lat[i].bins);
 		kfree(sta->tx_lat);
 	}
+	if (sta->tx_consec) {
+		for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+			kfree(sta->tx_consec[i].late_bins);
+			kfree(sta->tx_consec[i].loss_bins);
+			kfree(sta->tx_consec[i].total_loss_bins);
+		}
+		kfree(sta->tx_consec);
+	}
+
 	kfree(sta);
 	return NULL;
 }
@@ -545,7 +597,7 @@ static int sta_info_insert_finish(struct sta_info *sta) __acquires(RCU)
 int sta_info_insert_rcu(struct sta_info *sta) __acquires(RCU)
 {
 	struct ieee80211_local *local = sta->local;
-	int err = 0;
+	int err;
 
 	might_sleep();
 
@@ -563,7 +615,6 @@ int sta_info_insert_rcu(struct sta_info *sta) __acquires(RCU)
 
 	return 0;
  out_free:
-	BUG_ON(!err);
 	sta_info_free(local, sta);
 	return err;
 }
@@ -1148,7 +1199,8 @@ void ieee80211_sta_ps_deliver_wakeup(struct sta_info *sta)
 	atomic_dec(&ps->num_sta_ps);
 
 	/* This station just woke up and isn't aware of our SMPS state */
-	if (!ieee80211_smps_is_restrictive(sta->known_smps_mode,
+	if (!ieee80211_vif_is_mesh(&sdata->vif) &&
+	    !ieee80211_smps_is_restrictive(sta->known_smps_mode,
 					   sdata->smps_mode) &&
 	    sta->known_smps_mode != sdata->bss->req_smps &&
 	    sta_info_tx_streams(sta) != 1) {
@@ -1179,7 +1231,7 @@ static void ieee80211_send_null_response(struct ieee80211_sub_if_data *sdata,
 	struct sk_buff *skb;
 	int size = sizeof(*nullfunc);
 	__le16 fc;
-	bool qos = test_sta_flag(sta, WLAN_STA_WME);
+	bool qos = sta->sta.wme;
 	struct ieee80211_tx_info *info;
 	struct ieee80211_chanctx_conf *chanctx_conf;
 
@@ -1718,4 +1770,111 @@ u8 sta_info_tx_streams(struct sta_info *sta)
 
 	return ((ht_cap->mcs.tx_params & IEEE80211_HT_MCS_TX_MAX_STREAMS_MASK)
 			>> IEEE80211_HT_MCS_TX_MAX_STREAMS_SHIFT) + 1;
+}
+
+void sta_set_sinfo(struct sta_info *sta, struct station_info *sinfo)
+{
+	struct ieee80211_sub_if_data *sdata = sta->sdata;
+	struct ieee80211_local *local = sdata->local;
+	struct timespec uptime;
+	u64 packets = 0;
+	int ac;
+
+	sinfo->generation = sdata->local->sta_generation;
+
+	sinfo->filled = STATION_INFO_INACTIVE_TIME |
+			STATION_INFO_RX_BYTES |
+			STATION_INFO_TX_BYTES |
+			STATION_INFO_RX_PACKETS |
+			STATION_INFO_TX_PACKETS |
+			STATION_INFO_TX_RETRIES |
+			STATION_INFO_TX_FAILED |
+			STATION_INFO_TX_BITRATE |
+			STATION_INFO_RX_BITRATE |
+			STATION_INFO_RX_DROP_MISC |
+			STATION_INFO_BSS_PARAM |
+			STATION_INFO_CONNECTED_TIME |
+			STATION_INFO_STA_FLAGS |
+			STATION_INFO_BEACON_LOSS_COUNT;
+
+	ktime_get_ts(&uptime);
+	sinfo->connected_time = uptime.tv_sec - sta->last_connected;
+
+	sinfo->inactive_time = jiffies_to_msecs(jiffies - sta->last_rx);
+	sinfo->tx_bytes = 0;
+	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
+		sinfo->tx_bytes += sta->tx_bytes[ac];
+		packets += sta->tx_packets[ac];
+	}
+	sinfo->tx_packets = packets;
+	sinfo->rx_bytes = sta->rx_bytes;
+	sinfo->rx_packets = sta->rx_packets;
+	sinfo->tx_retries = sta->tx_retry_count;
+	sinfo->tx_failed = sta->tx_retry_failed;
+	sinfo->rx_dropped_misc = sta->rx_dropped;
+	sinfo->beacon_loss_count = sta->beacon_loss_count;
+
+	if ((sta->local->hw.flags & IEEE80211_HW_SIGNAL_DBM) ||
+	    (sta->local->hw.flags & IEEE80211_HW_SIGNAL_UNSPEC)) {
+		sinfo->filled |= STATION_INFO_SIGNAL | STATION_INFO_SIGNAL_AVG;
+		if (!local->ops->get_rssi ||
+		    drv_get_rssi(local, sdata, &sta->sta, &sinfo->signal))
+			sinfo->signal = (s8)sta->last_signal;
+		sinfo->signal_avg = (s8) -ewma_read(&sta->avg_signal);
+	}
+
+	sta_set_rate_info_tx(sta, &sta->last_tx_rate, &sinfo->txrate);
+	sta_set_rate_info_rx(sta, &sinfo->rxrate);
+
+	if (ieee80211_vif_is_mesh(&sdata->vif)) {
+#ifdef CPTCFG_MAC80211_MESH
+		sinfo->filled |= STATION_INFO_LLID |
+				 STATION_INFO_PLID |
+				 STATION_INFO_PLINK_STATE |
+				 STATION_INFO_LOCAL_PM |
+				 STATION_INFO_PEER_PM |
+				 STATION_INFO_NONPEER_PM;
+
+		sinfo->llid = sta->llid;
+		sinfo->plid = sta->plid;
+		sinfo->plink_state = sta->plink_state;
+		if (test_sta_flag(sta, WLAN_STA_TOFFSET_KNOWN)) {
+			sinfo->filled |= STATION_INFO_T_OFFSET;
+			sinfo->t_offset = sta->t_offset;
+		}
+		sinfo->local_pm = sta->local_pm;
+		sinfo->peer_pm = sta->peer_pm;
+		sinfo->nonpeer_pm = sta->nonpeer_pm;
+#endif
+	}
+
+	sinfo->bss_param.flags = 0;
+	if (sdata->vif.bss_conf.use_cts_prot)
+		sinfo->bss_param.flags |= BSS_PARAM_FLAGS_CTS_PROT;
+	if (sdata->vif.bss_conf.use_short_preamble)
+		sinfo->bss_param.flags |= BSS_PARAM_FLAGS_SHORT_PREAMBLE;
+	if (sdata->vif.bss_conf.use_short_slot)
+		sinfo->bss_param.flags |= BSS_PARAM_FLAGS_SHORT_SLOT_TIME;
+	sinfo->bss_param.dtim_period = sdata->vif.bss_conf.dtim_period;
+	sinfo->bss_param.beacon_interval = sdata->vif.bss_conf.beacon_int;
+
+	sinfo->sta_flags.set = 0;
+	sinfo->sta_flags.mask = BIT(NL80211_STA_FLAG_AUTHORIZED) |
+				BIT(NL80211_STA_FLAG_SHORT_PREAMBLE) |
+				BIT(NL80211_STA_FLAG_WME) |
+				BIT(NL80211_STA_FLAG_MFP) |
+				BIT(NL80211_STA_FLAG_AUTHENTICATED) |
+				BIT(NL80211_STA_FLAG_TDLS_PEER);
+	if (test_sta_flag(sta, WLAN_STA_AUTHORIZED))
+		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_AUTHORIZED);
+	if (test_sta_flag(sta, WLAN_STA_SHORT_PREAMBLE))
+		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_SHORT_PREAMBLE);
+	if (sta->sta.wme)
+		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_WME);
+	if (test_sta_flag(sta, WLAN_STA_MFP))
+		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_MFP);
+	if (test_sta_flag(sta, WLAN_STA_AUTH))
+		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_AUTHENTICATED);
+	if (test_sta_flag(sta, WLAN_STA_TDLS_PEER))
+		sinfo->sta_flags.set |= BIT(NL80211_STA_FLAG_TDLS_PEER);
 }

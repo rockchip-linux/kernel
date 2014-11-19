@@ -118,11 +118,13 @@ struct iwl_xvt {
 	enum iwl_ucode_type cur_ucode;
 	u32 error_event_table;
 	bool fw_running;
+	struct iwl_sf_region sf_space;
 
 	struct iwl_sw_stack_config sw_stack_cfg;
 	bool rx_hdr_enabled;
 
 	wait_queue_head_t mod_tx_wq;
+	bool apmg_pd_en;
 	/* DMA buffer information */
 	u32 dma_buffer_size;
 	u8 *dma_cpu_addr;

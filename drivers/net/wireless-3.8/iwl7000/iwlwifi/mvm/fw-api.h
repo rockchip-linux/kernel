@@ -73,9 +73,7 @@
 #include "fw-api-power.h"
 #include "fw-api-d3.h"
 #include "fw-api-coex.h"
-
-/* maximal number of Tx queues in any platform */
-#define IWL_MVM_MAX_QUEUES	20
+#include "fw-api-scan.h"
 
 /* Tx queue numbers */
 enum {
@@ -83,9 +81,18 @@ enum {
 	IWL_MVM_CMD_QUEUE = 9,
 };
 
-#define IWL_MVM_CMD_FIFO	7
+enum iwl_mvm_tx_fifo {
+	IWL_MVM_TX_FIFO_BK = 0,
+	IWL_MVM_TX_FIFO_BE,
+	IWL_MVM_TX_FIFO_VI,
+	IWL_MVM_TX_FIFO_VO,
+	IWL_MVM_TX_FIFO_MCAST = 5,
+	IWL_MVM_TX_FIFO_CMD = 7,
+};
 
 #define IWL_MVM_STATION_COUNT	16
+
+#define IWL_MVM_TDLS_STA_COUNT	4
 
 /* commands */
 enum {
@@ -132,10 +139,12 @@ enum {
 	/* Scan offload */
 	SCAN_OFFLOAD_REQUEST_CMD = 0x51,
 	SCAN_OFFLOAD_ABORT_CMD = 0x52,
+	HOT_SPOT_CMD = 0x53,
 	SCAN_OFFLOAD_COMPLETE = 0x6D,
 	SCAN_OFFLOAD_UPDATE_PROFILES_CMD = 0x6E,
 	SCAN_OFFLOAD_CONFIG_CMD = 0x6f,
 	MATCH_FOUND_NOTIFICATION = 0xd9,
+	SCAN_ITERATION_COMPLETE = 0xe7,
 
 	/* Phy */
 	PHY_CONFIGURATION_CMD = 0x6a,
@@ -165,7 +174,6 @@ enum {
 	BEACON_NOTIFICATION = 0x90,
 	BEACON_TEMPLATE_CMD = 0x91,
 	TX_ANT_CONFIGURATION_CMD = 0x98,
-	BT_CONFIG = 0x9b,
 	STATISTICS_NOTIFICATION = 0x9d,
 	EOSP_NOTIFICATION = 0x9e,
 	REDUCE_TX_POWER_CMD = 0x9f,
@@ -185,11 +193,16 @@ enum {
 
 	/* Location Aware Regulatory */
 	MCC_UPDATE_CMD = 0xc8,
+	MCC_CHUB_UPDATE_CMD = 0xc9,
 
 	/* BT Coex */
 	BT_COEX_PRIO_TABLE = 0xcc,
 	BT_COEX_PROT_ENV = 0xcd,
 	BT_PROFILE_NOTIFICATION = 0xce,
+	BT_CONFIG = 0x9b,
+	BT_COEX_UPDATE_SW_BOOST = 0x5a,
+	BT_COEX_UPDATE_CORUN_LUT = 0x5b,
+	BT_COEX_UPDATE_REDUCED_TXP = 0x5c,
 	BT_COEX_CI = 0x5d,
 
 	REPLY_SF_CFG_CMD = 0xd1,
@@ -546,6 +559,9 @@ enum iwl_time_event_type {
 	/* WiDi Sync Events */
 	TE_WIDI_TX_SYNC,
 
+	/* Channel Switch NoA */
+	TE_P2P_GO_CSA_NOA,
+
 	TE_MAX
 }; /* MAC_EVENT_TYPE_API_E_VER_1 */
 
@@ -617,52 +633,7 @@ enum {
 	TE_V1_NOTIF_INTERNAL_FRAG_END = BIT(7),
 }; /* MAC_EVENT_ACTION_API_E_VER_2 */
 
-
-/**
- * struct iwl_time_event_cmd_api_v1 - configuring Time Events
- * with struct MAC_TIME_EVENT_DATA_API_S_VER_1 (see also
- * with version 2. determined by IWL_UCODE_TLV_FLAGS)
- * ( TIME_EVENT_CMD = 0x29 )
- * @id_and_color: ID and color of the relevant MAC
- * @action: action to perform, one of FW_CTXT_ACTION_*
- * @id: this field has two meanings, depending on the action:
- *	If the action is ADD, then it means the type of event to add.
- *	For all other actions it is the unique event ID assigned when the
- *	event was added by the FW.
- * @apply_time: When to start the Time Event (in GP2)
- * @max_delay: maximum delay to event's start (apply time), in TU
- * @depends_on: the unique ID of the event we depend on (if any)
- * @interval: interval between repetitions, in TU
- * @interval_reciprocal: 2^32 / interval
- * @duration: duration of event in TU
- * @repeat: how many repetitions to do, can be TE_REPEAT_ENDLESS
- * @dep_policy: one of TE_V1_INDEPENDENT, TE_V1_DEP_OTHER, TE_V1_DEP_TSF
- *	and TE_V1_EVENT_SOCIOPATHIC
- * @is_present: 0 or 1, are we present or absent during the Time Event
- * @max_frags: maximal number of fragments the Time Event can be divided to
- * @notify: notifications using TE_V1_NOTIF_* (whom to notify when)
- */
-struct iwl_time_event_cmd_v1 {
-	/* COMMON_INDEX_HDR_API_S_VER_1 */
-	__le32 id_and_color;
-	__le32 action;
-	__le32 id;
-	/* MAC_TIME_EVENT_DATA_API_S_VER_1 */
-	__le32 apply_time;
-	__le32 max_delay;
-	__le32 dep_policy;
-	__le32 depends_on;
-	__le32 is_present;
-	__le32 max_frags;
-	__le32 interval;
-	__le32 interval_reciprocal;
-	__le32 duration;
-	__le32 repeat;
-	__le32 notify;
-} __packed; /* MAC_TIME_EVENT_CMD_API_S_VER_1 */
-
-
-/* Time event - defines for command API v2 */
+/* Time event - defines for command API */
 
 /*
  * @TE_V2_FRAG_NONE: fragmentation of the time event is NOT allowed.
@@ -693,7 +664,7 @@ enum {
 #define TE_V2_PLACEMENT_POS	12
 #define TE_V2_ABSENCE_POS	15
 
-/* Time event policy values (for time event cmd api v2)
+/* Time event policy values
  * A notification (both event and fragment) includes a status indicating weather
  * the FW was able to schedule the event or not. For fragment start/end
  * notification the status is always success. There is no start/end fragment
@@ -740,7 +711,7 @@ enum {
 };
 
 /**
- * struct iwl_time_event_cmd_api_v2 - configuring Time Events
+ * struct iwl_time_event_cmd_api - configuring Time Events
  * with struct MAC_TIME_EVENT_DATA_API_S_VER_2 (see also
  * with version 1. determined by IWL_UCODE_TLV_FLAGS)
  * ( TIME_EVENT_CMD = 0x29 )
@@ -763,7 +734,7 @@ enum {
  *	TE_EVENT_SOCIOPATHIC
  *	using TE_ABSENCE and using TE_NOTIF_*
  */
-struct iwl_time_event_cmd_v2 {
+struct iwl_time_event_cmd {
 	/* COMMON_INDEX_HDR_API_S_VER_1 */
 	__le32 id_and_color;
 	__le32 action;
@@ -957,6 +928,72 @@ struct iwl_phy_context_cmd {
 	__le32 acquisition_data;
 	__le32 dsp_cfg_flags;
 } __packed; /* PHY_CONTEXT_CMD_API_VER_1 */
+
+/*
+ * Aux ROC command
+ *
+ * Command requests the firmware to create a time event for a certain duration
+ * and remain on the given channel. This is done by using the Aux framework in
+ * the FW.
+ * The command was first used for Hot Spot issues - but can be used regardless
+ * to Hot Spot.
+ *
+ * ( HOT_SPOT_CMD 0x53 )
+ *
+ * @id_and_color: ID and color of the MAC
+ * @action: action to perform, one of FW_CTXT_ACTION_*
+ * @event_unique_id: If the action FW_CTXT_ACTION_REMOVE then the
+ *	event_unique_id should be the id of the time event assigned by ucode.
+ *	Otherwise ignore the event_unique_id.
+ * @sta_id_and_color: station id and color, resumed during "Remain On Channel"
+ *	activity.
+ * @channel_info: channel info
+ * @node_addr: Our MAC Address
+ * @reserved: reserved for alignment
+ * @apply_time: GP2 value to start (should always be the current GP2 value)
+ * @apply_time_max_delay: Maximum apply time delay value in TU. Defines max
+ *	time by which start of the event is allowed to be postponed.
+ * @duration: event duration in TU To calculate event duration:
+ *	timeEventDuration = min(duration, remainingQuota)
+ */
+struct iwl_hs20_roc_req {
+	/* COMMON_INDEX_HDR_API_S_VER_1 hdr */
+	__le32 id_and_color;
+	__le32 action;
+	__le32 event_unique_id;
+	__le32 sta_id_and_color;
+	struct iwl_fw_channel_info channel_info;
+	u8 node_addr[ETH_ALEN];
+	__le16 reserved;
+	__le32 apply_time;
+	__le32 apply_time_max_delay;
+	__le32 duration;
+} __packed; /* HOT_SPOT_CMD_API_S_VER_1 */
+
+/*
+ * values for AUX ROC result values
+ */
+enum iwl_mvm_hot_spot {
+	HOT_SPOT_RSP_STATUS_OK,
+	HOT_SPOT_RSP_STATUS_TOO_MANY_EVENTS,
+	HOT_SPOT_MAX_NUM_OF_SESSIONS,
+};
+
+/*
+ * Aux ROC command response
+ *
+ * In response to iwl_hs20_roc_req the FW sends this command to notify the
+ * driver the uid of the timevent.
+ *
+ * ( HOT_SPOT_CMD 0x53 )
+ *
+ * @event_unique_id: Unique ID of time event assigned by ucode
+ * @status: Return status 0 is success, all the rest used for specific errors
+ */
+struct iwl_hs20_roc_res {
+	__le32 event_unique_id;
+	__le32 status;
+} __packed; /* HOT_SPOT_RSP_API_S_VER_1 */
 
 #define IWL_RX_INFO_PHY_CNT 8
 #define IWL_RX_INFO_ENERGY_ANT_ABC_IDX 1
@@ -1544,14 +1581,14 @@ enum iwl_sf_scenario {
 
 /**
  * Smart Fifo configuration command.
- * @state: smart fifo state, types listed in iwl_sf_sate.
+ * @state: smart fifo state, types listed in enum %iwl_sf_sate.
  * @watermark: Minimum allowed availabe free space in RXF for transient state.
  * @long_delay_timeouts: aging and idle timer values for each scenario
  * in long delay state.
  * @full_on_timeouts: timer values for each scenario in full on state.
  */
 struct iwl_sf_cfg_cmd {
-	enum iwl_sf_state state;
+	__le32 state;
 	__le32 watermark[SF_TRANSIENT_STATES_NUMBER];
 	__le32 long_delay_timeouts[SF_NUM_SCENARIO][SF_NUM_TIMEOUT_TYPES];
 	__le32 full_on_timeouts[SF_NUM_SCENARIO][SF_NUM_TIMEOUT_TYPES];
@@ -1594,6 +1631,25 @@ struct iwl_mcc_update_resp {
 	__le32 n_channels;
 	__le32 channels[0];
 } __packed; /* LAR_UPDATE_MCC_CMD_RESP_S */
+
+/**
+ * struct iwl_mcc_chub_notif - chub notifies of mcc change
+ * (MCC_CHUB_UPDATE_CMD = 0xc9)
+ * The Chub (Communication Hub, CommsHUB) is a HW component that connects to
+ * the cellular and connectivity cores that gets updates of the mcc, and
+ * notifies the ucode directly of any mcc change.
+ * The ucode requests the driver to request the device to update geographic
+ * regulatory  profile according to the given MCC (Mobile Contry Code).
+ * The MCC is two letter-code, ascii upper case[A-Z] or '00' for world domain.
+ * 'ZZ' MCC will be used to switch to NVM default profile; in this case, the
+ * MCC in the cmd response will be the relevant MCC in the NVM.
+ * @mcc: given mobile contry code
+ * @reserved: reserved for alignment
+ */
+struct iwl_mcc_chub_notif {
+	u16 mcc;
+	u16 reserved1;
+} __packed; /* LAR_MCC_NOTIFY_S */
 
 enum iwl_mcc_update_status {
 	MCC_RESP_NEW_CHAN_PROFILE,

@@ -103,6 +103,8 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(u32, MVM_WOWLAN_PS_RX_DATA_TIMEOUT)
 	IWL_DBG_CFG(u32, MVM_UAPSD_TX_DATA_TIMEOUT)
 	IWL_DBG_CFG(u32, MVM_UAPSD_RX_DATA_TIMEOUT)
+	IWL_DBG_CFG(u32, MVM_UAPSD_QUEUES)
+	IWL_DBG_CFG_NODEF(bool, MVM_USE_PS_POLL)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_OVERRIDE_CONTROL)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_INIT_FLOW)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_INIT_EVENT)
@@ -121,6 +123,8 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(u16, MVM_PS_SNOOZE_WINDOW)
 	IWL_DBG_CFG(u16, MVM_WOWLAN_PS_SNOOZE_WINDOW)
 	IWL_DBG_CFG(u8, MVM_LOWLAT_QUOTA_MIN_PERCENT)
+	IWL_DBG_CFG(u16, MVM_BT_COEX_EN_RED_TXP_THRESH)
+	IWL_DBG_CFG(u16, MVM_BT_COEX_DIS_RED_TXP_THRESH)
 	IWL_DBG_CFG(bool, MVM_BT_COEX_SYNC2SCO)
 	IWL_DBG_CFG(bool, MVM_BT_COEX_CORUNNING)
 	IWL_DBG_CFG(bool, MVM_BT_COEX_MPLUT)
@@ -133,6 +137,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(u32, MVM_QUOTA_AIRTIME_THRESH)
 	IWL_DBG_CFG(u8, MVM_LOWLAT_QUOTA_LOWTRAF_PERCENT)
 #endif /* CPTCFG_IWLMVM_TCM */
+	IWL_DBG_CFG(u8, MVM_QUOTA_THRESHOLD)
 	IWL_DBG_CFG(u8, MVM_RS_RSSI_BASED_INIT_RATE)
 #endif /* CPTCFG_IWLMVM */
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
@@ -172,8 +177,8 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_base_addr)
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_end_addr)
 	IWL_DBG_CFG_NODEF(u32, dbgc_dram_wrptr_addr)
-	IWL_DBG_CFG_NODEF(u32, dbgc_hb_base_val_mipi)
-	IWL_DBG_CFG_NODEF(u32, dbgc_hb_end_val_mipi)
+	IWL_DBG_CFG_NODEF(u32, dbg_mipi_conf_reg)
+	IWL_DBG_CFG_NODEF(u32, dbg_mipi_conf_mask)
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_base_val_smem)
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_end_val_smem)
 	IWL_DBG_CFG_BIN(dbg_conf_monitor_host_command)
@@ -182,6 +187,9 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u8, log_level_cmd_id)
 	IWL_DBG_CFG_NODEF(u8, dbg_conf_monitor_cmd_id)
 	IWL_DBG_CFG_NODEF(u8, ldbg_cmd_nums)
+	IWL_DBG_CFG_NODEF(u32, dbg_mon_buff_base_addr_reg_addr_b_step)
+	IWL_DBG_CFG_NODEF(u32, dbg_mon_buff_end_addr_reg_addr_b_step)
+	IWL_DBG_CFG_NODEF(u32, dbg_mon_wr_ptr_addr_b_step)
 #endif /* CPTCFG_IWLWIFI_DEVICE_TESTMODE */
 #undef IWL_DBG_CFG
 #undef IWL_DBG_CFG_NODEF

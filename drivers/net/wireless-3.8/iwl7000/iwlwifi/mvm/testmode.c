@@ -144,7 +144,6 @@ static int iwl_mvm_tm_send_hcmd(struct iwl_mvm *mvm,
 		.data[0] = hcmd_req->data,
 		.len[0] = hcmd_req->len,
 		.dataflags[0] = IWL_HCMD_DFL_NOCOPY,
-		.flags = CMD_SYNC,
 	};
 	int ret;
 
@@ -427,6 +426,20 @@ int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 
 	return ret;
 }
+
+#ifdef CPTCFG_NL80211_TESTMODE
+/**
+ * iwl_tm_mvm_retrieve_monitor() - trigger monitor retrieve event
+ */
+int iwl_tm_mvm_retrieve_monitor(struct ieee80211_hw *hw)
+{
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+
+	return iwl_tm_gnl_send_msg(mvm->trans,
+				   IWL_TM_USER_CMD_NOTIF_RETRIEVE_MONITOR,
+				   false, NULL, 0, GFP_ATOMIC);
+}
+#endif
 
 /**
  * iwl_tm_mvm_send_rx() - Send a spontaneous rx message to user

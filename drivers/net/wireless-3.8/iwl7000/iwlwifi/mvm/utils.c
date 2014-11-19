@@ -66,6 +66,7 @@
 
 #include "iwl-debug.h"
 #include "iwl-io.h"
+#include "iwl-prph.h"
 
 #include "mvm.h"
 #include "fw-api-rs.h"
@@ -148,7 +149,7 @@ int iwl_mvm_send_cmd_status(struct iwl_mvm *mvm, struct iwl_host_cmd *cmd,
 		      "cmd flags %x", cmd->flags))
 		return -EINVAL;
 
-	cmd->flags |= CMD_SYNC | CMD_WANT_SKB;
+	cmd->flags |= CMD_WANT_SKB;
 
 	ret = iwl_trans_send_cmd(mvm->trans, cmd);
 	if (ret == -ERFKILL) {
@@ -474,6 +475,8 @@ void iwl_mvm_dump_nic_error_log(struct iwl_mvm *mvm)
 			mvm->status, table.valid);
 	}
 
+	/* Do not change this output - scripts rely on it */
+
 	IWL_ERR(mvm, "Loaded firmware version: %s\n", mvm->fw->fw_version);
 
 	trace_iwlwifi_dev_ucode_error(trans->dev, table.error_id, table.tsf_low,
@@ -521,35 +524,6 @@ void iwl_mvm_dump_nic_error_log(struct iwl_mvm *mvm)
 		iwl_mvm_dump_umac_error_log(mvm);
 }
 
-void iwl_mvm_dump_sram(struct iwl_mvm *mvm)
-{
-	const struct fw_img *img;
-	int ofs, len = 0;
-	int i;
-	__le32 *buf;
-
-	if (!mvm->ucode_loaded)
-		return;
-
-	img = &mvm->fw->img[mvm->cur_ucode];
-	ofs = img->sec[IWL_UCODE_SECTION_DATA].offset;
-	len = img->sec[IWL_UCODE_SECTION_DATA].len;
-
-	buf = kzalloc(len, GFP_ATOMIC);
-	if (!buf)
-		return;
-
-	iwl_trans_read_mem_bytes(mvm->trans, ofs, buf, len);
-	len = len >> 2;
-	for (i = 0; i < len; i++) {
-		IWL_ERR(mvm, "0x%08X\n", le32_to_cpu(buf[i]));
-		/* Add a small delay to let syslog catch up */
-		udelay(10);
-	}
-
-	kfree(buf);
-}
-
 /**
  * iwl_mvm_send_lq_cmd() - Send link quality command
  * @init: This command is sent as part of station initialization right
@@ -565,7 +539,7 @@ int iwl_mvm_send_lq_cmd(struct iwl_mvm *mvm, struct iwl_lq_cmd *lq, bool init)
 	struct iwl_host_cmd cmd = {
 		.id = LQ_CMD,
 		.len = { sizeof(struct iwl_lq_cmd), },
-		.flags = init ? CMD_SYNC : CMD_ASYNC,
+		.flags = init ? 0 : CMD_ASYNC,
 		.data = { lq, },
 	};
 
@@ -672,7 +646,7 @@ int iwl_mvm_update_low_latency(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	iwl_mvm_send_tcm_event(mvm, vif);
 #endif
 
-	return iwl_mvm_power_update_mac(mvm, vif);
+	return iwl_mvm_power_update_mac(mvm);
 }
 
 static void iwl_mvm_ll_iter(void *_data, u8 *mac, struct ieee80211_vif *vif)

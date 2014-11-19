@@ -90,7 +90,7 @@ static int iwl_nvm_write_chunk(struct iwl_xvt *xvt, u16 section,
 	struct iwl_host_cmd cmd = {
 		.id = NVM_ACCESS_CMD,
 		.len = { sizeof(struct iwl_nvm_access_cmd), length },
-		.flags = CMD_SYNC | CMD_SEND_IN_RFKILL,
+		.flags = CMD_SEND_IN_RFKILL,
 		.data = { &nvm_access_cmd, data },
 		/* data may come from vmalloc, so use _DUP */
 		.dataflags = { 0, IWL_HCMD_DFL_DUP },
@@ -146,7 +146,8 @@ static int iwl_nvm_write_section(struct iwl_xvt *xvt, u16 section,
  */
 static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 {
-	int ret, section_id, section_size;
+	int ret, section_size;
+	u16 section_id;
 	const struct firmware *fw_entry;
 	const struct {
 		__le16 word1;
@@ -157,6 +158,8 @@ static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 
 #define NVM_WORD1_LEN(x) (8 * (x & 0x03FF))
 #define NVM_WORD2_ID(x) (x >> 12)
+#define NVM_WORD2_LEN_FAMILY_8000(x) (2 * ((x & 0xFF) << 8 | x >> 8))
+#define NVM_WORD1_ID_FAMILY_8000(x) (x >> 4)
 
 	/*
 	 * Obtain NVM image via request_firmware. Since we already used
@@ -205,8 +208,16 @@ static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 			break;
 		}
 
-		section_size = 2 * NVM_WORD1_LEN(le16_to_cpu(file_sec->word1));
-		section_id = NVM_WORD2_ID(le16_to_cpu(file_sec->word2));
+		if (xvt->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
+			section_size =
+				2 * NVM_WORD1_LEN(le16_to_cpu(file_sec->word1));
+			section_id = NVM_WORD2_ID(le16_to_cpu(file_sec->word2));
+		} else {
+			section_size = 2 * NVM_WORD2_LEN_FAMILY_8000(
+						le16_to_cpu(file_sec->word2));
+			section_id = NVM_WORD1_ID_FAMILY_8000(
+						le16_to_cpu(file_sec->word1));
+		}
 
 		if (section_size > IWL_MAX_NVM_SECTION_SIZE) {
 			IWL_ERR(xvt, "ERROR - section too large (%d)\n",

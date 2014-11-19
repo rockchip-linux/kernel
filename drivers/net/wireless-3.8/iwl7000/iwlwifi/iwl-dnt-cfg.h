@@ -73,7 +73,7 @@
 #include "iwl-op-mode.h"
 #include "iwl-config.h"
 
-#define IWL_DNT_ARRAY_SIZE	128
+#define IWL_DNT_ARRAY_SIZE		128
 
 #define BUS_TYPE_PCI	"pci"
 #define BUS_TYPE_IDI	"idi"
@@ -117,8 +117,8 @@ enum {
 	MIPI = BIT(0),
 	INTERFACE = BIT(1),
 	DMA = BIT(2),
-	MARBH = BIT(3),
-	ICCM = BIT(4),
+	MARBH_ADC = BIT(3),
+	MARBH_DBG = BIT(4),
 	SMEM = BIT(5)
 };
 
@@ -168,7 +168,7 @@ struct dnt_collect_db {
 	struct dnt_collect_entry collect_array[IWL_DNT_ARRAY_SIZE];
 	unsigned int read_ptr;
 	unsigned int wr_ptr;
-	spinlock_t db_lock;	/*locks the array */
+	spinlock_t db_lock;	/* locks the array */
 };
 
 /**
@@ -209,10 +209,13 @@ struct iwl_dnt_dispatch {
 	u32 ucode_msgs_out_mode;
 	u32 ucode_msgs_output;
 
+	u32 crash_out_mode;
+
 	struct dnt_collect_db *dbgm_db;
 	struct dnt_collect_db *um_db;
 
 	struct dnt_crash_data crash;
+	spinlock_t crash_lock;	/* locks crash data */
 };
 
 /**
@@ -254,6 +257,7 @@ struct iwl_dnt {
 	struct iwl_dnt_dispatch dispatch;
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	struct dentry *debugfs_entry;
+	struct dentry *crash_entry;
 #endif
 };
 

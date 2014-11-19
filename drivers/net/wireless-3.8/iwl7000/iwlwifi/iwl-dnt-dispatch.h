@@ -88,4 +88,13 @@ struct dnt_collect_db *iwl_dnt_dispatch_allocate_collect_db(
 							struct iwl_dnt *dnt);
 
 void iwl_dnt_dispatch_handle_nic_err(struct iwl_trans *trans);
+
+ssize_t iwl_dnt_dispatch_get_crash_data(struct file *file,
+					char __user *user_buf, size_t count,
+					loff_t *ppos);
+
+int iwl_dnt_dispatch_open_crash_data(struct inode *inode, struct file *file);
+
+int iwl_dnt_dispatch_release_crash_data(struct inode *inode, struct file *file);
+
 #endif
