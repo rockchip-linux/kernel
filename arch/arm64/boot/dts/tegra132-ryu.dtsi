@@ -419,16 +419,9 @@
 			interrupts = <TEGRA_GPIO(W, 3) IRQ_TYPE_EDGE_BOTH>;
 			realtek,pow-ldo2-gpio = <&gpio TEGRA_GPIO(R, 2) GPIO_ACTIVE_HIGH>;
 			realtek,in1-differential = "true";
-			realtek,jd2-gpio = <3>;    /* MIC_PRESENT_L generates an interruption */
-			realtek,gpio-config = /bits/ 8  <0 0 0 0 0 2>;   /* pull up MIC_PRESENT_L (GPIO6) */
 
 			gpio-controller;
 			#gpio-cells = <2>;
-		};
-
-		ssm4567: speaker-amp@34 {
-			compatible = "adi,ssm4567";
-			reg = <0x34>;
 		};
 
 		tmp451: temperature-sensor@4c {
@@ -795,7 +788,6 @@
 		nvidia,model = "NVIDIA Tegra Ryu";
 
 		nvidia,audio-routing =
-			/* rt5677 codec */
 			"Headphone", "LOUT2",
 			"Headphone", "LOUT1",
 			"Headset Mic", "MICBIAS1",
@@ -805,16 +797,14 @@
 			"DMIC R1", "Internal Mic 1",
 			"DMIC L2", "Internal Mic 2",
 			"DMIC R2", "Internal Mic 2",
-			/* speaker amp */
-			"DAC", "AIF2TX",
-			"Speaker", "OUT";
+			"Speaker", "PDM1L",
+			"Speaker", "PDM1R";
 
 		nvidia,i2s-controller = <&tegra_i2s1>;
 		nvidia,audio-codec = <&rt5677>;
-		nvidia,speaker-codec = <&ssm4567>;
 
 		nvidia,hp-det-gpios = <&gpio TEGRA_GPIO(R, 7) GPIO_ACTIVE_HIGH>;
-		nvidia,mic-present-gpios = <&rt5677 5 GPIO_ACTIVE_LOW>;
+		nvidia,mic-present-gpios = <&gpio TEGRA_GPIO(O, 5) GPIO_ACTIVE_LOW>;
 		nvidia,hp-en-gpios = <&rt5677 1 GPIO_ACTIVE_HIGH>;
 		nvidia,dmic-clk-en-gpios = <&rt5677 2 GPIO_ACTIVE_HIGH>;
 
