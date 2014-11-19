@@ -255,7 +255,7 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	return retval;
 }
 
-static int dwc2_suspend(struct device *dev)
+static int __maybe_unused dwc2_suspend(struct device *dev)
 {
 	struct dwc2_hsotg *dwc2 = dev_get_drvdata(dev);
 	int ret = 0;
@@ -265,7 +265,7 @@ static int dwc2_suspend(struct device *dev)
 	return ret;
 }
 
-static int dwc2_resume(struct device *dev)
+static int __maybe_unused dwc2_resume(struct device *dev)
 {
 	struct dwc2_hsotg *dwc2 = dev_get_drvdata(dev);
 	int ret = 0;
