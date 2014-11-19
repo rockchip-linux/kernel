@@ -25,9 +25,6 @@ Required properties:
   connected to the CODEC.
 - nvidia,audio-codec : The phandle of the RT5677 audio codec. This binding
   assumes that AIF1 on the CODEC is connected to Tegra.
-- nvidia,speaker-codec: The phandle of the board specific speaker amplifier.
-  This binding assumes that AIF2 on the audio CODEC is connected to this
-  amplifier.
 
 Optional properties:
 - nvidia,hp-det-gpios : The GPIO that detects headphones are plugged in
@@ -43,7 +40,6 @@ sound {
 	nvidia,model = "NVIDIA Tegra Ryu";
 
 	nvidia,audio-routing =
-		/* rt5677 codec */
 		"Headphone", "LOUT2",
 		"Headphone", "LOUT1",
 		"Headset Mic", "MICBIAS1",
@@ -53,16 +49,14 @@ sound {
 		"DMIC R1", "Internal Mic 1",
 		"DMIC L2", "Internal Mic 2",
 		"DMIC R2", "Internal Mic 2",
-		/* speaker amp */
-		"DAC", "AIF2TX",
-		"Speaker", "OUT";
+		"Speaker", "PDM1L",
+		"Speaker", "PDM1R";
 
 	nvidia,i2s-controller = <&tegra_i2s1>;
 	nvidia,audio-codec = <&rt5677>;
-	nvidia,speaker-codec = <&ssm4567>;
 
 	nvidia,hp-det-gpios = <&gpio TEGRA_GPIO(R, 7) GPIO_ACTIVE_HIGH>;
-	nvidia,mic-present-gpios = <&rt5677 5 GPIO_ACTIVE_LOW>;
+	nvidia,mic-present-gpios = <&gpio TEGRA_GPIO(O, 5) GPIO_ACTIVE_LOW>;
 	nvidia,hp-en-gpios = <&rt5677 1 GPIO_ACTIVE_HIGH>;
 	nvidia,dmic-clk-en-gpios = <&rt5677 2 GPIO_ACTIVE_HIGH>;
 
