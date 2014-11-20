@@ -342,6 +342,8 @@ static int cirrus_crtc_page_flip(struct drm_crtc *crtc,
 		drm_send_vblank_event(dev, 0, event);
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
+	drm_handle_vblank(dev, 0);
+
 	crtc->primary->fb = fb;
 
 	return 0;
