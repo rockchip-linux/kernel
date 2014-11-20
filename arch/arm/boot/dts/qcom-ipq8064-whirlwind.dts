@@ -98,7 +98,7 @@
 
 			rgmii0_pinmux: rgmii0_pinmux {
 				mux {
-					pins = "gpio2";
+					pins = "gpio2", "gpio66";
 					drive-strength = <8>;
 					bias-disable;
 				};
@@ -425,9 +425,14 @@
 			pinctrl-0 = <&switch_reset>;
 			pinctrl-names = "default";
 
-			phy4: ethernet-phy@0 {
+			phy0: ethernet-phy@0 {
 				device_type = "ethernet-phy";
-				reg = <4>;
+				reg = <0>;
+			};
+
+			phy1: ethernet-phy@1 {
+				device_type = "ethernet-phy";
+				reg = <1>;
 			};
 		};
 
@@ -473,8 +478,8 @@
 			compatible = "qcom,nss-gmac0";
 			reg = <0x37000000 0x200000>;
 			qcom,id = <0>;			/* gmac0 */
-			qcom,phy_mdio_addr = <4>;	/* phy4 */
-			qcom,poll_required = <1>;	/* enable polling */
+			qcom,phy_mdio_addr = <32>;	/* none */
+			qcom,poll_required = <0>;	/* disable polling */
 			qcom,rgmii_delay = <0>;
 			qcom,phy_mii_type = <0>;	/* RGMII */
 			qcom,emulation = <0>;
@@ -504,6 +509,10 @@
 			device-type = "network";
 			compatible = "qca8337-lite";
 			mdiobus = <&mdio0>;
+			qca,vlan-portmap = <
+				0x1	0x42		/* VLAN1 Ports 1/6 */
+				0x2	0x05		/* VLAN2 Ports 0/2 */
+			>;
 		};
 
 		watchdog@208a038 {
