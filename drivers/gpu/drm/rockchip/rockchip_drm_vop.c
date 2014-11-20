@@ -86,7 +86,6 @@ struct vop {
 
 	/* mutex vsync_ work */
 	struct mutex vsync_mutex;
-	bool vsync_work_pending;
 
 	const struct vop_data *data;
 
@@ -522,7 +521,6 @@ static int vop_win_queue(struct vop_win *vop_win,
 	vop_win->pending_yrgb_mst = yrgb_mst;
 	vop_win->pending_event = event;
 
-	vop->vsync_work_pending = true;
 out:
 	mutex_unlock(&vop->vsync_mutex);
 	return ret;
@@ -1003,7 +1001,7 @@ static bool vop_win_pending_is_complete(struct vop_win *vop_win)
 }
 
 /* Returns false if there is still pending work */
-static bool vop_win_pending_complete(struct vop_win *vop_win)
+static void vop_win_process_pending(struct vop_win *vop_win)
 {
 	struct vop *vop = vop_win->vop;
 	struct drm_crtc *crtc = &vop->crtc;
@@ -1011,10 +1009,10 @@ static bool vop_win_pending_complete(struct vop_win *vop_win)
 	unsigned long flags;
 
 	if (!vop_win->pending)
-		return true;
+		return;
 
 	if (!vop_win_pending_is_complete(vop_win))
-		return false;
+		return;
 
 	DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] complete\n",
 		      vop_win->base.base.id,
@@ -1037,8 +1035,6 @@ static bool vop_win_pending_complete(struct vop_win *vop_win)
 	vop_win->pending = false;
 
 	complete(&vop_win->completion);
-
-	return true;
 }
 
 static irqreturn_t vop_isr_thread(int irq, void *data)
@@ -1047,13 +1043,8 @@ static irqreturn_t vop_isr_thread(int irq, void *data)
 	unsigned int i;
 
 	mutex_lock(&vop->vsync_mutex);
-
-	vop->vsync_work_pending = false;
-
 	for (i = 0; i < vop->data->win_size; i++)
-		if (!vop_win_pending_complete(&vop->win[i]))
-			vop->vsync_work_pending = true;
-
+		vop_win_process_pending(&vop->win[i]);
 	mutex_unlock(&vop->vsync_mutex);
 
 	return IRQ_HANDLED;
@@ -1090,7 +1081,7 @@ static irqreturn_t vop_isr(int irq, void *data)
 
 	drm_handle_vblank(vop->drm_dev, vop->pipe);
 
-	return (vop->vsync_work_pending) ? IRQ_WAKE_THREAD : IRQ_HANDLED;
+	return IRQ_WAKE_THREAD;
 }
 
 static int vop_create_crtc(struct vop *vop)
