@@ -24,10 +24,15 @@
 #include <linux/sched.h>
 #include <asm/cputype.h>
 
-extern void __cpu_flush_user_tlb_range(unsigned long, unsigned long, struct vm_area_struct *);
+extern void __cpu_flush_user_tlb_range(unsigned long, unsigned long,
+		struct vm_area_struct *);
+extern void __local_cpu_flush_user_tlb_range(unsigned long, unsigned long,
+		struct vm_area_struct *);
 extern void __cpu_flush_kern_tlb_range(unsigned long, unsigned long);
 
 extern struct cpu_tlb_fns cpu_tlb;
+
+#define FLUSH_TLB_ALL_THRESHOLD (128 << (PAGE_SHIFT - 12))
 
 /*
  *	TLB Management
@@ -73,7 +78,15 @@ extern struct cpu_tlb_fns cpu_tlb;
 static inline void flush_tlb_all(void)
 {
 	dsb(ishst);
-	asm("tlbi	vmalle1is");
+	asm("tlbi vmalle1is");
+	dsb(ish);
+	isb();
+}
+
+static inline void local_flush_tlb_all(void)
+{
+	dsb(ishst);
+	asm("tlbi vmalle1");
 	dsb(ish);
 	isb();
 }
@@ -82,20 +95,30 @@ static inline void flush_tlb_mm(struct mm_struct *mm)
 {
 	unsigned long asid = (unsigned long)ASID(mm) << 48;
 
+	preempt_disable();
 	dsb(ishst);
-	asm("tlbi	aside1is, %0" : : "r" (asid));
+	if (cpumask_equal(mm_cpumask(mm), cpumask_of(smp_processor_id())))
+		asm("tlbi aside1, %0" : : "r" (asid));
+	else
+		asm("tlbi aside1is, %0" : : "r" (asid));
 	dsb(ish);
+	preempt_enable();
 }
 
 static inline void flush_tlb_page(struct vm_area_struct *vma,
 				  unsigned long uaddr)
 {
-	unsigned long addr = uaddr >> 12 |
-		((unsigned long)ASID(vma->vm_mm) << 48);
+	struct mm_struct *mm = vma->vm_mm;
+	unsigned long addr = uaddr >> 12 | ((unsigned long)ASID(mm) << 48);
 
+	preempt_disable();
 	dsb(ishst);
-	asm("tlbi	vae1is, %0" : : "r" (addr));
+	if (cpumask_equal(mm_cpumask(mm), cpumask_of(smp_processor_id())))
+		asm("tlbi vae1, %0" : : "r" (addr));
+	else
+		asm("tlbi vae1is, %0" : : "r" (addr));
 	dsb(ish);
+	preempt_enable();
 }
 
 static inline void flush_tlb_range(struct vm_area_struct *vma,
@@ -103,13 +126,35 @@ static inline void flush_tlb_range(struct vm_area_struct *vma,
 {
 	unsigned long asid = (unsigned long)ASID(vma->vm_mm) << 48;
 	unsigned long addr;
+	struct mm_struct *mm = vma->vm_mm;
+
 	start = asid | (start >> 12);
 	end = asid | (end >> 12);
 
-	dsb(ishst);
-	for (addr = start; addr < end; addr += 1 << (PAGE_SHIFT - 12))
-		asm("tlbi vae1is, %0" : : "r"(addr));
-	dsb(ish);
+	preempt_disable();
+	if (cpumask_equal(mm_cpumask(mm), cpumask_of(smp_processor_id()))) {
+		if (end - start > FLUSH_TLB_ALL_THRESHOLD) {
+			local_flush_tlb_all();
+		} else {
+			dsb(ishst);
+			for (addr = start; addr < end;
+					addr += 1 << (PAGE_SHIFT - 12))
+				asm("tlbi vae1, %0" : : "r"(addr));
+			dsb(ish);
+		}
+		preempt_enable();
+	} else {
+		preempt_enable();
+		if (end - start > FLUSH_TLB_ALL_THRESHOLD) {
+			flush_tlb_all();
+		} else {
+			dsb(ishst);
+			for (addr = start; addr < end;
+					addr += 1 << (PAGE_SHIFT - 12))
+				asm("tlbi vae1is, %0" : : "r"(addr));
+			dsb(ish);
+		}
+	}
 }
 
 static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end)
@@ -118,10 +163,14 @@ static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end
 	start >>= 12;
 	end >>= 12;
 
-	dsb(ishst);
-	for (addr = start; addr < end; addr += 1 << (PAGE_SHIFT - 12))
-		asm("tlbi vaae1is, %0" : : "r"(addr));
-	dsb(ish);
+	if (end - start > FLUSH_TLB_ALL_THRESHOLD) {
+		flush_tlb_all();
+	} else {
+		dsb(ishst);
+		for (addr = start; addr < end; addr += 1 << (PAGE_SHIFT - 12))
+			asm("tlbi vaae1is, %0" : : "r"(addr));
+		dsb(ish);
+	}
 }
 
 /*
