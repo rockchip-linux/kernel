@@ -1449,6 +1449,16 @@ struct ec_response_motion_sense {
 } __packed;
 
 /*****************************************************************************/
+/* Force lid open command */
+
+/* Make lid event always open */
+#define EC_CMD_FORCE_LID_OPEN 0x2c
+
+struct ec_params_force_lid_open {
+	uint8_t enabled;
+} __packed;
+
+/*****************************************************************************/
 /* USB charging control commands */
 
 /* Set USB port charging mode */
@@ -2812,6 +2822,19 @@ struct ec_params_usb_pd_discovery_entry {
 	uint8_t ptype; /* product type (hub,periph,cable,ama) */
 } __packed;
 
+/* Override default charge behavior */
+#define EC_CMD_PD_CHARGE_PORT_OVERRIDE 0x114
+
+/* Negative port parameters have special meaning */
+enum usb_pd_override_ports {
+	OVERRIDE_DONT_CHARGE = -2,
+	OVERRIDE_OFF = -1,
+	/* [0, PD_PORT_COUNT): Port# */
+};
+
+struct ec_params_charge_port_override {
+	int16_t override_port; /* Override port# */
+} __packed;
 #endif  /* !__ACPI__ */
 
 /*****************************************************************************/
