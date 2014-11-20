@@ -458,6 +458,10 @@
 			device-type = "network";
 			compatible = "qca8337-lite";
 			mdiobus = <&mdio0>;
+			qca,vlan-portmap = <
+				0x1     0x4e            /* VLAN1 Ports 1/6 */
+				0x2     0x21            /* VLAN2 Ports 0/2 */
+			>;
 		};
 
 		watchdog@208a038 {
