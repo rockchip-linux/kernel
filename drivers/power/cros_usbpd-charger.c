@@ -183,11 +183,11 @@ static int get_ec_port_status(struct port_data *port)
 	port->psy.type = port->psy_type;
 
 	dev_dbg(dev, "Port %d: Charging voltage: %dmV\n",
-		port->port_number, resp.voltage_ac);
-	port->psy_voltage_now = resp.voltage_ac;
+		port->port_number, resp.voltage_now);
+	port->psy_voltage_now = resp.voltage_now;
 	dev_dbg(dev, "Port %d: Max input current: %dmA\n",
-		port->port_number, resp.current_limit);
-	port->psy_current_max = resp.current_limit;
+		port->port_number, resp.current_max);
+	port->psy_current_max = resp.current_max;
 	dev_dbg(dev, "Port %d: Max input power: %dmW\n",
 		port->port_number, resp.max_power);
 	port->psy_power_max = resp.max_power;
@@ -239,7 +239,7 @@ static int cros_usb_pd_charger_get_prop(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		/* TODO: change this to voltage_now. */
-		val->intval = port->psy_voltage_max_design * 1000;
+		val->intval = port->psy_voltage_now * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX:
 		/* TODO: send a TBD host command to the EC. */
