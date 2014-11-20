@@ -183,6 +183,11 @@ static const struct regulator_linear_range ftsmps_ranges[] = {
 	REGULATOR_LINEAR_RANGE(1500000,  64, 100, 50000),
 };
 
+static const struct regulator_linear_range smb208_ranges[] = {
+	REGULATOR_LINEAR_RANGE( 800000,   0,  55, 12500),
+	REGULATOR_LINEAR_RANGE(1500000,  56, 200, 25000),
+};
+
 static const struct regulator_linear_range ncp_ranges[] = {
 	REGULATOR_LINEAR_RANGE(1500000,   0,  31, 50000),
 };
@@ -560,6 +565,16 @@ static const struct qcom_rpm_reg pm8921_switch = {
 	.parts = &rpm8960_switch_parts,
 };
 
+static const struct qcom_rpm_reg smb208_smps = {
+	.desc.linear_ranges = smb208_ranges,
+	.desc.n_linear_ranges = ARRAY_SIZE(smb208_ranges),
+	.desc.n_voltages = 201,
+	.desc.ops = &uV_ops,
+	.parts = &rpm8960_smps_parts,
+	.supports_force_mode_auto = false,
+	.supports_force_mode_bypass = false,
+};
+
 static const struct of_device_id rpm_of_match[] = {
 	{ .compatible = "qcom,rpm-pm8058-pldo",     .data = &pm8058_pldo },
 	{ .compatible = "qcom,rpm-pm8058-nldo",     .data = &pm8058_nldo },
@@ -579,6 +594,8 @@ static const struct of_device_id rpm_of_match[] = {
 	{ .compatible = "qcom,rpm-pm8921-ftsmps",   .data = &pm8921_ftsmps },
 	{ .compatible = "qcom,rpm-pm8921-ncp",      .data = &pm8921_ncp },
 	{ .compatible = "qcom,rpm-pm8921-switch",   .data = &pm8921_switch },
+
+	{ .compatible = "qcom,rpm-smb208", .data = &smb208_smps },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, rpm_of_match);
