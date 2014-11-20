@@ -15,6 +15,7 @@ config SND_SOC_ROCKCHIP_MAX98090
 	depends on SND_SOC_ROCKCHIP && I2C && GPIOLIB
 	select SND_SOC_ROCKCHIP_I2S
 	select SND_SOC_MAX98090
+	select SND_SOC_TS3A227E
 	help
 	  Say Y or M here if you want to add support for SoC audio on Rockchip
 	  boards using the MAX98090 codec, such as Veyron.
