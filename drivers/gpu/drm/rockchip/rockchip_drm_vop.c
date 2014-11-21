@@ -52,6 +52,9 @@
 #define VOP_CTRL_SET(x, name, v) \
 		REG_SET(x, 0, (x)->data->ctrl->name, v, NORMAL)
 
+#define VOP_WIN_GET(x, win, name) \
+		vop_read_reg(x, win->base, &win->phy->name)
+
 #define VOP_WIN_GET_YRGBADDR(vop, win) \
 		vop_readl(vop, win->base + win->phy->yrgb_mst.offset)
 
@@ -309,6 +312,12 @@ static inline void vop_writel(struct vop *vop, uint32_t offset, uint32_t v)
 static inline uint32_t vop_readl(struct vop *vop, uint32_t offset)
 {
 	return readl(vop->regs + offset);
+}
+
+static inline uint32_t vop_read_reg(struct vop *vop, uint32_t base,
+				    const struct vop_reg *reg)
+{
+	return (vop_readl(vop, base + reg->offset) >> reg->shift) & reg->mask;
 }
 
 static inline void vop_cfg_done(struct vop *vop)
@@ -947,6 +956,13 @@ static const struct drm_crtc_funcs vop_crtc_funcs = {
 	.set_property = drm_atomic_crtc_set_property
 };
 
+static bool vop_plane_is_disabled(struct vop_win *vop_win)
+{
+	/* check enable bit to tell if plane is now disabled */
+	/* No locking needed because this is read only access */
+	return VOP_WIN_GET(vop_win->vop, vop_win->data, enable) == 0;
+}
+
 static void vop_vsync_worker(struct work_struct *work)
 {
 	struct vop *vop = container_of(work, struct vop, vsync_work);
@@ -968,10 +984,24 @@ static void vop_vsync_worker(struct work_struct *work)
 			continue;
 		if (!vop_win->enabled && !vop_win->front_fb)
 			continue;
+
+		if (!vop_win->enabled) {
+			if (!vop_plane_is_disabled(vop_win)) {
+				/* plane is still enabled */
+				vop->vsync_work_pending = true;
+				continue;
+			}
+
+			drm_framebuffer_unreference(vop_win->front_fb);
+			vop_win->front_fb = NULL;
+			continue;
+		}
+
 		/*
 		 * make sure the yrgb_mst take effect, so that
 		 * we can unreference the old framebuffer.
 		 */
+		/* No locking needed because this is read only access */
 		yrgb_mst = VOP_WIN_GET_YRGBADDR(vop, vop_win->data);
 		if (vop_win->pending_yrgb_mst != yrgb_mst) {
 			/*
