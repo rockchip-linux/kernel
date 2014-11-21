@@ -92,6 +92,7 @@ bool aarch64_insn_is_nop(u32 insn);
 
 int aarch64_insn_read(void *addr, u32 *insnp);
 int aarch64_insn_write(void *addr, u32 insn);
+int aarch64_insn_write_early(void *addr, u32 insn);
 enum aarch64_insn_encoding_class aarch64_get_insn_class(u32 insn);
 u32 aarch64_insn_encode_immediate(enum aarch64_insn_imm_type type,
 				  u32 insn, u64 imm);
@@ -103,6 +104,7 @@ u32 aarch64_insn_gen_nop(void);
 bool aarch64_insn_hotpatch_safe(u32 old_insn, u32 new_insn);
 
 int aarch64_insn_patch_text_nosync(void *addr, u32 insn);
+int __aarch64_insn_patch_text_nosync(void *addr, u32 insn, bool early);
 int aarch64_insn_patch_text_sync(void *addrs[], u32 insns[], int cnt);
 int aarch64_insn_patch_text(void *addrs[], u32 insns[], int cnt);
 #endif /* __ASSEMBLY__ */

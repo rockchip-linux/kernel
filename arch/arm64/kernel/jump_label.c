@@ -38,7 +38,7 @@ static void __arch_jump_label_transform(struct jump_entry *entry,
 	}
 
 	if (is_static)
-		aarch64_insn_patch_text_nosync(addr, insn);
+		__aarch64_insn_patch_text_nosync(addr, insn, true);
 	else
 		aarch64_insn_patch_text(&addr, &insn, 1);
 }
