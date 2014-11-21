@@ -66,17 +66,19 @@ struct vop_win {
 	const struct vop_win_data *data;
 	struct vop *vop;
 
-	uint32_t pending_yrgb_mst;
 	struct drm_framebuffer *front_fb;
-	struct drm_framebuffer *pending_fb;
-	bool enabled;
+
+	bool pending;
+	struct drm_framebuffer *pending_fb; /* NULL for pending win disable */
+	dma_addr_t pending_yrgb_mst;
+	struct drm_pending_vblank_event *pending_event;
+	struct completion completion;
 };
 
 struct vop {
 	struct drm_crtc crtc;
 	struct device *dev;
 	struct drm_device *drm_dev;
-	struct drm_pending_vblank_event *event;
 	unsigned int dpms;
 
 	int connector_type;
@@ -464,6 +466,71 @@ static void vop_disable(struct drm_crtc *crtc)
 	clk_disable(vop->hclk);
 }
 
+/*
+ * We only track pending updates that require some action in the vblank irq.
+ * That is, updates that do at least one of the following:
+ *  - send a vblank event
+ *  - disable front_fb
+ *  - change enabled front fb
+ *
+ * We do not queue updates that:
+ *  - keep the same fb (e.g., cursor moves)
+ *  - enable a disabled window (NULL -> fb)
+ */
+static bool vop_win_update_needs_vblank(struct vop_win *vop_win,
+					struct drm_framebuffer *fb,
+					struct drm_pending_vblank_event *event)
+{
+	return event || (vop_win->front_fb && vop_win->front_fb != fb);
+}
+
+static int vop_win_queue(struct vop_win *vop_win,
+			 struct drm_framebuffer *fb, dma_addr_t yrgb_mst,
+			 struct drm_pending_vblank_event *event)
+{
+	struct vop *vop = vop_win->vop;
+	struct drm_crtc *crtc = &vop->crtc;
+	int ret;
+
+	wait_for_completion(&vop_win->completion);
+
+	mutex_lock(&vop->vsync_mutex);
+
+	if (!vop_win_update_needs_vblank(vop_win, fb, event)) {
+		DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] skipped queue\n",
+			      vop_win->base.base.id,
+			      vop_win->front_fb ?
+					      vop_win->front_fb->base.id : -1,
+			      fb ? fb->base.id : -1);
+		vop_win->front_fb = fb;
+		complete(&vop_win->completion);
+		ret = 0;
+		goto out;
+	}
+
+	ret = drm_vblank_get(crtc->dev, vop->pipe);
+	if (ret) {
+		DRM_ERROR("failed to get vblank, %d\n", ret);
+		complete(&vop_win->completion);
+		goto out;
+	}
+
+	DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] queued\n",
+		      vop_win->base.base.id,
+		      vop_win->front_fb ? vop_win->front_fb->base.id : -1,
+		      fb ? fb->base.id : -1);
+
+	vop_win->pending = true;
+	vop_win->pending_fb = fb;
+	vop_win->pending_yrgb_mst = yrgb_mst;
+	vop_win->pending_event = event;
+
+	vop->vsync_work_pending = true;
+out:
+	mutex_unlock(&vop->vsync_mutex);
+	return ret;
+}
+
 static int vop_update_plane_event(struct drm_plane *plane,
 				  struct drm_crtc *crtc,
 				  struct drm_framebuffer *fb, int crtc_x,
@@ -547,23 +614,12 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	y_vir_stride = fb->pitches[0] / (fb->bits_per_pixel >> 3);
 
-	/*
-	 * Because the buffer set to vop take effect at frame start time,
-	 * we need make sure old buffer is not in use before we release
-	 * it.
-	 * reference the framebuffer, and unref it when it swap out of vop.
-	 */
-	mutex_lock(&vop->vsync_mutex);
-	if (fb != vop_win->front_fb) {
-		drm_framebuffer_reference(fb);
-		if (vop_win->pending_fb)
-			drm_framebuffer_unreference(vop_win->pending_fb);
-		vop_win->pending_fb = fb;
-		vop_win->pending_yrgb_mst = yrgb_mst;
-		vop->vsync_work_pending = true;
+	drm_framebuffer_reference(fb);
+	ret = vop_win_queue(vop_win, fb, yrgb_mst, event);
+	if (ret) {
+		drm_framebuffer_unreference(fb);
+		return ret;
 	}
-	vop_win->enabled = true;
-	mutex_unlock(&vop->vsync_mutex);
 
 	spin_lock(&vop->reg_lock);
 
@@ -629,25 +685,16 @@ static int vop_disable_plane(struct drm_plane *plane)
 	struct vop_win *vop_win = to_vop_win(plane);
 	const struct vop_win_data *win = vop_win->data;
 	struct vop *vop;
+	int ret;
 
-	if (!plane->crtc || !vop_win->enabled)
+	if (!plane->crtc)
 		return 0;
 
 	vop = to_vop(plane->crtc);
 
-	/*
-	 * clear the pending framebuffer so that the framebuffer will unref at
-	 * the next vblank.
-	 */
-	mutex_lock(&vop->vsync_mutex);
-	if (vop_win->pending_fb) {
-		drm_framebuffer_unreference(vop_win->pending_fb);
-		vop_win->pending_fb = NULL;
-	}
-	vop_win->enabled = false;
-	vop->vsync_work_pending = true;
-
-	mutex_unlock(&vop->vsync_mutex);
+	ret = vop_win_queue(vop_win, NULL, 0, NULL);
+	if (ret)
+		return ret;
 
 	spin_lock(&vop->reg_lock);
 	VOP_WIN_SET(vop, win, enable, 0);
@@ -801,7 +848,26 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	u16 vact_end = vact_st + vdisplay;
 	int ret;
 	uint32_t val;
+	struct vop_win *vop_win = to_vop_win(crtc->primary);
 
+	/*
+	 * Wait for any pending updates to complete before full mode set.
+	 *
+	 * There is a funny quirk during full mode_set.  Full mode_set does:
+	 * - disable dclk
+	 * - set some mode register
+	 * - call mode_set_base to setup the framebuffer
+	 * - reset the "dclk" domain (immediately applies register updates)
+	 * - enables dclk
+	 *
+	 * The call to mode_set_base will wait for the completion; however,
+	 * since the call is made with dclk disabled, if there actually was any
+	 * pending update it will never complete.  Therefore, we must wait for
+	 * the completion first before disabling dclk, and complete it again so
+	 * it is available for mode_set_base.
+	 */
+	wait_for_completion(&vop_win->completion);
+	complete(&vop_win->completion);
 	/*
 	 * disable dclk to stop frame scan, so that we can safe config mode and
 	 * enable iommu.
@@ -882,12 +948,9 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 			      struct drm_pending_vblank_event *event,
 			      uint32_t page_flip_flags)
 {
-	struct drm_device *dev = crtc->dev;
 	struct vop *vop = to_vop(crtc);
 	struct drm_framebuffer *old_fb = crtc->primary->fb;
-	int pipe = vop->pipe;
 	int ret;
-	unsigned long flags;
 
 	/* when the page flip is requested, crtc's dpms should be on */
 	if (vop->dpms > DRM_MODE_DPMS_ON) {
@@ -895,53 +958,13 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 		return 0;
 	}
 
-	ret = drm_vblank_get(dev, pipe);
-	if (ret) {
-		DRM_DEBUG("failed to acquire vblank counter\n");
-		return ret;
-	}
-
-	spin_lock_irqsave(&dev->event_lock, flags);
-	if (vop->event) {
-		spin_unlock_irqrestore(&dev->event_lock, flags);
-		drm_vblank_put(dev, pipe);
-		DRM_ERROR("already pending flip!\n");
-		return -EBUSY;
-	}
-	vop->event = event;
-	spin_unlock_irqrestore(&dev->event_lock, flags);
-
 	crtc->primary->fb = fb;
 
 	ret = vop_update_primary_plane(crtc, event);
-	if (ret) {
+	if (ret)
 		crtc->primary->fb = old_fb;
 
-		spin_lock_irqsave(&dev->event_lock, flags);
-		vop->event = NULL;
-		spin_unlock_irqrestore(&dev->event_lock, flags);
-
-		drm_vblank_put(dev, pipe);
-	}
-
 	return ret;
-}
-
-static void vop_finish_pageflip(struct drm_crtc *crtc)
-{
-	struct vop *vop = to_vop(crtc);
-	struct drm_device *drm = vop->drm_dev;
-	unsigned long flags;
-
-	spin_lock_irqsave(&drm->event_lock, flags);
-
-	if (vop->event) {
-		drm_send_vblank_event(drm, -1, vop->event);
-		drm_vblank_put(drm, vop->pipe);
-		vop->event = NULL;
-	}
-
-	spin_unlock_irqrestore(&drm->event_lock, flags);
 }
 
 static void vop_crtc_destroy(struct drm_crtc *crtc)
@@ -976,22 +999,10 @@ static bool vop_win_pending_is_complete_disable(struct vop_win *vop_win)
 
 static bool vop_win_pending_is_complete(struct vop_win *vop_win)
 {
-	if (vop_win->enabled && vop_win->pending_fb)
+	if (vop_win->pending_fb)
 		return vop_win_pending_is_complete_fb(vop_win);
-	else if (!vop_win->enabled && vop_win->front_fb)
+	else
 		return vop_win_pending_is_complete_disable(vop_win);
-
-	return false;
-}
-
-static bool vop_win_has_pending(struct vop_win *vop_win)
-{
-	if (vop_win->enabled && vop_win->pending_fb)
-		return true;
-	else if (!vop_win->enabled && vop_win->front_fb)
-		return true;
-
-	return false;
 }
 
 /* Returns false if there is still pending work */
@@ -999,8 +1010,10 @@ static bool vop_win_pending_complete(struct vop_win *vop_win)
 {
 	struct vop *vop = vop_win->vop;
 	struct drm_crtc *crtc = &vop->crtc;
+	struct drm_device *drm = crtc->dev;
+	unsigned long flags;
 
-	if (!vop_win_has_pending(vop_win))
+	if (!vop_win->pending)
 		return true;
 
 	if (!vop_win_pending_is_complete(vop_win))
@@ -1011,14 +1024,22 @@ static bool vop_win_pending_complete(struct vop_win *vop_win)
 		      vop_win->front_fb ? vop_win->front_fb->base.id : -1,
 		      vop_win->pending_fb ? vop_win->pending_fb->base.id : -1);
 
+	drm_vblank_put(crtc->dev, vop->pipe);
+
+	if (vop_win->pending_event) {
+		spin_lock_irqsave(&drm->event_lock, flags);
+		drm_send_vblank_event(drm, vop->pipe, vop_win->pending_event);
+		spin_unlock_irqrestore(&drm->event_lock, flags);
+		vop_win->pending_event = NULL;
+	}
+
 	if (vop_win->front_fb)
 		drm_framebuffer_unreference(vop_win->front_fb);
 	vop_win->front_fb = vop_win->pending_fb;
 	vop_win->pending_fb = NULL;
+	vop_win->pending = false;
 
-	/* If primary plane flip complete, send event to userspace */
-	if (vop_win->data->type == DRM_PLANE_TYPE_PRIMARY)
-		vop_finish_pageflip(crtc);
+	complete(&vop_win->completion);
 
 	return true;
 }
@@ -1293,6 +1314,9 @@ static void vop_win_init(struct vop *vop)
 
 		vop_win->data = win_data;
 		vop_win->vop = vop;
+		init_completion(&vop_win->completion);
+		/* completion is initially available */
+		complete(&vop_win->completion);
 	}
 }
 
