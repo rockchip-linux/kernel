@@ -956,79 +956,85 @@ static const struct drm_crtc_funcs vop_crtc_funcs = {
 	.set_property = drm_atomic_crtc_set_property
 };
 
-static bool vop_plane_is_disabled(struct vop_win *vop_win)
+static bool vop_win_pending_is_complete_fb(struct vop_win *vop_win)
+{
+	dma_addr_t yrgb_mst;
+
+	/* check yrgb_mst to tell if pending_fb is now front */
+	/* No locking needed because this is read only access */
+	yrgb_mst = VOP_WIN_GET_YRGBADDR(vop_win->vop, vop_win->data);
+
+	return yrgb_mst == vop_win->pending_yrgb_mst;
+}
+
+static bool vop_win_pending_is_complete_disable(struct vop_win *vop_win)
 {
 	/* check enable bit to tell if plane is now disabled */
 	/* No locking needed because this is read only access */
 	return VOP_WIN_GET(vop_win->vop, vop_win->data, enable) == 0;
 }
 
+static bool vop_win_pending_is_complete(struct vop_win *vop_win)
+{
+	if (vop_win->enabled && vop_win->pending_fb)
+		return vop_win_pending_is_complete_fb(vop_win);
+	else if (!vop_win->enabled && vop_win->front_fb)
+		return vop_win_pending_is_complete_disable(vop_win);
+
+	return false;
+}
+
+static bool vop_win_has_pending(struct vop_win *vop_win)
+{
+	if (vop_win->enabled && vop_win->pending_fb)
+		return true;
+	else if (!vop_win->enabled && vop_win->front_fb)
+		return true;
+
+	return false;
+}
+
+/* Returns false if there is still pending work */
+static bool vop_win_pending_complete(struct vop_win *vop_win)
+{
+	struct vop *vop = vop_win->vop;
+	struct drm_crtc *crtc = &vop->crtc;
+
+	if (!vop_win_has_pending(vop_win))
+		return true;
+
+	if (!vop_win_pending_is_complete(vop_win))
+		return false;
+
+	DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] complete\n",
+		      vop_win->base.base.id,
+		      vop_win->front_fb ? vop_win->front_fb->base.id : -1,
+		      vop_win->pending_fb ? vop_win->pending_fb->base.id : -1);
+
+	if (vop_win->front_fb)
+		drm_framebuffer_unreference(vop_win->front_fb);
+	vop_win->front_fb = vop_win->pending_fb;
+	vop_win->pending_fb = NULL;
+
+	/* If primary plane flip complete, send event to userspace */
+	if (vop_win->data->type == DRM_PLANE_TYPE_PRIMARY)
+		vop_finish_pageflip(crtc);
+
+	return true;
+}
+
 static void vop_vsync_worker(struct work_struct *work)
 {
 	struct vop *vop = container_of(work, struct vop, vsync_work);
-	struct drm_crtc *crtc = &vop->crtc;
-	const struct vop_data *vop_data = vop->data;
-	uint32_t yrgb_mst;
 	unsigned int i;
 
 	mutex_lock(&vop->vsync_mutex);
 
 	vop->vsync_work_pending = false;
 
-	for (i = 0; i < vop_data->win_size; i++) {
-		struct vop_win *vop_win = &vop->win[i];
-
-		if (vop_win->vop != vop)
-			continue;
-		if (vop_win->enabled && !vop_win->pending_fb)
-			continue;
-		if (!vop_win->enabled && !vop_win->front_fb)
-			continue;
-
-		if (!vop_win->enabled) {
-			if (!vop_plane_is_disabled(vop_win)) {
-				/* plane is still enabled */
-				vop->vsync_work_pending = true;
-				continue;
-			}
-
-			drm_framebuffer_unreference(vop_win->front_fb);
-			vop_win->front_fb = NULL;
-			continue;
-		}
-
-		/*
-		 * make sure the yrgb_mst take effect, so that
-		 * we can unreference the old framebuffer.
-		 */
-		/* No locking needed because this is read only access */
-		yrgb_mst = VOP_WIN_GET_YRGBADDR(vop, vop_win->data);
-		if (vop_win->pending_yrgb_mst != yrgb_mst) {
-			/*
-			 * some plane no complete, unref at next vblank
-			 */
+	for (i = 0; i < vop->data->win_size; i++)
+		if (!vop_win_pending_complete(&vop->win[i]))
 			vop->vsync_work_pending = true;
-			continue;
-		}
-
-		/*
-		 * drm_framebuffer_unreference maybe call iommu unmap,
-		 * and iommu not allow unmap buffer at irq context,
-		 * so we do drm_framebuffer_unreference at queue_work.
-		 */
-		if (vop_win->front_fb)
-			drm_framebuffer_unreference(vop_win->front_fb);
-
-		vop_win->front_fb = vop_win->pending_fb;
-		vop_win->pending_fb = NULL;
-
-		/*
-		 * if primary plane flip complete, sending the event to
-		 * userspace
-		 */
-		if (vop_win->data->type == DRM_PLANE_TYPE_PRIMARY)
-			vop_finish_pageflip(crtc);
-	}
 
 	mutex_unlock(&vop->vsync_mutex);
 }
