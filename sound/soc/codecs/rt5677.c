@@ -4481,6 +4481,7 @@ MODULE_DEVICE_TABLE(i2c, rt5677_i2c_id);
 
 static int rt5677_parse_dt(struct rt5677_priv *rt5677, struct device_node *np)
 {
+	of_property_read_u32(np, "realtek,micbias1", &rt5677->pdata.micbias1);
 	rt5677->pdata.in1_diff = of_property_read_bool(np,
 					"realtek,in1-differential");
 	rt5677->pdata.in2_diff = of_property_read_bool(np,
@@ -4539,6 +4540,8 @@ static unsigned long long rt5677_parse_acpi_entry(struct device *dev,
 
 static void rt5677_parse_acpi(struct rt5677_priv *rt5677, struct device *dev)
 {
+	rt5677->pdata.micbias1 = (enum rt5677_micbias)
+		rt5677_parse_acpi_entry(dev, "MB1");
 	rt5677->pdata.dmic2_clk_pin = (enum rt5677_dmic2_clk)
 		rt5677_parse_acpi_entry(dev, "DCLK");
 	rt5677->pdata.pdm_clk_div = (enum rt5677_pdm_clk_div)
@@ -4849,6 +4852,11 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 				    ARRAY_SIZE(init_list));
 	if (ret != 0)
 		dev_warn(&i2c->dev, "Failed to apply regmap patch: %d\n", ret);
+
+	regmap_update_bits(rt5677->regmap, RT5677_MICBIAS,
+			RT5677_MICBIAS1_OUTVOLT_MASK |
+			RT5677_MICBIAS1_CTRL_VDD_MASK,
+			rt5677->pdata.micbias1 << RT5677_MICBIAS1_CTRL_VDD_SFT);
 
 	if (rt5677->pdata.in1_diff)
 		regmap_update_bits(rt5677->regmap, RT5677_IN1,

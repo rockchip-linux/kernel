@@ -19,6 +19,9 @@ Optional properties:
 
 - realtek,pow-ldo2-gpio : The GPIO that controls the CODEC's POW_LDO2 pin.
 
+- realtek,micbias1
+  Select 0/1/2/3 to set MICBIAS1 voltage to 1.476V/2.970V/1.242V/2.475V
+
 - realtek,in1-differential
 - realtek,in2-differential
 - realtek,lout1-differential
@@ -76,6 +79,7 @@ rt5677 {
 
 	realtek,pow-ldo2-gpio =
 		<&gpio TEGRA_GPIO(V, 3) GPIO_ACTIVE_HIGH>;
+	realtek,micbias1 = <1>  /* MICBIAS1 = 2.970V */
 	realtek,in1-differential = "true";
 	realtek,pdm_clk_div = <1>  /* PDM clock = system clock / 2 */
 	realtek,gpio-config = /bits/ 8  <0 0 0 0 0 2>;   /* pull up GPIO6 */

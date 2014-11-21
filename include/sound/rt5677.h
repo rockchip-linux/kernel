@@ -12,6 +12,13 @@
 #ifndef __LINUX_SND_RT5677_H
 #define __LINUX_SND_RT5677_H
 
+enum rt5677_micbias {
+	RT5677_MICBIAS_1_476V = 0,
+	RT5677_MICBIAS_2_970V = 1,
+	RT5677_MICBIAS_1_242V = 2,
+	RT5677_MICBIAS_2_475V = 3,
+};
+
 enum rt5677_dmic2_clk {
 	RT5677_DMIC_CLK1 = 0,
 	RT5677_DMIC_CLK2 = 1,
@@ -25,6 +32,8 @@ enum rt5677_pdm_clk_div {
 };
 
 struct rt5677_platform_data {
+	/* MICBIAS output voltage control */
+	enum rt5677_micbias micbias1;
 	/* IN1/IN2/LOUT1/LOUT2/LOUT3 can optionally be differential */
 	bool in1_diff;
 	bool in2_diff;
