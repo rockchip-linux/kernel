@@ -29,6 +29,8 @@
 #include <asm/tlbflush.h>
 #include <asm/pgalloc.h>
 
+#include "mm.h"
+
 static void __iomem *__ioremap_caller(phys_addr_t phys_addr, size_t size,
 				      pgprot_t prot, void *caller)
 {
@@ -106,8 +108,11 @@ EXPORT_SYMBOL(ioremap_cache);
 void __iomem *ioremap_exec(phys_addr_t phys_addr, size_t size)
 {
 	/* For normal memory we already have a cacheable mapping. */
-	if (pfn_valid(__phys_to_pfn(phys_addr)))
-		return (void __iomem *)__phys_to_virt(phys_addr);
+	if (pfn_valid(__phys_to_pfn(phys_addr))) {
+		unsigned long val = __phys_to_virt(phys_addr);
+		adjust_exec_mem(val, val + size);
+		return (void __iomem *)val;
+	}
 
 	return __ioremap_caller(phys_addr, size, __pgprot(PROT_NORMAL_EXEC),
 				__builtin_return_address(0));
