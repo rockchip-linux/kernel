@@ -16,6 +16,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_panel.h>
 #include <drm/drm_of.h>
+#include <drm/drm_dp_helper.h>
 
 #include <linux/component.h>
 #include <linux/clk.h>
@@ -743,8 +744,16 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 		goto err_free_connector_sysfs;
 	}
 
+	ret = drm_dp_aux_register_i2c_bus(&edp->aux);
+	if (ret) {
+		DRM_ERROR("failed to register i2c\n");
+		goto err_panel_detach;
+	}
+
 	return 0;
 
+err_panel_detach:
+	drm_panel_detach(edp->panel);
 err_free_connector_sysfs:
 	drm_connector_unregister(connector);
 err_free_connector:
@@ -810,6 +819,7 @@ static int rockchip_edp_probe(struct platform_device *pdev)
 	edp->dev = dev;
 	edp->panel = panel;
 	edp->aux.transfer = rockchip_dpaux_transfer;
+	edp->aux.dev = dev;
 	platform_set_drvdata(pdev, edp);
 
 	return component_add(dev, &rockchip_edp_component_ops);
