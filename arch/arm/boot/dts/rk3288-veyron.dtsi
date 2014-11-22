@@ -299,6 +299,13 @@
 	rockchip,ddr-speed-bin = <21>;
 	rockchip,trcd = <10>;
 	rockchip,trp = <10>;
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		333000 1100000
+		533000 1150000
+		666000 1200000
+	>;
 };
 
 &efuse {
