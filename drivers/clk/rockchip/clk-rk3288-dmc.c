@@ -1816,6 +1816,8 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 				  CPUFREQ_POLICY_NOTIFIER);
 
 	platform_set_drvdata(pdev, dmc);
+	platform_device_register_data(dmc->dev, "rk3288-dmc-freq",
+				      PLATFORM_DEVID_AUTO, NULL, 0);
 
 	return 0;
 }
