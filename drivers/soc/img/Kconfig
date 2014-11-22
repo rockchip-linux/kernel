@@ -1,0 +1,16 @@
+menuconfig SOC_IMG
+        bool "IMG SOC drivers support"
+
+if SOC_IMG
+
+config IMG_EFUSE
+	tristate "Imagination Technologies Generic eFuse driver"
+	depends on HAS_IOMEM
+	help
+	  Imagination Technologies Generic eFuse driver which exposes the status
+	  of 128 EFUSE bits.
+
+	  To compile this driver as a module, choose M here: the module will
+	  be called img-efuse.
+
+endif # SOC_IMG
