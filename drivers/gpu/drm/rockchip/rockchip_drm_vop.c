@@ -36,6 +36,8 @@
 #include "rockchip_drm_gem.h"
 #include "rockchip_drm_vop.h"
 
+#include <soc/rockchip/dmc-sync.h>
+
 #define VOP_REG(off, _mask, s) \
 		{.offset = off, \
 		 .mask = _mask, \
@@ -99,6 +101,9 @@ struct vop {
 	int connector_out_mode;
 
 	const struct vop_data *data;
+
+	struct notifier_block dmc_nb;
+	struct completion dmc_completion;
 
 	uint32_t *regsbak;
 	void __iomem *regs;
@@ -434,6 +439,7 @@ static void vop_enable(struct drm_crtc *crtc)
 	enable_irq(vop->irq);
 
 	drm_vblank_on(vop->drm_dev, vop->pipe);
+	rockchip_dmc_get(&vop->dmc_nb);
 
 	return;
 
@@ -449,6 +455,7 @@ static void vop_disable(struct drm_crtc *crtc)
 {
 	struct vop *vop = to_vop(crtc);
 
+	rockchip_dmc_put(&vop->dmc_nb);
 	drm_vblank_off(crtc->dev, vop->pipe);
 
 	disable_irq(vop->irq);
@@ -1132,6 +1139,31 @@ static bool vop_win_pending_is_complete_disable(struct vop_win *vop_win)
 	return VOP_WIN_GET(vop_win->vop, vop_win->data, enable) == 0;
 }
 
+static int dmc_notify(struct notifier_block *nb,
+		      unsigned long action,
+		      void *data)
+{
+	struct vop *vop = container_of(nb, struct vop, dmc_nb);
+	int ret;
+
+	reinit_completion(&vop->dmc_completion);
+	ret = drm_vblank_get(vop->drm_dev, vop->pipe);
+	if (ret < 0) {
+		DRM_ERROR("failed to get vblank for dmc sync %d\n", ret);
+		return NOTIFY_BAD;
+	}
+
+	if (!wait_for_completion_timeout(&vop->dmc_completion,
+					 msecs_to_jiffies(50))) {
+		DRM_ERROR("dmc wait for vblank completion timed out\n");
+		drm_vblank_put(vop->drm_dev, vop->pipe);
+		return NOTIFY_BAD;
+	}
+	drm_vblank_put(vop->drm_dev, vop->pipe);
+
+	return NOTIFY_STOP;
+}
+
 static bool vop_win_pending_is_complete(struct vop_win *vop_win)
 {
 	if (vop_win->pending_fb)
@@ -1208,6 +1240,8 @@ static irqreturn_t vop_isr(int irq, void *data)
 	}
 
 	drm_handle_vblank(vop->drm_dev, vop->pipe);
+	if (!completion_done(&vop->dmc_completion))
+		complete(&vop->dmc_completion);
 
 	return IRQ_WAKE_THREAD;
 }
@@ -1290,6 +1324,9 @@ static int vop_create_crtc(struct vop *vop)
 			  dev->of_node->full_name);
 		goto err_cleanup_crtc;
 	}
+
+	vop->dmc_nb.notifier_call = dmc_notify;
+	init_completion(&vop->dmc_completion);
 
 	crtc->port = port;
 	vop->pipe = crtc->index;
