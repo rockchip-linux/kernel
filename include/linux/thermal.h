@@ -32,7 +32,7 @@
 #include <linux/workqueue.h>
 
 #define THERMAL_TRIPS_NONE	-1
-#define THERMAL_MAX_TRIPS	12
+#define THERMAL_MAX_TRIPS	32
 #define THERMAL_NAME_LENGTH	20
 
 /* invalid cooling state */
