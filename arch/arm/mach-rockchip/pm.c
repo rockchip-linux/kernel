@@ -35,10 +35,9 @@ enum {
 	ROCKCHIP_ARM_OFF_LOGIC_DEEP = 1,
 };
 
-struct rockchip_pm_device_id {
-	const char *compatible;
+struct rockchip_pm_data {
 	const struct platform_suspend_ops *ops;
-	int (*init)(void);
+	int (*init)(struct device_node *np);
 };
 
 static void __iomem *rk3288_bootram_base;
@@ -132,7 +131,7 @@ static int rockchip_lpmode_enter(unsigned long arg)
 
 	cpu_do_idle();
 
-	pr_info("Failed to suspend the system\n");
+	pr_err("%s: Failed to suspend\n", __func__);
 
 	return 1;
 }
@@ -160,32 +159,49 @@ static int rk3288_suspend_prepare(void)
 static void rk3288_suspend_finish(void)
 {
 	if (regulator_suspend_finish())
-		pr_warn("suspend finish failed\n");
+		pr_err("%s: Suspend finish failed\n", __func__);
 }
 
-static int rk3288_suspend_iomap(void)
+static int rk3288_suspend_init(struct device_node *np)
 {
-	struct device_node *node;
+	struct device_node *sram_np;
 	struct resource res;
+	int ret;
 
-	node = of_find_compatible_node(NULL, NULL, "rockchip,rk3288-pmu-sram");
-	if (!node) {
-		pr_err("%s: could not find bootram dt node\n", __func__);
-		return -1;
+	pmu_regmap = syscon_node_to_regmap(np);
+	if (IS_ERR(pmu_regmap)) {
+		pr_err("%s: could not find pmu regmap\n", __func__);
+		return PTR_ERR(pmu_regmap);
 	}
 
-	rk3288_bootram_base = of_iomap(node, 0);
+	sgrf_regmap = syscon_regmap_lookup_by_compatible(
+				"rockchip,rk3288-sgrf");
+	if (IS_ERR(sgrf_regmap)) {
+		pr_err("%s: could not find sgrf regmap\n", __func__);
+		return PTR_ERR(pmu_regmap);
+	}
+
+	sram_np = of_find_compatible_node(NULL, NULL,
+					  "rockchip,rk3288-pmu-sram");
+	if (!sram_np) {
+		pr_err("%s: could not find bootram dt node\n", __func__);
+		return -ENODEV;
+	}
+
+	rk3288_bootram_base = of_iomap(sram_np, 0);
 	if (!rk3288_bootram_base) {
 		pr_err("%s: could not map bootram base\n", __func__);
-		return -1;
+		return -ENOMEM;
 	}
 
-	if (of_address_to_resource(node, 0, &res)) {
+	ret = of_address_to_resource(sram_np, 0, &res);
+	if (ret) {
 		pr_err("%s: could not get bootram phy addr\n", __func__);
-		return -1;
+		return ret;
 	}
-
 	rk3288_bootram_phy = res.start;
+
+	of_node_put(sram_np);
 
 	rk3288_config_bootdata();
 
@@ -196,31 +212,6 @@ static int rk3288_suspend_iomap(void)
 	return 0;
 }
 
-static int rk3288_suspend_init(void)
-{
-	int ret;
-
-	pmu_regmap = syscon_regmap_lookup_by_compatible(
-				"rockchip,rk3288-pmu");
-
-	if (IS_ERR(pmu_regmap)) {
-		pr_err("%s: could not find pmu regmap\n", __func__);
-		return -1;
-	}
-
-	sgrf_regmap = syscon_regmap_lookup_by_compatible(
-				"rockchip,rk3288-sgrf");
-
-	if (IS_ERR(sgrf_regmap)) {
-		pr_err("%s: could not find sgrf regmap\n", __func__);
-		return -1;
-	}
-
-	ret = rk3288_suspend_iomap();
-
-	return ret;
-}
-
 static const struct platform_suspend_ops rk3288_suspend_ops = {
 	.enter   = rk3288_suspend_enter,
 	.valid   = suspend_valid_only_mem,
@@ -228,37 +219,42 @@ static const struct platform_suspend_ops rk3288_suspend_ops = {
 	.finish  = rk3288_suspend_finish,
 };
 
-static const struct rockchip_pm_device_id rockchip_pm_dt_match[] __initconst = {
+static const struct rockchip_pm_data rk3288_pm_data __initconst = {
+	.ops = &rk3288_suspend_ops,
+	.init = rk3288_suspend_init,
+};
+
+static const struct of_device_id rockchip_pmu_of_device_ids[] __initconst = {
 	{
-		.compatible = "rockchip,rk3288",
-		.ops = &rk3288_suspend_ops,
-		.init = rk3288_suspend_init,
+		.compatible = "rockchip,rk3288-pmu",
+		.data = &rk3288_pm_data,
 	},
 	{ /* sentinel */ },
 };
 
 void __init rockchip_suspend_init(void)
 {
-	const struct rockchip_pm_device_id *matches =
-		rockchip_pm_dt_match;
+	const struct rockchip_pm_data *pm_data;
+	const struct of_device_id *match;
+	struct device_node *np;
+	int ret;
 
-	while (matches->compatible && matches->ops) {
-		if (of_machine_is_compatible(matches->compatible))
-			break;
-		matches++;
-	}
-
-	if (!matches->compatible || !matches->ops) {
-		pr_err("%s:there is not a machine matched\n", __func__);
+	np = of_find_matching_node_and_match(NULL, rockchip_pmu_of_device_ids,
+					     &match);
+	if (!match) {
+		pr_err("Failed to find PMU node\n");
 		return;
 	}
+	pm_data = (struct rockchip_pm_data *) match->data;
 
-	if (matches->init) {
-		if (matches->init()) {
-			pr_err("%s: matches init error\n", __func__);
+	if (pm_data->init) {
+		ret = pm_data->init(np);
+
+		if (ret) {
+			pr_err("%s: matches init error %d\n", __func__, ret);
 			return;
 		}
 	}
 
-	suspend_set_ops(matches->ops);
+	suspend_set_ops(pm_data->ops);
 }
