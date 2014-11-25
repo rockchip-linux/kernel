@@ -5,6 +5,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/gpio/consumer.h>
+#include <linux/delay.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
@@ -35,6 +36,9 @@ static int bdw_rt5677_event_hp(struct snd_soc_dapm_widget *w,
 	struct snd_soc_dapm_context *dapm = w->dapm;
 	struct snd_soc_card *card = dapm->card;
 	struct bdw_rt5677_priv *bdw_rt5677 = snd_soc_card_get_drvdata(card);
+
+	if (SND_SOC_DAPM_EVENT_ON(event))
+		msleep(70);
 
 	gpiod_set_value_cansleep(bdw_rt5677->gpio_hp_en,
 		SND_SOC_DAPM_EVENT_ON(event));
