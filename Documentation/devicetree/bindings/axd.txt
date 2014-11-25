@@ -1,0 +1,43 @@
+* AXD Audio Processing IP Binding *
+
+Required properties:
+- compatible: "img,axd"
+- clocks: phandle for the clock that drives AXD.
+- interrupts: the GIC interrupt where AXD is connected or software interrupt
+  1 (not recommended).
+
+Optional properties:
+- gic-irq: it takes two non-zero values, the first one is the host hwirq and
+           the second one is axd's. Host's hwirq should match the value in
+           interrupts.
+           If not using GIC, then axd will revert to using software interrupt 1
+           which is a fallback mechanism for systems without GIC. It is
+           recommended to use GIC whenever possible. Some systems will only work
+           with GIC so this property will not be optional then.
+- vpe: VPE number on which axd should start. Must be provided if axd is
+       running as a single VPE along Linux on the same core.
+       It can't be VPE0.
+       The VPE must be offlined by Linux before axd is loaded.
+- inbuf-size: size of shared input buffers area. by default it's 0x7800 bytes.
+- outbuf-size: size of shared output buffers area. by default it's 0x3c000 bytes.
+- fw-base: base address where to load the firmware. This is required if not
+           using CMA and will be ignored if using CMA.
+- buf-base: base address of buffers area if not using CMA. This is required if
+            not using CMA and will be ignored if using CMA.
+
+
+Example:
+
+		axdclk: axdclk@400M {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <400000000>;
+		};
+
+		axd {
+			compatible = "img,axd";
+			clocks = <&axdclk>;
+			interrupts = <36 IRQ_TYPE_EDGE_RISING>;
+			gic-irq = <36 37>;
+			vpe = <1>;
+		};
