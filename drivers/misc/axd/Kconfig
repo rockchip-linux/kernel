@@ -1,0 +1,12 @@
+config AXD
+	tristate "AXD Audio Processing IP"
+	depends on MIPS && COMMON_CLK && CMA
+	---help---
+	  Say Y here if you want to use AXD Audio Processing IP.
+
+config AXD_DEBUG_DIAG
+	bool "AXD diagnostics"
+	depends on AXD
+	---help---
+	  Say Y if you want AXD driver to print some diagnostics after playing
+	  a stream.
