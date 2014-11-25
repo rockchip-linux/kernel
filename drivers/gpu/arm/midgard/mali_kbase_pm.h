@@ -378,6 +378,12 @@ struct kbase_pm_device_data {
 	 */
 	void (*callback_power_runtime_off)(struct kbase_device *kbdev);
 
+	/** Callback to indicate that GPU is idle and should be powered off
+	 * soon. See @ref kbase_pm_callback_conf
+	 *
+	 * @param kbdev         The kbase device
+	 */
+	int (*callback_power_runtime_idle)(struct kbase_device *kbdev);
 };
 
 /** The GPU is idle.

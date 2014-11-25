@@ -3225,8 +3225,24 @@ int kbase_device_runtime_resume(struct device *dev)
 #ifdef CONFIG_PM_RUNTIME
 static int kbase_device_runtime_idle(struct device *dev)
 {
-	/* Avoid pm_runtime_suspend being called */
-	return 1;
+	struct kbase_device *kbdev = to_kbase_device(dev);
+	int ret;
+
+	if (!kbdev)
+		return -ENODEV;
+
+	if (kbdev->pm.callback_power_runtime_idle) {
+		ret = kbdev->pm.callback_power_runtime_idle(kbdev);
+		dev_dbg(dev, "runtime idle\n");
+	} else {
+		/*
+		 * Avoid pm_runtime_suspend being called if platform code
+		 * did not provide idle callback
+		 */
+		ret = 1;
+	}
+
+	return ret;
 }
 #endif /* CONFIG_PM_RUNTIME */
 

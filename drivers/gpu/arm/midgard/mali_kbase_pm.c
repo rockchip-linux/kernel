@@ -78,6 +78,7 @@ mali_error kbase_pm_init(struct kbase_device *kbdev)
 		kbdev->pm.callback_power_runtime_term = callbacks->power_runtime_term_callback;
 		kbdev->pm.callback_power_runtime_on = callbacks->power_runtime_on_callback;
 		kbdev->pm.callback_power_runtime_off = callbacks->power_runtime_off_callback;
+		kbdev->pm.callback_power_runtime_idle = callbacks->power_runtime_idle_callback;
 	} else {
 		kbdev->pm.callback_power_on = NULL;
 		kbdev->pm.callback_power_off = NULL;
@@ -87,6 +88,7 @@ mali_error kbase_pm_init(struct kbase_device *kbdev)
 		kbdev->pm.callback_power_runtime_term = NULL;
 		kbdev->pm.callback_power_runtime_on = NULL;
 		kbdev->pm.callback_power_runtime_off = NULL;
+		kbdev->pm.callback_power_runtime_idle = NULL;
 	}
 
 	kbdev->pm.platform_dvfs_frequency = (u32) kbasep_get_config_value(kbdev, kbdev->config_attributes, KBASE_CONFIG_ATTR_POWER_MANAGEMENT_DVFS_FREQ);

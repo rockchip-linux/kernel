@@ -555,6 +555,14 @@ typedef struct kbase_pm_callback_conf {
 	 */
 	int (*power_runtime_on_callback)(struct kbase_device *kbdev);
 
+	/** Callback for runtime idle power management callback
+	 *
+	 * For linux this callback will be called by the kernel runtime_idle callback.
+	 * Note: for linux the kernel must have CONFIG_PM_RUNTIME enabled to use this feature.
+	 */
+	int (*power_runtime_idle_callback)(struct kbase_device *kbdev);
+
+
 } kbase_pm_callback_conf;
 
 /**
