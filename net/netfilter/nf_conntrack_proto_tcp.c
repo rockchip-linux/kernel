@@ -34,12 +34,14 @@
 #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
 
 /* Do not check the TCP window for incoming packets  */
-static int nf_ct_tcp_no_window_check __read_mostly = 0;
+int nf_ct_tcp_no_window_check __read_mostly = 0;
+EXPORT_SYMBOL_GPL(nf_ct_tcp_no_window_check);
 
 /* "Be conservative in what you do,
     be liberal in what you accept from others."
     If it's non-zero, we mark only out of window RST segments as INVALID. */
-static int nf_ct_tcp_be_liberal __read_mostly = 0;
+int nf_ct_tcp_be_liberal __read_mostly = 0;
+EXPORT_SYMBOL_GPL(nf_ct_tcp_be_liberal);
 
 /* If it is set to zero, we disable picking up already established
    connections. */
