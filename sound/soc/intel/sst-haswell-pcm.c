@@ -532,6 +532,12 @@ static int hsw_pcm_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		dev_err(rtd->dev, "error: failed to pause %d\n", ret);
 
+	/* Set previous saved volume */
+	sst_hsw_stream_set_volume(hsw, pcm_data->stream, 0,
+			0, pcm_data->volume[0]);
+	sst_hsw_stream_set_volume(hsw, pcm_data->stream, 0,
+			1, pcm_data->volume[1]);
+
 	return 0;
 }
 
@@ -632,12 +638,6 @@ static int hsw_pcm_open(struct snd_pcm_substream *substream)
 		mutex_unlock(&pcm_data->mutex);
 		return -EINVAL;
 	}
-
-	/* Set previous saved volume */
-	sst_hsw_stream_set_volume(hsw, pcm_data->stream, 0,
-			0, pcm_data->volume[0]);
-	sst_hsw_stream_set_volume(hsw, pcm_data->stream, 0,
-			1, pcm_data->volume[1]);
 
 	mutex_unlock(&pcm_data->mutex);
 	return 0;
