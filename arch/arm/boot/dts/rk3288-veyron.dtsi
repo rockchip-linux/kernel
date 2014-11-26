@@ -262,6 +262,10 @@
 	cpu0-supply = <&vdd_cpu>;
 };
 
+&dmc {
+	logic-supply = <&vdd_logic>;
+};
+
 &emmc {
 	broken-cd;
 	bus-width = <8>;
