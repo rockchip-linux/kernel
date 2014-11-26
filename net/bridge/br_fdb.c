@@ -529,6 +529,26 @@ void br_fdb_update(struct net_bridge *br, struct net_bridge_port *source,
 	}
 }
 
+/* Refresh FDB entries for bridge packets being forwarded by offload engines */
+void br_refresh_fdb_entry(struct net_device *dev, const char *addr)
+{
+	struct net_bridge_port *p = br_port_get_rcu(dev);
+
+	if (!p || p->state == BR_STATE_DISABLED)
+		return;
+
+	if (!is_valid_ether_addr(addr)) {
+		pr_info("bridge: Attempt to refresh with invalid ether address %pM\n", addr);
+		return;
+	}
+
+	rcu_read_lock();
+	br_fdb_update(p->br, p, addr, 0, true);
+	rcu_read_unlock();
+}
+
+EXPORT_SYMBOL_GPL(br_refresh_fdb_entry);
+
 static int fdb_to_nud(const struct net_bridge_fdb_entry *fdb)
 {
 	if (fdb->is_local)
