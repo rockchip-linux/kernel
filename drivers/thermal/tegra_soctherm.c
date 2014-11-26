@@ -671,7 +671,6 @@ static irqreturn_t soctherm_thermal_isr_thread(int irq, void *dev_id)
 	struct tegra_soctherm *ts = dev_id;
 	struct thermal_zone_device *tz;
 	u32 st, ex = 0, cp = 0, gp = 0, pl = 0;
-	int i;
 
 	st = soctherm_readl(ts, THERMCTL_INTR_STATUS);
 
@@ -856,6 +855,7 @@ static irqreturn_t soctherm_edp_isr_thread(int irq, void *dev_id)
 	struct tegra_soctherm *ts = dev_id;
 	struct soctherm_oc_irq_chip_data *soc_irq_cdata = ts->soc_irq_cdata;
 	u32 st, ex, oc1, oc2, oc3, oc4;
+	int i;
 
 	st = soctherm_readl(ts, OC_INTR_STATUS);
 
