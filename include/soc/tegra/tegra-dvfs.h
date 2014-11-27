@@ -222,6 +222,8 @@ static inline int tegra_dvfs_set_fmax_at_vmin(struct clk *c,
 { return -EINVAL; }
 static inline int tegra_dvfs_get_core_nominal_millivolts(void)
 { return -ENOENT; }
+static inline int tegra_get_cpu_speedo_value(void)
+{ return 0; }
 #endif
 
 #ifdef CONFIG_TEGRA_124_DVFS
