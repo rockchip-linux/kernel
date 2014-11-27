@@ -691,6 +691,7 @@ struct nand_chip {
  *               @ecc_step_ds in nand_chip{}, also from the datasheet.
  *               For example, the "4bit ECC for each 512Byte" can be set with
  *               NAND_ECC_INFO(4, 512).
+ * @ecc.layout: If the device has on-die ECC, it can provide its own ECC layout.
  */
 struct nand_flash_dev {
 	char *name;
@@ -710,6 +711,7 @@ struct nand_flash_dev {
 	struct {
 		uint16_t strength_ds;
 		uint16_t step_ds;
+		struct nand_ecclayout *layout;
 	} ecc;
 };
 
