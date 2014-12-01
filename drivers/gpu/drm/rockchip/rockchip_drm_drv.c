@@ -507,6 +507,11 @@ static int rockchip_drm_platform_probe(struct platform_device *pdev)
 		dev_err(dev, "missing 'ports' property\n");
 		return -ENODEV;
 	}
+
+	if (!match) {
+		dev_err(dev, "No available vop found for display-subsystem.\n");
+		return -ENODEV;
+	}
 	/*
 	 * For each bound crtc, bind the encoders attached to its
 	 * remote endpoint.
