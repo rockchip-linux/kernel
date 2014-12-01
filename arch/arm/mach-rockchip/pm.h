@@ -15,14 +15,6 @@
 #ifndef __MACH_ROCKCHIP_PM_H
 #define __MACH_ROCKCHIP_PM_H
 
-extern unsigned long rkpm_bootdata_cpusp;
-extern unsigned long rkpm_bootdata_cpu_code;
-extern unsigned long rkpm_bootdata_l2ctlr_f;
-extern unsigned long rkpm_bootdata_l2ctlr;
-extern unsigned long rkpm_bootdata_ddr_code;
-extern unsigned long rkpm_bootdata_ddr_data;
-extern unsigned long rk3288_bootram_sz;
-
 void rockchip_slp_cpu_resume(void);
 void __init rockchip_suspend_init(void);
 

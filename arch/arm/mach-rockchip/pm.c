@@ -28,6 +28,7 @@
 #include <asm/suspend.h>
 
 #include "pm.h"
+#include "embedded/rk3288_resume.h"
 
 /* These enum are option of low power mode */
 enum {
@@ -57,17 +58,33 @@ static inline u32 rk3288_l2_config(void)
 	return l2ctlr;
 }
 
-static void rk3288_config_bootdata(void)
+static void __init rk3288_init_pmu_sram(void)
 {
-	rkpm_bootdata_cpusp = rk3288_bootram_phy + (SZ_4K - 8);
-	rkpm_bootdata_cpu_code = virt_to_phys(cpu_resume);
+	extern char _binary_arch_arm_mach_rockchip_embedded_rk3288_resume_bin_start;
+	extern char _binary_arch_arm_mach_rockchip_embedded_rk3288_resume_bin_end;
+	u32 size = &_binary_arch_arm_mach_rockchip_embedded_rk3288_resume_bin_end -
+		   &_binary_arch_arm_mach_rockchip_embedded_rk3288_resume_bin_start;
+	struct rk3288_resume_params *params;
 
-	rkpm_bootdata_l2ctlr_f  = 1;
-	rkpm_bootdata_l2ctlr = rk3288_l2_config();
+	/* move resume code and data to PMU sram */
+	memcpy(rk3288_bootram_base,
+	       &_binary_arch_arm_mach_rockchip_embedded_rk3288_resume_bin_start,
+	       size);
+
+	/* setup the params that we know at boot time */
+	params = (struct rk3288_resume_params *)rk3288_bootram_base;
+
+	params->cpu_resume = (void *)virt_to_phys(cpu_resume);
+
+	params->l2ctlr_f = 1;
+	params->l2ctlr = rk3288_l2_config();
 }
 
 static void rk3288_slp_mode_set(int level)
 {
+	struct rk3288_resume_params *params =
+		(struct rk3288_resume_params *)rk3288_bootram_base;
+
 	u32 mode_set, mode_set1;
 
 	regmap_read(sgrf_regmap, RK3288_SGRF_SOC_CON0, &rk3288_sgrf_soc_con0);
@@ -81,7 +98,7 @@ static void rk3288_slp_mode_set(int level)
 
 	/* booting address of resuming system is from this register value */
 	regmap_write(sgrf_regmap, RK3288_SGRF_FAST_BOOT_ADDR,
-		     rk3288_bootram_phy);
+		     (u32)params->resume_loc);
 
 	regmap_write(pmu_regmap, RK3288_PMU_WAKEUP_CFG1,
 		     PMU_ARMINT_WAKEUP_EN);
@@ -162,7 +179,7 @@ static void rk3288_suspend_finish(void)
 		pr_err("%s: Suspend finish failed\n", __func__);
 }
 
-static int rk3288_suspend_init(struct device_node *np)
+static int __init rk3288_suspend_init(struct device_node *np)
 {
 	struct device_node *sram_np;
 	struct resource res;
@@ -203,11 +220,7 @@ static int rk3288_suspend_init(struct device_node *np)
 
 	of_node_put(sram_np);
 
-	rk3288_config_bootdata();
-
-	/* copy resume code and data to bootsram */
-	memcpy(rk3288_bootram_base, rockchip_slp_cpu_resume,
-	       rk3288_bootram_sz);
+	rk3288_init_pmu_sram();
 
 	return 0;
 }
