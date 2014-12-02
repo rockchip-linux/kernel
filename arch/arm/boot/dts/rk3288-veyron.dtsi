@@ -282,6 +282,7 @@
 	broken-cd;
 	bus-width = <4>;
 	cap-sd-highspeed;
+	cap-sdio-irq;
 	card-external-vcc-supply = <&wifi_regulator>;
 	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&rk808 RK808_CLKOUT1>;
 	clock-names = "biu", "ciu", "card_ext_clock";
