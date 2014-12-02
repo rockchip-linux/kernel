@@ -752,19 +752,19 @@ static IIO_DEVICE_ATTR(in_proximity_range, S_IRUGO | S_IWUSR,
 			si114x_range_store,
 			SI114X_PARAM_PS_ADC_MISC);
 
-static IIO_DEVICE_ATTR(in_intensity_range, S_IRUGO | S_IWUSR,
+static IIO_DEVICE_ATTR(in_illuminance_range, S_IRUGO | S_IWUSR,
 			si114x_range_show,
 			si114x_range_store,
 			SI114X_PARAM_ALSVIS_ADC_MISC);
 
-static IIO_DEVICE_ATTR(in_intensity_ir_range, S_IRUGO | S_IWUSR,
+static IIO_DEVICE_ATTR(in_illuminance_ir_range, S_IRUGO | S_IWUSR,
 			si114x_range_show,
 			si114x_range_store,
 			SI114X_PARAM_ALSIR_ADC_MISC);
 
 static IIO_CONST_ATTR(in_proximity_range_available, "normal high");
-static IIO_CONST_ATTR(in_intensity_range_available, "normal high");
-static IIO_CONST_ATTR(in_intensity_ir_range_available, "normal high");
+static IIO_CONST_ATTR(in_illuminance_range_available, "normal high");
+static IIO_CONST_ATTR(in_illuminance_ir_range_available, "normal high");
 
 static int si114x_set_chlist(struct iio_dev *indio_dev, bool all)
 {
@@ -968,10 +968,10 @@ static IIO_CONST_ATTR_SAMP_FREQ_AVAIL("1 2 5 10 25 50 100 250");
 static struct attribute *si114x_attrs_trigger[] = {
 	&iio_dev_attr_in_proximity_range.dev_attr.attr,
 	&iio_const_attr_in_proximity_range_available.dev_attr.attr,
-	&iio_dev_attr_in_intensity_range.dev_attr.attr,
-	&iio_const_attr_in_intensity_range_available.dev_attr.attr,
-	&iio_dev_attr_in_intensity_ir_range.dev_attr.attr,
-	&iio_const_attr_in_intensity_ir_range_available.dev_attr.attr,
+	&iio_dev_attr_in_illuminance_range.dev_attr.attr,
+	&iio_const_attr_in_illuminance_range_available.dev_attr.attr,
+	&iio_dev_attr_in_illuminance_ir_range.dev_attr.attr,
+	&iio_const_attr_in_illuminance_ir_range_available.dev_attr.attr,
 	&iio_dev_attr_sampling_frequency.dev_attr.attr,
 	&iio_const_attr_sampling_frequency_available.dev_attr.attr,
 	NULL
@@ -995,10 +995,10 @@ static const struct iio_info si114x_info_trigger = {
 static struct attribute *si114x_attrs_no_trigger[] = {
 	&iio_dev_attr_in_proximity_range.dev_attr.attr,
 	&iio_const_attr_in_proximity_range_available.dev_attr.attr,
-	&iio_dev_attr_in_intensity_range.dev_attr.attr,
-	&iio_const_attr_in_intensity_range_available.dev_attr.attr,
-	&iio_dev_attr_in_intensity_ir_range.dev_attr.attr,
-	&iio_const_attr_in_intensity_ir_range_available.dev_attr.attr,
+	&iio_dev_attr_in_illuminance_range.dev_attr.attr,
+	&iio_const_attr_in_illuminance_range_available.dev_attr.attr,
+	&iio_dev_attr_in_illuminance_ir_range.dev_attr.attr,
+	&iio_const_attr_in_illuminance_ir_range_available.dev_attr.attr,
 	NULL
 };
 
