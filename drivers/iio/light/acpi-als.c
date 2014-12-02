@@ -57,7 +57,9 @@ static const struct iio_chan_spec acpi_als_channels[] = {
 			.realbits	= 10,
 			.storagebits	= 16,
 		},
-		.info_mask_separate	= BIT(IIO_CHAN_INFO_RAW),
+		.info_mask_separate	= BIT(IIO_CHAN_INFO_RAW) |
+					  BIT(IIO_CHAN_INFO_PROCESSED) |
+					  BIT(IIO_CHAN_INFO_CALIBSCALE),
 	},
 };
 
@@ -78,6 +80,9 @@ struct acpi_als {
 	struct mutex		lock;
 
 	uint16_t		evt_buffer[EVT_BUFFER_SIZE];
+
+	uint			als_scale;
+	uint			als_uscale;
 };
 
 /*
@@ -148,16 +153,51 @@ static int acpi_als_read_raw(struct iio_dev *iio,
 			int *val2, long mask)
 {
 	struct acpi_als *als = iio_priv(iio);
-
-	if (mask != IIO_CHAN_INFO_RAW)
-		return -EINVAL;
+	int32_t raw;
 
 	/* we support only illumination (_ALI) so far. */
 	if (chan->type != IIO_LIGHT)
 		return -EINVAL;
 
-	*val = als_read_value(als, ACPI_ALS_ILLUMINANCE);
-	return IIO_VAL_INT;
+	switch (mask) {
+	case IIO_CHAN_INFO_RAW:
+	case IIO_CHAN_INFO_PROCESSED:
+		raw = als_read_value(als, ACPI_ALS_ILLUMINANCE);
+		if (mask == IIO_CHAN_INFO_PROCESSED) {
+			/* use u64 to avoid overflow */
+			u64 ulux = (u64) raw * 1000000;
+			mutex_lock(&als->lock);
+			ulux = ulux * als->als_scale +
+			       ulux * als->als_uscale / 1000000;
+			mutex_unlock(&als->lock);
+			*val = ulux / 1000000;
+		} else {
+			*val = raw;
+		}
+		return IIO_VAL_INT;
+	case IIO_CHAN_INFO_CALIBSCALE:
+		*val = als->als_scale;
+		*val2 = als->als_uscale;
+		return IIO_VAL_INT_PLUS_MICRO;
+	default:
+		return -EINVAL;
+	}
+}
+
+static int acpi_als_write_raw(struct iio_dev *iio,
+			struct iio_chan_spec const *chan, int val,
+			int val2, long mask)
+{
+	struct acpi_als *als = iio_priv(iio);
+
+	if (mask != IIO_CHAN_INFO_CALIBSCALE || chan->type != IIO_LIGHT)
+		return -EINVAL;
+
+	mutex_lock(&als->lock);
+	als->als_scale = val;
+	als->als_uscale = val2;
+	mutex_unlock(&als->lock);
+	return 0;
 }
 
 static int acpi_als_validate_trigger(struct iio_dev *iio,
@@ -172,6 +212,7 @@ static int acpi_als_validate_trigger(struct iio_dev *iio,
 static const struct iio_info acpi_als_info = {
 	.driver_module		= THIS_MODULE,
 	.read_raw		= acpi_als_read_raw,
+	.write_raw		= acpi_als_write_raw,
 	.validate_trigger	= acpi_als_validate_trigger,
 };
 
@@ -246,6 +287,8 @@ static int acpi_als_add(struct acpi_device *device)
 
 	device->driver_data = iio;
 	als->device = device;
+	als->als_scale = 1;
+	als->als_uscale = 0;
 	mutex_init(&als->lock);
 
 	iio->name = ACPI_ALS_DEVICE_NAME;
