@@ -143,7 +143,7 @@ struct ar8xxx_priv {
 	bool port4_phy;
 	char buf[2048];
 
-	bool init;
+	bool initializing;
 	bool mii_lo_first;
 
 	struct mutex mib_lock;
@@ -2000,7 +2000,7 @@ ar8xxx_sw_hw_apply(struct switch_dev *dev)
 	priv->chip->vtu_flush(priv);
 
 	memset(portmask, 0, sizeof(portmask));
-	if (!priv->init) {
+	if (!priv->initializing) {
 		/* calculate the port destination masks and load vlans
 		 * into the vlan translation unit */
 		for (j = 0; j < AR8X16_MAX_VLANS; j++) {
@@ -2674,7 +2674,7 @@ ar8xxx_start(struct ar8xxx_priv *priv)
 {
 	int ret;
 
-	priv->init = true;
+	priv->initializing = true;
 
 	ret = priv->chip->hw_init(priv);
 	if (ret)
@@ -2684,7 +2684,7 @@ ar8xxx_start(struct ar8xxx_priv *priv)
 	if (ret)
 		return ret;
 
-	priv->init = false;
+	priv->initializing = false;
 
 	ar8xxx_mib_start(priv);
 
