@@ -831,23 +831,61 @@ ar8236_setup_port(struct ar8xxx_priv *priv, int port, u32 egress, u32 ingress,
 }
 
 static int
-ar8236_hw_init(struct ar8xxx_priv *priv)
+ar8xxx_phy_reset(struct ar8xxx_priv *priv)
 {
-	int i;
-	struct mii_bus *bus;
+	struct mii_bus *bus = priv->mii_bus;
+	unsigned int retries = 500;
+	unsigned int reset_done = 0;
+	unsigned int i;
 
-	if (priv->initialized)
-		return 0;
-
-	/* Initialize the PHYs */
-	bus = priv->mii_bus;
+	/* First reset all the PHYs. :) */
 	for (i = 0; i < 5; i++) {
+		/* start aneg on the PHY */
 		mdiobus_write(bus, i, MII_ADVERTISE,
 			      ADVERTISE_ALL | ADVERTISE_PAUSE_CAP |
 			      ADVERTISE_PAUSE_ASYM);
 		mdiobus_write(bus, i, MII_BMCR, BMCR_RESET | BMCR_ANENABLE);
 	}
-	msleep(1000);
+
+	/* On AR8xxx switch family, PHYs get reset in 20us.
+	 * Waiting 1ms should be plenty of time.
+	 * However, 802.3 spec allows for a max wait time of 500ms.
+	 */
+	while (reset_done != GENMASK(AR8327_NUM_PHYS - 1, 0)) {
+		if (retries-- == 0) {
+			pr_err("ar8xxx: PHYs reset timed out\n");
+			return -ETIMEDOUT;
+		}
+
+		msleep(1);
+
+		/* PHYs get reset one by one so we iterate over each */
+		for (i = 0; i < 5; i++) {
+			int val;
+
+			/* skip devices which have completed reset */
+			if (reset_done & BIT(i))
+				continue;
+
+			val = mdiobus_read(bus, i, MII_BMCR);
+			if (val < 0)
+				return val;
+
+			if (!(val & BMCR_RESET))
+				reset_done |= BIT(i);
+		}
+	}
+
+	return 0;
+}
+
+static int
+ar8236_hw_init(struct ar8xxx_priv *priv)
+{
+	if (priv->initialized)
+		return 0;
+
+	ar8xxx_phy_reset(priv);
 
 	priv->initialized = true;
 	return 0;
@@ -884,10 +922,7 @@ static const struct ar8xxx_chip ar8236_chip = {
 static int
 ar8316_hw_init(struct ar8xxx_priv *priv)
 {
-	int i;
 	u32 val, newval;
-	struct mii_bus *bus;
-
 	val = priv->read(priv, AR8316_REG_POSTRIP);
 
 	if (priv->phy->interface == PHY_INTERFACE_MODE_RGMII) {
@@ -922,20 +957,9 @@ ar8316_hw_init(struct ar8xxx_priv *priv)
 		ar8xxx_phy_dbg_write(priv, 4, 0x0, 0x824e);
 		/* tx delay */
 		ar8xxx_phy_dbg_write(priv, 4, 0x5, 0x3d47);
-		msleep(1000);
 	}
 
-	/* Initialize the ports */
-	bus = priv->mii_bus;
-	for (i = 0; i < 5; i++) {
-		/* initialize the port itself */
-		mdiobus_write(bus, i, MII_ADVERTISE,
-			ADVERTISE_ALL | ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM);
-		mdiobus_write(bus, i, MII_CTRL1000, ADVERTISE_1000FULL);
-		mdiobus_write(bus, i, MII_BMCR, BMCR_RESET | BMCR_ANENABLE);
-	}
-
-	msleep(1000);
+	ar8xxx_phy_reset(priv);
 
 out:
 	priv->initialized = true;
@@ -1584,15 +1608,10 @@ ar8327_hw_init(struct ar8xxx_priv *priv)
 	for (i = 0; i < AR8327_NUM_PHYS; i++) {
 		ar8327_phy_fixup(priv, i);
 
-		/* start aneg on the PHY */
-		mdiobus_write(bus, i, MII_ADVERTISE, ADVERTISE_ALL |
-						     ADVERTISE_PAUSE_CAP |
-						     ADVERTISE_PAUSE_ASYM);
 		mdiobus_write(bus, i, MII_CTRL1000, ADVERTISE_1000FULL);
-		mdiobus_write(bus, i, MII_BMCR, BMCR_RESET | BMCR_ANENABLE);
 	}
 
-	msleep(1000);
+	ar8xxx_phy_reset(priv);
 
 	return 0;
 }
