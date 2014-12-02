@@ -107,7 +107,6 @@ struct ar8327_led {
 	u8 led_num;
 	enum ar8327_led_mode mode;
 
-	struct mutex mutex;
 	spinlock_t lock;
 	struct work_struct led_work;
 	bool enable_hw_mode;
@@ -133,8 +132,6 @@ struct ar8xxx_priv {
 
 	int (*get_port_link)(unsigned port);
 
-	const struct net_device_ops *ndo_old;
-	struct net_device_ops ndo;
 	struct mutex reg_mutex;
 	u8 chip_ver;
 	u8 chip_rev;
@@ -1371,7 +1368,6 @@ ar8327_led_create(struct ar8xxx_priv *priv,
 	aled->cdev.default_trigger = led_info->default_trigger;
 
 	spin_lock_init(&aled->lock);
-	mutex_init(&aled->mutex);
 	INIT_WORK(&aled->led_work, ar8327_led_work_func);
 
 	ret = ar8327_led_register(priv, aled);
