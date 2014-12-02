@@ -455,7 +455,7 @@ static int si114x_read_raw(struct iio_dev *indio_dev,
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		switch (chan->type) {
-		case IIO_INTENSITY:
+		case IIO_LIGHT:
 		case IIO_PROXIMITY:
 		case IIO_TEMP:
 			if (iio_buffer_enabled(indio_dev))
@@ -510,7 +510,7 @@ static int si114x_read_raw(struct iio_dev *indio_dev,
 		case IIO_PROXIMITY:
 			reg = SI114X_PARAM_PS_ADC_GAIN;
 			break;
-		case IIO_INTENSITY:
+		case IIO_LIGHT:
 			if (chan->channel2 == IIO_MOD_LIGHT_IR)
 				reg = SI114X_PARAM_ALSIR_ADC_GAIN;
 			else
@@ -550,7 +550,7 @@ static int si114x_write_raw(struct iio_dev *indio_dev,
 			reg1 = SI114X_PARAM_PS_ADC_GAIN;
 			reg2 = SI114X_PARAM_PS_ADC_COUNTER;
 			break;
-		case IIO_INTENSITY:
+		case IIO_LIGHT:
 			if (val < 0 || val > 7)
 				return -EINVAL;
 			if (chan->channel2 == IIO_MOD_LIGHT_IR) {
@@ -648,8 +648,8 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 	return data->part - 0x40;
 }
 
-#define SI114X_INTENSITY_CHANNEL(_si) { \
-	.type = IIO_INTENSITY, \
+#define SI114X_LIGHT_CHANNEL(_si) { \
+	.type = IIO_LIGHT, \
 	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
 			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
 	.scan_type = IIO_ST('u', 16, 16, 0), \
@@ -657,8 +657,8 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 	.address = SI114X_REG_ALSVIS_DATA0, \
 }
 
-#define SI114X_INTENSITY_IR_CHANNEL(_si) { \
-	.type = IIO_INTENSITY, \
+#define SI114X_LIGHT_IR_CHANNEL(_si) { \
+	.type = IIO_LIGHT, \
 	.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) | \
 			      BIT(IIO_CHAN_INFO_HARDWAREGAIN), \
 	.modified = 1, \
@@ -697,8 +697,8 @@ static inline unsigned int si114x_leds(struct si114x_data *data)
 
 static const struct iio_chan_spec si114x_channels[] = {
 	IIO_CHAN_SOFT_TIMESTAMP(0),
-	SI114X_INTENSITY_CHANNEL(1),
-	SI114X_INTENSITY_IR_CHANNEL(2),
+	SI114X_LIGHT_CHANNEL(1),
+	SI114X_LIGHT_IR_CHANNEL(2),
 	SI114X_TEMP_CHANNEL(3),
 	SI114X_PROXIMITY_CHANNEL(4, 0),
 	SI114X_CURRENT_CHANNEL(0),
