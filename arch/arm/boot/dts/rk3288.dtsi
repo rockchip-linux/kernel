@@ -437,16 +437,23 @@
 	};
 
 	dmc: dmc@ff610000 {
-		compatible = "rockchip,rk3288-dmc";
+		compatible = "rockchip,rk3288-dmc", "syscon";
+		rockchip,cru = <&cru>;
+		rockchip,grf = <&grf>;
+		rockchip,pmu = <&pmu>;
+		rockchip,sgrf = <&sgrf>;
+		rockchip,noc = <&noc>;
 		reg = <0xff610000 0x3fc
 		       0xff620000 0x294
 		       0xff630000 0x3fc
 		       0xff640000 0x294>;
 		rockchip,sram = <&ddr_sram>;
 		clocks = <&cru PCLK_DDRUPCTL0>, <&cru PCLK_PUBL0>,
-			 <&cru PCLK_DDRUPCTL1>, <&cru PCLK_PUBL1>;
+			 <&cru PCLK_DDRUPCTL1>, <&cru PCLK_PUBL1>,
+			 <&cru ARMCLK>;
 		clock-names = "pclk_ddrupctl0", "pclk_publ0",
-			      "pclk_ddrupctl1", "pclk_publ1";
+			      "pclk_ddrupctl1", "pclk_publ1",
+			      "arm_clk";
 	};
 
 	i2c0: i2c@ff650000 {
