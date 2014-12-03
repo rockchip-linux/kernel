@@ -1800,11 +1800,6 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 	dev_info(mmc_dev(host->mmc), "Speedo value %d\n", tegra_host->speedo);
 
 	tegra_host->boot_vcore_mv = tegra_dvfs_get_core_nominal_millivolts();
-	/* Hack: fallback to 1150 mV in ryu if we can't get the right number. */
-	if (tegra_host->boot_vcore_mv == -ENOENT &&
-	    of_machine_is_compatible("google,ryu"))
-		tegra_host->boot_vcore_mv =  1150;
-
 	dev_info(mmc_dev(host->mmc),
 		"Tegra Vcore boot mV value %d\n", tegra_host->boot_vcore_mv);
 
