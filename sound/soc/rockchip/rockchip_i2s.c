@@ -48,6 +48,9 @@ static int i2s_runtime_suspend(struct device *dev)
 {
 	struct rk_i2s_dev *i2s = dev_get_drvdata(dev);
 
+	if (i2s->oclk)
+		clk_disable_unprepare(i2s->oclk);
+
 	clk_disable_unprepare(i2s->mclk);
 
 	return 0;
@@ -60,8 +63,16 @@ static int i2s_runtime_resume(struct device *dev)
 
 	ret = clk_prepare_enable(i2s->mclk);
 	if (ret) {
-		dev_err(i2s->dev, "clock enable failed %d\n", ret);
+		dev_err(i2s->dev, "mclk enable failed %d\n", ret);
 		return ret;
+	}
+
+	if (i2s->oclk) {
+		ret = clk_prepare_enable(i2s->oclk);
+		if (ret) {
+			dev_err(i2s->dev, "oclk enable failed %d\n", ret);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -443,9 +454,6 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev, "Didn't find output clock\n");
 		i2s->oclk = NULL;
 	}
-
-	if (i2s->oclk)
-		ret = clk_prepare_enable(i2s->oclk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	regs = devm_ioremap_resource(&pdev->dev, res);
