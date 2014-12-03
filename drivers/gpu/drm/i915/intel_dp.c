@@ -1174,9 +1174,14 @@ void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)
 		 * Queue the timer to fire a long
 		 * time from now (relative to the power down delay)
 		 * to keep the panel power up across a sequence of operations
+		 *
+		 * The power down delay is 0 before
+		 * intel_dp_init_panel_power_sequencer(). Set 500ms as default.
 		 */
+		#define EDP_VDD_OFF_DELAY \
+			((intel_dp->panel_power_cycle_delay?:500) * 5)
 		schedule_delayed_work(&intel_dp->panel_vdd_work,
-				      msecs_to_jiffies(intel_dp->panel_power_cycle_delay * 5));
+			              msecs_to_jiffies(EDP_VDD_OFF_DELAY));
 	}
 }
 
