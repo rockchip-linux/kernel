@@ -30,6 +30,7 @@
 #include "testmode.h"
 #include "pci.h"
 #include "decode64.h"
+#include "wmi-ops.h"
 
 unsigned int ath10k_debug_mask;
 static bool uart_print;
