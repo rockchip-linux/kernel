@@ -2,6 +2,7 @@
  * swconfig.c: Switch configuration API
  *
  * Copyright (C) 2008 Felix Fietkau <nbd@openwrt.org>
+ * Copyright (C) 2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1067,6 +1068,10 @@ register_switch(struct switch_dev *dev, struct net_device *netdev)
 	i = find_first_zero_bit(&in_use, max_switches);
 
 	if (i == max_switches) {
+		if (dev->ports > 0) {
+			kfree(dev->portmap);
+			kfree(dev->portbuf);
+		}
 		swconfig_unlock();
 		return -ENFILE;
 	}
@@ -1083,8 +1088,13 @@ register_switch(struct switch_dev *dev, struct net_device *netdev)
 	swconfig_unlock();
 
 	err = swconfig_create_led_trigger(dev);
-	if (err)
+	if (err) {
+		if (dev->ports > 0) {
+			kfree(dev->portmap);
+			kfree(dev->portbuf);
+		}
 		return err;
+	}
 
 	return 0;
 }
@@ -1094,9 +1104,12 @@ void
 unregister_switch(struct switch_dev *dev)
 {
 	swconfig_destroy_led_trigger(dev);
-	kfree(dev->portbuf);
 	mutex_lock(&dev->sw_mutex);
 	swconfig_lock();
+	if (dev->ports > 0) {
+		kfree(dev->portmap);
+		kfree(dev->portbuf);
+	}
 	list_del(&dev->dev_list);
 	swconfig_unlock();
 	mutex_unlock(&dev->sw_mutex);
