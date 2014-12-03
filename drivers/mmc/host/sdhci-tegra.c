@@ -1741,6 +1741,17 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 	tegra_host->soc_data = soc_data;
 	pltfm_host->priv = tegra_host;
 
+	tegra_host->speedo = tegra_get_cpu_speedo_value();
+	dev_dbg(mmc_dev(host->mmc), "Speedo value %d\n", tegra_host->speedo);
+
+	tegra_host->boot_vcore_mv = tegra_dvfs_get_core_nominal_millivolts();
+	if (tegra_host->boot_vcore_mv == -ENOENT) {
+		rc = -EPROBE_DEFER;
+		goto err_alloc_tegra_host;
+	}
+	dev_dbg(mmc_dev(host->mmc),
+		"Tegra Vcore boot mV value %d\n", tegra_host->boot_vcore_mv);
+
 	rc = sdhci_tegra_parse_dt(&pdev->dev);
 	if (rc) {
 		dev_err(mmc_dev(host->mmc), "failed to parse DT data\n");
@@ -1795,13 +1806,6 @@ static int sdhci_tegra_probe(struct platform_device *pdev)
 
 	if (soc_data->nvquirks & NVQUIRK_ENABLE_SDR104)
 		host->mmc->caps |= MMC_CAP_UHS_SDR104;
-
-	tegra_host->speedo = tegra_get_cpu_speedo_value();
-	dev_info(mmc_dev(host->mmc), "Speedo value %d\n", tegra_host->speedo);
-
-	tegra_host->boot_vcore_mv = tegra_dvfs_get_core_nominal_millivolts();
-	dev_info(mmc_dev(host->mmc),
-		"Tegra Vcore boot mV value %d\n", tegra_host->boot_vcore_mv);
 
 	rc = sdhci_add_host(host);
 	if (rc)
