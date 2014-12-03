@@ -2995,10 +2995,12 @@ ar8xxx_phy_remove(struct phy_device *phydev)
 		return;
 
 	phydev->priv = NULL;
-	if (--priv->use_count > 0)
-		return;
 
 	mutex_lock(&ar8xxx_dev_list_lock);
+	if (--priv->use_count > 0) {
+		mutex_unlock(&ar8xxx_dev_list_lock);
+		return;
+	}
 	list_del(&priv->list);
 	mutex_unlock(&ar8xxx_dev_list_lock);
 
