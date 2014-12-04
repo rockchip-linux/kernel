@@ -548,8 +548,8 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	val |= (actual_w - 1) & 0xffff;
 	VOP_WIN_SET(vop, win, act_info, val);
 	VOP_WIN_SET(vop, win, dsp_info, val);
-	val = (dsp_sty - 1) << 16;
-	val |= (dsp_stx - 1) & 0xffff;
+	val = dsp_sty << 16;
+	val |= dsp_stx & 0xffff;
 	VOP_WIN_SET(vop, win, dsp_st, val);
 
 	if (is_alpha) {
