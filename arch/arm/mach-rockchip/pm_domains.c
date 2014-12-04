@@ -36,6 +36,12 @@ struct rockchip_pmu_info {
 	u32 idle_offset;
 	u32 ack_offset;
 
+	u32 core_pwrcnt_offset;
+	u32 gpu_pwrcnt_offset;
+
+	unsigned int core_power_transition_time;
+	unsigned int gpu_power_transition_time;
+
 	int num_domains;
 	const struct rockchip_domain_info *domain_info;
 };
@@ -356,6 +362,16 @@ static void rockchip_pm_domain_cleanup(struct rockchip_pmu *pmu)
 	/* devm will free our memory */
 }
 
+static void rockchip_configure_pd_cnt(struct rockchip_pmu *pmu,
+				      u32 domain_reg_offset,
+				      unsigned int count)
+{
+	/* First configure domain power down transition count ... */
+	regmap_write(pmu->regmap, domain_reg_offset, count);
+	/* ... and then power up count. */
+	regmap_write(pmu->regmap, domain_reg_offset + 4, count);
+}
+
 static int rockchip_pm_domain_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -403,6 +419,15 @@ static int rockchip_pm_domain_probe(struct platform_device *pdev)
 		return error;
 	}
 
+	/*
+	 * Configure power up and down transition delays for core
+	 * and GPU domains.
+	 */
+	rockchip_configure_pd_cnt(pmu, pmu_info->core_pwrcnt_offset,
+				  pmu_info->core_power_transition_time);
+	rockchip_configure_pd_cnt(pmu, pmu_info->gpu_pwrcnt_offset,
+				  pmu_info->gpu_power_transition_time);
+
 	error = -ENXIO;
 
 	for_each_available_child_of_node(np, node) {
@@ -441,6 +466,13 @@ static const struct rockchip_pmu_info rk3288_pmu = {
 	.req_offset = 0x10,
 	.idle_offset = 0x14,
 	.ack_offset = 0x14,
+
+	.core_pwrcnt_offset = 0x34,
+	.gpu_pwrcnt_offset = 0x3c,
+
+	.core_power_transition_time = 24, /* 1us */
+	.gpu_power_transition_time = 24, /* 1us */
+
 	.num_domains = ARRAY_SIZE(rk3288_pm_domains),
 	.domain_info = rk3288_pm_domains,
 };
