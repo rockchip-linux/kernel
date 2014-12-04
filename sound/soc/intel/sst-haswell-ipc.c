@@ -471,6 +471,13 @@ static void ipc_tx_msgs(struct kthread_work *work)
 	unsigned long flags;
 	u32 ipcx;
 
+	/* This delay is to avoid message timeout error during repeated arecord.
+	 * Binary search on the delay value shows that timeouts start to happen
+	 * when delay is at ~70us. At 100us delay, tested 500 arecord without
+	 * timeout error.
+	 */
+	udelay(100);
+
 	spin_lock_irqsave(&hsw->dsp->spinlock, flags);
 
 	if (list_empty(&hsw->tx_list) || hsw->pending) {
