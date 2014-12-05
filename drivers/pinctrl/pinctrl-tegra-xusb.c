@@ -1333,17 +1333,19 @@ static int usb3_phy_power_on(struct phy *phy)
 	}
 
 	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
+	value &= ~XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_VCORE_DOWN(port);
+	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
+
+	usleep_range(150, 250);
+
+	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
 	value &= ~XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN_EARLY(port);
 	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
 
 	usleep_range(100, 200);
 
 	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
-	value &= ~XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN_EARLY(port);
-	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
-
-	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
-	value &= ~XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_VCORE_DOWN(port);
+	value &= ~XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN(port);
 	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
 
 	return 0;
@@ -1362,7 +1364,7 @@ static int usb3_phy_power_off(struct phy *phy)
 	usleep_range(100, 200);
 
 	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
-	value |= XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN_EARLY(port);
+	value |= XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN(port);
 	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
 
 	usleep_range(250, 350);
