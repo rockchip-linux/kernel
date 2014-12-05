@@ -373,8 +373,9 @@
 };
 
 &i2c0 {
-	clock-frequency = <400000>;
 	status = "okay";
+
+	clock-frequency = <400000>;
 
 	rk808: pmic@1b {
 		compatible = "rockchip,rk808";
@@ -532,6 +533,8 @@
 &i2c1 {
 	status = "okay";
 
+	clock-frequency = <400000>;
+
 	tpm: tpm@20 {
 		compatible = "infineon,slb9645tt";
 		reg = <0x20>;
@@ -541,6 +544,9 @@
 
 &i2c2 {
 	status = "okay";
+
+	/* 100kHz since 4.7k resistors don't rise fast enough */
+	clock-frequency = <100000>;
 
 	max98090: max98090@10 {
 		compatible = "maxim,max98090";
@@ -554,11 +560,14 @@
 
 &i2c3 {
 	status = "okay";
+
+	clock-frequency = <400000>;
 };
 
 &i2c4 {
-	clock-frequency = <400000>;
 	status = "okay";
+
+	clock-frequency = <400000>;
 
 	trackpad@15 {
 		compatible = "elan,i2c_touchpad";
@@ -583,6 +592,8 @@
 
 &i2c5 {
 	status = "okay";
+
+	clock-frequency = <100000>;
 };
 
 &i2s {
