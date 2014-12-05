@@ -50,4 +50,12 @@ struct tegra_xusb_mbox_msg {
 	u32 data;
 };
 
+struct phy;
+
+extern int tegra_xusb_phy_wake_enable(struct phy *phy);
+extern int tegra_xusb_phy_wake_disable(struct phy *phy);
+extern int tegra_xusb_usb3_phy_vcore_down(struct phy *phy);
+extern int tegra_xusb_utmi_phy_get_tctrl_rctrl(struct phy *phy, u32 *tctrl,
+					       u32 *rctrl);
+
 #endif /* __SOC_TEGRA_XUSB_H__ */

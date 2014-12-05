@@ -61,6 +61,12 @@
 #define XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN_EARLY(x) \
 							(1 << (17 + (x) * 4))
 #define XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_CLAMP_EN(x) (1 << (16 + (x) * 4))
+#define XUSB_PADCTL_ELPG_PROGRAM_SS_PORTX_WAKE_EVENT(x) (1 << (14 + (x)))
+#define XUSB_PADCTL_ELPG_PROGRAM_HSIC_PORTX_WAKE_EVENT(x) (1 << (11 + (x)))
+#define XUSB_PADCTL_ELPG_PROGRAM_USB2_PORTX_WAKE_EVENT(x) (1 << (8 + (x)))
+#define XUSB_PADCTL_ELPG_PROGRAM_SS_PORTX_WAKE_EN(x) (1 << (6 + (x)))
+#define XUSB_PADCTL_ELPG_PROGRAM_HSIC_PORTX_WAKE_EN(x) (1 << (3 + (x)))
+#define XUSB_PADCTL_ELPG_PROGRAM_USB2_PORTX_WAKE_EN(x) (1 << (x))
 
 #define XUSB_PADCTL_IOPHY_PLL_P0_CTL1 0x040
 #define XUSB_PADCTL_IOPHY_PLL_P0_CTL1_PLL0_LOCKDET (1 << 19)
@@ -134,11 +140,18 @@
 #define XUSB_PADCTL_USB2_OTG_PAD_CTL1_PD_CHRP_FORCE_POWERUP (1 << 0)
 
 #define XUSB_PADCTL_USB2_BIAS_PAD_CTL0 0x0b8
+#define XUSB_PADCTL_USB2_BIAS_PAD_CTL0_PD_TRK (1 << 13)
 #define XUSB_PADCTL_USB2_BIAS_PAD_CTL0_PD (1 << 12)
 #define XUSB_PADCTL_USB2_BIAS_PAD_CTL0_HS_DISCON_LEVEL_SHIFT 2
 #define XUSB_PADCTL_USB2_BIAS_PAD_CTL0_HS_DISCON_LEVEL_MASK 0x7
 #define XUSB_PADCTL_USB2_BIAS_PAD_CTL0_HS_SQUELCH_LEVEL_SHIFT 0
 #define XUSB_PADCTL_USB2_BIAS_PAD_CTL0_HS_SQUELCH_LEVEL_MASK 0x3
+
+#define XUSB_PADCTL_USB2_BIAS_PAD_CTL1 0x0bc
+#define XUSB_PADCTL_USB2_BIAS_PAD_CTL1_TCTRL_SHIFT 16
+#define XUSB_PADCTL_USB2_BIAS_PAD_CTL1_TCTRL_MASK 0xffff
+#define XUSB_PADCTL_USB2_BIAS_PAD_CTL1_RCTRL_SHIFT 0
+#define XUSB_PADCTL_USB2_BIAS_PAD_CTL1_RCTRL_MASK 0xffff
 
 #define XUSB_PADCTL_HSIC_PADX_CTL0(x) (0x0c0 + (x) * 4)
 #define XUSB_PADCTL_HSIC_PAD_CTL0_TX_RSLEWN_SHIFT 12
@@ -1010,14 +1023,9 @@ static const struct pinconf_ops tegra_xusb_padctl_pinconf_ops = {
 #endif
 };
 
-static int tegra_xusb_padctl_enable(struct tegra_xusb_padctl *padctl)
+static void __tegra_xusb_padctl_enable(struct tegra_xusb_padctl *padctl)
 {
 	u32 value;
-
-	mutex_lock(&padctl->lock);
-
-	if (padctl->enable++ > 0)
-		goto out;
 
 	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
 	value &= ~XUSB_PADCTL_ELPG_PROGRAM_AUX_MUX_LP0_CLAMP_EN;
@@ -1034,7 +1042,16 @@ static int tegra_xusb_padctl_enable(struct tegra_xusb_padctl *padctl)
 	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
 	value &= ~XUSB_PADCTL_ELPG_PROGRAM_AUX_MUX_LP0_VCORE_DOWN;
 	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
+}
 
+static int tegra_xusb_padctl_enable(struct tegra_xusb_padctl *padctl)
+{
+	mutex_lock(&padctl->lock);
+
+	if (padctl->enable++ > 0)
+		goto out;
+
+	__tegra_xusb_padctl_enable(padctl);
 out:
 	mutex_unlock(&padctl->lock);
 	return 0;
@@ -1231,6 +1248,35 @@ static int usb3_phy_to_port(struct phy *phy)
 	return i;
 }
 
+int tegra_xusb_usb3_phy_vcore_down(struct phy *phy)
+{
+	struct tegra_xusb_padctl *padctl;
+	u32 value;
+	int port;
+
+	if (!phy)
+		return -EINVAL;
+
+	padctl = phy_get_drvdata(phy);
+	port = usb3_phy_to_port(phy);
+	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
+	value |= XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_VCORE_DOWN(port);
+	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_xusb_usb3_phy_vcore_down);
+
+static int usb3_phy_exit(struct phy *phy)
+{
+	int ret;
+
+	ret = tegra_xusb_usb3_phy_vcore_down(phy);
+	if (ret)
+		return ret;
+	return tegra_xusb_phy_exit(phy);
+}
+
 static int usb3_phy_power_on(struct phy *phy)
 {
 	struct tegra_xusb_padctl *padctl = phy_get_drvdata(phy);
@@ -1369,10 +1415,6 @@ static int usb3_phy_power_off(struct phy *phy)
 
 	usleep_range(250, 350);
 
-	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
-	value |= XUSB_PADCTL_ELPG_PROGRAM_SSPX_ELPG_VCORE_DOWN(port);
-	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
-
 	return 0;
 }
 
@@ -1468,11 +1510,16 @@ static void usb3_phy_save_context(struct tegra_xusb_padctl *padctl, int port)
 
 static const struct phy_ops usb3_phy_ops = {
 	.init = tegra_xusb_phy_init,
-	.exit = tegra_xusb_phy_exit,
+	.exit = usb3_phy_exit,
 	.power_on = usb3_phy_power_on,
 	.power_off = usb3_phy_power_off,
 	.owner = THIS_MODULE,
 };
+
+static bool is_usb3_phy(struct phy *phy)
+{
+	return phy->ops == &usb3_phy_ops;
+}
 
 static int utmi_phy_to_port(struct phy *phy)
 {
@@ -1589,6 +1636,36 @@ out:
 	return 0;
 }
 
+int tegra_xusb_utmi_phy_get_tctrl_rctrl(struct phy *phy, u32 *tctrl, u32 *rctrl)
+{
+	struct tegra_xusb_padctl *padctl;
+	u32 value;
+
+	if (!phy)
+		return -EINVAL;
+
+	padctl = phy_get_drvdata(phy);
+	value = padctl_readl(padctl, XUSB_PADCTL_USB2_BIAS_PAD_CTL0);
+	value &= ~(XUSB_PADCTL_USB2_BIAS_PAD_CTL0_PD |
+		   XUSB_PADCTL_USB2_BIAS_PAD_CTL0_PD_TRK);
+	padctl_writel(padctl, value, XUSB_PADCTL_USB2_BIAS_PAD_CTL0);
+
+	usleep_range(20, 30);
+
+	value = padctl_readl(padctl, XUSB_PADCTL_USB2_BIAS_PAD_CTL1);
+	*tctrl = (value & XUSB_PADCTL_USB2_BIAS_PAD_CTL1_TCTRL_MASK) >>
+		XUSB_PADCTL_USB2_BIAS_PAD_CTL1_TCTRL_SHIFT;
+	*rctrl = (value & XUSB_PADCTL_USB2_BIAS_PAD_CTL1_RCTRL_MASK) >>
+		XUSB_PADCTL_USB2_BIAS_PAD_CTL1_RCTRL_SHIFT;
+
+	value = padctl_readl(padctl, XUSB_PADCTL_USB2_BIAS_PAD_CTL0);
+	value |= XUSB_PADCTL_USB2_BIAS_PAD_CTL0_PD_TRK;
+	padctl_writel(padctl, value, XUSB_PADCTL_USB2_BIAS_PAD_CTL0);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_xusb_utmi_phy_get_tctrl_rctrl);
+
 static const struct phy_ops utmi_phy_ops = {
 	.init = tegra_xusb_phy_init,
 	.exit = tegra_xusb_phy_exit,
@@ -1596,6 +1673,11 @@ static const struct phy_ops utmi_phy_ops = {
 	.power_off = utmi_phy_power_off,
 	.owner = THIS_MODULE,
 };
+
+static bool is_utmi_phy(struct phy *phy)
+{
+	return phy->ops == &utmi_phy_ops;
+}
 
 static int hsic_phy_to_port(struct phy *phy)
 {
@@ -1676,6 +1758,72 @@ static const struct phy_ops hsic_phy_ops = {
 	.power_off = hsic_phy_power_off,
 	.owner = THIS_MODULE,
 };
+
+static bool is_hsic_phy(struct phy *phy)
+{
+	return phy->ops == &hsic_phy_ops;
+}
+
+int tegra_xusb_phy_wake_enable(struct phy *phy)
+{
+	struct tegra_xusb_padctl *padctl;
+	u32 value;
+	int port;
+
+	if (!phy)
+		return -EINVAL;
+
+	padctl = phy_get_drvdata(phy);
+	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
+	if (is_usb3_phy(phy)) {
+		port = usb3_phy_to_port(phy);
+		value |= XUSB_PADCTL_ELPG_PROGRAM_SS_PORTX_WAKE_EN(port);
+	} else if (is_utmi_phy(phy)) {
+		port = utmi_phy_to_port(phy);
+		value |= XUSB_PADCTL_ELPG_PROGRAM_USB2_PORTX_WAKE_EN(port);
+	} else if (is_hsic_phy(phy)) {
+		port = hsic_phy_to_port(phy);
+		value |= XUSB_PADCTL_ELPG_PROGRAM_HSIC_PORTX_WAKE_EN(port);
+	} else {
+		return -EINVAL;
+	}
+	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_xusb_phy_wake_enable);
+
+int tegra_xusb_phy_wake_disable(struct phy *phy)
+{
+	struct tegra_xusb_padctl *padctl;
+	u32 value;
+	int port;
+
+	if (!phy)
+		return -EINVAL;
+
+	padctl = phy_get_drvdata(phy);
+	value = padctl_readl(padctl, XUSB_PADCTL_ELPG_PROGRAM);
+	if (is_usb3_phy(phy)) {
+		port = usb3_phy_to_port(phy);
+		value &= ~(XUSB_PADCTL_ELPG_PROGRAM_SS_PORTX_WAKE_EN(port) |
+			   XUSB_PADCTL_ELPG_PROGRAM_SS_PORTX_WAKE_EVENT(port));
+	} else if (is_utmi_phy(phy)) {
+		port = utmi_phy_to_port(phy);
+		value &= ~(XUSB_PADCTL_ELPG_PROGRAM_USB2_PORTX_WAKE_EN(port) |
+			   XUSB_PADCTL_ELPG_PROGRAM_USB2_PORTX_WAKE_EVENT(port));
+	} else if (is_hsic_phy(phy)) {
+		port = hsic_phy_to_port(phy);
+		value &= ~(XUSB_PADCTL_ELPG_PROGRAM_HSIC_PORTX_WAKE_EN(port) |
+			   XUSB_PADCTL_ELPG_PROGRAM_HSIC_PORTX_WAKE_EVENT(port));
+	} else {
+		return -EINVAL;
+	}
+	padctl_writel(padctl, value, XUSB_PADCTL_ELPG_PROGRAM);
+
+	return 0;
+}
+EXPORT_SYMBOL(tegra_xusb_phy_wake_disable);
 
 static bool is_phy_mbox_message(u32 cmd)
 {
@@ -2138,10 +2286,40 @@ static int tegra_xusb_padctl_remove(struct platform_device *pdev)
 	return err;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int tegra_xusb_padctl_suspend(struct device *dev)
+{
+	struct tegra_xusb_padctl *padctl = dev_get_drvdata(dev);
+
+	return pinctrl_force_sleep(padctl->pinctrl);
+}
+
+static int tegra_xusb_padctl_resume(struct device *dev)
+{
+	struct tegra_xusb_padctl *padctl = dev_get_drvdata(dev);
+	int ret;
+
+	ret = pinctrl_force_default(padctl->pinctrl);
+	if (ret < 0)
+		return ret;
+
+	if (padctl->enable)
+		__tegra_xusb_padctl_enable(padctl);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops tegra_xusb_padctl_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(tegra_xusb_padctl_suspend,
+				tegra_xusb_padctl_resume)
+};
+
 static struct platform_driver tegra_xusb_padctl_driver = {
 	.driver = {
 		.name = "tegra-xusb-padctl",
 		.of_match_table = tegra_xusb_padctl_of_match,
+		.pm = &tegra_xusb_padctl_pm,
 	},
 	.probe = tegra_xusb_padctl_probe,
 	.remove = tegra_xusb_padctl_remove,
