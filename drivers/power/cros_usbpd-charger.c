@@ -197,7 +197,7 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	case USB_PD_PORT_POWER_SINK_NOT_CHARGING:
 		dev_dbg(dev, "Port %d: NOT_CHARGING", port->port_number);
 		port->psy_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
-		port->psy_online = 0;
+		port->psy_online = 1;
 		break;
 	default:
 		dev_err(dev, "Unknown role %d\n", resp.role);
