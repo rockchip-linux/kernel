@@ -411,6 +411,37 @@ err_power:
 }
 EXPORT_SYMBOL(tegra_powergate_sequence_power_up);
 
+/**
+ * tegra_powergate_sequence_power_down() - power down partition
+ * @id: partition ID
+ * @clk: clock for partition
+ * @rst: reset for partition
+ *
+ * Must be called with clk enabled, and returns with clk disabled.
+ */
+int tegra_powergate_sequence_power_down(int id, struct clk *clk,
+					struct reset_control *rst)
+{
+	int ret;
+
+	ret = reset_control_assert(rst);
+	if (ret)
+		return ret;
+	usleep_range(10, 20);
+
+	clk_disable_unprepare(clk);
+	usleep_range(10, 20);
+
+	ret = tegra_powergate_power_off(id);
+	if (ret) {
+		clk_prepare_enable(clk);
+		reset_control_deassert(rst);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(tegra_powergate_sequence_power_down);
+
 #ifdef CONFIG_SMP
 /**
  * tegra_get_cpu_powergate_id() - convert from CPU ID to partition ID

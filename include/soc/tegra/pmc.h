@@ -115,6 +115,10 @@ int tegra_powergate_remove_clamping(int id);
 int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 				      struct reset_control *rst);
 
+/* Must be called with clk enabled, and returns with clk disabled */
+int tegra_powergate_sequence_power_down(int id, struct clk *clk,
+					struct reset_control *rst);
+
 int tegra_io_rail_power_on(int id);
 int tegra_io_rail_power_off(int id);
 #else
@@ -140,6 +144,12 @@ static inline int tegra_powergate_remove_clamping(int id)
 
 static inline int tegra_powergate_sequence_power_up(int id, struct clk *clk,
 						    struct reset_control *rst)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_powergate_sequence_power_down(int id, struct clk *clk,
+						      struct reset_control *rst)
 {
 	return -ENOSYS;
 }
