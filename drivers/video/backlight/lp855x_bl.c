@@ -485,7 +485,8 @@ static int lp855x_remove(struct i2c_client *cl)
 
 	lp->bl->props.brightness = 0;
 	backlight_update_status(lp->bl);
-	regulator_disable(lp->pdata->supply);
+	if (lp->pdata->supply)
+		regulator_disable(lp->pdata->supply);
 	sysfs_remove_group(&lp->dev->kobj, &lp855x_attr_group);
 
 	return 0;
