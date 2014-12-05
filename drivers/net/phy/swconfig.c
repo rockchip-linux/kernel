@@ -1120,7 +1120,10 @@ EXPORT_SYMBOL_GPL(unregister_switch);
 static int __init
 swconfig_init(void)
 {
-	int i, err;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0))
+	int i;
+#endif
+	int err;
 
 	INIT_LIST_HEAD(&swdevs);
 	
@@ -1141,7 +1144,9 @@ swconfig_init(void)
 #endif
 	return 0;
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0))
 unregister:
+#endif
 	genl_unregister_family(&switch_fam);
 	return err;
 }
