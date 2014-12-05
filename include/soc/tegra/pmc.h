@@ -20,6 +20,7 @@
 #define __SOC_TEGRA_PMC_H__
 
 #include <linux/reboot.h>
+#include <linux/usb/ch9.h>
 
 #include <soc/tegra/pm.h>
 
@@ -121,6 +122,12 @@ int tegra_powergate_sequence_power_down(int id, struct clk *clk,
 
 int tegra_io_rail_power_on(int id);
 int tegra_io_rail_power_off(int id);
+
+int tegra_pmc_utmi_sleep_enter(unsigned int port, enum usb_device_speed speed,
+			       u32 tctrl, u32 rctrl);
+int tegra_pmc_utmi_sleep_exit(unsigned int port);
+int tegra_pmc_hsic_sleep_enter(unsigned int port);
+int tegra_pmc_hsic_sleep_exit(unsigned int port);
 #else
 static inline int tegra_powergate_is_powered(int id)
 {
@@ -160,6 +167,28 @@ static inline int tegra_io_rail_power_on(int id)
 }
 
 static inline int tegra_io_rail_power_off(int id)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_pmc_utmi_sleep_enter(unsigned int port,
+					     enum usb_device_speed speed,
+					     u32 tctrl, u32 rctrl)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_pmc_utmi_sleep_exit(unsigned int port)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_pmc_hsic_sleep_enter(unsigned int port)
+{
+	return -ENOSYS;
+}
+
+static inline int tegra_pmc_hsic_sleep_exit(unsigned int port)
 {
 	return -ENOSYS;
 }
