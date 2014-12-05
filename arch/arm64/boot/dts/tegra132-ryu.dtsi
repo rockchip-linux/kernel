@@ -533,7 +533,8 @@
 
 	padctl@0,7009f000 {
 		pinctrl-0 = <&padctl_default>;
-		pinctrl-names = "default";
+		pinctrl-1 = <&padctl_sleep>;
+		pinctrl-names = "default", "sleep";
 
 		vbus-2-supply = <&vdd_usb3_vbus>;
 		nvidia,usb3-port-0-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_0>;
@@ -558,6 +559,9 @@
 				nvidia,iddq = <0>;
 				nvidia,usb2-port-num = <0>;
 			};
+		};
+
+		padctl_sleep: pinmux {
 		};
 	};
 
