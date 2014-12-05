@@ -732,6 +732,29 @@
 		emmc_deassert_reset: emmc-deassert-reset {
 			rockchip,pins = <7 12 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
+
+		/*
+		 * We run eMMC at max speed; bump up drive strength.
+		 * We also have external pulls, so disable the internal ones.
+		 */
+		emmc_clk: emmc-clk {
+			rockchip,pins = <3 18 RK_FUNC_2 &pcfg_pull_none_drv_8ma>;
+		};
+
+		emmc_cmd: emmc-cmd {
+			rockchip,pins = <3 16 RK_FUNC_2 &pcfg_pull_none_drv_8ma>;
+		};
+
+		emmc_bus8: emmc-bus8 {
+			rockchip,pins = <3 0 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 1 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 2 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 3 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 4 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 5 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 6 RK_FUNC_2 &pcfg_pull_none_drv_8ma>,
+					<3 7 RK_FUNC_2 &pcfg_pull_none_drv_8ma>;
+		};
 	};
 
 	headset {
@@ -761,14 +784,37 @@
 		bt_enable_l: bt-enable-l {
 			rockchip,pins = <4 29 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+
+		/*
+		 * We run sdio0 at max speed; bump up drive strength.
+		 * We also have external pulls, so disable the internal ones.
+		 */
+		sdio0_bus4: sdio0-bus4 {
+			rockchip,pins = <4 20 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<4 21 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<4 22 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<4 23 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdio0_cmd: sdio0-cmd {
+			rockchip,pins = <4 24 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdio0_clk: sdio0-clk {
+			rockchip,pins = <4 25 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
 	};
 
 	sdmmc {
+		/*
+		 * We run sdmmc at max speed; bump up drive strength.
+		 * We also have external pulls, so disable the internal ones.
+		 */
 		sdmmc_bus4: sdmmc-bus4 {
-			rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
-				        <6 17 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
-					<6 18 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
-					<6 19 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+			rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<6 17 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<6 18 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<6 19 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
 		};
 
 		sdmmc_clk: sdmmc-clk {
@@ -776,7 +822,7 @@
 		};
 
 		sdmmc_cmd: sdmmc-cmd {
-			rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
+			rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
 		};
 
 		/*
@@ -791,7 +837,7 @@
 
 		/* This is where we actually hook up CD */
 		sdmmc_cd_gpio: sdmmc-cd-gpio {
-			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 
 		sdmmc_wp_gpio: sdmmc-wp-gpio {
