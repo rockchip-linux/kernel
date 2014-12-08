@@ -80,7 +80,6 @@ ENTRY(gic_init_secure_percpu)
 	ret
 ENDPROC(gic_init_secure_percpu)
 
-	__HEAD
 /*
  *	tegra_resume
  *
@@ -134,7 +133,7 @@ ENTRY(tegra_resume)
 start_ns:
 	mrs	x0, mpidr_el1
 	ands 	x0, x0, #15
-	b.ne	secondary_holding_pen	// for slave CPU start up
+	b.ne	slave_cpu		// for slave CPU start up
 
 	/* Clear the flow controller flags for this CPU. */
 	cpu_to_csr_reg	x1, x0
@@ -150,5 +149,9 @@ start_ns:
 
 done:
 	b	cpu_resume
+slave_cpu:
+	adrp	x1, secondary_holding_pen
+	add	x1, x1, #:lo12:secondary_holding_pen
+	br	x1
 ENDPROC(tegra_resume)
 #endif
