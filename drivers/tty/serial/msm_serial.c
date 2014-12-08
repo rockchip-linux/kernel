@@ -424,7 +424,7 @@ static int msm_set_baud_rate(struct uart_port *port, unsigned int baud)
 
 	/* turn on RX and CTS interrupts */
 	msm_port->imr = UART_IMR_RXLEV | UART_IMR_RXSTALE |
-			UART_IMR_CURRENT_CTS | UART_IMR_RXBREAK_START;
+			UART_IMR_CURRENT_CTS;
 
 	msm_write(port, msm_port->imr, UART_IMR);
 
