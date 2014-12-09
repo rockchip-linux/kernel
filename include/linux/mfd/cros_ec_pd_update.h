@@ -21,12 +21,16 @@
 enum cros_ec_pd_device_type {
 	PD_DEVICE_TYPE_NONE = 0,
 	PD_DEVICE_TYPE_ZINGER = 1,
+	PD_DEVICE_TYPE_DINGDONG = 3,
+	PD_DEVICE_TYPE_HOHO = 4,
 	PD_DEVICE_TYPE_COUNT,
 };
 
 #define USB_VID_GOOGLE 0x18d1
 
-#define USB_PID_ZINGER 0x5012
+#define USB_PID_DINGDONG 0x5011
+#define USB_PID_HOHO     0x5010
+#define USB_PID_ZINGER   0x5012
 
 struct cros_ec_pd_firmware_image {
 	unsigned int id_major;
