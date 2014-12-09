@@ -687,14 +687,12 @@ static int spi_qup_io_config(struct spi_device *spi, struct spi_transfer *xfer)
 	n_words = xfer->len / w_size;
 	controller->w_size = w_size;
 
-/* HACK: Disable DMA until we find what sometimes fails in this path.
 	if (controller->rx_chan &&
 		IS_ALIGNED((size_t)xfer->tx_buf, dma_align) &&
 		IS_ALIGNED((size_t)xfer->rx_buf, dma_align) &&
 		!is_vmalloc_addr(xfer->tx_buf) &&
 		!is_vmalloc_addr(xfer->rx_buf))
 		dma_available = 1;
-*/
 
 	if (n_words <= (controller->in_fifo_sz / sizeof(u32))) {
 		controller->mode = QUP_IO_M_MODE_FIFO;
