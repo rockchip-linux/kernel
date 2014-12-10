@@ -217,7 +217,6 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 		pr_err("snd_soc_register_card failed %d\n", ret);
 		return ret;
 	}
-	platform_set_drvdata(pdev, &card);
 
 	ret = snd_soc_of_parse_card_name(card, "rockchip,model");
 	if (ret)
@@ -247,6 +246,7 @@ static struct platform_driver snd_rk_mc_driver = {
 	.driver = {
 		.name = DRV_NAME,
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = rockchip_max98090_of_match,
 	},
 };
