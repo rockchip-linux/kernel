@@ -247,7 +247,7 @@ static ssize_t store_rgb(struct device *dev, struct device_attribute *attr,
 	return (ok && i == 0) ? count : -EINVAL;
 }
 
-static const char const *seqname[] = {
+static char const *seqname[] = {
 	"ERROR", "S5", "S3", "S0", "S5S3", "S3S0",
 	"S0S3", "S3S5", "STOP", "RUN", "KONAMI",
 	"TAP", "PROGRAM",
@@ -353,11 +353,11 @@ static ssize_t store_program(struct device *dev, struct device_attribute *attr,
 
 static DEVICE_ATTR(interval_msec, S_IWUSR | S_IRUGO,
 		   show_interval_msec, store_interval_msec);
-static DEVICE_ATTR(version, S_IRUGO, show_version, 0);
-static DEVICE_ATTR(brightness, S_IWUGO, 0, store_brightness);
-static DEVICE_ATTR(led_rgb, S_IWUGO, 0, store_rgb);
+static DEVICE_ATTR(version, S_IRUGO, show_version, NULL);
+static DEVICE_ATTR(brightness, S_IWUGO, NULL, store_brightness);
+static DEVICE_ATTR(led_rgb, S_IWUGO, NULL, store_rgb);
 static DEVICE_ATTR(sequence, S_IWUGO | S_IRUGO, show_seq, store_seq);
-static DEVICE_ATTR(program, S_IWUGO, 0, store_program);
+static DEVICE_ATTR(program, S_IWUGO, NULL, store_program);
 
 static struct attribute *__lb_cmds_attrs[] = {
 	&dev_attr_interval_msec.attr,
