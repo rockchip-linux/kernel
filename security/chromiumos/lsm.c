@@ -221,5 +221,6 @@ static int __init chromiumos_security_init(void)
 }
 security_initcall(chromiumos_security_init);
 
-module_param(module_locking, int, S_IRUSR);
+/* Should not be mutable after boot, so not listed in sysfs (perm == 0). */
+module_param(module_locking, int, 0);
 MODULE_PARM_DESC(module_locking, "Module loading restrictions (default: true)");
