@@ -23,6 +23,7 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 
+#include <soc/rockchip/dmc-sync.h>
 #include <soc/rockchip/rk3288-dmc-sram.h>
 
 #include <dt-bindings/clock/rk3288-cru.h>
@@ -1054,6 +1055,8 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	int ret = 0;
 
 	cpu_maps_update_begin();
+	rockchip_dmc_lock();
+	rockchip_dmc_wait();
 	/*
 	 * We need to disable softirqs when pausing the other cpus. We deadlock
 	 * without this in this scenario:
@@ -1099,6 +1102,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	local_irq_enable();
 out:
 	local_bh_enable();
+	rockchip_dmc_unlock();
 	cpu_maps_update_done();
 
 	return ret;
