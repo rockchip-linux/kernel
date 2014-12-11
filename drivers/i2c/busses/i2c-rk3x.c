@@ -452,7 +452,7 @@ static int rk3x_i2c_calc_divs(unsigned long clk_rate, unsigned long scl_rate,
 {
 	unsigned long spec_min_low_ns, spec_min_high_ns;
 	unsigned long spec_max_data_hold_ns;
-	unsigned long spec_data_hold_buffer_ns;
+	unsigned long data_hold_buffer_ns;
 
 	unsigned long min_low_ns, min_high_ns;
 	unsigned long max_low_ns, min_total_ns;
@@ -476,31 +476,33 @@ static int rk3x_i2c_calc_divs(unsigned long clk_rate, unsigned long scl_rate,
 		scl_rate = 1000;
 
 	/*
-	 * min_low_ns:  The minimum number of ns we need to hold low
-	 *		to meet i2c spec, should include fall time.
-	 * min_high_ns: The minimum number of ns we need to hold high
-	 *		to meet i2c spec, should include rise time.
-	 * max_low_ns:  The maximum number of ns we can hold low
-	 *		to meet i2c spec.
+	 * min_low_ns:  The minimum number of ns we need to hold low to
+	 *		meet I2C specification, should include fall time.
+	 * min_high_ns: The minimum number of ns we need to hold high to
+	 *		meet I2C specification, should include rise time.
+	 * max_low_ns:  The maximum number of ns we can hold low to meet
+	 *		I2C specification.
 	 *
-	 * Note: max_low_ns should be (max data hold time * 2 - buffer)
+	 * Note: max_low_ns should be (maximum data hold time * 2 - buffer)
 	 *	 This is because the i2c host on Rockchip holds the data line
 	 *	 for half the low time.
 	 */
 	if (scl_rate <= 100000) {
+		/* Standard-mode */
 		spec_min_low_ns = 4700;
 		spec_min_high_ns = 4000;
 		spec_max_data_hold_ns = 3450;
-		spec_data_hold_buffer_ns = 50;
+		data_hold_buffer_ns = 50;
 	} else {
+		/* Fast-mode */
 		spec_min_low_ns = 1300;
 		spec_min_high_ns = 600;
 		spec_max_data_hold_ns = 900;
-		spec_data_hold_buffer_ns = 50;
+		data_hold_buffer_ns = 50;
 	}
 	min_low_ns = spec_min_low_ns + fall_ns;
 	min_high_ns = spec_min_high_ns + rise_ns;
-	max_low_ns = spec_max_data_hold_ns * 2 - spec_data_hold_buffer_ns;
+	max_low_ns = spec_max_data_hold_ns * 2 - data_hold_buffer_ns;
 	min_total_ns = min_low_ns + min_high_ns;
 
 	/* Adjust to avoid overflow */
@@ -519,8 +521,8 @@ static int rk3x_i2c_calc_divs(unsigned long clk_rate, unsigned long scl_rate,
 	min_div_for_hold = (min_low_div + min_high_div);
 
 	/*
-	 * This is the maximum divider so we don't go over the max.
-	 * We don't round up here (we round down) since this is a max.
+	 * This is the maximum divider so we don't go over the maximum.
+	 * We don't round up here (we round down) since this is a maximum.
 	 */
 	max_low_div = clk_rate_khz * max_low_ns / (8 * 1000000);
 
@@ -553,7 +555,7 @@ static int rk3x_i2c_calc_divs(unsigned long clk_rate, unsigned long scl_rate,
 		ideal_low_div = DIV_ROUND_UP(clk_rate_khz * min_low_ns,
 					     scl_rate_khz * 8 * min_total_ns);
 
-		/* Don't allow it to go over the max */
+		/* Don't allow it to go over the maximum */
 		if (ideal_low_div > max_low_div)
 			ideal_low_div = max_low_div;
 
@@ -868,7 +870,10 @@ static int rk3x_i2c_probe(struct platform_device *pdev)
 		i2c->scl_frequency = DEFAULT_SCL_RATE;
 	}
 
-	/* Read rise and fall ns; if not there use the default max from spec */
+	/*
+	 * Read rise and fall time from device tree. If not available use
+	 * the default maximum timing from the specification.
+	 */
 	if (of_property_read_u32(pdev->dev.of_node, "i2c-scl-rising-time-ns",
 				 &i2c->rise_ns)) {
 		if (i2c->scl_frequency <= 100000)
