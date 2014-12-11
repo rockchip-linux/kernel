@@ -580,25 +580,6 @@ power_attr(wake_unlock);
 #endif /* CONFIG_PM_WAKELOCKS */
 
 /*
- * State that user space can query to check if a dark resume happened.
- */
-static ssize_t dark_resume_state_show(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				char *buf)
-{
-	return sprintf(buf, "%u\n", pm_dark_resume_active() ? 1 : 0);
-}
-
-static ssize_t dark_resume_state_store(struct kobject *kobj,
-				struct kobj_attribute *attr,
-				const char *buf, size_t n)
-{
-	return -EINVAL;
-}
-
-power_attr(dark_resume_state);
-
-/*
  * Debug configuration for always waking up in dark resume.
  */
 static ssize_t dark_resume_always_show(struct kobject *kobj,
@@ -713,7 +694,6 @@ static struct attribute * g[] = {
 	&wake_lock_attr.attr,
 	&wake_unlock_attr.attr,
 #endif
-	&dark_resume_state_attr.attr,
 	&dark_resume_always_attr.attr,
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,

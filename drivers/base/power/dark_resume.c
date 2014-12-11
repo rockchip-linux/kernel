@@ -27,50 +27,15 @@
 #include <linux/export.h>
 #include <linux/pm_dark_resume.h>
 #include <linux/mutex.h>
+#include <linux/syscore_ops.h>
 #include <linux/types.h>
 
 #include "power.h"
 
 LIST_HEAD(source_list);
 static DEFINE_MUTEX(source_list_lock);
-static bool dark_resume_state;
+static bool dark_resume_enabled;
 static bool dark_resume_always;
-static struct pm_dark_resume_ops *dark_resume_ops;
-
-/**
- * dev_dark_resume_set_source - Set whether a device is a dark resume source.
- * @dev: the struct that contains a pointer to the device we are either adding
- * or removing as a dark resume source
- * @is_source: Set the device to a source if true and remove as source if false
- */
-int dev_dark_resume_set_source(struct device *dev, bool is_source)
-{
-	/*
-	 * This can happen if 'enabled' is written to the dark_resume_source
-	 * attribute and the driver did not setup a dev_dark_resume struct.
-	 */
-	if (!dev->power.dark_resume) {
-		dev_dbg(dev, "Tried to set device as dark resume source, but "
-			     "there is no driver support.");
-		return -EINVAL;
-	}
-
-	mutex_lock(&source_list_lock);
-	if (is_source == dev->power.dark_resume->is_source) {
-		mutex_unlock(&source_list_lock);
-		return -EINVAL;
-	}
-
-	if (is_source)
-		list_add(&dev->power.dark_resume->list_node, &source_list);
-	else
-		list_del(&dev->power.dark_resume->list_node);
-
-	dev->power.dark_resume->is_source = is_source;
-	mutex_unlock(&source_list_lock);
-	return 0;
-}
-EXPORT_SYMBOL_GPL(dev_dark_resume_set_source);
 
 /**
  * dev_dark_resume_set_active - This sets up the device to check the dark resume
@@ -90,37 +55,6 @@ void dev_dark_resume_set_active(struct device *dev, bool is_active)
 EXPORT_SYMBOL_GPL(dev_dark_resume_set_active);
 
 /**
- * dev_dark_resume_add_source - Initialize the dev_dark_resume struct.
- * @dev: The device struct that the dev_dark_resume struct will be associated
- * with.
- * @dark_resume: The dev_dark_resume struct to initialize.
- * @irq: The platform callback will check (if supported) if this irq is the wake
- * source. Note: probably want a hardware irq instead of virtual irq.
- * @caused_resume: The function pointer that is called by the platform callback
- * (if supported) before devices are resumed to see if dev caused the resume of
- * the system.
- */
-void dev_dark_resume_add_source(struct device *dev,
-				struct dev_dark_resume *dark_resume,
-				int irq,
-				bool (*caused_resume)(struct device *dev))
-{
-	/* Must be called after device_add since sysfs attributes are added */
-	if (!device_is_registered(dev) || !dark_resume)
-		return;
-
-	dev->power.dark_resume = dark_resume;
-	dev_dark_resume_set_active(dev, false);
-	dark_resume->dev = dev;
-	dark_resume->is_source = false;
-	dark_resume->irq = irq;
-	dark_resume->caused_resume = caused_resume;
-	INIT_LIST_HEAD(&dark_resume->list_node);
-	dark_resume_source_sysfs_add(dev);
-}
-EXPORT_SYMBOL_GPL(dev_dark_resume_add_source);
-
-/**
  * dev_dark_resume_add_consumer - Initialize dark resume consumer state and adds
  * a sysfs within the devices power directory.
  * @dev: The device which will observe dark resumes if enabled via sysfs
@@ -137,28 +71,6 @@ void dev_dark_resume_add_consumer(struct device *dev)
 EXPORT_SYMBOL_GPL(dev_dark_resume_add_consumer);
 
 /**
- * dev_dark_resume_remove_source - Remove all of the associations of the device
- * to dark resume.
- * @dev: device struct to remove associations to dark resume from.
- *
- * Makes sure that the device is no longer active for dark resume and is not a
- * source.
- */
-void dev_dark_resume_remove_source(struct device *dev)
-{
-	if (!dev->power.dark_resume)
-		return;
-
-	dev_dark_resume_set_source(dev, false);
-	dark_resume_source_sysfs_remove(dev);
-	dev->power.dark_resume->caused_resume = NULL;
-	dev->power.dark_resume->irq = 0;
-	dev->power.dark_resume->dev = NULL;
-	dev->power.dark_resume = NULL;
-}
-EXPORT_SYMBOL_GPL(dev_dark_resume_remove_source);
-
-/**
  * dev_dark_resume_remove_consumer - Set dark resume consumer state and remove
  * sysfs file.
  * @dev: device struct to remove associations to dark resume from.
@@ -171,34 +83,12 @@ void dev_dark_resume_remove_consumer(struct device *dev)
 EXPORT_SYMBOL_GPL(dev_dark_resume_remove_consumer);
 
 /**
- * pm_dark_resume_check - Call into the platform specific check function if it
- * exists to check if one of the dark resume sources woke the system.
- */
-bool pm_dark_resume_check(void)
-{
-	if (dark_resume_always) {
-		dark_resume_state = true;
-		return dark_resume_state;
-	}
-
-	if (!dark_resume_ops || !dark_resume_ops->check) {
-		dark_resume_state = false;
-		return dark_resume_state;
-	}
-
-	mutex_lock(&source_list_lock);
-	dark_resume_state = dark_resume_ops->check(&source_list);
-	mutex_unlock(&source_list_lock);
-	return dark_resume_state;
-}
-EXPORT_SYMBOL_GPL(pm_dark_resume_check);
-
-/**
  * pm_dark_resume_active - Returns the state of dark resume.
  */
 bool pm_dark_resume_active(void)
 {
-	return dark_resume_state;
+	return dark_resume_enabled && (dark_resume_always ||
+	       pm_get_wakeup_source_type() == WAKEUP_AUTOMATIC);
 }
 EXPORT_SYMBOL_GPL(pm_dark_resume_active);
 
@@ -223,17 +113,25 @@ void pm_dark_resume_set_always(bool always)
 }
 EXPORT_SYMBOL_GPL(pm_dark_resume_set_always);
 
-/**
- * pm_dark_resume_register_ops - Registers the callback function to check
- * whether the system was resumed by something in the source_list.
- * @ops: Container for the callback function
- */
-void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops)
+void pm_dark_resume_set_enabled(bool enabled)
 {
-	dark_resume_ops = ops;
+	dark_resume_enabled = enabled;
 }
 
-void pm_dark_resume_clear_state_for_pm_test(void)
+int dark_resume_syscore_suspend(void)
 {
-	dark_resume_state = false;
+	pm_dark_resume_set_enabled(true);
+	return 0;
 }
+
+static struct syscore_ops dark_resume_syscore_ops = {
+	.suspend = dark_resume_syscore_suspend,
+};
+
+static int __init dark_resume_syscore_init(void)
+{
+	register_syscore_ops(&dark_resume_syscore_ops);
+	return 0;
+}
+
+late_initcall(dark_resume_syscore_init);

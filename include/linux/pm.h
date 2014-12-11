@@ -550,7 +550,6 @@ enum rpm_request {
 };
 
 struct wakeup_source;
-struct dev_dark_resume;
 
 /**
  * System wakeup types.
@@ -604,7 +603,6 @@ struct dev_pm_info {
 	struct completion	completion;
 	struct wakeup_source	*wakeup;
 	void			*wakeup_data;
-	struct dev_dark_resume	*dark_resume;
 	enum wakeup_type	wakeup_source_type;
 	bool			wakeup_path:1;
 	bool			syscore:1;

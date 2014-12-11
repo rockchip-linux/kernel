@@ -20,45 +20,14 @@
 #include <linux/pm.h>
 #include <linux/types.h>
 
-/*
- * For devices that determine if a dark resume should happen or not. caused_wake
- * should be called one time after resume.
- */
-struct dev_dark_resume {
-	struct list_head list_node;
-	struct device *dev;
-	int irq;
-	bool (*caused_resume)(struct device *dev);
-	bool is_source;
-};
-
-struct pm_dark_resume_ops {
-	bool (*check)(struct list_head *list);
-};
-
 #ifdef CONFIG_PM_SLEEP
-extern int dev_dark_resume_set_source(struct device *dev, bool is_source);
 extern void dev_dark_resume_set_active(struct device *dev, bool is_active);
-extern void dev_dark_resume_add_source(struct device *dev,
-				struct dev_dark_resume *dark_resume,
-				int irq,
-				bool (*caused_resume)(struct device *dev));
 extern void dev_dark_resume_add_consumer(struct device *dev);
-extern void dev_dark_resume_remove_source(struct device *dev);
 extern void dev_dark_resume_remove_consumer(struct device *dev);
-extern bool pm_dark_resume_check(void);
 extern bool pm_dark_resume_active(void);
 extern bool pm_dark_resume_always(void);
 extern void pm_dark_resume_set_always(bool always);
-extern void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops);
-
-/**
- * The chrome os power manager will use the pm_test mechanism to indicate that
- * it wants to transition from a dark resume to fully resumed.  When that
- * happens, we need to clear the dark resume state so that all the drivers will
- * follow their proper resume path.
- */
-extern void pm_dark_resume_clear_state_for_pm_test(void);
+extern void pm_dark_resume_set_enabled(bool state);
 
 /*
  * Wrapper for device drivers to check if it should do anything different for a
@@ -71,27 +40,10 @@ static inline bool dev_dark_resume_active(struct device *dev)
 
 #else
 
-static inline int dev_dark_resume_set_source(struct device *dev, bool is_source)
-{
-	return -EINVAL;
-}
-
 static inline void dev_dark_resume_set_active(struct device *dev,
 					      bool is_active) { }
 
-static inline void dev_dark_resume_add_source(struct device *dev,
-		struct dev_dark_resume *dark_resume,
-		int irq,
-		bool (*caused_resume)(struct device *dev)) { }
-
 static inline void dev_dark_resume_add_consumer(struct device *dev) { }
-
-static inline bool pm_dark_resume_check(void)
-{
-	return false;
-}
-
-static inline void dev_dark_resume_remove_source(struct device *dev) { }
 
 static inline void dev_dark_resume_remove_consumer(struct device *dev) { }
 
@@ -103,10 +55,6 @@ static inline bool pm_dark_resume_active(void)
 static inline bool dev_dark_resume_active(struct device *dev)
 {
 	return false;
-}
-
-static inline void pm_dark_resume_register_ops(struct pm_dark_resume_ops *ops)
-{
 }
 
 #endif /* !CONFIG_PM_SLEEP */
