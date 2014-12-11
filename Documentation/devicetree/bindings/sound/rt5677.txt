@@ -22,6 +22,9 @@ Optional properties:
 - realtek,micbias1
   Select 0/1/2/3 to set MICBIAS1 voltage to 1.476V/2.970V/1.242V/2.475V
 
+- realtek,internal-dacref-en
+  Select codec internal 1.8V as DACREF source optionally.
+
 - realtek,in1-differential
 - realtek,in2-differential
 - realtek,lout1-differential

@@ -34,6 +34,8 @@ enum rt5677_pdm_clk_div {
 struct rt5677_platform_data {
 	/* MICBIAS output voltage control */
 	enum rt5677_micbias micbias1;
+	/* Select codec internal 1.8V as DACREF source optionally */
+	bool internal_dacref_en;
 	/* IN1/IN2/LOUT1/LOUT2/LOUT3 can optionally be differential */
 	bool in1_diff;
 	bool in2_diff;
