@@ -25,7 +25,16 @@
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
 			regulator-name = "mic_vcc";
+			regulator-suspend-mem-disabled;
 		};
+
+		vcc18_lcd: SWITCH_REG2 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-name = "vcc18_lcd";
+			regulator-suspend-mem-disabled;
+		};
+
 	};
 };
 

@@ -40,3 +40,15 @@
 	wp-gpios = <&gpio7 10 GPIO_ACTIVE_LOW>;
 	wp-inverted;                             /* AKA active low */
 };
+
+&rk808 {
+	regulators {
+		vcc18_lcd: SWITCH_REG2 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-name = "vcc18_lcd";
+			regulator-suspend-mem-disabled;
+		};
+	};
+};
+
