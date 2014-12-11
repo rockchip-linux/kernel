@@ -1404,8 +1404,6 @@ static void dw_mci_tasklet_func(unsigned long priv)
 	enum dw_mci_state state;
 	enum dw_mci_state prev_state;
 	unsigned int err;
-	unsigned int drto_clks;
-	unsigned int drto_ms;
 
 	spin_lock(&host->lock);
 
@@ -1471,17 +1469,8 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			}
 
 			if (!test_and_clear_bit(EVENT_XFER_COMPLETE,
-						&host->pending_events)) {
-				if (host->quirks & DW_MCI_QUIRK_BROKEN_DTO) {
-					drto_clks = mci_readl(host, TMOUT) >> 8;
-					drto_ms = DIV_ROUND_UP(drto_clks * 1000,
-							       host->bus_hz);
-
-					mod_timer(&host->dto_timer, jiffies +
-						msecs_to_jiffies(drto_ms));
-				}
+						&host->pending_events))
 				break;
-			}
 
 			set_bit(EVENT_XFER_COMPLETE, &host->completed_events);
 
@@ -2073,9 +2062,6 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 
 		if (pending & SDMMC_INT_DATA_OVER) {
-			if (host->quirks & DW_MCI_QUIRK_BROKEN_DTO)
-				del_timer(&host->dto_timer);
-
 			mci_writel(host, RINTSTS, SDMMC_INT_DATA_OVER);
 			if (!host->data_status)
 				host->data_status = pending;
@@ -2435,28 +2421,6 @@ ciu_out:
 	return ret;
 }
 
-static void dw_mci_dto_timer(unsigned long arg)
-{
-	struct dw_mci *host = (struct dw_mci *)arg;
-
-	switch (host->state) {
-	case STATE_SENDING_DATA:
-	case STATE_DATA_BUSY:
-		/*
-		* If DTO interrupt does NOT come in sending data state,
-		* we should notify the driver to terminate current transfer
-		* and report a data timeout to the core.
-		*/
-		host->data_status = SDMMC_INT_DRTO;
-		set_bit(EVENT_DATA_ERROR, &host->pending_events);
-		set_bit(EVENT_DATA_COMPLETE, &host->pending_events);
-		tasklet_schedule(&host->tasklet);
-		break;
-	default:
-		break;
-	}
-}
-
 #ifdef CONFIG_OF
 static struct dw_mci_of_quirks {
 	char *quirk;
@@ -2610,9 +2574,6 @@ int dw_mci_probe(struct dw_mci *host)
 	spin_lock_init(&host->lock);
 	spin_lock_init(&host->irq_lock);
 	INIT_LIST_HEAD(&host->queue);
-	if (host->quirks & DW_MCI_QUIRK_BROKEN_DTO)
-		setup_timer(&host->dto_timer,
-			    dw_mci_dto_timer, (unsigned long)host);
 
 	/*
 	 * Get the host data width - this assumes that HCON has been set with
