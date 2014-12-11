@@ -156,6 +156,15 @@ static int cpu0_cpufreq_probe(struct platform_device *pdev)
 	/* OPPs might be populated at runtime, don't check for error here */
 	of_init_opp_table(cpu_dev);
 
+	rcu_read_lock();
+	ret = dev_pm_opp_get_opp_count(cpu_dev);
+	rcu_read_unlock();
+	if (ret <= 0) {
+		pr_debug("OPP table is not ready, deferring probe\n");
+		ret = -EPROBE_DEFER;
+		goto out_put_clk;
+	}
+
 	ret = dev_pm_opp_init_cpufreq_table(cpu_dev, &freq_table);
 	if (ret) {
 		pr_err("failed to init cpufreq table: %d\n", ret);
