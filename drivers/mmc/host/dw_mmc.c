@@ -1511,17 +1511,8 @@ static void dw_mci_tasklet_func(unsigned long priv)
 
 		case STATE_DATA_BUSY:
 			if (!test_and_clear_bit(EVENT_DATA_COMPLETE,
-						&host->pending_events)) {
-				if (host->quirks & DW_MCI_QUIRK_BROKEN_DTO) {
-					drto_clks = mci_readl(host, TMOUT) >> 8;
-					drto_ms = DIV_ROUND_UP(drto_clks * 1000,
-							       host->bus_hz);
-
-					mod_timer(&host->dto_timer, jiffies +
-						msecs_to_jiffies(drto_ms));
-				}
+						&host->pending_events))
 				break;
-			}
 
 			host->data = NULL;
 			set_bit(EVENT_DATA_COMPLETE, &host->completed_events);
