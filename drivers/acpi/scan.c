@@ -1356,11 +1356,11 @@ static int acpi_bus_extract_wakeup_device_power_package(acpi_handle handle,
 		    element->package.elements[0].reference.handle;
 		wakeup->wake_numbers.gpe =
 		    (u32) element->package.elements[1].integer.value;
-		wakeup->wake_numbers.sb = -1;
+		wakeup->wake_numbers.sb = (u64)-1;
 	} else if (element->type == ACPI_TYPE_INTEGER) {
 		wakeup->gpe_device = NULL;
 		wakeup->wake_numbers.gpe = element->integer.value;
-		wakeup->wake_numbers.sb = -1;
+		wakeup->wake_numbers.sb = (u64)-1;
 	} else {
 		goto out;
 	}
