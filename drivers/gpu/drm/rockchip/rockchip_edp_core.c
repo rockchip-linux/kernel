@@ -726,22 +726,16 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 	drm_connector_helper_add(connector,
 				 &rockchip_connector_helper_funcs);
 
-	ret = drm_connector_register(connector);
-	if (ret) {
-		DRM_ERROR("failed to register connector\n");
-		goto err_free_connector;
-	}
-
 	ret = drm_mode_connector_attach_encoder(connector, encoder);
 	if (ret) {
 		DRM_ERROR("failed to attach connector and encoder\n");
-		goto err_free_connector_sysfs;
+		goto err_free_connector;
 	}
 
 	ret = drm_panel_attach(edp->panel, connector);
 	if (ret) {
 		DRM_ERROR("failed to attach connector and encoder\n");
-		goto err_free_connector_sysfs;
+		goto err_free_connector;
 	}
 
 	ret = drm_dp_aux_register_i2c_bus(&edp->aux);
@@ -754,8 +748,6 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 
 err_panel_detach:
 	drm_panel_detach(edp->panel);
-err_free_connector_sysfs:
-	drm_connector_unregister(connector);
 err_free_connector:
 	drm_connector_cleanup(connector);
 err_free_encoder:
