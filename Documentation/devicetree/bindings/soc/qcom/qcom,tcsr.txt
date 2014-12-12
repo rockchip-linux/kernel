@@ -10,6 +10,10 @@ Required properties:
 Optional properties:
 - qcom,usb-ctrl-select : indicates USB port type selection.  Please reference
   dt-bindings/soc/qcom,tcsr.h for valid USB port selection values.
+- qcom,adm-a-crci-mux-sel : indicates the CRCI mux settings for peripherals.
+  Please reference dt-bindings/soc/qcom,tcsr.h for valid selection values.
+- qcom,adm-b-crci-mux-sel : indicates the CRCI mux settings for peripherals.
+  Please reference dt-bindings/soc/qcom,tcsr.h for valid selection values.
 
 Example for IPQ8064:
 
@@ -20,6 +24,10 @@ Example for IPQ8064:
 			reg = <0x1a400000 0x100>;
 
 			qcom,usb-ctrl-select = <TCSR_USB_SELECT_USB3_DUAL>;
+			qcom,adm-a-crci-mux-sel =
+				< TCSR_ADM_CRCI_SEL(GSBI1, ADM_CRCI_QUP)>;
+			qcom,adm-b-crci-mux-sel =
+				< TCSR_ADM_CRCI_SEL(GSBI1, ADM_CRCI_QUP)>;
 		};
 
 

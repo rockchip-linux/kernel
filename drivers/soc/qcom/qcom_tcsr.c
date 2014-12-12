@@ -19,6 +19,8 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 
+#define TCSR_ADM_A_CRCI_MUX_SEL	0x70
+#define TCSR_ADM_B_CRCI_MUX_SEL	0x74
 #define TCSR_USB_PORT_SEL	0xb0
 
 static int tcsr_probe(struct platform_device *pdev)
@@ -37,6 +39,12 @@ static int tcsr_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "setting usb port select = %d\n", val);
 		writel(val, base + TCSR_USB_PORT_SEL);
 	}
+
+	if (!of_property_read_u32(node, "qcom,adm-a-crci-mux-sel", &val))
+		writel(val, base + TCSR_ADM_A_CRCI_MUX_SEL);
+
+	if (!of_property_read_u32(node, "qcom,adm-b-crci-mux-sel", &val))
+		writel(val, base + TCSR_ADM_B_CRCI_MUX_SEL);
 
 	return 0;
 }

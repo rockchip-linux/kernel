@@ -16,4 +16,17 @@
 #define TCSR_USB_SELECT_USB3_P1		0x2
 #define TCSR_USB_SELECT_USB3_DUAL	0x3
 
+#define GSBI1				1
+#define GSBI2				2
+#define GSBI3				3
+#define GSBI4				4
+#define GSBI5				5
+#define GSBI6				6
+#define GSBI7				7
+
+#define ADM_CRCI_QUP			0
+#define ADM_CRCI_UART			1
+
+#define TCSR_ADM_CRCI_SEL(gsbi, sel)	(sel*0x3 << ((gsbi-1)*2))
+
 #endif
