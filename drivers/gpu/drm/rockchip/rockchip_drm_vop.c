@@ -83,9 +83,6 @@ struct vop {
 	int connector_type;
 	int connector_out_mode;
 
-	/* mutex vsync_ work */
-	struct mutex vsync_mutex;
-
 	const struct vop_data *data;
 
 	uint32_t *regsbak;
@@ -489,8 +486,6 @@ static int vop_win_queue(struct vop_win *vop_win,
 
 	wait_for_completion(&vop_win->completion);
 
-	mutex_lock(&vop->vsync_mutex);
-
 	if (!vop_win_update_needs_vblank(vop_win, fb, event)) {
 		struct drm_framebuffer *old_fb;
 
@@ -504,15 +499,15 @@ static int vop_win_queue(struct vop_win *vop_win,
 		if (old_fb)
 			drm_framebuffer_unreference(old_fb);
 		complete(&vop_win->completion);
-		ret = 0;
-		goto out;
+
+		return 0;
 	}
 
 	ret = drm_vblank_get(crtc->dev, vop->pipe);
 	if (ret) {
 		DRM_ERROR("failed to get vblank, %d\n", ret);
 		complete(&vop_win->completion);
-		goto out;
+		return ret;
 	}
 
 	DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] queued\n",
@@ -520,14 +515,15 @@ static int vop_win_queue(struct vop_win *vop_win,
 		      vop_win->front_fb ? vop_win->front_fb->base.id : -1,
 		      fb ? fb->base.id : -1);
 
-	vop_win->pending = true;
 	vop_win->pending_fb = fb;
 	vop_win->pending_yrgb_mst = yrgb_mst;
 	vop_win->pending_event = event;
 
-out:
-	mutex_unlock(&vop->vsync_mutex);
-	return ret;
+	/* Ensure all pending_* updates will be seen by isr_thread */
+	smp_wmb();
+	vop_win->pending = true;
+
+	return 0;
 }
 
 static int vop_update_plane_event(struct drm_plane *plane,
@@ -1015,6 +1011,9 @@ static void vop_win_process_pending(struct vop_win *vop_win)
 	if (!vop_win->pending)
 		return;
 
+	/* Ensure vop_win->pending_* are read after ->pending */
+	smp_rmb();
+
 	if (!vop_win_pending_is_complete(vop_win))
 		return;
 
@@ -1046,10 +1045,8 @@ static irqreturn_t vop_isr_thread(int irq, void *data)
 	struct vop *vop = data;
 	unsigned int i;
 
-	mutex_lock(&vop->vsync_mutex);
 	for (i = 0; i < vop->data->win_size; i++)
 		vop_win_process_pending(&vop->win[i]);
-	mutex_unlock(&vop->vsync_mutex);
 
 	return IRQ_HANDLED;
 }
@@ -1365,8 +1362,6 @@ static int vop_bind(struct device *dev, struct device *master, void *data)
 
 	spin_lock_init(&vop->reg_lock);
 	spin_lock_init(&vop->irq_lock);
-
-	mutex_init(&vop->vsync_mutex);
 
 	ret = devm_request_threaded_irq(dev, vop->irq, vop_isr, vop_isr_thread,
 					IRQF_SHARED, dev_name(dev), vop);
