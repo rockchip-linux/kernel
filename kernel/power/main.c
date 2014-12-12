@@ -481,6 +481,13 @@ static ssize_t wakeup_type_show(struct kobject *kobj,
 {
 	enum wakeup_type type = pm_get_wakeup_source_type();
 
+	/*
+	 * Hack to support dark_resume_always with wakeup_type until we can get
+	 * rid of dark_resume_always.
+	 */
+	if (pm_dark_resume_active())
+		return sprintf(buf, "automatic\n");
+
 	switch (type) {
 	case WAKEUP_UNKNOWN:
 		return sprintf(buf, "unknown\n");
