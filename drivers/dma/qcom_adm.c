@@ -87,7 +87,8 @@
 #define GP_CTL_LP_CNT(x)	(x << 8)
 
 /* Command pointer list entry */
-#define CPLE_LP		BIT(31)
+#define CPLE_LP			BIT(31)
+#define CPLE_CMD_PTR_LIST	BIT(29)
 
 /* Command list entry */
 #define CMD_LC			BIT(31)
@@ -260,7 +261,7 @@ static struct dma_async_tx_descriptor *adm_prep_slave_sg(struct dma_chan *chan,
 		return ERR_PTR(-ENOMEM);
 
 	async_desc->dma_len = num_desc * sizeof(*desc) + sizeof(*cpl) +
-				ADM_DESC_ALIGN;
+				2*ADM_DESC_ALIGN;
 	async_desc->cpl = dma_alloc_writecombine(adev->dev, async_desc->dma_len,
 			&async_desc->dma_addr, GFP_NOWAIT);
 
@@ -276,7 +277,7 @@ static struct dma_async_tx_descriptor *adm_prep_slave_sg(struct dma_chan *chan,
 	desc_offset = (u32)desc - (u32)async_desc->cpl;
 
 	/* init cmd list */
-	cpl->cple |= CPLE_LP;
+	cpl->cple = CPLE_LP;
 	cpl->cple |= (async_desc->dma_addr + desc_offset) >> 3;
 
 	for_each_sg(sgl, sg, sg_len, i) {
@@ -448,8 +449,7 @@ static void adm_start_dma(struct adm_chan *achan)
 	struct virt_dma_desc *vd = vchan_next_desc(&achan->vc);
 	struct adm_device *adev = achan->adev;
 	struct adm_async_desc *async_desc;
-	struct adm_desc_hw *desc;
-	struct adm_cmd_ptr_list *cpl;
+	u32 val;
 
 	lockdep_assert_held(&achan->vc.lock);
 
@@ -461,9 +461,6 @@ static void adm_start_dma(struct adm_chan *achan)
 	/* write next command list out to the CMD FIFO */
 	async_desc = container_of(vd, struct adm_async_desc, vd);
 	achan->curr_txd = async_desc;
-
-	cpl = PTR_ALIGN(async_desc->cpl, ADM_DESC_ALIGN);
-	desc = PTR_ALIGN(&cpl->desc[0], ADM_DESC_ALIGN);
 
 	if (!achan->initialized) {
 		/* enable interrupts */
@@ -486,9 +483,11 @@ static void adm_start_dma(struct adm_chan *achan)
 	/* make sure IRQ enable doesn't get reordered */
 	wmb();
 
+	val = ALIGN(async_desc->dma_addr, ADM_DESC_ALIGN) >> 3;
+	val |= CPLE_CMD_PTR_LIST;
+
 	/* write next command list out to the CMD FIFO */
-	writel(round_up(async_desc->dma_addr, ADM_DESC_ALIGN) >> 3,
-		adev->regs + HI_CH_CMD_PTR(achan->id, adev->ee));
+	writel(val, adev->regs + HI_CH_CMD_PTR(achan->id, adev->ee));
 }
 
 /**
