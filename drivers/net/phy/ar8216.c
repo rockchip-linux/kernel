@@ -1573,9 +1573,57 @@ ar8327_hw_config_of(struct ar8xxx_priv *priv, struct device_node *np)
 
 	return 0;
 }
+
+static int
+ar8327_vlan_config_of(struct ar8xxx_priv *priv, struct device_node *np)
+{
+	const __be32 *paddr;
+	int len;
+	int i;
+
+	paddr = of_get_property(np, "qca,ar8327-vlans", &len);
+	if (!paddr)
+		return 0;
+
+	/* Each entry is a set of 2 values: vlan ID & portmask */
+	if (len % (2 * sizeof(*paddr)))
+		return -EINVAL;
+
+	len /= sizeof(*paddr);
+
+	/* Enable VLAN on the switch */
+	priv->vlan = 1;
+
+	for (i = 0; i < len - 1; i += 2) {
+		u32 id, portmask;
+		int port;
+		id = be32_to_cpup(paddr + i);
+		portmask = be32_to_cpup(paddr + i + 1);
+
+		if (id >= AR8X16_MAX_VLANS)
+			return -EINVAL;
+
+		/* Set the VLAN IDs */
+		priv->vlan_id[id] = id;
+		priv->vlan_table[id] = portmask;
+
+		for_each_set_bit(port, (const long unsigned int *) &portmask,
+				 AR8327_NUM_PORTS) {
+			priv->pvid[port] = id;
+		}
+	}
+
+	return 0;
+}
 #else
 static inline int
 ar8327_hw_config_of(struct ar8xxx_priv *priv, struct device_node *np)
+{
+	return -EINVAL;
+}
+
+static inline int
+ar8327_vlan_config_of(struct ar8xxx_priv *priv, struct device_node *np)
 {
 	return -EINVAL;
 }
@@ -2014,7 +2062,7 @@ ar8xxx_sw_hw_apply(struct switch_dev *dev)
 	priv->chip->vtu_flush(priv);
 
 	memset(portmask, 0, sizeof(portmask));
-	if (!priv->initializing) {
+	if (!priv->initializing || priv->vlan) {
 		/* calculate the port destination masks and load vlans
 		 * into the vlan translation unit */
 		for (j = 0; j < AR8X16_MAX_VLANS; j++) {
@@ -2081,6 +2129,8 @@ ar8xxx_sw_reset_switch(struct switch_dev *dev)
 	mutex_lock(&priv->reg_mutex);
 	memset(&priv->vlan, 0, sizeof(struct ar8xxx_priv) -
 		offsetof(struct ar8xxx_priv, vlan));
+
+	ar8327_vlan_config_of(priv, priv->phy->dev.of_node);
 
 	for (i = 0; i < AR8X16_MAX_VLANS; i++)
 		priv->vlan_id[i] = i;
