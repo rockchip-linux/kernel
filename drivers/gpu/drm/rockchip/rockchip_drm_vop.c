@@ -18,20 +18,19 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_plane_helper.h>
 
-#include <linux/kernel.h>
-#include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/component.h>
+#include <linux/delay.h>
+#include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
-#include <linux/component.h>
-
 #include <linux/reset.h>
-#include <linux/delay.h>
 
 #include "rockchip_drm_drv.h"
-#include "rockchip_drm_gem.h"
 #include "rockchip_drm_fb.h"
+#include "rockchip_drm_gem.h"
 #include "rockchip_drm_vop.h"
 
 #define VOP_REG(off, _mask, s) \
