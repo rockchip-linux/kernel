@@ -50,7 +50,7 @@
 #define HI_CRCI_CONF0			0x3d0
 #define HI_CRCI_CONF1			0x3d4
 #define HI_GP_CTL			0x3d8
-#define HI_CRCI_CTL(chan, ee)		(0x400 + 0x4*chan + 0x20800*ee)
+#define HI_CRCI_CTL(crci, ee)		(0x400 + 0x4*crci + 0x20800*ee)
 
 /* channel status */
 #define CH_STATUS_VALID	BIT(1)
@@ -481,7 +481,7 @@ static void adm_start_dma(struct adm_chan *achan)
 	/* set the crci block size */
 	if (achan->crci)
 		writel(achan->crci_mux | achan->blk_size,
-			adev->regs + HI_CRCI_CTL(achan->id, adev->ee));
+			adev->regs + HI_CRCI_CTL(achan->crci, adev->ee));
 
 	/* make sure IRQ enable doesn't get reordered */
 	wmb();
