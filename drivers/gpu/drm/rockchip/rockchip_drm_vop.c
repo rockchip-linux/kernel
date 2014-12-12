@@ -492,12 +492,17 @@ static int vop_win_queue(struct vop_win *vop_win,
 	mutex_lock(&vop->vsync_mutex);
 
 	if (!vop_win_update_needs_vblank(vop_win, fb, event)) {
+		struct drm_framebuffer *old_fb;
+
 		DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] skipped queue\n",
 			      vop_win->base.base.id,
 			      vop_win->front_fb ?
 					      vop_win->front_fb->base.id : -1,
 			      fb ? fb->base.id : -1);
+		old_fb = vop_win->front_fb;
 		vop_win->front_fb = fb;
+		if (old_fb)
+			drm_framebuffer_unreference(old_fb);
 		complete(&vop_win->completion);
 		ret = 0;
 		goto out;
