@@ -30,6 +30,7 @@
 #include "qxl_object.h"
 #include "drm_crtc_helper.h"
 #include "drm_atomic.h"
+#include <drm/drm_plane_helper.h>
 
 static bool qxl_head_enabled(struct qxl_head *head)
 {

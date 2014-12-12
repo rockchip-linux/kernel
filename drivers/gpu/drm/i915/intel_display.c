@@ -39,6 +39,7 @@
 #include "i915_trace.h"
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_plane_helper.h>
 #include <linux/dma_remapping.h>
 #include <linux/pm_dark_resume.h>
 
