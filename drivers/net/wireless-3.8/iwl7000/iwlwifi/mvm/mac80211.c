@@ -69,6 +69,7 @@
 #include <linux/etherdevice.h>
 #include <linux/ip.h>
 #include <linux/if_arp.h>
+#include <linux/devcoredump.h>
 #include <net/mac80211.h>
 #include <net/ieee80211_radiotap.h>
 #include <net/tcp.h>
@@ -84,6 +85,7 @@
 #include "testmode.h"
 #include "vendor-cmd.h"
 #include "iwl-nvm-parse.h"
+#include "iwl-fw-error-dump.h"
 #include "iwl-prph.h"
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 #include "iwl-dnt-cfg.h"
@@ -677,6 +679,143 @@ static void iwl_mvm_cleanup_iterator(void *data, u8 *mac,
 	memset(&mvmvif->bf_data, 0, sizeof(mvmvif->bf_data));
 }
 
+static ssize_t iwl_mvm_read_coredump(char *buffer, loff_t offset, size_t count,
+				     const void *data, size_t datalen)
+{
+	const struct iwl_mvm_dump_ptrs *dump_ptrs = data;
+	ssize_t bytes_read;
+	ssize_t bytes_read_trans;
+
+	if (offset < dump_ptrs->op_mode_len) {
+		bytes_read = min_t(ssize_t, count,
+				   dump_ptrs->op_mode_len - offset);
+		memcpy(buffer, (u8 *)dump_ptrs->op_mode_ptr + offset,
+		       bytes_read);
+		offset += bytes_read;
+		count -= bytes_read;
+
+		if (count == 0)
+			return bytes_read;
+	} else {
+		bytes_read = 0;
+	}
+
+	if (!dump_ptrs->trans_ptr)
+		return bytes_read;
+
+	offset -= dump_ptrs->op_mode_len;
+	bytes_read_trans = min_t(ssize_t, count,
+				 dump_ptrs->trans_ptr->len - offset);
+	memcpy(buffer + bytes_read,
+	       (u8 *)dump_ptrs->trans_ptr->data + offset,
+	       bytes_read_trans);
+
+	return bytes_read + bytes_read_trans;
+}
+
+static void iwl_mvm_free_coredump(const void *data)
+{
+	const struct iwl_mvm_dump_ptrs *fw_error_dump = data;
+
+	vfree(fw_error_dump->op_mode_ptr);
+	vfree(fw_error_dump->trans_ptr);
+	kfree(fw_error_dump);
+}
+
+void iwl_mvm_fw_error_dump(struct iwl_mvm *mvm)
+{
+	struct iwl_fw_error_dump_file *dump_file;
+	struct iwl_fw_error_dump_data *dump_data;
+	struct iwl_fw_error_dump_info *dump_info;
+	struct iwl_mvm_dump_ptrs *fw_error_dump;
+	const struct fw_img *img;
+	u32 sram_len, sram_ofs;
+	u32 file_len, rxf_len;
+	unsigned long flags;
+	int reg_val;
+
+	lockdep_assert_held(&mvm->mutex);
+
+	fw_error_dump = kzalloc(sizeof(*fw_error_dump), GFP_KERNEL);
+	if (!fw_error_dump)
+		return;
+
+	img = &mvm->fw->img[mvm->cur_ucode];
+	sram_ofs = img->sec[IWL_UCODE_SECTION_DATA].offset;
+	sram_len = img->sec[IWL_UCODE_SECTION_DATA].len;
+
+	/* reading buffer size */
+	reg_val = iwl_trans_read_prph(mvm->trans, RXF_SIZE_ADDR);
+	rxf_len = (reg_val & RXF_SIZE_BYTE_CNT_MSK) >> RXF_SIZE_BYTE_CND_POS;
+
+	/* the register holds the value divided by 128 */
+	rxf_len = rxf_len << 7;
+
+	file_len = sizeof(*dump_file) +
+		   sizeof(*dump_data) * 3 +
+		   sram_len +
+		   rxf_len +
+		   sizeof(*dump_info);
+
+	dump_file = vzalloc(file_len);
+	if (!dump_file) {
+		kfree(fw_error_dump);
+		return;
+	}
+
+	fw_error_dump->op_mode_ptr = dump_file;
+
+	dump_file->barker = cpu_to_le32(IWL_FW_ERROR_DUMP_BARKER);
+	dump_data = (void *)dump_file->data;
+
+	dump_data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_DEV_FW_INFO);
+	dump_data->len = cpu_to_le32(sizeof(*dump_info));
+	dump_info = (void *) dump_data->data;
+	dump_info->device_family =
+		mvm->cfg->device_family == IWL_DEVICE_FAMILY_7000 ?
+			cpu_to_le32(IWL_FW_ERROR_DUMP_FAMILY_7) :
+			cpu_to_le32(IWL_FW_ERROR_DUMP_FAMILY_8);
+	memcpy(dump_info->fw_human_readable, mvm->fw->human_readable,
+	       sizeof(dump_info->fw_human_readable));
+	strncpy(dump_info->dev_human_readable, mvm->cfg->name,
+		sizeof(dump_info->dev_human_readable));
+	strncpy(dump_info->bus_human_readable, mvm->dev->bus->name,
+		sizeof(dump_info->bus_human_readable));
+
+	dump_data = iwl_fw_error_next_data(dump_data);
+	dump_data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_RXF);
+	dump_data->len = cpu_to_le32(rxf_len);
+
+	if (iwl_trans_grab_nic_access(mvm->trans, false, &flags)) {
+		u32 *rxf = (void *)dump_data->data;
+		int i;
+
+		for (i = 0; i < (rxf_len / sizeof(u32)); i++) {
+			iwl_trans_write_prph(mvm->trans,
+					     RXF_LD_FENCE_OFFSET_ADDR,
+					     i * sizeof(u32));
+			rxf[i] = iwl_trans_read_prph(mvm->trans,
+						     RXF_FIFO_RD_FENCE_ADDR);
+		}
+		iwl_trans_release_nic_access(mvm->trans, &flags);
+	}
+
+	dump_data = iwl_fw_error_next_data(dump_data);
+	dump_data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_SRAM);
+	dump_data->len = cpu_to_le32(sram_len);
+	iwl_trans_read_mem_bytes(mvm->trans, sram_ofs, dump_data->data,
+				 sram_len);
+
+	fw_error_dump->trans_ptr = iwl_trans_dump_data(mvm->trans);
+	fw_error_dump->op_mode_len = file_len;
+	if (fw_error_dump->trans_ptr)
+		file_len += fw_error_dump->trans_ptr->len;
+	dump_file->file_len = cpu_to_le32(file_len);
+
+	dev_coredumpm(mvm->trans->dev, THIS_MODULE, fw_error_dump, 0,
+		      GFP_KERNEL, iwl_mvm_read_coredump, iwl_mvm_free_coredump);
+}
+
 static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 {
 	/* clear the D3 reconfig, we only need it to avoid dumping a
@@ -684,6 +823,8 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 	 * on D3->D0 transition
 	 */
 	if (!test_and_clear_bit(IWL_MVM_STATUS_D3_RECONFIG, &mvm->status)) {
+		iwl_mvm_fw_error_dump(mvm);
+
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 		iwl_dnt_dispatch_handle_nic_err(mvm->trans);
 #endif
@@ -813,6 +954,7 @@ static void iwl_mvm_mac_stop(struct ieee80211_hw *hw)
 
 	flush_work(&mvm->d0i3_exit_work);
 	flush_work(&mvm->async_handlers_wk);
+	flush_work(&mvm->fw_error_dump_wk);
 
 	mutex_lock(&mvm->mutex);
 	__iwl_mvm_mac_stop(mvm);
