@@ -257,6 +257,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-jerry-rev2.dtb \
 	rk3288-jerry-rev3.dtb \
 	rk3288-mighty-rev0.dtb \
+	rk3288-mighty-rev1.dtb \
 	rk3288-pinky-rev2.dtb \
 	rk3288-pinky-rev1.dtb \
 	rk3288-pinky-rev0.dtb \
