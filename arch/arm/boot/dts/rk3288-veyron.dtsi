@@ -940,6 +940,7 @@
 
 &usb_host0_ehci {
 	status = "okay";
+	needs-reset-on-resume;
 };
 
 &usb_host1 {
