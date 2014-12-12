@@ -239,16 +239,19 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to clear PD signature (err:%d)\n", ret);
+		dev_err(dev, "Unable to reboot PD (err:%d)\n", ret);
 		return ret;
 	}
+
+	/* Wait 2 seconds for the charger to reboot */
+	msleep(2000);
 
 	/* Erase RW flash */
 	pd_cmd->cmd = USB_PD_FW_FLASH_ERASE;
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to clear PD signature (err:%d)\n", ret);
+		dev_err(dev, "Unable to erase PD RW flash (err:%d)\n", ret);
 		return ret;
 	}
 
@@ -271,12 +274,15 @@ static int cros_ec_pd_fw_update(struct device *dev,
 		usleep_range(10000, 10500);
 	}
 
+	/* Wait 100ms to guarantee that writes finish */
+	msleep(100);
+
 	/* Reboot PD into new RW */
 	pd_cmd->cmd = USB_PD_FW_REBOOT;
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to clear PD signature (err:%d)\n", ret);
+		dev_err(dev, "Unable to reboot PD post-flash (err:%d)\n", ret);
 		return ret;
 	}
 
