@@ -33,6 +33,7 @@
 #include <linux/compat.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/dma-mapping.h>
 
 #include <linux/spi/spi.h>
 #include <linux/spi/spidev.h>
@@ -85,6 +86,7 @@ struct spidev_data {
 	struct mutex		buf_lock;
 	unsigned		users;
 	u8			*buffer;
+	u32			align;
 };
 
 static LIST_HEAD(device_list);
@@ -225,6 +227,7 @@ static int spidev_message(struct spidev_data *spidev,
 	unsigned		n, total;
 	u8			*buf;
 	int			status = -EFAULT;
+	int			alignment = spidev->align;
 
 	spi_message_init(&msg);
 	k_xfers = kcalloc(n_xfers, sizeof(*k_tmp), GFP_KERNEL);
@@ -237,32 +240,45 @@ static int spidev_message(struct spidev_data *spidev,
 	 */
 	buf = spidev->buffer;
 	total = 0;
+
+	/*
+	 *  Check to see if we should use preferred alignment
+	 *  Don't use if we exceed maxiumum buffer size
+	 */
+	for (n = 0; n < n_xfers; n++)
+		total += round_up(u_xfers->len, alignment);
+
+	if (total >= bufsiz)
+		alignment = 1;
+
+	total = 0;
 	for (n = n_xfers, k_tmp = k_xfers, u_tmp = u_xfers;
 			n;
 			n--, k_tmp++, u_tmp++) {
 		k_tmp->len = u_tmp->len;
 
-		total += k_tmp->len;
+		total += round_up(k_tmp->len, alignment);
+
 		if (total > bufsiz) {
 			status = -EMSGSIZE;
 			goto done;
 		}
 
 		if (u_tmp->rx_buf) {
-			k_tmp->rx_buf = buf;
+			k_tmp->rx_buf = PTR_ALIGN(buf, alignment);
 			if (!access_ok(VERIFY_WRITE, (u8 __user *)
 						(uintptr_t) u_tmp->rx_buf,
 						u_tmp->len))
 				goto done;
 		}
 		if (u_tmp->tx_buf) {
-			k_tmp->tx_buf = buf;
+			k_tmp->tx_buf = PTR_ALIGN(buf, alignment);
 			if (copy_from_user(buf, (const u8 __user *)
 						(uintptr_t) u_tmp->tx_buf,
 					u_tmp->len))
 				goto done;
 		}
-		buf += k_tmp->len;
+		buf += round_up(k_tmp->len, alignment);
 
 		k_tmp->cs_change = !!u_tmp->cs_change;
 		k_tmp->bits_per_word = u_tmp->bits_per_word;
@@ -297,7 +313,7 @@ static int spidev_message(struct spidev_data *spidev,
 				goto done;
 			}
 		}
-		buf += u_tmp->len;
+		buf += round_up(u_tmp->len, alignment);
 	}
 	status = total;
 
@@ -586,6 +602,7 @@ static int spidev_probe(struct spi_device *spi)
 
 	/* Initialize the driver data */
 	spidev->spi = spi;
+	spidev->align = dma_get_cache_alignment();
 	spin_lock_init(&spidev->spi_lock);
 	mutex_init(&spidev->buf_lock);
 
