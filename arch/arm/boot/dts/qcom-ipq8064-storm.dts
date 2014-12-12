@@ -384,6 +384,14 @@
 		tcsr@1a400000 {
 			status = "ok";
 			qcom,usb-ctrl-select = <TCSR_USB_SELECT_USB3_DUAL>;
+			qcom,adm-a-crci-mux-sel = <(TCSR_ADM_CRCI_SEL(GSBI1, ADM_CRCI_QUP) |
+						    TCSR_ADM_CRCI_SEL(GSBI4, ADM_CRCI_QUP) |
+						    TCSR_ADM_CRCI_SEL(GSBI5, ADM_CRCI_QUP) |
+						    TCSR_ADM_CRCI_SEL(GSBI6, ADM_CRCI_QUP))>;
+			qcom,adm-b-crci-mux-sel = <(TCSR_ADM_CRCI_SEL(GSBI1, ADM_CRCI_QUP) |
+						    TCSR_ADM_CRCI_SEL(GSBI4, ADM_CRCI_QUP) |
+						    TCSR_ADM_CRCI_SEL(GSBI5, ADM_CRCI_QUP) |
+						    TCSR_ADM_CRCI_SEL(GSBI6, ADM_CRCI_QUP))>;
 		};
 
 		phy@100f8800 {		/* USB3 port 1 HS phy */
