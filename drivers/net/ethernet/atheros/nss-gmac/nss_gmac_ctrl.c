@@ -978,6 +978,7 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 
 	gmacdev = netdev_priv(netdev);
 	memset((void *)gmacdev, 0, sizeof(nss_gmac_dev));
+	SET_NETDEV_DEV(netdev, &pdev->dev);
 
 	spin_lock_init(&gmacdev->stats_lock);
 	spin_lock_init(&gmacdev->slock);
