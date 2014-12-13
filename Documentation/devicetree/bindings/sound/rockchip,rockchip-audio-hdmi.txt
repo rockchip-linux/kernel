@@ -1,0 +1,12 @@
+Rockchip hdmi audio bindings
+
+Required properties:
+- compatible: platform specific
+- i2s-controller: the device of i2s controller
+
+Example:
+
+sound {
+	compatible = "rockchip,rk3288-hdmi-audio";
+	i2s-controller = <&i2s>;
+};
