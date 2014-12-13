@@ -66,3 +66,15 @@ unreserve_out:
 out:
 	return ret;
 }
+
+int cirrus_gem_prime_mmap(struct drm_gem_object *obj,
+			  struct vm_area_struct *vma)
+{
+	struct cirrus_bo *cirrusbo = gem_to_cirrus_bo(obj);
+	int ret = 0;
+
+	ret = ttm_fbdev_mmap(vma, &cirrusbo->bo);
+	vma->vm_pgoff = drm_vma_node_start(&cirrusbo->bo.vma_node);
+
+	return ret;
+}
