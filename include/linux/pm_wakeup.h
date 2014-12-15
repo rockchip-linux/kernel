@@ -193,7 +193,7 @@ static inline void __pm_wakeup_event(struct wakeup_source *ws, unsigned int msec
 
 static inline void pm_wakeup_event(struct device *dev, unsigned int msec) {}
 
-static enum wakeup_type pm_get_wakeup_source_type(void)
+static inline enum wakeup_type pm_get_wakeup_source_type(void)
 {
 	return WAKEUP_INVALID;
 }
