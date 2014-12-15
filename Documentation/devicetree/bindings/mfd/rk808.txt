@@ -24,6 +24,14 @@ Optional properties:
 - vcc10-supply: The input supply for LDO_REG6
 - vcc11-supply: The input supply for LDO_REG8
 - vcc12-supply: The input supply for SWITCH_REG2
+- dvs-gpios:  buck1/2 can be controlled by gpio dvs, this is GPIO specifiers
+  for 2 host gpio's used for dvs. The format of the gpio specifier depends in
+  the gpio controller. If DVS GPIOs aren't present, voltage changes will happen
+  very quickly with no slow ramp time.
+- dvsok-gpios: if we use dvs gpio to control buck1/2, this gpio will be pull
+  high, once RK808 completed the adjustment of voltage. If the DVSOK isn't
+  present, we'll just delay based on whatever is specified in the regulator
+  constraints.
 
 Regulators: All the regulators of RK808 to be instantiated shall be
 listed in a child node named 'regulators'. Each regulator is represented
@@ -55,7 +63,10 @@ Example:
 		interrupt-parent = <&gpio0>;
 		interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pmic_int>;
+		pinctrl-0 = <&pmic_int &dvs_ok &dvs_1 &dvs_2>;
+		dvsok-gpios = <&gpio7 9 GPIO_ACTIVE_HIGH>;
+		dvs-gpios = <&gpio7 11 GPIO_ACTIVE_HIGH>,
+			    <&gpio7 15 GPIO_ACTIVE_HIGH>;
 		reg = <0x1b>;
 		rockchip,system-power-controller;
 		wakeup-source;
