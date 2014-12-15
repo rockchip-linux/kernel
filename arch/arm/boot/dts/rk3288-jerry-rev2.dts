@@ -27,8 +27,8 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pmic_int_l &dvs_ok &dvs_1 &dvs_2>;
 	dvsok-gpios = <&gpio7 9 GPIO_ACTIVE_HIGH>;
-	dvs1-gpios = <&gpio7 11 GPIO_ACTIVE_HIGH>;
-	dvs2-gpios = <&gpio7 15 GPIO_ACTIVE_HIGH>;
+	dvs-gpios = <&gpio7 11 GPIO_ACTIVE_HIGH>,
+		   <&gpio7 15 GPIO_ACTIVE_HIGH>;
 
 	regulators {
 		mic_vcc: LDO_REG2 {
