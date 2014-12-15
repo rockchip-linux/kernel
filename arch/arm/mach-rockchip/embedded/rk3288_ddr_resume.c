@@ -15,11 +15,11 @@
 #include <linux/bug.h>		/* BUILD_BUG_ON */
 #include <linux/kernel.h>
 
-#include <asm/arch_timer.h>
 #include <asm/io.h>
 
 #include "rk3288_ddr.h"
 #include "rk3288_resume.h"
+#include "sram_delay.h"
 
 #include "../pm.h"
 
@@ -37,25 +37,6 @@ static void * const pctrl_addrs[] = { DDR_PCTRL0_ADDR, DDR_PCTRL1_ADDR };
 static void * const phy_addrs[] = { DDR_PUBL0_ADDR, DDR_PUBL1_ADDR };
 static void * const msch_addrs[] = { MSCH0_ADDR, MSCH1_ADDR };
 
-/*
- * Arch timer freq is present in dts.  We could get it from there but
- * really nobody is going to put anything but 24MHz here.  If they do then
- * we'll have to add this to the suspend data.
- */
-#define ARCH_TIMER_FREQ			24000000
-#define ARCH_TIMER_TICKS_PER_US		(ARCH_TIMER_FREQ / 1000000)
-
-static void delayus(u32 us)
-{
-	u32 orig;
-	u32 to_wait = ARCH_TIMER_TICKS_PER_US * us;
-
-	/* Note: u32 math is way more than enough for our small delays */
-	orig = (u32) arch_counter_get_cntpct();
-	while ((u32) arch_counter_get_cntpct() - orig < to_wait)
-		;
-}
-
 static void reset_dll(void __iomem *phy_addr)
 {
 	static const u32 reg[] = { DDR_PUBL_ACDLLCR, DDR_PUBL_DX0DLLCR,
@@ -67,13 +48,13 @@ static void reset_dll(void __iomem *phy_addr)
 		writel_relaxed(readl_relaxed(phy_addr + reg[i]) & ~DLLSRST,
 			       phy_addr + reg[i]);
 
-	delayus(10);
+	sram_udelay(10);
 
 	for (i = 0; i < ARRAY_SIZE(reg); i++)
 		writel_relaxed(readl_relaxed(phy_addr + reg[i]) | DLLSRST,
 			       phy_addr + reg[i]);
 
-	delayus(10);
+	sram_udelay(10);
 }
 
 static void phy_init(void __iomem *phy_addr)
@@ -87,7 +68,7 @@ static void phy_init(void __iomem *phy_addr)
 
 	writel_relaxed(val, phy_addr + DDR_PUBL_PIR);
 
-	delayus(1);
+	sram_udelay(1);
 
 	while ((readl_relaxed(phy_addr + DDR_PUBL_PGSR) &
 		(PGSR_IDONE | PGSR_DLDONE | PGSR_ZCDONE)) !=
@@ -106,7 +87,7 @@ static void memory_init(void __iomem *phy_addr)
 
 	writel_relaxed(val, phy_addr + DDR_PUBL_PIR);
 
-	delayus(1);
+	sram_udelay(1);
 	while ((readl_relaxed(phy_addr + DDR_PUBL_PGSR) &
 		(PGSR_IDONE | PGSR_DLDONE)) != (PGSR_IDONE | PGSR_DLDONE))
 		;
@@ -231,5 +212,5 @@ void rk3288_ddr_resume_early(const struct rk3288_ddr_save_data *ddr_save_data)
 	       DDR0IO_RET_DE_REQ | DDR0I1_RET_DE_REQ,
 	       PMU_PWRMODE_CON_ADDR);
 
-	delayus(1);
+	sram_udelay(1);
 }
