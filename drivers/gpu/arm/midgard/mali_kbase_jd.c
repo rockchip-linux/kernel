@@ -705,21 +705,24 @@ static mali_error kbase_jd_pre_external_resources(struct kbase_jd_atom *katom, c
 	return err_ret_val;
 }
 
-STATIC INLINE void jd_resolve_dep(struct list_head *out_list, struct kbase_jd_atom *katom, u8 d)
+STATIC INLINE void jd_resolve_dep(struct list_head *out_list, struct kbase_jd_atom *katom, u8 d, bool ctx_is_dying)
 {
 	u8 other_d = !d;
 
 	while (!list_empty(&katom->dep_head[d])) {
 		struct kbase_jd_atom *dep_atom;
+		u8 dep_type;
 
 		dep_atom = list_entry(katom->dep_head[d].next, 
 				struct kbase_jd_atom, dep_item[d]);
+		dep_type = kbase_jd_katom_dep_type(&dep_atom->dep[d]);
 
 		list_del(katom->dep_head[d].next);
 
 		kbase_jd_katom_dep_clear(&dep_atom->dep[d]);
 
-		if (katom->event_code != BASE_JD_EVENT_DONE) {
+		if (katom->event_code != BASE_JD_EVENT_DONE &&
+			(dep_type != BASE_JD_DEP_TYPE_ORDER || ctx_is_dying)) {
 			/* Atom failed, so remove the other dependencies and immediately fail the atom */
 			if (kbase_jd_katom_dep_atom(&dep_atom->dep[other_d])) {
 				list_del(&dep_atom->dep_item[other_d]);
@@ -733,15 +736,11 @@ STATIC INLINE void jd_resolve_dep(struct list_head *out_list, struct kbase_jd_at
 				 */
 				dep_atom->dep_satisfied = MALI_TRUE;
 			}
-#endif				/* CONFIG_KDS or CONFIG_DRM_DMA_SYNC */
-
+#endif
 			/* at this point a dependency to the failed job is already removed */
-			if (!(kbase_jd_katom_dep_type(&dep_atom->dep[d]) == BASE_JD_DEP_TYPE_ORDER &&
-					katom->event_code > BASE_JD_EVENT_ACTIVE)) {
-				dep_atom->event_code = katom->event_code;
-				KBASE_DEBUG_ASSERT(dep_atom->status != KBASE_JD_ATOM_STATE_UNUSED);
-				dep_atom->status = KBASE_JD_ATOM_STATE_COMPLETED;
-			}
+			dep_atom->event_code = katom->event_code;
+			KBASE_DEBUG_ASSERT(dep_atom->status != KBASE_JD_ATOM_STATE_UNUSED);
+			dep_atom->status = KBASE_JD_ATOM_STATE_COMPLETED;
 
 			list_add_tail(&dep_atom->dep_item[0], out_list);
 		} else if (!kbase_jd_katom_dep_atom(&dep_atom->dep[other_d])) {
@@ -815,6 +814,7 @@ static void jd_check_force_failure(struct kbase_jd_atom *katom)
 mali_bool jd_done_nolock(struct kbase_jd_atom *katom)
 {
 	struct kbase_context *kctx = katom->kctx;
+	struct kbasep_js_kctx_info *js_kctx_info = &kctx->jctx.sched_info;
 	struct kbase_device *kbdev = kctx->kbdev;
 	struct list_head completed_jobs;
 	struct list_head runnable_jobs;
@@ -866,7 +866,8 @@ mali_bool jd_done_nolock(struct kbase_jd_atom *katom)
 		KBASE_DEBUG_ASSERT(katom->status == KBASE_JD_ATOM_STATE_COMPLETED);
 
 		for (i = 0; i < 2; i++)
-			jd_resolve_dep(&runnable_jobs, katom, i);
+			jd_resolve_dep(&runnable_jobs, katom, i,
+						js_kctx_info->ctx.is_dying);
 
 		if (katom->core_req & BASE_JD_REQ_EXTERNAL_RESOURCES)
 			kbase_jd_post_external_resources(katom);
@@ -880,7 +881,7 @@ mali_bool jd_done_nolock(struct kbase_jd_atom *katom)
 
 			KBASE_DEBUG_ASSERT(node->status != KBASE_JD_ATOM_STATE_UNUSED);
 
-			if (katom->event_code == BASE_JD_EVENT_DONE) {
+			if (node->status != KBASE_JD_ATOM_STATE_COMPLETED) {
 				need_to_try_schedule_context |= jd_run_atom(node);
 			} else {
 				node->event_code = katom->event_code;
@@ -1419,6 +1420,40 @@ static void jd_done_worker(struct work_struct *data)
 	js_policy = &kbdev->js_data.policy;
 
 	KBASE_TRACE_ADD(kbdev, JD_DONE_WORKER, kctx, katom, katom->jc, 0);
+
+        if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_6787) && katom->event_code != BASE_JD_EVENT_DONE && !(katom->event_code & BASE_JD_SW_EVENT))
+                kbasep_jd_cacheclean(kbdev);  /* cache flush when jobs complete with non-done codes */
+        else if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10676)) {
+                if (kbdev->gpu_props.num_core_groups > 1 &&
+                    !(katom->affinity & kbdev->gpu_props.props.coherency_info.group[0].core_mask) &&
+                    (katom->affinity & kbdev->gpu_props.props.coherency_info.group[1].core_mask)) {
+                        dev_dbg(kbdev->dev, "JD: Flushing cache due to PRLAM-10676\n");
+                        kbasep_jd_cacheclean(kbdev);
+                }
+        }
+
+        if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10969)            &&
+            (katom->core_req & BASE_JD_REQ_FS)                        &&
+            katom->event_code == BASE_JD_EVENT_TILE_RANGE_FAULT       &&
+            (katom->atom_flags & KBASE_KATOM_FLAG_BEEN_SOFT_STOPPPED) &&
+            !(katom->atom_flags & KBASE_KATOM_FLAGS_RERUN)) {
+                dev_dbg(kbdev->dev, "Soft-stopped fragment shader job got a TILE_RANGE_FAULT. Possible HW issue, trying SW workaround\n");
+                if (kbasep_10969_workaround_clamp_coordinates(katom)) {
+                        /* The job had a TILE_RANGE_FAULT after was soft-stopped.
+                         * Due to an HW issue we try to execute the job
+                         * again.
+                         */
+                        dev_dbg(kbdev->dev, "Clamping has been executed, try to rerun the job\n");
+                        katom->event_code = BASE_JD_EVENT_STOPPED;
+                        katom->atom_flags |= KBASE_KATOM_FLAGS_RERUN;
+
+                        /* The atom will be requeued, but requeing does not submit more
+                         * jobs. If this was the last job, we must also ensure that more
+                         * jobs will be run on slot 0 - this is a Fragment job. */
+                        kbasep_js_set_job_retry_submit_slot(katom, 0);
+                }
+        }
+
 	/*
 	 * Begin transaction on JD context and JS context
 	 */
@@ -1430,39 +1465,6 @@ static void jd_done_worker(struct work_struct *data)
 	 * running.
 	 */
 	KBASE_DEBUG_ASSERT(js_kctx_info->ctx.is_scheduled != MALI_FALSE);
-
-	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_6787) && katom->event_code != BASE_JD_EVENT_DONE && !(katom->event_code & BASE_JD_SW_EVENT))
-		kbasep_jd_cacheclean(kbdev);  /* cache flush when jobs complete with non-done codes */
-	else if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10676)) {
-		if (kbdev->gpu_props.num_core_groups > 1 &&
-		    !(katom->affinity & kbdev->gpu_props.props.coherency_info.group[0].core_mask) &&
-		    (katom->affinity & kbdev->gpu_props.props.coherency_info.group[1].core_mask)) {
-			dev_dbg(kbdev->dev, "JD: Flushing cache due to PRLAM-10676\n");
-			kbasep_jd_cacheclean(kbdev);
-		}
-	}
-
-	if (kbase_hw_has_issue(kbdev, BASE_HW_ISSUE_10969)            &&
-	    (katom->core_req & BASE_JD_REQ_FS)                        &&
-	    katom->event_code == BASE_JD_EVENT_TILE_RANGE_FAULT       &&
-	    (katom->atom_flags & KBASE_KATOM_FLAG_BEEN_SOFT_STOPPPED) &&
-	    !(katom->atom_flags & KBASE_KATOM_FLAGS_RERUN)) {
-		dev_dbg(kbdev->dev, "Soft-stopped fragment shader job got a TILE_RANGE_FAULT. Possible HW issue, trying SW workaround\n");
-		if (kbasep_10969_workaround_clamp_coordinates(katom)) {
-			/* The job had a TILE_RANGE_FAULT after was soft-stopped.
-			 * Due to an HW issue we try to execute the job
-			 * again.
-			 */
-			dev_dbg(kbdev->dev, "Clamping has been executed, try to rerun the job\n");
-			katom->event_code = BASE_JD_EVENT_STOPPED;
-			katom->atom_flags |= KBASE_KATOM_FLAGS_RERUN;
-
-			/* The atom will be requeued, but requeing does not submit more
-			 * jobs. If this was the last job, we must also ensure that more
-			 * jobs will be run on slot 0 - this is a Fragment job. */
-			kbasep_js_set_job_retry_submit_slot(katom, 0);
-		}
-	}
 
 	/* If job was rejected due to BASE_JD_EVENT_PM_EVENT but was not
 	 * specifically targeting core group 1, then re-submit targeting core

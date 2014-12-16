@@ -867,7 +867,7 @@ void kbase_sync_single(struct kbase_context *kctx,
 	BUG_ON(!p);
 	BUG_ON(offset + size > PAGE_SIZE);
 
-	dma_addr = page_private(p) + offset;
+	dma_addr = kbase_dma_addr(p) + offset;
 
 	sync_fn(kctx->kbdev->dev, dma_addr, size, DMA_BIDIRECTIONAL);
 }
@@ -1114,16 +1114,19 @@ int kbase_alloc_phy_pages_helper(
 	kbase_atomic_add_pages(nr_pages_requested, &alloc->imported.kctx->used_pages);
 	kbase_atomic_add_pages(nr_pages_requested, &alloc->imported.kctx->kbdev->memdev.used_pages);
 
+	/* Increase mm counters before we allocate pages so that this
+	 * allocation is visible to the OOM killer */
+	kbase_process_page_usage_inc(alloc->imported.kctx, nr_pages_requested);
+
 	if (MALI_ERROR_NONE != kbase_mem_allocator_alloc(&alloc->imported.kctx->osalloc, nr_pages_requested, alloc->pages + alloc->nents))
 		goto no_alloc;
 
 	alloc->nents += nr_pages_requested;
-
-	kbase_process_page_usage_inc(alloc->imported.kctx, nr_pages_requested);
 done:
 	return 0;
 
 no_alloc:
+	kbase_process_page_usage_dec(alloc->imported.kctx, nr_pages_requested);
 	kbase_atomic_sub_pages(nr_pages_requested, &alloc->imported.kctx->used_pages);
 	kbase_atomic_sub_pages(nr_pages_requested, &alloc->imported.kctx->kbdev->memdev.used_pages);
 

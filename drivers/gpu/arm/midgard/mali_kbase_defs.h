@@ -147,7 +147,6 @@
 #endif
 
 #define GROWABLE_FLAGS_REQUIRED (KBASE_REG_PF_GROW)
-#define GROWABLE_FLAGS_MASK     (GROWABLE_FLAGS_REQUIRED | KBASE_REG_FREE)
 
 /** setting in kbase_context::as_nr that indicates it's invalid */
 #define KBASEP_AS_NR_INVALID     (-1)

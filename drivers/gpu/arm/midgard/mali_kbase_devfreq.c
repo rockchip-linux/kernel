@@ -86,7 +86,6 @@ kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 	kbase_pm_get_dvfs_utilisation(kbdev,
 			&stat->total_time, &stat->busy_time);
 
-	/* TODO vsync info for governor? */
 	stat->private_data = NULL;
 
 	return 0;

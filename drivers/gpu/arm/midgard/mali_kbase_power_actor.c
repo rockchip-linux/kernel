@@ -49,7 +49,7 @@ static u32 mali_pa_get_req_power(struct power_actor *actor, struct thermal_zone_
 	voltage = dev_pm_opp_get_voltage(opp) / 1000; /* mV */
 	rcu_read_unlock();
 
-	power = mali_actor->ops->get_dynamic_power(freq);
+	power = mali_actor->ops->get_dynamic_power(freq, voltage);
 	power = (power * busy_time) / total_time;
 
 	temperature = zone->temperature;
@@ -84,7 +84,7 @@ static u32 mali_pa_get_max_power(struct power_actor *actor, struct thermal_zone_
 	temperature = zone->temperature;
 
 	power = mali_actor->ops->get_static_power(voltage, temperature)
-			+ mali_actor->ops->get_dynamic_power(freq);
+			+ mali_actor->ops->get_dynamic_power(freq, voltage);
 
 	dev_dbg(kbdev->dev, "get max power = %u\n", power);
 
@@ -210,7 +210,7 @@ int mali_pa_init(struct kbase_device *kbdev)
 
 		table[i].freq = freq;
 
-		power_dyn = callbacks->get_dynamic_power(freq);
+		power_dyn = callbacks->get_dynamic_power(freq, voltage);
 		power_static = callbacks->get_static_power(voltage, 85000);
 
 		dev_info(kbdev->dev, "Power table: %lu MHz @ %lu mV: %lu + %lu = %lu mW\n",

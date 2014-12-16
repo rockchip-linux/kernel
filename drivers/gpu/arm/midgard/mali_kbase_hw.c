@@ -40,6 +40,13 @@ void kbase_hw_set_features_mask(struct kbase_device *kbdev)
 	case GPU_ID_PI_T76X:
 		features = base_hw_features_t76x;
 		break;
+#ifdef MALI_INCLUDE_TFRX
+	case GPU_ID_PI_TFRX:
+		/* Fall through */
+#endif /* MALI_INCLUDE_TFRX */
+	case GPU_ID_PI_T86X:
+		features = base_hw_features_tFxx;
+		break;
 	case GPU_ID_PI_T72X:
 		features = base_hw_features_t72x;
 		break;
@@ -124,6 +131,24 @@ mali_error kbase_hw_set_issues_mask(struct kbase_device *kbdev)
 		case GPU_ID_MAKE(GPU_ID_PI_T72X, 1, 1, 0):
 			issues = base_hw_issues_t72x_r1p1;
 			break;
+#ifdef MALI_INCLUDE_TFRX
+		case GPU_ID_MAKE(GPU_ID_PI_TFRX, 0, 0, 0):
+		case GPU_ID_MAKE(GPU_ID_PI_TFRX, 0, 0, 1):
+			issues = base_hw_issues_tFRx_r0p0;
+			break;
+		case GPU_ID_MAKE(GPU_ID_PI_TFRX, 0, 1, 2):
+			issues = base_hw_issues_tFRx_r0p1;
+			break;
+		case GPU_ID_MAKE(GPU_ID_PI_TFRX, 0, 2, 0):
+			issues = base_hw_issues_tFRx_r0p2;
+			break;
+#endif /* MALI_INCLUDE_TFRX */
+		case GPU_ID_MAKE(GPU_ID_PI_T86X, 0, 0, 1):
+			issues = base_hw_issues_t86x_r0p0;
+			break;
+		case GPU_ID_MAKE(GPU_ID_PI_T86X, 0, 2, 0):
+			issues = base_hw_issues_t86x_r0p2;
+			break;
 		default:
 			dev_err(kbdev->dev, "Unknown GPU ID %x", gpu_id);
 			return MALI_ERROR_FUNCTION_FAILED;
@@ -142,6 +167,14 @@ mali_error kbase_hw_set_issues_mask(struct kbase_device *kbdev)
 			break;
 		case GPU_ID_PI_T76X:
 			issues = base_hw_issues_model_t76x;
+			break;
+#ifdef MALI_INCLUDE_TFRX
+		case GPU_ID_PI_TFRX:
+			issues = base_hw_issues_model_tFRx;
+			break;
+#endif /* MALI_INCLUDE_TFRX */
+		case GPU_ID_PI_T86X:
+			issues = base_hw_issues_model_t86x;
 			break;
 		default:
 			dev_err(kbdev->dev, "Unknown GPU ID %x", gpu_id);

@@ -16,8 +16,6 @@
 #include "mali_kbase.h"
 #ifdef BASE_LEGACY_UK7_SUPPORT
 
-
-
 /**
  * @file mali_kbase_cpuprops.h
  * Base kernel property query APIs

@@ -316,7 +316,7 @@ struct kbase_pm_device_data {
 	u64 shader_poweroff_pending;
 
 	/** Set to MALI_TRUE if the poweroff timer is currently running, MALI_FALSE otherwise */
-	mali_bool poweroff_timer_running;
+	mali_bool poweroff_timer_needed;
 
 	int poweroff_shader_ticks;
 

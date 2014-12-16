@@ -70,6 +70,18 @@ const char * const *kbase_gator_hwcnt_init_names(uint32_t *total_number_of_count
 			hardware_counter_names = hardware_counter_names_mali_t76x;
 			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t76x);
 			break;
+#ifdef MALI_INCLUDE_TFRX
+	/* If we are using a Mali-TFRX device - for now just mimic the T760 counters */
+	case GPU_ID_PI_TFRX:
+			hardware_counter_names = hardware_counter_names_mali_t76x;
+			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t76x);
+			break;
+#endif /* MALI_INCLUDE_TRFX */
+	/* If we are using a Mali-T86X device - for now just mimic the T760 counters */
+	case GPU_ID_PI_T86X:
+			hardware_counter_names = hardware_counter_names_mali_t76x;
+			*total_number_of_counters = ARRAY_SIZE(hardware_counter_names_mali_t76x);
+			break;
 	default:
 			hardware_counter_names = NULL;
 			*total_number_of_counters = 0;
@@ -171,6 +183,13 @@ struct kbase_gator_hwcnt_handles *kbase_gator_hwcnt_init(struct kbase_gator_hwcn
 	/* If we are using a Mali-T76x device */
 	} else if (
 			(in_out_info->gpu_id == GPU_ID_PI_T76X)
+#ifdef MALI_INCLUDE_TFRX
+				|| (in_out_info->gpu_id == GPU_ID_PI_TFRX)
+#endif /* MALI_INCLUDE_TFRX */
+				|| (in_out_info->gpu_id == GPU_ID_PI_T86X)
+#ifdef MALI_INCLUDE_TGAL
+				|| (in_out_info->gpu_id == GPU_ID_PI_TGAL)
+#endif
 			) {
 		uint32_t nr_l2, nr_sc, j;
 		uint64_t core_mask;

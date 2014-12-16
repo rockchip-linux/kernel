@@ -86,9 +86,20 @@ static unsigned long juno_model_static_power(unsigned long voltage, unsigned lon
 	return (((coefficient * voltage_cubed) >> 20) * temp_scaling_factor) / 1000000;
 }
 
-static unsigned long juno_model_dynamic_power(unsigned long freq)
+static unsigned long juno_model_dynamic_power(unsigned long freq,
+		unsigned long voltage)
 {
-	return ((3600) * (freq / (1000 * 1000))) / 1000; /* mW */
+	/* The inputs: freq (f) is in Hz, and voltage (v) in mV.
+	 * The coefficient (c) is in mW/(MHz mV mV).
+	 *
+	 * This function calculates the dynamic power after this formula:
+	 * Pdyn (mW) = c (mW/(MHz*mV*mV)) * v (mV) * v (mV) * f (MHz)
+	 */
+	const unsigned long v2 = (voltage * voltage) / 1000; /* m*(V*V) */
+	const unsigned long f_mhz = freq / 1000000; /* MHz */
+	const unsigned long coefficient = 3600; /* mW/(MHz*mV*mV) */
+
+	return (coefficient * v2 * f_mhz) / 1000000; /* mW */
 }
 
 static struct mali_pa_model_ops juno_model_ops = {

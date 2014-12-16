@@ -21,7 +21,7 @@ Required properties:
 - compatible : Should be mali<chip>, replacing digits with x from the back,
 until malit<Major>xx, ending with arm,mali-midgard, the latter not optional.
 - reg : Physical base address of the device and length of the register area.
-- interrupts : Contains the three IRQ lines required by Mali Midgard devices
+- interrupts : Contains the three IRQ lines required by T-6xx devices
 - interrupt-names : Contains the names of IRQ resources in the order they were
 provided in the interrupts property. Must contain: "JOB, "MMU", "GPU".
 
@@ -32,25 +32,11 @@ Optional:
 
 Example for a Mali-T602:
 
-gpu@fc010000 {
+gpu@0xfc010000 {
 	compatible = "arm,malit602", "arm,malit60x", "arm,malit6xx", "arm,mali-midgard";
 	reg = <0xfc010000 0x4000>;
 	interrupts = <0 36 4>, <0 37 4>, <0 38 4>;
-	interrupt-names = "JOB", "MMU", "GPU;
-
-	clocks = <&pclk_mali>;
-	clock-names = "clk_mali";
-};
-
-Example for a Mali-T7642:
-
-gpu@ffa30000 {
-	compatible = "arm,malit764", "arm,malit76x", "arm,malit7xx", "arm,mali-midgard";
-	reg = <0xffa30000 0x10000>;
-	interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
-	interrupt-names = "JOB", "MMU", "GPU;
+	interrupt-names = "JOB", "MMU", "GPU";
 
 	clocks = <&pclk_mali>;
 	clock-names = "clk_mali";

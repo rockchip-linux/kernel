@@ -35,6 +35,7 @@
 #ifdef CONFIG_MALI_NO_MALI
 #include "mali_kbase_model_linux.h"
 #endif /* CONFIG_MALI_NO_MALI */
+#include "mali_kbase_mem_profile_debugfs_buf_size.h"
 
 #ifdef CONFIG_KDS
 #include <linux/kds.h>
@@ -97,11 +98,6 @@ EXPORT_SYMBOL(shared_kernel_test_data);
 #endif /* MALI_UNIT_TEST */
 
 #define KBASE_DRV_NAME "mali"
-
-/** process name + ( statistics in a single bin * number of bins + histogram header ) * number of histograms + total size
- * @note Must be kept in sync with CCTX
- */
-#define KBASE_MEM_PROFILE_MAX_BUF_SIZE (64 + (24 * 32 + 64) * 16 + 40)
 
 static const char kbase_drv_name[] = KBASE_DRV_NAME;
 
