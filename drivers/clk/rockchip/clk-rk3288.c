@@ -785,21 +785,6 @@ static const char *rk3288_critical_clocks[] __initconst = {
 	 * the voltage of the PWM regulator.  Ick.
 	 */
 	"pclk_rkpwm",
-
-	/*
-	 * HACK: These clocks are currently IGNORE_UNUSED, but that's not
-	 * enough to keep them from getting disabled if they have a child that
-	 * is enabled and then disabled.  Let's force them on for now since
-	 * UART0 ends up using this as:
-	 *  sclk_uart0 -> uart0_src -> usbphy480m_src -> sclk_otgphy1
-	 *
-	 * Once we get UART0 able to use CPLL we could remove these, or we can
-	 * wait to remove these until we actually have the clocks provided by
-	 * the USB phy driver.
-	 */
-	"sclk_otgphy0",
-	"sclk_otgphy1",
-	"sclk_otgphy2",
 };
 
 #ifdef CONFIG_PM_SLEEP
