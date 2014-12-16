@@ -529,10 +529,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-name = "vcc33_ccd";
-
-				/* TODO: would like to turn this off */
-				regulator-suspend-mem-enabled;
-				regulator-suspend-mem-microvolt = <3300000>;
+				regulator-suspend-mem-disabled;
 			};
 
 			vcc33_lcd: SWITCH_REG1 {
