@@ -1579,6 +1579,15 @@ static void clk_change_rate(struct clk *clk)
 	else if (clk->parent)
 		best_parent_rate = clk->parent->rate;
 
+	if (clk->flags & CLK_SET_RATE_UNGATE) {
+		unsigned long flags;
+
+		clk_prepare(clk);
+		flags = clk_enable_lock();
+		clk_enable(clk);
+		clk_enable_unlock(flags);
+	}
+
 	if (clk->new_parent && clk->new_parent != clk->parent &&
 			!clk->safe_parent) {
 		old_parent = __clk_set_parent_before(clk, clk->new_parent);
@@ -1602,6 +1611,15 @@ static void clk_change_rate(struct clk *clk)
 		clk->rate = clk->ops->recalc_rate(clk->hw, best_parent_rate);
 	else
 		clk->rate = best_parent_rate;
+
+	if (clk->flags & CLK_SET_RATE_UNGATE) {
+		unsigned long flags;
+
+		flags = clk_enable_lock();
+		clk_disable(clk);
+		clk_enable_unlock(flags);
+		clk_unprepare(clk);
+	}
 
 	hlist_for_each_entry(child, &clk->children, child_node) {
 		/* Skip children who will be reparented to another clock */
