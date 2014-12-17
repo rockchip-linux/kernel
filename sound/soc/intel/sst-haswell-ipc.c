@@ -1594,6 +1594,7 @@ int sst_hsw_stream_reset(struct sst_hsw *hsw, struct sst_hsw_stream *stream)
 
 	ret = sst_hsw_stream_operations(hsw, IPC_STR_RESET,
 		stream->reply.stream_hw_id, 1);
+	udelay(100);
 	if (ret < 0)
 		dev_err(hsw->dev, "error: failed to reset stream %d\n",
 			stream->reply.stream_hw_id);
