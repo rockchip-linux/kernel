@@ -349,6 +349,8 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	set_dflt_pwr_limit(iwl_trans, pdev);
 
+	device_init_wakeup(&pdev->dev, true);
+
 	/* register transport layer debugfs here */
 	ret = iwl_trans_dbgfs_register(iwl_trans, iwl_trans->dbgfs_dir);
 	if (ret)
