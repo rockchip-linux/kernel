@@ -17,10 +17,13 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_plane_helper.h>
+#include <drm/drm_sync_helper.h>
 
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/delay.h>
+#include <linux/dma-buf.h>
+#include <linux/fence.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
@@ -74,6 +77,16 @@ struct vop_win {
 	uint32_t pending_dsp_info;
 	struct drm_pending_vblank_event *pending_event;
 	struct completion completion;
+
+#ifdef CONFIG_DRM_DMA_SYNC
+	unsigned fence_context;
+	atomic_t fence_seqno;
+	struct fence *fence;
+	struct drm_reservation_cb rcb;
+
+	struct fence *pending_fence;
+	bool pending_needs_vblank;
+#endif
 };
 
 struct vop {
@@ -479,6 +492,19 @@ static bool vop_win_update_needs_vblank(struct vop_win *vop_win,
 	return event || (vop_win->front_fb && vop_win->front_fb != fb);
 }
 
+/*
+ * We only need to wait for other owners of dma buffer if it exists
+ * and it has synchronization object and if we do not already own
+ * this buffer.
+ * This function should be only called after wait for vop_win completion.
+ */
+static bool vop_win_update_needs_sync(struct vop_win *vop_win,
+				      struct drm_framebuffer *fb,
+				      struct dma_buf *dma_buf)
+{
+	return (fb && fb != vop_win->front_fb) && (dma_buf && dma_buf->resv);
+}
+
 static void vop_win_update(struct vop_win *vop_win)
 {
 	struct vop *vop = vop_win->vop;
@@ -500,6 +526,14 @@ static void vop_win_update(struct vop_win *vop_win)
 
 	if (vop_win->front_fb)
 		drm_framebuffer_unreference(vop_win->front_fb);
+#ifdef CONFIG_DRM_DMA_SYNC
+	if (vop_win->pending_fence ||
+	    vop_win->front_fb != vop_win->pending_fb) {
+		drm_fence_signal_and_put(&vop_win->fence);
+		vop_win->fence = vop_win->pending_fence;
+		vop_win->pending_fence = NULL;
+	}
+#endif
 	vop_win->front_fb = vop_win->pending_fb;
 	vop_win->pending_fb = NULL;
 }
@@ -555,6 +589,70 @@ static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
 	vop_cfg_done(vop);
 	spin_unlock(&vop->reg_lock);
 }
+
+#ifdef CONFIG_DRM_DMA_SYNC
+static void vop_win_update_cb(struct drm_reservation_cb *rcb, void *params)
+{
+	struct vop_win *vop_win = params;
+	struct drm_crtc *crtc = &(vop_win->vop->crtc);
+	bool needs_vblank = vop_win->pending_needs_vblank;
+
+	vop_win->pending_needs_vblank = false;
+	vop_win_update_commit(vop_win, needs_vblank);
+}
+
+static int vop_win_update_sync(struct vop_win *vop_win,
+			       struct reservation_object *resv,
+			       bool needs_vblank)
+{
+	struct fence *fence;
+	int ret;
+
+	BUG_ON(vop_win->pending_fence);
+
+	vop_win->pending_needs_vblank = needs_vblank;
+	ww_mutex_lock(&resv->lock, NULL);
+	ret = reservation_object_reserve_shared(resv);
+	if (ret < 0) {
+		DRM_ERROR("Reserving space for shared fence failed: %d.\n",
+			ret);
+		goto err_mutex;
+	}
+	fence = drm_sw_fence_new(vop_win->fence_context,
+				 atomic_add_return(1, &vop_win->fence_seqno));
+	if (IS_ERR(fence)) {
+		ret = PTR_ERR(fence);
+		DRM_ERROR("Failed to create fence: %d.\n", ret);
+		goto err_mutex;
+	}
+	vop_win->pending_fence = fence;
+	drm_reservation_cb_init(&vop_win->rcb, vop_win_update_cb, vop_win);
+	ret = drm_reservation_cb_add(&vop_win->rcb, resv, false);
+	if (ret < 0) {
+		DRM_ERROR("Adding reservation to callback failed: %d.\n", ret);
+		goto err_fence;
+	}
+	drm_reservation_cb_done(&vop_win->rcb);
+	reservation_object_add_shared_fence(resv, vop_win->pending_fence);
+	ww_mutex_unlock(&resv->lock);
+	return 0;
+err_fence:
+	fence_put(vop_win->pending_fence);
+	vop_win->pending_fence = NULL;
+err_mutex:
+	ww_mutex_unlock(&resv->lock);
+
+	return ret;
+}
+#else
+static int vop_win_update_sync(struct vop_win *vop_win,
+			       struct reservation_object *resv,
+			       bool needs_vblank)
+{
+	vop_win_update_commit(vop_win, needs_vblank);
+	return 0;
+}
+#endif /* CONFIG_DRM_DMA_SYNC */
 
 static int vop_update_plane_event(struct drm_plane *plane,
 				  struct drm_crtc *crtc,
@@ -659,9 +757,22 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	vop_win->pending_dsp_st = dsp_st;
 	vop_win->pending_dsp_info = dsp_info;
 
-	vop_win_update_commit(vop_win, needs_vblank);
+	if (vop_win_update_needs_sync(vop_win, fb, obj->dma_buf)) {
+		ret = vop_win_update_sync(vop_win, obj->dma_buf->resv,
+					  needs_vblank);
+		if (ret) {
+			vop_win->pending_fb = NULL;
+			vop_win->pending_event = NULL;
+			drm_framebuffer_unreference(fb);
+			drm_vblank_put(crtc->dev, vop->pipe);
+			complete(&vop_win->completion);
+		}
+	} else {
+		vop_win_update_commit(vop_win, needs_vblank);
+		ret = 0;
+	}
 
-	return 0;
+	return ret;
 }
 
 static int vop_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
@@ -1322,6 +1433,10 @@ static void vop_win_init(struct vop *vop)
 		init_completion(&vop_win->completion);
 		/* completion is initially available */
 		complete(&vop_win->completion);
+#ifdef CONFIG_DRM_DMA_SYNC
+		vop_win->fence_context = fence_context_alloc(1);
+		atomic_set(&vop_win->fence_seqno, 0);
+#endif
 	}
 }
 
