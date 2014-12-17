@@ -70,6 +70,8 @@ struct vop_win {
 	bool pending;
 	struct drm_framebuffer *pending_fb; /* NULL for pending win disable */
 	dma_addr_t pending_yrgb_mst;
+	uint32_t pending_dsp_st;
+	uint32_t pending_dsp_info;
 	struct drm_pending_vblank_event *pending_event;
 	struct completion completion;
 };
@@ -468,6 +470,7 @@ static void vop_disable(struct drm_crtc *crtc)
  * We do not queue updates that:
  *  - keep the same fb (e.g., cursor moves)
  *  - enable a disabled window (NULL -> fb)
+ * This function should be only called after wait for vop_win completion.
  */
 static bool vop_win_update_needs_vblank(struct vop_win *vop_win,
 					struct drm_framebuffer *fb,
@@ -476,54 +479,81 @@ static bool vop_win_update_needs_vblank(struct vop_win *vop_win,
 	return event || (vop_win->front_fb && vop_win->front_fb != fb);
 }
 
-static int vop_win_queue(struct vop_win *vop_win,
-			 struct drm_framebuffer *fb, dma_addr_t yrgb_mst,
-			 struct drm_pending_vblank_event *event)
+static void vop_win_update(struct vop_win *vop_win)
 {
 	struct vop *vop = vop_win->vop;
 	struct drm_crtc *crtc = &vop->crtc;
-	int ret;
+	struct drm_device *drm = crtc->dev;
+	unsigned long flags;
 
-	wait_for_completion(&vop_win->completion);
-
-	if (!vop_win_update_needs_vblank(vop_win, fb, event)) {
-		struct drm_framebuffer *old_fb;
-
-		DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] skipped queue\n",
-			      vop_win->base.base.id,
-			      vop_win->front_fb ?
-					      vop_win->front_fb->base.id : -1,
-			      fb ? fb->base.id : -1);
-		old_fb = vop_win->front_fb;
-		vop_win->front_fb = fb;
-		if (old_fb)
-			drm_framebuffer_unreference(old_fb);
-		complete(&vop_win->completion);
-
-		return 0;
-	}
-
-	ret = drm_vblank_get(crtc->dev, vop->pipe);
-	if (ret) {
-		DRM_ERROR("failed to get vblank, %d\n", ret);
-		complete(&vop_win->completion);
-		return ret;
-	}
-
-	DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] queued\n",
+	DRM_DEBUG_KMS("[PLANE:%u] [FB:%d->%d] update\n",
 		      vop_win->base.base.id,
 		      vop_win->front_fb ? vop_win->front_fb->base.id : -1,
-		      fb ? fb->base.id : -1);
+		      vop_win->pending_fb ? vop_win->pending_fb->base.id : -1);
 
-	vop_win->pending_fb = fb;
-	vop_win->pending_yrgb_mst = yrgb_mst;
-	vop_win->pending_event = event;
+	if (vop_win->pending_event) {
+		spin_lock_irqsave(&drm->event_lock, flags);
+		drm_send_vblank_event(drm, vop->pipe, vop_win->pending_event);
+		spin_unlock_irqrestore(&drm->event_lock, flags);
+		vop_win->pending_event = NULL;
+	}
 
-	/* Ensure all pending_* updates will be seen by isr_thread */
-	smp_wmb();
-	vop_win->pending = true;
+	if (vop_win->front_fb)
+		drm_framebuffer_unreference(vop_win->front_fb);
+	vop_win->front_fb = vop_win->pending_fb;
+	vop_win->pending_fb = NULL;
+}
 
-	return 0;
+static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
+{
+	const struct vop_win_data *win = vop_win->data;
+	struct vop *vop = vop_win->vop;
+	struct drm_framebuffer *fb = vop_win->pending_fb;
+	uint32_t val;
+	unsigned int y_vir_stride;
+	enum vop_data_format format;
+	bool is_alpha;
+
+	is_alpha = is_alpha_support(fb->pixel_format);
+	format = vop_convert_format(fb->pixel_format);
+	y_vir_stride = fb->pitches[0] / (fb->bits_per_pixel >> 3);
+
+	if (needs_vblank) {
+		smp_wmb(); /* make sure all pending_* writes are complete */
+		vop_win->pending = true;
+	} else
+		vop_win_update(vop_win);
+
+	spin_lock(&vop->reg_lock);
+
+	VOP_WIN_SET(vop, win, format, format);
+	VOP_WIN_SET(vop, win, yrgb_vir, y_vir_stride);
+	VOP_WIN_SET(vop, win, yrgb_mst, vop_win->pending_yrgb_mst);
+	VOP_WIN_SET(vop, win, act_info, vop_win->pending_dsp_info);
+	VOP_WIN_SET(vop, win, dsp_info, vop_win->pending_dsp_info);
+	VOP_WIN_SET(vop, win, dsp_st, vop_win->pending_dsp_st);
+
+	/* this completion doesn't need to protect the pending_* vars anymore */
+	if (!needs_vblank)
+		complete(&vop_win->completion);
+
+	if (is_alpha) {
+		VOP_WIN_SET(vop, win, dst_alpha_ctl,
+			    DST_FACTOR_M0(ALPHA_SRC_INVERSE));
+		val = SRC_ALPHA_EN(1) | SRC_COLOR_M0(ALPHA_SRC_PRE_MUL) |
+			SRC_ALPHA_M0(ALPHA_STRAIGHT) |
+			SRC_BLEND_M0(ALPHA_PER_PIX) |
+			SRC_ALPHA_CAL_M0(ALPHA_NO_SATURATION) |
+			SRC_FACTOR_M0(ALPHA_ONE);
+		VOP_WIN_SET(vop, win, src_alpha_ctl, val);
+	} else {
+		VOP_WIN_SET(vop, win, src_alpha_ctl, SRC_ALPHA_EN(0));
+	}
+
+	VOP_WIN_SET(vop, win, enable, 1);
+
+	vop_cfg_done(vop);
+	spin_unlock(&vop->reg_lock);
 }
 
 static int vop_update_plane_event(struct drm_plane *plane,
@@ -536,21 +566,20 @@ static int vop_update_plane_event(struct drm_plane *plane,
 				  struct drm_pending_vblank_event *event)
 {
 	struct vop_win *vop_win = to_vop_win(plane);
-	const struct vop_win_data *win = vop_win->data;
 	struct vop *vop = to_vop(crtc);
 	struct drm_gem_object *obj;
 	struct rockchip_gem_object *rk_obj;
+	enum vop_data_format format;
 	unsigned long offset;
 	unsigned int actual_w;
 	unsigned int actual_h;
 	unsigned int dsp_stx;
 	unsigned int dsp_sty;
-	unsigned int y_vir_stride;
 	dma_addr_t yrgb_mst;
-	enum vop_data_format format;
-	uint32_t val;
-	bool is_alpha;
+	uint32_t dsp_st;
+	uint32_t dsp_info;
 	bool visible;
+	bool needs_vblank;
 	int ret;
 	struct drm_rect dest = {
 		.x1 = crtc_x,
@@ -582,7 +611,6 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	if (!visible)
 		return 0;
 
-	is_alpha = is_alpha_support(fb->pixel_format);
 	format = vop_convert_format(fb->pixel_format);
 	if (format < 0)
 		return format;
@@ -597,55 +625,41 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	actual_w = (src.x2 - src.x1) >> 16;
 	actual_h = (src.y2 - src.y1) >> 16;
+	dsp_info = ((actual_h - 1) << 16) | ((actual_w - 1) & 0xffff);
+
 	crtc_x = max(0, crtc_x);
 	crtc_y = max(0, crtc_y);
-
 	dsp_stx = crtc_x + crtc->mode.htotal - crtc->mode.hsync_start;
 	dsp_sty = crtc_y + crtc->mode.vtotal - crtc->mode.vsync_start;
+	dsp_st = (dsp_sty << 16) | (dsp_stx & 0xffff);
 
 	offset = (src.x1 >> 16) * (fb->bits_per_pixel >> 3);
 	offset += (src.y1 >> 16) * fb->pitches[0];
 	yrgb_mst = rk_obj->dma_addr + offset;
 
-	y_vir_stride = fb->pitches[0] / (fb->bits_per_pixel >> 3);
-
+	wait_for_completion(&vop_win->completion);
+	needs_vblank = vop_win_update_needs_vblank(vop_win, fb, event);
+	if (needs_vblank) {
+		ret = drm_vblank_get(crtc->dev, vop->pipe);
+		if (ret) {
+			DRM_ERROR("failed to get vblank, %d\n", ret);
+			complete(&vop_win->completion);
+			return ret;
+		}
+	}
 	drm_framebuffer_reference(fb);
-	ret = vop_win_queue(vop_win, fb, yrgb_mst, event);
-	if (ret) {
-		drm_framebuffer_unreference(fb);
-		return ret;
-	}
+	vop_win->pending_fb = fb;
+	vop_win->pending_event = event;
+	/*
+	 * It may not look like it but the completion does protect the
+	 * following 3 variables because it will be signaled only after
+	 * yrgb_mst write has been consumed by hardware during vblank.
+	 */
+	vop_win->pending_yrgb_mst = yrgb_mst;
+	vop_win->pending_dsp_st = dsp_st;
+	vop_win->pending_dsp_info = dsp_info;
 
-	spin_lock(&vop->reg_lock);
-
-	VOP_WIN_SET(vop, win, format, format);
-	VOP_WIN_SET(vop, win, yrgb_vir, y_vir_stride);
-	VOP_WIN_SET(vop, win, yrgb_mst, yrgb_mst);
-	val = (actual_h - 1) << 16;
-	val |= (actual_w - 1) & 0xffff;
-	VOP_WIN_SET(vop, win, act_info, val);
-	VOP_WIN_SET(vop, win, dsp_info, val);
-	val = dsp_sty << 16;
-	val |= dsp_stx & 0xffff;
-	VOP_WIN_SET(vop, win, dsp_st, val);
-
-	if (is_alpha) {
-		VOP_WIN_SET(vop, win, dst_alpha_ctl,
-			    DST_FACTOR_M0(ALPHA_SRC_INVERSE));
-		val = SRC_ALPHA_EN(1) | SRC_COLOR_M0(ALPHA_SRC_PRE_MUL) |
-			SRC_ALPHA_M0(ALPHA_STRAIGHT) |
-			SRC_BLEND_M0(ALPHA_PER_PIX) |
-			SRC_ALPHA_CAL_M0(ALPHA_NO_SATURATION) |
-			SRC_FACTOR_M0(ALPHA_ONE);
-		VOP_WIN_SET(vop, win, src_alpha_ctl, val);
-	} else {
-		VOP_WIN_SET(vop, win, src_alpha_ctl, SRC_ALPHA_EN(0));
-	}
-
-	VOP_WIN_SET(vop, win, enable, 1);
-
-	vop_cfg_done(vop);
-	spin_unlock(&vop->reg_lock);
+	vop_win_update_commit(vop_win, needs_vblank);
 
 	return 0;
 }
@@ -687,9 +701,24 @@ static int vop_disable_plane(struct drm_plane *plane)
 
 	vop = to_vop(plane->crtc);
 
-	ret = vop_win_queue(vop_win, NULL, 0, NULL);
-	if (ret)
-		return ret;
+	wait_for_completion(&vop_win->completion);
+
+	/* other pending_* are cleared to NULL already */
+	vop_win->pending_yrgb_mst = 0;
+
+	if (vop_win_update_needs_vblank(vop_win, NULL, NULL)) {
+		ret = drm_vblank_get(plane->crtc->dev, vop->pipe);
+		if (ret) {
+			DRM_ERROR("failed to get vblank, %d\n", ret);
+			complete(&vop_win->completion);
+			return ret;
+		}
+		smp_wmb(); /* make sure all pending_* writes are complete */
+		vop_win->pending = true;
+	} else {
+		vop_win_update(vop_win);
+		complete(&vop_win->completion);
+	}
 
 	spin_lock(&vop->reg_lock);
 	VOP_WIN_SET(vop, win, enable, 0);
@@ -1000,13 +1029,10 @@ static bool vop_win_pending_is_complete(struct vop_win *vop_win)
 		return vop_win_pending_is_complete_disable(vop_win);
 }
 
-/* Returns false if there is still pending work */
 static void vop_win_process_pending(struct vop_win *vop_win)
 {
 	struct vop *vop = vop_win->vop;
 	struct drm_crtc *crtc = &vop->crtc;
-	struct drm_device *drm = crtc->dev;
-	unsigned long flags;
 
 	if (!vop_win->pending)
 		return;
@@ -1024,17 +1050,7 @@ static void vop_win_process_pending(struct vop_win *vop_win)
 
 	drm_vblank_put(crtc->dev, vop->pipe);
 
-	if (vop_win->pending_event) {
-		spin_lock_irqsave(&drm->event_lock, flags);
-		drm_send_vblank_event(drm, vop->pipe, vop_win->pending_event);
-		spin_unlock_irqrestore(&drm->event_lock, flags);
-		vop_win->pending_event = NULL;
-	}
-
-	if (vop_win->front_fb)
-		drm_framebuffer_unreference(vop_win->front_fb);
-	vop_win->front_fb = vop_win->pending_fb;
-	vop_win->pending_fb = NULL;
+	vop_win_update(vop_win);
 	vop_win->pending = false;
 
 	complete(&vop_win->completion);
