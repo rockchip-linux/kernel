@@ -238,8 +238,10 @@ int acpi_bind_one(struct device *dev, struct acpi_device *acpi_dev)
 
 	mutex_unlock(&acpi_dev->physical_node_lock);
 
-	if (acpi_dev->wakeup.flags.valid)
+	if (acpi_dev->wakeup.flags.valid) {
 		device_set_wakeup_capable(dev, true);
+		device_set_wakeup_data(dev, &acpi_dev->wakeup.wake_numbers);
+	}
 
 	return 0;
 

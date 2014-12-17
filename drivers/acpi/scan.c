@@ -1844,6 +1844,12 @@ static int acpi_add_single_object(struct acpi_device **child,
 		return result;
 	}
 
+	/* We should be able to set the wakeup numbers now. */
+	if (device->wakeup.flags.valid)
+		device_set_wakeup_data(&device->dev,
+				       &device->wakeup.wake_numbers);
+
+
 	acpi_power_add_remove_device(device, true);
 	acpi_device_add_finalize(device);
 	acpi_get_name(handle, ACPI_FULL_PATHNAME, &buffer);
@@ -2151,8 +2157,6 @@ static int acpi_bus_scan_fixed(void)
 			return result;
 
 		device_init_wakeup(&device->dev, true);
-		device_set_wakeup_data(&device->dev,
-				       &device->wakeup.wake_numbers);
 	}
 
 	if (!(acpi_gbl_FADT.flags & ACPI_FADT_SLEEP_BUTTON)) {
