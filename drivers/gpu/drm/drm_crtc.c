@@ -958,17 +958,18 @@ int drm_crtc_check_state(struct drm_crtc *crtc,
 	int hdisplay, vdisplay;
 	struct drm_display_mode *mode = drm_crtc_get_mode(crtc, state);
 	unsigned x, y;
+	int ret = 0;
 
 	if (IS_ERR(mode))
 		return PTR_ERR(mode);
 
 	/* disabling the crtc is allowed: */
 	if (!(fb && state->mode_valid))
-		return 0;
+		goto out;
 
 	/* We're not committing this state, ignore */
 	if (!state->commit_state)
-		return 0;
+		goto out;
 
 	hdisplay = state->mode.hdisplay;
 	vdisplay = state->mode.vdisplay;
@@ -994,33 +995,34 @@ int drm_crtc_check_state(struct drm_crtc *crtc,
 		DRM_DEBUG_KMS("Invalid fb size %ux%u for CRTC viewport %ux%u+%d+%d%s.\n",
 			      fb->width, fb->height, hdisplay, vdisplay,
 			      x, y, state->invert_dimensions ? " (inverted)" : "");
-		return -ENOSPC;
+		ret = -ENOSPC;
+		goto out;
 	}
 
 	if (crtc->enabled && !state->set_config) {
 		if (primary->state->fb->pixel_format != fb->pixel_format) {
 			DRM_DEBUG_KMS("Page flip is not allowed to "
 					"change frame buffer format.\n");
-			return -EINVAL;
+			ret = -EINVAL;
+			goto out;
 		}
 	}
 
 	if (state->num_connector_ids == 0) {
 		DRM_DEBUG_KMS("Count connectors is 0 but mode set\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 
 	if (state->connectors_change) {
-		int ret = check_connectors(crtc, state->state, false,
+		ret = check_connectors(crtc, state->state, false,
 				state->connector_ids, state->num_connector_ids);
-		if (ret)
-			return ret;
 	}
-
+out:
 	if (mode)
 		drm_mode_destroy(crtc->dev, mode);
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(drm_crtc_check_state);
 
