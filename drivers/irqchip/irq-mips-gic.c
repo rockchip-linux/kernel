@@ -213,6 +213,7 @@ void gic_send_ipi(unsigned int intr)
 {
 	gic_write(GIC_REG(SHARED, GIC_SH_WEDGE), GIC_SH_WEDGE_SET(intr));
 }
+EXPORT_SYMBOL(gic_send_ipi);
 
 int gic_get_c0_compare_int(void)
 {
