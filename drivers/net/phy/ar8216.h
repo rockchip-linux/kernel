@@ -294,6 +294,7 @@
 #define AR8327_NUM_PHYS		5
 #define AR8327_PORTS_ALL	0x7f
 #define AR8327_NUM_LED_CTRL_REGS	4
+#define AR8327_HDR_SIZE		2
 
 #define AR8327_REG_MASK				0x000
 
