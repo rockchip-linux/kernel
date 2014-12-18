@@ -251,6 +251,7 @@ dtb-$(CONFIG_ARCH_U8500) += ste-snowball.dtb \
 dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3066a-bqcurie2.dtb \
 	rk3188-radxarock.dtb \
+	rk3288-brain-rev0.dtb \
 	rk3288-evb-act8846.dtb \
 	rk3288-evb-rk808.dtb \
 	rk3288-jerry-rev0.dtb \
