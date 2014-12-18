@@ -42,11 +42,13 @@ Optional properties:
 * clocks: from common clock binding: handle to biu and ciu clocks for the
   bus interface unit clock and the card interface unit clock.
 
-* clock-names: from common clock binding: Shall be "biu" and "ciu".
-  If the biu clock is missing we'll simply skip enabling it.  If the
-  ciu clock is missing we'll just assume that the clock is running at
+* clock-names: from common clock binding: Shall be "biu", "ciu", "ciu_drv" and
+  "ciu_sample".  If the biu clock is missing we'll simply skip enabling it.
+  If the ciu clock is missing we'll just assume that the clock is running at
   clock-frequency.  It is an error to omit both the ciu clock and the
-  clock-frequency.
+  clock-frequency.  "ciu_drv" and "ciu_sample" are used to control the clock
+  phases, "ciu_sample" is required for tuning high speed modes (if no other
+  custom tuning method is defined).
 
 * clock-frequency: should be the frequency (in Hz) of the ciu clock.  If this
   is specified and the ciu clock is specified then we'll try to set the ciu
@@ -74,6 +76,10 @@ Optional properties:
 
 * vmmc-supply: The phandle to the regulator to use for vmmc.  If this is
   specified we'll defer probe until we can find this regulator.
+
+* default-sample-phase: The default phase to set ciu_sample at probing, low
+  speeds or in case where all phases work at tuning time. If not specified
+  0 deg will be used.
 
 Aliases:
 
