@@ -155,3 +155,19 @@
 		};
 	};
 };
+
+&i2c4 {
+	status = "okay";
+
+        trackpad@2c {
+                compatible = "hid-over-i2c";
+                interrupt-parent = <&gpio7>;
+                interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
+                pinctrl-names = "default";
+                pinctrl-0 = <&trackpad_int>;
+                reg = <0x2c>;
+                hid-descr-addr = <0x0020>;
+                vcc-supply = <&vcc33_io>;
+                wakeup-source;
+        };
+};
