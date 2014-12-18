@@ -335,9 +335,12 @@ static void iwl_mvm_scan_calc_params(struct iwl_mvm *mvm,
 		if (mvm->fw->ucode_capa.api[0] &
 		    IWL_UCODE_TLV_API_FRAGMENTED_SCAN) {
 			params->suspend_time = 105;
-			params->max_out_time = 70;
 			frag_passive_dwell = 40;
+			params->max_out_time = frag_passive_dwell;
 			break;
+		} else {
+			params->suspend_time = 120;
+			params->max_out_time = 120;
 		}
 	case IWL_MVM_VENDOR_LOAD_MEDIUM:
 		if (CPTCFG_IWLMVM_SCAN_PRECEDENCE_LEVEL == 1) {
@@ -354,7 +357,7 @@ static void iwl_mvm_scan_calc_params(struct iwl_mvm *mvm,
 			params->max_out_time = 600;
 		} else {
 			params->suspend_time = 30;
-			params->max_out_time = 170;
+			params->max_out_time = 120;
 		}
 	}
 #else
@@ -363,7 +366,7 @@ static void iwl_mvm_scan_calc_params(struct iwl_mvm *mvm,
 		params->max_out_time = 600;
 	} else {
 		params->suspend_time = 30;
-		params->max_out_time = 170;
+		params->max_out_time = 120;
 	}
 #endif
 
@@ -378,8 +381,8 @@ static void iwl_mvm_scan_calc_params(struct iwl_mvm *mvm,
 #else
 			params->suspend_time = 105;
 #endif
-			params->max_out_time = 70;
 			frag_passive_dwell = 20;
+			params->max_out_time = frag_passive_dwell;
 		} else {
 			params->suspend_time = 120;
 			params->max_out_time = 120;
