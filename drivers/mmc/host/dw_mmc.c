@@ -1026,6 +1026,12 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (drv_data && drv_data->set_ios)
 		drv_data->set_ios(slot->host, ios);
 
+	/* Make sure we use phases which we can enumerate with */
+	if (!IS_ERR(slot->host->sample_clk)) {
+		clk_set_phase(slot->host->sample_clk,
+			      slot->host->default_sample_phase);
+	}
+
 	/* Slot specific timing and width adjustment */
 	dw_mci_setup_bus(slot, false);
 
@@ -1229,6 +1235,174 @@ static void dw_mci_enable_sdio_irq(struct mmc_host *mmc, int enb)
 	spin_unlock_irqrestore(&host->irq_lock, irqflags);
 }
 
+static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
+			       struct dw_mci_tuning_data *tuning_data,
+			       u8 *blk_test)
+{
+	struct dw_mci *host = slot->host;
+	struct mmc_host *mmc = slot->mmc;
+	const u8 *blk_pattern = tuning_data->blk_pattern;
+	unsigned int blksz = tuning_data->blksz;
+	struct mmc_request mrq = { NULL };
+	struct mmc_command cmd = {0};
+	struct mmc_command stop = {0};
+	struct mmc_data data = {0};
+	struct scatterlist sg;
+
+	memset(blk_test, 0, blksz);
+
+	cmd.opcode = opcode;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+	stop.opcode = MMC_STOP_TRANSMISSION;
+	stop.arg = 0;
+	stop.flags = MMC_RSP_R1B | MMC_CMD_AC;
+
+	data.blksz = blksz;
+	data.blocks = 1;
+	data.flags = MMC_DATA_READ;
+	data.sg = &sg;
+	data.sg_len = 1;
+
+	sg_init_one(&sg, blk_test, blksz);
+	mrq.cmd = &cmd;
+	mrq.stop = &stop;
+	mrq.data = &data;
+	host->mrq = &mrq;
+
+	mci_writel(host, TMOUT, ~0);
+
+	mmc_wait_for_req(mmc, &mrq);
+
+	if (!cmd.error && !data.error) {
+		if (!memcmp(blk_pattern, blk_test, blksz))
+			return 0;
+		return -EIO;
+	} else {
+		dev_dbg(host->dev,
+			"Tuning error: cmd.error:%d, data.error:%d\n",
+			cmd.error, data.error);
+		if (cmd.error)
+			return cmd.error;
+		else
+			return data.error;
+	}
+}
+
+static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
+					 struct dw_mci_tuning_data *tuning_data)
+{
+	struct dw_mci *host = slot->host;
+	unsigned int blksz = tuning_data->blksz;
+	u8 *blk_test;
+	int ret = 0;
+	int i;
+	bool v, prev_v = 0, first_v;
+	struct range_t {
+		int start;
+		int end; /* inclusive */
+	};
+	struct range_t *ranges;
+	unsigned int range_count = 0;
+	int longest_range_len = -1;
+	int longest_range = -1;
+	int middle_phase;
+	const int PHASE_INCREMENT = 5;
+	const int NUM_PHASES = 360 / PHASE_INCREMENT;
+
+	if (IS_ERR(host->sample_clk)) {
+		dev_err(host->dev, "Tuning clock (sample_clk) not defined.\n");
+		return -EIO;
+	}
+
+	blk_test = kmalloc(blksz, GFP_KERNEL);
+	if (!blk_test)
+		return -ENOMEM;
+
+	ranges = kmalloc_array(NUM_PHASES / 2 + 1, sizeof(*ranges), GFP_KERNEL);
+	if (!blk_test) {
+		ret = -ENOMEM;
+		goto free_blk_test;
+	}
+
+	/* Try each phase and extract good ranges */
+	for (i = 0; i < NUM_PHASES; i++) {
+		clk_set_phase(host->sample_clk, i * PHASE_INCREMENT);
+
+		v = !dw_mci_tuning_test(slot, opcode, tuning_data, blk_test);
+
+		if ((!prev_v) && v) {
+			range_count++;
+			ranges[range_count-1].start = i;
+		}
+		if (v) {
+			ranges[range_count-1].end = i;
+		}
+
+		if (i == 0)
+			first_v = v;
+
+		prev_v = v;
+	}
+
+	if (range_count == 0) {
+		dev_info(host->dev, "All phases bad!");
+		ret = -EIO;
+		goto free;
+	}
+
+	/* wrap around case, merge the end points */
+	if ((range_count > 1) && first_v && v) {
+		ranges[0].start = ranges[range_count-1].start;
+		range_count--;
+	}
+
+	if ((ranges[0].start == 0) && (ranges[0].end == NUM_PHASES - 1)) {
+		clk_set_phase(host->sample_clk, host->default_sample_phase);
+		dev_info(host->dev, "All phases work, using default phase %d.",
+			host->default_sample_phase);
+		goto free;
+	}
+
+	/* Find the longest range */
+	for (i = 0; i < range_count; i++) {
+		int len = (ranges[i].end - ranges[i].start + 1);
+		if (len < 0)
+			len += NUM_PHASES;
+
+		if (longest_range_len < len) {
+			longest_range_len = len;
+			longest_range = i;
+		}
+
+		dev_dbg(host->dev, "Good phase range %d-%d (%d len)\n",
+			ranges[i].start * PHASE_INCREMENT,
+			ranges[i].end * PHASE_INCREMENT,
+			len
+		);
+	}
+
+	dev_dbg(host->dev, "Best phase range %d-%d (%d len)\n",
+		ranges[longest_range].start * PHASE_INCREMENT,
+		ranges[longest_range].end * PHASE_INCREMENT,
+		longest_range_len
+	);
+
+	middle_phase = ranges[longest_range].start + longest_range_len / 2;
+	middle_phase %= NUM_PHASES;
+	dev_info(host->dev, "Successfully tuned phase to %d\n",
+		middle_phase * PHASE_INCREMENT);
+
+	clk_set_phase(host->sample_clk, middle_phase * PHASE_INCREMENT);
+
+free:
+	kfree(ranges);
+free_blk_test:
+	kfree(blk_test);
+	return ret;
+}
+
 static int dw_mci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
@@ -1258,6 +1432,8 @@ static int dw_mci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 	if (drv_data && drv_data->execute_tuning)
 		err = drv_data->execute_tuning(slot, opcode, &tuning_data);
+	else
+		err = dw_mci_execute_generic_tuning(slot, opcode, &tuning_data);
 	return err;
 }
 
@@ -2530,6 +2706,11 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (!of_property_read_u32(np, "clock-frequency", &clock_frequency))
 		pdata->bus_hz = clock_frequency;
 
+	if (of_property_read_u32(np, "default-sample-phase",
+					&host->default_sample_phase)) {
+		host->default_sample_phase = 0;
+	}
+
 	if (drv_data && drv_data->parse_dt) {
 		ret = drv_data->parse_dt(host);
 		if (ret)
@@ -2601,6 +2782,14 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 		host->bus_hz = clk_get_rate(host->ciu_clk);
 	}
+
+	host->drv_clk = devm_clk_get(host->dev, "ciu_drv");
+	if (IS_ERR(host->drv_clk))
+		dev_dbg(host->dev, "ciu_drv not available\n");
+
+	host->sample_clk = devm_clk_get(host->dev, "ciu_sample");
+	if (IS_ERR(host->sample_clk))
+		dev_dbg(host->dev, "ciu_sample not available\n");
 
 	if (!host->bus_hz) {
 		dev_err(host->dev,

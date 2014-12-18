@@ -178,7 +178,10 @@ struct dw_mci {
 	void			*priv;
 	struct clk		*biu_clk;
 	struct clk		*ciu_clk;
+	struct clk		*drv_clk;
+	struct clk		*sample_clk;
 	struct dw_mci_slot	*slot[MAX_MCI_SLOTS];
+	int			default_sample_phase;
 
 	/* FIFO push and pull */
 	int			fifo_depth;
