@@ -69,8 +69,14 @@ static void __init plat_setup_iocoherency(void)
 
 void __init plat_mem_setup(void)
 {
-	/* TODO: Get device-tree from bootloader. */
-	__dt_setup_arch(&__dtb_start);
+	void *dtb;
+
+	if (fw_arg0 == 0 && fw_arg1 == 0xffffffff)
+		dtb = phys_to_virt(fw_arg2);
+	else
+		dtb = &__dtb_start;
+
+	__dt_setup_arch(dtb);
 	strlcpy(arcs_cmdline, boot_command_line, COMMAND_LINE_SIZE);
 
 	plat_setup_iocoherency();
