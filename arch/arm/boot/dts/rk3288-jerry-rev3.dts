@@ -159,15 +159,35 @@
 &i2c4 {
 	status = "okay";
 
-        trackpad@2c {
-                compatible = "hid-over-i2c";
-                interrupt-parent = <&gpio7>;
-                interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
-                pinctrl-names = "default";
-                pinctrl-0 = <&trackpad_int>;
-                reg = <0x2c>;
-                hid-descr-addr = <0x0020>;
-                vcc-supply = <&vcc33_io>;
-                wakeup-source;
-        };
+	/*
+	 * Trackpad pin control is shared between Elan and Synaptics devices
+	 * so we have to pull it up to the bus level.
+	 */
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c4_xfer &trackpad_int>;
+
+	trackpad@15 {
+		compatible = "elan,i2c_touchpad";
+		interrupt-parent = <&gpio7>;
+		interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
+		/*
+		 * Remove the inherited pinctrl settings to avoid clashing
+		 * with bus-wide ones.
+		 */
+		/delete-property/pinctrl-names;
+		/delete-property/pinctrl-0;
+		reg = <0x15>;
+		vcc-supply = <&vcc33_io>;
+		wakeup-source;
+	};
+
+	trackpad@2c {
+		compatible = "hid-over-i2c";
+		interrupt-parent = <&gpio7>;
+		interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
+		reg = <0x2c>;
+		hid-descr-addr = <0x0020>;
+		vcc-supply = <&vcc33_io>;
+		wakeup-source;
+	};
 };
