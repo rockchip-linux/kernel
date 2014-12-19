@@ -37,7 +37,8 @@ enum brcmf_bus_state {
 	BRCMF_BUS_NOMEDIUM,	/* No medium access to dongle */
 	BRCMF_BUS_DOWN,		/* Not ready for frame transfers */
 	BRCMF_BUS_LOAD,		/* Download access only (CPU reset) */
-	BRCMF_BUS_DATA		/* Ready for frame transfers */
+	BRCMF_BUS_DATA,		/* Ready for frame transfers */
+	BRCMF_BUS_SUSPEND	/* Bus has been suspended */
 };
 
 /* The level of bus communication with the dongle */

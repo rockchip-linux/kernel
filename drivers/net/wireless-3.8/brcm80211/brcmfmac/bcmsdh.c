@@ -94,25 +94,6 @@ static void brcmf_sdiod_dummy_irqhandler(struct sdio_func *func)
 {
 }
 
-static bool brcmf_sdiod_pm_resume_error(struct brcmf_sdio_dev *sdiodev)
-{
-	bool is_err = false;
-#ifdef CONFIG_PM_SLEEP
-	is_err = atomic_read(&sdiodev->suspend);
-#endif
-	return is_err;
-}
-
-static void brcmf_sdiod_pm_resume_wait(struct brcmf_sdio_dev *sdiodev,
-				       wait_queue_head_t *wq)
-{
-#ifdef CONFIG_PM_SLEEP
-	int retry = 0;
-	while (atomic_read(&sdiodev->suspend) && retry++ != 30)
-		wait_event_timeout(*wq, false, HZ/100);
-#endif
-}
-
 int brcmf_sdiod_intr_register(struct brcmf_sdio_dev *sdiodev)
 {
 	int ret = 0;
@@ -226,10 +207,6 @@ static int brcmf_sdiod_request_data(struct brcmf_sdio_dev *sdiodev, u8 fn,
 
 	brcmf_dbg(SDIO, "rw=%d, func=%d, addr=0x%05x, nbytes=%d\n",
 		  write, fn, addr, regsz);
-
-	brcmf_sdiod_pm_resume_wait(sdiodev, &sdiodev->request_word_wait);
-	if (brcmf_sdiod_pm_resume_error(sdiodev))
-		return -EIO;
 
 	/* only allow byte access on F0 */
 	if (WARN_ON(regsz > 1 && !fn))
@@ -445,10 +422,6 @@ static int brcmf_sdiod_buffrw(struct brcmf_sdio_dev *sdiodev, uint fn,
 	unsigned int req_sz;
 	int err;
 
-	brcmf_sdiod_pm_resume_wait(sdiodev, &sdiodev->request_buffer_wait);
-	if (brcmf_sdiod_pm_resume_error(sdiodev))
-		return -EIO;
-
 	/* Single skb use the standard mmc interface */
 	req_sz = pkt->len + 3;
 	req_sz &= (uint)~3;
@@ -498,10 +471,6 @@ static int brcmf_sdiod_sglist_rw(struct brcmf_sdio_dev *sdiodev, uint fn,
 
 	if (!pktlist->qlen)
 		return -EINVAL;
-
-	brcmf_sdiod_pm_resume_wait(sdiodev, &sdiodev->request_buffer_wait);
-	if (brcmf_sdiod_pm_resume_error(sdiodev))
-		return -EIO;
 
 	target_list = pktlist;
 	/* for host with broken sg support, prepare a page aligned list */
@@ -951,6 +920,7 @@ static int brcmf_sdiod_probe(struct brcmf_sdio_dev *sdiodev)
 	 */
 	func = sdiodev->func[2];
 	host = func->card->host;
+	sdiodev->sleeping = false;
 	sdiodev->sg_support = host->max_segs > 1;
 	max_blocks = min_t(uint, host->max_blk_count, 511u);
 	sdiodev->max_request_size = min_t(uint, host->max_req_size,
@@ -1047,6 +1017,7 @@ static int brcmf_ops_sdio_probe(struct sdio_func *func,
 	atomic_set(&sdiodev->suspend, false);
 	init_waitqueue_head(&sdiodev->request_word_wait);
 	init_waitqueue_head(&sdiodev->request_buffer_wait);
+	init_waitqueue_head(&sdiodev->idle_wait);
 
 	brcmf_dbg(SDIO, "F2 found, calling brcmf_sdiod_probe...\n");
 	err = brcmf_sdiod_probe(sdiodev);
@@ -1099,29 +1070,45 @@ static void brcmf_ops_sdio_remove(struct sdio_func *func)
 #ifdef CONFIG_PM_SLEEP
 static int brcmf_ops_sdio_suspend(struct device *dev)
 {
+	struct sdio_func *func;
+	struct brcmf_bus *bus_if;
+	struct brcmf_sdio_dev *sdiodev;
 	mmc_pm_flag_t sdio_flags;
-	struct brcmf_bus *bus_if = dev_get_drvdata(dev);
-	struct brcmf_sdio_dev *sdiodev = bus_if->bus_priv.sdio;
 	int ret = 0;
 
-	brcmf_dbg(SDIO, "Enter\n");
+	func = container_of(dev, struct sdio_func, dev);
+	brcmf_dbg(SDIO, "Enter: F%d\n", func->num);
+	if (func->num != SDIO_FUNC_2)
+		return 0;
 
-	sdio_flags = sdio_get_host_pm_caps(sdiodev->func[1]);
+	sdio_flags = sdio_get_host_pm_caps(func);
 	if (!(sdio_flags & MMC_PM_KEEP_POWER)) {
 		brcmf_err("Host can't keep power while suspended\n");
 		return -EINVAL;
 	}
 
+	bus_if = dev_get_drvdata(dev);
+	sdiodev = bus_if->bus_priv.sdio;
+
+	brcmf_bus_change_state(bus_if, BRCMF_BUS_SUSPEND);
+	/* wait for watchdog to go idle */
+	if (wait_event_timeout(sdiodev->idle_wait, sdiodev->sleeping,
+			       msecs_to_jiffies(100 * BRCMF_WD_POLL_MS)) == 0) {
+		brcmf_err("bus still active\n");
+		brcmf_bus_change_state(bus_if, BRCMF_BUS_DATA);
+		return -EBUSY;
+	}
+	/* disable watchdog */
+	brcmf_sdio_wd_timer(sdiodev->bus, 0);
 	atomic_set(&sdiodev->suspend, true);
 
 	ret = sdio_set_host_pm_flags(sdiodev->func[1], MMC_PM_KEEP_POWER);
 	if (ret) {
 		brcmf_err("Failed to set pm_flags\n");
+		brcmf_sdio_wd_timer(sdiodev->bus, BRCMF_WD_POLL_MS);
 		atomic_set(&sdiodev->suspend, false);
-		return ret;
+		brcmf_bus_change_state(bus_if, BRCMF_BUS_DATA);
 	}
-
-	brcmf_sdio_wd_timer(sdiodev->bus, 0);
 
 	return ret;
 }
@@ -1130,10 +1117,15 @@ static int brcmf_ops_sdio_resume(struct device *dev)
 {
 	struct brcmf_bus *bus_if = dev_get_drvdata(dev);
 	struct brcmf_sdio_dev *sdiodev = bus_if->bus_priv.sdio;
+	struct sdio_func *func = container_of(dev, struct sdio_func, dev);
 
-	brcmf_dbg(SDIO, "Enter\n");
+	brcmf_dbg(SDIO, "Enter: F%d\n", func->num);
+	if (func->num != SDIO_FUNC_2)
+		return 0;
+
 	brcmf_sdio_wd_timer(sdiodev->bus, BRCMF_WD_POLL_MS);
 	atomic_set(&sdiodev->suspend, false);
+	brcmf_bus_change_state(bus_if, BRCMF_BUS_DATA);
 	return 0;
 }
 

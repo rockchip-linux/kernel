@@ -44,7 +44,8 @@
 #include "chip.h"
 #include "firmware.h"
 
-#define DCMD_RESP_TIMEOUT  2500	/* In milli second */
+#define DCMD_RESP_TIMEOUT	2000	/* In milli second */
+#define CTL_DONE_TIMEOUT	2000	/* In milli second */
 
 #ifdef DEBUG
 
@@ -495,9 +496,9 @@ struct brcmf_sdio {
 	u8 *ctrl_frame_buf;
 	u16 ctrl_frame_len;
 	bool ctrl_frame_stat;
+	int ctrl_frame_err;
 
 	spinlock_t txq_lock;		/* protect bus->txq */
-	struct semaphore tx_seq_lock;	/* protect bus->tx_seq */
 	wait_queue_head_t ctrl_wait;
 	wait_queue_head_t dcmd_resp_wait;
 
@@ -514,7 +515,6 @@ struct brcmf_sdio {
 	bool txoff;		/* Transmit flow-controlled */
 	struct brcmf_sdio_count sdcnt;
 	bool sr_enabled; /* SaveRestore enabled */
-	bool sleeping; /* SDIO bus sleeping */
 
 	u8 tx_hdrlen;		/* sdio bus header length for tx packet */
 	bool txglom;		/* host tx glomming enable flag */
@@ -1007,12 +1007,12 @@ brcmf_sdio_bus_sleep(struct brcmf_sdio *bus, bool sleep, bool pendok)
 
 	brcmf_dbg(SDIO, "Enter: request %s currently %s\n",
 		  (sleep ? "SLEEP" : "WAKE"),
-		  (bus->sleeping ? "SLEEP" : "WAKE"));
+		  (bus->sdiodev->sleeping ? "SLEEP" : "WAKE"));
 
 	/* If SR is enabled control bus state with KSO */
 	if (bus->sr_enabled) {
 		/* Done if we're already in the requested state */
-		if (sleep == bus->sleeping)
+		if (sleep == bus->sdiodev->sleeping)
 			goto end;
 
 		/* Going to sleep */
@@ -1044,12 +1044,7 @@ brcmf_sdio_bus_sleep(struct brcmf_sdio *bus, bool sleep, bool pendok)
 			bus->idlecount = 0;
 			err = brcmf_sdio_kso_control(bus, true);
 		}
-		if (!err) {
-			/* Change state */
-			bus->sleeping = sleep;
-			brcmf_dbg(SDIO, "new state %s\n",
-				  (sleep ? "SLEEP" : "WAKE"));
-		} else {
+		if (err) {
 			brcmf_err("error while changing bus sleep state %d\n",
 				  err);
 			goto done;
@@ -1064,6 +1059,11 @@ end:
 	} else {
 		brcmf_sdio_clkctl(bus, CLK_AVAIL, pendok);
 	}
+	bus->sdiodev->sleeping = sleep;
+	brcmf_dbg(SDIO, "new state %s\n",
+		  (sleep ? "SLEEP" : "WAKE"));
+	if (bus->sdiodev->sleeping)
+		wake_up(&bus->sdiodev->idle_wait);
 done:
 	brcmf_dbg(SDIO, "Exit: err=%d\n", err);
 	return err;
@@ -2371,8 +2371,6 @@ static uint brcmf_sdio_sendfromq(struct brcmf_sdio *bus, uint maxframes)
 	/* Send frames until the limit or some other event */
 	for (cnt = 0; (cnt < maxframes) && data_ok(bus);) {
 		pkt_num = 1;
-		if (down_interruptible(&bus->tx_seq_lock))
-			return cnt;
 		if (bus->txglom)
 			pkt_num = min_t(u8, bus->tx_max - bus->tx_seq,
 					bus->sdiodev->txglomsz);
@@ -2388,13 +2386,10 @@ static uint brcmf_sdio_sendfromq(struct brcmf_sdio *bus, uint maxframes)
 			__skb_queue_tail(&pktq, pkt);
 		}
 		spin_unlock_bh(&bus->txq_lock);
-		if (i == 0) {
-			up(&bus->tx_seq_lock);
+		if (i == 0)
 			break;
-		}
 
 		ret = brcmf_sdio_txpkt(bus, &pktq, SDPCM_DATA_CHANNEL);
-		up(&bus->tx_seq_lock);
 
 		cnt += i;
 
@@ -2611,8 +2606,20 @@ static void brcmf_sdio_dpc(struct brcmf_sdio *bus)
 	uint txlimit = bus->txbound;	/* Tx frames to send before resched */
 	uint framecnt;			/* Temporary counter of tx/rx frames */
 	int err = 0;
+#ifdef CONFIG_PM_SLEEP
+	int retry;
+#endif
 
 	brcmf_dbg(TRACE, "Enter\n");
+
+#ifdef CONFIG_PM_SLEEP
+	/* Wait for possible resume to complete */
+	retry = 0;
+	while ((atomic_read(&bus->sdiodev->suspend)) && (retry++ != 50))
+		msleep(20);
+	if (atomic_read(&bus->sdiodev->suspend))
+		return;
+#endif
 
 	sdio_claim_host(bus->sdiodev->func[1]);
 
@@ -2720,17 +2727,14 @@ static void brcmf_sdio_dpc(struct brcmf_sdio *bus)
 	brcmf_sdio_clrintr(bus);
 
 	if (bus->ctrl_frame_stat && (bus->clkstate == CLK_AVAIL) &&
-	    (down_interruptible(&bus->tx_seq_lock) == 0)) {
-		if (data_ok(bus)) {
-			sdio_claim_host(bus->sdiodev->func[1]);
-			err = brcmf_sdio_tx_ctrlframe(bus,  bus->ctrl_frame_buf,
-						      bus->ctrl_frame_len);
-			sdio_release_host(bus->sdiodev->func[1]);
-
-			bus->ctrl_frame_stat = false;
-			brcmf_sdio_wait_event_wakeup(bus);
-		}
-		up(&bus->tx_seq_lock);
+	    data_ok(bus)) {
+		sdio_claim_host(bus->sdiodev->func[1]);
+		err = brcmf_sdio_tx_ctrlframe(bus,  bus->ctrl_frame_buf,
+						    bus->ctrl_frame_len);
+		sdio_release_host(bus->sdiodev->func[1]);
+		bus->ctrl_frame_err = err;
+		bus->ctrl_frame_stat = false;
+		brcmf_sdio_wait_event_wakeup(bus);
 	}
 	/* Send queued frames (limit 1 if rx may still be pending) */
 	if ((bus->clkstate == CLK_AVAIL) && !atomic_read(&bus->fcstate) &&
@@ -2900,43 +2904,29 @@ brcmf_sdio_bus_txctl(struct device *dev, unsigned char *msg, uint msglen)
 	struct brcmf_bus *bus_if = dev_get_drvdata(dev);
 	struct brcmf_sdio_dev *sdiodev = bus_if->bus_priv.sdio;
 	struct brcmf_sdio *bus = sdiodev->bus;
-	int ret = -1;
+	int ret = -EIO;
 
 	brcmf_dbg(TRACE, "Enter\n");
 
-	if (down_interruptible(&bus->tx_seq_lock))
-		return -EINTR;
-
-	if (!data_ok(bus)) {
-		brcmf_dbg(INFO, "No bus credit bus->tx_max %d, bus->tx_seq %d\n",
-			  bus->tx_max, bus->tx_seq);
-		up(&bus->tx_seq_lock);
-		/* Send from dpc */
-		bus->ctrl_frame_buf = msg;
-		bus->ctrl_frame_len = msglen;
-		bus->ctrl_frame_stat = true;
-
-		wait_event_interruptible_timeout(bus->ctrl_wait,
-						 !bus->ctrl_frame_stat,
-						 msecs_to_jiffies(2000));
-
-		if (!bus->ctrl_frame_stat) {
-			brcmf_dbg(SDIO, "ctrl_frame_stat == false\n");
-			ret = 0;
-		} else {
-			brcmf_dbg(SDIO, "ctrl_frame_stat == true\n");
-			bus->ctrl_frame_stat = false;
-			if (down_interruptible(&bus->tx_seq_lock))
-				return -EINTR;
-			ret = -1;
-		}
+	/* Send from dpc */
+	bus->ctrl_frame_buf = msg;
+	bus->ctrl_frame_len = msglen;
+	bus->ctrl_frame_stat = true;
+	if (atomic_read(&bus->dpc_tskcnt) == 0) {
+		atomic_inc(&bus->dpc_tskcnt);
+		queue_work(bus->brcmf_wq, &bus->datawork);
 	}
-	if (ret == -1) {
-		sdio_claim_host(bus->sdiodev->func[1]);
-		brcmf_sdio_bus_sleep(bus, false, false);
-		ret = brcmf_sdio_tx_ctrlframe(bus, msg, msglen);
-		sdio_release_host(bus->sdiodev->func[1]);
-		up(&bus->tx_seq_lock);
+
+	wait_event_interruptible_timeout(bus->ctrl_wait, !bus->ctrl_frame_stat,
+					 msecs_to_jiffies(CTL_DONE_TIMEOUT));
+
+	if (!bus->ctrl_frame_stat) {
+		brcmf_dbg(SDIO, "ctrl_frame complete, err=%d\n",
+			  bus->ctrl_frame_err);
+		ret = bus->ctrl_frame_err;
+	} else {
+		brcmf_dbg(SDIO, "ctrl_frame fail\n");
+		bus->ctrl_frame_stat = false;
 	}
 
 	if (ret)
@@ -2944,7 +2934,7 @@ brcmf_sdio_bus_txctl(struct device *dev, unsigned char *msg, uint msglen)
 	else
 		bus->sdcnt.tx_ctlpkts++;
 
-	return ret ? -EIO : 0;
+	return ret;
 }
 
 #ifdef DEBUG
@@ -3556,12 +3546,13 @@ static bool brcmf_sdio_bus_watchdog(struct brcmf_sdio *bus)
 		    (bus->sdcnt.intrcount == bus->sdcnt.lastintrs)) {
 
 			if (atomic_read(&bus->dpc_tskcnt) == 0) {
-				u8 devpend;
+				u8 devpend = 0;
 
 				sdio_claim_host(bus->sdiodev->func[1]);
-				devpend = brcmf_sdiod_regrb(bus->sdiodev,
-							    SDIO_CCCR_INTx,
-							    NULL);
+				if (!atomic_read(&bus->sdiodev->suspend)) {
+					devpend = brcmf_sdiod_regrb(
+					    bus->sdiodev, SDIO_CCCR_INTx, NULL);
+				}
 				sdio_release_host(bus->sdiodev->func[1]);
 				intstatus =
 				    devpend & (INTR_STATUS_FUNC1 |
@@ -4099,7 +4090,6 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 
 	spin_lock_init(&bus->rxctl_lock);
 	spin_lock_init(&bus->txq_lock);
-	sema_init(&bus->tx_seq_lock, 1);
 	init_waitqueue_head(&bus->ctrl_wait);
 	init_waitqueue_head(&bus->dcmd_resp_wait);
 
@@ -4170,7 +4160,6 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 	bus->idleclock = BRCMF_IDLE_ACTIVE;
 
 	/* SR state */
-	bus->sleeping = false;
 	bus->sr_enabled = false;
 
 	brcmf_sdio_debugfs_create(bus);
