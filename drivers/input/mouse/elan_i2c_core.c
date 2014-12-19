@@ -1026,6 +1026,28 @@ static int elan_probe(struct i2c_client *client,
 		return error;
 	}
 
+	/*
+	 * Unfortunately vendors like to interchange touchpad parts
+	 * between factory runs, but keep the same DTS, so we can't
+	 * be quite sure that the device is actually present in the
+	 * system even if it is described in the DTS.
+	 * Before trying to properly initialize the touchpad let's
+	 * first see it there is anything at the given address.
+	 */
+	if (client->dev.of_node) {
+		union i2c_smbus_data dummy;
+
+		error = i2c_smbus_xfer(client->adapter, client->addr, 0,
+					I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE,
+					&dummy);
+		if (error) {
+			dev_dbg(&client->dev,
+				"basic IO failed (%d), assuming device is not present\n",
+				error);
+			return -ENXIO;
+		}
+	}
+
 	/* Initialize the touchpad. */
 	error = elan_initialize(data);
 	if (error)
