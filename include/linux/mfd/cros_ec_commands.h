@@ -2690,6 +2690,7 @@ struct ec_params_pd_status {
 struct ec_response_pd_status {
 	uint32_t status;      /* PD MCU status */
 	uint32_t curr_lim_ma; /* input current limit */
+	int32_t active_charge_port; /* active charging port */
 } __packed;
 
 /* AP to PD MCU host event status command, cleared on read */
@@ -2805,6 +2806,8 @@ struct ec_params_usb_pd_fw_update {
 struct ec_params_usb_pd_rw_hash_entry {
 	uint16_t dev_id;
 	uint8_t dev_rw_hash[PD_RW_HASH_SIZE];
+	uint8_t reserved;	 /* For alignment of current_image */
+	uint32_t current_image;  /* One of ec_current_image */
 } __packed;
 
 /* Read USB-PD Accessory info */

@@ -30,7 +30,21 @@
 /* Store our PD device pointer so we can send update-related commands. */
 static struct cros_ec_dev *pd_ec;
 
-/**
+/*
+ * $DEVICE_known_update_hashes - A list of old known RW hashes from which we
+ * wish to upgrade. When firmware_images is updated, the old hash should
+ * probably be added here. The latest hash currently in firmware_images should
+ * NOT appear here.
+ */
+static uint8_t zinger_known_update_hashes[][PD_RW_HASH_SIZE] = {
+	/* zinger_000003 (zinger_v1.7.90-5cfd6c0) */
+	{ 0xc3, 0x81, 0x0e, 0x73, 0xfc,
+	  0xb2, 0x39, 0xf9, 0x8a, 0xa3,
+	  0xca, 0x62, 0x01, 0x43, 0xc0,
+	  0x55, 0x7f, 0xed, 0x23, 0xed },
+};
+
+/*
  * firmware_images - Keep this updated with the latest RW FW + hash for each
  * PD device. Entries should be primary sorted by id_major and secondary
  * sorted by id_minor.
@@ -47,6 +61,8 @@ static const struct cros_ec_pd_firmware_image firmware_images[] = {
 			  0x9a, 0xa0, 0x0a, 0x71, 0x07,
 			  0x37, 0xba, 0x8f, 0x4c, 0x01,
 			  0xe6, 0x45, 0x6d, 0xb0, 0x01 },
+		.update_hashes = &zinger_known_update_hashes,
+		.update_hash_count = ARRAY_SIZE(zinger_known_update_hashes),
 	},
 };
 
@@ -290,31 +306,64 @@ static int cros_ec_pd_fw_update(struct device *dev,
 }
 
 /**
- * find_firmware_image - Search firmware image table for an image matching
- * the passed attributes. Returns matching index if id is found and
- * PD_NO_IMAGE if not found in table.
+ * cros_ec_find_update_firmware - Search firmware image table for an image
+ * matching the passed attributes, then decide whether an update should
+ * be performed.
+ * Returns PD_DO_UPDATE if an update should be performed, and writes the
+ * firmware_image pointer to update_image.
+ * Returns reason for not updating otherwise.
  *
- * @dev_id: Target PD device id
- * @vid: Target USB VID
- * @pid: Target USB PID
+ * @hash_entry: Pre-filled hash entry struct for matching
+ * @discovery_entry: Pre-filled discovery entry struct for matching
+ * @update_image: Stores update firmware image on success
  */
-static int find_firmware_image(uint16_t dev_id, uint16_t vid, uint16_t pid)
+static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
+	struct ec_params_usb_pd_rw_hash_entry *hash_entry,
+	struct ec_params_usb_pd_discovery_entry *discovery_entry,
+	const struct cros_ec_pd_firmware_image **update_image)
 {
+	const struct cros_ec_pd_firmware_image *img;
+	int i;
+
+	if (hash_entry->dev_id == PD_DEVICE_TYPE_NONE)
+		return PD_UNKNOWN_DEVICE;
+
 	/*
+	 * Search for a matching firmware update image.
 	 * TODO(shawnn): Replace sequential table search with modified binary
 	 * search on major / minor.
 	 */
-	int i;
+	for (i = 0; i < firmware_image_count; ++i) {
+		img = &firmware_images[i];
+		if (MAJOR_MINOR_TO_DEV_ID(img->id_major, img->id_minor)
+					  == hash_entry->dev_id &&
+		    img->usb_vid == discovery_entry->vid &&
+		    img->usb_pid == discovery_entry->pid)
+			break;
+	}
 
-	for (i = 0; i < firmware_image_count; ++i)
-		if (MAJOR_MINOR_TO_DEV_ID(firmware_images[i].id_major,
-					  firmware_images[i].id_minor)
-					  == dev_id &&
-		    firmware_images[i].usb_vid == vid &&
-		    firmware_images[i].usb_pid == pid)
-			return i;
+	if (i == firmware_image_count)
+		return PD_UNKNOWN_DEVICE;
+	else if (memcmp(hash_entry->dev_rw_hash, img->hash, PD_RW_HASH_SIZE)
+			== 0)
+		return PD_ALREADY_HAVE_LATEST;
 
-	return PD_NO_IMAGE;
+	/* Always update if PD device is stuck in RO. */
+	if (hash_entry->current_image != EC_IMAGE_RW) {
+		*update_image = img;
+		return PD_DO_UPDATE;
+	}
+
+	/* Verify RW is a known update image so we don't roll-back. */
+	for (i = 0; i < img->update_hash_count; ++i)
+		if (memcmp(hash_entry->dev_rw_hash,
+			   (*img->update_hashes)[i],
+			   PD_RW_HASH_SIZE) == 0) {
+			*update_image = img;
+			return PD_DO_UPDATE;
+		}
+
+	return PD_UNKNOWN_RW;
 }
 
 /**
@@ -327,15 +376,18 @@ static int find_firmware_image(uint16_t dev_id, uint16_t vid, uint16_t pid)
  */
 static void cros_ec_pd_update_check(struct work_struct *work)
 {
+	const struct cros_ec_pd_firmware_image *img;
 	const struct firmware *fw;
 	struct ec_params_usb_pd_rw_hash_entry hash_entry;
 	struct ec_params_usb_pd_discovery_entry discovery_entry;
-	char *file;
-	int ret, port, i;
 	struct cros_ec_pd_update_data *drv_data =
 		container_of(to_delayed_work(work),
 		struct cros_ec_pd_update_data, work);
 	struct device *dev = drv_data->dev;
+	enum cros_ec_pd_find_update_firmware_result result;
+	int ret, port;
+
+	dev_dbg(dev, "Checking for PD dev FW update\n");
 
 	if (!pd_ec) {
 		dev_err(dev, "No pd_ec device found\n");
@@ -346,64 +398,55 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	 * If there is an EC based charger, send a notification to it to
 	 * trigger a refresh of the power supply state.
 	 */
-	if (pd_ec->ec_dev->charger) {
+	if (pd_ec->ec_dev->charger)
 		power_supply_changed(pd_ec->ec_dev->charger);
-	}
 
 	/* Received notification, send command to check on PD status. */
 	for (port = 0; port < drv_data->num_ports; ++port) {
-		ret = cros_ec_pd_get_status(dev,
-					    pd_ec,
-					    port,
-					    &hash_entry,
+		ret = cros_ec_pd_get_status(dev, pd_ec, port, &hash_entry,
 					    &discovery_entry);
 		if (ret < 0) {
 			dev_err(dev, "Can't get device status (err:%d)\n",
 				ret);
 			return;
-		} else  {
-			if (hash_entry.dev_id == PD_DEVICE_TYPE_NONE)
-				i = PD_NO_IMAGE;
-			else
-				i = find_firmware_image(hash_entry.dev_id,
-					discovery_entry.vid,
-					discovery_entry.pid);
+		}
 
-			/* Device found, should we update firmware? */
-			if (i != PD_NO_IMAGE &&
-			    memcmp(hash_entry.dev_rw_hash,
-				   firmware_images[i].hash,
-				   PD_RW_HASH_SIZE) != 0) {
-				file = firmware_images[i].filename;
-				ret = request_firmware(&fw, file, dev);
-				if (ret) {
-					dev_err(dev, "Error, can't load file %s\n",
-						file);
-					continue;
-				}
+		result = cros_ec_find_update_firmware(&hash_entry,
+						      &discovery_entry,
+						      &img);
+		dev_dbg(dev, "Find FW result: %d\n", result);
 
-				if (fw->size > PD_RW_IMAGE_SIZE) {
-					dev_err(dev, "Firmware file %s is too large\n",
-						file);
-					goto done;
-				}
-
-				/* Update firmware */
-				cros_ec_pd_fw_update(dev, pd_ec, fw, port);
-done:
-				release_firmware(fw);
-			} else if (i != PD_NO_IMAGE) {
-				/**
-				 * Device already has latest firmare. Send
-				 * hash entry to EC so we don't get subsequent
-				 * FW update requests.
-				 */
-				cros_ec_pd_send_hash_entry(dev,
-							   pd_ec,
-							   &firmware_images[i]);
-			} else {
-				/* Unknown PD device -- don't update FW */
+		switch (result) {
+		case PD_DO_UPDATE:
+			if (request_firmware(&fw, img->filename, dev)) {
+				dev_err(dev, "Error, can't load file %s\n",
+					img->filename);
+				break;
 			}
+
+			if (fw->size > PD_RW_IMAGE_SIZE) {
+				dev_err(dev, "Firmware file %s is too large\n",
+					img->filename);
+				goto done;
+			}
+
+			dev_dbg(dev, "Updating FW\n");
+			/* Update firmware */
+			cros_ec_pd_fw_update(dev, pd_ec, fw, port);
+done:
+			release_firmware(fw);
+			break;
+		case PD_ALREADY_HAVE_LATEST:
+			/*
+			 * Device already has latest firmare. Send hash entry
+			 * to EC so we don't get subsequent FW update requests.
+			 */
+			cros_ec_pd_send_hash_entry(dev, pd_ec, img);
+			break;
+		case PD_UNKNOWN_DEVICE:
+		case PD_UNKNOWN_RW:
+			/* Unknown PD device or RW -- don't update FW */
+			break;
 		}
 	}
 }

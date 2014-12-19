@@ -38,6 +38,8 @@ struct cros_ec_pd_firmware_image {
 	uint16_t usb_pid;
 	char *filename;
 	uint8_t hash[PD_RW_HASH_SIZE];
+	uint8_t (*update_hashes)[][PD_RW_HASH_SIZE];
+	int update_hash_count;
 };
 
 struct cros_ec_pd_update_data {
@@ -58,7 +60,12 @@ struct cros_ec_pd_update_data {
 	((((major) << PD_ID_MAJOR_SHIFT) & PD_ID_MAJOR_MASK) | \
 	(((minor) << PD_ID_MINOR_SHIFT) & PD_ID_MINOR_MASK))
 
-#define PD_NO_IMAGE -1
+enum cros_ec_pd_find_update_firmware_result {
+	PD_DO_UPDATE,
+	PD_ALREADY_HAVE_LATEST,
+	PD_UNKNOWN_DEVICE,
+	PD_UNKNOWN_RW,
+};
 
 /* Send 96 bytes per write command when flashing PD device */
 #define PD_FLASH_WRITE_STEP 96
