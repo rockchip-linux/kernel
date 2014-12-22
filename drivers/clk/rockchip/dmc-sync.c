@@ -109,7 +109,7 @@ int rockchip_dmc_get(struct notifier_block *nb)
 	 * why errors are handled this way.
 	 */
 	if (!ret)
-		num_wait--;
+		num_wait++;
 	else if (num_wait == 1 && enable)
 		raw_notifier_call_chain(&en_chain, DMC_ENABLE, NULL);
 
