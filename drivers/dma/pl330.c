@@ -319,6 +319,8 @@ struct pl330_info {
 	 * client may want to provide pointer to the method.
 	 */
 	void (*dmac_reset)(struct pl330_info *pi);
+	/* Workaround flags */
+	int	quirks;
 };
 
 /**
@@ -2888,6 +2890,13 @@ static int pl330_dma_device_slave_caps(struct dma_chan *dchan,
 	return 0;
 }
 
+static struct pl330_of_quirks {
+	char *quirk;
+	int id;
+} of_quirks[] = {
+	/* TODO: add quirks here */
+};
+
 static int
 pl330_probe(struct amba_device *adev, const struct amba_id *id)
 {
@@ -2899,6 +2908,7 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 	struct resource *res;
 	int i, ret, irq;
 	int num_chan;
+	struct device_node *np = adev->dev.of_node;
 
 	pdat = dev_get_platdata(&adev->dev);
 
@@ -2917,6 +2927,11 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 	pi->dev = &adev->dev;
 	pi->pl330_data = NULL;
 	pi->mcbufsz = pdat ? pdat->mcbuf_sz : 0;
+
+	/* get quirks */
+	for (i = 0; i < ARRAY_SIZE(of_quirks); i++)
+		if (of_property_read_bool(np, of_quirks[i].quirk))
+			pi->quirks |= of_quirks[i].id;
 
 	res = &adev->res;
 	pi->base = devm_ioremap_resource(&adev->dev, res);
