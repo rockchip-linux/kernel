@@ -601,7 +601,6 @@ static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
 static void vop_win_update_cb(struct drm_reservation_cb *rcb, void *params)
 {
 	struct vop_win *vop_win = params;
-	struct drm_crtc *crtc = &(vop_win->vop->crtc);
 	bool needs_vblank = vop_win->pending_needs_vblank;
 
 	vop_win->pending_needs_vblank = false;
