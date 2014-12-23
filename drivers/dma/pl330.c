@@ -33,6 +33,10 @@
 #define PL330_MAX_IRQS		32
 #define PL330_MAX_PERI		32
 
+/* IP Quirks/flags. */
+/* Not to execute DMAFLUSHP instruction */
+#define PL330_QUIRK_BROKEN_NO_FLUSHP	BIT(0)
+
 enum pl330_srccachectrl {
 	SCCTRL0,	/* Noncacheable and nonbufferable */
 	SCCTRL1,	/* Bufferable only */
@@ -1262,49 +1266,65 @@ static inline int _ldst_memtomem(unsigned dry_run, u8 buf[],
 	return off;
 }
 
-static inline int _ldst_devtomem(unsigned dry_run, u8 buf[],
-		const struct _xfer_spec *pxs, int cyc)
+static inline int _ldst_devtomem(struct pl330_info *pi, unsigned dry_run,
+				 u8 buf[], const struct _xfer_spec *pxs,
+				 int cyc)
 {
 	int off = 0;
-	enum pl330_cond cond = (pxs->r->cfg->brst_len == 1) ? SINGLE : BURST;
+	enum pl330_cond cond;
+
+	/* Don't support mixed transfer */
+	if (pi->quirks & PL330_QUIRK_BROKEN_NO_FLUSHP)
+		cond = BURST;
+	else
+		cond = (pxs->r->cfg->brst_len == 1) ? SINGLE : BURST;
 
 	while (cyc--) {
 		off += _emit_WFP(dry_run, &buf[off], cond, pxs->r->peri);
 		off += _emit_LDP(dry_run, &buf[off], cond, pxs->r->peri);
 		off += _emit_ST(dry_run, &buf[off], ALWAYS);
-		off += _emit_FLUSHP(dry_run, &buf[off], pxs->r->peri);
+		if (!(pi->quirks & PL330_QUIRK_BROKEN_NO_FLUSHP))
+			off += _emit_FLUSHP(dry_run, &buf[off], pxs->r->peri);
 	}
 
 	return off;
 }
 
-static inline int _ldst_memtodev(unsigned dry_run, u8 buf[],
-		const struct _xfer_spec *pxs, int cyc)
+static inline int _ldst_memtodev(struct pl330_info *pi, unsigned dry_run,
+				 u8 buf[], const struct _xfer_spec *pxs,
+				 int cyc)
 {
 	int off = 0;
-	enum pl330_cond cond = (pxs->r->cfg->brst_len == 1) ? SINGLE : BURST;
+	enum pl330_cond cond;
+
+	/* Don't support mixed transfer */
+	if (pi->quirks & PL330_QUIRK_BROKEN_NO_FLUSHP)
+		cond = BURST;
+	else
+		cond = (pxs->r->cfg->brst_len == 1) ? SINGLE : BURST;
 
 	while (cyc--) {
 		off += _emit_WFP(dry_run, &buf[off], cond, pxs->r->peri);
 		off += _emit_LD(dry_run, &buf[off], ALWAYS);
 		off += _emit_STP(dry_run, &buf[off], cond, pxs->r->peri);
-		off += _emit_FLUSHP(dry_run, &buf[off], pxs->r->peri);
+		if (!(pi->quirks & PL330_QUIRK_BROKEN_NO_FLUSHP))
+			off += _emit_FLUSHP(dry_run, &buf[off], pxs->r->peri);
 	}
 
 	return off;
 }
 
-static int _bursts(unsigned dry_run, u8 buf[],
+static int _bursts(struct pl330_info *pi, unsigned dry_run, u8 buf[],
 		const struct _xfer_spec *pxs, int cyc)
 {
 	int off = 0;
 
 	switch (pxs->r->rqtype) {
 	case MEMTODEV:
-		off += _ldst_memtodev(dry_run, &buf[off], pxs, cyc);
+		off += _ldst_memtodev(pi, dry_run, &buf[off], pxs, cyc);
 		break;
 	case DEVTOMEM:
-		off += _ldst_devtomem(dry_run, &buf[off], pxs, cyc);
+		off += _ldst_devtomem(pi, dry_run, &buf[off], pxs, cyc);
 		break;
 	case MEMTOMEM:
 		off += _ldst_memtomem(dry_run, &buf[off], pxs, cyc);
@@ -1318,8 +1338,8 @@ static int _bursts(unsigned dry_run, u8 buf[],
 }
 
 /* Returns bytes consumed and updates bursts */
-static inline int _loop(unsigned dry_run, u8 buf[],
-		unsigned long *bursts, const struct _xfer_spec *pxs)
+static inline int _loop(struct pl330_info *pi, unsigned dry_run, u8 buf[],
+			unsigned long *bursts, const struct _xfer_spec *pxs)
 {
 	int cyc, cycmax, szlp, szlpend, szbrst, off;
 	unsigned lcnt0, lcnt1, ljmp0, ljmp1;
@@ -1341,7 +1361,7 @@ static inline int _loop(unsigned dry_run, u8 buf[],
 	}
 
 	szlp = _emit_LP(1, buf, 0, 0);
-	szbrst = _bursts(1, buf, pxs, 1);
+	szbrst = _bursts(pi, 1, buf, pxs, 1);
 
 	lpend.cond = ALWAYS;
 	lpend.forever = false;
@@ -1373,7 +1393,7 @@ static inline int _loop(unsigned dry_run, u8 buf[],
 	off += _emit_LP(dry_run, &buf[off], 1, lcnt1);
 	ljmp1 = off;
 
-	off += _bursts(dry_run, &buf[off], pxs, cyc);
+	off += _bursts(pi, dry_run, &buf[off], pxs, cyc);
 
 	lpend.cond = ALWAYS;
 	lpend.forever = false;
@@ -1396,8 +1416,8 @@ static inline int _loop(unsigned dry_run, u8 buf[],
 	return off;
 }
 
-static inline int _setup_loops(unsigned dry_run, u8 buf[],
-		const struct _xfer_spec *pxs)
+static inline int _setup_loops(struct pl330_info *pi, unsigned dry_run,
+			       u8 buf[], const struct _xfer_spec *pxs)
 {
 	struct pl330_xfer *x = pxs->x;
 	u32 ccr = pxs->ccr;
@@ -1406,15 +1426,15 @@ static inline int _setup_loops(unsigned dry_run, u8 buf[],
 
 	while (bursts) {
 		c = bursts;
-		off += _loop(dry_run, &buf[off], &c, pxs);
+		off += _loop(pi, dry_run, &buf[off], &c, pxs);
 		bursts -= c;
 	}
 
 	return off;
 }
 
-static inline int _setup_xfer(unsigned dry_run, u8 buf[],
-		const struct _xfer_spec *pxs)
+static inline int _setup_xfer(struct pl330_info *pi, unsigned dry_run,
+			      u8 buf[], const struct _xfer_spec *pxs)
 {
 	struct pl330_xfer *x = pxs->x;
 	int off = 0;
@@ -1425,7 +1445,7 @@ static inline int _setup_xfer(unsigned dry_run, u8 buf[],
 	off += _emit_MOV(dry_run, &buf[off], DAR, x->dst_addr);
 
 	/* Setup Loop(s) */
-	off += _setup_loops(dry_run, &buf[off], pxs);
+	off += _setup_loops(pi, dry_run, &buf[off], pxs);
 
 	return off;
 }
@@ -1434,8 +1454,9 @@ static inline int _setup_xfer(unsigned dry_run, u8 buf[],
  * A req is a sequence of one or more xfer units.
  * Returns the number of bytes taken to setup the MC for the req.
  */
-static int _setup_req(unsigned dry_run, struct pl330_thread *thrd,
-		unsigned index, struct _xfer_spec *pxs)
+static int _setup_req(struct pl330_info *pi, unsigned dry_run,
+		      struct pl330_thread *thrd, unsigned index,
+		      struct _xfer_spec *pxs)
 {
 	struct _pl330_req *req = &thrd->req[index];
 	struct pl330_xfer *x;
@@ -1454,7 +1475,7 @@ static int _setup_req(unsigned dry_run, struct pl330_thread *thrd,
 			return -EINVAL;
 
 		pxs->x = x;
-		off += _setup_xfer(dry_run, &buf[off], pxs);
+		off += _setup_xfer(pi, dry_run, &buf[off], pxs);
 
 		x = x->next;
 	} while (x);
@@ -1589,7 +1610,7 @@ static int pl330_submit_req(void *ch_id, struct pl330_req *r)
 	xs.r = r;
 
 	/* First dry run to check if req is acceptable */
-	ret = _setup_req(1, thrd, idx, &xs);
+	ret = _setup_req(pi, 1, thrd, idx, &xs);
 	if (ret < 0)
 		goto xfer_exit;
 
@@ -1603,7 +1624,7 @@ static int pl330_submit_req(void *ch_id, struct pl330_req *r)
 
 	/* Hook the request */
 	thrd->lstenq = idx;
-	thrd->req[idx].mc_len = _setup_req(0, thrd, idx, &xs);
+	thrd->req[idx].mc_len = _setup_req(pi, 0, thrd, idx, &xs);
 	thrd->req[idx].r = r;
 
 	ret = 0;
@@ -2894,7 +2915,10 @@ static struct pl330_of_quirks {
 	char *quirk;
 	int id;
 } of_quirks[] = {
-	/* TODO: add quirks here */
+	{
+		.quirk = "broken-no-flushp",
+		.id = PL330_QUIRK_BROKEN_NO_FLUSHP,
+	},
 };
 
 static int
