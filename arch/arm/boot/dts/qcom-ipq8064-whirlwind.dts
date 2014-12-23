@@ -33,6 +33,56 @@
 			pinctrl-0 = <&rgmii0_pinmux>;
 			pinctrl-names = "default";
 
+			mi2s_pins {
+				mi2s_default: mi2s_default {
+					dout {
+						pins = "gpio32";
+						function = "mi2s_a";
+						drive-strength = <16>;
+						bias-disable;
+					};
+					sync {
+						pins = "gpio27";
+						function = "mi2s_a";
+						drive-strength = <16>;
+						bias-disable;
+					};
+					clk {
+						pins = "gpio28";
+						function = "mi2s_a";
+						drive-strength = <16>;
+						bias-disable;
+					};
+				};
+				mi2s_idle: mi2s_idle {
+					dout {
+						pins = "gpio32";
+						function = "mi2s_a";
+						drive-strength = <2>;
+						bias-pull-down;
+					};
+					sync {
+						pins = "gpio27";
+						function = "mi2s_a";
+						drive-strength = <2>;
+						bias-pull-down;
+					};
+					clk {
+						pins = "gpio28";
+						function = "mi2s_a";
+						drive-strength = <2>;
+						bias-pull-down;
+					};
+				};
+			};
+
+			sdmode_pins: sdmode_pinmux {
+				pins = "gpio25";
+				function = "gpio";
+				drive-strength = <16>;
+				bias-disable;
+			};
+
 			sdcc1_pins: sdcc1_pinmux {
 				mux {
 					pins = "gpio38", "gpio39", "gpio40",
@@ -173,6 +223,38 @@
 					drive-strength = <12>;
 				};
 			};
+		};
+
+		sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,cpu {
+				sound-dai = <&lpass_cpu 0>;
+				system-clock-frequency = <12288000>;
+			};
+			simple-audio-card,codec {
+				sound-dai = <&max98357a 0>;
+			};
+		};
+
+		lpass_cpu: lpass-cpu@28100000 {
+			status = "ok";
+			#sound-dai-cells = <1>;
+			pinctrl-names = "default", "idle";
+			pinctrl-0 = <&mi2s_default>;
+			pinctrl-1 = <&mi2s_idle>;
+			qcom,system-clock-shift;
+			qcom,system-clock-shift-compare = <4>;
+			qcom,system-clock-shift-amount = <3>;
+			qcom,alternate-sysclk;
+			qcom,alternate-sysclk-bitwidth = <24>;
+			qcom,alternate-sysclk-frequency = <4608000>;
+		};
+
+		max98357a: max98357a {
+			compatible = "maxim,max98357a";
+			status = "ok";
+			#sound-dai-cells = <1>;
+			sdmode-gpios = <&qcom_pinmux 25 0>;
 		};
 
 		gsbi1: gsbi@12440000 {
