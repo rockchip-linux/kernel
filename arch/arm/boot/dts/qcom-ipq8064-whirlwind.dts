@@ -33,56 +33,6 @@
 			pinctrl-0 = <&rgmii0_pinmux>;
 			pinctrl-names = "default";
 
-			mi2s_pins {
-				mi2s_disabled: mi2s_disabled {
-					dout {
-						pins = "gpio32";
-						function = "mi2s_a";
-						drive-strength = <2>;
-						bias-pull-down;
-					};
-					sync {
-						pins = "gpio27";
-						function = "mi2s_a";
-						drive-strength = <2>;
-						bias-pull-down;
-					};
-					clk {
-						pins = "gpio28";
-						function = "mi2s_a";
-						drive-strength = <2>;
-						bias-pull-down;
-					};
-				};
-				mi2s_enabled: mi2s_enabled {
-					dout {
-						pins = "gpio32";
-						function = "mi2s_a";
-						drive-strength = <16>;
-						bias-disable;
-					};
-					sync {
-						pins = "gpio27";
-						function = "mi2s_a";
-						drive-strength = <16>;
-						bias-disable;
-					};
-					clk {
-						pins = "gpio28";
-						function = "mi2s_a";
-						drive-strength = <16>;
-						bias-disable;
-					};
-				};
-			};
-
-			sdmode_pins: sdmode_pinmux {
-				pins = "gpio25";
-				function = "gpio";
-				drive-strength = <16>;
-				bias-disable;
-			};
-
 			sdcc1_pins: sdcc1_pinmux {
 				mux {
 					pins = "gpio38", "gpio39", "gpio40",
@@ -223,28 +173,6 @@
 					drive-strength = <12>;
 				};
 			};
-		};
-
-		sound {
-			compatible = "qcom,ipq806x-snd-card";
-			status = "ok";
-			qcom,model = "ipq806x-snd-card";
-			cpu = <&lpass_cpu_mi2s>;
-			codec = <&max98357a_codec>;
-			codec-dai = "max98357a-codec-dai";
-		};
-
-		lpass_cpu_mi2s: lpass-cpu-mi2s {
-			status = "ok";
-			pinctrl-names = "mi2s-disabled", "mi2s-enabled";
-			pinctrl-0 = <&mi2s_disabled>;
-			pinctrl-1 = <&mi2s_enabled>;
-		};
-
-		max98357a_codec: max98357a-codec {
-			compatible = "maxim,max98357a-codec";
-			status = "ok";
-			sdmode-gpios = <&qcom_pinmux 25 0>;
 		};
 
 		gsbi1: gsbi@12440000 {

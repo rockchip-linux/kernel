@@ -2,7 +2,6 @@
 
 #include "skeleton.dtsi"
 #include <dt-bindings/clock/qcom,gcc-ipq806x.h>
-#include <dt-bindings/clock/qcom,lcc-ipq806x.h>
 #include <dt-bindings/mfd/qcom-rpm.h>
 #include <dt-bindings/reset/qcom,gcc-ipq806x.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
@@ -181,22 +180,6 @@
 		#size-cells = <1>;
 		ranges;
 		compatible = "simple-bus";
-
-		lpass-cpu-mi2s {
-			compatible = "qcom,lpass-cpu-mi2s";
-			status = "disabled";
-
-			clocks = <&lcc AHBIX_CLK>,
-					<&lcc MI2S_OSR_CLK>,
-					<&lcc MI2S_BIT_CLK>;
-			clock-names = "ahbix_clk",
-					"mi2s_osr_clk",
-					"mi2s_bit_clk";
-			interrupts = <0 85 1>;
-			interrupt-names = "lpass-lpaif-irq";
-			reg = <0x28100000 0x10000>;
-			reg-names = "lpass-lpaif-mem";
-		};
 
 		imem: memory@700000 {
 			compatible = "qcom,imem-ipq8064", "syscon";
@@ -566,13 +549,6 @@
 		gcc: clock-controller@900000 {
 			compatible = "qcom,gcc-ipq8064";
 			reg = <0x00900000 0x4000>;
-			#clock-cells = <1>;
-			#reset-cells = <1>;
-		};
-
-		lcc: clock-controller@28000000 {
-			compatible = "qcom,lcc-ipq8064";
-			reg = <0x28000000 0x1000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
 		};
