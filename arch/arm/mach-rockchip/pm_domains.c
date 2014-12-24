@@ -199,6 +199,8 @@ static int rockchip_pd_attach_dev(struct generic_pm_domain *genpd,
 
 	i = 0;
 	while ((clk = of_clk_get(dev->of_node, i++)) && !IS_ERR(clk)) {
+		dev_dbg(dev, "adding clock '%s' to list of PM clocks\n",
+			__clk_get_name(clk));
 		error = pm_clk_add_clk(dev, clk);
 		clk_put(clk);
 		if (error) {
@@ -206,8 +208,6 @@ static int rockchip_pd_attach_dev(struct generic_pm_domain *genpd,
 			pm_clk_destroy(dev);
 			return error;
 		}
-		dev_dbg(dev, "added clock '%s' to list of PM clocks\n",
-			__clk_get_name(clk));
 	}
 
 	return 0;
