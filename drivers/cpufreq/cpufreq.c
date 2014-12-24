@@ -27,6 +27,7 @@
 #include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/suspend.h>
+#include <linux/syscore_ops.h>
 #include <linux/tick.h>
 #include <trace/events/power.h>
 
@@ -2404,6 +2405,15 @@ int cpufreq_unregister_driver(struct cpufreq_driver *driver)
 }
 EXPORT_SYMBOL_GPL(cpufreq_unregister_driver);
 
+static void cpufreq_shutdown(void)
+{
+	cpufreq_suspend();
+}
+
+static struct syscore_ops cpufreq_syscore_ops = {
+	.shutdown = cpufreq_shutdown,
+};
+
 static int __init cpufreq_core_init(void)
 {
 	if (cpufreq_disabled())
@@ -2411,6 +2421,8 @@ static int __init cpufreq_core_init(void)
 
 	cpufreq_global_kobject = kobject_create();
 	BUG_ON(!cpufreq_global_kobject);
+
+	register_syscore_ops(&cpufreq_syscore_ops);
 
 	return 0;
 }
