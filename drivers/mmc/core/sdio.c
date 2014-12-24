@@ -962,22 +962,25 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 		}
 	}
 
+	if (err)
+		return err;
+
 	if (host->sdio_irqs) {
 		mmc_claim_host(host);
 		atomic_set(&host->sdio_irq_thread_suspend, 1);
 		mmc_release_host(host);
 	}
 
-	if (!err && mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host)) {
+	if (mmc_card_keep_power(host) && mmc_card_wake_sdio_irq(host)) {
 		mmc_claim_host(host);
 		sdio_disable_wide(host->card);
 		mmc_release_host(host);
 	}
 
-	if (!err && !mmc_card_keep_power(host))
+	if (!mmc_card_keep_power(host))
 		mmc_power_off(host);
 
-	return err;
+	return 0;
 }
 
 static int mmc_sdio_resume(struct mmc_host *host)
