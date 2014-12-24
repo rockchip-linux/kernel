@@ -197,6 +197,7 @@ static int rockchip_pd_attach_dev(struct generic_pm_domain *genpd,
 		return error;
 	}
 
+	i = 0;
 	while ((clk = of_clk_get(dev->of_node, i++)) && !IS_ERR(clk)) {
 		error = pm_clk_add_clk(dev, clk);
 		clk_put(clk);
