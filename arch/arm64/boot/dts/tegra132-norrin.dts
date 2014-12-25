@@ -1678,22 +1678,58 @@
 		status = "okay";
 	};
 
-	/* USB A connector */
-	usb@7d000000 {
+	usb@0,70090000 {
 		status = "okay";
+		phys = <&padctl TEGRA_XUSB_PADCTL_UTMI_P0>, /* USB 2.0 port */
+		       <&padctl TEGRA_XUSB_PADCTL_UTMI_P1>, /* CAMERA USB 2.0 */
+		       <&padctl TEGRA_XUSB_PADCTL_UTMI_P2>, /* USB 2.0 port */
+		       <&padctl TEGRA_XUSB_PADCTL_USB3_P0>, /* 1st USB 3.0 */
+		       <&padctl TEGRA_XUSB_PADCTL_USB3_P1>; /* 2nd USB 3.0 */
+		phy-names = "utmi-0", "utmi-1", "utmi-2", "usb3-0", "usb3-1";
+		avddio-pex-supply = <&avdd_hdmi_pex>;
+		dvddio-pex-supply = <&avdd_hdmi_pex>;
+		avdd-usb-supply = <&vdd_3v3_reg>;
+		avdd-pll-utmip-supply = <&vddio_1v8>;
+		avdd-pll-erefe-supply = <&run_avdd_1v05>;
+		avdd-pex-pll-supply = <&avdd_hdmi_pex>;
+		hvdd-pex-supply = <&vdd_3v3_reg>;
+		hvdd-pex-plle-supply = <&vdd_3v3_reg>;
 	};
 
-	usb-phy@7d000000 {
-		status = "okay";
-	};
+	padctl@0,7009f000 {
+		pinctrl-0 = <&padctl_default>;
+		pinctrl-1 = <&padctl_sleep>;
+		pinctrl-names = "default", "sleep";
 
-	usb@7d008000 {
-		status = "okay";
-	};
+		vbus-0-supply = <&vdd_usb1_vbus>;
+		vbus-1-supply = <&run_cam_2v8>;
+		vbus-2-supply = <&vdd_usb3_vbus>;
+		nvidia,usb3-port-0-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_0>;
+		nvidia,usb3-port-1-lane = <TEGRA_XUSB_PADCTL_PIN_PCIE_1>;
 
-	usb-phy@7d008000 {
-		status = "okay";
-		vbus-supply = <&vdd_usb3_vbus>;
+		padctl_default: pinmux {
+			otg {
+				nvidia,lanes = "otg-0", "otg-1", "otg-2";
+				nvidia,function = "xusb";
+			};
+
+			usb3p0 {
+				nvidia,lanes = "pcie-0";
+				nvidia,function = "usb3";
+				nvidia,iddq = <0>;
+				nvidia,usb2-port-num = <0>;
+			};
+
+			usb3p1 {
+				nvidia,lanes = "pcie-1";
+				nvidia,function = "usb3";
+				nvidia,iddq = <0>;
+				nvidia,usb2-port-num = <2>;
+			};
+		};
+
+		padctl_sleep: pinmux {
+		};
 	};
 
 	sdhci@700b0400 {
@@ -1814,10 +1850,19 @@
 		vdd_usb3_vbus: regulator@4 {
 			compatible = "regulator-fixed";
 			reg = <4>;
-			regulator-name = "+5V_USB_HS";
+			regulator-name = "+5V_USB_SS1";
 			regulator-min-microvolt = <5000000>;
 			regulator-max-microvolt = <5000000>;
-			regulator-always-on;
+			regulator-boot-on;
+			vin-supply = <&vdd_5v0_sys>;
+		};
+
+		vdd_usb1_vbus: regulator@5 {
+			compatible = "regulator-fixed";
+			reg = <5>;
+			regulator-name = "+5V_USB_SS0";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
 			regulator-boot-on;
 			vin-supply = <&vdd_5v0_sys>;
 		};
