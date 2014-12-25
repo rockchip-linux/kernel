@@ -972,8 +972,68 @@ static const char *dmic_mux_text[] = { "ADC", "DMIC" };
 
 static SOC_ENUM_SINGLE_VIRT_DECL(dmic_mux_enum, dmic_mux_text);
 
+
+/*
+ * DMIC enable register can not be safely toggled when shutdown bit
+ * is 1. This causes a short audio drop in playback whenever a capture
+ * stream starts.
+ * To overcome this problem, we can uses these routes to turn on
+ * DMIC enable bit during all audio playback cases when DMIC is selected.
+ * Captured audio is not sent outside of codec because SDOEN is not
+ * enabled.
+ * When external mic is selected, delete these routes.
+ * These routes will be used in put_dmic_mux, that is, the put function
+ * of "DMIC Mux" control.
+ */
+static const struct snd_soc_dapm_route max98090_dapm_enable_dmic_routes[] = {
+
+	{"HPL", NULL,  "DMICL_ENA"},
+	{"HPR", NULL, "DMICR_ENA"},
+	{"SPKL", NULL, "DMICL_ENA"},
+	{"SPKR", NULL, "DMICR_ENA"},
+	{"RCVL", NULL, "DMICL_ENA"},
+	{"RCVR", NULL, "DMICR_ENA"},
+
+};
+
+/*
+ * Add or delete routes for max98090. Check comments for
+ * max98090_dapm_enable_dmic_routes.
+ */
+static int put_dmic_mux(struct snd_kcontrol *kcontrol,
+			     struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_soc_dapm_kcontrol_codec(kcontrol);
+	struct snd_soc_dapm_context *dapm = snd_soc_dapm_kcontrol_dapm(
+						kcontrol);
+	struct max98090_priv *max98090 = snd_soc_codec_get_drvdata(codec);
+	int ret = 0;
+	int use_dmic = ucontrol->value.enumerated.item[0];
+
+	/* max98091 does not suffer from DMIC enable register problem. */
+	if (max98090->devtype == MAX98091)
+		return snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+
+	dev_info(codec->dev, "DMIC Mux: put_dmic_mux %s DMIC\n",
+		use_dmic ? "enable" : "disable");
+
+	if (use_dmic)
+		snd_soc_dapm_add_routes(dapm, max98090_dapm_enable_dmic_routes,
+			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+	else
+		snd_soc_dapm_del_routes(dapm, max98090_dapm_enable_dmic_routes,
+			ARRAY_SIZE(max98090_dapm_enable_dmic_routes));
+
+	ret = snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+
+	snd_soc_dapm_sync(dapm);
+
+	return ret;
+}
+
 static const struct snd_kcontrol_new max98090_dmic_mux =
-	SOC_DAPM_ENUM("DMIC Mux", dmic_mux_enum);
+	SOC_DAPM_ENUM_EXT("DMIC Mux", dmic_mux_enum,
+		snd_soc_dapm_get_enum_double, put_dmic_mux);
 
 static const char *max98090_micpre_text[] = { "Off", "On" };
 
