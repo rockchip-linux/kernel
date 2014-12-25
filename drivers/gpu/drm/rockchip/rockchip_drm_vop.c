@@ -411,6 +411,22 @@ static void vop_dsp_hold_valid_irq_enable(struct vop *vop)
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 }
 
+static void vop_line_flag_irq_enable(struct vop *vop)
+{
+	unsigned long flags;
+	struct drm_display_mode *mode = &vop->crtc.hwmode;
+
+	if (WARN_ON(!vop->is_enabled))
+		return;
+
+	spin_lock_irqsave(&vop->irq_lock, flags);
+
+	vop_mask_write(vop, INTR_CTRL0, DSP_LINE_NUM_MASK | LINE_FLAG_INTR_MASK,
+		       DSP_LINE_NUM(mode->vsync_end) | LINE_FLAG_INTR_EN(1));
+
+	spin_unlock_irqrestore(&vop->irq_lock, flags);
+}
+
 static void vop_dsp_hold_valid_irq_disable(struct vop *vop)
 {
 	unsigned long flags;
@@ -422,6 +438,21 @@ static void vop_dsp_hold_valid_irq_disable(struct vop *vop)
 
 	vop_mask_write(vop, INTR_CTRL0, DSP_HOLD_VALID_INTR_MASK,
 		       DSP_HOLD_VALID_INTR_EN(0));
+
+	spin_unlock_irqrestore(&vop->irq_lock, flags);
+}
+
+static void vop_line_flag_irq_disable(struct vop *vop)
+{
+	unsigned long flags;
+
+	if (WARN_ON(!vop->is_enabled))
+		return;
+
+	spin_lock_irqsave(&vop->irq_lock, flags);
+
+	vop_mask_write(vop, INTR_CTRL0, LINE_FLAG_INTR_MASK,
+		       LINE_FLAG_INTR_EN(0));
 
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 }
@@ -1199,22 +1230,17 @@ static int dmc_notify(struct notifier_block *nb,
 		      void *data)
 {
 	struct vop *vop = container_of(nb, struct vop, dmc_nb);
-	int ret;
+
+	if (WARN_ON(!vop->is_enabled))
+		return NOTIFY_BAD;
 
 	reinit_completion(&vop->dmc_completion);
-	ret = drm_vblank_get(vop->drm_dev, vop->pipe);
-	if (ret < 0) {
-		DRM_ERROR("failed to get vblank for dmc sync %d\n", ret);
-		return NOTIFY_BAD;
-	}
 
-	if (!wait_for_completion_timeout(&vop->dmc_completion,
-					 msecs_to_jiffies(50))) {
-		DRM_ERROR("dmc wait for vblank completion timed out\n");
-		drm_vblank_put(vop->drm_dev, vop->pipe);
-		return NOTIFY_BAD;
-	}
-	drm_vblank_put(vop->drm_dev, vop->pipe);
+	vop_line_flag_irq_enable(vop);
+
+	wait_for_completion(&vop->dmc_completion);
+
+	vop_line_flag_irq_disable(vop);
 
 	return NOTIFY_STOP;
 }
@@ -1295,11 +1321,15 @@ static irqreturn_t vop_isr(int irq, void *data)
 		ret = IRQ_HANDLED;
 	}
 
-	if (active_irqs & FS_INTR) {
-		drm_handle_vblank(vop->drm_dev, vop->pipe);
+	if (active_irqs & LINE_FLAG_INTR) {
 		if (!completion_done(&vop->dmc_completion))
 			complete(&vop->dmc_completion);
+		active_irqs &= ~LINE_FLAG_INTR;
+		ret = IRQ_HANDLED;
+	}
 
+	if (active_irqs & FS_INTR) {
+		drm_handle_vblank(vop->drm_dev, vop->pipe);
 		active_irqs &= ~FS_INTR;
 		ret = IRQ_WAKE_THREAD;
 	}
