@@ -105,7 +105,7 @@ void enable_dw_hdmi_audio(struct snd_dw_hdmi *hdmi)
 
 void disable_dw_hdmi_audio(struct snd_dw_hdmi *hdmi)
 {
-	hdmi->data.mod(hdmi->data.dw, 1,
+	hdmi->data.mod(hdmi->data.dw, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
 		       HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
 }
 
@@ -230,13 +230,13 @@ static int dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		disable_dw_hdmi_audio(hdmi);
+		enable_dw_hdmi_audio(hdmi);
 		dev_dbg(codec_dai->dev, "[codec_dai]: trigger enable.\n");
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		enable_dw_hdmi_audio(hdmi);
+		disable_dw_hdmi_audio(hdmi);
 		dev_dbg(codec_dai->dev, "[codec_dai]: trigger disable.\n");
 		break;
 	default:
