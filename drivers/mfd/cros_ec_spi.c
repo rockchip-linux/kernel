@@ -372,7 +372,7 @@ static int cros_ec_pkt_xfer_spi(struct cros_ec_device *ec_dev,
 	struct ec_host_request *request;
 	struct ec_host_response *response;
 	struct cros_ec_spi *ec_spi = ec_dev->priv;
-	struct spi_transfer trans;
+	struct spi_transfer trans, trans_delay;
 	struct spi_message msg;
 	int i, len;
 	u8 *ptr;
@@ -405,18 +405,11 @@ static int cros_ec_pkt_xfer_spi(struct cros_ec_device *ec_dev,
 	 * Leave a gap between CS assertion and clocking of data to allow the
 	 * EC time to wakeup.
 	 */
+	spi_message_init(&msg);
 	if (ec_spi->start_of_msg_delay) {
-		spi_message_init(&msg);
-		memset(&trans, 0, sizeof(trans));
-		trans.cs_change = 1;
-		trans.delay_usecs = ec_spi->start_of_msg_delay;
-		spi_message_add_tail(&trans, &msg);
-		ret = spi_sync(ec_spi->spi, &msg);
-		if (ret < 0) {
-			dev_err(ec_dev->dev,
-				"cs-assert spi transfer failed: %d\n", ret);
-			goto exit;
-		}
+		memset(&trans_delay, 0, sizeof(trans_delay));
+		trans_delay.delay_usecs = ec_spi->start_of_msg_delay;
+		spi_message_add_tail(&trans_delay, &msg);
 	}
 
 	/* Transmit phase - send our message */
@@ -425,7 +418,6 @@ static int cros_ec_pkt_xfer_spi(struct cros_ec_device *ec_dev,
 	trans.rx_buf = rx_buf;
 	trans.len = len;
 	trans.cs_change = 1;
-	spi_message_init(&msg);
 	spi_message_add_tail(&trans, &msg);
 	ret = spi_sync(ec_spi->spi, &msg);
 
