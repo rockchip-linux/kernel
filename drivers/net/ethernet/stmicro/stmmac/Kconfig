@@ -86,4 +86,15 @@ config STMMAC_DA
 	  By default, the DMA arbitration scheme is based on Round-robin
 	  (rx:tx priority is 1:1).
 
+config DWMAC_RK
+	bool "Rockchip GMAC support"
+	depends on STMMAC_PLATFORM && ARCH_ROCKCHIP
+	default y
+	---help---
+	  Support for Rockchip RK3288 GMAC ethernet controllers.
+
+	  This selects Rockchip SoC glue layer support for the
+	  stmmac device driver. This driver is used for RK3288
+	  GMAC ethernet controller.
+
 endif

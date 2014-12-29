@@ -41,6 +41,9 @@ static const struct of_device_id stmmac_dt_ids[] = {
 	{ .compatible = "st,stih416-dwmac", .data = &sti_gmac_data},
 	{ .compatible = "st,stid127-dwmac", .data = &sti_gmac_data},
 #endif
+#ifdef CONFIG_DWMAC_RK
+	{ .compatible = "rockchip,rk3288-gmac", .data = &rk3288_gmac_data},
+#endif
 	/* SoC specific glue layers should come before generic bindings */
 	{ .compatible = "st,spear600-gmac"},
 	{ .compatible = "snps,dwmac-3.610"},

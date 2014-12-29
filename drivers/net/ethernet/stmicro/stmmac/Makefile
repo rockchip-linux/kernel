@@ -4,6 +4,7 @@ stmmac-$(CONFIG_STMMAC_PCI) += stmmac_pci.o
 stmmac-$(CONFIG_DWMAC_PISTACHIO) += dwmac-pistachio.o
 stmmac-$(CONFIG_DWMAC_SUNXI) += dwmac-sunxi.o
 stmmac-$(CONFIG_DWMAC_STI) += dwmac-sti.o
+stmmac-$(CONFIG_DWMAC_RK) += dwmac-rk.o
 stmmac-objs:= stmmac_main.o stmmac_ethtool.o stmmac_mdio.o ring_mode.o	\
 	      chain_mode.o dwmac_lib.o dwmac1000_core.o  dwmac1000_dma.o \
 	      dwmac100_core.o dwmac100_dma.o enh_desc.o  norm_desc.o \
