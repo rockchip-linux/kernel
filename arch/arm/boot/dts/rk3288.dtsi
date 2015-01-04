@@ -378,7 +378,7 @@
 		status = "disabled";
 	};
 
-	thermal-zones {
+	thermal: thermal-zones {
 		#include "rk3288-thermal.dtsi"
 	};
 

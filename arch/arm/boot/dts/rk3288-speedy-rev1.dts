@@ -16,6 +16,10 @@
 
 };
 
+&thermal {
+	#include "rk3288-speedy-thermal.dtsi"
+};
+
 &edp {
 	/*
 	 * The panel cable of speedy-rev1 have some problem, so the hpd signal

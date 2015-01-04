@@ -18,6 +18,10 @@
 		     "google,veyron", "rockchip,rk3288";
 };
 
+&thermal {
+	#include "rk3288-speedy-thermal.dtsi"
+};
+
 &gpio_keys {
 	power {
 		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
