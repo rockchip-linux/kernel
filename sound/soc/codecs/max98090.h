@@ -1524,6 +1524,15 @@ struct max98090_cdata {
 	unsigned int fmt;
 };
 
+/* Save state when temporarily shutting down the codec to change registers that
+ * must only be changes while in software shutdown.
+ */
+struct max98090_shdn_state {
+	int old_shdn;
+	int old_level_control;
+	bool saved;
+};
+
 struct max98090_priv {
 	struct regmap *regmap;
 	struct snd_soc_codec *codec;
@@ -1549,6 +1558,11 @@ struct max98090_priv {
 	unsigned int extmic_mux;
 	unsigned int sidetone;
 	bool master;
+	bool sysclk_changed;
+	snd_pcm_format_t pcm_format;
+	struct mutex mutex;
+	struct max98090_shdn_state state;
+	bool dmic_post_pmu_done;
 };
 
 int max98090_mic_detect(struct snd_soc_codec *codec,
