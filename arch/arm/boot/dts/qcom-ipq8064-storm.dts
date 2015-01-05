@@ -460,6 +460,8 @@
 					0x000e0 0xc74164de  /* SGMII_CTRL */
 					0x0007c 0x4e        /* PORT0_STATUS */
 					0x00094 0x4e        /* PORT6_STATUS */
+					0x00050 0xcd35cd35  /* LED_CTRL0 */
+					0x00058 0xce35ce35  /* LED_CTRL2 */
 				>;
 				qca,ar8327-vlans = <
 					0x1	0x4e	/* VLAN1 Ports 1/2/3/6 */
