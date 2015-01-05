@@ -259,8 +259,12 @@ static int cros_ec_pd_fw_update(struct device *dev,
 		return ret;
 	}
 
-	/* Wait 2 seconds for the charger to reboot */
-	msleep(2000);
+	/*
+	 * Wait for the charger to reboot.
+	 * TODO(shawnn): Instead of waiting for a fixed period of time, wait
+	 * to recieve an interrupt that signals the charger is back online.
+	 */
+	msleep(4000);
 
 	/* Erase RW flash */
 	pd_cmd->cmd = USB_PD_FW_FLASH_ERASE;
