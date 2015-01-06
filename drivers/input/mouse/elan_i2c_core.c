@@ -114,6 +114,7 @@ static int elan_enable_power(struct elan_tp_data *data)
 		msleep(30);
 	} while (--repeat > 0);
 
+	dev_err(&data->client->dev, "Failed to enable power\n");
 	return error;
 }
 
@@ -141,6 +142,7 @@ static int elan_disable_power(struct elan_tp_data *data)
 		msleep(30);
 	} while (--repeat > 0);
 
+	dev_err(&data->client->dev, "Failed to disable power\n");
 	return error;
 }
 
@@ -1168,6 +1170,7 @@ static int __maybe_unused elan_resume(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct elan_tp_data *data = i2c_get_clientdata(client);
+	int ret = 0;
 
 	/* Defer activation if inhibited */
 	if (!data->input->inhibited) {
@@ -1177,11 +1180,11 @@ static int __maybe_unused elan_resume(struct device *dev)
 			data->irq_wake = false;
 		}
 
-		elan_reactivate(data);
+		ret = elan_reactivate(data);
 		enable_irq(client->irq);
 	}
 
-	return 0;
+	return ret;
 }
 
 static SIMPLE_DEV_PM_OPS(elan_pm_ops, elan_suspend, elan_resume);

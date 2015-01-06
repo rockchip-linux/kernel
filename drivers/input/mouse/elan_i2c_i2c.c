@@ -117,7 +117,12 @@ static int elan_i2c_write_cmd(struct i2c_client *client, u16 reg, u16 cmd)
 	int ret;
 
 	ret = i2c_transfer(client->adapter, &msg, 1);
-	return ret == 1 ? 0 : (ret < 0 ? ret : -EIO);
+	if (ret != 1) {
+		dev_err(&client->dev, "writing cmd (0x%04x) fail.\n", reg);
+		return ret < 0 ? ret : -EIO;
+	}
+
+	return 0;
 }
 
 static int elan_i2c_initialize(struct i2c_client *client)
