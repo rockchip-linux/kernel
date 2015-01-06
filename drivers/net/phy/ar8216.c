@@ -26,7 +26,7 @@
 #include <linux/netlink.h>
 #include <linux/bitops.h>
 #include <net/genetlink.h>
-#include <linux/switch.h>
+#include <linux/switchdev.h>
 #include <linux/delay.h>
 #include <linux/phy.h>
 #include <linux/netdevice.h>

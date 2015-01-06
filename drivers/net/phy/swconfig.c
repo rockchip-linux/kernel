@@ -23,7 +23,7 @@
 #include <linux/if_ether.h>
 #include <linux/capability.h>
 #include <linux/skbuff.h>
-#include <linux/switch.h>
+#include <linux/switchdev.h>
 #include <linux/of.h>
 #include <linux/version.h>
 

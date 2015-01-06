@@ -17,7 +17,7 @@
 #define _LINUX_SWITCH_H
 
 #include <net/genetlink.h>
-#include <uapi/linux/switch.h>
+#include <uapi/linux/switchdev.h>
 
 struct switch_dev;
 struct switch_op;
