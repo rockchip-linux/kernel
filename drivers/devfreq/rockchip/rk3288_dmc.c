@@ -86,6 +86,7 @@ static int rk3288_dmcfreq_target(struct device *dev, unsigned long *freq,
 	struct dev_pm_opp *opp;
 	unsigned long rate, old_rate;
 	unsigned long volt, old_volt;
+	unsigned long old_clk_rate;
 	int err = 0;
 
 	rcu_read_lock();
@@ -117,9 +118,14 @@ static int rk3288_dmcfreq_target(struct device *dev, unsigned long *freq,
 		return err;
 	}
 
+	old_clk_rate = clk_get_rate(dmcfreq.dmc_clk);
 	err = clk_set_rate(dmcfreq.dmc_clk, rate);
-	if (err) {
-		dev_err(dev, "Unable to set freq %lu\n", rate);
+	if (err || old_clk_rate == clk_get_rate(dmcfreq.dmc_clk)) {
+		dev_err(dev,
+			"Unable to set freq %lu. Current freq %lu. Error %d\n",
+			rate,
+			old_clk_rate,
+			err);
 		goto rate;
 	}
 
