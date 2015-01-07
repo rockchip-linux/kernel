@@ -1328,8 +1328,8 @@ static const struct clk_ops rk3288_dmcclk_ops = {
 };
 
 static const char *parent_clk_names[] = {
-	"dpll",
-	"gpll",
+	"pll_dpll",
+	"pll_gpll",
 };
 
 static int rk3288_register_dmcclk(struct rk3288_dmcclk *dmc)
