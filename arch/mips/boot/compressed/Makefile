@@ -68,6 +68,8 @@ hostprogs-y := calc_vmlinuz_load_addr
 
 ifeq ($(CONFIG_MACH_JZ4740),y)
 VMLINUZ_LOAD_ADDRESS := 0x80600000
+else ifeq ($(CONFIG_MACH_PISTACHIO),y)
+VMLINUZ_LOAD_ADDRESS := 0x81000000
 else
 VMLINUZ_LOAD_ADDRESS = $(shell $(obj)/calc_vmlinuz_load_addr \
 		$(obj)/vmlinux.bin $(VMLINUX_LOAD_ADDRESS))
