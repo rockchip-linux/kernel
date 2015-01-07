@@ -130,7 +130,7 @@ struct rockchip_pll_clock {
 		.name		= _name,				\
 		.parent_names	= _pnames,				\
 		.num_parents	= ARRAY_SIZE(_pnames),			\
-		.flags		= CLK_GET_RATE_NOCACHE | _flags,	\
+		.flags		= _flags,				\
 		.con_offset	= _con,					\
 		.mode_offset	= _mode,				\
 		.mode_shift	= _mshift,				\
@@ -144,7 +144,7 @@ struct clk *rockchip_clk_register_pll(enum rockchip_pll_type pll_type,
 		void __iomem *base, int con_offset, int grf_lock_offset,
 		int lock_shift, int reg_mode, int mode_shift,
 		struct rockchip_pll_rate_table *rate_table,
-		u8 clk_pll_flags, spinlock_t *lock);
+		unsigned long flags, u8 clk_pll_flags, spinlock_t *lock);
 
 struct rockchip_cpuclk_clksel {
 	int reg;

@@ -333,7 +333,7 @@ struct clk *rockchip_clk_register_pll(enum rockchip_pll_type pll_type,
 		void __iomem *base, int con_offset, int grf_lock_offset,
 		int lock_shift, int mode_offset, int mode_shift,
 		struct rockchip_pll_rate_table *rate_table,
-		u8 clk_pll_flags, spinlock_t *lock)
+		unsigned long flags, u8 clk_pll_flags, spinlock_t *lock)
 {
 	const char *pll_parents[3];
 	struct clk_init_data init;
@@ -357,7 +357,7 @@ struct clk *rockchip_clk_register_pll(enum rockchip_pll_type pll_type,
 	init.name = pll_name;
 
 	/* keep all plls untouched for now */
-	init.flags = CLK_IGNORE_UNUSED;
+	init.flags = CLK_IGNORE_UNUSED | flags;
 
 	init.parent_names = &parent_names[0];
 	init.num_parents = 1;
