@@ -529,8 +529,11 @@ static int btmrvl_cal_data_dt(struct btmrvl_private *priv)
 static int btmrvl_setup(struct hci_dev *hdev)
 {
 	struct btmrvl_private *priv = hci_get_drvdata(hdev);
+	int ret;
 
-	btmrvl_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
+	ret = btmrvl_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
+	if (ret)
+		return ret;
 
 	btmrvl_cal_data_dt(priv);
 
