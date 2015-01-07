@@ -94,7 +94,7 @@ static struct tpm_inf_dev tpm_dev;
  * repeated start condition and due to it's special requirements.
  * The i2c_smbus* functions do not work for this chip.
  *
- * Return -EIO on error, 0 on success.
+ * Return negative on error, 0 on success.
  */
 static int iic_tpm_read(u8 addr, u8 *buffer, size_t len)
 {
@@ -170,7 +170,9 @@ out:
 	 * messages.
 	 * So rc should be greater than 0 here otherwise we have an error.
 	 */
-	if (rc <= 0)
+	if (rc < 0)
+		return rc;
+	else if (rc == 0)
 		return -EIO;
 
 	return 0;
@@ -417,6 +419,7 @@ static int recv_data(struct tpm_chip *chip, u8 *buf, size_t count)
 	ssize_t burstcnt;
 	u8 retries = 0;
 	int rc;
+	int adapterlimit = count;
 
 	while (size < count) {
 		burstcnt = get_burstcount(chip);
@@ -428,13 +431,24 @@ static int recv_data(struct tpm_chip *chip, u8 *buf, size_t count)
 		/* limit received data to max. left */
 		if (burstcnt > (count - size))
 			burstcnt = count - size;
+		if (burstcnt > adapterlimit)
+			burstcnt = adapterlimit;
 
 		rc = iic_tpm_read(TPM_DATA_FIFO(chip->vendor.locality),
 				  &(buf[size]), burstcnt);
 		if (rc == 0)
 			size += burstcnt;
-		else if (rc < 0)
+		else if (rc < 0) {
 			retries++;
+			/* In the off chance we simply overloaded the adapter
+			 * capability, voluntarily reduce our chunk size.
+			 * Also employ a reasonable floor value.
+			 */
+			if (rc == -EINVAL) {
+				adapterlimit = (adapterlimit + 1) / 2;
+				adapterlimit = max(adapterlimit, 32);
+			}
+		}
 
 		/* avoid endless loop in case of broken HW */
 		if (retries > MAX_COUNT_LONG)
