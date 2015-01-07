@@ -194,19 +194,18 @@ static u32 rk_tsadcv2_temp_to_code(long temp)
 
 static long rk_tsadcv2_code_to_temp(u32 code)
 {
-	int high, low, mid;
-
-	low = 0;
-	high = ARRAY_SIZE(v2_code_table) - 1;
-	mid = (high + low) / 2;
+	unsigned int low = 0;
+	unsigned int high = ARRAY_SIZE(v2_code_table) - 1;
+	unsigned int mid = (low + high) / 2;
+	unsigned int scale;
 
 	if (code > v2_code_table[low].code || code < v2_code_table[high].code)
 		return 125000; /* No code available, return max temperature */
 
 	while (low <= high) {
-		if (code >= v2_code_table[mid].code && code <
-		    v2_code_table[mid - 1].code)
-			return v2_code_table[mid].temp;
+		if (code >= v2_code_table[mid].code &&
+		    code < v2_code_table[mid - 1].code)
+			break;
 		else if (code < v2_code_table[mid].code)
 			low = mid + 1;
 		else
@@ -214,7 +213,16 @@ static long rk_tsadcv2_code_to_temp(u32 code)
 		mid = (low + high) / 2;
 	}
 
-	return 125000;
+	/*
+	 * The 5C granularity provided by the table is too much. Let's
+	 * assume that the relationship between sensor readings and
+	 * temperature between 2 table entries is linear and extrapolate
+	 * to produce less granular result.
+	 */
+	scale = (v2_code_table[mid].temp - v2_code_table[mid - 1].temp) /
+		(v2_code_table[mid - 1].code - v2_code_table[mid].code);
+	return v2_code_table[mid - 1].temp +
+			(v2_code_table[mid - 1].code - code) * scale;
 }
 
 /**
