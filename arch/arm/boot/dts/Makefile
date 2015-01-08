@@ -254,6 +254,8 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-brain-rev0.dtb \
 	rk3288-evb-act8846.dtb \
 	rk3288-evb-rk808.dtb \
+	rk3288-gus-rev1.dtb \
+	rk3288-jaq-rev1.dtb \
 	rk3288-jerry-rev0.dtb \
 	rk3288-jerry-rev2.dtb \
 	rk3288-jerry-rev3.dtb \

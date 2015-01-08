@@ -1,0 +1,21 @@
+/*
+ * Google Veyron Jaq Rev 1 board device tree source
+ *
+ * Copyright 2015 Google, Inc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "rk3288-veyron.dtsi"
+#include "rk3288-veyron-mighty.dtsi"
+#include "cros-ec-sbs.dtsi"
+
+/ {
+	model = "Google Jaq";
+	compatible = "google,veyron-jaq-rev1", "google,veyron-jaq",
+		     "google,veyron", "rockchip,rk3288";
+};
