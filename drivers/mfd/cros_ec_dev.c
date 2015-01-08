@@ -28,6 +28,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pm.h>
+#include <linux/pm_dark_resume.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/types.h>
@@ -411,6 +412,8 @@ static int ec_device_probe(struct platform_device *pdev)
 	if (ec_has_lightbar(ec))
 		lb_manual_suspend_ctrl(ec, 1);
 
+	dev_dark_resume_add_consumer(dev);
+
 	return 0;
 dev_reg_failed:
 set_named_failed:
@@ -425,6 +428,7 @@ cdev_add_failed:
 static int ec_device_remove(struct platform_device *pdev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(&pdev->dev);
+	dev_dark_resume_remove_consumer(&pdev->dev);
 
 	/* Let the EC take over the lightbar again. */
 	if (ec_has_lightbar(ec))
@@ -438,7 +442,7 @@ static int ec_device_remove(struct platform_device *pdev)
 static int ec_device_suspend(struct device *dev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
-	if (ec_has_lightbar(ec))
+	if (ec_has_lightbar(ec) && !dev_dark_resume_active(dev))
 		lb_suspend(ec);
 
 	return 0;
@@ -447,7 +451,7 @@ static int ec_device_suspend(struct device *dev)
 static int ec_device_resume(struct device *dev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
-	if (ec_has_lightbar(ec))
+	if (ec_has_lightbar(ec) && !dev_dark_resume_active(dev))
 		lb_resume(ec);
 
 	return 0;
