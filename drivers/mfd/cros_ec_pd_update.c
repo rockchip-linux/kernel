@@ -275,6 +275,9 @@ static int cros_ec_pd_fw_update(struct device *dev,
 		return ret;
 	}
 
+	/* Wait 3 seconds for the PD peripheral to finalize RW erase */
+	msleep(3000);
+
 	/* Write RW flash */
 	pd_cmd->cmd = USB_PD_FW_FLASH_WRITE;
 	for (i = 0; i < fw->size; i += PD_FLASH_WRITE_STEP) {
