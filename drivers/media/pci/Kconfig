@@ -8,6 +8,8 @@ menuconfig MEDIA_PCI_SUPPORT
 
 if MEDIA_PCI_SUPPORT
 
+source "drivers/media/pci/go2001/Kconfig"
+
 if MEDIA_CAMERA_SUPPORT
 	comment "Media capture support"
 source "drivers/media/pci/meye/Kconfig"
