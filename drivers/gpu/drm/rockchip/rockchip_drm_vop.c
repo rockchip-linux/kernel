@@ -1061,12 +1061,12 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	usleep_range(10, 20);
 	reset_control_deassert(vop->dclk_rst);
 
-	clk_set_rate(vop->dclk, adjusted_mode->clock * 1000);
 	ret = clk_enable(vop->dclk);
 	if (ret < 0) {
 		dev_err(vop->dev, "failed to enable dclk - %d\n", ret);
 		return ret;
 	}
+	clk_set_rate(vop->dclk, adjusted_mode->clock * 1000);
 
 	return 0;
 }
