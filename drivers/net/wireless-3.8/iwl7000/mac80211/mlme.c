@@ -1492,7 +1492,7 @@ void ieee80211_dynamic_ps_enable_work(struct work_struct *work)
 		} else {
 			ieee80211_send_nullfunc(local, sdata, 1);
 			/* Flush to get the tx status of nullfunc frame */
-			ieee80211_flush_queues(local, sdata);
+			ieee80211_flush_queues(local, sdata, false);
 		}
 	}
 
@@ -1793,18 +1793,23 @@ static void ieee80211_set_disassoc(struct ieee80211_sub_if_data *sdata,
 	/* disable per-vif ps */
 	ieee80211_recalc_ps_vif(sdata);
 
-	/* flush out any pending frame (e.g. DELBA) before deauth/disassoc */
+	/*
+	 * drop any frame before deauth/disassoc, this can be data or
+	 * management frame. Since we are disconnecting, we should not
+	 * insist on sending these frames which can take time and delay
+	 * the disconnection and possibly the roaming.
+	 */
 	if (tx)
-		ieee80211_flush_queues(local, sdata);
+		ieee80211_flush_queues(local, sdata, true);
 
 	/* deauthenticate/disassociate now */
 	if (tx || frame_buf)
 		ieee80211_send_deauth_disassoc(sdata, ifmgd->bssid, stype,
 					       reason, tx, frame_buf);
 
-	/* flush out frame */
+	/* flush out frame - make sure the deauth was actually sent */
 	if (tx)
-		ieee80211_flush_queues(local, sdata);
+		ieee80211_flush_queues(local, sdata, false);
 
 	/* clear bssid only after building the needed mgmt frames */
 	memset(ifmgd->bssid, 0, ETH_ALEN);
@@ -1988,7 +1993,7 @@ static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 	ifmgd->probe_timeout = jiffies + msecs_to_jiffies(probe_wait_ms);
 	run_again(sdata, ifmgd->probe_timeout);
 	if (sdata->local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS)
-		ieee80211_flush_queues(sdata->local, sdata);
+		ieee80211_flush_queues(sdata->local, sdata, false);
 }
 
 static void ieee80211_mgd_probe_ap(struct ieee80211_sub_if_data *sdata,

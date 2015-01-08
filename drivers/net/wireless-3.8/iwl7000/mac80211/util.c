@@ -577,7 +577,7 @@ ieee80211_get_vif_queues(struct ieee80211_local *local,
 }
 
 void ieee80211_flush_queues(struct ieee80211_local *local,
-			    struct ieee80211_sub_if_data *sdata)
+			    struct ieee80211_sub_if_data *sdata, bool drop)
 {
 	unsigned int queues;
 
@@ -590,7 +590,7 @@ void ieee80211_flush_queues(struct ieee80211_local *local,
 					IEEE80211_QUEUE_STOP_REASON_FLUSH,
 					false);
 
-	drv_flush(local, sdata, queues, false);
+	drv_flush(local, sdata, queues, drop);
 
 	ieee80211_wake_queues_by_reason(&local->hw, queues,
 					IEEE80211_QUEUE_STOP_REASON_FLUSH,
