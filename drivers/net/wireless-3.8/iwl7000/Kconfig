@@ -16,6 +16,9 @@ config IWL7000
 	select CRC32
 	select AVERAGE
 
+	# enable devcoredump framework
+	select WANT_DEV_COREDUMP
+
 	# we can't really be modular ... at least I was too lazy for it
 	depends on m
 
