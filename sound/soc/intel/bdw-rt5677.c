@@ -313,12 +313,24 @@ static int bdw_rt5677_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int snd_soc_bdw_rt5677_resume(struct device *dev)
+{
+	snd_soc_jack_gpio_detect(&mic_jack_gpio);
+	snd_soc_jack_gpio_detect(&headphone_jack_gpio);
+	return snd_soc_resume(dev);
+}
+
+const struct dev_pm_ops snd_soc_bdw_rt5677_pm_ops = {
+	.resume = snd_soc_bdw_rt5677_resume,
+};
+
 static struct platform_driver bdw_rt5677_audio = {
 	.probe = bdw_rt5677_probe,
 	.remove = bdw_rt5677_remove,
 	.driver = {
 		.name = "bdw-rt5677",
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_bdw_rt5677_pm_ops,
 	},
 };
 
