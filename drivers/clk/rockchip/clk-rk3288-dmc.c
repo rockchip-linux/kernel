@@ -1013,7 +1013,7 @@ static int dmc_cpufreq_apply_get_limit(unsigned long *cpufreq_min,
 static const u32 cpu_stack_idx[4][4] = {
 	{3, 0, 1, 2},
 	{2, 3, 0, 1},
-	{2, 1, 3, 0},
+	{1, 2, 3, 0},
 	{0, 1, 2, 3},
 };
 
