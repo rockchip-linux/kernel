@@ -6,6 +6,7 @@
  * Copyright (c) 2006 Jiri Benc <jbenc@suse.cz>
  * Copyright 2008, Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1653,8 +1654,7 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 			txqs = IEEE80211_NUM_ACS;
 
 		ndev = alloc_netdev_mqs(sizeof(*sdata) + local->hw.vif_data_size,
-					name, NET_NAME_UNKNOWN,
-					ieee80211_if_setup, txqs, 1);
+					name, ieee80211_if_setup, txqs, 1);
 		if (!ndev)
 			return -ENOMEM;
 		dev_net_set(ndev, wiphy_net(local->hw.wiphy));

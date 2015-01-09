@@ -2,6 +2,7 @@
  * mac80211_hwsim - software simulator of 802.11 radio(s) for mac80211
  * Copyright (c) 2008, Jouni Malinen <j@w1.fi>
  * Copyright (c) 2011, Javier Lopez <jlopex@gmail.com>
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -2683,8 +2684,7 @@ static int __init init_mac80211_hwsim(void)
 			goto out_free_radios;
 	}
 
-	hwsim_mon = alloc_netdev(0, "hwsim%d", NET_NAME_UNKNOWN,
-				 hwsim_mon_setup);
+	hwsim_mon = alloc_netdev(0, "hwsim%d", hwsim_mon_setup);
 	if (hwsim_mon == NULL) {
 		err = -ENOMEM;
 		goto out_free_radios;

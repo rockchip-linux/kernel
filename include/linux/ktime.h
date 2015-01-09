@@ -5,6 +5,7 @@
  *
  *   Copyright(C) 2005, Thomas Gleixner <tglx@linutronix.de>
  *   Copyright(C) 2005, Red Hat, Inc., Ingo Molnar
+ *   Copyright(C) 2015, The Linux Foundation. All rights reserved.
  *
  *  data type definitions, declarations, prototypes and macros.
  *
@@ -368,6 +369,8 @@ static inline __must_check bool ktime_to_timespec_cond(const ktime_t kt,
 
 /* Get the monotonic time in timespec format: */
 extern void ktime_get_ts(struct timespec *ts);
+/* Get the monotonic time in ktime format */
+extern ktime_t ktime_get_raw(void);
 
 /* Get the real (wall-) time in timespec format: */
 #define ktime_get_real_ts(ts)	getnstimeofday(ts)
