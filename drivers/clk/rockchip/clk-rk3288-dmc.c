@@ -1212,8 +1212,8 @@ static int ddr_change_freq(struct rk3288_dmcclk *dmc)
 #define MSCH0_DDRCONF			0x08
 #define MSCH1_DDRCONF			0x88
 
-#define VCO_MIN_HZ	440000000UL
-#define VCO_MAX_HZ	2200000000UL
+#define VCO_MIN_HZ	440000000ULL
+#define VCO_MAX_HZ	2200000000ULL
 
 static const struct rockchip_pll_rate_table rk3288_dpll_rates[] = {
 	RK3066_PLL_RATE(666000000, 9, 500, 2),
@@ -1255,7 +1255,7 @@ static long rk3288_dmcclk_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct rk3288_dmcclk *dmc = to_rk3288_dmcclk(hw);
 	const struct rockchip_pll_rate_table *prate;
-	unsigned long pll_rate;
+	u64 vco_rate, clk_rate;
 	int i;
 
 	/* Assuming rates are in decreasing order */
@@ -1268,11 +1268,20 @@ static long rk3288_dmcclk_round_rate(struct clk_hw *hw, unsigned long rate,
 	dmc->clkf = prate->nf;
 	dmc->clkod = prate->no;
 	dmc->clkr = prate->nr;
-	pll_rate = (24 * 1000000 / dmc->clkr) * dmc->clkf;
-	BUG_ON(pll_rate < VCO_MIN_HZ || pll_rate > VCO_MAX_HZ);
-	pll_rate = pll_rate / dmc->clkod;
 
-	return pll_rate;
+	vco_rate = clk_get_rate(clk_get_parent(clk_get_parent(hw->clk)));
+	vco_rate *= (u64)dmc->clkf;
+	do_div(vco_rate, dmc->clkr);
+	WARN_ON(vco_rate < VCO_MIN_HZ || vco_rate > VCO_MAX_HZ);
+	clk_rate = vco_rate;
+	do_div(clk_rate, dmc->clkod);
+
+	dev_dbg(dmc->dev,
+		"%s(%lu) vco: (24 MHz * %u) / %u = %llu Hz => clk: vco / %u = %llu Hz\n",
+		__func__, rate, dmc->clkf, dmc->clkr, vco_rate, dmc->clkod,
+		clk_rate);
+
+	return clk_rate;
 }
 
 static int rk3288_dmcclk_set_rate(struct clk_hw *hw, unsigned long rate,
