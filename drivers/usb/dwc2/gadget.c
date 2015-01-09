@@ -3161,14 +3161,14 @@ static void s3c_hsotg_dump(struct dwc2_hsotg *hsotg)
 
 	/* show periodic fifo settings */
 
-	for (idx = 1; idx <= 15; idx++) {
+	for (idx = 1; idx < hsotg->num_of_eps; idx++) {
 		val = readl(regs + DPTXFSIZN(idx));
 		dev_info(dev, "DPTx[%d] FSize=%d, StAddr=0x%08x\n", idx,
 			 val >> FIFOSIZE_DEPTH_SHIFT,
 			 val & FIFOSIZE_STARTADDR_MASK);
 	}
 
-	for (idx = 0; idx < 15; idx++) {
+	for (idx = 0; idx < hsotg->num_of_eps; idx++) {
 		dev_info(dev,
 			 "ep%d-in: EPCTL=0x%08x, SIZ=0x%08x, DMA=0x%08x\n", idx,
 			 readl(regs + DIEPCTL(idx)),
@@ -3226,7 +3226,7 @@ static int state_show(struct seq_file *seq, void *v)
 
 	seq_puts(seq, "\nEndpoint status:\n");
 
-	for (idx = 0; idx < 15; idx++) {
+	for (idx = 0; idx < hsotg->num_of_eps; idx++) {
 		u32 in, out;
 
 		in = readl(regs + DIEPCTL(idx));
@@ -3285,7 +3285,7 @@ static int fifo_show(struct seq_file *seq, void *v)
 
 	seq_puts(seq, "\nPeriodic TXFIFOs:\n");
 
-	for (idx = 1; idx <= 15; idx++) {
+	for (idx = 1; idx < hsotg->num_of_eps; idx++) {
 		val = readl(regs + DPTXFSIZN(idx));
 
 		seq_printf(seq, "\tDPTXFIFO%2d: Size %d, Start 0x%08x\n", idx,
