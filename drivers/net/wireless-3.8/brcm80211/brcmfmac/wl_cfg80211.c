@@ -1810,6 +1810,7 @@ brcmf_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *ndev,
 		return -EIO;
 
 	clear_bit(BRCMF_VIF_STATUS_CONNECTED, &ifp->vif->sme_state);
+	clear_bit(BRCMF_VIF_STATUS_CONNECTING, &ifp->vif->sme_state);
 	cfg80211_disconnected(ndev, reason_code, NULL, 0, GFP_KERNEL);
 
 	memcpy(&scbval.ea, &profile->bssid, ETH_ALEN);
@@ -2428,7 +2429,7 @@ static s32 brcmf_inform_bss(struct brcmf_cfg80211_info *cfg)
 	s32 err = 0;
 	int i;
 
-	bss_list = cfg->bss_list;
+	bss_list = (struct brcmf_scan_results *)cfg->escan_info.escan_buf;
 	if (bss_list->count != 0 &&
 	    bss_list->version != BRCMF_BSS_INFO_VERSION) {
 		brcmf_err("Version %d != WL_BSS_INFO_VERSION\n",
@@ -2602,6 +2603,7 @@ static void brcmf_cfg80211_escan_timeout_worker(struct work_struct *work)
 			container_of(work, struct brcmf_cfg80211_info,
 				     escan_timeout_work);
 
+	brcmf_inform_bss(cfg);
 	brcmf_notify_escan_complete(cfg, cfg->escan_info.ifp, true, true);
 }
 
@@ -2741,12 +2743,9 @@ brcmf_cfg80211_escan_handler(struct brcmf_if *ifp,
 		if (brcmf_p2p_scan_finding_common_channel(cfg, NULL))
 			goto exit;
 		if (cfg->scan_request) {
-			cfg->bss_list = (struct brcmf_scan_results *)
-				cfg->escan_info.escan_buf;
 			brcmf_inform_bss(cfg);
 			aborted = status != BRCMF_E_STATUS_SUCCESS;
-			brcmf_notify_escan_complete(cfg, ifp, aborted,
-						    false);
+			brcmf_notify_escan_complete(cfg, ifp, aborted, false);
 		} else
 			brcmf_dbg(SCAN, "Ignored scan complete result 0x%x\n",
 				  status);
@@ -5472,7 +5471,6 @@ static void brcmf_wiphy_pno_params(struct wiphy *wiphy)
 	wiphy->max_sched_scan_ssids = BRCMF_PNO_MAX_PFN_COUNT;
 	wiphy->max_match_sets = BRCMF_PNO_MAX_PFN_COUNT;
 	wiphy->max_sched_scan_ie_len = BRCMF_SCAN_IE_LEN_MAX;
-	wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
 }
 
 static int brcmf_setup_wiphy(struct wiphy *wiphy, struct brcmf_if *ifp)
