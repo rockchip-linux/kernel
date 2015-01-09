@@ -80,7 +80,7 @@ void rockchip_dmc_disable(void)
 EXPORT_SYMBOL_GPL(rockchip_dmc_disable);
 
 /**
- * rockchip_dmc_inc_wait - Register the notifier block for the sync chain.
+ * rockchip_dmc_get - Register the notifier block for the sync chain.
  *
  * We can't sync with more than one notifier. By the time we sync with the
  * second notifier, the window of time for the first notifier for which we can
@@ -120,7 +120,7 @@ int rockchip_dmc_get(struct notifier_block *nb)
 EXPORT_SYMBOL_GPL(rockchip_dmc_get);
 
 /**
- * rockchip_dmc_dev_wait - Remove the notifier block from the sync chain.
+ * rockchip_dmc_put - Remove the notifier block from the sync chain.
  *
  * Call when registered notifier will no longer block. Increments the number of
  * things waiting during rockchip_dmc_wait. If that number is now 1, call the
