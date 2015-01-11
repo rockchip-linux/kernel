@@ -1,0 +1,71 @@
+/*
+ * Copyright (C) 2015 Imagination Technologies Ltd.
+ * Copyright (C) 2015 Google, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "pistachio.dtsi"
+
+/ {
+	model = "IMG Pistachio BuB";
+	compatible = "img,pistachio-bub", "img,pistachio";
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 earlycon=uart8250,mmio32,0x18101500,115200 root=/dev/sda3 rootwait ro cros_debug clk_ignore_unused";
+	};
+
+	memory {
+		device_type = "memory";
+		reg =  <0x00000000 0x08000000>;
+	};
+};
+
+&spfi1 {
+	status = "okay";
+
+	pinctrl-0 = <&spim1_pins>, <&spim1_quad_pins>, <&spim1_cs0_pin>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		compatible = "w25q80";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&usb {
+	status = "okay";
+};
+
+&enet {
+	status = "okay";
+
+	mac-address = [0123456789AB];
+};
+
+&sdhost {
+	status = "okay";
+
+	bus-width = <4>;
+};
+
+&ir {
+	status = "okay";
+};
+
+&pwm {
+	status = "okay";
+
+	pinctrl-0 = <&pwmpdm0_pin>, <&pwmpdm1_pin>, <&pwmpdm2_pin>,
+		    <&pwmpdm3_pin>;
+	pinctrl-names = "default";
+};
