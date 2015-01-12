@@ -462,13 +462,13 @@
 
 			color-green {
 				label = "LED_Green";
-				gpios = <&qcom_pinmux 9 0>;
+				gpios = <&qcom_pinmux 24 0>;
 				default-state = "off";
 			};
 
 			color-blue {
 				label = "LED_Blue";
-				gpios = <&qcom_pinmux 24 0>;
+				gpios = <&qcom_pinmux 9 0>;
 				default-state = "off";
 			};
 		};
