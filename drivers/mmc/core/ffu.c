@@ -292,7 +292,7 @@ static int mmc_ffu_switch_mode(struct mmc_card *card , int mode)
 	}
 
 	if (!err) {
-		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+		err = mmc_switch(card, 0,
 			offset, mode,
 			card->ext_csd.generic_cmd6_time);
 	}
