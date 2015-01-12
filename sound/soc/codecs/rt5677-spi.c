@@ -28,57 +28,151 @@
 #include <linux/sysfs.h>
 #include <linux/clk.h>
 #include <linux/firmware.h>
+#include <linux/acpi.h>
 
 #include "rt5677-spi.h"
 
+#define SPI_BURST_LEN		240
+#define SPI_HEADER		5
+#define SPI_READ_FREQ		1000000
+
+#define RT5677_SPI_WRITE_BURST	0x5
+#define RT5677_SPI_READ_BURST	0x4
+#define RT5677_SPI_WRITE_32	0x3
+#define RT5677_SPI_READ_32	0x2
+#define RT5677_SPI_WRITE_16	0x1
+#define RT5677_SPI_READ_16	0x0
+
 static struct spi_device *g_spi;
+static DEFINE_MUTEX(spi_mutex);
 
-/**
- * rt5677_spi_write - Write data to SPI.
- * @txbuf: Data Buffer for writing.
- * @len: Data length.
- *
- *
- * Returns true for success.
- */
-int rt5677_spi_write(u8 *txbuf, size_t len)
+/* Read DSP memory using SPI. Addr and len have to be multiples of 16-bits. */
+int rt5677_spi_read(u32 addr, void *rxbuf, size_t len)
 {
-	int status;
+	unsigned int i, end, offset = 0;
+	int status = 0;
+	struct spi_transfer t[2];
+	struct spi_message m;
+	u8 *rx_buf;
+	u8 buf[SPI_BURST_LEN + SPI_HEADER + 4];
+	u8 spi_cmd;
+	u8 *rx_data = rxbuf;
 
-	status = spi_write(g_spi, txbuf, len);
+	if (!g_spi)
+		return -ENODEV;
 
-	if (status)
-		dev_err(&g_spi->dev, "rt5677_spi_write error %d\n", status);
+	rx_buf = buf + SPI_HEADER + 4;
+	memset(t, 0, sizeof(t));
+	t[0].tx_buf = buf;
+	t[0].len = SPI_HEADER + 4;
+	t[0].speed_hz = SPI_READ_FREQ;
+	t[1].rx_buf = rx_buf;
+	t[1].speed_hz = SPI_READ_FREQ;
+	spi_message_init(&m);
+	spi_message_add_tail(&t[0], &m);
+	spi_message_add_tail(&t[1], &m);
+
+	while (offset < len) {
+		/* TODO benzh: Clean up the read length selection logic */
+		switch (min(len - offset, (size_t)(addr + offset) & 0x7)) {
+		case 4:
+			spi_cmd = RT5677_SPI_READ_32;
+			end = 4;
+			break;
+		case 2:
+		case 6:
+			spi_cmd = RT5677_SPI_READ_16;
+			end = 2;
+			break;
+		case 0:
+			if (offset + SPI_BURST_LEN <= len) {
+				spi_cmd = RT5677_SPI_READ_BURST;
+				end = SPI_BURST_LEN;
+				break;
+			} else if (offset + 4 <= len) {
+				spi_cmd = RT5677_SPI_READ_32;
+				end = 4;
+				break;
+			} else if (offset + 2 <= len) {
+				spi_cmd = RT5677_SPI_READ_16;
+				end = 2;
+				break;
+			}
+			/* Fall through to default error case */
+		default:
+			pr_err("Bad section alignment\n");
+			return -EACCES;
+		}
+
+		buf[0] = spi_cmd;
+		buf[1] = ((addr + offset) & 0xff000000) >> 24;
+		buf[2] = ((addr + offset) & 0x00ff0000) >> 16;
+		buf[3] = ((addr + offset) & 0x0000ff00) >> 8;
+		buf[4] = ((addr + offset) & 0x000000ff) >> 0;
+
+		t[1].len = end;
+
+		mutex_lock(&spi_mutex);
+		status |= spi_sync(g_spi, &m);
+		mutex_unlock(&spi_mutex);
+
+		if (spi_cmd == RT5677_SPI_READ_BURST) {
+			for (i = 0; i < end; i += 8) {
+				rx_data[offset + i + 0] = rx_buf[i + 7];
+				rx_data[offset + i + 1] = rx_buf[i + 6];
+				rx_data[offset + i + 2] = rx_buf[i + 5];
+				rx_data[offset + i + 3] = rx_buf[i + 4];
+				rx_data[offset + i + 4] = rx_buf[i + 3];
+				rx_data[offset + i + 5] = rx_buf[i + 2];
+				rx_data[offset + i + 6] = rx_buf[i + 1];
+				rx_data[offset + i + 7] = rx_buf[i + 0];
+			}
+		} else {
+			for (i = 0; i < end; i++)
+				rx_data[offset + i] = rx_buf[end - i - 1];
+		}
+
+		offset += end;
+	}
 
 	return status;
 }
-EXPORT_SYMBOL_GPL(rt5677_spi_write);
+EXPORT_SYMBOL_GPL(rt5677_spi_read);
 
-/**
- * rt5677_spi_burst_write - Write data to SPI by rt5677 dsp memory address.
- * @addr: Start address.
- * @txbuf: Data Buffer for writng.
- * @len: Data length, it must be a multiple of 8.
- *
- *
- * Returns true for success.
- */
-int rt5677_spi_burst_write(u32 addr, const struct firmware *fw)
+int rt5677_spi_write(u32 addr, const u8 *txbuf, size_t len)
 {
-	u8 spi_cmd = RT5677_SPI_CMD_BURST_WRITE;
-	u8 *write_buf;
 	unsigned int i, end, offset = 0;
+	int status = 0;
+	u8 write_buf[SPI_BURST_LEN + SPI_HEADER + 1];
+	u8 spi_cmd;
 
-	write_buf = kmalloc(RT5677_SPI_BUF_LEN + 6, GFP_KERNEL);
+	if (!g_spi)
+		return -ENODEV;
 
-	if (write_buf == NULL)
-		return -ENOMEM;
-
-	while (offset < fw->size) {
-		if (offset + RT5677_SPI_BUF_LEN <= fw->size)
-			end = RT5677_SPI_BUF_LEN;
-		else
-			end = fw->size % RT5677_SPI_BUF_LEN;
+	while (offset < len) {
+		switch ((addr + offset) & 0x7) {
+		case 4:
+			spi_cmd = RT5677_SPI_WRITE_32;
+			end = 4;
+			break;
+		case 2:
+		case 6:
+			spi_cmd = RT5677_SPI_WRITE_16;
+			end = 2;
+			break;
+		case 0:
+			spi_cmd = RT5677_SPI_WRITE_BURST;
+			if (offset + SPI_BURST_LEN <= len)
+				end = SPI_BURST_LEN;
+			else {
+				end = len - offset;
+				end = (((end - 1) >> 3) + 1) << 3;
+			}
+			break;
+		default:
+			pr_err("Bad section alignment\n");
+			return -EACCES;
+		}
 
 		write_buf[0] = spi_cmd;
 		write_buf[1] = ((addr + offset) & 0xff000000) >> 24;
@@ -86,29 +180,38 @@ int rt5677_spi_burst_write(u32 addr, const struct firmware *fw)
 		write_buf[3] = ((addr + offset) & 0x0000ff00) >> 8;
 		write_buf[4] = ((addr + offset) & 0x000000ff) >> 0;
 
-		for (i = 0; i < end; i += 8) {
-			write_buf[i + 12] = fw->data[offset + i + 0];
-			write_buf[i + 11] = fw->data[offset + i + 1];
-			write_buf[i + 10] = fw->data[offset + i + 2];
-			write_buf[i +  9] = fw->data[offset + i + 3];
-			write_buf[i +  8] = fw->data[offset + i + 4];
-			write_buf[i +  7] = fw->data[offset + i + 5];
-			write_buf[i +  6] = fw->data[offset + i + 6];
-			write_buf[i +  5] = fw->data[offset + i + 7];
+		if (spi_cmd == RT5677_SPI_WRITE_BURST) {
+			for (i = 0; i < end; i += 8) {
+				write_buf[i + 12] = txbuf[offset + i + 0];
+				write_buf[i + 11] = txbuf[offset + i + 1];
+				write_buf[i + 10] = txbuf[offset + i + 2];
+				write_buf[i +  9] = txbuf[offset + i + 3];
+				write_buf[i +  8] = txbuf[offset + i + 4];
+				write_buf[i +  7] = txbuf[offset + i + 5];
+				write_buf[i +  6] = txbuf[offset + i + 6];
+				write_buf[i +  5] = txbuf[offset + i + 7];
+			}
+		} else {
+			unsigned int j = end + (SPI_HEADER - 1);
+			for (i = 0; i < end; i++, j--) {
+				if (offset + i < len)
+					write_buf[j] = txbuf[offset + i];
+				else
+					write_buf[j] = 0;
+			}
 		}
+		write_buf[end + SPI_HEADER] = spi_cmd;
 
-		write_buf[end + 5] = spi_cmd;
+		mutex_lock(&spi_mutex);
+		status |= spi_write(g_spi, write_buf, end + SPI_HEADER + 1);
+		mutex_unlock(&spi_mutex);
 
-		rt5677_spi_write(write_buf, end + 6);
-
-		offset += RT5677_SPI_BUF_LEN;
+		offset += end;
 	}
 
-	kfree(write_buf);
-
-	return 0;
+	return status;
 }
-EXPORT_SYMBOL_GPL(rt5677_spi_burst_write);
+EXPORT_SYMBOL_GPL(rt5677_spi_write);
 
 static int rt5677_spi_probe(struct spi_device *spi)
 {
@@ -116,10 +219,19 @@ static int rt5677_spi_probe(struct spi_device *spi)
 	return 0;
 }
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id rt5677_spi_acpi_id[] = {
+	{ "RT5677AA", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, rt5677_spi_acpi_id);
+#endif
+
 static struct spi_driver rt5677_spi_driver = {
 	.driver = {
-		.name = "rt5677",
+		.name = "rt5677spi",
 		.owner = THIS_MODULE,
+		.acpi_match_table = ACPI_PTR(rt5677_spi_acpi_id),
 	},
 	.probe = rt5677_spi_probe,
 };
