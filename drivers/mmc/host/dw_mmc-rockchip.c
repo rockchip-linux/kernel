@@ -74,7 +74,8 @@ static int dw_mci_rockchip_init(struct dw_mci *host)
 	host->sdio_id0 = 8;
 
 	/* It needs this quirk on all Rockchip SoCs */
-	host->pdata->quirks |= DW_MCI_QUIRK_BROKEN_DTO;
+	host->pdata->quirks |= DW_MCI_QUIRK_BROKEN_DTO |
+		DW_MCI_QUIRK_RETRY_DELAY;
 
 	return 0;
 }
