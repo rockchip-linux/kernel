@@ -1290,6 +1290,9 @@ static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
 	}
 }
 
+#define NUM_PHASES			16
+#define TUNING_ITERATION_TO_PHASE(i)	(DIV_ROUND_UP((i) * 360, NUM_PHASES))
+
 static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
 					 struct dw_mci_tuning_data *tuning_data)
 {
@@ -1308,8 +1311,6 @@ static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
 	int longest_range_len = -1;
 	int longest_range = -1;
 	int middle_phase;
-	const int PHASE_INCREMENT = 5;
-	const int NUM_PHASES = 360 / PHASE_INCREMENT;
 
 	if (IS_ERR(host->sample_clk)) {
 		dev_err(host->dev, "Tuning clock (sample_clk) not defined.\n");
@@ -1328,7 +1329,7 @@ static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < NUM_PHASES; i++) {
-		clk_set_phase(host->sample_clk, i * PHASE_INCREMENT);
+		clk_set_phase(host->sample_clk, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !dw_mci_tuning_test(slot, opcode, tuning_data, blk_test);
 
@@ -1377,24 +1378,25 @@ static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
 		}
 
 		dev_dbg(host->dev, "Good phase range %d-%d (%d len)\n",
-			ranges[i].start * PHASE_INCREMENT,
-			ranges[i].end * PHASE_INCREMENT,
+			TUNING_ITERATION_TO_PHASE(ranges[i].start),
+			TUNING_ITERATION_TO_PHASE(ranges[i].end),
 			len
 		);
 	}
 
 	dev_dbg(host->dev, "Best phase range %d-%d (%d len)\n",
-		ranges[longest_range].start * PHASE_INCREMENT,
-		ranges[longest_range].end * PHASE_INCREMENT,
+		TUNING_ITERATION_TO_PHASE(ranges[longest_range].start),
+		TUNING_ITERATION_TO_PHASE(ranges[longest_range].end),
 		longest_range_len
 	);
 
 	middle_phase = ranges[longest_range].start + longest_range_len / 2;
 	middle_phase %= NUM_PHASES;
 	dev_info(host->dev, "Successfully tuned phase to %d\n",
-		middle_phase * PHASE_INCREMENT);
+		 TUNING_ITERATION_TO_PHASE(middle_phase));
 
-	clk_set_phase(host->sample_clk, middle_phase * PHASE_INCREMENT);
+	clk_set_phase(host->sample_clk,
+		      TUNING_ITERATION_TO_PHASE(middle_phase));
 
 free:
 	kfree(ranges);
