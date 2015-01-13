@@ -20,7 +20,7 @@
 
 static struct pistachio_gate pistachio_gates[] __initdata = {
 	GATE(CLK_MIPS, "mips", "mips_div", 0x104, 0),
-	GATE(CLK_AUDIO_IN, "audio_in", "ext_audio_in", 0x104, 1),
+	GATE(CLK_AUDIO_IN, "audio_in", "audio_refclk_ext_gate", 0x104, 1),
 	GATE(CLK_AUDIO, "audio", "audio_div", 0x104, 2),
 	GATE(CLK_I2S, "i2s", "i2s_div", 0x104, 3),
 	GATE(CLK_SPDIF, "spdif", "spdif_div", 0x104, 4),
@@ -30,10 +30,10 @@ static struct pistachio_gate pistachio_gates[] __initdata = {
 	GATE(CLK_RPU_SLEEP, "rpu_sleep", "rpu_sleep_div", 0x104, 8),
 	GATE(CLK_WIFI_PLL_GATE, "wifi_pll_gate", "wifi_pll_mux", 0x104, 9),
 	GATE(CLK_RPU_CORE, "rpu_core", "rpu_core_div", 0x104, 10),
-	GATE(CLK_WIFI_ADC, "wifi_adc", "wifi_div4_mux", 0x104, 11),
-	GATE(CLK_WIFI_DAC, "wifi_dac", "wifi_div8_mux", 0x104, 12),
+	GATE(CLK_WIFI_ADC, "wifi_adc", "wifi_div8_mux", 0x104, 11),
+	GATE(CLK_WIFI_DAC, "wifi_dac", "wifi_div4_mux", 0x104, 12),
 	GATE(CLK_USB_PHY, "usb_phy", "usb_phy_div", 0x104, 13),
-	GATE(CLK_ENET_IN, "enet_in", "ext_enet_in", 0x104, 14),
+	GATE(CLK_ENET_IN, "enet_in", "ext_enet_in_gate", 0x104, 14),
 	GATE(CLK_ENET, "enet", "enet_div", 0x104, 15),
 	GATE(CLK_UART0, "uart0", "uart0_div", 0x104, 16),
 	GATE(CLK_UART1, "uart1", "uart1_div", 0x104, 17),
@@ -47,14 +47,14 @@ static struct pistachio_gate pistachio_gates[] __initdata = {
 	GATE(CLK_AUX_ADC, "aux_adc", "aux_adc_div", 0x104, 23),
 	GATE(CLK_SD_HOST, "sd_host", "sd_host_div", 0x104, 24),
 	GATE(CLK_BT, "bt", "bt_div", 0x104, 25),
-	GATE(CLK_BT_DIV4, "bt_div4", "bt_dvi4_div", 0x104, 26),
-	GATE(CLK_BT_DIV8, "bt_div8", "bt_dvi8_div", 0x104, 27),
+	GATE(CLK_BT_DIV4, "bt_div4", "bt_div4_div", 0x104, 26),
+	GATE(CLK_BT_DIV8, "bt_div8", "bt_div8_div", 0x104, 27),
 	GATE(CLK_BT_1MHZ, "bt_1mhz", "bt_1mhz_div", 0x104, 28),
 };
 
 static struct pistachio_fixed_factor pistachio_ffs[] __initdata = {
-	FIXED_FACTOR(CLK_WIFI_DIV4, "wifi_div4", "wifi_pll_gate", 4),
-	FIXED_FACTOR(CLK_WIFI_DIV8, "wifi_div8", "wifi_pll_gate", 8),
+	FIXED_FACTOR(CLK_WIFI_DIV4, "wifi_div4", "wifi_pll", 4),
+	FIXED_FACTOR(CLK_WIFI_DIV8, "wifi_div8", "wifi_pll", 8),
 };
 
 static struct pistachio_div pistachio_divs[] __initdata = {
@@ -97,10 +97,10 @@ static struct pistachio_div pistachio_divs[] __initdata = {
 	DIV(CLK_BT_DIV8_DIV, "bt_div8_div", "bt_pll_mux", 0x274, 6),
 	DIV(CLK_BT_1MHZ_INTERNAL_DIV, "bt_1mhz_internal_div", "bt_pll_mux",
 	    0x278, 3),
-	DIV(CLK_BT_1MHZ_DIV, "bt_1mhz_div", "bt1mhz_internal_div", 0x27c, 10),
+	DIV(CLK_BT_1MHZ_DIV, "bt_1mhz_div", "bt_1mhz_internal_div", 0x27c, 10),
 };
 
-PNAME(mux_xtal_audio_refclk) = { "xtal", "audio_refclk" };
+PNAME(mux_xtal_audio_refclk) = { "xtal", "audio_refclk_ext_gate" };
 PNAME(mux_xtal_mips) = { "xtal", "mips_pll" };
 PNAME(mux_xtal_audio) = { "xtal", "audio_pll", "audio_in" };
 PNAME(mux_audio_debug) = { "audio_pll_mux", "debug_mux" };
@@ -186,9 +186,9 @@ static void __init pistachio_clk_init(struct device_node *np)
 CLK_OF_DECLARE(pistachio_clk, "img,pistachio-clk", pistachio_clk_init);
 
 static struct pistachio_gate pistachio_periph_gates[] __initdata = {
-	GATE(PERIPH_CLK_PERIPH_SYS, "periph_sys", "periph_sys_div", 0x100, 0),
-	GATE(PERIPH_CLK_SYS, "sys", "sys_div", 0x100, 1),
-	GATE(PERIPH_CLK_DDR, "ddr", "ddr_div", 0x100, 2),
+	GATE(PERIPH_CLK_SYS, "sys", "periph_sys_core", 0x100, 0),
+	GATE(PERIPH_CLK_SYS_BUS, "bus_sys", "periph_sys_core", 0x100, 1),
+	GATE(PERIPH_CLK_DDR, "ddr", "periph_sys_core", 0x100, 2),
 	GATE(PERIPH_CLK_ROM, "rom", "rom_div", 0x100, 3),
 	GATE(PERIPH_CLK_COUNTER_FAST, "counter_fast", "counter_fast_div",
 	     0x100, 4),
@@ -293,3 +293,25 @@ static void __init pistachio_cr_periph_init(struct device_node *np)
 }
 CLK_OF_DECLARE(pistachio_cr_periph, "img,pistachio-cr-periph",
 	       pistachio_cr_periph_init);
+
+static struct pistachio_gate pistachio_ext_gates[] __initdata = {
+	GATE(EXT_CLK_ENET_IN, "ext_enet_in_gate", "ext_enet_in", 0x58, 5),
+	GATE(EXT_CLK_AUDIO_IN, "audio_refclk_ext_gate",
+			"audio_refclk", 0x58, 8)
+};
+
+static void __init pistachio_clk_ext_init(struct device_node *np)
+{
+	struct pistachio_clk_provider *p;
+
+	p = pistachio_clk_alloc_provider(np, EXT_CLK_NUM_CLKS);
+	if (!p)
+		return;
+
+	pistachio_clk_register_gate(p, pistachio_ext_gates,
+				    ARRAY_SIZE(pistachio_ext_gates));
+
+	pistachio_clk_register_provider(p);
+}
+CLK_OF_DECLARE(pistachio_clk_ext, "img,pistachio-cr-top",
+	       pistachio_clk_ext_init);

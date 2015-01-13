@@ -108,8 +108,8 @@
 #define CLK_NR_CLKS			113
 
 /* Peripheral gate clocks */
-#define PERIPH_CLK_PERIPH_SYS		0
-#define PERIPH_CLK_SYS			1
+#define PERIPH_CLK_SYS			0
+#define PERIPH_CLK_SYS_BUS		1
 #define PERIPH_CLK_DDR			2
 #define PERIPH_CLK_ROM			3
 #define PERIPH_CLK_COUNTER_FAST		4
@@ -173,5 +173,11 @@
 #define SYS_CLK_HASH			27
 
 #define SYS_CLK_NR_CLKS			28
+
+/* Clock gates for external inputs audio_refclk and enet_in */
+#define	EXT_CLK_AUDIO_IN		0
+#define	EXT_CLK_ENET_IN			1
+
+#define	EXT_CLK_NUM_CLKS		2
 
 #endif /* _DT_BINDINGS_CLOCK_PISTACHIO_H */
