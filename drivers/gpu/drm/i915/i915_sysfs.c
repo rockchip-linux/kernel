@@ -486,6 +486,68 @@ static const struct attribute *vlv_attrs[] = {
 	NULL,
 };
 
+static ssize_t psr_show(struct device *kdev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	struct drm_minor *minor = dev_to_drm_minor(kdev);
+	struct drm_device *dev = minor->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	bool enabled = false;
+	ssize_t ret;
+
+	intel_runtime_pm_get(dev_priv);
+
+	enabled = !!(I915_READ(EDP_PSR_CTL(dev)) & EDP_PSR_ENABLE);
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", enabled);
+
+	intel_runtime_pm_put(dev_priv);
+	return ret;
+}
+
+static ssize_t psr_store(struct device *kdev,
+			 struct device_attribute *attr,
+			 const char *buf,
+			 size_t count)
+{
+	struct drm_minor *minor = dev_to_drm_minor(kdev);
+	struct drm_device *dev = minor->dev;
+	struct drm_connector *connector;
+	struct intel_encoder *intel_encoder;
+	struct intel_dp *intel_dp;
+	u32 val;
+	ssize_t ret;
+
+	ret = kstrtou32(buf, 0, &val);
+	if (ret)
+		return ret;
+	if (val > 1)
+		return -EINVAL;
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+		intel_encoder = intel_attached_encoder(connector);
+		intel_dp = enc_to_intel_dp(&intel_encoder->base);
+
+		if (val)
+			intel_edp_psr_enable(intel_dp);
+		else
+			intel_edp_psr_disable(intel_dp);
+	}
+
+	mutex_unlock(&dev->mode_config.mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(enable_psr, S_IRUGO | S_IWUSR, psr_show, psr_store);
+
+static const struct attribute *psr_attrs[] = {
+	&dev_attr_enable_psr.attr,
+	NULL,
+};
+
 static ssize_t error_state_read(struct file *filp, struct kobject *kobj,
 				struct bin_attribute *attr, char *buf,
 				loff_t off, size_t count)
@@ -584,6 +646,12 @@ void i915_setup_sysfs(struct drm_device *dev)
 	if (ret)
 		DRM_ERROR("RPS sysfs setup failed\n");
 
+	if (HAS_PSR(dev)) {
+		ret = sysfs_create_files(&dev->primary->kdev->kobj, psr_attrs);
+		if (ret)
+			DRM_ERROR("PSR sysfs setup failed\n");
+	}
+
 	ret = sysfs_create_bin_file(&dev->primary->kdev->kobj,
 				    &error_state_attr);
 	if (ret)
@@ -593,6 +661,8 @@ void i915_setup_sysfs(struct drm_device *dev)
 void i915_teardown_sysfs(struct drm_device *dev)
 {
 	sysfs_remove_bin_file(&dev->primary->kdev->kobj, &error_state_attr);
+	if (HAS_PSR(dev))
+		sysfs_remove_files(&dev->primary->kdev->kobj, psr_attrs);
 	if (IS_VALLEYVIEW(dev))
 		sysfs_remove_files(&dev->primary->kdev->kobj, vlv_attrs);
 	else
