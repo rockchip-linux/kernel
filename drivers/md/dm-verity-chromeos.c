@@ -26,6 +26,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mount.h>
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/ubi.h>
 #include <linux/notifier.h>
 #include <linux/string.h>
 #include <asm/page.h>
@@ -33,6 +35,7 @@
 #include "dm-verity.h"
 
 #define DM_MSG_PREFIX "verity-chromeos"
+#define DMVERROR "DMVERROR"
 
 static void chromeos_invalidate_kernel_endio(struct bio *bio, int err)
 {
@@ -143,7 +146,7 @@ found_nothing:
 }
 
 /* Replaces the first 8 bytes of a partition with DMVERROR */
-static int chromeos_invalidate_kernel(struct block_device *root_bdev)
+static int chromeos_invalidate_kernel_bio(struct block_device *root_bdev)
 {
 	int ret = 0;
 	struct block_device *bdev;
@@ -165,7 +168,8 @@ static int chromeos_invalidate_kernel(struct block_device *root_bdev)
 
 	/* First we open the device for reading. */
 	dev_mode = FMODE_READ | FMODE_EXCL;
-	bdev = blkdev_get_by_dev(devt, dev_mode, chromeos_invalidate_kernel);
+	bdev = blkdev_get_by_dev(devt, dev_mode,
+				 chromeos_invalidate_kernel_bio);
 	if (IS_ERR(bdev)) {
 		DMERR("invalidate_kernel: could not open device for reading");
 		dev_mode = 0;
@@ -200,12 +204,13 @@ static int chromeos_invalidate_kernel(struct block_device *root_bdev)
 	}
 
 	/* Stamp it and rewrite */
-	memcpy(page_address(page), "DMVERROR", 8);
+	memcpy(page_address(page), DMVERROR, strlen(DMVERROR));
 
 	/* The block dev was being changed on read. Let's reopen here. */
 	blkdev_put(bdev, dev_mode);
 	dev_mode = FMODE_WRITE | FMODE_EXCL;
-	bdev = blkdev_get_by_dev(devt, dev_mode, chromeos_invalidate_kernel);
+	bdev = blkdev_get_by_dev(devt, dev_mode,
+				 chromeos_invalidate_kernel_bio);
 	if (IS_ERR(bdev)) {
 		DMERR("invalidate_kernel: could not open device for reading");
 		dev_mode = 0;
@@ -241,6 +246,119 @@ failed_bio_alloc:
 		blkdev_put(bdev, dev_mode);
 failed_to_read:
 	return ret;
+}
+
+#ifdef CONFIG_MTD
+
+struct erase_info_completion {
+	struct erase_info instr;
+	struct completion completion;
+};
+
+static void complete_erase(struct erase_info *instr)
+{
+	struct erase_info_completion *erase = container_of(
+		instr, struct erase_info_completion, instr);
+	complete(&erase->completion);
+}
+
+/* The maximum number of volumes per one UBI device, from ubi-media.h */
+#define UBI_MAX_VOLUMES 128
+
+static int chromeos_invalidate_kernel_nand(struct block_device *root_bdev)
+{
+	struct erase_info_completion erase;
+	int ret;
+	int partnum;
+	struct mtd_info *dev;
+	loff_t offset;
+	size_t retlen;
+	char *page = NULL;
+
+	/* TODO(dehrenberg): replace translation of the ubiblock device
+	 * number with using kern_guid= once mtd UUIDs are worked out. */
+	partnum = MINOR(root_bdev->bd_dev) / UBI_MAX_VOLUMES - 1;
+	DMDEBUG("Invalidating kernel on MTD partition %d", partnum);
+	dev = get_mtd_device(NULL, partnum);
+	if (IS_ERR(dev))
+		return PTR_ERR(dev);
+	/* Find the first good block to erase. Erasing a bad block might
+	 * not cause a verification failure on the next boot. */
+	for (offset = 0; offset < dev->size; offset += dev->erasesize) {
+		if (!mtd_block_isbad(dev, offset))
+			goto good;
+	}
+	/* No good blocks in the kernel; shouldn't happen, so to recovery */
+	ret = -ERANGE;
+	goto out;
+good:
+	/* Erase the first good block of the kernel. This will prevent
+	 * that kernel from booting. */
+	memset(&erase, 0, sizeof(erase));
+	erase.instr.mtd = dev;
+	erase.instr.addr = offset;
+	erase.instr.len = dev->erasesize;
+	erase.instr.callback = complete_erase;
+	init_completion(&erase.completion);
+	ret = mtd_erase(dev, &erase.instr);
+	if (ret)
+		goto out;
+	wait_for_completion(&erase.completion);
+	if (erase.instr.state == MTD_ERASE_FAILED) {
+		ret = -EIO;
+		goto out;
+	}
+	/* Write DMVERROR on the first page. If this fails, still return
+	 * success since we will still be causing the kernel to not be
+	 * selected, so no need to put the device in recovery mode. */
+	page = kzalloc(dev->writesize, GFP_KERNEL);
+	if (!page) {
+		ret = 0;
+		goto out;
+	}
+	memcpy(page, DMVERROR, strlen(DMVERROR));
+	mtd_write(dev, offset, dev->writesize, &retlen, page);
+	ret = 0;
+	/* Ignore return value; no action is taken if dead */
+out:
+	kfree(page);
+	put_mtd_device(dev);
+	return ret;
+}
+
+#endif	/* CONFIG_MTD */
+
+/*
+ * Invalidate the kernel which corresponds to the root block device.
+ *
+ * This function stamps DMVERROR on the beginning of the kernel partition.
+ * If the device is operating on raw NAND:
+ *   Raw NAND mode is identified by checking if the underlying block device
+ *    is an ubiblock device.
+ *   The kernel partition is found by subtracting 1 from the mtd partition
+ *    underlying the ubiblock device.
+ *   The first erase block of the NAND is erased and "DMVERROR" is written
+ *    in its place.
+ * Otherwise, in the normal eMMC/SATA case:
+ *   The kernel partition is attempted to be found by subtracting 1 from
+ *    the root partition.
+ *   If that fails, then the kernel_guid commandline parameter is used to
+ *    find the kernel partition number.
+ *   The DMVERROR string is stamped over only the CHROMEOS string at the
+ *    beginning of the kernel blob, leaving the rest of it intact.
+ */
+static int chromeos_invalidate_kernel(struct block_device *root_bdev)
+{
+#ifdef CONFIG_MTD
+	if (root_bdev && root_bdev->bd_disk) {
+		char name[BDEVNAME_SIZE];
+		disk_name(root_bdev->bd_disk, 0, name);
+		if (strncmp(name, "ubiblock", strlen("ubiblock")) == 0)
+			return chromeos_invalidate_kernel_nand(root_bdev);
+	}
+#endif
+
+	return chromeos_invalidate_kernel_bio(root_bdev);
 }
 
 static int error_handler(struct notifier_block *nb, unsigned long transient,
