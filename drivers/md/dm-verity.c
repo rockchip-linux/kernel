@@ -761,10 +761,12 @@ static int verity_get_device(struct dm_target *ti, char *devname,
 				   dm_table_get_mode(ti->table), dm_dev))
 			return 0;
 
+		if (!dev_wait)
+			break;
+
 		/* No need to be too aggressive since this is a slow path. */
 		msleep(500);
-	} while (dev_wait && (driver_probe_done() != 0 || *dm_dev == NULL));
-	async_synchronize_full();
+	} while (driver_probe_done() != 0 || *dm_dev == NULL);
 	return -1;
 }
 
