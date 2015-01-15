@@ -1656,7 +1656,7 @@ static void intel_edp_psr_enable_source(struct intel_dp *intel_dp)
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	uint32_t max_sleep_time = 0x1f;
-	uint32_t idle_frames = 2;
+	uint32_t idle_frames = 3;
 	uint32_t val = 0x0;
 	const uint32_t link_entry_time = EDP_PSR_MIN_LINK_ENTRY_TIME_8_LINES;
 
