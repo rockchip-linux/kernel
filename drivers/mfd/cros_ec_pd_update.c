@@ -320,11 +320,13 @@ static int cros_ec_pd_fw_update(struct device *dev,
  * firmware_image pointer to update_image.
  * Returns reason for not updating otherwise.
  *
+ * @dev: PD device
  * @hash_entry: Pre-filled hash entry struct for matching
  * @discovery_entry: Pre-filled discovery entry struct for matching
  * @update_image: Stores update firmware image on success
  */
 static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
+	struct device *dev,
 	struct ec_params_usb_pd_rw_hash_entry *hash_entry,
 	struct ec_params_usb_pd_discovery_entry *discovery_entry,
 	const struct cros_ec_pd_firmware_image **update_image)
@@ -358,8 +360,15 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 	/* Always update if PD device is stuck in RO. */
 	if (hash_entry->current_image != EC_IMAGE_RW) {
 		*update_image = img;
+		dev_info(dev, "Updating FW since PD dev is in RO\n");
 		return PD_DO_UPDATE;
 	}
+
+	dev_info(dev, "Considering upgrade from existing RW: %x %x %x %x\n",
+		 hash_entry->dev_rw_hash[0],
+		 hash_entry->dev_rw_hash[1],
+		 hash_entry->dev_rw_hash[2],
+		 hash_entry->dev_rw_hash[3]);
 
 	/* Verify RW is a known update image so we don't roll-back. */
 	for (i = 0; i < img->update_hash_count; ++i)
@@ -367,9 +376,11 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 			   (*img->update_hashes)[i],
 			   PD_RW_HASH_SIZE) == 0) {
 			*update_image = img;
+			dev_info(dev, "Updating FW since RW is known\n");
 			return PD_DO_UPDATE;
 		}
 
+	dev_info(dev, "Skipping FW update since RW is unknown\n");
 	return PD_UNKNOWN_RW;
 }
 
@@ -418,7 +429,8 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 			return;
 		}
 
-		result = cros_ec_find_update_firmware(&hash_entry,
+		result = cros_ec_find_update_firmware(dev,
+						      &hash_entry,
 						      &discovery_entry,
 						      &img);
 		dev_dbg(dev, "Find FW result: %d\n", result);
@@ -437,9 +449,10 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 				goto done;
 			}
 
-			dev_dbg(dev, "Updating FW\n");
 			/* Update firmware */
+			dev_info(dev, "Updating RW to %s\n", img->filename);
 			cros_ec_pd_fw_update(dev, pd_ec, fw, port);
+			dev_info(dev, "FW update completed\n");
 done:
 			release_firmware(fw);
 			break;
