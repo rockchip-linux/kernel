@@ -270,8 +270,7 @@ static const struct snd_soc_dai_ops dw_hdmi_dai_ops = {
 	.shutdown = dw_hdmi_dai_shutdown,
 };
 
-static struct snd_soc_dai_driver dw_hdmi_audio_dai[] = {
-{
+static struct snd_soc_dai_driver dw_hdmi_audio_dai = {
 	.name = "dw-hdmi-hifi",
 	.playback = {
 		.stream_name = "Playback",
@@ -284,7 +283,6 @@ static struct snd_soc_dai_driver dw_hdmi_audio_dai[] = {
 		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
 	},
 	.ops = &dw_hdmi_dai_ops,
-}
 };
 
 static struct snd_soc_codec_driver dw_hdmi_audio = {
@@ -318,8 +316,7 @@ static int dw_hdmi_audio_probe(struct platform_device *pdev)
 	}
 
 	ret = snd_soc_register_codec(&pdev->dev, &dw_hdmi_audio,
-				     dw_hdmi_audio_dai,
-				     ARRAY_SIZE(dw_hdmi_audio_dai));
+				     &dw_hdmi_audio_dai, 1);
 	if (ret) {
 		dev_err(&pdev->dev, "register codec failed (%d)\n", ret);
 		goto free_irq;
