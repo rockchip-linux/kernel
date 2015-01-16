@@ -519,7 +519,7 @@ static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
 static int acpi_cros_ec_pd_add(struct acpi_device *acpi_device)
 {
 	struct cros_ec_pd_update_data *drv_data;
-	int ret;
+	int ret, i;
 
 	drv_data =
 		devm_kzalloc(&acpi_device->dev, sizeof(*drv_data), GFP_KERNEL);
@@ -541,6 +541,16 @@ static int acpi_cros_ec_pd_add(struct acpi_device *acpi_device)
 	}
 	drv_data->force_update = 1;
 	dev_set_drvdata(&acpi_device->dev, drv_data);
+
+	/*
+	 * Send list of update FW hashes to PD MCU.
+	 * TODO(crosbug.com/p/35510): This won't scale past four update
+	 * devices. Find a better solution once we get there.
+	 */
+	for (i = 0; i < firmware_image_count; ++i)
+		cros_ec_pd_send_hash_entry(drv_data->dev,
+					   pd_ec,
+					   &firmware_images[i]);
 
 	queue_delayed_work(drv_data->workqueue, &drv_data->work,
 		PD_UPDATE_CHECK_DELAY);
