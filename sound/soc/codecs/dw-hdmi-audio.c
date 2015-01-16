@@ -109,23 +109,24 @@ static void dw_hdmi_audio_disable(struct snd_dw_hdmi *hdmi)
 		       HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
 }
 
-static void dw_hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi, struct hdmi_audio_fmt fmt)
+static void dw_hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi,
+				  const struct hdmi_audio_fmt *fmt)
 {
-	hdmi->data.mod(hdmi->data.dw, fmt.input_type, AUDIO_CONF0_INTERFACE_MSK,
+	hdmi->data.mod(hdmi->data.dw, fmt->input_type, AUDIO_CONF0_INTERFACE_MSK,
 		       HDMI_AUD_CONF0);
 
-	hdmi->data.mod(hdmi->data.dw, fmt.chan_num, AUDIO_CONF0_I2SINEN_MSK,
+	hdmi->data.mod(hdmi->data.dw, fmt->chan_num, AUDIO_CONF0_I2SINEN_MSK,
 		       HDMI_AUD_CONF0);
 
-	hdmi->data.mod(hdmi->data.dw, fmt.word_length, AUDIO_CONF1_DATWIDTH_MSK,
+	hdmi->data.mod(hdmi->data.dw, fmt->word_length, AUDIO_CONF1_DATWIDTH_MSK,
 		       HDMI_AUD_CONF1);
 
-	hdmi->data.mod(hdmi->data.dw, fmt.dai_fmt, AUDIO_CONF1_DATAMODE_MSK,
+	hdmi->data.mod(hdmi->data.dw, fmt->dai_fmt, AUDIO_CONF1_DATAMODE_MSK,
 		       HDMI_AUD_CONF1);
 
 	hdmi->data.write(hdmi->data.dw, 0, HDMI_AUD_INPUTCLKFS);
 
-	hdmi->data.set_sample_rate(hdmi->data.dw, fmt.sample_rate);
+	hdmi->data.set_sample_rate(hdmi->data.dw, fmt->sample_rate);
 }
 
 static int dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
@@ -216,7 +217,7 @@ static int dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 
 	hdmi_fmt.input_type = AUDIO_INPUTTYPE_IIS;
 
-	dw_hdmi_audio_set_fmt(hdmi, hdmi_fmt);
+	dw_hdmi_audio_set_fmt(hdmi, &hdmi_fmt);
 
 	return 0;
 }
