@@ -286,7 +286,7 @@ static struct snd_soc_dai_driver dw_hdmi_audio_dai = {
 	.ops = &dw_hdmi_dai_ops,
 };
 
-static struct snd_soc_codec_driver dw_hdmi_audio = {
+static const struct snd_soc_codec_driver dw_hdmi_audio = {
 	.dapm_widgets = dw_hdmi_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(dw_hdmi_widgets),
 	.dapm_routes = dw_hdmi_routes,
