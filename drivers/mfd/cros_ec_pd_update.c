@@ -396,6 +396,7 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 {
 	const struct cros_ec_pd_firmware_image *img;
 	const struct firmware *fw;
+	struct ec_response_host_event_status host_event_status;
 	struct ec_params_usb_pd_rw_hash_entry hash_entry;
 	struct ec_params_usb_pd_discovery_entry discovery_entry;
 	struct cros_ec_pd_update_data *drv_data =
@@ -405,19 +406,44 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	enum cros_ec_pd_find_update_firmware_result result;
 	int ret, port;
 
-	dev_dbg(dev, "Checking for PD dev FW update\n");
+	dev_dbg(dev, "Checking for updates\n");
 
 	if (!pd_ec) {
 		dev_err(dev, "No pd_ec device found\n");
 		return;
 	}
 
+	/* Check for host events on EC. */
+	ret = cros_ec_pd_command(dev, pd_ec, EC_CMD_PD_HOST_EVENT_STATUS,
+				 NULL, 0,
+				 (uint8_t *)&host_event_status,
+				 sizeof(host_event_status));
+	if (ret) {
+		dev_err(dev, "Can't get host event status (err: %d)\n", ret);
+		return;
+	}
+	dev_dbg(dev, "Got host event status %x\n", host_event_status.status);
+
+	/*
+	 * Override status received from EC if update is forced, such as
+	 * after power-on or after resume.
+	 */
+	if (drv_data->force_update) {
+		host_event_status.status = PD_EVENT_POWER_CHANGE |
+					   PD_EVENT_UPDATE_DEVICE;
+		drv_data->force_update = 0;
+	}
+
 	/*
 	 * If there is an EC based charger, send a notification to it to
 	 * trigger a refresh of the power supply state.
 	 */
-	if (pd_ec->ec_dev->charger)
+	if ((host_event_status.status & PD_EVENT_POWER_CHANGE) &&
+	    pd_ec->ec_dev->charger)
 		power_supply_changed(pd_ec->ec_dev->charger);
+
+	if (!(host_event_status.status & PD_EVENT_UPDATE_DEVICE))
+		return;
 
 	/* Received notification, send command to check on PD status. */
 	for (port = 0; port < drv_data->num_ports; ++port) {
@@ -513,6 +539,7 @@ static int acpi_cros_ec_pd_add(struct acpi_device *acpi_device)
 		ret = -EINVAL;
 		goto fail;
 	}
+	drv_data->force_update = 1;
 	dev_set_drvdata(&acpi_device->dev, drv_data);
 
 	queue_delayed_work(drv_data->workqueue, &drv_data->work,
@@ -532,9 +559,11 @@ static int acpi_cros_ec_pd_resume(struct device *dev)
 	struct cros_ec_pd_update_data *drv_data =
 		(struct cros_ec_pd_update_data *)dev_get_drvdata(dev);
 
-	if (drv_data)
+	if (drv_data) {
+		drv_data->force_update = 1;
 		queue_delayed_work(drv_data->workqueue, &drv_data->work,
 			PD_UPDATE_CHECK_DELAY);
+	}
 	return 0;
 }
 
