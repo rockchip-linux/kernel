@@ -3753,6 +3753,11 @@ static void haswell_crtc_enable(struct drm_crtc *crtc)
 
 	ironlake_pfit_enable(intel_crtc);
 
+	/* Forcing a full psr init sequence when enabling crtc to make sure all
+	* registers are properly set. Some might not be persistent after
+	* suspend/resume cycle. */
+	dev_priv->psr.setup_done = false;
+
 	/*
 	 * On ILK+ LUT must be loaded before the pipe is running but with
 	 * clocks enabled
