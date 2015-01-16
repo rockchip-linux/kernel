@@ -97,19 +97,19 @@ static irqreturn_t snd_dw_hdmi_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-void enable_dw_hdmi_audio(struct snd_dw_hdmi *hdmi)
+static void dw_hdmi_audio_enable(struct snd_dw_hdmi *hdmi)
 {
 	hdmi->data.mod(hdmi->data.dw, 0, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
 		       HDMI_MC_CLKDIS);
 }
 
-void disable_dw_hdmi_audio(struct snd_dw_hdmi *hdmi)
+static void dw_hdmi_audio_disable(struct snd_dw_hdmi *hdmi)
 {
 	hdmi->data.mod(hdmi->data.dw, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
 		       HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
 }
 
-void set_dw_hdmi_audio_fmt(struct snd_dw_hdmi *hdmi, struct hdmi_audio_fmt fmt)
+static void dw_hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi, struct hdmi_audio_fmt fmt)
 {
 	hdmi->data.mod(hdmi->data.dw, fmt.input_type, AUDIO_CONF0_INTERFACE_MSK,
 		       HDMI_AUD_CONF0);
@@ -134,7 +134,7 @@ static int dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
 	dev_info(codec_dai->dev, "startup.\n");
-	enable_dw_hdmi_audio(hdmi);
+	dw_hdmi_audio_enable(hdmi);
 
 	return 0;
 }
@@ -216,7 +216,7 @@ static int dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 
 	hdmi_fmt.input_type = AUDIO_INPUTTYPE_IIS;
 
-	set_dw_hdmi_audio_fmt(hdmi, hdmi_fmt);
+	dw_hdmi_audio_set_fmt(hdmi, hdmi_fmt);
 
 	return 0;
 }
@@ -230,13 +230,13 @@ static int dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		enable_dw_hdmi_audio(hdmi);
+		dw_hdmi_audio_enable(hdmi);
 		dev_dbg(codec_dai->dev, "[codec_dai]: trigger enable.\n");
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		disable_dw_hdmi_audio(hdmi);
+		dw_hdmi_audio_disable(hdmi);
 		dev_dbg(codec_dai->dev, "[codec_dai]: trigger disable.\n");
 		break;
 	default:
@@ -252,7 +252,7 @@ static void dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
 	dev_info(codec_dai->dev, "shutdown.\n");
-	disable_dw_hdmi_audio(hdmi);
+	dw_hdmi_audio_disable(hdmi);
 }
 
 static const struct snd_soc_dapm_widget dw_hdmi_widgets[] = {
