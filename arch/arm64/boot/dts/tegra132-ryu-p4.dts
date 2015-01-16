@@ -1,0 +1,213 @@
+/dts-v1/;
+
+#include "tegra132-ryu.dtsi"
+
+/ {
+	model = "Google Tegra132 Ryu P4";
+	compatible = "google,ryu-rev3", "google,ryu-p4", "google,ryu", \
+			"nvidia,tegra132", "nvidia,tegra124";
+
+	gpio-keys {
+		power {
+			gpios = <&gpio TEGRA_GPIO(Q, 0) GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	regulators {
+		pplcd_vdd: fixed-regulator@5 {
+			gpio = <&gpio TEGRA_GPIO(BB, 6) GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	i2c@7000c000 {
+		touchscreen: i2c-hid-dev@20 {
+			interrupts = <TEGRA_GPIO(V, 0) IRQ_TYPE_EDGE_FALLING>;
+		};
+	};
+
+	thermal-zones {
+		cpu {
+			trips {
+				dfll_floor_trip0: dfll_floor_trip0 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_0>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_floor_trip1: dfll_floor_trip1 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_1>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_floor_trip2: dfll_floor_trip2 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_2>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_floor_trip3: dfll_floor_trip3 {
+					temperature = <TEGRA132_DFLL_THERMAL_FLOOR_3>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_cap_trip0: dfll_cap_trip0 {
+					temperature = <TEGRA132_DFLL_THERMAL_CAP_0>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_cap_trip1: dfll_cap_trip1 {
+					temperature = <TEGRA132_DFLL_THERMAL_CAP_1>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+				dfll_cap_trip2: dfll_cap_trip2 {
+					temperature = <TEGRA132_DFLL_THERMAL_CAP_2>; /* millicelsius */
+					hysteresis = <1000>; /* millicelsius */
+					type = "active";
+				};
+
+				/* trip points for CPU EDP */
+				cpu_edp_cap_trip0: cpu_edp_cap_trip0 {
+					/* margin is 5000 for ryu p0 */
+					temperature = <18000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip1: cpu_edp_cap_trip1 {
+					temperature = <35000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip2: cpu_edp_cap_trip2 {
+					temperature = <45000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip3: cpu_edp_cap_trip3 {
+					temperature = <55000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip4: cpu_edp_cap_trip4 {
+					temperature = <65000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip5: cpu_edp_cap_trip5 {
+					temperature = <69000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip6: cpu_edp_cap_trip6 {
+					temperature = <73000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip7: cpu_edp_cap_trip7 {
+					temperature = <77000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip8: cpu_edp_cap_trip8 {
+					temperature = <81000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip9: cpu_edp_cap_trip9 {
+					temperature = <85000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip10: cpu_edp_cap_trip10 {
+					temperature = <89000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+				cpu_edp_cap_trip11: cpu_edp_cap_trip11 {
+					temperature = <93000>; /* millicelsius */
+					hysteresis = <1000>;
+					type = "active";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&dfll_floor_trip0>;
+					cooling-device = <&dfll_floor 1 1>;
+				};
+				map1 {
+					trip = <&dfll_floor_trip1>;
+					cooling-device = <&dfll_floor 2 2>;
+				};
+				map2 {
+					trip = <&dfll_floor_trip2>;
+					cooling-device = <&dfll_floor 3 3>;
+				};
+				map3 {
+					trip = <&dfll_floor_trip3>;
+					cooling-device = <&dfll_floor 4 4>;
+				};
+				map5 {
+					trip = <&dfll_cap_trip0>;
+					cooling-device = <&dfll_cap 1 1>;
+				};
+				map6 {
+					trip = <&dfll_cap_trip1>;
+					cooling-device = <&dfll_cap 2 2>;
+				};
+				map7 {
+					trip = <&dfll_cap_trip2>;
+					cooling-device = <&dfll_cap 3 3>;
+				};
+
+				/* cooling maps for CPU EDP */
+				map8 {
+					trip = <&cpu_edp_cap_trip0>;
+					cooling-device = <&cpu_edp_cap 1 1>;
+				};
+				map9 {
+					trip = <&cpu_edp_cap_trip1>;
+					cooling-device = <&cpu_edp_cap 2 2>;
+				};
+				map10 {
+					trip = <&cpu_edp_cap_trip2>;
+					cooling-device = <&cpu_edp_cap 3 3>;
+				};
+				map11 {
+					trip = <&cpu_edp_cap_trip3>;
+					cooling-device = <&cpu_edp_cap 4 4>;
+				};
+				map12 {
+					trip = <&cpu_edp_cap_trip4>;
+					cooling-device = <&cpu_edp_cap 5 5>;
+				};
+				map13 {
+					trip = <&cpu_edp_cap_trip5>;
+					cooling-device = <&cpu_edp_cap 6 6>;
+				};
+				map14 {
+					trip = <&cpu_edp_cap_trip6>;
+					cooling-device = <&cpu_edp_cap 7 7>;
+				};
+				map15 {
+					trip = <&cpu_edp_cap_trip7>;
+					cooling-device = <&cpu_edp_cap 8 8>;
+				};
+				map16 {
+					trip = <&cpu_edp_cap_trip8>;
+					cooling-device = <&cpu_edp_cap 9 9>;
+				};
+				map17 {
+					trip = <&cpu_edp_cap_trip9>;
+					cooling-device = <&cpu_edp_cap 10 10>;
+				};
+				map18 {
+					trip = <&cpu_edp_cap_trip10>;
+					cooling-device = <&cpu_edp_cap 11 11>;
+				};
+				map19 {
+					trip = <&cpu_edp_cap_trip11>;
+					cooling-device = <&cpu_edp_cap 12 12>;
+				};
+			};
+		};
+	};
+};
