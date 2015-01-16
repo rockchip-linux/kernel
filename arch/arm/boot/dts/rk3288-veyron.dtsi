@@ -14,7 +14,7 @@
 
 / {
 	aliases {
-		i2c20 = &i2c20;
+		i2c20 = &i2c_tunnel;
 	};
 
 	memory {
@@ -370,18 +370,11 @@
 		reg = <0>;
 		google,cros-ec-spi-pre-delay = <30>;
 
-		i2c20: i2c-tunnel {
+		i2c_tunnel: i2c-tunnel {
 			compatible = "google,cros-ec-i2c-tunnel";
 			google,remote-bus = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-
-			battery: sbs-battery@b {
-				compatible = "sbs,sbs-battery";
-				reg = <0xb>;
-				sbs,i2c-retry-count = <2>;
-				sbs,poll-retry-count = <1>;
-			};
 		};
 	};
 };

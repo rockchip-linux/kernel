@@ -10,6 +10,7 @@
 
 /dts-v1/;
 #include "rk3288-veyron.dtsi"
+#include "cros-ec-sbs.dtsi"
 
 / {
 	model = "Google Speedy";
