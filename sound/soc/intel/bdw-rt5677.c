@@ -179,6 +179,7 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	struct bdw_rt5677_priv *bdw_rt5677 =
 			snd_soc_card_get_drvdata(rtd->card);
 	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
 	/* Request rt5677 GPIO for headphone amp control */
 	bdw_rt5677->gpio_hp_en = devm_gpiod_get_index(codec->dev,
@@ -216,6 +217,8 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	} else {
 		dev_err(codec->dev, "Can't create mic jack\n");
 	}
+
+	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
 	return 0;
 }
 
