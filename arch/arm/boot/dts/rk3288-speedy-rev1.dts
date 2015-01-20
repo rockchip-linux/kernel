@@ -108,6 +108,12 @@
 	pinctrl-0 = <&vcc50_hdmi_en>;
 };
 
+&edp {
+	enable-hpd;
+	pinctrl-names = "default";
+	pinctrl-0 = <&edp_hpd>;
+};
+
 &pinctrl {
 	backlight {
 		bl_pwr_en: bl_pwr_en {
@@ -118,6 +124,12 @@
 	buck-5v {
 		drv_5v: drv-5v {
 			rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	edp {
+		edp_hpd: edp_hpd {
+			rockchip,pins = <7 11 RK_FUNC_2 &pcfg_pull_down>;
 		};
 	};
 
