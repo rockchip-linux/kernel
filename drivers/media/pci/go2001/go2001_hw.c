@@ -20,14 +20,198 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+#include <linux/delay.h>
+#include <linux/firmware.h>
+
 #include "go2001.h"
 #include "go2001_hw.h"
 #include "go2001_proto.h"
 
-int go2001_init_firmware(struct go2001_dev *gdev)
+int go2001_load_fw_image(struct go2001_dev *gdev, const struct firmware *fw,
+				void __iomem *ctrl_addr, size_t ctrl_size,
+				void __iomem *load_addr, size_t max_size,
+				u32 entry_addr)
 {
-	/* TODO */
+	struct go2001_boot_hdr hdr;
+	u8 *chksum_ptr;
+	size_t chksum_size;
+	u32 reg;
+	int i;
+
+	if (fw->size > GO2001_FW_MAX_SIZE || fw->size > max_size) {
+		go2001_err(gdev, "Firmware image too large (%zu)\n", fw->size);
+		return -EINVAL;
+	}
+
+	if (ctrl_size < GO2001_FW_HDR_OFF + sizeof(hdr)
+			|| ctrl_size < GO2001_FW_STOP + sizeof(u32)) {
+		go2001_err(gdev, "PCI BAR sizes invalid\n");
+		return -ENODEV;
+	}
+
+	hdr.signature = GO2001_FW_SIGNATURE;
+	hdr.entry_addr = entry_addr;
+	hdr.size = 16;
+	hdr.checksum = 0;
+
+	/*
+	 * Calculate a checksum of the header (excluding checksum field itself).
+	 */
+	chksum_ptr = (u8 *)&hdr;
+	chksum_size = offsetof(struct go2001_boot_hdr, checksum);
+	for (i = 0; i < chksum_size; ++i)
+		hdr.checksum += chksum_ptr[i];
+	hdr.checksum &= 0xff;
+
+	/* Stop the firmware via a soft interrupt. */
+	writeb('p', ctrl_addr + GO2001_FW_HDR_OFF);
+	reg = readl(ctrl_addr + GO2001_FW_STOP);
+	reg |= GO2001_FW_STOP_BIT;
+	writel(reg, ctrl_addr + GO2001_FW_STOP);
+
+	/* Copy firmware and the header */
+	memcpy_toio(load_addr, fw->data, fw->size);
+	writel(hdr.entry_addr, ctrl_addr + GO2001_FW_HDR_OFF
+			+ offsetof(struct go2001_boot_hdr, entry_addr));
+	writel(hdr.size, ctrl_addr + GO2001_FW_HDR_OFF
+			+ offsetof(struct go2001_boot_hdr, size));
+	writel(hdr.checksum, ctrl_addr + GO2001_FW_HDR_OFF
+			+ offsetof(struct go2001_boot_hdr, checksum));
+	/*
+	 * Write signature last, as this is what the device is spinning on
+	 * while we are loading the firmware
+	 */
+	writel(hdr.signature, ctrl_addr + GO2001_FW_HDR_OFF
+			+ offsetof(struct go2001_boot_hdr, signature));
+
+	/* Clear the interrupt. */
+	reg &= ~GO2001_FW_STOP_BIT;
+	writel(reg, ctrl_addr + GO2001_FW_STOP);
+
 	return 0;
+}
+
+int go2001_load_firmware(struct go2001_dev *gdev)
+{
+	resource_size_t ctrl_start, fw_start;
+	const struct firmware *boot_fw = NULL;
+	const struct firmware *fw = NULL;
+	void __iomem *fw_iomem;
+	void __iomem *ctrl_iomem;
+	size_t fw_iomem_size, ctrl_iomem_size;
+	unsigned long flags;
+	int time_spent = 0;
+	int ret;
+
+	ctrl_start = pci_resource_start(gdev->pdev, 2);
+	ctrl_iomem_size = pci_resource_len(gdev->pdev, 2);
+	if (!ctrl_start || !ctrl_iomem_size) {
+		go2001_err(gdev, "PCI BAR 2 invalid\n");
+		return -ENODEV;
+	}
+
+	fw_start = pci_resource_start(gdev->pdev, 0);
+	fw_iomem_size = pci_resource_len(gdev->pdev, 0);
+	if (!fw_start || !fw_iomem_size) {
+		go2001_err(gdev, "PCI BAR 0 invalid\n");
+		return -ENODEV;
+	}
+
+	if (ctrl_iomem_size < GO2001_BOOT_FW_OFF
+				|| fw_iomem_size < GO2001_FW_OFF) {
+		go2001_err(gdev, "Invalid PCI BAR sizes\n");
+		return -EINVAL;
+	}
+
+	ctrl_iomem = ioremap_nocache(ctrl_start, ctrl_iomem_size);
+	if (!ctrl_iomem) {
+		go2001_err(gdev, "Failed mapping PCI BAR 2\n");
+		return -ENOMEM;
+	}
+
+	fw_iomem = ioremap_nocache(fw_start, fw_iomem_size);
+	if (!fw_iomem) {
+		go2001_err(gdev, "Failed mapping PCI BAR 0\n");
+		ret = -ENOMEM;
+		goto out_unmap_ctrl_iomem;
+	}
+
+	ret = request_firmware(&boot_fw, GO2001_BOOT_FW_NAME, &gdev->pdev->dev);
+	if (ret) {
+		go2001_err(gdev, "Unable to open firmware %s\n",
+				GO2001_BOOT_FW_NAME);
+		goto out_unmap_fw_iomem;
+	}
+
+	ret = request_firmware(&fw, GO2001_FW_NAME, &gdev->pdev->dev);
+	if (ret) {
+		go2001_err(gdev, "Unable to open firmware %s\n",
+				GO2001_FW_NAME);
+		goto out_release_boot_fw;
+	}
+
+	ret = go2001_load_fw_image(gdev, boot_fw,
+				ctrl_iomem, ctrl_iomem_size,
+				ctrl_iomem + GO2001_BOOT_FW_OFF,
+				ctrl_iomem_size - GO2001_BOOT_FW_OFF,
+				GO2001_BOOT_FW_ENTRY_BASE + GO2001_BOOT_FW_OFF);
+	if (ret) {
+		go2001_err(gdev, "Failed loading firmware %s\n",
+				GO2001_BOOT_FW_NAME);
+		goto out_release_fw;
+	}
+
+	/*
+	 * Boot firmware will change GO2001_FW_SIGNATURE to
+	 * GO2001_FW_DONE_SIGNATURE when done.
+	 */
+	while (readl(ctrl_iomem + GO2001_FW_HDR_OFF) != GO2001_FW_DONE_SIGNATURE
+			&& time_spent < GO2001_REPLY_TIMEOUT_MS) {
+		mdelay(100);
+		time_spent += 100;
+	}
+
+	if (time_spent >= GO2001_REPLY_TIMEOUT_MS) {
+		go2001_err(gdev, "Timed out waiting for firmware to start\n");
+		ret = -ENODEV;
+		goto out_release_fw;
+	}
+
+	go2001_dbg(gdev, 1, "Firmware %s loaded\n", GO2001_BOOT_FW_NAME);
+
+	ret = go2001_load_fw_image(gdev, fw,
+				ctrl_iomem, ctrl_iomem_size,
+				fw_iomem + GO2001_FW_OFF,
+				fw_iomem_size - GO2001_FW_OFF,
+				GO2001_FW_ENTRY_BASE + GO2001_FW_OFF);
+	if (ret) {
+		go2001_err(gdev, "Failed loading firmware %s\n",
+				GO2001_FW_NAME);
+		goto out_release_fw;
+	}
+
+	if (wait_for_completion_timeout(&gdev->fw_completion,
+			msecs_to_jiffies(GO2001_REPLY_TIMEOUT_MS)) == 0) {
+		go2001_err(gdev, "Timed out waiting for firmware\n");
+		ret = -ENODEV;
+		goto out_release_fw;
+	}
+
+	spin_lock_irqsave(&gdev->irqlock, flags);
+	gdev->fw_loaded = true;
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
+	go2001_dbg(gdev, 1, "Firmware %s loaded\n", GO2001_FW_NAME);
+
+out_release_fw:
+	release_firmware(fw);
+out_release_boot_fw:
+	release_firmware(boot_fw);
+out_unmap_fw_iomem:
+	iounmap(fw_iomem);
+out_unmap_ctrl_iomem:
+	iounmap(ctrl_iomem);
+
+	return ret;
 }
 
 int go2001_map_iomem(struct go2001_dev *gdev)
@@ -47,6 +231,11 @@ int go2001_map_iomem(struct go2001_dev *gdev)
 		return -ENOMEM;
 
 	return 0;
+}
+
+void go2001_unmap_iomem(struct go2001_dev *gdev)
+{
+	iounmap(gdev->iomem);
 }
 
 void go2001_init_hw_inst(struct go2001_hw_inst *inst, u32 inst_id)
@@ -915,3 +1104,33 @@ int go2001_init_codec(struct go2001_ctx *ctx)
 	return ret;
 }
 
+int go2001_init(struct go2001_dev *gdev)
+{
+	int ret;
+
+	ret = go2001_load_firmware(gdev);
+	if (ret) {
+		go2001_err(gdev, "Failed loading firmware\n");
+		return ret;
+	}
+
+	ret = go2001_init_messaging(gdev);
+	if (ret) {
+		go2001_err(gdev, "Failed to init messaging\n");
+		return ret;
+	}
+
+	ret = go2001_query_hw_version(gdev);
+	if (ret) {
+		go2001_err(gdev, "Failed querying HW version\n");
+		return ret;
+	}
+
+	ret = go2001_set_log_level(gdev, GO2001_LOG_LEVEL_DISABLED);
+	if (ret) {
+		go2001_err(gdev, "Failed setting log level\n");
+		return ret;
+	}
+
+	return 0;
+}

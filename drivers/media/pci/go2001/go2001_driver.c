@@ -106,7 +106,7 @@ static struct go2001_fmt formats[] = {
 		.pixelformat = V4L2_PIX_FMT_VP9,
 		.num_planes = 1,
 		.hw_format = GO2001_FMT_VP9,
-		.codec_modes = CODEC_MODE_DECODER | CODEC_MODE_ENCODER,
+		.codec_modes = CODEC_MODE_DECODER,
 	},
 };
 
@@ -728,7 +728,20 @@ static int go2001_open(struct file *file)
 	struct go2001_dev *gdev = video_drvdata(file);
 	struct go2001_ctx *ctx;
 	enum go2001_codec_mode mode;
-	int ret;
+	int ret = 0;
+
+	go2001_trace(gdev);
+
+	mutex_lock(&gdev->lock);
+	if (!gdev->initialized) {
+		ret = go2001_init(gdev);
+		if (!ret)
+			gdev->initialized = true;
+	}
+	mutex_unlock(&gdev->lock);
+
+	if (ret)
+		return ret;
 
 	if (vdev->index == gdev->dec_vdev.index) {
 		mode = CODEC_MODE_DECODER;
@@ -1167,6 +1180,11 @@ static irqreturn_t go2001_irq(int irq, void *priv)
 	unsigned long flags;
 
 	spin_lock_irqsave(&gdev->irqlock, flags);
+
+	if (unlikely(!gdev->fw_loaded)) {
+		complete(&gdev->fw_completion);
+		goto out;
+	}
 
 	while (go2001_get_reply(gdev, reply) == 0) {
 		if (go2001_process_reply(gdev, reply))
@@ -1851,6 +1869,7 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	list_add_tail(&gdev->ctrl_inst.inst_entry, &gdev->inst_list);
 	gdev->curr_hw_inst = &gdev->ctrl_inst;
 	init_waitqueue_head(&gdev->reply_wq);
+	init_completion(&gdev->fw_completion);
 
 	gdev->alloc_ctx = vb2_dma_sg_init_ctx(&pdev->dev);
 	if (IS_ERR(gdev->alloc_ctx))
@@ -1862,49 +1881,22 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto free_alloc_ctx;
 	}
 
-	ret = go2001_init_firmware(gdev);
-	if (ret) {
-		go2001_err(gdev, "Failed initializing firmware\n");
-		goto unmap;
-	}
-
-	ret = go2001_init_messaging(gdev);
-	if (ret) {
-		go2001_err(gdev, "Failed to init messaging\n");
-		goto unmap;
-	}
-
 	ret = pci_enable_msi(pdev);
 	if (ret) {
 		go2001_err(gdev, "Failed enabling MSI\n");
 		goto unmap;
 	}
 
-	ret = devm_request_irq(&pdev->dev, pdev->irq, go2001_irq,
-				0, DRIVER_NAME, gdev);
+	ret = request_irq(pdev->irq, go2001_irq, 0, DRIVER_NAME, gdev);
 	if (ret) {
 		go2001_err(gdev, "Failed requesting IRQ\n");
-		goto disable_msi;
-	}
-
-	ret = go2001_query_hw_version(gdev);
-	if (ret) {
-		go2001_err(gdev, "Failed querying HW version\n");
-		ret = -EIO;
-		goto disable_msi;
-	}
-
-	ret = go2001_set_log_level(gdev, GO2001_LOG_LEVEL_DISABLED);
-	if (ret) {
-		go2001_err(gdev, "Failed setting log level\n");
-		ret = -EIO;
 		goto disable_msi;
 	}
 
 	ret = v4l2_device_register(&pdev->dev, &gdev->v4l2_dev);
 	if (ret) {
 		go2001_err(gdev, "Failed registering V4L2 device\n");
-		goto disable_msi;
+		goto free_irq;
 	}
 
 	vdev = &gdev->dec_vdev;
@@ -1940,10 +1932,12 @@ unregister_video_device_dec:
 	video_unregister_device(&gdev->dec_vdev);
 unregister_v4l2_device:
 	v4l2_device_unregister(&gdev->v4l2_dev);
+free_irq:
+	free_irq(pdev->irq, gdev);
 disable_msi:
 	pci_disable_msi(pdev);
 unmap:
-	iounmap(gdev->iomem);
+	go2001_unmap_iomem(gdev);
 free_alloc_ctx:
 	vb2_dma_sg_cleanup_ctx(gdev->alloc_ctx);
 release_regions:
@@ -1964,8 +1958,9 @@ static void go2001_remove(struct pci_dev *pdev)
 	video_unregister_device(&gdev->enc_vdev);
 	video_unregister_device(&gdev->dec_vdev);
 	v4l2_device_unregister(&gdev->v4l2_dev);
+	free_irq(pdev->irq, gdev);
 	pci_disable_msi(pdev);
-	iounmap(gdev->iomem);
+	go2001_unmap_iomem(gdev);
 	pci_release_regions(pdev);
 	pci_disable_device(pdev);
 }

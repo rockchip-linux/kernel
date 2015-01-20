@@ -254,4 +254,30 @@ struct go2001_set_log_level_reply {
 	u32 level;
 } __attribute__((packed));
 
+struct go2001_boot_hdr {
+	u32 signature;
+	u32 entry_addr;
+	u32 size;
+	u32 checksum;
+} __attribute__((packed));
+
+#define GO2001_FW_HDR_OFF	0x20afc0
+#define GO2001_FW_STOP		0x212010
+#define GO2001_FW_STOP_BIT	(1 << 20)
+
+#define GO2001_BOOT_FW_NAME		"go2001-boot.fw"
+#define GO2001_BOOT_FW_OFF		0x207000
+#define GO2001_BOOT_FW_ENTRY_BASE	0xd0000000
+
+#define GO2001_FW_NAME		"go2001.fw"
+#define GO2001_FW_OFF		0
+#define GO2001_FW_ENTRY_BASE	0
+
+#define GO2001_FW_SIGNATURE \
+(((u32)'P') | (((u32)'C') << 8) | (((u32)'I') << 16) | (((u32)'E') << 24))
+#define GO2001_FW_DONE_SIGNATURE \
+(((u32)'D') | (((u32)'O') << 8) | (((u32)'N') << 16) | (((u32)'E') << 24))
+
+#define GO2001_FW_MAX_SIZE	SZ_1M
+
 #endif /* _MEDIA_PCI_GO2001_GO2001_PROTO_H_ */

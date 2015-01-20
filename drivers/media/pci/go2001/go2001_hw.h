@@ -25,9 +25,10 @@
 
 #include "go2001.h"
 
-int go2001_init_firmware(struct go2001_dev *gdev);
-int go2001_init_messaging(struct go2001_dev *gdev);
 int go2001_map_iomem(struct go2001_dev *gdev);
+void go2001_unmap_iomem(struct go2001_dev *gdev);
+
+int go2001_init(struct go2001_dev *gdev);
 
 int go2001_init_codec(struct go2001_ctx *ctx);
 void go2001_release_codec(struct go2001_ctx *ctx);
@@ -42,9 +43,6 @@ int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src,
 int go2001_schedule_frames(struct go2001_ctx *ctx);
 int go2001_wait_for_ctx_done(struct go2001_ctx *ctx);
 void go2001_send_pending_locked(struct go2001_dev *gdev);
-
-int go2001_query_hw_version(struct go2001_dev *gdev);
-int go2001_set_log_level(struct go2001_dev *gdev, u32 level);
 
 void go2001_init_hw_inst(struct go2001_hw_inst *inst, u32 inst_id);
 void go2001_release_hw_inst(struct go2001_hw_inst *inst);

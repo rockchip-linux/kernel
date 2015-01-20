@@ -99,6 +99,11 @@ struct go2001_dev {
 	wait_queue_head_t reply_wq;
 
 	struct go2001_hw_inst ctrl_inst;
+	struct completion fw_completion;
+	/* Protected by irqlock */
+	bool fw_loaded;
+	/* Protected by lock */
+	bool initialized;
 };
 
 enum go2001_codec_mode {
