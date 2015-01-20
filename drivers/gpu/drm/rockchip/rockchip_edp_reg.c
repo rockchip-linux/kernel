@@ -211,15 +211,9 @@ void rockchip_edp_init_analog_func(struct rockchip_edp_device *edp)
 	writel(val, edp->regs + FUNC_EN_2);
 }
 
-void rockchip_edp_init_hpd(struct rockchip_edp_device *edp)
+void rockchip_edp_force_hpd(struct rockchip_edp_device *edp)
 {
 	u32 val;
-
-	val = HOTPLUG_CHG | HPD_LOST | PLUG;
-	writel(val, edp->regs + COMMON_INT_STA_4);
-
-	val = INT_HPD;
-	writel(val, edp->regs + DP_INT_STA);
 
 	val = readl(edp->regs + SYS_CTL_3);
 	val |= (F_HPD | HPD_CTRL);
@@ -256,15 +250,15 @@ void rockchip_edp_init_aux(struct rockchip_edp_device *edp)
 	writel(val, edp->regs + FUNC_EN_2);
 }
 
-int rockchip_edp_get_plug_in_status(struct rockchip_edp_device *edp)
+bool rockchip_edp_get_plug_in_status(struct rockchip_edp_device *edp)
 {
 	u32 val;
 
 	val = readl(edp->regs + SYS_CTL_3);
 	if (val & HPD_STATUS)
-		return 0;
+		return true;
 
-	return -EINVAL;
+	return false;
 }
 
 void rockchip_edp_enable_sw_function(struct rockchip_edp_device *edp)

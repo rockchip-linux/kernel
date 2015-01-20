@@ -155,6 +155,7 @@ struct rockchip_edp_device {
 	struct drm_dp_link link;
 	u8 train_set[4];
 	u8 tries;
+	bool enable_hpd;
 };
 
 void rockchip_edp_enable_video_mute(struct rockchip_edp_device *edp,
@@ -169,10 +170,10 @@ u32 rockchip_edp_get_pll_lock_status(struct rockchip_edp_device *edp);
 void rockchip_edp_analog_power_ctr(struct rockchip_edp_device *edp,
 				   bool enable);
 void rockchip_edp_init_analog_func(struct rockchip_edp_device *edp);
-void rockchip_edp_init_hpd(struct rockchip_edp_device *edp);
+void rockchip_edp_force_hpd(struct rockchip_edp_device *edp);
 void rockchip_edp_reset_aux(struct rockchip_edp_device *edp);
 void rockchip_edp_init_aux(struct rockchip_edp_device *edp);
-int rockchip_edp_get_plug_in_status(struct rockchip_edp_device *edp);
+bool rockchip_edp_get_plug_in_status(struct rockchip_edp_device *edp);
 void rockchip_edp_enable_sw_function(struct rockchip_edp_device *edp);
 void rockchip_edp_set_link_bandwidth(struct rockchip_edp_device *edp,
 				     u32 bwtype);

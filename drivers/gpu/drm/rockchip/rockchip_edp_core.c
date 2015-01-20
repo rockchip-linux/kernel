@@ -136,7 +136,6 @@ static void rockchip_edp_lt_init(struct rockchip_edp_device *edp)
 	rockchip_edp_init_interrupt(edp);
 	rockchip_edp_enable_sw_function(edp);
 	rockchip_edp_init_analog_func(edp);
-	rockchip_edp_init_hpd(edp);
 	rockchip_edp_init_aux(edp);
 }
 
@@ -416,6 +415,7 @@ static int rockchip_edp_commit(struct drm_encoder *encoder)
 static void rockchip_edp_poweron(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
+	unsigned long timeout;
 	int ret;
 
 	if (edp->dpms_mode == DRM_MODE_DPMS_ON)
@@ -434,6 +434,18 @@ static void rockchip_edp_poweron(struct drm_encoder *encoder)
 	if (ret < 0) {
 		dev_err(edp->dev, "edp pre init fail %d\n", ret);
 		return;
+	}
+
+	/* On boards without EDP_HPD, force HPD detection */
+	if (!edp->enable_hpd)
+		rockchip_edp_force_hpd(edp);
+	timeout = jiffies + msecs_to_jiffies(250);
+	while (!rockchip_edp_get_plug_in_status(edp)) {
+		if (time_after(jiffies, timeout)) {
+			dev_err(edp->dev, "can not get edp hpd status\n");
+			return;
+		}
+		usleep_range(1000, 2000);
 	}
 
 	rockchip_edp_lt_init(edp);
@@ -812,6 +824,10 @@ static int rockchip_edp_probe(struct platform_device *pdev)
 	edp->panel = panel;
 	edp->aux.transfer = rockchip_dpaux_transfer;
 	edp->aux.dev = dev;
+
+	if (of_find_property(dev->of_node, "enable-hpd", NULL))
+		edp->enable_hpd = true;
+
 	platform_set_drvdata(pdev, edp);
 
 	return component_add(dev, &rockchip_edp_component_ops);
