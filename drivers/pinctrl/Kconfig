@@ -355,6 +355,7 @@ config PINCTRL_IMG
 
 config PINCTRL_PISTACHIO
     bool "Pinctrl driver for the Pistachio SoC"
+    depends on MACH_PISTACHIO
     select PINCTRL_IMG
     help
       Support for Pitachio SoC pin controller
