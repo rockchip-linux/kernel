@@ -548,6 +548,73 @@ static const struct attribute *psr_attrs[] = {
 	NULL,
 };
 
+static ssize_t dbc_show(struct device *kdev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	struct drm_minor *minor = dev_to_drm_minor(kdev);
+	struct drm_device *dev = minor->dev;
+	struct drm_connector *connector;
+	struct intel_encoder *intel_encoder;
+	struct intel_dp *intel_dp;
+	bool enabled = false;
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+		intel_encoder = intel_attached_encoder(connector);
+		intel_dp = enc_to_intel_dp(&intel_encoder->base);
+		enabled |= intel_edp_dbc_active(intel_dp);
+	}
+
+	mutex_unlock(&dev->mode_config.mutex);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", enabled);
+}
+
+static ssize_t dbc_store(struct device *kdev,
+			 struct device_attribute *attr,
+			 const char *buf,
+			 size_t count)
+{
+	struct drm_minor *minor = dev_to_drm_minor(kdev);
+	struct drm_device *dev = minor->dev;
+	struct drm_connector *connector;
+	struct intel_encoder *intel_encoder;
+	struct intel_dp *intel_dp;
+	u32 val;
+	ssize_t ret;
+
+	ret = kstrtou32(buf, 0, &val);
+	if (ret)
+		return ret;
+	if (val > 1)
+		return -EINVAL;
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+		intel_encoder = intel_attached_encoder(connector);
+		intel_dp = enc_to_intel_dp(&intel_encoder->base);
+
+		if (val)
+			intel_edp_dbc_enable(intel_dp);
+		else
+			intel_edp_dbc_disable(intel_dp);
+	}
+
+	mutex_unlock(&dev->mode_config.mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(enable_dbc, S_IRUGO | S_IWUSR, dbc_show, dbc_store);
+
+static const struct attribute *dbc_attrs[] = {
+	&dev_attr_enable_dbc.attr,
+	NULL,
+};
+
 static ssize_t error_state_read(struct file *filp, struct kobject *kobj,
 				struct bin_attribute *attr, char *buf,
 				loff_t off, size_t count)
@@ -652,6 +719,10 @@ void i915_setup_sysfs(struct drm_device *dev)
 			DRM_ERROR("PSR sysfs setup failed\n");
 	}
 
+	ret = sysfs_create_files(&dev->primary->kdev->kobj, dbc_attrs);
+	if (ret)
+		DRM_ERROR("DBC sysfs setup failed\n");
+
 	ret = sysfs_create_bin_file(&dev->primary->kdev->kobj,
 				    &error_state_attr);
 	if (ret)
@@ -661,6 +732,7 @@ void i915_setup_sysfs(struct drm_device *dev)
 void i915_teardown_sysfs(struct drm_device *dev)
 {
 	sysfs_remove_bin_file(&dev->primary->kdev->kobj, &error_state_attr);
+	sysfs_remove_files(&dev->primary->kdev->kobj, dbc_attrs);
 	if (HAS_PSR(dev))
 		sysfs_remove_files(&dev->primary->kdev->kobj, psr_attrs);
 	if (IS_VALLEYVIEW(dev))

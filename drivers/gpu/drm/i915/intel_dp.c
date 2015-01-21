@@ -1567,6 +1567,19 @@ static bool is_edp_psr(struct intel_dp *intel_dp)
 	return intel_dp->psr_dpcd[0] & DP_PSR_IS_SUPPORTED;
 }
 
+static bool is_edp_dbc(struct intel_dp *intel_dp)
+{
+	u8 caps;
+	if (!intel_dp->has_dpcd_blc)
+		return 0;
+
+	drm_dp_dpcd_readb(&intel_dp->aux,
+			  DP_EDP_BACKLIGHT_ADJUSTMENT_CAPABILITY_REGISTER,
+			  &caps);
+
+	return caps && DP_EDP_BACKLIGHT_DYNAMIC_CAPABLE;
+}
+
 static bool intel_edp_is_psr_enabled(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
@@ -1807,6 +1820,50 @@ void intel_edp_psr_update(struct drm_device *dev)
 				if (!intel_edp_is_psr_enabled(dev))
 					intel_edp_psr_do_enable(intel_dp);
 		}
+}
+
+static void intel_edp_dbc_set(struct intel_dp *intel_dp, bool on)
+{
+	u8 mode;
+	struct drm_connector *connector = &intel_dp->attached_connector->base;
+	if (!is_edp_dbc(intel_dp))
+		return;
+
+	DRM_DEBUG_DRIVER("%s DBC on %s\n",
+			 on ? "Enabling" : "Disabling",
+			 drm_get_connector_name(connector));
+
+	drm_dp_dpcd_readb(&intel_dp->aux,
+			  DP_EDP_BACKLIGHT_MODE_SET_REGISTER,
+			  &mode);
+	mode = on ? (mode | DP_EDP_BACKLIGHT_DYNAMIC_ENABLE)
+		  : (mode & ~DP_EDP_BACKLIGHT_DYNAMIC_ENABLE);
+
+	drm_dp_dpcd_writeb(&intel_dp->aux,
+			   DP_EDP_BACKLIGHT_MODE_SET_REGISTER,
+			   mode);
+}
+
+void intel_edp_dbc_enable(struct intel_dp *intel_dp)
+{
+	intel_edp_dbc_set(intel_dp, 1);
+}
+
+void intel_edp_dbc_disable(struct intel_dp *intel_dp)
+{
+	intel_edp_dbc_set(intel_dp, 0);
+}
+
+bool intel_edp_dbc_active(struct intel_dp *intel_dp)
+{
+	u8 mode;
+	if (!is_edp_dbc(intel_dp))
+		return 0;
+
+	drm_dp_dpcd_readb(&intel_dp->aux,
+			  DP_EDP_BACKLIGHT_MODE_SET_REGISTER,
+			  &mode);
+	return mode & DP_EDP_BACKLIGHT_DYNAMIC_ENABLE;
 }
 
 static void intel_disable_dp(struct intel_encoder *encoder)
@@ -2892,8 +2949,10 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 			DRM_DEBUG_KMS("eDP DPCD CTRL %02x %02x %02x %02x\n",
 				      ctrl[0], ctrl[1], ctrl[2], ctrl[3]);
 
-			/* We don't support DPCD backlight control yet. */
-			if (ctrl[0] && (ctrl[1] & 1) && !(ctrl[2] & 1))
+			/* Check for DPCD backlight control support. */
+			intel_dp->has_dpcd_blc =
+				!(ctrl[0] && (ctrl[1] & 1) && !(ctrl[2] & 1));
+			if (!intel_dp->has_dpcd_blc)
 				DRM_ERROR("eDP AUX backlight control only\n");
 		}
 	}

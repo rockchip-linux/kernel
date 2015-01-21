@@ -510,6 +510,7 @@ struct intel_dp {
 	bool want_panel_vdd;
 	bool use_tps3;
 	bool is_apple_vga;
+	bool has_dpcd_blc;
 	struct intel_connector *attached_connector;
 };
 
@@ -765,6 +766,9 @@ void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync);
 void intel_edp_psr_enable(struct intel_dp *intel_dp);
 void intel_edp_psr_disable(struct intel_dp *intel_dp);
 void intel_edp_psr_update(struct drm_device *dev);
+void intel_edp_dbc_enable(struct intel_dp *intel_dp);
+void intel_edp_dbc_disable(struct intel_dp *intel_dp);
+bool intel_edp_dbc_active(struct intel_dp *intel_dp);
 
 
 /* intel_dsi.c */
