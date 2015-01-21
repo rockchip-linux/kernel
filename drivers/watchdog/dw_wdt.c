@@ -144,6 +144,7 @@ static int dw_wdt_open(struct inode *inode, struct file *filp)
 		 * the maximum and then start it.
 		 */
 		dw_wdt_set_top(DW_WDT_MAX_TOP);
+		dw_wdt_keepalive();
 		writel(WDOG_CONTROL_REG_WDT_EN_MASK,
 		       dw_wdt.regs + WDOG_CONTROL_REG_OFFSET);
 	}
