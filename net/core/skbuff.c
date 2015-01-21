@@ -3470,6 +3470,45 @@ int sock_queue_err_skb(struct sock *sk, struct sk_buff *skb)
 }
 EXPORT_SYMBOL(sock_queue_err_skb);
 
+static void sock_efree(struct sk_buff *skb)
+{
+	sock_put(skb->sk);
+}
+
+/**
+  * skb_clone_sk - create clone of skb, and take reference to socket
+  * @skb: the skb to clone
+  *
+  * This function creates a clone of a buffer that holds a reference on
+  * sk_refcnt.  Buffers created via this function are meant to be
+  * returned using sock_queue_err_skb, or free via kfree_skb.
+  *
+  * When passing buffers allocated with this function to sock_queue_err_skb
+  * it is necessary to wrap the call with sock_hold/sock_put in order to
+  * prevent the socket from being released prior to being enqueued on
+  * the sk_error_queue.
+  */
+struct sk_buff *skb_clone_sk(struct sk_buff *skb)
+{
+	struct sock *sk = skb->sk;
+	struct sk_buff *clone;
+
+	if (!sk || !atomic_inc_not_zero(&sk->sk_refcnt))
+		return NULL;
+
+	clone = skb_clone(skb, GFP_ATOMIC);
+	if (!clone) {
+		sock_put(sk);
+		return NULL;
+	}
+
+	clone->sk = sk;
+	clone->destructor = sock_efree;
+
+	return clone;
+}
+EXPORT_SYMBOL_GPL(skb_clone_sk);
+
 void skb_tstamp_tx(struct sk_buff *orig_skb,
 		struct skb_shared_hwtstamps *hwtstamps)
 {

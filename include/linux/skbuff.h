@@ -694,6 +694,7 @@ struct sk_buff *skb_copy_expand(const struct sk_buff *skb, int newheadroom,
 int skb_to_sgvec(struct sk_buff *skb, struct scatterlist *sg, int offset,
 		 int len);
 int skb_cow_data(struct sk_buff *skb, int tailbits, struct sk_buff **trailer);
+struct sk_buff *skb_clone_sk(struct sk_buff *skb);
 int skb_pad(struct sk_buff *skb, int pad);
 #define dev_kfree_skb(a)	consume_skb(a)
 
