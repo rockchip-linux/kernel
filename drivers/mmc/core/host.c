@@ -400,7 +400,7 @@ int mmc_of_parse(struct mmc_host *host)
 	gpio = of_get_named_gpio_flags(np, "wp-gpios", 0, &flags);
 	if (gpio == -EPROBE_DEFER) {
 		ret = -EPROBE_DEFER;
-		goto out;
+		goto out_got_cd;
 	}
 	if (gpio_is_valid(gpio)) {
 		if (!(flags & OF_GPIO_ACTIVE_LOW))
@@ -410,7 +410,7 @@ int mmc_of_parse(struct mmc_host *host)
 		if (ret < 0) {
 			dev_err(host->parent,
 				"Failed to request WP GPIO: %d!\n", ret);
-			goto out;
+			goto out_got_cd;
 		} else {
 				dev_info(host->parent, "Got WP GPIO #%d.\n",
 					 gpio);
@@ -441,7 +441,7 @@ int mmc_of_parse(struct mmc_host *host)
 	if (IS_ERR(host->card_clk)) {
 		if (PTR_ERR(host->card_clk) == -EPROBE_DEFER) {
 			ret = -EPROBE_DEFER;
-			goto out;
+			goto out_got_card_reset_gpios;
 		}
 
 		host->card_clk = NULL;
@@ -450,7 +450,7 @@ int mmc_of_parse(struct mmc_host *host)
 	host->card_regulator = regulator_get(host->parent, "card-external-vcc");
 	if (PTR_ERR(host->card_regulator) == -EPROBE_DEFER) {
 		ret = -EPROBE_DEFER;
-		goto out;
+		goto out_got_card_clk;
 	}
 
 	if (of_find_property(np, "cap-sd-highspeed", &len))
@@ -488,7 +488,18 @@ int mmc_of_parse(struct mmc_host *host)
 
 	return 0;
 
-out:
+out_got_card_clk:
+	if (host->card_clk)
+		clk_put(host->card_clk);
+
+out_got_card_reset_gpios:
+	for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++)
+		if (host->card_reset_gpios[i])
+			gpiod_put(host->card_reset_gpios[i]);
+
+	mmc_gpio_free_ro(host);
+
+out_got_cd:
 	mmc_gpio_free_cd(host);
 	return ret;
 }
@@ -620,6 +631,8 @@ EXPORT_SYMBOL(mmc_add_host);
  */
 void mmc_remove_host(struct mmc_host *host)
 {
+	int i;
+
 	unregister_pm_notifier(&host->pm_notify);
 	mmc_stop_host(host);
 
@@ -632,6 +645,15 @@ void mmc_remove_host(struct mmc_host *host)
 	led_trigger_unregister_simple(host->led);
 
 	mmc_host_clk_exit(host);
+
+	if (host->card_regulator)
+		regulator_put(host->card_regulator);
+	if (host->card_clk)
+		clk_put(host->card_clk);
+
+	for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++)
+		if (host->card_reset_gpios[i])
+			gpiod_put(host->card_reset_gpios[i]);
 }
 
 EXPORT_SYMBOL(mmc_remove_host);

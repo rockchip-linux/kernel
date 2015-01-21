@@ -1696,6 +1696,18 @@ void mmc_power_off(struct mmc_host *host)
 	mmc_delay(1);
 
 	mmc_host_clk_release(host);
+
+	if (host->card_clk) {
+		dev_dbg(host->parent, "Disabling external clock");
+		clk_disable_unprepare(host->card_clk);
+	}
+
+	if (host->card_regulator) {
+		dev_dbg(host->parent, "Disabling external regulator");
+		if (regulator_disable(host->card_regulator))
+			dev_err(host->parent,
+				"Failed to disable external regulator");
+	}
 }
 
 void mmc_power_cycle(struct mmc_host *host, u32 ocr)
