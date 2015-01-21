@@ -13,7 +13,6 @@
 
 #include <linux/module.h>
 #include <linux/acpi.h>
-#include <linux/async.h>
 #include <linux/completion.h>
 #include <linux/debugfs.h>
 #include <linux/delay.h>
@@ -485,6 +484,11 @@ struct mxt_data {
 
 	/* map for the tracking id currently being used */
 	bool *current_id;
+
+	/* Cleanup flags */
+	bool sysfs_group_created;
+	bool power_sysfs_group_merged;
+	bool debugfs_initialized;
 };
 
 /* global root node of the atmel_mxt_ts debugfs directory. */
@@ -1715,6 +1719,28 @@ static int mxt_get_info(struct mxt_data *data)
 	return 0;
 }
 
+static void mxt_free_object_table(struct mxt_data *data)
+{
+	if (data->object_table) {
+		devm_kfree(&data->client->dev, data->object_table);
+		data->object_table = NULL;
+	}
+
+	if (data->current_id) {
+		devm_kfree(&data->client->dev, data->current_id);
+		data->current_id = NULL;
+	}
+
+	data->object_table = NULL;
+	data->T6_reportid = 0;
+	data->T9_reportid_min = 0;
+	data->T9_reportid_max = 0;
+	data->T19_reportid = 0;
+	data->T100_reportid_min = 0;
+	data->T100_reportid_max = 0;
+	data->num_touchids = 0;
+}
+
 static int mxt_get_object_table(struct mxt_data *data)
 {
 	struct i2c_client *client = data->client;
@@ -1725,7 +1751,17 @@ static int mxt_get_object_table(struct mxt_data *data)
 	u8 reportid;
 	u8 csum[3];
 
+	/* Start by zapping old contents, if any. */
+	mxt_free_object_table(data);
+
 	table_size = data->info.object_num * sizeof(struct mxt_object);
+
+	data->object_table = devm_kzalloc(dev, table_size, GFP_KERNEL);
+	if (!data->object_table) {
+		dev_err(&client->dev, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
+
 	error = __mxt_read_reg(client, MXT_OBJECT_START, table_size,
 			data->object_table);
 	if (error)
@@ -1800,26 +1836,14 @@ static int mxt_get_object_table(struct mxt_data *data)
 		}
 	}
 
-	data->current_id = kzalloc(sizeof(*data->current_id) *
-				   data->num_touchids, GFP_KERNEL);
+	data->current_id = devm_kcalloc(dev,
+					data->num_touchids,
+					sizeof(*data->current_id),
+					GFP_KERNEL);
 	if (!data->current_id)
 		return -ENOMEM;
 
 	return 0;
-}
-
-static void mxt_free_object_table(struct mxt_data *data)
-{
-	kfree(data->object_table);
-	kfree(data->current_id);
-	data->object_table = NULL;
-	data->T6_reportid = 0;
-	data->T9_reportid_min = 0;
-	data->T9_reportid_max = 0;
-	data->T19_reportid = 0;
-	data->T100_reportid_min = 0;
-	data->T100_reportid_max = 0;
-	data->num_touchids = 0;
 }
 
 static int mxt_initialize(struct mxt_data *data)
@@ -1832,29 +1856,22 @@ static int mxt_initialize(struct mxt_data *data)
 	if (error)
 		return error;
 
-	data->object_table = kcalloc(info->object_num,
-				     sizeof(struct mxt_object),
-				     GFP_KERNEL);
-	if (!data->object_table) {
-		dev_err(&client->dev, "Failed to allocate memory\n");
-		return -ENOMEM;
-	}
-
 	/* Get object table information */
 	error = mxt_get_object_table(data);
 	if (error)
-		goto err_free_object_table;
+		return error;
 
 	/* Apply config from platform data */
 	error = mxt_handle_pdata(data);
 	if (error)
-		goto err_free_object_table;
+		return error;
 
 	/* Soft reset */
 	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
 				 MXT_COMMAND_RESET, 1);
 	if (error)
-		goto err_free_object_table;
+		return error;
+
 	msleep(MXT_RESET_TIME);
 
 	dev_info(&client->dev,
@@ -1868,10 +1885,6 @@ static int mxt_initialize(struct mxt_data *data)
 			info->object_num);
 
 	return 0;
-
-err_free_object_table:
-	mxt_free_object_table(data);
-	return error;
 }
 
 static int mxt_update_setting_T100(struct mxt_data *data)
@@ -2481,7 +2494,7 @@ out:
 static int mxt_update_file_name(struct device *dev, char** file_name,
 				const char *buf, size_t count)
 {
-	char *file_name_tmp;
+	char *new_file_name;
 
 	/* Simple sanity check */
 	if (count > 64) {
@@ -2489,20 +2502,25 @@ static int mxt_update_file_name(struct device *dev, char** file_name,
 		return -EINVAL;
 	}
 
-	file_name_tmp = krealloc(*file_name, count + 1, GFP_KERNEL);
-	if (!file_name_tmp) {
+	/* FIXME: devm_kmemdup() when available */
+	new_file_name = devm_kmalloc(dev, count + 1, GFP_KERNEL);
+	if (!new_file_name) {
 		dev_warn(dev, "no memory\n");
 		return -ENOMEM;
 	}
 
-	*file_name = file_name_tmp;
-	memcpy(*file_name, buf, count);
+	memcpy(new_file_name, buf, count + 1);
 
 	/* Echo into the sysfs entry may append newline at the end of buf */
-	if (buf[count - 1] == '\n')
-		(*file_name)[count - 1] = '\0';
-	else
-		(*file_name)[count] = '\0';
+	if (new_file_name[count - 1] == '\n')
+		count--;
+
+	new_file_name[count] = '\0';
+
+	if (*file_name)
+		devm_kfree(dev, *file_name);
+
+	*file_name = new_file_name;
 
 	return 0;
 }
@@ -3430,10 +3448,8 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	if (mxt_in_bootloader(data))
 		return 0;
 
-	if (data->has_T9)
-		error = mxt_calc_resolution_T9(data);
-	else
-		error = mxt_calc_resolution_T100(data);
+	error = data->has_T9 ? mxt_calc_resolution_T9(data) :
+			       mxt_calc_resolution_T100(data);
 	if (error)
 		return error;
 
@@ -3450,7 +3466,7 @@ static int mxt_input_dev_create(struct mxt_data *data)
 		data->input_dev = NULL;
 	}
 
-	data->input_dev = input_dev = input_allocate_device();
+	input_dev = devm_input_allocate_device(&data->client->dev);
 	if (!input_dev)
 		return -ENOMEM;
 
@@ -3509,7 +3525,7 @@ static int mxt_input_dev_create(struct mxt_data *data)
 	/* For multi touch */
 	error = input_mt_init_slots(input_dev, data->num_touchids, 0);
 	if (error)
-		goto err_free_device;
+		goto err_free_input_dev;
 
 	max_area_channels = min(255U, data->max_area_channels);
 	max_touch_major = get_touch_major_pixels(data, max_area_channels);
@@ -3530,13 +3546,20 @@ static int mxt_input_dev_create(struct mxt_data *data)
 
 	error = input_register_device(input_dev);
 	if (error)
-		goto err_free_device;
+		goto err_free_input_dev;
 
+	data->input_dev = input_dev;
 	return 0;
 
-err_free_device:
-	input_free_device(data->input_dev);
-	data->input_dev = NULL;
+err_free_input_dev:
+
+	/*
+	 * Even though input device is managed we free it on error
+	 * because next time mxt_input_dev_create() is called it
+	 * would not know if device is fully registered or not and
+	 * if it should be unregistered or freed.
+	 */
+	input_free_device(input_dev);
 	return error;
 }
 
@@ -3580,76 +3603,12 @@ release_reset_gpio:
 	return 0;
 }
 
-static void mxt_initialize_async(void *closure, async_cookie_t cookie)
+static void mxt_power_off(void *_data)
 {
-	struct mxt_data *data = closure;
-	struct i2c_client *client = data->client;
-	unsigned long irqflags;
-	int error;
+	struct mxt_data *data = _data;
 
-	if (mxt_in_bootloader(data)) {
-		dev_info(&client->dev, "device in bootloader at probe\n");
-	} else {
-		error = mxt_initialize(data);
-		if (error)
-			return;
-
-		error = mxt_input_dev_create(data);
-		if (error)
-			goto error_free_object;
-	}
-
-	/* Force the device to report back status so we can cache the device
-	 * config checksum
-	 */
-	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
-				 MXT_COMMAND_REPORTALL, 1);
-	if (error)
-		dev_warn(&client->dev, "error making device report status.\n");
-
-	/* Default to falling edge if no platform data provided */
-	irqflags = data->pdata ? data->pdata->irqflags : IRQF_TRIGGER_FALLING;
-	error = request_threaded_irq(client->irq, NULL, mxt_interrupt,
-				     irqflags | IRQF_ONESHOT,
-				     client->name, data);
-	if (error) {
-		dev_err(&client->dev, "Failed to register interrupt\n");
-		if (mxt_in_bootloader(data))
-			return;
-		else
-			goto error_unregister_device;
-	}
-
-	if (!mxt_in_bootloader(data)) {
-		error = mxt_handle_messages(data, true);
-		if (error)
-			goto error_free_irq;
-	}
-
-	error = sysfs_create_group(&client->dev.kobj, &mxt_attr_group);
-	if (error) {
-		dev_err(&client->dev, "error creating sysfs entries.\n");
-		goto error_free_irq;
-	}
-
-	error = sysfs_merge_group(&client->dev.kobj, &mxt_power_attr_group);
-	if (error)
-		dev_warn(&client->dev, "error merging power sysfs entries.\n");
-
-	error = mxt_debugfs_init(data);
-	if (error)
-		dev_warn(&client->dev, "error creating debugfs entries.\n");
-
-	return;
-
-error_free_irq:
-	free_irq(client->irq, data);
-error_unregister_device:
-	input_unregister_device(data->input_dev);
-	data->input_dev = NULL;
-error_free_object:
-	kfree(data->object_table);
-	data->object_table = NULL;
+	regulator_disable(data->avdd);
+	regulator_disable(data->vdd);
 }
 
 static int mxt_check_device_present(struct mxt_data *data, bool probe_alternate)
@@ -3681,11 +3640,27 @@ static int mxt_check_device_present(struct mxt_data *data, bool probe_alternate)
 	return -ENXIO;
 }
 
+static void mxt_cleanup_fs(void *_data)
+{
+	struct mxt_data *data = _data;
+	struct i2c_client *client = data->client;
+
+	if (data->debugfs_initialized)
+		mxt_debugfs_remove(data);
+
+	if (data->power_sysfs_group_merged)
+		sysfs_unmerge_group(&client->dev.kobj, &mxt_power_attr_group);
+
+	if (data->sysfs_group_created)
+		sysfs_remove_group(&client->dev.kobj, &mxt_attr_group);
+}
+
 static int mxt_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	const struct mxt_platform_data *pdata = dev_get_platdata(&client->dev);
 	struct mxt_data *data;
+	unsigned long irqflags;
 	int error;
 
 	data = devm_kzalloc(&client->dev, sizeof(struct mxt_data), GFP_KERNEL);
@@ -3773,52 +3748,97 @@ static int mxt_probe(struct i2c_client *client,
 	if (error)
 		return error;
 
+	error = devm_add_action(&client->dev, mxt_power_off, data);
+	if (error) {
+		dev_err(&client->dev,
+			"failed to install power off action: %d\n", error);
+		mxt_power_off(data);
+		return error;
+	}
+
 	error = mxt_check_device_present(data,
 					 !IS_ERR_OR_NULL(data->reset_gpio));
 	if (error)
-		goto err_power_off;
+		return error;
 
 	error = mxt_update_file_name(&client->dev, &data->fw_file, MXT_FW_NAME,
 				     strlen(MXT_FW_NAME));
 	if (error)
-		goto err_power_off;
+		return error;
 
 	error = mxt_update_file_name(&client->dev, &data->config_file,
 				     MXT_CONFIG_NAME, strlen(MXT_CONFIG_NAME));
 	if (error)
-		goto err_free_fw_file;
+		return error;
+
+	if (mxt_in_bootloader(data)) {
+		dev_warn(&client->dev, "device in bootloader at probe\n");
+	} else {
+		error = mxt_initialize(data);
+		if (error)
+			return error;
+
+		error = mxt_input_dev_create(data);
+		if (error)
+			return error;
+	}
+
+	/*
+	 * Force the device to report back status so we can cache the device
+	 * config checksum.
+	 */
+	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+				 MXT_COMMAND_REPORTALL, 1);
+	if (error)
+		dev_warn(&client->dev, "error making device report status.\n");
+
+	/* Default to falling edge if no platform data provided */
+	irqflags = data->pdata ? data->pdata->irqflags : IRQF_TRIGGER_FALLING;
+	error = devm_request_threaded_irq(&client->dev, client->irq,
+					  NULL, mxt_interrupt,
+					  irqflags | IRQF_ONESHOT,
+					  client->name, data);
+	if (error) {
+		dev_err(&client->dev, "failed to register interrupt: %d\n",
+			error);
+		return error;
+	}
+
+	if (!mxt_in_bootloader(data)) {
+		error = mxt_handle_messages(data, true);
+		if (error)
+			return error;
+	}
+
+	error = devm_add_action(&client->dev, mxt_cleanup_fs, data);
+	if (error) {
+		dev_err(&client->dev,
+			"failed to add cleanup fs action: %d\n",
+			error);
+		return error;
+	}
+
+	error = sysfs_create_group(&client->dev.kobj, &mxt_attr_group);
+	if (error) {
+		dev_err(&client->dev, "error creating sysfs entries.\n");
+		return error;
+	} else {
+		data->sysfs_group_created = true;
+	}
+
+	error = sysfs_merge_group(&client->dev.kobj, &mxt_power_attr_group);
+	if (error)
+		dev_warn(&client->dev, "error merging power sysfs entries.\n");
+	else
+		data->power_sysfs_group_merged = true;
+
+	error = mxt_debugfs_init(data);
+	if (error)
+		dev_warn(&client->dev, "error creating debugfs entries.\n");
+	else
+		data->debugfs_initialized = true;
 
 	device_set_wakeup_enable(&client->dev, false);
-
-	async_schedule(mxt_initialize_async, data);
-
-	return 0;
-
-err_free_fw_file:
-	kfree(data->fw_file);
-err_power_off:
-	regulator_disable(data->avdd);
-	regulator_disable(data->vdd);
-	return error;
-}
-
-static int mxt_remove(struct i2c_client *client)
-{
-	struct mxt_data *data = i2c_get_clientdata(client);
-
-	mxt_debugfs_remove(data);
-	sysfs_unmerge_group(&client->dev.kobj, &mxt_power_attr_group);
-	sysfs_remove_group(&client->dev.kobj, &mxt_attr_group);
-	free_irq(data->irq, data);
-	if (data->input_dev)
-		input_unregister_device(data->input_dev);
-
-	regulator_disable(data->avdd);
-	regulator_disable(data->vdd);
-
-	kfree(data->object_table);
-	kfree(data->fw_file);
-	kfree(data->config_file);
 
 	return 0;
 }
@@ -4023,9 +4043,9 @@ static struct i2c_driver mxt_driver = {
 		.owner	= THIS_MODULE,
 		.pm	= &mxt_pm_ops,
 		.acpi_match_table = ACPI_PTR(mxt_acpi_id),
+		.async_probe = true,
 	},
 	.probe		= mxt_probe,
-	.remove		= mxt_remove,
 	.id_table	= mxt_id,
 };
 
