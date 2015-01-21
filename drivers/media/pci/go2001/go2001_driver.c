@@ -1220,8 +1220,7 @@ static int go2001_enum_fmt(enum go2001_codec_mode codec_mode,
 
 	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
 		fmt = &formats[i];
-		if (!test_bit(codec_mode, &fmt->codec_modes)
-					|| (fmt->type != type))
+		if (!(codec_mode & fmt->codec_modes) || (fmt->type != type))
 			continue;
 
 		if (num_matched == f->index) {
@@ -1797,6 +1796,9 @@ static const struct v4l2_ioctl_ops go2001_ioctl_dec_ops = {
 
 static const struct v4l2_ioctl_ops go2001_ioctl_enc_ops = {
 	.vidioc_querycap = go2001_querycap,
+
+	.vidioc_enum_fmt_vid_cap_mplane = go2001_enum_fmt_cap,
+	.vidioc_enum_fmt_vid_out_mplane = go2001_enum_fmt_out,
 
 	.vidioc_g_fmt_vid_cap_mplane = go2001_enc_g_fmt_cap,
 	.vidioc_g_fmt_vid_out_mplane = go2001_enc_g_fmt_out,
