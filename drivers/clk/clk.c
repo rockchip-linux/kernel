@@ -744,20 +744,14 @@ struct clk *__clk_lookup(const char *name)
 	return NULL;
 }
 
-static bool mux_is_better_rate(unsigned long rate, unsigned long now,
-			   unsigned long best, unsigned long flags)
-{
-	if (flags & CLK_MUX_ROUND_CLOSEST)
-		return abs(now - rate) < abs(best - rate);
-
-	return now <= rate && now > best;
-}
-
-static long
-clk_mux_determine_rate_flags(struct clk_hw *hw, unsigned long rate,
-			     unsigned long *best_parent_rate,
-			     struct clk **best_parent_p,
-			     unsigned long flags)
+/*
+ * Helper for finding best parent to provide a given frequency. This can be used
+ * directly as a determine_rate callback (e.g. for a mux), or from a more
+ * complex clock that may combine a mux with other operations.
+ */
+long __clk_mux_determine_rate(struct clk_hw *hw, unsigned long rate,
+			      unsigned long *best_parent_rate,
+			      struct clk **best_parent_p)
 {
 	struct clk *clk = hw->clk, *parent, *best_parent = NULL;
 	int i, num_parents;
@@ -785,7 +779,7 @@ clk_mux_determine_rate_flags(struct clk_hw *hw, unsigned long rate,
 			parent_rate = __clk_round_rate(parent, rate);
 		else
 			parent_rate = __clk_get_rate(parent);
-		if (mux_is_better_rate(rate, parent_rate, best, flags)) {
+		if (parent_rate <= rate && parent_rate > best) {
 			best_parent = parent;
 			best = parent_rate;
 		}
@@ -798,30 +792,7 @@ out:
 
 	return best;
 }
-
-/*
- * Helper for finding best parent to provide a given frequency. This can be used
- * directly as a determine_rate callback (e.g. for a mux), or from a more
- * complex clock that may combine a mux with other operations.
- */
-long __clk_mux_determine_rate(struct clk_hw *hw, unsigned long rate,
-			      unsigned long *best_parent_rate,
-			      struct clk **best_parent_p)
-{
-	return clk_mux_determine_rate_flags(hw, rate, best_parent_rate,
-					    best_parent_p, 0);
-}
 EXPORT_SYMBOL_GPL(__clk_mux_determine_rate);
-
-long __clk_mux_determine_rate_closest(struct clk_hw *hw, unsigned long rate,
-			      unsigned long *best_parent_rate,
-			      struct clk **best_parent_p)
-{
-	return clk_mux_determine_rate_flags(hw, rate, best_parent_rate,
-					    best_parent_p,
-					    CLK_MUX_ROUND_CLOSEST);
-}
-EXPORT_SYMBOL_GPL(__clk_mux_determine_rate_closest);
 
 /***        clk api        ***/
 
