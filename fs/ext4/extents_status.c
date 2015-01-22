@@ -1197,10 +1197,10 @@ int ext4_es_register_shrinker(struct ext4_sb_info *sbi)
 	sbi->s_es_stats.es_stats_cache_misses = 0;
 	sbi->s_es_stats.es_stats_scan_time = 0;
 	sbi->s_es_stats.es_stats_max_scan_time = 0;
-	err = percpu_counter_init(&sbi->s_es_stats.es_stats_all_cnt, 0, GFP_KERNEL);
+	err = percpu_counter_init(&sbi->s_es_stats.es_stats_all_cnt, 0);
 	if (err)
 		return err;
-	err = percpu_counter_init(&sbi->s_es_stats.es_stats_lru_cnt, 0, GFP_KERNEL);
+	err = percpu_counter_init(&sbi->s_es_stats.es_stats_lru_cnt, 0);
 	if (err)
 		goto err1;
 
