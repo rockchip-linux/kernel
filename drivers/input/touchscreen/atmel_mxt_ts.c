@@ -492,6 +492,8 @@ static struct dentry *mxt_debugfs_root;
 
 static int mxt_calc_resolution_T9(struct mxt_data *data);
 static int mxt_calc_resolution_T100(struct mxt_data *data);
+static int mxt_check_device_present(struct mxt_data *data,
+				    bool probe_alternate);
 static void mxt_free_object_table(struct mxt_data *data);
 static int mxt_initialize(struct mxt_data *data);
 static int mxt_input_dev_create(struct mxt_data *data);
@@ -1432,24 +1434,26 @@ static int mxt_enter_bl(struct mxt_data *data)
 		data->input_dev = NULL;
 	}
 
-	enable_irq(data->irq);
-	/* Clean up message queue in device */
-	mxt_handle_messages(data, false);
-
-	disable_irq(data->irq);
-
-
 	/* Change to the bootloader mode */
 	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
 			       MXT_COMMAND_RESET, MXT_BOOT_VALUE);
 	if (ret) {
 		dev_err(dev, "Failed to change to bootloader mode %d.\n", ret);
 		enable_irq(data->irq);
-		return ret;
+		goto err_enter_bl;
 	}
+
+	/* Wait for bootloader mode ready */
+	msleep(MXT_RESET_TIME);
 
 	/* Change to slave address of bootloader */
 	client->addr = mxt_lookup_bootloader_address(data);
+
+	ret = mxt_check_device_present(data, false);
+	if (ret) {
+		dev_err(dev, "Failed to check device in BL mode %d.\n", ret);
+		goto err_enter_bl;
+	}
 
 	init_completion(&data->bl_completion);
 	enable_irq(data->irq);
@@ -1459,10 +1463,13 @@ static int mxt_enter_bl(struct mxt_data *data)
 	if (ret) {
 		dev_err(dev, "Failed waiting for reset to bootloader %d.\n",
 			ret);
-		client->addr = mxt_lookup_appmode_address(data);
-		return ret;
+		goto err_enter_bl;
 	}
 	return 0;
+
+err_enter_bl:
+	client->addr = mxt_lookup_appmode_address(data);
+	return ret;
 }
 
 static void mxt_exit_bl(struct mxt_data *data)
