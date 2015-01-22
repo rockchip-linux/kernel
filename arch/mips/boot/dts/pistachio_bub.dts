@@ -15,7 +15,7 @@
 
 / {
 	model = "IMG Pistachio SoC";
-	compatible = "img,pistachio-fpga";
+	compatible = "img,pistachio-bub";
 
 	#address-cells = <1>;
 	#size-cells = <1>;
