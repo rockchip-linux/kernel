@@ -39,6 +39,7 @@
 #define SPFI_CONTROL_SOFT_RESET			BIT(11)
 #define SPFI_CONTROL_SEND_DMA			BIT(10)
 #define SPFI_CONTROL_GET_DMA			BIT(9)
+#define SPFI_CONTROL_SE			BIT(8)
 #define SPFI_CONTROL_TMODE_SHIFT		5
 #define SPFI_CONTROL_TMODE_MASK			0x7
 #define SPFI_CONTROL_TMODE_SINGLE		0
@@ -433,6 +434,10 @@ static void img_spfi_config(struct spi_master *master, struct spi_device *spi,
 	if (!xfer->cs_change && !list_is_last(&xfer->transfer_list,
 					      &master->cur_msg->transfers))
 		val |= SPFI_CONTROL_CONTINUE;
+
+	/* Double the transfer speed by setting Same Edge. */
+	val |= SPFI_CONTROL_SE;
+
 	spfi_writel(spfi, val, SPFI_CONTROL);
 
 	val = spfi_readl(spfi, SPFI_PORT_STATE);
