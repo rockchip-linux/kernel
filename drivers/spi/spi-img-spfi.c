@@ -466,6 +466,8 @@ static int img_spfi_transfer_one(struct spi_master *master,
 	spin_lock_irqsave(&spfi->lock, flags);
 	if (spfi->tx_dma_busy || spfi->rx_dma_busy) {
 		dev_err(spfi->dev, "SPI DMA still busy\n");
+		spfi->tx_dma_busy = false;
+		spfi->rx_dma_busy = false;
 		dma_reset = true;
 	}
 	spin_unlock_irqrestore(&spfi->lock, flags);
