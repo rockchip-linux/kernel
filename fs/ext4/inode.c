@@ -2953,12 +2953,13 @@ static void ext4_end_io_dio(struct kiocb *iocb, loff_t offset,
  *
  */
 static ssize_t ext4_ext_direct_IO(int rw, struct kiocb *iocb,
-			      struct iov_iter *iter, loff_t offset)
+			      const struct iovec *iov, loff_t offset,
+			      unsigned long nr_segs)
 {
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	ssize_t ret;
-	size_t count = iov_iter_count(iter);
+	size_t count = iov_length(iov, nr_segs);
 	int overwrite = 0;
 	get_block_t *get_block_func = NULL;
 	int dio_flags = 0;
@@ -2967,7 +2968,7 @@ static ssize_t ext4_ext_direct_IO(int rw, struct kiocb *iocb,
 
 	/* Use the old path for reads and writes beyond i_size. */
 	if (rw != WRITE || final_size > inode->i_size)
-		return ext4_ind_direct_IO(rw, iocb, iter, offset);
+		return ext4_ind_direct_IO(rw, iocb, iov, offset, nr_segs);
 
 	BUG_ON(iocb->private == NULL);
 
@@ -3034,8 +3035,8 @@ static ssize_t ext4_ext_direct_IO(int rw, struct kiocb *iocb,
 		dio_flags = DIO_LOCKING;
 	}
 	ret = __blockdev_direct_IO(rw, iocb, inode,
-				   inode->i_sb->s_bdev, iter,
-				   offset,
+				   inode->i_sb->s_bdev, iov,
+				   offset, nr_segs,
 				   get_block_func,
 				   ext4_end_io_dio,
 				   NULL,
@@ -3089,11 +3090,12 @@ retake_lock:
 }
 
 static ssize_t ext4_direct_IO(int rw, struct kiocb *iocb,
-			      struct iov_iter *iter, loff_t offset)
+			      const struct iovec *iov, loff_t offset,
+			      unsigned long nr_segs)
 {
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
-	size_t count = iov_iter_count(iter);
+	size_t count = iov_length(iov, nr_segs);
 	ssize_t ret;
 
 	/*
@@ -3108,9 +3110,9 @@ static ssize_t ext4_direct_IO(int rw, struct kiocb *iocb,
 
 	trace_ext4_direct_IO_enter(inode, offset, count, rw);
 	if (ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))
-		ret = ext4_ext_direct_IO(rw, iocb, iter, offset);
+		ret = ext4_ext_direct_IO(rw, iocb, iov, offset, nr_segs);
 	else
-		ret = ext4_ind_direct_IO(rw, iocb, iter, offset);
+		ret = ext4_ind_direct_IO(rw, iocb, iov, offset, nr_segs);
 	trace_ext4_direct_IO_exit(inode, offset, count, rw, ret);
 	return ret;
 }
