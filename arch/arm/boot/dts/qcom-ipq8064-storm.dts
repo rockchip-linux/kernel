@@ -544,16 +544,6 @@
 			mdiobus = <&mdio0>;
 		};
 
-		switch0: qca8337-lite {
-			device-type = "network";
-			compatible = "qca8337-lite";
-			mdiobus = <&mdio0>;
-			qca,vlan-portmap = <
-				0x1     0x4e            /* VLAN1 Ports 1/6 */
-				0x2     0x21            /* VLAN2 Ports 0/2 */
-			>;
-		};
-
 		watchdog@208a038 {
 			compatible = "qcom,kpss-wdt-ipq8064";
 			reg = <0x0208a038 0x40>;
