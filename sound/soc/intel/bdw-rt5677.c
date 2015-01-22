@@ -28,6 +28,7 @@ enum {
 
 struct bdw_rt5677_priv {
 	struct gpio_desc *gpio_hp_en;
+	struct snd_soc_codec *codec;
 };
 
 static int bdw_rt5677_event_hp(struct snd_soc_dapm_widget *w,
@@ -217,6 +218,7 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	} else {
 		dev_err(codec->dev, "Can't create mic jack\n");
 	}
+	bdw_rt5677->codec = codec;
 
 	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
 	return 0;
@@ -318,8 +320,12 @@ static int bdw_rt5677_remove(struct platform_device *pdev)
 
 static int snd_soc_bdw_rt5677_resume(struct device *dev)
 {
-	snd_soc_jack_gpio_detect(&mic_jack_gpio);
-	snd_soc_jack_gpio_detect(&headphone_jack_gpio);
+	struct snd_soc_card *card = dev_get_drvdata(dev);
+	struct bdw_rt5677_priv *bdw_rt5677 = snd_soc_card_get_drvdata(card);
+
+	if (bdw_rt5677->codec)
+		rt5677_poll_gpios(bdw_rt5677->codec);
+
 	return snd_soc_resume(dev);
 }
 

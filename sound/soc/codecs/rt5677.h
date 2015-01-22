@@ -1702,4 +1702,6 @@ struct rt5677_priv {
 	struct delayed_work irq_work;
 };
 
+int rt5677_poll_gpios(struct snd_soc_codec *codec);
+
 #endif /* __RT5677_H__ */

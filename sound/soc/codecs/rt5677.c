@@ -4191,6 +4191,15 @@ static void rt5677_free_gpio(struct i2c_client *i2c)
 }
 #endif
 
+int rt5677_poll_gpios(struct snd_soc_codec *codec)
+{
+	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
+
+	schedule_delayed_work(&rt5677->irq_work, 50);
+	return 0;
+}
+EXPORT_SYMBOL(rt5677_poll_gpios);
+
 static int rt5677_probe(struct snd_soc_codec *codec)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
