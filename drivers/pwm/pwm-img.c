@@ -202,13 +202,13 @@ static int img_pwm_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, pwm);
+	return 0;
 
 disable_pwmclk:
 	clk_disable_unprepare(pwm->pwm_clk);
 disable_sysclk:
 	clk_disable_unprepare(pwm->sys_clk);
-
-	return 0;
+	return ret;
 }
 
 static int img_pwm_remove(struct platform_device *pdev)
