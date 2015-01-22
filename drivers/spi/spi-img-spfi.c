@@ -594,7 +594,9 @@ static int img_spfi_probe(struct platform_device *pdev)
 	master->num_chipselect = 5;
 	master->dev.of_node = pdev->dev.of_node;
 	master->bits_per_word_mask = SPI_BPW_MASK(32) | SPI_BPW_MASK(8);
-	master->max_speed_hz = clk_get_rate(spfi->spfi_clk) / 4;
+	if (of_property_read_u32(spfi->dev->of_node, "spi-max-frequency",
+				  &master->max_speed_hz))
+		master->max_speed_hz = clk_get_rate(spfi->spfi_clk) / 4;
 	master->min_speed_hz = clk_get_rate(spfi->spfi_clk) / 512;
 
 	master->set_cs = img_spfi_set_cs;

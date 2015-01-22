@@ -20,6 +20,7 @@ Required properties:
 Optional properties:
 - img,supports-quad-mode: Should be set if the interface supports quad mode
   SPI transfers.
+- spi-max-frequency: Maximum SPI bit clock frequency.
 
 Example:
 
