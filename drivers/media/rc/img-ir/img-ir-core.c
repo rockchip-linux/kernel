@@ -60,6 +60,8 @@ static void img_ir_setup(struct img_ir_priv *priv)
 
 	if (!IS_ERR(priv->clk))
 		clk_prepare_enable(priv->clk);
+	if (!IS_ERR(priv->sys_clk))
+		clk_prepare_enable(priv->sys_clk);
 }
 
 static void img_ir_ident(struct img_ir_priv *priv)
@@ -110,10 +112,11 @@ static int img_ir_probe(struct platform_device *pdev)
 	priv->clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(priv->clk))
 		dev_warn(&pdev->dev, "cannot get core clock resource\n");
-	/*
-	 * The driver doesn't need to know about the system ("sys") or power
-	 * modulation ("mod") clocks yet
-	 */
+
+	/* Get sys clock */
+	priv->sys_clk = devm_clk_get(&pdev->dev, "sys");
+	if (IS_ERR(priv->sys_clk))
+		dev_warn(&pdev->dev, "cannot get sys clock resource\n");
 
 	/* Set up raw & hw decoder */
 	error = img_ir_probe_raw(priv);
@@ -152,6 +155,8 @@ static int img_ir_remove(struct platform_device *pdev)
 
 	if (!IS_ERR(priv->clk))
 		clk_disable_unprepare(priv->clk);
+	if (!IS_ERR(priv->sys_clk))
+		clk_disable_unprepare(priv->sys_clk);
 	return 0;
 }
 
