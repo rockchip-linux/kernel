@@ -348,18 +348,6 @@ config PINCTRL_PALMAS
 	  open drain configuration for the Palmas series devices like
 	  TPS65913, TPS80036 etc.
 
-config PINCTRL_IMG
-    bool
-    select PINMUX
-    select PINCONF
-
-config PINCTRL_PISTACHIO
-    bool "Pinctrl driver for the Pistachio SoC"
-    depends on MACH_PISTACHIO
-    select PINCTRL_IMG
-    help
-      Support for Pitachio SoC pin controller
-
 config PINCTRL_S3C24XX
 	bool "Samsung S3C24XX SoC pinctrl driver"
 	depends on ARCH_S3C24XX

@@ -323,7 +323,6 @@ config MACH_PISTACHIO
 	select SYS_SUPPORTS_SMARTMIPS
 	select SYS_SUPPORTS_ZBOOT
 	select USE_OF
-	select PINCTRL
 	help
 	  This enables support for the IMG Pistachio SoC platform.
 
