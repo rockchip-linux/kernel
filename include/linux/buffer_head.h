@@ -300,6 +300,12 @@ sb_bread_unmovable(struct super_block *sb, sector_t block)
 	return sb_bread(sb, block);
 }
 
+static inline struct buffer_head *getblk_unmovable(struct block_device *bdev,
+					sector_t block, unsigned size)
+{
+	return __getblk(bdev, block, size);
+}
+
 static inline void
 sb_breadahead(struct super_block *sb, sector_t block)
 {
