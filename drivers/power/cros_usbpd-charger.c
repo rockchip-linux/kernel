@@ -18,11 +18,13 @@
  * Power supply driver for ChromeOS EC based USB PD Charger.
  */
 
+#include <linux/ktime.h>
 #include <linux/module.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
+#include <linux/rtc.h>
 
 /*
  * TODO: hack alert! Move cros_ec_dev out of here to
@@ -31,6 +33,14 @@
 #include "../mfd/cros_ec_dev.h"
 
 #define CROS_USB_PD_MAX_PORTS		8
+#define CROS_USB_PD_MAX_LOG_ENTRIES	30
+
+#define CROS_USB_PD_LOG_UPDATE_DELAY msecs_to_jiffies(60000)
+
+/* Buffer + macro for building PDLOG string */
+#define BUF_SIZE 80
+#define APPEND_STRING(buf, len, str, ...) ((len) += \
+	snprintf((buf) + (len), max(BUF_SIZE - (len), 0), (str), ##__VA_ARGS__))
 
 #define CHARGER_DIR_NAME		"CROS_USB_PD_CHARGER%d"
 #define CHARGER_DIR_NAME_LENGTH		sizeof(CHARGER_DIR_NAME)
@@ -60,6 +70,8 @@ struct charger_data {
 	int num_charger_ports;
 	int num_registered_psy;
 	struct port_data *ports[CROS_USB_PD_MAX_PORTS];
+	struct delayed_work log_work;
+	struct workqueue_struct *log_workqueue;
 };
 
 #define EC_MAX_IN_SIZE EC_PROTO2_MAX_REQUEST_SIZE
@@ -362,6 +374,131 @@ static int cros_usb_pd_charger_is_writeable(struct power_supply *psy,
 	return ret;
 }
 
+static void cros_usb_pd_print_log_entry(struct ec_response_pd_log *r,
+					ktime_t tstamp)
+{
+	static const char * const fault_names[] = {
+		"---", "OCP", "fast OCP", "OVP", "Discharge"
+	};
+	static const char * const role_names[] = {
+		"Disconnected", "SRC", "SNK", "SNK (not charging)"
+	};
+	static const char * const chg_type_names[] = {
+		"None", "PD", "Type-C", "Proprietary",
+		"DCP", "CDP", "SDP", "Other"
+	};
+	int i;
+	int role_idx, type_idx;
+	const char *fault, *role, *chg_type;
+	struct usb_chg_measures *meas;
+	struct mcdp_info *minfo;
+	struct rtc_time rt;
+	int len = 0;
+	char buf[BUF_SIZE + 1];
+
+	/* the timestamp is the number of 1024th of seconds in the past */
+	tstamp = ktime_sub_us(tstamp,
+		 (uint64_t)r->timestamp << PD_LOG_TIMESTAMP_SHIFT);
+	rt = rtc_ktime_to_tm(tstamp);
+
+	switch (r->type) {
+	case PD_EVENT_MCU_CHARGE:
+		if (r->data & CHARGE_FLAGS_OVERRIDE)
+			APPEND_STRING(buf, len, "override ");
+		if (r->data & CHARGE_FLAGS_DELAYED_OVERRIDE)
+			APPEND_STRING(buf, len, "pending_override ");
+		role_idx = r->data & CHARGE_FLAGS_ROLE_MASK;
+		role = role_idx < ARRAY_SIZE(role_names) ?
+			role_names[role_idx] : "Unknown";
+		type_idx = (r->data & CHARGE_FLAGS_TYPE_MASK)
+			 >> CHARGE_FLAGS_TYPE_SHIFT;
+		chg_type = type_idx < ARRAY_SIZE(chg_type_names) ?
+			chg_type_names[type_idx] : "???";
+
+		if ((role_idx == USB_PD_PORT_POWER_DISCONNECTED) ||
+		    (role_idx == USB_PD_PORT_POWER_SOURCE)) {
+			APPEND_STRING(buf, len, "%s", role);
+			break;
+		}
+
+		meas = (struct usb_chg_measures *)r->payload;
+		APPEND_STRING(buf, len, "%s %s %s %dmV max %dmV / %dmA", role,
+			r->data & CHARGE_FLAGS_DUAL_ROLE ? "DRP" : "Charger",
+			chg_type,
+			meas->voltage_now,
+			meas->voltage_max,
+			meas->current_max);
+		break;
+	case PD_EVENT_ACC_RW_FAIL:
+		APPEND_STRING(buf, len, "RW signature check failed");
+		break;
+	case PD_EVENT_PS_FAULT:
+		fault = r->data < ARRAY_SIZE(fault_names) ? fault_names[r->data]
+							  : "???";
+		APPEND_STRING(buf, len, "Power supply fault: %s", fault);
+		break;
+	case PD_EVENT_VIDEO_DP_MODE:
+		APPEND_STRING(buf, len, "DP mode %sabled",
+			      (r->data == 1) ? "en" : "dis");
+		break;
+	case PD_EVENT_VIDEO_CODEC:
+		minfo = (struct mcdp_info *)r->payload;
+		APPEND_STRING(buf, len,
+			      "HDMI info: family:%04x chipid:%04x "
+			      "irom:%d.%d.%d fw:%d.%d.%d",
+			      MCDP_FAMILY(minfo->family),
+			      MCDP_CHIPID(minfo->chipid),
+			      minfo->irom.major, minfo->irom.minor,
+			      minfo->irom.build, minfo->fw.major,
+			      minfo->fw.minor, minfo->fw.build);
+		break;
+	default:
+		APPEND_STRING(buf, len,
+			"Event %02x (%04x) [", r->type, r->data);
+		for (i = 0; i < PD_LOG_SIZE(r->size_port); i++)
+			APPEND_STRING(buf, len, "%02x ", r->payload[i]);
+		APPEND_STRING(buf, len, "]");
+		break;
+	}
+
+	pr_info("PDLOG %d/%02d/%02d %02d:%02d:%02d.%03d P%d %s\n",
+		rt.tm_year + 1900, rt.tm_mon + 1, rt.tm_mday,
+		rt.tm_hour, rt.tm_min, rt.tm_sec,
+		(int)(ktime_to_ms(tstamp) % MSEC_PER_SEC),
+		PD_LOG_PORT(r->size_port), buf);
+}
+
+static void cros_usb_pd_log_check(struct work_struct *work)
+{
+	struct charger_data *charger = container_of(to_delayed_work(work),
+		struct charger_data, log_work);
+	struct device *dev = charger->dev;
+	union {
+		struct ec_response_pd_log r;
+		uint32_t words[8]; /* space for the payload */
+	} u;
+	int ret;
+	int entries = 0;
+	ktime_t now;
+
+	while (entries++ < CROS_USB_PD_MAX_LOG_ENTRIES) {
+		ret = ec_command(charger, EC_CMD_PD_GET_LOG_ENTRY,
+				 NULL, 0, (uint8_t *)&u, sizeof(u));
+		now = ktime_get_real();
+		if (ret < 0) {
+			dev_dbg(dev, "Cannot get PD log %d\n", ret);
+			break;
+		}
+		if (u.r.type == PD_EVENT_NO_ENTRY)
+			break;
+
+		cros_usb_pd_print_log_entry(&u.r, now);
+	}
+
+	queue_delayed_work(charger->log_workqueue, &charger->log_work,
+		CROS_USB_PD_LOG_UPDATE_DELAY);
+}
+
 static char *charger_supplied_to[] = {"cros-usb_pd-charger"};
 
 static int cros_usb_pd_charger_probe(struct platform_device *pd)
@@ -451,6 +588,13 @@ static int cros_usb_pd_charger_probe(struct platform_device *pd)
 		goto fail;
 	}
 
+	/* Retrieve PD event logs periodically */
+	INIT_DELAYED_WORK(&charger->log_work, cros_usb_pd_log_check);
+	charger->log_workqueue =
+		create_singlethread_workqueue("cros_usb_pd_log");
+	queue_delayed_work(charger->log_workqueue, &charger->log_work,
+		CROS_USB_PD_LOG_UPDATE_DELAY);
+
 	return 0;
 
 fail:
@@ -487,6 +631,7 @@ static int cros_usb_pd_charger_remove(struct platform_device *pd)
 			power_supply_unregister(&port->psy);
 			devm_kfree(dev, port);
 		}
+		flush_delayed_work(&charger->log_work);
 		platform_set_drvdata(pd, NULL);
 		devm_kfree(dev, charger);
 	}
@@ -499,16 +644,30 @@ static int cros_usb_pd_charger_resume(struct device *dev)
 	struct charger_data *charger = dev_get_drvdata(dev);
 	int i;
 
+	if (!charger)
+		return 0;
+
 	dev_dbg(dev, "cros_usb_pd_charger_resume: updating power supplies\n");
 	for (i = 0; i < charger->num_registered_psy; i++)
 		power_supply_changed(&charger->ports[i]->psy);
+	queue_delayed_work(charger->log_workqueue, &charger->log_work,
+		CROS_USB_PD_LOG_UPDATE_DELAY);
 
+	return 0;
+}
+
+static int cros_usb_pd_charger_suspend(struct device *dev)
+{
+	struct charger_data *charger = dev_get_drvdata(dev);
+
+	if (charger)
+		flush_delayed_work(&charger->log_work);
 	return 0;
 }
 #endif
 
-static SIMPLE_DEV_PM_OPS(cros_usb_pd_charger_pm_ops, NULL,
-			 cros_usb_pd_charger_resume);
+static SIMPLE_DEV_PM_OPS(cros_usb_pd_charger_pm_ops,
+	cros_usb_pd_charger_suspend, cros_usb_pd_charger_resume);
 
 static struct platform_driver cros_usb_pd_charger_driver = {
 	.driver = {
