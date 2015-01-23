@@ -462,9 +462,18 @@ err_disable_hclk:
 static void vop_disable(struct drm_crtc *crtc)
 {
 	struct vop *vop = to_vop(crtc);
+	int i;
 
 	if (!vop->is_enabled)
 		return;
+
+	/* Wait for any pending page_flip/mode_set/disable to complete */
+	for (i = 0; i < vop->data->win_size; i++) {
+		struct vop_win *vop_win = &vop->win[i];
+
+		wait_for_completion(&vop_win->completion);
+		complete(&vop_win->completion);
+	}
 
 	rockchip_dmc_put(&vop->dmc_nb);
 	drm_vblank_off(crtc->dev, vop->pipe);
