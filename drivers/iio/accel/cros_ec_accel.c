@@ -308,7 +308,7 @@ static int send_motion_host_cmd(struct cros_ec_accel_state *st,
 		sizeof(struct ec_response_motion_sense);
 
 	/* Send host command. */
-	if (cros_ec_cmd_xfer(st->ec, &st->msg) > 0)
+	if (cros_ec_cmd_xfer_status(st->ec, &st->msg) > 0)
 		return 0;
 	else
 		return -EIO;

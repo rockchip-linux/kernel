@@ -102,14 +102,8 @@ static int cros_ec_pd_command(struct device *dev,
 	msg.indata = indata;
 	msg.insize = insize;
 
-	ret = cros_ec_cmd_xfer(pd_dev->ec_dev, &msg);
-	if (ret < 0) {
-		dev_err(dev, "Command xfer error (err:%d)\n", ret);
-		return ret;
-	} else if (msg.result)
-		return -EECRESULT - msg.result;
-	else
-		return EC_RES_SUCCESS;
+	ret = cros_ec_cmd_xfer_status(pd_dev->ec_dev, &msg);
+	return ret >= 0 ? EC_RES_SUCCESS : ret;
 }
 
 /**

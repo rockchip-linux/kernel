@@ -90,7 +90,7 @@ int ec_command(struct charger_data *charger, int command,
 	msg.outsize = outsize;
 	msg.indata = indata;
 	msg.insize = insize;
-	return cros_ec_cmd_xfer(ec_device, &msg);
+	return cros_ec_cmd_xfer_status(ec_device, &msg);
 }
 
 static int set_ec_usb_pd_override_ports(struct charger_data *charger,

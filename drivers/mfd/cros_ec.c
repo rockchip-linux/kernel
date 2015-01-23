@@ -348,6 +348,20 @@ int cros_ec_cmd_xfer(struct cros_ec_device *ec_dev,
 }
 EXPORT_SYMBOL(cros_ec_cmd_xfer);
 
+int cros_ec_cmd_xfer_status(struct cros_ec_device *ec_dev,
+			    struct cros_ec_command *msg)
+{
+	int ret = cros_ec_cmd_xfer(ec_dev, msg);
+
+	if (ret < 0)
+		dev_err(ec_dev->dev, "Command xfer error (err:%d)\n", ret);
+	else if (msg->result)
+		return -EECRESULT - msg->result;
+
+	return ret;
+}
+EXPORT_SYMBOL(cros_ec_cmd_xfer_status);
+
 static const struct mfd_cell cros_accel_devs[] = {
 	{
 		.name = "cros-ec-accel",

@@ -113,7 +113,7 @@ static int get_ec_power_info(struct power_supply *psy,
 	msg.outsize = 0;
 	msg.indata = (u8 *)ec_info;
 	msg.insize = sizeof(struct ec_response_power_info);
-	ret = cros_ec_cmd_xfer(ec, &msg);
+	ret = cros_ec_cmd_xfer_status(ec, &msg);
 	if (ret < 0) {
 		dev_err(dev, "Unable to query EC power info (err:%d)\n",
 			ret);
