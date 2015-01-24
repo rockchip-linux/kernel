@@ -25,6 +25,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
+#include <linux/workqueue.h>
 
 #include <soc/rockchip/dmc-sync.h>
 
@@ -58,6 +59,7 @@ struct dmc_usage {
 
 struct rk3288_dmcfreq {
 	struct device *clk_dev;
+	struct work_struct work;
 	struct devfreq *devfreq;
 	struct devfreq_simple_ondemand_data ondemand_data;
 	struct clk *dmc_clk;
@@ -69,8 +71,10 @@ struct rk3288_dmcfreq {
 	struct regmap *noc;
 	struct regmap *dmc;
 
-	unsigned long rate;
+	unsigned long rate, target_rate;
+	unsigned long volt, target_volt;
 	bool enabled;
+	int err;
 };
 
 /*
@@ -84,10 +88,6 @@ static int rk3288_dmcfreq_target(struct device *dev, unsigned long *freq,
 				 u32 flags)
 {
 	struct dev_pm_opp *opp;
-	unsigned long rate, old_rate;
-	unsigned long volt, old_volt;
-	unsigned long old_clk_rate;
-	int err = 0;
 
 	rcu_read_lock();
 	opp = devfreq_recommended_opp(dev, freq, flags);
@@ -95,57 +95,26 @@ static int rk3288_dmcfreq_target(struct device *dev, unsigned long *freq,
 		rcu_read_unlock();
 		return PTR_ERR(opp);
 	}
-	rate = dev_pm_opp_get_freq(opp);
-	volt = dev_pm_opp_get_voltage(opp);
-	old_rate = dmcfreq.rate;
-	opp = devfreq_recommended_opp(dev, &old_rate, flags);
+	dmcfreq.target_rate = dev_pm_opp_get_freq(opp);
+	dmcfreq.target_volt = dev_pm_opp_get_voltage(opp);
+	opp = devfreq_recommended_opp(dev, &dmcfreq.rate, flags);
 	if (IS_ERR(opp)) {
 		rcu_read_unlock();
 		return PTR_ERR(opp);
 	}
-	old_volt = dev_pm_opp_get_voltage(opp);
+	dmcfreq.volt = dev_pm_opp_get_voltage(opp);
 	rcu_read_unlock();
 
-	*freq = old_rate;
-
-	if (old_rate == rate)
+	if (dmcfreq.rate == dmcfreq.target_rate) {
+		*freq = dmcfreq.rate;
 		return 0;
-
-	if (old_rate < rate)
-		err = regulator_set_voltage(dmcfreq.vdd_logic, volt, volt);
-	if (err) {
-		dev_err(dev, "Unable to set voltage %lu\n", volt);
-		return err;
 	}
 
-	old_clk_rate = clk_get_rate(dmcfreq.dmc_clk);
-	err = clk_set_rate(dmcfreq.dmc_clk, rate);
-	if (err || old_clk_rate == clk_get_rate(dmcfreq.dmc_clk)) {
-		dev_err(dev,
-			"Unable to set freq %lu. Current freq %lu. Error %d\n",
-			rate,
-			old_clk_rate,
-			err);
-		goto rate;
-	}
+	queue_work(system_highpri_wq, &dmcfreq.work);
+	flush_work(&dmcfreq.work);
+	*freq = dmcfreq.rate;
 
-	if (old_rate > rate)
-		err = regulator_set_voltage(dmcfreq.vdd_logic, volt, volt);
-	if (err) {
-		dev_err(dev, "Unable to set voltage %lu\n", volt);
-		goto volt;
-	}
-
-	dmcfreq.rate = rate;
-	*freq = rate;
-
-	return 0;
-volt:
-	clk_set_rate(dmcfreq.dmc_clk, old_rate);
-rate:
-	regulator_set_voltage(dmcfreq.vdd_logic, old_volt, old_volt);
-
-	return err;
+	return dmcfreq.err;
 }
 
 static void rk3288_dmc_start_hardware_counter(void)
@@ -238,6 +207,47 @@ static struct devfreq_dev_profile rk3288_devfreq_dmc_profile = {
 	.freq_table	= rk3288_dmc_rates,
 	.max_state	= ARRAY_SIZE(rk3288_dmc_rates),
 };
+
+static void rk3288_dmcfreq_work(struct work_struct *work)
+{
+	struct device *dev = dmcfreq.clk_dev;
+	unsigned long rate = dmcfreq.rate;
+	unsigned long target_rate = dmcfreq.target_rate;
+	unsigned long volt = dmcfreq.volt;
+	unsigned long target_volt = dmcfreq.target_volt;
+	unsigned long old_clk_rate;
+	int err = 0;
+
+	if (rate < target_rate)
+		err = regulator_set_voltage(dmcfreq.vdd_logic, target_volt,
+					    target_volt);
+	if (err) {
+		dev_err(dev, "Unable to set voltage %lu\n", target_volt);
+		goto out;
+	}
+
+	/* Get exact clk rate instead of cached value. */
+	old_clk_rate = clk_get_rate(dmcfreq.dmc_clk);
+	err = clk_set_rate(dmcfreq.dmc_clk, target_rate);
+	if (err || old_clk_rate == clk_get_rate(dmcfreq.dmc_clk)) {
+		dev_err(dev,
+			"Unable to set freq %lu. Current freq %lu. Error %d\n",
+			target_rate, old_clk_rate, err);
+		regulator_set_voltage(dmcfreq.vdd_logic, volt, volt);
+		goto out;
+	}
+
+	dmcfreq.rate = target_rate;
+
+	if (rate > target_rate)
+		err = regulator_set_voltage(dmcfreq.vdd_logic, target_volt,
+					    target_volt);
+	if (err)
+		dev_err(dev, "Unable to set voltage %lu\n", target_volt);
+
+out:
+	dmcfreq.err = err;
+}
 
 /*
  * This puts the frequency at max and suspends devfreq when there are too many
@@ -348,6 +358,7 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	if (IS_ERR(dmcfreq.devfreq))
 		return PTR_ERR(dmcfreq.devfreq);
 
+	INIT_WORK(&dmcfreq.work, rk3288_dmcfreq_work);
 	devfreq_register_opp_notifier(dmcfreq.clk_dev, dmcfreq.devfreq);
 	rockchip_dmc_register_enable_notifier(&dmc_sync_nb);
 
