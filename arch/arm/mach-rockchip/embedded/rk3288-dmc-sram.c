@@ -211,7 +211,7 @@ static void rk3288_dmc_set_dpll(u32 nmhz)
 		     p_cru_reg + CRU_PLL_CON(1, 0));
 	__raw_writel(NF(clkf), p_cru_reg + CRU_PLL_CON(1, 1));
 	__raw_writel(NB(clkf >> 1), p_cru_reg + CRU_PLL_CON(1, 2));
-	sram_udelay(1);
+	sram_udelay(5);
 	__raw_writel(PLL_DE_RESET, p_cru_reg + CRU_PLL_CON(1, 3));
 
 	delay = 1000;
