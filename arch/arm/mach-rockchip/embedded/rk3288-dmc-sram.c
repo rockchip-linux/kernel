@@ -133,13 +133,6 @@
 /* MSCH_DDRTIMING */
 #define GET_MSCH_BWRATION(x)	((x) & (0x1 << 31))
 
-#define GET_DDR3_DS_ODT()	((0x1<<28) | (0x2<<15) | (0x2<<10) | \
-		(0x19<<5) | 0x19)
-#define GET_LPDDR2_DS_ODT()	((0x1<<28) | (0x2<<15) | (0x2<<10) | \
-		(0x19<<5) | 0x19)
-#define GET_LPDDR3_DS_ODT()	((0x1<<28) | (0x2<<15) | (0x2<<10) | \
-		(0x19<<5) | 0x19)
-
 #define DPLL_MODE_MSK	(0x3 << 20)
 #define DPLL_MODE_SLOW	(0 << 4)
 #define DPLL_MODE_NORM	(1 << 4)
@@ -760,7 +753,6 @@ static u32 ddr_update_mr(u32 ch)
 
 static void ddr_update_odt(u32 ch)
 {
-	u32 cs, tmp;
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
@@ -796,19 +788,6 @@ static void ddr_update_odt(u32 ch)
 			dmc_io_and(~(0x3 << 9), p_phy_reg + DDR_PUBL_DX3GCR);
 		}
 	}
-
-	if (ddr_ch[ch].mem_type == LPDDR2)
-		tmp = GET_LPDDR2_DS_ODT();
-	else if (ddr_ch[ch].mem_type == LPDDR3)
-		tmp = GET_LPDDR3_DS_ODT();
-	else
-		tmp = GET_DDR3_DS_ODT();
-
-	cs = ((__raw_readl(p_phy_reg + DDR_PUBL_PGCR) >> 18) & 0xf);
-	if (cs > 1)
-		__raw_writel(tmp, p_phy_reg + DDR_PUBL_ZQ1CR0);
-
-	__raw_writel(tmp, p_phy_reg + DDR_PUBL_ZQ0CR0);
 }
 
 static void ddr_selfrefresh_enter(u32 nmhz)
