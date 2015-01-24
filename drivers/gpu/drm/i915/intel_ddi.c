@@ -1320,6 +1320,7 @@ static void intel_enable_ddi(struct intel_encoder *intel_encoder)
 
 		ironlake_edp_backlight_on(intel_dp);
 		intel_edp_psr_enable(intel_dp);
+		intel_edp_dbc_enable(intel_dp);
 	}
 
 	if (intel_crtc->eld_vld && type != INTEL_OUTPUT_EDP) {
