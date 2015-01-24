@@ -156,6 +156,7 @@
 		regulator-min-microvolt = <950000>;
 		regulator-max-microvolt = <1350000>;
 		regulator-name = "vdd_logic";
+		regulator-ramp-delay = <4000>;
 	};
 
 	/* vcc33_sys is controlled by the EC (system_power_h).  Off in S5. */
