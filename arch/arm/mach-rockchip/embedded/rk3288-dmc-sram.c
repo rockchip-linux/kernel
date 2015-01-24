@@ -70,6 +70,7 @@
 /* REG FILE Registers Define */
 #define GRF_SOC_CON0	0x0244
 #define GRF_SOC_STATUS1	0x0284
+#define DPLL_LOCK	(1 << 5)
 
 /* GRF_SOC_CON0 */
 #define UPCTL_C_ACTIVE_IN(en, ch)	\
@@ -216,7 +217,7 @@ static void rk3288_dmc_set_dpll(u32 nmhz)
 	delay = 1000;
 	while (delay > 0) {
 		/* get dpll lock status */
-		if (__raw_readl(p_grf_reg + GRF_SOC_STATUS1))
+		if (__raw_readl(p_grf_reg + GRF_SOC_STATUS1) & DPLL_LOCK)
 			break;
 		sram_udelay(1);
 		delay--;
