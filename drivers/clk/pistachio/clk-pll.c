@@ -183,7 +183,7 @@ static unsigned long pll_gf40lp_frac_recalc_rate(struct clk_hw *hw,
 	frac = (val >> PLL_FRAC_CTRL2_FRAC_SHIFT) & PLL_FRAC_CTRL2_FRAC_MASK;
 
 	rate *= (fbdiv << 24) + frac;
-	do_div(rate, (prediv * postdiv1 * postdiv2) << 24);
+	rate = DIV_ROUND_UP_ULL(rate, (prediv * postdiv1 * postdiv2) << 24);
 
 	return rate;
 }
@@ -273,7 +273,7 @@ static unsigned long pll_gf40lp_laint_recalc_rate(struct clk_hw *hw,
 		PLL_INT_CTRL1_POSTDIV2_MASK;
 
 	rate *= fbdiv;
-	do_div(rate, prediv * postdiv1 * postdiv2);
+	rate = DIV_ROUND_UP_ULL(rate, prediv * postdiv1 * postdiv2);
 
 	return rate;
 }
