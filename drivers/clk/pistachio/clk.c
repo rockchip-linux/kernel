@@ -100,7 +100,8 @@ void pistachio_clk_register_div(struct pistachio_clk_provider *p,
 	for (i = 0; i < num; i++) {
 		clk = clk_register_divider(NULL, div[i].name, div[i].parent,
 					   0, p->base + div[i].reg, 0,
-					   div[i].width, 0, NULL);
+					   div[i].width, div[i].div_flags,
+					   NULL);
 		p->clk_data.clks[div[i].id] = clk;
 	}
 }

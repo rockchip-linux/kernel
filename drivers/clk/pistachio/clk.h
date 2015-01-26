@@ -49,10 +49,12 @@ struct pistachio_mux {
 		.num_parents	= ARRAY_SIZE(_pnames)		\
 	}
 
+
 struct pistachio_div {
 	unsigned int id;
 	unsigned long reg;
 	unsigned int width;
+	unsigned int div_flags;
 	const char *name;
 	const char *parent;
 };
@@ -62,6 +64,17 @@ struct pistachio_div {
 		.id		= _id,				\
 		.reg		= _reg,				\
 		.width		= _width,			\
+		.div_flags	= 0,				\
+		.name		= _name,			\
+		.parent		= _pname,			\
+	}
+
+#define DIV_F(_id, _name, _pname, _reg, _width, _div_flags)	\
+	{							\
+		.id		= _id,				\
+		.reg		= _reg,				\
+		.width		= _width,			\
+		.div_flags	= _div_flags,			\
 		.name		= _name,			\
 		.parent		= _pname,			\
 	}
