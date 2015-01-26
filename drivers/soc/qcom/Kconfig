@@ -15,3 +15,10 @@ config QCOM_TCSR
         help
           Say y here to enable TCSR support.  The TCSR provides control
           functions for various peripherals.
+
+config QCOM_QFPROM
+ tristate "QCOM QFPROM Interface"
+        depends on ARCH_QCOM && OF
+        help
+          Say y here to enable QFPROM support. The QFPROM provides access
+          functions for QFPROM data to rest of the drivers via syscon wrappers.

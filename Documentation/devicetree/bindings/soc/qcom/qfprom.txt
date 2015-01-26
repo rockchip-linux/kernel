@@ -1,0 +1,28 @@
+QCOM QFPROM
+
+QFPROM is basically some efuses where things like calibration data, speed bins,
+etc are stored. This data is accessed by various drivers like the cpufreq,
+thermal, etc.
+
+Required properties:
+- compatible: must contain "qcom,qfprom" followed by "syscon"
+- reg: Address range for QFPROM
+- stride : register address stride.
+	1 for byte.
+	2 for 2 bytes
+	3 for 3 bytes
+	4 for a word.
+
+Example:
+	qfprom: qfprom@00700000 {
+		compatible 	= "qcom,qfprom", "syscon";
+		reg		= <0x00700000 0x1000>;
+		stride		= <1>;
+	};
+
+	tsens@34000 {
+		compatible = "qcom,tsens-apq8064";
+		reg = <0x34000 0x1000>;
+		qcom,qfprom = <&qfprom 0x18 0x10>, <&qfprom 0x28 0x10>;
+		qcom,qfprom-names = "calib", "backup_calib";
+	};
