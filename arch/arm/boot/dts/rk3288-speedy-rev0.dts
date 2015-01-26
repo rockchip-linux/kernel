@@ -30,8 +30,7 @@
 
 &rk808 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pmic_int_l &dvs_ok &dvs_1 &dvs_2>;
-	dvsok-gpios = <&gpio7 9 GPIO_ACTIVE_HIGH>;
+	pinctrl-0 = <&pmic_int_l &dvs_1 &dvs_2>;
 	dvs-gpios = <&gpio7 12 GPIO_ACTIVE_HIGH>,
 		    <&gpio7 15 GPIO_ACTIVE_HIGH>;
 
@@ -87,10 +86,6 @@
 	};
 
 	pmic {
-		dvs_ok: dvs-ok {
-			rockchip,pins = <7 9 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-
 		dvs_1: dvs-1 {
 			rockchip,pins = <7 12 RK_FUNC_GPIO &pcfg_pull_down>;
 		};

@@ -428,7 +428,7 @@
 				regulator-min-microvolt = <750000>;
 				regulator-max-microvolt = <1450000>;
 				regulator-name = "vdd_arm";
-				regulator-ramp-delay = <10000>;
+				regulator-ramp-delay = <6001>;
 				regulator-suspend-mem-disabled;
 			};
 
@@ -438,7 +438,7 @@
 				regulator-min-microvolt = <800000>;
 				regulator-max-microvolt = <1250000>;
 				regulator-name = "vdd_gpu";
-				regulator-ramp-delay = <10000>;
+				regulator-ramp-delay = <6001>;
 				regulator-suspend-mem-disabled;
 			};
 
