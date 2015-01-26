@@ -276,6 +276,20 @@ config ACPI_INT3403_THERMAL
 	  the Intel Thermal Daemon can use this information to allow the user
 	  to select his laptop to run without turning on the fans.
 
+config THERMAL_QCOMTSENS
+	tristate "Qualcomm Tsens Temperature driver"
+	depends on THERMAL
+	depends on ARCH_QCOM
+	help
+	  QCOM tsens thermal driver provides support for Temperature sensor
+	  (TSENS) found on QCOM SoCs. It supports four configurable trip points
+	  and controls multiple sensors on the SOC. The four trip points are
+	  common across all sensors present in the SoC. The number of sensors
+	  present varies from chip to chip and are set through device tree entry.
+	  The driver presents as a standard thermal zone device with configurable
+	  trip points and cooling device mapping through standard thermal zone
+	  device tree.
+
 menu "Texas Instruments thermal drivers"
 source "drivers/thermal/ti-soc-thermal/Kconfig"
 endmenu

@@ -1,0 +1,59 @@
+* QCOM SoC Temperature Sensor (TSENS)
+
+Required properties:
+- compatible : "qcom,qcom-tsens"
+- qcom,tsens-slopes : Must contain slope value for each of the sensors controlled
+			by this device
+- qcom,qfprom : An arry of triplets containing tsens calibration data.
+		The first element in the triplet is a phandle
+                to qfprom compatible node, second element is an offset to calibration
+                data within this node, third element indicates size of calibration
+                data. In general, there would be two elements in this array - the
+                first containing information on primary calibration data
+                and second containing information on backup calibration data
+- qcom,qfprom-names : Names for each calibration data
+- #thermal-sensor-cells : Should be 1. See ./thermal.txt for a description.
+
+Example:
+
+tsens: tsens-msm8960 {
+		compatible = "qcom,qcom-tsens";
+		qcom,tsens-slopes = <1176 1176 1154 1176 1111
+				1132 1132 1199 1132 1199
+				1132>;
+		qcom,qfprom = <&imem 0x400 11>, <&imem 0x410 11>;
+		qcom,qfprom-names = "calib", "backup_calib";
+		#thermal-sensor-cells = <1>;
+	};
+
+Example: referring to thermal sensors:
+thermal-zones {
+	cpu_thermal: cpu_thermal {
+		polling-delay-passive = <1000>; /* milliseconds */
+		polling-delay = <5000>; /* milliseconds */
+
+		/* sensor ID */
+		thermal-sensors = <&tsens 1>;
+
+		trips {
+			cpu_alert0: cpu_alert {
+				temperature = <80000>; /* millicelsius */
+				hysteresis = <2000>; /* millicelsius */
+				type = "passive";
+			};
+			cpu_crit: cpu_crit {
+				temperature = <120000>; /* millicelsius */
+				hysteresis = <2000>; /* millicelsius */
+				type = "critical";
+			};
+		};
+
+		cooling-maps {
+			map0 {
+				trip = <&cpu_alert0>;
+				cooling-device =
+					<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+};

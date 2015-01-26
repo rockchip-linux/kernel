@@ -40,3 +40,4 @@ obj-$(CONFIG_TEGRA132_SOCTHERM)	+= tegra132_soctherm.o
 # platform thermally-reactive drivers
 obj-$(CONFIG_TEGRA_DFLL_THERMAL_REACTION)	+= tegra_dfll_action.o
 obj-$(CONFIG_TEGRA_CPU_EDP_LIMITS)	+= tegra_cpu_edp_action.o
+obj-$(CONFIG_THERMAL_QCOMTSENS)	+= qcom-tsens.o
