@@ -281,10 +281,6 @@ int mwifiex_bss_start(struct mwifiex_private *priv, struct cfg80211_bss *bss,
 
 	if (priv->bss_mode == NL80211_IFTYPE_STATION) {
 		/* Infra mode */
-		ret = mwifiex_deauthenticate(priv, NULL);
-		if (ret)
-			goto done;
-
 		if (bss_desc) {
 			u8 config_bands = 0;
 
@@ -344,12 +340,6 @@ int mwifiex_bss_start(struct mwifiex_private *priv, struct cfg80211_bss *bss,
 			kfree(bss_desc);
 			return 0;
 		}
-
-		/* Exit Adhoc mode first */
-		dev_dbg(adapter->dev, "info: Sending Adhoc Stop\n");
-		ret = mwifiex_deauthenticate(priv, NULL);
-		if (ret)
-			goto done;
 
 		priv->adhoc_is_link_sensed = false;
 
