@@ -1745,6 +1745,7 @@ mwifiex_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 			 struct cfg80211_connect_params *sme)
 {
 	struct mwifiex_private *priv = mwifiex_netdev_get_priv(dev);
+	struct mwifiex_adapter *adapter = priv->adapter;
 	int ret;
 
 	if (priv->bss_mode != NL80211_IFTYPE_STATION) {
@@ -1752,6 +1753,13 @@ mwifiex_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 			  "%s: reject infra assoc request in non-STA mode\n",
 			  dev->name);
 		return -EINVAL;
+	}
+
+	if (adapter->surprise_removed || adapter->num_cmd_timeout) {
+		wiphy_err(wiphy,
+			  "%s: Ignore connection. Card removed or FW in bad state\n",
+			  dev->name);
+		return -EFAULT;
 	}
 
 	wiphy_dbg(wiphy, "info: Trying to associate to %s and bssid %pM\n",

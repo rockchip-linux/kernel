@@ -1400,6 +1400,12 @@ int mwifiex_scan_networks(struct mwifiex_private *priv,
 		return -EBUSY;
 	}
 
+	if (adapter->surprise_removed || adapter->num_cmd_timeout) {
+		dev_err(adapter->dev,
+			"Ignore scan. Card removed or firmware in bad state\n");
+		return -EFAULT;
+	}
+
 	spin_lock_irqsave(&adapter->mwifiex_cmd_lock, flags);
 	adapter->scan_processing = true;
 	spin_unlock_irqrestore(&adapter->mwifiex_cmd_lock, flags);
