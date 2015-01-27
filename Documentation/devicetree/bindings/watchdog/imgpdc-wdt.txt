@@ -4,7 +4,8 @@ Required properties:
 - compatible : Should be "img,pdc-wdt"
 - reg : Should contain WDT registers location and length
 - clocks: Must contain an entry for each entry in clock-names.
-- clock-names: Should contain "wdt" and "sys"
+- clock-names: Should contain "wdt" and "sys";the watchdog counter
+	clock and register interface clock respectively.
 - interrupts : Should contain WDT interrupt
 
 Examples:
@@ -14,5 +15,5 @@ wdt@18102100 {
 	reg = <0x18102100 0x100>;
 	clocks = <&pdc_wdt_clk>, <&sys_clk>;
 	clock-names = "wdt", "sys";
-	interrupts = <0 52 IRQ_TYPE_LEVEL_HIGH>;
+	interrupts = <GIC_SHARED 52 IRQ_TYPE_LEVEL_HIGH>;
 };

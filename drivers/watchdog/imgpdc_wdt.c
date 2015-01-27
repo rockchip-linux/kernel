@@ -20,44 +20,44 @@
 #include <linux/watchdog.h>
 
 /* registers */
-#define PDC_WD_SW_RESET			0x000
+#define PDC_WDT_SOFT_RESET		0x00
 
-#define PDC_WD_CONFIG			0x004
-#define PDC_WD_CONFIG_ENABLE		BIT(31)
-#define PDC_WD_CONFIG_DELAY_MASK	0x0000001f
-#define PDC_WD_CONFIG_DELAY_SHIFT	0
+#define PDC_WDT_CONFIG			0x04
+#define PDC_WDT_CONFIG_ENABLE		BIT(31)
+#define PDC_WDT_CONFIG_DELAY_MASK	0x1f
 
-#define PDC_WD_TICKLE1			0x008
-#define PDC_WD_TICKLE1_MAGIC		0xabcd1234
+#define PDC_WDT_TICKLE1			0x08
+#define PDC_WDT_TICKLE1_MAGIC		0xabcd1234
 
-#define PDC_WD_TICKLE2			0x00c
-#define PDC_WD_TICKLE2_MAGIC		0x4321dcba
+#define PDC_WDT_TICKLE2			0x0c
+#define PDC_WDT_TICKLE2_MAGIC		0x4321dcba
 
-#define PDC_WD_TICKLE_STATUS_MASK	0x00000007
-#define PDC_WD_TICKLE_STATUS_SHIFT	0
-#define PDC_WD_TICKLE_STATUS_HRESET     0x0  /* Hard reset */
-#define PDC_WD_TICKLE_STATUS_TIMEOUT    0x1  /* Timeout */
-#define PDC_WD_TICKLE_STATUS_TICKLE     0x2  /* Tickled incorrectly */
-#define PDC_WD_TICKLE_STATUS_SRESET     0x3  /* Soft reset */
-#define PDC_WD_TICKLE_STATUS_USER       0x4  /* User reset */
+#define PDC_WDT_TICKLE_STATUS_MASK	0x7
+#define PDC_WDT_TICKLE_STATUS_SHIFT	0
+#define PDC_WDT_TICKLE_STATUS_HRESET	0x0  /* Hard reset */
+#define PDC_WDT_TICKLE_STATUS_TIMEOUT	0x1  /* Timeout */
+#define PDC_WDT_TICKLE_STATUS_TICKLE	0x2  /* Tickled incorrectly */
+#define PDC_WDT_TICKLE_STATUS_SRESET	0x3  /* Soft reset */
+#define PDC_WDT_TICKLE_STATUS_USER	0x4  /* User reset */
 
-/* timeout in seconds */
-#define PDC_WD_MIN_TIMEOUT		1
-#define PDC_WD_DEFAULT_TIMEOUT		64
+/* Timeout values are in seconds */
+#define PDC_WDT_MIN_TIMEOUT		1
+#define PDC_WDT_DEF_TIMEOUT		64
 
-static int timeout = PDC_WD_DEFAULT_TIMEOUT;
-module_param(timeout, int, 0);
-MODULE_PARM_DESC(timeout, "PDC watchdog delay in seconds (default 64s)");
+static int heartbeat = PDC_WDT_DEF_TIMEOUT;
+module_param(heartbeat, int, 0);
+MODULE_PARM_DESC(heartbeat, "Watchdog heartbeats in seconds. "
+	"(default = " __MODULE_STRING(PDC_WDT_DEF_TIMEOUT) ")");
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
 module_param(nowayout, bool, 0);
-MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started");
+MODULE_PARM_DESC(nowayout, "Watchdog cannot be stopped once started "
+	"(default=" __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
 
 struct pdc_wdt_dev {
 	struct watchdog_device wdt_dev;
 	struct clk *wdt_clk;
 	struct clk *sys_clk;
-	int min_delay;
 	void __iomem *base;
 };
 
@@ -65,8 +65,8 @@ static int pdc_wdt_keepalive(struct watchdog_device *wdt_dev)
 {
 	struct pdc_wdt_dev *wdt = watchdog_get_drvdata(wdt_dev);
 
-	writel(PDC_WD_TICKLE1_MAGIC, wdt->base + PDC_WD_TICKLE1);
-	writel(PDC_WD_TICKLE2_MAGIC, wdt->base + PDC_WD_TICKLE2);
+	writel(PDC_WDT_TICKLE1_MAGIC, wdt->base + PDC_WDT_TICKLE1);
+	writel(PDC_WDT_TICKLE2_MAGIC, wdt->base + PDC_WDT_TICKLE2);
 
 	return 0;
 }
@@ -76,9 +76,9 @@ static int pdc_wdt_stop(struct watchdog_device *wdt_dev)
 	unsigned int val;
 	struct pdc_wdt_dev *wdt = watchdog_get_drvdata(wdt_dev);
 
-	val = readl(wdt->base + PDC_WD_CONFIG);
-	val &= ~PDC_WD_CONFIG_ENABLE;
-	writel(val, wdt->base + PDC_WD_CONFIG);
+	val = readl(wdt->base + PDC_WDT_CONFIG);
+	val &= ~PDC_WDT_CONFIG_ENABLE;
+	writel(val, wdt->base + PDC_WDT_CONFIG);
 
 	/* Must tickle to finish the stop */
 	pdc_wdt_keepalive(wdt_dev);
@@ -91,14 +91,13 @@ static int pdc_wdt_set_timeout(struct watchdog_device *wdt_dev,
 {
 	unsigned int val;
 	struct pdc_wdt_dev *wdt = watchdog_get_drvdata(wdt_dev);
+	unsigned long clk_rate = clk_get_rate(wdt->wdt_clk);
 
 	wdt->wdt_dev.timeout = new_timeout;
-	/* round up to the next power of 2 */
-	new_timeout = order_base_2(new_timeout);
-	val = readl(wdt->base + PDC_WD_CONFIG);
-	val &= ~PDC_WD_CONFIG_DELAY_MASK;
-	val |= (new_timeout + wdt->min_delay) << PDC_WD_CONFIG_DELAY_SHIFT;
-	writel(val, wdt->base + PDC_WD_CONFIG);
+
+	val = readl(wdt->base + PDC_WDT_CONFIG) & ~PDC_WDT_CONFIG_DELAY_MASK;
+	val |= ilog2(new_timeout * clk_rate) - 1;
+	writel(val, wdt->base + PDC_WDT_CONFIG);
 
 	return 0;
 }
@@ -109,9 +108,11 @@ static int pdc_wdt_start(struct watchdog_device *wdt_dev)
 	unsigned int val;
 	struct pdc_wdt_dev *wdt = watchdog_get_drvdata(wdt_dev);
 
-	val = readl(wdt->base + PDC_WD_CONFIG);
-	val |= PDC_WD_CONFIG_ENABLE;
-	writel(val, wdt->base + PDC_WD_CONFIG);
+	pdc_wdt_set_timeout(&wdt->wdt_dev, wdt->wdt_dev.timeout);
+
+	val = readl(wdt->base + PDC_WDT_CONFIG);
+	val |= PDC_WDT_CONFIG_ENABLE;
+	writel(val, wdt->base + PDC_WDT_CONFIG);
 
 	return 0;
 }
@@ -123,7 +124,6 @@ static struct watchdog_info pdc_wdt_info = {
 			  WDIOF_MAGICCLOSE,
 };
 
-/* Kernel interface */
 static const struct watchdog_ops pdc_wdt_ops = {
 	.owner		= THIS_MODULE,
 	.start		= pdc_wdt_start,
@@ -150,27 +150,25 @@ static int pdc_wdt_probe(struct platform_device *pdev)
 
 	pdc_wdt->sys_clk = devm_clk_get(&pdev->dev, "sys");
 	if (IS_ERR(pdc_wdt->sys_clk)) {
-		dev_err(&pdev->dev, "failed to get the sys clock.\n");
-		ret = PTR_ERR(pdc_wdt->wdt_clk);
-		return ret;
+		dev_err(&pdev->dev, "failed to get the sys clock\n");
+		return PTR_ERR(pdc_wdt->sys_clk);
 	}
 
 	pdc_wdt->wdt_clk = devm_clk_get(&pdev->dev, "wdt");
 	if (IS_ERR(pdc_wdt->wdt_clk)) {
-		dev_err(&pdev->dev, "failed to get the wdt clock.\n");
-		ret = PTR_ERR(pdc_wdt->wdt_clk);
-		return ret;
+		dev_err(&pdev->dev, "failed to get the wdt clock\n");
+		return PTR_ERR(pdc_wdt->wdt_clk);
 	}
 
 	ret = clk_prepare_enable(pdc_wdt->sys_clk);
 	if (ret) {
-		dev_err(&pdev->dev, "could not prepare or enable sys clock.\n");
+		dev_err(&pdev->dev, "could not prepare or enable sys clock\n");
 		return ret;
 	}
 
 	ret = clk_prepare_enable(pdc_wdt->wdt_clk);
 	if (ret) {
-		dev_err(&pdev->dev, "could not prepare or enable wdt clock.\n");
+		dev_err(&pdev->dev, "could not prepare or enable wdt clock\n");
 		goto disable_sys_clk;
 	}
 
@@ -182,53 +180,49 @@ static int pdc_wdt_probe(struct platform_device *pdev)
 		goto disable_wdt_clk;
 	}
 
-	if (order_base_2(clk_rate) > PDC_WD_CONFIG_DELAY_MASK + 1) {
+	if (ilog2(clk_rate) > PDC_WDT_CONFIG_DELAY_MASK + 1) {
 		dev_err(&pdev->dev, "invalid clock rate\n");
 		ret = -EINVAL;
 		goto disable_wdt_clk;
 	}
 
-	if (order_base_2(clk_rate) == 0)
-		pdc_wdt->wdt_dev.min_timeout = PDC_WD_MIN_TIMEOUT + 1;
+	if (ilog2(clk_rate) == 0)
+		pdc_wdt->wdt_dev.min_timeout = PDC_WDT_MIN_TIMEOUT + 1;
 	else
-		pdc_wdt->wdt_dev.min_timeout = PDC_WD_MIN_TIMEOUT;
-
-	pdc_wdt->min_delay = order_base_2(clk_rate) - 1;
+		pdc_wdt->wdt_dev.min_timeout = PDC_WDT_MIN_TIMEOUT;
 
 	pdc_wdt->wdt_dev.info = &pdc_wdt_info;
 	pdc_wdt->wdt_dev.ops = &pdc_wdt_ops;
 	pdc_wdt->wdt_dev.max_timeout =
-			(1 << (PDC_WD_CONFIG_DELAY_MASK - pdc_wdt->min_delay));
+		(1 << (PDC_WDT_CONFIG_DELAY_MASK - (ilog2(clk_rate) - 1)));
 	pdc_wdt->wdt_dev.parent = &pdev->dev;
 
-	ret = watchdog_init_timeout(&pdc_wdt->wdt_dev, timeout, &pdev->dev);
+	ret = watchdog_init_timeout(&pdc_wdt->wdt_dev, heartbeat, &pdev->dev);
 	if (ret < 0) {
 		pdc_wdt->wdt_dev.timeout = pdc_wdt->wdt_dev.max_timeout;
 		dev_warn(&pdev->dev,
 			 "Initial timeout out of range! setting max timeout\n");
 	}
 
-	pdc_wdt_stop(&pdc_wdt->wdt_dev);
-
 	/* Find what caused the last reset */
-	val = readl(pdc_wdt->base + PDC_WD_TICKLE1);
-	val = (val & PDC_WD_TICKLE_STATUS_MASK) >> PDC_WD_TICKLE_STATUS_SHIFT;
+	val = readl(pdc_wdt->base + PDC_WDT_TICKLE1);
+	val = (val & PDC_WDT_TICKLE_STATUS_MASK) >> PDC_WDT_TICKLE_STATUS_SHIFT;
 	switch (val) {
-	case PDC_WD_TICKLE_STATUS_TICKLE:
-	case PDC_WD_TICKLE_STATUS_TIMEOUT:
+	case PDC_WDT_TICKLE_STATUS_TICKLE:
+	case PDC_WDT_TICKLE_STATUS_TIMEOUT:
 		pdc_wdt->wdt_dev.bootstatus |= WDIOF_CARDRESET;
 		dev_info(&pdev->dev,
 			 "watchdog module last reset due to timeout\n");
 		break;
-	case PDC_WD_TICKLE_STATUS_HRESET:
+	case PDC_WDT_TICKLE_STATUS_HRESET:
 		dev_info(&pdev->dev,
 			 "watchdog module last reset due to hard reset\n");
 		break;
-	case PDC_WD_TICKLE_STATUS_SRESET:
+	case PDC_WDT_TICKLE_STATUS_SRESET:
 		dev_info(&pdev->dev,
 			 "watchdog module last reset due to soft reset\n");
 		break;
-	case PDC_WD_TICKLE_STATUS_USER:
+	case PDC_WDT_TICKLE_STATUS_USER:
 		dev_info(&pdev->dev,
 			 "watchdog module last reset due to user reset\n");
 		break;
@@ -242,6 +236,8 @@ static int pdc_wdt_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, pdc_wdt);
 	watchdog_set_drvdata(&pdc_wdt->wdt_dev, pdc_wdt);
+
+	pdc_wdt_stop(&pdc_wdt->wdt_dev);
 
 	ret = watchdog_register_device(&pdc_wdt->wdt_dev);
 	if (ret)
@@ -292,7 +288,7 @@ static struct platform_driver pdc_wdt_driver = {
 };
 module_platform_driver(pdc_wdt_driver);
 
-MODULE_AUTHOR("Jude Abraham <Jude.Abraham@imgtec.com>");
-MODULE_AUTHOR("Naidu Tellapati <Naidu.Tellapati@imgtec.com>");
+MODULE_AUTHOR("Jude Abraham <jude.abraham@imgtec.com>");
+MODULE_AUTHOR("Naidu Tellapati <naidu.tellapati@imgtec.com>");
 MODULE_DESCRIPTION("Imagination Technologies PDC Watchdog Timer Driver");
 MODULE_LICENSE("GPL v2");
