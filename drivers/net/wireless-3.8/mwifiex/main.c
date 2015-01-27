@@ -226,6 +226,7 @@ process_start:
 		    (is_command_pending(adapter) ||
 		     !mwifiex_wmm_lists_empty(adapter))) {
 			adapter->pm_wakeup_fw_try = true;
+			mod_timer(&adapter->wakeup_timer, jiffies + (HZ*3));
 			adapter->if_ops.wakeup(adapter);
 			continue;
 		}
@@ -233,6 +234,7 @@ process_start:
 		if (IS_CARD_RX_RCVD(adapter)) {
 			adapter->data_received = false;
 			adapter->pm_wakeup_fw_try = false;
+			del_timer_sync(&adapter->wakeup_timer);
 			if (adapter->ps_state == PS_STATE_SLEEP) {
 				if (adapter->iface_type == MWIFIEX_PCIE &&
 				    adapter->if_ops.enable_int)
