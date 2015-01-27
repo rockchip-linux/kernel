@@ -44,3 +44,10 @@ config ARM_AT91_CPUIDLE
 	depends on ARCH_AT91
 	help
 	  Select this to enable cpuidle for AT91 processors
+
+config ARM_ROCKCHIP_CPUIDLE
+	tristate "Cpu Idle Driver for the rockchip processors"
+	default y
+	depends on ARCH_ROCKCHIP
+	help
+	  Select this to enable cpuidle for rockchip processors
