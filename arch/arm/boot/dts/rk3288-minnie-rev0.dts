@@ -86,6 +86,11 @@
 		reg = <0x4a>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touch_int &touch_rst>;
+		atmel,reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
+		vdd-supply = <&vcc33_touch>;
+		avdd-supply = <&vcc5v_touch>;
 	};
 };
 
@@ -107,19 +112,14 @@
 
 	regulators {
 		vcc33_touch: LDO_REG2 {
-			regulator-always-on;
-			regulator-boot-on;
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			regulator-name = "vcc33_touch";
-			regulator-suspend-mem-disabled;
+			regulator-suspend-mem-microvolt = <3300000>;
 		};
 
 		vcc5v_touch: SWITCH_REG2 {
-			regulator-always-on;
-			regulator-boot-on;
 			regulator-name = "vcc5v_touch";
-			regulator-suspend-mem-disabled;
 		};
 	};
 };
@@ -213,6 +213,16 @@
 
 		dvs_2: dvs-2 {
 			rockchip,pins = <7 15 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+
+	touchscreen {
+		touch_int: touch-int {
+			rockchip,pins = <2 14 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		touch_rst: touch-rst {
+			rockchip,pins = <2 15 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
