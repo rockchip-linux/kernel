@@ -261,18 +261,13 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-evb-rk808.dtb \
 	rk3288-gus-rev1.dtb \
 	rk3288-jaq-rev1.dtb \
-	rk3288-jerry-rev0.dtb \
 	rk3288-jerry-rev2.dtb \
 	rk3288-jerry-rev3.dtb \
-	rk3288-mighty-rev0.dtb \
 	rk3288-mighty-rev1.dtb \
 	rk3288-minnie-rev0.dtb \
 	rk3288-pinky-rev2.dtb \
-	rk3288-pinky-rev1.dtb \
-	rk3288-pinky-rev0.dtb \
 	rk3288-rialto-rev0.dtb \
 	rk3288-speedy.dtb \
-	rk3288-speedy-rev0.dtb \
 	rk3288-speedy-rev1.dtb
 dtb-$(CONFIG_ARCH_S3C24XX) += s3c2416-smdk2416.dtb
 dtb-$(CONFIG_ARCH_S3C64XX) += s3c6410-mini6410.dtb \
