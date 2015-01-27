@@ -155,4 +155,7 @@ extern void pistachio_clk_register_pll(struct pistachio_clk_provider *p,
 				       struct pistachio_pll *pll,
 				       unsigned int num);
 
+extern void pistachio_clk_force_enable(struct pistachio_clk_provider *p,
+				       unsigned int *clk_ids, unsigned int num);
+
 #endif

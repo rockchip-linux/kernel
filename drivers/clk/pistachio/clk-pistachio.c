@@ -154,6 +154,11 @@ PNAME(mux_debug) = { "mips_pll_mux", "rpu_v_pll_mux",
 		     "wifi_pll_mux", "bt_pll_mux" };
 static u32 mux_debug_idx[] = { 0x0, 0x1, 0x2, 0x4, 0x8, 0x10 };
 
+static unsigned int pistachio_critical_clks[] __initdata = {
+	CLK_MIPS,
+	CLK_PERIPH_SYS_CORE,
+};
+
 static void __init pistachio_clk_init(struct device_node *np)
 {
 	struct pistachio_clk_provider *p;
@@ -182,6 +187,9 @@ static void __init pistachio_clk_init(struct device_node *np)
 	p->clk_data.clks[CLK_DEBUG_MUX] = debug_clk;
 
 	pistachio_clk_register_provider(p);
+
+	pistachio_clk_force_enable(p, pistachio_critical_clks,
+				   ARRAY_SIZE(pistachio_critical_clks));
 }
 CLK_OF_DECLARE(pistachio_clk, "img,pistachio-clk", pistachio_clk_init);
 

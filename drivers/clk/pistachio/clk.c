@@ -118,3 +118,22 @@ void pistachio_clk_register_fixed_factor(struct pistachio_clk_provider *p,
 		p->clk_data.clks[ff[i].id] = clk;
 	}
 }
+
+void pistachio_clk_force_enable(struct pistachio_clk_provider *p,
+				unsigned int *clk_ids, unsigned int num)
+{
+	unsigned int i;
+	int err;
+
+	for (i = 0; i < num; i++) {
+		struct clk *clk = p->clk_data.clks[clk_ids[i]];
+
+		if (IS_ERR(clk))
+			continue;
+
+		err = clk_prepare_enable(clk);
+		if (err)
+			pr_err("Failed to enable clock %s: %d\n",
+			       __clk_get_name(clk), err);
+	}
+}
