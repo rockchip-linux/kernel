@@ -1018,6 +1018,21 @@ static int mxt_write_object(struct mxt_data *data, u8 type, u8 offset, u8 val)
 	return mxt_write_obj_instance(data, type, 0, offset, val);
 }
 
+static int mxt_recalibrate(struct mxt_data *data)
+{
+	struct device *dev = &data->client->dev;
+	int error;
+
+	dev_dbg(dev, "Recalibration ...\n");
+	error = mxt_write_object(data, MXT_GEN_COMMAND_T6,
+				 MXT_COMMAND_CALIBRATE, 1);
+	if (error)
+		dev_err(dev, "Recalibration failed %d\n", error);
+	else
+		msleep(MXT_CAL_TIME);
+	return error;
+}
+
 static void mxt_input_button(struct mxt_data *data, u8 *message)
 {
 	struct device *dev = &data->client->dev;
@@ -2501,15 +2516,7 @@ static ssize_t mxt_calibrate_store(struct device *dev,
 	int ret;
 
 	disable_irq(data->irq);
-
-	/* Perform touch surface recalibration */
-	ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
-			MXT_COMMAND_CALIBRATE, 1);
-	if (ret)
-		goto out;
-	msleep(MXT_CAL_TIME);
-
-out:
+	ret = mxt_recalibrate(data);
 	enable_irq(data->irq);
 	return ret ?: count;
 }
@@ -3382,6 +3389,14 @@ static int mxt_input_uninhibit(struct input_dev *input)
 
 	mxt_start(data);
 
+	/*
+	 * As hovering is supported in mXT33xT series, an extra calibration is
+	 * required to reflect environment change especially for sensitive SC
+	 * deltas when system resumes from suspend/idle.
+	 */
+	if (is_mxt_33x_t(data))
+		mxt_recalibrate(data);
+
 	enable_irq(data->client->irq);
 
 	return 0;
@@ -3833,14 +3848,9 @@ static int __maybe_unused mxt_resume(struct device *dev)
 
 	mxt_restore_all_regs(data);
 
-	if (!device_may_wakeup(dev)) {
-		/* Recalibration in case of environment change */
-		ret = mxt_write_object(data, MXT_GEN_COMMAND_T6,
-				       MXT_COMMAND_CALIBRATE, 1);
-		if (ret)
-			dev_err(dev, "Resume recalibration failed %d\n", ret);
-		msleep(MXT_CAL_TIME);
-	}
+	/* Recalibration in case of environment change */
+	if (!device_may_wakeup(dev) || is_mxt_33x_t(data))
+		mxt_recalibrate(data);
 
 	enable_irq(data->irq);
 
