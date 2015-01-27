@@ -1,5 +1,5 @@
 /*
- * Google Veyron Gus Rev 1 board device tree source
+ * Google Veyron Gus Rev 1+ board device tree source
  *
  * Copyright 2015 Google, Inc
  *
@@ -16,6 +16,8 @@
 
 / {
 	model = "Google Gus";
-	compatible = "google,veyron-gus-rev1", "google,veyron-gus",
+	compatible = "google,veyron-gus-rev5", "google,veyron-gus-rev4",
+		     "google,veyron-gus-rev3", "google,veyron-gus-rev2",
+		     "google,veyron-gus-rev1", "google,veyron-gus",
 		     "google,veyron", "rockchip,rk3288";
 };

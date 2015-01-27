@@ -1,5 +1,5 @@
 /*
- * Google Veyron Mighty Rev 1 board device tree source
+ * Google Veyron Mighty Rev 1+ board device tree source
  *
  * Copyright 2014 Google, Inc
  *
@@ -16,6 +16,8 @@
 
 / {
 	model = "Google Mighty";
-	compatible = "google,veyron-mighty-rev1", "google,veyron-mighty",
+	compatible = "google,veyron-mighty-rev5", "google,veyron-mighty-rev4",
+		     "google,veyron-mighty-rev3", "google,veyron-mighty-rev2",
+		     "google,veyron-mighty-rev1", "google,veyron-mighty",
 		     "google,veyron", "rockchip,rk3288";
 };

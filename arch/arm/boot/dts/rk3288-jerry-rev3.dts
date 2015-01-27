@@ -1,5 +1,5 @@
 /*
- * Google Veyron Jerry Rev 3 board device tree source
+ * Google Veyron Jerry Rev 3+ board device tree source
  *
  * Copyright 2014 Google, Inc
  *
@@ -14,7 +14,9 @@
 
 / {
 	model = "Google Jerry";
-	compatible = "google,veyron-jerry-rev3", "google,veyron-jerry",
+	compatible = "google,veyron-jerry-rev7", "google,veyron-jerry-rev6",
+		     "google,veyron-jerry-rev5", "google,veyron-jerry-rev4",
+		     "google,veyron-jerry-rev3", "google,veyron-jerry",
 		     "google,veyron", "rockchip,rk3288";
 
 	panel_regulator: panel-regualtor {

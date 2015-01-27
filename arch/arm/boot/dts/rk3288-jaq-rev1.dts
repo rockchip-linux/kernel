@@ -1,5 +1,5 @@
 /*
- * Google Veyron Jaq Rev 1 board device tree source
+ * Google Veyron Jaq Rev 1+ board device tree source
  *
  * Copyright 2015 Google, Inc
  *
@@ -16,6 +16,8 @@
 
 / {
 	model = "Google Jaq";
-	compatible = "google,veyron-jaq-rev1", "google,veyron-jaq",
+	compatible = "google,veyron-jaq-rev5", "google,veyron-jaq-rev4",
+		     "google,veyron-jaq-rev3", "google,veyron-jaq-rev2",
+		     "google,veyron-jaq-rev1", "google,veyron-jaq",
 		     "google,veyron", "rockchip,rk3288";
 };
