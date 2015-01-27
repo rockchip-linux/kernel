@@ -31,6 +31,75 @@
 		};
 	};
 
+	i2c0: i2c@18100000 {
+		compatible = "img,scb-i2c";
+		reg = <0x18100000 0x200>;
+		interrupts = <GIC_SHARED 2 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_periph PERIPH_CLK_I2C0>, <&cr_periph SYS_CLK_I2C0>;
+		clock-names = "scb", "sys";
+		assigned-clocks = <&clk_periph PERIPH_CLK_I2C0_PRE_DIV>,
+				  <&clk_periph PERIPH_CLK_I2C0_DIV>;
+		assigned-clock-rates = <100000000>, <33333333>;
+		status = "disabled";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c0_pins>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	i2c1: i2c@18100200 {
+		compatible = "img,scb-i2c";
+		reg = <0x18100200 0x200>;
+		interrupts = <GIC_SHARED 3 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_periph PERIPH_CLK_I2C1>, <&cr_periph SYS_CLK_I2C1>;
+		clock-names = "scb", "sys";
+		assigned-clocks = <&clk_periph PERIPH_CLK_I2C1_PRE_DIV>,
+				  <&clk_periph PERIPH_CLK_I2C1_DIV>;
+		assigned-clock-rates = <100000000>, <33333333>;
+		status = "disabled";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c1_pins>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+
+	i2c2: i2c@18100400 {
+		compatible = "img,scb-i2c";
+		reg = <0x18100400 0x200>;
+		interrupts = <GIC_SHARED 4 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_periph PERIPH_CLK_I2C2>, <&cr_periph SYS_CLK_I2C2>;
+		clock-names = "scb", "sys";
+		assigned-clocks = <&clk_periph PERIPH_CLK_I2C2_PRE_DIV>,
+				  <&clk_periph PERIPH_CLK_I2C2_DIV>;
+		assigned-clock-rates = <100000000>, <33333333>;
+		status = "disabled";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c2_pins>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	i2c3: i2c@18100600 {
+		compatible = "img,scb-i2c";
+		reg = <0x18100600 0x200>;
+		interrupts = <GIC_SHARED 5 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_periph PERIPH_CLK_I2C3>, <&cr_periph SYS_CLK_I2C3>;
+		clock-names = "scb", "sys";
+		assigned-clocks = <&clk_periph PERIPH_CLK_I2C3_PRE_DIV>,
+				  <&clk_periph PERIPH_CLK_I2C3_DIV>;
+		assigned-clock-rates = <100000000>, <33333333>;
+		status = "disabled";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c3_pins>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
 	spfi0: spi@18100f00 {
 		compatible = "img,spfi";
 		reg = <0x18100f00 0x100>;
@@ -166,6 +235,34 @@
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
+		};
+
+		i2c0_pins: i2c0-pins {
+			i2c0 {
+				pins = "mfio28", "mfio29";
+				function = "i2c0";
+			};
+		};
+
+		i2c1_pins: i2c1-pins {
+			i2c1 {
+				pins = "mfio30", "mfio31";
+				function = "i2c1";
+			};
+		};
+
+		i2c2_pins: i2c2-pins {
+			i2c2 {
+				pins = "mfio32", "mfio33";
+				function = "i2c2";
+			};
+		};
+
+		i2c3_pins: i2c3-pins {
+			i2c3 {
+				pins = "mfio34", "mfio35";
+				function = "i2c3";
+			};
 		};
 
 		spim0_pins: spim0-pins {
