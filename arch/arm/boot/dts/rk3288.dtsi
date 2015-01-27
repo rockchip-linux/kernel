@@ -814,6 +814,10 @@
 		interrupts = <GIC_PPI 9 0xf04>;
 	};
 
+	cpuidle: cpuidle {
+		compatible = "rockchip,rk3288-cpuidle";
+	};
+
 	usbphy: phy {
 		compatible = "rockchip,rk3288-usb-phy";
 		rockchip,grf = <&grf>;
