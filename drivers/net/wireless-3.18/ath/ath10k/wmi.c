@@ -5202,6 +5202,7 @@ static const struct wmi_ops wmi_ops = {
 	.gen_vdev_install_key = ath10k_wmi_op_gen_vdev_install_key,
 	.gen_vdev_spectral_conf = ath10k_wmi_op_gen_vdev_spectral_conf,
 	.gen_vdev_spectral_enable = ath10k_wmi_op_gen_vdev_spectral_enable,
+	/* .gen_vdev_wmm_conf not implemented */
 	.gen_peer_create = ath10k_wmi_op_gen_peer_create,
 	.gen_peer_delete = ath10k_wmi_op_gen_peer_delete,
 	.gen_peer_flush = ath10k_wmi_op_gen_peer_flush,
@@ -5265,6 +5266,7 @@ static const struct wmi_ops wmi_10_1_ops = {
 	.gen_vdev_install_key = ath10k_wmi_op_gen_vdev_install_key,
 	.gen_vdev_spectral_conf = ath10k_wmi_op_gen_vdev_spectral_conf,
 	.gen_vdev_spectral_enable = ath10k_wmi_op_gen_vdev_spectral_enable,
+	/* .gen_vdev_wmm_conf not implemented */
 	.gen_peer_create = ath10k_wmi_op_gen_peer_create,
 	.gen_peer_delete = ath10k_wmi_op_gen_peer_delete,
 	.gen_peer_flush = ath10k_wmi_op_gen_peer_flush,
@@ -5327,6 +5329,7 @@ static const struct wmi_ops wmi_10_2_ops = {
 	.gen_vdev_install_key = ath10k_wmi_op_gen_vdev_install_key,
 	.gen_vdev_spectral_conf = ath10k_wmi_op_gen_vdev_spectral_conf,
 	.gen_vdev_spectral_enable = ath10k_wmi_op_gen_vdev_spectral_enable,
+	/* .gen_vdev_wmm_conf not implemented */
 	.gen_peer_create = ath10k_wmi_op_gen_peer_create,
 	.gen_peer_delete = ath10k_wmi_op_gen_peer_delete,
 	.gen_peer_flush = ath10k_wmi_op_gen_peer_flush,
