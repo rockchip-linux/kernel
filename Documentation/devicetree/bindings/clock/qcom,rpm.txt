@@ -1,0 +1,24 @@
+Qualcomm RPM Clock & Reset Controller Binding
+------------------------------------------------
+
+Required properties :
+- compatible : shall contain only one of the following:
+
+			"qcom,rpm-clk"
+
+- reg : shall contain base register location
+- qcom,rpm-clk-name  : shall contain name of clock
+- qcom,rpm-clk-freq  : shall contain clock frequency
+- qcom,rpm-clk-active-only : shall mention if active only clock
+- qcom,rpm-clk-branch : shall mention if branch clock
+
+Example:
+			ebi1_clk: ebi1-clk {
+				compatible = "qcom,rpm-clk";
+				reg = <QCOM_RPM_EBI1_CLK>;
+
+				qcom,rpm-clk-name = "ebi1";
+				qcom,rpm-clk-freq = <533000000>;
+				qcom,rpm-clk-active-only;
+			};
+	};
