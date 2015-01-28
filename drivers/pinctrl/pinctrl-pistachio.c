@@ -1152,7 +1152,7 @@ static void pistachio_gpio_set(struct gpio_chip *chip, unsigned offset,
 {
 	struct pistachio_gpio_bank *bank = gc_to_bank(chip);
 
-	gpio_mask_writel(bank, GPIO_OUTPUT, offset, value);
+	gpio_mask_writel(bank, GPIO_OUTPUT, offset, !!value);
 }
 
 static int pistachio_gpio_direction_input(struct gpio_chip *chip,
