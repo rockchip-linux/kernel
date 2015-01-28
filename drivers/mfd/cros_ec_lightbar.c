@@ -281,7 +281,7 @@ static ssize_t show_seq(struct device *dev,
 				 seqname[resp.get_seq.num]);
 }
 
-static ssize_t lb_send_empty_cmd(struct cros_ec_dev *ec, uint8_t cmd)
+static int lb_send_empty_cmd(struct cros_ec_dev *ec, uint8_t cmd)
 {
 	struct ec_params_lightbar param;
 	struct ec_response_lightbar resp;
@@ -300,7 +300,7 @@ static ssize_t lb_send_empty_cmd(struct cros_ec_dev *ec, uint8_t cmd)
 	return 0;
 }
 
-ssize_t lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
+int lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 {
 	struct ec_params_lightbar param;
 	struct ec_response_lightbar resp;
@@ -320,12 +320,12 @@ ssize_t lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 	return 0;
 }
 
-ssize_t lb_suspend(struct cros_ec_dev *ec)
+int lb_suspend(struct cros_ec_dev *ec)
 {
 	return lb_send_empty_cmd(ec, LIGHTBAR_CMD_SUSPEND);
 }
 
-ssize_t lb_resume(struct cros_ec_dev *ec)
+int lb_resume(struct cros_ec_dev *ec)
 {
 	return lb_send_empty_cmd(ec, LIGHTBAR_CMD_RESUME);
 }

@@ -57,8 +57,8 @@ extern struct attribute_group cros_ec_pd_attr_group;
 
 /* lightbar utilities */
 extern bool ec_has_lightbar(struct cros_ec_dev *ec);
-extern ssize_t lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable);
-extern ssize_t lb_suspend(struct cros_ec_dev *ec);
-extern ssize_t lb_resume(struct cros_ec_dev *ec);
+extern int lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable);
+extern int lb_suspend(struct cros_ec_dev *ec);
+extern int lb_resume(struct cros_ec_dev *ec);
 
 #endif	/* _DRV_CROS_EC_DEV_H_ */
