@@ -65,6 +65,13 @@ config BCM_KONA_USB2_PHY
 	help
 	  Enable this to support the Broadcom Kona USB 2.0 PHY.
 
+config PHY_PISTACHIO_USB
+	tristate "IMG Pistachio USB2.0 PHY driver"
+	depends on MACH_PISTACHIO
+	select GENERIC_PHY
+	help
+	  Enable this to support the USB2.0 PHY on the IMG Pistachio SoC.
+
 config PHY_QCOM_APQ8064_SATA
 	tristate "Qualcomm APQ8064 SATA SerDes/PHY driver"
 	depends on ARCH_QCOM
