@@ -452,12 +452,12 @@
 	};
 
 	enet: ethernet@18140000 {
-		compatible = "snps,dwmac";
+		compatible = "img,pistachio-dwmac", "snps,dwmac";
 		reg = <0x18140000 0x2000>;
 		interrupts = <GIC_SHARED 50 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
-		clocks = <&cr_periph SYS_CLK_ENET>;
-		clock-names = "stmmaceth";
+		clocks = <&clk_core CLK_ENET>, <&cr_periph SYS_CLK_ENET>;
+		clock-names = "stmmaceth", "sys";
 		assigned-clocks = <&clk_core CLK_ENET_MUX>,
 				  <&clk_core CLK_ENET_DIV>;
 		assigned-clock-parents = <&clk_core CLK_SYS_INTERNAL_DIV>;
