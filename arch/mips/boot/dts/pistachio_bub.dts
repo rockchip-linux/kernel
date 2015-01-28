@@ -16,7 +16,7 @@
 	compatible = "img,pistachio-bub", "img,pistachio";
 
 	chosen {
-		bootargs = "console=ttyS1,115200n8 earlycon=uart8250,mmio32,0x18101500,115200 root=/dev/sda3 rootwait ro cros_debug clk_ignore_unused";
+		bootargs = "console=ttyS1,115200n8 earlycon=uart8250,mmio32,0x18101500,115200 root=/dev/sda3 rootwait ro cros_debug";
 	};
 
 	memory {
