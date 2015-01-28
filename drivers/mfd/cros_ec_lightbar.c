@@ -297,6 +297,7 @@ static ssize_t lb_send_empty_cmd(struct cros_ec_dev *ec, uint8_t cmd)
 		return ret;
 	if (msg.result != EC_RES_SUCCESS)
 		return -EINVAL;
+	return 0;
 }
 
 ssize_t lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
@@ -316,6 +317,7 @@ ssize_t lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 		return ret;
 	if (msg.result != EC_RES_SUCCESS)
 		return -EINVAL;
+	return 0;
 }
 
 ssize_t lb_suspend(struct cros_ec_dev *ec)
