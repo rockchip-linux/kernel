@@ -1,0 +1,26 @@
+IMG Pistachio USB PHY
+=====================
+
+Required properties:
+--------------------
+ - compatible: Must be "img,pistachio-usb-phy".
+ - #phy-cells: Must be 0.  See ./phy-bindings.txt for details.
+ - clocks: Must contain an entry for each entry in clock-names.
+   See ../clock/clock-bindings.txt for details.
+ - clock-names: Must include "usb_phy".
+ - img,cr-top: Must constain a phandle to the CR_TOP syscon node.
+
+Optional properties:
+--------------------
+ - phy-supply: USB VBUS supply.  Must supply 5.0V.
+
+Example:
+--------
+usb_phy: usb-phy {
+	compatible = "img,pistachio-usb-phy";
+	clocks = <&clk_core CLK_USB_PHY>;
+	clock-names = "usb_phy";
+	phy-supply = <&usb_vbus>;
+	img,cr-top = <&cr_top>;
+	#phy-cells = <0>;
+};
