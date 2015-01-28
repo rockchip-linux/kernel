@@ -1,6 +1,7 @@
 obj-$(CONFIG_STMMAC_ETH) += stmmac.o
 stmmac-$(CONFIG_STMMAC_PLATFORM) += stmmac_platform.o
 stmmac-$(CONFIG_STMMAC_PCI) += stmmac_pci.o
+stmmac-$(CONFIG_DWMAC_PISTACHIO) += dwmac-pistachio.o
 stmmac-$(CONFIG_DWMAC_SUNXI) += dwmac-sunxi.o
 stmmac-$(CONFIG_DWMAC_STI) += dwmac-sti.o
 stmmac-objs:= stmmac_main.o stmmac_ethtool.o stmmac_mdio.o ring_mode.o	\

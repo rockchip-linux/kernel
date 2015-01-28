@@ -26,6 +26,15 @@ config STMMAC_PLATFORM
 
 	  If unsure, say N.
 
+config DWMAC_PISTACHIO
+	bool "IMG Pistachio DWMAC support"
+	depends on STMMAC_PLATFORM && MACH_PISTACHIO
+	---help---
+	  Support for ethernet controllers on the IMG Pistachio SoC.
+
+	  This selects IMG Pistachio SoC glue layer support for the
+	  stmmac device driver.
+
 config DWMAC_SUNXI
 	bool "Allwinner GMAC support"
 	depends on STMMAC_PLATFORM && ARCH_SUNXI
