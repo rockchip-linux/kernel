@@ -155,7 +155,6 @@ struct rockchip_edp_device {
 	struct drm_dp_link link;
 	u8 train_set[4];
 	u8 tries;
-	bool enable_hpd;
 };
 
 void rockchip_edp_enable_video_mute(struct rockchip_edp_device *edp,

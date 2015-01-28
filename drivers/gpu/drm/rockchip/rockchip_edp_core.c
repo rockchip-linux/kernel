@@ -55,6 +55,9 @@ static char *pre_emph_names[] = {
 #define DP_VOLTAGE_MAX         DP_TRAIN_VOLTAGE_SWING_1200
 #define DP_PRE_EMPHASIS_MAX    DP_TRAIN_PRE_EMPHASIS_9_5
 
+/* edp hpd detect time */
+#define EDP_HPD_TIMEOUT_MS	250
+
 static const struct of_device_id rockchip_edp_dt_ids[] = {
 	{.compatible = "rockchip,rk3288-edp",},
 	{}
@@ -412,10 +415,37 @@ static int rockchip_edp_commit(struct drm_encoder *encoder)
 	return ret;
 }
 
+/*
+ * Wait up to EDP_HPD_TIMEOUT_MS for eDP HPD signal.
+ * On boards where HPD is not hooked up, or for panels whose HPD voltage is too
+ * low to be detected (< 3.3 * 0.7 = 2.31 V), there is no way to detect hotplug
+ * so we will timeout.
+ * In this case, we force the eDP HPD to enable the AUX channel.
+ * Note: At present, there is no way to reliably detect that a panel is not
+ * present.
+ */
+static void rockchip_edp_wait_hpd(struct rockchip_edp_device *edp)
+{
+	unsigned long timeout;
+
+	timeout = jiffies + msecs_to_jiffies(EDP_HPD_TIMEOUT_MS);
+	do {
+		if (rockchip_edp_get_plug_in_status(edp))
+			return;
+		usleep_range(10000, 20000);
+	} while (!time_after(jiffies, timeout));
+
+	dev_dbg(edp->dev, "Timed out waiting for eDP HPD, forcing...\n");
+
+	rockchip_edp_force_hpd(edp);
+
+	if (!rockchip_edp_get_plug_in_status(edp))
+		dev_warn(edp->dev, "eDP HPD forced but still not detected!\n");
+}
+
 static void rockchip_edp_poweron(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
-	unsigned long timeout;
 	int ret;
 
 	if (edp->dpms_mode == DRM_MODE_DPMS_ON)
@@ -436,18 +466,7 @@ static void rockchip_edp_poweron(struct drm_encoder *encoder)
 		return;
 	}
 
-	/* On boards without EDP_HPD, force HPD detection */
-	if (!edp->enable_hpd)
-		rockchip_edp_force_hpd(edp);
-	timeout = jiffies + msecs_to_jiffies(250);
-	while (!rockchip_edp_get_plug_in_status(edp)) {
-		if (time_after(jiffies, timeout)) {
-			dev_err(edp->dev, "can not get edp hpd status\n");
-			return;
-		}
-		usleep_range(1000, 2000);
-	}
-
+	rockchip_edp_wait_hpd(edp);
 	rockchip_edp_lt_init(edp);
 	rockchip_edp_commit(encoder);
 }
@@ -824,9 +843,6 @@ static int rockchip_edp_probe(struct platform_device *pdev)
 	edp->panel = panel;
 	edp->aux.transfer = rockchip_dpaux_transfer;
 	edp->aux.dev = dev;
-
-	if (of_find_property(dev->of_node, "enable-hpd", NULL))
-		edp->enable_hpd = true;
 
 	platform_set_drvdata(pdev, edp);
 
