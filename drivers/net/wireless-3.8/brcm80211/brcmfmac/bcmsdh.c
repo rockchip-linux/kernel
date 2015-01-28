@@ -426,16 +426,24 @@ static int brcmf_sdiod_buffrw(struct brcmf_sdio_dev *sdiodev, uint fn,
 	req_sz = pkt->len + 3;
 	req_sz &= (uint)~3;
 
-	if (write)
-		err = sdio_memcpy_toio(sdiodev->func[fn], addr,
-				       ((u8 *)(pkt->data)), req_sz);
-	else if (fn == 1)
-		err = sdio_memcpy_fromio(sdiodev->func[fn], ((u8 *)(pkt->data)),
-					 addr, req_sz);
-	else
-		/* function 2 read is FIFO operation */
-		err = sdio_readsb(sdiodev->func[fn], ((u8 *)(pkt->data)), addr,
-				  req_sz);
+	if (write) {
+		if (fn == 1)
+			err = sdio_memcpy_toio(sdiodev->func[fn], addr,
+					       ((u8 *)(pkt->data)), req_sz);
+		else
+			/* function 2 write is FIFO operation */
+			err = sdio_writesb(sdiodev->func[fn], addr,
+					   ((u8 *)(pkt->data)), req_sz);
+	} else {
+		if (fn == 1)
+			err = sdio_memcpy_fromio(sdiodev->func[fn],
+						 ((u8 *)(pkt->data)), addr,
+						 req_sz);
+		else
+			/* function 2 read is FIFO operation */
+			err = sdio_readsb(sdiodev->func[fn],
+					  ((u8 *)(pkt->data)), addr, req_sz);
+	}
 	if (err == -ENOMEDIUM)
 		brcmf_bus_change_state(sdiodev->bus_if, BRCMF_BUS_NOMEDIUM);
 	return err;
