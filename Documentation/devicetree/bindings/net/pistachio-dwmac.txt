@@ -1,0 +1,24 @@
+IMG Pistachio Ethernet Controller
+=================================
+
+This device is a variant of the DWMAC and inherits the properties described
+in ./stmmac.txt.
+
+Required properties:
+--------------------
+ - compatible: Must contain "img,pistachio-dwmac" and "snps,dwmac".
+ - clocks: Must contain an entry for each entry in clock-names.
+   See ../clock/clock-bindings.txt for details.
+ - clock-names: Must include "stmmaceth" and "sys".
+
+Example:
+--------
+ethernet@18140000 {
+	compatible = "img,pistachio-dwmac";
+	reg = <0x18140000 0x2000>;
+	interrupts = <GIC_SHARED 50 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "macirq";
+	clocks = <&clk_core CLK_ENET>, <&cr_periph SYS_CLK_ENET>;
+	clock-names = "stmmaceth", "sys";
+	phy-mode = "rmii";
+};
