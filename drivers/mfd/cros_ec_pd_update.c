@@ -413,15 +413,8 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 				 (uint8_t *)&host_event_status,
 				 sizeof(host_event_status));
 	if (ret) {
-		/*
-		 * TODO(crosbug.com/p/35557): Don't ignore failure status
-		 * once updated FW is rolled out.
-		 */
-		dev_err(dev,
-			"Ignoring host event status failure (err: %d)\n",
-			ret);
-		host_event_status.status = PD_EVENT_POWER_CHANGE |
-					   PD_EVENT_UPDATE_DEVICE;
+		dev_err(dev, "Can't get host event status (err: %d)\n", ret);
+		return;
 	}
 	dev_dbg(dev, "Got host event status %x\n", host_event_status.status);
 
