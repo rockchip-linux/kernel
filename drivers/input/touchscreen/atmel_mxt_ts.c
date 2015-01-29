@@ -3580,10 +3580,6 @@ static void mxt_initialize_async(void *closure, async_cookie_t cookie)
 	unsigned long irqflags;
 	int error;
 
-	error = mxt_power_on(data);
-	if (error)
-		return;
-
 	if (mxt_in_bootloader(data)) {
 		dev_info(&client->dev, "device in bootloader at probe\n");
 	} else {
@@ -3649,19 +3645,78 @@ error_free_object:
 	data->object_table = NULL;
 }
 
+static int mxt_check_device_present(struct mxt_data *data, bool probe_alternate)
+{
+	struct i2c_client *client = data->client;
+	union i2c_smbus_data dummy;
+
+	if (i2c_smbus_xfer(client->adapter, client->addr,
+			   0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE,
+			   &dummy) == 0)
+		return 0;
+
+	/*
+	 * FIXME: This is basically a hack to cope with device tree
+	 * specifying given address but device coming up in bootloader
+	 * mode and using another address. We can't do what we did
+	 * earlier and define 2-nd device at alternate address as they
+	 * will both try to grab reset gpio and clash, so we hack around
+	 * it here.
+	 */
+	if (probe_alternate && client->addr == 0x4a) {
+		client->addr = 0x26;
+		if (i2c_smbus_xfer(client->adapter, client->addr,
+				   0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE,
+				   &dummy) == 0)
+			return 0;
+	}
+
+	return -ENXIO;
+}
+
 static int mxt_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	const struct mxt_platform_data *pdata = dev_get_platdata(&client->dev);
 	struct mxt_data *data;
 	int error;
-	union i2c_smbus_data dummy;
 
 	data = devm_kzalloc(&client->dev, sizeof(struct mxt_data), GFP_KERNEL);
 	if (!data) {
 		dev_err(&client->dev, "Failed to allocate memory\n");
 		return -ENOMEM;
 	}
+
+	if (id)
+		data->is_tp = !strcmp(id->name, "atmel_mxt_tp");
+#ifdef CONFIG_ACPI
+	else {
+		/*
+		 * Check the ACPI device ID to determine if this device
+		 * is a touchpad because i2c_device_id is NULL when probed
+		 * from the ACPI device id table.
+		 */
+		struct acpi_device *adev;
+		acpi_status status;
+		status = acpi_bus_get_device(ACPI_HANDLE(&client->dev), &adev);
+		if (ACPI_SUCCESS(status))
+			data->is_tp = !strncmp(dev_name(&adev->dev),
+					       "ATML0000", 8);
+	}
+#endif
+	data->client = client;
+	i2c_set_clientdata(client, data);
+
+	snprintf(data->phys, sizeof(data->phys), "i2c-%u-%04x/input0",
+		 client->adapter->nr, client->addr);
+
+	data->pdata = pdata;
+	data->irq = client->irq;
+
+	init_completion(&data->bl_completion);
+	init_completion(&data->auto_cal_completion);
+
+	data->suspend_acq_interval = MXT_SUSPEND_ACQINT_VALUE;
 
 	data->vdd = devm_regulator_get(&client->dev, "vdd");
 	if (IS_ERR(data->vdd)) {
@@ -3697,15 +3752,6 @@ static int mxt_probe(struct i2c_client *client,
 			return error;
 		}
 
-		/*
-		 * If we are not using reset gpio (and thus no regulators)
-		 * the device should already be powered up. Let's see if it
-		 * responds.
-		 */
-		if (i2c_smbus_xfer(client->adapter, client->addr,
-				   0, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE,
-				   &dummy) < 0)
-			return -ENODEV;
 	} else {
 		error = gpiod_direction_output(data->reset_gpio, 0);
 		if (error) {
@@ -3716,41 +3762,19 @@ static int mxt_probe(struct i2c_client *client,
 		}
 	}
 
-	if (id)
-		data->is_tp = !strcmp(id->name, "atmel_mxt_tp");
-#ifdef CONFIG_ACPI
-	else {
-		/*
-		 * Check the ACPI device ID to determine if this device
-		 * is a touchpad because i2c_device_id is NULL when probed
-		 * from the ACPI device id table.
-		 */
-		struct acpi_device *adev;
-		acpi_status status;
-		status = acpi_bus_get_device(ACPI_HANDLE(&client->dev), &adev);
-		if (ACPI_SUCCESS(status))
-			data->is_tp = !strncmp(dev_name(&adev->dev),
-					       "ATML0000", 8);
-	}
-#endif
-	snprintf(data->phys, sizeof(data->phys), "i2c-%u-%04x/input0",
-		 client->adapter->nr, client->addr);
+	error = mxt_power_on(data);
+	if (error)
+		return error;
 
-	data->client = client;
-	i2c_set_clientdata(client, data);
-
-	data->pdata = pdata;
-	data->irq = client->irq;
-
-	init_completion(&data->bl_completion);
-	init_completion(&data->auto_cal_completion);
-
-	data->suspend_acq_interval = MXT_SUSPEND_ACQINT_VALUE;
+	error = mxt_check_device_present(data,
+					 !IS_ERR_OR_NULL(data->reset_gpio));
+	if (error)
+		goto err_power_off;
 
 	error = mxt_update_file_name(&client->dev, &data->fw_file, MXT_FW_NAME,
 				     strlen(MXT_FW_NAME));
 	if (error)
-		return error;
+		goto err_power_off;
 
 	error = mxt_update_file_name(&client->dev, &data->config_file,
 				     MXT_CONFIG_NAME, strlen(MXT_CONFIG_NAME));
@@ -3765,6 +3789,9 @@ static int mxt_probe(struct i2c_client *client,
 
 err_free_fw_file:
 	kfree(data->fw_file);
+err_power_off:
+	regulator_disable(data->avdd);
+	regulator_disable(data->vdd);
 	return error;
 }
 
@@ -3778,6 +3805,9 @@ static int mxt_remove(struct i2c_client *client)
 	free_irq(data->irq, data);
 	if (data->input_dev)
 		input_unregister_device(data->input_dev);
+
+	regulator_disable(data->avdd);
+	regulator_disable(data->vdd);
 
 	kfree(data->object_table);
 	kfree(data->fw_file);
