@@ -152,6 +152,7 @@
 #define INT_TRANSACTION_DONE		BIT(15)
 #define INT_SLAVE_EVENT			BIT(16)
 #define INT_TIMING			BIT(18)
+#define INT_STOP_DETECTED		BIT(19)
 
 #define INT_FIFO_FULL_FILLING	(INT_FIFO_FULL  | INT_FIFO_FILLING)
 #define INT_FIFO_EMPTY_EMPTYING	(INT_FIFO_EMPTY | INT_FIFO_EMPTYING)
@@ -177,7 +178,8 @@
 					 INT_FIFO_FULL        | \
 					 INT_FIFO_FILLING     | \
 					 INT_FIFO_EMPTY       | \
-					 INT_FIFO_EMPTYING)
+					 INT_FIFO_EMPTYING    | \
+					 INT_STOP_DETECTED)
 
 #define INT_ENABLE_MASK_WAITSTOP	(INT_SLAVE_EVENT      | \
 					 INT_ADDR_ACK_ERR     | \
@@ -872,6 +874,16 @@ static unsigned int img_i2c_auto(struct img_i2c *i2c,
 			img_i2c_read_fifo(i2c);
 			if (i2c->msg.len == 0)
 				return ISR_WAITSTOP;
+		} else if (int_status & INT_STOP_DETECTED) {
+			int ret;
+			/*
+			 * If a stop bit has been detected, it means we should
+			 * read all the data (or drain the FIFO). We must signal
+			 * completion for this transaction.
+			 */
+			img_i2c_read_fifo(i2c);
+			ret = (i2c->msg.len == 0) ? 0 : EIO;
+			return ISR_COMPLETE(ret);
 		}
 	} else {
 		if (int_status & INT_FIFO_EMPTY_EMPTYING) {
