@@ -65,6 +65,8 @@ struct dw_hdmi_plat_data {
 					   struct drm_display_mode *mode);
 };
 
+int dw_hdmi_resume(struct device *dev);
+int dw_hdmi_suspend(struct device *dev);
 void dw_hdmi_unbind(struct device *dev, struct device *master, void *data);
 int dw_hdmi_bind(struct device *dev, struct device *master,
 		 void *data, struct drm_encoder *encoder,
