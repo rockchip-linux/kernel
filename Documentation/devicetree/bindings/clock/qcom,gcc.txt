@@ -17,6 +17,11 @@ Required properties :
 - #clock-cells : shall contain 1
 - #reset-cells : shall contain 1
 
+Optional child nodes:
+	Child nodes could be any device nodes with its own bindings which
+	fall inside the memory-map of the Clock controller, for example
+	thermal sensor driver.
+
 Example:
 	clock-controller@900000 {
 		compatible = "qcom,gcc-msm8960";
