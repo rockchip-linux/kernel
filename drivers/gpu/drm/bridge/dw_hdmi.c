@@ -98,6 +98,7 @@ struct hdmi_id {
 
 struct hdmi_vmode {
 	bool mdvi;
+	bool has_audio;
 	bool mhsyncpolarity;
 	bool mvsyncpolarity;
 	bool minterlaced;
@@ -1275,10 +1276,8 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 
 	if (!hdmi->vic) {
 		dev_dbg(hdmi->dev, "Non-CEA mode used in HDMI\n");
-		hdmi->hdmi_data.video_mode.mdvi = true;
 	} else {
 		dev_dbg(hdmi->dev, "CEA mode used vic=%d\n", hdmi->vic);
-		hdmi->hdmi_data.video_mode.mdvi = false;
 	}
 
 	if ((hdmi->vic == 6) || (hdmi->vic == 7) ||
@@ -1325,10 +1324,10 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	dw_hdmi_enable_video_path(hdmi);
 
 	/* not for DVI mode */
-	if (hdmi->hdmi_data.video_mode.mdvi) {
-		dev_dbg(hdmi->dev, "%s DVI mode\n", __func__);
+	if (!hdmi->hdmi_data.video_mode.has_audio) {
+		dev_info(hdmi->dev, "monitor does not support audio\n");
 	} else {
-		dev_dbg(hdmi->dev, "%s CEA mode\n", __func__);
+		dev_dbg(hdmi->dev, "monitor support audio\n");
 
 		/* HDMI Initialization Step E - Configure audio */
 		hdmi_clk_regenerator_update_pixel_clock(hdmi);
@@ -1553,6 +1552,7 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 {
 	struct dw_hdmi *hdmi = container_of(connector, struct dw_hdmi,
 					     connector);
+	struct hdmi_vmode *vmode = &hdmi->hdmi_data.video_mode;
 	struct edid *edid;
 	int ret;
 
@@ -1563,6 +1563,9 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 	if (edid) {
 		dev_dbg(hdmi->dev, "got edid: width[%d] x height[%d]\n",
 			edid->width_cm, edid->height_cm);
+
+		vmode->mdvi = !drm_detect_hdmi_monitor(edid);
+		vmode->has_audio = drm_detect_monitor_audio(edid);
 
 		drm_mode_connector_update_edid_property(connector, edid);
 		ret = drm_add_edid_modes(connector, edid);
