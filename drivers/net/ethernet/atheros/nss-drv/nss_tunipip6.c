@@ -64,7 +64,7 @@ static void nss_tunipip6_handler(struct nss_ctx_instance *nss_ctx, struct nss_cm
 	 * callback
 	 */
 	cb = (nss_tunipip6_msg_callback_t)ncm->cb;
-	ctx =  nss_ctx->nss_top->if_ctx[ncm->interface];
+	ctx =  nss_ctx->nss_top->subsys_dp_register[ncm->interface].ndev;
 
 	/*
 	 * call ipip6 tunnel callback
@@ -152,13 +152,18 @@ nss_tx_status_t nss_tunipip6_tx(struct nss_ctx_instance *nss_ctx, struct nss_tun
  */
 struct nss_ctx_instance *nss_register_tunipip6_if(uint32_t if_num,
 			nss_tunipip6_callback_t tunipip6_callback,
-			nss_tunipip6_msg_callback_t event_callback, struct net_device *netdev)
+			nss_tunipip6_msg_callback_t event_callback,
+			struct net_device *netdev,
+			uint32_t features)
 {
 	nss_assert((if_num >= NSS_MAX_VIRTUAL_INTERFACES) && (if_num < NSS_MAX_NET_INTERFACES));
 
-	nss_top_main.if_ctx[if_num] = netdev;
-	nss_top_main.if_rx_callback[if_num] = tunipip6_callback;
 	nss_top_main.tunipip6_msg_callback = event_callback;
+
+	nss_top_main.subsys_dp_register[if_num].ndev = netdev;
+	nss_top_main.subsys_dp_register[if_num].cb = tunipip6_callback;
+	nss_top_main.subsys_dp_register[if_num].app_data = NULL;
+	nss_top_main.subsys_dp_register[if_num].features = features;
 
 	return (struct nss_ctx_instance *)&nss_top_main.nss[nss_top_main.tunipip6_handler_id];
 }
@@ -170,8 +175,9 @@ void nss_unregister_tunipip6_if(uint32_t if_num)
 {
 	nss_assert((if_num >= NSS_MAX_VIRTUAL_INTERFACES) && (if_num < NSS_MAX_NET_INTERFACES));
 
-	nss_top_main.if_rx_callback[if_num] = NULL;
-	nss_top_main.if_ctx[if_num] = NULL;
+	nss_top_main.subsys_dp_register[if_num].cb = NULL;
+	nss_top_main.subsys_dp_register[if_num].ndev = NULL;
+	nss_top_main.subsys_dp_register[if_num].features = 0;
 	nss_top_main.tunipip6_msg_callback = NULL;
 }
 
@@ -183,6 +189,16 @@ void nss_tunipip6_register_handler()
 	nss_core_register_handler(NSS_TUNIPIP6_INTERFACE, nss_tunipip6_handler, NULL);
 }
 
+/*
+ * nss_tunipip6_msg_init()
+ *      Initialize nss_tunipip6 msg.
+ */
+void nss_tunipip6_msg_init(struct nss_tunipip6_msg *ntm, uint16_t if_num, uint32_t type,  uint32_t len, void *cb, void *app_data)
+{
+	nss_cmn_msg_init(&ntm->cm, if_num, type, len, cb, app_data);
+}
+
 EXPORT_SYMBOL(nss_tunipip6_tx);
 EXPORT_SYMBOL(nss_register_tunipip6_if);
 EXPORT_SYMBOL(nss_unregister_tunipip6_if);
+EXPORT_SYMBOL(nss_tunipip6_msg_init);

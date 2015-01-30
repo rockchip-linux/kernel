@@ -73,7 +73,7 @@ void nss_crypto_buf_handler(struct nss_ctx_instance *nss_ctx, void *buf, uint32_
 	nss_crypto_buf_callback_t cb = nss_top->crypto_buf_callback;
 
 	if (unlikely(!cb)) {
-		nss_crypto_trace("%p: rx data handler has been unregistered for i/f: %d", nss_ctx, ncm->interface);
+		nss_crypto_trace("%p: rx data handler has been unregistered for i/f", nss_ctx);
 		return;
 	}
 
@@ -186,6 +186,9 @@ nss_tx_status_t nss_crypto_tx_msg(struct nss_ctx_instance *nss_ctx, struct nss_c
 		return NSS_TX_FAILURE;
 	}
 
+	nss_crypto_info("msg params version:%d, interface:%d, type:%d, cb:%d, app_data:%d, len:%d\n",
+			ncm->version, ncm->interface, ncm->type, ncm->cb, ncm->app_data, ncm->len);
+
 	nim = (struct nss_crypto_msg *)skb_put(nbuf, sizeof(struct nss_crypto_msg));
 	memcpy(nim, msg, sizeof(struct nss_crypto_msg));
 
@@ -231,7 +234,7 @@ nss_tx_status_t nss_crypto_tx_buf(struct nss_ctx_instance *nss_ctx, void *buf, u
 	/*
 	 * Kick the NSS awake so it can process our new entry.
 	 */
-	nss_hal_send_interrupt(nss_ctx->nmap, nss_ctx->h2n_desc_rings[NSS_IF_DATA_QUEUE].desc_ring.int_bit,
+	nss_hal_send_interrupt(nss_ctx->nmap, nss_ctx->h2n_desc_rings[NSS_IF_DATA_QUEUE_0].desc_ring.int_bit,
 								NSS_REGS_H2N_INTR_STATUS_DATA_COMMAND_QUEUE);
 
 	NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_TX_CRYPTO_REQ]);
@@ -303,9 +306,20 @@ void nss_crypto_register_handler()
 	nss_core_register_handler(NSS_CRYPTO_INTERFACE, nss_crypto_msg_handler, NULL);
 }
 
+/*
+ * nss_crypto_msg_init()
+ *	Initialize crypto message
+ */
+void nss_crypto_msg_init(struct nss_crypto_msg *ncm, uint16_t if_num, uint32_t type, uint32_t len,
+				nss_crypto_msg_callback_t *cb, void *app_data)
+{
+	nss_cmn_msg_init(&ncm->cm, if_num, type, len, (void *)cb, app_data);
+}
+
 EXPORT_SYMBOL(nss_crypto_notify_register);
 EXPORT_SYMBOL(nss_crypto_notify_unregister);
 EXPORT_SYMBOL(nss_crypto_data_register);
 EXPORT_SYMBOL(nss_crypto_data_unregister);
 EXPORT_SYMBOL(nss_crypto_tx_msg);
 EXPORT_SYMBOL(nss_crypto_tx_buf);
+EXPORT_SYMBOL(nss_crypto_msg_init);

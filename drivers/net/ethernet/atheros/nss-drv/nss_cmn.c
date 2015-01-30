@@ -57,7 +57,7 @@ int32_t nss_cmn_get_interface_number(struct nss_ctx_instance *nss_ctx, struct ne
 	 * Check physical interface table
 	 */
 	for (i = 0; i < NSS_MAX_NET_INTERFACES; i++) {
-		if (dev == ((struct nss_ctx_instance *)nss_ctx)->nss_top->if_ctx[i]) {
+		if (dev == ((struct nss_ctx_instance *)nss_ctx)->nss_top->subsys_dp_register[i].ndev) {
 			return i;
 		}
 	}
@@ -86,7 +86,32 @@ struct net_device *nss_cmn_get_interface_dev(struct nss_ctx_instance *ctx, uint3
 		return NULL;
 	}
 
-	return nss_ctx->nss_top->if_ctx[if_num];
+	return nss_ctx->nss_top->subsys_dp_register[if_num].ndev;
+}
+
+/*
+ * nss_cmn_get_interface_number_by_dev()
+ *	Return the NSS interface id for the net_device.
+ *
+ * Returns < 0 on failure or the NSS interface id for the given device.
+ */
+int32_t nss_cmn_get_interface_number_by_dev(struct net_device *dev)
+{
+	int i;
+
+	nss_assert(dev != 0);
+
+	/*
+	 * Check physical interface table
+	 */
+	for (i = 0; i < NSS_MAX_NET_INTERFACES; i++) {
+		if (dev == nss_top_main.subsys_dp_register[i].ndev) {
+			return i;
+		}
+	}
+
+	nss_warning("Interface number could not be found for %p (%s) as interface has not registered yet", dev, dev->name);
+	return -1;
 }
 
 /*
@@ -114,7 +139,7 @@ nss_state_t nss_cmn_get_state(struct nss_ctx_instance *ctx)
  */
 bool nss_cmn_interface_is_virtual(void *nss_ctx, int32_t interface_num)
 {
-	return (NSS_IS_IF_TYPE(VIRTUAL, interface_num));
+	return (NSS_IS_IF_TYPE(DYNAMIC, interface_num) || NSS_IS_IF_TYPE(VIRTUAL, interface_num));
 }
 
 /*
@@ -176,6 +201,7 @@ EXPORT_SYMBOL(nss_cmn_get_interface_dev);
 EXPORT_SYMBOL(nss_cmn_get_state);
 EXPORT_SYMBOL(nss_cmn_interface_is_virtual);
 EXPORT_SYMBOL(nss_cmn_msg_init);
+EXPORT_SYMBOL(nss_cmn_get_interface_number_by_dev);
 
 EXPORT_SYMBOL(nss_cmn_register_queue_decongestion);
 EXPORT_SYMBOL(nss_cmn_unregister_queue_decongestion);

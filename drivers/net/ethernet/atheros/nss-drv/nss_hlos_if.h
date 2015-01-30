@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -21,6 +21,27 @@
 
 #ifndef __NSS_HLOS_IF_H
 #define __NSS_HLOS_IF_H
+
+#define NSS_MIN_NUM_CONN 			256		/**< MIN  Connection shared between IPv4 and IPv6 */
+#define NSS_DEFAULT_NUM_CONN			1024		/**< Default number of connections for each IPV4 and IPV6 */
+#define NSS_NUM_CONN_QUANTA_MASK		(1024 - 1)	/**< Quanta of number of connections  1024 */
+#define NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6	8196		/**< MAX Connection shared between IPv4 and IPv6 */
+#define NSS_CONN_CFG_TIMEOUT			6000		/**< 6 sec timeout for connection cfg message */
+
+enum {
+	NSS_SUCCESS = 0,
+	NSS_FAILURE = 1,
+};
+
+/*
+ * Private data structure for configuring ipv4/6 connections
+ */
+struct nss_conn_cfg_pvt {
+	struct semaphore sem;			/* Semaphore structure */
+	struct completion complete;		/* completion structure */
+	int current_value;			/* valid entry */
+	int response;				/* Response from FW */
+};
 
 /*
  * Request/Response types
@@ -62,6 +83,9 @@ enum exception_events_eth_rx {
 struct nss_eth_rx_node_sync {
 	struct nss_cmn_node_stats node_stats;
 				/* Common node stats for ETH_RX */
+	uint32_t total_ticks;		/* Total clock ticks spend inside the eth_rx */
+	uint32_t worst_case_ticks;	/* Worst case iteration of the eth_rx in ticks */
+	uint32_t iterations;		/* Number of iterations around the eth_rx */
 	uint32_t exception_events[NSS_EXCEPTION_EVENT_ETH_RX_MAX];
 				/* Number of ETH_RX exception events */
 };
@@ -77,91 +101,6 @@ struct nss_eth_rx_msg {
 };
 
 /*
- * PPPoE
- */
-
-/*
- * Request/Response types
- */
-enum nss_pppoe_metadata_types {
-	NSS_TX_METADATA_TYPE_PPPOE_DESTROY_SESSION,
-	NSS_RX_METADATA_TYPE_PPPOE_RULE_STATUS,
-	NSS_RX_METADATA_TYPE_PPPOE_CONN_STATS_SYNC,
-	NSS_RX_METADATA_TYPE_PPPOE_NODE_STATS_SYNC,
-	NSS_METADATA_TYPE_PPPOE_MAX,
-};
-
-/*
- * Exception events from bridge/route handler
- */
-enum exception_events_pppoe {
-	NSS_EXCEPTION_EVENT_PPPOE_WRONG_VERSION_OR_TYPE,
-	NSS_EXCEPTION_EVENT_PPPOE_WRONG_CODE,
-	NSS_EXCEPTION_EVENT_PPPOE_HEADER_INCOMPLETE,
-	NSS_EXCEPTION_EVENT_PPPOE_UNSUPPORTED_PPP_PROTOCOL,
-	NSS_EXCEPTION_EVENT_PPPOE_MAX,
-};
-
-/*
- * The NSS PPPoE rule destruction structure.
- */
-struct nss_pppoe_destroy {
-	uint16_t pppoe_session_id;	/* PPPoE session ID */
-	uint16_t pppoe_remote_mac[3];	/* PPPoE server MAC address */
-};
-
-/*
- * The NSS PPPoE rule create success structure.
- */
-struct nss_pppoe_rule_status {
-	uint16_t pppoe_session_id;	/* PPPoE session ID on which stats are based */
-	uint8_t pppoe_remote_mac[ETH_ALEN];
-					/* PPPoE server MAC address */
-};
-
-/*
- * The NSS PPPoE node stats structure.
- */
-struct nss_pppoe_node_sync {
-	struct nss_cmn_node_stats node_stats;
-	uint32_t pppoe_session_create_requests;
-					/* PPPoE session create requests */
-	uint32_t pppoe_session_create_failures;
-					/* PPPoE session create failures */
-	uint32_t pppoe_session_destroy_requests;
-					/* PPPoE session destroy requests */
-	uint32_t pppoe_session_destroy_misses;
-					/* PPPoE session destroy failures */
-};
-
-/*
- * The NSS PPPoE exception statistics sync structure.
- */
-struct nss_pppoe_conn_sync {
-	uint16_t pppoe_session_id;	/* PPPoE session ID on which stats are based */
-	uint8_t pppoe_remote_mac[ETH_ALEN];
-					/* PPPoE server MAC address */
-	uint32_t exception_events_pppoe[NSS_EXCEPTION_EVENT_PPPOE_MAX];
-					/* PPPoE exception events */
-	uint32_t index;			/* Per interface array index */
-	uint32_t interface_num;		/* Interface number on which this session is created */
-};
-
-/*
- * Message structure to send/receive PPPoE session commands
- */
-struct nss_pppoe_msg {
-	struct nss_cmn_msg cm;		/* Message Header */
-	union {
-		struct nss_pppoe_destroy destroy;	/* Message: destroy pppoe rule */
-		struct nss_pppoe_rule_status rule_status;	/* Message: rule status response */
-		struct nss_pppoe_conn_sync conn_sync;	/* Message: exception statistics sync */
-		struct nss_pppoe_node_sync node_sync;	/* Message: node statistics sync */
-	} msg;
-};
-
-
-/*
  * C2C message structures
  */
 
@@ -169,7 +108,8 @@ struct nss_pppoe_msg {
  * Request/Response types
  */
 enum nss_c2c_metadata_types {
-	NSS_TX_METADATA_TYPE_C2C_TX_MAP,
+	NSS_TX_METADATA_TYPE_NONE = 0,
+	NSS_TX_METADATA_TYPE_C2C_TX_MAP = 1,
 	NSS_METADATA_TYPE_C2C_MAX,
 };
 
@@ -196,34 +136,30 @@ struct nss_c2c_msg {
  */
 
 /*
- * Request/Response types
+ * IPv4 reasm node stats
  */
-enum nss_n2h_metadata_types {
-	NSS_RX_METADATA_TYPE_N2H_STATS_SYNC,
-	NSS_METADATA_TYPE_N2H_MAX,
-};
-
-/*
- * The NSS N2H statistics sync structure.
- */
-struct nss_n2h_stats_sync {
+struct nss_ipv4_reasm_stats_sync {
 	struct nss_cmn_node_stats node_stats;
 					/* Common node stats for N2H */
-	uint32_t queue_dropped;		/* Number of packets dropped because the PE queue is too full */
-	uint32_t total_ticks;		/* Total clock ticks spend inside the PE */
-	uint32_t worst_case_ticks;	/* Worst case iteration of the PE in ticks */
-	uint32_t iterations;		/* Number of iterations around the PE */
-	uint32_t pbuf_alloc_fails;	/* Number of pbuf allocations that have failed */
-	uint32_t payload_alloc_fails;
+	uint32_t ipv4_reasm_evictions;
+	uint32_t ipv4_reasm_alloc_fails;
+	uint32_t ipv4_reasm_timeouts;
 };
 
 /*
- * Message structure to send/receive phys i/f commands
+ * IPv4 reasm message types
  */
-struct nss_n2h_msg {
-	struct nss_cmn_msg cm;			/* Message Header */
+enum nss_ipv4_reasm_message_types {
+	NSS_IPV4_REASM_STATS_SYNC_MSG,
+};
+
+/*
+ * IPv4 reassembly message structure
+ */
+struct nss_ipv4_reasm_msg {
+	struct nss_cmn_msg cm;
 	union {
-		struct nss_n2h_stats_sync stats_sync;	/* Message: N2H stats sync */
+		struct nss_ipv4_reasm_stats_sync stats_sync;
 	} msg;
 };
 
@@ -253,26 +189,6 @@ struct nss_generic_msg {
 };
 
 /*
- * NSS Profiler messages
- */
-
-/*
- * Profiler Tx command
- */
-struct nss_profiler_tx {
-	uint32_t len;		/* Valid information length */
-	uint8_t buf[1];		/* Buffer */
-};
-
-/*
- * Profiler sync
- */
-struct nss_profiler_sync {
-	uint32_t len;		/* Valid information length */
-	uint8_t buf[1];		/* Buffer */
-};
-
-/*
  * NSS frequency scaling messages
  */
 enum nss_freq_stats_metadata_types {
@@ -282,10 +198,19 @@ enum nss_freq_stats_metadata_types {
 	COREFREQ_METADATA_TYPE_TX_CORE_STATS = 3,
 };
 
+ /*
+ * Types of TX metadata -- legacy code needs to be removed
+ */
+enum nss_tx_metadata_types {
+	NSS_TX_METADATA_TYPE_LEGACY_0,
+	NSS_TX_METADATA_TYPE_NSS_FREQ_CHANGE,
+	NSS_TX_METADATA_TYPE_SHAPER_CONFIGURE,
+};
+
 /*
  * The NSS freq start or stop strcture
  */
-struct nss_freq_change {
+struct nss_freq_msg {
 	/* Request */
 	uint32_t frequency;
 	uint32_t start_or_end;
@@ -309,58 +234,109 @@ struct nss_core_stats {
 struct nss_corefreq_msg {
 	struct nss_cmn_msg cm;			/* Message Header */
 	union {
-		struct nss_freq_change nfc;	/* Message: freq stats */
+		struct nss_freq_msg nfc;	/* Message: freq stats */
 		struct nss_core_stats ncs;	/* Message: NSS stats sync */
 	} msg;
 };
 
 /*
- * Types of TX metadata.
+ * lso_rx_node statistics.
  */
-enum nss_tx_metadata_types {
-	NSS_TX_METADATA_TYPE_PROFILER_TX,
-	NSS_TX_METADATA_TYPE_NSS_FREQ_CHANGE,
-	NSS_TX_METADATA_TYPE_SHAPER_CONFIGURE,
+struct nss_lso_rx_stats_sync {
+	struct nss_cmn_node_stats node_stats;
+
+	uint32_t tx_dropped;				/* Number of packets dropped because lso_rx transmit queue is full */
+	uint32_t dropped;				/* Total of packets dropped by the node internally */
+	uint32_t pbuf_alloc_fail;			/* Count number of pbuf alloc fails */
+	uint32_t pbuf_reference_fail;			/* Count number of pbuf ref fails */
+
+	/*
+	 * If we're generating per-packet statistics then we count total lso_rx processing ticks
+	 * worst-case ticks and the number of iterations around the lso_rx handler that we take.
+	 */
+	uint32_t total_ticks;			/* Total clock ticks spend inside the lso_rx handler */
+	uint32_t worst_case_ticks;
+						/* Worst case iteration of the lso_rx handler in ticks */
+	uint32_t iterations;			/* Number of iterations around the lso_rx handler */
 };
 
 /*
- * Structure that describes all TX metadata objects.
+ * Message types for lso_rx
  */
-struct nss_tx_metadata_object {
-	enum nss_tx_metadata_types type;	/* Object type */
-	union {				/* Sub-message type */
-		struct nss_profiler_tx profiler_tx;
-		struct nss_freq_change freq_change;
-	} sub;
+enum nss_lso_rx_metadata_types {
+	NSS_LSO_RX_STATS_SYNC_MSG,			/* Message type - stats sync message */
 };
 
 /*
- * Structure that describes all TX metadata objects.
+ * Message structure to send receive LSO_RX commands
  */
-struct nss_tx_metadata_object1 {
-	enum nss_tx_metadata_types type;	/* Object type */
-	union {				/* Sub-message type */
-		struct nss_profiler_tx profiler_tx;
-		struct nss_freq_change freq_change;
-	} sub;
+struct nss_lso_rx_msg {
+	struct nss_cmn_msg cm;					/* Message header */
+	union {
+		struct nss_lso_rx_stats_sync stats_sync;	/* Stats sub-message */
+	} msg;
 };
 
 /*
- * Types of RX metadata.
+ * Dynamic interface messages
  */
-enum nss_rx_metadata_types {
-	NSS_RX_METADATA_TYPE_PROFILER_SYNC,
-	NSS_RX_METADATA_TYPE_SHAPER_RESPONSE,
+
+/*
+ * Dynamic Interface request/response types
+ */
+enum nss_dynamic_interface_message_types {
+	NSS_DYNAMIC_INTERFACE_ALLOC_NODE,	/* Alloc node message type */
+	NSS_DYNAMIC_INTERFACE_DEALLOC_NODE,	/* Dealloc node message type */
+	NSS_DYNAMIC_INTERFACE_MAX,
 };
 
 /*
- * Structure that describes all RX metadata objects.
+ * Dynamic interface alloc node msg
  */
-struct nss_rx_metadata_object {
-	enum nss_rx_metadata_types type;	/* Object type */
-	union {				/* Sub-message type */
-		struct nss_profiler_sync profiler_sync;
-	} sub;
+struct nss_dynamic_interface_alloc_node_msg {
+	enum nss_dynamic_interface_type type;	/* Dynamic Interface type */
+	/*
+	 * Response
+	 */
+	int if_num;				/* Interface number */
+};
+
+/*
+ * This structure is there to keep information
+ * pertaining to each if_num allocated through
+ * dynamic interface API
+ */
+struct nss_dynamic_interface_assigned {
+	enum nss_dynamic_interface_type type;
+};
+
+/*
+ * Private data structure of dynamic interface
+ */
+struct nss_dynamic_interface_pvt {
+	struct semaphore sem;			/* Semaphore structure */
+	struct completion complete;		/* completion structure */
+	int current_if_num;			/* Current interface number */
+	struct nss_dynamic_interface_assigned if_num[NSS_MAX_DYNAMIC_INTERFACES];
+};
+
+/*
+ * Dynamic interface dealloc node msg
+ */
+struct nss_dynamic_interface_dealloc_node_msg {
+	enum nss_dynamic_interface_type type;	/* Dynamic Interface type */
+	int if_num;				/* Interface number */
+};
+
+/*
+ * Message structure to send/receive Dynamic Interface messages
+ */
+struct nss_dynamic_interface_msg {
+	struct nss_cmn_msg cm;							/* Common Message */
+	union {
+		struct nss_dynamic_interface_alloc_node_msg alloc_node;		/* Msg: Allocate dynamic node */
+		struct nss_dynamic_interface_dealloc_node_msg dealloc_node;	/* Msg: deallocate dynamic node */
+	} msg;
 };
 
 /*
@@ -383,6 +359,8 @@ struct nss_rx_metadata_object {
 #define H2N_BIT_FLAG_FIRST_SEGMENT		0x0004
 #define H2N_BIT_FLAG_LAST_SEGMENT		0x0008
 
+#define H2N_BIT_FLAG_GEN_IP_TRANSPORT_CHECKSUM_NONE	0x0010
+
 #define H2N_BIT_FLAG_DISCARD			0x0080
 #define H2N_BIT_FLAG_SEGMENTATION_ENABLE	0x0100
 #define H2N_BIT_FLAG_SEGMENT_TSO		0x0200
@@ -391,7 +369,7 @@ struct nss_rx_metadata_object {
 
 #define H2N_BIT_FLAG_VIRTUAL_BUFFER		0x2000
 
-#define H2N_BIT_BUFFER_REUSE			0x8000
+#define H2N_BIT_FLAG_BUFFER_REUSE		0x8000
 
 /*
  * HLOS to NSS descriptor structure.

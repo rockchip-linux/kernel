@@ -76,45 +76,49 @@ struct nss_virt_if_msg {
 	} msg;
 };
 
-typedef void (*nss_virt_if_msg_callback_t)(void *app_data, struct nss_virt_if_msg *msg);
-
-/**
- * @brief Assign dynamic interface number to a virtual interface
- *
- * @param if_ctx Interface context
- *
- * @return int32_t Interface number
- */
-extern int32_t nss_virt_if_assign_if_num(struct net_device *if_ctx);
+typedef void (*nss_virt_if_data_callback_t)(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi);
+typedef void (*nss_virt_if_msg_callback_t)(void *app_data, struct nss_cmn_msg *msg);
 
 /**
  * @brief Send message to virtual interface
  *
+ * @param nss_ctx NSS context (provided during registration)
  * @param nvim Virtual interface message
  *
  * @return command Tx status
  */
-extern nss_tx_status_t nss_virt_if_tx_msg(struct nss_virt_if_msg *nvim);
-
-/**
- * @brief Forward Native wifi packet from virtual interface
- *    -Expects packet with qca-nwifi format
- * @param if_num Interface number (provided during
- *      	 registeration)
- * @param skb HLOS data buffer (sk_buff in Linux)
- * @return command Tx status
- */
-extern nss_tx_status_t nss_virt_if_tx_nwifi_rxbuf(int32_t if_num, struct sk_buff *skb);
+extern nss_tx_status_t nss_virt_if_tx_msg(struct nss_ctx_instance *nss_ctx, struct nss_virt_if_msg *nvim);
 
 /**
  * @brief Forward virtual interface packets
  *
- * @param if_num Interface number (provided during
- *      	 registeration)
+ * @param nss_ctx NSS context (provided during registration)
+ * @param if_num Interface number (provided during dynamic interface allocation)
  * @param skb HLOS data buffer (sk_buff in Linux)
  *
  * @return command Tx status
  */
-extern nss_tx_status_t nss_virt_if_tx_eth_rxbuf(int32_t if_num, struct sk_buff *skb);
+extern nss_tx_status_t nss_virt_if_tx_rxbuf(struct nss_ctx_instance *nss_ctx, int32_t if_num, struct sk_buff *skb);
 
+
+/**
+ * @brief Register Virtual Interface with NSS driver
+ *
+ * @param if_num Interface number (provied during dynamic_interface allocation)
+ * @param data_callback Callback handler for virtual data packets
+ * @param msg_callback Callback handler for virtual interface messages
+ * @param if_ctx netdevice structure of virtual interface
+ *
+ * @return command Tx status
+ */
+extern struct nss_ctx_instance *nss_virt_if_register(uint32_t if_num, nss_virt_if_data_callback_t data_callback,
+							nss_virt_if_msg_callback_t msg_callback, struct net_device *if_ctx);
+
+
+/**
+ * @brief Unregister virtual interface from NSS driver
+ *
+ * @param if_num Interface number (provied during dynamic_interface allocation)
+ */
+void nss_virt_if_unregister(uint32_t if_num);
 #endif /* __NSS_VIRT_IF_H */

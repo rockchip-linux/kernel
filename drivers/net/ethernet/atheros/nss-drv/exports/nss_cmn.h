@@ -143,6 +143,15 @@ extern void nss_cmn_msg_init(struct nss_cmn_msg *ncm, uint16_t if_num, uint32_t 
 extern int32_t nss_cmn_get_interface_number(struct nss_ctx_instance *nss_ctx, struct net_device *dev);
 
 /**
+ * @brief Obtain interface number
+ *
+ * @param dev OS network device pointer
+ *
+ * @return int32_t Interface number, < 0 on failure.
+ */
+extern int32_t nss_cmn_get_interface_number_by_dev(struct net_device *dev);
+
+/**
  * @brief Determine if the interface number is a represented as a virtual interface in the NSS
  *
  * @param nss_ctx NSS context

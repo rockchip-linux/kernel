@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -44,8 +44,15 @@
 #include "nss_ipv6.h"
 #include "nss_shaper.h"
 #include "nss_if.h"
-#include "nss_phys_if.h"
 #include "nss_virt_if.h"
+#include "nss_pppoe.h"
+#include "nss_crypto.h"
+#include "nss_profiler.h"
+#include "nss_dynamic_interface.h"
+#include "nss_gre_redir.h"
+#include "nss_sjack.h"
+#include "nss_capwap.h"
+#include "nss_n2h.h"
 
 /*
  * Interface numbers are reserved in the
@@ -53,19 +60,28 @@
  * 	Physical
  * 	Virtual
  *	Tunnel
+ *	Dynamic
  *	Special
  *
  * Interfaces starting from 'Special' do
  * not have statistics associated with them.
+ * This is just an intermediate number for dynamic interfaces.
+ * once all virtual and tunnel interfaces are converted to
+ * dynamic interfaces, they will be added to dynamic interfaces.
  */
 
 /*
  * Maximum Number of interfaces
  */
+#define NSS_MAX_CORES 2
+#define NSS_MAX_DEVICE_INTERFACES (NSS_MAX_PHYSICAL_INTERFACES + NSS_MAX_VIRTUAL_INTERFACES + NSS_MAX_TUNNEL_INTERFACES + NSS_MAX_DYNAMIC_INTERFACES)
+#define NSS_MAX_NET_INTERFACES (NSS_MAX_DEVICE_INTERFACES + NSS_MAX_SPECIAL_INTERFACES)
+
 #define NSS_MAX_PHYSICAL_INTERFACES 4
 #define NSS_MAX_VIRTUAL_INTERFACES 16
-#define NSS_MAX_TUNNEL_INTERFACES 12
-#define NSS_MAX_SPECIAL_INTERFACES 24
+#define NSS_MAX_TUNNEL_INTERFACES 4
+#define NSS_MAX_SPECIAL_INTERFACES 26
+#define NSS_MAX_DYNAMIC_INTERFACES 32
 
 /**
  * Start of individual interface groups
@@ -73,7 +89,8 @@
 #define NSS_PHYSICAL_IF_START 0
 #define NSS_VIRTUAL_IF_START (NSS_PHYSICAL_IF_START + NSS_MAX_PHYSICAL_INTERFACES)
 #define NSS_TUNNEL_IF_START (NSS_VIRTUAL_IF_START + NSS_MAX_VIRTUAL_INTERFACES)
-#define NSS_SPECIAL_IF_START (NSS_TUNNEL_IF_START + NSS_MAX_TUNNEL_INTERFACES)
+#define NSS_DYNAMIC_IF_START (NSS_TUNNEL_IF_START + NSS_MAX_TUNNEL_INTERFACES)
+#define NSS_SPECIAL_IF_START (NSS_DYNAMIC_IF_START + NSS_MAX_DYNAMIC_INTERFACES)
 
 /**
  * Tunnel interface numbers
@@ -91,11 +108,19 @@
 #define NSS_PPPOE_RX_INTERFACE (NSS_SPECIAL_IF_START + 3) /* Special IF for PPPoE sessions */
 #define NSS_IPV4_RX_INTERFACE (NSS_SPECIAL_IF_START + 5) /* Special IF number for IPv4 */
 #define NSS_IPV6_RX_INTERFACE (NSS_SPECIAL_IF_START + 7) /* Special IF number for IPv6 */
+#define NSS_PROFILER_INTERFACE (NSS_SPECIAL_IF_START + 8) /* Special IF number for profile */
 #define NSS_CRYPTO_INTERFACE (NSS_SPECIAL_IF_START + 9) /* Special IF number for Crypto */
 #define NSS_LAG0_INTERFACE_NUM (NSS_SPECIAL_IF_START + 10) /* Special IF number for LAG0 */
 #define NSS_LAG1_INTERFACE_NUM (NSS_SPECIAL_IF_START + 11) /* Special IF number for LAG1 */
 #define NSS_C2C_TX_INTERFACE (NSS_SPECIAL_IF_START + 12) /* Virtual Interface Number for IPSec Tunnel */
+#define NSS_IPSEC_RULE_INTERFACE (NSS_SPECIAL_IF_START + 18) /* Virtual Interface Number for IPSec rule */
 #define NSS_COREFREQ_INTERFACE (NSS_SPECIAL_IF_START + 19) /* Virtual Interface Number for Corefreq */
+#define NSS_DYNAMIC_INTERFACE (NSS_SPECIAL_IF_START + 20) /* Special Interface Number for Dynamic Interfaces */
+#define NSS_GRE_REDIR_INTERFACE (NSS_SPECIAL_IF_START + 21) /* Interface Number for GRE REDIR base interface */
+#define NSS_LSO_RX_INTERFACE (NSS_SPECIAL_IF_START + 22) /* Interface number for lso */
+#define NSS_SJACK_INTERFACE (NSS_SPECIAL_IF_START + 23) /* Interface Number for GRE REDIR base interface */
+#define NSS_IPV4_REASM_INTERFACE (NSS_SPECIAL_IF_START + 24) /* Special IF number for IPv4 */
+#define NSS_DEBUG_INTERFACE (NSS_SPECIAL_IF_START + 25) /* Special IF number for debug interface */
 
 /**
  * This macro converts format for IPv6 address (from Linux to NSS)
@@ -129,9 +154,15 @@
  */
 #define IPV6_ADDR_TO_OCTAL(ipv6) ((uint16_t *)ipv6)[0], ((uint16_t *)ipv6)[1], ((uint16_t *)ipv6)[2], ((uint16_t *)ipv6)[3], ((uint16_t *)ipv6)[4], ((uint16_t *)ipv6)[5], ((uint16_t *)ipv6)[6], ((uint16_t *)ipv6)[7]
 
-#define NSS_ETH_NORMAL_FRAME_MTU 1500
-#define NSS_ETH_MINI_JUMBO_FRAME_MTU 1978
-#define NSS_ETH_FULL_JUMBO_FRAME_MTU 9600
+/*
+ * VLAN C-TAG TPID
+ */
+#define VLAN_CTAG_TPID 0x8100
+
+/*
+ * Number of ingress/egress VLANS suppored in a connection entry
+ */
+#define MAX_VLAN_DEPTH 2
 
 /*
  * @brief NSS PM Clients
@@ -217,7 +248,9 @@ struct nss_ipv4_create {
 	uint32_t param_a2;		/**< Custom extra parameter 2 */
 	uint32_t param_a3;		/**< Custom extra parameter 3 */
 	uint32_t param_a4;		/**< Custom extra parameter 4 */
-	uint32_t qos_tag;		/**< QoS tag value */
+	uint32_t qos_tag;		/**< Deprecated, will be removed soon */
+	uint32_t flow_qos_tag;		/**< QoS tag value for flow direction */
+	uint32_t return_qos_tag;	/**< QoS tag value for return direction */
 	uint8_t dscp_itag;		/**< DSCP marking tag */
 	uint8_t dscp_imask;		/**< DSCP marking input mask */
 	uint8_t dscp_omask;		/**< DSCP marking output mask */
@@ -226,6 +259,10 @@ struct nss_ipv4_create {
 	uint16_t vlan_imask;		/**< VLAN marking input mask */
 	uint16_t vlan_omask;		/**< VLAN marking output mask */
 	uint16_t vlan_oval;		/**< VLAN marking output val */
+	uint32_t in_vlan_tag[MAX_VLAN_DEPTH];	/**< Ingress VLAN tag expected for this flow */
+	uint32_t out_vlan_tag[MAX_VLAN_DEPTH];	/**< Egress VLAN tag expected for this flow */
+	uint8_t flow_dscp;		/**< IP DSCP value for flow direction */
+	uint8_t return_dscp;		/**< IP DSCP value for return direction */
 };
 
 /**
@@ -308,7 +345,9 @@ struct nss_ipv6_create {
 	uint16_t return_pppoe_session_id;		/**< PPPoE session associated with return */
 	uint8_t return_pppoe_remote_mac[ETH_ALEN];	/**< Remote PPPoE peer MAC address for return */
 	uint16_t egress_vlan_tag;	/**< Egress VLAN tag expected for this flow */
-	uint32_t qos_tag;		/**< QoS tag value */
+	uint32_t qos_tag;		/**< Deprecated, will be removed soon */
+	uint32_t flow_qos_tag;		/**< QoS tag value for flow direction */
+	uint32_t return_qos_tag;	/**< QoS tag value for return direction */
 	uint8_t dscp_itag;		/**< DSCP marking tag */
 	uint8_t dscp_imask;		/**< DSCP marking input mask */
 	uint8_t dscp_omask;		/**< DSCP marking output mask */
@@ -317,6 +356,10 @@ struct nss_ipv6_create {
 	uint16_t vlan_imask;		/**< VLAN marking input mask */
 	uint16_t vlan_omask;		/**< VLAN marking output mask */
 	uint16_t vlan_oval;		/**< VLAN marking output val */
+	uint32_t in_vlan_tag[MAX_VLAN_DEPTH];	/**< Ingress VLAN tag expected for this flow */
+	uint32_t out_vlan_tag[MAX_VLAN_DEPTH];	/**< Egress VLAN tag expected for this flow */
+	uint8_t flow_dscp;		/**< IP DSCP value for flow direction */
+	uint8_t return_dscp;		/**< IP DSCP value for return direction */
 };
 
 /**
@@ -332,7 +375,6 @@ struct nss_ipv6_create {
 					/** Rule for VLAN marking */
 #define NSS_IPV6_CREATE_FLAG_VLAN_MARKING 0x10
 					/** Rule for VLAN marking */
-
 
 /**
  * Structure to be used while sending an IPv6 flow/connection destroy rule.
@@ -388,7 +430,7 @@ struct nss_ipv4_sync {
 	uint32_t param_a4;		/**< Custom extra parameter 4 */
 
 	uint8_t flags;			/**< Flags */
-	uint32_t qos_tag;		/**< Qos Tag */
+	uint32_t qos_tag;		/**< QoS Tag */
 };
 
 /**
@@ -426,7 +468,7 @@ struct nss_ipv4_establish {
 					/**< Return direction's PPPoE Server MAC address */
 	uint16_t egress_vlan_tag;	/**< Egress VLAN tag */
 	uint8_t flags;			/**< Flags */
-	uint32_t qos_tag;		/**< Qos Tag */
+	uint32_t qos_tag;		/**< QoS Tag */
 };
 
 /**
@@ -437,6 +479,8 @@ enum nss_ipv4_cb_reason {
 	NSS_IPV4_CB_REASON_ESTABLISH = 0,
 					/**< Reason is rule establish */
 	NSS_IPV4_CB_REASON_SYNC,	/**< Reason is rule sync */
+	NSS_IPV4_CB_REASON_ESTABLISH_FAIL,
+					/**< Reason is rule establish failes */
 };
 
 /**
@@ -487,7 +531,7 @@ struct nss_ipv6_sync {
 	uint8_t evicted;		/**< Non-zero if connection evicted */
 
 	uint8_t flags;			/**< Flags */
-	uint32_t qos_tag;		/**< Qos Tag */
+	uint32_t qos_tag;		/**< QoS Tag */
 };
 
 /**
@@ -518,7 +562,7 @@ struct nss_ipv6_establish {
 					/**< Return direction's PPPoE Server MAC address */
 	uint16_t egress_vlan_tag;	/**< Egress VLAN tag */
 	uint8_t flags;			/**< Flags */
-	uint32_t qos_tag;		/**< Qos Tag */
+	uint32_t qos_tag;		/**< QoS Tag */
 };
 
 /**
@@ -529,6 +573,8 @@ enum nss_ipv6_cb_reason {
 	NSS_IPV6_CB_REASON_ESTABLISH = 0,
 					/**< Reason is rule establish */
 	NSS_IPV6_CB_REASON_SYNC,	/**< Reason is rule sync */
+	NSS_IPV6_CB_REASON_ESTABLISH_FAIL,
+					/**< Reason is rule establish failes */
 };
 
 /**
@@ -545,60 +591,6 @@ struct nss_ipv6_cb_params {
 	} params;
 };
 
-/*
- * struct nss_gmac_sync
- * The NA per-GMAC statistics sync structure.
- */
-struct nss_gmac_sync {
-	int32_t interface;		/**< Interface number */
-	uint32_t rx_bytes;		/**< Number of RX bytes */
-	uint32_t rx_packets;		/**< Number of RX packets */
-	uint32_t rx_errors;		/**< Number of RX errors */
-	uint32_t rx_receive_errors;	/**< Number of RX receive errors */
-	uint32_t rx_overflow_errors;	/**< Number of RX overflow errors */
-	uint32_t rx_descriptor_errors;	/**< Number of RX descriptor errors */
-	uint32_t rx_watchdog_timeout_errors;
-					/**< Number of RX watchdog timeout errors */
-	uint32_t rx_crc_errors;		/**< Number of RX CRC errors */
-	uint32_t rx_late_collision_errors;
-					/**< Number of RX late collision errors */
-	uint32_t rx_dribble_bit_errors;	/**< Number of RX dribble bit errors */
-	uint32_t rx_length_errors;	/**< Number of RX length errors */
-	uint32_t rx_ip_header_errors;	/**< Number of RX IP header errors */
-	uint32_t rx_ip_payload_errors;	/**< Number of RX IP payload errors */
-	uint32_t rx_no_buffer_errors;	/**< Number of RX no-buffer errors */
-	uint32_t rx_transport_csum_bypassed;
-					/**< Number of RX packets where the transport checksum was bypassed */
-	uint32_t tx_bytes;		/**< Number of TX bytes */
-	uint32_t tx_packets;		/**< Number of TX packets */
-	uint32_t tx_collisions;		/**< Number of TX collisions */
-	uint32_t tx_errors;		/**< Number of TX errors */
-	uint32_t tx_jabber_timeout_errors;
-					/**< Number of TX jabber timeout errors */
-	uint32_t tx_frame_flushed_errors;
-					/**< Number of TX frame flushed errors */
-	uint32_t tx_loss_of_carrier_errors;
-					/**< Number of TX loss of carrier errors */
-	uint32_t tx_no_carrier_errors;	/**< Number of TX no carrier errors */
-	uint32_t tx_late_collision_errors;
-					/**< Number of TX late collision errors */
-	uint32_t tx_excessive_collision_errors;
-					/**< Number of TX excessive collision errors */
-	uint32_t tx_excessive_deferral_errors;
-					/**< Number of TX excessive deferral errors */
-	uint32_t tx_underflow_errors;	/**< Number of TX underflow errors */
-	uint32_t tx_ip_header_errors;	/**< Number of TX IP header errors */
-	uint32_t tx_ip_payload_errors;	/**< Number of TX IP payload errors */
-	uint32_t tx_dropped;		/**< Number of TX dropped packets */
-	uint32_t hw_errs[10];		/**< GMAC DMA error counters */
-	uint32_t rx_missed;		/**< Number of RX packets missed by the DMA */
-	uint32_t fifo_overflows;	/**< Number of RX FIFO overflows signalled by the DMA */
-	uint32_t rx_scatter_errors;	/**< Number of scattered frames received by the DMA */
-	uint32_t gmac_total_ticks;	/**< Total clock ticks spend inside the GMAC */
-	uint32_t gmac_worst_case_ticks;	/**< Worst case iteration of the GMAC in ticks */
-	uint32_t gmac_iterations;	/**< Number of iterations around the GMAC */
-};
-
 /**
  * PM Client interface status
  */
@@ -608,17 +600,13 @@ typedef enum {
 } nss_pm_interface_status_t;
 
 /**
- * NSS GMAC event type
- */
-typedef enum {
-	NSS_GMAC_EVENT_STATS,
-	NSS_GMAC_EVENT_OTHER,
-	NSS_GMAC_EVENT_MAX
-} nss_gmac_event_t;
-
-/**
  * General utilities
  */
+
+/*
+ * General callback function for all interface messages.
+ */
+typedef void (*nss_if_rx_msg_callback_t)(void *app_data, struct nss_cmn_msg *msg);
 
 /**
  * Methods provided by NSS device driver for use by connection tracking logic for IPv4.
@@ -630,292 +618,47 @@ typedef enum {
 typedef void (*nss_ipv4_callback_t)(struct nss_ipv4_cb_params *nicb);
 
 /**
- * @brief API to get NSS context for IPv4 Connection manager
- *
- */
-extern void *nss_get_ipv4_mgr_ctx(void);
-
-/**
  * @brief Get handle to sending/receiving Frequency messages
  *
  * @return void* NSS context to be provided with every message
  */
-extern void *nss_get_frequency_mgr(void);
-
-/**
- * @brief Send IPv4 connection setup rule
- *
- * @param nss_ctx NSS context
- * @param unic Rule parameters
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_create_ipv4_rule(void *nss_ctx, struct nss_ipv4_create *unic);
-
-/**
- * @brief Send extended IPv4 connection setup rule
- *
- * @param nss_ctx NSS context
- * @param unic Rule parameters
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_create_ipv4_rule1(void *nss_ctx, struct nss_ipv4_create *unic);
-
-
-/**
- * @brief Send IPv4 connection destroy rule
- *
- * @param nss_ctx NSS context
- * @param unid Rule parameters
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_destroy_ipv4_rule(void *nss_ctx, struct nss_ipv4_destroy *unid);
-
-/**
- * Methods provided by NSS device driver for use by connection tracking logic for IPv6.
- */
-
-/**
- * Callback for IPv6 sync messages
- */
-typedef void (*nss_ipv6_callback_t)(struct nss_ipv6_cb_params *nicb);
-
-/**
- * @brief Register for sending/receiving IPv6 messages
- *
- * @param event_callback Callback
- *
- * @return void* NSS context to be provided with every message
- */
-extern void *nss_register_ipv6_mgr(nss_ipv6_callback_t event_callback);
-
-/**
- * @brief Unregister for sending/receiving IPv4 messages
- */
-extern void nss_unregister_ipv6_mgr(void);
-
-/**
- * @brief Send IPv6 connection setup rule
- *
- * @param nss_ctx NSS context
- * @param unic Rule parameters
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_create_ipv6_rule(void *nss_ctx, struct nss_ipv6_create *unic);
-
-/**
- * @brief Send extended IPv6 connection setup rule
- *
- * @param nss_ctx NSS context
- * @param unic Rule parameters
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_create_ipv6_rule1(void *nss_ctx, struct nss_ipv6_create *unic);
-
-
-/**
- * @brief Send IPv6 connection destroy rule
- *
- * @param nss_ctx NSS context
- * @param unid Rule parameters
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_destroy_ipv6_rule(void *nss_ctx, struct nss_ipv6_destroy *unid);
-
-/**
- * Methods provided by NSS device driver for use by crypto driver
- */
-
-/**
- * Callback to receive crypto buffers
- */
-typedef void (*nss_crypto_data_callback_t)(void *ctx, void *buf, uint32_t buf_paddr, uint16_t len);
-
-/**
- * Callback to receive crypto sync messages
- */
-typedef void (*nss_crypto_sync_callback_t)(void *ctx, void *buf, uint32_t len);
-
-/**
- * @brief Register for sending/receiving crypto buffers
- *
- * @param crypto_data_callback data callback
- * @param crypto_sync_callback sync callback
- * @param ctx Crypto context
- *
- * @return void* NSS context to be provided with every message
- */
-extern void *nss_register_crypto_if(nss_crypto_data_callback_t crypto_data_callback, void *ctx);
-
-/**
- * @brief Register for sending/receiving crypto sync messages
- *
- * @param crypto_data_callback data callback
- * @param crypto_sync_callback sync callback
- * @param ctx Crypto context
- *
- */
-extern void nss_register_crypto_sync_if(nss_crypto_sync_callback_t crypto_sync_callback, void *ctx);
-
-/**
- * @brief Unregister for sending/receiving crypto buffers
- */
-extern void nss_unregister_crypto_if(void);
-
-/**
- * @brief Configure crypto interface
- *
- * @param ctx NSS context
- * @param buf Buffer to send to NSS
- * @param len Length of buffer
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_crypto_if_open(void *ctx, uint8_t *buf, uint32_t len);
-
-/**
- * @brief Send crypto buffer to NSS
- *
- * @param nss_ctx NSS context
- * @param buf Crypto buffer
- * @param buf_paddr Physical address of buffer
- * @param len Length of buffer
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_crypto_if_buf(void *nss_ctx, void *buf, uint32_t buf_paddr, uint16_t len);
-
-/**
- * Methods provided by NSS device driver for use by GMAC driver
- */
-
-/**
- * Callback to receive GMAC events
- * TODO: This callback is deprecated in the new APIs.
- */
-typedef void (*nss_phys_if_event_callback_t)(void *if_ctx, nss_gmac_event_t ev_type, void *buf, uint32_t len);
-
-/**
- * Callback to receive GMAC packets
- */
-typedef void (*nss_phys_if_rx_callback_t)(void *if_ctx, void *os_buf);
-
-/**
- * @brief Register to send/receive GMAC packets/messages
- *
- * @param if_num GMAC i/f number
- * @param rx_callback Receive callback for packets
- * @param event_callback Receive callback for events
- * @param if_ctx Interface context provided in callback
- *		(must be OS network device context pointer e.g.
- *		struct net_device * in Linux)
- *
- * @return void* NSS context
- */
-extern void *nss_register_phys_if(uint32_t if_num, nss_phys_if_rx_callback_t rx_callback,
-					nss_phys_if_event_callback_t event_callback, struct net_device *if_ctx);
-
-/**
- * @brief Unregister GMAC handlers with NSS driver
- *
- * @param if_num GMAC Interface number
- */
-extern void nss_unregister_phys_if(uint32_t if_num);
-
-/**
- * @brief Send GMAC packet
- *
- * @param nss_ctx NSS context
- * @param os_buf OS buffer (e.g. skbuff)
- * @param if_num GMAC i/f number
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_buf(void *nss_ctx, struct sk_buff *os_buf, uint32_t if_num);
-
-/**
- * @brief Open GMAC interface on NSS
- *
- * @param nss_ctx NSS context
- * @param tx_desc_ring Tx descriptor ring address
- * @param rx_desc_ring Rx descriptor ring address
- * @param if_num GMAC i/f number
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_open(void *nss_ctx, uint32_t tx_desc_ring, uint32_t rx_desc_ring, uint32_t if_num);
-
-/**
- * @brief Close GMAC interface on NSS
- *
- * @param nss_ctx NSS context
- * @param if_num GMAC i/f number
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_close(void *nss_ctx, uint32_t if_num);
-
-/**
- * @brief Send link state message to NSS
- *
- * @param nss_ctx NSS context
- * @param link_state Link state
- * @param if_num GMAC i/f number
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_link_state(void *nss_ctx, uint32_t link_state, uint32_t if_num);
-
-/**
- * @brief Send MAC address to NSS
- *
- * @param nss_ctx NSS context
- * @param addr MAC address pointer
- * @param if_num GMAC i/f number
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_mac_addr(void *nss_ctx, uint8_t *addr, uint32_t if_num);
-
-/**
- * @brief Send MTU change notification to NSS
- *
- * @param nss_ctx NSS context
- * @param mtu MTU
- * @param if_num GMAC i/f number
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_change_mtu(void *nss_ctx, uint32_t mtu, uint32_t if_num);
-
-/**
- * @brief Get NAPI context
- *
- * @param nss_ctx NSS context
- * @param napi_ctx Pointer to address to return NAPI context
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_phys_if_get_napi_ctx(void *nss_ctx, struct napi_struct **napi_ctx);
-
+extern void *nss_freq_get_mgr(void);
 /**
  * Methods provided by NSS driver for use by virtual interfaces (VAPs)
  */
 
 /**
+ * Callback to receive virtual packets
+ */
+typedef void (*nss_virt_if_rx_callback_t)(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi);
+
+/**
+ * @brief Register to send/receive virtual packets/messages
+ *
+ * @param ctx Context provided by NSS driver during creation
+ * @param rx_callback Receive callback for packets
+ * @param netdev netdevice associated with this interface.
+ *
+ * @return struct napi_struct * NSS NAPI context
+ */
+extern void *nss_register_virt_if(void *ctx, nss_virt_if_rx_callback_t rx_callback,
+					struct net_device *netdev);
+
+/**
+ * @brief Unregister virtual handlers with NSS driver
+ *
+ * @param ctx Context provided by NSS driver during creation
+ */
+extern void nss_unregister_virt_if(void *ctx);
+
+/**
  * @brief Create virtual interface (VAPs)
  *
- * @param if_ctx Interface context
- *		(struct net_device * in Linux)
+ * @param netdev netdevice associated with this interface.
  *
  * @return void* context
  */
-extern void *nss_create_virt_if(struct net_device *if_ctx);
+extern void *nss_create_virt_if(struct net_device *netdev);
 
 /**
  * @brief Obtain NSS Interface number for a virtual interface context
@@ -954,125 +697,6 @@ extern nss_tx_status_t nss_tx_virt_if_rx_nwifibuf(void *nss_ctx, struct sk_buff 
  */
 extern nss_tx_status_t nss_tx_virt_if_rxbuf(void *nss_ctx, struct sk_buff *os_buf);
 
-/**
- * Methods provided by NSS driver for use by IPsec stack
- */
-
-/**
- * Callback to receive IPsec events
- */
-typedef void (*nss_ipsec_event_callback_t)(void *if_ctx, uint32_t if_num, void *buf, uint32_t len);
-
-/**
- * Callback to receive ipsec data message
- */
-typedef void (*nss_ipsec_data_callback_t)(void *ctx, void *os_buf);
-
-/**
- * @brief Register to send/receive IPsec data to NSS
- *
- * @param ipsec interface number if_num
- * @param ipsec_data callback ipsec_data_cb
- * @param ctx IPsec context
- *
- * @return void* NSS context
- */
-extern void *nss_register_ipsec_if(uint32_t if_num, nss_ipsec_data_callback_t ipsec_data_cb, void *ctx);
-
-/**
- * @brief Register to send/receive IPsec events to NSS
- *
- * @param ipsec interface number if_num
- * @param ipsec_data callback ipsec_data_cb
- *
- */
-extern void nss_register_ipsec_event_if(uint32_t if_num, nss_ipsec_event_callback_t ipsec_event_cb);
-
-/**
- * @brief Unregister IPsec interface with NSS
- */
-extern void nss_unregister_ipsec_if(uint32_t if_num);
-
-/**
- * @brief Send rule creation message for IPsec Tx node
- *
- * @param nss_ctx NSS context
- * @param interface_num interface number for Ipsec tunnel
- * @param type IPsec rule type
- * @param buf Rule buffer that needs to be sent to NSS
- * @param len Length of valid data in buffer
- *
- * @return nss_tx_status_t Tx status
- */
-extern nss_tx_status_t nss_tx_ipsec_rule(void *nss_ctx, uint32_t interface_num, uint32_t type, uint8_t *buf, uint32_t len);
-
-/**
- * Methods provided by NSS driver for use by NSS Profiler
- */
-
-/**
- * Callback to receive profiler messages
- *
- * @note Memory pointed by buf is owned by caller (i.e. NSS driver)
- *	NSS driver does not interpret "buf". It is up to profiler to make sense of it.
- */
-typedef void (*nss_profiler_callback_t)(void *ctx, uint8_t *buf, uint16_t len);
-
-/**
- * @brief Register to send/receive profiler messages
- *
- * @param profiler_callback Profiler callback
- * @param core_id NSS core id
- * @param ctx Profiler context
- *
- * @return void* NSS context
- *
- * @note Caller must provide valid core_id that is being profiled. This function must be called once for each core.
- *	Context (ctx) will be provided back to caller in the registered callback function
- */
-extern void *nss_register_profiler_if(nss_profiler_callback_t profiler_callback, nss_core_id_t core_id, void *ctx);
-
-/**
- * @brief Unregister profiler interface
- *
- * @param core_id NSS core id
- *
- */
-extern void nss_unregister_profiler_if(nss_core_id_t core_id);
-
-/**
- * @brief Send profiler command to NSS
- *
- * @param nss_ctx NSS context
- * @param buf Buffer to send to NSS
- * @param len Length of buffer
- *
- * @return nss_tx_status_t Tx status
- *
- * @note Valid context must be provided (for the right core).
- *	This context was returned during registration.
- */
-extern nss_tx_status_t nss_tx_profiler_if_buf(void *nss_ctx, uint8_t *buf, uint32_t len);
-
-/**
- * @brief Send generic interface based command to NSS
- *
- * @param nss_ctx NSS context
- * @param if_num NSS interface to deliver this message
- * @param buf Buffer to send to NSS
- * @param len Length of buffer
- *
- * @return nss_tx_status_t Tx status
- *
- * @note Valid context must be provided (for the right core).
- *	This context was returned during registration.
- */
-extern nss_tx_status_t nss_tx_generic_if_buf(void *nss_ctx, uint32_t if_num, uint8_t *buf, uint32_t len);
-
-/**
- * Methods provided by NSS driver for use by 6rd tunnel
- */
-
 /*
  * @brief NSS Frequency Change
  * @ param ctx NSS context
@@ -1082,8 +706,7 @@ extern nss_tx_status_t nss_tx_generic_if_buf(void *nss_ctx, uint32_t if_num, uin
  *
  * @return nss_tx_status_t Tx Status
  */
-nss_tx_status_t nss_freq_change(void *ctx, uint32_t eng, uint32_t stats_enable, uint32_t start_or_end);
-
+nss_tx_status_t nss_freq_change(struct nss_ctx_instance *nss_ctx, uint32_t eng, uint32_t stats_enable, uint32_t start_or_end);
 /**
  * @brief Register PM Driver Client
  *
@@ -1109,20 +732,6 @@ int nss_pm_client_unregister(nss_pm_client_t client_id);
  * @param lvl - Perf Level
  */
 extern nss_pm_interface_status_t nss_pm_set_perf_level(void *handle, nss_pm_perf_level_t lvl);
-
-/**
- * @brief Register for sending/receiving IPv4 messages
- *
- * @param event_callback Event callback
- *
- * @return void* NSS context to be provided with every message
- */
-extern void *nss_register_ipv4_mgr(nss_ipv4_callback_t event_callback);
-
-/**
- * @brief Unregister for sending/receiving IPv4 messages
- */
-extern void nss_unregister_ipv4_mgr(void);
 
 /**
  * @brief Get NSS state

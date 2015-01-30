@@ -27,6 +27,8 @@
 #include <linux/platform_device.h>
 
 #define NSS_HAL_SUPPORTED_INTERRUPTS (NSS_REGS_N2H_INTR_STATUS_DATA_COMMAND_QUEUE | \
+					NSS_REGS_N2H_INTR_STATUS_EMPTY_BUFFER_QUEUE|  \
+					NSS_REGS_N2H_INTR_STATUS_DATA_QUEUE_1 | \
 					NSS_REGS_N2H_INTR_STATUS_EMPTY_BUFFERS_SOS)
 
 /*
@@ -70,9 +72,15 @@ static inline void __nss_hal_send_interrupt(uint32_t map, uint32_t irq __attribu
 	nss_write_32(map, NSS_REGS_C2C_INTR_SET_OFFSET, cause);
 }
 
-extern void __nss_hal_core_reset(uint32_t map_base, uint32_t reset_addr);
-#if (NSS_DT_SUPPORT != 1)
+#if (NSS_DT_SUPPORT == 1)
+extern void __nss_hal_core_reset(uint32_t map, uint32_t reset);
+#else
+extern void __nss_hal_core_reset(uint32_t core_id, uint32_t map, uint32_t addr, uint32_t clk_src);
 extern void __nss_hal_common_reset(uint32_t *clk_src);
+extern uint32_t nss_hal_pvt_divide_pll18(uint32_t core_id, uint32_t divider);
+extern void nss_hal_pvt_pll_change(uint32_t pll);
+extern uint32_t nss_hal_pvt_enable_pll18(uint32_t speed);
+extern void nss_hal_pvt_register_dump(void);
 #endif
 extern void __nss_hal_debug_enable(void);
 #endif /* __NSS_HAL_PVT_H */

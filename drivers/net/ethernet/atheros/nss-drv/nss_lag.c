@@ -70,16 +70,26 @@ EXPORT_SYMBOL(nss_lag_tx);
 /**
  * nss_register_lag_if()
  */
-void nss_register_lag_if(uint32_t if_num,
+void *nss_register_lag_if(uint32_t if_num,
 			 nss_lag_callback_t lag_cb,
 			 nss_lag_event_callback_t lag_ev_cb,
 			 struct net_device *netdev)
 {
+	uint32_t features = 0;
+
 	nss_assert((if_num == NSS_LAG0_INTERFACE_NUM) || (if_num == NSS_LAG1_INTERFACE_NUM));
 
-	nss_top_main.if_ctx[if_num] = netdev;
-	nss_top_main.if_rx_callback[if_num] = lag_cb;
+	nss_top_main.subsys_dp_register[if_num].ndev = netdev;
+	nss_top_main.subsys_dp_register[if_num].cb = lag_cb;
+	nss_top_main.subsys_dp_register[if_num].app_data = NULL;
+	nss_top_main.subsys_dp_register[if_num].features = features;
+
 	nss_top_main.lag_event_callback = lag_ev_cb;
+
+	/*
+	 * Return the NSS driver context for LAG (same as for ipv4 functions)
+	 */
+	return (void *)&nss_top_main.nss[nss_top_main.ipv4_handler_id];
 }
 EXPORT_SYMBOL(nss_register_lag_if);
 
@@ -91,8 +101,11 @@ void nss_unregister_lag_if(uint32_t if_num)
 {
 	nss_assert((if_num == NSS_LAG0_INTERFACE_NUM) || (if_num == NSS_LAG1_INTERFACE_NUM));
 
-	nss_top_main.if_rx_callback[if_num] = NULL;
-	nss_top_main.if_ctx[if_num] = NULL;
+	nss_top_main.subsys_dp_register[if_num].cb = NULL;
+	nss_top_main.subsys_dp_register[if_num].ndev = NULL;
+	nss_top_main.subsys_dp_register[if_num].app_data = NULL;
+	nss_top_main.subsys_dp_register[if_num].features = 0;
+
 	nss_top_main.lag_event_callback = NULL;
 }
 EXPORT_SYMBOL(nss_unregister_lag_if);
@@ -146,7 +159,7 @@ void nss_lag_handler(struct nss_ctx_instance *nss_ctx,
 	 * callback
 	 */
 	cb = (nss_lag_event_callback_t)ncm->cb;
-	ctx = nss_ctx->nss_top->if_ctx[ncm->interface];
+	ctx = nss_ctx->nss_top->subsys_dp_register[ncm->interface].ndev;
 
 	cb(ctx, lm);
 }
@@ -161,3 +174,13 @@ void nss_lag_register_handler(void)
 	nss_core_register_handler(NSS_LAG1_INTERFACE_NUM, nss_lag_handler, NULL);
 }
 
+/**
+ * nss_lag_msg_init()
+ *	Initialize lag message
+ */
+void nss_lag_msg_init(struct nss_lag_msg *nlm, uint16_t lag_num, uint32_t type, uint32_t len,
+			nss_lag_callback_t *cb, void *app_data)
+{
+	nss_cmn_msg_init(&nlm->cm, lag_num, type, len, (void *)cb, app_data);
+}
+EXPORT_SYMBOL(nss_lag_msg_init);

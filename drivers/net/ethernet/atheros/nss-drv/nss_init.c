@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -24,6 +24,7 @@
 #include "nss_pm.h"
 #endif
 #include "nss_tx_rx_common.h"
+#include "nss_data_plane.h"
 
 #include <nss_hal.h>
 #include <nss_clocks.h>
@@ -32,13 +33,14 @@
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
 #include <linux/device.h>
+
+#if (NSS_DT_SUPPORT == 1)
 #include <linux/of.h>
 #include <linux/of_net.h>
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
 #include <linux/reset.h>
-
-#if (NSS_DT_SUPPORT != 1)
+#else
 #include <mach/msm_nss.h>
 #endif
 
@@ -46,6 +48,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 #include <linux/firmware.h>
+
+#include "nss_capwap.h"
 
 /*
  * Macros
@@ -59,6 +63,10 @@
  */
 int nss_ctl_redirect __read_mostly = 0;
 int nss_ctl_debug __read_mostly = 0;
+int nss_rps_cfg __read_mostly = 0;
+int nss_ctl_logbuf __read_mostly = 0;
+int nss_jumbo_mru  __read_mostly = 0;
+int nss_paged_mode __read_mostly = 0;
 
 /*
  * PM client handle
@@ -124,6 +132,7 @@ static irqreturn_t nss_handle_irq (int irq, void *ctx)
 	return IRQ_HANDLED;
 }
 
+#if (NSS_DT_SUPPORT == 1)
 /*
  * nss_drv_of_get_pdata()
  *	Retrieve platform data from device node.
@@ -234,6 +243,7 @@ out:
 	return NULL;
 }
 
+#endif
 /*
  * nss_probe()
  *	HLOS device probe callback
@@ -248,13 +258,16 @@ static int nss_probe(struct platform_device *nss_dev)
 	struct nss_ctx_instance *nss_ctx = NULL;
 	struct nss_platform_data *npd = NULL;
 	struct netdev_priv_instance *ndev_priv;
+#if (NSS_DT_SUPPORT == 1)
 	struct reset_control *rstctl = NULL;
+#endif
 	int i, err = 0;
 
 	const struct firmware *nss_fw = NULL;
 	int rc = -ENODEV;
 	void __iomem *load_mem;
 
+#if (NSS_DT_SUPPORT == 1)
 	struct device_node *np = NULL;
 
 	if (nss_top_main.nss_hal_common_init_done == false) {
@@ -323,6 +336,11 @@ static int nss_probe(struct platform_device *nss_dev)
 		nss_ctx->id = nss_dev->id;
 	}
 
+#else
+	npd = (struct nss_platform_data *) nss_dev->dev.platform_data;
+	nss_ctx = &nss_top->nss[nss_dev->id];
+	nss_ctx->id = nss_dev->id;
+#endif
 	nss_ctx->nss_top = nss_top;
 
 	nss_info("%p: NSS_DEV_ID %s \n", nss_ctx, dev_name(&nss_dev->dev));
@@ -335,7 +353,7 @@ static int nss_probe(struct platform_device *nss_dev)
 	} else if (nss_ctx->id == 1) {
 		rc = request_firmware(&nss_fw, NETAP1_IMAGE, &(nss_dev->dev));
 	} else {
-		nss_warning("%p: Invalid nss dev: %d \n", nss_ctx, nss_ctx->id);
+		nss_warning("%p: Invalid nss dev: %d \n", nss_ctx, nss_dev->id);
 	}
 
 	/*
@@ -358,7 +376,7 @@ static int nss_probe(struct platform_device *nss_dev)
 		goto err_init_0;
 	}
 
-	printk("nss_driver - fw of size %u  bytes copied to load addr: %x\n", nss_fw->size, npd->load_addr);
+	printk("nss_driver - fw of size %u  bytes copied to load addr: %x, nss_id : %d\n", nss_fw->size, npd->load_addr, nss_dev->id);
 	memcpy_toio(load_mem, nss_fw->data, nss_fw->size);
 	release_firmware(nss_fw);
 	iounmap(load_mem);
@@ -539,9 +557,20 @@ static int nss_probe(struct platform_device *nss_dev)
 		nss_n2h_register_handler();
 		nss_virt_if_register_handler();
 		nss_lag_register_handler();
+		nss_dynamic_interface_register_handler();
+		nss_top->capwap_handler_id = nss_dev->id;
+		nss_capwap_init();
+
 		for (i = 0; i < NSS_MAX_VIRTUAL_INTERFACES; i++) {
 			nss_top->virt_if_handler_id[i] = nss_dev->id;
 		}
+
+		nss_top->dynamic_interface_table[NSS_DYNAMIC_INTERFACE_TYPE_802_3_REDIR] = nss_dev->id;
+	}
+
+	if (npd->ipv4_reasm_enabled == NSS_FEATURE_ENABLED) {
+		nss_top->ipv4_reasm_handler_id = nss_dev->id;
+		nss_ipv4_reasm_register_handler();
 	}
 
 	if (npd->ipv6_enabled == NSS_FEATURE_ENABLED) {
@@ -565,7 +594,6 @@ static int nss_probe(struct platform_device *nss_dev)
 
 	if (npd->tun6rd_enabled == NSS_FEATURE_ENABLED) {
 		nss_top->tun6rd_handler_id = nss_dev->id;
-		nss_tun6rd_register_handler();
 	}
 
 	if (npd->tunipip6_enabled == NSS_FEATURE_ENABLED) {
@@ -573,29 +601,26 @@ static int nss_probe(struct platform_device *nss_dev)
 		nss_tunipip6_register_handler();
 	}
 
-	if (npd->gmac_enabled[0] == NSS_FEATURE_ENABLED) {
-		nss_top->phys_if_handler_id[0] = nss_dev->id;
-		nss_phys_if_register_handler(0);
+	if (npd->gre_redir_enabled == NSS_FEATURE_ENABLED) {
+		nss_top->gre_redir_handler_id = nss_dev->id;
+		nss_top->dynamic_interface_table[NSS_DYNAMIC_INTERFACE_TYPE_GRE_REDIR] =  nss_dev->id;
+		nss_gre_redir_register_handler();
+		nss_sjack_register_handler();
 	}
 
-	if (npd->gmac_enabled[1] == NSS_FEATURE_ENABLED) {
-		nss_top->phys_if_handler_id[1] = nss_dev->id;
-		nss_phys_if_register_handler(1);
-	}
-
-	if (npd->gmac_enabled[2] == NSS_FEATURE_ENABLED) {
-		nss_top->phys_if_handler_id[2] = nss_dev->id;
-		nss_phys_if_register_handler(2);
-	}
-
-	if (npd->gmac_enabled[3] == NSS_FEATURE_ENABLED) {
-		nss_top->phys_if_handler_id[3] = nss_dev->id;
-		nss_phys_if_register_handler(3);
+	/*
+	 * Mark data plane enabled so when nss core init done we call register to nss-gmac
+	 */
+	for (i = 0 ; i < NSS_MAX_PHYSICAL_INTERFACES ; i ++) {
+		if (npd->gmac_enabled[i] == NSS_FEATURE_ENABLED) {
+			nss_data_plane_set_enabled(i);
+		}
 	}
 
 #if (NSS_PM_SUPPORT == 1)
-	nss_core_freq_register_handler();
+	nss_freq_register_handler();
 #endif
+	nss_lso_rx_register_handler();
 
 	nss_top->frequency_handler_id = nss_dev->id;
 
@@ -617,7 +642,7 @@ static int nss_probe(struct platform_device *nss_dev)
 	/*
 	 * Enable clocks and bring NSS core out of reset
 	 */
-
+#if (NSS_DT_SUPPORT == 1)
 	/*
 	 * Remove UBI32 reset clamp
 	 */
@@ -671,7 +696,9 @@ static int nss_probe(struct platform_device *nss_dev)
 	reset_control_put(rstctl);
 
 	nss_hal_core_reset(nss_ctx->nmap, nss_ctx->load);
-
+#else
+	nss_hal_core_reset(nss_dev->id, nss_ctx->nmap, nss_ctx->load, nss_top->clk_src);
+#endif
 	/*
 	 * Enable interrupts for NSS core
 	 */
@@ -701,6 +728,7 @@ err_init_2:
 err_init_1:
 	free_netdev(nss_ctx->int_ctx[0].ndev);
 
+#if (NSS_DT_SUPPORT == 1)
 	if (nss_dev->dev.of_node) {
 		if (npd->nmap) {
 			iounmap((void *)npd->nmap);
@@ -710,13 +738,16 @@ err_init_1:
 			iounmap((void *)npd->vmap);
 		}
 	}
+#endif
 
 err_init_0:
 
+#if (NSS_DT_SUPPORT == 1)
 	if (nss_dev->dev.of_node) {
 		devm_kfree(&nss_dev->dev, npd);
 	}
 
+#endif
 	return err;
 }
 
@@ -732,6 +763,7 @@ static int nss_remove(struct platform_device *nss_dev)
 {
 	struct nss_top_instance *nss_top = &nss_top_main;
 	struct nss_ctx_instance *nss_ctx = &nss_top->nss[nss_dev->id];
+	int i;
 
 	/*
 	 * Clean-up debugfs
@@ -761,6 +793,15 @@ static int nss_remove(struct platform_device *nss_dev)
 		free_netdev(nss_ctx->int_ctx[1].ndev);
 	}
 
+	/*
+	 * nss-drv is exiting, remove from nss-gmac
+	 */
+	for (i = 0 ; i < NSS_MAX_PHYSICAL_INTERFACES ; i ++) {
+		if (nss_top->subsys_dp_register[i].ndev) {
+			nss_data_plane_unregister_from_nss_gmac(i);
+		}
+	}
+#if (NSS_DT_SUPPORT == 1)
 	if (nss_dev->dev.of_node) {
 		if (nss_ctx->nmap) {
 			iounmap((void *)nss_ctx->nmap);
@@ -772,18 +813,20 @@ static int nss_remove(struct platform_device *nss_dev)
 			nss_ctx->vmap = 0;
 		}
 	}
+#endif
 
 	nss_info("%p: All resources freed for nss core%d", nss_ctx, nss_dev->id);
 	return 0;
 }
 
-
+#if (NSS_DT_SUPPORT == 1)
 static struct of_device_id nss_dt_ids[] = {
 	{ .compatible =  "qcom,nss0" },
 	{ .compatible =  "qcom,nss1" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, nss_dt_ids);
+#endif
 
 /*
  * nss_driver
@@ -799,7 +842,9 @@ struct platform_driver nss_driver = {
 	.driver	= {
 		.name	= "qca-nss",
 		.owner	= THIS_MODULE,
+#if (NSS_DT_SUPPORT == 1)
 		.of_match_table = of_match_ptr(nss_dt_ids),
+#endif
 	},
 };
 
@@ -881,7 +926,7 @@ static int nss_current_freq_handler (ctl_table *ctl, int write, void __user *buf
 		return ret;
 	}
 
-	nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_KERNEL);
+	nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_ATOMIC);
 	if (!nss_work) {
 		nss_info("NSS Freq WQ kmalloc fail");
 		return ret;
@@ -919,7 +964,7 @@ static int nss_auto_scale_handler (ctl_table *ctl, int write, void __user *buffe
 		 */
 		if (nss_runtime_samples.freq_scale_ready != 0) {
 			nss_cmd_buf.current_freq = nss_runtime_samples.freq_scale[nss_runtime_samples.freq_scale_index].frequency;
-			nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_KERNEL);
+			nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_ATOMIC);
 			if (!nss_work) {
 				nss_info("NSS Freq WQ kmalloc fail");
 				return ret;
@@ -952,7 +997,7 @@ static int nss_auto_scale_handler (ctl_table *ctl, int write, void __user *buffe
 	nss_runtime_samples.freq_scale_index = 1;
 	nss_cmd_buf.current_freq = nss_runtime_samples.freq_scale[nss_runtime_samples.freq_scale_index].frequency;
 
-	nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_KERNEL);
+	nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_ATOMIC);
 	if (!nss_work) {
 		nss_info("NSS Freq WQ kmalloc fail");
 		return ret;
@@ -1006,7 +1051,9 @@ static int nss_get_average_inst_handler(ctl_table *ctl, int write, void __user *
 
 	return ret;
 }
+#endif /* NSS_PM_SUPPORT */
 
+#if (NSS_FW_DBG_SUPPORT == 1)
 /*
  * nss_debug_handler()
  *	Enable NSS debug output
@@ -1021,6 +1068,39 @@ static int nss_debug_handler(ctl_table *ctl, int write, void __user *buffer, siz
 			printk("Enabling NSS SPI Debug\n");
 			nss_hal_debug_enable();
 		}
+	}
+
+	return ret;
+}
+#endif
+
+/*
+ * nss_rps_handler()
+ *	Enable NSS RPS
+ */
+static int nss_rpscfg_handler(ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct nss_top_instance *nss_top = &nss_top_main;
+	struct nss_ctx_instance *nss_ctx = &nss_top->nss[0];
+	int ret;
+
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (!ret) {
+		if ((write) && (nss_rps_cfg == 1)) {
+			printk("Enabling NSS RPS\n");
+			nss_n2h_tx(nss_ctx, 1);
+			return ret;
+		}
+
+		if ((write) && (nss_rps_cfg == 0)) {
+			printk("Runtime disabling of NSS RPS not supported \n");
+			return ret;
+		}
+
+		if (write) {
+			printk("Invalid input value.Valid values are 0 and 1 \n");
+		}
+
 	}
 
 	return ret;
@@ -1046,6 +1126,49 @@ static int nss_coredump_handler(ctl_table *ctl, int write, void __user *buffer, 
 	return ret;
 }
 
+/*
+ * nss_jumbo_mru_handler()
+ *	Sysctl to modify nss_jumbo_mru
+ */
+static int nss_jumbo_mru_handler(ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (ret) {
+		return ret;
+	}
+
+	if (write) {
+		nss_core_set_jumbo_mru(nss_jumbo_mru);
+		nss_info("jumbo_mru set to %d\n", nss_jumbo_mru);
+	}
+
+	return ret;
+}
+
+/* nss_paged_mode_handler()
+ *	Sysctl to modify nss_paged_mode.
+ */
+
+static int nss_paged_mode_handler(ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int ret;
+
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (ret) {
+		return ret;
+	}
+
+	if (write) {
+		nss_core_set_paged_mode(nss_paged_mode);
+		nss_info("paged_mode set to %d\n", nss_paged_mode);
+	}
+
+	return ret;
+}
+
+#if (NSS_PM_SUPPORT == 1)
 /*
  * sysctl-tuning infrastructure.
  */
@@ -1080,6 +1203,7 @@ static ctl_table nss_freq_table[] = {
 	},
 	{ }
 };
+#endif
 
 static ctl_table nss_general_table[] = {
 	{
@@ -1087,31 +1211,63 @@ static ctl_table nss_general_table[] = {
 		.data                   = &nss_ctl_redirect,
 		.maxlen                 = sizeof(int),
 		.mode                   = 0644,
-		.proc_handler   = proc_dointvec,
+		.proc_handler   	= proc_dointvec,
 	},
+#if (NSS_FW_DBG_SUPPORT == 1)
 	{
 		.procname               = "debug",
 		.data                   = &nss_ctl_debug,
 		.maxlen                 = sizeof(int),
 		.mode                   = 0644,
-		.proc_handler   = &nss_debug_handler,
+		.proc_handler   	= &nss_debug_handler,
 	},
+#endif
 	{
 		.procname               = "coredump",
 		.data                   = &nss_cmd_buf.coredump,
 		.maxlen                 = sizeof(int),
 		.mode                   = 0644,
-		.proc_handler   = &nss_coredump_handler,
+		.proc_handler   	= &nss_coredump_handler,
+	},
+	{
+		.procname               = "rps",
+		.data                   = &nss_rps_cfg,
+		.maxlen                 = sizeof(int),
+		.mode                   = 0644,
+		.proc_handler   	= &nss_rpscfg_handler,
+	},
+	{
+		.procname               = "logbuf",
+		.data                   = &nss_ctl_logbuf,
+		.maxlen                 = sizeof(int),
+		.mode                   = 0644,
+		.proc_handler   	= &nss_logbuffer_handler,
+	},
+	{
+		.procname               = "jumbo_mru",
+		.data                   = &nss_jumbo_mru,
+		.maxlen                 = sizeof(int),
+		.mode                   = 0644,
+		.proc_handler           = &nss_jumbo_mru_handler,
+	},
+	{
+		.procname               = "paged_mode",
+		.data                   = &nss_paged_mode,
+		.maxlen                 = sizeof(int),
+		.mode                   = 0644,
+		.proc_handler           = &nss_paged_mode_handler,
 	},
 	{ }
 };
 
 static ctl_table nss_clock_dir[] = {
+#if (NSS_PM_SUPPORT == 1)
 	{
 		.procname               = "clock",
 		.mode                   = 0555,
 		.child                  = nss_freq_table,
 	},
+#endif
 	{
 		.procname               = "general",
 		.mode                   = 0555,
@@ -1137,7 +1293,6 @@ static ctl_table nss_root[] = {
 	},
 	{ }
 };
-#endif /** NSS_PM_SUPPORT */
 
 static struct ctl_table_header *nss_dev_header;
 
@@ -1147,11 +1302,20 @@ static struct ctl_table_header *nss_dev_header;
  */
 static int __init nss_init(void)
 {
+#if (NSS_DT_SUPPORT == 1)
 	struct device_node *cmn = NULL;
 	struct resource res_nss_fpb_base;
+#endif
 
 	nss_info("Init NSS driver");
 
+#if (NSS_PM_SUPPORT == 1)
+	nss_freq_change_context = nss_freq_get_mgr();
+#else
+	nss_freq_change_context = NULL;
+#endif
+
+#if (NSS_DT_SUPPORT == 1)
 	/*
 	 * Get reference to NSS common device node
 	 */
@@ -1175,12 +1339,6 @@ static int __init nss_init(void)
 		return -EFAULT;
 	}
 
-#if (NSS_PM_SUPPORT == 1)
-	nss_freq_change_context = nss_get_frequency_mgr();
-#else
-	nss_freq_change_context = NULL;
-#endif
-
 	nss_top_main.nss_hal_common_init_done = false;
 
 	/*
@@ -1188,6 +1346,13 @@ static int __init nss_init(void)
 	 */
 	of_node_put(cmn);
 	cmn = NULL;
+#else
+	/*
+	 * Perform clock init common to all NSS cores
+	 */
+	nss_hal_common_reset(&(nss_top_main.clk_src));
+
+#endif /* NSS_DT_SUPPORT */
 
 	/*
 	 * Enable spin locks
@@ -1200,12 +1365,18 @@ static int __init nss_init(void)
 	 */
 	nss_stats_init();
 
-#if (NSS_PM_SUPPORT == 1)
 	/*
 	 * Register sysctl table.
 	 */
 	nss_dev_header = register_sysctl_table(nss_root);
 
+	/*
+	 * Registering sysctl for ipv4/6 specific config.
+	 */
+	nss_ipv4_register_sysctl();
+	nss_ipv6_register_sysctl();
+
+#if (NSS_PM_SUPPORT == 1)
 	/*
 	 * Setup Runtime Sample values
 	 */
@@ -1267,10 +1438,23 @@ static void __exit nss_cleanup(void)
 	if (nss_dev_header)
 		unregister_sysctl_table(nss_dev_header);
 
+	/*
+	 * Unregister n2h specific sysctl
+	 */
+	nss_n2h_empty_pool_buf_unregister_sysctl();
+
+	/*
+	 * Unregister ipv4/6 specific sysctl
+	 */
+	nss_ipv4_unregister_sysctl();
+	nss_ipv6_unregister_sysctl();
+
+#if (NSS_DT_SUPPORT == 1)
 	if(nss_top_main.nss_fpb_base) {
 		iounmap(nss_top_main.nss_fpb_base);
 		nss_top_main.nss_fpb_base = 0;
 	}
+#endif
 
 	platform_driver_unregister(&nss_driver);
 }

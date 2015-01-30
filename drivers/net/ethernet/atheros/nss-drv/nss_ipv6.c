@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -21,8 +21,8 @@
 #include <linux/ppp_channel.h>
 #include "nss_tx_rx_common.h"
 
-extern void nss_rx_metadata_ipv6_rule_establish(struct nss_ctx_instance *nss_ctx, struct nss_ipv6_rule_establish *nire);
-extern void nss_rx_ipv6_sync(struct nss_ctx_instance *nss_ctx, struct nss_ipv6_conn_sync *nirs);
+int nss_ipv6_conn_cfg __read_mostly = NSS_DEFAULT_NUM_CONN;
+static struct  nss_conn_cfg_pvt i6cfgp;
 
 /*
  * nss_ipv6_driver_conn_sync_update()
@@ -43,7 +43,7 @@ static void nss_ipv6_driver_conn_sync_update(struct nss_ctx_instance *nss_ctx, s
 	nss_top->stats_ipv6[NSS_STATS_IPV6_ACCELERATED_RX_BYTES] += nics->flow_rx_byte_count + nics->return_rx_byte_count;
 	nss_top->stats_ipv6[NSS_STATS_IPV6_ACCELERATED_TX_PKTS] += nics->flow_tx_packet_count + nics->return_tx_packet_count;
 	nss_top->stats_ipv6[NSS_STATS_IPV6_ACCELERATED_TX_BYTES] += nics->flow_tx_byte_count + nics->return_tx_byte_count;
-	spin_unlock(&nss_top->stats_lock);
+	spin_unlock_bh(&nss_top->stats_lock);
 
 	/*
 	 * Update the PPPoE interface stats, if there is any PPPoE session on the interfaces.
@@ -118,7 +118,7 @@ static void nss_ipv6_rx_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss
 	/*
 	 * Is this a valid request/response packet?
 	 */
-	if (nim->cm.type >= NSS_IPV6_MAX_MSG_TYPES) {
+	if (ncm->type >= NSS_IPV6_MAX_MSG_TYPES) {
 		nss_warning("%p: received invalid message %d for IPv6 interface", nss_ctx, nim->cm.type);
 		return;
 	}
@@ -137,10 +137,6 @@ static void nss_ipv6_rx_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss
 	 * Handle deprecated messages.  Eventually these messages should be removed.
 	 */
 	switch (nim->cm.type) {
-	case NSS_IPV6_RX_ESTABLISH_RULE_MSG:
-		nss_rx_metadata_ipv6_rule_establish(nss_ctx, &nim->msg.rule_establish);
-		break;
-
 	case NSS_IPV6_RX_NODE_STATS_SYNC_MSG:
 		/*
 		* Update driver statistics on node sync.
@@ -153,7 +149,6 @@ static void nss_ipv6_rx_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss
 		 * Update driver statistics on connection sync.
 		 */
 		nss_ipv6_driver_conn_sync_update(nss_ctx, &nim->msg.conn_stats);
-		return nss_rx_ipv6_sync(nss_ctx, &nim->msg.conn_stats);
 		break;
 	}
 
@@ -205,7 +200,7 @@ nss_tx_status_t nss_ipv6_tx(struct nss_ctx_instance *nss_ctx, struct nss_ipv6_ms
 		return NSS_TX_FAILURE;
 	}
 
-	if (ncm->type > NSS_IPV6_MAX_MSG_TYPES) {
+	if (ncm->type >= NSS_IPV6_MAX_MSG_TYPES) {
 		nss_warning("%p: message type out of range: %d", nss_ctx, ncm->type);
 		return NSS_TX_FAILURE;
 	}
@@ -299,8 +294,229 @@ void nss_ipv6_register_handler()
 	}
 }
 
+/*
+ * nss_ipv6_conn_cfg_callback()
+ *	call back function for the ipv6 connection configuration handler
+ */
+static void nss_ipv6_conn_cfg_callback(void *app_data, struct nss_ipv6_msg *nim)
+{
+	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
+		/*
+		 * Error, hence we are not updating the nss_ipv4_conn_cfg
+		 * Restore the current_value to its previous state
+		 */
+		i6cfgp.response = NSS_FAILURE;
+		complete(&i6cfgp.complete);
+		return;
+	}
+
+	/*
+	 * Sucess at NSS FW, hence updating nss_ipv4_conn_cfg, with the valid value
+	 * saved at the sysctl handler.
+	 */
+	nss_info("IPv6 connection configuration success: %d\n", nim->cm.error);
+	i6cfgp.response = NSS_SUCCESS;
+	complete(&i6cfgp.complete);
+}
+
+
+/*
+ * nss_ipv6_conn_cfg_handler()
+ *	Sets the number of connections for IPv6
+ */
+static int nss_ipv6_conn_cfg_handler(ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct nss_top_instance *nss_top = &nss_top_main;
+	struct nss_ctx_instance *nss_ctx = &nss_top->nss[0];
+	struct nss_ipv6_msg nim;
+	struct nss_ipv6_rule_conn_cfg_msg *nirccm;
+	nss_tx_status_t nss_tx_status;
+	int ret = NSS_FAILURE;
+	uint32_t sum_of_conn;
+
+	/*
+	 * Acquiring semaphore
+	 */
+	down(&i6cfgp.sem);
+
+	/*
+	 *  Take a snapshot of the current value
+	 */
+	i6cfgp.current_value = nss_ipv6_conn_cfg;
+
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (ret || (!write)) {
+		up(&i6cfgp.sem);
+		return ret;
+	}
+
+	/*
+	 * Specifications for input
+	 * 1) The input should be power of 2.
+	 * 2) Input for ipv4 and ipv6 sum togther should not exceed 8k
+	 * 3) Min. value should be at leat 256 connections. This is the
+	 * minimum connections we will support for each of them.
+	 */
+	sum_of_conn = nss_ipv4_conn_cfg + nss_ipv6_conn_cfg;
+	if ((nss_ipv6_conn_cfg & NSS_NUM_CONN_QUANTA_MASK) ||
+		(sum_of_conn > NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6) ||
+		(nss_ipv6_conn_cfg < NSS_MIN_NUM_CONN)) {
+		nss_warning("%p: input supported connections (%d) does not adhere\
+				specifications\n1) not power of 2,\n2) is less than \
+				min val: %d, OR\n 	IPv4/6 total exceeds %d\n",
+				nss_ctx,
+				nss_ipv6_conn_cfg,
+				NSS_MIN_NUM_CONN,
+				NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6);
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv6_conn_cfg = i6cfgp.current_value;
+		up(&i6cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+
+	nss_info("%p: IPv6 supported connections: %d\n", nss_ctx, nss_ipv6_conn_cfg);
+
+	nss_ipv6_msg_init(&nim, NSS_IPV6_RX_INTERFACE, NSS_IPV6_TX_CONN_CFG_RULE_MSG,
+		sizeof(struct nss_ipv6_rule_conn_cfg_msg), (nss_ipv6_msg_callback_t *)nss_ipv6_conn_cfg_callback, NULL);
+
+	nirccm = &nim.msg.rule_conn_cfg;
+	nirccm->num_conn = htonl(nss_ipv6_conn_cfg);
+	nss_tx_status = nss_ipv6_tx(nss_ctx, &nim);
+
+	if (nss_tx_status != NSS_TX_SUCCESS) {
+		nss_warning("%p: nss_tx error setting IPv6 Connections: %d\n",
+						nss_ctx,
+						nss_ipv6_conn_cfg);
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv6_conn_cfg = i6cfgp.current_value;
+		up(&i6cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	/*
+	 * Blocking call, wait till we get ACK for this msg.
+	 */
+	ret = wait_for_completion_timeout(&i6cfgp.complete, msecs_to_jiffies(NSS_CONN_CFG_TIMEOUT));
+	if (ret == 0) {
+		nss_warning("%p: Waiting for ack timed out\n", nss_ctx);
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv6_conn_cfg = i6cfgp.current_value;
+		up(&i6cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	/*
+	 * ACK/NACK received from NSS FW
+	 * If ACK: Callback function will update nss_ipv4_conn_cfg with
+	 * i6cfgp.num_conn_valid, which holds the user input
+	 */
+	if (NSS_FAILURE == i6cfgp.response) {
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv6_conn_cfg = i6cfgp.current_value;
+		up(&i6cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	up(&i6cfgp.sem);
+	return NSS_SUCCESS;
+}
+
+static ctl_table nss_ipv6_table[] = {
+	{
+		.procname		= "ipv6_conn",
+		.data			= &nss_ipv6_conn_cfg,
+		.maxlen			= sizeof(int),
+		.mode			= 0644,
+		.proc_handler   	= &nss_ipv6_conn_cfg_handler,
+	},
+	{ }
+};
+
+static ctl_table nss_ipv6_dir[] = {
+	{
+		.procname		= "ipv6cfg",
+		.mode			= 0555,
+		.child			= nss_ipv6_table,
+	},
+	{ }
+};
+
+static ctl_table nss_ipv6_root_dir[] = {
+	{
+		.procname		= "nss",
+		.mode			= 0555,
+		.child			= nss_ipv6_dir,
+	},
+	{ }
+};
+
+static ctl_table nss_ipv6_root[] = {
+	{
+		.procname		= "dev",
+		.mode			= 0555,
+		.child			= nss_ipv6_root_dir,
+	},
+	{ }
+};
+
+static struct ctl_table_header *nss_ipv6_header;
+
+/*
+ * nss_ipv6_register_sysctl()
+ *	Register sysctl specific to ipv4
+ */
+void nss_ipv6_register_sysctl(void)
+{
+	/*
+	 * Register sysctl table.
+	 */
+	nss_ipv6_header = register_sysctl_table(nss_ipv6_root);
+	sema_init(&i6cfgp.sem, 1);
+	init_completion(&i6cfgp.complete);
+	i6cfgp.current_value = nss_ipv6_conn_cfg;
+}
+
+/*
+ * nss_ipv6_unregister_sysctl()
+ *	Unregister sysctl specific to ipv4
+ */
+void nss_ipv6_unregister_sysctl(void)
+{
+	/*
+	 * Unregister sysctl table.
+	 */
+	if (nss_ipv6_header) {
+		unregister_sysctl_table(nss_ipv6_header);
+	}
+}
+
+/*
+ * nss_ipv6_msg_init()
+ *      Initialize IPv6 message.
+ */
+void nss_ipv6_msg_init(struct nss_ipv6_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
+			nss_ipv6_msg_callback_t *cb, void *app_data)
+{
+	nss_cmn_msg_init(&nim->cm, if_num, type, len, (void *)cb, app_data);
+}
+
 EXPORT_SYMBOL(nss_ipv6_tx);
 EXPORT_SYMBOL(nss_ipv6_notify_register);
 EXPORT_SYMBOL(nss_ipv6_notify_unregister);
 EXPORT_SYMBOL(nss_ipv6_get_mgr);
 EXPORT_SYMBOL(nss_ipv6_register_handler);
+EXPORT_SYMBOL(nss_ipv6_register_sysctl);
+EXPORT_SYMBOL(nss_ipv6_unregister_sysctl);
+EXPORT_SYMBOL(nss_ipv6_msg_init);

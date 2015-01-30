@@ -99,11 +99,11 @@ extern nss_tx_status_t nss_tunipip6_tx(struct nss_ctx_instance *nss_ctx, struct 
  * @brief Callback to receive DS-Lite data
  *
  * @param app_data Application context of the message
- * @param os_buf  Pointer to data buffer
+ * @param skb  Pointer to data buffer
  *
  * @return void
  */
-typedef void (*nss_tunipip6_callback_t)(void *app_data, void *os_buf);
+typedef void (*nss_tunipip6_callback_t)(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi);
 
 /*
  * @brief Register to send/receive DS-Lite messages to NSS
@@ -112,11 +112,12 @@ typedef void (*nss_tunipip6_callback_t)(void *app_data, void *os_buf);
  * @param tunipip6_callback Callback for DS-Lite data
  * @param msg_callback Callback for DS-Lite messages
  * @param netdev netdevice associated with the DS-Lite
+ * @param features denotes the skb types supported by this interface.
  *
  * @return nss_ctx_instance* NSS context
  */
 extern struct nss_ctx_instance *nss_register_tunipip6_if(uint32_t if_num, nss_tunipip6_callback_t tunipip6_callback,
-					nss_tunipip6_msg_callback_t event_callback, struct net_device *netdev);
+					nss_tunipip6_msg_callback_t event_callback, struct net_device *netdev, uint32_t features);
 
 /**
  * @brief Unregister DS-Lite interface with NSS
@@ -126,5 +127,18 @@ extern struct nss_ctx_instance *nss_register_tunipip6_if(uint32_t if_num, nss_tu
  * @return void
  */
 extern void nss_unregister_tunipip6_if(uint32_t if_num);
+
+/**
+ * @brief Initialize tunipip6 msg
+ * @param nss_tunipip6_msg
+ * @param if_num Interface number
+ * @param type Message type
+ * @param len Message length
+ * @param cb message callback
+ * @param app_data
+ *
+ * @return None
+ */
+extern void nss_tunipip6_msg_init(struct nss_tunipip6_msg *ntm, uint16_t if_num, uint32_t type,  uint32_t len, void *cb, void *app_data);
 
 #endif /* __NSS_TUN6RD_H */

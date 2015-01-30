@@ -34,6 +34,9 @@ enum nss_shaper_node_types {
 	NSS_SHAPER_NODE_TYPE_BF_GROUP = 7,
 	NSS_SHAPER_NODE_TYPE_WRR = 9,
 	NSS_SHAPER_NODE_TYPE_WRR_GROUP = 10,
+	NSS_SHAPER_NODE_TYPE_HTB = 11,
+	NSS_SHAPER_NODE_TYPE_HTB_GROUP = 12,
+	NSS_SHAPER_NODE_TYPE_WRED = 13,
 };
 typedef enum nss_shaper_node_types nss_shaper_node_type_t;
 
@@ -66,6 +69,16 @@ enum nss_shaper_config_types {
 	NSS_SHAPER_CONFIG_TYPE_WRR_GROUP_ATTACH,	/* Configure wrr group to attach a node as child */
 	NSS_SHAPER_CONFIG_TYPE_WRR_GROUP_DETACH,	/* Configure wrr group to detach its child */
 	NSS_SHAPER_CONFIG_TYPE_WRR_GROUP_CHANGE_PARAM,	/* Configure wrr group to tune its parameters */
+	/*
+	 * Generic shaper node commands
+	 *
+	 * TODO: The per type repetition of messages (above) needs to be
+	 * removed. This is not necessary in the new messaging
+	 * framework.
+	 */
+	NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_ATTACH,	/* Command to attach a shaper node as child */
+	NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_DETACH,	/* Command to detach a child shaper node */
+	NSS_SHAPER_CONFIG_TYPE_SHAPER_NODE_CHANGE_PARAM,/* Command to configure the parameters of a shaper node */
 };
 typedef enum nss_shaper_config_types nss_shaper_config_type_t;
 
@@ -104,6 +117,15 @@ enum nss_shaper_response_types {
 	NSS_SHAPER_RESPONSE_TYPE_CHILD_NOT_WRR_GROUP,			/* Wrr cannot have non-wrr_group as a
 									 * child node */
 	NSS_SHAPER_RESPONSE_TYPE_WRR_INVALID_OPERATION_MODE,		/* Wrr requires a valid mode */
+	NSS_SHAPER_RESPONSE_TYPE_WRED_WEIGHT_MODE_INVALID,		/* Invalid wred weight mode */
+	NSS_SHAPER_RESPONSE_TYPE_HTB_GROUP_BURST_LESS_THAN_MTU,		/* Burst and rate are mandatory */
+	NSS_SHAPER_RESPONSE_TYPE_HTB_GROUP_PRIORITY_OUT_OF_RANGE,	/* Assigned priority larger than max priority */
+	NSS_SHAPER_RESPONSE_TYPE_CHILDREN_BELONG_TO_MIXED_TYPES,	/* The class cannot have a mix of class and qdisc as child nodes */
+	NSS_SHAPER_RESPONSE_TYPE_CHILD_ALREADY_PRESENT,			/* Child already present for this qdisc/class */
+	NSS_SHAPER_RESPONSE_TYPE_CHILD_MISMATCH,			/* The QoS tag of child does not match with the one provided */
+	NSS_SHAPER_RESPONSE_TYPE_CHILD_UNSUPPORTED,			/* This type of qdisc/class cannot be attached as a child */
+	NSS_SHAPER_RESPONSE_TYPE_CHILD_NOT_FOUND,			/* Child with provided Qos tag not found */
+	NSS_SHAPER_RESPONSE_TYPE_ATTACH_FAIL,				/* The attach process failed */
 
 	/*
 	 * Success messages are >= 0
@@ -115,24 +137,33 @@ enum nss_shaper_response_types {
 	NSS_SHAPER_RESPONSE_TYPE_TBL_ATTACH_SUCCESS,		/* Tbl attach success */
 	NSS_SHAPER_RESPONSE_TYPE_TBL_DETACH_SUCCESS,		/* Tbl detach success */
 	NSS_SHAPER_RESPONSE_TYPE_TBL_CHANGE_PARAM_SUCCESS,	/* Tbl parameter configuration success */
-	NSS_SHAPER_RESPONSE_TYPE_BF_ATTACH_SUCCESS,	/* Bigfoot attach success */
-	NSS_SHAPER_RESPONSE_TYPE_BF_DETACH_SUCCESS,	/* Bigfoot detach success */
-	NSS_SHAPER_RESPONSE_TYPE_BF_GROUP_ATTACH_SUCCESS,	/* Bigfoot group attach success */
-	NSS_SHAPER_RESPONSE_TYPE_BF_GROUP_DETACH_SUCCESS,	/* Bigfoot group detach success */
+	NSS_SHAPER_RESPONSE_TYPE_BF_ATTACH_SUCCESS,		/* Bf attach success */
+	NSS_SHAPER_RESPONSE_TYPE_BF_DETACH_SUCCESS,		/* Bf detach success */
+	NSS_SHAPER_RESPONSE_TYPE_BF_GROUP_ATTACH_SUCCESS,	/* Bf group attach success */
+	NSS_SHAPER_RESPONSE_TYPE_BF_GROUP_DETACH_SUCCESS,	/* Bf group detach success */
 	NSS_SHAPER_RESPONSE_TYPE_BF_GROUP_CHANGE_PARAM_SUCCESS,
-								/* Bigfoot group parameter configuration success */
+								/* Bf group parameter configuration success */
 	NSS_SHAPER_RESPONSE_TYPE_SHAPER_SET_ROOT_SUCCESS,	/* Setting of root successful */
 	NSS_SHAPER_RESPONSE_TYPE_SHAPER_SET_DEFAULT_SUCCESS,	/* Setting of default successful */
 	NSS_SHAPER_RESPONSE_TYPE_SHAPER_NODE_FREE_SUCCESS,	/* Free shaper node request successful */
 	NSS_SHAPER_RESPONSE_TYPE_SHAPER_UNASSIGN_SUCCESS,	/* Successfully unassigned a shaper */
 	NSS_SHAPER_RESPONSE_TYPE_FIFO_CHANGE_PARAM_SUCCESS,	/* Fifo limit set success */
-	NSS_SHAPER_RESPONSE_TYPE_SHAPER_NODE_BASIC_STATS_GET_SUCCESS,	/* Success response for a shaper node basic stats get request */
-	NSS_SHAPER_RESPONSE_TYPE_WRR_ATTACH_SUCCESS,	/* Wrr attach success */
-	NSS_SHAPER_RESPONSE_TYPE_WRR_DETACH_SUCCESS,	/* Wrr detach success */
+	NSS_SHAPER_RESPONSE_TYPE_SHAPER_NODE_BASIC_STATS_GET_SUCCESS,
+								/* Success response for a shaper node basic stats get request */
+	NSS_SHAPER_RESPONSE_TYPE_WRR_ATTACH_SUCCESS,		/* Wrr attach success */
+	NSS_SHAPER_RESPONSE_TYPE_WRR_DETACH_SUCCESS,		/* Wrr detach success */
 	NSS_SHAPER_RESPONSE_TYPE_WRR_CHANGE_PARAM_SUCCESS,	/* Wrr parameter configuration success */
 	NSS_SHAPER_RESPONSE_TYPE_WRR_GROUP_ATTACH_SUCCESS,	/* Wrr group attach success */
 	NSS_SHAPER_RESPONSE_TYPE_WRR_GROUP_DETACH_SUCCESS,	/* Wrr group detach success */
-	NSS_SHAPER_RESPONSE_TYPE_WRR_GROUP_CHANGE_PARAM_SUCCESS,	/* Wrr group parameter configuration success */
+	NSS_SHAPER_RESPONSE_TYPE_WRR_GROUP_CHANGE_PARAM_SUCCESS,/* Wrr group parameter configuration success */
+	/*
+	 * Generic success response.
+	 *
+	 * TODO: The per message success responses (above) needs
+	 * to be removed. This is not necessary in the new messaging
+	 * framework.
+	 */
+	NSS_SHAPER_RESPONSE_TYPE_SUCCESS,			/* Response on successful command execution */
 };
 typedef enum nss_shaper_response_types nss_shaper_response_type_t;
 
@@ -207,10 +238,10 @@ struct nss_shaper_config_codel_param {
 };
 
 /*
- * struct nss_shaper_config_limiter_alg_param
+ * struct nss_shaper_config_rate_param
  *	Parameters related to the rate limiter algorithm.
  */
-struct nss_shaper_config_limiter_alg_param {
+struct nss_shaper_config_rate_param {
 	uint32_t rate;		/* Allowed Traffic rate measured in bytes per second */
 	uint32_t burst;		/* Max bytes that can be sent before the next token update */
 	uint32_t max_size;	/* The maximum size of packets (in bytes) supported */
@@ -230,8 +261,8 @@ struct nss_shaper_config_tbl_attach {
  *	Configures tbl with the mentioned parameters.
  */
 struct nss_shaper_config_tbl_param {
-	struct nss_shaper_config_limiter_alg_param lap_cir;		/* Config committed information rate */
-	struct nss_shaper_config_limiter_alg_param lap_pir;		/* Config committed information rate */
+	struct nss_shaper_config_rate_param lap_cir;		/* Config committed information rate */
+	struct nss_shaper_config_rate_param lap_pir;		/* Config committed information rate */
 };
 
 /*
@@ -263,8 +294,8 @@ struct nss_shaper_config_bf_group_attach {
  *	Configures bf group shaper node with the parameters mentioned in the structure.
  */
 struct nss_shaper_config_bf_group_param {
-	uint32_t quantum;					/* Smallest increment value for the DRRs */
-	struct nss_shaper_config_limiter_alg_param lap;		/* Config structure for codel algorithm */
+	uint32_t quantum;				/* Smallest increment value for the DRRs */
+	struct nss_shaper_config_rate_param lap;	/* Config structure for rate control algorithm */
 };
 
 /*
@@ -285,6 +316,42 @@ typedef enum nss_shaper_config_fifo_drop_modes nss_shaper_config_fifo_drop_mode_
 struct nss_shaper_config_fifo_param {
 	uint32_t limit;					/* Queue limit in packets */
 	nss_shaper_config_fifo_drop_mode_t drop_mode;	/* FIFO drop mode when queue is full */
+};
+
+/*
+ * enum nss_shaper_config_wred_weight_modes
+ *	Weight modes supported
+ */
+enum nss_shaper_config_wred_weight_modes {
+	NSS_SHAPER_WRED_WEIGHT_MODE_DSCP = 0,	/* Weight mode is DSCP */
+	NSS_SHAPER_WRED_WEIGHT_MODES,
+};
+typedef enum nss_shaper_config_wred_weight_modes nss_shaper_config_wred_weight_mode_t;
+
+/*
+ * nss_shaper_red_alg_param
+ *	RED algorithm parameters
+ */
+struct nss_shaper_red_alg_param {
+	uint32_t min;			/* qlen_avg min */
+	uint32_t max;			/* qlen_avg max */
+	uint32_t probability;		/* Drop probability at qlen_avg = max */
+	uint32_t exp_weight_factor;	/* exp_weight_factor to calculate qlen_avg */
+};
+
+/*
+ * struct nss_shaper_config_wred_param
+ *      Configures wred with the limit and drop mentioned in this structure
+ */
+struct nss_shaper_config_wred_param {
+	uint32_t limit;						/* Queue limit */
+	nss_shaper_config_wred_weight_mode_t weight_mode;	/* Weight mode */
+	uint32_t traffic_classes;				/* How many traffic classes: DPs */
+	uint32_t def_traffic_class;				/* Default traffic if no match: def_DP */
+	uint32_t traffic_id;					/* Traffic ID to configure: DP */
+	uint32_t weight_mode_value;				/* Weight mode value */
+	struct nss_shaper_red_alg_param rap;			/* RED alg paramter */
+	uint8_t ecn;						/* Mark ECN bit or drop packet */
 };
 
 /*
@@ -337,6 +404,41 @@ struct nss_shaper_config_wrr_group_param {
 };
 
 /*
+ * struct nss_shaper_config_htb_attach
+ *	Attaches shaper node with qos_tag to htb shaper node.
+ */
+struct nss_shaper_config_htb_attach {
+	uint32_t child_qos_tag;		/* Qos tag of the shaper node to add as child */
+};
+
+/*
+ * struct nss_shaper_config_htb_group_attach
+ *	Attaches shaper node with the specified qos_tag to htb group shaper.
+ */
+struct nss_shaper_config_htb_group_attach {
+	uint32_t child_qos_tag;		/* Qos tag of shaper node to add as child */
+};
+
+/*
+ * struct nss_shaper_config_htb_group_detach
+ *	Detaches shaper node with the specified qos_tag to htb group shaper.
+ */
+struct nss_shaper_config_htb_group_detach {
+	uint32_t child_qos_tag;		/* Qos tag of shaper node to detach from child list */
+};
+
+/*
+ * struct nss_shaper_config_htb_group_param
+ *	Configures htb group shaper node with the parameters mentioned in the structure.
+ */
+struct nss_shaper_config_htb_group_param {
+	uint32_t quantum;				/* Smallest increment value for the DRRs */
+	uint32_t priority;				/* Value of priority for this group */
+	uint32_t overhead;				/* Overhead in bytes to be added per packet */
+	struct nss_shaper_config_rate_param rate_police;/* Config structure for police rate */
+	struct nss_shaper_config_rate_param rate_ceil;	/* Config structure for ceil rate */
+};
+/*
  * struct nss_shaper_node_config
  *	Configurartion messages for all types of shaper nodes
  */
@@ -346,19 +448,30 @@ struct nss_shaper_node_config {
 	union {
 		struct nss_shaper_config_prio_attach prio_attach;
 		struct nss_shaper_config_prio_detach prio_detach;
+
 		struct nss_shaper_config_codel_param codel_param;
+
 		struct nss_shaper_config_tbl_attach tbl_attach;
 		struct nss_shaper_config_tbl_param tbl_param;
+
 		struct nss_shaper_config_bf_attach bf_attach;
 		struct nss_shaper_config_bf_detach bf_detach;
 		struct nss_shaper_config_bf_group_attach bf_group_attach;
 		struct nss_shaper_config_bf_group_param bf_group_param;
+
 		struct nss_shaper_config_fifo_param fifo_param;
+
 		struct nss_shaper_config_wrr_attach wrr_attach;
 		struct nss_shaper_config_wrr_detach wrr_detach;
 		struct nss_shaper_config_wrr_param wrr_param;
 		struct nss_shaper_config_wrr_group_attach wrr_group_attach;
 		struct nss_shaper_config_wrr_group_param wrr_group_param;
+
+		struct nss_shaper_config_htb_attach htb_attach;
+		struct nss_shaper_config_htb_group_attach htb_group_attach;
+		struct nss_shaper_config_htb_group_detach htb_group_detach;
+		struct nss_shaper_config_htb_group_param htb_group_param;
+		struct nss_shaper_config_wred_param wred_param;
 	} snc;
 };
 

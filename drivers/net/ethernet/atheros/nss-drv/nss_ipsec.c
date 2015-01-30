@@ -47,10 +47,12 @@ static inline nss_tx_status_t nss_ipsec_set_msg_callback(struct nss_ctx_instance
 	case NSS_IPSEC_ENCAP_IF_NUMBER:
 		nss_top->ipsec_encap_ctx = ipsec_ctx;
 		nss_top->ipsec_encap_callback = cb;
+		break;
 
 	case NSS_IPSEC_DECAP_IF_NUMBER:
 		nss_top->ipsec_decap_ctx = ipsec_ctx;
 		nss_top->ipsec_decap_callback = cb;
+		break;
 
 	default:
 		nss_ipsec_warning("%p: cannot 'set' message callback, incorrect I/F: %d", nss_ctx, if_num);
@@ -206,6 +208,9 @@ nss_tx_status_t nss_ipsec_tx_msg(struct nss_ctx_instance *nss_ctx, struct nss_ip
 		return NSS_TX_FAILURE;
 	}
 
+	nss_ipsec_info("msg params version:%d, interface:%d, type:%d, cb:%d, app_data:%d, len:%d\n",
+			ncm->version, ncm->interface, ncm->type, ncm->cb, ncm->app_data, ncm->len);
+
 	nim = (struct nss_ipsec_msg *)skb_put(nbuf, sizeof(struct nss_ipsec_msg));
 	memcpy(nim, msg, sizeof(struct nss_ipsec_msg));
 
@@ -221,6 +226,44 @@ nss_tx_status_t nss_ipsec_tx_msg(struct nss_ctx_instance *nss_ctx, struct nss_ip
 
 	return NSS_TX_SUCCESS;
 }
+EXPORT_SYMBOL(nss_ipsec_tx_msg);
+
+/*
+ * nss_ipsec_tx_buf
+ * 	Send data packet for ipsec processing
+ */
+nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *os_buf, uint32_t if_num)
+{
+	int32_t status;
+	struct nss_ctx_instance *nss_ctx = &nss_top_main.nss[nss_top_main.ipsec_handler_id];
+	uint16_t int_bit = nss_ctx->h2n_desc_rings[NSS_IF_DATA_QUEUE_0].desc_ring.int_bit;
+
+	nss_trace("%p: IPsec If Tx packet, id:%d, data=%p", nss_ctx, if_num, os_buf->data);
+
+	NSS_VERIFY_CTX_MAGIC(nss_ctx);
+	if (unlikely(nss_ctx->state != NSS_CORE_STATE_INITIALIZED)) {
+		nss_warning("%p: 'IPsec If Tx' packet dropped as core not ready", nss_ctx);
+		return NSS_TX_FAILURE_NOT_READY;
+	}
+
+	status = nss_core_send_buffer(nss_ctx, if_num, os_buf, NSS_IF_DATA_QUEUE_0, H2N_BUFFER_PACKET, 0);
+	if (unlikely(status != NSS_CORE_STATUS_SUCCESS)) {
+		nss_warning("%p: Unable to enqueue 'IPsec If Tx' packet\n", nss_ctx);
+		if (status == NSS_CORE_STATUS_FAILURE_QUEUE) {
+			return NSS_TX_FAILURE_QUEUE;
+		}
+
+		return NSS_TX_FAILURE;
+	}
+
+	/*
+	 * Kick the NSS awake so it can process our new entry.
+	 */
+	nss_hal_send_interrupt(nss_ctx->nmap, int_bit, NSS_REGS_H2N_INTR_STATUS_DATA_COMMAND_QUEUE);
+	NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_TX_PACKET]);
+	return NSS_TX_SUCCESS;
+}
+EXPORT_SYMBOL(nss_ipsec_tx_buf);
 
 /*
  **********************************
@@ -229,7 +272,7 @@ nss_tx_status_t nss_ipsec_tx_msg(struct nss_ctx_instance *nss_ctx, struct nss_ip
  */
 
 /*
- * nss_ipsec_msg_notify_register()
+ * nss_ipsec_notify_register()
  * 	register message notifier for the given interface (if_num)
  */
 struct nss_ctx_instance *nss_ipsec_notify_register(uint32_t if_num, nss_ipsec_msg_callback_t cb, void *app_data)
@@ -250,9 +293,10 @@ struct nss_ctx_instance *nss_ipsec_notify_register(uint32_t if_num, nss_ipsec_ms
 
 	return nss_ctx;
 }
+EXPORT_SYMBOL(nss_ipsec_notify_register);
 
 /*
- * nss_ipsec_msg_notify_unregister()
+ * nss_ipsec_notify_unregister()
  * 	unregister the IPsec notifier for the given interface number (if_num)
  */
 void nss_ipsec_notify_unregister(struct nss_ctx_instance *nss_ctx, uint32_t if_num)
@@ -267,12 +311,13 @@ void nss_ipsec_notify_unregister(struct nss_ctx_instance *nss_ctx, uint32_t if_n
 		return;
 	}
 }
+EXPORT_SYMBOL(nss_ipsec_notify_unregister);
 
 /*
- * nss_ipsec_data_notify_register()
+ * nss_ipsec_data_register()
  * 	register a data callback routine
  */
-struct nss_ctx_instance *nss_ipsec_data_register(uint32_t if_num, nss_ipsec_buf_callback_t cb, void *app_data)
+struct nss_ctx_instance *nss_ipsec_data_register(uint32_t if_num, nss_ipsec_buf_callback_t cb, struct net_device *netdev, uint32_t features)
 {
 	struct nss_ctx_instance *nss_ctx;
 
@@ -283,14 +328,17 @@ struct nss_ctx_instance *nss_ipsec_data_register(uint32_t if_num, nss_ipsec_buf_
 		return NULL;
 	}
 
-	nss_ctx->nss_top->if_ctx[if_num] = app_data;
-	nss_ctx->nss_top->if_rx_callback[if_num] = cb;
+	nss_ctx->nss_top->subsys_dp_register[if_num].cb = cb;
+	nss_ctx->nss_top->subsys_dp_register[if_num].app_data = NULL;
+	nss_ctx->nss_top->subsys_dp_register[if_num].ndev = netdev;
+	nss_ctx->nss_top->subsys_dp_register[if_num].features = features;
 
 	return nss_ctx;
 }
+EXPORT_SYMBOL(nss_ipsec_data_register);
 
 /*
- * nss_ipsec_data_notify_unregister()
+ * nss_ipsec_data_unregister()
  * 	unregister a data callback routine
  */
 void nss_ipsec_data_unregister(struct nss_ctx_instance *nss_ctx, uint32_t if_num)
@@ -300,9 +348,43 @@ void nss_ipsec_data_unregister(struct nss_ctx_instance *nss_ctx, uint32_t if_num
 		return;
 	}
 
-	nss_ctx->nss_top->if_ctx[if_num] = NULL;
-	nss_ctx->nss_top->if_rx_callback[if_num] = NULL;
+	nss_ctx->nss_top->subsys_dp_register[if_num].cb = NULL;
+	nss_ctx->nss_top->subsys_dp_register[if_num].app_data = NULL;
+	nss_ctx->nss_top->subsys_dp_register[if_num].ndev = NULL;
+	nss_ctx->nss_top->subsys_dp_register[if_num].features = 0;
 }
+EXPORT_SYMBOL(nss_ipsec_data_unregister);
+
+/*
+ * nss_ipsec_get_interface_num()
+ * 	Get the NSS interface number on which ipsec user shall register
+ */
+int32_t nss_ipsec_get_interface(struct nss_ctx_instance *nss_ctx)
+{
+	/*
+	 * Check on which core is ipsec enabled
+	 */
+	switch(nss_ctx->id) {
+	case 0:
+		return NSS_IPSEC_RULE_INTERFACE;
+
+	case 1:
+		return NSS_C2C_TX_INTERFACE;
+	}
+
+	return -1;
+}
+EXPORT_SYMBOL(nss_ipsec_get_interface);
+
+/*
+ * nss_ipsec_get_ctx()
+ * 	get NSS context instance for IPsec handle
+ */
+struct nss_ctx_instance *nss_ipsec_get_context(void)
+{
+	return &nss_top_main.nss[nss_top_main.ipsec_handler_id];
+}
+EXPORT_SYMBOL(nss_ipsec_get_context);
 
 /*
  * nss_ipsec_register_handler()
@@ -318,8 +400,13 @@ void nss_ipsec_register_handler()
 	nss_core_register_handler(NSS_IPSEC_DECAP_IF_NUMBER, nss_ipsec_msg_handler, NULL);
 }
 
-EXPORT_SYMBOL(nss_ipsec_notify_register);
-EXPORT_SYMBOL(nss_ipsec_notify_unregister);
-EXPORT_SYMBOL(nss_ipsec_data_register);
-EXPORT_SYMBOL(nss_ipsec_data_unregister);
-EXPORT_SYMBOL(nss_ipsec_tx_msg);
+/*
+ * nss_ipsec_msg_init()
+ *	Initialize ipsec message.
+ */
+void nss_ipsec_msg_init(struct nss_ipsec_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
+			nss_ipsec_msg_callback_t *cb, void *app_data)
+{
+	nss_cmn_msg_init(&nim->cm, if_num, type, len, (void *)cb, app_data);
+}
+EXPORT_SYMBOL(nss_ipsec_msg_init);

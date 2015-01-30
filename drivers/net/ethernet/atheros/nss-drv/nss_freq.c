@@ -15,7 +15,7 @@
  */
 
 /*
- * nss_tx_rx_freq.c
+ * nss_freq.c
  *	NSS frequency change APIs
  */
 
@@ -32,10 +32,20 @@ extern nss_work_t *nss_work;
 extern void *nss_freq_change_context;
 
 /*
- * nss_rx_metadata_nss_freq_ack()
+ * nss_freq_msg_init()
+ *      Initialize the freq message
+ */
+static void nss_freq_msg_init(struct nss_corefreq_msg *ncm, uint16_t if_num, uint32_t type, uint32_t len,
+			void *cb, void *app_data)
+{
+	nss_cmn_msg_init(&ncm->cm, if_num, type, len, cb, app_data);
+}
+
+/*
+ * nss_freq_handle_ack()
  *	Handle the nss ack of frequency change.
  */
-static void nss_rx_metadata_nss_freq_ack(struct nss_ctx_instance *nss_ctx, struct nss_freq_change *nfa)
+static void nss_freq_handle_ack(struct nss_ctx_instance *nss_ctx, struct nss_freq_msg *nfa)
 {
 	if (nfa->ack == NSS_ACK_STARTED) {
 		/*
@@ -62,13 +72,12 @@ static void nss_rx_metadata_nss_freq_ack(struct nss_ctx_instance *nss_ctx, struc
  * nss_freq_change()
  *	NSS frequency change API.
  */
-nss_tx_status_t nss_freq_change(void *ctx, uint32_t eng, uint32_t stats_enable, uint32_t start_or_end)
+nss_tx_status_t nss_freq_change(struct nss_ctx_instance *nss_ctx, uint32_t eng, uint32_t stats_enable, uint32_t start_or_end)
 {
-	struct nss_ctx_instance *nss_ctx = (struct nss_ctx_instance *) ctx;
 	struct sk_buff *nbuf;
 	int32_t status;
 	struct nss_corefreq_msg *ncm;
-	struct nss_freq_change *nfc;
+	struct nss_freq_msg *nfc;
 
 	nss_info("%p: Frequency Changing to: %d\n", nss_ctx, eng);
 
@@ -86,11 +95,9 @@ nss_tx_status_t nss_freq_change(void *ctx, uint32_t eng, uint32_t stats_enable, 
 	}
 
 	ncm = (struct nss_corefreq_msg *)skb_put(nbuf, sizeof(struct nss_corefreq_msg));
-	ncm->cm.type = NSS_TX_METADATA_TYPE_NSS_FREQ_CHANGE;
-	ncm->cm.version = NSS_HLOS_MESSAGE_VERSION;
-	ncm->cm.interface = NSS_COREFREQ_INTERFACE;
-	ncm->cm.len = nbuf->len;
 
+	nss_freq_msg_init(ncm, NSS_COREFREQ_INTERFACE, NSS_TX_METADATA_TYPE_NSS_FREQ_CHANGE,
+				nbuf->len, NULL, NULL);
 	nfc = &ncm->msg.nfc;
 	nfc->frequency = eng;
 	nfc->start_or_end = start_or_end;
@@ -109,16 +116,16 @@ nss_tx_status_t nss_freq_change(void *ctx, uint32_t eng, uint32_t stats_enable, 
 }
 
 /*
- * nss_frequency_workqueue()
+ * nss_freq_queue_work()
  *	Queue Work to the NSS Workqueue based on Current index.
  */
-static void nss_frequency_workqueue(void)
+static void nss_freq_queue_work(void)
 {
 	BUG_ON(!nss_wq);
 
 	nss_cmd_buf.current_freq = nss_runtime_samples.freq_scale[nss_runtime_samples.freq_scale_index].frequency;
 
-	nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_KERNEL);
+	nss_work = (nss_work_t *)kmalloc(sizeof(nss_work_t), GFP_ATOMIC);
 	if (!nss_work) {
 		nss_info("NSS FREQ WQ kmalloc fail");
 		return;
@@ -131,10 +138,10 @@ static void nss_frequency_workqueue(void)
 }
 
 /*
- *  nss_rx_metadata_nss_core_stats()
+ *  nss_freq_handle_core_stats()
  *	Handle the core stats
  */
-static void nss_rx_metadata_nss_core_stats(struct nss_ctx_instance *nss_ctx, struct nss_core_stats *core_stats)
+static void nss_freq_handle_core_stats(struct nss_ctx_instance *nss_ctx, struct nss_core_stats *core_stats)
 {
 	uint32_t b_index;
 	uint32_t minimum;
@@ -205,7 +212,7 @@ static void nss_rx_metadata_nss_core_stats(struct nss_ctx_instance *nss_ctx, str
 			if ((sample > maximum) && (nss_runtime_samples.freq_scale_index < (nss_runtime_samples.freq_scale_sup_max - 1))) {
 				nss_runtime_samples.freq_scale_index++;
 				nss_runtime_samples.freq_scale_ready = 0;
-				nss_frequency_workqueue();
+				nss_freq_queue_work();
 //				nss_info("%p: Switch Up with Sample %x \n", nss_ctx, sample);
 			} else {
 //				nss_info("%p: No Change at Max\n", nss_ctx);
@@ -225,7 +232,7 @@ static void nss_rx_metadata_nss_core_stats(struct nss_ctx_instance *nss_ctx, str
 			if (nss_runtime_samples.freq_scale_rate_limit_down == NSS_FREQUENCY_SCALE_RATE_LIMIT_DOWN) {
 				nss_runtime_samples.freq_scale_index--;
 				nss_runtime_samples.freq_scale_ready = 0;
-				nss_frequency_workqueue();
+				nss_freq_queue_work();
 				nss_runtime_samples.freq_scale_rate_limit_down = 0;
 			}
 		} else {
@@ -235,19 +242,19 @@ static void nss_rx_metadata_nss_core_stats(struct nss_ctx_instance *nss_ctx, str
 }
 
 /*
- * nss_rx_freq_interface_handler()
+ * nss_freq_interface_handler()
  *	Handle NSS -> HLOS messages for Frequency Changes and Statistics
  */
-static void nss_rx_freq_interface_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, __attribute__((unused))void *app_data) {
+static void nss_freq_interface_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, __attribute__((unused))void *app_data) {
 
 	struct nss_corefreq_msg *ncfm = (struct nss_corefreq_msg *)ncm;
 
 	switch (ncfm->cm.type) {
 	case COREFREQ_METADATA_TYPE_TX_FREQ_ACK:
-		nss_rx_metadata_nss_freq_ack(nss_ctx, &ncfm->msg.nfc);
+		nss_freq_handle_ack(nss_ctx, &ncfm->msg.nfc);
 		break;
 	case COREFREQ_METADATA_TYPE_TX_CORE_STATS:
-		nss_rx_metadata_nss_core_stats(nss_ctx, &ncfm->msg.ncs);
+		nss_freq_handle_core_stats(nss_ctx, &ncfm->msg.ncs);
 		break;
 
 	default:
@@ -261,17 +268,17 @@ static void nss_rx_freq_interface_handler(struct nss_ctx_instance *nss_ctx, stru
 }
 
 /*
- * nss_tunipip6_register_handler()
+ * nss_freq_register_handler()
  */
-void nss_core_freq_register_handler(void)
+void nss_freq_register_handler(void)
 {
-	nss_core_register_handler(NSS_COREFREQ_INTERFACE, nss_rx_freq_interface_handler, NULL);
+	nss_core_register_handler(NSS_COREFREQ_INTERFACE, nss_freq_interface_handler, NULL);
 }
 
 /*
- * nss_get_frequency_mgr()
+ * nss_freq_get_mgr()
  */
-void *nss_get_frequency_mgr(void)
+void *nss_freq_get_mgr(void)
 {
 	return (void *)&nss_top_main.nss[nss_top_main.frequency_handler_id];
 }

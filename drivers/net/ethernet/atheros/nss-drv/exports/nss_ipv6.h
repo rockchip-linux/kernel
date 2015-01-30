@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -36,6 +36,7 @@ enum nss_ipv6_message_types {
 	NSS_IPV6_RX_ESTABLISH_RULE_MSG,		/**< IPv6 establish rule message */
 	NSS_IPV6_RX_CONN_STATS_SYNC_MSG,	/**< IPv6 connection stats sync message */
 	NSS_IPV6_RX_NODE_STATS_SYNC_MSG,	/**< IPv6 generic statistics sync message */
+	NSS_IPV6_TX_CONN_CFG_RULE_MSG,		/**< IPv6 connection cfg rule message */
 	NSS_IPV6_MAX_MSG_TYPES,
 };
 
@@ -52,6 +53,10 @@ enum nss_ipv6_message_types {
 					/**< Rule has for a DSCP marking configured */
 #define NSS_IPV6_RULE_CREATE_FLAG_VLAN_MARKING 0x10
 					/**< Rule has for a VLAN marking configured */
+#define NSS_IPV6_RULE_CREATE_FLAG_ICMP_NO_CME_FLUSH 0x20
+					/**< Rule for not flushing CME on ICMP pkt */
+#define NSS_IPV6_RULE_UPDATE_FLAG_CHANGE_MTU 0x40
+					/**< Rule updation for MTU change */
 
 /**
  * IPv6 rule creation validity flags.
@@ -96,8 +101,14 @@ enum exception_events_ipv6 {
 	NSS_EXCEPTION_EVENT_IPV6_HEADER_INCOMPLETE,			/**<  NSS Exception event: Incomplete IPv6 header */
 	NSS_EXCEPTION_EVENT_IPV6_UNKNOWN_PROTOCOL,			/**<  NSS Exception event: IPv6 unknown protocol */
 	NSS_EXCEPTION_EVENT_IPV6_IVID_MISMATCH,				/**<  NSS Exception event: IPv6 ingress vlan id mismatch */
+	NSS_EXCEPTION_EVENT_IPV6_IVID_MISSING,				/**<  NSS Exception event: IPv6 ingress vlan id missing */
 	NSS_EXCEPTION_EVENT_IPV6_DSCP_MARKING_MISMATCH,			/**<  NSS Exception event: IPv6 DSCP marking mismatch */
 	NSS_EXCEPTION_EVENT_IPV6_VLAN_MARKING_MISMATCH,			/**<  NSS Exception event: IPv6 VLAN marking mismatch */
+	NSS_EXCEPTION_EVENT_IPV6_INTERFACE_MISMATCH,			/**<  NSS Exception event: IPv6 source interface mismatch */
+	NSS_EXCEPTION_EVENT_IPV6_GRE_NO_ICME,				/**<  NSS Exception event: GRE protocol no IPv6 conn match entry */
+	NSS_EXCEPTION_EVENT_IPV6_GRE_NEEDS_FRAGMENTATION,		/**<  NSS Exception event: GRE protocol needs fragmentation */
+	NSS_EXCEPTION_EVENT_IPV6_GRE_SMALL_HOP_LIMIT,			/**<  NSS Exception event: GRE protocol small hop limit reached */
+	NSS_EXCEPTION_EVENT_IPV6_DESTROY,				/**<  NSS Exception event: Destroy */
 	NSS_EXCEPTION_EVENT_IPV6_MAX					/**<  IPv6 exception events max type number */
 };
 
@@ -142,37 +153,21 @@ struct nss_ipv6_pppoe_rule {
  * DSCP connection rule structure
  */
 struct nss_ipv6_dscp_rule {
-	uint8_t dscp_itag;	/**< Input tag for DSCP marking */
-	uint8_t dscp_imask;	/**< Input mask for DSCP marking */
-	uint8_t dscp_omask;	/**< Output mask for DSCP marking */
-	uint8_t dscp_oval;	/**< Output value of DSCP marking */
-};
-
-/**
- * Action types for VLAN
- */
-enum nss_ipv6_vlan_types {
-	NSS_IPV6_VLAN_MATCH = 0,	/**< Check for VLAN tag match */
-	NSS_IPV6_VLAN_ADD = 1,		/**< Add a VLAN tag */
-	NSS_IPV6_VLAN_REMOVE = 2,	/**< Remove a VLAN tag */
+	uint8_t flow_dscp;		/**< Egress DSCP value for flow direction */
+	uint8_t return_dscp;		/**< Egress DSCP value for return direction */
+	uint8_t reserved[2];		/**< Padded for alignment */
 };
 
 /**
  * VLAN connection rule structure
  */
 struct nss_ipv6_vlan_rule {
-	uint8_t action;			/**< The type of action to perform */
-	uint8_t reserved[3];		/**< Padded for alignment */
-	uint16_t ingress_vlan_tag;	/**< VLAN Tag for the ingress packets */
-	uint16_t egress_vlan_tag;	/**< VLAN Tag for egress packets */
-	uint16_t vlan_itag;		/**< Input tag for VLAN marking */
-	uint16_t vlan_imask;		/**< Input mask for VLAN marking */
-	uint16_t vlan_omask;		/**< Output mask for VLAN marking */
-	uint16_t vlan_oval;		/**< Output value of VLAN marking */
+	uint32_t ingress_vlan_tag;	/**< VLAN Tag for the ingress packets */
+	uint32_t egress_vlan_tag;	/**< VLAN Tag for egress packets */
 };
 
 /**
- * TCP connection rulr structure
+ * TCP connection rule structure
  */
 struct nss_ipv6_protocol_tcp_rule {
 	uint32_t flow_max_window;	/**< Flow direction's largest seen window */
@@ -190,19 +185,24 @@ struct nss_ipv6_protocol_tcp_rule {
  * QoS connection rule structure
  */
 struct nss_ipv6_qos_rule {
-	uint32_t qos_tag;	/**< QoS tag associated with this rule */
+	uint32_t flow_qos_tag;		/**< QoS tag associated with this rule for flow direction */
+	uint32_t return_qos_tag;	/**< QoS tag associated with this rule for return direction */
 };
 
 /**
  * Error types for ipv6 messages
  */
 enum nss_ipv6_error_response_types {
-	NSS_IPV6_CR_INVALID_PNODE_ERROR = 1,		/**< NSS Error: Invalid interface number */
-	NSS_IPV6_CR_MISSING_CONNECTION_RULE_ERROR,	/**< NSS Error: Missing connection rule */
-	NSS_IPV6_CR_BUFFER_ALLOC_FAIL_ERROR,		/**< NSS Error: Buffer allocation failure */
-	NSS_IPV6_CR_PPPOE_SESSION_CREATION_ERROR,	/**< NSS Error: Unable to create PPPoE session */
-	NSS_IPV6_DR_NO_CONNECTION_ENTRY_ERROR,		/**< NSS Error: No connection found to delete */
-	NSS_IPV6_UNKNOWN_MSG_TYPE,			/**< NSS Error: Unknown error */
+	NSS_IPV6_CR_INVALID_PNODE_ERROR = 1,			/**< NSS Error: Invalid interface number */
+	NSS_IPV6_CR_MISSING_CONNECTION_RULE_ERROR,		/**< NSS Error: Missing connection rule */
+	NSS_IPV6_CR_BUFFER_ALLOC_FAIL_ERROR,			/**< NSS Error: Buffer allocation failure */
+	NSS_IPV6_CR_PPPOE_SESSION_CREATION_ERROR,		/**< NSS Error: Unable to create PPPoE session */
+	NSS_IPV6_DR_NO_CONNECTION_ENTRY_ERROR,			/**< NSS Error: No connection found to delete */
+	NSS_IPV6_CR_CONN_CFG_ALREADY_CONFIGURED_ERROR,		/**< NSS Error: Conn cfg already done once */
+	NSS_IPV6_CR_CONN_CFG_NOT_MULTIPLE_OF_QUANTA_ERROR,	/**< NSS Error: Conn cfg input is not multiple of quanta */
+	NSS_IPV6_CR_CONN_CFG_EXCEEDS_LIMIT_ERROR,		/**< NSS Error: Conn cfg input exceeds max supported connections*/
+	NSS_IPV6_CR_CONN_CFG_MEM_ALLOC_FAIL_ERROR,		/**< NSS Error: Conn cfg mem alloc fail at NSS FW */
+	NSS_IPV6_UNKNOWN_MSG_TYPE,				/**< NSS Error: Unknown error */
 };
 
 /**
@@ -237,6 +237,13 @@ struct nss_ipv6_rule_destroy_msg {
 };
 
 /**
+ * The IPv6 rule conn cfgsub-message structure.
+ */
+struct nss_ipv6_rule_conn_cfg_msg {
+	uint32_t num_conn;	/**< Holds number of supported connections in IPv6 */
+};
+
+/**
  * The NSS IPv6 rule establish structure.
  */
 struct nss_ipv6_rule_establish {
@@ -260,7 +267,7 @@ struct nss_ipv6_rule_establish {
 	uint16_t return_pppoe_remote_mac[3];	/**< Return direction's PPPoE Server MAC address */
 	uint16_t egress_vlan_tag;		/**< Egress VLAN tag */
 	uint8_t flags;				/**< Bit flags associated with the rule */
-	uint32_t qos_tag;			/**< Qos Tag */
+	uint32_t qos_tag;			/**< QoS Tag */
 };
 
 /**
@@ -313,7 +320,8 @@ struct nss_ipv6_conn_sync {
 	uint32_t inc_ticks;		/**< Number of ticks since the last sync */
 	uint32_t reason;		/**< Reason for the sync */
 	uint8_t flags;			/**< Bit flags associated with the rule */
-	uint32_t qos_tag;		/**< Qos Tag */
+	uint32_t qos_tag;		/**< QoS Tag */
+	uint32_t cause;			/**< Flush cause associated with the rule */
 };
 
 /**
@@ -355,8 +363,11 @@ struct nss_ipv6_msg {
 		struct nss_ipv6_rule_establish rule_establish;	/**< Message: rule establish confirmation */
 		struct nss_ipv6_conn_sync conn_stats;		/**< Message: stats sync */
 		struct nss_ipv6_node_sync node_stats;		/**< Message: node stats sync */
+		struct nss_ipv6_rule_conn_cfg_msg rule_conn_cfg;/**< Message: rule conn cfg */
 	} msg;
 };
+
+extern int nss_ipv4_conn_cfg;
 
 /**
  * Callback to be called when IPv6 message is received
@@ -403,4 +414,26 @@ extern struct nss_ctx_instance *nss_ipv6_get_mgr(void);
  * @return none
  */
 extern void nss_ipv6_register_handler(void);
+
+/**
+ * @brief IPv4 sysctl register
+ *
+ * @return None
+ */
+extern void nss_ipv6_register_sysctl(void);
+
+/**
+ * @brief IPv4 sysctl unregister
+ *
+ * @return None
+ */
+extern void nss_ipv6_unregister_sysctl(void);
+
+/**
+ * @brief NSS IPv6 message init
+ *	Initialize NSS IPv6 specific message
+ */
+extern void nss_ipv6_msg_init(struct nss_ipv6_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
+			nss_ipv6_msg_callback_t *cb, void *app_data);
+
 #endif /* __NSS_IPV6_H */

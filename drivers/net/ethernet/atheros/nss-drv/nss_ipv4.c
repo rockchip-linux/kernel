@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -15,14 +15,15 @@
  */
 
 /*
- * nss_tx_rx_ipv4.c
+ * nss_ipv4.c
  *	NSS IPv4 APIs
  */
+#include <linux/sysctl.h>
 #include <linux/ppp_channel.h>
 #include "nss_tx_rx_common.h"
 
-extern void nss_rx_metadata_ipv4_rule_establish(struct nss_ctx_instance *nss_ctx, struct nss_ipv4_rule_establish *nire);
-extern void nss_rx_ipv4_sync(struct nss_ctx_instance *nss_ctx, struct nss_ipv4_conn_sync *nirs);
+int nss_ipv4_conn_cfg __read_mostly = NSS_DEFAULT_NUM_CONN;
+static struct  nss_conn_cfg_pvt i4cfgp;
 
 /*
  * nss_ipv4_driver_conn_sync_update()
@@ -97,6 +98,7 @@ static void nss_ipv4_driver_node_sync_update(struct nss_ctx_instance *nss_ctx, s
 	nss_top->stats_ipv4[NSS_STATS_IPV4_CONNECTION_HASH_REORDERS] += nins->ipv4_connection_hash_reorders;
 	nss_top->stats_ipv4[NSS_STATS_IPV4_CONNECTION_FLUSHES] += nins->ipv4_connection_flushes;
 	nss_top->stats_ipv4[NSS_STATS_IPV4_CONNECTION_EVICTIONS] += nins->ipv4_connection_evictions;
+	nss_top->stats_ipv4[NSS_STATS_IPV4_FRAGMENTATIONS] += nins->ipv4_fragmentations;
 
 	for (i = 0; i < NSS_EXCEPTION_EVENT_IPV4_MAX; i++) {
 		 nss_top->stats_if_exception_ipv4[i] += nins->exception_events[i];
@@ -118,7 +120,7 @@ static void nss_ipv4_rx_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss
 	/*
 	 * Sanity check the message type
 	 */
-	if (ncm->type > NSS_IPV4_MAX_MSG_TYPES) {
+	if (ncm->type >= NSS_IPV4_MAX_MSG_TYPES) {
 		nss_warning("%p: message type out of range: %d", nss_ctx, ncm->type);
 		return;
 	}
@@ -133,14 +135,7 @@ static void nss_ipv4_rx_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss
 	 */
 	nss_core_log_msg_failures(nss_ctx, ncm);
 
-	/*
-	 * Handle deprecated messages.  Eventually these messages should be removed.
-	 */
 	switch (nim->cm.type) {
-	case NSS_IPV4_RX_ESTABLISH_RULE_MSG:
-		return nss_rx_metadata_ipv4_rule_establish(nss_ctx, &nim->msg.rule_establish);
-		break;
-
 	case NSS_IPV4_RX_NODE_STATS_SYNC_MSG:
 		/*
 		* Update driver statistics on node sync.
@@ -153,7 +148,6 @@ static void nss_ipv4_rx_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss
 		 * Update driver statistics on connection sync.
 		 */
 		nss_ipv4_driver_conn_sync_update(nss_ctx, &nim->msg.conn_stats);
-		nss_rx_ipv4_sync(nss_ctx, &nim->msg.conn_stats);
 		break;
 	}
 
@@ -205,7 +199,7 @@ nss_tx_status_t nss_ipv4_tx(struct nss_ctx_instance *nss_ctx, struct nss_ipv4_ms
 		return NSS_TX_FAILURE;
 	}
 
-	if (ncm->type > NSS_IPV4_MAX_MSG_TYPES) {
+	if (ncm->type >= NSS_IPV4_MAX_MSG_TYPES) {
 		nss_warning("%p: message type out of range: %d", nss_ctx, ncm->type);
 		return NSS_TX_FAILURE;
 	}
@@ -299,7 +293,232 @@ void nss_ipv4_register_handler(void)
 	}
 }
 
+/*
+ * nss_ipv4_conn_cfg_callback()
+ *	call back function for the ipv4 connection configuration handler
+ */
+static void nss_ipv4_conn_cfg_callback(void *app_data, struct nss_ipv4_msg *nim)
+{
+
+	if (nim->cm.response != NSS_CMN_RESPONSE_ACK) {
+		nss_warning("IPv4 connection configuration failed with error: %d\n", nim->cm.error);
+		/*
+		 * Error, hence we are not updating the nss_ipv4_conn_cfg
+		 * Restore the current_value to its previous state
+		 */
+		i4cfgp.response = NSS_FAILURE;
+		complete(&i4cfgp.complete);
+		return;
+	}
+
+	/*
+	 * Sucess at NSS FW, hence updating nss_ipv4_conn_cfg, with the valid value
+	 * saved at the sysctl handler.
+	 */
+	nss_info("IPv4 connection configuration success: %d\n", nim->cm.error);
+	i4cfgp.response = NSS_SUCCESS;
+	complete(&i4cfgp.complete);
+}
+
+/*
+ * nss_ipv4_conn_cfg_handler()
+ *	Sets the number of connections for IPv4
+ */
+static int nss_ipv4_conn_cfg_handler(ctl_table *ctl, int write, void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct nss_top_instance *nss_top = &nss_top_main;
+	struct nss_ctx_instance *nss_ctx = &nss_top->nss[0];
+	struct nss_ipv4_msg nim;
+	struct nss_ipv4_rule_conn_cfg_msg *nirccm;
+	nss_tx_status_t nss_tx_status;
+	int ret = NSS_FAILURE;
+	uint32_t sum_of_conn;
+
+	/*
+	 * Acquiring semaphore
+	 */
+	down(&i4cfgp.sem);
+
+	/*
+	 * Take snap shot of current value
+	 */
+	i4cfgp.current_value = nss_ipv4_conn_cfg;
+
+	/*
+	 * Write the variable with user input
+	 */
+	ret = proc_dointvec(ctl, write, buffer, lenp, ppos);
+	if (ret || (!write)) {
+		up(&i4cfgp.sem);
+		return ret;
+	}
+
+	/*
+	 * The input should be multiple of 1024.
+	 * Input for ipv4 and ipv6 sum together should not exceed 8k
+	 * Min. value should be at least 256 connections. This is the
+	 * minimum connections we will support for each of them.
+	 */
+	sum_of_conn = nss_ipv4_conn_cfg + nss_ipv6_conn_cfg;
+	if ((nss_ipv4_conn_cfg & NSS_NUM_CONN_QUANTA_MASK) ||
+		(sum_of_conn > NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6) ||
+		(nss_ipv4_conn_cfg < NSS_MIN_NUM_CONN)) {
+		nss_warning("%p: input supported connections (%d) does not adhere\
+				specifications\n1) not multiple of 1024,\n2) is less than \
+				min val: %d, OR\n 	IPv4/6 total exceeds %d\n",
+				nss_ctx,
+				nss_ipv4_conn_cfg,
+				NSS_MIN_NUM_CONN,
+				NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6);
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv4_conn_cfg = i4cfgp.current_value;
+		up(&i4cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	nss_info("%p: IPv4 supported connections: %d\n", nss_ctx, nss_ipv4_conn_cfg);
+
+	nss_ipv4_msg_init(&nim, NSS_IPV4_RX_INTERFACE, NSS_IPV4_TX_CONN_CFG_RULE_MSG,
+	sizeof(struct nss_ipv4_rule_conn_cfg_msg), (nss_ipv4_msg_callback_t *)nss_ipv4_conn_cfg_callback, NULL);
+
+	nirccm = &nim.msg.rule_conn_cfg;
+	nirccm->num_conn = htonl(nss_ipv4_conn_cfg);
+	nss_tx_status = nss_ipv4_tx(nss_ctx, &nim);
+
+	if (nss_tx_status != NSS_TX_SUCCESS) {
+		nss_warning("%p: nss_tx error setting IPv4 Connections: %d\n",
+							nss_ctx,
+							nss_ipv4_conn_cfg);
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv4_conn_cfg = i4cfgp.current_value;
+		up(&i4cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	/*
+	 * Blocking call, wait till we get ACK for this msg.
+	 */
+	ret = wait_for_completion_timeout(&i4cfgp.complete, msecs_to_jiffies(NSS_CONN_CFG_TIMEOUT));
+	if (ret == 0) {
+		nss_warning("%p: Waiting for ack timed out\n", nss_ctx);
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv4_conn_cfg = i4cfgp.current_value;
+		up(&i4cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	/*
+	 * ACK/NACK received from NSS FW
+	 * If ACK: Callback function will update nss_ipv4_conn_cfg with
+	 * i4cfgp.num_conn_valid, which holds the user input
+	 */
+	if (NSS_FAILURE == i4cfgp.response) {
+
+		/*
+		 * Restore the current_value to its previous state
+		 */
+		nss_ipv4_conn_cfg = i4cfgp.current_value;
+		up(&i4cfgp.sem);
+		return NSS_FAILURE;
+	}
+
+	up(&i4cfgp.sem);
+	return NSS_SUCCESS;
+}
+
+static ctl_table nss_ipv4_table[] = {
+	{
+		.procname		= "ipv4_conn",
+		.data			= &nss_ipv4_conn_cfg,
+		.maxlen			= sizeof(int),
+		.mode			= 0644,
+		.proc_handler   	= &nss_ipv4_conn_cfg_handler,
+	},
+	{ }
+};
+
+static ctl_table nss_ipv4_dir[] = {
+	{
+		.procname		= "ipv4cfg",
+		.mode			= 0555,
+		.child			= nss_ipv4_table,
+	},
+	{ }
+};
+
+
+static ctl_table nss_ipv4_root_dir[] = {
+	{
+		.procname		= "nss",
+		.mode			= 0555,
+		.child			= nss_ipv4_dir,
+	},
+	{ }
+};
+
+static ctl_table nss_ipv4_root[] = {
+	{
+		.procname		= "dev",
+		.mode			= 0555,
+		.child			= nss_ipv4_root_dir,
+	},
+	{ }
+};
+
+static struct ctl_table_header *nss_ipv4_header;
+
+/*
+ * nss_ipv4_register_sysctl()
+ *	Register sysctl specific to ipv4
+ */
+void nss_ipv4_register_sysctl(void)
+{
+	/*
+	 * Register sysctl table.
+	 */
+	nss_ipv4_header = register_sysctl_table(nss_ipv4_root);
+	sema_init(&i4cfgp.sem, 1);
+	init_completion(&i4cfgp.complete);
+	i4cfgp.current_value = nss_ipv4_conn_cfg;
+}
+
+/*
+ * nss_ipv4_unregister_sysctl()
+ *	Unregister sysctl specific to ipv4
+ */
+void nss_ipv4_unregister_sysctl(void)
+{
+	/*
+	 * Unregister sysctl table.
+	 */
+	if (nss_ipv4_header) {
+		unregister_sysctl_table(nss_ipv4_header);
+	}
+}
+
+/*
+ * nss_ipv4_msg_init()
+ *	Initialize IPv4 message.
+ */
+void nss_ipv4_msg_init(struct nss_ipv4_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
+			nss_ipv4_msg_callback_t *cb, void *app_data)
+{
+	nss_cmn_msg_init(&nim->cm, if_num, type, len, (void *)cb, app_data);
+}
+
 EXPORT_SYMBOL(nss_ipv4_tx);
 EXPORT_SYMBOL(nss_ipv4_notify_register);
 EXPORT_SYMBOL(nss_ipv4_notify_unregister);
 EXPORT_SYMBOL(nss_ipv4_get_mgr);
+EXPORT_SYMBOL(nss_ipv4_register_sysctl);
+EXPORT_SYMBOL(nss_ipv4_unregister_sysctl);
+EXPORT_SYMBOL(nss_ipv4_msg_init);

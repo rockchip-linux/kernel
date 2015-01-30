@@ -57,11 +57,21 @@ enum nss_if_error_types {
 };
 
 /**
+ * NSS interface data alignment modes
+ */
+enum nss_if_data_align {
+	NSS_IF_DATA_ALIGN_2BYTE = 0,	/**< Data is aligned at 2 byte boundary */
+	NSS_IF_DATA_ALIGN_4BYTE = 2,	/**< Data is aligned at 4 byte boundary */
+};
+
+/**
  * Interface open command
  */
 struct nss_if_open {
 	uint32_t tx_desc_ring;		/**< Tx descriptor ring address */
 	uint32_t rx_desc_ring;		/**< Rx descriptor ring address */
+	uint32_t rx_forward_if;		/**< Forward received packets to this if_num*/
+	uint32_t alignment_mode;	/**< Header Alignment mode */
 };
 
 /**
@@ -171,11 +181,11 @@ typedef void (*nss_if_msg_callback_t)(void *app_data, struct nss_if_msg *msg);
  *	  list layer and netdev/sk as known.
  *
  * @param app_data Application context for this message
- * @param os_buf Data buffer
+ * @param skb Data buffer
  *
  * @return void
  */
-typedef void (*nss_if_rx_callback_t)(void *app_data, void *os_buf);
+typedef void (*nss_if_rx_callback_t)(struct net_device *netdev, struct sk_buff *skb);
 
 /**
  * @brief Register to send/receive GMAC packets/messages

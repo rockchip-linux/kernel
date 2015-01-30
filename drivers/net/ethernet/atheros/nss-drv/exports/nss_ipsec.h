@@ -22,9 +22,20 @@
 #ifndef __NSS_IPSEC_H
 #define __NSS_IPSEC_H
 
-#define NSS_IPSEC_MAX_IV_LEN 16
-#define NSS_IPSEC_MAX_RULE_SHIFT 8
-#define NSS_IPSEC_MAX_RULE (1 << NSS_IPSEC_MAX_RULE_SHIFT)
+/*
+ * For some reason Linux doesn't define this in if_arp.h,
+ * refer http://www.iana.org/assignments/arp-parameters/arp-parameters.xhtml
+ * for the full list
+ */
+#define NSS_IPSEC_ARPHRD_IPSEC 31	/**< iana.org ARP Hardware type for IPsec tunnel*/
+#define NSS_IPSEC_MAX_RULES 256 	/**< maximum rules supported */
+#define NSS_IPSEC_MAX_SA NSS_CRYPTO_MAX_IDXS /**< maximum SAs supported */
+
+#if (~(NSS_IPSEC_MAX_RULES - 1) & (NSS_IPSEC_MAX_RULES >> 1))
+#error "NSS Max SA should be a power of 2"
+#endif
+
+#define NSS_IPSEC_MSG_LEN (sizeof(struct nss_ipsec_msg) - sizeof(struct nss_cmn_msg))
 
 /*
  * @brief IPsec rule types
@@ -33,60 +44,21 @@ enum nss_ipsec_msg_type {
 	NSS_IPSEC_MSG_TYPE_NONE = 0,		/**< nothing to do */
 	NSS_IPSEC_MSG_TYPE_ADD_RULE = 1,	/**< add rule to the table */
 	NSS_IPSEC_MSG_TYPE_DEL_RULE = 2,	/**< delete rule from the table */
-	NSS_IPSEC_MSG_TYPE_DEL_SID = 3,		/**< flush all rules for a crypto_sid */
-	NSS_IPSEC_MSG_TYPE_DEL_ALL = 4,		/**< remove all rules from table */
-	NSS_IPSEC_MSG_TYPE_SYNC_STATS = 5,	/**< stats sync message */
+	NSS_IPSEC_MSG_TYPE_SYNC_STATS = 3,	/**< stats sync message */
+	NSS_IPSEC_MSG_TYPE_FLUSH_TUN = 4,	/**< delete all SA(s) for a tunnel */
 	NSS_IPSEC_MSG_TYPE_MAX
 };
 
 /**
- * @brief IPv4 header
+ * @brief NSS IPsec status
  */
-struct nss_ipsec_ipv4_hdr {
-        uint8_t ver_ihl;	/**< version and header length */
-        uint8_t tos;		/**< type of service */
-        uint16_t tot_len;	/**< total length of the payload */
-        uint16_t id;		/**< packet sequence number */
-        uint16_t frag_off;	/**< fragmentation offset */
-        uint8_t ttl;		/**< time to live */
-        uint8_t protocol;	/**< next header protocol (TCP, UDP, ESP etc.) */
-        uint16_t checksum;	/**< IP checksum */
-        uint32_t src_ip;	/**< source IP address */
-        uint32_t dst_ip;	/**< destination IP address */
-};
+typedef enum nss_ipsec_status {
+	NSS_IPSEC_STATUS_OK = 0,
+	NSS_IPSEC_STATUS_ENOMEM = 1,
+	NSS_IPSEC_STATUS_ENOENT = 2,
+	NSS_IPSEC_STATUS_MAX
+} nss_ipsec_status_t;
 
-/**
- * @brief ESP (Encapsulating Security Payload) header
- */
-struct nss_ipsec_esp_hdr {
-	uint32_t spi;				/**< security Parameter Index */
-	uint32_t seq_no;			/**< esp sequence number */
-	uint8_t iv[NSS_IPSEC_MAX_IV_LEN];	/**< iv for esp header */
-};
-
-/**
- * @brief TCP (Transmission Control Protocol)  header
- */
-struct nss_ipsec_tcp_hdr {
-	uint16_t src_port;	/**< source port */
-	uint16_t dst_port;	/**< destination port */
-	uint32_t seq_no;	/**< tcp sequence number */
-	uint32_t ack_no;	/**< acknowledgment number */
-	uint16_t flags;		/**< tcp flags */
-	uint16_t window_size;	/**< tcp window size */
-	uint16_t checksum;	/**< tcp checksum */
-	uint16_t urgent;	/**< location where urgent data ends */
-};
-
-/**
- * @brief UDP header
- */
-struct nss_ipsec_udp_hdr {
-	uint16_t src_port;	/**< source port */
-	uint16_t dst_port;	/**< destination port */
-	uint16_t len;		/**< payload length */
-	uint16_t checksum;	/**< udp checksum */
-};
 /*
  * @brief IPsec rule selector tuple for encap & decap
  *
@@ -102,47 +74,77 @@ struct nss_ipsec_udp_hdr {
  * be referenced by host in future
  */
 struct nss_ipsec_rule_sel {
-	uint32_t dst_ip;	/**< destination IP */
-	uint32_t src_ip;	/**< source IP */
-	uint32_t spi;		/**< SPI index */
+	uint32_t ipv4_dst;	/**< IPv4 destination to use */
+	uint32_t ipv4_src;	/**< IPv4 source to use */
+	uint32_t esp_spi;	/**< SPI index */
+
 	uint16_t dst_port;	/**< destination port (UDP or TCP) */
 	uint16_t src_port;	/**< source port (UDP or TCP) */
-	uint8_t protocol;	/**< IPv4 protocol types */
+
+	uint8_t ipv4_proto;	/**< IPv4 protocol types */
 	uint8_t res[3];
 };
 
-/*
- * @brief IPsec rule data to be used for tunneling purposes
+/**
+ * @brief IPsec rule outer IP header info to be applied for encapsulation
+ */
+struct nss_ipsec_rule_oip {
+	uint32_t ipv4_dst;		/**< IPv4 destination address to apply */
+	uint32_t ipv4_src;		/**< IPv4 source address to apply */
+	uint32_t esp_spi;		/**< ESP SPI index to apply */
+
+	uint8_t ipv4_ttl;		/**< IPv4 Time-to-Live value to apply */
+	uint8_t res[3];			/**< reserve for 4-byte alignment */
+};
+
+/**
+ * @brief IPsec rule data to be used for per packet transformation
  */
 struct nss_ipsec_rule_data {
-	struct nss_ipsec_ipv4_hdr ip;	/**< tunnel IPv4 header to use */
-	struct nss_ipsec_esp_hdr esp;	/**< tunnel ESP header for IPsec */
-	uint32_t crypto_sid;	/**< crypto session ID for encrypt or decrypt operation */
+
+	uint16_t crypto_index;		/**< crypto index for the SA */
+	uint16_t window_size;		/**< ESP sequence number window */
+
+	uint8_t cipher_algo;		/**< Cipher algorithm */
+	uint8_t auth_algo;		/**< Authentication algorithm */
+	uint8_t nat_t_req;		/**< NAT-T required */
+	uint8_t esp_icv_len;		/**< ESP trailers ICV length to apply */
+
+	uint8_t esp_seq_skip;		/**< Skip ESP sequence number */
+	uint8_t esp_tail_skip;		/**< Skip ESP trailer */
+	uint8_t use_pattern;		/**< Use random pattern in hash calculation */
+	uint8_t res;			/**< Reserve bytes for alignment */
 };
 
 /*
  * @brief IPsec rule push message, sent from Host --> NSS for
  * 	  performing a operation on NSS rule tables
  */
-struct nss_ipsec_rule_push {
+struct nss_ipsec_rule {
 	struct nss_ipsec_rule_sel sel;		/**< rule selector */
-	struct nss_ipsec_rule_data data;	/**< rule data */
+	struct nss_ipsec_rule_oip oip;		/**< per rule outer IP info */
+	struct nss_ipsec_rule_data data;	/**< per rule data */
+
+	uint32_t rule_idx;			/**< rule index provided by NSS */
+	uint32_t sa_idx;			/**< index into SA table */
 };
 
-/*
- * @brief IPsec rule sync message, sent from NSS to host for
- * 	  synchronizing the rule tables between NSS & Host
- *
- * @note  the decision to use the index.num or index.map is
- * 	  dependent upon the rule.op
+/**
+ * @brief Packet stats for individual SA
  */
-struct nss_ipsec_rule_sync {
-	struct nss_ipsec_rule_sel sel;			/**< rule selector for host use */
-	struct nss_ipsec_rule_data data;		/**< rule data for host use */
-	union {
-		uint32_t num;				/**< table index incase of single rule sync(s) */
-		uint8_t map[NSS_IPSEC_MAX_RULE];	/**< multiple indexes incase of multiple rule sync(s) */
-	} index;
+struct nss_ipsec_pkt_stats {
+	uint32_t processed;			/**< packets processed */
+	uint32_t dropped;			/**< packets dropped */
+	uint32_t failed;			/**< processing failed */
+};
+
+/**
+ * @brief NSS IPsec per SA statistics
+ */
+struct nss_ipsec_sa_stats {
+	uint32_t seqnum;			/**< SA sequence number */
+	uint32_t sa_idx;			/**< index into SA table */
+	struct nss_ipsec_pkt_stats pkts;	/**< packet statistics */
 };
 
 /*
@@ -150,9 +152,11 @@ struct nss_ipsec_rule_sync {
  */
 struct nss_ipsec_msg {
 	struct nss_cmn_msg cm;				/**< Message Header */
+
+	uint32_t tunnel_id;				/**< tunnel index associated with the message */
 	union {
-		struct nss_ipsec_rule_push push;	/**< Message: IPsec rule */
-		struct nss_ipsec_rule_sync sync;	/**< Message: IPsec events sync */
+		struct nss_ipsec_rule push;		/**< Message: IPsec rule */
+		struct nss_ipsec_sa_stats stats;	/**< Message: Retreive stats for tunnel */
 	} msg;
 };
 
@@ -170,11 +174,11 @@ typedef void (*nss_ipsec_msg_callback_t)(void *app_data, struct nss_ipsec_msg *m
  * @brief data callback
  *
  * @param app_data[IN] context of the callback user
- * @param os_buf[IN] data buffer
+ * @param skb[IN] data buffer
  *
  * @return
  */
-typedef void (*nss_ipsec_buf_callback_t)(void *app_data, void *os_buf);
+typedef void (*nss_ipsec_buf_callback_t)(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi);
 
 /**
  * @brief send an IPsec message
@@ -185,6 +189,16 @@ typedef void (*nss_ipsec_buf_callback_t)(void *app_data, void *os_buf);
  * @return
  */
 extern nss_tx_status_t nss_ipsec_tx_msg(struct nss_ctx_instance *nss_ctx, struct nss_ipsec_msg *msg);
+
+/**
+ * @brief send an IPsec process request
+ *
+ * @param os_buf Data buffer
+ * @param if_num NSS interface number
+ *
+ * @return Status
+ */
+extern nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *os_buf, uint32_t if_num);
 
 /**
  * @brief register a event callback handler with HLOS driver
@@ -202,11 +216,12 @@ extern struct nss_ctx_instance *nss_ipsec_notify_register(uint32_t if_num, nss_i
  *
  * @param if_num[IN] receive data from this interface (Encap, Decap or C2C)
  * @param cb[IN] data callback function
- * @param app_data[IN] conext of the callback user
+ * @param netdev associated netdevice.
+ * @param features denote the skb types supported by this interface.
  *
  * @return
  */
-extern struct nss_ctx_instance *nss_ipsec_data_register(uint32_t if_num, nss_ipsec_buf_callback_t cb, void *app_data);
+extern struct nss_ctx_instance *nss_ipsec_data_register(uint32_t if_num, nss_ipsec_buf_callback_t cb, struct net_device *netdev, uint32_t features);
 
 /**
  * @brief unregister the message notifier
@@ -216,7 +231,7 @@ extern struct nss_ctx_instance *nss_ipsec_data_register(uint32_t if_num, nss_ips
  *
  * @return
  */
-extern void nss_ipsec_msg_unregister(struct nss_ctx_instance *ctx, uint32_t if_num);
+extern void nss_ipsec_notify_unregister(struct nss_ctx_instance *ctx, uint32_t if_num);
 
 /**
  * @brief unregister the data notifier
@@ -228,4 +243,27 @@ extern void nss_ipsec_msg_unregister(struct nss_ctx_instance *ctx, uint32_t if_n
  */
 extern void nss_ipsec_data_unregister(struct nss_ctx_instance *ctx, uint32_t if_num);
 
+/**
+ * @brief get the NSS context for the IPsec handle
+ *
+ * @return nss_ctx_instance
+ */
+extern struct nss_ctx_instance *nss_ipsec_get_context(void);
+
+/**
+ * @brief Initialize ipsec message
+ *
+ * @return void
+ */
+extern void nss_ipsec_msg_init(struct nss_ipsec_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
+				nss_ipsec_msg_callback_t *cb, void *app_data);
+
+/*
+ * @brief get the NSS interface number to be used for IPsec requests
+ *
+ * @param ctx[IN] HLOS driver's context
+ *
+ * @return interface number
+ */
+extern int32_t nss_ipsec_get_interface(struct nss_ctx_instance *ctx);
 #endif /* __NSS_IPSEC_H */

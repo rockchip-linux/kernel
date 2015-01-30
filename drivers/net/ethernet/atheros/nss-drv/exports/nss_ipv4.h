@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -36,11 +36,12 @@ enum nss_ipv4_message_types {
 	NSS_IPV4_RX_ESTABLISH_RULE_MSG,		/**< IPv4 establish rule message */
 	NSS_IPV4_RX_CONN_STATS_SYNC_MSG,	/**< IPv4 connection stats sync message */
 	NSS_IPV4_RX_NODE_STATS_SYNC_MSG,	/**< IPv4 generic statistics sync message */
+	NSS_IPV4_TX_CONN_CFG_RULE_MSG,		/**< IPv4 number of connections supported rule message */
 	NSS_IPV4_MAX_MSG_TYPES,			/**< IPv4 message max type number */
 };
 
 /**
- * NA IPv4 rule creation flags.
+ * NA IPv4 rule creation & rule update flags.
  */
 #define NSS_IPV4_RULE_CREATE_FLAG_NO_SEQ_CHECK 0x01
 					/**< Do not perform TCP sequence number checks */
@@ -52,6 +53,11 @@ enum nss_ipv4_message_types {
 					/**< Rule has for a DSCP marking configured*/
 #define NSS_IPV4_RULE_CREATE_FLAG_VLAN_MARKING 0x10
 					/**< Rule has for a VLAN marking configured*/
+#define NSS_IPV4_RULE_UPDATE_FLAG_CHANGE_MTU 0x20
+					/**< Update MTU of connection interfaces */
+#define NSS_IPV4_RULE_CREATE_FLAG_ICMP_NO_CME_FLUSH 0x40
+					/**< Rule for not flushing CME on ICMP pkt */
+
 
 /**
  * IPv4 rule creation validity flags.
@@ -106,33 +112,17 @@ struct nss_ipv4_pppoe_rule {
  * DSCP connection rule structure
  */
 struct nss_ipv4_dscp_rule {
-	uint8_t dscp_itag;		/**< Input tag for DSCP marking */
-	uint8_t dscp_imask;		/**< Input mask for DSCP marking */
-	uint8_t dscp_omask;		/**< Output mask for DSCP marking */
-	uint8_t dscp_oval;		/**< Output value of DSCP marking */
-};
-
-/**
- * Action types for VLAN
- */
-enum nss_ipv4_vlan_action_types {
-	NSS_IPV4_VLAN_MATCH = 0,	/**< Check for VLAN tag match */
-	NSS_IPV4_VLAN_ADD = 1,		/**< Add a VLAN tag */
-	NSS_IPV4_VLAN_REMOVE = 2,	/**< Remove a VLAN tag */
+	uint8_t flow_dscp;		/**< Egress DSCP value for flow direction */
+	uint8_t return_dscp;		/**< Egress DSCP value for return direction */
+	uint8_t reserved[2];		/**< Padded for alignment */
 };
 
 /**
  * VLAN connection rule structure
  */
 struct nss_ipv4_vlan_rule {
-	uint16_t ingress_vlan_tag;	/**< VLAN Tag for the ingress packets */
-	uint16_t egress_vlan_tag;	/**< VLAN Tag for egress packets */
-	uint16_t vlan_itag;		/**< Input tag for VLAN marking */
-	uint16_t vlan_imask;		/**< Input mask for VLAN marking */
-	uint16_t vlan_omask;		/**< Output mask for VLAN marking */
-	uint16_t vlan_oval;		/**< Output value of VLAN marking */
-	uint8_t action;			/**< The type of action to perform */
-	uint8_t reserved[3];		/**< Padded for alignment */
+	uint32_t ingress_vlan_tag;	/**< VLAN Tag for the ingress packets */
+	uint32_t egress_vlan_tag;	/**< VLAN Tag for egress packets */
 };
 
 /**
@@ -154,20 +144,25 @@ struct nss_ipv4_protocol_tcp_rule {
  * QoS connection rule structure
  */
 struct nss_ipv4_qos_rule {
-	uint32_t qos_tag;		/**< QoS tag associated with this rule */
+	uint32_t flow_qos_tag;		/**< QoS tag associated with this rule for flow direction */
+	uint32_t return_qos_tag;	/**< QoS tag associated with this rule for return direction */
 };
 
 /**
  * Error types for ipv4 messages
  */
 enum nss_ipv4_error_response_types {
-	NSS_IPV4_CR_INVALID_PNODE_ERROR = 1,		/**< NSS Error: Invalid interface number */
-	NSS_IPV4_CR_MISSING_CONNECTION_RULE_ERROR, 	/**< NSS Error: Missing connection rule */
-	NSS_IPV4_CR_BUFFER_ALLOC_FAIL_ERROR,		/**< NSS Error: Buffer allocation failure */
-	NSS_IPV4_CR_PPPOE_SESSION_CREATION_ERROR, 	/**< NSS Error: Unable to create PPPoE session */
-	NSS_IPV4_DR_NO_CONNECTION_ENTRY_ERROR,		/**< NSS Error: No connection found to delete */
-	NSS_IPV4_UNKNOWN_MSG_TYPE,			/**< NSS Error: Unknown error */
-	NSS_IPV4_LAST					/**< NSS IPv4 max error response type */
+	NSS_IPV4_CR_INVALID_PNODE_ERROR = 1,			/**< NSS Error: Invalid interface number */
+	NSS_IPV4_CR_MISSING_CONNECTION_RULE_ERROR, 		/**< NSS Error: Missing connection rule */
+	NSS_IPV4_CR_BUFFER_ALLOC_FAIL_ERROR,			/**< NSS Error: Buffer allocation failure */
+	NSS_IPV4_CR_PPPOE_SESSION_CREATION_ERROR,		/**< NSS Error: Unable to create PPPoE session */
+	NSS_IPV4_DR_NO_CONNECTION_ENTRY_ERROR,			/**< NSS Error: No connection found to delete */
+	NSS_IPV4_CR_CONN_CFG_ALREADY_CONFIGURED_ERROR,		/**< NSS Error: Conn cfg already done once */
+	NSS_IPV4_CR_CONN_CFG_NOT_MULTIPLE_OF_QUANTA_ERROR,	/**< NSS Error: Conn cfg input is not multiple of quanta */
+	NSS_IPV4_CR_CONN_CFG_EXCEEDS_LIMIT_ERROR,		/**< NSS Error: Conn cfg input exceeds max supported connections*/
+	NSS_IPV4_CR_CONN_CFG_MEM_ALLOC_FAIL_ERROR,		/**< NSS Error: Conn cfg mem alloc fail at NSS FW */
+	NSS_IPV4_UNKNOWN_MSG_TYPE,				/**< NSS Error: Unknown error */
+	NSS_IPV4_LAST						/**< NSS IPv4 max error response type */
 };
 
 /**
@@ -200,6 +195,14 @@ struct nss_ipv4_rule_destroy_msg {
 };
 
 /**
+ * The IPv4 rule number of supported connections sub-message structure.
+ */
+struct nss_ipv4_rule_conn_cfg_msg {
+	uint32_t num_conn;	/**< Number of supported IPv4 connections */
+};
+
+
+/**
  * The NSS IPv4 rule establish structure.
  */
 struct nss_ipv4_rule_establish {
@@ -226,7 +229,7 @@ struct nss_ipv4_rule_establish {
 	uint16_t return_pppoe_remote_mac[3];	/**< Return direction's PPPoE Server MAC address */
 	uint16_t egress_vlan_tag;		/**< Egress VLAN tag */
 	uint32_t flags;				/**< Bit flags associated with the rule */
-	uint32_t qos_tag;			/**< Qos Tag */
+	uint32_t qos_tag;			/**< QoS Tag */
 };
 
 /**
@@ -284,7 +287,8 @@ struct nss_ipv4_conn_sync {
 	uint32_t reason;		/**< Reason for the sync */
 
 	uint8_t flags;			/**< Bit flags associated with the rule */
-	uint32_t qos_tag;		/**< Qos Tag */
+	uint32_t qos_tag;		/**< QoS Tag */
+	uint32_t cause;			/**< Flush Cause */
 };
 
 /**
@@ -334,12 +338,23 @@ enum exception_events_ipv4 {
 	NSS_EXCEPTION_EVENT_IPV4_ESP_SMALL_TTL,				/**<  NSS Exception event: IPv4 esp small ttl */
 	NSS_EXCEPTION_EVENT_IPV4_ESP_NEEDS_FRAGMENTATION,		/**<  NSS Exception event: IPv4 esp needs fragmentation */
 	NSS_EXCEPTION_EVENT_IPV4_IVID_MISMATCH,				/**<  NSS Exception event: IPv4 ivid mismatch */
+	NSS_EXCEPTION_EVENT_IPV4_IVID_MISSING,				/**<  NSS Exception event: IPv4 ivid missing */
 	NSS_EXCEPTION_EVENT_IPV4_6RD_NO_ICME,				/**<  NSS Exception event: IPv4 6RD no connection match entry */
 	NSS_EXCEPTION_EVENT_IPV4_6RD_IP_OPTION,				/**<  NSS Exception event: IPv4 6RD ip option */
 	NSS_EXCEPTION_EVENT_IPV4_6RD_IP_FRAGMENT,			/**<  NSS Exception event: IPv4 6RD ip fragment */
 	NSS_EXCEPTION_EVENT_IPV4_6RD_NEEDS_FRAGMENTATION,		/**<  NSS Exception event: IPv4 6RD needs fragmentation */
 	NSS_EXCEPTION_EVENT_IPV4_DSCP_MARKING_MISMATCH,			/**<  NSS Exception event: IPv4 dscp marking mismatch */
 	NSS_EXCEPTION_EVENT_IPV4_VLAN_MARKING_MISMATCH,			/**<  NSS Exception event: IPv4 vlan marking mismatch */
+	NSS_EXCEPTION_EVENT_IPV4_INTERFACE_MISMATCH,			/**<  NSS Exception event: IPv4 source interface mismatch */
+	NSS_EXCEPTION_EVENT_GRE_HEADER_INCOMPLETE,			/**<  NSS Exception event: IPv4 GRE header is incomplete */
+	NSS_EXCEPTION_EVENT_GRE_NO_ICME,				/**<  NSS Exception event: IPV4 GRE no connection match entry */
+	NSS_EXCEPTION_EVENT_GRE_IP_OPTION,				/**<  NSS Exception event: IPV4 GRE ip option */
+	NSS_EXCEPTION_EVENT_GRE_IP_FRAGMENT,				/**<  NSS Exception event: IPV4 GRE ip fragment */
+	NSS_EXCEPTION_EVENT_GRE_SMALL_TTL,				/**<  NSS Exception event: IPV4 GRE small ttl */
+	NSS_EXCEPTION_EVENT_GRE_NEEDS_FRAGMENTATION,			/**<  NSS Exception event: IPV4 GRE needs fragmentation */
+	NSS_EXCEPTION_EVENT_IPV4_DESTROY,				/**<  NSS Exception event: IPv4 Destroy */
+	NSS_EXCEPTION_EVENT_IPV4_FRAG_DF_SET,				/**<  NSS Exception event: IPv4 fragmentation needed, but DF set */
+	NSS_EXCEPTION_EVENT_IPV4_FRAG_FAIL,				/**<  NSS Exception event: IPv4 fragmentation failure */
 	NSS_EXCEPTION_EVENT_IPV4_MAX					/**<  IPv4 exception events max type number */
 };
 
@@ -367,6 +382,8 @@ struct nss_ipv4_node_sync {
 				/**< Number of IPv4 connection flushes */
 	uint32_t ipv4_connection_evictions;
 				/**< Number of IPv4 connection evictions */
+	uint32_t ipv4_fragmentations;
+				/**< Number of successful IPv4 fragmentations performed*/
 	uint32_t exception_events[NSS_EXCEPTION_EVENT_IPV4_MAX];
 				/**< Number of IPv4 exception events */
 };
@@ -382,8 +399,11 @@ struct nss_ipv4_msg {
 		struct nss_ipv4_rule_establish rule_establish;	/**< Message: rule establish confirmation */
 		struct nss_ipv4_conn_sync conn_stats;	/**< Message: connection stats sync */
 		struct nss_ipv4_node_sync node_stats;	/**< Message: node stats sync */
+		struct nss_ipv4_rule_conn_cfg_msg rule_conn_cfg;	/**< Message: rule connections supported */
 	} msg;
 };
+
+extern int nss_ipv6_conn_cfg;
 
 /**
  * Callback to be called when IPv4 message is received
@@ -430,5 +450,27 @@ extern struct nss_ctx_instance *nss_ipv4_get_mgr(void);
  * @return None
  */
 extern void nss_ipv4_register_handler(void);
+
+/**
+ * @brief IPv4 sysctl register
+ *
+ * @return None
+ */
+extern void nss_ipv4_register_sysctl(void);
+
+/**
+ * @brief IPv4 sysctl unregister
+ *
+ * @return None
+ */
+extern void nss_ipv4_unregister_sysctl(void);
+
+/**
+ * @brief IPv4 message init
+ *
+ * @return None
+ */
+extern void nss_ipv4_msg_init(struct nss_ipv4_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
+			nss_ipv4_msg_callback_t *cb, void *app_data);
 
 #endif /* __NSS_IPV4_H */

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -15,7 +15,7 @@
  */
 
 /*
- * nss_tx_rx_eth_rx.c
+ * nss_eth_rx.c
  *	NSS ETH_RX APIs
  */
 
@@ -28,10 +28,10 @@
  */
 
 /*
- * nss_rx_metadata_eth_rx_node_stats_sync()
+ * nss_eth_rx_metadata_stats_sync()
  *	Handle the syncing of PPPoE node statistics.
  */
-static void nss_rx_metadata_eth_rx_stats_sync(struct nss_ctx_instance *nss_ctx, struct nss_eth_rx_node_sync *nens)
+static void nss_eth_rx_metadata_stats_sync(struct nss_ctx_instance *nss_ctx, struct nss_eth_rx_node_sync *nens)
 {
 	int32_t i;
 	struct nss_top_instance *nss_top = nss_ctx->nss_top;
@@ -44,6 +44,10 @@ static void nss_rx_metadata_eth_rx_stats_sync(struct nss_ctx_instance *nss_ctx, 
 	nss_top->stats_node[NSS_ETH_RX_INTERFACE][NSS_STATS_NODE_TX_PKTS] += nens->node_stats.tx_packets;
 	nss_top->stats_node[NSS_ETH_RX_INTERFACE][NSS_STATS_NODE_TX_BYTES] += nens->node_stats.tx_bytes;
 
+	nss_top->stats_eth_rx[NSS_STATS_ETH_RX_TOTAL_TICKS] += nens->total_ticks;
+	nss_top->stats_eth_rx[NSS_STATS_ETH_RX_WORST_CASE_TICKS] += nens->worst_case_ticks;
+	nss_top->stats_eth_rx[NSS_STATS_ETH_RX_ITERATIONS] += nens->iterations;
+
 	for (i = 0; i < NSS_EXCEPTION_EVENT_ETH_RX_MAX; i++) {
 		nss_top->stats_if_exception_eth_rx[i] += nens->exception_events[i];
 	}
@@ -52,10 +56,10 @@ static void nss_rx_metadata_eth_rx_stats_sync(struct nss_ctx_instance *nss_ctx, 
 }
 
 /*
- * nss_rx_eth_rx_interface_handler()
+ * nss_eth_rx_interface_handler()
  *	Handle NSS -> HLOS messages for ETH_RX node
  */
-static void nss_rx_eth_rx_interface_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, __attribute__((unused))void *app_data)
+static void nss_eth_rx_interface_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, __attribute__((unused))void *app_data)
 {
 	struct nss_eth_rx_msg *nem = (struct nss_eth_rx_msg *)ncm;
 
@@ -69,7 +73,7 @@ static void nss_rx_eth_rx_interface_handler(struct nss_ctx_instance *nss_ctx, st
 
 	switch (nem->cm.type) {
 	case NSS_RX_METADATA_TYPE_ETH_RX_STATS_SYNC:
-		nss_rx_metadata_eth_rx_stats_sync(nss_ctx, &nem->msg.node_sync);
+		nss_eth_rx_metadata_stats_sync(nss_ctx, &nem->msg.node_sync);
 		break;
 
 	default:
@@ -88,5 +92,5 @@ static void nss_rx_eth_rx_interface_handler(struct nss_ctx_instance *nss_ctx, st
  */
 void nss_eth_rx_register_handler()
 {
-	nss_core_register_handler(NSS_ETH_RX_INTERFACE, nss_rx_eth_rx_interface_handler, NULL);
+	nss_core_register_handler(NSS_ETH_RX_INTERFACE, nss_eth_rx_interface_handler, NULL);
 }

@@ -30,50 +30,51 @@
  * 6rd tunnel request/response types
  */
 enum nss_tun6rd_metadata_types {
-	NSS_TUN6RD_TX_IF_CREATE,
-	NSS_TUN6RD_TX_IF_DESTROY,
+	NSS_TUN6RD_ATTACH_PNODE,
 	NSS_TUN6RD_RX_STATS_SYNC,
+	NSS_TUN6RD_ADD_UPDATE_PEER,
 	NSS_TUN6RD_MAX,
 };
 
 /**
  * 6rd tunnel configuration message structure
  */
-struct nss_tun6rd_create_msg {
-	uint32_t prefix[4];	/* 6rd prefix */
-	uint32_t relay_prefix;	/* Relay prefix */
-	uint16_t prefixlen;	/* 6rd prefix len */
-	uint16_t relay_prefixlen;/* Relay prefix length*/
+struct nss_tun6rd_attach_tunnel_msg {
+	uint32_t prefix[4];		/* 6rd prefix */
+	uint32_t relay_prefix;		/* Relay prefix */
+	uint16_t prefixlen;		/* 6rd prefix len */
+	uint16_t relay_prefixlen;	/* Relay prefix length*/
 	uint32_t saddr;		/* Tunnel source address */
 	uint32_t daddr;		/* Tunnel destination addresss */
-	uint8_t  tos;		/* Tunnel tos field */
-	uint8_t  ttl;		/* Tunnel ttl field */
-	uint16_t reserved;	/* Reserved field */
-};
-
-/**
- * 6rd tunnel interface down message structure
- */
-struct nss_tun6rd_destroy_msg {
-	uint32_t prefix[4];	/* Place holder */
+	uint8_t  tos;			/* Tunnel tos field */
+	uint8_t  ttl;			/* Tunnel ttl field */
+	uint16_t reserved;		/* Reserved field */
 };
 
 /**
  * 6rd tunnel statistics sync message structure.
  */
-struct nss_tun6rd_stats_sync_msg {
-	struct nss_cmn_node_stats node_stats;
+struct nss_tun6rd_sync_stats_msg {
+	struct nss_cmn_node_stats node_stats;	/* Node statstics*/
+};
+
+/**
+ * 6rd tunnel peer addr.
+ */
+struct nss_tun6rd_set_peer_msg {
+	uint32_t ipv6_address[4];	/* The peer's ipv6 addr*/
+	uint32_t dest;			/* The peer's ipv4 addr*/
 };
 
 /**
  * Message structure to send/receive 6rd tunnel messages
  */
 struct nss_tun6rd_msg {
-	struct nss_cmn_msg cm;		/* Message Header */
+	struct nss_cmn_msg cm;					/* Message Header */
 	union {
-		struct nss_tun6rd_create_msg tun6rd_create;	/* Message: Create 6rd tunnel */
-		struct nss_tun6rd_destroy_msg tun6rd_destroy;	/* Message: Destroy 6rd tunnel */
-		struct nss_tun6rd_stats_sync_msg stats_sync;	/* Message: interface stats sync */
+		struct nss_tun6rd_attach_tunnel_msg tunnel;	/* Message: Attach 6rd tunnel */
+		struct nss_tun6rd_sync_stats_msg stats;	/* Message: interface stats sync */
+		struct nss_tun6rd_set_peer_msg peer;		/* Message: add/update peer */
 	} msg;
 };
 
@@ -98,14 +99,21 @@ typedef void (*nss_tun6rd_msg_callback_t)(void *app_data, struct nss_tun6rd_msg 
 extern nss_tx_status_t nss_tun6rd_tx(struct nss_ctx_instance *nss_ctx, struct nss_tun6rd_msg *msg);
 
 /**
+ * @brief Get the tun6rd context used in the nss_tun6rd_tx
+ *
+ * @return struct nss_ctx_instance *NSS context
+ */
+extern struct nss_ctx_instance *nss_tun6rd_get_context(void);
+
+/**
  * @brief Callback to receive 6rd tunnel data
  *
  * @param app_data Application context of the message
- * @param os_buf  Pointer to data buffer
+ * @param skb Pointer to data buffer
  *
  * @return void
  */
-typedef void (*nss_tun6rd_callback_t)(void *app_data, void *os_buf);
+typedef void (*nss_tun6rd_callback_t)(struct net_device *netdev, struct sk_buff *skb, struct napi_struct *napi);
 
 /**
  * @brief Register to send/receive 6rd tunnel messages to NSS
@@ -114,11 +122,12 @@ typedef void (*nss_tun6rd_callback_t)(void *app_data, void *os_buf);
  * @param tun6rd_callback Callback for 6rd tunnel data
  * @param msg_callback Callback for 6rd tunnel messages
  * @param netdev netdevice associated with the 6rd tunnel
+ * @param features denotes the skb types supported by this interface
  *
  * @return nss_ctx_instance* NSS context
  */
 extern struct nss_ctx_instance *nss_register_tun6rd_if(uint32_t if_num, nss_tun6rd_callback_t tun6rd_callback,
-							nss_tun6rd_msg_callback_t msg_callback, struct net_device *netdev);
+					nss_tun6rd_msg_callback_t msg_callback, struct net_device *netdev, uint32_t features);
 
 /**
  * @brief Unregister 6rd tunnel interface with NSS
@@ -128,5 +137,18 @@ extern struct nss_ctx_instance *nss_register_tun6rd_if(uint32_t if_num, nss_tun6
  * @return void
  */
 extern void nss_unregister_tun6rd_if(uint32_t if_num);
+
+/**
+ * @brief Initialize tun6rd msg
+ * @param nss_tun6rd_msg
+ * @param if_num Interface number
+ * @param type Message type
+ * @param len Message length
+ * @param cb message callback
+ * @param app_data
+ *
+ * @return None
+ */
+extern void nss_tun6rd_msg_init(struct nss_tun6rd_msg *ncm, uint16_t if_num, uint32_t type,  uint32_t len, void *cb, void *app_data);
 
 #endif /* __NSS_TUN6RD_H */
