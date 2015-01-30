@@ -3,6 +3,8 @@
 Required properties:
 - compatible: Must be "img,pistachio-efuse".
 - reg: Must contain the base address and length of the eFuse registers.
+
+Optional properties:
 - clocks: Must contain an entry for each entry in clock-names.
   See ../clock/clock-bindings.txt for details.
 - clock-names: Must include the following entries:
@@ -11,8 +13,14 @@ Required properties:
 
 Example:
 efuse: efuse@18149200 {
-       compatible = "img,pistachio-efuse";
-       reg = <0x18149200 0x200>;
-       clocks = <&osc>, <&system_clk>;
-       clock-names = "osc", "sys";
+	compatible = "img,pistachio-efuse";
+	reg = <0x18149200 0x200>;
+};
+
+Example with optional clock properties:
+efuse: efuse@18149200 {
+	compatible = "img,pistachio-efuse";
+	reg = <0x18149200 0x200>;
+	clocks = <&osc>, <&system_clk>;
+	clock-names = "osc", "sys";
 };

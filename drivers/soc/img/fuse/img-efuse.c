@@ -129,27 +129,22 @@ static int img_efuse_probe(struct platform_device *pdev)
 	efuse_dev->data = of_dev_id->data;
 
 	efuse_dev->sys_clk = devm_clk_get(&pdev->dev, "sys");
-	if (IS_ERR(efuse_dev->sys_clk)) {
-		dev_err(&pdev->dev, "failed to get system clock");
-		return PTR_ERR(efuse_dev->sys_clk);
+	if (!IS_ERR(efuse_dev->sys_clk)) {
+		ret = clk_prepare_enable(efuse_dev->sys_clk);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "could not enable system clock\n");
+			return ret;
+		}
 	}
 
 	efuse_dev->osc_clk = devm_clk_get(&pdev->dev, "osc");
-	if (IS_ERR(efuse_dev->osc_clk)) {
-		dev_err(&pdev->dev, "failed to get oscillator clock");
-		return PTR_ERR(efuse_dev->osc_clk);
-	}
-
-	ret = clk_prepare_enable(efuse_dev->sys_clk);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "could not enable system clock\n");
-		return ret;
-	}
-
-	ret = clk_prepare_enable(efuse_dev->osc_clk);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "could not enable oscillator clock\n");
-		goto disable_sysclk;
+	if (!IS_ERR(efuse_dev->osc_clk)) {
+		ret = clk_prepare_enable(efuse_dev->osc_clk);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"could not enable oscillator clock\n");
+			goto disable_sysclk;
+		}
 	}
 
 	platform_set_drvdata(pdev, efuse_dev);
@@ -164,9 +159,12 @@ static int img_efuse_probe(struct platform_device *pdev)
 	return 0;
 
 disable_oscclk:
-	clk_disable_unprepare(efuse_dev->osc_clk);
+	if (!IS_ERR(efuse_dev->osc_clk))
+		clk_disable_unprepare(efuse_dev->osc_clk);
 disable_sysclk:
-	clk_disable_unprepare(efuse_dev->sys_clk);
+	if (!IS_ERR(efuse_dev->sys_clk))
+		clk_disable_unprepare(efuse_dev->sys_clk);
+
 	return ret;
 }
 
@@ -177,8 +175,11 @@ static int img_efuse_remove(struct platform_device *pdev)
 	efuse_initialized = false;
 	device_remove_bin_file(&pdev->dev, &img_efuse_bin_attr);
 
-	clk_disable_unprepare(efuse->osc_clk);
-	clk_disable_unprepare(efuse->sys_clk);
+	if (!IS_ERR(efuse->osc_clk))
+		clk_disable_unprepare(efuse->osc_clk);
+
+	if (!IS_ERR(efuse->sys_clk))
+		clk_disable_unprepare(efuse->sys_clk);
 
 	return 0;
 }
