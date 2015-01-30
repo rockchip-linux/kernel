@@ -962,7 +962,8 @@ static bool vop_crtc_mode_fixup(struct drm_crtc *crtc,
 				const struct drm_display_mode *mode,
 				struct drm_display_mode *adjusted_mode)
 {
-	if (adjusted_mode->htotal == 0 || adjusted_mode->vtotal == 0)
+	if (adjusted_mode->htotal == 0 || adjusted_mode->vtotal == 0 ||
+	    (adjusted_mode->flags & DRM_MODE_FLAG_INTERLACE))
 		return false;
 
 	return true;
