@@ -770,7 +770,7 @@ brcmf_sdio_kso_control(struct brcmf_sdio *bus, bool on)
 		cmp_val = SBSDIO_FUNC1_SLEEPCSR_KSO_MASK |
 			  SBSDIO_FUNC1_SLEEPCSR_DEVON_MASK;
 		bmask = cmp_val;
-		usleep_range(2000, 3000);
+		usleep_range(5000, 6000);
 	} else {
 		/* Put device to sleep, turn off KSO */
 		cmp_val = 0;
