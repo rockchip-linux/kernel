@@ -3181,7 +3181,7 @@ static int gcc_ipq806x_probe(struct platform_device *pdev)
 	regmap_write(regmap, 0x3cf8, 8);
 	regmap_write(regmap, 0x3d18, 8);
 
-	return 0;
+	return of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
 }
 
 static int gcc_ipq806x_remove(struct platform_device *pdev)
