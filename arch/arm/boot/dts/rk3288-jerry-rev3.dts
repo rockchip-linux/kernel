@@ -26,8 +26,6 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&lcd_enable_h>;
 		regulator-name = "panel_regulator";
-		regulator-always-on;
-		regulator-boot-on;
 		vin-supply = <&vcc33_sys>;
 	};
 
