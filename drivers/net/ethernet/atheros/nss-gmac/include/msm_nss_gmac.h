@@ -1,19 +1,23 @@
 /*
- * Copyright (c) 2014 The Linux Foundation. All rights reserved.
+ **************************************************************************
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that the
+ * above copyright notice and this permission notice appear in all copies.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
+ * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ **************************************************************************
  */
 
-#ifndef __ASM_NSS_GMAC_H
-#define __ASM_NSS_GMAC_H
+#ifndef __MSM_NSS_GMAC_H
+#define __MSM_NSS_GMAC_H
 
 #include <linux/phy.h>
 
@@ -84,12 +88,12 @@
  * RGMII_xx_CLK: x = 0,1
  * PTP_CLK: x = 0,1,2,3
 */
-#define MACSECn_CORE_CLK(x)		(1 << (MACSEC1_CORE_CLK + x))
-#define GMACn_GMII_TX_CLK(x)		(1 << (GMAC0_GMII_TX_CLK_SHIFT + x))
-#define GMACn_GMII_RX_CLK(x)		(1 << (GMAC0_GMII_RX_CLK_SHIFT + x))
-#define GMACn_RGMII_TX_CLK(x)		(1 << (GMAC0_RGMII_TX_CLK_SHIFT + (x * 2)))
-#define GMACn_RGMII_RX_CLK(x)		(1 << (GMAC0_RGMII_RX_CLK_SHIFT + (x * 2)))
-#define GMACn_PTP_CLK(x)		(1 << (GMAC0_PTP_CLK_SHIFT + x))
+#define MACSECn_CORE_CLK(x)	(1 << (MACSEC1_CORE_CLK + x))
+#define GMACn_GMII_TX_CLK(x)	(1 << (GMAC0_GMII_TX_CLK_SHIFT + x))
+#define GMACn_GMII_RX_CLK(x)	(1 << (GMAC0_GMII_RX_CLK_SHIFT + x))
+#define GMACn_RGMII_TX_CLK(x)	(1 << (GMAC0_RGMII_TX_CLK_SHIFT + (x * 2)))
+#define GMACn_RGMII_RX_CLK(x)	(1 << (GMAC0_RGMII_RX_CLK_SHIFT + (x * 2)))
+#define GMACn_PTP_CLK(x)	(1 << (GMAC0_PTP_CLK_SHIFT + x))
 
 /* NSS_ETH_CLK_DIV0 bits ; n = 0,1,2,3 */
 /* PHY increments divider values by 1. Hence the values here are (x - 1) */
@@ -103,17 +107,18 @@
 #define QSGMII_CLK_DIV_100			9
 #define QSGMII_CLK_DIV_10			99
 #define GMACn_CLK_DIV_SIZE			0x7F
-#define GMACn_CLK_DIV(n,val)			(val << (n * 8))
+#define GMACn_CLK_DIV(n, val)			(val << (n * 8))
 
 /* NSS_ETH_CLK_SRC_CTL bits */
 #define GMAC0_GMII_CLK_RGMII			(1 << 0)
 #define GMAC1_GMII_CLK_RGMII			(1 << 1)
 
 /* NSS_MACSEC_CTL bits */
-#define GMAC1_MACSEC_BYPASS			0x1
-#define GMACn_MACSEC_BYPASS(n)			(GMAC1_MACSEC_BYPASS << (n - 1))	/* n = 1,2,3 */
-#define MACSEC_EXT_BYPASS_EN_MASK		0x7
-#define MACSEC_DP_RST_VAL			(0x7 << 4)
+#define GMAC1_MACSEC_BYPASS		0x1
+#define GMACn_MACSEC_BYPASS(n)		(GMAC1_MACSEC_BYPASS << (n - 1))
+					/* n = 1,2,3 */
+#define MACSEC_EXT_BYPASS_EN_MASK	0x7
+#define MACSEC_DP_RST_VAL		(0x7 << 4)
 
 /* Macros to calculate bit offsets in NSS_ETH_CLK_CTL3 register */
 #define GMACn_GMII_CLK_RGMII(x)			(1 << x)
@@ -132,8 +137,8 @@
 #define GMAC0_QSGMII_RX_CLK_SHIFT		8
 
 /* Macros to calculate bit offsets in NSS_QSGMII_CLK_CTL register */
-#define GMACn_QSGMII_TX_CLK(n)			(1 << (GMAC0_QSGMII_TX_CLK_SHIFT + (n * 2)))
-#define GMACn_QSGMII_RX_CLK(n)			(1 << (GMAC0_QSGMII_RX_CLK_SHIFT + (n * 2)))
+#define GMACn_QSGMII_TX_CLK(n)	(1 << (GMAC0_QSGMII_TX_CLK_SHIFT + (n * 2)))
+#define GMACn_QSGMII_RX_CLK(n)	(1 << (GMAC0_QSGMII_RX_CLK_SHIFT + (n * 2)))
 
 /* NSS_GMACn_CTL bits */
 #define GMAC_IFG_CTL(x)				(x)
@@ -177,18 +182,19 @@
 #define QSGMII_PHY_SERDES_CTL			0x144
 
 /* Bit definitions for PCS_QSGMII_CTL register */
-#define PCS_CH0_SERDES_SN_DETECT		0x800
-#define PCS_CHn_SERDES_SN_DETECT(n)		(PCS_CH0_SERDES_SN_DETECT << n)
-#define PCS_CH0_SERDES_SN_DETECT_2		0x10000
-#define PCS_CHn_SERDES_SN_DETECT_2(n)		(PCS_CH0_SERDES_SN_DETECT_2 << n)
-#define PCS_QSGMII_DEPTH_THRESH_MASK		0x300
-#define PCS_QSGMII_DEPTH_THRESH(n)		(n << 8)	/* Threshold for depth control */
-#define PCS_QSGMII_SHORT_LATENCY		0x20
-#define PCS_QSGMII_SHORT_THRESH			0x10
-#define PCS_QSGMII_CUTTHROUGH_RX		0x8
-#define PCS_QSGMII_CUTTHROUGH_TX		0x4
-#define PCS_QSGMII_SW_VER_1_7			0x2
-#define PCS_QSGMII_ATHR_CSCO_AUTONEG		0x1
+#define PCS_CH0_SERDES_SN_DETECT	0x800
+#define PCS_CHn_SERDES_SN_DETECT(n)	(PCS_CH0_SERDES_SN_DETECT << n)
+#define PCS_CH0_SERDES_SN_DETECT_2	0x10000
+#define PCS_CHn_SERDES_SN_DETECT_2(n)	(PCS_CH0_SERDES_SN_DETECT_2 << n)
+#define PCS_QSGMII_DEPTH_THRESH_MASK	0x300
+#define PCS_QSGMII_DEPTH_THRESH(n)	(n << 8)
+					/* Threshold for depth control */
+#define PCS_QSGMII_SHORT_LATENCY	0x20
+#define PCS_QSGMII_SHORT_THRESH		0x10
+#define PCS_QSGMII_CUTTHROUGH_RX	0x8
+#define PCS_QSGMII_CUTTHROUGH_TX	0x4
+#define PCS_QSGMII_SW_VER_1_7		0x2
+#define PCS_QSGMII_ATHR_CSCO_AUTONEG	0x1
 
 
 /* Bit definitions for PCS_QSGMII_SGMII_MODE */
@@ -213,21 +219,21 @@
 #define PCS_MODE_CTL_CHn_AUTONEG_RESTART(n)	(PCS_MODE_CTL_CH0_AUTONEG_RESTART << (n * 8))
 
 /* Bit definitions for PCS_QSGMII_MAC_STAT register */
-#define PCS_MAC_STAT_CH0_LINK				0x0001
-#define PCS_MAC_STAT_CH0_DUPLEX				0x0002
-#define PCS_MAC_STAT_CH0_SPEED_MASK			0x000C
-#define PCS_MAC_STAT_CH0_PAUSE				0x0010
-#define PCS_MAC_STAT_CH0_ASYM_PAUSE			0x0020
-#define PCS_MAC_STAT_CH0_TX_PAUSE			0x0040
-#define PCS_MAC_STAT_CH0_RX_PAUSE			0x0080
-#define PCS_MAC_STAT_CHn_LINK(n)			(PCS_MAC_STAT_CH0_LINK << (n * 8))
-#define PCS_MAC_STAT_CHn_DUPLEX(n)			(PCS_MAC_STAT_CH0_DUPLEX << (n * 8))
-#define PCS_MAC_STAT_CHn_SPEED_MASK(n)			(PCS_MAC_STAT_CH0_SPEED_MASK << (n * 8))
-#define PCS_MAC_STAT_CHn_SPEED(n, reg)			((reg & PCS_MAC_STAT_CHn_SPEED_MASK(n)) >> ((n * 8) + 2))
-#define PCS_MAC_STAT_CHn_PAUSE				(PCS_MAC_STAT_CH0_PAUSE << (n * 8))
-#define PCS_MAC_STAT_CHn_ASYM_PAUSE			(PCS_MAC_STAT_CH0_ASYM_PAUSE << (n * 8))
-#define PCS_MAC_STAT_CHn_TX_PAUSE			(PCS_MAC_STAT_CH0_TX_PAUSE << (n * 8))
-#define PCS_MAC_STAT_CHn_RX_PAUSE			(PCS_MAC_STAT_CH0_RX_PAUSE << (n * 8))
+#define PCS_MAC_STAT_CH0_LINK		0x0001
+#define PCS_MAC_STAT_CH0_DUPLEX		0x0002
+#define PCS_MAC_STAT_CH0_SPEED_MASK	0x000C
+#define PCS_MAC_STAT_CH0_PAUSE		0x0010
+#define PCS_MAC_STAT_CH0_ASYM_PAUSE	0x0020
+#define PCS_MAC_STAT_CH0_TX_PAUSE	0x0040
+#define PCS_MAC_STAT_CH0_RX_PAUSE	0x0080
+#define PCS_MAC_STAT_CHn_LINK(n)	(PCS_MAC_STAT_CH0_LINK << (n * 8))
+#define PCS_MAC_STAT_CHn_DUPLEX(n)	(PCS_MAC_STAT_CH0_DUPLEX << (n * 8))
+#define PCS_MAC_STAT_CHn_SPEED_MASK(n)	(PCS_MAC_STAT_CH0_SPEED_MASK << (n * 8))
+#define PCS_MAC_STAT_CHn_SPEED(n, reg)	((reg & PCS_MAC_STAT_CHn_SPEED_MASK(n)) >> ((n * 8) + 2))
+#define PCS_MAC_STAT_CHn_PAUSE		(PCS_MAC_STAT_CH0_PAUSE << (n * 8))
+#define PCS_MAC_STAT_CHn_ASYM_PAUSE	(PCS_MAC_STAT_CH0_ASYM_PAUSE << (n * 8))
+#define PCS_MAC_STAT_CHn_TX_PAUSE	(PCS_MAC_STAT_CH0_TX_PAUSE << (n * 8))
+#define PCS_MAC_STAT_CHn_RX_PAUSE	(PCS_MAC_STAT_CH0_RX_PAUSE << (n * 8))
 
 /* Bit definitions for PCS_ALL_CH_CTL register */
 #define PCS_CH0_FORCE_SPEED			0x2
@@ -240,8 +246,8 @@
 #define PCS_CHn_SPEED(ch, speed)		(speed << (ch * 4))
 
 /* Bit definitions for PCS_ALL_CH_STAT register */
-#define PCS_CH0_AUTONEG_COMPLETE		0x0040
-#define PCS_CHn_AUTONEG_COMPLETE(n)		(PCS_CH0_AUTONEG_COMPLETE << (n * 8))
+#define PCS_CH0_AUTONEG_COMPLETE	0x0040
+#define PCS_CHn_AUTONEG_COMPLETE(n)	(PCS_CH0_AUTONEG_COMPLETE << (n * 8))
 
 
 /* Bit definitions for PCS_CAL_LCKDT_CTL register */
@@ -302,17 +308,20 @@
 #define NSS_GMAC_PHY_PROFILE_1R_3S	1	/* 1 RGMII, 3 SGMII*/
 #define NSS_GMAC_PHY_PROFILE_QS		2	/* 4 QSGMII */
 
+extern int32_t nss_gmac_get_phy_profile(void);
+
 struct msm_nss_gmac_platform_data {
-	uint32_t phy_mdio_addr;			/* MDIO address of the connected PHY */
-	uint32_t poll_required;			/* [0/1] Link status poll? */
+	uint32_t phy_mdio_addr;		/* MDIO address of the connected PHY */
+	uint32_t poll_required;		/* [0/1] Link status poll? */
 	uint32_t rgmii_delay;
 	uint32_t phy_mii_type;
-	uint32_t emulation;			/* Running on emulation platform */
+	uint32_t emulation;		/* Running on emulation platform */
 	uint8_t  mac_addr[6];
-	int32_t forced_speed;			/* Forced speed. Values used from
-						   ethtool.h. 0 = Speed not forced */
-	int32_t forced_duplex;			/* Forced duplex. Values used from
-						   ethtool.h. 0 = Duplex not forced. */
+	int32_t forced_speed;		/* Forced speed. Values used from
+					   ethtool.h. 0 = Speed not forced */
+	int32_t forced_duplex;		/* Forced duplex. Values used from
+					   ethtool.h. 0 = Duplex not forced. */
+	uint32_t socver;
 };
 
 #define NSS_MAX_GMACS				4
