@@ -329,11 +329,27 @@ static int dw_hdmi_rockchip_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int dw_hdmi_rockchip_suspend(struct device *dev)
+{
+	return dw_hdmi_suspend(dev);
+}
+
+static int dw_hdmi_rockchip_resume(struct device *dev)
+{
+	return dw_hdmi_resume(dev);
+}
+
+static const struct dev_pm_ops dw_hdmi_rockchip_pm = {
+	.resume = dw_hdmi_rockchip_resume,
+	.suspend = dw_hdmi_rockchip_suspend,
+};
+
 static struct platform_driver dw_hdmi_rockchip_pltfm_driver = {
 	.probe  = dw_hdmi_rockchip_probe,
 	.remove = dw_hdmi_rockchip_remove,
 	.driver = {
 		.name = "dwhdmi-rockchip",
+		.pm = &dw_hdmi_rockchip_pm,
 		.of_match_table = dw_hdmi_rockchip_ids,
 	},
 };
