@@ -49,6 +49,7 @@
 		pinctrl-0 = <&bl_pwr_en>;
 		regulator-name = "backlight_regulator";
 		vin-supply = <&vcc33_sys>;
+		startup-delay-us = <15000>;
 	};
 };
 
