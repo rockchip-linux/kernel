@@ -2903,12 +2903,13 @@ struct ec_response_pd_log {
 #define PD_EVENT_ACC_BASE       0x20
 #define PD_EVENT_ACC_RW_FAIL   (PD_EVENT_ACC_BASE+0)
 #define PD_EVENT_ACC_RW_ERASE  (PD_EVENT_ACC_BASE+1)
-#define PD_EVENT_ACC_GFU_ENTER (PD_EVENT_ACC_BASE+2)
 /* PD power supply events */
 #define PD_EVENT_PS_BASE        0x40
 #define PD_EVENT_PS_FAULT      (PD_EVENT_PS_BASE+0)
 /* PD video dongles events */
 #define PD_EVENT_VIDEO_BASE     0x60
+#define PD_EVENT_VIDEO_DP_MODE (PD_EVENT_VIDEO_BASE+0)
+#define PD_EVENT_VIDEO_CODEC   (PD_EVENT_VIDEO_BASE+1)
 /* Returned in the "type" field, when there is no entry available */
 #define PD_EVENT_NO_ENTRY       0xFF
 
@@ -2937,6 +2938,26 @@ struct ec_response_pd_log {
 #define PS_FAULT_OVP                          3
 #define PS_FAULT_DISCH                        4
 
+/*
+ * PD_EVENT_VIDEO_CODEC payload is "struct mcdp_info".
+ */
+struct mcdp_version {
+	uint8_t major;
+	uint8_t minor;
+	uint16_t build;
+} __packed;
+
+struct mcdp_info {
+	uint8_t family[2];
+	uint8_t chipid[2];
+	struct mcdp_version irom;
+	struct mcdp_version fw;
+} __packed;
+
+/* struct mcdp_info field decoding */
+#define MCDP_CHIPID(chipid) ((chipid[0] << 8) | chipid[1])
+#define MCDP_FAMILY(family) ((family[0] << 8) | family[1])
+
 /* Get/Set USB-PD Alternate mode info */
 #define EC_CMD_USB_PD_GET_AMODE 0x116
 struct ec_params_usb_pd_get_mode_request {
@@ -2946,16 +2967,23 @@ struct ec_params_usb_pd_get_mode_request {
 
 struct ec_params_usb_pd_get_mode_response {
 	uint16_t svid;   /* SVID */
-	uint8_t active;  /* Active SVID */
-	uint8_t idx;     /* Index of active mode VDO. Ignored if !active */
+	uint16_t opos;    /* Object Position */
 	uint32_t vdo[6]; /* Mode VDOs */
 } __packed;
 
 #define EC_CMD_USB_PD_SET_AMODE 0x117
+
+enum pd_mode_cmd {
+	PD_EXIT_MODE = 0,
+	PD_ENTER_MODE = 1,
+	/* Not a command.  Do NOT remove. */
+	PD_MODE_CMD_COUNT,
+};
+
 struct ec_params_usb_pd_set_mode_request {
-	int opos;      /* Object Position */
-	int svid_idx;  /* Index of svid to get */
+	uint32_t cmd;  /* enum pd_mode_cmd */
 	uint16_t svid; /* SVID to set */
+	uint8_t opos;  /* Object Position */
 	uint8_t port;  /* port */
 } __packed;
 
