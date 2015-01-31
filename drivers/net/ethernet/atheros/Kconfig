@@ -83,6 +83,7 @@ config ALX
 config QCA_NSS_DRV
 	tristate "Qualcomm/Atheros IPQ806x NSS driver support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && ARCH_QCOM
+	select QCA_NSS_GMAC
 	select NET_CORE
 	select MII
 	---help---
@@ -96,7 +97,6 @@ config QCA_NSS_DRV
 config QCA_NSS_GMAC
 	tristate "Qualcomm/Atheros IPQ806x GMAC Ethernet support (EXPERIMENTAL)"
 	depends on EXPERIMENTAL && ARCH_QCOM
-	select QCA_NSS_DRV
 	select NET_CORE
 	select MII
 	---help---
@@ -104,5 +104,16 @@ config QCA_NSS_GMAC
 	  chipset. Presents an ethernet interface to user space.
 
 	  The module will be called qca-nss-gmac.
+
+config QCA_NSS_ECM
+	tristate "Qualcomm/Atheros ECM"
+	select BRIDGE
+	select BRIDGE_NETFILTER
+	select NF_CONNTRACK_MARK
+	depends on ARCH_QCOM && QCA_NSS_DRV
+	---help---
+	  This driver supports the Enhanced Connection Manager(ECM) for NSS subsystem
+
+	  The module will be called ecm.
 
 endif # NET_VENDOR_ATHEROS
