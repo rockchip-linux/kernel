@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/of_platform.h>
 #include <linux/irqchip.h>
+#include <linux/memblock.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -33,6 +34,11 @@ static void __init rockchip_dt_init(void)
 	platform_device_register_simple("cpufreq-cpu0", 0, NULL, 0);
 }
 
+static void __init rockchip_memory_init(void)
+{
+	memblock_reserve(0xfe000000, 0x1000000);
+}
+
 static const char * const rockchip_board_dt_compat[] = {
 	"rockchip,rk2928",
 	"rockchip,rk3066a",
@@ -45,4 +51,5 @@ static const char * const rockchip_board_dt_compat[] = {
 DT_MACHINE_START(ROCKCHIP_DT, "Rockchip (Device Tree)")
 	.init_machine	= rockchip_dt_init,
 	.dt_compat	= rockchip_board_dt_compat,
+	.reserve        = rockchip_memory_init,
 MACHINE_END
