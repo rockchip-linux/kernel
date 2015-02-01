@@ -2917,10 +2917,9 @@ brcmf_sdio_bus_txctl(struct device *dev, unsigned char *msg, uint msglen)
 		queue_work(bus->brcmf_wq, &bus->datawork);
 	}
 
-	wait_event_interruptible_timeout(bus->ctrl_wait, !bus->ctrl_frame_stat,
-					 msecs_to_jiffies(CTL_DONE_TIMEOUT));
-
-	if (!bus->ctrl_frame_stat) {
+	if (wait_event_interruptible_timeout(bus->ctrl_wait,
+					     !bus->ctrl_frame_stat,
+					     msecs_to_jiffies(CTL_DONE_TIMEOUT)) > 0) {
 		brcmf_dbg(SDIO, "ctrl_frame complete, err=%d\n",
 			  bus->ctrl_frame_err);
 		ret = bus->ctrl_frame_err;
