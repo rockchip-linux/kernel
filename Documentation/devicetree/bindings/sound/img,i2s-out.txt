@@ -1,0 +1,54 @@
+Imagination Technologies I2S Out Controller
+
+Required properties:
+
+  - compatible : Compatible list, must contain "img,i2s-out"
+
+  - #sound-dai-cells : Must be equal to 0
+
+  - reg : Offset and length of the register set for the device
+
+  - clocks : Must contain an entry for each entry in clock-names
+	See ../clock/clock-bindings.txt for details
+
+  - clock-names : Must include the following entries:
+	"sys"	The system clock
+	"ref"	The reference clock
+
+  - dmas: Must contain an entry for each entry in dma-names. Depending on
+	the configuration, there may be one dma used for all active channels,
+	one dma per I2S channel, or both a shared dma and and a dma per I2S
+	channel
+	See ../dma/dma.txt for details
+
+  - dma-names: Must include one or both of the following:
+	"tx"				The dma channel used to service all
+					active channels
+	"txN" for N = 1..i2s-channels	Per-channel dma
+
+  - img,i2s-channels : Number of I2S channels instantiated in the I2S out block
+
+Optional Properties:
+
+  - interrupts : Contains the I2S out interrupts. Depending on
+	the configuration, there may be no interrupts, one interrupt,
+	or an interrupt per I2S channel
+
+  - resets: Should contain a phandle to the I2S out reset signal, if any
+
+  - reset-names: Should contain the reset signal name "rst", if a
+	reset phandle is given
+
+Example:
+
+i2s_out: i2s-out@18100A00 {
+	compatible = "img,i2s-out";
+	#sound-dai-cells = <0>;
+	reg = <0x18100A00 0x200>;
+	interrupts = <GIC_SHARED 13 IRQ_TYPE_LEVEL_HIGH>;
+	dmas = <&mdc 23 0xffffffff 0>;
+	dma-names = "tx";
+	clocks = <&system_clk>, <&clk_audio>;
+	clock-names = "sys", "ref";
+	img,i2s-channels = <6>;
+};
