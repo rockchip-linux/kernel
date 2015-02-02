@@ -100,6 +100,90 @@
 		#size-cells = <0>;
 	};
 
+	i2s_in: i2s-in@18100800 {
+		compatible = "img,i2s-in";
+		reg = <0x18100800 0x200>;
+		interrupts = <GIC_SHARED 7 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&mdc 30 0xffffffff 0>;
+		dma-names = "rx";
+		clocks = <&cr_periph SYS_CLK_I2S_IN>;
+		clock-names = "sys";
+		img,i2s-channels = <6>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_in_pins>;
+		status = "disabled";
+
+		#sound-dai-cells = <0>;
+	};
+
+	i2s_out: i2s-out@18100a00 {
+		compatible = "img,i2s-out";
+		reg = <0x18100a00 0x200>;
+		interrupts = <GIC_SHARED 13 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&mdc 23 0xffffffff 0>;
+		dma-names = "tx";
+		clocks = <&cr_periph SYS_CLK_I2S_OUT>,
+			 <&clk_core CLK_I2S>;
+		clock-names = "sys", "ref";
+		assigned-clocks = <&clk_core CLK_I2S_DIV>;
+		assigned-clock-rates = <12288000>;
+		img,i2s-channels = <6>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2s_out_pins>;
+		status = "disabled";
+
+		#sound-dai-cells = <0>;
+	};
+
+	parallel_out: parallel-audio-out@18100c00 {
+		compatible = "img,parallel-out";
+		reg = <0x18100c00 0x100>;
+		interrupts = <GIC_SHARED 19 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&mdc 16 0xffffffff 0>;
+		dma-names = "tx";
+		clocks = <&cr_periph SYS_CLK_PAUD_OUT>,
+			 <&clk_core CLK_AUDIO_DAC>;
+		clock-names = "sys", "ref";
+		assigned-clocks = <&clk_core CLK_AUDIO_DAC_DIV>;
+		assigned-clock-rates = <12288000>;
+		status = "disabled";
+
+		#sound-dai-cells = <0>;
+	};
+
+	spdif_out: spdif-out@18100d00 {
+		compatible = "img,spdif-out";
+		reg = <0x18100d00 0x100>;
+		interrupts = <GIC_SHARED 21 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&mdc 14 0xffffffff 0>;
+		dma-names = "tx";
+		clocks = <&cr_periph SYS_CLK_SPDIF_OUT>,
+			 <&clk_core CLK_SPDIF>;
+		clock-names = "sys", "ref";
+		assigned-clocks = <&clk_core CLK_SPDIF_DIV>;
+		assigned-clock-rates = <12288000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spdif_out_pin>;
+		status = "disabled";
+
+		#sound-dai-cells = <0>;
+	};
+
+	spdif_in: spdif-in@18100e00 {
+		compatible = "img,spdif-in";
+		reg = <0x18100e00 0x100>;
+		interrupts = <GIC_SHARED 20 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&mdc 15 0xffffffff 0>;
+		dma-names = "rx";
+		clocks = <&cr_periph SYS_CLK_SPDIF_IN>;
+		clock-names = "sys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&spdif_in_pin>;
+		status = "disabled";
+
+		#sound-dai-cells = <0>;
+	};
+
 	spfi0: spi@18100f00 {
 		compatible = "img,spfi";
 		reg = <0x18100f00 0x100>;
@@ -510,6 +594,53 @@
 			pwmpdm3 {
 				pins = "mfio76";
 				function = "pwmpdm";
+			};
+		};
+
+		dac_clk_pin: dac-clk-pin {
+			dac-clk {
+				pins = "mfio45";
+				function = "i2s_dac_clk";
+			};
+		};
+
+		spdif_out_pin: spdif-out-pin {
+			spdif-out {
+				pins = "mfio61";
+				function = "spdif_out";
+				slew-rate = <1>;
+			};
+		};
+
+		spdif_in_pin: spdif-in-pin {
+			spdif-in {
+				pins = "mfio62";
+				function = "spdif_in";
+			};
+		};
+
+		i2s_mclk_pin: i2s-mclk-pin {
+			i2s-mclk {
+				pins = "mfio36";
+				function = "i2s_out";
+			};
+		};
+
+		i2s_out_pins: i2s-out-pins {
+			i2s-out {
+				pins = "mfio37", "mfio38", "mfio39",
+				       "mfio40", "mfio41", "mfio42",
+				       "mfio43", "mfio44";
+				function = "i2s_out";
+			};
+		};
+
+		i2s_in_pins: i2s-in-pins {
+			i2s-in {
+				pins = "mfio47", "mfio48", "mfio49",
+				       "mfio50", "mfio51", "mfio52",
+				       "mfio53", "mfio54";
+				function = "i2s_in";
 			};
 		};
 	};
