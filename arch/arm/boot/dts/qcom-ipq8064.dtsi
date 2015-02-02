@@ -288,6 +288,15 @@
 				qcom,rpm-clk-freq = <533000000>;
 				qcom,rpm-clk-active-only;
 			};
+
+			apps_fabric_clk: apps-fabric-clk {
+				compatible = "qcom,rpm-clk";
+				reg = <QCOM_RPM_APPS_FABRIC_CLK>;
+
+				qcom,rpm-clk-name = "apps-fabric";
+				qcom,rpm-clk-freq = <533000000>;
+				qcom,rpm-clk-active-only;
+			};
 		};
 
 		qcom_pinmux: pinmux@800000 {
