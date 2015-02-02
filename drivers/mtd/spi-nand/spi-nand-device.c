@@ -354,7 +354,7 @@ static int spi_nand_device_block_erase(struct spi_nand *snand,
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
 	cmd->n_addr = 3;
-	cmd->addr[0] = 0;
+	cmd->addr[0] = (u8)((page_addr & 0xff0000) >> 16);
 	cmd->addr[1] = (u8)((page_addr & 0xff00) >> 8);
 	cmd->addr[2] = (u8)(page_addr & 0xff);
 
