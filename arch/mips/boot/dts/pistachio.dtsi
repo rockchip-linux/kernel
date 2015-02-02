@@ -112,7 +112,7 @@
 			interrupts = <GIC_SHARED 71 IRQ_TYPE_LEVEL_HIGH>;
 
 			gpio-controller;
-			gpio-cells = <2>;
+			#gpio-cells = <2>;
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -122,7 +122,7 @@
 			interrupts = <GIC_SHARED 72 IRQ_TYPE_LEVEL_HIGH>;
 
 			gpio-controller;
-			gpio-cells = <2>;
+			#gpio-cells = <2>;
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -132,7 +132,7 @@
 			interrupts = <GIC_SHARED 73 IRQ_TYPE_LEVEL_HIGH>;
 
 			gpio-controller;
-			gpio-cells = <2>;
+			#gpio-cells = <2>;
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -142,7 +142,7 @@
 			interrupts = <GIC_SHARED 74 IRQ_TYPE_LEVEL_HIGH>;
 
 			gpio-controller;
-			gpio-cells = <2>;
+			#gpio-cells = <2>;
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -152,7 +152,7 @@
 			interrupts = <GIC_SHARED 75 IRQ_TYPE_LEVEL_HIGH>;
 
 			gpio-controller;
-			gpio-cells = <2>;
+			#gpio-cells = <2>;
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
@@ -162,7 +162,7 @@
 			interrupts = <GIC_SHARED 76 IRQ_TYPE_LEVEL_HIGH>;
 
 			gpio-controller;
-			gpio-cells = <2>;
+			#gpio-cells = <2>;
 
 			interrupt-controller;
 			#interrupt-cells = <2>;
