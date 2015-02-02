@@ -144,11 +144,20 @@ enum spi_nand_device_variant {
 };
 
 struct spi_nand_device_cmd {
-	u8 cmd;
-	u32 n_addr;
-	u8 addr[3];
+
+	/*
+	 * Command and address. I/O errors have been observed if a
+	 * separate spi_transfer is used for command and address,
+	 * so keep them together.
+	 */
+	u32 n_cmd;
+	u8 cmd[4];
+
+	/* Tx data */
 	u32 n_tx;
 	u8 *tx_buf;
+
+	/* Rx data */
 	u32 n_rx;
 	u8 *rx_buf;
 };
@@ -160,40 +169,42 @@ struct spi_nand_device {
 	struct spi_nand_device_cmd cmd;
 };
 
-static int spi_nand_send_command(struct spi_device *spi, int command,
+static int spi_nand_send_command(struct spi_device *spi,
 				 struct spi_nand_device_cmd *cmd)
 {
 	struct spi_message message;
-	struct spi_transfer x[4];
+	struct spi_transfer x[2];
+
+	if (!cmd->n_cmd) {
+		dev_err(&spi->dev, "cannot send an empty command\n");
+		return -EINVAL;
+	}
+
+	if (cmd->n_tx && cmd->n_rx) {
+		dev_err(&spi->dev, "cannot send and receive data at the same time\n");
+		return -EINVAL;
+	}
 
 	spi_message_init(&message);
 	memset(x, 0, sizeof(x));
 
-	/* Command */
-	cmd->cmd = command;
-	x[0].len = 1;
-	x[0].tx_buf = &cmd->cmd;
+	/* Command and address */
+	x[0].len = cmd->n_cmd;
+	x[0].tx_buf = cmd->cmd;
 	spi_message_add_tail(&x[0], &message);
-
-	/* Address */
-	if (cmd->n_addr) {
-		x[1].len = cmd->n_addr;
-		x[1].tx_buf = cmd->addr;
-		spi_message_add_tail(&x[1], &message);
-	}
 
 	/* Data to be transmitted */
 	if (cmd->n_tx) {
-		x[3].len = cmd->n_tx;
-		x[3].tx_buf = cmd->tx_buf;
-		spi_message_add_tail(&x[3], &message);
+		x[1].len = cmd->n_tx;
+		x[1].tx_buf = cmd->tx_buf;
+		spi_message_add_tail(&x[1], &message);
 	}
 
 	/* Data to be received */
 	if (cmd->n_rx) {
-		x[3].len = cmd->n_rx;
-		x[3].rx_buf = cmd->rx_buf;
-		spi_message_add_tail(&x[3], &message);
+		x[1].len = cmd->n_rx;
+		x[1].rx_buf = cmd->rx_buf;
+		spi_message_add_tail(&x[1], &message);
 	}
 
 	return spi_sync(spi, &message);
@@ -205,10 +216,12 @@ static int spi_nand_device_reset(struct spi_nand *snand)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
+	cmd->n_cmd = 1;
+	cmd->cmd[0] = SPI_NAND_RESET;
 
 	dev_dbg(snand->dev, "%s\n", __func__);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_RESET, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_read_reg(struct spi_nand *snand, u8 opcode, u8 *buf)
@@ -217,14 +230,15 @@ static int spi_nand_device_read_reg(struct spi_nand *snand, u8 opcode, u8 *buf)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 1;
-	cmd->addr[0] = opcode;
+	cmd->n_cmd = 2;
+	cmd->cmd[0] = SPI_NAND_GET_FEATURE;
+	cmd->cmd[1] = opcode;
 	cmd->n_rx = 1;
 	cmd->rx_buf = buf;
 
 	dev_dbg(snand->dev, "%s: reg 0%x\n", __func__, opcode);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_GET_FEATURE, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_write_reg(struct spi_nand *snand, u8 opcode, u8 *buf)
@@ -233,14 +247,15 @@ static int spi_nand_device_write_reg(struct spi_nand *snand, u8 opcode, u8 *buf)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 1;
-	cmd->addr[0] = opcode;
+	cmd->n_cmd = 2;
+	cmd->cmd[0] = SPI_NAND_SET_FEATURE;
+	cmd->cmd[1] = opcode;
 	cmd->n_tx = 1;
 	cmd->tx_buf = buf;
 
 	dev_dbg(snand->dev, "%s: reg 0%x\n", __func__, opcode);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_SET_FEATURE, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_write_enable(struct spi_nand *snand)
@@ -249,11 +264,12 @@ static int spi_nand_device_write_enable(struct spi_nand *snand)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
+	cmd->n_cmd = 1;
+	cmd->cmd[0] = SPI_NAND_WRITE_ENABLE;
 
 	dev_dbg(snand->dev, "%s\n", __func__);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_WRITE_ENABLE,
-				     cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_write_disable(struct spi_nand *snand)
@@ -262,11 +278,12 @@ static int spi_nand_device_write_disable(struct spi_nand *snand)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
+	cmd->n_cmd = 1;
+	cmd->cmd[0] = SPI_NAND_WRITE_DISABLE;
 
 	dev_dbg(snand->dev, "%s\n", __func__);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_WRITE_DISABLE,
-				     cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_write_page(struct spi_nand *snand,
@@ -276,15 +293,15 @@ static int spi_nand_device_write_page(struct spi_nand *snand,
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 3;
-	cmd->addr[0] = (u8)((page_addr & 0xff0000) >> 16);
-	cmd->addr[1] = (u8)((page_addr & 0xff00) >> 8);
-	cmd->addr[2] = (u8)(page_addr & 0xff);
+	cmd->n_cmd = 4;
+	cmd->cmd[0] = SPI_NAND_PROGRAM_EXEC;
+	cmd->cmd[1] = (u8)((page_addr & 0xff0000) >> 16);
+	cmd->cmd[2] = (u8)((page_addr & 0xff00) >> 8);
+	cmd->cmd[3] = (u8)(page_addr & 0xff);
 
 	dev_dbg(snand->dev, "%s: page 0x%x\n", __func__, page_addr);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_PROGRAM_EXEC,
-				     cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_store_cache(struct spi_nand *snand,
@@ -295,16 +312,16 @@ static int spi_nand_device_store_cache(struct spi_nand *snand,
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 2;
-	cmd->addr[0] = (u8)((page_offset & 0xff00) >> 8);
-	cmd->addr[1] = (u8)(page_offset & 0xff);
+	cmd->n_cmd = 3;
+	cmd->cmd[0] = SPI_NAND_PROGRAM_LOAD;
+	cmd->cmd[1] = (u8)((page_offset & 0xff00) >> 8);
+	cmd->cmd[2] = (u8)(page_offset & 0xff);
 	cmd->n_tx = length;
 	cmd->tx_buf = write_buf;
 
 	dev_dbg(snand->dev, "%s: offset 0x%x\n", __func__, page_offset);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_PROGRAM_LOAD,
-				     cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_load_page(struct spi_nand *snand,
@@ -314,14 +331,15 @@ static int spi_nand_device_load_page(struct spi_nand *snand,
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 3;
-	cmd->addr[0] = (u8)((page_addr & 0xff0000) >> 16);
-	cmd->addr[1] = (u8)((page_addr & 0xff00) >> 8);
-	cmd->addr[2] = (u8)(page_addr & 0xff);
+	cmd->n_cmd = 4;
+	cmd->cmd[0] = SPI_NAND_PAGE_READ;
+	cmd->cmd[1] = (u8)((page_addr & 0xff0000) >> 16);
+	cmd->cmd[2] = (u8)((page_addr & 0xff00) >> 8);
+	cmd->cmd[3] = (u8)(page_addr & 0xff);
 
 	dev_dbg(snand->dev, "%s: page 0x%x\n", __func__, page_addr);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_PAGE_READ, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_read_cache(struct spi_nand *snand,
@@ -332,18 +350,17 @@ static int spi_nand_device_read_cache(struct spi_nand *snand,
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 3;
-	cmd->addr[0] = 0;
-	cmd->addr[1] = (u8)((page_offset & 0xff00) >> 8);
-	cmd->addr[2] = (u8)(page_offset & 0xff);
+	cmd->n_cmd = 4;
+	cmd->cmd[0] = SPI_NAND_READ_CACHE;
+	cmd->cmd[1] = 0; /* dummy byte */
+	cmd->cmd[2] = (u8)((page_offset & 0xff00) >> 8);
+	cmd->cmd[3] = (u8)(page_offset & 0xff);
 	cmd->n_rx = length;
 	cmd->rx_buf = read_buf;
 
 	dev_dbg(snand->dev, "%s: offset 0x%x\n", __func__, page_offset);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_READ_CACHE, cmd);
-
-	return 0;
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_device_block_erase(struct spi_nand *snand,
@@ -353,14 +370,15 @@ static int spi_nand_device_block_erase(struct spi_nand *snand,
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
-	cmd->n_addr = 3;
-	cmd->addr[0] = (u8)((page_addr & 0xff0000) >> 16);
-	cmd->addr[1] = (u8)((page_addr & 0xff00) >> 8);
-	cmd->addr[2] = (u8)(page_addr & 0xff);
+	cmd->n_cmd = 4;
+	cmd->cmd[0] = SPI_NAND_BLOCK_ERASE;
+	cmd->cmd[1] = (u8)((page_addr & 0xff0000) >> 16);
+	cmd->cmd[2] = (u8)((page_addr & 0xff00) >> 8);
+	cmd->cmd[3] = (u8)(page_addr & 0xff);
 
 	dev_dbg(snand->dev, "%s: block 0x%x\n", __func__, page_addr);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_BLOCK_ERASE, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_gd5f_read_id(struct spi_nand *snand, u8 *buf)
@@ -369,12 +387,14 @@ static int spi_nand_gd5f_read_id(struct spi_nand *snand, u8 *buf)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
+	cmd->n_cmd = 1;
+	cmd->cmd[0] = SPI_NAND_READ_ID;
 	cmd->n_rx = SPI_NAND_GD5F_READID_LEN;
 	cmd->rx_buf = buf;
 
 	dev_dbg(snand->dev, "%s\n", __func__);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_READ_ID, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static int spi_nand_mt29f_read_id(struct spi_nand *snand, u8 *buf)
@@ -383,12 +403,14 @@ static int spi_nand_mt29f_read_id(struct spi_nand *snand, u8 *buf)
 	struct spi_nand_device_cmd *cmd = &snand_dev->cmd;
 
 	memset(cmd, 0, sizeof(struct spi_nand_device_cmd));
+	cmd->n_cmd = 1;
+	cmd->cmd[0] = SPI_NAND_READ_ID;
 	cmd->n_rx = SPI_NAND_MT29F_READID_LEN;
 	cmd->rx_buf = buf;
 
 	dev_dbg(snand->dev, "%s\n", __func__);
 
-	return spi_nand_send_command(snand_dev->spi, SPI_NAND_READ_ID, cmd);
+	return spi_nand_send_command(snand_dev->spi, cmd);
 }
 
 static void spi_nand_mt29f_ecc_status(unsigned int status,
