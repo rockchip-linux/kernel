@@ -383,6 +383,26 @@
 	status = "okay";
 };
 
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&hdmi_audio {
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+};
+
 &pinctrl {
 	pinctrl-0 = <
 		/* Common for sleep and wake, but no owners */
