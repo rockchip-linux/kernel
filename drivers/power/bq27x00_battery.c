@@ -65,11 +65,14 @@
 
 #define BQ27500_REG_SOC			0x2C
 #define BQ27500_REG_DCAP		0x3C /* Design capacity */
+#define BQ27500_REG_DEV_NAME_LEN	0x62
+#define BQ27500_REG_DEV_NAME		0x63
 #define BQ27500_FLAG_DSC		BIT(0)
 #define BQ27500_FLAG_SOCF		BIT(1) /* State-of-Charge threshold final */
 #define BQ27500_FLAG_SOC1		BIT(2) /* State-of-Charge threshold 1 */
 #define BQ27500_FLAG_FC			BIT(9)
 #define BQ27500_FLAG_OTC		BIT(15)
+#define BQ27500_MAX_NAME_LEN		7
 
 #define BQ27742_POWER_AVG		0x76
 
@@ -138,6 +141,9 @@ static enum power_supply_property bq27x00_battery_props[] = {
 	POWER_SUPPLY_PROP_ENERGY_NOW,
 	POWER_SUPPLY_PROP_POWER_AVG,
 	POWER_SUPPLY_PROP_HEALTH,
+	/* Properties of type `const char *' */
+	POWER_SUPPLY_PROP_MANUFACTURER,
+	POWER_SUPPLY_PROP_MODEL_NAME
 };
 
 static enum power_supply_property bq27425_battery_props[] = {
@@ -152,6 +158,9 @@ static enum power_supply_property bq27425_battery_props[] = {
 	POWER_SUPPLY_PROP_CHARGE_FULL,
 	POWER_SUPPLY_PROP_CHARGE_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+	/* Properties of type `const char *' */
+	POWER_SUPPLY_PROP_MANUFACTURER,
+	POWER_SUPPLY_PROP_MODEL_NAME
 };
 
 static enum power_supply_property bq27742_battery_props[] = {
@@ -170,12 +179,18 @@ static enum power_supply_property bq27742_battery_props[] = {
 	POWER_SUPPLY_PROP_CYCLE_COUNT,
 	POWER_SUPPLY_PROP_POWER_AVG,
 	POWER_SUPPLY_PROP_HEALTH,
+	/* Properties of type `const char *' */
+	POWER_SUPPLY_PROP_MANUFACTURER,
+	POWER_SUPPLY_PROP_MODEL_NAME
 };
 
 static unsigned int poll_interval = 360;
 module_param(poll_interval, uint, 0644);
 MODULE_PARM_DESC(poll_interval, "battery poll interval in seconds - " \
 				"0 disables polling");
+
+static char model_name[BQ27500_MAX_NAME_LEN];
+static const char manufacturer[] = "Texas Instruments";
 
 /*
  * Common code for BQ27x00 devices
@@ -319,6 +334,30 @@ static int bq27x00_battery_read_energy(struct bq27x00_device_info *di)
 		ae = ae * 29200 / BQ27000_RS;
 
 	return ae;
+}
+
+/*
+ * read the battery medel name
+ * return 0 if read success
+ */
+static int bq27x00_battery_model_name(struct bq27x00_device_info *di)
+{
+	u8 i, len;
+
+	if (di->chip != BQ27500)
+		return -EINVAL;
+
+	len = bq27x00_read(di, BQ27500_REG_DEV_NAME_LEN, false);
+	if (len < 0 || len > BQ27500_MAX_NAME_LEN) {
+		dev_err(di->dev, "error reading available length = %d\n", len);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < len; ++i)
+		model_name[i] = bq27x00_read(di, BQ27500_REG_DEV_NAME + i,
+					     false);
+
+	return 0;
 }
 
 /*
@@ -710,6 +749,12 @@ static int bq27x00_battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_HEALTH:
 		ret = bq27x00_simple_value(di->cache.health, val);
 		break;
+	case POWER_SUPPLY_PROP_MANUFACTURER:
+		val->strval = manufacturer;
+		break;
+	case POWER_SUPPLY_PROP_MODEL_NAME:
+		val->strval = model_name;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -860,6 +905,10 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 		goto batt_failed_3;
 
 	i2c_set_clientdata(client, di);
+
+	retval = bq27x00_battery_model_name(di);
+	if (retval)
+		strcpy(model_name, "unknown");
 
 	return 0;
 
