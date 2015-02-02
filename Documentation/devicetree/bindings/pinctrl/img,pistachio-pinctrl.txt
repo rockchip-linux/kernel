@@ -87,13 +87,13 @@ mfio33		i2c2
 mfio34		i2c3
 mfio35		i2c3
 mfio36		i2s_out, audio_clk_in
-mfio37		i2s_out
-mfio38		i2s_out
-mfio39		i2s_out
-mfio40		i2s_out
-mfio41		i2s_out
-mfio42		i2s_out
-mfio43		i2s_out
+mfio37		i2s_out, debug_raw_cca_ind
+mfio38		i2s_out, debug_ed_sec20_cca_ind
+mfio39		i2s_out, debug_ed_sec40_cca_ind
+mfio40		i2s_out, debug_agc_done_0
+mfio41		i2s_out, debug_agc_done_1
+mfio42		i2s_out, debug_ed_cca_ind
+mfio43		i2s_out, debug_s2l_done
 mfio44		i2s_out
 mfio45		i2s_dac_clk, audio_sync
 mfio46		audio_trigger

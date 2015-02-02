@@ -279,6 +279,34 @@ static const char * const pistachio_i2s_out_groups[] = {
 	"mfio42", "mfio43", "mfio44",
 };
 
+static const char * const pistachio_debug_raw_cca_ind_groups[] = {
+	"mfio37",
+};
+
+static const char * const pistachio_debug_ed_sec20_cca_ind_groups[] = {
+	"mfio38",
+};
+
+static const char * const pistachio_debug_ed_sec40_cca_ind_groups[] = {
+	"mfio39",
+};
+
+static const char * const pistachio_debug_agc_done_0_groups[] = {
+	"mfio40",
+};
+
+static const char * const pistachio_debug_agc_done_1_groups[] = {
+	"mfio41",
+};
+
+static const char * const pistachio_debug_ed_cca_ind_groups[] = {
+	"mfio42",
+};
+
+static const char * const pistachio_debug_s2l_done_groups[] = {
+	"mfio43",
+};
+
 static const char * const pistachio_i2s_dac_clk_groups[] = {
 	"mfio45",
 };
@@ -539,6 +567,13 @@ enum pistachio_mux_option {
 	PISTACHIO_FUNCTION_RPU_V_PLL_LOCK,
 	PISTACHIO_FUNCTION_RPU_L_PLL_LOCK,
 	PISTACHIO_FUNCTION_AUDIO_PLL_LOCK,
+	PISTACHIO_FUNCTION_DEBUG_RAW_CCA_IND,
+	PISTACHIO_FUNCTION_DEBUG_ED_SEC20_CCA_IND,
+	PISTACHIO_FUNCTION_DEBUG_ED_SEC40_CCA_IND,
+	PISTACHIO_FUNCTION_DEBUG_AGC_DONE_0,
+	PISTACHIO_FUNCTION_DEBUG_AGC_DONE_1,
+	PISTACHIO_FUNCTION_DEBUG_ED_CCA_IND,
+	PISTACHIO_FUNCTION_DEBUG_S2L_DONE,
 };
 
 static const struct pistachio_function pistachio_functions[] = {
@@ -593,6 +628,13 @@ static const struct pistachio_function pistachio_functions[] = {
 	FUNCTION(rpu_v_pll_lock),
 	FUNCTION(rpu_l_pll_lock),
 	FUNCTION(audio_pll_lock),
+	FUNCTION(debug_raw_cca_ind),
+	FUNCTION(debug_ed_sec20_cca_ind),
+	FUNCTION(debug_ed_sec40_cca_ind),
+	FUNCTION(debug_agc_done_0),
+	FUNCTION(debug_agc_done_1),
+	FUNCTION(debug_ed_cca_ind),
+	FUNCTION(debug_s2l_done),
 };
 
 #define PIN_GROUP(_pin, _name)					\
@@ -690,13 +732,20 @@ static const struct pistachio_pin_group pistachio_groups[] = {
 	MFIO_PIN_GROUP(35, I2C3),
 	MFIO_MUX_PIN_GROUP(36, I2S_OUT, AUDIO_CLK_IN, NONE,
 			   PADS_FUNCTION_SELECT0, 24, 0x1),
-	MFIO_PIN_GROUP(37, I2S_OUT),
-	MFIO_PIN_GROUP(38, I2S_OUT),
-	MFIO_PIN_GROUP(39, I2S_OUT),
-	MFIO_PIN_GROUP(40, I2S_OUT),
-	MFIO_PIN_GROUP(41, I2S_OUT),
-	MFIO_PIN_GROUP(42, I2S_OUT),
-	MFIO_PIN_GROUP(43, I2S_OUT),
+	MFIO_MUX_PIN_GROUP(37, I2S_OUT, DEBUG_RAW_CCA_IND, NONE,
+			   PADS_FUNCTION_SELECT0, 25, 0x1),
+	MFIO_MUX_PIN_GROUP(38, I2S_OUT, DEBUG_ED_SEC20_CCA_IND, NONE,
+			   PADS_FUNCTION_SELECT0, 26, 0x1),
+	MFIO_MUX_PIN_GROUP(39, I2S_OUT, DEBUG_ED_SEC40_CCA_IND, NONE,
+			   PADS_FUNCTION_SELECT0, 27, 0x1),
+	MFIO_MUX_PIN_GROUP(40, I2S_OUT, DEBUG_AGC_DONE_0, NONE,
+			   PADS_FUNCTION_SELECT0, 28, 0x1),
+	MFIO_MUX_PIN_GROUP(41, I2S_OUT, DEBUG_AGC_DONE_1, NONE,
+			   PADS_FUNCTION_SELECT0, 29, 0x1),
+	MFIO_MUX_PIN_GROUP(42, I2S_OUT, DEBUG_ED_CCA_IND, NONE,
+			   PADS_FUNCTION_SELECT0, 30, 0x1),
+	MFIO_MUX_PIN_GROUP(43, I2S_OUT, DEBUG_S2L_DONE, NONE,
+			   PADS_FUNCTION_SELECT0, 31, 0x1),
 	MFIO_PIN_GROUP(44, I2S_OUT),
 	MFIO_MUX_PIN_GROUP(45, I2S_DAC_CLK, AUDIO_SYNC, NONE,
 			   PADS_FUNCTION_SELECT1, 0, 0x1),
