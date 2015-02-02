@@ -412,7 +412,7 @@ static void spi_nand_gd5f_ecc_status(unsigned int status,
 
 	*ecc_error = (ecc_status == SPI_NAND_GD5F_ECC_UNCORR) ? 1 : 0;
 	if (*ecc_error == 0)
-		*corrected = 2 + ecc_status;
+		*corrected = (ecc_status > 1) ? (2 + ecc_status) : 0;
 }
 
 static int spi_nand_device_probe(struct spi_device *spi)

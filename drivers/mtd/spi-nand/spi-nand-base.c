@@ -263,6 +263,8 @@ static int spi_nand_read_page(struct spi_nand *snand, unsigned int page_addr,
 				"internal ECC error reading page 0x%x\n",
 				page_addr);
 			snand->mtd.ecc_stats.failed++;
+		} else {
+			snand->mtd.ecc_stats.corrected += corrected;
 		}
 	}
 
