@@ -79,6 +79,23 @@ static const u16 csc_coeff_rgb_in_eitu709[3][4] = {
 	{ 0x6756, 0x78ab, 0x2000, 0x0200 }
 };
 
+struct hdmi_id {
+	u8 design;
+	u8 revision;
+
+	bool prepen;
+	bool audspdif;
+	bool audi2s;
+	bool hdmi14;
+	bool csc;
+	bool hdcp;
+	bool hdmi20;
+	bool confapb;
+	bool ahbauddma;
+	bool gpaud;
+	u8 phy_type;
+};
+
 struct hdmi_vmode {
 	bool mdvi;
 	bool mhsyncpolarity;
@@ -111,6 +128,8 @@ struct dw_hdmi {
 	struct device *dev;
 	struct clk *isfr_clk;
 	struct clk *iahb_clk;
+
+	struct hdmi_id id;
 
 	struct hdmi_data_info hdmi_data;
 	const struct dw_hdmi_plat_data *plat_data;
@@ -1265,6 +1284,36 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	return 0;
 }
 
+static void hdmi_parse_id(struct dw_hdmi *hdmi)
+{
+	u8 config0_id, config1_id, config2_id, config3_id;
+
+	config0_id = hdmi_readb(hdmi, HDMI_CONFIG0_ID);
+	config1_id = hdmi_readb(hdmi, HDMI_CONFIG1_ID);
+	config2_id = hdmi_readb(hdmi, HDMI_CONFIG2_ID);
+	config3_id = hdmi_readb(hdmi, HDMI_CONFIG3_ID);
+
+	hdmi->id.prepen = config0_id & HDMI_CONFIG0_ID_PREPEN ? true : false;
+	hdmi->id.audi2s = config0_id & HDMI_CONFIG0_ID_AUDI2S ? true : false;
+	hdmi->id.hdmi14 = config0_id & HDMI_CONFIG0_ID_HDMI14 ? true : false;
+	hdmi->id.hdcp = config0_id & HDMI_CONFIG0_ID_HDCP ? true : false;
+	hdmi->id.csc = config0_id & HDMI_CONFIG0_ID_CSC ? true : false;
+	hdmi->id.audspdif = config0_id & HDMI_CONFIG0_ID_AUDSPDIF ?
+			    true : false;
+
+	hdmi->id.confapb = config1_id & HDMI_CONFIG1_ID_CONFAPB ? true : false;
+	hdmi->id.hdmi20 = config1_id & HDMI_CONFIG1_ID_HDMI20 ? true : false;
+
+	hdmi->id.phy_type = config2_id;
+
+	hdmi->id.gpaud = config3_id & HDMI_CONFIG3_ID_GPAUD ? true : false;
+	hdmi->id.ahbauddma = config3_id & HDMI_CONFIG3_ID_AHBAUDDMA ?
+			     true : false;
+
+	hdmi->id.design = hdmi_readb(hdmi, HDMI_DESIGN_ID);
+	hdmi->id.revision = hdmi_readb(hdmi, HDMI_REVISION_ID);
+}
+
 /* Wait until we are registered to enable interrupts */
 static int dw_hdmi_fb_registered(struct dw_hdmi *hdmi)
 {
@@ -1690,6 +1739,16 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 		 hdmi_readb(hdmi, HDMI_REVISION_ID),
 		 hdmi_readb(hdmi, HDMI_PRODUCT_ID0),
 		 hdmi_readb(hdmi, HDMI_PRODUCT_ID1));
+
+	/* Config IDs */
+	dev_info(dev,
+		 "Detected HDMI config_id 0x%x:0x%x:0x%x:0x%x\n",
+		 hdmi_readb(hdmi, HDMI_CONFIG0_ID),
+		 hdmi_readb(hdmi, HDMI_CONFIG1_ID),
+		 hdmi_readb(hdmi, HDMI_CONFIG2_ID),
+		 hdmi_readb(hdmi, HDMI_CONFIG3_ID));
+
+	hdmi_parse_id(hdmi);
 
 	initialize_hdmi_ih_mutes(hdmi);
 
