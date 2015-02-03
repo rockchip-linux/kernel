@@ -39,10 +39,23 @@ struct snd_dw_hdmi {
 	struct dw_hdmi_audio_data data;
 
 	struct snd_soc_jack *jack;
-	struct delayed_work jack_work;
 	enum hdmi_jack_status jack_status;
 	enum hdmi_jack_status connect_status;
 };
+
+static void dw_hdmi_jack_report(struct snd_dw_hdmi *hdmi)
+{
+	u8 status;
+
+	status = hdmi->data.read(hdmi->data.dw, HDMI_PHY_STAT0) & HDMI_PHY_HPD;
+	if (status != hdmi->connect_status) {
+		hdmi->jack_status = status ? SND_JACK_LINEOUT : 0;
+		snd_soc_jack_report(hdmi->jack, hdmi->jack_status,
+				    SND_JACK_LINEOUT);
+		dev_dbg(hdmi->dev, "jack report [%d]\n", hdmi->jack_status);
+	}
+	hdmi->connect_status = status;
+}
 
 /**
  * dw_hdmi_jack_detect - Enable hdmi detection via the HDMI IRQ
@@ -64,35 +77,24 @@ int dw_hdmi_jack_detect(struct snd_soc_codec *codec_dai,
 
 	snd_soc_jack_report(hdmi->jack, 0, SND_JACK_LINEOUT);
 
-	queue_delayed_work(system_power_efficient_wq, &hdmi->jack_work,
-			   msecs_to_jiffies(50));
+	dw_hdmi_jack_report(hdmi);
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dw_hdmi_jack_detect);
 
-static void dw_hdmi_jack_work(struct work_struct *work)
+/* we don't want this irq mark with IRQF_ONESHOT flags,
+ * so we build an irq_default_primary_handler here */
+static irqreturn_t snd_dw_hdmi_hardirq(int irq, void *dev_id)
 {
-	struct snd_dw_hdmi *hdmi = container_of(work, struct snd_dw_hdmi,
-						jack_work.work);
-	u8 status;
-
-	status = hdmi->data.read(hdmi->data.dw, HDMI_PHY_STAT0) & HDMI_PHY_HPD;
-	if (status != hdmi->connect_status) {
-		hdmi->jack_status = status ? SND_JACK_LINEOUT : 0;
-		snd_soc_jack_report(hdmi->jack, hdmi->jack_status,
-				    SND_JACK_LINEOUT);
-		dev_dbg(hdmi->dev, "jack report [%d]\n", hdmi->jack_status);
-	}
-	hdmi->connect_status = status;
+	return IRQ_WAKE_THREAD;
 }
 
 static irqreturn_t snd_dw_hdmi_irq(int irq, void *dev_id)
 {
 	struct snd_dw_hdmi *hdmi = dev_id;
 
-	queue_delayed_work(system_power_efficient_wq, &hdmi->jack_work,
-			   msecs_to_jiffies(50));
+	dw_hdmi_jack_report(hdmi);
 
 	return IRQ_HANDLED;
 }
@@ -269,10 +271,9 @@ static int dw_hdmi_audio_probe(struct platform_device *pdev)
 	hdmi->dev = &pdev->dev;
 	platform_set_drvdata(pdev, hdmi);
 
-	INIT_DELAYED_WORK(&hdmi->jack_work, dw_hdmi_jack_work);
-
-	ret = devm_request_irq(&pdev->dev, hdmi->data.irq, snd_dw_hdmi_irq,
-			       IRQF_SHARED, "dw-hdmi-audio", hdmi);
+	ret = devm_request_threaded_irq(&pdev->dev, hdmi->data.irq,
+					snd_dw_hdmi_hardirq, snd_dw_hdmi_irq,
+					IRQF_SHARED, "dw-hdmi-audio", hdmi);
 	if (ret) {
 		dev_err(&pdev->dev, "request irq failed (%d)\n", ret);
 		goto free_hdmi_data;
