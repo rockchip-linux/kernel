@@ -31,6 +31,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/moduleparam.h>
+#include <linux/pm_dark_resume.h>
 #include "intel_drv.h"
 
 #define PCI_LBPC 0xf4 /* legacy/combination backlight modes */
@@ -551,6 +552,12 @@ intel_panel_actually_set_backlight(struct intel_connector *connector, u32 level)
 	struct drm_device *dev = connector->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
+	if (dev_dark_resume_active(dev->dev)) {
+		dev_info(dev->dev, "disabled for dark resume");
+		DRM_DEBUG_DRIVER(
+			"not setting backlight level since dark resume is active");
+		return;
+	}
 	DRM_DEBUG_DRIVER("set backlight PWM = %d\n", level);
 
 	level = intel_panel_compute_brightness(connector, level);
