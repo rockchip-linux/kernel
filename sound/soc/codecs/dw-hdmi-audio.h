@@ -76,7 +76,4 @@ struct hdmi_audio_fmt {
 	enum hdmi_audio_daifmt dai_fmt;
 };
 
-int dw_hdmi_jack_detect(struct snd_soc_codec *codec_dai,
-			struct snd_soc_jack *jack);
-
 #endif

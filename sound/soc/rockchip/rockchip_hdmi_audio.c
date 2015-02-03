@@ -23,18 +23,12 @@
 
 #include <sound/soc.h>
 #include <sound/pcm.h>
-#include <sound/jack.h>
 #include <sound/core.h>
 #include <sound/pcm_params.h>
 
 #include "rockchip_i2s.h"
-#include "../codecs/dw-hdmi-audio.h"
 
 #define DRV_NAME "rockchip-hdmi-audio"
-
-struct hdmi_audio_private {
-	struct snd_soc_jack hdmi_jack;
-};
 
 static int rockchip_hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params)
@@ -79,19 +73,6 @@ static int rockchip_hdmi_audio_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int hdmi_audio_dai_init(struct snd_soc_pcm_runtime *runtime)
-{
-	struct snd_soc_codec *codec = runtime->codec;
-	struct snd_soc_card *card = runtime->card;
-	struct hdmi_audio_private *drv = snd_soc_card_get_drvdata(card);
-
-	/* Enable headphone jack detection */
-	snd_soc_jack_new(codec, "HDMI Jack", SND_JACK_LINEOUT,
-			 &drv->hdmi_jack);
-
-	return dw_hdmi_jack_detect(codec, &drv->hdmi_jack);
-}
-
 static struct snd_soc_ops hdmi_audio_dai_ops = {
 	.hw_params = rockchip_hdmi_audio_hw_params,
 };
@@ -101,7 +82,6 @@ static struct snd_soc_dai_link hdmi_audio_dai = {
 	.stream_name = "RockchipHDMI",
 	.codec_name = "dw-hdmi-audio",
 	.codec_dai_name = "dw-hdmi-hifi",
-	.init = hdmi_audio_dai_init,
 	.ops = &hdmi_audio_dai_ops,
 	.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 		   SND_SOC_DAIFMT_CBS_CFS,
@@ -118,16 +98,10 @@ static int rockchip_hdmi_audio_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &rockchip_hdmi_audio_card;
 	struct device_node *np = pdev->dev.of_node;
-	struct hdmi_audio_private *drv;
 	int ret;
-
-	drv = devm_kzalloc(&pdev->dev, sizeof(*drv), GFP_KERNEL);
-	if (!drv)
-		return -ENOMEM;
 
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
-	snd_soc_card_set_drvdata(card, drv);
 
 	hdmi_audio_dai.cpu_of_node = of_parse_phandle(np, "i2s-controller", 0);
 	if (!hdmi_audio_dai.cpu_of_node) {
@@ -154,7 +128,6 @@ free_cpu_of_node:
 free_priv_data:
 	snd_soc_card_set_drvdata(card, NULL);
 	platform_set_drvdata(pdev, NULL);
-	devm_kfree(&pdev->dev, drv);
 	card->dev = NULL;
 
 	return ret;

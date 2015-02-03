@@ -38,50 +38,31 @@ struct snd_dw_hdmi {
 	struct device *dev;
 	struct dw_hdmi_audio_data data;
 
-	struct snd_soc_jack *jack;
-	enum hdmi_jack_status jack_status;
-	enum hdmi_jack_status connect_status;
+	u8 jack_status;
+	bool is_jack_ready;
+	struct snd_soc_jack jack;
 };
 
-static void dw_hdmi_jack_report(struct snd_dw_hdmi *hdmi)
+int snd_dw_hdmi_jack_detect(struct snd_dw_hdmi *hdmi)
 {
-	u8 status;
+	u8 jack_status;
 
-	status = hdmi->data.read(hdmi->data.dw, HDMI_PHY_STAT0) & HDMI_PHY_HPD;
-	if (status != hdmi->connect_status) {
-		hdmi->jack_status = status ? SND_JACK_LINEOUT : 0;
-		snd_soc_jack_report(hdmi->jack, hdmi->jack_status,
+	if (!hdmi->is_jack_ready)
+		return -EINVAL;
+
+	jack_status = !!(hdmi->data.read(hdmi->data.dw, HDMI_PHY_STAT0)&
+		      HDMI_PHY_HPD) ? SND_JACK_LINEOUT : 0;
+
+	if (jack_status != hdmi->jack_status) {
+		snd_soc_jack_report(&hdmi->jack, jack_status,
 				    SND_JACK_LINEOUT);
-		dev_dbg(hdmi->dev, "jack report [%d]\n", hdmi->jack_status);
+		hdmi->jack_status = jack_status;
+
+		dev_info(hdmi->dev, "jack report [%d]\n", hdmi->jack_status);
 	}
-	hdmi->connect_status = status;
-}
-
-/**
- * dw_hdmi_jack_detect - Enable hdmi detection via the HDMI IRQ
- *
- * @codec:  HDMI codec
- * @jack:   jack to report detection events on
- *
- * Enable HDMI detection via IRQ on the HDMI.
- *
- * If no jack is supplied detection will be disabled.
- */
-int dw_hdmi_jack_detect(struct snd_soc_codec *codec_dai,
-			struct snd_soc_jack *jack)
-{
-	struct snd_dw_hdmi *hdmi = snd_soc_codec_get_drvdata(codec_dai);
-
-	hdmi->jack = jack;
-	hdmi->jack_status = JACK_NO_LINEOUT;
-
-	snd_soc_jack_report(hdmi->jack, 0, SND_JACK_LINEOUT);
-
-	dw_hdmi_jack_report(hdmi);
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(dw_hdmi_jack_detect);
 
 /* we don't want this irq mark with IRQF_ONESHOT flags,
  * so we build an irq_default_primary_handler here */
@@ -94,7 +75,7 @@ static irqreturn_t snd_dw_hdmi_irq(int irq, void *dev_id)
 {
 	struct snd_dw_hdmi *hdmi = dev_id;
 
-	dw_hdmi_jack_report(hdmi);
+	snd_dw_hdmi_jack_detect(hdmi);
 
 	return IRQ_HANDLED;
 }
@@ -221,6 +202,24 @@ static void snd_dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 	hdmi->data.disable(hdmi->data.dw);
 }
 
+static int snd_dw_hdmi_audio_probe(struct snd_soc_codec *codec)
+{
+	struct snd_dw_hdmi *hdmi = snd_soc_codec_get_drvdata(codec);
+	int ret;
+
+	ret = snd_soc_jack_new(codec, "HDMI Jack", SND_JACK_LINEOUT,
+			       &hdmi->jack);
+	if (ret) {
+		dev_err(hdmi->dev, "jack new failed (%d)\n", ret);
+		hdmi->is_jack_ready = false;
+		return ret;
+	}
+
+	hdmi->is_jack_ready = true;
+
+	return snd_dw_hdmi_jack_detect(hdmi);
+}
+
 static const struct snd_soc_dapm_widget snd_dw_hdmi_audio_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("TX"),
 };
@@ -251,6 +250,7 @@ static struct snd_soc_dai_driver dw_hdmi_audio_dai = {
 };
 
 static const struct snd_soc_codec_driver dw_hdmi_audio = {
+	.probe = snd_dw_hdmi_audio_probe,
 	.dapm_widgets = snd_dw_hdmi_audio_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(snd_dw_hdmi_audio_widgets),
 	.dapm_routes = snd_dw_hdmi_audio_routes,
@@ -269,6 +269,7 @@ static int dw_hdmi_audio_probe(struct platform_device *pdev)
 
 	hdmi->data = *data;
 	hdmi->dev = &pdev->dev;
+	hdmi->is_jack_ready = false;
 	platform_set_drvdata(pdev, hdmi);
 
 	ret = devm_request_threaded_irq(&pdev->dev, hdmi->data.irq,
