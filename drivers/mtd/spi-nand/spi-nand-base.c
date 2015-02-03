@@ -198,10 +198,6 @@ static int spi_nand_write(struct spi_nand *snand)
 		return ret;
 	}
 
-	ret = spi_nand_wait_till_ready(snand);
-	if (ret)
-		return ret;
-
 	ret = snand->write_enable(snand);
 	if (ret < 0) {
 		dev_err(snand->dev, "write enable command failed\n");
