@@ -33,7 +33,7 @@
 	pinctrl-names = "default";
 
 	flash@0 {
-		compatible = "w25q80";
+		compatible = "spidev";
 		reg = <0>;
 		spi-max-frequency = <50000000>;
 	};
