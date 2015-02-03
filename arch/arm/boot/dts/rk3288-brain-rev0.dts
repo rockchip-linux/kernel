@@ -62,8 +62,14 @@
 	status = "okay";
 };
 
-&spi0 {
+&spi2 {
 	status = "okay";
+
+	spiflash@0 {
+		compatible = "spidev";
+		spi-max-frequency = <50000000>;
+		reg = <0>;
+	};
 };
 
 &i2c0 {
