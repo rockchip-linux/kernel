@@ -210,31 +210,6 @@ static int snd_dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int snd_dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
-				   int cmd, struct snd_soc_dai *codec_dai)
-{
-	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
-
-	switch (cmd) {
-	case SNDRV_PCM_TRIGGER_START:
-	case SNDRV_PCM_TRIGGER_RESUME:
-	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		hdmi->data.enable(hdmi->data.dw);
-		dev_dbg(codec_dai->dev, "[codec_dai]: trigger enable.\n");
-		break;
-	case SNDRV_PCM_TRIGGER_STOP:
-	case SNDRV_PCM_TRIGGER_SUSPEND:
-	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		hdmi->data.disable(hdmi->data.dw);
-		dev_dbg(codec_dai->dev, "[codec_dai]: trigger disable.\n");
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static void snd_dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 				     struct snd_soc_dai *codec_dai)
 {
@@ -255,7 +230,6 @@ static const struct snd_soc_dapm_route snd_dw_hdmi_audio_routes[] = {
 static const struct snd_soc_dai_ops dw_hdmi_dai_ops = {
 	.startup = snd_dw_hdmi_dai_startup,
 	.hw_params = snd_dw_hdmi_dai_hw_params,
-	.trigger = snd_dw_hdmi_dai_trigger,
 	.shutdown = snd_dw_hdmi_dai_shutdown,
 };
 
