@@ -117,8 +117,8 @@ static void dw_hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi,
 	hdmi->data.set_sample_rate(hdmi->data.dw, fmt->sample_rate);
 }
 
-static int dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
-			       struct snd_soc_dai *codec_dai)
+static int snd_dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
+				   struct snd_soc_dai *codec_dai)
 {
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
@@ -128,9 +128,9 @@ static int dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
-				 struct snd_pcm_hw_params *params,
-				 struct snd_soc_dai *codec_dai)
+static int snd_dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
+				     struct snd_pcm_hw_params *params,
+				     struct snd_soc_dai *codec_dai)
 {
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -210,8 +210,8 @@ static int dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
-			       int cmd, struct snd_soc_dai *codec_dai)
+static int snd_dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
+				   int cmd, struct snd_soc_dai *codec_dai)
 {
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
@@ -235,8 +235,8 @@ static int dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static void dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
-				 struct snd_soc_dai *codec_dai)
+static void snd_dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
+				     struct snd_soc_dai *codec_dai)
 {
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
@@ -244,19 +244,19 @@ static void dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 	hdmi->data.disable(hdmi->data.dw);
 }
 
-static const struct snd_soc_dapm_widget dw_hdmi_widgets[] = {
+static const struct snd_soc_dapm_widget snd_dw_hdmi_audio_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("TX"),
 };
 
-static const struct snd_soc_dapm_route dw_hdmi_routes[] = {
+static const struct snd_soc_dapm_route snd_dw_hdmi_audio_routes[] = {
 	{ "TX", NULL, "Playback" },
 };
 
 static const struct snd_soc_dai_ops dw_hdmi_dai_ops = {
-	.startup = dw_hdmi_dai_startup,
-	.hw_params = dw_hdmi_dai_hw_params,
-	.trigger = dw_hdmi_dai_trigger,
-	.shutdown = dw_hdmi_dai_shutdown,
+	.startup = snd_dw_hdmi_dai_startup,
+	.hw_params = snd_dw_hdmi_dai_hw_params,
+	.trigger = snd_dw_hdmi_dai_trigger,
+	.shutdown = snd_dw_hdmi_dai_shutdown,
 };
 
 static struct snd_soc_dai_driver dw_hdmi_audio_dai = {
@@ -275,10 +275,10 @@ static struct snd_soc_dai_driver dw_hdmi_audio_dai = {
 };
 
 static const struct snd_soc_codec_driver dw_hdmi_audio = {
-	.dapm_widgets = dw_hdmi_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(dw_hdmi_widgets),
-	.dapm_routes = dw_hdmi_routes,
-	.num_dapm_routes = ARRAY_SIZE(dw_hdmi_routes),
+	.dapm_widgets = snd_dw_hdmi_audio_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(snd_dw_hdmi_audio_widgets),
+	.dapm_routes = snd_dw_hdmi_audio_routes,
+	.num_dapm_routes = ARRAY_SIZE(snd_dw_hdmi_audio_routes),
 };
 
 static int dw_hdmi_audio_probe(struct platform_device *pdev)
