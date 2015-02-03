@@ -329,7 +329,7 @@ bool cirrus_check_framebuffer(int width, int height, int bpp, int pitch)
 	const int max_pitch = 0x1FF << 3; /* (4096 - 1) & ~111b bytes */
 	const int max_size = 0x400000; /* 4MB */
 
-	if (bpp > 32)
+	if (bpp > cirrus_bpp || bpp > 32)
 		return false;
 
 	if (pitch > max_pitch)
