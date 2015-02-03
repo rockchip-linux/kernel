@@ -1338,6 +1338,40 @@ static void initialize_hdmi_ih_mutes(struct dw_hdmi *hdmi)
 	hdmi_writeb(hdmi, ih_mute, HDMI_IH_MUTE);
 }
 
+static void hdmi_mute_interrupts(struct dw_hdmi *hdmi)
+{
+	u8 ih_mute;
+
+	/* Disable all interrupts */
+	hdmi_writeb(hdmi, ~0, HDMI_IH_MUTE_PHY_STAT0);
+
+	 /* Disable top level interrupt bits in HDMI block */
+	ih_mute = hdmi_readb(hdmi, HDMI_IH_MUTE) |
+		  HDMI_IH_MUTE_MUTE_WAKEUP_INTERRUPT |
+		  HDMI_IH_MUTE_MUTE_ALL_INTERRUPT;
+
+	hdmi_writeb(hdmi, ih_mute, HDMI_IH_MUTE);
+}
+
+static void hdmi_unmute_interrupts(struct dw_hdmi *hdmi)
+{
+	initialize_hdmi_ih_mutes(hdmi);
+
+	/*
+	 * Configure registers related to HDMI interrupt
+	 * generation before registering IRQ.
+	 */
+	hdmi_writeb(hdmi, HDMI_PHY_HPD, HDMI_PHY_POL0);
+
+	/* Clear Hotplug interrupts */
+	hdmi_writeb(hdmi, HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
+
+	dw_hdmi_fb_registered(hdmi);
+
+	/* Unmute interrupts */
+	hdmi_writeb(hdmi, ~HDMI_IH_PHY_STAT0_HPD, HDMI_IH_MUTE_PHY_STAT0);
+}
+
 static void dw_hdmi_poweron(struct dw_hdmi *hdmi)
 {
 	dw_hdmi_setup(hdmi, &hdmi->previous_mode);
@@ -1667,25 +1701,11 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	 */
 	hdmi_init_clk_regenerator(hdmi);
 
-	/*
-	 * Configure registers related to HDMI interrupt
-	 * generation before registering IRQ.
-	 */
-	hdmi_writeb(hdmi, HDMI_PHY_HPD, HDMI_PHY_POL0);
-
-	/* Clear Hotplug interrupts */
-	hdmi_writeb(hdmi, HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
-
-	ret = dw_hdmi_fb_registered(hdmi);
-	if (ret)
-		goto err_iahb;
-
 	ret = dw_hdmi_register(drm, hdmi);
 	if (ret)
 		goto err_iahb;
 
-	/* Unmute interrupts */
-	hdmi_writeb(hdmi, ~HDMI_IH_PHY_STAT0_HPD, HDMI_IH_MUTE_PHY_STAT0);
+	hdmi_unmute_interrupts(hdmi);
 
 	dev_set_drvdata(dev, hdmi);
 
@@ -1724,8 +1744,7 @@ void dw_hdmi_unbind(struct device *dev, struct device *master, void *data)
 	if (!IS_ERR(hdmi->audio_pdev))
 		platform_device_unregister(hdmi->audio_pdev);
 
-	/* Disable all interrupts */
-	hdmi_writeb(hdmi, ~0, HDMI_IH_MUTE_PHY_STAT0);
+	hdmi_mute_interrupts(hdmi);
 
 	hdmi->connector.funcs->destroy(&hdmi->connector);
 	hdmi->encoder->funcs->destroy(hdmi->encoder);
@@ -1739,17 +1758,8 @@ EXPORT_SYMBOL_GPL(dw_hdmi_unbind);
 int dw_hdmi_suspend(struct device *dev)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
-	u8 ih_mute;
 
-	/* Disable all interrupts */
-	hdmi_writeb(hdmi, ~0, HDMI_IH_MUTE_PHY_STAT0);
-
-	 /* Disable top level interrupt bits in HDMI block */
-	ih_mute = hdmi_readb(hdmi, HDMI_IH_MUTE) |
-		  HDMI_IH_MUTE_MUTE_WAKEUP_INTERRUPT |
-		  HDMI_IH_MUTE_MUTE_ALL_INTERRUPT;
-
-	hdmi_writeb(hdmi, ih_mute, HDMI_IH_MUTE);
+	hdmi_mute_interrupts(hdmi);
 
 	return 0;
 }
@@ -1759,19 +1769,7 @@ int dw_hdmi_resume(struct device *dev)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
 
-	/*
-	 * Configure registers related to HDMI interrupt
-	 * generation before registering IRQ.
-	 */
-	hdmi_writeb(hdmi, HDMI_PHY_HPD, HDMI_PHY_POL0);
-
-	/* Clear Hotplug interrupts */
-	hdmi_writeb(hdmi, HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
-
-	dw_hdmi_fb_registered(hdmi);
-
-	/* Unmute interrupts */
-	hdmi_writeb(hdmi, ~HDMI_IH_PHY_STAT0_HPD, HDMI_IH_MUTE_PHY_STAT0);
+	hdmi_unmute_interrupts(hdmi);
 
 	return 0;
 }
