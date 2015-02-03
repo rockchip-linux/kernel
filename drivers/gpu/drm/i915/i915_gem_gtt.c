@@ -1400,8 +1400,6 @@ void i915_gem_init_global_gtt(struct drm_device *dev)
 	unsigned long gtt_size, mappable_size;
 
 	gtt_size = dev_priv->gtt.base.total;
-	if (INTEL_INFO(dev)->gen == 8)
-		gtt_size = 0x80000000;
 	mappable_size = dev_priv->gtt.mappable_end;
 
 	if (intel_enable_ppgtt(dev) && HAS_ALIASING_PPGTT(dev)) {
