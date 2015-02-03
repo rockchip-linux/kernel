@@ -37,6 +37,30 @@
 		};
 	};
 
+	gpio-leds {
+		compatible = "gpio-leds";
+
+		ready {
+			gpios = <&gpio7 0 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		ready2 {
+			gpios = <&gpio7 13 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		syncing {
+			gpios = <&gpio7 11 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		error {
+			gpios = <&gpio7 15 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+
 	/* This turns on vbus for usb2 */
 	vcc5_host2: vcc5-host2-regulator {
 		compatible = "regulator-fixed";
