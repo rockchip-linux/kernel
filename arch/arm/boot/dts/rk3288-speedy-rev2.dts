@@ -14,8 +14,9 @@
 
 / {
 	model = "Google Speedy";
-	compatible = "google,veyron-speedy-rev1", "google,veyron-speedy",
-		     "google,veyron", "rockchip,rk3288";
+	compatible = "google,veyron-speedy-rev5", "google,veyron-speedy-rev4",
+		     "google,veyron-speedy-rev3", "google,veyron-speedy-rev2",
+		     "google,veyron-speedy", "google,veyron", "rockchip,rk3288";
 
 	panel_regulator: panel-regualtor {
 		compatible = "regulator-fixed";
@@ -94,6 +95,11 @@
 	pinctrl-0 = <&vcc50_hdmi_en>;
 };
 
+&edp {
+	pinctrl-names = "default";
+	pinctrl-0 = <&edp_hpd>;
+};
+
 &pinctrl {
 	backlight {
 		bl_pwr_en: bl_pwr_en {
@@ -104,6 +110,12 @@
 	buck-5v {
 		drv_5v: drv-5v {
 			rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	edp {
+		edp_hpd: edp_hpd {
+			rockchip,pins = <7 11 RK_FUNC_2 &pcfg_pull_down>;
 		};
 	};
 
