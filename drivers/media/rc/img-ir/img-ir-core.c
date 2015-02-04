@@ -60,8 +60,6 @@ static void img_ir_setup(struct img_ir_priv *priv)
 
 	if (!IS_ERR(priv->clk))
 		clk_prepare_enable(priv->clk);
-	if (!IS_ERR(priv->sys_clk))
-		clk_prepare_enable(priv->sys_clk);
 }
 
 static void img_ir_ident(struct img_ir_priv *priv)
@@ -117,12 +115,27 @@ static int img_ir_probe(struct platform_device *pdev)
 	priv->sys_clk = devm_clk_get(&pdev->dev, "sys");
 	if (IS_ERR(priv->sys_clk))
 		dev_warn(&pdev->dev, "cannot get sys clock resource\n");
+	/*
+	 * Enabling the system clock before the register interface is
+	 * accessed. ISR shouldn't get called with Sys Clock disabled,
+	 * hence exiting probe with an error.
+	 */
+	if (!IS_ERR(priv->sys_clk)) {
+		error = clk_prepare_enable(priv->sys_clk);
+		if (error) {
+			dev_err(&pdev->dev, "cannot enable sys clock\n");
+			return error;
+		}
+	}
 
 	/* Set up raw & hw decoder */
 	error = img_ir_probe_raw(priv);
 	error2 = img_ir_probe_hw(priv);
-	if (error && error2)
-		return (error == -ENODEV) ? error2 : error;
+	if (error && error2) {
+		if (error == -ENODEV)
+			error = error2;
+		goto err_probe;
+	}
 
 	/* Get the IRQ */
 	priv->irq = irq;
@@ -142,6 +155,9 @@ static int img_ir_probe(struct platform_device *pdev)
 err_irq:
 	img_ir_remove_hw(priv);
 	img_ir_remove_raw(priv);
+err_probe:
+	if (!IS_ERR(priv->sys_clk))
+		clk_disable_unprepare(priv->sys_clk);
 	return error;
 }
 
