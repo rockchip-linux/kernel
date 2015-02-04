@@ -523,6 +523,38 @@ static void cpufreq_interactive_idle_end(void)
 	up_read(&pcpu->enable_sem);
 }
 
+static int cpufreq_interactive_get_max_freq(struct cpufreq_policy *policy)
+{
+	struct cpufreq_interactive_cpuinfo *pcpu;
+	unsigned int max_freq = 0;
+	unsigned int i;
+
+	for_each_cpu(i, policy->cpus) {
+		pcpu = &per_cpu(cpuinfo, i);
+
+		if (pcpu->target_freq > max_freq)
+			max_freq = pcpu->target_freq;
+	}
+
+	return max_freq;
+}
+
+static void cpufreq_interactive_adjust_cpu(unsigned int cpu,
+					   struct cpufreq_policy *policy)
+{
+	unsigned int max_freq;
+
+	down_write(&policy->rwsem);
+
+	max_freq = cpufreq_interactive_get_max_freq(policy);
+
+	if (max_freq != policy->cur)
+		__cpufreq_driver_target(policy, max_freq, CPUFREQ_RELATION_H);
+
+	trace_cpufreq_interactive_setspeed(cpu, max_freq, policy->cur);
+	up_write(&policy->rwsem);
+}
+
 static int cpufreq_interactive_speedchange_task(void *data)
 {
 	unsigned int cpu;
@@ -551,34 +583,14 @@ static int cpufreq_interactive_speedchange_task(void *data)
 		spin_unlock_irqrestore(&speedchange_cpumask_lock, flags);
 
 		for_each_cpu(cpu, &tmp_mask) {
-			unsigned int j;
-			unsigned int max_freq = 0;
-
 			pcpu = &per_cpu(cpuinfo, cpu);
-			if (!down_read_trylock(&pcpu->enable_sem))
-				continue;
-			if (!pcpu->governor_enabled) {
+
+			if (likely(down_read_trylock(&pcpu->enable_sem))) {
+				if (likely(pcpu->governor_enabled))
+					cpufreq_interactive_adjust_cpu(cpu,
+							pcpu->policy);
 				up_read(&pcpu->enable_sem);
-				continue;
 			}
-
-			for_each_cpu(j, pcpu->policy->cpus) {
-				struct cpufreq_interactive_cpuinfo *pjcpu =
-					&per_cpu(cpuinfo, j);
-
-				if (pjcpu->target_freq > max_freq)
-					max_freq = pjcpu->target_freq;
-			}
-
-			if (max_freq != pcpu->policy->cur)
-				__cpufreq_driver_target(pcpu->policy,
-							max_freq,
-							CPUFREQ_RELATION_H);
-			trace_cpufreq_interactive_setspeed(cpu,
-						     pcpu->target_freq,
-						     pcpu->policy->cur);
-
-			up_read(&pcpu->enable_sem);
 		}
 	}
 
