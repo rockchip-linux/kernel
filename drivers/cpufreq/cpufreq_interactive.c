@@ -418,6 +418,61 @@ static void cpufreq_interactive_idle_end(void)
 	up_read(&pcpu->enable_sem);
 }
 
+static int cpufreq_interactive_get_max_freq(struct cpufreq_policy *policy)
+{
+	struct cpufreq_interactive_cpuinfo *pcpu;
+	unsigned int max_freq = 0;
+	unsigned int i;
+
+	/*
+	 * Calculate the max frequency over all affected cpu's
+	 * and use that to set the target frequency.  This
+	 * handles the case where setting the frequency of one
+	 * cpu causes multiple to change.  In that case we
+	 * never want to down-clock related cpu's just because
+	 * one cpu found itself idle and requested a change.
+	 * When up-clocking we want that request to go through
+	 * and related cpu's will be dragged along.
+	 *
+	 * NB: this calculation is racey because target_freq is
+	 * set under the updown_state_lock (and not held here)
+	 */
+	for_each_cpu(i, policy->cpus) {
+		pcpu = &per_cpu(cpuinfo, i);
+
+		if (pcpu->target_freq > max_freq)
+			max_freq = pcpu->target_freq;
+	}
+
+	return max_freq;
+}
+
+static void cpufreq_interactive_adjust_cpu(unsigned int cpu,
+					   struct cpufreq_policy *policy)
+{
+	unsigned int max_freq;
+	unsigned int cur_freq;
+
+	down_write(&policy->rwsem);
+
+	max_freq = cpufreq_interactive_get_max_freq(policy);
+	cur_freq = policy->cur;
+
+	if (max_freq == 0 || max_freq == cur_freq)
+		goto out;
+
+	/* NB: trace before call as it may block for a while */
+	if (max_freq < cur_freq)
+		trace_cpufreq_interactive_down(cpu, max_freq, cur_freq);
+	else
+		trace_cpufreq_interactive_up(cpu, max_freq, cur_freq);
+
+	__cpufreq_driver_target(policy, max_freq, CPUFREQ_RELATION_H);
+
+out:
+	up_write(&policy->rwsem);
+}
+
 static int cpufreq_interactive_updown_task(void *data)
 {
 	unsigned int cpu;
@@ -445,56 +500,14 @@ static int cpufreq_interactive_updown_task(void *data)
 		spin_unlock_irqrestore(&updown_state_lock, flags);
 
 		for_each_cpu(cpu, &tmp_mask) {
-			unsigned int j;
-			unsigned int max_freq, cur_freq;
-
 			pcpu = &per_cpu(cpuinfo, cpu);
-			if (!down_read_trylock(&pcpu->enable_sem))
-				continue;
-			if (!pcpu->governor_enabled) {
+
+			if (likely(down_read_trylock(&pcpu->enable_sem))) {
+				if (likely(pcpu->governor_enabled))
+					cpufreq_interactive_adjust_cpu(cpu,
+								pcpu->policy);
 				up_read(&pcpu->enable_sem);
-				continue;
 			}
-
-			/*
-			 * Calculate the max frequency over all affected cpu's
-			 * and use that to set the target frequency.  This
-			 * handles the case where setting the frequency of one
-			 * cpu causes multiple to change.  In that case we
-			 * never want to down-clock related cpu's just because
-			 * one cpu found itself idle and requested a change.
-			 * When up-clocking we want that request to go through
-			 * and related cpu's will be dragged along.
-			 *
-			 * NB: this calculation is racey because target_freq is
-			 * set under the updown_state_lock (and not held here)
-			 */
-			max_freq = 0;
-			for_each_cpu(j, pcpu->policy->cpus) {
-				struct cpufreq_interactive_cpuinfo *pjcpu =
-					&per_cpu(cpuinfo, j);
-
-				if (pjcpu->target_freq > max_freq)
-					max_freq = pjcpu->target_freq;
-			}
-
-			cur_freq = pcpu->policy->cur;
-			if (max_freq == 0 || max_freq == cur_freq) {
-				up_read(&pcpu->enable_sem);
-				continue;
-			}
-
-			/* NB: trace before call as it may block for a while */
-			if (max_freq < cur_freq)
-				trace_cpufreq_interactive_down(cpu,
-						max_freq, cur_freq);
-			else
-				trace_cpufreq_interactive_up(cpu,
-						max_freq, cur_freq);
-			__cpufreq_driver_target(pcpu->policy, max_freq,
-						CPUFREQ_RELATION_H);
-
-			up_read(&pcpu->enable_sem);
 		}
 	}
 
