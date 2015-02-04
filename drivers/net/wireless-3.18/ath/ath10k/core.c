@@ -871,6 +871,16 @@ static int ath10k_download_cal_data(struct ath10k *ar)
 	ar->cal_mode = ATH10K_CAL_MODE_OTP;
 
 done:
+	if ((ar->hw_rev == ATH10K_HW_QCA988X) &&
+	    (ar->wmi.op_version == ATH10K_FW_WMI_OP_VERSION_10_2_4)) {
+		ret = ath10k_bmi_write32(ar, hi_skip_clock_init, 1);
+		if (ret) {
+			ath10k_err(ar, "could not write skip_clock_init (%d)\n",
+				   ret);
+			return ret;
+		}
+	}
+
 	ath10k_dbg(ar, ATH10K_DBG_BOOT, "boot using calibration mode %s\n",
 		   ath10k_cal_mode_str(ar->cal_mode));
 	return 0;
