@@ -1109,16 +1109,14 @@ int iwl_mvm_scan_offload_stop(struct iwl_mvm *mvm, bool notify)
 		IWL_DEBUG_SCAN(mvm, "Send stop %sscan failed %d\n",
 			       sched ? "offloaded " : "", ret);
 		iwl_remove_notification(&mvm->notif_wait, &wait_scan_done);
-		return ret;
+		goto out;
 	}
 
 	IWL_DEBUG_SCAN(mvm, "Successfully sent stop %sscan\n",
 		       sched ? "offloaded " : "");
 
 	ret = iwl_wait_notification(&mvm->notif_wait, &wait_scan_done, 1 * HZ);
-	if (ret)
-		return ret;
-
+out:
 	/*
 	 * Clear the scan status so the next scan requests will succeed. This
 	 * also ensures the Rx handler doesn't do anything, as the scan was
@@ -1133,7 +1131,7 @@ int iwl_mvm_scan_offload_stop(struct iwl_mvm *mvm, bool notify)
 			ieee80211_scan_completed(mvm->hw, true);
 	}
 
-	return 0;
+	return ret;
 }
 
 static void iwl_mvm_unified_scan_fill_tx_cmd(struct iwl_mvm *mvm,
