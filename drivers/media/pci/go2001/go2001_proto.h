@@ -195,10 +195,11 @@ struct go2001_empty_buffer_enc_param {
 	u32 bits_per_sec;
 } __attribute__((packed));
 
+#define VP8_MAX_NUM_PARTITIONS 9
 struct go2001_empty_buffer_enc_reply {
 	u32 frame_type;
-	u32 partition_off[9];
-	u32 partition_size[9];
+	u32 partition_off[VP8_MAX_NUM_PARTITIONS];
+	u32 partition_size[VP8_MAX_NUM_PARTITIONS];
 	u32 payload_size;
 	u32 ipf_frame_ctrl;
 	u32 grf_frame_ctrl;

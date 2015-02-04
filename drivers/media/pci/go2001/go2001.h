@@ -203,6 +203,8 @@ struct go2001_buffer {
 	bool mapped;
 
 	struct go2001_runtime_enc_params rt_enc_params;
+	size_t partition_off[VP8_MAX_NUM_PARTITIONS];
+	size_t partition_size[VP8_MAX_NUM_PARTITIONS];
 };
 
 struct go2001_job {
@@ -210,8 +212,6 @@ struct go2001_job {
 	struct go2001_buffer *src_buf;
 	struct go2001_buffer *dst_buf;
 };
-
-#define vb_to_go2001_buf(vb) container_of(vb, struct go2001_buffer, vb)
 
 #define GO2001_MSG_POOL_SIZE	VIDEO_MAX_FRAME
 struct go2001_ctx {
@@ -250,6 +250,11 @@ struct go2001_ctx {
 	bool need_resume;
 	bool format_set;
 };
+
+static inline struct go2001_buffer *vb_to_go2001_buf(struct vb2_buffer *vb)
+{
+	return container_of(vb, struct go2001_buffer, vb);
+}
 
 static inline struct go2001_ctx *hw_inst_to_ctx(struct go2001_hw_inst *hw_inst)
 {

@@ -369,6 +369,51 @@ static int go2001_buf_prepare(struct vb2_buffer *vb)
 
 static int go2001_buf_finish(struct vb2_buffer *vb)
 {
+	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	struct go2001_buffer *gbuf;
+	size_t plane_size;
+	void *vaddr, *ptr;
+	int i;
+
+	/*
+	 * If this is a CAPTURE encoder buffer, we need to reassemble
+	 * partitions, as there may be gaps between them.
+	 */
+	if (ctx->codec_mode != CODEC_MODE_ENCODER ||
+			V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type))
+		return 0;
+
+	gbuf = vb_to_go2001_buf(vb);
+	plane_size = vb2_plane_size(vb, 0);
+	vaddr = vb2_plane_vaddr(vb, 0);
+	if (!vaddr) {
+		go2001_err(ctx->gdev, "Unable to map buffer\n");
+		return -ENOMEM;
+	}
+
+	ptr = vaddr;
+
+	/*
+	 * ith partition resides at partition_off[i] from start of the buffer
+	 * and is of size partition_size[i]. As there may be gaps between
+	 * partitions, slide them back together to remove the gaps.
+	 */
+	for (i = 0; i < VP8_MAX_NUM_PARTITIONS; ++i) {
+		if (gbuf->partition_size[i] == 0)
+			break;
+
+		if (gbuf->partition_off[i] + gbuf->partition_size[i] >
+				plane_size) {
+			go2001_err(ctx->gdev, "Invalid partition size\n");
+			return -EINVAL;
+		}
+
+		if (ptr != vaddr + gbuf->partition_off[i])
+			memmove(ptr, vaddr + gbuf->partition_off[i],
+				gbuf->partition_size[i]);
+		ptr += gbuf->partition_size[i];
+	}
+
 	return 0;
 }
 
@@ -925,7 +970,7 @@ static int go2001_handle_get_info_reply(struct go2001_ctx *ctx,
 	return 0;
 }
 
-static void go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
+static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 		struct go2001_job *job, struct go2001_msg *reply, bool error) {
 	struct vb2_buffer *src_vb = &job->src_buf->vb;
 	struct vb2_buffer *dst_vb = &job->dst_buf->vb;
@@ -942,7 +987,31 @@ static void go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 	case CODEC_MODE_ENCODER: {
 		struct go2001_empty_buffer_enc_reply *enc_reply =
 			msg_to_param(reply);
+		struct go2001_buffer *gbuf = vb_to_go2001_buf(dst_vb);
+
+		memset(gbuf->partition_off, 0, sizeof(gbuf->partition_off));
+		memset(gbuf->partition_size, 0, sizeof(gbuf->partition_size));
+
+		/*
+		 * Partitions may have gaps between them, we will have to
+		 * reassemble the bitstream later in buf_finish. For now just
+		 * save the size and offset of each partition and set the
+		 * payload for the buffer to the sum of sizes (returned in
+		 * enc_reply->payload_size).
+		 */
+		if (enc_reply->payload_size > vb2_plane_size(dst_vb, 0)
+								|| error) {
+			vb2_set_plane_payload(dst_vb, 0, 0);
+			return -EINVAL;
+		}
+
 		vb2_set_plane_payload(dst_vb, 0, enc_reply->payload_size);
+
+		for (i = 0; i < VP8_MAX_NUM_PARTITIONS; ++i) {
+			gbuf->partition_off[i] = enc_reply->partition_off[i];
+			gbuf->partition_size[i] = enc_reply->partition_size[i];
+		}
+
 		dst_vb->v4l2_buf.flags = 0;
 		if (enc_reply->frame_type
 				== GO2001_EMPTY_BUF_ENC_FRAME_KEYFRAME)
@@ -960,6 +1029,7 @@ static void go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 	go2001_dbg(ctx->gdev, 5, "Returning frame ts=%ld.%06ld\n",
 			dst_vb->v4l2_buf.timestamp.tv_sec,
 			dst_vb->v4l2_buf.timestamp.tv_usec);
+	return 0;
 }
 
 static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
@@ -1012,8 +1082,9 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 		list_del(&job->src_buf->list);
 		vb2_buffer_done(&job->src_buf->vb, src_state);
 		if (job->dst_buf) {
-			go2001_fill_dst_buf_info(ctx, job, msg,
-					dst_state == VB2_BUF_STATE_ERROR);
+			if (go2001_fill_dst_buf_info(ctx, job, msg,
+					dst_state == VB2_BUF_STATE_ERROR))
+				dst_state = VB2_BUF_STATE_ERROR;
 			list_del(&job->dst_buf->list);
 			vb2_buffer_done(&job->dst_buf->vb, dst_state);
 		}
