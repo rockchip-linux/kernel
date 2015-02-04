@@ -607,15 +607,20 @@ again:
 		struct interactive_cpu *icpu = &per_cpu(interactive_cpu, cpu);
 		struct cpufreq_policy *policy;
 
-		if (unlikely(!down_read_trylock(&icpu->enable_sem)))
+		policy = cpufreq_cpu_get(cpu);
+		if (!policy)
 			continue;
 
-		if (likely(icpu->ipolicy)) {
-			policy = icpu->ipolicy->policy;
-			cpufreq_interactive_adjust_cpu(cpu, policy);
+		down_write(&policy->rwsem);
+
+		if (likely(down_read_trylock(&icpu->enable_sem))) {
+			if (likely(icpu->ipolicy))
+				cpufreq_interactive_adjust_cpu(cpu, policy);
+			up_read(&icpu->enable_sem);
 		}
 
-		up_read(&icpu->enable_sem);
+		up_write(&policy->rwsem);
+		cpufreq_cpu_put(policy);
 	}
 
 	goto again;
