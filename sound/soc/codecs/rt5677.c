@@ -892,6 +892,7 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 	static bool activity;
 	int ret;
 
+	rt5677->dsp_vad_en = on;
 	dev_info(codec->dev, "DSP VAD: on=%d, activity=%d\n", on, activity);
 	if (on && !activity) {
 		activity = true;
@@ -984,10 +985,8 @@ static int rt5677_dsp_vad_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
-	rt5677->dsp_vad_en = !!ucontrol->value.integer.value[0];
-	rt5677_set_dsp_vad(codec, rt5677->dsp_vad_en);
+	rt5677_set_dsp_vad(codec, !!ucontrol->value.integer.value[0]);
 	return 0;
 }
 
@@ -4995,6 +4994,7 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 	if (rt5677 == NULL)
 		return -ENOMEM;
 
+	rt5677->set_dsp_vad = rt5677_set_dsp_vad;
 	i2c_set_clientdata(i2c, rt5677);
 
 	if (pdata)
