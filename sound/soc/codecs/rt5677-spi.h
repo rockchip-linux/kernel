@@ -14,5 +14,6 @@
 
 int rt5677_spi_write(u32 addr, const u8 *txbuf, size_t len);
 int rt5677_spi_read(u32 addr, void *rxbuf, size_t len);
+void rt5677_spi_hotword_detected(void);
 
 #endif /* __RT5677_SPI_H__ */
