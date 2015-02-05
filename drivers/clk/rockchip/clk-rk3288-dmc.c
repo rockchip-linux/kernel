@@ -1056,6 +1056,8 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 
 	dmc->training_retries = 0;
 	cpu_maps_update_begin();
+	/* Make sure other CPUs aren't processing the previous IPI. */
+	kick_all_cpus_sync();
 	rockchip_dmc_lock();
 	rockchip_dmc_wait();
 	/*
