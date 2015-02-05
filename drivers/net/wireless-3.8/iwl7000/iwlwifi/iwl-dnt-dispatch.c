@@ -444,7 +444,8 @@ static u32 iwl_dnt_dispatch_create_crash_tlv(struct iwl_trans *trans,
 
 	cur_tlv = (void *)dump_file->data;
 	if (crash->sram_buf_size) {
-		iwl_dnt_dispatch_create_tlv(cur_tlv, IWL_FW_ERROR_DUMP_SRAM,
+		/* TODO: Convert to the new SMEM format */
+		iwl_dnt_dispatch_create_tlv(cur_tlv, 0,
 					    crash->sram_buf_size, crash->sram);
 		cur_tlv = iwl_fw_error_next_data(cur_tlv);
 	}

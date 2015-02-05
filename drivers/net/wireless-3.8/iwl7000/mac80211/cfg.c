@@ -20,6 +20,7 @@
 #include "cfg.h"
 #include "rate.h"
 #include "mesh.h"
+#include "wme.h"
 
 static struct wireless_dev *ieee80211_add_iface(struct wiphy *wiphy,
 						const char *name,
@@ -190,7 +191,7 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 		 * receive the key. When wpa_supplicant has roamed
 		 * using FT, it attempts to set the key before
 		 * association has completed, this rejects that attempt
-		 * so it will set the key again after assocation.
+		 * so it will set the key again after association.
 		 *
 		 * TODO: accept the key if we have a station entry and
 		 *       add it to the device after the station.
@@ -677,15 +678,14 @@ static int ieee80211_start_ap(struct wiphy *wiphy, struct net_device *dev,
 		      BSS_CHANGED_BEACON_ENABLED |
 		      BSS_CHANGED_BEACON |
 		      BSS_CHANGED_SSID |
-		      BSS_CHANGED_P2P_PS;
+		      BSS_CHANGED_P2P_PS |
+		      BSS_CHANGED_TXPOWER;
 	int err;
 
 	old = sdata_dereference(sdata->u.ap.beacon, sdata);
 	if (old)
 		return -EALREADY;
 
-	/* TODO: make hostapd tell us what it wants */
-	sdata->smps_mode = IEEE80211_SMPS_OFF;
 	sdata->needed_rx_chains = sdata->local->rx_chains;
 
 	mutex_lock(&local->mtx);
@@ -982,6 +982,13 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 			clear_sta_flag(sta, WLAN_STA_TDLS_PEER);
 	}
 
+	/* mark TDLS channel switch support, if the AP allows it */
+	if (test_sta_flag(sta, WLAN_STA_TDLS_PEER) &&
+	    !sdata->u.mgd.tdls_chan_switch_prohibited &&
+	    params->ext_capab_len >= 4 &&
+	    params->ext_capab[3] & WLAN_EXT_CAPA4_TDLS_CHAN_SWITCH)
+		set_sta_flag(sta, WLAN_STA_TDLS_CHAN_SWITCH);
+
 	if (params->sta_modify_mask & STATION_PARAM_APPLY_UAPSD) {
 		sta->sta.uapsd_queues = params->uapsd_queues;
 		sta->sta.max_sp = params->max_sp;
@@ -1019,6 +1026,10 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 	if (params->vht_capa)
 		ieee80211_vht_cap_ie_to_sta_vht_cap(sdata, sband,
 						    params->vht_capa, sta);
+
+	if (test_sta_flag(sta, WLAN_STA_TDLS_PEER) &&
+	    (params->ht_capa || params->vht_capa))
+		ieee80211_sta_set_rx_nss(sta);
 
 	if (ieee80211_vif_is_mesh(&sdata->vif)) {
 #ifdef CPTCFG_MAC80211_MESH
@@ -1412,6 +1423,57 @@ static int ieee80211_dump_mpath(struct wiphy *wiphy, struct net_device *dev,
 	}
 	memcpy(dst, mpath->dst, ETH_ALEN);
 	mpath_set_pinfo(mpath, next_hop, pinfo);
+	rcu_read_unlock();
+	return 0;
+}
+
+static void mpp_set_pinfo(struct mesh_path *mpath, u8 *mpp,
+			  struct mpath_info *pinfo)
+{
+	memset(pinfo, 0, sizeof(*pinfo));
+	memcpy(mpp, mpath->mpp, ETH_ALEN);
+
+	pinfo->generation = mpp_paths_generation;
+}
+
+static int ieee80211_get_mpp(struct wiphy *wiphy, struct net_device *dev,
+			     u8 *dst, u8 *mpp, struct mpath_info *pinfo)
+
+{
+	struct ieee80211_sub_if_data *sdata;
+	struct mesh_path *mpath;
+
+	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+
+	rcu_read_lock();
+	mpath = mpp_path_lookup(sdata, dst);
+	if (!mpath) {
+		rcu_read_unlock();
+		return -ENOENT;
+	}
+	memcpy(dst, mpath->dst, ETH_ALEN);
+	mpp_set_pinfo(mpath, mpp, pinfo);
+	rcu_read_unlock();
+	return 0;
+}
+
+static int ieee80211_dump_mpp(struct wiphy *wiphy, struct net_device *dev,
+			      int idx, u8 *dst, u8 *mpp,
+			      struct mpath_info *pinfo)
+{
+	struct ieee80211_sub_if_data *sdata;
+	struct mesh_path *mpath;
+
+	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+
+	rcu_read_lock();
+	mpath = mpp_path_lookup_by_idx(sdata, idx);
+	if (!mpath) {
+		rcu_read_unlock();
+		return -ENOENT;
+	}
+	memcpy(dst, mpath->dst, ETH_ALEN);
+	mpp_set_pinfo(mpath, mpp, pinfo);
 	rcu_read_unlock();
 	return 0;
 }
@@ -1889,8 +1951,13 @@ static int ieee80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 			return err;
 	}
 
-	if (changed & WIPHY_PARAM_COVERAGE_CLASS) {
-		err = drv_set_coverage_class(local, wiphy->coverage_class);
+	if ((changed & WIPHY_PARAM_COVERAGE_CLASS) ||
+	    (changed & WIPHY_PARAM_DYN_ACK)) {
+		s16 coverage_class;
+
+		coverage_class = changed & WIPHY_PARAM_COVERAGE_CLASS ?
+					wiphy->coverage_class : -1;
+		err = drv_set_coverage_class(local, coverage_class);
 
 		if (err)
 			return err;
@@ -1975,6 +2042,9 @@ static int ieee80211_get_tx_power(struct wiphy *wiphy,
 {
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
+
+	if (local->ops->get_txpower)
+		return drv_get_txpower(local, sdata, dbm);
 
 	if (!local->use_chanctx)
 		*dbm = local->hw.conf.power_level;
@@ -2877,6 +2947,7 @@ static int ieee80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
 
 	info->flags |= IEEE80211_TX_CTL_REQ_TX_STATUS |
 		       IEEE80211_TX_INTFL_NL80211_FRAME_TX;
+	info->band = band;
 
 	skb_set_queue_mapping(skb, IEEE80211_AC_VO);
 	skb->priority = 7;
@@ -2884,7 +2955,7 @@ static int ieee80211_probe_client(struct wiphy *wiphy, struct net_device *dev,
 		nullfunc->qos_ctrl = cpu_to_le16(7);
 
 	local_bh_disable();
-	ieee80211_xmit(sdata, skb, band);
+	ieee80211_xmit(sdata, skb);
 	local_bh_enable();
 	rcu_read_unlock();
 
@@ -2904,7 +2975,7 @@ static int ieee80211_cfg_get_channel(struct wiphy *wiphy,
 	rcu_read_lock();
 	chanctx_conf = rcu_dereference(sdata->vif.chanctx_conf);
 	if (chanctx_conf) {
-		*chandef = chanctx_conf->def;
+		*chandef = sdata->vif.bss_conf.chandef;
 		ret = 0;
 	} else if (local->open_count > 0 &&
 		   local->open_count == local->monitors &&
@@ -2980,6 +3051,8 @@ const struct cfg80211_ops mac80211_config_ops = {
 	.change_mpath = ieee80211_change_mpath,
 	.get_mpath = ieee80211_get_mpath,
 	.dump_mpath = ieee80211_dump_mpath,
+	.get_mpp = ieee80211_get_mpp,
+	.dump_mpp = ieee80211_dump_mpp,
 	.update_mesh_config = ieee80211_update_mesh_config,
 	.get_mesh_config = ieee80211_get_mesh_config,
 	.join_mesh = ieee80211_join_mesh,

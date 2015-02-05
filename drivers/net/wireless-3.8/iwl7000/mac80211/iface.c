@@ -259,6 +259,15 @@ static int ieee80211_check_concurrent_iface(struct ieee80211_sub_if_data *sdata,
 	list_for_each_entry(nsdata, &local->interfaces, list) {
 		if (nsdata != sdata && ieee80211_sdata_running(nsdata)) {
 			/*
+			 * Only OCB and monitor mode may coexist
+			 */
+			if ((sdata->vif.type == NL80211_IFTYPE_OCB &&
+			     nsdata->vif.type != NL80211_IFTYPE_MONITOR) ||
+			    (sdata->vif.type != NL80211_IFTYPE_MONITOR &&
+			     nsdata->vif.type == NL80211_IFTYPE_OCB))
+				return -EBUSY;
+
+			/*
 			 * Allow only a single IBSS interface to be up at any
 			 * time. This is restricted because beacon distribution
 			 * cannot work properly if both are in the same IBSS.
@@ -511,6 +520,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		sdata->vif.cab_queue = master->vif.cab_queue;
 		memcpy(sdata->vif.hw_queue, master->vif.hw_queue,
 		       sizeof(sdata->vif.hw_queue));
+		sdata->vif.bss_conf.chandef = master->vif.bss_conf.chandef;
 		break;
 		}
 	case NL80211_IFTYPE_AP:
@@ -631,6 +641,7 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 		case NL80211_IFTYPE_ADHOC:
 		case NL80211_IFTYPE_AP:
 		case NL80211_IFTYPE_MESH_POINT:
+		case NL80211_IFTYPE_OCB:
 			netif_carrier_off(dev);
 			break;
 		case NL80211_IFTYPE_WDS:
@@ -843,6 +854,8 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 	sdata_lock(sdata);
 	mutex_lock(&local->mtx);
 	sdata->vif.csa_active = false;
+	if (sdata->vif.type == NL80211_IFTYPE_STATION)
+		sdata->u.mgd.csa_waiting_bcn = false;
 	if (sdata->csa_block_tx) {
 		ieee80211_wake_vif_queues(local, sdata,
 					  IEEE80211_QUEUE_STOP_REASON_CSA);
@@ -888,6 +901,8 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 		list_del(&sdata->u.vlan.list);
 		mutex_unlock(&local->mtx);
 		RCU_INIT_POINTER(sdata->vif.chanctx_conf, NULL);
+		/* see comment in the default case below */
+		ieee80211_free_keys(sdata, true);
 		/* no need to tell driver */
 		break;
 	case NL80211_IFTYPE_MONITOR:
@@ -913,17 +928,16 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 		/*
 		 * When we get here, the interface is marked down.
 		 * Free the remaining keys, if there are any
-		 * (shouldn't be, except maybe in WDS mode?)
+		 * (which can happen in AP mode if userspace sets
+		 * keys before the interface is operating, and maybe
+		 * also in WDS mode)
 		 *
 		 * Force the key freeing to always synchronize_net()
 		 * to wait for the RX path in case it is using this
-		 * interface enqueuing frames * at this very time on
+		 * interface enqueuing frames at this very time on
 		 * another CPU.
 		 */
 		ieee80211_free_keys(sdata, true);
-
-		/* fall through */
-	case NL80211_IFTYPE_AP:
 		skb_queue_purge(&sdata->skb_queue);
 	}
 
@@ -1066,7 +1080,8 @@ static void ieee80211_uninit(struct net_device *dev)
 	ieee80211_teardown_sdata(IEEE80211_DEV_TO_SUB_IF(dev));
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0) || \
+    (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30)
 static u16 ieee80211_netdev_select_queue(struct net_device *dev,
 					 struct sk_buff *skb,
 					 void *accel_priv,
@@ -1094,7 +1109,8 @@ static const struct net_device_ops ieee80211_dataif_ops = {
 	.ndo_select_queue	= ieee80211_netdev_select_queue,
 };
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0) || \
+    (LINUX_VERSION_CODE == KERNEL_VERSION(3,13,11) && UTS_UBUNTU_RELEASE_ABI > 30)
 static u16 ieee80211_monitor_select_queue(struct net_device *dev,
 					  struct sk_buff *skb,
 					  void *accel_priv,
@@ -1179,19 +1195,11 @@ static void ieee80211_iface_work(struct work_struct *work)
 			rx_agg = (void *)&skb->cb;
 			mutex_lock(&local->sta_mtx);
 			sta = sta_info_get_bss(sdata, rx_agg->addr);
-			if (sta) {
-				u16 last_seq;
-
-				last_seq = le16_to_cpu(
-					sta->last_seq_ctrl[rx_agg->tid]);
-
+			if (sta)
 				__ieee80211_start_rx_ba_session(sta,
-						0, 0,
-						ieee80211_sn_inc(last_seq),
-						1, rx_agg->tid,
+						0, 0, 0, 1, rx_agg->tid,
 						IEEE80211_MAX_AMPDU_BUF,
-						false);
-			}
+						false, true);
 			mutex_unlock(&local->sta_mtx);
 		} else if (skb->pkt_type == IEEE80211_SDATA_QUEUE_RX_AGG_STOP) {
 			rx_agg = (void *)&skb->cb;
@@ -1659,9 +1667,9 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 		if (local->hw.queues >= IEEE80211_NUM_ACS)
 			txqs = IEEE80211_NUM_ACS;
 
-		ndev = alloc_netdev_mqs(sizeof(*sdata) +
-					local->hw.vif_data_size,
-					name, ieee80211_if_setup, txqs, 1);
+		ndev = alloc_netdev_mqs(sizeof(*sdata) + local->hw.vif_data_size,
+					name, NET_NAME_UNKNOWN,
+					ieee80211_if_setup, txqs, 1);
 		if (!ndev)
 			return -ENOMEM;
 		dev_net_set(ndev, wiphy_net(local->hw.wiphy));
@@ -1682,7 +1690,10 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 		}
 
 		ieee80211_assign_perm_addr(local, ndev->perm_addr, type);
-		memcpy(ndev->dev_addr, ndev->perm_addr, ETH_ALEN);
+		if (params && is_valid_ether_addr(params->macaddr))
+			memcpy(ndev->dev_addr, params->macaddr, ETH_ALEN);
+		else
+			memcpy(ndev->dev_addr, ndev->perm_addr, ETH_ALEN);
 		SET_NETDEV_DEV(ndev, wiphy_dev(local->hw.wiphy));
 
 		/* don't use IEEE80211_DEV_TO_SUB_IF -- it checks too much */

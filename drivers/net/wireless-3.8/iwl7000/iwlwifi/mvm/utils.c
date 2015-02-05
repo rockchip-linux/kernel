@@ -392,15 +392,19 @@ struct iwl_error_event_table {
 struct iwl_umac_error_event_table {
 	u32 valid;		/* (nonzero) valid, (0) log is empty */
 	u32 error_id;		/* type of error */
-	u32 pc;			/* program counter */
 	u32 blink1;		/* branch link */
 	u32 blink2;		/* branch link */
 	u32 ilink1;		/* interrupt link */
 	u32 ilink2;		/* interrupt link */
 	u32 data1;		/* error-specific data */
 	u32 data2;		/* error-specific data */
-	u32 line;		/* source code line of error */
-	u32 umac_ver;		/* umac version */
+	u32 data3;		/* error-specific data */
+	u32 umac_fw_ver;	/* UMAC version */
+	u32 umac_fw_api_ver;	/* UMAC FW API ver */
+	u32 frame_pointer;	/* core register 27*/
+	u32 stack_pointer;	/* core register 28 */
+	u32 cmd_header;	/* latest host cmd sent to UMAC */
+	u32 nic_isr_pref;	/* ISR status register */
 } __packed;
 
 #define ERROR_START_OFFSET  (1 * sizeof(u32))
@@ -414,7 +418,7 @@ static void iwl_mvm_dump_umac_error_log(struct iwl_mvm *mvm)
 
 	base = mvm->umac_error_event_table;
 
-	if (base < 0x800000 || base >= 0x80C000) {
+	if (base < 0x800000) {
 		IWL_ERR(mvm,
 			"Not valid error log pointer 0x%08X for %s uCode\n",
 			base,
@@ -433,14 +437,19 @@ static void iwl_mvm_dump_umac_error_log(struct iwl_mvm *mvm)
 
 	IWL_ERR(mvm, "0x%08X | %-28s\n", table.error_id,
 		desc_lookup(table.error_id));
-	IWL_ERR(mvm, "0x%08X | umac uPc\n", table.pc);
 	IWL_ERR(mvm, "0x%08X | umac branchlink1\n", table.blink1);
 	IWL_ERR(mvm, "0x%08X | umac branchlink2\n", table.blink2);
 	IWL_ERR(mvm, "0x%08X | umac interruptlink1\n", table.ilink1);
 	IWL_ERR(mvm, "0x%08X | umac interruptlink2\n", table.ilink2);
 	IWL_ERR(mvm, "0x%08X | umac data1\n", table.data1);
 	IWL_ERR(mvm, "0x%08X | umac data2\n", table.data2);
-	IWL_ERR(mvm, "0x%08X | umac version\n", table.umac_ver);
+	IWL_ERR(mvm, "0x%08X | umac data3\n", table.data3);
+	IWL_ERR(mvm, "0x%08X | umac version\n", table.umac_fw_ver);
+	IWL_ERR(mvm, "0x%08X | umac api version\n", table.umac_fw_api_ver);
+	IWL_ERR(mvm, "0x%08X | frame pointer\n", table.frame_pointer);
+	IWL_ERR(mvm, "0x%08X | stack pointer\n", table.stack_pointer);
+	IWL_ERR(mvm, "0x%08X | last host cmd\n", table.cmd_header);
+	IWL_ERR(mvm, "0x%08X | isr status reg\n", table.nic_isr_pref);
 }
 
 void iwl_mvm_dump_nic_error_log(struct iwl_mvm *mvm)
@@ -524,6 +533,51 @@ void iwl_mvm_dump_nic_error_log(struct iwl_mvm *mvm)
 		iwl_mvm_dump_umac_error_log(mvm);
 }
 
+void iwl_mvm_enable_txq(struct iwl_mvm *mvm, int queue, u16 ssn,
+			const struct iwl_trans_txq_scd_cfg *cfg)
+{
+	struct iwl_scd_txq_cfg_cmd cmd = {
+		.scd_queue = queue,
+		.enable = 1,
+		.window = cfg->frame_limit,
+		.sta_id = cfg->sta_id,
+		.ssn = cpu_to_le16(ssn),
+		.tx_fifo = cfg->fifo,
+		.aggregate = cfg->aggregate,
+		.tid = cfg->tid,
+	};
+
+	if (!iwl_mvm_is_scd_cfg_supported(mvm)) {
+		iwl_trans_txq_enable_cfg(mvm->trans, queue, ssn, cfg);
+		return;
+	}
+
+	iwl_trans_txq_enable_cfg(mvm->trans, queue, ssn, NULL);
+	WARN(iwl_mvm_send_cmd_pdu(mvm, SCD_QUEUE_CFG, 0, sizeof(cmd), &cmd),
+	     "Failed to configure queue %d on FIFO %d\n", queue, cfg->fifo);
+}
+
+void iwl_mvm_disable_txq(struct iwl_mvm *mvm, int queue, u8 flags)
+{
+	struct iwl_scd_txq_cfg_cmd cmd = {
+		.scd_queue = queue,
+		.enable = 0,
+	};
+	int ret;
+
+	if (!iwl_mvm_is_scd_cfg_supported(mvm)) {
+		iwl_trans_txq_disable(mvm->trans, queue, true);
+		return;
+	}
+
+	iwl_trans_txq_disable(mvm->trans, queue, false);
+	ret = iwl_mvm_send_cmd_pdu(mvm, SCD_QUEUE_CFG, flags,
+				   sizeof(cmd), &cmd);
+	if (ret)
+		IWL_ERR(mvm, "Failed to disable queue %d (ret=%d)\n",
+			queue, ret);
+}
+
 /**
  * iwl_mvm_send_lq_cmd() - Send link quality command
  * @init: This command is sent as part of station initialization right
@@ -568,7 +622,7 @@ void iwl_mvm_update_smps(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
 	lockdep_assert_held(&mvm->mutex);
 
 	/* SMPS is irrelevant for NICs that don't have at least 2 RX antenna */
-	if (num_of_ant(mvm->fw->valid_rx_ant) == 1)
+	if (num_of_ant(iwl_mvm_get_valid_rx_ant(mvm)) == 1)
 		return;
 
 	if (vif->type == NL80211_IFTYPE_AP)
@@ -610,7 +664,7 @@ bool iwl_mvm_rx_diversity_allowed(struct iwl_mvm *mvm)
 
 	lockdep_assert_held(&mvm->mutex);
 
-	if (num_of_ant(mvm->fw->valid_rx_ant) == 1)
+	if (num_of_ant(iwl_mvm_get_valid_rx_ant(mvm)) == 1)
 		return false;
 
 	if (mvm->cfg->rx_with_siso_diversity)
@@ -687,11 +741,56 @@ bool iwl_mvm_is_idle(struct iwl_mvm *mvm)
 	return idle;
 }
 
+struct iwl_bss_iter_data {
+	struct ieee80211_vif *vif;
+	bool error;
+};
+
+static void iwl_mvm_bss_iface_iterator(void *_data, u8 *mac,
+				       struct ieee80211_vif *vif)
+{
+	struct iwl_bss_iter_data *data = _data;
+
+	if (vif->type != NL80211_IFTYPE_STATION || vif->p2p)
+		return;
+
+	if (data->vif) {
+		data->error = true;
+		return;
+	}
+
+	data->vif = vif;
+}
+
+struct ieee80211_vif *iwl_mvm_get_bss_vif(struct iwl_mvm *mvm)
+{
+	struct iwl_bss_iter_data bss_iter_data = {};
+
+	ieee80211_iterate_active_interfaces_atomic(
+		mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
+		iwl_mvm_bss_iface_iterator, &bss_iter_data);
+
+	if (bss_iter_data.error) {
+		IWL_ERR(mvm, "More than one managed interface active!\n");
+		return ERR_PTR(-EINVAL);
+	}
+
+	return bss_iter_data.vif;
+}
+
 #ifdef CPTCFG_IWLMVM_TCM
+u8 iwl_mvm_tcm_load_percentage(u32 airtime, u32 elapsed)
+{
+	if (!elapsed)
+		return 0;
+
+	return (100 * airtime / elapsed) / USEC_PER_MSEC;
+}
+
 static enum iwl_mvm_vendor_load
 iwl_mvm_tcm_load(struct iwl_mvm *mvm, u32 airtime, unsigned long elapsed)
 {
-	unsigned long load = (100 * airtime / elapsed) / USEC_PER_MSEC;
+	u8 load = iwl_mvm_tcm_load_percentage(airtime, elapsed);
 
 	if (load > IWL_MVM_TCM_LOAD_HIGH_THRESH)
 		return IWL_MVM_VENDOR_LOAD_HIGH;
@@ -723,8 +822,10 @@ static void iwl_mvm_tcm_iter(void *_data, u8 *mac, struct ieee80211_vif *vif)
 	low_latency = mvm->tcm.result.low_latency[mvmvif->id];
 
 	if (!mvm->tcm.result.change[mvmvif->id] &&
-	    mvmvif->low_latency == low_latency)
+	    mvmvif->low_latency == low_latency) {
+		iwl_mvm_update_quotas(mvm, NULL);
 		return;
+	}
 
 	if (mvmvif->low_latency != low_latency) {
 		/* this sends traffic load and updates quota as well */
@@ -758,6 +859,75 @@ void iwl_mvm_tcm_work(struct work_struct *work)
 	mutex_unlock(&mvm->mutex);
 }
 
+static void iwl_mvm_tcm_uapsd_nonagg_detected_wk(struct work_struct *wk)
+{
+	struct iwl_mvm *mvm;
+	struct iwl_mvm_vif *mvmvif;
+	struct ieee80211_vif *vif;
+
+	mvmvif = container_of(wk, struct iwl_mvm_vif,
+			      uapsd_nonagg_detected_wk.work);
+	vif = container_of((void *)mvmvif, struct ieee80211_vif, drv_priv);
+	mvm = mvmvif->mvm;
+
+	if (mvm->tcm.data[mvmvif->id].opened_rx_ba_sessions)
+		return;
+
+	/* remember that this AP is broken */
+	memcpy(mvm->uapsd_noagg_bssids[mvm->uapsd_noagg_bssid_write_idx].addr,
+	       vif->bss_conf.bssid, ETH_ALEN);
+	mvm->uapsd_noagg_bssid_write_idx++;
+	if (mvm->uapsd_noagg_bssid_write_idx >= IWL_MVM_UAPSD_NOAGG_BSSIDS_NUM)
+		mvm->uapsd_noagg_bssid_write_idx = 0;
+
+	ieee80211_connection_loss(vif);
+}
+
+static void iwl_mvm_uapsd_agg_disconnect_iter(void *data, u8 *mac,
+					      struct ieee80211_vif *vif)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+	struct iwl_mvm *mvm = mvmvif->mvm;
+	int *mac_id = data;
+
+	if (vif->type != NL80211_IFTYPE_STATION)
+		return;
+
+	if (mvmvif->id != *mac_id)
+		return;
+
+	if (!vif->bss_conf.assoc)
+		return;
+
+	if (mvm->tcm.data[*mac_id].uapsd_nonagg_detect.detected)
+		return;
+
+	mvm->tcm.data[*mac_id].uapsd_nonagg_detect.detected = true;
+	schedule_delayed_work(&mvmvif->uapsd_nonagg_detected_wk, 5 * HZ);
+}
+
+static void iwl_mvm_check_uapsd_agg_expected_tpt(struct iwl_mvm *mvm,
+						 unsigned int elapsed,
+						 int mac)
+{
+	u64 bytes = mvm->tcm.data[mac].uapsd_nonagg_detect.rx_bytes;
+	u64 tpt;
+
+	if (mvm->tcm.data[mac].opened_rx_ba_sessions ||
+	    mvm->tcm.data[mac].uapsd_nonagg_detect.detected)
+		return;
+
+	tpt = 2 * 8 * bytes;
+	do_div(tpt, elapsed); /* 500kbps */
+
+	if (tpt < ewma_read(&mvm->tcm.data[mac].uapsd_nonagg_detect.rate))
+		return;
+
+	ieee80211_iterate_active_interfaces_atomic(
+		mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
+		iwl_mvm_uapsd_agg_disconnect_iter, &mac);
+}
+
 static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 					    unsigned long ts)
 {
@@ -765,19 +935,22 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 	u32 total_airtime = 0;
 	int ac, mac;
 	bool low_latency = false;
-	u8 load;
+	enum iwl_mvm_vendor_load load;
 	bool handle_ll = time_after(ts, mvm->tcm.ll_ts + MVM_LL_PERIOD);
 
 	if (handle_ll)
 		mvm->tcm.ll_ts = ts;
 
+	mvm->tcm.result.elapsed = elapsed;
+
 	for (mac = 0; mac < NUM_MAC_INDEX_DRIVER; mac++) {
+		struct iwl_mvm_tcm_mac *mdata = &mvm->tcm.data[mac];
 		u32 vo_vi_pkts = 0;
 		u32 airtime = 0;
 
 		for (ac = IEEE80211_AC_VO; ac <= IEEE80211_AC_BK; ac++)
-			airtime += mvm->tcm.data[mac].rx.airtime[ac] +
-				   mvm->tcm.data[mac].tx.airtime[ac];
+			airtime += mdata->rx.airtime[ac] +
+				   mdata->tx.airtime[ac];
 		total_airtime += airtime;
 
 		load = iwl_mvm_tcm_load(mvm, airtime, elapsed);
@@ -786,8 +959,8 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 		mvm->tcm.result.airtime[mac] = airtime;
 
 		for (ac = IEEE80211_AC_VO; ac <= IEEE80211_AC_VI; ac++)
-			vo_vi_pkts += mvm->tcm.data[mac].rx.pkts[ac] +
-				      mvm->tcm.data[mac].tx.pkts[ac];
+			vo_vi_pkts += mdata->rx.pkts[ac] +
+				      mdata->tx.pkts[ac];
 
 		/* enable immediately with enough packets but defer disabling */
 		if (vo_vi_pkts > IWL_MVM_TCM_LOWLAT_ENABLE_THRESH)
@@ -797,18 +970,21 @@ static unsigned long iwl_mvm_calc_tcm_stats(struct iwl_mvm *mvm,
 
 		if (handle_ll) {
 			/* clear old data */
-			memset(&mvm->tcm.data[mac].rx.pkts, 0,
-			       sizeof(mvm->tcm.data[mac].rx.pkts));
-			memset(&mvm->tcm.data[mac].tx.pkts, 0,
-			       sizeof(mvm->tcm.data[mac].tx.pkts));
+			memset(&mdata->rx.pkts, 0, sizeof(mdata->rx.pkts));
+			memset(&mdata->tx.pkts, 0, sizeof(mdata->tx.pkts));
 		}
 		low_latency |= mvm->tcm.result.low_latency[mac];
 
+		if (mvm->tcm.data[mac].uapsd_nonagg_detect.rx_pkts >
+				IWL_MVM_UAPSD_AGGDETECT_MIN_PKTS &&
+		    !low_latency)
+			iwl_mvm_check_uapsd_agg_expected_tpt(mvm, elapsed, mac);
+
 		/* clear old data */
-		memset(&mvm->tcm.data[mac].rx.airtime, 0,
-		       sizeof(mvm->tcm.data[mac].rx.airtime));
-		memset(&mvm->tcm.data[mac].tx.airtime, 0,
-		       sizeof(mvm->tcm.data[mac].tx.airtime));
+		memset(&mdata->rx.airtime, 0, sizeof(mdata->rx.airtime));
+		memset(&mdata->tx.airtime, 0, sizeof(mdata->tx.airtime));
+		memset(&mdata->uapsd_nonagg_detect, 0,
+		       sizeof(mdata->uapsd_nonagg_detect));
 	}
 
 	load = iwl_mvm_tcm_load(mvm, total_airtime, elapsed);
@@ -860,19 +1036,31 @@ void iwl_mvm_resume_tcm(struct iwl_mvm *mvm)
 	mvm->tcm.ts = jiffies;
 	mvm->tcm.ll_ts = jiffies;
 	for (mac = 0; mac < NUM_MAC_INDEX_DRIVER; mac++) {
-		memset(&mvm->tcm.data[mac].rx.pkts, 0,
-		       sizeof(mvm->tcm.data[mac].rx.pkts));
-		memset(&mvm->tcm.data[mac].tx.pkts, 0,
-		       sizeof(mvm->tcm.data[mac].tx.pkts));
+		struct iwl_mvm_tcm_mac *mdata = &mvm->tcm.data[mac];
 
-		memset(&mvm->tcm.data[mac].rx.airtime, 0,
-		       sizeof(mvm->tcm.data[mac].rx.airtime));
-		memset(&mvm->tcm.data[mac].tx.airtime, 0,
-		       sizeof(mvm->tcm.data[mac].tx.airtime));
+		memset(&mdata->rx.pkts, 0, sizeof(mdata->rx.pkts));
+		memset(&mdata->tx.pkts, 0, sizeof(mdata->tx.pkts));
+		memset(&mdata->rx.airtime, 0, sizeof(mdata->rx.airtime));
+		memset(&mdata->tx.airtime, 0, sizeof(mdata->tx.airtime));
 	}
 	/* The TCM data needs to be reset before "paused" flag changes */
 	smp_mb();
 	mvm->tcm.paused = false;
 	spin_unlock_bh(&mvm->tcm.lock);
+}
+
+void iwl_mvm_tcm_add_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+
+	INIT_DELAYED_WORK(&mvmvif->uapsd_nonagg_detected_wk,
+			  iwl_mvm_tcm_uapsd_nonagg_detected_wk);
+}
+
+void iwl_mvm_tcm_rm_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
+{
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
+
+	cancel_delayed_work_sync(&mvmvif->uapsd_nonagg_detected_wk);
 }
 #endif

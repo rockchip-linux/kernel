@@ -107,8 +107,11 @@ static bool iwl_alive_fn(struct iwl_notif_wait_data *notif_wait,
 			     "0x%01X\n", le16_to_cpu(palive->status),
 			     palive->ver_type, palive->ver_subtype);
 	} else {
+
 		palive2 = (void *)pkt->data;
 
+		xvt->error_event_table =
+			le32_to_cpu(palive2->error_event_table_ptr);
 		alive_data->scd_base_addr = le32_to_cpu(palive2->scd_base_ptr);
 		xvt->sf_space.addr = le32_to_cpu(palive2->st_fwrd_addr);
 		xvt->sf_space.size = le32_to_cpu(palive2->st_fwrd_size);

@@ -620,8 +620,8 @@ static void iwl_pcie_txq_free(struct iwl_trans *trans, int txq_id)
 	/* De-alloc array of command/tx buffers */
 	if (txq_id == trans_pcie->cmd_queue)
 		for (i = 0; i < txq->q.n_window; i++) {
-			kfree(txq->entries[i].cmd);
-			kfree(txq->entries[i].free_buf);
+			kzfree(txq->entries[i].cmd);
+			kzfree(txq->entries[i].free_buf);
 		}
 
 	/* De-alloc circular buffer of TFDs */
@@ -990,8 +990,87 @@ void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 
 	if (iwl_queue_space(&txq->q) > txq->q.low_mark)
 		iwl_wake_queue(trans, txq);
+
+	if (q->read_ptr == q->write_ptr) {
+		IWL_DEBUG_RPM(trans, "Q %d - last tx reclaimed\n", q->id);
+		iwl_trans_pcie_unref(trans);
+	}
+
 out:
 	spin_unlock_bh(&txq->lock);
+}
+
+static int iwl_pcie_set_cmd_in_flight(struct iwl_trans *trans,
+				      const struct iwl_host_cmd *cmd)
+{
+	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
+	int ret;
+
+	lockdep_assert_held(&trans_pcie->reg_lock);
+
+	if (!(cmd->flags & CMD_SEND_IN_IDLE) &&
+	    !trans_pcie->ref_cmd_in_flight) {
+		trans_pcie->ref_cmd_in_flight = true;
+		IWL_DEBUG_RPM(trans, "set ref_cmd_in_flight - ref\n");
+		iwl_trans_pcie_ref(trans);
+	}
+
+	if (trans_pcie->cmd_in_flight)
+		return 0;
+
+	trans_pcie->cmd_in_flight = true;
+
+	/*
+	 * wake up the NIC to make sure that the firmware will see the host
+	 * command - we will let the NIC sleep once all the host commands
+	 * returned. This needs to be done only on NICs that have
+	 * apmg_wake_up_wa set.
+	 */
+	if (trans->cfg->base_params->apmg_wake_up_wa) {
+		__iwl_trans_pcie_set_bit(trans, CSR_GP_CNTRL,
+					 CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+		if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
+			udelay(2);
+
+		ret = iwl_poll_bit(trans, CSR_GP_CNTRL,
+				   CSR_GP_CNTRL_REG_VAL_MAC_ACCESS_EN,
+				   (CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY |
+				    CSR_GP_CNTRL_REG_FLAG_GOING_TO_SLEEP),
+				   15000);
+		if (ret < 0) {
+			__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
+					CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+			trans_pcie->cmd_in_flight = false;
+			IWL_ERR(trans, "Failed to wake NIC for hcmd\n");
+			return -EIO;
+		}
+	}
+
+	return 0;
+}
+
+static int iwl_pcie_clear_cmd_in_flight(struct iwl_trans *trans)
+{
+	struct iwl_trans_pcie *trans_pcie = IWL_TRANS_GET_PCIE_TRANS(trans);
+
+	lockdep_assert_held(&trans_pcie->reg_lock);
+
+	if (trans_pcie->ref_cmd_in_flight) {
+		trans_pcie->ref_cmd_in_flight = false;
+		IWL_DEBUG_RPM(trans, "clear ref_cmd_in_flight - unref\n");
+		iwl_trans_pcie_unref(trans);
+	}
+
+	if (WARN_ON(!trans_pcie->cmd_in_flight))
+		return 0;
+
+	trans_pcie->cmd_in_flight = false;
+
+	if (trans->cfg->base_params->apmg_wake_up_wa)
+		__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
+					CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+
+	return 0;
 }
 
 /*
@@ -1029,14 +1108,9 @@ static void iwl_pcie_cmdq_reclaim(struct iwl_trans *trans, int txq_id, int idx)
 		}
 	}
 
-	if (trans->cfg->base_params->apmg_wake_up_wa &&
-	    q->read_ptr == q->write_ptr) {
+	if (q->read_ptr == q->write_ptr) {
 		spin_lock_irqsave(&trans_pcie->reg_lock, flags);
-		WARN_ON(!trans_pcie->cmd_in_flight);
-		trans_pcie->cmd_in_flight = false;
-		__iwl_trans_pcie_clear_bit(trans,
-					   CSR_GP_CNTRL,
-					   CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
+		iwl_pcie_clear_cmd_in_flight(trans);
 		spin_unlock_irqrestore(&trans_pcie->reg_lock, flags);
 	}
 
@@ -1085,7 +1159,8 @@ void iwl_trans_pcie_txq_enable(struct iwl_trans *trans, int txq_id, u16 ssn,
 		fifo = cfg->fifo;
 
 		/* Disable the scheduler prior configuring the cmd queue */
-		if (txq_id == trans_pcie->cmd_queue)
+		if (txq_id == trans_pcie->cmd_queue &&
+		    trans_pcie->scd_set_active)
 			iwl_scd_enable_set_active(trans, 0);
 
 		/* Stop this Tx queue before configuring it */
@@ -1120,12 +1195,12 @@ void iwl_trans_pcie_txq_enable(struct iwl_trans *trans, int txq_id, u16 ssn,
 	 * Assumes that ssn_idx is valid (!= 0xFFF) */
 	trans_pcie->txq[txq_id].q.read_ptr = (ssn & 0xff);
 	trans_pcie->txq[txq_id].q.write_ptr = (ssn & 0xff);
+	iwl_write_direct32(trans, HBUS_TARG_WRPTR,
+			   (ssn & 0xff) | (txq_id << 8));
 
 	if (cfg) {
 		u8 frame_limit = cfg->frame_limit;
 
-		iwl_write_direct32(trans, HBUS_TARG_WRPTR,
-				   (ssn & 0xff) | (txq_id << 8));
 		iwl_write_prph(trans, SCD_QUEUE_RDPTR(txq_id), ssn);
 
 		/* Set up Tx window size and frame limit for this queue */
@@ -1147,13 +1222,20 @@ void iwl_trans_pcie_txq_enable(struct iwl_trans *trans, int txq_id, u16 ssn,
 			       SCD_QUEUE_STTS_REG_MSK);
 
 		/* enable the scheduler for this queue (only) */
-		if (txq_id == trans_pcie->cmd_queue)
+		if (txq_id == trans_pcie->cmd_queue &&
+		    trans_pcie->scd_set_active)
 			iwl_scd_enable_set_active(trans, BIT(txq_id));
+
+		IWL_DEBUG_TX_QUEUES(trans,
+				    "Activate queue %d on FIFO %d WrPtr: %d\n",
+				    txq_id, fifo, ssn & 0xff);
+	} else {
+		IWL_DEBUG_TX_QUEUES(trans,
+				    "Activate queue %d WrPtr: %d\n",
+				    txq_id, ssn & 0xff);
 	}
 
 	trans_pcie->txq[txq_id].active = true;
-	IWL_DEBUG_TX_QUEUES(trans, "Activate queue %d on FIFO %d WrPtr: %d\n",
-			    txq_id, fifo, ssn & 0xff);
 }
 
 void iwl_trans_pcie_txq_disable(struct iwl_trans *trans, int txq_id,
@@ -1412,7 +1494,7 @@ static int iwl_pcie_enqueue_hcmd(struct iwl_trans *trans,
 
 	out_meta->flags = cmd->flags;
 	if (WARN_ON_ONCE(txq->entries[idx].free_buf))
-		kfree(txq->entries[idx].free_buf);
+		kzfree(txq->entries[idx].free_buf);
 	txq->entries[idx].free_buf = dup_buf;
 
 	trace_iwlwifi_dev_hcmd(trans->dev, cmd, cmd_size, &out_cmd->hdr);
@@ -1422,35 +1504,11 @@ static int iwl_pcie_enqueue_hcmd(struct iwl_trans *trans,
 		mod_timer(&txq->stuck_timer, jiffies + trans_pcie->wd_timeout);
 
 	spin_lock_irqsave(&trans_pcie->reg_lock, flags);
-
-	/*
-	 * wake up the NIC to make sure that the firmware will see the host
-	 * command - we will let the NIC sleep once all the host commands
-	 * returned. This needs to be done only on NICs that have
-	 * apmg_wake_up_wa set.
-	 */
-	if (trans->cfg->base_params->apmg_wake_up_wa &&
-	    !trans_pcie->cmd_in_flight) {
-		trans_pcie->cmd_in_flight = true;
-		__iwl_trans_pcie_set_bit(trans, CSR_GP_CNTRL,
-					 CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
-		if (trans->cfg->device_family == IWL_DEVICE_FAMILY_8000)
-			udelay(2);
-
-		ret = iwl_poll_bit(trans, CSR_GP_CNTRL,
-				   CSR_GP_CNTRL_REG_VAL_MAC_ACCESS_EN,
-				   (CSR_GP_CNTRL_REG_FLAG_MAC_CLOCK_READY |
-				    CSR_GP_CNTRL_REG_FLAG_GOING_TO_SLEEP),
-				   15000);
-		if (ret < 0) {
-			__iwl_trans_pcie_clear_bit(trans, CSR_GP_CNTRL,
-				   CSR_GP_CNTRL_REG_FLAG_MAC_ACCESS_REQ);
-			spin_unlock_irqrestore(&trans_pcie->reg_lock, flags);
-			trans_pcie->cmd_in_flight = false;
-			IWL_ERR(trans, "Failed to wake NIC for hcmd\n");
-			idx = -EIO;
-			goto out;
-		}
+	ret = iwl_pcie_set_cmd_in_flight(trans, cmd);
+	if (ret < 0) {
+		idx = ret;
+		spin_unlock_irqrestore(&trans_pcie->reg_lock, flags);
+		goto out;
 	}
 
 	/* Increment and update queue's write index */
@@ -1792,9 +1850,13 @@ int iwl_trans_pcie_tx(struct iwl_trans *trans, struct sk_buff *skb,
 	wait_write_ptr = ieee80211_has_morefrags(fc);
 
 	/* start timer if queue currently empty */
-	if (txq->need_update && q->read_ptr == q->write_ptr &&
-	    trans_pcie->wd_timeout)
-		mod_timer(&txq->stuck_timer, jiffies + trans_pcie->wd_timeout);
+	if (q->read_ptr == q->write_ptr) {
+		if (txq->need_update && trans_pcie->wd_timeout)
+			mod_timer(&txq->stuck_timer,
+				  jiffies + trans_pcie->wd_timeout);
+		IWL_DEBUG_RPM(trans, "Q: %d first tx - take ref\n", q->id);
+		iwl_trans_pcie_ref(trans);
+	}
 
 	/* Tell device the write index *just past* this latest filled TFD */
 	q->write_ptr = iwl_queue_inc_wrap(q->write_ptr);

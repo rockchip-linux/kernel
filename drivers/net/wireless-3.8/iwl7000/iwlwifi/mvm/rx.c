@@ -238,6 +238,81 @@ static u32 iwl_mvm_set_mac80211_rx_flag(struct iwl_mvm *mvm,
 	return 0;
 }
 
+#ifdef CPTCFG_IWLMVM_TCM
+static void iwl_mvm_rx_handle_tcm(struct iwl_mvm *mvm,
+				  struct ieee80211_sta *sta,
+				  struct ieee80211_hdr *hdr, u32 len,
+				  struct iwl_rx_phy_info *phy_info,
+				  u32 rate_n_flags)
+{
+	struct iwl_mvm_sta *mvmsta;
+	struct iwl_mvm_tcm_mac *mdata;
+	struct iwl_mvm_vif *mvmvif;
+	int mac;
+	int ac = IEEE80211_AC_BE; /* treat non-QoS as BE */
+	/* expected throughput in 500kbps, single stream, 20 MHz */
+	static const u16 thresh_tpt[] = {
+		3, 6, 10, 14, 20, 26, 30, 32, 40, 45,
+	};
+	u16 thr;
+
+	if (ieee80211_is_data_qos(hdr->frame_control)) {
+		int tid = *ieee80211_get_qos_ctl(hdr) &
+				IEEE80211_QOS_CTL_TID_MASK;
+
+		ac = tid_to_mac80211_ac[tid];
+	}
+
+	mvmsta = iwl_mvm_sta_from_mac80211(sta);
+	mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
+
+	if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
+		iwl_mvm_recalc_tcm(mvm);
+	mdata = &mvm->tcm.data[mac];
+	mdata->rx.pkts[ac]++;
+
+	/* count the airtime only once for each ampdu */
+	if (mdata->rx.last_ampdu_ref != mvm->ampdu_ref) {
+		mdata->rx.last_ampdu_ref = mvm->ampdu_ref;
+		mdata->rx.airtime[ac] +=
+			le16_to_cpu(phy_info->frame_time);
+	}
+	mvmvif = iwl_mvm_vif_from_mac80211(mvmsta->vif);
+
+	if (!(rate_n_flags & (RATE_MCS_HT_POS | RATE_MCS_VHT_POS)))
+		return;
+
+	if (mdata->opened_rx_ba_sessions ||
+	    mdata->uapsd_nonagg_detect.detected ||
+	    (!mvmvif->queue_params[IEEE80211_AC_VO].uapsd &&
+	     !mvmvif->queue_params[IEEE80211_AC_VI].uapsd &&
+	     !mvmvif->queue_params[IEEE80211_AC_BE].uapsd &&
+	     !mvmvif->queue_params[IEEE80211_AC_BK].uapsd) ||
+	    mvmsta->sta_id != mvmvif->ap_sta_id)
+		return;
+
+	if (rate_n_flags & RATE_MCS_HT_POS) {
+		thr = thresh_tpt[rate_n_flags & RATE_HT_MCS_RATE_CODE_MSK];
+		thr *= 1 + ((rate_n_flags & RATE_HT_MCS_NSS_MSK) >>
+					RATE_HT_MCS_NSS_POS);
+	} else {
+		if (WARN_ON((rate_n_flags & RATE_VHT_MCS_RATE_CODE_MSK) >
+				ARRAY_SIZE(thresh_tpt)))
+			return;
+		thr = thresh_tpt[rate_n_flags & RATE_VHT_MCS_RATE_CODE_MSK];
+		thr *= 1 + ((rate_n_flags & RATE_VHT_MCS_NSS_MSK) >>
+					RATE_VHT_MCS_NSS_POS);
+	}
+
+	thr *= 1 + ((rate_n_flags & RATE_MCS_CHAN_WIDTH_MSK) >>
+				RATE_MCS_CHAN_WIDTH_POS);
+
+	mdata->uapsd_nonagg_detect.rx_bytes += len;
+	mdata->uapsd_nonagg_detect.rx_pkts++;
+	ewma_add(&mdata->uapsd_nonagg_detect.rate, thr);
+}
+#endif
+
 /*
  * iwl_mvm_rx_rx_mpdu - REPLY_RX_MPDU_CMD handler
  *
@@ -349,32 +424,11 @@ int iwl_mvm_rx_rx_mpdu(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 	}
 
 #ifdef CPTCFG_IWLMVM_TCM
-	if (!mvm->tcm.paused && len >= sizeof(*hdr) &&
+	if (sta && !mvm->tcm.paused && len >= sizeof(*hdr) &&
 	    !is_multicast_ether_addr(hdr->addr1) &&
-	    ieee80211_is_data(hdr->frame_control)) {
-		int ac = IEEE80211_AC_BE; /* treat non-QoS as BE */
-
-		if (ieee80211_is_data_qos(hdr->frame_control)) {
-			int tid = *ieee80211_get_qos_ctl(hdr) &
-					IEEE80211_QOS_CTL_TID_MASK;
-
-			ac = tid_to_mac80211_ac[tid];
-		}
-
-		if (sta) {
-			struct iwl_mvm_sta *mvmsta;
-			int mac;
-
-			mvmsta = iwl_mvm_sta_from_mac80211(sta);
-			mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
-
-			if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
-				iwl_mvm_recalc_tcm(mvm);
-			mvm->tcm.data[mac].rx.pkts[ac]++;
-			mvm->tcm.data[mac].rx.airtime[ac] +=
-				le16_to_cpu(phy_info->frame_time);
-		}
-	}
+	    ieee80211_is_data(hdr->frame_control))
+		iwl_mvm_rx_handle_tcm(mvm, sta, hdr, len, phy_info,
+				      rate_n_flags);
 #endif
 	rcu_read_unlock();
 

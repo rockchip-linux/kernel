@@ -36,6 +36,9 @@
 #include <linux/wait.h>
 #include <linux/pci.h>
 #include <linux/timer.h>
+#ifdef CONFIG_HAS_WAKELOCK
+#include <linux/wakelock.h>
+#endif
 
 #include "iwl-fh.h"
 #include "iwl-csr.h"
@@ -257,6 +260,7 @@ iwl_pcie_get_scratchbuf_dma(struct iwl_txq *txq, int idx)
  * @cmd_queue - command queue number
  * @rx_buf_size_8k: 8 kB RX buffer size
  * @bc_table_dword: true if the BC table expects DWORD (as opposed to bytes)
+ * @scd_set_active: should the transport configure the SCD for HCMD queue
  * @rx_page_order: page order for receive buffer size
  * @wd_timeout: queue watchdog timeout (jiffies)
  * @reg_lock: protect hw register access
@@ -306,6 +310,7 @@ struct iwl_trans_pcie {
 
 	bool rx_buf_size_8k;
 	bool bc_table_dword;
+	bool scd_set_active;
 	u32 rx_page_order;
 
 	const char *const *command_names;
@@ -316,6 +321,15 @@ struct iwl_trans_pcie {
 	/*protect hw register */
 	spinlock_t reg_lock;
 	bool cmd_in_flight;
+	bool ref_cmd_in_flight;
+
+	/* protect ref counter */
+	spinlock_t ref_lock;
+	u32 ref_count;
+#ifdef CONFIG_HAS_WAKELOCK
+	struct wake_lock ref_wake_lock;
+	struct wake_lock timed_wake_lock;
+#endif
 
 	dma_addr_t fw_mon_phys;
 	struct page *fw_mon_page;
@@ -378,6 +392,9 @@ void iwl_pcie_hcmd_complete(struct iwl_trans *trans,
 void iwl_trans_pcie_reclaim(struct iwl_trans *trans, int txq_id, int ssn,
 			    struct sk_buff_head *skbs);
 void iwl_trans_pcie_tx_reset(struct iwl_trans *trans);
+
+void iwl_trans_pcie_ref(struct iwl_trans *trans);
+void iwl_trans_pcie_unref(struct iwl_trans *trans);
 
 static inline u16 iwl_pcie_tfd_tb_get_len(struct iwl_tfd *tfd, u8 idx)
 {

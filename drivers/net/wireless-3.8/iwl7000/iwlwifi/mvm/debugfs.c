@@ -254,6 +254,29 @@ out:
 	return count;
 }
 
+static ssize_t iwl_dbgfs_nic_temp_read(struct file *file,
+				       char __user *user_buf,
+				       size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	char buf[16];
+	int pos, temp;
+
+	if (!mvm->ucode_loaded)
+		return -EIO;
+
+	mutex_lock(&mvm->mutex);
+	temp = iwl_mvm_get_temp(mvm);
+	mutex_unlock(&mvm->mutex);
+
+	if (temp < 0)
+		return temp;
+
+	pos = scnprintf(buf , sizeof(buf), "%d\n", temp);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+}
+
 static ssize_t iwl_dbgfs_stations_read(struct file *file, char __user *user_buf,
 				       size_t count, loff_t *ppos)
 {
@@ -910,10 +933,69 @@ iwl_dbgfs_scan_ant_rxchain_write(struct iwl_mvm *mvm, char *buf,
 		return -EINVAL;
 	if (scan_rx_ant > ANT_ABC)
 		return -EINVAL;
-	if (scan_rx_ant & ~mvm->fw->valid_rx_ant)
+	if (scan_rx_ant & ~(iwl_mvm_get_valid_rx_ant(mvm)))
 		return -EINVAL;
 
-	mvm->scan_rx_ant = scan_rx_ant;
+	if (mvm->scan_rx_ant != scan_rx_ant) {
+		mvm->scan_rx_ant = scan_rx_ant;
+		if (mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_UMAC_SCAN)
+			iwl_mvm_config_scan(mvm);
+	}
+
+	return count;
+}
+
+static ssize_t iwl_dbgfs_fw_dbg_conf_read(struct file *file,
+					  char __user *user_buf,
+					  size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	enum iwl_fw_dbg_conf conf;
+	char buf[8];
+	const size_t bufsz = sizeof(buf);
+	int pos = 0;
+
+	mutex_lock(&mvm->mutex);
+	conf = mvm->fw_dbg_conf;
+	mutex_unlock(&mvm->mutex);
+
+	pos += scnprintf(buf + pos, bufsz - pos, "%d\n", conf);
+
+	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+}
+
+static ssize_t iwl_dbgfs_fw_dbg_conf_write(struct iwl_mvm *mvm,
+					   char *buf, size_t count,
+					   loff_t *ppos)
+{
+	int ret, conf_id;
+
+	ret = kstrtoint(buf, 0, &conf_id);
+	if (ret)
+		return ret;
+
+	if (WARN_ON(conf_id >= FW_DBG_MAX))
+		return -EINVAL;
+
+	mutex_lock(&mvm->mutex);
+	ret = iwl_mvm_start_fw_dbg_conf(mvm, conf_id);
+	mutex_unlock(&mvm->mutex);
+
+	return ret ?: count;
+}
+
+static ssize_t iwl_dbgfs_fw_dbg_collect_write(struct iwl_mvm *mvm,
+					      char *buf, size_t count,
+					      loff_t *ppos)
+{
+	int ret = iwl_mvm_ref_sync(mvm, IWL_MVM_REF_PRPH_WRITE);
+
+	if (ret)
+		return ret;
+
+	iwl_mvm_fw_dbg_collect(mvm);
+
+	iwl_mvm_unref(mvm, IWL_MVM_REF_PRPH_WRITE);
 
 	return count;
 }
@@ -1155,6 +1237,117 @@ static ssize_t iwl_dbgfs_d3_sram_read(struct file *file, char __user *user_buf,
 
 	return ret;
 }
+
+#define MAX_NUM_ND_MATCHSETS 10
+
+static ssize_t iwl_dbgfs_netdetect_write(struct iwl_mvm *mvm, char *buf,
+					 size_t count, loff_t *ppos)
+{
+	const char *seps = ",\n";
+	char *buf_ptr = buf;
+	char *value_str = NULL;
+	int ret, i;
+
+	/* TODO: don't free if write is being called several times in one go */
+	if (mvm->nd_config) {
+		kfree(mvm->nd_config->match_sets);
+		kfree(mvm->nd_config);
+		mvm->nd_config = NULL;
+	}
+
+	mvm->nd_config = kzalloc(sizeof(*mvm->nd_config) +
+				 (11 * sizeof(struct ieee80211_channel *)),
+				 GFP_KERNEL);
+	if (!mvm->nd_config) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
+
+	mvm->nd_config->n_channels = 11;
+	mvm->nd_config->interval = 5;
+	mvm->nd_config->rssi_thold = -80;
+	for (i = 0; i < mvm->nd_config->n_channels; i++)
+		mvm->nd_config->channels[i] = &mvm->nvm_data->channels[i];
+
+	mvm->nd_config->match_sets =
+		kcalloc(MAX_NUM_ND_MATCHSETS,
+			sizeof(*mvm->nd_config->match_sets),
+			GFP_KERNEL);
+	if (!mvm->nd_config->match_sets) {
+		ret = -ENOMEM;
+		goto out_free;
+	}
+
+	while ((value_str = strsep(&buf_ptr, seps)) &&
+	       strlen(value_str)) {
+		struct cfg80211_match_set *set;
+
+		if (mvm->nd_config->n_match_sets >= MAX_NUM_ND_MATCHSETS) {
+			ret = -EINVAL;
+			goto out_free;
+		}
+
+		set = &mvm->nd_config->match_sets[mvm->nd_config->n_match_sets];
+		set->ssid.ssid_len = strlen(value_str);
+
+		if (set->ssid.ssid_len > IEEE80211_MAX_SSID_LEN) {
+			ret = -EINVAL;
+			goto out_free;
+		}
+
+		memcpy(set->ssid.ssid, value_str, set->ssid.ssid_len);
+
+		mvm->nd_config->n_match_sets++;
+	}
+
+	ret = count;
+
+	if (mvm->nd_config->n_match_sets)
+		goto out;
+
+out_free:
+	if (mvm->nd_config)
+		kfree(mvm->nd_config->match_sets);
+	kfree(mvm->nd_config);
+	mvm->nd_config = NULL;
+out:
+	return ret;
+}
+
+static ssize_t
+iwl_dbgfs_netdetect_read(struct file *file, char __user *user_buf,
+			 size_t count, loff_t *ppos)
+{
+	struct iwl_mvm *mvm = file->private_data;
+	size_t bufsz, ret;
+	char *buf;
+	int i, n_match_sets, pos = 0;
+
+	n_match_sets = mvm->nd_config ? mvm->nd_config->n_match_sets : 0;
+
+	bufsz = n_match_sets * (IEEE80211_MAX_SSID_LEN + 1) + 1;
+	buf = kzalloc(bufsz, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	for (i = 0; i < n_match_sets; i++) {
+		if (pos +
+		    mvm->nd_config->match_sets[i].ssid.ssid_len + 2 > bufsz) {
+			ret = -EIO;
+			goto out;
+		}
+
+		memcpy(buf + pos, mvm->nd_config->match_sets[i].ssid.ssid,
+		       mvm->nd_config->match_sets[i].ssid.ssid_len);
+		pos += mvm->nd_config->match_sets[i].ssid.ssid_len;
+		buf[pos++] = '\n';
+	}
+
+	ret = simple_read_from_buffer(user_buf, count, ppos, buf, pos);
+out:
+	kfree(buf);
+	return ret;
+}
 #endif
 
 #define PRINT_MVM_REF(ref) do {						\
@@ -1187,7 +1380,21 @@ static ssize_t iwl_dbgfs_d0i3_refs_read(struct file *file,
 	PRINT_MVM_REF(IWL_MVM_REF_P2P_CLIENT);
 	PRINT_MVM_REF(IWL_MVM_REF_AP_IBSS);
 	PRINT_MVM_REF(IWL_MVM_REF_USER);
+	PRINT_MVM_REF(IWL_MVM_REF_TX);
+	PRINT_MVM_REF(IWL_MVM_REF_TX_AGG);
+	PRINT_MVM_REF(IWL_MVM_REF_ADD_IF);
+	PRINT_MVM_REF(IWL_MVM_REF_START_AP);
+	PRINT_MVM_REF(IWL_MVM_REF_BSS_CHANGED);
+	PRINT_MVM_REF(IWL_MVM_REF_PREPARE_TX);
+	PRINT_MVM_REF(IWL_MVM_REF_PROTECT_TDLS);
+	PRINT_MVM_REF(IWL_MVM_REF_CHECK_CTKILL);
+	PRINT_MVM_REF(IWL_MVM_REF_PRPH_READ);
+	PRINT_MVM_REF(IWL_MVM_REF_PRPH_WRITE);
+	PRINT_MVM_REF(IWL_MVM_REF_NMI);
+	PRINT_MVM_REF(IWL_MVM_REF_TM_CMD);
 	PRINT_MVM_REF(IWL_MVM_REF_EXIT_WORK);
+	PRINT_MVM_REF(IWL_MVM_REF_PROTECT_CSA);
+	PRINT_MVM_REF(IWL_MVM_REF_FW_DBG_COLLECT);
 
 	return simple_read_from_buffer(user_buf, count, ppos, buf, pos);
 }
@@ -1287,6 +1494,26 @@ out:
 	return count;
 }
 
+static ssize_t iwl_dbgfs_enable_scan_iteration_notif_write(struct iwl_mvm *mvm,
+							   char *buf,
+							   size_t count,
+							   loff_t *ppos)
+{
+	int val;
+
+	mutex_lock(&mvm->mutex);
+
+	if (kstrtoint(buf, 10, &val)) {
+		mutex_unlock(&mvm->mutex);
+		return -EINVAL;
+	}
+
+	mvm->scan_iter_notif_enabled = val;
+	mutex_unlock(&mvm->mutex);
+
+	return count;
+}
+
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(prph_reg, 64);
 
 /* Device wide debugfs entries */
@@ -1294,6 +1521,7 @@ MVM_DEBUGFS_WRITE_FILE_OPS(tx_flush, 16);
 MVM_DEBUGFS_WRITE_FILE_OPS(sta_drain, 8);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(sram, 64);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(set_nic_temperature, 64);
+MVM_DEBUGFS_READ_FILE_OPS(nic_temp);
 MVM_DEBUGFS_READ_FILE_OPS(stations);
 MVM_DEBUGFS_READ_FILE_OPS(bt_notif);
 MVM_DEBUGFS_READ_FILE_OPS(bt_cmd);
@@ -1306,6 +1534,9 @@ MVM_DEBUGFS_WRITE_FILE_OPS(bt_tx_prio, 10);
 MVM_DEBUGFS_WRITE_FILE_OPS(bt_force_ant, 10);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(scan_ant_rxchain, 8);
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(d0i3_refs, 8);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(fw_dbg_conf, 8);
+MVM_DEBUGFS_WRITE_FILE_OPS(fw_dbg_collect, 8);
+MVM_DEBUGFS_WRITE_FILE_OPS(enable_scan_iteration_notif, 8);
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters, 256);
@@ -1314,6 +1545,7 @@ MVM_DEBUGFS_READ_WRITE_FILE_OPS(bcast_filters_macs, 256);
 
 #ifdef CONFIG_PM_SLEEP
 MVM_DEBUGFS_READ_WRITE_FILE_OPS(d3_sram, 8);
+MVM_DEBUGFS_READ_WRITE_FILE_OPS(netdetect, 384);
 #endif
 
 int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
@@ -1330,6 +1562,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	MVM_DEBUGFS_ADD_FILE(sram, mvm->debugfs_dir, S_IWUSR | S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(set_nic_temperature, mvm->debugfs_dir,
 			     S_IWUSR | S_IRUSR);
+	MVM_DEBUGFS_ADD_FILE(nic_temp, dbgfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(stations, dbgfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(bt_notif, dbgfs_dir, S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(bt_cmd, dbgfs_dir, S_IRUSR);
@@ -1345,6 +1578,10 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 			     S_IWUSR | S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(prph_reg, mvm->debugfs_dir, S_IWUSR | S_IRUSR);
 	MVM_DEBUGFS_ADD_FILE(d0i3_refs, mvm->debugfs_dir, S_IRUSR | S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE(fw_dbg_conf, mvm->debugfs_dir, S_IRUSR | S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE(fw_dbg_collect, mvm->debugfs_dir, S_IWUSR);
+	MVM_DEBUGFS_ADD_FILE(enable_scan_iteration_notif, mvm->debugfs_dir,
+			     S_IWUSR);
 
 #ifdef CPTCFG_IWLWIFI_BCAST_FILTERING
 	if (mvm->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_BCAST_FILTERING) {
@@ -1370,6 +1607,7 @@ int iwl_mvm_dbgfs_register(struct iwl_mvm *mvm, struct dentry *dbgfs_dir)
 	if (!debugfs_create_bool("d3_wake_sysassert", S_IRUSR | S_IWUSR,
 				 mvm->debugfs_dir, &mvm->d3_wake_sysassert))
 		goto err;
+	MVM_DEBUGFS_ADD_FILE(netdetect, mvm->debugfs_dir, S_IRUSR | S_IWUSR);
 #endif
 
 	if (!debugfs_create_u8("low_latency_agg_frame_limit", S_IRUSR | S_IWUSR,

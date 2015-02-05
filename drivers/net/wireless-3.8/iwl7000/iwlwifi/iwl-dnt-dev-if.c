@@ -220,7 +220,6 @@ static int iwl_dnt_dev_if_retrieve_dma_monitor_data(struct iwl_dnt *dnt,
 {
 	struct iwl_dbg_cfg *cfg = &trans->dbg_cfg;
 	u32 wr_ptr;
-	u8 *temp_buf = NULL;
 	bool dont_reorder = false;
 	/* FIXME send stop command to FW */
 	if (WARN_ON_ONCE(!dnt->mon_buf_cpu_addr)) {
@@ -275,14 +274,10 @@ static int iwl_dnt_dev_if_retrieve_dma_monitor_data(struct iwl_dnt *dnt,
 	if (dont_reorder)
 		wr_ptr = 0;
 
-	temp_buf = kmemdup(dnt->mon_buf_cpu_addr, dnt->mon_buf_size,
-			   GFP_KERNEL);
-	if (!temp_buf)
-		return -ENOMEM;
-
-	memcpy(buffer, temp_buf + wr_ptr, dnt->mon_buf_size - wr_ptr);
-	memcpy(buffer + dnt->mon_buf_size - wr_ptr, temp_buf, wr_ptr);
-	kfree(temp_buf);
+	memcpy(buffer, dnt->mon_buf_cpu_addr + wr_ptr,
+	       dnt->mon_buf_size - wr_ptr);
+	memcpy(buffer + dnt->mon_buf_size - wr_ptr, dnt->mon_buf_cpu_addr,
+	       wr_ptr);
 
 	return dnt->mon_buf_size;
 }
@@ -349,7 +344,8 @@ static int iwl_dnt_dev_if_retrieve_smem_monitor_data(struct iwl_dnt *dnt,
 	u32 base, end, wr_ptr, pos, chunks_num, wr_ptr_offset;
 	u8 *temp_buffer;
 
-	if (CSR_HW_REV_STEP(trans->hw_rev) == SILICON_B_STEP) {
+	if (CSR_HW_REV_STEP(trans->hw_rev) != SILICON_A_STEP) {
+		/* assuming B-step or C-step */
 		base_addr = cfg->dbg_mon_buff_base_addr_reg_addr_b_step;
 		end_addr = cfg->dbg_mon_buff_end_addr_reg_addr_b_step;
 		wr_ptr_addr = cfg->dbg_mon_wr_ptr_addr_b_step;

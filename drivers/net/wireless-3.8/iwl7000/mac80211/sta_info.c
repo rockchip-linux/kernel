@@ -240,6 +240,7 @@ void sta_info_free(struct ieee80211_local *local, struct sta_info *sta)
 			kfree(sta->tx_lat[i].bins);
 		kfree(sta->tx_lat);
 	}
+
 	if (sta->tx_consec) {
 		for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
 			kfree(sta->tx_consec[i].late_bins);
@@ -338,6 +339,11 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 				}
 			}
 		}
+
+		if (!sdata->vif.p2p)
+			sta->tx_lat_thrshld = tx_latency->thresholds_bss;
+		else
+			sta->tx_lat_thrshld = tx_latency->thresholds_p2p;
 	}
 	tx_consec = rcu_dereference(local->tx_consec);
 	/* init stations Tx consecutive loss statistics */
@@ -392,6 +398,9 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 	sta->last_rx = jiffies;
 
 	sta->sta_state = IEEE80211_STA_NONE;
+
+	/* Mark TID as unreserved */
+	sta->reserved_tid = IEEE80211_TID_UNRESERVED;
 
 	ktime_get_ts(&uptime);
 	sta->last_connected = uptime.tv_sec;
@@ -552,7 +561,7 @@ static int sta_info_insert_finish(struct sta_info *sta) __acquires(RCU)
 	/* make the station visible */
 	sta_info_hash_add(local, sta);
 
-	list_add_rcu(&sta->list, &local->sta_list);
+	list_add_tail_rcu(&sta->list, &local->sta_list);
 
 	/* notify driver */
 	err = sta_info_insert_drv_state(local, sdata, sta);
@@ -898,6 +907,15 @@ static int __must_check __sta_info_destroy_part1(struct sta_info *sta)
 	if (WARN_ON(ret))
 		return ret;
 
+	/*
+	 * for TDLS peers, make sure to return to the base channel before
+	 * removal.
+	 */
+	if (test_sta_flag(sta, WLAN_STA_TDLS_OFF_CHANNEL)) {
+		drv_tdls_cancel_channel_switch(local, sdata, &sta->sta);
+		clear_sta_flag(sta, WLAN_STA_TDLS_OFF_CHANNEL);
+	}
+
 	list_del_rcu(&sta->list);
 
 	drv_sta_pre_rcu_remove(local, sta->sdata, sta);
@@ -1146,8 +1164,11 @@ void ieee80211_sta_ps_deliver_wakeup(struct sta_info *sta)
 	unsigned long flags;
 	struct ps_data *ps;
 
-	if (sdata->vif.type == NL80211_IFTYPE_AP ||
-	    sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+	if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+		sdata = container_of(sdata->bss, struct ieee80211_sub_if_data,
+				     u.ap);
+
+	if (sdata->vif.type == NL80211_IFTYPE_AP)
 		ps = &sdata->bss->ps;
 	else if (ieee80211_vif_is_mesh(&sdata->vif))
 		ps = &sdata->u.mesh.ps;
@@ -1297,7 +1318,8 @@ static void ieee80211_send_null_response(struct ieee80211_sub_if_data *sdata,
 		return;
 	}
 
-	ieee80211_xmit(sdata, skb, chanctx_conf->def.chan->band);
+	info->band = chanctx_conf->def.chan->band;
+	ieee80211_xmit(sdata, skb);
 	rcu_read_unlock();
 }
 
@@ -1579,7 +1601,7 @@ void ieee80211_sta_ps_deliver_uapsd(struct sta_info *sta)
 		break;
 	case 0:
 		/* XXX: what is a good value? */
-		n_frames = 8;
+		n_frames = 128;
 		break;
 	}
 

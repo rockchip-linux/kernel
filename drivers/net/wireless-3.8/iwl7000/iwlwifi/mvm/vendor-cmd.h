@@ -62,6 +62,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  *****************************************************************************/
+#ifndef __VENDOR_CMD_H__
+#define __VENDOR_CMD_H__
 
 #define INTEL_OUI	0x001735
 
@@ -78,6 +80,9 @@
  * @IWL_MVM_VENDOR_CMD_LTE_COEX_SPS_INFO: configure semi oersistent info
  * @IWL_MVM_VENDOR_CMD_LTE_COEX_WIFI_RPRTD_CHAN: Wifi reported channel as
  *	calculated by the coex-manager
+ * @IWL_MVM_VENDOR_CMD_SET_COUNTRY: set a new mcc regulatory information
+ * @IWL_MVM_VENDOR_CMD_PROXY_FRAME_FILTERING: filter GTK, gratuitous
+ *	ARP & unsolicited NA
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -89,6 +94,8 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_LTE_COEX_DYNAMIC_INFO,
 	IWL_MVM_VENDOR_CMD_LTE_COEX_SPS_INFO,
 	IWL_MVM_VENDOR_CMD_LTE_COEX_WIFI_RPRTD_CHAN,
+	IWL_MVM_VENDOR_CMD_SET_COUNTRY,
+	IWL_MVM_VENDOR_CMD_PROXY_FRAME_FILTERING,
 };
 
 /**
@@ -116,6 +123,10 @@ enum iwl_mvm_vendor_load {
  * @IWL_MVM_VENDOR_ATTR_LL: global low-latency (u8, 0/1)
  * @IWL_MVM_VENDOR_ATTR_VIF_LOAD: vif traffic load (u8, see load enum)
  * @IWL_MVM_VENDOR_ATTR_LOAD: global traffic load (u8, see load enum)
+ * @IWL_MVM_VENDOR_ATTR_COUNTRY: MCC to set, for regulatory information (u16)
+ * IWL_MVM_VENDOR_FILTER_ARP_NA: filter gratuitous ARP and unsolicited Neighbor
+ *	Advertisement frames
+ * IWL_MVM_VENDOR_FILTER_GTK: filter Filtering Frames Encrypted using the GTK
  * @NUM_IWL_MVM_VENDOR_ATTR: number of vendor attributes
  * @MAX_IWL_MVM_VENDOR_ATTR: highest vendor attribute number
  */
@@ -127,7 +138,11 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_LL,
 	IWL_MVM_VENDOR_ATTR_VIF_LOAD,
 	IWL_MVM_VENDOR_ATTR_LOAD,
+	IWL_MVM_VENDOR_ATTR_COUNTRY,
+	IWL_MVM_VENDOR_FILTER_ARP_NA,
+	IWL_MVM_VENDOR_FILTER_GTK,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,
 };
+#endif /* __VENDOR_CMD_H__ */

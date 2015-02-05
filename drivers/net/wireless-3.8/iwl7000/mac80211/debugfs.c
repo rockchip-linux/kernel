@@ -26,7 +26,8 @@
 
 #ifdef CPTCFG_NL80211_TESTMODE
 /*
- * Display Tx latency threshold for triggering usniffer logs event.
+ * Display Tx latency threshold (per interface per TID) for triggering
+ * usniffer logs event.
  */
 static ssize_t sta_tx_latency_threshold_read(struct file *file,
 					char __user *userbuf,
@@ -34,27 +35,61 @@ static ssize_t sta_tx_latency_threshold_read(struct file *file,
 {
 	struct ieee80211_local *local = file->private_data;
 	struct ieee80211_tx_latency_bin_ranges  *tx_latency;
-	char buf[sizeof(TX_TIMING_STATS_DISABLED) + 1];
+	char buf[2 * IEEE80211_NUM_TIDS * 20 + 128];
 	int bufsz = sizeof(buf);
 	int pos = 0;
+	u32 i;
 
 	rcu_read_lock();
-
 	tx_latency = rcu_dereference(local->tx_latency);
 
-	if (tx_latency)
-		pos = scnprintf(buf, bufsz, "%u\n", tx_latency->threshold);
-	else
-		pos = scnprintf(buf + pos, bufsz - pos, "%s\n",
+	/* Tx latency is not enabled or no thresholds were configured */
+	if (!tx_latency || (!tx_latency->thresholds_bss &&
+			    !tx_latency->thresholds_p2p)) {
+		pos += scnprintf(buf + pos, bufsz - pos, "%s\n",
 				TX_TIMING_STATS_DISABLED);
+		goto unlock;
+	}
 
+	pos += scnprintf(buf + pos, bufsz - pos, "mode: %s\n",
+			 tx_latency->monitor_record_mode ?
+			 "Continuous Recording" : "Internal Buffer");
+	pos += scnprintf(buf + pos, bufsz - pos, "window: %d\n",
+			 tx_latency->monitor_collec_wind);
+
+	if (tx_latency->thresholds_bss) {
+		pos += scnprintf(buf + pos, bufsz - pos, "BSS thresholds:\n");
+		for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+			pos += scnprintf(buf + pos, bufsz - pos, "TID %u: %u\n",
+					 i, tx_latency->thresholds_bss[i]);
+		}
+	}
+
+	if (tx_latency->thresholds_p2p) {
+		pos += scnprintf(buf + pos, bufsz - pos, "P2P thresholds:\n");
+		for (i = 0; i < IEEE80211_NUM_TIDS; i++) {
+			pos += scnprintf(buf + pos, bufsz - pos,
+					 "TID %u: %u\n",
+					 i, tx_latency->thresholds_p2p[i]);
+		}
+	}
+unlock:
 	rcu_read_unlock();
-
 	return simple_read_from_buffer(userbuf, count, ppos, buf, pos);
 }
 
 /*
  * Configure Tx latency threshold for triggering usniffer logs event.
+ * Configuration is done per interface per TID.
+ * Enable input: <mode,window,iface,tid,threshold>
+ * Disable input (for an interface):<mode,window,iface,tid,-1>
+ *	mode - Internal buffer mode continuos recording mode (recording
+ *	with MIPI)
+ *	window - the size of the window before collecting the usniffer logs
+ *	iface - 0 for BSS 1 for P2P
+ *	tid - the tid to apply the threshold on
+ *	threshold- the wanted threshold (-1 to disable for the interface 0 to
+ *	disable only for the tid)
  */
 static ssize_t sta_tx_latency_threshold_write(struct file *file,
 					      const char __user *userbuf,
@@ -62,16 +97,25 @@ static ssize_t sta_tx_latency_threshold_write(struct file *file,
 {
 	struct ieee80211_local *local = file->private_data;
 	struct ieee80211_tx_latency_bin_ranges  *tx_latency;
-	u32 thrshld;
-	char buf[8] = {};
+	u32 alloc_size;
+	int mode;
+	int window_size;
+	int thrshld;
+	int tid;
+	int iface;
+	int ret;
+
+	char buf[128] = {};
 
 	if (sizeof(buf) <= count)
 		return -EINVAL;
 
 	if (copy_from_user(buf, userbuf, count))
 		return -EFAULT;
+	ret = count;
 
-	if (sscanf(buf, "%u", &thrshld) != 1)
+	if (sscanf(buf, "%d,%d,%d,%d,%d", &mode, &window_size, &iface, &tid,
+		   &thrshld) != 5)
 		return -EINVAL;
 
 	mutex_lock(&local->sta_mtx);
@@ -87,13 +131,60 @@ static ssize_t sta_tx_latency_threshold_write(struct file *file,
 	if (!tx_latency)
 		goto unlock;
 
-	tx_latency->threshold = thrshld;
+	/* Check if we need to disable the thresholds */
+	if (iface == IEEE80211_TX_LATENCY_BSS &&
+	    thrshld == IEEE80211_IF_DISABLE_THSHLD) {
+		kfree(tx_latency->thresholds_bss);
+		tx_latency->thresholds_bss = NULL;
+		goto assign;
+	} else if (iface == IEEE80211_TX_LATENCY_P2P &&
+	    thrshld == IEEE80211_IF_DISABLE_THSHLD) {
+		kfree(tx_latency->thresholds_p2p);
+		tx_latency->thresholds_p2p = NULL;
+		goto assign;
+	}
 
+	/* Check tid  && thrshld parameters are valid */
+	if (tid >= IEEE80211_NUM_TIDS || tid < 0 ||
+	    thrshld < IEEE80211_IF_DISABLE_THSHLD) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	alloc_size = sizeof(u32) * IEEE80211_NUM_TIDS;
+	/* Check iface paramters is valid */
+	if (iface == IEEE80211_TX_LATENCY_BSS) {
+		if (!tx_latency->thresholds_bss) {
+			tx_latency->thresholds_bss = kzalloc(alloc_size,
+							     GFP_ATOMIC);
+			if (!tx_latency->thresholds_bss) {
+				ret = -ENOMEM;
+				goto unlock;
+			}
+		}
+		tx_latency->thresholds_bss[tid] = thrshld;
+	} else if (iface == IEEE80211_TX_LATENCY_P2P) {
+		if (!tx_latency->thresholds_p2p) {
+			tx_latency->thresholds_p2p = kzalloc(alloc_size,
+							     GFP_ATOMIC);
+			if (!tx_latency->thresholds_p2p) {
+				ret = -ENOMEM;
+				goto unlock;
+			}
+		}
+		tx_latency->thresholds_p2p[tid] = thrshld;
+	} else { /* not a valid interface */
+		ret = -EINVAL;
+		goto unlock;
+	}
+	tx_latency->monitor_collec_wind  = window_size;
+	tx_latency->monitor_record_mode = mode;
+assign:
 	rcu_assign_pointer(local->tx_latency, tx_latency);
 unlock:
 	mutex_unlock(&local->sta_mtx);
 
-	return count;
+	return ret;
 }
 
 static const struct file_operations stats_tx_latency_threshold_ops = {
@@ -209,6 +300,8 @@ static ssize_t sta_tx_latency_stat_write(struct file *file,
 	if (!strcmp(buf, TX_TIMING_STATS_DISABLED)) {
 		if (!tx_latency)
 			goto unlock;
+		kfree(tx_latency->thresholds_p2p);
+		kfree(tx_latency->thresholds_bss);
 		RCU_INIT_POINTER(local->tx_latency, NULL);
 		synchronize_rcu();
 		kfree(tx_latency);
@@ -570,13 +663,6 @@ static ssize_t hwflags_read(struct file *file, char __user *user_buf,
 		sf += scnprintf(buf + sf, mxln - sf, "SUPPORTS_DYNAMIC_PS\n");
 	if (local->hw.flags & IEEE80211_HW_MFP_CAPABLE)
 		sf += scnprintf(buf + sf, mxln - sf, "MFP_CAPABLE\n");
-	if (local->hw.flags & IEEE80211_HW_SUPPORTS_STATIC_SMPS)
-		sf += scnprintf(buf + sf, mxln - sf, "SUPPORTS_STATIC_SMPS\n");
-	if (local->hw.flags & IEEE80211_HW_SUPPORTS_DYNAMIC_SMPS)
-		sf += scnprintf(buf + sf, mxln - sf,
-				"SUPPORTS_DYNAMIC_SMPS\n");
-	if (local->hw.flags & IEEE80211_HW_SUPPORTS_UAPSD)
-		sf += scnprintf(buf + sf, mxln - sf, "SUPPORTS_UAPSD\n");
 	if (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS)
 		sf += scnprintf(buf + sf, mxln - sf,
 				"REPORTS_TX_ACK_STATUS\n");

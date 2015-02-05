@@ -1,8 +1,14 @@
 #include <linux/if_ether.h>
 #include <net/cfg80211.h>
 #include <linux/errqueue.h>
+#include <generated/utsrelease.h>
+/* ipv6_addr_is_multicast moved - include old header */
+#include <net/addrconf.h>
 
 /* common backward compat code */
+
+#define BACKPORTS_GIT_TRACKED "chromium:" UTS_RELEASE
+#define BACKPORTS_BUILD_TSTAMP __DATE__ " " __TIME__
 
 static inline void netdev_attach_ops(struct net_device *dev,
 				     const struct net_device_ops *ops)
@@ -12,7 +18,15 @@ static inline void netdev_attach_ops(struct net_device *dev,
 
 #define WIPHY_FLAG_HAS_CHANNEL_SWITCH 0
 
+#define WIPHY_PARAM_DYN_ACK		(1 << 5)
+
 #define mc_addr(ha)	(ha)->addr
+
+#define NL80211_FEATURE_STATIC_SMPS		(1 << 24)
+#define NL80211_FEATURE_DYNAMIC_SMPS		(1 << 25)
+#define NL80211_FEATURE_SUPPORTS_WMM_ADMISSION	(1 << 26)
+/* cannot be supported on this kernel */
+#define NL80211_FEATURE_TDLS_CHANNEL_SWITCH	0
 
 static inline void
 cfg80211_ch_switch_started_notify(struct net_device *dev,
@@ -138,7 +152,8 @@ static inline void cfg80211_auth_timeout(struct net_device *dev,
 
 static inline void cfg80211_rx_assoc_resp(struct net_device *dev,
 					  struct cfg80211_bss *bss,
-					  void *data, int len)
+					  void *data, int len,
+					  int uapsd_queues)
 {
 	cfg80211_send_rx_assoc(dev, bss, data, len);
 }
@@ -186,9 +201,9 @@ cfg80211_chandef_to_scan_width(const struct cfg80211_chan_def *chandef)
 
 static inline bool
 iwl7000_cfg80211_rx_mgmt(struct wireless_dev *wdev, int freq, int sig_dbm,
-			 const u8 *buf, size_t len, u32 flags, gfp_t gfp)
+			 const u8 *buf, size_t len, u32 flags)
 {
-	return cfg80211_rx_mgmt(wdev, freq, sig_dbm, buf, len, gfp);
+	return cfg80211_rx_mgmt(wdev, freq, sig_dbm, buf, len, GFP_ATOMIC);
 }
 #define cfg80211_rx_mgmt iwl7000_cfg80211_rx_mgmt
 
@@ -478,3 +493,35 @@ cfg80211_check_combinations(struct wiphy *wiphy,
 #else
 #define const_since_3_16 const
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,16,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,18,0)
+#define NL80211_IFTYPE_OCB 11 /* not used, but code is there */
+#define NL80211_FEATURE_MAC_ON_CREATE 0 /* cannot be used */
+
+static inline struct wiphy *
+wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv,
+	     const char *requested_name)
+{
+	/* drop the requested name since it's not supported */
+	return wiphy_new(ops, sizeof_priv);
+}
+#endif /* CFG80211_VERSION < KERNEL_VERSION(3,18,0) */
+
+#if CFG80211_VERSION < KERNEL_VERSION(3,19,0)
+#define NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR 0
+#define NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR 0
+#define NL80211_FEATURE_ND_RANDOM_MAC_ADDR 0
+#define NL80211_SCAN_FLAG_RANDOM_ADDR 0
+
+/* LAR related functionality privately backported into mac80211 */
+int regulatory_set_wiphy_regd(struct wiphy *wiphy,
+			      struct ieee80211_regdomain *rd);
+int regulatory_set_wiphy_regd_sync_rtnl(struct wiphy *wiphy,
+					struct ieee80211_regdomain *rd);
+
+#define REGULATORY_COUNTRY_IE_IGNORE 0
+#define REGULATORY_WIPHY_SELF_MANAGED WIPHY_FLAG_SELF_MANAGED_REG
+
+#define IEEE80211_CHAN_INDOOR_ONLY 0
+#define IEEE80211_CHAN_GO_CONCURRENT 0
+#endif

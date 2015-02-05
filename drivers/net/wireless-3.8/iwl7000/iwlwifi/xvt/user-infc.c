@@ -345,7 +345,7 @@ static int iwl_xvt_get_dev_info(struct iwl_xvt *xvt,
 {
 	struct iwl_tm_dev_info_req *dev_info_req;
 	struct iwl_tm_dev_info *dev_info;
-	const u8 driver_ver[] = IWLWIFI_VERSION;
+	const u8 driver_ver[] = BACKPORTS_GIT_TRACKED;
 	int sv_step = 0x00;
 	int dev_info_size;
 	bool read_sv_drop = true;
@@ -558,6 +558,8 @@ static int iwl_xvt_get_sw_config(struct iwl_xvt *xvt,
 		case IWL_UCODE_WOWLAN:
 			u = IWL_USER_FW_IMAGE_IDX_WOWLAN;
 			break;
+		case IWL_UCODE_REGULAR_USNIFFER:
+			continue;
 		}
 		if (get_cfg_req->get_calib_type == IWL_XVT_GET_CALIB_TYPE_DEF) {
 			event_trigger =
@@ -889,8 +891,8 @@ static int iwl_xvt_modulated_tx(struct iwl_xvt *xvt,
 			iwl_xvt_led_enable(xvt);
 
 		/* wait until the tx queue isn't full */
-		time_remain = wait_event_timeout(xvt->mod_tx_wq,
-						 !xvt->txq_full, HZ);
+		time_remain = wait_event_interruptible_timeout(xvt->mod_tx_wq,
+							!xvt->txq_full, HZ);
 
 		if (time_remain <= 0) {
 			/* This should really not happen */

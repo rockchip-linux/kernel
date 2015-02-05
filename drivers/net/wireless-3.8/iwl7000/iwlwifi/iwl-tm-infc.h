@@ -109,6 +109,8 @@ enum {
 	IWL_TM_USER_CMD_TRACE_DUMP,
 	IWL_TM_USER_CMD_NOTIFICATIONS,
 	IWL_TM_USER_CMD_SWITCH_OP_MODE,
+	IWL_TM_USER_CMD_GET_SIL_STEP,
+	IWL_TM_USER_CMD_GET_DRIVER_BUILD_INFO,
 
 	IWL_TM_USER_CMD_NOTIF_UCODE_RX_PKT = TM_CMD_NOTIF_BASE,
 	IWL_TM_USER_CMD_NOTIF_DRIVER,
@@ -273,6 +275,27 @@ struct iwl_tm_dev_info {
 	__u8 driver_ver[];
 } __packed __aligned(4);
 
+/*
+ * struct iwl_tm_thrshld_md - tx packet metadata that crosses a thrshld
+ *
+ * @monitor_collec_wind: the size of the window to collect the logs
+ * @seq: packet sequence
+ * @pkt_start: start time of triggering pkt
+ * @pkt_end: end time of triggering pkt
+ * @msrmnt: the tx latency of the pkt
+ * @tid: tid of the pkt
+ * @mode: recording mode (internal buffer or continuos recording).
+ */
+struct iwl_tm_thrshld_md {
+	__u16 monitor_collec_wind;
+	__u16 seq;
+	__u32 pkt_start;
+	__u32 pkt_end;
+	__u32 msrmnt;
+	__u16 tid;
+	__u8 mode;
+} __packed __aligned(4);
+
 #define MAX_OP_MODE_LENGTH	16
 /**
  * struct iwl_switch_op_mode - switch op_mode
@@ -280,6 +303,28 @@ struct iwl_tm_dev_info {
  */
 struct iwl_switch_op_mode {
 	__u8 new_op_mode[MAX_OP_MODE_LENGTH];
+} __packed __aligned(4);
+
+/**
+ * struct iwl_sil_step - holds the silicon step
+ * @silicon_step: the device silicon step
+ */
+struct iwl_sil_step {
+	__u32 silicon_step;
+} __packed __aligned(4);
+
+#define MAX_DRIVER_VERSION_LEN	256
+#define MAX_BUILD_DATE_LEN	32
+/**
+ * struct iwl_tm_build_info - Result data for get driver build info request
+ * @driver_version: driver version in tree:branch:build:sha1
+ * @branch_time: branch creation time
+ * @build_time: build time
+ */
+struct iwl_tm_build_info {
+	__u8 driver_version[MAX_DRIVER_VERSION_LEN];
+	__u8 branch_time[MAX_BUILD_DATE_LEN];
+	__u8 build_time[MAX_BUILD_DATE_LEN];
 } __packed __aligned(4);
 
 /* xVT defeinitions */

@@ -5,7 +5,8 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright(c) 2008 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -30,7 +31,8 @@
  *
  * BSD LICENSE
  *
- * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2014 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2014 - 2014 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,40 +60,41 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
  *****************************************************************************/
-#ifndef __iwl_nvm_parse_h__
-#define __iwl_nvm_parse_h__
-
-#include <net/cfg80211.h>
-#include "iwl-eeprom-parse.h"
+#ifndef __IWL_CONSTANTS_H
+#define __IWL_CONSTANTS_H
 
 /**
- * iwl_parse_nvm_data - parse NVM data and return values
- *
- * This function parses all NVM values we need and then
- * returns a (newly allocated) struct containing all the
- * relevant values for driver use. The struct must be freed
- * later with iwl_free_nvm_data().
+ * enum iwl_wakelock_modes - iwlwifi wakelock management mode
+ * @IWL_WAKELOCK_MODE_IDLE: take wakelocks while the driver is
+ *	doing some activity, and release when it's idle.
+ * @IWL_WAKELOCK_MODE_OFF: don't take any wakelock.
+ * @IWL_WAKELOCK_MODE_ALWAYS_ON: wake wakelock while driver is up
+ *	and started (there is interface up).
  */
-struct iwl_nvm_data *
-iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
-		   const __le16 *nvm_hw, const __le16 *nvm_sw,
-		   const __le16 *nvm_calib, const __le16 *regulatory,
-		   const __le16 *mac_override, const __le16 *phy_sku,
-		   u8 tx_chains, u8 rx_chains,
-		   bool lar_fw_supported, bool is_family_8000_a_step);
+enum iwl_wakelock_mode {
+	IWL_WAKELOCK_MODE_IDLE		= 0,
+	IWL_WAKELOCK_MODE_OFF		= 1,
+	IWL_WAKELOCK_MODE_ALWAYS_ON	= 2,
+};
 
-/**
- * iwl_parse_mcc_info - parse MCC (mobile country code) info coming from FW
- *
- * This function parses the regulatory channel data received as a
- * MCC_UPDATE_CMD command. It returns a newly allocation regulatory domain,
- * to be fed into the regulatory core. An ERR_PTR is returned on error.
- * If not given to the regulatory core, the user is responsible for freeing
- * the regdomain returned here with kfree.
- */
-struct ieee80211_regdomain *
-iwl_parse_nvm_mcc_info(struct device *dev, const struct iwl_cfg *cfg,
-		       int num_of_ch, __le32 *channels, u16 fw_mcc);
+enum {
+	IWL_D0I3_DBG_KEEP_BUS		= BIT(0),
+	IWL_D0I3_DBG_KEEP_WAKE_LOCK	= BIT(1),
+	IWL_D0I3_DBG_IGNORE_RX		= BIT(2),
+};
 
-#endif /* __iwl_nvm_parse_h__ */
+#ifndef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+#ifdef CONFIG_HAS_WAKELOCK
+/* wakelock timeout to use when all the references were released */
+#define IWL_WAKELOCK_TIMEOUT_MS		1500
+#endif /* CONFIG_HAS_WAKELOCK */
+#else /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
+#define IWL_D0I3_DEBUG			(trans->dbg_cfg.d0i3_debug)
+#ifdef CONFIG_HAS_WAKELOCK
+#define IWL_WAKELOCK_TIMEOUT_MS		(trans->dbg_cfg.WAKELOCK_TIMEOUT_MS)
+#endif /* CONFIG_HAS_WAKELOCK */
+#endif /* CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES */
+
+#endif /* __IWL_CONSTANTS_H */

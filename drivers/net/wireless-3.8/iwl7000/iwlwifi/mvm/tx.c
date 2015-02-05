@@ -73,9 +73,9 @@
 /*
  * Sets most of the Tx cmd's fields
  */
-static void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
-			       struct iwl_tx_cmd *tx_cmd,
-			       struct ieee80211_tx_info *info, u8 sta_id)
+void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
+			struct iwl_tx_cmd *tx_cmd,
+			struct ieee80211_tx_info *info, u8 sta_id)
 {
 	struct ieee80211_hdr *hdr = (void *)skb->data;
 	__le16 fc = hdr->frame_control;
@@ -90,8 +90,6 @@ static void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
 
 	if (ieee80211_is_probe_resp(fc))
 		tx_flags |= TX_CMD_FLG_TSF;
-	else if (ieee80211_is_back_req(fc))
-		tx_flags |= TX_CMD_FLG_ACK | TX_CMD_FLG_BAR;
 
 	if (ieee80211_has_morefrags(fc))
 		tx_flags |= TX_CMD_FLG_MORE_FRAG;
@@ -100,6 +98,15 @@ static void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
 		u8 *qc = ieee80211_get_qos_ctl(hdr);
 		tx_cmd->tid_tspec = qc[0] & 0xf;
 		tx_flags &= ~TX_CMD_FLG_SEQ_CTL;
+	} else if (ieee80211_is_back_req(fc)) {
+		struct ieee80211_bar *bar = (void *)skb->data;
+		u16 control = le16_to_cpu(bar->control);
+
+		tx_flags |= TX_CMD_FLG_ACK | TX_CMD_FLG_BAR;
+		tx_cmd->tid_tspec = (control &
+				     IEEE80211_BAR_CTRL_TID_INFO_MASK) >>
+			IEEE80211_BAR_CTRL_TID_INFO_SHIFT;
+		WARN_ON_ONCE(tx_cmd->tid_tspec >= IWL_MAX_TID_COUNT);
 	} else {
 		tx_cmd->tid_tspec = IWL_TID_NON_QOS;
 		if (info->flags & IEEE80211_TX_CTL_ASSIGN_SEQ)
@@ -108,8 +115,12 @@ static void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
 			tx_flags &= ~TX_CMD_FLG_SEQ_CTL;
 	}
 
-	/* tid_tspec will default to 0 = BE when QOS isn't enabled */
-	ac = tid_to_mac80211_ac[tx_cmd->tid_tspec];
+	/* Default to 0 (BE) when tid_spec is set to IWL_TID_NON_QOS */
+	if (tx_cmd->tid_tspec < IWL_MAX_TID_COUNT)
+		ac = tid_to_mac80211_ac[tx_cmd->tid_tspec];
+	else
+		ac = tid_to_mac80211_ac[0];
+
 	tx_flags |= iwl_mvm_bt_coex_tx_prio(mvm, hdr, info, ac) <<
 			TX_CMD_FLG_BT_PRIO_POS;
 
@@ -149,11 +160,9 @@ static void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
 /*
  * Sets the fields in the Tx cmd that are rate related
  */
-static void iwl_mvm_set_tx_cmd_rate(struct iwl_mvm *mvm,
-				    struct iwl_tx_cmd *tx_cmd,
-				    struct ieee80211_tx_info *info,
-				    struct ieee80211_sta *sta,
-				    __le16 fc)
+void iwl_mvm_set_tx_cmd_rate(struct iwl_mvm *mvm, struct iwl_tx_cmd *tx_cmd,
+			    struct ieee80211_tx_info *info,
+			    struct ieee80211_sta *sta, __le16 fc)
 {
 	u32 rate_flags;
 	int rate_idx;
@@ -189,8 +198,10 @@ static void iwl_mvm_set_tx_cmd_rate(struct iwl_mvm *mvm,
 
 	/* HT rate doesn't make sense for a non data frame */
 	WARN_ONCE(info->control.rates[0].flags & IEEE80211_TX_RC_MCS,
-		  "Got an HT rate for a non data frame 0x%x\n",
-		  info->control.rates[0].flags);
+		  "Got an HT rate (flags:0x%x/mcs:%d) for a non data frame (fc:0x%x)\n",
+		  info->control.rates[0].flags,
+		  info->control.rates[0].idx,
+		  le16_to_cpu(fc));
 
 	rate_idx = info->control.rates[0].idx;
 	/* if the rate isn't a well known legacy rate, take the lowest one */
@@ -209,12 +220,12 @@ static void iwl_mvm_set_tx_cmd_rate(struct iwl_mvm *mvm,
 	rate_plcp = iwl_mvm_mac80211_idx_to_hwrate(rate_idx);
 
 	mvm->mgmt_last_antenna_idx =
-		iwl_mvm_next_antenna(mvm, mvm->fw->valid_tx_ant,
+		iwl_mvm_next_antenna(mvm, iwl_mvm_get_valid_tx_ant(mvm),
 				     mvm->mgmt_last_antenna_idx);
 
 	if (info->band == IEEE80211_BAND_2GHZ &&
 	    !iwl_mvm_bt_coex_is_shared_ant_avail(mvm))
-		rate_flags = BIT(ANT_A) << RATE_MCS_ANT_POS;
+		rate_flags = BIT(mvm->cfg->non_shared_ant) << RATE_MCS_ANT_POS;
 	else
 		rate_flags =
 			BIT(mvm->mgmt_last_antenna_idx) << RATE_MCS_ANT_POS;
@@ -230,10 +241,10 @@ static void iwl_mvm_set_tx_cmd_rate(struct iwl_mvm *mvm,
 /*
  * Sets the fields in the Tx cmd that are crypto related
  */
-static void iwl_mvm_set_tx_cmd_crypto(struct iwl_mvm *mvm,
-				      struct ieee80211_tx_info *info,
-				      struct iwl_tx_cmd *tx_cmd,
-				      struct sk_buff *skb_frag)
+void iwl_mvm_set_tx_cmd_crypto(struct iwl_mvm *mvm,
+			       struct ieee80211_tx_info *info,
+			       struct iwl_tx_cmd *tx_cmd,
+			       struct sk_buff *skb_frag)
 {
 	struct ieee80211_key_conf *keyconf = info->control.hw_key;
 
@@ -424,6 +435,13 @@ int iwl_mvm_tx_skb(struct iwl_mvm *mvm, struct sk_buff *skb,
 
 	WARN_ON_ONCE(info->flags & IEEE80211_TX_CTL_SEND_AFTER_DTIM);
 
+	if (sta->tdls) {
+		/* default to TID 0 for non-QoS packets */
+		u8 tdls_tid = tid == IWL_MAX_TID_COUNT ? 0 : tid;
+
+		txq_id = mvmsta->hw_queue[tid_to_mac80211_ac[tdls_tid]];
+	}
+
 	if (is_ampdu) {
 		if (WARN_ON_ONCE(mvmsta->tid_data[tid].state != IWL_AGG_ON))
 			goto drop_unlock_sta;
@@ -489,11 +507,11 @@ static void iwl_mvm_check_ratid_empty(struct iwl_mvm *mvm,
 		IWL_DEBUG_TX_QUEUES(mvm,
 				    "Can continue DELBA flow ssn = next_recl = %d\n",
 				    tid_data->next_reclaimed);
-		iwl_trans_txq_disable(mvm->trans, tid_data->txq_id, true);
+		iwl_mvm_disable_txq(mvm, tid_data->txq_id, CMD_ASYNC);
 		tid_data->state = IWL_AGG_OFF;
 		/*
 		 * we can't hold the mutex - but since we are after a sequence
-		 * point (call to iwl_trans_txq_disable), so we don't even need
+		 * point (call to iwl_mvm_disable_txq(), so we don't even need
 		 * a memory barrier.
 		 */
 		mvm->queue_to_mac80211[tid_data->txq_id] =
@@ -589,14 +607,15 @@ static void iwl_mvm_tx_airtime(struct iwl_mvm *mvm,
 {
 	u32 ac = tid_to_mac80211_ac[tid];
 	int mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
+	struct iwl_mvm_tcm_mac *mdata = &mvm->tcm.data[mac];
 
 	if (mvm->tcm.paused)
 		return;
 
 	if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
 		iwl_mvm_recalc_tcm(mvm);
-	mvm->tcm.data[mac].tx.pkts[ac]++;
-	mvm->tcm.data[mac].tx.airtime[ac] += airtime;
+	mdata->tx.pkts[ac]++;
+	mdata->tx.airtime[ac] += airtime;
 }
 #endif
 
@@ -667,7 +686,8 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 
 		/* Single frame failure in an AMPDU queue => send BAR */
 		if (txq_id >= mvm->first_agg_queue &&
-		    !(info->flags & IEEE80211_TX_STAT_ACK))
+		    !(info->flags & IEEE80211_TX_STAT_ACK) &&
+		    !(info->flags & IEEE80211_TX_STAT_TX_FILTERED))
 			info->flags |= IEEE80211_TX_STAT_AMPDU_NO_BACK;
 
 		/* W/A FW bug: seq_ctl is wrong when the status isn't success */
@@ -676,6 +696,12 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 			seq_ctl = le16_to_cpu(hdr->seq_ctrl);
 		}
 
+		/*
+		 * TODO: this is not accurate if we are freeing more than one
+		 * packet.
+		 */
+		info->status.tx_time =
+			le16_to_cpu(tx_resp->wireless_media_time);
 		BUILD_BUG_ON(ARRAY_SIZE(info->status.status_driver_data) < 1);
 		info->status.status_driver_data[0] =
 				(void *)(uintptr_t)tx_resp->reduced_tpc;
@@ -874,6 +900,8 @@ static void iwl_mvm_rx_tx_cmd_agg(struct iwl_mvm *mvm,
 		mvmsta->tid_data[tid].rate_n_flags =
 			le32_to_cpu(tx_resp->initial_rate);
 		mvmsta->tid_data[tid].reduced_tpc = tx_resp->reduced_tpc;
+		mvmsta->tid_data[tid].tx_time =
+			le16_to_cpu(tx_resp->wireless_media_time);
 
 #ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_tx_airtime(mvm, mvmsta, tid,
@@ -907,6 +935,8 @@ static void iwl_mvm_tx_info_from_ba_notif(struct ieee80211_tx_info *info,
 	info->status.ampdu_len = ba_notif->txed;
 	iwl_mvm_hwrate_to_tx_status(tid_data->rate_n_flags,
 				    info);
+	/* TODO: not accounted if the whole A-MPDU failed */
+	info->status.tx_time = tid_data->tx_time;
 	info->status.status_driver_data[0] =
 		(void *)(uintptr_t)tid_data->reduced_tpc;
 }
@@ -930,6 +960,11 @@ int iwl_mvm_rx_ba_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 
 	sta_id = ba_notif->sta_id;
 	tid = ba_notif->tid;
+
+	if (WARN_ONCE(sta_id >= IWL_MVM_STATION_COUNT ||
+		      tid >= IWL_MAX_TID_COUNT,
+		      "sta_id %d tid %d", sta_id, tid))
+		return 0;
 
 	rcu_read_lock();
 

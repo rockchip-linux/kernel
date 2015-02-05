@@ -71,6 +71,7 @@
 
 /* grab default values */
 #undef CPTCFG_IWLWIFI_SUPPORT_DEBUG_OVERRIDES
+#include "iwl-constants.h"
 #if IS_ENABLED(CPTCFG_IWLXVT)
 #include "xvt/constants.h"
 #endif

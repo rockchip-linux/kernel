@@ -382,10 +382,13 @@ enum iwl_trans_status {
  *	if unset 4k will be the RX buffer size
  * @bc_table_dword: set to true if the BC table expects the byte count to be
  *	in DWORD (as opposed to bytes)
+ * @scd_set_active: should the transport configure the SCD for HCMD queue
  * @queue_watchdog_timeout: time (in ms) after which queues
  *	are considered stuck and will trigger device restart
  * @command_names: array of command names, must be 256 entries
  *	(one for each command); for debugging only
+ * @sdio_adma_addr: the default address to set for the ADMA in SDIO mode until
+ *	we get the ALIVE from the uCode
  */
 struct iwl_trans_config {
 	struct iwl_op_mode *op_mode;
@@ -397,8 +400,11 @@ struct iwl_trans_config {
 
 	bool rx_buf_size_8k;
 	bool bc_table_dword;
+	bool scd_set_active;
 	unsigned int queue_watchdog_timeout;
 	const char *const *command_names;
+
+	u32 sdio_adma_addr;
 };
 
 struct iwl_trans_dump_data {
@@ -542,6 +548,8 @@ struct iwl_trans_ops {
 			      u32 value);
 	void (*ref)(struct iwl_trans *trans);
 	void (*unref)(struct iwl_trans *trans);
+	void (*suspend)(struct iwl_trans *trans);
+	void (*resume)(struct iwl_trans *trans);
 
 	struct iwl_trans_dump_data *(*dump_data)(struct iwl_trans *trans);
 };
@@ -555,6 +563,21 @@ struct iwl_trans_ops {
 enum iwl_trans_state {
 	IWL_TRANS_NO_FW = 0,
 	IWL_TRANS_FW_ALIVE	= 1,
+};
+
+/**
+ * enum iwl_d0i3_mode - d0i3 mode
+ *
+ * @IWL_D0I3_MODE_OFF - d0i3 is disabled
+ * @IWL_D0I3_MODE_ON_IDLE - enter d0i3 when device is idle
+ *	(e.g. no active references)
+ * @IWL_D0I3_MODE_ON_SUSPEND - enter d0i3 only on suspend
+ *	(in case of 'any' trigger)
+ */
+enum iwl_d0i3_mode {
+	IWL_D0I3_MODE_OFF = 0,
+	IWL_D0I3_MODE_ON_IDLE,
+	IWL_D0I3_MODE_ON_SUSPEND,
 };
 
 /**
@@ -580,6 +603,9 @@ enum iwl_trans_state {
  * @rx_mpdu_cmd_hdr_size: used for tracing, amount of data before the
  *	start of the 802.11 header in the @rx_mpdu_cmd
  * @dflt_pwr_limit: default power limit fetched from the platform (ACPI)
+ * @dbg_dest_tlv: points to the destination TLV for debug
+ * @dbg_conf_tlv: array of pointers to configuration TLVs for debug
+ * @dbg_dest_reg_num: num of reg_ops in %dbg_dest_tlv
  */
 struct iwl_trans {
 	const struct iwl_trans_ops *ops;
@@ -615,6 +641,12 @@ struct iwl_trans {
 #endif
 
 	u64 dflt_pwr_limit;
+
+	const struct iwl_fw_dbg_dest_tlv *dbg_dest_tlv;
+	const struct iwl_fw_dbg_conf_tlv *dbg_conf_tlv[FW_DBG_MAX];
+	u8 dbg_dest_reg_num;
+
+	enum iwl_d0i3_mode d0i3_mode;
 
 	/* pointer to trans specific struct */
 	/*Ensure that this pointer will always be aligned to sizeof pointer */
@@ -740,6 +772,18 @@ static inline void iwl_trans_unref(struct iwl_trans *trans)
 		trans->ops->unref(trans);
 }
 
+static inline void iwl_trans_suspend(struct iwl_trans *trans)
+{
+	if (trans->ops->suspend)
+		trans->ops->suspend(trans);
+}
+
+static inline void iwl_trans_resume(struct iwl_trans *trans)
+{
+	if (trans->ops->resume)
+		trans->ops->resume(trans);
+}
+
 static inline struct iwl_trans_dump_data *
 iwl_trans_dump_data(struct iwl_trans *trans)
 {
@@ -862,12 +906,6 @@ static inline void iwl_trans_ac_txq_enable(struct iwl_trans *trans, int queue,
 	};
 
 	iwl_trans_txq_enable_cfg(trans, queue, 0, &cfg);
-}
-
-static inline void
-iwl_trans_txq_enable_no_scd(struct iwl_trans *trans, int queue, u16 ssn)
-{
-	iwl_trans_txq_enable_cfg(trans, queue, ssn, NULL);
 }
 
 static inline int iwl_trans_wait_tx_queue_empty(struct iwl_trans *trans,
@@ -1005,7 +1043,7 @@ static inline void iwl_pci_unregister_driver(void)
 
 #endif /* CPTCFG_IWLWIFI_PCIE */
 
-static inline int __must_check iwl_slv_register_drivers(void) {return 0; }
+static inline int __must_check iwl_slv_register_drivers(void) { return 0; }
 static inline void iwl_slv_unregister_drivers(void) {}
 
 static inline void trans_lockdep_init(struct iwl_trans *trans)

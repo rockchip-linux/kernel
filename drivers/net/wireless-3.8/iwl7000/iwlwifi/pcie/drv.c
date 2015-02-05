@@ -81,13 +81,15 @@
 	.driver_data = (kernel_ulong_t)&(cfg)
 
 /* Hardware specific file defines the PCI IDs table for that hardware module */
-static DEFINE_PCI_DEVICE_TABLE(iwl_hw_card_ids) = {
+static const struct pci_device_id iwl_hw_card_ids[] = {
 
 #if IS_ENABLED(CPTCFG_IWLMVM)
 /* 7260 Series */
 	{IWL_PCI_DEVICE(0x08B1, 0x4070, iwl7260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x08B1, 0x4072, iwl7260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x08B1, 0x4170, iwl7260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x08B1, 0x4C60, iwl7260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x08B1, 0x4C70, iwl7260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x08B1, 0x4060, iwl7260_2n_cfg)},
 	{IWL_PCI_DEVICE(0x08B1, 0x406A, iwl7260_2n_cfg)},
 	{IWL_PCI_DEVICE(0x08B1, 0x4160, iwl7260_2n_cfg)},
@@ -131,6 +133,8 @@ static DEFINE_PCI_DEVICE_TABLE(iwl_hw_card_ids) = {
 	{IWL_PCI_DEVICE(0x08B1, 0xC770, iwl7260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x08B1, 0xC760, iwl7260_2n_cfg)},
 	{IWL_PCI_DEVICE(0x08B2, 0xC270, iwl7260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x08B1, 0xCC70, iwl7260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x08B1, 0xCC60, iwl7260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x08B2, 0xC272, iwl7260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x08B2, 0xC260, iwl7260_2n_cfg)},
 	{IWL_PCI_DEVICE(0x08B2, 0xC26A, iwl7260_n_cfg)},
@@ -176,7 +180,11 @@ static DEFINE_PCI_DEVICE_TABLE(iwl_hw_card_ids) = {
 
 /* 3165 Series */
 	{IWL_PCI_DEVICE(0x3165, 0x4010, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x4012, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x4110, iwl3165_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x3165, 0x4210, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x4410, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x4510, iwl3165_2ac_cfg)},
 
 /* 7265 Series */
 	{IWL_PCI_DEVICE(0x095A, 0x5010, iwl7265_2ac_cfg)},
@@ -217,12 +225,12 @@ static DEFINE_PCI_DEVICE_TABLE(iwl_hw_card_ids) = {
 	{IWL_PCI_DEVICE(0x095A, 0x5490, iwl7265_2ac_cfg)},
 
 /* 8000 Series */
-	{IWL_PCI_DEVICE(0x0887, 0x0000, iwl8260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24F3, 0x0000, iwl8260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24F3, 0x0010, iwl8260_2ac_cfg)},
-	{IWL_PCI_DEVICE(0x24F3, 0x0000, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0004, iwl8260_2n_cfg)},
 	{IWL_PCI_DEVICE(0x24F4, 0x0030, iwl8260_2ac_cfg)},
-	{IWL_PCI_DEVICE(0x24F4, 0x0000, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F5, 0x0010, iwl4165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F6, 0x0030, iwl4165_2ac_cfg)},
 #endif /* CPTCFG_IWLMVM */
 
 	{0}
@@ -311,7 +319,7 @@ static void set_dflt_pwr_limit(struct iwl_trans *trans, struct pci_dev *pdev) {}
 static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	const struct iwl_cfg *cfg = (struct iwl_cfg *)(ent->driver_data);
-	const struct iwl_cfg *cfg_7265d = NULL;
+	const struct iwl_cfg *cfg_7265d __maybe_unused = NULL;
 	struct iwl_trans *iwl_trans;
 	struct iwl_trans_pcie *trans_pcie;
 	int ret;
@@ -320,6 +328,7 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (IS_ERR(iwl_trans))
 		return PTR_ERR(iwl_trans);
 
+#if IS_ENABLED(CPTCFG_IWLMVM)
 	/*
 	 * special-case 7265D, it has the same PCI IDs.
 	 *
@@ -334,8 +343,11 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	else if (cfg == &iwl7265_n_cfg)
 		cfg_7265d = &iwl7265d_n_cfg;
 	if (cfg_7265d &&
-	    (iwl_trans->hw_rev & CSR_HW_REV_TYPE_MSK) == CSR_HW_REV_TYPE_7265D)
+	    (iwl_trans->hw_rev & CSR_HW_REV_TYPE_MSK) == CSR_HW_REV_TYPE_7265D) {
 		cfg = cfg_7265d;
+		iwl_trans->cfg = cfg_7265d;
+	}
+#endif
 
 	pci_set_drvdata(pdev, iwl_trans);
 

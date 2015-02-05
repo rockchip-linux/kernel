@@ -106,6 +106,12 @@ enum {
 	DBG_CFG = 0x9,
 	ANTENNA_COUPLING_NOTIFICATION = 0xa,
 
+	/* UMAC scan commands */
+	SCAN_CFG_CMD = 0xc,
+	SCAN_REQ_UMAC = 0xd,
+	SCAN_ABORT_UMAC = 0xe,
+	SCAN_COMPLETE_UMAC = 0xf,
+
 	/* station table */
 	ADD_STA_KEY = 0x17,
 	ADD_STA = 0x18,
@@ -116,8 +122,16 @@ enum {
 	TXPATH_FLUSH = 0x1e,
 	MGMT_MCAST_KEY = 0x1f,
 
+	/* scheduler config */
+	SCD_QUEUE_CFG = 0x1d,
+
 	/* global key */
 	WEP_KEY = 0x20,
+
+	/* TDLS */
+	TDLS_CHANNEL_SWITCH_CMD = 0x27,
+	TDLS_CHANNEL_SWITCH_NOTIFICATION = 0xaa,
+	TDLS_CONFIG_CMD = 0xa7,
 
 	/* MAC and Binding commands */
 	MAC_CONTEXT_CMD = 0x28,
@@ -150,6 +164,8 @@ enum {
 	PHY_CONFIGURATION_CMD = 0x6a,
 	CALIB_RES_NOTIF_PHY_DB = 0x6b,
 	/* PHY_DB_CMD = 0x6c, */
+
+	CONFIG_2G_COEX_CMD = 0x71,
 
 	/* Power - legacy power table command */
 	POWER_TABLE_CMD = 0x77,
@@ -187,6 +203,8 @@ enum {
 	/* Power - new power table command */
 	MAC_PM_POWER_TABLE = 0xa9,
 
+	MFUART_LOAD_NOTIFICATION = 0xb1,
+
 	REPLY_RX_PHY_CMD = 0xc0,
 	REPLY_RX_MPDU_CMD = 0xc1,
 	BA_NOTIF = 0xc5,
@@ -194,6 +212,8 @@ enum {
 	/* Location Aware Regulatory */
 	MCC_UPDATE_CMD = 0xc8,
 	MCC_CHUB_UPDATE_CMD = 0xc9,
+
+	MARKER_CMD = 0xcb,
 
 	/* BT Coex */
 	BT_COEX_PRIO_TABLE = 0xcc,
@@ -238,11 +258,9 @@ enum {
 	WOWLAN_TX_POWER_PER_DB = 0xe6,
 
 	/* and for NetDetect */
-	NET_DETECT_CONFIG_CMD = 0x54,
-	NET_DETECT_PROFILES_QUERY_CMD = 0x56,
-	NET_DETECT_PROFILES_CMD = 0x57,
-	NET_DETECT_HOTSPOTS_CMD = 0x58,
-	NET_DETECT_HOTSPOTS_QUERY_CMD = 0x59,
+	SCAN_OFFLOAD_PROFILES_QUERY_CMD = 0x56,
+	SCAN_OFFLOAD_HOTSPOTS_CONFIG_CMD = 0x58,
+	SCAN_OFFLOAD_HOTSPOTS_QUERY_CMD = 0x59,
 
 	REPLY_MAX = 0xff,
 };
@@ -348,7 +366,8 @@ enum {
 	NVM_SECTION_TYPE_CALIBRATION = 4,
 	NVM_SECTION_TYPE_PRODUCTION = 5,
 	NVM_SECTION_TYPE_MAC_OVERRIDE = 11,
-	NVM_MAX_NUM_SECTIONS = 12,
+	NVM_SECTION_TYPE_PHY_SKU = 12,
+	NVM_MAX_NUM_SECTIONS = 13,
 };
 
 /**
@@ -560,7 +579,7 @@ enum iwl_time_event_type {
 	TE_WIDI_TX_SYNC,
 
 	/* Channel Switch NoA */
-	TE_P2P_GO_CSA_NOA,
+	TE_CHANNEL_SWITCH_PERIOD,
 
 	TE_MAX
 }; /* MAC_EVENT_TYPE_API_E_VER_1 */
@@ -1203,6 +1222,21 @@ struct iwl_missed_beacons_notif {
 } __packed; /* MISSED_BEACON_NTFY_API_S_VER_3 */
 
 /**
+ * struct iwl_mfuart_load_notif - mfuart image version & status
+ * ( MFUART_LOAD_NOTIFICATION = 0xb1 )
+ * @installed_ver: installed image version
+ * @external_ver: external image version
+ * @status: MFUART loading status
+ * @duration: MFUART loading time
+*/
+struct iwl_mfuart_load_notif {
+	__le32 installed_ver;
+	__le32 external_ver;
+	__le32 status;
+	__le32 duration;
+} __packed; /*MFU_LOADER_NTFY_API_S_VER_1*/
+
+/**
  * struct iwl_set_calib_default_cmd - set default value for calibration.
  * ( SET_CALIB_DEFAULT_CMD = 0x8e )
  * @calib_index: the calibration to set value for
@@ -1324,6 +1358,38 @@ struct iwl_bcast_filter_cmd {
 	struct iwl_fw_bcast_filter filters[MAX_BCAST_FILTERS];
 	struct iwl_fw_bcast_mac macs[NUM_MAC_INDEX_DRIVER];
 } __packed; /* BCAST_FILTERING_HCMD_API_S_VER_1 */
+
+/*
+ * enum iwl_mvm_marker_id - maker ids
+ *
+ * The ids for different type of markers to insert into the usniffer logs
+ */
+enum iwl_mvm_marker_id {
+	MARKER_ID_TX_FRAME_LATENCY = 1,
+}; /* MARKER_ID_API_E_VER_1 */
+
+/**
+ * struct iwl_mvm_marker - mark info into the usniffer logs
+ *
+ * (MARKER_CMD = 0xcb)
+ *
+ * Mark the UTC time stamp into the usniffer logs together with additional
+ * metadata, so the usniffer output can be parsed.
+ * In the command response the ucode will return the GP2 time.
+ *
+ * @dw_len: The amount of dwords following this byte including this byte.
+ * @marker_id: A unique marker id (iwl_mvm_marker_id).
+ * @reserved: reserved.
+ * @timestamp: in milliseconds since 1970-01-01 00:00:00 UTC
+ * @metadata: additional meta data that will be written to the unsiffer log
+ */
+struct iwl_mvm_marker {
+	u8 dwLen;
+	u8 markerId;
+	__le16 reserved;
+	__le64 timestamp;
+	__le32 metadata[0];
+} __packed; /* MARKER_API_S_VER_1 */
 
 struct mvm_statistics_dbg {
 	__le32 burst_check;
@@ -1579,6 +1645,8 @@ enum iwl_sf_scenario {
 
 #define SF_LONG_DELAY_AGING_TIMER 1000000	/* 1 Sec */
 
+#define SF_CFG_DUMMY_NOTIF_OFF	BIT(16)
+
 /**
  * Smart Fifo configuration command.
  * @state: smart fifo state, types listed in enum %iwl_sf_sate.
@@ -1605,11 +1673,13 @@ struct iwl_sf_cfg_cmd {
  * 'ZZ' MCC will be used to switch to NVM default profile; in this case, the
  * MCC in the cmd response will be the relevant MCC in the NVM.
  * @mcc: given mobile contry code
+ * @source_id: the source from where we got the MCC, see iwl_mcc_source
  * @reserved: reserved for alignment
  */
 struct iwl_mcc_update_cmd {
 	__le16 mcc;
-	__le16 reserved;
+	u8 source_id;
+	u8 reserved;
 } __packed; /* LAR_UPDATE_MCC_CMD_API_S */
 
 /**
@@ -1617,8 +1687,10 @@ struct iwl_mcc_update_cmd {
  * Contains the new channel control profile map, if changed, and the new MCC
  * (mobile country code).
  * The new MCC may be different than what was requested in MCC_UPDATE_CMD.
- * @status: 0 for success, 1 no change in channel profile, 2 invalid input.
+ * @status: see &enum iwl_mcc_update_status
  * @mcc: the new applied MCC
+ * @cap: capabilities for all channels which matches the MCC
+ * @source_id: the MCC source, see iwl_mcc_source
  * @n_channels: number of channels in @channels_data (may be 14, 39, 50 or 51
  *		channels, depending on platform)
  * @channels: channel control data map, DWORD for each channel. Only the first
@@ -1627,7 +1699,8 @@ struct iwl_mcc_update_cmd {
 struct iwl_mcc_update_resp {
 	__le32 status;
 	__le16 mcc;
-	__le16 reserved;
+	u8 cap;
+	u8 source_id;
 	__le32 n_channels;
 	__le32 channels[0];
 } __packed; /* LAR_UPDATE_MCC_CMD_RESP_S */
@@ -1644,11 +1717,13 @@ struct iwl_mcc_update_resp {
  * 'ZZ' MCC will be used to switch to NVM default profile; in this case, the
  * MCC in the cmd response will be the relevant MCC in the NVM.
  * @mcc: given mobile contry code
- * @reserved: reserved for alignment
+ * @source_id: identity of the change originator, see iwl_mcc_source
+ * @reserved1: reserved for alignment
  */
 struct iwl_mcc_chub_notif {
 	u16 mcc;
-	u16 reserved1;
+	u8 source_id;
+	u8 reserved1;
 } __packed; /* LAR_MCC_NOTIFY_S */
 
 enum iwl_mcc_update_status {
@@ -1656,6 +1731,21 @@ enum iwl_mcc_update_status {
 	MCC_RESP_SAME_CHAN_PROFILE,
 	MCC_RESP_INVALID,
 	MCC_RESP_NVM_DISABLED,
+	MCC_RESP_ILLEGAL,
+	MCC_RESP_LOW_PRIORITY,
+};
+
+enum iwl_mcc_source {
+	MCC_SOURCE_OLD_FW = 0,
+	MCC_SOURCE_ME = 1,
+	MCC_SOURCE_BIOS = 2,
+	MCC_SOURCE_3G_LTE_HOST = 3,
+	MCC_SOURCE_3G_LTE_DEVICE = 4,
+	MCC_SOURCE_WIFI = 5,
+	MCC_SOURCE_RESERVED = 6,
+	MCC_SOURCE_DEFAULT = 7,
+	MCC_SOURCE_UNINITIALIZED = 8,
+	MCC_SOURCE_GET_CURRENT = 0x10
 };
 
 /* DTS measurements */
@@ -1685,5 +1775,146 @@ struct iwl_dts_measurement_notif {
 	__le32 temp;
 	__le32 voltage;
 } __packed; /* TEMPERATURE_MEASUREMENT_TRIGGER_NTFY_S */
+
+/***********************************
+ * TDLS API
+ ***********************************/
+
+/* Type of TDLS request */
+enum iwl_tdls_channel_switch_type {
+	TDLS_SEND_CHAN_SW_REQ = 0,
+	TDLS_SEND_CHAN_SW_RESP_AND_MOVE_CH,
+	TDLS_MOVE_CH,
+}; /* TDLS_STA_CHANNEL_SWITCH_CMD_TYPE_API_E_VER_1 */
+
+/**
+ * Switch timing sub-element in a TDLS channel-switch command
+ * @frame_timestamp: GP2 timestamp of channel-switch request/response packet
+ *	received from peer
+ * @max_offchan_duration: What amount of microseconds out of a DTIM is given
+ *	to the TDLS off-channel communication. For instance if the DTIM is
+ *	200TU and the TDLS peer is to be given 25% of the time, the value
+ *	given will be 50TU, or 50 * 1024 if translated into microseconds.
+ * @switch_time: switch time the peer sent in its channel switch timing IE
+ * @switch_timout: switch timeout the peer sent in its channel switch timing IE
+ */
+struct iwl_tdls_channel_switch_timing {
+	__le32 frame_timestamp; /* GP2 time of peer packet Rx */
+	__le32 max_offchan_duration; /* given in micro-seconds */
+	__le32 switch_time; /* given in micro-seconds */
+	__le32 switch_timeout; /* given in micro-seconds */
+} __packed; /* TDLS_STA_CHANNEL_SWITCH_TIMING_DATA_API_S_VER_1 */
+
+#define IWL_TDLS_CH_SW_FRAME_MAX_SIZE 200
+
+/**
+ * TDLS channel switch frame template
+ *
+ * A template representing a TDLS channel-switch request or response frame
+ *
+ * @switch_time_offset: offset to the channel switch timing IE in the template
+ * @tx_cmd: Tx parameters for the frame
+ * @data: frame data
+ */
+struct iwl_tdls_channel_switch_frame {
+	__le32 switch_time_offset;
+	struct iwl_tx_cmd tx_cmd;
+	u8 data[IWL_TDLS_CH_SW_FRAME_MAX_SIZE];
+} __packed; /* TDLS_STA_CHANNEL_SWITCH_FRAME_API_S_VER_1 */
+
+/**
+ * TDLS channel switch command
+ *
+ * The command is sent to initiate a channel switch and also in response to
+ * incoming TDLS channel-switch request/response packets from remote peers.
+ *
+ * @switch_type: see &enum iwl_tdls_channel_switch_type
+ * @peer_sta_id: station id of TDLS peer
+ * @ci: channel we switch to
+ * @timing: timing related data for command
+ * @frame: channel-switch request/response template, depending to switch_type
+ */
+struct iwl_tdls_channel_switch_cmd {
+	u8 switch_type;
+	__le32 peer_sta_id;
+	struct iwl_fw_channel_info ci;
+	struct iwl_tdls_channel_switch_timing timing;
+	struct iwl_tdls_channel_switch_frame frame;
+} __packed; /* TDLS_STA_CHANNEL_SWITCH_CMD_API_S_VER_1 */
+
+/**
+ * TDLS channel switch start notification
+ *
+ * @status: non-zero on success
+ * @offchannel_duration: duration given in microseconds
+ * @sta_id: peer currently performing the channel-switch with
+ */
+struct iwl_tdls_channel_switch_notif {
+	__le32 status;
+	__le32 offchannel_duration;
+	__le32 sta_id;
+} __packed; /* TDLS_STA_CHANNEL_SWITCH_NTFY_API_S_VER_1 */
+
+/**
+ * TDLS station info
+ *
+ * @sta_id: station id of the TDLS peer
+ * @tx_to_peer_tid: TID reserved vs. the peer for FW based Tx
+ * @tx_to_peer_ssn: initial SSN the FW should use for Tx on its TID vs the peer
+ * @is_initiator: 1 if the peer is the TDLS link initiator, 0 otherwise
+ */
+struct iwl_tdls_sta_info {
+	u8 sta_id;
+	u8 tx_to_peer_tid;
+	__le16 tx_to_peer_ssn;
+	__le32 is_initiator;
+} __packed; /* TDLS_STA_INFO_VER_1 */
+
+/**
+ * TDLS basic config command
+ *
+ * @id_and_color: MAC id and color being configured
+ * @tdls_peer_count: amount of currently connected TDLS peers
+ * @tx_to_ap_tid: TID reverved vs. the AP for FW based Tx
+ * @tx_to_ap_ssn: initial SSN the FW should use for Tx on its TID vs. the AP
+ * @sta_info: per-station info. Only the first tdls_peer_count entries are set
+ * @pti_req_data_offset: offset of network-level data for the PTI template
+ * @pti_req_tx_cmd: Tx parameters for PTI request template
+ * @pti_req_template: PTI request template data
+ */
+struct iwl_tdls_config_cmd {
+	__le32 id_and_color; /* mac id and color */
+	u8 tdls_peer_count;
+	u8 tx_to_ap_tid;
+	__le16 tx_to_ap_ssn;
+	struct iwl_tdls_sta_info sta_info[IWL_MVM_TDLS_STA_COUNT];
+
+	__le32 pti_req_data_offset;
+	struct iwl_tx_cmd pti_req_tx_cmd;
+	u8 pti_req_template[0];
+} __packed; /* TDLS_CONFIG_CMD_API_S_VER_1 */
+
+/**
+ * TDLS per-station config information from FW
+ *
+ * @sta_id: station id of the TDLS peer
+ * @tx_to_peer_last_seq: last sequence number used by FW during FW-based Tx to
+ *	the peer
+ */
+struct iwl_tdls_config_sta_info_res {
+	__le16 sta_id;
+	__le16 tx_to_peer_last_seq;
+} __packed; /* TDLS_STA_INFO_RSP_VER_1 */
+
+/**
+ * TDLS config information from FW
+ *
+ * @tx_to_ap_last_seq: last sequence number used by FW during FW-based Tx to AP
+ * @sta_info: per-station TDLS config information
+ */
+struct iwl_tdls_config_res {
+	__le32 tx_to_ap_last_seq;
+	struct iwl_tdls_config_sta_info_res sta_info[IWL_MVM_TDLS_STA_COUNT];
+} __packed; /* TDLS_CONFIG_RSP_API_S_VER_1 */
 
 #endif /* __fw_api_h__ */

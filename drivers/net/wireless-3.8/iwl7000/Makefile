@@ -30,6 +30,8 @@ export CPTCFG_IWLXVT=m
 endif
 
 subdir-ccflags-y = -I$(src) -include "hdrs/iwl-chrome.h"
+subdir-ccflags-y += $(call cc-option,-Wno-error=date-time)
+subdir-ccflags-y += $(call cc-option,-Wno-date-time)
 
 obj-$(CONFIG_IWL7000) += mac80211/
 obj-$(CONFIG_IWL7000) += iwlwifi/

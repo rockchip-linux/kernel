@@ -76,11 +76,7 @@
 #include "iwl-dnt-dispatch.h"
 
 #define DRV_DESCRIPTION	"Intel(R) xVT driver for Linux"
-
-#define DRV_VERSION     IWLWIFI_VERSION
-
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
-MODULE_VERSION(DRV_VERSION);
 MODULE_AUTHOR(DRV_COPYRIGHT " " DRV_AUTHOR);
 MODULE_LICENSE("GPL");
 
@@ -156,6 +152,7 @@ static struct iwl_op_mode *iwl_xvt_start(struct iwl_trans *trans,
 	trans_cfg.rx_buf_size_8k = false;
 	if (xvt->fw->ucode_capa.flags & IWL_UCODE_TLV_FLAGS_DW_BC_TABLE)
 		trans_cfg.bc_table_dword = true;
+	trans_cfg.scd_set_active = true;
 
 	/* Configure transport layer */
 	iwl_trans_configure(xvt->trans, &trans_cfg);

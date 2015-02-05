@@ -87,6 +87,16 @@ enum iwl_device_family {
 	IWL_DEVICE_FAMILY_8000,
 };
 
+static inline bool iwl_has_secure_boot(u32 hw_rev,
+				       enum iwl_device_family family)
+{
+	/* return 1 only for family 8000 B0 */
+	if ((family == IWL_DEVICE_FAMILY_8000) && (hw_rev & 0xC))
+		return 1;
+
+	return 0;
+}
+
 /*
  * LED mode
  *    IWL_LED_DEFAULT:  use device default
@@ -230,6 +240,7 @@ struct iwl_pwr_tx_backoff {
  * @max_data_size: The maximal length of the fw data section
  * @valid_tx_ant: valid transmit antenna
  * @valid_rx_ant: valid receive antenna
+ * @non_shared_ant: the antenna that is for WiFi only
  * @nvm_ver: NVM version
  * @nvm_calib_ver: NVM calibration version
  * @lib: pointer to the lib ops
@@ -245,6 +256,15 @@ struct iwl_pwr_tx_backoff {
  * @nvm_hw_section_num: the ID of the HW NVM section
  * @pwr_tx_backoffs: translation table between power limits and backoffs
  * @max_rx_agg_size: max RX aggregation size of the ADDBA request/response
+ * @max_tx_agg_size: max TX aggregation size of the ADDBA request/response
+ * @max_ht_ampdu_factor: the exponent of the max length of A-MPDU that the
+ *	station can receive in HT
+ * @max_vht_ampdu_exponent: the exponent of the max length of A-MPDU that the
+ *	station can receive in VHT
+ * @dccm_offset: offset from which DCCM begins
+ * @dccm_len: length of DCCM (including runtime stack CCM)
+ * @smem_offset: offset from which the SMEM begins
+ * @smem_len: the length of SMEM
  *
  * We enable the driver to be backward compatible wrt. hardware features.
  * API differences in uCode shouldn't be handled here but through TLVs
@@ -262,6 +282,7 @@ struct iwl_cfg {
 	const u32 max_inst_size;
 	u8   valid_tx_ant;
 	u8   valid_rx_ant;
+	u8   non_shared_ant;
 	bool bt_shared_single_ant;
 	u16  nvm_ver;
 	u16  nvm_calib_ver;
@@ -281,7 +302,16 @@ struct iwl_cfg {
 	const struct iwl_pwr_tx_backoff *pwr_tx_backoffs;
 	bool no_power_up_nic_in_init;
 	const char *default_nvm_file;
+	const char *default_nvm_file_8000A;
 	unsigned int max_rx_agg_size;
+	bool disable_dummy_notification;
+	unsigned int max_tx_agg_size;
+	unsigned int max_ht_ampdu_exponent;
+	unsigned int max_vht_ampdu_exponent;
+	const u32 dccm_offset;
+	const u32 dccm_len;
+	const u32 smem_offset;
+	const u32 smem_len;
 };
 
 /*
@@ -302,8 +332,11 @@ extern const struct iwl_cfg iwl7265_n_cfg;
 extern const struct iwl_cfg iwl7265d_2ac_cfg;
 extern const struct iwl_cfg iwl7265d_2n_cfg;
 extern const struct iwl_cfg iwl7265d_n_cfg;
+extern const struct iwl_cfg iwl8260_2n_cfg;
 extern const struct iwl_cfg iwl8260_2ac_cfg;
+extern const struct iwl_cfg iwl4165_2ac_cfg;
 extern const struct iwl_cfg iwl8260_2ac_sdio_cfg;
+extern const struct iwl_cfg iwl4165_2ac_sdio_cfg;
 #endif /* CPTCFG_IWLMVM */
 
 #endif /* __IWL_CONFIG_H__ */

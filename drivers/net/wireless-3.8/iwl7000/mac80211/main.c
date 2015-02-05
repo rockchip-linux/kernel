@@ -490,8 +490,9 @@ static const struct ieee80211_vht_cap mac80211_vht_capa_mod_mask = {
 	},
 };
 
-struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
-					const struct ieee80211_ops *ops)
+struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
+					   const struct ieee80211_ops *ops,
+					   const char *requested_name)
 {
 	struct ieee80211_local *local;
 	int priv_size, i;
@@ -531,7 +532,7 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 	 */
 	priv_size = ALIGN(sizeof(*local), NETDEV_ALIGN) + priv_data_len;
 
-	wiphy = wiphy_new(&mac80211_config_ops, priv_size);
+	wiphy = wiphy_new_nm(&mac80211_config_ops, priv_size, requested_name);
 
 	if (!wiphy)
 		return NULL;
@@ -553,6 +554,7 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 			   NL80211_FEATURE_SAE |
 			   NL80211_FEATURE_HT_IBSS |
 			   NL80211_FEATURE_VIF_TXPOWER |
+			   NL80211_FEATURE_MAC_ON_CREATE |
 			   NL80211_FEATURE_USERSPACE_MPM;
 
 	if (!ops->hw_scan)
@@ -663,7 +665,7 @@ struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
 
 	return &local->hw;
 }
-EXPORT_SYMBOL(ieee80211_alloc_hw);
+EXPORT_SYMBOL(ieee80211_alloc_hw_nm);
 
 static int ieee80211_init_cipher_suites(struct ieee80211_local *local)
 {
@@ -776,6 +778,12 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	     local->hw.offchannel_tx_hw_queue >= local->hw.queues))
 		return -EINVAL;
 
+	if ((hw->wiphy->features & NL80211_FEATURE_TDLS_CHANNEL_SWITCH) &&
+	    (!local->ops->tdls_channel_switch ||
+	     !local->ops->tdls_cancel_channel_switch ||
+	     !local->ops->tdls_recv_channel_switch))
+		return -EOPNOTSUPP;
+
 	if (!local->use_chanctx) {
 		for (i = 0; i < local->hw.wiphy->n_iface_combinations; i++) {
 			const struct ieee80211_iface_combination *comb;
@@ -793,13 +801,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		 */
 		if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_WDS))
 			return -EINVAL;
-
-		/* DFS currently not supported with channel context drivers */
-		for (i = 0; i < local->hw.wiphy->n_iface_combinations; i++) {
-			const struct ieee80211_iface_combination *comb;
-
-			comb = &local->hw.wiphy->iface_combinations[i];
-		}
 	}
 
 	/* Only HW csum features are currently compatible with mac80211 */
@@ -913,10 +914,6 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		}
 	}
 
-	WARN((local->hw.flags & IEEE80211_HW_SUPPORTS_UAPSD)
-	     && (local->hw.flags & IEEE80211_HW_PS_NULLFUNC_STACK),
-	     "U-APSD not supported with HW_PS_NULLFUNC_STACK\n");
-
 	/*
 	 * Calculate scan IE length -- we need this to alloc
 	 * memory and to subtract from the driver limit. It
@@ -1025,7 +1022,8 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	}
 
 	/* add one default STA interface if supported */
-	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_STATION)) {
+	if (local->hw.wiphy->interface_modes & BIT(NL80211_IFTYPE_STATION) &&
+	    !(hw->flags & IEEE80211_HW_NO_AUTO_VIF)) {
 		result = ieee80211_if_add(local, "wlan%d", NULL,
 					  NL80211_IFTYPE_STATION, NULL);
 		if (result)
@@ -1057,6 +1055,8 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 	if (result)
 		goto fail_ifa6;
 #endif
+
+	intel_regulatory_register(local);
 
 	return 0;
 
@@ -1108,6 +1108,8 @@ void ieee80211_unregister_hw(struct ieee80211_hw *hw)
 
 	tasklet_kill(&local->tx_pending_tasklet);
 	tasklet_kill(&local->tasklet);
+
+	intel_regulatory_deregister(local);
 
 	pm_qos_remove_notifier(PM_QOS_NETWORK_LATENCY,
 			       &local->network_latency_notifier);
@@ -1161,6 +1163,7 @@ static int ieee80211_free_ack_frame(int id, void *p, void *data)
 void ieee80211_free_hw(struct ieee80211_hw *hw)
 {
 	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_tx_latency_bin_ranges *tx_latency;
 
 	mutex_destroy(&local->iflist_mtx);
 	mutex_destroy(&local->mtx);
@@ -1173,7 +1176,13 @@ void ieee80211_free_hw(struct ieee80211_hw *hw)
 	idr_destroy(&local->ack_status_frames);
 
 	kfree(rcu_access_pointer(local->tx_consec));
-	kfree(rcu_access_pointer(local->tx_latency));
+
+	tx_latency = rcu_access_pointer(local->tx_latency);
+	if (tx_latency) {
+		kfree(tx_latency->thresholds_bss);
+		kfree(tx_latency->thresholds_p2p);
+	}
+	kfree(tx_latency);
 
 	wiphy_free(local->hw.wiphy);
 }

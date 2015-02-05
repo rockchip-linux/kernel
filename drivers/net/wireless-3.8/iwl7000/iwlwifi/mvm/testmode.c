@@ -260,10 +260,7 @@ static int iwl_tm_get_dev_info(struct iwl_mvm *mvm,
 			       struct iwl_tm_data *data_out)
 {
 	struct iwl_tm_dev_info *dev_info;
-	const u8 driver_ver[] = IWLWIFI_VERSION;
-
-	if (!mvm->nvm_data)
-		return -EINVAL;
+	const u8 driver_ver[] = BACKPORTS_GIT_TRACKED;
 
 	dev_info = kzalloc(sizeof(struct iwl_tm_dev_info) +
 			   (strlen(driver_ver)+1)*sizeof(u8), GFP_KERNEL);
@@ -273,8 +270,7 @@ static int iwl_tm_get_dev_info(struct iwl_mvm *mvm,
 	dev_info->dev_id = mvm->trans->hw_id;
 	dev_info->fw_ver = mvm->fw->ucode_ver;
 	dev_info->vendor_id = PCI_VENDOR_ID_INTEL;
-
-	dev_info->silicon_step = mvm->nvm_data->radio_cfg_step;
+	dev_info->silicon_step = CSR_HW_REV_STEP(mvm->trans->hw_rev);
 
 	/* TODO: Assign real value when feature is implemented */
 	dev_info->build_ver = 0x00;
@@ -431,13 +427,27 @@ int iwl_mvm_tm_cmd_execute(struct iwl_op_mode *op_mode, u32 cmd,
 /**
  * iwl_tm_mvm_retrieve_monitor() - trigger monitor retrieve event
  */
-int iwl_tm_mvm_retrieve_monitor(struct ieee80211_hw *hw)
+int iwl_tm_mvm_retrieve_monitor(struct ieee80211_hw *hw,
+				struct ieee80211_tx_thrshld_md *md)
 {
 	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_tm_thrshld_md tm_md;
+
+	if (!md)
+		return -1;
+
+	tm_md.mode = md->mode;
+	tm_md.monitor_collec_wind = md->monitor_collec_wind;
+	tm_md.seq = md->seq;
+	tm_md.pkt_start = md->pkt_start;
+	tm_md.pkt_end = md->pkt_end;
+	tm_md.msrmnt = md->msrmnt;
+	tm_md.tid = md->tid;
 
 	return iwl_tm_gnl_send_msg(mvm->trans,
 				   IWL_TM_USER_CMD_NOTIF_RETRIEVE_MONITOR,
-				   false, NULL, 0, GFP_ATOMIC);
+				   false, &tm_md, sizeof(tm_md),
+				   GFP_ATOMIC);
 }
 #endif
 

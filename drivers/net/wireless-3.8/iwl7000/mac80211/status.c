@@ -390,6 +390,46 @@ ieee80211_add_tx_radiotap_header(struct ieee80211_local *local,
 	}
 }
 
+/*
+ * Handles the tx for TDLS teardown frames.
+ * If the frame wasn't ACKed by the peer - it will be re-sent through the AP
+ */
+static void ieee80211_tdls_td_tx_handle(struct ieee80211_local *local,
+					struct ieee80211_sub_if_data *sdata,
+					struct sk_buff *skb, u32 flags)
+{
+	struct sk_buff *teardown_skb;
+	struct sk_buff *orig_teardown_skb;
+	bool is_teardown = false;
+
+	/* Get the teardown data we need and free the lock */
+	spin_lock(&sdata->u.mgd.teardown_lock);
+	teardown_skb = sdata->u.mgd.teardown_skb;
+	orig_teardown_skb = sdata->u.mgd.orig_teardown_skb;
+	if ((skb == orig_teardown_skb) && teardown_skb) {
+		sdata->u.mgd.teardown_skb = NULL;
+		sdata->u.mgd.orig_teardown_skb = NULL;
+		is_teardown = true;
+	}
+	spin_unlock(&sdata->u.mgd.teardown_lock);
+
+	if (is_teardown) {
+		/* This mechanism relies on being able to get ACKs */
+		WARN_ON(!(local->hw.flags &
+			  IEEE80211_HW_REPORTS_TX_ACK_STATUS));
+
+		/* Check if peer has ACKed */
+		if (flags & IEEE80211_TX_STAT_ACK) {
+			dev_kfree_skb_any(teardown_skb);
+		} else {
+			tdls_dbg(sdata,
+				 "TDLS Resending teardown through AP\n");
+
+			ieee80211_subif_start_xmit(teardown_skb, skb->dev);
+		}
+	}
+}
+
 static void ieee80211_report_used_skb(struct ieee80211_local *local,
 				      struct sk_buff *skb, bool dropped)
 {
@@ -426,8 +466,19 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 		if (!sdata) {
 			skb->dev = NULL;
 		} else if (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX) {
-			ieee80211_mgd_conn_tx_status(sdata, hdr->frame_control,
-						     acked);
+			unsigned int hdr_size =
+				ieee80211_hdrlen(hdr->frame_control);
+
+			/* Check to see if packet is a TDLS teardown packet */
+			if (ieee80211_is_data(hdr->frame_control) &&
+			    (ieee80211_get_tdls_action(skb, hdr_size) ==
+			     WLAN_TDLS_TEARDOWN))
+				ieee80211_tdls_td_tx_handle(local, sdata, skb,
+							    info->flags);
+			else
+				ieee80211_mgd_conn_tx_status(sdata,
+							     hdr->frame_control,
+							     acked);
 		} else if (ieee80211_is_nullfunc(hdr->frame_control) ||
 			   ieee80211_is_qos_nullfunc(hdr->frame_control)) {
 			cfg80211_probe_status(sdata->dev, hdr->addr1,
@@ -573,6 +624,38 @@ tx_latency_msrmnt(struct ieee80211_tx_latency_bin_ranges *tx_latency,
 	if (i == bin_range_count) /* msrmnt is bigger than the biggest range */
 		tx_lat->bins[i]++;
 }
+
+static void
+tx_latency_threshold(struct ieee80211_local *local, struct sk_buff *skb,
+		     struct ieee80211_tx_latency_bin_ranges *tx_latency,
+		     struct sta_info *sta, int tid, u32 msrmnt)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct ieee80211_tx_thrshld_md md;
+
+	/*
+	 * Make sure that tx_latency && threshold are enabled
+	 * for this iface && tid
+	 */
+	if (!tx_latency || !sta->tx_lat_thrshld ||
+	    !sta->tx_lat_thrshld[tid])
+		return;
+
+	if (sta->tx_lat_thrshld[tid] < msrmnt) {
+		md.mode = tx_latency->monitor_record_mode;
+		md.monitor_collec_wind = tx_latency->monitor_collec_wind;
+		md.pkt_start = ktime_to_ms(skb->tstamp);
+		md.pkt_end = ktime_to_ms(skb->tstamp) + msrmnt;
+		md.msrmnt = msrmnt;
+		md.tid = tid;
+		md.seq = (le16_to_cpu(hdr->seq_ctrl) &
+			  IEEE80211_SCTL_SEQ) >> 4;
+#ifdef CPTCFG_NL80211_TESTMODE
+		drv_retrieve_monitor_logs(local, &md);
+#endif
+	}
+}
+
 /*
  * 1) Measure Tx frame completion and removal time for Tx latency statistics
  * calculation. A single Tx frame latency should be measured from when it
@@ -633,9 +716,7 @@ static void ieee80211_collect_tx_timing_stats(struct ieee80211_local *local,
 	 * trigger retrival of monitor logs
 	 * (if a threshold was configured & passed)
 	 */
-	if (tx_latency && tx_latency->threshold &&
-	    tx_latency->threshold < msrmnt)
-		drv_retrieve_monitor_logs(local);
+	tx_latency_threshold(local, skb, tx_latency, sta, tid, msrmnt);
 #endif
 }
 
@@ -647,6 +728,8 @@ static void ieee80211_collect_tx_timing_stats(struct ieee80211_local *local,
  *  - current throughput (higher value for higher tpt)?
  */
 #define STA_LOST_PKT_THRESHOLD	50
+#define STA_LOST_TDLS_PKT_THRESHOLD	10
+#define STA_LOST_TDLS_PKT_TIME		(10*HZ) /* 10secs since last ACK */
 
 static void ieee80211_lost_packet(struct sta_info *sta, struct sk_buff *skb)
 {
@@ -657,7 +740,20 @@ static void ieee80211_lost_packet(struct sta_info *sta, struct sk_buff *skb)
 	    !(info->flags & IEEE80211_TX_STAT_AMPDU))
 		return;
 
-	if (++sta->lost_packets < STA_LOST_PKT_THRESHOLD)
+	sta->lost_packets++;
+	if (!sta->sta.tdls && sta->lost_packets < STA_LOST_PKT_THRESHOLD)
+		return;
+
+	/*
+	 * If we're in TDLS mode, make sure that all STA_LOST_TDLS_PKT_THRESHOLD
+	 * of the last packets were lost, and that no ACK was received in the
+	 * last STA_LOST_TDLS_PKT_TIME ms, before triggering the CQM packet-loss
+	 * mechanism.
+	 */
+	if (sta->sta.tdls &&
+	    (sta->lost_packets < STA_LOST_TDLS_PKT_THRESHOLD ||
+	     time_before(jiffies,
+			 sta->last_tdls_pkt_time + STA_LOST_TDLS_PKT_TIME)))
 		return;
 
 	cfg80211_cqm_pktloss_notify(sta->sdata->dev, sta->sta.addr,
@@ -800,7 +896,8 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 
 		if ((sta->sdata->vif.type == NL80211_IFTYPE_STATION) &&
 		    (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS))
-			ieee80211_sta_tx_notify(sta->sdata, (void *) skb->data, acked);
+			ieee80211_sta_tx_notify(sta->sdata, (void *) skb->data,
+						acked, info->status.tx_time);
 
 		prev_loss_pkt = 0;
 
@@ -815,6 +912,10 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 					prev_loss_pkt = sta->lost_packets;
 					sta->lost_packets = 0;
 				}
+
+				/* Track when last TDLS packet was ACKed */
+				if (test_sta_flag(sta, WLAN_STA_TDLS_PEER_AUTH))
+					sta->last_tdls_pkt_time = jiffies;
 			} else {
 				ieee80211_lost_packet(sta, skb);
 			}
