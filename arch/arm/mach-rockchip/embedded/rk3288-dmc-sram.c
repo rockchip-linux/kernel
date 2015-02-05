@@ -989,8 +989,8 @@ static void dmc_set_rate_in_sram(void *arg)
 		}
 	}
 
-	dmc->cur_freq = g_dmc_sram.cur_freq;
 	deidle_port(clk_gate, deidle_req);
+	dmc->cur_freq = g_dmc_sram.cur_freq;
 	dmc->training_retries = retries;
 }
 
