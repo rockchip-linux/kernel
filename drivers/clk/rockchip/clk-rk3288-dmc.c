@@ -1054,6 +1054,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	unsigned int cpu;
 	int ret = 0;
 
+	dmc->training_retries = 0;
 	cpu_maps_update_begin();
 	rockchip_dmc_lock();
 	rockchip_dmc_wait();
@@ -1104,6 +1105,9 @@ out:
 	local_bh_enable();
 	rockchip_dmc_unlock();
 	cpu_maps_update_done();
+
+	WARN(dmc->training_retries > 0, "data training retries %d times\n",
+	     dmc->training_retries);
 
 	return ret;
 }

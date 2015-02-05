@@ -181,6 +181,7 @@ struct rk3288_dmcclk {
 	u32 clkod;
 	u32 clkr;
 	u32 clkf;
+	int training_retries;
 
 	u32 channel_num;
 	u32 dtar[NUM_MC_CHANNEL_MAX];

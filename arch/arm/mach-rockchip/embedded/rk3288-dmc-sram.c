@@ -936,7 +936,8 @@ static void dmc_set_rate_in_sram(void *arg)
 {
 	struct rk3288_dmcclk *dmc = (struct rk3288_dmcclk *)arg;
 	u32 tmp, n, cs[CH_MAX], ch, deidle_req, clk_gate[CLKGATE_MAX_NUM];
-	bool success;
+	int retries = 0;
+	bool success = false;
 
 	dmc_sram_init(dmc);
 	/* read the need register to confirm TLB cached */
@@ -961,31 +962,36 @@ static void dmc_set_rate_in_sram(void *arg)
 	rk3288_dmc_set_dpll(g_dmc_sram.target_freq);
 	g_dmc_sram.cur_freq = g_dmc_sram.target_freq;
 
-	/* Issues a Mode Exit command */
-	for (ch = 0; ch < CH_MAX; ch++) {
-		if (ddr_ch[ch].mem_type != DRAM_MAX) {
-			ddr_set_dll_bypass(ch, g_dmc_sram.target_freq);
-			ddr_reset_dll(ch);
-			ddr_move_to_config_state(ch);
-			ddr_update_timing(ch);
-			ddr_update_mr(ch);
-			ddr_update_odt(ch);
-			ddr_adjust_config(ch);
-			cs[ch] = ddr_data_training_trigger(ch);
+	while (!success) {
+		/* Issues a Mode Exit command */
+		for (ch = 0; ch < CH_MAX; ch++) {
+			if (ddr_ch[ch].mem_type != DRAM_MAX) {
+				ddr_set_dll_bypass(ch, g_dmc_sram.target_freq);
+				ddr_reset_dll(ch);
+				ddr_move_to_config_state(ch);
+				ddr_update_timing(ch);
+				ddr_update_mr(ch);
+				ddr_update_odt(ch);
+				ddr_adjust_config(ch);
+				cs[ch] = ddr_data_training_trigger(ch);
+			}
 		}
-	}
 
-	for (ch = 0; ch < CH_MAX; ch++) {
-		if (ddr_ch[ch].mem_type != DRAM_MAX) {
-			success = ddr_data_training(ch, cs[ch]);
-			ddr_move_to_access_state(ch);
-			if (!success)
-				return;
+		for (ch = 0; ch < CH_MAX; ch++) {
+			if (ddr_ch[ch].mem_type != DRAM_MAX) {
+				success = ddr_data_training(ch, cs[ch]);
+				ddr_move_to_access_state(ch);
+				if (!success) {
+					retries++;
+					break;
+				}
+			}
 		}
 	}
 
 	dmc->cur_freq = g_dmc_sram.cur_freq;
 	deidle_port(clk_gate, deidle_req);
+	dmc->training_retries = retries;
 }
 
 static struct dmc_regtiming *dmc_get_regtiming_addr(void)
