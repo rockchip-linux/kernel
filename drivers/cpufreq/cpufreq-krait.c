@@ -219,7 +219,7 @@ static int krait_cpufreq_get_speed_pvs(struct device_node *np,
 	if (IS_ERR(regmap))
 		return PTR_ERR(regmap);
 
-	ret = regmap_read(regmap, 0xC0, &val);
+	ret = regmap_raw_read(regmap, 0xC0, &val, 4);
 	if (ret)
 		return ret;
 
