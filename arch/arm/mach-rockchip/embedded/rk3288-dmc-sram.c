@@ -494,7 +494,7 @@ static u32 ddr_data_training_trigger(u32 ch)
 
 static bool ddr_data_training(u32 ch, u32 cs)
 {
-	u32 val, i, byte;
+	u32 val, i, byte = 2;
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
