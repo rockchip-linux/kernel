@@ -198,10 +198,11 @@
 		};
 
 		imem: memory@700000 {
-			compatible = "qcom,imem-ipq8064", "syscon";
+			compatible = "qcom,qfprom", "syscon";
 			reg = <0x00700000 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
+			stride = <1>;
 			ranges = <0x0 0x00700000 0x1000>;
 		};
 
