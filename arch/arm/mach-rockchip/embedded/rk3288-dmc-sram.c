@@ -54,7 +54,7 @@
 
 /* CRU Registers Define */
 #define CRU_PLL_CON(x, y)	((x) * 0x10 + (y) * 0x4)
-#define CRU_MODE_CON		0x0040
+#define CRU_MODE_CON		0x0050
 #define CRU_CLKSEL_CON(x)	((x) * 0x4 + 0x60)
 #define CRU_CLKGATE_CON(x)	((x) * 0x4 + 0x160)
 #define CLKGATE_MAX_NUM		19
