@@ -78,6 +78,7 @@ static const struct snd_soc_dapm_route bdw_rt5677_map[] = {
 	/* CODEC BE connections */
 	{"SSP0 CODEC IN", NULL, "AIF1 Capture"},
 	{"AIF1 Playback", NULL, "SSP0 CODEC OUT"},
+	{"DSP Capture", NULL, "DSP Buffer"},
 };
 
 static const struct snd_kcontrol_new bdw_rt5677_controls[] = {
@@ -255,6 +256,17 @@ static struct snd_soc_dai_link bdw_rt5677_dais[] = {
 			SND_SOC_DPCM_TRIGGER_POST
 		},
 		.dpcm_capture = 1,
+	},
+
+	/* Non-DPCM links */
+	{
+		.name = "Codec DSP",
+		.stream_name = "Wake on Voice",
+		.cpu_name = "spi-RT5677AA:00",
+		.cpu_dai_name = "spi-RT5677AA:00",
+		.codec_name = "i2c-RT5677CE:00",
+		.codec_dai_name = "rt5677-dspbuffer",
+		.platform_name = "spi-RT5677AA:00",
 	},
 
 	/* Back End DAI links */
