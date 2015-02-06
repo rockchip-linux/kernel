@@ -268,6 +268,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-pinky-rev1.dtb \
 	rk3288-pinky-rev0.dtb \
 	rk3288-rialto-rev0.dtb \
+	rk3288-speedy.dtb \
 	rk3288-speedy-rev0.dtb \
 	rk3288-speedy-rev1.dtb
 dtb-$(CONFIG_ARCH_S3C24XX) += s3c2416-smdk2416.dtb
