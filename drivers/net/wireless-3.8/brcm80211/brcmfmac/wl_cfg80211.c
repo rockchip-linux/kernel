@@ -2205,20 +2205,68 @@ brcmf_cfg80211_config_default_mgmt_key(struct wiphy *wiphy,
 	return -EOPNOTSUPP;
 }
 
+static s32 brcmf_get_counters(struct brcmf_if *ifp,
+			      struct brcmf_wl_counters_le *counters)
+{
+	u8 *buf;
+	s32 err = 0;
+
+	buf = kzalloc(BRCMF_WL_COUNTERS_MAX, GFP_KERNEL);
+	if (buf == NULL)
+		return -ENOMEM;
+
+	err = brcmf_fil_iovar_data_get(ifp, "counters", buf,
+				       BRCMF_WL_COUNTERS_MAX);
+	if (err)
+		brcmf_err("Could not get counters (%d)\n", err);
+	else
+		memcpy(counters, buf, sizeof(*counters));
+
+	kfree(buf);
+	return err;
+}
+
+static s32 brcmf_get_bss_info(struct brcmf_if *ifp,
+			      struct brcmf_bss_info_le *bi)
+
+{
+	u8 *buf;
+	s32 err = 0;
+
+	buf = kzalloc(WL_BSS_INFO_MAX, GFP_KERNEL);
+	if (buf == NULL)
+		return -ENOMEM;
+
+	*(__le32 *)buf = cpu_to_le32(WL_BSS_INFO_MAX);
+	err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_BSS_INFO, buf,
+				     WL_BSS_INFO_MAX);
+	if (err)
+		brcmf_err("Could not get BSS_INFO (%d)\n", err);
+	else
+		memcpy(bi, buf + 4, sizeof(*bi));
+
+	kfree(buf);
+	return err;
+}
+
 static s32
 brcmf_cfg80211_get_station(struct wiphy *wiphy, struct net_device *ndev,
 			   u8 *mac, struct station_info *sinfo)
 {
+	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
 	struct brcmf_if *ifp = netdev_priv(ndev);
 	struct brcmf_cfg80211_profile *profile = &ifp->vif->profile;
-	struct brcmf_scb_val_le scb_val;
-	int rssi;
-	s32 rate;
-	s32 err = 0;
 	u8 *bssid = profile->bssid;
 	struct brcmf_sta_info_le sta_info_le;
-	u32 beacon_period;
-	u32 dtim_period;
+	struct brcmf_wl_counters_le counters;
+	struct brcmf_bss_info_le bi;
+	struct brcmf_scb_val_le scb_val;
+	struct brcmu_chan ch;
+	u16 capability;
+	u32 nbss_cap;
+	u32 rspec;
+	u32 rspec_encode;
+	s32 err = 0;
 
 	brcmf_dbg(TRACE, "Enter, MAC %pM\n", mac);
 	if (!check_vif_up(ifp->vif))
@@ -2248,58 +2296,128 @@ brcmf_cfg80211_get_station(struct wiphy *wiphy, struct net_device *ndev,
 			err = -ENOENT;
 			goto done;
 		}
-		/* Report the current tx rate */
-		err = brcmf_fil_cmd_int_get(ifp, BRCMF_C_GET_RATE, &rate);
-		if (err) {
-			brcmf_err("Could not get rate (%d)\n", err);
+
+		if (!test_bit(BRCMF_VIF_STATUS_CONNECTED,
+			      &ifp->vif->sme_state)) {
 			goto done;
-		} else {
-			sinfo->filled |= STATION_INFO_TX_BITRATE;
-			sinfo->txrate.legacy = rate * 5;
-			brcmf_dbg(CONN, "Rate %d Mbps\n", rate / 2);
 		}
 
-		if (test_bit(BRCMF_VIF_STATUS_CONNECTED,
-			     &ifp->vif->sme_state)) {
-			memset(&scb_val, 0, sizeof(scb_val));
-			err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_RSSI,
-						     &scb_val, sizeof(scb_val));
-			if (err) {
-				brcmf_err("Could not get rssi (%d)\n", err);
-				goto done;
-			} else {
-				rssi = le32_to_cpu(scb_val.val);
-				sinfo->filled |= STATION_INFO_SIGNAL;
-				sinfo->signal = rssi;
-				brcmf_dbg(CONN, "RSSI %d dBm\n", rssi);
-			}
-			err = brcmf_fil_cmd_int_get(ifp, BRCMF_C_GET_BCNPRD,
-						    &beacon_period);
-			if (err) {
-				brcmf_err("Could not get beacon period (%d)\n",
-					  err);
-				goto done;
-			} else {
-				sinfo->bss_param.beacon_interval =
-					beacon_period;
-				brcmf_dbg(CONN, "Beacon peroid %d\n",
-					  beacon_period);
-			}
-			err = brcmf_fil_cmd_int_get(ifp, BRCMF_C_GET_DTIMPRD,
-						    &dtim_period);
-			if (err) {
-				brcmf_err("Could not get DTIM period (%d)\n",
-					  err);
-				goto done;
-			} else {
-				sinfo->bss_param.dtim_period = dtim_period;
-				brcmf_dbg(CONN, "DTIM peroid %d\n",
-					  dtim_period);
-			}
-			sinfo->filled |= STATION_INFO_BSS_PARAM;
+		sinfo->filled = 0;
+
+		/* Inactive Time & Connected Time */
+		memcpy(&sta_info_le, mac, ETH_ALEN);
+		err = brcmf_fil_iovar_data_get(ifp, "sta_info", &sta_info_le,
+					       sizeof(sta_info_le));
+		if (err) {
+			brcmf_err("GET STA INFO failed, %d\n", err);
+		} else {
+			sinfo->inactive_time =
+			    le32_to_cpu(sta_info_le.idle) * 1000;
+			sinfo->filled |= STATION_INFO_INACTIVE_TIME;
+			sinfo->connected_time = le32_to_cpu(sta_info_le.in);
+			sinfo->filled |= STATION_INFO_CONNECTED_TIME;
 		}
-	} else
+
+		/* RSSI */
+		memset(&scb_val, 0, sizeof(scb_val));
+		err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_RSSI,
+					     &scb_val, sizeof(scb_val));
+		if (err) {
+			brcmf_err("Could not get rssi (%d)\n", err);
+		} else {
+			sinfo->signal = le32_to_cpu(scb_val.val);
+			sinfo->filled |= STATION_INFO_SIGNAL;
+			brcmf_dbg(CONN, "RSSI %d dBm\n", sinfo->signal);
+		}
+
+		/* Tx/Rx Statistics */
+		err = brcmf_get_counters(ifp, &counters);
+		if (err) {
+			brcmf_err("Could not get counters (%d)\n", err);
+		} else {
+			sinfo->tx_bytes = le32_to_cpu(counters.txbyte);
+			sinfo->filled |= STATION_INFO_TX_BYTES;
+			sinfo->tx_packets = le32_to_cpu(counters.txframe);
+			sinfo->filled |= STATION_INFO_TX_PACKETS;
+			sinfo->rx_bytes = le32_to_cpu(counters.rxbyte);
+			sinfo->filled |= STATION_INFO_RX_BYTES;
+			sinfo->rx_packets = le32_to_cpu(counters.rxframe);
+			sinfo->filled |= STATION_INFO_RX_PACKETS;
+		}
+
+		/* BSS Parameters */
+		err = brcmf_get_bss_info(ifp, &bi);
+		if (err) {
+			brcmf_err("Could not get BSS_INFO (%d)\n", err);
+			goto done;
+		}
+
+		capability = le16_to_cpu(bi.capability);
+		nbss_cap = le16_to_cpu(bi.nbss_cap);
+		brcmf_dbg(CONN, "Capability 0x%x, Nbss_Cap 0x%x\n",
+			  capability, nbss_cap);
+
+		ch.chspec = le16_to_cpu(bi.chanspec);
+		cfg->d11inf.decchspec(&ch);
+
+		sinfo->bss_param.beacon_interval =
+		    le16_to_cpu(bi.beacon_period);
+		sinfo->bss_param.dtim_period = bi.dtim_period;
+		if (capability & IEEE80211_HT_STBC_PARAM_DUAL_CTS_PROT)
+			sinfo->bss_param.flags |= BSS_PARAM_FLAGS_CTS_PROT;
+		if (capability & WLAN_CAPABILITY_SHORT_PREAMBLE)
+			sinfo->bss_param.flags |= BSS_PARAM_FLAGS_SHORT_PREAMBLE;
+		if (capability & WLAN_CAPABILITY_SHORT_SLOT_TIME)
+			sinfo->bss_param.flags |= BSS_PARAM_FLAGS_SHORT_SLOT_TIME;
+		sinfo->filled |= STATION_INFO_BSS_PARAM;
+
+		if (ch.bw == BRCMU_CHAN_BW_40)
+			sinfo->txrate.flags |= RATE_INFO_FLAGS_40_MHZ_WIDTH;
+		else if (ch.bw == BRCMU_CHAN_BW_80)
+			sinfo->txrate.flags |= RATE_INFO_FLAGS_80_MHZ_WIDTH;
+		else if (ch.bw == BRCMU_CHAN_BW_80P80)
+			sinfo->txrate.flags |= RATE_INFO_FLAGS_80P80_MHZ_WIDTH;
+		else if (ch.bw == BRCMU_CHAN_BW_160)
+		        sinfo->txrate.flags |= RATE_INFO_FLAGS_160_MHZ_WIDTH;
+
+		/* Tx Rate */
+		err = brcmf_fil_iovar_int_get(ifp, "nrate", &rspec);
+		if (err) {
+			brcmf_err("Could not get nrate (%d)\n", err);
+			goto done;
+		}
+		rspec_encode = (rspec & BRCMF_RSPEC_ENCODING_MASK);
+		brcmf_dbg(CONN, "Rspec 0x%x (encode 0x%x)\n",
+			  rspec, rspec_encode);
+
+		if (rspec_encode == BRCMF_RSPEC_ENCODE_VHT) {
+			sinfo->txrate.mcs = rspec & BRCMF_RSPEC_VHT_MCS_MASK;
+			sinfo->txrate.flags |= RATE_INFO_FLAGS_VHT_MCS;
+			sinfo->txrate.nss = (rspec & BRCMF_RSPEC_VHT_NSS_MASK) >>
+			    BRCMF_RSPEC_VHT_NSS_SHIFT;
+		} else if (rspec_encode == BRCMF_RSPEC_ENCODE_HT) {
+			sinfo->txrate.mcs = rspec & BRCMF_RSPEC_RATE_MASK;
+			sinfo->txrate.flags |= RATE_INFO_FLAGS_MCS;
+		} else if (rspec_encode == BRCMF_RSPEC_ENCODE_RATE) {
+			/* Bitrate in 100kbit/s for 802.11abg */
+			sinfo->txrate.legacy =
+			    (rspec & BRCMF_RSPEC_RATE_MASK) * 5;
+		}
+
+		if (bi.vht_cap) {
+			if ((nbss_cap & IEEE80211_VHT_CAP_SHORT_GI_80) ||
+			    (nbss_cap & IEEE80211_VHT_CAP_SHORT_GI_160))
+				sinfo->txrate.flags |= RATE_INFO_FLAGS_SHORT_GI;
+		} else if (bi.n_cap) {
+			if ((nbss_cap & IEEE80211_HT_CAP_SGI_20) ||
+			    (nbss_cap & IEEE80211_HT_CAP_SGI_40))
+				sinfo->txrate.flags |= RATE_INFO_FLAGS_SHORT_GI;
+		}
+		sinfo->filled |= STATION_INFO_TX_BITRATE;
+	} else {
 		err = -EPERM;
+	}
+
 done:
 	brcmf_dbg(TRACE, "Exit\n");
 	return err;

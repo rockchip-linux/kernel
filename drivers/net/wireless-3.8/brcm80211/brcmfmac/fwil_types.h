@@ -53,6 +53,21 @@
 #define BRCMF_OBSS_COEX_OFF		0
 #define BRCMF_OBSS_COEX_ON		1
 
+/* WL Counters */
+#define	BRCMF_WL_COUNTERS_MAX		2048
+#define	BRCMF_WL_N_FIFO			6
+
+/* rspec */
+#define	BRCMF_RSPEC_ENCODING_MASK	0x03000000
+#define	BRCMF_RSPEC_ENCODE_RATE		0x00000000
+#define	BRCMF_RSPEC_ENCODE_HT		0x01000000
+#define	BRCMF_RSPEC_ENCODE_VHT		0x02000000
+
+#define	BRCMF_RSPEC_RATE_MASK		0x000000FF
+#define	BRCMF_RSPEC_VHT_MCS_MASK	0x0000000F
+#define	BRCMF_RSPEC_VHT_NSS_MASK	0x000000F0
+#define	BRCMF_RSPEC_VHT_NSS_SHIFT	4
+
 /* join preference types for join_pref iovar */
 enum brcmf_join_pref_types {
 	BRCMF_JOIN_PREF_RSSI = 1,
@@ -189,9 +204,12 @@ struct brcmf_bss_info_le {
 	/* 802.11N BSS Capabilities (based on HT_CAP_*): */
 	__le32 nbss_cap;
 	u8 ctl_ch;		/* 802.11N BSS control channel number */
-	__le32 reserved32[1];	/* Reserved for expansion of BSS properties */
+	u8 padding1[3];		/* explicit struct alignment padding */
+	__le16 vht_rxmcsmap;	/* VHT rx mcs map */
+	__le16 vht_txmcsmap;	/* VHT tx mcs map */
 	u8 flags;		/* flags */
-	u8 reserved[3];	/* Reserved for expansion of BSS properties */
+	u8 vht_cap;		/* BSS is vht capable */
+	u8 reserved[2];		/* Reserved for expansion of BSS properties */
 	u8 basic_mcs[MCSSET_LEN];	/* 802.11N BSS required MCS set */
 
 	__le16 ie_offset;	/* offset at which IEs start, from beginning */
@@ -426,6 +444,53 @@ struct brcmf_rx_mgmt_data {
 	__be32	rssi;
 	__be32	mactime;
 	__be32	rate;
+};
+
+/* WL counters */
+struct brcmf_wl_counters_le {
+	__le16	version;	/* see definition of WL_CNT_T_VERSION */
+	__le16	length;		/* length of entire structure */
+
+	/* transmit stat counters */
+	__le32	txframe;	/* tx data frames */
+	__le32	txbyte;		/* tx data bytes */
+	__le32	txretrans;	/* tx mac retransmits */
+	__le32	txerror;	/* tx data errors (derived: sum of others) */
+	__le32	txctl;		/* tx management frames */
+	__le32	txprshort;	/* tx short preamble frames */
+	__le32	txserr;		/* tx status errors */
+	__le32	txnobuf;	/* tx out of buffers errors */
+	__le32	txnoassoc;	/* tx discard because we're not associated */
+	__le32	txrunt;		/* tx runt frames */
+	__le32	txchit;		/* tx header cache hit (fastpath) */
+	__le32	txcmiss;	/* tx header cache miss (slowpath) */
+
+	/* transmit chip error counters */
+	__le32	txuflo;		/* tx fifo underflows */
+	__le32	txphyerr;	/* tx phy errors (indicated in tx status) */
+	__le32	txphycrs;	/* tx phy counter */
+
+	/* receive stat counters */
+	__le32	rxframe;	/* rx data frames */
+	__le32	rxbyte;		/* rx data bytes */
+	__le32	rxerror;	/* rx data errors (derived: sum of others) */
+	__le32	rxctl;		/* rx management frames */
+	__le32	rxnobuf;	/* rx out of buffers errors */
+	__le32	rxnondata;	/* rx non data frames in the data channel errors */
+	__le32	rxbadds;	/* rx bad DS errors */
+	__le32	rxbadcm;	/* rx bad control or management frames */
+	__le32	rxfragerr;	/* rx fragmentation errors */
+	__le32	rxrunt;		/* rx runt frames */
+	__le32	rxgiant;	/* rx giant frames */
+	__le32	rxnoscb;	/* rx no scb error */
+	__le32	rxbadproto;	/* rx invalid frames */
+	__le32	rxbadsrcmac;	/* rx frames with Invalid Src Mac */
+	__le32	rxbadda;	/* rx frames tossed for invalid da */
+	__le32	rxfilter;	/* rx frames filtered out */
+
+	/* receive chip error counters */
+	__le32	rxoflo;		/* rx fifo overflow errors */
+	__le32	rxuflo[BRCMF_WL_N_FIFO];/* rx dma descriptor underflow errors */
 };
 
 #endif /* FWIL_TYPES_H_ */
