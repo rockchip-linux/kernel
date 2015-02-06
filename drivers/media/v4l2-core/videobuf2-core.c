@@ -1292,21 +1292,13 @@ static int __qbuf_userptr(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 	int ret;
 	enum dma_data_direction dma_dir =
 		V4L2_TYPE_IS_OUTPUT(q->type) ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
-	bool reacquired = vb->planes[0].mem_priv == NULL;
 
 	memset(planes, 0, sizeof(planes[0]) * vb->num_planes);
 	/* Copy relevant information provided by the userspace */
 	__fill_vb2_buffer(vb, b, planes);
 
 	for (plane = 0; plane < vb->num_planes; ++plane) {
-		/* Skip the plane if already verified */
-		if (vb->v4l2_planes[plane].m.userptr &&
-		    vb->v4l2_planes[plane].m.userptr == planes[plane].m.userptr
-		    && vb->v4l2_planes[plane].length == planes[plane].length)
-			continue;
-
-		dprintk(3, "userspace address for plane %d changed, "
-				"reacquiring memory\n", plane);
+		WARN_ON(vb->planes[plane].mem_priv != NULL);
 
 		/* Check if the provided plane buffer is large enough */
 		if (planes[plane].length < q->plane_sizes[plane]) {
@@ -1318,16 +1310,6 @@ static int __qbuf_userptr(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 			goto err;
 		}
 
-		/* Release previously acquired memory if present */
-		if (vb->planes[plane].mem_priv) {
-			if (!reacquired) {
-				reacquired = true;
-				call_void_vb_qop(vb, buf_cleanup, vb);
-			}
-			call_void_memop(vb, put_userptr, vb->planes[plane].mem_priv);
-		}
-
-		vb->planes[plane].mem_priv = NULL;
 		memset(&vb->v4l2_planes[plane], 0, sizeof(struct v4l2_plane));
 
 		/* Acquire each plane's memory */
@@ -1350,17 +1332,14 @@ static int __qbuf_userptr(struct vb2_buffer *vb, const struct v4l2_buffer *b)
 	for (plane = 0; plane < vb->num_planes; ++plane)
 		vb->v4l2_planes[plane] = planes[plane];
 
-	if (reacquired) {
-		/*
-		 * One or more planes changed, so we must call buf_init to do
-		 * the driver-specific initialization on the newly acquired
-		 * buffer, if provided.
-		 */
-		ret = call_vb_qop(vb, buf_init, vb);
-		if (ret) {
-			dprintk(1, "buffer initialization failed\n");
-			goto err;
-		}
+	/*
+	 * Call buf_init to do driver-specific initialization on the newly
+	 * acquired buffer, if provided.
+	 */
+	ret = call_vb_qop(vb, buf_init, vb);
+	if (ret) {
+		dprintk(1, "buffer initialization failed\n");
+		goto err;
 	}
 
 	ret = call_vb_qop(vb, buf_prepare, vb);
@@ -1937,13 +1916,25 @@ static void __vb2_dqbuf(struct vb2_buffer *vb)
 	vb->state = VB2_BUF_STATE_DEQUEUED;
 
 	/* unmap DMABUF buffer */
-	if (q->memory == V4L2_MEMORY_DMABUF)
+	if (q->memory == V4L2_MEMORY_DMABUF) {
 		for (i = 0; i < vb->num_planes; ++i) {
 			if (!vb->planes[i].dbuf_mapped)
 				continue;
 			call_void_memop(vb, unmap_dmabuf, vb->planes[i].mem_priv);
 			vb->planes[i].dbuf_mapped = 0;
 		}
+	} else if (q->memory == V4L2_MEMORY_USERPTR) {
+		call_void_vb_qop(vb, buf_cleanup, vb);
+
+		for (i = 0; i < vb->num_planes; ++i) {
+			WARN_ON(vb->planes[i].mem_priv == NULL);
+			call_void_memop(vb, put_userptr,
+					vb->planes[i].mem_priv);
+			vb->planes[i].mem_priv = NULL;
+			memset(&vb->v4l2_planes[i], 0,
+					sizeof(struct v4l2_plane));
+		}
+	}
 }
 
 static int vb2_internal_dqbuf(struct vb2_queue *q, struct v4l2_buffer *b, bool nonblocking)
