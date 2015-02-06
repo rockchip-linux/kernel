@@ -294,10 +294,12 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 	for (plane = 0; plane < vb->num_planes; ++plane) {
 		dma_desc = &gbuf->dma_desc[plane];
 		sgt = vb2_dma_sg_plane_desc(vb, plane);
-		if (sgt->sgl->offset) {
-			go2001_err(gdev, "Buffer not page-aligned\n");
-			ret = -EINVAL;
-			goto err;
+		if (!IS_ALIGNED(sgt->sgl->offset, 8) ||
+				!IS_ALIGNED(vb2_plane_size(vb, plane), 8)) {
+			go2001_err(gdev, "Plane address/size not aligned "
+					"%d/%zu\n", sgt->sgl->offset,
+					vb2_plane_size(vb, plane));
+			return -EINVAL;
 		}
 
 		dma_desc->num_entries =
@@ -325,13 +327,10 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 		mmap_list = dma_desc->mmap_list;
 		for_each_sg(sgt->sgl, sg, dma_desc->num_entries, sgi) {
 			dma_addr = sg_dma_address(sg);
-			WARN_ON(!IS_ALIGNED(dma_addr, SZ_4K));
-
 			dma_len = sg_dma_len(sg);
-			WARN_ON(!IS_ALIGNED(dma_len, SZ_4K));
 
 			mmap_list[sgi].dma_addr = cpu_to_le64(dma_addr);
-			mmap_list[sgi].size = cpu_to_le32(sg_dma_len(sg));
+			mmap_list[sgi].size = cpu_to_le32(dma_len);
 
 			go2001_dbg(gdev, 3, "Chunk %d: 0x%08llx, size %d\n",
 					sgi, dma_addr, dma_len);
