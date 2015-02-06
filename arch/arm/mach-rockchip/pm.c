@@ -243,6 +243,9 @@ static int __init rk3288_suspend_init(struct device_node *np)
 
 	rk3288_init_pmu_sram();
 
+	regmap_write(pmu_regmap, RK3288_PMU_OSC_CNT, OSC_STABL_CNT_THRESH);
+	regmap_write(pmu_regmap, RK3288_PMU_STABL_CNT, PMU_STABL_CNT_THRESH);
+
 	return 0;
 }
 
