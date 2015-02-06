@@ -366,7 +366,7 @@ static int go2001_buf_prepare(struct vb2_buffer *vb)
 	return ret;
 }
 
-static int go2001_buf_finish(struct vb2_buffer *vb)
+static void go2001_buf_finish(struct vb2_buffer *vb)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
 	struct go2001_buffer *gbuf;
@@ -380,14 +380,14 @@ static int go2001_buf_finish(struct vb2_buffer *vb)
 	 */
 	if (ctx->codec_mode != CODEC_MODE_ENCODER ||
 			V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type))
-		return 0;
+		return;
 
 	gbuf = vb_to_go2001_buf(vb);
 	plane_size = vb2_plane_size(vb, 0);
 	vaddr = vb2_plane_vaddr(vb, 0);
 	if (!vaddr) {
 		go2001_err(ctx->gdev, "Unable to map buffer\n");
-		return -ENOMEM;
+		return;
 	}
 
 	ptr = vaddr;
@@ -404,7 +404,7 @@ static int go2001_buf_finish(struct vb2_buffer *vb)
 		if (gbuf->partition_off[i] + gbuf->partition_size[i] >
 				plane_size) {
 			go2001_err(ctx->gdev, "Invalid partition size\n");
-			return -EINVAL;
+			return;
 		}
 
 		if (ptr != vaddr + gbuf->partition_off[i])
@@ -412,8 +412,6 @@ static int go2001_buf_finish(struct vb2_buffer *vb)
 				gbuf->partition_size[i]);
 		ptr += gbuf->partition_size[i];
 	}
-
-	return 0;
 }
 
 static void go2001_buf_cleanup(struct vb2_buffer *vb)
@@ -483,7 +481,7 @@ static int go2001_start_streaming(struct vb2_queue *q, unsigned int count)
 	return ret;
 }
 
-static int go2001_stop_streaming(struct vb2_queue *q)
+static void go2001_stop_streaming(struct vb2_queue *q)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(q);
 	bool is_src = V4L2_TYPE_IS_OUTPUT(q->type);
@@ -513,7 +511,6 @@ static int go2001_stop_streaming(struct vb2_queue *q)
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
 	vb2_wait_for_all_buffers(q);
-	return 0;
 }
 
 static void go2001_buf_queue(struct vb2_buffer *vb)
@@ -567,6 +564,7 @@ static int go2001_init_vb2_queue(struct vb2_queue *q, struct go2001_ctx *ctx,
 	q->mem_ops = &vb2_dma_sg_memops;
 	q->drv_priv = ctx;
 	q->buf_struct_size = sizeof(struct go2001_buffer);
+	q->timestamp_type = V4L2_BUF_FLAG_TIMESTAMP_COPY;
 
 	return vb2_queue_init(q);
 }
