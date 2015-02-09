@@ -1266,6 +1266,18 @@ static void dw_hdmi_audio_clk_disable(struct dw_hdmi *hdmi)
 			HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
 }
 
+static void dw_hdmi_audio_restore(struct dw_hdmi *hdmi)
+{
+	mutex_lock(&hdmi->audio_mutex);
+
+	if (hdmi->audio_enable)
+		dw_hdmi_audio_clk_enable(hdmi);
+	else
+		dw_hdmi_audio_clk_disable(hdmi);
+
+	mutex_unlock(&hdmi->audio_mutex);
+}
+
 static void dw_hdmi_audio_enable(struct dw_hdmi *hdmi)
 {
 	mutex_lock(&hdmi->audio_mutex);
@@ -1416,7 +1428,7 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 
 		/* HDMI Initialization Step E - Configure audio */
 		hdmi_clk_regenerator_update_pixel_clock(hdmi);
-		dw_hdmi_audio_clk_enable(hdmi);
+		dw_hdmi_audio_restore(hdmi);
 
 		/* HDMI Initialization Step F - Configure AVI InfoFrame */
 		hdmi_config_AVI(hdmi);
