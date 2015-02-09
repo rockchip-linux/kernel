@@ -191,10 +191,8 @@ static void hdmi_set_clock_regenerator_n(struct dw_hdmi *hdmi,
 
 static void hdmi_regenerate_cts(struct dw_hdmi *hdmi, unsigned int cts)
 {
-	int val = (hdmi->dev_type == RK3288_HDMI) ? 0x10 : 0x00;
-
 	/* Must be set/cleared first */
-	hdmi_modb(hdmi, val, HDMI_AUD_CTS3_CTS_MANUAL, HDMI_AUD_CTS3);
+	hdmi_modb(hdmi, 0, HDMI_AUD_CTS3_CTS_MANUAL, HDMI_AUD_CTS3);
 
 	hdmi_writeb(hdmi, cts & 0xff, HDMI_AUD_CTS1);
 	hdmi_writeb(hdmi, (cts >> 8) & 0xff, HDMI_AUD_CTS2);
