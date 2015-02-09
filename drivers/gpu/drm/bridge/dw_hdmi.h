@@ -916,8 +916,10 @@ enum {
 	HDMI_AUD_CTS3_N_SHIFT_64 = 0x60,
 	HDMI_AUD_CTS3_N_SHIFT_128 = 0x80,
 	HDMI_AUD_CTS3_N_SHIFT_256 = 0xa0,
-	/* note that the CTS3 MANUAL bit has been removed
-	   from our part. Can't set it, will read as 0. */
+	/*
+	 * Note: CTS_MANUAL is not present on iMX6 dw_hdmi, but is present on
+	 * rk3288 (design_id = 0x20).
+	 */
 	HDMI_AUD_CTS3_CTS_MANUAL = 0x10,
 	HDMI_AUD_CTS3_AUDCTS19_16_MASK = 0x0f,
 

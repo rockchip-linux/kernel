@@ -200,19 +200,24 @@ static void hdmi_mask_writeb(struct dw_hdmi *hdmi, u8 data, unsigned int reg,
 static void hdmi_set_clock_regenerator(struct dw_hdmi *hdmi,
 				       unsigned int n, unsigned int cts)
 {
-	hdmi_writeb(hdmi, n & 0xff, HDMI_AUD_N1);
-	hdmi_writeb(hdmi, (n >> 8) & 0xff, HDMI_AUD_N2);
-	hdmi_writeb(hdmi, (n >> 16) & 0x0f, HDMI_AUD_N3);
+	u8 cts3 = 0;
 
-	/* nshift factor = 0 */
-	hdmi_modb(hdmi, 0, HDMI_AUD_CTS3_N_SHIFT_MASK, HDMI_AUD_CTS3);
-	/* Must be set/cleared first */
-	hdmi_modb(hdmi, 0, HDMI_AUD_CTS3_CTS_MANUAL, HDMI_AUD_CTS3);
+	/* set CTS_MANUAL (if present) */
+	if (hdmi->id.design == 0x20)
+		cts3 = HDMI_AUD_CTS3_CTS_MANUAL;
 
-	hdmi_writeb(hdmi, cts & 0xff, HDMI_AUD_CTS1);
+	cts3 |= HDMI_AUD_CTS3_N_SHIFT_1 << HDMI_AUD_CTS3_N_SHIFT_OFFSET;
+	cts3 |= (cts >> 16) & HDMI_AUD_CTS3_AUDCTS19_16_MASK;
+
+	/* write CTS values; CTS3 must be written first */
+	hdmi_writeb(hdmi, cts3, HDMI_AUD_CTS3);
 	hdmi_writeb(hdmi, (cts >> 8) & 0xff, HDMI_AUD_CTS2);
-	hdmi_writeb(hdmi, ((cts >> 16) & HDMI_AUD_CTS3_AUDCTS19_16_MASK) |
-		    HDMI_AUD_CTS3_CTS_MANUAL, HDMI_AUD_CTS3);
+	hdmi_writeb(hdmi, cts & 0xff, HDMI_AUD_CTS1);
+
+	/* write N values; N1 must be written last */
+	hdmi_writeb(hdmi, (n >> 16) & 0xf, HDMI_AUD_N3);
+	hdmi_writeb(hdmi, (n >> 8) & 0xff, HDMI_AUD_N2);
+	hdmi_writeb(hdmi, n & 0xff, HDMI_AUD_N1);
 }
 
 static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
