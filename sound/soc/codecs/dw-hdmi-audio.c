@@ -97,18 +97,6 @@ static irqreturn_t snd_dw_hdmi_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void dw_hdmi_audio_enable(struct snd_dw_hdmi *hdmi)
-{
-	hdmi->data.mod(hdmi->data.dw, 0, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
-		       HDMI_MC_CLKDIS);
-}
-
-static void dw_hdmi_audio_disable(struct snd_dw_hdmi *hdmi)
-{
-	hdmi->data.mod(hdmi->data.dw, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
-		       HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
-}
-
 static void dw_hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi,
 				  const struct hdmi_audio_fmt *fmt)
 {
@@ -135,7 +123,7 @@ static int dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
 	dev_info(codec_dai->dev, "startup.\n");
-	dw_hdmi_audio_enable(hdmi);
+	hdmi->data.enable(hdmi->data.dw);
 
 	return 0;
 }
@@ -231,13 +219,13 @@ static int dw_hdmi_dai_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		dw_hdmi_audio_enable(hdmi);
+		hdmi->data.enable(hdmi->data.dw);
 		dev_dbg(codec_dai->dev, "[codec_dai]: trigger enable.\n");
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		dw_hdmi_audio_disable(hdmi);
+		hdmi->data.disable(hdmi->data.dw);
 		dev_dbg(codec_dai->dev, "[codec_dai]: trigger disable.\n");
 		break;
 	default:
@@ -253,7 +241,7 @@ static void dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
 	dev_info(codec_dai->dev, "shutdown.\n");
-	dw_hdmi_audio_disable(hdmi);
+	hdmi->data.disable(hdmi->data.dw);
 }
 
 static const struct snd_soc_dapm_widget dw_hdmi_widgets[] = {
