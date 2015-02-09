@@ -41,6 +41,8 @@ void rk3288_ddr_resume(void);
 
 #define RK3288_SGRF_SOC_CON0            (0x0000)
 #define RK3288_SGRF_FAST_BOOT_ADDR      (0x0120)
+#define SGRF_PCLK_WDT_GATE		BIT(6)
+#define SGRF_PCLK_WDT_GATE_WRITE	BIT(22)
 #define SGRF_FAST_BOOT_EN		BIT(8)
 #define SGRF_FAST_BOOT_EN_WRITE		BIT(24)
 
