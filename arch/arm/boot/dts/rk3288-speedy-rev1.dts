@@ -13,19 +13,21 @@
 / {
 	compatible = "google,veyron-speedy-rev1", "google,veyron-speedy",
 		     "google,veyron", "rockchip,rk3288";
-
 };
 
 &thermal {
 	#include "rk3288-speedy-thermal.dtsi"
 };
 
-&edp {
-	/*
-	 * The panel cable of speedy-rev1 have some problem, so the hpd signal
-	 * is incorrect. Remove the hpd pinctrl here, do not use the hpd
-	 * function.
-	 */
-	/delete-property/ pinctrl-names;
-	/delete-property/ pinctrl-0;
+&pinctrl {
+	edp {
+		/*
+		 * The panel cable of speedy-rev1 have some problem, the hpd
+		 * signal is incorrect. Do not use the hpd function, switch its
+		 * pinmux to gpio function.
+		 */
+		edp_hpd: edp_hpd {
+			rockchip,pins = <7 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
 };
