@@ -16,6 +16,7 @@
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/hdmi.h>
+#include <linux/mutex.h>
 #include <linux/of_device.h>
 
 #include <drm/drm_of.h>
@@ -148,6 +149,9 @@ struct dw_hdmi {
 	void __iomem *regs;
 
 	unsigned int sample_rate;
+	struct mutex audio_mutex;
+	bool audio_enable;
+
 	int ratio;
 
 	void (*write)(struct dw_hdmi *hdmi, u8 val, int offset);
@@ -1251,6 +1255,41 @@ static void dw_hdmi_phy_disable(struct dw_hdmi *hdmi)
 	hdmi->phy_enabled = false;
 }
 
+static void dw_hdmi_audio_clk_enable(struct dw_hdmi *hdmi)
+{
+	hdmi_modb(hdmi, 0, HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
+}
+
+static void dw_hdmi_audio_clk_disable(struct dw_hdmi *hdmi)
+{
+	hdmi_modb(hdmi, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
+			HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
+}
+
+static void dw_hdmi_audio_enable(struct dw_hdmi *hdmi)
+{
+	mutex_lock(&hdmi->audio_mutex);
+
+	if (!hdmi->audio_enable) {
+		hdmi->audio_enable = true;
+		dw_hdmi_audio_clk_enable(hdmi);
+	}
+
+	mutex_unlock(&hdmi->audio_mutex);
+}
+
+static void dw_hdmi_audio_disable(struct dw_hdmi *hdmi)
+{
+	mutex_lock(&hdmi->audio_mutex);
+
+	if (hdmi->audio_enable) {
+		hdmi->audio_enable = false;
+		dw_hdmi_audio_clk_disable(hdmi);
+	}
+
+	mutex_unlock(&hdmi->audio_mutex);
+}
+
 /* HDMI Initialization Step B.4 */
 static void dw_hdmi_enable_video_path(struct dw_hdmi *hdmi)
 {
@@ -1279,11 +1318,6 @@ static void dw_hdmi_enable_video_path(struct dw_hdmi *hdmi)
 		clkdis &= ~HDMI_MC_CLKDIS_CSCCLK_DISABLE;
 		hdmi_writeb(hdmi, clkdis, HDMI_MC_CLKDIS);
 	}
-}
-
-static void hdmi_enable_audio_clk(struct dw_hdmi *hdmi)
-{
-	hdmi_modb(hdmi, 0, HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
 }
 
 /* Workaround to clear the overflow condition */
@@ -1382,7 +1416,7 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 
 		/* HDMI Initialization Step E - Configure audio */
 		hdmi_clk_regenerator_update_pixel_clock(hdmi);
-		hdmi_enable_audio_clk(hdmi);
+		dw_hdmi_audio_clk_enable(hdmi);
 
 		/* HDMI Initialization Step F - Configure AVI InfoFrame */
 		hdmi_config_AVI(hdmi);
@@ -1786,6 +1820,8 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	hdmi->sample_rate = 48000;
 	hdmi->ratio = 100;
 	hdmi->encoder = encoder;
+	hdmi->audio_enable = false;
+	mutex_init(&hdmi->audio_mutex);
 
 	of_property_read_u32(np, "reg-io-width", &val);
 
@@ -1895,6 +1931,8 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	audio.mod = hdmi_modb;
 	audio.read = hdmi_readb;
 	audio.write = hdmi_writeb;
+	audio.enable = dw_hdmi_audio_enable;
+	audio.disable = dw_hdmi_audio_disable;
 	audio.set_sample_rate = hdmi_set_sample_rate;
 
 	pdevinfo.name = "dw-hdmi-audio";
