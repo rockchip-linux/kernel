@@ -61,6 +61,14 @@
 		};
 	};
 
+	gpio-restart {
+		compatible = "gpio-restart";
+		gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap_warm_reset_h>;
+		priority = /bits/ 8 <200>;
+	};
+
 	/* This turns on vbus for usb2 */
 	vcc5_host2: vcc5-host2-regulator {
 		compatible = "regulator-fixed";
