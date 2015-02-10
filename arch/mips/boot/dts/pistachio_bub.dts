@@ -42,6 +42,7 @@
 		compatible = "gigadevice,gd5f";
 		reg = <1>;
 		spi-max-frequency = <50000000>;
+		nand-on-flash-bbt;
 		#address-cells = <1>;
 		#size-cells = <1>;
 	};
