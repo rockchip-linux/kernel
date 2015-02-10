@@ -366,6 +366,7 @@
 #define HDMI_AUD_CONF1                          0x3101
 #define HDMI_AUD_INT                            0x3102
 #define HDMI_AUD_CONF2                          0x3103
+#define HDMI_AUD_INT1                           0x3104
 #define HDMI_AUD_N1                             0x3200
 #define HDMI_AUD_N2                             0x3201
 #define HDMI_AUD_N3                             0x3202
@@ -927,6 +928,9 @@ enum {
 	HDMI_PHY_I2CM_CTLINT_ADDR_ARBITRATION_POL = 0x08,
 	HDMI_PHY_I2CM_CTLINT_ADDR_ARBITRATION_MASK = 0x04,
 
+/* AUD_CONF0 field values */
+	HDMI_AUD_CONF0_SW_AUDIO_FIFO_RST = 0x80,
+
 /* AUD_N3 field values */
 	HDMI_AUD_N3_NCTS_ATOMIC_WRITE = 0x80,
 	HDMI_AUD_N3_AUDN19_16_MASK = 0x0f,
@@ -991,6 +995,7 @@ enum {
 	HDMI_MC_CLKDIS_PIXELCLK_DISABLE = 0x1,
 
 /* MC_SWRSTZ field values */
+	HDMI_MC_SWRSTZ_II2SSWRST_REQ = 0x08,
 	HDMI_MC_SWRSTZ_TMDSSWRST_REQ = 0x02,
 
 /* MC_FLOWCTRL field values */

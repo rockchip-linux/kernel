@@ -1364,6 +1364,16 @@ static void hdmi_disable_overflow_interrupts(struct dw_hdmi *hdmi)
 		    HDMI_IH_MUTE_FC_STAT2);
 }
 
+static void hdmi_audio_fifo_reset(struct dw_hdmi *hdmi)
+{
+	hdmi_writeb(hdmi, (u8)~HDMI_MC_SWRSTZ_II2SSWRST_REQ, HDMI_MC_SWRSTZ);
+	hdmi_modb(hdmi, HDMI_AUD_CONF0_SW_AUDIO_FIFO_RST,
+		  HDMI_AUD_CONF0_SW_AUDIO_FIFO_RST, HDMI_AUD_CONF0);
+
+	hdmi_writeb(hdmi, 0x00, HDMI_AUD_INT);
+	hdmi_writeb(hdmi, 0x00, HDMI_AUD_INT1);
+}
+
 static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 {
 	int ret;
@@ -1425,6 +1435,8 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 		dev_info(hdmi->dev, "monitor does not support audio\n");
 	} else {
 		dev_dbg(hdmi->dev, "monitor support audio\n");
+
+		hdmi_audio_fifo_reset(hdmi);
 
 		/* TODO: Keep audio clock enable before setting N/CTS resigters
 		 * can resolve TV no sound when switching different resolutions.
