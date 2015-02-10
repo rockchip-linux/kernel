@@ -80,6 +80,10 @@
 	disable-wp;
 };
 
+&thermal {
+	#include "rk3288-speedy-thermal.dtsi"
+};
+
 &vcc_5v {
 	enable-active-high;
 	gpio = <&gpio7 21 GPIO_ACTIVE_HIGH>;

@@ -15,10 +15,6 @@
 		     "google,veyron", "rockchip,rk3288";
 };
 
-&thermal {
-	#include "rk3288-speedy-thermal.dtsi"
-};
-
 &pinctrl {
 	edp {
 		/*
