@@ -104,6 +104,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_BROKEN_UHS				(1<<7)
 /* Has additional Broadcom-specific registers */
 #define SDHCI_QUIRK2_BROADCOM_REGISTERS			(1<<8)
+/* Controller broken with using ACMD23 */
+#define SDHCI_QUIRK2_ACMD23_BROKEN			(1<<14)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
