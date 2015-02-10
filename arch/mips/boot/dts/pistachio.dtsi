@@ -645,7 +645,7 @@
 		timer {
 			compatible = "mti,gic-timer";
 			interrupts = <GIC_LOCAL 1 IRQ_TYPE_NONE>;
-			clock-frequency = <550000000>;
+			clocks = <&clk_core CLK_MIPS>;
 		};
 	};
 
