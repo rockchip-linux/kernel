@@ -142,7 +142,7 @@ static const struct dw_hdmi_curr_ctrl rockchip_cur_ctr[] = {
 static const struct dw_hdmi_sym_term rockchip_sym_term[] = {
 	/*pixelclk   symbol   term*/
 	{ 74250000,  0x8009, 0x0004 },
-	{ 148500000, 0x8029, 0x0004 },
+	{ 148500000, 0x803b, 0x0004 },
 	{ 297000000, 0x8039, 0x0005 },
 	{ ~0UL,	     0x0000, 0x0000 }
 };
