@@ -73,10 +73,10 @@ static const struct dw_hdmi_curr_ctrl imx_cur_ctr[] = {
 	}
 };
 
-static const struct dw_hdmi_sym_term imx_sym_term[] = {
-	/*pixelclk   symbol   term*/
-	{ 148500000, 0x800d, 0x0005 },
-	{ ~0UL,      0x0000, 0x0000 }
+static const struct dw_hdmi_phy_config imx_phy_config[] = {
+	/*pixelclk   symbol   term   vlev */
+	{ 148500000, 0x800d, 0x0005, 0x01ad},
+	{ ~0UL,      0x0000, 0x0000, 0x0000}
 };
 
 static int dw_hdmi_imx_parse_dt(struct imx_hdmi *hdmi)
@@ -139,14 +139,14 @@ static struct drm_encoder_funcs dw_hdmi_imx_encoder_funcs = {
 static struct dw_hdmi_plat_data imx6q_hdmi_drv_data = {
 	.mpll_cfg = imx_mpll_cfg,
 	.cur_ctr  = imx_cur_ctr,
-	.sym_term = imx_sym_term,
+	.phy_config = imx_phy_config,
 	.dev_type = IMX6Q_HDMI,
 };
 
 static struct dw_hdmi_plat_data imx6dl_hdmi_drv_data = {
 	.mpll_cfg = imx_mpll_cfg,
 	.cur_ctr  = imx_cur_ctr,
-	.sym_term = imx_sym_term,
+	.phy_config = imx_phy_config,
 	.dev_type = IMX6DL_HDMI,
 };
 
