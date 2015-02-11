@@ -157,11 +157,6 @@ struct dmc_oftiming {
 	u32 trp;
 };
 
-struct cpufreq_dmc_device {
-	bool updating;
-	unsigned int min_freq;
-};
-
 struct rk3288_dmcclk {
 	struct device *dev;
 	struct clk_hw hw;
@@ -169,10 +164,6 @@ struct rk3288_dmcclk {
 	struct clk *pclk_publ0;
 	struct clk *pclk_ddrupctl1;
 	struct clk *pclk_publ1;
-	struct clk *arm_clk;
-	struct notifier_block cpufreq_policy_notifier_block;
-	/* notify_table passes value to the CPUFREQ_ADJUST callback function. */
-	struct cpufreq_dmc_device cpufreq_notify_device;
 
 	u32 cur_freq;
 	u32 target_freq;

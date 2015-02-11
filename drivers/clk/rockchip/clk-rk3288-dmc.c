@@ -13,7 +13,6 @@
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
 #include <linux/cpu.h>
-#include <linux/cpufreq.h>
 #include <linux/err.h>
 #include <linux/hrtimer.h>
 #include <linux/io.h>
@@ -959,55 +958,6 @@ static int lpddr3_get_parameter(struct rk3288_dmcclk *dmc)
 	return 0;
 }
 
-static int dmc_cpufreq_policy_notifier(struct notifier_block *nb,
-				       unsigned long event, void *data)
-{
-	struct rk3288_dmcclk *dmc =
-		container_of(nb, struct rk3288_dmcclk,
-			     cpufreq_policy_notifier_block);
-	struct cpufreq_policy *policy = data;
-	unsigned long min_freq = 0;
-
-	if ((event != CPUFREQ_ADJUST) ||
-	    (dmc->cpufreq_notify_device.updating == false))
-		return 0;
-
-	min_freq = dmc->cpufreq_notify_device.min_freq;
-
-	/* Never less user_policy.min */
-	if (min_freq < policy->user_policy.min)
-		min_freq = policy->user_policy.min;
-
-	if (policy->min != min_freq)
-		cpufreq_verify_within_limits(policy, min_freq, policy->max);
-
-	return 0;
-}
-
-static int dmc_cpufreq_apply_set_min(struct rk3288_dmcclk *dmc)
-{
-	struct cpufreq_policy policy;
-
-	dmc->cpufreq_notify_device.updating = true;
-	if (!cpufreq_get_policy(&policy, 0))
-		cpufreq_update_policy(0);
-
-	dmc->cpufreq_notify_device.updating = false;
-	return 0;
-}
-
-static int dmc_cpufreq_apply_get_limit(unsigned long *cpufreq_min,
-				   unsigned long *cpufreq_max)
-{
-	struct cpufreq_policy policy;
-
-	cpufreq_get_policy(&policy, 0);
-	*cpufreq_min = policy.min;
-	*cpufreq_max = policy.max;
-
-	return 0;
-}
-
 #define PAUSE_CPU_STACK_SIZE	64
 
 static const u32 cpu_stack_idx[4][4] = {
@@ -1160,7 +1110,6 @@ static void dmc_pclk_ptcl_publ_disable(struct rk3288_dmcclk *dmc)
 static int ddr_change_freq(struct rk3288_dmcclk *dmc)
 {
 	int ret;
-	unsigned long cpufreq_min_val, cpufreq_max_val;
 
 	ret = dmc_pclk_ptcl_publ_enable(dmc);
 	if (ret < 0)
@@ -1183,16 +1132,8 @@ static int ddr_change_freq(struct rk3288_dmcclk *dmc)
 		return -EPERM;
 	}
 
-	/* set cpu frequency to maximum */
-	dmc_cpufreq_apply_get_limit(&cpufreq_min_val, &cpufreq_max_val);
-	dmc->cpufreq_notify_device.min_freq = cpufreq_max_val;
-	dmc_cpufreq_apply_set_min(dmc);
-
 	ret = dmc_set_rate_single_cpu(dmc);
 
-	/* restore cpu frequency apply minimum */
-	dmc->cpufreq_notify_device.min_freq = cpufreq_min_val;
-	dmc_cpufreq_apply_set_min(dmc);
 	dmc_pclk_ptcl_publ_disable(dmc);
 	return ret;
 }
@@ -1714,11 +1655,6 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		dev_err(dmc->dev, "cannot get pclk_publ1\n");
 		return PTR_ERR(dmc->pclk_publ1);
 	}
-	dmc->arm_clk = devm_clk_get(dmc->dev, "arm_clk");
-	if (IS_ERR(dmc->arm_clk)) {
-		dev_err(dmc->dev, "cannot get arm_clk\n");
-		return PTR_ERR(dmc->arm_clk);
-	}
 
 	/*
 	 * Get cru, grf, sgrf, pmu base regs. We can't use the regmap API when
@@ -1823,12 +1759,6 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		dev_err(dmc->dev, "failed to register clk dmc_clk %d\n", ret);
 		return ret;
 	}
-
-	/* Register the notifier for first cpufreq cooling device */
-	dmc->cpufreq_policy_notifier_block.notifier_call =
-		dmc_cpufreq_policy_notifier;
-	cpufreq_register_notifier(&dmc->cpufreq_policy_notifier_block,
-				  CPUFREQ_POLICY_NOTIFIER);
 
 	platform_set_drvdata(pdev, dmc);
 	platform_device_register_data(dmc->dev, "rk3288-dmc-freq",

@@ -13,6 +13,7 @@
 
 #include <linux/clk.h>
 #include <linux/completion.h>
+#include <linux/cpufreq.h>
 #include <linux/delay.h>
 #include <linux/devfreq.h>
 #include <linux/io.h>
@@ -75,6 +76,10 @@ struct rk3288_dmcfreq {
 	unsigned long volt, target_volt;
 	bool enabled;
 	int err;
+
+	struct notifier_block cpufreq_nb;
+	bool cpufreq_updating;
+	unsigned int cpu_min_freq;
 };
 
 /*
@@ -208,6 +213,51 @@ static struct devfreq_dev_profile rk3288_devfreq_dmc_profile = {
 	.max_state	= ARRAY_SIZE(rk3288_dmc_rates),
 };
 
+static int rk3288_cpufreq_policy_notifier(struct notifier_block *nb,
+					  unsigned long event, void *data)
+{
+	struct cpufreq_policy *policy = data;
+	unsigned long min_freq = 0;
+
+	if ((event != CPUFREQ_ADJUST) || (dmcfreq.cpufreq_updating == false))
+		return 0;
+
+	min_freq = dmcfreq.cpu_min_freq;
+
+	/* Never less user_policy.min */
+	if (min_freq < policy->user_policy.min)
+		min_freq = policy->user_policy.min;
+
+	if (policy->min != min_freq)
+		cpufreq_verify_within_limits(policy, min_freq, policy->max);
+
+	return 0;
+}
+
+static int rk3288_cpufreq_apply_set_min(void)
+{
+	struct cpufreq_policy policy;
+
+	dmcfreq.cpufreq_updating = true;
+	if (!cpufreq_get_policy(&policy, 0))
+		cpufreq_update_policy(0);
+
+	dmcfreq.cpufreq_updating = false;
+	return 0;
+}
+
+static int rk3288_cpufreq_apply_get_limit(unsigned int *cpufreq_min,
+					  unsigned int *cpufreq_max)
+{
+	struct cpufreq_policy policy;
+
+	cpufreq_get_policy(&policy, 0);
+	*cpufreq_min = policy.min;
+	*cpufreq_max = policy.max;
+
+	return 0;
+}
+
 static void rk3288_dmcfreq_work(struct work_struct *work)
 {
 	struct device *dev = dmcfreq.clk_dev;
@@ -216,7 +266,13 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	unsigned long volt = dmcfreq.volt;
 	unsigned long target_volt = dmcfreq.target_volt;
 	unsigned long old_clk_rate;
+	unsigned int cpufreq_min_freq, cpufreq_max_freq;
 	int err = 0;
+
+	/* Go to max cpufreq since set_rate needs to complete during vblank. */
+	rk3288_cpufreq_apply_get_limit(&cpufreq_min_freq, &cpufreq_max_freq);
+	dmcfreq.cpu_min_freq = cpufreq_max_freq;
+	rk3288_cpufreq_apply_set_min();
 
 	if (rate < target_rate)
 		err = regulator_set_voltage(dmcfreq.vdd_logic, target_volt,
@@ -246,6 +302,8 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 		dev_err(dev, "Unable to set voltage %lu\n", target_volt);
 
 out:
+	dmcfreq.cpu_min_freq = cpufreq_min_freq;
+	rk3288_cpufreq_apply_set_min();
 	dmcfreq.err = err;
 }
 
@@ -359,6 +417,8 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(dmcfreq.devfreq);
 
 	INIT_WORK(&dmcfreq.work, rk3288_dmcfreq_work);
+	dmcfreq.cpufreq_nb.notifier_call = rk3288_cpufreq_policy_notifier;
+	cpufreq_register_notifier(&dmcfreq.cpufreq_nb, CPUFREQ_POLICY_NOTIFIER);
 	devfreq_register_opp_notifier(dmcfreq.clk_dev, dmcfreq.devfreq);
 	rockchip_dmc_register_enable_notifier(&dmc_sync_nb);
 
@@ -369,6 +429,8 @@ static int rk3288_dmcfreq_remove(struct platform_device *pdev)
 {
 	devfreq_remove_device(dmcfreq.devfreq);
 	regulator_put(dmcfreq.vdd_logic);
+	cpufreq_unregister_notifier(&dmcfreq.cpufreq_nb,
+				    CPUFREQ_POLICY_NOTIFIER);
 
 	return 0;
 }
