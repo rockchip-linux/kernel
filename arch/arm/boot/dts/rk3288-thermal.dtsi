@@ -20,7 +20,7 @@ reserve_thermal: reserve_thermal {
 };
 
 cpu_thermal: cpu_thermal {
-	polling-delay-passive = <1000>; /* milliseconds */
+	polling-delay-passive = <250>; /* milliseconds */
 	polling-delay = <5000>; /* milliseconds */
 
 			/* sensor	ID */
@@ -50,7 +50,7 @@ cpu_thermal: cpu_thermal {
 };
 
 gpu_thermal: gpu_thermal {
-	polling-delay-passive = <1000>; /* milliseconds */
+	polling-delay-passive = <250>; /* milliseconds */
 	polling-delay = <5000>; /* milliseconds */
 
 			/* sensor	ID */
