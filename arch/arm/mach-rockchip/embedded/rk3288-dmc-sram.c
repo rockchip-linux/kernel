@@ -75,6 +75,8 @@
 /* GRF_SOC_CON0 */
 #define UPCTL_C_ACTIVE_IN(en, ch)	\
 	((1 << (16 + 5 + (ch))) | ((en) << (5 + (ch))))
+#define CORE_IDLE_REQ_MODE(en, ch)	\
+	((1 << (16 + 10 + (ch))) | ((en) << (10 + (ch))))
 
 /* DFI Control Registers */
 #define DDR_PCTL_DFITPHYWRLAT		0x0254
@@ -229,6 +231,10 @@ static u32 idle_port(u32 clk_gate[])
 {
 	u32 i, deidle_req, idle_req;
 
+	/* Allow core to idle. */
+	__raw_writel(CORE_IDLE_REQ_MODE(0, 0), p_grf_reg + GRF_SOC_CON0);
+	__raw_writel(CORE_IDLE_REQ_MODE(0, 1), p_grf_reg + GRF_SOC_CON0);
+
 	/* save clock gate status and enable all clock gate for request idle */
 	for (i = 0; i < CLKGATE_MAX_NUM; i++) {
 		clk_gate[i] = __raw_readl(p_cru_reg + CRU_CLKGATE_CON(i));
@@ -242,8 +248,7 @@ static u32 idle_port(u32 clk_gate[])
 	deidle_req = __raw_readl(p_pmu_reg + PMU_IDLE_REQ);
 	idle_req = IDLE_REQ_HEVC_CFG | IDLE_REQ_DMA_CFG |
 		   IDLE_REQ_CORE_CFG | IDLE_REQ_VIO_CFG |
-		   IDLE_REQ_VIDEO_CFG | IDLE_REQ_GPU_CFG |
-		   IDLE_REQ_PERI_CFG;
+		   IDLE_REQ_GPU_CFG | IDLE_REQ_PERI_CFG;
 	dmc_io_or(idle_req, p_pmu_reg + PMU_IDLE_REQ);
 
 	while ((__raw_readl(p_pmu_reg + PMU_IDLE_ST) & idle_req) != idle_req)
@@ -267,6 +272,9 @@ static void deidle_port(const u32 clk_gate[], u32 deidle_req)
 		val = clk_gate[i] | 0xffff0000;
 		__raw_writel(val, p_cru_reg + CRU_CLKGATE_CON(i));
 	}
+
+	__raw_writel(CORE_IDLE_REQ_MODE(1, 0), p_grf_reg + GRF_SOC_CON0);
+	__raw_writel(CORE_IDLE_REQ_MODE(1, 1), p_grf_reg + GRF_SOC_CON0);
 }
 
 static void ddr_reset_dll(u32 ch)
