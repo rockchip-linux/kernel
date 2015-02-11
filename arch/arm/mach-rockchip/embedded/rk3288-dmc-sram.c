@@ -295,7 +295,7 @@ static void ddr_reset_dll(u32 ch)
 		dmc_io_or(0x40000000, p_phy_reg + DDR_PUBL_DX2DLLCR);
 		dmc_io_or(0x40000000, p_phy_reg + DDR_PUBL_DX3DLLCR);
 	}
-	sram_udelay(1);
+	sram_udelay(10);
 }
 
 static void ddr_move_to_lowpower_state(u32 ch)
