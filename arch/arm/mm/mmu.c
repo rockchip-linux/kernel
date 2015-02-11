@@ -350,6 +350,18 @@ const struct mem_type *get_mem_type(unsigned int type)
 }
 EXPORT_SYMBOL(get_mem_type);
 
+pteval_t get_prot_pte(const struct mem_type *mtype)
+{
+	return mtype->prot_pte;
+}
+EXPORT_SYMBOL(get_prot_pte);
+
+pmdval_t get_prot_l1(const struct mem_type *mtype)
+{
+	return mtype->prot_l1;
+}
+EXPORT_SYMBOL(get_prot_l1);
+
 #define PTE_SET_FN(_name, pteop) \
 static int pte_set_##_name(pte_t *ptep, pgtable_t token, unsigned long addr, \
 			void *data) \
