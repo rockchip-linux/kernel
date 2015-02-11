@@ -314,6 +314,8 @@
 			qcom,forced_speed = <1000>;
 			qcom,forced_duplex = <1>;
 			local-mac-address = [000000000000];
+			qcom,irq = <255>;
+			qcom,socver = <1>;
 			mdiobus = <&mdio0>;
 		};
 
@@ -330,6 +332,8 @@
 			qcom,forced_speed = <1000>;
 			qcom,forced_duplex = <1>;
 			local-mac-address = [000000000000];
+			qcom,irq = <258>;
+			qcom,socver = <1>;
 			mdiobus = <&mdio0>;
 		};
 	};
