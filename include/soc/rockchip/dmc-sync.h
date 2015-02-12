@@ -22,7 +22,7 @@ enum dmc_enable_op {
 };
 
 extern void rockchip_dmc_lock(void);
-extern void rockchip_dmc_wait(void);
+extern void rockchip_dmc_wait(ktime_t *timeout);
 extern void rockchip_dmc_unlock(void);
 extern void rockchip_dmc_enable(void);
 extern void rockchip_dmc_disable(void);

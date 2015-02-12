@@ -11,6 +11,8 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/hrtimer.h>
+#include <linux/ktime.h>
 #include <linux/mutex.h>
 #include <soc/rockchip/dmc-sync.h>
 
@@ -20,6 +22,8 @@ static DEFINE_MUTEX(sync_lock);
 static DEFINE_MUTEX(en_lock);
 static int num_wait;
 static bool enable;
+
+#define DEFAULT_TIMEOUT_MS	1000
 
 /**
  * rockchip_dmc_lock - Lock the sync notifiers and call sync notifiers with
@@ -34,9 +38,11 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_lock);
 /**
  * rockchip_dmc_wait - Call sync notifiers with SYNC_WAIT action.
  */
-void rockchip_dmc_wait(void)
+void rockchip_dmc_wait(ktime_t *timeout)
 {
-	raw_notifier_call_chain(&sync_chain, 0, NULL);
+	/* Set a default timeout. */
+	*timeout = ktime_add_ms(ktime_get(), DEFAULT_TIMEOUT_MS);
+	raw_notifier_call_chain(&sync_chain, 0, timeout);
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_wait);
 

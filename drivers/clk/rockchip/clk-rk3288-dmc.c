@@ -1011,17 +1011,16 @@ static void dmc_set_rate(struct rk3288_dmcclk *dmc)
 	params->dmc_post_set_rate(dmc);
 }
 
-#define LPJ_100MHZ	999456UL
 /*
- * 200us should give enough time to complete changing the ddr freq in 500us. We
- * typically take a little less than 10us to pause the cpus.
+ * Changing the dmc rate in sram takes a little under 300us. Use 400us to be
+ * safe for calculating timeout.
  */
-#define TIMEOUT_NS	(200*NSEC_PER_USEC)
+#define DMC_SET_RATE_TIME_NS	(400 * NSEC_PER_USEC)
 
 static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 {
 	struct rockchip_dmc_sram_params *params = dmc->sram_params;
-	u64 timeout_ns, now_ns;
+	ktime_t timeout, now;
 	unsigned int this_cpu;
 	unsigned int cpu;
 	int ret = 0;
@@ -1031,7 +1030,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	/* Make sure other CPUs aren't processing the previous IPI. */
 	kick_all_cpus_sync();
 	rockchip_dmc_lock();
-	rockchip_dmc_wait();
+	rockchip_dmc_wait(&timeout);
 	/*
 	 * We need to disable softirqs when pausing the other cpus. We deadlock
 	 * without this in this scenario:
@@ -1044,7 +1043,15 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	 *			Deadlock
 	 */
 	local_bh_disable();
-	timeout_ns = ktime_to_ns(ktime_add_ns(ktime_get(), TIMEOUT_NS));
+	now = ktime_get();
+	timeout = ktime_sub_ns(timeout, DMC_SET_RATE_TIME_NS);
+	/* This can happen if a irq/softirq delays us long enough. */
+	if (ktime_compare(now, timeout) >= 0) {
+		dev_err(dmc->dev, "timeout before pausing cpus\n");
+		ret = -ETIMEDOUT;
+		goto out;
+	}
+
 	this_cpu = smp_processor_id();
 	params->set_major_cpu(this_cpu);
 	params->set_major_cpu_paused(this_cpu, true);
@@ -1053,16 +1060,16 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	for_each_online_cpu(cpu) {
 		if (cpu == this_cpu)
 			continue;
-		now_ns = ktime_to_ns(ktime_get());
-		while (!params->is_cpux_paused(cpu) && (now_ns < timeout_ns)) {
-			now_ns = ktime_to_ns(ktime_get());
+		while (!params->is_cpux_paused(cpu)) {
+			now = ktime_get();
+			if (ktime_compare(now, timeout) >= 0) {
+				dev_err(dmc->dev,
+					"pause cpu %d timeout\n", cpu);
+				params->set_major_cpu_paused(this_cpu, false);
+				ret = -ETIMEDOUT;
+				goto out;
+			}
 			cpu_relax();
-		}
-		if (now_ns >= timeout_ns) {
-			dev_err(dmc->dev, "pause cpu %d timeout\n", cpu);
-			params->set_major_cpu_paused(this_cpu, false);
-			ret = -EPERM;
-			goto out;
 		}
 	}
 

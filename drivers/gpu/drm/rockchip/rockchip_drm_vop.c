@@ -106,6 +106,9 @@ struct vop {
 	struct completion dmc_completion;
 	struct completion dsp_hold_completion;
 
+	ktime_t vop_isr_ktime;
+	u64 vblank_time;
+
 	uint32_t *regsbak;
 	void __iomem *regs;
 
@@ -509,6 +512,7 @@ static void vop_enable(struct drm_crtc *crtc)
 	enable_irq(vop->irq);
 
 	drm_vblank_on(vop->drm_dev, vop->pipe);
+
 	rockchip_dmc_get(&vop->dmc_nb);
 
 	return;
@@ -1077,6 +1081,7 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	int ret;
 	uint32_t val;
 	struct vop_win *vop_win = to_vop_win(crtc->primary);
+	u64 vblank_time;
 
 	/*
 	 * Wait for any pending updates to complete before full mode set.
@@ -1096,6 +1101,7 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	 */
 	wait_for_completion(&vop_win->completion);
 	complete(&vop_win->completion);
+
 	/*
 	 * disable dclk to stop frame scan, so that we can safe config mode and
 	 * enable iommu.
@@ -1154,6 +1160,14 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 		return ret;
 	}
 	clk_set_rate(vop->dclk, adjusted_mode->clock * 1000);
+
+	vblank_time = (adjusted_mode->vtotal - adjusted_mode->vdisplay);
+	vblank_time *= (u64)NSEC_PER_SEC * adjusted_mode->htotal;
+	do_div(vblank_time, clk_get_rate(vop->dclk));
+
+	rockchip_dmc_lock();
+	vop->vblank_time = vblank_time;
+	rockchip_dmc_unlock();
 
 	return 0;
 }
@@ -1230,6 +1244,7 @@ static int dmc_notify(struct notifier_block *nb,
 		      void *data)
 {
 	struct vop *vop = container_of(nb, struct vop, dmc_nb);
+	ktime_t *timeout = data;
 
 	if (WARN_ON(!vop->is_enabled))
 		return NOTIFY_BAD;
@@ -1241,6 +1256,8 @@ static int dmc_notify(struct notifier_block *nb,
 	wait_for_completion(&vop->dmc_completion);
 
 	vop_line_flag_irq_disable(vop);
+
+	*timeout = ktime_add_ns(vop->vop_isr_ktime, vop->vblank_time);
 
 	return NOTIFY_STOP;
 }
@@ -1322,8 +1339,10 @@ static irqreturn_t vop_isr(int irq, void *data)
 	}
 
 	if (active_irqs & LINE_FLAG_INTR) {
-		if (!completion_done(&vop->dmc_completion))
+		if (!completion_done(&vop->dmc_completion)) {
+			vop->vop_isr_ktime = ktime_get();
 			complete(&vop->dmc_completion);
+		}
 		active_irqs &= ~LINE_FLAG_INTR;
 		ret = IRQ_HANDLED;
 	}
