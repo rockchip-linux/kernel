@@ -181,6 +181,14 @@ struct go2001_empty_buffer_dec_reply {
 
 #define GO2001_EMPTY_BUF_ENC_FRAME_KEYFRAME	0x0
 #define GO2001_EMPTY_BUF_ENC_FRAME_PRED		0x1
+
+enum go2001_enc_frame_control {
+	GO2001_FRM_CTRL_NO_REFRESH = 0,
+	GO2001_FRM_CTRL_REFERENCE = 1,
+	GO2001_FRM_CTRL_REFRESH = 2,
+	GO2001_FRM_CTRL_REFERENCE_AND_REFRESH = 3,
+};
+
 struct go2001_empty_buffer_enc_param {
 	u64 in_addr[3];
 	u64 out_addr;

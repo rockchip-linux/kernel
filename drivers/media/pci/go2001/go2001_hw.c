@@ -967,6 +967,11 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 		return -EINVAL;
 	param->time_increment = GO2001_MAX_FPS / ctx->enc_params.framerate_num;
 	param->bits_per_sec = ctx->enc_params.bitrate;
+	ctx->enc_params.bitrate = 0;
+
+	param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+	param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
+	param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
 
 	return 0;
 }
