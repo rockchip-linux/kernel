@@ -19,6 +19,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
 #include "udl_drv.h"
+#include "udl_cursor.h"
 
 #include <drm/drm_fb_helper.h>
 
@@ -116,8 +117,8 @@ static void udlfb_dpy_deferred_io(struct fb_info *info,
 		if (udl_render_hline(dev, (ufbdev->ufb.base.bits_per_pixel / 8),
 				     &urb, (char *) info->fix.smem_start,
 				     &cmd, cur->index << PAGE_SHIFT,
-				     cur->index << PAGE_SHIFT,
-				     PAGE_SIZE, &bytes_identical, &bytes_sent))
+				     cur->index << PAGE_SHIFT, PAGE_SIZE, NULL,
+				     &bytes_identical, &bytes_sent))
 			goto error;
 		bytes_rendered += PAGE_SIZE;
 	}
@@ -156,20 +157,15 @@ int udl_handle_damage(struct udl_framebuffer *fb, int x, int y,
 	int x2, y2;
 	bool store_for_later = false;
 	unsigned long flags;
+	struct udl_cursor *cursor_copy = NULL;
 
 	if (!fb->active_16)
 		return 0;
 
-	if (!fb->obj->vmapping) {
-		ret = udl_gem_vmap(fb->obj);
-		if (ret == -ENOMEM) {
-			DRM_ERROR("failed to vmap fb\n");
-			return 0;
-		}
-		if (!fb->obj->vmapping) {
-			DRM_ERROR("failed to vmapping\n");
-			return 0;
-		}
+	ret = udl_gem_vmap(fb->obj);
+	if (ret) {
+		DRM_ERROR("failed to vmap fb\n");
+		return 0;
 	}
 
 	aligned_x = DL_ALIGN_DOWN(x, sizeof(unsigned long));
@@ -220,14 +216,21 @@ int udl_handle_damage(struct udl_framebuffer *fb, int x, int y,
 		return 0;
 	cmd = urb->transfer_buffer;
 
+	mutex_lock(&dev->struct_mutex);
+	if (udl_cursor_alloc(&cursor_copy) == 0)
+		udl_cursor_copy(cursor_copy, udl->cursor);
+	mutex_unlock(&dev->struct_mutex);
+
 	for (i = y; i <= y2 ; i++) {
 		const int line_offset = fb->base.pitches[0] * i;
 		const int byte_offset = line_offset + (x * bpp);
 		const int dev_byte_offset = (fb->base.width * bpp * i) + (x * bpp);
+		struct udl_cursor_hline cursor_hline;
+		udl_cursor_get_hline(cursor_copy, x, i, &cursor_hline);
 		if (udl_render_hline(dev, bpp, &urb,
 				     (char *) fb->obj->vmapping,
 				     &cmd, byte_offset, dev_byte_offset,
-				     (x2 - x + 1) * bpp,
+				     (x2 - x + 1) * bpp, &cursor_hline,
 				     &bytes_identical, &bytes_sent))
 			goto error;
 	}
@@ -241,6 +244,8 @@ int udl_handle_damage(struct udl_framebuffer *fb, int x, int y,
 		udl_urb_completion(urb);
 
 error:
+	if (cursor_copy)
+		udl_cursor_free(cursor_copy);
 	atomic_add(bytes_sent, &udl->bytes_sent);
 	atomic_add(bytes_identical, &udl->bytes_identical);
 	atomic_add(width*height*bpp, &udl->bytes_rendered);

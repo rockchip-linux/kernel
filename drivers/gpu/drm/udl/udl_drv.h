@@ -46,6 +46,9 @@ struct urb_list {
 };
 
 struct udl_fbdev;
+struct udl_cursor;
+struct udl_cursor_hline;
+struct udl_flip_queue;
 
 struct udl_device {
 	struct device *dev;
@@ -57,6 +60,7 @@ struct udl_device {
 	atomic_t lost_pixels; /* 1 = a render op failed. Need screen refresh */
 
 	struct udl_fbdev *fbdev;
+	struct udl_cursor *cursor;
 	char mode_buf[1024];
 	uint32_t mode_buf_len;
 	atomic_t bytes_rendered; /* raw pixel-bytes driver asked to render */
@@ -64,8 +68,7 @@ struct udl_device {
 	atomic_t bytes_sent; /* to usb, after compression including overhead */
 	atomic_t cpu_kcycles_used; /* transpired during pixel processing */
 
-	struct workqueue_struct *flip_wq; /* workqueue for page flip tasks. */
-	atomic_t flip_work_count;
+	struct udl_flip_queue *flip_queue;
 };
 
 struct udl_gem_object {
@@ -114,6 +117,7 @@ udl_fb_user_fb_create(struct drm_device *dev,
 int udl_render_hline(struct drm_device *dev, int bpp, struct urb **urb_ptr,
 		     const char *front, char **urb_buf_ptr,
 		     u32 byte_offset, u32 device_byte_offset, u32 byte_width,
+		     struct udl_cursor_hline *cursor_hline,
 		     int *ident_ptr, int *sent_ptr);
 
 int udl_dumb_create(struct drm_file *file_priv,

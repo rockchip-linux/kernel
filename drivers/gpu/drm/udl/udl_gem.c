@@ -160,6 +160,9 @@ int udl_gem_vmap(struct udl_gem_object *obj)
 	int page_count = obj->base.size / PAGE_SIZE;
 	int ret;
 
+	if (obj->vmapping)
+		return 0;
+
 	if (obj->base.import_attach) {
 		obj->vmapping = dma_buf_vmap(obj->base.import_attach->dmabuf);
 		if (!obj->vmapping)
