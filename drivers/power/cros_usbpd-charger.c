@@ -199,7 +199,7 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	case USB_PD_PORT_POWER_SOURCE:
 		dev_dbg(dev, "Port %d: SOURCE", port->port_number);
 		port->psy_status = POWER_SUPPLY_STATUS_DISCHARGING;
-		port->psy_online = 1;
+		port->psy_online = 0;
 		break;
 	case USB_PD_PORT_POWER_SINK:
 		dev_dbg(dev, "Port %d: SINK", port->port_number);
