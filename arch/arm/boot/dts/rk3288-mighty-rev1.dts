@@ -10,7 +10,7 @@
 
 /dts-v1/;
 
-#include "rk3288-veyron.dtsi"
+#include "rk3288-veyron-chromebook.dtsi"
 #include "rk3288-mighty.dtsi"
 #include "cros-ec-sbs.dtsi"
 
