@@ -1,5 +1,5 @@
 /*
- * Google Veyron Rialto rev0 board device tree source
+ * Google Veyron Rialto Rev0 board device tree source
  *
  * Copyright 2015 Google, Inc
  *
@@ -14,6 +14,7 @@
 #include "rk3288.dtsi"
 
 / {
+	model = "Google Rialto";
 	compatible = "google,veyron-rialto-rev0", "google,veyron-rialto",
 		     "google,veyron", "rockchip,rk3288";
 
@@ -21,10 +22,20 @@
 		reg = <0x0 0x80000000>;
 	};
 
+	firmware {
+		chromeos {
+			pinctrl-names = "default";
+			pinctrl-0 = <&fw_wp_ap>;
+			write-protect-gpio = <&gpio7 6 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
 		#size-cells = <0>;
+		autorepeat;
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&pwr_key_l>;
@@ -35,6 +46,14 @@
 			debounce-interval = <100>;
 			gpio-key,wakeup;
 		};
+	};
+
+	gpio-restart {
+		compatible = "gpio-restart";
+		gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ap_warm_reset_h>;
+		priority = /bits/ 8 <200>;
 	};
 
 	gpio-leds {
@@ -61,25 +80,6 @@
 		};
 	};
 
-	gpio-restart {
-		compatible = "gpio-restart";
-		gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&ap_warm_reset_h>;
-		priority = /bits/ 8 <200>;
-	};
-
-	/* This turns on vbus for usb2 */
-	vcc5_host2: vcc5-host2-regulator {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usb2_pwr_en>;
-		regulator-name = "vcc5_host2";
-		regulator-always-on;
-		regulator-boot-on;
-	};
 
 	/* A non-regulated voltage from power supply or battery */
 	vccsys: vccsys {
@@ -108,7 +108,6 @@
 		regulator-name = "vdd_logic";
 	};
 
-	/* vcc33_sys is controlled by the EC (system_power_h).  Off in S5. */
 	vcc33_sys: vcc33-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc33_sys";
@@ -137,10 +136,22 @@
 		vin-supply = <&vccsys>;
 	};
 
+	/* This turns on vbus for usb2 */
+	vcc5_host2: vcc5-host2-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb2_pwr_en>;
+		regulator-name = "vcc5_host2";
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
 	bt_regulator: bt-regulator {
 		/*
 		 * On the module itself this is one of these (depending
-		 * on the actual card pouplated):
+		 * on the actual card populated):
 		 * - BT_I2S_WS_BT_RFDISABLE_L
 		 * - No connect
 		 */
@@ -181,7 +192,7 @@
 		dvp-supply = <&vcc_18>;
 		flash0-supply = <&vcc18_flashio>;
 		gpio1830-supply = <&vcc33_io>;
-		gpio30-supply = <&vcc33_pmuio>;
+		gpio30-supply = <&vcc33_io>;
 		wifi-supply = <&vcc18_wl>;
 	};
 };
@@ -203,6 +214,10 @@
 	rockchip,trp = <10>;
 };
 
+&efuse {
+	status = "okay";
+};
+
 &emmc {
 	broken-cd;
 	bus-width = <8>;
@@ -213,10 +228,7 @@
 	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8 &emmc_deassert_reset>;
-	status = "okay";
-};
-
-&efuse {
+	clock-freq-min-max = <400000 100000000>;
 	status = "okay";
 };
 
@@ -233,6 +245,7 @@
 	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&cru SCLK_SDIO0_DRV>,
 		 <&cru SCLK_SDIO0_SAMPLE>, <&rk808 RK808_CLKOUT1>;
 	clock-names = "biu", "ciu", "ciu_drv", "ciu_sample", "card_ext_clock";
+	clock-freq-min-max = <400000 100000000>;
 	keep-power-in-suspend;
 	non-removable;
 	num-slots = <1>;
@@ -241,10 +254,6 @@
 	status = "okay";
 	vmmc-supply = <&vcc33_sys>;
 	vqmmc-supply = <&vcc18_wl>;
-};
-
-&spi0 {
-	status = "okay";
 };
 
 &spi2 {
@@ -262,6 +271,10 @@
 
 	clock-frequency = <400000>;
 
+/* i2c settings copied from Danger's dts file */
+	i2c-scl-falling-time-ns = <50>;		/* 2.5ns measured */
+	i2c-scl-rising-time-ns = <100>;		/* 45ns measured */
+
 	rk808: pmic@1b {
 		compatible = "rockchip,rk808";
 		clock-output-names = "xin32k", "wifibt_32kin";
@@ -278,15 +291,14 @@
 		vcc2-supply = <&vcc33_sys>;
 		vcc3-supply = <&vcc33_sys>;
 		vcc4-supply = <&vcc33_sys>;
-		vcc6-supply = <&vcc_5v>;
 		vcc7-supply = <&vcc33_sys>;
 		vcc8-supply = <&vcc33_sys>;
-		vcc9-supply = <&vcc_5v>;
 		vcc10-supply = <&vcc33_sys>;
-		vcc11-supply = <&vcc_5v>;
 		vcc12-supply = <&vcc_18>;
 
-		vddio-supply = <&vcc33_pmuio>;
+/*		vddio-supply = <&vcc33_pmuio>;  Original line */
+/*  copied from Danger  */
+		vddio-supply = <&vcc33_io>;
 
 		regulators {
 			vdd_cpu: DCDC_REG1 {
@@ -332,15 +344,6 @@
 				regulator-suspend-mem-microvolt = <1800000>;
 			};
 
-			vcc33_pmuio: LDO_REG1 {
-				regulator-always-on;
-				regulator-boot-on;
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcc33_pmuio";
-				regulator-suspend-mem-microvolt = <3300000>;
-			};
-
 			vdd_10: LDO_REG3 {
 				regulator-always-on;
 				regulator-boot-on;
@@ -367,6 +370,10 @@
 
 	clock-frequency = <400000>;
 
+/* i2c timing commands copied from Danger */
+	i2c-scl-falling-time-ns = <50>;		/* 2.5ns measured */
+	i2c-scl-rising-time-ns = <100>;		/* 40ns measured */
+
 	tpm: tpm@20 {
 		compatible = "infineon,slb9645tt";
 		reg = <0x20>;
@@ -374,18 +381,22 @@
 	};
 };
 
+/* Rialto does not use */
 &i2c2 {
 	status = "okay";
 };
 
+/* Environmental Sensor, Bosch BME280  */
 &i2c3 {
 	status = "okay";
 };
 
+/* Rialto does not use */
 &i2c4 {
 	status = "okay";
 };
 
+/* Rialto does not use */
 &i2c5 {
 	status = "okay";
 };
@@ -458,7 +469,7 @@
 	emmc {
 		/* Make sure eMMC is not in reset */
 		emmc_deassert_reset: emmc-deassert-reset {
-			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
@@ -488,7 +499,7 @@
 
 	usb-host {
 		usb2_pwr_en: usb2-pwr-en {
-			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 
 	};
@@ -539,6 +550,12 @@
 	tpm {
 		tpm_int_h: tpm-int-h {
 			rockchip,pins = <7 4 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+        write-protect {
+		fw_wp_ap: fw-wp-ap {
+			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
