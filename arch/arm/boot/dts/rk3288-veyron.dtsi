@@ -13,10 +13,6 @@
 #include "rk3288.dtsi"
 
 / {
-	aliases {
-		i2c20 = &i2c_tunnel;
-	};
-
 	memory {
 		reg = <0x0 0x80000000>;
 	};
@@ -85,7 +81,7 @@
 		#size-cells = <0>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwr_key_h &ap_lid_int_l>;
+		pinctrl-0 = <&pwr_key_h>;
 		power {
 			label = "Power";
 			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
@@ -93,23 +89,6 @@
 			debounce-interval = <100>;
 			gpio-key,wakeup;
 		};
-
-		lid {
-			label = "Lid";
-			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
-			linux,code = <0>; /* SW_LID */
-			linux,input-type = <5>; /* EV_SW */
-			debounce-interval = <1>;
-			gpio-key,wakeup;
-                };
-	};
-
-	gpio-charger {
-		compatible = "gpio-charger";
-		gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&ac_present_ap>;
-		charger-type = "mains";
 	};
 
 	gpio-restart {
@@ -132,14 +111,6 @@
 		pinctrl-0 = <&mic_det>, <&hp_det>;
 	};
 
-	/* A non-regulated voltage from power supply or battery */
-	vccsys: vccsys {
-		compatible = "regulator-fixed";
-		regulator-name = "vccsys";
-		regulator-boot-on;
-		regulator-always-on;
-	};
-
 	vdd_logic: pwm-regulator {
 		compatible = "pwm-regulator";
 		pwms = <&pwm1 0 2000 0>;
@@ -160,7 +131,6 @@
 		regulator-ramp-delay = <4000>;
 	};
 
-	/* vcc33_sys is controlled by the EC (system_power_h).  Off in S5. */
 	vcc33_sys: vcc33-sys {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc33_sys";
@@ -178,7 +148,6 @@
 		regulator-boot-on;
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		vin-supply = <&vccsys>;
 	};
 
 	vcc50_hdmi: vcc50-hdmi {
@@ -187,30 +156,6 @@
 		regulator-always-on;
 		regulator-boot-on;
 		vin-supply = <&vcc_5v>;
-	};
-
-	/* This turns on vbus for host1 (dwc2) */
-	vcc5_host1: vcc5-host1-regulator {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio0 11 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&host1_pwr_en>;
-		regulator-name = "vcc5_host1";
-		regulator-always-on;
-		regulator-boot-on;
-	};
-
-	/* This turns on vbus for otg for host mode (dwc2) */
-	vcc5v_otg: vcc5v-otg-regulator {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&usbotg_pwren_h>;
-		regulator-name = "vcc5_host2";
-		regulator-always-on;
-		regulator-boot-on;
 	};
 
 	bt_regulator: bt-regulator {
@@ -342,28 +287,6 @@
 	status = "okay";
 	vmmc-supply = <&vcc33_sd>;
 	vqmmc-supply = <&vccio_sd>;
-};
-
-&spi0 {
-	status = "okay";
-
-	cros_ec: ec@0 {
-		compatible = "google,cros-ec-spi";
-		spi-max-frequency = <3000000>;
-		interrupt-parent = <&gpio7>;
-		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&ec_int>;
-		reg = <0>;
-		google,cros-ec-spi-pre-delay = <30>;
-
-		i2c_tunnel: i2c-tunnel {
-			compatible = "google,cros-ec-i2c-tunnel";
-			google,remote-bus = <0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-		};
-	};
 };
 
 &spi2 {
@@ -510,15 +433,6 @@
 				regulator-suspend-mem-disabled;
 			};
 
-			vcc33_ccd: LDO_REG8 {
-				regulator-always-on;
-				regulator-boot-on;
-				regulator-min-microvolt = <3300000>;
-				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcc33_ccd";
-				regulator-suspend-mem-disabled;
-			};
-
 			vcc33_lcd: SWITCH_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
@@ -575,17 +489,6 @@
 	clock-frequency = <400000>;
 	i2c-scl-falling-time-ns = <50>;		/* 11ns measured */
 	i2c-scl-rising-time-ns = <300>;		/* 225ns measured */
-
-	trackpad@15 {
-		compatible = "elan,i2c_touchpad";
-		interrupt-parent = <&gpio7>;
-		interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&trackpad_int>;
-		reg = <0x15>;
-		vcc-supply = <&vcc33_io>;
-		wakeup-source;
-	};
 
 	headsetcodec: ts3a227e@3b {
 		compatible = "ti,ts3a227e";
@@ -690,18 +593,12 @@
 		&ddr0_retention
 		&ddrio_pwroff
 		&global_pwroff
-
-		/* Wake only */
-		&suspend_l_wake
 	>;
 	pinctrl-1 = <
 		/* Common for sleep and wake, but no owners */
 		&ddr0_retention
 		&ddrio_pwroff
 		&global_pwroff
-
-		/* Sleep only */
-		&suspend_l_sleep
 	>;
 
 	/* Add this for sdmmc pins to SD card */
@@ -732,16 +629,6 @@
 		pwr_key_h: pwr-key-h {
 			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
-
-		ap_lid_int_l: ap-lid-int-l {
-			rockchip,pins = <0 6 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	charger {
-		ac_present_ap: ac-present-ap {
-			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
 	};
 
 	codec {
@@ -753,12 +640,6 @@
 		};
 		mic_det: mic-det {
 			rockchip,pins = <6 11 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	cros-ec {
-		ec_int: ec-int {
-			rockchip,pins = <7 7 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
@@ -874,41 +755,11 @@
 		sdmmc_cd_gpio: sdmmc-cd-gpio {
 			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
-
-		sdmmc_wp_gpio: sdmmc-wp-gpio {
-			rockchip,pins = <7 10 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	suspend {
-		suspend_l_wake: suspend-l-wake {
-			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_output_low>;
-		};
-
-		suspend_l_sleep: suspend-l-sleep {
-			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_output_high>;
-		};
 	};
 
 	tpm {
 		tpm_int_h: tpm-int-h {
 			rockchip,pins = <7 4 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
-	trackpad {
-		trackpad_int: trackpad-int {
-			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
-	usb-host {
-		host1_pwr_en: host1-pwr-en {
-			rockchip,pins = <0 11 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		usbotg_pwren_h: usbotg-pwren-h {
-			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
@@ -938,5 +789,3 @@
 	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
 	assigned-clock-parents = <&cru SCLK_OTGPHY0>;
 };
-
-#include "cros-ec-keyboard.dtsi"
