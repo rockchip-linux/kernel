@@ -561,6 +561,11 @@ static irqreturn_t ssp_int(int irq, void *dev_id)
 	/* Ignore possible writes if we don't need to write */
 	if (!(sccr1_reg & SSCR1_TIE))
 		mask &= ~SSSR_TFS;
+	/* Ignore disabled interrupt sources */
+	if (!(sccr1_reg & SSCR1_RIE))
+		mask &= ~(SSSR_RFS | SSSR_ROR);
+	if (!(sccr1_reg & SSCR1_TINTE))
+		mask &= ~SSSR_TINT;
 
 	if (!(status & mask))
 		return IRQ_NONE;
