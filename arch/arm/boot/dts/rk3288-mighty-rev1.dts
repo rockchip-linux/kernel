@@ -11,7 +11,7 @@
 /dts-v1/;
 
 #include "rk3288-veyron.dtsi"
-#include "rk3288-veyron-mighty.dtsi"
+#include "rk3288-mighty.dtsi"
 #include "cros-ec-sbs.dtsi"
 
 / {
