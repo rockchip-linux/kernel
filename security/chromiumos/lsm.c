@@ -154,6 +154,21 @@ static void check_locking_enforcement(void)
 static void check_locking_enforcement(void) { }
 #endif
 
+int chromiumos_security_sb_umount(struct vfsmount *mnt, int flags)
+{
+	/*
+	 * When unmounting the filesystem we were using for module
+	 * pinning, we must release our reservation, but make sure
+	 * no other modules can be loaded.
+	 */
+	if (!IS_ERR_OR_NULL(locked_root) && mnt->mnt_root == locked_root) {
+		dput(locked_root);
+		locked_root = ERR_PTR(-EIO);
+		pr_info("umount pinned fs: refusing further module loads\n");
+	}
+
+	return 0;
+}
 
 int chromiumos_security_load_module(struct file *file)
 {
@@ -173,6 +188,10 @@ int chromiumos_security_load_module(struct file *file)
 
 	/* First loaded module defines the root for all others. */
 	spin_lock(&locked_root_spinlock);
+	/*
+	 * locked_root is only NULL at startup. Otherwise, it is either
+	 * a valid reference, or an ERR_PTR.
+	 */
 	if (!locked_root) {
 		locked_root = dget(module_root);
 		/*
@@ -188,7 +207,7 @@ int chromiumos_security_load_module(struct file *file)
 		spin_unlock(&locked_root_spinlock);
 	}
 
-	if (module_root != locked_root) {
+	if (IS_ERR_OR_NULL(locked_root) || module_root != locked_root) {
 		if (unlikely(!module_locking)) {
 			report_load_module(&file->f_path, "locking-ignored");
 			return 0;

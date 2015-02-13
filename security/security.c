@@ -291,6 +291,12 @@ int security_sb_mount(const char *dev_name, struct path *path,
 
 int security_sb_umount(struct vfsmount *mnt, int flags)
 {
+	int ret;
+
+	ret = chromiumos_security_sb_umount(mnt, flags);
+	if (ret)
+		return ret;
+
 	return security_ops->sb_umount(mnt, flags);
 }
 
