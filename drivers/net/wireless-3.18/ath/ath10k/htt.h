@@ -286,24 +286,32 @@ enum htt_t2h_msg_type {
 	HTT_T2H_MSG_TYPE_SEC_IND		= 0xb,
 	HTT_T2H_MSG_TYPE_RC_UPDATE_IND		= 0xc,
 	HTT_T2H_MSG_TYPE_TX_INSPECT_IND		= 0xd,
-	HTT_T2H_MSG_TYPE_MGMT_TX_COMPLETION	= 0xe,
-	HTT_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND	= 0xf,
-	HTT_T2H_MSG_TYPE_RX_PN_IND		= 0x10,
-	HTT_T2H_MSG_TYPE_RX_OFFLOAD_DELIVER_IND = 0x11,
-	HTT_T2H_MSG_TYPE_RX_IN_ORD_PADDR_IND	= 0x12,
+	HTT_T2H_NUM_BASE_MSGS
+};
+
+enum htt_t2h_msg_type_extn {
+	HTT_T2H_MSG_TYPE_EXTN_MGMT_TX_COMPLETION	= 0xe,
+	HTT_T2H_MSG_TYPE_EXTN_TX_CREDIT_UPDATE_IND	= 0xf,
+	HTT_T2H_MSG_TYPE_EXTN_RX_PN_IND			= 0x10,
+	HTT_T2H_MSG_TYPE_EXTN_RX_OFFLOAD_DELIVER_IND	= 0x11,
+	HTT_T2H_MSG_TYPE_EXTN_RX_IN_ORD_PADDR_IND	= 0x12,
 	/* 0x13 reservd */
-	HTT_T2H_MSG_TYPE_WDI_IPA_OP_RESPONSE	= 0x14,
+	HTT_T2H_MSG_TYPE_EXTN_WDI_IPA_OP_RESPONSE	= 0x14,
 
 	/* FIXME: Do not depend on this event id. Numbering of this event id is
 	 * broken across different firmware revisions and HTT version fails to
 	 * indicate this.
 	 */
-	HTT_T2H_MSG_TYPE_TEST,
-
-	/* keep this last */
-	HTT_T2H_NUM_MSGS
+	HTT_T2H_MSG_TYPE_EXTN_TEST,
 };
 
+enum htt_t2h_msg_type_extn_10x {
+	HTT_T2H_MSG_TYPE_EXTN_10X_TEST			= 0xe,
+	HTT_T2H_MSG_TYPE_EXTN_10X_CHAN_CHANGE		= 0xf,
+	HTT_T2H_MSG_TYPE_EXTN_10X_AGGR_CONF		= 0x11,
+	HTT_T2H_MSG_TYPE_EXTN_10X_STATS_NOUPLOAD	= 0x12,
+	HTT_T2H_MSG_TYPE_EXTN_10X_MGMT_TX_COMPL_IND	= 0x13,
+};
 /*
  * htt_resp_hdr - header for target-to-host messages
  *

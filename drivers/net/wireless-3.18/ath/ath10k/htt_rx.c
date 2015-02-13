@@ -1888,6 +1888,71 @@ static void ath10k_htt_rx_in_ord_ind(struct ath10k *ar, struct sk_buff *skb)
 	tasklet_schedule(&htt->rx_replenish_task);
 }
 
+static void ath10k_htt_t2h_mgmt_tx_complete(struct ath10k_htt *htt,
+					    struct htt_mgmt_tx_completion *resp)
+{
+	struct htt_tx_done tx_done = {};
+	int status = __le32_to_cpu(resp->status);
+
+	tx_done.msdu_id =
+		__le32_to_cpu(resp->desc_id);
+
+	switch (status) {
+	case HTT_MGMT_TX_STATUS_OK:
+		break;
+	case HTT_MGMT_TX_STATUS_RETRY:
+		tx_done.no_ack = true;
+		break;
+	case HTT_MGMT_TX_STATUS_DROP:
+		tx_done.discard = true;
+		break;
+	}
+
+	spin_lock_bh(&htt->tx_lock);
+	ath10k_txrx_tx_unref(htt, &tx_done);
+	spin_unlock_bh(&htt->tx_lock);
+}
+
+static void ath10k_htt_t2h_msg_extn_handler(struct ath10k *ar,
+					    struct sk_buff *skb)
+{
+	struct ath10k_htt *htt = &ar->htt;
+	struct htt_resp *resp = (struct htt_resp *)skb->data;
+
+	switch (resp->hdr.msg_type) {
+	case HTT_T2H_MSG_TYPE_EXTN_MGMT_TX_COMPLETION: {
+		ath10k_htt_t2h_mgmt_tx_complete(htt, &resp->mgmt_tx_completion);
+		break;
+	}
+	case HTT_T2H_MSG_TYPE_EXTN_TX_CREDIT_UPDATE_IND:
+		break;
+	case HTT_T2H_MSG_TYPE_EXTN_RX_IN_ORD_PADDR_IND: {
+		spin_lock_bh(&htt->rx_ring.lock);
+		__skb_queue_tail(&htt->rx_in_ord_compl_q, skb);
+		spin_unlock_bh(&htt->rx_ring.lock);
+		tasklet_schedule(&htt->txrx_compl_task);
+		return;
+	}
+	default:
+		break;
+	}
+}
+
+static void ath10k_htt_t2h_msg_extn_10x_handler(struct ath10k *ar,
+						struct sk_buff *skb)
+{
+	struct ath10k_htt *htt = &ar->htt;
+	struct htt_resp *resp = (struct htt_resp *)skb->data;
+
+	switch (resp->hdr.msg_type) {
+	case HTT_T2H_MSG_TYPE_EXTN_10X_MGMT_TX_COMPL_IND:
+		ath10k_htt_t2h_mgmt_tx_complete(htt, &resp->mgmt_tx_completion);
+		break;
+	default:
+		break;
+	}
+}
+
 void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 {
 	struct ath10k_htt *htt = &ar->htt;
@@ -1899,6 +1964,16 @@ void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 
 	ath10k_dbg(ar, ATH10K_DBG_HTT, "htt rx, msg_type: 0x%0X\n",
 		   resp->hdr.msg_type);
+
+	if (resp->hdr.msg_type >= HTT_T2H_NUM_BASE_MSGS) {
+		if (test_bit(ATH10K_FW_FEATURE_WMI_10X, ar->fw_features) ||
+		    (ar->wmi.op_version == ATH10K_FW_WMI_OP_VERSION_10_2_4))
+			ath10k_htt_t2h_msg_extn_10x_handler(ar, skb);
+		else
+			ath10k_htt_t2h_msg_extn_handler(ar, skb);
+		goto out;
+	}
+
 	switch (resp->hdr.msg_type) {
 	case HTT_T2H_MSG_TYPE_VERSION_CONF: {
 		htt->target_version_major = resp->ver_resp.major;
@@ -1928,29 +2003,6 @@ void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 		ath10k_peer_unmap_event(htt, &ev);
 		break;
 	}
-	case HTT_T2H_MSG_TYPE_MGMT_TX_COMPLETION: {
-		struct htt_tx_done tx_done = {};
-		int status = __le32_to_cpu(resp->mgmt_tx_completion.status);
-
-		tx_done.msdu_id =
-			__le32_to_cpu(resp->mgmt_tx_completion.desc_id);
-
-		switch (status) {
-		case HTT_MGMT_TX_STATUS_OK:
-			break;
-		case HTT_MGMT_TX_STATUS_RETRY:
-			tx_done.no_ack = true;
-			break;
-		case HTT_MGMT_TX_STATUS_DROP:
-			tx_done.discard = true;
-			break;
-		}
-
-		spin_lock_bh(&htt->tx_lock);
-		ath10k_txrx_tx_unref(htt, &tx_done);
-		spin_unlock_bh(&htt->tx_lock);
-		break;
-	}
 	case HTT_T2H_MSG_TYPE_TX_COMPL_IND:
 		spin_lock_bh(&htt->tx_lock);
 		__skb_queue_tail(&htt->tx_compl_q, skb);
@@ -1975,9 +2027,6 @@ void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 		ath10k_htt_rx_frag_handler(htt, &resp->rx_frag_ind);
 		break;
 	}
-	case HTT_T2H_MSG_TYPE_TEST:
-		/* FIX THIS */
-		break;
 	case HTT_T2H_MSG_TYPE_STATS_CONF:
 		trace_ath10k_htt_stats(ar, skb->data, skb->len);
 		break;
@@ -2010,20 +2059,6 @@ void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 		 */
 		break;
 	}
-	case HTT_T2H_MSG_TYPE_RX_IN_ORD_PADDR_IND: {
-		spin_lock_bh(&htt->rx_ring.lock);
-		__skb_queue_tail(&htt->rx_in_ord_compl_q, skb);
-		spin_unlock_bh(&htt->rx_ring.lock);
-		tasklet_schedule(&htt->txrx_compl_task);
-		return;
-	}
-	case HTT_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND:
-		/* FIXME: This WMI-TLV event is overlapping with 10.2
-		 * CHAN_CHANGE - both being 0xF. Neither is being used in
-		 * practice so no immediate action is necessary. Nevertheless
-		 * HTT may need an abstraction layer like WMI has one day.
-		 */
-		break;
 	default:
 		ath10k_warn(ar, "htt event (%d) not handled\n",
 			    resp->hdr.msg_type);
@@ -2031,7 +2066,7 @@ void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 				skb->data, skb->len);
 		break;
 	};
-
+out:
 	/* Free the indication buffer */
 	dev_kfree_skb_any(skb);
 }
