@@ -157,8 +157,6 @@ struct dmc_sram {
 	u32 channel_num;
 	u32 dtar[NUM_MC_CHANNEL_MAX];
 
-	void __iomem *sram;
-
 	u32 ddr_type;
 	u32 odt_disable_freq;
 	u32 dll_disable_freq;
@@ -167,7 +165,7 @@ struct dmc_sram {
 	u32 sr_cnt;
 	u32 pd_cnt;
 
-	struct dmc_regtiming *regtiming;
+	int retries;
 };
 
 static void __iomem *p_cru_reg;
@@ -549,7 +547,7 @@ static bool ddr_data_training(u32 ch, u32 cs)
 	}
 
 	/* resume auto refresh */
-	__raw_writel(g_dmc_sram.regtiming->ctl_timing.trefi,
+	__raw_writel(g_ddr_timing.ctl_timing.trefi,
 		     p_ddr_reg + DDR_PCTL_TREFI);
 
 	if (__raw_readl(p_phy_reg + DDR_PUBL_PGSR) & PGSR_DTERR)
@@ -596,13 +594,13 @@ static u32 ddr_update_timing(u32 ch)
 {
 	u32 val, i, bl_tmp = 0;
 	struct ctl_timing_tag *p_ctl_timing =
-		&(g_dmc_sram.regtiming->ctl_timing);
+		&(g_ddr_timing.ctl_timing);
 	struct phy_timing_tag *p_phy_timing =
-		&(g_dmc_sram.regtiming->phy_timing);
+		&(g_ddr_timing.phy_timing);
 	union noc_timing_tag *p_noc_timing =
-	    &(g_dmc_sram.regtiming->noc_timing);
+	    &(g_ddr_timing.noc_timing);
 	union noc_activate_tag *p_noc_activate =
-	    &(g_dmc_sram.regtiming->noc_activate);
+	    &(g_ddr_timing.noc_activate);
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 	void __iomem *p_msch_reg = ddr_ch[ch].p_msch_reg;
@@ -679,7 +677,7 @@ static u32 ddr_update_timing(u32 ch)
 static u32 ddr_update_mr(u32 ch)
 {
 	struct phy_timing_tag *p_phy_timing =
-				&(g_dmc_sram.regtiming->phy_timing);
+				&(g_ddr_timing.phy_timing);
 	u32 val, cs, dll_off;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
@@ -856,7 +854,7 @@ static void set_major_cpu_paused(unsigned int cpu, bool pause)
 	smp_wmb();
 }
 
-static void pause_cpu_in_sram(void *arg)
+void pause_cpu_in_sram(void *arg)
 {
 	unsigned int cpu = (unsigned int)arg;
 
@@ -893,18 +891,37 @@ static void ddr_adjust_config(u32 ch)
 
 static void dmc_sram_init(struct rk3288_dmcclk *dmc)
 {
+	g_dmc_sram.channel_num = dmc->channel_num;
+	g_dmc_sram.dtar[0] = dmc->dtar[0];
+	g_dmc_sram.dtar[1] = dmc->dtar[1];
+	g_dmc_sram.ddr_type = dmc->ddr_type;
+	g_dmc_sram.odt_disable_freq = dmc->oftimings.odt_disable_freq;
+	g_dmc_sram.dll_disable_freq = dmc->oftimings.dll_disable_freq;
+
+	p_cru_reg = dmc->cru_phys;
+	p_grf_reg = dmc->grf_phys;
+	p_pmu_reg = dmc->pmu_phys;
+	ddr_ch[0].p_ddr_reg = dmc->ddr_regs_phys[0];
+	ddr_ch[1].p_ddr_reg = dmc->ddr_regs_phys[1];
+	ddr_ch[0].p_phy_reg = dmc->phy_regs_phys[0];
+	ddr_ch[1].p_phy_reg = dmc->phy_regs_phys[1];
+	ddr_ch[0].p_msch_reg = dmc->noc_phys;
+	ddr_ch[1].p_msch_reg = dmc->noc_phys + 0x80;
+	if (dmc->channel_num > 1) {
+		ddr_ch[0].mem_type = dmc->ddr_type;
+		ddr_ch[1].mem_type = dmc->ddr_type;
+	} else {
+		ddr_ch[0].mem_type = dmc->ddr_type;
+		ddr_ch[1].mem_type = DRAM_MAX;
+	}
+}
+
+static void dmc_pre_set_rate(struct rk3288_dmcclk *dmc)
+{
 	g_dmc_sram.cur_freq = dmc->cur_freq;
 	g_dmc_sram.target_freq = dmc->target_freq;
 	g_dmc_sram.freq_slew = dmc->freq_slew;
 	g_dmc_sram.dqstr_value = dmc->dqstr_value;
-
-	g_dmc_sram.channel_num = dmc->channel_num;
-	g_dmc_sram.dtar[0] = dmc->dtar[0];
-	g_dmc_sram.dtar[1] = dmc->dtar[1];
-	g_dmc_sram.sram = dmc->sram;
-	g_dmc_sram.ddr_type = dmc->ddr_type;
-	g_dmc_sram.odt_disable_freq = dmc->oftimings.odt_disable_freq;
-	g_dmc_sram.dll_disable_freq = dmc->oftimings.dll_disable_freq;
 
 	if (dmc->target_freq <= dmc->oftimings.sr_enable_freq)
 		g_dmc_sram.sr_cnt = dmc->oftimings.sr_cnt;
@@ -916,54 +933,25 @@ static void dmc_sram_init(struct rk3288_dmcclk *dmc)
 	else
 		g_dmc_sram.pd_cnt = 0;
 
-	g_dmc_sram.regtiming = dmc->regtiming;
-
-	p_cru_reg = dmc->cru;
-	p_grf_reg = dmc->grf;
-	p_pmu_reg = dmc->pmu;
-	ddr_ch[0].p_ddr_reg = dmc->ddr_regs[0];
-	ddr_ch[1].p_ddr_reg = dmc->ddr_regs[1];
-	ddr_ch[0].p_phy_reg = dmc->phy_regs[0];
-	ddr_ch[1].p_phy_reg = dmc->phy_regs[1];
-	ddr_ch[0].p_msch_reg = dmc->noc;
-	ddr_ch[1].p_msch_reg = dmc->noc + 0x80;
-	if (dmc->channel_num > 1) {
-		ddr_ch[0].mem_type = dmc->ddr_type;
-		ddr_ch[1].mem_type = dmc->ddr_type;
-	} else {
-		ddr_ch[0].mem_type = dmc->ddr_type;
-		ddr_ch[1].mem_type = DRAM_MAX;
-	}
-
 	clkod = dmc->clkod;
 	clkr = dmc->clkr;
 	clkf = dmc->clkf;
 }
 
-static void dmc_set_rate_in_sram(void *arg)
+static void dmc_post_set_rate(struct rk3288_dmcclk *dmc)
 {
-	struct rk3288_dmcclk *dmc = (struct rk3288_dmcclk *)arg;
-	u32 tmp, n, cs[CH_MAX], ch, deidle_req, clk_gate[CLKGATE_MAX_NUM];
+	dmc->cur_freq = g_dmc_sram.cur_freq;
+	dmc->training_retries = g_dmc_sram.retries;
+}
+
+void dmc_set_rate_in_sram(void *arg)
+{
+	u32 cs[CH_MAX], ch, deidle_req, clk_gate[CLKGATE_MAX_NUM];
 	int retries = 0;
 	bool success = false;
 
-	dmc_sram_init(dmc);
-	/* read the need register to confirm TLB cached */
-	for (n = 0; n < (64 * 1024) / 4096; n++) {
-		n = readl(g_dmc_sram.sram + n * 4096);
-		barrier();
-	}
-	for (n = 0; n < g_dmc_sram.channel_num; n++) {
-		tmp = __raw_readl(ddr_ch[n].p_ddr_reg + DDR_PCTL_SCFG);
-		tmp = __raw_readl(ddr_ch[n].p_phy_reg + DDR_PUBL_RIDR);
-		tmp = __raw_readl(ddr_ch[n].p_msch_reg + MSCH_DDRCONFIG);
-	}
-	n = __raw_readl(p_cru_reg + CRU_PLL_CON(0, 0));
-	n = __raw_readl(p_pmu_reg + PMU_WAKEUP_CFG0);
-	n = __raw_readl(p_grf_reg + GRF_SOC_CON0);
-
-	/* ddr enter self-refresh mode or precharge power-down mode */
 	deidle_req = idle_port(clk_gate);
+	/* ddr enter self-refresh mode or precharge power-down mode */
 	ddr_selfrefresh_enter(g_dmc_sram.target_freq);
 
 	/* change frequence */
@@ -996,10 +984,11 @@ static void dmc_set_rate_in_sram(void *arg)
 			}
 		}
 	}
-
 	deidle_port(clk_gate, deidle_req);
-	dmc->cur_freq = g_dmc_sram.cur_freq;
-	dmc->training_retries = retries;
+	/*
+	 * Make sure instruction pipeline is flushed before moving back to DRAM.
+	 */
+	isb();
 }
 
 static struct dmc_regtiming *dmc_get_regtiming_addr(void)
@@ -1009,15 +998,22 @@ static struct dmc_regtiming *dmc_get_regtiming_addr(void)
 
 static struct rockchip_dmc_sram_params dmc_sram_params;
 
-struct rockchip_dmc_sram_params *__attribute__((section(".init")))init(void)
+struct rockchip_dmc_sram_params *__attribute__((section(".init")))
+init(struct rk3288_dmcclk *dmc)
 {
-	dmc_sram_params.pause_cpu_in_sram = pause_cpu_in_sram;
+	dmc_sram_params.pause_cpu_in_sram = dmc->sram_phys +
+					    (u32)pause_cpu_in_sram;
 	dmc_sram_params.set_major_cpu = set_major_cpu;
 	dmc_sram_params.get_major_cpu = get_major_cpu;
 	dmc_sram_params.set_major_cpu_paused = set_major_cpu_paused;
 	dmc_sram_params.is_cpux_paused = is_cpux_paused;
-	dmc_sram_params.dmc_set_rate_in_sram = dmc_set_rate_in_sram;
+	dmc_sram_params.dmc_pre_set_rate = dmc_pre_set_rate;
+	dmc_sram_params.dmc_post_set_rate = dmc_post_set_rate;
+	dmc_sram_params.dmc_set_rate_in_sram = dmc->sram_phys +
+					       (u32)dmc_set_rate_in_sram;
 	dmc_sram_params.dmc_get_regtiming_addr = dmc_get_regtiming_addr;
+
+	dmc_sram_init(dmc);
 
 	return &dmc_sram_params;
 }

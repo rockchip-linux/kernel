@@ -8,6 +8,8 @@
 */
 
 #include <asm/cacheflush.h>
+#include <asm/idmap.h>
+#include <asm/tlbflush.h>
 
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
@@ -299,7 +301,7 @@ static const u16 ddr3_trc_tfaw[] = {
 
 extern char _binary_arch_arm_mach_rockchip_embedded_rk3288_sram_bin_start;
 extern char _binary_arch_arm_mach_rockchip_embedded_rk3288_sram_bin_end;
-extern void call_with_stack(void (*fn) (void *), void *arg, void *sp);
+extern void call_with_mmu_disabled(void (*fn) (void *), void *arg, void *sp);
 
 static int ddr3_get_parameter(struct rk3288_dmcclk *dmc)
 {
@@ -970,23 +972,43 @@ static const u32 cpu_stack_idx[4][4] = {
 static void pause_cpu(void *info)
 {
 	struct rk3288_dmcclk *dmc = (struct rk3288_dmcclk *)info;
-	unsigned int cpu = raw_smp_processor_id();
+	struct mm_struct *saved_mm = current->active_mm;
 	struct rockchip_dmc_sram_params *params = dmc->sram_params;
+	void (*fn)(void (*fn) (void *), void *arg, void *sp) =
+		(void *)(unsigned long)virt_to_phys(call_with_mmu_disabled);
+	u32 cpu = raw_smp_processor_id();
+	u32 stack_off = cpu_stack_idx[params->get_major_cpu()][cpu];
 
-	call_with_stack(params->pause_cpu_in_sram,
-			(void *)cpu,
-			(void *)(dmc->sram_stack -
-				 cpu_stack_idx[params->get_major_cpu()][cpu] *
-				 PAUSE_CPU_STACK_SIZE));
+	stack_off *= PAUSE_CPU_STACK_SIZE;
+	setup_mm_for_reboot();
+	fn(params->pause_cpu_in_sram, (void *)cpu,
+	   (void *)(dmc->sram_stack_phys - stack_off));
+	cpu_switch_mm(saved_mm->pgd, saved_mm);
+	local_flush_bp_all();
+	local_flush_tlb_all();
 }
 
 static void dmc_set_rate(struct rk3288_dmcclk *dmc)
 {
 	struct rockchip_dmc_sram_params *params = dmc->sram_params;
+	struct mm_struct *saved_mm = current->active_mm;
+	void (*fn)(void (*fn) (void *), void *arg, void *sp) =
+		(void *)(unsigned long)virt_to_phys(call_with_mmu_disabled);
 
-	call_with_stack(params->dmc_set_rate_in_sram,
-			(void *)dmc,
-			(void *)(dmc->sram_stack - (3 * PAUSE_CPU_STACK_SIZE)));
+	/*
+	 * Read needed values from DRAM before turning off mmu to avoid cache
+	 * flush for latency reasons.
+	 */
+	params->dmc_pre_set_rate(dmc);
+	setup_mm_for_reboot();
+	fn(params->dmc_set_rate_in_sram, NULL,
+	   dmc->sram_stack_phys - (3 * PAUSE_CPU_STACK_SIZE));
+	cpu_switch_mm(saved_mm->pgd, saved_mm);
+	local_flush_bp_all();
+	local_flush_tlb_all();
+
+	/* Read values from sram into ddr after turning on the mmu. */
+	params->dmc_post_set_rate(dmc);
 }
 
 #define LPJ_100MHZ	999456UL
@@ -1543,6 +1565,8 @@ static void dmc_init_ddr_info(struct rk3288_dmcclk *dmc, u32 ch)
 	dev_dbg(dmc->dev, "freq = %dMHz\n", dmc->cur_freq);
 }
 
+#define SRAM_STACK_OFFSET	64
+
 /* SRAM section definitions from the linker */
 static int rk3288_sram_init(struct rk3288_dmcclk *dmc)
 {
@@ -1552,6 +1576,9 @@ static int rk3288_sram_init(struct rk3288_dmcclk *dmc)
 		&_binary_arch_arm_mach_rockchip_embedded_rk3288_sram_bin_end;
 	u32 size = end - start;
 
+	dmc->sram_stack = dmc->sram + dmc->sram_len - SRAM_STACK_OFFSET;
+	dmc->sram_stack_phys = dmc->sram_phys + dmc->sram_len -
+		SRAM_STACK_OFFSET;
 	flush_cache_all();
 
 	memset(dmc->sram, 0x0, size);
@@ -1578,10 +1605,11 @@ static int rk3288_sram_init(struct rk3288_dmcclk *dmc)
 	/*
 	 * We need to init the struct that contains the function pointers for
 	 * calling into the sram code. It's position independent code, so we
-	 * can't statically init it.
+	 * can't statically init it. It also inits information in sram based on
+	 * the values in dmc.
 	 */
-	dmc->sram_params = ((struct rockchip_dmc_sram_params *(*)(void))
-			(dmc->sram))();
+	dmc->sram_params = ((struct rockchip_dmc_sram_params *(*)
+			    (struct rk3288_dmcclk *))(dmc->sram))(dmc);
 	dmc->regtiming = dmc->sram_params->dmc_get_regtiming_addr();
 	dmc->p_ctl_timing = &dmc->regtiming->ctl_timing;
 	dmc->p_phy_timing = &dmc->regtiming->phy_timing;
@@ -1591,14 +1619,20 @@ static int rk3288_sram_init(struct rk3288_dmcclk *dmc)
 	return 0;
 }
 
-static void __iomem *rk3288_get_iomem(struct device *dev, const char *name)
+/*
+ * Get the physical address and length of iomem from teh device tree and map it
+ * in the kernel and sram page table.
+ */
+static void __iomem *rk3288_getmap_iomem(struct rk3288_dmcclk *dmc,
+					 const char *name, void __iomem **phys)
 {
+	struct device *dev = dmc->dev;
 	struct device_node *node;
 	struct resource res;
 	void __iomem *mem;
 	int err;
 
-	node = of_parse_phandle(dev->of_node, name, 0);
+	node = of_parse_phandle(dmc->dev->of_node, name, 0);
 	if (!node) {
 		dev_err(dev, "Could not find DTS param for %s\n", name);
 		return ERR_PTR(-ENODEV);
@@ -1614,10 +1648,11 @@ static void __iomem *rk3288_get_iomem(struct device *dev, const char *name)
 	if (IS_ERR(mem))
 		dev_err(dev, "Could not map %s\n", name);
 
+	if (phys)
+		*phys = (void __iomem *)res.start;
+
 	return mem;
 }
-
-#define SRAM_STACK_OFFSET	64
 
 static int rk3288_dmcclk_probe(struct platform_device *pdev)
 {
@@ -1656,28 +1691,6 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		return PTR_ERR(dmc->pclk_publ1);
 	}
 
-	/*
-	 * Get cru, grf, sgrf, pmu base regs. We can't use the regmap API when
-	 * we turn off DDR, so we're just using iomem right here. Any registers
-	 * not owned by ddr clk are unchanged after changing the ddr clk
-	 * frequency.
-	 */
-	dmc->cru = rk3288_get_iomem(dmc->dev, "rockchip,cru");
-	if (IS_ERR(dmc->cru))
-		return PTR_ERR(dmc->cru);
-	dmc->grf = rk3288_get_iomem(dmc->dev, "rockchip,grf");
-	if (IS_ERR(dmc->grf))
-		return PTR_ERR(dmc->grf);
-	dmc->pmu = rk3288_get_iomem(dmc->dev, "rockchip,pmu");
-	if (IS_ERR(dmc->pmu))
-		return PTR_ERR(dmc->pmu);
-	dmc->sgrf = rk3288_get_iomem(dmc->dev, "rockchip,sgrf");
-	if (IS_ERR(dmc->sgrf))
-		return PTR_ERR(dmc->sgrf);
-	dmc->noc = rk3288_get_iomem(dmc->dev, "rockchip,noc");
-	if (IS_ERR(dmc->noc))
-		return PTR_ERR(dmc->noc);
-
 	node = of_parse_phandle(pdev->dev.of_node, "rockchip,sram", 0);
 	if (!node) {
 		dev_err(dmc->dev, "cannot get sram location\n");
@@ -1695,13 +1708,30 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		dev_err(dmc->dev, "Could not map sram\n");
 		return PTR_ERR(dmc->sram);
 	}
-	dmc->sram_stack = dmc->sram + res.end - res.start + 1 -
-			  SRAM_STACK_OFFSET;
-	ret = rk3288_sram_init(dmc);
-	if (ret) {
-		dev_err(dmc->dev, "%s: fail to init sram\n", __func__);
-		return ret;
-	}
+	dmc->sram_len = res.end - res.start + 1;
+	dmc->sram_phys = (void __iomem *)res.start;
+
+	/*
+	 * Get cru, grf, sgrf, pmu base regs. We can't use the regmap API when
+	 * we turn off DDR, so we're just using iomem right here. Any registers
+	 * not owned by ddr clk are unchanged after changing the ddr clk
+	 * frequency.
+	 */
+	dmc->cru = rk3288_getmap_iomem(dmc, "rockchip,cru", &dmc->cru_phys);
+	if (IS_ERR(dmc->cru))
+		return PTR_ERR(dmc->cru);
+	dmc->grf = rk3288_getmap_iomem(dmc, "rockchip,grf", &dmc->grf_phys);
+	if (IS_ERR(dmc->grf))
+		return PTR_ERR(dmc->grf);
+	dmc->pmu = rk3288_getmap_iomem(dmc, "rockchip,pmu", &dmc->pmu_phys);
+	if (IS_ERR(dmc->pmu))
+		return PTR_ERR(dmc->pmu);
+	dmc->sgrf = rk3288_getmap_iomem(dmc, "rockchip,sgrf", NULL);
+	if (IS_ERR(dmc->sgrf))
+		return PTR_ERR(dmc->sgrf);
+	dmc->noc = rk3288_getmap_iomem(dmc, "rockchip,noc", &dmc->noc_phys);
+	if (IS_ERR(dmc->noc))
+		return PTR_ERR(dmc->noc);
 
 	/* get memory controller channel number */
 	dmc->channel_num = (1 + ((readl(dmc->pmu + PMU_SYS_REG2) >> 12) & 0x1));
@@ -1715,11 +1745,13 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		dmc->ddr_regs[i] = devm_ioremap_resource(dmc->dev, res);
 		if (IS_ERR(dmc->ddr_regs[i]))
 			return PTR_ERR(dmc->ddr_regs[i]);
+		dmc->ddr_regs_phys[i] = (void *)res->start;
 
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i * 2 + 1);
 		dmc->phy_regs[i] = devm_ioremap_resource(dmc->dev, res);
 		if (IS_ERR(dmc->phy_regs[i]))
 			return PTR_ERR(dmc->phy_regs[i]);
+		dmc->phy_regs_phys[i] = (void *)res->start;
 
 		dmc_init_ddr_info(dmc, i);
 	}
@@ -1752,6 +1784,13 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 
 	/* transform data training buf to DTAR register */
 	dmc_init_dtar(dmc);
+
+	/* Init sram code and page tables using vlaues in dmc struct. */
+	ret = rk3288_sram_init(dmc);
+	if (ret) {
+		dev_err(dmc->dev, "%s: fail to init sram\n", __func__);
+		return ret;
+	}
 
 	/* register dpllddr clock */
 	ret = rk3288_register_dmcclk(dmc);

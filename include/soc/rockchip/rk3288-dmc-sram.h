@@ -178,6 +178,9 @@ struct rk3288_dmcclk {
 	u32 dtar[NUM_MC_CHANNEL_MAX];
 	void __iomem *ddr_regs[NUM_MC_CHANNEL_MAX];
 	void __iomem *phy_regs[NUM_MC_CHANNEL_MAX];
+	void __iomem *ddr_regs_phys[NUM_MC_CHANNEL_MAX];
+	void __iomem *phy_regs_phys[NUM_MC_CHANNEL_MAX];
+
 	void __iomem *cru;
 	/*
 	 * We access at these without locking. The reason this works is that we
@@ -189,10 +192,17 @@ struct rk3288_dmcclk {
 	void __iomem *pmu;
 	void __iomem *sgrf;
 	void __iomem *noc;
+	void __iomem *cru_phys;
+	void __iomem *grf_phys;
+	void __iomem *pmu_phys;
+	void __iomem *noc_phys;
 
 	struct rockchip_dmc_sram_params *sram_params;
-	void __iomem *sram;
-	void __iomem *sram_stack;
+	void *sram;
+	void *sram_stack;
+	void *sram_phys;
+	void *sram_stack_phys;
+	size_t sram_len;
 
 	u32 ddr_type;
 	/* Only record the max capability per die. */
@@ -214,6 +224,8 @@ struct rockchip_dmc_sram_params {
 	u32 (*get_major_cpu)(void);
 	void (*set_major_cpu_paused)(unsigned int cpu, bool pause);
 	bool (*is_cpux_paused)(unsigned int cpu);
+	void (*dmc_pre_set_rate)(struct rk3288_dmcclk *dmc);
+	void (*dmc_post_set_rate)(struct rk3288_dmcclk *dmc);
 	void (*dmc_set_rate_in_sram)(void *arg);
 	struct dmc_regtiming *(*dmc_get_regtiming_addr)(void);
 };
