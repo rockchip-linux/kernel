@@ -144,10 +144,22 @@ static struct pistachio_mux pistachio_muxes[] __initdata = {
 	MUX(CLK_BT_PLL_MUX, "bt_pll_mux", mux_xtal_bt, 0x200, 17),
 };
 
+static struct pistachio_pll_rate_table audio_pll_rates[] = {
+	{
+		.fref		= 52000000,
+		.fout		= 147456000,
+		.refdiv		= 0x1,
+		.fbdiv		= 0x2d,
+		.frac		= 0x5efee6,
+		.postdiv1	= 0x4,
+		.postdiv2	= 0x4,
+	},
+};
+
 static struct pistachio_pll pistachio_plls[] __initdata = {
 	PLL_FIXED(CLK_MIPS_PLL, "mips_pll", "xtal", PLL_GF40LP_LAINT, 0x0),
-	PLL_FIXED(CLK_AUDIO_PLL, "audio_pll", "audio_refclk_mux",
-		  PLL_GF40LP_FRAC, 0xc),
+	PLL(CLK_AUDIO_PLL, "audio_pll", "audio_refclk_mux", PLL_GF40LP_FRAC,
+	    0xc, audio_pll_rates),
 	PLL_FIXED(CLK_RPU_V_PLL, "rpu_v_pll", "xtal", PLL_GF40LP_LAINT, 0x20),
 	PLL_FIXED(CLK_RPU_L_PLL, "rpu_l_pll", "xtal", PLL_GF40LP_LAINT, 0x2c),
 	PLL_FIXED(CLK_SYS_PLL, "sys_pll", "xtal", PLL_GF40LP_FRAC, 0x38),
