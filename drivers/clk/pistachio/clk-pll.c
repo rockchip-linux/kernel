@@ -67,6 +67,12 @@ static inline void pll_writel(struct pistachio_clk_pll *pll, u32 val, u32 reg)
 	writel(val, pll->base + reg);
 }
 
+static inline void pll_lock(struct pistachio_clk_pll *pll)
+{
+	while (!(pll_readl(pll, PLL_STATUS) & PLL_STATUS_LOCK))
+		cpu_relax();
+}
+
 static inline u32 do_div_round_closest(u64 dividend, u32 divisor)
 {
 	dividend += divisor / 2;
@@ -124,6 +130,8 @@ static int pll_gf40lp_frac_enable(struct clk_hw *hw)
 	val &= ~PLL_FRAC_CTRL4_BYPASS;
 	pll_writel(pll, val, PLL_CTRL4);
 
+	pll_lock(pll);
+
 	return 0;
 }
 
@@ -135,6 +143,13 @@ static void pll_gf40lp_frac_disable(struct clk_hw *hw)
 	val = pll_readl(pll, PLL_CTRL3);
 	val |= PLL_FRAC_CTRL3_PD;
 	pll_writel(pll, val, PLL_CTRL3);
+}
+
+static int pll_gf40lp_frac_is_enabled(struct clk_hw *hw)
+{
+	struct pistachio_clk_pll *pll = to_pistachio_pll(hw);
+
+	return !(pll_readl(pll, PLL_CTRL3) & PLL_FRAC_CTRL3_PD);
 }
 
 static int pll_gf40lp_frac_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -166,8 +181,8 @@ static int pll_gf40lp_frac_set_rate(struct clk_hw *hw, unsigned long rate,
 		(params->postdiv2 << PLL_FRAC_CTRL2_POSTDIV2_SHIFT);
 	pll_writel(pll, val, PLL_CTRL2);
 
-	while (!(pll_readl(pll, PLL_STATUS) & PLL_STATUS_LOCK))
-		cpu_relax();
+	if (pll_gf40lp_frac_is_enabled(hw))
+		pll_lock(pll);
 
 	return 0;
 }
@@ -199,6 +214,7 @@ static unsigned long pll_gf40lp_frac_recalc_rate(struct clk_hw *hw,
 static struct clk_ops pll_gf40lp_frac_ops = {
 	.enable = pll_gf40lp_frac_enable,
 	.disable = pll_gf40lp_frac_disable,
+	.is_enabled = pll_gf40lp_frac_is_enabled,
 	.recalc_rate = pll_gf40lp_frac_recalc_rate,
 	.round_rate = pll_round_rate,
 	.set_rate = pll_gf40lp_frac_set_rate,
@@ -207,6 +223,7 @@ static struct clk_ops pll_gf40lp_frac_ops = {
 static struct clk_ops pll_gf40lp_frac_fixed_ops = {
 	.enable = pll_gf40lp_frac_enable,
 	.disable = pll_gf40lp_frac_disable,
+	.is_enabled = pll_gf40lp_frac_is_enabled,
 	.recalc_rate = pll_gf40lp_frac_recalc_rate,
 };
 
@@ -224,6 +241,8 @@ static int pll_gf40lp_laint_enable(struct clk_hw *hw)
 	val &= ~PLL_INT_CTRL2_BYPASS;
 	pll_writel(pll, val, PLL_CTRL2);
 
+	pll_lock(pll);
+
 	return 0;
 }
 
@@ -235,6 +254,13 @@ static void pll_gf40lp_laint_disable(struct clk_hw *hw)
 	val = pll_readl(pll, PLL_CTRL1);
 	val |= PLL_INT_CTRL1_PD;
 	pll_writel(pll, val, PLL_CTRL1);
+}
+
+static int pll_gf40lp_laint_is_enabled(struct clk_hw *hw)
+{
+	struct pistachio_clk_pll *pll = to_pistachio_pll(hw);
+
+	return !(pll_readl(pll, PLL_CTRL1) & PLL_INT_CTRL1_PD);
 }
 
 static int pll_gf40lp_laint_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -259,8 +285,8 @@ static int pll_gf40lp_laint_set_rate(struct clk_hw *hw, unsigned long rate,
 		(params->postdiv2 << PLL_INT_CTRL1_POSTDIV2_SHIFT);
 	pll_writel(pll, val, PLL_CTRL1);
 
-	while (!(pll_readl(pll, PLL_STATUS) & PLL_STATUS_LOCK))
-		cpu_relax();
+	if (pll_gf40lp_laint_is_enabled(hw))
+		pll_lock(pll);
 
 	return 0;
 }
@@ -289,6 +315,7 @@ static unsigned long pll_gf40lp_laint_recalc_rate(struct clk_hw *hw,
 static struct clk_ops pll_gf40lp_laint_ops = {
 	.enable = pll_gf40lp_laint_enable,
 	.disable = pll_gf40lp_laint_disable,
+	.is_enabled = pll_gf40lp_laint_is_enabled,
 	.recalc_rate = pll_gf40lp_laint_recalc_rate,
 	.round_rate = pll_round_rate,
 	.set_rate = pll_gf40lp_laint_set_rate,
@@ -297,6 +324,7 @@ static struct clk_ops pll_gf40lp_laint_ops = {
 static struct clk_ops pll_gf40lp_laint_fixed_ops = {
 	.enable = pll_gf40lp_laint_enable,
 	.disable = pll_gf40lp_laint_disable,
+	.is_enabled = pll_gf40lp_laint_is_enabled,
 	.recalc_rate = pll_gf40lp_laint_recalc_rate,
 };
 
