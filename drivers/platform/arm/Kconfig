@@ -17,7 +17,7 @@ config ARM_CHROMEOS_FIRMWARE
 	bool "ChromeOS firmware interface driver"
 	select CHROMEOS
 	select CHROMEOS_VBC_BLK
-	select CHROMEOS_VBC_EC if !ARCH_QCOM
+	select CHROMEOS_VBC_EC if (!ARCH_QCOM && !ARCH_BCM_CYGNUS)
 	---help---
 	  This driver provides an interface to ChromeOS firmware.
 
