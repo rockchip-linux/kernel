@@ -280,6 +280,12 @@ int security_sb_statfs(struct dentry *dentry)
 int security_sb_mount(const char *dev_name, struct path *path,
                        const char *type, unsigned long flags, void *data)
 {
+	int ret;
+
+	ret = chromiumos_security_sb_mount(dev_name, path, type, flags, data);
+	if (ret)
+		return ret;
+
 	return security_ops->sb_mount(dev_name, path, type, flags, data);
 }
 
@@ -835,6 +841,10 @@ int security_kernel_module_request(char *kmod_name)
 int security_kernel_module_from_file(struct file *file)
 {
 	int ret;
+
+	ret = chromiumos_security_load_module(file);
+	if (ret)
+		return ret;
 
 	ret = security_ops->kernel_module_from_file(file);
 	if (ret)

@@ -133,7 +133,6 @@ choice
 	default DEFAULT_SECURITY_TOMOYO if SECURITY_TOMOYO
 	default DEFAULT_SECURITY_APPARMOR if SECURITY_APPARMOR
 	default DEFAULT_SECURITY_YAMA if SECURITY_YAMA
-	default DEFAULT_SECURITY_CHROMIUMOS if SECURITY_CHROMIUMOS
 	default DEFAULT_SECURITY_DAC
 
 	help
@@ -155,9 +154,6 @@ choice
 	config DEFAULT_SECURITY_YAMA
 		bool "Yama" if SECURITY_YAMA=y
 
-	config DEFAULT_SECURITY_CHROMIUMOS
-		bool "Chromium OS" if SECURITY_CHROMIUMOS=y
-
 	config DEFAULT_SECURITY_DAC
 		bool "Unix Discretionary Access Controls"
 
@@ -170,7 +166,6 @@ config DEFAULT_SECURITY
 	default "tomoyo" if DEFAULT_SECURITY_TOMOYO
 	default "apparmor" if DEFAULT_SECURITY_APPARMOR
 	default "yama" if DEFAULT_SECURITY_YAMA
-	default "chromiumos" if DEFAULT_SECURITY_CHROMIUMOS
 	default "" if DEFAULT_SECURITY_DAC
 
 endmenu

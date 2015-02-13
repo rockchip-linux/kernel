@@ -30,9 +30,9 @@
 
 #include "utils.h"
 
-static int chromiumos_security_sb_mount(const char *dev_name, struct path *path,
-					const char *type, unsigned long flags,
-					void *data)
+int chromiumos_security_sb_mount(const char *dev_name, struct path *path,
+				 const char *type, unsigned long flags,
+				 void *data)
 {
 	int error = current->total_link_count ? -ELOOP : 0;
 
@@ -155,7 +155,7 @@ static void check_locking_enforcement(void) { }
 #endif
 
 
-static int chromiumos_security_load_module(struct file *file)
+int chromiumos_security_load_module(struct file *file)
 {
 	struct dentry *module_root;
 
@@ -201,23 +201,11 @@ static int chromiumos_security_load_module(struct file *file)
 	return 0;
 }
 
-static struct security_operations chromiumos_security_ops = {
-	.name	= "chromiumos",
-	.sb_mount = chromiumos_security_sb_mount,
-	.kernel_module_from_file = chromiumos_security_load_module,
-};
-
-
 static int __init chromiumos_security_init(void)
 {
-	int error;
+	pr_info("enabled");
 
-	error = register_security(&chromiumos_security_ops);
-
-	if (error)
-		panic("Could not register Chromium OS security module");
-
-	return error;
+	return 0;
 }
 security_initcall(chromiumos_security_init);
 

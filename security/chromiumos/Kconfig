@@ -6,4 +6,5 @@ config SECURITY_CHROMIUMOS
 	  surface by preventing access to general purpose access modes not
 	  required by Chromium OS. Currently: the mount operation is
 	  restricted by requiring a mount point path without symbolic links,
-	  and loading modules is limited to only the root filesystem.
+	  and loading modules is limited to only the root filesystem. This
+	  LSM is stacked ahead of any primary "full" LSM.
