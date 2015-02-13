@@ -231,12 +231,10 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 		dev_dbg(dev, "Port %d: Charger type: %d\n",
 			port->port_number, resp.type);
 		/*
-		 * TODO: Once the EC supports dual role property, report:
-		 *   USB_CHG_TYPE_PD && !dual_role: Mains
-		 *   USB_CHG_TYPE_PD && dual_role: USB (or better yet, USB_PD)
-		 *   other types: None
+		 * Report all type of USB chargers as POWER_SUPPLY_TYPE_USB to
+		 * keep userland low power charger detection logic simpler.
 		 */
-		port->psy_type = POWER_SUPPLY_TYPE_MAINS;
+		port->psy_type = POWER_SUPPLY_TYPE_USB;
 		break;
 	default:
 		dev_err(dev, "Port %d: default case!\n",
