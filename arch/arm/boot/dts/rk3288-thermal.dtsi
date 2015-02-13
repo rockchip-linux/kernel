@@ -20,7 +20,7 @@ reserve_thermal: reserve_thermal {
 };
 
 cpu_thermal: cpu_thermal {
-	polling-delay-passive = <250>; /* milliseconds */
+	polling-delay-passive = <100>; /* milliseconds */
 	polling-delay = <5000>; /* milliseconds */
 
 			/* sensor	ID */
@@ -29,12 +29,17 @@ cpu_thermal: cpu_thermal {
 
 	trips {
 		cpu_alert0: cpu_alert0 {
-			temperature = <80000>; /* millicelsius */
+			temperature = <70000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "passive";
+		};
+		cpu_alert1: cpu_alert1 {
+			temperature = <75000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
 		cpu_crit: cpu_crit {
-			temperature = <120000>; /* millicelsius */
+			temperature = <100000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "critical";
 		};
@@ -44,13 +49,18 @@ cpu_thermal: cpu_thermal {
 		map0 {
 			trip = <&cpu_alert0>;
 			cooling-device =
+				<&cpu0 THERMAL_NO_LIMIT 6>;
+		};
+		map1 {
+			trip = <&cpu_alert1>;
+			cooling-device =
 				<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 		};
 	};
 };
 
 gpu_thermal: gpu_thermal {
-	polling-delay-passive = <250>; /* milliseconds */
+	polling-delay-passive = <100>; /* milliseconds */
 	polling-delay = <5000>; /* milliseconds */
 
 			/* sensor	ID */
@@ -64,7 +74,7 @@ gpu_thermal: gpu_thermal {
 			type = "passive";
 		};
 		gpu_crit: gpu_crit {
-			temperature = <120000>; /* millicelsius */
+			temperature = <100000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "critical";
 		};
