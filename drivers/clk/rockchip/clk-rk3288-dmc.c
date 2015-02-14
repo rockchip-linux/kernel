@@ -1745,7 +1745,7 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 	dmc->ddr_capability_per_die = 0;
 
 	/* get memory controller base regs */
-	for (i = 0; i < dmc->channel_num; i++) {
+	for (i = 0; i < NUM_MC_CHANNEL_MAX; i++) {
 		struct resource *res;
 
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i * 2);
@@ -1759,9 +1759,11 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		if (IS_ERR(dmc->phy_regs[i]))
 			return PTR_ERR(dmc->phy_regs[i]);
 		dmc->phy_regs_phys[i] = (void *)res->start;
-
-		dmc_init_ddr_info(dmc, i);
 	}
+
+	/* initialize active ddr channels */
+	for (i = 0; i < dmc->channel_num; i++)
+		dmc_init_ddr_info(dmc, i);
 
 	/* load timings from dts */
 	node = pdev->dev.of_node;
