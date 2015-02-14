@@ -49,7 +49,7 @@ int chromiumos_security_sb_mount(const char *dev_name, struct path *path,
 	return error;
 }
 
-static void report_load_module(struct path *path, char *operation)
+static void report_load(const char *origin, struct path *path, char *operation)
 {
 	char *alloced = NULL, *cmdline;
 	char *pathname; /* Pointer to either static string or "alloced". */
@@ -75,7 +75,7 @@ static void report_load_module(struct path *path, char *operation)
 
 	cmdline = printable_cmdline(current);
 
-	pr_notice("init_module %s module=%s pid=%d cmdline=%s\n",
+	pr_notice("%s %s obj=%s pid=%d cmdline=%s\n", origin,
 		  operation, pathname, task_pid_nr(current), cmdline);
 
 	kfree(cmdline);
@@ -170,17 +170,17 @@ int chromiumos_security_sb_umount(struct vfsmount *mnt, int flags)
 	return 0;
 }
 
-int chromiumos_security_load_module(struct file *file)
+static int check_pinning(const char *origin, struct file *file)
 {
 	struct dentry *module_root;
 
 	if (!file) {
 		if (!module_locking) {
-			report_load_module(NULL, "old-api-locking-ignored");
+			report_load(origin, NULL, "old-api-locking-ignored");
 			return 0;
 		}
 
-		report_load_module(NULL, "old-api-denied");
+		report_load(origin, NULL, "old-api-denied");
 		return -EPERM;
 	}
 
@@ -201,7 +201,7 @@ int chromiumos_security_load_module(struct file *file)
 		 * enabled. This would be purely cosmetic.
 		 */
 		spin_unlock(&locked_root_spinlock);
-		report_load_module(&file->f_path, "locked");
+		report_load(origin, &file->f_path, "locked");
 		check_locking_enforcement();
 	} else {
 		spin_unlock(&locked_root_spinlock);
@@ -209,15 +209,26 @@ int chromiumos_security_load_module(struct file *file)
 
 	if (IS_ERR_OR_NULL(locked_root) || module_root != locked_root) {
 		if (unlikely(!module_locking)) {
-			report_load_module(&file->f_path, "locking-ignored");
+			report_load(origin, &file->f_path,
+				    "locking-ignored");
 			return 0;
 		}
 
-		report_load_module(&file->f_path, "denied");
+		report_load(origin, &file->f_path, "denied");
 		return -EPERM;
 	}
 
 	return 0;
+}
+
+int chromiumos_security_load_module(struct file *file)
+{
+	return check_pinning("init_module", file);
+}
+
+int chromiumos_security_load_firmware(struct file *file, char *buf, size_t size)
+{
+	return check_pinning("request_firmware", file);
 }
 
 static int __init chromiumos_security_init(void)
