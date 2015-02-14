@@ -242,6 +242,7 @@ dtb-$(CONFIG_ARCH_QCOM) += \
 	qcom-msm8960-cdp.dtb \
 	qcom-ipq8064-ap148.dtb \
 	qcom-ipq8064-whirlwind-sp3.dtb \
+	qcom-ipq8064-whirlwind-sp5.dtb \
 	qcom-ipq8064-storm.dtb
 dtb-$(CONFIG_ARCH_U8500) += ste-snowball.dtb \
 	ste-hrefprev60-stuib.dtb \
