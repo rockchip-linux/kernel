@@ -150,6 +150,8 @@ struct dw_hdmi {
 	void __iomem *regs;
 
 	unsigned int sample_rate;
+
+	/* this mutex is used for audio clock control */
 	struct mutex audio_mutex;
 	bool audio_enable;
 
@@ -238,7 +240,7 @@ static void hdmi_set_schnl(struct dw_hdmi *hdmi)
 		break;
 	default:
 		dev_warn(hdmi->dev, "Unsupported audio sample rate (%u)\n",
-			hdmi->sample_rate);
+			 hdmi->sample_rate);
 		return;
 	}
 
@@ -1264,7 +1266,7 @@ static void dw_hdmi_audio_clk_enable(struct dw_hdmi *hdmi)
 static void dw_hdmi_audio_clk_disable(struct dw_hdmi *hdmi)
 {
 	hdmi_modb(hdmi, HDMI_MC_CLKDIS_AUDCLK_DISABLE,
-			HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
+		  HDMI_MC_CLKDIS_AUDCLK_DISABLE, HDMI_MC_CLKDIS);
 }
 
 static void dw_hdmi_audio_restore(struct dw_hdmi *hdmi)
@@ -1372,11 +1374,10 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 
 	hdmi->vic = drm_match_cea_mode(mode);
 
-	if (!hdmi->vic) {
+	if (!hdmi->vic)
 		dev_dbg(hdmi->dev, "Non-CEA mode used in HDMI\n");
-	} else {
+	else
 		dev_dbg(hdmi->dev, "CEA mode used vic=%d\n", hdmi->vic);
-	}
 
 	if ((hdmi->vic == 6) || (hdmi->vic == 7) ||
 	    (hdmi->vic == 21) || (hdmi->vic == 22) ||
