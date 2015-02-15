@@ -41,6 +41,9 @@ struct snd_dw_hdmi {
 	u8 jack_status;
 	bool is_jack_ready;
 	struct snd_soc_jack jack;
+
+	bool is_playback_status;
+	struct hdmi_audio_fmt fmt;
 };
 
 int snd_dw_hdmi_jack_detect(struct snd_dw_hdmi *hdmi)
@@ -100,12 +103,22 @@ static void dw_hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi,
 	hdmi->data.set_sample_rate(hdmi->data.dw, fmt->sample_rate);
 }
 
+static void hdmi_audio_set_fmt(struct snd_dw_hdmi *hdmi,
+			       const struct hdmi_audio_fmt *fmt)
+{
+	if (fmt)
+		hdmi->fmt = *fmt;
+	dw_hdmi_audio_set_fmt(hdmi, &hdmi->fmt);
+}
+
 static int snd_dw_hdmi_dai_startup(struct snd_pcm_substream *substream,
 				   struct snd_soc_dai *codec_dai)
 {
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
 	dev_info(codec_dai->dev, "startup.\n");
+
+	hdmi->is_playback_status = true;
 	hdmi->data.enable(hdmi->data.dw);
 
 	return 0;
@@ -188,7 +201,7 @@ static int snd_dw_hdmi_dai_hw_params(struct snd_pcm_substream *substream,
 
 	hdmi_fmt.input_type = AUDIO_INPUTTYPE_IIS;
 
-	dw_hdmi_audio_set_fmt(hdmi, &hdmi_fmt);
+	hdmi_audio_set_fmt(hdmi, &hdmi_fmt);
 
 	return 0;
 }
@@ -199,6 +212,8 @@ static void snd_dw_hdmi_dai_shutdown(struct snd_pcm_substream *substream,
 	struct snd_dw_hdmi *hdmi = snd_soc_dai_get_drvdata(codec_dai);
 
 	dev_info(codec_dai->dev, "shutdown.\n");
+
+	hdmi->is_playback_status = false;
 	hdmi->data.disable(hdmi->data.dw);
 }
 
@@ -310,6 +325,33 @@ static int dw_hdmi_audio_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int dw_hdmi_audio_resume(struct device *dev)
+{
+	struct snd_dw_hdmi *hdmi = dev_get_drvdata(dev);
+
+	if (hdmi->is_playback_status) {
+		dw_hdmi_audio_set_fmt(hdmi, &hdmi->fmt);
+		hdmi->data.enable(hdmi->data.dw);
+	}
+
+	return 0;
+}
+
+static int dw_hdmi_audio_suspend(struct device *dev)
+{
+	struct snd_dw_hdmi *hdmi = dev_get_drvdata(dev);
+
+	hdmi->data.disable(hdmi->data.dw);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops dw_hdmi_audio_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(dw_hdmi_audio_suspend, dw_hdmi_audio_resume)
+};
+
 static const struct of_device_id dw_hdmi_audio_ids[] = {
 	{ .compatible = "dw-hdmi-audio", },
 	{ }
@@ -319,6 +361,7 @@ static struct platform_driver dw_hdmi_audio_driver = {
 	.driver = {
 		.name = "dw-hdmi-audio",
 		.owner = THIS_MODULE,
+		.pm = &dw_hdmi_audio_pm,
 		.of_match_table = of_match_ptr(dw_hdmi_audio_ids),
 	},
 	.probe = dw_hdmi_audio_probe,
