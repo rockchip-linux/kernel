@@ -818,6 +818,7 @@ struct mwifiex_adapter {
 	u8 key_api_major_ver, key_api_minor_ver;
 	bool scan_chan_gap_enabled;
 	struct sk_buff_head rx_data_q;
+	struct semaphore *card_sem;
 };
 
 int mwifiex_init_lock_list(struct mwifiex_adapter *adapter);
