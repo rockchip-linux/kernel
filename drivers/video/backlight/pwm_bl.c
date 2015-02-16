@@ -331,6 +331,10 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	}
 
 	bl->props.brightness = data->dft_brightness;
+
+	if (of_find_property(pdev->dev.of_node, "backlight-boot-off", NULL))
+		bl->props.power = FB_BLANK_POWERDOWN;
+
 	backlight_update_status(bl);
 
 	platform_set_drvdata(pdev, bl);
