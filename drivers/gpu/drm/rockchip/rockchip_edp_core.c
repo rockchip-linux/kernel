@@ -452,7 +452,7 @@ static void rockchip_edp_poweron(struct drm_encoder *encoder)
 		return;
 
 	if (edp->panel)
-		edp->panel->funcs->enable(edp->panel);
+		drm_panel_prepare(edp->panel);
 
 	ret = rockchip_edp_clk_enable(edp);
 	if (ret < 0) {
@@ -469,6 +469,9 @@ static void rockchip_edp_poweron(struct drm_encoder *encoder)
 	rockchip_edp_wait_hpd(edp);
 	rockchip_edp_lt_init(edp);
 	rockchip_edp_commit(encoder);
+
+	if (edp->panel)
+		drm_panel_enable(edp->panel);
 }
 
 static void rockchip_edp_poweroff(struct drm_encoder *encoder)
@@ -478,11 +481,15 @@ static void rockchip_edp_poweroff(struct drm_encoder *encoder)
 	if (edp->dpms_mode == DRM_MODE_DPMS_OFF)
 		return;
 
+	if (edp->panel)
+		drm_panel_disable(edp->panel);
+
 	rockchip_edp_reset(edp);
 	rockchip_edp_analog_power_ctr(edp, 0);
 	rockchip_edp_clk_disable(edp);
+
 	if (edp->panel)
-		edp->panel->funcs->disable(edp->panel);
+		drm_panel_unprepare(edp->panel);
 }
 
 static enum drm_connector_status
