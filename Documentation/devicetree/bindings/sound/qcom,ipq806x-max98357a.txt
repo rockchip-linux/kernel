@@ -1,0 +1,24 @@
+* Qualcomm Technologies IPQ806x-MAX98357A SoundCard
+
+This node models a soundcard for boards with the Qualcomm Technologies IPQ806x
+SOC connected to a MAX98357A DAC via I2S.
+
+Required properties:
+
+- compatible	: "qcom,ipq806x-max98357a"
+- qcom,model	: The user-visible name of this sound card.
+- cpu		: Phandle of the CPU DAI
+- codec		: Phandle of the codec DAI
+- codec-dai	: Name of the codec DAI which must be selected from one of the
+		  following entries:
+			* max98357a
+
+Example:
+
+sound {
+	compatible = "qcom,ipq806x-max98357a";
+	model = "ipq806x-max98357a";
+	cpu = <&lpass_cpu>;
+	codec = <&max98357a>;
+	codec-dai = "max98357a";
+};

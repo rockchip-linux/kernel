@@ -1,6 +1,6 @@
 * Qualcomm Technologies LPASS CPU DAI
 
-This node models the Qualcomm Technologies LPASS DAI ports.
+This node models the Qualcomm Technologies Low-Power Audio SubSystem.
 
 Required properties:
 
@@ -21,32 +21,10 @@ Required properties:
 - reg			: Must contain an address for each entry in reg-names.
 - reg-names		: A list which must include the following entries:
 				* "lpass-lpaif"
-				* "lpass-lpm"
-
-Optional properties:
-
-- qcom,system-clock-shift		: Add this bool property if the default
-					  frequency of the system clock needs to
-					  be reduced.
-- qcom,system-clock-shift-compare	: A numerical value used to right-shift
-					  the default system clock frequency for
-					  comparison with the target bit clock
-					  frequency.
-- qcom,system-clock-shift-amount	: A numerical value used to right-shift
-					  the default system clock frequency.
-- qcom,alternate-sysclk			: Add this bool property if the default
-					  frequency of the system clock cannot
-					  divide down to the target bit clock
-					  frequency.
-- qcom,alternate-sysclk-bitwidth	: A numerical value representing the
-					  sample bitwidth which requires use of
-					  the alternate system clock frequency.
-- qcom,alternate-sysclk-frequency	: A numerical value representing the new
-					  system clock frequency to use.
 
 Example:
 
-lpass-cpu@28100000 {
+lpass@28100000 {
 	compatible = "qcom,lpass-cpu";
 	clocks = <&lcc AHBIX_CLK>, <&lcc MI2S_OSR_CLK>, <&lcc MI2S_BIT_CLK>;
 	clock-names = "ahbix-clk", "mi2s-osr-clk", "mi2s-bit-clk";
@@ -55,12 +33,6 @@ lpass-cpu@28100000 {
 	pinctrl-names = "default", "idle";
 	pinctrl-0 = <&mi2s_default>;
 	pinctrl-1 = <&mi2s_idle>;
-	reg = <0x28100000 0x10000>, <0x28400000 0x4000>;
-	reg-names = "lpass-lpaif", "lpass-lpm";
-	qcom,system-clock-shift;
-	qcom,system-clock-shift-compare = <4>;
-	qcom,system-clock-shift-amount = <3>;
-	qcom,alternate-sysclk;
-	qcom,alternate-systclk-bitwidth = <24>;
-	qcom,alternate-systclk-frequency = <4608000>;
+	reg = <0x28100000 0x10000>;
+	reg-names = "lpass-lpaif";
 };
