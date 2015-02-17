@@ -124,6 +124,15 @@
 	};
 };
 
+&dmc {
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		333000 1100000
+		533000 1150000
+	>;
+};
+
 &sdmmc {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_disabled &sdmmc_cd_gpio
