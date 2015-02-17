@@ -571,8 +571,8 @@
 			compatible = "qcom,nss-gmac0";
 			reg = <0x37000000 0x200000>;
 			qcom,id = <0>;			/* gmac0 */
-			qcom,phy_mdio_addr = <1>;
-			qcom,poll_required = <1>;	/* enable polling */
+			qcom,phy_mdio_addr = <32>;	/* none */
+			qcom,poll_required = <0>;	/* disable polling */
 			qcom,rgmii_delay = <0>;
 			qcom,phy_mii_type = <0>;	/* RGMII */
 			qcom,emulation = <0>;
