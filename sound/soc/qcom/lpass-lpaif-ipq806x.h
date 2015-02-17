@@ -9,6 +9,8 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * lpass-lpaif-ipq806x.h -- Definitions for the QTi LPAIF in the ipq806x LPASS
  */
 
 #ifndef __LPASS_LPAIF_H__

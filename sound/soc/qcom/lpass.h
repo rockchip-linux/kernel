@@ -9,56 +9,43 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
+ * lpass.h - Definitions for the QTi LPASS
  */
 
 #ifndef __LPASS_H__
 #define __LPASS_H__
 
+#include <linux/clk.h>
+#include <linux/compiler.h>
+#include <linux/platform_device.h>
+#include <linux/regmap.h>
+
 #define LPASS_AHBIX_CLOCK_FREQUENCY		131072
 
-/* Both the CPU DAI driver and platform driver will access this data */
+/* Both the CPU DAI and platform drivers will access this data */
 struct lpass_data {
 
-	/* clocks inside the low-power audio subsystem (LPASS) domain */
+	/* AHB-I/X bus clocks inside the low-power audio subsystem (LPASS) */
 	struct clk *ahbix_clk;
-	struct clk *mi2s_bit_clk;
+
+	/* MI2S system clock */
 	struct clk *mi2s_osr_clk;
 
-	/* default system (or OSR) clock frequency */
-	unsigned int default_sysclk_freq;
+	/* MI2S bit clock (derived from system clock by a divider */
+	struct clk *mi2s_bit_clk;
 
-	/*
-	 * if enabled and the target BIT clock frequency is below the range of
-	 * the clock divider, then the system clock needs to be reduced by
-	 * right-shifting the default clock frequency
-	 */
-	bool sysclk_shift_enable;
-	unsigned int sysclk_shift_compare;
-	unsigned int sysclk_shift_amount;
-
-	/*
-	 * if enabled and the target BIT clock frequency can not be accurately
-	 * derived by the clock divider for the given bitwidth, then use an
-	 * alternate system clock frequency
-	 */
-	bool alt_sysclk_enable;
-	unsigned int alt_sysclk_enable_bitwidth;
-	unsigned int alt_sysclk_freq;
-
-	/* memory-mapped registers for the low-power audio interface (LPAIF) */
+	/* low-power audio interface (LPAIF) registers */
 	void __iomem *lpaif;
+
+	/* regmap backed by the low-power audio interface (LPAIF) registers */
 	struct regmap *lpaif_map;
 
-	/* handle for the low-power audio interface (LPAIF) interrupts */
+	/* interrupts from the low-power audio interface (LPAIF) */
 	int lpaif_irq;
-
-	/* memory-mapped RAM designated for holding the audio buffer(s) */
-	void __iomem *lpm;
-	dma_addr_t lpm_phys;
-	unsigned int lpm_size;
-	atomic_t lpm_lock;
 };
 
+/* register the platform driver from the CPU DAI driver */
 int asoc_qcom_lpass_platform_register(struct platform_device *);
 
 #endif /* __LPASS_H__ */
