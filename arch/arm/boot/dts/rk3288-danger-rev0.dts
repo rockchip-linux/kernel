@@ -1,0 +1,149 @@
+/*
+ * Google Veyron Jerry Rev 3+ board device tree source
+ *
+ * Copyright 2014 Google, Inc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "rk3288-veyron.dtsi"
+
+/ {
+	model = "Google Danger";
+	compatible = "google,veyron-danger-rev0", "google,veyron-danger",
+	             "google,veyron", "rockchip,rk3288";
+
+	vcc33_io: vcc33_io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_io";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+		/* This is gated by vcc_18 too */
+	};
+
+	vcc33_sd: vcc33-sd {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_sd";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+	};
+
+	/*
+	 * This is supposed to be on rk808 and adjustable.
+	 * It's a bug in hardware in rev0.
+	 */
+	vccio_sd: vccio_sd {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_sd";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+	};
+};
+
+&backlight {
+	enable-gpios = <&gpio7 3 GPIO_ACTIVE_HIGH>;
+	default-brightness-level = <128>;
+};
+
+&gpio_keys {
+	power {
+		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&rk808 {
+	/delete-property/ vcc6-supply;
+	/* No sd card regulators (vcc9), hardware problem in rev0 */
+	/delete-property/ vcc9-supply;
+	/delete-property/ vcc11-supply;
+
+	regulators {
+		/* vcc33_io is sourced directly from vcc33_sys */
+		/delete-node/ LDO_REG1;
+
+		/* we have no vcc33_sdio, hardware bug in rev0 */
+		/delete-node/ LDO_REG4;
+		/* vcc33_sd is not on rk808, hardware bug in rev0 */
+		/delete-node/ LDO_REG5;
+
+		/* This is not a pwren anymore, but the real power supply */
+		vdd10_lcd: LDO_REG7 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-name = "vdd10_lcd";
+			regulator-suspend-mem-disabled;
+		};
+
+		vcc18_hdmi: SWITCH_REG2 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-name = "vcc18_hdmi";
+			regulator-suspend-mem-disabled;
+		};
+	};
+};
+
+&sdmmc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_disabled &sdmmc_cd_gpio
+			&sdmmc_bus4>;
+	disable-wp;
+};
+
+&vcc50_hdmi {
+	enable-active-high;
+	gpio = <&gpio7 2 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vcc50_hdmi_en>;
+};
+
+&vcc33_sys {
+	vin-supply = <&vcc_5v>;
+};
+
+
+&edp {
+	pinctrl-names = "default";
+	pinctrl-0 = <&edp_hpd>;
+};
+
+&pinctrl {
+	backlight {
+		bl_en: bl-en {
+			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	edp {
+		edp_hpd: edp_hpd {
+			/*
+			 * This is pulled up as a software workaround.
+			 * This pin is not actually connected to
+			 * anything but the driver won't work without a high
+			 * on the hpd.
+			 */
+			rockchip,pins = <7 11 RK_FUNC_2 &pcfg_pull_up>;
+		};
+	};
+
+	emmc {
+		/* Make sure eMMC is not in reset */
+		emmc_deassert_reset: emmc-deassert-reset {
+			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	hdmi {
+		vcc50_hdmi_en: vcc50-hdmi-en {
+			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};
