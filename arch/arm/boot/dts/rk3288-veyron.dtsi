@@ -171,27 +171,6 @@
 		vin-supply = <&vccsys>;
 	};
 
-	/*
-	 * Note that vcc33_io comes from vcc33_sys (as we've modeled here )but
-	 * goes through a discreet FET.  The enable line for the FET is
-	 * vcc33_pmuio.  That means (ignoring noise, efficiency, and maximum
-	 * current considerations) that vcc33_io is really (vcc33_sys &&
-	 * vcc33_pmuio).  Note that we currently consider both both of these
-	 * always_on from the point of view of the AP (they may turn off in S3
-	 * or S5).
-	 *
-	 * I'm not quite sure how to model that, but since everything is
-	 * always_on and the voltages aren't changing we'll just ingore the
-	 * enable line.
-	 */
-	vcc33_io: vcc33-io {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc33_io";
-		regulator-always-on;
-		regulator-boot-on;
-		vin-supply = <&vcc33_sys>;
-	};
-
 	vcc_5v: vcc-5v {
 		compatible = "regulator-fixed";
 		regulator-name = "vcc_5v";
@@ -278,7 +257,7 @@
 		dvp-supply = <&vcc_18>;
 		flash0-supply = <&vcc18_flashio>;
 		gpio1830-supply = <&vcc33_io>;
-		gpio30-supply = <&vcc33_pmuio>;
+		gpio30-supply = <&vcc33_io>;
 		lcdc-supply = <&vcc33_lcd>;
 		sdcard-supply = <&vccio_sd>;
 		wifi-supply = <&vcc18_wl>;
@@ -428,7 +407,7 @@
 		vcc11-supply = <&vcc_5v>;
 		vcc12-supply = <&vcc_18>;
 
-		vddio-supply = <&vcc33_pmuio>;
+		vddio-supply = <&vcc33_io>;
 
 		regulators {
 			vdd_cpu: DCDC_REG1 {
@@ -474,12 +453,19 @@
 				regulator-suspend-mem-microvolt = <1800000>;
 			};
 
-			vcc33_pmuio: LDO_REG1 {
+			/*
+			 * Note that both vcc33_io and vcc33_pmuio are always
+			 * powered together. To simplify the logic in the dts
+			 * we just refer to vcc33_io every time something is
+			 * powered from vcc33_pmuio. In fact, on later boards
+			 * (such as danger) they're the same net.
+			 */
+			vcc33_io: LDO_REG1 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
-				regulator-name = "vcc33_pmuio";
+				regulator-name = "vcc33_io";
 				regulator-suspend-mem-microvolt = <3300000>;
 			};
 
