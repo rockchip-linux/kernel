@@ -294,6 +294,7 @@ static void mwifiex_init_adapter(struct mwifiex_adapter *adapter)
 	adapter->arp_filter_size = 0;
 	adapter->max_mgmt_ie_index = MAX_MGMT_IE_INDEX;
 	adapter->ext_scan = true;
+	adapter->mfg_mode = mfg_mode;
 	adapter->key_api_major_ver = 0;
 	adapter->key_api_minor_ver = 0;
 
@@ -533,13 +534,19 @@ int mwifiex_init_fw(struct mwifiex_adapter *adapter)
 			return -1;
 	}
 
-	for (i = 0; i < adapter->priv_num; i++) {
-		if (adapter->priv[i]) {
-			ret = mwifiex_sta_init_cmd(adapter->priv[i], first_sta);
-			if (ret == -1)
-				return -1;
+	if (adapter->mfg_mode) {
+		adapter->hw_status = MWIFIEX_HW_STATUS_READY;
+		ret = -EINPROGRESS;
+	} else {
+		for (i = 0; i < adapter->priv_num; i++) {
+			if (adapter->priv[i]) {
+				ret = mwifiex_sta_init_cmd(adapter->priv[i],
+							   first_sta);
+				if (ret == -1)
+					return -1;
 
-			first_sta = false;
+				first_sta = false;
+			}
 		}
 	}
 

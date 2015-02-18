@@ -142,7 +142,7 @@ mwifiex_sdio_remove(struct sdio_func *func)
 	/* In case driver is removed when asynchronous FW load is in progress */
 	wait_for_completion(&adapter->fw_load);
 
-	if (user_rmmod) {
+	if (user_rmmod && !adapter->mfg_mode) {
 		if (adapter->is_suspended)
 			mwifiex_sdio_resume(adapter->dev);
 

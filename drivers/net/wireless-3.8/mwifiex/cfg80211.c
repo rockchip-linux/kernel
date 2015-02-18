@@ -2284,6 +2284,7 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 
 	mdev_priv = netdev_priv(dev);
 	*((unsigned long *) mdev_priv) = (unsigned long) priv;
+	dev->ml_priv = priv;
 
 	SET_NETDEV_DEV(dev, adapter->dev);
 
@@ -2302,6 +2303,8 @@ struct wireless_dev *mwifiex_add_virtual_intf(struct wiphy *wiphy,
 #ifdef CONFIG_DEBUG_FS
 	mwifiex_dev_debugfs_init(priv);
 #endif
+	mwifiex_sysfs_register(priv);
+
 	return wdev;
 }
 EXPORT_SYMBOL_GPL(mwifiex_add_virtual_intf);
@@ -2316,6 +2319,7 @@ int mwifiex_del_virtual_intf(struct wiphy *wiphy, struct wireless_dev *wdev)
 #ifdef CONFIG_DEBUG_FS
 	mwifiex_dev_debugfs_remove(priv);
 #endif
+	mwifiex_sysfs_unregister(priv);
 
 	mwifiex_stop_net_dev_queue(priv->netdev, priv->adapter);
 

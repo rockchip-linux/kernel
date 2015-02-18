@@ -228,7 +228,7 @@ static void mwifiex_pcie_remove(struct pci_dev *pdev)
 	/* In case driver is removed when asynchronous FW load is in progress */
 	wait_for_completion(&adapter->fw_load);
 
-	if (user_rmmod) {
+	if (user_rmmod && !adapter->mfg_mode) {
 #ifdef CONFIG_PM
 		if (adapter->is_suspended)
 			mwifiex_pcie_resume(pdev);

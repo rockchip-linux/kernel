@@ -549,7 +549,7 @@ static void mwifiex_usb_disconnect(struct usb_interface *intf)
 	 */
 	wait_for_completion(&adapter->fw_load);
 
-	if (user_rmmod) {
+	if (user_rmmod && !adapter->mfg_mode) {
 #ifdef CONFIG_PM
 		if (adapter->is_suspended)
 			mwifiex_usb_resume(intf);

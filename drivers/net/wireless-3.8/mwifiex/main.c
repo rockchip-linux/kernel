@@ -442,10 +442,12 @@ static void mwifiex_fw_dpc(const struct firmware *firmware, void *context)
 		goto done;
 	}
 	/* Wait for mwifiex_init to complete */
-	wait_event_interruptible(adapter->init_wait_q,
-				 adapter->init_wait_q_woken);
-	if (adapter->hw_status != MWIFIEX_HW_STATUS_READY)
-		goto err_init_fw;
+	if (!adapter->mfg_mode) {
+		wait_event_interruptible(adapter->init_wait_q,
+					 adapter->init_wait_q_woken);
+		if (adapter->hw_status != MWIFIEX_HW_STATUS_READY)
+			goto err_init_fw;
+	}
 
 	priv = adapter->priv[MWIFIEX_BSS_ROLE_STA];
 	if (mwifiex_register_cfg80211(adapter)) {
@@ -538,6 +540,25 @@ static int mwifiex_init_hw_fw(struct mwifiex_adapter *adapter)
 	int ret;
 
 	init_completion(&adapter->fw_load);
+
+	if (mfg_mode && !strlen(mfg_firmware)) {
+		pr_err("%s: mfg firmware missing. Ignoring manufacturing mode\n",
+		       __func__);
+		mfg_mode = false;
+	}
+
+	/* Override default firmware with manufacturing one if
+	 * manufacturing mode is enabled
+	 */
+	if (mfg_mode) {
+		if (strlcpy(adapter->fw_name, mfg_firmware,
+			    sizeof(adapter->fw_name)) >=
+			    sizeof(adapter->fw_name)) {
+			pr_err("%s: fw_name too long!\n", __func__);
+			return -1;
+		}
+	}
+
 	ret = request_firmware_nowait(THIS_MODULE, 1, adapter->fw_name,
 				      adapter->dev, GFP_KERNEL, adapter,
 				      mwifiex_fw_dpc);
