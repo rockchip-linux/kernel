@@ -63,6 +63,9 @@ struct udl_device {
 	atomic_t bytes_identical; /* saved effort with backbuffer comparison */
 	atomic_t bytes_sent; /* to usb, after compression including overhead */
 	atomic_t cpu_kcycles_used; /* transpired during pixel processing */
+
+	struct workqueue_struct *flip_wq; /* workqueue for page flip tasks. */
+	atomic_t flip_work_count;
 };
 
 struct udl_gem_object {
