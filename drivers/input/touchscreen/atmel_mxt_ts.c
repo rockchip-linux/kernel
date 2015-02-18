@@ -459,6 +459,9 @@ struct mxt_data {
 	u8 T100_ctrl;
 	bool T100_ctrl_valid;
 
+	u8 T101_ctrl;
+	bool T101_ctrl_valid;
+
 	bool irq_wake;  /* irq wake is enabled */
 	/* Saved T42 Touch Suppression field */
 	u8 T42_ctrl;
@@ -3287,6 +3290,14 @@ static void mxt_save_all_regs(struct mxt_data *data)
 		}
 	}
 
+	if (is_hovering_supported(data)) {
+		/* Save 1 byte T101 Ctrl config */
+		ret = mxt_save_regs(data, MXT_SPT_TOUCHSCREENHOVER_T101, 0, 0,
+				    &data->T101_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Save T101 ctrl config failed, %d\n", ret);
+		data->T101_ctrl_valid = (ret == 0);
+	}
 
 	ret = mxt_save_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
 			    &data->T42_ctrl, 1);
@@ -3354,6 +3365,13 @@ static void mxt_restore_all_regs(struct mxt_data *data)
 				   &data->T19_ctrl, 1);
 		if (ret)
 			dev_err(dev, "Set T19 ctrl failed, %d\n", ret);
+	}
+
+	if (is_hovering_supported(data) && data->T101_ctrl_valid) {
+		ret = mxt_set_regs(data, MXT_SPT_TOUCHSCREENHOVER_T101, 0, 0,
+				   &data->T101_ctrl, 1);
+		if (ret)
+			dev_err(dev, "Set T101 ctrl config failed, %d\n", ret);
 	}
 }
 
@@ -3976,6 +3994,7 @@ static int __maybe_unused mxt_suspend(struct device *dev)
 	if (data->is_tp && device_may_wakeup(dev)) {
 		u8 T42_sleep = 0x01;
 		u8 T19_sleep = 0x00;
+		u8 T101_sleep = 0x00;
 
 		/* Enable Large Object Suppression */
 		ret = mxt_set_regs(data, MXT_PROCI_TOUCHSUPPRESSION_T42, 0, 0,
@@ -3989,6 +4008,27 @@ static int __maybe_unused mxt_suspend(struct device *dev)
 		if (ret)
 			dev_err(dev, "Set T19 ctrl failed, %d\n", ret);
 
+		/* Disable Hover, if supported */
+		if (is_hovering_supported(data) &&
+		    data->T101_ctrl_valid &&
+		    data->T101_ctrl != T101_sleep) {
+			unsigned long timeout = msecs_to_jiffies(350);
+
+			init_completion(&data->auto_cal_completion);
+			enable_irq(data->irq);
+
+			ret = mxt_set_regs(data, MXT_SPT_TOUCHSCREENHOVER_T101,
+					   0, 0, &T101_sleep, 1);
+			if (ret)
+				dev_err(dev, "Set T101 ctrl failed, %d\n", ret);
+
+			ret = wait_for_completion_interruptible_timeout(
+					&data->auto_cal_completion, timeout);
+			if (ret <= 0)
+				dev_err(dev,
+					"Wait for cal completion failed.\n");
+			disable_irq(data->irq);
+		}
 	} else {
 		data->T42_ctrl_valid = data->T19_ctrl_valid = false;
 	}
