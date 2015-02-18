@@ -24,3 +24,4 @@ ath10k_pci-y += pci.o \
 
 # for tracing framework to find trace.h
 CFLAGS_trace.o := -I$(src)
+CFLAGS_wmi.o := -DJETSTREAM_DEBUG=1

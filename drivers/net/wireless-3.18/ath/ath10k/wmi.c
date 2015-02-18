@@ -1073,9 +1073,24 @@ ath10k_wmi_op_gen_mgmt_tx(struct ath10k *ar, struct sk_buff *msdu)
 	ether_addr_copy(cmd->hdr.peer_macaddr.addr, ieee80211_get_DA(hdr));
 	memcpy(cmd->buf, msdu->data, msdu->len);
 
+	/*
+	 * When JETSTREAM_DEBUG=1, the driver uses ATH10K_DBG_MGMT bit to enable
+	 * debug messages showing mgmt frame TX instead of ATH10K_DBG_WMI. This
+	 * allows the use of ATH10K_DBG_WMI without seeing all the beacon debug
+	 * messages. If the beacon messages are needed, use ATH10K_DBG_MGMT.
+	 * This change has no effect unless ATH10K_DBG_MGMT or ATH10K_DBG_WMI
+	 * are enabled for debugging.
+	 */
+#if JETSTREAM_DEBUG
+	ath10k_dbg(ar, ATH10K_DBG_MGMT, "wmi mgmt tx skb %p len %d ftype %02x stype %02x\n",
+		   msdu, skb->len, fc & IEEE80211_FCTL_FTYPE,
+		   fc & IEEE80211_FCTL_STYPE);
+#else
 	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi mgmt tx skb %p len %d ftype %02x stype %02x\n",
 		   msdu, skb->len, fc & IEEE80211_FCTL_FTYPE,
 		   fc & IEEE80211_FCTL_STYPE);
+#endif
+
 	trace_ath10k_tx_hdr(ar, skb->data, skb->len);
 	trace_ath10k_tx_payload(ar, skb->data, skb->len);
 
