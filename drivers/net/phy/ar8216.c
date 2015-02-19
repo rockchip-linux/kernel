@@ -2958,10 +2958,6 @@ ar8xxx_phy_probe(struct phy_device *phydev)
 	struct switch_dev *swdev;
 	int ret;
 
-	/* skip PHYs at unused adresses */
-	if (phydev->addr != 0 && phydev->addr != 4)
-		return -ENODEV;
-
 	if (!ar8xxx_is_possible(phydev->bus))
 		return -ENODEV;
 
