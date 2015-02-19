@@ -635,6 +635,11 @@
 		#clock-cells = <1>;
 	};
 
+	fuse@18149200 {
+		compatible = "img,pistachio-efuse";
+		reg = <0x18149200 0x200>;
+	};
+
 	gic: interrupt-controller@1bdc0000 {
 		compatible = "mti,gic";
 		reg = <0x1bdc0000 0x20000>;
