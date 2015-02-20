@@ -96,8 +96,7 @@ static int ath10k_thermal_set_cur_dutycycle(struct thermal_cooling_device *cdev,
 		ret = -ENETDOWN;
 		goto out;
 	}
-	period = max(ATH10K_QUIET_PERIOD_MIN,
-		     (ATH10K_QUIET_PERIOD_DEFAULT / num_bss));
+	period = ar->thermal.quiet_period;
 	duration = (period * (100 - duty_cycle)) / 100;
 	enabled = duration ? 1 : 0;
 
@@ -184,6 +183,48 @@ static struct attribute *ath10k_hwmon_attrs[] = {
 };
 ATTRIBUTE_GROUPS(ath10k_hwmon);
 
+static ssize_t ath10k_thermal_show_quiet_period(struct device *dev,
+						struct device_attribute *attr,
+						char *buf)
+{
+	struct ath10k *ar = dev_get_drvdata(dev);
+	u32 period;
+
+	mutex_lock(&ar->conf_mutex);
+	period = ar->thermal.quiet_period;
+	mutex_unlock(&ar->conf_mutex);
+
+	return sprintf(buf, "%u\n", period);
+}
+
+static ssize_t ath10k_thermal_store_quiet_period(struct device *dev,
+						 struct device_attribute *attr,
+						 const char *buf, size_t count)
+{
+	struct ath10k *ar = dev_get_drvdata(dev);
+	u32 period;
+	int ret;
+
+	ret = kstrtou32(buf, 0, &period);
+	if (ret)
+		return ret;
+
+	if (period < ATH10K_QUIET_PERIOD_MIN) {
+		ath10k_warn(ar, "Quiet period %u can not be lesser than 25ms\n",
+			    period);
+		return -EINVAL;
+	}
+	mutex_lock(&ar->conf_mutex);
+	ar->thermal.quiet_period = period;
+	mutex_unlock(&ar->conf_mutex);
+
+	return count;
+}
+
+static DEVICE_ATTR(quiet_period, S_IRUGO | S_IWUSR,
+		   ath10k_thermal_show_quiet_period,
+		   ath10k_thermal_store_quiet_period);
+
 int ath10k_thermal_register(struct ath10k *ar)
 {
 	struct thermal_cooling_device *cdev;
@@ -208,6 +249,13 @@ int ath10k_thermal_register(struct ath10k *ar)
 
 	ar->thermal.cdev = cdev;
 
+	ret = sysfs_create_file(&ar->dev->kobj, &dev_attr_quiet_period.attr);
+	if (ret) {
+		ath10k_err(ar, "failed to create quiet period sysfs entry\n");
+		goto err_remove_link;
+	}
+	ar->thermal.quiet_period = ATH10K_QUIET_PERIOD_DEFAULT;
+
 	/* Do not register hwmon device when temperature reading is not
 	 * supported by firmware
 	 */
@@ -226,10 +274,12 @@ int ath10k_thermal_register(struct ath10k *ar)
 		ath10k_err(ar, "failed to register hwmon device: %ld\n",
 			   PTR_ERR(hwmon_dev));
 		ret = -EINVAL;
-		goto err_remove_link;
+		goto err_remove_file;
 	}
 	return 0;
 
+err_remove_file:
+	sysfs_remove_file(&ar->dev->kobj, &dev_attr_quiet_period.attr);
 err_remove_link:
 	sysfs_remove_link(&ar->dev->kobj, "thermal_sensor");
 err_cooling_destroy:
@@ -241,4 +291,5 @@ void ath10k_thermal_unregister(struct ath10k *ar)
 {
 	thermal_cooling_device_unregister(ar->thermal.cdev);
 	sysfs_remove_link(&ar->dev->kobj, "cooling_device");
+	sysfs_remove_file(&ar->dev->kobj, &dev_attr_quiet_period.attr);
 }
