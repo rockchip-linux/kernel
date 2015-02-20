@@ -256,6 +256,7 @@ static int do_ubiblock_request(struct ubiblock *dev, struct request *req)
 	mutex_lock(&dev->dev_mutex);
 	ret = ubiblock_read(dev, req->buffer, sec, len);
 	mutex_unlock(&dev->dev_mutex);
+	rq_flush_dcache_pages(req);
 
 	return ret;
 }
