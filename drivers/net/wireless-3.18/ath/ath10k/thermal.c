@@ -276,6 +276,13 @@ int ath10k_thermal_register(struct ath10k *ar)
 		ret = -EINVAL;
 		goto err_remove_file;
 	}
+	ret = sysfs_create_link(&ar->dev->kobj, &hwmon_dev->kobj,
+				"thermal_sensors");
+	if (ret) {
+		ath10k_err(ar, "failed to create hwmon symlink\n");
+		goto err_remove_file;
+	}
+
 	return 0;
 
 err_remove_file:
@@ -292,4 +299,5 @@ void ath10k_thermal_unregister(struct ath10k *ar)
 	thermal_cooling_device_unregister(ar->thermal.cdev);
 	sysfs_remove_link(&ar->dev->kobj, "cooling_device");
 	sysfs_remove_file(&ar->dev->kobj, &dev_attr_quiet_period.attr);
+	sysfs_remove_link(&ar->dev->kobj, "thermal_sensors");
 }
