@@ -202,7 +202,7 @@ static int rt5677_spi_mic_write_offset(u32 *mic_write_offset)
  * the pcm runtime. The receiving buffer may wrap around.
  * @begin: start offset of the block to copy, in bytes.
  * @end:   offset of the first byte after the block to copy, must be greater
- *         than begin.
+ *         than or equal to begin.
  *
  * Return: Zero if successful, or a negative error code on failure.
  */
@@ -214,12 +214,16 @@ static int rt5677_spi_append_data(struct rt5677_dsp *rt5677_dsp,
 	size_t first_chunk_len, second_chunk_len;
 	int ret;
 
-	if (begin >= end || runtime->dma_bytes < 2 * bytes_per_frame) {
+	if (begin > end || runtime->dma_bytes < 2 * bytes_per_frame) {
 		dev_err(rt5677_dsp->dev,
 			"Invalid copy from (%u, %u), dma_area size %zu\n",
 			begin, end, runtime->dma_bytes);
 		return -EINVAL;
 	}
+
+	/* The block to copy is empty */
+	if (begin == end)
+		return 0;
 
 	/* If the incoming chunk is too big for the receiving buffer, only the
 	 * last "receiving buffer size - one frame" bytes are copied.
