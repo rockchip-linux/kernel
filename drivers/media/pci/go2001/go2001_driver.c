@@ -144,6 +144,7 @@ static struct go2001_ctrl go2001_enc_ctrls[] = {
 		.min = V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_DISABLED,
 		.max = V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_I_FRAME,
 		.def = V4L2_MPEG_MFC51_VIDEO_FORCE_FRAME_TYPE_DISABLED,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 };
 
@@ -668,6 +669,7 @@ static int go2001_init_ctrl_handler(struct go2001_ctx *ctx)
 			cfg.step = ctrl->step;
 			if (cfg.type == V4L2_CTRL_TYPE_MENU)
 				cfg.qmenu = go2001_get_qmenu(ctrl->id);
+			cfg.flags = ctrl->flags;
 			v4l2_ctrl_new_custom(hdl, &cfg, NULL);
 		} else if (ctrl->type == V4L2_CTRL_TYPE_MENU) {
 			v4l2_ctrl_new_std_menu(hdl, ops, ctrl->id, ctrl->max,

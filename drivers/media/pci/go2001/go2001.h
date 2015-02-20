@@ -137,6 +137,7 @@ struct go2001_ctrl {
 	s32 max;
 	u32 step;
 	s32 def;
+	u32 flags;
 };
 
 enum go2001_codec_state {
