@@ -314,6 +314,8 @@ static bool rt5677_volatile_register(struct device *dev, unsigned int reg)
 	case RT5677_IRQ_CTRL1:
 	case RT5677_IRQ_CTRL2:
 	case RT5677_GPIO_ST:
+	case RT5677_GPIO_CTRL1: /* Modified by DSP firmware */
+	case RT5677_GPIO_CTRL2: /* Modified by DSP firmware */
 	case RT5677_DSP_INB1_SRC_CTRL4:
 	case RT5677_DSP_INB2_SRC_CTRL4:
 	case RT5677_DSP_INB3_SRC_CTRL4:
@@ -777,8 +779,11 @@ static unsigned int rt5677_set_vad_source(
 	regmap_update_bits(rt5677->regmap, RT5677_DSP_INB_CTRL1,
 		RT5677_IB01_SRC_MASK, 4 << RT5677_IB01_SRC_SFT);
 
-	/* IRQ Source of VAD Jack Detection = enable */
-	regmap_write(rt5677->regmap, RT5677_IRQ_CTRL2, 0x4000);
+	/* VAD/SAD is not routed to the IRQ output (i.e. MX-BE[14] = 0), but it
+	 * is routed to DSP_IRQ_0, so DSP firmware may use it to sleep and save
+	 * power. See ALC5677 datasheet section 9.17 "GPIO, Interrupt and Jack
+	 * Detection" for more info.
+	 */
 
 	/* Enable Gating Mode with MCLK = enable */
 	regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC, 0x1, 0x1);
@@ -897,15 +902,15 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 	if (on && !activity) {
 		activity = true;
 
-		/* Set GPIO1 as an output pin driving a 0. Firmware will
-		 * raise GPIO1 upon hotword detect.
+		/* Before a hotword is detected, GPIO1 pin is configured as IRQ
+		 * output so that jack detect works. When a hotword is detected,
+		 * the DSP firmware configures the GPIO1 pin as GPIO1 and
+		 * drives a 1. rt5677_irq() is called after a rising edge on
+		 * the GPIO1 pin, due to either jack detect event or hotword
+		 * event, or both. All possible events are checked and handled
+		 * in rt5677_irq() where GPIO1 pin is configured back to IRQ
+		 * output if a hotword is detected.
 		 */
-		regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL2,
-			RT5677_GPIO1_DIR_MASK |	RT5677_GPIO1_OUT_MASK |
-			RT5677_GPIO1_P_MASK, RT5677_GPIO1_DIR_OUT |
-			RT5677_GPIO1_OUT_LO | RT5677_GPIO1_P_NOR);
-		regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL1,
-			RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_GPIO1);
 
 		rt5677_set_vad_source(codec);
 		rt5677_set_dsp_mode(codec, true);
@@ -925,6 +930,8 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 	} else if (!on && activity) {
 		activity = false;
 
+		/* Don't turn off the DSP while handling irqs */
+		mutex_lock(&rt5677->irq_lock);
 		/* Set DSP CPU to Stop */
 		regmap_update_bits(rt5677->regmap, RT5677_PWR_DSP1, 0x1, 0x1);
 
@@ -933,19 +940,11 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 
 		/* Disable and clear VAD interrupt */
 		regmap_write(rt5677->regmap, RT5677_VAD_CTRL1, 0x2184);
-		regmap_update_bits(rt5677->regmap, RT5677_IRQ_CTRL2,
-			0xF000, 0x0000);
 
 		/* Set GPIO1 pin back to be IRQ output for jack detect */
 		regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL1,
 			RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_IRQ);
-
-		/*
-		 * When DSP VAD is on, jack detect interrupts are not handled.
-		 * So when DSP VAD is turned off, run the interrupt handler
-		 * to handle any pending interrupts.
-		 */
-		schedule_delayed_work(&rt5677->irq_work, 0);
+		mutex_unlock(&rt5677->irq_lock);
 	}
 
 	return 0;
@@ -4785,6 +4784,28 @@ static const struct rt5677_irq_desc rt5677_irq_descs[] = {
 		.polarity_mask = RT5677_INV_GPIO_JD3,
 	},
 };
+
+bool rt5677_check_hotword(struct rt5677_priv *rt5677)
+{
+	int reg_gpio;
+	if (!rt5677->is_dsp_mode)
+		return false;
+
+	if (regmap_read(rt5677->regmap, RT5677_GPIO_CTRL1, &reg_gpio))
+		return false;
+
+	/* Firmware sets GPIO1 pin to be GPIO1 after hotword is detected */
+	if ((reg_gpio & RT5677_GPIO1_PIN_MASK) == RT5677_GPIO1_PIN_IRQ)
+		return false;
+
+	/* Set GPIO1 pin back to be IRQ output for jack detect */
+	regmap_update_bits(rt5677->regmap, RT5677_GPIO_CTRL1,
+			RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_IRQ);
+
+	rt5677_spi_hotword_detected();
+	return true;
+}
+
 static irqreturn_t rt5677_irq(int unused, void *data)
 {
 	struct rt5677_priv *rt5677 = data;
@@ -4792,11 +4813,8 @@ static irqreturn_t rt5677_irq(int unused, void *data)
 	int ret = 0, i, loop, reg_irq, virq;
 	bool irq_fired;
 
-	dev_info(codec->dev, "rt5677_irq\n");
-
 	mutex_lock(&rt5677->irq_lock);
-	if (rt5677->dsp_vad_en)
-		rt5677_spi_hotword_detected();
+	dev_info(codec->dev, "rt5677_irq\n");
 	/*
 	 * Loop to handle interrupts until the last i2c read shows no pending
 	 * irqs. The interrupt line is shared by multiple interrupt sources.
@@ -4827,7 +4845,13 @@ static irqreturn_t rt5677_irq(int unused, void *data)
 				irq_fired = true;
 			}
 		}
-		if (!irq_fired)
+
+		/* Exit the loop only when we know for sure that GPIO1 pin
+		 * was low at some point since irq_lock was acquired. Any event
+		 * after that point creates a rising edge that triggers another
+		 * call to rt5677_irq().
+		 */
+		if (!irq_fired && !rt5677_check_hotword(rt5677))
 			break;
 
 		ret = regmap_write(rt5677->regmap, RT5677_IRQ_CTRL1, reg_irq);
@@ -4844,6 +4868,7 @@ static irqreturn_t rt5677_irq(int unused, void *data)
 			}
 		}
 	}
+	WARN_ON_ONCE(loop == 20);
 	mutex_unlock(&rt5677->irq_lock);
 
 	return IRQ_HANDLED;
