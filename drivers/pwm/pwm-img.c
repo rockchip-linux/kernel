@@ -70,33 +70,41 @@ static inline u32 img_pwm_readl(struct img_pwm_chip *chip,
 static int img_pwm_config(struct pwm_chip *chip, struct pwm_device *pwm,
 			  int duty_ns, int period_ns)
 {
-	u32 val, div, duty, timebase;
-	unsigned long mul, output_clk_hz, input_clk_hz;
+	u32 val, div;
+	u64 period_cycles, duty, timebase;
 	struct img_pwm_chip *pwm_chip = to_img_pwm_chip(chip);
 
-	input_clk_hz = clk_get_rate(pwm_chip->pwm_clk);
-	output_clk_hz = DIV_ROUND_UP(NSEC_PER_SEC, period_ns);
+	if (period_ns > NSEC_PER_SEC)
+		return -ERANGE;
 
-	mul = DIV_ROUND_UP(input_clk_hz, output_clk_hz);
-	if (mul <= MAX_TMBASE_STEPS) {
+	period_cycles = (u64)clk_get_rate(pwm_chip->pwm_clk) * period_ns;
+	do_div(period_cycles, NSEC_PER_SEC);
+
+	if (period_cycles <= MAX_TMBASE_STEPS) {
 		div = PWM_CTRL_CFG_NO_SUB_DIV;
-		timebase = DIV_ROUND_UP(mul, 1);
-	} else if (mul <= MAX_TMBASE_STEPS * 8) {
+		timebase = DIV_ROUND_UP(period_cycles, 1);
+	} else if (period_cycles <= MAX_TMBASE_STEPS * 8) {
 		div = PWM_CTRL_CFG_SUB_DIV0;
-		timebase = DIV_ROUND_UP(mul, 8);
-	} else if (mul <= MAX_TMBASE_STEPS * 64) {
+		timebase = DIV_ROUND_UP(period_cycles, 8);
+	} else if (period_cycles <= MAX_TMBASE_STEPS * 64) {
 		div = PWM_CTRL_CFG_SUB_DIV1;
-		timebase = DIV_ROUND_UP(mul, 64);
-	} else if (mul <= MAX_TMBASE_STEPS * 512) {
+		timebase = DIV_ROUND_UP(period_cycles, 64);
+	} else if (period_cycles <= MAX_TMBASE_STEPS * 512) {
 		div = PWM_CTRL_CFG_SUB_DIV0_DIV1;
-		timebase = DIV_ROUND_UP(mul, 512);
-	} else if (mul > MAX_TMBASE_STEPS * 512) {
+		timebase = DIV_ROUND_UP(period_cycles, 512);
+	} else if (period_cycles > MAX_TMBASE_STEPS * 512) {
 		dev_err(chip->dev,
 			"failed to configure timebase steps/divider value.\n");
 		return -EINVAL;
 	}
 
-	duty = DIV_ROUND_UP(timebase * duty_ns, period_ns);
+	if (timebase < 1) {
+		timebase = 1;
+		duty = 0;
+	} else {
+		duty = timebase * duty_ns;
+		do_div(duty, period_ns);
+	}
 
 	val = img_pwm_readl(pwm_chip, PWM_CTRL_CFG);
 	val &= ~(PWM_CTRL_CFG_DIV_MASK << PWM_CTRL_CFG_DIV_SHIFT(pwm->hwpwm));
