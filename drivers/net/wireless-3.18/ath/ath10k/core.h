@@ -502,6 +502,14 @@ struct ath10k_peer_ratecode_list {
 	u8 rtcode_80[WMI_MCS_RATES_MAX];
 	u8 rt_count[WMI_RATE_COUNT_MAX];
 };
+
+#define ATH10K_PPDU_SIZE_MAX		32
+
+struct ath10k_smart_ant_info {
+	u8 rx_antenna;
+	bool enabled;
+	u32 tx_ppdu_end[ATH10K_PPDU_SIZE_MAX];
+};
 #endif
 
 struct ath10k {
@@ -699,6 +707,7 @@ struct ath10k {
 	 * wmi event after successful assoc_complete command
 	 */
 	struct ath10k_peer_ratecode_list ratecode_list;
+	struct ath10k_smart_ant_info smart_ant_info;
 #endif
 
 	/* must be last */
