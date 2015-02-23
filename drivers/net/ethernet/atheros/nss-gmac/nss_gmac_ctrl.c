@@ -1229,7 +1229,8 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 			mdiobus_write(gmacdev->miibus, gmacdev->phy_base, 0x1D, 0x05);
 			mdiobus_write(gmacdev->miibus, gmacdev->phy_base, 0x1E, 0x100);
 			mdiobus_write(gmacdev->miibus, gmacdev->phy_base, 0x1D, 0x0B);
-			mdiobus_write(gmacdev->miibus, gmacdev->phy_base, 0x1E, 0xBC20);
+			mdiobus_write(gmacdev->miibus, gmacdev->phy_base, 0x1E,
+				(0xBC00 | NSS_GMAC_PHY_RGMII_TX_DELAY(gmacdev->rgmii_delay)));
 		}
 
 		/* XXX: Test code to verify if MDIO access is OK. Remove after bringup. */

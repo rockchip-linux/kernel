@@ -76,6 +76,8 @@
 #define GMAC0_GMII_TX_CLK_SHIFT			0
 #define GMAC0_PTP_CLK_SHIFT			16
 
+#define NSS_GMAC_PHY_RGMII_TX_DELAY(x) (((x) & 0x3) << 5)
+
 /* Macros to calculate bit offsets in NSS_ETH_CLK_GATE_CTL register
  * MACSEC_CORE_CLK: x = 1,2,3
  * GMII_xx_CLK: x = 0,1,2,3
