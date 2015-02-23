@@ -1056,12 +1056,6 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (drv_data && drv_data->set_ios)
 		drv_data->set_ios(slot->host, ios);
 
-	/* Make sure we use phases which we can enumerate with */
-	if (!IS_ERR(slot->host->sample_clk)) {
-		clk_set_phase(slot->host->sample_clk,
-			      slot->host->default_sample_phase);
-	}
-
 	switch (ios->power_mode) {
 	case MMC_POWER_UP:
 		if (!IS_ERR(mmc->supply.vmmc)) {
@@ -1124,6 +1118,13 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	if (slot->host->state == STATE_WAITING_CMD11_DONE && ios->clock != 0)
 		slot->host->state = STATE_IDLE;
+
+	/* Go back to default phase whenever we change speed */
+	if (!IS_ERR(slot->host->sample_clk) &&
+	    slot->host->last_tuned_speed != slot->host->current_speed) {
+		clk_set_phase(slot->host->sample_clk,
+			      slot->host->default_sample_phase);
+	}
 }
 
 static int dw_mci_card_busy(struct mmc_host *mmc)
@@ -1481,6 +1482,10 @@ static int dw_mci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		err = drv_data->execute_tuning(slot, opcode, &tuning_data);
 	else
 		err = dw_mci_execute_generic_tuning(slot, opcode, &tuning_data);
+
+	if (!err)
+		host->last_tuned_speed = host->current_speed;
+
 	return err;
 }
 
