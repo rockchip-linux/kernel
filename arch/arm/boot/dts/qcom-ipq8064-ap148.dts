@@ -308,7 +308,7 @@
 			qcom,id = <1>;
 			qcom,phy_mdio_addr = <4>;
 			qcom,poll_required = <1>;
-			qcom,rgmii_delay = <0>;
+			qcom,rgmii_delay = <1>;
 			qcom,phy_mii_type = <0>;
 			qcom,emulation = <0>;
 			qcom,forced_speed = <1000>;

@@ -528,7 +528,7 @@
 			qcom,id = <0>;			/* gmac0 */
 			qcom,phy_mdio_addr = <4>;	/* phy4 */
 			qcom,poll_required = <1>;	/* enable polling */
-			qcom,rgmii_delay = <0>;
+			qcom,rgmii_delay = <1>;		/* phy4 needs rgmii_delay */
 			qcom,phy_mii_type = <0>;	/* RGMII */
 			qcom,emulation = <0>;
 			qcom,forced_speed = <1000>;	/* Force speed 1G */
