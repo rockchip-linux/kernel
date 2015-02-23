@@ -4692,7 +4692,6 @@ ath10k_wmi_10_2_op_gen_pdev_get_temperature(struct ath10k *ar)
 	if (!skb)
 		return ERR_PTR(-ENOMEM);
 
-	ath10k_dbg(ar, ATH10K_DBG_WMI, "wmi pdev get temperature\n");
 	return skb;
 }
 
