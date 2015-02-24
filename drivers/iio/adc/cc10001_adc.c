@@ -35,8 +35,9 @@
 #define CC10001_ADC_EOC_SET		BIT(0)
 
 #define CC10001_ADC_CHSEL_SAMPLED	0x0c
-#define CC10001_ADC_POWER_UP		0x10
-#define CC10001_ADC_POWER_UP_SET	BIT(0)
+#define CC10001_ADC_POWER_DOWN		0x10
+#define CC10001_ADC_POWER_DOWN_SET	BIT(0)
+
 #define CC10001_ADC_DEBUG		0x14
 #define CC10001_ADC_DATA_COUNT		0x20
 
@@ -139,8 +140,8 @@ static irqreturn_t cc10001_adc_trigger_h(int irq, void *p)
 
 	mutex_lock(&adc_dev->lock);
 
-	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_UP,
-			      CC10001_ADC_POWER_UP_SET);
+	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_DOWN,
+			      ~CC10001_ADC_POWER_DOWN_SET);
 
 	/* Wait for 8 (6+2) clock cycles before activating START */
 	ndelay(adc_dev->start_delay_ns);
@@ -166,7 +167,8 @@ static irqreturn_t cc10001_adc_trigger_h(int irq, void *p)
 	}
 
 done:
-	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_UP, 0);
+	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_DOWN,
+			      CC10001_ADC_POWER_DOWN_SET);
 
 	mutex_unlock(&adc_dev->lock);
 
@@ -185,8 +187,8 @@ static u16 cc10001_adc_read_raw_voltage(struct iio_dev *indio_dev,
 	unsigned int delay_ns;
 	u16 val;
 
-	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_UP,
-			      CC10001_ADC_POWER_UP_SET);
+	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_DOWN,
+			      ~CC10001_ADC_POWER_DOWN_SET);
 
 	/* Wait for 8 (6+2) clock cycles before activating START */
 	ndelay(adc_dev->start_delay_ns);
@@ -198,7 +200,8 @@ static u16 cc10001_adc_read_raw_voltage(struct iio_dev *indio_dev,
 
 	val = cc10001_adc_poll_done(indio_dev, chan->channel, delay_ns);
 
-	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_UP, 0);
+	cc10001_adc_write_reg(adc_dev, CC10001_ADC_POWER_DOWN,
+			      CC10001_ADC_POWER_DOWN_SET);
 
 	return val;
 }
