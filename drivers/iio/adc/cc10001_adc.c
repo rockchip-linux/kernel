@@ -66,6 +66,7 @@ struct cc10001_adc_device {
 	unsigned long channel_map;
 	unsigned int start_delay_ns;
 	unsigned int eoc_delay_ns;
+	unsigned int scanidx_ch_map[CC10001_ADC_NUM_CHANNELS];
 };
 
 static inline void cc10001_adc_write_reg(struct cc10001_adc_device *adc_dev,
@@ -128,8 +129,7 @@ static irqreturn_t cc10001_adc_trigger_h(int irq, void *p)
 	struct cc10001_adc_device *adc_dev;
 	struct iio_poll_func *pf = p;
 	struct iio_dev *indio_dev;
-	unsigned int delay_ns;
-	unsigned int channel;
+	unsigned int delay_ns, scan_idx, channel;
 	bool sample_invalid;
 	u16 *data;
 	int i;
@@ -151,8 +151,10 @@ static irqreturn_t cc10001_adc_trigger_h(int irq, void *p)
 
 	i = 0;
 	sample_invalid = false;
-	for_each_set_bit(channel, indio_dev->active_scan_mask,
+	for_each_set_bit(scan_idx, indio_dev->active_scan_mask,
 				  indio_dev->masklength) {
+
+		channel = adc_dev->scanidx_ch_map[scan_idx];
 
 		cc10001_adc_start(adc_dev, channel);
 
@@ -285,6 +287,7 @@ static int cc10001_adc_channel_init(struct iio_dev *indio_dev)
 		chan->scan_type.storagebits = 16;
 		chan->info_mask_shared_by_type = BIT(IIO_CHAN_INFO_SCALE);
 		chan->info_mask_separate = BIT(IIO_CHAN_INFO_RAW);
+		adc_dev->scanidx_ch_map[idx] = bit;
 		idx++;
 	}
 
