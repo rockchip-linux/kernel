@@ -28,7 +28,22 @@
 /* Registers */
 #define CC10001_ADC_CONFIG		0x00
 #define CC10001_ADC_START_CONV		BIT(4)
-#define CC10001_ADC_MODE_SINGLE_CONV	BIT(5)
+/*
+ * As per device specification
+ * Mode of operation for ADC input START
+ *       1 => Change of state of START provides single pulse
+ *       0 => CR_AUX_ADC_START connected to START
+ * The following filed determines how the START signal to the ADC macro
+ * is generated.
+ * If set to ‘1’,  the START signal is generated from an
+ * edge-detect circuit on the toggling of the “CR_AUX_ADC_START” register
+ * field; i.e. it is a flop registration of that bit (using AUX_ADC_CLK)
+ * then an XOR of the original and the retimed version to give a “pulse”
+ * from AUX_ADC_CLK rising edge to the next AUX_ADC_CLK rising edge.
+ * If set to ‘0’, then the START signal is just the CC10001_ADC_START_CONV
+ * register field, resynchronised to AUX_ADC_CLK.
+ */
+#define CC10001_ADC_INPUT_START_MODE	BIT(5)
 
 #define CC10001_ADC_DDATA_OUT		0x04
 #define CC10001_ADC_EOC			0x08
@@ -46,7 +61,7 @@
 #define CC10001_ADC_CH_MASK		GENMASK(2, 0)
 
 #define CC10001_INVALID_SAMPLED		0xffff
-#define CC10001_MAX_POLL_COUNT		20
+#define CC10001_MAX_POLL_COUNT		60
 
 /*
  * As per device specification, wait six clock cycles after power-up to
@@ -86,10 +101,15 @@ static void cc10001_adc_start(struct cc10001_adc_device *adc_dev,
 {
 	u32 val;
 
-	/* Channel selection and mode of operation */
-	val = (channel & CC10001_ADC_CH_MASK) | CC10001_ADC_MODE_SINGLE_CONV;
+	/* Channel selection and dafault mode of operation */
+	val = (channel & CC10001_ADC_CH_MASK) & ~CC10001_ADC_INPUT_START_MODE;
 	cc10001_adc_write_reg(adc_dev, CC10001_ADC_CONFIG, val);
 
+	val = cc10001_adc_read_reg(adc_dev, CC10001_ADC_CONFIG);
+	val &= ~CC10001_ADC_START_CONV;
+	cc10001_adc_write_reg(adc_dev, CC10001_ADC_CONFIG, val);
+
+	ndelay(1000);
 	val = cc10001_adc_read_reg(adc_dev, CC10001_ADC_CONFIG);
 	val = val | CC10001_ADC_START_CONV;
 	cc10001_adc_write_reg(adc_dev, CC10001_ADC_CONFIG, val);
@@ -365,6 +385,7 @@ static int cc10001_adc_probe(struct platform_device *pdev)
 
 	adc_dev->eoc_delay_ns = NSEC_PER_SEC / adc_clk_rate;
 	adc_dev->start_delay_ns = adc_dev->eoc_delay_ns * CC10001_WAIT_CYCLES;
+	adc_dev->eoc_delay_ns *= 3;
 
 	/* Setup the ADC channels available on the device */
 	ret = cc10001_adc_channel_init(indio_dev);
