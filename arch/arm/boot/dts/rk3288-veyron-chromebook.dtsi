@@ -135,7 +135,6 @@
 
 		/* Wake only */
 		&suspend_l_wake
-		&bt_dev_wake_awake
 	>;
 	pinctrl-1 = <
 		/* Common for sleep and wake, but no owners */
@@ -145,7 +144,6 @@
 
 		/* Sleep only */
 		&suspend_l_sleep
-		&bt_dev_wake_sleep
 	>;
 
 	buttons {
