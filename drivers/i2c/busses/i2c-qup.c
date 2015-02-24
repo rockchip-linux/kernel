@@ -536,8 +536,16 @@ static const struct i2c_algorithm qup_i2c_algo = {
 
 static void qup_i2c_enable_clocks(struct qup_i2c_dev *qup)
 {
-	clk_prepare_enable(qup->clk);
-	clk_prepare_enable(qup->pclk);
+	int ret;
+	ret = clk_set_rate(qup->clk, 24000000);
+	if (ret)
+		dev_err(qup->dev, "change rate failed %d\n", ret);
+	ret = clk_prepare_enable(qup->clk);
+	if (ret)
+		dev_err(qup->dev, "failed to prep clk\n");
+	ret = clk_prepare_enable(qup->pclk);
+	if (ret)
+		dev_err(qup->dev, "failed to prep pclk\n");
 }
 
 static void qup_i2c_disable_clocks(struct qup_i2c_dev *qup)
