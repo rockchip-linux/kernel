@@ -4524,6 +4524,7 @@ struct wmi_peer_set_q_empty_callback_cmd {
 #define WMI_PEER_VHT            0x02000000
 #define WMI_PEER_80MHZ          0x04000000
 #define WMI_PEER_VHT_2G         0x08000000
+#define WMI_PEER_MFP		0x10000000
 
 /*
  * Peer rate capabilities.

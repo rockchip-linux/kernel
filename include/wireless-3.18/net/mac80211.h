@@ -1444,6 +1444,7 @@ struct ieee80211_sta {
 	enum ieee80211_smps_mode smps_mode;
 	struct ieee80211_sta_rates __rcu *rates;
 	bool tdls;
+	bool mfp;
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));

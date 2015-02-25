@@ -2753,6 +2753,7 @@ static bool ieee80211_assoc_success(struct ieee80211_sub_if_data *sdata,
 		set_sta_flag(sta, WLAN_STA_MFP);
 
 	sta->sta.wme = elems.wmm_param;
+	sta->sta.mfp = !!((ifmgd->flags & IEEE80211_STA_MFP_ENABLED));
 
 	err = sta_info_move_state(sta, IEEE80211_STA_ASSOC);
 	if (!err && !(ifmgd->flags & IEEE80211_STA_CONTROL_PORT))
