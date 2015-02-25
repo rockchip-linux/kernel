@@ -151,6 +151,7 @@
 #define INT_FIFO_EMPTYING		BIT(12)
 #define INT_TRANSACTION_DONE		BIT(15)
 #define INT_SLAVE_EVENT			BIT(16)
+#define INT_MASTER_HALTED		BIT(17)
 #define INT_TIMING			BIT(18)
 #define INT_STOP_DETECTED		BIT(19)
 
@@ -179,6 +180,7 @@
 					 INT_FIFO_FILLING     | \
 					 INT_FIFO_EMPTY       | \
 					 INT_FIFO_EMPTYING    | \
+					 INT_MASTER_HALTED    | \
 					 INT_STOP_DETECTED)
 
 #define INT_ENABLE_MASK_WAITSTOP	(INT_SLAVE_EVENT      | \
@@ -874,7 +876,8 @@ static unsigned int img_i2c_auto(struct img_i2c *i2c,
 			img_i2c_read_fifo(i2c);
 			if (i2c->msg.len == 0)
 				return ISR_WAITSTOP;
-		} else if (int_status & INT_STOP_DETECTED) {
+		} else if (int_status & INT_STOP_DETECTED ||
+			   int_status & INT_MASTER_HALTED) {
 			int ret;
 			/*
 			 * If a stop bit has been detected, it means we should
