@@ -21,12 +21,6 @@
 #include "dfs_pri_detector.h"
 #include "ath.h"
 
-/*
- * tolerated deviation of radar time stamp in usecs on both sides
- * TODO: this might need to be HW-dependent
- */
-#define PRI_TOLERANCE	16
-
 /**
  * struct radar_types - contains array of patterns defined for one DFS domain
  * @domain: DFS regulatory domain
@@ -81,13 +75,18 @@ static const struct radar_types etsi_radar_types_v15 = {
 	PPB_THRESH(PPB), PRI_TOLERANCE,	CHIRP			\
 }
 
+/* radar types released on August 14, 2014
+ * type 1 PRI values randomly selected within the range of PMIN and PMAX,
+ * hence leave its PPB as 0 to be calculated on the fly.
+ */
 static const struct radar_detector_specs fcc_radar_ref_types[] = {
 	FCC_PATTERN(0, 0, 1, 1428, 1428, 1, 18, false),
-	FCC_PATTERN(1, 0, 5, 150, 230, 1, 23, false),
-	FCC_PATTERN(2, 6, 10, 200, 500, 1, 16, false),
-	FCC_PATTERN(3, 11, 20, 200, 500, 1, 12, false),
-	FCC_PATTERN(4, 50, 100, 1000, 2000, 1, 1, true),
-	FCC_PATTERN(5, 0, 1, 333, 333, 1, 9, false),
+	FCC_PATTERN(1, 0, 1, 518, 3066, 1, 0, false),
+	FCC_PATTERN(2, 0, 5, 150, 230, 1, 23, false),
+	FCC_PATTERN(3, 6, 10, 200, 500, 1, 16, false),
+	FCC_PATTERN(4, 11, 20, 200, 500, 1, 12, false),
+	FCC_PATTERN(5, 50, 100, 1000, 2000, 1, 1, true),
+	FCC_PATTERN(6, 0, 1, 333, 333, 1, 9, false),
 };
 
 static const struct radar_types fcc_radar_types = {
@@ -199,7 +198,7 @@ channel_detector_create(struct dfs_pattern_detector *dpd, u16 freq)
 		goto fail;
 
 	for (i = 0; i < dpd->num_radar_types; i++) {
-		const struct radar_detector_specs *rs = &dpd->radar_spec[i];
+		struct radar_detector_specs *rs = &dpd->radar_spec[i];
 		struct pri_detector *de = pri_detector_init(rs);
 		if (de == NULL)
 			goto fail;

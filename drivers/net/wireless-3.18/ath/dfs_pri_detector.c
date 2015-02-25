@@ -21,6 +21,13 @@
 #include "dfs_pattern_detector.h"
 #include "dfs_pri_detector.h"
 
+#define FCC_TYPE1_MIN_PRI (518)
+#define FCC_TYPE1_MAX_PRI (3066)
+#define FCC_TYPE1_MIN_PPB (18)
+#define FCC_TYPE1_MAX_PPB (106)
+/* round up of ((1 / 360) * (19 * 1M)) */
+#define FCC_TYPE1_PPB_CONSTANT (52778)
+
 struct ath_dfs_pool_stats global_dfs_pool_stats = {};
 
 #define DFS_POOL_STAT_INC(c) (global_dfs_pool_stats.c++)
@@ -244,6 +251,13 @@ static bool pseq_handler_create_sequences(struct pri_detector *pde,
 		ps.first_ts = p->ts;
 		ps.last_ts = ts;
 		ps.pri = ts - p->ts;
+		if (pde->rs->ppb == 0) {
+			/* runtime calculation of ppb and ppb threshold for
+			 * pri in variable range. ppb threshold is half of ppb.
+			 */
+			pde->rs->ppb = FCC_TYPE1_PPB_CONSTANT / ps.pri;
+			pde->rs->ppb_thresh = (pde->rs->ppb / 2) + 1;
+		}
 		ps.dur = ps.pri * (pde->rs->ppb - 1)
 				+ 2 * pde->rs->max_pri_tolerance;
 
@@ -366,6 +380,14 @@ static void pri_detector_reset(struct pri_detector *pde, u64 ts)
 	}
 	pde->count = 0;
 	pde->last_ts = ts;
+	/* reset FCC type 1 ppb and threshold to be calculated again */
+	if (pde->rs->type_id == 1) {
+		if ((pde->rs->pri_min == FCC_TYPE1_MIN_PRI - PRI_TOLERANCE) &&
+		    (pde->rs->pri_max == FCC_TYPE1_MAX_PRI + PRI_TOLERANCE)) {
+			pde->rs->ppb = 0;
+			pde->rs->ppb_thresh = 0;
+		}
+	}
 }
 
 static void pri_detector_exit(struct pri_detector *de)
@@ -411,7 +433,7 @@ static struct pri_sequence *pri_detector_add_pulse(struct pri_detector *de,
 	return ps;
 }
 
-struct pri_detector *pri_detector_init(const struct radar_detector_specs *rs)
+struct pri_detector *pri_detector_init(struct radar_detector_specs *rs)
 {
 	struct pri_detector *de;
 
@@ -424,8 +446,9 @@ struct pri_detector *pri_detector_init(const struct radar_detector_specs *rs)
 
 	INIT_LIST_HEAD(&de->sequences);
 	INIT_LIST_HEAD(&de->pulses);
-	de->window_size = rs->pri_max * rs->ppb * rs->num_pri;
-	de->max_count = rs->ppb * 2;
+	de->window_size = rs->pri_max *
+		(rs->ppb ? rs->ppb : FCC_TYPE1_MIN_PPB) * rs->num_pri;
+	de->max_count = (rs->ppb ? rs->ppb : FCC_TYPE1_MAX_PPB) * 2;
 	de->rs = rs;
 
 	pool_register_ref();

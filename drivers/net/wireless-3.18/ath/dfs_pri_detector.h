@@ -63,7 +63,7 @@ struct pri_detector {
 	void (*reset)    (struct pri_detector *de, u64 ts);
 
 /* private: internal use only */
-	const struct radar_detector_specs *rs;
+	struct radar_detector_specs *rs;
 	u64 last_ts;
 	struct list_head sequences;
 	struct list_head pulses;
@@ -72,6 +72,6 @@ struct pri_detector {
 	u32 window_size;
 };
 
-struct pri_detector *pri_detector_init(const struct radar_detector_specs *rs);
+struct pri_detector *pri_detector_init(struct radar_detector_specs *rs);
 
 #endif /* DFS_PRI_DETECTOR_H */
