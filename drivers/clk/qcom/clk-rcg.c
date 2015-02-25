@@ -497,6 +497,27 @@ static int clk_rcg_bypass_set_rate(struct clk_hw *hw, unsigned long rate,
 	return __clk_rcg_set_rate(rcg, rcg->freq_tbl);
 }
 
+static int clk_rcg_lcc_set_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long parent_rate)
+{
+	struct clk_rcg *rcg = to_clk_rcg(hw);
+	const struct freq_tbl *f;
+	int ret;
+	u32 gfm = BIT(10);
+
+	f = find_freq(rcg->freq_tbl, rate);
+	if (!f)
+		return -EINVAL;
+
+	/* Switch to XO to avoid glitches */
+	regmap_update_bits(rcg->clkr.regmap, rcg->ns_reg, gfm, 0);
+	ret = __clk_rcg_set_rate(rcg, f);
+	/* Switch back to M/N */
+	regmap_update_bits(rcg->clkr.regmap, rcg->ns_reg, gfm, gfm);
+
+	return ret;
+}
+
 static int __clk_dyn_rcg_set_rate(struct clk_hw *hw, unsigned long rate)
 {
 	struct clk_dyn_rcg *rcg = to_clk_dyn_rcg(hw);
@@ -544,6 +565,15 @@ const struct clk_ops clk_rcg_bypass_ops = {
 	.set_rate = clk_rcg_bypass_set_rate,
 };
 EXPORT_SYMBOL_GPL(clk_rcg_bypass_ops);
+
+const struct clk_ops clk_rcg_lcc_ops = {
+	.get_parent = clk_rcg_get_parent,
+	.set_parent = clk_rcg_set_parent,
+	.recalc_rate = clk_rcg_recalc_rate,
+	.determine_rate = clk_rcg_determine_rate,
+	.set_rate = clk_rcg_lcc_set_rate,
+};
+EXPORT_SYMBOL_GPL(clk_rcg_lcc_ops);
 
 const struct clk_ops clk_dyn_rcg_ops = {
 	.enable = clk_enable_regmap,
