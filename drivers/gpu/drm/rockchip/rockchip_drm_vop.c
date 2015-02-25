@@ -104,6 +104,7 @@ struct vop {
 
 	struct notifier_block dmc_nb;
 	struct completion dmc_completion;
+	bool dmc_disabled;
 	struct completion dsp_hold_completion;
 
 	ktime_t vop_isr_ktime;
@@ -1165,9 +1166,27 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	vblank_time *= (u64)NSEC_PER_SEC * adjusted_mode->htotal;
 	do_div(vblank_time, clk_get_rate(vop->dclk));
 
-	rockchip_dmc_lock();
-	vop->vblank_time = vblank_time;
-	rockchip_dmc_unlock();
+	if (vblank_time > DMC_SET_RATE_TIME_NS + DMC_PAUSE_CPU_TIME_NS) {
+		rockchip_dmc_lock();
+		vop->vblank_time = vblank_time;
+		rockchip_dmc_unlock();
+		if (vop->dmc_disabled)
+			rockchip_dmc_enable();
+
+		vop->dmc_disabled = false;
+	} else {
+		/*
+		 * Set a large timeout so we can change the clk rate to max when
+		 * dmc freq is disabled.
+		 */
+		rockchip_dmc_lock();
+		vop->vblank_time = DMC_DEFAULT_TIMEOUT_NS;
+		rockchip_dmc_unlock();
+		if (!vop->dmc_disabled)
+			rockchip_dmc_disable();
+
+		vop->dmc_disabled = true;
+	}
 
 	return 0;
 }

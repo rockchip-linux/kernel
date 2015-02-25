@@ -23,8 +23,6 @@ static DEFINE_MUTEX(en_lock);
 static int num_wait;
 static int num_disable;
 
-#define DEFAULT_TIMEOUT_MS	1000
-
 /**
  * rockchip_dmc_lock - Lock the sync notifiers.
  */
@@ -40,7 +38,7 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_lock);
 void rockchip_dmc_wait(ktime_t *timeout)
 {
 	/* Set a default timeout. */
-	*timeout = ktime_add_ms(ktime_get(), DEFAULT_TIMEOUT_MS);
+	*timeout = ktime_add_ns(ktime_get(), DMC_DEFAULT_TIMEOUT_NS);
 	raw_notifier_call_chain(&sync_chain, 0, timeout);
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_wait);

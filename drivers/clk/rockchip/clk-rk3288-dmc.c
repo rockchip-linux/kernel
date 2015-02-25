@@ -1011,12 +1011,6 @@ static void dmc_set_rate(struct rk3288_dmcclk *dmc)
 	params->dmc_post_set_rate(dmc);
 }
 
-/*
- * Changing the dmc rate in sram takes a little under 300us. Use 400us to be
- * safe for calculating timeout.
- */
-#define DMC_SET_RATE_TIME_NS	(400 * NSEC_PER_USEC)
-
 static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 {
 	struct rockchip_dmc_sram_params *params = dmc->sram_params;
