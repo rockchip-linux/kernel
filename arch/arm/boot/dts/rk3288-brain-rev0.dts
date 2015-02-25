@@ -9,32 +9,26 @@
  */
 
 /dts-v1/;
-#include "rk3288.dtsi"
+#include "rk3288-veyron.dtsi"
+#include "rk3288-veyron-lpddr.dtsi"
 
 / {
+
+	model = "Google Brain";
 	compatible = "google,veyron-brain-rev0", "google,veyron-brain",
 		     "google,veyron", "rockchip,rk3288";
 
-	memory {
-		reg = <0x0 0x80000000>;
+	vcc33_sys: vcc33-sys {
+		vin-supply = <&vcc_5v>;
 	};
 
-	gpio-keys {
-		compatible = "gpio-keys";
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		pinctrl-names = "default";
-		pinctrl-0 = <&pwrbtn>;
-
-		button@0 {
-			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-			linux,code = <116>;
-			label = "GPIO Key Power";
-			linux,input-type = <1>;
-			gpio-key,wakeup = <1>;
-			debounce-interval = <100>;
-		};
+	vcc33_io: vcc33_io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_io";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+		/* This is gated by vcc_18 too */
 	};
 
 	/* This turns on vbus for host2 and otg (dwc2) */
@@ -50,94 +44,56 @@
 	};
 };
 
-&emmc {
-	broken-cd;
-	bus-width = <8>;
-	cap-mmc-highspeed;
-	disable-wp;
-	non-removable;
-	num-slots = <1>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_pwr &emmc_bus8>;
-	status = "okay";
-};
-
-&spi2 {
-	status = "okay";
-
-	spiflash@0 {
-		compatible = "spidev";
-		spi-max-frequency = <50000000>;
-		reg = <0>;
+&gpio_keys {
+	power {
+		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
 	};
 };
 
-&i2c0 {
-	status = "okay";
-};
-
-&i2c1 {
-	status = "okay";
-};
-
-&i2c2 {
-	status = "okay";
-};
-
-&i2c3 {
-	status = "okay";
-};
-
-&i2c4 {
-	status = "okay";
-};
-
-&i2c5 {
-	status = "okay";
-};
-
-&wdt {
-	status = "okay";
-};
-
-&uart0 {
-	status = "okay";
-};
-
-&uart1 {
-	status = "okay";
-};
-
-&uart2 {
-	status = "okay";
+&vcc50_hdmi {
+	enable-active-high;
+	gpio = <&gpio7 2 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vcc50_hdmi_en>;
 };
 
 &pinctrl {
-	buttons {
-		pwrbtn: pwrbtn {
-			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+	hdmi {
+		vcc50_hdmi_en: vcc50-hdmi-en {
+			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
 	usb-host {
-		usb0_pwr_en: usb0-pwr-en {
-			rockchip,pins = <7 21 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		usb1_pwr_en: usb1-pwr-en {
-			rockchip,pins = <0 11 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
 		usb2_pwr_en: usb2-pwr-en {
 			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
 
-&usb_host0_ehci {
-	status = "okay";
-};
+&rk808 {
+	/delete-property/ vcc6-supply;
+	/delete-property/ vcc11-supply;
 
-&usb_host1 {
-	status = "okay";
+	regulators {
+		/* vcc33_io is sourced directly from vcc33_sys */
+		/delete-node/ LDO_REG1;
+
+		/* This is not a pwren anymore, but the real power supply */
+		vdd10_lcd: LDO_REG7 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-name = "vdd10_lcd";
+			regulator-suspend-mem-disabled;
+		};
+
+		vcc18_hdmi: SWITCH_REG2 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-name = "vcc18_hdmi";
+			regulator-suspend-mem-disabled;
+		};
+	};
 };
