@@ -1400,7 +1400,7 @@ struct htt_rx_desc {
 
 /* Refill a bunch of RX buffers for each refill round so that FW/HW can handle
  * aggregated traffic more nicely. */
-#define ATH10K_HTT_MAX_NUM_REFILL 16
+#define ATH10K_HTT_MAX_NUM_REFILL 100
 
 /*
  * DMA_MAP expects the buffer to be an integral number of cache lines.
