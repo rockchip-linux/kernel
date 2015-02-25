@@ -47,6 +47,7 @@
 
 #include <linux/compat.h>
 #include <linux/syscalls.h>
+#include <linux/alt-syscall.h>
 #include <linux/kprobes.h>
 #include <linux/user_namespace.h>
 #include <linux/binfmts.h>
@@ -2067,6 +2068,12 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		break;
 	case PR_SET_SECCOMP:
 		error = prctl_set_seccomp(arg2, (char __user *)arg3);
+		break;
+	case PR_BRILLO:
+		if (arg2 == PR_BRILLO_SET_SYSCALL_TABLE)
+			error = set_alt_sys_call_table((char __user *)arg3);
+		else
+			error = -EINVAL;
 		break;
 	case PR_GET_TSC:
 		error = GET_TSC_CTL(arg2);
