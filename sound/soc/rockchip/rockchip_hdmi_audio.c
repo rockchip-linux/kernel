@@ -154,6 +154,7 @@ static struct platform_driver rockchip_hdmi_audio_driver = {
 	.driver = {
 		.name = DRV_NAME,
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = rockchip_hdmi_audio_of_match,
 	},
 	.probe = rockchip_hdmi_audio_probe,
