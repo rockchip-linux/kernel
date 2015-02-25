@@ -677,6 +677,7 @@
 };
 
 &gpu {
+	vdd_gpu-supply = <&vdd_gpu>;
 	status = "okay";
 };
 
