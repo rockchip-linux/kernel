@@ -250,12 +250,15 @@ static int rk3288_cpufreq_apply_get_limit(unsigned int *cpufreq_min,
 					  unsigned int *cpufreq_max)
 {
 	struct cpufreq_policy policy;
+	int ret;
 
-	cpufreq_get_policy(&policy, 0);
-	*cpufreq_min = policy.min;
-	*cpufreq_max = policy.max;
+	ret = cpufreq_get_policy(&policy, 0);
+	if (!ret) {
+		*cpufreq_min = policy.min;
+		*cpufreq_max = policy.max;
+	}
 
-	return 0;
+	return ret;
 }
 
 static void rk3288_dmcfreq_work(struct work_struct *work)
@@ -266,12 +269,17 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	unsigned long volt = dmcfreq.volt;
 	unsigned long target_volt = dmcfreq.target_volt;
 	unsigned long old_clk_rate;
-	unsigned int cpufreq_min_freq, cpufreq_max_freq;
+	unsigned int cpu_min_freq, cpu_max_freq;
 	int err = 0;
 
 	/* Go to max cpufreq since set_rate needs to complete during vblank. */
-	rk3288_cpufreq_apply_get_limit(&cpufreq_min_freq, &cpufreq_max_freq);
-	dmcfreq.cpu_min_freq = cpufreq_max_freq;
+	err = rk3288_cpufreq_apply_get_limit(&cpu_min_freq, &cpu_max_freq);
+	if (err) {
+		dev_err(dev, "Error adjusting cpufreq %d\n", err);
+		goto cpufreq;
+	}
+
+	dmcfreq.cpu_min_freq = cpu_max_freq;
 	rk3288_cpufreq_apply_set_min();
 
 	if (rate < target_rate)
@@ -302,8 +310,9 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 		dev_err(dev, "Unable to set voltage %lu\n", target_volt);
 
 out:
-	dmcfreq.cpu_min_freq = cpufreq_min_freq;
+	dmcfreq.cpu_min_freq = cpu_min_freq;
 	rk3288_cpufreq_apply_set_min();
+cpufreq:
 	dmcfreq.err = err;
 }
 
