@@ -969,6 +969,15 @@ static int ath10k_vdev_start_restart(struct ath10k_vif *arvif, bool restart)
 	ar->num_started_vdevs++;
 	ath10k_recalc_radar_detection(ar);
 
+	if (ar->filter_flags & FIF_PROMISC_IN_BSS) {
+		ar->filter_flags &= ~FIF_PROMISC_IN_BSS;
+		ath10k_dbg(ar, ATH10K_DBG_MAC,
+			   "mac disabling promiscuous mode because vdev is started\n");
+		ret = ath10k_monitor_recalc(ar);
+		if (ret)
+			ath10k_vdev_stop(arvif);
+	}
+
 	return ret;
 }
 
@@ -3474,6 +3483,13 @@ static void ath10k_configure_filter(struct ieee80211_hw *hw,
 
 	changed_flags &= SUPPORTED_FILTERS;
 	*total_flags &= SUPPORTED_FILTERS;
+	if (*total_flags & FIF_PROMISC_IN_BSS) {
+		if (ar->num_started_vdevs) {
+			ath10k_dbg(ar, ATH10K_DBG_MAC,
+				   "mac does not enable promiscuous mode when already a vdev is running\n");
+			*total_flags &= ~FIF_PROMISC_IN_BSS;
+		}
+	}
 	ar->filter_flags = *total_flags;
 
 	ret = ath10k_monitor_recalc(ar);
