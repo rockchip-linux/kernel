@@ -71,14 +71,16 @@ struct kbase_device *kbase_device_alloc(void)
 	return kzalloc(sizeof(struct kbase_device), GFP_KERNEL);
 }
 
-mali_error kbase_device_init(struct kbase_device * const kbdev)
+int kbase_device_init(struct kbase_device * const kbdev)
 {
+	int ret;
 	int i;			/* i used after the for loop, don't reuse ! */
 
 	spin_lock_init(&kbdev->mmu_mask_change);
 
 	/* Initialize platform specific context */
-	if (MALI_FALSE == kbasep_platform_device_init(kbdev))
+	ret = kbasep_platform_device_init(kbdev);
+	if (ret)
 		goto fail;
 
 	/* Ensure we can access the GPU registers */
@@ -225,7 +227,7 @@ mali_error kbase_device_init(struct kbase_device * const kbdev)
 
 	atomic_set(&kbdev->ctx_num, 0);
 
-	return MALI_ERROR_NONE;
+	return 0;
 #if KBASE_GPU_RESET_EN
 free_reset_workq:
 	destroy_workqueue(kbdev->reset_workq);
@@ -244,8 +246,10 @@ mem_lowlevel_init_failed:
 dma_set_mask_failed:
 free_platform:
 	kbasep_platform_device_term(kbdev);
+	/* TODO(arm): return proper error codes for other failures */
+	ret = -ENODEV;
 fail:
-	return MALI_ERROR_FUNCTION_FAILED;
+	return ret;
 }
 
 void kbase_device_term(struct kbase_device *kbdev)

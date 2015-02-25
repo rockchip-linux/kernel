@@ -450,7 +450,7 @@ typedef struct kbase_platform_funcs_conf {
 	 * Power Management callbacks).
 	 * The platform specific private pointer kbase_device::platform_context can be accessed (and possibly initialized) in here.
 	 */
-	mali_bool(*platform_init_func) (struct kbase_device *kbdev);
+	int (*platform_init_func) (struct kbase_device *kbdev);
 	/**
 	 * Function pointer for platform specific termination or NULL if no termination function is required.
 	 * This function will be called \em after any other callbacks listed in the struct kbase_attribute struct (such as
@@ -707,9 +707,9 @@ int kbasep_get_config_attribute_count(const struct kbase_attribute *attributes);
  *
  * @param[in]  kbdev       Kbase device pointer
  *
- * @return   MALI_TRUE if no errors have been found in the config. MALI_FALSE otherwise.
+ * @return   linux error code on failure, 0 on success
  */
-mali_bool kbasep_platform_device_init(struct kbase_device *kbdev);
+int kbasep_platform_device_init(struct kbase_device *kbdev);
 
 /**
  * @brief Platform specific call to terminate hardware

@@ -509,7 +509,7 @@ static void kbase_rk_clk_term(struct kbase_device *kbdev)
 	clk_unprepare(kbase_rk->clk);
 }
 
-static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
+static int kbase_rk_platform_init(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk;
 	int ret;
@@ -517,7 +517,7 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 	kbase_rk = devm_kzalloc(kbdev->dev, sizeof(*kbase_rk), GFP_KERNEL);
 
 	if (!kbase_rk)
-		return MALI_FALSE;
+		return -ENOMEM;
 
 	kbdev->platform_context = kbase_rk;
 	kbase_rk->kbdev = kbdev;
@@ -543,7 +543,7 @@ static mali_bool kbase_rk_platform_init(struct kbase_device *kbdev)
 	if (ret)
 		goto remove_sysfs;
 
-	return MALI_TRUE;
+	return 0;
 remove_sysfs:
 	kbase_rk_remove_sysfs(kbdev);
 term_clk:
@@ -551,7 +551,7 @@ term_clk:
 err_init:
 	kbdev->platform_context = NULL;
 
-	return MALI_FALSE;
+	return ret;
 }
 
 static void kbase_rk_platform_term(struct kbase_device *kbdev)

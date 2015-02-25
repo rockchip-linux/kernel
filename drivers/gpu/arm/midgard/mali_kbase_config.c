@@ -133,7 +133,7 @@ uintptr_t kbasep_get_config_value(struct kbase_device *kbdev, const struct kbase
 
 KBASE_EXPORT_TEST_API(kbasep_get_config_value)
 
-mali_bool kbasep_platform_device_init(struct kbase_device *kbdev)
+int kbasep_platform_device_init(struct kbase_device *kbdev)
 {
 	struct kbase_platform_funcs_conf *platform_funcs;
 
@@ -142,7 +142,7 @@ mali_bool kbasep_platform_device_init(struct kbase_device *kbdev)
 		if (platform_funcs->platform_init_func)
 			return platform_funcs->platform_init_func(kbdev);
 	}
-	return MALI_TRUE;
+	return 0;
 }
 
 void kbasep_platform_device_term(struct kbase_device *kbdev)

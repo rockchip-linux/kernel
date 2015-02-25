@@ -2971,10 +2971,10 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 #endif /* CONFIG_DEBUG_FS */
 
 
-	if (MALI_ERROR_NONE != kbase_device_init(kbdev)) {
-		dev_err(kbdev->dev, "Can't initialize device\n");
+	err = kbase_device_init(kbdev);
+	if (err) {
+		dev_err(kbdev->dev, "Can't initialize device, %d\n", err);
 
-		err = -ENOMEM;
 		goto out_debugfs_remove;
 	}
 
