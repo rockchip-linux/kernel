@@ -29,6 +29,7 @@ Optional:
 
 - clocks : Phandle to clock for the Mali T-6xx device.
 - clock-names : Shall be "clk_mali".
+- vdd_gpu-supply : Input supply for the gpu.
 
 Example for a Mali-T602:
 
