@@ -155,12 +155,22 @@ ENTRY(ia32_sysenter_target)
 	testl   $_TIF_WORK_SYSCALL_ENTRY,TI_flags+THREAD_INFO(%rsp,RIP-ARGOFFSET)
 	CFI_REMEMBER_STATE
 	jnz  sysenter_tracesys
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq	TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae	ia32_badsys
+#else
 	cmpq	$(IA32_NR_syscalls-1),%rax
 	ja	ia32_badsys
+#endif
 sysenter_do_call:
 	IA32_ARG_FIXUP
 sysenter_dispatch:
+#ifdef CONFIG_ALT_SYSCALL
+	movq	TI_ia32_sys_call_table+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11
+	call	*(%r11,%rax,8)
+#else
 	call	*ia32_sys_call_table(,%rax,8)
+#endif
 	movq	%rax,RAX-ARGOFFSET(%rsp)
 	DISABLE_INTERRUPTS(CLBR_NONE)
 	TRACE_IRQS_OFF
@@ -194,8 +204,13 @@ sysexit_from_sys_call:
 	movl $AUDIT_ARCH_I386,%edi	/* 1st arg: audit arch */
 	call __audit_syscall_entry
 	movl RAX-ARGOFFSET(%rsp),%eax	/* reload syscall number */
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae ia32_badsys
+#else
 	cmpq $(IA32_NR_syscalls-1),%rax
 	ja ia32_badsys
+#endif
 	movl %ebx,%edi			/* reload 1st syscall arg */
 	movl RCX-ARGOFFSET(%rsp),%esi	/* reload 2nd syscall arg */
 	movl RDX-ARGOFFSET(%rsp),%edx	/* reload 3rd syscall arg */
@@ -247,8 +262,13 @@ sysenter_tracesys:
 	call	syscall_trace_enter
 	LOAD_ARGS32 ARGOFFSET  /* reload args from stack in case ptrace changed it */
 	RESTORE_REST
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq	TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae	int_ret_from_sys_call
+#else
 	cmpq	$(IA32_NR_syscalls-1),%rax
 	ja	int_ret_from_sys_call /* sysenter_tracesys has set RAX(%rsp) */
+#endif
 	jmp	sysenter_do_call
 	CFI_ENDPROC
 ENDPROC(ia32_sysenter_target)
@@ -312,12 +332,22 @@ ENTRY(ia32_cstar_target)
 	testl   $_TIF_WORK_SYSCALL_ENTRY,TI_flags+THREAD_INFO(%rsp,RIP-ARGOFFSET)
 	CFI_REMEMBER_STATE
 	jnz   cstar_tracesys
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae  ia32_badsys
+#else
 	cmpq $IA32_NR_syscalls-1,%rax
 	ja  ia32_badsys
+#endif
 cstar_do_call:
 	IA32_ARG_FIXUP 1
 cstar_dispatch:
+#ifdef CONFIG_ALT_SYSCALL
+	movq TI_ia32_sys_call_table+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11
+	call *(%r11,%rax,8)
+#else
 	call *ia32_sys_call_table(,%rax,8)
+#endif
 	movq %rax,RAX-ARGOFFSET(%rsp)
 	DISABLE_INTERRUPTS(CLBR_NONE)
 	TRACE_IRQS_OFF
@@ -364,8 +394,13 @@ cstar_tracesys:
 	LOAD_ARGS32 ARGOFFSET, 1  /* reload args from stack in case ptrace changed it */
 	RESTORE_REST
 	xchgl %ebp,%r9d
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae int_ret_from_sys_call
+#else
 	cmpq $(IA32_NR_syscalls-1),%rax
 	ja int_ret_from_sys_call /* cstar_tracesys has set RAX(%rsp) */
+#endif
 	jmp cstar_do_call
 END(ia32_cstar_target)
 				
@@ -421,11 +456,21 @@ ENTRY(ia32_syscall)
 	orl $TS_COMPAT,TI_status+THREAD_INFO(%rsp,RIP-ARGOFFSET)
 	testl $_TIF_WORK_SYSCALL_ENTRY,TI_flags+THREAD_INFO(%rsp,RIP-ARGOFFSET)
 	jnz ia32_tracesys
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae ia32_badsys
+#else
 	cmpq $(IA32_NR_syscalls-1),%rax
 	ja ia32_badsys
+#endif
 ia32_do_call:
 	IA32_ARG_FIXUP
+#ifdef CONFIG_ALT_SYSCALL
+	movq TI_ia32_sys_call_table+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11
+	call *(%r11,%rax,8)
+#else
 	call *ia32_sys_call_table(,%rax,8) # xxx: rip relative
+#endif
 ia32_sysret:
 	movq %rax,RAX-ARGOFFSET(%rsp)
 ia32_ret_from_sys_call:
@@ -440,8 +485,13 @@ ia32_tracesys:
 	call syscall_trace_enter
 	LOAD_ARGS32 ARGOFFSET  /* reload args from stack in case ptrace changed it */
 	RESTORE_REST
+#ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_ia32_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae  int_ret_from_sys_call
+#else
 	cmpq $(IA32_NR_syscalls-1),%rax
 	ja  int_ret_from_sys_call	/* ia32_tracesys has set RAX(%rsp) */
+#endif
 	jmp ia32_do_call
 END(ia32_syscall)
 

@@ -9,6 +9,7 @@
 #include <linux/mm.h>
 
 #include <asm/pgtable.h>
+#include <asm/syscall.h>
 #include <asm/uaccess.h>
 
 static struct signal_struct init_signals = INIT_SIGNALS(init_signals);

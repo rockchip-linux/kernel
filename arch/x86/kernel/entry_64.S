@@ -619,14 +619,30 @@ GLOBAL(system_call_after_swapgs)
 	jnz tracesys
 system_call_fastpath:
 #if __SYSCALL_MASK == ~0
+# ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae badsys
+# else
 	cmpq $__NR_syscall_max,%rax
+	ja badsys
+# endif
 #else
 	andl $__SYSCALL_MASK,%eax
+# ifdef CONFIG_ALT_SYSCALL
+	cmpl TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%eax
+	jae badsys
+# else
 	cmpl $__NR_syscall_max,%eax
-#endif
 	ja badsys
+# endif
+#endif
 	movq %r10,%rcx
+#ifdef CONFIG_ALT_SYSCALL
+	movq TI_sys_call_table+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11
+	call *(%r11,%rax,8)
+#else
 	call *sys_call_table(,%rax,8)  # XXX:	 rip relative
+#endif
 	movq %rax,RAX-ARGOFFSET(%rsp)
 /*
  * Syscall return path ending with SYSRET (fast path)
@@ -738,14 +754,30 @@ tracesys:
 	LOAD_ARGS ARGOFFSET, 1
 	RESTORE_REST
 #if __SYSCALL_MASK == ~0
+# ifdef CONFIG_ALT_SYSCALL
+	cmpq TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%rax
+	jae  int_ret_from_sys_call
+# else
 	cmpq $__NR_syscall_max,%rax
+	ja   int_ret_from_sys_call
+# endif
 #else
 	andl $__SYSCALL_MASK,%eax
+# ifdef CONFIG_ALT_SYSCALL
+	cmpl TI_nr_syscalls+THREAD_INFO(%rsp,RIP-ARGOFFSET),%eax
+	jae  int_ret_from_sys_call
+# else
 	cmpl $__NR_syscall_max,%eax
+	ja   int_ret_from_sys_call
+# endif
 #endif
-	ja   int_ret_from_sys_call	/* RAX(%rsp) set to -ENOSYS above */
 	movq %r10,%rcx	/* fixup for C */
+#ifdef CONFIG_ALT_SYSCALL
+	movq TI_sys_call_table+THREAD_INFO(%rsp,RIP-ARGOFFSET),%r11
+	call *(%r11,%rax,8)
+#else
 	call *sys_call_table(,%rax,8)
+#endif
 	movq %rax,RAX-ARGOFFSET(%rsp)
 	/* Use IRET because user could have changed frame */
 

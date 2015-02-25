@@ -32,6 +32,14 @@ void common(void) {
 	OFFSET(TI_flags, thread_info, flags);
 	OFFSET(TI_status, thread_info, status);
 	OFFSET(TI_addr_limit, thread_info, addr_limit);
+#ifdef CONFIG_ALT_SYSCALL
+	OFFSET(TI_nr_syscalls, thread_info, nr_syscalls);
+	OFFSET(TI_sys_call_table, thread_info, sys_call_table);
+# ifdef CONFIG_IA32_EMULATION
+	OFFSET(TI_ia32_nr_syscalls, thread_info, ia32_nr_syscalls);
+	OFFSET(TI_ia32_sys_call_table, thread_info, ia32_sys_call_table);
+# endif
+#endif
 
 	BLANK();
 	OFFSET(crypto_tfm_ctx_offset, crypto_tfm, __crt_ctx);

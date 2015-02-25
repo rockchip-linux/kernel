@@ -430,9 +430,17 @@ sysenter_past_esp:
 	testl $_TIF_WORK_SYSCALL_ENTRY,TI_flags(%ebp)
 	jnz sysenter_audit
 sysenter_do_call:
+#ifdef CONFIG_ALT_SYSCALL
+	cmpl TI_nr_syscalls(%ebp), %eax
+	jae syscall_badsys
+	movl TI_sys_call_table(%ebp),%ebp
+	call *(%ebp,%eax,4)
+	GET_THREAD_INFO(%ebp)
+#else
 	cmpl $(NR_syscalls), %eax
 	jae syscall_badsys
 	call *sys_call_table(,%eax,4)
+#endif
 	movl %eax,PT_EAX(%esp)
 	LOCKDEP_SYS_EXIT
 	DISABLE_INTERRUPTS(CLBR_ANY)
@@ -509,10 +517,19 @@ ENTRY(system_call)
 					# system call tracing in operation / emulation
 	testl $_TIF_WORK_SYSCALL_ENTRY,TI_flags(%ebp)
 	jnz syscall_trace_entry
+#ifdef CONFIG_ALT_SYSCALL
+	cmpl TI_nr_syscalls(%ebp), %eax
+	jae syscall_badsys
+syscall_call:
+	mov TI_sys_call_table(%ebp), %ebp
+	call *(%ebp,%eax,4)
+	GET_THREAD_INFO(%ebp)
+#else
 	cmpl $(NR_syscalls), %eax
 	jae syscall_badsys
 syscall_call:
 	call *sys_call_table(,%eax,4)
+#endif
 	movl %eax,PT_EAX(%esp)		# store the return value
 syscall_exit:
 	LOCKDEP_SYS_EXIT
@@ -659,7 +676,11 @@ syscall_trace_entry:
 	movl %esp, %eax
 	call syscall_trace_enter
 	/* What it returned is what we'll actually use.  */
+#ifdef CONFIG_ALT_SYSCALL
+	cmpl TI_nr_syscalls(%ebp), %eax
+#else
 	cmpl $(NR_syscalls), %eax
+#endif
 	jnae syscall_call
 	jmp syscall_exit
 END(syscall_trace_entry)

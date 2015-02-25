@@ -168,5 +168,13 @@ config DEFAULT_SECURITY
 	default "yama" if DEFAULT_SECURITY_YAMA
 	default "" if DEFAULT_SECURITY_DAC
 
-endmenu
+config ARCH_HAS_ALT_SYSCALL
+	def_bool n
 
+config ALT_SYSCALL
+	bool "Alternate syscall table support"
+	depends on ARCH_HAS_ALT_SYSCALL
+	help
+	  Allow syscall table to be swapped on a running process.
+
+endmenu
