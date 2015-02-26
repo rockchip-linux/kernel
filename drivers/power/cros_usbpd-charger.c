@@ -228,6 +228,7 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	case USB_CHG_TYPE_BC12_DCP:
 	case USB_CHG_TYPE_BC12_CDP:
 	case USB_CHG_TYPE_BC12_SDP:
+	case USB_CHG_TYPE_VBUS:
 		dev_dbg(dev, "Port %d: Charger type: %d\n",
 			port->port_number, resp.type);
 		/*
@@ -386,7 +387,7 @@ static void cros_usb_pd_print_log_entry(struct ec_response_pd_log *r,
 	};
 	static const char * const chg_type_names[] = {
 		"None", "PD", "Type-C", "Proprietary",
-		"DCP", "CDP", "SDP", "Other"
+		"DCP", "CDP", "SDP", "Other", "VBUS"
 	};
 	int i;
 	int role_idx, type_idx;
