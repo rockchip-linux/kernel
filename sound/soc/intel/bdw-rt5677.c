@@ -304,6 +304,7 @@ static struct snd_soc_card bdw_rt5677_card = {
 	.controls = bdw_rt5677_controls,
 	.num_controls = ARRAY_SIZE(bdw_rt5677_controls),
 	.fully_routed = true,
+	.pop_time = 20,
 };
 
 static int bdw_rt5677_probe(struct platform_device *pdev)
