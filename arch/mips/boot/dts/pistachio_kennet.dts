@@ -1,0 +1,90 @@
+/*
+ * Copyright (C) 2015 Imagination Technologies Ltd.
+ * Copyright (C) 2015 Google, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "pistachio.dtsi"
+
+/ {
+	model = "Google Kennet";
+	compatible = "google,kennet", "img,pistachio";
+
+	memory {
+		device_type = "memory";
+		reg =  <0x00000000 0x08000000>;
+	};
+};
+
+&spfi1 {
+	status = "okay";
+
+	pinctrl-0 = <&spim1_pins>, <&spim1_quad_pins>, <&spim1_cs0_pin>,
+		    <&spim1_cs1_pin>;
+	pinctrl-names = "default";
+
+	flash@0 {
+		compatible = "spidev";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+	};
+
+	flash@1 {
+		compatible = "gigadevice,gd5f";
+		reg = <1>;
+		spi-max-frequency = <50000000>;
+		nand-on-flash-bbt;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+};
+
+&uart0 {
+	pinctrl-0 = <&uart0_pins>, <&uart0_rts_cts_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&usb {
+	status = "okay";
+};
+
+&enet {
+	status = "okay";
+
+	mac-address = [0123456789AB];
+};
+
+&pwm {
+	status = "okay";
+
+	pinctrl-0 = <&pwmpdm0_pin>, <&pwmpdm1_pin>, <&pwmpdm2_pin>,
+		    <&pwmpdm3_pin>;
+	pinctrl-names = "default";
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+};
