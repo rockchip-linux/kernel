@@ -423,34 +423,37 @@ int mmc_of_parse(struct mmc_host *host)
 	if (of_find_property(np, "card-reset-gpios", NULL)) {
 		struct gpio_desc *gpd;
 		for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++) {
-			gpd = devm_gpiod_get_index(host->parent, "card-reset", i);
+			gpd = devm_gpiod_get_index(&host->class_dev,
+						   "card-reset", i);
 			if (IS_ERR(gpd))
 				break;
 			gpiod_direction_output(gpd, 0);
 			host->card_reset_gpios[i] = gpd;
 		}
 
-		gpd = devm_gpiod_get_index(host->parent, "card-reset", ARRAY_SIZE(host->card_reset_gpios));
+		gpd = devm_gpiod_get_index(&host->class_dev, "card-reset",
+					   ARRAY_SIZE(host->card_reset_gpios));
 		if (!IS_ERR(gpd)) {
-			dev_warn(host->parent, "More reset gpios than we can handle");
-			gpiod_put(gpd);
+			dev_warn(host->parent,
+				 "More reset gpios than we can handle");
 		}
 	}
 
-	host->card_clk = of_clk_get_by_name(np, "card_ext_clock");
+	host->card_clk = devm_clk_get(&host->class_dev, "card_ext_clock");
 	if (IS_ERR(host->card_clk)) {
 		if (PTR_ERR(host->card_clk) == -EPROBE_DEFER) {
 			ret = -EPROBE_DEFER;
-			goto out_got_card_reset_gpios;
+			goto out_got_ro;
 		}
 
 		host->card_clk = NULL;
 	}
 
-	host->card_regulator = regulator_get(host->parent, "card-external-vcc");
+	host->card_regulator = devm_regulator_get(&host->class_dev,
+						  "card-external-vcc");
 	if (PTR_ERR(host->card_regulator) == -EPROBE_DEFER) {
 		ret = -EPROBE_DEFER;
-		goto out_got_card_clk;
+		goto out_got_ro;
 	}
 
 	if (of_find_property(np, "cap-sd-highspeed", &len))
@@ -488,15 +491,13 @@ int mmc_of_parse(struct mmc_host *host)
 
 	return 0;
 
-out_got_card_clk:
-	if (host->card_clk)
-		clk_put(host->card_clk);
-
-out_got_card_reset_gpios:
-	for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++)
-		if (host->card_reset_gpios[i])
-			gpiod_put(host->card_reset_gpios[i]);
-
+	/*
+	 * TODO: seems like we shouldn't _need_ to free these since they are
+	 * devm managed, but old code always had a free in here for
+	 * mmc_gpio_free_cd() so let's be paranoid and leave it.  It
+	 * shouldn't hurt.
+	 */
+out_got_ro:
 	mmc_gpio_free_ro(host);
 
 out_got_cd:
@@ -553,6 +554,7 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	host->parent = dev;
 	host->class_dev.parent = dev;
 	host->class_dev.class = &mmc_host_class;
+	host->class_dev.of_node = of_node_get(dev->of_node);
 	device_initialize(&host->class_dev);
 
 	mmc_host_clk_init(host);
@@ -631,8 +633,6 @@ EXPORT_SYMBOL(mmc_add_host);
  */
 void mmc_remove_host(struct mmc_host *host)
 {
-	int i;
-
 	unregister_pm_notifier(&host->pm_notify);
 	mmc_stop_host(host);
 
@@ -645,15 +645,6 @@ void mmc_remove_host(struct mmc_host *host)
 	led_trigger_unregister_simple(host->led);
 
 	mmc_host_clk_exit(host);
-
-	if (host->card_regulator)
-		regulator_put(host->card_regulator);
-	if (host->card_clk)
-		clk_put(host->card_clk);
-
-	for (i = 0; i < ARRAY_SIZE(host->card_reset_gpios); i++)
-		if (host->card_reset_gpios[i])
-			gpiod_put(host->card_reset_gpios[i]);
 }
 
 EXPORT_SYMBOL(mmc_remove_host);
