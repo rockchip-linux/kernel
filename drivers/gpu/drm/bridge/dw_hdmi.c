@@ -1996,6 +1996,13 @@ int dw_hdmi_suspend(struct device *dev)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
 
+	/*
+	 * drvdata may not be set yet if suspend/resume is called before
+	 * dw_hdmi_bind() has completed successfully.
+	 */
+	if (!hdmi)
+		return 0;
+
 	hdmi_mute_interrupts(hdmi);
 
 	return 0;
@@ -2005,6 +2012,13 @@ EXPORT_SYMBOL_GPL(dw_hdmi_suspend);
 int dw_hdmi_resume(struct device *dev)
 {
 	struct dw_hdmi *hdmi = dev_get_drvdata(dev);
+
+	/*
+	 * drvdata may not be set yet if suspend/resume is called before
+	 * dw_hdmi_bind() has completed successfully.
+	 */
+	if (!hdmi)
+		return 0;
 
 	hdmi_unmute_interrupts(hdmi);
 
