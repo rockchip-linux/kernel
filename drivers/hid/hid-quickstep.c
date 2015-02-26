@@ -127,8 +127,9 @@ static void quickstep_remove(struct hid_device *hdev)
 static int quickstep_raw_event(struct hid_device *hdev,
 	struct hid_report *report, u8 *msg, int size)
 {
-	struct timespec time = current_kernel_time();
+	struct timespec time;
 	struct qs_data *data = hid_get_drvdata(hdev);
+	getnstimeofday(&time);
 
 	data->events[data->head % MAX_CROSSINGS].time = time;
 	data->events[data->head % MAX_CROSSINGS].direction = msg[0] ? ON : OFF;
