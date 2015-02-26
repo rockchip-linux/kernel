@@ -296,6 +296,9 @@ enum host_event_code {
 	/* Battery Status flags have changed */
 	EC_HOST_EVENT_BATTERY_STATUS = 23,
 
+	/* EC encountered a panic, triggering a reset */
+	EC_HOST_EVENT_PANIC = 24,
+
 	/*
 	 * The high bit of the event mask is not used as a host event code.  If
 	 * it reads back as set, then the entire event mask should be
@@ -852,7 +855,7 @@ struct ec_params_flash_erase {
  * re-requesting the desired flags, or by a hard reset if that fails.
  */
 #define EC_FLASH_PROTECT_ERROR_INCONSISTENT (1 << 5)
-/* Entile flash code protected when the EC boots */
+/* Entire flash code protected when the EC boots */
 #define EC_FLASH_PROTECT_ALL_AT_BOOT        (1 << 6)
 
 struct ec_params_flash_protect {
@@ -2697,13 +2700,23 @@ struct ec_params_reboot_ec {
 /* EC to PD MCU exchange status command */
 #define EC_CMD_PD_EXCHANGE_STATUS 0x100
 
+enum pd_charge_state {
+	PD_CHARGE_NO_CHANGE = 0, /* Don't change charge state */
+	PD_CHARGE_NONE,          /* No charging allowed */
+	PD_CHARGE_5V,            /* 5V charging only */
+	PD_CHARGE_MAX            /* Charge at max voltage */
+};
+
 /* Status of EC being sent to PD */
 struct ec_params_pd_status {
-	int8_t batt_soc; /* battery state of charge */
+	int8_t batt_soc;      /* battery state of charge */
+	uint8_t charge_state; /* charging state (from enum pd_charge_state) */
 } __packed;
 
 /* Status of PD being sent back to EC */
-#define PD_STATUS_HOST_EVENT (1 << 0)
+#define PD_STATUS_HOST_EVENT      (1 << 0) /* Forward host event to AP */
+#define PD_STATUS_IN_RW           (1 << 1) /* Running RW image */
+#define PD_STATUS_JUMPED_TO_IMAGE (1 << 2) /* Current image was jumped to */
 struct ec_response_pd_status {
 	uint32_t status;      /* PD MCU status */
 	uint32_t curr_lim_ma; /* input current limit */
@@ -2784,7 +2797,8 @@ enum usb_chg_type {
 	USB_CHG_TYPE_BC12_DCP,
 	USB_CHG_TYPE_BC12_CDP,
 	USB_CHG_TYPE_BC12_SDP,
-	USB_CHG_TYPE_OTHER
+	USB_CHG_TYPE_OTHER,
+	USB_CHG_TYPE_VBUS,
 };
 enum usb_power_roles {
 	USB_PD_PORT_POWER_DISCONNECTED,
@@ -2897,8 +2911,10 @@ struct ec_response_pd_log {
 /* PD event log : entry types */
 /* PD MCU events */
 #define PD_EVENT_MCU_BASE       0x00
-#define PD_EVENT_MCU_CHARGE    (PD_EVENT_MCU_BASE+0)
-#define PD_EVENT_MCU_CONNECT   (PD_EVENT_MCU_BASE+1)
+#define PD_EVENT_MCU_CHARGE             (PD_EVENT_MCU_BASE+0)
+#define PD_EVENT_MCU_CONNECT            (PD_EVENT_MCU_BASE+1)
+/* Reserved for custom board event */
+#define PD_EVENT_MCU_BOARD_CUSTOM       (PD_EVENT_MCU_BASE+2)
 /* PD generic accessory events */
 #define PD_EVENT_ACC_BASE       0x20
 #define PD_EVENT_ACC_RW_FAIL   (PD_EVENT_ACC_BASE+0)
@@ -2985,6 +3001,14 @@ struct ec_params_usb_pd_set_mode_request {
 	uint16_t svid; /* SVID to set */
 	uint8_t opos;  /* Object Position */
 	uint8_t port;  /* port */
+} __packed;
+
+/* Ask the PD MCU to record a log of a requested type */
+#define EC_CMD_PD_WRITE_LOG_ENTRY 0x117
+
+struct ec_params_pd_write_log_entry {
+	uint8_t type; /* event type : see PD_EVENT_xx above */
+	uint8_t port; /* port#, or 0 for events unrelated to a given port */
 } __packed;
 
 #endif  /* !__ACPI__ */
