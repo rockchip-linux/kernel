@@ -17,6 +17,7 @@
 
 #include <linux/skbuff.h>
 #include <linux/ctype.h>
+#include <linux/of.h>
 
 #include "core.h"
 #include "htc.h"
@@ -5236,40 +5237,47 @@ ath10k_wmi_op_gen_delba_send(struct ath10k *ar, u32 vdev_id, const u8 *mac,
 }
 
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
-static void
+static int
+ath10k_wmi_get_smart_ant_gpio_dt(struct ath10k *ar, u32 *gpio, u32 *gpio_func)
+{
+	struct device_node *node;
+	int ret;
+
+	node = ar->dev->of_node;
+	if (!node)
+		/* Device Tree is optional, don't print any warnings if
+		 * there's no node for ath10k.
+		 */
+		return -ENOENT;
+
+	ret = of_property_read_u32_array(node, "qcom,ath10k-sa-gpio", gpio,
+					 WMI_SMART_ANT_GPIO_MAX);
+	if (ret)
+		return ret;
+
+	ret = of_property_read_u32_array(node, "qcom,ath10k-sa-gpio-func",
+					 gpio_func, WMI_SMART_ANT_GPIO_MAX);
+	return ret;
+}
+
+static int
 ath10k_wmi_fill_set_smart_ant(struct ath10k *ar,
 			      struct wmi_pdev_set_smart_ant_cmd *cmd,
 			      u32 mode, u32 tx_ant, u32 rx_ant)
 {
+	int ret;
+
 	cmd->mode = __cpu_to_le32(mode);
 	cmd->rx_antenna = __cpu_to_le32(rx_ant);
 	cmd->tx_default_antenna = __cpu_to_le32(tx_ant);
-	if (mode == WMI_SMART_ANT_MODE_SERIAL) {
-		/* TODO: Get gpio pins from device tree */
-		cmd->gpio_pin[0] =
-			__cpu_to_le32(WLAN_GPIOPIN_ANT_SERIAL_STROBE);
-		cmd->gpio_pin[1] = __cpu_to_le32(WLAN_GPIOPIN_ANT_SERIAL_DATA);
-		cmd->gpio_pin[2] = 0;
-		cmd->gpio_pin[3] = 0;
 
-		cmd->gpio_func[0] =
-			__cpu_to_le32(WLAN_GPIOFUNC_ANT_SERIAL_STROBE);
-		cmd->gpio_func[1] =
-			__cpu_to_le32(WLAN_GPIOFUNC_ANT_SERIAL_STROBE);
-		cmd->gpio_func[2] = 0;
-		cmd->gpio_func[3] = 0;
-	} else {
-		/* TODO: Get gpio pins from device tree */
-		cmd->gpio_pin[0] = __cpu_to_le32(WLAN_GPIOPIN_ANTCHAIN0);
-		cmd->gpio_pin[1] = __cpu_to_le32(WLAN_GPIOPIN_ANTCHAIN1);
-		cmd->gpio_pin[2] = __cpu_to_le32(WLAN_GPIOPIN_ANTCHAIN2);
-		cmd->gpio_pin[3] = 0;
+	ret = ath10k_wmi_get_smart_ant_gpio_dt(ar, cmd->gpio_pin,
+					       cmd->gpio_func);
+	if (ret)
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			   "DT entry is not found for SA gpio, failed to enable Smart Antenna\n");
 
-		cmd->gpio_func[0] = __cpu_to_le32(WLAN_GPIOFUNC_ANTCHAIN0);
-		cmd->gpio_func[1] = __cpu_to_le32(WLAN_GPIOFUNC_ANTCHAIN1);
-		cmd->gpio_func[2] = __cpu_to_le32(WLAN_GPIOFUNC_ANTCHAIN2);
-		cmd->gpio_func[3] = 0;
-	}
+	return ret;
 }
 
 /* Sends initial smart antenna configuration. The configuration includes
@@ -5282,6 +5290,7 @@ ath10k_wmi_op_gen_pdev_enable_smart_ant(struct ath10k *ar, u32 mode,
 {
 	struct wmi_pdev_set_smart_ant_cmd *cmd;
 	struct sk_buff *skb;
+	int ret;
 
 	skb = ath10k_wmi_alloc_skb(ar, sizeof(*cmd));
 	if (!skb)
@@ -5289,7 +5298,12 @@ ath10k_wmi_op_gen_pdev_enable_smart_ant(struct ath10k *ar, u32 mode,
 
 	cmd = (struct wmi_pdev_set_smart_ant_cmd *)skb->data;
 	cmd->enable = __cpu_to_le32(WMI_SMART_ANT_ENABLE);
-	ath10k_wmi_fill_set_smart_ant(ar, cmd, mode, tx_ant, rx_ant);
+	ret = ath10k_wmi_fill_set_smart_ant(ar, cmd, mode, tx_ant, rx_ant);
+	if (ret) {
+		dev_kfree_skb_any(skb);
+		return ERR_PTR(ret);
+	}
+
 	ath10k_dbg(ar, ATH10K_DBG_WMI,
 		   "wmi pdev smart antenna enable, mode %d rx_ant %d def_tx_ant %d\n",
 		   mode, rx_ant, tx_ant);
