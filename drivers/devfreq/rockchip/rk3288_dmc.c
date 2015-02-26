@@ -377,6 +377,7 @@ static SIMPLE_DEV_PM_OPS(rk3288_dmcfreq_pm, rk3288_dmcfreq_suspend,
 static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	unsigned long freq;
 	u32 tmp;
 
 	dmcfreq.clk_dev = dev->parent;
@@ -431,6 +432,7 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 					     &rk3288_devfreq_dmc_profile,
 					     "simple_ondemand",
 					     &dmcfreq.ondemand_data);
+
 	if (IS_ERR(dmcfreq.devfreq))
 		return PTR_ERR(dmcfreq.devfreq);
 
@@ -438,7 +440,16 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	dmcfreq.cpufreq_nb.notifier_call = rk3288_cpufreq_policy_notifier;
 	cpufreq_register_notifier(&dmcfreq.cpufreq_nb, CPUFREQ_POLICY_NOTIFIER);
 	devfreq_register_opp_notifier(dmcfreq.clk_dev, dmcfreq.devfreq);
+	rockchip_dmc_en_lock();
+	if (!rockchip_dmc_enabled()) {
+		devfreq_suspend_device(dmcfreq.devfreq);
+		rk3288_dmc_stop_hardware_counter();
+		freq = ULONG_MAX;
+		rk3288_dmcfreq_target(dmcfreq.clk_dev, &freq, 0);
+		dev_info(dev, "DVFS disabled at probe\n");
+	}
 	rockchip_dmc_register_enable_notifier(&dmc_sync_nb);
+	rockchip_dmc_en_unlock();
 
 	return 0;
 }
