@@ -501,6 +501,8 @@
 					reg = <0 0 0 0 0>;
 					device_type = "pci";
 					qcom,ath10k-calibration-data = [00];
+					qcom,ath10k-sa-gpio = <12 13 14 0>;
+					qcom,ath10k-sa-gpio-func = <5 5 5 0>;
 				};
 			};
 		};
@@ -526,6 +528,8 @@
 					reg = <0 0 0 0 0>;
 					device_type = "pci";
 					qcom,ath10k-calibration-data = [00];
+					qcom,ath10k-sa-gpio = <12 13 14 0>;
+					qcom,ath10k-sa-gpio-func = <5 5 5 0>;
 				};
 			};
 		};
