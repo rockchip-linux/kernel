@@ -451,6 +451,16 @@ static int ec_device_suspend(struct device *dev)
 static int ec_device_resume(struct device *dev)
 {
 	struct cros_ec_dev *ec = dev_get_drvdata(dev);
+	char msg[sizeof(struct ec_response_get_version) +
+		 sizeof(CROS_EC_DEV_VERSION)];
+	int ret;
+
+	/* Be sure the communication with the EC is reestablished */
+	ret = ec_get_version(ec, msg, sizeof(msg));
+	if (ret < 0) {
+		dev_err(ec->ec_dev->dev, "No EC response at resume: %d\n", ret);
+		return 0;
+	}
 	if (ec_has_lightbar(ec) && !dev_dark_resume_active(dev))
 		lb_resume(ec);
 
