@@ -7,6 +7,7 @@
  */
 
 #include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/capability.h>
@@ -946,14 +947,14 @@ static int wakeup_sources_stats_open(struct inode *inode, struct file *file)
 }
 
 /**
- * wakeup_syscore_find_source - syscore resume function to find what woke the
+ * wakeup_find_source - resume function to find what woke the
  * system.
  *
  * This uses the platform wakeup ops to figure out which wakeup source woke the
  * system. The name of the wakeup source is logged and the type of wakeup source
  * is stored.
  */
-static void wakeup_syscore_find_source(void)
+static int __maybe_unused wakeup_find_source(struct device *dev)
 {
 	struct wakeup_source *ws;
 	void *plat_data;
@@ -962,14 +963,14 @@ static void wakeup_syscore_find_source(void)
 
 	if (!platform_wakeup_ops || !platform_wakeup_ops->get ||
 	    !platform_wakeup_ops->put || !platform_wakeup_ops->match)
-		return;
+		return 0;
 
 	/* The platform data is defined by the platform/arch. Rather than
 	 * retrieve the data everytime in the match function, just get it once
 	 * here. */
 	plat_data = platform_wakeup_ops->get();
 	if (!plat_data)
-		return;
+		return 0;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
@@ -979,14 +980,15 @@ static void wakeup_syscore_find_source(void)
 		if (platform_wakeup_ops->match(ws->dev->power.wakeup_data,
 					     plat_data)) {
 			wakeup_source_type = ws->dev->power.wakeup_source_type;
-			pr_info("System wakeup from source: %s\n", ws->name);
+			dev_info(dev, "System wakeup source: %s\n", ws->name);
 			goto out;
 		}
 	}
-	pr_info("System wakeup source unknown\n");
+	dev_info(dev, "System wakeup source unknown\n");
 out:
 	rcu_read_unlock();
 	platform_wakeup_ops->put(plat_data);
+	return 0;
 }
 
 /**
@@ -1031,15 +1033,44 @@ static int __init wakeup_sources_debugfs_init(void)
 
 postcore_initcall(wakeup_sources_debugfs_init);
 
-static struct syscore_ops wakeup_syscore = {
-	.resume = wakeup_syscore_find_source,
+static const struct dev_pm_ops wakeup_source_ops = {
+	.resume_early = wakeup_find_source,
 };
 
-static int __init wakeup_syscore_init(void)
+static int wakeup_platform_driver_probe(struct platform_device *dev)
 {
-	wakeup_source_type = WAKEUP_INVALID;
-	register_syscore_ops(&wakeup_syscore);
 	return 0;
 }
 
-late_initcall(wakeup_syscore_init);
+static struct platform_driver wakeup_source_driver = {
+	.driver = {
+		.name = "wakeup_source",
+		.owner = THIS_MODULE,
+		.pm = &wakeup_source_ops,
+	},
+	.probe = wakeup_platform_driver_probe,
+};
+
+static struct platform_device wakeup_source_device = {
+	.name = "wakeup_source",
+};
+
+static int __init wakeup_platform_driver_init(void)
+{
+	int ret;
+	wakeup_source_type = WAKEUP_INVALID;
+
+	ret = platform_driver_register(&wakeup_source_driver);
+	if (unlikely(ret)) {
+		pr_warn("Unable to register wakeup source driver\n");
+		return ret;
+	}
+
+	ret = platform_device_register(&wakeup_source_device);
+	if (unlikely(ret))
+		pr_warn("Unable to register wakeup source device\n");
+
+	return ret;
+}
+
+late_initcall(wakeup_platform_driver_init);
