@@ -97,6 +97,8 @@ struct pistachio_fixed_factor {
 struct pistachio_pll_rate_table {
 	unsigned long fref;
 	unsigned long fout;
+	unsigned long fout_min;
+	unsigned long fout_max;
 	unsigned int refdiv;
 	unsigned int fbdiv;
 	unsigned int postdiv1;

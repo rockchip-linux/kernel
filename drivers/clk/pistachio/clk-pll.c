@@ -90,29 +90,50 @@ static struct pistachio_pll_rate_table *
 pll_get_params(struct pistachio_clk_pll *pll, unsigned long fref,
 	       unsigned long fout)
 {
-	unsigned int i;
+	unsigned int i, best;
+	unsigned long err, best_err = ~0;
 
 	for (i = 0; i < pll->nr_rates; i++) {
-		if (pll->rates[i].fref == fref && pll->rates[i].fout == fout)
-			return &pll->rates[i];
+		err = abs(pll->rates[i].fout - fout);
+		if (pll->rates[i].fref == fref && err < best_err) {
+			best = i;
+			best_err = err;
+		}
 	}
 
-	return NULL;
+	return &pll->rates[best];
 }
 
 static long pll_round_rate(struct clk_hw *hw, unsigned long rate,
 			   unsigned long *parent_rate)
 {
 	struct pistachio_clk_pll *pll = to_pistachio_pll(hw);
-	unsigned int i;
+	unsigned int i, best;
+	unsigned long err, best_err = ~0;
 
 	for (i = 0; i < pll->nr_rates; i++) {
-		if (i > 0 && pll->rates[i].fref == *parent_rate &&
-		    pll->rates[i].fout <= rate)
-			return pll->rates[i - 1].fout;
+		err = abs(pll->rates[i].fout - rate);
+		if (pll->rates[i].fref == *parent_rate && err < best_err) {
+			best = i;
+			best_err = err;
+		}
 	}
 
-	return pll->rates[0].fout;
+	/* Make sure fout_{min,max} parameters have sane values */
+	if (!pll->rates[best].fout_min)
+		pll->rates[best].fout_min = pll->rates[best].fout;
+	if (!pll->rates[best].fout_max)
+		pll->rates[best].fout_max = pll->rates[best].fout;
+
+	/*
+	 * If the chosen rate is within the maximum allowed PLL adjustment
+	 * then we accept it.
+	 * Otherwise, just return the closest nominal table rate.
+	 */
+	if (rate <= pll->rates[best].fout_max &&
+	    rate >= pll->rates[best].fout_min)
+		return rate;
+	return pll->rates[best].fout;
 }
 
 static int pll_gf40lp_frac_enable(struct clk_hw *hw)
@@ -157,11 +178,16 @@ static int pll_gf40lp_frac_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct pistachio_clk_pll *pll = to_pistachio_pll(hw);
 	struct pistachio_pll_rate_table *params;
-	u32 val;
+	u32 frac, val;
 
 	params = pll_get_params(pll, parent_rate, rate);
 	if (!params)
 		return -EINVAL;
+
+	/* Calculate the frac parameter */
+	frac = rate * params->refdiv * params->postdiv1 * params->postdiv2;
+	frac -= (params->fbdiv * parent_rate);
+	frac = do_div_round_closest((u64)frac << 24, parent_rate);
 
 	val = pll_readl(pll, PLL_CTRL1);
 	val &= ~((PLL_CTRL1_REFDIV_MASK << PLL_CTRL1_REFDIV_SHIFT) |
@@ -176,7 +202,7 @@ static int pll_gf40lp_frac_set_rate(struct clk_hw *hw, unsigned long rate,
 		  PLL_FRAC_CTRL2_POSTDIV1_SHIFT) |
 		 (PLL_FRAC_CTRL2_POSTDIV2_MASK <<
 		  PLL_FRAC_CTRL2_POSTDIV2_SHIFT));
-	val |= (params->frac << PLL_FRAC_CTRL2_FRAC_SHIFT) |
+	val |= (frac << PLL_FRAC_CTRL2_FRAC_SHIFT) |
 		(params->postdiv1 << PLL_FRAC_CTRL2_POSTDIV1_SHIFT) |
 		(params->postdiv2 << PLL_FRAC_CTRL2_POSTDIV2_SHIFT);
 	pll_writel(pll, val, PLL_CTRL2);

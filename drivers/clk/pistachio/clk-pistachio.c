@@ -147,7 +147,9 @@ static struct pistachio_mux pistachio_muxes[] __initdata = {
 static struct pistachio_pll_rate_table audio_pll_rates[] = {
 	{
 		.fref		= 52000000,
+		.fout_min	= 146250000,
 		.fout		= 147456000,
+		.fout_max	= 149499999,
 		.refdiv		= 0x1,
 		.fbdiv		= 0x2d,
 		.frac		= 0x5efee6,
