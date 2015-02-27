@@ -694,10 +694,8 @@ static int rt5677_dsp_mode_i2c_read(
 	return ret;
 }
 
-static void rt5677_set_dsp_mode(struct snd_soc_codec *codec, bool on)
+static void rt5677_set_dsp_mode(struct rt5677_priv *rt5677, bool on)
 {
-	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
-
 	if (on) {
 		regmap_update_bits(rt5677->regmap, RT5677_PWR_DSP1, 0x2, 0x2);
 		rt5677->is_dsp_mode = true;
@@ -707,11 +705,8 @@ static void rt5677_set_dsp_mode(struct snd_soc_codec *codec, bool on)
 	}
 }
 
-static unsigned int rt5677_set_vad_source(
-	struct snd_soc_codec *codec)
+static unsigned int rt5677_set_vad_source(struct rt5677_priv *rt5677)
 {
-	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
-
 	/* Mono ADC Capture Switch = unmute (default) */
 	regmap_update_bits(rt5677->regmap, RT5677_MONO_ADC_DIG_VOL,
 			RT5677_L_MUTE, 0);
@@ -872,19 +867,19 @@ static int rt5677_parse_and_load_dsp(struct rt5677_priv *rt5677, const u8 *buf,
 	return ret;
 }
 
-static int rt5677_load_dsp_from_file(struct snd_soc_codec *codec)
+static int rt5677_load_dsp_from_file(struct rt5677_priv *rt5677)
 {
-	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 	const struct firmware *fwp;
+	struct device *dev = rt5677->codec->dev;
 	int ret = 0;
 
 	/* Load dsp firmware from rt5677_elf_vad file */
-	ret = request_firmware(&fwp, "rt5677_elf_vad", codec->dev);
+	ret = request_firmware(&fwp, "rt5677_elf_vad", dev);
 	if (ret) {
-		dev_err(codec->dev, "Request rt5677_elf_vad failed %d\n", ret);
+		dev_err(dev, "Request rt5677_elf_vad failed %d\n", ret);
 		return ret;
 	}
-	dev_info(codec->dev, "Requested rt5677_elf_vad (%zu)\n", fwp->size);
+	dev_info(dev, "Requested rt5677_elf_vad (%zu)\n", fwp->size);
 
 	ret = rt5677_parse_and_load_dsp(rt5677, fwp->data, fwp->size);
 	release_firmware(fwp);
@@ -894,12 +889,21 @@ static int rt5677_load_dsp_from_file(struct snd_soc_codec *codec)
 static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
-	static bool activity;
-	int ret;
-
 	rt5677->dsp_vad_en = on;
-	dev_info(codec->dev, "DSP VAD: on=%d, activity=%d\n", on, activity);
-	if (on && !activity) {
+	schedule_delayed_work(&rt5677->dsp_work, 0);
+	return 0;
+}
+
+static void rt5677_dsp_work(struct work_struct *work)
+{
+	struct rt5677_priv *rt5677 =
+		container_of(work, struct rt5677_priv, dsp_work.work);
+	static bool activity;
+	bool enable = rt5677->dsp_vad_en;
+
+	dev_info(rt5677->codec->dev, "DSP VAD: enable=%d, activity=%d\n",
+			enable, activity);
+	if (enable && !activity) {
 		activity = true;
 
 		/* Before a hotword is detected, GPIO1 pin is configured as IRQ
@@ -912,8 +916,8 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 		 * output if a hotword is detected.
 		 */
 
-		rt5677_set_vad_source(codec);
-		rt5677_set_dsp_mode(codec, true);
+		rt5677_set_vad_source(rt5677);
+		rt5677_set_dsp_mode(rt5677, true);
 
 		/* Boot the firmware from IRAM instead of SRAM0. */
 		rt5677_dsp_mode_i2c_write_addr(rt5677, RT5677_DSP_BOOT_VECTOR,
@@ -923,11 +927,11 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 		rt5677_dsp_mode_i2c_write_addr(rt5677, RT5677_DSP_BOOT_VECTOR,
 			0x0009, 0x0003);
 
-		ret = rt5677_load_dsp_from_file(codec);
+		rt5677_load_dsp_from_file(rt5677);
 
 		/* Set DSP CPU to Run */
 		regmap_update_bits(rt5677->regmap, RT5677_PWR_DSP1, 0x1, 0x0);
-	} else if (!on && activity) {
+	} else if (!enable && activity) {
 		activity = false;
 
 		/* Don't turn off the DSP while handling irqs */
@@ -935,7 +939,7 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 		/* Set DSP CPU to Stop */
 		regmap_update_bits(rt5677->regmap, RT5677_PWR_DSP1, 0x1, 0x1);
 
-		rt5677_set_dsp_mode(codec, false);
+		rt5677_set_dsp_mode(rt5677, false);
 		regmap_write(rt5677->regmap, RT5677_PWR_DSP1, 0x0001);
 
 		/* Disable and clear VAD interrupt */
@@ -946,8 +950,6 @@ static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 			RT5677_GPIO1_PIN_MASK, RT5677_GPIO1_PIN_IRQ);
 		mutex_unlock(&rt5677->irq_lock);
 	}
-
-	return 0;
 }
 
 static const DECLARE_TLV_DB_SCALE(out_vol_tlv, -4650, 150, 0);
@@ -984,7 +986,6 @@ static int rt5677_dsp_vad_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-
 	rt5677_set_dsp_vad(codec, !!ucontrol->value.integer.value[0]);
 	return 0;
 }
@@ -4411,6 +4412,8 @@ static int rt5677_remove(struct snd_soc_codec *codec)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
+	cancel_delayed_work_sync(&rt5677->dsp_work);
+
 	regmap_write(rt5677->regmap, RT5677_RESET, 0x10ec);
 	if (gpio_is_valid(rt5677->pow_ldo2))
 		gpio_set_value_cansleep(rt5677->pow_ldo2, 0);
@@ -5019,6 +5022,7 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 	if (rt5677 == NULL)
 		return -ENOMEM;
 
+	INIT_DELAYED_WORK(&rt5677->dsp_work, rt5677_dsp_work);
 	rt5677->set_dsp_vad = rt5677_set_dsp_vad;
 	i2c_set_clientdata(i2c, rt5677);
 
