@@ -433,6 +433,7 @@
 
 &hdmi {
 	status = "okay";
+	hpd-ignore;
 };
 
 &gpu {
