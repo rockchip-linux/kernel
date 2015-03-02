@@ -365,3 +365,26 @@ void mwifiex_del_all_sta_list(struct mwifiex_private *priv)
 	spin_unlock_irqrestore(&priv->sta_list_spinlock, flags);
 	return;
 }
+
+void *mwifiex_alloc_rx_buf(int rx_len, gfp_t flags)
+{
+	struct sk_buff *skb;
+	int buf_len, pad;
+
+	buf_len = rx_len + MWIFIEX_RX_HEADROOM + MWIFIEX_DMA_ALIGN_SZ;
+
+	skb = __dev_alloc_skb(buf_len, flags);
+
+	if (!skb)
+		return NULL;
+
+	skb_reserve(skb, MWIFIEX_RX_HEADROOM);
+
+	pad = MWIFIEX_ALIGN_ADDR(skb->data, MWIFIEX_DMA_ALIGN_SZ) -
+	      (long)skb->data;
+
+	skb_reserve(skb, pad);
+
+	return skb;
+}
+EXPORT_SYMBOL_GPL(mwifiex_alloc_rx_buf);
