@@ -21,6 +21,9 @@ Optional properties
 - reg-io-width: the width of the reg:1,4, default set to 1 if not present
 - ddc-i2c-bus: phandle of an I2C controller used for DDC EDID probing
 - clocks, clock-names: phandle to the HDMI CEC clock, name should be "cec"
+- hpd-ignore: ignore HPD pin (for broken boards with unpowered HDMI IO).
+    Setting this allows dw_hdmi to probe, but it will always be "disconnected",
+    even if the HPD pin is left floating.
 
 Example:
 	hdmi: hdmi@0120000 {

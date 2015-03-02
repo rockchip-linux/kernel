@@ -138,6 +138,7 @@ struct dw_hdmi {
 
 	int vic;
 
+	bool hpd_ignore;
 	u8 edid[HDMI_EDID_LEN];
 	bool cable_plugin;
 
@@ -1641,6 +1642,9 @@ dw_hdmi_connector_detect(struct drm_connector *connector, bool force)
 	struct dw_hdmi *hdmi = container_of(connector, struct dw_hdmi,
 					     connector);
 
+	if (hdmi->hpd_ignore)
+		return connector_status_disconnected;
+
 	return hdmi_readb(hdmi, HDMI_PHY_STAT0) & HDMI_PHY_HPD ?
 		connector_status_connected : connector_status_disconnected;
 }
@@ -1862,6 +1866,11 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 
 	} else {
 		dev_dbg(hdmi->dev, "no ddc property found\n");
+	}
+
+	if (of_find_property(np, "hpd-ignore", NULL)) {
+		dev_info(hdmi->dev, "Ignoring HPD\n");
+		hdmi->hpd_ignore = true;
 	}
 
 	ret = devm_request_threaded_irq(dev, irq, dw_hdmi_hardirq,
