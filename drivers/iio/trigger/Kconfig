@@ -25,4 +25,13 @@ config IIO_SYSFS_TRIGGER
 	  To compile this driver as a module, choose M here: the
 	  module will be called iio-trig-sysfs.
 
+config IIO_TRIGGER_HRTIMER
+	tristate "High Resolution Timer trigger"
+	help
+	  Provides support for using HRTimer as IIO triggers.
+	  If unsure, say N (but it's safe to say "Y").
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called iio-trig-hrtimer.
+
 endmenu
