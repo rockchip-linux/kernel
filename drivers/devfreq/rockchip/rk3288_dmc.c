@@ -77,7 +77,6 @@ struct rk3288_dmcfreq {
 
 	unsigned long rate, target_rate;
 	unsigned long volt, target_volt;
-	bool enabled;
 	int err;
 
 	struct notifier_block cpufreq_nb;
