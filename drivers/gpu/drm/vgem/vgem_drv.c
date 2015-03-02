@@ -43,30 +43,6 @@
 #define DRIVER_MAJOR	1
 #define DRIVER_MINOR	0
 
-static int vgem_load(struct drm_device *dev, unsigned long flags)
-{
-	platform_set_drvdata(dev->platformdev, dev);
-	return 0;
-}
-
-static int vgem_unload(struct drm_device *dev)
-{
-	return 0;
-}
-
-static int vgem_open(struct drm_device *dev, struct drm_file *file)
-{
-	return 0;
-}
-
-static void vgem_preclose(struct drm_device *dev, struct drm_file *file)
-{
-}
-
-static void vgem_lastclose(struct drm_device *dev)
-{
-}
-
 void vgem_gem_put_pages(struct drm_vgem_gem_object *obj)
 {
 	int num_pages = obj->base.size / PAGE_SIZE;
