@@ -434,19 +434,18 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	dmcfreq.rate = tmp * 1000000;
 	rk3288_devfreq_dmc_profile.initial_freq = dmcfreq.rate;
 
+	INIT_WORK(&dmcfreq.work, rk3288_dmcfreq_work);
+	dmcfreq.cpufreq_nb.notifier_call = rk3288_cpufreq_policy_notifier;
+	cpufreq_register_notifier(&dmcfreq.cpufreq_nb, CPUFREQ_POLICY_NOTIFIER);
 	dmcfreq.ondemand_data.upthreshold = DMC_UPTHRESHOLD;
 	dmcfreq.ondemand_data.downdifferential = DMC_DOWNDIFFERENTIAL;
 	dmcfreq.devfreq = devfreq_add_device(dmcfreq.clk_dev,
 					     &rk3288_devfreq_dmc_profile,
 					     "simple_ondemand",
 					     &dmcfreq.ondemand_data);
-
 	if (IS_ERR(dmcfreq.devfreq))
 		return PTR_ERR(dmcfreq.devfreq);
 
-	INIT_WORK(&dmcfreq.work, rk3288_dmcfreq_work);
-	dmcfreq.cpufreq_nb.notifier_call = rk3288_cpufreq_policy_notifier;
-	cpufreq_register_notifier(&dmcfreq.cpufreq_nb, CPUFREQ_POLICY_NOTIFIER);
 	devfreq_register_opp_notifier(dmcfreq.clk_dev, dmcfreq.devfreq);
 	rockchip_dmc_en_lock();
 	if (!rockchip_dmc_enabled()) {
