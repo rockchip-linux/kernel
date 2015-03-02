@@ -52,6 +52,8 @@
 #define DDR_SEL_DDR3		0x20000000
 #define DDR_SEL_MOBILEDDR	0x20002000
 
+#define DMC_NUM_RETRIES		3
+
 struct dmc_usage {
 	u32 write;
 	u32 read;
@@ -271,7 +273,7 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	unsigned long target_volt = dmcfreq.target_volt;
 	unsigned long old_clk_rate;
 	unsigned int cpu_min_freq, cpu_max_freq;
-	int err = 0;
+	int retries, err = 0;
 
 	/* Go to max cpufreq since set_rate needs to complete during vblank. */
 	err = rk3288_cpufreq_apply_get_limit(&cpu_min_freq, &cpu_max_freq);
@@ -300,7 +302,13 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	 * hotplug needs to be grabbed before the clk prepare lock.
 	 */
 	cpu_hotplug_disable();
-	err = clk_set_rate(dmcfreq.dmc_clk, target_rate);
+	for (retries = 0; retries < DMC_NUM_RETRIES; retries++) {
+		err = clk_set_rate(dmcfreq.dmc_clk, target_rate);
+		/* Break if we see an error or the rate changes. */
+		if (err || old_clk_rate != clk_get_rate(dmcfreq.dmc_clk))
+			break;
+	}
+
 	cpu_hotplug_enable();
 	if (err || old_clk_rate == clk_get_rate(dmcfreq.dmc_clk)) {
 		dev_err(dev,
