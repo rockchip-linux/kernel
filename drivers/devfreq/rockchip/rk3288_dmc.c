@@ -337,8 +337,8 @@ cpufreq:
  * things to sync with (DMC_DISABLE). It resumes devfreq when there are few
  * enough things to sync with (DMC_ENABLE).
  */
-static int rk3288_dmc_sync_notify(struct notifier_block *nb,
-				  unsigned long action, void *data)
+static int rk3288_dmc_enable_notify(struct notifier_block *nb,
+				    unsigned long action, void *data)
 {
 	unsigned long freq = ULONG_MAX;
 
@@ -358,8 +358,8 @@ static int rk3288_dmc_sync_notify(struct notifier_block *nb,
 	return NOTIFY_BAD;
 }
 
-static struct notifier_block dmc_sync_nb = {
-	.notifier_call = rk3288_dmc_sync_notify,
+static struct notifier_block dmc_enable_nb = {
+	.notifier_call = rk3288_dmc_enable_notify,
 };
 
 static __maybe_unused int rk3288_dmcfreq_suspend(struct device *dev)
@@ -454,7 +454,7 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 		rk3288_dmcfreq_target(dmcfreq.clk_dev, &freq, 0);
 		dev_info(dev, "DVFS disabled at probe\n");
 	}
-	rockchip_dmc_register_enable_notifier(&dmc_sync_nb);
+	rockchip_dmc_register_enable_notifier(&dmc_enable_nb);
 	rockchip_dmc_en_unlock();
 
 	return 0;
