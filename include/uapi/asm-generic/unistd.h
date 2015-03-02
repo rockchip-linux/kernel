@@ -701,6 +701,9 @@ __SYSCALL(__NR_renameat2, sys_ni_syscall)
 #define __NR_seccomp 277
 __SYSCALL(__NR_seccomp, sys_seccomp)
 
+#define __NR_seccomp 277
+__SYSCALL(__NR_seccomp, sys_seccomp)
+
 #undef __NR_syscalls
 #define __NR_syscalls 278
 

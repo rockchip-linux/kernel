@@ -2,7 +2,7 @@
  * include/asm-generic/seccomp.h
  *
  * Copyright (C) 2014 Linaro Limited
- * Author: AKASHI Takahiro <takahiro.akashi@linaro.org>
+ * Author: AKASHI Takahiro <takahiro.akashi <at> linaro.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -11,7 +11,7 @@
 #ifndef _ASM_GENERIC_SECCOMP_H
 #define _ASM_GENERIC_SECCOMP_H
 
-#include <linux/unistd.h>
+#include <asm-generic/unistd.h>
 
 #if defined(CONFIG_COMPAT) && !defined(__NR_seccomp_read_32)
 #define __NR_seccomp_read_32		__NR_read
@@ -23,8 +23,6 @@
 #define __NR_seccomp_read		__NR_read
 #define __NR_seccomp_write		__NR_write
 #define __NR_seccomp_exit		__NR_exit
-#ifndef __NR_seccomp_sigreturn
 #define __NR_seccomp_sigreturn		__NR_rt_sigreturn
-#endif
 
 #endif /* _ASM_GENERIC_SECCOMP_H */

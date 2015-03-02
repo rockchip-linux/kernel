@@ -36,3 +36,8 @@ usb_f_uac1-y			:= f_uac1.o u_uac1.o
 obj-$(CONFIG_USB_F_UAC1)	+= usb_f_uac1.o
 usb_f_uac2-y			:= f_uac2.o
 obj-$(CONFIG_USB_F_UAC2)	+= usb_f_uac2.o
+usb_f_mtp-y			:= f_mtp.o
+obj-$(CONFIG_USB_F_MTP)		+= usb_f_mtp.o
+usb_f_ptp-y			:= f_ptp.o
+obj-$(CONFIG_USB_F_PTP)		+= usb_f_ptp.o
+
