@@ -13,6 +13,7 @@
 
 #include <linux/clk.h>
 #include <linux/completion.h>
+#include <linux/cpu.h>
 #include <linux/cpufreq.h>
 #include <linux/delay.h>
 #include <linux/devfreq.h>
@@ -292,7 +293,15 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 
 	/* Get exact clk rate instead of cached value. */
 	old_clk_rate = clk_get_rate(dmcfreq.dmc_clk);
+	/*
+	 * We need to prevent cpu hotplug from happening while a dmc freq rate
+	 * change is happening. The rate change needs to synchronize all of the
+	 * cpus. This has to be done here since the lock for preventing cpu
+	 * hotplug needs to be grabbed before the clk prepare lock.
+	 */
+	cpu_hotplug_disable();
 	err = clk_set_rate(dmcfreq.dmc_clk, target_rate);
+	cpu_hotplug_enable();
 	if (err || old_clk_rate == clk_get_rate(dmcfreq.dmc_clk)) {
 		dev_err(dev,
 			"Unable to set freq %lu. Current freq %lu. Error %d\n",
