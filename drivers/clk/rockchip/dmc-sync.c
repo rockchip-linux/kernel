@@ -21,13 +21,12 @@ static RAW_NOTIFIER_HEAD(en_chain);
 static DEFINE_MUTEX(sync_lock);
 static DEFINE_MUTEX(en_lock);
 static int num_wait;
-static bool enable;
+static int num_disable;
 
 #define DEFAULT_TIMEOUT_MS	1000
 
 /**
- * rockchip_dmc_lock - Lock the sync notifiers and call sync notifiers with
- * SYNC_LOCK action.
+ * rockchip_dmc_lock - Lock the sync notifiers.
  */
 void rockchip_dmc_lock(void)
 {
@@ -36,7 +35,7 @@ void rockchip_dmc_lock(void)
 EXPORT_SYMBOL_GPL(rockchip_dmc_lock);
 
 /**
- * rockchip_dmc_wait - Call sync notifiers with SYNC_WAIT action.
+ * rockchip_dmc_wait - Call sync notifiers.
  */
 void rockchip_dmc_wait(ktime_t *timeout)
 {
@@ -47,8 +46,7 @@ void rockchip_dmc_wait(ktime_t *timeout)
 EXPORT_SYMBOL_GPL(rockchip_dmc_wait);
 
 /**
- * rockchip_dmc_unlock - Unlock the sync notifiers and call sync notifiers with
- * SYNC_UNLOCK action.
+ * rockchip_dmc_unlock - Unlock the sync notifiers.
  */
 void rockchip_dmc_unlock(void)
 {
@@ -57,16 +55,45 @@ void rockchip_dmc_unlock(void)
 EXPORT_SYMBOL_GPL(rockchip_dmc_unlock);
 
 /**
+ * rockchip_dmc_en_lock - Lock for calling and adding enable notifiers. Must be
+ * held when calling rockchip_dmc_[un]register_enabled_notifier.
+ */
+void rockchip_dmc_en_lock(void)
+{
+	mutex_lock(&en_lock);
+}
+EXPORT_SYMBOL_GPL(rockchip_dmc_en_lock);
+
+/**
+ * rockchip_dmc_en_unlock - Unlock after calling and adding enable notifiers.
+ */
+void rockchip_dmc_en_unlock(void)
+{
+	mutex_unlock(&en_lock);
+}
+EXPORT_SYMBOL_GPL(rockchip_dmc_en_unlock);
+
+/**
+ * rockchip_dmc_enabled - Returns true if dmc freq is enabled, false otherwise.
+ */
+bool rockchip_dmc_enabled(void)
+{
+	return num_disable <= 0 && num_wait <= 1;
+}
+EXPORT_SYMBOL_GPL(rockchip_dmc_enabled);
+
+/**
  * rockchip_dmc_enable - Enable dmc frequency scaling. Will only enable
- * frequency scaling if there are 1 or fewer notifiers that will block on
- * SYNC_WAIT. Call to undo rockchip_dmc_disable.
+ * frequency scaling if there are 1 or fewer notifiers. Call to undo
+ * rockchip_dmc_disable.
  */
 void rockchip_dmc_enable(void)
 {
 	mutex_lock(&en_lock);
-	if (!enable && num_wait <= 1)
+	num_disable--;
+	WARN_ON(num_disable < 0);
+	if (rockchip_dmc_enabled())
 		raw_notifier_call_chain(&en_chain, DMC_ENABLE, NULL);
-	enable = true;
 	mutex_unlock(&en_lock);
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_enable);
@@ -78,9 +105,9 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_enable);
 void rockchip_dmc_disable(void)
 {
 	mutex_lock(&en_lock);
-	if (enable && num_wait <= 1)
+	if (rockchip_dmc_enabled())
 		raw_notifier_call_chain(&en_chain, DMC_DISABLE, NULL);
-	enable = false;
+	num_disable++;
 	mutex_unlock(&en_lock);
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_disable);
@@ -104,7 +131,7 @@ int rockchip_dmc_get(struct notifier_block *nb)
 
 	mutex_lock(&en_lock);
 	/* This may call rockchip_dmc_lock/wait/unlock. */
-	if (num_wait == 1 && enable)
+	if (num_wait == 1 && num_disable <= 0)
 		raw_notifier_call_chain(&en_chain, DMC_DISABLE, NULL);
 
 	mutex_lock(&sync_lock);
@@ -116,7 +143,7 @@ int rockchip_dmc_get(struct notifier_block *nb)
 	 */
 	if (!ret)
 		num_wait++;
-	else if (num_wait == 1 && enable)
+	else if (num_wait == 1 && num_disable <= 0)
 		raw_notifier_call_chain(&en_chain, DMC_ENABLE, NULL);
 
 	mutex_unlock(&en_lock);
@@ -147,7 +174,7 @@ int rockchip_dmc_put(struct notifier_block *nb)
 		num_wait--;
 	mutex_unlock(&sync_lock);
 	/* This may call rockchip_dmc_lock/wait/unlock. */
-	if (num_wait == 1 && enable && !ret)
+	if (num_wait == 1 && num_disable <= 0 && !ret)
 		raw_notifier_call_chain(&en_chain, DMC_ENABLE, NULL);
 	mutex_unlock(&en_lock);
 
@@ -160,7 +187,7 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_put);
  *
  * Enable notifiers are called when we enable/disable dmc. This can be done
  * through rockchip_dmc_enable/disable or when there is more than one sync
- * notifier that blocks for the SYNC_WAIT message.
+ * notifier. Must call rockchip_dmc_en_lock before calling this.
  * @nb The notifier to add
  */
 int rockchip_dmc_register_enable_notifier(struct notifier_block *nb)
@@ -170,9 +197,7 @@ int rockchip_dmc_register_enable_notifier(struct notifier_block *nb)
 	if (!nb)
 		return -EINVAL;
 
-	mutex_lock(&en_lock);
 	ret = raw_notifier_chain_register(&en_chain, nb);
-	mutex_unlock(&en_lock);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_register_enable_notifier);
@@ -180,6 +205,8 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_register_enable_notifier);
 /**
  * rockchip_dmc_unregister_enable_notifier - Remove notifier from enable
  * notifiers.
+ *
+ * Must call rockchip_dmc_en_lock before calling this.
  * @nb The notifier to remove.
  */
 int rockchip_dmc_unregister_enable_notifier(struct notifier_block *nb)
@@ -189,9 +216,7 @@ int rockchip_dmc_unregister_enable_notifier(struct notifier_block *nb)
 	if (!nb)
 		return -EINVAL;
 
-	mutex_lock(&en_lock);
 	ret = raw_notifier_chain_unregister(&en_chain, nb);
-	mutex_unlock(&en_lock);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_unregister_enable_notifier);
