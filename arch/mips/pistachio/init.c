@@ -71,8 +71,8 @@ void __init plat_mem_setup(void)
 {
 	void *dtb;
 
-	if (fw_arg0 == 0 && fw_arg1 == 0xffffffff)
-		dtb = phys_to_virt(fw_arg2);
+	if (fw_arg0 == -2)
+		dtb = phys_to_virt(fw_arg1);
 	else
 		dtb = &__dtb_start;
 
