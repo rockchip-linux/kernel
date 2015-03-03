@@ -43,3 +43,14 @@ config SND_SOC_IMG_SPDIF_OUT
 	help
 	  Say Y or M if you want to add support for SPDIF out driver for
 	  Imagination Technologies SPDIF out device.
+
+config SND_SOC_IMG_CONCERTO
+	tristate "Audio support for Concerto-based boards"
+	depends on SND_SOC_IMG
+	select SND_SOC_IMG_I2S_IN
+	select SND_SOC_IMG_I2S_OUT
+	select SND_SOC_IMG_PARALLEL_OUT
+	select SND_SOC_IMG_SPDIF_IN
+	select SND_SOC_IMG_SPDIF_OUT
+	help
+	  Audio support for boards based on the Concerto module.
