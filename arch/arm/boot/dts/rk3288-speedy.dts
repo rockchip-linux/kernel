@@ -74,6 +74,7 @@
 };
 
 &dmc {
+	rockchip,odt-disable-freq = <666000000>;
 	operating-points = <
 		/* KHz    uV */
 		200000 1050000
