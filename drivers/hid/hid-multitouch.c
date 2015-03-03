@@ -766,13 +766,12 @@ static void mt_touch_report(struct hid_device *hid, struct hid_report *report)
 		mt_sync_frame(td, report->field[0]->hidinput->input);
 }
 
-static int mt_touch_input_configured(struct hid_device *hdev,
+static void mt_touch_input_configured(struct hid_device *hdev,
 					struct hid_input *hi)
 {
 	struct mt_device *td = hid_get_drvdata(hdev);
 	struct mt_class *cls = &td->mtclass;
 	struct input_dev *input = hi->input;
-	int ret;
 
 	if (!td->maxcontacts)
 		td->maxcontacts = MT_DEFAULT_MAXCONTACT;
@@ -787,12 +786,9 @@ static int mt_touch_input_configured(struct hid_device *hdev,
 	if (cls->quirks & MT_QUIRK_NOT_SEEN_MEANS_UP)
 		td->mt_flags |= INPUT_MT_DROP_UNUSED;
 
-	ret = input_mt_init_slots(input, td->maxcontacts, td->mt_flags);
-	if (ret)
-		return ret;
+	input_mt_init_slots(input, td->maxcontacts, td->mt_flags);
 
 	td->mt_flags = 0;
-	return 0;
 }
 
 static int mt_input_mapping(struct hid_device *hdev, struct hid_input *hi,
@@ -925,15 +921,14 @@ static void mt_post_parse(struct mt_device *td)
 		cls->quirks &= ~MT_QUIRK_CONTACT_CNT_ACCURATE;
 }
 
-static int mt_input_configured(struct hid_device *hdev, struct hid_input *hi)
+static void mt_input_configured(struct hid_device *hdev, struct hid_input *hi)
 {
 	struct mt_device *td = hid_get_drvdata(hdev);
 	char *name;
 	const char *suffix = NULL;
-	int ret = 0;
 
 	if (hi->report->id == td->mt_report_id)
-		ret = mt_touch_input_configured(hdev, hi);
+		mt_touch_input_configured(hdev, hi);
 
 	if (hi->report->field[0]->physical == HID_DG_STYLUS) {
 		suffix = "Pen";
@@ -949,7 +944,6 @@ static int mt_input_configured(struct hid_device *hdev, struct hid_input *hi)
 			hi->input->name = name;
 		}
 	}
-	return ret;
 }
 
 static int mt_probe(struct hid_device *hdev, const struct hid_device_id *id)
