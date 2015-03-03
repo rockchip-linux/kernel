@@ -340,7 +340,7 @@ static int cc10001_adc_probe(struct platform_device *pdev)
 	adc_dev = iio_priv(indio_dev);
 
 	adc_dev->channel_map = GENMASK(CC10001_ADC_NUM_CHANNELS - 1, 0);
-	if (!of_property_read_u32(node, "cosmic,reserved-adc-channels", &ret))
+	if (!of_property_read_u32(node, "adc-reserved-channels", &ret))
 		adc_dev->channel_map &= ~ret;
 
 	adc_dev->reg = devm_regulator_get(&pdev->dev, "vref");
