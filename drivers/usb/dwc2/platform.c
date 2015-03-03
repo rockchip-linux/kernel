@@ -316,6 +316,7 @@ static struct platform_driver dwc2_platform_driver = {
 		.name = dwc2_driver_name,
 		.of_match_table = dwc2_of_match_table,
 		.pm = &dwc2_dev_pm_ops,
+		.async_probe = true,
 	},
 	.probe = dwc2_driver_probe,
 	.remove = dwc2_driver_remove,
