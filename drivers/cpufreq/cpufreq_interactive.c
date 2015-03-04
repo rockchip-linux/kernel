@@ -544,15 +544,12 @@ static void cpufreq_interactive_adjust_cpu(unsigned int cpu,
 {
 	unsigned int max_freq;
 
-	down_write(&policy->rwsem);
-
 	max_freq = cpufreq_interactive_get_max_freq(policy);
 
 	if (max_freq != policy->cur)
 		__cpufreq_driver_target(policy, max_freq, CPUFREQ_RELATION_H);
 
 	trace_cpufreq_interactive_setspeed(cpu, max_freq, policy->cur);
-	up_write(&policy->rwsem);
 }
 
 static int cpufreq_interactive_speedchange_task(void *data)
@@ -585,12 +582,16 @@ static int cpufreq_interactive_speedchange_task(void *data)
 		for_each_cpu(cpu, &tmp_mask) {
 			pcpu = &per_cpu(cpuinfo, cpu);
 
+			down_write(&pcpu->policy->rwsem);
+
 			if (likely(down_read_trylock(&pcpu->enable_sem))) {
 				if (likely(pcpu->governor_enabled))
 					cpufreq_interactive_adjust_cpu(cpu,
 							pcpu->policy);
 				up_read(&pcpu->enable_sem);
 			}
+
+			up_write(&pcpu->policy->rwsem);
 		}
 	}
 
