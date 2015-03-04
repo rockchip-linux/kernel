@@ -6974,6 +6974,18 @@ void mgmt_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 
 	memset(buf, 0, sizeof(buf));
 
+	/* In case of device discovery with BR/EDR devices (pre 1.2), the
+	 * RSSI value was reported as 0 when not available. This behavior
+	 * is kept when using device discovery. This is required for full
+	 * backwards compatibility with the API.
+	 *
+	 * However when using service discovery, the value 127 will be
+	 * returned when the RSSI is not available.
+	 */
+	if (rssi == HCI_RSSI_INVALID && !hdev->discovery.report_invalid_rssi &&
+	    link_type == ACL_LINK)
+		rssi = 0;
+
 	bacpy(&ev->addr.bdaddr, bdaddr);
 	ev->addr.type = link_to_bdaddr(link_type, addr_type);
 	ev->rssi = rssi;
@@ -7077,18 +7089,6 @@ void mgmt_remote_name(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
 	ev = (struct mgmt_ev_device_found *) buf;
 
 	memset(buf, 0, sizeof(buf));
-
-	/* In case of device discovery with BR/EDR devices (pre 1.2), the
-	 * RSSI value was reported as 0 when not available. This behavior
-	 * is kept when using device discovery. This is required for full
-	 * backwards compatibility with the API.
-	 *
-	 * However when using service discovery, the value 127 will be
-	 * returned when the RSSI is not available.
-	 */
-	if (rssi == HCI_RSSI_INVALID && !hdev->discovery.report_invalid_rssi &&
-	    link_type == ACL_LINK)
-		rssi = 0;
 
 	bacpy(&ev->addr.bdaddr, bdaddr);
 	ev->addr.type = link_to_bdaddr(link_type, addr_type);
