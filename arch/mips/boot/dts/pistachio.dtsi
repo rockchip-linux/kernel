@@ -39,7 +39,7 @@
 		clock-names = "scb", "sys";
 		assigned-clocks = <&clk_periph PERIPH_CLK_I2C0_PRE_DIV>,
 				  <&clk_periph PERIPH_CLK_I2C0_DIV>;
-		assigned-clock-rates = <100000000>, <33333333>;
+		assigned-clock-rates = <100000000>, <33333334>;
 		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2c0_pins>;
@@ -56,7 +56,7 @@
 		clock-names = "scb", "sys";
 		assigned-clocks = <&clk_periph PERIPH_CLK_I2C1_PRE_DIV>,
 				  <&clk_periph PERIPH_CLK_I2C1_DIV>;
-		assigned-clock-rates = <100000000>, <33333333>;
+		assigned-clock-rates = <100000000>, <33333334>;
 		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2c1_pins>;
@@ -74,7 +74,7 @@
 		clock-names = "scb", "sys";
 		assigned-clocks = <&clk_periph PERIPH_CLK_I2C2_PRE_DIV>,
 				  <&clk_periph PERIPH_CLK_I2C2_DIV>;
-		assigned-clock-rates = <100000000>, <33333333>;
+		assigned-clock-rates = <100000000>, <33333334>;
 		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2c2_pins>;
@@ -91,7 +91,7 @@
 		clock-names = "scb", "sys";
 		assigned-clocks = <&clk_periph PERIPH_CLK_I2C3_PRE_DIV>,
 				  <&clk_periph PERIPH_CLK_I2C3_DIV>;
-		assigned-clock-rates = <100000000>, <33333333>;
+		assigned-clock-rates = <100000000>, <33333334>;
 		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <&i2c3_pins>;
