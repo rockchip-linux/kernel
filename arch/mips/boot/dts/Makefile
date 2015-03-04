@@ -10,7 +10,8 @@ dtb-$(CONFIG_DTB_RT3883_EVAL)		+= rt3883_eval.dtb
 dtb-$(CONFIG_DTB_MT7620A_EVAL)		+= mt7620a_eval.dtb
 dtb-$(CONFIG_MACH_PISTACHIO)		+= pistachio_fpga.dtb \
 	pistachio_bub.dtb \
-	pistachio_kennet.dtb
+	pistachio_kennet.dtb \
+	pistachio_buranku.dtb
 dtb-$(CONFIG_MIPS_SEAD3)		+= sead3.dtb
 
 obj-y		+= $(patsubst %.dtb, %.dtb.o, $(dtb-y))
