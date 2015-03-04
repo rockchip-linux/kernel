@@ -626,29 +626,29 @@ static int lpddr2_get_parameter(struct rk3288_dmcclk *dmc)
 	 *  8-bank:18ns(Fast) 21ns(Typ) 27ns(Slow))
 	 */
 	trp_tmp = DIV_ROUND_UP(LPDDR2_TRP_PB_8_BANK * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	trp_tmp = max_t(u32, trp_tmp, 3);
 	dmc->p_ctl_timing->trp =
 		((DIV_ROUND_UP(LPDDR2_TRP_AB_SUB_TRP_PB_8_BANK * nmhz, 1000) &
 		  0x3) << 16) | (trp_tmp & 0xf);
 	dmc->p_phy_timing->dtpr0.b.trp = trp_tmp;
 
 	tras_tmp = DIV_ROUND_UP(LPDDR2_TRAS * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	tras_tmp = max_t(u32, tras_tmp, 3);
 	dmc->p_ctl_timing->tras = (tras_tmp & 0x3f);
 	dmc->p_phy_timing->dtpr0.b.tras = tras_tmp;
 
 	trcd_tmp = DIV_ROUND_UP(LPDDR2_TRCD * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	trcd_tmp = max_t(u32, trcd_tmp, 3);
 	dmc->p_ctl_timing->trcd = (trcd_tmp & 0xf);
 	dmc->p_phy_timing->dtpr0.b.trcd = trcd_tmp;
 
 	trtp_tmp = DIV_ROUND_UP(LPDDR2_TRTP * nmhz + (nmhz >> 1), 1000);
-	tmp = max_t(u32, tmp, 2);
+	trtp_tmp = max_t(u32, trtp_tmp, 2);
 	dmc->p_ctl_timing->trtp = trtp_tmp & 0xF;
 	dmc->p_phy_timing->dtpr0.b.trtp = trtp_tmp;
 
 	twr_tmp = DIV_ROUND_UP(LPDDR2_TWR * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	twr_tmp = max_t(u32, twr_tmp, 3);
 	dmc->p_ctl_timing->twr = twr_tmp & 0x1f;
 	bl_tmp = (bl == 16) ? LPDDR2_BL16 :
 			      ((bl == 8) ? LPDDR2_BL8 : LPDDR2_BL4);
@@ -857,29 +857,29 @@ static int lpddr3_get_parameter(struct rk3288_dmcclk *dmc)
 	dmc->p_phy_timing->dtpr2.b.txs = tmp;
 
 	trp_tmp = DIV_ROUND_UP(LPDDR3_TRP_PB_8_BANK * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	trp_tmp = max_t(u32, trp_tmp, 3);
 	dmc->p_ctl_timing->trp =
 		((DIV_ROUND_UP(LPDDR3_TRP_AB_SUB_TRP_PB_8_BANK * nmhz, 1000) &
 		  0x3) << 16) | (trp_tmp & 0xf);
 	dmc->p_phy_timing->dtpr0.b.trp = trp_tmp;
 
 	tras_tmp = DIV_ROUND_UP(LPDDR3_TRAS * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	tras_tmp = max_t(u32, tras_tmp, 3);
 	dmc->p_ctl_timing->tras = (tras_tmp & 0x3f);
 	dmc->p_phy_timing->dtpr0.b.tras = tras_tmp;
 
 	trcd_tmp = DIV_ROUND_UP(LPDDR3_TRCD * nmhz, 1000);
-	tmp = max_t(u32, tmp, 3);
+	trcd_tmp = max_t(u32, trcd_tmp, 3);
 	dmc->p_ctl_timing->trcd = (trcd_tmp & 0xf);
 	dmc->p_phy_timing->dtpr0.b.trcd = trcd_tmp;
 
 	trtp_tmp = DIV_ROUND_UP(LPDDR3_TRTP * nmhz + (nmhz >> 1), 1000);
-	tmp = max_t(u32, tmp, 4);
+	trtp_tmp = max_t(u32, trtp_tmp, 4);
 	dmc->p_ctl_timing->trtp = trtp_tmp & 0xf;
 	dmc->p_phy_timing->dtpr0.b.trtp = trtp_tmp;
 
 	twr_tmp = DIV_ROUND_UP(LPDDR3_TWR * nmhz, 1000);
-	tmp = max_t(u32, tmp, 4);
+	twr_tmp = max_t(u32, twr_tmp, 4);
 	dmc->p_ctl_timing->twr = twr_tmp & 0x1f;
 
 	bl_tmp = LPDDR3_BL8;
