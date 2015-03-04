@@ -1,0 +1,113 @@
+Google Concerto audio card
+==========================
+
+This document describes device-tree bindings for audio on boards based on
+the Concerto module.
+
+Required properties:
+--------------------
+ - compatible: Must include "google,concerto-audio".
+ - model: Must be the board model name, e.g. "Google Kennet".
+ - clocks: Must contain an entry for each entry in clock-names.
+   See ../clock/clock-bindings.txt for details.
+ - clock-names: Must include "audio_pll" and "mclk".
+ - img,cr-periph: Must contain a phandle to the Pistachio peripheral control
+   syscon node.
+ - img,cr-top: Must contain a phandle to the Pistachio top control syscon node.
+
+Optional properties:
+--------------------
+ - routing: A list of the connections between audio components.  Each entry
+   is a pair of strings, the first being the connection's sink, the second
+   being the connection's source.
+ - widgets: A list of off-codec widgets.  Each entry is a pair of strings,
+   the first being the template name, the second being the card's widget
+   name.  Recognized template names are "Microphone", "Line", "Headphone",
+   and "Speaker".
+
+Each interface (I2S in/out, S/PDIF in/out, parallel out) has it's own sub-node.
+Any combination of these sub-nodes may be specified.
+
+I2S out:
+--------
+The I2S out sub-node must be named "i2s-out".  A single "cpu" sub-node
+is required, and a variable number of codec sub-nodes, which must be named
+"codec-{0,1,2,...}", may be specified.
+
+I2S in:
+-------
+The I2S in sub-node must be named "i2s-in".  A single "cpu" sub-node
+is required, and a variable number of codec sub-nodes, which must be named
+"codec-{0,1,2,...}", may be specified.
+
+I2S CPU/codec sub-node required properties:
+-------------------------------------------
+- sound-dai: Must contain a phandle to the CPU DAI or a codec DAI.
+- format: Must be set to the DAI's format.
+
+I2S CPU/codec sub-node optional properties:
+-------------------------------------------
+- name: Optional name for the codec.  This will be used as the name prefix
+  for the codec.
+- continuous-clock: Indicates the BCLK/LRCLK are always active.
+- bitclock-inversion: Indicates the BCLK should be inverted.
+- frame-inversion: Indicates the LRCLK should be inverted.
+- bitclock-master: Indicates the DAI is the LRCLK master.
+- frame-master: Indicates the DAI is the LRCLK master.
+
+S/PDIF out:
+-----------
+The S/PDIF out sub-node must be named "spdif-out".  A single "cpu" sub-node
+is required.
+
+S/PDIF in:
+----------
+The S/PDIF in sub-node must be named "spdif-in".  A single "cpu" sub-node
+is required.
+
+S/PDIF CPU sub-node required properties:
+----------------------------------------
+- sound-dai: Must contain a phandle to the CPU DAI.
+
+Parallel out:
+-------------
+The parallel out sub-node must be named "parallel-out".  A single "cpu" sub-node
+is required.
+
+Parallel out CPU sub-node required properties:
+----------------------------------------------
+- sound-dai: Must contain a phandle to the CPU DAI.
+
+Example:
+--------
+	sound {
+		compatible = "google,concerto-audio";
+		model = "Google Kennet";
+		clocks = <&clk_core CLK_AUDIO_PLL>, <&clk_core CLK_I2S>;
+		clock-names = "audio_pll", "mclk";
+
+		img,cr-periph = <&cr_periph>;
+		img,cr-top = <&cr_top>;
+
+		i2s-out {
+			cpu {
+				sound-dai = <&i2s_out>;
+				format = "i2s";
+				bitclock-master;
+				frame-master;
+			};
+		};
+
+		i2s-in {
+			cpu {
+				sound-dai = <&i2s_in>;
+				format = "i2s";
+			};
+		};
+
+		parallel-out {
+			cpu {
+				sound-dai = <&parallel_out>;
+			};
+		};
+	};
