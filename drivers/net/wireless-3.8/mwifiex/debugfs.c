@@ -686,6 +686,7 @@ mwifiex_reset_write(struct file *file,
 {
 	struct mwifiex_private *priv =
 		(struct mwifiex_private *) file->private_data;
+	struct mwifiex_adapter *adapter = priv->adapter;
 	char cmd;
 
 	if (copy_from_user(&cmd, ubuf, sizeof(cmd)))
@@ -695,9 +696,11 @@ mwifiex_reset_write(struct file *file,
 	case 'y':
 	case 'Y':
 	case '1':
-		if (priv->adapter->if_ops.card_reset) {
-			dev_info(priv->adapter->dev, "Resetting per request\n");
-			priv->adapter->if_ops.card_reset(priv->adapter);
+		if (adapter->if_ops.card_reset) {
+			dev_info(adapter->dev, "Resetting per request\n");
+			adapter->hw_status = MWIFIEX_HW_STATUS_RESET;
+			mwifiex_cancel_all_pending_cmd(adapter);
+			adapter->if_ops.card_reset(adapter);
 		} else {
 			return -EINVAL;
 		}
