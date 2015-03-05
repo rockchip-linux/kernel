@@ -16,6 +16,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
@@ -36,9 +37,11 @@ struct concerto_audio_card {
 	struct concerto_codec_config *i2s_out_codecs;
 	unsigned int num_i2s_out_codecs;
 	unsigned int i2s_out_fmt;
+	struct snd_soc_dai *i2s_out_dai;
 	struct concerto_codec_config *i2s_in_codecs;
 	unsigned int num_i2s_in_codecs;
 	unsigned int i2s_in_fmt;
+	bool loopback_i2s_clk;
 	struct clk *audio_pll;
 	struct clk *mclk;
 	struct regmap *periph_regs;
@@ -89,6 +92,20 @@ static int concerto_i2s_out_init(struct snd_soc_pcm_runtime *rtd)
 	struct concerto_audio_card *cc = snd_soc_card_get_drvdata(rtd->card);
 	int ret, i;
 
+	/*
+	 * If the I2S out clocks are looped back to I2S in, the I2S out
+	 * must be the clock master and must supply a continuous clock.
+	 */
+	if (cc->loopback_i2s_clk) {
+		if ((cc->i2s_out_fmt & SND_SOC_DAIFMT_MASTER_MASK) !=
+		    SND_SOC_DAIFMT_CBS_CFS) {
+			dev_err(cc->card.dev, "I2S out must be clock master");
+			return -EINVAL;
+		}
+		cc->i2s_out_fmt |= SND_SOC_DAIFMT_CONT;
+	}
+
+	cc->i2s_out_dai = rtd->cpu_dai;
 	ret = snd_soc_dai_set_fmt(rtd->cpu_dai, cc->i2s_out_fmt);
 	if (ret < 0)
 		return ret;
@@ -136,10 +153,21 @@ static const struct snd_soc_ops concerto_i2s_out_ops = {
 	.hw_params = concerto_i2s_out_hw_params,
 };
 
+#define CR_I2S_CTRL				0x88
+#define CR_I2S_CTRL_CLK_SRC_MASK		0x3
+#define CR_I2S_CTRL_CLK_SRC_NO_LOOPBACK		0x0
+#define CR_I2S_CTRL_CLK_SRC_MFIO_LOOPBACK	0x1
+#define CR_I2S_CTRL_CLK_SRC_LOCAL_LOOPBACK	0x2
+
 static int concerto_i2s_in_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct concerto_audio_card *cc = snd_soc_card_get_drvdata(rtd->card);
 	int ret, i;
+
+	if (cc->loopback_i2s_clk && !cc->i2s_out_dai) {
+		dev_err(cc->card.dev, "No I2S out DAI registered\n");
+		return -EINVAL;
+	}
 
 	ret = snd_soc_dai_set_fmt(rtd->cpu_dai, cc->i2s_in_fmt);
 	if (ret < 0)
@@ -158,7 +186,37 @@ static int concerto_i2s_in_init(struct snd_soc_pcm_runtime *rtd)
 			return ret;
 	}
 
+	if (cc->loopback_i2s_clk) {
+		regmap_update_bits(cc->periph_regs, CR_I2S_CTRL,
+				   CR_I2S_CTRL_CLK_SRC_MASK,
+				   CR_I2S_CTRL_CLK_SRC_LOCAL_LOOPBACK);
+	} else {
+		regmap_update_bits(cc->periph_regs, CR_I2S_CTRL,
+				   CR_I2S_CTRL_CLK_SRC_MASK,
+				   CR_I2S_CTRL_CLK_SRC_NO_LOOPBACK);
+	}
+
 	return 0;
+}
+
+static int concerto_i2s_in_startup(struct snd_pcm_substream *st)
+{
+	struct snd_soc_pcm_runtime *rtd = st->private_data;
+	struct concerto_audio_card *cc = snd_soc_card_get_drvdata(rtd->card);
+
+	if (cc->loopback_i2s_clk)
+		return pm_runtime_get_sync(cc->i2s_out_dai->dev);
+
+	return 0;
+}
+
+static void concerto_i2s_in_shutdown(struct snd_pcm_substream *st)
+{
+	struct snd_soc_pcm_runtime *rtd = st->private_data;
+	struct concerto_audio_card *cc = snd_soc_card_get_drvdata(rtd->card);
+
+	if (cc->loopback_i2s_clk)
+		pm_runtime_put(cc->i2s_out_dai->dev);
 }
 
 static int concerto_i2s_in_hw_params(struct snd_pcm_substream *st,
@@ -185,6 +243,8 @@ static int concerto_i2s_in_hw_params(struct snd_pcm_substream *st,
 }
 
 static const struct snd_soc_ops concerto_i2s_in_ops = {
+	.startup = concerto_i2s_in_startup,
+	.shutdown = concerto_i2s_in_shutdown,
 	.hw_params = concerto_i2s_in_hw_params,
 };
 
@@ -368,6 +428,8 @@ static int concerto_parse_of_i2s_in(struct concerto_audio_card *cc,
 	fmt = snd_soc_of_parse_daifmt(cpu, NULL, NULL, NULL);
 	cc->i2s_in_fmt = (fmt & ~SND_SOC_DAIFMT_MASTER_MASK) |
 		SND_SOC_DAIFMT_CBM_CFM;
+	cc->loopback_i2s_clk = of_property_read_bool(cpu,
+						     "img,i2s-clock-loopback");
 
 	ret = concerto_parse_of_codecs(cc, node, link, &cc->i2s_in_codecs);
 	if (ret < 0)

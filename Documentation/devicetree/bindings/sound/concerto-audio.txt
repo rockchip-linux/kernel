@@ -54,6 +54,10 @@ I2S CPU/codec sub-node optional properties:
 - frame-inversion: Indicates the LRCLK should be inverted.
 - bitclock-master: Indicates the DAI is the LRCLK master.
 - frame-master: Indicates the DAI is the LRCLK master.
+- img,i2s-clock-loopback: Indicates that the I2S out BCLK/LRCLK should be
+  looped-back internally to the I2S in DAI.  Only applicable to the I2S in
+  CPU node.  Note that the I2S out block must be configured as the clock
+  master.
 
 S/PDIF out:
 -----------
@@ -102,6 +106,7 @@ Example:
 			cpu {
 				sound-dai = <&i2s_in>;
 				format = "i2s";
+				img,i2s-clock-loopback;
 			};
 		};
 
