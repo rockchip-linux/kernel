@@ -82,6 +82,8 @@
  *	sections like this in a single file.
  * @IWL_FW_ERROR_DUMP_FH_REGS: range of FH registers
  * @IWL_FW_ERROR_DUMP_MEM: chunk of memory
+ * @IWL_FW_ERROR_DUMP_ERROR_INFO: description of what triggered this dump.
+ *	Structured as &struct iwl_fw_error_dump_trigger_desc.
  */
 enum iwl_fw_error_dump_type {
 	/* 0 is deprecated */
@@ -94,6 +96,7 @@ enum iwl_fw_error_dump_type {
 	IWL_FW_ERROR_DUMP_TXF = 7,
 	IWL_FW_ERROR_DUMP_FH_REGS = 8,
 	IWL_FW_ERROR_DUMP_MEM = 9,
+	IWL_FW_ERROR_DUMP_ERROR_INFO = 10,
 
 	IWL_FW_ERROR_DUMP_MAX,
 };
@@ -131,6 +134,27 @@ struct iwl_fw_error_dump_file {
 struct iwl_fw_error_dump_txcmd {
 	__le32 cmdlen;
 	__le32 caplen;
+	u8 data[];
+} __packed;
+
+/**
+ * struct iwl_fw_error_dump_fifo - RX/TX FIFO data
+ * @fifo_num: number of FIFO (starting from 0)
+ * @available_bytes: num of bytes available in FIFO (may be less than FIFO size)
+ * @wr_ptr: position of write pointer
+ * @rd_ptr: position of read pointer
+ * @fence_ptr: position of fence pointer
+ * @fence_mode: the current mode of the fence (before locking) -
+ *	0=follow RD pointer ; 1 = freeze
+ * @data: all of the FIFO's data
+ */
+struct iwl_fw_error_dump_fifo {
+	__le32 fifo_num;
+	__le32 available_bytes;
+	__le32 wr_ptr;
+	__le32 rd_ptr;
+	__le32 fence_ptr;
+	__le32 fence_mode;
 	u8 data[];
 } __packed;
 
@@ -208,5 +232,48 @@ iwl_fw_error_next_data(struct iwl_fw_error_dump_data *data)
 {
 	return (void *)(data->data + le32_to_cpu(data->len));
 }
+
+/**
+ * enum iwl_fw_dbg_trigger - triggers available
+ *
+ * @FW_DBG_TRIGGER_USER: trigger log collection by user
+ *	This should not be defined as a trigger to the driver, but a value the
+ *	driver should set to indicate that the trigger was initiated by the
+ *	user.
+ * @FW_DBG_TRIGGER_FW_ASSERT: trigger log collection when the firmware asserts
+ * @FW_DBG_TRIGGER_MISSED_BEACONS: trigger log collection when beacons are
+ *	missed.
+ * @FW_DBG_TRIGGER_CHANNEL_SWITCH: trigger log collection upon channel switch.
+ * @FW_DBG_TRIGGER_FW_NOTIF: trigger log collection when the firmware sends a
+ *	command response or a notification.
+ * @FW_DBG_TRIGGER_MLME: trigger log collection upon MLME event.
+ * @FW_DBG_TRIGGER_STATS: trigger log collection upon statistics threshold.
+ * @FW_DBG_TRIGGER_RSSI: trigger log collection when the rssi of the beacon
+ *	goes below a threshold.
+ */
+enum iwl_fw_dbg_trigger {
+	FW_DBG_TRIGGER_INVALID = 0,
+	FW_DBG_TRIGGER_USER,
+	FW_DBG_TRIGGER_FW_ASSERT,
+	FW_DBG_TRIGGER_MISSED_BEACONS,
+	FW_DBG_TRIGGER_CHANNEL_SWITCH,
+	FW_DBG_TRIGGER_FW_NOTIF,
+	FW_DBG_TRIGGER_MLME,
+	FW_DBG_TRIGGER_STATS,
+	FW_DBG_TRIGGER_RSSI,
+
+	/* must be last */
+	FW_DBG_TRIGGER_MAX,
+};
+
+/**
+ * struct iwl_fw_error_dump_trigger_desc - describes the trigger condition
+ * @type: %enum iwl_fw_dbg_trigger
+ * @data: raw data about what happened
+ */
+struct iwl_fw_error_dump_trigger_desc {
+	__le32 type;
+	u8 data[];
+};
 
 #endif /* __fw_error_dump_h__ */

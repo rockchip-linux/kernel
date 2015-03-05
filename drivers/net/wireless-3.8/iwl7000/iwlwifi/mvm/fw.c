@@ -192,8 +192,7 @@ static int iwl_mvm_load_ucode_wait_alive(struct iwl_mvm *mvm,
 	struct iwl_sf_region st_fwrd_space;
 
 	if (ucode_type == IWL_UCODE_REGULAR &&
-	    iwl_fw_dbg_conf_usniffer(mvm->fw, FW_DBG_CUSTOM) &&
-	    iwl_fw_dbg_conf_enabled(mvm->fw, FW_DBG_CUSTOM))
+	    iwl_fw_dbg_conf_usniffer(mvm->fw, FW_DBG_START_FROM_ALIVE))
 		fw = iwl_get_ucode_image(mvm, IWL_UCODE_REGULAR_USNIFFER);
 	else
 		fw = iwl_get_ucode_image(mvm, ucode_type);
@@ -479,26 +478,131 @@ out:
 	return ret;
 }
 
-void iwl_mvm_fw_dbg_collect(struct iwl_mvm *mvm)
+static void iwl_mvm_get_shared_mem_conf(struct iwl_mvm *mvm)
 {
+	struct iwl_host_cmd cmd = {
+		.id = SHARED_MEM_CFG,
+		.flags = CMD_WANT_SKB,
+		.data = { NULL, },
+		.len = { 0, },
+	};
+	struct iwl_rx_packet *pkt;
+	struct iwl_shared_mem_cfg *mem_cfg;
+	u32 i;
+
 	lockdep_assert_held(&mvm->mutex);
+
+	if (WARN_ON(iwl_mvm_send_cmd(mvm, &cmd)))
+		return;
+
+	pkt = cmd.resp_pkt;
+	if (pkt->hdr.flags & IWL_CMD_FAILED_MSK) {
+		IWL_ERR(mvm, "Bad return from SHARED_MEM_CFG (0x%08X)\n",
+			pkt->hdr.flags);
+		goto exit;
+	}
+
+	mem_cfg = (void *)pkt->data;
+
+	mvm->shared_mem_cfg.shared_mem_addr =
+		le32_to_cpu(mem_cfg->shared_mem_addr);
+	mvm->shared_mem_cfg.shared_mem_size =
+		le32_to_cpu(mem_cfg->shared_mem_size);
+	mvm->shared_mem_cfg.sample_buff_addr =
+		le32_to_cpu(mem_cfg->sample_buff_addr);
+	mvm->shared_mem_cfg.sample_buff_size =
+		le32_to_cpu(mem_cfg->sample_buff_size);
+	mvm->shared_mem_cfg.txfifo_addr = le32_to_cpu(mem_cfg->txfifo_addr);
+	for (i = 0; i < ARRAY_SIZE(mvm->shared_mem_cfg.txfifo_size); i++)
+		mvm->shared_mem_cfg.txfifo_size[i] =
+			le32_to_cpu(mem_cfg->txfifo_size[i]);
+	for (i = 0; i < ARRAY_SIZE(mvm->shared_mem_cfg.rxfifo_size); i++)
+		mvm->shared_mem_cfg.rxfifo_size[i] =
+			le32_to_cpu(mem_cfg->rxfifo_size[i]);
+	mvm->shared_mem_cfg.page_buff_addr =
+		le32_to_cpu(mem_cfg->page_buff_addr);
+	mvm->shared_mem_cfg.page_buff_size =
+		le32_to_cpu(mem_cfg->page_buff_size);
+	IWL_DEBUG_INFO(mvm, "SHARED MEM CFG: got memory offsets/sizes\n");
+
+exit:
+	iwl_free_resp(&cmd);
+}
+
+int iwl_mvm_fw_dbg_collect_desc(struct iwl_mvm *mvm,
+				struct iwl_mvm_dump_desc *desc,
+				unsigned int delay)
+{
+	if (test_and_set_bit(IWL_MVM_STATUS_DUMPING_FW_LOG, &mvm->status))
+		return -EBUSY;
+
+	if (WARN_ON(mvm->fw_dump_desc))
+		iwl_mvm_free_fw_dump_desc(mvm);
+
+	IWL_WARN(mvm, "Collecting data: trigger %d fired.\n",
+		 le32_to_cpu(desc->trig_desc.type));
+
+	mvm->fw_dump_desc = desc;
 
 	/* stop recording */
 	if (mvm->cfg->device_family == IWL_DEVICE_FAMILY_7000) {
 		iwl_set_bits_prph(mvm->trans, MON_BUFF_SAMPLE_CTL, 0x100);
 	} else {
 		iwl_write_prph(mvm->trans, DBGC_IN_SAMPLE, 0);
-		iwl_write_prph(mvm->trans, DBGC_OUT_CTRL, 0);
+		/* wait before we collect the data till the DBGC stop */
+		udelay(100);
 	}
 
-	iwl_mvm_fw_error_dump(mvm);
+	queue_delayed_work(system_wq, &mvm->fw_dump_wk, delay);
 
-	/* start recording again */
-	WARN_ON_ONCE(mvm->fw->dbg_dest_tlv &&
-		     iwl_mvm_start_fw_dbg_conf(mvm, mvm->fw_dbg_conf));
+	return 0;
 }
 
-int iwl_mvm_start_fw_dbg_conf(struct iwl_mvm *mvm, enum iwl_fw_dbg_conf conf_id)
+int iwl_mvm_fw_dbg_collect(struct iwl_mvm *mvm, enum iwl_fw_dbg_trigger trig,
+			   const char *str, size_t len, unsigned int delay)
+{
+	struct iwl_mvm_dump_desc *desc;
+
+	desc = kzalloc(sizeof(*desc) + len, GFP_ATOMIC);
+	if (!desc)
+		return -ENOMEM;
+
+	desc->len = len;
+	desc->trig_desc.type = cpu_to_le32(trig);
+	memcpy(desc->trig_desc.data, str, len);
+
+	return iwl_mvm_fw_dbg_collect_desc(mvm, desc, delay);
+}
+
+int iwl_mvm_fw_dbg_collect_trig(struct iwl_mvm *mvm,
+				struct iwl_fw_dbg_trigger_tlv *trigger,
+				const char *str, size_t len)
+{
+	unsigned int delay = msecs_to_jiffies(le32_to_cpu(trigger->stop_delay));
+	u16 occurrences = le16_to_cpu(trigger->occurrences);
+	int ret;
+
+	if (!occurrences)
+		return 0;
+
+	ret = iwl_mvm_fw_dbg_collect(mvm, le32_to_cpu(trigger->id), str,
+				     len, delay);
+	if (ret)
+		return ret;
+
+	trigger->occurrences = cpu_to_le16(occurrences - 1);
+	return 0;
+}
+
+static inline void iwl_mvm_restart_early_start(struct iwl_mvm *mvm)
+{
+	if (mvm->cfg->device_family == IWL_DEVICE_FAMILY_7000)
+		iwl_clear_bits_prph(mvm->trans, MON_BUFF_SAMPLE_CTL, 0x100);
+	else
+		iwl_write_prph(mvm->trans, DBGC_IN_SAMPLE, 1);
+}
+
+int iwl_mvm_start_fw_dbg_conf(struct iwl_mvm *mvm, u8 conf_id)
 {
 	u8 *ptr;
 	int ret;
@@ -507,6 +611,14 @@ int iwl_mvm_start_fw_dbg_conf(struct iwl_mvm *mvm, enum iwl_fw_dbg_conf conf_id)
 	if (WARN_ONCE(conf_id >= ARRAY_SIZE(mvm->fw->dbg_conf_tlv),
 		      "Invalid configuration %d\n", conf_id))
 		return -EINVAL;
+
+	/* EARLY START - firmware's configuration is hard coded */
+	if ((!mvm->fw->dbg_conf_tlv[conf_id] ||
+	     !mvm->fw->dbg_conf_tlv[conf_id]->num_of_hcmds) &&
+	    conf_id == FW_DBG_START_FROM_ALIVE) {
+		iwl_mvm_restart_early_start(mvm);
+		return 0;
+	}
 
 	if (!mvm->fw->dbg_conf_tlv[conf_id])
 		return -EINVAL;
@@ -580,6 +692,9 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 		goto error;
 	}
 
+	if (IWL_UCODE_API(mvm->fw->ucode_ver) >= 10)
+		iwl_mvm_get_shared_mem_conf(mvm);
+
 	ret = iwl_mvm_sf_update(mvm, NULL, false);
 	if (ret)
 		IWL_ERR(mvm, "Failed to initialize Smart Fifo\n");
@@ -589,7 +704,7 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 #endif
 
 	mvm->fw_dbg_conf = FW_DBG_INVALID;
-	iwl_mvm_start_fw_dbg_conf(mvm, FW_DBG_CUSTOM);
+	iwl_mvm_start_fw_dbg_conf(mvm, FW_DBG_START_FROM_ALIVE);
 
 	ret = iwl_send_tx_ant_cfg(mvm, iwl_mvm_get_valid_tx_ant(mvm));
 	if (ret)

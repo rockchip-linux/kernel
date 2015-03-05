@@ -867,17 +867,152 @@ static void iwl_mvm_free_coredump(const void *data)
 	kfree(fw_error_dump);
 }
 
+static void iwl_mvm_dump_fifos(struct iwl_mvm *mvm,
+			       struct iwl_fw_error_dump_data **dump_data)
+{
+	struct iwl_fw_error_dump_fifo *fifo_hdr;
+	u32 *fifo_data;
+	u32 fifo_len;
+	unsigned long flags;
+	int i, j;
+
+	if (!iwl_trans_grab_nic_access(mvm->trans, false, &flags))
+		return;
+
+	/* Pull RXF data from all RXFs */
+	for (i = 0; i < ARRAY_SIZE(mvm->shared_mem_cfg.rxfifo_size); i++) {
+		/*
+		 * Keep aside the additional offset that might be needed for
+		 * next RXF
+		 */
+		u32 offset_diff = RXF_DIFF_FROM_PREV * i;
+
+		fifo_hdr = (void *)(*dump_data)->data;
+		fifo_data = (void *)fifo_hdr->data;
+		fifo_len = mvm->shared_mem_cfg.rxfifo_size[i];
+
+		/* No need to try to read the data if the length is 0 */
+		if (fifo_len == 0)
+			continue;
+
+		/* Add a TLV for the RXF */
+		(*dump_data)->type = cpu_to_le32(IWL_FW_ERROR_DUMP_RXF);
+		(*dump_data)->len = cpu_to_le32(fifo_len + sizeof(*fifo_hdr));
+
+		fifo_hdr->fifo_num = cpu_to_le32(i);
+		fifo_hdr->available_bytes =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							RXF_RD_D_SPACE +
+							offset_diff));
+		fifo_hdr->wr_ptr =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							RXF_RD_WR_PTR +
+							offset_diff));
+		fifo_hdr->rd_ptr =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							RXF_RD_RD_PTR +
+							offset_diff));
+		fifo_hdr->fence_ptr =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							RXF_RD_FENCE_PTR +
+							offset_diff));
+		fifo_hdr->fence_mode =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							RXF_SET_FENCE_MODE +
+							offset_diff));
+
+		/* Lock fence */
+		iwl_trans_write_prph(mvm->trans,
+				     RXF_SET_FENCE_MODE + offset_diff, 0x1);
+		/* Set fence pointer to the same place like WR pointer */
+		iwl_trans_write_prph(mvm->trans,
+				     RXF_LD_WR2FENCE + offset_diff, 0x1);
+		/* Set fence offset */
+		iwl_trans_write_prph(mvm->trans,
+				     RXF_LD_FENCE_OFFSET_ADDR + offset_diff,
+				     0x0);
+
+		/* Read FIFO */
+		fifo_len /= sizeof(u32); /* Size in DWORDS */
+		for (j = 0; j < fifo_len; j++)
+			fifo_data[j] = iwl_trans_read_prph(mvm->trans,
+							 RXF_FIFO_RD_FENCE_INC +
+							 offset_diff);
+		*dump_data = iwl_fw_error_next_data(*dump_data);
+	}
+
+	/* Pull TXF data from all TXFs */
+	for (i = 0; i < ARRAY_SIZE(mvm->shared_mem_cfg.txfifo_size); i++) {
+		/* Mark the number of TXF we're pulling now */
+		iwl_trans_write_prph(mvm->trans, TXF_LARC_NUM, i);
+
+		fifo_hdr = (void *)(*dump_data)->data;
+		fifo_data = (void *)fifo_hdr->data;
+		fifo_len = mvm->shared_mem_cfg.txfifo_size[i];
+
+		/* No need to try to read the data if the length is 0 */
+		if (fifo_len == 0)
+			continue;
+
+		/* Add a TLV for the FIFO */
+		(*dump_data)->type = cpu_to_le32(IWL_FW_ERROR_DUMP_TXF);
+		(*dump_data)->len = cpu_to_le32(fifo_len + sizeof(*fifo_hdr));
+
+		fifo_hdr->fifo_num = cpu_to_le32(i);
+		fifo_hdr->available_bytes =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							TXF_FIFO_ITEM_CNT));
+		fifo_hdr->wr_ptr =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							TXF_WR_PTR));
+		fifo_hdr->rd_ptr =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							TXF_RD_PTR));
+		fifo_hdr->fence_ptr =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							TXF_FENCE_PTR));
+		fifo_hdr->fence_mode =
+			cpu_to_le32(iwl_trans_read_prph(mvm->trans,
+							TXF_LOCK_FENCE));
+
+		/* Set the TXF_READ_MODIFY_ADDR to TXF_WR_PTR */
+		iwl_trans_write_prph(mvm->trans, TXF_READ_MODIFY_ADDR,
+				     TXF_WR_PTR);
+
+		/* Dummy-read to advance the read pointer to the head */
+		iwl_trans_read_prph(mvm->trans, TXF_READ_MODIFY_DATA);
+
+		/* Read FIFO */
+		fifo_len /= sizeof(u32); /* Size in DWORDS */
+		for (j = 0; j < fifo_len; j++)
+			fifo_data[j] = iwl_trans_read_prph(mvm->trans,
+							  TXF_READ_MODIFY_DATA);
+		*dump_data = iwl_fw_error_next_data(*dump_data);
+	}
+
+	iwl_trans_release_nic_access(mvm->trans, &flags);
+}
+
+void iwl_mvm_free_fw_dump_desc(struct iwl_mvm *mvm)
+{
+	if (mvm->fw_dump_desc == &iwl_mvm_dump_desc_assert ||
+	    !mvm->fw_dump_desc)
+		return;
+
+	kfree(mvm->fw_dump_desc);
+	mvm->fw_dump_desc = NULL;
+}
+
 void iwl_mvm_fw_error_dump(struct iwl_mvm *mvm)
 {
 	struct iwl_fw_error_dump_file *dump_file;
 	struct iwl_fw_error_dump_data *dump_data;
 	struct iwl_fw_error_dump_info *dump_info;
 	struct iwl_fw_error_dump_mem *dump_mem;
+	struct iwl_fw_error_dump_trigger_desc *dump_trig;
 	struct iwl_mvm_dump_ptrs *fw_error_dump;
 	u32 sram_len, sram_ofs;
-	u32 file_len, rxf_len;
-	unsigned long flags;
-	int reg_val;
+	u32 file_len, fifo_data_len = 0;
 	u32 smem_len = mvm->cfg->smem_len;
 
 	lockdep_assert_held(&mvm->mutex);
@@ -904,18 +1039,44 @@ void iwl_mvm_fw_error_dump(struct iwl_mvm *mvm)
 		sram_len = mvm->cfg->dccm_len;
 	}
 
-	/* reading buffer size */
-	reg_val = iwl_trans_read_prph(mvm->trans, RXF_SIZE_ADDR);
-	rxf_len = (reg_val & RXF_SIZE_BYTE_CNT_MSK) >> RXF_SIZE_BYTE_CND_POS;
+	/* reading RXF/TXF sizes */
+	if (test_bit(STATUS_FW_ERROR, &mvm->trans->status)) {
+		struct iwl_mvm_shared_mem_cfg *mem_cfg = &mvm->shared_mem_cfg;
+		int i;
 
-	/* the register holds the value divided by 128 */
-	rxf_len = rxf_len << 7;
+		fifo_data_len = 0;
+
+		/* Count RXF size */
+		for (i = 0; i < ARRAY_SIZE(mem_cfg->rxfifo_size); i++) {
+			if (!mem_cfg->rxfifo_size[i])
+				continue;
+
+			/* Add header info */
+			fifo_data_len += mem_cfg->rxfifo_size[i] +
+					 sizeof(*dump_data) +
+					 sizeof(struct iwl_fw_error_dump_fifo);
+		}
+
+		for (i = 0; i < ARRAY_SIZE(mem_cfg->txfifo_size); i++) {
+			if (!mem_cfg->txfifo_size[i])
+				continue;
+
+			/* Add header info */
+			fifo_data_len += mem_cfg->txfifo_size[i] +
+					 sizeof(*dump_data) +
+					 sizeof(struct iwl_fw_error_dump_fifo);
+		}
+	}
 
 	file_len = sizeof(*dump_file) +
-		   sizeof(*dump_data) * 3 +
+		   sizeof(*dump_data) * 2 +
 		   sram_len + sizeof(*dump_mem) +
-		   rxf_len +
+		   fifo_data_len +
 		   sizeof(*dump_info);
+
+	if (mvm->fw_dump_desc)
+		file_len += sizeof(*dump_data) + sizeof(*dump_trig) +
+			    mvm->fw_dump_desc->len;
 
 	/* Make room for the SMEM, if it exists */
 	if (smem_len)
@@ -924,6 +1085,7 @@ void iwl_mvm_fw_error_dump(struct iwl_mvm *mvm)
 	dump_file = vzalloc(file_len);
 	if (!dump_file) {
 		kfree(fw_error_dump);
+		iwl_mvm_free_fw_dump_desc(mvm);
 		return;
 	}
 
@@ -948,24 +1110,23 @@ void iwl_mvm_fw_error_dump(struct iwl_mvm *mvm)
 		sizeof(dump_info->bus_human_readable));
 
 	dump_data = iwl_fw_error_next_data(dump_data);
-	dump_data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_RXF);
-	dump_data->len = cpu_to_le32(rxf_len);
+	/* We only dump the FIFOs if the FW is in error state */
+	if (test_bit(STATUS_FW_ERROR, &mvm->trans->status))
+		iwl_mvm_dump_fifos(mvm, &dump_data);
 
-	if (iwl_trans_grab_nic_access(mvm->trans, false, &flags)) {
-		u32 *rxf = (void *)dump_data->data;
-		int i;
+	if (mvm->fw_dump_desc) {
+		dump_data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_ERROR_INFO);
+		dump_data->len = cpu_to_le32(sizeof(*dump_trig) +
+					     mvm->fw_dump_desc->len);
+		dump_trig = (void *)dump_data->data;
+		memcpy(dump_trig, &mvm->fw_dump_desc->trig_desc,
+		       sizeof(*dump_trig) + mvm->fw_dump_desc->len);
 
-		for (i = 0; i < (rxf_len / sizeof(u32)); i++) {
-			iwl_trans_write_prph(mvm->trans,
-					     RXF_LD_FENCE_OFFSET_ADDR,
-					     i * sizeof(u32));
-			rxf[i] = iwl_trans_read_prph(mvm->trans,
-						     RXF_FIFO_RD_FENCE_ADDR);
-		}
-		iwl_trans_release_nic_access(mvm->trans, &flags);
+		/* now we can free this copy */
+		iwl_mvm_free_fw_dump_desc(mvm);
+		dump_data = iwl_fw_error_next_data(dump_data);
 	}
 
-	dump_data = iwl_fw_error_next_data(dump_data);
 	dump_data->type = cpu_to_le32(IWL_FW_ERROR_DUMP_MEM);
 	dump_data->len = cpu_to_le32(sram_len + sizeof(*dump_mem));
 	dump_mem = (void *)dump_data->data;
@@ -993,7 +1154,15 @@ void iwl_mvm_fw_error_dump(struct iwl_mvm *mvm)
 
 	dev_coredumpm(mvm->trans->dev, THIS_MODULE, fw_error_dump, 0,
 		      GFP_KERNEL, iwl_mvm_read_coredump, iwl_mvm_free_coredump);
+
+	clear_bit(IWL_MVM_STATUS_DUMPING_FW_LOG, &mvm->status);
 }
+
+struct iwl_mvm_dump_desc iwl_mvm_dump_desc_assert = {
+	.trig_desc = {
+		.type = cpu_to_le32(FW_DBG_TRIGGER_FW_ASSERT),
+	},
+};
 
 static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 {
@@ -1002,6 +1171,7 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 	 * on D3->D0 transition
 	 */
 	if (!test_and_clear_bit(IWL_MVM_STATUS_D3_RECONFIG, &mvm->status)) {
+		mvm->fw_dump_desc = &iwl_mvm_dump_desc_assert;
 		iwl_mvm_fw_error_dump(mvm);
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
@@ -1048,6 +1218,7 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 
 	mvm->vif_count = 0;
 	mvm->rx_ba_sessions = 0;
+	mvm->fw_dbg_conf = FW_DBG_INVALID;
 }
 
 int __iwl_mvm_mac_start(struct iwl_mvm *mvm)
@@ -1209,7 +1380,8 @@ static void iwl_mvm_mac_stop(struct ieee80211_hw *hw)
 
 	flush_work(&mvm->d0i3_exit_work);
 	flush_work(&mvm->async_handlers_wk);
-	flush_work(&mvm->fw_error_dump_wk);
+	cancel_delayed_work_sync(&mvm->fw_dump_wk);
+	iwl_mvm_free_fw_dump_desc(mvm);
 
 	mutex_lock(&mvm->mutex);
 	__iwl_mvm_mac_stop(mvm);
@@ -3451,6 +3623,9 @@ static int iwl_mvm_pre_channel_switch(struct ieee80211_hw *hw,
 	IWL_DEBUG_MAC80211(mvm, "pre CSA to freq %d\n",
 			   chsw->chandef.center_freq1);
 
+	iwl_fw_dbg_trigger_simple_stop(mvm, vif, FW_DBG_TRIGGER_CHANNEL_SWITCH,
+				       NULL, 0);
+
 	switch (vif->type) {
 	case NL80211_IFTYPE_AP:
 		csa_vif =
@@ -3599,6 +3774,68 @@ static void iwl_mvm_mac_flush(struct ieee80211_hw *hw,
 	}
 }
 
+static void iwl_mvm_mac_event_callback(struct ieee80211_hw *hw,
+				       struct ieee80211_vif *vif,
+				       enum ieee80211_event event,
+				       enum ieee80211_event_data event_data)
+{
+#define CHECK_MLME_TRIGGER(_mvm, _trig, _buf, _cnt, _str...)	\
+	do {							\
+		if ((_cnt) && --(_cnt))				\
+			break;					\
+		snprintf(_buf, sizeof(_buf), ##_str);		\
+		iwl_mvm_fw_dbg_collect_trig(_mvm, _trig, _buf,	\
+					    sizeof(_buf));	\
+	} while (0)
+
+	struct iwl_mvm *mvm = IWL_MAC80211_GET_MVM(hw);
+	struct iwl_fw_dbg_trigger_tlv *trig;
+	struct iwl_fw_dbg_trigger_mlme *trig_mlme;
+	char buf[32];
+
+	if (!iwl_fw_dbg_trigger_enabled(mvm->fw, FW_DBG_TRIGGER_MLME))
+		return;
+
+	if (event_data == MLME_SUCCESS)
+		return;
+
+	trig = iwl_fw_dbg_get_trigger(mvm->fw, FW_DBG_TRIGGER_MLME);
+	trig_mlme = (void *)trig->data;
+	if (!iwl_fw_dbg_trigger_check_stop(mvm, vif, trig))
+		return;
+
+	memset(buf, 0, sizeof(buf));
+
+	if (event == ASSOC_EVENT) {
+		if (event_data == MLME_DENIED)
+			CHECK_MLME_TRIGGER(mvm, trig, buf,
+					   trig_mlme->stop_assoc_denied,
+					   "DENIED ASSOC");
+		else if (event_data == MLME_TIMEOUT)
+			CHECK_MLME_TRIGGER(mvm, trig, buf,
+					   trig_mlme->stop_assoc_timeout,
+					   "ASSOC TIMEOUT");
+	} else if (event == AUTH_EVENT) {
+		if (event_data == MLME_DENIED)
+			CHECK_MLME_TRIGGER(mvm, trig, buf,
+					   trig_mlme->stop_auth_denied,
+					   "DENIED AUTH");
+		else if (event_data == MLME_TIMEOUT)
+			CHECK_MLME_TRIGGER(mvm, trig, buf,
+					   trig_mlme->stop_auth_timeout,
+					   "AUTH TIMEOUT");
+	} else if (event == DEAUTH_RX_EVENT) {
+		CHECK_MLME_TRIGGER(mvm, trig, buf,
+				   trig_mlme->stop_rx_deauth,
+				   "DEAUTH RX %d", event_data);
+	} else if (event == DEAUTH_TX_EVENT) {
+		CHECK_MLME_TRIGGER(mvm, trig, buf,
+				   trig_mlme->stop_tx_deauth,
+				   "DEAUTH TX %d", event_data);
+	}
+#undef CHECK_MLME_TRIGGER
+}
+
 const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.tx = iwl_mvm_mac_tx,
 	.ampdu_action = iwl_mvm_mac_ampdu_action,
@@ -3651,6 +3888,8 @@ const struct ieee80211_ops iwl_mvm_hw_ops = {
 	.tdls_channel_switch = iwl_mvm_tdls_channel_switch,
 	.tdls_cancel_channel_switch = iwl_mvm_tdls_cancel_channel_switch,
 	.tdls_recv_channel_switch = iwl_mvm_tdls_recv_channel_switch,
+
+	.event_callback = iwl_mvm_mac_event_callback,
 
 #ifdef CPTCFG_NL80211_TESTMODE
 	.testmode_retrieve_monitor = iwl_tm_mvm_retrieve_monitor,

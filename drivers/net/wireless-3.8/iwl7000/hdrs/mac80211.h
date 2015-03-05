@@ -301,14 +301,34 @@ enum ieee80211_bss_change {
 #define IEEE80211_BSS_ARP_ADDR_LIST_LEN 4
 
 /**
- * enum ieee80211_rssi_event - RSSI threshold event
- * An indicator for when RSSI goes below/above a certain threshold.
- * @RSSI_EVENT_HIGH: AP's rssi crossed the high threshold set by the driver.
- * @RSSI_EVENT_LOW: AP's rssi crossed the low threshold set by the driver.
+ * enum ieee80211_event - event to be notified to the low level driver
+ * @RSSI_EVENT: AP's rssi crossed the a threshold set by the driver.
+ * @AUTH_EVENT: authentication finished, data will be MLME_*
+ * @ASSOC_EVENT: association finished, data will be MLME_*
+ * @DEAUTH_RX_EVENT: deauth received - data will be %enum ieee80211_reasoncode
+ * @DEAUTH_TX_EVENT: deauth sent - data will be %enum ieee80211_reasoncode
  */
-enum ieee80211_rssi_event {
-	RSSI_EVENT_HIGH,
+enum ieee80211_event {
+	RSSI_EVENT,
+	AUTH_EVENT,
+	ASSOC_EVENT,
+	DEAUTH_RX_EVENT,
+	DEAUTH_TX_EVENT,
+};
+
+/**
+ * enum ieee80211_event_data - data to be used with %enum ieee80211_event
+ * @RSSI_EVENT: AP's rssi crossed the a threshold set by the driver.
+ * @MLME_SUCCESS: the MLME operation completed successfully.
+ * @MLME_DENIED: the MLME operation was denied by the peer.
+ * @MLME_TIMEOUT: the MLME operation timed out.
+ */
+enum ieee80211_event_data {
 	RSSI_EVENT_LOW,
+	RSSI_EVENT_HIGH,
+	MLME_SUCCESS,
+	MLME_DENIED,
+	MLME_TIMEOUT,
 };
 
 /**
@@ -2836,8 +2856,8 @@ enum ieee80211_reconfig_type {
  * @set_bitrate_mask: Set a mask of rates to be used for rate control selection
  *	when transmitting a frame. Currently only legacy rates are handled.
  *	The callback can sleep.
- * @rssi_callback: Notify driver when the average RSSI goes above/below
- *	thresholds that were registered previously. The callback can sleep.
+ * @event_callback: Notify driver about any event in mac80211.
+ *	The callback can sleep.
  *
  * @release_buffered_frames: Release buffered frames according to the given
  *	parameters. In the case where the driver buffers some frames for
@@ -3135,9 +3155,10 @@ struct ieee80211_ops {
 	bool (*tx_frames_pending)(struct ieee80211_hw *hw);
 	int (*set_bitrate_mask)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 				const struct cfg80211_bitrate_mask *mask);
-	void (*rssi_callback)(struct ieee80211_hw *hw,
-			      struct ieee80211_vif *vif,
-			      enum ieee80211_rssi_event rssi_event);
+	void (*event_callback)(struct ieee80211_hw *hw,
+			       struct ieee80211_vif *vif,
+			       enum ieee80211_event event,
+			       enum ieee80211_event_data event_data);
 
 	void (*allow_buffered_frames)(struct ieee80211_hw *hw,
 				      struct ieee80211_sta *sta,
