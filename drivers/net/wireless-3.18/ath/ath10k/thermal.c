@@ -97,7 +97,7 @@ static int ath10k_thermal_set_cur_dutycycle(struct thermal_cooling_device *cdev,
 		goto out;
 	}
 	period = ar->thermal.quiet_period;
-	duration = (period * (100 - duty_cycle)) / 100;
+	duration = (period * duty_cycle) / 100;
 	enabled = duration ? 1 : 0;
 
 	ret = ath10k_wmi_pdev_set_quiet_mode(ar, period, duration,
