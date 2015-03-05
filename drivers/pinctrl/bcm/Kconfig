@@ -1,0 +1,8 @@
+#
+# Broadcom pinctrl drivers
+#
+
+config PINCTRL_BCM2835
+	bool
+	select PINMUX
+	select PINCONF
