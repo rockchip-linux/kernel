@@ -75,16 +75,20 @@
 
 &i2c0 {
 	status = "okay";
+	clock-frequency = <400000>;
 };
 
 &i2c1 {
 	status = "okay";
+	clock-frequency = <400000>;
 };
 
 &i2c2 {
 	status = "okay";
+	clock-frequency = <400000>;
 };
 
 &i2c3 {
 	status = "okay";
+	clock-frequency = <400000>;
 };
