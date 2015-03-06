@@ -481,14 +481,6 @@
 	};
 };
 
-&i2c3 {
-	status = "okay";
-
-	clock-frequency = <400000>;
-	i2c-scl-falling-time-ns = <50>;
-	i2c-scl-rising-time-ns = <300>;
-};
-
 &i2c4 {
 	status = "okay";
 
