@@ -25,6 +25,7 @@
 			pinctrl-names = "default";
 			write-protect-gpio = <&qcom_pinmux 17 1>;
 			recovery-switch = <&qcom_pinmux 16 1>;
+			developer-switch = <&qcom_pinmux 15 1>;
 		};
 	};
 
@@ -198,6 +199,10 @@
 				};
 				recovery {
 					pins = "gpio16";
+					bias-none;
+				};
+				developer {
+					pins = "gpio15";
 					bias-none;
 				};
 			};
