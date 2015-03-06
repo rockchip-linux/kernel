@@ -1428,9 +1428,15 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	} else {
 		dev_dbg(hdmi->dev, "monitor support audio\n");
 
+		/* TODO: Keep audio clock enable before setting N/CTS resigters
+		 * can resolve TV no sound when switching different resolutions.
+		 * Though we can fix by this way, but we can not give an
+		 * acceptable reason, so untile now we mark this an hack way.
+		 */
+		dw_hdmi_audio_restore(hdmi);
+
 		/* HDMI Initialization Step E - Configure audio */
 		hdmi_clk_regenerator_update_pixel_clock(hdmi);
-		dw_hdmi_audio_restore(hdmi);
 
 		/* HDMI Initialization Step F - Configure AVI InfoFrame */
 		hdmi_config_AVI(hdmi);
