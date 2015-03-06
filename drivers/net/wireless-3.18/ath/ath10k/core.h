@@ -491,6 +491,19 @@ static inline const char *ath10k_scan_state_str(enum ath10k_scan_state state)
 	return "unknown";
 }
 
+#ifdef CONFIG_ATH10K_SMART_ANTENNA
+#define ATH10K_RATECODE_LIST_TIMEOUT	100 /* msecs */
+
+struct ath10k_peer_ratecode_list {
+	u8 mac_addr[ETH_ALEN];
+	u8 rtcode_legacy[WMI_CCK_OFDM_RATES_MAX];
+	u8 rtcode_20[WMI_MCS_RATES_MAX];
+	u8 rtcode_40[WMI_MCS_RATES_MAX];
+	u8 rtcode_80[WMI_MCS_RATES_MAX];
+	u8 rt_count[WMI_RATE_COUNT_MAX];
+};
+#endif
+
 struct ath10k {
 	struct ath_common ath_common;
 	struct ieee80211_hw *hw;
@@ -680,9 +693,40 @@ struct ath10k {
 
 	struct ath10k_thermal thermal;
 
+#ifdef CONFIG_ATH10K_SMART_ANTENNA
+	struct completion ratecode_evt;
+	/* Temporary place to store peer's rate code reported in RATECODE_LIST
+	 * wmi event after successful assoc_complete command
+	 */
+	struct ath10k_peer_ratecode_list ratecode_list;
+#endif
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
+
+#ifdef CONFIG_ATH10K_SMART_ANTENNA
+extern bool ath10k_enable_smart_antenna;
+
+static inline bool ath10k_smart_ant_enabled(struct ath10k *ar)
+{
+	if (!test_bit(WMI_SERVICE_SMART_ANTENNA_SW_SUPPORT, ar->wmi.svc_map))
+		return false;
+
+	if (!test_bit(WMI_SERVICE_SMART_ANTENNA_HW_SUPPORT, ar->wmi.svc_map))
+		return false;
+
+	if (!ath10k_enable_smart_antenna)
+		return false;
+
+	return true;
+}
+#else
+static inline bool ath10k_smart_ant_enabled(struct ath10k *ar)
+{
+	return false;
+}
+#endif
 
 struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 				  enum ath10k_bus bus,

@@ -552,7 +552,13 @@ struct wmi_cmd_map {
 	u32 gpio_output_cmdid;
 	u32 pdev_get_temperature_cmdid;
 	u32 vdev_set_wmm_params_cmdid;
+#ifdef CONFIG_ATH10K_SMART_ANTENNA
 	u32 pdev_set_smart_ant_cmdid;
+	u32 pdev_set_rx_ant_cmdid;
+	u32 peer_set_smart_tx_ant_cmdid;
+	u32 peer_smart_ant_fb_config_cmdid;
+	u32 peer_set_smart_ant_train_info_cmdid;
+#endif
 };
 
 /*
@@ -4863,10 +4869,21 @@ struct wmi_pdev_temperature_event {
 	__le32 temperature;
 } __packed;
 
+#ifdef CONFIG_ATH10K_SMART_ANTENNA
+/*Smart antenna related defs */
+
 #define WMI_SMART_ANT_GPIO_MAX		4
 #define WMI_SMART_ANT_MODE_SERIAL	0
+#define WMI_SMART_ANT_MODE_PARALLEL	1
 #define WMI_SMART_ANT_DISABLE		0
 #define WMI_SMART_ANT_ENABLE		1
+#define WMI_SMART_ANT_RATE_SERIES_MAX	2
+#define WMI_SMART_ANT_NODE_CONFIG_ARGS_LEN  4
+#define WMI_SMART_ANT_TX_FEEDBACK_CONFIG_CMD	0x1
+
+#define WMI_CCK_OFDM_RATES_MAX		12
+#define WMI_MCS_RATES_MAX		32
+#define WMI_RATE_COUNT_MAX		4
 
 struct wmi_pdev_set_smart_ant_cmd {
 	/* 1 - enable, 0 - disable */
@@ -4887,6 +4904,61 @@ struct wmi_pdev_set_smart_ant_cmd {
 	/* GPIO functions */
 	__le32 gpio_func[WMI_SMART_ANT_GPIO_MAX];
 } __packed;
+
+struct wmi_pdev_set_rx_antenna_cmd {
+	__le32 rx_antenna;
+} __packed;
+
+struct wmi_peer_set_smart_tx_ant_cmd {
+	__le32 vdev_id;
+	struct wmi_mac_addr peer_macaddr;
+	__le32 ant_series[WMI_SMART_ANT_RATE_SERIES_MAX];
+} __packed;
+
+struct wmi_peer_cfg_smart_ant_cmd {
+	__le32 vdev_id;
+	struct wmi_mac_addr peer_macaddr;
+	__le32 cmd_id;
+	__le32 arg_cnt;
+	__le32 args[WMI_SMART_ANT_NODE_CONFIG_ARGS_LEN];
+} __packed;
+
+struct wmi_smart_ant_sta_cfg_arg {
+	u32 vdev_id;
+	struct wmi_mac_addr mac_addr;
+	u32 num_cfg;
+	u32 cfg[WMI_SMART_ANT_NODE_CONFIG_ARGS_LEN];
+};
+
+struct wmi_peer_set_smart_ant_train_info_cmd {
+	__le32 vdev_id;
+	struct wmi_mac_addr mac_addr;
+	__le32 train_rates[WMI_SMART_ANT_RATE_SERIES_MAX];
+	__le32 train_ants[WMI_SMART_ANT_RATE_SERIES_MAX];
+	__le32 num_pkts;
+	/* Rate control flags for future use */
+	__le32 rc_flas[WMI_SMART_ANT_RATE_SERIES_MAX];
+} __packed;
+
+struct wmi_peer_sant_set_train_arg {
+	u32 rates[WMI_SMART_ANT_RATE_SERIES_MAX];
+	u32 antennas[WMI_SMART_ANT_RATE_SERIES_MAX];
+	u32 num_pkts;
+};
+
+struct wmi_peer_rate_info {
+	u8 ratecode_legacy[WMI_CCK_OFDM_RATES_MAX];
+	u8 ratecode_20[WMI_MCS_RATES_MAX];
+	u8 ratecode_40[WMI_MCS_RATES_MAX];
+	u8 ratecode_80[WMI_MCS_RATES_MAX];
+	u8 ratecount[WMI_RATE_COUNT_MAX];
+} __packed;
+
+struct wmi_peer_ratecode_list_event {
+	struct wmi_mac_addr peer_macaddr;
+	struct wmi_peer_rate_info peer_rate_info;
+} __packed;
+#endif
 
 struct ath10k;
 struct ath10k_vif;

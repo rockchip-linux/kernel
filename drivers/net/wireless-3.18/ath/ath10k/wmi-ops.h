@@ -155,6 +155,17 @@ struct wmi_ops {
 	struct sk_buff *(*gen_pdev_disable_smart_ant)(struct ath10k *ar,
 						      u32 mode, u32 tx_ant,
 						      u32 rx_ant);
+	struct sk_buff *(*gen_peer_set_smart_tx_ant)(struct ath10k *ar,
+						     u32 vdev_id,
+						     const u8 *macaddr,
+						     const u32 *ant_rate_list,
+						     int n_ants);
+	struct sk_buff *(*gen_pdev_set_rx_ant)(struct ath10k *ar, u32 antenna);
+	struct sk_buff *(*gen_peer_cfg_smart_ant_fb)(struct ath10k *ar,
+				const struct wmi_smart_ant_sta_cfg_arg *arg);
+	struct sk_buff *(*gen_peer_set_smart_ant_train_info)(struct ath10k *ar,
+				u32 vdev_id, const u8 *mac_addr,
+				const struct wmi_peer_sant_set_train_arg *arg);
 #endif
 };
 
@@ -1102,6 +1113,76 @@ ath10k_wmi_pdev_disable_smart_ant(struct ath10k *ar, u32 mode,
 	return ath10k_wmi_cmd_send(ar, skb,
 				   ar->wmi.cmd->pdev_set_smart_ant_cmdid);
 }
-#endif
 
+static inline int
+ath10k_wmi_peer_set_smart_tx_ant(struct ath10k *ar, u32 vdev_id,
+				 const u8 *macaddr, const u32 *ant_rate_list,
+				 int n_ants)
+{
+	struct sk_buff *skb;
+
+	if (!ar->wmi.ops->gen_peer_set_smart_tx_ant)
+		return -EOPNOTSUPP;
+
+	skb = ar->wmi.ops->gen_peer_set_smart_tx_ant(ar, vdev_id, macaddr,
+						     ant_rate_list, n_ants);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
+
+	return ath10k_wmi_cmd_send(ar, skb,
+				   ar->wmi.cmd->peer_set_smart_tx_ant_cmdid);
+}
+
+static inline int
+ath10k_wmi_pdev_set_rx_ant(struct ath10k *ar, u32 antenna)
+{
+	struct sk_buff *skb;
+
+	if (!ar->wmi.ops->gen_pdev_set_rx_ant)
+		return -EOPNOTSUPP;
+
+	skb = ar->wmi.ops->gen_pdev_set_rx_ant(ar, antenna);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
+
+	return ath10k_wmi_cmd_send(ar, skb,
+				   ar->wmi.cmd->pdev_set_rx_ant_cmdid);
+}
+
+static inline int
+ath10k_wmi_peer_cfg_smart_ant(struct ath10k *ar,
+			      const struct wmi_smart_ant_sta_cfg_arg *arg)
+{
+	struct sk_buff *skb;
+
+	if (!ar->wmi.ops->gen_peer_cfg_smart_ant_fb)
+		return -EOPNOTSUPP;
+
+	skb = ar->wmi.ops->gen_peer_cfg_smart_ant_fb(ar, arg);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
+
+	return ath10k_wmi_cmd_send(ar, skb,
+				   ar->wmi.cmd->peer_smart_ant_fb_config_cmdid);
+}
+
+static inline int
+ath10k_wmi_peer_set_smart_ant_train_info(struct ath10k *ar,
+				u32 vdev_id, const u8 *macaddr,
+				const struct wmi_peer_sant_set_train_arg *arg)
+{
+	struct sk_buff *skb;
+
+	if (!ar->wmi.ops->gen_peer_set_smart_ant_train_info)
+		return -EOPNOTSUPP;
+
+	skb = ar->wmi.ops->gen_peer_set_smart_ant_train_info(ar, vdev_id,
+							     macaddr, arg);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
+
+	return ath10k_wmi_cmd_send(ar, skb,
+			ar->wmi.cmd->peer_set_smart_ant_train_info_cmdid);
+}
+#endif
 #endif
