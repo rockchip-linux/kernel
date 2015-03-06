@@ -45,3 +45,10 @@ config ATH10K_DFS_CERTIFIED
 	---help---
 	This option enables DFS support for initiating radiation on
 	ath10k.
+
+config ATH10K_SMART_ANTENNA
+	bool "QCA Smart Antenna support"
+	depends on ATH10K
+	default n
+	---help---
+	This option enables Smart Antenna API support.

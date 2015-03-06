@@ -552,6 +552,7 @@ struct wmi_cmd_map {
 	u32 gpio_output_cmdid;
 	u32 pdev_get_temperature_cmdid;
 	u32 vdev_set_wmm_params_cmdid;
+	u32 pdev_set_smart_ant_cmdid;
 };
 
 /*
@@ -4860,6 +4861,31 @@ struct wmi_rdy_ev_arg {
 struct wmi_pdev_temperature_event {
 	/* temperature value in Celcius degree */
 	__le32 temperature;
+} __packed;
+
+#define WMI_SMART_ANT_GPIO_MAX		4
+#define WMI_SMART_ANT_MODE_SERIAL	0
+#define WMI_SMART_ANT_DISABLE		0
+#define WMI_SMART_ANT_ENABLE		1
+
+struct wmi_pdev_set_smart_ant_cmd {
+	/* 1 - enable, 0 - disable */
+	__le32 enable;
+
+	/* 1 - GPIO parallel mode, 0 - GPIO serial mode */
+	__le32 mode;
+
+	/* Rx antenna */
+	__le32 rx_antenna;
+
+	/* Default antenna used for Tx */
+	__le32 tx_default_antenna;
+
+	/* For serial 0 - strobe, 1 - data. Per stream GPIO in parallel */
+	__le32 gpio_pin[WMI_SMART_ANT_GPIO_MAX];
+
+	/* GPIO functions */
+	__le32 gpio_func[WMI_SMART_ANT_GPIO_MAX];
 } __packed;
 
 struct ath10k;
