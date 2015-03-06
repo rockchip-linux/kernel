@@ -61,14 +61,14 @@
 
 	volum_down {
 		label = "Volum_down";
-		gpios = <&gpio5 10 GPIO_ACTIVE_LOW>;
+		gpios = <&gpio5 11 GPIO_ACTIVE_LOW>;
 		linux,code = <KEY_VOLUMEDOWN>;
 		debounce-interval = <100>;
 	};
 
 	volum_up {
 		label = "Volum_up";
-		gpios = <&gpio5 11 GPIO_ACTIVE_LOW>;
+		gpios = <&gpio5 10 GPIO_ACTIVE_LOW>;
 		linux,code = <KEY_VOLUMEUP>;
 		debounce-interval = <100>;
 	};
@@ -181,11 +181,11 @@
 
 	buttons {
 		volum_down_l: volum-down-l {
-			rockchip,pins = <5 10 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <5 11 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 
 		volum_up_l: volum-up-l {
-			rockchip,pins = <5 11 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <5 10 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
