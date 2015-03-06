@@ -19,6 +19,8 @@ Optional properties:
     context, byte offset in the block, and size of vboot context in bytes.
   - chromeos-vbc-ec : If nonvolatile-context-storage is "mkbp", kernel should
     look for the phandle to the device tree node of EC in this property.
+  - recovery-switch : Describe the recovery switch GPIO of the system.
+  - developer-switch : Describe the developer switch GPIO of the system.
 
 Example:
 
@@ -28,5 +30,17 @@ firmware {
 		nonvolatile-context-storage = "disk";
 		chromeos-vbc-blk = <&mshc_0 0 0 16>;
 		chromeos-vbc-ec = <&ec>;
+	};
+};
+
+Example:
+
+firmware {
+	chromeos {
+		pinctrl-0 = <&fw_pins>;
+		pinctrl-names = "default";
+		write-protect-gpio = <&qcom_pinmux 17 1>;
+		recovery-switch = <&qcom_pinmux 16 1>;
+		developer-switch = <&qcom_pinmux 15 1>;
 	};
 };

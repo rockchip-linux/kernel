@@ -200,8 +200,8 @@ static int chromeos_arm_probe(struct platform_device *pdev)
 		goto err;
 	err = dt_gpio_init(pdev, "recovery-switch",
 			   "firmware-recovery-switch", "recovery-switch");
-	if (err)
-		goto err;
+	err = dt_gpio_init(pdev, "developer-switch",
+			   "firmware-developer-switch", "developer-switch");
 
 	if (!of_property_read_u32_array(np, "elog-panic-event",
 					elog_panic_event,
