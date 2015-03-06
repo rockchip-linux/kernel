@@ -13,6 +13,10 @@
 #include "rk3288.dtsi"
 
 / {
+	aliases {
+		i2c10 = &edp;
+	};
+
 	memory {
 		reg = <0x0 0x80000000>;
 	};
