@@ -73,7 +73,6 @@ ath10k_thermal_set_cur_throttle_state(struct thermal_cooling_device *cdev,
 				      unsigned long throttle_state)
 {
 	struct ath10k *ar = cdev->devdata;
-	u32 period, duration, enabled;
 	int num_bss, ret = 0;
 
 	mutex_lock(&ar->conf_mutex);
@@ -99,19 +98,8 @@ ath10k_thermal_set_cur_throttle_state(struct thermal_cooling_device *cdev,
 		ret = -ENETDOWN;
 		goto out;
 	}
-	period = ar->thermal.quiet_period;
-	duration = (period * throttle_state) / 100;
-	enabled = duration ? 1 : 0;
-
-	ret = ath10k_wmi_pdev_set_quiet_mode(ar, period, duration,
-					     ATH10K_QUIET_START_OFFSET,
-					     enabled);
-	if (ret) {
-		ath10k_warn(ar, "failed to set quiet mode period %u duarion %u enabled %u ret %d\n",
-			    period, duration, enabled, ret);
-		goto out;
-	}
 	ar->thermal.throttle_state = throttle_state;
+	ath10k_thermal_set_throttling(ar);
 out:
 	mutex_unlock(&ar->conf_mutex);
 	return ret;
@@ -219,6 +207,7 @@ static ssize_t ath10k_thermal_store_quiet_period(struct device *dev,
 	}
 	mutex_lock(&ar->conf_mutex);
 	ar->thermal.quiet_period = period;
+	ath10k_thermal_set_throttling(ar);
 	mutex_unlock(&ar->conf_mutex);
 
 	return count;
@@ -227,6 +216,26 @@ static ssize_t ath10k_thermal_store_quiet_period(struct device *dev,
 static DEVICE_ATTR(quiet_period, S_IRUGO | S_IWUSR,
 		   ath10k_thermal_show_quiet_period,
 		   ath10k_thermal_store_quiet_period);
+
+void ath10k_thermal_set_throttling(struct ath10k *ar)
+{
+	u32 period, duration, enabled;
+	int ret;
+
+	lockdep_assert_held(&ar->conf_mutex);
+
+	period = ar->thermal.quiet_period;
+	duration = (period * ar->thermal.throttle_state) / 100;
+	enabled = duration ? 1 : 0;
+
+	ret = ath10k_wmi_pdev_set_quiet_mode(ar, period, duration,
+					     ATH10K_QUIET_START_OFFSET,
+					     enabled);
+	if (ret) {
+		ath10k_warn(ar, "failed to set quiet mode period %u duarion %u enabled %u ret %d\n",
+			    period, duration, enabled, ret);
+	}
+}
 
 int ath10k_thermal_register(struct ath10k *ar)
 {
