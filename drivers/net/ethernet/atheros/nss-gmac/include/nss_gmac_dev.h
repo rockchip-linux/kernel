@@ -147,13 +147,13 @@ struct nss_gmac_global_ctx;
  * @brief NSS GMAC device data
  */
 struct nss_gmac_dev {
-	uint32_t mac_base;	/* base address of MAC registers              */
-	uint32_t dma_base;	/* base address of DMA registers              */
+	void __iomem *mac_base;	/* base address of MAC registers	      */
+	void __iomem *dma_base;	/* base address of DMA registers	      */
 	uint32_t phy_base;	/* PHY device address on MII interface        */
 	uint32_t macid;		/* Sequence number of Mac on the platform     */
 	uint32_t version;	/* Gmac Revision version                      */
 	unsigned long int flags;/* status flags				      */
-	uint32_t drv_flags;	/* Driver specific feature flags		*/
+	uint32_t drv_flags;	/* Driver specific feature flags	      */
 
 	dma_addr_t tx_desc_dma;	/* Dma-able address of first tx descriptor
 				   either in ring or chain mode, this is used
@@ -1992,8 +1992,8 @@ static inline void nss_gmac_clear_interrupt(struct nss_gmac_dev *gmacdev)
 {
 	uint32_t data;
 
-	data = readl_relaxed((unsigned char *)gmacdev->dma_base + dma_status);
-	writel_relaxed(data, (unsigned char *)gmacdev->dma_base + dma_status);
+	data = readl_relaxed(gmacdev->dma_base + dma_status);
+	writel_relaxed(data, gmacdev->dma_base + dma_status);
 }
 
 
@@ -2008,10 +2008,10 @@ static inline uint32_t nss_gmac_get_interrupt_type(struct nss_gmac_dev *gmacdev)
 	uint32_t interrupts = 0;
 
 	interrupts =
-	    nss_gmac_read_reg((uint32_t *)gmacdev->dma_base, dma_status);
+	    nss_gmac_read_reg(gmacdev->dma_base, dma_status);
 
 	/* Clear interrupt here */
-	nss_gmac_write_reg((uint32_t *)gmacdev->dma_base, dma_status,
+	nss_gmac_write_reg(gmacdev->dma_base, dma_status,
 			   interrupts);
 
 	return interrupts;
@@ -2025,7 +2025,7 @@ static inline uint32_t nss_gmac_get_interrupt_type(struct nss_gmac_dev *gmacdev)
  */
 static inline uint32_t nss_gmac_get_interrupt_mask(struct nss_gmac_dev *gmacdev)
 {
-	return nss_gmac_read_reg((uint32_t *)gmacdev->dma_base, dma_interrupt);
+	return nss_gmac_read_reg(gmacdev->dma_base, dma_interrupt);
 }
 
 
@@ -2038,8 +2038,7 @@ static inline uint32_t nss_gmac_get_interrupt_mask(struct nss_gmac_dev *gmacdev)
 static inline void nss_gmac_enable_interrupt(struct nss_gmac_dev *gmacdev,
 					     uint32_t interrupts)
 {
-	nss_gmac_write_reg((uint32_t *)gmacdev->dma_base, dma_interrupt,
-			   interrupts);
+	nss_gmac_write_reg(gmacdev->dma_base, dma_interrupt, interrupts);
 }
 
 
@@ -2050,7 +2049,7 @@ static inline void nss_gmac_enable_interrupt(struct nss_gmac_dev *gmacdev,
  */
 static inline void nss_gmac_disable_mac_interrupt(struct nss_gmac_dev *gmacdev)
 {
-	nss_gmac_write_reg((uint32_t *)gmacdev->mac_base, gmac_interrupt_mask,
+	nss_gmac_write_reg(gmacdev->mac_base, gmac_interrupt_mask,
 			   0xffffffff);
 }
 
@@ -2065,8 +2064,7 @@ static inline void nss_gmac_disable_mac_interrupt(struct nss_gmac_dev *gmacdev)
  */
 static inline void nss_gmac_disable_interrupt_all(struct nss_gmac_dev *gmacdev)
 {
-	nss_gmac_write_reg((uint32_t *)gmacdev->dma_base, dma_interrupt,
-			   dma_int_disable);
+	nss_gmac_write_reg(gmacdev->dma_base, dma_interrupt, dma_int_disable);
 	nss_gmac_disable_mac_interrupt(gmacdev);
 }
 
@@ -2083,10 +2081,8 @@ static inline void nss_gmac_disable_interrupt(struct nss_gmac_dev *gmacdev,
 {
 	uint32_t data = 0;
 
-	data = ~interrupts & readl_relaxed((unsigned char *)gmacdev->dma_base
-							+ dma_interrupt);
-	writel_relaxed(data, (unsigned char *)gmacdev->dma_base
-							+ dma_interrupt);
+	data = ~interrupts & readl_relaxed(gmacdev->dma_base + dma_interrupt);
+	writel_relaxed(data, gmacdev->dma_base + dma_interrupt);
 }
 
 
@@ -2103,8 +2099,7 @@ void nss_gmac_enable_dma_tx(struct nss_gmac_dev *gmacdev);
  */
 static inline void nss_gmac_resume_dma_tx(struct nss_gmac_dev *gmacdev)
 {
-	nss_gmac_write_reg((uint32_t *)gmacdev->dma_base,
-							dma_tx_poll_demand, 0);
+	nss_gmac_write_reg(gmacdev->dma_base, dma_tx_poll_demand, 0);
 }
 
 
@@ -2117,8 +2112,7 @@ static inline void nss_gmac_resume_dma_tx(struct nss_gmac_dev *gmacdev)
  */
 static inline void nss_gmac_resume_dma_rx(struct nss_gmac_dev *gmacdev)
 {
-	nss_gmac_write_reg((uint32_t *)gmacdev->dma_base,
-							dma_rx_poll_demand, 0);
+	nss_gmac_write_reg(gmacdev->dma_base, dma_rx_poll_demand, 0);
 }
 
 void nss_gmac_take_desc_ownership(struct dma_desc *desc);
