@@ -270,7 +270,6 @@ struct nss_gmac_global_ctx {
 	uint32_t *qsgmii_base;
 	uint32_t *clk_ctl_base;	/* Base address of platform
 				   clock control registers */
-	spinlock_t reg_lock;	/* Lock to protect NSS register	*/
 	uint32_t socver;	/* SOC version */
 	struct nss_gmac_dev *nss_gmac[NSS_MAX_GMACS];
 	bool common_init_done;	/* Flag to hold common init done state */
@@ -1326,10 +1325,8 @@ static inline uint32_t nss_gmac_read_reg(uint32_t *regbase,
 	uint32_t addr = 0;
 	uint32_t data;
 
-	spin_lock(&ctx.reg_lock);
 	addr = (uint32_t)regbase + regoffset;
 	data = readl_relaxed((unsigned char *)addr);
-	spin_unlock(&ctx.reg_lock);
 
 	return data;
 }
@@ -1348,10 +1345,8 @@ static inline void nss_gmac_write_reg(uint32_t *regbase,
 {
 	uint32_t addr = 0;
 
-	spin_lock(&ctx.reg_lock);
 	addr = (uint32_t)regbase + regoffset;
 	writel_relaxed(regdata, (unsigned char *)addr);
-	spin_unlock(&ctx.reg_lock);
 }
 
 
