@@ -75,7 +75,6 @@ static int32_t nss_gmac_setup_tx_desc_queue(struct nss_gmac_dev *gmacdev,
 						uint32_t no_of_desc,
 						uint32_t desc_mode)
 {
-	int32_t i;
 	struct dma_desc *first_desc = NULL;
 	dma_addr_t dma_addr;
 
@@ -101,10 +100,7 @@ static int32_t nss_gmac_setup_tx_desc_queue(struct nss_gmac_dev *gmacdev,
 	netdev_dbg(gmacdev->netdev, "Tx Descriptors in Ring Mode: No. of descriptors = %d base = 0x%08x dma = 0x%08x"
 			, no_of_desc, (uint32_t)first_desc, dma_addr);
 
-	for (i = 0; i < gmacdev->tx_desc_count; i++) {
-		nss_gmac_tx_desc_init_ring(gmacdev->tx_desc + i,
-					i == (gmacdev->tx_desc_count - 1));
-	}
+	nss_gmac_tx_desc_init_ring(gmacdev->tx_desc, gmacdev->tx_desc_count);
 
 	gmacdev->tx_next = 0;
 	gmacdev->tx_busy = 0;
@@ -150,7 +146,6 @@ static int32_t nss_gmac_setup_rx_desc_queue(struct nss_gmac_dev *gmacdev,
 						uint32_t no_of_desc,
 						uint32_t desc_mode)
 {
-	int32_t i;
 	struct dma_desc *first_desc = NULL;
 	dma_addr_t dma_addr;
 
@@ -175,10 +170,7 @@ static int32_t nss_gmac_setup_rx_desc_queue(struct nss_gmac_dev *gmacdev,
 	netdev_dbg(gmacdev->netdev, "Rx Descriptors in Ring Mode: No. of descriptors = %d base = 0x%08x dma = 0x%08x",
 			no_of_desc, (uint32_t)first_desc, dma_addr);
 
-	for (i = 0; i < gmacdev->rx_desc_count; i++) {
-		nss_gmac_rx_desc_init_ring(gmacdev->rx_desc + i,
-					i == (gmacdev->rx_desc_count - 1));
-	}
+	nss_gmac_rx_desc_init_ring(gmacdev->rx_desc, no_of_desc);
 
 	gmacdev->rx_next = 0;
 	gmacdev->rx_busy = 0;

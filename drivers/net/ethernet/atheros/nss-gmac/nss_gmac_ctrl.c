@@ -259,18 +259,9 @@ static void nss_gmac_giveup_tx_desc_queue(struct nss_gmac_dev *gmacdev,
  */
 void nss_gmac_tx_rx_desc_init(struct nss_gmac_dev *gmacdev)
 {
-	int32_t i;
-
 	/* Init Tx/Rx descriptor rings */
-	for (i = 0; i < gmacdev->tx_desc_count; i++) {
-		nss_gmac_tx_desc_init_ring(gmacdev->tx_desc + i,
-					   i == (gmacdev->tx_desc_count - 1));
-	}
-
-	for (i = 0; i < gmacdev->rx_desc_count; i++) {
-		nss_gmac_rx_desc_init_ring(gmacdev->rx_desc + i,
-					   i == (gmacdev->rx_desc_count - 1));
-	}
+	nss_gmac_tx_desc_init_ring(gmacdev->tx_desc, gmacdev->tx_desc_count);
+	nss_gmac_rx_desc_init_ring(gmacdev->rx_desc, gmacdev->rx_desc_count);
 
 	/* Init Tx/Rx counters in device private structure */
 	gmacdev->tx_next = 0;

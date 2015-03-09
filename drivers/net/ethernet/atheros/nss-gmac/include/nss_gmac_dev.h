@@ -1518,48 +1518,30 @@ void nss_gmac_spare_ctl(struct nss_gmac_dev *gmacdev);
 
 /**
  * Initialize the rx descriptors for ring or chain mode operation.
- *	- Status field is initialized to 0.
- *	- end_of_ring set for the last descriptor.
- *	- buffer1 and buffer2 set to 0 for ring mode of operation. (note)
- *	- data1 and data2 set to 0. (note)
  * @param[in] pointer to dma_desc structure.
- * @param[in] whether end of ring
+ * @param[in] number of descriptors
  * @return void.
- * @note Initialization of the buffer1, buffer2, data1,data2 and status are not
- * done here. This only initializes whether one wants to use this descriptor
- * in chain mode or ring mode. For chain mode of operation the buffer2 and data2
- * are programmed before calling this function.
  */
 static inline void nss_gmac_rx_desc_init_ring(struct dma_desc *desc,
-					      bool last_ring_desc)
+					      uint32_t no_of_desc)
 {
-	desc->status = 0;
-	desc->length = last_ring_desc ? rx_desc_end_of_ring : 0;
-	desc->buffer1 = 0;
-	desc->data1 = 0;
+	struct dma_desc *last_desc = desc + no_of_desc - 1;
+	memset(desc, 0, no_of_desc * sizeof(struct dma_desc));
+	last_desc->length = rx_desc_end_of_ring;
 }
 
 /**
  * Initialize the tx descriptors for ring or chain mode operation.
- *	- Status field is initialized to 0.
- *	- end_of_ring set for the last descriptor.
- *	- buffer1 and buffer2 set to 0 for ring mode of operation. (note)
- *	- data1 and data2 set to 0. (note)
  * @param[in] pointer to dma_desc structure.
- * @param[in] whether end of ring
+ * @param[in] number of descriptors
  * @return void.
- * @note Initialization of the buffer1, buffer2, data1,data2 and status are not
- * done here. This only initializes whether one wants to use this descriptor
- * in chain mode or ring mode. For chain mode of operation the buffer2 and data2
- * are programmed before calling this function.
  */
 static inline void nss_gmac_tx_desc_init_ring(struct dma_desc *desc,
-					      bool last_ring_desc)
+					      uint32_t no_of_desc)
 {
-	desc->status = last_ring_desc ? tx_desc_end_of_ring : 0;
-	desc->length = 0;
-	desc->buffer1 = 0;
-	desc->data1 = 0;
+	struct dma_desc *last_desc = desc + no_of_desc - 1;
+	memset(desc, 0, no_of_desc * sizeof(struct dma_desc));
+	last_desc->status = tx_desc_end_of_ring;
 }
 
 void nss_gmac_init_rx_desc_base(struct nss_gmac_dev *gmacdev);
