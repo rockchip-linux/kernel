@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013,2015 The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -158,24 +158,6 @@ static struct msm_gpiomux_config nss_spi_gpiomux[] = {
 #endif /* NSS_FW_DBG_SUPPORT */
 
 /*
- * clk_reg_write_32()
- *	Write clock register
- */
-static inline void clk_reg_write_32(void *addr, uint32_t val)
-{
-	writel(val, addr);
-}
-
-/*
- * clk_reg_read_32()
- *	Write clock register
- */
-static inline uint32_t clk_reg_read_32(volatile void *addr)
-{
-	return readl(addr);
-}
-
-/*
  * __nss_hal_debug_enable()
  *	Enable NSS debug
  */
@@ -207,8 +189,8 @@ void nss_hal_pvt_pll_change(uint32_t pll)
 
 	if (pll == 11) {
 
-		ctl_reg0 = clk_reg_read_32(UBI32_COREn_CLK_CTL(0));
-		ctl_reg1 = clk_reg_read_32(UBI32_COREn_CLK_CTL(1));
+		ctl_reg0 = readl(UBI32_COREn_CLK_CTL(0));
+		ctl_reg1 = readl(UBI32_COREn_CLK_CTL(1));
 
 		ctl_reg0 &= ~pll_cl_mask;
 		ctl_reg1 &= ~pll_cl_mask;
@@ -216,13 +198,13 @@ void nss_hal_pvt_pll_change(uint32_t pll)
 		ctl_reg0 |= pll11_mask;
 		ctl_reg1 |= pll11_mask;
 
-		clk_reg_write_32(UBI32_COREn_CLK_CTL(0), ctl_reg0);
-		clk_reg_write_32(UBI32_COREn_CLK_CTL(1), ctl_reg1);
+		writel(ctl_reg0, UBI32_COREn_CLK_CTL(0));
+		writel(ctl_reg1, UBI32_COREn_CLK_CTL(1));
 
 	} else if (pll == 18) {
 
-		ctl_reg0 = clk_reg_read_32(UBI32_COREn_CLK_CTL(0));
-		ctl_reg1 = clk_reg_read_32(UBI32_COREn_CLK_CTL(1));
+		ctl_reg0 = readl(UBI32_COREn_CLK_CTL(0));
+		ctl_reg1 = readl(UBI32_COREn_CLK_CTL(1));
 
 		ctl_reg0 &= ~pll_cl_mask;
 		ctl_reg1 &= ~pll_cl_mask;
@@ -230,8 +212,8 @@ void nss_hal_pvt_pll_change(uint32_t pll)
 		ctl_reg0 |= pll18_mask;
 		ctl_reg1 |= pll18_mask;
 
-		clk_reg_write_32(UBI32_COREn_CLK_CTL(0), ctl_reg0);
-		clk_reg_write_32(UBI32_COREn_CLK_CTL(1), ctl_reg1);
+		writel(ctl_reg0, UBI32_COREn_CLK_CTL(0));
+		writel(ctl_reg1, UBI32_COREn_CLK_CTL(1));
 	} else {
 		BUG_ON(1);
 	}
@@ -244,26 +226,26 @@ void nss_hal_pvt_pll_change(uint32_t pll)
  *	Dump Registers Regarding NSS
  */
 void nss_hal_pvt_register_dump(void) {
-	nss_trace("NSSFB0_CLK_SRC_CTL	: %x\n", clk_reg_read_32(NSSFB0_CLK_SRC_CTL));
-	nss_trace("NSSFB1_CLK_SRC_CTL	: %x\n", clk_reg_read_32(NSSFB1_CLK_SRC_CTL));
-	nss_trace("NSSFB0_CLK_SRC0_NS	: %x\n", clk_reg_read_32(NSSFB0_CLK_SRC0_NS));
-	nss_trace("NSSFB0_CLK_SRC1_NS	: %x\n", clk_reg_read_32(NSSFB0_CLK_SRC1_NS));
-	nss_trace("NSSFB1_CLK_SRC0_NS	: %x\n", clk_reg_read_32(NSSFB1_CLK_SRC0_NS));
-	nss_trace("NSSFB1_CLK_SRC1_NS	: %x\n", clk_reg_read_32(NSSFB1_CLK_SRC1_NS));
+	nss_trace("NSSFB0_CLK_SRC_CTL	: %x\n", readl(NSSFB0_CLK_SRC_CTL));
+	nss_trace("NSSFB1_CLK_SRC_CTL	: %x\n", readl(NSSFB1_CLK_SRC_CTL));
+	nss_trace("NSSFB0_CLK_SRC0_NS	: %x\n", readl(NSSFB0_CLK_SRC0_NS));
+	nss_trace("NSSFB0_CLK_SRC1_NS	: %x\n", readl(NSSFB0_CLK_SRC1_NS));
+	nss_trace("NSSFB1_CLK_SRC0_NS	: %x\n", readl(NSSFB1_CLK_SRC0_NS));
+	nss_trace("NSSFB1_CLK_SRC1_NS	: %x\n", readl(NSSFB1_CLK_SRC1_NS));
 	nss_trace("\n");
-	nss_trace("PLL_ENA_NSS	: %x\n", clk_reg_read_32(PLL_ENA_NSS));
-	nss_trace("PLL18_L_VAL	: %x\n", clk_reg_read_32(PLL18_L_VAL));
-	nss_trace("PLL18_M_VAL	: %x\n", clk_reg_read_32(PLL18_M_VAL));
-	nss_trace("PLL18_N_VAL	: %x\n", clk_reg_read_32(PLL18_N_VAL));
-	nss_trace("PLL18_CONFIG	: %x\n", clk_reg_read_32(PLL18_CONFIG));
-	nss_trace("PLL18_TEST_CTL: %x\n", clk_reg_read_32(PLL18_TEST_CTL));
+	nss_trace("PLL_ENA_NSS	: %x\n", readl(PLL_ENA_NSS));
+	nss_trace("PLL18_L_VAL	: %x\n", readl(PLL18_L_VAL));
+	nss_trace("PLL18_M_VAL	: %x\n", readl(PLL18_M_VAL));
+	nss_trace("PLL18_N_VAL	: %x\n", readl(PLL18_N_VAL));
+	nss_trace("PLL18_CONFIG	: %x\n", readl(PLL18_CONFIG));
+	nss_trace("PLL18_TEST_CTL: %x\n", readl(PLL18_TEST_CTL));
 	nss_trace("\n");
-	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC_CTL(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC_CTL(1)));
-	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(1)));
-	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 0: %x\n", readl(UBI32_COREn_CLK_SRC_CTL(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 1: %x\n", readl(UBI32_COREn_CLK_SRC_CTL(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 0: %x\n", readl(UBI32_COREn_CLK_SRC0_NS(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 1: %x\n", readl(UBI32_COREn_CLK_SRC0_NS(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 0: %x\n", readl(UBI32_COREn_CLK_SRC0_MD(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 1: %x\n", readl(UBI32_COREn_CLK_SRC0_MD(1)));
 	nss_trace("\n\n\n");
 }
 
@@ -286,33 +268,33 @@ uint32_t nss_hal_pvt_divide_pll18(uint32_t core_id, uint32_t divider)
 	uint32_t md_reg0;
 	uint32_t md_reg1;
 
-	nss_trace("NSSFB0_CLK_SRC_CTL  : %x\n", clk_reg_read_32(NSSFB0_CLK_SRC_CTL));
-	nss_trace("NSSFB1_CLK_SRC_CTL  : %x\n", clk_reg_read_32(NSSFB1_CLK_SRC_CTL));
-	nss_trace("NSSFB0_CLK_SRC0_NS  : %x\n", clk_reg_read_32(NSSFB0_CLK_SRC0_NS));
-	nss_trace("NSSFB0_CLK_SRC1_NS  : %x\n", clk_reg_read_32(NSSFB0_CLK_SRC1_NS));
-	nss_trace("NSSFB1_CLK_SRC0_NS  : %x\n", clk_reg_read_32(NSSFB1_CLK_SRC0_NS));
-	nss_trace("NSSFB1_CLK_SRC1_NS  : %x\n", clk_reg_read_32(NSSFB1_CLK_SRC1_NS));
+	nss_trace("NSSFB0_CLK_SRC_CTL  : %x\n", readl(NSSFB0_CLK_SRC_CTL));
+	nss_trace("NSSFB1_CLK_SRC_CTL  : %x\n", readl(NSSFB1_CLK_SRC_CTL));
+	nss_trace("NSSFB0_CLK_SRC0_NS  : %x\n", readl(NSSFB0_CLK_SRC0_NS));
+	nss_trace("NSSFB0_CLK_SRC1_NS  : %x\n", readl(NSSFB0_CLK_SRC1_NS));
+	nss_trace("NSSFB1_CLK_SRC0_NS  : %x\n", readl(NSSFB1_CLK_SRC0_NS));
+	nss_trace("NSSFB1_CLK_SRC1_NS  : %x\n", readl(NSSFB1_CLK_SRC1_NS));
 	nss_trace("\n");
-	nss_trace("PLL_ENA_NSS	: %x\n", clk_reg_read_32(PLL_ENA_NSS));
-	nss_trace("PLL18_L_VAL  : %x\n", clk_reg_read_32(PLL18_L_VAL));
-	nss_trace("PLL18_M_VAL  : %x\n", clk_reg_read_32(PLL18_M_VAL));
-	nss_trace("PLL18_N_VAL  : %x\n", clk_reg_read_32(PLL18_N_VAL));
-	nss_trace("PLL18_CONFIG : %x\n", clk_reg_read_32(PLL18_CONFIG));
-	nss_trace("PLL18_TEST_CTL: %x\n", clk_reg_read_32(PLL18_TEST_CTL));
+	nss_trace("PLL_ENA_NSS	: %x\n", readl(PLL_ENA_NSS));
+	nss_trace("PLL18_L_VAL  : %x\n", readl(PLL18_L_VAL));
+	nss_trace("PLL18_M_VAL  : %x\n", readl(PLL18_M_VAL));
+	nss_trace("PLL18_N_VAL  : %x\n", readl(PLL18_N_VAL));
+	nss_trace("PLL18_CONFIG : %x\n", readl(PLL18_CONFIG));
+	nss_trace("PLL18_TEST_CTL: %x\n", readl(PLL18_TEST_CTL));
 	nss_trace("\n");
-	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC_CTL(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC_CTL(1)));
-	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(1)));
-	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 0: %x\n", readl(UBI32_COREn_CLK_SRC_CTL(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 1: %x\n", readl(UBI32_COREn_CLK_SRC_CTL(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 0: %x\n", readl(UBI32_COREn_CLK_SRC0_NS(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 1: %x\n", readl(UBI32_COREn_CLK_SRC0_NS(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 0: %x\n", readl(UBI32_COREn_CLK_SRC0_MD(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 1: %x\n", readl(UBI32_COREn_CLK_SRC0_MD(1)));
 	nss_trace("\n\n\n");
 
 
-	md_reg0 = clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(0));
-	md_reg1 = clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(1));
-	ns_reg0 = clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(0));
-	ns_reg1 = clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(1));
+	md_reg0 = readl(UBI32_COREn_CLK_SRC0_MD(0));
+	md_reg1 = readl(UBI32_COREn_CLK_SRC0_MD(1));
+	ns_reg0 = readl(UBI32_COREn_CLK_SRC0_NS(0));
+	ns_reg1 = readl(UBI32_COREn_CLK_SRC0_NS(1));
 
 	/*
 	 * Bypass
@@ -384,17 +366,17 @@ uint32_t nss_hal_pvt_divide_pll18(uint32_t core_id, uint32_t divider)
 		return 0;
 	}
 
-	clk_reg_write_32(UBI32_COREn_CLK_SRC0_MD(0), md_reg0);
-	clk_reg_write_32(UBI32_COREn_CLK_SRC0_MD(1), md_reg1);
-	clk_reg_write_32(UBI32_COREn_CLK_SRC0_NS(0), ns_reg0);
-	clk_reg_write_32(UBI32_COREn_CLK_SRC0_NS(1), ns_reg1);
+	writel(md_reg0, UBI32_COREn_CLK_SRC0_MD(0));
+	writel(md_reg1, UBI32_COREn_CLK_SRC0_MD(1));
+	writel(ns_reg0, UBI32_COREn_CLK_SRC0_NS(0));
+	writel(ns_reg1, UBI32_COREn_CLK_SRC0_NS(1));
 
-	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC_CTL(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC_CTL(1)));
-	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_NS(1)));
-	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 0: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(0)));
-	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 1: %x\n", clk_reg_read_32(UBI32_COREn_CLK_SRC0_MD(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 0: %x\n", readl(UBI32_COREn_CLK_SRC_CTL(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_CTL Core 1: %x\n", readl(UBI32_COREn_CLK_SRC_CTL(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 0: %x\n", readl(UBI32_COREn_CLK_SRC0_NS(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_NS Core 1: %x\n", readl(UBI32_COREn_CLK_SRC0_NS(1)));
+	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 0: %x\n", readl(UBI32_COREn_CLK_SRC0_MD(0)));
+	nss_trace("UBI32_COREn_CLK_SRC0_MD Core 1: %x\n", readl(UBI32_COREn_CLK_SRC0_MD(1)));
 
 	return 1;
 }
@@ -416,35 +398,35 @@ uint32_t nss_hal_pvt_enable_pll18(uint32_t speed)
 	/*
 	 * Start with clean slate
 	 */
-	clk_reg_write_32(PLL18_MODE, 0);
+	writel(0, PLL18_MODE);
 
 	/*
 	 * Effective VCO Frequency = 1100 MHz Post Divide 2
 	 */
 	if (speed == 1100) {
-		clk_reg_write_32(PLL18_L_VAL, 0x4000042C);
-		clk_reg_write_32(PLL18_M_VAL, 0x0);
-		clk_reg_write_32(PLL18_N_VAL, 0x1);
+		writel(0x4000042C, PLL18_L_VAL);
+		writel(0x0, PLL18_M_VAL);
+		writel(0x1, PLL18_N_VAL);
 
 		/*
 		 * PLL configuration (as provided by HW team)
 		 */
-		clk_reg_write_32(PLL18_CONFIG, 0x01495625);
-		clk_reg_write_32(PLL18_TEST_CTL, 0x00003080);
+		writel(0x01495625, PLL18_CONFIG);
+		writel(0x00003080, PLL18_TEST_CTL);
 	} else if (speed == 1466) {
 		/*
 		 * Effective VCO Frequency = 1466 MHz Post Divide 2
 		 */
 
-		clk_reg_write_32(PLL18_L_VAL, 0x4000043A);
-		clk_reg_write_32(PLL18_M_VAL, 0x10);
-		clk_reg_write_32(PLL18_N_VAL, 0x19);
+		writel(0x4000043A, PLL18_L_VAL);
+		writel(0x10, PLL18_M_VAL);
+		writel(0x19, PLL18_N_VAL);
 
 		/*
 		 * PLL configuration (as provided by HW team)
 		 */
-		clk_reg_write_32(PLL18_CONFIG, 0x014B5625);
-		clk_reg_write_32(PLL18_TEST_CTL, 0x00003080);
+		writel(0x014B5625, PLL18_CONFIG);
+		writel(0x00003080, PLL18_TEST_CTL);
 	} else {
 		BUG_ON(1);
 	}
@@ -452,17 +434,17 @@ uint32_t nss_hal_pvt_enable_pll18(uint32_t speed)
 	/*
 	 * Enable PLL18 output (sequence provided by HW team)
 	 */
-	clk_reg_write_32(PLL18_MODE, 0x2);
+	writel(0x2, PLL18_MODE);
 	mdelay(1);
-	clk_reg_write_32(PLL18_MODE, 0x6);
-	clk_reg_write_32(PLL18_MODE, 0x7);
+	writel(0x6, PLL18_MODE);
+	writel(0x7, PLL18_MODE);
 
 	/*
 	 * Enable NSS Vote for PLL18.
 	 */
-	clk_reg_write_32(PLL_ENA_NSS, mask);
+	writel(mask, PLL_ENA_NSS);
 	do {
-		value = clk_reg_read_32(PLL_LOCK_DET_STATUS);
+		value = readl(PLL_LOCK_DET_STATUS);
 		if (value & mask) {
 			return PLL_LOCKED;
 		}
@@ -502,12 +484,12 @@ void __nss_hal_common_reset(uint32_t *clk_src)
 	 *
 	 * Effective frequency (Divider 0) = 133 MHz
 	 */
-	clk_reg_write_32(NSSFPB_CLK_SRC0_NS, 0x2a);
+	writel(0x2a, NSSFPB_CLK_SRC0_NS);
 
 	/*
 	 * Enable clock branch
 	 */
-	clk_reg_write_32(NSSFPB_CLK_CTL, 0x50);
+	writel(0x50, NSSFPB_CLK_CTL);
 
 	/*
 	 * NSS FABRIC0 CLOCK
@@ -522,12 +504,12 @@ void __nss_hal_common_reset(uint32_t *clk_src)
 	 * PLL0 (800 MHZ) and div is set to 2.
 	 * Effective frequency = 400 MHZ.
 	 */
-	clk_reg_write_32(NSSFB0_CLK_SRC0_NS, 0x0a);
+	writel(0x0a, NSSFB0_CLK_SRC0_NS);
 
 	/*
 	 * NSS Fabric0 Branch and dynamic clock gating enabled.
 	 */
-	clk_reg_write_32(NSSFB0_CLK_CTL, 0x50);
+	writel(0x50, NSSFB0_CLK_CTL);
 
 	/*
 	 * Enable clock root and Divider 0
@@ -538,45 +520,45 @@ void __nss_hal_common_reset(uint32_t *clk_src)
 	 * PLL0 (800 MHZ) and div is set to 4.
 	 * Effective frequency = 200 MHZ.
 	 */
-	clk_reg_write_32(NSSFB1_CLK_SRC0_NS, 0x1a);
+	writel(0x1a, NSSFB1_CLK_SRC0_NS);
 
 	/*
 	 * NSS Fabric1 Branch enable and fabric clock gating enabled.
 	 */
-	clk_reg_write_32(NSSFB1_CLK_CTL, 0x50);
+	writel(0x50, NSSFB1_CLK_CTL);
 
 	/*
 	 * NSS TCM CLOCK
-	*/
+	 */
 
 	/*
 	 * Enable NSS TCM clock root source and select divider 0.
 	 *
 	 * NOTE: Default value is not good here
 	 */
-	clk_reg_write_32(NSSTCM_CLK_SRC_CTL, 0x2);
+	writel(0x2, NSSTCM_CLK_SRC_CTL);
 
 	/*
 	 * PLL0 (800 MHZ) and div is set to 2.
 	 * Effective frequency = 400 MHZ
 	 */
-	clk_reg_write_32(NSSTCM_CLK_SRC0_NS, 0xa);
+	writel(0xa, NSSTCM_CLK_SRC0_NS);
 
 	/*
 	 * NSS TCM Branch enable and fabric clock gating enabled.
 	 */
-	clk_reg_write_32(NSSTCM_CLK_CTL, 0x50);
+	writel(0x50, NSSTCM_CLK_CTL);
 
 	/*
 	 * Enable global NSS clock branches.
 	 * NSS global Fab Branch enable and fabric clock gating enabled.
 	 */
-	clk_reg_write_32(NSSFAB_GLOBAL_BUS_NS, 0xf);
+	writel(0xf, NSSFAB_GLOBAL_BUS_NS);
 
 	/*
 	 * Send reset interrupt to NSS
 	 */
-	clk_reg_write_32(NSS_RESET, 0x0);
+	writel(0x0, NSS_RESET);
 
 	/*
 	 * Enable PLL18
@@ -609,12 +591,12 @@ void __nss_hal_common_reset(uint32_t *clk_src)
 	 * Enable NSS TCM clock root source - SRC1.
 	 *
 	 */
-	clk_reg_write_32(NSSTCM_CLK_SRC_CTL, 0x3);
+	writel(0x3, NSSTCM_CLK_SRC_CTL);
 
 	/* Enable PLL Voting for 0 */
-	clk_reg_write_32(PLL_ENA_NSS, (clk_reg_read_32(PLL_ENA_NSS) | 0x1));
+	writel((readl(PLL_ENA_NSS) | 0x1), PLL_ENA_NSS);
 	do {
-		value = clk_reg_read_32(PLL_LOCK_DET_STATUS);
+		value = readl(PLL_LOCK_DET_STATUS);
 		if (value & status_mask) {
 			break;
 		}
@@ -625,13 +607,13 @@ void __nss_hal_common_reset(uint32_t *clk_src)
 	 * PLL0 (800 MHZ) and div is set to 3/4.
 	 * Effective frequency = 266/400 Mhz for SRC0/1
 	 */
-	clk_reg_write_32(NSSTCM_CLK_SRC0_NS, 0x12);
-	clk_reg_write_32(NSSTCM_CLK_SRC1_NS, 0xa);
+	writel(0x12, NSSTCM_CLK_SRC0_NS);
+	writel(0xa, NSSTCM_CLK_SRC1_NS);
 
 	/*
 	 * NSS TCM Branch enable and fabric clock gating enabled.
 	 */
-	clk_reg_write_32(NSSTCM_CLK_CTL, 0x50);
+	writel(0x50, NSSTCM_CLK_CTL);
 
 	/*
 	 * Clear TCM memory
@@ -658,17 +640,17 @@ void __nss_hal_core_reset(uint32_t core_id, uint32_t map, uint32_t addr, uint32_
 	/*
 	 * Enable mpt clock
 	 */
-	clk_reg_write_32(UBI32_MPT0_CLK_CTL, 0x10);
+	writel(0x10, UBI32_MPT0_CLK_CTL);
 
 	/*
 	 * UBI coren clock root enable
 	 */
 	if (clk_src == NSS_REGS_CLK_SRC_DEFAULT) {
 		/* select Src0 */
-		clk_reg_write_32(UBI32_COREn_CLK_SRC_CTL(core_id), 0x02);
+		writel(0x02, UBI32_COREn_CLK_SRC_CTL(core_id));
 	} else {
 		/* select Src1 */
-		clk_reg_write_32(UBI32_COREn_CLK_SRC_CTL(core_id), 0x03);
+		writel(0x03, UBI32_COREn_CLK_SRC_CTL(core_id));
 	}
 
 	/*
@@ -678,34 +660,34 @@ void __nss_hal_core_reset(uint32_t core_id, uint32_t map, uint32_t addr, uint32_
 	/*
 	 * Src1: M val is 0x01 and NOT_2D value is 0xfd, 400 MHz with PLL0.
 	 */
-	clk_reg_write_32(UBI32_COREn_CLK_SRC1_MD(core_id), 0x100fd);
+	writel(0x100fd, UBI32_COREn_CLK_SRC1_MD(core_id));
 
 	/*
 	 * Bypass, pll18
 	 * Effective frequency = 550 MHz
 	 */
-	clk_reg_write_32(UBI32_COREn_CLK_SRC0_NS(core_id), 0x00000001);
+	writel(0x00000001, UBI32_COREn_CLK_SRC0_NS(core_id));
 
 	/*
 	 * Dual edge, pll0, NOT(N_M) = 0xfe.
 	 * Effective frequency = 400 MHz
 	 */
-	clk_reg_write_32(UBI32_COREn_CLK_SRC1_NS(core_id), 0x00fe0142);
+	writel(0x00fe0142, UBI32_COREn_CLK_SRC1_NS(core_id));
 
 	/*
 	 * UBI32 coren clock control branch.
 	 */
-	clk_reg_write_32(UBI32_COREn_CLK_FS(core_id), 0x4f);
+	writel(0x4f, UBI32_COREn_CLK_FS(core_id));
 
 	/*
 	 * UBI32 coren clock control branch.
 	 */
-	clk_reg_write_32(UBI32_COREn_CLK_CTL(core_id), 0x10);
+	writel(0x10, UBI32_COREn_CLK_CTL(core_id));
 #endif
 	/*
 	 * Remove UBI32 reset clamp
 	 */
-	clk_reg_write_32(UBI32_COREn_RESET_CLAMP(core_id), 0xB);
+	writel(0xB, UBI32_COREn_RESET_CLAMP(core_id));
 
 	/*
 	 * Busy wait for few cycles
@@ -715,21 +697,21 @@ void __nss_hal_core_reset(uint32_t core_id, uint32_t map, uint32_t addr, uint32_
 	/*
 	 * Remove UBI32 core clamp
 	 */
-	clk_reg_write_32(UBI32_COREn_RESET_CLAMP(core_id), 0x3);
+	writel(0x3, UBI32_COREn_RESET_CLAMP(core_id));
 
 	mdelay(1);
 
 	/*
 	 * Remove UBI32 AHB reset
 	 */
-	clk_reg_write_32(UBI32_COREn_RESET_CLAMP(core_id), 0x1);
+	writel(0x1, UBI32_COREn_RESET_CLAMP(core_id));
 
 	mdelay(1);
 
 	/*
 	 * Remove UBI32 AXI reset
 	 */
-	clk_reg_write_32(UBI32_COREn_RESET_CLAMP(core_id), 0x0);
+	writel(0x0, UBI32_COREn_RESET_CLAMP(core_id));
 
 	mdelay(1);
 #endif /* NSS_DT_SUPPORT */
@@ -754,7 +736,7 @@ void __nss_hal_core_reset(uint32_t core_id, uint32_t map, uint32_t addr, uint32_
 	/*
 	 * Set IF check value
 	 */
-	 nss_write_32(map, NSS_REGS_CORE_IFETCH_RANGE_OFFSET, 0xBF004001);
+	nss_write_32(map, NSS_REGS_CORE_IFETCH_RANGE_OFFSET, 0xBF004001);
 
 	/*
 	 * De-assert ubi32 core reset
