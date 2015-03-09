@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -37,7 +37,7 @@ DEFINE_SPINLOCK(nss_capwap_spinlock);
  */
 struct nss_capwap_handle {
 	atomic_t refcnt;			/**< Reference count on the tunnel */
-	uint32_t interface_num;			/**< Interface number */
+	uint32_t if_num;			/**< Interface number */
 	uint32_t tunnel_status;			/**< 0=disable, 1=enabled */
 	struct nss_ctx_instance *ctx;		/**< Pointer to context */
 	nss_capwap_msg_callback_t msg_callback;	/**< Msg callback */
@@ -91,10 +91,10 @@ static void nss_capwap_refcnt_dec(int32_t if_num)
 }
 
 /*
- * nss_capwap_get_refcnt()
+ * nss_capwap_refcnt()
  *	Get refcnt on the tunnel.
  */
-static uint32_t nss_capwap_get_refcnt(int32_t if_num)
+static uint32_t nss_capwap_refcnt(int32_t if_num)
 {
 	if_num = if_num - NSS_DYNAMIC_IF_START;
 	return atomic_read(&nss_capwap_hdl[if_num]->refcnt);
@@ -118,10 +118,10 @@ static void nss_capwap_set_msg_callback(int32_t if_num, nss_capwap_msg_callback_
 }
 
 /*
- * nss_capwap_get_msg_callback()
+ * nss_capwap_msg_callback()
  *	This gets the message callback handler and its associated context
  */
-static nss_capwap_msg_callback_t nss_capwap_get_msg_callback(int32_t if_num, void **app_data)
+static nss_capwap_msg_callback_t nss_capwap_msg_callback(int32_t if_num, void **app_data)
 {
 	struct nss_capwap_handle *h;
 
@@ -175,7 +175,7 @@ static void nss_capwapmgr_update_stats(struct nss_capwap_handle *handle, struct 
  * nss_capwap_handler()
  * 	Handle NSS -> HLOS messages for CAPWAP
  */
-static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, __attribute__((unused))void *app_data)
+static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, void *app_data)
 {
 	struct nss_capwap_msg *ntm = (struct nss_capwap_msg *)ncm;
 	nss_capwap_msg_callback_t cb;
@@ -212,8 +212,9 @@ static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_
 	if (ncm->response == NSS_CMM_RESPONSE_NOTIFY) {
 		void *app_data;
 
-		ncm->cb = (uint32_t)nss_capwap_get_msg_callback(ncm->interface, &app_data);
-		ncm->app_data = (uint32_t)app_data;
+		ncm->cb = (uint32_t)nss_capwap_msg_callback(ncm->interface, &app_data);
+	} else {
+		app_data = (void *)ncm->app_data;
 	}
 
 	/*
@@ -225,7 +226,7 @@ static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_
 	}
 
 	cb = (nss_capwap_msg_callback_t)ncm->cb;
-	cb((void *)ncm->app_data, ntm);
+	cb(app_data, ntm);
 }
 
 /*
@@ -244,10 +245,9 @@ static bool nss_capwap_instance_alloc(struct nss_ctx_instance *nss_ctx, uint32_t
 		nss_warning("%p: no memory for allocating CAPWAP instance for interface : %d", nss_ctx, if_num);
 		return false;
 	}
-	memset(h, 0, sizeof (struct nss_capwap_handle));
-	atomic_set(&h->refcnt, 0);
-	memset(&h->stats, 0, sizeof (struct nss_capwap_tunnel_stats));
-	h->interface_num = if_num;
+
+	memset(h, 0, sizeof(struct nss_capwap_handle));
+	h->if_num = if_num;
 
 	spin_lock(&nss_capwap_spinlock);
 	if (nss_capwap_hdl[if_num - NSS_DYNAMIC_IF_START] != NULL) {
@@ -443,7 +443,7 @@ nss_tx_status_t nss_capwap_notify_unregister(struct nss_ctx_instance *nss_ctx, u
 	 * It's the responsibility of caller to wait and call us again. We return failure saying
 	 * that we can't remove msg handler now.
 	 */
-	if (nss_capwap_get_refcnt(if_num) != 0) {
+	if (nss_capwap_refcnt(if_num) != 0) {
 		spin_unlock(&nss_capwap_spinlock);
 		nss_warning("%p: notify unregister tunnel %d: has reference", nss_ctx, if_num);
 		return NSS_TX_FAILURE_QUEUE;
@@ -517,7 +517,7 @@ bool nss_capwap_data_unregister(uint32_t if_num)
 	/*
 	 * It's the responsibility of caller to wait and call us again.
 	 */
-	if (nss_capwap_get_refcnt(if_num) != 0) {
+	if (nss_capwap_refcnt(if_num) != 0) {
 		spin_unlock(&nss_capwap_spinlock);
 		nss_warning("%p: notify unregister tunnel %d: has reference", nss_ctx, if_num);
 		return false;

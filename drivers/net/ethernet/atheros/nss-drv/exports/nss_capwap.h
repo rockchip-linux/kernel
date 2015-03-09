@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -173,8 +173,8 @@ struct nss_capwap_rule_msg {
 	uint32_t stats_timer;			/**< Stats interval timer in mill-seconds */
 	int8_t rps;				/**< Core to choose for receiving packets. Set to -1 for NSS FW to decide */
 	uint8_t type_flags;			/**< VLAN and/or PPPOE configured */
-	uint8_t l3_proto;			/**< 0=IPv4 or 1=IPv6 */
-	uint8_t which_udp;			/**< 0=UDP or 1=UDPLite */
+	uint8_t l3_proto;			/**< NSS_CAPWAP_TUNNEL_IPV4 or NSS_CAPWAP_TUNNEL_IPV6 */
+	uint8_t which_udp;			/**< NSS_CAPWAP_TUNNEL_UDP or NSS_CAPWAP_TUNNEL_UDPLite */
 };
 
 /**
