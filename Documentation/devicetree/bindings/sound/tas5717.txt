@@ -1,0 +1,34 @@
+Texas Instruments TAS5717/TAS5719 stereo power amplifier
+
+The codec is controlled through an I2C interface.  It also has two other
+signals that can be wired up to GPIOs: reset (strongly recommended), and
+powerdown (optional).
+
+Required properties:
+
+- compatible: "ti,tas5717"
+- reg: The I2C address of the device
+- #sound-dai-cells: must be equal to 0
+
+Optional properties:
+
+- reset-gpios: GPIO specifier for the TAS5717's active low reset line
+- pdn-gpios: GPIO specifier for the TAS5717's active low powerdown line
+- clocks: clock phandle for the MCLK input
+- clock-names: should be "mclk"
+- VDD-supply: regulator phandle for the AVDD/DVDD/HP_VDD supply
+- PVDD-supply: regulator phandle for the PVDD supply
+
+Example:
+
+	tas5717: audio-codec@2a {
+		compatible = "ti,tas5717";
+		reg = <0x2a>;
+		#sound-dai-cells = <0>;
+
+		reset-gpios = <&gpio5 1 GPIO_ACTIVE_HIGH>;
+		pdn-gpios = <&gpio5 2 GPIO_ACTIVE_HIGH>;
+
+		clocks = <&clk_core CLK_I2S>;
+		clock-names = "mclk";
+	};
