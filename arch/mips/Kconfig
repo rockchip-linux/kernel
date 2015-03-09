@@ -305,7 +305,6 @@ config MACH_PISTACHIO
 	select ARCH_REQUIRE_GPIOLIB
 	select BOOT_ELF32
 	select BOOT_RAW
-	select BUILTIN_DTB
 	select CEVT_R4K
 	select CLKSRC_MIPS_GIC
 	select COMMON_CLK

@@ -69,14 +69,10 @@ static void __init plat_setup_iocoherency(void)
 
 void __init plat_mem_setup(void)
 {
-	void *dtb;
+	if (fw_arg0 != -2)
+		panic("device tree not present");
 
-	if (fw_arg0 == -2)
-		dtb = phys_to_virt(fw_arg1);
-	else
-		dtb = &__dtb_start;
-
-	__dt_setup_arch(dtb);
+	__dt_setup_arch(phys_to_virt(fw_arg1));
 	strlcpy(arcs_cmdline, boot_command_line, COMMAND_LINE_SIZE);
 
 	plat_setup_iocoherency();
