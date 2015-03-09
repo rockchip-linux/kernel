@@ -575,7 +575,15 @@ static kbase_attribute kbase_rk_config_attributes[] = {
 	 KBASE_CONFIG_ATTR_PLATFORM_FUNCS,
 	 (uintptr_t) &kbase_rk_platform_funcs
 	},
-#ifdef CONFIG_MALI_DEBUG
+#ifndef CONFIG_MALI_DEBUG
+	{
+	 KBASE_CONFIG_ATTR_JS_HARD_STOP_TICKS_SS,
+	 KBASE_RK_JS_HARD_STOP_TICKS_SS
+	}, {
+	 KBASE_CONFIG_ATTR_JS_RESET_TICKS_SS,
+	 KBASE_RK_JS_RESET_TICKS_SS
+	},
+#else
 	/* Use more aggressive scheduling timeouts in debug builds. */
 	{
 	 KBASE_CONFIG_ATTR_JS_SCHEDULING_TICK_NS,

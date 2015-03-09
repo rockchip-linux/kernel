@@ -16,6 +16,11 @@
 #define KBASE_RK_GPU_FREQ_KHZ_MAX               600000
 #define KBASE_RK_GPU_FREQ_KHZ_MIN               100000
 
+#define KBASE_RK_JS_HARD_STOP_TICKS_SS		16
+/* 800ms before hard-stop a job */
+#define KBASE_RK_JS_RESET_TICKS_SS		20
+/* 1s before reseting the GPU */
+
 #define KBASE_RK_JS_SCHEDULING_TICK_NS_DEBUG    15000000u
 /* 15ms, an aggressive tick for testing purposes.
  * This will reduce performance significantly
