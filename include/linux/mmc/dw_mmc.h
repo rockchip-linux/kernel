@@ -206,6 +206,7 @@ struct dw_mci {
 
 	int			sdio_id0;
 
+	struct timer_list       cmd11_timer;
 	struct timer_list       dto_timer;
 };
 
