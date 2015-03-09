@@ -370,19 +370,14 @@ static int nss_ipv4_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 				nss_ipv4_conn_cfg,
 				NSS_MIN_NUM_CONN,
 				NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv4_conn_cfg = i4cfgp.current_value;
-		up(&i4cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	nss_info("%p: IPv4 supported connections: %d\n", nss_ctx, nss_ipv4_conn_cfg);
 
 	nss_ipv4_msg_init(&nim, NSS_IPV4_RX_INTERFACE, NSS_IPV4_TX_CONN_CFG_RULE_MSG,
-	sizeof(struct nss_ipv4_rule_conn_cfg_msg), (nss_ipv4_msg_callback_t *)nss_ipv4_conn_cfg_callback, NULL);
+		sizeof(struct nss_ipv4_rule_conn_cfg_msg),
+		(nss_ipv4_msg_callback_t *)nss_ipv4_conn_cfg_callback, NULL);
 
 	nirccm = &nim.msg.rule_conn_cfg;
 	nirccm->num_conn = htonl(nss_ipv4_conn_cfg);
@@ -392,13 +387,7 @@ static int nss_ipv4_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 		nss_warning("%p: nss_tx error setting IPv4 Connections: %d\n",
 							nss_ctx,
 							nss_ipv4_conn_cfg);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv4_conn_cfg = i4cfgp.current_value;
-		up(&i4cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	/*
@@ -407,13 +396,7 @@ static int nss_ipv4_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 	ret = wait_for_completion_timeout(&i4cfgp.complete, msecs_to_jiffies(NSS_CONN_CFG_TIMEOUT));
 	if (ret == 0) {
 		nss_warning("%p: Waiting for ack timed out\n", nss_ctx);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv4_conn_cfg = i4cfgp.current_value;
-		up(&i4cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	/*
@@ -422,17 +405,19 @@ static int nss_ipv4_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 	 * i4cfgp.num_conn_valid, which holds the user input
 	 */
 	if (NSS_FAILURE == i4cfgp.response) {
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv4_conn_cfg = i4cfgp.current_value;
-		up(&i4cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	up(&i4cfgp.sem);
 	return NSS_SUCCESS;
+
+failure:
+	/*
+	 * Restore the current_value to its previous state
+	 */
+	nss_ipv4_conn_cfg = i4cfgp.current_value;
+	up(&i4cfgp.sem);
+	return NSS_FAILURE;
 }
 
 static ctl_table nss_ipv4_table[] = {

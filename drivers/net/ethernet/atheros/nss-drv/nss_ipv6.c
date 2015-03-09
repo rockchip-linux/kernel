@@ -368,13 +368,7 @@ static int nss_ipv6_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 				nss_ipv6_conn_cfg,
 				NSS_MIN_NUM_CONN,
 				NSS_MAX_TOTAL_NUM_CONN_IPV4_IPV6);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv6_conn_cfg = i6cfgp.current_value;
-		up(&i6cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 
@@ -391,13 +385,7 @@ static int nss_ipv6_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 		nss_warning("%p: nss_tx error setting IPv6 Connections: %d\n",
 						nss_ctx,
 						nss_ipv6_conn_cfg);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv6_conn_cfg = i6cfgp.current_value;
-		up(&i6cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	/*
@@ -406,13 +394,7 @@ static int nss_ipv6_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 	ret = wait_for_completion_timeout(&i6cfgp.complete, msecs_to_jiffies(NSS_CONN_CFG_TIMEOUT));
 	if (ret == 0) {
 		nss_warning("%p: Waiting for ack timed out\n", nss_ctx);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv6_conn_cfg = i6cfgp.current_value;
-		up(&i6cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	/*
@@ -421,16 +403,19 @@ static int nss_ipv6_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 	 * i6cfgp.num_conn_valid, which holds the user input
 	 */
 	if (NSS_FAILURE == i6cfgp.response) {
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		nss_ipv6_conn_cfg = i6cfgp.current_value;
-		up(&i6cfgp.sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	up(&i6cfgp.sem);
 	return NSS_SUCCESS;
+
+failure:
+	/*
+	 * Restore the current_value to its previous state
+	 */
+	nss_ipv6_conn_cfg = i6cfgp.current_value;
+	up(&i6cfgp.sem);
+	return NSS_FAILURE;
 }
 
 static ctl_table nss_ipv6_table[] = {

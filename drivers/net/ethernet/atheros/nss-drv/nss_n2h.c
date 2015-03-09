@@ -246,13 +246,7 @@ static int nss_n2h_set_empty_pool_buf(ctl_table *ctl, int write, void __user *bu
 	if ((*new_val < NSS_N2H_MIN_EMPTY_POOL_BUF_SZ)) {
 		nss_warning("%p: core %d setting %d is less than minimum number of buffer",
 				nss_ctx, core_num, *new_val);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		*new_val = nss_n2h_nepbcfgp[core_num].current_value;
-		up(&nss_n2h_nepbcfgp[core_num].sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	nss_info("%p: core %d number of empty pool buffer is : %d\n",
@@ -271,13 +265,7 @@ static int nss_n2h_set_empty_pool_buf(ctl_table *ctl, int write, void __user *bu
 	if (nss_tx_status != NSS_TX_SUCCESS) {
 		nss_warning("%p: core %d nss_tx error setting empty pool buffer: %d\n",
 				nss_ctx, core_num, *new_val);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		*new_val = nss_n2h_nepbcfgp[core_num].current_value;
-		up(&nss_n2h_nepbcfgp[core_num].sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	/*
@@ -286,13 +274,7 @@ static int nss_n2h_set_empty_pool_buf(ctl_table *ctl, int write, void __user *bu
 	ret = wait_for_completion_timeout(&nss_n2h_nepbcfgp[core_num].complete, msecs_to_jiffies(NSS_CONN_CFG_TIMEOUT));
 	if (ret == 0) {
 		nss_warning("%p: core %d Waiting for ack timed out\n", nss_ctx, core_num);
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		*new_val = nss_n2h_nepbcfgp[core_num].current_value;
-		up(&nss_n2h_nepbcfgp[core_num].sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	/*
@@ -301,17 +283,19 @@ static int nss_n2h_set_empty_pool_buf(ctl_table *ctl, int write, void __user *bu
 	 * nss_n2h_nepbcfgp.num_conn_valid, which holds the user input
 	 */
 	if (NSS_FAILURE == nss_n2h_nepbcfgp[core_num].response) {
-
-		/*
-		 * Restore the current_value to its previous state
-		 */
-		*new_val = nss_n2h_nepbcfgp[core_num].current_value;
-		up(&nss_n2h_nepbcfgp[core_num].sem);
-		return NSS_FAILURE;
+		goto failure;
 	}
 
 	up(&nss_n2h_nepbcfgp[core_num].sem);
 	return NSS_SUCCESS;
+
+failure:
+	/*
+	 * Restore the current_value to its previous state
+	 */
+	*new_val = nss_n2h_nepbcfgp[core_num].current_value;
+	up(&nss_n2h_nepbcfgp[core_num].sem);
+	return NSS_FAILURE;
 }
 
 /*
