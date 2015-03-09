@@ -10,6 +10,7 @@ Required properties:
 
 Optional properties:
  - tx-fifo-resize: determines if the FIFO *has* to be reallocated.
+ - snps,usb3_lpm_capable: determines if platform is USB3 LPM capable
  - snps,u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
  - snps,dis_enblslpm_quirk: when set clears the enblslpm in GUSB2PHYCFG,
 			disabling the suspend signal to the PHY.

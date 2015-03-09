@@ -25,6 +25,7 @@ struct dwc3_platform_data {
 	enum usb_dr_mode dr_mode;
 	enum usb_phy_interface hsphy_mode;
 	bool tx_fifo_resize;
+	bool usb3_lpm_capable;
 
 	unsigned u2ss_inp3_quirk:1;
 	unsigned dis_enblslpm_quirk:1;

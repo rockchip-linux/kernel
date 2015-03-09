@@ -533,6 +533,8 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->maximum_speed = of_usb_get_maximum_speed(node);
 
 		dwc->needs_fifo_resize = of_property_read_bool(node, "tx-fifo-resize");
+		dwc->usb3_lpm_capable = of_property_read_bool(node,
+				"snps,usb3_lpm_capable");
 		dwc->dr_mode = of_usb_get_dr_mode(node);
 		dwc->hsphy_mode = of_usb_get_phy_mode(node);
 
@@ -554,6 +556,7 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->maximum_speed = pdata->maximum_speed;
 
 		dwc->needs_fifo_resize = pdata->tx_fifo_resize;
+		dwc->usb3_lpm_capable = pdata->usb3_lpm_capable;
 		dwc->dr_mode = pdata->dr_mode;
 		dwc->hsphy_mode = pdata->hsphy_mode;
 
