@@ -144,10 +144,10 @@ struct go2001_init_encoder_reply {
 struct go2001_get_info_reply {
 	u32 vpx_version;
 	u32 vpx_profile;
+	u32 visible_width;
+	u32 visible_height;
 	u32 coded_width;
 	u32 coded_height;
-	u32 frame_width;
-	u32 frame_height;
 	u32 scaled_width;
 	u32 scaled_height;
 } __attribute__((packed));
@@ -172,7 +172,7 @@ struct go2001_empty_buffer_dec_param {
 } __attribute__((packed));
 
 struct go2001_empty_buffer_dec_reply {
-	struct go2001_get_info_reply finfo;
+	struct go2001_get_info_reply info;
 	u32 intra_frame;
 	u32 golden_frame;
 	u32 num_error_mbs;

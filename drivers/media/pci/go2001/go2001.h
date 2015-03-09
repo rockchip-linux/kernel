@@ -123,10 +123,14 @@ struct go2001_fmt {
 	unsigned int num_planes;
 	u32 hw_format;
 	unsigned long codec_modes;
+	/* Minimum pixel alignment for horizontal resolution. */
 	unsigned int h_align;
+	/* Minimum pixel alignment for vertical resolution. */
 	unsigned int v_align;
-	unsigned char plane_bpl[VIDEO_MAX_PLANES];
-	unsigned char plane_bpp[VIDEO_MAX_PLANES];
+	/* Bits per line */
+	unsigned char plane_row_depth[VIDEO_MAX_PLANES];
+	/* Bits per plane */
+	unsigned char plane_depth[VIDEO_MAX_PLANES];
 };
 
 struct go2001_ctrl {
@@ -264,7 +268,10 @@ static inline struct go2001_ctx *hw_inst_to_ctx(struct go2001_hw_inst *hw_inst)
 
 static inline bool go2001_has_frame_info(struct go2001_ctx *ctx)
 {
-	return ctx->dst_fmt && ctx->finfo.width != 0;
+	if (ctx->codec_mode == CODEC_MODE_DECODER)
+		return ctx->dst_fmt && ctx->finfo.width != 0;
+	else
+		return ctx->src_fmt && ctx->finfo.width != 0;
 }
 
 static inline struct go2001_ctx *fh_to_ctx(struct v4l2_fh *fh)
@@ -300,6 +307,7 @@ extern unsigned go2001_debug_level;
 #define GO2001_DEF_BITRATE			1000000
 #define GO2001_MAX_FPS				30
 #define GO2001_DEF_RC_ENABLE			1
+#define GO2001_VPX_MACROBLOCK_SIZE		16
 
 #endif /* _MEDIA_PCI_GO2001_GO2001_H_ */
 

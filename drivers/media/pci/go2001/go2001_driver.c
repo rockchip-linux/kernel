@@ -63,10 +63,10 @@ static struct go2001_fmt formats[] = {
 		.num_planes = 1,
 		.hw_format = GO2001_FMT_RGB888,
 		.codec_modes = CODEC_MODE_DECODER | CODEC_MODE_ENCODER,
-		.h_align = 8,
-		.v_align = 8,
-		.plane_bpl = { 32 },
-		.plane_bpp = { 32 },
+		.h_align = 1,
+		.v_align = 1,
+		.plane_row_depth = { 32 },
+		.plane_depth = { 32 },
 	},
 	{
 		.type = FMT_TYPE_RAW,
@@ -75,10 +75,10 @@ static struct go2001_fmt formats[] = {
 		.num_planes = 2,
 		.hw_format = GO2001_FMT_YUV420_SEMIPLANAR,
 		.codec_modes = CODEC_MODE_DECODER | CODEC_MODE_ENCODER,
-		.h_align = 8,
-		.v_align = 8,
-		.plane_bpl = { 8, 4 },
-		.plane_bpp = { 8, 4 },
+		.h_align = 2,
+		.v_align = 2,
+		.plane_row_depth = { 8, 8 },
+		.plane_depth = { 8, 4 },
 	},
 	{
 		.type = FMT_TYPE_RAW,
@@ -87,10 +87,10 @@ static struct go2001_fmt formats[] = {
 		.num_planes = 3,
 		.hw_format = GO2001_FMT_YUV420_PLANAR,
 		.codec_modes = CODEC_MODE_ENCODER,
-		.h_align = 16,
-		.v_align = 16,
-		.plane_bpl = { 8, 2, 2 },
-		.plane_bpp = { 8, 2, 2 },
+		.h_align = 2,
+		.v_align = 2,
+		.plane_row_depth = { 8, 4, 4 },
+		.plane_depth = { 8, 2, 2 },
 	},
 	{
 		.type = FMT_TYPE_CODED,
@@ -173,30 +173,9 @@ static struct go2001_fmt *go2001_find_fmt(struct go2001_ctx *ctx,
 				&& (ctx->codec_mode & formats[i].codec_modes))
 			return &formats[i];
 	}
+
 	go2001_dbg(ctx->gdev, 1, "Unsupported format %d.\n", pixelformat);
 	return NULL;
-}
-
-static void go2001_try_fmt_raw(struct go2001_ctx *ctx, struct go2001_fmt *fmt,
-				struct v4l2_pix_format_mplane *pix_mp)
-{
-	int i;
-
-	pix_mp->width = ALIGN(pix_mp->width, fmt->v_align);
-	pix_mp->height = ALIGN(pix_mp->height, fmt->h_align);
-	pix_mp->num_planes = fmt->num_planes;
-	go2001_dbg(ctx->gdev, 2, "Format %dx%d, %d planes\n",
-			pix_mp->width, pix_mp->height, pix_mp->num_planes);
-
-	for (i = 0;  i < fmt->num_planes; ++i) {
-		pix_mp->plane_fmt[i].bytesperline =
-			(pix_mp->width * fmt->plane_bpl[i]) >> 3;
-		pix_mp->plane_fmt[i].sizeimage = (pix_mp->width * pix_mp->height
-					       * fmt->plane_bpp[i]) >> 3;
-		go2001_dbg(ctx->gdev, 2, "Plane %d: bpl: %d, size: %d\n",
-				i, pix_mp->plane_fmt[i].bytesperline,
-				pix_mp->plane_fmt[i].sizeimage);
-	}
 }
 
 struct vb2_queue *go2001_get_vq(struct go2001_ctx *ctx, enum v4l2_buf_type type)
@@ -928,21 +907,35 @@ static int go2001_handle_release_instance_reply(struct go2001_ctx *ctx)
 	return 0;
 }
 
-static void go2001_calc_finfo(struct go2001_ctx *ctx, struct go2001_fmt *fmt)
+static void go2001_calc_finfo(struct go2001_ctx *ctx, struct go2001_fmt *fmt,
+				struct go2001_frame_info *finfo,
+				 unsigned int width, unsigned int height)
 {
 	int i;
-	struct go2001_frame_info *finfo = &ctx->finfo;
+
+	finfo->width = round_up(width, fmt->h_align);
+	finfo->height = round_up(height, fmt->v_align);
+	finfo->coded_width = round_up(finfo->width, GO2001_VPX_MACROBLOCK_SIZE);
+	finfo->coded_height = round_up(finfo->height,
+					GO2001_VPX_MACROBLOCK_SIZE);
+
+	go2001_dbg(ctx->gdev, 2, "Visible (coded) resolution: %ux%u (%ux%u)\n",
+			finfo->width, finfo->height,
+			finfo->coded_width, finfo->coded_height);
 
 	for (i = 0; i < fmt->num_planes; ++i) {
 		finfo->bytesperline[i] =
-			(finfo->width * fmt->plane_bpp[i]) >> 3;
-		finfo->plane_size[i] =
-			finfo->bytesperline[i] * finfo->height;
+			(finfo->coded_width * fmt->plane_row_depth[i]) / 8;
+		finfo->plane_size[i] = (finfo->coded_width * finfo->coded_height
+				     * fmt->plane_depth[i]) / 8;
+		go2001_dbg(ctx->gdev, 2, "Plane %d: bpl: %u, size: %zu\n",
+				i, finfo->bytesperline[i],
+				finfo->plane_size[i]);
 	}
 }
 
-static void go2001_fill_finfo(struct go2001_ctx *ctx,
-				struct go2001_get_info_reply *finfo_reply)
+static int go2001_handle_new_info(struct go2001_ctx *ctx,
+					struct go2001_get_info_reply *reply)
 {
 	struct go2001_frame_info *finfo = &ctx->finfo;
 	struct go2001_fmt *fmt;
@@ -950,23 +943,29 @@ static void go2001_fill_finfo(struct go2001_ctx *ctx,
 	fmt = (ctx->codec_mode == CODEC_MODE_DECODER) ?
 		ctx->dst_fmt : ctx->src_fmt;
 
-	finfo->width = finfo_reply->frame_width;
-	finfo->height = finfo_reply->frame_height;
-	finfo->coded_width = finfo_reply->coded_width;
-	finfo->coded_height = finfo_reply->coded_height;
-	go2001_calc_finfo(ctx, fmt);
+	go2001_dbg(ctx->gdev, 2, "HW reports new resolution: %ux%u (%ux%u)\n",
+			reply->visible_width, reply->visible_height,
+			reply->coded_width, reply->coded_height);
 
-	go2001_dbg(ctx->gdev, 2, "Codec reports new resolution: %dx%d "
-			"coded size: %dx%d\n", finfo->width, finfo->height,
-			finfo->coded_width, finfo->coded_height);
+	go2001_calc_finfo(ctx, fmt, finfo, reply->visible_width,
+				reply->visible_height);
+
+	if (finfo->width != reply->visible_width
+			|| finfo->height != reply->visible_height
+			|| finfo->coded_width != reply->coded_width
+			|| finfo->coded_height != reply->coded_height) {
+		go2001_err(ctx->gdev, "Invalid resolution from the HW\n");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 static int go2001_handle_get_info_reply(struct go2001_ctx *ctx,
 					struct go2001_msg *msg)
 {
 	struct go2001_get_info_reply *reply = msg_to_param(msg);
-	go2001_fill_finfo(ctx, reply);
-	return 0;
+	return go2001_handle_new_info(ctx, reply);
 }
 
 static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
@@ -1056,7 +1055,8 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 							msg_to_param(msg);
 		WARN_ON(ctx->state != NEED_HEADER_INFO
 				&& ctx->state != RUNNING);
-		go2001_fill_finfo(ctx, &dec_reply->finfo);
+
+		go2001_handle_new_info(ctx, &dec_reply->info);
 		memset(&ev, 0, sizeof(struct v4l2_event));
 		ev.type = V4L2_EVENT_RESOLUTION_CHANGE;
 		v4l2_event_queue_fh(&ctx->v4l2_fh, &ev);
@@ -1329,43 +1329,43 @@ static int go2001_enum_fmt_out(struct file *file, void *fh,
 		return go2001_enum_fmt(ctx->codec_mode, FMT_TYPE_RAW, f);
 }
 
-static void fill_v4l2_format(struct v4l2_format *f, struct go2001_fmt *gfmt,
+static int fill_v4l2_format_raw(struct v4l2_format *f, struct go2001_fmt *gfmt,
 				struct go2001_frame_info *finfo)
 {
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	int i;
 
-	pix_mp->width = finfo->width;
-	pix_mp->height = finfo->height;
+	pix_mp->width = finfo->coded_width;
+	pix_mp->height = finfo->coded_height;
 	pix_mp->pixelformat = gfmt->pixelformat;
 	pix_mp->field = V4L2_FIELD_NONE;
 	pix_mp->num_planes = gfmt->num_planes;
-	for (i = 0; i < pix_mp->num_planes; i++) {
-		pix_mp->plane_fmt[i].sizeimage = finfo->plane_size[i];
+
+	for (i = 0; i < pix_mp->num_planes; ++i) {
 		pix_mp->plane_fmt[i].bytesperline = finfo->bytesperline[i];
+		pix_mp->plane_fmt[i].sizeimage = finfo->plane_size[i];
 	}
+
+	return 0;
 }
 
-static int go2001_dec_g_fmt_out(struct file *file, void *fh,
-				struct v4l2_format *f)
+static void fill_v4l2_format_coded(struct v4l2_format *f,
+				struct go2001_fmt *gfmt, size_t buf_size)
 {
-	struct go2001_ctx *ctx = fh_to_ctx(fh);
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
-	struct go2001_fmt *gfmt;
-
-	gfmt = ctx->src_fmt;
-	if (!gfmt)
-		return -EINVAL;
 
 	pix_mp->width = 0;
 	pix_mp->height = 0;
 	pix_mp->pixelformat = gfmt->pixelformat;
 	pix_mp->field = V4L2_FIELD_NONE;
 	pix_mp->num_planes = 1;
-	pix_mp->plane_fmt[0].sizeimage = ctx->bitstream_buf_size;
 	pix_mp->plane_fmt[0].bytesperline = 0;
-
-	return 0;
+	if (buf_size != 0) {
+		pix_mp->plane_fmt[0].sizeimage = buf_size;
+	} else if (pix_mp->plane_fmt[0].sizeimage == 0) {
+		pix_mp->plane_fmt[0].sizeimage =
+				GO2001_DEF_BITSTREAM_BUFFER_SIZE;
+	}
 }
 
 static int go2001_dec_g_fmt_cap(struct file *file, void *fh,
@@ -1374,26 +1374,52 @@ static int go2001_dec_g_fmt_cap(struct file *file, void *fh,
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
 
 	if (!go2001_has_frame_info(ctx)) {
-		go2001_dbg(ctx->gdev, 1, "Frame format not ready yet\n");
+		go2001_err(ctx->gdev, "Frame info not available yet\n");
 		return -EINVAL;
 	}
 
-	fill_v4l2_format(f, ctx->dst_fmt, &ctx->finfo);
-	return 0;
+	return fill_v4l2_format_raw(f, ctx->dst_fmt, &ctx->finfo);
 }
 
 static int go2001_enc_g_fmt_out(struct file *file, void *fh,
 				struct v4l2_format *f)
 {
-	/* TODO */
-	return -EINVAL;
+	struct go2001_ctx *ctx = fh_to_ctx(fh);
+
+	if (!go2001_has_frame_info(ctx)) {
+		go2001_err(ctx->gdev, "Frame info not available yet\n");
+		return -EINVAL;
+	}
+
+	return fill_v4l2_format_raw(f, ctx->dst_fmt, &ctx->finfo);
+}
+
+static int go2001_dec_g_fmt_out(struct file *file, void *fh,
+				struct v4l2_format *f)
+{
+	struct go2001_ctx *ctx = fh_to_ctx(fh);
+
+	if (!ctx->src_fmt) {
+		go2001_dbg(ctx->gdev, 1, "Format not ready yet\n");
+		return -EINVAL;
+	}
+
+	fill_v4l2_format_coded(f, ctx->src_fmt, ctx->bitstream_buf_size);
+	return 0;
 }
 
 static int go2001_enc_g_fmt_cap(struct file *file, void *fh,
 				struct v4l2_format *f)
 {
-	/* TODO */
-	return -EINVAL;
+	struct go2001_ctx *ctx = fh_to_ctx(fh);
+
+	if (!ctx->dst_fmt) {
+		go2001_dbg(ctx->gdev, 1, "Format not ready yet\n");
+		return -EINVAL;
+	}
+
+	fill_v4l2_format_coded(f, ctx->dst_fmt, ctx->bitstream_buf_size);
+	return 0;
 }
 
 static struct go2001_fmt *__go2001_dec_try_fmt_out(struct file *file, void *fh,
@@ -1407,17 +1433,7 @@ static struct go2001_fmt *__go2001_dec_try_fmt_out(struct file *file, void *fh,
 	if (!fmt || fmt->type != FMT_TYPE_CODED)
 		return NULL;
 
-	pix_mp->width = 0;
-	pix_mp->height = 0;
-	pix_mp->field = V4L2_FIELD_NONE;
-	pix_mp->num_planes = 1;
-	if (pix_mp->plane_fmt[0].sizeimage == 0)
-		pix_mp->plane_fmt[0].sizeimage = ctx->bitstream_buf_size;
-	else
-		ctx->bitstream_buf_size = pix_mp->plane_fmt[0].sizeimage;
-
-	pix_mp->plane_fmt[0].bytesperline = 0;
-
+	fill_v4l2_format_coded(f, fmt, 0);
 	return fmt;
 }
 
@@ -1435,8 +1451,9 @@ static struct go2001_fmt *__go2001_dec_try_fmt_cap(struct file *file, void *fh,
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	struct go2001_fmt *fmt;
 
-	/* S_FMT here only allows setting raw destination format,
-	 * resolution set by parsing.
+	/*
+	 * S_FMT on CAPTURE allows setting destination fourcc only,
+	 * resolution is set after parsing headers and comes from the HW.
 	 */
 	fmt = go2001_find_fmt(ctx, pix_mp->pixelformat);
 	if (!fmt || fmt->type != FMT_TYPE_RAW)
@@ -1453,7 +1470,7 @@ static int go2001_dec_try_fmt_cap(struct file *file, void *fh,
 }
 
 static struct go2001_fmt *__go2001_enc_try_fmt_out(struct file *file, void *fh,
-							struct v4l2_format *f)
+			struct v4l2_format *f, struct go2001_frame_info *finfo)
 
 {
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
@@ -1464,14 +1481,17 @@ static struct go2001_fmt *__go2001_enc_try_fmt_out(struct file *file, void *fh,
 	if (!fmt || fmt->type != FMT_TYPE_RAW)
 		return NULL;
 
-	go2001_try_fmt_raw(ctx, fmt, pix_mp);
+	go2001_calc_finfo(ctx, fmt, finfo, pix_mp->width, pix_mp->height);
+	fill_v4l2_format_raw(f, fmt, finfo);
+
 	return fmt;
 }
 
 static int go2001_enc_try_fmt_out(struct file *file, void *fh,
 					struct v4l2_format *f)
 {
-	struct go2001_fmt *fmt = __go2001_enc_try_fmt_out(file, fh, f);
+	struct go2001_frame_info finfo;
+	struct go2001_fmt *fmt = __go2001_enc_try_fmt_out(file, fh, f, &finfo);
 	return fmt ? 0 : -EINVAL;
 }
 
@@ -1484,6 +1504,8 @@ static struct go2001_fmt *__go2001_enc_try_fmt_cap(struct file *file, void *fh,
 	fmt = go2001_find_fmt(ctx, f->fmt.pix_mp.pixelformat);
 	if (!fmt || fmt->type != FMT_TYPE_CODED)
 		return NULL;
+
+	fill_v4l2_format_coded(f, fmt, 0);
 
 	/* TODO: This should allow setting scaling */
 	return fmt;
@@ -1513,6 +1535,9 @@ static int go2001_dec_s_fmt_out(struct file *file, void *fh,
 		return -EINVAL;
 
 	ctx->src_fmt = fmt;
+	ctx->bitstream_buf_size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
+
+	go2001_dbg(ctx->gdev, 1, "S_FMT on OUTPUT to %s\n", fmt->desc);
 	return 0;
 }
 
@@ -1533,6 +1558,9 @@ static int go2001_dec_s_fmt_cap(struct file *file, void *fh,
 		return -EINVAL;
 
 	ctx->dst_fmt = fmt;
+	memset(&ctx->finfo, 0, sizeof(ctx->finfo));
+
+	go2001_dbg(ctx->gdev, 1, "S_FMT on CAPTURE to %s\n", fmt->desc);
 	return 0;
 }
 
@@ -1540,9 +1568,8 @@ static int go2001_enc_s_fmt_out(struct file *file, void *fh,
 				struct v4l2_format *f)
 {
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
+	struct go2001_frame_info finfo;
 	struct go2001_fmt *fmt;
-	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
-	struct go2001_frame_info *finfo = &ctx->finfo;
 
 	go2001_trace(ctx->gdev);
 	if (ctx->state != UNINITIALIZED) {
@@ -1550,17 +1577,15 @@ static int go2001_enc_s_fmt_out(struct file *file, void *fh,
 		return -EBUSY;
 	}
 
-	fmt = __go2001_enc_try_fmt_out(file, fh, f);
+	fmt = __go2001_enc_try_fmt_out(file, fh, f, &finfo);
 	if (!fmt)
 		return -EINVAL;
 
 	ctx->src_fmt = fmt;
-	/* TODO: crop */
-	finfo->width = pix_mp->width;
-	finfo->height = pix_mp->height;
-	finfo->coded_width = pix_mp->width;
-	finfo->coded_height = pix_mp->height;
-	go2001_calc_finfo(ctx, fmt);
+	ctx->finfo = finfo;
+
+	go2001_dbg(ctx->gdev, 1, "S_FMT on OUTPUT to %s, planes:%d\n",
+			fmt->desc, f->fmt.pix_mp.num_planes);
 	return 0;
 }
 
@@ -1581,14 +1606,44 @@ static int go2001_enc_s_fmt_cap(struct file *file, void *fh,
 		return -EINVAL;
 
 	ctx->dst_fmt = fmt;
+	ctx->bitstream_buf_size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
+
+	go2001_dbg(ctx->gdev, 1, "S_FMT on CAPTURE to %s\n", fmt->desc);
 	return 0;
 }
 
+static int go2001_enc_g_crop(struct file *file, void *fh, struct v4l2_crop *c)
+{
+	struct go2001_ctx *ctx = fh_to_ctx(fh);
+	struct go2001_frame_info *finfo = &ctx->finfo;
+
+	go2001_trace(ctx->gdev);
+	if (!V4L2_TYPE_IS_OUTPUT(c->type)) {
+		go2001_err(ctx->gdev,
+				"G_CROP on CAPTURE for encoder unsupported\n");
+		return -EINVAL;
+	}
+
+	if (!go2001_has_frame_info(ctx)) {
+		go2001_err(ctx->gdev, "Frame info not available yet\n");
+		return -EINVAL;
+	}
+
+	c->c.left = 0;
+	c->c.top = 0;
+	c->c.width = finfo->width;
+	c->c.height = finfo->height;
+	go2001_dbg(ctx->gdev, 2, "Crop: (%d, %d) -> (%u, %u)\n",
+			c->c.left, c->c.top, c->c.width, c->c.height);
+	return 0;
+}
 
 static int go2001_enc_s_crop(struct file *file, void *fh,
 				const struct v4l2_crop *c)
 {
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
+	struct go2001_frame_info *finfo = &ctx->finfo;
+	struct go2001_fmt *fmt;
 
 	go2001_trace(ctx->gdev);
 	if (!V4L2_TYPE_IS_OUTPUT(c->type)) {
@@ -1597,13 +1652,55 @@ static int go2001_enc_s_crop(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	/* TODO */
+	if (!go2001_has_frame_info(ctx)) {
+		go2001_err(ctx->gdev,
+				"Crop must be set after setting format\n");
+		return -EINVAL;
+	}
+
+	fmt = ctx->src_fmt;
+
+	if (c->c.left != 0 || c->c.top != 0 || c->c.width > finfo->coded_width
+			|| c->c.height > finfo->coded_height
+			|| !IS_ALIGNED(c->c.width, fmt->v_align)
+			|| !IS_ALIGNED(c->c.height, fmt->h_align)) {
+		go2001_err(ctx->gdev, "Invalid crop (%d, %d) -> (%u, %u) "
+					"for coded size %ux%u\n",
+				c->c.left, c->c.top, c->c.width, c->c.height,
+				finfo->coded_width, finfo->coded_height);
+		return -EINVAL;
+	}
+
+	finfo->width = c->c.width;
+	finfo->height = c->c.height;
+	go2001_dbg(ctx->gdev, 2, "Visible size set to %ux%u\n",
+			finfo->width, finfo->height);
 	return 0;
 }
 
-static int go2001_enc_g_crop(struct file *file, void *fh, struct v4l2_crop *c)
+static int go2001_dec_g_crop(struct file *file, void *fh, struct v4l2_crop *c)
 {
-	/* TODO */
+	struct go2001_ctx *ctx = fh_to_ctx(fh);
+	struct go2001_frame_info *finfo = &ctx->finfo;
+
+	go2001_trace(ctx->gdev);
+	if (V4L2_TYPE_IS_OUTPUT(c->type)) {
+		go2001_err(ctx->gdev,
+				"G_CROP on OUTPUT for decoder unsupported\n");
+		return -EINVAL;
+	}
+
+	if (!go2001_has_frame_info(ctx)) {
+		go2001_dbg(ctx->gdev, 1, "Frame info not ready\n");
+		return -EINVAL;
+	}
+
+	c->c.left = 0;
+	c->c.top = 0;
+	c->c.width = finfo->width;
+	c->c.height = finfo->height;
+	go2001_dbg(ctx->gdev, 2, "Crop: (%d, %d) -> (%u, %u)\n",
+			c->c.left, c->c.top, c->c.width, c->c.height);
 	return 0;
 }
 
@@ -1852,6 +1949,8 @@ static const struct v4l2_ioctl_ops go2001_ioctl_dec_ops = {
 
 	.vidioc_try_fmt_vid_cap_mplane = go2001_dec_try_fmt_cap,
 	.vidioc_try_fmt_vid_out_mplane = go2001_dec_try_fmt_out,
+
+	.vidioc_g_crop = go2001_dec_g_crop,
 
 	.vidioc_reqbufs = go2001_reqbufs,
 	.vidioc_querybuf = go2001_querybuf,
