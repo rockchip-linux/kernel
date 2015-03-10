@@ -174,13 +174,7 @@ static int img_i2s_in_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		reg &= ~IMG_I2S_IN_CTL_ME_MASK;
 		img_i2s_in_writel(i2s, reg, IMG_I2S_IN_CTL);
-
-		if ((cmd == SNDRV_PCM_TRIGGER_STOP) ||
-				((cmd == SNDRV_PCM_TRIGGER_SUSPEND) &&
-				(!(substream->runtime->info &
-				SNDRV_PCM_INFO_PAUSE))))
-			img_i2s_in_flush(i2s);
-
+		img_i2s_in_flush(i2s);
 		i2s->active = false;
 		break;
 	default:
@@ -386,6 +380,31 @@ static const struct snd_soc_component_driver img_i2s_in_component = {
 	.name = "img-i2s-in"
 };
 
+static int img_i2s_in_dma_prepare_slave_config(struct snd_pcm_substream *st,
+	struct snd_pcm_hw_params *params, struct dma_slave_config *sc)
+{
+	unsigned int i2s_channels = params_channels(params) / 2;
+	struct snd_soc_pcm_runtime *rtd = st->private_data;
+	struct snd_dmaengine_dai_dma_data *dma_data;
+	int ret;
+
+	dma_data = snd_soc_dai_get_dma_data(rtd->cpu_dai, st);
+
+	ret = snd_hwparams_to_dma_slave_config(st, params, sc);
+	if (ret)
+		return ret;
+
+	sc->src_addr = dma_data->addr;
+	sc->src_addr_width = dma_data->addr_width;
+	sc->src_maxburst = 4 * i2s_channels;
+
+	return 0;
+}
+
+static const struct snd_dmaengine_pcm_config img_i2s_in_dma_config = {
+	.prepare_slave_config = img_i2s_in_dma_prepare_slave_config
+};
+
 static int img_i2s_in_probe(struct platform_device *pdev)
 {
 	struct img_i2s_in *i2s;
@@ -432,7 +451,6 @@ static int img_i2s_in_probe(struct platform_device *pdev)
 
 	i2s->dma_data.addr = res->start + IMG_I2S_IN_RX_FIFO;
 	i2s->dma_data.addr_width = 4;
-	i2s->dma_data.maxburst = 1;
 	img_i2s_in_dai.capture.channels_max = i2s->max_i2s_chan * 2;
 
 	rst = devm_reset_control_get(dev, "rst");
@@ -470,7 +488,7 @@ static int img_i2s_in_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_clk_disable;
 
-	ret = devm_snd_dmaengine_pcm_register(dev, NULL, 0);
+	ret = devm_snd_dmaengine_pcm_register(dev, &img_i2s_in_dma_config, 0);
 	if (ret)
 		goto err_clk_disable;
 

@@ -175,12 +175,11 @@ static int img_i2s_out_trigger(struct snd_pcm_substream *substream, int cmd,
 
 	spin_lock_irqsave(&i2s->lock, flags);
 
-	reg = img_i2s_out_readl(i2s, IMG_I2S_OUT_CTL);
-
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		reg = img_i2s_out_readl(i2s, IMG_I2S_OUT_CTL);
 		if (!i2s->force_clk_active)
 			reg |= IMG_I2S_OUT_CTL_CLK_EN_MASK;
 		reg |= IMG_I2S_OUT_CTL_DATA_EN_MASK;
@@ -190,14 +189,12 @@ static int img_i2s_out_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		reg = img_i2s_out_readl(i2s, IMG_I2S_OUT_CTL);
 		if (!i2s->force_clk_active)
 			reg &= ~IMG_I2S_OUT_CTL_CLK_EN_MASK;
 		reg &= ~IMG_I2S_OUT_CTL_DATA_EN_MASK;
 		img_i2s_out_writel(i2s, reg, IMG_I2S_OUT_CTL);
-		if ((cmd == SNDRV_PCM_TRIGGER_STOP) ||
-			((cmd == SNDRV_PCM_TRIGGER_SUSPEND) &&
-			(!(substream->runtime->info & SNDRV_PCM_INFO_PAUSE))))
-				img_i2s_out_flush(i2s);
+		img_i2s_out_flush(i2s);
 		i2s->active = false;
 		break;
 	default:
@@ -416,6 +413,31 @@ static const struct snd_soc_component_driver img_i2s_out_component = {
 	.name = "img-i2s-out"
 };
 
+static int img_i2s_out_dma_prepare_slave_config(struct snd_pcm_substream *st,
+	struct snd_pcm_hw_params *params, struct dma_slave_config *sc)
+{
+	unsigned int i2s_channels = params_channels(params) / 2;
+	struct snd_soc_pcm_runtime *rtd = st->private_data;
+	struct snd_dmaengine_dai_dma_data *dma_data;
+	int ret;
+
+	dma_data = snd_soc_dai_get_dma_data(rtd->cpu_dai, st);
+
+	ret = snd_hwparams_to_dma_slave_config(st, params, sc);
+	if (ret)
+		return ret;
+
+	sc->dst_addr = dma_data->addr;
+	sc->dst_addr_width = dma_data->addr_width;
+	sc->dst_maxburst = 4 * i2s_channels;
+
+	return 0;
+}
+
+static const struct snd_dmaengine_pcm_config img_i2s_out_dma_config = {
+	.prepare_slave_config = img_i2s_out_dma_prepare_slave_config
+};
+
 static int img_i2s_out_probe(struct platform_device *pdev)
 {
 	struct img_i2s_out *i2s;
@@ -502,7 +524,8 @@ static int img_i2s_out_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_suspend;
 
-	ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
+	ret = devm_snd_dmaengine_pcm_register(&pdev->dev,
+			&img_i2s_out_dma_config, 0);
 	if (ret)
 		goto err_suspend;
 
