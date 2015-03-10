@@ -17,10 +17,10 @@
 #include <linux/notifier.h>
 
 /*
- * Changing the dmc rate in sram takes a little under 300us. Use 400us to be
- * safe for calculating timeout.
+ * Time for the dmc set rate to happen in sram. This value is removed from the
+ * pause cpu timeout to prevent screen jank.
  */
-#define DMC_SET_RATE_TIME_NS	(400 * NSEC_PER_USEC)
+#define DMC_SET_RATE_TIME_NS	(500 * NSEC_PER_USEC)
 #define DMC_PAUSE_CPU_TIME_NS	(30 * NSEC_PER_USEC)
 #define DMC_DEFAULT_TIMEOUT_NS	NSEC_PER_SEC
 

@@ -466,12 +466,7 @@ static void ddr_send_command(u32 ch, u32 rank, u32 cmd, u32 arg)
 		continue;
 }
 
-/*
- * ddr data training trigger
- * 0  DTT succeed
- * !0 DTT fail
- */
-static u32 ddr_data_training_trigger(u32 ch)
+static u32 ddr_data_training_prepare(u32 ch)
 {
 	u32 val, cs;
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
@@ -484,23 +479,30 @@ static u32 ddr_data_training_trigger(u32 ch)
 		/* passive window */
 		dmc_io_or((1 << 1), p_phy_reg + DDR_PUBL_PGCR);
 	}
-	/* clear DTDONE status */
-	dmc_io_or(PIR_CLRSR, p_phy_reg + DDR_PUBL_PIR);
 	cs = ((__raw_readl(p_phy_reg + DDR_PUBL_PGCR) >> 18) & 0xf);
 	/* use cs0 dtt */
 	val = __raw_readl(p_phy_reg + DDR_PUBL_PGCR);
 	val = (val & (~(0xf << 18))) | (1 << 18);
 	__raw_writel(val, p_phy_reg + DDR_PUBL_PGCR);
-	/* trigger DTT */
-	val = PIR_INIT | PIR_QSTRN | PIR_LOCKBYP | PIR_ZCALBYP | PIR_CLRSR |
-	      PIR_ICPC;
-	dmc_io_or(val, p_phy_reg + DDR_PUBL_PIR);
+
 	return cs;
 }
 
-static bool ddr_data_training(u32 ch, u32 cs)
+static void ddr_data_training_trigger(u32 ch, u32 step)
 {
-	u32 val, i, byte = 2;
+	u32 val;
+	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
+
+	/* clear DTDONE status */
+	dmc_io_or(PIR_CLRSR, p_phy_reg + DDR_PUBL_PIR);
+	/* trigger DTT */
+	val = step | PIR_INIT | PIR_LOCKBYP | PIR_ZCALBYP | PIR_CLRSR |
+	      PIR_ICPC;
+	dmc_io_or(val, p_phy_reg + DDR_PUBL_PIR);
+}
+
+static bool ddr_data_training(u32 ch)
+{
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
@@ -514,31 +516,44 @@ static bool ddr_data_training(u32 ch, u32 cs)
 			continue;
 		while ((__raw_readl(p_phy_reg + DDR_PUBL_DX3GSR0) & 1) != 1)
 			continue;
-		byte = 4;
 	}
+
+	if (__raw_readl(p_phy_reg + DDR_PUBL_PGSR) &
+	    (PGSR_DTERR | PGSR_RVERR | PGSR_RVEIRR))
+		return false;
+	else
+		return true;
+}
+
+static void ddr_data_training_finish(u32 ch, u32 cs)
+{
+	u32 val, i, len;
+	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
+	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
 	/* restore cs */
 	val = __raw_readl(p_phy_reg + DDR_PUBL_PGCR);
 	val = (val & (~(0xf << 18))) | (cs << 18);
 	__raw_writel(val, p_phy_reg + DDR_PUBL_PGCR);
 
-	for (i = 0; i < byte; i++) {
+	/* copy the trained values from rank0 to rank1 */
+	len = __raw_readl(p_ddr_reg + DDR_PCTL_PPCFG) & 1 ? 2 : 4;
+	for (i = 0; i < len; i++) {
+		/* copy DQS training values */
 		val = __raw_readl(p_phy_reg + DDR_PUBL_DX0DQSTR + i * 0x40);
 		val = (val & (~((0x7 << 3) | (0x3 << 14)))) |
 			((val & 0x7) << 3) | (((val >> 12) & 0x3) << 14);
 		__raw_writel(val, p_phy_reg + DDR_PUBL_DX0DQSTR + i * 0x40);
+		/* copy Read Valid training values */
+		val = __raw_readl(p_phy_reg + DDR_PUBL_DX0GCR + i * 0x40);
+		val = (val & (~(0x7 << 17))) | (((val >> 14) & 0x7) << 17);
+		__raw_writel(val, p_phy_reg + DDR_PUBL_DX0GCR + i * 0x40);
 	}
 
 	/* send some auto refresh to complement the lost while DTT */
-	if (cs > 1) {
+	len = cs > 1 ? 8 : 4;
+	for (i = 0; i < len; i++)
 		ddr_send_command(ch, cs, REF_CMD, 0);
-		ddr_send_command(ch, cs, REF_CMD, 0);
-		ddr_send_command(ch, cs, REF_CMD, 0);
-		ddr_send_command(ch, cs, REF_CMD, 0);
-	} else {
-		ddr_send_command(ch, cs, REF_CMD, 0);
-		ddr_send_command(ch, cs, REF_CMD, 0);
-	}
 
 	if ((ddr_ch[ch].mem_type != LPDDR2) &&
 	    (ddr_ch[ch].mem_type != LPDDR3)) {
@@ -550,10 +565,12 @@ static bool ddr_data_training(u32 ch, u32 cs)
 	__raw_writel(g_ddr_timing.ctl_timing.trefi,
 		     p_ddr_reg + DDR_PCTL_TREFI);
 
-	if (__raw_readl(p_phy_reg + DDR_PUBL_PGSR) & PGSR_DTERR)
-		return false;
-	else
-		return true;
+	/* read the mode register after data training (taken from coreboot) */
+	if (ddr_ch[ch].mem_type == LPDDR3) {
+		__raw_writel(0, p_phy_reg + DDR_PCTL_MRRCFG0);
+		for (i = 0; i < 17; i++)
+			ddr_send_command(ch, 1, MRR_CMD, lpddr2_ma(i));
+	}
 }
 
 static void ddr_set_dll_bypass(u32 ch, u32 freq)
@@ -959,7 +976,7 @@ void dmc_set_rate_in_sram(void *arg)
 	g_dmc_sram.cur_freq = g_dmc_sram.target_freq;
 
 	while (!success) {
-		/* Issues a Mode Exit command */
+		/* Performs data training steps for channels in parallel. */
 		for (ch = 0; ch < CH_MAX; ch++) {
 			ddr_set_dll_bypass(ch, g_dmc_sram.target_freq);
 			ddr_reset_dll(ch);
@@ -969,18 +986,40 @@ void dmc_set_rate_in_sram(void *arg)
 				ddr_update_mr(ch);
 				ddr_update_odt(ch);
 				ddr_adjust_config(ch);
-				cs[ch] = ddr_data_training_trigger(ch);
+				cs[ch] = ddr_data_training_prepare(ch);
+				ddr_data_training_trigger(ch, PIR_QSTRN);
 			}
 		}
 
 		for (ch = 0; ch < CH_MAX; ch++) {
 			if (ddr_ch[ch].mem_type != DRAM_MAX) {
-				success = ddr_data_training(ch, cs[ch]);
-				ddr_move_to_access_state(ch);
+				success = ddr_data_training(ch);
 				if (!success) {
 					retries++;
 					break;
 				}
+				ddr_data_training_trigger(ch, PIR_RVTRN);
+			}
+		}
+		if (!success)
+			continue;
+
+		for (ch = 0; ch < CH_MAX; ch++) {
+			if (ddr_ch[ch].mem_type != DRAM_MAX) {
+				success = ddr_data_training(ch);
+				if (!success) {
+					retries++;
+					break;
+				}
+			}
+		}
+		if (!success)
+			continue;
+
+		for (ch = 0; ch < CH_MAX; ch++) {
+			if (ddr_ch[ch].mem_type != DRAM_MAX) {
+				ddr_data_training_finish(ch, cs[ch]);
+				ddr_move_to_access_state(ch);
 			}
 		}
 	}
