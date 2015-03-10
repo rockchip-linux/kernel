@@ -676,6 +676,7 @@
 		interrupts = <GIC_SHARED 49 IRQ_TYPE_LEVEL_HIGH>;
 		phys = <&usb_phy>;
 		phy-names = "usb2-phy";
+		g-tx-fifo-size = <256 256 256 256>;
 		status = "disabled";
 	};
 
