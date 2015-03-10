@@ -899,6 +899,7 @@ static int rt5677_load_dsp_from_file(struct rt5677_priv *rt5677)
 static int rt5677_set_dsp_vad(struct snd_soc_codec *codec, bool on)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
+	rt5677->dsp_vad_en_request = on;
 	rt5677->dsp_vad_en = on;
 	schedule_delayed_work(&rt5677->dsp_work, 0);
 	return 0;
@@ -987,7 +988,7 @@ static int rt5677_dsp_vad_get(struct snd_kcontrol *kcontrol,
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
-	ucontrol->value.integer.value[0] = rt5677->dsp_vad_en;
+	ucontrol->value.integer.value[0] = rt5677->dsp_vad_en_request;
 
 	return 0;
 }
@@ -4163,9 +4164,25 @@ static int rt5677_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
+		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF &&
+				rt5677->dsp_vad_en_request) {
+			/* Re-enable the DSP if it was turned off at suspend */
+			rt5677->dsp_vad_en = true;
+			/* The delay is to wait for MCLK */
+			schedule_delayed_work(&rt5677->dsp_work,
+					msecs_to_jiffies(1000));
+		}
 		break;
 
 	case SND_SOC_BIAS_OFF:
+		flush_delayed_work(&rt5677->dsp_work);
+		if (rt5677->is_dsp_mode) {
+			/* Turn off the DSP before suspend */
+			rt5677->dsp_vad_en = false;
+			schedule_delayed_work(&rt5677->dsp_work, 0);
+			flush_delayed_work(&rt5677->dsp_work);
+		}
+
 		regmap_update_bits(rt5677->regmap, RT5677_DIG_MISC, 0x1, 0x0);
 		regmap_write(rt5677->regmap, RT5677_PWR_DIG1, 0x0000);
 		regmap_write(rt5677->regmap, RT5677_PWR_DIG2, 0x0000);
@@ -4395,7 +4412,8 @@ int rt5677_poll_gpios(struct snd_soc_codec *codec)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
-	schedule_delayed_work(&rt5677->irq_work, 50);
+	/* The delay is to wait for MCLK */
+	schedule_delayed_work(&rt5677->irq_work, msecs_to_jiffies(1000));
 	return 0;
 }
 EXPORT_SYMBOL(rt5677_poll_gpios);
