@@ -27,7 +27,8 @@
 #include "go2001_hw.h"
 #include "go2001_proto.h"
 
-int go2001_load_fw_image(struct go2001_dev *gdev, const struct firmware *fw,
+static int go2001_load_fw_image(struct go2001_dev *gdev,
+				const struct firmware *fw,
 				void __iomem *ctrl_addr, size_t ctrl_size,
 				void __iomem *load_addr, size_t max_size,
 				u32 entry_addr)
@@ -91,7 +92,7 @@ int go2001_load_fw_image(struct go2001_dev *gdev, const struct firmware *fw,
 	return 0;
 }
 
-int go2001_load_firmware(struct go2001_dev *gdev)
+static int go2001_load_firmware(struct go2001_dev *gdev)
 {
 	resource_size_t ctrl_start, fw_start;
 	const struct firmware *boot_fw = NULL;
@@ -285,7 +286,7 @@ static int go2001_init_ring(struct go2001_dev *gdev,
 	return 0;
 }
 
-int go2001_init_messaging(struct go2001_dev *gdev)
+static int go2001_init_messaging(struct go2001_dev *gdev)
 {
 	int ret = 0;
 
@@ -443,7 +444,7 @@ void go2001_send_pending_locked(struct go2001_dev *gdev)
 	spin_unlock_irqrestore(&r->lock, flags);
 }
 
-void go2001_send_pending(struct go2001_dev *gdev)
+static void go2001_send_pending(struct go2001_dev *gdev)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&gdev->irqlock, flags);
@@ -451,7 +452,7 @@ void go2001_send_pending(struct go2001_dev *gdev)
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 }
 
-u32 go2001_queue_msg_locked(struct go2001_dev *gdev,
+static u32 go2001_queue_msg_locked(struct go2001_dev *gdev,
 			struct go2001_hw_inst *hw_inst, struct go2001_msg *msg)
 {
 	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
@@ -465,7 +466,7 @@ u32 go2001_queue_msg_locked(struct go2001_dev *gdev,
 	return seqid;
 }
 
-u32 go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
+static int go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	unsigned long flags;
@@ -478,10 +479,11 @@ u32 go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 			ctx->hw_inst.session_id, seqid);
 
 	go2001_send_pending(gdev);
-	return seqid;
+	return 0;
 }
 
-u32 go2001_queue_ctrl_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
+static void go2001_queue_ctrl_msg(struct go2001_dev *gdev,
+					struct go2001_msg *msg)
 {
 	unsigned long flags;
 	u32 seqid;
@@ -492,10 +494,10 @@ u32 go2001_queue_ctrl_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
 	go2001_dbg(gdev, 5, "Queued control msg seqid: %d\n", seqid);
 
 	go2001_send_pending(gdev);
-	return seqid;
 }
 
-u32 go2001_queue_init_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
+static void go2001_queue_init_msg(struct go2001_ctx *ctx,
+					struct go2001_msg *msg)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	unsigned long flags;
@@ -514,7 +516,6 @@ u32 go2001_queue_init_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 
 	go2001_send_pending(gdev);
-	return seqid;
 }
 
 int go2001_get_reply(struct go2001_dev *gdev, struct go2001_msg *msg)
@@ -619,7 +620,7 @@ int go2001_wait_for_ctx_done(struct go2001_ctx *ctx)
 					ctx->hw_inst.sequence_id);
 }
 
-int go2001_wait_for_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
+static int go2001_wait_for_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
 {
 	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
 	unsigned long flags;
@@ -637,13 +638,24 @@ int go2001_wait_for_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
 	return ret;
 }
 
-int go2001_init_decoder(struct go2001_ctx *ctx)
+static int go2001_queue_msg_and_wait(struct go2001_ctx *ctx,
+					struct go2001_msg *msg)
+{
+	int ret;
+
+	ret = go2001_queue_msg(ctx, msg);
+	if (ret)
+		return ret;
+
+	return go2001_wait_for_msg(ctx->gdev, msg);
+}
+
+static int go2001_init_decoder(struct go2001_ctx *ctx)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_init_decoder_param *param;
 	struct go2001_msg msg;
 	int ret;
-	u32 seqid;
 
 	if (!ctx->src_fmt) {
 		go2001_err(gdev, "Input format not set\n");
@@ -658,7 +670,7 @@ int go2001_init_decoder(struct go2001_ctx *ctx)
 	param->coded_fmt = ctx->src_fmt->hw_format;
 	param->concealment = 0;
 
-	seqid = go2001_queue_init_msg(ctx, &msg);
+	go2001_queue_init_msg(ctx, &msg);
 	ret = go2001_wait_for_msg(gdev, &msg);
 	if (ret)
 		go2001_err(gdev, "Failed initializing decoder\n");
@@ -668,13 +680,12 @@ int go2001_init_decoder(struct go2001_ctx *ctx)
 	return ret;
 }
 
-int go2001_init_encoder(struct go2001_ctx *ctx)
+static int go2001_init_encoder(struct go2001_ctx *ctx)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_init_encoder_param *param;
 	struct go2001_frame_info *finfo;
 	struct go2001_msg msg;
-	u32 seqid;
 	int ret;
 
 	if (WARN_ON(!ctx->src_fmt || !ctx->dst_fmt
@@ -702,7 +713,7 @@ int go2001_init_encoder(struct go2001_ctx *ctx)
 	param->framerate_denom = ctx->enc_params.framerate_denom;
 	param->raw_fmt = ctx->src_fmt->hw_format;
 
-	seqid = go2001_queue_init_msg(ctx, &msg);
+	go2001_queue_init_msg(ctx, &msg);
 	ret = go2001_wait_for_msg(gdev, &msg);
 	if (ret)
 		go2001_err(gdev, "Failed initializing encoder\n");
@@ -717,13 +728,11 @@ void go2001_release_codec(struct go2001_ctx *ctx)
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_msg msg;
 	unsigned long flags1, flags2;
-	u32 seqid;
 
 	go2001_dbg(gdev, 4, "Releasing codec state %d\n", ctx->state);
 	if (ctx->state != UNINITIALIZED) {
 		prepare_msg(&msg, GO2001_VM_RELEASE, 0);
-		seqid = go2001_queue_msg(ctx, &msg);
-		go2001_wait_for_msg(gdev, &msg);
+		go2001_queue_msg_and_wait(ctx, &msg);
 	}
 	/* Regardless of whether we got a reply or not, clean up. */
 	spin_lock_irqsave(&gdev->irqlock, flags1);
@@ -742,7 +751,6 @@ int go2001_set_dec_raw_fmt(struct go2001_ctx *ctx)
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_dec_set_out_fmt_param *param;
 	struct go2001_msg msg;
-	u32 seqid;
 
 	if (!go2001_has_frame_info(ctx))
 		return -EINVAL;
@@ -757,8 +765,7 @@ int go2001_set_dec_raw_fmt(struct go2001_ctx *ctx)
 	param = msg_to_param(&msg);
 	param->raw_fmt = ctx->dst_fmt->hw_format;
 
-	seqid = go2001_queue_msg(ctx, &msg);
-	return go2001_wait_for_msg(gdev, &msg);
+	return go2001_queue_msg_and_wait(ctx, &msg);
 }
 
 int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
@@ -769,7 +776,6 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	struct vb2_buffer *vb = &buf->vb;
 	struct go2001_dma_desc *dma_desc;
 	struct go2001_msg msg;
-	u32 seqid;
 	unsigned int i;
 	int ret;
 
@@ -801,8 +807,7 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 				DMA_TO_DEVICE);
 	}
 
-	seqid = go2001_queue_msg(ctx, &msg);
-	ret = go2001_wait_for_msg(gdev, &msg);
+	ret = go2001_queue_msg_and_wait(ctx, &msg);
 	if (!ret)
 		buf->mapped = true;
 
@@ -816,7 +821,6 @@ int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	struct vb2_buffer *vb = &buf->vb;
 	struct go2001_msg msg;
 	unsigned int i;
-	int seqid;
 	int ret;
 
 	if (!buf->mapped) {
@@ -840,10 +844,9 @@ int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 				i, buf->dma_desc[i].map_addr);
 	}
 
-	seqid = go2001_queue_msg(ctx, &msg);
-	ret = go2001_wait_for_msg(gdev, &msg);
+	ret = go2001_queue_msg_and_wait(ctx, &msg);
 	if (ret)
-		go2001_err(gdev, "Failed unmapping buffer form HW\n");
+		go2001_err(gdev, "Failed unmapping buffer from HW\n");
 
 	buf->mapped = false;
 
@@ -854,7 +857,6 @@ int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src, bool unmap_dst)
 {
 	struct go2001_release_mmap_param *param;
 	struct go2001_msg msg;
-	u32 seqid;
 
 	if (WARN_ON(!unmap_src && !unmap_dst))
 		return 0;
@@ -864,8 +866,7 @@ int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src, bool unmap_dst)
 	param->dir |= (unmap_src ? GO2001_VSM_DIR_IN : 0);
 	param->dir |= (unmap_dst ? GO2001_VSM_DIR_OUT : 0);
 
-	seqid = go2001_queue_msg(ctx, &msg);
-	return go2001_wait_for_msg(ctx->gdev, &msg);
+	return go2001_queue_msg_and_wait(ctx, &msg);
 }
 
 static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
@@ -1068,27 +1069,25 @@ out:
 	return ret;
 }
 
-int go2001_query_hw_version(struct go2001_dev *gdev)
+static int go2001_query_hw_version(struct go2001_dev *gdev)
 {
 	struct go2001_msg msg;
-	u32 seqid;
 
 	prepare_msg(&msg, GO2001_VM_GET_VERSION, 0);
-	seqid = go2001_queue_ctrl_msg(gdev, &msg);
+	go2001_queue_ctrl_msg(gdev, &msg);
 	return go2001_wait_for_msg(gdev, &msg);
 }
 
-int go2001_set_log_level(struct go2001_dev *gdev, u32 level)
+static int go2001_set_log_level(struct go2001_dev *gdev, u32 level)
 {
 	struct go2001_set_log_level_param *param;
 	struct go2001_msg msg;
-	u32 seqid;
 
 	prepare_msg(&msg, GO2001_VM_SET_LOG_LEVEL, sizeof(*param));
 	param = msg_to_param(&msg);
 	param->level = level;
 
-	seqid = go2001_queue_ctrl_msg(gdev, &msg);
+	go2001_queue_ctrl_msg(gdev, &msg);
 	return go2001_wait_for_msg(gdev, &msg);
 }
 
