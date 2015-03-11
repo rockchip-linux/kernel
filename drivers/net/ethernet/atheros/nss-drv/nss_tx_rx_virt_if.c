@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -222,7 +222,7 @@ void *nss_create_virt_if(struct net_device *netdev)
 	nss_cmn_msg_init(&nvim.cm, if_num, NSS_VIRT_IF_TX_CREATE_MSG,
 			sizeof(struct nss_virt_if_create), NULL, NULL);
 
-	nvic = &nvim.msg.create;
+	nvic = &nvim.msg.if_create;
 	nvic->flags = 0;
 	memcpy(nvic->mac_addr, netdev->dev_addr, ETH_ALEN);
 

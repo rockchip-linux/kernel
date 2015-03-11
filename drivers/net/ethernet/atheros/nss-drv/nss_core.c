@@ -32,8 +32,8 @@
 /*
  * Atomic variables to control jumbo_mru & paged_mode
  */
-atomic_t jumbo_mru;
-atomic_t paged_mode;
+static atomic_t jumbo_mru;
+static atomic_t paged_mode;
 
 /*
  * local structure declarations
@@ -563,7 +563,7 @@ static inline bool nss_core_handle_nr_frag_skb(struct sk_buff **nbuf_ptr, struct
 	dma_unmap_page(NULL, (desc->buffer + desc->payload_offs), desc->payload_len, DMA_FROM_DEVICE);
 
 	/*
-	 * No chain.
+	 * The received frame is not a scattered one.
 	 */
 	if (likely(bit_flags & N2H_BIT_FLAG_FIRST_SEGMENT) && likely(bit_flags & N2H_BIT_FLAG_LAST_SEGMENT)) {
 
@@ -932,11 +932,6 @@ static int32_t nss_core_handle_cause_queue(struct int_ctx_instance *int_ctx, uin
 			dma_unmap_page(NULL, (desc->buffer + desc->payload_offs), desc->payload_len, DMA_TO_DEVICE);
 			goto consume;
 		}
-
-		/*
-		 * TODO: The driver in its current state does not support receiving of scattered packets
-		 * from the driver. This needs to be fixed.
-		 */
 
 		/*
 		 * Check if we are received a paged skb.

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013 - 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -232,13 +232,13 @@ EXPORT_SYMBOL(nss_ipsec_tx_msg);
  * nss_ipsec_tx_buf
  * 	Send data packet for ipsec processing
  */
-nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *os_buf, uint32_t if_num)
+nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *skb, uint32_t if_num)
 {
 	int32_t status;
 	struct nss_ctx_instance *nss_ctx = &nss_top_main.nss[nss_top_main.ipsec_handler_id];
 	uint16_t int_bit = nss_ctx->h2n_desc_rings[NSS_IF_DATA_QUEUE_0].desc_ring.int_bit;
 
-	nss_trace("%p: IPsec If Tx packet, id:%d, data=%p", nss_ctx, if_num, os_buf->data);
+	nss_trace("%p: IPsec If Tx packet, id:%d, data=%p", nss_ctx, if_num, skb->data);
 
 	NSS_VERIFY_CTX_MAGIC(nss_ctx);
 	if (unlikely(nss_ctx->state != NSS_CORE_STATE_INITIALIZED)) {
@@ -246,7 +246,7 @@ nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *os_buf, uint32_t if_num)
 		return NSS_TX_FAILURE_NOT_READY;
 	}
 
-	status = nss_core_send_buffer(nss_ctx, if_num, os_buf, NSS_IF_DATA_QUEUE_0, H2N_BUFFER_PACKET, 0);
+	status = nss_core_send_buffer(nss_ctx, if_num, skb, NSS_IF_DATA_QUEUE_0, H2N_BUFFER_PACKET, 0);
 	if (unlikely(status != NSS_CORE_STATUS_SUCCESS)) {
 		nss_warning("%p: Unable to enqueue 'IPsec If Tx' packet\n", nss_ctx);
 		if (status == NSS_CORE_STATUS_FAILURE_QUEUE) {

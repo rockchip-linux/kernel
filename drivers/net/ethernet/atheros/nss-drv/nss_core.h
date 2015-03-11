@@ -189,12 +189,6 @@
 /* NSS Clock names */
 #define NSS_TCM_SRC_CLK		"nss_tcm_src"
 #define NSS_TCM_CLK		"nss_tcm_clk"
-
-/* NSS core reset/clamp names */
-#define NSS_CORE_CLK_RST_CLAMP	"clkrst_clamp"
-#define NSS_CORE_CLAMP		"clamp"
-#define NSS_CORE_AHB_RESET	"ahb"
-#define NSS_CORE_AXI_RESET	"axi"
 #endif
 
 /*

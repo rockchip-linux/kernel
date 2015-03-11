@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -193,12 +193,12 @@ extern nss_tx_status_t nss_ipsec_tx_msg(struct nss_ctx_instance *nss_ctx, struct
 /**
  * @brief send an IPsec process request
  *
- * @param os_buf Data buffer
+ * @param skb Data buffer
  * @param if_num NSS interface number
  *
  * @return Status
  */
-extern nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *os_buf, uint32_t if_num);
+extern nss_tx_status_t nss_ipsec_tx_buf(struct sk_buff *skb, uint32_t if_num);
 
 /**
  * @brief register a event callback handler with HLOS driver

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -40,8 +40,8 @@ enum nss_sjack_msg_types {
  * @brief sjack configuration message
  */
 struct nss_sjack_configure_msg {
-	int ingress_if_num;		/**< ingress interface if num corrosponding to the sjack device */
-	int egress_if_num;		/**< egress interface if num corrosponding to the sjack device */
+	uint32_t ingress_if_num;	/**< ingress interface if num corrosponding to the sjack device */
+	uint32_t egress_if_num;		/**< egress interface if num corrosponding to the sjack device */
 	uint16_t tunnel_id;             /**< sjack tunnel ID */
 	uint8_t ip_dscp;                /**< DSCP value */
 	uint8_t gre_prio;               /**< GRE priority info */
@@ -53,7 +53,7 @@ struct nss_sjack_configure_msg {
  * @brief sjack uncofigure message
  */
 struct nss_sjack_unconfigure_msg {
-	 int ingress_if_num;		/**< ingress interface if num corrosponding to the sjack device */
+	uint32_t ingress_if_num;		/**< ingress interface if num corrosponding to the sjack device */
 };
 
 /**

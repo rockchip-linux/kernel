@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014 - 2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -71,8 +71,8 @@ struct nss_virt_if_msg {
 	struct nss_cmn_msg cm;				/**> Message Header */
 	union {
 		union nss_if_msgs if_msgs;
-		struct nss_virt_if_create create;	/**> Message: create virt if rule */
-		struct nss_virt_if_destroy destroy;	/**> Message: destroy virt if rule */
+		struct nss_virt_if_create if_create;	/**> Message: create virt if rule */
+		struct nss_virt_if_destroy if_destroy;	/**> Message: destroy virt if rule */
 	} msg;
 };
 
