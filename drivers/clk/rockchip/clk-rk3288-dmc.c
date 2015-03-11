@@ -1067,6 +1067,14 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	}
 
 	local_irq_disable();
+	now = ktime_get();
+	if (ktime_compare(now, timeout) >= 0) {
+		params->set_major_cpu_paused(this_cpu, false);
+		local_irq_enable();
+		dev_err(dmc->dev, "timeout after pausing cpus\n");
+		ret = -ETIMEDOUT;
+		goto out;
+	}
 	dmc_set_rate(dmc);
 	/*
 	 * We don't need this to be protected by disabled irqs, but unpausing
