@@ -356,7 +356,6 @@ static int dw_hdmi_audio_resume(struct device *dev)
 
 	if (hdmi->is_playback_status) {
 		dw_hdmi_audio_set_fmt(hdmi, &hdmi->fmt);
-		hdmi->data.enable(hdmi->data.dw);
 	}
 
 	return 0;
@@ -364,10 +363,6 @@ static int dw_hdmi_audio_resume(struct device *dev)
 
 static int dw_hdmi_audio_suspend(struct device *dev)
 {
-	struct snd_dw_hdmi *hdmi = dev_get_drvdata(dev);
-
-	hdmi->data.disable(hdmi->data.dw);
-
 	return 0;
 }
 #endif
