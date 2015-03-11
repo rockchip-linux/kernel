@@ -510,9 +510,9 @@ static int32_t nss_gmac_set_settings(struct net_device *netdev,
 	phydev->duplex = ecmd->duplex;
 
 	if (ecmd->autoneg == AUTONEG_ENABLE)
-		test_and_set_bit(__NSS_GMAC_AUTONEG, &gmacdev->flags);
+		set_bit(__NSS_GMAC_AUTONEG, &gmacdev->flags);
 	else
-		test_and_clear_bit(__NSS_GMAC_AUTONEG, &gmacdev->flags);
+		clear_bit(__NSS_GMAC_AUTONEG, &gmacdev->flags);
 
 	genphy_config_aneg(phydev);
 

@@ -218,7 +218,7 @@ void nss_gmac_reset_phy(struct nss_gmac_dev *gmacdev, uint32_t phyid)
 			    nss_gmac_mii_rd_reg(gmacdev, phyid, MII_BMCR)
 			    | BMCR_ANENABLE);
 
-	test_and_set_bit(__NSS_GMAC_AUTONEG, &gmacdev->flags);
+	set_bit(__NSS_GMAC_AUTONEG, &gmacdev->flags);
 	netdev_dbg(gmacdev->netdev, "Phy %u reset OK", phyid);
 }
 

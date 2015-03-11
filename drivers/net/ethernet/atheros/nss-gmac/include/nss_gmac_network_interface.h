@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -40,12 +40,12 @@
 #define IOCTL_WRITE_REGISTER	(SIOCDEVPRIVATE + 2)
 
 /* Linux network interface APIs */
-int32_t nss_gmac_linux_xmit_frames(struct sk_buff *skb,
+int32_t nss_gmac_xmit_frames(struct sk_buff *skb,
 				   struct net_device *netdev);
-int32_t nss_gmac_linux_close(struct net_device *netdev);
-int32_t nss_gmac_linux_open(struct net_device *netdev);
-int32_t nss_gmac_linux_change_mtu(struct net_device *netdev, int32_t newmtu);
-void nss_gmac_linux_tx_timeout(struct net_device *netdev);
+int32_t nss_gmac_close(struct net_device *netdev);
+int32_t nss_gmac_open(struct net_device *netdev);
+int32_t nss_gmac_change_mtu(struct net_device *netdev, int32_t newmtu);
+void nss_gmac_tx_timeout(struct net_device *netdev);
 
 /* NSS driver interface APIs */
 void nss_gmac_receive(struct net_device *netdev, struct sk_buff *skb,

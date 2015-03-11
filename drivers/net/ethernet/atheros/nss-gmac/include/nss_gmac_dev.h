@@ -101,7 +101,7 @@ static const uint8_t nss_gmac_driver_string[] =
 	"NSS GMAC Driver for RTL v" NSS_GMAC_RTL_VER;
 static const uint8_t nss_gmac_driver_version[] = "1.0";
 static const uint8_t nss_gmac_copyright[] =
-	"Copyright (c) 2013-2014 The Linux Foundation. All rights reserved.";
+	"Copyright (c) 2013-2015 The Linux Foundation. All rights reserved.";
 
 /**
  * @brief DMA Descriptor Structure

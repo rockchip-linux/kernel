@@ -36,8 +36,8 @@
 /*
  * NSS GMAC status
  */
-#define NSS_GMAC_SUCCESS	0	/* Success */
-#define NSS_GMAC_FAILURE	1	/* Failure */
+#define NSS_GMAC_SUCCESS	0
+#define NSS_GMAC_FAILURE	1
 
 /*
  * NSS GMAC mode

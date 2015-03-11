@@ -290,7 +290,7 @@ void nss_gmac_tx_rx_desc_init(struct nss_gmac_dev *gmacdev)
  * @param[in] pointer to net_device_stats64 structure.
  * @return Returns pointer to net_device_stats64 structure.
  */
-struct rtnl_link_stats64 *nss_gmac_linux_get_stats64(struct net_device *netdev,
+struct rtnl_link_stats64 *nss_gmac_get_stats64(struct net_device *netdev,
 						struct rtnl_link_stats64 *stats)
 {
 	struct nss_gmac_dev *gmacdev = NULL;
@@ -312,7 +312,7 @@ struct rtnl_link_stats64 *nss_gmac_linux_get_stats64(struct net_device *netdev,
  * @param[in] pointer to an address structure.
  * @return Returns 0 on success Error code on failure.
  */
-static int32_t nss_gmac_linux_set_mac_address(struct net_device *netdev,
+static int32_t nss_gmac_set_mac_address(struct net_device *netdev,
 					      void *macaddr)
 {
 	struct nss_gmac_dev *gmacdev = NULL;
@@ -349,7 +349,7 @@ static int32_t nss_gmac_linux_set_mac_address(struct net_device *netdev,
  * @param[in] ioctl command.
  * @return Returns 0 on success Error code on failure.
  */
-static int32_t nss_gmac_linux_do_ioctl(struct net_device *netdev,
+static int32_t nss_gmac_do_ioctl(struct net_device *netdev,
 				       struct ifreq *ifr, int32_t cmd)
 {
 	int32_t retval;
@@ -414,7 +414,7 @@ static int32_t nss_gmac_linux_do_ioctl(struct net_device *netdev,
  * @param[in] pointer to net_device structure.
  * @return Returns void.
  */
-static void nss_gmac_linux_set_rx_mode(struct net_device *netdev)
+static void nss_gmac_set_rx_mode(struct net_device *netdev)
 {
 	struct nss_gmac_dev *gmacdev = NULL;
 
@@ -458,9 +458,9 @@ static int32_t nss_gmac_set_features(struct net_device *netdev,
 
 	if (changed & NETIF_F_RXCSUM) {
 		if (features & NETIF_F_RXCSUM)
-			test_and_set_bit(__NSS_GMAC_RXCSUM, &gmacdev->flags);
+			set_bit(__NSS_GMAC_RXCSUM, &gmacdev->flags);
 		else
-			test_and_clear_bit(__NSS_GMAC_RXCSUM, &gmacdev->flags);
+			clear_bit(__NSS_GMAC_RXCSUM, &gmacdev->flags);
 		nss_gmac_ipc_offload_init(gmacdev);
 	}
 
@@ -482,16 +482,16 @@ static int32_t nss_gmac_set_features(struct net_device *netdev,
  * Netdevice operations
  */
 static const struct net_device_ops nss_gmac_netdev_ops = {
-	.ndo_open = &nss_gmac_linux_open,
-	.ndo_stop = &nss_gmac_linux_close,
-	.ndo_start_xmit = &nss_gmac_linux_xmit_frames,
-	.ndo_get_stats64 = &nss_gmac_linux_get_stats64,
-	.ndo_set_mac_address = &nss_gmac_linux_set_mac_address,
+	.ndo_open = &nss_gmac_open,
+	.ndo_stop = &nss_gmac_close,
+	.ndo_start_xmit = &nss_gmac_xmit_frames,
+	.ndo_get_stats64 = &nss_gmac_get_stats64,
+	.ndo_set_mac_address = &nss_gmac_set_mac_address,
 	.ndo_validate_addr = &eth_validate_addr,
-	.ndo_change_mtu = &nss_gmac_linux_change_mtu,
-	.ndo_do_ioctl = &nss_gmac_linux_do_ioctl,
-	.ndo_tx_timeout = &nss_gmac_linux_tx_timeout,
-	.ndo_set_rx_mode = &nss_gmac_linux_set_rx_mode,
+	.ndo_change_mtu = &nss_gmac_change_mtu,
+	.ndo_do_ioctl = &nss_gmac_do_ioctl,
+	.ndo_tx_timeout = &nss_gmac_tx_timeout,
+	.ndo_set_rx_mode = &nss_gmac_set_rx_mode,
 	.ndo_set_features = &nss_gmac_set_features,
 };
 
@@ -754,7 +754,7 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 		ctx.socver = gmaccfg->socver;
 
 	if (gmaccfg->poll_required) {
-		test_and_set_bit(__NSS_GMAC_LINKPOLL, &gmacdev->flags);
+		set_bit(__NSS_GMAC_LINKPOLL, &gmacdev->flags);
 		gmacdev->drv_flags |= NSS_GMAC_PRIV_FLAG(LINKPOLL);
 	}
 
@@ -987,7 +987,7 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 		gmacdev->phydev = ERR_PTR(-ENODEV);
 	}
 
-	test_and_set_bit(__NSS_GMAC_RXCSUM, &gmacdev->flags);
+	set_bit(__NSS_GMAC_RXCSUM, &gmacdev->flags);
 	nss_gmac_ipc_offload_init(gmacdev);
 
 	/* Register the network interface */
