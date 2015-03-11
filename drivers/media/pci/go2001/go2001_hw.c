@@ -36,6 +36,7 @@ static int go2001_load_fw_image(struct go2001_dev *gdev,
 	struct go2001_boot_hdr hdr;
 	u8 *chksum_ptr;
 	size_t chksum_size;
+	unsigned long flags;
 	u32 reg;
 	int i;
 
@@ -70,6 +71,14 @@ static int go2001_load_fw_image(struct go2001_dev *gdev,
 	reg |= GO2001_FW_STOP_BIT;
 	writel(reg, ctrl_addr + GO2001_FW_STOP);
 
+	/*
+	 * The next interrupt after resuming will be the "firmware loaded"
+	 * interrupt, clear the flag so we handle this on next IRQ.
+	 */
+	spin_lock_irqsave(&gdev->irqlock, flags);
+	gdev->fw_loaded = false;
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
+
 	/* Copy firmware and the header */
 	memcpy_toio(load_addr, fw->data, fw->size);
 	writel(hdr.entry_addr, ctrl_addr + GO2001_FW_HDR_OFF
@@ -100,9 +109,10 @@ static int go2001_load_firmware(struct go2001_dev *gdev)
 	void __iomem *fw_iomem;
 	void __iomem *ctrl_iomem;
 	size_t fw_iomem_size, ctrl_iomem_size;
-	unsigned long flags;
 	int time_spent = 0;
 	int ret;
+
+	init_completion(&gdev->fw_completion);
 
 	ctrl_start = pci_resource_start(gdev->pdev, 2);
 	ctrl_iomem_size = pci_resource_len(gdev->pdev, 2);
@@ -198,11 +208,7 @@ static int go2001_load_firmware(struct go2001_dev *gdev)
 		goto out_release_fw;
 	}
 
-	spin_lock_irqsave(&gdev->irqlock, flags);
-	gdev->fw_loaded = true;
-	spin_unlock_irqrestore(&gdev->irqlock, flags);
 	go2001_dbg(gdev, 1, "Firmware %s loaded\n", GO2001_FW_NAME);
-
 out_release_fw:
 	release_firmware(fw);
 out_release_boot_fw:
@@ -385,6 +391,21 @@ static struct go2001_msg *go2001_get_pending_msg_locked(struct go2001_dev *gdev)
 	return msg;
 }
 
+static void go2001_drop_pending_locked(struct go2001_dev *gdev)
+{
+	struct go2001_hw_inst *hw_inst;
+
+	assert_spin_locked(&gdev->irqlock);
+	list_for_each_entry(hw_inst, &gdev->inst_list, inst_entry) {
+		/*
+		 * It's fine to just clear the list, the msg memory belongs
+		 * to struct go2001_ctx and will be reclaimed when cleaning
+		 * up each instance.
+		 */
+		INIT_LIST_HEAD(&hw_inst->pending_list);
+	}
+}
+
 static void go2001_print_msg(struct go2001_dev *gdev, struct go2001_msg *msg,
 			const char *prefix)
 {
@@ -440,6 +461,12 @@ void go2001_send_pending_locked(struct go2001_dev *gdev)
 
 		iowrite32(desc->wr_off, r->desc_iomem
 			  + offsetof(struct go2001_msg_ring_desc, wr_off));
+
+		if (gdev->msgs_in_flight == 0) {
+			schedule_delayed_work(&gdev->watchdog_work,
+				msecs_to_jiffies(GO2001_WATCHDOG_TIMEOUT_MS));
+		}
+		++gdev->msgs_in_flight;
 	}
 	spin_unlock_irqrestore(&r->lock, flags);
 }
@@ -471,6 +498,12 @@ static int go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 	struct go2001_dev *gdev = ctx->gdev;
 	unsigned long flags;
 	u32 seqid;
+
+	if (ctx->state == ERROR) {
+		go2001_err(gdev, "Not queueing, instance %p in error state\n",
+				ctx);
+		return -EIO;
+	}
 
 	spin_lock_irqsave(&gdev->irqlock, flags);
 	seqid = go2001_queue_msg_locked(gdev, &ctx->hw_inst, msg);
@@ -516,6 +549,14 @@ static void go2001_queue_init_msg(struct go2001_ctx *ctx,
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 
 	go2001_send_pending(gdev);
+}
+
+void go2001_cancel_all_msgs_locked(struct go2001_dev *gdev)
+{
+
+	assert_spin_locked(&gdev->irqlock);
+	go2001_drop_pending_locked(gdev);
+	gdev->msgs_in_flight = 0;
 }
 
 int go2001_get_reply(struct go2001_dev *gdev, struct go2001_msg *msg)

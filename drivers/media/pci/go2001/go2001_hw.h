@@ -43,6 +43,7 @@ int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src,
 int go2001_schedule_frames(struct go2001_ctx *ctx);
 int go2001_wait_for_ctx_done(struct go2001_ctx *ctx);
 void go2001_send_pending_locked(struct go2001_dev *gdev);
+void go2001_cancel_all_msgs_locked(struct go2001_dev *gdev);
 
 void go2001_init_hw_inst(struct go2001_hw_inst *inst, u32 inst_id);
 void go2001_release_hw_inst(struct go2001_hw_inst *inst);

@@ -55,6 +55,22 @@ static void go2001_ctx_error(struct go2001_ctx *ctx)
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 }
 
+static void go2001_cleanup_queue(struct go2001_ctx *ctx,
+					struct list_head *buf_list)
+{
+	struct go2001_buffer *buf, *buf_tmp;
+	int i;
+
+	assert_spin_locked(&ctx->qlock);
+
+	list_for_each_entry_safe(buf, buf_tmp, buf_list, list) {
+		list_del(&buf->list);
+		for (i = 0; i < buf->vb.num_planes; ++i)
+			vb2_set_plane_payload(&buf->vb, i, 0);
+		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+	}
+}
+
 static struct go2001_fmt formats[] = {
 	{
 		.type = FMT_TYPE_RAW,
@@ -444,6 +460,11 @@ static int go2001_start_streaming(struct vb2_queue *q, unsigned int count)
 
 	go2001_trace(ctx->gdev);
 
+	if (ctx->state == ERROR) {
+		go2001_err(ctx->gdev, "Instance %p in error state\n", ctx);
+		return -EIO;
+	}
+
 	if (!V4L2_TYPE_IS_OUTPUT(q->type))
 		return 0;
 
@@ -464,16 +485,13 @@ static int go2001_start_streaming(struct vb2_queue *q, unsigned int count)
 static void go2001_stop_streaming(struct vb2_queue *q)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(q);
-	bool is_src = V4L2_TYPE_IS_OUTPUT(q->type);
-	struct list_head *buf_list;
-	struct go2001_buffer *buf, *buf_tmp;
 	unsigned long flags;
-	int i;
 
 	go2001_trace(ctx->gdev);
 
 	spin_lock_irqsave(&ctx->qlock, flags);
-	ctx->state = PAUSED;
+	if (ctx->state == RUNNING)
+		ctx->state = PAUSED;
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
 	go2001_wait_for_ctx_done(ctx);
@@ -481,13 +499,8 @@ static void go2001_stop_streaming(struct vb2_queue *q)
 	spin_lock_irqsave(&ctx->qlock, flags);
 	WARN_ON(ctx->job.src_buf || ctx->job.dst_buf);
 
-	buf_list = is_src ? &ctx->src_buf_q : &ctx->dst_buf_q;
-	list_for_each_entry_safe(buf, buf_tmp, buf_list, list) {
-		list_del(&buf->list);
-		for (i = 0; i < buf->vb.num_planes; ++i)
-			vb2_set_plane_payload(&buf->vb, i, 0);
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
-	}
+	go2001_cleanup_queue(ctx, V4L2_TYPE_IS_OUTPUT(q->type) ?
+				&ctx->src_buf_q : &ctx->dst_buf_q);
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
 	vb2_wait_for_all_buffers(q);
@@ -1129,11 +1142,26 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	int ret = 0;
 
 	hw_inst = find_hw_inst_by_id_locked(gdev, hdr->session_id);
-	if (!hw_inst && hdr->type != GO2001_VM_EVENT_LOG
-			&& hdr->type != GO2001_VM_EVENT_ASSERT) {
+	if (!hw_inst) {
 		go2001_err(gdev, "Got reply for an invalid instance id %d\n",
 				hdr->session_id);
 		return -EIO;
+	}
+
+	if (hdr->type != GO2001_VM_EVENT_ASSERT
+			&& hdr->type != GO2001_VM_EVENT_LOG) {
+		if (WARN_ON(gdev->msgs_in_flight == 0)) {
+			go2001_err(gdev,
+					"Unexpected reply without a request\n");
+			return -EIO;
+		}
+
+		cancel_delayed_work(&gdev->watchdog_work);
+		--gdev->msgs_in_flight;
+		if (gdev->msgs_in_flight > 0) {
+			schedule_delayed_work(&gdev->watchdog_work,
+				msecs_to_jiffies(GO2001_WATCHDOG_TIMEOUT_MS));
+		}
 	}
 
 	hw_inst->last_reply_seq_id = hdr->sequence_id;
@@ -1242,6 +1270,42 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	return 0;
 }
 
+static void go2001_watchdog(struct work_struct *work)
+{
+	struct go2001_dev *gdev = container_of(to_delayed_work(work),
+					struct go2001_dev, watchdog_work);
+	struct go2001_ctx *ctx;
+	unsigned long flags1, flags2;
+	int ret;
+
+	go2001_err(gdev, "Watchdog resetting firmware\n");
+
+	mutex_lock(&gdev->lock);
+
+	spin_lock_irqsave(&gdev->irqlock, flags1);
+
+	go2001_cancel_all_msgs_locked(gdev);
+
+	list_for_each_entry(ctx, &gdev->ctx_list, ctx_entry) {
+		spin_lock_irqsave(&ctx->qlock, flags2);
+		ctx->state = ERROR;
+		memset(&ctx->job, 0, sizeof(struct go2001_job));
+		go2001_cleanup_queue(ctx, &ctx->src_buf_q);
+		go2001_cleanup_queue(ctx, &ctx->dst_buf_q);
+		spin_unlock_irqrestore(&ctx->qlock, flags2);
+	}
+
+	spin_unlock_irqrestore(&gdev->irqlock, flags1);
+
+	ret = go2001_init(gdev);
+	if (ret) {
+		gdev->initialized = false;
+		go2001_err(gdev, "Failed resetting firmware\n");
+	}
+
+	mutex_unlock(&gdev->lock);
+}
+
 static irqreturn_t go2001_irq(int irq, void *priv)
 {
 	struct go2001_dev *gdev = priv;
@@ -1252,6 +1316,7 @@ static irqreturn_t go2001_irq(int irq, void *priv)
 	spin_lock_irqsave(&gdev->irqlock, flags);
 
 	if (unlikely(!gdev->fw_loaded)) {
+		gdev->fw_loaded = true;
 		complete(&gdev->fw_completion);
 		goto out;
 	}
@@ -1883,6 +1948,12 @@ static int go2001_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	struct go2001_ctx *ctx = fh_to_ctx(file->private_data);
 	struct vb2_queue *vq = go2001_get_vq(ctx, b->type);
 
+	if (ctx->state == ERROR) {
+		go2001_err(ctx->gdev,
+				"Context %p in error state on qbuf\n", ctx);
+		return -EIO;
+	}
+
 	return vb2_qbuf(vq, b);
 }
 
@@ -2041,6 +2112,7 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	gdev->curr_hw_inst = &gdev->ctrl_inst;
 	init_waitqueue_head(&gdev->reply_wq);
 	init_completion(&gdev->fw_completion);
+	INIT_DELAYED_WORK(&gdev->watchdog_work, go2001_watchdog);
 
 	gdev->alloc_ctx = vb2_dma_sg_init_ctx(&pdev->dev);
 	if (IS_ERR(gdev->alloc_ctx))

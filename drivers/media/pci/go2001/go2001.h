@@ -102,6 +102,9 @@ struct go2001_dev {
 	struct completion fw_completion;
 	/* Protected by irqlock */
 	bool fw_loaded;
+	int msgs_in_flight;
+	struct delayed_work watchdog_work;
+
 	/* Protected by lock */
 	bool initialized;
 };
@@ -164,6 +167,7 @@ struct go2001_frame_info {
 };
 
 #define GO2001_REPLY_TIMEOUT_MS	2000
+#define GO2001_WATCHDOG_TIMEOUT_MS	3000
 
 struct go2001_dma_desc {
 	/* DMA address of the map list */
