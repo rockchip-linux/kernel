@@ -182,4 +182,6 @@ source "drivers/rkflash/Kconfig"
 
 source "drivers/rk_nand/Kconfig"
 
+source "drivers/tee/Kconfig"
+
 endmenu
