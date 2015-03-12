@@ -47,6 +47,7 @@
 #include <linux/workqueue.h>
 #include <linux/blkdev.h>
 #include <linux/hdreg.h>
+#include <linux/idr.h>
 #include <asm/div64.h>
 
 #include "ubi-media.h"
@@ -376,6 +377,8 @@ static const struct block_device_operations ubiblock_ops = {
 	.getgeo	= ubiblock_getgeo,
 };
 
+static DEFINE_IDR(ubiblock_minor_idr);
+
 int ubiblock_create(struct ubi_volume_info *vi)
 {
 	struct ubiblock *dev;
@@ -413,7 +416,14 @@ int ubiblock_create(struct ubi_volume_info *vi)
 
 	gd->fops = &ubiblock_ops;
 	gd->major = ubiblock_major;
-	gd->first_minor = dev->ubi_num * UBI_MAX_VOLUMES + dev->vol_id;
+	gd->first_minor = idr_alloc(&ubiblock_minor_idr, dev, 0, 0, GFP_KERNEL);
+	if (gd->first_minor < 0) {
+		dev_err(disk_to_dev(gd),
+			"block: dynamic minor allocation failed, err=%d",
+			gd->first_minor);
+		ret = gd->first_minor;
+		goto out_remove_minor;
+	}
 	gd->private_data = dev;
 	sprintf(gd->disk_name, "ubiblock%d_%d", dev->ubi_num, dev->vol_id);
 	set_capacity(gd, disk_capacity);
@@ -453,6 +463,8 @@ int ubiblock_create(struct ubi_volume_info *vi)
 
 out_free_queue:
 	blk_cleanup_queue(dev->rq);
+out_remove_minor:
+	idr_remove(&ubiblock_minor_idr, gd->first_minor);
 out_put_disk:
 	put_disk(dev->gd);
 out_free_dev:
@@ -465,6 +477,7 @@ static void ubiblock_cleanup(struct ubiblock *dev)
 {
 	del_gendisk(dev->gd);
 	blk_cleanup_queue(dev->rq);
+	idr_remove(&ubiblock_minor_idr, dev->gd->first_minor);
 	ubi_msg("%s released", dev->gd->disk_name);
 	put_disk(dev->gd);
 }
