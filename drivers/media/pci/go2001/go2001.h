@@ -191,6 +191,8 @@ struct go2001_enc_params {
 	u32 framerate_denom;
 	bool rc_enable;
 	bool request_keyframe;
+	bool multi_ref_frame_mode;
+	u32 frames_since_intra;
 };
 
 enum go2001_enc_param_change_bit {

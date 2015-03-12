@@ -1646,6 +1646,10 @@ static int go2001_enc_s_fmt_out(struct file *file, void *fh,
 	if (!fmt)
 		return -EINVAL;
 
+	/* At 1280x720 and below go2001 can do three reference frames. */
+	ctx->enc_params.multi_ref_frame_mode =
+		finfo.width * finfo.height <= 1280 * 720;
+
 	ctx->src_fmt = fmt;
 	ctx->finfo = finfo;
 

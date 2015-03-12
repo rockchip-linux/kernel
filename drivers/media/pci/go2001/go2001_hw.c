@@ -781,7 +781,7 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 	finfo = &ctx->finfo;
 
 	param->session_id = 0;
-	param->num_ref_frames = 1;
+	param->num_ref_frames = ctx->enc_params.multi_ref_frame_mode ? 1 : 3;
 	param->width = finfo->width;
 	param->height = finfo->height;
 	param->orig_width = finfo->width;
@@ -1038,10 +1038,13 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 	WARN_ON(!IS_ALIGNED(param->out_addr, 8));
 
 	go2001_update_enc_params(ctx, &src_buf->rt_enc_params);
-	param->frame_type = ctx->enc_params.request_keyframe
-			  ? GO2001_EMPTY_BUF_ENC_FRAME_KEYFRAME
-			  : GO2001_EMPTY_BUF_ENC_FRAME_PRED;
-	ctx->enc_params.request_keyframe = false;
+	if (ctx->enc_params.request_keyframe) {
+		param->frame_type = GO2001_EMPTY_BUF_ENC_FRAME_KEYFRAME;
+		ctx->enc_params.frames_since_intra = 0;
+		ctx->enc_params.request_keyframe = false;
+	} else {
+		param->frame_type = GO2001_EMPTY_BUF_ENC_FRAME_PRED;
+	}
 
 	if (WARN_ON(ctx->enc_params.framerate_num == 0))
 		return -EINVAL;
@@ -1049,9 +1052,24 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 	param->bits_per_sec = ctx->enc_params.bitrate;
 	ctx->enc_params.bitrate = 0;
 
-	param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
-	param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
-	param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
+	if (!ctx->enc_params.multi_ref_frame_mode ||
+	    ctx->enc_params.frames_since_intra % 4 == 0) {
+		/* Frame controls for temporal layer 0. */
+		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+		param->grf_frame_ctrl = GO2001_FRM_CTRL_NO_REFRESH;
+		param->arf_frame_ctrl = GO2001_FRM_CTRL_NO_REFRESH;
+	} else if (ctx->enc_params.frames_since_intra % 2 == 0) {
+		/* Frame controls for temporal layer 1. */
+		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
+		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+		param->arf_frame_ctrl = GO2001_FRM_CTRL_NO_REFRESH;
+	} else {
+		/* Frame controls for temporal layer 2. */
+		param->ipf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
+		param->grf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE;
+		param->arf_frame_ctrl = GO2001_FRM_CTRL_REFERENCE_AND_REFRESH;
+	}
+	ctx->enc_params.frames_since_intra++;
 
 	return 0;
 }
