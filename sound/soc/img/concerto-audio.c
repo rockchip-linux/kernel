@@ -316,9 +316,11 @@ static unsigned int concerto_count_of_codecs(struct device_node *node)
 static int concerto_parse_of_codecs(struct concerto_audio_card *cc,
 				    struct device_node *node,
 				    struct snd_soc_dai_link *link,
-				    struct concerto_codec_config **configs)
+				    struct concerto_codec_config **configs,
+				    bool codec_master)
 {
 	unsigned int i, num_codecs;
+	bool found = !codec_master;
 
 	num_codecs = concerto_count_of_codecs(node);
 	if (num_codecs == 0)
@@ -354,6 +356,17 @@ static int concerto_parse_of_codecs(struct concerto_audio_card *cc,
 		conf->np = codec_dai;
 		conf->fmt = snd_soc_of_parse_daifmt(codec, NULL, NULL, NULL);
 		of_property_read_string(codec, "name", &conf->name);
+		/* Ensure there is only one clock master. */
+		if ((conf->fmt & SND_SOC_DAIFMT_MASTER_MASK) ==
+		    SND_SOC_DAIFMT_CBM_CFM) {
+			if (found) {
+				dev_err(cc->card.dev,
+					"Multiple clock masters specified\n");
+				return -EINVAL;
+			} else {
+				found = true;
+			}
+		}
 	}
 
 	return 0;
@@ -364,6 +377,7 @@ static int concerto_parse_of_i2s_out(struct concerto_audio_card *cc,
 				     struct snd_soc_dai_link *link)
 {
 	struct device_node *cpu, *cpu_dai;
+	bool codec_master;
 	unsigned int fmt;
 	int ret;
 
@@ -382,17 +396,20 @@ static int concerto_parse_of_i2s_out(struct concerto_audio_card *cc,
 	case SND_SOC_DAIFMT_CBM_CFM:
 		cc->i2s_out_fmt = (fmt & ~SND_SOC_DAIFMT_MASTER_MASK) |
 			SND_SOC_DAIFMT_CBS_CFS;
+		codec_master = false;
 		break;
 	case SND_SOC_DAIFMT_CBS_CFS:
 		cc->i2s_out_fmt = (fmt & ~SND_SOC_DAIFMT_MASTER_MASK) |
 			SND_SOC_DAIFMT_CBM_CFM;
+		codec_master = true;
 		break;
 	default:
 		dev_err(cc->card.dev, "Invalid i2s-out format: %x\n", fmt);
 		return -EINVAL;
 	}
 
-	ret = concerto_parse_of_codecs(cc, node, link, &cc->i2s_out_codecs);
+	ret = concerto_parse_of_codecs(cc, node, link, &cc->i2s_out_codecs,
+				       codec_master);
 	if (ret < 0)
 		return ret;
 	if (link->num_codecs == 0) {
@@ -431,7 +448,8 @@ static int concerto_parse_of_i2s_in(struct concerto_audio_card *cc,
 	cc->loopback_i2s_clk = of_property_read_bool(cpu,
 						     "img,i2s-clock-loopback");
 
-	ret = concerto_parse_of_codecs(cc, node, link, &cc->i2s_in_codecs);
+	ret = concerto_parse_of_codecs(cc, node, link, &cc->i2s_in_codecs,
+				       !cc->loopback_i2s_clk);
 	if (ret < 0)
 		return ret;
 	if (link->num_codecs == 0) {
