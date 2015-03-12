@@ -721,6 +721,42 @@ static int go2001_init_decoder(struct go2001_ctx *ctx)
 	return ret;
 }
 
+static int go2001_s_ctrl(struct go2001_ctx *ctx, enum go2001_hw_ctrl_type type,
+				union go2001_hw_ctrl *ctrl)
+{
+	struct go2001_set_ctrl_param *param;
+	struct go2001_msg msg;
+
+	prepare_msg(&msg, GO2001_VM_SET_CTRL, sizeof(*param));
+	param = msg_to_param(&msg);
+	param->type = type;
+
+	memcpy(&param->ctrl, ctrl, sizeof(*ctrl));
+
+	return go2001_queue_msg_and_wait(ctx, &msg);
+}
+
+static int go2001_set_def_encoder_ctrls(struct go2001_ctx *ctx)
+{
+	union go2001_hw_ctrl hw_ctrl;
+	struct go2001_enc_coding_ctrl *ctrl = &hw_ctrl.coding_ctrl;
+
+	memset(&hw_ctrl, 0, sizeof(hw_ctrl));
+	ctrl->interp_filter_type = GO2001_CODING_CTRL_INTERP_FILTER_BICUBIC;
+	ctrl->deblock_filter_type = GO2001_CODING_CTRL_DEBLOCK_FILTER_NORMAL;
+	ctrl->deblock_filter_level = 64;
+	ctrl->deblock_filter_sharpness = 8;
+	ctrl->num_dct_parts = 1;
+	ctrl->error_resilient = 1;
+	ctrl->split_mv = GO2001_CODING_CTRL_MV_ADAPTIVE;
+	ctrl->quarter_pixel_mv = GO2001_CODING_CTRL_MV_ADAPTIVE;
+	ctrl->deadzone_enabled = 1;
+	ctrl->max_num_passes = 1;
+	ctrl->quality_metric = GO2001_CODING_CTRL_QM_SSIM;
+
+	return go2001_s_ctrl(ctx, GO2001_HW_CTRL_TYPE_CODING, &hw_ctrl);
+}
+
 static int go2001_init_encoder(struct go2001_ctx *ctx)
 {
 	struct go2001_dev *gdev = ctx->gdev;
@@ -756,12 +792,14 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 
 	go2001_queue_init_msg(ctx, &msg);
 	ret = go2001_wait_for_msg(gdev, &msg);
-	if (ret)
+	if (ret) {
 		go2001_err(gdev, "Failed initializing encoder\n");
-	else
-		ctx->state = INITIALIZED;
+		return ret;
+	}
 
-	return ret;
+	ctx->state = INITIALIZED;
+
+	return go2001_set_def_encoder_ctrls(ctx);
 }
 
 void go2001_release_codec(struct go2001_ctx *ctx)

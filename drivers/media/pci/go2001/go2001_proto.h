@@ -163,6 +163,77 @@ struct go2001_get_version_reply {
 	u32 vp9dec_sw_ver;
 } __attribute__((packed));
 
+struct go2001_enc_coding_ctrl_area {
+	u32 enabled;
+	u32 top;
+	u32 left;
+	u32 bottom;
+	u32 right;
+} __attribute__((packed));
+
+#define GO2001_CODING_CTRL_INTERP_FILTER_BICUBIC	0x0
+#define GO2001_CODING_CTRL_INTERP_FILTER_BILINEAR	0x1
+#define GO2001_CODING_CTRL_INTERP_FILTER_NONE		0x2
+
+#define GO2001_CODING_CTRL_DEBLOCK_FILTER_NORMAL	0x0
+#define GO2001_CODING_CTRL_DEBLOCK_FILTER_SIMPLE	0x1
+
+#define GO2001_CODING_CTRL_MV_DISABLED		0x0
+#define GO2001_CODING_CTRL_MV_ADAPTIVE		0x1
+#define GO2001_CODING_CTRL_MV_ENABLED		0x2
+
+#define GO2001_CODING_CTRL_QM_PSNR	0x0
+#define GO2001_CODING_CTRL_QM_SSIM	0x1
+struct go2001_enc_coding_ctrl {
+	u32 interp_filter_type;
+	u32 deblock_filter_type;
+	u32 deblock_filter_level;
+	u32 deblock_filter_sharpness;
+	u32 num_dct_parts;
+	u32 error_resilient;
+	u32 split_mv;
+	u32 quarter_pixel_mv;
+	u32 cir_start;
+	u32 cir_interval;
+	struct go2001_enc_coding_ctrl_area intra_area;
+	struct go2001_enc_coding_ctrl_area roi1_area;
+	struct go2001_enc_coding_ctrl_area roi2_area;
+	s32 roi1_delta_qp;
+	s32 roi2_delta_qp;
+	u32 deadzone_enabled;
+	u32 max_num_passes;
+	u32 quality_metric;
+	s32 qp_delta[5];
+	s32 adaptive_roi;
+	s32 adaptive_roi_color;
+} __attribute__((packed));
+
+struct go2001_enc_rate_ctrl {
+} __attribute__((packed));
+
+struct go2001_enc_preprocess_ctrl {
+} __attribute__((packed));
+
+enum go2001_hw_ctrl_type {
+	GO2001_HW_CTRL_TYPE_RATE = 1,
+	GO2001_HW_CTRL_TYPE_CODING = 2,
+	GO2001_HW_CTRL_TYPE_PREPROCESS = 3,
+};
+
+union go2001_hw_ctrl {
+	struct go2001_enc_rate_ctrl rate_ctrl;
+	struct go2001_enc_coding_ctrl coding_ctrl;
+	struct go2001_enc_preprocess_ctrl prep_ctrl;
+} __attribute__((packed));;
+
+struct go2001_set_ctrl_param {
+	u32 type;
+	union go2001_hw_ctrl ctrl;
+} __attribute__((packed));
+
+struct go2001_set_ctrl_reply {
+} __attribute__((packed));
+
 #define G02001_EMPTY_BUF_DEC_FLAG_RES_CHANGE_DONE	0x1
 struct go2001_empty_buffer_dec_param {
 	u64 in_addr;
