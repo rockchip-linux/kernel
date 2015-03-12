@@ -1232,15 +1232,6 @@ static int pistachio_gpio_direction_output(struct gpio_chip *chip,
 	return 0;
 }
 
-static unsigned int pistachio_gpio_irq_startup(struct irq_data *data)
-{
-	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
-
-	pistachio_gpio_direction_input(chip, data->hwirq);
-
-	return 0;
-}
-
 static void pistachio_gpio_irq_ack(struct irq_data *data)
 {
 	struct pistachio_gpio_bank *bank = irqd_to_bank(data);
@@ -1260,6 +1251,16 @@ static void pistachio_gpio_irq_unmask(struct irq_data *data)
 	struct pistachio_gpio_bank *bank = irqd_to_bank(data);
 
 	gpio_mask_writel(bank, GPIO_INTERRUPT_EN, data->hwirq, 1);
+}
+
+static unsigned int pistachio_gpio_irq_startup(struct irq_data *data)
+{
+	struct gpio_chip *chip = irq_data_get_irq_chip_data(data);
+
+	pistachio_gpio_direction_input(chip, data->hwirq);
+	pistachio_gpio_irq_unmask(data);
+
+	return 0;
 }
 
 static int pistachio_gpio_irq_set_type(struct irq_data *data, unsigned int type)
