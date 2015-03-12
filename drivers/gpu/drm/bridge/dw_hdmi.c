@@ -1364,6 +1364,16 @@ static void hdmi_disable_overflow_interrupts(struct dw_hdmi *hdmi)
 		    HDMI_IH_MUTE_FC_STAT2);
 }
 
+static void hdmi_set_avmute(struct dw_hdmi *hdmi)
+{
+	hdmi_writeb(hdmi, HDMI_FC_GCP_SET_AVMUTE, HDMI_FC_GCP);
+}
+
+static void hdmi_clear_avmute(struct dw_hdmi *hdmi)
+{
+	hdmi_writeb(hdmi, HDMI_FC_GCP_CLEAR_AVMUTE, HDMI_FC_GCP);
+}
+
 static void hdmi_audio_fifo_reset(struct dw_hdmi *hdmi)
 {
 	hdmi_writeb(hdmi, (u8)~HDMI_MC_SWRSTZ_II2SSWRST_REQ, HDMI_MC_SWRSTZ);
@@ -1377,6 +1387,8 @@ static void hdmi_audio_fifo_reset(struct dw_hdmi *hdmi)
 static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 {
 	int ret;
+
+	hdmi_set_avmute(hdmi);
 
 	hdmi_disable_overflow_interrupts(hdmi);
 
@@ -1460,6 +1472,8 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 	dw_hdmi_clear_overflow(hdmi);
 	if (hdmi->cable_plugin && !hdmi->hdmi_data.video_mode.mdvi)
 		hdmi_enable_overflow_interrupts(hdmi);
+
+	hdmi_clear_avmute(hdmi);
 
 	return 0;
 }
