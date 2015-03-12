@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_device.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinconf-generic.h>
 #include <linux/pinctrl/pinctrl.h>
@@ -105,10 +106,7 @@ struct pistachio_gpio_bank {
 	struct pinctrl_gpio_range gpio_range;
 };
 
-struct pistachio_pinctrl {
-	struct device *dev;
-	void __iomem *base;
-	struct pinctrl_dev *pctldev;
+struct pistachio_pinctrl_bank_data {
 	const struct pinctrl_pin_desc *pins;
 	unsigned int npins;
 	const struct pistachio_function *functions;
@@ -117,6 +115,13 @@ struct pistachio_pinctrl {
 	unsigned int ngroups;
 	struct pistachio_gpio_bank *gpio_banks;
 	unsigned int nbanks;
+};
+
+struct pistachio_pinctrl {
+	struct device *dev;
+	void __iomem *base;
+	struct pinctrl_dev *pctldev;
+	struct pistachio_pinctrl_bank_data *data;
 };
 
 #define PISTACHIO_PIN_MFIO(p)		(p)
@@ -887,7 +892,7 @@ static int pistachio_pinctrl_get_groups_count(struct pinctrl_dev *pctldev)
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	return pctl->ngroups;
+	return pctl->data->ngroups;
 }
 
 static const char *pistachio_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
@@ -895,7 +900,7 @@ static const char *pistachio_pinctrl_get_group_name(struct pinctrl_dev *pctldev,
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	return pctl->groups[group].name;
+	return pctl->data->groups[group].name;
 }
 
 static int pistachio_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
@@ -905,7 +910,7 @@ static int pistachio_pinctrl_get_group_pins(struct pinctrl_dev *pctldev,
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	*pins = &pctl->groups[group].pin;
+	*pins = &pctl->data->groups[group].pin;
 	*num_pins = 1;
 
 	return 0;
@@ -923,7 +928,7 @@ static int pistachio_pinmux_get_functions_count(struct pinctrl_dev *pctldev)
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	return pctl->nfunctions;
+	return pctl->data->nfunctions;
 }
 
 static const char *
@@ -931,7 +936,7 @@ pistachio_pinmux_get_function_name(struct pinctrl_dev *pctldev, unsigned func)
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	return pctl->functions[func].name;
+	return pctl->data->functions[func].name;
 }
 
 static int pistachio_pinmux_get_function_groups(struct pinctrl_dev *pctldev,
@@ -941,8 +946,8 @@ static int pistachio_pinmux_get_function_groups(struct pinctrl_dev *pctldev,
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
 
-	*groups = pctl->functions[func].groups;
-	*num_groups = pctl->functions[func].ngroups;
+	*groups = pctl->data->functions[func].groups;
+	*num_groups = pctl->data->functions[func].ngroups;
 
 	return 0;
 }
@@ -951,8 +956,8 @@ static int pistachio_pinmux_enable(struct pinctrl_dev *pctldev,
 				   unsigned func, unsigned group)
 {
 	struct pistachio_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct pistachio_pin_group *pg = &pctl->groups[group];
-	const struct pistachio_function *pf = &pctl->functions[func];
+	const struct pistachio_pin_group *pg = &pctl->data->groups[group];
+	const struct pistachio_function *pf = &pctl->data->functions[func];
 	struct pinctrl_gpio_range *range;
 	unsigned int i;
 	u32 val;
@@ -1162,7 +1167,7 @@ static const struct pinconf_ops pistachio_pinconf_ops = {
 	.is_generic = true,
 };
 
-static struct pinctrl_desc pistachio_pinctrl_desc = {
+static const struct pinctrl_desc pistachio_pinctrl_desc = {
 	.name = "pistachio-pinctrl",
 	.pctlops = &pistachio_pinctrl_ops,
 	.pmxops = &pistachio_pinmux_ops,
@@ -1374,7 +1379,7 @@ static int pistachio_gpio_register(struct pistachio_pinctrl *pctl)
 		if (!of_find_property(child, "gpio-controller", NULL))
 			continue;
 
-		if (i >= pctl->nbanks) {
+		if (i >= pctl->data->nbanks) {
 			dev_warn(pctl->dev, "Too many GPIO banks specified\n");
 			break;
 		}
@@ -1386,7 +1391,7 @@ static int pistachio_gpio_register(struct pistachio_pinctrl *pctl)
 			goto err;
 		}
 
-		bank = &pctl->gpio_banks[i];
+		bank = &pctl->data->gpio_banks[i];
 		bank->pctl = pctl;
 		bank->base = pctl->base + GPIO_BANK_BASE(i);
 
@@ -1419,7 +1424,7 @@ static int pistachio_gpio_register(struct pistachio_pinctrl *pctl)
 	return 0;
 err:
 	for (; i > 0; i--) {
-		bank = &pctl->gpio_banks[i - 1];
+		bank = &pctl->data->gpio_banks[i - 1];
 		pinctrl_remove_gpio_range(pctl->pctldev, &bank->gpio_range);
 		gpiochip_remove(&bank->gpio_chip);
 	}
@@ -1431,50 +1436,65 @@ static void pistachio_gpio_unregister(struct pistachio_pinctrl *pctl)
 	struct pistachio_gpio_bank *bank;
 	unsigned int i;
 
-	for (i = 0; i < pctl->nbanks; i++) {
-		bank = &pctl->gpio_banks[i];
+	for (i = 0; i < pctl->data->nbanks; i++) {
+		bank = &pctl->data->gpio_banks[i];
 		pinctrl_remove_gpio_range(pctl->pctldev, &bank->gpio_range);
 		gpiochip_remove(&bank->gpio_chip);
 	}
 }
 
-static struct of_device_id pistachio_pinctrl_of_match[] = {
-	{ .compatible = "img,pistachio-system-pinctrl", },
+static const struct pistachio_pinctrl_bank_data pistachio_pinctrl_data = {
+	.pins = pistachio_pins,
+	.npins = ARRAY_SIZE(pistachio_pins),
+	.functions = pistachio_functions,
+	.nfunctions = ARRAY_SIZE(pistachio_functions),
+	.groups = pistachio_groups,
+	.ngroups = ARRAY_SIZE(pistachio_groups),
+	.gpio_banks = pistachio_gpio_banks,
+	.nbanks = ARRAY_SIZE(pistachio_gpio_banks),
+};
+
+static const struct of_device_id pistachio_pinctrl_of_match[] = {
+	{
+		.compatible = "img,pistachio-system-pinctrl",
+		.data = &pistachio_pinctrl_data
+	},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, pistachio_pinctrl_of_match);
 
 static int pistachio_pinctrl_probe(struct platform_device *pdev)
 {
+	const struct of_device_id *match;
 	struct pistachio_pinctrl *pctl;
+	struct pinctrl_desc *desc;
 	struct resource *res;
 	int ret;
+
+	match = of_match_device(pistachio_pinctrl_of_match, &pdev->dev);
+	if (!match)
+		return -EINVAL;
 
 	pctl = devm_kzalloc(&pdev->dev, sizeof(*pctl), GFP_KERNEL);
 	if (!pctl)
 		return -ENOMEM;
+	pctl->data = (struct pistachio_pinctrl_bank_data *)match->data;
 	pctl->dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, pctl);
+
+	desc = devm_kzalloc(&pdev->dev, sizeof(*desc), GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
+	memcpy(desc, &pistachio_pinctrl_desc, sizeof(*desc));
+	desc->pins = pctl->data->pins;
+	desc->npins = pctl->data->npins;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pctl->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(pctl->base))
 		return PTR_ERR(pctl->base);
 
-	pctl->pins = pistachio_pins;
-	pctl->npins = ARRAY_SIZE(pistachio_pins);
-	pctl->functions = pistachio_functions;
-	pctl->nfunctions = ARRAY_SIZE(pistachio_functions);
-	pctl->groups = pistachio_groups;
-	pctl->ngroups = ARRAY_SIZE(pistachio_groups);
-	pctl->gpio_banks = pistachio_gpio_banks;
-	pctl->nbanks = ARRAY_SIZE(pistachio_gpio_banks);
-
-	pistachio_pinctrl_desc.pins = pctl->pins;
-	pistachio_pinctrl_desc.npins = pctl->npins;
-
-	pctl->pctldev = pinctrl_register(&pistachio_pinctrl_desc, &pdev->dev,
-					 pctl);
+	pctl->pctldev = pinctrl_register(desc, &pdev->dev, pctl);
 	if (!pctl->pctldev) {
 		dev_err(&pdev->dev, "Failed to register pinctrl device\n");
 		return -EINVAL;
