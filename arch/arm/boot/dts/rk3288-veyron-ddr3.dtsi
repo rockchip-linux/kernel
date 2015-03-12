@@ -1,0 +1,22 @@
+/*
+ * Google Veyron (and derivatives) board device tree source
+ *
+ * Copyright 2015 Google, Inc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&dmc {
+	status = "okay";
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		333000 1100000
+		533000 1150000
+		666000 1200000
+	>;
+};
+
+
