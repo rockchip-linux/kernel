@@ -37,7 +37,7 @@
 
 #define SPI_BURST_LEN		240
 #define SPI_HEADER		5
-#define SPI_READ_FREQ		1000000
+#define SPI_FREQ		12000000
 
 #define RT5677_SPI_WRITE_BURST	0x5
 #define RT5677_SPI_READ_BURST	0x4
@@ -398,9 +398,9 @@ int rt5677_spi_read(u32 addr, void *rxbuf, size_t len)
 	memset(t, 0, sizeof(t));
 	t[0].tx_buf = buf;
 	t[0].len = SPI_HEADER + 4;
-	t[0].speed_hz = SPI_READ_FREQ;
+	t[0].speed_hz = SPI_FREQ;
 	t[1].rx_buf = rx_buf;
-	t[1].speed_hz = SPI_READ_FREQ;
+	t[1].speed_hz = SPI_FREQ;
 	spi_message_init(&m);
 	spi_message_add_tail(&t[0], &m);
 	spi_message_add_tail(&t[1], &m);
@@ -478,9 +478,17 @@ int rt5677_spi_write(u32 addr, const u8 *txbuf, size_t len)
 	int status = 0;
 	u8 write_buf[SPI_BURST_LEN + SPI_HEADER + 1];
 	u8 spi_cmd;
+	struct spi_transfer t;
+	struct spi_message m;
 
 	if (!g_spi)
 		return -ENODEV;
+
+	memset(&t, 0, sizeof(t));
+	t.tx_buf = write_buf;
+	t.speed_hz = SPI_FREQ;
+	spi_message_init(&m);
+	spi_message_add_tail(&t, &m);
 
 	while (offset < len) {
 		switch ((addr + offset) & 0x7) {
@@ -534,9 +542,10 @@ int rt5677_spi_write(u32 addr, const u8 *txbuf, size_t len)
 			}
 		}
 		write_buf[end + SPI_HEADER] = spi_cmd;
+		t.len = end + SPI_HEADER + 1;
 
 		mutex_lock(&spi_mutex);
-		status |= spi_write(g_spi, write_buf, end + SPI_HEADER + 1);
+		status |= spi_sync(g_spi, &m);
 		mutex_unlock(&spi_mutex);
 
 		offset += end;
