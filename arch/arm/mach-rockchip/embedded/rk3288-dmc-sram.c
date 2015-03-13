@@ -246,7 +246,8 @@ static u32 idle_port(u32 clk_gate[])
 	deidle_req = __raw_readl(p_pmu_reg + PMU_IDLE_REQ);
 	idle_req = IDLE_REQ_HEVC_CFG | IDLE_REQ_DMA_CFG |
 		   IDLE_REQ_CORE_CFG | IDLE_REQ_VIO_CFG |
-		   IDLE_REQ_GPU_CFG | IDLE_REQ_PERI_CFG;
+		   IDLE_REQ_GPU_CFG | IDLE_REQ_PERI_CFG |
+		   IDLE_REQ_VIDEO_CFG;
 	dmc_io_or(idle_req, p_pmu_reg + PMU_IDLE_REQ);
 
 	while ((__raw_readl(p_pmu_reg + PMU_IDLE_ST) & idle_req) != idle_req)
