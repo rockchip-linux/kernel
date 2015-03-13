@@ -386,7 +386,7 @@ static int concerto_parse_of_i2s_out(struct concerto_audio_card *cc,
 	if (!cpu)
 		return -EINVAL;
 	cpu_dai = of_parse_phandle(cpu, "sound-dai", 0);
-	if (!cpu)
+	if (!cpu_dai)
 		return -EINVAL;
 	link->cpu_of_node = cpu_dai;
 	link->platform_of_node = cpu_dai;
@@ -437,7 +437,7 @@ static int concerto_parse_of_i2s_in(struct concerto_audio_card *cc,
 	if (!cpu)
 		return -EINVAL;
 	cpu_dai = of_parse_phandle(cpu, "sound-dai", 0);
-	if (!cpu)
+	if (!cpu_dai)
 		return -EINVAL;
 	link->cpu_of_node = cpu_dai;
 	link->platform_of_node = cpu_dai;
@@ -475,7 +475,7 @@ static int concerto_parse_of_spdif_out(struct concerto_audio_card *cc,
 	if (!cpu)
 		return -EINVAL;
 	cpu_dai = of_parse_phandle(cpu, "sound-dai", 0);
-	if (!cpu)
+	if (!cpu_dai)
 		return -EINVAL;
 	link->cpu_of_node = cpu_dai;
 	link->platform_of_node = cpu_dai;
@@ -496,7 +496,7 @@ static int concerto_parse_of_spdif_in(struct concerto_audio_card *cc,
 	if (!cpu)
 		return -EINVAL;
 	cpu_dai = of_parse_phandle(cpu, "sound-dai", 0);
-	if (!cpu)
+	if (!cpu_dai)
 		return -EINVAL;
 	link->cpu_of_node = cpu_dai;
 	link->platform_of_node = cpu_dai;
