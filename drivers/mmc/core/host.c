@@ -525,11 +525,12 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 
 	/* scanning will be enabled when we're ready */
 	host->rescan_disable = 1;
-	idr_preload(GFP_KERNEL);
-	spin_lock(&mmc_host_lock);
 
 	if (dev->of_node)
 		of_id = of_alias_get_id(dev->of_node, "mmc");
+
+	idr_preload(GFP_KERNEL);
+	spin_lock(&mmc_host_lock);
 
 	if (of_id >= 0) {
 		id = idr_alloc(&mmc_host_idr, host, of_id, of_id + 1,
