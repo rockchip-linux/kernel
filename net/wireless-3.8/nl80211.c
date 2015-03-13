@@ -6832,6 +6832,9 @@ static int nl80211_send_wowlan_nd(struct sk_buff *msg,
 	if (nla_put_u32(msg, NL80211_ATTR_SCHED_SCAN_INTERVAL, req->interval))
 		return -ENOBUFS;
 
+	if (nla_put_u32(msg, NL80211_ATTR_SCHED_SCAN_DELAY, req->delay))
+		return -ENOBUFS;
+
 	freqs = nla_nest_start(msg, NL80211_ATTR_SCAN_FREQUENCIES);
 	if (!freqs)
 		return -ENOBUFS;
