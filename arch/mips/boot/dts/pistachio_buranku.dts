@@ -19,6 +19,41 @@
 		device_type = "memory";
 		reg =  <0x00000000 0x08000000>;
 	};
+
+	sound {
+		compatible = "google,concerto-audio";
+		model = "Google Buranku";
+		clocks = <&clk_core CLK_AUDIO_PLL>, <&clk_core CLK_I2S>;
+		clock-names = "audio_pll", "mclk";
+		assigned-clocks = <&clk_core CLK_AUDIO_PLL_MUX>,
+				  <&clk_core CLK_AUDIO_MUX>,
+				  <&clk_core CLK_AUDIO_PLL>;
+		assigned-clock-parents = <&clk_core CLK_AUDIO_PLL>,
+					 <&clk_core CLK_AUDIO_PLL_MUX>;
+		assigned-clock-rates = <0>, <0>, <147456000>;
+		pinctrl-0 = <&i2s_mclk_pin>;
+		pinctrl-names = "default";
+
+		img,cr-periph = <&cr_periph>;
+		img,cr-top = <&cr_top>;
+
+		i2s-out {
+			cpu {
+				sound-dai = <&i2s_out>;
+				format = "i2s";
+				bitclock-master;
+				frame-master;
+			};
+		};
+
+		i2s-in {
+			cpu {
+				sound-dai = <&i2s_in>;
+				format = "i2s";
+				img,i2s-clock-loopback;
+			};
+		};
+	};
 };
 
 &spfi1 {
@@ -80,4 +115,12 @@
 &i2c3 {
 	status = "okay";
 	clock-frequency = <400000>;
+};
+
+&i2s_out {
+	status = "okay";
+};
+
+&i2s_in {
+	status = "okay";
 };
