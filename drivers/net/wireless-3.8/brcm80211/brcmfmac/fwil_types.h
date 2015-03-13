@@ -68,6 +68,8 @@
 #define	BRCMF_RSPEC_VHT_NSS_MASK	0x000000F0
 #define	BRCMF_RSPEC_VHT_NSS_SHIFT	4
 
+#define BRCMF_COUNTRY_BUF_SZ		4
+
 /* join preference types for join_pref iovar */
 enum brcmf_join_pref_types {
 	BRCMF_JOIN_PREF_RSSI = 1,
@@ -491,6 +493,19 @@ struct brcmf_wl_counters_le {
 	/* receive chip error counters */
 	__le32	rxoflo;		/* rx fifo overflow errors */
 	__le32	rxuflo[BRCMF_WL_N_FIFO];/* rx dma descriptor underflow errors */
+};
+
+/**
+ * struct brcmf_fil_country_le - country configuration structure.
+ *
+ * @country_abbrev: null-terminated country code used in the country IE.
+ * @rev: revision specifier for ccode. on set, -1 indicates unspecified.
+ * @ccode: null-terminated built-in country code.
+ */
+struct brcmf_fil_country_le {
+	char country_abbrev[BRCMF_COUNTRY_BUF_SZ];
+	__le32 rev;
+	char ccode[BRCMF_COUNTRY_BUF_SZ];
 };
 
 #endif /* FWIL_TYPES_H_ */
