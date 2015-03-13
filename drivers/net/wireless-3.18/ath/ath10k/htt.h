@@ -271,39 +271,111 @@ enum htt_mgmt_tx_status {
 
 /*=== target -> host messages ===============================================*/
 
-enum htt_t2h_msg_type {
-	HTT_T2H_MSG_TYPE_VERSION_CONF		= 0x0,
-	HTT_T2H_MSG_TYPE_RX_IND			= 0x1,
-	HTT_T2H_MSG_TYPE_RX_FLUSH		= 0x2,
-	HTT_T2H_MSG_TYPE_PEER_MAP		= 0x3,
-	HTT_T2H_MSG_TYPE_PEER_UNMAP		= 0x4,
-	HTT_T2H_MSG_TYPE_RX_ADDBA		= 0x5,
-	HTT_T2H_MSG_TYPE_RX_DELBA		= 0x6,
-	HTT_T2H_MSG_TYPE_TX_COMPL_IND		= 0x7,
-	HTT_T2H_MSG_TYPE_PKTLOG			= 0x8,
-	HTT_T2H_MSG_TYPE_STATS_CONF		= 0x9,
-	HTT_T2H_MSG_TYPE_RX_FRAG_IND		= 0xa,
-	HTT_T2H_MSG_TYPE_SEC_IND		= 0xb,
-	HTT_T2H_MSG_TYPE_RC_UPDATE_IND		= 0xc,
-	HTT_T2H_MSG_TYPE_TX_INSPECT_IND		= 0xd,
-	HTT_T2H_MSG_TYPE_MGMT_TX_COMPLETION	= 0xe,
-	HTT_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND	= 0xf,
-	HTT_T2H_MSG_TYPE_RX_PN_IND		= 0x10,
-	HTT_T2H_MSG_TYPE_RX_OFFLOAD_DELIVER_IND = 0x11,
-	HTT_T2H_MSG_TYPE_RX_IN_ORD_PADDR_IND	= 0x12,
+enum htt_main_t2h_msg_type {
+	HTT_MAIN_T2H_MSG_TYPE_VERSION_CONF             = 0x0,
+	HTT_MAIN_T2H_MSG_TYPE_RX_IND                   = 0x1,
+	HTT_MAIN_T2H_MSG_TYPE_RX_FLUSH                 = 0x2,
+	HTT_MAIN_T2H_MSG_TYPE_PEER_MAP                 = 0x3,
+	HTT_MAIN_T2H_MSG_TYPE_PEER_UNMAP               = 0x4,
+	HTT_MAIN_T2H_MSG_TYPE_RX_ADDBA                 = 0x5,
+	HTT_MAIN_T2H_MSG_TYPE_RX_DELBA                 = 0x6,
+	HTT_MAIN_T2H_MSG_TYPE_TX_COMPL_IND             = 0x7,
+	HTT_MAIN_T2H_MSG_TYPE_PKTLOG                   = 0x8,
+	HTT_MAIN_T2H_MSG_TYPE_STATS_CONF               = 0x9,
+	HTT_MAIN_T2H_MSG_TYPE_RX_FRAG_IND              = 0xa,
+	HTT_MAIN_T2H_MSG_TYPE_SEC_IND                  = 0xb,
+	HTT_MAIN_T2H_MSG_TYPE_TX_INSPECT_IND           = 0xd,
+	HTT_MAIN_T2H_MSG_TYPE_MGMT_TX_COMPL_IND        = 0xe,
+	HTT_MAIN_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND     = 0xf,
+	HTT_MAIN_T2H_MSG_TYPE_RX_PN_IND                = 0x10,
+	HTT_MAIN_T2H_MSG_TYPE_RX_OFFLOAD_DELIVER_IND   = 0x11,
+	HTT_MAIN_T2H_MSG_TYPE_TEST,
+	/* keep this last */
+	HTT_MAIN_T2H_NUM_MSGS
+};
+
+enum htt_10x_t2h_msg_type {
+	HTT_10X_T2H_MSG_TYPE_VERSION_CONF              = 0x0,
+	HTT_10X_T2H_MSG_TYPE_RX_IND                    = 0x1,
+	HTT_10X_T2H_MSG_TYPE_RX_FLUSH                  = 0x2,
+	HTT_10X_T2H_MSG_TYPE_PEER_MAP                  = 0x3,
+	HTT_10X_T2H_MSG_TYPE_PEER_UNMAP                = 0x4,
+	HTT_10X_T2H_MSG_TYPE_RX_ADDBA                  = 0x5,
+	HTT_10X_T2H_MSG_TYPE_RX_DELBA                  = 0x6,
+	HTT_10X_T2H_MSG_TYPE_TX_COMPL_IND              = 0x7,
+	HTT_10X_T2H_MSG_TYPE_PKTLOG                    = 0x8,
+	HTT_10X_T2H_MSG_TYPE_STATS_CONF                = 0x9,
+	HTT_10X_T2H_MSG_TYPE_RX_FRAG_IND               = 0xa,
+	HTT_10X_T2H_MSG_TYPE_SEC_IND                   = 0xb,
+	HTT_10X_T2H_MSG_TYPE_RC_UPDATE_IND             = 0xc,
+	HTT_10X_T2H_MSG_TYPE_TX_INSPECT_IND            = 0xd,
+	HTT_10X_T2H_MSG_TYPE_TEST                      = 0xe,
+	HTT_10X_T2H_MSG_TYPE_CHAN_CHANGE               = 0xf,
+	HTT_10X_T2H_MSG_TYPE_AGGR_CONF                 = 0x11,
+	HTT_10X_T2H_MSG_TYPE_STATS_NOUPLOAD            = 0x12,
+	HTT_10X_T2H_MSG_TYPE_MGMT_TX_COMPL_IND         = 0x13,
+	/* keep this last */
+	HTT_10X_T2H_NUM_MSGS
+};
+
+enum htt_tlv_t2h_msg_type {
+	HTT_TLV_T2H_MSG_TYPE_VERSION_CONF              = 0x0,
+	HTT_TLV_T2H_MSG_TYPE_RX_IND                    = 0x1,
+	HTT_TLV_T2H_MSG_TYPE_RX_FLUSH                  = 0x2,
+	HTT_TLV_T2H_MSG_TYPE_PEER_MAP                  = 0x3,
+	HTT_TLV_T2H_MSG_TYPE_PEER_UNMAP                = 0x4,
+	HTT_TLV_T2H_MSG_TYPE_RX_ADDBA                  = 0x5,
+	HTT_TLV_T2H_MSG_TYPE_RX_DELBA                  = 0x6,
+	HTT_TLV_T2H_MSG_TYPE_TX_COMPL_IND              = 0x7,
+	HTT_TLV_T2H_MSG_TYPE_PKTLOG                    = 0x8,
+	HTT_TLV_T2H_MSG_TYPE_STATS_CONF                = 0x9,
+	HTT_TLV_T2H_MSG_TYPE_RX_FRAG_IND               = 0xa,
+	HTT_TLV_T2H_MSG_TYPE_SEC_IND                   = 0xb,
+	HTT_TLV_T2H_MSG_TYPE_RC_UPDATE_IND             = 0xc, /* deprecated */
+	HTT_TLV_T2H_MSG_TYPE_TX_INSPECT_IND            = 0xd,
+	HTT_TLV_T2H_MSG_TYPE_MGMT_TX_COMPL_IND         = 0xe,
+	HTT_TLV_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND      = 0xf,
+	HTT_TLV_T2H_MSG_TYPE_RX_PN_IND                 = 0x10,
+	HTT_TLV_T2H_MSG_TYPE_RX_OFFLOAD_DELIVER_IND    = 0x11,
+	HTT_TLV_T2H_MSG_TYPE_RX_IN_ORD_PADDR_IND       = 0x12,
 	/* 0x13 reservd */
-	HTT_T2H_MSG_TYPE_WDI_IPA_OP_RESPONSE	= 0x14,
+	HTT_TLV_T2H_MSG_TYPE_WDI_IPA_OP_RESPONSE       = 0x14,
+	HTT_TLV_T2H_MSG_TYPE_CHAN_CHANGE               = 0x15,
+	HTT_TLV_T2H_MSG_TYPE_RX_OFLD_PKT_ERR           = 0x16,
+	HTT_TLV_T2H_MSG_TYPE_TEST,
+	/* keep this last */
+	HTT_TLV_T2H_NUM_MSGS
+};
 
-	/* FIXME: Do not depend on this event id. Numbering of this event id is
-	 * broken across different firmware revisions and HTT version fails to
-	 * indicate this.
-	 */
+enum htt_t2h_msg_type {
+	HTT_T2H_MSG_TYPE_VERSION_CONF,
+	HTT_T2H_MSG_TYPE_RX_IND,
+	HTT_T2H_MSG_TYPE_RX_FLUSH,
+	HTT_T2H_MSG_TYPE_PEER_MAP,
+	HTT_T2H_MSG_TYPE_PEER_UNMAP,
+	HTT_T2H_MSG_TYPE_RX_ADDBA,
+	HTT_T2H_MSG_TYPE_RX_DELBA,
+	HTT_T2H_MSG_TYPE_TX_COMPL_IND,
+	HTT_T2H_MSG_TYPE_PKTLOG,
+	HTT_T2H_MSG_TYPE_STATS_CONF,
+	HTT_T2H_MSG_TYPE_RX_FRAG_IND,
+	HTT_T2H_MSG_TYPE_SEC_IND,
+	HTT_T2H_MSG_TYPE_RC_UPDATE_IND,
+	HTT_T2H_MSG_TYPE_TX_INSPECT_IND,
+	HTT_T2H_MSG_TYPE_MGMT_TX_COMPLETION,
+	HTT_T2H_MSG_TYPE_TX_CREDIT_UPDATE_IND,
+	HTT_T2H_MSG_TYPE_RX_PN_IND,
+	HTT_T2H_MSG_TYPE_RX_OFFLOAD_DELIVER_IND,
+	HTT_T2H_MSG_TYPE_RX_IN_ORD_PADDR_IND,
+	HTT_T2H_MSG_TYPE_WDI_IPA_OP_RESPONSE,
+	HTT_T2H_MSG_TYPE_CHAN_CHANGE,
+	HTT_T2H_MSG_TYPE_RX_OFLD_PKT_ERR,
+	HTT_T2H_MSG_TYPE_AGGR_CONF,
+	HTT_T2H_MSG_TYPE_STATS_NOUPLOAD,
 	HTT_T2H_MSG_TYPE_TEST,
-
 	/* keep this last */
 	HTT_T2H_NUM_MSGS
 };
-
 /*
  * htt_resp_hdr - header for target-to-host messages
  *
@@ -1249,6 +1321,9 @@ struct ath10k_htt {
 	u8 target_version_major;
 	u8 target_version_minor;
 	struct completion target_version_received;
+
+	const enum htt_t2h_msg_type *t2h_msg_types;
+	u32 t2h_msg_types_max;
 
 	struct {
 		/*
