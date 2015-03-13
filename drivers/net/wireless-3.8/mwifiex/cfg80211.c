@@ -2504,6 +2504,23 @@ mwifiex_cfg80211_change_station(struct wiphy *wiphy,
 	return ret;
 }
 
+#ifdef CONFIG_PM
+static int mwifiex_cfg80211_suspend(struct wiphy *wiphy,
+				    struct cfg80211_wowlan *wowlan)
+{
+	struct mwifiex_adapter *adapter = mwifiex_cfg80211_get_adapter(wiphy);
+
+	mwifiex_cancel_all_pending_cmd(adapter);
+
+	return 0;
+}
+
+static int mwifiex_cfg80211_resume(struct wiphy *wiphy)
+{
+	return 0;
+}
+#endif
+
 /* station cfg80211 operations */
 static struct cfg80211_ops mwifiex_cfg80211_ops = {
 	.add_virtual_intf = mwifiex_add_virtual_intf,
@@ -2537,6 +2554,10 @@ static struct cfg80211_ops mwifiex_cfg80211_ops = {
 	.add_station = mwifiex_cfg80211_add_station,
 	.change_station = mwifiex_cfg80211_change_station,
 	.del_station = mwifiex_cfg80211_del_station,
+#ifdef CONFIG_PM
+	.suspend = mwifiex_cfg80211_suspend,
+	.resume = mwifiex_cfg80211_resume,
+#endif
 };
 
 /*
