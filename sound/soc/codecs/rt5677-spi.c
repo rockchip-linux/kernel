@@ -306,6 +306,7 @@ static void rt5677_spi_copy_work(struct work_struct *work)
 	}
 
 	/* Copy all new samples from DSP's mic buffer to dma_area */
+	bytes_copied = 0;
 	if (rt5677_dsp->mic_read_offset < mic_write_offset) {
 		/* One chunk in DSP's mic buffer */
 		ret |= rt5677_spi_append_data(rt5677_dsp,
