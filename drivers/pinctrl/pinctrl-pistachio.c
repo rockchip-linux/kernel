@@ -1439,7 +1439,7 @@ static void pistachio_gpio_unregister(struct pistachio_pinctrl *pctl)
 }
 
 static struct of_device_id pistachio_pinctrl_of_match[] = {
-	{ .compatible = "img,pistachio-pinctrl", },
+	{ .compatible = "img,pistachio-system-pinctrl", },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, pistachio_pinctrl_of_match);
