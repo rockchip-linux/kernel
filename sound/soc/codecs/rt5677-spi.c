@@ -48,7 +48,7 @@
 
 #define RT5677_MIC_BUF_ADDR		0x60030000
 #define RT5677_MODEL_ADDR		0x5FFC9800
-#define RT5677_MIC_BUF_BYTES		(0x20000 - sizeof(u32))
+#define RT5677_MIC_BUF_BYTES		((u32)(0x20000 - sizeof(u32)))
 #define RT5677_MIC_BUF_FIRST_READ_SIZE	0x10000
 
 static struct spi_device *g_spi;
@@ -198,15 +198,15 @@ static int rt5677_spi_mic_write_offset(u32 *mic_write_offset)
 }
 
 /*
- * Copy a block of audio samples from the DSP mic buffer to the dma_area of
- * the pcm runtime. The receiving buffer may wrap around.
+ * Copy one contiguous block of audio samples from the DSP mic buffer to the
+ * dma_area of the pcm runtime. The receiving buffer may wrap around.
  * @begin: start offset of the block to copy, in bytes.
  * @end:   offset of the first byte after the block to copy, must be greater
  *         than or equal to begin.
  *
  * Return: Zero if successful, or a negative error code on failure.
  */
-static int rt5677_spi_append_data(struct rt5677_dsp *rt5677_dsp,
+static int rt5677_spi_copy_block(struct rt5677_dsp *rt5677_dsp,
 		u32 begin, u32 end)
 {
 	struct snd_pcm_runtime *runtime = rt5677_dsp->substream->runtime;
@@ -263,6 +263,38 @@ static int rt5677_spi_append_data(struct rt5677_dsp *rt5677_dsp,
 }
 
 /*
+ * Copy a given amount of audio samples from the DSP mic buffer starting at
+ * mic_read_offset, to the dma_area of the pcm runtime. The source buffer may
+ * wrap around. mic_read_offset is updated after successful copy.
+ * @amount: amount of samples to copy, in bytes.
+ *
+ * Return: Zero if successful, or a negative error code on failure.
+ */
+static int rt5677_spi_copy(struct rt5677_dsp *rt5677_dsp, u32 amount)
+{
+	int ret = 0;
+	u32 target;
+
+	if (amount == 0)
+		return ret;
+
+	target = rt5677_dsp->mic_read_offset + amount;
+	/* Copy the first chunk in DSP's mic buffer */
+	ret |= rt5677_spi_copy_block(rt5677_dsp, rt5677_dsp->mic_read_offset,
+			min(target, RT5677_MIC_BUF_BYTES));
+
+	if (target >= RT5677_MIC_BUF_BYTES) {
+		/* Wrap around, copy the second chunk */
+		target -= RT5677_MIC_BUF_BYTES;
+		ret |= rt5677_spi_copy_block(rt5677_dsp, 0, target);
+	}
+
+	if (!ret)
+		rt5677_dsp->mic_read_offset = target;
+	return ret;
+}
+
+/*
  * A delayed work that streams audio samples from the DSP mic buffer to the
  * dma_area of the pcm runtime via SPI.
  */
@@ -272,7 +304,7 @@ static void rt5677_spi_copy_work(struct work_struct *work)
 		container_of(work, struct rt5677_dsp, copy_work.work);
 	struct snd_pcm_runtime *runtime;
 	u32 mic_write_offset;
-	size_t bytes_copied, period_bytes;
+	size_t new_bytes, copy_bytes, period_bytes;
 	int ret = 0;
 
 	/* Ensure runtime->dma_area buffer does not go away while copying. */
@@ -305,35 +337,31 @@ static void rt5677_spi_copy_work(struct work_struct *work)
 					RT5677_MIC_BUF_FIRST_READ_SIZE;
 	}
 
-	/* Copy all new samples from DSP's mic buffer to dma_area */
-	bytes_copied = 0;
-	if (rt5677_dsp->mic_read_offset < mic_write_offset) {
-		/* One chunk in DSP's mic buffer */
-		ret |= rt5677_spi_append_data(rt5677_dsp,
-				rt5677_dsp->mic_read_offset, mic_write_offset);
-		bytes_copied = mic_write_offset - rt5677_dsp->mic_read_offset;
-	} else if (rt5677_dsp->mic_read_offset > mic_write_offset) {
-		/* Wrap around, two chunks in DSP's mic buffer */
-		ret |= rt5677_spi_append_data(rt5677_dsp,
-				rt5677_dsp->mic_read_offset,
-				RT5677_MIC_BUF_BYTES);
-		ret |= rt5677_spi_append_data(rt5677_dsp, 0, mic_write_offset);
-		bytes_copied = RT5677_MIC_BUF_BYTES -
-				rt5677_dsp->mic_read_offset + mic_write_offset;
-	}
-	if (ret) {
-		dev_err(rt5677_dsp->dev, "Copy failed %d\n", ret);
-		goto done;
-	}
+	/* Calculate the amount of new samples in bytes */
+	if (rt5677_dsp->mic_read_offset <= mic_write_offset)
+		new_bytes = mic_write_offset - rt5677_dsp->mic_read_offset;
+	else
+		new_bytes = RT5677_MIC_BUF_BYTES + mic_write_offset
+				- rt5677_dsp->mic_read_offset;
 
-	rt5677_dsp->mic_read_offset = mic_write_offset;
-	rt5677_dsp->avail_bytes += bytes_copied;
+	/* Copy all new samples from DSP mic buffer, one period at a time */
 	period_bytes = snd_pcm_lib_period_bytes(rt5677_dsp->substream);
-
-	if (rt5677_dsp->avail_bytes >= period_bytes) {
-		snd_pcm_period_elapsed(rt5677_dsp->substream);
-		rt5677_dsp->avail_bytes = 0;
+	while (new_bytes) {
+		copy_bytes = min(new_bytes, period_bytes
+				- rt5677_dsp->avail_bytes);
+		ret = rt5677_spi_copy(rt5677_dsp, copy_bytes);
+		if (ret) {
+			dev_err(rt5677_dsp->dev, "Copy failed %d\n", ret);
+			goto done;
+		}
+		rt5677_dsp->avail_bytes += copy_bytes;
+		if (rt5677_dsp->avail_bytes >= period_bytes) {
+			snd_pcm_period_elapsed(rt5677_dsp->substream);
+			rt5677_dsp->avail_bytes = 0;
+		}
+		new_bytes -= copy_bytes;
 	}
+
 	/* TODO benzh: use better delay time based on period_bytes */
 	schedule_delayed_work(&rt5677_dsp->copy_work, msecs_to_jiffies(5));
 done:
