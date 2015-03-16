@@ -1181,6 +1181,10 @@ struct cfg80211_match_set {
  * @dev: the interface
  * @channels: channels to scan
  * @rssi_thold: don't report scan results below this threshold (in s32 dBm)
+ * @delay: delay in seconds to use before starting the first scan
+ *	cycle.  The driver may ignore this parameter and start
+ *	immediately (or at any other time), if this feature is not
+ *	supported.
  */
 struct cfg80211_sched_scan_request {
 	struct cfg80211_ssid *ssids;
@@ -1193,6 +1197,7 @@ struct cfg80211_sched_scan_request {
 	struct cfg80211_match_set *match_sets;
 	int n_match_sets;
 	s32 rssi_thold;
+	u32 delay;
 
 	/* internal */
 	struct wiphy *wiphy;
