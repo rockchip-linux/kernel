@@ -1333,7 +1333,7 @@ static void pistachio_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 			.direction_output = pistachio_gpio_direction_output, \
 			.get = pistachio_gpio_get,			\
 			.set = pistachio_gpio_set,			\
-			.base = _bank * 16,				\
+			.base = _pin_base,				\
 			.ngpio = _npins,				\
 			.owner = THIS_MODULE,				\
 		},							\
@@ -1348,7 +1348,7 @@ static void pistachio_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 		.gpio_range = {						\
 			.name = "GPIO" #_bank,				\
 			.id = _bank,					\
-			.base = _bank * 16,				\
+			.base = _pin_base,				\
 			.pin_base = _pin_base,				\
 			.npins = _npins,				\
 		},							\
