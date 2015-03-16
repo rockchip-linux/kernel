@@ -258,7 +258,7 @@
 	};
 
 	pinctrl: pinctrl@18101c00 {
-		compatible = "img,pistachio-pinctrl";
+		compatible = "img,pistachio-system-pinctrl";
 		reg = <0x18101c00 0x400>;
 
 		gpio0: gpio0 {
