@@ -1135,14 +1135,43 @@ mwifiex_remain_on_chan_cfg(struct mwifiex_private *priv, u16 action,
 int
 mwifiex_set_bss_role(struct mwifiex_private *priv, u8 bss_role)
 {
+	struct mwifiex_adapter *adapter = priv->adapter;
+	unsigned long flags;
+
 	if (GET_BSS_ROLE(priv) == bss_role) {
 		dev_dbg(priv->adapter->dev,
 			"info: already in the desired role.\n");
 		return 0;
 	}
 
+	spin_lock_irqsave(&adapter->main_proc_lock, flags);
+	adapter->main_locked = true;
+	if (adapter->mwifiex_processing) {
+		spin_unlock_irqrestore(&adapter->main_proc_lock, flags);
+		flush_workqueue(adapter->workqueue);
+	} else {
+		spin_unlock_irqrestore(&adapter->main_proc_lock, flags);
+	}
+
+	spin_lock_irqsave(&adapter->rx_proc_lock, flags);
+	adapter->rx_locked = true;
+	if (adapter->rx_processing) {
+		spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+		flush_workqueue(adapter->rx_workqueue);
+	} else {
+	spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+	}
+
 	mwifiex_free_priv(priv);
 	mwifiex_init_priv(priv);
+
+	spin_lock_irqsave(&adapter->main_proc_lock, flags);
+	adapter->main_locked = false;
+	spin_unlock_irqrestore(&adapter->main_proc_lock, flags);
+
+	spin_lock_irqsave(&adapter->rx_proc_lock, flags);
+	adapter->rx_locked = false;
+	spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
 
 	priv->bss_role = bss_role;
 	switch (bss_role) {
