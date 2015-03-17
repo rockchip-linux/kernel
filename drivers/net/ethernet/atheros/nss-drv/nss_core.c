@@ -295,6 +295,207 @@ static inline int nss_core_skb_needs_linearize(struct sk_buff *skb, uint32_t fea
 }
 
 /*
+ * nss_core_handle_bounced_pkt()
+ * 	Bounced packet is returned from an interface/bridge bounce operation.
+ *
+ * Return the skb to the registrant.
+ */
+static inline void nss_core_handle_bounced_pkt(struct nss_ctx_instance *nss_ctx,
+						struct nss_shaper_bounce_registrant *reg,
+						struct sk_buff *nbuf)
+{
+	void *app_data;
+	struct module *owner;
+	nss_shaper_bounced_callback_t bounced_callback;
+	struct nss_top_instance *nss_top = nss_ctx->nss_top;
+
+	spin_lock_bh(&nss_top->lock);
+
+	/*
+	 * Do we have a registrant?
+	 */
+	if (!reg->registered) {
+		spin_unlock_bh(&nss_top->lock);
+		dev_kfree_skb_any(nbuf);
+		return;
+	}
+
+	/*
+	 * Get handle to the owning registrant
+	 */
+	bounced_callback = reg->bounced_callback;
+	app_data = reg->app_data;
+	owner = reg->owner;
+
+	/*
+	 * Callback is active, unregistration is not permitted while this is in progress
+	 */
+	reg->callback_active = true;
+	spin_unlock_bh(&nss_top->lock);
+	if (!try_module_get(owner)) {
+		spin_lock_bh(&nss_top->lock);
+		reg->callback_active = false;
+		spin_unlock_bh(&nss_top->lock);
+		dev_kfree_skb_any(nbuf);
+		return;
+	}
+
+	/*
+	 * Pass bounced packet back to registrant
+	 */
+	bounced_callback(app_data, nbuf);
+	spin_lock_bh(&nss_top->lock);
+	reg->callback_active = false;
+	spin_unlock_bh(&nss_top->lock);
+	module_put(owner);
+}
+
+/*
+ * nss_core_handle_virt_if_pkt()
+ *	Handle packet destined to virtual interface.
+ */
+static inline void nss_core_handle_virt_if_pkt(struct nss_ctx_instance *nss_ctx,
+						unsigned int interface_num,
+						struct sk_buff *nbuf)
+{
+	struct nss_top_instance *nss_top = nss_ctx->nss_top;
+	struct nss_subsystem_dataplane_register *subsys_dp_reg = &nss_top->subsys_dp_register[interface_num];
+	struct net_device *ndev = NULL;
+
+	uint32_t xmit_ret;
+
+	NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_RX_VIRTUAL]);
+
+	/*
+	 * Checksum is already done by NSS for packets forwarded to virtual interfaces
+	 */
+	nbuf->ip_summed = CHECKSUM_NONE;
+
+	/*
+	 * Obtain net_device pointer
+	 */
+	ndev = subsys_dp_reg->ndev;
+	if (unlikely(ndev == NULL)) {
+		nss_warning("%p: Received packet for unregistered virtual interface %d",
+			nss_ctx, interface_num);
+
+		/*
+		 * NOTE: The assumption is that gather support is not
+		 * implemented in fast path and hence we can not receive
+		 * fragmented packets and so we do not need to take care
+		 * of freeing a fragmented packet
+		 */
+		dev_kfree_skb_any(nbuf);
+		return;
+	}
+
+	/*
+	 * TODO: Need to ensure the ndev is not removed before we take dev_hold().
+	 */
+	dev_hold(ndev);
+	nbuf->dev = ndev;
+	/*
+	 * Linearize the skb if needed
+	 */
+	 if (nss_core_skb_needs_linearize(nbuf, (uint32_t)netif_skb_features(nbuf)) && __skb_linearize(nbuf)) {
+		/*
+		 * We needed to linearize, but __skb_linearize() failed. Therefore
+		 * we free the nbuf.
+		 */
+		dev_put(ndev);
+		dev_kfree_skb_any(nbuf);
+		return;
+	}
+
+	/*
+	 * Send the packet to virtual interface
+	 * NOTE: Invoking this will BYPASS any assigned QDisc - this is OKAY
+	 * as TX packets out of the NSS will have been shaped inside the NSS.
+	 */
+	xmit_ret = ndev->netdev_ops->ndo_start_xmit(nbuf, ndev);
+	if (unlikely(xmit_ret == NETDEV_TX_BUSY)) {
+		dev_kfree_skb_any(nbuf);
+		nss_info("%p: Congestion at virtual interface %d, %p", nss_ctx, interface_num, ndev);
+	}
+	dev_put(ndev);
+}
+
+/*
+ * nss_core_handle_buffer_pkt()
+ * 	Handle data packet received on physical or virtual interface.
+ */
+static inline void nss_core_handle_buffer_pkt(struct nss_ctx_instance *nss_ctx,
+						unsigned int interface_num,
+						struct sk_buff *nbuf,
+						struct napi_struct *napi,
+						uint16_t flags)
+{
+	struct nss_top_instance *nss_top = nss_ctx->nss_top;
+	struct nss_subsystem_dataplane_register *subsys_dp_reg = &nss_top->subsys_dp_register[interface_num];
+	uint32_t netif_flags = subsys_dp_reg->features;
+	struct net_device *ndev = NULL;
+	nss_phys_if_rx_callback_t cb;
+
+	NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_RX_PACKET]);
+
+	/*
+	 * Check if NSS was able to obtain checksum
+	 */
+	nbuf->ip_summed = CHECKSUM_UNNECESSARY;
+	if (unlikely(!(flags & N2H_BIT_FLAG_IP_TRANSPORT_CHECKSUM_VALID))) {
+		nbuf->ip_summed = CHECKSUM_NONE;
+	}
+
+	ndev = subsys_dp_reg->ndev;
+	cb = subsys_dp_reg->cb;
+	if (likely(cb) && likely(ndev)) {
+		/*
+		 * Packet was received on Physical interface
+		 */
+		if (nss_core_skb_needs_linearize(nbuf, netif_flags) && __skb_linearize(nbuf)) {
+			/*
+			 * We needed to linearize, but __skb_linearize() failed. So free the nbuf.
+			 */
+			dev_kfree_skb_any(nbuf);
+			return;
+		}
+
+		cb(ndev, (void *)nbuf, napi);
+		return;
+	}
+
+	if (NSS_IS_IF_TYPE(DYNAMIC, interface_num) || NSS_IS_IF_TYPE(VIRTUAL, interface_num)) {
+		/*
+		 * Packet was received on Virtual interface
+		 */
+
+		/*
+		 * Give the packet to stack
+		 *
+		 * TODO: Change to gro receive later
+		 */
+		ndev = subsys_dp_reg->ndev;
+		if (ndev) {
+			dev_hold(ndev);
+			nbuf->dev = ndev;
+			nbuf->protocol = eth_type_trans(nbuf, ndev);
+			netif_receive_skb(nbuf);
+			dev_put(ndev);
+		} else {
+			/*
+			 * Interface has gone down
+			 */
+			nss_warning("%p: Received exception packet from bad virtual interface %d",
+					nss_ctx, interface_num);
+			dev_kfree_skb_any(nbuf);
+		}
+		return;
+	}
+
+	dev_kfree_skb_any(nbuf);
+}
+
+/*
  * nss_core_rx_pbuf()
  *	Receive a pbuf from the NSS into Linux.
  */
@@ -302,10 +503,7 @@ static inline void nss_core_rx_pbuf(struct nss_ctx_instance *nss_ctx, struct n2h
 {
 	unsigned int interface_num = desc->interface_num;
 	struct nss_top_instance *nss_top = nss_ctx->nss_top;
-	struct net_device *ndev = NULL;
-	nss_phys_if_rx_callback_t cb;
-	struct nss_subsystem_dataplane_register *subsys_dp_reg = &nss_top->subsys_dp_register[interface_num];
-
+	struct nss_shaper_bounce_registrant *reg = NULL;
 
 #ifdef CONFIG_DEBUG_KMEMLEAK
 	/*
@@ -320,225 +518,20 @@ static inline void nss_core_rx_pbuf(struct nss_ctx_instance *nss_ctx, struct n2h
 
 	switch (buffer_type) {
 	case N2H_BUFFER_SHAPER_BOUNCED_INTERFACE:
-		{
-			/*
-			 * Bounced packet is returned from an interface bounce operation
-			 * Obtain the registrant to which to return the skb
-			 */
-			nss_shaper_bounced_callback_t bounced_callback;
-			void *app_data;
-			struct module *owner;
-			struct nss_shaper_bounce_registrant *reg = &nss_top->bounce_interface_registrants[interface_num];
-
-			spin_lock_bh(&nss_top->lock);
-
-			/*
-			 * Do we have a registrant?
-			 */
-			if (!reg->registered) {
-				spin_unlock_bh(&nss_top->lock);
-				break;
-			}
-
-			/*
-			 * Get handle to the owning registrant
-			 */
-			bounced_callback = reg->bounced_callback;
-			app_data = reg->app_data;
-			owner = reg->owner;
-			if (!try_module_get(owner)) {
-				spin_unlock_bh(&nss_top->lock);
-				break;
-			}
-
-			/*
-			 * Callback is active, unregistration is not permitted while this is in progress
-			 */
-			reg->callback_active = true;
-			spin_unlock_bh(&nss_top->lock);
-
-			/*
-			 * Pass bounced packet back to registrant
-			 */
-			bounced_callback(app_data, nbuf);
-			spin_lock_bh(&nss_top->lock);
-			reg->callback_active = false;
-			spin_unlock_bh(&nss_top->lock);
-			module_put(owner);
-		}
+		reg = &nss_top->bounce_interface_registrants[interface_num];
+		nss_core_handle_bounced_pkt(nss_ctx, reg, nbuf);
 		break;
 	case N2H_BUFFER_SHAPER_BOUNCED_BRIDGE:
-		/*
-		 * Bounced packet is returned from a bridge bounce operation
-		 */
-		{
-			/*
-			 * Bounced packet is returned from a bridge bounce operation
-			 * Obtain the registrant to which to return the skb
-			 */
-			nss_shaper_bounced_callback_t bounced_callback;
-			void *app_data;
-			struct module *owner;
-			struct nss_shaper_bounce_registrant *reg = &nss_top->bounce_bridge_registrants[interface_num];
-
-			spin_lock_bh(&nss_top->lock);
-
-			/*
-			 * Do we have a registrant?
-			 */
-			if (!reg->registered) {
-				spin_unlock_bh(&nss_top->lock);
-				break;
-			}
-
-			/*
-			 * Get handle to the owning registrant
-			 */
-			bounced_callback = reg->bounced_callback;
-			app_data = reg->app_data;
-			owner = reg->owner;
-			if (!try_module_get(owner)) {
-				spin_unlock_bh(&nss_top->lock);
-				break;
-			}
-
-			/*
-			 * Callback is active, unregistration is not permitted while this is in progress
-			 */
-			reg->callback_active = true;
-			spin_unlock_bh(&nss_top->lock);
-
-			/*
-			 * Pass bounced packet back to registrant
-			 */
-			bounced_callback(app_data, nbuf);
-			spin_lock_bh(&nss_top->lock);
-			reg->callback_active = false;
-			spin_unlock_bh(&nss_top->lock);
-			module_put(owner);
-		}
+		reg = &nss_top->bounce_bridge_registrants[interface_num];
+		nss_core_handle_bounced_pkt(nss_ctx, reg, nbuf);
 		break;
 	case N2H_BUFFER_PACKET_VIRTUAL:
-		{
-			/*
-			 * Packet is destined to virtual interface
-			 */
-			uint32_t xmit_ret;
-
-			NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_RX_VIRTUAL]);
-
-			/*
-			 * Checksum is already done by NSS for packets forwarded to virtual interfaces
-			 */
-			nbuf->ip_summed = CHECKSUM_NONE;
-
-			/*
-			 * Obtain net_device pointer
-			 */
-			ndev = subsys_dp_reg->ndev;
-			if (unlikely(ndev == NULL)) {
-				nss_warning("%p: Received packet for unregistered virtual interface %d",
-					nss_ctx, interface_num);
-
-				/*
-				 * NOTE: The assumption is that gather support is not
-				 * implemented in fast path and hence we can not receive
-				 * fragmented packets and so we do not need to take care
-				 * of freeing a fragmented packet
-				 */
-				dev_kfree_skb_any(nbuf);
-				break;
-			}
-
-			/*
-			 * TODO: Need to ensure the ndev is not removed before we take dev_hold().
-			 */
-			dev_hold(ndev);
-			nbuf->dev = ndev;
-			/*
-			 * Linearize the skb if needed
-			 */
-			 if (nss_core_skb_needs_linearize(nbuf, (uint32_t)netif_skb_features(nbuf)) && __skb_linearize(nbuf)) {
-				/*
-				 * We needed to linearize, but __skb_linearize() failed. Therefore
-				 * we free the nbuf.
-				 */
-				 dev_kfree_skb_any(nbuf);
-				 break;
-			}
-
-			/*
-			 * Send the packet to virtual interface
-			 * NOTE: Invoking this will BYPASS any assigned QDisc - this is OKAY
-			 * as TX packets out of the NSS will have been shaped inside the NSS.
-			 */
-			xmit_ret = ndev->netdev_ops->ndo_start_xmit(nbuf, ndev);
-			if (unlikely(xmit_ret == NETDEV_TX_BUSY)) {
-				dev_kfree_skb_any(nbuf);
-				nss_info("%p: Congestion at virtual interface %d, %p", nss_ctx, interface_num, ndev);
-			}
-			dev_put(ndev);
-		}
+		nss_core_handle_virt_if_pkt(nss_ctx, interface_num, nbuf);
 		break;
 
-	case N2H_BUFFER_PACKET: {
-		uint32_t netif_flags = subsys_dp_reg->features;
-
-		NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_RX_PACKET]);
-
-		/*
-		 * Check if NSS was able to obtain checksum
-		 */
-		nbuf->ip_summed = CHECKSUM_UNNECESSARY;
-		if (unlikely(!(desc->bit_flags & N2H_BIT_FLAG_IP_TRANSPORT_CHECKSUM_VALID))) {
-			nbuf->ip_summed = CHECKSUM_NONE;
-		}
-
-		ndev = subsys_dp_reg->ndev;
-		cb = subsys_dp_reg->cb;
-		if (likely(cb) && likely(ndev)) {
-			/*
-			 * Packet was received on Physical interface
-			 */
-			if (nss_core_skb_needs_linearize(nbuf, netif_flags) && __skb_linearize(nbuf)) {
-				/*
-				 * We needed to linearize, but __skb_linearize() failed. So free the nbuf.
-				 */
-				dev_kfree_skb_any(nbuf);
-				break;
-			}
-
-			cb(ndev, (void *)nbuf, napi);
-		} else if (NSS_IS_IF_TYPE(DYNAMIC, interface_num) || NSS_IS_IF_TYPE(VIRTUAL, interface_num)) {
-			/*
-			 * Packet was received on Virtual interface
-			 */
-
-			/*
-			 * Give the packet to stack
-			 *
-			 * TODO: Change to gro receive later
-			 */
-			ndev = subsys_dp_reg->ndev;
-			if (ndev) {
-				dev_hold(ndev);
-				nbuf->dev = ndev;
-				nbuf->protocol = eth_type_trans(nbuf, ndev);
-				netif_receive_skb(nbuf);
-				dev_put(ndev);
-			} else {
-				/*
-				 * Interface has gone down
-				 */
-				nss_warning("%p: Received exception packet from bad virtual interface %d",
-						nss_ctx, interface_num);
-				dev_kfree_skb_any(nbuf);
-			}
-		} else {
-			dev_kfree_skb_any(nbuf);
-		}
-	}
-	break;
+	case N2H_BUFFER_PACKET:
+		nss_core_handle_buffer_pkt(nss_ctx, interface_num, nbuf, napi, desc->bit_flags);
+		break;
 
 	case N2H_BUFFER_STATUS:
 		NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_RX_STATUS]);
