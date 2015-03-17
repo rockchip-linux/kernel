@@ -123,6 +123,34 @@ static int mwifiex_unregister(struct mwifiex_adapter *adapter)
 	return 0;
 }
 
+void mwifiex_queue_main_work(struct mwifiex_adapter *adapter)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&adapter->main_proc_lock, flags);
+	if (adapter->mwifiex_processing) {
+		adapter->more_task_flag = true;
+		spin_unlock_irqrestore(&adapter->main_proc_lock, flags);
+	} else {
+		spin_unlock_irqrestore(&adapter->main_proc_lock, flags);
+		queue_work(adapter->workqueue, &adapter->main_work);
+	}
+}
+EXPORT_SYMBOL_GPL(mwifiex_queue_main_work);
+
+static void mwifiex_queue_rx_work(struct mwifiex_adapter *adapter)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&adapter->rx_proc_lock, flags);
+	if (adapter->rx_processing) {
+		spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+	} else {
+		spin_unlock_irqrestore(&adapter->rx_proc_lock, flags);
+		queue_work(adapter->rx_workqueue, &adapter->rx_work);
+	}
+}
+
 static int mwifiex_process_rx(struct mwifiex_adapter *adapter)
 {
 	unsigned long flags;
@@ -144,7 +172,7 @@ static int mwifiex_process_rx(struct mwifiex_adapter *adapter)
 		    (atomic_read(&adapter->rx_pending) <
 		     LOW_RX_PENDING)) {
 			adapter->delay_main_work = false;
-			queue_work(adapter->workqueue, &adapter->main_work);
+			mwifiex_queue_main_work(adapter);
 		}
 		mwifiex_handle_rx_packet(adapter, skb);
 
@@ -204,9 +232,7 @@ process_start:
 		 */
 		if (atomic_read(&adapter->rx_pending) >= HIGH_RX_PENDING) {
 			adapter->delay_main_work = true;
-			if (!adapter->rx_processing)
-				queue_work(adapter->rx_workqueue,
-					   &adapter->rx_work);
+			mwifiex_queue_rx_work(adapter);
 			break;
 		}
 
@@ -219,7 +245,7 @@ process_start:
 		}
 
 		if (adapter->rx_work_enabled && adapter->data_received)
-			queue_work(adapter->rx_workqueue, &adapter->rx_work);
+			mwifiex_queue_rx_work(adapter);
 
 		/* Need to wake up the card ? */
 		if ((adapter->ps_state == PS_STATE_SLEEP) &&
@@ -621,7 +647,7 @@ int mwifiex_queue_tx_pkt(struct mwifiex_private *priv, struct sk_buff *skb)
 	atomic_inc(&priv->adapter->tx_pending);
 	mwifiex_wmm_add_buf_txqueue(priv, skb);
 
-	queue_work(priv->adapter->workqueue, &priv->adapter->main_work);
+	mwifiex_queue_main_work(priv->adapter);
 
 	return 0;
 }
