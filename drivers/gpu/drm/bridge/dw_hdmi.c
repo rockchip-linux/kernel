@@ -1067,13 +1067,18 @@ static void hdmi_tx_hdcp_config(struct dw_hdmi *hdmi)
 		  HDMI_A_HDCPCFG1_ENCRYPTIONDISABLE_MASK, HDMI_A_HDCPCFG1);
 }
 
-static void hdmi_config_AVI(struct dw_hdmi *hdmi)
+static void hdmi_config_AVI(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 {
 	u8 val, pix_fmt, under_scan;
 	u8 act_ratio, coded_ratio, colorimetry, ext_colorimetry;
 	bool aspect_16_9;
 
-	aspect_16_9 = false; /* FIXME */
+	/* Parse the aspect ratio from drm display mode */
+	if (mode->picture_aspect_ratio & HDMI_PICTURE_ASPECT_16_9)
+		aspect_16_9 = true;
+	else
+		aspect_16_9 = false;
+
 
 	/* AVI Data Byte 1 */
 	if (hdmi->hdmi_data.enc_out_format == YCBCR444)
@@ -1461,7 +1466,7 @@ static int dw_hdmi_setup(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 		hdmi_clk_regenerator_update_pixel_clock(hdmi);
 
 		/* HDMI Initialization Step F - Configure AVI InfoFrame */
-		hdmi_config_AVI(hdmi);
+		hdmi_config_AVI(hdmi, mode);
 	}
 
 	hdmi_video_packetize(hdmi);
