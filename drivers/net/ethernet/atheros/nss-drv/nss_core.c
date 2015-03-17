@@ -543,15 +543,17 @@ static inline void nss_core_rx_pbuf(struct nss_ctx_instance *nss_ctx, struct n2h
 		NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_RX_EMPTY]);
 
 		/*
-		 * TODO: Unmap fragments.
+		 * Warning: On non-Krait HW, we need to unmap fragments.
+		 *
+		 * It's not a problem on Krait HW. We don't save dma handle for those
+		 * fragments and that's why we are not able to unmap. However, on
+		 * Kraits dma_map_single() does not allocate any resource and hence unmap is a
+		 * NOP and does not have to free up any resource.
 		 */
 		dev_kfree_skb_any(nbuf);
 		break;
 
 	default:
-		/*
-		 * ERROR:
-		 */
 		nss_warning("%p: Invalid buffer type %d received from NSS", nss_ctx, buffer_type);
 	}
 }
@@ -573,7 +575,8 @@ static inline bool nss_core_handle_nr_frag_skb(struct sk_buff **nbuf_ptr, struct
 	dma_unmap_page(NULL, (desc->buffer + desc->payload_offs), desc->payload_len, DMA_FROM_DEVICE);
 
 	/*
-	 * The received frame is not a scattered one.
+	 * The first and last bits are both set. Hence the received frame can't have
+	 * chains (or it's not a scattered one).
 	 */
 	if (likely(bit_flags & N2H_BIT_FLAG_FIRST_SEGMENT) && likely(bit_flags & N2H_BIT_FLAG_LAST_SEGMENT)) {
 
@@ -674,6 +677,7 @@ static inline bool nss_core_handle_nr_frag_skb(struct sk_buff **nbuf_ptr, struct
 	nbuf = jumbo_start;
 	*nbuf_ptr = nbuf;
 	*jumbo_start_ptr = NULL;
+	prefetch((void *)(nbuf->data));
 
 pull:
 	/*
@@ -923,9 +927,13 @@ static int32_t nss_core_handle_cause_queue(struct int_ctx_instance *int_ctx, uin
 			 * properly. Simple skb's are properly mapped but page data skbs
 			 * have the payload mapped (and not the skb->data slab payload).
 			 *
-			 * TODO: This only unmaps the first segment either slab payload or
-			 * skb page data.  Eventually, we need to unmap all of a frag_list
-			 * or all of page_data.
+			 * Warning: On non-Krait HW, we need to unmap fragments.
+			 *
+			 * This only unmaps the first segment either slab payload or
+			 * skb page data. Eventually, we need to unmap all of a frag_list
+			 * or all of page_data however this is not a big concern as of now
+			 * since on Kriats dma_map_single() does not allocate any resource
+			 * and hence dma_unmap_single() is sort off a nop.
 			 *
 			 * No need to invalidate for Tx Completions, so set dma direction = DMA_TO_DEVICE;
 			 * Similarly prefetch is not needed for an empty buffer.
