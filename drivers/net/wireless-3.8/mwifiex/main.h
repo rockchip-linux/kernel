@@ -51,6 +51,8 @@ enum {
 
 #define MWIFIEX_MAX_AP				64
 
+#define MWIFIEX_MAX_PKTS_TXQ			16
+
 #define MWIFIEX_DEFAULT_WATCHDOG_TIMEOUT	(5 * HZ)
 
 #define MWIFIEX_TIMER_10S			10000
@@ -754,6 +756,8 @@ struct mwifiex_adapter {
 	spinlock_t scan_pending_q_lock;
 	/* spin lock for RX processing routine */
 	spinlock_t rx_proc_lock;
+	struct sk_buff_head tx_data_q;
+	atomic_t tx_queued;
 	struct sk_buff_head usb_rx_data_q;
 	u32 scan_processing;
 	u16 region_code;
@@ -831,6 +835,8 @@ struct mwifiex_adapter {
 	struct semaphore *card_sem;
 	bool mfg_mode;
 };
+
+void mwifiex_process_tx_queue(struct mwifiex_adapter *adapter);
 
 int mwifiex_init_lock_list(struct mwifiex_adapter *adapter);
 
