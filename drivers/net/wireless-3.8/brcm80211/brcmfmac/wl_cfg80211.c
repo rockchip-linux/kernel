@@ -5181,7 +5181,7 @@ static int brcmf_construct_chaninfo(struct brcmf_cfg80211_info *cfg,
 				    u32 bw_cap[])
 {
 	struct brcmf_if *ifp = netdev_priv(cfg_to_ndev(cfg));
-	struct ieee80211_supported_band *band;
+	struct ieee80211_supported_band *bands[2] = { NULL, NULL };
 	struct ieee80211_channel *channel;
 	struct wiphy *wiphy;
 	struct brcmf_chanspec_list *list;
@@ -5211,49 +5211,49 @@ static int brcmf_construct_chaninfo(struct brcmf_cfg80211_info *cfg,
 	brcmf_count_20mhz_channels(cfg, list, chcnt);
 	wiphy = cfg_to_wiphy(cfg);
 	if (chcnt[0]) {
-		band = kmemdup(&__wl_band_2ghz, sizeof(__wl_band_2ghz),
-			       GFP_KERNEL);
-		if (band == NULL) {
+		bands[0] = kmemdup(&__wl_band_2ghz, sizeof(__wl_band_2ghz),
+				   GFP_KERNEL);
+		if (bands[0] == NULL) {
 			err = -ENOMEM;
 			goto fail_pbuf;
 		}
-		band->channels = kcalloc(chcnt[0], sizeof(*channel),
-					 GFP_KERNEL);
-		if (band->channels == NULL) {
-			kfree(band);
+		bands[0]->channels = kcalloc(chcnt[0], sizeof(*channel),
+					     GFP_KERNEL);
+		if (bands[0]->channels == NULL) {
+			kfree(bands[0]);
 			err = -ENOMEM;
 			goto fail_pbuf;
 		}
-		band->n_channels = 0;
-		wiphy->bands[IEEE80211_BAND_2GHZ] = band;
+		bands[0]->n_channels = 0;
 	}
 	if (chcnt[1]) {
-		band = kmemdup(&__wl_band_5ghz_a, sizeof(__wl_band_5ghz_a),
-			       GFP_KERNEL);
-		if (band == NULL) {
+		bands[1] = kmemdup(&__wl_band_5ghz_a, sizeof(__wl_band_5ghz_a),
+				   GFP_KERNEL);
+		if (bands[1] == NULL) {
 			err = -ENOMEM;
 			goto fail_band2g;
 		}
-		band->channels = kcalloc(chcnt[1], sizeof(*channel),
-					 GFP_KERNEL);
-		if (band->channels == NULL) {
-			kfree(band);
+		bands[1]->channels = kcalloc(chcnt[1], sizeof(*channel),
+					     GFP_KERNEL);
+		if (bands[1]->channels == NULL) {
+			kfree(bands[1]);
 			err = -ENOMEM;
 			goto fail_band2g;
 		}
-		band->n_channels = 0;
-		wiphy->bands[IEEE80211_BAND_5GHZ] = band;
+		bands[1]->n_channels = 0;
 	}
 
 	total = le32_to_cpu(list->count);
 	for (i = 0; i < total; i++) {
+		struct ieee80211_supported_band *band;
+
 		ch.chspec = (u16)le32_to_cpu(list->element[i]);
 		cfg->d11inf.decchspec(&ch);
 
 		if (ch.band == BRCMU_CHAN_BAND_2G) {
-			band = wiphy->bands[IEEE80211_BAND_2GHZ];
+			band = bands[0];
 		} else if (ch.band == BRCMU_CHAN_BAND_5G) {
-			band = wiphy->bands[IEEE80211_BAND_5GHZ];
+			band = bands[1];
 		} else {
 			brcmf_err("Invalid channel Spec. 0x%x.\n", ch.chspec);
 			continue;
@@ -5309,13 +5309,25 @@ static int brcmf_construct_chaninfo(struct brcmf_cfg80211_info *cfg,
 		if (index == band->n_channels)
 			band->n_channels++;
 	}
+	if (bands[0]) {
+		if (wiphy->bands[IEEE80211_BAND_2GHZ])
+			kfree(wiphy->bands[IEEE80211_BAND_2GHZ]->channels);
+		kfree(wiphy->bands[IEEE80211_BAND_2GHZ]);
+		wiphy->bands[IEEE80211_BAND_2GHZ] = bands[0];
+	}
+	if (bands[1]) {
+		if (wiphy->bands[IEEE80211_BAND_5GHZ])
+			kfree(wiphy->bands[IEEE80211_BAND_5GHZ]->channels);
+		kfree(wiphy->bands[IEEE80211_BAND_5GHZ]);
+		wiphy->bands[IEEE80211_BAND_5GHZ] = bands[1];
+	}
 	kfree(pbuf);
 	return 0;
 
 fail_band2g:
-	kfree(wiphy->bands[IEEE80211_BAND_2GHZ]->channels);
-	kfree(wiphy->bands[IEEE80211_BAND_2GHZ]);
-	wiphy->bands[IEEE80211_BAND_2GHZ] = NULL;
+	if (bands[0])
+		kfree(bands[0]->channels);
+	kfree(bands[0]);
 fail_pbuf:
 	kfree(pbuf);
 	return err;
@@ -5528,7 +5540,6 @@ static int brcmf_setup_wiphybands(struct wiphy *wiphy)
 		return err;
 	}
 
-	wiphy = cfg_to_wiphy(cfg);
 	for (i = 0; i < ARRAY_SIZE(wiphy->bands); i++) {
 		band = wiphy->bands[i];
 		if (band == NULL)
@@ -5811,12 +5822,16 @@ static int brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 	for (i = 0; i < sizeof(req->alpha2); i++)
 		if (req->alpha2[i] < 'A' || req->alpha2[i] > 'Z') {
 			brcmf_err("not a ISO3166 code\n");
-			return 0;
+			return -EINVAL;
 		}
+
 	memset(&ccreq, 0, sizeof(ccreq));
 	ccreq.rev = cpu_to_le32(-1);
 	memcpy(ccreq.ccode, req->alpha2, sizeof(req->alpha2));
-	brcmf_fil_iovar_data_set(ifp, "country", &ccreq, sizeof(ccreq));
+	if (brcmf_fil_iovar_data_set(ifp, "country", &ccreq, sizeof(ccreq)))
+		return -EOPNOTSUPP;
+
+	brcmf_setup_wiphybands(wiphy);
 	return 0;
 }
 
