@@ -5794,8 +5794,8 @@ int brcmf_cfg80211_wait_vif_event_timeout(struct brcmf_cfg80211_info *cfg,
 				  vif_event_equals(event, action), timeout);
 }
 
-static void brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
-					struct regulatory_request *req)
+static int brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
+				       struct regulatory_request *req)
 {
 	struct brcmf_cfg80211_info *cfg = wiphy_priv(wiphy);
 	struct brcmf_if *ifp = netdev_priv(cfg_to_ndev(cfg));
@@ -5809,12 +5809,13 @@ static void brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 	for (i = 0; i < sizeof(req->alpha2); i++)
 		if (req->alpha2[i] < 'A' || req->alpha2[i] > 'Z') {
 			brcmf_err("not a ISO3166 code\n");
-			return;
+			return 0;
 		}
 	memset(&ccreq, 0, sizeof(ccreq));
 	ccreq.rev = cpu_to_le32(-1);
 	memcpy(ccreq.ccode, req->alpha2, sizeof(req->alpha2));
 	brcmf_fil_iovar_data_set(ifp, "country", &ccreq, sizeof(ccreq));
+	return 0;
 }
 
 static void brcmf_free_wiphy(struct wiphy *wiphy)
