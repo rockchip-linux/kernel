@@ -1884,17 +1884,14 @@ int32_t nss_core_send_buffer(struct nss_ctx_instance *nss_ctx, uint32_t if_num,
 	}
 
 	/*
-	 * WARNING! : The following "is_bounce" check has a HUGE potential to cause corruption
+	 * WARNING! : The following "is_bounce" check has a potential to cause corruption
 	 * if things change in the NSS. This check allows fragmented packets to be sent down
-	 * with garbage payload information under the ASSUMTION that no-body meddles with the
-	 * buffer. This holds good today for packets that are BOUNCED.
+	 * with incomplete payload information since NSS does not care about the payload content
+	 * when packets are bounced for shaping. If it starts caring in future, then this code
+	 * will have to change.
 	 *
-	 * WHY WE ARE DOING THIS - This is done as a temporary work around for issues with
-	 * the handeling of scatter gather in the NSS.
+	 * WHY WE ARE DOING THIS - Skipping S/G processing helps with performance.
 	 *
-	 * WHAT ARE WE DOING - We treat fragmented packets as normal (if bounced). This is okay
-	 * to do since the skb will eventually be returned to the HLOS for freeing or further
-	 * processing (post shaping). These packets WILL NOT get transmitted/re-used in the NSS.
 	 */
 	count = 0;
 	if (likely((segments == 0) || is_bounce)) {
