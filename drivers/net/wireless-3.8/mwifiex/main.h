@@ -116,6 +116,7 @@ enum {
 
 #define MWIFIEX_TYPE_CMD				1
 #define MWIFIEX_TYPE_DATA				0
+#define MWIFIEX_TYPE_AGGR_DATA				10
 #define MWIFIEX_TYPE_EVENT				3
 
 #define MAX_BITMAP_RATES_SIZE			18
@@ -684,6 +685,7 @@ struct mwifiex_if_ops {
 	int (*clean_pcie_ring) (struct mwifiex_adapter *adapter);
 	void (*iface_work)(struct work_struct *work);
 	void (*read_regs)(struct mwifiex_adapter *adapter);
+	void (*deaggr_pkt)(struct mwifiex_adapter *, struct sk_buff *);
 };
 
 struct mwifiex_adapter {
@@ -722,6 +724,8 @@ struct mwifiex_adapter {
 	u8 more_task_flag;
 	u16 tx_buf_size;
 	u16 curr_tx_buf_size;
+	bool sdio_rx_aggr_enable;
+	u16 sdio_rx_block_size;
 	u32 ioport;
 	enum MWIFIEX_HARDWARE_STATUS hw_status;
 	u16 number_of_antenna;

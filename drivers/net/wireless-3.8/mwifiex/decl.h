@@ -104,6 +104,11 @@
 #define MWIFIEX_TDLS_CREATE_LINK              0x02
 #define MWIFIEX_TDLS_CONFIG_LINK              0x03
 
+/* SDIO Aggr data packet special info */
+#define SDIO_MAX_AGGR_BUF_SIZE		(256 * 255)
+#define BLOCK_NUMBER_OFFSET		15
+#define SDIO_HEADER_OFFSET		28
+
 enum mwifiex_bss_type {
 	MWIFIEX_BSS_TYPE_STA = 0,
 	MWIFIEX_BSS_TYPE_UAP = 1,
@@ -161,10 +166,11 @@ struct mwifiex_wait_queue {
 };
 
 struct mwifiex_rxinfo {
+	struct sk_buff *parent;
 	u8 bss_num;
 	u8 bss_type;
-	struct sk_buff *parent;
 	u8 use_count;
+	u8 buf_type;
 };
 
 struct mwifiex_txinfo {
