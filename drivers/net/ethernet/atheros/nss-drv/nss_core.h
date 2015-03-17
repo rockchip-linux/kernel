@@ -88,6 +88,7 @@
 
 #if (NSS_PKT_STATS_ENABLED == 1)
 #define NSS_PKT_STATS_INCREMENT(nss_ctx, x) nss_pkt_stats_increment((nss_ctx), (x))
+#define NSS_PKT_STATS_DECREMENT(nss_ctx, x) nss_pkt_stats_decrement((nss_ctx), (x))
 #else
 #define NSS_PKT_STATS_INCREMENT(nss_ctx, x)
 #endif
@@ -308,6 +309,7 @@ enum nss_stats_drv {
 	NSS_STATS_DRV_RX_NR_FRAGS,		/* N2H NR Frags SKB Packets */
 	NSS_STATS_DRV_RX_SKB_FRAGLIST,		/* N2H Fraglist SKB Packets */
 	NSS_STATS_DRV_RX_BAD_DESCRIPTOR,	/* N2H Bad descriptor reads */
+	NSS_STATS_DRV_NSS_SKB_COUNT,
 	NSS_STATS_DRV_MAX,
 };
 
@@ -696,6 +698,17 @@ static inline void nss_pkt_stats_increment(struct nss_ctx_instance *nss_ctx, uin
 	*stat = *stat + 1;
 	spin_unlock_bh(&nss_ctx->nss_top->stats_lock);
 }
+
+/*
+ * nss_pkt_stats_increment()
+ */
+static inline void nss_pkt_stats_decrement(struct nss_ctx_instance *nss_ctx, uint64_t *stat)
+{
+	spin_lock_bh(&nss_ctx->nss_top->stats_lock);
+	*stat = *stat - 1;
+	spin_unlock_bh(&nss_ctx->nss_top->stats_lock);
+}
+
 #endif
 
 /*

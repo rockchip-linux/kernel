@@ -1,5 +1,5 @@
 ##########################################################################
-# Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+# Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
 # Permission to use, copy, modify, and/or distribute this software for
 # any purpose with or without fee is hereby granted, provided that the
 # above copyright notice and this permission notice appear in all copies.
@@ -58,7 +58,7 @@ qca-nss-drv-objs += \
 
 PM_SUPPORT := 0
 
-ccflags-y += -I$(obj)/nss_hal/include -I$(obj)/exports -DNSS_DEBUG_LEVEL=0 -DNSS_EMPTY_BUFFER_SIZE=1792 -DNSS_PKT_STATS_ENABLED=0
+ccflags-y += -I$(obj)/nss_hal/include -I$(obj)/exports -DNSS_DEBUG_LEVEL=0 -DNSS_EMPTY_BUFFER_SIZE=1792 -DNSS_PKT_STATS_ENABLED=1
 ccflags-y += -DNSS_PM_DEBUG_LEVEL=0
 ccflags-y += -I$(src)/../nss-gmac/exports
 

@@ -68,6 +68,10 @@ int nss_ctl_logbuf __read_mostly = 0;
 int nss_jumbo_mru  __read_mostly = 0;
 int nss_paged_mode __read_mostly = 0;
 
+#ifdef CONFIG_DEBUG_KMEMLEAK
+extern struct sk_buff_head nss_skb_list;
+#endif
+
 /*
  * PM client handle
  */
@@ -1375,6 +1379,15 @@ static int __init nss_init(void)
 	 */
 	nss_ipv4_register_sysctl();
 	nss_ipv6_register_sysctl();
+
+#ifdef CONFIG_DEBUG_KMEMLEAK
+	/*
+	 * If the system is under kmemleak debugging, track our
+	 * skbs by putting them in a list.
+	 */
+
+	skb_queue_head_init(&nss_skb_list);
+#endif
 
 #if (NSS_PM_SUPPORT == 1)
 	/*
