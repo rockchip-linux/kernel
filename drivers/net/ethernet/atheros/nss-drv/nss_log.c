@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -178,6 +178,16 @@ static int nss_log_release(struct inode *inode, struct file *filp)
 }
 
 /*
+ * nss_log_current_entry()
+ *	Reads current entry index from NSS log descriptor.
+ */
+static uint32_t nss_log_current_entry(struct nss_log_descriptor *desc)
+{
+	rmb();
+	return desc->current_entry;
+}
+
+/*
  * nss_log_read()
  *	Read operation lets command like cat and tail read our memory log buffer data.
  */
@@ -213,7 +223,7 @@ static ssize_t nss_log_read(struct file *filp, char __user *buf, size_t size, lo
 	 * Get the current index
 	 */
 	dma_sync_single_for_cpu(NULL, data->dma_addr, sizeof (struct nss_log_descriptor), DMA_FROM_DEVICE);
-	entry = desc->current_entry;
+	entry = nss_log_current_entry(desc);
 
 	/*
 	 * If the current and last sampled indexes are same then bail out.
@@ -520,7 +530,7 @@ bool nss_debug_log_buffer_alloc(uint8_t nss_id, uint32_t nentry)
 	dbg = &msg.msg.addr;
 	dbg->nentry = nentry;
 	dbg->version = NSS_DEBUG_LOG_VERSION;
-	dbg->addr = dma_addr;
+	dbg->phy_addr = dma_addr;
 
 	msg_event = false;
 	status = nss_debug_interface_tx(nss_ctx, &msg);

@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -41,26 +41,35 @@ enum nss_debug_interface_msg_type {
 #define	NSS_CACHE_LINE_SIZE		32
 #define	NSS_LOG_COOKIE			0xFF785634
 
+/*
+ * nss_log_entry is shared between Host and NSS FW
+ */
 struct nss_log_entry {
-	uint64_t volatile sequence_num;		/* Sequence number */
-	uint32_t volatile cookie;		/* Magic for verification */
-	uint32_t volatile thread_num;		/* thread-id */
-	uint32_t volatile timestamp;		/* timestamp in ticks */
-	char volatile message[NSS_LOG_LINE_WIDTH];	/* actual debug message */
+	uint64_t sequence_num;		/* Sequence number */
+	uint32_t cookie;		/* Magic for verification */
+	uint32_t thread_num;		/* thread-id */
+	uint32_t timestamp;		/* timestamp in ticks */
+	char message[NSS_LOG_LINE_WIDTH];	/* actual debug message */
 } __attribute__((aligned(NSS_CACHE_LINE_SIZE)));
 
+/*
+ * The NSS log descripts holds ring-buffer along with other variables and
+ * it is shared between NSS FW and Host.
+ *
+ * NSS FW writes to ring buffer and current_entry but read by only Host.
+ */
 struct nss_log_descriptor {
-	uint32_t volatile cookie;		/* Magic for verification */
-	uint32_t volatile log_nentries;		/* No.of log entries */
-	uint32_t volatile current_entry;	/* pointer to current log entry */
-	uint8_t  volatile pad[20];		/* pad to align ring buffer at cacheline boundary */
+	uint32_t cookie;		/* Magic for verification */
+	uint32_t log_nentries;		/* No.of log entries */
+	uint32_t current_entry;		/* pointer to current log entry */
+	uint8_t  pad[20];			/* pad to align ring buffer at cacheline boundary */
 	struct nss_log_entry log_ring_buffer[0];	/* The actual log entry ring buffer */
 } __attribute__((aligned(NSS_CACHE_LINE_SIZE)));
 
 struct nss_debug_log_memory_msg {
 	uint32_t version;
 	uint32_t nentry;
-	uint32_t addr;
+	uint32_t phy_addr;
 };
 
 struct nss_debug_interface_msg {
