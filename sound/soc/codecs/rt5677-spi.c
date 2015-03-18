@@ -71,12 +71,12 @@ static const struct snd_pcm_hardware rt5677_spi_pcm_hardware = {
 				  SNDRV_PCM_INFO_INTERLEAVED,
 	.formats		= SNDRV_PCM_FMTBIT_S16_LE,
 	.period_bytes_min	= PAGE_SIZE,
-	.period_bytes_max	= RT5677_MIC_BUF_BYTES / 2,
-	.periods_min		= 2,
-	.periods_max		= 2,
+	.period_bytes_max	= 0x20000 / 8,
+	.periods_min		= 8,
+	.periods_max		= 8,
 	.channels_min		= 1,
 	.channels_max		= 1,
-	.buffer_bytes_max	= RT5677_MIC_BUF_BYTES,
+	.buffer_bytes_max	= 0x20000,
 };
 
 static int rt5677_spi_dai_hw_params(struct snd_pcm_substream *substream,
