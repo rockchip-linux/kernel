@@ -524,6 +524,12 @@ config VLV2_PLAT_CLK
 	---help---
 	Driver to enable the platform clock control for Valleyview2
 
+config GPIO_PROCHOT
+	tristate "Support for Processor Hot"
+	help
+	  This driver provides gpio control for the cpu frenquency
+	  when the hardware triggers the gpio.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
