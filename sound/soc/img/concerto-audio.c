@@ -64,6 +64,13 @@ static int concerto_mclk_configure(struct concerto_audio_card *cc,
 	case 8000:
 		pll_rate = 147456000;
 		break;
+	case 176400:
+	case 88200:
+	case 44100:
+	case 22050:
+	case 11025:
+		pll_rate = 45158400;
+		break;
 	default:
 		dev_err(cc->card.dev, "Unsupported rate: %lu\n", rate);
 		return -EINVAL;
