@@ -95,6 +95,34 @@ int rockchip_efuse_get_chip_version(struct platform_device *pdev,
 }
 EXPORT_SYMBOL_GPL(rockchip_efuse_get_chip_version);
 
+static ssize_t cpu_leakage_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	int leakage;
+	int ret;
+	struct platform_device *pdev = to_platform_device(dev);
+
+	ret = rockchip_efuse_get_cpuleakage(pdev, &leakage);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%d\n", leakage);
+}
+
+static ssize_t cpu_version_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	int version;
+	int ret;
+	struct platform_device *pdev = to_platform_device(dev);
+
+	ret = rockchip_efuse_get_chip_version(pdev, &version);
+	if (ret)
+		return ret;
+
+	return sprintf(buf, "%d\n", version);
+}
+
 static void rockchip_efuse_init(struct rk_efuse_info *efuse)
 {
 	int start;
@@ -125,10 +153,24 @@ static void rockchip_efuse_init(struct rk_efuse_info *efuse)
 	efuse_writel(efuse, EFUSE_PGENB | EFUSE_CSB, REG_EFUSE_CTRL);
 }
 
+static DEVICE_ATTR(cpu_leakage_show, 0444, cpu_leakage_show, NULL);
+static DEVICE_ATTR(cpu_version_show, 0444, cpu_version_show, NULL);
+
+static struct attribute *efuse_attributes[] = {
+	&dev_attr_cpu_leakage_show.attr,
+	&dev_attr_cpu_version_show.attr,
+	NULL,
+};
+
+static const struct attribute_group efuse_attr_group = {
+	.attrs = efuse_attributes,
+};
+
 static int rockchip_efuse_probe(struct platform_device *pdev)
 {
 	struct rk_efuse_info *rk_efuse;
 	struct resource *mem;
+	int ret;
 
 	rk_efuse = devm_kzalloc(&pdev->dev, sizeof(struct rk_efuse_info),
 				GFP_KERNEL);
@@ -150,6 +192,13 @@ static int rockchip_efuse_probe(struct platform_device *pdev)
 	 * rockchip_efuse_get_cpu_version do not return garbage.
 	 */
 	platform_set_drvdata(pdev, rk_efuse);
+
+	ret = sysfs_create_group(&rk_efuse->dev->kobj, &efuse_attr_group);
+	if (ret) {
+		dev_err(rk_efuse->dev,
+			"failed to register sysfs. err: %d\n", ret);
+		return ret;
+	}
 
 	return 0;
 }
