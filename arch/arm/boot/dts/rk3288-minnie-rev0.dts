@@ -50,6 +50,13 @@
 		vin-supply = <&vcc33_sys>;
 		startup-delay-us = <15000>;
 	};
+
+	prochot_protection: prochot-protection {
+		compatible = "gpio-prochot";
+		prochot-gpios = <&gpio2 8 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_prochot>;
+	};
 };
 
 &gpio_keys {
@@ -259,6 +266,12 @@
 
 		dvs_2: dvs-2 {
 			rockchip,pins = <7 15 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+
+	prochot {
+		gpio_prochot: gpio-prochot {
+			rockchip,pins = <2 8 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
