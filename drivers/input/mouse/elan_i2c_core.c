@@ -4,7 +4,7 @@
  * Copyright (c) 2013 ELAN Microelectronics Corp.
  *
  * Author: 林政維 (Duson Lin) <dusonlin@emc.com.tw>
- * Version: 1.5.6
+ * Version: 1.5.7
  *
  * Based on cyapa driver:
  * copyright (c) 2011-2012 Cypress Semiconductor, Inc.
@@ -40,8 +40,7 @@
 #include "elan_i2c.h"
 
 #define DRIVER_NAME		"elan_i2c"
-#define ELAN_DRIVER_VERSION	"1.5.6"
-#define ETP_PRESSURE_OFFSET	25
+#define ELAN_DRIVER_VERSION	"1.5.7"
 #define ETP_MAX_PRESSURE	255
 #define ETP_FWIDTH_REDUCE	90
 #define ETP_FINGER_WIDTH	15
@@ -84,7 +83,7 @@ struct elan_tp_data {
 	u8			sm_version;
 	u8			iap_version;
 	u16			fw_checksum;
-
+	int			pressure_adjustment;
 	u8			mode;
 
 	bool			irq_wake;
@@ -296,6 +295,11 @@ static int elan_query_device_info(struct elan_tp_data *data)
 		return error;
 
 	error = data->ops->get_version(data->client, true, &data->iap_version);
+	if (error)
+		return error;
+
+	error = data->ops->get_pressure_adjustment(data->client,
+						   &data->pressure_adjustment);
 	if (error)
 		return error;
 
@@ -632,7 +636,6 @@ static DEVICE_ATTR(iap_version, S_IRUGO, elan_sysfs_read_iap_ver, NULL);
 static DEVICE_ATTR(fw_checksum, S_IRUGO, elan_sysfs_read_fw_checksum, NULL);
 static DEVICE_ATTR(mode, S_IRUGO, elan_sysfs_read_mode, NULL);
 static DEVICE_ATTR(update_fw, S_IWUSR, NULL, elan_sysfs_update_fw);
-
 static DEVICE_ATTR_WO(calibrate);
 
 static struct attribute *elan_sysfs_entries[] = {
@@ -789,7 +792,8 @@ static void elan_report_contact(struct elan_tp_data *data,
 	struct input_dev *input = data->input;
 	unsigned int pos_x, pos_y;
 	unsigned int pressure, mk_x, mk_y;
-	unsigned int area_x, area_y, major, minor, new_pressure;
+	unsigned int area_x, area_y, major, minor;
+	unsigned int scaled_pressure;
 
 
 	if (contact_valid) {
@@ -819,15 +823,16 @@ static void elan_report_contact(struct elan_tp_data *data,
 		major = max(area_x, area_y);
 		minor = min(area_x, area_y);
 
-		new_pressure = pressure + ETP_PRESSURE_OFFSET;
-		if (new_pressure > ETP_MAX_PRESSURE)
-			new_pressure = ETP_MAX_PRESSURE;
+		scaled_pressure = pressure + data->pressure_adjustment;
+
+		if (scaled_pressure > ETP_MAX_PRESSURE)
+			scaled_pressure = ETP_MAX_PRESSURE;
 
 		input_mt_slot(input, contact_num);
 		input_mt_report_slot_state(input, MT_TOOL_FINGER, true);
 		input_report_abs(input, ABS_MT_POSITION_X, pos_x);
 		input_report_abs(input, ABS_MT_POSITION_Y, data->max_y - pos_y);
-		input_report_abs(input, ABS_MT_PRESSURE, new_pressure);
+		input_report_abs(input, ABS_MT_PRESSURE, scaled_pressure);
 		input_report_abs(input, ABS_TOOL_WIDTH, mk_x);
 		input_report_abs(input, ABS_MT_TOUCH_MAJOR, major);
 		input_report_abs(input, ABS_MT_TOUCH_MINOR, minor);
