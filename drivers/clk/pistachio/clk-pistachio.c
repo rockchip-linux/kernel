@@ -155,6 +155,16 @@ static struct pistachio_pll_rate_table audio_pll_rates[] = {
 		.frac		= 0x5efee6,
 		.postdiv1	= 0x4,
 		.postdiv2	= 0x4,
+	}, {
+		.fref		= 52000000,
+		.fout_min	= 44571429,
+		.fout		= 45158400,
+		.fout_max	= 45632652,
+		.refdiv		= 0x1,
+		.fbdiv		= 0x2a,
+		.frac		= 0x8d9877,
+		.postdiv1	= 0x7,
+		.postdiv2	= 0x7,
 	},
 };
 
