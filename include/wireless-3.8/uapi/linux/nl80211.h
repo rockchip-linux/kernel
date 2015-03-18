@@ -1712,8 +1712,9 @@ enum nl80211_commands {
  *	obtained from it is coming from the device's wiphy and not the global
  *	cfg80211 regdomain.
  *
- * @NL80211_ATTR_SCHED_SCAN_DELAY: delay before a scheduled scan (or a
- *	WoWLAN net-detect scan) is started, u32 in seconds.
+ * @NL80211_ATTR_SCHED_SCAN_DELAY: delay before the first cycle of a
+ *	scheduled scan (or a WoWLAN net-detect scan) is started, u32
+ *	in seconds.
  *
  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
  * @NL80211_ATTR_MAX: highest attribute number currently defined
