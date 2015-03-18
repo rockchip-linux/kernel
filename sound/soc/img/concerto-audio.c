@@ -12,6 +12,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
@@ -20,6 +21,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
+#include <sound/jack.h>
 #include <sound/soc.h>
 
 #define CONCERTO_MAX_LINKS		5
@@ -46,6 +48,15 @@ struct concerto_audio_card {
 	struct clk *mclk;
 	struct regmap *periph_regs;
 	struct regmap *top_regs;
+	struct gpio_desc *aux_det_gpio;
+};
+
+static struct snd_soc_jack concerto_aux_jack;
+
+static struct snd_soc_jack_gpio concerto_aux_jack_gpio = {
+	.name = "aux-det",
+	.report = SND_JACK_LINEIN,
+	.debounce_time = 200,
 };
 
 static int concerto_mclk_configure(struct concerto_audio_card *cc,
@@ -174,6 +185,18 @@ static int concerto_i2s_in_init(struct snd_soc_pcm_runtime *rtd)
 	if (cc->loopback_i2s_clk && !cc->i2s_out_dai) {
 		dev_err(cc->card.dev, "No I2S out DAI registered\n");
 		return -EINVAL;
+	}
+
+	if (!IS_ERR(cc->aux_det_gpio)) {
+		ret = snd_soc_jack_new(rtd->codec_dais[0]->codec, "Aux In",
+				       SND_JACK_LINEIN, &concerto_aux_jack);
+		if (ret < 0)
+			return ret;
+		devm_gpiod_put(cc->card.dev, cc->aux_det_gpio);
+		ret = snd_soc_jack_add_gpiods(cc->card.dev, &concerto_aux_jack,
+					      1, &concerto_aux_jack_gpio);
+		if (ret < 0)
+			return ret;
 	}
 
 	ret = snd_soc_dai_set_fmt(rtd->cpu_dai, cc->i2s_in_fmt);
@@ -465,6 +488,11 @@ static int concerto_parse_of_i2s_in(struct concerto_audio_card *cc,
 	}
 	cc->num_i2s_in_codecs = link->num_codecs;
 
+	cc->aux_det_gpio = devm_gpiod_get(cc->card.dev, "aux-det");
+	if (IS_ERR(cc->aux_det_gpio) &&
+	    (PTR_ERR(cc->aux_det_gpio) == -EPROBE_DEFER))
+		return -EPROBE_DEFER;
+
 	link->init = concerto_i2s_in_init;
 	link->ops = &concerto_i2s_in_ops;
 
@@ -625,6 +653,18 @@ static int concerto_parse_of(struct concerto_audio_card *cc,
 	return 0;
 }
 
+static int concerto_card_remove(struct snd_soc_card *card)
+{
+	struct concerto_audio_card *cc = snd_soc_card_get_drvdata(card);
+
+	if (!IS_ERR(cc->aux_det_gpio)) {
+		snd_soc_jack_free_gpios(&concerto_aux_jack, 1,
+					&concerto_aux_jack_gpio);
+	}
+
+	return 0;
+}
+
 static void concerto_unref_of(struct concerto_audio_card *cc)
 {
 	unsigned int i;
@@ -662,6 +702,7 @@ static int concerto_audio_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	cc->card.owner = THIS_MODULE;
 	cc->card.dev = dev;
+	cc->card.remove = concerto_card_remove;
 	platform_set_drvdata(pdev, &cc->card);
 	snd_soc_card_set_drvdata(&cc->card, cc);
 

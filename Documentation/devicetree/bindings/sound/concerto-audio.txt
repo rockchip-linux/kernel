@@ -24,6 +24,8 @@ Optional properties:
    the first being the template name, the second being the card's widget
    name.  Recognized template names are "Microphone", "Line", "Headphone",
    and "Speaker".
+ - aux-det-gpios: GPIO specifier for the aux detect GPIO.
+   See ../gpio/gpio.txt for details.
 
 Each interface (I2S in/out, S/PDIF in/out, parallel out) has it's own sub-node.
 Any combination of these sub-nodes may be specified.
