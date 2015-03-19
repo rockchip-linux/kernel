@@ -459,7 +459,6 @@ static int img_hash_hw_init(struct img_hash_dev *hdev)
 {
 	unsigned long long nbits;
 	u32 u, l;
-	int ret;
 
 	img_hash_write(hdev, CR_RESET, CR_RESET_SET);
 	img_hash_write(hdev, CR_RESET, CR_RESET_UNSET);
