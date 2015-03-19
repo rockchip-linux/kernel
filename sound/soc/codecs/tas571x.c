@@ -1,5 +1,5 @@
 /*
- * TAS5717/TAS5719 amplifier audio driver
+ * TAS571x amplifier audio driver
  *
  * Copyright (C) 2015 Google, Inc.
  * Copyright (c) 2013 Daniel Mack <zonque@gmail.com>
@@ -26,17 +26,17 @@
 #include <sound/soc.h>
 #include <sound/tlv.h>
 
-#include "tas5717.h"
+#include "tas571x.h"
 
-#define TAS5717_NUM_SUPPLIES		2
-static const char * const tas5717_supply_names[TAS5717_NUM_SUPPLIES] = {
+#define TAS571X_NUM_SUPPLIES		2
+static const char * const tas571x_supply_names[TAS571X_NUM_SUPPLIES] = {
 	"VDD",
 	"PVDD",
 };
 
-struct tas5717_private {
+struct tas571x_private {
 	struct regmap			*regmap;
-	struct regulator_bulk_data	supplies[TAS5717_NUM_SUPPLIES];
+	struct regulator_bulk_data	supplies[TAS571X_NUM_SUPPLIES];
 	struct clk			*mclk;
 	unsigned int			format;
 	enum snd_soc_bias_level		bias_level;
@@ -44,41 +44,41 @@ struct tas5717_private {
 	struct gpio_desc		*pdn_gpio;
 };
 
-static int tas5717_set_sysclk(struct snd_soc_dai *dai,
+static int tas571x_set_sysclk(struct snd_soc_dai *dai,
 			      int clk_id, unsigned int freq, int dir)
 {
 	/*
-	 * Datasheet pg 21: "The DAP can autodetect and set the internal
-	 * clock-control logic to the appropriate settings for all supported
-	 * clock rates as defined in the clock control register."
+	 * TAS5717 datasheet pg 21: "The DAP can autodetect and set the
+	 * internal clock-control logic to the appropriate settings for all
+	 * supported clock rates as defined in the clock control register."
 	 */
 	return 0;
 }
 
-static int tas5717_digital_mute(struct snd_soc_dai *dai, int mute)
+static int tas571x_digital_mute(struct snd_soc_dai *dai, int mute)
 {
-	struct tas5717_private *priv = snd_soc_codec_get_drvdata(dai->codec);
+	struct tas571x_private *priv = snd_soc_codec_get_drvdata(dai->codec);
 
 	return regmap_update_bits(priv->regmap,
-				  TAS5717_SOFT_MUTE_REG,
-				  TAS5717_SOFT_MUTE_CH_MASK,
-				  mute ? TAS5717_SOFT_MUTE_CH_MASK : 0);
+				  TAS571X_SOFT_MUTE_REG,
+				  TAS571X_SOFT_MUTE_CH_MASK,
+				  mute ? TAS571X_SOFT_MUTE_CH_MASK : 0);
 }
 
-static int tas5717_set_dai_fmt(struct snd_soc_dai *dai, unsigned int format)
+static int tas571x_set_dai_fmt(struct snd_soc_dai *dai, unsigned int format)
 {
-	struct tas5717_private *priv = snd_soc_codec_get_drvdata(dai->codec);
+	struct tas571x_private *priv = snd_soc_codec_get_drvdata(dai->codec);
 
 	priv->format = format;
 
 	return 0;
 }
 
-static int tas5717_hw_params(struct snd_pcm_substream *substream,
+static int tas571x_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *dai)
 {
-	struct tas5717_private *priv = snd_soc_codec_get_drvdata(dai->codec);
+	struct tas571x_private *priv = snd_soc_codec_get_drvdata(dai->codec);
 	u32 val;
 
 	switch (priv->format & SND_SOC_DAIFMT_FORMAT_MASK) {
@@ -97,21 +97,21 @@ static int tas5717_hw_params(struct snd_pcm_substream *substream,
 
 	val += (clamp(params_width(params), 16, 24) >> 2) - 4;
 
-	return regmap_update_bits(priv->regmap, TAS5717_SDI_REG,
-				  TAS5717_SDI_FMT_MASK, val);
+	return regmap_update_bits(priv->regmap, TAS571X_SDI_REG,
+				  TAS571X_SDI_FMT_MASK, val);
 }
 
-static int tas5717_set_shutdown(struct tas5717_private *priv, bool is_shutdown)
+static int tas571x_set_shutdown(struct tas571x_private *priv, bool is_shutdown)
 {
-	return regmap_update_bits(priv->regmap, TAS5717_SYS_CTRL_2_REG,
-		TAS5717_SYS_CTRL_2_SDN_MASK,
-		is_shutdown ? TAS5717_SYS_CTRL_2_SDN_MASK : 0);
+	return regmap_update_bits(priv->regmap, TAS571X_SYS_CTRL_2_REG,
+		TAS571X_SYS_CTRL_2_SDN_MASK,
+		is_shutdown ? TAS571X_SYS_CTRL_2_SDN_MASK : 0);
 }
 
-static int tas5717_set_bias_level(struct snd_soc_codec *codec,
+static int tas571x_set_bias_level(struct snd_soc_codec *codec,
 				  enum snd_soc_bias_level level)
 {
-	struct tas5717_private *priv = snd_soc_codec_get_drvdata(codec);
+	struct tas571x_private *priv = snd_soc_codec_get_drvdata(codec);
 	int ret, assert_pdn = 0;
 
 	if (priv->bias_level == level)
@@ -128,12 +128,12 @@ static int tas5717_set_bias_level(struct snd_soc_codec *codec,
 			}
 		}
 
-		ret = tas5717_set_shutdown(priv, false);
+		ret = tas571x_set_shutdown(priv, false);
 		if (ret)
 			return ret;
 		break;
 	case SND_SOC_BIAS_STANDBY:
-		ret = tas5717_set_shutdown(priv, true);
+		ret = tas571x_set_shutdown(priv, true);
 		if (ret)
 			return ret;
 
@@ -155,11 +155,11 @@ static int tas5717_set_bias_level(struct snd_soc_codec *codec,
 	return 0;
 }
 
-static const struct snd_soc_dai_ops tas5717_dai_ops = {
-	.set_sysclk	= tas5717_set_sysclk,
-	.set_fmt	= tas5717_set_dai_fmt,
-	.hw_params	= tas5717_hw_params,
-	.digital_mute	= tas5717_digital_mute,
+static const struct snd_soc_dai_ops tas571x_dai_ops = {
+	.set_sysclk	= tas571x_set_sysclk,
+	.set_fmt	= tas571x_set_dai_fmt,
+	.hw_params	= tas571x_hw_params,
+	.digital_mute	= tas571x_digital_mute,
 };
 
 static const unsigned int tas5717_volume_tlv[] = {
@@ -169,10 +169,10 @@ static const unsigned int tas5717_volume_tlv[] = {
 
 static const struct snd_kcontrol_new tas5717_controls[] = {
 	SOC_SINGLE_TLV("Master volume",
-		       TAS5717_MVOL_REG, 0, 0x3ff, 1,
+		       TAS571X_MVOL_REG, 0, 0x3ff, 1,
 		       tas5717_volume_tlv),
 	SOC_DOUBLE_R_TLV("Speaker volume",
-			 TAS5717_CH1_VOL_REG, TAS5717_CH2_VOL_REG,
+			 TAS571X_CH1_VOL_REG, TAS571X_CH2_VOL_REG,
 			 0, 0x3ff, 1, tas5717_volume_tlv),
 };
 
@@ -196,11 +196,11 @@ static const struct snd_soc_dapm_route tas5717_dapm_routes[] = {
 	{ "OUT_D", NULL, "DACR" },
 };
 
-static const struct snd_soc_codec_driver tas5717_codec = {
+static const struct snd_soc_codec_driver tas571x_codec = {
 	.controls = tas5717_controls,
 	.num_controls = ARRAY_SIZE(tas5717_controls),
 
-	.set_bias_level = tas5717_set_bias_level,
+	.set_bias_level = tas571x_set_bias_level,
 	.suspend_bias_off = true,
 
 	.dapm_widgets = tas5717_dapm_widgets,
@@ -209,19 +209,19 @@ static const struct snd_soc_codec_driver tas5717_codec = {
 	.num_dapm_routes = ARRAY_SIZE(tas5717_dapm_routes),
 };
 
-static int tas5717_register_size(unsigned int reg)
+static int tas571x_register_size(unsigned int reg)
 {
 	switch (reg) {
-	case TAS5717_MVOL_REG:
-	case TAS5717_CH1_VOL_REG:
-	case TAS5717_CH2_VOL_REG:
+	case TAS571X_MVOL_REG:
+	case TAS571X_CH1_VOL_REG:
+	case TAS571X_CH2_VOL_REG:
 		return 2;
 	default:
 		return 1;
 	}
 }
 
-static int tas5717_reg_write(void *context, unsigned int reg,
+static int tas571x_reg_write(void *context, unsigned int reg,
 			      unsigned int value)
 {
 	struct i2c_client *client = context;
@@ -229,7 +229,7 @@ static int tas5717_reg_write(void *context, unsigned int reg,
 	uint8_t buf[5];
 	int ret;
 
-	size = tas5717_register_size(reg);
+	size = tas571x_register_size(reg);
 	buf[0] = reg;
 
 	for (i = size; i >= 1; --i) {
@@ -246,7 +246,7 @@ static int tas5717_reg_write(void *context, unsigned int reg,
 		return -EIO;
 }
 
-static int tas5717_reg_read(void *context, unsigned int reg,
+static int tas571x_reg_read(void *context, unsigned int reg,
 			     unsigned int *value)
 {
 	struct i2c_client *client = context;
@@ -256,7 +256,7 @@ static int tas5717_reg_read(void *context, unsigned int reg,
 	unsigned int i;
 	int ret;
 
-	size = tas5717_register_size(reg);
+	size = tas571x_register_size(reg);
 	send_buf = reg;
 
 	msgs[0].addr = client->addr;
@@ -284,16 +284,16 @@ static int tas5717_reg_read(void *context, unsigned int reg,
 
 	return 0;
 }
-static const struct regmap_config tas5717_regmap = {
+static const struct regmap_config tas571x_regmap = {
 	.reg_bits = 8,
 	.val_bits = 32,
-	.reg_read = tas5717_reg_read,
-	.reg_write = tas5717_reg_write,
+	.reg_read = tas571x_reg_read,
+	.reg_write = tas571x_reg_write,
 	.cache_type = REGCACHE_RBTREE,
 };
 
-static struct snd_soc_dai_driver tas5717_dai = {
-	.name = "tas5717-hifi",
+static struct snd_soc_dai_driver tas571x_dai = {
+	.name = "tas571x-hifi",
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 2,
@@ -303,13 +303,13 @@ static struct snd_soc_dai_driver tas5717_dai = {
 			   SNDRV_PCM_FMTBIT_S24_LE |
 			   SNDRV_PCM_FMTBIT_S16_LE,
 	},
-	.ops = &tas5717_dai_ops,
+	.ops = &tas571x_dai_ops,
 };
 
-static int tas5717_i2c_probe(struct i2c_client *client,
+static int tas571x_i2c_probe(struct i2c_client *client,
 			     const struct i2c_device_id *id)
 {
-	struct tas5717_private *priv;
+	struct tas571x_private *priv;
 	struct device *dev = &client->dev;
 	int i;
 
@@ -322,24 +322,24 @@ static int tas5717_i2c_probe(struct i2c_client *client,
 	if (PTR_ERR(priv->mclk) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
 
-	for (i = 0; i < TAS5717_NUM_SUPPLIES; i++)
-		priv->supplies[i].supply = tas5717_supply_names[i];
+	for (i = 0; i < TAS571X_NUM_SUPPLIES; i++)
+		priv->supplies[i].supply = tas571x_supply_names[i];
 
 	/*
 	 * This will fall back to the dummy regulator if nothing is specified
 	 * in DT.
 	 */
-	if (devm_regulator_bulk_get(dev, TAS5717_NUM_SUPPLIES,
+	if (devm_regulator_bulk_get(dev, TAS571X_NUM_SUPPLIES,
 				    priv->supplies)) {
 		dev_err(dev, "Failed to get supplies\n");
 		return -EINVAL;
 	}
-	if (regulator_bulk_enable(TAS5717_NUM_SUPPLIES, priv->supplies)) {
+	if (regulator_bulk_enable(TAS571X_NUM_SUPPLIES, priv->supplies)) {
 		dev_err(dev, "Failed to enable supplies\n");
 		return -EINVAL;
 	}
 
-	priv->regmap = devm_regmap_init(dev, NULL, client, &tas5717_regmap);
+	priv->regmap = devm_regmap_init(dev, NULL, client, &tas571x_regmap);
 	if (IS_ERR(priv->regmap))
 		return PTR_ERR(priv->regmap);
 
@@ -366,49 +366,49 @@ static int tas5717_i2c_probe(struct i2c_client *client,
 
 	priv->bias_level = SND_SOC_BIAS_STANDBY;
 
-	if (regmap_write(priv->regmap, TAS5717_OSC_TRIM_REG, 0))
+	if (regmap_write(priv->regmap, TAS571X_OSC_TRIM_REG, 0))
 		return -EIO;
 
-	if (tas5717_set_shutdown(priv, true))
+	if (tas571x_set_shutdown(priv, true))
 		return -EIO;
 
-	return snd_soc_register_codec(&client->dev, &tas5717_codec,
-				      &tas5717_dai, 1);
+	return snd_soc_register_codec(&client->dev, &tas571x_codec,
+				      &tas571x_dai, 1);
 }
 
-static int tas5717_i2c_remove(struct i2c_client *client)
+static int tas571x_i2c_remove(struct i2c_client *client)
 {
-	struct tas5717_private *priv = i2c_get_clientdata(client);
+	struct tas571x_private *priv = i2c_get_clientdata(client);
 
 	snd_soc_unregister_codec(&client->dev);
-	regulator_bulk_disable(TAS5717_NUM_SUPPLIES, priv->supplies);
+	regulator_bulk_disable(TAS571X_NUM_SUPPLIES, priv->supplies);
 
 	return 0;
 }
 
-static const struct of_device_id tas5717_of_match[] = {
+static const struct of_device_id tas571x_of_match[] = {
 	{ .compatible = "ti,tas5717", },
 	{ }
 };
-MODULE_DEVICE_TABLE(of, tas5717_of_match);
+MODULE_DEVICE_TABLE(of, tas571x_of_match);
 
-static const struct i2c_device_id tas5717_i2c_id[] = {
+static const struct i2c_device_id tas571x_i2c_id[] = {
 	{ "tas5717", 0 },
 	{ }
 };
-MODULE_DEVICE_TABLE(i2c, tas5717_i2c_id);
+MODULE_DEVICE_TABLE(i2c, tas571x_i2c_id);
 
-static struct i2c_driver tas5717_i2c_driver = {
+static struct i2c_driver tas571x_i2c_driver = {
 	.driver = {
-		.name = "tas5717",
-		.of_match_table = of_match_ptr(tas5717_of_match),
+		.name = "tas571x",
+		.of_match_table = of_match_ptr(tas571x_of_match),
 	},
-	.probe = tas5717_i2c_probe,
-	.remove = tas5717_i2c_remove,
-	.id_table = tas5717_i2c_id,
+	.probe = tas571x_i2c_probe,
+	.remove = tas571x_i2c_remove,
+	.id_table = tas571x_i2c_id,
 };
-module_i2c_driver(tas5717_i2c_driver);
+module_i2c_driver(tas571x_i2c_driver);
 
-MODULE_DESCRIPTION("ASoC TAS5717 driver");
+MODULE_DESCRIPTION("ASoC TAS571x driver");
 MODULE_AUTHOR("Kevin Cernekee <cernekee@chromium.org>");
 MODULE_LICENSE("GPL");
