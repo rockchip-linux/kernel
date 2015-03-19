@@ -389,7 +389,7 @@ config SND_SOC_TAS5086
 	tristate
 
 config SND_SOC_TAS571X
-	tristate "Texas Instruments TAS5717/TAS5719 power amplifiers"
+	tristate "Texas Instruments TAS5711/TAS5717/TAS5719 power amplifiers"
 	depends on I2C
 
 config SND_SOC_TLV320AIC23

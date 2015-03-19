@@ -164,6 +164,20 @@ static const struct snd_soc_dai_ops tas571x_dai_ops = {
 	.digital_mute	= tas571x_digital_mute,
 };
 
+static const unsigned int tas5711_volume_tlv[] = {
+	TLV_DB_RANGE_HEAD(1),
+	0, 0xff, TLV_DB_SCALE_ITEM(-10350, 50, 1),
+};
+
+static const struct snd_kcontrol_new tas5711_controls[] = {
+	SOC_SINGLE_TLV("Master volume",
+		       TAS571X_MVOL_REG, 0, 0xff, 1,
+		       tas5711_volume_tlv),
+	SOC_DOUBLE_R_TLV("Speaker volume",
+			 TAS571X_CH1_VOL_REG, TAS571X_CH2_VOL_REG,
+			 0, 0xff, 1, tas5711_volume_tlv),
+};
+
 static const unsigned int tas5717_volume_tlv[] = {
 	TLV_DB_RANGE_HEAD(1),
 	0, 0x3ff, TLV_DB_SCALE_ITEM(-10500, 125, 1),
@@ -214,7 +228,7 @@ static int tas571x_register_size(struct tas571x_private *priv, unsigned int reg)
 	case TAS571X_MVOL_REG:
 	case TAS571X_CH1_VOL_REG:
 	case TAS571X_CH2_VOL_REG:
-		return 2;
+		return priv->dev_id == TAS571X_ID_5711 ? 1 : 2;
 	default:
 		return 1;
 	}
@@ -377,6 +391,10 @@ static int tas571x_i2c_probe(struct i2c_client *client,
 	priv->dev_id = id->driver_data;
 
 	switch (id->driver_data) {
+	case TAS571X_ID_5711:
+		priv->codec_driver.controls = tas5711_controls;
+		priv->codec_driver.num_controls = ARRAY_SIZE(tas5711_controls);
+		break;
 	case TAS571X_ID_5717:
 	case TAS571X_ID_5719:
 		priv->codec_driver.controls = tas5717_controls;
@@ -399,6 +417,7 @@ static int tas571x_i2c_remove(struct i2c_client *client)
 }
 
 static const struct of_device_id tas571x_of_match[] = {
+	{ .compatible = "ti,tas5711", },
 	{ .compatible = "ti,tas5717", },
 	{ .compatible = "ti,tas5719", },
 	{ }
@@ -406,6 +425,7 @@ static const struct of_device_id tas571x_of_match[] = {
 MODULE_DEVICE_TABLE(of, tas571x_of_match);
 
 static const struct i2c_device_id tas571x_i2c_id[] = {
+	{ "tas5711", TAS571X_ID_5711 },
 	{ "tas5717", TAS571X_ID_5717 },
 	{ "tas5719", TAS571X_ID_5719 },
 	{ }

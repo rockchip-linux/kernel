@@ -14,6 +14,7 @@
 
 #include <sound/pcm.h>
 
+#define TAS571X_ID_5711			0x5711
 #define TAS571X_ID_5717			0x5717
 #define TAS571X_ID_5719			0x5719
 
