@@ -443,7 +443,7 @@ void asix_mdio_write(struct net_device *netdev, int phy_id, int loc, int val)
 	} while (!(smsr & AX_HOST_EN) && (i++ < 30) && (ret != -ENODEV));
 	if (ret == -ENODEV) {
 		mutex_unlock(&dev->phy_mutex);
-		return ret;
+		return;
 	}
 
 	asix_write_cmd(dev, AX_CMD_WRITE_MII_REG, phy_id,
@@ -508,7 +508,7 @@ asix_mdio_write_nopm(struct net_device *netdev, int phy_id, int loc, int val)
 	} while (!(smsr & AX_HOST_EN) && (i++ < 30) && (ret != -ENODEV));
 	if (ret == -ENODEV) {
 		mutex_unlock(&dev->phy_mutex);
-		return ret;
+		return;
 	}
 
 	asix_write_cmd(dev, AX_CMD_WRITE_MII_REG, phy_id,
