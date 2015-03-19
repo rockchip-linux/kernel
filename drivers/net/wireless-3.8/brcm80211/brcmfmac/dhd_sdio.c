@@ -1244,7 +1244,7 @@ static void brcmf_sdio_rxfail(struct brcmf_sdio *bus, bool abort, bool rtx)
 	u8 hi, lo;
 	int err;
 
-	brcmf_err("%sterminate frame%s\n",
+	brcmf_dbg(INFO, "%sterminate frame%s\n",
 		  abort ? "abort command, " : "",
 		  rtx ? ", send NAK" : "");
 
@@ -1709,6 +1709,8 @@ static u8 brcmf_sdio_rxglom(struct brcmf_sdio *bus, u8 rxseq)
 		if (errcode) {
 			/* Terminate frame on error, request
 				 a couple retries */
+			brcmf_dbg(INFO, "parse of subframe %d failed: %d\n",
+				  num, errcode);
 			sdio_claim_host(bus->sdiodev->func[1]);
 			if (bus->glomerr++ < 3) {
 				/* Restore superframe header space */
@@ -1932,8 +1934,7 @@ static uint brcmf_sdio_readframes(struct brcmf_sdio *bus, uint maxframes)
 						   bus->rxhdr, BRCMF_FIRSTREAD);
 			bus->sdcnt.f2rxhdrs++;
 			if (ret < 0) {
-				brcmf_err("RXHEADER FAILED: %d\n",
-					  ret);
+				brcmf_dbg(INFO, "RXHEADER FAILED: %d\n", ret);
 				bus->sdcnt.rx_hdrfail++;
 				brcmf_sdio_rxfail(bus, true, true);
 				sdio_release_host(bus->sdiodev->func[1]);
