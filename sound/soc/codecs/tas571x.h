@@ -14,6 +14,9 @@
 
 #include <sound/pcm.h>
 
+#define TAS571X_ID_5717			0x5717
+#define TAS571X_ID_5719			0x5719
+
 /* device registers */
 #define TAS571X_SDI_REG			0x04
 #define TAS571X_SDI_FMT_MASK		0x0f

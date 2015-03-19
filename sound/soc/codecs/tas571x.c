@@ -42,6 +42,8 @@ struct tas571x_private {
 	enum snd_soc_bias_level		bias_level;
 	struct gpio_desc		*reset_gpio;
 	struct gpio_desc		*pdn_gpio;
+	unsigned int			dev_id;
+	struct snd_soc_codec_driver	codec_driver;
 };
 
 static int tas571x_set_sysclk(struct snd_soc_dai *dai,
@@ -197,9 +199,6 @@ static const struct snd_soc_dapm_route tas5717_dapm_routes[] = {
 };
 
 static const struct snd_soc_codec_driver tas571x_codec = {
-	.controls = tas5717_controls,
-	.num_controls = ARRAY_SIZE(tas5717_controls),
-
 	.set_bias_level = tas571x_set_bias_level,
 	.suspend_bias_off = true,
 
@@ -374,7 +373,18 @@ static int tas571x_i2c_probe(struct i2c_client *client,
 	if (tas571x_set_shutdown(priv, true))
 		return -EIO;
 
-	return snd_soc_register_codec(&client->dev, &tas571x_codec,
+	memcpy(&priv->codec_driver, &tas571x_codec, sizeof(priv->codec_driver));
+	priv->dev_id = id->driver_data;
+
+	switch (id->driver_data) {
+	case TAS571X_ID_5717:
+	case TAS571X_ID_5719:
+		priv->codec_driver.controls = tas5717_controls;
+		priv->codec_driver.num_controls = ARRAY_SIZE(tas5717_controls);
+		break;
+	}
+
+	return snd_soc_register_codec(&client->dev, &priv->codec_driver,
 				      &tas571x_dai, 1);
 }
 
@@ -390,12 +400,14 @@ static int tas571x_i2c_remove(struct i2c_client *client)
 
 static const struct of_device_id tas571x_of_match[] = {
 	{ .compatible = "ti,tas5717", },
+	{ .compatible = "ti,tas5719", },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, tas571x_of_match);
 
 static const struct i2c_device_id tas571x_i2c_id[] = {
-	{ "tas5717", 0 },
+	{ "tas5717", TAS571X_ID_5717 },
+	{ "tas5719", TAS571X_ID_5719 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, tas571x_i2c_id);
