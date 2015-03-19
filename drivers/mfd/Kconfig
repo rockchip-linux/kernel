@@ -85,8 +85,17 @@ config MFD_CROS_EC_LPC
 	help
 	  If you say Y here, you get support for talking to the ChromeOS EC
 	  over an LPC bus. This uses a simple byte-level protocol with a
-	  checksum. This is used for userspace access only. The kernel
-	  typically has its own communication methods.
+	  checksum.
+
+config MFD_CROS_EC_LPC_MEC
+	bool "ChromeOS Embedded Controller LPC Microchip EC (MEC) variant"
+	depends on MFD_CROS_EC_LPC
+	default n
+
+	help
+	  If you say Y here, a variant LPC protocol for the Microchip EC
+	  will be used. Note that this variant is not backward compatible
+	  with non-Microchip ECs.
 
 config MFD_CROS_EC_SPI
 	tristate "ChromeOS Embedded Controller (SPI)"

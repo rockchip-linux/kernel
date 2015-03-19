@@ -24,59 +24,12 @@
 #include <linux/delay.h>
 #include <linux/mfd/cros_ec.h>
 #include <linux/mfd/cros_ec_commands.h>
+#include <linux/mfd/cros_ec_lpc_reg.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/printk.h>
 
 #define MYNAME "cros_ec_lpc"
-
-/**
- * cros_ec_lpc_read_bytes - Read bytes from a given LPC-mapped address.
- * Returns 8-bit checksum of all bytes read.
- *
- * @offset: Base read address
- * @length: Number of bytes to read
- * @dest: Destination buffer
- */
-static u8 cros_ec_lpc_read_bytes(unsigned int offset,
-				 unsigned int length,
-				 u8 *dest)
-{
-	int i;
-	int sum = 0;
-
-	for (i = 0; i < length; ++i) {
-		dest[i] = inb(offset + i);
-		sum += dest[i];
-	}
-
-	/* Return checksum of all bytes read */
-	return sum;
-}
-
-/**
- * cros_ec_lpc_write_bytes - Write bytes to a given LPC-mapped address.
- * Returns 8-bit checksum of all bytes written.
- *
- * @offset: Base write address
- * @length: Number of bytes to write
- * @msg: Write data buffer
- */
-static u8 cros_ec_lpc_write_bytes(unsigned int offset,
-				  unsigned int length,
-				  u8 *msg)
-{
-	int i;
-	int sum = 0;
-
-	for (i = 0; i < length; ++i) {
-		outb(msg[i], offset + i);
-		sum += msg[i];
-	}
-
-	/* Return checksum of all bytes written */
-	return sum;
-}
 
 static int ec_response_timed_out(void)
 {
@@ -428,6 +381,8 @@ static int __init cros_ec_lpc_init(void)
 {
 	int ret;
 
+	cros_ec_lpc_reg_init();
+
 	/* Register the driver */
 	ret = platform_driver_register(&cros_ec_lpc_driver);
 	if (ret < 0) {
@@ -450,6 +405,7 @@ static void __exit cros_ec_lpc_exit(void)
 {
 	platform_device_unregister(&cros_ec_lpc_device);
 	platform_driver_unregister(&cros_ec_lpc_driver);
+	cros_ec_lpc_reg_destroy();
 }
 
 module_init(cros_ec_lpc_init);
