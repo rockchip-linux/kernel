@@ -30,13 +30,63 @@
 
 #define MYNAME "cros_ec_lpc"
 
+/**
+ * cros_ec_lpc_read_bytes - Read bytes from a given LPC-mapped address.
+ * Returns 8-bit checksum of all bytes read.
+ *
+ * @offset: Base read address
+ * @length: Number of bytes to read
+ * @dest: Destination buffer
+ */
+static u8 cros_ec_lpc_read_bytes(unsigned int offset,
+				 unsigned int length,
+				 u8 *dest)
+{
+	int i;
+	int sum = 0;
+
+	for (i = 0; i < length; ++i) {
+		dest[i] = inb(offset + i);
+		sum += dest[i];
+	}
+
+	/* Return checksum of all bytes read */
+	return sum;
+}
+
+/**
+ * cros_ec_lpc_write_bytes - Write bytes to a given LPC-mapped address.
+ * Returns 8-bit checksum of all bytes written.
+ *
+ * @offset: Base write address
+ * @length: Number of bytes to write
+ * @msg: Write data buffer
+ */
+static u8 cros_ec_lpc_write_bytes(unsigned int offset,
+				  unsigned int length,
+				  u8 *msg)
+{
+	int i;
+	int sum = 0;
+
+	for (i = 0; i < length; ++i) {
+		outb(msg[i], offset + i);
+		sum += msg[i];
+	}
+
+	/* Return checksum of all bytes written */
+	return sum;
+}
+
 static int ec_response_timed_out(void)
 {
 	unsigned long one_second = jiffies + HZ;
+	u8 data;
 
 	usleep_range(200, 300);
 	do {
-		if (!(inb(EC_LPC_ADDR_HOST_CMD) & EC_LPC_STATUS_BUSY_MASK))
+		if (!(cros_ec_lpc_read_bytes(EC_LPC_ADDR_HOST_CMD, 1, &data) &
+		    EC_LPC_STATUS_BUSY_MASK))
 			return 0;
 		usleep_range(100, 200);
 	} while (time_before(jiffies, one_second));
@@ -49,21 +99,20 @@ static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
 {
 	struct ec_host_request *request;
 	struct ec_host_response response;
-	u8 sum = 0;
-	int i;
+	u8 sum;
 	int ret = 0;
 	u8 *dout;
 
 	ret = cros_ec_prepare_tx(ec, msg);
 
 	/* Write buffer */
-	for (i = 0; i < ret; i++)
-		outb(ec->dout[i], EC_LPC_ADDR_HOST_PACKET + i);
+	cros_ec_lpc_write_bytes(EC_LPC_ADDR_HOST_PACKET, ret, ec->dout);
 
 	request = (struct ec_host_request *)ec->dout;
 
 	/* Here we go */
-	outb(EC_COMMAND_PROTOCOL_3, EC_LPC_ADDR_HOST_CMD);
+	sum = EC_COMMAND_PROTOCOL_3;
+	cros_ec_lpc_write_bytes(EC_LPC_ADDR_HOST_CMD, 1, &sum);
 
 	if (ec_response_timed_out()) {
 		dev_warn(ec->dev, "EC responsed timed out\n");
@@ -72,7 +121,7 @@ static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
 	}
 
 	/* Check result */
-	msg->result = inb(EC_LPC_ADDR_HOST_DATA);
+	msg->result = cros_ec_lpc_read_bytes(EC_LPC_ADDR_HOST_DATA, 1, &sum);
 	switch (msg->result) {
 	case EC_RES_SUCCESS:
 		break;
@@ -88,10 +137,8 @@ static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
 
 	/* Read back response */
 	dout = (u8 *)&response;
-	for (i = 0; i < sizeof(response); i++) {
-		dout[i] = inb(EC_LPC_ADDR_HOST_PACKET + i);
-		sum += dout[i];
-	}
+	sum = cros_ec_lpc_read_bytes(
+		EC_LPC_ADDR_HOST_PACKET, sizeof(response), dout);
 
 	msg->result = response.result;
 
@@ -104,11 +151,10 @@ static int cros_ec_pkt_xfer_lpc(struct cros_ec_device *ec,
 	}
 
 	/* Read response and process checksum */
-	for (i = 0; i < response.data_len; i++) {
-		msg->indata[i] =
-			inb(EC_LPC_ADDR_HOST_PACKET + sizeof(response) + i);
-		sum += msg->indata[i];
-	}
+	sum += cros_ec_lpc_read_bytes(
+			EC_LPC_ADDR_HOST_PACKET + sizeof(response),
+			response.data_len,
+			msg->indata);
 
 	if (sum) {
 		dev_err(ec->dev,
@@ -128,8 +174,7 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 				struct cros_ec_command *msg)
 {
 	struct ec_lpc_host_args args;
-	int csum;
-	int i;
+	u8 sum;
 	int ret = 0;
 
 	if (msg->outsize > EC_PROTO2_MAX_PARAM_SIZE ||
@@ -146,24 +191,21 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	args.data_size = msg->outsize;
 
 	/* Initialize checksum */
-	csum = msg->command + args.flags +
+	sum = msg->command + args.flags +
 		args.command_version + args.data_size;
 
 	/* Copy data and update checksum */
-	for (i = 0; i < msg->outsize; i++) {
-		outb(msg->outdata[i], EC_LPC_ADDR_HOST_PARAM + i);
-		csum += msg->outdata[i];
-	}
+	sum += cros_ec_lpc_write_bytes(
+		EC_LPC_ADDR_HOST_PARAM, msg->outsize, msg->outdata);
 
 	/* Finalize checksum and write args */
-	args.checksum = csum & 0xFF;
-	outb(args.flags, EC_LPC_ADDR_HOST_ARGS);
-	outb(args.command_version, EC_LPC_ADDR_HOST_ARGS + 1);
-	outb(args.data_size, EC_LPC_ADDR_HOST_ARGS + 2);
-	outb(args.checksum, EC_LPC_ADDR_HOST_ARGS + 3);
+	args.checksum = sum;
+	cros_ec_lpc_write_bytes(
+		EC_LPC_ADDR_HOST_ARGS, sizeof(args), (u8 *)&args);
 
 	/* Here we go */
-	outb(msg->command, EC_LPC_ADDR_HOST_CMD);
+	sum = msg->command;
+	cros_ec_lpc_write_bytes(EC_LPC_ADDR_HOST_CMD, 1, &sum);
 
 	if (ec_response_timed_out()) {
 		dev_warn(ec->dev, "EC responsed timed out\n");
@@ -172,7 +214,7 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	}
 
 	/* Check result */
-	msg->result = inb(EC_LPC_ADDR_HOST_DATA);
+	msg->result = cros_ec_lpc_read_bytes(EC_LPC_ADDR_HOST_DATA, 1, &sum);
 	switch (msg->result) {
 	case EC_RES_SUCCESS:
 		break;
@@ -187,10 +229,8 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	}
 
 	/* Read back args */
-	args.flags = inb(EC_LPC_ADDR_HOST_ARGS);
-	args.command_version = inb(EC_LPC_ADDR_HOST_ARGS + 1);
-	args.data_size = inb(EC_LPC_ADDR_HOST_ARGS + 2);
-	args.checksum = inb(EC_LPC_ADDR_HOST_ARGS + 3);
+	cros_ec_lpc_read_bytes(
+		EC_LPC_ADDR_HOST_ARGS, sizeof(args), (u8 *)&args);
 
 	if (args.data_size > msg->insize) {
 		dev_err(ec->dev,
@@ -201,20 +241,18 @@ static int cros_ec_cmd_xfer_lpc(struct cros_ec_device *ec,
 	}
 
 	/* Start calculating response checksum */
-	csum = msg->command + args.flags +
+	sum = msg->command + args.flags +
 		args.command_version + args.data_size;
 
 	/* Read response and update checksum */
-	for (i = 0; i < args.data_size; i++) {
-		msg->indata[i] = inb(EC_LPC_ADDR_HOST_PARAM + i);
-		csum += msg->indata[i];
-	}
+	sum += cros_ec_lpc_read_bytes(
+		EC_LPC_ADDR_HOST_PARAM, args.data_size, msg->indata);
 
 	/* Verify checksum */
-	if (args.checksum != (csum & 0xFF)) {
+	if (args.checksum != sum) {
 		dev_err(ec->dev,
 			"bad packet checksum, expected %02x, got %02x\n",
-			args.checksum, csum & 0xFF);
+			args.checksum, sum);
 		ret = -EBADMSG;
 		goto done;
 	}
@@ -238,14 +276,13 @@ static int cros_ec_lpc_readmem(struct cros_ec_device *ec, unsigned int offset,
 
 	/* fixed length */
 	if (bytes) {
-		for (; cnt < bytes; i++, s++, cnt++)
-			*s = inb(EC_LPC_ADDR_MEMMAP + i);
-		return cnt;
+		cros_ec_lpc_read_bytes(EC_LPC_ADDR_MEMMAP + offset, bytes, s);
+		return bytes;
 	}
 
 	/* string */
 	for (; i < EC_MEMMAP_SIZE; i++, s++) {
-		*s = inb(EC_LPC_ADDR_MEMMAP + i);
+		cros_ec_lpc_read_bytes(EC_LPC_ADDR_MEMMAP + i, 1, s);
 		cnt++;
 		if (!*s)
 			break;
@@ -290,14 +327,15 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct cros_ec_device *ec_dev;
 	int err = -ENOTTY;
+	u8 buf[2];
 
 	if (!request_region(EC_LPC_ADDR_MEMMAP, EC_MEMMAP_SIZE, MYNAME)) {
 		dev_warn(dev, "couldn't reserve memmap region\n");
 		goto failed_memmap;
 	}
 
-	if ((inb(EC_LPC_ADDR_MEMMAP + EC_MEMMAP_ID) != 'E') ||
-	    (inb(EC_LPC_ADDR_MEMMAP + EC_MEMMAP_ID + 1) != 'C')) {
+	cros_ec_lpc_read_bytes(EC_LPC_ADDR_MEMMAP + EC_MEMMAP_ID, 2, buf);
+	if (buf[0] != 'E' || buf[1] != 'C') {
 		dev_warn(dev, "EC ID not detected\n");
 		goto failed_ec_probe;
 	}
