@@ -528,7 +528,7 @@ static int img_hash_handle_queue(struct img_hash_dev *hdev,
 
 	ctx = ahash_request_ctx(req);
 
-	dev_info(hdev->dev, "processing req, op: %lu, bytes: %d\n",
+	dev_dbg(hdev->dev, "processing req, op: %lu, bytes: %d\n",
 		 ctx->op, req->nbytes);
 
 	err = img_hash_hw_init(hdev);
@@ -972,7 +972,7 @@ static int img_hash_probe(struct platform_device *pdev)
 	err = img_register_algs(hdev);
 	if (err)
 		goto err_algs;
-	dev_dbg(dev, "Img MD5/SHA1/SHA224/SHA256 Hardware accelerator initialized\n");
+	dev_info(dev, "Img MD5/SHA1/SHA224/SHA256 Hardware accelerator initialized\n");
 
 	return 0;
 
