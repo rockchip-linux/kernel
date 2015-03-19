@@ -772,6 +772,16 @@
 		reg = <0x18149200 0x200>;
 	};
 
+	hash: hash@18149600 {
+		compatible = "img,hash-accelerator";
+		reg = <0x18149600 0x100>, <0x18101100 0x4>;
+		interrupts = <GIC_SHARED 59 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&mdc 8 0xffffffff 0>;
+		dma-names = "tx";
+		clocks = <&cr_periph SYS_CLK_HASH>, <&clk_periph PERIPH_CLK_ROM>;
+		clock-names = "sys", "hash";
+	};
+
 	gic: interrupt-controller@1bdc0000 {
 		compatible = "mti,gic";
 		reg = <0x1bdc0000 0x20000>;
