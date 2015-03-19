@@ -209,7 +209,7 @@ static const struct snd_soc_codec_driver tas571x_codec = {
 	.num_dapm_routes = ARRAY_SIZE(tas5717_dapm_routes),
 };
 
-static int tas571x_register_size(unsigned int reg)
+static int tas571x_register_size(struct tas571x_private *priv, unsigned int reg)
 {
 	switch (reg) {
 	case TAS571X_MVOL_REG:
@@ -222,14 +222,15 @@ static int tas571x_register_size(unsigned int reg)
 }
 
 static int tas571x_reg_write(void *context, unsigned int reg,
-			      unsigned int value)
+			     unsigned int value)
 {
 	struct i2c_client *client = context;
+	struct tas571x_private *priv = i2c_get_clientdata(client);
 	unsigned int i, size;
 	uint8_t buf[5];
 	int ret;
 
-	size = tas571x_register_size(reg);
+	size = tas571x_register_size(priv, reg);
 	buf[0] = reg;
 
 	for (i = size; i >= 1; --i) {
@@ -247,16 +248,17 @@ static int tas571x_reg_write(void *context, unsigned int reg,
 }
 
 static int tas571x_reg_read(void *context, unsigned int reg,
-			     unsigned int *value)
+			    unsigned int *value)
 {
 	struct i2c_client *client = context;
+	struct tas571x_private *priv = i2c_get_clientdata(client);
 	uint8_t send_buf, recv_buf[4];
 	struct i2c_msg msgs[2];
 	unsigned int size;
 	unsigned int i;
 	int ret;
 
-	size = tas571x_register_size(reg);
+	size = tas571x_register_size(priv, reg);
 	send_buf = reg;
 
 	msgs[0].addr = client->addr;
