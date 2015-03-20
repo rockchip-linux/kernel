@@ -1071,10 +1071,13 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 {
 	u8 val, pix_fmt, under_scan;
 	u8 act_ratio, coded_ratio, colorimetry, ext_colorimetry;
+	struct hdmi_avi_infoframe frame;
 	bool aspect_16_9;
 
+	drm_hdmi_avi_infoframe_from_display_mode(&frame, mode);
+
 	/* Parse the aspect ratio from drm display mode */
-	if (mode->picture_aspect_ratio & HDMI_PICTURE_ASPECT_16_9)
+	if (frame.picture_aspect == HDMI_PICTURE_ASPECT_16_9)
 		aspect_16_9 = true;
 	else
 		aspect_16_9 = false;
@@ -1102,12 +1105,11 @@ static void hdmi_config_AVI(struct dw_hdmi *hdmi, struct drm_display_mode *mode)
 
 	/* AVI Data Byte 2 -Set the Aspect Ratio */
 	if (aspect_16_9) {
-		act_ratio = HDMI_FC_AVICONF1_ACTIVE_ASPECT_RATIO_16_9;
 		coded_ratio = HDMI_FC_AVICONF1_CODED_ASPECT_RATIO_16_9;
 	} else {
-		act_ratio = HDMI_FC_AVICONF1_ACTIVE_ASPECT_RATIO_4_3;
 		coded_ratio = HDMI_FC_AVICONF1_CODED_ASPECT_RATIO_4_3;
 	}
+	act_ratio = HDMI_FC_AVICONF1_ACTIVE_ASPECT_RATIO_USE_CODED;
 
 	/* Set up colorimetry */
 	if (hdmi->hdmi_data.enc_out_format == XVYCC444) {
