@@ -158,7 +158,12 @@ void rk3288_ddr_resume_early(const struct rk3288_ddr_save_data *ddr_save_data)
 	rk3288_ddr_reg_restore(NULL, ddr_save_data->pwm_addrs,
 			       RK3288_MAX_PWM_REGS, ddr_save_data->pwm_vals);
 
-	/* TODO: does the PWM regulator need a ramp delay? */
+	/*
+	 * PWM never runs higher than 1.2V giving a 2000uV/us ramp delay since
+	 * we start from 1V. This is a very conservative ramp delay for the
+	 * regulator.
+	 */
+	sram_udelay(100);
 
 	for (ch = 0; ch < ARRAY_SIZE(pctrl_addrs); ch++) {
 		/* DLL bypass */
