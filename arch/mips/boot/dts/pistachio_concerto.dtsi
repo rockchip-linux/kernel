@@ -1,0 +1,68 @@
+/*
+ * Copyright (C) 2015 Imagination Technologies Ltd.
+ * Copyright (C) 2015 Google, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "pistachio.dtsi"
+
+/ {
+	memory {
+		device_type = "memory";
+		reg =  <0x00000000 0x08000000>;
+	};
+};
+
+&spfi1 {
+	status = "okay";
+
+	pinctrl-0 = <&spim1_pins>, <&spim1_quad_pins>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpio0 0 GPIO_ACTIVE_HIGH>, <&gpio0 1 GPIO_ACTIVE_HIGH>;
+
+	flash@0 {
+		compatible = "spidev";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+	};
+
+	flash@1 {
+		compatible = "gigadevice,gd5f";
+		reg = <1>;
+		spi-max-frequency = <50000000>;
+		nand-on-flash-bbt;
+		#address-cells = <1>;
+		#size-cells = <1>;
+	};
+};
+
+&uart0 {
+	pinctrl-0 = <&uart0_pins>, <&uart0_rts_cts_pins>;
+	pinctrl-names = "default";
+
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&usb {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
+
+&i2s_out {
+	status = "okay";
+};
+
+&i2s_in {
+	status = "okay";
+};
