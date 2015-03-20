@@ -24,9 +24,6 @@ enum cros_ec_pd_device_type {
 	PD_DEVICE_TYPE_COUNT,
 };
 
-/* PD image size is 16k. */
-#define PD_RW_IMAGE_SIZE (16 * 1024)
-
 #define USB_VID_GOOGLE 0x18d1
 
 #define USB_PID_ZINGER 0x5012
@@ -37,6 +34,7 @@ struct cros_ec_pd_firmware_image {
 	uint16_t usb_vid;
 	uint16_t usb_pid;
 	char *filename;
+	ssize_t rw_image_size;
 	uint8_t hash[PD_RW_HASH_SIZE];
 	uint8_t (*update_hashes)[][PD_RW_HASH_SIZE];
 	int update_hash_count;

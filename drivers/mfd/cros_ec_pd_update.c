@@ -62,6 +62,7 @@ static const struct cros_ec_pd_firmware_image firmware_images[] = {
 		.usb_vid = USB_VID_GOOGLE,
 		.usb_pid = USB_PID_ZINGER,
 		.filename = "cros-pd/zinger_v1.7.539-91a0fa2.bin",
+		.rw_image_size = (16 * 1024),
 		.hash = { 0x3b, 0x2e, 0xe3, 0xf6, 0x1e,
 			  0x6a, 0x1d, 0x49, 0xd3, 0x1c,
 			  0xf5, 0x77, 0x5e, 0xa7, 0x19,
@@ -471,10 +472,11 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 				break;
 			}
 
-			if (fw->size > PD_RW_IMAGE_SIZE) {
+			if (fw->size != img->rw_image_size) {
 				dev_err(dev,
-					"Port%d FW file %s is too large\n",
-					port, img->filename);
+					"Port%d FW file %s size %zd != %zd\n",
+					port, img->filename, fw->size,
+					img->rw_image_size);
 				goto done;
 			}
 
