@@ -271,7 +271,6 @@ static int img_spfi_start_pio(struct spi_master *master,
 
 	if (rx_bytes > 0 || tx_bytes > 0) {
 		dev_err(spfi->dev, "PIO transfer timed out\n");
-		spfi_reset(spfi);
 		return -ETIMEDOUT;
 	}
 
@@ -397,6 +396,30 @@ stop_dma:
 	return -EIO;
 }
 
+static int img_spfi_unprepare(struct spi_master *master, struct spi_message *m)
+{
+	struct img_spfi *spfi = spi_master_get_devdata(master);
+	unsigned long flags;
+
+	/*
+	 * Stop all DMA and reset the controller if the previous transaction
+	 * timed-out and never completed it's DMA.
+	 */
+	spin_lock_irqsave(&spfi->lock, flags);
+	if (spfi->tx_dma_busy || spfi->rx_dma_busy) {
+		spfi->tx_dma_busy = false;
+		spfi->rx_dma_busy = false;
+
+		dmaengine_terminate_all(spfi->tx_ch);
+		dmaengine_terminate_all(spfi->rx_ch);
+	}
+	spin_unlock_irqrestore(&spfi->lock, flags);
+
+	spfi_reset(spfi);
+
+	return 0;
+}
+
 static int img_spfi_prepare(struct spi_master *master, struct spi_message *msg)
 {
 	struct img_spfi *spfi = spi_master_get_devdata(master);
@@ -466,8 +489,6 @@ static int img_spfi_transfer_one(struct spi_master *master,
 				 struct spi_transfer *xfer)
 {
 	struct img_spfi *spfi = spi_master_get_devdata(spi->master);
-	bool dma_reset = false;
-	unsigned long flags;
 	int ret;
 
 	if (xfer->len > SPFI_TRANSACTION_TSIZE_MASK) {
@@ -475,25 +496,6 @@ static int img_spfi_transfer_one(struct spi_master *master,
 			"Transfer length (%d) is greater than the max supported (%d)",
 			xfer->len, SPFI_TRANSACTION_TSIZE_MASK);
 		return -EINVAL;
-	}
-
-	/*
-	 * Stop all DMA and reset the controller if the previous transaction
-	 * timed-out and never completed it's DMA.
-	 */
-	spin_lock_irqsave(&spfi->lock, flags);
-	if (spfi->tx_dma_busy || spfi->rx_dma_busy) {
-		dev_err(spfi->dev, "SPI DMA still busy\n");
-		spfi->tx_dma_busy = false;
-		spfi->rx_dma_busy = false;
-		dma_reset = true;
-	}
-	spin_unlock_irqrestore(&spfi->lock, flags);
-
-	if (dma_reset) {
-		dmaengine_terminate_all(spfi->tx_ch);
-		dmaengine_terminate_all(spfi->rx_ch);
-		spfi_reset(spfi);
 	}
 
 	img_spfi_config(master, spi, xfer);
@@ -615,6 +617,7 @@ static int img_spfi_probe(struct platform_device *pdev)
 	master->set_cs = img_spfi_set_cs;
 	master->transfer_one = img_spfi_transfer_one;
 	master->prepare_message = img_spfi_prepare;
+	master->unprepare_message = img_spfi_unprepare;
 
 	spfi->tx_ch = dma_request_slave_channel(spfi->dev, "tx");
 	spfi->rx_ch = dma_request_slave_channel(spfi->dev, "rx");
