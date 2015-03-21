@@ -7,6 +7,7 @@
  * published by the Free Software Foundation.
  */
 
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/mips-gic.h>
 #include <dt-bindings/clock/pistachio-clk.h>
