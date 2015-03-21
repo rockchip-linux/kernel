@@ -50,9 +50,11 @@ static void __iomem *rk3288_bootram_base;
 static phys_addr_t rk3288_bootram_phy;
 
 static struct regmap *pmu_regmap;
+static struct regmap *grf_regmap;
 static struct regmap *sgrf_regmap;
 
 static u32 rk3288_pmu_pwr_mode_con;
+static u32 rk3288_grf_soc_con0;
 static u32 rk3288_sgrf_soc_con0;
 
 static inline u32 rk3288_l2_config(void)
@@ -94,10 +96,19 @@ static void rk3288_slp_mode_set(int level)
 
 	u32 mode_set, mode_set1;
 
+	regmap_read(grf_regmap, RK3288_GRF_SOC_CON0, &rk3288_grf_soc_con0);
+
 	regmap_read(sgrf_regmap, RK3288_SGRF_SOC_CON0, &rk3288_sgrf_soc_con0);
 
 	regmap_read(pmu_regmap, RK3288_PMU_PWRMODE_CON,
 		    &rk3288_pmu_pwr_mode_con);
+
+	/*
+	 * We need set this bit GRF_FORCE_JTAG here, for the debug module,
+	 * otherwise, it may become inaccessible after resume.
+	 */
+	regmap_write(grf_regmap, RK3288_GRF_SOC_CON0, GRF_FORCE_JTAG |
+		     GRF_FORCE_JTAG_WRITE);
 
 	/*
 	 * SGRF_FAST_BOOT_EN - system to boot from FAST_BOOT_ADDR
@@ -162,6 +173,9 @@ static void rk3288_slp_mode_set_resume(int level)
 
 	if (level == ROCKCHIP_ARM_OFF_LOGIC_DEEP)
 		rk3288_ddr_resume();
+
+	regmap_write(grf_regmap, RK3288_GRF_SOC_CON0, rk3288_grf_soc_con0 |
+		     GRF_FORCE_JTAG_WRITE);
 }
 
 static int rockchip_lpmode_enter(unsigned long arg)
@@ -221,6 +235,13 @@ static int __init rk3288_suspend_init(struct device_node *np)
 				"rockchip,rk3288-sgrf");
 	if (IS_ERR(sgrf_regmap)) {
 		pr_err("%s: could not find sgrf regmap\n", __func__);
+		return PTR_ERR(pmu_regmap);
+	}
+
+	grf_regmap = syscon_regmap_lookup_by_compatible(
+				"rockchip,rk3288-grf");
+	if (IS_ERR(grf_regmap)) {
+		pr_err("%s: could not find grf regmap\n", __func__);
 		return PTR_ERR(pmu_regmap);
 	}
 
