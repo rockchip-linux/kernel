@@ -1197,8 +1197,14 @@ static int pistachio_gpio_get_direction(struct gpio_chip *chip, unsigned offset)
 static int pistachio_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
 	struct pistachio_gpio_bank *bank = gc_to_bank(chip);
+	u32 reg;
 
-	return !!(gpio_readl(bank, GPIO_INPUT) & BIT(offset));
+	if (gpio_readl(bank, GPIO_OUTPUT_EN) & BIT(offset))
+		reg = GPIO_OUTPUT;
+	else
+		reg = GPIO_INPUT;
+
+	return !!(gpio_readl(bank, reg) & BIT(offset));
 }
 
 static void pistachio_gpio_set(struct gpio_chip *chip, unsigned offset,
