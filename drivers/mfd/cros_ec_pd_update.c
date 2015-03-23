@@ -113,6 +113,38 @@ static int cros_ec_pd_command(struct device *dev,
 }
 
 /**
+ * cros_ec_pd_enter_gfu - Enter GFU alternate mode.
+ * Returns 0 if ec command successful <0 on failure.
+ *
+ * Note, doesn't guarantee entry.
+ *
+ * @dev: PD device
+ * @pd_dev: EC PD device
+ * @port: Port # on device
+ */
+static int cros_ec_pd_enter_gfu(struct device *dev, struct cros_ec_dev *pd_dev,
+				int port)
+{
+	int rv;
+
+	struct ec_params_usb_pd_set_mode_request set_mode_request;
+	set_mode_request.port = port;
+	set_mode_request.svid = USB_VID_GOOGLE;
+	/* TODO(tbroch) Will GFU always be '1'? */
+	set_mode_request.opos = 1;
+	set_mode_request.cmd = PD_ENTER_MODE;
+	rv = cros_ec_pd_command(dev, pd_dev, EC_CMD_USB_PD_SET_AMODE,
+				(uint8_t *)&set_mode_request,
+				sizeof(set_mode_request),
+				NULL, 0);
+	if (!rv)
+		/* Allow time to enter GFU mode */
+		msleep(500);
+
+	return rv;
+}
+
+/**
  * cros_ec_pd_get_status - Get info about a possible PD device attached to a
  * given port. Returns 0 on success, <0 on failure.
  *
@@ -269,6 +301,14 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	 */
 	msleep(4000);
 
+	/*
+	 * Force re-entry into GFU mode for USBPD devices that don't enter
+	 * it by default.
+	 */
+	ret = cros_ec_pd_enter_gfu(dev, pd_dev, port);
+	if (ret < 0)
+		dev_warn(dev, "Unable to enter GFU (err:%d)\n", ret);
+
 	/* Erase RW flash */
 	pd_cmd->cmd = USB_PD_FW_FLASH_ERASE;
 	pd_cmd->size = 0;
@@ -396,6 +436,32 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 }
 
 /**
+ * cros_ec_pd_get_host_event_status - Get host event status and return.  If
+ * failure return 0.
+ *
+ * @dev: PD device
+ * @pd_dev: EC PD device
+ */
+static uint32_t cros_ec_pd_get_host_event_status(struct device *dev,
+						 struct cros_ec_dev *pd_dev)
+{
+	int ret;
+	struct ec_response_host_event_status host_event_status;
+
+	/* Check for host events on EC. */
+	ret = cros_ec_pd_command(dev, pd_dev, EC_CMD_PD_HOST_EVENT_STATUS,
+				 NULL, 0,
+				 (uint8_t *)&host_event_status,
+				 sizeof(host_event_status));
+	if (ret) {
+		dev_err(dev, "Can't get host event status (err: %d)\n", ret);
+		return 0;
+	}
+	dev_dbg(dev, "Got host event status %x\n", host_event_status.status);
+	return host_event_status.status;
+}
+
+/**
  * cros_ec_pd_update_check - Probe the status of attached PD devices and kick
  * off an RW firmware update if needed. This is run as a deferred task on
  * module load, resume, and when an ACPI event is received (typically on
@@ -407,7 +473,6 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 {
 	const struct cros_ec_pd_firmware_image *img;
 	const struct firmware *fw;
-	struct ec_response_host_event_status host_event_status;
 	struct ec_params_usb_pd_rw_hash_entry hash_entry;
 	struct ec_params_usb_pd_discovery_entry discovery_entry;
 	struct cros_ec_pd_update_data *drv_data =
@@ -417,6 +482,7 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	struct power_supply *charger;
 	enum cros_ec_pd_find_update_firmware_result result;
 	int ret, port;
+	uint32_t pd_status;
 
 	dev_dbg(dev, "Checking for updates\n");
 
@@ -425,24 +491,20 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 		return;
 	}
 
-	/* Check for host events on EC. */
-	ret = cros_ec_pd_command(dev, pd_ec, EC_CMD_PD_HOST_EVENT_STATUS,
-				 NULL, 0,
-				 (uint8_t *)&host_event_status,
-				 sizeof(host_event_status));
-	if (ret) {
-		dev_err(dev, "Can't get host event status (err: %d)\n", ret);
-		return;
+	/* Force GFU entry for devices not in GFU by default. */
+	for (port = 0; port < drv_data->num_ports; ++port) {
+		dev_dbg(dev, "forcing GFU entry on C%d\n", port);
+		cros_ec_pd_enter_gfu(dev, pd_ec, port);
 	}
-	dev_dbg(dev, "Got host event status %x\n", host_event_status.status);
+
+	pd_status = cros_ec_pd_get_host_event_status(dev, pd_ec);
 
 	/*
 	 * Override status received from EC if update is forced, such as
 	 * after power-on or after resume.
 	 */
 	if (drv_data->force_update) {
-		host_event_status.status = PD_EVENT_POWER_CHANGE |
-					   PD_EVENT_UPDATE_DEVICE;
+		pd_status = PD_EVENT_POWER_CHANGE | PD_EVENT_UPDATE_DEVICE;
 		drv_data->force_update = 0;
 	}
 
@@ -451,10 +513,10 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	 * trigger a refresh of the power supply state.
 	 */
 	charger = pd_ec->ec_dev->charger;
-	if ((host_event_status.status & PD_EVENT_POWER_CHANGE) && charger)
+	if ((pd_status & PD_EVENT_POWER_CHANGE) && charger)
 		charger->external_power_changed(charger);
 
-	if (!(host_event_status.status & PD_EVENT_UPDATE_DEVICE))
+	if (!(pd_status & PD_EVENT_UPDATE_DEVICE))
 		return;
 
 	/* Received notification, send command to check on PD status. */
@@ -527,7 +589,7 @@ static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
 
 	if (drv_data)
 		queue_delayed_work(drv_data->workqueue, &drv_data->work,
-			PD_UPDATE_CHECK_DELAY);
+				   PD_UPDATE_CHECK_DELAY);
 	else
 		dev_warn(&acpi_device->dev,
 			"ACPI notification skipped due to missing drv_data\n");
