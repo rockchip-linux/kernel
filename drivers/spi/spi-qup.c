@@ -357,14 +357,6 @@ static void spi_qup_fifo_write(struct spi_qup *controller,
 	}
 }
 
-static void qup_dma_callback(void *data)
-{
-	struct spi_qup *controller = data;
-
-	if (atomic_dec_and_test(&controller->dma_outstanding))
-		complete(&controller->done);
-}
-
 static int spi_qup_do_dma(struct spi_qup *controller, struct spi_transfer *xfer)
 {
 	struct dma_async_tx_descriptor *rxd, *txd;
@@ -457,9 +449,6 @@ static int spi_qup_do_dma(struct spi_qup *controller, struct spi_transfer *xfer)
 
 			atomic_inc(&controller->dma_outstanding);
 
-			txd->callback = qup_dma_callback;
-			txd->callback_param = controller;
-
 			tx_cookie = dmaengine_submit(txd);
 
 			dma_async_issue_pending(controller->tx_chan);
@@ -491,9 +480,6 @@ static int spi_qup_do_dma(struct spi_qup *controller, struct spi_transfer *xfer)
 			}
 
 			atomic_inc(&controller->dma_outstanding);
-
-			rxd->callback = qup_dma_callback;
-			rxd->callback_param = controller;
 
 			rx_cookie = dmaengine_submit(rxd);
 
@@ -600,6 +586,13 @@ static irqreturn_t spi_qup_qup_irq(int irq, void *dev_id)
 
 	if (controller->use_dma) {
 		writel_relaxed(opflags, controller->base + QUP_OPERATIONAL);
+
+		if (opflags & QUP_OP_IN_SERVICE_FLAG &&
+			opflags & QUP_OP_MAX_INPUT_DONE_FLAG)
+			complete(&controller->done);
+		if (opflags & QUP_OP_OUT_SERVICE_FLAG &&
+			opflags & QUP_OP_MAX_OUTPUT_DONE_FLAG)
+			complete(&controller->done);
 	} else {
 		if (opflags & QUP_OP_IN_SERVICE_FLAG) {
 			if (opflags & QUP_OP_IN_BLOCK_READ_REQ)
@@ -804,6 +797,10 @@ static int spi_qup_transfer_one(struct spi_master *master,
 			ret = -ETIMEDOUT;
 	}
 exit:
+
+	/* delay if the xfer requests it */
+	if (xfer->delay_usecs)
+		udelay(xfer->delay_usecs);
 
 	spi_qup_set_state(controller, QUP_STATE_RESET);
 	spin_lock_irqsave(&controller->lock, flags);
