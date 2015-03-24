@@ -133,37 +133,51 @@ static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 
 
 /* Ioctls */
+#define EC_USUAL_PARAM_SIZE 32
 static long ec_device_ioctl_xcmd(struct cros_ec_dev *ec, void __user *argp)
 {
 	long ret;
 	struct cros_ec_command s_cmd;
-	uint8_t *user_indata;
-	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE]; /* FIXME: crbug.com/399057 */
+	uint8_t buf[EC_USUAL_PARAM_SIZE]; /* FIXME: crbug.com/399057 */
+	uint8_t *user_indata, *buf_ptr = buf;
+	uint32_t alloc_size;
 
 	if (copy_from_user(&s_cmd, argp, sizeof(s_cmd)))
 		return -EFAULT;
+	alloc_size = max(s_cmd.outsize, s_cmd.insize);
+	if (alloc_size > EC_USUAL_PARAM_SIZE) {
+		buf_ptr = kmalloc(alloc_size, GFP_KERNEL);
+		if (buf_ptr == NULL)
+			return -ENOMEM;
+	} else {
+		alloc_size = 0;
+	}
 	if (s_cmd.outsize &&
-	    copy_from_user(&buf, (void __user *)s_cmd.outdata, sizeof(buf)))
+	    copy_from_user(buf_ptr, (void __user *)s_cmd.outdata,
+			   s_cmd.outsize))
 		return -EFAULT;
 
 	user_indata = s_cmd.indata;
 	s_cmd.command += ec->cmd_offset;
-	s_cmd.indata = buf;
-	s_cmd.outdata = buf;
+	s_cmd.indata = buf_ptr;
+	s_cmd.outdata = buf_ptr;
 	ret = cros_ec_cmd_xfer(ec->ec_dev, &s_cmd);
 	s_cmd.indata = user_indata;
 
 	/* Only copy data to userland if data was received. */
-	if (ret > 0 && s_cmd.insize) {
-		unsigned size = ret;
-
-		size = min(size, s_cmd.insize);
-		if (copy_to_user((void __user *)s_cmd.indata, buf, size))
+	if (ret > 0) {
+		/*
+		 * Lower layer refuse to accept data if the EC sends more
+		 * than what we asked.
+		 */
+		if (copy_to_user((void __user *)s_cmd.indata, buf_ptr, ret))
 			return -EFAULT;
 	}
 	if (copy_to_user(argp, &s_cmd, sizeof(s_cmd)))
 		return -EFAULT;
 
+	if (alloc_size)
+		kfree(buf_ptr);
 	return ret;
 }
 
@@ -261,10 +275,20 @@ static long ec_device_compat_ioctl_xcmd(struct cros_ec_dev *ec,
 	long ret;
 	struct cros_ec_command s_cmd;
 	struct compat_cros_ec_command compat_s_cmd;
-	uint8_t buf[EC_PROTO2_MAX_PARAM_SIZE]; /* FIXME: crbug.com/399057 */
+	uint8_t buf[EC_USUAL_PARAM_SIZE]; /* FIXME: crbug.com/399057 */
+	uint8_t *buf_ptr = buf;
+	uint32_t alloc_size;
 
 	if (copy_from_user(&compat_s_cmd, argp, sizeof(compat_s_cmd)))
 		return -EFAULT;
+	alloc_size = max(compat_s_cmd.outsize, compat_s_cmd.insize);
+	if (alloc_size > EC_USUAL_PARAM_SIZE) {
+		buf_ptr = kmalloc(alloc_size, GFP_KERNEL);
+		if (buf_ptr == NULL)
+			return -ENOMEM;
+	} else {
+		alloc_size = 0;
+	}
 
 	s_cmd.version = compat_s_cmd.version;
 	s_cmd.command = compat_s_cmd.command + ec->cmd_offset;
@@ -272,26 +296,27 @@ static long ec_device_compat_ioctl_xcmd(struct cros_ec_dev *ec,
 	s_cmd.outsize = compat_s_cmd.outsize;
 
 	if (s_cmd.outsize &&
-	    copy_from_user(&buf, compat_ptr(compat_s_cmd.outdata), sizeof(buf)))
+	    copy_from_user(buf_ptr, compat_ptr(compat_s_cmd.outdata),
+			   compat_s_cmd.outsize))
 		return -EFAULT;
 
-	s_cmd.indata = buf;
-	s_cmd.outdata = buf;
+	s_cmd.indata = buf_ptr;
+	s_cmd.outdata = buf_ptr;
 	ret = cros_ec_cmd_xfer(ec->ec_dev, &s_cmd);
 
 	compat_s_cmd.result = s_cmd.result;
 
 	/* Only copy data to userland if data was received. */
-	if (ret > 0 && s_cmd.insize) {
-		unsigned size = ret;
-		size = min(size, s_cmd.insize);
-		if (copy_to_user(compat_ptr(compat_s_cmd.indata), buf, size))
+	if (ret > 0) {
+		if (copy_to_user(compat_ptr(compat_s_cmd.indata), buf_ptr, ret))
 			return -EFAULT;
 	}
 
 	if (copy_to_user(argp, &compat_s_cmd, sizeof(compat_s_cmd)))
 		return -EFAULT;
 
+	if (alloc_size)
+		kfree(buf_ptr);
 	return ret;
 }
 
