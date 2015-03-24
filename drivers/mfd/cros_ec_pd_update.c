@@ -288,12 +288,6 @@ static int cros_ec_pd_fw_update(struct device *dev,
 				ret);
 			return ret;
 		}
-		/*
-		 * TODO(crosbug.com/p/33905): Throttle the update process so
-		 * that the EC doesn't trip its WDT. Remove this delay once
-		 * the root cause is resolved.
-		 */
-		usleep_range(10000, 10500);
 	}
 
 	/* Wait 100ms to guarantee that writes finish */
