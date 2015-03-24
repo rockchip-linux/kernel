@@ -70,10 +70,10 @@ enum cros_ec_pd_find_update_firmware_result {
 #define PD_FLASH_WRITE_STEP 96
 
 /*
- * Wait 1s to start an update check after scheduling. This helps to remove
+ * Wait 2s to start an update check after scheduling. This helps to remove
  * needless extra update checks (ex. if a PD device is reset several times
  * immediately after insertion) and fixes load issues on resume.
  */
-#define PD_UPDATE_CHECK_DELAY msecs_to_jiffies(1000)
+#define PD_UPDATE_CHECK_DELAY msecs_to_jiffies(2000)
 
 #endif /* __LINUX_MFD_CROS_EC_H */
