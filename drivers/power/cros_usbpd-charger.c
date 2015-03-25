@@ -277,11 +277,17 @@ static void cros_usb_pd_charger_power_changed(struct power_supply *psy)
 	struct port_data *port = container_of(psy, struct port_data, psy);
 	struct charger_data *charger = port->charger;
 	struct device *dev = charger->dev;
-	int i;
+	int i, last_psy_status;
 
 	dev_dbg(dev, "cros_usb_pd_charger_power_changed\n");
-	for (i = 0; i < charger->num_registered_psy; i++)
-		power_supply_changed(&charger->ports[i]->psy);
+	for (i = 0; i < charger->num_registered_psy; i++) {
+		last_psy_status = charger->ports[i]->psy_status;
+		get_ec_usb_pd_power_info(charger->ports[i]);
+		if (charger->ports[i]->psy_status != last_psy_status)
+			power_supply_changed(&charger->ports[i]->psy);
+		else
+			dev_dbg(dev, "power_supply_changed() skipped.\n");
+	}
 }
 
 static int cros_usb_pd_charger_get_prop(struct power_supply *psy,
