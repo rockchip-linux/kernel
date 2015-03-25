@@ -402,6 +402,7 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 		container_of(to_delayed_work(work),
 		struct cros_ec_pd_update_data, work);
 	struct device *dev = drv_data->dev;
+	struct power_supply *charger;
 	enum cros_ec_pd_find_update_firmware_result result;
 	int ret, port;
 
@@ -437,9 +438,9 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	 * If there is an EC based charger, send a notification to it to
 	 * trigger a refresh of the power supply state.
 	 */
-	if ((host_event_status.status & PD_EVENT_POWER_CHANGE) &&
-	    pd_ec->ec_dev->charger)
-		power_supply_changed(pd_ec->ec_dev->charger);
+	charger = pd_ec->ec_dev->charger;
+	if ((host_event_status.status & PD_EVENT_POWER_CHANGE) && charger)
+		charger->external_power_changed(charger);
 
 	if (!(host_event_status.status & PD_EVENT_UPDATE_DEVICE))
 		return;
