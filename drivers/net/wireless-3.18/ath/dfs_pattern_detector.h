@@ -21,11 +21,6 @@
 #include <linux/list.h>
 #include <linux/nl80211.h>
 
-/* tolerated deviation of radar time stamp in usecs on both sides
- * TODO: this might need to be HW-dependent
- */
-#define PRI_TOLERANCE	16
-
 /**
  * struct ath_dfs_pool_stats - DFS Statistics for global pools
  */
