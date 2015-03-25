@@ -299,6 +299,8 @@
 &spi2 {
 	status = "okay";
 
+	rx-sample-delay-ns = <12>;
+
 	spiflash@0 {
 		compatible = "spidev";
 		spi-max-frequency = <50000000>;
