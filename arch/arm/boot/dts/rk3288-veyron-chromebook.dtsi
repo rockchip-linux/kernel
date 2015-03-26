@@ -24,6 +24,7 @@
 
 #include "rk3288-veyron.dtsi"
 #include "rk3288-veyron-edp.dtsi"
+#include "rk3288-veyron-sdmmc.dtsi"
 
 / {
 	aliases {
