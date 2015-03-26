@@ -14,6 +14,13 @@
 		device_type = "memory";
 		reg =  <0x00000000 0x08000000>;
 	};
+
+	adc_1v8: adc-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "1V8_ADC";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
 };
 
 &spfi1 {
@@ -65,4 +72,10 @@
 
 &i2s_in {
 	status = "okay";
+};
+
+&adc {
+	status = "okay";
+
+	vref-supply = <&adc_1v8>;
 };
