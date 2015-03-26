@@ -226,18 +226,6 @@
 		status = "disabled";
 	};
 
-	adc: adc@18101600 {
-		compatible = "cosmic,10001-adc";
-		reg = <0x18101600 0x24>;
-		adc-reserved-channels = <0x30>;
-		clocks = <&clk_core CLK_AUX_ADC>;
-		clock-names = "adc";
-		assigned-clocks = <&clk_core CLK_AUX_ADC_INTERNAL_DIV>,
-				  <&clk_core CLK_AUX_ADC_DIV>;
-		assigned-clock-rates = <100000000>, <1000000>;
-		status = "disabled";
-	};
-
 	uart0: uart@18101400 {
 		compatible = "snps,dw-apb-uart";
 		reg = <0x18101400 0x100>;
@@ -267,6 +255,18 @@
 		reg-io-width = <4>;
 		pinctrl-0 = <&uart1_pins>;
 		pinctrl-names = "default";
+		status = "disabled";
+	};
+
+	adc: adc@18101600 {
+		compatible = "cosmic,10001-adc";
+		reg = <0x18101600 0x24>;
+		adc-reserved-channels = <0x30>;
+		clocks = <&clk_core CLK_AUX_ADC>;
+		clock-names = "adc";
+		assigned-clocks = <&clk_core CLK_AUX_ADC_INTERNAL_DIV>,
+				  <&clk_core CLK_AUX_ADC_DIV>;
+		assigned-clock-rates = <100000000>, <1000000>;
 		status = "disabled";
 	};
 
