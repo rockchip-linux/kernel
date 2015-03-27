@@ -316,6 +316,8 @@ out_unlock:
 
 
 static struct drm_ioctl_desc vgem_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(VGEM_MODE_MAP_DUMB, drm_mode_mmap_dumb_ioctl,
+			  DRM_CONTROL_ALLOW|DRM_UNLOCKED|DRM_RENDER_ALLOW),
 };
 
 static const struct file_operations vgem_driver_fops = {
@@ -329,7 +331,8 @@ static const struct file_operations vgem_driver_fops = {
 };
 
 static struct drm_driver vgem_driver = {
-	.driver_features		= DRIVER_GEM | DRIVER_PRIME,
+	.driver_features		=
+		DRIVER_GEM | DRIVER_PRIME | DRIVER_RENDER,
 	.gem_free_object		= vgem_gem_free_object,
 	.gem_vm_ops			= &vgem_gem_vm_ops,
 	.ioctls				= vgem_ioctls,
