@@ -209,9 +209,6 @@ static ssize_t ramoops_pstore_read(u64 *id, enum pstore_type_id *type,
 		}
 	}
 
-	prz = ramoops_get_next_prz(cxt->przs, &cxt->dump_read_cnt,
-				   cxt->max_dump_cnt, id, type,
-				   PSTORE_TYPE_DMESG, 1);
 	if (!prz_ok(prz))
 		prz = ramoops_get_next_prz(&cxt->cprz, &cxt->console_read_cnt,
 					   1, id, type, PSTORE_TYPE_CONSOLE, 0);
