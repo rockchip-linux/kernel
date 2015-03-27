@@ -49,8 +49,8 @@ I2S CPU/codec sub-node required properties:
 
 I2S CPU/codec sub-node optional properties:
 -------------------------------------------
-- name: Optional name for the codec.  This will be used as the name prefix
-  for the codec.
+- name-prefix: Optional name prefix for the codec.  This will be used when
+  parsing the "routing" property.
 - continuous-clock: Indicates the BCLK/LRCLK are always active.
 - bitclock-inversion: Indicates the BCLK should be inverted.
 - frame-inversion: Indicates the LRCLK should be inverted.

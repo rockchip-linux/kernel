@@ -385,7 +385,7 @@ static int concerto_parse_of_codecs(struct concerto_audio_card *cc,
 		link->codecs[i].of_node = codec_dai;
 		conf->np = codec_dai;
 		conf->fmt = snd_soc_of_parse_daifmt(codec, NULL, NULL, NULL);
-		of_property_read_string(codec, "name", &conf->name);
+		of_property_read_string(codec, "name-prefix", &conf->name);
 		/* Ensure there is only one clock master. */
 		if ((conf->fmt & SND_SOC_DAIFMT_MASTER_MASK) ==
 		    SND_SOC_DAIFMT_CBM_CFM) {
