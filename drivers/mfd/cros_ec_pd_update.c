@@ -349,6 +349,7 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 		    img->usb_pid == discovery_entry->pid)
 			break;
 	}
+	*update_image = img;
 
 	if (i == firmware_image_count)
 		return PD_UNKNOWN_DEVICE;
@@ -358,7 +359,6 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 
 	/* Always update if PD device is stuck in RO. */
 	if (hash_entry->current_image != EC_IMAGE_RW) {
-		*update_image = img;
 		dev_info(dev, "Updating FW since PD dev is in RO\n");
 		return PD_DO_UPDATE;
 	}
@@ -374,7 +374,6 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 		if (memcmp(hash_entry->dev_rw_hash,
 			   (*img->update_hashes)[i],
 			   PD_RW_HASH_SIZE) == 0) {
-			*update_image = img;
 			dev_info(dev, "Updating FW since RW is known\n");
 			return PD_DO_UPDATE;
 		}
