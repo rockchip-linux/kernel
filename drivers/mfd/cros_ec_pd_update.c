@@ -245,7 +245,9 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to clear PD signature (err:%d)\n", ret);
+		dev_err(dev,
+			"Unable to clear Port%d PD signature (err:%d)\n",
+			port, ret);
 		return ret;
 	}
 
@@ -254,7 +256,8 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to reboot PD (err:%d)\n", ret);
+		dev_err(dev, "Unable to reboot Port%d PD (err:%d)\n",
+			port, ret);
 		return ret;
 	}
 
@@ -270,7 +273,8 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to erase PD RW flash (err:%d)\n", ret);
+		dev_err(dev, "Unable to erase Port%d PD RW flash (err:%d)\n",
+			port, ret);
 		return ret;
 	}
 
@@ -284,8 +288,9 @@ static int cros_ec_pd_fw_update(struct device *dev,
 		memcpy(pd_cmd_data, fw->data + i, pd_cmd->size);
 		ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 		if (ret < 0) {
-			dev_err(dev, "Unable to write PD RW flash (err:%d)\n",
-				ret);
+			dev_err(dev,
+				"Unable to write Port%d PD RW flash (err:%d)\n",
+				port, ret);
 			return ret;
 		}
 	}
@@ -298,7 +303,9 @@ static int cros_ec_pd_fw_update(struct device *dev,
 	pd_cmd->size = 0;
 	ret = cros_ec_pd_send_fw_update_cmd(dev, pd_dev, pd_cmd);
 	if (ret < 0) {
-		dev_err(dev, "Unable to reboot PD post-flash (err:%d)\n", ret);
+		dev_err(dev,
+			"Unable to reboot Port%d PD post-flash (err:%d)\n",
+			port, ret);
 		return ret;
 	}
 
@@ -443,8 +450,9 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 		ret = cros_ec_pd_get_status(dev, pd_ec, port, &hash_entry,
 					    &discovery_entry);
 		if (ret < 0) {
-			dev_err(dev, "Can't get device status (err:%d)\n",
-				ret);
+			dev_err(dev,
+				"Can't get Port%d device status (err:%d)\n",
+				port, ret);
 			return;
 		}
 
@@ -452,26 +460,29 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 						      &hash_entry,
 						      &discovery_entry,
 						      &img);
-		dev_dbg(dev, "Find FW result: %d\n", result);
+		dev_dbg(dev, "Find Port%d FW result: %d\n", port, result);
 
 		switch (result) {
 		case PD_DO_UPDATE:
 			if (request_firmware(&fw, img->filename, dev)) {
-				dev_err(dev, "Error, can't load file %s\n",
-					img->filename);
+				dev_err(dev,
+					"Error, Port%d can't load file %s\n",
+					port, img->filename);
 				break;
 			}
 
 			if (fw->size > PD_RW_IMAGE_SIZE) {
-				dev_err(dev, "Firmware file %s is too large\n",
-					img->filename);
+				dev_err(dev,
+					"Port%d FW file %s is too large\n",
+					port, img->filename);
 				goto done;
 			}
 
 			/* Update firmware */
-			dev_info(dev, "Updating RW to %s\n", img->filename);
+			dev_info(dev, "Updating Port%d RW to %s\n", port,
+				 img->filename);
 			cros_ec_pd_fw_update(dev, pd_ec, fw, port);
-			dev_info(dev, "FW update completed\n");
+			dev_info(dev, "Port%d FW update completed\n", port);
 done:
 			release_firmware(fw);
 			break;
