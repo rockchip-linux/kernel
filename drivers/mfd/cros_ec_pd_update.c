@@ -355,9 +355,20 @@ static enum cros_ec_pd_find_update_firmware_result cros_ec_find_update_firmware(
 
 	if (i == firmware_image_count)
 		return PD_UNKNOWN_DEVICE;
-	else if (memcmp(hash_entry->dev_rw_hash, img->hash, PD_RW_HASH_SIZE)
-			== 0)
-		return PD_ALREADY_HAVE_LATEST;
+
+	if (!memcmp(hash_entry->dev_rw_hash, img->hash, PD_RW_HASH_SIZE)) {
+		if (hash_entry->current_image != EC_IMAGE_RW)
+			/*
+			 * As signature isn't factored into the hash if we've
+			 * previously updated RW but subsequently invalidate
+			 * signature we can get into this situation.  Need to
+			 * reflash.
+			 */
+			return PD_DO_UPDATE;
+		else
+			/* Device is already updated */
+			return PD_ALREADY_HAVE_LATEST;
+	}
 
 	/* Always update if PD device is stuck in RO. */
 	if (hash_entry->current_image != EC_IMAGE_RW) {
