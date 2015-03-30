@@ -356,6 +356,8 @@ static int dw_hdmi_audio_resume(struct device *dev)
 {
 	struct snd_dw_hdmi *hdmi = dev_get_drvdata(dev);
 
+	snd_dw_hdmi_jack_detect(hdmi);
+
 	if (hdmi->is_playback_status) {
 		dw_hdmi_audio_set_fmt(hdmi, &hdmi->fmt);
 	}
