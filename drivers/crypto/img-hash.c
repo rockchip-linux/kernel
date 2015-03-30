@@ -192,7 +192,7 @@ static int img_hash_xmit_cpu(struct img_hash_dev *hdev, const u8 *buf,
 	u32 count, len32;
 	const u32 *buffer = (const u32 *)buf;
 
-	dev_dbg(hdev->dev, "xmit_cpu:  length: %u bytes\n", length);
+	dev_dbg(hdev->dev, "xmit_cpu:  length: %zu bytes\n", length);
 
 	if (final)
 		hdev->flags |= DRIVER_FLAGS_FINAL;
