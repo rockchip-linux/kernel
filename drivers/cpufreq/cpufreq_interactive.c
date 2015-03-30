@@ -364,7 +364,13 @@ static void cpufreq_interactive_timer(unsigned long data)
 	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	do_div(cputime_speedadj, delta_time);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
-	cpu_load = loadadjfreq / pcpu->target_freq;
+	/*
+	 * The current cpu freq can be a little inaccurate for calculating cpu
+	 * load since we could have changed frqeuency since the last time we set
+	 * it due to an updated cpufreq policy. This shouldn't happen very often
+	 * though.
+	 */
+	cpu_load = loadadjfreq / pcpu->policy->cur;
 	tunables->boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
 
 	if (cpu_load >= tunables->go_hispeed_load || tunables->boosted) {
