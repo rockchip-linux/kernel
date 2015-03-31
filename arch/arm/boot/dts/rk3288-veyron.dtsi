@@ -473,6 +473,8 @@
 		reg = <0x10>;
 		interrupt-parent = <&gpio6>;
 		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&int_codec>;
 	};
 };
 
@@ -634,6 +636,16 @@
 		hp_det: hp-det {
 			rockchip,pins = <6 5 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
+
+		/*
+		 * HACK: We're going to _pull down_ this _active low_ interrupt
+		 * so that it never fires.  We don't need this interrupt because
+		 * we've got a ts3a227e chip but the driver requires it.
+		 */
+		int_codec: int-codec {
+			rockchip,pins = <6 7 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
 		mic_det: mic-det {
 			rockchip,pins = <6 11 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
