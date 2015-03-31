@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014,2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -122,4 +122,4 @@ extern void nss_unregister_lag_if(uint32_t if_num);
  * return void
  */
 extern void nss_lag_msg_init(struct nss_lag_msg *nlm, uint16_t lag_num, uint32_t type, uint32_t len,
-				nss_lag_callback_t *cb, void *app_data);
+				nss_lag_callback_t cb, void *app_data);

@@ -434,6 +434,6 @@ extern void nss_ipv6_unregister_sysctl(void);
  *	Initialize NSS IPv6 specific message
  */
 extern void nss_ipv6_msg_init(struct nss_ipv6_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
-			nss_ipv6_msg_callback_t *cb, void *app_data);
+			nss_ipv6_msg_callback_t cb, void *app_data);
 
 #endif /* __NSS_IPV6_H */

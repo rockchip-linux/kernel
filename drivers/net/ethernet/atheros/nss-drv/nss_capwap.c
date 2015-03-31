@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014,2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -575,7 +575,7 @@ void nss_capwap_init()
  *	Initialize capwap message.
  */
 void nss_capwap_msg_init(struct nss_capwap_msg *ncm, uint16_t if_num, uint32_t type, uint32_t len,
-				nss_capwap_msg_callback_t *cb, void *app_data)
+				nss_capwap_msg_callback_t cb, void *app_data)
 {
 	nss_cmn_msg_init(&ncm->cm, if_num, type, len, (void*)cb, app_data);
 }

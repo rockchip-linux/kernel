@@ -1,6 +1,6 @@
 /*
  **************************************************************************
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
  * above copyright notice and this permission notice appear in all copies.
@@ -107,7 +107,7 @@ nss_tx_status_t nss_profiler_if_tx_buf(void *ctx, void *buf, uint32_t len, void 
 
 	npm = (struct nss_profiler_msg *)skb_put(nbuf, sizeof(npm->cm) + len);
 	nss_profiler_msg_init(npm, NSS_PROFILER_INTERFACE, pdm->hd_magic & 0xFF, len,
-				(nss_profiler_callback_t *)cb, ctx);
+				cb, ctx);
 	memcpy(&npm->payload, pdm, len);
 
 	status = nss_core_send_buffer(nss_ctx, 0, nbuf, NSS_IF_CMD_QUEUE, H2N_BUFFER_CTRL, 0);
@@ -160,7 +160,7 @@ void nss_profiler_notify_unregister(nss_core_id_t core_id)
  *      Initialize profiler message.
  */
 void nss_profiler_msg_init(struct nss_profiler_msg *npm, uint16_t if_num, uint32_t type, uint32_t len,
-				nss_profiler_callback_t *cb, void *app_data)
+				nss_profiler_callback_t cb, void *app_data)
 {
 	nss_cmn_msg_init(&npm->cm, if_num, type, len, (void *)cb, app_data);
 }

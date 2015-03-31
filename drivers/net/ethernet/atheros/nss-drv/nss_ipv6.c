@@ -375,7 +375,7 @@ static int nss_ipv6_conn_cfg_handler(ctl_table *ctl, int write, void __user *buf
 	nss_info("%p: IPv6 supported connections: %d\n", nss_ctx, nss_ipv6_conn_cfg);
 
 	nss_ipv6_msg_init(&nim, NSS_IPV6_RX_INTERFACE, NSS_IPV6_TX_CONN_CFG_RULE_MSG,
-		sizeof(struct nss_ipv6_rule_conn_cfg_msg), (nss_ipv6_msg_callback_t *)nss_ipv6_conn_cfg_callback, NULL);
+		sizeof(struct nss_ipv6_rule_conn_cfg_msg), nss_ipv6_conn_cfg_callback, NULL);
 
 	nirccm = &nim.msg.rule_conn_cfg;
 	nirccm->num_conn = htonl(nss_ipv6_conn_cfg);
@@ -492,7 +492,7 @@ void nss_ipv6_unregister_sysctl(void)
  *      Initialize IPv6 message.
  */
 void nss_ipv6_msg_init(struct nss_ipv6_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
-			nss_ipv6_msg_callback_t *cb, void *app_data)
+			nss_ipv6_msg_callback_t cb, void *app_data)
 {
 	nss_cmn_msg_init(&nim->cm, if_num, type, len, (void *)cb, app_data);
 }

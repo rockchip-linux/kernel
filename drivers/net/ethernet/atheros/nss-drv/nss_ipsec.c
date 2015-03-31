@@ -405,7 +405,7 @@ void nss_ipsec_register_handler()
  *	Initialize ipsec message.
  */
 void nss_ipsec_msg_init(struct nss_ipsec_msg *nim, uint16_t if_num, uint32_t type, uint32_t len,
-			nss_ipsec_msg_callback_t *cb, void *app_data)
+			nss_ipsec_msg_callback_t cb, void *app_data)
 {
 	nss_cmn_msg_init(&nim->cm, if_num, type, len, (void *)cb, app_data);
 }
