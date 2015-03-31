@@ -373,25 +373,9 @@ static void dw_mci_wait_while_busy(struct dw_mci *host, u32 cmd_flags)
 	}
 }
 
-static unsigned int dw_mci_get_cto_ms(struct dw_mci *host)
-{
-	unsigned int cto_clks;
-	unsigned int cto_ms;
-
-	cto_clks = mci_readl(host, TMOUT) & 0xff;
-	cto_ms = DIV_ROUND_UP(cto_clks, host->bus_hz / 1000);
-
-	/* add a buffer */
-	cto_ms += 10;
-
-	return cto_ms;
-}
-
 static void dw_mci_start_command(struct dw_mci *host,
 				 struct mmc_command *cmd, u32 cmd_flags)
 {
-	unsigned int cto_ms;
-
 	host->cmd = cmd;
 	dev_vdbg(host->dev,
 		 "start command: ARGR=0x%08x CMDR=0x%08x\n",
@@ -402,18 +386,6 @@ static void dw_mci_start_command(struct dw_mci *host,
 	dw_mci_wait_while_busy(host, cmd_flags);
 
 	mci_writel(host, CMD, cmd_flags | SDMMC_CMD_START);
-	/*
-	 * If all command-related interrupts don't come within the given time
-	 * in sending command state.
-	 */
-	if (host->quirks & DW_MCI_QUIRK_BROKEN_CTO) {
-		/* Only the command which expect a response need add a timer. */
-		if (cmd_flags & SDMMC_CMD_RESP_EXP) {
-			cto_ms = dw_mci_get_cto_ms(host);
-			mod_timer(&host->cto_timer,
-				  jiffies + msecs_to_jiffies(cto_ms));
-		}
-	}
 }
 
 static inline void send_stop_abort(struct dw_mci *host, struct mmc_data *data)
@@ -2353,9 +2325,6 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 
 		if (pending & DW_MCI_CMD_ERROR_FLAGS) {
-			if (host->quirks & DW_MCI_QUIRK_BROKEN_CTO)
-				del_timer(&host->cto_timer);
-
 			mci_writel(host, RINTSTS, DW_MCI_CMD_ERROR_FLAGS);
 			host->cmd_status = pending;
 			smp_wmb();
@@ -2400,9 +2369,6 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 		}
 
 		if (pending & SDMMC_INT_CMD_DONE) {
-			if (host->quirks & DW_MCI_QUIRK_BROKEN_CTO)
-				del_timer(&host->cto_timer);
-
 			mci_writel(host, RINTSTS, SDMMC_INT_CMD_DONE);
 			dw_mci_cmd_interrupt(host, pending);
 		}
@@ -2753,30 +2719,6 @@ static void dw_mci_cmd11_timer(unsigned long arg)
 	tasklet_schedule(&host->tasklet);
 }
 
-static void dw_mci_cto_timer(unsigned long arg)
-{
-	struct dw_mci *host = (struct dw_mci *)arg;
-
-	switch (host->state) {
-	case STATE_SENDING_CMD11:
-	case STATE_SENDING_CMD:
-	case STATE_SENDING_STOP:
-		/*
-		 * If CMD_DONE interrupt does NOT come in sending command
-		 * state, we should notify the driver to terminate current
-		 * transfer and report a command timeout to the core.
-		 */
-		host->cmd_status = SDMMC_INT_RTO;
-		set_bit(EVENT_CMD_COMPLETE, &host->pending_events);
-		tasklet_schedule(&host->tasklet);
-		break;
-	default:
-		dev_warn(host->dev, "Unexpected command timeout, state %d\n",
-			 host->state);
-		break;
-	}
-}
-
 static void dw_mci_dto_timer(unsigned long arg)
 {
 	struct dw_mci *host = (struct dw_mci *)arg;
@@ -2994,10 +2936,6 @@ int dw_mci_probe(struct dw_mci *host)
 		    dw_mci_cmd11_timer, (unsigned long)host);
 
 	host->quirks = host->pdata->quirks;
-
-	if (host->quirks & DW_MCI_QUIRK_BROKEN_CTO)
-		setup_timer(&host->cto_timer,
-			    dw_mci_cto_timer, (unsigned long)host);
 
 	if (host->quirks & DW_MCI_QUIRK_BROKEN_DTO)
 		setup_timer(&host->dto_timer,

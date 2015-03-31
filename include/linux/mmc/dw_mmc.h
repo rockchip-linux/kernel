@@ -98,7 +98,6 @@ struct mmc_data;
  * @irq: The irq value to be passed to request_irq.
  * @sdio_id0: Number of slot0 in the SDIO interrupt registers.
  * @dto_timer: Timer for broken data transfer over scheme.
- * @cto_timer: Timer for broken command transfer over scheme.
  *
  * Locking
  * =======
@@ -209,7 +208,6 @@ struct dw_mci {
 
 	struct timer_list       cmd11_timer;
 	struct timer_list       dto_timer;
-	struct timer_list       cto_timer;
 };
 
 /* DMA ops for Internal/External DMAC interface */
@@ -236,8 +234,6 @@ struct dw_mci_dma_ops {
 #define DW_MCI_QUIRK_NO_WRITE_PROTECT		BIT(4)
 /* Timer for broken data transfer over scheme */
 #define DW_MCI_QUIRK_BROKEN_DTO			BIT(5)
-/* Timer for broken command transfer over scheme */
-#define DW_MCI_QUIRK_BROKEN_CTO			BIT(6)
 
 /* Slot level quirks */
 /* This slot has no write protect */
