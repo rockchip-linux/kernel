@@ -1,5 +1,5 @@
 /*
- * Google Veyron (and derivatives) board device tree source
+ * Google Veyron (and derivatives) fragment for lpddr ddrfreq settings
  *
  * Copyright 2015 Google, Inc
  *
