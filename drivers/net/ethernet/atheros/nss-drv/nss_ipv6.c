@@ -25,6 +25,16 @@ int nss_ipv6_conn_cfg __read_mostly = NSS_DEFAULT_NUM_CONN;
 static struct  nss_conn_cfg_pvt i6cfgp;
 
 /*
+ * nss_ipv6_max_conn_count()
+ *	Return the maximum number of IPv6 connections that the NSS acceleration engine supports.
+ */
+int nss_ipv6_max_conn_count(void)
+{
+	return nss_ipv6_conn_cfg;
+}
+EXPORT_SYMBOL(nss_ipv6_max_conn_count);
+
+/*
  * nss_ipv6_driver_conn_sync_update()
  *	Update driver specific information from the messsage.
  */

@@ -406,6 +406,13 @@ struct nss_ipv4_msg {
 extern int nss_ipv6_conn_cfg;
 
 /**
+ * @brief Return the maximum number of IPv4 connections that the NSS acceleration engine supports
+ *
+ * @return int The number of connections that can be accelerated by the NSS
+ */
+int nss_ipv4_max_conn_count(void);
+
+/**
  * Callback to be called when IPv4 message is received
  */
 typedef void (*nss_ipv4_msg_callback_t)(void *app_data, struct nss_ipv4_msg *msg);
