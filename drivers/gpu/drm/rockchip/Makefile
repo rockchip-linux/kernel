@@ -7,5 +7,6 @@ rockchipdrm-y := rockchip_drm_drv.o rockchip_drm_fb.o rockchip_drm_fbdev.o \
 
 rockchipdrm-$(CONFIG_ROCKCHIP_DW_HDMI) += dw_hdmi-rockchip.o
 rockchipdrm-$(CONFIG_ROCKCHIP_EDP) += rockchip_edp_core.o rockchip_edp_reg.o
+rockchipdrm-$(CONFIG_ROCKCHIP_LVDS) += rockchip_lvds.o
 
 obj-$(CONFIG_DRM_ROCKCHIP) += rockchipdrm.o
