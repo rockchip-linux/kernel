@@ -441,6 +441,7 @@ static int cc10001_adc_remove(struct platform_device *pdev)
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
 	struct cc10001_adc_device *adc_dev = iio_priv(indio_dev);
 
+	cc10001_adc_power_down(adc_dev);
 	iio_device_unregister(indio_dev);
 	iio_triggered_buffer_cleanup(indio_dev);
 	clk_disable_unprepare(adc_dev->adc_clk);
