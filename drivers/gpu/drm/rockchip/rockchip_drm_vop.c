@@ -1459,20 +1459,16 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	clk_disable(vop->dclk);
 
 	switch (vop->connector_type) {
-	case DRM_MODE_CONNECTOR_LVDS:
-		VOP_CTRL_SET(vop, rgb_en, 1);
-		break;
 	case DRM_MODE_CONNECTOR_eDP:
 		VOP_CTRL_SET(vop, edp_en, 1);
 		break;
 	case DRM_MODE_CONNECTOR_HDMIA:
 		VOP_CTRL_SET(vop, hdmi_en, 1);
 		break;
+	case DRM_MODE_CONNECTOR_LVDS:
 	default:
-		/* TODO: undo stuff already done */
-		DRM_ERROR("unsupport connector_type[%d]\n",
-			  vop->connector_type);
-		return -EINVAL;
+		VOP_CTRL_SET(vop, rgb_en, 1);
+		break;
 	};
 	VOP_CTRL_SET(vop, out_mode, vop->connector_out_mode);
 
