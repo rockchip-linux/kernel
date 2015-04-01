@@ -268,6 +268,8 @@
 				  <&clk_core CLK_AUX_ADC_DIV>;
 		assigned-clock-rates = <100000000>, <1000000>;
 		status = "disabled";
+
+		#io-channel-cells = <1>;
 	};
 
 	pinctrl: pinctrl@18101c00 {
