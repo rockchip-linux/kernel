@@ -278,10 +278,13 @@ int rockchip_edp_transfer(struct drm_dp_aux *aux,
 	u32 val, i;
 	u8 *buf;
 	unsigned long timeout = 0;
+	int ret;
+	size_t count;
 
 	/* max transfer 16 bytes */
 	if (msg->size > 16)
 		return -EINVAL;
+
 	/* Clear AUX CH data buffer */
 	val = BUF_CLR;
 	writel(val, edp->regs + BUFFER_DATA_CTL);
@@ -344,7 +347,9 @@ int rockchip_edp_transfer(struct drm_dp_aux *aux,
 			AUX_TX_COMM_READ;
 		break;
 	}
+
 	writel(val, edp->regs + AUX_CH_CTL_1);
+
 	/* set dpcd address */
 	val = AUX_ADDR_7_0(msg->address);
 	writel(val, edp->regs + DP_AUX_ADDR_7_0);
@@ -380,30 +385,41 @@ int rockchip_edp_transfer(struct drm_dp_aux *aux,
 	/* Clear interrupt source for AUX CH command redply */
 	writel(RPLY_RECEIV, edp->regs + DP_INT_STA);
 
-	/* Clear interrupt source for AUX CH access error */
 	val = readl(edp->regs + DP_INT_STA);
-	if (val & AUX_ERR) {
+	if (val & AUX_ERR)
 		writel(AUX_ERR, edp->regs + DP_INT_STA);
-		return -EREMOTEIO;
-	}
 
 	/* Check AUX CH error access status */
 	val = readl(edp->regs + AUX_CH_STA);
-	if ((val & AUX_STATUS_MASK) != 0) {
-		dev_err(edp->dev, "AUX CH error happens: %d\n\n",
+	if (val & AUX_STATUS_MASK) {
+		dev_err(edp->dev, "AUX channel error: %#x\n",
 			val & AUX_STATUS_MASK);
 		return -EBUSY;
 	}
 
+	val = readl(edp->regs + AUX_RX_COMM);
+	msg->reply = val & (DP_AUX_NATIVE_REPLY_MASK | DP_AUX_I2C_REPLY_MASK);
+	if (msg->reply != (DP_AUX_NATIVE_REPLY_ACK | DP_AUX_I2C_REPLY_ACK))
+		return 0;
+
 	/* Read data buffer */
 	if (msg->request & DP_AUX_I2C_READ) {
+		val = readl(edp->regs + BUFFER_DATA_CTL);
+		count = val & 0x1f;
+		if (WARN_ON(count != msg->size))
+			count = min_t(size_t, count, msg->size);
+
 		buf = (u8 *)msg->buffer;
-		for (i = 0; i < msg->size; i++) {
+		for (i = 0; i < count; i++) {
 			val = readl(edp->regs + BUF_DATA_0 + i * 4);
 			*buf++ = (u8)val;
 		}
+		ret = count;
+	} else {
+		ret = msg->size;
 	}
-	return msg->size;
+
+	return ret;
 }
 
 void rockchip_edp_set_link_bandwidth(struct rockchip_edp_device *edp,
