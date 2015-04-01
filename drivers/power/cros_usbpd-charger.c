@@ -36,6 +36,7 @@
 #define CROS_USB_PD_MAX_LOG_ENTRIES	30
 
 #define CROS_USB_PD_LOG_UPDATE_DELAY msecs_to_jiffies(60000)
+#define CROS_USB_PD_CACHE_UPDATE_DELAY msecs_to_jiffies(500)
 
 /* Buffer + macro for building PDLOG string */
 #define BUF_SIZE 80
@@ -61,6 +62,7 @@ struct port_data {
 	int psy_voltage_now;
 	int psy_power_max;
 	struct charger_data *charger;
+	unsigned long last_update;
 };
 
 struct charger_data {
@@ -265,11 +267,19 @@ static int get_ec_port_status(struct port_data *port)
 {
 	int ret;
 
+	if (time_is_after_jiffies(
+			port->last_update + CROS_USB_PD_CACHE_UPDATE_DELAY)) {
+		return 0;
+	}
+
 	ret = get_ec_usb_pd_power_info(port);
 	if (ret < 0)
 		return ret;
 
-	return get_ec_usb_pd_discovery_info(port);
+	ret = get_ec_usb_pd_discovery_info(port);
+	port->last_update = jiffies;
+
+	return ret;
 }
 
 static void cros_usb_pd_charger_power_changed(struct power_supply *psy)
@@ -282,7 +292,7 @@ static void cros_usb_pd_charger_power_changed(struct power_supply *psy)
 	dev_dbg(dev, "cros_usb_pd_charger_power_changed\n");
 	for (i = 0; i < charger->num_registered_psy; i++) {
 		last_psy_status = charger->ports[i]->psy_status;
-		get_ec_usb_pd_power_info(charger->ports[i]);
+		get_ec_port_status(charger->ports[i]);
 		if (charger->ports[i]->psy_status != last_psy_status)
 			power_supply_changed(&charger->ports[i]->psy);
 		else
@@ -299,7 +309,6 @@ static int cros_usb_pd_charger_get_prop(struct power_supply *psy,
 	struct device *dev = charger->dev;
 	int ret;
 
-	/* TODO: use cached values instead? */
 	ret = get_ec_port_status(port);
 	if (ret < 0) {
 		dev_err(dev, "Failed to get port status (err:0x%x)\n", ret);
@@ -656,8 +665,11 @@ static int cros_usb_pd_charger_resume(struct device *dev)
 		return 0;
 
 	dev_dbg(dev, "cros_usb_pd_charger_resume: updating power supplies\n");
-	for (i = 0; i < charger->num_registered_psy; i++)
+	for (i = 0; i < charger->num_registered_psy; i++) {
 		power_supply_changed(&charger->ports[i]->psy);
+		charger->ports[i]->last_update =
+				jiffies - CROS_USB_PD_CACHE_UPDATE_DELAY;
+	}
 	queue_delayed_work(charger->log_workqueue, &charger->log_work,
 		CROS_USB_PD_LOG_UPDATE_DELAY);
 
