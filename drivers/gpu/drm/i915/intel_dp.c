@@ -2588,6 +2588,8 @@ bool intel_dp_is_reversed(struct intel_dp *intel_dp, uint32_t DP)
 	if (!HAS_DDI(dev))
 		return false;
 
+	if (intel_dp->is_ps8617)
+		return false;
 	/*
 	 * Train with 1 lane. There is no guarantee that the monitor supports
 	 * 2 or 4 lanes, and we wouldn't see any asymetricity with 4 lanes.
@@ -3089,6 +3091,9 @@ intel_dp_probe_oui(struct intel_dp *intel_dp)
 			}
 		}
 	}
+
+	intel_dp->is_ps8617 = drm_dp_branch_is_ps8617(buf);
+
 	ironlake_edp_panel_vdd_off(intel_dp, false);
 }
 
@@ -3173,6 +3178,8 @@ intel_dp_detect_dpcd(struct intel_dp *intel_dp)
 	if (!intel_dp_get_dpcd(intel_dp))
 		return connector_status_disconnected;
 
+	intel_dp_probe_oui(intel_dp);
+
 	/* if there's no downstream port, we're done */
 	if (!(dpcd[DP_DOWNSTREAMPORT_PRESENT] & DP_DWN_STRM_PORT_PRESENT))
 		return connector_status_connected;
@@ -3221,6 +3228,23 @@ intel_dp_detect_dpcd(struct intel_dp *intel_dp)
 		if (type == DP_DWN_STRM_PORT_TYPE_ANALOG ||
 		    type == DP_DWN_STRM_PORT_TYPE_OTHER)
 			return connector_status_unknown;
+	}
+
+	/*
+	 * crbug.com/438072 HSW Chromeboxes + Parade PS8617 based dongle and
+	 * Asus VH192. The dongle repeatedly fails DDC I2C transactions. Also
+	 * does not report HPD. Detect it, report that monitor is connected if
+	 * there is a sink present. Because of I2C errors EDID modes will not
+	 * be present but at least VGA modes will be.
+	 */
+	if (intel_dp->is_ps8617) {
+		uint8_t reg;
+		if (intel_dp_dpcd_read_wake(&intel_dp->aux, DP_SINK_COUNT,
+					    &reg, 1) < 0)
+			return connector_status_unknown;
+
+		return DP_GET_SINK_COUNT(reg) ? connector_status_connected
+					      : connector_status_disconnected;
 	}
 
 	/* Anything else is out of spec, warn and ignore */
@@ -3370,8 +3394,6 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 
 	if (status != connector_status_connected)
 		goto out;
-
-	intel_dp_probe_oui(intel_dp);
 
 	if (intel_dp->force_audio != HDMI_AUDIO_AUTO) {
 		intel_dp->has_audio = (intel_dp->force_audio == HDMI_AUDIO_ON);

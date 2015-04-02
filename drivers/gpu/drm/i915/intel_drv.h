@@ -510,6 +510,7 @@ struct intel_dp {
 	bool want_panel_vdd;
 	bool use_tps3;
 	bool is_apple_vga;
+	bool is_ps8617;
 	bool has_dpcd_blc;
 	struct intel_connector *attached_connector;
 };
