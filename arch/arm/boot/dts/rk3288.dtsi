@@ -740,6 +740,7 @@
 		interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&cru  PCLK_HDMI_CTRL>, <&cru SCLK_HDMI_HDCP>;
 		clock-names = "iahb", "isfr";
+		power-domains = <&power RK3288_PD_VIO>;
 		status = "disabled";
 		ports {
 			hdmi_in: port {
