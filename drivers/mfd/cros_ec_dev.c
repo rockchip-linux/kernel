@@ -165,7 +165,7 @@ static long ec_device_ioctl_xcmd(struct cros_ec_dev *ec, void __user *argp)
 	s_cmd.indata = user_indata;
 
 	/* Only copy data to userland if data was received. */
-	if (ret > 0) {
+	if (ret > 0 && s_cmd.insize) {
 		/*
 		 * Lower layer refuse to accept data if the EC sends more
 		 * than what we asked.
@@ -307,7 +307,7 @@ static long ec_device_compat_ioctl_xcmd(struct cros_ec_dev *ec,
 	compat_s_cmd.result = s_cmd.result;
 
 	/* Only copy data to userland if data was received. */
-	if (ret > 0) {
+	if (ret > 0 && s_cmd.insize) {
 		if (copy_to_user(compat_ptr(compat_s_cmd.indata), buf_ptr, ret))
 			return -EFAULT;
 	}
