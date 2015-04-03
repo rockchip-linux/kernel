@@ -500,8 +500,8 @@ static int go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 	u32 seqid;
 
 	if (ctx->state == ERROR) {
-		go2001_err(gdev, "Not queueing, instance %p in error state\n",
-				ctx);
+		go2001_dbg(gdev, 1,
+			"Not queueing, instance %p in error state\n", ctx);
 		return -EIO;
 	}
 
@@ -553,7 +553,6 @@ static void go2001_queue_init_msg(struct go2001_ctx *ctx,
 
 void go2001_cancel_all_msgs_locked(struct go2001_dev *gdev)
 {
-
 	assert_spin_locked(&gdev->irqlock);
 	go2001_drop_pending_locked(gdev);
 	gdev->msgs_in_flight = 0;
@@ -653,6 +652,9 @@ static int go2001_wait_for_reply(struct go2001_dev *gdev, u32 session_id,
 
 int go2001_wait_for_ctx_done(struct go2001_ctx *ctx)
 {
+	if (ctx->state == ERROR)
+		return 0;
+
 	/*
 	 * It's ok not to lock on sequence_id, since we are sure there will
 	 * be nothing new scheduled while we wait.
@@ -901,6 +903,11 @@ int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	struct go2001_msg msg;
 	unsigned int i;
 	int ret;
+
+	if (ctx->state == ERROR) {
+		go2001_dbg(gdev, 1, "Context in error state\n");
+		return 0;
+	}
 
 	if (!buf->mapped) {
 		go2001_dbg(gdev, 1, "Buffer not mapped\n");
@@ -1208,6 +1215,8 @@ int go2001_init_codec(struct go2001_ctx *ctx)
 int go2001_init(struct go2001_dev *gdev)
 {
 	int ret;
+
+	WARN_ON(!mutex_is_locked(&gdev->lock));
 
 	ret = go2001_load_firmware(gdev);
 	if (ret) {

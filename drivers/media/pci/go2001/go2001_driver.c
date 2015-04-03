@@ -461,7 +461,7 @@ static int go2001_start_streaming(struct vb2_queue *q, unsigned int count)
 	go2001_trace(ctx->gdev);
 
 	if (ctx->state == ERROR) {
-		go2001_err(ctx->gdev, "Instance %p in error state\n", ctx);
+		go2001_dbg(ctx->gdev, 1, "Instance %p in error state\n", ctx);
 		return -EIO;
 	}
 
@@ -1270,17 +1270,13 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	return 0;
 }
 
-static void go2001_watchdog(struct work_struct *work)
+static void go2001_cleanup_all_contexts(struct go2001_dev *gdev)
 {
-	struct go2001_dev *gdev = container_of(to_delayed_work(work),
-					struct go2001_dev, watchdog_work);
-	struct go2001_ctx *ctx;
 	unsigned long flags1, flags2;
-	int ret;
+	struct go2001_ctx *ctx;
 
-	go2001_err(gdev, "Watchdog resetting firmware\n");
-
-	mutex_lock(&gdev->lock);
+	go2001_trace(gdev);
+	WARN_ON(!mutex_is_locked(&gdev->lock));
 
 	spin_lock_irqsave(&gdev->irqlock, flags1);
 
@@ -1296,6 +1292,19 @@ static void go2001_watchdog(struct work_struct *work)
 	}
 
 	spin_unlock_irqrestore(&gdev->irqlock, flags1);
+}
+
+static void go2001_watchdog(struct work_struct *work)
+{
+	struct go2001_dev *gdev = container_of(to_delayed_work(work),
+					struct go2001_dev, watchdog_work);
+	int ret;
+
+	go2001_err(gdev, "Watchdog resetting firmware\n");
+
+	mutex_lock(&gdev->lock);
+
+	go2001_cleanup_all_contexts(gdev);
 
 	ret = go2001_init(gdev);
 	if (ret) {
@@ -1953,8 +1962,7 @@ static int go2001_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	struct vb2_queue *vq = go2001_get_vq(ctx, b->type);
 
 	if (ctx->state == ERROR) {
-		go2001_err(ctx->gdev,
-				"Context %p in error state on qbuf\n", ctx);
+		go2001_dbg(ctx->gdev, 1, "Context %p in error state\n", ctx);
 		return -EIO;
 	}
 
@@ -2212,6 +2220,63 @@ static void go2001_remove(struct pci_dev *pdev)
 	pci_disable_device(pdev);
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int go2001_suspend(struct device *dev)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct v4l2_device *v4l2_dev = pci_get_drvdata(pdev);
+	struct go2001_dev *gdev = container_of(v4l2_dev, struct go2001_dev,
+						v4l2_dev);
+	unsigned long flags1, flags2;
+	struct go2001_ctx *ctx;
+	int ret;
+
+	go2001_trace(gdev);
+
+	spin_lock_irqsave(&gdev->irqlock, flags1);
+	list_for_each_entry(ctx, &gdev->ctx_list, ctx_entry) {
+		spin_lock_irqsave(&ctx->qlock, flags2);
+		ctx->state = ERROR;
+		spin_unlock_irqrestore(&ctx->qlock, flags2);
+	}
+	spin_unlock_irqrestore(&gdev->irqlock, flags1);
+
+	ret = wait_event_timeout(gdev->reply_wq, gdev->msgs_in_flight == 0,
+				msecs_to_jiffies(GO2001_WATCHDOG_TIMEOUT_MS));
+	if (ret == 0)
+		go2001_err(gdev, "Timed out waiting for HW to become idle\n");
+
+	mutex_lock(&gdev->lock);
+	go2001_cleanup_all_contexts(gdev);
+	mutex_unlock(&gdev->lock);
+
+	return 0;
+}
+
+static int go2001_resume(struct device *dev)
+{
+	struct pci_dev *pdev = to_pci_dev(dev);
+	struct v4l2_device *v4l2_dev = pci_get_drvdata(pdev);
+	struct go2001_dev *gdev = container_of(v4l2_dev, struct go2001_dev,
+						v4l2_dev);
+	int ret;
+
+	go2001_trace(gdev);
+
+	mutex_lock(&gdev->lock);
+	ret = go2001_init(gdev);
+	if (ret) {
+		gdev->initialized = false;
+		go2001_err(gdev, "Failed resetting firmware\n");
+	}
+	mutex_unlock(&gdev->lock);
+
+	return 0;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(go2001_pm_ops, go2001_suspend, go2001_resume);
+
 static const struct pci_device_id go2001_pci_tbl[] = {
 	{ PCI_DEVICE(0x1ae0, 0x001a) },
 	{},
@@ -2222,6 +2287,7 @@ static struct pci_driver go2001_driver = {
 	.probe = go2001_probe,
 	.remove = go2001_remove,
 	.id_table = go2001_pci_tbl,
+	.driver.pm = &go2001_pm_ops,
 };
 
 module_pci_driver(go2001_driver);
