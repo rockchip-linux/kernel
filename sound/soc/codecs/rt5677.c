@@ -4854,12 +4854,10 @@ bool rt5677_check_hotword(struct rt5677_priv *rt5677)
 static irqreturn_t rt5677_irq(int unused, void *data)
 {
 	struct rt5677_priv *rt5677 = data;
-	struct snd_soc_codec *codec = rt5677->codec;
 	int ret = 0, i, loop, reg_irq, virq;
 	bool irq_fired;
 
 	mutex_lock(&rt5677->irq_lock);
-	dev_info(codec->dev, "rt5677_irq\n");
 	/*
 	 * Loop to handle interrupts until the last i2c read shows no pending
 	 * irqs. The interrupt line is shared by multiple interrupt sources.
