@@ -5816,27 +5816,94 @@ int brcmf_cfg80211_wait_vif_event_timeout(struct brcmf_cfg80211_info *cfg,
 				  vif_event_equals(event, action), timeout);
 }
 
+/* note that rev is in host-order and must be converted before sending to FW */
+static const struct brcmf_fil_country_le brcmf_ccode_data[] = {
+	{ "US",  0, "US" },
+	{ "CA",  2, "CA" },
+	{ "GB",  6, "GB" },
+	{ "DE",  6, "GB" },
+	{ "FR",  6, "GB" },
+	{ "IT",  6, "GB" },
+	{ "DK",  6, "GB" },
+	{ "FI",  6, "GB" },
+	{ "NO",  6, "GB" },
+	{ "SE",  6, "GB" },
+	{ "RU", 16, "RU" },
+	{ "PT",  6, "GB" },
+	{ "ES",  6, "GB" },
+	{ "CZ",  6, "GB" },
+	{ "PL",  6, "GB" },
+	{ "IE",  6, "GB" },
+	{ "BE",  6, "GB" },
+	{ "NL",  6, "GB" },
+	{ "CH",  6, "GB" },
+	{ "TW", 11, "XZ" },
+	{ "AU",  6, "GB" },
+	{ "NZ",  6, "GB" },
+	{ "ID",  1, "ID" },
+	{ "JP", 45, "JP" },
+	{ "HK",  6, "GB" },
+	{ "SG",  0, "SG" },
+	{ "PH",  5, "PH" },
+	{ "IN",  3, "IN" },
+	{ "MY",  3, "MY" },
+	{ "MX", 20, "MX" },
+	{ "KW",  5, "KW" },
+	{ "SA",  0, "SA" },
+	{ "ZA", 11, "XZ" },
+	{ "TH",  5, "TH" }
+};
+
+static int brcmf_cfg80211_map_ccode(struct regulatory_request *req,
+				    struct brcmf_fil_country_le *ccreq)
+{
+	int i;
+
+	/* ignore non-ISO3166 country codes */
+	for (i = 0; i < sizeof(req->alpha2); i++)
+		if (req->alpha2[i] < 'A' || req->alpha2[i] > 'Z') {
+			brcmf_err("not a ISO3166 code\n");
+			return -EOPNOTSUPP;
+		}
+
+	memset(ccreq, 0, sizeof(*ccreq));
+	for (i = 0; i < ARRAY_SIZE(brcmf_ccode_data); i++) {
+		if (!strncmp(brcmf_ccode_data[i].country_abbrev, req->alpha2,
+			     sizeof(req->alpha2)))
+			break;
+	}
+
+	/* fill up ccode and rev(country_abbrev is not used) to send to FW */
+	if (i < ARRAY_SIZE(brcmf_ccode_data)) {
+		ccreq->rev = cpu_to_le32(brcmf_ccode_data[i].rev);
+		memcpy(ccreq->ccode, brcmf_ccode_data[i].ccode,
+		       sizeof(brcmf_ccode_data[i].ccode));
+
+	} else {
+		/* use default rev if mapping is not found */
+		ccreq->rev = cpu_to_le32(-1);
+		memcpy(ccreq->ccode, req->alpha2, sizeof(req->alpha2));
+	}
+
+	brcmf_dbg(INFO, "mapped ccode is %s/%d\n", ccreq->ccode, ccreq->rev);
+	return 0;
+}
+
 static int brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 				       struct regulatory_request *req)
 {
 	struct brcmf_cfg80211_info *cfg = wiphy_priv(wiphy);
 	struct brcmf_if *ifp = netdev_priv(cfg_to_ndev(cfg));
 	struct brcmf_fil_country_le ccreq;
-	int i;
+	int err;
 
 	brcmf_dbg(TRACE, "enter: initiator=%d, alpha=%c%c\n", req->initiator,
 		  req->alpha2[0], req->alpha2[1]);
 
-	/* ignore non-ISO3166 country codes */
-	for (i = 0; i < sizeof(req->alpha2); i++)
-		if (req->alpha2[i] < 'A' || req->alpha2[i] > 'Z') {
-			brcmf_err("not a ISO3166 code\n");
-			return -EINVAL;
-		}
+	err = brcmf_cfg80211_map_ccode(req, &ccreq);
+	if (err)
+		return err;
 
-	memset(&ccreq, 0, sizeof(ccreq));
-	ccreq.rev = cpu_to_le32(-1);
-	memcpy(ccreq.ccode, req->alpha2, sizeof(req->alpha2));
 	if (brcmf_fil_iovar_data_set(ifp, "country", &ccreq, sizeof(ccreq)))
 		return -EOPNOTSUPP;
 
