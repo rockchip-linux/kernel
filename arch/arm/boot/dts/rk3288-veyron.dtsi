@@ -256,7 +256,6 @@
 		vcc7-supply = <&vcc33_sys>;
 		vcc8-supply = <&vcc33_sys>;
 		vcc10-supply = <&vcc33_sys>;
-		vcc11-supply = <&vcc_5v>;
 		vcc12-supply = <&vcc_18>;
 
 		vddio-supply = <&vcc33_io>;

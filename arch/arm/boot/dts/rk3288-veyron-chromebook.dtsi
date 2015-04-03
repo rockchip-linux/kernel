@@ -93,6 +93,8 @@
 };
 
 &rk808 {
+	vcc11-supply = <&vcc_5v>;
+
 	regulators {
 		vcc33_ccd: LDO_REG8 {
 			regulator-always-on;

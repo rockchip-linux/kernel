@@ -73,7 +73,6 @@
 
 &rk808 {
 	/delete-property/ vcc6-supply;
-	/delete-property/ vcc11-supply;
 
 	regulators {
 		/* vcc33_io is sourced directly from vcc33_sys */

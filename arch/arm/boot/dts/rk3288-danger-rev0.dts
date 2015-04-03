@@ -68,7 +68,6 @@
 	/delete-property/ vcc6-supply;
 	/* No sd card regulators (vcc9), hardware problem in rev0 */
 	/delete-property/ vcc9-supply;
-	/delete-property/ vcc11-supply;
 
 	regulators {
 		/* vcc33_io is sourced directly from vcc33_sys */
