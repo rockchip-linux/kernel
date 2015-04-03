@@ -5626,13 +5626,15 @@ static int brcmf_setup_wiphy(struct wiphy *wiphy, struct brcmf_if *ifp)
 			band = kmemdup(&__wl_band_2ghz, sizeof(__wl_band_2ghz),
 				       GFP_KERNEL);
 			if (!band)
-				goto fail;
+				return -ENOMEM;
 
 			band->channels = kmemdup(&__wl_2ghz_channels,
 						 sizeof(__wl_2ghz_channels),
 						 GFP_KERNEL);
-			if (!band->channels)
-				goto fail;
+			if (!band->channels) {
+				kfree(band);
+				return -ENOMEM;
+			}
 
 			band->n_channels = ARRAY_SIZE(__wl_2ghz_channels);
 			wiphy->bands[IEEE80211_BAND_2GHZ] = band;
@@ -5641,29 +5643,21 @@ static int brcmf_setup_wiphy(struct wiphy *wiphy, struct brcmf_if *ifp)
 			band = kmemdup(&__wl_band_5ghz, sizeof(__wl_band_5ghz),
 				       GFP_KERNEL);
 			if (!band)
-				goto fail;
+				return -ENOMEM;
 
 			band->channels = kmemdup(&__wl_5ghz_channels,
 						 sizeof(__wl_5ghz_channels),
 						 GFP_KERNEL);
-			if (!band->channels)
-				goto fail;
+			if (!band->channels) {
+				kfree(band);
+				return -ENOMEM;
+			}
 
 			band->n_channels = ARRAY_SIZE(__wl_5ghz_channels);
 			wiphy->bands[IEEE80211_BAND_5GHZ] = band;
 		}
 	}
 	err = brcmf_setup_wiphybands(wiphy);
-	if (!err)
-		return 0;
-
-fail:
-	if (wiphy->bands[IEEE80211_BAND_2GHZ])
-		kfree(wiphy->bands[IEEE80211_BAND_2GHZ]->channels);
-	if (wiphy->bands[IEEE80211_BAND_5GHZ])
-		kfree(wiphy->bands[IEEE80211_BAND_5GHZ]->channels);
-	kfree(wiphy->bands[IEEE80211_BAND_2GHZ]);
-	kfree(wiphy->bands[IEEE80211_BAND_5GHZ]);
 	return err;
 }
 
@@ -5852,6 +5846,9 @@ static int brcmf_cfg80211_reg_notifier(struct wiphy *wiphy,
 
 static void brcmf_free_wiphy(struct wiphy *wiphy)
 {
+	if (!wiphy)
+		return;
+
 	kfree(wiphy->iface_combinations);
 	if (wiphy->bands[IEEE80211_BAND_2GHZ]) {
 		kfree(wiphy->bands[IEEE80211_BAND_2GHZ]->channels);
