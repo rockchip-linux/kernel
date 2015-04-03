@@ -118,10 +118,10 @@ static void nss_capwap_set_msg_callback(int32_t if_num, nss_capwap_msg_callback_
 }
 
 /*
- * nss_capwap_msg_callback()
+ * nss_capwap_get_msg_callback()
  *	This gets the message callback handler and its associated context
  */
-static nss_capwap_msg_callback_t nss_capwap_msg_callback(int32_t if_num, void **app_data)
+static nss_capwap_msg_callback_t nss_capwap_get_msg_callback(int32_t if_num, void **app_data)
 {
 	struct nss_capwap_handle *h;
 
@@ -175,7 +175,7 @@ static void nss_capwapmgr_update_stats(struct nss_capwap_handle *handle, struct 
  * nss_capwap_handler()
  * 	Handle NSS -> HLOS messages for CAPWAP
  */
-static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, void *app_data)
+static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_cmn_msg *ncm, __attribute__((unused))void *app_data)
 {
 	struct nss_capwap_msg *ntm = (struct nss_capwap_msg *)ncm;
 	nss_capwap_msg_callback_t cb;
@@ -210,11 +210,7 @@ static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_
 	 * Update the callback and app_data for NOTIFY messages.
 	 */
 	if (ncm->response == NSS_CMM_RESPONSE_NOTIFY) {
-		void *app_data;
-
-		ncm->cb = (uint32_t)nss_capwap_msg_callback(ncm->interface, &app_data);
-	} else {
-		app_data = (void *)ncm->app_data;
+		ncm->cb = (uint32_t)nss_capwap_get_msg_callback(ncm->interface, (void **)&ncm->app_data);
 	}
 
 	/*
@@ -226,7 +222,7 @@ static void nss_capwap_msg_handler(struct nss_ctx_instance *nss_ctx, struct nss_
 	}
 
 	cb = (nss_capwap_msg_callback_t)ncm->cb;
-	cb(app_data, ntm);
+	cb((void *)ncm->app_data, ntm);
 }
 
 /*

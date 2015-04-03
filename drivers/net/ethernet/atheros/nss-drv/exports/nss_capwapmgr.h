@@ -184,9 +184,21 @@ extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_destroy(struct net_device *de
  *
  * @return nss_capwapmgr_status_t
  *
- * @note CAPWAP tunnel must be distroyed first.
+ * @note CAPWAP tunnel must be destroyed first.
  */
 extern nss_capwapmgr_status_t nss_capwapmgr_netdev_destroy(struct net_device *netdev);
+
+/**
+ * @brief Gets CAPWAP tunnel stats
+ *
+ * @param netdevice
+ * @param tunnel_id
+ * @param pointer to struct nss_capwap_tunnel_stats
+ *
+ * @return nss_capwapmgr_status_t
+ */
+extern nss_capwapmgr_status_t nss_capwapmgr_tunnel_stats(struct net_device *dev,
+		uint8_t tunnel_id, struct nss_capwap_tunnel_stats *stats);
 
 #if defined(NSS_CAPWAPMGR_ONE_NETDEV)
 /**
