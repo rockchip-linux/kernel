@@ -221,6 +221,7 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	bdw_rt5677->codec = codec;
 
 	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
+	snd_soc_dapm_force_enable_pin(dapm, "dac stereo1 filter");
 	return 0;
 }
 
