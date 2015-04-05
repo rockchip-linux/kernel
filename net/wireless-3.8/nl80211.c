@@ -3514,6 +3514,11 @@ static int nl80211_new_station(struct sk_buff *skb, struct genl_info *info)
 		/* ... with external setup is supported */
 		if (!(rdev->wiphy.flags & WIPHY_FLAG_TDLS_EXTERNAL_SETUP))
 			return -EOPNOTSUPP;
+		/*
+		 * Older wpa_supplicant versions always mark the TDLS peer
+		 * as authorized, but it shouldn't yet be.
+		 */
+		params.sta_flags_mask &= ~BIT(NL80211_STA_FLAG_AUTHORIZED);
 		break;
 	default:
 		return -EOPNOTSUPP;
