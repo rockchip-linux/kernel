@@ -545,7 +545,7 @@ void debugfs_remove_recursive(struct dentry *dentry)
 	parent = dentry;
  down:
 	mutex_lock(&parent->d_inode->i_mutex);
-	list_for_each_entry_safe(child, next, &parent->d_subdirs, d_u.d_child) {
+	list_for_each_entry_safe(child, next, &parent->d_subdirs, d_child) {
 		if (!debugfs_positive(child))
 			continue;
 
@@ -566,7 +566,7 @@ void debugfs_remove_recursive(struct dentry *dentry)
 	mutex_lock(&parent->d_inode->i_mutex);
 
 	if (child != dentry) {
-		next = list_next_entry(child, d_u.d_child);
+		next = list_next_entry(child, d_child);
 		goto up;
 	}
 
