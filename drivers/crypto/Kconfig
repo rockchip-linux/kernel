@@ -419,7 +419,7 @@ config CRYPTO_DEV_MXS_DCP
 	  will be called mxs-dcp.
 
 config CRYPTO_DEV_IMGTEC_HASH
-	depends on MIPS || COMPILE_TEST
+	depends on MIPS
 	tristate "Imagination Technologies hardware hash accelerator"
 	select CRYPTO_ALGAPI
 	select CRYPTO_MD5
