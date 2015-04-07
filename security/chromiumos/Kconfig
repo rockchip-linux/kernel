@@ -1,5 +1,5 @@
 config SECURITY_CHROMIUMOS
-	tristate "Chromium OS Security Module"
+	bool "Chromium OS Security Module"
 	depends on SECURITY
 	help
 	  The purpose of the Chromium OS security module is to reduce attacking
