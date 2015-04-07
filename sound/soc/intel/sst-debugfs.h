@@ -15,7 +15,6 @@
 
 #ifndef __SOUND_SOC_SST_DEBUGFS_H
 #define __SOUND_SOC_SST_DEBUGFS_H
-#define DEBUG
 #ifdef DEBUG
 int sst_debugfs_add_mmio_entry(const char *filename,
 			       void *buf, size_t size, void **ctx);
