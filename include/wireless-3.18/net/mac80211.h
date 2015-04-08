@@ -4081,6 +4081,15 @@ void ieee80211_stop_queue(struct ieee80211_hw *hw, int queue);
 int ieee80211_queue_stopped(struct ieee80211_hw *hw, int queue);
 
 /**
+ * ieee80211_queues_stopped - test status of any queue
+ * @hw: pointer as obtained from ieee80211_alloc_hw().
+ *
+ * Return: %true if any queue is stopped. %false otherwise.
+ */
+
+int ieee80211_queues_stopped(struct ieee80211_hw *hw);
+
+/**
  * ieee80211_stop_queues - stop all queues
  * @hw: pointer as obtained from ieee80211_alloc_hw().
  *

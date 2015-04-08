@@ -1822,6 +1822,11 @@ netdev_tx_t ieee80211_subif_start_xmit(struct sk_buff *skb,
 	struct ieee80211_sub_if_data *ap_sdata;
 	enum ieee80211_band band;
 
+#ifdef CONFIG_QCA_NSS_DRV
+	if (ieee80211_queues_stopped(&local->hw))
+		return NETDEV_TX_BUSY;
+#endif
+
 	if (unlikely(skb->len < ETH_HLEN))
 		goto fail;
 
