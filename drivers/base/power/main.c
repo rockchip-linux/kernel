@@ -1174,8 +1174,8 @@ static int __device_suspend(struct device *dev, pm_message_t state, bool async)
 	int error = 0;
 	struct timer_list timer;
 	struct dpm_drv_wd_data data;
-	DECLARE_DPM_WATCHDOG_ON_STACK(wd);
 	char suspend_abort[MAX_SUSPEND_ABORT_LEN];
+	DECLARE_DPM_WATCHDOG_ON_STACK(wd);
 
 	dpm_wait_for_children(dev, async);
 
