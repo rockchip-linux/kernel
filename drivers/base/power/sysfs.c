@@ -103,11 +103,6 @@ EXPORT_SYMBOL_GPL(power_group_name);
 static const char ctrl_auto[] = "auto";
 static const char ctrl_on[] = "on";
 
-static const char unknown[] = "unknown";
-static const char invalid[] = "invalid";
-static const char automatic[] = "automatic";
-static const char user[] = "user";
-
 static ssize_t control_show(struct device *dev, struct device_attribute *attr,
 			    char *buf)
 {
@@ -306,6 +301,12 @@ static DEVICE_ATTR(pm_qos_remote_wakeup, 0644,
 #endif /* CONFIG_PM_RUNTIME */
 
 #ifdef CONFIG_PM_SLEEP
+
+static const char unknown[] = "unknown";
+static const char invalid[] = "invalid";
+static const char automatic[] = "automatic";
+static const char user[] = "user";
+
 static ssize_t
 wake_show(struct device * dev, struct device_attribute *attr, char * buf)
 {
