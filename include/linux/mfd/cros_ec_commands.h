@@ -109,8 +109,14 @@
 /* Unused 0x91 */
 #define EC_MEMMAP_ACC_DATA         0x92 /* Accelerometer data 0x92 - 0x9f */
 #define EC_MEMMAP_GYRO_DATA        0xa0 /* Gyroscope data 0xa0 - 0xa5 */
-/* Unused 0xa6 - 0xfe (remember, 0xff is NOT part of the memmap region) */
+/* Unused 0xa6 - 0xdf */
 
+/*
+ * ACPI is unable to access memory mapped data at or above this offset due to
+ * limitations of the ACPI protocol. Do not place data in the range 0xe0 - 0xfe
+ * which might be needed by ACPI.
+ */
+#define EC_MEMMAP_NO_ACPI 0xe0
 
 /* Define the format of the accelerometer mapped memory status byte. */
 #define EC_MEMMAP_ACC_STATUS_SAMPLE_ID_MASK  0x0f
@@ -184,6 +190,146 @@
 #define EC_WIRELESS_SWITCH_WWAN       0x04  /* WWAN power */
 #define EC_WIRELESS_SWITCH_WLAN_POWER 0x08  /* WLAN power */
 
+/*****************************************************************************/
+/*
+ * ACPI commands
+ *
+ * These are valid ONLY on the ACPI command/data port.
+ */
+
+/*
+ * ACPI Read Embedded Controller
+ *
+ * This reads from ACPI memory space on the EC (EC_ACPI_MEM_*).
+ *
+ * Use the following sequence:
+ *
+ *    - Write EC_CMD_ACPI_READ to EC_LPC_ADDR_ACPI_CMD
+ *    - Wait for EC_LPC_CMDR_PENDING bit to clear
+ *    - Write address to EC_LPC_ADDR_ACPI_DATA
+ *    - Wait for EC_LPC_CMDR_DATA bit to set
+ *    - Read value from EC_LPC_ADDR_ACPI_DATA
+ */
+#define EC_CMD_ACPI_READ 0x80
+
+/*
+ * ACPI Write Embedded Controller
+ *
+ * This reads from ACPI memory space on the EC (EC_ACPI_MEM_*).
+ *
+ * Use the following sequence:
+ *
+ *    - Write EC_CMD_ACPI_WRITE to EC_LPC_ADDR_ACPI_CMD
+ *    - Wait for EC_LPC_CMDR_PENDING bit to clear
+ *    - Write address to EC_LPC_ADDR_ACPI_DATA
+ *    - Wait for EC_LPC_CMDR_PENDING bit to clear
+ *    - Write value to EC_LPC_ADDR_ACPI_DATA
+ */
+#define EC_CMD_ACPI_WRITE 0x81
+
+/*
+ * ACPI Burst Enable Embedded Controller
+ *
+ * This enables burst mode on the EC to allow the host to issue several
+ * commands back-to-back. While in this mode, writes to mapped multi-byte
+ * data are locked out to ensure data consistency.
+ */
+#define EC_CMD_ACPI_BURST_ENABLE 0x82
+
+/*
+ * ACPI Burst Disable Embedded Controller
+ *
+ * This disables burst mode on the EC and stops preventing EC writes to mapped
+ * multi-byte data.
+ */
+#define EC_CMD_ACPI_BURST_DISABLE 0x83
+
+/*
+ * ACPI Query Embedded Controller
+ *
+ * This clears the lowest-order bit in the currently pending host events, and
+ * sets the result code to the 1-based index of the bit (event 0x00000001 = 1,
+ * event 0x80000000 = 32), or 0 if no event was pending.
+ */
+#define EC_CMD_ACPI_QUERY_EVENT 0x84
+
+/* Valid addresses in ACPI memory space, for read/write commands */
+
+/* Memory space version; set to EC_ACPI_MEM_VERSION_CURRENT */
+#define EC_ACPI_MEM_VERSION            0x00
+/*
+ * Test location; writing value here updates test compliment byte to (0xff -
+ * value).
+ */
+#define EC_ACPI_MEM_TEST               0x01
+/* Test compliment; writes here are ignored. */
+#define EC_ACPI_MEM_TEST_COMPLIMENT    0x02
+
+/* Keyboard backlight brightness percent (0 - 100) */
+#define EC_ACPI_MEM_KEYBOARD_BACKLIGHT 0x03
+/* DPTF Target Fan Duty (0-100, 0xff for auto/none) */
+#define EC_ACPI_MEM_FAN_DUTY           0x04
+
+/*
+ * DPTF temp thresholds. Any of the EC's temp sensors can have up to two
+ * independent thresholds attached to them. The current value of the ID
+ * register determines which sensor is affected by the THRESHOLD and COMMIT
+ * registers. The THRESHOLD register uses the same EC_TEMP_SENSOR_OFFSET scheme
+ * as the memory-mapped sensors. The COMMIT register applies those settings.
+ *
+ * The spec does not mandate any way to read back the threshold settings
+ * themselves, but when a threshold is crossed the AP needs a way to determine
+ * which sensor(s) are responsible. Each reading of the ID register clears and
+ * returns one sensor ID that has crossed one of its threshold (in either
+ * direction) since the last read. A value of 0xFF means "no new thresholds
+ * have tripped". Setting or enabling the thresholds for a sensor will clear
+ * the unread event count for that sensor.
+ */
+#define EC_ACPI_MEM_TEMP_ID            0x05
+#define EC_ACPI_MEM_TEMP_THRESHOLD     0x06
+#define EC_ACPI_MEM_TEMP_COMMIT        0x07
+/*
+ * Here are the bits for the COMMIT register:
+ *   bit 0 selects the threshold index for the chosen sensor (0/1)
+ *   bit 1 enables/disables the selected threshold (0 = off, 1 = on)
+ * Each write to the commit register affects one threshold.
+ */
+#define EC_ACPI_MEM_TEMP_COMMIT_SELECT_MASK (1 << 0)
+#define EC_ACPI_MEM_TEMP_COMMIT_ENABLE_MASK (1 << 1)
+/*
+ * Example:
+ *
+ * Set the thresholds for sensor 2 to 50 C and 60 C:
+ *   write 2 to [0x05]      --  select temp sensor 2
+ *   write 0x7b to [0x06]   --  C_TO_K(50) - EC_TEMP_SENSOR_OFFSET
+ *   write 0x2 to [0x07]    --  enable threshold 0 with this value
+ *   write 0x85 to [0x06]   --  C_TO_K(60) - EC_TEMP_SENSOR_OFFSET
+ *   write 0x3 to [0x07]    --  enable threshold 1 with this value
+ *
+ * Disable the 60 C threshold, leaving the 50 C threshold unchanged:
+ *   write 2 to [0x05]      --  select temp sensor 2
+ *   write 0x1 to [0x07]    --  disable threshold 1
+ */
+
+/* DPTF battery charging current limit */
+#define EC_ACPI_MEM_CHARGING_LIMIT     0x08
+
+/* Charging limit is specified in 64 mA steps */
+#define EC_ACPI_MEM_CHARGING_LIMIT_STEP_MA   64
+/* Value to disable DPTF battery charging limit */
+#define EC_ACPI_MEM_CHARGING_LIMIT_DISABLED  0xff
+
+/*
+ * ACPI addresses 0x20 - 0xff map to EC_MEMMAP offset 0x00 - 0xdf.  This data
+ * is read-only from the AP.  Added in EC_ACPI_MEM_VERSION 2.
+ */
+#define EC_ACPI_MEM_MAPPED_BEGIN   0x20
+#define EC_ACPI_MEM_MAPPED_SIZE    0xe0
+
+/* Current version of ACPI memory address space */
+#define EC_ACPI_MEM_VERSION_CURRENT 2
+
+
 /*
  * This header file is used in coreboot both in C and ACPI code.  The ACPI code
  * is pre-processed to handle constants but the ASL compiler is unable to
@@ -208,7 +354,7 @@
 #define EC_LPC_STATUS_PROCESSING  0x04
 /* Last write to EC was a command, not data */
 #define EC_LPC_STATUS_LAST_CMD    0x08
-/* EC is in burst mode.  Unsupported by Chrome EC, so this bit is never set */
+/* EC is in burst mode */
 #define EC_LPC_STATUS_BURST_MODE  0x10
 /* SCI event is pending (requesting SCI query) */
 #define EC_LPC_STATUS_SCI_PENDING 0x20
@@ -1084,7 +1230,9 @@ struct lightbar_params_v1 {
  * crbug.com/467716
  *
  * lightbar_parms_v1 was too big for i2c, therefore in v2, we split them up by
- * logical groups to make it more manageable ( < 120 bytes)
+ * logical groups to make it more manageable ( < 120 bytes).
+ *
+ * NOTE: Each of these groups must be less than 120 bytes.
  */
 
 struct lightbar_params_v2_timing {
@@ -2636,122 +2784,6 @@ struct ec_params_reboot_ec {
 
 /*****************************************************************************/
 /*
- * ACPI commands
- *
- * These are valid ONLY on the ACPI command/data port.
- */
-
-/*
- * ACPI Read Embedded Controller
- *
- * This reads from ACPI memory space on the EC (EC_ACPI_MEM_*).
- *
- * Use the following sequence:
- *
- *    - Write EC_CMD_ACPI_READ to EC_LPC_ADDR_ACPI_CMD
- *    - Wait for EC_LPC_CMDR_PENDING bit to clear
- *    - Write address to EC_LPC_ADDR_ACPI_DATA
- *    - Wait for EC_LPC_CMDR_DATA bit to set
- *    - Read value from EC_LPC_ADDR_ACPI_DATA
- */
-#define EC_CMD_ACPI_READ 0x80
-
-/*
- * ACPI Write Embedded Controller
- *
- * This reads from ACPI memory space on the EC (EC_ACPI_MEM_*).
- *
- * Use the following sequence:
- *
- *    - Write EC_CMD_ACPI_WRITE to EC_LPC_ADDR_ACPI_CMD
- *    - Wait for EC_LPC_CMDR_PENDING bit to clear
- *    - Write address to EC_LPC_ADDR_ACPI_DATA
- *    - Wait for EC_LPC_CMDR_PENDING bit to clear
- *    - Write value to EC_LPC_ADDR_ACPI_DATA
- */
-#define EC_CMD_ACPI_WRITE 0x81
-
-/*
- * ACPI Query Embedded Controller
- *
- * This clears the lowest-order bit in the currently pending host events, and
- * sets the result code to the 1-based index of the bit (event 0x00000001 = 1,
- * event 0x80000000 = 32), or 0 if no event was pending.
- */
-#define EC_CMD_ACPI_QUERY_EVENT 0x84
-
-/* Valid addresses in ACPI memory space, for read/write commands */
-
-/* Memory space version; set to EC_ACPI_MEM_VERSION_CURRENT */
-#define EC_ACPI_MEM_VERSION            0x00
-/*
- * Test location; writing value here updates test compliment byte to (0xff -
- * value).
- */
-#define EC_ACPI_MEM_TEST               0x01
-/* Test compliment; writes here are ignored. */
-#define EC_ACPI_MEM_TEST_COMPLIMENT    0x02
-
-/* Keyboard backlight brightness percent (0 - 100) */
-#define EC_ACPI_MEM_KEYBOARD_BACKLIGHT 0x03
-/* DPTF Target Fan Duty (0-100, 0xff for auto/none) */
-#define EC_ACPI_MEM_FAN_DUTY           0x04
-
-/*
- * DPTF temp thresholds. Any of the EC's temp sensors can have up to two
- * independent thresholds attached to them. The current value of the ID
- * register determines which sensor is affected by the THRESHOLD and COMMIT
- * registers. The THRESHOLD register uses the same EC_TEMP_SENSOR_OFFSET scheme
- * as the memory-mapped sensors. The COMMIT register applies those settings.
- *
- * The spec does not mandate any way to read back the threshold settings
- * themselves, but when a threshold is crossed the AP needs a way to determine
- * which sensor(s) are responsible. Each reading of the ID register clears and
- * returns one sensor ID that has crossed one of its threshold (in either
- * direction) since the last read. A value of 0xFF means "no new thresholds
- * have tripped". Setting or enabling the thresholds for a sensor will clear
- * the unread event count for that sensor.
- */
-#define EC_ACPI_MEM_TEMP_ID            0x05
-#define EC_ACPI_MEM_TEMP_THRESHOLD     0x06
-#define EC_ACPI_MEM_TEMP_COMMIT        0x07
-/*
- * Here are the bits for the COMMIT register:
- *   bit 0 selects the threshold index for the chosen sensor (0/1)
- *   bit 1 enables/disables the selected threshold (0 = off, 1 = on)
- * Each write to the commit register affects one threshold.
- */
-#define EC_ACPI_MEM_TEMP_COMMIT_SELECT_MASK (1 << 0)
-#define EC_ACPI_MEM_TEMP_COMMIT_ENABLE_MASK (1 << 1)
-/*
- * Example:
- *
- * Set the thresholds for sensor 2 to 50 C and 60 C:
- *   write 2 to [0x05]      --  select temp sensor 2
- *   write 0x7b to [0x06]   --  C_TO_K(50) - EC_TEMP_SENSOR_OFFSET
- *   write 0x2 to [0x07]    --  enable threshold 0 with this value
- *   write 0x85 to [0x06]   --  C_TO_K(60) - EC_TEMP_SENSOR_OFFSET
- *   write 0x3 to [0x07]    --  enable threshold 1 with this value
- *
- * Disable the 60 C threshold, leaving the 50 C threshold unchanged:
- *   write 2 to [0x05]      --  select temp sensor 2
- *   write 0x1 to [0x07]    --  disable threshold 1
- */
-
-/* DPTF battery charging current limit */
-#define EC_ACPI_MEM_CHARGING_LIMIT     0x08
-
-/* Charging limit is specified in 64 mA steps */
-#define EC_ACPI_MEM_CHARGING_LIMIT_STEP_MA   64
-/* Value to disable DPTF battery charging limit */
-#define EC_ACPI_MEM_CHARGING_LIMIT_DISABLED  0xff
-
-/* Current version of ACPI memory address space */
-#define EC_ACPI_MEM_VERSION_CURRENT 1
-
-
-/*****************************************************************************/
-/*
  * Special commands
  *
  * These do not follow the normal rules for commands.  See each command for
@@ -2899,6 +2931,7 @@ enum usb_chg_type {
 	USB_CHG_TYPE_BC12_SDP,
 	USB_CHG_TYPE_OTHER,
 	USB_CHG_TYPE_VBUS,
+	USB_CHG_TYPE_UNKNOWN,
 };
 enum usb_power_roles {
 	USB_PD_PORT_POWER_DISCONNECTED,
@@ -2911,10 +2944,7 @@ struct usb_chg_measures {
 	uint16_t voltage_max;
 	uint16_t voltage_now;
 	uint16_t current_max;
-	/*
-	 * this structure is used below in struct ec_response_usb_pd_power_info,
-	 * and currently expects an odd number of uint16_t for alignment.
-	 */
+	uint16_t current_lim;
 } __packed;
 
 struct ec_response_usb_pd_power_info {
@@ -2923,7 +2953,6 @@ struct ec_response_usb_pd_power_info {
 	uint8_t dualrole;
 	uint8_t reserved1;
 	struct usb_chg_measures meas;
-	uint16_t reserved2;
 	uint32_t max_power;
 } __packed;
 
@@ -3104,7 +3133,7 @@ struct ec_params_usb_pd_set_mode_request {
 } __packed;
 
 /* Ask the PD MCU to record a log of a requested type */
-#define EC_CMD_PD_WRITE_LOG_ENTRY 0x117
+#define EC_CMD_PD_WRITE_LOG_ENTRY 0x118
 
 struct ec_params_pd_write_log_entry {
 	uint8_t type; /* event type : see PD_EVENT_xx above */
