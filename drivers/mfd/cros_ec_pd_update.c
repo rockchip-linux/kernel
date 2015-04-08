@@ -30,6 +30,9 @@
 /* Store our PD device pointer so we can send update-related commands. */
 static struct cros_ec_dev *pd_ec;
 
+/* Allow disabling of the update for testing purposes */
+static int disable;
+
 /*
  * $DEVICE_known_update_hashes - A list of old known RW hashes from which we
  * wish to upgrade. When firmware_images is updated, the old hash should
@@ -566,6 +569,11 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	int ret, port;
 	uint32_t pd_status;
 
+	if (disable) {
+		dev_info(dev, "Update is disabled\n");
+		return;
+	}
+
 	dev_dbg(dev, "Checking for updates\n");
 
 	if (!pd_ec) {
@@ -677,6 +685,42 @@ static void acpi_cros_ec_pd_notify(struct acpi_device *acpi_device, u32 event)
 			"ACPI notification skipped due to missing drv_data\n");
 }
 
+static ssize_t disable_firmware_update(struct device *dev,
+				       struct device_attribute *attr,
+				       const char *buf, size_t count)
+{
+	int ret;
+	unsigned int val;
+	struct cros_ec_pd_update_data *drv_data;
+
+	ret = sscanf(buf, "%i", &val);
+	if (ret != 1)
+		return -EINVAL;
+
+	disable = !!val;
+	dev_info(dev, "FW update is %sabled\n", disable ? "dis" : "en");
+
+	drv_data = (struct cros_ec_pd_update_data *)dev_get_drvdata(dev);
+
+	/* If re-enabled then force update */
+	if (!disable && drv_data) {
+		drv_data->force_update = 1;
+		queue_delayed_work(drv_data->workqueue, &drv_data->work,
+				   PD_UPDATE_CHECK_DELAY);
+	}
+
+	return count;
+}
+
+static DEVICE_ATTR(disable, S_IWUSR, NULL, disable_firmware_update);
+
+static struct attribute *pd_attrs[] = {
+	&dev_attr_disable.attr,
+	NULL,
+};
+
+ATTRIBUTE_GROUPS(pd);
+
 static int acpi_cros_ec_pd_add(struct acpi_device *acpi_device)
 {
 	struct cros_ec_pd_update_data *drv_data;
@@ -702,6 +746,12 @@ static int acpi_cros_ec_pd_add(struct acpi_device *acpi_device)
 	}
 	drv_data->force_update = 1;
 	dev_set_drvdata(&acpi_device->dev, drv_data);
+	ret = sysfs_create_groups(&acpi_device->dev.kobj, pd_groups);
+	if (ret) {
+		dev_err(&acpi_device->dev, "failed to create sysfs attributes: %d\n",
+			ret);
+		goto fail;
+	}
 
 	/*
 	 * Send list of update FW hashes to PD MCU.
@@ -754,8 +804,10 @@ static int acpi_cros_ec_pd_suspend(struct device *dev)
 	struct cros_ec_pd_update_data *drv_data =
 		(struct cros_ec_pd_update_data *)dev_get_drvdata(dev);
 
-	if (drv_data)
+	if (drv_data) {
 		flush_delayed_work(&drv_data->work);
+		disable = 0;
+	}
 	return 0;
 }
 
@@ -793,10 +845,15 @@ static ssize_t show_firmware_images(struct device *dev,
 
 	for (i = 0; i < firmware_image_count; ++i) {
 		if (firmware_images[i].filename == NULL)
-			size += scnprintf(buf + size, PAGE_SIZE, "%d: NONE\n",
-					  i);
+			size += scnprintf(buf + size, PAGE_SIZE,
+					  "%d: %d.%d NONE\n", i,
+					  firmware_images[i].id_major,
+					  firmware_images[i].id_minor);
 		else
-			size += scnprintf(buf + size, PAGE_SIZE, "%d: %s\n", i,
+			size += scnprintf(buf + size, PAGE_SIZE,
+					  "%d: %d.%d %s\n", i,
+					  firmware_images[i].id_major,
+					  firmware_images[i].id_minor,
 					  firmware_images[i].filename);
 	}
 
