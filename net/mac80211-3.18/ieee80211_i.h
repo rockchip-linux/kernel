@@ -33,6 +33,10 @@
 #include "sta_info.h"
 #include "debug.h"
 
+#ifdef CONFIG_QCA_NSS_DRV
+#include <nss_api_if.h>
+#endif
+
 struct ieee80211_local;
 
 /* Maximum number of broadcast/multicast frames to buffer when some of the
@@ -849,6 +853,10 @@ struct ieee80211_sub_if_data {
 		struct dentry *default_multicast_key;
 		struct dentry *default_mgmt_key;
 	} debugfs;
+#endif
+
+#ifdef CONFIG_QCA_NSS_DRV
+	void *nssctx;
 #endif
 
 	/* must be last, dynamically sized area in this! */

@@ -32,6 +32,47 @@
 #include "wme.h"
 #include "rate.h"
 
+#ifdef CONFIG_QCA_NSS_DRV
+
+#define case_rtn_string(val) case val: return #val
+
+static const char *nss_tx_status_str(nss_tx_status_t status)
+{
+	switch (status) {
+		case_rtn_string(NSS_TX_SUCCESS);
+		case_rtn_string(NSS_TX_FAILURE);
+		case_rtn_string(NSS_TX_FAILURE_QUEUE);
+		case_rtn_string(NSS_TX_FAILURE_NOT_READY);
+		case_rtn_string(NSS_TX_FAILURE_TOO_LARGE);
+		case_rtn_string(NSS_TX_FAILURE_TOO_SHORT);
+		case_rtn_string(NSS_TX_FAILURE_NOT_SUPPORTED);
+		case_rtn_string(NSS_TX_FAILURE_BAD_PARAM);
+	default:
+		return "Unknown NSS TX status";
+	}
+}
+
+static void netif_rx_nss(struct ieee80211_sub_if_data *sdata,
+			 struct sk_buff *skb)
+{
+	int ret;
+
+	if (!sdata->nssctx)
+		goto out;
+
+	ret = nss_tx_virt_if_rxbuf(sdata->nssctx, skb);
+	if (ret) {
+		sdata_err(sdata, "NSS TX failed with error: %s\n",
+			  nss_tx_status_str(ret));
+		goto out;
+	}
+
+	return;
+out:
+	netif_receive_skb(skb);
+}
+#endif
+
 /*
  * monitor mode reception
  *
@@ -1998,10 +2039,15 @@ ieee80211_deliver_skb(struct ieee80211_rx_data *rx)
 		/* deliver to local stack */
 		skb->protocol = eth_type_trans(skb, dev);
 		memset(skb->cb, 0, sizeof(skb->cb));
-		if (rx->local->napi)
+		if (rx->local->napi) {
 			napi_gro_receive(rx->local->napi, skb);
-		else
+		} else {
+#ifdef CONFIG_QCA_NSS_DRV
+			netif_rx_nss(sdata, skb);
+#else
 			netif_receive_skb(skb);
+#endif
+		}
 	}
 
 	if (xmit_skb) {

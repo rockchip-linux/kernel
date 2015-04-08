@@ -696,6 +696,13 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 
 	ieee80211_recalc_ps(local, -1);
 
+#ifdef CONFIG_QCA_NSS_DRV
+	sdata->nssctx = nss_create_virt_if(dev);
+	if (sdata->nssctx)
+		sdata_info(sdata, "Created a NSS virtual interface\n");
+	else
+		sdata_err(sdata, "Failed to create a NSS virtual interface\n");
+#endif
 	if (sdata->vif.type == NL80211_IFTYPE_MONITOR ||
 	    sdata->vif.type == NL80211_IFTYPE_AP_VLAN) {
 		/* XXX: for AP_VLAN, actually track AP queues */
@@ -1017,6 +1024,12 @@ static int ieee80211_stop(struct net_device *dev)
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 
+#ifdef CONFIG_QCA_NSS_DRV
+	if (sdata->nssctx) {
+		nss_destroy_virt_if(sdata->nssctx);
+		sdata_info(sdata, "Destroyed NSS virtual interface\n");
+	}
+#endif
 	ieee80211_do_stop(sdata, true);
 
 	return 0;

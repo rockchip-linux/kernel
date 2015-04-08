@@ -365,6 +365,7 @@ USERINCLUDE    := \
 		-Iarch/$(hdr-arch)/include/generated/uapi \
 		-I$(srctree)/include/uapi \
 		-Iinclude/generated/uapi \
+		-I$(srctree)/drivers/net/ethernet/atheros/nss-drv/exports \
                 -include $(srctree)/include/linux/kconfig.h
 
 ifneq ($(WIFIVERSION),)
