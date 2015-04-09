@@ -181,7 +181,8 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	struct device *dev = charger->dev;
 	struct ec_params_usb_pd_power_info req;
 	struct ec_response_usb_pd_power_info resp;
-	int ret;
+	char role_str[80];
+	int ret, last_psy_status, last_psy_type;
 
 	req.port = port->port_number;
 	ret = ec_command(charger, EC_CMD_USB_PD_POWER_INFO,
@@ -192,36 +193,38 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 		return -EINVAL;
 	}
 
+	last_psy_status = port->psy_status;
+	last_psy_type = port->psy_type;
+
 	switch (resp.role) {
 	case USB_PD_PORT_POWER_DISCONNECTED:
-		dev_dbg(dev, "Port %d: DISCONNECTED", port->port_number);
+		snprintf(role_str, sizeof(role_str), "%s", "DISCONNECTED");
 		port->psy_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		port->psy_online = 0;
 		break;
 	case USB_PD_PORT_POWER_SOURCE:
-		dev_dbg(dev, "Port %d: SOURCE", port->port_number);
+		snprintf(role_str, sizeof(role_str), "%s", "SOURCE");
 		port->psy_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		port->psy_online = 0;
 		break;
 	case USB_PD_PORT_POWER_SINK:
-		dev_dbg(dev, "Port %d: SINK", port->port_number);
+		snprintf(role_str, sizeof(role_str), "%s", "SINK");
 		port->psy_status = POWER_SUPPLY_STATUS_CHARGING;
 		port->psy_online = 1;
 		break;
 	case USB_PD_PORT_POWER_SINK_NOT_CHARGING:
-		dev_dbg(dev, "Port %d: NOT_CHARGING", port->port_number);
+		snprintf(role_str, sizeof(role_str), "%s", "NOT CHARGING");
 		port->psy_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		port->psy_online = 1;
 		break;
 	default:
+		snprintf(role_str, sizeof(role_str), "%s", "UNKNOWN");
 		dev_err(dev, "Unknown role %d\n", resp.role);
 		break;
 	}
 
 	switch (resp.type) {
 	case USB_CHG_TYPE_NONE:
-		dev_dbg(dev, "Port %d: Charger type: None\n",
-			port->port_number);
 		port->psy_type = POWER_SUPPLY_TYPE_UNKNOWN;
 		break;
 	case USB_CHG_TYPE_PD:
@@ -231,13 +234,20 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	case USB_CHG_TYPE_BC12_CDP:
 	case USB_CHG_TYPE_BC12_SDP:
 	case USB_CHG_TYPE_VBUS:
-		dev_dbg(dev, "Port %d: Charger type: %d\n",
-			port->port_number, resp.type);
 		/*
 		 * Report all type of USB chargers as POWER_SUPPLY_TYPE_USB to
 		 * keep userland low power charger detection logic simpler.
 		 */
 		port->psy_type = POWER_SUPPLY_TYPE_USB;
+		break;
+	case USB_CHG_TYPE_UNKNOWN:
+		/*
+		 * While the EC is trying to determine the type of charger that
+		 * has been plugged in, it will report the charger type as
+		 * unknown. Treat this case as a dedicated charger since we
+		 * don't know any better just yet.
+		 */
+		port->psy_type = POWER_SUPPLY_TYPE_MAINS;
 		break;
 	default:
 		dev_err(dev, "Port %d: default case!\n",
@@ -247,18 +257,30 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 
 	port->psy.type = port->psy_type;
 
-	dev_dbg(dev, "Port %d: Voltage max: %dmV\n",
-		port->port_number, resp.meas.voltage_max);
 	port->psy_voltage_max_design = resp.meas.voltage_max;
-	dev_dbg(dev, "Port %d: Voltage now: %dmV\n",
-		port->port_number, resp.meas.voltage_now);
 	port->psy_voltage_now = resp.meas.voltage_now;
-	dev_dbg(dev, "Port %d: Current max: %dmA\n",
-		port->port_number, resp.meas.current_max);
 	port->psy_current_max = resp.meas.current_max;
-	dev_dbg(dev, "Port %d: Power max: %dmW\n",
-		port->port_number, resp.max_power);
 	port->psy_power_max = resp.max_power;
+
+	dev_dbg(dev,
+		"Port %d: %s type=%d=vmax=%d vnow=%d cmax=%d clim=%d pmax=%d\n",
+		port->port_number, role_str, resp.type,
+		resp.meas.voltage_max, resp.meas.voltage_now,
+		resp.meas.current_max, resp.meas.current_lim,
+		resp.max_power);
+
+	/*
+	 * If power supply type or status changed, explicitly call
+	 * power_supply_changed. This results in udev event getting generated
+	 * and allows user mode apps to react quicker instead of waiting for
+	 * their next poll of power supply status.
+	 */
+	if (last_psy_type != port->psy_type ||
+	    last_psy_status != port->psy_status) {
+		dev_dbg(dev, "Port %d: Calling power_supply_changed\n",
+			port->port_number);
+		power_supply_changed(&port->psy);
+	}
 
 	return 0;
 }
@@ -287,16 +309,11 @@ static void cros_usb_pd_charger_power_changed(struct power_supply *psy)
 	struct port_data *port = container_of(psy, struct port_data, psy);
 	struct charger_data *charger = port->charger;
 	struct device *dev = charger->dev;
-	int i, last_psy_status;
+	int i;
 
 	dev_dbg(dev, "cros_usb_pd_charger_power_changed\n");
 	for (i = 0; i < charger->num_registered_psy; i++) {
-		last_psy_status = charger->ports[i]->psy_status;
 		get_ec_port_status(charger->ports[i]);
-		if (charger->ports[i]->psy_status != last_psy_status)
-			power_supply_changed(&charger->ports[i]->psy);
-		else
-			dev_dbg(dev, "power_supply_changed() skipped.\n");
 	}
 }
 
