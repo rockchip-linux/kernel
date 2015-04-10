@@ -25,8 +25,9 @@
 	firmware {
 		chromeos {
 			pinctrl-names = "default";
-			pinctrl-0 = <&fw_wp_ap>;
+			pinctrl-0 = <&fw_wp_ap &rec_mode_l>;
 			write-protect-gpio = <&gpio7 6 GPIO_ACTIVE_LOW>;
+			recovery-switch = <&gpio0 9 GPIO_ACTIVE_LOW>;
 		};
 	};
 
@@ -556,6 +557,12 @@
         write-protect {
 		fw_wp_ap: fw-wp-ap {
 			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	recovery-switch {
+		rec_mode_l: rec-mode-l {
+			rockchip,pins = <0 9 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 };
