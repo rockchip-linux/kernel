@@ -516,14 +516,20 @@ static int rmi_set_sleep_mode(struct hid_device *hdev, int sleep_mode)
 #ifdef CONFIG_PM
 static int rmi_suspend(struct hid_device *hdev, pm_message_t message)
 {
-	if (!device_may_wakeup(hdev->dev.parent))
-		return rmi_set_sleep_mode(hdev, RMI_SLEEP_DEEP_SLEEP);
+	int ret = 0;
+	struct rmi_data *data = hid_get_drvdata(hdev);
 
-	return 0;
+	mutex_lock(&data->input->mutex);
+	if (!device_may_wakeup(hdev->dev.parent) && !data->input->inhibited)
+		ret = rmi_set_sleep_mode(hdev, RMI_SLEEP_DEEP_SLEEP);
+
+	mutex_unlock(&data->input->mutex);
+	return ret;
 }
 
 static int rmi_post_reset(struct hid_device *hdev)
 {
+	struct rmi_data *data = hid_get_drvdata(hdev);
 	int ret;
 
 	ret = rmi_set_mode(hdev, RMI_MODE_ATTN_REPORTS);
@@ -532,14 +538,14 @@ static int rmi_post_reset(struct hid_device *hdev)
 		return ret;
 	}
 
-	if (!device_may_wakeup(hdev->dev.parent)) {
+	mutex_lock(&data->input->mutex);
+	if (!device_may_wakeup(hdev->dev.parent) && !data->input->inhibited) {
 		ret = rmi_set_sleep_mode(hdev, RMI_SLEEP_NORMAL);
-		if (ret) {
+		if (ret)
 			hid_err(hdev, "can not write sleep mode\n");
-			return ret;
-		}
 	}
 
+	mutex_unlock(&data->input->mutex);
 	return ret;
 }
 
@@ -1020,6 +1026,20 @@ static int rmi_populate(struct hid_device *hdev)
 	return 0;
 }
 
+static int rmi_inhibit(struct input_dev *input)
+{
+	struct hid_device *hdev = input_get_drvdata(input);
+
+	return rmi_set_sleep_mode(hdev, RMI_SLEEP_DEEP_SLEEP);
+}
+
+static int rmi_uninhibit(struct input_dev *input)
+{
+	struct hid_device *hdev = input_get_drvdata(input);
+
+	return rmi_set_sleep_mode(hdev, RMI_SLEEP_NORMAL);
+}
+
 static void rmi_input_configured(struct hid_device *hdev, struct hid_input *hi)
 {
 	struct rmi_data *data = hid_get_drvdata(hdev);
@@ -1028,6 +1048,9 @@ static void rmi_input_configured(struct hid_device *hdev, struct hid_input *hi)
 	int res_x, res_y, i;
 
 	data->input = input;
+
+	input->inhibit = rmi_inhibit;
+	input->uninhibit = rmi_uninhibit;
 
 	hid_dbg(hdev, "Opening low level driver\n");
 	ret = hid_hw_open(hdev);
