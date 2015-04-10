@@ -247,17 +247,73 @@ err_destroy:
 	return ret;
 }
 
+static inline int
+mi_set_context(struct intel_ring_buffer *ring,
+	       struct i915_hw_context *new_context,
+	       u32 hw_flags)
+{
+	int ret;
+
+	/* w/a: If Flush TLB Invalidation Mode is enabled, driver must do a TLB
+	 * invalidation prior to MI_SET_CONTEXT. On GEN6 we don't set the value
+	 * explicitly, so we rely on the value at ring init, stored in
+	 * itlb_before_ctx_switch.
+	 */
+	if (IS_GEN6(ring->dev)) {
+		ret = ring->flush(ring, I915_GEM_GPU_DOMAINS, 0);
+		if (ret)
+			return ret;
+	}
+
+	ret = intel_ring_begin(ring, 6);
+	if (ret)
+		return ret;
+
+	/* WaProgramMiArbOnOffAroundMiSetContext:ivb,vlv,hsw,bdw */
+	if (INTEL_INFO(ring->dev)->gen >= 7)
+		intel_ring_emit(ring, MI_ARB_ON_OFF | MI_ARB_DISABLE);
+	else
+		intel_ring_emit(ring, MI_NOOP);
+
+	intel_ring_emit(ring, MI_NOOP);
+	intel_ring_emit(ring, MI_SET_CONTEXT);
+	intel_ring_emit(ring, i915_gem_obj_ggtt_offset(new_context->obj) |
+			MI_MM_SPACE_GTT |
+			MI_SAVE_EXT_STATE_EN |
+			MI_RESTORE_EXT_STATE_EN |
+			hw_flags);
+	/* w/a: MI_SET_CONTEXT must always be followed by MI_NOOP */
+	intel_ring_emit(ring, MI_NOOP);
+
+	if (INTEL_INFO(ring->dev)->gen >= 7)
+		intel_ring_emit(ring, MI_ARB_ON_OFF | MI_ARB_ENABLE);
+	else
+		intel_ring_emit(ring, MI_NOOP);
+
+	intel_ring_advance(ring);
+
+	return ret;
+}
+
 int i915_gem_context_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct i915_hw_context *lctx = dev_priv->ring[RCS].last_context;
 	int ret;
 
 	if (!HAS_HW_CONTEXTS(dev))
 		return 0;
 
 	/* If called from reset, or thaw... we've been here already */
-	if (dev_priv->ring[RCS].default_context)
+	if (dev_priv->ring[RCS].default_context) {
+		/* Force default HW Context restore on Resume */
+		if (lctx == dev_priv->ring[RCS].default_context &&
+		    i915_gem_obj_ggtt_bound(lctx->obj)) {
+			mi_set_context(&dev_priv->ring[RCS], lctx,
+				       MI_FORCE_RESTORE | MI_SAVE_EXT_STATE_EN);
+		}
 		return 0;
+	}
 
 	dev_priv->hw_context_size = round_up(get_context_size(dev), 4096);
 
@@ -353,54 +409,6 @@ static struct i915_hw_context *
 i915_gem_context_get(struct drm_i915_file_private *file_priv, u32 id)
 {
 	return (struct i915_hw_context *)idr_find(&file_priv->context_idr, id);
-}
-
-static inline int
-mi_set_context(struct intel_ring_buffer *ring,
-	       struct i915_hw_context *new_context,
-	       u32 hw_flags)
-{
-	int ret;
-
-	/* w/a: If Flush TLB Invalidation Mode is enabled, driver must do a TLB
-	 * invalidation prior to MI_SET_CONTEXT. On GEN6 we don't set the value
-	 * explicitly, so we rely on the value at ring init, stored in
-	 * itlb_before_ctx_switch.
-	 */
-	if (IS_GEN6(ring->dev)) {
-		ret = ring->flush(ring, I915_GEM_GPU_DOMAINS, 0);
-		if (ret)
-			return ret;
-	}
-
-	ret = intel_ring_begin(ring, 6);
-	if (ret)
-		return ret;
-
-	/* WaProgramMiArbOnOffAroundMiSetContext:ivb,vlv,hsw,bdw */
-	if (INTEL_INFO(ring->dev)->gen >= 7)
-		intel_ring_emit(ring, MI_ARB_ON_OFF | MI_ARB_DISABLE);
-	else
-		intel_ring_emit(ring, MI_NOOP);
-
-	intel_ring_emit(ring, MI_NOOP);
-	intel_ring_emit(ring, MI_SET_CONTEXT);
-	intel_ring_emit(ring, i915_gem_obj_ggtt_offset(new_context->obj) |
-			MI_MM_SPACE_GTT |
-			MI_SAVE_EXT_STATE_EN |
-			MI_RESTORE_EXT_STATE_EN |
-			hw_flags);
-	/* w/a: MI_SET_CONTEXT must always be followed by MI_NOOP */
-	intel_ring_emit(ring, MI_NOOP);
-
-	if (INTEL_INFO(ring->dev)->gen >= 7)
-		intel_ring_emit(ring, MI_ARB_ON_OFF | MI_ARB_ENABLE);
-	else
-		intel_ring_emit(ring, MI_NOOP);
-
-	intel_ring_advance(ring);
-
-	return ret;
 }
 
 static int do_switch(struct i915_hw_context *to)
