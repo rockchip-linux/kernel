@@ -914,6 +914,14 @@ static int sta_apply_auth_flags(struct ieee80211_local *local,
 			return ret;
 	}
 
+	if (mask & BIT(NL80211_STA_FLAG_ASSOCIATED) &&
+	    set & BIT(NL80211_STA_FLAG_ASSOCIATED) &&
+	    !test_sta_flag(sta, WLAN_STA_ASSOC)) {
+		ret = sta_info_move_state(sta, IEEE80211_STA_ASSOC);
+		if (ret)
+			return ret;
+	}
+
 	if (mask & BIT(NL80211_STA_FLAG_AUTHORIZED)) {
 		if (set & BIT(NL80211_STA_FLAG_AUTHORIZED))
 			ret = sta_info_move_state(sta, IEEE80211_STA_AUTHORIZED);
@@ -921,6 +929,14 @@ static int sta_apply_auth_flags(struct ieee80211_local *local,
 			ret = sta_info_move_state(sta, IEEE80211_STA_ASSOC);
 		else
 			ret = 0;
+		if (ret)
+			return ret;
+	}
+
+	if (mask & BIT(NL80211_STA_FLAG_ASSOCIATED) &&
+	    !(set & BIT(NL80211_STA_FLAG_ASSOCIATED)) &&
+	    test_sta_flag(sta, WLAN_STA_ASSOC)) {
+		ret = sta_info_move_state(sta, IEEE80211_STA_AUTH);
 		if (ret)
 			return ret;
 	}
@@ -950,6 +966,29 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 
 	mask = params->sta_flags_mask;
 	set = params->sta_flags_set;
+
+	if (ieee80211_vif_is_mesh(&sdata->vif)) {
+		/*
+		 * In mesh mode, ASSOCIATED isn't part of the nl80211
+		 * API but must follow AUTHENTICATED for driver state.
+		 */
+		if (mask & BIT(NL80211_STA_FLAG_AUTHENTICATED))
+			mask |= BIT(NL80211_STA_FLAG_ASSOCIATED);
+		if (set & BIT(NL80211_STA_FLAG_AUTHENTICATED))
+			set |= BIT(NL80211_STA_FLAG_ASSOCIATED);
+	} else if (test_sta_flag(sta, WLAN_STA_TDLS_PEER)) {
+		/*
+		 * TDLS -- everything follows authorized, but
+		 * only becoming authorized is possible, not
+		 * going back
+		 */
+		if (set & BIT(NL80211_STA_FLAG_AUTHORIZED)) {
+			set |= BIT(NL80211_STA_FLAG_AUTHENTICATED) |
+			       BIT(NL80211_STA_FLAG_ASSOCIATED);
+			mask |= BIT(NL80211_STA_FLAG_AUTHENTICATED) |
+				BIT(NL80211_STA_FLAG_ASSOCIATED);
+		}
+	}
 
 	/* auth flags will be set later for TDLS stations */
 	if (!test_sta_flag(sta, WLAN_STA_TDLS_PEER)) {
