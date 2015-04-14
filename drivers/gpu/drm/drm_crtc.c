@@ -2992,8 +2992,9 @@ retry:
 	if (ret)
 		goto out;
 
-	ret = drm_mode_crtc_set_obj_prop(crtc, state,
-			config->prop_mode, sizeof(crtc_req->mode), &crtc_req->mode);
+	ret = drm_mode_crtc_set_obj_prop(crtc, state, config->prop_mode,
+		crtc_req->mode_valid ? sizeof(crtc_req->mode) : 0,
+		crtc_req->mode_valid ? &crtc_req->mode : NULL);
 	if (ret)
 		goto out;
 
