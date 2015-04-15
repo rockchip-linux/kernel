@@ -2249,9 +2249,20 @@ retry:
 		inode->i_op = &ext4_file_inode_operations;
 		inode->i_fop = &ext4_file_operations;
 		ext4_set_aops(inode);
-		err = ext4_add_nondir(handle, dentry, inode);
+		err = 0;
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+		if (!err && ext4_encrypted_inode(dir))
+			err = ext4_inherit_context(dir, inode);
+#endif
+		if (!err)
+			err = ext4_add_nondir(handle, dentry, inode);
 		if (!err && IS_DIRSYNC(dir))
 			ext4_handle_sync(handle);
+		if (err) {
+			clear_nlink(inode);
+			unlock_new_inode(inode);
+			iput(inode);
+		}
 	}
 	if (handle)
 		ext4_journal_stop(handle);
@@ -2432,6 +2443,13 @@ retry:
 	err = ext4_init_new_dir(handle, dir, inode);
 	if (err)
 		goto out_clear_inode;
+#ifdef CONFIG_EXT4_FS_ENCRYPTION
+	if (ext4_encrypted_inode(dir)) {
+		err = ext4_inherit_context(dir, inode);
+		if (err)
+			goto out_clear_inode;
+	}
+#endif
 	err = ext4_mark_inode_dirty(handle, inode);
 	if (!err)
 		err = ext4_add_entry(handle, dentry, inode);
