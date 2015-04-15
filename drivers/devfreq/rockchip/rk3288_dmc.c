@@ -27,6 +27,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
+#include <linux/syscore_ops.h>
 #include <linux/workqueue.h>
 
 #include <soc/rockchip/dmc-sync.h>
@@ -381,6 +382,15 @@ static __maybe_unused int rk3288_dmcfreq_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(rk3288_dmcfreq_pm, rk3288_dmcfreq_suspend,
 			 rk3288_dmcfreq_resume);
 
+static void rk3288_dmcfreq_shutdown(void)
+{
+	devfreq_suspend_device(dmcfreq.devfreq);
+}
+
+static struct syscore_ops rk3288_dmcfreq_syscore_ops = {
+	.shutdown = rk3288_dmcfreq_shutdown,
+};
+
 static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -456,6 +466,8 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	}
 	rockchip_dmc_register_enable_notifier(&dmc_enable_nb);
 	rockchip_dmc_en_unlock();
+
+	register_syscore_ops(&rk3288_dmcfreq_syscore_ops);
 
 	return 0;
 }
