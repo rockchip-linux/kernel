@@ -1964,7 +1964,7 @@ config SHUFFLE_PAGE_ALLOCATOR
 
 config SLUB_CPU_PARTIAL
 	default y
-	depends on SLUB && SMP
+	depends on SLUB && SMP && !PREEMPT_RT
 	bool "SLUB per cpu partial cache"
 	help
 	  Per cpu partial caches accelerate objects allocation and freeing
