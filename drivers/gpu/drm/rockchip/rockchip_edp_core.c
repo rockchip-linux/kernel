@@ -613,16 +613,7 @@ static void rockchip_drm_encoder_commit(struct drm_encoder *encoder)
 
 static void rockchip_drm_encoder_disable(struct drm_encoder *encoder)
 {
-	struct drm_plane *plane;
-	struct drm_device *dev = encoder->dev;
-
 	rockchip_drm_encoder_dpms(encoder, DRM_MODE_DPMS_OFF);
-
-	/* all planes connected to this encoder should be also disabled. */
-	list_for_each_entry(plane, &dev->mode_config.plane_list, head) {
-		if (plane->crtc && (plane->crtc == encoder->crtc))
-			plane->funcs->disable_plane(plane);
-	}
 }
 
 static struct drm_encoder_helper_funcs rockchip_encoder_helper_funcs = {

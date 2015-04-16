@@ -1202,6 +1202,21 @@ static void vop_crtc_commit(struct drm_crtc *crtc)
 {
 }
 
+static void vop_crtc_disable(struct drm_crtc *crtc)
+{
+	struct vop *vop = to_vop(crtc);
+	int i;
+
+	for (i = 0; i < vop->data->win_size; i++) {
+		struct vop_win *vop_win = &vop->win[i];
+		struct drm_plane *plane = &vop_win->base;
+
+		plane->funcs->disable_plane(plane);
+	}
+
+	vop_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
+}
+
 static const struct drm_crtc_helper_funcs vop_crtc_helper_funcs = {
 	.dpms = vop_crtc_dpms,
 	.prepare = vop_crtc_prepare,
@@ -1209,6 +1224,7 @@ static const struct drm_crtc_helper_funcs vop_crtc_helper_funcs = {
 	.mode_set = vop_crtc_mode_set,
 	.mode_set_base = vop_crtc_mode_set_base,
 	.commit = vop_crtc_commit,
+	.disable = vop_crtc_disable,
 };
 
 static int vop_crtc_page_flip(struct drm_crtc *crtc,
