@@ -92,17 +92,32 @@
 &i2c3 {
 	status = "okay";
 
+	/*
+	 * Touchscreen pin control is shared between Atmel and Elan devices,
+	 * so we have to pull it up to the bus level.
+	 */
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c3_xfer &touch_int &touch_rst>;
+
 	clock-frequency = <400000>;
 	i2c-scl-falling-time-ns = <50>;
 	i2c-scl-rising-time-ns = <300>;
 
-	touchscreen {
+	touchscreen@10 {
+		compatible = "elan,ekth3500";
+		reg = <0x10>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
+		vcc33-supply = <&vcc33_touch>;
+		vccio-supply = <&vcc33_touch>;
+	};
+
+	touchscreen@4a {
 		compatible = "atmel,atmel_mxt_ts";
 		reg = <0x4a>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&touch_int &touch_rst>;
 		atmel,reset-gpios = <&gpio2 15 GPIO_ACTIVE_LOW>;
 		vdd-supply = <&vcc33_touch>;
 		avdd-supply = <&vcc5v_touch>;
