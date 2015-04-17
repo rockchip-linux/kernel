@@ -294,7 +294,7 @@ static int read_ec_accel_data_lpc(struct iio_dev *indio_dev,
  * @st Pointer to state information for device.
  * @resp Pointer to motion sense host command response struct.
  * @extra_resp_size request more data after the usual response structure.
- * @return 0 if ok, -ve on error.
+ * @return number of bytes transferred on ok, <0 on error.
  *
  * Note, when called, the sub-command is assumed to be set in param->cmd.
  */
@@ -308,10 +308,7 @@ static int send_motion_host_cmd(struct cros_ec_accel_state *st,
 		sizeof(struct ec_response_motion_sense);
 
 	/* Send host command. */
-	if (cros_ec_cmd_xfer_status(st->ec, &st->msg) > 0)
-		return 0;
-	else
-		return -EIO;
+	return cros_ec_cmd_xfer_status(st->ec, &st->msg);
 }
 
 static int read_ec_accel_data_cmd(struct iio_dev *indio_dev,
@@ -329,9 +326,9 @@ static int read_ec_accel_data_cmd(struct iio_dev *indio_dev,
 	st->param.dump.max_sensor_count = st->sensor_num;
 	ret = send_motion_host_cmd(st, st->resp, st->sensor_num *
 			sizeof(struct ec_response_motion_sensor_data));
-	if (ret != 0) {
+	if (ret <= 0) {
 		dev_warn(&indio_dev->dev, "Unable to read sensor data\n");
-		return ret;
+		return (ret == 0) ? -EIO : ret;
 	}
 
 	for_each_set_bit(i, &scan_mask, indio_dev->masklength) {
@@ -395,7 +392,7 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 		st->param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
 		st->param.kb_wake_angle.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			return -EIO;
 		else
 			*val = st->resp->kb_wake_angle.ret;
@@ -404,7 +401,7 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 		st->param.cmd = MOTIONSENSE_CMD_EC_RATE;
 		st->param.ec_rate.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			return -EIO;
 		else
 			*val = st->resp->ec_rate.ret;
@@ -420,7 +417,7 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 		st->param.sensor_range.data = EC_MOTION_SENSE_NO_VALUE;
 		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			return -EIO;
 		else
 			*val = st->resp->sensor_range.ret;
@@ -437,7 +434,7 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 		st->param.sensor_odr.data = EC_MOTION_SENSE_NO_VALUE;
 		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			ret = -EIO;
 		else
 			*val = st->resp->sensor_odr.ret;
@@ -479,7 +476,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		st->param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
 		st->param.kb_wake_angle.data = val;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			return -EIO;
 
 		break;
@@ -487,7 +484,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		st->param.cmd = MOTIONSENSE_CMD_EC_RATE;
 		st->param.ec_rate.data = val;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			return -EIO;
 
 		break;
@@ -506,7 +503,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		/* Always roundup, so caller gets at least what it asks for. */
 		st->param.sensor_range.roundup = 1;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			return -EIO;
 
 		break;
@@ -524,7 +521,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		/* Always roundup, so caller gets at least what it asks for. */
 		st->param.sensor_odr.roundup = 1;
 
-		if (send_motion_host_cmd(st, st->resp, 0))
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
 			ret = -EIO;
 
 		break;
@@ -675,7 +672,7 @@ static int ec_accel_probe(struct platform_device *pdev)
 	/* Check how many accel sensors */
 	state->param.cmd = MOTIONSENSE_CMD_DUMP;
 	state->param.dump.max_sensor_count = 0;
-	if ((send_motion_host_cmd(state, &resp, 0)) ||
+	if ((send_motion_host_cmd(state, &resp, 0) <= 0) ||
 	    (resp.dump.sensor_count == 0))
 		return -ENODEV;
 
@@ -695,9 +692,11 @@ static int ec_accel_probe(struct platform_device *pdev)
 	for (i = 0, idx = 0, channel = channels; i < state->sensor_num; i++) {
 		state->param.cmd = MOTIONSENSE_CMD_INFO;
 		state->param.sensor_odr.sensor_num = i;
-		if (send_motion_host_cmd(state, &resp, 0)) {
+		ret =  send_motion_host_cmd(state, &resp, 0);
+		if (ret <= 0) {
 			dev_warn(&pdev->dev,
-				 "Can not access sensor %d info\n", i);
+				 "Can not access sensor %d info, err: %d\n",
+				 i, ret);
 			return -EIO;
 		}
 		if (resp.info.type == MOTIONSENSE_TYPE_ACCEL)
