@@ -498,6 +498,7 @@
 	>;
 
 	pcfg_pull_none_drv_8ma: pcfg-pull-none-drv-8ma {
+		bias-disable;
 		drive-strength = <8>;
 	};
 
