@@ -929,7 +929,9 @@ static int vop_disable_plane(struct drm_plane *plane)
 	/* other pending_* are cleared to NULL already */
 	vop_win->pending_yrgb_mst = 0;
 
-	if (vop_win_update_needs_vblank(vop_win, NULL, NULL)) {
+	/* If VOP is enabled, schedule vop_win_update() at next vblank. */
+	if (vop_win->vop->is_enabled &&
+	    vop_win_update_needs_vblank(vop_win, NULL, NULL)) {
 		ret = drm_vblank_get(plane->crtc->dev, vop->pipe);
 		if (ret) {
 			DRM_ERROR("failed to get vblank, %d\n", ret);
@@ -943,6 +945,11 @@ static int vop_disable_plane(struct drm_plane *plane)
 		complete(&vop_win->completion);
 	}
 
+	/*
+	 * It is counter-intuitive, but for some reason the following register
+	 * accesses to disable the vop_win are safe to do even if the vop is
+	 * disabled (vop_hclk and pd_vio).
+	 */
 	spin_lock(&vop->reg_lock);
 	VOP_WIN_SET(vop, win, enable, 0);
 	vop_cfg_done(vop);
