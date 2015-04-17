@@ -1166,6 +1166,20 @@ static int elants_i2c_probe(struct i2c_client *client,
 	if (IS_ERR(ts->reset_gpio)) {
 		error = PTR_ERR(ts->reset_gpio);
 
+		/*
+		 * On Chromebooks vendors like to source touch panels from
+		 * different vendors, but they are connected to the same
+		 * regulators/GPIO pin. The drivers also use asynchronous
+		 * probing, which means that more than one driver will
+		 * attempt to claim the reset line. If we find it busy,
+		 * let's try again later.
+		 */
+		if (error == -EBUSY) {
+			dev_info(&client->dev,
+				 "reset gpio is busy, deferring probe\n");
+			return -EPROBE_DEFER;
+		}
+
 		if (error == -EPROBE_DEFER)
 			return error;
 
