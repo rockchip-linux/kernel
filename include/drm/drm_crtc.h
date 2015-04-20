@@ -964,6 +964,19 @@ struct drm_mode_config {
 	uint32_t cursor_width, cursor_height;
 };
 
+/**
+ * drm_for_each_plane_mask - iterate over planes specified by bitmask
+ * @plane: the loop cursor
+ * @dev: the DRM device
+ * @plane_mask: bitmask of plane indices
+ *
+ * Iterate over all planes specified by bitmask.
+ */
+#define drm_for_each_plane_mask(plane, dev, plane_mask) \
+	list_for_each_entry((plane), &(dev)->mode_config.plane_list, head) \
+		if ((plane_mask) & (1 << drm_plane_index(plane)))
+
+
 #define obj_to_crtc(x) container_of(x, struct drm_crtc, base)
 #define obj_to_connector(x) container_of(x, struct drm_connector, base)
 #define obj_to_encoder(x) container_of(x, struct drm_encoder, base)
@@ -1183,6 +1196,10 @@ extern int drm_mode_crtc_set_gamma_size(struct drm_crtc *crtc,
 					 int gamma_size);
 extern struct drm_mode_object *drm_mode_object_find(struct drm_device *dev,
 		uint32_t id, uint32_t type);
+extern struct drm_pending_vblank_event *create_vblank_event(
+		struct drm_device *dev, struct drm_file *file_priv, uint64_t user_data);
+extern void destroy_vblank_event(struct drm_device *dev,
+		struct drm_file *file_priv, struct drm_pending_vblank_event *e);
 
 /* IOCTLs */
 extern int drm_mode_getresources(struct drm_device *dev,
@@ -1257,6 +1274,8 @@ extern int drm_mode_obj_get_properties_ioctl(struct drm_device *dev, void *data,
 					     struct drm_file *file_priv);
 extern int drm_mode_obj_set_property_ioctl(struct drm_device *dev, void *data,
 					   struct drm_file *file_priv);
+extern int drm_mode_atomic_ioctl(struct drm_device *dev,
+				 void *data, struct drm_file *file_priv);
 
 extern void drm_fb_get_bpp_depth(uint32_t format, unsigned int *depth,
 				 int *bpp);

@@ -340,6 +340,49 @@ void drm_atomic_end(struct drm_device *dev, struct drm_atomic_state *a)
 }
 EXPORT_SYMBOL(drm_atomic_end);
 
+/**
+ * drm_atomic_state_clear - clear state object
+ * @state: atomic state
+ *
+ * When the w/w mutex algorithm detects a deadlock we need to back off and drop
+ * all locks. So someone else could sneak in and change the current modeset
+ * configuration. Which means that all the state assembled in @state is no
+ * longer an atomic update to the current state, but to some arbitrary earlier
+ * state. Which could break assumptions the driver's ->atomic_check likely
+ * relies on.
+ *
+ * Hence we must clear all cached state and completely start over, using this
+ * function.
+ */
+static void drm_atomic_state_clear(struct drm_atomic_state *state)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_mode_config *config = &dev->mode_config;
+	int i;
+
+	DRM_DEBUG_ATOMIC("Clearing atomic state %p\n", state);
+
+	for (i = 0; i < config->num_crtc; i++) {
+		struct drm_crtc *crtc = state->crtcs[i];
+
+		if (!crtc)
+			continue;
+
+		state->crtcs[i] = NULL;
+		state->cstates[i] = NULL;
+	}
+
+	for (i = 0; i < config->num_total_plane; i++) {
+		struct drm_plane *plane = state->planes[i];
+
+		if (!plane)
+			continue;
+
+		state->planes[i] = NULL;
+		state->pstates[i] = NULL;
+	}
+}
+
 void _drm_atomic_state_free(struct kref *kref)
 {
 	struct drm_atomic_state *a =
@@ -738,4 +781,227 @@ const struct drm_atomic_funcs drm_atomic_funcs = {
 		.check_crtc_state   = drm_crtc_check_state,
 		.commit_crtc_state  = commit_crtc_state,
 };
+
+static int atomic_set_prop(struct drm_atomic_state *state,
+		struct drm_mode_object *obj, struct drm_property *prop,
+		uint64_t prop_value)
+{
+	int ret = 0;
+
+	switch (obj->type) {
+	case DRM_MODE_OBJECT_CONNECTOR: {
+		/* TODO */
+		DRM_ERROR("unsupported atomic object type DRM_MODE_OBJECT_CONNECTOR");
+		ret = -EINVAL;
+		break;
+	}
+	case DRM_MODE_OBJECT_CRTC: {
+		struct drm_crtc *crtc = obj_to_crtc(obj);
+		ret = drm_atomic_crtc_set_property(crtc, state,
+				prop, prop_value, NULL);
+		break;
+	}
+	case DRM_MODE_OBJECT_PLANE: {
+		struct drm_plane *plane = obj_to_plane(obj);
+		ret = drm_atomic_plane_set_property(plane, state,
+				prop, prop_value, NULL);
+		break;
+	}
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+int drm_mode_atomic_ioctl(struct drm_device *dev,
+			  void *data, struct drm_file *file_priv)
+{
+	struct drm_mode_atomic *arg = data;
+	uint32_t __user *objs_ptr = (uint32_t __user *)(unsigned long)(arg->objs_ptr);
+	uint32_t __user *count_props_ptr = (uint32_t __user *)(unsigned long)(arg->count_props_ptr);
+	uint32_t __user *props_ptr = (uint32_t __user *)(unsigned long)(arg->props_ptr);
+	uint64_t __user *prop_values_ptr = (uint64_t __user *)(unsigned long)(arg->prop_values_ptr);
+	unsigned int copied_objs, copied_props;
+	struct drm_atomic_state *state;
+	struct drm_modeset_acquire_ctx *ctx;
+	struct drm_plane *plane;
+	unsigned plane_mask = 0;
+	int ret = 0;
+	unsigned int i, j;
+
+	if (arg->flags & ~DRM_MODE_ATOMIC_FLAGS)
+		return -EINVAL;
+
+	if (arg->reserved)
+		return -EINVAL;
+
+	if ((arg->flags & DRM_MODE_PAGE_FLIP_ASYNC) &&
+			!dev->mode_config.async_page_flip)
+		return -EINVAL;
+
+	/* can't test and expect an event at the same time. */
+	if ((arg->flags & DRM_MODE_ATOMIC_TEST_ONLY) &&
+			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT))
+		return -EINVAL;
+
+	state = drm_atomic_begin(dev, arg->flags);
+	if (!state)
+		return -ENOMEM;
+
+	ctx = &state->acquire_ctx;
+
+retry:
+	copied_objs = 0;
+	copied_props = 0;
+
+	for (i = 0; i < arg->count_objs; i++) {
+		uint32_t obj_id, count_props;
+		struct drm_mode_object *obj;
+
+		if (get_user(obj_id, objs_ptr + copied_objs)) {
+			ret = -EFAULT;
+			goto fail;
+		}
+
+		obj = drm_mode_object_find(dev, obj_id, DRM_MODE_OBJECT_ANY);
+		if (!obj || !obj->properties) {
+			ret = -ENOENT;
+			goto fail;
+		}
+
+		if (obj->type == DRM_MODE_OBJECT_PLANE) {
+			plane = obj_to_plane(obj);
+			plane_mask |= (1 << drm_plane_index(plane));
+		}
+
+		if (get_user(count_props, count_props_ptr + copied_objs)) {
+			ret = -EFAULT;
+			goto fail;
+		}
+
+		copied_objs++;
+
+		for (j = 0; j < count_props; j++) {
+			uint32_t prop_id;
+			uint64_t prop_value;
+			struct drm_property *prop;
+
+			if (get_user(prop_id, props_ptr + copied_props)) {
+				ret = -EFAULT;
+				goto fail;
+			}
+
+			prop = drm_property_find(dev, prop_id);
+			if (!prop) {
+				ret = -ENOENT;
+				goto fail;
+			}
+
+			if (get_user(prop_value, prop_values_ptr + copied_props)) {
+				ret = -EFAULT;
+				goto fail;
+			}
+
+			ret = atomic_set_prop(state, obj, prop, prop_value);
+			if (ret)
+				goto fail;
+
+			copied_props++;
+		}
+	}
+
+	if (arg->flags & DRM_MODE_PAGE_FLIP_EVENT) {
+		int nplanes = dev->mode_config.num_total_plane;
+		int ncrtcs = dev->mode_config.num_crtc;
+
+		for (i = 0; i < nplanes; i++) {
+			struct drm_plane_state *plane_state = state->pstates[i];
+			struct drm_pending_vblank_event *e;
+
+			if (!plane_state || !plane_state->crtc)
+				continue;
+
+			e = create_vblank_event(dev, file_priv, arg->user_data);
+			if (!e) {
+				ret = -ENOMEM;
+				goto fail;
+			}
+
+			ret = drm_atomic_set_event(
+					dev, state, &plane_state->crtc->base, e);
+			if (ret)
+				goto fail;
+		}
+
+		for (i = 0; i < ncrtcs; i++) {
+			struct drm_crtc_state *crtc_state = state->cstates[i];
+
+			if (!crtc_state)
+				continue;
+
+			crtc_state->set_config = true;
+			crtc_state->commit_state = true;
+		}
+	}
+
+	ret = drm_atomic_check(dev, state);
+	if (ret == 0 && !(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY))
+		ret = drm_atomic_commit(dev, state);
+
+	/* if succeeded, fixup legacy plane crtc/fb ptrs before dropping
+	 * locks (ie. while it is still safe to deref plane->state).  We
+	 * need to do this here because the driver entry points cannot
+	 * distinguish between legacy and atomic ioctls.
+	 */
+	drm_for_each_plane_mask(plane, dev, plane_mask) {
+		if (ret == 0) {
+			struct drm_framebuffer *new_fb = plane->state->fb;
+			if (new_fb)
+				drm_framebuffer_reference(new_fb);
+			plane->fb = new_fb;
+			plane->crtc = plane->state->crtc;
+		}
+	}
+
+	drm_atomic_end(dev, state);
+
+	drm_modeset_drop_locks(ctx);
+	drm_modeset_acquire_fini(ctx);
+
+	return ret;
+
+fail:
+	if (ret == -EDEADLK)
+		goto backoff;
+
+	if (arg->flags & DRM_MODE_PAGE_FLIP_EVENT) {
+		int ncrtcs = dev->mode_config.num_crtc;
+
+		for (i = 0; i < ncrtcs; i++) {
+			struct drm_crtc_state *crtc_state = state->cstates[i];
+
+			if (!crtc_state)
+				continue;
+
+			destroy_vblank_event(dev, file_priv, crtc_state->event);
+			crtc_state->event = NULL;
+		}
+	}
+
+	drm_atomic_end(dev, state);
+
+	drm_modeset_drop_locks(ctx);
+	drm_modeset_acquire_fini(ctx);
+
+	return ret;
+
+backoff:
+	drm_atomic_state_clear(state);
+	drm_modeset_backoff(ctx);
+
+	goto retry;
+}
+
 EXPORT_SYMBOL(drm_atomic_funcs);

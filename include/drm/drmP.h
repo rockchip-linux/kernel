@@ -93,6 +93,7 @@ struct reservation_object;
 #define DRM_UT_DRIVER		0x02
 #define DRM_UT_KMS		0x04
 #define DRM_UT_PRIME		0x08
+#define DRM_UT_ATOMIC		0x10
 /*
  * Three debug levels are defined.
  * drm_core, drm_driver, drm_kms
@@ -225,6 +226,11 @@ int drm_err(const char *func, const char *format, ...);
 #define DRM_DEBUG_PRIME(fmt, args...)					\
 	do {								\
 		drm_ut_debug_printk(DRM_UT_PRIME, DRM_NAME,		\
+					__func__, fmt, ##args);		\
+	} while (0)
+#define DRM_DEBUG_ATOMIC(fmt, args...)					\
+	do {								\
+		drm_ut_debug_printk(DRM_UT_ATOMIC, DRM_NAME,		\
 					__func__, fmt, ##args);		\
 	} while (0)
 #define DRM_LOG(fmt, args...)						\
