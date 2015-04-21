@@ -15,8 +15,8 @@
 
 / {
 	model = "Google Rialto";
-	compatible = "google,veyron-rialto-rev0", "google,veyron-rialto",
-		     "google,veyron", "rockchip,rk3288";
+	compatible = "google,veyron-rialto-rev1", "google,veyron-rialto-rev0",
+		     "google,veyron-rialto", "google,veyron", "rockchip,rk3288";
 
 	memory {
 		reg = <0x0 0x80000000>;
