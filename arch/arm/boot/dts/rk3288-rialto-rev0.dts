@@ -47,6 +47,14 @@
 			debounce-interval = <100>;
 			gpio-key,wakeup;
 		};
+
+		pushbutton {
+			label = "PushButton";
+			gpios = <&gpio7 9 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_F1>;
+			debounce-interval = <100>;
+			gpio-key,wakeup;
+		};
 	};
 
 	gpio-restart {
