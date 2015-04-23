@@ -1179,13 +1179,19 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 		break;
 
 	case GO2001_STATUS_RES_NA:
-		go2001_err(gdev, "Hardware ran out of memory\n");
-		return -ENOMEM;
+		go2001_err(gdev, "Hardware ran out of resources\n");
+		ret = -ENOMEM;
+		break;
+
+	case GO2001_STATUS_INVALID_PARAM:
+		go2001_err(gdev, "Invalid parameters\n");
+		ret = -EINVAL;
+		break;
 
 	default:
-		go2001_err(gdev, "Error in reply [%d:%d], status: %d\n",
-				hdr->session_id, hdr->sequence_id, hdr->status);
-		return -EIO;
+		go2001_err(gdev, "Unhandled error in reply\n");
+		ret = -EIO;
+		break;
 	}
 
 	gdev->last_reply_inst_id = hdr->session_id;
@@ -1198,9 +1204,6 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	case GO2001_VM_INIT_DECODER:
 	case GO2001_VM_INIT_ENCODER:
 		go2001_dbg(gdev, 5, "VM_INIT reply\n");
-		if (WARN_ON(hdr->session_id != 0))
-			return -EIO;
-
 		go2001_handle_init_reply(gdev, reply);
 		break;
 
@@ -1245,6 +1248,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 		a->expr[ARRAY_SIZE(a->expr) - 1] = '\0';
 		go2001_err(gdev, "FW ASSERT at %s:%d in %s, executing %s\n",
 				a->filename, a->line_no, a->funcname, a->expr);
+		ret = -EIO;
 		break;
 	}
 
@@ -1264,10 +1268,24 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	default:
 		go2001_err(gdev, "Unexpected reply [%d:%d], type %d\n",
 				hdr->session_id, hdr->sequence_id, hdr->type);
+		ret = -EIO;
 		break;
 	}
 
-	return 0;
+	if (ret) {
+		go2001_err(gdev,
+			"Error %d for reply [%d:%d] type=0x%x, status=0x%x\n",
+			ret, hdr->session_id, hdr->sequence_id, hdr->type,
+			hdr->status);
+		if (ctx)
+			go2001_ctx_error(ctx);
+	}
+
+	/*
+	 * Critical failure only on EIO, otherwise we may be able to continue
+	 * using other instances.
+	 */
+	return ret == -EIO ? ret : 0;
 }
 
 static void go2001_cleanup_all_contexts(struct go2001_dev *gdev)
@@ -1321,6 +1339,7 @@ static irqreturn_t go2001_irq(int irq, void *priv)
 	struct go2001_msg *reply = &gdev->last_reply;
 	bool handled = false;
 	unsigned long flags;
+	int ret;
 
 	spin_lock_irqsave(&gdev->irqlock, flags);
 
@@ -1331,9 +1350,10 @@ static irqreturn_t go2001_irq(int irq, void *priv)
 	}
 
 	while (go2001_get_reply(gdev, reply) == 0) {
-		if (go2001_process_reply(gdev, reply))
-			goto out;
+		ret = go2001_process_reply(gdev, reply);
 		wake_up_all(&gdev->reply_wq);
+		if (ret)
+			goto out;
 		handled = true;
 	}
 

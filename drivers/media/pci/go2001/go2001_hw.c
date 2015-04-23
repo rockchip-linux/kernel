@@ -715,7 +715,7 @@ static int go2001_init_decoder(struct go2001_ctx *ctx)
 
 	go2001_queue_init_msg(ctx, &msg);
 	ret = go2001_wait_for_msg(gdev, &msg);
-	if (ret)
+	if (ret || ctx->state == ERROR)
 		go2001_err(gdev, "Failed initializing decoder\n");
 	else
 		ctx->state = NEED_HEADER_INFO;
@@ -794,7 +794,7 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 
 	go2001_queue_init_msg(ctx, &msg);
 	ret = go2001_wait_for_msg(gdev, &msg);
-	if (ret) {
+	if (ret || ctx->state == ERROR) {
 		go2001_err(gdev, "Failed initializing encoder\n");
 		return ret;
 	}
