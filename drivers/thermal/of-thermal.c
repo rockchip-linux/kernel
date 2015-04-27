@@ -848,6 +848,7 @@ int __init of_parse_thermal_zones(void)
 	for_each_child_of_node(np, child) {
 		struct thermal_zone_device *zone;
 		struct thermal_zone_params *tzp;
+		int i, mask = 0;
 
 		tz = thermal_of_build_thermal_zone(child);
 		if (IS_ERR(tz)) {
@@ -873,8 +874,10 @@ int __init of_parse_thermal_zones(void)
 		 */
 		tzp->no_hwmon = !of_property_read_bool(child, "linux,hwmon");
 
+		for (i = 0; i < tz->ntrips; i++)
+			mask |= 1 << i;
 		zone = thermal_zone_device_register(child->name, tz->ntrips,
-						    0, tz,
+						    mask, tz,
 						    ops, tzp,
 						    tz->passive_delay,
 						    tz->polling_delay);
