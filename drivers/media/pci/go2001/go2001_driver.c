@@ -2025,7 +2025,7 @@ static int go2001_streamoff(struct file *file, void *fh,
 	return vb2_streamoff(vq, type);
 }
 
-int go2001_subscribe_event(struct v4l2_fh *fh,
+static int go2001_subscribe_event(struct v4l2_fh *fh,
 				const struct v4l2_event_subscription *sub)
 {
 	switch (sub->type) {
@@ -2036,6 +2036,39 @@ int go2001_subscribe_event(struct v4l2_fh *fh,
 	default:
 		return -EINVAL;
 	}
+}
+
+static int go2001_enum_framesizes(struct file *file, void *fh,
+					struct v4l2_frmsizeenum *fsize)
+{
+	struct go2001_ctx *ctx = fh_to_ctx(file->private_data);
+	struct v4l2_frmsize_stepwise *s = &fsize->stepwise;
+	struct go2001_fmt *fmt;
+
+	if (fsize->index != 0)
+		return -EINVAL;
+
+	fmt = go2001_find_fmt(ctx, fsize->pixel_format);
+	if (!fmt) {
+		go2001_dbg(ctx->gdev, 1, "Unsupported pixelformat %d\n",
+				fsize->pixel_format);
+		return -EINVAL;
+	}
+
+	if (fmt->type != FMT_TYPE_CODED) {
+		go2001_dbg(ctx->gdev, 1, "Only supported for coded formats\n");
+		return -EINVAL;
+	}
+
+	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	s->min_width = GO2001_VPX_MACROBLOCK_SIZE;
+	s->max_width = 1920;
+	s->step_width = 2;
+	s->min_height = GO2001_VPX_MACROBLOCK_SIZE;
+	s->max_height = 1088;
+	s->step_height = 2;
+
+	return 0;
 }
 
 static const struct v4l2_ioctl_ops go2001_ioctl_dec_ops = {
@@ -2062,6 +2095,8 @@ static const struct v4l2_ioctl_ops go2001_ioctl_dec_ops = {
 	.vidioc_streamon = go2001_streamon,
 	.vidioc_streamoff = go2001_streamoff,
 	.vidioc_expbuf = go2001_expbuf,
+
+	.vidioc_enum_framesizes = go2001_enum_framesizes,
 
 	.vidioc_subscribe_event = go2001_subscribe_event,
 };
@@ -2094,6 +2129,8 @@ static const struct v4l2_ioctl_ops go2001_ioctl_enc_ops = {
 	.vidioc_streamon = go2001_streamon,
 	.vidioc_streamoff = go2001_streamoff,
 	.vidioc_expbuf = go2001_expbuf,
+
+	.vidioc_enum_framesizes = go2001_enum_framesizes,
 };
 
 
