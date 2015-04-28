@@ -237,12 +237,13 @@ static inline int nss_gmac_rx(struct nss_gmac_dev *gmacdev, int budget)
 
 	do {
 		desc = gmacdev->rx_busy_desc;
-		if (nss_gmac_is_desc_owned_by_dma(desc)) {
+		status = desc->status;
+		rmb();
+		if (status & desc_own_by_dma) {
 			/* desc still hold by gmac dma, so we are done */
 			break;
 		}
 
-		status = desc->status;
 		rx_skb = (struct sk_buff *)desc->reserved1;
 		dma_unmap_single(&gmacdev->netdev->dev, desc->buffer1,
 				NSS_GMAC_MINI_JUMBO_FRAME_MTU, DMA_FROM_DEVICE);
@@ -306,15 +307,17 @@ static inline void nss_gmac_process_tx_complete(struct nss_gmac_dev *gmacdev)
 
 	do {
 		desc = gmacdev->tx_busy_desc;
-		if (nss_gmac_is_desc_owned_by_dma(desc)) {
+		status = desc->status;
+		rmb();
+		if (status & desc_own_by_dma) {
 			/* desc still hold by gmac dma, so we are done */
 			break;
 		}
+
 		len = (desc->length & desc_size1_mask) >> desc_size1_shift;
 		dma_unmap_single(&gmacdev->netdev->dev, desc->buffer1, len,
 								DMA_TO_DEVICE);
 
-		status = desc->status;
 		if (status & desc_tx_last) {
 			/* TX is done for this whole skb, we can free it */
 			skb = (struct sk_buff *)desc->reserved1;
