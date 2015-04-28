@@ -27,6 +27,7 @@
 #include <linux/fs.h>
 #include <linux/pkt_sched.h>
 #include <linux/string.h>
+#include <linux/random.h>
 #include <net/route.h>
 #include <net/ip.h>
 #include <net/tcp.h>
@@ -554,6 +555,11 @@ static char *ecm_db_interface_type_names[ECM_DB_IFACE_TYPE_COUNT] = {
 	"SIT",
 	"TUNIPIP6",
 };
+
+/*
+ * Random seed used during hash calculations
+ */
+static uint32_t ecm_db_jhash_rnd __read_mostly;
 
 /*
  * ecm_db_connection_count_get()
@@ -2594,16 +2600,19 @@ EXPORT_SYMBOL(ecm_db_connection_defunct_all);
  */
 static inline ecm_db_connection_hash_t ecm_db_connection_generate_hash_index(ip_addr_t host1_addr, uint32_t host1_port, ip_addr_t host2_addr, uint32_t host2_port, int protocol)
 {
-	uint32_t temp;
+	uint32_t hah1;
+	uint32_t hah2;
+	uint32_t ht1;
 	uint32_t hash_val;
 
 	/*
 	 * The hash function only uses both host 1 address/port, host 2 address/port
 	 * and protocol fields.
 	 */
-	temp = (u32)host1_addr[0] + host1_port + (u32)host2_addr[0] + host2_port + (uint32_t)protocol;
-	hash_val = (temp >> 24) ^ (temp >> 16) ^ (temp >> 8) ^ temp;
-
+	ECM_IP_ADDR_HASH(hah1, host1_addr);
+	ECM_IP_ADDR_HASH(hah2, host2_addr);
+	ht1 = (u32)hah1 + host1_port + hah2 + host2_port + (uint32_t)protocol;
+	hash_val = (uint32_t)jhash_1word(ht1, ecm_db_jhash_rnd);
 	return (ecm_db_connection_hash_t)(hash_val & (ECM_DB_CONNECTION_HASH_SLOTS - 1));
 }
 
@@ -2613,7 +2622,10 @@ static inline ecm_db_connection_hash_t ecm_db_connection_generate_hash_index(ip_
  */
 static inline ecm_db_connection_serial_hash_t ecm_db_connection_generate_serial_hash_index(uint32_t serial)
 {
-	return (ecm_db_connection_serial_hash_t)(serial & (ECM_DB_CONNECTION_SERIAL_HASH_SLOTS - 1));
+	uint32_t hash_val;
+	hash_val = (uint32_t)jhash_1word(serial, ecm_db_jhash_rnd);
+
+	return (ecm_db_connection_serial_hash_t)(hash_val & (ECM_DB_CONNECTION_SERIAL_HASH_SLOTS - 1));
 }
 
 /*
@@ -2622,12 +2634,11 @@ static inline ecm_db_connection_serial_hash_t ecm_db_connection_generate_serial_
  */
 static inline ecm_db_mapping_hash_t ecm_db_mapping_generate_hash_index(ip_addr_t address, uint32_t port)
 {
-	uint32_t temp;
+	uint32_t tuple;
 	uint32_t hash_val;
 
-	temp = (u32)address[0] + port;
-	hash_val = (temp >> 24) ^ (temp >> 16) ^ (temp >> 8) ^ temp;
-
+	ECM_IP_ADDR_HASH(tuple, address);
+	hash_val = (uint32_t)jhash_2words(tuple, port, ecm_db_jhash_rnd);
 	return (ecm_db_mapping_hash_t)(hash_val & (ECM_DB_MAPPING_HASH_SLOTS - 1));
 }
 
@@ -2637,12 +2648,11 @@ static inline ecm_db_mapping_hash_t ecm_db_mapping_generate_hash_index(ip_addr_t
  */
 static inline ecm_db_host_hash_t ecm_db_host_generate_hash_index(ip_addr_t address)
 {
-	uint32_t temp;
+	uint32_t tuple;
 	uint32_t hash_val;
 
-	temp = (uint32_t)address[0];
-	hash_val = (temp >> 24) ^ (temp >> 16) ^ (temp >> 8) ^ temp;
-
+	ECM_IP_ADDR_HASH(tuple, address);
+	hash_val = (uint32_t)jhash_1word(tuple, ecm_db_jhash_rnd);
 	return (ecm_db_host_hash_t)(hash_val & (ECM_DB_HOST_HASH_SLOTS - 1));
 }
 
@@ -2654,7 +2664,7 @@ static inline ecm_db_node_hash_t ecm_db_node_generate_hash_index(uint8_t *addres
 {
 	uint32_t hash_val;
 
-	hash_val = (((uint32_t)(address[2] ^ address[4])) << 8) | (address[3] ^ address[5]);
+	hash_val = (uint32_t)jhash(address, 6, ecm_db_jhash_rnd);
 	hash_val &= (ECM_DB_NODE_HASH_SLOTS - 1);
 
 	return (ecm_db_node_hash_t)hash_val;
@@ -2668,7 +2678,9 @@ static inline ecm_db_node_hash_t ecm_db_node_generate_hash_index(uint8_t *addres
  */
 static inline ecm_db_iface_hash_t ecm_db_iface_generate_hash_index_ethernet(uint8_t *address)
 {
-	return (ecm_db_iface_hash_t)(address[5] & (ECM_DB_IFACE_HASH_SLOTS - 1));
+	uint32_t hash_val;
+	hash_val = (uint32_t)jhash(address, 6, ecm_db_jhash_rnd);
+	return (ecm_db_iface_hash_t)(hash_val & (ECM_DB_IFACE_HASH_SLOTS - 1));
 }
 
 
@@ -2678,7 +2690,9 @@ static inline ecm_db_iface_hash_t ecm_db_iface_generate_hash_index_ethernet(uint
  */
 static inline ecm_db_iface_hash_t ecm_db_iface_generate_hash_index_unknown(uint32_t os_specific_ident)
 {
-	return (ecm_db_iface_hash_t)(os_specific_ident & (ECM_DB_IFACE_HASH_SLOTS - 1));
+	uint32_t hash_val;
+	hash_val = (uint32_t)jhash_1word(os_specific_ident, ecm_db_jhash_rnd);
+	return (ecm_db_iface_hash_t)(hash_val & (ECM_DB_IFACE_HASH_SLOTS - 1));
 }
 
 /*
@@ -2687,7 +2701,9 @@ static inline ecm_db_iface_hash_t ecm_db_iface_generate_hash_index_unknown(uint3
  */
 static inline ecm_db_iface_hash_t ecm_db_iface_generate_hash_index_loopback(uint32_t os_specific_ident)
 {
-	return (ecm_db_iface_hash_t)(os_specific_ident & (ECM_DB_IFACE_HASH_SLOTS - 1));
+	uint32_t hash_val;
+	hash_val = (uint32_t)jhash_1word(os_specific_ident, ecm_db_jhash_rnd);
+	return (ecm_db_iface_hash_t)(hash_val & (ECM_DB_IFACE_HASH_SLOTS - 1));
 }
 
 
@@ -3001,22 +3017,14 @@ struct ecm_db_mapping_instance *ecm_db_mapping_find_and_ref(ip_addr_t address, i
 EXPORT_SYMBOL(ecm_db_mapping_find_and_ref);
 
 /*
- * ecm_db_connection_find_and_ref()
- *	Locate a connection instance based on addressing, protocol and optional port information.
- *
- * NOTE: For non-port based protocols then ports are expected to be -(protocol).
+ * ecm_db_connection_find_and_ref_chain()
+ *	Given a hash chain index locate the connection
  */
-struct ecm_db_connection_instance *ecm_db_connection_find_and_ref(ip_addr_t host1_addr, ip_addr_t host2_addr, int protocol, int host1_port, int host2_port)
+static struct ecm_db_connection_instance *ecm_db_connection_find_and_ref_chain(ecm_db_connection_hash_t hash_index,
+											ip_addr_t host1_addr, ip_addr_t host2_addr,
+											int protocol, int host1_port, int host2_port)
 {
-	ecm_db_connection_hash_t hash_index;
 	struct ecm_db_connection_instance *ci;
-
-	DEBUG_TRACE("Lookup connection " ECM_IP_ADDR_OCTAL_FMT ":%d <> " ECM_IP_ADDR_OCTAL_FMT ":%d protocol %d\n", ECM_IP_ADDR_TO_OCTAL(host1_addr), host1_port, ECM_IP_ADDR_TO_OCTAL(host2_addr), host2_port, protocol);
-
-	/*
-	 * Compute the hash chain index and prepare to walk the chain
-	 */
-	hash_index = ecm_db_connection_generate_hash_index(host1_addr, host1_port, host2_addr, host2_port, protocol);
 
 	/*
 	 * Iterate the chain looking for a connection with matching details
@@ -3084,7 +3092,7 @@ try_next:
 		ecm_db_connection_deref(ci);
 		ci = cin;
 	}
-	DEBUG_TRACE("Connection not found\n");
+	DEBUG_TRACE("Connection not found in hash chain\n");
 	return NULL;
 
 connection_found:
@@ -3123,6 +3131,25 @@ connection_found:
 	ci->hash_prev = NULL;
 	spin_unlock_bh(&ecm_db_lock);
 	return ci;
+}
+
+/*
+ * ecm_db_connection_find_and_ref()
+ *	Locate a connection instance based on addressing, protocol and optional port information.
+ *
+ * NOTE: For non-port based protocols then ports are expected to be -(protocol).
+ */
+struct ecm_db_connection_instance *ecm_db_connection_find_and_ref(ip_addr_t host1_addr, ip_addr_t host2_addr, int protocol, int host1_port, int host2_port)
+{
+	ecm_db_connection_hash_t hash_index;
+
+	DEBUG_TRACE("Lookup connection " ECM_IP_ADDR_OCTAL_FMT ":%d <> " ECM_IP_ADDR_OCTAL_FMT ":%d protocol %d\n", ECM_IP_ADDR_TO_OCTAL(host1_addr), host1_port, ECM_IP_ADDR_TO_OCTAL(host2_addr), host2_port, protocol);
+
+	/*
+	 * Compute the hash chain index and prepare to walk the chain
+	 */
+	hash_index = ecm_db_connection_generate_hash_index(host1_addr, host1_port, host2_addr, host2_port, protocol);
+	return ecm_db_connection_find_and_ref_chain(hash_index, host1_addr, host2_addr, protocol, host1_port, host2_port);
 }
 EXPORT_SYMBOL(ecm_db_connection_find_and_ref);
 
@@ -5631,6 +5658,12 @@ int ecm_db_init(void)
 	 * Initialise our global database lock
 	 */
 	spin_lock_init(&ecm_db_lock);
+
+	/*
+	 * Get a random seed for jhash()
+	 */
+	get_random_bytes(&ecm_db_jhash_rnd, sizeof(ecm_db_jhash_rnd));
+	DEBUG_INFO("jhash random seed: %u\n", ecm_db_jhash_rnd);
 
 	/*
 	 * Register System device control
