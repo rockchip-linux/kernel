@@ -443,7 +443,7 @@ static void rockchip_edp_wait_hpd(struct rockchip_edp_device *edp)
 		dev_warn(edp->dev, "eDP HPD forced but still not detected!\n");
 }
 
-static void rockchip_edp_poweron(struct drm_encoder *encoder, bool full)
+static void rockchip_edp_poweron(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
 	int ret;
@@ -468,21 +468,20 @@ static void rockchip_edp_poweron(struct drm_encoder *encoder, bool full)
 
 	rockchip_edp_wait_hpd(edp);
 	rockchip_edp_lt_init(edp);
-	if (full)
-		rockchip_edp_commit(encoder);
+	rockchip_edp_commit(encoder);
 
-	if (edp->panel && full)
+	if (edp->panel)
 		drm_panel_enable(edp->panel);
 }
 
-static void rockchip_edp_poweroff(struct drm_encoder *encoder, bool full)
+static void rockchip_edp_poweroff(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
 
 	if (edp->dpms_mode == DRM_MODE_DPMS_OFF)
 		return;
 
-	if (edp->panel && full)
+	if (edp->panel)
 		drm_panel_disable(edp->panel);
 
 	rockchip_edp_reset(edp);
@@ -516,29 +515,8 @@ static int rockchip_connector_get_modes(struct drm_connector *connector)
 {
 	struct rockchip_edp_device *edp = connector_to_edp(connector);
 	struct drm_panel *panel = edp->panel;
-	struct edid *edid;
-	int dpms = edp->dpms_mode;
-	int num = 0;
 
-	if (dpms == DRM_MODE_DPMS_OFF) {
-		rockchip_edp_poweron(&edp->encoder, false);
-		edp->dpms_mode = DRM_MODE_DPMS_ON;
-	}
-	edid = drm_get_edid(connector, &edp->aux.ddc);
-	if (dpms == DRM_MODE_DPMS_OFF) {
-		rockchip_edp_poweroff(&edp->encoder, false);
-		edp->dpms_mode = dpms;
-	}
-
-	if (IS_ERR_OR_NULL(edid)) {
-		drm_mode_connector_update_edid_property(connector, NULL);
-	} else {
-		drm_mode_connector_update_edid_property(connector, edid);
-		num = drm_add_edid_modes(connector, edid);
-		kfree(edid);
-	}
-
-	return num + panel->funcs->get_modes(panel);
+	return panel->funcs->get_modes(panel);
 }
 
 static struct drm_encoder *
@@ -564,12 +542,12 @@ static void rockchip_drm_encoder_dpms(struct drm_encoder *encoder,
 
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
-		rockchip_edp_poweron(encoder, true);
+		rockchip_edp_poweron(encoder);
 		break;
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
-		rockchip_edp_poweroff(encoder, true);
+		rockchip_edp_poweroff(encoder);
 		break;
 	default:
 		break;
