@@ -213,6 +213,48 @@ static ssize_t enabled_show(struct device *device,
 			"disabled");
 }
 
+static ssize_t content_protection_show(struct device *device,
+				       struct device_attribute *attr, char *buf)
+{
+	struct drm_connector *connector = to_drm_connector(device);
+	struct drm_device *dev = connector->dev;
+	struct drm_property *prop;
+	uint64_t cp;
+	int ret;
+
+	prop = dev->mode_config.content_protection_property;
+	if (!prop)
+		return 0;
+
+	ret = drm_object_property_get_value(&connector->base, prop, &cp);
+	if (ret)
+		return 0;
+
+	return snprintf(buf, PAGE_SIZE, "%s\n",
+			drm_get_content_protection_name((int)cp));
+}
+
+static ssize_t content_protection_ksv_show(struct device *device,
+					   struct device_attribute *attr,
+					   char *buf)
+{
+	struct drm_connector *connector = to_drm_connector(device);
+	struct drm_device *dev = connector->dev;
+	struct drm_property *prop;
+	uint64_t ksv;
+	int ret;
+
+	prop = dev->mode_config.content_protection_ksv_property;
+	if (!prop)
+		return 0;
+
+	ret = drm_object_property_get_value(&connector->base, prop, &ksv);
+	if (ret)
+		return 0;
+
+	return snprintf(buf, PAGE_SIZE, "%llx\n", ksv);
+}
+
 static ssize_t edid_show(struct file *filp, struct kobject *kobj,
 			 struct bin_attribute *attr, char *buf, loff_t off,
 			 size_t count)
@@ -343,6 +385,8 @@ static struct device_attribute connector_attrs[] = {
 	__ATTR_RO(enabled),
 	__ATTR_RO(dpms),
 	__ATTR_RO(modes),
+	__ATTR_RO(content_protection),
+	__ATTR_RO(content_protection_ksv),
 };
 
 /* These attributes are for both DVI-I connectors and all types of tv-out. */
