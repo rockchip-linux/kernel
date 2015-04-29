@@ -71,7 +71,10 @@ static int rk_aif1_hw_params(struct snd_pcm_substream *substream,
 	int mclk;
 
 	switch (params_rate(params)) {
+	case 8000:
+	case 16000:
 	case 48000:
+	case 96000:
 		mclk = 12288000;
 		break;
 	case 44100:
