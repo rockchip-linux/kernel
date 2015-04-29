@@ -2190,7 +2190,6 @@ void s3c_hsotg_disconnect(struct dwc2_hsotg *hsotg)
 
 	call_gadget(hsotg, disconnect);
 }
-EXPORT_SYMBOL_GPL(s3c_hsotg_disconnect);
 
 /**
  * s3c_hsotg_irq_fifoempty - TX FIFO empty interrupt handler
@@ -3667,7 +3666,6 @@ err_clk:
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(dwc2_gadget_init);
 
 /**
  * s3c_hsotg_remove - remove function for hsotg driver
@@ -3680,7 +3678,6 @@ int s3c_hsotg_remove(struct dwc2_hsotg *hsotg)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(s3c_hsotg_remove);
 
 int s3c_hsotg_suspend(struct dwc2_hsotg *hsotg)
 {
@@ -3723,7 +3720,6 @@ int s3c_hsotg_suspend(struct dwc2_hsotg *hsotg)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(s3c_hsotg_suspend);
 
 int s3c_hsotg_resume(struct dwc2_hsotg *hsotg)
 {
@@ -3755,4 +3751,3 @@ int s3c_hsotg_resume(struct dwc2_hsotg *hsotg)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(s3c_hsotg_resume);

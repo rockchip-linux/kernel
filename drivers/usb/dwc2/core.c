@@ -3019,7 +3019,6 @@ void dwc2_set_parameters(struct dwc2_hsotg *hsotg,
 	dwc2_set_param_uframe_sched(hsotg, params->uframe_sched);
 	dwc2_set_param_external_id_pin_ctl(hsotg, params->external_id_pin_ctl);
 }
-EXPORT_SYMBOL_GPL(dwc2_set_parameters);
 
 /**
  * During device initialization, read various hardware configuration
@@ -3186,7 +3185,6 @@ int dwc2_get_hwparams(struct dwc2_hsotg *hsotg)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(dwc2_get_hwparams);
 
 /*
  * Sets all parameters to the given value.
@@ -3202,7 +3200,6 @@ void dwc2_set_all_params(struct dwc2_core_params *params, int value)
 	for (i = 0; i < size; i++)
 		p[i] = value;
 }
-EXPORT_SYMBOL_GPL(dwc2_set_all_params);
 
 
 u16 dwc2_get_otg_version(struct dwc2_hsotg *hsotg)
