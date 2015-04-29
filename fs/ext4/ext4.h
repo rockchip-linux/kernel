@@ -427,11 +427,11 @@ enum {
 	EXT4_INODE_APPEND	= 5,	/* writes to file may only append */
 	EXT4_INODE_NODUMP	= 6,	/* do not dump file */
 	EXT4_INODE_NOATIME	= 7,	/* do not update atime */
-/* Reserved for compression usage, co-opted for encryption usage */
+/* Reserved for compression usage... */
 	EXT4_INODE_DIRTY	= 8,
 	EXT4_INODE_COMPRBLK	= 9,	/* One or more compressed clusters */
 	EXT4_INODE_NOCOMPR	= 10,	/* Don't compress */
-	EXT4_INODE_ENCRYPT	= 11,	/* Encrypted */
+	EXT4_INODE_ENCRYPT	= 11,	/* Encrypted file */
 /* End compression flags --- maybe not all used */
 	EXT4_INODE_INDEX	= 12,	/* hash-indexed directory */
 	EXT4_INODE_IMAGIC	= 13,	/* AFS directory */
@@ -2088,7 +2088,7 @@ int _ext4_fname_disk_to_usr(struct ext4_fname_crypto_ctx *ctx,
 			    const struct ext4_str *iname,
 			    struct ext4_str *oname);
 int ext4_fname_disk_to_usr(struct ext4_fname_crypto_ctx *ctx,
-			   const struct ext4_dir_entry_2 * de,
+			   const struct ext4_dir_entry_2 *de,
 			   struct ext4_str *oname);
 int ext4_fname_usr_to_disk(struct ext4_fname_crypto_ctx *ctx,
 			   const struct qstr *iname,
@@ -2097,7 +2097,7 @@ int ext4_fname_usr_to_hash(struct ext4_fname_crypto_ctx *ctx,
 			   const struct qstr *iname,
 			   struct dx_hash_info *hinfo);
 int ext4_fname_disk_to_hash(struct ext4_fname_crypto_ctx *ctx,
-			    const struct ext4_dir_entry_2 * de,
+			    const struct ext4_dir_entry_2 *de,
 			    struct dx_hash_info *hinfo);
 int ext4_fname_crypto_namelen_on_disk(struct ext4_fname_crypto_ctx *ctx,
 				      u32 namelen);

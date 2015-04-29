@@ -480,12 +480,12 @@ int ext4_decrypt_one(struct inode *inode, struct page *page)
 int ext4_encrypted_zeroout(struct inode *inode, struct ext4_extent *ex)
 {
 	struct ext4_crypto_ctx	*ctx;
-	struct page 		*ciphertext_page = NULL;
+	struct page		*ciphertext_page = NULL;
 	struct bio		*bio;
 	ext4_lblk_t		lblk = ex->ee_block;
 	ext4_fsblk_t		pblk = ext4_ext_pblock(ex);
 	unsigned int		len = ext4_ext_get_actual_len(ex);
-	int 			err = 0;
+	int			err = 0;
 
 	BUG_ON(inode->i_sb->s_blocksize != PAGE_CACHE_SIZE);
 

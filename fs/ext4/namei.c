@@ -2581,18 +2581,19 @@ retry:
 		err = 0;
 #ifdef CONFIG_EXT4_FS_ENCRYPTION
 		if (!err && (ext4_encrypted_inode(dir) ||
-			     DUMMY_ENCRYPTION_ENABLED(EXT4_SB(dir->i_sb))))
+			     DUMMY_ENCRYPTION_ENABLED(EXT4_SB(dir->i_sb)))) {
 			err = ext4_inherit_context(dir, inode);
+			if (err) {
+				clear_nlink(inode);
+				unlock_new_inode(inode);
+				iput(inode);
+			}
+		}
 #endif
 		if (!err)
 			err = ext4_add_nondir(handle, dentry, inode);
 		if (!err && IS_DIRSYNC(dir))
 			ext4_handle_sync(handle);
-		if (err) {
-			clear_nlink(inode);
-			unlock_new_inode(inode);
-			iput(inode);
-		}
 	}
 	if (handle)
 		ext4_journal_stop(handle);

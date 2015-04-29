@@ -592,7 +592,7 @@ int _ext4_fname_disk_to_usr(struct ext4_fname_crypto_ctx *ctx,
 }
 
 int ext4_fname_disk_to_usr(struct ext4_fname_crypto_ctx *ctx,
-			   const struct ext4_dir_entry_2 * de,
+			   const struct ext4_dir_entry_2 *de,
 			   struct ext4_str *oname)
 {
 	struct ext4_str iname = {.name = (unsigned char *) de->name,
@@ -680,7 +680,7 @@ out:
  * ext4_fname_disk_to_htree() - converts a filename from disk space to htree-access string
  */
 int ext4_fname_disk_to_hash(struct ext4_fname_crypto_ctx *ctx,
-			    const struct ext4_dir_entry_2 * de,
+			    const struct ext4_dir_entry_2 *de,
 			    struct dx_hash_info *hinfo)
 {
 	struct ext4_str iname = {.name = (unsigned char *) de->name,
