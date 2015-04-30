@@ -1,25 +1,24 @@
 /*
- * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
  *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
- * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER
- * RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT
- * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE
- * USE OR PERFORMANCE OF THIS SOFTWARE.
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT
+ * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+ * OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
 #ifndef __NSS_GMAC_CLOCKS_H
 #define __NSS_GMAC_CLOCKS_H
 
 #include <asm/io.h>
-
-#ifndef CONFIG_OF
+#if (NSS_GMAC_DT_SUPPORT != 1)
 #include <mach/msm_iomap.h>
 #endif
 
@@ -38,12 +37,10 @@
 #define GMAC_AHB_RESET				(0x3E24)
 
 
-#define GMAC_ACC_CUST_MASK	0xFF000000	/* Custom ACC fields for GMAC
-						   memories		      */
-#define GMAC_FS_S_W_VAL		8		/* Wake and sleep counter value
-						   of memory footswitch control.
-						   Assuming max core frequency
-						   is 266MHz		      */
+#define GMAC_ACC_CUST_MASK		0xFF000000	/* Custom ACC fields for GMAC memories */
+#define GMAC_FS_S_W_VAL			8		/* Wake and sleep counter value of
+							   memory footswitch control. Assuming
+							   max core frequency is 266MHz */
 
 /* NSS_RESET_SPARE register bits */
 #define CAL_PBRS_RST_N_RESET		0x04000000
@@ -57,37 +54,28 @@
 #define GMAC_CLK_LOW_PWR_ENA		0x00000004
 
 /* GMAC_COREn_CLK_SRC[0,1]_MD register bits (Assuming 133MHz) */
-#define GMAC_CORE_CLK_M		0x32
-#define GMAC_CORE_CLK_D		0		/* NOT(2*D) value */
-#define GMAC_CORE_CLK_M_SHIFT	16
-#define GMAC_CORE_CLK_D_SHIFT	0
-#define GMAC_CORE_CLK_M_VAL	(GMAC_CORE_CLK_M << GMAC_CORE_CLK_M_SHIFT)
-#define GMAC_CORE_CLK_D_VAL	(GMAC_CORE_CLK_D << GMAC_CORE_CLK_D_SHIFT)
+#define GMAC_CORE_CLK_M			0x32
+#define GMAC_CORE_CLK_D			0		/* NOT(2*D) value */
+#define GMAC_CORE_CLK_M_SHIFT		16
+#define GMAC_CORE_CLK_D_SHIFT		0
+#define GMAC_CORE_CLK_M_VAL		(GMAC_CORE_CLK_M << GMAC_CORE_CLK_M_SHIFT)
+#define GMAC_CORE_CLK_D_VAL		(GMAC_CORE_CLK_D << GMAC_CORE_CLK_D_SHIFT)
 
 /* GMAC_COREn_CLK_SRC[0,1]_NS register bits (Assuming 133MHz) */
-#define GMAC_CORE_CLK_N		0x4		/* NOT(N-M) value N=301	      */
-#define GMAC_CORE_CLK_N_SHIFT	16
-#define GMAC_CORE_CLK_N_VAL	(GMAC_CORE_CLK_N << GMAC_CORE_CLK_N_SHIFT)
+#define GMAC_CORE_CLK_N			0x4		/* NOT(N-M) value, N=301 */
+#define GMAC_CORE_CLK_N_SHIFT		16
+#define GMAC_CORE_CLK_N_VAL		(GMAC_CORE_CLK_N << GMAC_CORE_CLK_N_SHIFT)
 #define GMAC_CORE_CLK_MNCNTR_EN		0x00000100	/* Enable M/N counter */
-#define GMAC_CORE_CLK_MNCNTR_RST	0x00000080	/* Activate reset for
-							   M/N counter	      */
-#define GMAC_CORE_CLK_MNCNTR_MODE_MASK	0x00000060	/* M/N counter mode
-							   mask		      */
+#define GMAC_CORE_CLK_MNCNTR_RST	0x00000080	/* Activate reset for M/N counter */
+#define GMAC_CORE_CLK_MNCNTR_MODE_MASK	0x00000060	/* M/N counter mode mask */
 #define GMAC_CORE_CLK_MNCNTR_MODE_SHIFT	5
-#define GMAC_CORE_CLK_MNCNTR_MODE_DUAL	(2 << GMAC_CORE_CLK_MNCNTR_MODE_SHIFT)
-							/* M/N counter mode
-							   dual-edge	      */
-#define GMAC_CORE_CLK_PRE_DIV_SEL_MASK	0x00000018	/* Pre divider select
-							   mask		      */
+#define GMAC_CORE_CLK_MNCNTR_MODE_DUAL	(2 << GMAC_CORE_CLK_MNCNTR_MODE_SHIFT) /* M/N counter mode dual-edge */
+#define GMAC_CORE_CLK_PRE_DIV_SEL_MASK	0x00000018	/* Pre divider select mask */
 #define GMAC_CORE_CLK_PRE_DIV_SEL_SHIFT	3
-#define GMAC_CORE_CLK_PRE_DIV_SEL_BYP	(0 << GMAC_CORE_CLK_PRE_DIV_SEL_SHIFT)
-							/* Pre divider bypass */
-#define GMAC_CORE_CLK_SRC_SEL_MASK	0x00000007	/* clk source Mux select
-							   mask		      */
+#define GMAC_CORE_CLK_PRE_DIV_SEL_BYP	(0 << GMAC_CORE_CLK_PRE_DIV_SEL_SHIFT)	/* Pre divider bypass */
+#define GMAC_CORE_CLK_SRC_SEL_MASK	0x00000007				/* clk source Mux select mask */
 #define GMAC_CORE_CLK_SRC_SEL_SHIFT	0
-#define GMAC_CORE_CLK_SRC_SEL_PLL0	(2 << GMAC_CORE_CLK_SRC_SEL_SHIFT)
-							/* output of clk source
-							   Mux is PLL0	      */
+#define GMAC_CORE_CLK_SRC_SEL_PLL0	(2 << GMAC_CORE_CLK_SRC_SEL_SHIFT)	/* output of clk source Mux is PLL0 */
 
 /* CLK_HALT_NSSFAB0_NSSFAB1_STATEA register bits */
 #define GMACn_CORE_CLK_HALT(x)		(0x0010 << x)

@@ -1,20 +1,4 @@
-/*
- **************************************************************************
- * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that the
- * above copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
- * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- **************************************************************************
- */
+/* Copyright (c) 2013, The Linux Foundation. All rights reserved.*/
 /*
  * @file
  * Header file for the nework dependent functionality.
@@ -31,6 +15,7 @@
 #include <linux/ethtool.h>
 
 #include <nss_gmac_dev.h>
+#include <nss_api_if.h>
 
 #define NET_IF_TIMEOUT (10*HZ)
 #define NSS_GMAC_LINK_CHECK_TIME (HZ)
@@ -48,16 +33,17 @@ int32_t nss_gmac_linux_change_mtu(struct net_device *netdev, int32_t newmtu);
 void nss_gmac_linux_tx_timeout(struct net_device *netdev);
 
 /* NSS driver interface APIs */
-void nss_gmac_receive(struct net_device *netdev, struct sk_buff *skb,
-						struct napi_struct *napi);
-void nss_gmac_event_receive(void *if_ctx, int ev_type,
+void nss_gmac_receive(void *if_ctx, void *os_buf);
+void nss_gmac_event_receive(void *if_ctx, nss_gmac_event_t ev_type,
 			    void *os_buf, uint32_t len);
-void nss_gmac_open_work(struct work_struct *work);
+void nss_gmac_work(struct work_struct *work);
 void nss_gmac_ethtool_register(struct net_device *netdev);
 void __exit nss_gmac_deregister_driver(void);
 int32_t __init nss_gmac_register_driver(void);
-void nss_gmac_linkdown(struct nss_gmac_dev *gmacdev);
-void nss_gmac_linkup(struct nss_gmac_dev *gmacdev);
+void nss_gmac_linux_powerup_mac(nss_gmac_dev *gmacdev);
+void nss_gmac_linux_powerdown_mac(nss_gmac_dev *gmacdev);
+void nss_gmac_linkdown(nss_gmac_dev *gmacdev);
+void nss_gmac_linkup(nss_gmac_dev *gmacdev);
 void nss_gmac_adjust_link(struct net_device *netdev);
 
 #endif /* End of file */
