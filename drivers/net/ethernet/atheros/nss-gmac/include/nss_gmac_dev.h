@@ -56,8 +56,6 @@
 					   Descriptor pool/queue              */
 #define NSS_GMAC_RX_DESC_SIZE	128	/* Rx Descriptors needed in the
 					   Descriptor pool/queue              */
-#define NSS_GMAC_TX_THRESH	NSS_GMAC_TX_DESC_SIZE/4
-
 #define DEFAULT_DELAY_VARIABLE  10
 #define DEFAULT_LOOP_VARIABLE   10
 #define MDC_CLK_DIV             (gmii_csr_clk0)
