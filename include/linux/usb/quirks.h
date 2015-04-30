@@ -30,4 +30,8 @@
    descriptor */
 #define USB_QUIRK_DELAY_INIT		0x00000040
 
+/* device is bus-powered but negotiate a separate power contract using
+   USB type-C/Power Delivery */
+#define USB_QUIRK_TYPEC_POWERED		0x00000080
+
 #endif /* __LINUX_USB_QUIRKS_H */

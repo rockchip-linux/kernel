@@ -1531,7 +1531,8 @@ static int hub_configure(struct usb_hub *hub,
 			hub->mA_per_port = hdev->bus_mA;
 			hub->limited_power = 1;
 		}
-	} else if ((hubstatus & (1 << USB_DEVICE_SELF_POWERED)) == 0) {
+	} else if (((hubstatus & (1 << USB_DEVICE_SELF_POWERED)) == 0) &&
+		   !(hdev->quirks & USB_QUIRK_TYPEC_POWERED)) {
 		int remaining = hdev->bus_mA -
 			hub->descriptor->bHubContrCurrent;
 
