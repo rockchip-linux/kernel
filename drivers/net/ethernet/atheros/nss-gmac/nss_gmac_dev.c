@@ -51,6 +51,11 @@ int32_t nss_gmac_check_link(struct nss_gmac_dev *gmacdev)
 	if (!test_bit(__NSS_GMAC_LINKPOLL, &gmacdev->flags))
 		return LINKUP;
 
+	if (gmacdev->emulation && (gmacdev->phy_mii_type == GMAC_INTF_SGMII
+			|| gmacdev->phy_mii_type == GMAC_INTF_QSGMII)) {
+		return LINKUP;
+	}
+
 	genphy_read_status(phydev);
 
 	if (phydev->link)
@@ -205,6 +210,9 @@ void nss_gmac_mii_wr_reg(struct nss_gmac_dev *gmacdev, uint32_t phy,
  */
 void nss_gmac_reset_phy(struct nss_gmac_dev *gmacdev, uint32_t phyid)
 {
+	if (gmacdev->emulation && (gmacdev->phy_mii_type != GMAC_INTF_RGMII))
+		return;
+
 	nss_gmac_mii_wr_reg(gmacdev, phyid, MII_BMCR, BMCR_RESET);
 	nss_gmac_mii_wr_reg(gmacdev, phyid, MII_BMCR,
 			    nss_gmac_mii_rd_reg(gmacdev, phyid, MII_BMCR)
@@ -1202,7 +1210,8 @@ int32_t nss_gmac_check_phy_init(struct nss_gmac_dev *gmacdev)
 	 * If link polling is disabled, we need to use the forced speed
 	 * and duplex configured for the interface.
 	 */
-	if (!test_bit(__NSS_GMAC_LINKPOLL, &gmacdev->flags)) {
+	if (!test_bit(__NSS_GMAC_LINKPOLL, &gmacdev->flags)
+					&& !gmacdev->emulation) {
 		if (gmacdev->forced_speed != SPEED_UNKNOWN) {
 			gmacdev->speed = gmacdev->forced_speed;
 			gmacdev->duplex_mode = gmacdev->forced_duplex;
@@ -1212,6 +1221,14 @@ int32_t nss_gmac_check_phy_init(struct nss_gmac_dev *gmacdev)
 								, __func__);
 			return -EIO;
 		}
+	}
+
+	if (gmacdev->emulation && (gmacdev->phy_mii_type == GMAC_INTF_SGMII
+			|| gmacdev->phy_mii_type == GMAC_INTF_QSGMII)) {
+		/* Emulation build, Q/SGMII interface. Returning 100Mbps FD */
+		gmacdev->speed = SPEED100;
+		gmacdev->duplex_mode = FULLDUPLEX;
+		goto out;
 	}
 
 	if (gmacdev->phy_mii_type == GMAC_INTF_SGMII
