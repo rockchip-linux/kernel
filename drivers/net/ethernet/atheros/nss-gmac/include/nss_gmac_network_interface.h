@@ -35,6 +35,10 @@
 #define NET_IF_TIMEOUT (10*HZ)
 #define NSS_GMAC_LINK_CHECK_TIME (HZ)
 
+/* Private ioctls supported by GMACs */
+#define IOCTL_READ_REGISTER	(SIOCDEVPRIVATE + 1)
+#define IOCTL_WRITE_REGISTER	(SIOCDEVPRIVATE + 2)
+
 /* Linux network interface APIs */
 int32_t nss_gmac_linux_xmit_frames(struct sk_buff *skb,
 				   struct net_device *netdev);

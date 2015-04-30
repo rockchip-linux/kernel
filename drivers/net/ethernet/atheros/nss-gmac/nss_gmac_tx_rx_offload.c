@@ -1028,6 +1028,14 @@ void nss_gmac_linux_tx_timeout(struct net_device *netdev)
 	gmacdev = (struct nss_gmac_dev *)netdev_priv(netdev);
 	BUG_ON(gmacdev == NULL);
 
+	if (gmacdev->gmac_power_down == 0) {
+		/* If Mac is in powerdown */
+		netdev_dbg(netdev,
+				"%s TX time out during power down is ignored",
+				netdev->name);
+		return;
+	}
+
 	netif_carrier_off(netdev);
 	nss_gmac_disable_dma_tx(gmacdev);
 	nss_gmac_flush_tx_fifo(gmacdev);

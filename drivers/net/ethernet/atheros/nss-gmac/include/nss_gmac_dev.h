@@ -229,6 +229,10 @@ struct nss_gmac_dev {
 	spinlock_t stats_lock;		/* Lock to retrieve stats atomically  */
 	spinlock_t slock;		/* Lock to protect datapath	      */
 	struct mutex link_mutex;	/* Lock to protect link status change */
+	uint32_t gmac_power_down;	/* indicate to ISR whether the
+					   interrupts occurred in the process
+					   of powering down                   */
+
 	struct nss_gmac_global_ctx *ctx;/* Global NSS GMAC context            */
 	struct resource *memres;	/* memory resource                    */
 
