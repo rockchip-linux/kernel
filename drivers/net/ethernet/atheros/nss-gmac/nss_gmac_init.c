@@ -60,19 +60,21 @@ void nss_gmac_qsgmii_dev_init(struct nss_gmac_dev *gmacdev)
 	uint32_t id = gmacdev->macid;
 	uint8_t *nss_base = (uint8_t *)(gmacdev->ctx->nss_base);
 	uint32_t *qsgmii_base = (uint32_t *)(gmacdev->ctx->qsgmii_base);
-	uint32_t qsgmii_tx_param;
+	uint32_t qsgmii_tx_drv;
+	uint32_t qsgmii_tx_slew;
+	uint32_t qsgmii_deemphasis;
 
 	if (gmacdev->phy_mii_type == GMAC_INTF_SGMII) {
 		switch (gmacdev->macid) {
 		case 1:
 			if (SOCINFO_VERSION_MAJOR(gmacdev->ctx->socver) < 2) {
-				qsgmii_tx_param = QSGMII_PHY_TX_DRV_AMP(0xC)
-					| QSGMII_PHY_TX_SLEW(0x2)
-					| QSGMII_PHY_DEEMPHASIS_LVL(0x2);
+				qsgmii_tx_drv = QSGMII_PHY_TX_DRV_AMP(0xC);
+				qsgmii_tx_slew = QSGMII_PHY_TX_SLEW(0x2);
+				qsgmii_deemphasis =  QSGMII_PHY_DEEMPHASIS_LVL(0x2);
 			} else {
-				qsgmii_tx_param = QSGMII_PHY_TX_DRV_AMP(0xD)
-					| QSGMII_PHY_TX_SLEW(0)
-					| QSGMII_PHY_DEEMPHASIS_LVL(0);
+				qsgmii_tx_drv = QSGMII_PHY_TX_DRV_AMP(0xD);
+				qsgmii_tx_slew = QSGMII_PHY_TX_SLEW(0);
+				qsgmii_deemphasis =  QSGMII_PHY_DEEMPHASIS_LVL(0);
 			}
 
 			nss_gmac_write_reg((uint32_t *)qsgmii_base,
@@ -85,7 +87,9 @@ void nss_gmac_qsgmii_dev_init(struct nss_gmac_dev *gmacdev)
 					  | QSGMII_PHY_RX_DC_BIAS(0x2)
 					  | QSGMII_PHY_RX_INPUT_EQU(0x1)
 					  | QSGMII_PHY_CDR_PI_SLEW(0x2)
-					  | qsgmii_tx_param);
+					  | qsgmii_tx_slew
+					  | qsgmii_deemphasis
+					  | qsgmii_tx_drv);
 
 			val = nss_gmac_read_reg((uint32_t *)qsgmii_base,
 							QSGMII_PHY_QSGMII_CTL);
