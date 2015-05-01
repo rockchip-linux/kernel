@@ -278,6 +278,15 @@ static inline int nss_gmac_rx(struct nss_gmac_dev *gmacdev, int budget)
 }
 
 /*
+ * nss_gmac_tx_avail
+ *	Returns the number of available TX descriptors
+ */
+static uint32_t nss_gmac_tx_avail(struct nss_gmac_dev *gmacdev)
+{
+	return NSS_GMAC_TX_DESC_SIZE - gmacdev->busy_tx_desc;
+}
+
+/*
  * nss_gmac_process_tx_complete
  *	Xmit complete, clear descriptor and free the skb
  */
@@ -335,6 +344,11 @@ static inline void nss_gmac_process_tx_complete(struct nss_gmac_dev *gmacdev)
 		nss_gmac_reset_tx_qptr(gmacdev);
 		busy--;
 	} while (busy > 0);
+
+	if (unlikely(netif_queue_stopped(gmacdev->netdev)) &&
+	            (nss_gmac_tx_avail(gmacdev) > NSS_GMAC_TX_THRESH))
+		netif_wake_queue(gmacdev->netdev);
+
 	spin_unlock(&gmacdev->slock);
 }
 
@@ -424,8 +438,13 @@ static int nss_gmac_slowpath_if_xmit(void *app_data, struct sk_buff *skb)
 	/*
 	 * We don't have enough tx descriptor for this pkt, return busy
 	 */
-	if ((NSS_GMAC_TX_DESC_SIZE - gmacdev->busy_tx_desc) < nfrags + 1)
+	if ((NSS_GMAC_TX_DESC_SIZE - gmacdev->busy_tx_desc) < nfrags + 1) {
+		if (!netif_queue_stopped(netdev)) {
+			netif_stop_queue(netdev);
+			pr_err("%s: TX descriptor ring full\n", __func__);
+		}
 		return NETDEV_TX_BUSY;
+	}
 
 	/*
 	 * Most likely, it is not a fragmented pkt, optimize for that
