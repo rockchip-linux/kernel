@@ -431,8 +431,6 @@ int32_t nss_gmac_common_init(struct nss_gmac_global_ctx *ctx)
 {
 	uint32_t val;
 
-	spin_lock_init(&ctx->reg_lock);
-
 	nss_gmac_clear_all_regs((uint32_t *)ctx->nss_base);
 
 	nss_gmac_write_reg((uint32_t *)(ctx->qsgmii_base),
