@@ -384,11 +384,13 @@ int iwl_mvm_init_fw_regd(struct iwl_mvm *mvm)
 {
 	enum iwl_mcc_source used_src;
 	struct ieee80211_regdomain *regd;
+	int ret;
+	bool changed;
 	const struct ieee80211_regdomain *r =
 			rtnl_dereference(mvm->hw->wiphy->regd);
 
 	if (!r)
-		return 0;
+		return -ENOENT;
 
 	/* save the last source in case we overwrite it below */
 	used_src = mvm->mcc_src;
@@ -400,14 +402,19 @@ int iwl_mvm_init_fw_regd(struct iwl_mvm *mvm)
 	}
 
 	/* Now set our last stored MCC and source */
-	regd = iwl_mvm_get_regdomain(mvm->hw->wiphy, r->alpha2, used_src, NULL);
+	regd = iwl_mvm_get_regdomain(mvm->hw->wiphy, r->alpha2, used_src,
+				     &changed);
 	if (IS_ERR_OR_NULL(regd))
 		return -EIO;
 
-	regulatory_set_wiphy_regd(mvm->hw->wiphy, regd);
-	kfree(regd);
+	/* update cfg80211 if the regdomain was changed */
+	if (changed)
+		ret = regulatory_set_wiphy_regd_sync_rtnl(mvm->hw->wiphy, regd);
+	else
+		ret = 0;
 
-	return 0;
+	kfree(regd);
+	return ret;
 }
 
 int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
@@ -1193,9 +1200,11 @@ static void iwl_mvm_restart_cleanup(struct iwl_mvm *mvm)
 	/* just in case one was running */
 	ieee80211_remain_on_channel_expired(mvm->hw);
 
-	ieee80211_iterate_active_interfaces_atomic(
-		mvm->hw, IEEE80211_IFACE_ITER_RESUME_ALL,
-		iwl_mvm_cleanup_iterator, mvm);
+	/*
+	 * cleanup all interfaces, even inactive ones, as some might have
+	 * gone down during the HW restart
+	 */
+	ieee80211_iterate_interfaces(mvm->hw, 0, iwl_mvm_cleanup_iterator, mvm);
 
 	mvm->p2p_device_vif = NULL;
 	mvm->d0i3_ap_sta_id = IWL_MVM_STATION_COUNT;
@@ -1368,8 +1377,12 @@ void __iwl_mvm_mac_stop(struct iwl_mvm *mvm)
 	/*
 	 * Clear IN_HW_RESTART flag when stopping the hw (as restart_complete()
 	 * won't be called in this case).
+	 * But make sure to cleanup interfaces that have gone down before/during
+	 * HW restart was requested.
 	 */
-	clear_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status);
+	if (test_and_clear_bit(IWL_MVM_STATUS_IN_HW_RESTART, &mvm->status))
+		ieee80211_iterate_interfaces(mvm->hw, 0,
+					     iwl_mvm_cleanup_iterator, mvm);
 
 	mvm->ucode_loaded = false;
 }
@@ -1486,7 +1499,7 @@ static int iwl_mvm_mac_add_interface(struct ieee80211_hw *hw,
 
 	ret = iwl_mvm_power_update_mac(mvm);
 	if (ret)
-		goto out_release;
+		goto out_remove_mac;
 
 	/* beacon filtering */
 	ret = iwl_mvm_disable_beacon_filter(mvm, vif, 0);
@@ -2137,8 +2150,7 @@ static int iwl_mvm_start_ap_ibss(struct ieee80211_hw *hw,
 	if (iwl_mvm_phy_ctx_count(mvm) > 1)
 		iwl_mvm_teardown_tdls_peers(mvm);
 
-	mutex_unlock(&mvm->mutex);
-	return 0;
+	goto out_unlock;
 
 out_quota_failed:
 	iwl_mvm_power_update_mac(mvm);
@@ -2367,7 +2379,11 @@ static void iwl_mvm_mac_cancel_hw_scan(struct ieee80211_hw *hw,
 	 * cancel scan scan before ieee80211_scan_work() could run.
 	 * To handle that, simply return if the scan is not running.
 	*/
-	if (mvm->scan_status == IWL_MVM_SCAN_OS)
+	/* FIXME: for now, we ignore this race for UMAC scans, since
+	 * they don't set the scan_status.
+	 */
+	if ((mvm->scan_status == IWL_MVM_SCAN_OS) ||
+	    (mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_UMAC_SCAN))
 		iwl_mvm_cancel_scan(mvm);
 
 	mutex_unlock(&mvm->mutex);
@@ -2744,7 +2760,11 @@ static int iwl_mvm_mac_sched_scan_stop(struct ieee80211_hw *hw,
 	 * could run.  To handle this, simply return if the scan is
 	 * not running.
 	*/
-	if (mvm->scan_status != IWL_MVM_SCAN_SCHED) {
+	/* FIXME: for now, we ignore this race for UMAC scans, since
+	 * they don't set the scan_status.
+	 */
+	if (mvm->scan_status != IWL_MVM_SCAN_SCHED &&
+	    !(mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_UMAC_SCAN)) {
 		mutex_unlock(&mvm->mutex);
 		return 0;
 	}

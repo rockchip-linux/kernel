@@ -903,7 +903,9 @@ static void iwl_mvm_uapsd_agg_disconnect_iter(void *data, u8 *mac,
 		return;
 
 	mvm->tcm.data[*mac_id].uapsd_nonagg_detect.detected = true;
-	schedule_delayed_work(&mvmvif->uapsd_nonagg_detected_wk, 5 * HZ);
+	IWL_INFO(mvm,
+		 "detected AP should do aggregation but isn't, likely due to U-APSD\n");
+	schedule_delayed_work(&mvmvif->uapsd_nonagg_detected_wk, 15 * HZ);
 }
 
 static void iwl_mvm_check_uapsd_agg_expected_tpt(struct iwl_mvm *mvm,

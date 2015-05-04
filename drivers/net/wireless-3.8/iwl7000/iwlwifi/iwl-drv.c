@@ -1558,6 +1558,7 @@ static void iwl_req_fw_callback(const struct firmware *ucode_raw, void *context)
 				op->name, err);
 #endif
 	}
+	kfree(pieces);
 	return;
 
  try_again:
@@ -1697,7 +1698,7 @@ struct iwl_mod_params iwlwifi_mod_params = {
 	.bt_coex_active = true,
 	.power_level = IWL_POWER_INDEX_1,
 	.wd_disable = true,
-	.d0i3_disable = true,
+	.d0i3_disable = IS_ENABLED(CPTCFG_IWLWIFI_D0I3_DEFAULT_DISABLE),
 #ifndef CPTCFG_IWLWIFI_UAPSD
 	.uapsd_disable = true,
 #endif /* CPTCFG_IWLWIFI_UAPSD */
@@ -1882,7 +1883,11 @@ MODULE_PARM_DESC(nvm_file, "NVM file name");
 
 module_param_named(d0i3_disable, iwlwifi_mod_params.d0i3_disable,
 		   bool, S_IRUGO);
+#ifdef CPTCFG_IWLWIFI_D0I3_DEFAULT_DISABLE
 MODULE_PARM_DESC(d0i3_disable, "disable d0i3 functionality (default: Y)");
+#else
+MODULE_PARM_DESC(d0i3_disable, "disable d0i3 functionality (default: N)");
+#endif
 
 module_param_named(lar_disable, iwlwifi_mod_params.lar_disable,
 		   bool, S_IRUGO);

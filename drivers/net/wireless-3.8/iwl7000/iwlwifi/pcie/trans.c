@@ -905,6 +905,9 @@ static int iwl_pcie_load_given_ucode_8000b(struct iwl_trans *trans,
 	IWL_DEBUG_FW(trans, "working with %s CPU\n",
 		     image->is_dual_cpus ? "Dual" : "Single");
 
+	if (trans->dbg_dest_tlv)
+		iwl_pcie_apply_destination(trans);
+
 	/* configure the ucode to be ready to get the secured image */
 	/* release CPU reset */
 	iwl_write_prph(trans, RELEASE_CPU_RESET, RELEASE_CPU_RESET_BIT);
@@ -920,9 +923,6 @@ static int iwl_pcie_load_given_ucode_8000b(struct iwl_trans *trans,
 					       &first_ucode_section);
 	if (ret)
 		return ret;
-
-	if (trans->dbg_dest_tlv)
-		iwl_pcie_apply_destination(trans);
 
 #ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
 	iwl_dnt_configure(trans, image);
@@ -1141,7 +1141,8 @@ static void iwl_trans_pcie_d3_suspend(struct iwl_trans *trans, bool test)
 	 */
 	iwl_trans_pcie_tx_reset(trans);
 
-	iwl_pcie_set_pwr(trans, true);
+	if (trans->cfg->device_family != IWL_DEVICE_FAMILY_8000)
+		iwl_pcie_set_pwr(trans, true);
 }
 
 static int iwl_trans_pcie_d3_resume(struct iwl_trans *trans,
@@ -1179,7 +1180,8 @@ static int iwl_trans_pcie_d3_resume(struct iwl_trans *trans,
 		return ret;
 	}
 
-	iwl_pcie_set_pwr(trans, false);
+	if (trans->cfg->device_family != IWL_DEVICE_FAMILY_8000)
+		iwl_pcie_set_pwr(trans, false);
 
 	iwl_trans_pcie_tx_reset(trans);
 
@@ -2009,24 +2011,25 @@ static const struct {
 	{ .start = 0x00a01c7c, .end = 0x00a01c7c },
 	{ .start = 0x00a01c28, .end = 0x00a01c54 },
 	{ .start = 0x00a01c5c, .end = 0x00a01c5c },
-	{ .start = 0x00a01c84, .end = 0x00a01c84 },
+	{ .start = 0x00a01c60, .end = 0x00a01cdc },
 	{ .start = 0x00a01ce0, .end = 0x00a01d0c },
 	{ .start = 0x00a01d18, .end = 0x00a01d20 },
 	{ .start = 0x00a01d2c, .end = 0x00a01d30 },
 	{ .start = 0x00a01d40, .end = 0x00a01d5c },
 	{ .start = 0x00a01d80, .end = 0x00a01d80 },
-	{ .start = 0x00a01d98, .end = 0x00a01d98 },
+	{ .start = 0x00a01d98, .end = 0x00a01d9c },
+	{ .start = 0x00a01da8, .end = 0x00a01da8 },
+	{ .start = 0x00a01db8, .end = 0x00a01df4 },
 	{ .start = 0x00a01dc0, .end = 0x00a01dfc },
 	{ .start = 0x00a01e00, .end = 0x00a01e2c },
 	{ .start = 0x00a01e40, .end = 0x00a01e60 },
+	{ .start = 0x00a01e68, .end = 0x00a01e6c },
+	{ .start = 0x00a01e74, .end = 0x00a01e74 },
 	{ .start = 0x00a01e84, .end = 0x00a01e90 },
 	{ .start = 0x00a01e9c, .end = 0x00a01ec4 },
-	{ .start = 0x00a01ed0, .end = 0x00a01ed0 },
-	{ .start = 0x00a01f00, .end = 0x00a01f14 },
-	{ .start = 0x00a01f44, .end = 0x00a01f58 },
-	{ .start = 0x00a01f80, .end = 0x00a01fa8 },
-	{ .start = 0x00a01fb0, .end = 0x00a01fbc },
-	{ .start = 0x00a01ff8, .end = 0x00a01ffc },
+	{ .start = 0x00a01ed0, .end = 0x00a01ee0 },
+	{ .start = 0x00a01f00, .end = 0x00a01f1c },
+	{ .start = 0x00a01f44, .end = 0x00a01ffc },
 	{ .start = 0x00a02000, .end = 0x00a02048 },
 	{ .start = 0x00a02068, .end = 0x00a020f0 },
 	{ .start = 0x00a02100, .end = 0x00a02118 },

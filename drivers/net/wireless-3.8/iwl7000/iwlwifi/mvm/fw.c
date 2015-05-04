@@ -544,15 +544,6 @@ int iwl_mvm_fw_dbg_collect_desc(struct iwl_mvm *mvm,
 
 	mvm->fw_dump_desc = desc;
 
-	/* stop recording */
-	if (mvm->cfg->device_family == IWL_DEVICE_FAMILY_7000) {
-		iwl_set_bits_prph(mvm->trans, MON_BUFF_SAMPLE_CTL, 0x100);
-	} else {
-		iwl_write_prph(mvm->trans, DBGC_IN_SAMPLE, 0);
-		/* wait before we collect the data till the DBGC stop */
-		udelay(100);
-	}
-
 	queue_delayed_work(system_wq, &mvm->fw_dump_wk, delay);
 
 	return 0;
@@ -704,6 +695,9 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 #endif
 
 	mvm->fw_dbg_conf = FW_DBG_INVALID;
+	/* if we have a destination, assume EARLY START */
+	if (mvm->fw->dbg_dest_tlv)
+		mvm->fw_dbg_conf = FW_DBG_START_FROM_ALIVE;
 	iwl_mvm_start_fw_dbg_conf(mvm, FW_DBG_START_FROM_ALIVE);
 
 	ret = iwl_send_tx_ant_cfg(mvm, iwl_mvm_get_valid_tx_ant(mvm));
@@ -768,9 +762,15 @@ int iwl_mvm_up(struct iwl_mvm *mvm)
 	if (ret)
 		goto error;
 
-	ret = iwl_mvm_init_mcc(mvm);
-	if (ret)
-		goto error;
+	/*
+	 * RTNL is not taken during Ct-kill, but we don't need to scan/Tx
+	 * anyway, so don't init MCC.
+	 */
+	if (!test_bit(IWL_MVM_STATUS_HW_CTKILL, &mvm->status)) {
+		ret = iwl_mvm_init_mcc(mvm);
+		if (ret)
+			goto error;
+	}
 
 	if (mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_UMAC_SCAN) {
 		ret = iwl_mvm_config_scan(mvm);

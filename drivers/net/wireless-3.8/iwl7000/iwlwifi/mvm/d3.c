@@ -1648,9 +1648,9 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 		if (keep)
 			mvm->keep_vif = vif;
+#endif
 		/* has unlocked the mutex, so skip that */
 		goto out_iterate;
-#endif
 	}
 
  out_unlock:
