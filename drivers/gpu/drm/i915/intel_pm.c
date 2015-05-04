@@ -2104,7 +2104,10 @@ static void ilk_compute_wm_parameters(struct drm_crtc *crtc,
 		p->pri.bytes_per_pixel = crtc->primary->fb->bits_per_pixel / 8;
 		p->cur.bytes_per_pixel = 4;
 		p->pri.horiz_pixels = intel_crtc->config.pipe_src_w;
-		p->cur.horiz_pixels = intel_crtc->cursor_width;
+		/* W/A for https://code.google.com/p/chrome-os-partner/issues/detail?id=36548 */
+		/* p->cur.horiz_pixels = intel_crtc->cursor_width; */
+		p->cur.horiz_pixels = 256;
+
 		/* TODO: for now, assume primary and cursor planes are always enabled. */
 		p->pri.enabled = true;
 		p->cur.enabled = true;
