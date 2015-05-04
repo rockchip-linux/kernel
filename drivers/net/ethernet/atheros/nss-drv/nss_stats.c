@@ -859,12 +859,9 @@ static ssize_t nss_stats_drv_read(struct file *fp, char __user *ubuf, size_t sz,
 	}
 
 	size_wr = scnprintf(lbuf, size_al, "drv stats start:\n\n");
-	spin_lock_bh(&nss_top_main.stats_lock);
 	for (i = 0; (i < NSS_STATS_DRV_MAX); i++) {
-		stats_shadow[i] = nss_top_main.stats_drv[i];
+		stats_shadow[i] = NSS_PKT_STATS_READ(&nss_top_main.stats_drv[i]);
 	}
-
-	spin_unlock_bh(&nss_top_main.stats_lock);
 
 	for (i = 0; (i < NSS_STATS_DRV_MAX); i++) {
 		size_wr += scnprintf(lbuf + size_wr, size_al - size_wr,

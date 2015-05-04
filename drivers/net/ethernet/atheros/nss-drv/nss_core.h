@@ -89,6 +89,7 @@
 #if (NSS_PKT_STATS_ENABLED == 1)
 #define NSS_PKT_STATS_INCREMENT(nss_ctx, x) nss_pkt_stats_increment((nss_ctx), (x))
 #define NSS_PKT_STATS_DECREMENT(nss_ctx, x) nss_pkt_stats_decrement((nss_ctx), (x))
+#define NSS_PKT_STATS_READ(x) nss_pkt_stats_read(x)
 #else
 #define NSS_PKT_STATS_INCREMENT(nss_ctx, x)
 #endif
@@ -659,7 +660,7 @@ struct nss_top_instance {
 					/* IPv6 statistics */
 	uint64_t stats_lso_rx[NSS_STATS_LSO_RX_MAX];
 					/* LSO_RX statistics */
-	uint64_t stats_drv[NSS_STATS_DRV_MAX];
+	atomic64_t stats_drv[NSS_STATS_DRV_MAX];
 					/* Hlos driver statistics */
 	uint64_t stats_pppoe[NSS_STATS_PPPOE_MAX];
 					/* PPPoE statistics */
@@ -692,21 +693,25 @@ struct nss_top_instance {
 /*
  * nss_pkt_stats_increment()
  */
-static inline void nss_pkt_stats_increment(struct nss_ctx_instance *nss_ctx, uint64_t *stat)
+static inline void nss_pkt_stats_increment(struct nss_ctx_instance *nss_ctx, atomic64_t *stat)
 {
-	spin_lock_bh(&nss_ctx->nss_top->stats_lock);
-	*stat = *stat + 1;
-	spin_unlock_bh(&nss_ctx->nss_top->stats_lock);
+	atomic64_inc(stat);
 }
 
 /*
  * nss_pkt_stats_increment()
  */
-static inline void nss_pkt_stats_decrement(struct nss_ctx_instance *nss_ctx, uint64_t *stat)
+static inline void nss_pkt_stats_decrement(struct nss_ctx_instance *nss_ctx, atomic64_t *stat)
 {
-	spin_lock_bh(&nss_ctx->nss_top->stats_lock);
-	*stat = *stat - 1;
-	spin_unlock_bh(&nss_ctx->nss_top->stats_lock);
+	atomic64_dec(stat);
+}
+
+/*
+ * nss_pkt_stats_read()
+ */
+static inline uint64_t nss_pkt_stats_read(atomic64_t *stat)
+{
+	return atomic64_read(stat);
 }
 
 #endif

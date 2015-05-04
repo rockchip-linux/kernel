@@ -204,9 +204,7 @@ static int32_t nss_send_c2c_map(struct nss_ctx_instance *nss_own, struct nss_ctx
 	if (unlikely(!nbuf)) {
 		struct nss_top_instance *nss_top = nss_own->nss_top;
 
-		spin_lock_bh(&nss_top->stats_lock);
-		nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]++;
-		spin_unlock_bh(&nss_top->stats_lock);
+		NSS_PKT_STATS_INCREMENT(nss_own, &nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]);
 		nss_warning("%p: Unable to allocate memory for 'C2C tx map'", nss_own);
 		return NSS_CORE_STATUS_FAILURE;
 	}
@@ -1160,9 +1158,7 @@ static void nss_core_handle_cause_nonqueue(struct int_ctx_instance *int_ctx, uin
 					/*
 					 * ERR:
 					 */
-					spin_lock_bh(&nss_top->stats_lock);
-					nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]++;
-					spin_unlock_bh(&nss_top->stats_lock);
+					NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]);
 					nss_warning("%p: Could not obtain empty buffer", nss_ctx);
 					break;
 				}
@@ -1173,9 +1169,7 @@ static void nss_core_handle_cause_nonqueue(struct int_ctx_instance *int_ctx, uin
 					 * ERR:
 					 */
 					dev_kfree_skb_any(nbuf);
-					spin_lock_bh(&nss_top->stats_lock);
-					nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]++;
-					spin_unlock_bh(&nss_top->stats_lock);
+					NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]);
 					nss_warning("%p: Could not obtain empty page", nss_ctx);
 					break;
 				}
@@ -1200,9 +1194,7 @@ static void nss_core_handle_cause_nonqueue(struct int_ctx_instance *int_ctx, uin
 					/*
 					 * ERR:
 					 */
-					spin_lock_bh(&nss_top->stats_lock);
-					nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]++;
-					spin_unlock_bh(&nss_top->stats_lock);
+					NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]);
 					nss_warning("%p: Could not obtain empty jumbo mru buffer", nss_ctx);
 					break;
 				}
@@ -1220,9 +1212,7 @@ static void nss_core_handle_cause_nonqueue(struct int_ctx_instance *int_ctx, uin
 					/*
 					 * ERR:
 					 */
-					spin_lock_bh(&nss_top->stats_lock);
-					nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]++;
-					spin_unlock_bh(&nss_top->stats_lock);
+					NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_top->stats_drv[NSS_STATS_DRV_NBUF_ALLOC_FAILS]);
 					nss_warning("%p: Could not obtain empty buffer", nss_ctx);
 					break;
 				}
