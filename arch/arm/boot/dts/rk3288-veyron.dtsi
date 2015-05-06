@@ -517,7 +517,7 @@
 
 	buttons {
 		pwr_key_l: pwr-key-l {
-			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
