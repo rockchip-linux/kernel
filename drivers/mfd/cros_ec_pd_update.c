@@ -583,8 +583,13 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 
 	/* Force GFU entry for devices not in GFU by default. */
 	for (port = 0; port < drv_data->num_ports; ++port) {
-		dev_dbg(dev, "forcing GFU entry on C%d\n", port);
-		cros_ec_pd_enter_gfu(dev, pd_ec, port);
+		dev_dbg(dev, "Considering GFU entry on C%d\n", port);
+		ret = cros_ec_pd_get_status(dev, pd_ec, port, &hash_entry,
+					    &discovery_entry);
+		if (ret) {
+			dev_dbg(dev, "Forcing GFU entry on C%d\n", port);
+			cros_ec_pd_enter_gfu(dev, pd_ec, port);
+		}
 	}
 
 	pd_status = cros_ec_pd_get_host_event_status(dev, pd_ec);
