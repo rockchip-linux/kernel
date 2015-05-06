@@ -983,6 +983,9 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct edid *edid;
 	enum drm_connector_status status = connector_status_disconnected;
+	intel_hdmi->has_hdmi_sink = false;
+	intel_hdmi->has_audio = false;
+	intel_hdmi->rgb_quant_range_selectable = false;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 		      connector->base.id, drm_get_connector_name(connector));
@@ -995,10 +998,6 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 	else if (IS_VALLEYVIEW(dev) &&
 		 !valleyview_hdmi_connected(dev_priv, intel_dig_port))
 		return status;
-
-	intel_hdmi->has_hdmi_sink = false;
-	intel_hdmi->has_audio = false;
-	intel_hdmi->rgb_quant_range_selectable = false;
 	edid = drm_get_edid(connector,
 			    intel_gmbus_get_adapter(dev_priv,
 						    intel_hdmi->ddc_bus));
