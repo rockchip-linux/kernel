@@ -309,46 +309,16 @@ int rockchip_edp_transfer(struct drm_dp_aux *aux,
 		writel(val, edp->regs + AUX_CH_CTL_2);
 	}
 
-	switch ((msg->request & ~DP_AUX_I2C_MOT)) {
-	case DP_AUX_I2C_WRITE:
-		if (msg->request & DP_AUX_I2C_MOT)
-			val = AUX_LENGTH(msg->size) |
-				AUX_TX_COMM_I2C_TRANSACTION |
-				AUX_TX_COMM_MOT | AUX_TX_COMM_WRITE;
-		else
-			val = AUX_LENGTH(msg->size) |
-				AUX_TX_COMM_I2C_TRANSACTION |
-				AUX_TX_COMM_WRITE;
-
-		buf = (u8 *)msg->buffer;
-		for (i = 0; i < msg->size; i++)
-			writel(*buf++, edp->regs + BUF_DATA_0 + 4 * i);
-		break;
-	case DP_AUX_I2C_READ:
-		if (msg->request & DP_AUX_I2C_MOT)
-			val = AUX_LENGTH(msg->size) |
-				AUX_TX_COMM_I2C_TRANSACTION |
-				AUX_TX_COMM_MOT | AUX_TX_COMM_READ;
-		else
-			val = AUX_LENGTH(msg->size) |
-				AUX_TX_COMM_I2C_TRANSACTION |
-				AUX_TX_COMM_READ;
-		break;
-	case DP_AUX_NATIVE_WRITE:
-		val = AUX_LENGTH(msg->size) | AUX_TX_COMM_DP_TRANSACTION |
-			AUX_TX_COMM_WRITE;
-
-		buf = (u8 *)msg->buffer;
-		for (i = 0; i < msg->size; i++)
-			writel(*buf++, edp->regs + BUF_DATA_0 + 4 * i);
-		break;
-	case DP_AUX_NATIVE_READ:
-		val = AUX_LENGTH(msg->size) | AUX_TX_COMM_DP_TRANSACTION |
-			AUX_TX_COMM_READ;
-		break;
-	}
-
+	val = msg->request;
+	if (msg->size)
+		val |= AUX_LENGTH(msg->size);
 	writel(val, edp->regs + AUX_CH_CTL_1);
+
+	if ((msg->request & DP_AUX_I2C_READ) == 0) {
+		buf = (u8 *)msg->buffer;
+		for (i = 0; i < msg->size; i++)
+			writel(*buf++, edp->regs + BUF_DATA_0 + 4 * i);
+	}
 
 	/* set dpcd address */
 	val = AUX_ADDR_7_0(msg->address);
