@@ -445,10 +445,34 @@ static void vop_dsp_hold_valid_irq_enable(struct vop *vop)
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 }
 
+/*
+ * (1) each frame starts at the start of the Vsync pulse which is signaled by
+ *     the "FRAME_SYNC" interrupt.
+ * (2) the active data region of each frame ends at dsp_vact_end
+ * (3) we should program this same number (dsp_vact_end) into dsp_line_frag_num,
+ *      to get "LINE_FLAG" interrupt at the end of the active on screen data.
+ *
+ * VOP_INTR_CTRL0.dsp_line_frag_num = VOP_DSP_VACT_ST_END.dsp_vact_end
+ * Interrupts
+ * LINE_FLAG -------------------------------+
+ * FRAME_SYNC ----+                         |
+ *                |                         |
+ *                v                         v
+ *                | Vsync | Vbp |  Vactive  | Vfp |
+ *                        ^     ^           ^     ^
+ *                        |     |           |     |
+ *                        |     |           |     |
+ * dsp_vs_end ------------+     |           |     |   VOP_DSP_VTOTAL_VS_END
+ * dsp_vact_start --------------+           |     |   VOP_DSP_VACT_ST_END
+ * dsp_vact_end ----------------------------+     |   VOP_DSP_VACT_ST_END
+ * dsp_total -------------------------------------+   VOP_DSP_VTOTAL_VS_END
+ */
+
 static void vop_line_flag_irq_enable(struct vop *vop)
 {
 	unsigned long flags;
 	struct drm_display_mode *mode = &vop->crtc.hwmode;
+	int vact_end = mode->vtotal - mode->vsync_start + mode->vdisplay;
 
 	if (WARN_ON(!vop->is_enabled))
 		return;
@@ -456,7 +480,7 @@ static void vop_line_flag_irq_enable(struct vop *vop)
 	spin_lock_irqsave(&vop->irq_lock, flags);
 
 	vop_mask_write(vop, INTR_CTRL0, DSP_LINE_NUM_MASK | LINE_FLAG_INTR_MASK,
-		       DSP_LINE_NUM(mode->vsync_end) | LINE_FLAG_INTR_EN(1));
+		       DSP_LINE_NUM(vact_end) | LINE_FLAG_INTR_EN(1));
 
 	spin_unlock_irqrestore(&vop->irq_lock, flags);
 }
