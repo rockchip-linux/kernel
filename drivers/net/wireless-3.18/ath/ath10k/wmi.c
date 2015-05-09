@@ -4128,6 +4128,11 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
 		      ar->wmi.svc_map)))
 		features |= WMI_10_2_ADJ_RADIO_SPECTRAL_INTERFRC;
 
+	if ((ar->wlan_interfrc_mask & ATH10K_SURVEY_INTERFRC) &&
+	    (test_bit(WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC, ar->wmi.svc_map)))
+		features |= WMI_10_2_ADJ_RADIO_SURVEY_INTERFRC;
+
+
 	cmd->resource_config.feature_mask = __cpu_to_le32(features);
 
 #ifdef CONFIG_ATH10K_SMART_ANTENNA

@@ -456,6 +456,7 @@ enum ath10k_cal_mode {
 
 enum ath10k_wlan_interfrc_mask {
 	ATH10K_SPECTRAL_INTERFRC	= 0x00000001,
+	ATH10K_SURVEY_INTERFRC		= 0x00000002,
 };
 
 static inline const char *ath10k_cal_mode_str(enum ath10k_cal_mode mode)

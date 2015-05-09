@@ -151,6 +151,7 @@ enum wmi_service {
 	WMI_SERVICE_ATF,
 	WMI_SERVICE_COEX_GPIO,
 	WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
+	WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC,
 
 	/* keep last */
 	WMI_SERVICE_MAX,
@@ -183,6 +184,7 @@ enum wmi_10x_service {
 	WMI_10X_SERVICE_ATF,
 	WMI_10X_SERVICE_COEX_GPIO,
 	WMI_10X_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
+	WMI_10X_SERVICE_ADJ_RADIO_SURVEY_INTERFRC,
 };
 
 enum wmi_main_service {
@@ -302,6 +304,7 @@ static inline char *wmi_service_name(int service_id)
 	SVCSTR(WMI_SERVICE_ATF);
 	SVCSTR(WMI_SERVICE_COEX_GPIO);
 	SVCSTR(WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC);
+	SVCSTR(WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC);
 
 	default:
 		return NULL;
@@ -372,6 +375,9 @@ static inline void wmi_10x_svc_map(const __le32 *in, unsigned long *out,
 	       WMI_SERVICE_COEX_GPIO, len);
 	SVCMAP(WMI_10X_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
 	       WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC, len);
+	SVCMAP(WMI_10X_SERVICE_ADJ_RADIO_SURVEY_INTERFRC,
+	       WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC, len);
+
 }
 
 static inline void wmi_main_svc_map(const __le32 *in, unsigned long *out,
@@ -1977,6 +1983,7 @@ enum wmi_10_2_feature_mask {
 	WMI_10_2_ATF_CONFIG    = BIT(1),
 	WMI_10_2_COEX_GPIO     = BIT(3),
 	WMI_10_2_ADJ_RADIO_SPECTRAL_INTERFRC	= BIT(4),
+	WMI_10_2_ADJ_RADIO_SURVEY_INTERFRC	= BIT(5),
 };
 
 struct wmi_resource_config_10_2 {

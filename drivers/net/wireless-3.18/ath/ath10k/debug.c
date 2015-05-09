@@ -2111,6 +2111,10 @@ static ssize_t ath10k_read_adjacent_wlan_interfrc(struct file *file,
 			 interfrc_5g);
 	len += scnprintf(buf + len, buf_len - len, "2G INTERFRC: %d\n",
 			 interfrc_2g);
+	len += scnprintf(buf + len, buf_len - len,
+			 "INTERFRC DETECT FOR SURVEY SCAN: %s\n",
+			 ar->wlan_interfrc_mask & ATH10K_SURVEY_INTERFRC ?
+			 "Enable" : "Disable");
 
 	mutex_unlock(&ar->conf_mutex);
 
