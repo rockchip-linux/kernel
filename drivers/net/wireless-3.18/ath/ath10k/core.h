@@ -700,6 +700,8 @@ struct ath10k {
 		u32 fw_cold_reset_counter;
 	} stats;
 
+	bool btc_feature;
+
 	struct ath10k_thermal thermal;
 
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
