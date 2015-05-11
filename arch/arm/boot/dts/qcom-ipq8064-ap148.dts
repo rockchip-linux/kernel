@@ -23,10 +23,13 @@
 			pinctrl-0 = <&mdio0_pins_default &rgmii2_pins_default>;
 			pinctrl-names = "default";
 
-			i2c4_pins: i2c4_pinmux {
-				pins = "gpio12", "gpio13";
-				function = "gsbi4";
-				bias-disable;
+			rpm_i2c_pinmux: rpm_i2c_pinmux {
+				mux {
+					pins = "gpio12", "gpio13";
+					function = "gsbi4";
+					drive-strength = <12>;
+					bias-disable;
+				};
 			};
 
 			pcie1_pins: pcie1_pinmux {
@@ -332,6 +335,11 @@
 			qcom,irq = <258>;
 			qcom,socver = <1>;
 			mdiobus = <&mdio0>;
+		};
+
+		rpm@108000 {
+			pinctrl-0 = <&rpm_i2c_pinmux>;
+			pinctrl-names = "default";
 		};
 	};
 };

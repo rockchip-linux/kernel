@@ -117,10 +117,13 @@
 				bias-disable;
 			};
 
-			i2c4_pins: i2c4_pinmux {
-				pins = "gpio12", "gpio13";
-				function = "gsbi4";
-				bias-disable;
+			rpm_i2c_pinmux: rpm_i2c_pinmux {
+				mux {
+					pins = "gpio12", "gpio13";
+					function = "gsbi4";
+					drive-strength = <12>;
+					bias-disable;
+				};
 			};
 
 			pcie1_pins: pcie1_pinmux {
@@ -567,6 +570,9 @@
 		};
 
 		rpm@108000 {
+			pinctrl-0 = <&rpm_i2c_pinmux>;
+			pinctrl-names = "default";
+
 			ebi1_clk: ebi1-clk {
 				compatible = "qcom,rpm-clk";
 				reg = <QCOM_RPM_EBI1_CLK>;

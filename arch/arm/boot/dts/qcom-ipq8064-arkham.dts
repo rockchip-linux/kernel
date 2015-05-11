@@ -117,10 +117,13 @@
 				bias-disable;
 			};
 
-			i2c4_pins: i2c4_pinmux {
-				pins = "gpio12", "gpio13";
-				function = "gsbi4";
-				bias-disable;
+			rpm_i2c_pinmux: rpm_i2c_pinmux {
+				mux {
+					pins = "gpio12", "gpio13";
+					function = "gsbi4";
+					drive-strength = <12>;
+					bias-disable;
+				};
 			};
 
 			i2c7_pins: i2c7_pinmux {
@@ -727,6 +730,11 @@
 			reg = <0x0208a038 0x40>;
 			clock-frequency = <32768>;
 			timeout-sec = <10>;
+		};
+
+		rpm@108000 {
+			pinctrl-0 = <&rpm_i2c_pinmux>;
+			pinctrl-names = "default";
 		};
 	};
 };
