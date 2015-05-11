@@ -2619,8 +2619,8 @@ bool intel_dp_is_reversed(struct intel_dp *intel_dp, uint32_t DP)
 	if (!intel_dp_reset_link_train(intel_dp, &DP,
 				       DP_TRAINING_PATTERN_1 |
 				       DP_LINK_SCRAMBLING_DISABLE)) {
-		DRM_ERROR("Enabling link training ... won't reverse\n");
-		return false;
+		DRM_ERROR("failed to enable link training\n");
+		return true;
 	}
 
 	voltage = 0xff;
@@ -2678,8 +2678,8 @@ bool intel_dp_is_reversed(struct intel_dp *intel_dp, uint32_t DP)
 	if (!intel_dp_set_link_train(intel_dp, &DP,
 				     training_pattern |
 				     DP_LINK_SCRAMBLING_DISABLE)) {
-		DRM_ERROR("Starting channel eq ... won't reverse\n");
-		return false;
+		DRM_ERROR("failed to start channel equalization\n");
+		return true;
 	}
 
 	tries = 0;
