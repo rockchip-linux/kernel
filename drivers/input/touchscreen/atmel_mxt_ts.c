@@ -1806,11 +1806,11 @@ static int mxt_get_object_table(struct mxt_data *data)
 			max_id = 0;
 		}
 
-		dev_info(&data->client->dev,
-			 "Type %2d Start %3d Size %3zu Instances %2zu ReportIDs %3u : %3u\n",
-			 object->type, object->start_address,
-			 mxt_obj_size(object), mxt_obj_instances(object),
-			 min_id, max_id);
+		dev_dbg(&data->client->dev,
+			"Type %2d Start %3d Size %3zu Instances %2zu ReportIDs %3u : %3u\n",
+			object->type, object->start_address,
+			mxt_obj_size(object), mxt_obj_instances(object),
+			min_id, max_id);
 
 		switch (object->type) {
 		case MXT_GEN_MESSAGE_T5:
