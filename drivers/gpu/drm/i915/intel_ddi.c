@@ -27,6 +27,8 @@
 
 #include "i915_drv.h"
 #include "intel_drv.h"
+#include "linux/dmi.h"
+#include "linux/mfd/cros_ec_pd_update.h"
 
 /* HDMI/DVI modes ignore everything but the last 2 items. So we share
  * them for both DP and FDI transports, allowing those ports to
@@ -1219,6 +1221,32 @@ void intel_ddi_disable_pipe_clock(struct intel_crtc *intel_crtc)
 			   TRANS_CLK_SEL_DISABLED);
 }
 
+static int intel_ddi_is_reversed(int dp_port)
+{
+	int polarity = 0;
+
+#ifdef CONFIG_MFD_CROS_EC_PD_UPDATE
+	const char *dmi_product_name = dmi_get_system_info(DMI_PRODUCT_NAME);
+	const char *dmi_sys_vendor = dmi_get_system_info(DMI_SYS_VENDOR);
+	/*
+	 * TODO(crbug.com/488161) Find more elegant way to plumb polarity into
+	 * GPU for USB type-C devices which take advantage of built-in DP lane
+	 * reversal functionality.
+	 */
+	if ((strstr(dmi_sys_vendor, "GOOGLE") &&
+	     strstr(dmi_product_name, "Samus"))) {
+		int rv = cros_ec_pd_get_polarity(dp_port - 1, &polarity);
+		if (rv < 0)
+			DRM_ERROR("Getting DP Port%d polarity (err:%d)\n",
+				  dp_port, rv);
+	}
+#endif
+
+	DRM_INFO("DP Port%d lanes %sreversed\n", dp_port,
+		 polarity ? "" : "not ");
+	return polarity;
+}
+
 static void intel_ddi_pre_enable(struct intel_encoder *intel_encoder)
 {
 	struct drm_encoder *encoder = &intel_encoder->base;
@@ -1235,6 +1263,14 @@ static void intel_ddi_pre_enable(struct intel_encoder *intel_encoder)
 
 	WARN_ON(intel_crtc->ddi_pll_sel == PORT_CLK_SEL_NONE);
 	I915_WRITE(PORT_CLK_SEL(port), intel_crtc->ddi_pll_sel);
+
+	if (type == INTEL_OUTPUT_DISPLAYPORT) {
+		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
+		if (intel_ddi_is_reversed(port))
+			intel_dp->DP |= DDI_BUF_PORT_REVERSAL;
+		else
+			intel_dp->DP &= ~DDI_BUF_PORT_REVERSAL;
+	}
 
 	if (type == INTEL_OUTPUT_DISPLAYPORT || type == INTEL_OUTPUT_EDP) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
