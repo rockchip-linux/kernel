@@ -595,13 +595,11 @@ static u32 drm_dp_i2c_functionality(struct i2c_adapter *adapter)
  * retrying the transaction as appropriate.  It is assumed that the
  * aux->transfer function does not modify anything in the msg other than the
  * reply field.
- *
- * Returns bytes transferred on success, or a negative error code on failure.
  */
 static int drm_dp_i2c_do_msg(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 {
 	unsigned int retry;
-	int ret;
+	int err;
 
 	/*
 	 * DP1.2 sections 2.7.7.1.5.6.1 and 2.7.7.1.6.6.1: A DP Source device
@@ -610,15 +608,18 @@ static int drm_dp_i2c_do_msg(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 	 */
 	for (retry = 0; retry < 7; retry++) {
 		mutex_lock(&aux->hw_mutex);
-		ret = aux->transfer(aux, msg);
+		err = aux->transfer(aux, msg);
 		mutex_unlock(&aux->hw_mutex);
-		if (ret < 0) {
-			if (ret == -EBUSY)
+		if (err < 0) {
+			if (err == -EBUSY)
 				continue;
 
-			DRM_DEBUG_KMS("transaction failed: %d\n", ret);
-			return ret;
+			DRM_DEBUG_KMS("transaction failed: %d\n", err);
+			return err;
 		}
+
+		if (err < msg->size)
+			return -EPROTO;
 
 		switch (msg->reply & DP_AUX_NATIVE_REPLY_MASK) {
 		case DP_AUX_NATIVE_REPLY_ACK:
@@ -657,7 +658,7 @@ static int drm_dp_i2c_do_msg(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 			 * Both native ACK and I2C ACK replies received. We
 			 * can assume the transfer was successful.
 			 */
-			return ret;
+			return 0;
 
 		case DP_AUX_I2C_REPLY_NACK:
 			DRM_DEBUG_KMS("I2C nack\n");
@@ -680,51 +681,13 @@ static int drm_dp_i2c_do_msg(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 	return -EREMOTEIO;
 }
 
-/*
- * Keep retrying drm_dp_i2c_do_msg until all data has been transferred.
- *
- * Returns an error code on failure, or a recommended transfer size on success.
- */
-static int drm_dp_i2c_drain_msg(struct drm_dp_aux *aux, struct drm_dp_aux_msg *orig_msg)
-{
-	int err, ret = orig_msg->size;
-	struct drm_dp_aux_msg msg = *orig_msg;
-
-	while (msg.size > 0) {
-		err = drm_dp_i2c_do_msg(aux, &msg);
-		if (err <= 0)
-			return err == 0 ? -EPROTO : err;
-
-		if (err < msg.size && err < ret) {
-			DRM_DEBUG_KMS("Partial I2C reply: requested %zu bytes got %d bytes\n",
-				      msg.size, err);
-			ret = err;
-		}
-
-		msg.size -= err;
-		msg.buffer += err;
-	}
-
-	return ret;
-}
-
-/*
- * Bizlink designed DP->DVI-D Dual Link adapters require the I2C over AUX
- * packets to be as large as possible. If not, the I2C transactions never
- * succeed. Hence the default is maximum.
- */
-static int dp_aux_i2c_transfer_size __read_mostly = DP_AUX_MAX_PAYLOAD_BYTES;
-
 static int drm_dp_i2c_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs,
 			   int num)
 {
 	struct drm_dp_aux *aux = adapter->algo_data;
 	unsigned int i, j;
-	unsigned transfer_size;
 	struct drm_dp_aux_msg msg;
 	int err = 0;
-
-	dp_aux_i2c_transfer_size = clamp(dp_aux_i2c_transfer_size, 1, DP_AUX_MAX_PAYLOAD_BYTES);
 
 	memset(&msg, 0, sizeof(msg));
 
@@ -743,19 +706,20 @@ static int drm_dp_i2c_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs,
 		err = drm_dp_i2c_do_msg(aux, &msg);
 		if (err < 0)
 			break;
-		/* We want each transaction to be as large as possible, but
-		 * we'll go to smaller sizes if the hardware gives us a
-		 * short reply.
+		/*
+		 * Many hardware implementations support FIFOs larger than a
+		 * single byte, but it has been empirically determined that
+		 * transferring data in larger chunks can actually lead to
+		 * decreased performance. Therefore each message is simply
+		 * transferred byte-by-byte.
 		 */
-		transfer_size = dp_aux_i2c_transfer_size;
-		for (j = 0; j < msgs[i].len; j += msg.size) {
+		for (j = 0; j < msgs[i].len; j++) {
 			msg.buffer = msgs[i].buf + j;
-			msg.size = min(transfer_size, msgs[i].len - j);
+			msg.size = 1;
 
-			err = drm_dp_i2c_drain_msg(aux, &msg);
+			err = drm_dp_i2c_do_msg(aux, &msg);
 			if (err < 0)
 				break;
-			transfer_size = err;
 		}
 		if (err < 0)
 			break;
