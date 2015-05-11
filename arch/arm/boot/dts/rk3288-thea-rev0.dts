@@ -18,7 +18,7 @@
 	compatible = "google,veyron-thea-rev0", "google,veyron-thea",
 		     "google,veyron", "rockchip,rk3288";
 
-	panel_regulator: panel-regualtor {
+	panel_regulator: panel-regulator {
 		compatible = "regulator-fixed";
 		enable-active-high;
 		gpio = <&gpio7 14 GPIO_ACTIVE_HIGH>;
