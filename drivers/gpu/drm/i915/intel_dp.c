@@ -2578,30 +2578,15 @@ bool intel_dp_is_reversed(struct intel_dp *intel_dp, uint32_t DP)
 	struct drm_encoder *encoder = &dp_to_dig_port(intel_dp)->base.base;
 	struct drm_device *dev = encoder->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	bool channel_eq = false;
-	int tries, cr_tries;
 	uint8_t link_config[2];
-	uint32_t training_pattern = DP_TRAINING_PATTERN_2;
 	int voltage_tries, loop_tries;
 	uint8_t voltage;
-
-	if (!HAS_DDI(dev))
-		return false;
-
-	if (intel_dp->is_ps8617)
-		return false;
-	/*
-	 * Train with 1 lane. There is no guarantee that the monitor supports
-	 * 2 or 4 lanes, and we wouldn't see any asymetricity with 4 lanes.
-	 */
-	DP &= ~(DDI_BUF_PORT_REVERSAL | DDI_PORT_WIDTH(4));
-	DP |= DDI_PORT_WIDTH(1);
+	int i;
 
 	I915_WRITE(intel_dp->output_reg, DP);
-	POSTING_READ(intel_dp->output_reg);
-	udelay(600);
 
-	intel_ddi_prepare_link_retrain(encoder);
+	if (HAS_DDI(dev))
+		intel_ddi_prepare_link_retrain(encoder);
 
 	link_config[0] = intel_dp->link_bw;
 	link_config[1] = 1;
@@ -2636,10 +2621,13 @@ bool intel_dp_is_reversed(struct intel_dp *intel_dp, uint32_t DP)
 		}
 
 		if (drm_dp_clock_recovery_ok(link_status, 1))
-			break;
+			return false;
 
 		/* Check to see if we've tried the max voltage */
-		if (intel_dp->train_set[0] & DP_TRAIN_MAX_SWING_REACHED) {
+		for (i = 0; i < 1; i++)
+			if ((intel_dp->train_set[i] & DP_TRAIN_MAX_SWING_REACHED) == 0)
+				break;
+		if (i == 1) {
 			++loop_tries;
 			if (loop_tries == 5)
 				break;
@@ -2664,78 +2652,7 @@ bool intel_dp_is_reversed(struct intel_dp *intel_dp, uint32_t DP)
 			break;
 	}
 
-	link_config[0] = intel_dp->link_bw;
-	link_config[1] = 1;
-	if (drm_dp_enhanced_frame_cap(intel_dp->dpcd))
-		link_config[1] |= DP_LANE_COUNT_ENHANCED_FRAME_EN;
-	drm_dp_dpcd_write(&intel_dp->aux, DP_LINK_BW_SET, link_config, 2);
-
-	link_config[0] = 0;
-	link_config[1] = DP_SET_ANSI_8B10B;
-	drm_dp_dpcd_write(&intel_dp->aux, DP_DOWNSPREAD_CTRL, link_config, 2);
-
-	/* channel equalization */
-	if (!intel_dp_set_link_train(intel_dp, &DP,
-				     training_pattern |
-				     DP_LINK_SCRAMBLING_DISABLE)) {
-		DRM_ERROR("failed to start channel equalization\n");
-		return true;
-	}
-
-	tries = 0;
-	cr_tries = 0;
-	channel_eq = false;
-	for (;;) {
-		uint8_t link_status[DP_LINK_STATUS_SIZE];
-
-		if (cr_tries > 5) {
-			DRM_INFO("failed to train DP, probably reversed.\n");
-			break;
-		}
-
-		drm_dp_link_train_channel_eq_delay(intel_dp->dpcd);
-		if (!intel_dp_get_link_status(intel_dp, link_status)) {
-			DRM_ERROR("failed to get link status\n");
-			break;
-		}
-
-		/* Make sure clock is still ok */
-		if (!drm_dp_clock_recovery_ok(link_status, 1)) {
-			intel_dp_start_link_train(intel_dp);
-			intel_dp_set_link_train(intel_dp, &DP,
-						training_pattern |
-						DP_LINK_SCRAMBLING_DISABLE);
-			cr_tries++;
-			continue;
-		}
-
-		if (drm_dp_channel_eq_ok(link_status, 1)) {
-			channel_eq = true;
-			break;
-		}
-
-		/* Try 5 times, then try clock recovery if that fails */
-		if (tries > 5) {
-			intel_dp_link_down(intel_dp);
-			intel_dp_start_link_train(intel_dp);
-			intel_dp_set_link_train(intel_dp, &DP,
-						training_pattern |
-						DP_LINK_SCRAMBLING_DISABLE);
-			tries = 0;
-			cr_tries++;
-			continue;
-		}
-
-		/* Update training set as requested by target */
-		if (!intel_dp_update_link_train(intel_dp, &DP, link_status)) {
-			DRM_ERROR("failed to update link training\n");
-			break;
-		}
-		++tries;
-	}
-	intel_dp_set_idle_link_train(intel_dp);
-	DRM_INFO("Port is %s reversed\n", channel_eq ? "not" : "");
-	return !channel_eq;
+	return true;
 }
 
 /* Enable corresponding port and start training pattern 1 */

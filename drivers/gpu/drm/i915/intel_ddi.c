@@ -1238,7 +1238,14 @@ static void intel_ddi_pre_enable(struct intel_encoder *intel_encoder)
 
 	if (type == INTEL_OUTPUT_DISPLAYPORT) {
 		struct intel_dp *intel_dp = enc_to_intel_dp(encoder);
-		if (intel_dp_is_reversed(intel_dp, intel_dp->DP))
+		uint32_t DP = intel_dp->DP;
+		/*
+		 * Train with 1 lane. There is no guarantee that the monitor supports
+		 * 2 or 4 lanes, and we wouldn't see any asymetricity with 4 lanes.
+		 */
+		DP &= ~(DDI_BUF_PORT_REVERSAL | DDI_PORT_WIDTH(4));
+		DP |= DDI_PORT_WIDTH(1);
+		if (intel_dp_is_reversed(intel_dp, DP))
 			intel_dp->DP |= DDI_BUF_PORT_REVERSAL;
 		else
 			intel_dp->DP &= ~DDI_BUF_PORT_REVERSAL;
