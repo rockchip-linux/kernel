@@ -65,12 +65,6 @@
 	default-brightness-level = <128>;
 };
 
-&gpio_keys {
-	power {
-		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-	};
-};
-
 &rk808 {
 	/delete-property/ vcc6-supply;
 	/* No sd card regulators (vcc9), hardware problem in rev0 */

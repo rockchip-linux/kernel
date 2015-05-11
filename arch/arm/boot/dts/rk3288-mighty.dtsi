@@ -45,12 +45,6 @@
 	};
 };
 
-&gpio_keys {
-	power {
-		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-	};
-};
-
 &backlight {
 	/* Mighty panel PWM must be >= 3%, so start non-zero brightness at 8 */
 	brightness-levels = <

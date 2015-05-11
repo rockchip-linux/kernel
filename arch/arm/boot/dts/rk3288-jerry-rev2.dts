@@ -19,12 +19,6 @@
 		     "google,veyron", "rockchip,rk3288";
 };
 
-&gpio_keys {
-	power {
-		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-	};
-};
-
 &rk808 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pmic_int_l &dvs_1 &dvs_2>;

@@ -44,12 +44,6 @@
 	};
 };
 
-&gpio_keys {
-	power {
-		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-	};
-};
-
 &vcc50_hdmi {
 	enable-active-high;
 	gpio = <&gpio7 2 GPIO_ACTIVE_HIGH>;

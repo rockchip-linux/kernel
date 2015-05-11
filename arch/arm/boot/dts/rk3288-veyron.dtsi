@@ -32,10 +32,10 @@
 		#size-cells = <0>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwr_key_h>;
+		pinctrl-0 = <&pwr_key_l>;
 		power {
 			label = "Power";
-			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_POWER>;
 			debounce-interval = <100>;
 			gpio-key,wakeup;
@@ -516,7 +516,7 @@
 	};
 
 	buttons {
-		pwr_key_h: pwr-key-h {
+		pwr_key_l: pwr-key-l {
 			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};

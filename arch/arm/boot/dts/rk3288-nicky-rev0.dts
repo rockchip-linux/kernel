@@ -52,12 +52,6 @@
 	};
 };
 
-&gpio_keys {
-	power {
-		gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
-	};
-};
-
 &backlight {
 	power-supply = <&backlight_regulator>;
 };
