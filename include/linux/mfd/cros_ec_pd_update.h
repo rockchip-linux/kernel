@@ -80,4 +80,13 @@ enum cros_ec_pd_find_update_firmware_result {
  */
 #define PD_UPDATE_CHECK_DELAY msecs_to_jiffies(2000)
 
+/**
+ * cros_ec_pd_get_polarity - Get type-C polarity
+ *
+ * @port: Port # on device
+ * @polarity: pointer to polarity value
+ * Returns 0 on success, <0 on failure.
+ */
+int cros_ec_pd_get_polarity(int port, int *polarity);
+
 #endif /* __LINUX_MFD_CROS_EC_H */

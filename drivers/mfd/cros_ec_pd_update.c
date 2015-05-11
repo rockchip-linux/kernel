@@ -229,6 +229,39 @@ static int cros_ec_pd_enter_gfu(struct device *dev, struct cros_ec_dev *pd_dev,
 	return rv;
 }
 
+int cros_ec_pd_get_polarity(int port, int *polarity)
+{
+	struct cros_ec_dev *pd_dev = pd_ec;
+	struct device *dev;
+	struct ec_params_usb_pd_control request;
+	struct ec_response_usb_pd_control response;
+	int ret;
+
+	if (!pd_dev) {
+		dev_err(dev, "No pd_ec device found\n");
+		return  -ENODEV;
+	}
+
+	dev = pd_dev->dev;
+
+	request.port = port;
+	request.role = USB_PD_CTRL_ROLE_NO_CHANGE;
+	request.mux = USB_PD_CTRL_MUX_NO_CHANGE;
+	ret = cros_ec_pd_command(dev, pd_dev, EC_CMD_USB_PD_CONTROL,
+				 (uint8_t *)&request, sizeof(request),
+				 (uint8_t *)&response, sizeof(response));
+	if (ret < 0)
+		return ret;
+
+	dev_info(dev, "%s: port:%d enabled:%d, role:%d, polarity:%d, state:%d\n",
+		 __func__, port, response.enabled, response.role,
+		 response.polarity, response.state);
+	*polarity = response.polarity;
+
+	return 0;
+}
+EXPORT_SYMBOL(cros_ec_pd_get_polarity);
+
 /**
  * cros_ec_pd_get_status - Get info about a possible PD device attached to a
  * given port. Returns 0 on success, <0 on failure.
@@ -566,7 +599,7 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 	struct device *dev = drv_data->dev;
 	struct power_supply *charger;
 	enum cros_ec_pd_find_update_firmware_result result;
-	int ret, port;
+	int ret, port, polarity;
 	uint32_t pd_status;
 
 	if (disable) {
@@ -616,6 +649,13 @@ static void cros_ec_pd_update_check(struct work_struct *work)
 
 	/* Received notification, send command to check on PD status. */
 	for (port = 0; port < drv_data->num_ports; ++port) {
+		ret = cros_ec_pd_get_polarity(port, &polarity);
+		if (ret < 0) {
+			dev_err(dev, "Can't get Port%d device polarity (err:%d)\n",
+				port, ret);
+			return;
+		}
+
 		ret = cros_ec_pd_get_status(dev, pd_ec, port, &hash_entry,
 					    &discovery_entry);
 		if (ret < 0) {
