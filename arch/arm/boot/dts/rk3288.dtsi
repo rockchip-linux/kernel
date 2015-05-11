@@ -770,7 +770,7 @@
 	hdmi_audio: hdmi_audio {
 		compatible = "rockchip,rk3288-hdmi-audio";
 		i2s-controller = <&i2s>;
-		status = "disable";
+		status = "disabled";
 	};
 
 	vpu: video-codec@ff9a0000 {
