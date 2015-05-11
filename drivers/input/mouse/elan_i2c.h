@@ -28,7 +28,11 @@
 #define ETP_PRESSURE_OFFSET	25
 
 /* IAP Firmware handling */
-#define ETP_FW_NAME		"elan_i2c.bin"
+#define ETP_FW_BASENAME		"elan_i2c"
+#define ETP_FW_EXTENSION	"bin"
+#define ETP_FALLBACK_FW_NAME	(ETP_FW_BASENAME "." ETP_FW_EXTENSION)
+#define ETP_PRODUCT_ID_FORMAT_STRING	"%d.0"
+#define ETP_MAX_FW_NAME_LEN	22
 #define ETP_IAP_START_ADDR	0x0083
 #define ETP_FW_IAP_PAGE_ERR	(1 << 5)
 #define ETP_FW_IAP_INTF_ERR	(1 << 4)

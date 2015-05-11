@@ -472,7 +472,8 @@ static ssize_t elan_sysfs_read_product_id(struct device *dev,
 {
 	struct elan_tp_data *data = dev_get_drvdata(dev);
 
-	return sprintf(buf, "%d.0\n", data->product_id);
+	return sprintf(buf, ETP_PRODUCT_ID_FORMAT_STRING "\n",
+		       data->product_id);
 }
 
 static ssize_t elan_sysfs_read_fw_ver(struct device *dev,
@@ -512,12 +513,27 @@ static ssize_t elan_sysfs_update_fw(struct device *dev,
 	const u8 *fw_signature;
 	static const u8 signature[] = {0xAA, 0x55, 0xCC, 0x33, 0xFF, 0xFF};
 
-	error = request_firmware(&fw, ETP_FW_NAME, dev);
+	/* Look for a firmware with the product id appended. */
+	char *full_fw_name = kasprintf(GFP_KERNEL,
+			"%s_" ETP_PRODUCT_ID_FORMAT_STRING ".%s",
+			ETP_FW_BASENAME, data->product_id, ETP_FW_EXTENSION);
+	if (!full_fw_name) {
+		dev_err(dev, "failed fw filename memory allocation.");
+		return -ENOMEM;
+	}
+	error = request_firmware(&fw, full_fw_name, dev);
+
+	/* If that failed, fallback for backward compatibility. */
+	if (error)
+		error = request_firmware(&fw, ETP_FALLBACK_FW_NAME, dev);
+
 	if (error) {
-		dev_err(dev, "cannot load firmware %s: %d\n",
-			ETP_FW_NAME, error);
+		dev_err(dev, "cannot load firmware '%s' or '%s': %d\n",
+			full_fw_name, ETP_FALLBACK_FW_NAME, error);
+		kfree(full_fw_name);
 		return error;
 	}
+	kfree(full_fw_name);
 
 	/* Firmware file must match signature data */
 	fw_signature = &fw->data[ETP_FW_SIGNATURE_ADDRESS];
