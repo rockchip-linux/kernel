@@ -1189,7 +1189,7 @@ static int ddr_change_freq(struct rk3288_dmcclk *dmc)
 #define MSCH1_DDRCONF			0x88
 
 #define VCO_MIN_HZ	440000000ULL
-#define VCO_MAX_HZ	2200000000ULL
+#define VCO_MAX_HZ	5000000000ULL
 
 static const struct rockchip_pll_rate_table rk3288_dpll_rates[] = {
 	RK3066_PLL_RATE(666000000, 9, 500, 2),
