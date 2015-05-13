@@ -91,7 +91,7 @@ static struct go2001_fmt formats[] = {
 		.num_planes = 2,
 		.hw_format = GO2001_FMT_YUV420_SEMIPLANAR,
 		.codec_modes = CODEC_MODE_DECODER | CODEC_MODE_ENCODER,
-		.h_align = 2,
+		.h_align = 4,
 		.v_align = 2,
 		.plane_row_depth = { 8, 8 },
 		.plane_depth = { 8, 4 },
@@ -103,7 +103,7 @@ static struct go2001_fmt formats[] = {
 		.num_planes = 3,
 		.hw_format = GO2001_FMT_YUV420_PLANAR,
 		.codec_modes = CODEC_MODE_ENCODER,
-		.h_align = 2,
+		.h_align = 4,
 		.v_align = 2,
 		.plane_row_depth = { 8, 4, 4 },
 		.plane_depth = { 8, 2, 2 },
@@ -1747,6 +1747,7 @@ static int go2001_enc_s_crop(struct file *file, void *fh,
 {
 	struct go2001_ctx *ctx = fh_to_ctx(fh);
 	struct go2001_frame_info *finfo = &ctx->finfo;
+	int aligned_w, aligned_h;
 	struct go2001_fmt *fmt;
 
 	go2001_trace(ctx->gdev);
@@ -1764,19 +1765,26 @@ static int go2001_enc_s_crop(struct file *file, void *fh,
 
 	fmt = ctx->src_fmt;
 
-	if (c->c.left != 0 || c->c.top != 0 || c->c.width > finfo->coded_width
-			|| c->c.height > finfo->coded_height
-			|| !IS_ALIGNED(c->c.width, fmt->v_align)
-			|| !IS_ALIGNED(c->c.height, fmt->h_align)) {
+	aligned_w = round_up(c->c.width, fmt->h_align);
+	aligned_h = round_up(c->c.height, fmt->v_align);
+
+	if (finfo->width != c->c.width || finfo->height != c->c.height) {
+		go2001_dbg(ctx->gdev, 1,
+				"Adjusted crop from (%d, %d) to (%d, %d)\n",
+				c->c.width, c->c.height, aligned_w, aligned_h);
+	}
+
+	if (c->c.left != 0 || c->c.top != 0 || aligned_w > finfo->coded_width
+			|| aligned_h > finfo->coded_height) {
 		go2001_err(ctx->gdev, "Invalid crop (%d, %d) -> (%u, %u) "
 					"for coded size %ux%u\n",
-				c->c.left, c->c.top, c->c.width, c->c.height,
+				c->c.left, c->c.top, aligned_w, aligned_h,
 				finfo->coded_width, finfo->coded_height);
 		return -EINVAL;
 	}
 
-	finfo->width = c->c.width;
-	finfo->height = c->c.height;
+	finfo->width = aligned_w;
+	finfo->height = aligned_h;
 	go2001_dbg(ctx->gdev, 2, "Visible size set to %ux%u\n",
 			finfo->width, finfo->height);
 	return 0;
