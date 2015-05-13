@@ -175,7 +175,10 @@ struct rk3288_dmcclk {
 	int training_retries;
 
 	u32 channel_num;
-	u32 dtar[NUM_MC_CHANNEL_MAX];
+	u32 stride;
+	u32 ranks[NUM_MC_CHANNEL_MAX];
+	u32 rank_step[NUM_MC_CHANNEL_MAX];
+
 	void __iomem *ddr_regs[NUM_MC_CHANNEL_MAX];
 	void __iomem *phy_regs[NUM_MC_CHANNEL_MAX];
 	void __iomem *ddr_regs_phys[NUM_MC_CHANNEL_MAX];

@@ -1331,8 +1331,6 @@ static int rk3288_register_dmcclk(struct rk3288_dmcclk *dmc)
 	return 0;
 }
 
-/* Data in two channel even use max stride. */
-static __aligned(4096) u32 dmc_data_training_buf[32 + 8192 / 4];
 struct stride_info_tag {
 	u32 size;
 	u32 half_cap;
@@ -1403,69 +1401,6 @@ static const u16 ddr_cfg_2_rbc[] = {
 	DDR_CFG2RBC(0, 4, 3, 2),	/* 15    11   8   16 */
 };
 
-static void dmc_get_buf_channel_addr(struct rk3288_dmcclk *dmc, u32 *p_ch_addr)
-{
-	u32 addr;
-	u32 stride;
-	u32 stride_size;
-	u32 stride_half_cap;
-	u32 soc_addr[2];
-
-	/* Caculate 64 byte aligned physical address */
-	addr = __pa((unsigned long)dmc_data_training_buf);
-	if (addr & 0x3f)
-		addr += (64 - (addr & 0x3f));
-
-	if (dmc->channel_num == 1) {
-		p_ch_addr[0] = addr;
-		p_ch_addr[1] = addr;
-		return;
-	}
-
-	stride = readl_relaxed(dmc->sgrf + 0x8) & 0x1f;
-	stride_size = stride_info[stride].size;
-	stride_half_cap = stride_info[stride].half_cap;
-	dev_dbg(dmc->dev, "stride=%d, size=%d, stride_half_cap=%x\n",
-		stride, stride_size, stride_half_cap);
-	if (addr & stride_size) {
-		/* Odd stride size */
-		soc_addr[0] = addr + stride_size;
-		soc_addr[1] = addr;
-	} else {
-		soc_addr[0] = addr;
-		soc_addr[1] = addr + stride_size;
-	}
-	dev_dbg(dmc->dev, "socAddr[0]=0x%x, soc_addr[1]=0x%x\n",
-		soc_addr[0], soc_addr[1]);
-	/* 3GB stride */
-	if ((stride >= 0x10) && (stride <= 0x13)) {
-		/* Convert to ch addr */
-		if (addr < 0x40000000) {
-			p_ch_addr[0] = soc_addr[0];
-			p_ch_addr[1] = soc_addr[1] - stride_size;
-		} else if (addr < 0x80000000) {
-			p_ch_addr[0] = soc_addr[0] - 0x40000000 + stride_size;
-			p_ch_addr[1] = soc_addr[1] - 0x40000000;
-		} else if (addr < 0xA0000000) {
-			p_ch_addr[0] = soc_addr[0] - 0x40000000;
-			p_ch_addr[1] = soc_addr[1] - 0x40000000 - stride_size;
-		} else {
-			p_ch_addr[0] = soc_addr[0] - 0x60000000 + stride_size;
-			p_ch_addr[1] = soc_addr[1] - 0x60000000;
-		}
-	} else {
-		/* Convert to ch addr */
-		if (addr < stride_half_cap) {
-			p_ch_addr[0] = soc_addr[0];
-			p_ch_addr[1] = soc_addr[1] - stride_size;
-		} else {
-			p_ch_addr[0] = soc_addr[0] -
-			    stride_half_cap + stride_size;
-			p_ch_addr[1] = soc_addr[1] - stride_half_cap;
-		}
-	}
-}
-
 #define GET_MEMORY_ROW(reg, ch)		(13+(((reg)>>(6+16*(ch)))&0x3))
 #define GET_MEMORY_CS1_ROW(reg, ch)	(13+(((reg)>>(4+16*(ch)))&0x3))
 #define GET_MEMORY_COL(reg, ch)		(9+(((reg)>>(9+16*(ch)))&0x3))
@@ -1474,41 +1409,22 @@ static void dmc_get_buf_channel_addr(struct rk3288_dmcclk *dmc, u32 *p_ch_addr)
 #define GET_MEMORY_DIE_BW(reg, ch)	(2>>(((reg)>>(16*(ch)))&0x3))
 #define GET_MEMORY_CS_CNT(reg, ch)	((((reg)>>(11+16*(ch)))&0x1)+1)
 
-static void dmc_init_dtar(struct rk3288_dmcclk *dmc)
+static void dmc_init_dt_info(struct rk3288_dmcclk *dmc)
 {
-	u32 ch_addr[2], ch, col, row, bank, bw, conf, sys_reg2, cfg2rbc_bank;
+	u32 ch, sys_reg2, stride, half_cap;
 
-	dmc_get_buf_channel_addr(dmc, ch_addr);
-	dev_dbg(dmc->dev, "ch_addr[0]=0x%x, ch_addr[1]=0x%x\n",
-		ch_addr[0], ch_addr[1]);
+	stride = readl_relaxed(dmc->sgrf + 0x8) & 0x1f;
+	dmc->stride = stride_info[stride].size;
+	half_cap = stride_info[stride].half_cap;
+	dev_dbg(dmc->dev, "stride=%d, size=%d, stride_half_cap=%x\n", stride,
+		dmc->stride, half_cap);
 
 	/* get memory infomation */
 	sys_reg2 = readl(dmc->pmu + PMU_SYS_REG2);
 	for (ch = 0; ch < dmc->channel_num; ch++) {
-		row = GET_MEMORY_ROW(sys_reg2, ch);
-		bank = GET_MEMORY_BANK(sys_reg2, ch);
-		col = GET_MEMORY_COL(sys_reg2, ch);
-		bw = GET_MEMORY_BW(sys_reg2, ch);
-		conf = readl(dmc->noc + (ch ? MSCH1_DDRCONF : MSCH0_DDRCONF));
-		cfg2rbc_bank = (ddr_cfg_2_rbc[conf] >> 2) & 0x3;
-		/*
-		 * According different address mapping, caculate DTAR register
-		 * value
-		 */
-		dmc->dtar[ch] = 0;
-		dmc->dtar[ch] |= ((ch_addr[ch]) >> bw) & ((0x1 << col) - 1);
-		dmc->dtar[ch] |= (((ch_addr[ch]) >> (bw + col + cfg2rbc_bank))
-		     & ((0x1 << row) - 1)) << 12;
-		if (((ddr_cfg_2_rbc[conf] >> 7) & 0x3) == 3) {
-			dmc->dtar[ch] |= ((((ch_addr[ch]) >> (bw + col + row))
-					   & ((0x1 << bank) - 1)) << 28);
-		} else {
-			dmc->dtar[ch] |= ((((ch_addr[ch]) >>
-					 (bw + col)) & 0x7) << 28);
-		}
+		dmc->ranks[ch] = GET_MEMORY_CS_CNT(sys_reg2, ch);
+		dmc->rank_step[ch] = half_cap / dmc->ranks[ch];
 	}
-	dev_dbg(dmc->dev, "dtar[0]=0x%x, dtar[1]=0x%x\n", dmc->dtar[0],
-		 dmc->dtar[1]);
 }
 
 static void dmc_init_ddr_info(struct rk3288_dmcclk *dmc, u32 ch)
@@ -1791,8 +1707,8 @@ static int rk3288_dmcclk_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/* transform data training buf to DTAR register */
-	dmc_init_dtar(dmc);
+	/* Find the information needed for Data Training. */
+	dmc_init_dt_info(dmc);
 
 	/* Init sram code and page tables using vlaues in dmc struct. */
 	ret = rk3288_sram_init(dmc);

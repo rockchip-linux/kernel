@@ -19,7 +19,9 @@
 #define dmc_io_or(or_data, addr)	\
 	__raw_writel(__raw_readl(addr) | (or_data), addr)
 
-#define CH_MAX	2
+#define CH_MAX		2
+#define RANK_MAX	2
+#define DT_DWORDS	8
 
 /* PMU Registers Define */
 #define PMU_WAKEUP_CFG0	0x0000
@@ -155,7 +157,9 @@ struct dmc_sram {
 	u32 dqstr_value;
 
 	u32 channel_num;
-	u32 dtar[NUM_MC_CHANNEL_MAX];
+	u32 stride;
+	u32 rank_step[CH_MAX];
+	u32 ranks[CH_MAX];
 
 	u32 ddr_type;
 	u32 odt_disable_freq;
@@ -175,6 +179,8 @@ static void __iomem *p_pmu_reg_virt;
 static struct channel_info_tag ddr_ch[CH_MAX];
 
 static struct dmc_sram g_dmc_sram;
+/* Let's leave this off the stack since it's 256 bytes. */
+static u64 dt_save[CH_MAX * RANK_MAX * DT_DWORDS];
 static u32 clkr;
 static u32 clkf;
 static u32 clkod;
@@ -298,6 +304,37 @@ static void deidle_core_domain(void)
 
 	__raw_writel(CORE_IDLE_REQ_MODE(1, 0), p_grf_reg + GRF_SOC_CON0);
 	__raw_writel(CORE_IDLE_REQ_MODE(1, 1), p_grf_reg + GRF_SOC_CON0);
+}
+
+static void save_data_training_ddr(void)
+{
+	u32 ch, rank, stride, rank_step;
+	void *mem_start = 0;
+
+	for (ch = 0; ch < g_dmc_sram.channel_num; ch++) {
+		stride = ch * g_dmc_sram.stride;
+		for (rank = 0; rank < g_dmc_sram.ranks[ch]; rank++) {
+			rank_step = rank * g_dmc_sram.rank_step[ch];
+			ddr_copy(&dt_save[(ch * RANK_MAX + rank) * DT_DWORDS],
+				 mem_start + stride + rank_step, DT_DWORDS);
+		}
+	}
+}
+
+static void restore_data_training_ddr(void)
+{
+	u32 ch, rank, stride, rank_step;
+	void *mem_start = 0;
+
+	for (ch = 0; ch < g_dmc_sram.channel_num; ch++) {
+		stride = ch * g_dmc_sram.stride;
+		for (rank = 0; rank < g_dmc_sram.ranks[ch]; rank++) {
+			rank_step = rank * g_dmc_sram.rank_step[ch];
+			ddr_copy(mem_start + stride + rank_step,
+				 &dt_save[(ch * RANK_MAX + rank) * DT_DWORDS],
+				 DT_DWORDS);
+		}
+	}
 }
 
 static void ddr_reset_dll(u32 ch)
@@ -493,7 +530,7 @@ static void ddr_send_command(u32 ch, u32 rank, u32 cmd, u32 arg)
 
 static u32 ddr_data_training_prepare(u32 ch)
 {
-	u32 val, cs;
+	u32 cs;
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
@@ -505,10 +542,6 @@ static u32 ddr_data_training_prepare(u32 ch)
 		dmc_io_or((1 << 1), p_phy_reg + DDR_PUBL_PGCR);
 	}
 	cs = ((__raw_readl(p_phy_reg + DDR_PUBL_PGCR) >> 18) & 0xf);
-	/* use cs0 dtt */
-	val = __raw_readl(p_phy_reg + DDR_PUBL_PGCR);
-	val = (val & (~(0xf << 18))) | (1 << 18);
-	__raw_writel(val, p_phy_reg + DDR_PUBL_PGCR);
 
 	return cs;
 }
@@ -526,20 +559,20 @@ static void ddr_data_training_trigger(u32 ch, u32 step)
 	dmc_io_or(val, p_phy_reg + DDR_PUBL_PIR);
 }
 
-static bool ddr_data_training(u32 ch)
+static bool ddr_data_training(u32 ch, u32 cs)
 {
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
 	/* wait echo byte DTDONE */
-	while ((__raw_readl(p_phy_reg + DDR_PUBL_DX0GSR0) & 1) != 1)
+	while ((__raw_readl(p_phy_reg + DDR_PUBL_DX0GSR0) & cs) != cs)
 		continue;
-	while ((__raw_readl(p_phy_reg + DDR_PUBL_DX1GSR0) & 1) != 1)
+	while ((__raw_readl(p_phy_reg + DDR_PUBL_DX1GSR0) & cs) != cs)
 		continue;
 	if (!(__raw_readl(p_ddr_reg + DDR_PCTL_PPCFG) & 1)) {
-		while ((__raw_readl(p_phy_reg + DDR_PUBL_DX2GSR0) & 1) != 1)
+		while ((__raw_readl(p_phy_reg + DDR_PUBL_DX2GSR0) & cs) != cs)
 			continue;
-		while ((__raw_readl(p_phy_reg + DDR_PUBL_DX3GSR0) & 1) != 1)
+		while ((__raw_readl(p_phy_reg + DDR_PUBL_DX3GSR0) & cs) != cs)
 			continue;
 	}
 
@@ -552,28 +585,9 @@ static bool ddr_data_training(u32 ch)
 
 static void ddr_data_training_finish(u32 ch, u32 cs)
 {
-	u32 val, i, len;
+	u32 i, len;
 	void __iomem *p_ddr_reg = ddr_ch[ch].p_ddr_reg;
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
-
-	/* restore cs */
-	val = __raw_readl(p_phy_reg + DDR_PUBL_PGCR);
-	val = (val & (~(0xf << 18))) | (cs << 18);
-	__raw_writel(val, p_phy_reg + DDR_PUBL_PGCR);
-
-	/* copy the trained values from rank0 to rank1 */
-	len = __raw_readl(p_ddr_reg + DDR_PCTL_PPCFG) & 1 ? 2 : 4;
-	for (i = 0; i < len; i++) {
-		/* copy DQS training values */
-		val = __raw_readl(p_phy_reg + DDR_PUBL_DX0DQSTR + i * 0x40);
-		val = (val & (~((0x7 << 3) | (0x3 << 14)))) |
-			((val & 0x7) << 3) | (((val >> 12) & 0x3) << 14);
-		__raw_writel(val, p_phy_reg + DDR_PUBL_DX0DQSTR + i * 0x40);
-		/* copy Read Valid training values */
-		val = __raw_readl(p_phy_reg + DDR_PUBL_DX0GCR + i * 0x40);
-		val = (val & (~(0x7 << 17))) | (((val >> 14) & 0x7) << 17);
-		__raw_writel(val, p_phy_reg + DDR_PUBL_DX0GCR + i * 0x40);
-	}
 
 	/* send some auto refresh to complement the lost while DTT */
 	len = cs > 1 ? 8 : 4;
@@ -912,8 +926,11 @@ static void ddr_adjust_config(u32 ch)
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 	u32 val;
 
-	/* set data training address */
-	__raw_writel(g_dmc_sram.dtar[ch], p_phy_reg + DDR_PUBL_DTAR);
+	/*
+	 * Set data training address to the start of channel. Calculating the
+	 * memory to save and restore is simpler this way.
+	 */
+	__raw_writel(0x0, p_phy_reg + DDR_PUBL_DTAR);
 	/* set auto power down idle */
 	val = __raw_readl(p_ddr_reg + DDR_PCTL_MCFG);
 	val = (val & 0xffff00ff) | (g_dmc_sram.pd_cnt << 8);
@@ -933,9 +950,10 @@ static void ddr_adjust_config(u32 ch)
 
 static void dmc_sram_init(struct rk3288_dmcclk *dmc)
 {
+	int i;
+
 	g_dmc_sram.channel_num = dmc->channel_num;
-	g_dmc_sram.dtar[0] = dmc->dtar[0];
-	g_dmc_sram.dtar[1] = dmc->dtar[1];
+	g_dmc_sram.stride = dmc->stride;
 	g_dmc_sram.ddr_type = dmc->ddr_type;
 	g_dmc_sram.odt_disable_freq = dmc->oftimings.odt_disable_freq;
 	g_dmc_sram.dll_disable_freq = dmc->oftimings.dll_disable_freq;
@@ -944,19 +962,20 @@ static void dmc_sram_init(struct rk3288_dmcclk *dmc)
 	p_grf_reg = dmc->grf_phys;
 	p_pmu_reg = dmc->pmu_phys;
 	p_pmu_reg_virt = dmc->pmu;
-	ddr_ch[0].p_ddr_reg = dmc->ddr_regs_phys[0];
-	ddr_ch[1].p_ddr_reg = dmc->ddr_regs_phys[1];
-	ddr_ch[0].p_phy_reg = dmc->phy_regs_phys[0];
-	ddr_ch[1].p_phy_reg = dmc->phy_regs_phys[1];
-	ddr_ch[0].p_msch_reg = dmc->noc_phys;
-	ddr_ch[1].p_msch_reg = dmc->noc_phys + 0x80;
-	if (dmc->channel_num > 1) {
-		ddr_ch[0].mem_type = dmc->ddr_type;
-		ddr_ch[1].mem_type = dmc->ddr_type;
-	} else {
-		ddr_ch[0].mem_type = dmc->ddr_type;
-		ddr_ch[1].mem_type = DRAM_MAX;
+
+	for (i = 0; i < CH_MAX; i++) {
+		g_dmc_sram.rank_step[i] = dmc->rank_step[i];
+		g_dmc_sram.ranks[i] = dmc->ranks[i];
+		ddr_ch[i].p_ddr_reg = dmc->ddr_regs_phys[i];
+		ddr_ch[i].p_phy_reg = dmc->phy_regs_phys[i];
+		ddr_ch[i].p_msch_reg = dmc->noc_phys + i * 0x80;
 	}
+
+	ddr_ch[0].mem_type = dmc->ddr_type;
+	if (dmc->channel_num > 1)
+		ddr_ch[1].mem_type = dmc->ddr_type;
+	else
+		ddr_ch[1].mem_type = DRAM_MAX;
 }
 
 /* This is run with virtual addressing on. */
@@ -1005,6 +1024,7 @@ void dmc_set_rate_in_sram(void *arg)
 	int retries = 0;
 	bool success = false;
 
+	save_data_training_ddr();
 	save_enable_all_clks(p_cru_reg, clk_gate);
 	idle_core_domain();
 	/* ddr enter self-refresh mode or precharge power-down mode */
@@ -1032,7 +1052,7 @@ void dmc_set_rate_in_sram(void *arg)
 
 		for (ch = 0; ch < CH_MAX; ch++) {
 			if (ddr_ch[ch].mem_type != DRAM_MAX) {
-				success = ddr_data_training(ch);
+				success = ddr_data_training(ch, cs[ch]);
 				if (!success) {
 					retries++;
 					break;
@@ -1045,7 +1065,7 @@ void dmc_set_rate_in_sram(void *arg)
 
 		for (ch = 0; ch < CH_MAX; ch++) {
 			if (ddr_ch[ch].mem_type != DRAM_MAX) {
-				success = ddr_data_training(ch);
+				success = ddr_data_training(ch, cs[ch]);
 				if (!success) {
 					retries++;
 					break;
@@ -1063,6 +1083,7 @@ void dmc_set_rate_in_sram(void *arg)
 		}
 	}
 	deidle_core_domain();
+	restore_data_training_ddr();
 	deidle_noncore_domains();
 	restore_all_clks(p_cru_reg, clk_gate);
 	/*
