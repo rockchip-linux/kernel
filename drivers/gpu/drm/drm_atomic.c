@@ -918,9 +918,23 @@ retry:
 
 		for (i = 0; i < nplanes; i++) {
 			struct drm_plane_state *plane_state = state->pstates[i];
-			struct drm_pending_vblank_event *e;
+			struct drm_crtc_state *crtc_state;
 
 			if (!plane_state || !plane_state->crtc)
+				continue;
+
+			crtc_state = drm_atomic_get_crtc_state(plane_state->crtc, state);
+			if (IS_ERR(crtc_state)) {
+				ret = PTR_ERR(crtc_state);
+				goto fail;
+			}
+		}
+
+		for (i = 0; i < ncrtcs; i++) {
+			struct drm_crtc_state *crtc_state = state->cstates[i];
+			struct drm_pending_vblank_event *e;
+
+			if (!crtc_state)
 				continue;
 
 			e = create_vblank_event(dev, file_priv, arg->user_data);
@@ -930,16 +944,9 @@ retry:
 			}
 
 			ret = drm_atomic_set_event(
-					dev, state, &plane_state->crtc->base, e);
+					dev, state, &state->crtcs[i]->base, e);
 			if (ret)
 				goto fail;
-		}
-
-		for (i = 0; i < ncrtcs; i++) {
-			struct drm_crtc_state *crtc_state = state->cstates[i];
-
-			if (!crtc_state)
-				continue;
 
 			crtc_state->set_config = true;
 			crtc_state->commit_state = true;
