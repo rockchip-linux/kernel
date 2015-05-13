@@ -1,0 +1,65 @@
+/*
+ * Google Veyron (and derivatives) fragment for ethernet gmac
+ *
+ * Copyright 2015 Google, Inc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/ {
+	vcc_lan: vcc33-sys {
+	};
+
+	ext_gmac: external-gmac-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "ext_gmac";
+		#clock-cells = <0>;
+	};
+};
+
+&pinctrl {
+	gmac {
+		phy_rst: phy-rst {
+			rockchip,pins = <4 8 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+
+		phy_pmeb: phy-pmeb {
+			rockchip,pins = <0 7 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		phy_int: phy-int {
+			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+};
+
+&gmac {
+	status = "okay";
+
+	phy-supply = <&vcc_lan>;
+
+	phy-mode = "rgmii";
+	clock_in_out = "input";
+
+	assigned-clocks = <&cru SCLK_MAC>;
+	assigned-clock-parents = <&ext_gmac>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&rgmii_pins>, <&phy_rst>, <&phy_pmeb>, <&phy_int>;
+
+	tx_delay = <0x30>;
+	rx_delay = <0x10>;
+
+	resets = <&cru SRST_MAC>;
+	reset-names = "stmmaceth";
+
+	/* These properties are not actually used in rgmii mode,
+	 * but the documentation states they're still required
+	 * (including the active-low flag). */
+	snps,reset-gpio = <&gpio4 8 0>;
+	snps,reset-active-low;
+	snps,reset-delays-us = <0 10000 1000000>;
+};
