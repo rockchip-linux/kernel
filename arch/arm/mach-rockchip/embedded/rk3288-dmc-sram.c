@@ -171,12 +171,14 @@ struct dmc_sram {
 static void __iomem *p_cru_reg;
 static void __iomem *p_grf_reg;
 static void __iomem *p_pmu_reg;
+static void __iomem *p_pmu_reg_virt;
 static struct channel_info_tag ddr_ch[CH_MAX];
 
 static struct dmc_sram g_dmc_sram;
 static u32 clkr;
 static u32 clkf;
 static u32 clkod;
+static u32 deidle_req;
 
 static void ddr_copy(u64 *p_dest, u64 *p_src, u32 w_word)
 {
@@ -225,52 +227,74 @@ static void rk3288_dmc_set_dpll(u32 nmhz)
 	__raw_writel(val, p_cru_reg + CRU_MODE_CON);
 }
 
-static u32 idle_port(u32 clk_gate[])
+static void save_enable_all_clks(void __iomem *p_cru, u32 clk_gate[])
 {
-	u32 i, deidle_req, idle_req;
+	u32 i;
 
+	for (i = 0; i < CLKGATE_MAX_NUM; i++) {
+		clk_gate[i] = __raw_readl(p_cru + CRU_CLKGATE_CON(i));
+		__raw_writel(0xffff0000, p_cru + CRU_CLKGATE_CON(i));
+	}
+}
+
+static void restore_all_clks(void __iomem *p_cru, const u32 clk_gate[])
+{
+	u32 i, val;
+
+	for (i = 0; i < CLKGATE_MAX_NUM; i++) {
+		val = clk_gate[i] | 0xffff0000;
+		__raw_writel(val, p_cru + CRU_CLKGATE_CON(i));
+	}
+}
+
+/* Idle domains, excluding the Core domain. */
+static void idle_noncore_domains(void)
+{
+	u32 idle_req;
+
+	/*
+	 * Save current idle_req. In deidle_noncore_domains, we deidle all nius
+	 * that were either active or transitioning to active.
+	 */
+	deidle_req = __raw_readl(p_pmu_reg_virt + PMU_IDLE_REQ);
+	idle_req = IDLE_REQ_HEVC_CFG | IDLE_REQ_DMA_CFG |
+		   IDLE_REQ_VIO_CFG | IDLE_REQ_GPU_CFG |
+		   IDLE_REQ_PERI_CFG | IDLE_REQ_VIDEO_CFG;
+	dmc_io_or(idle_req, p_pmu_reg_virt + PMU_IDLE_REQ);
+
+	while ((__raw_readl(p_pmu_reg_virt + PMU_IDLE_ST) & idle_req) !=
+	       idle_req)
+		continue;
+}
+
+static void idle_core_domain(void)
+{
 	/* Allow core to idle. */
 	__raw_writel(CORE_IDLE_REQ_MODE(0, 0), p_grf_reg + GRF_SOC_CON0);
 	__raw_writel(CORE_IDLE_REQ_MODE(0, 1), p_grf_reg + GRF_SOC_CON0);
 
-	/* save clock gate status and enable all clock gate for request idle */
-	for (i = 0; i < CLKGATE_MAX_NUM; i++) {
-		clk_gate[i] = __raw_readl(p_cru_reg + CRU_CLKGATE_CON(i));
-		__raw_writel(0xffff0000, p_cru_reg + CRU_CLKGATE_CON(i));
-	}
+	dmc_io_or(IDLE_REQ_CORE_CFG, p_pmu_reg + PMU_IDLE_REQ);
 
-	/*
-	 * Save current idle_req.  In deidle_port we deidle all
-	 * nius that were either active or transitioning to active.
-	 */
-	deidle_req = __raw_readl(p_pmu_reg + PMU_IDLE_REQ);
-	idle_req = IDLE_REQ_HEVC_CFG | IDLE_REQ_DMA_CFG |
-		   IDLE_REQ_CORE_CFG | IDLE_REQ_VIO_CFG |
-		   IDLE_REQ_GPU_CFG | IDLE_REQ_PERI_CFG |
-		   IDLE_REQ_VIDEO_CFG;
-	dmc_io_or(idle_req, p_pmu_reg + PMU_IDLE_REQ);
-
-	while ((__raw_readl(p_pmu_reg + PMU_IDLE_ST) & idle_req) != idle_req)
+	while (!(__raw_readl(p_pmu_reg + PMU_IDLE_ST) & IDLE_CORE_ST))
 		continue;
-
-	return deidle_req;
 }
 
-static void deidle_port(const u32 clk_gate[], u32 deidle_req)
+/* Deidles domains, excluding the Core domain. */
+static void deidle_noncore_domains(void)
 {
-	u32 i, val;
-
 	__raw_writel(deidle_req, p_pmu_reg + PMU_IDLE_REQ);
 
 	while ((__raw_readl(p_pmu_reg + PMU_IDLE_ST) & deidle_req) !=
 	       deidle_req)
 		continue;
+}
 
-	/* restore clock gate status */
-	for (i = 0; i < CLKGATE_MAX_NUM; i++) {
-		val = clk_gate[i] | 0xffff0000;
-		__raw_writel(val, p_cru_reg + CRU_CLKGATE_CON(i));
-	}
+static void deidle_core_domain(void)
+{
+	dmc_io_and(~IDLE_REQ_CORE_CFG, p_pmu_reg + PMU_IDLE_REQ);
+
+	while (__raw_readl(p_pmu_reg + PMU_IDLE_ST) & IDLE_CORE_ST)
+		continue;
 
 	__raw_writel(CORE_IDLE_REQ_MODE(1, 0), p_grf_reg + GRF_SOC_CON0);
 	__raw_writel(CORE_IDLE_REQ_MODE(1, 1), p_grf_reg + GRF_SOC_CON0);
@@ -919,6 +943,7 @@ static void dmc_sram_init(struct rk3288_dmcclk *dmc)
 	p_cru_reg = dmc->cru_phys;
 	p_grf_reg = dmc->grf_phys;
 	p_pmu_reg = dmc->pmu_phys;
+	p_pmu_reg_virt = dmc->pmu;
 	ddr_ch[0].p_ddr_reg = dmc->ddr_regs_phys[0];
 	ddr_ch[1].p_ddr_reg = dmc->ddr_regs_phys[1];
 	ddr_ch[0].p_phy_reg = dmc->phy_regs_phys[0];
@@ -934,8 +959,11 @@ static void dmc_sram_init(struct rk3288_dmcclk *dmc)
 	}
 }
 
+/* This is run with virtual addressing on. */
 static void dmc_pre_set_rate(struct rk3288_dmcclk *dmc)
 {
+	u32 clk_gate[CLKGATE_MAX_NUM];
+
 	g_dmc_sram.cur_freq = dmc->cur_freq;
 	g_dmc_sram.target_freq = dmc->target_freq;
 	g_dmc_sram.freq_slew = dmc->freq_slew;
@@ -954,6 +982,14 @@ static void dmc_pre_set_rate(struct rk3288_dmcclk *dmc)
 	clkod = dmc->clkod;
 	clkr = dmc->clkr;
 	clkf = dmc->clkf;
+
+	/*
+	 * Idle domains that can access memory to avoid modifying the memory
+	 * while the MMU is turned off.
+	 */
+	save_enable_all_clks(dmc->cru, clk_gate);
+	idle_noncore_domains();
+	restore_all_clks(dmc->cru, clk_gate);
 }
 
 static void dmc_post_set_rate(struct rk3288_dmcclk *dmc)
@@ -962,13 +998,15 @@ static void dmc_post_set_rate(struct rk3288_dmcclk *dmc)
 	dmc->training_retries = g_dmc_sram.retries;
 }
 
+/* This is run with virtual addressing off. */
 void dmc_set_rate_in_sram(void *arg)
 {
-	u32 cs[CH_MAX], ch, deidle_req, clk_gate[CLKGATE_MAX_NUM];
+	u32 cs[CH_MAX], ch, clk_gate[CLKGATE_MAX_NUM];
 	int retries = 0;
 	bool success = false;
 
-	deidle_req = idle_port(clk_gate);
+	save_enable_all_clks(p_cru_reg, clk_gate);
+	idle_core_domain();
 	/* ddr enter self-refresh mode or precharge power-down mode */
 	ddr_selfrefresh_enter(g_dmc_sram.target_freq);
 
@@ -1024,7 +1062,9 @@ void dmc_set_rate_in_sram(void *arg)
 			}
 		}
 	}
-	deidle_port(clk_gate, deidle_req);
+	deidle_core_domain();
+	deidle_noncore_domains();
+	restore_all_clks(p_cru_reg, clk_gate);
 	/*
 	 * Make sure instruction pipeline is flushed before moving back to DRAM.
 	 */
