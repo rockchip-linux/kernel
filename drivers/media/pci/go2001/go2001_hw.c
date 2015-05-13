@@ -508,8 +508,8 @@ static int go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 	spin_lock_irqsave(&gdev->irqlock, flags);
 	seqid = go2001_queue_msg_locked(gdev, &ctx->hw_inst, msg);
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
-	go2001_dbg(gdev, 5, "Queued a message for inst %d, seqid: %d\n",
-			ctx->hw_inst.session_id, seqid);
+	go2001_dbg(gdev, 5, "Queued message type 0x%x for inst %d, seqid: %d\n",
+			msg_to_hdr(msg)->type, ctx->hw_inst.session_id, seqid);
 
 	go2001_send_pending(gdev);
 	return 0;
@@ -715,12 +715,14 @@ static int go2001_init_decoder(struct go2001_ctx *ctx)
 
 	go2001_queue_init_msg(ctx, &msg);
 	ret = go2001_wait_for_msg(gdev, &msg);
-	if (ret || ctx->state == ERROR)
+	if (ret || ctx->state == ERROR) {
 		go2001_err(gdev, "Failed initializing decoder\n");
-	else
+		return ret ? ret : -EIO;
+	} else {
 		ctx->state = NEED_HEADER_INFO;
+	}
 
-	return ret;
+	return 0;
 }
 
 static int go2001_s_ctrl(struct go2001_ctx *ctx, enum go2001_hw_ctrl_type type,
@@ -796,7 +798,7 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 	ret = go2001_wait_for_msg(gdev, &msg);
 	if (ret || ctx->state == ERROR) {
 		go2001_err(gdev, "Failed initializing encoder\n");
-		return ret;
+		return ret ? ret : -EIO;
 	}
 
 	ctx->state = INITIALIZED;

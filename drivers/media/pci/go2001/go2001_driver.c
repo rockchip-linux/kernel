@@ -887,6 +887,7 @@ static int go2001_mmap(struct file *file, struct vm_area_struct *vma)
 static void go2001_handle_init_reply(struct go2001_dev *gdev,
 					struct go2001_msg *msg)
 {
+	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
 	struct go2001_init_decoder_reply *reply = msg_to_param(msg);
 	struct go2001_hw_inst *hw_inst;
 	struct go2001_ctx *ctx = NULL;
@@ -906,8 +907,13 @@ static void go2001_handle_init_reply(struct go2001_dev *gdev,
 	if (gdev->curr_hw_inst == &ctx->hw_inst)
 		gdev->curr_hw_inst = NULL;
 	list_del(&ctx->hw_inst.inst_entry);
+
 	go2001_init_hw_inst(&ctx->hw_inst, reply->session_id);
-	list_add_tail(&ctx->hw_inst.inst_entry, &ctx->gdev->inst_list);
+
+	if (hdr->status == GO2001_STATUS_OK)
+		list_add_tail(&ctx->hw_inst.inst_entry, &ctx->gdev->inst_list);
+	else
+		go2001_ctx_error(ctx);
 }
 
 static int go2001_handle_release_instance_reply(struct go2001_ctx *ctx)
@@ -1266,7 +1272,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	}
 
 	default:
-		go2001_err(gdev, "Unexpected reply [%d:%d], type %d\n",
+		go2001_err(gdev, "Unexpected reply [%d:%d], type=0x%x\n",
 				hdr->session_id, hdr->sequence_id, hdr->type);
 		ret = -EIO;
 		break;

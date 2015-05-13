@@ -41,7 +41,7 @@ struct go2001_msg {
 	struct go2001_msg_payload payload;
 };
 
-static inline void *msg_to_hdr(struct go2001_msg *msg)
+static inline struct go2001_msg_hdr *msg_to_hdr(struct go2001_msg *msg)
 {
 	return &msg->payload.hdr;
 }
