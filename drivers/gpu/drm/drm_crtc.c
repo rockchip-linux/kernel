@@ -5084,6 +5084,19 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 		return PTR_ERR(state);
 
 retry:
+	ret = drm_modeset_lock(&crtc->mutex, &state->acquire_ctx);
+	if (ret)
+		goto out;
+
+	if (crtc->primary->fb == NULL) {
+		/* The framebuffer is currently unbound, presumably
+		 * due to a hotplug event, that userspace has not
+		 * yet discovered.
+		 */
+		ret = -EBUSY;
+		goto out;
+	}
+
 	if (page_flip->flags & DRM_MODE_PAGE_FLIP_EVENT) {
 		e = create_vblank_event(dev, file_priv, page_flip->user_data);
 		if (!e) {
