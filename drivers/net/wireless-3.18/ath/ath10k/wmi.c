@@ -1721,16 +1721,40 @@ void ath10k_wmi_event_chan_info(struct ath10k *ar, struct sk_buff *skb)
 		 * visited channel. The reported cycle count is global
 		 * and per-channel cycle count must be calculated */
 
-		cycle_count -= ar->survey_last_cycle_count;
-		rx_clear_count -= ar->survey_last_rx_clear_count;
-
 		survey = &ar->survey[idx];
-		survey->channel_time = WMI_CHAN_INFO_MSEC(cycle_count);
-		survey->channel_time_rx = WMI_CHAN_INFO_MSEC(rx_clear_count);
+
+		if (cycle_count < ar->survey_last_cycle_count) {
+			/* 
+			 * Ignore the wrapped around cycle data. When the total cycle 
+			 * count  wraps around, FW/HW will right shift all the counts 
+			 * (including total cycle counts) by 1.The cycle counts wrap 
+			 * around every 24 seconds. To handle this wrap around 
+			 * behavior,  we need the value of each counter at the time 
+			 * of wrap around which FW does not provide. 
+			 * For now ignore the data.
+			 */ 
+			survey->filled &= ~(SURVEY_INFO_CHANNEL_TIME |
+					    SURVEY_INFO_CHANNEL_TIME_BUSY); 
+		} else if (ar->ch_info_can_process) {
+			/*
+			 * FW sends back to back events with WMI_CHAN_INFO_FLAG_COMPLETE set.
+			 * One event at the end of the scan and other ath the beginning of next 
+			 * scan. Ignore such events.
+			 */
+			cycle_count -= ar->survey_last_cycle_count;
+			rx_clear_count -= ar->survey_last_rx_clear_count;
+
+			survey->channel_time = WMI_CHAN_INFO_MSEC(cycle_count);
+			/* the rx_clear_count count indicates the busy time */
+			survey->channel_time_busy = WMI_CHAN_INFO_MSEC(rx_clear_count);
+			survey->filled = SURVEY_INFO_CHANNEL_TIME |
+				SURVEY_INFO_CHANNEL_TIME_BUSY; 
+		}
 		survey->noise = noise_floor;
-		survey->filled = SURVEY_INFO_CHANNEL_TIME |
-				 SURVEY_INFO_CHANNEL_TIME_RX |
-				 SURVEY_INFO_NOISE_DBM;
+		survey->filled |= SURVEY_INFO_NOISE_DBM;
+		ar->ch_info_can_process = false;
+	} else { 
+		ar->ch_info_can_process = true;
 	}
 
 	ar->survey_last_rx_clear_count = rx_clear_count;
