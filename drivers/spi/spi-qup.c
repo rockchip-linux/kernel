@@ -446,6 +446,10 @@ static int spi_qup_do_dma(struct spi_qup *controller, struct spi_transfer *xfer)
 				ret = -ENOMEM;
 				goto err_unmap;
 			}
+			if (IS_ERR(txd)) {
+				ret = PTR_ERR(txd);
+				goto err_unmap;
+			}
 
 			atomic_inc(&controller->dma_outstanding);
 
@@ -476,6 +480,10 @@ static int spi_qup_do_dma(struct spi_qup *controller, struct spi_transfer *xfer)
 					rx_sg, rx_nents, DMA_DEV_TO_MEM, 0);
 			if (!rxd) {
 				ret = -ENOMEM;
+				goto err_unmap;
+			}
+			if (IS_ERR(rxd)) {
+				ret = PTR_ERR(rxd);
 				goto err_unmap;
 			}
 
