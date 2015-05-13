@@ -20,6 +20,7 @@
  * Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include <linux/freezer.h>
 #include <linux/pci.h>
 #include <linux/irq.h>
 #include <linux/log2.h>
@@ -1050,7 +1051,7 @@ int xhci_resume(struct xhci_hcd *xhci, bool hibernated)
 	if (retval == 0) {
 		/* Resume root hubs only when have pending events. */
 		status = readl(&xhci->op_regs->status);
-		if (status & STS_EINT) {
+		if (!pm_freezing || (status & STS_EINT)) {
 			usb_hcd_resume_root_hub(hcd);
 			usb_hcd_resume_root_hub(xhci->shared_hcd);
 		}
