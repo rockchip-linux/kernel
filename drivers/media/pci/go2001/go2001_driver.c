@@ -1261,7 +1261,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	case GO2001_VM_EVENT_LOG: {
 		struct go2001_event_log_reply *l = msg_to_param(reply);
 		l->data[ARRAY_SIZE(l->data) - 1] = '\0';
-		go2001_dbg(gdev, 1, "VM_EVENT_LOG: %s\n", l->data);
+		go2001_err(gdev, "VM_EVENT_LOG: %s\n", l->data);
 		break;
 	}
 

@@ -1238,11 +1238,5 @@ int go2001_init(struct go2001_dev *gdev)
 		return ret;
 	}
 
-	ret = go2001_set_log_level(gdev, GO2001_LOG_LEVEL_DISABLED);
-	if (ret) {
-		go2001_err(gdev, "Failed setting log level\n");
-		return ret;
-	}
-
 	return 0;
 }
