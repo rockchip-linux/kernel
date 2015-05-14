@@ -12,6 +12,7 @@
 #include "rk3288-veyron-chromebook.dtsi"
 #include "rk3288-veyron-ddr3.dtsi"
 #include "cros-ec-sbs.dtsi"
+#include "marvell_txpwrlimit.dtsi"
 
 / {
 	model = "Google Jerry";
