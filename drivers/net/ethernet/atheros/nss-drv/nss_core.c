@@ -49,11 +49,6 @@ struct nss_rx_cb_list {
 
 static struct nss_rx_cb_list nss_rx_interface_handlers[NSS_MAX_NET_INTERFACES];
 
-#ifdef CONFIG_DEBUG_KMEMLEAK
-struct sk_buff_head nss_skb_list;
-#endif
-
-
 /*
  * nss_core_set_jumbo_mru()
  *	Set the jumbo_mru to the specified value
@@ -505,15 +500,6 @@ static inline void nss_core_rx_pbuf(struct nss_ctx_instance *nss_ctx, struct n2h
 	struct nss_top_instance *nss_top = nss_ctx->nss_top;
 	struct nss_shaper_bounce_registrant *reg = NULL;
 
-#ifdef CONFIG_DEBUG_KMEMLEAK
-	/*
-	 * Tracking for kmemleak: Remove the skb from the nss_skb_list
-	 */
-	spin_lock_bh(&nss_skb_list.lock);
-	__skb_unlink(nbuf, &nss_skb_list);
-	spin_unlock_bh(&nss_skb_list.lock);
-#endif
-
 	NSS_PKT_STATS_DECREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_NSS_SKB_COUNT]);
 
 	switch (buffer_type) {
@@ -963,15 +949,6 @@ static int32_t nss_core_handle_cause_queue(struct int_ctx_instance *int_ctx, uin
 				nss_warning("%p: we should not have an incomplete paged skb while"
 								" constructing a linear skb %p", nbuf, head);
 
-#ifdef CONFIG_DEBUG_KMEMLEAK
-				/*
-				 * Tracking for kmemleak: Remove the skb from the nss_skb_list
-				 */
-				spin_lock_bh(&nss_skb_list.lock);
-				__skb_unlink(head, &nss_skb_list);
-				spin_unlock_bh(&nss_skb_list.lock);
-#endif
-
 				NSS_PKT_STATS_DECREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_NSS_SKB_COUNT]);
 				dev_kfree_skb_any(head);
 				head = NULL;
@@ -992,15 +969,6 @@ static int32_t nss_core_handle_cause_queue(struct int_ctx_instance *int_ctx, uin
 		if (unlikely(jumbo_start)) {
 			nss_warning("%p: we should not have an incomplete linear skb while"
 							" constructing a paged skb %p", nbuf, jumbo_start);
-
-#ifdef CONFIG_DEBUG_KMEMLEAK
-			/*
-			 * Tracking for kmemleak: Remove the skb from the nss_skb_list
-			 */
-			spin_lock_bh(&nss_skb_list.lock);
-			__skb_unlink(jumbo_start, &nss_skb_list);
-			spin_unlock_bh(&nss_skb_list.lock);
-#endif
 
 			NSS_PKT_STATS_DECREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_NSS_SKB_COUNT]);
 			dev_kfree_skb_any(jumbo_start);
@@ -1276,16 +1244,12 @@ static void nss_core_handle_cause_nonqueue(struct int_ctx_instance *int_ctx, uin
 				break;
 			}
 
-#ifdef CONFIG_DEBUG_KMEMLEAK
 			/*
-			 * Tracking for kmemleak because skbs dont have references.
+			 * We are holding this skb in NSS FW, let kmemleak know about it
 			 */
-			spin_lock_bh(&nss_skb_list.lock);
-			__skb_queue_head(&nss_skb_list, nbuf);
-			spin_unlock_bh(&nss_skb_list.lock);
-#endif
-
+			kmemleak_not_leak(nbuf);
 			NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_NSS_SKB_COUNT]);
+
 			desc->opaque = (uint32_t)nbuf;
 			desc->buffer = buffer;
 			desc->buffer_type = H2N_BUFFER_EMPTY;
@@ -1930,16 +1894,12 @@ int32_t nss_core_send_buffer(struct nss_ctx_instance *nss_ctx, uint32_t if_num,
 	h2n_desc_ring->hlos_index = hlos_index;
 	if_map->h2n_hlos_index[qid] = hlos_index;
 
-#ifdef CONFIG_DEBUG_KMEMLEAK
 	/*
-	 * Tracking for kmemleak because skbs dont have references.
+	 * We are holding this skb in NSS FW, let kmemleak know about it
 	 */
-	spin_lock_bh(&nss_skb_list.lock);
-	__skb_queue_head(&nss_skb_list, nbuf);
-	spin_unlock_bh(&nss_skb_list.lock);
-#endif
-
+	kmemleak_not_leak(nbuf);
 	NSS_PKT_STATS_INCREMENT(nss_ctx, &nss_ctx->nss_top->stats_drv[NSS_STATS_DRV_NSS_SKB_COUNT]);
+
 	spin_unlock_bh(&h2n_desc_ring->lock);
 	return NSS_CORE_STATUS_SUCCESS;
 }
