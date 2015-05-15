@@ -47,6 +47,7 @@ static const char *nss_tx_status_str(nss_tx_status_t status)
 		case_rtn_string(NSS_TX_FAILURE_TOO_SHORT);
 		case_rtn_string(NSS_TX_FAILURE_NOT_SUPPORTED);
 		case_rtn_string(NSS_TX_FAILURE_BAD_PARAM);
+		case_rtn_string(NSS_TX_FAILURE_NOT_ENABLED);
 	default:
 		return "Unknown NSS TX status";
 	}
@@ -57,18 +58,17 @@ static void netif_rx_nss(struct ieee80211_sub_if_data *sdata,
 {
 	int ret;
 
-	if (!sdata->nssctx)
-		goto out;
+	if (sdata->nssctx) {
+		ret = nss_tx_virt_if_rxbuf(sdata->nssctx, skb);
 
-	ret = nss_tx_virt_if_rxbuf(sdata->nssctx, skb);
-	if (ret) {
-		sdata_err(sdata, "NSS TX failed with error: %s\n",
-			  nss_tx_status_str(ret));
-		goto out;
+		if (!ret)
+			return;
+
+		if (ret != NSS_TX_FAILURE_NOT_ENABLED) {
+			sdata_err(sdata, "NSS TX failed with error: %s\n",
+				  nss_tx_status_str(ret));
+		}
 	}
-
-	return;
-out:
 	netif_receive_skb(skb);
 }
 #endif
