@@ -36,6 +36,12 @@
 #include "wme.h"
 #include "rate.h"
 
+#ifdef CONFIG_QCA_NSS_DRV
+#include <net/ip.h>
+#include <net/dsfield.h>
+#endif
+
+
 /* misc utils */
 
 static __le16 ieee80211_duration(struct ieee80211_tx_data *tx,
@@ -1822,13 +1828,32 @@ netdev_tx_t ieee80211_subif_start_xmit(struct sk_buff *skb,
 	struct ieee80211_sub_if_data *ap_sdata;
 	enum ieee80211_band band;
 
+	if (unlikely(skb->len <= ETH_HLEN))
+		goto fail;
+
 #ifdef CONFIG_QCA_NSS_DRV
 	if (ieee80211_queues_stopped(&local->hw))
 		return NETDEV_TX_BUSY;
+	/* Packets from NSS does not have valid protocol, priority and other
+	 * network stack values. Derive required parameters (priority
+	 * and network_header) from payload for QoS header.
+	 * XXX: Here the assumption is that packet are in 802.3 format.
+	 * As of now priority is handled only for IPv4 and IPv6.
+	 */
+	if (likely(!skb->protocol)) {
+		skb_set_network_header(skb, ETH_HLEN);
+		switch (((struct ethhdr *)skb->data)->h_proto) {
+		case htons(ETH_P_IP):
+			skb->priority = (ipv4_get_dsfield(ip_hdr(skb)) &
+					 0xfc) >> 5;
+			break;
+		case htons(ETH_P_IPV6):
+			skb->priority = (ipv6_get_dsfield(ipv6_hdr(skb)) &
+					 0xfc) >> 5;
+			break;
+		}
+	}
 #endif
-
-	if (unlikely(skb->len < ETH_HLEN))
-		goto fail;
 
 	/* convert Ethernet header to proper 802.11 header (based on
 	 * operation mode) */
