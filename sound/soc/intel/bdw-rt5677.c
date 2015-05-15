@@ -221,7 +221,6 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	bdw_rt5677->codec = codec;
 
 	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
-	snd_soc_dapm_force_enable_pin(dapm, "dac stereo1 filter");
 	return 0;
 }
 
@@ -291,6 +290,30 @@ static struct snd_soc_dai_link bdw_rt5677_dais[] = {
 	},
 };
 
+static int bdw_rt5677_suspend_pre(struct snd_soc_card *card)
+{
+	struct bdw_rt5677_priv *bdw_rt5677 = snd_soc_card_get_drvdata(card);
+	struct snd_soc_dapm_context *dapm;
+
+	if (bdw_rt5677->codec) {
+		dapm = &bdw_rt5677->codec->dapm;
+		snd_soc_dapm_disable_pin(dapm, "MICBIAS1");
+	}
+	return 0;
+}
+
+static int bdw_rt5677_resume_post(struct snd_soc_card *card)
+{
+	struct bdw_rt5677_priv *bdw_rt5677 = snd_soc_card_get_drvdata(card);
+	struct snd_soc_dapm_context *dapm;
+
+	if (bdw_rt5677->codec) {
+		dapm = &bdw_rt5677->codec->dapm;
+		snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
+	}
+	return 0;
+}
+
 /* ASoC machine driver for Broadwell DSP + RT5677 */
 static struct snd_soc_card bdw_rt5677_card = {
 	.name = "bdw-rt5677",
@@ -304,6 +327,8 @@ static struct snd_soc_card bdw_rt5677_card = {
 	.controls = bdw_rt5677_controls,
 	.num_controls = ARRAY_SIZE(bdw_rt5677_controls),
 	.fully_routed = true,
+	.suspend_pre = bdw_rt5677_suspend_pre,
+	.resume_post = bdw_rt5677_resume_post,
 };
 
 static int bdw_rt5677_probe(struct platform_device *pdev)
@@ -330,28 +355,12 @@ static int bdw_rt5677_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int snd_soc_bdw_rt5677_resume(struct device *dev)
-{
-	struct snd_soc_card *card = dev_get_drvdata(dev);
-	struct bdw_rt5677_priv *bdw_rt5677 = snd_soc_card_get_drvdata(card);
-
-	if (bdw_rt5677->codec)
-		rt5677_poll_gpios(bdw_rt5677->codec);
-
-	return snd_soc_resume(dev);
-}
-
-const struct dev_pm_ops snd_soc_bdw_rt5677_pm_ops = {
-	.resume = snd_soc_bdw_rt5677_resume,
-};
-
 static struct platform_driver bdw_rt5677_audio = {
 	.probe = bdw_rt5677_probe,
 	.remove = bdw_rt5677_remove,
 	.driver = {
 		.name = "bdw-rt5677",
 		.owner = THIS_MODULE,
-		.pm = &snd_soc_bdw_rt5677_pm_ops,
 	},
 };
 
