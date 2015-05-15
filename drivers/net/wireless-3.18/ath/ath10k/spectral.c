@@ -76,6 +76,15 @@ int ath10k_spectral_process_fft(struct ath10k *ar,
 	reg0 = __le32_to_cpu(fftr->reg0);
 	reg1 = __le32_to_cpu(fftr->reg1);
 
+	spin_lock_bh(&ar->data_lock);
+	if (phyerr->phy_err_code == PHY_ERROR_SPECTRAL_SCAN) {
+		if (phyerr->rsvd0 & PHYERR_FLAG_INTERFRC_5G)
+			ar->spectral.interfrc_5g++;
+		if (phyerr->rsvd0 & PHYERR_FLAG_INTERFRC_2G)
+			ar->spectral.interfrc_2g++;
+	}
+	spin_unlock_bh(&ar->data_lock);
+
 	length = sizeof(*fft_sample) - sizeof(struct fft_sample_tlv) + bin_len;
 	fft_sample->tlv.type = ATH_FFT_SAMPLE_ATH10K;
 	fft_sample->tlv.length = __cpu_to_be16(length);
@@ -318,6 +327,11 @@ static ssize_t write_file_spec_scan_ctl(struct file *file,
 			 */
 			res = ath10k_spectral_scan_config(ar,
 							  ar->spectral.mode);
+			spin_lock_bh(&ar->data_lock);
+			ar->spectral.interfrc_5g = 0;
+			ar->spectral.interfrc_2g = 0;
+			spin_unlock_bh(&ar->data_lock);
+
 			if (res < 0) {
 				ath10k_warn(ar, "failed to reconfigure spectral scan: %d\n",
 					    res);

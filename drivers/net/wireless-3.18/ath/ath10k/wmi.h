@@ -150,6 +150,7 @@ enum wmi_service {
 	WMI_SERVICE_SAP_AUTH_OFFLOAD,
 	WMI_SERVICE_ATF,
 	WMI_SERVICE_COEX_GPIO,
+	WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
 
 	/* keep last */
 	WMI_SERVICE_MAX,
@@ -181,6 +182,7 @@ enum wmi_10x_service {
 	WMI_10X_SERVICE_SMART_ANTENNA_HW_SUPPORT,
 	WMI_10X_SERVICE_ATF,
 	WMI_10X_SERVICE_COEX_GPIO,
+	WMI_10X_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
 };
 
 enum wmi_main_service {
@@ -299,6 +301,8 @@ static inline char *wmi_service_name(int service_id)
 	SVCSTR(WMI_SERVICE_SAP_AUTH_OFFLOAD);
 	SVCSTR(WMI_SERVICE_ATF);
 	SVCSTR(WMI_SERVICE_COEX_GPIO);
+	SVCSTR(WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC);
+
 	default:
 		return NULL;
 	}
@@ -366,6 +370,8 @@ static inline void wmi_10x_svc_map(const __le32 *in, unsigned long *out,
 	       WMI_SERVICE_ATF, len);
 	SVCMAP(WMI_10X_SERVICE_COEX_GPIO,
 	       WMI_SERVICE_COEX_GPIO, len);
+	SVCMAP(WMI_10X_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
+	       WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC, len);
 }
 
 static inline void wmi_main_svc_map(const __le32 *in, unsigned long *out,
@@ -1970,6 +1976,7 @@ enum wmi_10_2_feature_mask {
 	WMI_10_2_RX_BATCH_MODE = BIT(0),
 	WMI_10_2_ATF_CONFIG    = BIT(1),
 	WMI_10_2_COEX_GPIO     = BIT(3),
+	WMI_10_2_ADJ_RADIO_SPECTRAL_INTERFRC	= BIT(4),
 };
 
 struct wmi_resource_config_10_2 {
@@ -2341,6 +2348,9 @@ struct wmi_mgmt_rx_event_v2 {
 #define PHY_ERROR_SPECTRAL_SCAN		0x26
 #define PHY_ERROR_FALSE_RADAR_EXT		0x24
 #define PHY_ERROR_RADAR				0x05
+
+#define PHYERR_FLAG_INTERFRC_5G			0x01
+#define PHYERR_FLAG_INTERFRC_2G			0x02
 
 struct wmi_phyerr {
 	__le32 tsf_timestamp;

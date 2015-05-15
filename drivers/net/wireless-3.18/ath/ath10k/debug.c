@@ -2063,6 +2063,66 @@ static const struct file_operations fops_btc_feature = {
 	.open = simple_open
 };
 
+static ssize_t ath10k_write_adjacent_wlan_interfrc(struct file *file,
+						   const char __user *ubuf,
+						   size_t count, loff_t *ppos)
+{
+	struct ath10k *ar = file->private_data;
+	u32 flag;
+
+	if (kstrtouint_from_user(ubuf, count, 0, &flag))
+		return -EINVAL;
+
+	mutex_lock(&ar->conf_mutex);
+	if (flag != ar->wlan_interfrc_mask) {
+		ar->wlan_interfrc_mask = flag;
+		queue_work(ar->workqueue, &ar->restart_work);
+	}
+	mutex_unlock(&ar->conf_mutex);
+
+	return count;
+}
+
+#define ATH10K_WLAN_INTFRC_REPORT_SIZE	256
+
+static ssize_t ath10k_read_adjacent_wlan_interfrc(struct file *file,
+						  char __user *ubuf,
+						  size_t count, loff_t *ppos)
+{
+	char buf[ATH10K_WLAN_INTFRC_REPORT_SIZE];
+	struct ath10k *ar = file->private_data;
+	unsigned int len = 0;
+	unsigned int buf_len = ATH10K_WLAN_INTFRC_REPORT_SIZE;
+	u32 interfrc_5g, interfrc_2g;
+
+	mutex_lock(&ar->conf_mutex);
+
+	len += scnprintf(buf, buf_len,
+			 "INTERFRC DETECT FOR SPEC SCAN: %s\n",
+			 ar->wlan_interfrc_mask & ATH10K_SPECTRAL_INTERFRC ?
+			 "Enable" : "Disable");
+
+	spin_lock_bh(&ar->data_lock);
+	interfrc_5g = ar->spectral.interfrc_5g;
+	interfrc_2g = ar->spectral.interfrc_2g;
+	spin_unlock_bh(&ar->data_lock);
+
+	len += scnprintf(buf + len, buf_len - len, "5G INTERFRC: %d\n",
+			 interfrc_5g);
+	len += scnprintf(buf + len, buf_len - len, "2G INTERFRC: %d\n",
+			 interfrc_2g);
+
+	mutex_unlock(&ar->conf_mutex);
+
+	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
+}
+
+static const struct file_operations fops_adjacent_wlan_interfrc = {
+	.read = ath10k_read_adjacent_wlan_interfrc,
+	.write = ath10k_write_adjacent_wlan_interfrc,
+	.open = simple_open
+};
+
 int ath10k_debug_create(struct ath10k *ar)
 {
 	ar->debug.fw_crash_data = vzalloc(sizeof(*ar->debug.fw_crash_data));
@@ -2166,6 +2226,11 @@ int ath10k_debug_register(struct ath10k *ar)
 
 	debugfs_create_file("btc_feature", S_IRUGO | S_IWUSR,
 			    ar->debug.debugfs_phy, ar, &fops_btc_feature);
+
+	debugfs_create_file("adjacent_wlan_interfrc", S_IRUGO | S_IWUSR,
+			    ar->debug.debugfs_phy, ar,
+			    &fops_adjacent_wlan_interfrc);
+
 	return 0;
 }
 
