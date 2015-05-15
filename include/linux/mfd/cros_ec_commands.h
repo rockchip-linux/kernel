@@ -20,8 +20,6 @@
  * project in an attempt to make future updates easy to make.
  */
 
-/* Host communication command constants for Chrome EC */
-
 #ifndef __CROS_EC_COMMANDS_H
 #define __CROS_EC_COMMANDS_H
 
@@ -876,6 +874,88 @@ struct ec_response_get_set_value {
 /* More than one command can use these structs to get/set paramters. */
 #define EC_CMD_GSV_PAUSE_IN_S5	0x0c
 
+/*****************************************************************************/
+/* List the features supported by the firmware */
+#define EC_CMD_GET_FEATURES  0x0d
+
+/* Supported features */
+enum ec_feature_code {
+	/*
+	 * This image contains a limited set of features. Another image
+	 * in RW partition may support more features.
+	 */
+	EC_FEATURE_LIMITED = 0,
+	/*
+	 * Commands for probing/reading/writing/erasing the flash in the
+	 * EC are present.
+	 */
+	EC_FEATURE_FLASH = 1,
+	/*
+	 * Can control the fan speed directly.
+	 */
+	EC_FEATURE_PWM_FAN = 2,
+	/*
+	 * Can control the intensity of the keyboard backlight.
+	 */
+	EC_FEATURE_PWM_KEYB = 3,
+	/*
+	 * Support Google lightbar, introduced on Pixel.
+	 */
+	EC_FEATURE_LIGHTBAR = 4,
+	/* Control of LEDs  */
+	EC_FEATURE_LED = 5,
+	/* Exposes an interface to control gyro and sensors.
+	 * The host goes through the EC to access these sensors.
+	 * In addition, the EC may provide composite sensors, like lid angle.
+	 */
+	EC_FEATURE_MOTION_SENSE = 6,
+	/* The keyboard is controlled by the EC */
+	EC_FEATURE_KEYB = 7,
+	/* The AP can use part of the EC flash as persistent storage. */
+	EC_FEATURE_PSTORE = 8,
+	/* The EC monitors BIOS port 80h, and can return POST codes. */
+	EC_FEATURE_PORT80 = 9,
+	/*
+	 * Thermal management: include TMP specific commands.
+	 * Higher level than direct fan control.
+	 */
+	EC_FEATURE_THERMAL = 10,
+	/* Can switch the screen backlight on/off */
+	EC_FEATURE_BKLIGHT_SWITCH = 11,
+	/* Can switch the wifi module on/off */
+	EC_FEATURE_WIFI_SWITCH = 12,
+	/* Monitor host events, through for example SMI or SCI */
+	EC_FEATURE_HOST_EVENTS = 13,
+	/* The EC exposes GPIO commands to control/monitor connected devices. */
+	EC_FEATURE_GPIO = 14,
+	/* The EC can send i2c messages to downstream devices. */
+	EC_FEATURE_I2C = 15,
+	/* Command to control charger are included */
+	EC_FEATURE_CHARGER = 16,
+	/* Simple battery support. */
+	EC_FEATURE_BATTERY = 17,
+	/*
+	 * Support Smart battery protocol
+	 * (Common Smart Battery System Interface Specification)
+	 */
+	EC_FEATURE_SMART_BATTERY = 18,
+	/* EC can dectect when the host hangs. */
+	EC_FEATURE_HANG_DETECT = 19,
+	/* Report power information, for pit only */
+	EC_FEATURE_PMU = 20,
+	/* Another Cros EC device is present downstream of this one */
+	EC_FEATURE_SUB_MCU = 21,
+	/* Support USB Power delivery (PD) commands */
+	EC_FEATURE_USB_PD = 22,
+	/* Control USB multiplexer, for audio through USB port for instance. */
+	EC_FEATURE_USB_MUX = 23
+};
+
+#define EC_FEATURE_MASK_0(event_code) (1UL << (event_code % 32))
+#define EC_FEATURE_MASK_1(event_code) (1UL << (event_code - 32))
+struct ec_response_get_features {
+	uint32_t flags[2];
+} __packed;
 
 /*****************************************************************************/
 /* Flash commands */
@@ -1594,6 +1674,7 @@ enum motionsense_command {
 enum motionsensor_type {
 	MOTIONSENSE_TYPE_ACCEL = 0,
 	MOTIONSENSE_TYPE_GYRO = 1,
+	MOTIONSENSE_TYPE_MAG = 2,
 };
 
 /* List of motion sensor locations. */
@@ -1606,6 +1687,7 @@ enum motionsensor_location {
 enum motionsensor_chip {
 	MOTIONSENSE_CHIP_KXCJ9 = 0,
 	MOTIONSENSE_CHIP_LSM6DS0 = 1,
+	MOTIONSENSE_CHIP_BMI160 = 2,
 };
 
 /* Module flag masks used for the dump sub-command. */
@@ -2289,7 +2371,7 @@ enum gpio_get_subcmd {
 
 /*
  * TODO(crosbug.com/p/23570): These commands are deprecated, and will be
- * removed soon.  Use EC_CMD_I2C_XFER instead.
+ * removed soon.  Use EC_CMD_I2C_PASSTHRU instead.
  */
 
 /* Read I2C bus */
@@ -2862,6 +2944,7 @@ struct ec_response_pd_status {
 #define PD_EVENT_UPDATE_DEVICE     (1 << 0)
 #define PD_EVENT_POWER_CHANGE      (1 << 1)
 #define PD_EVENT_IDENTITY_RECEIVED (1 << 2)
+#define PD_EVENT_DATA_SWAP         (1 << 3)
 struct ec_response_host_event_status {
 	uint32_t status;      /* PD MCU host event status */
 } __packed;
@@ -2902,7 +2985,7 @@ struct ec_response_usb_pd_control {
 } __packed;
 
 struct ec_response_usb_pd_control_v1 {
-	uint8_t enabled;
+	uint8_t enabled; /* [0] comm enabled [1] connected */
 	uint8_t role; /* [0] power: 0=SNK/1=SRC [1] data: 0=UFP/1=DFP */
 	uint8_t polarity;
 	char state[32];
