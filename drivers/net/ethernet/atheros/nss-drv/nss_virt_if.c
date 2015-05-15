@@ -93,7 +93,11 @@ nss_tx_status_t nss_virt_if_tx_rxbuf(struct nss_ctx_instance *nss_ctx, int32_t i
 {
 	int32_t status;
 
-	if (unlikely(nss_ctl_redirect == 0) || unlikely(skb->vlan_tci)) {
+	if (unlikely(nss_ctl_redirect == 0)) {
+		return NSS_TX_FAILURE_NOT_ENABLED;
+	}
+
+	if (unlikely(skb->vlan_tci)) {
 		return NSS_TX_FAILURE_NOT_SUPPORTED;
 	}
 

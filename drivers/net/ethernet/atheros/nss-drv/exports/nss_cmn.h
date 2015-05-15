@@ -40,6 +40,7 @@ typedef enum {
 	NSS_TX_FAILURE_TOO_SHORT,	/**< Command/Packet is shorter than expected size */
 	NSS_TX_FAILURE_NOT_SUPPORTED,	/**< Command/Packet not accepted for forwarding */
 	NSS_TX_FAILURE_BAD_PARAM,	/**< Command failure due to bad parameters */
+	NSS_TX_FAILURE_NOT_ENABLED,	/**< Command failure due to NSS feature is not enabled */
 } nss_tx_status_t;
 
 /**

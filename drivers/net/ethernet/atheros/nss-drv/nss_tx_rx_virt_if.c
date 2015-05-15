@@ -72,7 +72,11 @@ nss_tx_status_t nss_tx_virt_if_recvbuf(void *ctx, struct sk_buff *os_buf, uint32
 	uint32_t bufftype;
 	int32_t push_mac_header = 0;
 
-	if (unlikely(nss_ctl_redirect == 0) || unlikely(os_buf->vlan_tci)) {
+	if (unlikely(nss_ctl_redirect == 0)) {
+		return NSS_TX_FAILURE_NOT_ENABLED;
+	}
+
+	if (unlikely(os_buf->vlan_tci)) {
 		return NSS_TX_FAILURE_NOT_SUPPORTED;
 	}
 
