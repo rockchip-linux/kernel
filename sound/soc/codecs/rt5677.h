@@ -1702,11 +1702,10 @@ struct rt5677_priv {
 	struct irq_domain *domain;
 	struct mutex irq_lock;
 	unsigned int irq_en;
-	struct delayed_work irq_work;
+	struct delayed_work resume_irq_check;
+	int irq;
 
 	int (*set_dsp_vad)(struct snd_soc_codec *codec, bool on);
 };
-
-int rt5677_poll_gpios(struct snd_soc_codec *codec);
 
 #endif /* __RT5677_H__ */

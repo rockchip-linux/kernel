@@ -4407,15 +4407,6 @@ static void rt5677_free_gpio(struct i2c_client *i2c)
 }
 #endif
 
-int rt5677_poll_gpios(struct snd_soc_codec *codec)
-{
-	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
-
-	/* The delay is to wait for MCLK */
-	schedule_delayed_work(&rt5677->irq_work, msecs_to_jiffies(1000));
-	return 0;
-}
-EXPORT_SYMBOL(rt5677_poll_gpios);
 
 static int rt5677_probe(struct snd_soc_codec *codec)
 {
@@ -4467,6 +4458,11 @@ static int rt5677_suspend(struct snd_soc_codec *codec)
 {
 	struct rt5677_priv *rt5677 = snd_soc_codec_get_drvdata(codec);
 
+	if (rt5677->irq) {
+		cancel_delayed_work_sync(&rt5677->resume_irq_check);
+		disable_irq(rt5677->irq);
+	}
+
 	if (!rt5677->dsp_vad_en) {
 		regcache_cache_only(rt5677->regmap, true);
 		regcache_mark_dirty(rt5677->regmap);
@@ -4490,6 +4486,11 @@ static int rt5677_resume(struct snd_soc_codec *codec)
 	if (!rt5677->dsp_vad_en) {
 		regcache_cache_only(rt5677->regmap, false);
 		regcache_sync(rt5677->regmap);
+	}
+
+	if (rt5677->irq) {
+		enable_irq(rt5677->irq);
+		schedule_delayed_work(&rt5677->resume_irq_check, 0);
 	}
 
 	return 0;
@@ -4915,12 +4916,37 @@ static irqreturn_t rt5677_irq(int unused, void *data)
 
 	return IRQ_HANDLED;
 }
-static void rt5677_irq_work(struct work_struct *work)
+static void rt5677_resume_irq_check(struct work_struct *work)
 {
+	int i, virq;
 	struct rt5677_priv *rt5677 =
-		container_of(work, struct rt5677_priv, irq_work.work);
+		container_of(work, struct rt5677_priv, resume_irq_check.work);
 
+	/* This is needed to check and clear the interrupt status register
+	 * at resume. If the headset is plugged/unplugged when the device is
+	 * fully suspended, there won't be a rising edge at resume to trigger
+	 * the interrupt. Without this, we miss the next unplug/plug event.
+	 */
 	rt5677_irq(0, rt5677);
+
+	/* Call all enabled jack detect irq handlers again. This is needed in
+	 * addition to the above check for a corner case caused by jack gpio
+	 * debounce. After codec irq is disabled at suspend, the delayed work
+	 * scheduled by soc-jack may run and read wrong jack gpio values, since
+	 * the regmap is in cache only mode. At resume, there is no irq because
+	 * rt5677_irq has already ran and cleared the irq status at suspend.
+	 * Without this explicit check, unplug the headset right after suspend
+	 * starts, then after resume the headset is still shown as plugged in.
+	 */
+	mutex_lock(&rt5677->irq_lock);
+	for (i = 0; i < RT5677_IRQ_NUM; i++) {
+		if (rt5677->irq_en & rt5677_irq_descs[i].enable_mask) {
+			virq = irq_find_mapping(rt5677->domain, i);
+			if (virq)
+				handle_nested_irq(virq);
+		}
+	}
+	mutex_unlock(&rt5677->irq_lock);
 }
 
 static void rt5677_irq_bus_lock(struct irq_data *data)
@@ -4994,7 +5020,7 @@ static void rt5677_irq_init(struct i2c_client *i2c)
 		return;
 
 	mutex_init(&rt5677->irq_lock);
-	INIT_DELAYED_WORK(&rt5677->irq_work, rt5677_irq_work);
+	INIT_DELAYED_WORK(&rt5677->resume_irq_check, rt5677_resume_irq_check);
 
 	/*
 	 * Select RC as the debounce clock so that GPIO works even when
@@ -5040,12 +5066,13 @@ static void rt5677_irq_init(struct i2c_client *i2c)
 		dev_err(&i2c->dev, "Failed to request IRQ: %d\n", ret);
 		return;
 	}
+	rt5677->irq = i2c->irq;
 }
 
 static void rt5677_irq_exit(struct i2c_client *i2c)
 {
 	struct rt5677_priv *rt5677 = i2c_get_clientdata(i2c);
-	cancel_delayed_work_sync(&rt5677->irq_work);
+	cancel_delayed_work_sync(&rt5677->resume_irq_check);
 }
 
 static int rt5677_i2c_probe(struct i2c_client *i2c,
