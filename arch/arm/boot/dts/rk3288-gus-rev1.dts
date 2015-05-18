@@ -21,3 +21,7 @@
 		     "google,veyron-gus-rev1", "google,veyron-gus",
 		     "google,veyron", "rockchip,rk3288";
 };
+
+&sdmmc {
+	disable-wp;
+};

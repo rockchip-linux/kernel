@@ -183,12 +183,6 @@
 		};
 	};
 
-	sdmmc {
-		sdmmc_wp_gpio: sdmmc-wp-gpio {
-			rockchip,pins = <7 10 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
-
 	suspend {
 		suspend_l_wake: suspend-l-wake {
 			rockchip,pins = <0 17 RK_FUNC_GPIO &pcfg_output_low>;
