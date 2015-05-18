@@ -1,0 +1,95 @@
+/*
+ * Google Veyron Mickey Rev 0 board device tree source
+ *
+ * Copyright 2015 Google, Inc
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+#include "rk3288-veyron.dtsi"
+#include "rk3288-veyron-lpddr.dtsi"
+
+/ {
+	model = "Google Mickey";
+	compatible = "google,veyron-mickey-rev0", "google,veyron-mickey",
+	             "google,veyron", "rockchip,rk3288";
+
+	/delete-node/ gpio-keys;
+
+	vcc_5v: vcc-5v {
+		vin-supply = <&vcc33_sys>;
+	};
+
+	vcc33_io: vcc33_io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_io";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+	};
+};
+
+&i2c2 {
+	status = "disabled";
+};
+
+&i2c4 {
+	status = "disabled";
+};
+
+&rk808 {
+	/delete-property/ vcc6-supply;
+	/delete-property/ vcc12-supply;
+
+	vcc11-supply = <&vcc33_sys>;
+
+	regulators {
+		/* vcc33_io is sourced directly from vcc33_sys */
+		/delete-node/ LDO_REG1;
+		/delete-node/ LDO_REG7;
+
+		/* This is not a pwren anymore, but the real power supply */
+		vdd10_lcd: LDO_REG7 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-name = "vdd10_lcd";
+			regulator-suspend-mem-disabled;
+		};
+
+		vcc18_lcd: LDO_REG8 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-name = "vcc18_lcd";
+			regulator-suspend-mem-disabled;
+		};
+	};
+};
+
+&vcc50_hdmi {
+	enable-active-high;
+	gpio = <&gpio7 11 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&power_hdmi_on>;
+};
+
+&pinctrl {
+	emmc {
+		/* Make sure eMMC is not in reset */
+		emmc_deassert_reset: emmc-deassert-reset {
+			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	hdmi {
+		power_hdmi_on: power-hdmi-on {
+			rockchip,pins = <7 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+};

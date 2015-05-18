@@ -265,6 +265,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-jaq-rev1.dtb \
 	rk3288-jerry-rev2.dtb \
 	rk3288-jerry-rev3.dtb \
+	rk3288-mickey-rev0.dtb \
 	rk3288-mighty-rev1.dtb \
 	rk3288-minnie-rev0.dtb \
 	rk3288-nicky-rev0.dtb\
