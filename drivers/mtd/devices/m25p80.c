@@ -916,23 +916,25 @@ static const struct spi_device_id m25p_ids[] = {
 	{"m25p05-nonjedec"},	{"m25p10-nonjedec"},	{"m25p20-nonjedec"},
 	{"m25p40-nonjedec"},	{"m25p80-nonjedec"},	{"m25p16-nonjedec"},
 	{"m25p32-nonjedec"},	{"m25p64-nonjedec"},	{"m25p128-nonjedec"},
-	{"m45pe10"},	{"m45pe80"},	{"m45pe16"},
-	{"m25pe20"},	{"m25pe80"},	{"m25pe16"},
-	{"m25px16"},	{"m25px32"},	{"m25px32-s0"},	{"m25px32-s1"},
-	{"m25px64"},
-	{"w25x10"},	{"w25x20"},	{"w25x40"},	{"w25x80"},
-	{"w25x16"},	{"w25x32"},	{"w25q32"},	{"w25q32dw"},
-	{"w25x64"},	{"w25q64"},	{"w25q128"},	{"w25q80"},
-	{"w25q80bl"},	{"w25q128"},	{"w25q256"},	{"cat25c11"},
-	{"cat25c03"},	{"cat25c09"},	{"cat25c17"},	{"cat25128"},
 	{ },
 };
 MODULE_DEVICE_TABLE(spi, m25p_ids);
+
+static const struct of_device_id m25p_of_table[] = {
+	/*
+	 * Generic compatibility for SPI NOR that can be identified by the
+	 * JEDEC READ ID opcode (0x9F). Use this, if possible.
+	 */
+	{ .compatible = "jedec,spi-nor" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, m25p_of_table);
 
 static struct spi_driver m25p80_driver = {
 	.driver = {
 		.name	= "m25p80",
 		.owner	= THIS_MODULE,
+		.of_match_table = m25p_of_table,
 	},
 	.id_table	= m25p_ids,
 	.probe	= m25p_probe,
