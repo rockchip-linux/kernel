@@ -329,7 +329,9 @@ static u32 dw_mci_prep_stop_abort(struct dw_mci *host, struct mmc_command *cmd)
 	if (cmdr == MMC_READ_SINGLE_BLOCK ||
 	    cmdr == MMC_READ_MULTIPLE_BLOCK ||
 	    cmdr == MMC_WRITE_BLOCK ||
-	    cmdr == MMC_WRITE_MULTIPLE_BLOCK) {
+	    cmdr == MMC_WRITE_MULTIPLE_BLOCK ||
+	    cmdr == MMC_SEND_TUNING_BLOCK ||
+	    cmdr == MMC_SEND_TUNING_BLOCK_HS200) {
 		stop->opcode = MMC_STOP_TRANSMISSION;
 		stop->arg = 0;
 		stop->flags = MMC_RSP_R1B | MMC_CMD_AC;
@@ -1312,7 +1314,6 @@ static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
 	unsigned int blksz = tuning_data->blksz;
 	struct mmc_request mrq = { NULL };
 	struct mmc_command cmd = {0};
-	struct mmc_command stop = {0};
 	struct mmc_data data = {0};
 	struct scatterlist sg;
 
@@ -1322,10 +1323,6 @@ static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
 	cmd.arg = 0;
 	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
 
-	stop.opcode = MMC_STOP_TRANSMISSION;
-	stop.arg = 0;
-	stop.flags = MMC_RSP_R1B | MMC_CMD_AC;
-
 	data.blksz = blksz;
 	data.blocks = 1;
 	data.flags = MMC_DATA_READ;
@@ -1334,7 +1331,6 @@ static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
 
 	sg_init_one(&sg, blk_test, blksz);
 	mrq.cmd = &cmd;
-	mrq.stop = &stop;
 	mrq.data = &data;
 	host->mrq = &mrq;
 
