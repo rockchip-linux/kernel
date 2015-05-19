@@ -152,6 +152,7 @@ enum wmi_service {
 	WMI_SERVICE_COEX_GPIO,
 	WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
 	WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC,
+	WMI_SERVICE_64BITS_COUNTER,
 
 	/* keep last */
 	WMI_SERVICE_MAX,
@@ -185,6 +186,7 @@ enum wmi_10x_service {
 	WMI_10X_SERVICE_COEX_GPIO,
 	WMI_10X_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC,
 	WMI_10X_SERVICE_ADJ_RADIO_SURVEY_INTERFRC,
+	WMI_10X_SERVICE_64BITS_COUNTER,
 };
 
 enum wmi_main_service {
@@ -305,6 +307,7 @@ static inline char *wmi_service_name(int service_id)
 	SVCSTR(WMI_SERVICE_COEX_GPIO);
 	SVCSTR(WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC);
 	SVCSTR(WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC);
+	SVCSTR(WMI_SERVICE_64BITS_COUNTER);
 
 	default:
 		return NULL;
@@ -377,7 +380,8 @@ static inline void wmi_10x_svc_map(const __le32 *in, unsigned long *out,
 	       WMI_SERVICE_ADJ_RADIO_SPECTRAL_INTERFRC, len);
 	SVCMAP(WMI_10X_SERVICE_ADJ_RADIO_SURVEY_INTERFRC,
 	       WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC, len);
-
+	SVCMAP(WMI_10X_SERVICE_64BITS_COUNTER,
+	       WMI_SERVICE_64BITS_COUNTER, len);
 }
 
 static inline void wmi_main_svc_map(const __le32 *in, unsigned long *out,
@@ -574,6 +578,7 @@ struct wmi_cmd_map {
 	u32 gpio_output_cmdid;
 	u32 pdev_get_temperature_cmdid;
 	u32 vdev_set_wmm_params_cmdid;
+	u32 pdev_chan_survey_update_cmdid;
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 	u32 pdev_set_smart_ant_cmdid;
 	u32 pdev_set_rx_ant_cmdid;
@@ -1190,6 +1195,10 @@ enum wmi_10_2_cmd_id {
 	WMI_10_2_VDEV_ATF_REQUEST_CMDID,
 	WMI_10_2_PEER_ATF_REQUEST_CMDID,
 	WMI_10_2_PDEV_GET_TEMPERATURE_CMDID,
+	WMI_10_2_MU_CAL_START_CMDID,
+	WMI_10_2_SET_LTEU_CONFIG_CMDID,
+	WMI_10_2_SET_CCA_PARAMS_CMDID,
+	WMI_10_2_PDEV_CHAN_SURVEY_UPDATE_CMDID,
 	WMI_10_2_PDEV_UTF_CMDID = WMI_10_2_END_CMDID - 1,
 };
 
@@ -1233,6 +1242,8 @@ enum wmi_10_2_event_id {
 	WMI_10_2_WDS_PEER_EVENTID,
 	WMI_10_2_PEER_STA_PS_STATECHG_EVENTID,
 	WMI_10_2_PDEV_TEMPERATURE_EVENTID,
+	WMI_10_2_MU_REPORT_EVENTID,
+	WMI_10_2_PDEV_CHAN_SURVEY_UPDATE_EVENTID,
 	WMI_10_2_PDEV_UTF_EVENTID = WMI_10_2_END_EVENTID - 1,
 };
 
@@ -1984,6 +1995,7 @@ enum wmi_10_2_feature_mask {
 	WMI_10_2_COEX_GPIO     = BIT(3),
 	WMI_10_2_ADJ_RADIO_SPECTRAL_INTERFRC	= BIT(4),
 	WMI_10_2_ADJ_RADIO_SURVEY_INTERFRC	= BIT(5),
+	WMI_10_2_BSS_CHANNEL_INFO_64		= BIT(6),
 };
 
 struct wmi_resource_config_10_2 {
@@ -4678,8 +4690,9 @@ struct wmi_peer_sta_kickout_event {
 	struct wmi_mac_addr peer_macaddr;
 } __packed;
 
+#define ATH10K_BB_CLOCK_RATE		(88000) /* unit is kilo HZ */
 #define WMI_CHAN_INFO_FLAG_COMPLETE BIT(0)
-#define WMI_CHAN_INFO_MSEC(x) ((x) / 88000)
+#define WMI_CHAN_INFO_MSEC(x) (((x) / ATH10K_BB_CLOCK_RATE))
 
 /* Beacon filter wmi command info */
 #define BCN_FLT_MAX_SUPPORTED_IES	256
@@ -4841,6 +4854,22 @@ struct wmi_ch_info_ev_arg {
 	__le32 cycle_count;
 };
 
+struct wmi_ch_survey_ev_arg {
+	__le32 freq;
+	__le32 noise_floor;
+	__le32 rx_clear_count_low;
+	__le32 rx_clear_count_high;
+	__le32 cycle_count_low;
+	__le32 cycle_count_high;
+	__le32 tx_cycle_count_low;
+	__le32 tx_cycle_count_high;
+	__le32 rx_cycle_count_low;
+	__le32 rx_cycle_count_high;
+	__le32 rx_bss_cycle_count_low;
+	__le32 rx_bss_cycle_count_high;
+	__le32 reserved;
+} __packed;
+
 struct wmi_vdev_start_ev_arg {
 	__le32 vdev_id;
 	__le32 req_id;
@@ -4985,6 +5014,16 @@ struct wmi_peer_ratecode_list_event {
 	struct wmi_peer_rate_info peer_rate_info;
 } __packed;
 #endif
+
+enum wmi_ch_survey_req_param {
+	WMI_READ_CH_SURVEY = 1,
+	WMI_READ_AND_RESET_CH_SURVEY = 2,
+};
+
+struct wmi_ch_survey_req_cmd {
+	__le32 param;
+	__le32 reserved;
+} __packed;
 
 struct ath10k;
 struct ath10k_vif;

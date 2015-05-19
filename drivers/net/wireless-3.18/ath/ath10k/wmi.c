@@ -406,6 +406,8 @@ static struct wmi_cmd_map wmi_10_2_4_cmd_map = {
 	.gpio_config_cmdid = WMI_10_2_GPIO_CONFIG_CMDID,
 	.gpio_output_cmdid = WMI_10_2_GPIO_OUTPUT_CMDID,
 	.pdev_get_temperature_cmdid = WMI_10_2_PDEV_GET_TEMPERATURE_CMDID,
+	.pdev_chan_survey_update_cmdid =
+	WMI_10_2_PDEV_CHAN_SURVEY_UPDATE_CMDID,
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 	.pdev_set_smart_ant_cmdid = WMI_10_2_PDEV_SMART_ANT_ENABLE_CMDID,
 	.pdev_set_rx_ant_cmdid = WMI_10_2_PDEV_SMART_ANT_SET_RX_ANTENNA_CMDID,
@@ -1744,11 +1746,15 @@ void ath10k_wmi_event_chan_info(struct ath10k *ar, struct sk_buff *skb)
 			cycle_count -= ar->survey_last_cycle_count;
 			rx_clear_count -= ar->survey_last_rx_clear_count;
 
-			survey->channel_time = WMI_CHAN_INFO_MSEC(cycle_count);
+			survey->channel_time =
+				WMI_CHAN_INFO_MSEC(cycle_count);
 			/* the rx_clear_count count indicates the busy time */
-			survey->channel_time_busy = WMI_CHAN_INFO_MSEC(rx_clear_count);
+			survey->channel_time_busy =
+				WMI_CHAN_INFO_MSEC(rx_clear_count);
+
 			survey->filled = SURVEY_INFO_CHANNEL_TIME |
 				SURVEY_INFO_CHANNEL_TIME_BUSY; 
+			ar->last_cycle_count += cycle_count;
 		}
 		survey->noise = noise_floor;
 		survey->filled |= SURVEY_INFO_NOISE_DBM;
@@ -1775,6 +1781,40 @@ int ath10k_wmi_event_debug_mesg(struct ath10k *ar, struct sk_buff *skb)
 		   skb->len);
 
 	trace_ath10k_wmi_dbglog(ar, skb->data, skb->len);
+
+	return 0;
+}
+
+static int ath10k_wmi_pull_chan_survey_update_ev(struct ath10k *ar,
+						 struct sk_buff *skb,
+					       struct wmi_ch_survey_ev_arg *arg)
+{
+	struct wmi_ch_survey_ev_arg *ev = (void *)skb->data;
+
+	if (skb->len < sizeof(*ev))
+		return -EPROTO;
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI,
+		   "BSS chan info:\n freq 0x%X\n noise_floor 0x%X\n rx_clear_count_low 0x%X\n rx_clear_count_high 0x%X\n cycle_count_low 0x%X\n cycle_count_high 0x%X\n tx_cycle_count_low 0x%X\n tx_cycle_count_high 0x%X\n rx_cycle_count_low 0x%X\n rx_cycle_count_high 0x%X\n rx_bss_cycle_count_low 0x%X\n rx_bss_cycle_count_high 0x%X\n",
+		   ev->freq, ev->noise_floor,
+		   ev->rx_clear_count_low, ev->rx_clear_count_high,
+		   ev->cycle_count_low, ev->cycle_count_high,
+		   ev->tx_cycle_count_low, ev->tx_cycle_count_high,
+		   ev->rx_cycle_count_low, ev->rx_cycle_count_high,
+		   ev->rx_bss_cycle_count_low, ev->rx_bss_cycle_count_high);
+
+	skb_pull(skb, sizeof(*ev));
+	arg->freq = ev->freq;
+	arg->noise_floor = ev->noise_floor;
+	arg->rx_clear_count_low = ev->rx_clear_count_low;
+	arg->rx_clear_count_high = ev->rx_clear_count_high;
+	arg->cycle_count_low = ev->cycle_count_low;
+	arg->cycle_count_high = ev->cycle_count_high;
+	arg->tx_cycle_count_low = ev->tx_cycle_count_low;
+	arg->tx_cycle_count_high = ev->tx_cycle_count_high;
+	/* Fill with BSS RX cycle as it is BSS survey */
+	arg->rx_cycle_count_low = ev->rx_bss_cycle_count_low;
+	arg->rx_cycle_count_high = ev->rx_bss_cycle_count_high;
 
 	return 0;
 }
@@ -3378,6 +3418,91 @@ ath10k_wmi_event_ratecode_list(struct ath10k *ar, struct sk_buff *skb)
 }
 #endif
 
+static inline u64 TWO_LE32_TO_CPU64(__le32 hi, __le32 low)
+{
+	u64 count = __le32_to_cpu(hi);
+
+	return (count << 32) + (__le32_to_cpu(low));
+}
+
+void ath10k_wmi_event_chan_survey_update(struct ath10k *ar,
+					 struct sk_buff *skb)
+{
+	struct wmi_ch_survey_ev_arg arg = {};
+	struct survey_info *survey;
+	u32 freq, noise_floor;
+	u64 tx_cycle_count, rx_cycle_count, rx_clear_count, cycle_count;
+	u64 delta;
+	int idx, ret;
+
+	ret = ath10k_wmi_pull_chan_survey_update(ar, skb, &arg);
+	if (ret) {
+		ath10k_warn(ar, "failed to parse bss chan info event: %d\n",
+			    ret);
+		return;
+	}
+
+	freq = __le32_to_cpu(arg.freq);
+	noise_floor = __le32_to_cpu(arg.noise_floor);
+	tx_cycle_count = TWO_LE32_TO_CPU64(arg.tx_cycle_count_high,
+					   arg.tx_cycle_count_low);
+	rx_cycle_count = TWO_LE32_TO_CPU64(arg.rx_cycle_count_high,
+					   arg.rx_cycle_count_low);
+	rx_clear_count = TWO_LE32_TO_CPU64(arg.rx_clear_count_high,
+					   arg.rx_clear_count_low);
+	cycle_count = TWO_LE32_TO_CPU64(arg.cycle_count_high,
+					arg.cycle_count_low);
+
+	spin_lock_bh(&ar->data_lock);
+
+	if (ar->scan.state != ATH10K_SCAN_IDLE) {
+		ath10k_warn(ar, "received chan survey update when scan ongoing ignoring\n");
+		goto exit;
+	}
+	idx = freq_to_idx(ar, freq);
+	if (idx >= ARRAY_SIZE(ar->survey)) {
+		ath10k_warn(ar, "chan info: invalid frequency %d (idx %d out of bounds)\n",
+			    freq, idx);
+		goto exit;
+	}
+
+	/* This BSS survey not work for multi channel case */
+	if (ar->rx_channel == NULL)
+		goto exit;
+
+	if (freq != ar->rx_channel->center_freq)
+		goto exit;
+
+	if (ar->last_cycle_count) {
+		survey = &ar->survey[idx];
+		delta = tx_cycle_count - ar->last_tx_cycle_count;
+		survey->channel_time_tx +=
+			div64_u64(delta, ATH10K_BB_CLOCK_RATE);
+		delta =	rx_cycle_count - ar->last_rx_cycle_count;
+		survey->channel_time_rx +=
+			div64_u64(delta, ATH10K_BB_CLOCK_RATE);
+		delta = rx_clear_count - ar->last_rx_clear_count;
+		survey->channel_time_busy +=
+			div64_u64(delta, ATH10K_BB_CLOCK_RATE);
+		delta = cycle_count - ar->last_cycle_count;
+		survey->channel_time +=
+			div64_u64(delta, ATH10K_BB_CLOCK_RATE);
+		survey->noise = noise_floor;
+		survey->filled = SURVEY_INFO_CHANNEL_TIME_TX |
+			SURVEY_INFO_CHANNEL_TIME_RX |
+			SURVEY_INFO_CHANNEL_TIME_BUSY |
+			SURVEY_INFO_CHANNEL_TIME |
+			SURVEY_INFO_NOISE_DBM;
+	}
+	ar->last_tx_cycle_count = tx_cycle_count;
+	ar->last_rx_cycle_count = rx_cycle_count;
+	ar->last_rx_clear_count = rx_clear_count;
+	ar->last_cycle_count = cycle_count;
+exit:
+	complete(&ar->survey_completed);
+	spin_unlock_bh(&ar->data_lock);
+}
+
 static void ath10k_wmi_op_rx(struct ath10k *ar, struct sk_buff *skb)
 {
 	struct wmi_cmd_hdr *cmd_hdr;
@@ -3724,6 +3849,9 @@ static void ath10k_wmi_10_2_op_rx(struct ath10k *ar, struct sk_buff *skb)
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 		ath10k_wmi_event_ratecode_list(ar, skb);
 #endif
+		break;
+	case WMI_10_2_PDEV_CHAN_SURVEY_UPDATE_EVENTID:
+		ath10k_wmi_event_chan_survey_update(ar, skb);
 		break;
 	case WMI_10_2_RTT_KEEPALIVE_EVENTID:
 	case WMI_10_2_GPIO_INPUT_EVENTID:
@@ -4132,6 +4260,8 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
 	    (test_bit(WMI_SERVICE_ADJ_RADIO_SURVEY_INTERFRC, ar->wmi.svc_map)))
 		features |= WMI_10_2_ADJ_RADIO_SURVEY_INTERFRC;
 
+	if (test_bit(WMI_SERVICE_64BITS_COUNTER, ar->wmi.svc_map))
+		features |= WMI_10_2_BSS_CHANNEL_INFO_64;
 
 	cmd->resource_config.feature_mask = __cpu_to_le32(features);
 
@@ -5581,6 +5711,25 @@ ath10k_wmi_op_gen_set_smart_ant_train_info(struct ath10k *ar, u32 vdev_id,
 #endif
 
 
+static struct sk_buff *
+ath10k_wmi_op_gen_chan_survey_send(struct ath10k *ar,
+				   enum wmi_ch_survey_req_param param)
+{
+	struct wmi_ch_survey_req_cmd *cmd;
+	struct sk_buff *skb;
+
+	skb = ath10k_wmi_alloc_skb(ar, sizeof(*cmd));
+	if (!skb)
+		return ERR_PTR(-ENOMEM);
+
+	cmd = (struct wmi_ch_survey_req_cmd *)skb->data;
+	cmd->param = __cpu_to_le32(param);
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI,
+		   "wmi mgmt send ch survey request param %d\n", param);
+	return skb;
+}
+
 static const struct wmi_ops wmi_ops = {
 	.rx = ath10k_wmi_op_rx,
 	.map_svc = wmi_main_svc_map,
@@ -5806,6 +5955,7 @@ static const struct wmi_ops wmi_10_2_4_ops = {
 	.pull_swba = ath10k_wmi_op_pull_swba_ev,
 	.pull_phyerr = ath10k_wmi_op_pull_phyerr_ev,
 	.pull_rdy = ath10k_wmi_op_pull_rdy_ev,
+	.pull_chan_survey_update = ath10k_wmi_pull_chan_survey_update_ev,
 
 	.gen_pdev_suspend = ath10k_wmi_op_gen_pdev_suspend,
 	.gen_pdev_resume = ath10k_wmi_op_gen_pdev_resume,
@@ -5842,6 +5992,7 @@ static const struct wmi_ops wmi_10_2_4_ops = {
 	.gen_addba_send = ath10k_wmi_op_gen_addba_send,
 	.gen_addba_set_resp = ath10k_wmi_op_gen_addba_set_resp,
 	.gen_delba_send = ath10k_wmi_op_gen_delba_send,
+	.gen_chan_survey_send = ath10k_wmi_op_gen_chan_survey_send,
 	/* .gen_bcn_tmpl not implemented */
 	/* .gen_prb_tmpl not implemented */
 	/* .gen_p2p_go_bcn_ie not implemented */

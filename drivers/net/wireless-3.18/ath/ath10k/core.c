@@ -1507,6 +1507,7 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 	init_completion(&ar->install_key_done);
 	init_completion(&ar->vdev_setup_done);
 	init_completion(&ar->thermal.wmi_sync);
+	init_completion(&ar->survey_completed);
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 	init_completion(&ar->ratecode_evt);
 #endif

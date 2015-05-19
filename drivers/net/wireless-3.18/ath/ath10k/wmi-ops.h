@@ -45,6 +45,8 @@ struct wmi_ops {
 			struct wmi_rdy_ev_arg *arg);
 	int (*pull_fw_stats)(struct ath10k *ar, struct sk_buff *skb,
 			     struct ath10k_fw_stats *stats);
+	int (*pull_chan_survey_update)(struct ath10k *ar, struct sk_buff *skb,
+				       struct wmi_ch_survey_ev_arg *arg);
 
 	struct sk_buff *(*gen_pdev_suspend)(struct ath10k *ar, u32 suspend_opt);
 	struct sk_buff *(*gen_pdev_resume)(struct ath10k *ar);
@@ -148,6 +150,8 @@ struct wmi_ops {
 					      u32 num_ac);
 	struct sk_buff *(*gen_sta_keepalive)(struct ath10k *ar,
 					     const struct wmi_sta_keepalive_arg *arg);
+	struct sk_buff *(*gen_chan_survey_send)(struct ath10k *ar,
+					    enum wmi_ch_survey_req_param param);
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 	struct sk_buff *(*gen_pdev_enable_smart_ant)(struct ath10k *ar,
 						     u32 mode, u32 tx_ant,
@@ -290,6 +294,16 @@ ath10k_wmi_pull_fw_stats(struct ath10k *ar, struct sk_buff *skb,
 		return -EOPNOTSUPP;
 
 	return ar->wmi.ops->pull_fw_stats(ar, skb, stats);
+}
+
+static inline int
+ath10k_wmi_pull_chan_survey_update(struct ath10k *ar, struct sk_buff *skb,
+				   struct wmi_ch_survey_ev_arg *arg)
+{
+	if (!ar->wmi.ops->pull_chan_survey_update)
+		return -EOPNOTSUPP;
+
+	return ar->wmi.ops->pull_chan_survey_update(ar, skb, arg);
 }
 
 static inline int
@@ -1076,6 +1090,25 @@ ath10k_wmi_sta_keepalive(struct ath10k *ar,
 		return PTR_ERR(skb);
 
 	cmd_id = ar->wmi.cmd->sta_keepalive_cmd;
+	return ath10k_wmi_cmd_send(ar, skb, cmd_id);
+}
+
+static inline int
+ath10k_wmi_send_chan_survey_req(struct ath10k *ar,
+				enum wmi_ch_survey_req_param param)
+{
+	struct sk_buff *skb;
+	u32 cmd_id;
+
+	if (!ar->wmi.ops->gen_chan_survey_send)
+		return -EOPNOTSUPP;
+
+	skb = ar->wmi.ops->gen_chan_survey_send(ar, param);
+	if (IS_ERR(skb))
+		return PTR_ERR(skb);
+
+	cmd_id = ar->wmi.cmd->pdev_chan_survey_update_cmdid;
+
 	return ath10k_wmi_cmd_send(ar, skb, cmd_id);
 }
 

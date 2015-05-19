@@ -723,6 +723,12 @@ struct ath10k {
 	struct ath10k_smart_ant_info smart_ant_info;
 #endif
 
+	struct completion survey_completed;
+	u64 last_tx_cycle_count;
+	u64 last_rx_cycle_count;
+	u64 last_rx_clear_count;
+	u64 last_cycle_count;
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };

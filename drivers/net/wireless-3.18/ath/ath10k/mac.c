@@ -3136,6 +3136,10 @@ static int ath10k_config(struct ieee80211_hw *hw, u32 changed)
 
 		spin_lock_bh(&ar->data_lock);
 		ar->rx_channel = conf->chandef.chan;
+		ar->last_tx_cycle_count = 0;
+		ar->last_rx_cycle_count = 0;
+		ar->last_rx_clear_count = 0;
+		ar->last_cycle_count = 0;
 		spin_unlock_bh(&ar->data_lock);
 
 		ar->radar_enabled = conf->radar_enabled;
@@ -4639,6 +4643,34 @@ static void ath10k_reconfig_complete(struct ieee80211_hw *hw,
 	mutex_unlock(&ar->conf_mutex);
 }
 
+int ath10k_update_survey_stats(struct ath10k *ar)
+{
+	unsigned long time_left;
+	int ret = 0;
+
+	lockdep_assert_held(&ar->conf_mutex);
+
+	spin_lock_bh(&ar->data_lock);
+	if (ar->scan.state != ATH10K_SCAN_IDLE) {
+		ath10k_warn(ar, "received chan survey update when scan ongoing, ignoring\n");
+		spin_unlock_bh(&ar->data_lock);
+		goto out;
+	}
+	reinit_completion(&ar->survey_completed);
+	spin_unlock_bh(&ar->data_lock);
+
+	ret = ath10k_wmi_send_chan_survey_req(ar, WMI_READ_CH_SURVEY);
+	if (ret)
+		ath10k_warn(ar, "failed to transmit wmi command (chan survey): %d\n",
+			    ret);
+	time_left = wait_for_completion_timeout(&ar->survey_completed,
+						3 * HZ);
+	if (time_left == 0)
+		ath10k_warn(ar, "timed out waiting for bss chan info update\n");
+out:
+	return ret;
+}
+
 static int ath10k_get_survey(struct ieee80211_hw *hw, int idx,
 			     struct survey_info *survey)
 {
@@ -4663,6 +4695,10 @@ static int ath10k_get_survey(struct ieee80211_hw *hw, int idx,
 		goto exit;
 	}
 
+	if (ar->rx_channel == &sband->channels[idx]) {
+		if (test_bit(WMI_SERVICE_64BITS_COUNTER, ar->wmi.svc_map))
+			ath10k_update_survey_stats(ar);
+	}
 	spin_lock_bh(&ar->data_lock);
 	memcpy(survey, ar_survey, sizeof(*survey));
 	spin_unlock_bh(&ar->data_lock);
