@@ -32,6 +32,7 @@ img	Imagination Technologies Ltd.
 inno	Innosilicon
 intercontrol	Inter Control Group
 issi	Integrated Silicon Solutions Inc.
+linaro	Linaro Limited
 linux	Linux-specific binding
 marvell	Marvell Technology Group Ltd.
 maxim	Maxim Integrated Products
