@@ -27,14 +27,14 @@
 #define NSS_ACC_REG				(0x28EC)
 #define NSS_RESET_SPARE				(0x3B60)
 #define CLK_HALT_NSSFAB0_NSSFAB1_STATEA		(0x3C20)
-#define GMAC_COREn_CLK_SRC_CTL(n)		(0x3CA0+(32*n))
-#define GMAC_COREn_CLK_SRC0_MD(n)		(0x3CA4+(32*n))
-#define GMAC_COREn_CLK_SRC1_MD(n)		(0x3CA8+(32*n))
-#define GMAC_COREn_CLK_SRC0_NS(n)		(0x3CAC+(32*n))
-#define GMAC_COREn_CLK_SRC1_NS(n)		(0x3CB0+(32*n))
-#define GMAC_COREn_CLK_CTL(n)			(0x3CB4+(32*n))
-#define GMAC_COREn_CLK_FS(n)			(0x3CB8+(32*n))
-#define GMAC_COREn_RESET(n)			(0x3CBC+(32*n))
+#define GMAC_COREn_CLK_SRC_CTL(n)		(0x3CA0+(32 * (n)))
+#define GMAC_COREn_CLK_SRC0_MD(n)		(0x3CA4+(32 * (n)))
+#define GMAC_COREn_CLK_SRC1_MD(n)		(0x3CA8+(32 * (n)))
+#define GMAC_COREn_CLK_SRC0_NS(n)		(0x3CAC+(32 * (n)))
+#define GMAC_COREn_CLK_SRC1_NS(n)		(0x3CB0+(32 * (n)))
+#define GMAC_COREn_CLK_CTL(n)			(0x3CB4+(32 * (n)))
+#define GMAC_COREn_CLK_FS(n)			(0x3CB8+(32 * (n)))
+#define GMAC_COREn_RESET(n)			(0x3CBC+(32 * (n)))
 #define GMAC_AHB_RESET				(0x3E24)
 
 
@@ -90,7 +90,7 @@
 							   Mux is PLL0	      */
 
 /* CLK_HALT_NSSFAB0_NSSFAB1_STATEA register bits */
-#define GMACn_CORE_CLK_HALT(x)		(0x0010 << x)
+#define GMACn_CORE_CLK_HALT(x)		(0x0010 << (x))
 
 /* GMAC_COREn_CLK_CTL register bits */
 #define GMAC_CLK_BRANCH_EN		0x0010
