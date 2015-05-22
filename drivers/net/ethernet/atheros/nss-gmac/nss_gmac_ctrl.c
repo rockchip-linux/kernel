@@ -466,11 +466,7 @@ static int32_t nss_gmac_set_features(struct net_device *netdev,
 
 	if (changed & NETIF_F_GRO) {
 		if (!(features & NETIF_F_GRO)) {
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
-			napi_gro_flush(&gmacdev->napi);
-#else
 			napi_gro_flush(&gmacdev->napi, false);
-#endif
 		}
 	}
 
@@ -915,13 +911,8 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 
 	/* connect PHY */
 	if (test_bit(__NSS_GMAC_LINKPOLL, &gmacdev->flags)) {
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-		gmacdev->phydev = phy_connect(netdev, (const char *)phy_id,
-					      &nss_gmac_adjust_link, 0, phyif);
-#else
 		gmacdev->phydev = phy_connect(netdev, (const char *)phy_id,
 					      &nss_gmac_adjust_link, phyif);
-#endif
 
 		if (IS_ERR(gmacdev->phydev)) {
 			netdev_dbg(netdev, "PHY %s attach FAIL", phy_id);
@@ -957,13 +948,8 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 		/*
 		 * Issue a phy_attach for the interface connected to a switch
 		 */
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 8, 0))
-		gmacdev->phydev = phy_attach(netdev,
-						(const char *)phy_id, 0, phyif);
-#else
 		gmacdev->phydev = phy_attach(netdev,
 						(const char *)phy_id, phyif);
-#endif
 		if (IS_ERR(gmacdev->phydev)) {
 			netdev_dbg(netdev, "PHY %s attach FAIL", phy_id);
 			ret = -EIO;
