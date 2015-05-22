@@ -767,7 +767,7 @@ static int rockchip_edp_bind(struct device *dev, struct device *master,
 		goto err_free_connector;
 	}
 
-	ret = drm_dp_aux_register_i2c_bus(&edp->aux);
+	ret = drm_dp_aux_register(&edp->aux);
 	if (ret) {
 		DRM_ERROR("failed to register i2c\n");
 		goto err_panel_detach;

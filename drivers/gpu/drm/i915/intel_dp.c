@@ -28,6 +28,7 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/export.h>
+#include <linux/mutex.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
@@ -605,6 +606,7 @@ intel_dp_aux_init(struct intel_dp *intel_dp, struct intel_connector *connector)
 
 	intel_dp->aux.dev = dev->dev;
 	intel_dp->aux.transfer = intel_dp_aux_transfer;
+	mutex_init(&intel_dp->aux.hw_mutex);
 }
 
 static int
