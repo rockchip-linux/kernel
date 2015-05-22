@@ -10,6 +10,7 @@
 
 &dmc {
 	status = "okay";
+	rockchip,pd-enable-freq = <533000000>;
 	operating-points = <
 		/* KHz    uV */
 		200000 1050000

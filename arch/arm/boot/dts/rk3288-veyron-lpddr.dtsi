@@ -11,6 +11,7 @@
 &dmc {
 	status = "okay";
 	rockchip,odt-disable-freq = <666000000>;
+	rockchip,pd-enable-freq = <333000000>;
 	operating-points = <
 		/* KHz    uV */
 		200000 1050000
