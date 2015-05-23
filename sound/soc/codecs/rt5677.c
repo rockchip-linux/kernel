@@ -2405,6 +2405,17 @@ static int rt5677_vref_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+static int rt5677_dac_stereo1_filter_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *kcontrol, int event)
+{
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		msleep(25);
+		break;
+	}
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget rt5677_dapm_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("PLL1", RT5677_PWR_ANLG2, RT5677_PWR_PLL1_BIT,
 		0, rt5677_set_pll1_event, SND_SOC_DAPM_POST_PMU),
@@ -2841,7 +2852,8 @@ static const struct snd_soc_dapm_widget rt5677_dapm_widgets[] = {
 
 	/* DAC Mixer */
 	SND_SOC_DAPM_SUPPLY("dac stereo1 filter", RT5677_PWR_DIG2,
-		RT5677_PWR_DAC_S1F_BIT, 0, NULL, 0),
+		RT5677_PWR_DAC_S1F_BIT, 0, rt5677_dac_stereo1_filter_event,
+		SND_SOC_DAPM_POST_PMU),
 	SND_SOC_DAPM_SUPPLY("dac mono left filter", RT5677_PWR_DIG2,
 		RT5677_PWR_DAC_M2F_L_BIT, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("dac mono right filter", RT5677_PWR_DIG2,
