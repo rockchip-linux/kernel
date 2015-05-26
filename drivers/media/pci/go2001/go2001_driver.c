@@ -298,21 +298,13 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 			return -EINVAL;
 		}
 
-		dma_desc->num_entries =
-			dma_map_sg(dev, sgt->sgl, sgt->nents, dir);
-		if (!dma_desc->num_entries) {
-			go2001_err(gdev, "Failed mapping sg buffer\n");
-			ret = -EIO;
-			goto err;
-		}
-
+		dma_desc->num_entries = sgt->nents;
 		dma_desc->list_size = dma_desc->num_entries
 					* sizeof(struct go2001_mmap_list_entry);
 		dma_desc->mmap_list = dma_alloc_coherent(dev,
 			dma_desc->list_size, &dma_desc->dma_addr, GFP_KERNEL);
 		if (!dma_desc->mmap_list) {
 			go2001_err(gdev, "Failed allocating HW memory map\n");
-			dma_unmap_sg(dev, sgt->sgl, sgt->nents, dir);
 			ret = -ENOMEM;
 			goto err;
 		}
@@ -339,8 +331,7 @@ err:
 		dma_desc = &gbuf->dma_desc[plane - 1];
 		dma_free_coherent(dev, dma_desc->list_size, dma_desc->mmap_list,
 					dma_desc->dma_addr);
-		sgt = vb2_dma_sg_plane_desc(vb, plane - 1);
-		dma_unmap_sg(dev, sgt->sgl, sgt->nents, dir);
+		memset(dma_desc, 0, sizeof(struct go2001_dma_desc));
 	}
 
 	return ret;
@@ -418,7 +409,6 @@ static void go2001_buf_cleanup(struct vb2_buffer *vb)
 	struct device *dev = &gdev->pdev->dev;
 	struct go2001_dma_desc *dma_desc;
 	enum dma_data_direction dir;
-	struct sg_table *sgt;
 	int plane;
 	int ret;
 
@@ -436,11 +426,6 @@ static void go2001_buf_cleanup(struct vb2_buffer *vb)
 			dma_free_coherent(dev, dma_desc->list_size,
 					  dma_desc->mmap_list,
 					  dma_desc->dma_addr);
-		}
-
-		if (dma_desc->num_entries) {
-			sgt = vb2_dma_sg_plane_desc(vb, plane);
-			dma_unmap_sg(dev, sgt->sgl, sgt->nents, dir);
 		}
 
 		memset(dma_desc, 0, sizeof(struct go2001_dma_desc));
