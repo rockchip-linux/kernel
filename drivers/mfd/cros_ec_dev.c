@@ -19,7 +19,6 @@
 
 #include <linux/compat.h>
 #include <linux/delay.h>
-#include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/mfd/core.h>
 #include <linux/mfd/cros_ec.h>
@@ -34,6 +33,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 
+#include "cros_ec_debugfs.h"
 #include "cros_ec_dev.h"
 
 /* Device variables */
@@ -437,6 +437,9 @@ static int ec_device_probe(struct platform_device *pdev)
 	if (ec_has_lightbar(ec))
 		lb_manual_suspend_ctrl(ec, 1);
 
+	if (cros_ec_debugfs_init(ec))
+		dev_err(dev, "failed to create debugfs directory for device\n");
+
 	dev_dark_resume_add_consumer(dev);
 
 	return 0;
@@ -458,6 +461,8 @@ static int ec_device_remove(struct platform_device *pdev)
 	/* Let the EC take over the lightbar again. */
 	if (ec_has_lightbar(ec))
 		lb_manual_suspend_ctrl(ec, 0);
+
+	cros_ec_debugfs_remove(ec);
 
 	cdev_del(&ec->cdev);
 	device_unregister(&ec->class_dev);
