@@ -1501,8 +1501,10 @@ static void iwl_mvm_query_netdetect_reasons(struct iwl_mvm *mvm,
 	int i, j, n_matches, ret;
 
 	fw_status = iwl_mvm_get_wakeup_status(mvm, vif);
-	if (!IS_ERR_OR_NULL(fw_status))
+	if (!IS_ERR_OR_NULL(fw_status)) {
 		reasons = le32_to_cpu(fw_status->wakeup_reasons);
+		kfree(fw_status);
+	}
 
 	if (reasons & IWL_WOWLAN_WAKEUP_BY_RFKILL_DEASSERTED)
 		wakeup.rfkill_release = true;
@@ -1619,15 +1621,15 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 	/* get the BSS vif pointer again */
 	vif = iwl_mvm_get_bss_vif(mvm);
 	if (IS_ERR_OR_NULL(vif))
-		goto out_unlock;
+		goto err;
 
 	ret = iwl_trans_d3_resume(mvm->trans, &d3_status, test);
 	if (ret)
-		goto out_unlock;
+		goto err;
 
 	if (d3_status != IWL_D3_STATUS_ALIVE) {
 		IWL_INFO(mvm, "Device was reset during suspend\n");
-		goto out_unlock;
+		goto err;
 	}
 
 	/* query SRAM first in case we want event logging */
@@ -1653,7 +1655,8 @@ static int __iwl_mvm_resume(struct iwl_mvm *mvm, bool test)
 		goto out_iterate;
 	}
 
- out_unlock:
+err:
+	iwl_mvm_free_nd(mvm);
 	mutex_unlock(&mvm->mutex);
 
 out_iterate:

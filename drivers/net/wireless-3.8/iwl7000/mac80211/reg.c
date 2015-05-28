@@ -547,6 +547,8 @@ static void reg_process_self_managed_hints(void)
 			handle_band_custom(wiphy, wiphy->bands[band], regd);
 
 		reg_process_ht_flags(wiphy);
+		kfree(wiphy->regd);
+		wiphy->regd = regd;
 	}
 }
 
@@ -689,7 +691,11 @@ void intel_regulatory_deregister(struct ieee80211_local *local)
 	if (!rdev)
 		return;
 
+	rtnl_lock();
 	list_del(&rdev->list);
+	kfree(rdev->requested_regd);
+	rdev->requested_regd = NULL;
+	rtnl_unlock();
 	dev_info(&wiphy->dev, "LAR device unregistered\n");
 
 	if (list_empty(&cfg80211_rdev_list))

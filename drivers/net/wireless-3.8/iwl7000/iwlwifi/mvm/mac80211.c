@@ -545,6 +545,8 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			       NL80211_FEATURE_STATIC_SMPS |
 			       NL80211_FEATURE_SUPPORTS_WMM_ADMISSION;
 
+	mvm->rts_threshold = IEEE80211_MAX_RTS_THRESHOLD;
+
 #ifdef CONFIG_PM_SLEEP
 	if (iwl_mvm_is_d0i3_supported(mvm) &&
 	    device_can_wakeup(mvm->trans->dev)) {
