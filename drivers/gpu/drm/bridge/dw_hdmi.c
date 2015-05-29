@@ -1636,10 +1636,10 @@ static void dw_hdmi_bridge_mode_set(struct drm_bridge *bridge,
 {
 	struct dw_hdmi *hdmi = bridge->driver_private;
 
-	dw_hdmi_setup(hdmi, mode);
+	dw_hdmi_setup(hdmi, adjusted_mode);
 
 	/* Store the display mode for plugin/DKMS poweron events */
-	memcpy(&hdmi->previous_mode, mode, sizeof(hdmi->previous_mode));
+	memcpy(&hdmi->previous_mode, adjusted_mode, sizeof(*adjusted_mode));
 }
 
 static bool dw_hdmi_bridge_mode_fixup(struct drm_bridge *bridge,

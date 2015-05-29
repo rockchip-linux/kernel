@@ -264,6 +264,23 @@ dw_hdmi_rockchip_encoder_mode_fixup(struct drm_encoder *encoder,
 				    const struct drm_display_mode *mode,
 				    struct drm_display_mode *adj_mode)
 {
+	/*
+	 * Hardware: Because we can not find an NPLL rate which have
+	 * generate both accurate 136.75MHz and good jitter performance,
+	 * we change dclk_vop0 to 136.80MHz, so dclk_vop0 could have good jitter
+	 * performance(118.790ps).  When we pick 136.80MHz clk driver could
+	 * choose the 1368MHz for us.  Normally the clock driver can't pick
+	 * clocks that are higher that we request.
+	 *
+	 * We adjust 146.25MHz for a similar reason.  If we don't adjust
+	 * then the clock framework will pick 585MHz which has bad jitter.
+	 * We instead specify 146.200MHz and will pick 1608MHz
+	 */
+	if (adj_mode->clock == 136750)
+		adj_mode->clock = 136800;
+	if (adj_mode->clock == 146250)
+		adj_mode->clock = 146200;
+
 	return true;
 }
 
