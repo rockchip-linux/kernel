@@ -75,17 +75,17 @@
 
 		ready2 {
 			gpios = <&gpio7 13 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
+			default-state = "on";
 		};
 
 		syncing {
 			gpios = <&gpio7 11 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
+			default-state = "on";
 		};
 
 		error {
 			gpios = <&gpio7 15 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
+			default-state = "on";
 		};
 	};
 
