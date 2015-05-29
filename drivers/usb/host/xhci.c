@@ -4725,10 +4725,7 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	hcd->self.no_stop_on_short = 1;
 
 	if (usb_hcd_is_primary_hcd(hcd)) {
-		xhci = kzalloc(sizeof(struct xhci_hcd), GFP_KERNEL);
-		if (!xhci)
-			return -ENOMEM;
-		*((struct xhci_hcd **) hcd->hcd_priv) = xhci;
+		xhci = hcd_to_xhci(hcd);
 		xhci->main_hcd = hcd;
 		/* Mark the first roothub as being USB 2.0.
 		 * The xHCI driver will register the USB 3.0 roothub.
@@ -4780,13 +4777,13 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	/* Make sure the HC is halted. */
 	retval = xhci_halt(xhci);
 	if (retval)
-		goto error;
+		return retval;
 
 	xhci_dbg(xhci, "Resetting HCD\n");
 	/* Reset the internal HC memory state and registers. */
 	retval = xhci_reset(xhci);
 	if (retval)
-		goto error;
+		return retval;
 	xhci_dbg(xhci, "Reset complete\n");
 
 	/* Set dma_mask and coherent_dma_mask to 64-bits,
@@ -4801,12 +4798,9 @@ int xhci_gen_setup(struct usb_hcd *hcd, xhci_get_quirks_t get_quirks)
 	/* Initialize HCD and host controller data structures. */
 	retval = xhci_init(hcd);
 	if (retval)
-		goto error;
+		return retval;
 	xhci_dbg(xhci, "Called HCD init\n");
 	return 0;
-error:
-	kfree(xhci);
-	return retval;
 }
 
 static const struct hc_driver xhci_hc_driver = {
@@ -4869,11 +4863,21 @@ static const struct hc_driver xhci_hc_driver = {
 	.find_raw_port_number =	xhci_find_raw_port_number,
 };
 
-void xhci_init_driver(struct hc_driver *drv, int (*setup_fn)(struct usb_hcd *))
+void xhci_init_driver(struct hc_driver *drv,
+		      const struct xhci_driver_overrides *over)
 {
-	BUG_ON(!setup_fn);
+	BUG_ON(!over);
+
+	/* Copy the generic table to drv then apply the overrides */
 	*drv = xhci_hc_driver;
-	drv->reset = setup_fn;
+
+	if (over) {
+		drv->hcd_priv_size += over->extra_priv_size;
+		if (over->reset)
+			drv->reset = over->reset;
+		if (over->start)
+			drv->start = over->start;
+	}
 }
 EXPORT_SYMBOL_GPL(xhci_init_driver);
 
