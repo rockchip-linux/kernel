@@ -15,7 +15,9 @@
 
 / {
 	model = "Google Thea";
-	compatible = "google,veyron-thea-rev0", "google,veyron-thea",
+	compatible = "google,veyron-thea-rev0", "google,veyron-thea-rev1",
+		     "google,veyron-thea-rev2", "google,veyron-thea-rev3",
+		     "google,veyron-thea-rev4", "google,veyron-thea",
 		     "google,veyron", "rockchip,rk3288";
 
 	panel_regulator: panel-regulator {
