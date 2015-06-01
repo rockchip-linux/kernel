@@ -61,8 +61,9 @@ static int udl_get_modes(struct drm_connector *connector)
 	int ret;
 
 	edid = (struct edid *)udl_get_edid(udl);
-	if (!edid) {
+	if (!edid || !memchr_inv(edid, 0, sizeof(struct edid))) {
 		drm_mode_connector_update_edid_property(connector, NULL);
+		connector->status = connector_status_disconnected;
 		return 0;
 	}
 
