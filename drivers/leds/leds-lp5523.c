@@ -803,6 +803,48 @@ leave:
 	return ret;
 }
 
+static ssize_t show_int_pin_mvolt(struct device *dev,
+				  struct device_attribute *attr,
+				  char *buf)
+{
+	struct lp55xx_led *led = i2c_get_clientdata(to_i2c_client(dev));
+	struct lp55xx_chip *chip = led->chip;
+	int ret;
+	u8 status, vdd;
+
+	mutex_lock(&chip->lock);
+
+	ret = lp55xx_read(chip, LP5523_REG_STATUS, &status);
+	if (ret < 0)
+		goto fail;
+
+	/* read INT-pin voltage (channel 17) */
+	lp55xx_write(chip, LP5523_REG_LED_TEST_CTRL, LP5523_EN_LEDTEST | 17);
+	usleep_range(3000, 6000); /* ADC conversion time is typically 2.7 ms */
+	ret = lp55xx_read(chip, LP5523_REG_STATUS, &status);
+	if (ret < 0)
+		goto fail;
+
+	if (!(status & LP5523_LEDTEST_DONE)) {
+		usleep_range(3000, 6000); /* Was not ready. Wait little bit */
+		ret = lp55xx_read(chip, LP5523_REG_STATUS, &status);
+		if (ret < 0)
+			goto fail;
+	}
+
+	ret = lp55xx_read(chip, LP5523_REG_LED_TEST_ADC, &vdd);
+	if (ret < 0)
+		goto fail;
+
+	/* V = RESULT(DEC) x 0.03 - 1.478 V */
+	ret = sprintf(buf, "%d\n", (signed)(vdd * 30) - 1478);
+
+fail:
+	mutex_unlock(&chip->lock);
+
+	return ret;
+}
+
 static void lp5523_led_brightness_work(struct work_struct *work)
 {
 	struct lp55xx_led *led = container_of(work, struct lp55xx_led,
@@ -833,6 +875,7 @@ static LP55XX_DEV_ATTR_RW(master_fader3, show_master_fader3,
 			  store_master_fader3);
 static LP55XX_DEV_ATTR_RW(master_fader_leds, show_master_fader_leds,
 			  store_master_fader_leds);
+static LP55XX_DEV_ATTR_RO(int_pin_mvolt, show_int_pin_mvolt);
 
 static struct attribute *lp5523_attributes[] = {
 	&dev_attr_engine1_mode.attr,
@@ -849,6 +892,7 @@ static struct attribute *lp5523_attributes[] = {
 	&dev_attr_master_fader2.attr,
 	&dev_attr_master_fader3.attr,
 	&dev_attr_master_fader_leds.attr,
+	&dev_attr_int_pin_mvolt.attr,
 	NULL,
 };
 
