@@ -429,6 +429,8 @@ sysrq.txt
 	- info on the magic SysRq key.
 target/
 	- directory with info on generating TCM v4 fabric .ko modules
+tee.txt
+	- info on the TEE subsystem and drivers
 thermal/
 	- directory with information on managing thermal issues (CPU/temp)
 trace/

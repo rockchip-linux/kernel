@@ -7045,6 +7045,7 @@ S:	Maintained
 F:	include/linux/tee_drv.h
 F:	include/uapi/linux/tee.h
 F:	drivers/tee/
+F:	Documentation/tee.txt
 
 TIMEKEEPING, NTP
 M:	John Stultz <john.stultz@linaro.org>
