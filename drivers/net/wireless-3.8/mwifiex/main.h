@@ -33,6 +33,8 @@
 #include <linux/firmware.h>
 #include <linux/ctype.h>
 #include <linux/of.h>
+#include <linux/wireless.h>
+#include <net/iw_handler.h>
 
 #include "decl.h"
 #include "ioctl.h"
@@ -139,6 +141,9 @@ enum {
 
 /* Address alignment */
 #define MWIFIEX_ALIGN_ADDR(p, a) (((long)(p) + (a) - 1) & ~((a) - 1))
+
+/* IOCTL number used for hostcmd process*/
+#define MWIFIEX_HOSTCMD_IOCTL (SIOCIWFIRSTPRIV+17)
 
 struct mwifiex_dbg {
 	u32 num_cmd_host_to_card_failure;
@@ -742,6 +747,9 @@ struct mwifiex_adapter {
 	u8 event_received;
 	u8 data_received;
 	u16 seq_num;
+	struct mwifiex_ds_misc_cmd hostcmd_resp_data;
+	/* spin lock for hostcmd_resp_data */
+	spinlock_t hostcmd_resp_lock;
 	struct cmd_ctrl_node *cmd_pool;
 	struct cmd_ctrl_node *curr_cmd;
 	/* spin lock for command */
@@ -1289,6 +1297,8 @@ void mwifiex_uap_del_sta_data(struct mwifiex_private *priv,
 int mwifiex_init_channel_scan_gap(struct mwifiex_adapter *adapter);
 void *mwifiex_alloc_dma_align_buf(int rx_len, gfp_t flags);
 void mwifiex_queue_main_work(struct mwifiex_adapter *adapter);
+int mwifiex_process_host_command(struct mwifiex_private *priv,
+				 struct iwreq *wrq);
 
 int mwifiex_sysfs_register(struct mwifiex_private *priv);
 void mwifiex_sysfs_unregister(struct mwifiex_private *priv);

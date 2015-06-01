@@ -829,16 +829,53 @@ mwifiex_netdev_select_wmm_queue(struct net_device *dev, struct sk_buff *skb,
 	return mwifiex_1d_to_wmm_queue[skb->priority];
 }
 
+static int mwifiex_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
+{
+	struct mwifiex_private *priv = mwifiex_netdev_get_priv(dev);
+	struct iwreq *wrq = (struct iwreq *)req;
+	int ret;
+
+	if (!priv->adapter->mfg_mode)
+		return -EINVAL;
+
+	dev_dbg(priv->adapter->dev, "ioctl cmd = 0x%x\n", cmd);
+
+	switch (cmd) {
+	case MWIFIEX_HOSTCMD_IOCTL:
+		ret = mwifiex_process_host_command(priv, wrq);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
 /* Network device handlers */
 static const struct net_device_ops mwifiex_netdev_ops = {
 	.ndo_open = mwifiex_open,
 	.ndo_stop = mwifiex_close,
 	.ndo_start_xmit = mwifiex_hard_start_xmit,
 	.ndo_set_mac_address = mwifiex_set_mac_address,
+	.ndo_do_ioctl = mwifiex_do_ioctl,
 	.ndo_tx_timeout = mwifiex_tx_timeout,
 	.ndo_get_stats = mwifiex_get_stats,
 	.ndo_set_rx_mode = mwifiex_set_multicast_list,
 	.ndo_select_queue = mwifiex_netdev_select_wmm_queue,
+};
+
+static const struct iw_priv_args mwifiex_iwpriv_args[] = {
+	{	MWIFIEX_HOSTCMD_IOCTL,
+		IW_PRIV_TYPE_BYTE | 2047,
+		IW_PRIV_TYPE_BYTE | 2047,
+		"hostcmd"
+	},
+};
+
+static struct iw_handler_def mwifiex_iwpriv_handler_def = {
+	.num_private_args = ARRAY_SIZE(mwifiex_iwpriv_args),
+	.private_args = (struct iw_priv_args *)mwifiex_iwpriv_args,
 };
 
 /*
@@ -865,6 +902,8 @@ void mwifiex_init_priv_params(struct mwifiex_private *priv,
 {
 	dev->netdev_ops = &mwifiex_netdev_ops;
 	dev->destructor = free_netdev;
+	dev->wireless_handlers =
+		(struct iw_handler_def *)&mwifiex_iwpriv_handler_def;
 	/* Initialize private structure */
 	priv->current_key_index = 0;
 	priv->media_connected = false;
