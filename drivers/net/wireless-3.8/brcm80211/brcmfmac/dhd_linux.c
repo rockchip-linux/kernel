@@ -965,16 +965,23 @@ int brcmf_bus_start(struct device *dev)
 fail:
 	if (ret < 0) {
 		brcmf_err("failed: %d\n", ret);
-		brcmf_cfg80211_detach(drvr->config);
+		if (drvr->config) {
+			brcmf_cfg80211_detach(drvr->config);
+			drvr->config = NULL;
+		}
 		if (drvr->fws) {
 			brcmf_fws_del_interface(ifp);
 			brcmf_fws_deinit(drvr);
 		}
 		if (drvr->iflist[0]) {
+			if (ifp->ndev->destructor == NULL)
+				brcmf_free_vif(ifp->vif);
 			free_netdev(ifp->ndev);
 			drvr->iflist[0] = NULL;
 		}
 		if (p2p_ifp) {
+			if (p2p_ifp->ndev->destructor == NULL)
+				brcmf_free_vif(p2p_ifp->vif);
 			free_netdev(p2p_ifp->ndev);
 			drvr->iflist[1] = NULL;
 		}
