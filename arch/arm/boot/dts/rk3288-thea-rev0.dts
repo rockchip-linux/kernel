@@ -147,13 +147,6 @@
 		};
 	};
 
-	emmc {
-		/* Make sure eMMC is not in reset */
-		emmc_deassert_reset: emmc-deassert-reset {
-			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
 	hdmi {
 		vcc50_hdmi_en: vcc50-hdmi-en {
 			rockchip,pins = <5 19 RK_FUNC_GPIO &pcfg_pull_none>;

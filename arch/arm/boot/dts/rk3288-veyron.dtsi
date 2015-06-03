@@ -496,7 +496,7 @@
 	emmc {
 		/* Make sure eMMC is not in reset */
 		emmc_deassert_reset: emmc-deassert-reset {
-			rockchip,pins = <7 12 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 
 		/*
