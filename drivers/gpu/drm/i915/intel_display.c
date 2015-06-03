@@ -4681,12 +4681,41 @@ retry:
 	return setup_ok ? 0 : -EINVAL;
 }
 
+static bool pipe_config_supports_ips(struct drm_i915_private *dev_priv,
+				     struct drm_device *dev,
+				     struct drm_crtc *crtc,
+				     struct intel_crtc_config *pipe_config)
+{
+	if (pipe_config->pipe_bpp > 24)
+		return false;
+
+	/* HSW can handle pixel rate up to cdclk? */
+	if (IS_HASWELL(dev_priv->dev))
+		return true;
+
+	/*
+	 * FIXME if we compare against max we should then
+	 * increase the cdclk frequency when the current
+	 * value is too low. The other option is to compare
+	 * against the cdclk frequency we're going have post
+	 * modeset (ie. one we computed using other constraints).
+	 * Need to measure whether using a lower cdclk w/o IPS
+	 * is better or worse than a higher cdclk w/ IPS.
+	 */
+	return ilk_pipe_pixel_rate(dev, crtc) <=
+		dev_priv->max_cdclk_freq * 95 / 100;
+}
+
 static void hsw_compute_ips_config(struct intel_crtc *crtc,
 				   struct intel_crtc_config *pipe_config)
 {
+	struct drm_device *dev = crtc->base.dev;
+	struct drm_crtc *drm_crtc = &crtc->base;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
 	pipe_config->ips_enabled = i915_enable_ips &&
-				   hsw_crtc_supports_ips(crtc) &&
-				   pipe_config->pipe_bpp <= 24;
+		hsw_crtc_supports_ips(crtc) &&
+		pipe_config_supports_ips(dev_priv, dev, drm_crtc, pipe_config);
 }
 
 static int intel_crtc_compute_config(struct intel_crtc *crtc,
