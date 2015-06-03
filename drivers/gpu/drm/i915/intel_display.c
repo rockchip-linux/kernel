@@ -4055,7 +4055,7 @@ static int valleyview_get_vco(struct drm_i915_private *dev_priv)
 	return vco_freq[hpll_freq] * 1000;
 }
 
-static void vlv_update_cdclk(struct drm_device *dev)
+static void intel_update_cdclk(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
@@ -4068,7 +4068,14 @@ static void vlv_update_cdclk(struct drm_device *dev)
 	 * BSpec erroneously claims we should aim for 4MHz, but
 	 * in fact 1MHz is the correct frequency.
 	 */
-	I915_WRITE(GMBUSFREQ_VLV, dev_priv->cdclk_freq);
+	if (IS_VALLEYVIEW(dev)) {
+		/*
+		 * Program the gmbus_freq based on the cdclk frequency.
+		 * BSpec erroneously claims we should aim for 4MHz, but
+		 * in fact 1MHz is the correct frequency.
+		 */
+		I915_WRITE(GMBUSFREQ_VLV, dev_priv->cdclk_freq);
+	}
 }
 
 /* Adjust CDclk dividers to allow high res or save power if possible */
@@ -4130,7 +4137,7 @@ static void valleyview_set_cdclk(struct drm_device *dev, int cdclk)
 	vlv_bunit_write(dev_priv, BUNIT_REG_BISOC, val);
 	mutex_unlock(&dev_priv->dpio_lock);
 
-	vlv_update_cdclk(dev);
+	intel_update_cdclk(dev);
 }
 
 static int valleyview_calc_cdclk(struct drm_i915_private *dev_priv,
@@ -6787,6 +6794,7 @@ static void hsw_restore_lcpll(struct drm_i915_private *dev_priv)
 	}
 
 	gen6_gt_force_wake_put(dev_priv, FORCEWAKE_ALL);
+	intel_update_cdclk(dev_priv->dev);
 }
 
 void hsw_enable_pc8_work(struct work_struct *__work)
@@ -10473,6 +10481,8 @@ static void intel_shared_dpll_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
+	intel_update_cdclk(dev);
+
 	if (HAS_PCH_IBX(dev) || HAS_PCH_CPT(dev))
 		ibx_pch_dpll_init(dev);
 	else
@@ -11207,11 +11217,8 @@ static void i915_disable_vga(struct drm_device *dev)
 
 void intel_modeset_init_hw(struct drm_device *dev)
 {
+	intel_update_cdclk(dev);
 	intel_prepare_ddi(dev);
-
-	if (IS_VALLEYVIEW(dev))
-		vlv_update_cdclk(dev);
-
 	intel_init_clock_gating(dev);
 
 	intel_reset_dpio(dev);
