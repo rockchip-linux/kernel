@@ -441,10 +441,6 @@
 	/* Pins don't include flow control by default; add that in */
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart1_xfer &uart1_cts &uart1_rts>;
-
-	/* We need to go faster than 24MHz, so adjust clock parents / rates */
-	assigned-clocks = <&cru SCLK_UART1>;
-	assigned-clock-rates = <48000000>;
 };
 
 &uart2 {
