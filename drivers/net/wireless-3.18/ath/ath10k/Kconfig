@@ -49,6 +49,6 @@ config ATH10K_DFS_CERTIFIED
 config ATH10K_SMART_ANTENNA
 	bool "QCA Smart Antenna support"
 	depends on ATH10K
-	default n
+	default y
 	---help---
 	This option enables Smart Antenna API support.
