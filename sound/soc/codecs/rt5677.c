@@ -5633,18 +5633,6 @@ static int rt5677_i2c_probe(struct i2c_client *i2c,
 			RT5677_PDM_DIV_MASK, rt5677->pdata.pdm_clk_div);
 
 	if (rt5677->pdata.asrc_en) {
-		/* Enable I2S1 ASRC Function */
-		regmap_write(rt5677->regmap, RT5677_ASRC_1, 0x0001);
-		/*
-		 * Enable DAC ASRC for Stereo DAC
-		 * Enable DMIC ASRC for Stereo1 ADC
-		 * Enable ADC ASRC for Stereo1
-		 */
-		regmap_write(rt5677->regmap, RT5677_ASRC_2, 0x4820);
-		/* ASRC Clock Source for Stereo DAC = clk_i2s1_asrc */
-		regmap_write(rt5677->regmap, RT5677_ASRC_3, 0x1000);
-		/* ASRC Clock Source for Stereo1 ADC = clk_i2s1_asrc */
-		regmap_write(rt5677->regmap, RT5677_ASRC_5, 0x1000);
 		/* Initial value of ASRC tracking for I2S1 of 48K sample rate
 		and 24M MCLK */
 		regmap_write(rt5677->regmap, RT5677_ASRC_13, 0x126e);
