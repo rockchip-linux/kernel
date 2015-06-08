@@ -182,6 +182,13 @@ static int bdw_rt5677_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
+	/* Enable codec ASRC function for Stereo DAC/Stereo1 ADC/DMIC/I2S1.
+	 * The ASRC clock source is clk_i2s1_asrc.
+	 */
+	rt5677_sel_asrc_clk_src(codec, RT5677_DA_STEREO_FILTER |
+			RT5677_AD_STEREO1_FILTER | RT5677_I2S1_SOURCE,
+			RT5677_CLK_SEL_I2S1_ASRC);
+
 	/* Request rt5677 GPIO for headphone amp control */
 	bdw_rt5677->gpio_hp_en = devm_gpiod_get_index(codec->dev,
 		"RT5677_GPIO_HP_AMP_SHDN_L", RT5677_GPIO_HP_AMP_SHDN_L);
