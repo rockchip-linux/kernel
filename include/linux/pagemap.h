@@ -243,8 +243,18 @@ static inline struct page *page_cache_alloc_readahead(struct address_space *x)
 
 typedef int filler_t(void *, struct page *);
 
-extern struct page * find_get_page(struct address_space *mapping,
-				pgoff_t index);
+extern struct page * find_get_page_flags(struct address_space *mapping,
+					 pgoff_t index, int fgp_flags);
+
+#define FGP_ACCESSED		0x00000001
+
+static inline struct page* find_get_page(struct address_space *mapping,
+					 pgoff_t index)
+{
+	return find_get_page_flags(mapping, index, 0);
+}
+
+
 extern struct page * find_lock_page(struct address_space *mapping,
 				pgoff_t index);
 extern struct page * find_or_create_page(struct address_space *mapping,

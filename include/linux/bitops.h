@@ -21,6 +21,9 @@ extern unsigned long __sw_hweight64(__u64 w);
  */
 #include <asm/bitops.h>
 
+/* 3.18 backport */
+#define smp_mb__after_atomic() smp_mb__after_clear_bit()
+
 #define for_each_set_bit(bit, addr, size) \
 	for ((bit) = find_first_bit((addr), (size));		\
 	     (bit) < (size);					\

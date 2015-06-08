@@ -20,13 +20,15 @@
 #include <linux/buffer_head.h>	/* grr. try_to_release_page,
 				   do_invalidatepage */
 #include <linux/cleancache.h>
+#include <linux/rmap.h>
 #include "internal.h"
 
 
 /**
  * do_invalidatepage - invalidate part or all of a page
  * @page: the page which is affected
- * @offset: the index of the truncation point
+ * @offset: start of the range to invalidate
+ * @length: length of the range to invalidate
  *
  * do_invalidatepage() is called when all or part of the page has become
  * invalidated by a truncate operation.
@@ -37,16 +39,18 @@
  * point.  Because the caller is about to free (and possibly reuse) those
  * blocks on-disk.
  */
-void do_invalidatepage(struct page *page, unsigned long offset)
+void do_invalidatepage(struct page *page, unsigned int offset,
+		       unsigned int length)
 {
-	void (*invalidatepage)(struct page *, unsigned long);
+	void (*invalidatepage)(struct page *, unsigned int, unsigned int);
+
 	invalidatepage = page->mapping->a_ops->invalidatepage;
 #ifdef CONFIG_BLOCK
 	if (!invalidatepage)
 		invalidatepage = block_invalidatepage;
 #endif
 	if (invalidatepage)
-		(*invalidatepage)(page, offset);
+		(*invalidatepage)(page, offset, length);
 }
 
 static inline void truncate_partial_page(struct page *page, unsigned partial)
@@ -54,7 +58,7 @@ static inline void truncate_partial_page(struct page *page, unsigned partial)
 	zero_user_segment(page, partial, PAGE_CACHE_SIZE);
 	cleancache_invalidate_page(page->mapping, page);
 	if (page_has_private(page))
-		do_invalidatepage(page, partial);
+		do_invalidatepage(page, partial, PAGE_CACHE_SIZE - partial);
 }
 
 /*
@@ -103,7 +107,7 @@ truncate_complete_page(struct address_space *mapping, struct page *page)
 		return -EIO;
 
 	if (page_has_private(page))
-		do_invalidatepage(page, 0);
+		do_invalidatepage(page, 0, PAGE_CACHE_SIZE);
 
 	cancel_dirty_page(page, PAGE_CACHE_SIZE);
 
@@ -567,14 +571,66 @@ EXPORT_SYMBOL(truncate_pagecache);
  */
 void truncate_setsize(struct inode *inode, loff_t newsize)
 {
-	loff_t oldsize;
+	loff_t oldsize = inode->i_size;
 
-	oldsize = inode->i_size;
 	i_size_write(inode, newsize);
-
+	if (newsize > oldsize)
+		pagecache_isize_extended(inode, oldsize, newsize);
 	truncate_pagecache(inode, oldsize, newsize);
 }
 EXPORT_SYMBOL(truncate_setsize);
+
+/**
+ * pagecache_isize_extended - update pagecache after extension of i_size
+ * @inode:	inode for which i_size was extended
+ * @from:	original inode size
+ * @to:		new inode size
+ *
+ * Handle extension of inode size either caused by extending truncate or by
+ * write starting after current i_size. We mark the page straddling current
+ * i_size RO so that page_mkwrite() is called on the nearest write access to
+ * the page.  This way filesystem can be sure that page_mkwrite() is called on
+ * the page before user writes to the page via mmap after the i_size has been
+ * changed.
+ *
+ * The function must be called after i_size is updated so that page fault
+ * coming after we unlock the page will already see the new i_size.
+ * The function must be called while we still hold i_mutex - this not only
+ * makes sure i_size is stable but also that userspace cannot observe new
+ * i_size value before we are prepared to store mmap writes at new inode size.
+ */
+void pagecache_isize_extended(struct inode *inode, loff_t from, loff_t to)
+{
+	int bsize = 1 << inode->i_blkbits;
+	loff_t rounded_from;
+	struct page *page;
+	pgoff_t index;
+
+	WARN_ON(!mutex_is_locked(&inode->i_mutex));
+	WARN_ON(to > inode->i_size);
+
+	if (from >= to || bsize == PAGE_CACHE_SIZE)
+		return;
+	/* Page straddling @from will not have any hole block created? */
+	rounded_from = round_up(from, bsize);
+	if (to <= rounded_from || !(rounded_from & (PAGE_CACHE_SIZE - 1)))
+		return;
+
+	index = from >> PAGE_CACHE_SHIFT;
+	page = find_lock_page(inode->i_mapping, index);
+	/* Page not cached? Nothing to do */
+	if (!page)
+		return;
+	/*
+	 * See clear_page_dirty_for_io() for details why set_page_dirty()
+	 * is needed.
+	 */
+	if (page_mkclean(page))
+		set_page_dirty(page);
+	unlock_page(page);
+	page_cache_release(page);
+}
+EXPORT_SYMBOL(pagecache_isize_extended);
 
 /**
  * truncate_pagecache_range - unmap and remove pagecache that is hole-punched
