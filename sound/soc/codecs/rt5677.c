@@ -708,13 +708,12 @@ static void rt5677_set_dsp_mode(struct rt5677_priv *rt5677, bool on)
 
 static unsigned int rt5677_set_vad_source(struct rt5677_priv *rt5677)
 {
-	struct snd_soc_dapm_context *dapm = &rt5677->codec->dapm;
 	/* The hotword audio path is from "DMIC L1" to "DSP Buffer".
 	 * "DSP Buffer" is then connected to "DSP Capture" which is the
 	 * rt5677-dsp-cpu-dai with a PCM interface in rt5677-spi.
+	 *
+	 * "DMIC L1" should be enabled in ucm config for hotwording.
 	 */
-	snd_soc_dapm_enable_pin(dapm, "DMIC L1");
-	snd_soc_dapm_sync(dapm);
 
 	/* Mono ADC Capture Switch = unmute (default) */
 	regmap_update_bits(rt5677->regmap, RT5677_MONO_ADC_DIG_VOL,
