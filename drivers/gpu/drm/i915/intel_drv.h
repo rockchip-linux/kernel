@@ -511,6 +511,8 @@ struct intel_dp {
 	bool use_tps3;
 	bool is_apple_vga;
 	bool is_ps8617;
+	bool has_hdmi_sink;
+	bool has_dvi_sink;
 	bool has_dpcd_blc;
 	struct intel_connector *attached_connector;
 };
