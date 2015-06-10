@@ -127,7 +127,8 @@ static struct device ecm_nss_ipv4_dev;		/* System device linkage */
 /*
  * General operational control
  */
-static int ecm_nss_ipv4_stopped = 0;			/* When non-zero further traffic will not be processed */
+/* When non-zero further traffic will not be processed */
+static int ecm_nss_ipv4_stopped = 1;
 
 /*
  * ecm_nss_ipv4_node_establish_and_ref()
