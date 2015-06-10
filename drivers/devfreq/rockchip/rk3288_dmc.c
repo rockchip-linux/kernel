@@ -232,9 +232,9 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	 * hotplug needs to be grabbed before the clk prepare lock.
 	 *
 	 * Do this before taking the policy rwsem to avoid deadlocks between the
-	 * mutex that is locked/unlocked in cpu_hotplug_disable/enable.
+	 * mutex that is locked/unlocked in both get/put_online_cpus.
 	 */
-	cpu_hotplug_disable();
+	get_online_cpus();
 	/*
 	 * Go to max cpufreq and block other cpufreq changes since set_rate
 	 * needs to complete during vblank.
@@ -286,7 +286,7 @@ out:
 	__cpufreq_driver_target(policy, cpufreq_cur, CPUFREQ_RELATION_L);
 	up_write(&policy->rwsem);
 cpufreq:
-	cpu_hotplug_enable();
+	put_online_cpus();
 	dmcfreq.err = err;
 }
 
