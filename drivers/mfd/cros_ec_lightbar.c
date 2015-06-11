@@ -93,11 +93,11 @@ out:
 	return ret;
 }
 
-#define INIT_MSG(ec, P, R) { \
+#define INIT_MSG(ec, P, R, field) { \
 		.command = EC_CMD_LIGHTBAR_CMD + (ec)->cmd_offset, \
-		.outdata = (uint8_t *)&P, \
-		.outsize = sizeof(P), \
-		.indata = (uint8_t *)&R, \
+		.outdata = (uint8_t *)&(P.cmd), \
+		.outsize = sizeof(P.cmd) + sizeof((P).field), \
+		.indata = (uint8_t *)&(R).field, \
 		.insize = sizeof(R), \
 	}
 
@@ -106,7 +106,7 @@ static int get_lightbar_version(struct cros_ec_dev *ec,
 {
 	struct ec_params_lightbar param;
 	struct ec_response_lightbar resp;
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, version);
 	int ret;
 
 	param.cmd = LIGHTBAR_CMD_VERSION;
@@ -163,7 +163,7 @@ static ssize_t store_brightness(struct device *dev,
 	struct ec_response_lightbar resp;
 	struct cros_ec_dev *ec = container_of(
 			dev, struct cros_ec_dev, class_dev);
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, set_brightness);
 	int ret;
 	unsigned int val;
 
@@ -199,7 +199,7 @@ static ssize_t store_rgb(struct device *dev, struct device_attribute *attr,
 	struct ec_response_lightbar resp;
 	struct cros_ec_dev *ec = container_of(
 			dev, struct cros_ec_dev, class_dev);
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, set_rgb);
 	unsigned int val[4];
 	int ret, i = 0, j = 0, ok = 0;
 
@@ -260,7 +260,7 @@ static ssize_t show_seq(struct device *dev,
 	struct ec_response_lightbar resp;
 	struct cros_ec_dev *ec = container_of(
 			dev, struct cros_ec_dev, class_dev);
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, get_seq);
 	int ret;
 
 	param.cmd = LIGHTBAR_CMD_GET_SEQ;
@@ -285,7 +285,8 @@ static int lb_send_empty_cmd(struct cros_ec_dev *ec, uint8_t cmd)
 {
 	struct ec_params_lightbar param;
 	struct ec_response_lightbar resp;
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	/* Use any empty command like suspend or resume */
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, suspend);
 	int ret;
 
 	param.cmd = cmd;
@@ -304,7 +305,8 @@ int lb_manual_suspend_ctrl(struct cros_ec_dev *ec, uint8_t enable)
 {
 	struct ec_params_lightbar param;
 	struct ec_response_lightbar resp;
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp,
+					      manual_suspend_ctrl);
 	int ret;
 
 	param.cmd = LIGHTBAR_CMD_MANUAL_SUSPEND_CTRL;
@@ -337,7 +339,7 @@ static ssize_t store_seq(struct device *dev, struct device_attribute *attr,
 	struct ec_response_lightbar resp;
 	struct cros_ec_dev *ec = container_of(
 			dev, struct cros_ec_dev, class_dev);
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, seq);
 	unsigned int num;
 	int ret, len;
 
@@ -373,7 +375,7 @@ static ssize_t store_program(struct device *dev, struct device_attribute *attr,
 	struct ec_response_lightbar resp;
 	struct cros_ec_dev *ec = container_of(
 			dev, struct cros_ec_dev, class_dev);
-	struct cros_ec_command msg = INIT_MSG(ec, param, resp);
+	struct cros_ec_command msg = INIT_MSG(ec, param, resp, set_program);
 	int bytes, ret;
 
 	if (count > EC_LB_PROG_LEN) {
