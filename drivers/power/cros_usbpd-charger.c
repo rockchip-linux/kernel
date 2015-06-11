@@ -205,7 +205,16 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	case USB_PD_PORT_POWER_SOURCE:
 		snprintf(role_str, sizeof(role_str), "%s", "SOURCE");
 		port->psy_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
-		port->psy_online = 0;
+		/*
+		 * Dual-role devices are capable of supplying power to us, mark
+		 * them as online.
+		 * Non-dual-role devices that we are sourcing power to can't
+		 * supply power to us, don't mark them as online.
+		 */
+		if (resp.dualrole)
+			port->psy_online = 1;
+		else
+			port->psy_online = 0;
 		break;
 	case USB_PD_PORT_POWER_SINK:
 		snprintf(role_str, sizeof(role_str), "%s", "SINK");
@@ -223,6 +232,11 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 		break;
 	}
 
+	port->psy_voltage_max_design = resp.meas.voltage_max;
+	port->psy_voltage_now = resp.meas.voltage_now;
+	port->psy_current_max = resp.meas.current_max;
+	port->psy_power_max = resp.max_power;
+
 	switch (resp.type) {
 	case USB_CHG_TYPE_NONE:
 		port->psy_type = POWER_SUPPLY_TYPE_UNKNOWN;
@@ -234,20 +248,23 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	case USB_CHG_TYPE_BC12_CDP:
 	case USB_CHG_TYPE_BC12_SDP:
 	case USB_CHG_TYPE_VBUS:
-		/*
-		 * Report all type of USB chargers as POWER_SUPPLY_TYPE_USB to
-		 * keep userland low power charger detection logic simpler.
-		 */
-		port->psy_type = POWER_SUPPLY_TYPE_USB;
+		if (resp.dualrole)
+			port->psy_type = POWER_SUPPLY_TYPE_USB;
+		else
+			port->psy_type = POWER_SUPPLY_TYPE_MAINS;
 		break;
 	case USB_CHG_TYPE_UNKNOWN:
 		/*
 		 * While the EC is trying to determine the type of charger that
 		 * has been plugged in, it will report the charger type as
 		 * unknown. Treat this case as a dedicated charger since we
-		 * don't know any better just yet.
+		 * don't know any better just yet. Additionally since the power
+		 * capabilities are unknown, report the max current and voltage
+		 * as zero.
 		 */
 		port->psy_type = POWER_SUPPLY_TYPE_MAINS;
+		port->psy_voltage_max_design = 0;
+		port->psy_current_max = 0;
 		break;
 	default:
 		dev_err(dev, "Port %d: default case!\n",
@@ -256,11 +273,6 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 	}
 
 	port->psy.type = port->psy_type;
-
-	port->psy_voltage_max_design = resp.meas.voltage_max;
-	port->psy_voltage_now = resp.meas.voltage_now;
-	port->psy_current_max = resp.meas.current_max;
-	port->psy_power_max = resp.max_power;
 
 	dev_dbg(dev,
 		"Port %d: %s type=%d=vmax=%d vnow=%d cmax=%d clim=%d pmax=%d\n",
