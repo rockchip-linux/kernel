@@ -1154,6 +1154,7 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	uint32_t val;
 	struct vop_win *vop_win = to_vop_win(crtc->primary);
 	u64 vblank_time;
+	unsigned long actual_rate;
 
 	/*
 	 * Wait for any pending updates to complete before full mode set.
@@ -1232,6 +1233,34 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 		return ret;
 	}
 	clk_set_rate(vop->dclk, adjusted_mode->clock * 1000);
+
+	/*
+	 * If we can't get the exact rate, we can try a little higher.
+	 * For upstream, this ought to use clk_set_rate_range() instead of
+	 * this complicated logic.
+	 */
+	actual_rate = clk_get_rate(vop->dclk);
+	if (actual_rate < adjusted_mode->clock * 1000) {
+		unsigned int slop;
+		unsigned int rate_diff;
+
+		/*
+		 * Well see if we can get closer by raising the clock a
+		 * little bit.  We'll allow for raising the rate the smaller
+		 * of:
+		 * - 1 less than the amount we're lower
+		 * - .01% of the clock rate
+		 *
+		 * ...so at worst we'll try .01%.
+		 */
+		slop = adjusted_mode->clock;	/* .01% in MHz */
+		rate_diff = adjusted_mode->clock * 1000 - actual_rate;
+		if (rate_diff <= slop)
+			slop = rate_diff - 1;
+
+		clk_set_rate(vop->dclk, adjusted_mode->clock * 1000 + slop);
+	}
+
 
 	vblank_time = (adjusted_mode->vtotal - adjusted_mode->vdisplay);
 	vblank_time *= (u64)NSEC_PER_SEC * adjusted_mode->htotal;
