@@ -30,6 +30,9 @@ struct rockchip_hdmi {
 	struct drm_encoder encoder;
 };
 
+#define CLK_SLOP(clk)		((clk) / 1000)
+#define CLK_PLUS_SLOP(clk)	((clk) + CLK_SLOP(clk))
+
 #define to_rockchip_hdmi(x)	container_of(x, struct rockchip_hdmi, x)
 
 static const int dw_hdmi_rates[] = {
@@ -59,8 +62,8 @@ static const int dw_hdmi_rates[] = {
 	115500000,
 	119000000,
 	135000000,
-	136750000,
-	146250000,
+	136800000,
+	146181818,
 	148500000,
 	154000000,
 	162000000,
@@ -69,43 +72,43 @@ static const int dw_hdmi_rates[] = {
 
 static const struct dw_hdmi_mpll_config rockchip_mpll_cfg[] = {
 	{
-		40000000, {
+		CLK_PLUS_SLOP(40000000), {
 			{ 0x00b3, 0x0000},
 			{ 0x2153, 0x0000},
 			{ 0x40f3, 0x0000}
 		},
 	}, {
-		65000000, {
+		CLK_PLUS_SLOP(65000000), {
 			{ 0x0072, 0x0001},
 			{ 0x2142, 0x0001},
 			{ 0x40a2, 0x0001},
 		},
 	}, {
-		66000000, {
+		CLK_PLUS_SLOP(66000000), {
 			{ 0x013e, 0x0003},
 			{ 0x217e, 0x0002},
 			{ 0x4061, 0x0002}
 		},
 	}, {
-		88750000, {
+		CLK_PLUS_SLOP(88750000), {
 			{ 0x0072, 0x0001},
 			{ 0x2145, 0x0002},
 			{ 0x4061, 0x0002}
 		},
 	}, {
-		146250000, {
+		CLK_PLUS_SLOP(146250000), {
 			{ 0x0051, 0x0002},
 			{ 0x2145, 0x0002},
 			{ 0x4061, 0x0002}
 		},
 	}, {
-		148500000, {
+		CLK_PLUS_SLOP(148500000), {
 			{ 0x0051, 0x0003},
 			{ 0x214c, 0x0003},
 			{ 0x4064, 0x0003}
 		},
 	}, {
-		172800000, {
+		CLK_PLUS_SLOP(172800000), {
 			{ 0x0051, 0x0002},
 		},
 	}, {
@@ -162,9 +165,13 @@ dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 	int pclk = mode->clock * 1000;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(dw_hdmi_rates); i++)
-		if (pclk == dw_hdmi_rates[i])
+	for (i = 0; i < ARRAY_SIZE(dw_hdmi_rates); i++) {
+		int slop = CLK_SLOP(dw_hdmi_rates[i]);
+
+		if ((pclk >= dw_hdmi_rates[i] - slop) &&
+		    (pclk <= dw_hdmi_rates[i] + slop))
 			return MODE_OK;
+	}
 
 	return MODE_BAD;
 }
@@ -182,23 +189,6 @@ dw_hdmi_rockchip_encoder_mode_fixup(struct drm_encoder *encoder,
 				    const struct drm_display_mode *mode,
 				    struct drm_display_mode *adj_mode)
 {
-	/*
-	 * Hardware: Because we can not find an NPLL rate which have
-	 * generate both accurate 136.75MHz and good jitter performance,
-	 * we change dclk_vop0 to 136.80MHz, so dclk_vop0 could have good jitter
-	 * performance(118.790ps).  When we pick 136.80MHz clk driver could
-	 * choose the 1368MHz for us.  Normally the clock driver can't pick
-	 * clocks that are higher that we request.
-	 *
-	 * We adjust 146.25MHz for a similar reason.  If we don't adjust
-	 * then the clock framework will pick 585MHz which has bad jitter.
-	 * We instead specify 146.200MHz and will pick 1608MHz
-	 */
-	if (adj_mode->clock == 136750)
-		adj_mode->clock = 136800;
-	if (adj_mode->clock == 146250)
-		adj_mode->clock = 146200;
-
 	return true;
 }
 
