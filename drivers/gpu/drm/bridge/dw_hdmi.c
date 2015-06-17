@@ -1722,7 +1722,11 @@ dw_hdmi_connector_mode_valid(struct drm_connector *connector,
 {
 	struct dw_hdmi *hdmi = container_of(connector,
 					   struct dw_hdmi, connector);
+	struct hdmi_vmode *vmode = &hdmi->hdmi_data.video_mode;
 	enum drm_mode_status mode_status = MODE_OK;
+
+	if (mode->clock > 165000 && vmode->mdvi)
+		return MODE_BAD;
 
 	if (hdmi->plat_data->mode_valid)
 		mode_status = hdmi->plat_data->mode_valid(connector, mode);
