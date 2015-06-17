@@ -32,7 +32,22 @@
 		#size-cells = <0>;
 
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwr_key_l>;
+		pinctrl-0 = <&bt_host_wake &pwr_key_l>;
+
+		/*
+		 * HACK: until we have an LPM driver, we'll use an
+		 * ugly GPIO key to allow Bluetooth to wake from S3.
+		 * This is expected to only be used by BT modules that
+		 * use UART for comms.  For BT modules that talk over
+		 * SDIO we should use a wakeup mechanism related to SDIO.
+		 */
+		bt-wake {
+			label = "BT Wakeup";
+			gpios = <&gpio4 31 GPIO_ACTIVE_HIGH>;
+			linux,code = <KEY_WAKEUP>;
+			gpio-key,wakeup;
+		};
+
 		power {
 			label = "Power";
 			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
@@ -528,6 +543,10 @@
 		/* NOTE: mislabelled on schematic; should be bt_enable_h */
 		bt_enable_l: bt-enable-l {
 			rockchip,pins = <4 29 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		bt_host_wake: bt-host-wake {
+			rockchip,pins = <4 31 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 
 		/*

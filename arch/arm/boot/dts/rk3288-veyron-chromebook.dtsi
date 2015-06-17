@@ -33,7 +33,7 @@
 	};
 
 	gpio_keys: gpio-keys {
-		pinctrl-0 = <&pwr_key_l &ap_lid_int_l>;
+		pinctrl-0 = <&bt_host_wake &pwr_key_l &ap_lid_int_l>;
 		lid {
 			label = "Lid";
 			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;

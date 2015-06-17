@@ -61,7 +61,7 @@
 };
 
 &gpio_keys {
-	pinctrl-0 = <&pwr_key_l &ap_lid_int_l &volum_down_l &volum_up_l>;
+	pinctrl-0 = <&bt_host_wake &pwr_key_l &ap_lid_int_l &volum_down_l &volum_up_l>;
 
 	volum_down {
 		label = "Volum_down";
