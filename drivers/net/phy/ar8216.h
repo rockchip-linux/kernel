@@ -458,6 +458,11 @@
 
 #define AR8337_PAD_MAC06_EXCHANGE_EN		BIT(31)
 
+#define AR8337_PHY_DEBUG_0   0
+#define AR8337_PHY_MANU_CTRL_EN  BIT(12)
+
+#define AR8337_PHY_DEBUG_2   2
+
 /* port speed */
 enum {
         AR8216_PORT_SPEED_10M = 0,
