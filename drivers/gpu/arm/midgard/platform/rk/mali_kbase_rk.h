@@ -50,8 +50,11 @@ struct kbase_rk {
 	struct clk *clk;
 	struct regulator *regulator;
 	struct kbase_rk_fv *fv_table;
+	struct notifier_block thermal_change_nb;
 	unsigned int fv_table_length;
 	unsigned int current_level;
+	unsigned int requested_level;
+	unsigned int thermal_throttling_level;
 	struct kbase_rk_dvfs dvfs;
 	struct mutex set_level_lock;
 	bool is_powered;
