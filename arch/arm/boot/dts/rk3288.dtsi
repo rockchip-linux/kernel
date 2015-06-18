@@ -814,12 +814,12 @@
 		clock-names = "aclk_gpu";
 		operating-points = <
 			/* KHz uV */
-			100000 950000
-			200000 950000
-			300000 1000000
-			400000 1100000
-			/* 500000 1200000 - See crosbug.com/p/33857 */
 			600000 1250000
+			/* 500000 1200000 - See crosbug.com/p/33857 */
+			400000 1100000
+			300000 1000000
+			200000 950000
+			100000 950000
 		>;
 		power-domains = <&power RK3288_PD_GPU>;
 		status = "disabled";
