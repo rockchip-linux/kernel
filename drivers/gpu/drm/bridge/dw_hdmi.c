@@ -1711,6 +1711,10 @@ static int dw_hdmi_connector_get_modes(struct drm_connector *connector)
 		kfree(edid);
 	} else {
 		dev_dbg(hdmi->dev, "failed to get edid\n");
+
+		/* We'll go with the safest mode */
+		vmode->mdvi = true;
+		vmode->has_audio = false;
 	}
 
 	return ret;
