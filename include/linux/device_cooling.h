@@ -15,7 +15,8 @@
 #ifdef CONFIG_DEVICE_THERMAL
 int register_devfreq_cooling_notifier(struct notifier_block *nb);
 int unregister_devfreq_cooling_notifier(struct notifier_block *nb);
-struct thermal_cooling_device *devfreq_cooling_register(void);
+struct thermal_cooling_device *devfreq_cooling_register
+			(struct device *dev, unsigned int max_state);
 void devfreq_cooling_unregister(struct thermal_cooling_device *cdev);
 #else
 static inline
@@ -31,7 +32,8 @@ int unregister_devfreq_cooling_notifier(struct notifier_block *nb)
 }
 
 static inline
-struct thermal_cooling_device *devfreq_cooling_register(void)
+struct thermal_cooling_device *devfreq_cooling_register
+			(struct device *dev, unsigned int max_state)
 {
 	return NULL;
 }

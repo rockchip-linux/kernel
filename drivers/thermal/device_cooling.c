@@ -16,12 +16,11 @@ struct devfreq_cooling_device {
 	int id;
 	struct thermal_cooling_device *cool_dev;
 	unsigned int devfreq_state;
+	unsigned int max_state;
 };
 
 static DEFINE_IDR(devfreq_idr);
 static DEFINE_MUTEX(devfreq_cooling_lock);
-
-#define	MAX_STATE	1
 
 static BLOCKING_NOTIFIER_HEAD(devfreq_cooling_chain_head);
 
@@ -63,7 +62,9 @@ static int devfreq_set_cur_state(struct thermal_cooling_device *cdev,
 static int devfreq_get_max_state(struct thermal_cooling_device *cdev,
 				 unsigned long *state)
 {
-	*state = MAX_STATE;
+	struct devfreq_cooling_device *devfreq_device = cdev->devdata;
+
+	*state = devfreq_device->max_state;
 
 	return 0;
 }
@@ -105,7 +106,8 @@ static void release_idr(struct idr *idr, int id)
 	mutex_unlock(&devfreq_cooling_lock);
 }
 
-struct thermal_cooling_device *devfreq_cooling_register(void)
+struct thermal_cooling_device *devfreq_cooling_register
+			(struct device *dev, unsigned int max_state)
 {
 	struct thermal_cooling_device *cool_dev;
 	struct devfreq_cooling_device *devfreq_dev = NULL;
@@ -126,15 +128,17 @@ struct thermal_cooling_device *devfreq_cooling_register(void)
 	snprintf(dev_name, sizeof(dev_name), "thermal-devfreq-%d",
 		 devfreq_dev->id);
 
-	cool_dev = thermal_cooling_device_register(dev_name, devfreq_dev,
-						   &devfreq_cooling_ops);
+	devfreq_dev->devfreq_state = 0;
+	devfreq_dev->max_state = max_state;
+	cool_dev = thermal_of_cooling_device_register(dev->of_node,
+						      dev_name, devfreq_dev,
+						      &devfreq_cooling_ops);
 	if (!cool_dev) {
 		release_idr(&devfreq_idr, devfreq_dev->id);
 		kfree(devfreq_dev);
 		return ERR_PTR(-EINVAL);
 	}
 	devfreq_dev->cool_dev = cool_dev;
-	devfreq_dev->devfreq_state = 0;
 
 	return cool_dev;
 }
