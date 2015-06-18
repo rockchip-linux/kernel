@@ -84,7 +84,7 @@ gpu_thermal: gpu_thermal {
 		map0 {
 			trip = <&gpu_alert0>;
 			cooling-device =
-				<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				<&gpu THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 		};
 	};
 };

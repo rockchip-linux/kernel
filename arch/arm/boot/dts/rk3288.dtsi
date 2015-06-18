@@ -821,6 +821,7 @@
 			200000 950000
 			100000 950000
 		>;
+		#cooling-cells = <2>; /* min followed by max */
 		power-domains = <&power RK3288_PD_GPU>;
 		status = "disabled";
 	};
