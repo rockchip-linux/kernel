@@ -1040,8 +1040,8 @@ void dmc_set_rate_in_sram(void *arg)
 			ddr_set_dll_bypass(ch, g_dmc_sram.target_freq);
 			ddr_reset_dll(ch);
 			if (ddr_ch[ch].mem_type != DRAM_MAX) {
-				ddr_move_to_config_state(ch);
 				ddr_update_timing(ch);
+				ddr_move_to_config_state(ch);
 				ddr_update_mr(ch);
 				ddr_update_odt(ch);
 				ddr_adjust_config(ch);
