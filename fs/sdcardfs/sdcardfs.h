@@ -159,7 +159,9 @@ extern void sdcardfs_destroy_dentry_cache(void);
 extern int new_dentry_private_data(struct dentry *dentry);
 extern void free_dentry_private_data(struct dentry *dentry);
 extern struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
-				    struct nameidata *nd);
+				unsigned int flags);
+extern struct inode *sdcardfs_iget(struct super_block *sb,
+				 struct inode *lower_inode);
 extern int sdcardfs_interpose(struct dentry *dentry, struct super_block *sb,
 			    struct path *lower_path);
 
@@ -402,16 +404,9 @@ static inline int prepare_dir(const char *path_s, uid_t uid, gid_t gid, mode_t m
 	int err;
 	struct dentry *dent;
 	struct iattr attrs;
-	struct nameidata nd;
+	struct path parent;
 
-	err = kern_path_parent(path_s, &nd);
-	if (err) {
-		if (err == -EEXIST)
-			err = 0;
-		goto out;
-	}
-
-	dent = lookup_create(&nd, 1);
+	dent = kern_path_locked(path_s, &parent);
 	if (IS_ERR(dent)) {
 		err = PTR_ERR(dent);
 		if (err == -EEXIST)
@@ -419,7 +414,7 @@ static inline int prepare_dir(const char *path_s, uid_t uid, gid_t gid, mode_t m
 		goto out_unlock;
 	}
 
-	err = vfs_mkdir(nd.path.dentry->d_inode, dent, mode);
+	err = vfs_mkdir(parent.dentry->d_inode, dent, mode);
 	if (err) {
 		if (err == -EEXIST)
 			err = 0;
@@ -438,10 +433,8 @@ out_dput:
 
 out_unlock:
 	/* parent dentry locked by lookup_create */
-	mutex_unlock(&nd.path.dentry->d_inode->i_mutex);
-	path_put(&nd.path);
-
-out:
+	mutex_unlock(&parent.dentry->d_inode->i_mutex);
+	path_put(&parent);
 	return err;
 }
 
