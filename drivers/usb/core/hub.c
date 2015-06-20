@@ -2951,20 +2951,6 @@ static unsigned wakeup_enabled_descendants(struct usb_device *udev)
 			(hub ? hub->wakeup_enabled_descendants : 0);
 }
 
-bool usb_port_may_wakeup(struct usb_device *hdev, int port1)
-{
-	struct usb_hub *hub = usb_hub_to_struct_hub(hdev);
-	struct usb_device *udev;
-
-	if (hub) {
-		udev = hub->ports[port1 - 1]->child;
-		if (udev)
-			return wakeup_enabled_descendants(udev) > 0;
-	}
-	return false;
-}
-EXPORT_SYMBOL_GPL(usb_port_may_wakeup);
-
 /*
  * usb_port_suspend - suspend a usb device's upstream port
  * @udev: device that's no longer in active use, not a root hub
