@@ -595,6 +595,8 @@ struct dwc2_hsotg {
 	enum usb_dr_mode dr_mode;
 	unsigned int hcd_enabled:1;
 	unsigned int gadget_enabled:1;
+	unsigned int need_phy_for_wake:1;
+	unsigned int phy_off_for_suspend:1;
 
 	struct phy *phy;
 	struct usb_phy *uphy;
