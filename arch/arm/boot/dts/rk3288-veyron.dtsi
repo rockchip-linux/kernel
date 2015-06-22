@@ -625,6 +625,7 @@
 
 &usb_host1 {
 	status = "okay";
+	snps,need-phy-for-wake;
 };
 
 &usb_otg {
@@ -632,4 +633,5 @@
 	status = "okay";
 	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
 	assigned-clock-parents = <&cru SCLK_OTGPHY0>;
+	snps,need-phy-for-wake;
 };
