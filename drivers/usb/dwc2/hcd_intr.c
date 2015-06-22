@@ -329,7 +329,6 @@ static void dwc2_port_intr(struct dwc2_hsotg *hsotg)
 {
 	u32 hprt0;
 	u32 hprt0_modify;
-	struct usb_hcd *hcd = (struct usb_hcd *)hsotg->priv;
 
 	dev_vdbg(hsotg->dev, "--Port Interrupt--\n");
 
@@ -354,10 +353,6 @@ static void dwc2_port_intr(struct dwc2_hsotg *hsotg)
 		hsotg->flags.b.port_connect_status_change = 1;
 		hsotg->flags.b.port_connect_status = 1;
 		hprt0_modify |= HPRT0_CONNDET;
-
-		/* resume root hub? */
-		if (hcd->state == HC_STATE_SUSPENDED)
-			usb_hcd_resume_root_hub(hcd);
 
 		/*
 		 * The Hub driver asserts a reset when it sees port connect
