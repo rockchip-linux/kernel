@@ -94,6 +94,7 @@ void init_rt_rq(struct rt_rq *rt_rq)
 	rt_rq->push_cpu = nr_cpu_ids;
 	raw_spin_lock_init(&rt_rq->push_lock);
 	init_irq_work(&rt_rq->push_work, push_irq_work_func);
+	rt_rq->push_work.flags |= IRQ_WORK_HARD_IRQ;
 #endif
 #endif /* CONFIG_SMP */
 	/* We start is dequeued state, because no RT tasks are queued */
