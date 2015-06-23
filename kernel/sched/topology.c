@@ -514,6 +514,7 @@ static int init_rootdomain(struct root_domain *rd)
 	rd->rto_cpu = -1;
 	raw_spin_lock_init(&rd->rto_lock);
 	init_irq_work(&rd->rto_push_work, rto_push_irq_work_func);
+	atomic_or(IRQ_WORK_HARD_IRQ, &rd->rto_push_work.flags);
 #endif
 
 	init_dl_bw(&rd->dl_bw);
