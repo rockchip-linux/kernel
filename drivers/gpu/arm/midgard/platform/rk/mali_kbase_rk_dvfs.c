@@ -17,19 +17,19 @@ struct kbase_rk_dvfs_threshold {
 
 /*
  * if current_utilisation > max
- * level++
- * if current_utilisation < min
  * level--
+ * if current_utilisation < min
+ * level++
  * Length of kbase_rk_dvfs_threshold_table must
  * equal to the length of the gpu's operating-point table
  */
 static const struct kbase_rk_dvfs_threshold kbase_rk_dvfs_threshold_table[] = {
-	{ 100000000, 0, 50 },
-	{ 200000000, 20, 40 },
-	{ 300000000, 20, 40 },
-	{ 400000000, 20, 40 },
-	/* { 500000000, 20, 40 }, - See crosbug.com/p/33857 */
 	{ 600000000, 20, 100 },
+	/* { 500000000, 20, 40 }, - See crosbug.com/p/33857 */
+	{ 400000000, 20, 40 },
+	{ 300000000, 20, 40 },
+	{ 200000000, 20, 40 },
+	{ 100000000, 0, 50 },
 };
 
 #define work_to_dvfs(w) container_of(w, struct kbase_rk_dvfs, work)
@@ -49,11 +49,11 @@ static void kbase_rk_dvfs_event_proc(struct work_struct *w)
 
 	dev_dbg(kbdev->dev, "utilisation = %d\n", kbase_rk->dvfs.utilisation);
 
-	if (utilisation > threshold->max &&
-	    level < ARRAY_SIZE(kbase_rk_dvfs_threshold_table) - 1)
-		level += 1;
-	else if (level > 0 && utilisation < threshold->min)
+	if (utilisation > threshold->max && level > 0)
 		level -= 1;
+	else if (level < (ARRAY_SIZE(kbase_rk_dvfs_threshold_table) - 1) &&
+			utilisation < threshold->min)
+		level += 1;
 	else
 		return;
 

@@ -176,7 +176,7 @@ static int kbase_rk_set_level(struct kbase_device *kbdev, int level)
 		mutex_unlock(&kbase_rk->set_level_lock);
 		return 0;
 	}
-	if (level > current_level) {
+	if (level < current_level) {
 		ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
 		if (ret)
 			goto err_set_level;
@@ -231,10 +231,10 @@ int kbase_rk_set_freq(struct kbase_device *kbdev, unsigned long freq)
 	int level;
 
 	/*
-	 * Start at highest operating point, and iterate backwards.
+	 * Start at highest operating point, and iterate.
 	 * Stop when we find a frequency <= freq, or no more entries.
 	 */
-	for (level = kbase_rk->fv_table_length - 1; level > 0; level--) {
+	for (level = 0; level < kbase_rk->fv_table_length - 1; level++) {
 		struct kbase_rk_fv *fv  = &kbase_rk->fv_table[level];
 		if (fv->freq <= freq)
 			break;
@@ -398,8 +398,9 @@ static inline void kbase_rk_remove_sysfs(struct kbase_device *kbdev)
 static int kbase_rk_freq_init(struct kbase_device *kbdev)
 {
 	struct kbase_rk *kbase_rk = kbdev->platform_context;
-	unsigned long volt = kbase_rk->fv_table[0].volt;
-	unsigned long freq = kbase_rk->fv_table[0].freq;
+	int length = kbase_rk->fv_table_length;
+	unsigned long volt = kbase_rk->fv_table[length - 1].volt;
+	unsigned long freq = kbase_rk->fv_table[length - 1].freq;
 	int ret;
 
 	ret = regulator_set_voltage(kbase_rk->regulator, volt, volt);
@@ -409,8 +410,7 @@ static int kbase_rk_freq_init(struct kbase_device *kbdev)
 	ret = clk_set_rate(kbase_rk->clk, freq);
 	if (ret)
 		return ret;
-
-	kbase_rk->current_level = 0;
+	kbase_rk->current_level = length - 1;
 	dev_info(kbdev->dev, "initial freq = %lu\n",
 		 clk_get_rate(kbase_rk->clk));
 
@@ -423,7 +423,7 @@ static int kbase_rk_get_opp_table(struct kbase_device *kbdev)
 	const struct property *prop;
 	int nr;
 	const __be32 *val;
-	int i;
+	int i, start, dir, end;
 
 	prop = of_find_property(kbdev->dev->of_node, "operating-points", NULL);
 	if (!prop)
@@ -449,7 +449,20 @@ static int kbase_rk_get_opp_table(struct kbase_device *kbdev)
 
 	val = prop->value;
 
-	for (i = 0; i < kbase_rk->fv_table_length; ++i) {
+	/* check the operating-point table start max value or min value */
+	if ((kbase_rk->fv_table_length > 1) &&
+		(be32_to_cpup(val) < be32_to_cpup(val + 2))) {
+		dev_warn(kbdev->dev, "Old backward DVFS table; converting\n");
+		start = kbase_rk->fv_table_length - 1;
+		end = 0;
+		dir = -1;
+	} else {
+		start = 0;
+		end = kbase_rk->fv_table_length - 1;
+		dir = 1;
+	}
+
+	for (i = start; i != end + dir; i += dir) {
 		unsigned long freq = be32_to_cpup(val++) * 1000;
 		unsigned long volt = be32_to_cpup(val++);
 
