@@ -28,7 +28,7 @@ static const struct kbase_rk_dvfs_threshold kbase_rk_dvfs_threshold_table[] = {
 	{ 200000000, 20, 40 },
 	{ 300000000, 20, 40 },
 	{ 400000000, 20, 40 },
-	{ 500000000, 20, 40 },
+	/* { 500000000, 20, 40 }, - See crosbug.com/p/33857 */
 	{ 600000000, 20, 100 },
 };
 
