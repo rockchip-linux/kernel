@@ -54,6 +54,18 @@
 	};
 };
 
+&cpu_alert0 {
+	temperature = <60000>; /* millicelsius */
+};
+
+&cpu_alert1 {
+	temperature = <65000>; /* millicelsius */
+};
+
+&gpu_alert0 {
+	temperature = <62500>; /* millicelsius */
+};
+
 &i2c3 {
 	status = "okay";
 	clock-frequency = <400000>;
@@ -103,10 +115,6 @@
 	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd_disabled &sdmmc_cd_gpio
 			&sdmmc_bus4>;
 	disable-wp;
-};
-
-&thermal {
-	#include "rk3288-thea-thermal.dtsi"
 };
 
 &vcc_5v {
