@@ -69,7 +69,7 @@ gpu_thermal: gpu_thermal {
 
 	trips {
 		gpu_alert0: gpu_alert0 {
-			temperature = <80000>; /* millicelsius */
+			temperature = <62500>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
