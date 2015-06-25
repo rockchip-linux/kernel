@@ -123,26 +123,26 @@ static const struct dw_hdmi_mpll_config rockchip_mpll_cfg[] = {
 static const struct dw_hdmi_curr_ctrl rockchip_cur_ctr[] = {
 	/*      pixelclk    bpp8    bpp10   bpp12 */
 	{
-		40000000,  { 0x0018, 0x0018, 0x0018 },
+		CLK_PLUS_SLOP(40000000),  { 0x0018, 0x0018, 0x0018 },
 	}, {
-		65000000,  { 0x0028, 0x0028, 0x0028 },
+		CLK_PLUS_SLOP(65000000),  { 0x0028, 0x0028, 0x0028 },
 	}, {
-		66000000,  { 0x0038, 0x0038, 0x0038 },
+		CLK_PLUS_SLOP(66000000),  { 0x0038, 0x0038, 0x0038 },
 	}, {
-		88750000,  { 0x0028, 0x0038, 0x0038 },
+		CLK_PLUS_SLOP(88750000),  { 0x0028, 0x0038, 0x0038 },
 	}, {
-		172800000, { 0x0038, 0x0038, 0x0038 },
+		CLK_PLUS_SLOP(172800000), { 0x0038, 0x0038, 0x0038 },
 	}, {
-		~0UL,      { 0x0000, 0x0000, 0x0000},
+		~0UL,                     { 0x0000, 0x0000, 0x0000},
 	}
 };
 
 static const struct dw_hdmi_phy_config rockchip_phy_config[] = {
 	/*pixelclk   symbol   term   vlev*/
-	{ 74250000,  0x8009, 0x0004, 0x0272},
-	{ 148500000, 0x802b, 0x0004, 0x028d},
-	{ 297000000, 0x8039, 0x0005, 0x028d},
-	{ ~0UL,	     0x0000, 0x0000, 0x0000}
+	{ CLK_PLUS_SLOP(74250000),  0x8009, 0x0004, 0x0272},
+	{ CLK_PLUS_SLOP(148500000), 0x802b, 0x0004, 0x028d},
+	{ CLK_PLUS_SLOP(297000000), 0x8039, 0x0005, 0x028d},
+	{ ~0UL,	                    0x0000, 0x0000, 0x0000}
 };
 
 static int rockchip_hdmi_parse_dt(struct rockchip_hdmi *hdmi)
