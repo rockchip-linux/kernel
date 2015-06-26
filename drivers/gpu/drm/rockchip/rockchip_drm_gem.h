@@ -21,6 +21,7 @@ struct rockchip_gem_object {
 	struct drm_gem_object base;
 	unsigned int flags;
 
+	struct sg_table *sgt;
 	void *kvaddr;
 	dma_addr_t dma_addr;
 	struct dma_attrs dma_attrs;
