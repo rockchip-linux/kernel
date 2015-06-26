@@ -36,7 +36,7 @@ struct rockchip_hdmi {
 #define to_rockchip_hdmi(x)	container_of(x, struct rockchip_hdmi, x)
 
 static const int dw_hdmi_rates[] = {
-	25175000,
+	25170732,	/* for 25.175 MHz, 0.017% off */
 	27000000,
 	28320000,
 	30240000,
@@ -55,7 +55,7 @@ static const int dw_hdmi_rates[] = {
 	74400000,	/* for 74.44 MHz, .054% off */
 	75000000,
 	78750000,
-	83500000,
+	83520000,	/* for 83.5 MHz,  .024% off */
 	85500000,
 	88750000,
 	106500000,
