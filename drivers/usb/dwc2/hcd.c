@@ -1499,6 +1499,9 @@ static void dwc2_port_resume(struct dwc2_hsotg *hsotg)
 
 	hprt0 &= ~HPRT0_RES;
 	writel(hprt0, hsotg->regs + HPRT0);
+
+	/* Update lx_state */
+	hsotg->lx_state = DWC2_L0;
 }
 
 /* Handles hub class-specific requests */
