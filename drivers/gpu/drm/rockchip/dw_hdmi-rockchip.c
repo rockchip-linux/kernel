@@ -37,6 +37,7 @@ struct rockchip_hdmi {
 
 static const int dw_hdmi_rates[] = {
 	25170732,	/* for 25.175 MHz, 0.017% off */
+	25200000,
 	27000000,
 	28320000,
 	30240000,
@@ -49,12 +50,15 @@ static const int dw_hdmi_rates[] = {
 	57280000,
 	65000000,
 	66000000,
+	68250000,
 	71000000,
+	72000000,
 	73250000,
 	74250000,
 	74400000,	/* for 74.44 MHz, .054% off */
 	75000000,
 	78750000,
+	79500000,
 	83520000,	/* for 83.5 MHz,  .024% off */
 	85500000,
 	88800000,	/* for 88.75 MHz, .056% off */
@@ -88,6 +92,12 @@ static const struct dw_hdmi_mpll_config rockchip_mpll_cfg[] = {
 		CLK_PLUS_SLOP(66000000), {
 			{ 0x013e, 0x0003},
 			{ 0x217e, 0x0002},
+			{ 0x4061, 0x0002}
+		},
+	}, {
+		CLK_PLUS_SLOP(72000000), {
+			{ 0x0072, 0x0001},
+			{ 0x2142, 0x0001},
 			{ 0x4061, 0x0002}
 		},
 	}, {
