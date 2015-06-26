@@ -1484,10 +1484,22 @@ static void dwc2_port_suspend(struct dwc2_hsotg *hsotg, u16 windex)
 	}
 }
 
+/* Must NOT be called with interrupt disabled or spinlock held */
 static void dwc2_port_resume(struct dwc2_hsotg *hsotg)
 {
 	u32 hprt0;
 
+	/*
+	 * TODO: Seems like we ought to grab the spinlock in this function
+	 * or require the caller to grab it for us but we'd need to figure out
+	 * what to do about the sleep below.  Maybe can change to a delay and
+	 * shorten?
+	 */
+
+	/*
+	 * TODO: from experimentation, it seems that we can change the below
+	 * sleep to be 2-4ms instead of 20-40ms.
+	 */
 	writel(0, hsotg->regs + PCGCTL);
 	usleep_range(20000, 40000);
 
