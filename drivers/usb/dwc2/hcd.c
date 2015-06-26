@@ -2339,16 +2339,69 @@ static void _dwc2_hcd_stop(struct usb_hcd *hcd)
 static int _dwc2_hcd_suspend(struct usb_hcd *hcd)
 {
 	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+	u32 hprt0;
 
-	hsotg->lx_state = DWC2_L2;
+	/*
+	 * TODO: This whole function seems like it needs one big spinlock.
+	 * The problem is that dwc2_port_suspend() grabs a spinlock itself,
+	 * so we'd need to change that.  We can't grab the spinlock before
+	 * that function because it has a 200ms delay.  Ugh.
+	 */
+
+	if (!((hsotg->op_state == OTG_STATE_B_HOST) ||
+		(hsotg->op_state == OTG_STATE_A_HOST)))
+		return 0;
+
+	/*
+	 * TODO: We get into suspend from 'on' state, maybe we need to do
+	 * something if we get here from DWC2_L1(LPM sleep) state one day.
+	 */
+	if (hsotg->lx_state != DWC2_L0)
+		return 0;
+
+	hprt0 = dwc2_read_hprt0(hsotg);
+	if (hprt0 & HPRT0_CONNSTS) {
+		dwc2_port_suspend(hsotg, 1);
+	} else {
+		u32 pcgctl = readl(hsotg->regs + PCGCTL);
+
+		pcgctl |= PCGCTL_STOPPCLK;
+		writel(pcgctl, hsotg->regs + PCGCTL);
+
+		/* TODO: Doesn't set hsotg->lx_state.  Is that OK? */
+	}
+
 	return 0;
 }
 
 static int _dwc2_hcd_resume(struct usb_hcd *hcd)
 {
 	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+	u32 hprt0;
 
-	hsotg->lx_state = DWC2_L0;
+	/*
+	 * TODO: This whole function seems like it needs one big spinlock.
+	 * For now we'll leave it alone till we figure out what to do about
+	 * _dwc2_hcd_suspend().  Also dwc2_port_resume() has a sleep in it, so
+	 * we'd have to change that to a delay.
+	 */
+
+	if (!((hsotg->op_state == OTG_STATE_B_HOST) ||
+		(hsotg->op_state == OTG_STATE_A_HOST)))
+		return 0;
+
+	if (hsotg->lx_state != DWC2_L2)
+		return 0;
+
+	hprt0 = dwc2_read_hprt0(hsotg);
+	if ((hprt0 & HPRT0_CONNSTS) && (hprt0 & HPRT0_SUSP)) {
+		dwc2_port_resume(hsotg);
+	} else {
+		writel(0, hsotg->regs + PCGCTL);
+
+		/* TODO: Doesn't set hsotg->lx_state.  Is that OK? */
+	}
+
 	return 0;
 }
 
