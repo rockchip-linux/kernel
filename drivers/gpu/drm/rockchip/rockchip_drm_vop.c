@@ -736,7 +736,7 @@ static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
 	is_alpha = is_alpha_support(fb->pixel_format);
 	rb_swap = has_rb_swapped(fb->pixel_format);
 	format = vop_convert_format(fb->pixel_format);
-	y_vir_stride = fb->pitches[0] / (fb->bits_per_pixel >> 3);
+	y_vir_stride = fb->pitches[0] >> 2;
 
 	if (needs_vblank) {
 		smp_wmb(); /* make sure all pending_* writes are complete */
