@@ -97,7 +97,7 @@ static const struct dw_hdmi_mpll_config rockchip_mpll_cfg[] = {
 			{ 0x4061, 0x0002}
 		},
 	}, {
-		CLK_PLUS_SLOP(146250000), {
+		CLK_PLUS_SLOP(146181818), {
 			{ 0x0051, 0x0002},
 			{ 0x2145, 0x0002},
 			{ 0x4061, 0x0002}
