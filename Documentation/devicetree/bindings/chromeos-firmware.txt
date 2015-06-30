@@ -7,9 +7,9 @@ Required properties:
 
   - write-protect-gpio : Describe the write-protect GPIO of the system.
   - nonvolatile-context-storage : Storage device type that firmware used for
-    vboot nonvolatile context.  It should be one of "disk", "mkbp", or "nvram".
-    Kernel should look for the device that firmware actually used in the
-    corresponding optional property below.
+    vboot nonvolatile context.  It should be one of "disk", "cros-ec", or
+    "nvram". Kernel should look for the device that firmware actually used in
+    the corresponding optional property below.
 
 Optional properties:
 
@@ -17,7 +17,7 @@ Optional properties:
     look for the block device used for storing vboot context in this property.
     It is a 4-tuple of block device phandle, LBA of the block storing vboot
     context, byte offset in the block, and size of vboot context in bytes.
-  - chromeos-vbc-ec : If nonvolatile-context-storage is "mkbp", kernel should
+  - chromeos-vbc-ec : If nonvolatile-context-storage is "cros-ec", kernel should
     look for the phandle to the device tree node of EC in this property.
   - recovery-switch : Describe the recovery switch GPIO of the system.
   - developer-switch : Describe the developer switch GPIO of the system.
