@@ -653,8 +653,6 @@ static int nss_probe(struct platform_device *nss_dev)
 		goto err_init_5;
 	}
 	reset_control_deassert(rstctl);
-	mdelay(1);
-	reset_control_put(rstctl);
 
 	/*
 	 * Remove UBI32 core clamp
@@ -666,8 +664,6 @@ static int nss_probe(struct platform_device *nss_dev)
 		goto err_init_5;
 	}
 	reset_control_deassert(rstctl);
-	mdelay(1);
-	reset_control_put(rstctl);
 
 	/*
 	 * Remove UBI32 AHB reset
@@ -679,8 +675,6 @@ static int nss_probe(struct platform_device *nss_dev)
 		goto err_init_5;
 	}
 	reset_control_deassert(rstctl);
-	mdelay(1);
-	reset_control_put(rstctl);
 
 	/*
 	 * Remove UBI32 AXI reset
@@ -692,8 +686,6 @@ static int nss_probe(struct platform_device *nss_dev)
 		goto err_init_5;
 	}
 	reset_control_deassert(rstctl);
-	mdelay(1);
-	reset_control_put(rstctl);
 
 	nss_hal_core_reset(nss_ctx->nmap, nss_ctx->load);
 #else
