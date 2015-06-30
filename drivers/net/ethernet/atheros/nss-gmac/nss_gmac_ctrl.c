@@ -740,6 +740,7 @@ static int32_t nss_gmac_probe(struct platform_device *pdev)
 	}
 
 	gmaccfg = &gmaccfg_devicetree;
+	pdev->id = gmacdev->macid;
 #else
 	gmaccfg = (struct msm_nss_gmac_platform_data *)((pdev->dev).platform_data);
 
@@ -1103,34 +1104,11 @@ link_state_wq_fail:
 	return -EIO;
 }
 
-
-/**
- * @brief De-register network interfaces.
- * @return void
- */
-void nss_gmac_exit_network_interfaces(void)
-{
-	uint32_t i;
-	struct nss_gmac_dev *gmacdev;
-
-	for (i = 0; i < NSS_MAX_GMACS; i++) {
-		gmacdev = ctx.nss_gmac[i];
-		if (gmacdev) {
-			unregister_netdev(gmacdev->netdev);
-			free_netdev(gmacdev->netdev);
-			nss_gmac_detach(gmacdev);
-			ctx.nss_gmac[i] = NULL;
-		}
-	}
-}
-
-
 /**
  * @brief Deregister Linux platform driver.
  */
 void __exit nss_gmac_deregister_driver(void)
 {
-	nss_gmac_exit_network_interfaces();
 	platform_driver_unregister(&nss_gmac_drv);
 
 	if (ctx.gmac_workqueue) {
