@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -70,6 +70,30 @@
 #include "mvm.h"
 #include "sta.h"
 
+static void
+iwl_mvm_bar_check_trigger(struct iwl_mvm *mvm, const u8 *addr,
+			  u16 tid, u16 ssn)
+{
+	struct iwl_fw_dbg_trigger_tlv *trig;
+	struct iwl_fw_dbg_trigger_ba *ba_trig;
+
+	if (!iwl_fw_dbg_trigger_enabled(mvm->fw, FW_DBG_TRIGGER_BA))
+		return;
+
+	trig = iwl_fw_dbg_get_trigger(mvm->fw, FW_DBG_TRIGGER_BA);
+	ba_trig = (void *)trig->data;
+
+	if (!iwl_fw_dbg_trigger_check_stop(mvm, NULL, trig))
+		return;
+
+	if (!(le16_to_cpu(ba_trig->tx_bar) & BIT(tid)))
+		return;
+
+	iwl_mvm_fw_dbg_collect_trig(mvm, trig,
+				    "BAR sent to %pM, tid %d, ssn %d",
+				    addr, tid, ssn);
+}
+
 /*
  * Sets most of the Tx cmd's fields
  */
@@ -101,12 +125,15 @@ void iwl_mvm_set_tx_cmd(struct iwl_mvm *mvm, struct sk_buff *skb,
 	} else if (ieee80211_is_back_req(fc)) {
 		struct ieee80211_bar *bar = (void *)skb->data;
 		u16 control = le16_to_cpu(bar->control);
+		u16 ssn = le16_to_cpu(bar->start_seq_num);
 
 		tx_flags |= TX_CMD_FLG_ACK | TX_CMD_FLG_BAR;
 		tx_cmd->tid_tspec = (control &
 				     IEEE80211_BAR_CTRL_TID_INFO_MASK) >>
 			IEEE80211_BAR_CTRL_TID_INFO_SHIFT;
 		WARN_ON_ONCE(tx_cmd->tid_tspec >= IWL_MAX_TID_COUNT);
+		iwl_mvm_bar_check_trigger(mvm, bar->ra, tx_cmd->tid_tspec,
+					  ssn);
 	} else {
 		tx_cmd->tid_tspec = IWL_TID_NON_QOS;
 		if (info->flags & IEEE80211_TX_CTL_ASSIGN_SEQ)
@@ -225,7 +252,7 @@ void iwl_mvm_set_tx_cmd_rate(struct iwl_mvm *mvm, struct iwl_tx_cmd *tx_cmd,
 
 	if (info->band == IEEE80211_BAND_2GHZ &&
 	    !iwl_mvm_bt_coex_is_shared_ant_avail(mvm))
-		rate_flags = BIT(mvm->cfg->non_shared_ant) << RATE_MCS_ANT_POS;
+		rate_flags = mvm->cfg->non_shared_ant << RATE_MCS_ANT_POS;
 	else
 		rate_flags =
 			BIT(mvm->mgmt_last_antenna_idx) << RATE_MCS_ANT_POS;
@@ -603,7 +630,7 @@ void iwl_mvm_hwrate_to_tx_rate(u32 rate_n_flags,
 #ifdef CPTCFG_IWLMVM_TCM
 static void iwl_mvm_tx_airtime(struct iwl_mvm *mvm,
 			       struct iwl_mvm_sta *mvmsta,
-			       int tid, int airtime)
+			       int tid, int airtime, u8 frame_count)
 {
 	u32 ac = tid_to_mac80211_ac[tid];
 	int mac = mvmsta->mac_id_n_color & FW_CTXT_ID_MSK;
@@ -614,7 +641,7 @@ static void iwl_mvm_tx_airtime(struct iwl_mvm *mvm,
 
 	if (time_after(jiffies, mvm->tcm.ts + MVM_TCM_PERIOD))
 		iwl_mvm_recalc_tcm(mvm);
-	mdata->tx.pkts[ac]++;
+	mdata->tx.pkts[ac] += frame_count;
 	mdata->tx.airtime[ac] += airtime;
 }
 #endif
@@ -708,6 +735,12 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 		info->status.status_driver_data[0] =
 				(void *)(uintptr_t)tx_resp->reduced_tpc;
 
+#ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
+		if (info->flags & IEEE80211_TX_STAT_ACK)
+			iwl_mvm_tdls_peer_cache_pkt(mvm, (void *)skb->data,
+						    skb->len, true);
+#endif /* CPTCFG_IWLMVM_TDLS_PEER_CACHE */
+
 		ieee80211_tx_status(mvm->hw, skb);
 	}
 
@@ -758,7 +791,8 @@ static void iwl_mvm_rx_tx_cmd_single(struct iwl_mvm *mvm,
 #ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_tx_airtime(mvm, mvmsta,
 				   tid == IWL_TID_NON_QOS ? 0 : tid,
-				   le16_to_cpu(tx_resp->wireless_media_time));
+				   le16_to_cpu(tx_resp->wireless_media_time),
+				   1);
 #endif
 
 		if (tid != IWL_TID_NON_QOS) {
@@ -907,7 +941,8 @@ static void iwl_mvm_rx_tx_cmd_agg(struct iwl_mvm *mvm,
 
 #ifdef CPTCFG_IWLMVM_TCM
 		iwl_mvm_tx_airtime(mvm, mvmsta, tid,
-				   le16_to_cpu(tx_resp->wireless_media_time));
+				   le16_to_cpu(tx_resp->wireless_media_time),
+				   tx_resp->frame_count);
 #endif
 	}
 
@@ -1038,6 +1073,10 @@ int iwl_mvm_rx_ba_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 		 */
 		info->flags |= IEEE80211_TX_STAT_ACK;
 
+#ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
+		iwl_mvm_tdls_peer_cache_pkt(mvm, hdr, skb->len, true);
+#endif /* CPTCFG_IWLMVM_TDLS_PEER_CACHE */
+
 		/* this is the first skb we deliver in this batch */
 		/* put the rate scaling data there */
 		if (freed == 1)
@@ -1079,6 +1118,14 @@ out:
 	return 0;
 }
 
+/*
+ * Note that there are transports that buffer frames before they reach
+ * the firmware. This means that after flush_tx_path is called, the
+ * queue might not be empty. The race-free way to handle this is to:
+ * 1) set the station as draining
+ * 2) flush the Tx path
+ * 3) wait for the transport queues to be empty
+ */
 int iwl_mvm_flush_tx_path(struct iwl_mvm *mvm, u32 tfd_msk, bool sync)
 {
 	int ret;

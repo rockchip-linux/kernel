@@ -825,6 +825,13 @@ DECLARE_EVENT_CLASS(sta_event,
 	)
 );
 
+DEFINE_EVENT(sta_event, drv_sta_statistics,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata,
+		 struct ieee80211_sta *sta),
+	TP_ARGS(local, sdata, sta)
+);
+
 DEFINE_EVENT(sta_event, drv_sta_add,
 	TP_PROTO(struct ieee80211_local *local,
 		 struct ieee80211_sub_if_data *sdata,
@@ -1252,28 +1259,25 @@ TRACE_EVENT(drv_set_rekey_data,
 TRACE_EVENT(drv_event_callback,
 	TP_PROTO(struct ieee80211_local *local,
 		 struct ieee80211_sub_if_data *sdata,
-		 enum ieee80211_event _event,
-		 enum ieee80211_event_data _event_data),
+		 const struct ieee80211_event *_event),
 
-	TP_ARGS(local, sdata, _event, _event_data),
+	TP_ARGS(local, sdata, _event),
 
 	TP_STRUCT__entry(
 		LOCAL_ENTRY
 		VIF_ENTRY
-		__field(u32, _event)
-		__field(u32, _event_data)
+		__field(u32, type)
 	),
 
 	TP_fast_assign(
 		LOCAL_ASSIGN;
 		VIF_ASSIGN;
-		__entry->_event = _event;
-		__entry->_event_data = _event_data;
+		__entry->type = _event->type;
 	),
 
 	TP_printk(
-		LOCAL_PR_FMT VIF_PR_FMT " event:%d data:%d",
-		LOCAL_PR_ARG, VIF_PR_ARG, __entry->_event, __entry->_event_data
+		LOCAL_PR_FMT VIF_PR_FMT " event:%d",
+		LOCAL_PR_ARG, VIF_PR_ARG, __entry->type
 	)
 );
 
@@ -1330,32 +1334,6 @@ DEFINE_EVENT(release_evt, drv_allow_buffered_frames,
 		 bool more_data),
 
 	TP_ARGS(local, sta, tids, num_frames, reason, more_data)
-);
-
-TRACE_EVENT(drv_get_rssi,
-	TP_PROTO(struct ieee80211_local *local, struct ieee80211_sta *sta,
-		 s8 rssi, int ret),
-
-	TP_ARGS(local, sta, rssi, ret),
-
-	TP_STRUCT__entry(
-		LOCAL_ENTRY
-		STA_ENTRY
-		__field(s8, rssi)
-		__field(int, ret)
-	),
-
-	TP_fast_assign(
-		LOCAL_ASSIGN;
-		STA_ASSIGN;
-		__entry->rssi = rssi;
-		__entry->ret = ret;
-	),
-
-	TP_printk(
-		LOCAL_PR_FMT STA_PR_FMT " rssi:%d ret:%d",
-		LOCAL_PR_ARG, STA_PR_ARG, __entry->rssi, __entry->ret
-	)
 );
 
 DEFINE_EVENT(local_sdata_evt, drv_mgd_prepare_tx,
@@ -1832,6 +1810,12 @@ TRACE_EVENT(api_cqm_rssi_notify,
 	)
 );
 
+DEFINE_EVENT(local_sdata_evt, api_cqm_beacon_loss_notify,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata),
+	TP_ARGS(local, sdata)
+);
+
 TRACE_EVENT(api_scan_completed,
 	TP_PROTO(struct ieee80211_local *local, bool aborted),
 
@@ -2133,6 +2117,31 @@ TRACE_EVENT(api_radar_detected,
 	)
 );
 
+TRACE_EVENT(drv_channel_switch_beacon,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata,
+		 struct cfg80211_chan_def *chandef),
+
+	TP_ARGS(local, sdata, chandef),
+
+	TP_STRUCT__entry(
+		LOCAL_ENTRY
+		VIF_ENTRY
+		CHANDEF_ENTRY
+	),
+
+	TP_fast_assign(
+		LOCAL_ASSIGN;
+		VIF_ASSIGN;
+		CHANDEF_ASSIGN(chandef);
+	),
+
+	TP_printk(
+		LOCAL_PR_FMT VIF_PR_FMT " channel switch to " CHANDEF_PR_FMT,
+		LOCAL_PR_ARG, VIF_PR_ARG, CHANDEF_PR_ARG
+	)
+);
+
 TRACE_EVENT(drv_pre_channel_switch,
 	TP_PROTO(struct ieee80211_local *local,
 		 struct ieee80211_sub_if_data *sdata,
@@ -2300,6 +2309,37 @@ TRACE_EVENT(drv_tdls_recv_channel_switch,
 		__entry->timestamp, __entry->switch_time,
 		__entry->switch_timeout, __entry->peer_initiator,
 		CHANDEF_PR_ARG, STA_PR_ARG
+	)
+);
+
+TRACE_EVENT(drv_wake_tx_queue,
+	TP_PROTO(struct ieee80211_local *local,
+		 struct ieee80211_sub_if_data *sdata,
+		 struct txq_info *txq),
+
+	TP_ARGS(local, sdata, txq),
+
+	TP_STRUCT__entry(
+		LOCAL_ENTRY
+		VIF_ENTRY
+		STA_ENTRY
+		__field(u8, ac)
+		__field(u8, tid)
+	),
+
+	TP_fast_assign(
+		struct ieee80211_sta *sta = txq->txq.sta;
+
+		LOCAL_ASSIGN;
+		VIF_ASSIGN;
+		STA_ASSIGN;
+		__entry->ac = txq->txq.ac;
+		__entry->tid = txq->txq.tid;
+	),
+
+	TP_printk(
+		LOCAL_PR_FMT  VIF_PR_FMT  STA_PR_FMT " ac:%d tid:%d",
+		LOCAL_PR_ARG, VIF_PR_ARG, STA_PR_ARG, __entry->ac, __entry->tid
 	)
 );
 

@@ -42,6 +42,7 @@ void ieee80211_rx_bss_put(struct ieee80211_local *local,
 static bool is_uapsd_supported(struct ieee802_11_elems *elems)
 {
 	u8 qos_info;
+	int i;
 
 	if (elems->wmm_info && elems->wmm_info_len == 7
 	    && elems->wmm_info[5] == 1)
@@ -53,6 +54,22 @@ static bool is_uapsd_supported(struct ieee802_11_elems *elems)
 		/* no valid wmm information or parameter element found */
 		return false;
 
+	/*
+	 * if the AP does not advertise MIMO capabilities -
+	 * disable U-APSD. iPhones, among others, advertise themselves
+	 * as U-APSD capable when they aren't. Avoid connecting to
+	 * those devices in U-APSD enabled.
+	 */
+	if (elems->parse_error || !elems->ht_cap_elem)
+		goto mimo;
+
+	for (i = 1; i < 4; i++) {
+		if (elems->ht_cap_elem->mcs.rx_mask[i])
+			goto mimo;
+	}
+	return false;
+
+mimo:
 	return qos_info & IEEE80211_WMM_IE_AP_QOSINFO_UAPSD;
 }
 
@@ -77,6 +94,12 @@ ieee80211_bss_info_update(struct ieee80211_local *local,
 		signal = (rx_status->signal * 100) / local->hw.max_signal;
 
 	scan_width = NL80211_BSS_CHAN_WIDTH_20;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+	if (rx_status->flag & RX_FLAG_5MHZ)
+		scan_width = NL80211_BSS_CHAN_WIDTH_5;
+	if (rx_status->flag & RX_FLAG_10MHZ)
+		scan_width = NL80211_BSS_CHAN_WIDTH_10;
+#endif
 
 	cbss = cfg80211_inform_bss_width_frame(local->hw.wiphy, channel,
 					       scan_width, mgmt, len, signal,
@@ -233,6 +256,14 @@ ieee80211_prepare_scan_chandef(struct cfg80211_chan_def *chandef,
 {
 	memset(chandef, 0, sizeof(*chandef));
 	switch (scan_width) {
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+	case NL80211_BSS_CHAN_WIDTH_5:
+		chandef->width = NL80211_CHAN_WIDTH_5;
+		break;
+	case NL80211_BSS_CHAN_WIDTH_10:
+		chandef->width = NL80211_CHAN_WIDTH_10;
+		break;
+#endif
 	default:
 		chandef->width = NL80211_CHAN_WIDTH_20_NOHT;
 		break;
@@ -282,7 +313,12 @@ static bool ieee80211_prep_hw_scan(struct ieee80211_local *local)
 	}
 
 	local->hw_scan_req->req.n_channels = n_chans;
-	ieee80211_prepare_scan_chandef(&chandef, NL80211_BSS_CHAN_WIDTH_20);
+	ieee80211_prepare_scan_chandef(&chandef,
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+				       req->scan_width);
+#else
+				       NL80211_BSS_CHAN_WIDTH_20);
+#endif
 
 	ielen = ieee80211_build_preq_ies(local,
 					 (u8 *)local->hw_scan_req->req.ie,
@@ -292,6 +328,11 @@ static bool ieee80211_prep_hw_scan(struct ieee80211_local *local)
 					 bands_used, req->rates, &chandef);
 	local->hw_scan_req->req.ie_len = ielen;
 	local->hw_scan_req->req.no_cck = req->no_cck;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	ether_addr_copy(local->hw_scan_req->req.mac_addr, req->mac_addr);
+	ether_addr_copy(local->hw_scan_req->req.mac_addr_mask,
+			req->mac_addr_mask);
+#endif
 
 	return true;
 }
@@ -425,7 +466,7 @@ static int ieee80211_start_sw_scan(struct ieee80211_local *local,
 static bool ieee80211_can_scan(struct ieee80211_local *local,
 			       struct ieee80211_sub_if_data *sdata)
 {
-	if (local->radar_detect_enabled)
+	if (ieee80211_is_radar_required(local))
 		return false;
 
 	if (!list_empty(&local->roc_list))
@@ -498,7 +539,7 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 
 	lockdep_assert_held(&local->mtx);
 
-	if (local->scan_req)
+	if (local->scan_req || ieee80211_is_radar_required(local))
 		return -EBUSY;
 
 	if (!ieee80211_can_scan(local, sdata)) {
@@ -556,7 +597,12 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 	rcu_assign_pointer(local->scan_req, req);
 	rcu_assign_pointer(local->scan_sdata, sdata);
 
-	memcpy(local->scan_addr, sdata->vif.addr, ETH_ALEN);
+	if (req->flags & NL80211_SCAN_FLAG_RANDOM_ADDR)
+		get_random_mask_addr(local->scan_addr,
+				     req->mac_addr,
+				     req->mac_addr_mask);
+	else
+		memcpy(local->scan_addr, sdata->vif.addr, ETH_ALEN);
 
 	if (local->ops->hw_scan) {
 		__set_bit(SCAN_HW_SCANNING, &local->scanning);
@@ -718,7 +764,17 @@ static void ieee80211_scan_state_set_channel(struct ieee80211_local *local,
 	local->scan_chandef.chan = chan;
 	local->scan_chandef.center_freq1 = chan->center_freq;
 	local->scan_chandef.center_freq2 = 0;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+	switch (scan_req->scan_width) {
+	case NL80211_BSS_CHAN_WIDTH_5:
+		local->scan_chandef.width = NL80211_CHAN_WIDTH_5;
+		break;
+	case NL80211_BSS_CHAN_WIDTH_10:
+		local->scan_chandef.width = NL80211_CHAN_WIDTH_10;
+		break;
+#else
 	switch (NL80211_BSS_CHAN_WIDTH_20) {
+#endif
 	case NL80211_BSS_CHAN_WIDTH_20:
 		/* If scanning on oper channel, use whatever channel-type
 		 * is currently in use.
@@ -726,7 +782,11 @@ static void ieee80211_scan_state_set_channel(struct ieee80211_local *local,
 		oper_scan_width = cfg80211_chandef_to_scan_width(
 					&local->_oper_chandef);
 		if (chan == local->_oper_chandef.chan &&
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+		    oper_scan_width == scan_req->scan_width)
+#else
 		    oper_scan_width == NL80211_BSS_CHAN_WIDTH_20)
+#endif
 			local->scan_chandef = local->_oper_chandef;
 		else
 			local->scan_chandef.width = NL80211_CHAN_WIDTH_20_NOHT;
@@ -910,11 +970,12 @@ int ieee80211_request_scan(struct ieee80211_sub_if_data *sdata,
 
 int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 				const u8 *ssid, u8 ssid_len,
-				struct ieee80211_channel *chan,
+				struct ieee80211_channel **channels,
+				unsigned int n_channels,
 				enum nl80211_bss_scan_width scan_width)
 {
 	struct ieee80211_local *local = sdata->local;
-	int ret = -EBUSY;
+	int ret = -EBUSY, i, n_ch = 0;
 	enum ieee80211_band band;
 
 	mutex_lock(&local->mtx);
@@ -924,9 +985,8 @@ int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 		goto unlock;
 
 	/* fill internal scan request */
-	if (!chan) {
-		int i, max_n;
-		int n_ch = 0;
+	if (!channels) {
+		int max_n;
 
 		for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
 			if (!local->hw.wiphy->bands[band])
@@ -951,16 +1011,26 @@ int ieee80211_request_ibss_scan(struct ieee80211_sub_if_data *sdata,
 
 		local->int_scan_req->n_channels = n_ch;
 	} else {
-		if (WARN_ON_ONCE(chan->flags & (IEEE80211_CHAN_NO_IR |
-						IEEE80211_CHAN_DISABLED)))
+		for (i = 0; i < n_channels; i++) {
+			if (channels[i]->flags & (IEEE80211_CHAN_NO_IR |
+						  IEEE80211_CHAN_DISABLED))
+				continue;
+
+			local->int_scan_req->channels[n_ch] = channels[i];
+			n_ch++;
+		}
+
+		if (WARN_ON_ONCE(n_ch == 0))
 			goto unlock;
 
-		local->int_scan_req->channels[0] = chan;
-		local->int_scan_req->n_channels = 1;
+		local->int_scan_req->n_channels = n_ch;
 	}
 
 	local->int_scan_req->ssids = &local->scan_ssid;
 	local->int_scan_req->n_ssids = 1;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+	local->int_scan_req->scan_width = scan_width;
+#endif
 	memcpy(local->int_scan_req->ssids[0].ssid, ssid, IEEE80211_MAX_SSID_LEN);
 	local->int_scan_req->ssids[0].ssid_len = ssid_len;
 
@@ -1066,7 +1136,12 @@ int __ieee80211_request_sched_scan_start(struct ieee80211_sub_if_data *sdata,
 		goto out;
 	}
 
-	ieee80211_prepare_scan_chandef(&chandef, NL80211_BSS_CHAN_WIDTH_20);
+	ieee80211_prepare_scan_chandef(&chandef,
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+				       req->scan_width);
+#else
+				       NL80211_BSS_CHAN_WIDTH_20);
+#endif
 
 	len = ieee80211_build_preq_ies(local, ie, num_bands * iebufsz,
 				       &sched_scan_ies, req->ie,

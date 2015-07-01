@@ -15,7 +15,9 @@ mac80211-y := \
 	michael.o \
 	tkip.o \
 	aes_ccm.o \
+	aes_gcm.o \
 	aes_cmac.o \
+	aes_gmac.o \
 	cfg.o \
 	ethtool.o \
 	rx.o \
@@ -28,7 +30,8 @@ mac80211-y := \
 	chan.o \
 	trace.o mlme.o \
 	tdls.o \
-	reg.o
+	reg.o cfg-utils.o \
+	ocb.o
 
 mac80211-$(CPTCFG_MAC80211_LEDS) += led.o
 mac80211-$(CPTCFG_MAC80211_DEBUGFS) += \
@@ -46,6 +49,7 @@ mac80211-$(CPTCFG_MAC80211_MESH) += \
 	mesh_ps.o
 
 mac80211-$(CONFIG_PM) += pm.o
+mac80211-y += rhashtable.o
 
 CFLAGS_trace.o := -I$(src)
 

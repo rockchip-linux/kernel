@@ -288,6 +288,65 @@ static const __le64 iwl_ci_mask[][3] = {
 	},
 };
 
+enum iwl_bt_kill_msk {
+	BT_KILL_MSK_DEFAULT,
+	BT_KILL_MSK_NEVER,
+	BT_KILL_MSK_ALWAYS,
+	BT_KILL_MSK_MAX,
+};
+
+static const u32 iwl_bt_ctl_kill_msk[BT_KILL_MSK_MAX] = {
+	[BT_KILL_MSK_DEFAULT] = 0xfffffc00,
+	[BT_KILL_MSK_NEVER] = 0xffffffff,
+	[BT_KILL_MSK_ALWAYS] = 0,
+};
+
+static const u8 iwl_bt_cts_kill_msk[BT_MAX_AG][BT_COEX_MAX_LUT] = {
+	{
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+	},
+	{
+		BT_KILL_MSK_NEVER,
+		BT_KILL_MSK_NEVER,
+		BT_KILL_MSK_NEVER,
+	},
+	{
+		BT_KILL_MSK_NEVER,
+		BT_KILL_MSK_NEVER,
+		BT_KILL_MSK_NEVER,
+	},
+	{
+		BT_KILL_MSK_DEFAULT,
+		BT_KILL_MSK_NEVER,
+		BT_KILL_MSK_DEFAULT,
+	},
+};
+
+static const u8 iwl_bt_ack_kill_msk[BT_MAX_AG][BT_COEX_MAX_LUT] = {
+	{
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+	},
+	{
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+	},
+	{
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_ALWAYS,
+	},
+	{
+		BT_KILL_MSK_DEFAULT,
+		BT_KILL_MSK_ALWAYS,
+		BT_KILL_MSK_DEFAULT,
+	},
+};
+
 struct corunning_block_luts {
 	u8 range;
 	__le32 lut20[BT_COEX_CORUN_LUT_SIZE];
@@ -330,7 +389,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 12,
 		.lut20 = {
-			cpu_to_le32(0x00000001),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -351,7 +410,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 20,
 		.lut20 = {
-			cpu_to_le32(0x00000002),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -372,7 +431,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 21,
 		.lut20 = {
-			cpu_to_le32(0x00000003),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -393,7 +452,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 23,
 		.lut20 = {
-			cpu_to_le32(0x00000004),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -414,7 +473,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 27,
 		.lut20 = {
-			cpu_to_le32(0x00000005),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -435,7 +494,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 30,
 		.lut20 = {
-			cpu_to_le32(0x00000006),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -456,7 +515,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 32,
 		.lut20 = {
-			cpu_to_le32(0x00000007),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -477,7 +536,7 @@ static const struct corunning_block_luts antenna_coupling_ranges[] = {
 	{
 		.range = 33,
 		.lut20 = {
-			cpu_to_le32(0x00000008),  cpu_to_le32(0x00000000),
+			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
 			cpu_to_le32(0x00000000),  cpu_to_le32(0x00000000),
@@ -717,7 +776,7 @@ static int iwl_mvm_bt_coex_reduced_txp(struct iwl_mvm *mvm, u8 sta_id,
 	struct iwl_host_cmd cmd = {
 		.id = BT_CONFIG,
 		.len = { sizeof(*bt_cmd), },
-		.dataflags = { IWL_HCMD_DFL_NOCOPY, },
+		.dataflags = { IWL_HCMD_DFL_DUP, },
 		.flags = CMD_ASYNC,
 	};
 	struct iwl_mvm_sta *mvmsta;
@@ -761,6 +820,8 @@ struct iwl_bt_iterator_data {
 	struct ieee80211_chanctx_conf *primary;
 	struct ieee80211_chanctx_conf *secondary;
 	bool primary_ll;
+	u8 primary_load;
+	u8 secondary_load;
 };
 
 static inline
@@ -776,6 +837,36 @@ void iwl_mvm_bt_coex_enable_rssi_event(struct iwl_mvm *mvm,
 	mvmvif->bf_data.bt_coex_min_thold =
 		enable ? -IWL_MVM_BT_COEX_DIS_RED_TXP_THRESH : 0;
 }
+
+#ifdef CPTCFG_IWLMVM_TCM
+#define MVM_COEX_TCM_PERIOD (HZ * 10)
+
+static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
+					 struct iwl_bt_iterator_data *data)
+{
+	unsigned long now = jiffies;
+
+	if (!time_after(now, mvm->bt_coex_last_tcm_ts + MVM_COEX_TCM_PERIOD))
+		return;
+
+	mvm->bt_coex_last_tcm_ts = now;
+
+	/* We assume here that we don't have more than 2 vifs on 2.4GHz */
+
+	/* if the primary is low latency, it will stay primary */
+	if (data->primary_ll)
+		return;
+
+	if (data->primary_load >= data->secondary_load)
+		return;
+
+	swap(data->primary, data->secondary);
+}
+#else
+static void iwl_mvm_bt_coex_tcm_based_ci(struct iwl_mvm *mvm,
+					 struct iwl_bt_iterator_data *data)
+{}
+#endif
 
 /* must be called under rcu_read_lock */
 static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
@@ -871,6 +962,13 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 			/* there is low latency vif - we will be secondary */
 			data->secondary = chanctx_conf;
 		}
+
+#ifdef CPTCFG_IWLWIFI_TCM
+		if (data->primary == chanctx_conf)
+			data->primary_load = mvm->tcm.result.load[mvmvif->id];
+		else if (data->secondary == chanctx_conf)
+			data->secondary_load = mvm->tcm.result.load[mvmvif->id];
+#endif
 		return;
 	}
 
@@ -883,6 +981,13 @@ static void iwl_mvm_bt_notif_iterator(void *_data, u8 *mac,
 	else if (!data->secondary)
 		/* if secondary is not NULL, it might be a GO */
 		data->secondary = chanctx_conf;
+
+#ifdef CPTCFG_IWLWIFI_TCM
+	if (data->primary == chanctx_conf)
+		data->primary_load = mvm->tcm.result.load[mvmvif->id];
+	else if (data->secondary == chanctx_conf)
+		data->secondary_load = mvm->tcm.result.load[mvmvif->id];
+#endif
 
 	/*
 	 * don't reduce the Tx power if one of these is true:
@@ -934,6 +1039,8 @@ static void iwl_mvm_bt_coex_notif_handle(struct iwl_mvm *mvm)
 	ieee80211_iterate_active_interfaces_atomic(
 					mvm->hw, IEEE80211_IFACE_ITER_NORMAL,
 					iwl_mvm_bt_notif_iterator, &data);
+
+	iwl_mvm_bt_coex_tcm_based_ci(mvm, &data);
 
 	if (data.primary) {
 		struct ieee80211_chanctx_conf *chan = data.primary;
@@ -1035,7 +1142,7 @@ int iwl_mvm_rx_bt_coex_notif_old(struct iwl_mvm *mvm,
 static void iwl_mvm_bt_rssi_iterator(void *_data, u8 *mac,
 				     struct ieee80211_vif *vif)
 {
-	struct iwl_mvm_vif *mvmvif = (void *)vif->drv_priv;
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_bt_iterator_data *data = _data;
 	struct iwl_mvm *mvm = data->mvm;
 
@@ -1069,9 +1176,9 @@ static void iwl_mvm_bt_rssi_iterator(void *_data, u8 *mac,
 }
 
 void iwl_mvm_bt_rssi_event_old(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			       enum ieee80211_event_data rssi_event)
+			       enum ieee80211_rssi_event_data rssi_event)
 {
-	struct iwl_mvm_vif *mvmvif = (void *)vif->drv_priv;
+	struct iwl_mvm_vif *mvmvif = iwl_mvm_vif_from_mac80211(vif);
 	struct iwl_bt_iterator_data data = {
 		.mvm = mvm,
 	};
@@ -1166,12 +1273,6 @@ bool iwl_mvm_bt_coex_is_mimo_allowed_old(struct iwl_mvm *mvm,
 	 */
 	lut_type = iwl_get_coex_type(mvm, mvmsta->vif);
 	return lut_type != BT_COEX_LOOSE_LUT;
-}
-
-bool iwl_mvm_bt_coex_is_ant_avail_old(struct iwl_mvm *mvm, u8 ant)
-{
-	u32 ag = le32_to_cpu(mvm->last_bt_notif_old.bt_activity_grading);
-	return ag < BT_HIGH_TRAFFIC;
 }
 
 bool iwl_mvm_bt_coex_is_shared_ant_avail_old(struct iwl_mvm *mvm)

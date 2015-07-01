@@ -6,6 +6,7 @@
 #include <linux/types.h>
 #include <linux/errno.h>
 #include <linux/idr.h>
+#include <linux/vmalloc.h>
 #include <net/genetlink.h>
 
 /* get the CPTCFG_* preprocessor symbols */
@@ -17,6 +18,13 @@
 #include <hdrs/mac80211-bp.h>
 /* need to include mac80211 here, otherwise we get the regular kernel one */
 #include <hdrs/mac80211.h>
+
+/* include rhashtable this way to get our copy if another exists */
+#include <linux/list_nulls.h>
+#ifndef NULLS_MARKER
+#define NULLS_MARKER(value) (1UL | (((long)value) << 1))
+#endif
+#include "linux/rhashtable.h"
 
 /* artifacts of backports - never in upstream */
 #define genl_info_snd_portid(__genl_info) (__genl_info->snd_portid)
@@ -89,6 +97,7 @@ static inline void idr_preload_end(void)
  */
 #define PCI_EXP_DEVCTL2_LTR_EN PCI_EXP_LTR_EN
 
+#define PTR_ERR_OR_ZERO(p) PTR_RET(p)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,12,0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
@@ -120,6 +129,17 @@ _genl_register_family_with_ops_grps(struct genl_family *family,
 					    (grps), ARRAY_SIZE(grps))
 #else
 #define __genl_const const
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0)
+#define kvfree __iwl7000_kvfree
+static inline void kvfree(const void *addr)
+{
+	if (is_vmalloc_addr(addr))
+		vfree(addr);
+	else
+		kfree(addr);
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,17,0)

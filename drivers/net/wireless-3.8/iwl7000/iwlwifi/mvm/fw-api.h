@@ -74,6 +74,7 @@
 #include "fw-api-d3.h"
 #include "fw-api-coex.h"
 #include "fw-api-scan.h"
+#include "fw-api-stats.h"
 
 /* Tx queue numbers */
 enum {
@@ -146,13 +147,6 @@ enum {
 
 	LQ_CMD = 0x4e,
 
-	/* Calibration */
-	TEMPERATURE_NOTIFICATION = 0x62,
-	CALIBRATION_CFG_CMD = 0x65,
-	CALIBRATION_RES_NOTIFICATION = 0x66,
-	CALIBRATION_COMPLETE_NOTIFICATION = 0x67,
-	RADIO_VERSION_NOTIFICATION = 0x68,
-
 	/* Scan offload */
 	SCAN_OFFLOAD_REQUEST_CMD = 0x51,
 	SCAN_OFFLOAD_ABORT_CMD = 0x52,
@@ -193,6 +187,7 @@ enum {
 	BEACON_NOTIFICATION = 0x90,
 	BEACON_TEMPLATE_CMD = 0x91,
 	TX_ANT_CONFIGURATION_CMD = 0x98,
+	STATISTICS_CMD = 0x9c,
 	STATISTICS_NOTIFICATION = 0x9d,
 	EOSP_NOTIFICATION = 0x9e,
 	REDUCE_TX_POWER_CMD = 0x9f,
@@ -236,9 +231,6 @@ enum {
 	DTS_MEASUREMENT_NOTIFICATION = 0xdd,
 
 	REPLY_DEBUG_CMD = 0xf0,
-#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
-	MONITOR_DATA_OVER_IDI_NOTIFICATION = 0xf4,
-#endif
 	DEBUG_LOG_MSG = 0xf7,
 
 	BCAST_FILTER_CMD = 0xcf,
@@ -283,19 +275,6 @@ struct iwl_cmd_response {
 struct iwl_tx_ant_cfg_cmd {
 	__le32 valid;
 } __packed;
-
-/**
- * struct iwl_reduce_tx_power_cmd - TX power reduction command
- * REDUCE_TX_POWER_CMD = 0x9f
- * @flags: (reserved for future implementation)
- * @mac_context_id: id of the mac ctx for which we are reducing TX power.
- * @pwr_restriction: TX power restriction in dBms.
- */
-struct iwl_reduce_tx_power_cmd {
-	u8 flags;
-	u8 mac_context_id;
-	__le16 pwr_restriction;
-} __packed; /* TX_REDUCED_POWER_API_S_VER_1 */
 
 /*
  * Calibration control struct.
@@ -440,7 +419,7 @@ enum {
 
 #define IWL_ALIVE_FLG_RFKILL	BIT(0)
 
-struct mvm_alive_resp {
+struct mvm_alive_resp_ver1 {
 	__le16 status;
 	__le16 flags;
 	u8 ucode_minor;
@@ -490,6 +469,30 @@ struct mvm_alive_resp_ver2 {
 	__le32 error_info_addr;		/* SRAM address for UMAC error log */
 	__le32 dbg_print_buff_addr;
 } __packed; /* ALIVE_RES_API_S_VER_2 */
+
+struct mvm_alive_resp {
+	__le16 status;
+	__le16 flags;
+	__le32 ucode_minor;
+	__le32 ucode_major;
+	u8 ver_subtype;
+	u8 ver_type;
+	u8 mac;
+	u8 opt;
+	__le32 timestamp;
+	__le32 error_event_table_ptr;	/* SRAM address for error log */
+	__le32 log_event_table_ptr;	/* SRAM address for LMAC event log */
+	__le32 cpu_register_ptr;
+	__le32 dbgm_config_ptr;
+	__le32 alive_counter_ptr;
+	__le32 scd_base_ptr;		/* SRAM address for SCD */
+	__le32 st_fwrd_addr;		/* pointer to Store and forward */
+	__le32 st_fwrd_size;
+	__le32 umac_minor;		/* UMAC version: minor */
+	__le32 umac_major;		/* UMAC version: major */
+	__le32 error_info_addr;		/* SRAM address for UMAC error log */
+	__le32 dbg_print_buff_addr;
+} __packed; /* ALIVE_RES_API_S_VER_3 */
 
 /* Error response/notification */
 enum {
@@ -1394,214 +1397,6 @@ struct iwl_mvm_marker {
 	__le32 metadata[0];
 } __packed; /* MARKER_API_S_VER_1 */
 
-struct mvm_statistics_dbg {
-	__le32 burst_check;
-	__le32 burst_count;
-	__le32 wait_for_silence_timeout_cnt;
-	__le32 reserved[3];
-} __packed; /* STATISTICS_DEBUG_API_S_VER_2 */
-
-struct mvm_statistics_div {
-	__le32 tx_on_a;
-	__le32 tx_on_b;
-	__le32 exec_time;
-	__le32 probe_time;
-	__le32 rssi_ant;
-	__le32 reserved2;
-} __packed; /* STATISTICS_SLOW_DIV_API_S_VER_2 */
-
-struct mvm_statistics_general_common {
-	__le32 temperature;   /* radio temperature */
-	__le32 temperature_m; /* radio voltage */
-	struct mvm_statistics_dbg dbg;
-	__le32 sleep_time;
-	__le32 slots_out;
-	__le32 slots_idle;
-	__le32 ttl_timestamp;
-	struct mvm_statistics_div div;
-	__le32 rx_enable_counter;
-	/*
-	 * num_of_sos_states:
-	 *  count the number of times we have to re-tune
-	 *  in order to get out of bad PHY status
-	 */
-	__le32 num_of_sos_states;
-} __packed; /* STATISTICS_GENERAL_API_S_VER_5 */
-
-struct mvm_statistics_rx_non_phy {
-	__le32 bogus_cts;	/* CTS received when not expecting CTS */
-	__le32 bogus_ack;	/* ACK received when not expecting ACK */
-	__le32 non_bssid_frames;	/* number of frames with BSSID that
-					 * doesn't belong to the STA BSSID */
-	__le32 filtered_frames;	/* count frames that were dumped in the
-				 * filtering process */
-	__le32 non_channel_beacons;	/* beacons with our bss id but not on
-					 * our serving channel */
-	__le32 channel_beacons;	/* beacons with our bss id and in our
-				 * serving channel */
-	__le32 num_missed_bcon;	/* number of missed beacons */
-	__le32 adc_rx_saturation_time;	/* count in 0.8us units the time the
-					 * ADC was in saturation */
-	__le32 ina_detection_search_time;/* total time (in 0.8us) searched
-					  * for INA */
-	__le32 beacon_silence_rssi_a;	/* RSSI silence after beacon frame */
-	__le32 beacon_silence_rssi_b;	/* RSSI silence after beacon frame */
-	__le32 beacon_silence_rssi_c;	/* RSSI silence after beacon frame */
-	__le32 interference_data_flag;	/* flag for interference data
-					 * availability. 1 when data is
-					 * available. */
-	__le32 channel_load;		/* counts RX Enable time in uSec */
-	__le32 dsp_false_alarms;	/* DSP false alarm (both OFDM
-					 * and CCK) counter */
-	__le32 beacon_rssi_a;
-	__le32 beacon_rssi_b;
-	__le32 beacon_rssi_c;
-	__le32 beacon_energy_a;
-	__le32 beacon_energy_b;
-	__le32 beacon_energy_c;
-	__le32 num_bt_kills;
-	__le32 mac_id;
-	__le32 directed_data_mpdu;
-} __packed; /* STATISTICS_RX_NON_PHY_API_S_VER_3 */
-
-struct mvm_statistics_rx_phy {
-	__le32 ina_cnt;
-	__le32 fina_cnt;
-	__le32 plcp_err;
-	__le32 crc32_err;
-	__le32 overrun_err;
-	__le32 early_overrun_err;
-	__le32 crc32_good;
-	__le32 false_alarm_cnt;
-	__le32 fina_sync_err_cnt;
-	__le32 sfd_timeout;
-	__le32 fina_timeout;
-	__le32 unresponded_rts;
-	__le32 rxe_frame_limit_overrun;
-	__le32 sent_ack_cnt;
-	__le32 sent_cts_cnt;
-	__le32 sent_ba_rsp_cnt;
-	__le32 dsp_self_kill;
-	__le32 mh_format_err;
-	__le32 re_acq_main_rssi_sum;
-	__le32 reserved;
-} __packed; /* STATISTICS_RX_PHY_API_S_VER_2 */
-
-struct mvm_statistics_rx_ht_phy {
-	__le32 plcp_err;
-	__le32 overrun_err;
-	__le32 early_overrun_err;
-	__le32 crc32_good;
-	__le32 crc32_err;
-	__le32 mh_format_err;
-	__le32 agg_crc32_good;
-	__le32 agg_mpdu_cnt;
-	__le32 agg_cnt;
-	__le32 unsupport_mcs;
-} __packed;  /* STATISTICS_HT_RX_PHY_API_S_VER_1 */
-
-#define MAX_CHAINS 3
-
-struct mvm_statistics_tx_non_phy_agg {
-	__le32 ba_timeout;
-	__le32 ba_reschedule_frames;
-	__le32 scd_query_agg_frame_cnt;
-	__le32 scd_query_no_agg;
-	__le32 scd_query_agg;
-	__le32 scd_query_mismatch;
-	__le32 frame_not_ready;
-	__le32 underrun;
-	__le32 bt_prio_kill;
-	__le32 rx_ba_rsp_cnt;
-	__s8 txpower[MAX_CHAINS];
-	__s8 reserved;
-	__le32 reserved2;
-} __packed; /* STATISTICS_TX_NON_PHY_AGG_API_S_VER_1 */
-
-struct mvm_statistics_tx_channel_width {
-	__le32 ext_cca_narrow_ch20[1];
-	__le32 ext_cca_narrow_ch40[2];
-	__le32 ext_cca_narrow_ch80[3];
-	__le32 ext_cca_narrow_ch160[4];
-	__le32 last_tx_ch_width_indx;
-	__le32 rx_detected_per_ch_width[4];
-	__le32 success_per_ch_width[4];
-	__le32 fail_per_ch_width[4];
-}; /* STATISTICS_TX_CHANNEL_WIDTH_API_S_VER_1 */
-
-struct mvm_statistics_tx {
-	__le32 preamble_cnt;
-	__le32 rx_detected_cnt;
-	__le32 bt_prio_defer_cnt;
-	__le32 bt_prio_kill_cnt;
-	__le32 few_bytes_cnt;
-	__le32 cts_timeout;
-	__le32 ack_timeout;
-	__le32 expected_ack_cnt;
-	__le32 actual_ack_cnt;
-	__le32 dump_msdu_cnt;
-	__le32 burst_abort_next_frame_mismatch_cnt;
-	__le32 burst_abort_missing_next_frame_cnt;
-	__le32 cts_timeout_collision;
-	__le32 ack_or_ba_timeout_collision;
-	struct mvm_statistics_tx_non_phy_agg agg;
-	struct mvm_statistics_tx_channel_width channel_width;
-} __packed; /* STATISTICS_TX_API_S_VER_4 */
-
-
-struct mvm_statistics_bt_activity {
-	__le32 hi_priority_tx_req_cnt;
-	__le32 hi_priority_tx_denied_cnt;
-	__le32 lo_priority_tx_req_cnt;
-	__le32 lo_priority_tx_denied_cnt;
-	__le32 hi_priority_rx_req_cnt;
-	__le32 hi_priority_rx_denied_cnt;
-	__le32 lo_priority_rx_req_cnt;
-	__le32 lo_priority_rx_denied_cnt;
-} __packed;  /* STATISTICS_BT_ACTIVITY_API_S_VER_1 */
-
-struct mvm_statistics_general {
-	struct mvm_statistics_general_common common;
-	__le32 beacon_filtered;
-	__le32 missed_beacons;
-	__s8 beacon_filter_average_energy;
-	__s8 beacon_filter_reason;
-	__s8 beacon_filter_current_energy;
-	__s8 beacon_filter_reserved;
-	__le32 beacon_filter_delta_time;
-	struct mvm_statistics_bt_activity bt_activity;
-} __packed; /* STATISTICS_GENERAL_API_S_VER_5 */
-
-struct mvm_statistics_rx {
-	struct mvm_statistics_rx_phy ofdm;
-	struct mvm_statistics_rx_phy cck;
-	struct mvm_statistics_rx_non_phy general;
-	struct mvm_statistics_rx_ht_phy ofdm_ht;
-} __packed; /* STATISTICS_RX_API_S_VER_3 */
-
-/*
- * STATISTICS_NOTIFICATION = 0x9d (notification only, not a command)
- *
- * By default, uCode issues this notification after receiving a beacon
- * while associated.  To disable this behavior, set DISABLE_NOTIF flag in the
- * REPLY_STATISTICS_CMD 0x9c, above.
- *
- * Statistics counters continue to increment beacon after beacon, but are
- * cleared when changing channels or when driver issues REPLY_STATISTICS_CMD
- * 0x9c with CLEAR_STATS bit set (see above).
- *
- * uCode also issues this notification during scans.  uCode clears statistics
- * appropriately so that each notification contains statistics for only the
- * one channel that has just been scanned.
- */
-
-struct iwl_notif_statistics { /* STATISTICS_NTFY_API_S_VER_8 */
-	__le32 flag;
-	struct mvm_statistics_rx rx;
-	struct mvm_statistics_tx tx;
-	struct mvm_statistics_general general;
-} __packed;
-
 /***********************************
  * Smart Fifo API
  ***********************************/
@@ -1634,7 +1429,19 @@ enum iwl_sf_scenario {
 #define SF_W_MARK_LEGACY 4096
 #define SF_W_MARK_SCAN 4096
 
-/* SF Scenarios timers for FULL_ON state (aligned to 32 uSec) */
+/* SF Scenarios timers for default configuration (aligned to 32 uSec) */
+#define SF_SINGLE_UNICAST_IDLE_TIMER_DEF 160	/* 150 uSec  */
+#define SF_SINGLE_UNICAST_AGING_TIMER_DEF 400	/* 0.4 mSec */
+#define SF_AGG_UNICAST_IDLE_TIMER_DEF 160		/* 150 uSec */
+#define SF_AGG_UNICAST_AGING_TIMER_DEF 400		/* 0.4 mSec */
+#define SF_MCAST_IDLE_TIMER_DEF 160		/* 150 mSec */
+#define SF_MCAST_AGING_TIMER_DEF 400		/* 0.4 mSec */
+#define SF_BA_IDLE_TIMER_DEF 160			/* 150 uSec */
+#define SF_BA_AGING_TIMER_DEF 400			/* 0.4 mSec */
+#define SF_TX_RE_IDLE_TIMER_DEF 160			/* 150 uSec */
+#define SF_TX_RE_AGING_TIMER_DEF 400		/* 0.4 mSec */
+
+/* SF Scenarios timers for BSS MAC configuration (aligned to 32 uSec) */
 #define SF_SINGLE_UNICAST_IDLE_TIMER 320	/* 300 uSec  */
 #define SF_SINGLE_UNICAST_AGING_TIMER 2016	/* 2 mSec */
 #define SF_AGG_UNICAST_IDLE_TIMER 320		/* 300 uSec */
@@ -1671,11 +1478,11 @@ struct iwl_sf_cfg_cmd {
 
 /**
  * struct iwl_mcc_update_cmd - Request the device to update geographic
- * regulatory profile according to the given MCC (Mobile Contry Code).
+ * regulatory profile according to the given MCC (Mobile Country Code).
  * The MCC is two letter-code, ascii upper case[A-Z] or '00' for world domain.
  * 'ZZ' MCC will be used to switch to NVM default profile; in this case, the
  * MCC in the cmd response will be the relevant MCC in the NVM.
- * @mcc: given mobile contry code
+ * @mcc: given mobile country code
  * @source_id: the source from where we got the MCC, see iwl_mcc_source
  * @reserved: reserved for alignment
  */
@@ -1715,11 +1522,11 @@ struct iwl_mcc_update_resp {
  * the cellular and connectivity cores that gets updates of the mcc, and
  * notifies the ucode directly of any mcc change.
  * The ucode requests the driver to request the device to update geographic
- * regulatory  profile according to the given MCC (Mobile Contry Code).
+ * regulatory  profile according to the given MCC (Mobile Country Code).
  * The MCC is two letter-code, ascii upper case[A-Z] or '00' for world domain.
  * 'ZZ' MCC will be used to switch to NVM default profile; in this case, the
  * MCC in the cmd response will be the relevant MCC in the NVM.
- * @mcc: given mobile contry code
+ * @mcc: given mobile country code
  * @source_id: identity of the change originator, see iwl_mcc_source
  * @reserved1: reserved for alignment
  */

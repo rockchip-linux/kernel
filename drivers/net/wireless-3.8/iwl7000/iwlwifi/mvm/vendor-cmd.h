@@ -83,6 +83,14 @@
  * @IWL_MVM_VENDOR_CMD_SET_COUNTRY: set a new mcc regulatory information
  * @IWL_MVM_VENDOR_CMD_PROXY_FRAME_FILTERING: filter GTK, gratuitous
  *	ARP & unsolicited NA
+ * @IWL_MVM_VENDOR_CMD_TDLS_PEER_CACHE_ADD: add a peer to the TDLS peer cache
+ * @IWL_MVM_VENDOR_CMD_TDLS_PEER_CACHE_DEL: delete a peer from the TDLS peer
+ *	cache
+ * @IWL_MVM_VENDOR_CMD_TDLS_PEER_CACHE_QUERY: query traffic statistics for a
+ *	peer in the TDLS cache
+ * @IWL_MVM_VENDOR_CMD_SET_NIC_TXPOWER_LIMIT: set the NIC's (SAR) TX power limit
+ * @IWL_MVM_VENDOR_CMD_OPPPS_WA: wa to pass Sigma test - applicable code is
+ *	claused under CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
  */
 
 enum iwl_mvm_vendor_cmd {
@@ -96,6 +104,11 @@ enum iwl_mvm_vendor_cmd {
 	IWL_MVM_VENDOR_CMD_LTE_COEX_WIFI_RPRTD_CHAN,
 	IWL_MVM_VENDOR_CMD_SET_COUNTRY,
 	IWL_MVM_VENDOR_CMD_PROXY_FRAME_FILTERING,
+	IWL_MVM_VENDOR_CMD_TDLS_PEER_CACHE_ADD,
+	IWL_MVM_VENDOR_CMD_TDLS_PEER_CACHE_DEL,
+	IWL_MVM_VENDOR_CMD_TDLS_PEER_CACHE_QUERY,
+	IWL_MVM_VENDOR_CMD_SET_NIC_TXPOWER_LIMIT,
+	IWL_MVM_VENDOR_CMD_OPPPS_WA,
 };
 
 /**
@@ -124,9 +137,19 @@ enum iwl_mvm_vendor_load {
  * @IWL_MVM_VENDOR_ATTR_VIF_LOAD: vif traffic load (u8, see load enum)
  * @IWL_MVM_VENDOR_ATTR_LOAD: global traffic load (u8, see load enum)
  * @IWL_MVM_VENDOR_ATTR_COUNTRY: MCC to set, for regulatory information (u16)
- * IWL_MVM_VENDOR_FILTER_ARP_NA: filter gratuitous ARP and unsolicited Neighbor
- *	Advertisement frames
- * IWL_MVM_VENDOR_FILTER_GTK: filter Filtering Frames Encrypted using the GTK
+ * IWL_MVM_VENDOR_ATTR_FILTER_ARP_NA: filter gratuitous ARP and unsolicited
+ *	Neighbor Advertisement frames
+ * IWL_MVM_VENDOR_ATTR_FILTER_GTK: filter Filtering Frames Encrypted using
+ *	the GTK
+ * @IWL_MVM_VENDOR_ATTR_ADDR: MAC address
+ * @IWL_MVM_VENDOR_ATTR_TX_BYTES: number of bytes transmitted to peer
+ * @IWL_MVM_VENDOR_ATTR_RX_BYTES: number of bytes received from peer
+ * @IWL_MVM_VENDOR_ATTR_TXP_LIMIT_24: TX power limit for 2.4 GHz
+ *	(s32 in units of 1/8 dBm)
+ * @IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L: TX power limit for 5.2 GHz low (as 2.4)
+ * @IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H: TX power limit for 5.2 GHz high (as 2.4)
+ * @IWL_MVM_VENDOR_ATTR_OPPPS_WA: wa to pass Sigma test
+ *
  * @NUM_IWL_MVM_VENDOR_ATTR: number of vendor attributes
  * @MAX_IWL_MVM_VENDOR_ATTR: highest vendor attribute number
  */
@@ -139,10 +162,19 @@ enum iwl_mvm_vendor_attr {
 	IWL_MVM_VENDOR_ATTR_VIF_LOAD,
 	IWL_MVM_VENDOR_ATTR_LOAD,
 	IWL_MVM_VENDOR_ATTR_COUNTRY,
-	IWL_MVM_VENDOR_FILTER_ARP_NA,
-	IWL_MVM_VENDOR_FILTER_GTK,
+	IWL_MVM_VENDOR_ATTR_FILTER_ARP_NA,
+	IWL_MVM_VENDOR_ATTR_FILTER_GTK,
+	IWL_MVM_VENDOR_ATTR_ADDR,
+	IWL_MVM_VENDOR_ATTR_TX_BYTES,
+	IWL_MVM_VENDOR_ATTR_RX_BYTES,
+	IWL_MVM_VENDOR_ATTR_TXP_LIMIT_24,
+	IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52L,
+	IWL_MVM_VENDOR_ATTR_TXP_LIMIT_52H,
+	IWL_MVM_VENDOR_ATTR_OPPPS_WA,
 
 	NUM_IWL_MVM_VENDOR_ATTR,
 	MAX_IWL_MVM_VENDOR_ATTR = NUM_IWL_MVM_VENDOR_ATTR - 1,
 };
+#define IWL_MVM_VENDOR_FILTER_ARP_NA IWL_MVM_VENDOR_ATTR_FILTER_ARP_NA
+#define IWL_MVM_VENDOR_FILTER_GTK IWL_MVM_VENDOR_ATTR_FILTER_GTK
 #endif /* __VENDOR_CMD_H__ */

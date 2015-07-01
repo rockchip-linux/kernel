@@ -157,7 +157,7 @@ static void iwl_dnt_dev_if_configure_dbgc_registers(struct iwl_trans *trans,
 
 		/*
 		 * SMEM requires the same internal configuration as MARBH,
-		 * which preceeded it.
+		 * which preceded it.
 		 */
 		iwl_dnt_dev_if_configure_marbh(trans);
 		break;
@@ -219,7 +219,7 @@ static int iwl_dnt_dev_if_retrieve_dma_monitor_data(struct iwl_dnt *dnt,
 						    u32 buffer_size)
 {
 	struct iwl_dbg_cfg *cfg = &trans->dbg_cfg;
-	u32 wr_ptr;
+	u32 wr_ptr, wrap_cnt;
 	bool dont_reorder = false;
 	/* FIXME send stop command to FW */
 	if (WARN_ON_ONCE(!dnt->mon_buf_cpu_addr)) {
@@ -274,10 +274,20 @@ static int iwl_dnt_dev_if_retrieve_dma_monitor_data(struct iwl_dnt *dnt,
 	if (dont_reorder)
 		wr_ptr = 0;
 
-	memcpy(buffer, dnt->mon_buf_cpu_addr + wr_ptr,
-	       dnt->mon_buf_size - wr_ptr);
-	memcpy(buffer + dnt->mon_buf_size - wr_ptr, dnt->mon_buf_cpu_addr,
-	       wr_ptr);
+	if (cfg->dbgc_wrap_count_addr)
+		wrap_cnt = iwl_read_prph(trans, cfg->dbgc_wrap_count_addr);
+	else
+		wrap_cnt = 1;
+
+	if (wrap_cnt) {
+		memcpy(buffer, dnt->mon_buf_cpu_addr + wr_ptr,
+		       dnt->mon_buf_size - wr_ptr);
+		memcpy(buffer + dnt->mon_buf_size - wr_ptr,
+		       dnt->mon_buf_cpu_addr, wr_ptr);
+	} else {
+		memcpy(buffer, dnt->mon_buf_cpu_addr, wr_ptr);
+		memset(buffer + wr_ptr, 0, dnt->mon_buf_size - wr_ptr);
+	}
 
 	return dnt->mon_buf_size;
 }
@@ -341,22 +351,14 @@ static int iwl_dnt_dev_if_retrieve_smem_monitor_data(struct iwl_dnt *dnt,
 	struct iwl_dbg_cfg *cfg = &trans->dbg_cfg;
 	u32 i, bytes_to_end, calc_size;
 	u32 base_addr, end_addr, wr_ptr_addr, wr_ptr_shift;
-	u32 base, end, wr_ptr, pos, chunks_num, wr_ptr_offset;
+	u32 base, end, wr_ptr, pos, chunks_num, wr_ptr_offset, wrap_cnt;
 	u8 *temp_buffer;
 
-	if (CSR_HW_REV_STEP(trans->hw_rev) != SILICON_A_STEP) {
-		/* assuming B-step or C-step */
-		base_addr = cfg->dbg_mon_buff_base_addr_reg_addr_b_step;
-		end_addr = cfg->dbg_mon_buff_end_addr_reg_addr_b_step;
-		wr_ptr_addr = cfg->dbg_mon_wr_ptr_addr_b_step;
-		wr_ptr_shift = 2;
-	} else {
-		/* assuming A-step */
-		base_addr = cfg->dbg_mon_buff_base_addr_reg_addr;
-		end_addr = cfg->dbg_mon_buff_end_addr_reg_addr;
-		wr_ptr_addr = cfg->dbg_mon_wr_ptr_addr;
-		wr_ptr_shift = 0;
-	}
+	/* assuming B-step or C-step */
+	base_addr = cfg->dbg_mon_buff_base_addr_reg_addr_b_step;
+	end_addr = cfg->dbg_mon_buff_end_addr_reg_addr_b_step;
+	wr_ptr_addr = cfg->dbg_mon_wr_ptr_addr_b_step;
+	wr_ptr_shift = 2;
 
 	base = iwl_read_prph(trans, base_addr);
 	/* iwl_read_prph returns 0x5a5a5a5a when it fails to grab nic access */
@@ -416,8 +418,18 @@ static int iwl_dnt_dev_if_retrieve_smem_monitor_data(struct iwl_dnt *dnt,
 				   (calc_size - (chunks_num * DNT_CHUNK_SIZE)) /
 				   sizeof(u32));
 
-	memcpy(buffer, temp_buffer + wr_ptr_offset, bytes_to_end);
-	memcpy(buffer + bytes_to_end, temp_buffer, wr_ptr_offset);
+	if (cfg->dbgc_wrap_count_addr)
+		wrap_cnt = iwl_read_prph(trans, cfg->dbgc_wrap_count_addr);
+	else
+		wrap_cnt = 1;
+
+	if (wrap_cnt) {
+		memcpy(buffer, temp_buffer + wr_ptr_offset, bytes_to_end);
+		memcpy(buffer + bytes_to_end, temp_buffer, wr_ptr_offset);
+	} else {
+		memcpy(buffer, temp_buffer, wr_ptr_offset);
+		memset(buffer + wr_ptr_offset, 0, bytes_to_end);
+	}
 
 	kfree(temp_buffer);
 

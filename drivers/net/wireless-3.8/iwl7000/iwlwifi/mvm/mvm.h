@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,6 +76,7 @@
 #include "iwl-notif-wait.h"
 #include "iwl-eeprom-parse.h"
 #include "iwl-fw-file.h"
+#include "iwl-config.h"
 #include "sta.h"
 #include "fw-api.h"
 #include "constants.h"
@@ -125,11 +126,13 @@ extern const struct ieee80211_ops iwl_mvm_hw_ops;
  *	We will register to mac80211 to have testmode working. The NIC must not
  *	be up'ed after the INIT fw asserted. This is useful to be able to use
  *	proprietary tools over testmode to debug the INIT fw.
+ * @tfd_q_hang_detect: enabled the detection of hung transmit queues
  * @power_scheme: CAM(Continuous Active Mode)-1, BPS(Balanced Power
  *	Save)-2(default), LP(Low Power)-3
  */
 struct iwl_mvm_mod_params {
 	bool init_dbg;
+	bool tfd_q_hang_detect;
 	int power_scheme;
 };
 extern struct iwl_mvm_mod_params iwlmvm_mod_params;
@@ -279,6 +282,7 @@ enum iwl_mvm_ref_type {
 	IWL_MVM_REF_UCODE_DOWN,
 	IWL_MVM_REF_SCAN,
 	IWL_MVM_REF_ROC,
+	IWL_MVM_REF_ROC_AUX,
 	IWL_MVM_REF_P2P_CLIENT,
 	IWL_MVM_REF_AP_IBSS,
 	IWL_MVM_REF_USER,
@@ -353,8 +357,12 @@ struct iwl_mvm_vif_bf_data {
  * @bcast_sta: station used for broadcast packets. Used by the following
  *  vifs: P2P_DEVICE, GO and AP.
  * @beacon_skb: the skb used to hold the AP/GO beacon template
- * @smps_requests: the SMPS requests of differents parts of the driver,
+ * @smps_requests: the SMPS requests of different parts of the driver,
  *	combined on update to yield the overall request to mac80211.
+ * @beacon_stats: beacon statistics, containing the # of received beacons,
+ *	# of received beacons accumulated over FW restart, and the current
+ *	average signal of beacons retrieved from the firmware
+ * @csa_failed: CSA failed to schedule time event, report an error later
  */
 struct iwl_mvm_vif {
 	struct iwl_mvm *mvm;
@@ -372,6 +380,11 @@ struct iwl_mvm_vif {
 	bool low_latency;
 	bool ps_disabled;
 	struct iwl_mvm_vif_bf_data bf_data;
+
+	struct {
+		u32 num_beacons, accu_num_beacons;
+		u8 avg_signal;
+	} beacon_stats;
 
 	u32 ap_beacon_time;
 
@@ -433,6 +446,7 @@ struct iwl_mvm_vif {
 
 	/* Indicates that CSA countdown may be started */
 	bool csa_countdown;
+	bool csa_failed;
 };
 
 static inline struct iwl_mvm_vif *
@@ -444,9 +458,23 @@ iwl_mvm_vif_from_mac80211(struct ieee80211_vif *vif)
 extern const u8 tid_to_mac80211_ac[];
 
 enum iwl_scan_status {
-	IWL_MVM_SCAN_NONE,
-	IWL_MVM_SCAN_OS,
-	IWL_MVM_SCAN_SCHED,
+	IWL_MVM_SCAN_REGULAR		= BIT(0),
+	IWL_MVM_SCAN_SCHED		= BIT(1),
+	IWL_MVM_SCAN_NETDETECT		= BIT(2),
+
+	IWL_MVM_SCAN_STOPPING_REGULAR	= BIT(8),
+	IWL_MVM_SCAN_STOPPING_SCHED	= BIT(9),
+	IWL_MVM_SCAN_STOPPING_NETDETECT	= BIT(10),
+
+	IWL_MVM_SCAN_REGULAR_MASK	= IWL_MVM_SCAN_REGULAR |
+					  IWL_MVM_SCAN_STOPPING_REGULAR,
+	IWL_MVM_SCAN_SCHED_MASK		= IWL_MVM_SCAN_SCHED |
+					  IWL_MVM_SCAN_STOPPING_SCHED,
+	IWL_MVM_SCAN_NETDETECT_MASK	= IWL_MVM_SCAN_NETDETECT |
+					  IWL_MVM_SCAN_STOPPING_NETDETECT,
+
+	IWL_MVM_SCAN_STOPPING_MASK	= 0xff00,
+	IWL_MVM_SCAN_MASK		= 0x00ff,
 };
 
 /**
@@ -459,49 +487,6 @@ enum iwl_scan_status {
 struct iwl_nvm_section {
 	u16 length;
 	const u8 *data;
-};
-
-/*
- * Tx-backoff threshold
- * @temperature: The threshold in Celsius
- * @backoff: The tx-backoff in uSec
- */
-struct iwl_tt_tx_backoff {
-	s32 temperature;
-	u32 backoff;
-};
-
-#define TT_TX_BACKOFF_SIZE 6
-
-/**
- * struct iwl_tt_params - thermal throttling parameters
- * @ct_kill_entry: CT Kill entry threshold
- * @ct_kill_exit: CT Kill exit threshold
- * @ct_kill_duration: The time  intervals (in uSec) in which the driver needs
- *	to checks whether to exit CT Kill.
- * @dynamic_smps_entry: Dynamic SMPS entry threshold
- * @dynamic_smps_exit: Dynamic SMPS exit threshold
- * @tx_protection_entry: TX protection entry threshold
- * @tx_protection_exit: TX protection exit threshold
- * @tx_backoff: Array of thresholds for tx-backoff , in ascending order.
- * @support_ct_kill: Support CT Kill?
- * @support_dynamic_smps: Support dynamic SMPS?
- * @support_tx_protection: Support tx protection?
- * @support_tx_backoff: Support tx-backoff?
- */
-struct iwl_tt_params {
-	s32 ct_kill_entry;
-	s32 ct_kill_exit;
-	u32 ct_kill_duration;
-	s32 dynamic_smps_entry;
-	s32 dynamic_smps_exit;
-	s32 tx_protection_entry;
-	s32 tx_protection_exit;
-	struct iwl_tt_tx_backoff tx_backoff[TT_TX_BACKOFF_SIZE];
-	bool support_ct_kill;
-	bool support_dynamic_smps;
-	bool support_tx_protection;
-	bool support_tx_backoff;
 };
 
 /**
@@ -518,7 +503,7 @@ struct iwl_mvm_tt_mgmt {
 	bool dynamic_smps;
 	u32 tx_backoff;
 	u32 min_backoff;
-	const struct iwl_tt_params *params;
+	struct iwl_tt_params params;
 	bool throttle;
 };
 
@@ -575,7 +560,6 @@ struct iwl_mvm_tcm_mac {
 	struct {
 		/* track AP's transfer in client mode */
 		u64 rx_bytes;
-		u32 rx_pkts;
 		struct ewma rate;
 		bool detected;
 	} uapsd_nonagg_detect;
@@ -588,6 +572,7 @@ struct iwl_mvm_tcm {
 	spinlock_t lock; /* used when time elapsed */
 	unsigned long ts; /* timestamp when period ends */
 	unsigned long ll_ts;
+	unsigned long uapsd_nonagg_ts;
 	bool paused;
 	struct iwl_mvm_tcm_mac data[NUM_MAC_INDEX_DRIVER];
 	struct {
@@ -613,6 +598,20 @@ struct iwl_mvm_shared_mem_cfg {
 	u32 page_buff_addr;
 	u32 page_buff_size;
 };
+
+#ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
+#define IWL_MVM_TDLS_CNT_MAX_PEERS 4
+
+struct iwl_mvm_tdls_peer_counter {
+	struct list_head list;
+	struct rcu_head rcu_head;
+
+	struct mac_address mac __aligned(2);
+	struct ieee80211_vif *vif;
+	u32 rx_bytes;
+	u32 tx_bytes;
+};
+#endif
 
 struct iwl_mvm {
 	/* for logger access */
@@ -642,7 +641,6 @@ struct iwl_mvm {
 
 	enum iwl_ucode_type cur_ucode;
 	bool ucode_loaded;
-	bool init_ucode_complete;
 	bool calibrating;
 	u32 error_event_table;
 	u32 log_event_table;
@@ -655,6 +653,13 @@ struct iwl_mvm {
 	struct iwl_notif_wait_data notif_wait;
 
 	struct mvm_statistics_rx rx_stats;
+
+	struct {
+		u64 rx_time;
+		u64 tx_time;
+		u64 on_time_rf;
+		u64 on_time_scan;
+	} radio_stats, accu_radio_stats;
 
 	u8 queue_to_mac80211[IWL_MAX_HW_QUEUES];
 	atomic_t mac80211_queue_stop_count[IEEE80211_MAX_QUEUES];
@@ -680,12 +685,15 @@ struct iwl_mvm {
 	u32 rts_threshold;
 
 	/* Scan status, cmd (pre-allocated) and auxiliary station */
-	enum iwl_scan_status scan_status;
+	unsigned int scan_status;
 	void *scan_cmd;
 	struct iwl_mcast_filter_cmd *mcast_filter_cmd;
 
+	/* max number of simultaneous scans the FW supports */
+	unsigned int max_scans;
+
 	/* UMAC scan tracking */
-	u32 scan_uid[IWL_MVM_MAX_SIMULTANEOUS_SCANS];
+	u32 scan_uid[IWL_MVM_MAX_UMAC_SCANS];
 	u8 scan_seq_num, sched_scan_seq_num;
 
 	/* rx chain antennas set through debugfs for the scan command */
@@ -720,7 +728,7 @@ struct iwl_mvm {
 	bool disable_power_off;
 	bool disable_power_off_d3;
 
-	bool scan_iter_notif_enabled;
+	u32 scan_iter_notif_enabled; /* must be u32 for debugfs_create_bool */
 
 	struct debugfs_blob_wrapper nvm_hw_blob;
 	struct debugfs_blob_wrapper nvm_sw_blob;
@@ -729,6 +737,7 @@ struct iwl_mvm {
 
 	struct iwl_mvm_frame_stats drv_rx_stats;
 	spinlock_t drv_stats_lock;
+	u16 dbgfs_rx_phyinfo;
 #endif
 
 	struct iwl_mvm_phy_ctxt phy_ctxts[NUM_PHY_CTX];
@@ -779,6 +788,7 @@ struct iwl_mvm {
 	void *d3_resume_sram;
 	u32 d3_test_pme_ptr;
 	struct ieee80211_vif *keep_vif;
+	u32 last_netdetect_scans; /* no. of scans in the last net-detect wake */
 #endif
 #endif
 
@@ -822,13 +832,18 @@ struct iwl_mvm {
 	bool temperature_test;  /* Debug test temperature is enabled */
 
 #ifdef CPTCFG_IWLMVM_TCM
-#define IWL_MVM_UAPSD_NOAGG_BSSIDS_NUM	20
+	unsigned long bt_coex_last_tcm_ts;
 
 	u8 uapsd_noagg_bssid_write_idx;
 	struct mac_address uapsd_noagg_bssids[IWL_MVM_UAPSD_NOAGG_BSSIDS_NUM]
 		__aligned(2);
 
 	struct iwl_mvm_tcm tcm;
+#endif
+
+#ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
+	struct list_head tdls_peer_cache_list;
+	u32 tdls_peer_cache_cnt;
 #endif
 
 	struct iwl_time_quota_cmd last_quota_cmd;
@@ -883,7 +898,23 @@ struct iwl_mvm {
 		} peer;
 	} tdls_cs;
 
+	struct iwl_dev_tx_power_cmd txp_cmd;
+
 	struct iwl_mvm_shared_mem_cfg shared_mem_cfg;
+#ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
+	/*
+	 * Add the following as part of a WA to pass P2P OPPPS certification
+	 * test. Refer to IWLMVM_P2P_OPPPS_TEST_WA description in
+	 * Kconfig.noupstream for details.
+	 */
+	struct iwl_mvm_vif *p2p_opps_test_wa_vif;
+#endif
+#ifdef CPTCFG_IWLWIFI_DEVICE_TESTMODE
+	u32 fw_major_ver;
+	u32 fw_minor_ver;
+#endif
+
+	u32 ciphers[6];
 };
 
 /* Extract MVM priv from op_mode and _hw */
@@ -977,7 +1008,8 @@ static inline bool iwl_mvm_is_lar_supported(struct iwl_mvm *mvm)
 
 static inline bool iwl_mvm_is_wifi_mcc_supported(struct iwl_mvm *mvm)
 {
-	return mvm->fw->ucode_capa.api[0] & IWL_UCODE_TLV_API_WIFI_MCC_UPDATE;
+	return mvm->fw->ucode_capa.api[0] & IWL_UCODE_TLV_API_WIFI_MCC_UPDATE ||
+	       mvm->fw->ucode_capa.capa[0] & IWL_UCODE_TLV_CAPA_LAR_MULTI_MCC;
 }
 
 static inline bool iwl_mvm_is_scd_cfg_supported(struct iwl_mvm *mvm)
@@ -1065,12 +1097,13 @@ static inline void iwl_mvm_wait_for_async_handlers(struct iwl_mvm *mvm)
 }
 
 /* Statistics */
-int iwl_mvm_rx_reply_statistics(struct iwl_mvm *mvm,
-				struct iwl_rx_cmd_buffer *rxb,
-				struct iwl_device_cmd *cmd);
+void iwl_mvm_handle_rx_statistics(struct iwl_mvm *mvm,
+				  struct iwl_rx_packet *pkt);
 int iwl_mvm_rx_statistics(struct iwl_mvm *mvm,
 			  struct iwl_rx_cmd_buffer *rxb,
 			  struct iwl_device_cmd *cmd);
+int iwl_mvm_request_statistics(struct iwl_mvm *mvm, bool clear);
+void iwl_mvm_accu_radio_stats(struct iwl_mvm *mvm);
 
 /* NVM */
 int iwl_nvm_init(struct iwl_mvm *mvm, bool read_nvm_from_nic);
@@ -1122,8 +1155,6 @@ int iwl_mvm_rx_tx_cmd(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 		      struct iwl_device_cmd *cmd);
 int iwl_mvm_rx_ba_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 			struct iwl_device_cmd *cmd);
-int iwl_mvm_rx_radio_ver(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
-			 struct iwl_device_cmd *cmd);
 int iwl_mvm_rx_ant_coupling_notif(struct iwl_mvm *mvm,
 				  struct iwl_rx_cmd_buffer *rxb,
 				  struct iwl_device_cmd *cmd);
@@ -1132,8 +1163,6 @@ int iwl_mvm_rx_fw_error(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 int iwl_mvm_rx_card_state_notif(struct iwl_mvm *mvm,
 				struct iwl_rx_cmd_buffer *rxb,
 				struct iwl_device_cmd *cmd);
-int iwl_mvm_rx_radio_ver(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
-			 struct iwl_device_cmd *cmd);
 int iwl_mvm_rx_mfuart_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 			    struct iwl_device_cmd *cmd);
 int iwl_mvm_rx_shared_mem_cfg_notif(struct iwl_mvm *mvm,
@@ -1181,20 +1210,17 @@ int iwl_mvm_binding_add_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 int iwl_mvm_binding_remove_vif(struct iwl_mvm *mvm, struct ieee80211_vif *vif);
 
 /* Quota management */
-int iwl_mvm_update_quotas(struct iwl_mvm *mvm,
+int iwl_mvm_update_quotas(struct iwl_mvm *mvm, bool force_upload,
 			  struct ieee80211_vif *disabled_vif);
 
 /* Scanning */
+int iwl_mvm_reg_scan_start(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			   struct cfg80211_scan_request *req,
+			   struct ieee80211_scan_ies *ies);
 int iwl_mvm_scan_size(struct iwl_mvm *mvm);
-int iwl_mvm_scan_request(struct iwl_mvm *mvm,
-			 struct ieee80211_vif *vif,
-			 struct cfg80211_scan_request *req);
-int iwl_mvm_rx_scan_response(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
-			     struct iwl_device_cmd *cmd);
-int iwl_mvm_rx_scan_complete(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
-			     struct iwl_device_cmd *cmd);
 int iwl_mvm_cancel_scan(struct iwl_mvm *mvm);
-int iwl_mvm_max_scan_ie_len(struct iwl_mvm *mvm, bool is_sched_scan);
+int iwl_mvm_max_scan_ie_len(struct iwl_mvm *mvm);
+void iwl_mvm_report_scan_aborted(struct iwl_mvm *mvm);
 
 /* Scheduled scan */
 int iwl_mvm_rx_scan_offload_complete_notif(struct iwl_mvm *mvm,
@@ -1203,39 +1229,20 @@ int iwl_mvm_rx_scan_offload_complete_notif(struct iwl_mvm *mvm,
 int iwl_mvm_rx_scan_offload_iter_complete_notif(struct iwl_mvm *mvm,
 						struct iwl_rx_cmd_buffer *rxb,
 						struct iwl_device_cmd *cmd);
-int iwl_mvm_config_sched_scan(struct iwl_mvm *mvm,
-			      struct ieee80211_vif *vif,
-			      struct cfg80211_sched_scan_request *req,
-			      struct ieee80211_scan_ies *ies);
 int iwl_mvm_config_sched_scan_profiles(struct iwl_mvm *mvm,
 				       struct cfg80211_sched_scan_request *req);
 int iwl_mvm_sched_scan_start(struct iwl_mvm *mvm,
-			     struct cfg80211_sched_scan_request *req);
-int iwl_mvm_scan_offload_start(struct iwl_mvm *mvm,
-			       struct ieee80211_vif *vif,
-			       struct cfg80211_sched_scan_request *req,
-			       struct ieee80211_scan_ies *ies);
+			     struct ieee80211_vif *vif,
+			     struct cfg80211_sched_scan_request *req,
+			     struct ieee80211_scan_ies *ies,
+			     int type);
 int iwl_mvm_scan_offload_stop(struct iwl_mvm *mvm, bool notify);
 int iwl_mvm_rx_scan_offload_results(struct iwl_mvm *mvm,
 				    struct iwl_rx_cmd_buffer *rxb,
 				    struct iwl_device_cmd *cmd);
 
-/* Unified scan */
-int iwl_mvm_unified_scan_lmac(struct iwl_mvm *mvm,
-			      struct ieee80211_vif *vif,
-			      struct ieee80211_scan_request *req);
-int iwl_mvm_unified_sched_scan_lmac(struct iwl_mvm *mvm,
-				    struct ieee80211_vif *vif,
-				    struct cfg80211_sched_scan_request *req,
-				    struct ieee80211_scan_ies *ies);
-
 /* UMAC scan */
 int iwl_mvm_config_scan(struct iwl_mvm *mvm);
-int iwl_mvm_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-		      struct ieee80211_scan_request *req);
-int iwl_mvm_sched_scan_umac(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			    struct cfg80211_sched_scan_request *req,
-			    struct ieee80211_scan_ies *ies);
 int iwl_mvm_rx_umac_scan_complete_notif(struct iwl_mvm *mvm,
 					struct iwl_rx_cmd_buffer *rxb,
 					struct iwl_device_cmd *cmd);
@@ -1284,9 +1291,7 @@ void iwl_mvm_testmode_event(struct iwl_op_mode *op_mode, struct sk_buff *skb);
 
 /* rate scaling */
 int iwl_mvm_send_lq_cmd(struct iwl_mvm *mvm, struct iwl_lq_cmd *lq, bool init);
-void iwl_mvm_update_frame_stats(struct iwl_mvm *mvm,
-				struct iwl_mvm_frame_stats *stats,
-				u32 rate, bool agg);
+void iwl_mvm_update_frame_stats(struct iwl_mvm *mvm, u32 rate, bool agg);
 int rs_pretty_print_rate(char *buf, const u32 rate);
 void rs_update_last_rssi(struct iwl_mvm *mvm,
 			 struct iwl_lq_sta *lq_sta,
@@ -1361,7 +1366,7 @@ int iwl_mvm_rx_bt_coex_notif(struct iwl_mvm *mvm,
 			     struct iwl_rx_cmd_buffer *rxb,
 			     struct iwl_device_cmd *cmd);
 void iwl_mvm_bt_rssi_event(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			   enum ieee80211_event_data rssi_event);
+			   enum ieee80211_rssi_event_data);
 void iwl_mvm_bt_coex_vif_change(struct iwl_mvm *mvm);
 u16 iwl_mvm_coex_agg_time_limit(struct iwl_mvm *mvm,
 				struct ieee80211_sta *sta);
@@ -1374,7 +1379,6 @@ bool iwl_mvm_bt_coex_is_tpc_allowed(struct iwl_mvm *mvm,
 u8 iwl_mvm_bt_coex_tx_prio(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
 			   struct ieee80211_tx_info *info, u8 ac);
 
-bool iwl_mvm_bt_coex_is_ant_avail_old(struct iwl_mvm *mvm, u8 ant);
 bool iwl_mvm_bt_coex_is_shared_ant_avail_old(struct iwl_mvm *mvm);
 void iwl_mvm_bt_coex_vif_change_old(struct iwl_mvm *mvm);
 int iwl_send_bt_init_conf_old(struct iwl_mvm *mvm);
@@ -1382,7 +1386,7 @@ int iwl_mvm_rx_bt_coex_notif_old(struct iwl_mvm *mvm,
 				 struct iwl_rx_cmd_buffer *rxb,
 				 struct iwl_device_cmd *cmd);
 void iwl_mvm_bt_rssi_event_old(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
-			       enum ieee80211_event_data rssi_event);
+			       enum ieee80211_rssi_event_data);
 u16 iwl_mvm_coex_agg_time_limit_old(struct iwl_mvm *mvm,
 				    struct ieee80211_sta *sta);
 bool iwl_mvm_bt_coex_is_mimo_allowed_old(struct iwl_mvm *mvm,
@@ -1392,17 +1396,6 @@ bool iwl_mvm_bt_coex_is_tpc_allowed_old(struct iwl_mvm *mvm,
 int iwl_mvm_rx_ant_coupling_notif_old(struct iwl_mvm *mvm,
 				      struct iwl_rx_cmd_buffer *rxb,
 				      struct iwl_device_cmd *cmd);
-
-enum iwl_bt_kill_msk {
-	BT_KILL_MSK_DEFAULT,
-	BT_KILL_MSK_NEVER,
-	BT_KILL_MSK_ALWAYS,
-	BT_KILL_MSK_MAX,
-};
-
-extern const u8 iwl_bt_ack_kill_msk[BT_MAX_AG][BT_COEX_MAX_LUT];
-extern const u8 iwl_bt_cts_kill_msk[BT_MAX_AG][BT_COEX_MAX_LUT];
-extern const u32 iwl_bt_ctl_kill_msk[BT_KILL_MSK_MAX];
 
 /* beacon filtering */
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
@@ -1454,11 +1447,13 @@ static inline bool iwl_mvm_vif_low_latency(struct iwl_mvm_vif *mvmvif)
 
 /* hw scheduler queue config */
 void iwl_mvm_enable_txq(struct iwl_mvm *mvm, int queue, u16 ssn,
-			const struct iwl_trans_txq_scd_cfg *cfg);
+			const struct iwl_trans_txq_scd_cfg *cfg,
+			unsigned int wdg_timeout);
 void iwl_mvm_disable_txq(struct iwl_mvm *mvm, int queue, u8 flags);
 
-static inline void iwl_mvm_enable_ac_txq(struct iwl_mvm *mvm, int queue,
-					 u8 fifo)
+static inline
+void iwl_mvm_enable_ac_txq(struct iwl_mvm *mvm, int queue,
+			   u8 fifo, unsigned int wdg_timeout)
 {
 	struct iwl_trans_txq_scd_cfg cfg = {
 		.fifo = fifo,
@@ -1467,12 +1462,13 @@ static inline void iwl_mvm_enable_ac_txq(struct iwl_mvm *mvm, int queue,
 		.frame_limit = IWL_FRAME_LIMIT,
 	};
 
-	iwl_mvm_enable_txq(mvm, queue, 0, &cfg);
+	iwl_mvm_enable_txq(mvm, queue, 0, &cfg, wdg_timeout);
 }
 
 static inline void iwl_mvm_enable_agg_txq(struct iwl_mvm *mvm, int queue,
 					  int fifo, int sta_id, int tid,
-					  int frame_limit, u16 ssn)
+					  int frame_limit, u16 ssn,
+					  unsigned int wdg_timeout)
 {
 	struct iwl_trans_txq_scd_cfg cfg = {
 		.fifo = fifo,
@@ -1482,11 +1478,8 @@ static inline void iwl_mvm_enable_agg_txq(struct iwl_mvm *mvm, int queue,
 		.aggregate = true,
 	};
 
-	iwl_mvm_enable_txq(mvm, queue, ssn, &cfg);
+	iwl_mvm_enable_txq(mvm, queue, ssn, &cfg, wdg_timeout);
 }
-
-/* Assoc status */
-bool iwl_mvm_is_idle(struct iwl_mvm *mvm);
 
 /* Thermal management and CT-kill */
 void iwl_mvm_tt_tx_backoff(struct iwl_mvm *mvm, u32 backoff);
@@ -1552,6 +1545,15 @@ int iwl_mvm_rx_tdls_notif(struct iwl_mvm *mvm, struct iwl_rx_cmd_buffer *rxb,
 			  struct iwl_device_cmd *cmd);
 void iwl_mvm_tdls_ch_switch_work(struct work_struct *work);
 
+#ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
+void iwl_mvm_tdls_peer_cache_pkt(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
+				 u32 len, bool tx);
+void iwl_mvm_tdls_peer_cache_clear(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif);
+struct iwl_mvm_tdls_peer_counter *
+iwl_mvm_tdls_peer_cache_find(struct iwl_mvm *mvm, const u8 *addr);
+#endif /* CPTCFG_IWLMVM_TDLS_PEER_CACHE */
+
 struct ieee80211_vif *iwl_mvm_get_bss_vif(struct iwl_mvm *mvm);
 
 #ifdef CPTCFG_IWLMVM_TCM
@@ -1581,8 +1583,12 @@ int iwl_mvm_fw_dbg_collect_desc(struct iwl_mvm *mvm,
 void iwl_mvm_free_fw_dump_desc(struct iwl_mvm *mvm);
 int iwl_mvm_fw_dbg_collect_trig(struct iwl_mvm *mvm,
 				struct iwl_fw_dbg_trigger_tlv *trigger,
-				const char *str, size_t len);
-
+				const char *fmt, ...) __printf(3, 4);
+unsigned int iwl_mvm_get_wd_timeout(struct iwl_mvm *mvm,
+				    struct ieee80211_vif *vif,
+				    bool tdls, bool cmd_q);
+void iwl_mvm_connection_loss(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+			     const char *errmsg);
 static inline bool
 iwl_fw_dbg_trigger_vif_match(struct iwl_fw_dbg_trigger_tlv *trig,
 			     struct ieee80211_vif *vif)
@@ -1615,8 +1621,7 @@ iwl_fw_dbg_trigger_check_stop(struct iwl_mvm *mvm,
 static inline void
 iwl_fw_dbg_trigger_simple_stop(struct iwl_mvm *mvm,
 			       struct ieee80211_vif *vif,
-			       enum iwl_fw_dbg_trigger trig,
-			       const char *str, size_t len)
+			       enum iwl_fw_dbg_trigger trig)
 {
 	struct iwl_fw_dbg_trigger_tlv *trigger;
 
@@ -1627,7 +1632,7 @@ iwl_fw_dbg_trigger_simple_stop(struct iwl_mvm *mvm,
 	if (!iwl_fw_dbg_trigger_check_stop(mvm, vif, trigger))
 		return;
 
-	iwl_mvm_fw_dbg_collect_trig(mvm, trigger, str, len);
+	iwl_mvm_fw_dbg_collect_trig(mvm, trigger, NULL);
 }
 
 #endif /* __IWL_MVM_H__ */

@@ -112,12 +112,6 @@ static const struct file_operations iwl_dnt_debugfs_log_ops = {
 	.llseek = generic_file_llseek,
 };
 
-static const struct file_operations iwl_dnt_debugfs_crash_ops = {
-	.read = iwl_dnt_dispatch_get_crash_data,
-	.open = iwl_dnt_dispatch_open_crash_data,
-	.release = iwl_dnt_dispatch_release_crash_data,
-};
-
 static bool iwl_dnt_register_debugfs_entries(struct iwl_trans *trans,
 					    struct dentry *dbgfs_dir)
 {
@@ -130,13 +124,6 @@ static bool iwl_dnt_register_debugfs_entries(struct iwl_trans *trans,
 	if (!debugfs_create_file("log", S_IRUSR, dnt->debugfs_entry,
 				 trans, &iwl_dnt_debugfs_log_ops))
 		return false;
-
-	dnt->crash_entry = debugfs_create_file("crash_collect", S_IRUSR,
-					       dbgfs_dir, trans,
-					       &iwl_dnt_debugfs_crash_ops);
-	if (!dnt->crash_entry)
-		return false;
-
 	return true;
 }
 #endif
@@ -283,7 +270,6 @@ void iwl_dnt_init(struct iwl_trans *trans, struct dentry *dbgfs_dir)
 	trans->tmdev->dnt = dnt;
 
 	dnt->dev = trans->dev;
-	spin_lock_init(&dnt->dispatch.crash_lock);
 
 #ifdef CPTCFG_IWLWIFI_DEBUGFS
 	ret = iwl_dnt_register_debugfs_entries(trans, dbgfs_dir);
@@ -291,7 +277,6 @@ void iwl_dnt_init(struct iwl_trans *trans, struct dentry *dbgfs_dir)
 		IWL_ERR(trans, "Failed to create dnt debugfs entries\n");
 		return;
 	}
-	dnt->dispatch.crash_out_mode |= DEBUGFS;
 	err = iwl_dnt_conf_ucode_msgs_via_rx(trans, DEBUGFS);
 	if (err)
 		IWL_DEBUG_INFO(trans, "Failed to configure uCodeMessages\n");

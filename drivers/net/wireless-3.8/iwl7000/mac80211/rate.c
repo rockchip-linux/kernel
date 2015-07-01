@@ -393,6 +393,10 @@ static void rate_idx_match_mask(struct ieee80211_tx_rate *rate,
 		/* if HT BSS, and we handle a data frame, also try HT rates */
 		switch (chan_width) {
 		case NL80211_CHAN_WIDTH_20_NOHT:
+#if CFG80211_VERSION >= KERNEL_VERSION(3,11,0)
+		case NL80211_CHAN_WIDTH_5:
+		case NL80211_CHAN_WIDTH_10:
+#endif
 			return;
 		default:
 			break;
@@ -444,7 +448,8 @@ static void rate_fixup_ratelist(struct ieee80211_vif *vif,
 	 *
 	 * XXX: Should this check all retry rates?
 	 */
-	if (!(rates[0].flags & IEEE80211_TX_RC_MCS)) {
+	if (!(rates[0].flags &
+	      (IEEE80211_TX_RC_MCS | IEEE80211_TX_RC_VHT_MCS))) {
 		u32 basic_rates = vif->bss_conf.basic_rates;
 		s8 baserate = basic_rates ? ffs(basic_rates) - 1 : 0;
 

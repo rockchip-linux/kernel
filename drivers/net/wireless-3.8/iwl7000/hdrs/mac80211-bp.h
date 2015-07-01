@@ -28,12 +28,6 @@ static inline void netdev_attach_ops(struct net_device *dev,
 /* cannot be supported on this kernel */
 #define NL80211_FEATURE_TDLS_CHANNEL_SWITCH	0
 
-static inline void
-cfg80211_ch_switch_started_notify(struct net_device *dev,
-				  struct cfg80211_chan_def *chandef)
-{
-}
-
 /* cfg80211 version specific backward compat code follows */
 #define CFG80211_VERSION KERNEL_VERSION(3,8,0)
 
@@ -72,6 +66,7 @@ ieee80211_operating_class_to_band(u8 operating_class,
 	switch (operating_class) {
 	case 112:
 	case 115 ... 127:
+	case 128 ... 130:
 		*band = IEEE80211_BAND_5GHZ;
 		return true;
 	case 81:
@@ -319,9 +314,11 @@ struct cfg80211_mgmt_tx_params {
 			      IEEE80211_CHAN_NO_IBSS)
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,14,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(3,15,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)
 #define IEEE80211_RADIOTAP_CODING_LDPC_USER0	0x1
+#endif
 
+#if CFG80211_VERSION < KERNEL_VERSION(3,15,0)
 #define cfg80211_ibss_joined(dev, bssid, chan, gfp) \
 	cfg80211_ibss_joined(dev, bssid, gfp)
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,15,0) */
@@ -487,14 +484,12 @@ cfg80211_check_combinations(struct wiphy *wiphy,
 	return 0;
 }
 
-#define cfg80211_ch_switch_started_notify(dev, chandef, count) \
-	cfg80211_ch_switch_started_notify(dev, chandef)
 #define const_since_3_16
 #else
 #define const_since_3_16 const
 #endif /* CFG80211_VERSION < KERNEL_VERSION(3,16,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(3,18,0)
+#if CFG80211_VERSION < KERNEL_VERSION(3,19,0)
 #define NL80211_IFTYPE_OCB 11 /* not used, but code is there */
 #define NL80211_FEATURE_MAC_ON_CREATE 0 /* cannot be used */
 
@@ -505,13 +500,12 @@ wiphy_new_nm(const struct cfg80211_ops *ops, int sizeof_priv,
 	/* drop the requested name since it's not supported */
 	return wiphy_new(ops, sizeof_priv);
 }
-#endif /* CFG80211_VERSION < KERNEL_VERSION(3,18,0) */
 
-#if CFG80211_VERSION < KERNEL_VERSION(3,19,0)
-#define NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR 0
-#define NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR 0
-#define NL80211_FEATURE_ND_RANDOM_MAC_ADDR 0
-#define NL80211_SCAN_FLAG_RANDOM_ADDR 0
+static inline void
+cfg80211_cqm_beacon_loss_notify(struct net_device *dev, gfp_t gfp)
+{
+	/* don't do anything - this event is unused by the supplicant here */
+}
 
 /* LAR related functionality privately backported into mac80211 */
 int regulatory_set_wiphy_regd(struct wiphy *wiphy,
@@ -523,7 +517,94 @@ int regulatory_set_wiphy_regd_sync_rtnl(struct wiphy *wiphy,
 #define REGULATORY_WIPHY_SELF_MANAGED WIPHY_FLAG_SELF_MANAGED_REG
 
 #define IEEE80211_CHAN_INDOOR_ONLY 0
-#define IEEE80211_CHAN_GO_CONCURRENT 0
+#define IEEE80211_CHAN_IR_CONCURRENT 0
+
+static inline void
+cfg80211_ch_switch_started_notify(struct net_device *dev,
+				  struct cfg80211_chan_def *chandef,
+				  u8 count)
+{
+}
+#endif /* 3.19 */
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,0,0)
+static inline void
+cfg80211_del_sta_sinfo(struct net_device *dev, const u8 *mac_addr,
+		       struct station_info *sinfo, gfp_t gfp)
+{
+	cfg80211_del_sta(dev, mac_addr, gfp);
+}
+
+enum rate_info_bw {
+	RATE_INFO_BW_5,
+	RATE_INFO_BW_10,
+	RATE_INFO_BW_20,
+	RATE_INFO_BW_40,
+	RATE_INFO_BW_80,
+	RATE_INFO_BW_160,
+};
+
+enum ieee80211_bss_type {
+	IEEE80211_BSS_TYPE_ESS,
+	IEEE80211_BSS_TYPE_PBSS,
+	IEEE80211_BSS_TYPE_IBSS,
+	IEEE80211_BSS_TYPE_MBSS,
+	IEEE80211_BSS_TYPE_ANY
+};
+
+enum ieee80211_privacy {
+	IEEE80211_PRIVACY_ON,
+	IEEE80211_PRIVACY_OFF,
+	IEEE80211_PRIVACY_ANY
+};
+
+#define IEEE80211_PRIVACY(x)	\
+	((x) ? IEEE80211_PRIVACY_ON : IEEE80211_PRIVACY_OFF)
+
+static inline struct cfg80211_bss *
+iwl7000_cfg80211_get_bss(struct wiphy *wiphy,
+			 struct ieee80211_channel *channel,
+			 const u8 *bssid,
+			 const u8 *ssid, size_t ssid_len,
+			 enum ieee80211_bss_type bss_type,
+			 enum ieee80211_privacy privacy)
+{
+	u16 capa_val = 0;
+	u16 capa_msk = 0;
+
+	switch (bss_type) {
+	case IEEE80211_BSS_TYPE_ESS:
+		capa_val |= WLAN_CAPABILITY_ESS;
+		capa_msk |= WLAN_CAPABILITY_ESS;
+		break;
+	case IEEE80211_BSS_TYPE_PBSS:
+	case IEEE80211_BSS_TYPE_MBSS:
+		WARN_ON(1);
+		break;
+	case IEEE80211_BSS_TYPE_IBSS:
+		capa_val |= WLAN_CAPABILITY_IBSS;
+		capa_msk |= WLAN_CAPABILITY_IBSS;
+		break;
+	case IEEE80211_BSS_TYPE_ANY:
+		break;
+	}
+
+	switch (privacy) {
+	case IEEE80211_PRIVACY_ON:
+		capa_val |= WLAN_CAPABILITY_PRIVACY;
+		capa_msk |= WLAN_CAPABILITY_PRIVACY;
+		break;
+	case IEEE80211_PRIVACY_OFF:
+		capa_msk |= WLAN_CAPABILITY_PRIVACY;
+		break;
+	case IEEE80211_PRIVACY_ANY:
+		break;
+	}
+
+	return cfg80211_get_bss(wiphy, channel, bssid, ssid, ssid_len,
+				capa_msk, capa_val);
+}
+#define cfg80211_get_bss iwl7000_cfg80211_get_bss
 
 static inline bool
 ieee80211_chandef_to_operating_class(struct cfg80211_chan_def *chandef,
@@ -657,4 +738,18 @@ ieee80211_chandef_to_operating_class(struct cfg80211_chan_def *chandef,
 #ifndef U16_MAX
 #define U16_MAX         ((u16)~0U)
 #endif
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,1,0)
+size_t ieee80211_ie_split_ric(const u8 *ies, size_t ielen,
+			      const u8 *ids, int n_ids,
+			      const u8 *after_ric, int n_after_ric,
+			      size_t offset);
+size_t ieee80211_ie_split(const u8 *ies, size_t ielen,
+			  const u8 *ids, int n_ids, size_t offset);
+#endif
+
+#if CFG80211_VERSION < KERNEL_VERSION(4,3,0)
+#define cfg80211_reg_can_beacon_relax(wiphy, chandef, iftype) \
+	cfg80211_reg_can_beacon(wiphy, chandef, iftype)
 #endif

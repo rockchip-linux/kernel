@@ -69,13 +69,6 @@
 
 #define QUOTA_100	IWL_MVM_MAX_QUOTA
 #define QUOTA_LOWLAT_MIN ((QUOTA_100 * IWL_MVM_LOWLAT_QUOTA_MIN_PERCENT) / 100)
-#ifdef CPTCFG_IWLMVM_TCM
-#define QUOTA_LOWLAT_HIGH \
-	((QUOTA_100 * IWL_MVM_LOWLAT_QUOTA_LOWTRAF_PERCENT) / 100)
-/* threshold * 1000 usec/msec / 100 (percentage) * period length */
-#define QUOTA_AIRTIME_THRESH \
-	(IWL_MVM_QUOTA_AIRTIME_THRESH * 1000/100 * MVM_TCM_PERIOD_MSEC)
-#endif
 
 struct iwl_mvm_quota_iterator_data {
 	int n_interfaces[MAX_BINDINGS];
@@ -83,9 +76,6 @@ struct iwl_mvm_quota_iterator_data {
 	int low_latency[MAX_BINDINGS];
 	int n_low_latency_bindings;
 	struct ieee80211_vif *disabled_vif;
-#ifdef CPTCFG_IWLMVM_TCM
-	unsigned long non_ll_macs;
-#endif
 };
 
 static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
@@ -143,12 +133,35 @@ static void iwl_mvm_quota_iterator(void *_data, u8 *mac,
 		data->n_low_latency_bindings++;
 		data->low_latency[id] = true;
 	}
-#ifdef CPTCFG_IWLMVM_TCM
-	else {
-		data->non_ll_macs |= BIT(mvmvif->id);
-	}
-#endif
 }
+
+#ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
+/*
+ * Zero quota for P2P client MAC as part of a WA to pass P2P OPPPS certification
+ * test. Refer to IWLMVM_P2P_OPPPS_TEST_WA description in Kconfig.noupstream for
+ * details.
+ */
+static void iwl_mvm_adjust_quota_for_p2p_wa(struct iwl_mvm *mvm,
+					    struct iwl_time_quota_cmd *cmd)
+{
+	int i, phy_id = -1;
+
+	if (!mvm->p2p_opps_test_wa_vif ||
+	    !mvm->p2p_opps_test_wa_vif->phy_ctxt)
+		return;
+
+	phy_id = mvm->p2p_opps_test_wa_vif->phy_ctxt->id;
+	for (i = 0; i < MAX_BINDINGS; i++) {
+		u32 id_n_c = le32_to_cpu(cmd->quotas[i].id_and_color);
+		u32 id = (id_n_c & FW_CTXT_ID_MSK) >> FW_CTXT_ID_POS;
+
+		if (id != phy_id)
+			continue;
+
+		cmd->quotas[i].quota = 0;
+	}
+}
+#endif
 
 static void iwl_mvm_adjust_quota_for_noa(struct iwl_mvm *mvm,
 					 struct iwl_time_quota_cmd *cmd)
@@ -187,6 +200,7 @@ static void iwl_mvm_adjust_quota_for_noa(struct iwl_mvm *mvm,
 }
 
 int iwl_mvm_update_quotas(struct iwl_mvm *mvm,
+			  bool force_update,
 			  struct ieee80211_vif *disabled_vif)
 {
 	struct iwl_time_quota_cmd cmd = {};
@@ -241,20 +255,6 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm,
 		 * low latency one. Split the rest of the quota equally
 		 * between the other data interfaces.
 		 */
-#ifdef CPTCFG_IWLMVM_TCM
-		u32 airtime = 0;
-		int mac;
-
-		/* if the non-low-latency MACs are using more than 16% airtime,
-		 * give them more breathing room by adjusting the low-latency
-		 * quota down a bit...
-		 */
-		for_each_set_bit(mac, &data.non_ll_macs, NUM_MAC_INDEX_DRIVER)
-			airtime += mvm->tcm.result.airtime[mac];
-		if (airtime < QUOTA_AIRTIME_THRESH)
-			quota = (QUOTA_100 - QUOTA_LOWLAT_HIGH) / n_non_lowlat;
-		else
-#endif
 		quota = (QUOTA_100 - QUOTA_LOWLAT_MIN) / n_non_lowlat;
 		quota_rem = QUOTA_100 - n_non_lowlat * quota -
 			    QUOTA_LOWLAT_MIN;
@@ -338,7 +338,17 @@ int iwl_mvm_update_quotas(struct iwl_mvm *mvm,
 			  "zero quota on binding %d\n", i);
 	}
 
-	if (!send) {
+#ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
+	/*
+	 * Zero quota for P2P client MAC as part of a WA to pass P2P OPPPS
+	 * certification test. Refer to IWLMVM_P2P_OPPPS_TEST_WA description in
+	 * Kconfig.noupstream for details.
+	 */
+	if (mvm->p2p_opps_test_wa_vif)
+		iwl_mvm_adjust_quota_for_p2p_wa(mvm, &cmd);
+#endif
+
+	if (!send && !force_update) {
 		/* don't send a practically unchanged command, the firmware has
 		 * to re-initialize a lot of state and that can have an adverse
 		 * impact on it

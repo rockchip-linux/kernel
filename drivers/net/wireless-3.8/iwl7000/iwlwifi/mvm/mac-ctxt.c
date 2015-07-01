@@ -208,8 +208,10 @@ u32 iwl_mvm_mac_get_queues_mask(struct ieee80211_vif *vif)
 	if (vif->type == NL80211_IFTYPE_P2P_DEVICE)
 		return BIT(IWL_MVM_OFFCHANNEL_QUEUE);
 
-	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
-		qmask |= BIT(vif->hw_queue[ac]);
+	for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
+		if (vif->hw_queue[ac] != IEEE80211_INVAL_HW_QUEUE)
+			qmask |= BIT(vif->hw_queue[ac]);
+	}
 
 	if (vif->type == NL80211_IFTYPE_AP)
 		qmask |= BIT(vif->cab_queue);
@@ -468,6 +470,8 @@ exit_fail:
 
 int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 {
+	unsigned int wdg_timeout =
+		iwl_mvm_get_wd_timeout(mvm, vif, false, false);
 	u32 ac;
 	int ret;
 
@@ -480,16 +484,17 @@ int iwl_mvm_mac_ctxt_init(struct iwl_mvm *mvm, struct ieee80211_vif *vif)
 	switch (vif->type) {
 	case NL80211_IFTYPE_P2P_DEVICE:
 		iwl_mvm_enable_ac_txq(mvm, IWL_MVM_OFFCHANNEL_QUEUE,
-				      IWL_MVM_TX_FIFO_VO);
+				      IWL_MVM_TX_FIFO_VO, wdg_timeout);
 		break;
 	case NL80211_IFTYPE_AP:
 		iwl_mvm_enable_ac_txq(mvm, vif->cab_queue,
-				      IWL_MVM_TX_FIFO_MCAST);
+				      IWL_MVM_TX_FIFO_MCAST, wdg_timeout);
 		/* fall through */
 	default:
 		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++)
 			iwl_mvm_enable_ac_txq(mvm, vif->hw_queue[ac],
-					      iwl_mvm_ac_to_tx_fifo[ac]);
+					      iwl_mvm_ac_to_tx_fifo[ac],
+					      wdg_timeout);
 		break;
 	}
 
@@ -764,7 +769,16 @@ static int iwl_mvm_mac_ctxt_cmd_sta(struct iwl_mvm *mvm,
 	if (vif->p2p) {
 		struct ieee80211_p2p_noa_attr *noa =
 			&vif->bss_conf.p2p_noa_attr;
-
+#ifdef CPTCFG_IWLMVM_P2P_OPPPS_TEST_WA
+		/*
+		 * Pass CT window including OPPPS enable flag as part of a WA
+		 * to pass P2P OPPPS certification test. Refer to
+		 * IWLMVM_P2P_OPPPS_TEST_WA description in Kconfig.noupstream.
+		 */
+		if (mvm->p2p_opps_test_wa_vif)
+			cmd.p2p_sta.ctwin = cpu_to_le32(noa->oppps_ctwindow);
+		else
+#endif
 		cmd.p2p_sta.ctwin = cpu_to_le32(noa->oppps_ctwindow &
 					IEEE80211_P2P_OPPPS_CTWINDOW_MASK);
 		ctxt_sta = &cmd.p2p_sta.sta;
@@ -1407,7 +1421,7 @@ static void iwl_mvm_beacon_loss_iterator(void *_data, u8 *mac,
 
 	if (rx_missed_bcon_since_rx >= stop_trig_missed_bcon_since_rx ||
 	    rx_missed_bcon >= stop_trig_missed_bcon)
-		iwl_mvm_fw_dbg_collect_trig(mvm, trigger, NULL, 0);
+		iwl_mvm_fw_dbg_collect_trig(mvm, trigger, NULL);
 }
 
 int iwl_mvm_rx_missed_beacons_notif(struct iwl_mvm *mvm,

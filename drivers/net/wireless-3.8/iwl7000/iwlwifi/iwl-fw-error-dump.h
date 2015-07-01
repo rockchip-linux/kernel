@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2014 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2014 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -183,7 +183,7 @@ struct iwl_fw_error_dump_info {
  * struct iwl_fw_error_dump_fw_mon - FW monitor data
  * @fw_mon_wr_ptr: the position of the write pointer in the cyclic buffer
  * @fw_mon_base_ptr: base pointer of the data
- * @fw_mon_cycle_cnt: number of wrap arounds
+ * @fw_mon_cycle_cnt: number of wraparounds
  * @reserved: for future use
  * @data: captured data
  */
@@ -250,6 +250,11 @@ iwl_fw_error_next_data(struct iwl_fw_error_dump_data *data)
  * @FW_DBG_TRIGGER_STATS: trigger log collection upon statistics threshold.
  * @FW_DBG_TRIGGER_RSSI: trigger log collection when the rssi of the beacon
  *	goes below a threshold.
+ * @FW_DBG_TRIGGER_TXQ_TIMERS: configures the timers for the Tx queue hang
+ *	detection.
+ * @FW_DBG_TRIGGER_TIME_EVENT: trigger log collection upon time events related
+ *	events.
+ * @FW_DBG_TRIGGER_BA: trigger log collection upon BlockAck related events.
  */
 enum iwl_fw_dbg_trigger {
 	FW_DBG_TRIGGER_INVALID = 0,
@@ -261,6 +266,9 @@ enum iwl_fw_dbg_trigger {
 	FW_DBG_TRIGGER_MLME,
 	FW_DBG_TRIGGER_STATS,
 	FW_DBG_TRIGGER_RSSI,
+	FW_DBG_TRIGGER_TXQ_TIMERS,
+	FW_DBG_TRIGGER_TIME_EVENT,
+	FW_DBG_TRIGGER_BA,
 
 	/* must be last */
 	FW_DBG_TRIGGER_MAX,

@@ -261,17 +261,34 @@ static void iwl_xvt_nic_config(struct iwl_op_mode *op_mode)
 static void iwl_xvt_nic_error(struct iwl_op_mode *op_mode)
 {
 	struct iwl_xvt *xvt = IWL_OP_MODE_GET_XVT(op_mode);
-	int err;
+	void *p_table;
+	struct iwl_error_event_table_v1 table_v1;
+	struct iwl_error_event_table_v2 table_v2;
+	int err, table_size;
 
 	xvt->fw_error = true;
 	wake_up_interruptible(&xvt->mod_tx_wq);
 
-	iwl_xvt_dump_nic_error_log(xvt);
-
-	err = iwl_xvt_user_send_notif(xvt, IWL_XVT_CMD_SEND_NIC_ERROR,
-				      NULL, 0, GFP_ATOMIC);
-	if (err)
-		IWL_WARN(xvt, "Error %d sending NIC error notification\n", err);
+	if (xvt->fw->ucode_capa.api[0] & IWL_UCODE_TLV_API_NEW_VERSION) {
+		iwl_xvt_get_nic_error_log_v2(xvt, &table_v2);
+		iwl_xvt_dump_nic_error_log_v2(xvt, &table_v2);
+		p_table = kmemdup(&table_v2, sizeof(table_v2), GFP_ATOMIC);
+		table_size = sizeof(table_v2);
+	} else {
+		iwl_xvt_get_nic_error_log_v1(xvt, &table_v1);
+		iwl_xvt_dump_nic_error_log_v1(xvt, &table_v1);
+		p_table = kmemdup(&table_v1, sizeof(table_v1), GFP_ATOMIC);
+		table_size = sizeof(table_v1);
+	}
+	if (p_table) {
+		err = iwl_xvt_user_send_notif(xvt, IWL_XVT_CMD_SEND_NIC_ERROR,
+					      (void *)p_table, table_size,
+					      GFP_ATOMIC);
+		if (err)
+			IWL_WARN(xvt,
+				 "Error %d sending NIC error notification\n",
+				 err);
+	}
 }
 
 static bool iwl_xvt_set_hw_rfkill_state(struct iwl_op_mode *op_mode, bool state)

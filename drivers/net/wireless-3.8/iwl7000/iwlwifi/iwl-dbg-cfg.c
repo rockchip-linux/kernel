@@ -86,44 +86,46 @@ struct iwl_dbg_cfg current_dbg_config = {
 #define IWL_DBG_CFG_NODEF(type, name) /* no default */
 #define IWL_DBG_CFG_BIN(name) /* nothing, default empty */
 #define IWL_DBG_CFG_BINA(name, max) /* nothing, default empty */
+#define IWL_DBG_CFG_RANGE(type, name, min, max)	\
+	.name = IWL_ ## name,
 #include "iwl-dbg-cfg.h"
 #undef IWL_DBG_CFG
 #undef IWL_DBG_CFG_NODEF
 #undef IWL_DBG_CFG_BIN
 #undef IWL_DBG_CFG_BINA
+#undef IWL_DBG_CFG_RANGE
 };
 
 static const char dbg_cfg_magic[] = "[IWL DEBUG CONFIG DATA]";
 
-static void dbg_cfg_load_u8(const char *name, const char *val, u8 *out)
-{
-	if (kstrtou8(val, 0, out))
-		printk(KERN_INFO "iwlwifi debug config: Invalid data for %s: %s\n",
-		       name, val);
-	else
-		printk(KERN_INFO "iwlwifi debug config: %s=%d\n", name, *out);
+#define DBG_CFG_LOADER(_type)							\
+static void dbg_cfg_load_ ## _type(const char *name, const char *val,		\
+				   _type *out, _type min, _type max)		\
+{										\
+	_type r;								\
+										\
+	if (kstrto ## _type(val, 0, &r)) {					\
+		printk(KERN_INFO "iwlwifi debug config: Invalid data for %s: %s\n",\
+		       name, val);						\
+		return;								\
+	}									\
+										\
+	if (min && max && (r < min || r > max)) {				\
+		printk(KERN_INFO "iwlwifi debug config: value %u for %s out of range [%u,%u]\n",\
+		       r, name, min, max);					\
+		return;								\
+	}									\
+										\
+	*out = r;								\
+	printk(KERN_INFO "iwlwifi debug config: %s=%d\n", name, *out);		\
 }
 
-static void dbg_cfg_load_u16(const char *name, const char *val, u16 *out)
-{
-	if (kstrtou16(val, 0, out))
-		printk(KERN_INFO "iwlwifi debug config: Invalid data for %s: %s\n",
-		       name, val);
-	else
-		printk(KERN_INFO "iwlwifi debug config: %s=%d\n", name, *out);
-}
-
-static void dbg_cfg_load_u32(const char *name, const char *val, u32 *out)
-{
-	if (kstrtou32(val, 0, out))
-		printk(KERN_INFO "iwlwifi debug config: Invalid data for %s: %s\n",
-		       name, val);
-	else
-		printk(KERN_INFO "iwlwifi debug config: %s=%d\n", name, *out);
-}
+DBG_CFG_LOADER(u8)
+DBG_CFG_LOADER(u16)
+DBG_CFG_LOADER(u32)
 
 static void __maybe_unused /* no users yet */
-dbg_cfg_load_bool(const char *name, const char *val, u32 *out)
+dbg_cfg_load_bool(const char *name, const char *val, u32 *out, int min, int max)
 {
 	u8 v;
 
@@ -178,11 +180,13 @@ void iwl_dbg_cfg_init_dbgfs(struct dentry *root)
 #define IWL_DBG_CFG_NODEF(type, name) IWL_DBG_CFG(type, name)
 #define IWL_DBG_CFG_BIN(name) /* blobs can't be preconfigured in debugfs */
 #define IWL_DBG_CFG_BINA(name, max) /* ditto for blob arrays */
+#define IWL_DBG_CFG_RANGE(type, name, min, max) /* not supported yet */
 #include "iwl-dbg-cfg.h"
 #undef IWL_DBG_CFG
 #undef IWL_DBG_CFG_NODEF
 #undef IWL_DBG_CFG_BIN
 #undef IWL_DBG_CFG_BINA
+#undef IWL_DBG_CFG_RANGE
 }
 #endif /* CPTCFG_IWLWIFI_DEBUGFS */
 
@@ -207,11 +211,13 @@ void iwl_dbg_cfg_free(struct iwl_dbg_cfg *dbgcfg)
 		}					\
 		dbgcfg->n_ ## n = 0;			\
 	} while (0);
+#define IWL_DBG_CFG_RANGE(t, n, min, max) /* nothing */
 #include "iwl-dbg-cfg.h"
 #undef IWL_DBG_CFG
 #undef IWL_DBG_CFG_NODEF
 #undef IWL_DBG_CFG_BIN
 #undef IWL_DBG_CFG_BINA
+#undef IWL_DBG_CFG_RANGE
 }
 
 void iwl_dbg_cfg_load_ini(struct device *dev, struct iwl_dbg_cfg *dbgcfg)
@@ -264,7 +270,7 @@ void iwl_dbg_cfg_load_ini(struct device *dev, struct iwl_dbg_cfg *dbgcfg)
 		if (strncmp(#n, line, strlen(#n)) == 0 &&		\
 		    line[strlen(#n)] == '=') {				\
 			dbg_cfg_load_##t(#n, line + strlen(#n) + 1,	\
-					 &dbgcfg->n);			\
+					 &dbgcfg->n, 0, 0);		\
 			continue;					\
 		}
 #define IWL_DBG_CFG_NODEF(t, n) IWL_DBG_CFG(t, n)
@@ -288,11 +294,19 @@ void iwl_dbg_cfg_load_ini(struct device *dev, struct iwl_dbg_cfg *dbgcfg)
 				dbgcfg->n_##n++;			\
 			continue;					\
 		}
+#define IWL_DBG_CFG_RANGE(t, n, min, max)				\
+		if (strncmp(#n, line, strlen(#n)) == 0 &&		\
+		    line[strlen(#n)] == '=') {				\
+			dbg_cfg_load_##t(#n, line + strlen(#n) + 1,	\
+					 &dbgcfg->n, min, max);		\
+			continue;					\
+		}
 #include "iwl-dbg-cfg.h"
 #undef IWL_DBG_CFG
 #undef IWL_DBG_CFG_NODEF
 #undef IWL_DBG_CFG_BIN
 #undef IWL_DBG_CFG_BINA
+#undef IWL_DBG_CFG_RANGE
 		printk(KERN_INFO "iwlwifi debug config: failed to load line \"%s\"\n",
 		       line);
 	}

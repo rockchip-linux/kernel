@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright (C) 2015 Intel Deutschland GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
+ * Copyright (C) 2015 Intel Deutschland GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -61,11 +63,14 @@
  *
  *****************************************************************************/
 #include <linux/firmware.h>
+
 #include "iwl-trans.h"
 #include "xvt.h"
 #include "iwl-eeprom-parse.h"
 #include "iwl-eeprom-read.h"
 #include "iwl-nvm-parse.h"
+#include "iwl-prph.h"
+#include "fw-api.h"
 
 /* Default NVM size to read */
 #define IWL_NVM_DEFAULT_CHUNK_SIZE	(2*1024)
@@ -73,6 +78,16 @@
 
 #define NVM_WRITE_OPCODE 1
 #define NVM_READ_OPCODE 0
+
+enum wkp_nvm_offsets {
+	/* NVM HW-Section offset (in words) definitions */
+	HW_ADDR = 0x15,
+};
+
+enum family_8000_nvm_offsets {
+	/* NVM HW-Section offset (in words) definitions */
+	MAC_ADDRESS_OVERRIDE_FAMILY_8000 = 1,
+};
 
 /*
  * prepare the NVM host command w/ the pointers to the nvm buffer
@@ -125,6 +140,17 @@ static int iwl_nvm_write_section(struct iwl_xvt *xvt, u16 section,
 
 #define MAX_NVM_FILE_LEN	16384
 
+static void iwl_xvt_set_nvm_mac_addr(u8 *xvt_mac_addr, const u8 *nvm_addr)
+{
+	/* The byte order is little endian 16 bit, meaning 214365 */
+	xvt_mac_addr[0] = nvm_addr[1];
+	xvt_mac_addr[1] = nvm_addr[0];
+	xvt_mac_addr[2] = nvm_addr[3];
+	xvt_mac_addr[3] = nvm_addr[2];
+	xvt_mac_addr[4] = nvm_addr[5];
+	xvt_mac_addr[5] = nvm_addr[4];
+}
+
 /*
  * HOW TO CREATE THE NVM FILE FORMAT:
  * ------------------------------
@@ -156,6 +182,7 @@ static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 	} *file_sec;
 	const u8 *eof;
 	const __le32 *dword_buff;
+	const u8 *hw_addr;
 
 #define NVM_WORD1_LEN(x) (8 * (x & 0x03FF))
 #define NVM_WORD2_ID(x) (x >> 12)
@@ -255,6 +282,18 @@ static int iwl_xvt_load_external_nvm(struct iwl_xvt *xvt)
 			break;
 		}
 
+		if (section_id == xvt->cfg->nvm_hw_section_num) {
+			hw_addr = (const u8 *)((const __le16 *)file_sec->data +
+						HW_ADDR);
+			iwl_xvt_set_nvm_mac_addr(xvt->nvm_hw_addr, hw_addr);
+		}
+		if (section_id == NVM_SECTION_TYPE_MAC_OVERRIDE) {
+			xvt->is_nvm_mac_override = true;
+			hw_addr = (const u8 *)((const __le16 *)file_sec->data +
+				   MAC_ADDRESS_OVERRIDE_FAMILY_8000);
+			iwl_xvt_set_nvm_mac_addr(xvt->nvm_mac_addr, hw_addr);
+		}
+
 		ret = iwl_nvm_write_section(xvt, section_id, file_sec->data,
 					    section_size);
 		if (ret < 0) {
@@ -273,6 +312,8 @@ out:
 int iwl_xvt_nvm_init(struct iwl_xvt *xvt)
 {
 	int ret;
+
+	xvt->is_nvm_mac_override = false;
 
 	/* load external NVM if configured */
 	if (iwlwifi_mod_params.nvm_file) {

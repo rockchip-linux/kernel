@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2012 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -72,12 +72,12 @@
 #include "iwl-eeprom-parse.h"
 #include "iwl-eeprom-read.h"
 #include "iwl-nvm-parse.h"
+#include "iwl-prph.h"
 
 /* Default NVM size to read */
 #define IWL_NVM_DEFAULT_CHUNK_SIZE (2*1024)
 #define IWL_MAX_NVM_SECTION_SIZE	0x1b58
-#define IWL_MAX_NVM_8000A_SECTION_SIZE	0xffc
-#define IWL_MAX_NVM_8000B_SECTION_SIZE	0x1ffc
+#define IWL_MAX_NVM_8000_SECTION_SIZE	0x1ffc
 
 #define NVM_WRITE_OPCODE 1
 #define NVM_READ_OPCODE 0
@@ -266,7 +266,8 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 {
 	struct iwl_nvm_section *sections = mvm->nvm_sections;
 	const __le16 *hw, *sw, *calib, *regulatory, *mac_override, *phy_sku;
-	bool is_family_8000_a_step = false, lar_enabled;
+	bool lar_enabled;
+	u32 mac_addr0, mac_addr1;
 
 	/* Checking for required sections */
 	if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000) {
@@ -291,12 +292,8 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 			return NULL;
 		}
 
-		if (CSR_HW_REV_STEP(mvm->trans->hw_rev) == SILICON_A_STEP)
-			is_family_8000_a_step = true;
-
 		/* PHY_SKU section is mandatory in B0 */
-		if (!is_family_8000_a_step &&
-		    !mvm->nvm_sections[NVM_SECTION_TYPE_PHY_SKU].data) {
+		if (!mvm->nvm_sections[NVM_SECTION_TYPE_PHY_SKU].data) {
 			IWL_ERR(mvm,
 				"Can't parse phy_sku in B0, empty sections\n");
 			return NULL;
@@ -305,6 +302,10 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 
 	if (WARN_ON(!mvm->cfg))
 		return NULL;
+
+	/* read the mac address from WFMP registers */
+	mac_addr0 = iwl_trans_read_prph(mvm->trans, WFMP_MAC_ADDR_0);
+	mac_addr1 = iwl_trans_read_prph(mvm->trans, WFMP_MAC_ADDR_1);
 
 	hw = (const __le16 *)sections[mvm->cfg->nvm_hw_section_num].data;
 	sw = (const __le16 *)sections[NVM_SECTION_TYPE_SW].data;
@@ -321,7 +322,7 @@ iwl_parse_nvm_sections(struct iwl_mvm *mvm)
 	return iwl_parse_nvm_data(mvm->trans->dev, mvm->cfg, hw, sw, calib,
 				  regulatory, mac_override, phy_sku,
 				  mvm->fw->valid_tx_ant, mvm->fw->valid_rx_ant,
-				  lar_enabled, is_family_8000_a_step);
+				  lar_enabled, mac_addr0, mac_addr1);
 }
 
 #define MAX_NVM_FILE_LEN	16384
@@ -374,10 +375,8 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 	/* Maximal size depends on HW family and step */
 	if (mvm->trans->cfg->device_family != IWL_DEVICE_FAMILY_8000)
 		max_section_size = IWL_MAX_NVM_SECTION_SIZE;
-	else if (CSR_HW_REV_STEP(mvm->trans->hw_rev) == SILICON_A_STEP)
-		max_section_size = IWL_MAX_NVM_8000A_SECTION_SIZE;
-	else /* Family 8000 B-step or C-step */
-		max_section_size = IWL_MAX_NVM_8000B_SECTION_SIZE;
+	else
+		max_section_size = IWL_MAX_NVM_8000_SECTION_SIZE;
 
 	/*
 	 * Obtain NVM image via request_firmware. Since we already used
@@ -419,6 +418,15 @@ static int iwl_mvm_read_external_nvm(struct iwl_mvm *mvm)
 		IWL_INFO(mvm, "NVM Version %08X\n", le32_to_cpu(dword_buff[2]));
 		IWL_INFO(mvm, "NVM Manufacturing date %08X\n",
 			 le32_to_cpu(dword_buff[3]));
+
+		/* nvm file validation, dword_buff[2] holds the file version */
+		if ((CSR_HW_REV_STEP(mvm->trans->hw_rev) == SILICON_C_STEP &&
+		     le32_to_cpu(dword_buff[2]) < 0xE4A) ||
+		    (CSR_HW_REV_STEP(mvm->trans->hw_rev) == SILICON_B_STEP &&
+		     le32_to_cpu(dword_buff[2]) >= 0xE4A)) {
+			ret = -EFAULT;
+			goto out;
+		}
 	} else {
 		file_sec = (void *)fw_entry->data;
 	}
@@ -517,6 +525,8 @@ int iwl_nvm_init(struct iwl_mvm *mvm, bool read_nvm_from_nic)
 	int ret, section;
 	u32 size_read = 0;
 	u8 *nvm_buffer, *temp;
+	const char *nvm_file_B = mvm->cfg->default_nvm_file_B_step;
+	const char *nvm_file_C = mvm->cfg->default_nvm_file_C_step;
 
 	if (WARN_ON_ONCE(mvm->cfg->nvm_hw_section_num >= NVM_MAX_NUM_SECTIONS))
 		return -EINVAL;
@@ -573,12 +583,29 @@ int iwl_nvm_init(struct iwl_mvm *mvm, bool read_nvm_from_nic)
 		kfree(nvm_buffer);
 	}
 
-	/* load external NVM if configured */
+	/* Only if PNVM selected in the mod param - load external NVM  */
 	if (mvm->nvm_file_name) {
-		/* move to External NVM flow */
+		/* read External NVM file from the mod param */
 		ret = iwl_mvm_read_external_nvm(mvm);
-		if (ret)
-			return ret;
+		if (ret) {
+			/* choose the nvm_file name according to the
+			 * HW step
+			 */
+			if (CSR_HW_REV_STEP(mvm->trans->hw_rev) ==
+			    SILICON_B_STEP)
+				mvm->nvm_file_name = nvm_file_B;
+			else
+				mvm->nvm_file_name = nvm_file_C;
+
+			if (ret == -EFAULT && mvm->nvm_file_name) {
+				/* in case nvm file was failed try again */
+				ret = iwl_mvm_read_external_nvm(mvm);
+				if (ret)
+					return ret;
+			} else {
+				return ret;
+			}
+		}
 	}
 
 	/* parse the relevant nvm sections */
@@ -646,9 +673,9 @@ iwl_mvm_update_mcc(struct iwl_mvm *mvm, const char *alpha2,
 
 	n_channels =  __le32_to_cpu(mcc_resp->n_channels);
 	IWL_DEBUG_LAR(mvm,
-		"MCC response status: 0x%x. new MCC: 0x%x ('%c%c') change: %d n_chans: %d\n",
-		 status, mcc, mcc >> 8, mcc & 0xff,
-		 !!(status == MCC_RESP_NEW_CHAN_PROFILE), n_channels);
+		      "MCC response status: 0x%x. new MCC: 0x%x ('%c%c') change: %d n_chans: %d\n",
+		      status, mcc, mcc >> 8, mcc & 0xff,
+		      !!(status == MCC_RESP_NEW_CHAN_PROFILE), n_channels);
 
 	resp_len = sizeof(*mcc_resp) + n_channels * sizeof(__le32);
 	resp_cp = kmemdup(mcc_resp, resp_len, GFP_KERNEL);

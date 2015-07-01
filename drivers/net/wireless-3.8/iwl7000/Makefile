@@ -30,6 +30,7 @@ export CPTCFG_IWLXVT=m
 endif
 
 subdir-ccflags-y = -I$(src) -include "hdrs/iwl-chrome.h"
+subdir-ccflags-y += -I$(src)/hdrs/
 subdir-ccflags-y += $(call cc-option,-Wno-error=date-time)
 subdir-ccflags-y += $(call cc-option,-Wno-date-time)
 

@@ -39,12 +39,14 @@ static const struct file_operations sta_ ##name## _ops = {		\
 	.llseek = generic_file_llseek,					\
 }
 
+#ifdef CPTCFG_MAC80211_LATENCY_MEASUREMENTS
 #define STA_OPS_W(name)							\
 static const struct file_operations sta_ ##name## _ops = {		\
 	.write = sta_##name##_write,					\
 	.open = simple_open,						\
 	.llseek = generic_file_llseek,					\
 }
+#endif /* CPTCFG_MAC80211_LATENCY_MEASUREMENTS */
 
 #define STA_OPS_RW(name)						\
 static const struct file_operations sta_ ##name## _ops = {		\
@@ -398,6 +400,7 @@ static ssize_t sta_last_rx_rate_read(struct file *file, char __user *userbuf,
 }
 STA_OPS(last_rx_rate);
 
+#ifdef CPTCFG_MAC80211_LATENCY_MEASUREMENTS
 static int
 sta_tx_consec_loss_stat_header(struct ieee80211_tx_consec_loss_ranges *tx_csc,
 			       char *buf, int pos, int bufsz)
@@ -640,6 +643,7 @@ static ssize_t sta_tx_timing_stats_reset_write(struct file *file,
 	return count;
 }
 STA_OPS_W(tx_timing_stats_reset);
+#endif /* CPTCFG_MAC80211_LATENCY_MEASUREMENTS */
 
 #define DEBUGFS_ADD(name) \
 	debugfs_create_file(#name, 0400, \
@@ -694,9 +698,11 @@ void ieee80211_sta_debugfs_add(struct sta_info *sta)
 	DEBUGFS_ADD(last_ack_signal);
 	DEBUGFS_ADD(current_tx_rate);
 	DEBUGFS_ADD(last_rx_rate);
+#ifdef CPTCFG_MAC80211_LATENCY_MEASUREMENTS
 	DEBUGFS_ADD(tx_consecutive_loss_stat);
 	DEBUGFS_ADD(tx_latency_stat);
 	DEBUGFS_ADD(tx_timing_stats_reset);
+#endif /* CPTCFG_MAC80211_LATENCY_MEASUREMENTS */
 
 	DEBUGFS_ADD_COUNTER(rx_packets, rx_packets);
 	DEBUGFS_ADD_COUNTER(tx_packets, tx_packets);

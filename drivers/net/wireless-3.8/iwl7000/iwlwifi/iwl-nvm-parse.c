@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2008 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -99,18 +99,14 @@ enum family_8000_nvm_offsets {
 	/* NVM SW-Section offset (in words) definitions */
 	NVM_SW_SECTION_FAMILY_8000 = 0x1C0,
 	NVM_VERSION_FAMILY_8000 = 0,
-	RADIO_CFG_FAMILY_8000 = 2,
-	SKU_FAMILY_8000 = 4,
-	N_HW_ADDRS_FAMILY_8000 = 5,
-
-	/* NVM PHY-SKU-Section offset (in words) for B0 */
-	RADIO_CFG_FAMILY_8000_B0 = 0,
-	SKU_FAMILY_8000_B0 = 2,
-	N_HW_ADDRS_FAMILY_8000_B0 = 3,
+	RADIO_CFG_FAMILY_8000 = 0,
+	SKU_FAMILY_8000 = 2,
+	N_HW_ADDRS_FAMILY_8000 = 3,
 
 	/* NVM REGULATORY -Section offset (in words) definitions */
 	NVM_CHANNELS_FAMILY_8000 = 0,
-	NVM_LAR_OFFSET_FAMILY_8000 = 0x4C7,
+	NVM_LAR_OFFSET_FAMILY_8000_OLD = 0x4C7,
+	NVM_LAR_OFFSET_FAMILY_8000 = 0x507,
 	NVM_LAR_ENABLED_FAMILY_8000 = 0x7,
 
 	/* NVM calibration section offset (in words) definitions */
@@ -120,10 +116,11 @@ enum family_8000_nvm_offsets {
 
 /* SKU Capabilities (actual values from NVM definition) */
 enum nvm_sku_bits {
-	NVM_SKU_CAP_BAND_24GHZ	= BIT(0),
-	NVM_SKU_CAP_BAND_52GHZ	= BIT(1),
-	NVM_SKU_CAP_11N_ENABLE	= BIT(2),
-	NVM_SKU_CAP_11AC_ENABLE	= BIT(3),
+	NVM_SKU_CAP_BAND_24GHZ		= BIT(0),
+	NVM_SKU_CAP_BAND_52GHZ		= BIT(1),
+	NVM_SKU_CAP_11N_ENABLE		= BIT(2),
+	NVM_SKU_CAP_11AC_ENABLE		= BIT(3),
+	NVM_SKU_CAP_MIMO_DISABLE	= BIT(5),
 };
 
 /*
@@ -244,6 +241,18 @@ static u32 iwl_get_channel_flags(u8 ch_num, int ch_idx, bool is_5ghz,
 	if (nvm_flags & NVM_CHANNEL_RADAR)
 		flags |= IEEE80211_CHAN_RADAR;
 
+#if CFG80211_VERSION >= KERNEL_VERSION(3,16,0)
+	if (nvm_flags & NVM_CHANNEL_INDOOR_ONLY)
+		flags |= IEEE80211_CHAN_INDOOR_ONLY;
+
+	/* Set the GO concurrent flag only in case that NO_IR is set.
+	 * Otherwise it is meaningless
+	 */
+	if ((nvm_flags & NVM_CHANNEL_GO_CONCURRENT) &&
+	    (flags & IEEE80211_CHAN_NO_IR))
+		flags |= IEEE80211_CHAN_IR_CONCURRENT;
+#endif
+
 	return flags;
 }
 
@@ -362,6 +371,11 @@ static void iwl_init_vht_hw_capab(const struct iwl_cfg *cfg,
 	if (cfg->ht_params->ldpc)
 		vht_cap->cap |= IEEE80211_VHT_CAP_RXLDPC;
 
+	if (data->sku_cap_mimo_disabled) {
+		num_rx_ants = 1;
+		num_tx_ants = 1;
+	}
+
 	if (num_tx_ants > 1)
 		vht_cap->cap |= IEEE80211_VHT_CAP_TXSTBC;
 	else
@@ -379,6 +393,11 @@ static void iwl_init_vht_hw_capab(const struct iwl_cfg *cfg,
 			    IEEE80211_VHT_MCS_NOT_SUPPORTED << 10 |
 			    IEEE80211_VHT_MCS_NOT_SUPPORTED << 12 |
 			    IEEE80211_VHT_MCS_NOT_SUPPORTED << 14);
+
+	if (data->sku_cap_mimo_disabled) {
+		num_rx_ants = 1;
+		num_tx_ants = 1;
+	}
 
 	if (num_rx_ants == 1 || cfg->rx_with_siso_diversity) {
 		vht_cap->cap |= IEEE80211_VHT_CAP_RX_ANTENNA_PATTERN;
@@ -435,22 +454,16 @@ static void iwl_init_sbands(struct device *dev, const struct iwl_cfg *cfg,
 			    n_used, n_channels);
 }
 
-static int iwl_get_sku(const struct iwl_cfg *cfg,
-		       const __le16 *nvm_sw, const __le16 *phy_sku,
-		       bool is_family_8000_a_step)
+static int iwl_get_sku(const struct iwl_cfg *cfg, const __le16 *nvm_sw,
+		       const __le16 *phy_sku)
 {
 	if (cfg->device_family != IWL_DEVICE_FAMILY_8000)
 		return le16_to_cpup(nvm_sw + SKU);
 
-	if (!is_family_8000_a_step)
-		return le32_to_cpup((__le32 *)(phy_sku +
-					       SKU_FAMILY_8000_B0));
-	else
-		return le32_to_cpup((__le32 *)(nvm_sw + SKU_FAMILY_8000));
+	return le32_to_cpup((__le32 *)(phy_sku + SKU_FAMILY_8000));
 }
 
-static int iwl_get_nvm_version(const struct iwl_cfg *cfg,
-			       const __le16 *nvm_sw)
+static int iwl_get_nvm_version(const struct iwl_cfg *cfg, const __le16 *nvm_sw)
 {
 	if (cfg->device_family != IWL_DEVICE_FAMILY_8000)
 		return le16_to_cpup(nvm_sw + NVM_VERSION);
@@ -459,35 +472,24 @@ static int iwl_get_nvm_version(const struct iwl_cfg *cfg,
 					       NVM_VERSION_FAMILY_8000));
 }
 
-static int iwl_get_radio_cfg(const struct iwl_cfg *cfg,
-			     const __le16 *nvm_sw, const __le16 *phy_sku,
-			     bool is_family_8000_a_step)
+static int iwl_get_radio_cfg(const struct iwl_cfg *cfg, const __le16 *nvm_sw,
+			     const __le16 *phy_sku)
 {
 	if (cfg->device_family != IWL_DEVICE_FAMILY_8000)
 		return le16_to_cpup(nvm_sw + RADIO_CFG);
 
-	if (!is_family_8000_a_step)
-		return le32_to_cpup((__le32 *)(phy_sku +
-					       RADIO_CFG_FAMILY_8000_B0));
-	else
-		return le32_to_cpup((__le32 *)(nvm_sw + RADIO_CFG_FAMILY_8000));
+	return le32_to_cpup((__le32 *)(phy_sku + RADIO_CFG_FAMILY_8000));
 
 }
 
-static int iwl_get_n_hw_addrs(const struct iwl_cfg *cfg,
-			      const __le16 *nvm_sw, bool is_family_8000_a_step)
+static int iwl_get_n_hw_addrs(const struct iwl_cfg *cfg, const __le16 *nvm_sw)
 {
 	int n_hw_addr;
 
 	if (cfg->device_family != IWL_DEVICE_FAMILY_8000)
 		return le16_to_cpup(nvm_sw + N_HW_ADDRS);
 
-	if (!is_family_8000_a_step)
-		n_hw_addr = le32_to_cpup((__le32 *)(nvm_sw +
-						    N_HW_ADDRS_FAMILY_8000_B0));
-	else
-		n_hw_addr = le32_to_cpup((__le32 *)(nvm_sw +
-						    N_HW_ADDRS_FAMILY_8000));
+	n_hw_addr = le32_to_cpup((__le32 *)(nvm_sw + N_HW_ADDRS_FAMILY_8000));
 
 	return n_hw_addr & N_HW_ADDR_MASK;
 }
@@ -532,11 +534,16 @@ static void iwl_set_hw_address_family_8000(struct device *dev,
 					   const struct iwl_cfg *cfg,
 					   struct iwl_nvm_data *data,
 					   const __le16 *mac_override,
-					   const __le16 *nvm_hw)
+					   const __le16 *nvm_hw,
+					   u32 mac_addr0, u32 mac_addr1)
 {
 	const u8 *hw_addr;
 
 	if (mac_override) {
+		static const u8 reserved_mac[] = {
+			0x02, 0xcc, 0xaa, 0xff, 0xee, 0x00
+		};
+
 		hw_addr = (const u8 *)(mac_override +
 				 MAC_ADDRESS_OVERRIDE_FAMILY_8000);
 
@@ -548,7 +555,12 @@ static void iwl_set_hw_address_family_8000(struct device *dev,
 		data->hw_addr[4] = hw_addr[5];
 		data->hw_addr[5] = hw_addr[4];
 
-		if (is_valid_ether_addr(data->hw_addr))
+		/*
+		 * Force the use of the OTP MAC address in case of reserved MAC
+		 * address in the NVM, or if address is given but invalid.
+		 */
+		if (is_valid_ether_addr(data->hw_addr) &&
+		    memcmp(reserved_mac, hw_addr, ETH_ALEN) != 0)
 			return;
 
 		IWL_ERR_DEV(dev,
@@ -556,48 +568,17 @@ static void iwl_set_hw_address_family_8000(struct device *dev,
 	}
 
 	if (nvm_hw) {
-		/* read the MAC address from OTP */
-		if (!dev_is_pci(dev) || (data->nvm_version < 0xE08)) {
-			/* read the mac address from the WFPM location */
-			hw_addr = (const u8 *)(nvm_hw +
-					       HW_ADDR0_WFPM_FAMILY_8000);
-			data->hw_addr[0] = hw_addr[3];
-			data->hw_addr[1] = hw_addr[2];
-			data->hw_addr[2] = hw_addr[1];
-			data->hw_addr[3] = hw_addr[0];
+		/* read the MAC address from HW resisters */
+		hw_addr = (const u8 *)&mac_addr0;
+		data->hw_addr[0] = hw_addr[3];
+		data->hw_addr[1] = hw_addr[2];
+		data->hw_addr[2] = hw_addr[1];
+		data->hw_addr[3] = hw_addr[0];
 
-			hw_addr = (const u8 *)(nvm_hw +
-					       HW_ADDR1_WFPM_FAMILY_8000);
-			data->hw_addr[4] = hw_addr[1];
-			data->hw_addr[5] = hw_addr[0];
-		} else if ((data->nvm_version >= 0xE08) &&
-			   (data->nvm_version < 0xE0B)) {
-			/* read "reverse order"  from the PCIe location */
-			hw_addr = (const u8 *)(nvm_hw +
-					       HW_ADDR0_PCIE_FAMILY_8000);
-			data->hw_addr[5] = hw_addr[2];
-			data->hw_addr[4] = hw_addr[1];
-			data->hw_addr[3] = hw_addr[0];
+		hw_addr = (const u8 *)&mac_addr1;
+		data->hw_addr[4] = hw_addr[1];
+		data->hw_addr[5] = hw_addr[0];
 
-			hw_addr = (const u8 *)(nvm_hw +
-					       HW_ADDR1_PCIE_FAMILY_8000);
-			data->hw_addr[2] = hw_addr[3];
-			data->hw_addr[1] = hw_addr[2];
-			data->hw_addr[0] = hw_addr[1];
-		} else {
-			/* read from the PCIe location */
-			hw_addr = (const u8 *)(nvm_hw +
-					       HW_ADDR0_PCIE_FAMILY_8000);
-			data->hw_addr[5] = hw_addr[0];
-			data->hw_addr[4] = hw_addr[1];
-			data->hw_addr[3] = hw_addr[2];
-
-			hw_addr = (const u8 *)(nvm_hw +
-					       HW_ADDR1_PCIE_FAMILY_8000);
-			data->hw_addr[2] = hw_addr[1];
-			data->hw_addr[1] = hw_addr[2];
-			data->hw_addr[0] = hw_addr[3];
-		}
 		if (!is_valid_ether_addr(data->hw_addr))
 			IWL_ERR_DEV(dev,
 				    "mac address from hw section is not valid\n");
@@ -613,8 +594,8 @@ iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 		   const __le16 *nvm_hw, const __le16 *nvm_sw,
 		   const __le16 *nvm_calib, const __le16 *regulatory,
 		   const __le16 *mac_override, const __le16 *phy_sku,
-		   u8 tx_chains, u8 rx_chains,
-		   bool lar_fw_supported, bool is_family_8000_a_step)
+		   u8 tx_chains, u8 rx_chains, bool lar_fw_supported,
+		   u32 mac_addr0, u32 mac_addr1)
 {
 	struct iwl_nvm_data *data;
 	u32 sku;
@@ -636,15 +617,14 @@ iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 
 	data->nvm_version = iwl_get_nvm_version(cfg, nvm_sw);
 
-	radio_cfg =
-		iwl_get_radio_cfg(cfg, nvm_sw, phy_sku, is_family_8000_a_step);
+	radio_cfg = iwl_get_radio_cfg(cfg, nvm_sw, phy_sku);
 	iwl_set_radio_cfg(cfg, data, radio_cfg);
 	if (data->valid_tx_ant)
 		tx_chains &= data->valid_tx_ant;
 	if (data->valid_rx_ant)
 		rx_chains &= data->valid_rx_ant;
 
-	sku = iwl_get_sku(cfg, nvm_sw, phy_sku, is_family_8000_a_step);
+	sku = iwl_get_sku(cfg, nvm_sw, phy_sku);
 	data->sku_cap_band_24GHz_enable = sku & NVM_SKU_CAP_BAND_24GHZ;
 	data->sku_cap_band_52GHz_enable = sku & NVM_SKU_CAP_BAND_52GHZ;
 	data->sku_cap_11n_enable = sku & NVM_SKU_CAP_11N_ENABLE;
@@ -652,9 +632,9 @@ iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 		data->sku_cap_11n_enable = false;
 	data->sku_cap_11ac_enable = data->sku_cap_11n_enable &&
 				    (sku & NVM_SKU_CAP_11AC_ENABLE);
+	data->sku_cap_mimo_disabled = sku & NVM_SKU_CAP_MIMO_DISABLE;
 
-	data->n_hw_addrs =
-		iwl_get_n_hw_addrs(cfg, nvm_sw, is_family_8000_a_step);
+	data->n_hw_addrs = iwl_get_n_hw_addrs(cfg, nvm_sw);
 
 	if (cfg->device_family != IWL_DEVICE_FAMILY_8000) {
 		/* Checking for required sections */
@@ -675,14 +655,17 @@ iwl_parse_nvm_data(struct device *dev, const struct iwl_cfg *cfg,
 		iwl_init_sbands(dev, cfg, data, nvm_sw,
 				tx_chains, rx_chains, lar_fw_supported);
 	} else {
-		lar_config = le16_to_cpup(regulatory +
-					  NVM_LAR_OFFSET_FAMILY_8000);
+		u16 lar_offset = data->nvm_version < 0xE39 ?
+				 NVM_LAR_OFFSET_FAMILY_8000_OLD :
+				 NVM_LAR_OFFSET_FAMILY_8000;
+
+		lar_config = le16_to_cpup(regulatory + lar_offset);
 		data->lar_enabled = !!(lar_config &
 				       NVM_LAR_ENABLED_FAMILY_8000);
 
 		/* MAC address in family 8000 */
 		iwl_set_hw_address_family_8000(dev, cfg, data, mac_override,
-					       nvm_hw);
+					       nvm_hw, mac_addr0, mac_addr1);
 
 		iwl_init_sbands(dev, cfg, data, regulatory,
 				tx_chains, rx_chains,

@@ -513,7 +513,7 @@ iwl_tm_gnl_msg_policy[IWL_TM_GNL_MSG_ATTR_MAX] = {
  *
  * Finds the device information according to device name,
  * must be protected by list mutex when used (mutex is not
- * locked inside the function to allow code flexability)
+ * locked inside the function to allow code flexibility)
  */
 static struct iwl_tm_gnl_dev *iwl_tm_gnl_get_dev(const char *dev_name)
 {

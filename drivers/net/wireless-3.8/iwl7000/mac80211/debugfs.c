@@ -3,7 +3,7 @@
  * mac80211 debugfs for wireless PHYs
  *
  * Copyright 2007	Johannes Berg <johannes@sipsolutions.net>
- * Copyright 2013-2014  Intel Mobile Communications GmbH
+ * Copyright 2013-2015  Intel Mobile Communications GmbH
  *
  * GPLv2
  *
@@ -18,6 +18,7 @@
 
 #define DEBUGFS_FORMAT_BUFFER_SIZE 100
 
+#ifdef CPTCFG_MAC80211_LATENCY_MEASUREMENTS
 #define TX_TIMING_STATS_BIN_DELIMTER_C ','
 #define TX_TIMING_STATS_BIN_DELIMTER_S ","
 #define TX_TIMING_STATS_BINS_DISABLED "enable(bins disabled)\n"
@@ -195,6 +196,106 @@ static const struct file_operations stats_tx_latency_threshold_ops = {
 };
 #endif
 
+static ssize_t sta_tx_latency_points_read(struct file *file,
+					  char __user *userbuf,
+					  size_t count, loff_t *ppos)
+{
+	struct ieee80211_local *local = file->private_data;
+	struct ieee80211_tx_latency_bin_ranges  *tx_latency;
+	char buf[516];
+	int bufsz = sizeof(buf);
+	int pos = 0;
+
+	rcu_read_lock();
+	tx_latency = rcu_dereference(local->tx_latency);
+
+	/* Tx latency is not enabled or no thresholds were configured */
+	if (!tx_latency) {
+		pos += scnprintf(buf + pos, bufsz - pos, "%s\n",
+				TX_TIMING_STATS_DISABLED);
+		goto unlock;
+	}
+
+	pos += scnprintf(buf + pos, bufsz - pos, "start: %u\n",
+			 local->tx_msrmnt_points[0]);
+	pos += scnprintf(buf + pos, bufsz - pos, "end: %u\n",
+			 local->tx_msrmnt_points[1]);
+
+unlock:
+	rcu_read_unlock();
+	return simple_read_from_buffer(userbuf, count, ppos, buf, pos);
+}
+
+/*
+ * Configure the Tx latency measuring points.
+ *
+ * In order to analyze the Tx latency there are 4 points that are of interest:
+ * 1. Tx packet Enter the Kernel
+ * 2. Tx packet is written to the bus
+ * 3. Tx packet is acked by the AP
+ * 4. Tx packet is erased.
+ *
+ * By default the measurement is done between points 1 to 4 (measure the whole
+ * Tx flow). If one sees that the there is some problem with the Tx  latency,
+ * he can try to focus the analysis to different parts of the Tx flow.
+ *
+ * Valid input is: a,b where
+ * 1. a < b
+ * 2. IEEE80211_TX_LAT_ENTER<=a
+ * 3. b < IEEE80211_TX_LAT_MAX_POINT
+ * 4. a & b are values from enum ieee80211_tx_lat_msr_point (0-3)
+ */
+static ssize_t sta_tx_latency_points_write(struct file *file,
+					   const char __user *userbuf,
+					   size_t count, loff_t *ppos)
+{
+	struct ieee80211_local *local = file->private_data;
+	struct ieee80211_tx_latency_bin_ranges  *tx_latency;
+	int ret;
+	u32 start, end;
+
+	char buf[32] = {};
+
+	if (sizeof(buf) <= count)
+		return -EINVAL;
+
+	if (copy_from_user(buf, userbuf, count))
+		return -EFAULT;
+	ret = count;
+
+	if (sscanf(buf, "%u,%u", &start, &end) != 2 || end <= start ||
+	    IEEE80211_TX_LAT_MAX_POINT <= end)
+		return -EINVAL;
+
+	mutex_lock(&local->sta_mtx);
+
+	/* cannot change config once we have stations */
+	if (local->num_sta)
+		goto unlock;
+
+	tx_latency =
+		rcu_dereference_protected(local->tx_latency,
+					  lockdep_is_held(&local->sta_mtx));
+	/* Tx latency disabled */
+	if (!tx_latency)
+		goto unlock;
+
+	local->tx_msrmnt_points[0] = start;
+	local->tx_msrmnt_points[1] = end;
+
+	rcu_assign_pointer(local->tx_latency, tx_latency);
+unlock:
+	mutex_unlock(&local->sta_mtx);
+
+	return ret;
+}
+
+static const struct file_operations stats_tx_latency_points_ops = {
+	.write = sta_tx_latency_points_write,
+	.read = sta_tx_latency_points_read,
+	.open = simple_open,
+	.llseek = generic_file_llseek,
+};
 /*
  * Display if Tx latency statistics & bins are enabled/disabled
  */
@@ -342,6 +443,11 @@ static ssize_t sta_tx_latency_stat_write(struct file *file,
 		}
 		prev_bin = tx_latency->ranges[i];
 	}
+
+	/* set default measurement points */
+	local->tx_msrmnt_points[0] = IEEE80211_TX_LAT_ENTER;
+	local->tx_msrmnt_points[1] = IEEE80211_TX_LAT_DEL;
+
 	rcu_assign_pointer(local->tx_latency, tx_latency);
 
 unlock:
@@ -529,6 +635,11 @@ static ssize_t sta_tx_consecutive_loss_write(struct file *file,
 		}
 		prev_bin = tx_consec->ranges[i];
 	}
+
+	/* set default measurement points */
+	local->tx_msrmnt_points[0] = IEEE80211_TX_LAT_ENTER;
+	local->tx_msrmnt_points[1] = IEEE80211_TX_LAT_DEL;
+
 	rcu_assign_pointer(local->tx_consec, tx_consec);
 
 unlock:
@@ -543,6 +654,7 @@ static const struct file_operations stats_tx_consecutive_loss_ops = {
 	.open = simple_open,
 	.llseek = generic_file_llseek,
 };
+#endif /* CPTCFG_MAC80211_LATENCY_MEASUREMENTS */
 
 int mac80211_format_buffer(char __user *userbuf, size_t count,
 				  loff_t *ppos, char *fmt, ...)
@@ -674,6 +786,8 @@ static ssize_t hwflags_read(struct file *file, char __user *user_buf,
 		sf += scnprintf(buf + sf, mxln - sf, "AP_LINK_PS\n");
 	if (local->hw.flags & IEEE80211_HW_TX_AMPDU_SETUP_IN_HW)
 		sf += scnprintf(buf + sf, mxln - sf, "TX_AMPDU_SETUP_IN_HW\n");
+	if (local->hw.flags & IEEE80211_HW_TDLS_WIDER_BW)
+		sf += scnprintf(buf + sf, mxln - sf, "TDLS_WIDER_BW\n");
 
 	rv = simple_read_from_buffer(user_buf, count, ppos, buf, strlen(buf));
 	kfree(buf);
@@ -800,8 +914,6 @@ void debugfs_hw_add(struct ieee80211_local *local)
 #ifdef CPTCFG_MAC80211_DEBUG_COUNTERS
 	DEBUGFS_STATS_ADD(tx_handlers_drop, local->tx_handlers_drop);
 	DEBUGFS_STATS_ADD(tx_handlers_queued, local->tx_handlers_queued);
-	DEBUGFS_STATS_ADD(tx_handlers_drop_unencrypted,
-		local->tx_handlers_drop_unencrypted);
 	DEBUGFS_STATS_ADD(tx_handlers_drop_fragment,
 		local->tx_handlers_drop_fragment);
 	DEBUGFS_STATS_ADD(tx_handlers_drop_wep,
@@ -836,9 +948,12 @@ void debugfs_hw_add(struct ieee80211_local *local)
 	DEBUGFS_DEVSTATS_ADD(dot11FCSErrorCount);
 	DEBUGFS_DEVSTATS_ADD(dot11RTSSuccessCount);
 
+#ifdef CPTCFG_MAC80211_LATENCY_MEASUREMENTS
 	DEBUGFS_DEVSTATS_ADD(tx_latency);
+	DEBUGFS_DEVSTATS_ADD(tx_latency_points);
 #ifdef CPTCFG_NL80211_TESTMODE
 	DEBUGFS_DEVSTATS_ADD(tx_latency_threshold);
 #endif
 	DEBUGFS_DEVSTATS_ADD(tx_consecutive_loss);
+#endif /* CPTCFG_MAC80211_LATENCY_MEASUREMENTS */
 }

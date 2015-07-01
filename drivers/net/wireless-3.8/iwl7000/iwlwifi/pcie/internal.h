@@ -1,7 +1,7 @@
 /******************************************************************************
  *
- * Copyright(c) 2003 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2003 - 2015 Intel Corporation. All rights reserved.
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * Portions of this file are derived from the ipw3945 project, as well
  * as portions of the ieee80211 subsystem header files.
@@ -38,6 +38,10 @@
 #include <linux/timer.h>
 #ifdef CONFIG_HAS_WAKELOCK
 #include <linux/wakelock.h>
+#endif
+
+#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
+#include <linux/platform_data/iwlwifi.h>
 #endif
 
 #include "iwl-fh.h"
@@ -219,6 +223,9 @@ struct iwl_pcie_txq_scratch_buf {
  * @need_update: indicates need to update read/write index
  * @active: stores if queue is active
  * @ampdu: true if this queue is an ampdu queue for an specific RA/TID
+ * @wd_timeout: queue watchdog timeout (jiffies) - per queue
+ * @frozen: tx stuck queue timer is frozen
+ * @frozen_expiry_remainder: remember how long until the timer fires
  *
  * A Tx queue consists of circular buffer of BDs (a.k.a. TFDs, transmit frame
  * descriptors) and required locking structures.
@@ -230,11 +237,14 @@ struct iwl_txq {
 	dma_addr_t scratchbufs_dma;
 	struct iwl_pcie_txq_entry *entries;
 	spinlock_t lock;
+	unsigned long frozen_expiry_remainder;
 	struct timer_list stuck_timer;
 	struct iwl_trans_pcie *trans_pcie;
 	bool need_update;
+	bool frozen;
 	u8 active;
 	bool ampdu;
+	unsigned long wd_timeout;
 };
 
 static inline dma_addr_t
@@ -262,7 +272,6 @@ iwl_pcie_get_scratchbuf_dma(struct iwl_txq *txq, int idx)
  * @bc_table_dword: true if the BC table expects DWORD (as opposed to bytes)
  * @scd_set_active: should the transport configure the SCD for HCMD queue
  * @rx_page_order: page order for receive buffer size
- * @wd_timeout: queue watchdog timeout (jiffies)
  * @reg_lock: protect hw register access
  * @cmd_in_flight: true when we have a host command in flight
  * @fw_mon_phys: physical address of the buffer for the firmware monitor
@@ -305,6 +314,7 @@ struct iwl_trans_pcie {
 
 	u8 cmd_queue;
 	u8 cmd_fifo;
+	unsigned int cmd_q_wdg_timeout;
 	u8 n_no_reclaim_cmds;
 	u8 no_reclaim_cmds[MAX_NO_RECLAIM_CMDS];
 
@@ -315,12 +325,9 @@ struct iwl_trans_pcie {
 
 	const char *const *command_names;
 
-	/* queue watchdog */
-	unsigned long wd_timeout;
-
 	/*protect hw register */
 	spinlock_t reg_lock;
-	bool cmd_in_flight;
+	bool cmd_hold_nic_awake;
 	bool ref_cmd_in_flight;
 
 	/* protect ref counter */
@@ -329,6 +336,10 @@ struct iwl_trans_pcie {
 #ifdef CONFIG_HAS_WAKELOCK
 	struct wake_lock ref_wake_lock;
 	struct wake_lock timed_wake_lock;
+#endif
+
+#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
+	struct iwl_trans_platform_ops *platform_ops;
 #endif
 
 	dma_addr_t fw_mon_phys;
@@ -380,7 +391,8 @@ void iwl_pcie_tx_start(struct iwl_trans *trans, u32 scd_base_addr);
 int iwl_pcie_tx_stop(struct iwl_trans *trans);
 void iwl_pcie_tx_free(struct iwl_trans *trans);
 void iwl_trans_pcie_txq_enable(struct iwl_trans *trans, int queue, u16 ssn,
-			       const struct iwl_trans_txq_scd_cfg *cfg);
+			       const struct iwl_trans_txq_scd_cfg *cfg,
+			       unsigned int wdg_timeout);
 void iwl_trans_pcie_txq_disable(struct iwl_trans *trans, int queue,
 				bool configure_scd);
 int iwl_trans_pcie_tx(struct iwl_trans *trans, struct sk_buff *skb,

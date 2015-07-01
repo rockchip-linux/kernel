@@ -735,3 +735,76 @@ retry:
 			 msecs_to_jiffies(delay));
 	mutex_unlock(&mvm->mutex);
 }
+
+#ifdef CPTCFG_IWLMVM_TDLS_PEER_CACHE
+void iwl_mvm_tdls_peer_cache_pkt(struct iwl_mvm *mvm, struct ieee80211_hdr *hdr,
+				 u32 len, bool tx)
+{
+	struct iwl_mvm_tdls_peer_counter *cnt;
+	u8 *addr;
+
+	/*
+	 * To reduce code runtime and complexity, we don't check the packet
+	 * arrived on the correct vif, or even if the current vif is a station.
+	 * While it is theoretically possible for a TDLS peer to also be
+	 * connected to us in the capacity of a AP/GO, this will not happen
+	 * in practice.
+	 */
+
+	if (list_empty(&mvm->tdls_peer_cache_list))
+		return;
+
+	if (len < sizeof(*hdr) || !ieee80211_is_data(hdr->frame_control))
+		return;
+
+	addr = tx ? ieee80211_get_DA(hdr) : ieee80211_get_SA(hdr);
+
+	/* we rely on the Rx and Tx path mutual atomicity for the counters */
+	rcu_read_lock();
+	list_for_each_entry_rcu(cnt, &mvm->tdls_peer_cache_list, list)
+		if (ether_addr_equal(cnt->mac.addr, addr)) {
+			if (tx)
+				cnt->tx_bytes += len;
+			else
+				cnt->rx_bytes += len;
+
+			break;
+		}
+	rcu_read_unlock();
+}
+
+void iwl_mvm_tdls_peer_cache_clear(struct iwl_mvm *mvm,
+				   struct ieee80211_vif *vif)
+{
+	struct iwl_mvm_tdls_peer_counter *cnt, *tmp;
+
+	/*
+	 * mvm->mutex is held or the HW is already unregistered, barring
+	 * vendor commands that can change the list.
+	 */
+	list_for_each_entry_safe(cnt, tmp, &mvm->tdls_peer_cache_list, list) {
+		if (vif && cnt->vif != vif)
+			continue;
+
+		mvm->tdls_peer_cache_cnt--;
+		list_del_rcu(&cnt->list);
+		kfree_rcu(cnt, rcu_head);
+	}
+}
+
+/* requires RCU read side lock taken */
+struct iwl_mvm_tdls_peer_counter *
+iwl_mvm_tdls_peer_cache_find(struct iwl_mvm *mvm, const u8 *addr)
+{
+	struct iwl_mvm_tdls_peer_counter *cnt;
+
+	list_for_each_entry_rcu(cnt, &mvm->tdls_peer_cache_list, list)
+		if (memcmp(addr, cnt->mac.addr, ETH_ALEN) == 0)
+			break;
+
+	if (&cnt->list == &mvm->tdls_peer_cache_list)
+		return NULL;
+
+	return cnt;
+}
+#endif /* CPTCFG_IWLMVM_TDLS_PEER_CACHE */

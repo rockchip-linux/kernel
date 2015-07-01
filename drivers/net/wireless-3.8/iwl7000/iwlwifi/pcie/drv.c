@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,6 +71,11 @@
 #include <linux/pci-aspm.h>
 #include <linux/acpi.h>
 
+#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
+#include <linux/device.h>
+#include <linux/platform_device.h>
+#include <linux/platform_data/iwlwifi.h>
+#endif /* CPTCFG_IWLWIFI_PLATFORM_DATA */
 #include "iwl-trans.h"
 #include "iwl-drv.h"
 #include "internal.h"
@@ -181,10 +186,14 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 /* 3165 Series */
 	{IWL_PCI_DEVICE(0x3165, 0x4010, iwl3165_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x3165, 0x4012, iwl3165_2ac_cfg)},
-	{IWL_PCI_DEVICE(0x3165, 0x4110, iwl3165_2ac_cfg)},
-	{IWL_PCI_DEVICE(0x3165, 0x4210, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3166, 0x4212, iwl3165_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x3165, 0x4410, iwl3165_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x3165, 0x4510, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x4110, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3166, 0x4310, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3166, 0x4210, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x8010, iwl3165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x3165, 0x8110, iwl3165_2ac_cfg)},
 
 /* 7265 Series */
 	{IWL_PCI_DEVICE(0x095A, 0x5010, iwl7265_2ac_cfg)},
@@ -225,12 +234,35 @@ static const struct pci_device_id iwl_hw_card_ids[] = {
 	{IWL_PCI_DEVICE(0x095A, 0x5490, iwl7265_2ac_cfg)},
 
 /* 8000 Series */
-	{IWL_PCI_DEVICE(0x24F3, 0x0000, iwl8260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24F3, 0x0010, iwl8260_2ac_cfg)},
-	{IWL_PCI_DEVICE(0x24F3, 0x0004, iwl8260_2n_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x1010, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0110, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x1110, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0050, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0250, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x1050, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0150, iwl8260_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24F4, 0x0030, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F4, 0x1130, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F4, 0x1030, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0xC010, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0xC110, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0xD010, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0xC050, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0xD050, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x8010, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x9010, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F4, 0x8030, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F4, 0x9030, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x8050, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x9050, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0004, iwl8260_2n_cfg)},
 	{IWL_PCI_DEVICE(0x24F5, 0x0010, iwl4165_2ac_cfg)},
 	{IWL_PCI_DEVICE(0x24F6, 0x0030, iwl4165_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0810, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0910, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0850, iwl8260_2ac_cfg)},
+	{IWL_PCI_DEVICE(0x24F3, 0x0950, iwl8260_2ac_cfg)},
 #endif /* CPTCFG_IWLMVM */
 
 	{0}
@@ -323,6 +355,10 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct iwl_trans *iwl_trans;
 	struct iwl_trans_pcie *trans_pcie;
 	int ret;
+#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
+	struct device *dev;
+	struct platform_device *plat_dev;
+#endif
 
 	iwl_trans = iwl_trans_pcie_alloc(pdev, ent, cfg);
 	if (IS_ERR(iwl_trans))
@@ -366,6 +402,18 @@ static int iwl_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (ret)
 		goto out_free_drv;
 
+#ifdef CPTCFG_IWLWIFI_PLATFORM_DATA
+	dev = bus_find_device_by_name(&platform_bus_type, NULL,
+				      IWLWIFI_PLATFORM_NAME);
+	if (dev) {
+		plat_dev = to_platform_device(dev);
+		if (plat_dev && plat_dev->dev.platform_data) {
+			IWL_DEBUG_INFO(iwl_trans,
+				       "Platform device found\n");
+			trans_pcie->platform_ops = plat_dev->dev.platform_data;
+		}
+	}
+#endif /* CPTCFG_IWLWIFI_PLATFORM_DATA */
 	return 0;
 
 out_free_drv:
@@ -432,7 +480,18 @@ static int iwl_pci_resume(struct device *device)
 	if (!trans->op_mode)
 		return 0;
 
-	iwl_enable_rfkill_int(trans);
+	/*
+	 * On suspend, ict is disabled, and the interrupt mask
+	 * gets cleared. Reconfigure them both in case of d0i3
+	 * image. Otherwise, only enable rfkill interrupt (in
+	 * order to keep track of the rfkill status)
+	 */
+	if (trans->wowlan_d0i3) {
+		iwl_pcie_reset_ict(trans);
+		iwl_enable_interrupts(trans);
+	} else {
+		iwl_enable_rfkill_int(trans);
+	}
 
 	hw_rfkill = iwl_is_rfkill_set(trans);
 	iwl_trans_pcie_rf_kill(trans, hw_rfkill);

@@ -37,12 +37,37 @@ static inline void rate_control_tx_status(struct ieee80211_local *local,
 	struct rate_control_ref *ref = local->rate_ctrl;
 	struct ieee80211_sta *ista = &sta->sta;
 	void *priv_sta = sta->rate_ctrl_priv;
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 
 	if (!ref || !test_sta_flag(sta, WLAN_STA_RATE_CONTROL))
 		return;
 
 	spin_lock_bh(&sta->rate_ctrl_lock);
-	ref->ops->tx_status(ref->priv, sband, ista, priv_sta, skb);
+	if (ref->ops->tx_status)
+		ref->ops->tx_status(ref->priv, sband, ista, priv_sta, skb);
+	else
+		ref->ops->tx_status_noskb(ref->priv, sband, ista, priv_sta, info);
+	spin_unlock_bh(&sta->rate_ctrl_lock);
+}
+
+static inline void
+rate_control_tx_status_noskb(struct ieee80211_local *local,
+			     struct ieee80211_supported_band *sband,
+			     struct sta_info *sta,
+			     struct ieee80211_tx_info *info)
+{
+	struct rate_control_ref *ref = local->rate_ctrl;
+	struct ieee80211_sta *ista = &sta->sta;
+	void *priv_sta = sta->rate_ctrl_priv;
+
+	if (!ref || !test_sta_flag(sta, WLAN_STA_RATE_CONTROL))
+		return;
+
+	if (WARN_ON_ONCE(!ref->ops->tx_status_noskb))
+		return;
+
+	spin_lock_bh(&sta->rate_ctrl_lock);
+	ref->ops->tx_status_noskb(ref->priv, sband, ista, priv_sta, info);
 	spin_unlock_bh(&sta->rate_ctrl_lock);
 }
 

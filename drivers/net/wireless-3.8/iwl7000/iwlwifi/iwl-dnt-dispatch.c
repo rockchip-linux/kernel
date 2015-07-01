@@ -258,38 +258,6 @@ int iwl_dnt_dispatch_collect_ucode_message(struct iwl_trans *trans,
 }
 IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_collect_ucode_message);
 
-int iwl_dnt_dispatch_collect_interface_monitor(struct iwl_trans *trans,
-					       struct iwl_rx_cmd_buffer *rxb)
-{
-	struct iwl_dnt *dnt = trans->tmdev->dnt;
-	struct iwl_rx_packet *pkt = rxb_addr(rxb);
-	struct iwl_dnt_dispatch *dispatch;
-	struct dnt_collect_db *db;
-	int data_size;
-
-	dispatch = &dnt->dispatch;
-	db = dispatch->dbgm_db;
-
-	if (dispatch->mon_in_mode != COLLECT) {
-		IWL_INFO(dnt, "Monitor packet ignored\n");
-		return 0;
-	}
-
-	if (dispatch->mon_out_mode != PUSH)
-		return iwl_dnt_dispatch_collect_data(dnt, db, pkt);
-
-	data_size = GET_RX_PACKET_SIZE(pkt);
-	if (dispatch->mon_output == FTRACE)
-		iwl_dnt_dispatch_push_ftrace_handler(dnt, pkt->data, data_size);
-	else if (dispatch->mon_output == NETLINK)
-		iwl_dnt_dispatch_push_netlink_handler(dnt, trans,
-				IWL_TM_USER_CMD_NOTIF_MONITOR_DATA,
-				pkt->data, data_size);
-
-	return 0;
-}
-IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_collect_interface_monitor);
-
 void iwl_dnt_dispatch_free(struct iwl_dnt *dnt, struct iwl_trans *trans)
 {
 	struct iwl_dnt_dispatch *dispatch = &dnt->dispatch;
@@ -424,7 +392,7 @@ static u32 iwl_dnt_dispatch_create_crash_tlv(struct iwl_trans *trans,
 	crash = &dnt->dispatch.crash;
 
 	/*
-	 * data will be represetned as TLV - each buffer is represented as
+	 * data will be represented as TLV - each buffer is represented as
 	 * follow:
 	 * u32 - type (SRAM/DBGM/RX/TX/PERIPHERY)
 	 * u32 - length
@@ -503,7 +471,6 @@ static void iwl_dnt_dispatch_handle_crash_netlink(struct iwl_dnt *dnt,
 void iwl_dnt_dispatch_handle_nic_err(struct iwl_trans *trans)
 {
 	struct iwl_dnt *dnt = trans->tmdev->dnt;
-	struct iwl_dnt_dispatch *dispatch = &dnt->dispatch;
 	struct iwl_dbg_cfg *dbg_cfg = &trans->dbg_cfg;
 
 	trans->tmdev->dnt->iwl_dnt_status |= IWL_DNT_STATUS_FW_CRASH;
@@ -511,7 +478,6 @@ void iwl_dnt_dispatch_handle_nic_err(struct iwl_trans *trans)
 	if (!dbg_cfg->dbg_flags)
 		return;
 
-	spin_lock(&dispatch->crash_lock);
 	if (dbg_cfg->dbg_flags & SRAM)
 		iwl_dnt_dispatch_retrieve_crash_sram(dnt, trans);
 	if (dbg_cfg->dbg_flags & RX_FIFO)
@@ -519,47 +485,7 @@ void iwl_dnt_dispatch_handle_nic_err(struct iwl_trans *trans)
 	if (dbg_cfg->dbg_flags & DBGM)
 		iwl_dnt_dispatch_retrieve_crash_dbgm(dnt, trans);
 
-	if (dispatch->crash_out_mode & NETLINK)
+	if (dnt->dispatch.crash_out_mode & NETLINK)
 		iwl_dnt_dispatch_handle_crash_netlink(dnt, trans);
-	spin_unlock(&dispatch->crash_lock);
 }
 IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_handle_nic_err);
-
-ssize_t iwl_dnt_dispatch_get_crash_data(struct file *file,
-					char __user *user_buf, size_t count,
-					loff_t *ppos)
-{
-	struct iwl_fw_error_dump_file *dump_file = file->private_data;
-
-	return simple_read_from_buffer(user_buf, count, ppos,
-				       dump_file,
-				       le32_to_cpu(dump_file->file_len));
-}
-IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_get_crash_data);
-
-int iwl_dnt_dispatch_open_crash_data(struct inode *inode, struct file *file)
-{
-	struct iwl_trans *trans = inode->i_private;
-	struct iwl_dnt *dnt = trans->tmdev->dnt;
-	struct iwl_dnt_dispatch *dispatch = &dnt->dispatch;
-	u8 *tlv_buf;
-	u32 tlv_buf_size;
-
-	spin_lock_bh(&dispatch->crash_lock);
-	tlv_buf_size = iwl_dnt_dispatch_create_crash_tlv(trans, &tlv_buf);
-	spin_unlock_bh(&dispatch->crash_lock);
-	if (!tlv_buf_size)
-		return -ENOMEM;
-
-	file->private_data = tlv_buf;
-
-	return 0;
-}
-IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_open_crash_data);
-
-int iwl_dnt_dispatch_release_crash_data(struct inode *inode, struct file *file)
-{
-	kfree(file->private_data);
-	return 0;
-}
-IWL_EXPORT_SYMBOL(iwl_dnt_dispatch_release_crash_data);

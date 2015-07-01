@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2013 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,6 +90,8 @@ struct iwl_dbg_cfg {
 #define IWL_DBG_CFG_BIN(name)		struct iwl_dbg_cfg_bin name;
 #define IWL_DBG_CFG_BINA(name, max)	struct iwl_dbg_cfg_bin name[max]; \
 					int n_ ## name;
+#define IWL_DBG_CFG_RANGE(type, name, min, max)	\
+					DBG_CFG_##type name;
 #endif /* DBG_CFG_REINCLUDE */
 #if IS_ENABLED(CPTCFG_IWLXVT)
 	IWL_DBG_CFG(u32, XVT_DEFAULT_DBGM_MEM_POWER)
@@ -112,7 +114,6 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D0_EVENT)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D3_FLOW)
 	IWL_DBG_CFG_NODEF(u32, MVM_CALIB_D3_EVENT)
-	IWL_DBG_CFG_NODEF(u32, MVM_WD_TIMEOUT)
 	IWL_DBG_CFG(u8, MVM_PS_HEAVY_TX_THLD_PACKETS)
 	IWL_DBG_CFG(u8, MVM_PS_HEAVY_RX_THLD_PACKETS)
 	IWL_DBG_CFG(u8, MVM_PS_SNOOZE_HEAVY_TX_THLD_PACKETS)
@@ -139,14 +140,13 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG(u32, MVM_TCM_LOAD_MEDIUM_THRESH)
 	IWL_DBG_CFG(u32, MVM_TCM_LOAD_HIGH_THRESH)
 	IWL_DBG_CFG(u32, MVM_TCM_LOWLAT_ENABLE_THRESH)
-	IWL_DBG_CFG(u32, MVM_QUOTA_AIRTIME_THRESH)
-	IWL_DBG_CFG(u8, MVM_LOWLAT_QUOTA_LOWTRAF_PERCENT)
-	IWL_DBG_CFG(u32, MVM_UAPSD_AGGDETECT_MIN_PKTS)
+	IWL_DBG_CFG(u32, MVM_UAPSD_NONAGG_PERIOD)
+	IWL_DBG_CFG_RANGE(u8, MVM_UAPSD_NOAGG_LIST_LEN,
+			  1, IWL_MVM_UAPSD_NOAGG_BSSIDS_NUM)
 #endif /* CPTCFG_IWLMVM_TCM */
 	IWL_DBG_CFG(u8, MVM_QUOTA_THRESHOLD)
 	IWL_DBG_CFG(u8, MVM_RS_RSSI_BASED_INIT_RATE)
 	IWL_DBG_CFG(u8, MVM_RS_DISABLE_P2P_MIMO)
-	IWL_DBG_CFG(bool, MVM_RRM_PRETEND_QUIET_SUPPORT)
 	IWL_DBG_CFG(u8, MVM_RS_NUM_TRY_BEFORE_ANT_TOGGLE)
 	IWL_DBG_CFG(u8, MVM_RS_HT_VHT_RETRIES_PER_RATE)
 	IWL_DBG_CFG(u8, MVM_RS_HT_VHT_RETRIES_PER_RATE_TW)
@@ -214,6 +214,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_base_addr)
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_end_addr)
 	IWL_DBG_CFG_NODEF(u32, dbgc_dram_wrptr_addr)
+	IWL_DBG_CFG_NODEF(u32, dbgc_wrap_count_addr)
 	IWL_DBG_CFG_NODEF(u32, dbg_mipi_conf_reg)
 	IWL_DBG_CFG_NODEF(u32, dbg_mipi_conf_mask)
 	IWL_DBG_CFG_NODEF(u32, dbgc_hb_base_val_smem)
@@ -231,6 +232,7 @@ struct iwl_dbg_cfg {
 	IWL_DBG_CFG_NODEF(u8, wakelock_mode)
 	IWL_DBG_CFG_NODEF(u32, d0i3_debug)
 	IWL_DBG_CFG_NODEF(u32, valid_ants)
+	IWL_DBG_CFG_NODEF(u32, secure_boot_cfg)
 #ifdef CONFIG_HAS_WAKELOCK
 	IWL_DBG_CFG(u32, WAKELOCK_TIMEOUT_MS)
 #endif /* CONFIG_HAS_WAKELOCK */
@@ -238,6 +240,7 @@ struct iwl_dbg_cfg {
 #undef IWL_DBG_CFG_NODEF
 #undef IWL_DBG_CFG_BIN
 #undef IWL_DBG_CFG_BINA
+#undef IWL_DBG_CFG_RANGE
 #ifndef DBG_CFG_REINCLUDE
 };
 

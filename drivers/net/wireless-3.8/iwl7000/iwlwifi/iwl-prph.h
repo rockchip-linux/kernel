@@ -6,7 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -32,7 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
- * Copyright(c) 2013 - 2014 Intel Mobile Communications GmbH
+ * Copyright(c) 2013 - 2015 Intel Mobile Communications GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -108,9 +108,10 @@
 
 /* Device NMI register */
 #define DEVICE_SET_NMI_REG 0x00a01c30
-#define DEVICE_SET_NMI_VAL 0x1
-#define DEVICE_SET_NMI_8000B_REG 0x00a01c24
-#define DEVICE_SET_NMI_8000B_VAL 0x1000000
+#define DEVICE_SET_NMI_VAL_HW BIT(0)
+#define DEVICE_SET_NMI_VAL_DRV BIT(7)
+#define DEVICE_SET_NMI_8000_REG 0x00a01c24
+#define DEVICE_SET_NMI_8000_VAL 0x1000000
 
 /* Shared registers (0x0..0x3ff, via target indirect or periphery */
 #define SHR_BASE	0x00a10000
@@ -251,6 +252,7 @@
 #define SCD_QUEUE_CTX_REG2_WIN_SIZE_MSK		(0x0000007F)
 #define SCD_QUEUE_CTX_REG2_FRAME_LIMIT_POS	(16)
 #define SCD_QUEUE_CTX_REG2_FRAME_LIMIT_MSK	(0x007F0000)
+#define SCD_GP_CTRL_ENABLE_31_QUEUES		BIT(0)
 #define SCD_GP_CTRL_DRAM_BC_TABLE_DUP_DIS	BIT(16)
 #define SCD_GP_CTRL_AUTO_ACTIVE_MODE		BIT(18)
 
@@ -290,56 +292,11 @@
 #define SCD_GP_CTRL		(SCD_BASE + 0x1a8)
 #define SCD_EN_CTRL		(SCD_BASE + 0x254)
 
-static inline unsigned int SCD_QUEUE_WRPTR(unsigned int chnl)
-{
-	if (chnl < 20)
-		return SCD_BASE + 0x18 + chnl * 4;
-	WARN_ON_ONCE(chnl >= 32);
-	return SCD_BASE + 0x284 + (chnl - 20) * 4;
-}
-
-static inline unsigned int SCD_QUEUE_RDPTR(unsigned int chnl)
-{
-	if (chnl < 20)
-		return SCD_BASE + 0x68 + chnl * 4;
-	WARN_ON_ONCE(chnl >= 32);
-	return SCD_BASE + 0x2B4 + (chnl - 20) * 4;
-}
-
-static inline unsigned int SCD_QUEUE_STATUS_BITS(unsigned int chnl)
-{
-	if (chnl < 20)
-		return SCD_BASE + 0x10c + chnl * 4;
-	WARN_ON_ONCE(chnl >= 32);
-	return SCD_BASE + 0x384 + (chnl - 20) * 4;
-}
-
 /*********************** END TX SCHEDULER *************************************/
 
 /* Oscillator clock */
 #define OSC_CLK				(0xa04068)
 #define OSC_CLK_FORCE_CONTROL		(0x8)
-
-/* SECURE boot registers */
-#define LMPM_SECURE_BOOT_CONFIG_ADDR	(0x100)
-enum secure_boot_config_reg {
-	LMPM_SECURE_BOOT_CONFIG_INSPECTOR_BURNED_IN_OTP	= 0x00000001,
-	LMPM_SECURE_BOOT_CONFIG_INSPECTOR_NOT_REQ	= 0x00000002,
-};
-
-#define LMPM_SECURE_BOOT_CPU1_STATUS_ADDR_B0	(0xA01E30)
-#define LMPM_SECURE_BOOT_CPU1_STATUS_ADDR	(0x1E30)
-#define LMPM_SECURE_BOOT_CPU2_STATUS_ADDR	(0x1E34)
-#define LMPM_SECURE_BOOT_STATUS_ADDR		(0x1E38)
-
-enum secure_boot_status_reg {
-	LMPM_SECURE_BOOT_CPU_STATUS_VERF_STATUS		= 0x00000001,
-	LMPM_SECURE_BOOT_CPU_STATUS_VERF_COMPLETED	= 0x00000002,
-	LMPM_SECURE_BOOT_CPU_STATUS_VERF_SUCCESS	= 0x00000004,
-	LMPM_SECURE_BOOT_CPU_STATUS_VERF_FAIL		= 0x00000008,
-	LMPM_SECURE_BOOT_CPU_STATUS_SIGN_VERF_FAIL	= 0x00000010,
-	LMPM_SECURE_BOOT_STATUS_SUCCESS			= 0x00000003,
-};
 
 #define FH_UCODE_LOAD_STATUS		(0x1AF0)
 #define CSR_UCODE_LOAD_STATUS_ADDR	(0x1E70)
@@ -360,9 +317,6 @@ enum secure_load_status_reg {
 #define LMPM_SECURE_INSPECTOR_DATA_MEM_SPACE	(0x402000)
 #define LMPM_SECURE_CPU1_HDR_MEM_SPACE		(0x420000)
 #define LMPM_SECURE_CPU2_HDR_MEM_SPACE		(0x420400)
-#define LMPM_ROM_READ_ONLY_DATA_ADDR		(0x403010)
-
-#define LMPM_SECURE_TIME_OUT	(400000) /* 40 msec */
 
 /* Rx FIFO */
 #define RXF_SIZE_ADDR			(0xa00c88)
@@ -397,13 +351,39 @@ enum secure_load_status_reg {
 #define MON_BUFF_WRPTR			(0xa03c44)
 #define MON_BUFF_CYCLE_CNT		(0xa03c48)
 
+#define MON_DMARB_RD_CTL_ADDR		(0xa03c60)
+#define MON_DMARB_RD_DATA_ADDR		(0xa03c5c)
+
 #define DBGC_IN_SAMPLE			(0xa03c00)
 
 /* enable the ID buf for read */
 #define WFPM_PS_CTL_CLR			0xA0300C
+#define WFMP_MAC_ADDR_0			0xA03080
+#define WFMP_MAC_ADDR_1			0xA03084
 #define LMPM_PMG_EN			0xA01CEC
 #define RADIO_REG_SYS_MANUAL_DFT_0	0xAD4078
 #define RFIC_REG_RD			0xAD0470
+#define WFPM_CTRL_REG			0xA03030
+enum {
+	ENABLE_WFPM = BIT(31),
+	WFPM_AUX_CTL_AUX_IF_MAC_OWNER_MSK	= 0x80000000,
+};
+
+#define AUX_MISC_REG			0xA200B0
+enum {
+	HW_STEP_LOCATION_BITS = 24,
+};
+
+#define AUX_MISC_MASTER1_EN		0xA20818
+#define AUX_MISC_MASTER1_EN_SBE_MSK	0x1
+
+#define AUX_MISC_MASTER1_SMPHR_STATUS	0xA20800
+#define RSA_ENABLE			0xA24B08
+#define PREG_AUX_BUS_WPROT_0		0xA04CC0
+#define SB_CFG_OVERRIDE_ADDR		0xA26C78
+#define SB_CFG_OVERRIDE_ENABLE		0x8000
+#define SB_CFG_BASE_OVERRIDE		0xA20000
+#define SB_MODIFY_CFG_FLAG		0xA03088
 
 /* FW chicken bits */
 #define LMPM_CHICK			0xA01FF8

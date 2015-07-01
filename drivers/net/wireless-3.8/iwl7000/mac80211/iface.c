@@ -73,9 +73,10 @@ bool __ieee80211_recalc_txpower(struct ieee80211_sub_if_data *sdata)
 	return false;
 }
 
-void ieee80211_recalc_txpower(struct ieee80211_sub_if_data *sdata)
+void ieee80211_recalc_txpower(struct ieee80211_sub_if_data *sdata,
+			      bool update_bss)
 {
-	if (__ieee80211_recalc_txpower(sdata))
+	if (__ieee80211_recalc_txpower(sdata) || update_bss)
 		ieee80211_bss_info_change_notify(sdata, BSS_CHANGED_TXPOWER);
 }
 
@@ -531,6 +532,9 @@ int ieee80211_do_open(struct wireless_dev *wdev, bool coming_up)
 	case NL80211_IFTYPE_MONITOR:
 	case NL80211_IFTYPE_ADHOC:
 	case NL80211_IFTYPE_P2P_DEVICE:
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	case NL80211_IFTYPE_OCB:
+#endif
 		/* no special treatment */
 		break;
 	case NL80211_IFTYPE_UNSPECIFIED:
@@ -776,6 +780,7 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 	u32 hw_reconf_flags = 0;
 	int i, flushed;
 	struct ps_data *ps;
+	struct cfg80211_chan_def __maybe_unused chandef;
 	bool cancel_scan;
 
 	clear_bit(SDATA_STATE_RUNNING, &sdata->state);
@@ -868,6 +873,19 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 
 	cancel_delayed_work_sync(&sdata->dfs_cac_timer_work);
 
+#if CFG80211_VERSION >= KERNEL_VERSION(3,15,0)
+	if (sdata->wdev.cac_started) {
+		chandef = sdata->vif.bss_conf.chandef;
+		WARN_ON(local->suspended);
+		mutex_lock(&local->mtx);
+		ieee80211_vif_release_channel(sdata);
+		mutex_unlock(&local->mtx);
+		cfg80211_cac_event(sdata->dev, &chandef,
+				   NL80211_RADAR_CAC_ABORTED,
+				   GFP_KERNEL);
+	}
+#endif
+
 	/* APs need special treatment */
 	if (sdata->vif.type == NL80211_IFTYPE_AP) {
 		struct ieee80211_sub_if_data *vlan, *tmpsdata;
@@ -954,6 +972,13 @@ static void ieee80211_do_stop(struct ieee80211_sub_if_data *sdata,
 		}
 	}
 	spin_unlock_irqrestore(&local->queue_stop_reason_lock, flags);
+
+	if (sdata->vif.txq) {
+		struct txq_info *txqi = to_txq_info(sdata->vif.txq);
+
+		ieee80211_purge_tx_queue(&local->hw, &txqi->queue);
+		atomic_set(&sdata->txqs_len[txqi->txq.ac], 0);
+	}
 
 	if (local->open_count == 0)
 		ieee80211_clear_tx_pending(local);
@@ -1301,6 +1326,11 @@ static void ieee80211_iface_work(struct work_struct *work)
 			break;
 		ieee80211_mesh_work(sdata);
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	case NL80211_IFTYPE_OCB:
+		ieee80211_ocb_work(sdata);
+		break;
+#endif
 	default:
 		break;
 	}
@@ -1320,6 +1350,11 @@ static void ieee80211_recalc_smps_work(struct work_struct *work)
 static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 				  enum nl80211_iftype type)
 {
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	static const u8 bssid_wildcard[ETH_ALEN] = {0xff, 0xff, 0xff,
+						    0xff, 0xff, 0xff};
+#endif
+
 	/* clear type-dependent union */
 	memset(&sdata->u, 0, sizeof(sdata->u));
 
@@ -1344,6 +1379,9 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 	skb_queue_head_init(&sdata->skb_queue);
 	INIT_WORK(&sdata->work, ieee80211_iface_work);
 	INIT_WORK(&sdata->recalc_smps, ieee80211_recalc_smps_work);
+#if CFG80211_VERSION >= KERNEL_VERSION(3,12,0)
+	INIT_WORK(&sdata->csa_finalize_work, ieee80211_csa_finalize_work);
+#endif
 	INIT_LIST_HEAD(&sdata->assigned_chanctx_list);
 	INIT_LIST_HEAD(&sdata->reserved_chanctx_list);
 
@@ -1370,6 +1408,12 @@ static void ieee80211_setup_sdata(struct ieee80211_sub_if_data *sdata,
 		sdata->vif.bss_conf.bssid = sdata->u.mgd.bssid;
 		ieee80211_sta_setup_sdata(sdata);
 		break;
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	case NL80211_IFTYPE_OCB:
+		sdata->vif.bss_conf.bssid = bssid_wildcard;
+		ieee80211_ocb_setup_sdata(sdata);
+		break;
+#endif
 	case NL80211_IFTYPE_ADHOC:
 		sdata->vif.bss_conf.bssid = sdata->u.ibss.bssid;
 		ieee80211_ibss_setup_sdata(sdata);
@@ -1417,6 +1461,9 @@ static int ieee80211_runtime_change_iftype(struct ieee80211_sub_if_data *sdata,
 	case NL80211_IFTYPE_AP:
 	case NL80211_IFTYPE_STATION:
 	case NL80211_IFTYPE_ADHOC:
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	case NL80211_IFTYPE_OCB:
+#endif
 		/*
 		 * Could maybe also all others here?
 		 * Just not sure how that interacts
@@ -1432,6 +1479,9 @@ static int ieee80211_runtime_change_iftype(struct ieee80211_sub_if_data *sdata,
 	case NL80211_IFTYPE_AP:
 	case NL80211_IFTYPE_STATION:
 	case NL80211_IFTYPE_ADHOC:
+#if CFG80211_VERSION >= KERNEL_VERSION(3,19,0)
+	case NL80211_IFTYPE_OCB:
+#endif
 		/*
 		 * Could probably support everything
 		 * but WDS here (WDS do_open can fail
@@ -1499,7 +1549,6 @@ int ieee80211_if_change_type(struct ieee80211_sub_if_data *sdata,
 	}
 
 	/* reset some values that shouldn't be kept across type changes */
-	sdata->drop_unencrypted = 0;
 	if (type == NL80211_IFTYPE_STATION)
 		sdata->u.mgd.use_4addr = false;
 
@@ -1640,11 +1689,13 @@ static void ieee80211_assign_perm_addr(struct ieee80211_local *local,
 }
 
 int ieee80211_if_add(struct ieee80211_local *local, const char *name,
+		     unsigned char name_assign_type,
 		     struct wireless_dev **new_wdev, enum nl80211_iftype type,
 		     struct vif_params *params)
 {
 	struct net_device *ndev = NULL;
 	struct ieee80211_sub_if_data *sdata = NULL;
+	struct txq_info *txqi;
 	int ret, i;
 	int txqs = 1;
 
@@ -1664,11 +1715,19 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 		ieee80211_assign_perm_addr(local, wdev->address, type);
 		memcpy(sdata->vif.addr, wdev->address, ETH_ALEN);
 	} else {
+		int size = ALIGN(sizeof(*sdata) + local->hw.vif_data_size,
+				 sizeof(void *));
+		int txq_size = 0;
+
+		if (local->ops->wake_tx_queue)
+			txq_size += sizeof(struct txq_info) +
+				    local->hw.txq_data_size;
+
 		if (local->hw.queues >= IEEE80211_NUM_ACS)
 			txqs = IEEE80211_NUM_ACS;
 
-		ndev = alloc_netdev_mqs(sizeof(*sdata) + local->hw.vif_data_size,
-					name, NET_NAME_UNKNOWN,
+		ndev = alloc_netdev_mqs(size + txq_size,
+					name, name_assign_type,
 					ieee80211_if_setup, txqs, 1);
 		if (!ndev)
 			return -ENOMEM;
@@ -1701,6 +1760,11 @@ int ieee80211_if_add(struct ieee80211_local *local, const char *name,
 		ndev->ieee80211_ptr = &sdata->wdev;
 		memcpy(sdata->vif.addr, ndev->dev_addr, ETH_ALEN);
 		memcpy(sdata->name, ndev->name, IFNAMSIZ);
+
+		if (txq_size) {
+			txqi = netdev_priv(ndev) + size;
+			ieee80211_init_tx_queue(sdata, NULL, txqi, 0);
+		}
 
 		sdata->dev = ndev;
 	}
@@ -1797,10 +1861,6 @@ void ieee80211_sdata_stop(struct ieee80211_sub_if_data *sdata)
 	ieee80211_teardown_sdata(sdata);
 }
 
-/*
- * Remove all interfaces, may only be called at hardware unregistration
- * time because it doesn't do RCU-safe list removals.
- */
 void ieee80211_remove_interfaces(struct ieee80211_local *local)
 {
 	struct ieee80211_sub_if_data *sdata, *tmp;
@@ -1809,14 +1869,21 @@ void ieee80211_remove_interfaces(struct ieee80211_local *local)
 
 	ASSERT_RTNL();
 
-	/*
-	 * Close all AP_VLAN interfaces first, as otherwise they
-	 * might be closed while the AP interface they belong to
-	 * is closed, causing unregister_netdevice_many() to crash.
+	/* Before destroying the interfaces, make sure they're all stopped so
+	 * that the hardware is stopped. Otherwise, the driver might still be
+	 * iterating the interfaces during the shutdown, e.g. from a worker
+	 * or from RX processing or similar, and if it does so (using atomic
+	 * iteration) while we're manipulating the list, the iteration will
+	 * crash.
+	 *
+	 * After this, the hardware should be stopped and the driver should
+	 * have stopped all of its activities, so that we can do RCU-unaware
+	 * manipulations of the interface list below.
 	 */
-	list_for_each_entry(sdata, &local->interfaces, list)
-		if (sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
-			dev_close(sdata->dev);
+	cfg80211_shutdown_all_interfaces(local->hw.wiphy);
+
+	WARN(local->open_count, "%s: open count remains %d\n",
+	     wiphy_name(local->hw.wiphy), local->open_count);
 
 	mutex_lock(&local->iflist_mtx);
 	list_for_each_entry_safe(sdata, tmp, &local->interfaces, list) {

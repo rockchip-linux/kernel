@@ -6,6 +6,7 @@
  * GPL LICENSE SUMMARY
  *
  * Copyright(c) 2007 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2015 Intel Deutschland GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -31,6 +32,7 @@
  * BSD LICENSE
  *
  * Copyright(c) 2005 - 2014 Intel Corporation. All rights reserved.
+ * Copyright(c) 2015 Intel Deutschland GmbH
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -102,7 +104,6 @@ enum {
 	/* Debug commands */
 	REPLY_DEBUG_XVT_CMD = 0xf3,
 	/* monitor data notification */
-	MONITOR_DATA_OVER_IDI_NOTIFICATION = 0xf4,
 	DEBUG_LOG_MSG = 0xf7,
 
 	REPLY_MAX = 0xff,
@@ -184,6 +185,34 @@ struct xvt_alive_resp_ver2 {
 	__le32 error_info_addr;		/* SRAM address for UMAC error log */
 	__le32 dbg_print_buff_addr;
 } __packed; /* ALIVE_RES_API_S_VER_2 */
+
+struct xvt_alive_resp_ver3 {
+	__le16 status;
+	__le16 flags;
+	__le32 ucode_minor;
+	__le32 ucode_major;
+
+	u8 ver_subtype;
+	u8 ver_type;
+	u8 mac;
+	u8 opt;
+	__le32 timestamp;
+
+	__le32 error_event_table_ptr;	/* SRAM address for error log */
+	__le32 log_event_table_ptr;	/* SRAM address for LMAC event log */
+	__le32 cpu_register_ptr;
+	__le32 dbgm_config_ptr;
+	__le32 alive_counter_ptr;
+	__le32 scd_base_ptr;		/* SRAM address for SCD */
+	__le32 st_fwrd_addr;		/* pointer to Store and forward */
+	__le32 st_fwrd_size;
+
+	u32 umac_minor;			/* UMAC version: minor */
+	u32 umac_major;			/* UMAC version: major */
+
+	__le32 error_info_addr;		/* SRAM address for UMAC error log */
+	__le32 dbg_print_buff_addr;
+} __packed; /* ALIVE_RES_API_S_VER_3 */
 
 #define TX_CMD_LIFE_TIME_INFINITE	0xFFFFFFFF
 
@@ -276,6 +305,7 @@ enum {
 	NVM_SECTION_TYPE_CALIBRATION,
 	NVM_SECTION_TYPE_PRODUCTION,
 	NVM_SECTION_TYPE_POST_FCS_CALIB,
+	NVM_SECTION_TYPE_MAC_OVERRIDE = 11,
 	NVM_NUM_OF_SECTIONS,
 };
 
