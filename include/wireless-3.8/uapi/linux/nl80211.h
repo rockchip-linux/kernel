@@ -1712,6 +1712,21 @@ enum nl80211_commands {
  *	obtained from it is coming from the device's wiphy and not the global
  *	cfg80211 regdomain.
  *
+ * @NL80211_ATTR_EXT_FEATURES: extended feature flags contained in a byte
+ *	array. The feature flags are identified by their bit index (see &enum
+ *	nl80211_ext_feature_index). The bit index is ordered starting at the
+ *	least-significant bit of the first byte in the array, ie. bit index 0
+ *	is located at bit 0 of byte 0. bit index 25 would be located at bit 1
+ *	of byte 3 (u8 array).
+ *
+ * @NL80211_ATTR_SURVEY_RADIO_STATS: Request overall radio statistics to be
+ *	returned along with other survey data. If set, @NL80211_CMD_GET_SURVEY
+ *	may return a survey entry without a channel indicating global radio
+ *	statistics (only some values are valid and make sense.)
+ *	For devices that don't return such an entry even then, the information
+ *	should be contained in the result as the sum of the respective counters
+ *	over all channels.
+ *
  * @NL80211_ATTR_SCHED_SCAN_DELAY: delay before the first cycle of a
  *	scheduled scan (or a WoWLAN net-detect scan) is started, u32
  *	in seconds.
@@ -2074,6 +2089,12 @@ enum nl80211_attrs {
 	NL80211_ATTR_MAC_MASK,
 
 	NL80211_ATTR_WIPHY_SELF_MANAGED_REG,
+
+	NL80211_ATTR_EXT_FEATURES,
+
+	NL80211_ATTR_SURVEY_RADIO_STATS,
+
+	NL80211_ATTR_NETNS_FD,
 
 	NL80211_ATTR_SCHED_SCAN_DELAY,
 
