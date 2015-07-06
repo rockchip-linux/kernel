@@ -590,7 +590,7 @@ static void ddr_data_training_finish(u32 ch, u32 cs)
 	void __iomem *p_phy_reg = ddr_ch[ch].p_phy_reg;
 
 	/* send some auto refresh to complement the lost while DTT */
-	len = cs > 1 ? 8 : 4;
+	len = cs > 1 ? 20 : 10;
 	for (i = 0; i < len; i++)
 		ddr_send_command(ch, cs, REF_CMD, 0);
 
@@ -1041,10 +1041,15 @@ void dmc_set_rate_in_sram(void *arg)
 			ddr_reset_dll(ch);
 			if (ddr_ch[ch].mem_type != DRAM_MAX) {
 				ddr_update_timing(ch);
-				ddr_move_to_config_state(ch);
-				ddr_update_mr(ch);
 				ddr_update_odt(ch);
 				ddr_adjust_config(ch);
+			}
+		}
+
+		for (ch = 0; ch < CH_MAX; ch++) {
+			if (ddr_ch[ch].mem_type != DRAM_MAX) {
+				ddr_move_to_config_state(ch);
+				ddr_update_mr(ch);
 				cs[ch] = ddr_data_training_prepare(ch);
 				ddr_data_training_trigger(ch, PIR_QSTRN);
 			}
