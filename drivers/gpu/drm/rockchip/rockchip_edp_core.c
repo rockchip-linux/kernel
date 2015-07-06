@@ -478,7 +478,7 @@ static void rockchip_edp_poweroff(struct drm_encoder *encoder)
 {
 	struct rockchip_edp_device *edp = encoder_to_edp(encoder);
 
-	if (edp->dpms_mode == DRM_MODE_DPMS_OFF)
+	if (edp->dpms_mode != DRM_MODE_DPMS_ON)
 		return;
 
 	if (edp->panel)
