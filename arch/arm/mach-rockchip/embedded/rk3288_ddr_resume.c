@@ -93,6 +93,42 @@ static void memory_init(void __iomem *phy_addr)
 		;
 }
 
+static void move_to_lowpower_state(void __iomem *pctrl_addr,
+				   void __iomem *phy_addr)
+{
+	u32 state;
+
+	while (1) {
+		state = readl_relaxed(pctrl_addr +
+				      DDR_PCTL_STAT) & PCTL_STAT_MSK;
+
+		switch (state) {
+		case INIT_MEM:
+			writel_relaxed(CFG_STATE, pctrl_addr + DDR_PCTL_SCTL);
+			while ((readl_relaxed(pctrl_addr + DDR_PCTL_STAT) &
+				PCTL_STAT_MSK) != CONFIG)
+				;
+			/* no break */
+		case CONFIG:
+			writel_relaxed(GO_STATE, pctrl_addr + DDR_PCTL_SCTL);
+			while ((readl_relaxed(pctrl_addr + DDR_PCTL_STAT) &
+				PCTL_STAT_MSK) != ACCESS)
+				;
+			/* no break */
+		case ACCESS:
+			writel_relaxed(SLEEP_STATE, pctrl_addr + DDR_PCTL_SCTL);
+			while ((readl_relaxed(pctrl_addr + DDR_PCTL_STAT) &
+				PCTL_STAT_MSK) != LOW_POWER)
+				;
+			/* no break */
+		case LOW_POWER:
+			return;
+		default:
+			break;
+		}
+	}
+}
+
 static void move_to_access_state(void __iomem *pctrl_addr,
 				 void __iomem *phy_addr)
 {
@@ -209,7 +245,7 @@ void rk3288_ddr_resume_early(const struct rk3288_ddr_save_data *ddr_save_data)
 
 		memory_init(phy_addrs[ch]);
 
-		move_to_access_state(pctrl_addrs[ch], phy_addrs[ch]);
+		move_to_lowpower_state(pctrl_addrs[ch], phy_addrs[ch]);
 	}
 
 	/* disable retention */
@@ -218,4 +254,8 @@ void rk3288_ddr_resume_early(const struct rk3288_ddr_save_data *ddr_save_data)
 	       PMU_PWRMODE_CON_ADDR);
 
 	sram_udelay(1);
+
+	/* disable self-refresh */
+	for (ch = 0; ch < ARRAY_SIZE(pctrl_addrs); ch++)
+		move_to_access_state(pctrl_addrs[ch], phy_addrs[ch]);
 }
