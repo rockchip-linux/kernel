@@ -1077,7 +1077,7 @@ static unsigned long ext4_es_scan(struct shrinker *shrink,
 	nr_shrunk = __ext4_es_shrink(sbi, nr_to_scan, NULL);
 
 	trace_ext4_es_shrink_scan_exit(sbi->s_sb, nr_shrunk, ret);
-	return nr_shrunk;
+	return percpu_counter_read_positive(&sbi->s_es_stats.es_stats_lru_cnt);
 }
 
 static int ext4_es_shrink(struct shrinker *shrink, struct shrink_control *sc)
