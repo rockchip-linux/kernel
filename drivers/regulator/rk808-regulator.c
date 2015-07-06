@@ -51,6 +51,9 @@
 /* Offset from XXX_EN_REG to SLEEP_SET_OFF_XXX */
 #define RK808_SLP_SET_OFF_REG_OFFSET 2
 
+/* max steps for increase voltage of Buck1/2, equal 100mv*/
+#define MAX_STEPS_ONE_TIME 8
+
 struct rk808_regulator_data {
 	struct gpio_desc *dvsok_gpio;
 	struct gpio_desc *dvs_gpio[2];
@@ -107,6 +110,54 @@ int rk808_buck1_2_get_voltage_sel_regmap(struct regulator_dev *rdev)
 	return val;
 }
 
+int rk808_buck1_2_i2c_set_voltage_sel(struct regulator_dev *rdev, unsigned sel)
+{
+	int ret, delta_sel;
+	unsigned int old_sel, tmp, val, mask = rdev->desc->vsel_mask;
+
+	ret = regmap_read(rdev->regmap, rdev->desc->vsel_reg, &val);
+	if (ret != 0)
+		return ret;
+
+	tmp = val & ~mask;
+	old_sel = val & mask;
+	old_sel >>= ffs(mask) - 1;
+	delta_sel = sel - old_sel;
+
+	/*
+	 * If directly modify the register to change the voltage, we will face
+	 * the risk of overshoot. Put it into a multi-step, can effectively
+	 * avoid this problem, a step is 100mv here.
+	 */
+	while (delta_sel > MAX_STEPS_ONE_TIME) {
+		old_sel += MAX_STEPS_ONE_TIME;
+		val = old_sel << (ffs(mask) - 1);
+		val |= tmp;
+
+		/*
+		 * i2c is 400kHz (2.5us per bit) and we must transmit _at least_
+		 * 3 bytes (24 bits) plus start and stop so 26 bits.  So we've
+		 * got more than 65 us between each voltage change and thus
+		 * won't ramp faster than ~1500 uV / us.
+		 */
+		ret = regmap_write(rdev->regmap, rdev->desc->vsel_reg, val);
+		delta_sel = sel - old_sel;
+	}
+
+	sel <<= ffs(mask) - 1;
+	val = tmp | sel;
+	ret = regmap_write(rdev->regmap, rdev->desc->vsel_reg, val);
+
+	/*
+	 * When we change the voltage register directly, the ramp rate is about
+	 * 100000uv/us, wait 1us to make sure the target voltage to be stable,
+	 * so we needn't wait extra time after that.
+	 */
+	udelay(1);
+
+	return ret;
+}
+
 int rk808_buck1_2_set_voltage_sel(struct regulator_dev *rdev, unsigned sel)
 {
 	struct rk808_regulator_data *pdata = rdev_get_drvdata(rdev);
@@ -118,7 +169,7 @@ int rk808_buck1_2_set_voltage_sel(struct regulator_dev *rdev, unsigned sel)
 	int ret, gpio_level;
 
 	if (IS_ERR(gpio))
-		return regulator_set_voltage_sel_regmap(rdev, sel);
+		return rk808_buck1_2_i2c_set_voltage_sel(rdev, sel);
 
 	gpio_level = gpiod_get_value(gpio);
 	if (gpio_level == 0) {
@@ -167,9 +218,14 @@ int rk808_buck1_2_set_voltage_time_sel(struct regulator_dev *rdev,
 				       unsigned int new_selector)
 {
 	struct rk808_regulator_data *pdata = rdev_get_drvdata(rdev);
+	int id = rdev->desc->id - RK808_ID_DCDC1;
+	struct gpio_desc *gpio = pdata->dvs_gpio[id];
 
-	/* if there is a dvsok pin, we don't need wait extra time here */
-	if (!IS_ERR(pdata->dvsok_gpio))
+	/*
+	 * if there is a dvsok pin, or no dvs1/2 pin, we both don't need wait
+	 * extra time here.
+	 */
+	if (!IS_ERR(pdata->dvsok_gpio) || IS_ERR(gpio))
 		return 0;
 
 	return regulator_set_voltage_time_sel(rdev, old_selector, new_selector);
