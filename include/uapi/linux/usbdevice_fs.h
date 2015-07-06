@@ -176,5 +176,6 @@ struct usbdevfs_disconnect_claim {
 #define USBDEVFS_RELEASE_PORT      _IOR('U', 25, unsigned int)
 #define USBDEVFS_GET_CAPABILITIES  _IOR('U', 26, __u32)
 #define USBDEVFS_DISCONNECT_CLAIM  _IOR('U', 27, struct usbdevfs_disconnect_claim)
+#define USBDEVFS_DROP_PRIVILEGES   _IO('U', 30)
 
 #endif /* _UAPI_LINUX_USBDEVICE_FS_H */
