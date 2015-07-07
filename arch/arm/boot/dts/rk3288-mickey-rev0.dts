@@ -17,8 +17,6 @@
 	compatible = "google,veyron-mickey-rev0", "google,veyron-mickey",
 	             "google,veyron", "rockchip,rk3288";
 
-	/delete-node/ gpio-keys;
-
 	vcc_5v: vcc-5v {
 		vin-supply = <&vcc33_sys>;
 	};
@@ -30,6 +28,12 @@
 		regulator-boot-on;
 		vin-supply = <&vcc33_sys>;
 	};
+};
+
+&gpio_keys {
+	pinctrl-0 = <&bt_host_wake>;
+
+	/delete-node/ power;
 };
 
 &i2c2 {
