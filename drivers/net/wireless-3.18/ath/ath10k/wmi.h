@@ -4560,6 +4560,7 @@ struct wmi_peer_set_q_empty_callback_cmd {
 #define WMI_PEER_QOS            0x00000002
 #define WMI_PEER_NEED_PTK_4_WAY 0x00000004
 #define WMI_PEER_NEED_GTK_2_WAY 0x00000010
+#define WMI_PEER_DISABLE_AMSDU_REQ  0x00000400
 #define WMI_PEER_APSD           0x00000800
 #define WMI_PEER_HT             0x00001000
 #define WMI_PEER_40MHZ          0x00002000
@@ -4571,6 +4572,7 @@ struct wmi_peer_set_q_empty_callback_cmd {
 #define WMI_PEER_VHT            0x02000000
 #define WMI_PEER_80MHZ          0x04000000
 #define WMI_PEER_VHT_2G         0x08000000
+#define WMI_PEER_DISABLE_AMSDU_RESP 0x20000000
 #define WMI_PEER_MFP		0x10000000
 
 /*
