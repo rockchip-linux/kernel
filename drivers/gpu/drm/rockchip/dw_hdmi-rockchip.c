@@ -164,9 +164,19 @@ dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 			    struct drm_display_mode *mode)
 {
 	int pclk = mode->clock * 1000;
+	int num_rates = ARRAY_SIZE(dw_hdmi_rates);
+	int max_rate = CLK_PLUS_SLOP(dw_hdmi_rates[num_rates - 1]);
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(dw_hdmi_rates); i++) {
+	/*
+	 * Pixel clocks we support are always < 2GHz and so fit in an
+	 * int.  We should make sure source rate does too so we don't get
+	 * overflow when we multiply by 1000.
+	 */
+	if (mode->clock > DIV_ROUND_UP(max_rate, 1000))
+		return MODE_BAD;
+
+	for (i = 0; i < num_rates; i++) {
 		int slop = CLK_SLOP(dw_hdmi_rates[i]);
 
 		if ((pclk >= dw_hdmi_rates[i] - slop) &&
