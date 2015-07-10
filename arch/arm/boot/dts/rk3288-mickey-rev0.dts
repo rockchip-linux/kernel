@@ -12,6 +12,8 @@
 #include "rk3288-veyron.dtsi"
 #include "rk3288-veyron-lpddr.dtsi"
 
+#include "rk3288-mickey-thermal.dtsi"
+
 / {
 	model = "Google Mickey";
 	compatible = "google,veyron-mickey-rev8", "google,veyron-mickey-rev7",
