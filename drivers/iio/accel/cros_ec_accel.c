@@ -61,8 +61,9 @@ enum accel_data_format {
 #define CALIB_SCALE_SCALAR 1024
 
 typedef int (*read_ec_accel_data_t)(struct iio_dev *indio_dev,
-		long unsigned int scan_mask, s16 *data,
+		unsigned long scan_mask, s16 *data,
 		enum accel_data_format ret_format);
+
 /* State data for ec_accel iio driver. */
 struct cros_ec_accel_state {
 	struct cros_ec_device *ec;
@@ -211,7 +212,7 @@ static int read_ec_until_not_busy(struct cros_ec_accel_state *st)
  * guarantee that the EC will not modify the data as it is being read in.
  */
 static void read_ec_accel_data_unsafe(struct iio_dev *indio_dev,
-			 long unsigned int scan_mask, s16 *data,
+			 unsigned long scan_mask, s16 *data,
 			 enum accel_data_format ret_format)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
@@ -246,7 +247,7 @@ static void read_ec_accel_data_unsafe(struct iio_dev *indio_dev,
  * that the data sampled was not modified by the EC while being read.
  */
 static int read_ec_accel_data_lpc(struct iio_dev *indio_dev,
-			      long unsigned int scan_mask, s16 *data,
+			      unsigned long scan_mask, s16 *data,
 			      enum accel_data_format ret_format)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
@@ -312,7 +313,7 @@ static int send_motion_host_cmd(struct cros_ec_accel_state *st,
 }
 
 static int read_ec_accel_data_cmd(struct iio_dev *indio_dev,
-			      long unsigned int scan_mask, s16 *data,
+			      unsigned long scan_mask, s16 *data,
 			      enum accel_data_format ret_format)
 {
 	struct cros_ec_accel_state *st = iio_priv(indio_dev);
@@ -386,59 +387,64 @@ static int ec_accel_read(struct iio_dev *indio_dev,
 			dev_err(&indio_dev->dev,
 				"offset only for angle - not %d - channel\n",
 				chan->scan_index);
-			return -EIO;
+			ret = -EIO;
+			break;
 		}
 
 		st->param.cmd = MOTIONSENSE_CMD_KB_WAKE_ANGLE;
 		st->param.kb_wake_angle.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
-			return -EIO;
-		else
-			*val = st->resp->kb_wake_angle.ret;
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0) {
+			ret = -EIO;
+			break;
+		}
+		*val = st->resp->kb_wake_angle.ret;
 		break;
 	case IIO_CHAN_INFO_SAMP_FREQ:
 		st->param.cmd = MOTIONSENSE_CMD_EC_RATE;
 		st->param.ec_rate.data = EC_MOTION_SENSE_NO_VALUE;
 
-		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
-			return -EIO;
-		else
-			*val = st->resp->ec_rate.ret;
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0) {
+			ret = -EIO;
+			break;
+		}
+		*val = st->resp->ec_rate.ret;
 		break;
 	case IIO_CHAN_INFO_PEAK_SCALE:
 		if (sensor_num == UNKNOWN_SENSOR_NUM) {
 			dev_err(&indio_dev->dev,
 				"peak scale: index must not channel angle\n");
-			return -EIO;
+			ret = -EIO;
+			break;
 		}
 
 		st->param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
 		st->param.sensor_range.data = EC_MOTION_SENSE_NO_VALUE;
 		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
-			return -EIO;
-		else
-			*val = st->resp->sensor_range.ret;
-
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0) {
+			ret = -EIO;
+			break;
+		}
+		*val = st->resp->sensor_range.ret;
 		break;
 	case IIO_CHAN_INFO_FREQUENCY:
 		if (sensor_num == UNKNOWN_SENSOR_NUM) {
 			dev_err(&indio_dev->dev,
 				"frequency: index must not channel angle\n");
-			return -EIO;
+			ret = -EIO;
+			break;
 		}
 
 		st->param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
 		st->param.sensor_odr.data = EC_MOTION_SENSE_NO_VALUE;
 		st->param.sensor_range.sensor_num = sensor_num;
 
-		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
+		if (send_motion_host_cmd(st, st->resp, 0) <= 0) {
 			ret = -EIO;
-		else
-			*val = st->resp->sensor_odr.ret;
-
+			break;
+		}
+		*val = st->resp->sensor_odr.ret;
 		break;
 	default:
 		ret = -EINVAL;
@@ -469,7 +475,8 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 			dev_err(&indio_dev->dev,
 				"offset only for angle - not %d - channel\n",
 				chan->scan_index);
-			return -EIO;
+			ret = -EIO;
+			break;
 		}
 
 
@@ -477,7 +484,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		st->param.kb_wake_angle.data = val;
 
 		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
-			return -EIO;
+			ret = -EIO;
 
 		break;
 	case IIO_CHAN_INFO_SAMP_FREQ:
@@ -485,7 +492,7 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		st->param.ec_rate.data = val;
 
 		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
-			return -EIO;
+			ret = -EIO;
 
 		break;
 
@@ -493,7 +500,8 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		if (sensor_num == UNKNOWN_SENSOR_NUM) {
 			dev_err(&indio_dev->dev,
 				"peak scale: index must not channel angle\n");
-			return -EIO;
+			ret = -EIO;
+			break;
 		}
 
 		st->param.cmd = MOTIONSENSE_CMD_SENSOR_RANGE;
@@ -504,14 +512,15 @@ static int ec_accel_write(struct iio_dev *indio_dev,
 		st->param.sensor_range.roundup = 1;
 
 		if (send_motion_host_cmd(st, st->resp, 0) <= 0)
-			return -EIO;
+			ret = -EIO;
 
 		break;
 	case IIO_CHAN_INFO_FREQUENCY:
 		if (sensor_num == UNKNOWN_SENSOR_NUM) {
 			dev_err(&indio_dev->dev,
 				"frequency: index must not channel angle\n");
-			return -EIO;
+			ret = -EIO;
+			break;
 		}
 
 		st->param.cmd = MOTIONSENSE_CMD_SENSOR_ODR;
