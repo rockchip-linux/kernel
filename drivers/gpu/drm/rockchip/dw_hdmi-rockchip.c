@@ -165,7 +165,6 @@ dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 {
 	int pclk = mode->clock * 1000;
 	int num_rates = ARRAY_SIZE(dw_hdmi_rates);
-	int max_rate = CLK_PLUS_SLOP(dw_hdmi_rates[num_rates - 1]);
 	int i;
 
 	/*
@@ -173,11 +172,11 @@ dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 	 * int.  We should make sure source rate does too so we don't get
 	 * overflow when we multiply by 1000.
 	 */
-	if (mode->clock > DIV_ROUND_UP(max_rate, 1000))
+	if (mode->clock > INT_MAX / 1000)
 		return MODE_BAD;
 
 	for (i = 0; i < num_rates; i++) {
-		int slop = CLK_SLOP(dw_hdmi_rates[i]);
+		int slop = CLK_SLOP(pclk);
 
 		if ((pclk >= dw_hdmi_rates[i] - slop) &&
 		    (pclk <= dw_hdmi_rates[i] + slop))
@@ -224,7 +223,7 @@ dw_hdmi_rockchip_encoder_mode_fixup(struct drm_encoder *encoder,
 	}
 
 	/* Double check that it's OK */
-	slop = CLK_SLOP(best_clock);
+	slop = CLK_SLOP(pclk);
 	if ((pclk >= best_clock - slop) && (pclk <= best_clock + slop)) {
 		adj_mode->clock = DIV_ROUND_UP(best_clock, 1000);
 		return true;
