@@ -385,7 +385,7 @@ static uint32_t get_aux_clock_divider(struct intel_dp *intel_dp,
 		if (index)
 			return 0;
 		if (HAS_DDI(dev))
-			return DIV_ROUND_CLOSEST(dev_priv->cdclk_freq, 2000);
+			return DIV_ROUND_CLOSEST(intel_ddi_get_cdclk_freq(dev_priv), 2000);
 		else if (IS_GEN6(dev) || IS_GEN7(dev))
 			return 200; /* SNB & IVB eDP input clock at 400Mhz */
 		else
