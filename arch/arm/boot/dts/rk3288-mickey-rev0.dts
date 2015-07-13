@@ -14,7 +14,11 @@
 
 / {
 	model = "Google Mickey";
-	compatible = "google,veyron-mickey-rev0", "google,veyron-mickey",
+	compatible = "google,veyron-mickey-rev8", "google,veyron-mickey-rev7",
+		     "google,veyron-mickey-rev6", "google,veyron-mickey-rev5",
+		     "google,veyron-mickey-rev4", "google,veyron-mickey-rev3",
+		     "google,veyron-mickey-rev2", "google,veyron-mickey-rev1",
+		     "google,veyron-mickey-rev0", "google,veyron-mickey",
 	             "google,veyron", "rockchip,rk3288";
 
 	vcc_5v: vcc-5v {
