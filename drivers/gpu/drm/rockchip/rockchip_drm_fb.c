@@ -118,7 +118,6 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 			 ROCKCHIP_MAX_FB_BUFFER);
 
 	for (i = 0; i < num_planes; i++) {
-		unsigned int width = mode_cmd->width / (i ? hsub : 1);
 		unsigned int height = mode_cmd->height / (i ? vsub : 1);
 		unsigned int min_size;
 
@@ -130,10 +129,7 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 			goto err_gem_object_unreference;
 		}
 
-		min_size = (height - 1) * mode_cmd->pitches[i] +
-			mode_cmd->offsets[i] +
-			width * drm_format_plane_cpp(mode_cmd->pixel_format, i);
-
+		min_size = height * mode_cmd->pitches[i] + mode_cmd->offsets[i];
 		if (obj->size < min_size) {
 			drm_gem_object_unreference_unlocked(obj);
 			ret = -EINVAL;
