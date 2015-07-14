@@ -1313,6 +1313,34 @@ force_sig_info_to_task(struct kernel_siginfo *info, struct task_struct *t)
 	struct k_sigaction *action;
 	int sig = info->si_signo;
 
+	/*
+	 * On some archs, PREEMPT_RT has to delay sending a signal from a trap
+	 * since it can not enable preemption, and the signal code's spin_locks
+	 * turn into mutexes. Instead, it must set TIF_NOTIFY_RESUME which will
+	 * send the signal on exit of the trap.
+	 */
+#ifdef ARCH_RT_DELAYS_SIGNAL_SEND
+	if (in_atomic()) {
+		struct task_struct *t = current;
+
+		if (WARN_ON_ONCE(t->forced_info.si_signo))
+			return 0;
+
+		if (is_si_special(info)) {
+			WARN_ON_ONCE(info != SEND_SIG_PRIV);
+			t->forced_info.si_signo = info->si_signo;
+			t->forced_info.si_errno = 0;
+			t->forced_info.si_code = SI_KERNEL;
+			t->forced_info.si_pid = 0;
+			t->forced_info.si_uid = 0;
+		} else {
+			t->forced_info = *info;
+		}
+
+		set_tsk_thread_flag(t, TIF_NOTIFY_RESUME);
+		return 0;
+	}
+#endif
 	spin_lock_irqsave(&t->sighand->siglock, flags);
 	action = &t->sighand->action[sig-1];
 	ignored = action->sa.sa_handler == SIG_IGN;
