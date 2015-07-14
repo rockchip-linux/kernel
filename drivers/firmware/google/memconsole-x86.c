@@ -243,11 +243,11 @@ static bool __init memconsole_find(void)
 
 	if (coreboot_system) {
 		physaddr = get_address_from_acpi(CBMEM_CONSOLE_ACPI_NAME);
-		if (physaddr && memconsole_coreboot_init(physaddr))
+		if (physaddr && memconsole_coreboot_init(physaddr) == 0)
 			return true;
 
 		physaddr = check_cbmem();
-		if (physaddr && memconsole_coreboot_init(physaddr))
+		if (physaddr && memconsole_coreboot_init(physaddr) == 0)
 			return true;
 	}
 

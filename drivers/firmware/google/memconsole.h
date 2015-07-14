@@ -13,7 +13,7 @@
 #include <linux/types.h>
 
 /* Initialize the memory console given physical address of console buffer */
-bool memconsole_coreboot_init(phys_addr_t physaddr);
+int memconsole_coreboot_init(phys_addr_t physaddr);
 
 /* Initialize the memory console from raw (virtual) base address and length. */
 void memconsole_setup(void *baseaddr, size_t length);

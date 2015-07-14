@@ -44,14 +44,14 @@ void memconsole_setup(void *baseaddr, size_t length)
 }
 EXPORT_SYMBOL(memconsole_setup);
 
-bool memconsole_coreboot_init(phys_addr_t physaddr)
+int memconsole_coreboot_init(phys_addr_t physaddr)
 {
 	struct cbmem_cons __iomem *tmp_cbmc;
 
 	tmp_cbmc = ioremap_cache(physaddr, sizeof(*tmp_cbmc));
 
 	if (tmp_cbmc == NULL)
-		return false;
+		return -ENOMEM;
 
 	cbmem_console = ioremap_cache(physaddr, tmp_cbmc->buffer_size +
 		sizeof(*cbmem_console));	/* Don't forget counting the header. */
@@ -59,11 +59,11 @@ bool memconsole_coreboot_init(phys_addr_t physaddr)
 	iounmap(tmp_cbmc);
 
 	if (cbmem_console == NULL)
-		return false;
+		return -ENOMEM;
 
 	memconsole_setup(cbmem_console->buffer_body,
 		min(cbmem_console->buffer_cursor, cbmem_console->buffer_size));
-	return true;
+	return 0;
 }
 EXPORT_SYMBOL(memconsole_coreboot_init);
 

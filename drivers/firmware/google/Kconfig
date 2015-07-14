@@ -19,6 +19,13 @@ config GOOGLE_SMI
 	  driver provides an interface for reading and writing NVRAM
 	  variables.
 
+config GOOGLE_COREBOOT_TABLE
+	tristate "Coreboot Table Access"
+	depends on OF
+	help
+	  This option enable the coreboot_table module, which provide other
+	  firmware modules to access coreboot table.
+
 config GOOGLE_MEMCONSOLE_X86
 	tristate "Firmware Memory Console - X86"
 	depends on X86 && ACPI && DMI
@@ -29,7 +36,7 @@ config GOOGLE_MEMCONSOLE_X86
 
 config GOOGLE_MEMCONSOLE_OF
 	tristate "Firmware Memory Console - OF"
-	depends on OF
+	depends on GOOGLE_COREBOOT_TABLE
 	help
 	  This option enables the kernel to search for a firmware log on
 	  coreboot platforms using device tree.  If found, this log is exported
