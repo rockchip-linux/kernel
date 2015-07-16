@@ -29,6 +29,7 @@
 #include <linux/rwsem.h>
 #include <linux/suspend.h>
 #include <linux/syscore_ops.h>
+#include <linux/thermal.h>
 #include <linux/workqueue.h>
 
 #include <soc/rockchip/dmc-sync.h>
@@ -80,6 +81,11 @@ struct rk3288_dmcfreq {
 	unsigned long rate, target_rate;
 	unsigned long volt, target_volt;
 	int err;
+
+	struct notifier_block thermal_change_nb;
+	unsigned long *freq_table;
+	unsigned long num_levels;
+	unsigned int thermal_throttling_level;
 };
 
 /*
@@ -93,6 +99,7 @@ static int rk3288_dmcfreq_target(struct device *dev, unsigned long *freq,
 				 u32 flags)
 {
 	struct dev_pm_opp *opp;
+	unsigned long thermal_throttling_rate;
 
 	rcu_read_lock();
 	opp = devfreq_recommended_opp(dev, freq, flags);
@@ -100,6 +107,21 @@ static int rk3288_dmcfreq_target(struct device *dev, unsigned long *freq,
 		rcu_read_unlock();
 		return PTR_ERR(opp);
 	}
+
+	if (dmcfreq.num_levels) {
+		thermal_throttling_rate =
+			dmcfreq.freq_table[dmcfreq.thermal_throttling_level];
+
+		if (*freq > thermal_throttling_rate) {
+			dev_dbg(dev, "Thermal throttling %lu to %lu\n", *freq,
+				thermal_throttling_rate);
+
+			*freq = thermal_throttling_rate;
+			opp = devfreq_recommended_opp(
+				dev, freq, DEVFREQ_FLAG_LEAST_UPPER_BOUND);
+		}
+	}
+
 	dmcfreq.target_rate = dev_pm_opp_get_freq(opp);
 	dmcfreq.target_volt = dev_pm_opp_get_voltage(opp);
 	opp = devfreq_recommended_opp(dev, &dmcfreq.rate, flags);
@@ -317,6 +339,38 @@ static int rk3288_dmc_enable_notify(struct notifier_block *nb,
 	return NOTIFY_BAD;
 }
 
+static int dmc_set_cur_state(struct thermal_cooling_device *cdev,
+				 unsigned long state)
+{
+	WARN_ON(state >= dmcfreq.num_levels);
+	dmcfreq.thermal_throttling_level = state;
+	dsb();
+
+	return 0;
+}
+
+static int dmc_get_max_state(struct thermal_cooling_device *cdev,
+				 unsigned long *state)
+{
+	*state = dmcfreq.num_levels - 1;
+
+	return 0;
+}
+
+static int dmc_get_cur_state(struct thermal_cooling_device *cdev,
+				 unsigned long *state)
+{
+	*state = dmcfreq.thermal_throttling_level;
+
+	return 0;
+}
+
+static struct thermal_cooling_device_ops const dmcfreq_cooling_ops = {
+	.get_max_state = dmc_get_max_state,
+	.get_cur_state = dmc_get_cur_state,
+	.set_cur_state = dmc_set_cur_state,
+};
+
 static struct notifier_block dmc_enable_nb = {
 	.notifier_call = rk3288_dmc_enable_notify,
 };
@@ -424,6 +478,60 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	rockchip_dmc_en_unlock();
 
 	register_syscore_ops(&rk3288_dmcfreq_syscore_ops);
+
+	if (of_find_property(dmcfreq.clk_dev->of_node, "#cooling-cells",
+			     NULL)) {
+		struct thermal_cooling_device *cdev;
+		unsigned long freq;
+		int length;
+		int i;
+
+		/*
+		 * Make a table of frequencies as of probe time, just like
+		 * everyone else using OPP.  Kinda defeats the purpose of
+		 * OPP (doesn't handle someone else adding to the list), but
+		 * oh well.
+		 */
+		rcu_read_lock();
+		length = dev_pm_opp_get_opp_count(dmcfreq.clk_dev);
+		dmcfreq.freq_table =
+			devm_kzalloc(dmcfreq.clk_dev,
+				     length * sizeof(*dmcfreq.freq_table),
+				     GFP_KERNEL);
+		if (!dmcfreq.freq_table) {
+			dev_err(dmcfreq.clk_dev, "No memory for freq table\n");
+			length = 0;
+		}
+
+		freq = ULONG_MAX;
+		for (i = 0; i < length; i++) {
+			struct dev_pm_opp *opp;
+
+			opp = dev_pm_opp_find_freq_floor(dmcfreq.clk_dev,
+							 &freq);
+			if (IS_ERR(opp)) {
+				dev_err(dmcfreq.clk_dev,
+					"Error getting opp %d\n", i);
+				length = i;
+				break;
+			}
+			dmcfreq.freq_table[i] = freq;
+
+			freq--;
+		}
+		rcu_read_unlock();
+		dmcfreq.num_levels = length;
+
+		if (length) {
+			cdev = thermal_of_cooling_device_register(
+				dmcfreq.clk_dev->of_node, "dmcthermal",
+				&dmcfreq, &dmcfreq_cooling_ops);
+
+			if (IS_ERR(cdev))
+				pr_err("dmc w/out cooling device: %ld\n",
+				PTR_ERR(cdev));
+		}
+	}
 
 	return 0;
 }
