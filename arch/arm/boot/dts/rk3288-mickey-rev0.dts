@@ -111,3 +111,11 @@
 		};
 	};
 };
+
+&usb_host0_ehci {
+	status = "disabled";
+};
+
+&usb_host1 {
+	status = "disabled";
+};
