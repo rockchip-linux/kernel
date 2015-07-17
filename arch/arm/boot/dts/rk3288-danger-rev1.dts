@@ -35,6 +35,11 @@
 	};
 };
 
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
+
 &rk808 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pmic_int_l &dvs_1 &dvs_2>;

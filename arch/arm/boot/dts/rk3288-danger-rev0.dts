@@ -60,6 +60,11 @@
 	default-brightness-level = <128>;
 };
 
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
+
 &rk808 {
 	/delete-property/ vcc6-supply;
 	/* No sd card regulators (vcc9), hardware problem in rev0 */
