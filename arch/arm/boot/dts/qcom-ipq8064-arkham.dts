@@ -364,119 +364,54 @@
 					clock-mode = /bits/ 8 <1>;
 
 					chan0 {
-						chan-name = "LED0_Red";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
+						led-cur = /bits/ 8 <0x0>;
+						max-cur = /bits/ 8 <0x0>;
 					};
 
 					chan1 {
+						led-cur = /bits/ 8 <0x0>;
+						max-cur = /bits/ 8 <0x0>;
+					};
+
+					chan2 {
+						led-cur = /bits/ 8 <0x0>;
+						max-cur = /bits/ 8 <0x0>;
+					};
+
+					chan3 {
+						led-cur = /bits/ 8 <0x0>;
+						max-cur = /bits/ 8 <0x0>;
+					};
+
+					chan4 {
 						chan-name = "LED0_Green";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
+						led-cur = /bits/ 8 <0xfa>;
+						max-cur = /bits/ 8 <0xff>;
 					};
 
-					chan2 {
+					chan5 {
 						chan-name = "LED0_Blue";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan3 {
-						chan-name = "LED1_Red";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan4 {
-						chan-name = "LED1_Green";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan5 {
-						chan-name = "LED1_Blue";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
+						led-cur = /bits/ 8 <0xfa>;
+						max-cur = /bits/ 8 <0xff>;
 					};
 
 					chan6 {
-						chan-name = "LED2_Red";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
+						led-cur = /bits/ 8 <0x0>;
+						max-cur = /bits/ 8 <0x0>;
 					};
 
 					chan7 {
-						chan-name = "LED2_Green";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
+						led-cur = /bits/ 8 <0x0>;
+						max-cur = /bits/ 8 <0x0>;
 					};
 
 					chan8 {
-						chan-name = "LED2_Blue";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
+						chan-name = "LED0_Red";
+						led-cur = /bits/ 8 <0xfa>;
+						max-cur = /bits/ 8 <0xff>;
 					};
 				};
 
-				lp55231@33 {
-					compatible = "national,lp5523";
-					reg = <0x33>;
-					clock-mode = /bits/ 8 <1>;
-
-					chan0 {
-						chan-name = "LED3_Red";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan1 {
-						chan-name = "LED3_Green";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan2 {
-						chan-name = "LED3_Blue";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan3 {
-						chan-name = "LED4_Red";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan4 {
-						chan-name = "LED4_Green";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan5 {
-						chan-name = "LED4_Blue";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan6 {
-						chan-name = "LED5_Red";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan7 {
-						chan-name = "LED5_Green";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-
-					chan8 {
-						chan-name = "LED5_Blue";
-						led-cur = /bits/ 8 <0x64>;
-						max-cur = /bits/ 8 <0x78>;
-					};
-				};
 			};
 		};
 
