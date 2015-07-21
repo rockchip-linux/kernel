@@ -3,6 +3,7 @@
 #define _LINUX_PID_H
 
 #include <linux/rculist.h>
+#include <linux/atomic.h>
 #include <linux/wait.h>
 
 enum pid_type
