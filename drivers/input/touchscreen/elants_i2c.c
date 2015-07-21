@@ -1126,6 +1126,11 @@ static void elants_i2c_power_off(void *_data)
 	}
 
 	if (!IS_ERR_OR_NULL(ts->reset_gpio)) {
+		/*
+		 * Activate reset gpio to prevent leakage through the
+		 * pin once we shut off power to the controller.
+		 */
+		gpiod_set_value_cansleep(ts->reset_gpio, 1);
 		regulator_disable(ts->vccio);
 		regulator_disable(ts->vcc33);
 	}
