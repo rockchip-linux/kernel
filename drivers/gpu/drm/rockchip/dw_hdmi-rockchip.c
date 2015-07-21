@@ -30,7 +30,7 @@ struct rockchip_hdmi {
 	struct drm_encoder encoder;
 };
 
-#define CLK_SLOP(clk)		((clk) / 1000)
+#define CLK_SLOP(clk)		((clk) / 333)
 #define CLK_PLUS_SLOP(clk)	((clk) + CLK_SLOP(clk))
 
 #define to_rockchip_hdmi(x)	container_of(x, struct rockchip_hdmi, x)
@@ -65,7 +65,9 @@ static const int dw_hdmi_rates[] = {
 	106500000,
 	108000000,
 	115500000,
+	118666667,	/* for 119.0 MHz,  .280% off */
 	135000000,
+	136500000,	/* for 136.75 MHz, .183% off */
 	148500000,
 	297000000,
 };
