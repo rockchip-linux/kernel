@@ -61,7 +61,13 @@ static const int dw_hdmi_rates[] = {
 	83520000,	/* for 83.5 MHz,  .024% off */
 	85440000,	/* for 85.5 MHz,  .070% off */
 	88695653,	/* for 88.75 MHz, .061% off */
+	101052632,	/* for 101.0 MHz, .052% off */
+	106500000,
+	108000000,
+	115500000,
+	135000000,
 	148500000,
+	297000000,
 };
 
 static const struct dw_hdmi_mpll_config rockchip_mpll_cfg[] = {
