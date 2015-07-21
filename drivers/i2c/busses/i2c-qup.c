@@ -98,6 +98,10 @@
 #define QUP_STATUS_ERROR_FLAGS		0x7c
 
 #define QUP_READ_LIMIT			256
+#define QUP_MAX_CLK_STATE_RETRIES	300
+#define I2C_CLK_RESET_BUSIDLE_STATE	0
+#define I2C_CLK_FORCED_LOW_STATE	5
+
 
 struct qup_i2c_dev {
 	struct device		*dev;
@@ -383,6 +387,29 @@ static void qup_i2c_issue_read(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 	writel(val, qup->base + QUP_OUT_FIFO_BASE);
 }
 
+static int qup_i2c_poll_clock_ready(struct qup_i2c_dev *dev)
+{
+	uint32_t retries = 0;
+
+	/*
+	 * Wait for the clock state to transition to either IDLE or FORCED
+	 * LOW.  This will usually happen within one cycle of the i2c clock.
+	 */
+
+	while (retries++ < QUP_MAX_CLK_STATE_RETRIES) {
+		uint32_t status = readl_relaxed(dev->base + QUP_I2C_STATUS);
+		uint32_t clk_state = (status >> 13) & 0x7;
+
+		if (clk_state == I2C_CLK_RESET_BUSIDLE_STATE ||
+				clk_state == I2C_CLK_FORCED_LOW_STATE)
+			return 0;
+		/* 1-bit delay before we check again */
+		usleep_range(dev->one_byte_t/9, dev->one_byte_t/9);
+	}
+
+	dev_err(dev->dev, "Error waiting for clk ready\n");
+	return -ETIMEDOUT;
+}
 
 static void qup_i2c_read_fifo(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 {
@@ -463,6 +490,8 @@ static int qup_i2c_read_one(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 
 		qup_i2c_read_fifo(qup, msg);
 	} while (qup->pos < msg->len);
+
+	ret = qup_i2c_poll_clock_ready(qup);
 
 err:
 	disable_irq(qup->irq);
