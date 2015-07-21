@@ -220,6 +220,10 @@ dw_hdmi_rockchip_mode_valid(struct drm_connector *connector,
 	if (mode->clock > INT_MAX / 1000)
 		return MODE_BAD;
 
+	/* HACK: Modes > 3840x2160 pixels can't work on the VOP; filter them. */
+	if (mode->hdisplay > 3840 || mode->vdisplay > 2160)
+		return MODE_BAD;
+
 	for (i = 0; i < num_rates; i++) {
 		int slop = CLK_SLOP(pclk);
 
