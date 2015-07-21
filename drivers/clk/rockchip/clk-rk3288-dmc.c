@@ -1194,6 +1194,7 @@ static int ddr_change_freq(struct rk3288_dmcclk *dmc)
 static const struct rockchip_pll_rate_table rk3288_dpll_rates[] = {
 	RK3066_PLL_RATE(666000000, 2, 111, 2),
 	RK3066_PLL_RATE(533000000, 3, 133, 2), /* Actually 532 */
+	RK3066_PLL_RATE(433000000, 1, 72, 4),  /* Actually 432 */
 	RK3066_PLL_RATE(400000000, 1, 66, 4),  /* Actually 396 */
 	RK3066_PLL_RATE(333000000, 1, 83, 6),  /* Actually 332 */
 	RK3066_PLL_RATE(266000000, 1, 88, 8),  /* Actually 264 */
