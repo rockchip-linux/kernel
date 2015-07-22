@@ -163,13 +163,7 @@ static int lp5523_post_init_device(struct lp55xx_chip *chip)
 	if (ret)
 		return ret;
 
-	ret = lp5523_init_program_engine(chip);
-	if (ret) {
-		/* HACK: retry for the platform with unreliable i2c */
-		dev_info(&chip->cl->dev, "retry configuring LED engine\n");
-		ret = lp5523_init_program_engine(chip);
-	}
-	return ret;
+	return lp5523_init_program_engine(chip);
 }
 
 static void lp5523_load_engine(struct lp55xx_chip *chip)
