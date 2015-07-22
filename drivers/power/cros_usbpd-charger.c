@@ -239,7 +239,13 @@ static int get_ec_usb_pd_power_info(struct port_data *port)
 
 	switch (resp.type) {
 	case USB_CHG_TYPE_NONE:
-		port->psy_type = POWER_SUPPLY_TYPE_UNKNOWN;
+		/* For dual-role devices when we are a source, the firmware
+		 * reports the type as NONE. Report such chargers as type USB.
+		 */
+		if (resp.dualrole)
+			port->psy_type = POWER_SUPPLY_TYPE_USB;
+		else
+			port->psy_type = POWER_SUPPLY_TYPE_UNKNOWN;
 		break;
 	case USB_CHG_TYPE_PD:
 	case USB_CHG_TYPE_PROPRIETARY:
