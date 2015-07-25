@@ -1353,7 +1353,7 @@ static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
 	}
 }
 
-#define NUM_PHASES			16
+#define NUM_PHASES			360
 #define TUNING_ITERATION_TO_PHASE(i)	(DIV_ROUND_UP((i) * 360, NUM_PHASES))
 
 static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
@@ -1391,10 +1391,13 @@ static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
 	}
 
 	/* Try each phase and extract good ranges */
-	for (i = 0; i < NUM_PHASES; i++) {
+	for (i = 0; i < NUM_PHASES; ) {
 		clk_set_phase(host->sample_clk, TUNING_ITERATION_TO_PHASE(i));
 
 		v = !dw_mci_tuning_test(slot, opcode, tuning_data, blk_test);
+
+		if (i == 0)
+			first_v = v;
 
 		if ((!prev_v) && v) {
 			range_count++;
@@ -1402,10 +1405,22 @@ static int dw_mci_execute_generic_tuning(struct dw_mci_slot *slot, u32 opcode,
 		}
 		if (v) {
 			ranges[range_count-1].end = i;
-		}
+			i++;
+		} else if (i == NUM_PHASES - 1) {
+			/* No extra skipping rules if we're at the end */
+			i++;
+		} else {
+			/*
+			 * No need to check too close to an invalid
+			 * one since testing bad phases is slow.  Skip
+			 * 20 degrees.
+			 */
+			i += DIV_ROUND_UP(20 * NUM_PHASES, 360);
 
-		if (i == 0)
-			first_v = v;
+			/* Always test the last one */
+			if (i >= NUM_PHASES)
+				i = NUM_PHASES - 1;
+		}
 
 		prev_v = v;
 	}
