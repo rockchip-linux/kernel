@@ -85,23 +85,23 @@ static int rockchip_mmc_set_phase(struct clk_hw *hw, int degrees)
 	remainder = (degrees % 90);
 
 	/*
-	 * Keep remainder <= 70. The "remainder" part is pretty
-	 * inexact.  When we ask for 60 we might get 44 or 77.  When
-	 * we ask for 70 we might get 51.3 or 89.8.  Keeping things <=
-	 * 70 means that we ensure that the clock phases is monotonic.
+	 * Due to the inexact nature of the "fine" delay, we might
+	 * actually go non-monotonic.  We don't go _too_ monotonic
+	 * though, so we should be OK.  Here are options of how we may
+	 * work:
 	 *
 	 * Ideally we end up with:
-	 *   1.0, 2.0, ..., 69.0, 70.0, 70.0, 70.0, 70.0, ..., 90
+	 *   1.0, 2.0, ..., 69.0, 70.0, ...,  89.0, 90.0
 	 *
-	 * On one extreme:
-	 *   .73, 1.5, ..., 50.6, 51.3, 51.3, 51.3, 51.3, ..., 90
-	 * The other:
-	 *   1.3, 2.6, ..., 88.6. 89.8, 89.8, 89.8, 89.8, ..., 90
+	 * On one extreme (if delay is actually 44ps):
+	 *   .73, 1.5, ..., 50.6, 51.3, ...,  65.3, 90.0
+	 * The other (if delay is actually 77ps):
+	 *   1.3, 2.6, ..., 88.6. 89.8, ..., 114.0, 90
 	 *
-	 * Yeah, we end up repeating a bunch, though...
+	 * It's possible we might make a delay that is up to 25
+	 * degrees off from what we think we're making.  That's OK
+	 * though because we should be REALLY far from any bad range.
 	 */
-	if (remainder > 70)
-		remainder = 70;
 
 	/*
 	 * Convert to delay; do a little extra work to make sure we
