@@ -42,8 +42,8 @@ static unsigned long rockchip_mmc_recalc(struct clk_hw *hw,
 #define PSECS_PER_SEC 1000000000000LL
 
 /*
- * Each fine delay is between 40ps-80ps. Assume each fine delay is 60ps to
- * simplify calculations. So 45degs could be anywhere between 33deg and 66deg.
+ * Each fine delay is between 44ps-77ps. Assume each fine delay is 60ps to
+ * simplify calculations. So 45degs could be anywhere between 33deg and 57.8deg.
  */
 #define ROCKCHIP_MMC_DELAY_ELEMENT_PSEC 60
 
@@ -85,23 +85,23 @@ static int rockchip_mmc_set_phase(struct clk_hw *hw, int degrees)
 	remainder = (degrees % 90);
 
 	/*
-	 * Keep remainder < 67. The "remainder" part is pre inexact.
-	 * When we ask for 60 we might get 40 or 80.  When we ask for
-	 * 67.5 we might get 45 or 90.  Keeping things < 67 means that
-	 * we ensure that the clock phases is monotonic.
+	 * Keep remainder <= 70. The "remainder" part is pretty
+	 * inexact.  When we ask for 60 we might get 44 or 77.  When
+	 * we ask for 70 we might get 51.3 or 89.8.  Keeping things <=
+	 * 70 means that we ensure that the clock phases is monotonic.
 	 *
 	 * Ideally we end up with:
-	 *   1.0, 2.0, ..., 66.0, 67.0, 67.0, 67.0, 67.0, ..., 90
+	 *   1.0, 2.0, ..., 69.0, 70.0, 70.0, 70.0, 70.0, ..., 90
 	 *
 	 * On one extreme:
-	 *   .67, 1.3, ..., 44.0, 44.6, 44.6, 44.6, 44.6, ..., 90
+	 *   .73, 1.5, ..., 50.6, 51.3, 51.3, 51.3, 51.3, ..., 90
 	 * The other:
-	 *   1.3, 2.6, ..., 88.0. 89.3, 89.3, 89.3, 89.3, ..., 90
+	 *   1.3, 2.6, ..., 88.6. 89.8, 89.8, 89.8, 89.8, ..., 90
 	 *
 	 * Yeah, we end up repeating a bunch, though...
 	 */
-	if (remainder > 67)
-		remainder = 67;
+	if (remainder > 70)
+		remainder = 70;
 
 	/*
 	 * Convert to delay; do a little extra work to make sure we
