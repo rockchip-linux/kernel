@@ -81,22 +81,37 @@ static int rockchip_mmc_set_phase(struct clk_hw *hw, int degrees)
 	u32 raw_value;
 	u64 delay;
 
-	/* allow 22 to be 22.5 */
-	degrees++;
-	/* floor to 22.5 increment */
-	degrees -= ((degrees) * 10 % 225) / 10;
-
 	nineties = degrees / 90;
-	/* 22.5 multiples */
-	remainder = (degrees % 90) / 22;
+	remainder = (degrees % 90);
 
+	/*
+	 * Keep remainder < 67. The "remainder" part is pre inexact.
+	 * When we ask for 60 we might get 40 or 80.  When we ask for
+	 * 67.5 we might get 45 or 90.  Keeping things < 67 means that
+	 * we ensure that the clock phases is monotonic.
+	 *
+	 * Ideally we end up with:
+	 *   1.0, 2.0, ..., 66.0, 67.0, 67.0, 67.0, 67.0, ..., 90
+	 *
+	 * On one extreme:
+	 *   .67, 1.3, ..., 44.0, 44.6, 44.6, 44.6, 44.6, ..., 90
+	 * The other:
+	 *   1.3, 2.6, ..., 88.0. 89.3, 89.3, 89.3, 89.3, ..., 90
+	 *
+	 * Yeah, we end up repeating a bunch, though...
+	 */
+	if (remainder > 67)
+		remainder = 67;
+
+	/*
+	 * Convert to delay; do a little extra work to make sure we
+	 * don't overflow 32-bit / 64-bit numbers.
+	 */
 	delay = PSECS_PER_SEC;
-	do_div(delay, rate);
-	/* / 360 / 22.5 */
-	do_div(delay, 16);
-	do_div(delay, ROCKCHIP_MMC_DELAY_ELEMENT_PSEC);
-
 	delay *= remainder;
+	do_div(delay, 10000);
+	do_div(delay, (rate / 1000) * 36 * ROCKCHIP_MMC_DELAY_ELEMENT_PSEC);
+
 	delay_num = (u8) min(delay, 255ULL);
 
 	raw_value = delay_num ? ROCKCHIP_MMC_DELAY_SEL : 0;
