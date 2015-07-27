@@ -363,7 +363,6 @@ static int ddr3_get_parameter(struct rk3288_dmcclk *dmc)
 		dmc->p_phy_timing->mr[1] = DDR3_DS_40 | DDR3_RTT_NOM_120;
 
 	dmc->p_phy_timing->mr[2] = DDR3_MR2_CWL(cwl);
-	dmc->p_phy_timing->mr[3] = 0;
 
 	/* tREFI, average periodic refresh interval, 7.8us */
 	dmc->p_ctl_timing->trefi = DDR3_TREFI_7_8_US;
@@ -590,7 +589,6 @@ static int lpddr2_get_parameter(struct rk3288_dmcclk *dmc)
 		cwl = 4;
 		dmc->p_phy_timing->mr[2] = LPDDR2_RL8_WL4;
 	}
-	dmc->p_phy_timing->mr[3] = LPDDR2_DS_34;
 	dmc->p_phy_timing->mr[0] = 0;
 
 	/*
@@ -825,8 +823,6 @@ static int lpddr3_get_parameter(struct rk3288_dmcclk *dmc)
 		cwl = 8;
 		dmc->p_phy_timing->mr[2] = LPDDR3_RL16_WL8;
 	}
-
-	dmc->p_phy_timing->mr[3] = LPDDR3_DS_34;
 
 	if (nmhz <= dmc->oftimings.odt_disable_freq)
 		dmc->p_phy_timing->mr11 = LPDDR3_ODT_DIS;

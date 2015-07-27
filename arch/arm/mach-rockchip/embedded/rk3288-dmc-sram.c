@@ -788,6 +788,7 @@ static u32 ddr_update_mr(u32 ch)
 		}
 	} else if ((ddr_ch[ch].mem_type == LPDDR2) ||
 		   (ddr_ch[ch].mem_type == LPDDR3)) {
+		u32 mr3 = __raw_readl(p_phy_reg + DDR_PUBL_MR3);
 		ddr_send_command(ch, cs, MRS_CMD,
 				 lpddr2_ma(0x1) |
 				 lpddr2_op((p_phy_timing->mr[1])));
@@ -796,7 +797,7 @@ static u32 ddr_update_mr(u32 ch)
 				 lpddr2_op((p_phy_timing->mr[2])));
 		ddr_send_command(ch, cs, MRS_CMD,
 				 lpddr2_ma(0x3) |
-				 lpddr2_op((p_phy_timing->mr[3])));
+				 lpddr2_op(mr3));
 		if (ddr_ch[ch].mem_type == LPDDR3) {
 			ddr_send_command(ch, cs, MRS_CMD,
 					 lpddr2_ma(11) |
