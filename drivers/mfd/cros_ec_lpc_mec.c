@@ -77,7 +77,7 @@ u8 cros_ec_lpc_io_bytes_mec(
 	 * Long access cannot be used on misaligned data since reading B0 loads
 	 * the data register and writing B3 flushes.
 	 */
-	if (offset & 0x3)
+	if ((offset & 0x3) || length < 4)
 		access = ACCESS_TYPE_BYTE;
 	else
 		access = ACCESS_TYPE_LONG_AUTO_INCREMENT;
