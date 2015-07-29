@@ -741,6 +741,7 @@ static u32 ddr_update_mr(u32 ch)
 	cs = ((val >> 18) & 0xf);
 	val = __raw_readl(p_phy_reg + DDR_PUBL_MR1);
 	dll_off = (val & DDR3_DLL_DISABLE) ? 1 : 0;
+	p_phy_timing->mr[3] = __raw_readl(p_phy_reg + DDR_PUBL_MR3);
 	ddr_copy((u64 *)(p_phy_reg + DDR_PUBL_MR0),
 		 (u64 *)&(p_phy_timing->mr[0]), 2);
 	if (ddr_ch[ch].mem_type == DDR3) {
@@ -788,7 +789,6 @@ static u32 ddr_update_mr(u32 ch)
 		}
 	} else if ((ddr_ch[ch].mem_type == LPDDR2) ||
 		   (ddr_ch[ch].mem_type == LPDDR3)) {
-		u32 mr3 = __raw_readl(p_phy_reg + DDR_PUBL_MR3);
 		ddr_send_command(ch, cs, MRS_CMD,
 				 lpddr2_ma(0x1) |
 				 lpddr2_op((p_phy_timing->mr[1])));
@@ -797,7 +797,7 @@ static u32 ddr_update_mr(u32 ch)
 				 lpddr2_op((p_phy_timing->mr[2])));
 		ddr_send_command(ch, cs, MRS_CMD,
 				 lpddr2_ma(0x3) |
-				 lpddr2_op(mr3));
+				 lpddr2_op((p_phy_timing->mr[3])));
 		if (ddr_ch[ch].mem_type == LPDDR3) {
 			ddr_send_command(ch, cs, MRS_CMD,
 					 lpddr2_ma(11) |
