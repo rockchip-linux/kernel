@@ -293,13 +293,15 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 
 	for (plane = 0; plane < vb->num_planes; ++plane) {
 		dma_desc = &gbuf->dma_desc[plane];
+		WARN_ON(!IS_ALIGNED(dma_desc->map_addr, 16));
 		sgt = vb2_dma_sg_plane_desc(vb, plane);
 		if (!IS_ALIGNED(sgt->sgl->offset, 8) ||
 				!IS_ALIGNED(vb2_plane_size(vb, plane), 8)) {
 			go2001_err(gdev, "Plane address/size not aligned "
 					"%d/%zu\n", sgt->sgl->offset,
 					vb2_plane_size(vb, plane));
-			return -EINVAL;
+			ret = -EINVAL;
+			goto err;
 		}
 
 		dma_desc->num_entries = sgt->nents;
@@ -324,9 +326,15 @@ static int go2001_buf_init(struct vb2_buffer *vb)
 			mmap_list[sgi].dma_addr = cpu_to_le64(dma_addr);
 			mmap_list[sgi].size = cpu_to_le32(dma_len);
 
-			go2001_dbg(gdev, 3, "Chunk %d: 0x%08llx, size %d\n",
+			go2001_dbg(gdev, 4, "Chunk %d: 0x%08llx, size %d\n",
 					sgi, dma_addr, dma_len);
 		}
+	}
+
+	ret = go2001_map_buffer(ctx, gbuf);
+	if (ret) {
+		go2001_err(ctx->gdev, "Failed mapping buffer in HW\n");
+		goto err;
 	}
 
 	return 0;
@@ -345,16 +353,8 @@ static int go2001_buf_prepare(struct vb2_buffer *vb)
 {
 	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
-	int ret;
 
-	if (gbuf->mapped)
-		return 0;
-
-	ret = go2001_map_buffer(ctx, gbuf);
-	if (ret)
-		go2001_err(ctx->gdev, "Failed mapping buffer in HW\n");
-
-	return ret;
+	return 0;
 }
 
 static void go2001_buf_finish(struct vb2_buffer *vb)
@@ -394,7 +394,11 @@ static void go2001_buf_finish(struct vb2_buffer *vb)
 
 		if (gbuf->partition_off[i] + gbuf->partition_size[i] >
 				plane_size) {
-			go2001_err(ctx->gdev, "Invalid partition size\n");
+			go2001_err(ctx->gdev, "Invalid partition %d info, off: "
+					"0x%zx, size: %zu, plane_size: %zu\n",
+					i, gbuf->partition_off[i],
+					gbuf->partition_size[i],
+					plane_size);
 			return;
 		}
 
@@ -414,16 +418,13 @@ static void go2001_buf_cleanup(struct vb2_buffer *vb)
 	struct go2001_dma_desc *dma_desc;
 	enum dma_data_direction dir;
 	int plane;
-	int ret;
-
-	if (!gbuf->mapped)
-		return;
 
 	dir = V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type) ?
 		DMA_TO_DEVICE : DMA_FROM_DEVICE;
 
-	ret = go2001_unmap_buffer(ctx, gbuf);
+	go2001_unmap_buffer(ctx, gbuf);
 
+	/* Clean up regardless of whether unmap in HW succeeded or not. */
 	for (plane = 0; plane < vb->num_planes; ++plane) {
 		dma_desc = &gbuf->dma_desc[plane];
 		if (dma_desc->mmap_list) {
@@ -434,11 +435,6 @@ static void go2001_buf_cleanup(struct vb2_buffer *vb)
 
 		memset(dma_desc, 0, sizeof(struct go2001_dma_desc));
 	}
-
-	gbuf->mapped = false;
-
-	if (ret)
-		go2001_ctx_error(ctx);
 }
 
 static int go2001_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -503,15 +499,18 @@ static void go2001_buf_queue(struct vb2_buffer *vb)
 	unsigned long flags;
 	int ret;
 
-	spin_lock_irqsave(&ctx->qlock, flags);
-	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+	if (ctx->codec_mode == CODEC_MODE_ENCODER
+			&& V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type)) {
 		gbuf->rt_enc_params = ctx->pending_rt_params;
 		memset(&ctx->pending_rt_params, 0,
 				sizeof(ctx->pending_rt_params));
-		list_add_tail(&gbuf->list, &ctx->src_buf_q);
-	} else {
-		list_add_tail(&gbuf->list, &ctx->dst_buf_q);
 	}
+
+	spin_lock_irqsave(&ctx->qlock, flags);
+	if (V4L2_TYPE_IS_OUTPUT(vq->type))
+		list_add_tail(&gbuf->list, &ctx->src_buf_q);
+	else
+		list_add_tail(&gbuf->list, &ctx->dst_buf_q);
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
 	ret = go2001_schedule_frames(ctx);

@@ -906,11 +906,6 @@ int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	unsigned int i;
 	int ret;
 
-	if (ctx->state == ERROR) {
-		go2001_dbg(gdev, 1, "Context in error state\n");
-		return 0;
-	}
-
 	if (!buf->mapped) {
 		go2001_dbg(gdev, 1, "Buffer not mapped\n");
 		return 0;
