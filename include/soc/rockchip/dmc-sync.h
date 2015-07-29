@@ -24,6 +24,9 @@
 #define DMC_PAUSE_CPU_TIME_NS	(30 * NSEC_PER_USEC)
 #define DMC_DEFAULT_TIMEOUT_NS	NSEC_PER_SEC
 
+/* The timeout assume we're running at least this fast */
+#define DMC_TIMEOUT_MHZ		1500
+
 enum dmc_enable_op {
 	DMC_ENABLE = 0,
 	DMC_DISABLE,

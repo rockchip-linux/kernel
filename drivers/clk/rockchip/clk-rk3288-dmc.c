@@ -15,6 +15,7 @@
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
 #include <linux/cpu.h>
+#include <linux/cpufreq.h>
 #include <linux/err.h>
 #include <linux/hrtimer.h>
 #include <linux/io.h>
@@ -1007,6 +1008,18 @@ static void dmc_set_rate(struct rk3288_dmcclk *dmc)
 	params->dmc_post_set_rate(dmc);
 }
 
+static int dmc_get_set_rate_time(void)
+{
+	unsigned int max_cpu_mhz = cpufreq_quick_get_max(0) / 1000;
+
+	/* If over fast enough our time is OK */
+	if (max_cpu_mhz >= DMC_TIMEOUT_MHZ)
+		return DMC_SET_RATE_TIME_NS;
+
+	/* We'll assume it's linear under the needed speed */
+	return DMC_SET_RATE_TIME_NS * DMC_TIMEOUT_MHZ / max_cpu_mhz;
+}
+
 static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 {
 	struct rockchip_dmc_sram_params *params = dmc->sram_params;
@@ -1033,7 +1046,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	 */
 	local_bh_disable();
 	now = ktime_get();
-	timeout = ktime_sub_ns(timeout, DMC_SET_RATE_TIME_NS);
+	timeout = ktime_sub_ns(timeout, dmc_get_set_rate_time());
 	/* This can happen if a irq/softirq delays us long enough. */
 	if (ktime_compare(now, timeout) >= 0) {
 		dev_err(dmc->dev, "timeout before pausing cpus\n");

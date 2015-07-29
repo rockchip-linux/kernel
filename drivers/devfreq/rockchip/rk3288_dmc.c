@@ -57,6 +57,8 @@
 
 #define DMC_NUM_RETRIES		3
 
+#define DMC_MIN_CPU_KHZ		1200000
+
 struct dmc_usage {
 	u32 write;
 	u32 read;
@@ -269,6 +271,13 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 	}
 	down_write(&policy->rwsem);
 	cpufreq_cur = cpufreq_quick_get(0);
+
+	/* If we're thermally throttled; can't change; it won't work */
+	if (policy->max < DMC_MIN_CPU_KHZ) {
+		dev_warn(dev, "CPU too slow for DMC (%d MHz)\n", policy->max);
+		goto out;
+	}
+
 	__cpufreq_driver_target(policy, policy->max, CPUFREQ_RELATION_L);
 
 	if (rate < target_rate)
