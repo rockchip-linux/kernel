@@ -28,6 +28,7 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/sizes.h>
+#include <linux/slab.h>
 
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
@@ -107,6 +108,8 @@ struct go2001_dev {
 
 	/* Protected by lock */
 	bool initialized;
+
+	struct kmem_cache *msg_cache;
 };
 
 enum go2001_codec_mode {
@@ -166,8 +169,8 @@ struct go2001_frame_info {
 	size_t plane_size[VIDEO_MAX_PLANES];
 };
 
-#define GO2001_REPLY_TIMEOUT_MS	2000
-#define GO2001_WATCHDOG_TIMEOUT_MS	3000
+#define GO2001_REPLY_TIMEOUT_MS		10000
+#define GO2001_WATCHDOG_TIMEOUT_MS	2000
 
 struct go2001_dma_desc {
 	/* DMA address of the map list */
@@ -213,13 +216,14 @@ struct go2001_buffer {
 	struct go2001_dma_desc dma_desc[VIDEO_MAX_PLANES];
 	bool mapped;
 
+	struct go2001_msg *msg;
+
 	struct go2001_runtime_enc_params rt_enc_params;
 	size_t partition_off[VP8_MAX_NUM_PARTITIONS];
 	size_t partition_size[VP8_MAX_NUM_PARTITIONS];
 };
 
 struct go2001_job {
-	struct go2001_msg msg;
 	struct go2001_buffer *src_buf;
 	struct go2001_buffer *dst_buf;
 };
@@ -245,6 +249,7 @@ struct go2001_ctx {
 
 	spinlock_t qlock;
 	struct list_head src_buf_q;
+	struct list_head src_resume_q;
 	struct list_head dst_buf_q;
 
 	struct go2001_hw_inst hw_inst;
@@ -255,8 +260,6 @@ struct go2001_ctx {
 	struct go2001_enc_params enc_params;
 	/* Will be applied to the next source buffer queued. */
 	struct go2001_runtime_enc_params pending_rt_params;
-
-	/* One for each buffer and an additional ctrl msg. */
 
 	bool need_resume;
 	bool format_set;

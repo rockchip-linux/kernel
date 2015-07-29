@@ -36,17 +36,21 @@ void go2001_release_codec(struct go2001_ctx *ctx);
 int go2001_set_dec_raw_fmt(struct go2001_ctx *ctx);
 
 int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf);
-int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf);
+void go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf);
 int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src,
 				bool unmap_dst);
 
+int go2001_prepare_gbuf(struct go2001_ctx *ctx, struct go2001_buffer *gbuf,
+				bool is_src);
+void go2001_finish_gbuf(struct go2001_ctx *ctx, struct go2001_buffer *gbuf);
 int go2001_schedule_frames(struct go2001_ctx *ctx);
-int go2001_wait_for_ctx_done(struct go2001_ctx *ctx);
-void go2001_send_pending_locked(struct go2001_dev *gdev);
-void go2001_cancel_all_msgs_locked(struct go2001_dev *gdev);
+void go2001_wait_for_ctx_done(struct go2001_ctx *ctx);
+void go2001_send_pending(struct go2001_dev *gdev);
+void go2001_cancel_hw_inst_locked(struct go2001_dev *gdev,
+					struct go2001_hw_inst *hw_inst);
+void go2001_cancel_all_hw_inst_locked(struct go2001_dev *gdev);
 
 void go2001_init_hw_inst(struct go2001_hw_inst *inst, u32 inst_id);
-void go2001_release_hw_inst(struct go2001_hw_inst *inst);
 
 int go2001_get_reply(struct go2001_dev *gdev, struct go2001_msg *msg);
 

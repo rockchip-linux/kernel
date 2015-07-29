@@ -253,11 +253,15 @@ void go2001_init_hw_inst(struct go2001_hw_inst *inst, u32 inst_id)
 	INIT_LIST_HEAD(&inst->inst_entry);
 }
 
-void go2001_release_hw_inst(struct go2001_hw_inst *inst)
+static void go2001_release_hw_inst(struct go2001_dev *gdev,
+				struct go2001_hw_inst *inst)
 {
-	WARN_ON(!list_empty(&inst->inst_entry));
+	unsigned long flags;
+
+	spin_lock_irqsave(&gdev->irqlock, flags);
 	WARN_ON(!list_empty(&inst->pending_list));
-	INIT_LIST_HEAD(&inst->pending_list);
+	go2001_cancel_hw_inst_locked(gdev, inst);
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
 }
 
 static int go2001_init_ring(struct go2001_dev *gdev,
@@ -336,6 +340,31 @@ static inline bool go2001_ring_is_empty_locked(struct go2001_msg_ring *r)
 	return r->desc.rd_off == r->desc.wr_off;
 }
 
+static struct go2001_msg *prepare_msg(struct go2001_dev *gdev,
+				enum go2001_msg_type type, size_t param_size)
+{
+	struct go2001_msg *msg;
+	struct go2001_msg_hdr *hdr;
+
+	msg = kmem_cache_zalloc(gdev->msg_cache, GFP_KERNEL);
+	if (!msg) {
+		go2001_err(gdev, "Failed allocating msg\n");
+		return NULL;
+	}
+
+	INIT_LIST_HEAD(&msg->list_entry);
+	hdr = msg_to_hdr(msg);
+	hdr->type = type;
+	hdr->size = go2001_calc_payload_size(param_size);
+	return msg;
+}
+
+static void free_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
+{
+	WARN_ON(!list_empty(&msg->list_entry));
+	kmem_cache_free(gdev->msg_cache, msg);
+}
+
 static struct go2001_hw_inst *get_next_ready_hw_inst(struct go2001_dev *gdev)
 {
 	struct go2001_hw_inst *hw_inst;
@@ -392,19 +421,45 @@ static struct go2001_msg *go2001_get_pending_msg_locked(struct go2001_dev *gdev)
 	return msg;
 }
 
-static void go2001_drop_pending_locked(struct go2001_dev *gdev)
+static void go2001_drop_pending_for_hw_inst_locked(struct go2001_dev *gdev,
+						struct go2001_hw_inst *hw_inst)
+{
+	struct go2001_msg *msg, *tmp_msg;
+	assert_spin_locked(&gdev->irqlock);
+
+	list_for_each_entry_safe(msg, tmp_msg, &hw_inst->pending_list,
+					list_entry) {
+		list_del_init(&msg->list_entry);
+		free_msg(gdev, msg);
+	}
+	INIT_LIST_HEAD(&hw_inst->pending_list);
+}
+
+void go2001_cancel_hw_inst_locked(struct go2001_dev *gdev,
+					struct go2001_hw_inst *hw_inst)
+{
+	assert_spin_locked(&gdev->irqlock);
+
+	go2001_drop_pending_for_hw_inst_locked(gdev, hw_inst);
+	list_del_init(&hw_inst->inst_entry);
+	if (gdev->curr_hw_inst == hw_inst)
+		gdev->curr_hw_inst = NULL;
+}
+
+void go2001_cancel_all_hw_inst_locked(struct go2001_dev *gdev)
 {
 	struct go2001_hw_inst *hw_inst;
-
 	assert_spin_locked(&gdev->irqlock);
-	list_for_each_entry(hw_inst, &gdev->inst_list, inst_entry) {
-		/*
-		 * It's fine to just clear the list, the msg memory belongs
-		 * to struct go2001_ctx and will be reclaimed when cleaning
-		 * up each instance.
-		 */
-		INIT_LIST_HEAD(&hw_inst->pending_list);
-	}
+
+	list_for_each_entry(hw_inst, &gdev->inst_list, inst_entry)
+		go2001_drop_pending_for_hw_inst_locked(gdev, hw_inst);
+	INIT_LIST_HEAD(&gdev->inst_list);
+
+	list_for_each_entry(hw_inst, &gdev->new_inst_list, inst_entry)
+		go2001_drop_pending_for_hw_inst_locked(gdev, hw_inst);
+	INIT_LIST_HEAD(&gdev->new_inst_list);
+
+	gdev->curr_hw_inst = NULL;
 }
 
 static void go2001_print_msg(struct go2001_dev *gdev, struct go2001_msg *msg,
@@ -434,7 +489,7 @@ static void go2001_print_mmap_list(struct go2001_dev *gdev,
 	}
 }
 
-void go2001_send_pending_locked(struct go2001_dev *gdev)
+static void go2001_send_pending_locked(struct go2001_dev *gdev)
 {
 	struct go2001_msg_ring *r = &gdev->tx_ring;
 	struct go2001_msg *msg;
@@ -468,18 +523,28 @@ void go2001_send_pending_locked(struct go2001_dev *gdev)
 				msecs_to_jiffies(GO2001_WATCHDOG_TIMEOUT_MS));
 		}
 		++gdev->msgs_in_flight;
+		go2001_dbg(gdev, 5, "Messages in flight: %d\n",
+				gdev->msgs_in_flight);
+
+		free_msg(gdev, msg);
 	}
 	spin_unlock_irqrestore(&r->lock, flags);
 }
 
-static void go2001_send_pending(struct go2001_dev *gdev)
+void go2001_send_pending(struct go2001_dev *gdev)
 {
 	unsigned long flags;
+
 	spin_lock_irqsave(&gdev->irqlock, flags);
 	go2001_send_pending_locked(gdev);
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 }
 
+/*
+ * NOTE: msg must not be used by the caller after this functions returns;
+ * either we'll free it after sending it to HW, or it will be cleaned up by the
+ * watchdog on timeout (if still on the pending_list at that time).
+ */
 static u32 go2001_queue_msg_locked(struct go2001_dev *gdev,
 			struct go2001_hw_inst *hw_inst, struct go2001_msg *msg)
 {
@@ -494,30 +559,108 @@ static u32 go2001_queue_msg_locked(struct go2001_dev *gdev,
 	return seqid;
 }
 
-static int go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
+static u32 go2001_queue_msg(struct go2001_ctx *ctx, struct go2001_msg *msg)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	unsigned long flags;
+	u32 type = msg_to_hdr(msg)->type;
 	u32 seqid;
-
-	if (ctx->state == ERROR) {
-		go2001_dbg(gdev, 1,
-			"Not queueing, instance %p in error state\n", ctx);
-		return -EIO;
-	}
 
 	spin_lock_irqsave(&gdev->irqlock, flags);
 	seqid = go2001_queue_msg_locked(gdev, &ctx->hw_inst, msg);
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 	go2001_dbg(gdev, 5, "Queued message type 0x%x for inst %d, seqid: %d\n",
-			msg_to_hdr(msg)->type, ctx->hw_inst.session_id, seqid);
+			type, ctx->hw_inst.session_id, seqid);
 
+	/* The message is freed after being sent to hardware or on error. */
 	go2001_send_pending(gdev);
+	return seqid;
+}
+
+static struct go2001_hw_inst *find_hw_inst_by_id_locked(struct go2001_dev *gdev,
+							u32 session_id)
+{
+	struct go2001_hw_inst *hw_inst;
+
+	list_for_each_entry(hw_inst, &gdev->inst_list, inst_entry) {
+		if (hw_inst->session_id == session_id)
+			return hw_inst;
+	}
+
+	return NULL;
+}
+
+static bool go2001_sequence_passed(struct go2001_dev *gdev,
+				   u32 session_id, u32 seq_id)
+{
+	struct go2001_hw_inst *hw_inst;
+	unsigned long flags;
+	bool ret = true;
+
+	spin_lock_irqsave(&gdev->irqlock, flags);
+	hw_inst = find_hw_inst_by_id_locked(gdev, session_id);
+	if (hw_inst)
+		ret = (hw_inst->last_reply_seq_id >= seq_id);
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
+	return ret;
+}
+
+static int go2001_wait_for_reply(struct go2001_dev *gdev, u32 session_id,
+					u32 sequence_id)
+{
+	int ret;
+
+	ret = wait_event_timeout(gdev->reply_wq,
+			go2001_sequence_passed(gdev, session_id, sequence_id),
+			msecs_to_jiffies(GO2001_REPLY_TIMEOUT_MS));
+	if (ret == 0) {
+		go2001_err(gdev, "Timeout waiting for reply to %d/%d\n",
+				session_id, sequence_id);
+		return -ETIMEDOUT;
+	}
+
+	go2001_dbg(gdev, 5, "Finished waiting for %d/%d\n",
+			session_id, sequence_id);
+
 	return 0;
 }
 
-static void go2001_queue_ctrl_msg(struct go2001_dev *gdev,
+static inline bool go2001_ctx_idle(struct go2001_ctx *ctx)
+{
+	unsigned long flags1, flags2;
+	bool idle;
+
+	spin_lock_irqsave(&ctx->gdev->irqlock, flags1);
+	spin_lock_irqsave(&ctx->qlock, flags2);
+	idle = list_empty(&ctx->hw_inst.pending_list) && !ctx->job.src_buf;
+	spin_unlock_irqrestore(&ctx->qlock, flags2);
+	spin_unlock_irqrestore(&ctx->gdev->irqlock, flags1);
+
+	return idle;
+}
+
+void go2001_wait_for_ctx_done(struct go2001_ctx *ctx)
+{
+	/* No timeout, the watchdog will wake us up if needed. */
+	wait_event(ctx->gdev->reply_wq, go2001_ctx_idle(ctx));
+	go2001_wait_for_reply(ctx->gdev, ctx->hw_inst.session_id,
+				ctx->hw_inst.sequence_id);
+}
+
+static int go2001_queue_msg_and_wait(struct go2001_ctx *ctx,
 					struct go2001_msg *msg)
+{
+	u32 session_id = ctx->hw_inst.session_id;
+	u32 seqid;
+
+	/* msg becomes invalid after the call to go2001_queue_msg. */
+	seqid = go2001_queue_msg(ctx, msg);
+
+	return go2001_wait_for_reply(ctx->gdev, session_id, seqid);
+}
+
+static int go2001_queue_ctrl_msg_and_wait(struct go2001_dev *gdev,
+						struct go2001_msg *msg)
 {
 	unsigned long flags;
 	u32 seqid;
@@ -528,10 +671,11 @@ static void go2001_queue_ctrl_msg(struct go2001_dev *gdev,
 	go2001_dbg(gdev, 5, "Queued control msg seqid: %d\n", seqid);
 
 	go2001_send_pending(gdev);
+	return go2001_wait_for_reply(gdev, 0, seqid);
 }
 
-static void go2001_queue_init_msg(struct go2001_ctx *ctx,
-					struct go2001_msg *msg)
+static int go2001_queue_init_msg_and_wait(struct go2001_ctx *ctx,
+						struct go2001_msg *msg)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	unsigned long flags;
@@ -550,13 +694,7 @@ static void go2001_queue_init_msg(struct go2001_ctx *ctx,
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 
 	go2001_send_pending(gdev);
-}
-
-void go2001_cancel_all_msgs_locked(struct go2001_dev *gdev)
-{
-	assert_spin_locked(&gdev->irqlock);
-	go2001_drop_pending_locked(gdev);
-	gdev->msgs_in_flight = 0;
+	return go2001_wait_for_reply(gdev, 0, seqid);
 }
 
 int go2001_get_reply(struct go2001_dev *gdev, struct go2001_msg *msg)
@@ -588,117 +726,12 @@ out:
 	return ret;
 }
 
-static inline void prepare_msg(struct go2001_msg *msg,
-				enum go2001_msg_type type, size_t param_size)
-{
-	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
-	size_t size = go2001_calc_payload_size(param_size);
-
-	memset(&msg->payload, 0, size);
-	hdr->type = type;
-	hdr->size = size;
-}
-
-static struct go2001_hw_inst *find_hw_inst_by_id_locked(struct go2001_dev *gdev,
-							u32 session_id)
-{
-	struct go2001_hw_inst *hw_inst;
-
-	list_for_each_entry(hw_inst, &gdev->inst_list, inst_entry)
-		if (hw_inst->session_id == session_id)
-			return hw_inst;
-	return NULL;
-}
-static bool go2001_sequence_passed(struct go2001_dev *gdev,
-				   u32 session_id, u32 seq_id)
-{
-	struct go2001_hw_inst *hw_inst;
-	unsigned long flags;
-	bool ret;
-
-	go2001_dbg(gdev, 5, "waiting for %d/%d, got %d/%d\n",
-			session_id, seq_id,
-			gdev->last_reply_inst_id, gdev->last_reply_seq_id);
-	spin_lock_irqsave(&gdev->irqlock, flags);
-	hw_inst = find_hw_inst_by_id_locked(gdev, session_id);
-	ret = (hw_inst->last_reply_seq_id == seq_id);
-	spin_unlock_irqrestore(&gdev->irqlock, flags);
-	return ret;
-}
-
-static int go2001_wait_for_reply(struct go2001_dev *gdev, u32 session_id,
-					u32 sequence_id)
-{
-	int ret;
-
-	ret = wait_event_interruptible_timeout(gdev->reply_wq,
-			go2001_sequence_passed(gdev, session_id, sequence_id),
-			msecs_to_jiffies(GO2001_REPLY_TIMEOUT_MS));
-	if (ret == 0) {
-		go2001_err(gdev, "Timeout waiting for reply to seqid %d\n",
-				sequence_id);
-		return -ETIMEDOUT;
-	} else if (ret == -ERESTARTSYS) {
-		go2001_err(gdev,
-				"Caught signal waiting for reply to seqid %d\n",
-				sequence_id);
-		return -ERESTARTSYS;
-	}
-
-	go2001_dbg(gdev, 5, "Finished waiting for %d/%d\n",
-			session_id, sequence_id);
-	return 0;
-}
-
-
-int go2001_wait_for_ctx_done(struct go2001_ctx *ctx)
-{
-	if (ctx->state == ERROR)
-		return 0;
-
-	/*
-	 * It's ok not to lock on sequence_id, since we are sure there will
-	 * be nothing new scheduled while we wait.
-	 */
-	return go2001_wait_for_reply(ctx->gdev, ctx->hw_inst.session_id,
-					ctx->hw_inst.sequence_id);
-}
-
-static int go2001_wait_for_msg(struct go2001_dev *gdev, struct go2001_msg *msg)
-{
-	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
-	unsigned long flags;
-	int ret;
-
-	ret = go2001_wait_for_reply(gdev, hdr->session_id, hdr->sequence_id);
-	if (ret) {
-		/* Wait failed, take the message off of the pending list.
-		 * (will only happen if it hasn't been sent already). */
-		spin_lock_irqsave(&gdev->irqlock, flags);
-		if (!list_empty(&msg->list_entry))
-			list_del_init(&msg->list_entry);
-		spin_unlock_irqrestore(&gdev->irqlock, flags);
-	}
-	return ret;
-}
-
-static int go2001_queue_msg_and_wait(struct go2001_ctx *ctx,
-					struct go2001_msg *msg)
-{
-	int ret;
-
-	ret = go2001_queue_msg(ctx, msg);
-	if (ret)
-		return ret;
-
-	return go2001_wait_for_msg(ctx->gdev, msg);
-}
-
 static int go2001_init_decoder(struct go2001_ctx *ctx)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_init_decoder_param *param;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
+	unsigned long flags;
 	int ret;
 
 	if (!ctx->src_fmt) {
@@ -706,39 +739,46 @@ static int go2001_init_decoder(struct go2001_ctx *ctx)
 		return -EINVAL;
 	}
 
-	go2001_dbg(gdev, 4, "Initializing decoder for format %s\n",
+	go2001_dbg(gdev, 2, "Initializing decoder for format %s\n",
 			ctx->src_fmt->desc);
 
-	prepare_msg(&msg, GO2001_VM_INIT_DECODER, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(gdev, GO2001_VM_INIT_DECODER, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+
+	param = msg_to_param(msg);
 	param->coded_fmt = ctx->src_fmt->hw_format;
 	param->concealment = 0;
 
-	go2001_queue_init_msg(ctx, &msg);
-	ret = go2001_wait_for_msg(gdev, &msg);
+	ret = go2001_queue_init_msg_and_wait(ctx, msg);
+	spin_lock_irqsave(&ctx->qlock, flags);
 	if (ret || ctx->state == ERROR) {
 		go2001_err(gdev, "Failed initializing decoder\n");
-		return ret ? ret : -EIO;
+		ret = ret ? ret : -EIO;
 	} else {
 		ctx->state = NEED_HEADER_INFO;
 	}
+	spin_unlock_irqrestore(&ctx->qlock, flags);
 
-	return 0;
+	return ret;
 }
 
 static int go2001_s_ctrl(struct go2001_ctx *ctx, enum go2001_hw_ctrl_type type,
 				union go2001_hw_ctrl *ctrl)
 {
 	struct go2001_set_ctrl_param *param;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 
-	prepare_msg(&msg, GO2001_VM_SET_CTRL, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(ctx->gdev, GO2001_VM_SET_CTRL, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+
+	param = msg_to_param(msg);
 	param->type = type;
 
 	memcpy(&param->ctrl, ctrl, sizeof(*ctrl));
 
-	return go2001_queue_msg_and_wait(ctx, &msg);
+	return go2001_queue_msg_and_wait(ctx, msg);
 }
 
 static int go2001_set_def_encoder_ctrls(struct go2001_ctx *ctx)
@@ -767,7 +807,7 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_init_encoder_param *param;
 	struct go2001_frame_info *finfo;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 	int ret;
 
 	if (WARN_ON(!ctx->src_fmt || !ctx->dst_fmt
@@ -776,13 +816,16 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 		return -EINVAL;
 	}
 
-	go2001_dbg(gdev, 4,
+	go2001_dbg(gdev, 2,
 			"Initializing encoder for formats %s->%s at %dx%d\n",
 			ctx->src_fmt->desc, ctx->dst_fmt->desc,
 			ctx->finfo.width, ctx->finfo.height);
 
-	prepare_msg(&msg, GO2001_VM_INIT_ENCODER, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(gdev, GO2001_VM_INIT_ENCODER, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+
+	param = msg_to_param(msg);
 	finfo = &ctx->finfo;
 
 	param->session_id = 0;
@@ -795,8 +838,7 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 	param->framerate_denom = ctx->enc_params.framerate_denom;
 	param->raw_fmt = ctx->src_fmt->hw_format;
 
-	go2001_queue_init_msg(ctx, &msg);
-	ret = go2001_wait_for_msg(gdev, &msg);
+	ret = go2001_queue_init_msg_and_wait(ctx, msg);
 	if (ret || ctx->state == ERROR) {
 		go2001_err(gdev, "Failed initializing encoder\n");
 		return ret ? ret : -EIO;
@@ -810,46 +852,38 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 void go2001_release_codec(struct go2001_ctx *ctx)
 {
 	struct go2001_dev *gdev = ctx->gdev;
-	struct go2001_msg msg;
-	unsigned long flags1, flags2;
+	struct go2001_msg *msg;
 
-	go2001_dbg(gdev, 4, "Releasing codec state %d\n", ctx->state);
-	if (ctx->state != UNINITIALIZED) {
-		prepare_msg(&msg, GO2001_VM_RELEASE, 0);
-		go2001_queue_msg_and_wait(ctx, &msg);
+	go2001_dbg(gdev, 2, "Releasing session id %d, codec state %d\n",
+			ctx->hw_inst.session_id, ctx->state);
+	if (ctx->hw_inst.session_id != 0) {
+		msg = prepare_msg(gdev, GO2001_VM_RELEASE, 0);
+		if (msg)
+			go2001_queue_msg_and_wait(ctx, msg);
 	}
-	/* Regardless of whether we got a reply or not, clean up. */
-	spin_lock_irqsave(&gdev->irqlock, flags1);
-	spin_lock_irqsave(&ctx->qlock, flags2);
-	if (gdev->curr_hw_inst == &ctx->hw_inst)
-		gdev->curr_hw_inst = NULL;
-	if (!list_empty(&ctx->hw_inst.inst_entry))
-		list_del_init(&ctx->hw_inst.inst_entry);
-	spin_unlock_irqrestore(&ctx->qlock, flags2);
-	spin_unlock_irqrestore(&gdev->irqlock, flags1);
-	go2001_release_hw_inst(&ctx->hw_inst);
+	/* Regardless of whether we sent and/or got a reply or not, clean up. */
+	go2001_release_hw_inst(gdev, &ctx->hw_inst);
 }
 
 int go2001_set_dec_raw_fmt(struct go2001_ctx *ctx)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_dec_set_out_fmt_param *param;
-	struct go2001_msg msg;
-
-	if (!go2001_has_frame_info(ctx))
-		return -EINVAL;
+	struct go2001_msg *msg;
 
 	if (ctx->format_set)
 		return 0;
 
-	go2001_dbg(gdev, 4, "Setting output format for decoder to: %s\n",
+	go2001_dbg(gdev, 2, "Setting output format for decoder to: %s\n",
 			ctx->dst_fmt->desc);
 
-	prepare_msg(&msg, GO2001_VM_DEC_SET_OUT_FMT, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(gdev, GO2001_VM_DEC_SET_OUT_FMT, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+	param = msg_to_param(msg);
 	param->raw_fmt = ctx->dst_fmt->hw_format;
 
-	return go2001_queue_msg_and_wait(ctx, &msg);
+	return go2001_queue_msg_and_wait(ctx, msg);
 }
 
 int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
@@ -859,9 +893,8 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	struct go2001_set_mmap_param *param;
 	struct vb2_buffer *vb = &buf->vb;
 	struct go2001_dma_desc *dma_desc;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 	unsigned int i;
-	int ret;
 
 	if (buf->mapped) {
 		go2001_err(gdev, "Buffer already mapped\n");
@@ -873,8 +906,10 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 		return -EIO;
 	}
 
-	prepare_msg(&msg, GO2001_VM_SET_MMAP, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(gdev, GO2001_VM_SET_MMAP, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+	param = msg_to_param(msg);
 	param->dir = V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type)
 		   ? GO2001_VSM_DIR_IN : GO2001_VSM_DIR_OUT;
 	param->count = vb->num_planes;
@@ -891,34 +926,36 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 				DMA_TO_DEVICE);
 	}
 
-	ret = go2001_queue_msg_and_wait(ctx, &msg);
-	if (!ret)
-		buf->mapped = true;
+	go2001_queue_msg(ctx, msg);
 
-	return ret;
+	buf->mapped = true;
+	return 0;
 }
 
-int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
+void go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 {
 	struct go2001_release_mmap_param *param;
 	struct go2001_dev *gdev = ctx->gdev;
 	struct vb2_buffer *vb = &buf->vb;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 	unsigned int i;
-	int ret;
 
 	if (!buf->mapped) {
 		go2001_dbg(gdev, 1, "Buffer not mapped\n");
-		return 0;
+		return;
 	}
 
 	if (vb->num_planes > GO2001_MMAP_MAX_ENTRIES) {
 		go2001_dbg(gdev, 1, "Too many planes\n");
-		return -EIO;
+		return;
 	}
 
-	prepare_msg(&msg, GO2001_VM_RELEASE_MMAP, sizeof(*param));
-	param = msg_to_param(&msg);
+	go2001_dbg(gdev, 3, "Unmapping buffer %p from HW\n", buf);
+
+	msg = prepare_msg(gdev, GO2001_VM_RELEASE_MMAP, sizeof(*param));
+	if (!msg)
+		return;
+	param = msg_to_param(msg);
 	param->dir = V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type)
 		   ? GO2001_VSM_DIR_IN : GO2001_VSM_DIR_OUT;
 	param->count = vb->num_planes;
@@ -928,51 +965,47 @@ int go2001_unmap_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 				i, buf->dma_desc[i].map_addr);
 	}
 
-	ret = go2001_queue_msg_and_wait(ctx, &msg);
-	if (ret)
-		go2001_err(gdev, "Failed unmapping buffer from HW\n");
+	go2001_queue_msg_and_wait(ctx, msg);
 
 	buf->mapped = false;
-
-	return ret;
 }
 
 int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src, bool unmap_dst)
 {
 	struct go2001_release_mmap_param *param;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 
 	if (WARN_ON(!unmap_src && !unmap_dst))
 		return 0;
 
-	prepare_msg(&msg, GO2001_VM_RELEASE_MMAP, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(ctx->gdev, GO2001_VM_RELEASE_MMAP, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+	param = msg_to_param(msg);
 	param->dir |= (unmap_src ? GO2001_VSM_DIR_IN : 0);
 	param->dir |= (unmap_dst ? GO2001_VSM_DIR_OUT : 0);
 
-	return go2001_queue_msg_and_wait(ctx, &msg);
+	return go2001_queue_msg_and_wait(ctx, msg);
 }
 
 static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 		struct go2001_buffer *src_buf, struct go2001_buffer *dst_buf,
 		bool resume)
 {
+	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_empty_buffer_dec_param *param;
 	int i;
 
 	assert_spin_locked(&ctx->qlock);
 
 	if (!src_buf->mapped || (dst_buf && !dst_buf->mapped)) {
-		go2001_err(ctx->gdev, "Buffer(s) not mapped!\n");
+		go2001_err(gdev, "Buffer(s) not mapped!\n");
 		return -EINVAL;
 	}
 
-	prepare_msg(msg, GO2001_VM_EMPTY_BUFFER, sizeof(*param));
 	param = msg_to_param(msg);
-	memset(param, 0, sizeof(*param));
 
 	param->in_addr = src_buf->dma_desc[0].map_addr;
-	WARN_ON(!IS_ALIGNED(param->in_addr, 16));
 	param->payload_size = vb2_get_plane_payload(&src_buf->vb, 0);
 	if (dst_buf) {
 		if (WARN_ON(dst_buf->vb.num_planes >
@@ -1016,19 +1049,18 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 		struct go2001_buffer *src_buf, struct go2001_buffer *dst_buf)
 {
 	struct go2001_empty_buffer_enc_param *param;
+	struct go2001_dev *gdev = ctx->gdev;
 	int i;
 
 	BUG_ON(!src_buf || !dst_buf);
 	assert_spin_locked(&ctx->qlock);
 
 	if (!src_buf->mapped || !dst_buf->mapped) {
-		go2001_err(ctx->gdev, "Buffer(s) not mapped!\n");
+		go2001_err(gdev, "Buffer(s) not mapped!\n");
 		return -EINVAL;
 	}
 
-	prepare_msg(msg, GO2001_VM_EMPTY_BUFFER, sizeof(*param));
 	param = msg_to_param(msg);
-	memset(param, 0, sizeof(*param));
 
 	if (WARN_ON(src_buf->vb.num_planes > ARRAY_SIZE(param->in_addr)))
 		return -EINVAL;
@@ -1038,9 +1070,7 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 		WARN_ON(!IS_ALIGNED(param->in_addr[i], 16));
 	}
 	param->out_addr = dst_buf->dma_desc[0].map_addr;
-	WARN_ON(!IS_ALIGNED(param->out_addr, 16));
 	param->out_size = vb2_plane_size(&dst_buf->vb, 0);
-	WARN_ON(!IS_ALIGNED(param->out_addr, 8));
 
 	go2001_update_enc_params(ctx, &src_buf->rt_enc_params);
 	if (ctx->enc_params.request_keyframe) {
@@ -1053,6 +1083,7 @@ static int go2001_build_enc_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 
 	if (WARN_ON(ctx->enc_params.framerate_num == 0))
 		return -EINVAL;
+
 	param->time_increment = GO2001_MAX_FPS / ctx->enc_params.framerate_num;
 	param->bits_per_sec = ctx->enc_params.bitrate;
 	ctx->enc_params.bitrate = 0;
@@ -1091,22 +1122,59 @@ static void go2001_flush(struct go2001_ctx *ctx, struct go2001_buffer *src_buf)
 	vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
 }
 
+int go2001_prepare_gbuf(struct go2001_ctx *ctx, struct go2001_buffer *gbuf,
+			bool is_src)
+{
+	struct go2001_msg *msg;
+	size_t size;
+
+	if (!is_src)
+		return 0;
+
+	if (WARN_ON(gbuf->msg))
+		return -EINVAL;
+
+	if (ctx->codec_mode == CODEC_MODE_DECODER)
+		size = sizeof(struct go2001_empty_buffer_dec_param);
+	else
+		size = sizeof(struct go2001_empty_buffer_enc_param);
+
+	msg = prepare_msg(ctx->gdev, GO2001_VM_EMPTY_BUFFER, size);
+	if (!msg)
+		return -ENOMEM;
+
+	gbuf->msg = msg;
+	return 0;
+}
+
+void go2001_finish_gbuf(struct go2001_ctx *ctx, struct go2001_buffer *gbuf)
+{
+	if (gbuf->msg) {
+		free_msg(ctx->gdev, gbuf->msg);
+		gbuf->msg = NULL;
+	}
+}
+
 int go2001_schedule_frames(struct go2001_ctx *ctx)
 {
+	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_job *job = &ctx->job;
-	struct go2001_msg *msg = &job->msg;
-	struct go2001_buffer *src_buf = NULL;
-	struct go2001_buffer *dst_buf = NULL;
+	struct go2001_msg *msg = NULL;
+	struct go2001_buffer *src_buf;
+	struct go2001_buffer *dst_buf;
 	unsigned long flags;
 	int ret = 0;
 
 	spin_lock_irqsave(&ctx->qlock, flags);
 	if (job->src_buf) {
-		go2001_dbg(ctx->gdev, 5, "Job already running\n");
+		go2001_dbg(gdev, 5, "Job already running\n");
 		goto out;
 	}
+	BUG_ON(job->dst_buf);
 
-	BUG_ON(!list_empty(&msg->list_entry) || job->dst_buf);
+again:
+	src_buf = NULL;
+	dst_buf = NULL;
 
 	switch (ctx->state) {
 	case UNINITIALIZED:
@@ -1139,11 +1207,15 @@ int go2001_schedule_frames(struct go2001_ctx *ctx)
 	if (!src_buf)
 		goto out;
 
+	msg = src_buf->msg;
+	if (WARN_ON(!msg))
+		goto out;
+
 	if (ctx->codec_mode == CODEC_MODE_DECODER) {
 		if (vb2_get_plane_payload(&src_buf->vb, 0) == 0) {
-			/* Flush buffer, perform flush instead. */
+			/* Flush buffer */
 			go2001_flush(ctx, src_buf);
-			goto out;
+			goto again;
 		}
 
 		ret = go2001_build_dec_msg(ctx, msg, src_buf, dst_buf,
@@ -1159,9 +1231,10 @@ int go2001_schedule_frames(struct go2001_ctx *ctx)
 	if (dst_buf)
 		job->dst_buf = dst_buf;
 
+	src_buf->msg = NULL;
 	spin_unlock_irqrestore(&ctx->qlock, flags);
-	go2001_queue_msg(ctx, msg);
 
+	go2001_queue_msg(ctx, msg);
 	return 0;
 out:
 	spin_unlock_irqrestore(&ctx->qlock, flags);
@@ -1173,27 +1246,30 @@ out:
 
 static int go2001_query_hw_version(struct go2001_dev *gdev)
 {
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 
-	prepare_msg(&msg, GO2001_VM_GET_VERSION, 0);
-	go2001_queue_ctrl_msg(gdev, &msg);
-	return go2001_wait_for_msg(gdev, &msg);
+	msg = prepare_msg(gdev, GO2001_VM_GET_VERSION, 0);
+	if (!msg)
+		return -ENOMEM;
+
+	return go2001_queue_ctrl_msg_and_wait(gdev, msg);
 }
 
 static int go2001_set_log_level(struct go2001_dev *gdev, u32 level)
 {
 	struct go2001_set_log_level_param *param;
-	struct go2001_msg msg;
+	struct go2001_msg *msg;
 
 	if (level != GO2001_LOG_LEVEL_DISABLED && level > GO2001_LOG_LEVEL_MAX)
 		level = GO2001_LOG_LEVEL_MAX;
 
-	prepare_msg(&msg, GO2001_VM_SET_LOG_LEVEL, sizeof(*param));
-	param = msg_to_param(&msg);
+	msg = prepare_msg(gdev, GO2001_VM_SET_LOG_LEVEL, sizeof(*param));
+	if (!msg)
+		return -ENOMEM;
+	param = msg_to_param(msg);
 	param->level = level;
 
-	go2001_queue_ctrl_msg(gdev, &msg);
-	return go2001_wait_for_msg(gdev, &msg);
+	return go2001_queue_ctrl_msg_and_wait(gdev, msg);
 }
 
 int go2001_init_codec(struct go2001_ctx *ctx)

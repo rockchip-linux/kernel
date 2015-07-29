@@ -75,6 +75,46 @@ static void go2001_cleanup_queue(struct go2001_ctx *ctx,
 	}
 }
 
+static void go2001_ctx_error_locked(struct go2001_ctx *ctx)
+{
+	struct go2001_dev *gdev = ctx->gdev;
+	unsigned long flags;
+
+	assert_spin_locked(&gdev->irqlock);
+
+	go2001_err(ctx->gdev, "Setting error state for ctx %p, session_id %d\n",
+			ctx, ctx->hw_inst.session_id);
+
+	go2001_cancel_hw_inst_locked(gdev, &ctx->hw_inst);
+
+	spin_lock_irqsave(&ctx->qlock, flags);
+	ctx->state = ERROR;
+	memset(&ctx->job, 0, sizeof(struct go2001_job));
+	go2001_cleanup_queue(ctx, &ctx->src_buf_q);
+	go2001_cleanup_queue(ctx, &ctx->src_resume_q);
+	go2001_cleanup_queue(ctx, &ctx->dst_buf_q);
+	spin_unlock_irqrestore(&ctx->qlock, flags);
+}
+
+static void go2001_cancel_all_contexts(struct go2001_dev *gdev)
+{
+	unsigned long flags;
+	struct go2001_ctx *ctx;
+
+	go2001_trace(gdev);
+	WARN_ON(!mutex_is_locked(&gdev->lock));
+
+	spin_lock_irqsave(&gdev->irqlock, flags);
+
+	go2001_cancel_all_hw_inst_locked(gdev);
+
+	list_for_each_entry(ctx, &gdev->ctx_list, ctx_entry)
+		go2001_ctx_error_locked(ctx);
+
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
+	wake_up_all(&gdev->reply_wq);
+}
+
 static struct go2001_fmt formats[] = {
 	{
 		.type = FMT_TYPE_RAW,
@@ -351,19 +391,22 @@ err:
 
 static int go2001_buf_prepare(struct vb2_buffer *vb)
 {
-	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
 
-	return 0;
+	return go2001_prepare_gbuf(ctx, gbuf,
+				V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type));
 }
 
 static void go2001_buf_finish(struct vb2_buffer *vb)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
-	struct go2001_buffer *gbuf;
+	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
 	size_t plane_size;
 	void *vaddr, *ptr;
 	int i;
+
+	go2001_finish_gbuf(ctx, gbuf);
 
 	/*
 	 * If this is a CAPTURE encoder buffer, we need to reassemble
@@ -373,7 +416,6 @@ static void go2001_buf_finish(struct vb2_buffer *vb)
 			V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type))
 		return;
 
-	gbuf = vb_to_go2001_buf(vb);
 	plane_size = vb2_plane_size(vb, 0);
 	vaddr = vb2_plane_vaddr(vb, 0);
 	if (!vaddr) {
@@ -484,11 +526,13 @@ static void go2001_stop_streaming(struct vb2_queue *q)
 	spin_lock_irqsave(&ctx->qlock, flags);
 	WARN_ON(ctx->job.src_buf || ctx->job.dst_buf);
 
-	go2001_cleanup_queue(ctx, V4L2_TYPE_IS_OUTPUT(q->type) ?
-				&ctx->src_buf_q : &ctx->dst_buf_q);
+	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
+		go2001_cleanup_queue(ctx, &ctx->src_buf_q);
+		go2001_cleanup_queue(ctx, &ctx->src_resume_q);
+	} else {
+		go2001_cleanup_queue(ctx, &ctx->dst_buf_q);
+	}
 	spin_unlock_irqrestore(&ctx->qlock, flags);
-
-	vb2_wait_for_all_buffers(q);
 }
 
 static void go2001_buf_queue(struct vb2_buffer *vb)
@@ -497,7 +541,6 @@ static void go2001_buf_queue(struct vb2_buffer *vb)
 	struct go2001_ctx *ctx = vb2_get_drv_priv(vq);
 	struct go2001_buffer *gbuf = vb_to_go2001_buf(vb);
 	unsigned long flags;
-	int ret;
 
 	if (ctx->codec_mode == CODEC_MODE_ENCODER
 			&& V4L2_TYPE_IS_OUTPUT(vb->vb2_queue->type)) {
@@ -513,9 +556,7 @@ static void go2001_buf_queue(struct vb2_buffer *vb)
 		list_add_tail(&gbuf->list, &ctx->dst_buf_q);
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
-	ret = go2001_schedule_frames(ctx);
-	if (ret)
-		go2001_ctx_error(ctx);
+	go2001_schedule_frames(ctx);
 }
 
 static const struct vb2_ops go2001_qops = {
@@ -681,11 +722,11 @@ static int go2001_init_ctx(struct go2001_dev *gdev, struct go2001_ctx *ctx,
 	mutex_init(&ctx->lock);
 	spin_lock_init(&ctx->qlock);
 	INIT_LIST_HEAD(&ctx->src_buf_q);
+	INIT_LIST_HEAD(&ctx->src_resume_q);
 	INIT_LIST_HEAD(&ctx->dst_buf_q);
 	v4l2_fh_init(&ctx->v4l2_fh, vdev);
 	ctx->state = UNINITIALIZED;
 	go2001_init_hw_inst(&ctx->hw_inst, 0);
-	INIT_LIST_HEAD(&ctx->job.msg.list_entry);
 
 	ctx->bitstream_buf_size = GO2001_DEF_BITSTREAM_BUFFER_SIZE;
 	if (ctx->codec_mode == CODEC_MODE_DECODER) {
@@ -1043,17 +1084,21 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 	enum vb2_buffer_state src_state = VB2_BUF_STATE_DONE;
 	enum vb2_buffer_state dst_state = VB2_BUF_STATE_DONE;
 	struct go2001_job *job;
+	struct go2001_buffer *src_buf;
 	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
 	unsigned long flags;
 	int ret = 0;
 
 	spin_lock_irqsave(&ctx->qlock, flags);
 	job = &ctx->job;
-	if (!job->src_buf) {
+	src_buf = job->src_buf;
+	if (!src_buf) {
 		go2001_err(ctx->gdev, "No src buffer!\n");
 		ret = -EIO;
 		goto out;
 	}
+
+	list_del(&src_buf->list);
 
 	switch (hdr->status) {
 	case GO2001_STATUS_NEW_PICTURE_SIZE: {
@@ -1074,8 +1119,11 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 		ctx->need_resume = true;
 		/*
 		 * We will retry this frame after reallocating output buffers.
-		 * Just drop the job.
+		 * Add the source buffer to the resume queue, which will
+		 * be spliced in front of the source queue after reallocation.
 		 */
+		go2001_dbg(ctx->gdev, 3, "Pending buffer %p\n", src_buf);
+		list_add_tail(&src_buf->list, &ctx->src_resume_q);
 		break;
 
 	case GO2001_STATUS_STREAM_ERROR:
@@ -1085,8 +1133,7 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 		dst_state = VB2_BUF_STATE_ERROR;
 		/* Fallthrough */
 	default:
-		list_del(&job->src_buf->list);
-		vb2_buffer_done(&job->src_buf->vb, src_state);
+		vb2_buffer_done(&src_buf->vb, src_state);
 		if (job->dst_buf) {
 			if (go2001_fill_dst_buf_info(ctx, job, msg,
 					dst_state == VB2_BUF_STATE_ERROR))
@@ -1275,35 +1322,13 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 			go2001_ctx_error(ctx);
 	}
 
+	if (ctx && ret == 0)
+		go2001_schedule_frames(ctx);
 	/*
 	 * Critical failure only on EIO, otherwise we may be able to continue
 	 * using other instances.
 	 */
 	return ret == -EIO ? ret : 0;
-}
-
-static void go2001_cleanup_all_contexts(struct go2001_dev *gdev)
-{
-	unsigned long flags1, flags2;
-	struct go2001_ctx *ctx;
-
-	go2001_trace(gdev);
-	WARN_ON(!mutex_is_locked(&gdev->lock));
-
-	spin_lock_irqsave(&gdev->irqlock, flags1);
-
-	go2001_cancel_all_msgs_locked(gdev);
-
-	list_for_each_entry(ctx, &gdev->ctx_list, ctx_entry) {
-		spin_lock_irqsave(&ctx->qlock, flags2);
-		ctx->state = ERROR;
-		memset(&ctx->job, 0, sizeof(struct go2001_job));
-		go2001_cleanup_queue(ctx, &ctx->src_buf_q);
-		go2001_cleanup_queue(ctx, &ctx->dst_buf_q);
-		spin_unlock_irqrestore(&ctx->qlock, flags2);
-	}
-
-	spin_unlock_irqrestore(&gdev->irqlock, flags1);
 }
 
 static void go2001_watchdog(struct work_struct *work)
@@ -1316,7 +1341,8 @@ static void go2001_watchdog(struct work_struct *work)
 
 	mutex_lock(&gdev->lock);
 
-	go2001_cleanup_all_contexts(gdev);
+	go2001_cancel_all_contexts(gdev);
+	gdev->msgs_in_flight = 0;
 
 	ret = go2001_init(gdev);
 	if (ret) {
@@ -1331,31 +1357,26 @@ static irqreturn_t go2001_irq(int irq, void *priv)
 {
 	struct go2001_dev *gdev = priv;
 	struct go2001_msg *reply = &gdev->last_reply;
-	bool handled = false;
 	unsigned long flags;
 	int ret;
 
 	spin_lock_irqsave(&gdev->irqlock, flags);
-
 	if (unlikely(!gdev->fw_loaded)) {
 		gdev->fw_loaded = true;
 		complete(&gdev->fw_completion);
-		goto out;
+		spin_unlock_irqrestore(&gdev->irqlock, flags);
+		return IRQ_HANDLED;
 	}
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
 
 	while (go2001_get_reply(gdev, reply) == 0) {
 		ret = go2001_process_reply(gdev, reply);
 		wake_up_all(&gdev->reply_wq);
 		if (ret)
-			goto out;
-		handled = true;
+			return IRQ_HANDLED;
 	}
 
-	if (handled)
-		go2001_send_pending_locked(gdev);
-
-out:
-	spin_unlock_irqrestore(&gdev->irqlock, flags);
+	go2001_send_pending(gdev);
 	return IRQ_HANDLED;
 }
 
@@ -1881,6 +1902,46 @@ static int go2001_reqbufs_out(struct go2001_ctx *ctx,
 	return vb2_reqbufs(vq, rb);
 }
 
+static int go2001_move_from_resume_queue(struct go2001_ctx *ctx)
+{
+	struct list_head temp_list;
+	struct go2001_buffer *gbuf;
+	unsigned long flags;
+	int ret = 0;
+
+	/*
+	 * The buffer which triggered the resolution change, and any buffers
+	 * which might have followed it and were sent by us to the hardware
+	 * before we got the resolution change notification, have to be
+	 * processed again, in the same order.
+	 * Move them from the resume queue to the front of the source
+	 * queue, and reinitialize for processing.
+	 *
+	 * First, make a copy of the resume list, so we can release
+	 * the lock to be able to call go2001_prepare_gbuf() on each element.
+	 */
+	INIT_LIST_HEAD(&temp_list);
+	spin_lock_irqsave(&ctx->qlock, flags);
+	list_splice_init(&ctx->src_resume_q, &temp_list);
+	spin_unlock_irqrestore(&ctx->qlock, flags);
+	list_for_each_entry(gbuf, &temp_list, list) {
+		go2001_dbg(ctx->gdev, 3, "Requeuing buffer %p\n", gbuf);
+		ret = go2001_prepare_gbuf(ctx, gbuf, true);
+		if (ret)
+			break;
+	}
+
+	/*
+	 * Finally, splice the lists so that the resume list is added in
+	 * front of the source list.
+	 */
+	spin_lock_irqsave(&ctx->qlock, flags);
+	list_splice_init(&temp_list, &ctx->src_buf_q);
+	spin_unlock_irqrestore(&ctx->qlock, flags);
+
+	return ret;
+}
+
 static int go2001_reqbufs_cap(struct go2001_ctx *ctx,
 				struct v4l2_requestbuffers *rb)
 {
@@ -1917,6 +1978,13 @@ static int go2001_reqbufs_cap(struct go2001_ctx *ctx,
 		if (ret) {
 			go2001_err(ctx->gdev,
 					"Failed setting decoder format\n");
+			return ret;
+		}
+
+		ret = go2001_move_from_resume_queue(ctx);
+		if (ret) {
+			go2001_err(ctx->gdev,
+					"Failed requeuing pending buffers\n");
 			return ret;
 		}
 	}
@@ -2185,9 +2253,16 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	init_completion(&gdev->fw_completion);
 	INIT_DELAYED_WORK(&gdev->watchdog_work, go2001_watchdog);
 
+	gdev->msg_cache = kmem_cache_create("msg_cache",
+		sizeof(struct go2001_msg), 0, SLAB_HWCACHE_ALIGN, NULL);
+	if (!gdev->msg_cache) {
+		go2001_err(gdev, "Failed creating msg cache\n");
+		goto release_regions;
+	}
+
 	gdev->alloc_ctx = vb2_dma_sg_init_ctx(&pdev->dev);
 	if (IS_ERR(gdev->alloc_ctx))
-		goto release_regions;
+		goto release_cache;
 
 	ret = go2001_map_iomem(gdev);
 	if (ret) {
@@ -2254,6 +2329,8 @@ unmap:
 	go2001_unmap_iomem(gdev);
 free_alloc_ctx:
 	vb2_dma_sg_cleanup_ctx(gdev->alloc_ctx);
+release_cache:
+	kmem_cache_destroy(gdev->msg_cache);
 release_regions:
 	pci_release_regions(pdev);
 disable_device:
@@ -2306,7 +2383,7 @@ static int go2001_suspend(struct device *dev)
 		go2001_err(gdev, "Timed out waiting for HW to become idle\n");
 
 	mutex_lock(&gdev->lock);
-	go2001_cleanup_all_contexts(gdev);
+	go2001_cancel_all_contexts(gdev);
 	mutex_unlock(&gdev->lock);
 
 	return 0;
