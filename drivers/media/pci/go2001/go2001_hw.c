@@ -1189,6 +1189,9 @@ static int go2001_set_log_level(struct go2001_dev *gdev, u32 level)
 	struct go2001_set_log_level_param *param;
 	struct go2001_msg msg;
 
+	if (level != GO2001_LOG_LEVEL_DISABLED && level > GO2001_LOG_LEVEL_MAX)
+		level = GO2001_LOG_LEVEL_MAX;
+
 	prepare_msg(&msg, GO2001_VM_SET_LOG_LEVEL, sizeof(*param));
 	param = msg_to_param(&msg);
 	param->level = level;
@@ -1235,6 +1238,12 @@ int go2001_init(struct go2001_dev *gdev)
 	ret = go2001_query_hw_version(gdev);
 	if (ret) {
 		go2001_err(gdev, "Failed querying HW version\n");
+		return ret;
+	}
+
+	ret = go2001_set_log_level(gdev, go2001_fw_debug_level);
+	if (ret) {
+		go2001_err(gdev, "Failed setting log level\n");
 		return ret;
 	}
 

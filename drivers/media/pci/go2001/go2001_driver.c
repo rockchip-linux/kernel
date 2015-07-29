@@ -42,8 +42,12 @@
 #define DST_QUEUE_OFF_BASE	(1 << 30)
 
 unsigned go2001_debug_level;
+unsigned go2001_fw_debug_level;
 module_param(go2001_debug_level, uint, 0644);
 MODULE_PARM_DESC(go2001_debug_level, " verbosity level for debug messages.");
+module_param(go2001_fw_debug_level, uint, 0644);
+MODULE_PARM_DESC(go2001_fw_debug_level,
+			" verbosity level for firmware debug messages.");
 
 static void go2001_ctx_error(struct go2001_ctx *ctx)
 {

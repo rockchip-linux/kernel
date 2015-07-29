@@ -290,6 +290,7 @@ static inline struct go2001_ctx *ctrl_to_ctx(struct v4l2_ctrl *ctrl)
 }
 
 extern unsigned go2001_debug_level;
+extern unsigned go2001_fw_debug_level;
 
 #define go2001_err(gdev, fmt, args...) \
 	dev_err(&gdev->pdev->dev, "%s:%d " fmt, __func__, __LINE__, ##args)

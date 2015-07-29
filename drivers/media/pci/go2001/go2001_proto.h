@@ -325,6 +325,7 @@ struct go2001_event_log_reply {
 	u8 data[128];
 } __attribute__((packed));
 
+#define GO2001_LOG_LEVEL_MAX		5
 #define GO2001_LOG_LEVEL_DISABLED	0xFFFFFFFF
 struct go2001_set_log_level_param {
 	u32 level;
