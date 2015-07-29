@@ -176,6 +176,8 @@
 	rockchip,ddr-speed-bin = <21>;
 	rockchip,trcd = <10>;
 	rockchip,trp = <10>;
+
+	#cooling-cells = <2>; /* min followed by max */
 };
 
 &efuse {
