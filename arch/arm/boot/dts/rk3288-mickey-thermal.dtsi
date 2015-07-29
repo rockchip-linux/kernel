@@ -24,22 +24,22 @@
 			type = "passive";
 		};
 		cpu_alert_almost_hot: cpu_alert_almost_hot {
-			temperature = <77000>; /* millicelsius */
+			temperature = <80000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
 		cpu_alert_hot: cpu_alert_hot {
-			temperature = <79000>; /* millicelsius */
+			temperature = <82000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
 		cpu_alert_hotter: cpu_alert_hotter {
-			temperature = <81000>; /* millicelsius */
+			temperature = <84000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
 		cpu_alert_very_hot: cpu_alert_very_hot {
-			temperature = <82000>; /* millicelsius */
+			temperature = <85000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
@@ -164,12 +164,12 @@
 			type = "passive";
 		};
 		gpu_alert_hotter: gpu_alert_hotter {
-			temperature = <81000>; /* millicelsius */
+			temperature = <84000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
 		gpu_alert_very_very_hot: gpu_alert_very_very_hot {
-			temperature = <83000>; /* millicelsius */
+			temperature = <86000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
