@@ -326,7 +326,8 @@ static inline bool go2001_ring_is_full_locked(struct go2001_msg_ring *r)
 	go2001_update_ring_locked(r);
 	next_off = r->desc.wr_off + r->desc.msg_size;
 	return (next_off == r->desc.rd_off
-		|| (r->desc.rd_off = 0 && next_off >= r->desc.end_off));
+		|| (r->desc.rd_off == r->desc.start_off
+			&& next_off >= r->desc.end_off));
 }
 
 static inline bool go2001_ring_is_empty_locked(struct go2001_msg_ring *r)
