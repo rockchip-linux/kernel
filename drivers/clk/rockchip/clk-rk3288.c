@@ -783,6 +783,7 @@ static const char *rk3288_critical_clocks[] __initconst = {
 	 * the voltage of the PWM regulator.  Ick.
 	 */
 	"pclk_rkpwm",
+	"pclk_pd_pmu",
 };
 
 #ifdef CONFIG_PM_SLEEP
