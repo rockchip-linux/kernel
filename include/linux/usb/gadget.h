@@ -170,6 +170,7 @@ struct usb_ep {
 	const struct usb_ep_ops	*ops;
 	struct list_head	ep_list;
 	bool			enabled;
+	bool			claimed;
 	unsigned		maxpacket:16;
 	unsigned		max_streams:16;
 	unsigned		mult:2;
