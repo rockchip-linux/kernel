@@ -151,8 +151,8 @@ struct go2001_ctrl {
 };
 
 enum go2001_codec_state {
-	UNINITIALIZED,
-	INITIALIZED,
+	UNCOMMITTED,
+	COMMITTED,
 	NEED_HEADER_INFO,
 	RUNNING,
 	PAUSED,
@@ -310,6 +310,14 @@ extern unsigned go2001_fw_debug_level;
 
 #define go2001_trace(gdev) \
 	go2001_dbg((gdev), 5, "%s\n", __func__)
+
+static inline void go2001_set_ctx_state(struct go2001_ctx *ctx,
+					enum go2001_codec_state state)
+{
+	go2001_dbg(ctx->gdev, 2, "ctx %p state change %d->%d\n",
+			ctx, ctx->state, state);
+	ctx->state = state;
+}
 
 #define GO2001_MIN_NUM_BITSTREAM_BUFFERS	4
 #define GO2001_MIN_NUM_FRAME_BUFFERS		8

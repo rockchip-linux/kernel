@@ -755,8 +755,6 @@ static int go2001_init_decoder(struct go2001_ctx *ctx)
 	if (ret || ctx->state == ERROR) {
 		go2001_err(gdev, "Failed initializing decoder\n");
 		ret = ret ? ret : -EIO;
-	} else {
-		ctx->state = NEED_HEADER_INFO;
 	}
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
@@ -844,8 +842,6 @@ static int go2001_init_encoder(struct go2001_ctx *ctx)
 		return ret ? ret : -EIO;
 	}
 
-	ctx->state = INITIALIZED;
-
 	return go2001_set_def_encoder_ctrls(ctx);
 }
 
@@ -873,6 +869,9 @@ int go2001_set_dec_raw_fmt(struct go2001_ctx *ctx)
 
 	if (ctx->format_set)
 		return 0;
+
+	if (!ctx->dst_fmt)
+		return -EINVAL;
 
 	go2001_dbg(gdev, 2, "Setting output format for decoder to: %s\n",
 			ctx->dst_fmt->desc);
@@ -989,8 +988,7 @@ int go2001_unmap_buffers(struct go2001_ctx *ctx, bool unmap_src, bool unmap_dst)
 }
 
 static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
-		struct go2001_buffer *src_buf, struct go2001_buffer *dst_buf,
-		bool resume)
+		struct go2001_buffer *src_buf, struct go2001_buffer *dst_buf)
 {
 	struct go2001_dev *gdev = ctx->gdev;
 	struct go2001_empty_buffer_dec_param *param;
@@ -1017,7 +1015,10 @@ static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 			WARN_ON(!IS_ALIGNED(param->out_addr[i], 16));
 		}
 	}
-	param->flags = resume ? G02001_EMPTY_BUF_DEC_FLAG_RES_CHANGE_DONE : 0;
+	param->flags = ctx->need_resume ?
+			G02001_EMPTY_BUF_DEC_FLAG_RES_CHANGE_DONE : 0;
+	ctx->need_resume = false;
+
 	return 0;
 }
 
@@ -1118,6 +1119,11 @@ static void go2001_flush(struct go2001_ctx *ctx, struct go2001_buffer *src_buf)
 			src_buf->vb.v4l2_buf.timestamp.tv_sec,
 			src_buf->vb.v4l2_buf.timestamp.tv_usec);
 
+	/*
+	 * Since VPX has no frame reordering and buffers are returned as
+	 * soon as they are decoded, there is no need trigger anything on the
+	 * destination queue. Just return the flush buffer to userspace.
+	 */
 	list_del(&src_buf->list);
 	vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
 }
@@ -1172,16 +1178,12 @@ int go2001_schedule_frames(struct go2001_ctx *ctx)
 	}
 	BUG_ON(job->dst_buf);
 
+	go2001_dbg(gdev, 5, "State: %d\n", ctx->state);
 again:
 	src_buf = NULL;
 	dst_buf = NULL;
 
 	switch (ctx->state) {
-	case UNINITIALIZED:
-		go2001_err(ctx->gdev, "Invalid state %d\n", ctx->state);
-		ret = -EINVAL;
-		goto out;
-
 	case NEED_HEADER_INFO:
 		BUG_ON(ctx->codec_mode == CODEC_MODE_ENCODER);
 		if (!list_empty(&ctx->src_buf_q)) {
@@ -1218,9 +1220,7 @@ again:
 			goto again;
 		}
 
-		ret = go2001_build_dec_msg(ctx, msg, src_buf, dst_buf,
-						ctx->need_resume);
-		ctx->need_resume = false;
+		ret = go2001_build_dec_msg(ctx, msg, src_buf, dst_buf);
 	} else {
 		ret = go2001_build_enc_msg(ctx, msg, src_buf, dst_buf);
 	}
@@ -1237,10 +1237,12 @@ again:
 	go2001_queue_msg(ctx, msg);
 	return 0;
 out:
-	spin_unlock_irqrestore(&ctx->qlock, flags);
-	if (ret)
-		go2001_err(ctx->gdev, "Error scheduling frames\n");
+	if (ret) {
+		go2001_set_ctx_state(ctx, ERROR);
+		go2001_err(gdev, "Error scheduling frames\n");
+	}
 
+	spin_unlock_irqrestore(&ctx->qlock, flags);
 	return ret;
 }
 
@@ -1276,10 +1278,8 @@ int go2001_init_codec(struct go2001_ctx *ctx)
 {
 	int ret = 0;
 
-	if (ctx->state != UNINITIALIZED) {
-		go2001_err(ctx->gdev, "Failed initializing codec\n");
+	if (WARN_ON(ctx->hw_inst.session_id != 0))
 		return -EINVAL;
-	}
 
 	if (ctx->codec_mode == CODEC_MODE_DECODER)
 		ret = go2001_init_decoder(ctx);

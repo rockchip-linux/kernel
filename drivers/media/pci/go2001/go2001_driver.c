@@ -49,16 +49,6 @@ module_param(go2001_fw_debug_level, uint, 0644);
 MODULE_PARM_DESC(go2001_fw_debug_level,
 			" verbosity level for firmware debug messages.");
 
-static void go2001_ctx_error(struct go2001_ctx *ctx)
-{
-	unsigned long flags;
-
-	go2001_err(ctx->gdev, "Setting error state for ctx %p\n", ctx);
-	spin_lock_irqsave(&ctx->qlock, flags);
-	ctx->state = ERROR;
-	spin_unlock_irqrestore(&ctx->qlock, flags);
-}
-
 static void go2001_cleanup_queue(struct go2001_ctx *ctx,
 					struct list_head *buf_list)
 {
@@ -88,7 +78,7 @@ static void go2001_ctx_error_locked(struct go2001_ctx *ctx)
 	go2001_cancel_hw_inst_locked(gdev, &ctx->hw_inst);
 
 	spin_lock_irqsave(&ctx->qlock, flags);
-	ctx->state = ERROR;
+	go2001_set_ctx_state(ctx, ERROR);
 	memset(&ctx->job, 0, sizeof(struct go2001_job));
 	go2001_cleanup_queue(ctx, &ctx->src_buf_q);
 	go2001_cleanup_queue(ctx, &ctx->src_resume_q);
@@ -479,32 +469,94 @@ static void go2001_buf_cleanup(struct vb2_buffer *vb)
 	}
 }
 
+static int go2001_enc_start_streaming(struct go2001_ctx *ctx,
+					enum v4l2_buf_type type)
+{
+	switch (ctx->state) {
+	case COMMITTED:
+	case PAUSED:
+		if (V4L2_TYPE_IS_OUTPUT(type)) {
+			if (vb2_is_streaming(&ctx->dst_vq))
+				go2001_set_ctx_state(ctx, RUNNING);
+		} else {
+			if (vb2_is_streaming(&ctx->src_vq))
+				go2001_set_ctx_state(ctx, RUNNING);
+		}
+		break;
+
+	default:
+		go2001_err(ctx->gdev, "Invalid state %d\n", ctx->state);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int go2001_dec_start_streaming(struct go2001_ctx *ctx,
+					enum v4l2_buf_type type)
+{
+	int ret = 0;
+
+	if (V4L2_TYPE_IS_OUTPUT(type)) {
+		switch (ctx->state) {
+		case COMMITTED:
+			go2001_set_ctx_state(ctx, NEED_HEADER_INFO);
+			break;
+
+		case PAUSED:
+			if (vb2_is_streaming(&ctx->dst_vq))
+				go2001_set_ctx_state(ctx, RUNNING);
+			break;
+
+		default:
+			ret = -EINVAL;
+			break;
+		}
+	} else {
+		switch (ctx->state) {
+		case PAUSED:
+			if (vb2_is_streaming(&ctx->src_vq))
+				go2001_set_ctx_state(ctx, RUNNING);
+			break;
+
+		default:
+			ret = -EINVAL;
+			break;
+		}
+	}
+
+	if (ret)
+		go2001_err(ctx->gdev, "Invalid state %d\n", ctx->state);
+
+	return ret;
+}
+
 static int go2001_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct go2001_ctx *ctx = vb2_get_drv_priv(q);
 	unsigned long flags;
 	int ret = 0;
 
-	go2001_trace(ctx->gdev);
+	go2001_dbg(ctx->gdev, 2, "for %s queue\n",
+			V4L2_TYPE_IS_OUTPUT(q->type) ? "OUTPUT" : "CAPTURE");
 
+	spin_lock_irqsave(&ctx->qlock, flags);
 	if (ctx->state == ERROR) {
 		go2001_dbg(ctx->gdev, 1, "Instance %p in error state\n", ctx);
+		spin_unlock_irqrestore(&ctx->qlock, flags);
 		return -EIO;
 	}
 
-	if (!V4L2_TYPE_IS_OUTPUT(q->type))
-		return 0;
-
-	spin_lock_irqsave(&ctx->qlock, flags);
-	if (ctx->state == PAUSED)
-		ctx->state = RUNNING;
+	if (ctx->codec_mode == CODEC_MODE_ENCODER)
+		ret = go2001_enc_start_streaming(ctx, q->type);
+	else
+		ret = go2001_dec_start_streaming(ctx, q->type);
 	spin_unlock_irqrestore(&ctx->qlock, flags);
 
-	ret = go2001_schedule_frames(ctx);
-	if (ret) {
+	if (!ret)
+		ret = go2001_schedule_frames(ctx);
+	if (ret)
 		go2001_err(ctx->gdev, "Failed to start streaming\n");
-		go2001_ctx_error(ctx);
-	}
 
 	return ret;
 }
@@ -514,16 +566,30 @@ static void go2001_stop_streaming(struct vb2_queue *q)
 	struct go2001_ctx *ctx = vb2_get_drv_priv(q);
 	unsigned long flags;
 
-	go2001_trace(ctx->gdev);
-
-	spin_lock_irqsave(&ctx->qlock, flags);
-	if (ctx->state == RUNNING)
-		ctx->state = PAUSED;
-	spin_unlock_irqrestore(&ctx->qlock, flags);
+	go2001_dbg(ctx->gdev, 2, "%p for %s queue\n", ctx,
+			V4L2_TYPE_IS_OUTPUT(q->type) ? "OUTPUT" : "CAPTURE");
 
 	go2001_wait_for_ctx_done(ctx);
 
 	spin_lock_irqsave(&ctx->qlock, flags);
+	switch (ctx->state) {
+	case NEED_HEADER_INFO:
+		go2001_set_ctx_state(ctx, COMMITTED);
+		break;
+
+	case RES_CHANGE:
+		if (V4L2_TYPE_IS_OUTPUT(q->type))
+			go2001_set_ctx_state(ctx, PAUSED);
+		break;
+
+	case RUNNING:
+		go2001_set_ctx_state(ctx, PAUSED);
+		break;
+
+	default:
+		break;
+	}
+
 	WARN_ON(ctx->job.src_buf || ctx->job.dst_buf);
 
 	if (V4L2_TYPE_IS_OUTPUT(q->type)) {
@@ -725,7 +791,7 @@ static int go2001_init_ctx(struct go2001_dev *gdev, struct go2001_ctx *ctx,
 	INIT_LIST_HEAD(&ctx->src_resume_q);
 	INIT_LIST_HEAD(&ctx->dst_buf_q);
 	v4l2_fh_init(&ctx->v4l2_fh, vdev);
-	ctx->state = UNINITIALIZED;
+	ctx->state = UNCOMMITTED;
 	go2001_init_hw_inst(&ctx->hw_inst, 0);
 
 	ctx->bitstream_buf_size = GO2001_DEF_BITSTREAM_BUFFER_SIZE;
@@ -837,9 +903,15 @@ static int go2001_open(struct file *file)
 static int go2001_release(struct file *file)
 {
 	struct go2001_ctx *ctx = fh_to_ctx(file->private_data);
+	unsigned long flags;
 
 	go2001_dbg(ctx->gdev, 1, "Releasing ctx %p\n", ctx);
 
+	spin_lock_irqsave(&ctx->qlock, flags);
+	go2001_set_ctx_state(ctx, UNCOMMITTED);
+	spin_unlock_irqrestore(&ctx->qlock, flags);
+
+	go2001_wait_for_ctx_done(ctx);
 	go2001_release_ctx(ctx);
 	kfree(ctx);
 
@@ -913,13 +985,14 @@ static int go2001_mmap(struct file *file, struct vm_area_struct *vma)
 	return ret;
 }
 
-static void go2001_handle_init_reply(struct go2001_dev *gdev,
-					struct go2001_msg *msg)
+static int go2001_handle_init_reply(struct go2001_dev *gdev,
+					struct go2001_msg *msg,
+					u32 status)
 {
-	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
 	struct go2001_init_decoder_reply *reply = msg_to_param(msg);
 	struct go2001_hw_inst *hw_inst;
 	struct go2001_ctx *ctx = NULL;
+	int ret = 0;
 
 	list_for_each_entry(hw_inst, &gdev->new_inst_list, inst_entry) {
 		if (hw_inst->sequence_id == gdev->last_reply_seq_id) {
@@ -929,30 +1002,46 @@ static void go2001_handle_init_reply(struct go2001_dev *gdev,
 	}
 
 	if (!ctx) {
-		go2001_err(gdev, "No ctx awaiting VM_INIT_DECODER, dropping\n");
-		return;
+		go2001_err(gdev, "No ctx awaiting VM_INIT_*, dropping\n");
+		return -EIO;
 	}
 
 	if (gdev->curr_hw_inst == &ctx->hw_inst)
 		gdev->curr_hw_inst = NULL;
-	list_del(&ctx->hw_inst.inst_entry);
+	list_del_init(&ctx->hw_inst.inst_entry);
 
-	go2001_init_hw_inst(&ctx->hw_inst, reply->session_id);
-
-	if (hdr->status == GO2001_STATUS_OK)
+	switch (status) {
+	case GO2001_STATUS_OK:
+		go2001_init_hw_inst(&ctx->hw_inst, reply->session_id);
 		list_add_tail(&ctx->hw_inst.inst_entry, &ctx->gdev->inst_list);
-	else
-		go2001_ctx_error(ctx);
+		break;
+
+	case GO2001_STATUS_RES_NA:
+		ret = -ENOMEM;
+		break;
+
+	case GO2001_STATUS_INVALID_PARAM:
+		ret = -EINVAL;
+		break;
+
+	default:
+		ret = -EIO;
+		break;
+	}
+
+	if (ret)
+		go2001_ctx_error_locked(ctx);
+
+	return ret;
 }
 
-static int go2001_handle_release_instance_reply(struct go2001_ctx *ctx)
+static void go2001_handle_release_instance_reply(struct go2001_ctx *ctx)
 {
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctx->qlock, flags);
-	ctx->state = UNINITIALIZED;
+	ctx->hw_inst.session_id = 0;
 	spin_unlock_irqrestore(&ctx->qlock, flags);
-	return 0;
 }
 
 static void go2001_calc_finfo(struct go2001_ctx *ctx, struct go2001_fmt *fmt,
@@ -1010,14 +1099,47 @@ static int go2001_handle_new_info(struct go2001_ctx *ctx,
 }
 
 static int go2001_handle_get_info_reply(struct go2001_ctx *ctx,
-					struct go2001_msg *msg)
+					struct go2001_msg *msg, u32 status)
 {
 	struct go2001_get_info_reply *reply = msg_to_param(msg);
+
+	if (status != GO2001_STATUS_OK)
+		return -EIO;
+
 	return go2001_handle_new_info(ctx, reply);
 }
 
+static int go2001_handle_set_out_fmt_reply(struct go2001_ctx *ctx, u32 status)
+{
+	unsigned long flags;
+	int ret = 0;
+
+	switch (status) {
+	case GO2001_STATUS_OK:
+		spin_lock_irqsave(&ctx->qlock, flags);
+		ctx->format_set = true;
+		spin_unlock_irqrestore(&ctx->qlock, flags);
+		break;
+
+	case GO2001_STATUS_INVALID_PARAM:
+		ret = -EINVAL;
+		break;
+
+	case GO2001_STATUS_RES_NA:
+		ret = -ENOMEM;
+		break;
+
+	default:
+		ret = -EIO;
+		break;
+	}
+
+	return ret;
+}
+
 static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
-		struct go2001_job *job, struct go2001_msg *reply, bool error) {
+		struct go2001_job *job, struct go2001_msg *reply, bool error)
+{
 	struct vb2_buffer *src_vb = &job->src_buf->vb;
 	struct vb2_buffer *dst_vb = &job->dst_buf->vb;
 	int i;
@@ -1079,13 +1201,12 @@ static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 }
 
 static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
-						struct go2001_msg *msg)
+					struct go2001_msg *msg, u32 status)
 {
 	enum vb2_buffer_state src_state = VB2_BUF_STATE_DONE;
 	enum vb2_buffer_state dst_state = VB2_BUF_STATE_DONE;
 	struct go2001_job *job;
 	struct go2001_buffer *src_buf;
-	struct go2001_msg_hdr *hdr = msg_to_hdr(msg);
 	unsigned long flags;
 	int ret = 0;
 
@@ -1100,7 +1221,7 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 
 	list_del(&src_buf->list);
 
-	switch (hdr->status) {
+	switch (status) {
 	case GO2001_STATUS_NEW_PICTURE_SIZE: {
 		struct v4l2_event ev;
 		struct go2001_empty_buffer_dec_reply *dec_reply =
@@ -1112,7 +1233,7 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 		memset(&ev, 0, sizeof(struct v4l2_event));
 		ev.type = V4L2_EVENT_RESOLUTION_CHANGE;
 		v4l2_event_queue_fh(&ctx->v4l2_fh, &ev);
-		ctx->state = RES_CHANGE;
+		go2001_set_ctx_state(ctx, RES_CHANGE);
 		/* Fallthrough */
 	}
 	case GO2001_STATUS_WAITING_PICTURE_SIZE_CHANGED:
@@ -1132,7 +1253,7 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 	case GO2001_STATUS_NO_OUTPUT:
 		dst_state = VB2_BUF_STATE_ERROR;
 		/* Fallthrough */
-	default:
+	case GO2001_STATUS_OK:
 		vb2_buffer_done(&src_buf->vb, src_state);
 		if (job->dst_buf) {
 			if (go2001_fill_dst_buf_info(ctx, job, msg,
@@ -1142,11 +1263,15 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 			vb2_buffer_done(&job->dst_buf->vb, dst_state);
 		}
 		break;
+	default:
+		ret = -EIO;
+		break;
 	}
 out:
 	job->src_buf = NULL;
 	job->dst_buf = NULL;
 	spin_unlock_irqrestore(&ctx->qlock, flags);
+
 	return ret;
 }
 
@@ -1161,6 +1286,43 @@ static void go2001_handle_get_version_reply(struct go2001_dev *gdev,
 			reply->vp8dec_hw_ver, reply->vp8dec_sw_ver,
 			reply->vp8enc_hw_ver, reply->vp8enc_sw_ver,
 			reply->vp9dec_hw_ver, reply->vp9dec_sw_ver);
+}
+
+static inline int go2001_handle_reply_default(struct go2001_dev *gdev,
+						u32 type, u32 status)
+{
+	int ret = 0;
+
+	switch (status) {
+	case GO2001_STATUS_OK:
+		break;
+
+	case GO2001_STATUS_NEW_PICTURE_SIZE:
+	case GO2001_STATUS_WAITING_PICTURE_SIZE_CHANGED:
+	case GO2001_STATUS_STREAM_ERROR:
+	case GO2001_STATUS_NO_OUTPUT:
+		BUG_ON(type != GO2001_VM_EMPTY_BUFFER);
+		go2001_err(gdev, "Unexpected status in reply\n");
+		ret = -EIO;
+		break;
+
+	case GO2001_STATUS_RES_NA:
+		go2001_err(gdev, "Hardware ran out of resources\n");
+		ret = -ENOMEM;
+		break;
+
+	case GO2001_STATUS_INVALID_PARAM:
+		go2001_err(gdev, "Invalid parameters\n");
+		ret = -EINVAL;
+		break;
+
+	default:
+		go2001_err(gdev, "Invalid status in reply\n");
+		ret = -EIO;
+		break;
+	}
+
+	return ret;
 }
 
 static struct go2001_hw_inst *find_hw_inst_by_id_locked(struct go2001_dev *gdev,
@@ -1180,13 +1342,17 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	struct go2001_hw_inst *hw_inst;
 	struct go2001_ctx *ctx = NULL;
 	struct go2001_msg_hdr *hdr = msg_to_hdr(reply);
+	unsigned long flags;
 	int ret = 0;
+
+	spin_lock_irqsave(&gdev->irqlock, flags);
 
 	hw_inst = find_hw_inst_by_id_locked(gdev, hdr->session_id);
 	if (!hw_inst) {
 		go2001_err(gdev, "Got reply for an invalid instance id %d\n",
 				hdr->session_id);
-		return -EIO;
+		ret = -EIO;
+		goto out;
 	}
 
 	if (hdr->type != GO2001_VM_EVENT_ASSERT
@@ -1194,7 +1360,8 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 		if (WARN_ON(gdev->msgs_in_flight == 0)) {
 			go2001_err(gdev,
 					"Unexpected reply without a request\n");
-			return -EIO;
+			ret = -EIO;
+			goto out;
 		}
 
 		cancel_delayed_work(&gdev->watchdog_work);
@@ -1203,40 +1370,15 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 			schedule_delayed_work(&gdev->watchdog_work,
 				msecs_to_jiffies(GO2001_WATCHDOG_TIMEOUT_MS));
 		}
-	}
-
-	hw_inst->last_reply_seq_id = hdr->sequence_id;
-
-	switch (hdr->status) {
-	case GO2001_STATUS_OK:
-		break;
-
-	case GO2001_STATUS_NEW_PICTURE_SIZE:
-	case GO2001_STATUS_WAITING_PICTURE_SIZE_CHANGED:
-	case GO2001_STATUS_STREAM_ERROR:
-	case GO2001_STATUS_NO_OUTPUT:
-		WARN_ON(hdr->type != GO2001_VM_EMPTY_BUFFER);
-		/* These will be handled in VM_EMPTY_BUFFER handler */
-		break;
-
-	case GO2001_STATUS_RES_NA:
-		go2001_err(gdev, "Hardware ran out of resources\n");
-		ret = -ENOMEM;
-		break;
-
-	case GO2001_STATUS_INVALID_PARAM:
-		go2001_err(gdev, "Invalid parameters\n");
-		ret = -EINVAL;
-		break;
-
-	default:
-		go2001_err(gdev, "Unhandled error in reply\n");
-		ret = -EIO;
-		break;
+		go2001_dbg(gdev, 3, "Messages in flight: %d\n",
+				gdev->msgs_in_flight);
 	}
 
 	gdev->last_reply_inst_id = hdr->session_id;
 	gdev->last_reply_seq_id = hdr->sequence_id;
+
+	WARN_ON(hw_inst->last_reply_seq_id + 1 != hdr->sequence_id);
+	hw_inst->last_reply_seq_id = hdr->sequence_id;
 
 	if (hdr->session_id != 0)
 		ctx = hw_inst_to_ctx(hw_inst);
@@ -1245,7 +1387,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	case GO2001_VM_INIT_DECODER:
 	case GO2001_VM_INIT_ENCODER:
 		go2001_dbg(gdev, 5, "VM_INIT reply\n");
-		go2001_handle_init_reply(gdev, reply);
+		ret = go2001_handle_init_reply(gdev, reply, hdr->status);
 		break;
 
 	case GO2001_VM_GET_VERSION:
@@ -1256,20 +1398,22 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	case GO2001_VM_SET_MMAP:
 	case GO2001_VM_RELEASE_MMAP:
 		go2001_dbg(gdev, 5, "VM_*_MMAP reply\n");
+		ret = go2001_handle_reply_default(gdev, hdr->type, hdr->status);
 		break;
 
 	case GO2001_VM_EMPTY_BUFFER:
 		go2001_dbg(gdev, 5, "VM_EMPTY_BUFFER reply\n");
-		ret = go2001_handle_empty_buffer_reply(ctx, reply);
+		ret = go2001_handle_empty_buffer_reply(ctx, reply, hdr->status);
 		break;
 
 	case GO2001_VM_GET_INFO:
 		go2001_dbg(gdev, 5, "VM_GET_INFO reply\n");
-		ret = go2001_handle_get_info_reply(ctx, reply);
+		ret = go2001_handle_get_info_reply(ctx, reply, hdr->status);
 		break;
 
 	case GO2001_VM_SET_CTRL:
 		go2001_dbg(gdev, 5, "VM_SET_CTRL reply\n");
+		ret = go2001_handle_reply_default(gdev, hdr->type, hdr->status);
 		break;
 
 	case GO2001_VM_RELEASE:
@@ -1279,7 +1423,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 
 	case GO2001_VM_DEC_SET_OUT_FMT:
 		go2001_dbg(gdev, 5, "VM_DEC_SET_OUT_FMT reply\n");
-		ctx->format_set = true;
+		ret = go2001_handle_set_out_fmt_reply(ctx, hdr->status);
 		break;
 
 	case GO2001_VM_EVENT_ASSERT: {
@@ -1303,6 +1447,7 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	case GO2001_VM_SET_LOG_LEVEL: {
 		struct go2001_set_log_level_reply *l = msg_to_param(reply);
 		go2001_dbg(gdev, 1, "VM_SET_LOG_LEVEL: %d\n", l->level);
+		ret = go2001_handle_reply_default(gdev, hdr->type, hdr->status);
 		break;
 	}
 
@@ -1313,14 +1458,17 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 		break;
 	}
 
+out:
 	if (ret) {
 		go2001_err(gdev,
 			"Error %d for reply [%d:%d] type=0x%x, status=0x%x\n",
 			ret, hdr->session_id, hdr->sequence_id, hdr->type,
 			hdr->status);
 		if (ctx)
-			go2001_ctx_error(ctx);
+			go2001_ctx_error_locked(ctx);
 	}
+
+	spin_unlock_irqrestore(&gdev->irqlock, flags);
 
 	if (ctx && ret == 0)
 		go2001_schedule_frames(ctx);
@@ -1634,7 +1782,7 @@ static int go2001_dec_s_fmt_out(struct file *file, void *fh,
 	struct go2001_fmt *fmt;
 
 	go2001_trace(ctx->gdev);
-	if (ctx->state != UNINITIALIZED) {
+	if (ctx->state != UNCOMMITTED) {
 		go2001_err(ctx->gdev, "Format cannot be set in this state\n");
 		return -EBUSY;
 	}
@@ -1657,7 +1805,7 @@ static int go2001_dec_s_fmt_cap(struct file *file, void *fh,
 	struct go2001_fmt *fmt;
 
 	go2001_trace(ctx->gdev);
-	if (ctx->state != UNINITIALIZED) {
+	if (ctx->state != UNCOMMITTED) {
 		go2001_err(ctx->gdev, "Format cannot be set in this state\n");
 		return -EBUSY;
 	}
@@ -1681,7 +1829,7 @@ static int go2001_enc_s_fmt_out(struct file *file, void *fh,
 	struct go2001_fmt *fmt;
 
 	go2001_trace(ctx->gdev);
-	if (ctx->state != UNINITIALIZED) {
+	if (ctx->state != UNCOMMITTED) {
 		go2001_err(ctx->gdev, "Format cannot be set in this state\n");
 		return -EBUSY;
 	}
@@ -1709,7 +1857,7 @@ static int go2001_enc_s_fmt_cap(struct file *file, void *fh,
 	struct go2001_fmt *fmt;
 
 	go2001_trace(ctx->gdev);
-	if (ctx->state != UNINITIALIZED) {
+	if (ctx->state != UNCOMMITTED) {
 		go2001_err(ctx->gdev, "Format cannot be set in this state\n");
 		return -EBUSY;
 	}
@@ -1891,12 +2039,13 @@ static int go2001_reqbufs_out(struct go2001_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (ctx->state == UNINITIALIZED) {
+	if (ctx->state == UNCOMMITTED) {
 		ret = go2001_init_codec(ctx);
 		if (ret) {
 			go2001_err(ctx->gdev, "Failed initializing codec\n");
 			return ret;
 		}
+		go2001_set_ctx_state(ctx, COMMITTED);
 	}
 
 	return vb2_reqbufs(vq, rb);
@@ -1946,8 +2095,7 @@ static int go2001_reqbufs_cap(struct go2001_ctx *ctx,
 				struct v4l2_requestbuffers *rb)
 {
 	struct vb2_queue *vq = &ctx->dst_vq;
-	unsigned long flags;
-	int ret;
+	int ret = 0;
 
 	go2001_dbg(ctx->gdev, 3, "count: %d\n", rb->count);
 
@@ -1959,46 +2107,41 @@ static int go2001_reqbufs_cap(struct go2001_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (ctx->state == UNINITIALIZED) {
-		if (ctx->codec_mode == CODEC_MODE_DECODER) {
-			go2001_err(ctx->gdev, "Invalid state %d\n", ctx->state);
+	if (ctx->codec_mode == CODEC_MODE_DECODER) {
+		switch (ctx->state) {
+		case RES_CHANGE:
+		case PAUSED:
+			ret = go2001_set_dec_raw_fmt(ctx);
+			if (ret) {
+				go2001_err(ctx->gdev, "Failed setting "
+						"decoder format\n");
+				return ret;
+			}
+
+			ret = go2001_move_from_resume_queue(ctx);
+			if (ret)
+				go2001_set_ctx_state(ctx, ERROR);
+			else
+				go2001_set_ctx_state(ctx, PAUSED);
+			break;
+
+		default:
+			go2001_err(ctx->gdev, "Invalid state\n");
 			return -EINVAL;
-		} else {
+		}
+	} else {
+		if (ctx->state == UNCOMMITTED) {
 			ret = go2001_init_codec(ctx);
 			if (ret) {
 				go2001_err(ctx->gdev,
 						"Failed initializing codec\n");
 				return ret;
 			}
+			go2001_set_ctx_state(ctx, COMMITTED);
 		}
 	}
 
-	if (ctx->codec_mode == CODEC_MODE_DECODER) {
-		ret = go2001_set_dec_raw_fmt(ctx);
-		if (ret) {
-			go2001_err(ctx->gdev,
-					"Failed setting decoder format\n");
-			return ret;
-		}
-
-		ret = go2001_move_from_resume_queue(ctx);
-		if (ret) {
-			go2001_err(ctx->gdev,
-					"Failed requeuing pending buffers\n");
-			return ret;
-		}
-	}
-
-	ret = vb2_reqbufs(vq, rb);
-	if (ret)
-		return ret;
-
-	spin_lock_irqsave(&ctx->qlock, flags);
-	ctx->state = RUNNING;
-	spin_unlock_irqrestore(&ctx->qlock, flags);
-
-	go2001_schedule_frames(ctx);
-	return ret;
+	return vb2_reqbufs(vq, rb);
 }
 
 static int go2001_reqbufs(struct file *file, void *fh,
@@ -2092,6 +2235,7 @@ static int go2001_streamoff(struct file *file, void *fh,
 	struct vb2_queue *vq = go2001_get_vq(ctx, type);
 
 	go2001_trace(ctx->gdev);
+
 	return vb2_streamoff(vq, type);
 }
 
@@ -2372,7 +2516,7 @@ static int go2001_suspend(struct device *dev)
 	spin_lock_irqsave(&gdev->irqlock, flags1);
 	list_for_each_entry(ctx, &gdev->ctx_list, ctx_entry) {
 		spin_lock_irqsave(&ctx->qlock, flags2);
-		ctx->state = ERROR;
+		go2001_set_ctx_state(ctx, ERROR);
 		spin_unlock_irqrestore(&ctx->qlock, flags2);
 	}
 	spin_unlock_irqrestore(&gdev->irqlock, flags1);
