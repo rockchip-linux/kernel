@@ -893,6 +893,7 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	struct vb2_buffer *vb = &buf->vb;
 	struct go2001_dma_desc *dma_desc;
 	struct go2001_msg *msg;
+	struct go2001_mmap_list_desc *list_desc;
 	unsigned int i;
 
 	if (buf->mapped) {
@@ -914,9 +915,14 @@ int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 	param->count = vb->num_planes;
 	for (i = 0; i < vb->num_planes; ++i) {
 		dma_desc = &buf->dma_desc[i];
-		param->mmap_list_desc[i].entry_count = dma_desc->num_entries;
-		param->mmap_list_desc[i].mmap_list_addr = dma_desc->dma_addr;
+		list_desc = &param->mmap_list_desc[i];
+
 		dma_desc->map_addr = dma_desc->mmap_list[0].dma_addr;
+
+		list_desc->first_entry_dma_addr = dma_desc->map_addr;
+		list_desc->entry_count = dma_desc->num_entries;
+		list_desc->mmap_list_addr = dma_desc->dma_addr;
+
 		go2001_dbg(gdev, 4,
 			"Mapping plane %u: 0x%08llx, chunks: %d in HW\n",
 			i, dma_desc->map_addr, dma_desc->num_entries);

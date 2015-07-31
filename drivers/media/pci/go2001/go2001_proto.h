@@ -286,6 +286,7 @@ struct go2001_empty_buffer_enc_reply {
 } __attribute__((packed));
 
 struct go2001_mmap_list_desc {
+	u64 first_entry_dma_addr;
 	u32 entry_count;
 	u64 mmap_list_addr;
 } __attribute__((packed));
