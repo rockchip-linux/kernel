@@ -186,7 +186,7 @@ static const struct dw_hdmi_curr_ctrl rockchip_cur_ctr[] = {
 static const struct dw_hdmi_phy_config rockchip_phy_config[] = {
 	/*pixelclk   symbol   term   vlev*/
 	{ CLK_PLUS_SLOP(74250000),  0x8009, 0x0004, 0x0272},
-	{ CLK_PLUS_SLOP(148500000), 0x802b, 0x0004, 0x028d},
+	{ CLK_PLUS_SLOP(165000000), 0x802b, 0x0004, 0x0209},
 	{ CLK_PLUS_SLOP(297000000), 0x8039, 0x0005, 0x028d},
 	{ ~0UL,	                    0x0000, 0x0000, 0x0000}
 };
