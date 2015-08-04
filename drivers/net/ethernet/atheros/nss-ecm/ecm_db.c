@@ -185,6 +185,27 @@ struct ecm_db_iface_instance {
 	int32_t mtu;					/* Interface MTU */
 
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * For convenience interfaces keep lists of connections that have been established
+	 * from them and to them.
+	 * In fact the same connection could be listed as from & to on the same interface (think: WLAN<>WLAN AP function)
+	 * Interfaces keep this information for rapid iteration of connections e.g. when an interface 'goes down' we
+	 * can defunct all associated connections or destroy any NSS rules.
+	 */
+	struct ecm_db_connection_instance *from_connections;		/* list of connections made from this interface */
+	struct ecm_db_connection_instance *to_connections;		/* list of connections made to this interface */
+
+	struct ecm_db_connection_instance *from_nat_connections;	/* list of NAT connections made from this interface */
+	struct ecm_db_connection_instance *to_nat_connections;		/* list of NAT connections made to this interface */
+
+	/*
+	 * Normally only the node refers to the interfaces which it is reachable upon.
+	 * The interface  also keeps a list of all nodes that can be reached.
+	 */
+	struct ecm_db_node_instance *nodes;				/* Nodes associated with this Interface */
+	int node_count;							/* Number of Nodes in the nodes list */
+#endif
 
 	/*
 	 * Interface specific information.
@@ -223,6 +244,30 @@ struct ecm_db_node_instance {
 	struct ecm_db_node_instance *hash_prev;		/* previous node in the chain of nodes */
 	uint8_t address[ETH_ALEN];			/* RO: MAC Address of this node */
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * For convenience nodes keep lists of connections that have been established from them and to them.
+	 * In fact the same connection could be listed as from & to on the same interface (think: WLAN<>WLAN AP function)
+	 * Nodes keep this information for rapid iteration of connections e.g. when a node 'goes down' we
+	 * can defunct all associated connections or destroy any NSS rules.
+	 */
+	struct ecm_db_connection_instance *from_connections;		/* list of connections made from this node */
+	struct ecm_db_connection_instance *to_connections;		/* list of connections made to this node */
+	int from_connections_count;					/* Number of connections in the from_connections list */
+	int to_connections_count;					/* Number of connections in the to_connections list */
+
+	struct ecm_db_connection_instance *from_nat_connections;	/* list of NAT connections made from this node */
+	struct ecm_db_connection_instance *to_nat_connections;		/* list of NAT connections made to this node */
+	int from_nat_connections_count;					/* Number of connections in the from_nat_connections list */
+	int to_nat_connections_count;					/* Number of connections in the to_nat_connections list */
+
+	/*
+	 * Nodes reachable from an interface are stored in a linked list maintained by that interface.
+	 * This is so, given an interface, you can examine all nodes reachable from it.
+	 */
+	struct ecm_db_node_instance *node_next;				/* The next node within the same iface nodes list */
+	struct ecm_db_node_instance *node_prev;				/* The previous node within the same iface nodes list */
+#endif
 
 	uint32_t time_added;				/* RO: DB time stamp when the node was added into the database */
 
@@ -256,6 +301,14 @@ struct ecm_db_host_instance {
 	bool on_link;					/* RO: false when this host is reached via a gateway */
 	uint32_t time_added;				/* RO: DB time stamp when the host was added into the database */
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * Normally the mapping refers to the host it requires.
+	 * However the host also keeps a list of all mappings that are associated with it.
+	 */
+	struct ecm_db_mapping_instance *mappings;	/* Mappings made on this host */
+	int mapping_count;				/* Number of mappings in the mapping list */
+#endif
 
 
 	ecm_db_host_final_callback_t final;		/* Callback to owner when object is destroyed */
@@ -287,6 +340,26 @@ struct ecm_db_mapping_instance {
 	struct ecm_db_host_instance *host;				/* The host to which this mapping relates */
 	int port;							/* RO: The port number on the host - only applicable for mapping protocols that are port based */
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * For convenience mappings keep lists of connections that have been established from them and to them.
+	 * In fact the same connection could be listed as from & to on the same interface (think: WLAN<>WLAN AP function)
+	 * Mappings keep this information for rapid iteration of connections e.g. given a mapping we
+	 * can defunct all associated connections or destroy any NSS rules.
+	 */
+	struct ecm_db_connection_instance *from_connections;		/* list of connections made from this host mapping */
+	struct ecm_db_connection_instance *to_connections;		/* list of connections made to this host mapping */
+
+	struct ecm_db_connection_instance *from_nat_connections;	/* list of NAT connections made from this host mapping */
+	struct ecm_db_connection_instance *to_nat_connections;		/* list of NAT connections made to this host mapping */
+
+	/*
+	 * While a mapping refers to the host it requires.
+	 * The host also keeps a list of all mappings that are associated with it, this is that list linkage.
+	 */
+	struct ecm_db_mapping_instance *mapping_next;			/* Next mapping in the list of mappings for the host */
+	struct ecm_db_mapping_instance *mapping_prev;			/* previous mapping in the list of mappings for the host */
+#endif
 
 	/*
 	 * Connection counts
@@ -398,6 +471,57 @@ struct ecm_db_connection_instance {
 	struct ecm_db_node_instance *from_nat_node;		/* Node from which this connection was established */
 	struct ecm_db_node_instance *to_nat_node;		/* Node to which this connection was established */
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * The connection has references to the mappings (both nat and non-nat) as required above.
+	 * Also mappings keep lists of connections made to/from them so that they may be iterated
+	 * to determine associated connections in each direction/situation (e.g. "defuncting all connections made to/from a mapping").
+	 */
+	struct ecm_db_connection_instance *from_next;		/* Next connection made from the same mapping */
+	struct ecm_db_connection_instance *from_prev;		/* Previous connection made from the same mapping */
+	struct ecm_db_connection_instance *to_next;		/* Next connection made to the same mapping */
+	struct ecm_db_connection_instance *to_prev;		/* Previous connection made to the same mapping */
+
+	struct ecm_db_connection_instance *from_nat_next;	/* Next connection made from the same mapping */
+	struct ecm_db_connection_instance *from_nat_prev;	/* Previous connection made from the same mapping */
+	struct ecm_db_connection_instance *to_nat_next;		/* Next connection made to the same mapping */
+	struct ecm_db_connection_instance *to_nat_prev;		/* Previous connection made to the same mapping */
+
+	/*
+	 * Connection endpoint interface
+	 * GGG TODO Deprecated - use interface lists instead.
+	 * To be removed when interface heirarchies are implemented to provide the same functionality.
+	 */
+	struct ecm_db_connection_instance *iface_from_next;	/* Next connection made from the same interface */
+	struct ecm_db_connection_instance *iface_from_prev;	/* Previous connection made from the same interface */
+	struct ecm_db_connection_instance *iface_to_next;	/* Next connection made to the same interface */
+	struct ecm_db_connection_instance *iface_to_prev;	/* Previous connection made to the same interface */
+
+	/*
+	 * Connection endpoint interface for NAT purposes
+	 * NOTE: For non-NAT connections these would be identical to the endpoint interface.
+	 * GGG TODO Deprecated - use interface lists instead.
+	 * To be removed when interface heirarchies are implemented to provide the same functionality.
+	 */
+	struct ecm_db_connection_instance *iface_from_nat_next;	/* Next connection made from the same interface */
+	struct ecm_db_connection_instance *iface_from_nat_prev;	/* Previous connection made from the same interface */
+	struct ecm_db_connection_instance *iface_to_nat_next;	/* Next connection made to the same interface */
+	struct ecm_db_connection_instance *iface_to_nat_prev;	/* Previous connection made to the same interface */
+
+	/*
+	 * As well as keeping a reference to the node which this connection uses the nodes
+	 * also keep lists of connections made from/to them.
+	 */
+	struct ecm_db_connection_instance *node_from_next;	/* Next connection in the nodes from_connections list */
+	struct ecm_db_connection_instance *node_from_prev;	/* Prev connection in the nodes from_connections list */
+	struct ecm_db_connection_instance *node_to_next;	/* Next connection in the nodes to_connections list */
+	struct ecm_db_connection_instance *node_to_prev;	/* Prev connection in the nodes to_connections list */
+
+	struct ecm_db_connection_instance *node_from_nat_next;	/* Next connection in the nodes from_nat_connections list */
+	struct ecm_db_connection_instance *node_from_nat_prev;	/* Prev connection in the nodes from_nat_connections list */
+	struct ecm_db_connection_instance *node_to_nat_next;	/* Next connection in the nodes to_nat_connections list */
+	struct ecm_db_connection_instance *node_to_nat_prev;	/* Prev connection in the nodes to_nat_connections list */
+#endif
 
 	/*
 	 * From / To interfaces list
@@ -1873,6 +1997,12 @@ int ecm_db_connection_deref(struct ecm_db_connection_instance *ci)
 		spin_unlock_bh(&ecm_db_lock);
 	} else {
 		struct ecm_db_listener_instance *li;
+#ifdef ECM_DB_XREF_ENABLE
+		struct ecm_db_iface_instance *iface_from;
+		struct ecm_db_iface_instance *iface_to;
+		struct ecm_db_iface_instance *iface_nat_from;
+		struct ecm_db_iface_instance *iface_nat_to;
+#endif
 
 		/*
 		 * Remove it from the connection hash table
@@ -1917,6 +2047,179 @@ int ecm_db_connection_deref(struct ecm_db_connection_instance *ci)
 			ci->next->prev = ci->prev;
 		}
 
+#ifdef ECM_DB_XREF_ENABLE
+		/*
+		 * Remove connection from the "from" mapping connection list
+		 */
+		if (!ci->from_prev) {
+			DEBUG_ASSERT(ci->mapping_from->from_connections == ci, "%p: from conn table bad\n", ci);
+			ci->mapping_from->from_connections = ci->from_next;
+		} else {
+			ci->from_prev->from_next = ci->from_next;
+		}
+		if (ci->from_next) {
+			ci->from_next->from_prev = ci->from_prev;
+		}
+
+		/*
+		 * Remove connection from the "to" mapping connection list
+		 */
+		if (!ci->to_prev) {
+			DEBUG_ASSERT(ci->mapping_to->to_connections == ci, "%p: to conn table bad\n", ci);
+			ci->mapping_to->to_connections = ci->to_next;
+		} else {
+			ci->to_prev->to_next = ci->to_next;
+		}
+		if (ci->to_next) {
+			ci->to_next->to_prev = ci->to_prev;
+		}
+
+		/*
+		 * Remove connection from the "from" NAT mapping connection list
+		 */
+		if (!ci->from_nat_prev) {
+			DEBUG_ASSERT(ci->mapping_nat_from->from_nat_connections == ci, "%p: nat from conn table bad\n", ci);
+			ci->mapping_nat_from->from_nat_connections = ci->from_nat_next;
+		} else {
+			ci->from_nat_prev->from_nat_next = ci->from_nat_next;
+		}
+		if (ci->from_nat_next) {
+			ci->from_nat_next->from_nat_prev = ci->from_nat_prev;
+		}
+
+		/*
+		 * Remove connection from the "to" NAT mapping connection list
+		 */
+		if (!ci->to_nat_prev) {
+			DEBUG_ASSERT(ci->mapping_nat_to->to_nat_connections == ci, "%p: nat to conn table bad\n", ci);
+			ci->mapping_nat_to->to_nat_connections = ci->to_nat_next;
+		} else {
+			ci->to_nat_prev->to_nat_next = ci->to_nat_next;
+		}
+		if (ci->to_nat_next) {
+			ci->to_nat_next->to_nat_prev = ci->to_nat_prev;
+		}
+
+		/*
+		 * Remove connection from the "from" iface connection list
+		 * GGG TODO Deprecated. Interface lists will be used instead.  To be deleted.
+		 */
+		iface_from = ci->from_node->iface;
+		if (!ci->iface_from_prev) {
+			DEBUG_ASSERT(iface_from->from_connections == ci, "%p: iface from conn table bad\n", ci);
+			iface_from->from_connections = ci->iface_from_next;
+		} else {
+			ci->iface_from_prev->iface_from_next = ci->iface_from_next;
+		}
+		if (ci->iface_from_next) {
+			ci->iface_from_next->iface_from_prev = ci->iface_from_prev;
+		}
+
+		/*
+		 * Remove connection from the "to" iface connection list
+		 * GGG TODO Deprecated. Interface lists will be used instead.  To be deleted.
+		 */
+		iface_to = ci->to_node->iface;
+		if (!ci->iface_to_prev) {
+			DEBUG_ASSERT(iface_to->to_connections == ci, "%p: to conn table bad\n", ci);
+			iface_to->to_connections = ci->iface_to_next;
+		} else {
+			ci->iface_to_prev->iface_to_next = ci->iface_to_next;
+		}
+		if (ci->iface_to_next) {
+			ci->iface_to_next->iface_to_prev = ci->iface_to_prev;
+		}
+
+		/*
+		 * Remove connection from the "from" NAT iface connection list
+		 * GGG TODO Deprecated. Interface lists will be used instead.  To be deleted.
+		 */
+		iface_nat_from = ci->from_nat_node->iface;
+		if (!ci->iface_from_nat_prev) {
+			DEBUG_ASSERT(iface_nat_from->from_nat_connections == ci, "%p: nat from conn table bad\n", ci);
+			iface_nat_from->from_nat_connections = ci->iface_from_nat_next;
+		} else {
+			ci->iface_from_nat_prev->iface_from_nat_next = ci->iface_from_nat_next;
+		}
+		if (ci->iface_from_nat_next) {
+			ci->iface_from_nat_next->iface_from_nat_prev = ci->iface_from_nat_prev;
+		}
+
+		/*
+		 * Remove connection from the "to" NAT iface connection list
+		 * GGG TODO Deprecated. Interface lists will be used instead.  To be deleted.
+		 */
+		iface_nat_to = ci->to_nat_node->iface;
+		if (!ci->iface_to_nat_prev) {
+			DEBUG_ASSERT(iface_nat_to->to_nat_connections == ci, "%p: nat to conn table bad\n", ci);
+			iface_nat_to->to_nat_connections = ci->iface_to_nat_next;
+		} else {
+			ci->iface_to_nat_prev->iface_to_nat_next = ci->iface_to_nat_next;
+		}
+		if (ci->iface_to_nat_next) {
+			ci->iface_to_nat_next->iface_to_nat_prev = ci->iface_to_nat_prev;
+		}
+
+		/*
+		 * Remove connection from its "from node" node connection list
+		 */
+		if (!ci->node_from_prev) {
+			DEBUG_ASSERT(ci->from_node->from_connections == ci, "%p: from node conn table bad, got: %p\n", ci, ci->from_node->from_connections);
+			ci->from_node->from_connections = ci->node_from_next;
+		} else {
+			ci->node_from_prev->node_from_next = ci->node_from_next;
+		}
+		if (ci->node_from_next) {
+			ci->node_from_next->node_from_prev = ci->node_from_prev;
+		}
+		ci->from_node->from_connections_count--;
+		DEBUG_ASSERT(ci->from_node->from_connections_count >= 0, "%p: bad count\n", ci);
+
+		/*
+		 * Remove connection from its "to node" node connection list
+		 */
+		if (!ci->node_to_prev) {
+			DEBUG_ASSERT(ci->to_node->to_connections == ci, "%p: to node conn table bad, got: %p\n", ci, ci->to_node->to_connections);
+			ci->to_node->to_connections = ci->node_to_next;
+		} else {
+			ci->node_to_prev->node_to_next = ci->node_to_next;
+		}
+		if (ci->node_to_next) {
+			ci->node_to_next->node_to_prev = ci->node_to_prev;
+		}
+		ci->to_node->to_connections_count--;
+		DEBUG_ASSERT(ci->to_node->to_connections_count >= 0, "%p: bad count\n", ci);
+
+		/*
+		 * Remove connection from its "from nat node" node connection list
+		 */
+		if (!ci->node_from_nat_prev) {
+			DEBUG_ASSERT(ci->from_nat_node->from_nat_connections == ci, "%p: from nat node conn table bad, got: %p\n", ci, ci->from_nat_node->from_nat_connections);
+			ci->from_nat_node->from_nat_connections = ci->node_from_nat_next;
+		} else {
+			ci->node_from_nat_prev->node_from_nat_next = ci->node_from_nat_next;
+		}
+		if (ci->node_from_nat_next) {
+			ci->node_from_nat_next->node_from_nat_prev = ci->node_from_nat_prev;
+		}
+		ci->from_nat_node->from_nat_connections_count--;
+		DEBUG_ASSERT(ci->from_nat_node->from_nat_connections_count >= 0, "%p: bad count\n", ci);
+
+		/*
+		 * Remove connection from its "to nat node" node connection list
+		 */
+		if (!ci->node_to_nat_prev) {
+			DEBUG_ASSERT(ci->to_nat_node->to_nat_connections == ci, "%p: to nat node conn table bad, got: %p\n", ci, ci->to_nat_node->to_nat_connections);
+			ci->to_nat_node->to_nat_connections = ci->node_to_nat_next;
+		} else {
+			ci->node_to_nat_prev->node_to_nat_next = ci->node_to_nat_next;
+		}
+		if (ci->node_to_nat_next) {
+			ci->node_to_nat_next->node_to_nat_prev = ci->node_to_nat_prev;
+		}
+		ci->to_nat_node->to_nat_connections_count--;
+		DEBUG_ASSERT(ci->to_nat_node->to_nat_connections_count >= 0, "%p: bad count\n", ci);
+#endif
 
 		/*
 		 * Update the counters in the mappings
@@ -2081,6 +2384,12 @@ int ecm_db_mapping_deref(struct ecm_db_mapping_instance *mi)
 	DEBUG_ASSERT(!mi->tcp_nat_to && !mi->udp_nat_to && !mi->nat_to, "%p: nat_to not zero: %d, %d, %d\n",
 			mi, mi->tcp_nat_to, mi->udp_nat_to, mi->nat_to);
 
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT(!mi->from_connections, "%p: from not null: %p\n", mi, mi->from_connections);
+	DEBUG_ASSERT(!mi->to_connections, "%p: to not null: %p\n", mi, mi->to_connections);
+	DEBUG_ASSERT(!mi->from_nat_connections, "%p: nat_from not null: %p\n", mi, mi->from_nat_connections);
+	DEBUG_ASSERT(!mi->to_nat_connections, "%p: nat_to not null: %p\n", mi, mi->to_nat_connections);
+#endif
 
 	/*
 	 * Remove from database if inserted
@@ -2120,6 +2429,24 @@ int ecm_db_mapping_deref(struct ecm_db_mapping_instance *mi)
 		ecm_db_mapping_table_lengths[mi->hash_index]--;
 		DEBUG_ASSERT(ecm_db_mapping_table_lengths[mi->hash_index] >= 0, "%p: invalid table len %d\n", mi, ecm_db_mapping_table_lengths[mi->hash_index]);
 
+#ifdef ECM_DB_XREF_ENABLE
+		/*
+		 * Unlink it from the host mapping list
+		 */
+		if (!mi->mapping_prev) {
+			DEBUG_ASSERT(mi->host->mappings == mi, "%p: mapping table bad\n", mi);
+			mi->host->mappings = mi->mapping_next;
+		} else {
+			mi->mapping_prev->mapping_next = mi->mapping_next;
+		}
+		if (mi->mapping_next) {
+			mi->mapping_next->mapping_prev = mi->mapping_prev;
+		}
+		mi->mapping_next = NULL;
+		mi->mapping_prev = NULL;
+
+		mi->host->mapping_count--;
+#endif
 		spin_unlock_bh(&ecm_db_lock);
 
 		/*
@@ -2193,6 +2520,9 @@ int ecm_db_host_deref(struct ecm_db_host_instance *hi)
 		return refs;
 	}
 
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((hi->mappings == NULL) && (hi->mapping_count == 0), "%p: mappings not null\n", hi);
+#endif
 
 	/*
 	 * Remove from database if inserted
@@ -2298,6 +2628,12 @@ int ecm_db_node_deref(struct ecm_db_node_instance *ni)
 		return refs;
 	}
 
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ni->from_connections == NULL) && (ni->from_connections_count == 0), "%p: from_connections not null\n", ni);
+	DEBUG_ASSERT((ni->to_connections == NULL) && (ni->to_connections_count == 0), "%p: to_connections not null\n", ni);
+	DEBUG_ASSERT((ni->from_nat_connections == NULL) && (ni->from_nat_connections_count == 0), "%p: from_nat_connections not null\n", ni);
+	DEBUG_ASSERT((ni->to_nat_connections == NULL) && (ni->to_nat_connections_count == 0), "%p: to_nat_connections not null\n", ni);
+#endif
 
 	/*
 	 * Remove from database if inserted
@@ -2337,6 +2673,23 @@ int ecm_db_node_deref(struct ecm_db_node_instance *ni)
 		ecm_db_node_table_lengths[ni->hash_index]--;
 		DEBUG_ASSERT(ecm_db_node_table_lengths[ni->hash_index] >= 0, "%p: invalid table len %d\n", ni, ecm_db_node_table_lengths[ni->hash_index]);
 
+#ifdef ECM_DB_XREF_ENABLE
+		/*
+		 * Unlink it from the iface node list
+		 */
+		if (!ni->node_prev) {
+			DEBUG_ASSERT(ni->iface->nodes == ni, "%p: nodes table bad\n", ni);
+			ni->iface->nodes = ni->node_next;
+		} else {
+			ni->node_prev->node_next = ni->node_next;
+		}
+		if (ni->node_next) {
+			ni->node_next->node_prev = ni->node_prev;
+		}
+		ni->node_next = NULL;
+		ni->node_prev = NULL;
+		ni->iface->node_count--;
+#endif
 
 		spin_unlock_bh(&ecm_db_lock);
 
@@ -2414,6 +2767,9 @@ int ecm_db_iface_deref(struct ecm_db_iface_instance *ii)
 		return refs;
 	}
 
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ii->nodes == NULL) && (ii->node_count == 0), "%p: nodes not null\n", ii);
+#endif
 
 	/*
 	 * Remove from database if inserted
@@ -3279,6 +3635,398 @@ struct ecm_db_node_instance *ecm_db_connection_node_from_get_and_ref(struct ecm_
 }
 EXPORT_SYMBOL(ecm_db_connection_node_from_get_and_ref);
 
+#ifdef ECM_DB_XREF_ENABLE
+/*
+ * ecm_db_mapping_connections_from_get_and_ref_first()
+ *	Return a reference to the first connection made from this mapping
+ */
+struct ecm_db_connection_instance *ecm_db_mapping_connections_from_get_and_ref_first(struct ecm_db_mapping_instance *mi)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(mi, ECM_DB_MAPPING_INSTANCE_MAGIC, "%p: magic failed", mi);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = mi->from_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_mapping_connections_from_get_and_ref_first);
+
+/*
+ * ecm_db_mapping_connections_to_get_and_ref_first()
+ *	Return a reference to the first connection made to this mapping
+ */
+struct ecm_db_connection_instance *ecm_db_mapping_connections_to_get_and_ref_first(struct ecm_db_mapping_instance *mi)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(mi, ECM_DB_MAPPING_INSTANCE_MAGIC, "%p: magic failed", mi);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = mi->to_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_mapping_connections_to_get_and_ref_first);
+
+/*
+ * ecm_db_mapping_connections_nat_from_get_and_ref_first()
+ *	Return a reference to the first NAT connection made from this mapping
+ */
+struct ecm_db_connection_instance *ecm_db_mapping_connections_nat_from_get_and_ref_first(struct ecm_db_mapping_instance *mi)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(mi, ECM_DB_MAPPING_INSTANCE_MAGIC, "%p: magic failed", mi);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = mi->from_nat_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_mapping_connections_nat_from_get_and_ref_first);
+
+/*
+ * ecm_db_mapping_connections_nat_to_get_and_ref_first()
+ *	Return a reference to the first NAT connection made to this mapping
+ */
+struct ecm_db_connection_instance *ecm_db_mapping_connections_nat_to_get_and_ref_first(struct ecm_db_mapping_instance *mi)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(mi, ECM_DB_MAPPING_INSTANCE_MAGIC, "%p: magic failed", mi);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = mi->to_nat_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_mapping_connections_nat_to_get_and_ref_first);
+
+/*
+ * ecm_db_connection_mapping_from_get_and_ref_next()
+ *	Return reference to next connection in from mapping chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_mapping_from_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->from_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_mapping_from_get_and_ref_next);
+
+/*
+ * ecm_db_connection_mapping_to_get_and_ref_next()
+ *	Return reference to next connection in to mapping chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_mapping_to_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->to_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_mapping_to_get_and_ref_next);
+
+/*
+ * ecm_db_connection_mapping_nat_from_get_and_ref_next()
+ *	Return reference to next connection in from NAT mapping chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_mapping_nat_from_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->from_nat_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_mapping_nat_from_get_and_ref_next);
+
+/*
+ * ecm_db_connection_mapping_nat_to_get_and_ref_next()
+ *	Return reference to next connection in to NAT mapping chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_mapping_nat_to_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->to_nat_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_mapping_nat_to_get_and_ref_next);
+
+/*
+ * ecm_db_iface_connections_from_get_and_ref_first()
+ *	Return a reference to the first connection made from this iface
+ */
+struct ecm_db_connection_instance *ecm_db_iface_connections_from_get_and_ref_first(struct ecm_db_iface_instance *ii)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed", ii);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = ii->from_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_iface_connections_from_get_and_ref_first);
+
+/*
+ * ecm_db_iface_connections_to_get_and_ref_first()
+ *	Return a reference to the first connection made to this iface
+ */
+struct ecm_db_connection_instance *ecm_db_iface_connections_to_get_and_ref_first(struct ecm_db_iface_instance *ii)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed", ii);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = ii->to_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_iface_connections_to_get_and_ref_first);
+
+/*
+ * ecm_db_iface_connections_nat_from_get_and_ref_first()
+ *	Return a reference to the first NAT connection made from this iface
+ */
+struct ecm_db_connection_instance *ecm_db_iface_connections_nat_from_get_and_ref_first(struct ecm_db_iface_instance *ii)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed", ii);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = ii->from_nat_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_iface_connections_nat_from_get_and_ref_first);
+
+/*
+ * ecm_db_iface_connections_nat_to_get_and_ref_first()
+ *	Return a reference to the first NAT connection made to this iface
+ */
+struct ecm_db_connection_instance *ecm_db_iface_connections_nat_to_get_and_ref_first(struct ecm_db_iface_instance *ii)
+{
+	struct ecm_db_connection_instance *ci;
+
+	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed", ii);
+
+	spin_lock_bh(&ecm_db_lock);
+	ci = ii->to_nat_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ci;
+}
+EXPORT_SYMBOL(ecm_db_iface_connections_nat_to_get_and_ref_first);
+
+/*
+ * ecm_db_connection_iface_from_get_and_ref_next()
+ *	Return reference to next connection in from iface chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_iface_from_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->iface_from_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_iface_from_get_and_ref_next);
+
+/*
+ * ecm_db_connection_iface_to_get_and_ref_next()
+ *	Return reference to next connection in to iface chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_iface_to_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->iface_to_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_iface_to_get_and_ref_next);
+
+/*
+ * ecm_db_connection_iface_nat_from_get_and_ref_next()
+ *	Return reference to next connection in from NAT iface chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_iface_nat_from_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->iface_from_nat_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_iface_nat_from_get_and_ref_next);
+
+/*
+ * ecm_db_connection_iface_nat_to_get_and_ref_next()
+ *	Return reference to next connection in to NAT iface chain
+ */
+struct ecm_db_connection_instance *ecm_db_connection_iface_nat_to_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *nci;
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
+
+	spin_lock_bh(&ecm_db_lock);
+	nci = ci->iface_to_nat_next;
+	if (nci) {
+		_ecm_db_connection_ref(nci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return nci;
+}
+EXPORT_SYMBOL(ecm_db_connection_iface_nat_to_get_and_ref_next);
+
+/*
+ * ecm_db_iface_nodes_get_and_ref_first()
+ *	Return a reference to the first node made from this iface
+ */
+struct ecm_db_node_instance *ecm_db_iface_nodes_get_and_ref_first(struct ecm_db_iface_instance *ii)
+{
+	struct ecm_db_node_instance *ni;
+
+	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed", ii);
+
+	spin_lock_bh(&ecm_db_lock);
+	ni = ii->nodes;
+	if (ni) {
+		_ecm_db_node_ref(ni);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+
+	return ni;
+}
+EXPORT_SYMBOL(ecm_db_iface_nodes_get_and_ref_first);
+
+/*
+ * ecm_db_iface_node_count_get()
+ *	Return the number of nodes to this iface
+ */
+int ecm_db_iface_node_count_get(struct ecm_db_iface_instance *ii)
+{
+	int count;
+
+	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed\n", ii);
+
+	spin_lock_bh(&ecm_db_lock);
+	count = ii->node_count;
+	spin_unlock_bh(&ecm_db_lock);
+	return count;
+}
+EXPORT_SYMBOL(ecm_db_iface_node_count_get);
+
+/*
+ * ecm_db_host_mapping_count_get()
+ *	Return the number of mappings to this host
+ */
+int ecm_db_host_mapping_count_get(struct ecm_db_host_instance *hi)
+{
+	int count;
+
+	DEBUG_CHECK_MAGIC(hi, ECM_DB_HOST_INSTANCE_MAGIC, "%p: magic failed\n", hi);
+
+	spin_lock_bh(&ecm_db_lock);
+	count = hi->mapping_count;
+	spin_unlock_bh(&ecm_db_lock);
+	return count;
+}
+EXPORT_SYMBOL(ecm_db_host_mapping_count_get);
+#endif
 
 /*
  * ecm_db_mapping_host_get_and_ref()
@@ -4246,6 +4994,12 @@ void ecm_db_connection_add(struct ecm_db_connection_instance *ci,
 	ecm_db_connection_hash_t hash_index;
 	ecm_db_connection_serial_hash_t serial_hash_index;
 	struct ecm_db_listener_instance *li;
+#ifdef ECM_DB_XREF_ENABLE
+	struct ecm_db_iface_instance *iface_from;
+	struct ecm_db_iface_instance *iface_to;
+	struct ecm_db_iface_instance *iface_nat_from;
+	struct ecm_db_iface_instance *iface_nat_to;
+#endif
 
 	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed\n", ci);
 	DEBUG_CHECK_MAGIC(mapping_from, ECM_DB_MAPPING_INSTANCE_MAGIC, "%p: magic failed\n", mapping_from);
@@ -4320,13 +5074,13 @@ void ecm_db_connection_add(struct ecm_db_connection_instance *ci,
 	/*
 	 * Identify which hash chain this connection will go into
 	 */
-       	hash_index = ecm_db_connection_generate_hash_index(mapping_from->host->address, mapping_from->port, mapping_to->host->address, mapping_to->port, protocol);
+	hash_index = ecm_db_connection_generate_hash_index(mapping_from->host->address, mapping_from->port, mapping_to->host->address, mapping_to->port, protocol);
 	ci->hash_index = hash_index;
 
 	/*
 	 * Identify which serial hash chain this connection will go into
 	 */
-       	serial_hash_index = ecm_db_connection_generate_serial_hash_index(ci->serial);
+	serial_hash_index = ecm_db_connection_generate_serial_hash_index(ci->serial);
 	ci->serial_hash_index = serial_hash_index;
 
 	/*
@@ -4382,6 +5136,147 @@ void ecm_db_connection_add(struct ecm_db_connection_instance *ci,
 	ecm_db_connection_serial_table_lengths[serial_hash_index]++;
 	DEBUG_ASSERT(ecm_db_connection_serial_table_lengths[serial_hash_index] > 0, "%p: invalid table len %d\n", ci, ecm_db_connection_serial_table_lengths[serial_hash_index]);
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * Add this connection into the FROM node
+	 */
+	ci->node_from_prev = NULL;
+	ci->node_from_next = from_node->from_connections;
+	if (from_node->from_connections) {
+		from_node->from_connections->node_from_prev = ci;
+	}
+	from_node->from_connections = ci;
+	from_node->from_connections_count++;
+	DEBUG_ASSERT(from_node->from_connections_count > 0, "%p: invalid count\n", ci);
+
+	/*
+	 * Add this connection into the TO node
+	 */
+	ci->node_to_prev = NULL;
+	ci->node_to_next = to_node->to_connections;
+	if (to_node->to_connections) {
+		to_node->to_connections->node_to_prev = ci;
+	}
+	to_node->to_connections = ci;
+	to_node->to_connections_count++;
+	DEBUG_ASSERT(to_node->to_connections_count > 0, "%p: invalid count\n", ci);
+
+	/*
+	 * Add this connection into the FROM NAT node
+	 */
+	ci->node_from_nat_prev = NULL;
+	ci->node_from_nat_next = from_nat_node->from_nat_connections;
+	if (from_nat_node->from_nat_connections) {
+		from_nat_node->from_nat_connections->node_from_nat_prev = ci;
+	}
+	from_nat_node->from_nat_connections = ci;
+	from_nat_node->from_nat_connections_count++;
+	DEBUG_ASSERT(from_nat_node->from_nat_connections_count > 0, "%p: invalid count\n", ci);
+
+	/*
+	 * Add this connection into the TO NAT node
+	 */
+	ci->node_to_nat_prev = NULL;
+	ci->node_to_nat_next = to_nat_node->to_nat_connections;
+	if (to_nat_node->to_nat_connections) {
+		to_nat_node->to_nat_connections->node_to_nat_prev = ci;
+	}
+	to_nat_node->to_nat_connections = ci;
+	to_nat_node->to_nat_connections_count++;
+	DEBUG_ASSERT(to_nat_node->to_nat_connections_count > 0, "%p: invalid count\n", ci);
+
+	/*
+	 * Add this connection into the FROM mapping
+	 */
+	ci->from_prev = NULL;
+	ci->from_next = mapping_from->from_connections;
+	if (mapping_from->from_connections) {
+		mapping_from->from_connections->from_prev = ci;
+	}
+	mapping_from->from_connections = ci;
+
+	/*
+	 * Add this connection into the TO mapping
+	 */
+	ci->to_prev = NULL;
+	ci->to_next = mapping_to->to_connections;
+	if (mapping_to->to_connections) {
+		mapping_to->to_connections->to_prev = ci;
+	}
+	mapping_to->to_connections = ci;
+
+	/*
+	 * Add this connection into the FROM NAT mapping
+	 */
+	ci->from_nat_prev = NULL;
+	ci->from_nat_next = mapping_nat_from->from_nat_connections;
+	if (mapping_nat_from->from_nat_connections) {
+		mapping_nat_from->from_nat_connections->from_nat_prev = ci;
+	}
+	mapping_nat_from->from_nat_connections = ci;
+
+	/*
+	 * Add this connection into the TO NAT mapping
+	 */
+	ci->to_nat_prev = NULL;
+	ci->to_nat_next = mapping_nat_to->to_nat_connections;
+	if (mapping_nat_to->to_nat_connections) {
+		mapping_nat_to->to_nat_connections->to_nat_prev = ci;
+	}
+	mapping_nat_to->to_nat_connections = ci;
+
+	/*
+	 * Add this connection into the FROM iface list of connections
+	 * NOTE: There is no need to ref the iface because it will exist for as long as this connection exists
+	 * due to the heirarchy of dependencies being kept by the database.
+	 */
+	iface_from = from_node->iface;
+	ci->iface_from_prev = NULL;
+	ci->iface_from_next = iface_from->from_connections;
+	if (iface_from->from_connections) {
+		iface_from->from_connections->iface_from_prev = ci;
+	}
+	iface_from->from_connections = ci;
+
+	/*
+	 * Add this connection into the TO iface list of connections
+	 * NOTE: There is no need to ref the iface because it will exist for as long as this connection exists
+	 * due to the heirarchy of dependencies being kept by the database.
+	 */
+	iface_to = to_node->iface;
+	ci->iface_to_prev = NULL;
+	ci->iface_to_next = iface_to->to_connections;
+	if (iface_to->to_connections) {
+		iface_to->to_connections->iface_to_prev = ci;
+	}
+	iface_to->to_connections = ci;
+
+	/*
+	 * Add this connection into the FROM NAT iface list of connections
+	 * NOTE: There is no need to ref the iface because it will exist for as long as this connection exists
+	 * due to the heirarchy of dependencies being kept by the database.
+	 */
+	iface_nat_from = from_nat_node->iface;
+	ci->iface_from_nat_prev = NULL;
+	ci->iface_from_nat_next = iface_nat_from->from_nat_connections;
+	if (iface_nat_from->from_nat_connections) {
+		iface_nat_from->from_nat_connections->iface_from_nat_prev = ci;
+	}
+	iface_nat_from->from_nat_connections = ci;
+
+	/*
+	 * Add this connection into the TO NAT iface list of connections
+	 * NOTE: There is no need to ref the iface because it will exist for as long as this connection exists
+	 * due to the heirarchy of dependencies being kept by the database.
+	 */
+	iface_nat_to = to_nat_node->iface;
+	ci->iface_to_nat_prev = NULL;
+	ci->iface_to_nat_next = iface_nat_to->to_nat_connections;
+	if (iface_nat_to->to_nat_connections) {
+		iface_nat_to->to_nat_connections->iface_to_nat_prev = ci;
+	}
+	iface_nat_to->to_nat_connections = ci;
+#endif
 
 	/*
 	 * NOTE: The interface heirarchy lists are deliberately left empty - these are completed
@@ -4460,6 +5355,11 @@ void ecm_db_mapping_add(struct ecm_db_mapping_instance *mi, struct ecm_db_host_i
 	DEBUG_ASSERT(!(mi->flags & ECM_DB_MAPPING_FLAGS_INSERTED), "%p: inserted\n", mi);
 	DEBUG_ASSERT((hi->flags & ECM_DB_HOST_FLAGS_INSERTED), "%p: not inserted\n", hi);
 	DEBUG_ASSERT(!mi->tcp_from && !mi->tcp_to && !mi->udp_from && !mi->udp_to, "%p: protocol count errors\n", mi);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT(mi->from_connections == NULL, "%p: connections not null\n", mi);
+	DEBUG_ASSERT(mi->to_connections == NULL, "%p: connections not null\n", mi);
+	DEBUG_ASSERT(!mi->from && !mi->to && !mi->nat_from && !mi->nat_to, "%p: connection count errors\n", mi);
+#endif
 	spin_unlock_bh(&ecm_db_lock);
 
 	mi->arg = arg;
@@ -4514,6 +5414,18 @@ void ecm_db_mapping_add(struct ecm_db_mapping_instance *mi, struct ecm_db_host_i
 	ecm_db_mapping_table_lengths[hash_index]++;
 	DEBUG_ASSERT(ecm_db_mapping_table_lengths[hash_index] > 0, "%p: invalid table len %d\n", hi, ecm_db_mapping_table_lengths[hash_index]);
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * Insert mapping into the host mapping list
+	 */
+	mi->mapping_prev = NULL;
+	mi->mapping_next = hi->mappings;
+	if (hi->mappings) {
+		hi->mappings->mapping_prev = mi;
+	}
+	hi->mappings = mi;
+	hi->mapping_count++;
+#endif
 	spin_unlock_bh(&ecm_db_lock);
 
 	/*
@@ -4549,6 +5461,9 @@ void ecm_db_host_add(struct ecm_db_host_instance *hi, ip_addr_t address, bool on
 	spin_lock_bh(&ecm_db_lock);
 	DEBUG_CHECK_MAGIC(hi, ECM_DB_HOST_INSTANCE_MAGIC, "%p: magic failed\n", hi);
 	DEBUG_ASSERT(!(hi->flags & ECM_DB_HOST_FLAGS_INSERTED), "%p: inserted\n", hi);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((hi->mappings == NULL) && (hi->mapping_count == 0), "%p: mappings not null\n", hi);
+#endif
 	spin_unlock_bh(&ecm_db_lock);
 
 	hi->arg = arg;
@@ -4628,6 +5543,12 @@ void ecm_db_node_add(struct ecm_db_node_instance *ni, struct ecm_db_iface_instan
 	DEBUG_ASSERT(address, "%p: address null\n", ni);
 	DEBUG_ASSERT((ni->iface == NULL), "%p: iface not null\n", ni);
 	DEBUG_ASSERT(!(ni->flags & ECM_DB_NODE_FLAGS_INSERTED), "%p: inserted\n", ni);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ni->from_connections == NULL) && (ni->from_connections_count == 0), "%p: from_connections not null\n", ni);
+	DEBUG_ASSERT((ni->to_connections == NULL) && (ni->to_connections_count == 0), "%p: to_connections not null\n", ni);
+	DEBUG_ASSERT((ni->from_nat_connections == NULL) && (ni->from_nat_connections_count == 0), "%p: from_nat_connections not null\n", ni);
+	DEBUG_ASSERT((ni->to_nat_connections == NULL) && (ni->to_nat_connections_count == 0), "%p: to_nat_connections not null\n", ni);
+#endif
 	spin_unlock_bh(&ecm_db_lock);
 
 	memcpy(ni->address, address, ETH_ALEN);
@@ -4674,6 +5595,18 @@ void ecm_db_node_add(struct ecm_db_node_instance *ni, struct ecm_db_iface_instan
 	 */
 	ni->time_added = ecm_db_time;
 
+#ifdef ECM_DB_XREF_ENABLE
+	/*
+	 * Insert node into the iface nodes list
+	 */
+	ni->node_prev = NULL;
+	ni->node_next = ii->nodes;
+	if (ii->nodes) {
+		ii->nodes->node_prev = ni;
+	}
+	ii->nodes = ni;
+	ii->node_count++;
+#endif
 	spin_unlock_bh(&ecm_db_lock);
 
 	/*
@@ -4713,6 +5646,9 @@ void ecm_db_iface_add_ethernet(struct ecm_db_iface_instance *ii, uint8_t *addres
 	spin_lock_bh(&ecm_db_lock);
 	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed\n", ii);
 	DEBUG_ASSERT(address, "%p: address null\n", ii);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ii->nodes == NULL) && (ii->node_count == 0), "%p: nodes not null\n", ii);
+#endif
 	DEBUG_ASSERT(!(ii->flags & ECM_DB_IFACE_FLAGS_INSERTED), "%p: inserted\n", ii);
 	DEBUG_ASSERT(name, "%p: no name given\n", ii);
 	spin_unlock_bh(&ecm_db_lock);
@@ -4808,6 +5744,9 @@ void ecm_db_iface_add_bridge(struct ecm_db_iface_instance *ii, uint8_t *address,
 	spin_lock_bh(&ecm_db_lock);
 	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed\n", ii);
 	DEBUG_ASSERT(address, "%p: address null\n", ii);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ii->nodes == NULL) && (ii->node_count == 0), "%p: nodes not null\n", ii);
+#endif
 	DEBUG_ASSERT(!(ii->flags & ECM_DB_IFACE_FLAGS_INSERTED), "%p: inserted\n", ii);
 	DEBUG_ASSERT(name, "%p: no name given\n", ii);
 	spin_unlock_bh(&ecm_db_lock);
@@ -4903,6 +5842,9 @@ void ecm_db_iface_add_unknown(struct ecm_db_iface_instance *ii, uint32_t os_spec
 
 	spin_lock_bh(&ecm_db_lock);
 	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed\n", ii);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ii->nodes == NULL) && (ii->node_count == 0), "%p: nodes not null\n", ii);
+#endif
 	DEBUG_ASSERT(!(ii->flags & ECM_DB_IFACE_FLAGS_INSERTED), "%p: inserted\n", ii);
 	DEBUG_ASSERT(name, "%p: no name given\n", ii);
 	spin_unlock_bh(&ecm_db_lock);
@@ -4996,6 +5938,9 @@ void ecm_db_iface_add_loopback(struct ecm_db_iface_instance *ii, uint32_t os_spe
 
 	spin_lock_bh(&ecm_db_lock);
 	DEBUG_CHECK_MAGIC(ii, ECM_DB_IFACE_INSTANCE_MAGIC, "%p: magic failed\n", ii);
+#ifdef ECM_DB_XREF_ENABLE
+	DEBUG_ASSERT((ii->nodes == NULL) && (ii->node_count == 0), "%p: nodes not null\n", ii);
+#endif
 	DEBUG_ASSERT(!(ii->flags & ECM_DB_IFACE_FLAGS_INSERTED), "%p: inserted\n", ii);
 	DEBUG_ASSERT(name, "%p: no name given\n", ii);
 	spin_unlock_bh(&ecm_db_lock);
@@ -5644,7 +6589,269 @@ static void ecm_db_timer_callback(unsigned long data)
 	}
 	add_timer(&ecm_db_timer);
 }
+#if defined(ECM_DB_XREF_ENABLE) && defined(ECM_BAND_STEERING_ENABLE)
+/*
+ * ecm_db_node_from_connections_get_and_ref_first()
+ *	Obtain a ref to the first connection instance of "from list" of node, if any
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_from_connections_get_and_ref_first(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci;
+	DEBUG_CHECK_MAGIC(node, ECM_DB_NODE_INSTANCE_MAGIC, "%p: magic failed", node);
+	spin_lock_bh(&ecm_db_lock);
+	ci = node->from_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return ci;
+}
 
+/*
+ * ecm_db_node_from_connection_get_and_ref_next()
+ *	Return the next connection in the "from list" of given a connection
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_from_connection_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *cin;
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed", ci);
+	spin_lock_bh(&ecm_db_lock);
+	cin = ci->node_from_next;
+	if (cin) {
+		_ecm_db_connection_ref(cin);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return cin;
+}
+
+/*
+ * ecm_db_node_to_connections_get_and_ref_first()
+ *	Obtain a ref to the first connection instance of a "to list" of node, if any
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_to_connections_get_and_ref_first(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci;
+	DEBUG_CHECK_MAGIC(node, ECM_DB_NODE_INSTANCE_MAGIC, "%p: magic failed", node);
+	spin_lock_bh(&ecm_db_lock);
+	ci = node->to_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return ci;
+}
+
+/*
+ * ecm_db_node_to_connection_get_and_ref_next()
+ *	Return the next connection in the "to list" of given a connection
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_to_connection_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *cin;
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed", ci);
+	spin_lock_bh(&ecm_db_lock);
+	cin = ci->node_to_next;
+	if (cin) {
+		_ecm_db_connection_ref(cin);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return cin;
+}
+
+/*
+ * ecm_db_node_from_nat_connections_get_and_ref_first()
+ *	Obtain a ref to the first connection instance of a "from_nat list" of node, if any
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_from_nat_connections_get_and_ref_first(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci;
+	DEBUG_CHECK_MAGIC(node, ECM_DB_NODE_INSTANCE_MAGIC, "%p: magic failed", node);
+	spin_lock_bh(&ecm_db_lock);
+	ci = node->from_nat_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return ci;
+}
+
+/*
+ * ecm_db_node_from_nat_connection_get_and_ref_next()
+ *	Return the next connection in the "from nat list" of given a connection
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_from_nat_connection_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *cin;
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed", ci);
+	spin_lock_bh(&ecm_db_lock);
+	cin = ci->node_from_nat_next;
+	if (cin) {
+		_ecm_db_connection_ref(cin);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return cin;
+}
+
+/*
+ * ecm_db_node_to_nat_connections_get_and_ref_first()
+ *	Obtain a ref to the first connection instance of a "to_nat list" of node, if any
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_to_nat_connections_get_and_ref_first(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci;
+	DEBUG_CHECK_MAGIC(node, ECM_DB_NODE_INSTANCE_MAGIC, "%p: magic failed", node);
+	spin_lock_bh(&ecm_db_lock);
+	ci = node->to_nat_connections;
+	if (ci) {
+		_ecm_db_connection_ref(ci);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return ci;
+}
+
+/*
+ * ecm_db_node_to_nat_connection_get_and_ref_next()
+ *	Return the next connection in the "to nat list" of given a connection
+ */
+static inline struct ecm_db_connection_instance *ecm_db_node_to_nat_connection_get_and_ref_next(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_db_connection_instance *cin;
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed", ci);
+	spin_lock_bh(&ecm_db_lock);
+	cin = ci->node_to_nat_next;
+	if (cin) {
+		_ecm_db_connection_ref(cin);
+	}
+	spin_unlock_bh(&ecm_db_lock);
+	return cin;
+}
+
+/*
+ * ecm_db_connection_decelerate_and_defunct()
+ *	decelerate and defunct a connection
+ */
+static inline void ecm_db_connection_decelerate_and_defunct(struct ecm_db_connection_instance *ci)
+{
+	struct ecm_front_end_connection_instance *feci = NULL;
+
+	if (unlikely(!ci)) {
+		DEBUG_WARN("%p: ecm db connection instance pointer is null\n", ci);
+		return;
+	}
+
+	DEBUG_CHECK_MAGIC(ci, ECM_DB_CONNECTION_INSTANCE_MAGIC, "%p: magic failed", ci);
+
+	feci = ecm_db_connection_front_end_get_and_ref(ci);
+
+	feci->decelerate(feci);
+	feci->deref(feci);
+	ecm_db_connection_make_defunct(ci);
+}
+
+/*
+ * ecm_db_traverse_node_from_connection_list_and_decelerate()
+ *	traverse from_list of a node and calls ecm_db_connection_decelerate_and_defunct()
+ *	for each entry
+ */
+void ecm_db_traverse_node_from_connection_list_and_decelerate(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci = NULL;
+
+	/*
+	 * Iterate all from connections
+	 */
+	ci = ecm_db_node_from_connections_get_and_ref_first(node);
+	while (ci) {
+		struct ecm_db_connection_instance *cin;
+
+		DEBUG_TRACE("%p: defunct\n", ci);
+		ecm_db_connection_decelerate_and_defunct(ci);
+
+		cin = ecm_db_node_from_connection_get_and_ref_next(ci);
+		ecm_db_connection_deref(ci);
+		ci = cin;
+	}
+	DEBUG_INFO("%p: Defuncting node's from connection list complete\n", node);
+}
+
+/*
+ * ecm_db_traverse_node_to_connection_list_and_decelerate()
+ *	traverse to_list of a node and calls ecm_db_connection_decelerate_and_defunct()
+ *	for each entry
+ */
+void ecm_db_traverse_node_to_connection_list_and_decelerate(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci = NULL;
+
+	/*
+	 * Iterate all to connections
+	 */
+	ci = ecm_db_node_to_connections_get_and_ref_first(node);
+	while (ci) {
+		struct ecm_db_connection_instance *cin;
+
+		DEBUG_TRACE("%p: defunct\n", ci);
+		ecm_db_connection_decelerate_and_defunct(ci);
+
+		cin = ecm_db_node_to_connection_get_and_ref_next(ci);
+		ecm_db_connection_deref(ci);
+		ci = cin;
+	}
+	DEBUG_INFO("%p: Defuncting node's to connection list complete\n", node);
+}
+
+/*
+ * ecm_db_traverse_node_from_nat_connection_list_and_decelerate()
+ *	traverse from_nat_list of a node and calls ecm_db_connection_decelerate_and_defunct()
+ *	for each entry
+ */
+void ecm_db_traverse_node_from_nat_connection_list_and_decelerate(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci = NULL;
+
+	/*
+	 * Iterate all from nat connections
+	 */
+	ci = ecm_db_node_from_nat_connections_get_and_ref_first(node);
+	while (ci) {
+		struct ecm_db_connection_instance *cin;
+
+		DEBUG_TRACE("%p: defunct\n", ci);
+		ecm_db_connection_decelerate_and_defunct(ci);
+
+		cin = ecm_db_node_from_nat_connection_get_and_ref_next(ci);
+		ecm_db_connection_deref(ci);
+		ci = cin;
+	}
+	DEBUG_INFO("%p: Defuncting node's from nat connection list complete\n", node);
+}
+
+/*
+ * ecm_db_traverse_node_to_nat_connection_list_and_decelerate()
+ *	traverse to_nat_list of a node and calls ecm_db_connection_decelerate_and_defunct()
+ *	for each entry
+ */
+void ecm_db_traverse_node_to_nat_connection_list_and_decelerate(struct ecm_db_node_instance *node)
+{
+	struct ecm_db_connection_instance *ci = NULL;
+
+	/*
+	 * Iterate all to nat connections
+	 */
+	ci = ecm_db_node_to_nat_connections_get_and_ref_first(node);
+	while (ci) {
+		struct ecm_db_connection_instance *cin;
+
+		DEBUG_TRACE("%p: defunct\n", ci);
+		ecm_db_connection_decelerate_and_defunct(ci);
+
+		cin = ecm_db_node_to_nat_connection_get_and_ref_next(ci);
+		ecm_db_connection_deref(ci);
+		ci = cin;
+	}
+	DEBUG_INFO("%p: Defuncting to node's nat connection list complete\n", node);
+}
+#endif
 /*
  * ecm_db_init()
  */

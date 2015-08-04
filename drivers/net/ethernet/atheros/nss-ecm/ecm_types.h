@@ -13,6 +13,8 @@
  * OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  **************************************************************************
  */
+#ifndef ECM_TYPES_H_
+#define ECM_TYPES_H_
 
 #include <linux/printk.h>
 
@@ -283,5 +285,6 @@ static inline bool ecm_string_to_ip_addr(ip_addr_t addr, char *ip_str)
 #define DEBUG_TRACE(s, ...)
 #else
 #define DEBUG_TRACE(s, ...) pr_info("%s[%d]:" s, __FUNCTION__, __LINE__, ##__VA_ARGS__)
+#endif
 #endif
 #endif

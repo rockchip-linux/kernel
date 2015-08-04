@@ -17,9 +17,18 @@
 /*
  * API's
  */
+#ifndef ECM_DB_H_
+#define ECM_DB_H_
+
+
 uint32_t ecm_db_time_get(void);
 void ecm_db_connection_defunct_all(void);
-
+#if defined(ECM_DB_XREF_ENABLE) && defined(ECM_BAND_STEERING_ENABLE)
+void ecm_db_traverse_node_from_connection_list_and_decelerate(struct ecm_db_node_instance *node);
+void ecm_db_traverse_node_to_connection_list_and_decelerate(struct ecm_db_node_instance *node);
+void ecm_db_traverse_node_from_nat_connection_list_and_decelerate(struct ecm_db_node_instance *node);
+void ecm_db_traverse_node_to_nat_connection_list_and_decelerate(struct ecm_db_node_instance *node);
+#endif
 int ecm_db_connection_count_get(void);
 
 void ecm_db_connection_data_totals_update_dropped(struct ecm_db_connection_instance *ci, bool is_from, uint64_t size, uint64_t packets);
@@ -161,6 +170,32 @@ struct ecm_db_node_instance *ecm_db_node_get_and_ref_next(struct ecm_db_node_ins
 struct ecm_db_iface_instance *ecm_db_interfaces_get_and_ref_first(void);
 struct ecm_db_iface_instance *ecm_db_interface_get_and_ref_next(struct ecm_db_iface_instance *ii);
 
+#ifdef ECM_DB_XREF_ENABLE
+int ecm_db_host_mapping_count_get(struct ecm_db_host_instance *hi);
+int ecm_db_iface_node_count_get(struct ecm_db_iface_instance *ii);
+
+struct ecm_db_connection_instance *ecm_db_mapping_connections_from_get_and_ref_first(struct ecm_db_mapping_instance *mi);
+struct ecm_db_connection_instance *ecm_db_mapping_connections_to_get_and_ref_first(struct ecm_db_mapping_instance *mi);
+struct ecm_db_connection_instance *ecm_db_connection_mapping_from_get_and_ref_next(struct ecm_db_connection_instance *ci);
+struct ecm_db_connection_instance *ecm_db_connection_mapping_to_get_and_ref_next(struct ecm_db_connection_instance *ci);
+
+struct ecm_db_connection_instance *ecm_db_mapping_connections_nat_from_get_and_ref_first(struct ecm_db_mapping_instance *mi);
+struct ecm_db_connection_instance *ecm_db_mapping_connections_nat_to_get_and_ref_first(struct ecm_db_mapping_instance *mi);
+struct ecm_db_connection_instance *ecm_db_connection_mapping_nat_from_get_and_ref_next(struct ecm_db_connection_instance *ci);
+struct ecm_db_connection_instance *ecm_db_connection_mapping_nat_to_get_and_ref_next(struct ecm_db_connection_instance *ci);
+
+struct ecm_db_connection_instance *ecm_db_iface_connections_from_get_and_ref_first(struct ecm_db_iface_instance *ii);
+struct ecm_db_connection_instance *ecm_db_iface_connections_to_get_and_ref_first(struct ecm_db_iface_instance *ii);
+struct ecm_db_connection_instance *ecm_db_connection_iface_from_get_and_ref_next(struct ecm_db_connection_instance *ci);
+struct ecm_db_connection_instance *ecm_db_connection_iface_to_get_and_ref_next(struct ecm_db_connection_instance *ci);
+
+struct ecm_db_connection_instance *ecm_db_iface_connections_nat_from_get_and_ref_first(struct ecm_db_iface_instance *ii);
+struct ecm_db_connection_instance *ecm_db_iface_connections_nat_to_get_and_ref_first(struct ecm_db_iface_instance *ii);
+struct ecm_db_connection_instance *ecm_db_connection_iface_nat_from_get_and_ref_next(struct ecm_db_connection_instance *ci);
+struct ecm_db_connection_instance *ecm_db_connection_iface_nat_to_get_and_ref_next(struct ecm_db_connection_instance *ci);
+
+struct ecm_db_node_instance *ecm_db_iface_nodes_get_and_ref_first(struct ecm_db_iface_instance *ii);
+#endif
 
 struct ecm_db_node_instance *ecm_db_node_get_and_ref_next(struct ecm_db_node_instance *ni);
 struct ecm_db_host_instance *ecm_db_host_get_and_ref_next(struct ecm_db_host_instance *hi);
@@ -211,3 +246,30 @@ int ecm_db_node_deref(struct ecm_db_node_instance *ni);
 int ecm_db_connection_count_by_protocol_get(int protocol);
 
 
+int ecm_db_connection_count_by_protocol_get(int protocol);
+
+#ifdef ECM_STATE_OUTPUT_ENABLE
+int ecm_db_connection_xml_state_get(struct ecm_db_connection_instance *ci, char *buf, int buf_sz);
+int ecm_db_mapping_xml_state_get(struct ecm_db_mapping_instance *mi, char *buf, int buf_sz);
+int ecm_db_host_xml_state_get(struct ecm_db_host_instance *hi, char *buf, int buf_sz);
+int ecm_db_node_xml_state_get(struct ecm_db_node_instance *ni, char *buf, int buf_sz);
+int ecm_db_iface_xml_state_get(struct ecm_db_iface_instance *ii, char *buf, int buf_sz);
+int ecm_db_connection_hash_table_lengths_get(int index);
+int ecm_db_connection_hash_index_get_next(int index);
+int ecm_db_connection_hash_index_get_first(void);
+int ecm_db_mapping_hash_table_lengths_get(int index);
+int ecm_db_mapping_hash_index_get_next(int index);
+int ecm_db_mapping_hash_index_get_first(void);
+int ecm_db_host_hash_table_lengths_get(int index);
+int ecm_db_host_hash_index_get_next(int index);
+int ecm_db_host_hash_index_get_first(void);
+int ecm_db_node_hash_table_lengths_get(int index);
+int ecm_db_node_hash_index_get_next(int index);
+int ecm_db_node_hash_index_get_first(void);
+int ecm_db_iface_hash_table_lengths_get(int index);
+int ecm_db_iface_hash_index_get_next(int index);
+int ecm_db_iface_hash_index_get_first(void);
+int ecm_db_protocol_get_next(int protocol);
+int ecm_db_protocol_get_first(void);
+#endif
+#endif

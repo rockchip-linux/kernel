@@ -40,6 +40,8 @@ ccflags-y += -DECM_TRACKER_DATAGRAM_DEBUG_LEVEL=1
 ccflags-y += -DECM_TRACKER_TCP_DEBUG_LEVEL=1
 ccflags-y += -DECM_TRACKER_UDP_DEBUG_LEVEL=1
 ccflags-y += -DECM_STATE_DEBUG_LEVEL=1
+ccflags-y += -DECM_DB_XREF_ENABLE=1
+ccflags-y += -DECM_BAND_STEERING_ENABLE=1
 
 ccflags-y += -DECM_NSS
 
