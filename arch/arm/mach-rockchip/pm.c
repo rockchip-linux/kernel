@@ -120,7 +120,7 @@ static void rk3288_slp_mode_set(int level)
 		(struct rk3288_resume_params *)rk3288_bootram_base;
 
 	u32 mode_set, mode_set1;
-	bool osc_switch_to_32k = rk3288_slp_disable_osc();
+	bool osc_disable = rk3288_slp_disable_osc();
 
 	regmap_read(sgrf_regmap, RK3288_SGRF_CPU_CON0, &rk3288_sgrf_cpu_con0);
 	regmap_read(sgrf_regmap, RK3288_SGRF_SOC_CON0, &rk3288_sgrf_soc_con0);
@@ -167,7 +167,7 @@ static void rk3288_slp_mode_set(int level)
 		mode_set1 |= BIT(PMU_CLR_ALIVE) | BIT(PMU_CLR_BUS) |
 			     BIT(PMU_CLR_PERI) | BIT(PMU_CLR_DMA);
 
-		if (osc_switch_to_32k)
+		if (osc_disable)
 			mode_set |= BIT(PMU_OSC_24M_DIS);
 
 		params->ddr_resume_f = true;
