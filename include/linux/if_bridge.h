@@ -21,6 +21,8 @@ extern struct net_device *br_port_dev_get(struct net_device *dev, unsigned char 
 extern void br_refresh_fdb_entry(struct net_device *dev, const char *addr);
 extern void br_dev_update_stats(struct net_device *dev, struct rtnl_link_stats64 *nlstats);
 extern bool br_fdb_has_entry(struct net_device *dev, const char *addr, __u16 vid);
+extern void br_fdb_update_register_notify(struct notifier_block *nb);
+extern void br_fdb_update_unregister_notify(struct notifier_block *nb);
 
 typedef int br_should_route_hook_t(struct sk_buff *skb);
 extern br_should_route_hook_t __rcu *br_should_route_hook;
