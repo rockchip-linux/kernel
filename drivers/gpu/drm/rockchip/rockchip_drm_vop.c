@@ -272,7 +272,6 @@ static const struct vop_win_phy win23_data = {
 	.nformats = ARRAY_SIZE(formats_234),
 	.enable = VOP_REG(WIN2_CTRL0, 0x1, 0),
 	.format = VOP_REG(WIN2_CTRL0, 0x7, 1),
-	.lb_mode = VOP_REG(WIN2_CTRL0, 0x7, 5),
 	.rb_swap = VOP_REG(WIN2_CTRL0, 0x1, 12),
 	.dsp_info = VOP_REG(WIN2_DSP_INFO0, 0x0fff0fff, 0),
 	.dsp_st = VOP_REG(WIN2_DSP_ST0, 0x1fff1fff, 0),
