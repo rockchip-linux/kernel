@@ -69,7 +69,7 @@ struct gpio_bank {
 	struct device *dev;
 	bool is_mpuio;
 	bool dbck_flag;
-	bool loses_context;
+
 	bool context_valid;
 	int stride;
 	u32 width;
@@ -1208,15 +1208,9 @@ static int omap_gpio_probe(struct platform_device *pdev)
 #ifdef CONFIG_OF_GPIO
 	bank->chip.of_node = of_node_get(node);
 #endif
-	if (node) {
-		if (!of_property_read_bool(node, "ti,gpio-always-on"))
-			bank->loses_context = true;
-	} else {
-		bank->loses_context = pdata->loses_context;
-
-		if (bank->loses_context)
-			bank->get_context_loss_count =
-				pdata->get_context_loss_count;
+	if (!node) {
+		bank->get_context_loss_count =
+			pdata->get_context_loss_count;
 	}
 
 	if (bank->regs->set_dataout && bank->regs->clr_dataout)
@@ -1373,7 +1367,7 @@ static int omap_gpio_runtime_resume(struct device *dev)
 	 * been initialised and so initialise it now. Also initialise
 	 * the context loss count.
 	 */
-	if (bank->loses_context && !bank->context_valid) {
+	if (!bank->context_valid) {
 		omap_gpio_init_context(bank);
 
 		if (bank->get_context_loss_count)
@@ -1394,17 +1388,15 @@ static int omap_gpio_runtime_resume(struct device *dev)
 	writel_relaxed(bank->context.risingdetect,
 		     bank->base + bank->regs->risingdetect);
 
-	if (bank->loses_context) {
-		if (!bank->get_context_loss_count) {
+	if (!bank->get_context_loss_count) {
+		omap_gpio_restore_context(bank);
+	} else {
+		c = bank->get_context_loss_count(bank->dev);
+		if (c != bank->context_loss_count) {
 			omap_gpio_restore_context(bank);
 		} else {
-			c = bank->get_context_loss_count(bank->dev);
-			if (c != bank->context_loss_count) {
-				omap_gpio_restore_context(bank);
-			} else {
-				raw_spin_unlock_irqrestore(&bank->lock, flags);
-				return 0;
-			}
+			spin_unlock_irqrestore(&bank->lock, flags);
+			return 0;
 		}
 	}
 
@@ -1476,7 +1468,7 @@ void omap2_gpio_prepare_for_idle(int pwr_mode)
 	struct gpio_bank *bank;
 
 	list_for_each_entry(bank, &omap_gpio_list, node) {
-		if (!BANK_USED(bank) || !bank->loses_context)
+		if (!BANK_USED(bank))
 			continue;
 
 		bank->power_mode = pwr_mode;
@@ -1490,7 +1482,7 @@ void omap2_gpio_resume_after_idle(void)
 	struct gpio_bank *bank;
 
 	list_for_each_entry(bank, &omap_gpio_list, node) {
-		if (!BANK_USED(bank) || !bank->loses_context)
+		if (!BANK_USED(bank))
 			continue;
 
 		pm_runtime_get_sync(bank->dev);
