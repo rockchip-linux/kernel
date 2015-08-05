@@ -200,6 +200,27 @@
 };
 
 &pinctrl {
+	pinctrl-0 = <
+		/* Common for sleep and wake, but no owners */
+		&ddr0_retention
+		&ddrio_pwroff
+		&modem_on_off
+		&modem_shutdown
+		&global_pwroff
+	>;
+	pinctrl-1 = <
+		/* Common for sleep and wake, but no owners */
+		&ddr0_retention
+		&ddrio_pwroff
+		&modem_on_off
+		&modem_shutdown
+		&global_pwroff
+	>;
+
+	/* These pins are not present on rialto, even though they should. */
+	/delete-node/ bt_dev_wake_sleep;
+	/delete-node/ bt_dev_wake_awake;
+
 	buttons {
 		push_key: push_key {
 			rockchip,pins = <7 9 RK_FUNC_GPIO &pcfg_pull_up>;
@@ -221,6 +242,16 @@
 
 		led_error: led_error {
 			rockchip,pins = <7 15 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+	};
+
+	modem {
+		modem_on_off: modem-on-off-gpio {
+			rockchip,pins = <4 26 RK_FUNC_GPIO &pcfg_output_low>;
+		};
+
+		modem_shutdown: modem-shutdown {
+			rockchip,pins = <5 17 RK_FUNC_GPIO &pcfg_output_high>;
 		};
 	};
 
