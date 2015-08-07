@@ -129,6 +129,10 @@
 	status = "disabled";
 };
 
+&emmc {
+	clock-freq-min-max = <400000 100000000>;
+};
+
 &rk808 {
 	/delete-property/ vcc6-supply;
 	vcc10-supply = <&vcc33_sys>;
@@ -260,6 +264,10 @@
 			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
+};
+
+&sdio0 {
+	clock-freq-min-max = <400000 100000000>;
 };
 
 &usb_otg {
