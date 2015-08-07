@@ -35,6 +35,7 @@
 #include "../dfs_pattern_detector.h"
 #include "spectral.h"
 #include "thermal.h"
+#include "smart_ant.h"
 
 #define MS(_v, _f) (((_v) & _f##_MASK) >> _f##_LSB)
 #define SM(_v, _f) (((_v) << _f##_LSB) & _f##_MASK)
@@ -493,26 +494,7 @@ static inline const char *ath10k_scan_state_str(enum ath10k_scan_state state)
 	return "unknown";
 }
 
-#ifdef CONFIG_ATH10K_SMART_ANTENNA
 #define ATH10K_RATECODE_LIST_TIMEOUT	100 /* msecs */
-
-struct ath10k_peer_ratecode_list {
-	u8 mac_addr[ETH_ALEN];
-	u8 rtcode_legacy[WMI_CCK_OFDM_RATES_MAX];
-	u8 rtcode_20[WMI_MCS_RATES_MAX];
-	u8 rtcode_40[WMI_MCS_RATES_MAX];
-	u8 rtcode_80[WMI_MCS_RATES_MAX];
-	u8 rt_count[WMI_RATE_COUNT_MAX];
-};
-
-#define ATH10K_PPDU_SIZE_MAX		32
-
-struct ath10k_smart_ant_info {
-	u8 rx_antenna;
-	bool enabled;
-	u32 tx_ppdu_end[ATH10K_PPDU_SIZE_MAX];
-};
-#endif
 
 struct ath10k {
 	struct ath_common ath_common;
