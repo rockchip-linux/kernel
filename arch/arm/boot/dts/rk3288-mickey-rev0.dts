@@ -126,6 +126,11 @@
 	status = "disabled";
 };
 
+&usb_otg {
+	/* We'll allow OTG port to wakeup on mickey; see main veyron dtsi */
+	snps,need-phy-for-wake;
+};
+
 &dmc {
 	operating-points = <
 		/* KHz    uV */

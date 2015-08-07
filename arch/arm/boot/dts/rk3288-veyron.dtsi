@@ -620,9 +620,14 @@
 	needs-reset-on-resume;
 };
 
+/*
+ * NOTE: we've removed "snps,need-phy-for-wake" for now from both host and OTG
+ * ports since it appears broken on the host port and it would be confusing to
+ * have it on the OTG port but not the host port (they look identical to the
+ * user).
+ */
 &usb_host1 {
 	status = "okay";
-	snps,need-phy-for-wake;
 };
 
 &usb_otg {
@@ -630,5 +635,4 @@
 	status = "okay";
 	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
 	assigned-clock-parents = <&cru SCLK_OTGPHY0>;
-	snps,need-phy-for-wake;
 };
