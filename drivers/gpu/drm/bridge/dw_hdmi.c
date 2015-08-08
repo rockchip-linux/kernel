@@ -339,91 +339,28 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk)
 	return n;
 }
 
-static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk)
-{
-	unsigned int cts = 0;
-
-	pr_debug("%s: freq: %d pixel_clk: %ld\n", __func__, freq, pixel_clk);
-
-	switch (freq) {
-	case 32000:
-		if (pixel_clk == 297000000) {
-			cts = 222750;
-			break;
-		}
-	case 48000:
-	case 96000:
-	case 192000:
-		switch (pixel_clk) {
-		case 25200000:
-		case 27000000:
-		case 54000000:
-		case 74250000:
-		case 148500000:
-			cts = pixel_clk / 1000;
-			break;
-		case 297000000:
-			cts = 247500;
-			break;
-		/*
-		 * All other TMDS clocks are not supported by
-		 * DWC_hdmi_tx. The TMDS clocks divided or
-		 * multiplied by 1,001 coefficients are not
-		 * supported.
-		 */
-		default:
-			break;
-		}
-		break;
-	case 44100:
-	case 88200:
-	case 176400:
-		switch (pixel_clk) {
-		case 25200000:
-			cts = 28000;
-			break;
-		case 27000000:
-			cts = 30000;
-			break;
-		case 54000000:
-			cts = 60000;
-			break;
-		case 74250000:
-			cts = 82500;
-			break;
-		case 148500000:
-			cts = 165000;
-			break;
-		case 297000000:
-			cts = 247500;
-			break;
-		default:
-			break;
-		}
-		break;
-	default:
-		break;
-	}
-	return cts;
-}
-
 static void hdmi_set_clk_regenerator(struct dw_hdmi *hdmi,
 				     unsigned long pixel_clk)
 {
+	unsigned long ftdms = pixel_clk;
 	unsigned int clk_n, clk_cts;
+	u64 tmp;
 
 	clk_n = hdmi_compute_n(hdmi->sample_rate, pixel_clk);
-	clk_cts = hdmi_compute_cts(hdmi->sample_rate, pixel_clk);
+	/*
+	 * Compute the CTS value from the N value.  Note that CTS and N
+	 * can be up to 20 bits in total, so we need 64-bit math.  Also
+	 * note that our TDMS clock is not fully accurate; it is accurate
+	 * to kHz.  This can introduce an unnecessary remainder in the
+	 * calculation below, so we don't try to warn about that.
+	 */
+	tmp = (u64)ftdms * clk_n;
+	do_div(tmp, 128 * hdmi->sample_rate);
+	clk_cts = tmp;
 
-	if (!clk_cts) {
-		dev_dbg(hdmi->dev, "%s: pixel clock not supported: %lu\n",
-			__func__, pixel_clk);
-		return;
-	}
-
-	dev_dbg(hdmi->dev, "%s: samplerate=%d  pixelclk=%lu  N=%d cts=%d\n",
-		__func__, hdmi->sample_rate, pixel_clk, clk_n, clk_cts);
-
+	dev_dbg(hdmi->dev, "%s: fs=%uHz ftdms=%lu.%03luMHz N=%d cts=%d\n",
+		__func__, hdmi->sample_rate, ftdms / 1000000,
+		(ftdms / 1000) % 1000, clk_n, clk_cts);
 	hdmi_set_clock_regenerator(hdmi, clk_n, clk_cts);
 
 	hdmi_set_schnl(hdmi);
