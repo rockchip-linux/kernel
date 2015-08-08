@@ -155,8 +155,6 @@ struct dw_hdmi {
 	struct mutex audio_mutex;
 	bool audio_enable;
 
-	int ratio;
-
 	void (*write)(struct dw_hdmi *hdmi, u8 val, int offset);
 	u8 (*read)(struct dw_hdmi *hdmi, int offset);
 };
@@ -285,8 +283,7 @@ static void hdmi_set_clock_regenerator(struct dw_hdmi *hdmi,
 	hdmi_writeb(hdmi, n & 0xff, HDMI_AUD_N1);
 }
 
-static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
-				   unsigned int ratio)
+static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk)
 {
 	unsigned int n = (128 * freq) / 1000;
 	unsigned int mult = 1;
@@ -299,9 +296,9 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 	switch (freq) {
 	case 32000:
 		if (pixel_clk == 25175000)
-			n = (ratio == 150) ? 9152 : 4576;
+			n = 4576;
 		else if (pixel_clk == 27027000)
-			n = (ratio == 150) ? 8192 : 4096;
+			n = 4096;
 		else if (pixel_clk == 74176000 || pixel_clk == 148352000)
 			n = 11648;
 		else
@@ -315,7 +312,7 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 		else if (pixel_clk == 74176000)
 			n = 17836;
 		else if (pixel_clk == 148352000)
-			n = (ratio == 150) ? 17836 : 8918;
+			n = 8918;
 		else
 			n = 6272;
 		n *= mult;
@@ -323,13 +320,13 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 
 	case 48000:
 		if (pixel_clk == 25175000)
-			n = (ratio == 150) ? 9152 : 6864;
+			n = 6864;
 		else if (pixel_clk == 27027000)
-			n = (ratio == 150) ? 8192 : 6144;
+			n = 6144;
 		else if (pixel_clk == 74176000)
 			n = 11648;
 		else if (pixel_clk == 148352000)
-			n = (ratio == 150) ? 11648 : 5824;
+			n = 5824;
 		else
 			n = 6144;
 		n *= mult;
@@ -342,13 +339,11 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 	return n;
 }
 
-static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
-				     unsigned int ratio)
+static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk)
 {
 	unsigned int cts = 0;
 
-	pr_debug("%s: freq: %d pixel_clk: %ld ratio: %d\n", __func__, freq,
-		 pixel_clk, ratio);
+	pr_debug("%s: freq: %d pixel_clk: %ld\n", __func__, freq, pixel_clk);
 
 	switch (freq) {
 	case 32000:
@@ -409,9 +404,7 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 	default:
 		break;
 	}
-	if (ratio == 100)
-		return cts;
-	return (cts * ratio) / 100;
+	return cts;
 }
 
 static void hdmi_set_clk_regenerator(struct dw_hdmi *hdmi,
@@ -419,10 +412,8 @@ static void hdmi_set_clk_regenerator(struct dw_hdmi *hdmi,
 {
 	unsigned int clk_n, clk_cts;
 
-	clk_n = hdmi_compute_n(hdmi->sample_rate, pixel_clk,
-			       hdmi->ratio);
-	clk_cts = hdmi_compute_cts(hdmi->sample_rate, pixel_clk,
-				   hdmi->ratio);
+	clk_n = hdmi_compute_n(hdmi->sample_rate, pixel_clk);
+	clk_cts = hdmi_compute_cts(hdmi->sample_rate, pixel_clk);
 
 	if (!clk_cts) {
 		dev_dbg(hdmi->dev, "%s: pixel clock not supported: %lu\n",
@@ -430,9 +421,8 @@ static void hdmi_set_clk_regenerator(struct dw_hdmi *hdmi,
 		return;
 	}
 
-	dev_dbg(hdmi->dev, "%s: samplerate=%d  ratio=%d  pixelclk=%lu  N=%d cts=%d\n",
-		__func__, hdmi->sample_rate, hdmi->ratio,
-		pixel_clk, clk_n, clk_cts);
+	dev_dbg(hdmi->dev, "%s: samplerate=%d  pixelclk=%lu  N=%d cts=%d\n",
+		__func__, hdmi->sample_rate, pixel_clk, clk_n, clk_cts);
 
 	hdmi_set_clock_regenerator(hdmi, clk_n, clk_cts);
 
@@ -1817,7 +1807,6 @@ int dw_hdmi_bind(struct device *dev, struct device *master,
 	hdmi->dev = dev;
 	hdmi->dev_type = plat_data->dev_type;
 	hdmi->sample_rate = 48000;
-	hdmi->ratio = 100;
 	hdmi->encoder = encoder;
 	hdmi->audio_enable = false;
 	mutex_init(&hdmi->audio_mutex);
