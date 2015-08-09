@@ -861,30 +861,6 @@ void go2001_release_codec(struct go2001_ctx *ctx)
 	go2001_release_hw_inst(gdev, &ctx->hw_inst);
 }
 
-int go2001_set_dec_raw_fmt(struct go2001_ctx *ctx)
-{
-	struct go2001_dev *gdev = ctx->gdev;
-	struct go2001_dec_set_out_fmt_param *param;
-	struct go2001_msg *msg;
-
-	if (ctx->format_set)
-		return 0;
-
-	if (!ctx->dst_fmt)
-		return -EINVAL;
-
-	go2001_dbg(gdev, 2, "Setting output format for decoder to: %s\n",
-			ctx->dst_fmt->desc);
-
-	msg = prepare_msg(gdev, GO2001_VM_DEC_SET_OUT_FMT, sizeof(*param));
-	if (!msg)
-		return -ENOMEM;
-	param = msg_to_param(msg);
-	param->raw_fmt = ctx->dst_fmt->hw_format;
-
-	return go2001_queue_msg_and_wait(ctx, msg);
-}
-
 int go2001_map_buffer(struct go2001_ctx *ctx, struct go2001_buffer *buf)
 {
 	struct go2001_dev *gdev = ctx->gdev;
@@ -1020,7 +996,14 @@ static int go2001_build_dec_msg(struct go2001_ctx *ctx, struct go2001_msg *msg,
 			param->out_addr[i] = dst_buf->dma_desc[i].map_addr;
 			WARN_ON(!IS_ALIGNED(param->out_addr[i], 16));
 		}
+
+		if (!ctx->dst_fmt) {
+			go2001_err(gdev, "Destination format not set\n");
+			return -EINVAL;
+		}
+		param->raw_fmt = ctx->dst_fmt->hw_format;
 	}
+
 	param->flags = ctx->need_resume ?
 			G02001_EMPTY_BUF_DEC_FLAG_RES_CHANGE_DONE : 0;
 	ctx->need_resume = false;

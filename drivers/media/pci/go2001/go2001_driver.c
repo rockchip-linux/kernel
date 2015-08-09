@@ -1109,34 +1109,6 @@ static int go2001_handle_get_info_reply(struct go2001_ctx *ctx,
 	return go2001_handle_new_info(ctx, reply);
 }
 
-static int go2001_handle_set_out_fmt_reply(struct go2001_ctx *ctx, u32 status)
-{
-	unsigned long flags;
-	int ret = 0;
-
-	switch (status) {
-	case GO2001_STATUS_OK:
-		spin_lock_irqsave(&ctx->qlock, flags);
-		ctx->format_set = true;
-		spin_unlock_irqrestore(&ctx->qlock, flags);
-		break;
-
-	case GO2001_STATUS_INVALID_PARAM:
-		ret = -EINVAL;
-		break;
-
-	case GO2001_STATUS_RES_NA:
-		ret = -ENOMEM;
-		break;
-
-	default:
-		ret = -EIO;
-		break;
-	}
-
-	return ret;
-}
-
 static int go2001_fill_dst_buf_info(struct go2001_ctx *ctx,
 		struct go2001_job *job, struct go2001_msg *reply, bool error)
 {
@@ -1419,11 +1391,6 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 	case GO2001_VM_RELEASE:
 		go2001_dbg(gdev, 5, "VM_RELEASE reply\n");
 		go2001_handle_release_instance_reply(ctx);
-		break;
-
-	case GO2001_VM_DEC_SET_OUT_FMT:
-		go2001_dbg(gdev, 5, "VM_DEC_SET_OUT_FMT reply\n");
-		ret = go2001_handle_set_out_fmt_reply(ctx, hdr->status);
 		break;
 
 	case GO2001_VM_EVENT_ASSERT: {
@@ -2111,13 +2078,6 @@ static int go2001_reqbufs_cap(struct go2001_ctx *ctx,
 		switch (ctx->state) {
 		case RES_CHANGE:
 		case PAUSED:
-			ret = go2001_set_dec_raw_fmt(ctx);
-			if (ret) {
-				go2001_err(ctx->gdev, "Failed setting "
-						"decoder format\n");
-				return ret;
-			}
-
 			ret = go2001_move_from_resume_queue(ctx);
 			if (ret)
 				go2001_set_ctx_state(ctx, ERROR);

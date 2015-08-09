@@ -76,7 +76,6 @@ enum go2001_msg_type {
 	GO2001_VM_GET_CTRL = 0x10a,
 	GO2001_VM_RELEASE = 0x10b,
 	GO2001_VM_RELEASE_ALL = 0x10c,
-	GO2001_VM_DEC_SET_OUT_FMT = 0x10d,
 	GO2001_VM_EVENT_ASSERT = 0x200,
 	GO2001_VM_EVENT_LOG = 0x201,
 	GO2001_VM_SET_LOG_LEVEL = 0x300,
@@ -240,6 +239,7 @@ struct go2001_empty_buffer_dec_param {
 	u32 payload_size;
 	u64 out_addr[2];
 	u32 flags;
+	u32 raw_fmt;
 } __attribute__((packed));
 
 struct go2001_empty_buffer_dec_reply {
@@ -309,10 +309,6 @@ struct go2001_release_mmap_param {
 	u32 dir;
 	u32 count;
 	u64 addr[GO2001_MMAP_MAX_ENTRIES];
-} __attribute__((packed));
-
-struct go2001_dec_set_out_fmt_param {
-	u32 raw_fmt;
 } __attribute__((packed));
 
 struct go2001_event_assert_reply {

@@ -262,7 +262,6 @@ struct go2001_ctx {
 	struct go2001_runtime_enc_params pending_rt_params;
 
 	bool need_resume;
-	bool format_set;
 };
 
 static inline struct go2001_buffer *vb_to_go2001_buf(struct vb2_buffer *vb)
