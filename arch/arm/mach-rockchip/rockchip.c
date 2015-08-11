@@ -33,24 +33,41 @@ static struct clk *pclk_core_niu;
 
 #define RK3288_DEBUG_PA_CPU(x)		(0xffbb0000 + (x * 0x2000))
 #define CPU_DBGPCSR			0xa0
+#define NUM_CPU_SAMPLES			100
+#define NUM_SAMPLES_TO_PRINT		32
 
 int rockchip_panic_notify(struct notifier_block *nb, unsigned long event,
 			 void *p)
 {
 	unsigned long dbgpcsr;
-	int i;
+	int i, j;
 	void *pc = NULL;
+	void *prev_pc = NULL;
+	int printed = 0;
 
 	clk_enable(pclk_dbg);
 	clk_enable(pclk_core_niu);
 
 	for_each_online_cpu(i) {
-		dbgpcsr = readl_relaxed(rockchip_cpu_debug[i] + CPU_DBGPCSR);
+		/* No need to print something in rockchip_panic_notify() */
+		if (smp_processor_id() == i)
+			continue;
 
-		/* NOTE: no offset on A17; see DBGDEVID1.PCSROffset */
-		pc = (void *)(dbgpcsr & ~1);
+		/* Try to read a bunch of times if CPU is actually running */
+		for (j = 0; j < NUM_CPU_SAMPLES &&
+			    printed < NUM_SAMPLES_TO_PRINT; j++) {
+			dbgpcsr = readl_relaxed(rockchip_cpu_debug[i] +
+						CPU_DBGPCSR);
 
-		pr_err("CPU%d PC: <%p> %pF\n", i, pc, pc);
+			/* NOTE: no offset on A17; see DBGDEVID1.PCSROffset */
+			pc = (void *)(dbgpcsr & ~1);
+
+			if (pc != prev_pc) {
+				pr_err("CPU%d PC: <%p> %pF\n", i, pc, pc);
+				printed++;
+			}
+			prev_pc = pc;
+		}
 	}
 	return NOTIFY_OK;
 }
