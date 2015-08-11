@@ -1344,13 +1344,13 @@ static int go2001_process_reply(struct go2001_dev *gdev,
 		}
 		go2001_dbg(gdev, 3, "Messages in flight: %d\n",
 				gdev->msgs_in_flight);
+
+		gdev->last_reply_inst_id = hdr->session_id;
+		gdev->last_reply_seq_id = hdr->sequence_id;
+
+		WARN_ON(hw_inst->last_reply_seq_id + 1 != hdr->sequence_id);
+		hw_inst->last_reply_seq_id = hdr->sequence_id;
 	}
-
-	gdev->last_reply_inst_id = hdr->session_id;
-	gdev->last_reply_seq_id = hdr->sequence_id;
-
-	WARN_ON(hw_inst->last_reply_seq_id + 1 != hdr->sequence_id);
-	hw_inst->last_reply_seq_id = hdr->sequence_id;
 
 	if (hdr->session_id != 0)
 		ctx = hw_inst_to_ctx(hw_inst);
