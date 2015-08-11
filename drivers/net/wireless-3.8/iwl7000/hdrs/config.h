@@ -18,7 +18,7 @@
 #define CPTCFG_IWLWIFI_DEBUGFS 1
 #endif
 
-#ifdef CONFIG_IWLWIFI_LEDS
+#ifdef CONFIG_IWL7000_LEDS
 #define CPTCFG_IWLWIFI_LEDS 1
 #endif
 

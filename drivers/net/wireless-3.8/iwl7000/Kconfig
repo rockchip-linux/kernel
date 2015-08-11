@@ -22,11 +22,11 @@ config IWL7000
 	# we can't really be modular ... at least I was too lazy for it
 	depends on m
 
-config IWLWIFI_LEDS
+config IWL7000_LEDS
 	def_bool y
 	depends on IWL7000
 	select NEW_LEDS
-	select LEDS_CLAS
+	select LEDS_CLASS
 	select LEDS_TRIGGERS
 
 config IWL7000_DEBUGFS
