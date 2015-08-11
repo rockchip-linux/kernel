@@ -14,6 +14,7 @@
  */
 
 #include <linux/clk-provider.h>
+#include <linux/clkdev.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/syscore_ops.h>
@@ -858,6 +859,34 @@ static void rk3288_clk_sleep_init(void __iomem *reg_base)
 static void rk3288_clk_sleep_init(void __iomem *reg_base) {}
 #endif
 
+static const char *global_clocks[] __initconst = {
+	/* NOTE: before adding clocks here, think if there's a better way */
+	"pclk_dbg",
+	"pclk_core_niu",
+	/* NOTE: before adding clocks here, think if there's a better way */
+};
+
+static void __init rk3288_register_global_clocks(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(global_clocks); i++) {
+		struct clk *clk = __clk_lookup(global_clocks[i]);
+		int ret;
+
+		if (IS_ERR(clk)) {
+			pr_warn("%s: Couldn't lookup clock %s\n", __func__,
+				global_clocks[i]);
+			continue;
+		}
+
+		ret = clk_register_clkdev(clk, global_clocks[i], NULL);
+		if (ret)
+			pr_warn("%s: Couldn't register clock %s\n", __func__,
+				global_clocks[i]);
+	}
+}
+
 static void __init rk3288_clk_init(struct device_node *np)
 {
 	void __iomem *reg_base;
@@ -915,5 +944,7 @@ static void __init rk3288_clk_init(struct device_node *np)
 
 	rockchip_register_restart_notifier(RK3288_GLB_SRST_FST);
 	rk3288_clk_sleep_init(reg_base);
+
+	rk3288_register_global_clocks();
 }
 CLK_OF_DECLARE(rk3288_cru, "rockchip,rk3288-cru", rk3288_clk_init);
