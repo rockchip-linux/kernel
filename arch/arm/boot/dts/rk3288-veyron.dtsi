@@ -40,11 +40,15 @@
 		 * This is expected to only be used by BT modules that
 		 * use UART for comms.  For BT modules that talk over
 		 * SDIO we should use a wakeup mechanism related to SDIO.
+		 *
+		 * Use KEY_RESERVED here since that will work as a wakeup but
+		 * doesn't get reported to higher levels (so doesn't confuse
+		 * Chrome).
 		 */
 		bt-wake {
 			label = "BT Wakeup";
 			gpios = <&gpio4 31 GPIO_ACTIVE_HIGH>;
-			linux,code = <KEY_WAKEUP>;
+			linux,code = <KEY_RESERVED>;
 			gpio-key,wakeup;
 		};
 
