@@ -485,20 +485,20 @@ int lp55xx_register_leds(struct lp55xx_led *led, struct lp55xx_chip *chip)
 
 	for (i = 0; i < num_channels; i++) {
 
-		/* do not initialize channels that are not connected */
-		if (pdata->led_config[i].led_current == 0)
-			continue;
-
 		led_current = pdata->led_config[i].led_current;
 		each = led + i;
 		ret = lp55xx_init_led(each, chip, i);
 		if (ret)
 			goto err_init_led;
 
-		INIT_WORK(&each->brightness_work, cfg->brightness_work_fn);
-
-		chip->num_leds++;
 		each->chip = chip;
+		chip->num_leds++;
+
+		/* do not initialize channels that are not connected */
+		if (pdata->led_config[i].led_current == 0)
+			continue;
+
+		INIT_WORK(&each->brightness_work, cfg->brightness_work_fn);
 
 		/* setting led current at each channel */
 		if (cfg->set_led_current)
@@ -519,6 +519,9 @@ void lp55xx_unregister_leds(struct lp55xx_led *led, struct lp55xx_chip *chip)
 	struct lp55xx_led *each;
 
 	for (i = 0; i < chip->num_leds; i++) {
+		if (chip->pdata->led_config[i].led_current == 0)
+			continue;
+
 		each = led + i;
 		led_classdev_unregister(&each->cdev);
 		flush_work(&each->brightness_work);
