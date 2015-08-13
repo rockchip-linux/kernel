@@ -782,10 +782,8 @@ static int m25p_probe(struct spi_device *spi)
 		write_sr(flash, 0);
 	}
 
-	if (data && data->name)
-		flash->mtd.name = data->name;
-	else
-		flash->mtd.name = dev_name(&spi->dev);
+	spi_set_drvdata(spi, flash);
+	flash->spi = spi;
 
 	if (spi->mode & SPI_RX_QUAD)
 		mode = SPI_NOR_QUAD;
