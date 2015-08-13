@@ -79,13 +79,8 @@
 
 struct m25p {
 	struct spi_device	*spi;
-	struct mutex		lock;
-	struct mtd_info		mtd;
-	u16			page_size;
-	u16			addr_width;
-	u8			erase_opcode;
-	u8			*command;
-	bool			fast_read;
+	struct spi_nor		spi_nor;
+	u8			command[MAX_CMD_SIZE];
 };
 
 static inline struct m25p *mtd_to_m25p(struct mtd_info *mtd)
@@ -396,14 +391,8 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 {
 	struct m25p *flash = nor->priv;
 
-	t[0].tx_buf = flash->command;
-	t[0].len = m25p_cmdsz(flash);
-	spi_message_add_tail(&t[0], &m);
-
-	t[1].tx_buf = buf;
-	spi_message_add_tail(&t[1], &m);
-
-	mutex_lock(&flash->lock);
+	dev_dbg(nor->dev, "%dKiB at 0x%08x\n",
+		flash->spi_nor.mtd.erasesize / 1024, (u32)offset);
 
 	/* Set up command buffer. */
 	flash->command[0] = nor->erase_opcode;
@@ -775,12 +764,8 @@ static int m25p_probe(struct spi_device *spi)
 	 * up with the software protection bits set
 	 */
 
-	if (JEDEC_MFR(info->jedec_id) == CFI_MFR_ATMEL ||
-	    JEDEC_MFR(info->jedec_id) == CFI_MFR_INTEL ||
-	    JEDEC_MFR(info->jedec_id) == CFI_MFR_SST) {
-		write_enable(flash);
-		write_sr(flash, 0);
-	}
+	nor->dev = &spi->dev;
+	nor->priv = flash;
 
 	spi_set_drvdata(spi, flash);
 	flash->spi = spi;
@@ -791,7 +776,7 @@ static int m25p_probe(struct spi_device *spi)
 		mode = SPI_NOR_DUAL;
 
 	if (data && data->name)
-		flash->mtd.name = data->name;
+		nor->mtd.name = data->name;
 
 	/* For some (historical?) reason many platforms provide two different
 	 * names in flash_platform_data: "name" and "type". Quite often name is
@@ -834,31 +819,7 @@ static int m25p_probe(struct spi_device *spi)
 			flash->addr_width = 3;
 	}
 
-	dev_info(&spi->dev, "%s (%lld Kbytes)\n", id->name,
-			(long long)flash->mtd.size >> 10);
-
-	pr_debug("mtd .name = %s, .size = 0x%llx (%lldMiB) "
-			".erasesize = 0x%.8x (%uKiB) .numeraseregions = %d\n",
-		flash->mtd.name,
-		(long long)flash->mtd.size, (long long)(flash->mtd.size >> 20),
-		flash->mtd.erasesize, flash->mtd.erasesize / 1024,
-		flash->mtd.numeraseregions);
-
-	if (flash->mtd.numeraseregions)
-		for (i = 0; i < flash->mtd.numeraseregions; i++)
-			pr_debug("mtd.eraseregions[%d] = { .offset = 0x%llx, "
-				".erasesize = 0x%.8x (%uKiB), "
-				".numblocks = %d }\n",
-				i, (long long)flash->mtd.eraseregions[i].offset,
-				flash->mtd.eraseregions[i].erasesize,
-				flash->mtd.eraseregions[i].erasesize / 1024,
-				flash->mtd.eraseregions[i].numblocks);
-
-
-	/* partitions should match sector boundaries; and it may be good to
-	 * use readonly partitions for writeprotected sectors (BP2..BP0).
-	 */
-	return mtd_device_parse_register(&flash->mtd, NULL, &ppdata,
+	return mtd_device_parse_register(&nor->mtd, NULL, &ppdata,
 			data ? data->parts : NULL,
 			data ? data->nr_parts : 0);
 }
@@ -870,12 +831,7 @@ static int m25p_remove(struct spi_device *spi)
 	int		status;
 
 	/* Clean up MTD stuff. */
-	status = mtd_device_unregister(&flash->mtd);
-	if (status == 0) {
-		kfree(flash->command);
-		kfree(flash);
-	}
-	return 0;
+	return mtd_device_unregister(&flash->spi_nor.mtd);
 }
 
 /*

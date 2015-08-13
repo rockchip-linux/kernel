@@ -214,7 +214,6 @@ static struct fsl_qspi_devtype_data imx6sx_data = {
 
 #define FSL_QSPI_MAX_CHIP	4
 struct fsl_qspi {
-	struct mtd_info mtd[FSL_QSPI_MAX_CHIP];
 	struct spi_nor nor[FSL_QSPI_MAX_CHIP];
 	void __iomem *iobase;
 	void __iomem *ahb_base; /* Used when read from AHB bus */
@@ -742,7 +741,7 @@ static int fsl_qspi_erase(struct spi_nor *nor, loff_t offs)
 	int ret;
 
 	dev_dbg(nor->dev, "%dKiB at 0x%08x:0x%08x\n",
-		nor->mtd->erasesize / 1024, q->chip_base_addr, (u32)offs);
+		nor->mtd.erasesize / 1024, q->chip_base_addr, (u32)offs);
 
 	ret = fsl_qspi_runcmd(q, nor->erase_opcode, offs, 0);
 	if (ret)
@@ -878,9 +877,8 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 			i *= 2;
 
 		nor = &q->nor[i];
-		mtd = &q->mtd[i];
+		mtd = &nor->mtd;
 
-		nor->mtd = mtd;
 		nor->dev = dev;
 		nor->priv = q;
 
@@ -948,9 +946,14 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	return 0;
 
 last_init_failed:
-	for (i = 0; i < q->nor_num; i++)
-		mtd_device_unregister(&q->mtd[i]);
-
+	for (i = 0; i < q->nor_num; i++) {
+		/* skip the holes */
+		if (!q->has_second_chip)
+			i *= 2;
+		mtd_device_unregister(&q->nor[i].mtd);
+	}
+mutex_failed:
+	mutex_destroy(&q->lock);
 irq_failed:
 	clk_disable_unprepare(q->clk);
 	clk_disable_unprepare(q->clk_en);
@@ -964,8 +967,12 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 	struct fsl_qspi *q = platform_get_drvdata(pdev);
 	int i;
 
-	for (i = 0; i < q->nor_num; i++)
-		mtd_device_unregister(&q->mtd[i]);
+	for (i = 0; i < q->nor_num; i++) {
+		/* skip the holes */
+		if (!q->has_second_chip)
+			i *= 2;
+		mtd_device_unregister(&q->nor[i].mtd);
+	}
 
 	/* disable the hardware */
 	writel(QUADSPI_MCR_MDIS_MASK, q->iobase + QUADSPI_MCR);
