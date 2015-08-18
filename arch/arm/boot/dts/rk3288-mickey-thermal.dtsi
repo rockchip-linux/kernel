@@ -23,8 +23,18 @@
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
+		cpu_alert_almost_hot: cpu_alert_almost_hot {
+			temperature = <77000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "passive";
+		};
 		cpu_alert_hot: cpu_alert_hot {
-			temperature = <80000>; /* millicelsius */
+			temperature = <79000>; /* millicelsius */
+			hysteresis = <2000>; /* millicelsius */
+			type = "passive";
+		};
+		cpu_alert_hotter: cpu_alert_hotter {
+			temperature = <81000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
@@ -47,45 +57,59 @@
 		 * won't throttle the GPU lower than 400 MHz due to CPU
 		 * heat--we'll let the GPU do the rest itself.
 		 */
-		map0 {
+		cpu_warm_limit_cpu {
 			trip = <&cpu_alert_warm>;
 			cooling-device =
 				<&cpu0 THERMAL_NO_LIMIT 4>;
 		};
-		map1 {
+		cpu_warm_limit_gpu {
 			trip = <&cpu_alert_warm>;
 			cooling-device =
 				<&gpu 1 1>;
 		};
 
 		/*
-		 * When hot, CPU goes 696MHz - 1.2 GHz and don't
-		 * let the GPU go above 300 MHz; again, we'll let the GPU
-		 * itself do more throttling.
+		 * Add some discrete steps to help throttling system deal
+		 * with the fact that there are two passive cooling devices:
+		 * the CPU and the GPU.
 		 *
-		 * Note that 696 MHz is the lowest freq where we actually lower
-		 * the voltage along with the frequency, so it makes a good
-		 * stopping point.  Also keeping an extra step before we can
-		 * go all the way down to 126 MHz means we have a better chance
-		 * of being able to throttle the DMC, which needs the CPU
-		 * running fast enough.
+		 * - 1.2 GHz - 1.0 GHz (almost hot)
+		 * - 800 MHz           (hot)
+		 * - 800 MHz - 696 MHz (hotter)
+		 * - 696 MHz - min     (very hot)
+		 *
+		 * Note:
+		 * - 800 MHz appears to be a "sweet spot" for me.  I can run
+		 *   some pretty serious workload here and be happy.
+		 * - After 696 MHz we stop lowering voltage, so throttling
+		 *   past there is less effective.
 		 */
-		map2 {
+		cpu_almost_hot_limit_cpu {
+			trip = <&cpu_alert_almost_hot>;
+			cooling-device =
+				<&cpu0 5 6>;
+		};
+		cpu_hot_limit_cpu {
 			trip = <&cpu_alert_hot>;
 			cooling-device =
-				<&cpu0 5 8>;
+				<&cpu0 7 7>;
 		};
-		map3 {
-			trip = <&cpu_alert_hot>;
+		cpu_hotter_limit_cpu {
+			trip = <&cpu_alert_hotter>;
 			cooling-device =
-				<&gpu 2 2>;
+				<&cpu0 7 8>;
 		};
-
-		/* It's super hot; throttle even more. */
-		map4 {
+		cpu_very_hot_limit_cpu {
 			trip = <&cpu_alert_very_hot>;
 			cooling-device =
-				<&cpu0 6 THERMAL_NO_LIMIT>;
+				<&cpu0 8 THERMAL_NO_LIMIT>;
+		};
+
+		/* At very hot, don't let GPU go over 300 MHz */
+		cpu_very_hot_limit_gpu {
+			trip = <&cpu_alert_very_hot>;
+			cooling-device =
+				<&gpu 2 2>;
 		};
 
 		/*
@@ -116,7 +140,7 @@
 		 * Note that we always flip DMC freq a little before CPU freq.
 		 * Again, this is to avoid lots of expensive flipping.
 		 */
-		dmc_map0 {
+		cpu_hot_limit_dmc {
 			trip = <&cpu_alert_almost_warm>;
 			cooling-device =
 				<&dmc 1 1>;
@@ -139,13 +163,13 @@
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
-		gpu_alert_hot: gpu_alert_hot {
-			temperature = <80000>; /* millicelsius */
+		gpu_alert_hotter: gpu_alert_hotter {
+			temperature = <81000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
-		gpu_alert_very_hot: gpu_alert_very_hot {
-			temperature = <82000>; /* millicelsius */
+		gpu_alert_very_very_hot: gpu_alert_very_very_hot {
+			temperature = <83000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
@@ -158,7 +182,7 @@
 
 	cooling-maps {
 		/* After 1st level throttle the GPU down to as low as 400 MHz */
-		map0 {
+		gpu_warmish_limit_gpu {
 			trip = <&gpu_alert_warmish>;
 			cooling-device =
 				<&gpu THERMAL_NO_LIMIT 1>;
@@ -170,22 +194,22 @@
 		 * throttle the CPU lower than 1.4 GHz due to GPU heat--we'll
 		 * let the CPU do the rest itself.
 		 */
-		map1 {
+		gpu_warm_limit_cpu {
 			trip = <&gpu_alert_warm>;
 			cooling-device =
 				<&cpu0 4 4>;
 		};
 
 		/* When hot, GPU goes down to 300 MHz */
-		map2 {
-			trip = <&gpu_alert_hot>;
+		gpu_hotter_limit_gpu {
+			trip = <&gpu_alert_hotter>;
 			cooling-device =
 				<&gpu 2 2>;
 		};
 
 		/* When really hot, don't let GPU go _above_ 300 MHz */
-		map3 {
-			trip = <&gpu_alert_very_hot>;
+		gpu_very_very_hot_limit_gpu {
+			trip = <&gpu_alert_very_very_hot>;
 			cooling-device =
 				<&gpu 2 THERMAL_NO_LIMIT>;
 		};
