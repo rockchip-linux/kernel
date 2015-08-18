@@ -23,11 +23,6 @@
 			hysteresis = <2000>; /* millicelsius */
 			type = "passive";
 		};
-		cpu_alert_almost_hot: cpu_alert_almost_hot {
-			temperature = <78000>; /* millicelsius */
-			hysteresis = <2000>; /* millicelsius */
-			type = "passive";
-		};
 		cpu_alert_hot: cpu_alert_hot {
 			temperature = <80000>; /* millicelsius */
 			hysteresis = <2000>; /* millicelsius */
@@ -100,7 +95,10 @@
 		 * totally cap it to 433 until we cool down enough (we won't
 		 * allow speeding up if the trend is falling).
 		 *
-		 * When we get really hot we'll switch to 333MHz.
+		 * For now we won't go down to 333MHz since the thermal
+		 * framework doesn't properly implement hysteresis and
+		 * pingponging between 433 and 333 near the high end of the
+		 * temperature range affects speed a lot.
 		 *
 		 * We lock into certain frequencies instead of allowing the
 		 * thermal framework to work with a range for a few reasons:
@@ -122,11 +120,6 @@
 			trip = <&cpu_alert_almost_warm>;
 			cooling-device =
 				<&dmc 1 1>;
-		};
-		dmc_map1 {
-			trip = <&cpu_alert_almost_hot>;
-			cooling-device =
-				<&dmc 2 2>;
 		};
 	};
 };
