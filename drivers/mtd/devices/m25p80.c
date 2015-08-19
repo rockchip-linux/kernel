@@ -139,10 +139,7 @@ static inline int write_enable(struct m25p *flash)
 	return spi_write_then_read(flash->spi, &code, 1, NULL, 0);
 }
 
-/*
- * Send write disble instruction to the chip.
- */
-static inline int write_disable(struct m25p *flash)
+static int m25p80_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 {
 	u8	code = OPCODE_WRDI;
 
