@@ -1178,7 +1178,7 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 	enum vb2_buffer_state src_state = VB2_BUF_STATE_DONE;
 	enum vb2_buffer_state dst_state = VB2_BUF_STATE_DONE;
 	struct go2001_job *job;
-	struct go2001_buffer *src_buf;
+	struct go2001_buffer *src_buf, *dst_buf;
 	unsigned long flags;
 	int ret = 0;
 
@@ -1192,6 +1192,8 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 	}
 
 	list_del(&src_buf->list);
+
+	dst_buf = job->dst_buf;
 
 	switch (status) {
 	case GO2001_STATUS_NEW_PICTURE_SIZE: {
@@ -1222,19 +1224,25 @@ static int go2001_handle_empty_buffer_reply(struct go2001_ctx *ctx,
 	case GO2001_STATUS_STREAM_ERROR:
 		src_state = VB2_BUF_STATE_ERROR;
 		/* Fallthrough */
-	case GO2001_STATUS_NO_OUTPUT:
-		dst_state = VB2_BUF_STATE_ERROR;
-		/* Fallthrough */
 	case GO2001_STATUS_OK:
 		vb2_buffer_done(&src_buf->vb, src_state);
-		if (job->dst_buf) {
+		if (dst_buf) {
 			if (go2001_fill_dst_buf_info(ctx, job, msg,
 					dst_state == VB2_BUF_STATE_ERROR))
 				dst_state = VB2_BUF_STATE_ERROR;
-			list_del(&job->dst_buf->list);
-			vb2_buffer_done(&job->dst_buf->vb, dst_state);
+			list_del(&dst_buf->list);
+			vb2_buffer_done(&dst_buf->vb, dst_state);
 		}
 		break;
+
+	case GO2001_STATUS_NO_OUTPUT:
+		vb2_buffer_done(&src_buf->vb, src_state);
+		/*
+		 * No output produced, reuse dst_buf for next job
+		 * without returning the buffer to userspace.
+		 */
+		break;
+
 	default:
 		ret = -EIO;
 		break;
