@@ -260,7 +260,6 @@ static void go2001_release_hw_inst(struct go2001_dev *gdev,
 	unsigned long flags;
 
 	spin_lock_irqsave(&gdev->irqlock, flags);
-	WARN_ON(!list_empty(&inst->pending_list));
 	go2001_cancel_hw_inst_locked(gdev, inst);
 	spin_unlock_irqrestore(&gdev->irqlock, flags);
 }
@@ -440,6 +439,8 @@ void go2001_cancel_hw_inst_locked(struct go2001_dev *gdev,
 					struct go2001_hw_inst *hw_inst)
 {
 	assert_spin_locked(&gdev->irqlock);
+	WARN_ON(!list_empty(&hw_inst->inst_entry)
+			&& !list_empty(&hw_inst->pending_list));
 
 	go2001_drop_pending_for_hw_inst_locked(gdev, hw_inst);
 	list_del_init(&hw_inst->inst_entry);
@@ -633,7 +634,8 @@ static inline bool go2001_ctx_idle(struct go2001_ctx *ctx)
 
 	spin_lock_irqsave(&ctx->gdev->irqlock, flags1);
 	spin_lock_irqsave(&ctx->qlock, flags2);
-	idle = list_empty(&ctx->hw_inst.pending_list) && !ctx->job.src_buf;
+	idle = list_empty(&ctx->hw_inst.inst_entry) ||
+		(list_empty(&ctx->hw_inst.pending_list) && !ctx->job.src_buf);
 	spin_unlock_irqrestore(&ctx->qlock, flags2);
 	spin_unlock_irqrestore(&ctx->gdev->irqlock, flags1);
 
