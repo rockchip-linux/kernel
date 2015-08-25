@@ -98,6 +98,7 @@ struct rockchip_pll_rate_table rk3288_pll_rates[] = {
 	RK3066_PLL_RATE( 300000000, 1, 75, 6),
 	RK3066_PLL_RATE( 252000000, 1, 84, 8),
 	RK3066_PLL_RATE( 216000000, 1, 72, 8),
+	RK3066_PLL_RATE( 160000000, 1, 80, 12),
 	RK3066_PLL_RATE( 126000000, 1, 84, 16),
 	{ /* sentinel */ },
 };
