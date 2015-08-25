@@ -1281,7 +1281,7 @@ static inline int go2001_handle_reply_default(struct go2001_dev *gdev,
 	case GO2001_STATUS_WAITING_PICTURE_SIZE_CHANGED:
 	case GO2001_STATUS_STREAM_ERROR:
 	case GO2001_STATUS_NO_OUTPUT:
-		BUG_ON(type != GO2001_VM_EMPTY_BUFFER);
+		WARN_ON(type != GO2001_VM_EMPTY_BUFFER);
 		go2001_err(gdev, "Unexpected status in reply\n");
 		ret = -EIO;
 		break;
