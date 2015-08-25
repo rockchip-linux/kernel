@@ -2358,9 +2358,6 @@ static int go2001_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	INIT_LIST_HEAD(&gdev->inst_list);
 	INIT_LIST_HEAD(&gdev->new_inst_list);
 	INIT_LIST_HEAD(&gdev->ctx_list);
-	go2001_init_hw_inst(&gdev->ctrl_inst, 0);
-	list_add_tail(&gdev->ctrl_inst.inst_entry, &gdev->inst_list);
-	gdev->curr_hw_inst = &gdev->ctrl_inst;
 	init_waitqueue_head(&gdev->reply_wq);
 	init_completion(&gdev->fw_completion);
 	INIT_DELAYED_WORK(&gdev->watchdog_work, go2001_watchdog);

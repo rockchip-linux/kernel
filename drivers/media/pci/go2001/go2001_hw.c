@@ -249,6 +249,7 @@ void go2001_init_hw_inst(struct go2001_hw_inst *inst, u32 inst_id)
 {
 	inst->session_id = inst_id;
 	inst->sequence_id = 0;
+	inst->last_reply_seq_id = 0;
 	INIT_LIST_HEAD(&inst->pending_list);
 	INIT_LIST_HEAD(&inst->inst_entry);
 }
@@ -1283,6 +1284,16 @@ int go2001_init(struct go2001_dev *gdev)
 	int ret;
 
 	WARN_ON(!mutex_is_locked(&gdev->lock));
+
+	WARN_ON(!list_empty(&gdev->inst_list));
+	INIT_LIST_HEAD(&gdev->inst_list);
+
+	WARN_ON(!list_empty(&gdev->new_inst_list));
+	INIT_LIST_HEAD(&gdev->new_inst_list);
+
+	go2001_init_hw_inst(&gdev->ctrl_inst, 0);
+	list_add_tail(&gdev->ctrl_inst.inst_entry, &gdev->inst_list);
+	gdev->curr_hw_inst = &gdev->ctrl_inst;
 
 	ret = go2001_load_firmware(gdev);
 	if (ret) {
