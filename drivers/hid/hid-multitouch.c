@@ -795,6 +795,8 @@ static int mt_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
 		unsigned long **bit, int *max)
 {
+	struct mt_device *td = hid_get_drvdata(hdev);
+
 	/* Only map fields from TouchScreen or TouchPad collections.
 	* We need to ignore fields that belong to other collections
 	* such as Mouse that might have the same GenericDesktop usages. */
@@ -803,7 +805,12 @@ static int mt_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	    field->application != HID_DG_TOUCHPAD)
 		return -1;
 
-	if (field->physical == HID_DG_STYLUS)
+	/* The check for pen_report_id ensures we don't process
+	 * HID_DG_CONTACTCOUNT from the pen report as it is outside the physical
+	 * collection, but within the report ID. */
+	if ((field->physical == HID_DG_STYLUS) ||
+	    ((field->physical == 0)
+	     && (field->report->id == td->pen_report_id)))
 		return mt_pen_input_mapping(hdev, hi, field, usage, bit, max);
 
 	return mt_touch_input_mapping(hdev, hi, field, usage, bit, max);
