@@ -765,6 +765,7 @@ static int m25p_probe(struct spi_device *spi)
 	 */
 
 	nor->dev = &spi->dev;
+	nor->flash_node = spi->dev.of_node;
 	nor->priv = flash;
 
 	spi_set_drvdata(spi, flash);
