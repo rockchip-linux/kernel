@@ -292,7 +292,33 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk)
 	 *
 	 * We only know our clock to the kHz right now and that's not enough
 	 * for so much error reduction.  Just do the simple calculations.
+	 *
+	 * Note: for 297 MHz+ there's apparently some other rule for setting N
+	 * that's not just about keeping CTS integral, so keep the special cases
+	 * for 297.
 	 */
+	if (pixel_clk == 297000000) {
+		switch (freq) {
+		case 32000:
+			return (128 * freq) / 1333;
+		case 44100:
+		case 48000:
+		case 88200:
+		case 96000:
+		case 176400:
+			return (128 * freq) / 1200;
+		}
+	} else if (pixel_clk == 594000000) {
+		switch (freq) {
+		case 32000:
+			return (128 * freq) / 1333;
+		case 44100:
+		case 88200:
+		case 176400:
+			return (128 * freq) / 600;
+		}
+	}
+
 	return (128 * freq) / 1000;
 }
 
