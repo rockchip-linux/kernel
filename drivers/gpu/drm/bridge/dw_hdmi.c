@@ -285,58 +285,15 @@ static void hdmi_set_clock_regenerator(struct dw_hdmi *hdmi,
 
 static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk)
 {
-	unsigned int n = (128 * freq) / 1000;
-	unsigned int mult = 1;
-
-	while (freq > 48000) {
-		mult *= 2;
-		freq /= 2;
-	}
-
-	switch (freq) {
-	case 32000:
-		if (pixel_clk == 25175000)
-			n = 4576;
-		else if (pixel_clk == 27027000)
-			n = 4096;
-		else if (pixel_clk == 74176000 || pixel_clk == 148352000)
-			n = 11648;
-		else
-			n = 4096;
-		n *= mult;
-		break;
-
-	case 44100:
-		if (pixel_clk == 25175000)
-			n = 7007;
-		else if (pixel_clk == 74176000)
-			n = 17836;
-		else if (pixel_clk == 148352000)
-			n = 8918;
-		else
-			n = 6272;
-		n *= mult;
-		break;
-
-	case 48000:
-		if (pixel_clk == 25175000)
-			n = 6864;
-		else if (pixel_clk == 27027000)
-			n = 6144;
-		else if (pixel_clk == 74176000)
-			n = 11648;
-		else if (pixel_clk == 148352000)
-			n = 5824;
-		else
-			n = 6144;
-		n *= mult;
-		break;
-
-	default:
-		break;
-	}
-
-	return n;
+	/*
+	 * Most of the complicated formulas in the HDMI spec are all trying to
+	 * deal with reducing error as much as possible if we know the exact
+	 * clock we're getting.
+	 *
+	 * We only know our clock to the kHz right now and that's not enough
+	 * for so much error reduction.  Just do the simple calculations.
+	 */
+	return (128 * freq) / 1000;
 }
 
 static void hdmi_set_clk_regenerator(struct dw_hdmi *hdmi,
