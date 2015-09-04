@@ -333,7 +333,7 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 		if (pixel_clk == 25170000)
 			n = (ratio == 150) ? 9152 : 6864;
 		else if (pixel_clk == 25175000)
-			n = 6144;
+			n = 12288;
 		else if (pixel_clk == 27020000)
 			n = (ratio == 150) ? 8192 : 6144;
 		else if (pixel_clk == 40000000)
@@ -400,6 +400,8 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 	case 192000:
 		switch (pixel_clk) {
 		case 25175000:
+			cts = 50350;
+			break;
 		case 25200000:
 		case 27000000:
 		case 40000000:
