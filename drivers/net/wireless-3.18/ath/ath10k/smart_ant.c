@@ -1490,7 +1490,7 @@ void ath10k_smart_ant_sta_disconnect(struct ath10k *ar,
 	spin_unlock_bh(&sa_sta->cfg_lock);
 
 	info->num_sta_conneted--;
-	info->num_sta_per_ant[sa_sta->train_info.sel_ant]--;
+	info->num_sta_per_ant[sa_sta->train_info.prev_sel_ant]--;
 
 	arsta->smart_ant_sta = NULL;
 	kfree(arsta->smart_ant_sta);
