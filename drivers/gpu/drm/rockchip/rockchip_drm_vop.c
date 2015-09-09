@@ -75,6 +75,7 @@ struct vop_win {
 	bool pending;
 	struct drm_framebuffer *pending_fb; /* NULL for pending win disable */
 	dma_addr_t pending_yrgb_mst;
+	dma_addr_t pending_uv_mst;
 	uint32_t pending_dsp_st;
 	uint32_t pending_dsp_info;
 	struct drm_pending_vblank_event *pending_event;
@@ -414,6 +415,18 @@ static enum vop_data_format vop_convert_format(uint32_t format)
 	}
 }
 
+static bool is_yuv_support(uint32_t format)
+{
+	switch (format) {
+	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_NV16:
+	case DRM_FORMAT_NV24:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static bool is_alpha_support(uint32_t format)
 {
 	switch (format) {
@@ -710,9 +723,11 @@ static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
 	enum vop_data_format format;
 	bool is_alpha;
 	bool rb_swap;
+	bool is_yuv;
 
 	is_alpha = is_alpha_support(fb->pixel_format);
 	rb_swap = has_rb_swapped(fb->pixel_format);
+	is_yuv = is_yuv_support(fb->pixel_format);
 	format = vop_convert_format(fb->pixel_format);
 	y_vir_stride = fb->pitches[0] >> 2;
 
@@ -727,6 +742,11 @@ static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
 	VOP_WIN_SET(vop, win, format, format);
 	VOP_WIN_SET(vop, win, yrgb_vir, y_vir_stride);
 	VOP_WIN_SET(vop, win, yrgb_mst, vop_win->pending_yrgb_mst);
+	if (is_yuv) {
+		VOP_WIN_SET(vop, win, uv_vir, fb->pitches[1] >> 2);
+		VOP_WIN_SET(vop, win, uv_mst, vop_win->pending_uv_mst);
+	}
+
 	VOP_WIN_SET(vop, win, act_info, vop_win->pending_dsp_info);
 	VOP_WIN_SET(vop, win, dsp_info, vop_win->pending_dsp_info);
 	VOP_WIN_SET(vop, win, dsp_st, vop_win->pending_dsp_st);
@@ -831,6 +851,8 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	struct vop *vop = to_vop(crtc);
 	struct drm_gem_object *obj;
 	struct rockchip_gem_object *rk_obj;
+	struct drm_gem_object *uv_obj;
+	struct rockchip_gem_object *rk_uv_obj;
 	enum vop_data_format format;
 	unsigned long offset;
 	unsigned int actual_w;
@@ -838,8 +860,10 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	unsigned int dsp_stx;
 	unsigned int dsp_sty;
 	dma_addr_t yrgb_mst;
+	dma_addr_t uv_mst = 0;
 	uint32_t dsp_st;
 	uint32_t dsp_info;
+	bool is_yuv;
 	bool visible;
 	bool needs_vblank;
 	int ret;
@@ -872,6 +896,7 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	if (!visible)
 		return 0;
+	is_yuv = is_yuv_support(fb->pixel_format);
 
 	format = vop_convert_format(fb->pixel_format);
 	if (format < 0)
@@ -885,6 +910,17 @@ static int vop_update_plane_event(struct drm_plane *plane,
 
 	rk_obj = to_rockchip_obj(obj);
 
+	if (is_yuv) {
+		uint32_t val;
+		/*
+		 * Src.x1 can be odd when do clip, but yuv plane start point
+		 * need align with 2 pixel.
+		 */
+		val = (src.x1 >> 16) % 2;
+		src.x1 += val << 16;
+		src.x2 += val << 16;
+	}
+
 	actual_w = (src.x2 - src.x1) >> 16;
 	actual_h = (src.y2 - src.y1) >> 16;
 	dsp_info = ((actual_h - 1) << 16) | ((actual_w - 1) & 0xffff);
@@ -893,9 +929,26 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	dsp_sty = dest.y1 + crtc->mode.vtotal - crtc->mode.vsync_start;
 	dsp_st = (dsp_sty << 16) | (dsp_stx & 0xffff);
 
-	offset = (src.x1 >> 16) * (fb->bits_per_pixel >> 3);
+	offset = (src.x1 >> 16) * drm_format_plane_cpp(fb->pixel_format, 0);
 	offset += (src.y1 >> 16) * fb->pitches[0];
-	yrgb_mst = rk_obj->dma_addr + offset;
+	yrgb_mst = rk_obj->dma_addr + offset + fb->offsets[0];
+	if (is_yuv) {
+		int hsub = drm_format_horz_chroma_subsampling(fb->pixel_format);
+		int vsub = drm_format_vert_chroma_subsampling(fb->pixel_format);
+		int bpp = drm_format_plane_cpp(fb->pixel_format, 1);
+
+		uv_obj = rockchip_fb_get_gem_obj(fb, 1);
+		if (!uv_obj) {
+			DRM_ERROR("fail to get uv object from framebuffer\n");
+			return -EINVAL;
+		}
+		rk_uv_obj = to_rockchip_obj(uv_obj);
+
+		offset = (src.x1 >> 16) * bpp / hsub;
+		offset += (src.y1 >> 16) * fb->pitches[1] / vsub;
+
+		uv_mst = rk_uv_obj->dma_addr + offset + fb->offsets[1];
+	}
 
 	if (plane->type != DRM_PLANE_TYPE_CURSOR )
 		wait_for_completion(&vop_win->completion);
@@ -917,6 +970,7 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	 * yrgb_mst write has been consumed by hardware during vblank.
 	 */
 	vop_win->pending_yrgb_mst = yrgb_mst;
+	vop_win->pending_uv_mst = uv_mst;
 	vop_win->pending_dsp_st = dsp_st;
 	vop_win->pending_dsp_info = dsp_info;
 
