@@ -58,7 +58,7 @@
 #define ATH10K_SMART_ANT_RSSI_SAMPLE	10
 #define ATH10K_SMART_ANT_PER_MAX	100
 
-#define ATH10K_SMART_ANT_DEFAULT_ANT	2
+#define ATH10K_SMART_ANT_DEFAULT_ANT	5
 #define ATH10K_PPDU_SIZE_MAX		32
 
 /* Max number of antenna combinations 2 ^ max_supported_ant */
@@ -296,6 +296,14 @@ enum ath10k_smart_ant_feedback {
 	ATH10K_SMART_ANT_RX_FEEDBACK = 1 << 1,
 };
 
+enum ath10k_smart_ant_debug_level {
+	ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION,
+	ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES,
+	ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES,
+	ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS,
+	ATH10K_SMART_ANT_DBG_LVL_ALL,
+};
+
 struct ath10k_smart_ant_wmi_cfg_param {
 	struct list_head list;
 	enum ath10k_smart_ant_cfg_msg_type type;
@@ -472,6 +480,7 @@ struct ath10k_smart_ant_info {
 	bool enabled;
 	u32 tx_ppdu_end[ATH10K_PPDU_SIZE_MAX];
 	u32 num_enabled_vif;
+	u8 debug_level;
 };
 
 #ifdef CONFIG_ATH10K_SMART_ANT_ALG

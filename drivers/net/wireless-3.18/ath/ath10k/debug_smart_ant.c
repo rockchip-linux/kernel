@@ -486,6 +486,60 @@ static const struct file_operations fops_sa_train_info_ops = {
 	.llseek = default_llseek,
 };
 
+
+static ssize_t ath10k_write_sa_debug_level_ops(struct file *file,
+					const char __user *user_buf,
+					size_t count, loff_t *ppos)
+{
+	struct ath10k *ar = file->private_data;
+	u8 debug_level;
+
+	if (!ath10k_smart_ant_enabled(ar))
+		return -ENOTSUPP;
+
+	if (kstrtou8_from_user(user_buf, count, 0, &debug_level))
+		return -EINVAL;
+
+	if (ar->smart_ant_info.debug_level == debug_level)
+		return count;
+
+	mutex_lock(&ar->conf_mutex);
+
+	ar->smart_ant_info.debug_level = debug_level;
+
+	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Smart antenna debug level is set to be %d\n",
+			debug_level);
+
+	mutex_unlock(&ar->conf_mutex);
+
+	return count;
+}
+
+static ssize_t ath10k_read_sa_debug_level_ops(
+				struct file *file, char __user *ubuf,
+				size_t count, loff_t *ppos)
+{
+	struct ath10k *ar = file->private_data;
+	char buf[4];
+	int len = 0;
+
+	if (!ath10k_smart_ant_enabled(ar))
+		return -ENOTSUPP;
+
+	len = scnprintf(buf, sizeof(buf) - len, "%d\n",
+			ar->smart_ant_info.debug_level);
+
+	return simple_read_from_buffer(ubuf, count, ppos, buf, len);
+}
+
+static const struct file_operations fops_sa_debug_level_ops = {
+	.write = ath10k_write_sa_debug_level_ops,
+	.read = ath10k_read_sa_debug_level_ops,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+	.llseek = default_llseek,
+};
+
 void ath10k_smart_ant_debugfs_init(struct ath10k *ar)
 {
 	ar->debug.debugfs_smartant = debugfs_create_dir("smart_antenna",
@@ -520,5 +574,9 @@ void ath10k_smart_ant_debugfs_init(struct ath10k *ar)
 
 	debugfs_create_file("smart_ant_train_info", S_IWUSR,
 		ar->debug.debugfs_smartant, ar, &fops_sa_train_info_ops);
+
+	debugfs_create_file("smart_ant_debug_level", S_IRUSR | S_IWUSR,
+			ar->debug.debugfs_smartant, ar,
+			&fops_sa_debug_level_ops);
 }
 #endif

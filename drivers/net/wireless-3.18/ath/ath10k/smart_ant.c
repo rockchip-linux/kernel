@@ -72,10 +72,14 @@ static inline void smart_ant_dbg_ratelist(struct ath10k *ar,
 	}
 
 	rcount = rtcode->rt_count[mode];
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-		"rate code list for mode %s\n", rate_code_map[mode]);
-	for (i = 0; i < rcount; i++)
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "0x%x\n", rlist[i]);
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			"rate code list for mode %s\n", rate_code_map[mode]);
+		for (i = 0; i < rcount; i++)
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+					"0x%x\n", rlist[i]);
+	}
 }
 
 static void smart_ant_dbg_feedback(struct ath10k *ar,
@@ -85,7 +89,9 @@ static void smart_ant_dbg_feedback(struct ath10k *ar,
 
 	if (fb->num_comb_fb) {
 		for (i = 0; i < fb->num_comb_fb; i++) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"Combined feedback[%d] npkts %d nbad %d bw %d rate 0x%x num_comb_fb %d"
 				" Train pkt: %s rate_maxphy 0x%x rate_idx %d"
 				" goodput %d tx_antenna[0]: %d tx_antenna[1]: %d"
@@ -97,24 +103,32 @@ static void smart_ant_dbg_feedback(struct ath10k *ar,
 				fb->rate_maxphy, fb->ridx, fb->gput,
 				fb->tx_antenna[0], fb->tx_antenna[0],
 				fb->rate_mcs[0], fb->rate_mcs[1]);
+			}
 		}
 	} else {
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-		"Regular feedback npkts %d nbad %d bw %d rate 0x%x num_comb_fb %d"
-		" Train pkt: %s rate_maxphy 0x%x rate_idx %d goodput"
-		" %d tx_antenna[0]: %d tx_antenna[1]: %d"
-		" rate_mcs[0] 0x%x rate_mcs[1] 0x%x\n",
-		fb->npkts, fb->nbad, ATH10K_FB_BW(fb->ridx),
-		ATH10K_FB_RATE(fb->rate_mcs[0], ATH10K_FB_BW(fb->ridx)),
-		fb->num_comb_fb, fb->train_pkt ? "True" : "False",
-		fb->rate_maxphy,
-		fb->ridx, fb->gput, fb->tx_antenna[0], fb->tx_antenna[0],
-		fb->rate_mcs[0], fb->rate_mcs[1]);
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			"Regular feedback npkts %d nbad %d bw %d rate 0x%x num_comb_fb %d"
+			" Train pkt: %s rate_maxphy 0x%x rate_idx %d goodput"
+			" %d tx_antenna[0]: %d tx_antenna[1]: %d"
+			" rate_mcs[0] 0x%x rate_mcs[1] 0x%x\n",
+			fb->npkts, fb->nbad, ATH10K_FB_BW(fb->ridx),
+			ATH10K_FB_RATE(fb->rate_mcs[0], ATH10K_FB_BW(fb->ridx)),
+			fb->num_comb_fb, fb->train_pkt ? "True" : "False",
+			fb->rate_maxphy,
+			fb->ridx, fb->gput,
+			fb->tx_antenna[0], fb->tx_antenna[0],
+			fb->rate_mcs[0], fb->rate_mcs[1]);
+		}
 	}
 
-	for (i = 0; i < ATH10K_SMART_ANT_MAX_CHAINS; i++) {
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "rssi[%d] %d\n",
-			i, (u8)fb->rssi[i]);
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+		for (i = 0; i < ATH10K_SMART_ANT_MAX_CHAINS; i++) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "rssi[%d] %d\n",
+				i, (u8)fb->rssi[i]);
+		}
 	}
 }
 
@@ -327,9 +341,14 @@ static void smart_ant_set_train_params(struct ath10k *ar,
 	min_t(u16, num_pkts, ATH10K_SMART_ANT_TRAIN_PKT_MAX);
 
 	tdata->num_pkts = num_pkts;
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-	"set_train_params tx_antenna %d rate %x nFrames %d num_pkts %d\n",
-	tdata->antenna, tdata->rate_code, tdata->nframes, tdata->num_pkts);
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		"set_train_params tx_antenna %d rate %x "
+		"nFrames %d num_pkts %d\n",
+		tdata->antenna, tdata->rate_code,
+		tdata->nframes, tdata->num_pkts);
+	}
 }
 
 static u8 ath10k_smart_ant_get_train_rate(struct ath10k_smart_ant_sta *sa_sta)
@@ -552,10 +571,27 @@ static u8 smart_ant_sel_rx_ant(struct ath10k *ar,
 	sa_info->num_sta_per_ant[tinfo->prev_sel_ant]--;
 	sa_info->num_sta_per_ant[tinfo->sel_ant]++;
 	nsta_sel_ant = sa_info->num_sta_per_ant[tinfo->sel_ant];
+
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		"sa_info->default_ant = %d, tinfo->sel_ant= %d\n"
+		"sa_info->num_sta_conneted = %d, nsta_sel_ant = %d\n",
+		sa_info->default_ant, tinfo->sel_ant,
+		sa_info->num_sta_conneted, nsta_sel_ant);
+	}
+
 	if ((tinfo->sel_ant != sa_info->default_ant) &&
 		(sa_info->num_sta_conneted == nsta_sel_ant)) {
-			sa_info->default_ant = tinfo->sel_ant;
-			status = ATH10K_SMART_ANT_ACT_RX_CFG;
+		sa_info->default_ant = tinfo->sel_ant;
+		status = ATH10K_SMART_ANT_ACT_RX_CFG;
+
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			"Rx antenna is going to be config to %d\n",
+			tinfo->sel_ant);
+		}
 	}
 
 	tinfo->prev_sel_ant = tinfo->sel_ant;
@@ -671,12 +707,15 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 	if (tdata->nframes)
 		per = (ATH10K_SMART_ANT_PER_MAX * tdata->nbad) / tdata->nframes;
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"Stats for antenna %d: rate %x,"
 		"nFrames: %d nBad %d, nppdu %d, RSSI %d %d %d PER: %d ",
 		tdata->antenna, tdata->rate_code, tdata->nframes,
 		tdata->nbad, tinfo->num_ppdu_bw[tstats->bw], tdata->rssi[0][0],
 		tdata->rssi[1][0], tdata->rssi[2][0], per);
+	}
 
 	/* TODO: Process extra stats */
 	if (tinfo->sel_ant == tstats->ant_map[tstats->antenna]) {
@@ -718,8 +757,22 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 			if ((tstats->rate > tstats->last_rate) ||
 				((tstats->rate == tstats->last_rate) &&
 				per_diff > sparams->per_diff_threshold &&
-				tstats->per > sparams->low_rate_threshold))
-					switch_ant = true;
+				tstats->per > sparams->low_rate_threshold)){
+				switch_ant = true;
+
+				if (ar->smart_ant_info.debug_level >=
+					ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+					ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+					"switch ant on higher rate: curr rate %d "
+					"last rate %d "
+					"per_diff %d per_diff_threshold %d "
+					"stat PER %d low_rate_threshold %d\n",
+					tstats->rate, tstats->last_rate,
+					per_diff, sparams->per_diff_threshold,
+					tstats->per,
+					sparams->low_rate_threshold);
+				}
+			}
 
 			if (!switch_ant && tstats->rate == tstats->last_rate) {
 				tstats->next_ant_per = per;
@@ -732,6 +785,15 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 			if (tstats->rate > tstats->last_rate &&
 				per < sparams->hi_rate_threshold) {
 				switch_ant = true;
+
+				if (ar->smart_ant_info.debug_level >=
+					ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+					ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+					"switch ant on higher rate: curr rate %d last rate %d "
+					"curr PER %d hi_rate_threshold %d\n",
+					tstats->rate, tstats->last_rate,
+					per, sparams->hi_rate_threshold);
+				}
 			} else if (tstats->rate > tstats->last_rate) {
 				per = tstats->next_ant_per;
 				tdata->nbad = tstats->next_ant_nbad;
@@ -747,9 +809,29 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 			if (tstats->rate == tstats->last_rate &&
 				per_diff <= sparams->per_diff_threshold)
 				switch_ant = smart_ant_sec_metric(sa_sta);
+
+				if (ar->smart_ant_info.debug_level >=
+					ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS &&
+					switch_ant == true) {
+					ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+					"switch ant on higher RSSI: curr rate %d "
+					"last rate %d "
+					"per_diff %d per_diff_threshold %d\n",
+					tstats->rate, tstats->last_rate,
+					per_diff, sparams->per_diff_threshold);
+				}
 			else if (tstats->rate == tstats->last_rate &&
 				per < tstats->per)
 				switch_ant = true;
+
+				if (ar->smart_ant_info.debug_level >=
+					ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+					ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+					"switch ant on lower per: curr rate %d last rate %d "
+					"curr PER %d last PER %d\n",
+					tstats->rate, tstats->last_rate,
+					per, tstats->per);
+				}
 		}
 
 		if (switch_ant) {
@@ -762,11 +844,16 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 			memcpy(tstats->rssi, tdata->rssi, sizeof(tdata->rssi));
 			if (per < sparams->low_rate_threshold)
 				nxt_rate_dir = 1;
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-				"switching to:antenna %d PER %d RSSI %d %d %d rate %x\n",
-				tstats->ant_map[tstats->antenna], tstats->per,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+				"switching to:antenna %d antMapIdx %d "
+				"PER %d RSSI %d %d %d rate %x\n",
+				tstats->ant_map[tstats->antenna],
+				tstats->antenna, tstats->per,
 				tstats->rssi[0][0], tstats->rssi[1][0],
 				tstats->rssi[2][0], tdata->rate_code);
+			}
 		}
 	}
 
@@ -809,9 +896,15 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 		tinfo->train_end_ts = jiffies;
 		tinfo->train_start = false;
 		tinfo->perf_mon_slot = tinfo->train_end_ts;
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 			"Training completed:antenna selected %d\n",
 			tstats->ant_map[0]);
+		}
+		/* force config tx/rx antenna after SA decision is made */
+		status |= ATH10K_SMART_ANT_ACT_TX_CFG;
+		status |= ATH10K_SMART_ANT_ACT_RX_CFG;
 	}
 
 	return status;
@@ -849,10 +942,13 @@ static u8 smart_ant_perf_train_trigger(struct ath10k *ar,
 			pinfo->avg_gput = pinfo->avg_gput ?
 				(pinfo->avg_gput + rstats->ins_gput[bw]) >> 1
 				: rstats->ins_gput[bw];
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"BW: %d avg gput %d ins gput %d hyster %d",
 				bw, pinfo->avg_gput, rstats->ins_gput[bw],
 				pinfo->hysteresis);
+			}
 		}
 	} else {
 		thrshld = (pinfo->avg_gput * sparams.max_perf_delta) / 100;
@@ -860,11 +956,15 @@ static u8 smart_ant_perf_train_trigger(struct ath10k *ar,
 			thrshld = sparams.min_goodput_threshold;
 		pdelta = abs(pinfo->avg_gput - rstats->ins_gput[bw]);
 
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 			"BW %d avg gput %d ins gput %d"
-			"hyster %d thrshld %d pdelta: %d",
+			" hyster %d thrshld %d pdelta: %d",
 			bw, pinfo->avg_gput, rstats->ins_gput[bw],
 			pinfo->hysteresis, thrshld, pdelta);
+		}
+
 		if (pdelta < thrshld) {
 			pinfo->hysteresis = 0;
 			pinfo->trig_type = ATH10K_SMART_ANT_TRIGGER_TYPE_INIT;
@@ -913,7 +1013,10 @@ static u8 smart_ant_perf_train_trigger(struct ath10k *ar,
 			sa_sta->train_info.train_state =
 					ATH10K_SMART_ANT_STATE_PRETRAIN;
 			status = ATH10K_SMART_ANT_ACT_TRAIN;
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "start Perf train\n");
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "start Perf train\n");
+			}
 		}
 	}
 
@@ -933,7 +1036,10 @@ static u8 smart_ant_retrain_trigger(struct ath10k *ar,
 	elapsed_ts = current_ts - sa_sta->train_info.train_end_ts;
 	if (elapsed_ts > sparams.retrain_interval ||
 		sa_sta->train_info.train_start) {
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "start Periodic train\n");
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "start Periodic train\n");
+		}
 		sa_sta->train_info.train_state =
 			ATH10K_SMART_ANT_STATE_PRETRAIN;
 		return ATH10K_SMART_ANT_ACT_TRAIN;
@@ -998,10 +1104,14 @@ static void smart_ant_update_training(struct ath10k *ar,
 
 		rate_cfg = ATH10K_FB_RATE(tdata->rate_code, bw);
 		if (fb->tx_antenna[0] != tdata->antenna || rate_cfg != rate) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-			"train pkt with mismatch: tdata antenna: %d"
-			" fb_antenna %d cfg_rates: %x fb_rate: %x\n",
-			tdata->antenna, fb->tx_antenna[0], rate_cfg, rate);
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATS) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+				"train pkt with mismatch: tdata antenna: %d"
+				" fb_antenna %d cfg_rates: %x fb_rate: %x\n",
+				tdata->antenna, fb->tx_antenna[0],
+				rate_cfg, rate);
+			}
 			continue;
 		}
 
@@ -1031,8 +1141,11 @@ static void smart_ant_update_training(struct ath10k *ar,
 		tinfo->train_stats.bw != ATH10K_SMART_ANT_BW_20) {
 		smart_ant_change_bw(ar, sa_sta);
 		if (tinfo->train_stats.bw_change) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"Trigger training due to bandwidth change\n");
+			}
 			*action |= ATH10K_SMART_ANT_ACT_TRAIN;
 		}
 	}
@@ -1091,8 +1204,11 @@ static void smart_ant_cfg_work(struct work_struct *work)
 			break;
 		default:
 		case ATH10K_SMART_ANT_TYPE_MAX:
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Not a supported config type :%d\n",
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Not a supported config type :%d\n",
 				cfg->type);
+			}
 		}
 
 		mutex_unlock(&ar->conf_mutex);
@@ -1119,8 +1235,11 @@ static int smart_ant_config_tx(struct ath10k *ar,
 	ether_addr_copy(cfg->tx_ant_cfg.peer_mac, peer_mac);
 	smart_ant_get_tx_ant(sa_sta, cfg->tx_ant_cfg.tx_ants);
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Configure tx antenna for %pM to %d\n",
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Configure tx antenna for %pM to %d\n",
 		cfg->tx_ant_cfg.peer_mac, cfg->tx_ant_cfg.tx_ants[0]);
+	}
 
 	spin_lock_bh(&sa_sta->cfg_lock);
 	list_add_tail(&cfg->list, &sa_sta->cfg_list);
@@ -1144,8 +1263,11 @@ static int smart_ant_config_rx(struct ath10k *ar,
 	cfg->type = ATH10K_SMART_ANT_TYPE_RX_CFG;
 	cfg->rx_ant_cfg.rx_ant = info->default_ant;
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Configure Rx antenna to %d\n",
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Configure Rx antenna to %d\n",
 		cfg->rx_ant_cfg.rx_ant);
+	}
 	spin_lock_bh(&sa_sta->cfg_lock);
 	list_add_tail(&cfg->list, &sa_sta->cfg_list);
 	spin_unlock_bh(&sa_sta->cfg_lock);
@@ -1171,7 +1293,9 @@ static int smart_ant_config_train_info(struct ath10k *ar,
 	smart_ant_get_train_info(ar, sa_sta,
 					&cfg->train_info_cfg.train_info);
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"Configure train information peer: %pM vdev_id: %d"
 		" num_pkts:%d tx_antenna[0] %d tx_antenna[1] %d"
 		" rates [0] %x",
@@ -1180,6 +1304,7 @@ static int smart_ant_config_train_info(struct ath10k *ar,
 		cfg->train_info_cfg.train_info.antennas[0],
 		cfg->train_info_cfg.train_info.antennas[1],
 		cfg->train_info_cfg.train_info.rates[0]);
+	}
 
 	spin_lock_bh(&sa_sta->cfg_lock);
 	list_add_tail(&cfg->list, &sa_sta->cfg_list);
@@ -1214,8 +1339,11 @@ static void smart_ant_tx_stats_update(struct ath10k *ar,
 		}
 
 		if (tinfo->num_tx_pkts >= sparams->num_pretrain_pkts) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"Exceeded number of pretrain pkts, trigger training\n");
+			}
 			*action |= ATH10K_SMART_ANT_ACT_TRAIN;
 		}
 		break;
@@ -1231,9 +1359,12 @@ static void smart_ant_tx_stats_update(struct ath10k *ar,
 	}
 
 	if (*action != 0) {
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 			"Action after Tx status update:0x%x train_state:%d\n",
 			*action, sa_sta->train_info.train_state);
+		}
 	}
 }
 
@@ -1423,8 +1554,11 @@ void ath10k_smart_ant_proc_tx_feedback(struct ath10k *ar, u8 *data)
 		sta = ieee80211_find_sta_by_ifaddr(ar->hw, peer_mac, NULL);
 		if (!sta) {
 			rcu_read_unlock();
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"Sta entry for %pM not found\n", peer_mac);
+			}
 			return;
 		}
 
@@ -1434,8 +1568,11 @@ void ath10k_smart_ant_proc_tx_feedback(struct ath10k *ar, u8 *data)
 			goto exit;
 
 		memset(&feed_back, 0, sizeof(feed_back));
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Tx feedback from sta: %pM\n",
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Tx feedback from sta: %pM\n",
 				peer_mac);
+		}
 		smart_ant_tx_fb_fill(ar, tx_ctrl_desc, &feed_back);
 
 		smart_ant_tx_stats_update(ar, arsta->smart_ant_sta,
@@ -1476,8 +1613,11 @@ void ath10k_smart_ant_sta_disconnect(struct ath10k *ar,
 	if (!ath10k_smart_ant_enabled(ar) || !arsta->smart_ant_sta)
 		return;
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"Smart antenna disconnect for %pM\n", sta->addr);
+	}
 
 	sa_sta = arsta->smart_ant_sta;
 	cancel_work_sync(&sa_sta->sa_wmi_cfg_work);
@@ -1515,8 +1655,11 @@ int ath10k_smart_ant_sta_connect(struct ath10k *ar,
 
 	if (arvif->vdev_type != WMI_VDEV_TYPE_AP ||
 		arvif->vdev_subtype != WMI_VDEV_SUBTYPE_NONE) {
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 			"Smart antenna logic not enabled for non-AP interface\n");
+		}
 		return 0;
 	}
 
@@ -1529,8 +1672,11 @@ int ath10k_smart_ant_sta_connect(struct ath10k *ar,
 	memcpy(&smart_ant_sta->rate_cap, &ar->ratecode_list,
 		sizeof(smart_ant_sta->rate_cap));
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"Smart antenna connect for %pM\n", sta->addr);
+	}
 
 	for (i = 0; i < ATH10K_SMART_ANT_RTCNT_MAX; i++)
 		smart_ant_dbg_ratelist(ar, &ar->ratecode_list, i);
@@ -1544,13 +1690,16 @@ int ath10k_smart_ant_sta_connect(struct ath10k *ar,
 	arg.vdev_id = arsta->arvif->vdev_id;
 	ether_addr_copy(arg.mac_addr.addr, sta->addr);
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"%s mac %pM vdev_id %d num_cfg %d\n",
 		__func__, arg.mac_addr.addr, arg.vdev_id, arg.num_cfg);
 
-	for (i = 0; i < arg.num_cfg; i++) {
-		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-			"cfg[%d] 0x%x\n", i, arg.cfg[i]);
+		for (i = 0; i < arg.num_cfg; i++) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+				"cfg[%d] 0x%x\n", i, arg.cfg[i]);
+		}
 	}
 
 	/* Configure feedback option for this station, i.e tx feedback
@@ -1630,8 +1779,11 @@ int ath10k_smart_ant_set_default(struct ath10k *ar,
 
 	if (arvif->vdev_type != WMI_VDEV_TYPE_AP ||
 		arvif->vdev_subtype != WMI_VDEV_SUBTYPE_NONE) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"Smart antenna logic not enabled for non-AP interface\n");
+			}
 		return 0;
 	}
 
@@ -1703,8 +1855,11 @@ int ath10k_smart_ant_enable(struct ath10k *ar, struct ath10k_vif *arvif)
 	 */
 	if (arvif->vdev_type != WMI_VDEV_TYPE_AP ||
 		arvif->vdev_subtype != WMI_VDEV_SUBTYPE_NONE) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			if (ar->smart_ant_info.debug_level >=
+				ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 				"Smart antenna logic not enabled for non-AP interface\n");
+			}
 		return 0;
 	}
 
@@ -1714,8 +1869,11 @@ int ath10k_smart_ant_enable(struct ath10k *ar, struct ath10k_vif *arvif)
 
 	smart_ant_init_param(ar);
 
-	ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 			"Hw supports Smart antenna, enabling it in driver\n");
+	}
 
 	/* Enable smart antenna logic in fw with mode and default antenna */
 	ret = ath10k_wmi_pdev_enable_smart_ant(ar, info->mode,
