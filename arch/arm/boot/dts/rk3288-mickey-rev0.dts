@@ -36,12 +36,6 @@
 	};
 };
 
-&gpio_keys {
-	pinctrl-0 = <&bt_host_wake>;
-
-	/delete-node/ power;
-};
-
 &i2c2 {
 	status = "disabled";
 };
