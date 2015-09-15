@@ -35,7 +35,7 @@ unsigned int ath10k_debug_mask;
 static bool uart_print;
 static bool skip_otp;
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
-bool ath10k_enable_smart_antenna;
+bool ath10k_enable_smart_antenna = 1;
 #endif
 
 module_param_named(debug_mask, ath10k_debug_mask, uint, 0644);
