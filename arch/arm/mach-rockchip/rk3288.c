@@ -53,6 +53,7 @@
 	RK_DEVICE(RK3288_SERVICE_##name##_VIRT, RK3288_SERVICE_##name##_PHYS, RK3288_SERVICE_##name##_SIZE)
 
 #define RK3288_IMEM_VIRT (RK_BOOTRAM_VIRT + SZ_32K)
+#define RK3288_HDMI_VIRT (RK3288_IMEM_VIRT + SZ_4K)
 #define RK3288_TIMER7_VIRT (RK_TIMER_VIRT + 0x20)
 
 static struct map_desc rk3288_io_desc[] __initdata = {
@@ -88,6 +89,7 @@ static struct map_desc rk3288_io_desc[] __initdata = {
 	RK_DEVICE(RK_GIC_VIRT + RK3288_GIC_DIST_SIZE, RK3288_GIC_CPU_PHYS, RK3288_GIC_CPU_SIZE),
 	RK_DEVICE(RK_BOOTRAM_VIRT, RK3288_BOOTRAM_PHYS, RK3288_BOOTRAM_SIZE),
 	RK_DEVICE(RK3288_IMEM_VIRT, RK3288_IMEM_PHYS, SZ_4K),
+	RK_DEVICE(RK3288_HDMI_VIRT, RK3288_HDMI_PHYS, SZ_4K),
 	RK_DEVICE(RK_TIMER_VIRT, RK3288_TIMER6_PHYS, RK3288_TIMER_SIZE),
 };
 
@@ -133,6 +135,11 @@ static void __init rk3288_dt_map_io(void)
 	rockchip_soc_id = ROCKCHIP_SOC_RK3288;
 
 	iotable_init(rk3288_io_desc, ARRAY_SIZE(rk3288_io_desc));
+
+	/* RK3288W HDMI Revision ID is 0x1A */
+	if (readl_relaxed(RK3288_HDMI_VIRT + 4) == 0x1A)
+		rockchip_soc_id = ROCKCHIP_SOC_RK3288W;
+
 	debug_ll_io_init();
 	usb_uart_init();
 

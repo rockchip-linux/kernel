@@ -116,7 +116,9 @@
 #define RK3288_BOOTRAM_PHYS             0xFF720000
 #define RK3288_BOOTRAM_SIZE             SZ_4K
 #define RK3288_IMEM_PHYS                0xFF700000
-#define RK3288_IMEM_SZIE                0x00018000
+#define RK3288_IMEM_SIZE                0x00018000
+#define RK3288_HDMI_PHYS                0xFF980000
+#define RK3288_HDMI_SIZE                SZ_128K
 
 #define RK3036_IMEM_PHYS		0x10080000
 #define RK3036_IMEM_SIZE		SZ_8K
