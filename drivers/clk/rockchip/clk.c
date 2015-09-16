@@ -1086,6 +1086,20 @@ static int __init rkclk_init_special_regs(struct device_node *np)
 				clk_err("%s: init mux con err\n", __func__);
 				goto out;
 			}
+		} else if (strcmp(compatible, "rockchip,rk3188-div-con") == 0) {
+			reg = of_iomap(node, 0);
+			ret = rkclk_init_divinfo(node, reg);
+			if (ret != 0) {
+				clk_err("%s: init div con err\n", __func__);
+				goto out;
+			}
+		} else if (strcmp(compatible, "rockchip,rk3188-gate-clk") == 0) {
+			reg = of_iomap(node, 0);
+			ret = rkclk_init_gatecon(node);
+			if (ret != 0) {
+				clk_err("%s: init gate con err\n", __func__);
+				goto out;
+			}
 		}
 	}
 

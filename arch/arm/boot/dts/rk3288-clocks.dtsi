@@ -18,7 +18,7 @@
 		compatible = "rockchip,rk-clocks";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges = <0x0 0xFF760000 0x01b0>;
+		ranges;
 
 		fixed_rate_cons {
 			compatible = "rockchip,rk-fixed-rate-cons";
@@ -325,8 +325,8 @@
 			compatible = "rockchip,rk-clock-regs";
 			#address-cells = <1>;
 			#size-cells = <1>;
-			reg = <0x0000 0x3ff>;
-			ranges;
+			ranges = <0x0 0xff760000 0x1000>;
+			reg = <0xff760000 0x1000>;
 
 			/* PLL control regs */
 			pll_cons {
@@ -2775,6 +2775,121 @@
 					#clock-cells = <1>;
 				};
 
+			};
+		};
+
+		special_regs {
+			compatible = "rockchip,rk-clock-special-regs";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0xff770000 0x1000>;
+			reg = <0xff770000 0x1000>;
+
+			hdmi_dclk0: hdmi_dclk0_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x03a8 0x10>;
+				rockchip,bits = <2 1>;
+				clocks = <&dclk_lcdc0>, <&dummy>;
+				clock-output-names = "hdmi_dclk0";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
+			};
+
+			hdmi_dclk1: hdmi_dclk1_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x03a8 0x10>;
+				rockchip,bits = <3 1>;
+				clocks = <&dclk_lcdc1>, <&dummy>;
+				clock-output-names = "hdmi_dclk1";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
+			};
+
+			hdmi_dclk: hdmi_dclk_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x025c 0x10>;
+				rockchip,bits = <4 1>;
+				clocks = <&hdmi_dclk0>, <&hdmi_dclk1>;
+				clock-output-names = "hdmi_dclk";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
+			};
+
+			aclk_hdcp: aclk_hdcp_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x03a8 0x10>;
+				rockchip,bits = <6 2>;
+				clocks = <&aclk_vio1>, <&clk_isp>, <&hdmi_dclk>, <&aclk_vio0>;
+				clock-output-names = "aclk_hdcp";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
+			};
+
+			aclk_hdcp_div: aclk_hdcp_div {
+				compatible = "rockchip,rk3188-div-con";
+				reg = <0x03a8 0x10>;
+				rockchip,bits = <8 2>;
+				clocks = <&aclk_hdcp>;
+				clock-output-names = "aclk_hdcp";
+				rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
+				#clock-cells = <0>;
+				rockchip,clkops-idx =
+					<CLKOPS_RATE_MUX_DIV>;
+			};
+
+			clk_hdcp: clk_hdcp_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x03a8 0x10>;
+				rockchip,bits = <10 2>;
+				clocks = <&aclk_vio1>, <&clk_isp>, <&hdmi_dclk>, <&aclk_vio0>;
+				clock-output-names = "clk_hdcp";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
+			};
+
+			clk_hdcp_div: clk_hdcp_div {
+				compatible = "rockchip,rk3188-div-con";
+				reg = <0x03a8 0x10>;
+				rockchip,bits = <12 2>;
+				clocks = <&clk_hdcp>;
+				clock-output-names = "clk_hdcp";
+				rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
+				#clock-cells = <0>;
+				rockchip,clkops-idx =
+					<CLKOPS_RATE_MUX_DIV>;
+			};
+
+			clk_gates19: clk_gates19 {
+				compatible = "rockchip,rk3188-gate-clk";
+				reg = <0x03a8 0x10>;
+					clocks =
+						<&dummy>,		<&dummy>,
+						<&dummy>,		<&dummy>,
+
+						<&dummy>,		<&aclk_hdcp>,
+						<&dummy>,		<&dummy>,
+
+						<&dummy>,		<&dummy>,
+						<&dummy>,		<&dummy>,
+
+						<&dummy>,		<&dummy>,
+						<&dummy>,		<&dummy>;
+
+					clock-output-names =
+						"reserved",		"reserved",
+						"reserved",		"reserved",
+
+						"reserved",		"aclk_hdcp",
+						"reserved",		"reserved",
+
+						"reserved",		"reserved",
+						"reserved",		"reserved",
+
+						"reserved",		"reserved",
+						"reserved",		"reserved";
+
+						rockchip,suspend-clkgating-setting=<0x0 0x0>;
+						#clock-cells = <1>;
 			};
 		};
 	};
