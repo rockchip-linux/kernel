@@ -169,6 +169,7 @@ struct usb_ep {
 	const char		*name;
 	const struct usb_ep_ops	*ops;
 	struct list_head	ep_list;
+	bool			enabled;
 	unsigned		maxpacket:16;
 	unsigned		max_streams:16;
 	unsigned		mult:2;
@@ -202,7 +203,18 @@ struct usb_ep {
  */
 static inline int usb_ep_enable(struct usb_ep *ep)
 {
-	return ep->ops->enable(ep, ep->desc);
+	int ret;
+
+	if (ep->enabled)
+		return 0;
+
+	ret = ep->ops->enable(ep, ep->desc);
+	if (ret)
+		return ret;
+
+	ep->enabled = true;
+
+	return 0;
 }
 
 /**
@@ -219,7 +231,18 @@ static inline int usb_ep_enable(struct usb_ep *ep)
  */
 static inline int usb_ep_disable(struct usb_ep *ep)
 {
-	return ep->ops->disable(ep);
+	int ret;
+
+	if (!ep->enabled)
+		return 0;
+
+	ret = ep->ops->disable(ep);
+	if (ret)
+		return ret;
+
+	ep->enabled = false;
+
+	return 0;
 }
 
 /**
