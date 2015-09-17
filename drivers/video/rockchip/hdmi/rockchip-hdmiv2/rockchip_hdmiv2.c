@@ -565,6 +565,8 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 	rk_hdmi_property.priv = hdmi_dev;
 	if (hdmi_dev->soctype == HDMI_SOC_RK3288) {
 		rk_hdmi_property.feature |= SUPPORT_DEEP_10BIT;
+		if (hdmi_readl(hdmi_dev, REVISION_ID) == 0x1a)
+			rk_hdmi_property.feature |= SUPPORT_YUV420;
 		if (rk_hdmi_property.videosrc == DISPLAY_SOURCE_LCDC0)
 			rk_hdmi_property.feature |=
 						SUPPORT_4K |

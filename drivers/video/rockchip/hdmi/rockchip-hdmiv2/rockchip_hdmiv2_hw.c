@@ -899,6 +899,9 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 	hdmi_dev->tmdsclk = tmdsclk;
 	if (vpara->format_3d == HDMI_3D_FRAME_PACKING)
 		hdmi_dev->pixelclk = 2 * mode->pixclock;
+	else if (vpara->color_input == HDMI_COLOR_YCBCR420 &&
+		 hdmi_dev->soctype != HDMI_SOC_RK3368)
+		hdmi_dev->pixelclk = mode->pixclock / 2;
 	else
 		hdmi_dev->pixelclk = mode->pixclock;
 	hdmi_dev->pixelrepeat = timing->pixelrepeat;
@@ -1626,9 +1629,6 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 		__func__, vpara->vic, vpara->format_3d,
 		vpara->color_output, vpara->color_output_depth);
 
-	if (hdmi_dev->soctype == HDMI_SOC_RK3288)
-		vpara->color_input = HDMI_COLOR_RGB_0_255;
-
 	if (!hdmi->uboot) {
 		/* befor configure video, we power off phy */
 		if (hdmi_dev->soctype != HDMI_SOC_RK322X) {
@@ -1660,6 +1660,19 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 		hdmi_msk_reg(hdmi_dev, FC_DBGFORCE,
 			     m_FC_FORCEVIDEO, v_FC_FORCEVIDEO(1));
 		hdmi_writel(hdmi_dev, MC_CLKDIS, m_HDCPCLK_DISABLE);
+	}
+
+	/*pclk source must be vop on mode YCBCR420*/
+	if (hdmi_dev->soctype == HDMI_SOC_RK3288 &&
+	    hdmi_readl(hdmi_dev, REVISION_ID) == 0x1a) {
+		if (vpara->color_input == HDMI_COLOR_YCBCR420)
+			writel_relaxed(((1 << (2 + hdmi->property->videosrc)) |
+				       (1 << (18 + hdmi->property->videosrc))),
+				       RK_CRU_VIRT + 0x03a8);
+		else
+			writel_relaxed(((0 << (2 + hdmi->property->videosrc)) |
+				       (1 << (18 + hdmi->property->videosrc))),
+				       RK_CRU_VIRT + 0x03a8);
 	}
 
 	if (rockchip_hdmiv2_video_framecomposer(hdmi, vpara) < 0)
