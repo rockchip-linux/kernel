@@ -119,7 +119,7 @@ static int ohci_hcd_rk_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret = -ENODEV;
 	int irq;
-	struct dwc_otg_platform_data *pldata;
+	struct rkehci_platform_data *pldata;
 	const struct of_device_id *match;
 
 	dev_dbg(&pdev->dev, "ohci_hcd_rk_probe\n");
@@ -129,7 +129,7 @@ static int ohci_hcd_rk_probe(struct platform_device *pdev)
 
 	match = of_match_device(of_match_ptr(rk_ohci_of_match), &pdev->dev);
 	if (match && match->data) {
-		pldata = (struct dwc_otg_platform_data *)match->data;
+		pldata = (struct rkehci_platform_data *)match->data;
 	} else {
 		dev_err(dev, "ohci_rk match failed\n");
 		return -EINVAL;
