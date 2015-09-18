@@ -91,6 +91,10 @@ static const struct hc_driver ohci_rk_hc_driver = {
 static struct of_device_id rk_ohci_of_match[] = {
 #ifdef CONFIG_ARM
 	{
+		.compatible = "rockchip,rk3288_rk_ohci_host",
+		.data = &rkohci_pdata_rk3288,
+	},
+	{
 	 .compatible = "rockchip,rk3126_ohci",
 	 .data = &usb20ohci_pdata_rk3126,
 	 },
@@ -124,7 +128,7 @@ static int ohci_hcd_rk_probe(struct platform_device *pdev)
 
 	dev_dbg(&pdev->dev, "ohci_hcd_rk_probe\n");
 
-	if (usb_disabled())
+	if (usb_disabled() || soc_is_rk3288())
 		return -ENODEV;
 
 	match = of_match_device(of_match_ptr(rk_ohci_of_match), &pdev->dev);
