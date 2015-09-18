@@ -482,7 +482,7 @@ static int __init ehci_rk_init(void)
 	 * vendor-spec ehci driver has to prevent handing off this port to
 	 * OHCI by standard ehci-hub driver, put PORT_OWNER back to 0 manually.
 	 */
-	if (cpu_is_rk3288())
+	if (soc_is_rk3288())
 		rk_ehci_hc_driver.relinquish_port = rk32_ehci_relinquish_port;
 
 	return platform_driver_register(&rk_ehci_driver);
