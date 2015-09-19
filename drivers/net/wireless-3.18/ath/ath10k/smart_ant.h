@@ -473,6 +473,7 @@ struct ath10k_smart_ant_info {
 	u32 enabled_feedback;
 	u8 mode;
 	u8 default_ant;
+	u8 rx_ant;
 	u8 num_fallback_rate;
 	u8 num_sta_per_ant[ATH10K_SMART_ANT_COMB_MAX];
 	u16 num_sta_conneted;

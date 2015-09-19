@@ -581,17 +581,21 @@ static u8 smart_ant_sel_rx_ant(struct ath10k *ar,
 		sa_info->num_sta_conneted, nsta_sel_ant);
 	}
 
-	if ((tinfo->sel_ant != sa_info->default_ant) &&
-		(sa_info->num_sta_conneted == nsta_sel_ant)) {
-		sa_info->default_ant = tinfo->sel_ant;
-		status = ATH10K_SMART_ANT_ACT_RX_CFG;
+	/* When all stations select the same tx_ant, rx_ant follows tx_ant.
+	* Otherwise, rx_ant is set to be default_ant.
+	*/
+	if (sa_info->num_sta_conneted == nsta_sel_ant)
+		sa_info->rx_ant = tinfo->sel_ant;
+	else
+		sa_info->rx_ant = sa_info->default_ant;
 
-		if (ar->smart_ant_info.debug_level >=
-			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
-			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-			"Rx antenna is going to be config to %d\n",
-			tinfo->sel_ant);
-		}
+	status = ATH10K_SMART_ANT_ACT_RX_CFG;
+
+	if (ar->smart_ant_info.debug_level >=
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+		"Rx antenna is going to be config to %d\n",
+		sa_info->rx_ant);
 	}
 
 	tinfo->prev_sel_ant = tinfo->sel_ant;
@@ -1265,7 +1269,7 @@ static int smart_ant_config_rx(struct ath10k *ar,
 	}
 
 	cfg->type = ATH10K_SMART_ANT_TYPE_RX_CFG;
-	cfg->rx_ant_cfg.rx_ant = info->default_ant;
+	cfg->rx_ant_cfg.rx_ant = info->rx_ant;
 
 	if (ar->smart_ant_info.debug_level >=
 		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
