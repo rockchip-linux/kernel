@@ -573,7 +573,7 @@ static u8 smart_ant_sel_rx_ant(struct ath10k *ar,
 	nsta_sel_ant = sa_info->num_sta_per_ant[tinfo->sel_ant];
 
 	if (ar->smart_ant_info.debug_level >=
-		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STATES) {
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
 		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"sa_info->default_ant = %d, tinfo->sel_ant= %d\n"
 		"sa_info->num_sta_conneted = %d, nsta_sel_ant = %d\n",
@@ -899,8 +899,12 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 		if (ar->smart_ant_info.debug_level >=
 			ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
 			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-			"Training completed:antenna selected %d\n",
-			tstats->ant_map[0]);
+			"Training completed:antenna selected %d "
+			"PER %d RSSI %d %d %d rate %x\n",
+			tstats->ant_map[0],
+			tstats->per,
+			tstats->rssi[0][0], tstats->rssi[1][0],
+			tstats->rssi[2][0], tdata->rate_code);
 		}
 		/* force config tx/rx antenna after SA decision is made */
 		status |= ATH10K_SMART_ANT_ACT_TX_CFG;
@@ -1014,7 +1018,7 @@ static u8 smart_ant_perf_train_trigger(struct ath10k *ar,
 					ATH10K_SMART_ANT_STATE_PRETRAIN;
 			status = ATH10K_SMART_ANT_ACT_TRAIN;
 			if (ar->smart_ant_info.debug_level >=
-				ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+				ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
 				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "start Perf train\n");
 			}
 		}
@@ -1037,7 +1041,7 @@ static u8 smart_ant_retrain_trigger(struct ath10k *ar,
 	if (elapsed_ts > sparams.retrain_interval ||
 		sa_sta->train_info.train_start) {
 		if (ar->smart_ant_info.debug_level >=
-			ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+			ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
 			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "start Periodic train\n");
 		}
 		sa_sta->train_info.train_state =
@@ -1236,7 +1240,7 @@ static int smart_ant_config_tx(struct ath10k *ar,
 	smart_ant_get_tx_ant(sa_sta, cfg->tx_ant_cfg.tx_ants);
 
 	if (ar->smart_ant_info.debug_level >=
-		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
 		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Configure tx antenna for %pM to %d\n",
 		cfg->tx_ant_cfg.peer_mac, cfg->tx_ant_cfg.tx_ants[0]);
 	}
@@ -1264,7 +1268,7 @@ static int smart_ant_config_rx(struct ath10k *ar,
 	cfg->rx_ant_cfg.rx_ant = info->default_ant;
 
 	if (ar->smart_ant_info.debug_level >=
-		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
+		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
 		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT, "Configure Rx antenna to %d\n",
 		cfg->rx_ant_cfg.rx_ant);
 	}
@@ -1691,7 +1695,7 @@ int ath10k_smart_ant_sta_connect(struct ath10k *ar,
 	ether_addr_copy(arg.mac_addr.addr, sta->addr);
 
 	if (ar->smart_ant_info.debug_level >=
-		ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+		ATH10K_SMART_ANT_DBG_LVL_TRAIN_STAGES) {
 		ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
 		"%s mac %pM vdev_id %d num_cfg %d\n",
 		__func__, arg.mac_addr.addr, arg.vdev_id, arg.num_cfg);
