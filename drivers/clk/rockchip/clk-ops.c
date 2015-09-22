@@ -663,7 +663,7 @@ static int clk_3288_dclk_lcdc0_set_rate(struct clk_hw *hw, unsigned long rate,
 	clk_set_rate(hclk_vio, 100*MHZ);
 
 	/* make aclk_isp and hclk_isp share a same pll in rk3288_eco */
-	if (rockchip_get_cpu_version() > 0) {
+	if ((rockchip_get_cpu_version() > 0) && (!soc_is_rk3288w())) {
 		aclk_vio1 = clk_get(NULL, "aclk_vio1");
 		clk_set_parent(aclk_vio1, parent);
 		clk_set_rate(aclk_vio1, __clk_get_rate(parent));
