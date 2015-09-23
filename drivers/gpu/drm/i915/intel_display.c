@@ -10387,9 +10387,10 @@ static int intel_crtc_set_config(struct drm_mode_set *set)
 	if (ret)
 		goto fail;
 
-	ret = intel_set_mode(set->crtc, set->mode,
-			     set->x, set->y, set->fb);
-	if (config->fb_changed) {
+	if (config->mode_changed) {
+		ret = intel_set_mode(set->crtc, set->mode,
+				     set->x, set->y, set->fb);
+	} else if (config->fb_changed) {
 		intel_crtc_wait_for_pending_flips(set->crtc);
 
 		ret = intel_pipe_set_base(set->crtc,
