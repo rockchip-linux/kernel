@@ -54,7 +54,9 @@ static ssize_t ath10k_write_sa_enable_ops(struct file *file,
 		ar->debug.pktlog_filter |= ATH10K_PKTLOG_SMART_ANT;
 	} else {
 		ret = ath10k_wmi_pdev_disable_smart_ant(ar,
-				WMI_SMART_ANT_MODE_PARALLEL, 0, 0);
+				WMI_SMART_ANT_MODE_PARALLEL,
+				ATH10K_SMART_ANT_DEFAULT_ANT,
+				ATH10K_SMART_ANT_DEFAULT_ANT);
 		if (ret)
 			goto exit;
 
