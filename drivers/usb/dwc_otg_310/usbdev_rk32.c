@@ -475,7 +475,11 @@ struct rkehci_platform_data rkehci1_pdata_rk3288 = {
 #ifdef CONFIG_USB_EHCI_RK
 static void rk_ehci_hw_init(void)
 {
-	/* usb phy config init */
+	/* usb phy config init
+	 * set common_on = 0, in suspend mode,
+	 * host0 PLL blocks remain powered.
+	 */
+	control_usb->grf_uoc1_base->CON0 = (1 << 16) | 0;
 
 	/* DRV_VBUS GPIO init */
 	if (gpio_is_valid(control_usb->host_gpios->gpio)) {
