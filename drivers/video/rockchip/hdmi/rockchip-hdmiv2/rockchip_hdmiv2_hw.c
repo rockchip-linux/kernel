@@ -1668,11 +1668,11 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 		if (vpara->color_input == HDMI_COLOR_YCBCR420)
 			writel_relaxed(((1 << (2 + hdmi->property->videosrc)) |
 				       (1 << (18 + hdmi->property->videosrc))),
-				       RK_CRU_VIRT + 0x03a8);
+				       RK_GRF_VIRT + RK3288_GRF_SOC_CON16);
 		else
 			writel_relaxed(((0 << (2 + hdmi->property->videosrc)) |
 				       (1 << (18 + hdmi->property->videosrc))),
-				       RK_CRU_VIRT + 0x03a8);
+				       RK_GRF_VIRT + RK3288_GRF_SOC_CON16);
 	}
 
 	if (rockchip_hdmiv2_video_framecomposer(hdmi, vpara) < 0)

@@ -1,5 +1,4 @@
 #include <linux/delay.h>
-#include <linux/rockchip/iomap.h>
 #include "../rockchip-hdmi-cec.h"
 #include "rockchip_hdmiv2.h"
 #include "rockchip_hdmiv2_hw.h"
@@ -121,7 +120,7 @@ void rockchip_hdmiv2_cec_init(struct hdmi *hdmi)
 	if (hdmi_dev->soctype == HDMI_SOC_RK3288 &&
 	    hdmi_readl(hdmi_dev, REVISION_ID) == 0x1a)
 		writel_relaxed((1 << 4) | (1 << 20),
-			       RK_CRU_VIRT + 0x03a8);
+			       RK_GRF_VIRT + RK3288_GRF_SOC_CON16);
 
 	hdmi_writel(hdmi_dev, IH_MUTE_CEC_STAT0, m_ERR_INITIATOR |
 			m_ARB_LOST | m_NACK | m_DONE);

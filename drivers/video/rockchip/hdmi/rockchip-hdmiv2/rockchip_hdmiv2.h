@@ -3,6 +3,8 @@
 #include <linux/gpio.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/rockchip/iomap.h>
+#include <linux/rockchip/grf.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
