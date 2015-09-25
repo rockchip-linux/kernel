@@ -547,13 +547,14 @@ static ssize_t elan_sysfs_update_fw(struct device *dev,
 	const struct firmware *fw;
 	int error;
 	const u8 *fw_signature;
+	char *full_fw_name;
 	static const u8 signature[] = {0xAA, 0x55, 0xCC, 0x33, 0xFF, 0xFF};
 
 	if (data->fw_validpage_count == 0)
 		return -EINVAL;
 
 	/* Look for a firmware with the product id appended. */
-	char *full_fw_name = kasprintf(GFP_KERNEL,
+	full_fw_name = kasprintf(GFP_KERNEL,
 			"%s_" ETP_PRODUCT_ID_FORMAT_STRING ".%s",
 			ETP_FW_BASENAME, data->product_id, ETP_FW_EXTENSION);
 	if (!full_fw_name) {
