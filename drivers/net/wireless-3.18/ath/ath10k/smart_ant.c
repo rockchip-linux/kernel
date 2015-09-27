@@ -811,7 +811,7 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 			per_diff = per < tstats->per ?
 				(tstats->per - per) : (per - tstats->per);
 			if (tstats->rate == tstats->last_rate &&
-				per_diff <= sparams->per_diff_threshold)
+				per_diff <= sparams->per_diff_threshold) {
 				switch_ant = smart_ant_sec_metric(sa_sta);
 
 				if (ar->smart_ant_info.debug_level >=
@@ -824,8 +824,8 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 					tstats->rate, tstats->last_rate,
 					per_diff, sparams->per_diff_threshold);
 				}
-			else if (tstats->rate == tstats->last_rate &&
-				per < tstats->per)
+			} else if (tstats->rate == tstats->last_rate &&
+				per < tstats->per) {
 				switch_ant = true;
 
 				if (ar->smart_ant_info.debug_level >=
@@ -836,6 +836,7 @@ static u8 smart_ant_proc_train_stats(struct ath10k *ar,
 					tstats->rate, tstats->last_rate,
 					per, tstats->per);
 				}
+			}
 		}
 
 		if (switch_ant) {
@@ -1787,11 +1788,11 @@ int ath10k_smart_ant_set_default(struct ath10k *ar,
 
 	if (arvif->vdev_type != WMI_VDEV_TYPE_AP ||
 		arvif->vdev_subtype != WMI_VDEV_SUBTYPE_NONE) {
-			if (ar->smart_ant_info.debug_level >=
-				ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
-				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-				"Smart antenna logic not enabled for non-AP interface\n");
-			}
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			"Smart antenna logic not enabled for non-AP interface\n");
+		}
 		return 0;
 	}
 
@@ -1863,11 +1864,11 @@ int ath10k_smart_ant_enable(struct ath10k *ar, struct ath10k_vif *arvif)
 	 */
 	if (arvif->vdev_type != WMI_VDEV_TYPE_AP ||
 		arvif->vdev_subtype != WMI_VDEV_SUBTYPE_NONE) {
-			if (ar->smart_ant_info.debug_level >=
-				ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
-				ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
-				"Smart antenna logic not enabled for non-AP interface\n");
-			}
+		if (ar->smart_ant_info.debug_level >=
+			ATH10K_SMART_ANT_DBG_LVL_TOP_DECISION) {
+			ath10k_dbg(ar, ATH10K_DBG_SMART_ANT,
+			"Smart antenna logic not enabled for non-AP interface\n");
+		}
 		return 0;
 	}
 
