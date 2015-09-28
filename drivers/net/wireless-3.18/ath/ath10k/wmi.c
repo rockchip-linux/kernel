@@ -5243,13 +5243,14 @@ ath10k_wmi_op_gen_beacon_dma(struct ath10k *ar, u32 vdev_id, const void *bcn,
 	cmd->frame_control = __cpu_to_le32(fc);
 	cmd->flags = 0;
 	if (test_bit(WMI_SERVICE_SMART_ANTENNA_HW_SUPPORT, ar->wmi.svc_map)) {
-		cmd->antenna_mask = __cpu_to_le32(ATH10K_DEFAULT_ANTENNA_5G);
+		cmd->antenna_mask = __cpu_to_le32(ath10k_default_antenna_5g);
 		/*
 		 * use different smart antenna defaults for 2G and 5G radio.
 		 * use 2G confiuration for dual band radio.
 		 */
 		if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY) {
-			cmd->antenna_mask = __cpu_to_le32(ATH10K_DEFAULT_ANTENNA_2G);
+			cmd->antenna_mask =
+				__cpu_to_le32(ath10k_default_antenna_2g);
 		}
 	} else {
 		cmd->antenna_mask = __cpu_to_le32(WMI_BCN_TX_REF_DEF_ANTENNA);

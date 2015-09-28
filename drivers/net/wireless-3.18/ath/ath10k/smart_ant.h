@@ -37,6 +37,9 @@
 #ifndef _SMART_ANT_H_
 #define _SMART_ANT_H_
 
+extern u32 ath10k_default_antenna_2g;
+extern u32 ath10k_default_antenna_5g;
+
 #define ATH10K_SMART_ANT_MAX_CHAINS	3
 
 /* Bit positions 0 1 and 2 indicate number of non-training feedback
@@ -58,7 +61,6 @@
 #define ATH10K_SMART_ANT_RSSI_SAMPLE	10
 #define ATH10K_SMART_ANT_PER_MAX	100
 
-#define ATH10K_SMART_ANT_DEFAULT_ANT	5
 #define ATH10K_PPDU_SIZE_MAX		32
 
 /* Max number of antenna combinations 2 ^ max_supported_ant */

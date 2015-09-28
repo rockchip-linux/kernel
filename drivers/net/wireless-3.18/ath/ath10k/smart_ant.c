@@ -1451,7 +1451,9 @@ static void smart_ant_init_param(struct ath10k *ar)
 					&ar->smart_ant_info.smart_ant_params;
 
 	info->mode = WMI_SMART_ANT_MODE_PARALLEL;
-	info->default_ant = ATH10K_SMART_ANT_DEFAULT_ANT;
+	info->default_ant = ath10k_default_antenna_5g;
+	if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY)
+		info->default_ant = ath10k_default_antenna_2g;
 	info->num_fallback_rate = ATH10K_SMART_ANT_FALLBACK_RATE_DEFAULT;
 	info->enabled_feedback = ATH10K_SMART_ANT_TX_FEEDBACK|
 				ATH10K_SMART_ANT_RX_FEEDBACK;
@@ -1485,7 +1487,9 @@ static void smart_ant_init_param(struct ath10k *ar)
 				ATH10K_SMART_ANT_NUM_PKT_THRESHOLD_40;
 	sa_params->num_pkt_min_threshod[ATH10K_SMART_ANT_BW_80] =
 				ATH10K_SMART_ANT_NUM_PKT_THRESHOLD_80;
-	sa_params->default_tx_ant	= ATH10K_SMART_ANT_DEFAULT_ANT;
+	sa_params->default_tx_ant	= ath10k_default_antenna_5g;
+	if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY)
+		sa_params->default_tx_ant	= ath10k_default_antenna_2g;
 	sa_params->ant_change_ind	= 0;
 	sa_params->max_train_ppdu	= ATH10K_SMART_ANT_NUM_TRAIN_PPDU_MAX;
 }

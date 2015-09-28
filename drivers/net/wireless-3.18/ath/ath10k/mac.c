@@ -2982,13 +2982,13 @@ static int ath10k_start(struct ieee80211_hw *hw)
 	}
 
 	if (test_bit(WMI_SERVICE_SMART_ANTENNA_HW_SUPPORT, ar->wmi.svc_map)) {
-		u32 default_antenna_config = ATH10K_DEFAULT_ANTENNA_5G;
+		u32 default_antenna_config = ath10k_default_antenna_5g;
 		/*
 		 * use different smart antenna defaults for 2G and 5G radio.
 		 * use 2G confiuration for dual band radio.
 		 */
 		if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY) {
-			default_antenna_config = ATH10K_DEFAULT_ANTENNA_2G;
+			default_antenna_config = ath10k_default_antenna_2g;
 		}
 		ret = ath10k_wmi_pdev_sa_disabled_ant_sel(ar,
 				WMI_SMART_ANT_DISABLED_MODE_PARALLEL,
