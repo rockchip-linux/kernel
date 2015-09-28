@@ -1823,6 +1823,7 @@ int ath10k_smart_ant_set_default(struct ath10k *ar,
 void ath10k_smart_ant_disable(struct ath10k *ar, struct ath10k_vif *arvif)
 {
 	struct ath10k_smart_ant_info *info = &ar->smart_ant_info;
+	u32 default_antenna_config = ath10k_default_antenna_5g;
 	int ret;
 
 	lockdep_assert_held(&ar->conf_mutex);
@@ -1842,8 +1843,13 @@ void ath10k_smart_ant_disable(struct ath10k *ar, struct ath10k_vif *arvif)
 	if (info->num_enabled_vif != 0)
 		return;
 
+	if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY)
+		default_antenna_config = ath10k_default_antenna_2g;
+
 	/* Disable smart antenna logic in fw */
-	ret = ath10k_wmi_pdev_disable_smart_ant(ar, info->mode, 0, 0);
+	ret = ath10k_wmi_pdev_sa_disabled_ant_sel(ar, info->mode,
+						  default_antenna_config,
+						  default_antenna_config);
 	if (ret) {
 		ath10k_err(ar, "Wmi command to disable smart antenna is failed\n");
 		return;

@@ -526,7 +526,7 @@ int ath10k_smart_ant_set_default(struct ath10k *ar,
 					struct ath10k_vif *arvif);
 
 /* This API reverts the configurations done in ath10k_smart_ant_enable().
- * ath10k_wmi_pdev_disable_smart_ant needs to be called to disable
+ * ath10k_wmi_pdev_sa_disabled_ant_sel needs to be called to disable
  * smart antenna logic in fw.
  */
 void ath10k_smart_ant_disable(struct ath10k *ar, struct ath10k_vif *arvif);

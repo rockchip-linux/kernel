@@ -27,6 +27,7 @@ static ssize_t ath10k_write_sa_enable_ops(struct file *file,
 	struct ath10k *ar = file->private_data;
 	int ret;
 	u8 enable;
+	u32 default_antenna_config = ath10k_default_antenna_5g;
 
 	if (!ath10k_smart_ant_enabled(ar))
 		return -ENOTSUPP;
@@ -37,7 +38,6 @@ static ssize_t ath10k_write_sa_enable_ops(struct file *file,
 	if (ar->smart_ant_info.enabled == enable)
 		return count;
 
-	u32 default_antenna_config = ath10k_default_antenna_5g;
 	if (ar->phy_capability & WHAL_WLAN_11G_CAPABILITY)
 		default_antenna_config = ath10k_default_antenna_2g;
 
@@ -57,8 +57,8 @@ static ssize_t ath10k_write_sa_enable_ops(struct file *file,
 			goto exit;
 		ar->debug.pktlog_filter |= ATH10K_PKTLOG_SMART_ANT;
 	} else {
-		ret = ath10k_wmi_pdev_disable_smart_ant(ar,
-				WMI_SMART_ANT_MODE_PARALLEL,
+		ret = ath10k_wmi_pdev_sa_disabled_ant_sel(ar,
+				WMI_SMART_ANT_DISABLED_MODE_PARALLEL,
 				default_antenna_config,
 				default_antenna_config);
 		if (ret)

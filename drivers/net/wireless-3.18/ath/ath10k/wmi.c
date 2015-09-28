@@ -5628,30 +5628,6 @@ ath10k_wmi_op_gen_pdev_enable_smart_ant(struct ath10k *ar, u32 mode,
 	return skb;
 }
 
-/* Sends configurations to disable smart antenna, configuration includes bit
- * indicating disable, GPIOs, mode for which it was enabled and tx/rx antennas
- * to be reset, usually 0 is sent in tx/rx antenna in this command.
- */
-static struct sk_buff *
-ath10k_wmi_op_gen_pdev_disable_smart_ant(struct ath10k *ar, u32 mode,
-					 u32 tx_ant, u32 rx_ant)
-{
-	struct wmi_pdev_set_smart_ant_cmd *cmd;
-	struct sk_buff *skb;
-
-	skb = ath10k_wmi_alloc_skb(ar, sizeof(*cmd));
-	if (!skb)
-		return ERR_PTR(-ENOMEM);
-
-	cmd = (struct wmi_pdev_set_smart_ant_cmd *)skb->data;
-	cmd->enable = __cpu_to_le32(WMI_SMART_ANT_DISABLE);
-	ath10k_wmi_fill_set_smart_ant(ar, cmd, mode, tx_ant, rx_ant);
-	ath10k_dbg(ar, ATH10K_DBG_WMI,
-		   "wmi pdev smart antenna disable, mode %d rx_ant %d def_tx_ant %d\n",
-		   mode, rx_ant, tx_ant);
-	return skb;
-}
-
 /* Set tx antenna for a particular peer. Tx antennas is an array
  * containing antennas for every rate fallback retry. After this
  * antenna configuration all the frames to that particular peer
@@ -5855,7 +5831,6 @@ static const struct wmi_ops wmi_ops = {
 	/* .gen_prb_tmpl not implemented */
 	/* .gen_p2p_go_bcn_ie not implemented */
 	/* .gen_pdev_enable_smart_ant not implemented */
-	/* .gen_pdev_disable_smart_ant not implemented */
 	/* .gen_peer_set_smart_tx_ant not implemented */
 	/* .gen_pdev_set_rx_ant not implemented */
 	/* .gen_peer_cfg_smart_ant_fb not implemented */
@@ -5924,7 +5899,6 @@ static const struct wmi_ops wmi_10_1_ops = {
 	/* .gen_prb_tmpl not implemented */
 	/* .gen_p2p_go_bcn_ie not implemented */
 	/* .gen_pdev_enable_smart_ant not implemented */
-	/* .gen_pdev_disable_smart_ant not implemented */
 	/* .gen_peer_set_smart_tx_ant not implemented */
 	/* .gen_pdev_set_rx_ant not implemented */
 	/* .gen_peer_cfg_smart_ant_fb not implemented */
@@ -5992,7 +5966,6 @@ static const struct wmi_ops wmi_10_2_ops = {
 	.gen_delba_send = ath10k_wmi_op_gen_delba_send,
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 	.gen_pdev_enable_smart_ant  = ath10k_wmi_op_gen_pdev_enable_smart_ant,
-	.gen_pdev_disable_smart_ant  = ath10k_wmi_op_gen_pdev_disable_smart_ant,
 	.gen_peer_set_smart_tx_ant = ath10k_wmi_op_gen_peer_set_smart_tx_ant,
 	.gen_pdev_set_rx_ant = ath10k_wmi_op_gen_pdev_set_rx_ant,
 	.gen_peer_cfg_smart_ant_fb = ath10k_wmi_op_gen_peer_cfg_smart_ant,
@@ -6067,7 +6040,6 @@ static const struct wmi_ops wmi_10_2_4_ops = {
 	/* .gen_p2p_go_bcn_ie not implemented */
 #ifdef CONFIG_ATH10K_SMART_ANTENNA
 	.gen_pdev_enable_smart_ant  = ath10k_wmi_op_gen_pdev_enable_smart_ant,
-	.gen_pdev_disable_smart_ant  = ath10k_wmi_op_gen_pdev_disable_smart_ant,
 	.gen_peer_set_smart_tx_ant = ath10k_wmi_op_gen_peer_set_smart_tx_ant,
 	.gen_pdev_set_rx_ant = ath10k_wmi_op_gen_pdev_set_rx_ant,
 	.gen_peer_cfg_smart_ant_fb = ath10k_wmi_op_gen_peer_cfg_smart_ant,
