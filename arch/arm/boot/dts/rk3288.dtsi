@@ -780,6 +780,15 @@
 		status = "disabled";
 	};
 
+	hdmi_hdcp2: hdmi_hdcp2@ff974000 {
+		compatible = "rockchip,rk3288-hdmi-hdcp2";
+		reg = <0xff974000 0x4000>,
+		      <0xff978000 0x4000>;
+		clocks = <&aclk_hdcp>, <&clk_hdcp>, <&clk_gates15 12>;
+		clock-names = "aclk_hdcp2", "hdcp2_clk_hdmi", "pclk_hdcp2";
+		status = "disabled";
+	};
+
 	lcdc0: lcdc@ff930000 {
 		compatible = "rockchip,rk3288-lcdc";
 		rockchip,prop = <PRMRY>;
