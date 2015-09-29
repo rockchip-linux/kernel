@@ -386,18 +386,16 @@ static struct notifier_block dmc_enable_nb = {
 
 static __maybe_unused int rk3288_dmcfreq_suspend(struct device *dev)
 {
-	int ret = devfreq_suspend_device(dmcfreq.devfreq);
+	rockchip_dmc_disable();
 
-	rk3288_dmc_stop_hardware_counter();
-
-	return ret;
+	return 0;
 }
 
 static __maybe_unused int rk3288_dmcfreq_resume(struct device *dev)
 {
-	rk3288_dmc_start_hardware_counter();
+	rockchip_dmc_enable();
 
-	return devfreq_resume_device(dmcfreq.devfreq);
+	return 0;
 }
 
 static SIMPLE_DEV_PM_OPS(rk3288_dmcfreq_pm, rk3288_dmcfreq_suspend,
