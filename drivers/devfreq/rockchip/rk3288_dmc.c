@@ -88,6 +88,8 @@ struct rk3288_dmcfreq {
 	unsigned long *freq_table;
 	unsigned long num_levels;
 	unsigned int thermal_throttling_level;
+
+	unsigned int dmc_disable_rate;
 };
 
 /*
@@ -341,6 +343,8 @@ static int rk3288_dmc_enable_notify(struct notifier_block *nb,
 		dev_info(dmcfreq.clk_dev, "suspending DVFS and going to max freq\n");
 		devfreq_suspend_device(dmcfreq.devfreq);
 		rk3288_dmc_stop_hardware_counter();
+		if (dmcfreq.dmc_disable_rate)
+			freq = dmcfreq.dmc_disable_rate;
 		rk3288_dmcfreq_target(dmcfreq.clk_dev, &freq, 0);
 		return NOTIFY_OK;
 	}
@@ -485,6 +489,9 @@ static int rk3288_dmcfreq_probe(struct platform_device *pdev)
 	rockchip_dmc_en_unlock();
 
 	register_syscore_ops(&rk3288_dmcfreq_syscore_ops);
+
+	of_property_read_u32(dmcfreq.clk_dev->of_node,
+		"rockchip,dmc-disable-freq", &dmcfreq.dmc_disable_rate);
 
 	if (of_find_property(dmcfreq.clk_dev->of_node, "#cooling-cells",
 			     NULL)) {
