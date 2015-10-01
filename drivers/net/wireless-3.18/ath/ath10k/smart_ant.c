@@ -439,7 +439,8 @@ ath10k_sant_fill_train_rate_ant(struct ath10k_smart_ant_sta *sa_sta,
 		train_info->antennas[i] = tdata->antenna;
 	}
 
-	train_info->num_pkts = tdata->num_pkts | ATH10K_SMART_ANT_NUM_PKT_MASK;
+	train_info->num_pkts =
+			    tdata->num_pkts ? ATH10K_SMART_ANT_NUM_PKT_MASK : 0;
 }
 
 static void ath10k_sant_reset_train_data(struct ath10k_smart_ant_sta *sa_sta)
