@@ -428,8 +428,8 @@ static int dw_hdmi_rockchip_resume(struct device *dev)
 }
 
 static const struct dev_pm_ops dw_hdmi_rockchip_pm = {
-	.resume = dw_hdmi_rockchip_resume,
-	.suspend = dw_hdmi_rockchip_suspend,
+	.resume_early = dw_hdmi_rockchip_resume,
+	.suspend_late = dw_hdmi_rockchip_suspend,
 };
 
 static struct platform_driver dw_hdmi_rockchip_pltfm_driver = {
