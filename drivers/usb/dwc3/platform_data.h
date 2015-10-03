@@ -26,4 +26,5 @@ struct dwc3_platform_data {
 	bool tx_fifo_resize;
 
 	unsigned u2ss_inp3_quirk:1;
+	unsigned dis_enblslpm_quirk:1;
 };

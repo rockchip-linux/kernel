@@ -186,6 +186,7 @@
 /* Global USB2 PHY Configuration Register */
 #define DWC3_GUSB2PHYCFG_PHYSOFTRST	(1 << 31)
 #define DWC3_GUSB2PHYCFG_SUSPHY		(1 << 6)
+#define DWC3_GUSB2PHYCFG_ENBLSLPM	(1 << 8)
 
 /* Global USB3 PIPE Control Register */
 #define DWC3_GUSB3PIPECTL_PHYSOFTRST	(1 << 31)
@@ -657,6 +658,8 @@ struct dwc3_scratchpad_array {
  * @hwparams: copy of hwparams registers
  * @root: debugfs root folder pointer
  * @u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
+ * @dis_enblslpm_quirk: set if we clear enblslpm in GUSB2PHYCFG,
+ *                      disabling the suspend signal to the PHY.
  */
 struct dwc3 {
 	struct usb_ctrlrequest	*ctrl_req;
@@ -751,6 +754,7 @@ struct dwc3 {
 	u8			test_mode;
 	u8			test_mode_nr;
 	unsigned		u2ss_inp3_quirk:1;
+	unsigned		dis_enblslpm_quirk:1;
 };
 
 /* -------------------------------------------------------------------------- */

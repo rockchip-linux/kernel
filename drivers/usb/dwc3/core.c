@@ -310,6 +310,9 @@ static void dwc3_phy_setup(struct dwc3 *dwc)
 	if (dwc->revision > DWC3_REVISION_194A)
 		reg |= DWC3_GUSB2PHYCFG_SUSPHY;
 
+	if (dwc->dis_enblslpm_quirk)
+		reg &= ~DWC3_GUSB2PHYCFG_ENBLSLPM;
+
 	dwc3_writel(dwc->regs, DWC3_GUSB2PHYCFG(0), reg);
 }
 
@@ -481,6 +484,8 @@ static int dwc3_probe(struct platform_device *pdev)
 
 		dwc->u2ss_inp3_quirk = of_property_read_bool(node,
 				"snps,u2ss_inp3_quirk");
+		dwc->dis_enblslpm_quirk = of_property_read_bool(node,
+				"snps,dis_enblslpm_quirk");
 	} else if (pdata) {
 		dwc->maximum_speed = pdata->maximum_speed;
 
@@ -488,6 +493,7 @@ static int dwc3_probe(struct platform_device *pdev)
 		dwc->dr_mode = pdata->dr_mode;
 
 		dwc->u2ss_inp3_quirk = pdata->u2ss_inp3_quirk;
+		dwc->dis_enblslpm_quirk = pdata->dis_enblslpm_quirk;
 	}
 
 	/* default to superspeed if no maximum_speed passed */
