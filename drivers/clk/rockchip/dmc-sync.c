@@ -22,6 +22,32 @@ static DEFINE_MUTEX(sync_lock);
 static DEFINE_MUTEX(en_lock);
 static int num_wait;
 static int num_disable;
+static bool timeout_disabled;
+
+/**
+ * rockchip_dmc_disable_timeout - Quit observing timeouts given by the notifiers
+ * in the sync chain.
+ */
+void rockchip_dmc_disable_timeout(void)
+{
+	mutex_lock(&sync_lock);
+	WARN_ON(timeout_disabled);
+	timeout_disabled = true;
+	mutex_unlock(&sync_lock);
+}
+
+/**
+ * rockchip_dmc_enable_timeout - Start observing timeouts given by the notifiers
+ * in the sync chain. Should be used after a call to
+ * rockchip_dmc_disable_timeout.
+ */
+void rockchip_dmc_enable_timeout(void)
+{
+	mutex_lock(&sync_lock);
+	WARN_ON(!timeout_disabled);
+	timeout_disabled = false;
+	mutex_unlock(&sync_lock);
+}
 
 /**
  * rockchip_dmc_lock - Lock the sync notifiers.
@@ -37,9 +63,11 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_lock);
  */
 void rockchip_dmc_wait(ktime_t *timeout)
 {
+	WARN_ON(!mutex_is_locked(&sync_lock));
 	/* Set a default timeout. */
 	*timeout = ktime_add_ns(ktime_get(), DMC_DEFAULT_TIMEOUT_NS);
-	raw_notifier_call_chain(&sync_chain, 0, timeout);
+	if (!timeout_disabled)
+		raw_notifier_call_chain(&sync_chain, 0, timeout);
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_wait);
 
