@@ -216,6 +216,12 @@ static int rk3288_dmcfreq_get_dev_status(struct device *dev,
 	return 0;
 }
 
+static int rk3288_dmcfreq_get_cur_freq(struct device *dev, unsigned long *freq)
+{
+	*freq = dmcfreq.rate;
+	return 0;
+}
+
 static void rk3288_dmcfreq_exit(struct device *dev)
 {
 	devfreq_unregister_opp_notifier(dmcfreq.clk_dev, dmcfreq.devfreq);
@@ -235,6 +241,7 @@ static struct devfreq_dev_profile rk3288_devfreq_dmc_profile = {
 	.polling_ms	= 200,
 	.target		= rk3288_dmcfreq_target,
 	.get_dev_status	= rk3288_dmcfreq_get_dev_status,
+	.get_cur_freq	= rk3288_dmcfreq_get_cur_freq,
 	.exit		= rk3288_dmcfreq_exit,
 	.freq_table	= rk3288_dmc_rates,
 	.max_state	= ARRAY_SIZE(rk3288_dmc_rates),
