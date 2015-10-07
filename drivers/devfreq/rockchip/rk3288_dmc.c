@@ -303,6 +303,8 @@ static void rk3288_dmcfreq_work(struct work_struct *work)
 		dev_err(dev,
 			"Unable to set freq %lu. Current freq %lu. Error %d\n",
 			target_rate, old_clk_rate, err);
+		if (!err)
+			err = -ETIMEDOUT;
 		regulator_set_voltage(dmcfreq.vdd_logic, volt, volt);
 		goto out;
 	}
@@ -345,7 +347,11 @@ static int rk3288_dmc_enable_notify(struct notifier_block *nb,
 		rk3288_dmc_stop_hardware_counter();
 		if (dmcfreq.dmc_disable_rate)
 			freq = dmcfreq.dmc_disable_rate;
-		rk3288_dmcfreq_target(dmcfreq.clk_dev, &freq, 0);
+		if (rk3288_dmcfreq_target(dmcfreq.clk_dev, &freq, 0) < 0) {
+			rockchip_dmc_disable_timeout();
+			rk3288_dmcfreq_target(dmcfreq.clk_dev, &freq, 0);
+			rockchip_dmc_enable_timeout();
+		}
 		return NOTIFY_OK;
 	}
 
