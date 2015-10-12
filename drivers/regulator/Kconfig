@@ -497,6 +497,17 @@ config REGULATOR_TPS51632
 	  The voltage output can be configure through I2C interface or PWM
 	  interface.
 
+config REGULATOR_TPS56X
+	tristate "TI TPS56X Power Regulator"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  This driver supports TPS56X voltage regulator chip.
+	  The TPS56X is 3-2-1 Phase D-Cap+ Step Down Driverless Controller
+	  with Serial VID control and DVFS.
+	  The voltage output can be configure through I2C interface or PWM
+	  interface.
+
 config REGULATOR_TPS6105X
 	tristate "TI TPS6105X Power regulators"
 	depends on TPS6105X
