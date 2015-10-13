@@ -45,10 +45,10 @@
 	compatible = "rockchip,rk3288-evb-act8846", "rockchip,rk3288";
 
 	sound {
-		compatible = "rockchip,rockchip-audio-rt5631";
-		rockchip,model = "I2S-RT5631";
+		compatible = "rockchip,rockchip-audio-rt5640";
+		rockchip,model = "I2S-RT5640";
 		rockchip,i2s-controller = <&i2s>;
-		rockchip,audio-codec = <&rt5631>;
+		rockchip,audio-codec = <&rt5640>;
 	};
 };
 
@@ -212,8 +212,25 @@
 &i2c2 {
 	status = "okay";
 
-	rt5631: rt5631@1a {
-		compatible = "realtek,rt5631";
-		reg = <0x1a>;
+	rt5640: rt5640@1c {
+		compatible = "realtek,rt5640";
+		reg = <0x1c>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&int_codec>;
+	};
+};
+
+&pinctrl {
+	codec {
+		/*
+		 * HACK: We're going to _pull down_ this _active low_ interrupt
+		 * so that it never fires.  We don't need this interrupt because
+		 * we've got a ts3a227e chip but the driver requires it.
+		 */
+		int_codec: int-codec {
+			rockchip,pins = <6 7 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
 	};
 };
