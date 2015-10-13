@@ -2092,6 +2092,8 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 		return -ENODEV;
 	}
 
+	dev_info(&i2c->dev, "Device with ID register %x is OK!\n", val);
+
 	regmap_write(rt5640->regmap, RT5640_RESET, 0);
 
 	ret = regmap_register_patch(rt5640->regmap, init_list,

@@ -219,6 +219,8 @@
 		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&int_codec>;
+
+		realtek,ldo1-en-gpios = <&gpio7 9 GPIO_ACTIVE_HIGH>;
 	};
 };
 
