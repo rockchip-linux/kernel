@@ -43,8 +43,12 @@ static const struct snd_soc_dapm_widget rk_dapm_widgets[] = {
 
 static const struct snd_soc_dapm_route rk_audio_map[] = {
 	/* Input Lines */
-	// {"HPOR", NULL, "Headset Mic"},
-	// {"HPOL", NULL, "Int Mic"},
+	{"IN1P", NULL, "Headset Mic"},
+	{"IN1N", NULL, "Headset Mic"},
+	{"Headset Mic", NULL, "MICBIAS1"},
+	{"IN2P", NULL, "Int Mic"},
+	{"IN2P", NULL, "Int Mic"},
+	{"Int Mic", NULL, "MICBIAS1"},
 
 	/* Output Lines */
 	{"Headphones", NULL, "HPOL"},
@@ -84,6 +88,9 @@ static int rk_aif1_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -EINVAL;
 	}
+
+	printk("%s -- 7788 line = %d, mclk = %d hz, params_rate = %d hz\n",
+			__func__, __LINE__, mclk, params_rate(params));
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, mclk,
 				     SND_SOC_CLOCK_OUT);
