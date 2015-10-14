@@ -20,3 +20,8 @@ config ARCH_ROCKCHIP
 	help
 	  Support for Rockchip's Cortex-A9 Single-to-Quad-Core-SoCs
 	  containing the RK2928, RK30xx and RK31xx series.
+
+config RK_VCODEC
+    tristate "VCODEC (VPU HEVC) service driver in kernel"
+    depends on ARCH_ROCKCHIP
+    default y

@@ -1,5 +1,5 @@
 /*
- * drivers/staging/android/ion/ion_carveout_heap.c
+ * drivers/gpu/ion/ion_carveout_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
  *
@@ -157,6 +157,8 @@ struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 
 	page = pfn_to_page(PFN_DOWN(heap_data->base));
 	size = heap_data->size;
+
+	printk("%s: %zx@%lx\n", __func__, size, heap_data->base);
 
 	ion_pages_sync_for_device(NULL, page, size, DMA_BIDIRECTIONAL);
 

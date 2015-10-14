@@ -1,5 +1,5 @@
 /*
- * drivers/staging/android/ion/compat_ion.c
+ * drivers/gpu/ion/compat_ion.c
  *
  * Copyright (C) 2013 Google, Inc.
  *

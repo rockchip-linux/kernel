@@ -5,3 +5,6 @@ obj-$(CONFIG_SMP) += headsmp.o platsmp.o
 obj-y += call_with_mmu_disabled.o
 
 obj-y += embedded/
+
+obj-y += cpu.o
+obj-$(CONFIG_RK_VCODEC) += vcodec_service.o

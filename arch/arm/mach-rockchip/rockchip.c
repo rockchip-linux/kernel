@@ -16,9 +16,11 @@
  */
 
 #include <linux/kernel.h>
-#include <linux/clk.h>
 #include <linux/init.h>
 #include <linux/of_platform.h>
+#include <linux/of_fdt.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/irqchip.h>
 #include <linux/memblock.h>
 #include <asm/mach/arch.h>
@@ -27,92 +29,31 @@
 #include "core.h"
 #include "pm.h"
 
-static void __iomem *rockchip_cpu_debug[4];
-static struct clk *pclk_dbg;
-static struct clk *pclk_core_niu;
-
-#define RK3288_DEBUG_PA_CPU(x)		(0xffbb0000 + (x * 0x2000))
-#define CPU_DBGPCSR			0xa0
-#define NUM_CPU_SAMPLES			100
-#define NUM_SAMPLES_TO_PRINT		32
-
-int rockchip_panic_notify(struct notifier_block *nb, unsigned long event,
-			 void *p)
-{
-	unsigned long dbgpcsr;
-	int i, j;
-	void *pc = NULL;
-	void *prev_pc = NULL;
-	int printed = 0;
-
-	clk_enable(pclk_dbg);
-	clk_enable(pclk_core_niu);
-
-	for_each_online_cpu(i) {
-		/* No need to print something in rockchip_panic_notify() */
-		if (smp_processor_id() == i)
-			continue;
-
-		/* Try to read a bunch of times if CPU is actually running */
-		for (j = 0; j < NUM_CPU_SAMPLES &&
-			    printed < NUM_SAMPLES_TO_PRINT; j++) {
-			dbgpcsr = readl_relaxed(rockchip_cpu_debug[i] +
-						CPU_DBGPCSR);
-
-			/* NOTE: no offset on A17; see DBGDEVID1.PCSROffset */
-			pc = (void *)(dbgpcsr & ~1);
-
-			if (pc != prev_pc) {
-				pr_err("CPU%d PC: <%p> %pF\n", i, pc, pc);
-				printed++;
-			}
-			prev_pc = pc;
-		}
-	}
-	return NOTIFY_OK;
-}
-
-struct notifier_block rockchip_panic_nb = {
-	.notifier_call = rockchip_panic_notify,
-	.priority = INT_MAX,
-};
-
-static void __init rockchip_panic_init(void)
-{
-	int i;
-
-	/* These two clocks appear to be needed to access regs */
-	pclk_dbg = clk_get(NULL, "pclk_dbg");
-	if (WARN_ON(IS_ERR(pclk_dbg)))
-		return;
-	clk_prepare(pclk_dbg);
-
-	pclk_core_niu = clk_get(NULL, "pclk_core_niu");
-	if (WARN_ON(IS_ERR(pclk_core_niu)))
-		return;
-	clk_prepare(pclk_core_niu);
-
-	for (i = 0; i < 4; i++)
-		rockchip_cpu_debug[i] = ioremap(RK3288_DEBUG_PA_CPU(i), SZ_4K);
-
-	atomic_notifier_chain_register(&panic_notifier_list,
-				       &rockchip_panic_nb);
-}
-
 static void __init rockchip_dt_init(void)
 {
 	l2x0_of_init(0, ~0UL);
 	rockchip_suspend_init();
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	platform_device_register_simple("cpufreq-cpu0", 0, NULL, 0);
-
-	/* HACKY (and rk3288-specific) panic notifier */
-	rockchip_panic_init();
 }
 
+extern struct ion_platform_data ion_pdata;
+extern void __init ion_reserve(struct ion_platform_data *data);
+extern int __init rockchip_ion_find_heap(unsigned long node,
+				const char *uname, int depth, void *data);
+void __init rockchip_ion_reserve(void)
+{
+#ifdef CONFIG_ION_ROCKCHIP
+	printk("%s\n", __func__);
+	of_scan_flat_dt(rockchip_ion_find_heap, (void*)&ion_pdata);
+	ion_reserve(&ion_pdata);
+#endif
+}
 static void __init rockchip_memory_init(void)
 {
 	memblock_reserve(0xfe000000, 0x1000000);
+	/* reserve memory for ION */
+	rockchip_ion_reserve();
 }
 
 static const char * const rockchip_board_dt_compat[] = {

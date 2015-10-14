@@ -1,5 +1,5 @@
 /*
- * drivers/staging/android/ion/ion_system_heap.c
+ * drivers/gpu/ion/ion_system_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
  *
@@ -23,6 +23,9 @@
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#ifdef CONFIG_ROCKCHIP_IOVMMU
+#include <linux/rockchip-iovmm.h>
+#endif
 #include "ion.h"
 #include "ion_priv.h"
 
@@ -90,7 +93,7 @@ static void free_buffer_page(struct ion_system_heap *heap,
 {
 	bool cached = ion_buffer_cached(buffer);
 
-	if (!cached) {
+	if (!cached && !(buffer->private_flags & ION_PRIV_FLAG_SHRINKER_FREE)) {
 		struct ion_page_pool *pool = heap->pools[order_to_index(order)];
 		ion_page_pool_free(pool, page);
 	} else {
@@ -209,7 +212,7 @@ static void ion_system_heap_free(struct ion_buffer *buffer)
 
 	/* uncached pages come from the page pools, zero them before returning
 	   for security purposes (other allocations are zerod at alloc time */
-	if (!cached)
+	if (!cached && !(buffer->private_flags & ION_PRIV_FLAG_SHRINKER_FREE))
 		ion_heap_buffer_zero(buffer);
 
 	for_each_sg(table->sgl, sg, table->nents, i)
@@ -231,6 +234,57 @@ static void ion_system_heap_unmap_dma(struct ion_heap *heap,
 	return;
 }
 
+static int ion_system_heap_shrink(struct ion_heap *heap, gfp_t gfp_mask,
+					int nr_to_scan)
+{
+	struct ion_system_heap *sys_heap;
+	int nr_total = 0;
+	int i;
+
+	sys_heap = container_of(heap, struct ion_system_heap, heap);
+
+	for (i = 0; i < num_orders; i++) {
+		struct ion_page_pool *pool = sys_heap->pools[i];
+		nr_total += ion_page_pool_shrink(pool, gfp_mask, nr_to_scan);
+	}
+
+	return nr_total;
+}
+
+#ifdef CONFIG_ROCKCHIP_IOVMMU
+// get device's vaddr
+static int ion_system_map_iommu(struct ion_buffer *buffer,
+				struct device *iommu_dev,
+				struct ion_iommu_map *data,
+				unsigned long iova_length,
+				unsigned long flags)
+{
+	int ret = 0;
+	struct sg_table *table = (struct sg_table*)buffer->priv_virt;
+
+	data->iova_addr = rockchip_iovmm_map(iommu_dev, table->sgl, 0, iova_length);
+	pr_debug("%s: map %lx -> %lx\n", __func__, (unsigned long)table->sgl->dma_address, data->iova_addr);
+	if (IS_ERR_VALUE(data->iova_addr)) {
+		pr_err("%s: rockchip_iovmm_map() failed: %lx\n", __func__, data->iova_addr);
+		ret = data->iova_addr;
+		goto out;
+	}
+
+	data->mapped_size = iova_length;
+
+out:
+	return ret;
+}
+
+void ion_system_unmap_iommu(struct device *iommu_dev, struct ion_iommu_map *data)
+{
+	pr_debug("%s: unmap %x@%lx\n", __func__, data->mapped_size, data->iova_addr);
+	rockchip_iovmm_unmap(iommu_dev, data->iova_addr);
+
+	return;
+}
+#endif
+
 static struct ion_heap_ops system_heap_ops = {
 	.allocate = ion_system_heap_allocate,
 	.free = ion_system_heap_free,
@@ -239,66 +293,12 @@ static struct ion_heap_ops system_heap_ops = {
 	.map_kernel = ion_heap_map_kernel,
 	.unmap_kernel = ion_heap_unmap_kernel,
 	.map_user = ion_heap_map_user,
+	.shrink = ion_system_heap_shrink,
+#ifdef CONFIG_ROCKCHIP_IOVMMU
+	.map_iommu = ion_system_map_iommu,
+	.unmap_iommu = ion_system_unmap_iommu,
+#endif
 };
-
-static unsigned long ion_system_heap_shrink_count(struct shrinker *shrinker,
-				  struct shrink_control *sc)
-{
-	struct ion_heap *heap = container_of(shrinker, struct ion_heap,
-					     shrinker);
-	struct ion_system_heap *sys_heap = container_of(heap,
-							struct ion_system_heap,
-							heap);
-	int nr_total = 0;
-	int i;
-
-	/* total number of items is whatever the page pools are holding
-	   plus whatever's in the freelist */
-	for (i = 0; i < num_orders; i++) {
-		struct ion_page_pool *pool = sys_heap->pools[i];
-		nr_total += ion_page_pool_shrink(pool, sc->gfp_mask, 0);
-	}
-	nr_total += ion_heap_freelist_size(heap) / PAGE_SIZE;
-	return nr_total;
-
-}
-
-static unsigned long ion_system_heap_shrink_scan(struct shrinker *shrinker,
-				  struct shrink_control *sc)
-{
-
-	struct ion_heap *heap = container_of(shrinker, struct ion_heap,
-					     shrinker);
-	struct ion_system_heap *sys_heap = container_of(heap,
-							struct ion_system_heap,
-							heap);
-	int nr_freed = 0;
-	int i;
-
-	if (sc->nr_to_scan == 0)
-		goto end;
-
-	/* shrink the free list first, no point in zeroing the memory if
-	   we're just going to reclaim it */
-	nr_freed += ion_heap_freelist_drain(heap, sc->nr_to_scan * PAGE_SIZE) /
-		PAGE_SIZE;
-
-	if (nr_freed >= sc->nr_to_scan)
-		goto end;
-
-	for (i = 0; i < num_orders; i++) {
-		struct ion_page_pool *pool = sys_heap->pools[i];
-
-		nr_freed += ion_page_pool_shrink(pool, sc->gfp_mask,
-						 sc->nr_to_scan);
-		if (nr_freed >= sc->nr_to_scan)
-			break;
-	}
-
-end:
-	return nr_freed;
-
-}
 
 static int ion_system_heap_debug_show(struct ion_heap *heap, struct seq_file *s,
 				      void *unused)
@@ -347,11 +347,6 @@ struct ion_heap *ion_system_heap_create(struct ion_platform_heap *unused)
 		heap->pools[i] = pool;
 	}
 
-	heap->heap.shrinker.scan_objects = ion_system_heap_shrink_scan;
-	heap->heap.shrinker.count_objects = ion_system_heap_shrink_count;
-	heap->heap.shrinker.seeks = DEFAULT_SEEKS;
-	heap->heap.shrinker.batch = 0;
-	register_shrinker(&heap->heap.shrinker);
 	heap->heap.debug_show = ion_system_heap_debug_show;
 	return &heap->heap;
 err_create_pool:
