@@ -32,7 +32,8 @@
 
 #define DRV_NAME "rockchip-snd-rt5640"
 
-static struct snd_soc_jack headset_jack;
+static struct snd_soc_jack headphone_jack;
+static struct snd_soc_jack mic_jack;
 
 static const struct snd_soc_dapm_widget rk_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Headphones", NULL),
@@ -89,7 +90,7 @@ static int rk_aif1_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	printk("%s -- 7788 line = %d, mclk = %d hz, params_rate = %d hz\n",
+	printk("%s -- line = %d, mclk = %d hz, params_rate = %d hz\n",
 			__func__, __LINE__, mclk, params_rate(params));
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, mclk,
@@ -114,15 +115,24 @@ static int rk_init(struct snd_soc_pcm_runtime *runtime)
 	struct snd_soc_codec *codec = runtime->codec;
 	int ret;
 
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
 	/* Enable Headset and 4 Buttons Jack detection */
-	ret = snd_soc_jack_new(codec, "Headset Jack",
-			       SND_JACK_HEADPHONE | SND_JACK_MICROPHONE |
-			       SND_JACK_BTN_0 | SND_JACK_BTN_1 |
-			       SND_JACK_BTN_2 | SND_JACK_BTN_3,
-			       &headset_jack);
+	ret = snd_soc_jack_new(codec, "Headphone Jack",
+			       SND_JACK_HEADPHONE,
+			       &headphone_jack);
 
 	if (ret) {
-		dev_err(codec->dev, "New Headset Jack failed! (%d)\n", ret);
+		dev_err(codec->dev, "New Headphone Jack failed! (%d)\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_jack_new(codec, "Mic Jack",
+			       SND_JACK_MICROPHONE,
+			       &mic_jack);
+
+	if (ret) {
+		dev_err(codec->dev, "New Mic Jack failed! (%d)\n", ret);
 		return ret;
 	}
 
@@ -149,7 +159,8 @@ static struct snd_soc_dai_link rk_dailink = {
 };
 
 static struct snd_soc_card snd_soc_card_rk = {
-	.name = "I2S-RT5640",
+	// .name = "I2S-RT5640",
+	.name = "DAISY-I2S",
 	.owner = THIS_MODULE,
 	.dai_link = &rk_dailink,
 	.num_links = 1,
