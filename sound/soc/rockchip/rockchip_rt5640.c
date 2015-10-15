@@ -32,6 +32,9 @@
 
 #define DRV_NAME "rockchip-snd-rt5640"
 
+static void rt5640_headphone_detect(void);
+static void rt5640_mic_detect(void);
+
 static struct gpio_desc *hpdet_gpiod;
 static struct gpio_desc *micdet_gpiod;
 
@@ -145,14 +148,11 @@ static int rk_init(struct snd_soc_pcm_runtime *runtime)
 	snd_soc_dapm_enable_pin(&codec->dapm, "Int Mic");
 	snd_soc_dapm_sync(&codec->dapm);
 
-	/* detect headphone and mic startup */
-	queue_delayed_work(system_power_efficient_wq,
-			   &hp_detect_work, msecs_to_jiffies(0));
-
-	queue_delayed_work(system_power_efficient_wq,
-			   &mic_detect_work, msecs_to_jiffies(0));
-
 	g_mc_codec = codec;
+
+	/* detect headphone and mic startup */
+	rt5640_headphone_detect();
+	rt5640_mic_detect();
 
 	return 0;
 }
@@ -186,11 +186,11 @@ static struct snd_soc_card snd_soc_card_rk = {
 	.num_controls = ARRAY_SIZE(rk_mc_controls),
 };
 
-static void rt5640_headphone_detect_work(struct work_struct *work)
+static void rt5640_headphone_detect(void)
 {
 	int level = gpiod_get_value(hpdet_gpiod);
 	struct snd_soc_codec *codec = g_mc_codec;
-
+	
 	printk("%s -- line = %d, level = %d\n", __func__, __LINE__, level);
 
 	if (level) {
@@ -202,9 +202,10 @@ static void rt5640_headphone_detect_work(struct work_struct *work)
 	}
 
 	snd_soc_dapm_sync(&codec->dapm);
+
 }
 
-static void rt5640_mic_detect_work(struct work_struct *work)
+static void rt5640_mic_detect(void)
 {
 	int level = gpiod_get_value(micdet_gpiod);
 	struct snd_soc_codec *codec = g_mc_codec;
@@ -216,7 +217,18 @@ static void rt5640_mic_detect_work(struct work_struct *work)
 	} else {
 		snd_soc_dapm_enable_pin(&codec->dapm, "Int Mic");
 	}
+
 	snd_soc_dapm_sync(&codec->dapm);
+}
+
+static void rt5640_headphone_detect_work(struct work_struct *work)
+{
+	rt5640_headphone_detect();
+}
+
+static void rt5640_mic_detect_work(struct work_struct *work)
+{
+	rt5640_mic_detect();
 }
 
 static irqreturn_t headphone_detect_irq(int irq, void *dev_id)
