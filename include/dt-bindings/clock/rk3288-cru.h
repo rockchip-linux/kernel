@@ -83,6 +83,7 @@
 #define SCLK_USBPHY480M_SRC	122
 #define SCLK_PVTM_CORE		123
 #define SCLK_PVTM_GPU		124
+#define SCLK_HSIC_12M		125
 
 #define SCLK_MAC		151
 #define SCLK_MACREF_OUT		152

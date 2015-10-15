@@ -458,12 +458,14 @@
 	};
 
 	usb_hsic: usb@ff5c0000 {
-		compatible = "generic-ehci";
+		compatible = "generic-ehci", "rockchip,hsic";
 		reg = <0xff5c0000 0x100>;
 		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&cru HCLK_HSIC>;
-		clock-names = "usbhost";
-		status = "disabled";
+		clocks = <&cru HCLK_HSIC>, <&cru SCLK_HSIC_12M>,
+			 <&cru SCLK_HSICPHY480M>,
+			 <&cru SCLK_USBPHY480M_SRC>;
+		clock-names = "usbhost", "hsic_12m", "hsicphy_480m",
+			      "hsicphy_480_src";
 	};
 
 	dmc: dmc@ff610000 {

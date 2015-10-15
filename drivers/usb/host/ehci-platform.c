@@ -36,7 +36,7 @@
 #include "ehci.h"
 
 #define DRIVER_DESC "EHCI generic platform driver"
-#define EHCI_MAX_CLKS 3
+#define EHCI_MAX_CLKS 4
 #define hcd_to_ehci_priv(h) ((struct ehci_platform_priv *)hcd_to_ehci(h)->priv)
 
 struct ehci_platform_priv {
@@ -292,6 +292,13 @@ static int ehci_platform_probe(struct platform_device *dev)
 
 	device_wakeup_enable(hcd->self.controller);
 	platform_set_drvdata(dev, hcd);
+
+	if (of_device_is_compatible(dev->dev.of_node, "rockchip,hsic")) {
+		writel_relaxed(1, hcd->regs + 0xb0);
+		writel_relaxed(0x1d4d, hcd->regs + 0x90);
+		writel_relaxed(0x4, hcd->regs + 0xa0);
+		dsb();
+	}
 
 	return err;
 

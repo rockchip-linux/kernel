@@ -35,6 +35,8 @@
 #define SIDDQ_WRITE_ENA	BIT(29)
 #define SIDDQ_ON		BIT(13)
 #define SIDDQ_OFF		(0 << 13)
+#define COMMON_ON_WRITE_ENA	BIT(16)
+#define COMMON_ON		0
 
 struct rockchip_usb_phy {
 	unsigned int	reg_offset;
@@ -131,12 +133,14 @@ static int rockchip_usb_phy_probe(struct platform_device *pdev)
 		}
 		phy_set_drvdata(rk_phy->phy, rk_phy);
 
+		/* Enable 480M clk */
+		regmap_write(grf, reg_offset, COMMON_ON_WRITE_ENA | COMMON_ON);
+
 		/* only power up usb phy when it use, so disable it when init*/
 		err = rockchip_usb_phy_power(rk_phy, 1);
 		if (err)
 			return err;
 	}
-
 	phy_provider = devm_of_phy_provider_register(dev, of_phy_simple_xlate);
 	return PTR_ERR_OR_ZERO(phy_provider);
 }
