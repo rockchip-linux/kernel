@@ -32,13 +32,6 @@
 
 #define DRV_NAME "rockchip-snd-rt5640"
 
-extern int rt5640_reg_speaker_enable(void);
-extern int rt5640_reg_speaker_disable(void);
-extern int rt5640_reg_headphone_enable(void);
-extern int rt5640_reg_headphone_disable(void);
-extern int rt5640_reg_mic_enable(void);
-extern int rt5640_reg_mic_disable(void);
-
 static struct gpio_desc *hpdet_gpiod;
 static struct gpio_desc *micdet_gpiod;
 
@@ -130,8 +123,6 @@ static int rk_init(struct snd_soc_pcm_runtime *runtime)
 	struct snd_soc_codec *codec = runtime->codec;
 	int ret;
 
-	printk("%s -- line = %d\n", __func__, __LINE__);
-
 	/* Enable Headset and 4 Buttons Jack detection */
 	ret = snd_soc_jack_new(codec, "Headphone Jack",
 			       SND_JACK_HEADPHONE,
@@ -199,13 +190,9 @@ static void rt5640_headphone_detect_work(struct work_struct *work)
 	printk("%s -- line = %d, level = %d\n", __func__, __LINE__, level);
 
 	if (level) {
-		// rt5640_reg_speaker_disable();
-		// rt5640_reg_headphone_enable();
 		snd_soc_dapm_disable_pin(&codec->dapm, "Speakers");
 		snd_soc_dapm_enable_pin(&codec->dapm, "Headphones");
 	} else {
-		// rt5640_reg_speaker_enable();
-		// rt5640_reg_headphone_disable();
 		snd_soc_dapm_disable_pin(&codec->dapm, "Headphones");
 		snd_soc_dapm_enable_pin(&codec->dapm, "Speakers");
 	}
@@ -221,10 +208,8 @@ static void rt5640_mic_detect_work(struct work_struct *work)
 	printk("%s -- line = %d, level = %d\n", __func__, __LINE__, level);
 
 	if (level) {
-		// rt5640_reg_mic_enable();
 		snd_soc_dapm_disable_pin(&codec->dapm, "Int Mic");
 	} else {
-		// rt5640_reg_mic_disable();
 		snd_soc_dapm_enable_pin(&codec->dapm, "Int Mic");
 	}
 	snd_soc_dapm_sync(&codec->dapm);
@@ -251,9 +236,6 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct snd_soc_card *card = &snd_soc_card_rk;
 	struct device_node *np = pdev->dev.of_node;
-	enum of_gpio_flags flags;
-
-	printk("%s -- line = %d\n", __func__, __LINE__);
 
 	/* register the soc card */
 	card->dev = &pdev->dev;
@@ -290,16 +272,6 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-#if 1
-	// //headset
-	// ret = of_get_named_gpio_flags(np, "rockchip,hp-det-gpios", 0, &flags);
-
-	// hpdet_gpiod = of_get_named_gpio(np,
-	// 				"rockchip,hp-det-gpios", 0);
-
-	printk("%s -- will register gpio irq\n", __func__);
-
-	// hpdet_gpiod = gpiod_get(&pdev->dev, "hpdet");
 	hpdet_gpiod = devm_gpiod_get(&pdev->dev, "hpdet");
 
 	if (IS_ERR(hpdet_gpiod)) {
@@ -311,14 +283,11 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 
 		ret = gpiod_direction_input(hpdet_gpiod); 
 		if (ret < 0) {
-			printk("%s() gpio_direction_input hpdet set ERROR\n", __FUNCTION__);
+			pr_err("%s() gpio_direction_input hpdet set ERROR\n", __func__);
 			goto do_err;
 		}
 
 		INIT_DELAYED_WORK(&hp_detect_work, rt5640_headphone_detect_work);
-
-		// pdata->headset_insert_type = (flags & OF_GPIO_ACTIVE_LOW) ? HEADSET_IN_LOW : HEADSET_IN_HIGH;
-		printk("888 get hpdet_gpiod = %d, flag = %d\n", hpdet_gpiod, flags);
 
 		ret = request_threaded_irq(irq, NULL, headphone_detect_irq,
 			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
@@ -343,13 +312,11 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 
 		ret = gpiod_direction_input(micdet_gpiod);
 		if (ret < 0) {
-			printk("%s() gpio_direction_input micdet set ERROR\n", __FUNCTION__);
+			pr_err("%s() gpio_direction_input micdet set ERROR\n", __func__);
 			goto do_err;
 		}
 
 		INIT_DELAYED_WORK(&mic_detect_work, rt5640_mic_detect_work);
-
-		printk("get micdet_gpiod = %d, flag = %d\n", micdet_gpiod, flags);
 
 		ret = request_threaded_irq(irq, NULL, mic_detect_irq,
 			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
@@ -361,7 +328,6 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 
 		printk("request_threaded_irq micdet_gpiod irq = %d ok\n", irq);
 	}
-#endif
 
 do_err:
 	return ret;
