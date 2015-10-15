@@ -52,9 +52,6 @@ static const struct snd_soc_dapm_widget rk_dapm_widgets[] = {
 
 static const struct snd_soc_dapm_route rk_audio_map[] = {
 	/* Input Lines */
-	{"IN1P", NULL, "Headset Mic"},
-	{"IN1N", NULL, "Headset Mic"},
-	{"Headset Mic", NULL, "MICBIAS1"},
 	{"IN2P", NULL, "Int Mic"},
 	{"IN2P", NULL, "Int Mic"},
 	{"Int Mic", NULL, "MICBIAS1"},
@@ -148,6 +145,13 @@ static int rk_init(struct snd_soc_pcm_runtime *runtime)
 	snd_soc_dapm_enable_pin(&codec->dapm, "Int Mic");
 	snd_soc_dapm_sync(&codec->dapm);
 
+	/* detect headphone and mic startup */
+	queue_delayed_work(system_power_efficient_wq,
+			   &hp_detect_work, msecs_to_jiffies(0));
+
+	queue_delayed_work(system_power_efficient_wq,
+			   &mic_detect_work, msecs_to_jiffies(0));
+
 	g_mc_codec = codec;
 
 	return 0;
@@ -218,7 +222,7 @@ static void rt5640_mic_detect_work(struct work_struct *work)
 static irqreturn_t headphone_detect_irq(int irq, void *dev_id)
 {
 	queue_delayed_work(system_power_efficient_wq,
-			   &hp_detect_work, msecs_to_jiffies(250));
+			   &hp_detect_work, msecs_to_jiffies(100));
 
 	return IRQ_HANDLED;
 }
@@ -226,7 +230,7 @@ static irqreturn_t headphone_detect_irq(int irq, void *dev_id)
 static irqreturn_t mic_detect_irq(int irq, void *dev_id)
 {
 	queue_delayed_work(system_power_efficient_wq,
-			   &mic_detect_work, msecs_to_jiffies(250));
+			   &mic_detect_work, msecs_to_jiffies(100));
 
 	return IRQ_HANDLED;
 }
