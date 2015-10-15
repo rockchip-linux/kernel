@@ -40,6 +40,8 @@
 
 #define RT5640_PR_BASE (RT5640_PR_RANGE_BASE + (0 * RT5640_PR_SPACING))
 
+static struct snd_soc_codec *g_codec;
+
 static const struct regmap_range_cfg rt5640_ranges[] = {
 	{ .name = "PR", .range_min = RT5640_PR_BASE,
 	  .range_max = RT5640_PR_BASE + 0xb4,
@@ -1860,11 +1862,188 @@ static int rt5640_set_bias_level(struct snd_soc_codec *codec,
 	return 0;
 }
 
+struct rt5640_init_reg {
+	u8 reg;
+	u16 val;
+};
+
+static struct rt5640_init_reg pre_init_list[] = {
+	/*playback*/
+	{RT5640_STO_DAC_MIXER	, 0x1414},//Dig inf 1 -> Sto DAC mixer -> DACL
+	{RT5640_OUT_L3_MIXER	, 0x01fe},//DACL1 -> OUTMIXL
+	{RT5640_OUT_R3_MIXER	, 0x01fe},//DACR1 -> OUTMIXR
+	{RT5640_HP_VOL		, 0x8888},//OUTMIX -> HPVOL
+	{RT5640_HPO_MIXER	, 0xc000},//HPVOL -> HPOLMIX
+	{RT5640_SPK_L_MIXER	, 0x0036},//DACL1 -> SPKMIXL
+	{RT5640_SPK_R_MIXER	, 0x0036},//DACR1 -> SPKMIXR
+	{RT5640_SPK_VOL		, 0x8888},//SPKMIX -> SPKVOL
+	{RT5640_SPO_L_MIXER	, 0xe800},//SPKVOLL -> SPOLMIX
+	{RT5640_SPO_R_MIXER	, 0x2800},//SPKVOLR -> SPORMIX
+	/*record*/
+	{RT5640_IN1_IN2		, 0x5080},//IN1 boost 40db and signal ended mode
+	{RT5640_IN3_IN4		, 0x0540},//IN2 boost 40db and signal ended mode
+	{RT5640_REC_L2_MIXER	, 0x007d},//IN1 -> RECMIXL
+	{RT5640_REC_R2_MIXER	, 0x006f},//IN2 -> RECMIXR
+	{RT5640_STO_ADC_MIXER	, 0x3020},//ADC -> Sto ADC mixer
+};
+#define RT5640_PRE_INIT_LEN ARRAY_SIZE(pre_init_list)
+
+static int rt5640_reg_pre_init(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s --3333  line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_PRE_INIT_LEN; i++)
+		snd_soc_write(codec, pre_init_list[i].reg, pre_init_list[i].val);
+
+	return 0;
+}
+
+#if 0
+static struct rt5640_init_reg spk_en_list[] = {
+	/* speaker enable */
+	{RT5640_STO_DAC_MIXER	, 0x1414},//Dig inf 1 -> Sto DAC mixer -> DACL
+	{RT5640_OUT_L3_MIXER	, 0x01fe},//DACL1 -> OUTMIXL
+	{RT5640_OUT_R3_MIXER	, 0x01fe},//DACR1 -> OUTMIXR
+	{RT5640_SPK_L_MIXER	, 0x0036},//DACL1 -> SPKMIXL
+	{RT5640_SPK_R_MIXER	, 0x0036},//DACR1 -> SPKMIXR
+	{RT5640_SPK_VOL		, 0x8888},//SPKMIX -> SPKVOL
+	{RT5640_SPO_L_MIXER	, 0xe800},//SPKVOLL -> SPOLMIX
+	{RT5640_SPO_R_MIXER	, 0x2800},//SPKVOLR -> SPORMIX
+};
+#define RT5640_SPK_EN_LEN ARRAY_SIZE(spk_en_list)
+
+static struct rt5640_init_reg spk_dis_list[] = {
+	/* speaker disable */
+
+};
+#define RT5640_SPK_DIS_LEN ARRAY_SIZE(spk_dis_list)
+
+static struct rt5640_init_reg hp_en_list[] = {
+	/* headphone enable */
+	{RT5640_STO_DAC_MIXER	, 0x1414},//Dig inf 1 -> Sto DAC mixer -> DACL
+	{RT5640_OUT_L3_MIXER	, 0x01fe},//DACL1 -> OUTMIXL
+	{RT5640_OUT_R3_MIXER	, 0x01fe},//DACR1 -> OUTMIXR
+	{RT5640_HP_VOL		, 0x8888},//OUTMIX -> HPVOL
+	{RT5640_HPO_MIXER	, 0xc000},//HPVOL -> HPOLMIX
+};
+#define RT5640_HP_EN_LEN ARRAY_SIZE(hp_en_list)
+
+static struct rt5640_init_reg hp_dis_list[] = {
+	/* headphone disable */
+
+};
+#define RT5640_HP_DIS_LEN ARRAY_SIZE(hp_dis_list)
+
+static struct rt5640_init_reg mic_en_list[] = {
+	/* mic enable */
+	{RT5640_IN1_IN2		, 0x5000},//IN1 boost 40db and signal ended mode
+	{RT5640_IN3_IN4		, 0x0500},//IN2 boost 40db and signal ended mode
+	{RT5640_REC_L2_MIXER	, 0x007d},//IN1 -> RECMIXL
+	{RT5640_REC_R2_MIXER	, 0x006f},//IN2 -> RECMIXR
+	{RT5640_STO_ADC_MIXER	, 0x3020},//ADC -> Sto ADC mixer
+};
+#define RT5640_MIC_EN_LEN ARRAY_SIZE(mic_en_list)
+
+static struct rt5640_init_reg mic_dis_list[] = {
+	/* mic disable */
+
+};
+#define RT5640_MIC_DIS_LEN ARRAY_SIZE(mic_dis_list)
+
+int rt5640_reg_speaker_enable(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_SPK_EN_LEN; i++)
+		snd_soc_write(codec, spk_en_list[i].reg, spk_en_list[i].val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5640_reg_speaker_enable);
+
+int rt5640_reg_speaker_disable(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_SPK_DIS_LEN; i++)
+		snd_soc_write(codec, spk_dis_list[i].reg, spk_dis_list[i].val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5640_reg_speaker_disable);
+
+int rt5640_reg_headphone_enable(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_HP_EN_LEN; i++)
+		snd_soc_write(codec, hp_en_list[i].reg, hp_en_list[i].val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5640_reg_headphone_enable);
+
+int rt5640_reg_headphone_disable(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_HP_DIS_LEN; i++)
+		snd_soc_write(codec, hp_dis_list[i].reg, hp_dis_list[i].val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5640_reg_headphone_disable);
+
+int rt5640_reg_mic_enable(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_MIC_EN_LEN; i++)
+		snd_soc_write(codec, mic_en_list[i].reg, mic_en_list[i].val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5640_reg_mic_enable);
+
+int rt5640_reg_mic_disable(void)
+{
+	struct snd_soc_codec *codec = g_codec;
+	int i;
+
+	printk("%s -- line = %d\n", __func__, __LINE__);
+
+	for (i = 0; i < RT5640_MIC_DIS_LEN; i++)
+		snd_soc_write(codec, mic_dis_list[i].reg, mic_dis_list[i].val);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rt5640_reg_mic_disable);
+#endif
+
 static int rt5640_probe(struct snd_soc_codec *codec)
 {
 	struct rt5640_priv *rt5640 = snd_soc_codec_get_drvdata(codec);
 
 	rt5640->codec = codec;
+	g_codec = codec;
 
 	codec->dapm.idle_bias_off = 1;
 	rt5640_set_bias_level(codec, SND_SOC_BIAS_OFF);
@@ -1872,6 +2051,9 @@ static int rt5640_probe(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, RT5640_DUMMY1, 0x0301, 0x0301);
 	snd_soc_update_bits(codec, RT5640_MICBIAS, 0x0030, 0x0030);
 	snd_soc_update_bits(codec, RT5640_DSP_PATH2, 0xfc00, 0x0c00);
+
+	// rt5640_reg_speaker_enable();
+	rt5640_reg_pre_init();
 
 	return 0;
 }
