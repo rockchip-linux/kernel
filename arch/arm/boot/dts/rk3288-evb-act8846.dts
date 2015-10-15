@@ -50,8 +50,8 @@
 		rockchip,model = "DAISY-I2S";
 		rockchip,i2s-controller = <&i2s>;
 		rockchip,audio-codec = <&rt5640>;
-		rockchip,hp-det-gpios = <&gpio7 6 GPIO_ACTIVE_HIGH>;
-		rockchip,mic-det-gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
+		hpdet-gpios = <&gpio7 6 GPIO_ACTIVE_HIGH>;
+		micdet-gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>, <&mic_det>;
 	};
