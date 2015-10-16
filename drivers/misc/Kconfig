@@ -536,6 +536,11 @@ config UID_CPUTIME
 	help
 	  Per UID based cpu time statistics exported to /proc/uid_cputime
 
+config RK_WIFI_GPIO_RESET
+	bool "Sofia Specific GPIO Control"
+	help
+	  For Sofia Specific GPIO Control.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
