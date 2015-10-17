@@ -213,9 +213,9 @@ static void rt5640_mic_detect(void)
 	printk("%s -- line = %d, level = %d\n", __func__, __LINE__, level);
 
 	if (level) {
-		snd_soc_dapm_disable_pin(&codec->dapm, "Int Mic");
-	} else {
 		snd_soc_dapm_enable_pin(&codec->dapm, "Int Mic");
+	} else {
+		snd_soc_dapm_disable_pin(&codec->dapm, "Int Mic");
 	}
 
 	snd_soc_dapm_sync(&codec->dapm);
