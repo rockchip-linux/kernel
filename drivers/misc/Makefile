@@ -58,4 +58,4 @@ obj-y				+= mic/
 obj-$(CONFIG_GENWQE)		+= genwqe/
 obj-$(CONFIG_GPIO_PROCHOT)		+= gpio-prochot.o
 obj-$(CONFIG_UID_CPUTIME) += uid_cputime.o
-obj-$(CONFIG_RK_WIFI_GPIO_RESET) += wifi-gpio-reset.o
+obj-$(CONFIG_GPIO_RESET) += gpio-reset.o

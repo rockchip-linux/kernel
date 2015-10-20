@@ -536,10 +536,11 @@ config UID_CPUTIME
 	help
 	  Per UID based cpu time statistics exported to /proc/uid_cputime
 
-config RK_WIFI_GPIO_RESET
-	bool "Sofia Specific GPIO Control"
+config GPIO_RESET
+	bool "Reset GPIO Control"
 	help
-	  For Sofia Specific GPIO Control.
+	  For reset GPIO Control, you can use this driver to reset some
+	  gpio, such as wifi_reset, hub reset.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
