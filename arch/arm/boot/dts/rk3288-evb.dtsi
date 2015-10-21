@@ -197,10 +197,9 @@
 		rockchip,model = "DAISY-I2S";
 		rockchip,i2s-controller = <&i2s>;
 		rockchip,audio-codec = <&rt5640>;
-		hpdet-gpios = <&gpio7 6 GPIO_ACTIVE_HIGH>;
-		micdet-gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
+		hpdet-gpios = <&gpio7 7 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&hp_det>, <&mic_det>;
+		pinctrl-0 = <&hp_det>;
 	};
 };
 
@@ -331,6 +330,28 @@
 	};
 };
 
+&i2c4 {
+	status = "okay";
+
+	ts@01 {
+		compatible = "ct,vtl_ts";
+		reg = <0x01>;
+		screen_max_x = <1536>;
+		screen_max_y = <2048>;
+		xy_swap = <1>;
+		x_reverse = <0>;
+		y_reverse = <0>;
+		x_mul = <2>;
+		y_mul = <2>;
+		bin_ver = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vtl_reset &vtl_irq>;
+		interrupt-parent = <&gpio7>;
+		interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
+		vtl,reset-gpios = <&gpio7 5 0>;
+	};
+};
+
 &i2c5 {
 	status = "okay";
 };
@@ -415,11 +436,7 @@
 
 	codec {
 		hp_det: hp-det {
-			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-
-		mic_det: mic-det {
-			rockchip,pins = <8 2 RK_FUNC_GPIO &pcfg_pull_up>;
+			rockchip,pins = <7 7 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
@@ -481,6 +498,16 @@
 	eth_phy {
 		eth_phy_pwr: eth-phy-pwr {
 			rockchip,pins = <0 6 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	touch {
+		vtl_reset: vtl-reset {
+			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		vtl_irq: vtl-irq {
+			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
