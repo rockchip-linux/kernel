@@ -446,6 +446,50 @@ static const struct panel_desc chunghwa_claa101wb01 = {
 	},
 };
 
+static const struct drm_display_mode sdk_klmpk1628tpzz_mode = {
+	.clock = 205000,
+	.vdisplay = 1536,
+	.vsync_start = 1536 + 8,
+	.vsync_end = 1536 + 8 + 8,
+	.vtotal = 1536 + 8 + 8 + 4,
+	.hdisplay = 2048,
+	.hsync_start = 2048 + 48,
+	.hsync_end = 2048 + 48 + 12,
+	.htotal = 2048 + 48 + 12 + 16,
+	.vrefresh = 60,
+};
+
+static const struct drm_display_mode sdk_f402_mode = {
+	.clock = 205000,
+	.vdisplay = 2048,
+	.vsync_start = 2048 + 8,
+	.vsync_end = 2048 + 8 + 8,
+	.vtotal = 2048 + 8 + 8 + 4,
+	.hdisplay = 1536,
+	.hsync_start = 1536 + 48,
+	.hsync_end = 1536 + 48 + 12,
+	.htotal = 1536 + 48 + 12 + 16,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc sdk_klmpk1628tpzz = {
+	.modes = &sdk_klmpk1628tpzz_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 256,
+		.height = 144,
+	},
+};
+
+static const struct panel_desc sdk_f402 = {
+	.modes = &sdk_f402_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 120,
+		.height = 160,
+	},
+};
+
 static const struct drm_display_mode cmn_n116bgeea2_mode = {
 	.clock = 76420,
 	.hdisplay = 1366,
@@ -577,6 +621,12 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "chunghwa,claa101wb01",
 		.data = &chunghwa_claa101wb01
+	}, {
+		.compatible = "sdk,klmpk1628tpzz",
+		.data = &sdk_klmpk1628tpzz,
+	}, {
+		.compatible = "sdk,f402",
+		.data = &sdk_f402,
 	}, {
 		.compatible = "cnm,n116bgeea2",
 		.data = &cmn_n116bgeea2
