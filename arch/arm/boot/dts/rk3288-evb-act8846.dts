@@ -44,33 +44,15 @@
 / {
 	compatible = "rockchip,rk3288-evb-act8846", "rockchip,rk3288";
 
-	sound {
-		compatible = "rockchip,rockchip-audio-rt5640";
-		// rockchip,model = "I2S-RT5640";
-		rockchip,model = "DAISY-I2S";
-		rockchip,i2s-controller = <&i2s>;
-		rockchip,audio-codec = <&rt5640>;
-		hpdet-gpios = <&gpio7 6 GPIO_ACTIVE_HIGH>;
-		micdet-gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
+	vcc_lcd: vcc-lcd {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio7 3 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&hp_det>, <&mic_det>;
+		pinctrl-0 = <&lcd_en>;
+		regulator-name = "vcc_lcd";
+		vin-supply = <&vcc_io>;
 	};
-};
-
-&cpu0 {
-	cpu0-supply = <&vdd_cpu>;
-};
-
-
-&gpu {
-	status = "okay";
-	mali-supply = <&vdd_gpu>;
-};
-
-&i2s {
-	status = "okay";
-	clock-names = "i2s_hclk", "i2s_clk", "i2s_clk_out";
-	clocks = <&cru HCLK_I2S0>, <&cru SCLK_I2S0>, <&cru SCLK_I2S0_OUT>;
 };
 
 &i2c0 {
@@ -132,6 +114,7 @@
 				regulator-min-microvolt = <1200000>;
 				regulator-max-microvolt = <1200000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_io: REG2 {
@@ -139,13 +122,15 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_log: REG3 {
 				regulator-name = "VDD_LOG";
-				regulator-min-microvolt = <1000000>;
-				regulator-max-microvolt = <1000000>;
+				regulator-min-microvolt = <700000>;
+				regulator-max-microvolt = <1500000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_20: REG4 {
@@ -153,6 +138,7 @@
 				regulator-min-microvolt = <2000000>;
 				regulator-max-microvolt = <2000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vccio_sd: REG5 {
@@ -160,6 +146,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd10_lcd: REG6 {
@@ -167,6 +154,7 @@
 				regulator-min-microvolt = <1000000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcca_codec: REG7 {
@@ -174,6 +162,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcca_tp: REG8 {
@@ -181,6 +170,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vccio_pmu: REG9 {
@@ -188,6 +178,7 @@
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vdd_10: REG10 {
@@ -195,6 +186,7 @@
 				regulator-min-microvolt = <1000000>;
 				regulator-max-microvolt = <1000000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc_18: REG11 {
@@ -202,6 +194,7 @@
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 
 			vcc18_lcd: REG12 {
@@ -209,31 +202,16 @@
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
 				regulator-always-on;
+				regulator-boot-on;
 			};
 		};
 	};
 };
 
-&i2c2 {
-	status = "okay";
-
-	rt5640: rt5640@1c {
-		compatible = "realtek,rt5640";
-		reg = <0x1c>;
-		interrupt-parent = <&gpio6>;
-		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
-		realtek,ldo1-en-gpios = <&gpio7 9 GPIO_ACTIVE_HIGH>;
-	};
-};
-
 &pinctrl {
-	codec {
-		hp_det: hp-det {
-			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-
-		mic_det: mic-det {
-			rockchip,pins = <8 2 RK_FUNC_GPIO &pcfg_pull_up>;
+	lcd {
+		lcd_en: lcd-en  {
+			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };

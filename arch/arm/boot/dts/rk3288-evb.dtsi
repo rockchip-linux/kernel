@@ -40,6 +40,7 @@
 
 #include <dt-bindings/pwm/pwm.h>
 #include "rk3288.dtsi"
+#include "rk3288-veyron-lpddr.dtsi"
 
 / {
 	memory {
@@ -47,7 +48,11 @@
 		reg = <0x0 0x80000000>;
 	};
 
-	backlight {
+	aliases {
+		i2c10 = &edp;
+	};
+
+	backlight: backlight {
 		compatible = "pwm-backlight";
 		brightness-levels = <
 			  0   1   2   3   4   5   6   7
@@ -89,6 +94,16 @@
 		pwms = <&pwm0 0 1000000 PWM_POLARITY_INVERTED>;
 	};
 
+	panel: panel {
+		compatible ="sdk,f402","simple-panel";
+		status = "okay";
+		power-supply = <&vcc_lcd>;
+		enable-gpios = <&gpio7 4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_cs>;
+		backlight = <&backlight>;
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -118,6 +133,16 @@
 		regulator-name = "vcc_host";
 		regulator-always-on;
 		regulator-boot-on;
+	};
+
+	/* This switch DIO3222 HOST_DP_HOST to host2 (dwc2) */
+	vcc_3g: vcc-3g-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio7 8 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwr_3g>;
+		regulator-name = "vcc_3g";
 	};
 
 	vcc_phy: vcc-phy-regulator {
@@ -158,6 +183,61 @@
 		startup-delay-us = <100000>;
 		vin-supply = <&vcc_io>;
 	};
+
+	ext_gmac: external-gmac-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <125000000>;
+		clock-output-names = "ext_gmac";
+		#clock-cells = <0>;
+	};
+
+	sound {
+		compatible = "rockchip,rockchip-audio-rt5640";
+		// rockchip,model = "I2S-RT5640";
+		rockchip,model = "DAISY-I2S";
+		rockchip,i2s-controller = <&i2s>;
+		rockchip,audio-codec = <&rt5640>;
+		hpdet-gpios = <&gpio7 6 GPIO_ACTIVE_HIGH>;
+		micdet-gpios = <&gpio8 2 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hp_det>, <&mic_det>;
+	};
+};
+
+&cpu0 {
+	cpu0-supply = <&vdd_cpu>;
+};
+
+&gpu {
+	status = "okay";
+	mali-supply = <&vdd_gpu>;
+};
+
+&dmc {
+	status = "okay";
+	logic-supply = <&vdd_log>;
+	rockchip,odt-disable-freq = <333000000>;
+	rockchip,dll-disable-freq = <333000000>;
+	rockchip,sr-enable-freq = <333000000>;
+	rockchip,auto-self-refresh-cnt = <0>;
+	rockchip,auto-power-down-cnt = <64>;
+	rockchip,ddr-speed-bin = <21>;
+	rockchip,trcd = <10>;
+	rockchip,trp = <10>;
+	rockchip,pd-enable-freq = <533000000>;
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		333000 1100000
+		533000 1150000
+	>;
+
+	#cooling-cells = <2>; /* min followed by max */
+};
+
+&edp {
+	status = "okay";
+	rockchip,panel = <&panel>;
 };
 
 &emmc {
@@ -172,8 +252,52 @@
 	status = "okay";
 };
 
+&gmac {
+	status = "okay";
+
+	phy-supply = <&vcc_phy>;
+
+	phy-mode = "rgmii";
+	clock_in_out = "input";
+
+	assigned-clocks = <&cru SCLK_MAC>;
+	assigned-clock-parents = <&ext_gmac>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&rgmii_pins>, <&phy_rst>, <&phy_pmeb>, <&phy_int>;
+
+	tx_delay = <0x30>;
+	rx_delay = <0x10>;
+
+	resets = <&cru SRST_MAC>;
+	reset-names = "stmmaceth";
+
+	/* These properties are not actually used in rgmii mode,
+	 * but the documentation states they're still required
+	 * (including the active-low flag). */
+	snps,reset-gpio = <&gpio4 8 0>;
+	snps,reset-active-low;
+	snps,reset-delays-us = <0 10000 1000000>;
+};
+
 &hdmi {
 	ddc-i2c-bus = <&i2c5>;
+	status = "okay";
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
 	status = "okay";
 };
 
@@ -195,8 +319,26 @@
 	status = "okay";
 };
 
+&i2c2 {
+	status = "okay";
+
+	rt5640: rt5640@1c {
+		compatible = "realtek,rt5640";
+		reg = <0x1c>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <7 IRQ_TYPE_EDGE_FALLING>;
+		realtek,ldo1-en-gpios = <&gpio7 9 GPIO_ACTIVE_HIGH>;
+	};
+};
+
 &i2c5 {
 	status = "okay";
+};
+
+&i2s {
+	status = "okay";
+	clock-names = "i2s_hclk", "i2s_clk", "i2s_clk_out";
+	clocks = <&cru HCLK_I2S0>, <&cru SCLK_I2S0>, <&cru SCLK_I2S0_OUT>;
 };
 
 &wdt {
@@ -204,6 +346,10 @@
 };
 
 &pwm0 {
+	status = "okay";
+};
+
+&pwm1 {
 	status = "okay";
 };
 
@@ -228,8 +374,8 @@
 };
 
 &tsadc {
-	rockchip,hw-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
-	rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
+	rockchip,hw-tshut-mode = <1>; /* tshut mode 0:CRU 1:GPIO */
+	rockchip,hw-tshut-polarity = <1>; /* tshut polarity 0:LOW 1:HIGH */
 	status = "okay";
 };
 
@@ -243,15 +389,51 @@
 		drive-strength = <8>;
 	};
 
+	pcfg_output_high: pcfg-output-high {
+		output-high;
+	};
+
+	pcfg_output_low: pcfg-output-low {
+		output-low;
+	};
+
 	backlight {
 		bl_en: bl-en {
 			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		lcd_cs: lcd-cs {
+			rockchip,pins = <7 4 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
 	buttons {
 		pwrbtn: pwrbtn {
 			rockchip,pins = <0 5 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	codec {
+		hp_det: hp-det {
+			rockchip,pins = <7 6 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		mic_det: mic-det {
+			rockchip,pins = <8 2 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	gmac {
+		phy_rst: phy-rst {
+			rockchip,pins = <4 8 RK_FUNC_GPIO &pcfg_output_high>;
+		};
+
+		phy_pmeb: phy-pmeb {
+			rockchip,pins = <0 8 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		phy_int: phy-int {
+			rockchip,pins = <0 9 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 	};
 
@@ -290,6 +472,10 @@
 		host_vbus_drv: host-vbus-drv {
 			rockchip,pins = <0 14 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+
+		pwr_3g: pwr-3g {
+			rockchip,pins = <7 8 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
 	};
 
 	eth_phy {
@@ -305,6 +491,7 @@
 
 &usb_host0_ehci {
 	status = "okay";
+	needs-reset-on-resume;
 };
 
 &usb_host1 {
@@ -325,4 +512,11 @@
 
 &vopl_mmu {
 	status = "okay";
+};
+
+&usb_otg {
+	dr_mode = "host";
+	status = "okay";
+	assigned-clocks = <&cru SCLK_USBPHY480M_SRC>;
+	assigned-clock-parents = <&cru SCLK_OTGPHY0>;
 };
