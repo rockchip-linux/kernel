@@ -605,6 +605,29 @@ static const struct panel_desc samsung_ltn101nt05 = {
 	},
 };
 
+static const struct drm_display_mode chimei_bn0701083a_mode = {
+	.clock = 148500,
+	.hdisplay = 1920,
+	.hsync_start = 1920 + 88,
+	.hsync_end = 1920 + 88 + 44,
+	.htotal = 1920 + 88 + 44 + 148,
+	.vdisplay = 1080,
+	.vsync_start = 1080 + 4,
+	.vsync_end = 1080 + 4 + 5,
+	.vtotal = 1080 + 4 + 5 + 36,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc chimei_bn0701083a = {
+	.modes = &chimei_bn0701083a_mode,
+	.num_modes = 1,
+	.bpc = 6,
+	.size = {
+		.width = 1920,
+		.height = 1080,
+	},
+};
+
 static const struct of_device_id platform_of_match[] = {
 	{
 		.compatible = "auo,b101aw03",
@@ -645,6 +668,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "samsung,ltn101nt05",
 		.data = &samsung_ltn101nt05,
+	}, {
+		.compatible = "chimei,bn0701083a",
+		.data = &chimei_bn0701083a,
 	}, {
 		.compatible = "simple-panel",
 	}, {
