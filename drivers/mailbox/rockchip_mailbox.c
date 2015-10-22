@@ -9,9 +9,9 @@
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
- *
  */
 
+#include <linux/clk.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
@@ -19,8 +19,6 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
-#include <linux/slab.h>
-#include <linux/clk.h>
 
 #include <linux/rockchip-mailbox.h>
 #include <linux/scpi_protocol.h>
@@ -50,6 +48,7 @@ struct rockchip_mbox_drv_data {
 
 struct rockchip_mbox_chan {
 	int idx;
+	int irq;
 	struct rockchip_mbox_msg *msg;
 	struct rockchip_mbox *mb;
 };
@@ -65,20 +64,11 @@ struct rockchip_mbox {
 	struct rockchip_mbox_chan *chans;
 };
 
-#define MBOX_CHAN_NUMS	4
-int idx_map_irq[MBOX_CHAN_NUMS] = {0, 0, 0, 0};
-
-static inline int chan_to_idx(struct rockchip_mbox *mb,
-			      struct mbox_chan *chan)
-{
-	return (chan - mb->mbox.chans);
-}
-
 static int rockchip_mbox_send_data(struct mbox_chan *chan, void *data)
 {
 	struct rockchip_mbox *mb = dev_get_drvdata(chan->mbox->dev);
 	struct rockchip_mbox_msg *msg = data;
-	int idx = chan_to_idx(mb, chan);
+	struct rockchip_mbox_chan *chans = mb->chans;
 
 	if (!msg)
 		return -EINVAL;
@@ -91,16 +81,17 @@ static int rockchip_mbox_send_data(struct mbox_chan *chan, void *data)
 	}
 
 	dev_dbg(mb->mbox.dev, "Chan[%d]: A2B message, cmd 0x%08x\n",
-		idx, msg->cmd);
+		chans->idx, msg->cmd);
 
-	mb->chans[idx].msg = msg;
+	mb->chans[chans->idx].msg = msg;
 
 	if (msg->tx_buf)
-		memcpy(mb->buf_base + A2B_BUF(mb->buf_size, idx),
+		memcpy(mb->buf_base + A2B_BUF(mb->buf_size, chans->idx),
 		       msg->tx_buf, msg->tx_size);
 
-	writel_relaxed(msg->cmd, mb->mbox_base + MAILBOX_A2B_CMD(idx));
-	writel_relaxed(msg->rx_size, mb->mbox_base + MAILBOX_A2B_DAT(idx));
+	writel_relaxed(msg->cmd, mb->mbox_base + MAILBOX_A2B_CMD(chans->idx));
+	writel_relaxed(msg->rx_size, mb->mbox_base +
+		       MAILBOX_A2B_DAT(chans->idx));
 
 	return 0;
 }
@@ -113,9 +104,9 @@ static int rockchip_mbox_startup(struct mbox_chan *chan)
 static void rockchip_mbox_shutdown(struct mbox_chan *chan)
 {
 	struct rockchip_mbox *mb = dev_get_drvdata(chan->mbox->dev);
-	int idx = chan_to_idx(mb, chan);
+	struct rockchip_mbox_chan *chans = mb->chans;
 
-	mb->chans[idx].msg = NULL;
+	mb->chans[chans->idx].msg = NULL;
 }
 
 static struct mbox_chan_ops rockchip_mbox_chan_ops = {
@@ -131,7 +122,7 @@ static irqreturn_t rockchip_mbox_irq(int irq, void *dev_id)
 	u32 status = readl_relaxed(mb->mbox_base + MAILBOX_B2A_STATUS);
 
 	for (idx = 0; idx < mb->mbox.num_chans; idx++) {
-		if ((status & (1 << idx)) && (irq == idx_map_irq[idx])) {
+		if ((status & (1 << idx)) && (irq == mb->chans[idx].irq)) {
 			/* Clear mbox interrupt */
 			writel_relaxed(1 << idx,
 				       mb->mbox_base + MAILBOX_B2A_STATUS);
@@ -149,7 +140,7 @@ static irqreturn_t rockchip_mbox_isr(int irq, void *dev_id)
 	struct rockchip_mbox *mb = (struct rockchip_mbox *)dev_id;
 
 	for (idx = 0; idx < mb->mbox.num_chans; idx++) {
-		if (irq != idx_map_irq[idx])
+		if (irq != mb->chans[idx].irq)
 			continue;
 
 		msg = mb->chans[idx].msg;
@@ -181,7 +172,7 @@ static const struct rockchip_mbox_drv_data rk3368_drv_data = {
 };
 
 static struct of_device_id rockchip_mbox_of_match[] = {
-	{ .compatible = "rockchip,rk3368-mailbox", .data = &rk3368_drv_data },
+	{ .compatible = "rockchip,rk3368-mailbox", .data = &rk3368_drv_data},
 	{ },
 };
 MODULE_DEVICE_TABLE(of, rockchp_mbox_of_match);
@@ -293,9 +284,9 @@ static int rockchip_mbox_probe(struct platform_device *pdev)
 			return ret;
 
 		mb->chans[i].idx = i;
+		mb->chans[i].irq = irq;
 		mb->chans[i].mb = mb;
 		mb->chans[i].msg = NULL;
-		idx_map_irq[i] = irq;
 	}
 
 	/* Enable all B2A interrupts */
