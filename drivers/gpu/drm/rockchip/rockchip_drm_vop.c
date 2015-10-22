@@ -933,7 +933,8 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	offset += (src.y1 >> 16) * fb->pitches[0];
 	yrgb_mst = rk_obj->dma_addr + offset;
 
-	wait_for_completion(&vop_win->completion);
+	if (plane->type != DRM_PLANE_TYPE_CURSOR )
+		wait_for_completion(&vop_win->completion);
 	needs_vblank = vop_win_update_needs_vblank(vop_win, fb, event);
 	if (needs_vblank) {
 		ret = drm_vblank_get(crtc->dev, vop->pipe);
