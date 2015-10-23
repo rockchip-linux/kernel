@@ -777,6 +777,89 @@ static void stmmac_check_pcs_mode(struct stmmac_priv *priv)
 	}
 }
 
+static int gPhyReg;
+
+static ssize_t show_phy_reg(struct device *dev,
+				struct device_attribute *attr, char *buf) {
+	int ret = snprintf(buf, PAGE_SIZE, "current phy reg = 0x%x\n", gPhyReg);
+	return ret;
+}
+
+static ssize_t set_phy_reg(struct device *dev,struct device_attribute *attr,
+				const char *buf, size_t count) {
+	int ovl;
+	int r = kstrtoint(buf, 0, &ovl);
+	if (r) printk("kstrtoint failed\n");
+	gPhyReg = ovl;
+	printk("%s----ovl=0x%x\n", __FUNCTION__, ovl);
+	return count;
+}
+
+static ssize_t show_phy_regValue(struct device *dev,
+					struct device_attribute *attr, char *buf) {
+	struct phy_device *phy_dev = dev_get_drvdata(dev);
+	int ret = 0;
+	int val;
+#if 0
+	val = phy_read(phy_dev, gPhyReg);
+	ret = snprintf(buf, PAGE_SIZE, "phy reg 0x%x = 0x%x\n", gPhyReg, val);
+#else
+	int i=0;
+
+	for (i=0; i<32; i++) {
+		printk("%d: 0x%x\n", i, phy_read(phy_dev, i));
+	}
+
+	val = phy_read(phy_dev, gPhyReg);
+	ret = snprintf(buf, PAGE_SIZE, "phy reg 0x%x = 0x%x\n", gPhyReg, val);
+#endif
+	return ret;
+}
+
+static ssize_t set_phy_regValue(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count) {
+	int ovl;
+	int ret;
+
+	struct phy_device *phy_dev = dev_get_drvdata(dev);
+	ret = kstrtoint(buf, 0, &ovl);
+	printk("%s----reg 0x%x: ovl=0x%x\n", __FUNCTION__, gPhyReg, ovl);
+	phy_write(phy_dev, gPhyReg, ovl);
+	return count;
+}
+
+static struct device_attribute phy_reg_attrs[] = {
+	__ATTR(phy_reg, S_IRUGO | S_IWUSR, show_phy_reg, set_phy_reg),
+	__ATTR(phy_regValue, S_IRUGO | S_IWUSR, show_phy_regValue, set_phy_regValue)
+};
+
+int gmac_create_sysfs(struct phy_device * phy_dev) {
+	int r;
+	int t;
+
+	dev_set_drvdata(&phy_dev->dev, phy_dev);
+	for (t = 0; t < ARRAY_SIZE(phy_reg_attrs); t++) {
+		r = device_create_file(&phy_dev->dev,&phy_reg_attrs[t]);
+		if (r) {
+			dev_err(&phy_dev->dev, "failed to create sysfs file\n");
+			return r;
+		}
+	}
+
+	return 0;
+}
+
+int gmac_remove_sysfs(struct phy_device * phy_dev) {
+	int t;
+
+	for (t = 0; t < ARRAY_SIZE(phy_reg_attrs); t++) {
+		device_remove_file(&phy_dev->dev,&phy_reg_attrs[t]);
+	}
+
+	return 0;
+}
+
 /**
  * stmmac_init_phy - PHY initialization
  * @dev: net device structure
@@ -837,6 +920,8 @@ static int stmmac_init_phy(struct net_device *dev)
 		 " Link = %d\n", dev->name, phydev->phy_id, phydev->link);
 
 	priv->phydev = phydev;
+
+	gmac_create_sysfs(phydev);
 
 	return 0;
 }
@@ -1800,6 +1885,8 @@ static int stmmac_release(struct net_device *dev)
 
 	/* Stop and disconnect the PHY */
 	if (priv->phydev) {
+		gmac_remove_sysfs(priv->phydev);
+
 		phy_stop(priv->phydev);
 		phy_disconnect(priv->phydev);
 		priv->phydev = NULL;
