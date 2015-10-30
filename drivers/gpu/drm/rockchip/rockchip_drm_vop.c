@@ -77,7 +77,6 @@ struct vop_win {
 	dma_addr_t pending_yrgb_mst;
 	uint32_t pending_dsp_st;
 	uint32_t pending_dsp_info;
-	uint32_t pending_lb_mode;
 	struct drm_pending_vblank_event *pending_event;
 	struct completion completion;
 
@@ -148,15 +147,6 @@ enum vop_data_format {
 	VOP_FMT_YUV444SP,
 };
 
-enum vop_data_lb_mode {
-	VOP_LB_RGB_3840X5 = 0x0,
-	VOP_LB_RGB_2560X8 = 0x1,
-	VOP_LB_RGB_3840X2 = 0x2,
-	VOP_LB_RGB_2560X4 = 0x3,
-	VOP_LB_RGB_1920X5 = 0x4,
-	VOP_LB_RGB_1280X8 = 0x5,
-};
-
 struct vop_reg_data {
 	uint32_t offset;
 	uint32_t value;
@@ -196,7 +186,6 @@ struct vop_win_phy {
 
 	struct vop_reg enable;
 	struct vop_reg format;
-	struct vop_reg lb_mode;
 	struct vop_reg rb_swap;
 	struct vop_reg act_info;
 	struct vop_reg dsp_info;
@@ -254,7 +243,6 @@ static const struct vop_win_phy win01_data = {
 	.nformats = ARRAY_SIZE(formats_01),
 	.enable = VOP_REG(WIN0_CTRL0, 0x1, 0),
 	.format = VOP_REG(WIN0_CTRL0, 0x7, 1),
-	.lb_mode = VOP_REG(WIN0_CTRL0, 0x7, 5),
 	.rb_swap = VOP_REG(WIN0_CTRL0, 0x1, 12),
 	.act_info = VOP_REG(WIN0_ACT_INFO, 0x1fff1fff, 0),
 	.dsp_info = VOP_REG(WIN0_DSP_INFO, 0x0fff0fff, 0),
@@ -424,16 +412,6 @@ static enum vop_data_format vop_convert_format(uint32_t format)
 		DRM_ERROR("unsupport format[%08x]\n", format);
 		return -EINVAL;
 	}
-}
-
-static enum vop_data_lb_mode vop_width_to_lb_mode(unsigned int width)
-{
-	if (width > 2560)
-		return VOP_LB_RGB_3840X2;
-	else if (width > 1920)
-		return VOP_LB_RGB_2560X4;
-	else
-		return VOP_LB_RGB_1920X5;
 }
 
 static bool is_alpha_support(uint32_t format)
@@ -748,7 +726,6 @@ static void vop_win_update_commit(struct vop_win *vop_win, bool needs_vblank)
 
 	VOP_WIN_SET(vop, win, format, format);
 	VOP_WIN_SET(vop, win, yrgb_vir, y_vir_stride);
-	VOP_WIN_SET(vop, win, lb_mode, vop_win->pending_lb_mode);
 	VOP_WIN_SET(vop, win, yrgb_mst, vop_win->pending_yrgb_mst);
 	VOP_WIN_SET(vop, win, act_info, vop_win->pending_dsp_info);
 	VOP_WIN_SET(vop, win, dsp_info, vop_win->pending_dsp_info);
@@ -936,13 +913,12 @@ static int vop_update_plane_event(struct drm_plane *plane,
 	vop_win->pending_event = event;
 	/*
 	 * It may not look like it but the completion does protect the
-	 * following 4 variables because it will be signaled only after
+	 * following 3 variables because it will be signaled only after
 	 * yrgb_mst write has been consumed by hardware during vblank.
 	 */
 	vop_win->pending_yrgb_mst = yrgb_mst;
 	vop_win->pending_dsp_st = dsp_st;
 	vop_win->pending_dsp_info = dsp_info;
-	vop_win->pending_lb_mode = vop_width_to_lb_mode(actual_w);
 
 	if (vop_win_update_needs_sync(vop_win, fb, obj->dma_buf)) {
 		ret = vop_win_update_sync(vop_win, obj->dma_buf->resv,
