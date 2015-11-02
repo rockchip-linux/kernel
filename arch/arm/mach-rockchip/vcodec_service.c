@@ -143,7 +143,7 @@ struct extra_info_for_iommu {
 	struct extra_info_elem elem[20];
 };
 
-#define VPU_SERVICE_SHOW_TIME			0
+#define VPU_SERVICE_SHOW_TIME			1
 
 #if VPU_SERVICE_SHOW_TIME
 static struct timeval enc_start, enc_end;
@@ -242,7 +242,7 @@ static struct workqueue_struct *delay_work_queue = NULL;
 #ifdef DEBUG
 #define vpu_debug(level, fmt, args...)				\
 	do {							\
-		if (debug >= level)				\
+		if (debug == level)				\
 			pr_info("%s:%d: " fmt,	                \
 				 __func__, __LINE__, ##args);	\
 	} while (0)
@@ -2454,7 +2454,7 @@ static irqreturn_t vdpu_isr(int irq, void *dev_id)
 	if (atomic_read(&dev->irq_count_codec)) {
 #if VPU_SERVICE_SHOW_TIME
 		do_gettimeofday(&dec_end);
-		vpu_debug(3, "dec task: %ld ms\n",
+		vpu_debug(2, "dec task: %ld ms\n",
 			(dec_end.tv_sec  - dec_start.tv_sec)  * 1000 +
 			(dec_end.tv_usec - dec_start.tv_usec) / 1000);
 #endif
@@ -2469,7 +2469,7 @@ static irqreturn_t vdpu_isr(int irq, void *dev_id)
 	if (atomic_read(&dev->irq_count_pp)) {
 #if VPU_SERVICE_SHOW_TIME
 		do_gettimeofday(&pp_end);
-		printk("pp  task: %ld ms\n",
+		vpu_debug(2, "pp  task: %ld ms\n",
 			(pp_end.tv_sec  - pp_start.tv_sec)  * 1000 +
 			(pp_end.tv_usec - pp_start.tv_usec) / 1000);
 #endif
@@ -2499,7 +2499,7 @@ static irqreturn_t vepu_irq(int irq, void *dev_id)
 
 #if VPU_SERVICE_SHOW_TIME
 	do_gettimeofday(&enc_end);
-	vpu_debug(3, "enc task: %ld ms\n",
+	vpu_debug(2, "enc task: %ld ms\n",
 		(enc_end.tv_sec  - enc_start.tv_sec)  * 1000 +
 		(enc_end.tv_usec - enc_start.tv_usec) / 1000);
 #endif
