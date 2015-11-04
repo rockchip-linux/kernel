@@ -1880,10 +1880,10 @@ static struct rt5640_init_reg pre_init_list[] = {
 	{RT5640_SPO_L_MIXER	, 0xe800},//SPKVOLL -> SPOLMIX
 	{RT5640_SPO_R_MIXER	, 0x2800},//SPKVOLR -> SPORMIX
 	/*record*/
-	{RT5640_IN1_IN2		, 0x5080},//IN1 boost 40db and signal ended mode
-	{RT5640_IN3_IN4		, 0x0540},//IN2 boost 40db and signal ended mode
+	{RT5640_IN1_IN2		, 0x5000},//IN1 boost 40db and signal ended mode
+	{RT5640_IN3_IN4		, 0x0500},//IN2 boost 40db and signal ended mode
 	{RT5640_REC_L2_MIXER	, 0x007d},//IN1 -> RECMIXL
-	{RT5640_REC_R2_MIXER	, 0x006f},//IN2 -> RECMIXR
+	{RT5640_REC_R2_MIXER	, 0x007d},//IN2 -> RECMIXR
 	{RT5640_STO_ADC_MIXER	, 0x3020},//ADC -> Sto ADC mixer
 };
 #define RT5640_PRE_INIT_LEN ARRAY_SIZE(pre_init_list)
@@ -1893,8 +1893,9 @@ static int rt5640_reg_pre_init(void)
 	struct snd_soc_codec *codec = g_codec;
 	int i;
 
-	for (i = 0; i < RT5640_PRE_INIT_LEN; i++)
+	for (i = 0; i < RT5640_PRE_INIT_LEN; i++) {
 		snd_soc_write(codec, pre_init_list[i].reg, pre_init_list[i].val);
+	}
 
 	return 0;
 }
@@ -1913,7 +1914,6 @@ static int rt5640_probe(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, RT5640_MICBIAS, 0x0030, 0x0030);
 	snd_soc_update_bits(codec, RT5640_DSP_PATH2, 0xfc00, 0x0c00);
 
-	// rt5640_reg_speaker_enable();
 	rt5640_reg_pre_init();
 
 	return 0;
