@@ -42,3 +42,13 @@
 	sdi_source = <1>;
 	status = "okay";
 };
+
+&clk_core_dvfs_table {
+	lkg_adjust_volt_en = <1>;
+	def_table_lkg = <35>;
+	min_adjust_freq = <1200000>;
+	lkg_adjust_volt_table = <
+		/*lkg(mA)  volt(uV)*/
+		60         25000
+		>;
+};

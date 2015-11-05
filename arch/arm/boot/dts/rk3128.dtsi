@@ -1,1 +1,12 @@
 #include "rk312x.dtsi"
+
+&clk_core_dvfs_table {
+	lkg_adjust_volt_en = <1>;
+	def_table_lkg = <35>;
+	min_adjust_freq = <216000>;
+	lkg_adjust_volt_table = <
+		/*lkg(mA)  volt(uV)*/
+		0          25000
+		14         0
+		>;
+};
