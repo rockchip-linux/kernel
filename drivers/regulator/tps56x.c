@@ -40,7 +40,9 @@
 #else
 #define DBG_INFO(x...)
 #endif
-#define PM_CONTROL
+
+/* EN_PIN control the enable of this Buck, so clr the enable bit of register */
+#define EN_PIN_CONTROL 1
 
 #define TPS56X_SPEED 200*1000
 #define tps56x_NUM_REGULATORS 1
@@ -247,6 +249,9 @@ static int tps56x_dcdc_is_enabled(struct regulator_dev *dev)
 
 
 #ifdef TPS56X
+	#ifdef EN_PIN_CONTROL
+	return 1;
+	#endif
 	val = tps56x_reg_read(tps56x, TPS56X_REG_CTR_B);
 	if (val < 0)
 		return val;
@@ -272,8 +277,10 @@ static int tps56x_dcdc_enable(struct regulator_dev *dev)
 	struct tps56x *tps56x = rdev_get_drvdata(dev);
 	u16 mask=0x80;	
 
-
 #ifdef TPS56X
+	#ifdef EN_PIN_CONTROL
+	return tps56x_set_bits(tps56x, TPS56X_REG_CTR_B, mask, 0);
+	#endif
 	return tps56x_set_bits(tps56x, TPS56X_REG_CTR_B, mask, 0x80);
 #else
 	return tps56x_set_bits(tps56x, TPS56X_BUCK1_SET_VOL_BASE, mask, 0x80);
@@ -283,7 +290,6 @@ static int tps56x_dcdc_disable(struct regulator_dev *dev)
 {
 	struct tps56x *tps56x = rdev_get_drvdata(dev);
 	u16 mask=0x80;
-
 
 #ifdef TPS56X
 	return tps56x_set_bits(tps56x, TPS56X_REG_CTR_B, mask, 0);
