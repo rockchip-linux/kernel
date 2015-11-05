@@ -47,6 +47,14 @@ struct rk3288_resume_params rk3288_resume_params
  */
 static void __noreturn rk3288_resume_c(void)
 {
+#ifdef CONFIG_ARM_ERRATA_818325
+	u32 val = 0;
+
+	asm("mrc p15, 0, %0, c15, c0, 1" : "=r" (val));
+	val |= BIT(12);
+	asm("mcr p15, 0, %0, c15, c0, 1" : : "r" (val));
+#endif
+
 	if (rk3288_resume_params.l2ctlr_f)
 		asm("mcr p15, 1, %0, c9, c0, 2" : :
 			"r" (rk3288_resume_params.l2ctlr));
