@@ -1,6 +1,7 @@
 /dts-v1/;
 
 #include "rk3228.dtsi"
+#include "lcd-box.dtsi"
 #include <dt-bindings/input/input.h>
 
 / {
@@ -292,4 +293,25 @@
 	clock_in_out = "input";
 	tx_delay = <0x30>;
 	rx_delay = <0x10>;
+};
+
+&disp_timings {
+	native-mode = <&timing1>;
+};
+
+&rk_screen {
+	display-timings = <&disp_timings>;
+};
+
+&fb {
+	rockchip,disp-policy = <DISPLAY_POLICY_BOX>;
+	rockchip,uboot-logo-on = <0>;
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&tve {
+	status = "okay";
 };
