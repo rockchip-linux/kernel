@@ -164,10 +164,6 @@
 	status = "okay";
 };
 
-&i2c3 {
-	status = "okay";
-};
-
 &pwm1 {
 	status = "okay";
 };
