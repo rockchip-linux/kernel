@@ -1798,20 +1798,11 @@ static enum charger_type rk81x_bat_get_dc_state(struct rk81x_battery *di)
 	if (!gpio_is_valid(di->dc_det_pin))
 		goto out;
 
-	ret = gpio_request(di->dc_det_pin, "rk818_dc_det");
-	if (ret < 0) {
-		pr_err("Failed to request gpio %d with ret:""%d\n",
-		       di->dc_det_pin, ret);
-		goto out;
-	}
-
-	gpio_direction_input(di->dc_det_pin);
 	ret = gpio_get_value(di->dc_det_pin);
 	if (ret == di->dc_det_level)
 		charger_type = DC_CHARGER;
 	else
 		charger_type = NO_CHARGER;
-	gpio_free(di->dc_det_pin);
 out:
 	return charger_type;
 }
@@ -3839,14 +3830,12 @@ static irqreturn_t rk81x_vbat_lo_irq(int irq, void *bat)
 
 static irqreturn_t rk81x_vbat_plug_in(int irq, void *bat)
 {
-	pr_info("\n------- %s:irq = %d\n", __func__, irq);
 	rk_send_wakeup_key();
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t rk81x_vbat_plug_out(int irq, void  *bat)
 {
-	pr_info("\n-------- %s:irq = %d\n", __func__, irq);
 	rk_send_wakeup_key();
 	return IRQ_HANDLED;
 }
@@ -3864,6 +3853,11 @@ static irqreturn_t rk81x_vbat_charge_ok(int irq, void  *bat)
 static irqreturn_t rk81x_vbat_dc_det(int irq, void *bat)
 {
 	struct rk81x_battery *di = (struct rk81x_battery *)bat;
+
+	if (gpio_get_value(di->dc_det_pin))
+		irq_set_irq_type(irq, IRQF_TRIGGER_LOW);
+	else
+		irq_set_irq_type(irq, IRQF_TRIGGER_HIGH);
 
 	queue_delayed_work(di->wq,
 			   &di->dc_det_check_work,
@@ -3968,6 +3962,7 @@ static void rk81x_bat_dc_det_init(struct rk81x_battery *di,
 	struct device *dev = di->dev;
 	enum of_gpio_flags flags;
 	int ret;
+	unsigned long irq_flags;
 
 	di->dc_det_pin = of_get_named_gpio_flags(np, "dc_det_gpio", 0, &flags);
 	if (di->dc_det_pin == -EPROBE_DEFER) {
@@ -3976,12 +3971,28 @@ static void rk81x_bat_dc_det_init(struct rk81x_battery *di,
 	}
 
 	if (gpio_is_valid(di->dc_det_pin)) {
+		ret = gpio_request(di->dc_det_pin, "rk818_dc_det");
+		if (ret < 0) {
+			dev_err(di->dev, "Failed to request gpio %d\n",
+				di->dc_det_pin);
+			return;
+		}
+
+		ret = gpio_direction_input(di->dc_det_pin);
+		if (ret) {
+			dev_err(di->dev, "failed to set gpio input\n");
+			goto err;
+		}
+
+		if (gpio_get_value(di->dc_det_pin))
+			irq_flags = IRQF_TRIGGER_LOW;
+		else
+			irq_flags = IRQF_TRIGGER_HIGH;
 		di->dc_det_level = (flags & OF_GPIO_ACTIVE_LOW) ?
 						RK818_DC_IN : RK818_DC_OUT;
 		di->dc_det_irq = gpio_to_irq(di->dc_det_pin);
 
-		ret = request_irq(di->dc_det_irq, rk81x_vbat_dc_det,
-				  IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+		ret = request_irq(di->dc_det_irq, rk81x_vbat_dc_det, irq_flags,
 				  "rk81x_dc_det", di);
 		if (ret != 0) {
 			dev_err(di->dev, "rk818_dc_det_irq request failed!\n");
