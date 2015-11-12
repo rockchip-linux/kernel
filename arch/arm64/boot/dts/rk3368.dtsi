@@ -852,7 +852,8 @@
 	hdmi: hdmi@ff980000 {
 		compatible = "rockchip,rk3368-hdmi";
 		reg = <0x0 0xff980000 0x0 0x20000>;
-		rockchip,grf = <&grf>;
+		resets = <&reset RK3368_SRST_HDMI>;
+		reset-names = "hdmi";
 		interrupts = <GIC_SPI 103 IRQ_TYPE_LEVEL_HIGH>;
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmii2c_xfer &hdmi_cec>;
