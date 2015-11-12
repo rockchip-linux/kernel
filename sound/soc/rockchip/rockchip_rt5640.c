@@ -55,7 +55,7 @@ static const struct snd_soc_dapm_widget rk_dapm_widgets[] = {
 
 static const struct snd_soc_dapm_route rk_audio_map[] = {
 	/* Input Lines */
-	{"IN1P", NULL, "Int Mic"},
+	{"IN2P", NULL, "Int Mic"},
 	{"IN2P", NULL, "Int Mic"},
 	{"Int Mic", NULL, "MICBIAS1"},
 
