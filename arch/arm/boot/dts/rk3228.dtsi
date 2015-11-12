@@ -583,6 +583,11 @@
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmi_cec &hdmii2c_xfer>;
 		pinctrl-1 = <&i2c3_gpio>;
+		resets = <&reset RK3228_RST_HDMI_P>;
+		reset-names = "hdmi";
+		rockchip,grf = <&grf>;
+		rockchip,grf_reg_offset = <0x400>;
+		rockchip,grf_reg_shift = <9>;
 		rockchip,hotplug = <&gpio0 GPIO_B7 GPIO_ACTIVE_LOW>;
 		rockchip,hdmi_audio_source = <0>;
 		rockchip,hdcp_enable = <0>;
