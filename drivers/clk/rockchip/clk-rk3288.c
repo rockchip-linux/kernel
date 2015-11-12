@@ -798,9 +798,9 @@ static const char *rk3288_critical_clocks[] __initconst = {
 	"pclk_pd_pmu",
 };
 
-#ifdef CONFIG_PM_SLEEP
 static void __iomem *rk3288_cru_base;
 
+#ifdef CONFIG_PM_SLEEP
 /* Some CRU registers will be reset in maskrom when the system
  * wakes up from fastboot.
  * So save them before suspend, restore them after resume.
@@ -854,21 +854,20 @@ static void rk3288_clk_resume(void)
 			       rk3288_cru_base + reg_id);
 	}
 }
+#endif
 
-static struct syscore_ops rk3288_clk_syscore_ops = {
-	.suspend = rk3288_clk_suspend,
-	.resume = rk3288_clk_resume,
-};
-
-static void rk3288_clk_sleep_init(void __iomem *reg_base)
+static void rk3288_clk_shutdown(void)
 {
-	rk3288_cru_base = reg_base;
-	register_syscore_ops(&rk3288_clk_syscore_ops);
+	writel_relaxed(0xf3030000, rk3288_cru_base + RK3288_MODE_CON);
 }
 
-#else /* CONFIG_PM_SLEEP */
-static void rk3288_clk_sleep_init(void __iomem *reg_base) {}
+static struct syscore_ops rk3288_clk_syscore_ops = {
+#ifdef CONFIG_PM_SLEEP
+	.suspend = rk3288_clk_suspend,
+	.resume = rk3288_clk_resume,
 #endif
+	.shutdown = rk3288_clk_shutdown,
+};
 
 static const char *global_clocks[] __initconst = {
 	/* NOTE: before adding clocks here, think if there's a better way */
@@ -900,16 +899,15 @@ static void __init rk3288_register_global_clocks(void)
 
 static void __init rk3288_clk_init(struct device_node *np)
 {
-	void __iomem *reg_base;
 	struct clk *clk;
 
-	reg_base = of_iomap(np, 0);
-	if (!reg_base) {
+	rk3288_cru_base = of_iomap(np, 0);
+	if (!rk3288_cru_base) {
 		pr_err("%s: could not map cru region\n", __func__);
 		return;
 	}
 
-	rockchip_clk_init(np, reg_base, CLK_NR_CLKS);
+	rockchip_clk_init(np, rk3288_cru_base, CLK_NR_CLKS);
 
 	/* xin12m is created by an cru-internal divider */
 	clk = clk_register_fixed_factor(NULL, "xin12m", "xin24m", 0, 1, 2);
@@ -950,11 +948,13 @@ static void __init rk3288_clk_init(struct device_node *np)
 			&rk3288_cpuclk_data, rk3288_cpuclk_rates,
 			ARRAY_SIZE(rk3288_cpuclk_rates));
 
-	rockchip_register_softrst(np, 12, reg_base + RK3288_SOFTRST_CON(0),
+	rockchip_register_softrst(np, 12,
+				  rk3288_cru_base + RK3288_SOFTRST_CON(0),
 				  ROCKCHIP_SOFTRST_HIWORD_MASK);
 
 	rockchip_register_restart_notifier(RK3288_GLB_SRST_FST);
-	rk3288_clk_sleep_init(reg_base);
+
+	register_syscore_ops(&rk3288_clk_syscore_ops);
 
 	rk3288_register_global_clocks();
 }
