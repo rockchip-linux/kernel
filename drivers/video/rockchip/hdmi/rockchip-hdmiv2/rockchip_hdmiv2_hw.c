@@ -1,6 +1,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/rockchip/cru.h>
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include "rockchip_hdmiv2.h"
@@ -1927,20 +1928,15 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 	struct hdmi *hdmi = hdmi_dev->hdmi;
 
 	if (!hdmi->uboot) {
-		/* reset hdmi */
+		pr_info("reset hdmi\n");
 		if (hdmi_dev->soctype == HDMI_SOC_RK3288) {
-			writel_relaxed((1 << 9) | (1 << 25),
-				       RK_CRU_VIRT + 0x01d4);
-			udelay(1);
-			writel_relaxed((0 << 9) | (1 << 25),
-				       RK_CRU_VIRT + 0x01d4);
-		} else if (hdmi_dev->soctype == HDMI_SOC_RK3368) {
-			pr_info("reset hdmi\n");
-			regmap_write(hdmi_dev->grf_base, 0x031c,
-				     (1 << 9) | (1 << 25));
-			udelay(5);
-			regmap_write(hdmi_dev->grf_base, 0x031c,
-				     (0 << 9) | (1 << 25));
+			rk3288_cru_set_soft_reset(RK3288_SOFT_RST_HDMI, true);
+			usleep_range(10, 20);
+			rk3288_cru_set_soft_reset(RK3288_SOFT_RST_HDMI, false);
+		} else {
+			reset_control_assert(hdmi_dev->reset);
+			usleep_range(10, 20);
+			reset_control_deassert(hdmi_dev->reset);
 		}
 		rockchip_hdmiv2_powerdown(hdmi_dev);
 	}

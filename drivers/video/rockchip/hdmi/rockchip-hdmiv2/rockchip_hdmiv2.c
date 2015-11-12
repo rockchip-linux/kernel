@@ -464,6 +464,20 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 	#ifdef CONFIG_MFD_SYSCON
 	hdmi_dev->grf_base =
 		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(hdmi_dev->grf_base)) {
+		hdmi_dev->grf_base = NULL;
+	} else {
+		if (of_property_read_u32(np, "rockchip,grf_reg_offset",
+					 &hdmi_dev->grf_reg_offset)) {
+			pr_err("get cru_reg_offset failed\n");
+			return -ENXIO;
+		}
+		if (of_property_read_u32(np, "rockchip,grf_reg_shift",
+					 &hdmi_dev->grf_reg_shift)) {
+			pr_err("get cru_reg_shift failed\n");
+			return -ENXIO;
+		}
+	}
 	#endif
 	return 0;
 }
@@ -517,6 +531,15 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 			goto failed;
 		}
 	}
+
+	hdmi_dev->reset = devm_reset_control_get(&pdev->dev, "hdmi");
+	if (IS_ERR(hdmi_dev->reset) &&
+	    hdmi_dev->soctype != HDMI_SOC_RK3288) {
+		ret = PTR_ERR(hdmi_dev->reset);
+		dev_err(&pdev->dev, "failed to get hdmi reset: %d\n", ret);
+		goto failed;
+	}
+
 	/*enable pd and pclk and hdcp_clk*/
 	if (rockchip_hdmiv2_clk_enable(hdmi_dev) < 0) {
 		ret = -ENXIO;
