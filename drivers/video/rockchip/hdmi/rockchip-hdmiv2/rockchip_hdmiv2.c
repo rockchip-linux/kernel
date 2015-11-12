@@ -97,10 +97,14 @@ static ssize_t hdmi_regs_ctrl_write(struct file *file,
 
 static int hdmi_regs_phy_show(struct seq_file *s, void *v)
 {
-	u32 i;
+	u32 i, count;
 
+	if (hdmi_dev->soctype == HDMI_SOC_RK3228)
+		count = 0xff;
+	else
+		count = 0x28;
 	seq_puts(s, "\n>>>hdmi_phy reg ");
-	for (i = 0; i < 0x28; i++)
+	for (i = 0; i < count; i++)
 		seq_printf(s, "regs %02x val %04x\n",
 			   i, rockchip_hdmiv2_read_phy(hdmi_dev, i));
 	return 0;
@@ -173,20 +177,31 @@ static void rockchip_hdmiv2_early_resume(struct early_suspend *h)
 }
 #endif
 
-#define HDMI_PD_ON			(1 << 0)
+#define HDMI_PD_ON		(1 << 0)
 #define HDMI_PCLK_ON		(1 << 1)
 #define HDMI_HDCPCLK_ON		(1 << 2)
 #define HDMI_CECCLK_ON		(1 << 3)
+#define HDMI_EXT_PHY_CLK_ON	(1 << 4)
 
 static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 {
-	if ((hdmi_dev->clk_on & HDMI_PD_ON) &&
-	    (hdmi_dev->clk_on & HDMI_PCLK_ON) &&
-	    (hdmi_dev->clk_on & HDMI_HDCPCLK_ON))
-		return 0;
-
-	if ((hdmi_dev->clk_on & HDMI_PD_ON) == 0) {
-		if (hdmi_dev->pd == NULL) {
+	if (hdmi_dev->soctype == HDMI_SOC_RK3228) {
+		if ((hdmi_dev->clk_on & HDMI_EXT_PHY_CLK_ON) == 0) {
+			if (!hdmi_dev->pclk_phy) {
+				hdmi_dev->pclk_phy =
+					devm_clk_get(hdmi_dev->dev,
+						     "pclk_hdmi_phy");
+				if (IS_ERR(hdmi_dev->pclk_phy)) {
+					dev_err(hdmi_dev->dev,
+						"get hdmi phy pclk error\n");
+					return -1;
+				}
+			}
+			clk_prepare_enable(hdmi_dev->pclk_phy);
+			hdmi_dev->clk_on |= HDMI_EXT_PHY_CLK_ON;
+		}
+	} else if ((hdmi_dev->clk_on & HDMI_PD_ON) == 0) {
+		if (!hdmi_dev->pd) {
 			hdmi_dev->pd = devm_clk_get(hdmi_dev->dev, "pd_hdmi");
 			if (IS_ERR(hdmi_dev->pd)) {
 				dev_err(hdmi_dev->dev,
@@ -265,6 +280,11 @@ static int rockchip_hdmiv2_clk_disable(struct hdmi_dev *hdmi_dev)
 		hdmi_dev->clk_on &= ~HDMI_HDCPCLK_ON;
 	}
 
+	if ((hdmi_dev->clk_on & HDMI_EXT_PHY_CLK_ON) &&
+	    hdmi_dev->pclk_phy) {
+		clk_disable_unprepare(hdmi_dev->pclk_phy);
+		hdmi_dev->clk_on &= ~HDMI_EXT_PHY_CLK_ON;
+	}
 	return 0;
 }
 
@@ -599,7 +619,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 				       dev_name(hdmi_dev->dev), hdmi_dev);
 		if (ret) {
 			dev_err(hdmi_dev->dev,
-			        "hdmi request hpd irq failed (%d).\n", ret);
+				"hdmi request hpd irq failed (%d).\n", ret);
 			goto failed1;
 		}
 	}

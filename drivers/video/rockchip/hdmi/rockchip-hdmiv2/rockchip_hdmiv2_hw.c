@@ -1,3 +1,4 @@
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/rockchip/grf.h>
@@ -592,6 +593,28 @@ static int rk3228_set_phy(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY_SIGNAL_CTRL, 0);
 	}
+
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_FB_DIVIDER, 10);
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_POST_DIVIDER, 0);
+
+	stat = clk_get_rate(hdmi_dev->pclk_phy) / 100000;
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL,
+				  ((stat >> 8) & 0xff) | 0x80);
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL_DIV_L,
+				  stat & 0xff);
+	if (hdmi_dev->tmdsclk > 340000000) {
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_PRE_DIVIDER,
+					  2);
+		rockchip_hdmiv2_write_phy(hdmi_dev, PHYTX_TERM_RESIS,
+					  EXT_PHY_AUTO_R50_OHMS);
+	} else {
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_PRE_DIVIDER,
+					  0xc1);
+		rockchip_hdmiv2_write_phy(hdmi_dev, PHYTX_TERM_RESIS,
+					  EXT_PHY_AUTO_R100_OHMS);
+	}
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL,
+				  (stat >> 8) & 0xff);
 	if (hdmi_dev->tmdsclk_ratio_change)
 		msleep(100);
 	hdmi_msk_reg(hdmi_dev, PHY_CONF0,
