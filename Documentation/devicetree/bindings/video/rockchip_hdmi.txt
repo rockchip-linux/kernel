@@ -2,10 +2,11 @@ Device-Tree bindings for rockchip hdmi driver
 
 Required properties:
 - compatible: value should be following:
-	"rockchip,rk3288-hdmi",
-	"rockchip,rk3368-hdmi",
 	"rockchip,rk3036-hdmi",
 	"rockchip,rk312x-hdmi",
+	"rockchip,rk3228-hdmi",
+	"rockchip,rk3288-hdmi",
+	"rockchip,rk3368-hdmi",
 - reg: physical base address of the hdmi and length of memory mapped
         region.
 - interrupts: interrupt number to the cpu.
