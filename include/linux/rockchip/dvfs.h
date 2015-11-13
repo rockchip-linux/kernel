@@ -132,7 +132,7 @@ struct dvfs_node {
 	unsigned int		max_rate;	//limit max frequency
 	unsigned long		last_set_rate;
 	unsigned int		channel;
-	unsigned int		temp_channel;
+	unsigned int		tsadc_ch;
 	unsigned long		temp_limit_rate;
 	unsigned int        target_temp;
 	unsigned int        temp_limit_enable;

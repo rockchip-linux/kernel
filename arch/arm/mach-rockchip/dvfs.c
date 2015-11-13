@@ -876,33 +876,6 @@ static int dvfs_vd_get_newvolt_byclk(struct dvfs_node *clk_dvfs_node)
 	return  dvfs_vd_get_newvolt_bypd(clk_dvfs_node->vd);
 }
 
-#if 0
-static void dvfs_temp_limit_work_func(struct work_struct *work)
-{
-	unsigned long delay = HZ / 10; // 100ms
-	struct vd_node *vd;
-	struct pd_node *pd;
-	struct dvfs_node *clk_dvfs_node;
-
-	queue_delayed_work_on(0, dvfs_wq, to_delayed_work(work), delay);
-
-	mutex_lock(&rk_dvfs_mutex);
-	list_for_each_entry(vd, &rk_dvfs_tree, node) {
-		mutex_lock(&vd->mutex);
-		list_for_each_entry(pd, &vd->pd_list, node) {
-			list_for_each_entry(clk_dvfs_node, &pd->clk_list, node) {
-				if (clk_dvfs_node->temp_limit_table) {
-					clk_dvfs_node->temp = rockchip_tsadc_get_temp(clk_dvfs_node->temp_channel);
-					clk_dvfs_node->vd->vd_dvfs_target(clk_dvfs_node, clk_dvfs_node->last_set_rate);
-				}
-			}
-		}
-		mutex_unlock(&vd->mutex);
-	}
-	mutex_unlock(&rk_dvfs_mutex);
-}
-#endif
-
 static struct cpufreq_frequency_table rk3288v0_arm_pvtm_table[] = {
 	{.frequency = 216000,  .index = 4006},
 	{.frequency = 408000,  .index = 6518},
@@ -1325,20 +1298,20 @@ static void dvfs_temp_limit_work_func(struct work_struct *work)
 	mutex_lock(&temp_limit_mutex);
 	if (clk_cpu_b_dvfs_node &&
 	    clk_cpu_b_dvfs_node->temp_limit_enable == 1) {
-		temp = dvfs_get_temp(0);
+		temp = dvfs_get_temp(clk_cpu_b_dvfs_node->tsadc_ch);
 		if (temp != INVALID_TEMP)
 			dvfs_temp_limit(clk_cpu_b_dvfs_node, temp);
 	}
 	if (clk_cpu_l_dvfs_node &&
 	    clk_cpu_l_dvfs_node->temp_limit_enable == 1) {
 		if (temp == INVALID_TEMP)
-			temp = dvfs_get_temp(0);
+			temp = dvfs_get_temp(clk_cpu_l_dvfs_node->tsadc_ch);
 		if (temp != INVALID_TEMP)
 			dvfs_temp_limit(clk_cpu_l_dvfs_node, temp);
 	}
 	if (clk_cpu_dvfs_node &&
 	    clk_cpu_dvfs_node->temp_limit_enable == 1) {
-		temp = dvfs_get_temp(1);
+		temp = dvfs_get_temp(clk_cpu_dvfs_node->tsadc_ch);
 		if (temp == INVALID_TEMP)
 			dvfs_virt_temp_limit_work_func(clk_cpu_dvfs_node);
 		else
@@ -1346,7 +1319,7 @@ static void dvfs_temp_limit_work_func(struct work_struct *work)
 	}
 	if (clk_gpu_dvfs_node &&
 	    clk_gpu_dvfs_node->temp_limit_enable == 1) {
-		temp = dvfs_get_temp(2);
+		temp = dvfs_get_temp(clk_gpu_dvfs_node->tsadc_ch);
 		if (temp != INVALID_TEMP)
 			dvfs_temp_limit(clk_gpu_dvfs_node, temp);
 	}
@@ -2198,6 +2171,7 @@ static int dvfs_node_parse_dt(struct device_node *np,
 	pr_info("channel:%d, lkg:%d\n",
 		dvfs_node->channel, rockchip_get_leakage(dvfs_node->channel));
 
+	of_property_read_u32_index(np, "tsadc-ch", 0, &dvfs_node->tsadc_ch);
 	of_property_read_u32_index(np, "regu-mode-en", 0,
 				   &dvfs_node->regu_mode_en);
 	if (dvfs_node->regu_mode_en)
