@@ -2484,15 +2484,6 @@ static void complete_ep(dwc_otg_pcd_ep_t *ep)
 #ifdef DWC_UTE_CFI
 		}
 #endif
-		if (req->dw_align_buf) {
-			if (!ep->dwc_ep.is_in) {
-				dwc_memcpy(req->buf, req->dw_align_buf,
-					   req->length);
-			}
-			DWC_DMA_FREE(req->length, req->dw_align_buf,
-				     req->dw_align_buf_dma);
-		}
-
 		dwc_otg_request_done(ep, req, 0);
 
 		ep->dwc_ep.start_xfer_buff = 0;

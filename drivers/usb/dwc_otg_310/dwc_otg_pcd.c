@@ -84,6 +84,15 @@ void dwc_otg_request_done(dwc_otg_pcd_ep_t *ep, dwc_otg_pcd_request_t *req,
 	unsigned stopped = ep->stopped;
 
 	DWC_DEBUGPL(DBG_PCDV, "%s(ep %p req %p)\n", __func__, ep, req);
+	if (req->dw_align_buf) {
+		if (!ep->dwc_ep.is_in) {
+			dwc_memcpy(req->buf, req->dw_align_buf,
+				   req->length);
+		}
+		DWC_DMA_FREE(req->length, req->dw_align_buf,
+			     req->dw_align_buf_dma);
+		req->dw_align_buf = NULL;
+	}
 	DWC_CIRCLEQ_REMOVE_INIT(&ep->queue, req, queue_entry);
 
 	/* don't modify queue heads during completion callback */
