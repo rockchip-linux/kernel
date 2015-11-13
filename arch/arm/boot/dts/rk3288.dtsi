@@ -946,6 +946,7 @@
 						>;
 
 					channel = <0>;
+					tsadc-ch = <1>;
 					temp-limit-enable = <1>;
 					target-temp = <80>;
 					min_temp_limit = <48>;
@@ -1026,6 +1027,7 @@
 						>;
 
 					channel = <1>;
+					tsadc-ch = <2>;
 					temp-limit-enable = <0>;
 					target-temp = <90>;
 					min_temp_limit = <200>;
