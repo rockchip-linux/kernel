@@ -342,7 +342,7 @@
 		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
 		clock-frequency = <24000000>;
 		clocks = <&clk_uart2>, <&clk_gates9 14>;
-		lock-names = "sclk_uart", "pclk_uart";
+		clock-names = "sclk_uart", "pclk_uart";
 		reg-shift = <2>;
 		reg-io-width = <4>;
 		dmas = <&pdma 6>, <&pdma 7>;
