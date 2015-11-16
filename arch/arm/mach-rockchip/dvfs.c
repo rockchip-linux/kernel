@@ -1487,10 +1487,14 @@ static int get_adjust_volt_by_leakage(struct dvfs_node *dvfs_node)
 
 	if (dvfs_node->lkg_info.def_table_lkg == -1)
 		return 0;
-
-	leakage = rockchip_get_leakage(dvfs_node->channel);
-	if (!leakage || (leakage == 0xff))
-		return 0;
+	if (dvfs_node->vd->leakage == 0) {
+		leakage = rockchip_get_leakage(dvfs_node->channel);
+		if (!leakage)
+			return 0;
+		dvfs_node->vd->leakage = leakage;
+	} else {
+		leakage = dvfs_node->vd->leakage;
+	}
 
 	delta_leakage = leakage - dvfs_node->lkg_info.def_table_lkg;
 	if (delta_leakage <= 0) {
@@ -2168,8 +2172,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 
 	of_property_read_u32_index(np, "channel", 0, &dvfs_node->channel);
 
+	dvfs_node->vd->leakage = rockchip_get_leakage(dvfs_node->channel);
 	pr_info("channel:%d, lkg:%d\n",
-		dvfs_node->channel, rockchip_get_leakage(dvfs_node->channel));
+		dvfs_node->channel, dvfs_node->vd->leakage);
 
 	of_property_read_u32_index(np, "tsadc-ch", 0, &dvfs_node->tsadc_ch);
 	of_property_read_u32_index(np, "regu-mode-en", 0,

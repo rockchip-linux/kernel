@@ -58,6 +58,7 @@ struct vd_node {
 	unsigned int 		n_voltages;
 	int volt_list[VD_VOL_LIST_CNT];
 	unsigned int		regu_mode;
+	unsigned int		leakage;
 };
 
 /**
