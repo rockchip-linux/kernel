@@ -210,9 +210,8 @@
 
 		ion_cma: cma-heap {
 			 compatible = "rockchip,ion-heap";
-			 status = "disabled";
 			 rockchip,ion_heap = <4>;
-			 reg = <0x10000000 0x08000000>; /* 128 MB */
+			 reg = <0x00000000 0x08000000>; /* 128 MB */
 		};
 		system_heap: system-heap {
 			compatible = "rockchip,ion-heap";
