@@ -1,4 +1,5 @@
 # UAPI Header export list
+header-y += aufs_type.h
 header-y += byteorder/
 header-y += can/
 header-y += caif/
