@@ -231,6 +231,16 @@ static const struct rockchip_iodomain_soc_data soc_data_rk3188 = {
 	},
 };
 
+static const struct rockchip_iodomain_soc_data soc_data_rk3228 = {
+	.grf_offset = 0x418,
+	.grf_supply_names = {
+		"vccio1",
+		"vccio2",
+		"vccio3",
+		"vccio4",
+	},
+};
+
 static const struct rockchip_iodomain_soc_data soc_data_rk3288 = {
 	.grf_offset = 0x380,
 	.grf_supply_names = {
@@ -278,6 +288,10 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 	{
 		.compatible = "rockchip,rk3188-io-voltage-domain",
 		.data = (void *)&soc_data_rk3188
+	},
+	{
+		.compatible = "rockchip,rk3228-io-voltage-domain",
+		.data = (void *)&soc_data_rk3228
 	},
 	{
 		.compatible = "rockchip,rk3288-io-voltage-domain",
