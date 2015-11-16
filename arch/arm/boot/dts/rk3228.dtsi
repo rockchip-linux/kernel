@@ -124,6 +124,12 @@
 		status = "disabled";
 	};
 
+	io-domains {
+		compatible = "rockchip,rk3228-io-voltage-domain";
+		rockchip,grf = <&grf>;
+		status = "disabled";
+	};
+
 	dvfs {
 		vd_arm: vd_arm {
 			regulator_name = "vdd_arm";
