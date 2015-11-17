@@ -357,7 +357,7 @@ static void rockchip_tsadc_get(int chn, int *temp, int *code)
 #endif
 }
 
- int rockchip_tsadc_get_temp(int chn)
+int rockchip_tsadc_get_temp(int chn, int voltage)
 {
 	int temp, code;
 	

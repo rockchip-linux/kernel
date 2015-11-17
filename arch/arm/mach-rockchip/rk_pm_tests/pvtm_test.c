@@ -18,10 +18,10 @@
 #include <linux/vmalloc.h>
 #include <linux/regulator/consumer.h>
 #include <asm/cacheflush.h>
+#include <linux/rockchip/common.h>
 
 #define PVTM_TEST 0
 
-extern int rockchip_tsadc_get_temp(int chn);
 extern void rk29_wdt_keepalive(void);
 extern u32 pvtm_get_value(u32 ch, u32 time_us);
 
@@ -187,7 +187,7 @@ void pvtm_temp_test(void)
 
 	do {
 		rk29_wdt_keepalive();
-		temp = rockchip_tsadc_get_temp(1);
+		temp = rockchip_tsadc_get_temp(1, 0);
 		if (!old_temp)
 			old_temp = temp;
 
@@ -293,7 +293,7 @@ void scale_min_pvtm_fix_volt(void)
 				old_pvtm = pvtm;
 			sprintf(pvtm_buf+i+1, "%d %lu %d %d %d\n",
 				volt, clk_get_rate(clk_core), pvtm,
-				rockchip_tsadc_get_temp(1), old_pvtm-pvtm);
+				rockchip_tsadc_get_temp(1, 0), old_pvtm-pvtm);
 
 			pr_info("%s", pvtm_buf+i+1);
 
@@ -384,7 +384,7 @@ void scale_min_pvtm_fix_rate(void)
 
 			sprintf(pvtm_buf+i+1, "%d %lu %d %d %d\n",
 				volt, clk_get_rate(clk_core), pvtm,
-				rockchip_tsadc_get_temp(1), old_pvtm-pvtm);
+				rockchip_tsadc_get_temp(1, 0), old_pvtm-pvtm);
 
 			pr_info("%s", pvtm_buf+i+1);
 			old_pvtm = pvtm;

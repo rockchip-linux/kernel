@@ -53,7 +53,6 @@
 /***********************************************************/
 /*  This table and variable are using the check time share of GPU Clock  */
 /***********************************************************/
-extern int rockchip_tsadc_get_temp(int chn);
 /** gpu 温度上限. */
 #define gpu_temp_limit 110
 /** 经过 gpu_temp_statis_time 次测量记录之后, 对温度数据取平均. */
@@ -274,7 +273,7 @@ static void mali_dvfs_event_proc(struct work_struct *w)
 
 	dvfs_status->temperature_time++;
 
-	temp_tmp += rockchip_tsadc_get_temp(1);         // .Q : 获取当前温度? "1" : 意义? 指定特定的测试通道? 
+	temp_tmp += rockchip_tsadc_get_temp(1, 0);
 
 	if(dvfs_status->temperature_time >= gpu_temp_statis_time) {
 		dvfs_status->temperature_time = 0;

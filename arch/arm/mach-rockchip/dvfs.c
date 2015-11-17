@@ -60,7 +60,7 @@ static int dvfs_get_temp(int chn)
 	temp = rockchip_tsadc_get_temp(chn, read_back);
 	mutex_unlock(&clk_cpu_bl_dvfs_node->vd->mutex);
 #else
-	temp = rockchip_tsadc_get_temp(chn);
+	temp = rockchip_tsadc_get_temp(chn, 0);
 #endif
 
 	return temp;
@@ -80,7 +80,7 @@ static int pvtm_get_temp(struct dvfs_node *dvfs_node, int chn)
 		dvfs_node->vd->regulator);
 	temp = rockchip_tsadc_get_temp(chn, read_back);
 #else
-	temp = rockchip_tsadc_get_temp(chn);
+	temp = rockchip_tsadc_get_temp(chn, 0);
 #endif
 
 	return temp;

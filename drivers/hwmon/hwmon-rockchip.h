@@ -21,7 +21,7 @@ struct rockchip_temp;
  * @is_visible: is attribute visible
  */
 struct rockchip_temp_ops {
-	int (*read_sensor)(int);
+	int (*read_sensor)(int, int);
 	int (*irq_handler)(int, struct rockchip_temp *);
 	ssize_t (*show_name)(struct device *,
 			struct device_attribute *, char *);
