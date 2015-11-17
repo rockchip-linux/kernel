@@ -70,6 +70,20 @@ static struct map_desc rk3228_io_desc[] __initdata = {
 	RK_DEVICE(RK_PWM_VIRT, RK3228_PWM_PHYS, RK3228_PWM_SIZE),
 };
 
+static void __init rk3228_boot_mode_init(void)
+{
+	u32 flag = readl_relaxed(RK_GRF_VIRT + RK3228_GRF_OS_REG0);
+	u32 mode = readl_relaxed(RK_GRF_VIRT + RK3228_GRF_OS_REG1);
+	u32 rst_st = readl_relaxed(RK_CRU_VIRT + RK3228_CRU_GLB_RST_ST);
+
+	if (flag == (SYS_KERNRL_REBOOT_FLAG | BOOT_RECOVER))
+		mode = BOOT_MODE_RECOVERY;
+	if (rst_st & ((1 << 2) | (1 << 3)))
+		mode = BOOT_MODE_WATCHDOG;
+
+	rockchip_boot_mode_init(flag, mode);
+}
+
 void __init rk3228_dt_map_io(void)
 {
 	rockchip_soc_id = ROCKCHIP_SOC_RK3228;
@@ -77,6 +91,7 @@ void __init rk3228_dt_map_io(void)
 	iotable_init(rk3228_io_desc, ARRAY_SIZE(rk3228_io_desc));
 	debug_ll_io_init();
 
+	rk3228_boot_mode_init();
 	rockchip_efuse_init();
 }
 
