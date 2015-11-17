@@ -581,7 +581,7 @@
 		interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <2>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwm0_pin>;
+		pinctrl-0 = <&pwm01_pin>;
 		clocks = <&clk_gates9 7>;
 		clock-names = "pclk_pwm";
 		status = "disabled";
@@ -594,7 +594,7 @@
 		interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <2>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwm1_pin>;
+		pinctrl-0 = <&pwm11_pin>;
 		clocks = <&clk_gates9 7>;
 		clock-names = "pclk_pwm";
 		status = "disabled";
@@ -607,7 +607,7 @@
 		interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <2>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwm2_pin>;
+		pinctrl-0 = <&pwm21_pin>;
 		clocks = <&clk_gates9 7>;
 		clock-names = "pclk_pwm";
 		status = "disabled";
@@ -620,7 +620,7 @@
 		interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 		#pwm-cells = <2>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&pwmir_pin>;
+		pinctrl-0 = <&pwmir1_pin>;
 		clocks = <&clk_gates9 7>;
 		clock-names = "pclk_pwm";
 		status = "disabled";
@@ -1382,27 +1382,15 @@
 			};
 		};
 
+		pwm01 {
+			pwm01_pin: pwm01-pin {
+				rockchip,pins = <3 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
 		pwm1 {
 			pwm1_pin: pwm1-pin {
 				rockchip,pins = <0 GPIO_D3 RK_FUNC_1 &pcfg_pull_none>;
-			};
-		};
-
-		pwm2 {
-			pwm2_pin: pwm2-pin {
-				rockchip,pins = <0 GPIO_D4 RK_FUNC_1 &pcfg_pull_none>;
-			};
-		};
-
-		pwmir {
-			pwmir_pin: pwmir-pin {
-				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
-			};
-		};
-
-		pwm10 {
-			pwm10_pin: pwm10-pin {
-				rockchip,pins = <3 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 
@@ -1412,14 +1400,26 @@
 			};
 		};
 
-		pwm12 {
-			pwm12_pin: pwm12-pin {
+		pwm2 {
+			pwm2_pin: pwm2-pin {
+				rockchip,pins = <0 GPIO_D4 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		pwm21 {
+			pwm21_pin: pwm21-pin {
 				rockchip,pins = <1 GPIO_B4 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 
-		pwm1ir {
-			pwm1ir_pin: pwm1ir-pin {
+		pwmir {
+			pwmir_pin: pwmir-pin {
+				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		pwmir1 {
+			pwmir1_pin: pwmir1-pin {
 				rockchip,pins = <1 GPIO_B3 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
