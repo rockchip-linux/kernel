@@ -181,7 +181,7 @@
 &uart1{
 	status = "okay";
 	dma-names = "!tx", "!rx";
-	//pinctrl-0 = <&uart1_xfer &uart1_cts>;
+	pinctrl-0 = <&uart11_xfer &uart11_cts>;
 };
 
 &i2c0 {
