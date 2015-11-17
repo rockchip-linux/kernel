@@ -36,6 +36,8 @@
 #define CPU 3228
 #include "sram.h"
 #include <linux/rockchip/cpu.h>
+#include <linux/rockchip/psci.h>
+#include "pm.h"
 
 #define RK3228_DEVICE(name) \
 	{ \
@@ -111,10 +113,35 @@ static void __init rk3228_reserve(void)
 	rockchip_ion_reserve();
 }
 
+static void __init rk3228_suspend_init(void)
+{
+	struct device_node *parent;
+	u32 pm_ctrbits = 0;
+
+	parent = of_find_node_by_name(NULL, "rockchip_suspend");
+	if (IS_ERR_OR_NULL(parent)) {
+		PM_ERR("%s dev node err\n", __func__);
+		return;
+	}
+
+	if (of_property_read_u32_array(parent, "rockchip,ctrbits",
+				      &pm_ctrbits, 1)) {
+		PM_ERR("%s: read rockchip ctrbits error\n", __func__);
+		return;
+	}
+
+	rockchip_psci_smc_write(PSCI_SIP_SUSPEND_WR_CTRBITS,
+				pm_ctrbits, 0, SEC_REG_WR);
+	PM_LOG("%s: pm_ctrbits = 0x%x\n", __func__, pm_ctrbits);
+}
+
 static void __init rk3228_init_late(void)
 {
 	if (rockchip_jtag_enabled)
 		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
+
+	rk3228_suspend_init();
+	rockchip_suspend_init();
 }
 
 static void rk3228_restart(char mode, const char *cmd)
