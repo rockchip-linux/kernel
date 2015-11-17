@@ -1214,6 +1214,7 @@ static const struct of_device_id iommu_dt_ids[] = {
 	{ .compatible = VPU_IOMMU_COMPATIBLE_NAME},
 	{ .compatible = ISP_IOMMU_COMPATIBLE_NAME},
 	{ .compatible = VOP_IOMMU_COMPATIBLE_NAME},
+	{ .compatible = VDEC_IOMMU_COMPATIBLE_NAME},
 	{ /* end */ }
 };
 
