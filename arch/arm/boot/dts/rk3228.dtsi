@@ -7,6 +7,7 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <rk3228_dram_default_timing.dtsi>
+#include <dt-bindings/suspend/rockchip-pm.h>
 
 / {
 	compatible = "rockchip,rk3228";
@@ -855,6 +856,17 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&rgmii_pins>;
 		status = "disabled";
+	};
+
+	rockchip_suspend: rockchip_suspend {
+
+		rockchip,ctrbits = <
+			(0
+			 |RKPM_CTR_GTCLKS
+			 |RKPM_CTR_PLLS
+			 |RKPM_CTR_IDLESRAM_MD
+			)
+			>;
 	};
 
 	pinctrl: pinctrl {
