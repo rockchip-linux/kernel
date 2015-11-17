@@ -54,6 +54,7 @@
 	#define pinctrl_dbg(dev, format, arg...)
 #endif
 
+#define MAX_CON_IOMUX		16
 
 /* GPIO control registers */
 #define GPIO_SWPORT_DR		0x00
@@ -174,6 +175,8 @@ struct rockchip_pin_ctrl {
 	enum rockchip_pinctrl_type	type;
 	int				grf_mux_offset;
 	int				pmu_mux_offset;
+	const char			*grf_con_iomux_names[MAX_CON_IOMUX];
+	int				grf_con_iomux_offset;
 
 	void	(*pull_calc_reg)(struct rockchip_pin_bank *bank,
 				 int pin_num, struct regmap **regmap,
@@ -212,6 +215,8 @@ struct rockchip_pmx_func {
 	const char		*name;
 	const char		**groups;
 	u8			ngroups;
+	u8			con_mux_sel;
+	u8			idx;
 };
 
 struct rockchip_pinctrl {
@@ -833,7 +838,10 @@ static int rockchip_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 	const unsigned int *pins = info->groups[group].pins;
 	const struct rockchip_pin_config *data = info->groups[group].data;
 	struct rockchip_pin_bank *bank;
+	const char **group_con_mux_names;
+	const char *con_mux_name;
 	int cnt, ret = 0;
+	u32 val, idx = 0;
 
 	pinctrl_dbg(info->dev, "enable function %s group %s\n",
 		    info->functions[selector].name, info->groups[group].name);
@@ -856,6 +864,30 @@ static int rockchip_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 			rockchip_set_mux(bank, pins[cnt] - bank->pin_base, 0);
 
 		return ret;
+	}
+
+	if (info->functions[selector].con_mux_sel) {
+		idx = info->functions[selector].idx;
+		group_con_mux_names =
+			(const char **)info->ctrl->grf_con_iomux_names;
+		if (group_con_mux_names) {
+			con_mux_name = group_con_mux_names[idx];
+			if (strncmp(con_mux_name,
+				    info->functions[selector].name,
+				    strlen(con_mux_name) + 1) == 0)
+				val = 0;
+			else
+				val = 1;
+
+			val <<= idx;
+			/* apply hiword-mask */
+			val |= BIT(idx + 16);
+			ret = regmap_write(info->regmap_base,
+					   info->ctrl->grf_con_iomux_offset,
+					   val);
+			if (ret)
+				dev_err(info->dev, "Couldn't write to grf con iomux\n");
+		}
 	}
 
 	return 0;
@@ -1191,6 +1223,7 @@ static int rockchip_pinctrl_parse_functions(struct device_node *np,
 	struct device_node *child;
 	struct rockchip_pmx_func *func;
 	struct rockchip_pin_group *grp;
+	const char **group_con_mux_names;
 	int ret;
 	static u32 grp_index;
 	u32 i = 0;
@@ -1216,6 +1249,24 @@ static int rockchip_pinctrl_parse_functions(struct device_node *np,
 		ret = rockchip_pinctrl_parse_groups(child, grp, info, i++);
 		if (ret)
 			return ret;
+	}
+
+	group_con_mux_names =
+		(const char **)info->ctrl->grf_con_iomux_names;
+	if (group_con_mux_names) {
+		for (i = 0; i < MAX_CON_IOMUX; i++) {
+			const char *con_mux_name = group_con_mux_names[i];
+
+			if (!con_mux_name)
+				continue;
+
+			if (!strncmp(con_mux_name, func->name,
+				     strlen(con_mux_name))) {
+				func->con_mux_sel = 1;
+				func->idx = i;
+				break;
+			}
+		}
 	}
 
 	return 0;
@@ -2086,6 +2137,21 @@ static struct rockchip_pin_ctrl rk3228_pin_ctrl = {
 		.grf_mux_offset		= 0x0,
 		.pmu_mux_offset		= 0x0,
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
+		.grf_con_iomux_offset   = 0x50,
+		.grf_con_iomux_names	= {
+					"pwm0",
+					"pwm1",
+					"pwm2",
+					"pwmir",
+					"sdio",
+					"spi0",
+					NULL,
+					"emmc",
+					"uart2",
+					NULL,
+					NULL,
+					"uart1",
+	},
 };
 static struct rockchip_pin_bank rk3368_pin_banks[] = {
 	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0", IOMUX_SOURCE_PMU,
