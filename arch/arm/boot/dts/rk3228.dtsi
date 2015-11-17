@@ -650,6 +650,15 @@
 		interrupt-names = "iep_mmu";
 	};
 
+	vdec_mmu {
+		dbgname = "vdec";
+		compatible = "rockchip,vdec_mmu";
+		reg = <0x20030480 0x40>,
+		      <0x200304c0 0x40>;
+		interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vdec_mmu";
+	};
+
 	hdmi: hdmi@200a0000 {
 		compatible = "rockchip,rk3228-hdmi";
 		reg = <0x200a0000 0x20000>,
