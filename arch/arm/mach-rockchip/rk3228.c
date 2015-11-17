@@ -109,9 +109,9 @@ static void rk3228_restart(char mode, const char *cmd)
 	rockchip_restart_get_boot_mode(cmd, &boot_flag, &boot_mode);
 
 	/* for loader */
-	writel_relaxed(boot_flag, RK_PMU_VIRT + RK3228_GRF_OS_REG0);
+	writel_relaxed(boot_flag, RK_GRF_VIRT + RK3228_GRF_OS_REG0);
 	/* for linux */
-	writel_relaxed(boot_mode, RK_PMU_VIRT + RK3228_GRF_OS_REG1);
+	writel_relaxed(boot_mode, RK_GRF_VIRT + RK3228_GRF_OS_REG1);
 
 	dsb();
 
