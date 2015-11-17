@@ -562,6 +562,36 @@ static const struct rtc_class_ops pcf8563_rtc_ops = {
 	.alarm_irq_enable = pcf8563_irq_enable,
 };
 
+#ifdef CONFIG_PM_SLEEP
+static int pcf8563_suspend(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+	int ret;
+
+	if (device_may_wakeup(dev)) {
+		ret = enable_irq_wake(client->irq);
+		if (ret) {
+			dev_err(dev, "enable_irq_wake failed, %d\n", ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static int pcf8563_resume(struct device *dev)
+{
+	struct i2c_client *client = to_i2c_client(dev);
+
+	if (device_may_wakeup(dev))
+		disable_irq_wake(client->irq);
+
+	return 0;
+}
+#endif
+
+static SIMPLE_DEV_PM_OPS(pcf8563_pm_ops, pcf8563_suspend, pcf8563_resume);
+
 static int pcf8563_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
@@ -651,6 +681,7 @@ MODULE_DEVICE_TABLE(of, pcf8563_of_match);
 static struct i2c_driver pcf8563_driver = {
 	.driver		= {
 		.name	= "rtc-pcf8563",
+		.pm	= &pcf8563_pm_ops,
 		.of_match_table = of_match_ptr(pcf8563_of_match),
 	},
 	.probe		= pcf8563_probe,
