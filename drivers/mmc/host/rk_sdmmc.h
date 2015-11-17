@@ -344,6 +344,8 @@ struct dw_mci_tuning_data {
 	unsigned int blksz;
 };
 
+extern bool rockchip_jtag_enabled;
+
 /**
  * dw_mci driver data - dw-mshc implementation specific driver data.
  * @caps: mmc subsystem specified capabilities of the controller(s).
