@@ -6,13 +6,12 @@
 
 / {
 	chosen {
-		bootargs = "vmalloc=496M psci=enable";
+		bootargs = "vmalloc=496M psci=enable clk_ignore_unused";
 	};
 
 	fiq-debugger {
-		status = "disabled";
+		status = "okay";
 	};
-
 	wireless-wlan {
 		compatible = "wlan-platdata";
 		/* wifi_chip_type - wifi chip define
@@ -34,7 +33,7 @@
 		WIFI,poweren_gpio = <&gpio2 GPIO_D2 GPIO_ACTIVE_HIGH>;
 		WIFI,host_wake_irq = <&gpio0 GPIO_D4 GPIO_ACTIVE_HIGH>;
 		//WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
-		status = "okay";
+		status = "disable";
 	};
 
 	wireless-bluetooth {
@@ -48,9 +47,8 @@
 		BT,reset_gpio = <&gpio2 GPIO_D5 GPIO_ACTIVE_HIGH>;
 		BT,wake_gpio = <&gpio3 GPIO_D3 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio3 GPIO_D2 GPIO_ACTIVE_HIGH>;
-		status = "okay";
+		status = "disable";
 	};
-
 	io-domains {
 		status = "okay";
 
@@ -342,7 +340,7 @@
 };
 
 &hdmi {
-	status = "okay";
+	status = "disable";
 };
 
 &tve {
