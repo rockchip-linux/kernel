@@ -129,6 +129,8 @@
 		rockchip,wake-irq = <0>;
 		rockchip,irq-mode-enable = <1>;  /* If enable uart uses irq instead of fiq */
 		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart21_xfer>;
 		status = "disabled";
 	};
 
