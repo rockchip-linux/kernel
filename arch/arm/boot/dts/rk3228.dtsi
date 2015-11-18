@@ -115,6 +115,13 @@
 		clock-frequency = <24000000>;
 	};
 
+	timer@110c0000 {
+		compatible = "rockchip,timer";
+		reg = <0x110c0000 0x20>;
+		interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
+		rockchip,broadcast = <1>;
+	};
+
 	fiq-debugger {
 		compatible = "rockchip,fiq-debugger";
 		rockchip,serial-id = <2>;
