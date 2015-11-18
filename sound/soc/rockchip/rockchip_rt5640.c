@@ -195,9 +195,11 @@ static void rt5640_headphone_detect(void)
 
 	if (level) {
 		snd_soc_dapm_disable_pin(&codec->dapm, "Speakers");
+		snd_soc_dapm_sync(&codec->dapm);
 		snd_soc_dapm_enable_pin(&codec->dapm, "Headphones");
 	} else {
 		snd_soc_dapm_disable_pin(&codec->dapm, "Headphones");
+		snd_soc_dapm_sync(&codec->dapm);
 		snd_soc_dapm_enable_pin(&codec->dapm, "Speakers");
 	}
 
