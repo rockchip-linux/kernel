@@ -329,7 +329,7 @@
 };
 
 &disp_timings {
-	native-mode = <&timing1>;
+	native-mode = <&pal_cvbs>;
 };
 
 &rk_screen {
