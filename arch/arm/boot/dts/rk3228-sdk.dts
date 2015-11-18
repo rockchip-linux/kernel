@@ -348,3 +348,7 @@
 &tve {
 	status = "okay";
 };
+
+&watchdog {
+	status = "disabled";
+};
