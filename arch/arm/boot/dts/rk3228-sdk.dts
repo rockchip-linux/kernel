@@ -131,6 +131,12 @@
 			};
 		};
 	};
+
+	usb_control {
+		compatible = "rockchip,rk3228-usb-control";
+		rockchip,remote_wakeup;
+		rockchip,usb_irq_wakeup;
+	};
 };
 
 &nandc {
