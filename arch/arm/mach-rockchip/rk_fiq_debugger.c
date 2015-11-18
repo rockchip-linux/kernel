@@ -421,7 +421,7 @@ out2:
 	kfree(t);
 }
 
-static const struct of_device_id ids[] __initconst = {
+static const struct of_device_id ids[] = {
 	{ .compatible = "rockchip,fiq-debugger" },
 	{}
 };
@@ -499,6 +499,21 @@ static int __init rk_fiq_debugger_init(void) {
 
 	return 0;
 }
+
+static struct platform_driver rk_fiq_debugger_driver = {
+	.driver = {
+		.name	= "rk_fiq_debugger",
+		.owner	= THIS_MODULE,
+		.of_match_table = ids,
+	},
+};
+
+static int __init rk_fiq_debugger_pin_init(void)
+{
+	return platform_driver_register(&rk_fiq_debugger_driver);
+}
+
+arch_initcall_sync(rk_fiq_debugger_pin_init);
 #ifdef CONFIG_FIQ_GLUE
 postcore_initcall_sync(rk_fiq_debugger_init);
 #else
