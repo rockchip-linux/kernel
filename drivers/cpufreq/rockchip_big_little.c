@@ -85,6 +85,9 @@ static struct dvfs_node *clk_cpu_dvfs_node[MAX_CLUSTERS];
 static struct dvfs_node *clk_gpu_dvfs_node;
 static struct dvfs_node *clk_ddr_dvfs_node;
 static cpumask_var_t cluster_policy_mask[MAX_CLUSTERS];
+static unsigned long cpu_last_rate[MAX_CLUSTERS];
+static unsigned long cpu_b_safe_rate;
+static unsigned long cpu_l_safe_rate;
 static struct clk *aclk_cci;
 static unsigned long cci_rate;
 static unsigned int cpu_bl_freq[MAX_CLUSTERS];
@@ -269,6 +272,7 @@ static int rockchip_bl_cpufreq_scale_rate_for_dvfs(struct clk *clk,
 	/* notifiers */
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
+	cpu_last_rate[cur_cluster] = rate;
 	cpufreq_cpu_put(policy);
 	return ret;
 }
@@ -426,11 +430,37 @@ rockchip_bl_cpufreq_scale_limit(unsigned int target_freq,
 	return target_freq;
 }
 
+static int rockchip_bl_set_safefreq(int cur_cluster, unsigned long *new_rate)
+{
+	int ret = 0;
+
+	if (cpu_b_safe_rate == 0 || cpu_l_safe_rate == 0)
+		return 0;
+
+	if (cur_cluster == B_CLUSTER) {
+		if (cpu_last_rate[L_CLUSTER] >= cpu_l_safe_rate &&
+		    *new_rate > cpu_b_safe_rate)
+			*new_rate = cpu_b_safe_rate;
+	} else {
+		if (cpu_last_rate[B_CLUSTER] > cpu_b_safe_rate &&
+		    *new_rate >= cpu_l_safe_rate &&
+		    clk_cpu_dvfs_node[B_CLUSTER]) {
+			ret = dvfs_clk_set_rate(clk_cpu_dvfs_node[B_CLUSTER],
+						cpu_b_safe_rate);
+			if (ret != 0)
+				return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static int rockchip_bl_cpufreq_target(struct cpufreq_policy *policy,
 				      unsigned int target_freq,
 				      unsigned int relation)
 {
-	unsigned int i, new_freq = target_freq, new_rate, cur_rate;
+	unsigned int i, new_freq = target_freq;
+	unsigned long new_rate, cur_rate;
 	int ret = 0;
 	bool is_private;
 	u32 cur_cluster = cpu_to_cluster(policy->cpu);
@@ -474,6 +504,8 @@ static int rockchip_bl_cpufreq_target(struct cpufreq_policy *policy,
 	cur_rate = dvfs_clk_get_rate(clk_cpu_dvfs_node[cur_cluster]);
 	FREQ_LOG("req = %7u new = %7u (was = %7u)\n", target_freq,
 		 new_freq, cur_rate / 1000);
+	if (rockchip_bl_set_safefreq(cur_cluster, &new_rate) != 0)
+		goto out;
 	if (new_rate == cur_rate)
 		goto out;
 	ret = dvfs_clk_set_rate(clk_cpu_dvfs_node[cur_cluster], new_rate);
@@ -606,6 +638,16 @@ MODULE_DEVICE_TABLE(of, rockchip_bl_cpufreq_match);
 static int __init rockchip_bl_cpufreq_probe(struct platform_device *pdev)
 {
 	int ret, i;
+	int freq = 0;
+
+	ret = of_property_read_u32_index(pdev->dev.of_node, "safe_freq_b",
+					 0, &freq);
+	if (ret == 0)
+		cpu_b_safe_rate = freq * 1000;
+	ret = of_property_read_u32_index(pdev->dev.of_node, "safe_freq_l",
+					 0, &freq);
+	if (ret == 0)
+		cpu_l_safe_rate = freq * 1000;
 
 	for (i = 0; i < MAX_CLUSTERS; i++) {
 		if (!alloc_cpumask_var(&cluster_policy_mask[i], GFP_KERNEL))
