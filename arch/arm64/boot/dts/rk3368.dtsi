@@ -1033,7 +1033,8 @@
 
 	cpufreq {
 		compatible = "rockchip,rk3368-cpufreq";
-		rockchip,grf = <&grf>;
+		safe_freq_b = <1296000>; /* KHz */
+		safe_freq_l = <1008000>; /* KHz */
 	};
 
 	dvfs {
