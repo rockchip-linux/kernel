@@ -3359,7 +3359,7 @@ static irqreturn_t vop_isr(int irq, void *dev_id)
 
 	if (intr_status & INTR_BUS_ERROR) {
 		intr_status &= ~INTR_BUS_ERROR;
-		dev_warn(vop_dev->dev, "bus error!");
+		dev_warn_ratelimited(vop_dev->dev, "bus error!");
 	}
 	if (intr_status)
 		dev_err(vop_dev->dev, "Unknown VOP IRQs: %#02x\n", intr_status);
