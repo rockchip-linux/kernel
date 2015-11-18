@@ -80,6 +80,8 @@ extern struct rkehci_platform_data usb20ehci_pdata_rk3126;
 extern struct rkehci_platform_data usb20ehci_pdata_rk3368;
 extern struct dwc_otg_platform_data usb20ohci_pdata_rk3368;
 extern struct dwc_otg_platform_data usb20otg_pdata_rk3368;
+/* rk3228 platform data */
+extern struct dwc_otg_platform_data usb20otg_pdata_rk3228;
 
 struct dwc_otg_platform_data {
 	void *privdata;
