@@ -609,6 +609,7 @@
 	vop: vop@20050000 {
 		compatible = "rockchip,rk3228-lcdc";
 
+		rockchip,prop = <PRMRY>;
 		rockchip,cabc_mode = <0>;
 		rockchip,pwr18 = <0>;
 		rockchip,iommu-enabled = <1>;
