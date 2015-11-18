@@ -240,17 +240,8 @@ static int GetOPPValues(struct device *dev,
 	struct OPP_STRUCT *opp;
 	int count, i, err = 0;
 	unsigned long freq;
-
-	/* ChromiumOS kernels are carrying a fix which changes the type of
-	 * freq_table in struct devfreq_dev_profile to 'unsigned long'.
-	 * However, this change has not been merged upstream, so we need
-	 * to support using the older 'unsigned int' type too.
-	 */
-#if defined(CHROMIUMOS_WORKAROUNDS_KERNEL318)
 	unsigned long *freq_table;
-#else
-	unsigned int *freq_table;
-#endif
+
 
 	/* Start RCU read-side critical section to access device opp_list. */
 	rcu_read_lock();
