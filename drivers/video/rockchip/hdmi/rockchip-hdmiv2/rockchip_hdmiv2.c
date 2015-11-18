@@ -371,15 +371,6 @@ static void rockchip_hdmiv2_irq_work_func(struct work_struct *work)
 }
 #endif
 
-static irqreturn_t rockchip_hdmiv2_gpio_hpd_irq(int irq, void *priv)
-{
-	struct hdmi_dev *hdmi_dev = priv;
-	struct hdmi *hdmi = hdmi_dev->hdmi;
-
-	hdmi_submit_work(hdmi, HDMI_HPD_CHANGE, 20, 0);
-	return IRQ_HANDLED;
-}
-
 static struct hdmi_ops rk_hdmi_ops;
 
 #if defined(CONFIG_OF)
@@ -409,18 +400,6 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 	} else {
 		pr_err("It is not a valid rockchip soc!");
 		return -ENOMEM;
-	}
-
-	if (hdmi_dev->soctype == HDMI_SOC_RK3228) {
-		val = of_get_named_gpio(np, "rockchip,hotplug", 0);
-		if (gpio_is_valid(val) &&
-		    !devm_gpio_request_one(hdmi_dev->dev, val,
-					   GPIOF_DIR_IN, "hotplug")) {
-			hdmi_dev->hpd_gpio = val;
-		} else {
-			pr_err("HDMI: invalid hotplug gpio\n");
-			return -ENXIO;
-		}
 	}
 
 	if (!of_property_read_u32(np, "rockchip,hdmi_video_source", &val))
@@ -609,7 +588,6 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 				    hdmi_dev, &hdmi_regs_phy_fops);
 	}
 #endif
-	rk_display_device_enable(hdmi_dev->hdmi->ddev);
 
 #ifndef HDMI_INT_USE_POLL
 	/* get and request the IRQ */
@@ -632,20 +610,6 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 			ret);
 		goto failed1;
 	}
-
-	if (hdmi_dev->soctype == HDMI_SOC_RK3228) {
-		hdmi_dev->irq_hpd = gpio_to_irq(hdmi_dev->hpd_gpio);
-		ret = devm_request_irq(hdmi_dev->dev, hdmi_dev->irq,
-				       rockchip_hdmiv2_gpio_hpd_irq,
-				       IRQF_TRIGGER_RISING |
-				       IRQF_TRIGGER_FALLING,
-				       dev_name(hdmi_dev->dev), hdmi_dev);
-		if (ret) {
-			dev_err(hdmi_dev->dev,
-				"hdmi request hpd irq failed (%d).\n", ret);
-			goto failed1;
-		}
-	}
 #else
 	hdmi_dev->workqueue =
 		create_singlethread_workqueue("rockchip hdmiv2 irq");
@@ -654,6 +618,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 	rockchip_hdmiv2_irq_work_func(NULL);
 
 #endif
+	rk_display_device_enable(hdmi_dev->hdmi->ddev);
 	dev_info(&pdev->dev, "rockchip hdmiv2 probe sucess.\n");
 	return 0;
 

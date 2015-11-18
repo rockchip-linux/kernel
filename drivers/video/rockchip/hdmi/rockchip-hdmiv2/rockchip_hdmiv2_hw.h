@@ -1533,7 +1533,7 @@ struct phy_mpll_config_tab {
 	#define EXT_PHY_PCLK_INVERT_MASK		0x08
 	#define EXT_PHY_PREPCLK_INVERT_MASK		0x04
 	#define EXT_PHY_TMDSCLK_INVERT_MASK		0x02
-	#define ExT_PHY_SRC_SELECT_MASK			0x01
+	#define EXT_PHY_SRC_SELECT_MASK			0x01
 
 #define EXT_PHY_TERM_CAL		0x03
 	#define EXT_PHY_TERM_CAL_EN_MASK		0x80
@@ -1605,7 +1605,7 @@ struct phy_mpll_config_tab {
 	#define EXT_PHY_AUTO_R50_OHMS			0
 	#define EXT_PHY_AUTO_R75_OHMS			(1 << 2)
 	#define EXT_PHY_AUTO_R100_OHMS			(2 << 2)
-	#define EXT_PHY_AUTO_ROPEN_CIRCUIT		(3 >> 2)
+	#define EXT_PHY_AUTO_ROPEN_CIRCUIT		(3 << 2)
 
 #define EXT_PHY_TERM_RESIS_MANUAL_CLK	0xfb
 #define EXT_PHY_TERM_RESIS_MANUAL_D2	0xfc
@@ -1626,6 +1626,9 @@ struct ext_pll_config_tab {
 	u8	pclk_divider_c;
 	u8	pclk_divider_d;
 	u8	vco_div_5;
+	u8	ppll_nd;
+	u8	ppll_nf;
+	u8	ppll_no;
 };
 /*
 * HDMI TX PHY Define End

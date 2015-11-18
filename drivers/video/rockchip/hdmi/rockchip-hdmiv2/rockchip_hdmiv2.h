@@ -70,8 +70,5 @@ struct hdmi_dev {
 
 	struct hdmi_dev_phy_para *phy_table;
 	int			phy_table_size;
-
-	int			hpd_gpio;
-	int			irq_hpd;
 };
 #endif /*__RK32_HDMI_H__*/
