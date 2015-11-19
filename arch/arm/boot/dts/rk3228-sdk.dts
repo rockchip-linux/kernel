@@ -164,6 +164,7 @@
 	card-detect-delay = <200>;
 	ignore-pm-notify;
 	keep-power-in-suspend;
+	power-inverted;
 	status = "okay";
 };
 

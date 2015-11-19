@@ -757,7 +757,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		pinctrl-names = "default", "idle";
-		pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_dectn &sdmmc_bus4>;
+		pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_dectn &sdmmc_bus4 &sdmmc_pwren>;
 		pinctrl-1 = <&sdmmc_gpio>;
 		cd-gpios = <&gpio1 GPIO_C1 GPIO_ACTIVE_HIGH>; /* CD GPIO */
 		clocks = <&clk_sdmmc0>, <&clk_gates11 0>;
