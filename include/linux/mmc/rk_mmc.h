@@ -224,6 +224,7 @@ struct dw_mci {
 	u32	cru_regsbase;
 	u32	cru_reset_offset;
 	struct regmap *cru;
+	bool power_inverted;
 };
 
 /* DMA ops for Internal/External DMAC interface */

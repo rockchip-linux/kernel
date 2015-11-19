@@ -1424,7 +1424,12 @@ EXIT_POWER:
 		if (slot->host->pdata->setpower)
 			slot->host->pdata->setpower(slot->id, mmc->ocr_avail);
 		regs = mci_readl(slot->host, PWREN);
-		regs |= (1 << slot->id);
+
+		if (slot->host->power_inverted)
+			regs &= ~(1 << slot->id);
+		else
+			regs |= (1 << slot->id);
+
 		mci_writel(slot->host, PWREN, regs);
 		break;
 	case MMC_POWER_OFF:
@@ -1432,7 +1437,12 @@ EXIT_POWER:
 		if(slot->host->pdata->setpower)
 			slot->host->pdata->setpower(slot->id, 0);
 		regs = mci_readl(slot->host, PWREN);
-		regs &= ~(1 << slot->id);
+
+		if (slot->host->power_inverted)
+			regs |= (1 << slot->id);
+		else
+			regs &= ~(1 << slot->id);
+
 		mci_writel(slot->host, PWREN, regs);
 		break;
 	default:
@@ -3997,6 +4007,11 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		pr_err("dw cru_reset_offset val is missing!\n");
 		return ERR_PTR(-1);
 	}
+
+	if (of_property_read_bool(np, "power-inverted"))
+		host->power_inverted = true;
+	else
+		host->power_inverted = false;
 
 	return pdata;
 }
