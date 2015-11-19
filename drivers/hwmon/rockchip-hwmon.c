@@ -355,15 +355,35 @@ static const struct attribute_group rockchip_temp_group = {
 	.is_visible = rockchip_attrs_visible,
 };
 
+static const struct of_device_id rockchip_temp_match[] = {
+	{
+		.compatible = "rockchip,tsadc",
+		.data = (void *)RK3288_TSADC,
+	},
+	{
+		.compatible = "rockchip,rk3228-tsadc",
+		.data = (void *)RK3228_TSADC,
+	},
+	{ /* end */ },
+};
+
 static int rockchip_temp_probe(struct platform_device *pdev)
 {
 	struct rockchip_temp *data;
+	const struct of_device_id *match;
 	int err;
 	printk("%s,line=%d\n", __func__,__LINE__);
+
+	match = of_match_node(rockchip_temp_match, pdev->dev.of_node);
+	if (!match)
+		return -ENXIO;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+
+	data->tsadc_type = (int)match->data;
+
 	data->pdev = pdev;
 	mutex_init(&data->lock);
 
@@ -425,13 +445,6 @@ static int rockchip_temp_resume(struct platform_device *pdev)
 
 	return 0;
 }
-
-#ifdef CONFIG_OF
-static const struct of_device_id rockchip_temp_match[] = {
-	{ .compatible = "rockchip,tsadc" },
-	{},
-};
-#endif
 
 static struct platform_driver rockchip_temp_driver = {
 	.driver = {

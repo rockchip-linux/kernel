@@ -92,6 +92,12 @@
 #define TSADC_AUTO_PERIOD_TIME	0x03e8
 #define TSADC_AUTO_PERIOD_HT_TIME  0x64
 
+#define TSADC_COMP0_LOW_INT		0x80
+#define TSADC_SRC_LT_EN(ch)		(1 << (12 + ch))
+#define TSADC_LT_INTEN_SRC(ch)		(1 << (12 + ch))
+#define TSADC_AUTO_MODE_EN		(1 << 0)
+#define TSADC_Q_SEL_EN			(1 << 1)
+
 #define TSADC_AUTO_EVENT_NAME		"tsadc"
 
 #define TSADC_COMP_INT_DATA		80
@@ -100,6 +106,7 @@
 #define TSADC_TEMP_INT_EN 0
 #define TSADC_TEMP_SHUT_EN 1
 static int tsadc_ht_temp;
+static int tsadc_low_temp;
 static int tsadc_ht_reset_cru;
 static int tsadc_ht_pull_gpio;
 
@@ -128,8 +135,49 @@ struct tsadc_table
 	int temp;
 };
 
-static const struct tsadc_table table[] =
+static const struct tsadc_table rk3228_table[] =
 {
+	{0, -40},
+
+	{588, -40},
+	{593, -35},
+	{598, -30},
+	{603, -25},
+	{608, -20},
+	{613, -15},
+	{618, -10},
+	{623, -5},
+	{629, 0},
+	{634, 5},
+	{639, 10},
+	{644, 15},
+	{649, 20},
+	{654, 25},
+	{660, 30},
+	{665, 35},
+	{670, 40},
+	{675, 45},
+	{681, 50},
+	{686, 55},
+	{691, 60},
+	{696, 65},
+	{702, 70},
+	{707, 75},
+	{712, 80},
+	{717, 85},
+	{723, 90},
+	{728, 95},
+	{733, 100},
+	{738, 105},
+	{744, 110},
+	{749, 115},
+	{754, 120},
+	{760, 125},
+
+	{TSADC_DATA_MASK, 125},
+};
+
+static const struct tsadc_table table[] = {
 	{TSADC_DATA_MASK, -40},
 
 	{3800, -40},
@@ -174,6 +222,7 @@ static const struct tsadc_table table[] =
 };
 
 static struct rockchip_tsadc_temp *g_dev;
+static struct rockchip_temp *g_data;
 
 static DEFINE_MUTEX(tsadc_mutex);
 
@@ -189,9 +238,10 @@ static void tsadc_writel(u32 val, u32 offset)
 
 void rockchip_tsadc_auto_ht_work(struct work_struct *work)
 {
-        int ret,val;
+	int ret, val;
 
-//	printk("%s,line=%d\n", __func__,__LINE__);
+	if (!g_data)
+		return;
 
 	mutex_lock(&tsadc_mutex);
 
@@ -199,7 +249,15 @@ void rockchip_tsadc_auto_ht_work(struct work_struct *work)
 	tsadc_writel(val &(~ (1 <<8) ), TSADC_INT_PD);
 	ret = tsadc_readl(TSADC_INT_PD);
 	tsadc_writel(ret | 0xff, TSADC_INT_PD);       //clr irq status
-	if ((val & 0x0f) != 0){
+	if (g_data->tsadc_type == RK3228_TSADC) {
+		if ((val & 0x1000) != 0) {
+			dev_info(&g_data->pdev->dev, "rk3228 tsadc is low temp\n");
+		} else if ((val & 0x1) != 0) {
+			dev_info(&g_data->pdev->dev, "rk3228 tsadc is over temp\n");
+			pm_power_off();
+		}
+	} else if ((g_data->tsadc_type == RK3288_TSADC) &&
+		   ((val & 0x0f) != 0)) {
 		printk("rockchip tsadc is over temp . %s,line=%d\n", __func__,__LINE__);
 		pm_power_off();					//power_off
 	}
@@ -311,57 +369,165 @@ int rockchip_tsadc_set_auto_temp(int chn)
 }
 EXPORT_SYMBOL(rockchip_tsadc_set_auto_temp);
 
-static void rockchip_tsadc_get(int chn, int *temp, int *code)
+int rockchip_rk3288_tsadc_get_temp(int chn, int voltage)
 {
-	int i;
-	*temp = 0;
-	*code = 0;
+	int i, val = 0, reg = 0;
 
 	if (!g_dev || chn > 4){
-		*temp = INVALID_TEMP;
-		return ;
+		val = INVALID_TEMP;
+		return val;
 	}
-#if 0
+
+	reg = tsadc_readl((TSADC_DATA0 + chn*4)) & TSADC_DATA_MASK;
+	for (i = 0; i < ARRAY_SIZE(table) - 1; i++) {
+		if ((reg) <= table[i].code && (reg) > table[i + 1].code)
+			val = table[i].temp + (table[i + 1].temp
+			- table[i].temp) * (table[i].code - (reg))
+			/ (table[i].code - table[i + 1].code);
+	}
+
+	return val;
+}
+EXPORT_SYMBOL(rockchip_rk3288_tsadc_get_temp);
+
+static void rockchip_rk3228_tsadc_set_cmpn_int_vale(int chn)
+{
+	u32 code = 0;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
+		if ((tsadc_ht_temp - 10) >= rk3228_table[i].temp &&
+		    (tsadc_ht_temp - 10) < rk3228_table[i + 1].temp)
+			code = rk3228_table[i].code;
+	}
+	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
+		     (TSADC_COMP0_INT + chn * 4));
+
+	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
+		if (tsadc_ht_temp >= rk3228_table[i].temp &&
+		    tsadc_ht_temp <  rk3228_table[i + 1].temp)
+			code = rk3228_table[i].code;
+	}
+	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
+		     (TSADC_COMP0_SHUT + chn * 4));
+
+	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
+		if (tsadc_low_temp >= rk3228_table[i].temp &&
+		    tsadc_low_temp < rk3228_table[i + 1].temp)
+			code = rk3228_table[i].code;
+	}
+	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
+		     (TSADC_COMP0_LOW_INT + chn * 4));
+}
+
+static void rockchip_rk3228_tsadc_set_auto_int_en(int chn,
+						  int ht_int_en,
+						  int tshut_en)
+{
+	u32 ret;
+
+	tsadc_writel(0, TSADC_INT_EN);
+
+	if (ht_int_en) {
+		ret = tsadc_readl(TSADC_INT_EN);
+		tsadc_writel(ret | (1 << chn), TSADC_INT_EN);
+	}
+	if (tshut_en) {
+		ret = tsadc_readl(TSADC_INT_EN);
+		if (tsadc_ht_pull_gpio)
+			tsadc_writel(ret | (1 << (chn + 4)), TSADC_INT_EN);
+		else if (tsadc_ht_reset_cru)
+			tsadc_writel(ret | (1 << (chn + 8)), TSADC_INT_EN);
+	}
+	if (tsadc_low_temp > -40)
+		tsadc_writel(tsadc_readl(TSADC_INT_EN)
+			| TSADC_LT_INTEN_SRC(chn), TSADC_INT_EN);
+}
+
+static void rockchip_rk3228_tsadc_auto_mode_set(int chn,
+						int int_en,
+						int shut_en)
+{
+	u32 ret;
+
+	if (!g_dev || chn > 4)
+		return;
+
 	mutex_lock(&tsadc_mutex);
 
 	clk_enable(g_dev->pclk);
 	clk_enable(g_dev->clk);
 
 	msleep(10);
-	tsadc_writel(0, TSADC_USER_CON);
-	tsadc_writel(TSADC_CTRL_POWER_UP | TSADC_CTRL_CH(chn), TSADC_USER_CON);
-	msleep(20);
-	if ((tsadc_readl(TSADC_USER_CON) & TSADC_STAS_BUSY_MASK) != TSADC_STAS_BUSY) {
-		*code = tsadc_readl((TSADC_DATA0 + chn*4)) & TSADC_DATA_MASK;
-		for (i = 0; i < ARRAY_SIZE(table) - 1; i++) {
-			if ((*code) <= table[i].code && (*code) > table[i + 1].code) {
-				*temp = table[i].temp + (table[i + 1].temp - table[i].temp) * (table[i].code - (*code)) / (table[i].code - table[i + 1].code);
-			}
-		}
-	}
-	
-	tsadc_writel(0, TSADC_USER_CON);
+	tsadc_writel(0, TSADC_AUTO_CON);
+	tsadc_writel(1 << (4 + chn), TSADC_AUTO_CON);
+	msleep(10);
+	if ((tsadc_readl(TSADC_AUTO_CON) & TSADC_AUTO_STAS_BUSY_MASK) !=
+	    TSADC_AUTO_STAS_BUSY) {
+		rockchip_rk3228_tsadc_set_cmpn_int_vale(chn);
 
-	clk_disable(g_dev->clk);
-	clk_disable(g_dev->pclk);
+		tsadc_writel(TSADC_AUTO_PERIOD_TIME,
+			     TSADC_AUTO_PERIOD);
+		tsadc_writel(TSADC_AUTO_PERIOD_HT_TIME,
+			     TSADC_AUTO_PERIOD_HT);
+
+		tsadc_writel(TSADC_HIGHT_INT_DEBOUNCE_TIME,
+			     TSADC_HIGHT_INT_DEBOUNCE);
+		tsadc_writel(TSADC_HIGHT_TSHUT_DEBOUNCE_TIME,
+			     TSADC_HIGHT_TSHUT_DEBOUNCE);
+
+		rockchip_rk3228_tsadc_set_auto_int_en(chn, int_en, shut_en);
+	}
+
+	msleep(10);
+
+	ret = tsadc_readl(TSADC_AUTO_CON);
+	tsadc_writel(ret | TSADC_AUTO_MODE_EN | TSADC_SRC_LT_EN(chn) |
+		     TSADC_Q_SEL_EN, TSADC_AUTO_CON);
 
 	mutex_unlock(&tsadc_mutex);
-#else
-	*code = tsadc_readl((TSADC_DATA0 + chn*4)) & TSADC_DATA_MASK;
-	for (i = 0; i < ARRAY_SIZE(table) - 1; i++) {
-		if ((*code) <= table[i].code && (*code) > table[i + 1].code)
-			*temp = table[i].temp + (table[i + 1].temp
-			- table[i].temp) * (table[i].code - (*code))
-			/ (table[i].code - table[i + 1].code);
-	}
-#endif
 }
+
+int rockchip_rk3228_tsadc_set_auto_temp(int chn)
+{
+	rockchip_rk3228_tsadc_auto_mode_set(chn,
+					    TSADC_TEMP_INT_EN,
+					    TSADC_TEMP_SHUT_EN);
+	return 0;
+}
+EXPORT_SYMBOL(rockchip_rk3228_tsadc_set_auto_temp);
+
+int rockchip_rk3228_tsadc_get_temp(int chn, int voltage)
+{
+	int i, val = 0, reg = 0;
+
+	if (!g_dev || chn > 4) {
+		val = INVALID_TEMP;
+		return val;
+	}
+
+	reg = tsadc_readl((TSADC_DATA0 + chn * 4)) & TSADC_DATA_MASK;
+	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
+		if ((reg) <= rk3228_table[i + 1].code &&
+		    (reg) > rk3228_table[i].code)
+			val = rk3228_table[i].temp + (rk3228_table[i + 1].temp
+			- rk3228_table[i].temp) * ((reg) - rk3228_table[i].code)
+			/ (rk3228_table[i + 1].code - rk3228_table[i].code);
+	}
+
+	return val;
+}
+EXPORT_SYMBOL(rockchip_rk3228_tsadc_get_temp);
 
 int rockchip_tsadc_get_temp(int chn, int voltage)
 {
-	int temp, code;
-	
-	rockchip_tsadc_get(chn, &temp, &code);
+	int temp;
+
+	if (!g_data || chn > 4) {
+		temp = INVALID_TEMP;
+		return temp;
+	}
+	temp = g_data->ops.read_sensor(chn, voltage);
 
 	return temp;
 }
@@ -474,6 +640,10 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 		dev_err(&data->pdev->dev, "Missing  tsadc_ht_temp in the DT.\n");
 		return -EPERM;
 	}
+	if (of_property_read_u32(np, "tsadc-low-temp", &tsadc_low_temp)) {
+		dev_err(&data->pdev->dev, "Missing tsadc_low_temp in the DT.\n");
+		tsadc_low_temp = -40;
+	}
 	if (of_property_read_u32(np, "tsadc-ht-reset-cru",
 		&tsadc_ht_reset_cru)) {
 		dev_err(&data->pdev->dev, "Missing tsadc_ht_reset_cru in the DT.\n");
@@ -502,13 +672,22 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 		pinctrl_select_state(uap->pctl, uap->pins_tsadc_int);
 	}
 
-	rockchip_tsadc_set_auto_temp(1);
+	switch (data->tsadc_type) {
+	case RK3288_TSADC:
+		rockchip_tsadc_set_auto_temp(1);
+		data->ops.read_sensor = rockchip_rk3288_tsadc_get_temp;
+		break;
+	case RK3228_TSADC:
+		rockchip_rk3228_tsadc_set_auto_temp(0);
+		data->ops.read_sensor = rockchip_rk3228_tsadc_get_temp;
+		break;
+	}
 
 	data->monitored_sensors = NUM_MONITORED_SENSORS;
-	data->ops.read_sensor = rockchip_tsadc_get_temp;
 	data->ops.show_name = rockchip_show_name;
 	data->ops.show_label = rockchip_show_label;
 	data->ops.is_visible = NULL;
+	g_data = data;
 
 	dev_info(&data->pdev->dev, "initialized\n");
 	return 0;

@@ -12,6 +12,9 @@
 
 struct rockchip_temp;
 
+#define RK3288_TSADC	0
+#define RK3228_TSADC	1
+
 /*
  * struct rockchip_temp_ops - rockchip chip specific ops
  * @read_sensor: reads gpadc output
@@ -70,6 +73,7 @@ struct rockchip_temp {
 	struct work_struct 	auto_ht_irq_work;
 	struct workqueue_struct  *workqueue;
 	struct workqueue_struct  *tsadc_workqueue;
+	int tsadc_type;
 };
 
 int rockchip_hwmon_init(struct rockchip_temp *data);
