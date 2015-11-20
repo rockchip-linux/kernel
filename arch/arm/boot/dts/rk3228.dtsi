@@ -1120,6 +1120,10 @@
 			uart1_rts: uart1-rts {
 				rockchip,pins = <1 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>;
 			};
+
+			uart1_rts_gpio: uart1-rts-gpio {
+				rockchip,pins = <1 GPIO_B3 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
 		};
 
 		uart11 {
@@ -1134,6 +1138,10 @@
 
 			uart11_rts: uart11-rts {
 				rockchip,pins = <3 GPIO_A6 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			uart11_rts_gpio: uart11-rts-gpio {
+				rockchip,pins = <3 GPIO_A6 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
