@@ -131,3 +131,42 @@ codec: codec@20030000 {
 	clocks = <&clk_gates5 14>;
 	clock-names = "g_pclk_acodec";
 };
+
+
+Required SoC Specific Properties:
+
+- compatible : "rockchip,rk3228-codec"
+- reg: physical base address of the controller and length of memory mapped
+  region.
+- clocks: must include clock specifiers corresponding to entries in the
+  clock-names property.
+- clocks-names: list of clock names sorted in the same order as the clocks
+  property.
+- spk_ctl_io: mute/unmute for L/R output.
+
+Example:
+
+codec: codec@12010000 {
+	compatible = "rockchip,rk3228-codec";
+	reg = <0x12010000 0x1000>;
+	clocks = <&clk_gates10 5>;
+	clock-names = "g_pclk_acodec";
+	spk_ctl_io = <&gpio1 GPIO_A3 GPIO_ACTIVE_HIGH>;
+};
+
+- compatible : "rockchip,rk3228-audio"
+- audio-controller: The phandle of i2s controller
+- audio-codec: The phandle of audio codec
+
+Example:
+
+rockchip-audio {
+	compatible = "rockchip,rk3228-audio";
+	dais {
+		dai0 {
+			audio-codec = <&codec>;
+			audio-controller = <&i2s1>;
+			format = "i2s";
+		};
+	};
+};
