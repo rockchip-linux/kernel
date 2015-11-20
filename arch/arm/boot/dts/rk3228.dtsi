@@ -549,14 +549,16 @@
 		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
 		clock-frequency = <32768>;
 		clocks = <&clk_tsadc>, <&clk_gates9 15>;
+		clock-names = "tsadc", "pclk_tsadc";
 		resets = <&reset RK3228_RST_TSADC>;
 		reset-names = "tsadc-apb";
-		#thermal-sensor-cells = <1>;
-		hw-shut-temp = <120000>;
+		#io-channel-cells = <1>;
+		io-channel-ranges;
 		pinctrl-names = "default";
 		pinctrl-0 = <&tsadc_gpio>;
-		tsadc-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
-		tsadc-tshut-polarity = <0>;/* tshut polarity 0:LOW 1:HIGH */
+		tsadc-ht-temp = <120>;
+		tsadc-ht-reset-cru = <1>;
+		tsadc-ht-pull-gpio = <0>;
 		status = "okay";
 	};
 
