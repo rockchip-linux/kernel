@@ -275,6 +275,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define  V_AXI_OUTSTANDING_MAX_NUM(x)		VAL_MASK(x, 5, 13)
 #define  V_NOC_HURRY_W_MODE(x)			VAL_MASK(x, 2, 20)
 #define  V_NOC_HURRY_W_VALUE(x)			VAL_MASK(x, 2, 22)
+#define  V_REG_DONE_FRM(x)			VAL_MASK(x, 1, 24)
 #define  V_DSP_FP_STANDBY(x)			VAL_MASK(x, 1, 31)
 #define DSP_CTRL0			0x00000010
 #define  V_DSP_OUT_MODE(x)			VAL_MASK(x, 4, 0)

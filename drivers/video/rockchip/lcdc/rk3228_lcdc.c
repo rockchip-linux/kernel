@@ -1482,6 +1482,11 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		else
 			val |= V_SW_HDMI_CLK_I_SEL(0);
 		vop_msk_reg(vop_dev, DSP_CTRL0, val);
+
+		if (screen->mode.vmode & FB_VMODE_INTERLACED)
+			vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(1));
+		else
+			vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(0));
 		/* BG color */
 		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN)
 			val = V_DSP_BG_BLUE(0x80) | V_DSP_BG_GREEN(0x10) |
