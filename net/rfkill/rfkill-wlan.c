@@ -667,7 +667,6 @@ static int rockchip_wifi_voltage_select(void)
         LOG("%s: rfkill-wlan driver has not Successful initialized\n", __func__);
         return -1;
     }
-
     voltage = mrfkill->pdata->sdio_vol;
     if (cpu_is_rk3288()) {
 	    if (voltage > 2700 && voltage < 3500) {
@@ -680,7 +679,7 @@ static int rockchip_wifi_voltage_select(void)
 	        LOG("%s: unsupport wifi & sdio reference voltage!\n", __func__);
 	        return -1;
 	    }
-	} else if(cpu_is_rk3036() || cpu_is_rk312x()) {
+	} else if (cpu_is_rk3036() || cpu_is_rk312x() || cpu_is_rk3228()) {
 	} else { // rk3368
 #ifdef CONFIG_MFD_SYSCON
 	    if (voltage > 2700 && voltage < 3500) {
