@@ -224,11 +224,6 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		ion_cma: cma-heap {
-			 compatible = "rockchip,ion-heap";
-			 rockchip,ion_heap = <4>;
-			 reg = <0x00000000 0x08000000>; /* 128 MB */
-		};
 		system_heap: system-heap {
 			compatible = "rockchip,ion-heap";
 			rockchip,ion_heap = <0>;
