@@ -49,7 +49,7 @@
  *  31: 6dB
  *  Step: 1.5dB
 */
-#define  OUT_VOLUME    (0x15)
+#define  OUT_VOLUME    (0x1a)
 
 struct rk3228_codec_priv {
 	struct regmap *regmap;
@@ -158,21 +158,14 @@ static int rk3228_digital_mute(struct snd_soc_dai *dai, int mute)
 static int rk3228_codec_power_on(struct snd_soc_codec *codec, int wait_ms)
 {
 	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
-	unsigned int val = DAC_CHARGE_CURRENT_ALL_OFF;
 
-	val &= ~DAC_CHARGE_CURRENT_I_MASK;
-	val |= DAC_CHARGE_CURRENT_I;
-
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
-			   DAC_CHARGE_CURRENT_ALL_MASK, val);
-	mdelay(10);
 	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_XCHARGE_MASK, DAC_CHARGE_PRECHARGE);
 	mdelay(10);
 	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_ALL_ON);
-	mdelay(20);
+
 	/* TODO: select a small current to decrease power consumption */
 	mdelay(wait_ms);
 
@@ -182,22 +175,14 @@ static int rk3228_codec_power_on(struct snd_soc_codec *codec, int wait_ms)
 static int rk3228_codec_power_off(struct snd_soc_codec *codec, int wait_ms)
 {
 	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
-	unsigned int val = DAC_CHARGE_CURRENT_ALL_OFF;
 
-	val &= ~DAC_CHARGE_CURRENT_I_MASK;
-	val |= DAC_CHARGE_CURRENT_I;
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
-			   DAC_CHARGE_CURRENT_ALL_MASK, val);
-	mdelay(10);
 	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_XCHARGE_MASK, DAC_CHARGE_DISCHARGE);
 	mdelay(10);
 	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_ALL_ON);
-	mdelay(20);
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
-			   DAC_CHARGE_CURRENT_ALL_MASK, val);
+
 	mdelay(wait_ms);
 
 	return 0;
