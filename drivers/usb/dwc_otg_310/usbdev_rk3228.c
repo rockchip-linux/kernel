@@ -11,7 +11,7 @@ static void usb20otg_hw_init(void)
 	writel(UOC_HIWORD_UPDATE(0, 1, 2),
 	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON9);
 	/* Set disconnect detection trigger point to 600mv */
-	writel(UOC_HIWORD_UPDATE(0, 0xf, 11),
+	writel(UOC_HIWORD_UPDATE(1, 0xf, 11),
 	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON10);
 	/*
 	 * other haredware init,include
