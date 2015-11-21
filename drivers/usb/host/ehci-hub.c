@@ -589,7 +589,8 @@ static int check_reset_complete (
 			index + 1);
 
 		// what happens if HCS_N_CC(params) == 0 ?
-		port_status |= PORT_OWNER;
+		if (!ehci->rk_has_no_cc_fix)
+			port_status |= PORT_OWNER;
 		port_status &= ~PORT_RWC_BITS;
 		ehci_writel(ehci, port_status, status_reg);
 
@@ -1087,7 +1088,8 @@ static int ehci_hub_control (
 		if ((temp & PORT_CONNECT) &&
 				test_bit(wIndex, &ehci->companion_ports)) {
 			temp &= ~PORT_RWC_BITS;
-			temp |= PORT_OWNER;
+			if (!ehci->rk_has_no_cc_fix)
+				temp |= PORT_OWNER;
 			ehci_writel(ehci, temp, status_reg);
 			ehci_dbg(ehci, "port %d --> companion\n", wIndex + 1);
 			temp = ehci_readl(ehci, status_reg);
@@ -1213,7 +1215,8 @@ static int ehci_hub_control (
 				ehci_dbg (ehci,
 					"port %d low speed --> companion\n",
 					wIndex + 1);
-				temp |= PORT_OWNER;
+				if (!ehci->rk_has_no_cc_fix)
+					temp |= PORT_OWNER;
 			} else {
 				temp |= PORT_RESET;
 				temp &= ~PORT_PE;
@@ -1290,7 +1293,7 @@ static void ehci_relinquish_port(struct usb_hcd *hcd, int portnum)
 {
 	struct ehci_hcd		*ehci = hcd_to_ehci(hcd);
 
-	if (ehci_is_TDI(ehci))
+	if (ehci_is_TDI(ehci) || ehci->rk_has_no_cc_fix)
 		return;
 	set_owner(ehci, --portnum, PORT_OWNER);
 }

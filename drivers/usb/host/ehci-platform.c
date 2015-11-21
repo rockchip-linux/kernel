@@ -294,6 +294,7 @@ static int ehci_platform_probe(struct platform_device *dev)
 	platform_set_drvdata(dev, hcd);
 
 	if (of_device_is_compatible(dev->dev.of_node, "rockchip,hsic")) {
+		ehci->rk_has_no_cc_fix = 1;
 		writel_relaxed(1, hcd->regs + 0xb0);
 		writel_relaxed(0x1d4d, hcd->regs + 0x90);
 		writel_relaxed(0x4, hcd->regs + 0xa0);
