@@ -283,6 +283,9 @@
 			<&aclk_bus>,
 			<&hclk_bus>,
 			<&pclk_bus>,
+			<&clk_gates6 3>,/*pclk_bus_pre*/
+			<&clk_gates7 1>,/*clk4x_ddrphy*/
+			<&clk_gates8 5>,/*clk_ddrupctl*/
 			<&clk_gates8 0>,/*aclk_intmem*/
 			<&clk_gates8 1>,/*clk_intmem_mbist*/
 			<&clk_gates8 2>,/*aclk_dmac_bus*/
