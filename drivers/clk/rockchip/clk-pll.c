@@ -1933,7 +1933,11 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	/* set div first, then select gpll */
 	if (temp_div > 1)
 		cru_writel(RK3036_CLK_CORE_DIV(temp_div), RK3036_CRU_CLKSELS_CON(0));
-	cru_writel(RK3036_CORE_SEL_PLL(1), RK3036_CRU_CLKSELS_CON(0));
+
+	if (cpu_is_rk3228())
+		cru_writel(RK3228_CPU_SEL_PLL(1), RK3036_CRU_CLKSELS_CON(0));
+	else
+		cru_writel(RK3036_CORE_SEL_PLL(1), RK3036_CRU_CLKSELS_CON(0));
 
 	clk_debug("temp select arm_gpll path, get rate %lu\n",
 		  arm_gpll_rate/temp_div);
@@ -1959,7 +1963,10 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	rk3036_pll_wait_lock(hw);
 
 	/************select apll******************/
-	cru_writel(RK3036_CORE_SEL_PLL(0), RK3036_CRU_CLKSELS_CON(0));
+	if (cpu_is_rk3228())
+		cru_writel(RK3228_CPU_SEL_PLL(0), RK3036_CRU_CLKSELS_CON(0));
+	else
+		cru_writel(RK3036_CORE_SEL_PLL(0), RK3036_CRU_CLKSELS_CON(0));
 	/**************return slow mode***********/
 	cru_writel(_RK3188_PLL_MODE_NORM_SET(pll->mode_shift), pll->mode_offset);
 
