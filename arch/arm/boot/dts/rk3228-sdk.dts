@@ -136,6 +136,16 @@
 		host_drv_gpio = <&gpio3 GPIO_C4 GPIO_ACTIVE_LOW>;
 		otg_drv_gpio = <&gpio3 GPIO_C6 GPIO_ACTIVE_LOW>;
 	};
+
+	rockchip_spdif_card {
+		compatible = "rockchip-spdif-card";
+		dais {
+			dai0 {
+				audio-codec = <&codec_spdif>;
+				audio-controller = <&spdif>;
+			};
+		};
+	};
 };
 
 &nandc {
@@ -198,6 +208,10 @@
 };
 
 &i2c2 {
+	status = "okay";
+};
+
+&codec_spdif {
 	status = "okay";
 };
 

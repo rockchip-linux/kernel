@@ -532,6 +532,11 @@
 		spk_ctl_io = <&gpio1 GPIO_A3 GPIO_ACTIVE_HIGH>;
 	};
 
+	codec_spdif: codec-spdif {
+		compatible = "hdmi-spdif";
+		status = "disabled";
+	};
+
 	rockchip_audio: rk3228-audio {
 		compatible = "rockchip,rk3228-audio";
 		dais {
