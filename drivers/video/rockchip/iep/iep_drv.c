@@ -1124,6 +1124,11 @@ static int iep_drv_probe(struct platform_device *pdev)
 		data->cap.max_dynamic_height = 2340;
 		data->cap.max_enhance_radius = 2;
 		break;
+	case 3:
+		data->cap.compression_noise_reduction_supported = 0;
+		data->cap.sampling_noise_reduction_supported = 0;
+		data->cap.cg_enhancement_supported = 0;
+		break;
 	default:
 		;
 	}
