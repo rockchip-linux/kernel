@@ -20,20 +20,20 @@
 		* esp8089 ==> esp8089;
 		* other   ==> for other wifi;
 		*/
-		wifi_chip_type = "bcmwifi";
-		sdio_vref = <1800>; //1800mv or 3300mv
-		//keep_wifi_power_on;
-		//power_ctrl_by_pmu;
-		power_pmu_regulator = "act_ldo3";
-		power_pmu_enable_level = <1>; //1->HIGH, 0->LOW
-		//vref_ctrl_enable;
-		//vref_ctrl_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
-		vref_pmu_regulator = "act_ldo3";
-		vref_pmu_enable_level = <1>; //1->HIGH, 0->LOW
+		wifi_chip_type = "ap6335";
+		sdio_vref = <1800>;
+		/* keep_wifi_power_on; */
+		/* power_ctrl_by_pmu; */
+		/* power_pmu_regulator = "act_ldo3"; */
+		/* power_pmu_enable_level = <1>; */
+		/* vref_ctrl_enable; */
+		/* vref_ctrl_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>; */
+		/* vref_pmu_regulator = "act_ldo3"; */
+		/* vref_pmu_enable_level = <1>; */
 		WIFI,poweren_gpio = <&gpio2 GPIO_D2 GPIO_ACTIVE_HIGH>;
 		WIFI,host_wake_irq = <&gpio0 GPIO_D4 GPIO_ACTIVE_HIGH>;
-		//WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
-		status = "disable";
+		/* WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>; */
+		status = "okay";
 	};
 
 	wireless-bluetooth {
