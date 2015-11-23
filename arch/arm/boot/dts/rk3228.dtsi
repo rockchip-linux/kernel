@@ -675,15 +675,6 @@
 		interrupt-names = "vop_mmu";
 	};
 
-	hevc_mmu {
-		dbgname = "hevc";
-		compatible = "rockchip,hevc_mmu";
-		reg = <0x20034440 0x40>,
-		      <0x20034480 0x40>;
-		interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "hevc_mmu";
-	};
-
 	vpu_mmu {
 		dbgname = "vpu";
 		compatible = "rockchip,vpu_mmu";
