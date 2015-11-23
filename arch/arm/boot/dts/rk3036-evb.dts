@@ -47,6 +47,10 @@
 	compatible = "rockchip,rk3036-evb", "rockchip,rk3036";
 };
 
+&emmc {
+	status = "okay";
+};
+
 &i2c1 {
 	status = "okay";
 
