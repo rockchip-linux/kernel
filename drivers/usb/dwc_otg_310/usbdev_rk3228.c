@@ -7,6 +7,9 @@ static struct dwc_otg_control_usb *control_usb;
 #ifdef CONFIG_USB20_OTG
 static void usb20otg_hw_init(void)
 {
+	/* open pre-emphasize in non-chirp state */
+	writel(UOC_HIWORD_UPDATE(0x4, 0x7, 0),
+	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON3);
 	/* Turn off differential receiver in suspend mode */
 	writel(UOC_HIWORD_UPDATE(0, 1, 2),
 	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON9);
