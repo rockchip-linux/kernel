@@ -670,6 +670,17 @@
 		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
 	};
 
+	iep: iep@20070000 {
+		compatible = "rockchip,iep";
+		iommu_enabled = <1>;
+		reg = <0x20070000 0x800>;
+		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&aclk_iep>, <&hclk_vio>;
+		clock-names = "aclk_iep", "hclk_iep";
+		version = <3>;
+		status = "okay";
+	};
+
 	vop_mmu {
 		dbgname = "vop";
 		compatible = "rockchip,vop_mmu";
