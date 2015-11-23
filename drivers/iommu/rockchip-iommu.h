@@ -29,6 +29,7 @@ struct rk_iovmm {
 struct iommu_drvdata {
 	struct list_head node; /* entry of rk_iommu_domain.clients */
 	struct device *iommu;	/*  IOMMU's device descriptor */
+	struct device *master; /* IOMMU's master device descriptor */
 	int num_res_mem;
 	int num_res_irq;
 	const char *dbgname;

@@ -594,7 +594,7 @@ static irqreturn_t rockchip_iommu_irq(int irq, void *dev_id)
 				report_iommu_fault(data->domain, data->iommu,
 						   fault_address, flags);
 			if (data->fault_handler)
-				data->fault_handler(data->iommu, IOMMU_PAGEFAULT, dte, fault_address, 1);
+				data->fault_handler(data->master, IOMMU_PAGEFAULT, dte, fault_address, 1);
 
 			rockchip_iommu_page_fault_done(data->res_bases[i],
 					               data->dbgname);
@@ -994,6 +994,7 @@ static int rockchip_iommu_attach_device(struct iommu_domain *domain, struct devi
 		BUG_ON(!list_empty(&data->node));
 		list_add_tail(&data->node, &priv->clients);
 		data->domain = domain;
+		data->master = dev;
 	}
 
 	spin_unlock_irqrestore(&priv->lock, flags);
