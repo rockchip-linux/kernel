@@ -473,6 +473,7 @@
 		dmas = <&pdma 11>, <&pdma 12>;
 		#dma-cells = <2>;
 		dma-names = "tx", "rx";
+		status = "disabled";
 	};
 
 	i2s1: i2s1@100b0000 {
@@ -496,6 +497,7 @@
 			     &i2s_sdo2
 			     &i2s_sdo3>;
 		pinctrl-1 = <&i2s_gpio>;
+		status = "disabled";
 	};
 
 	i2s2: i2s2@100e0000 {
@@ -522,6 +524,7 @@
 		dma-names = "tx";
 		pinctrl-names = "default";
 		pinctrl-0 = <&spdif1_tx>;
+		status = "disabled";
 	};
 
 	codec: codec@12010000 {
@@ -530,22 +533,12 @@
 		clocks = <&clk_gates10 5>;
 		clock-names = "g_pclk_acodec";
 		spk_ctl_io = <&gpio1 GPIO_A3 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
 	};
 
 	codec_spdif: codec-spdif {
 		compatible = "hdmi-spdif";
 		status = "disabled";
-	};
-
-	rockchip_audio: rk3228-audio {
-		compatible = "rockchip,rk3228-audio";
-		dais {
-			dai0 {
-				audio-codec = <&codec>;
-				audio-controller = <&i2s1>;
-				format = "i2s";
-			};
-		};
 	};
 
 	tsadc: tsadc@11150000 {
