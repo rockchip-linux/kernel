@@ -678,7 +678,7 @@
 	vpu_mmu {
 		dbgname = "vpu";
 		compatible = "rockchip,vpu_mmu";
-		reg = <0x20026800 0x100>;
+		reg = <0x20020800 0x100>;
 		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "vpu_mmu";
 	};
