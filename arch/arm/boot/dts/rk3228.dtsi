@@ -686,7 +686,7 @@
 	iep_mmu {
 		dbgname = "iep";
 		compatible = "rockchip,iep_mmu";
-		reg = <0x20078800 0x100>;
+		reg = <0x20070800 0x100>;
 		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "iep_mmu";
 	};
