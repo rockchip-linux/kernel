@@ -54,7 +54,6 @@
 
 		vccio1-supply = <&vccio_3v3_reg>;
 		vccio2-supply = <&vccio_1v8_reg>;
-		vccio3-supply = <&vccio_3v3_reg>;
 		vccio4-supply = <&vccio_3v3_reg>;
 	};
 
