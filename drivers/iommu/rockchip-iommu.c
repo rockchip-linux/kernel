@@ -1005,7 +1005,9 @@ static int rockchip_iommu_attach_device(struct iommu_domain *domain, struct devi
 		dev_dbg(dev->archdata.iommu,"%s: IOMMU with pgtable 0x%x already attached\n",
 			__func__, (unsigned int)virt_to_phys(priv->pgtable));
 	} else {
-		if (!(strstr(data->dbgname, "vpu") || strstr(data->dbgname, "hevc")))
+		if (!(strstr(data->dbgname, "vpu") ||
+		      strstr(data->dbgname, "hevc") ||
+		      strstr(data->dbgname, "vdec")))
 			dev_info(dev->archdata.iommu,"%s: Attached new IOMMU with pgtable 0x%x\n",
 				__func__, (unsigned int)virt_to_phys(priv->pgtable));
 	}
