@@ -1322,6 +1322,8 @@ struct vop_device {
 	struct clk		*hclk;		/*lcdc AHP clk*/
 	struct clk		*dclk;		/*lcdc dclk*/
 	struct clk		*aclk;		/*lcdc share memory frequency*/
+	struct clk		*hclk_noc;
+	struct clk		*aclk_noc;
 	u32 pixclock;
 
 	u32 standby;				/*1:standby,0:wrok*/

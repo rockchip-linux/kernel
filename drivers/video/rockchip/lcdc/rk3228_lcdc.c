@@ -180,6 +180,8 @@ static int vop_clk_enable(struct vop_device *vop_dev)
 		clk_prepare_enable(vop_dev->hclk);
 		clk_prepare_enable(vop_dev->dclk);
 		clk_prepare_enable(vop_dev->aclk);
+		clk_prepare_enable(vop_dev->hclk_noc);
+		clk_prepare_enable(vop_dev->aclk_noc);
 		spin_lock(&vop_dev->reg_lock);
 		vop_dev->clk_on = 1;
 		spin_unlock(&vop_dev->reg_lock);
@@ -198,6 +200,8 @@ static int vop_clk_disable(struct vop_device *vop_dev)
 		clk_disable_unprepare(vop_dev->dclk);
 		clk_disable_unprepare(vop_dev->hclk);
 		clk_disable_unprepare(vop_dev->aclk);
+		clk_disable_unprepare(vop_dev->hclk_noc);
+		clk_disable_unprepare(vop_dev->aclk_noc);
 	}
 
 	return 0;
@@ -387,12 +391,15 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	if (vop_dev->pre_init)
 		return 0;
 
-	vop_dev->hclk = devm_clk_get(vop_dev->dev, "hclk_lcdc");
-	vop_dev->aclk = devm_clk_get(vop_dev->dev, "aclk_lcdc");
-	vop_dev->dclk = devm_clk_get(vop_dev->dev, "dclk_lcdc");
+	vop_dev->hclk = devm_clk_get(vop_dev->dev, "hclk_vop");
+	vop_dev->aclk = devm_clk_get(vop_dev->dev, "aclk_vop");
+	vop_dev->dclk = devm_clk_get(vop_dev->dev, "dclk_vop");
+	vop_dev->hclk_noc = devm_clk_get(vop_dev->dev, "hclk_vop_noc");
+	vop_dev->aclk_noc = devm_clk_get(vop_dev->dev, "aclk_vop_noc");
 
-	if ((IS_ERR(vop_dev->aclk)) || (IS_ERR(vop_dev->dclk)) ||
-	    (IS_ERR(vop_dev->hclk)))
+	if (IS_ERR(vop_dev->aclk) || IS_ERR(vop_dev->dclk) ||
+	    IS_ERR(vop_dev->hclk) || IS_ERR(vop_dev->hclk_noc) ||
+	    IS_ERR(vop_dev->aclk_noc))
 		dev_err(vop_dev->dev, "failed to get clk source\n");
 	if (!support_uboot_display())
 		rk_disp_pwr_enable(dev_drv);

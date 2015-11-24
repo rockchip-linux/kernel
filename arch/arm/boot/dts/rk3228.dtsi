@@ -666,8 +666,16 @@
 		rockchip,iommu-enabled = <1>;
 		reg = <0x20050000 0x300>;
 		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&aclk_vop>, <&dclk_vop0>, <&hclk_vio>;
-		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+		clocks = <&clk_gates13 5>,
+			 <&dclk_vop0>,
+			 <&clk_gates13 6>,
+			 <&clk_gates13 12>,
+			 <&clk_gates13 13>;
+		clock-names = "aclk_vop",
+			      "dclk_vop",
+			      "hclk_vop",
+			      "aclk_vop_noc",
+			      "hclk_vop_noc";
 	};
 
 	rga: rga@20060000 {
