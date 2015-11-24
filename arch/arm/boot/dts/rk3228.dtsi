@@ -1567,7 +1567,7 @@
 			};
 
 			hdmi_hpd: hdmi-hpd {
-				rockchip,pins =	<0 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>;
+				rockchip,pins =	<0 GPIO_B7 RK_FUNC_1 &pcfg_pull_down>;
 			};
 		};
 
