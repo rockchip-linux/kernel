@@ -80,7 +80,7 @@ static int rk3228_codec_reset(struct snd_soc_codec *codec)
 	regmap_write(rk3228->regmap, CODEC_RESET, 0);
 	mdelay(10);
 	regmap_write(rk3228->regmap, CODEC_RESET, 0x03);
-	mdelay(10);
+
 	return 0;
 }
 
@@ -391,8 +391,7 @@ static int rk3228_set_bias_level(struct snd_soc_codec *codec,
 static int rk3228_codec_probe(struct snd_soc_codec *codec)
 {
 	rk3228_codec_reset(codec);
-	rk3228_codec_power_off(codec, 20);
-	rk3228_codec_power_on(codec, 200);
+	rk3228_codec_power_on(codec, 0);
 
 	return 0;
 }
