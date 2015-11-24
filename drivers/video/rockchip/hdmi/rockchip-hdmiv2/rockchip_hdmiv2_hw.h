@@ -1561,6 +1561,8 @@ struct phy_mpll_config_tab {
 	#define EXT_PHY_TMDSCLK_DIVIDERA_MASK		0x0c
 	#define EXT_PHY_TMDSCLK_DIVIDERB_MASK		0x03
 
+#define EXT_PHY_PLL_BW			0xe7
+
 #define EXT_PHY_PPLL_PRE_DIVIDER	0xe9
 	#define EXT_PHY_PPLL_ENABLE_MASK		0xc0
 	#define EXT_PHY_PPLL_PRE_DIVIDER_MASK		0x1f
@@ -1571,6 +1573,8 @@ struct phy_mpll_config_tab {
 	#define EXT_PHY_PPLL_FB_DIVIDER_BIT8_MASK	0x80
 	#define EXT_PHY_PPLL_POST_DIVIDER_MASK		0x30
 	#define EXT_PHY_PPLL_LOCK_STATUS_MASK		0x01
+
+#define EXT_PHY_PPLL_BW			0xec
 
 #define EXT_PHY_SIGNAL_CTRL		0xee
 	#define EXT_PHY_TRANSITION_CLK_EN_MASK		0x80
@@ -1611,6 +1615,9 @@ struct phy_mpll_config_tab {
 #define EXT_PHY_TERM_RESIS_MANUAL_D2	0xfc
 #define EXT_PHY_TERM_RESIS_MANUAL_D1	0xfd
 #define EXT_PHY_TERM_RESIS_MANUAL_D0	0xfe
+
+#define RK3228_DDC_MASK_EN	((3 << 13) | (3 << (13 + 16)))
+#define RK3228_IO_3V_DOMAIN	((7 << 4) | (7 << (4 + 16)))
 
 struct ext_pll_config_tab {
 	u32	pix_clock;

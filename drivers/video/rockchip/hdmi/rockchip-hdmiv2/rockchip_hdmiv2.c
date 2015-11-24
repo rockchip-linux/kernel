@@ -552,7 +552,6 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 		rk_hdmi_property.feature |=
 				SUPPORT_4K |
 				SUPPORT_4K_4096 |
-				SUPPORT_YUV420 |
 				SUPPORT_YCBCR_INPUT |
 				SUPPORT_1080I |
 				SUPPORT_480I_576I;
