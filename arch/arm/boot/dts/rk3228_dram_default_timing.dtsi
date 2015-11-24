@@ -12,14 +12,14 @@
  * GNU General Public License for more details.
  */
 #include <dt-bindings/clock/ddr.h>
-#include <dt-bindings/dram/rockchip,rk3368.h>
+#include <dt-bindings/dram/rockchip,rk3228.h>
 
 / {
 	dram_timing: dram_timing {
 		compatible = "rockchip,dram-timing";
 		dram_spd_bin = <DDR3_DEFAULT>;
-		sr_idle = <1>;
-		pd_idle = <0x20>;
+		sr_idle = <0x4>;
+		pd_idle = <0x40>;
 		dram_dll_disb_freq = <300>;
 		phy_dll_disb_freq = <400>;
 		dram_odt_disb_freq = <333>;
@@ -30,9 +30,13 @@
 		lpddr3_odt = <LP3_ODT_240ohm>;
 		lpddr2_drv = <LP2_DS_34ohm>;
 		/* lpddr2 not supported odt */
-		phy_clk_drv = <PHY_RON_45ohm>;
-		phy_cmd_drv = <PHY_RON_34ohm>;
-		phy_dqs_drv = <PHY_RON_34ohm>;
-		phy_odt = <PHY_RTT_279ohm>;
+		phy_ddr3_clk_drv = <PHY_DDR3_RON_RTT_45ohm>;
+		phy_ddr3_cmd_drv = <PHY_DDR3_RON_RTT_34ohm>;
+		phy_ddr3_dqs_drv = <PHY_DDR3_RON_RTT_34ohm>;
+		phy_ddr3_odt = <PHY_DDR3_RON_RTT_225ohm>;
+		phy_lp23_clk_drv = <PHY_LP23_RON_RTT_43ohm>;
+		phy_lp23_cmd_drv = <PHY_LP23_RON_RTT_34ohm>;
+		phy_lp23_dqs_drv = <PHY_LP23_RON_RTT_34ohm>;
+		phy_lp3_odt = <PHY_LP23_RON_RTT_240ohm>;
 	};
 };

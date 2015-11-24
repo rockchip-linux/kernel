@@ -235,7 +235,7 @@
 	dram: dram {
 		compatible = "rockchip,rk3228-dram";
 		status = "okay";
-		dram_freq = <600000000>;
+		dram_freq = <800000000>;
 		rockchip,dram_timing = <&dram_timing>;
 	};
 
