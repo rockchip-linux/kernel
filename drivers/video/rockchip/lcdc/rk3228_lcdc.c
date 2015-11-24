@@ -937,6 +937,9 @@ static int vop_axi_gather_cfg(struct vop_device *vop_dev,
 	case YUV444:
 	case YUV422:
 	case YUV420:
+	case YUV420_A:
+	case YUV422_A:
+	case YUV444_A:
 	case YUV420_NV21:
 		yrgb_gather_num = 1;
 		cbcr_gather_num = 2;
