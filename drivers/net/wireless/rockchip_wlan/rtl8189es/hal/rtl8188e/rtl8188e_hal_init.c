@@ -441,7 +441,7 @@ static s32 iol_read_efuse(
 s32 rtl8188e_iol_efuse_patch(PADAPTER padapter)
 {
 	s32	result = _SUCCESS;
-	printk("==> %s \n",__FUNCTION__);
+	/* printk("==> %s \n",__FUNCTION__); */
 	
 	if(rtw_IOL_applied(padapter)){
 		iol_mode_enable(padapter, 1);
