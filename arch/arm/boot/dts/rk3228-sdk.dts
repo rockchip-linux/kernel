@@ -351,14 +351,16 @@
 &gmac {
 	/* pmu_regulator = "act_ldo5"; */
 	/* power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>; */
-	/* reset-gpio = <&gpio3 GPIO_B4 GPIO_ACTIVE_LOW>; */
+	/* reset-gpio = <&gpio2 GPIO_D0 GPIO_ACTIVE_LOW>; */
 	/* phyirq-gpio = <&gpio0 GPIO_B1 GPIO_ACTIVE_LOW>; */
 	phy-mode = "rmii";
 	pinctrl-names = "default";
 	pinctrl-0 = <&rmii_pins>;
-	clock_in_out = "input";
+	clock_in_out = "output";
 	tx_delay = <0x30>;
 	rx_delay = <0x10>;
+	/* internal or external */
+	phy-type = "internal";
 };
 
 &disp_timings {
