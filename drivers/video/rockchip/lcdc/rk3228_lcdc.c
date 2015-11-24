@@ -392,10 +392,8 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	vop_dev->dclk = devm_clk_get(vop_dev->dev, "dclk_lcdc");
 
 	if ((IS_ERR(vop_dev->aclk)) || (IS_ERR(vop_dev->dclk)) ||
-	    (IS_ERR(vop_dev->hclk))) {
-		dev_err(vop_dev->dev, "failed to get lcdc%d clk source\n",
-			vop_dev->id);
-	}
+	    (IS_ERR(vop_dev->hclk)))
+		dev_err(vop_dev->dev, "failed to get clk source\n");
 	if (!support_uboot_display())
 		rk_disp_pwr_enable(dev_drv);
 	vop_clk_enable(vop_dev);
@@ -945,8 +943,8 @@ static int vop_axi_gather_cfg(struct vop_device *vop_dev,
 		cbcr_gather_num = 2;
 		break;
 	default:
-		dev_err(vop_dev->driver.dev, "%s:un supported format!\n",
-			__func__);
+		dev_err(vop_dev->driver.dev, "%s:un supported format[%d]\n",
+			__func__, win->area[0].format);
 		return -EINVAL;
 	}
 
@@ -1073,7 +1071,8 @@ static int vop_hwc_reg_update(struct rk_lcdc_driver *dev_drv, int win_id)
 			 (win->area[0].ysize == 128))
 			hwc_size = 3;
 		else
-			dev_err(vop_dev->dev, "un supported hwc size!\n");
+			dev_err(vop_dev->dev, "un supported hwc size[%dx%d]!\n",
+				win->area[0].xsize, win->area[0].ysize);
 
 		val = V_HWC_SIZE(hwc_size);
 		vop_msk_reg(vop_dev, HWC_CTRL0, val);
@@ -1155,7 +1154,8 @@ static int vop_set_dclk(struct rk_lcdc_driver *dev_drv, int reset_rate)
 	if (reset_rate)
 		ret = clk_set_rate(vop_dev->dclk, screen->mode.pixclock);
 	if (ret)
-		dev_err(dev_drv->dev, "set lcdc%d dclk failed\n", vop_dev->id);
+		dev_err(dev_drv->dev, "set lcdc%d dclk[%d] failed\n",
+			vop_dev->id, screen->mode.pixclock);
 	vop_dev->pixclock =
 	    div_u64(1000000000000llu, clk_get_rate(vop_dev->dclk));
 	vop_dev->driver.pixclock = vop_dev->pixclock;
@@ -1424,7 +1424,8 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			val = V_DITHER_DOWN_EN(0);
 			break;
 		default:
-			dev_err(vop_dev->dev, "un supported interface!\n");
+			dev_err(vop_dev->dev, "un supported screen face[%d]!\n",
+				screen->face);
 			break;
 		}
 
@@ -1447,7 +1448,8 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			vop_msk_reg(vop_dev, SYS_CTRL, val);
 			break;
 		default:
-			dev_err(vop_dev->dev, "un supported interface!\n");
+			dev_err(vop_dev->dev, "un supported interface[%d]!\n",
+				screen->type);
 			break;
 		}
 		val = V_HDMI_HSYNC_POL(screen->pin_hsync) |
@@ -2258,8 +2260,8 @@ static int win_0_1_set_par(struct vop_device *vop_dev,
 			win->fmt_10 = 1;
 			break;
 		default:
-			dev_err(vop_dev->driver.dev, "%s:unsupport format!\n",
-				__func__);
+			dev_err(vop_dev->dev, "%s:unsupport format[%d]!\n",
+				__func__, win->area[0].format);
 			break;
 		}
 		win->area[0].fmt_cfg = fmt_cfg;
@@ -2317,8 +2319,8 @@ static int hwc_set_par(struct vop_device *vop_dev,
 			swap_rb = 0;
 			break;
 		default:
-			dev_err(vop_dev->driver.dev,
-				"%s:un supported format!\n", __func__);
+			dev_err(vop_dev->dev, "%s:un supported format[%d]!\n",
+				__func__, win->area[0].format);
 			break;
 		}
 		win->area[0].fmt_cfg = fmt_cfg;
@@ -3477,10 +3479,9 @@ static int vop_probe(struct platform_device *pdev)
 			return -EPROBE_DEFER;
 	}
 	vop_dev = devm_kzalloc(dev, sizeof(struct vop_device), GFP_KERNEL);
-	if (!vop_dev) {
-		dev_err(&pdev->dev, "rk3228 lcdc device kmalloc fail!");
+	if (!vop_dev)
 		return -ENOMEM;
-	}
+
 	platform_set_drvdata(pdev, vop_dev);
 	vop_dev->dev = dev;
 	vop_parse_dt(vop_dev);
@@ -3530,7 +3531,7 @@ static int vop_probe(struct platform_device *pdev)
 
 	ret = rk_fb_register(dev_drv, vop_win, vop_dev->id);
 	if (ret < 0) {
-		dev_err(dev, "register fb for lcdc%d failed!\n", vop_dev->id);
+		dev_err(dev, "register fb for failed!\n");
 		return ret;
 	}
 	vop_dev->screen = dev_drv->screen0;
