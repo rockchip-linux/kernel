@@ -681,6 +681,37 @@
 		status = "disabled";
 	};
 
+	vpu: vpu_service@20020000 {
+		compatible = "vpu_service";
+		iommu_enabled = <1>;
+		reg = <0x20020000 0x800>;
+		interrupts = <GIC_SPI  9 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec", "irq_enc";
+		clocks = <&aclk_vpu>, <&hclk_vpu>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		resets = <&reset RK3228_RST_VPU_H>, <&reset RK3228_RST_VPU_A>;
+		reset-names = "video_h", "video_a";
+		name = "vpu_service";
+		dev_mode = <0>;
+		status = "okay";
+	};
+
+	rkvdec: rkvdec@20030000 {
+		compatible = "rockchip,rkvdec";
+		iommu_enabled = <1>;
+		reg = <0x20030000 0x400>;
+		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec";
+		clocks = <&aclk_rkvdec>, <&hclk_rkvdec>, <&clk_vdec_cabac>, <&clk_vdec_core>;
+		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac", "clk_core";
+		resets = <&reset RK3228_RST_RKVDEC_H>, <&reset RK3228_RST_RKVDEC_A>;
+		reset-names = "video_h", "video_a";
+		dev_mode = <2>;
+		name = "rkvdec";
+		status = "okay";
+	};
+
 	vop: vop@20050000 {
 		compatible = "rockchip,rk3228-lcdc";
 
