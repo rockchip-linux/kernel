@@ -222,6 +222,10 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
 			     RK3228_GMAC_PHY_INTF_SEL_RMII |
 			     RK3228_GMAC_RMII_MODE);
+
+		/* set MAC to RMII mode */
+		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1, GRF_BIT(11));
+
 	}
 }
 
@@ -410,45 +414,73 @@ int gmac_clk_init(struct device *device)
 
 	bsp_priv->clk_mac_ref = clk_get(device,"clk_mac_ref");
 	if (IS_ERR(bsp_priv->clk_mac_ref)) {
-		pr_warn("%s: warning: cannot get clk_mac_ref clock\n", __func__);
+		pr_warn("%s: warning: cannot get %s clock\n",
+			__func__, "clk_mac_ref");
 	}
 
 	bsp_priv->clk_mac_refout = clk_get(device,"clk_mac_refout");
-	if (IS_ERR(bsp_priv->clk_mac_refout)) {
+	if (IS_ERR(bsp_priv->clk_mac_refout))
 		pr_warn("%s: warning: cannot get %s clock\n",
-			"clk_mac_refout", __func__);
-	}
+			__func__, "clk_mac_refout");
+
 
 	bsp_priv->aclk_mac = clk_get(device,"aclk_mac");
-	if (IS_ERR(bsp_priv->aclk_mac)) {
+	if (IS_ERR(bsp_priv->aclk_mac))
 		pr_warn("%s: warning: cannot get aclk_mac clock\n", __func__);
-	}
 
 	bsp_priv->pclk_mac = clk_get(device,"pclk_mac");
-	if (IS_ERR(bsp_priv->pclk_mac)) {
+	if (IS_ERR(bsp_priv->pclk_mac))
 		pr_warn("%s: warning: cannot get pclk_mac clock\n", __func__);
-	}
 
 	bsp_priv->clk_mac_pll = clk_get(device,"clk_mac_pll");
-	if (IS_ERR(bsp_priv->clk_mac_pll)) {
-		pr_warn("%s: warning: cannot get clk_mac_pll clock\n", __func__);
-	}
+	if (IS_ERR(bsp_priv->clk_mac_pll))
+		pr_warn("%s: warning: cannot get %s clock\n",
+			__func__, "clk_mac_pll");
 
 	bsp_priv->gmac_clkin = clk_get(device,"gmac_clkin");
-	if (IS_ERR(bsp_priv->gmac_clkin)) {
+	if (IS_ERR(bsp_priv->gmac_clkin))
 		pr_warn("%s: warning: cannot get gmac_clkin clock\n", __func__);
-	}
 
 	bsp_priv->clk_mac = clk_get(device, "clk_mac");
-	if (IS_ERR(bsp_priv->clk_mac)) {
+	if (IS_ERR(bsp_priv->clk_mac))
 		pr_warn("%s: warning: cannot get clk_mac clock\n", __func__);
-	}
+
+	bsp_priv->mac_clkin = clk_get(device, "mac_clkin");
+	if (IS_ERR(bsp_priv->mac_clkin))
+		pr_warn("%s: warning: cannot get mac_clkin clock\n", __func__);
+
+	bsp_priv->phy_50m_out = clk_get(device, "phy_50m_out");
+	if (IS_ERR(bsp_priv->phy_50m_out))
+		pr_warn("%s: warning: cannot get %s clock\n",
+			__func__, "phy_50m_out");
+
+	bsp_priv->clk_macphy_mux = clk_get(device, "clk_macphy_mux");
+	if (IS_ERR(bsp_priv->clk_macphy_mux))
+		pr_warn("%s: warning: cannot get %s clock\n",
+			__func__, "clk_macphy_mux");
+
+	bsp_priv->clk_macphy_div = clk_get(device, "clk_macphy_div");
+	if (IS_ERR(bsp_priv->clk_macphy_div))
+		pr_warn("%s: warning: cannot get %s clock\n",
+			__func__, "clk_macphy_div");
 
 	if (bsp_priv->clock_input) {
 		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
 			clk_set_rate(bsp_priv->gmac_clkin, 50000000);
 		}
-		clk_set_parent(bsp_priv->clk_mac, bsp_priv->gmac_clkin);
+
+		if (bsp_priv->chip == RK3228_GMAC) {
+			clk_set_parent(bsp_priv->clk_mac, bsp_priv->mac_clkin);
+			if (bsp_priv->internal_phy) {
+				clk_set_parent(bsp_priv->mac_clkin,
+					       bsp_priv->phy_50m_out);
+			} else {
+				clk_set_parent(bsp_priv->mac_clkin,
+					       bsp_priv->gmac_clkin);
+			}
+		} else {
+			clk_set_parent(bsp_priv->clk_mac, bsp_priv->gmac_clkin);
+		}
 	} else {
 		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
 			clk_set_rate(bsp_priv->clk_mac_pll, 50000000);
@@ -599,7 +631,70 @@ static int phy_power_on(bool enable)
 	struct bsp_priv *bsp_priv = &g_bsp_priv;
 	int ret = -1;
 
-	printk("%s: enable = %d \n", __func__, enable);
+	pr_info("%s: enable = %d\n", __func__, enable);
+
+	if (bsp_priv->internal_phy) {
+		pr_info("use internal PHY\n");
+
+		/* S29_12 set to 0 */
+		clk_set_parent(bsp_priv->clk_macphy_mux, bsp_priv->clk_mac_pll);
+
+		/* S29_8 & S29_9 set to 0 */
+		clk_set_rate(bsp_priv->clk_macphy_div, 50000000);
+
+		if (bsp_priv->clock_input) {
+			/* S29_10 set to 1, use_iner_phy_50m */
+			clk_set_parent(bsp_priv->mac_clkin,
+				       bsp_priv->phy_50m_out);
+		} else {
+			/* S29_10 set to 0, use gmac_clkin */
+			clk_set_parent(bsp_priv->mac_clkin,
+				       bsp_priv->gmac_clkin);
+		}
+
+		/* S29_11 set to 0, NOT use_iner_phy_txrx */
+		/* regmap_write(bsp_priv->cru, 0xb8, GRF_CLR_BIT(11)); */
+
+		/* grf_con_iomux_gmac set to 1(RGMII) */
+		regmap_write(bsp_priv->grf, 0x50, GRF_BIT(15));
+
+		/* macphy_cfg_clk_freq set to 50MHz */
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+			     GRF_BIT(14));
+
+		/* regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+		*	     GRF_BIT(15));
+		*/
+
+		/* macphy_cfg_mii_mode, set to 01*/
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+			     GRF_BIT(6) | GRF_CLR_BIT(7));
+
+		/* phy_addr set to 0x1*/
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON1, GRF_BIT(3));
+
+		/* phy_id set to 0x351234*/
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON2,
+			     HIWORD_UPDATE(0x1234, 0xffff, 0));
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON3,
+			     HIWORD_UPDATE(0x35, 0x3f, 0));
+
+		/* disable macphy */
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+			     GRF_CLR_BIT(0));
+		/* reset macphy */
+		regmap_write(bsp_priv->cru, 0x11c, GRF_BIT(15));
+		mdelay(1);
+		regmap_write(bsp_priv->cru, 0x11c, GRF_CLR_BIT(15));
+		mdelay(1);
+		/* enable macphy */
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0, GRF_BIT(0));
+		return 0;
+	} else {
+		/* disable macphy */
+		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+			     GRF_CLR_BIT(0));
+	}
 
 	if (bsp_priv->power_ctrl_by_pmu) {
 		ret = power_on_by_pmu(enable);
@@ -661,7 +756,7 @@ int stmmc_pltfr_init(struct platform_device *pdev) {
 	if (bsp_priv->phyirq_io > 0) {
 		err = gpio_request(bsp_priv->phyirq_io, "gmac_phyirq");
 		if (err < 0) {
-			printk("gmac_phyirq: failed to request GPIO %d,"
+			pr_err("gmac_phyirq: failed to request GPIO %d,"
 				" error %d\n", bsp_priv->phyirq_io, err);
 		} else {
 			err = gpio_direction_input(bsp_priv->phyirq_io);
@@ -826,6 +921,20 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 		g_bsp_priv.rx_delay = value;
 	}
 
+	ret = of_property_read_string(np, "phy-type", &strings);
+	if (ret) {
+		pr_err("%s: Can not read property: phy-type.\n", __func__);
+		g_bsp_priv.clock_input = true;
+	} else {
+		pr_info("%s: internal PHY/external PHY? (%s).\n",
+			__func__, strings);
+		if (!strcmp(strings, "internal"))
+			g_bsp_priv.internal_phy = true;
+		else
+			g_bsp_priv.internal_phy = false;
+	}
+
+	g_bsp_priv.cru = syscon_regmap_lookup_by_phandle(np, "rockchip,cru");
 	g_bsp_priv.grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	g_bsp_priv.pdev = pdev;
 

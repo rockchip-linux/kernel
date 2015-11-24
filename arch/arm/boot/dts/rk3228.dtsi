@@ -912,6 +912,7 @@
 	gmac: eth@30200000 {
 		compatible = "rockchip,rk3228-gmac";
 		reg = <0x30200000 0x10000>;
+		rockchip,cru = <&cru>;
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
@@ -926,7 +927,7 @@
 		phy-mode = "rgmii";
 		pinctrl-names = "default";
 		pinctrl-0 = <&rgmii_pins>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	rockchip_suspend: rockchip_suspend {
@@ -1540,8 +1541,8 @@
 						<2 GPIO_B5 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
 						<2 GPIO_C1 RK_FUNC_1 &pcfg_pull_none>,
 						<2 GPIO_C0 RK_FUNC_1 &pcfg_pull_none>,
-						<2 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>,
-						<2 GPIO_C4 RK_FUNC_1 &pcfg_pull_none>,
+						<2 GPIO_C5 RK_FUNC_2 &pcfg_pull_none>,
+						<2 GPIO_C4 RK_FUNC_2 &pcfg_pull_none>,
 						<2 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>,
 						<2 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>;
 			};

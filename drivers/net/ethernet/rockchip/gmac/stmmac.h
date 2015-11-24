@@ -119,6 +119,7 @@ enum {
 
 struct bsp_priv {
 	struct regmap *grf;
+	struct regmap *cru;
 	struct platform_device *pdev;
 	bool power_ctrl_by_pmu;
 	char pmu_regulator[32];
@@ -130,6 +131,7 @@ struct bsp_priv {
 	int phyirq_io_level;
 	int phy_iface;
 	bool clock_input;
+	bool internal_phy;
 	int chip;
 	int tx_delay;
 	int rx_delay;
@@ -143,6 +145,10 @@ struct bsp_priv {
 	struct clk *clk_mac_refout;
 	struct clk *aclk_mac;
 	struct clk *pclk_mac;
+	struct clk *mac_clkin;
+	struct clk *phy_50m_out;
+	struct clk *clk_macphy_mux;
+	struct clk *clk_macphy_div;
 	bool clk_enable;
 
 	int (*phy_power_on)(bool enable);
