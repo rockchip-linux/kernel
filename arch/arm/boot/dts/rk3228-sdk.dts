@@ -390,3 +390,37 @@
 &watchdog {
 	status = "disabled";
 };
+
+&clk_core_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		408000 950000
+		600000 975000
+		816000 1000000
+		1008000 1175000
+		1200000 1275000
+//		1296000 1325000
+//		1392000 1350000
+		>;
+	status = "okay";
+};
+
+&clk_gpu_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		300000 1050000
+		500000 1150000
+		>;
+	status = "okay";
+};
+
+&clk_ddr_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		300000 1000000
+		800000 1100000
+		>;
+	status = "okay";
+};
+
