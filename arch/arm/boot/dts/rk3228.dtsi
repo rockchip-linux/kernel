@@ -754,13 +754,15 @@
 		compatible = "rockchip,rk3228-hdmi-hdcp2";
 		reg = <0x20090000 0x10000>;
 		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&aclk_hdcp>,
+		clocks = <&clk_gates13 10>,
 			 <&clk_gates14 12>,
 			 <&clk_gates14 11>,
+			 <&clk_gates14 10>,
 			 <&clk_hdcp>;
-		clock-names = "aclk_hdcp2",
+		clock-names = "aclk_noc_hdcp2",
 			      "hclk_hdcp2_mmu",
 			      "pclk_hdcp2",
+			      "aclk_hdcp2",
 			      "hdcp2_clk_hdmi";
 		status = "disabled";
 	};
