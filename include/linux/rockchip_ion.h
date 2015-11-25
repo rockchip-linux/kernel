@@ -42,6 +42,8 @@ struct ion_phys_data {
 	unsigned long size;
 };
 
+struct ion_client *rockchip_ion_client_create(const char *name);
+
 #define ION_IOC_ROCKCHIP_MAGIC 'R'
 
 /**
