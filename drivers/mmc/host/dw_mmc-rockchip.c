@@ -135,10 +135,6 @@ static int dw_mci_rockchip_parse_dt(struct dw_mci *host)
 	return 0;
 }
 
-#define ROCKCHIP_MMC_DELAY_SEL BIT(10)
-#define ROCKCHIP_MMC_DEGREE_MASK 0x3
-#define ROCKCHIP_MMC_DELAYNUM_OFFSET 2
-#define ROCKCHIP_MMC_DELAYNUM_MASK (0xff << ROCKCHIP_MMC_DELAYNUM_OFFSET)
 #define PSECS_PER_SEC 1000000000000LL
 
 /*
@@ -157,6 +153,30 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 	u8 delay_num;
 	u32 raw_value;
 	u64 delay;
+	u32 delay_sel;
+	u32 sample_delaynum_offset;
+	u32 sample_degree_offset;
+	u32 sample_mask;
+
+	switch (host->cid) {
+	case DW_MCI_TYPE_RK3288:
+	case DW_MCI_TYPE_RK3368:
+		delay_sel = 1 << 10;
+		sample_delaynum_offset = 0x2;
+		sample_degree_offset = 0x0;
+		sample_mask = 0x07ff;
+		break;
+	case DW_MCI_TYPE_RK3228:
+		delay_sel = 1 << 11;
+		sample_delaynum_offset = 0x3;
+		sample_degree_offset = 0x1;
+		sample_mask = 0x0fff;
+		break;
+	default:
+		pr_err("chip_cid(%d) unsupported tune !!!.\n",
+		       host->cid);
+		return -EPERM;
+	}
 
 	degrees++;
 	degrees -= ((degrees) * 10 % (360/NUM_PHASES*10)) / 10;
@@ -171,12 +191,13 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 	delay *= remainder;
 	delay_num = (u8) min(delay, 255ULL);
 
-	raw_value = delay_num ? ROCKCHIP_MMC_DELAY_SEL : 0;
-	raw_value |= delay_num << ROCKCHIP_MMC_DELAYNUM_OFFSET;
-	raw_value |= nineties;
+	raw_value = delay_num ? delay_sel : 0;
+	raw_value |= delay_num << sample_delaynum_offset;
+	raw_value |= nineties << sample_degree_offset;
 
 	cru_writel(0x00010001, host->tune_regsbase);
-	cru_writel(((0x07ff << 16)|(raw_value)), host->tune_regsbase + 4);
+	cru_writel(((sample_mask << 16)|(raw_value)),
+		   host->tune_regsbase + 4);
 	cru_writel(0x00010000, host->tune_regsbase);
 
 	return 0;
@@ -280,7 +301,8 @@ dw_mci_rockchip_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 
 	/* Try each phase and extract good ranges */
 	for (i = 0; i < NUM_PHASES - 8; i++) {
-		rockchip_mmc_set_phase(TUNING_ITERATION_TO_PHASE(i), host);
+		if (rockchip_mmc_set_phase(TUNING_ITERATION_TO_PHASE(i), host))
+			goto free;
 		v = !dw_mci_tuning_test(slot, opcode, tuning_data, blk_test);
 
 		if ((!prev_v) && v) {
