@@ -157,6 +157,17 @@
 			};
 		};
 	};
+
+	rockchip_hdmi_i2s {
+		compatible = "rockchip-hdmi-i2s";
+		dais {
+			dai0 {
+				audio-codec = <&codec_hdmi_i2s>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+			};
+		};
+	};
 };
 
 &nandc {
@@ -231,6 +242,10 @@
 };
 
 &codec_spdif {
+	status = "okay";
+};
+
+&codec_hdmi_i2s {
 	status = "okay";
 };
 

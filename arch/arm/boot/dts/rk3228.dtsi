@@ -563,6 +563,11 @@
 		status = "disabled";
 	};
 
+	codec_hdmi_i2s: codec-hdmi-i2s {
+		compatible = "hdmi-i2s";
+		status = "disabled";
+	};
+
 	tsadc: tsadc@11150000 {
 		compatible = "rockchip,rk3228-tsadc";
 		reg = <0x11150000 0x100>;
