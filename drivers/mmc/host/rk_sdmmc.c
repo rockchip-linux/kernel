@@ -48,6 +48,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/log2.h>
+#include <linux/rockchip/cru.h>
 #include <asm-generic/dma-mapping-common.h>
 #include "rk_sdmmc.h"
 #include "rk_sdmmc_dbg.h"
@@ -1395,10 +1396,14 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	regs = mci_readl(slot->host, UHS_REG);
 
 	/* DDR mode set */
-	if (ios->timing == MMC_TIMING_UHS_DDR50)
+	if (ios->timing == MMC_TIMING_UHS_DDR50) {
 		regs |= ((0x1 << slot->id) << 16);
-	else
+		if (slot->host->cid == DW_MCI_TYPE_RK3228)
+			cru_writel(((0x3 << 1) << 16) | (0x2 << 1),
+				   RK3228_CRU_EMMC_CON1);
+	} else {
 		regs &= ~((0x1 << slot->id) << 16);
+	}
 
 	mci_writel(slot->host, UHS_REG, regs);
 	slot->host->timing = ios->timing;
