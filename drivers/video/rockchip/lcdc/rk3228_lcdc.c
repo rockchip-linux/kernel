@@ -788,7 +788,6 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 	int ppixel_alpha = 0, global_alpha = 0, i;
 	u32 src_alpha_ctl, dst_alpha_ctl;
 	int alpha_en = 1;
-	int layer_count = 0;
 
 	for (i = 0; i < win->area_num; i++) {
 		ppixel_alpha |= ((win->area[i].format == ARGB888) ||
@@ -800,13 +799,16 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 	global_alpha = (win->g_alpha_val == 0) ? 0 : 1;
 
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
-		if (dev_drv->win[i]->state)
-			layer_count++;
+		if (!dev_drv->win[i]->state)
+			continue;
+		if (win->z_order > dev_drv->win[i]->z_order)
+			break;
 	}
+
 	/*
-	 * vop not support ppixel_alpha mode when only enable 1 layer.
+	 * The bottom layer not support ppixel_alpha mode.
 	 */
-	if (layer_count == 1)
+	if (i == dev_drv->lcdc_win_num)
 		ppixel_alpha = 0;
 	alpha_config.src_global_alpha_val = win->g_alpha_val;
 	win->alpha_mode = AB_SRC_OVER;
