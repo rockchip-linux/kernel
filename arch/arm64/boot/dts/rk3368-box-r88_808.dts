@@ -216,7 +216,6 @@
 
 		/*GRF_IO_VSEL*/
 		dvp-supply = <&rk808_dcdc4_reg>;      /*DVPIO_VDD*/
-		flash0-supply = <&rk808_ldo1_reg>;  /*FLASH0_VDD*/
 		wifi-supply = <&rk808_dcdc4_reg>;     /*APIO2_VDD*/
 		audio-supply = <&rk808_dcdc4_reg>;   /*APIO3_VDD*/
 		sdcard-supply = <&rk808_ldo5_reg>;   /*SDMMC0_VDD*/
