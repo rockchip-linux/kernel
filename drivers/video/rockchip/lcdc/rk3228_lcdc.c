@@ -1502,13 +1502,19 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		else
 			vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(0));
 		/* BG color */
-		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN)
+		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
+			val = V_DSP_OUT_RGB_YUV(1);
+			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 			val = V_DSP_BG_BLUE(0x80) | V_DSP_BG_GREEN(0x10) |
 				V_DSP_BG_RED(0x80);
-		else
+			vop_msk_reg(vop_dev, DSP_BG, val);
+		} else {
+			val = V_DSP_OUT_RGB_YUV(0);
+			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 			val = V_DSP_BG_BLUE(0) | V_DSP_BG_GREEN(0) |
 				V_DSP_BG_RED(0);
-		vop_msk_reg(vop_dev, DSP_BG, val);
+			vop_msk_reg(vop_dev, DSP_BG, val);
+		}
 		dev_drv->output_color = screen->color_mode;
 		vop_bcsh_path_sel(dev_drv);
 		vop_config_timing(dev_drv);

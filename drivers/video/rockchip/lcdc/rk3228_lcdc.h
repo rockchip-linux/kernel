@@ -789,6 +789,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define POST_SCL_CTRL			0x00000180
 #define  V_POST_HOR_SD_EN(x)			VAL_MASK(x, 1, 0)
 #define  V_POST_VER_SD_EN(x)			VAL_MASK(x, 1, 1)
+#define  V_DSP_OUT_RGB_YUV(x)			VAL_MASK(x, 1, 2)
 #define POST_DSP_VACT_INFO_F1		0x00000184
 #define  V_DSP_VACT_END_POST(x)			VAL_MASK(x, 13, 0)
 #define  V_DSP_VACT_ST_POST(x)			VAL_MASK(x, 13, 16)
