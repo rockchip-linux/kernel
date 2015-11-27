@@ -1122,8 +1122,8 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define MCU_BYPASS_PORT			0x000002ac
 #define WIN0_DSP_BG			0x000002b0
 #define  V_WIN0_DSP_BG_BLUE(x)			VAL_MASK(x, 8, 0)
-#define  V_WIN0_DSP_BG_GREEN(x)			VAL_MASK(x, 8, 8)
-#define  V_WIN0_DSP_BG_RED(x)			VAL_MASK(x, 8, 16)
+#define  V_WIN0_DSP_BG_GREEN(x)			VAL_MASK(x, 8, 10)
+#define  V_WIN0_DSP_BG_RED(x)			VAL_MASK(x, 8, 20)
 #define  V_WIN0_BG_EN(x)			VAL_MASK(x, 1, 31)
 #define WIN1_DSP_BG			0x000002b4
 #define  V_WIN1_DSP_BG_BLUE(x)			VAL_MASK(x, 8, 0)

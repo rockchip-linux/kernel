@@ -1505,8 +1505,8 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
 			val = V_DSP_OUT_RGB_YUV(1);
 			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
-			val = V_DSP_BG_BLUE(0x80) | V_DSP_BG_GREEN(0x10) |
-				V_DSP_BG_RED(0x80);
+			val = V_DSP_BG_BLUE(0x200) | V_DSP_BG_GREEN(0x40) |
+				V_DSP_BG_RED(0x200);
 			vop_msk_reg(vop_dev, DSP_BG, val);
 		} else {
 			val = V_DSP_OUT_RGB_YUV(0);
