@@ -424,32 +424,15 @@ static const struct phy_mpll_config_tab *get_phy_mpll_tab(
 static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 {
 	hdmi_msk_reg(hdmi_dev, PHY_MASK, m_PHY_LOCK, v_PHY_LOCK(1));
-	if (hdmi_dev->soctype != HDMI_SOC_RK3228) {
+	if (hdmi_dev->soctype != HDMI_SOC_RK3228)
 		hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 			     m_PDDQ_SIG | m_TXPWRON_SIG |
 			     m_ENHPD_RXSENSE_SIG | m_SVSRET_SIG,
 			     v_PDDQ_SIG(1) | v_TXPWRON_SIG(0) |
 			     v_ENHPD_RXSENSE_SIG(1)) | v_SVSRET_SIG(0);
-	} else {
+	else
 		hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 			     m_TXPWRON_SIG, v_TXPWRON_SIG(0));
-		/* PHY PLL VCO is 1080MHz, output pclk is 27MHz*/
-		rockchip_hdmiv2_write_phy(hdmi_dev,
-					  EXT_PHY_PLL_PRE_DIVIDER,
-					  1);
-		rockchip_hdmiv2_write_phy(hdmi_dev,
-					  EXT_PHY_PLL_FB_DIVIDER,
-					  45);
-		rockchip_hdmiv2_write_phy(hdmi_dev,
-					  EXT_PHY_PCLK_DIVIDER1,
-					  0x61);
-		rockchip_hdmiv2_write_phy(hdmi_dev,
-					  EXT_PHY_PCLK_DIVIDER2,
-					  0x64);
-		rockchip_hdmiv2_write_phy(hdmi_dev,
-					  EXT_PHY_TMDSCLK_DIVIDER,
-					  0x1d);
-	}
 	hdmi_writel(hdmi_dev, MC_CLKDIS, 0x7f);
 }
 
@@ -707,6 +690,26 @@ static int rk3228_set_phy(struct hdmi_dev *hdmi_dev)
 			     RK3228_PLL_PDATA_EN);
 
 	return 0;
+}
+
+static void ext_pll_set_27m_out(struct hdmi_dev *hdmi_dev)
+{
+	/* PHY PLL VCO is 1080MHz, output pclk is 27MHz */
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PLL_PRE_DIVIDER,
+				  1);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PLL_FB_DIVIDER,
+				  45);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PCLK_DIVIDER1,
+				  0x61);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PCLK_DIVIDER2,
+				  0x64);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_TMDSCLK_DIVIDER,
+				  0x1d);
 }
 
 static int rockchip_hdmiv2_config_phy(struct hdmi_dev *hdmi_dev)
@@ -1959,6 +1962,8 @@ static int hdmi_dev_remove(struct hdmi *hdmi)
 	if (hdmi->ops->hdcp_power_off_cb)
 		hdmi->ops->hdcp_power_off_cb(hdmi);
 	rockchip_hdmiv2_powerdown(hdmi_dev);
+	if (hdmi_dev->soctype == HDMI_SOC_RK3228)
+		ext_pll_set_27m_out(hdmi_dev);
 	hdmi_dev->tmdsclk = 0;
 	return HDMI_ERROR_SUCESS;
 }
@@ -2033,6 +2038,8 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 			}
 		}
 		rockchip_hdmiv2_powerdown(hdmi_dev);
+		if (hdmi_dev->soctype == HDMI_SOC_RK3228)
+			ext_pll_set_27m_out(hdmi_dev);
 	}
 	/*mute unnecessary interrrupt, only enable hpd*/
 	hdmi_writel(hdmi_dev, IH_MUTE_FC_STAT0, 0xff);
