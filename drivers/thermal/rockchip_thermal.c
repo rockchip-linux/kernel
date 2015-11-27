@@ -782,7 +782,7 @@ int rockchip_tsadc_get_temp(int chn, int voltage)
 	struct rockchip_thermal_data *thermal = rockchip_thermal_get_data();
 	long out_temp;
 	int temp;
-	int tsadc_data;
+	int tsadc_data, data_adjust;
 	u32 code_temp;
 
 	mutex_lock(&thermal->suspend_lock);
@@ -797,9 +797,10 @@ int rockchip_tsadc_get_temp(int chn, int voltage)
 		temp = (int)out_temp/1000;
 	} else {
 		tsadc_data = scpi_thermal_get_temperature();
-		code_temp = (tsadc_data * voltage + 500000) / 1000000;
+		data_adjust = rk_tsadcv3_temp_to_code(thermal->cpu_temp_adjust * 1000)
+			- rk_tsadcv3_temp_to_code(0);
+		code_temp = ((tsadc_data * voltage - data_adjust * 1000000) + 500000) / 1000000;
 		temp = rk_tsadcv3_code_to_temp(code_temp) / 1000;
-		temp = temp - thermal->cpu_temp_adjust;
 		thermal->cpu_temp = temp;
 		if(thermal->logout)
 			printk("cpu code temp:[%d, %d], voltage: %d\n"
