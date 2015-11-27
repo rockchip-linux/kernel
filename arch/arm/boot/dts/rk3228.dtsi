@@ -311,6 +311,11 @@
 			<&clk_gates12 1>,/*hclk_peri_noc*/
 			<&clk_gates12 2>,/*pclk_peri_noc*/
 
+			/*PD_VIO*/
+			<&clk_gates13 7>,/*hclk_vio_ahb_arbi*/
+			<&clk_gates13 8>,/*hclk_vio_noc*/
+			<&clk_gates14 7>,/*hclk_vio_h2p*/
+
 			<&clk_gates6 5>, /* g_clk_timer0 */
 			<&clk_gates6 6>, /* g_clk_timer1 */
 
