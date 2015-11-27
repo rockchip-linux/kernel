@@ -66,7 +66,7 @@ static void dac_enable(bool enable)
 			val = m_VBG_EN | m_DAC_EN | v_DAC_GAIN(0x3e);
 			grfreg = RK3036_GRF_SOC_CON3;
 		} else if (rk3036_tve->soctype == SOC_RK3228) {
-			val = 0xb0;
+			val = 0x70;
 		}
 	} else {
 		mask = m_VBG_EN | m_DAC_EN;
@@ -76,7 +76,7 @@ static void dac_enable(bool enable)
 		else if (rk3036_tve->soctype == SOC_RK3036)
 			grfreg = RK3036_GRF_SOC_CON3;
 		else if (rk3036_tve->soctype == SOC_RK3228)
-			val = v_CUR_REG(0xb) | m_DR_PWR_DOWN | m_BG_PWR_DOWN;
+			val = v_CUR_REG(0x7) | m_DR_PWR_DOWN | m_BG_PWR_DOWN;
 	}
 	if (grfreg)
 		grf_writel(grfreg, (mask << 16) | val);
@@ -87,9 +87,9 @@ static void dac_enable(bool enable)
 static void rk3228_dac_init(void)
 {
 	/*tve_dac_writel(VDAC_VDAC0, 0x0);*/
-	tve_dac_writel(VDAC_VDAC1, v_CUR_REG(0xb) |
+	tve_dac_writel(VDAC_VDAC1, v_CUR_REG(0x7) |
 				   m_DR_PWR_DOWN | m_BG_PWR_DOWN);
-	tve_dac_writel(VDAC_VDAC2, v_CUR_CTR(0x39));
+	tve_dac_writel(VDAC_VDAC2, v_CUR_CTR(0x15));
 	tve_dac_writel(VDAC_VDAC3, v_CAB_EN(0));
 }
 
@@ -113,8 +113,8 @@ static void tve_set_mode(int mode)
 			   v_LUMA_FILTER_UPSAMPLE(1) | v_CSC_PATH(3));
 	if (rk3036_tve->soctype == SOC_RK3228) {
 		tve_writel(TV_LUMA_FILTER0, 0x02ff0001);
-		tve_writel(TV_LUMA_FILTER1, 0xF40202fe);
-		tve_writel(TV_LUMA_FILTER2, 0xF332d910);
+		tve_writel(TV_LUMA_FILTER1, 0xf40200fe);
+		tve_writel(TV_LUMA_FILTER2, 0xf332d910);
 	} else {
 		tve_writel(TV_LUMA_FILTER0, 0x02ff0000);
 		tve_writel(TV_LUMA_FILTER1, 0xF40202fd);
@@ -152,8 +152,8 @@ static void tve_set_mode(int mode)
 			else
 				tve_writel(TV_BRIGHTNESS_CONTRAST, 0x0000770a);
 		} else if (rk3036_tve->soctype == SOC_RK3228) {
-			tve_writel(TV_SATURATION, 0x00386346);
-			tve_writel(TV_BRIGHTNESS_CONTRAST, 0x00009000);
+			tve_writel(TV_SATURATION, 0x00305b46);
+			tve_writel(TV_BRIGHTNESS_CONTRAST, 0x00009900);
 		} else {
 			tve_writel(TV_SATURATION, /*0x00325c40*/ 0x00386346);
 			tve_writel(TV_BRIGHTNESS_CONTRAST, 0x00008b00);
@@ -172,6 +172,9 @@ static void tve_set_mode(int mode)
 					0x06c00800 | 0x80);
 			tve_writel(TV_ACT_TIMING, 0x0694011D |
 					(1 << 12) | (2 << 28));
+		} else if (rk3036_tve->soctype == SOC_RK3228) {
+			tve_writel(TV_ADJ_TIMING, (0xd << 28) |
+					0x06c00800 | 0x80);
 		} else {
 			tve_writel(TV_ADJ_TIMING, (0xa << 28) |
 					0x06c00800 | 0x80);
