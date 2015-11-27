@@ -84,6 +84,7 @@
 #define DEBUG_GET_REG				0x00002000
 #define DEBUG_PPS_FILL				0x00004000
 #define DEBUG_IRQ_CHECK				0x00008000
+#define DEBUG_CACHE_32B				0x00010000
 
 #define PRINT_FUNCTION				0x80000000
 #define PRINT_LINE				0x40000000
@@ -1436,11 +1437,11 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		VEPU_CLEAN_CACHE(dst);
 
-		dsb(sy);
-
 		writel_relaxed(src[VPU_REG_ENC_GATE] | VPU_REG_ENC_GATE_BIT,
 			       dst + VPU_REG_ENC_GATE);
-		writel_relaxed(src[reg_en], dst + reg_en);
+
+		writel(src[reg_en], dst + reg_en);
+		dsb(sy);
 
 		time_record(reg->task, 0);
 	} break;
@@ -1452,21 +1453,30 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		pservice->reg_codec = reg;
 
+		/* on rkvdec set cache size to 64byte */
+		if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
+			u32 *cache_base = dst + 0x100;
+			u32 val = (debug & DEBUG_CACHE_32B) ? (0x3) : (0x13);
+			writel_relaxed(val, cache_base + 0x07);
+			writel_relaxed(val, cache_base + 0x17);
+		}
+
 		for (i = 0; i < len; i++)
 			vpu_debug(DEBUG_SET_REG, "set reg[%02d] %08x\n",
 				  i, src[i]);
 
-		for (i = end; i > reg_en; i--)
+		/*
+		 * NOTE: The end register is invalid. Do NOT write to it
+		 *       Also the base register must be written
+		 */
+		for (i = end - 1; i > reg_en; i--)
 			writel_relaxed(src[i], dst + i);
 
-		for (i = reg_en - 1; i > base; i--)
+		for (i = reg_en - 1; i >= base; i--)
 			writel_relaxed(src[i], dst + i);
 
+		writel(src[reg_en], dst + reg_en);
 		dsb(sy);
-
-		writel_relaxed(src[reg_en], dst + reg_en);
-		dsb(sy);
-		dmb(sy);
 
 		time_record(reg->task, 0);
 	} break;
@@ -1477,15 +1487,14 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		pservice->reg_pproc = reg;
 
-		for (i = end; i > reg_en; i--)
+		for (i = end - 1; i > reg_en; i--)
 			writel_relaxed(src[i], dst + i);
 
-		for (i = reg_en - 1; i > base; i--)
+		for (i = reg_en - 1; i >= base; i--)
 			writel_relaxed(src[i], dst + i);
 
+		writel(src[reg_en], dst + reg_en);
 		dsb(sy);
-
-		writel_relaxed(src[reg_en], dst + reg_en);
 
 		time_record(reg->task, 0);
 	} break;
@@ -1510,9 +1519,9 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		/* disable dec output */
 		src[reg_en]   = src[reg_en] | 0x2;
-		dsb(sy);
 
-		writel_relaxed(src[reg_en], dst + reg_en);
+		writel(src[reg_en], dst + reg_en);
+		dsb(sy);
 
 		time_record(reg->task, 0);
 	} break;

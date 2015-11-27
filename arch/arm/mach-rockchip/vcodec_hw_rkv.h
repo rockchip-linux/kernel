@@ -131,7 +131,8 @@ static struct vpu_hw_info hw_rkhevc = {
 	.dec_reg_num	= REG_NUM_HEVC_DEC,
 	.dec_io_size	= REG_NUM_HEVC_DEC * 4,
 
-	.base_dec	= 0,
+	/* NOTE: can not write to register 0 */
+	.base_dec	= 1,
 	.base_pp	= 0,
 	.base_dec_pp	= 0,
 	.end_dec	= REG_NUM_HEVC_DEC,
@@ -145,7 +146,8 @@ static struct vpu_hw_info hw_rkvdec = {
 	.dec_reg_num	= REG_NUM_RKV_DEC,
 	.dec_io_size	= REG_NUM_RKV_DEC * 4,
 
-	.base_dec	= 0,
+	/* NOTE: can not write to register 0 */
+	.base_dec	= 1,
 	.base_pp	= 0,
 	.base_dec_pp	= 0,
 	.end_dec	= REG_NUM_RKV_DEC,
