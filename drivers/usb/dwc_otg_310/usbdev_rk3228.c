@@ -105,7 +105,7 @@ put_rst_ahb:
 static void usb20otg_clock_init(void *pdata)
 {
 	struct dwc_otg_platform_data *usbpdata = pdata;
-	struct clk *ahbclk, *phyclk;
+	struct clk *ahbclk, *ahbclk_otg_pmu, *phyclk;
 
 	ahbclk = devm_clk_get(usbpdata->dev, "hclk_otg");
 	if (IS_ERR(ahbclk)) {
@@ -119,8 +119,15 @@ static void usb20otg_clock_init(void *pdata)
 		return;
 	}
 
+	ahbclk_otg_pmu = devm_clk_get(usbpdata->dev, "hclk_otg_pmu");
+	if (IS_ERR(ahbclk_otg_pmu)) {
+		dev_err(usbpdata->dev, "Failed to get hclk_otg_pmu\n");
+		return;
+	}
+
 	usbpdata->phyclk = phyclk;
 	usbpdata->ahbclk = ahbclk;
+	usbpdata->ahbclk_otg_pmu = ahbclk_otg_pmu;
 }
 
 static void usb20otg_clock_enable(void *pdata, int enable)
@@ -130,9 +137,11 @@ static void usb20otg_clock_enable(void *pdata, int enable)
 	if (enable) {
 		clk_prepare_enable(usbpdata->ahbclk);
 		clk_prepare_enable(usbpdata->phyclk);
+		clk_prepare_enable(usbpdata->ahbclk_otg_pmu);
 	} else {
 		clk_disable_unprepare(usbpdata->ahbclk);
 		clk_disable_unprepare(usbpdata->phyclk);
+		clk_disable_unprepare(usbpdata->ahbclk_otg_pmu);
 	}
 }
 
@@ -238,6 +247,7 @@ static void usb20otg_phy_power_down(int power_down)
 struct dwc_otg_platform_data usb20otg_pdata_rk3228 = {
 	.phyclk = NULL,
 	.ahbclk = NULL,
+	.ahbclk_otg_pmu = NULL,
 	.busclk = NULL,
 	.phy_status = 0,
 	.hw_init = usb20otg_hw_init,

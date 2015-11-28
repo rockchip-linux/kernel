@@ -88,6 +88,7 @@ struct dwc_otg_platform_data {
 	struct device *dev;
 	struct clk *phyclk;
 	struct clk *ahbclk;
+	struct clk *ahbclk_otg_pmu;
 	struct clk *busclk;
 	struct clk *phyclk_480m;
 	int phy_status;
