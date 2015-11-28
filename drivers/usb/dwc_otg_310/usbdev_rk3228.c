@@ -132,9 +132,7 @@ static void usb20otg_clock_enable(void *pdata, int enable)
 		clk_prepare_enable(usbpdata->phyclk);
 	} else {
 		clk_disable_unprepare(usbpdata->ahbclk);
-		/*
-		   clk_disable_unprepare(usbpdata->phyclk);
-		 */
+		clk_disable_unprepare(usbpdata->phyclk);
 	}
 }
 
