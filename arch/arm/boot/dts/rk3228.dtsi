@@ -911,8 +911,8 @@
 		compatible = "rockchip,rk3228_usb20_otg";
 		reg = <0x30040000 0x40000>;
 		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_gates1 5>, <&clk_gates11 12>;
-		clock-names = "clk_usbphy0", "hclk_otg";
+		clocks = <&clk_gates1 5>, <&clk_gates11 12>, <&clk_gates11 13>;
+		clock-names = "clk_usbphy0", "hclk_otg", "hclk_otg_pmu";
 		resets = <&reset RK3228_RST_USBOTG0>, <&reset RK3228_RST_UTMI0>,
 				<&reset RK3228_RST_OTGC0>;
 		reset-names = "otg_ahb", "otg_phy", "otg_controller";
@@ -924,8 +924,8 @@
 		compatible = "generic-ehci";
 		reg = <0x30080000 0x20000>;
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_gates1 5>, <&clk_gates11 6>;
-		clock-names = "clk_usbphy0", "hclk_host0";
+		clocks = <&clk_gates1 5>, <&clk_gates11 6>, <&clk_gates11 7>;
+		clock-names = "clk_usbphy0", "hclk_host0", "hclk_host0_arb";
 		resets = <&reset RK3228_RST_USBHOST0>, <&reset RK3228_RST_UTMI1>,
 				<&reset RK3228_RST_HOST_CTRL0>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
@@ -941,8 +941,8 @@
 		compatible = "generic-ehci";
 		reg = <0x300c0000 0x20000>;
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_gates1 6>, <&clk_gates11 8>;
-		clock-names = "clk_usbphy1", "hclk_host1";
+		clocks = <&clk_gates1 6>, <&clk_gates11 8>, <&clk_gates11 9>;
+		clock-names = "clk_usbphy1", "hclk_host1", "hclk_host1_arb";
 		resets = <&reset RK3228_RST_USBHOST1>, <&reset RK3228_RST_UTMI2>,
 				<&reset RK3228_RST_HOST_CTRL1>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
@@ -958,8 +958,8 @@
 		compatible = "generic-ehci";
 		reg = <0x30100000 0x20000>;
 		interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_gates1 6>, <&clk_gates11 10>;
-		clock-names = "clk_usbphy1", "hclk_host2";
+		clocks = <&clk_gates1 6>, <&clk_gates11 10>, <&clk_gates11 14>;
+		clock-names = "clk_usbphy1", "hclk_host2", "hck_host2_arb";
 		resets = <&reset RK3228_RST_USBHOST2>, <&reset RK3228_RST_UTMI3>,
 				<&reset RK3228_RST_HOST_CTRL2>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
