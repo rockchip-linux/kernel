@@ -548,12 +548,12 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <8>;
-		cru_regsbase = <0x124>;
-		cru_reset_offset = <3>;
-        };
+		resets = <&reset RK3128_RST_EMMC>;
+		reset-names = "mmc_ahb_reset";
+	};
 
 
-        sdmmc: rksdmmc@10214000 {
+	sdmmc: rksdmmc@10214000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk312x-sdmmc";
 		reg = <0x10214000 0x4000>;
 		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
@@ -570,8 +570,8 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
-		cru_regsbase = <0x124>;
-		cru_reset_offset = <1>;
+		resets = <&reset RK3128_RST_MMC0>;
+		reset-names = "mmc_ahb_reset";
 	};
 
 	sdio: rksdmmc@10218000 {
@@ -590,8 +590,8 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
-		cru_regsbase = <0x124>;
-		cru_reset_offset = <2>;
+		resets = <&reset RK3128_RST_SDIO>;
+		reset-names = "mmc_ahb_reset";
 	};
 	
 	spi0: spi@20074000 {

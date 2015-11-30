@@ -400,8 +400,8 @@
 		fifo-depth = <0x100>;
 		bus-width = <8>;
 		tune_regsbase = <0x418>;
-		cru_regsbase = <0x320>;
-		cru_reset_offset = <3>;
+		resets = <&reset RK3368_SRST_EMMC>;
+		reset-names = "mmc_ahb_reset";
 	};
 
 	sdmmc: rksdmmc@ff0c0000 {
@@ -423,8 +423,8 @@
 		fifo-depth = <0x100>;
 		bus-width = <4>;
 		tune_regsbase = <0x400>;
-		cru_regsbase = <0x320>;
-		cru_reset_offset = <0>;
+		resets = <&reset RK3368_SRST_MMC0>;
+		reset-names = "mmc_ahb_reset";
 	};
 
 	sdio: rksdmmc@ff0d0000 {
@@ -444,8 +444,8 @@
 		fifo-depth = <0x100>;
 		bus-width = <4>;
 		tune_regsbase = <0x408>;
-		cru_regsbase = <0x320>;
-		cru_reset_offset = <1>;
+		resets = <&reset RK3368_SRST_SDIO0>;
+		reset-names = "mmc_ahb_reset";
 	};
 
 	spi0: spi@ff110000 {

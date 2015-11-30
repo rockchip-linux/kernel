@@ -49,6 +49,7 @@
 #include <linux/regmap.h>
 #include <linux/log2.h>
 #include <linux/rockchip/cru.h>
+#include <linux/reset.h>
 #include <asm-generic/dma-mapping-common.h>
 #include "rk_sdmmc.h"
 #include "rk_sdmmc_dbg.h"
@@ -113,6 +114,7 @@ static inline bool dw_mci_ctrl_all_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 static void dw_mci_disable_low_power(struct dw_mci_slot *slot);
 extern void rk_send_wakeup_key(void);
+static void rockchip_mmc_reset_controller(struct reset_control *reset);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -1988,12 +1990,11 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 	u32 sdio_int;
 	unsigned long timeout = 0;
 	bool ret_timeout = true, is_retry = false;
-	u32 opcode, offset;
+	u32 opcode;
 
 	if (host->cur_slot->mrq->data)
 		dw_mci_stop_dma(host);
 
-	offset = host->cru_reset_offset;
 	opcode = host->mrq->cmd->opcode;
 	host->cur_slot->mrq = NULL;
 	host->mrq = NULL;
@@ -2033,21 +2034,8 @@ retry_stop:
 	if (false == ret_timeout) {
 		MMC_DBG_ERR_FUNC(host->mmc, "stop recovery failed![%s]",
 				 mmc_hostname(host->mmc));
-		if (host->cid == DW_MCI_TYPE_RK3368) {
-			/* pd_peri mmc AHB bus software reset request */
-			regmap_write(host->cru, host->cru_regsbase,
-					(0x1<<offset)<<16 | (0x1 << offset));
-			mdelay(1);
-			regmap_write(host->cru, host->cru_regsbase,
-					(0x1<<offset)<<16 | (0x0 << offset));
-		} else {
-			/* pd_peri mmc AHB bus software reset request */
-			cru_writel(((0x1<<offset)<<16) | (0x1 << offset),
-					host->cru_regsbase);
-			mdelay(1);
-			cru_writel(((0x1<<offset)<<16) | (0x0 << offset),
-					host->cru_regsbase);
-		}
+		/* pd_peri mmc AHB bus software reset request */
+		rockchip_mmc_reset_controller(host->reset);
 	} else {
 		if (!dw_mci_ctrl_all_reset(host))
 			return;
@@ -3858,6 +3846,16 @@ static inline bool dw_mci_fifo_reset(struct dw_mci *host)
 	return dw_mci_ctrl_reset(host, SDMMC_CTRL_FIFO_RESET);
 }
 
+/*
+ * Reset dw_mmc Controller, reset all dw_mmc registers.
+ */
+static void rockchip_mmc_reset_controller(struct reset_control *reset)
+{
+	reset_control_assert(reset);
+	udelay(100);
+	reset_control_deassert(reset);
+}
+
 static inline bool dw_mci_ctrl_all_reset(struct dw_mci *host)
 {
 	return dw_mci_ctrl_reset(host,
@@ -3999,20 +3997,6 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (of_get_property(np, "assume_removable", NULL))
 		mmc_assume_removable = 0;
 
-	if (!of_property_read_u32(np, "cru_regsbase", &host->cru_regsbase)) {
-		printk("dw cru_regsbase addr 0x%03x.\n", host->cru_regsbase);
-	} else {
-		pr_err("dw cru_regsbase addr is missing!\n");
-		return ERR_PTR(-1);
-	}
-
-	if (!of_property_read_u32(np, "cru_reset_offset", &host->cru_reset_offset)) {
-		printk("dw cru_reset_offset val %d.\n", host->cru_reset_offset);
-	} else {
-		pr_err("dw cru_reset_offset val is missing!\n");
-		return ERR_PTR(-1);
-	}
-
 	if (of_property_read_bool(np, "power-inverted"))
 		host->power_inverted = true;
 	else
@@ -4061,6 +4045,12 @@ int dw_mci_probe(struct dw_mci *host)
 		host->data_offset = DATA_OFFSET;
 	else
 		host->data_offset = DATA_240A_OFFSET;
+
+	host->reset = devm_reset_control_get(host->dev, "mmc_ahb_reset");
+	if (IS_ERR(host->reset)) {
+		dev_err(host->dev, "failed to get mmc_ahb reset.\n");
+		return PTR_ERR(host->reset);
+	}
 
 	//hpclk enable
 	host->hpclk_mmc= devm_clk_get(host->dev, "hpclk_mmc");

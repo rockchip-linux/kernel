@@ -221,8 +221,7 @@ struct dw_mci {
 	u32 *regs_buffer;
 	const struct dw_mci_rst_ops *rst_ops;
 	u32	tune_regsbase;
-	u32	cru_regsbase;
-	u32	cru_reset_offset;
+	struct reset_control *reset;
 	struct regmap *cru;
 	bool power_inverted;
 };
