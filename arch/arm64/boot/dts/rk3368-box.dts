@@ -85,7 +85,7 @@
 		     9 8 7 6 5 4 3 2 1 0>;
 		default-brightness-level = <200>;
 		enable-gpios = <&gpio0 GPIO_C4 GPIO_ACTIVE_HIGH>;
-		status = "disabled"; 
+		status = "disabled";
 	};
 
 	pwm_regulator {
@@ -115,6 +115,22 @@
 		};
 	};
 
+	vccio_1v8_reg: regulator@1 {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_1v8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+	};
+
+	vccio_3v3_reg: regulator@2 {
+		compatible = "regulator-fixed";
+		regulator-name = "vccio_3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
 	codec_hdmi_i2s: codec-hdmi-i2s {
 		compatible = "hdmi-i2s";
 	};
@@ -140,17 +156,16 @@
 		};
 	};
 
-	
-	
 	rockchip-spdif-card {
-			compatible = "rockchip-spdif-card";
-			dais {
-				dai0 {
-					audio-codec = <&codec_hdmi_spdif>;
-					audio-controller = <&spdif>;
-				};
+		compatible = "rockchip-spdif-card";
+		dais {
+			dai0 {
+				audio-codec = <&codec_hdmi_spdif>;
+				audio-controller = <&spdif>;
 			};
 		};
+	};
+
 	rockchip-rk1000 {
 		compatible = "rockchip-rk1000";
 		dais {
@@ -161,6 +176,7 @@
 			};
 		};
 	};
+
 	rockchip-rt5631 {
 		compatible = "rockchip-rt5631";
 		dais {
@@ -209,16 +225,16 @@
 		rockchip,pmugrf = <&pmugrf>;
 
 		/*GRF_IO_VSEL*/
-		dvp-supply = <&ldo7_reg>;      /*DVPIO_VDD*/
-		wifi-supply = <&ldo7_reg>;     /*APIO2_VDD*/
-		audio-supply = <&dcdc2_reg>;   /*APIO3_VDD*/
-		sdcard-supply = <&ldo1_reg>;   /*SDMMC0_VDD*/
-		gpio30-supply = <&dcdc2_reg>;  /*APIO1_VDD*/
-		gpio1830-supply = <&dcdc2_reg>;/*ADIO4_VDD*/
-		
+		dvp-supply = <&vccio_3v3_reg>;		/*DVPIO_VDD*/
+		wifi-supply = <&vccio_3v3_reg>;		/*APIO2_VDD*/
+		audio-supply = <&vccio_3v3_reg>;	/*APIO3_VDD*/
+		sdcard-supply = <&vccio_3v3_reg>;	/*SDMMC0_VDD*/
+		gpio30-supply = <&vccio_3v3_reg>;	/*APIO1_VDD*/
+		gpio1830-supply = <&vccio_3v3_reg>;	/*APIO4_VDD*/
+
 		/*PMU_GRF_IO_VSEL*/
-		pmu-supply = <&ldo5_reg>;      /*PMUIO_VDD*/
-		vop-supply = <&ldo5_reg>;      /*LCDC_VDD*/
+		pmu-supply = <&vccio_3v3_reg>;		/*PMUIO_VDD*/
+		vop-supply = <&vccio_1v8_reg>;		/*LCDC_VDD*/
 	};
 };
 
@@ -244,7 +260,6 @@
 	//used for init some gpio
 	init-gpios = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH
 	&gpio0 GPIO_B1 GPIO_ACTIVE_LOW>;
-	
 	gpio0_gpio {
 		gpio0_c7: gpio0-c7 {
 		rockchip,pins = <0 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_down>;
@@ -255,7 +270,6 @@
 	gpio0_c2: gpio0-c2 {
 		rockchip,pins = <0 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_down>;
 	};
-	
 	//to add
 	};
 
@@ -272,18 +286,14 @@
 &emmc {
 	clock-frequency = <150000000>;
 	clock-freq-min-max = <400000 150000000>;
-
 	supports-highspeed;
 	supports-emmc;
 	bootpart-no-access;
-
 	//supports-sd;
 	supports-DDR_MODE; //you should set the two value in your project. only close in RK3288-SDK board.
 	caps2-mmc-hs200;
-
 	ignore-pm-notify;
 	keep-power-in-suspend;
-
 	//poll-hw-reset
 	status = "okay";
 };
@@ -295,10 +305,8 @@
 	supports-sd;
 	broken-cd;
 	card-detect-delay = <200>;
-	
 	ignore-pm-notify;
 	keep-power-in-suspend;
-	
 	vmmc-supply = <&ldo1_reg>;
 	status = "okay";
 };
@@ -331,7 +339,6 @@
                 poll_mode = <0>;
 	        type = <0>;
 		enable_dma = <0>;
-
 	};
 
 	spi_test@01 {
@@ -435,6 +442,7 @@
 		};
 	   };
 	};
+
 	syr828: syr828@41 {
 		compatible = "silergy,syr82x";
 		reg = <0x41>;
@@ -491,7 +499,7 @@
 		reg = <0x5a>;
 		status = "diasbled";
 	};
-	
+
 	CW2015@62 {
 		compatible = "cw201x";
 		reg = <0x62>;
@@ -629,7 +637,6 @@
 &rk_screen {
 	display-timings = <&disp_timings>;
 };
-
 
 &lvds {
 	status = "okay";
@@ -827,7 +834,7 @@
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
 	};
-	
+
 &usb0 {
 	/*0 - Normal, 1 - Force Host, 2 - Force Device*/
 	rockchip,usb-mode = <0>;
