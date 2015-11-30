@@ -1989,20 +1989,13 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 	u32 i, regs, cmd_flags;
 	u32 sdio_int;
 	unsigned long timeout = 0;
-	bool ret_timeout = true, is_retry = false;
+	bool ret_timeout = true;
 	u32 opcode;
 
-	if (host->cur_slot->mrq->data)
-		dw_mci_stop_dma(host);
-
 	opcode = host->mrq->cmd->opcode;
-	host->cur_slot->mrq = NULL;
-	host->mrq = NULL;
-	host->state = STATE_IDLE;
-	host->data = NULL;
-
+	/* In tune mode, the timeout is normal */
 	if ((opcode == MMC_SEND_TUNING_BLOCK_HS200) ||
-	    (opcode == MMC_SEND_TUNING_BLOCK))
+		(opcode == MMC_SEND_TUNING_BLOCK))
 		return;
 
 	printk("[%s] -- Timeout recovery procedure start --\n",
@@ -2010,6 +2003,15 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 
 	/* unmask irq */
 	mci_writel(host, INTMASK, 0x0);
+
+	/* send stop dma */
+	if (host->cur_slot->mrq->data)
+		dw_mci_stop_dma(host);
+
+	host->cur_slot->mrq = NULL;
+	host->mrq = NULL;
+	host->state = STATE_IDLE;
+	host->data = NULL;
 
 retry_stop:
 	/* send stop cmd */
@@ -2032,15 +2034,19 @@ retry_stop:
 	}
 
 	if (false == ret_timeout) {
-		MMC_DBG_ERR_FUNC(host->mmc, "stop recovery failed![%s]",
+		MMC_DBG_ERR_FUNC(host->mmc, "stop cmd recovery failed![%s]",
 				 mmc_hostname(host->mmc));
 		/* pd_peri mmc AHB bus software reset request */
 		rockchip_mmc_reset_controller(host->reset);
-	} else {
-		if (!dw_mci_ctrl_all_reset(host))
-			return;
-		if (is_retry == true)
-			goto recovery_end;
+		goto retry_stop;
+	}
+
+	if (!dw_mci_ctrl_all_reset(host)) {
+		MMC_DBG_ERR_FUNC(host->mmc, "all reset recovery failed![%s]",
+				 mmc_hostname(host->mmc));
+		/* pd_peri mmc AHB bus software reset request */
+		rockchip_mmc_reset_controller(host->reset);
+		goto retry_stop;
 	}
 
 #ifdef CONFIG_MMC_DW_IDMAC
@@ -2085,13 +2091,7 @@ retry_stop:
 		}
 	}
 	mci_writel(host, RINTSTS, 0xFFFFFFFF);
-	if (ret_timeout == false) {
-		ret_timeout = true;
-		is_retry = true;
-		goto retry_stop;
-	}
 
-recovery_end:
 	printk("[%s] -- Timeout recovery procedure finished --\n",
 		mmc_hostname(host->mmc));
 }
