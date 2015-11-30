@@ -6,7 +6,7 @@
 
 / {
 	chosen {
-		bootargs = "vmalloc=496M psci=enable clk_ignore_unused";
+		bootargs = "vmalloc=496M psci=enable";
 	};
 
 	fiq-debugger {
