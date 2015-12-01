@@ -233,8 +233,10 @@ static const struct pll_clk_set rk312xplus_pll_com_table[] = {
 	/*_RK3036_PLL_SET_CLKS(1064000, 3, 133, 1, 1, 1, 0),*/
 	/*_RK3036_PLL_SET_CLKS(798000, 2, 133, 2, 1, 1, 0),*/
 	_RK3036_PLL_SET_CLKS(1000000, 3, 125, 1,  1, 1, 0),
+	_RK3036_PLL_SET_CLKS(800000, 1, 100, 3, 1, 1, 0),
 	_RK3036_PLL_SET_CLKS(594000, 2, 99, 2, 1, 1, 0),
-	_RK3036_PLL_SET_CLKS(500000, 3, 125, 2, 1, 1, 0),
+	_RK3036_PLL_SET_CLKS(500000, 1, 125, 3, 2, 1, 0),
+	_RK3036_PLL_SET_CLKS(416000, 1, 104, 3, 2, 1, 0),
 	_RK3036_PLL_SET_CLKS(400000, 3, 200, 2, 2, 1, 0),
 };
 
