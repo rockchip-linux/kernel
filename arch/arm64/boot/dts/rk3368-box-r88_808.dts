@@ -993,33 +993,6 @@
 				regulator-state-uv = <1800000>;
 			};
 		};
-
-		rk818_ldo9_reg: regulator@12 {
-			regulator-name= "vcc_sd";
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <3300000>;
-			regulator-always-on;
-			regulator-boot-on;
-			regulator-initial-state = <3>;
-			regulator-state-mem {
-				regulator-state-enabled;
-				regulator-state-uv = <3300000>;
-			};
-		};
-
-		rk818_ldo10_reg: regulator@13 {
-			regulator-name= "vcc_lan";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			regulator-always-on;
-			regulator-boot-on;
-			regulator-initial-state = <3>;
-			regulator-state-mem {
-				regulator-state-disabled;
-				regulator-state-uv = <3300000>;
-			};
-		};
-
 	};
 };
 
