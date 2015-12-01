@@ -177,6 +177,28 @@ static void rockchip_hdmiv2_early_resume(struct early_suspend *h)
 }
 #endif
 
+void ext_pll_set_27m_out(void)
+{
+	if (!hdmi_dev || hdmi_dev->soctype != HDMI_SOC_RK3228)
+		return;
+	/* PHY PLL VCO is 1080MHz, output pclk is 27MHz */
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PLL_PRE_DIVIDER,
+				  1);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PLL_FB_DIVIDER,
+				  45);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PCLK_DIVIDER1,
+				  0x61);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_PCLK_DIVIDER2,
+				  0x64);
+	rockchip_hdmiv2_write_phy(hdmi_dev,
+				  EXT_PHY_TMDSCLK_DIVIDER,
+				  0x1d);
+}
+
 #define HDMI_PD_ON		(1 << 0)
 #define HDMI_PCLK_ON		(1 << 1)
 #define HDMI_HDCPCLK_ON		(1 << 2)
