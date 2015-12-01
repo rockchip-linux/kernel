@@ -551,13 +551,8 @@ static inline void mmc_retune_needed(struct mmc_host *host)
 {
 	if ((host->can_retune) && (host->doing_retune == 0)) {
 		host->need_retune = 1;
-		pr_err("[%s] Data transmission error, need to "
-		       "try retuning %d.\n", mmc_hostname(host),
-		       host->need_retune);
 	} else {
-		pr_err("[%s] host was already tuning, Don't"
-		       " need to retry tune again ignore %d.\n",
-		       mmc_hostname(host), host->need_retune);
+		host->need_retune = 0;
 	}
 }
 

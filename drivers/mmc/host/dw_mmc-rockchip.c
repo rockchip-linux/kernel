@@ -232,9 +232,6 @@ static int dw_mci_tuning_test(struct dw_mci_slot *slot, u32 opcode,
 
 		return -EIO;
 	} else {
-		dev_err(host->dev,
-			"Tuning error: cmd.error:%d, data.error:%d\n",
-			cmd.error, data.error);
 		if (cmd.error)
 			return cmd.error;
 		else
@@ -265,7 +262,8 @@ dw_mci_rockchip_execute_tuning(struct dw_mci_slot *slot, u32 opcode,
 	int middle_phase;
 
 	if (!of_property_read_u32(np, "tune_regsbase", &host->tune_regsbase)) {
-		pr_info("[%s] tuning regsbase addr 0x%03x.\n",
+		pr_info("[%s] tuning regsbase addr 0x%03x.\n"
+			"cmd/data error is normal in tuning, Please Ignore!!!\n",
 			mmc_hostname(host->mmc), host->tune_regsbase);
 	} else {
 		pr_err("[%s] tuning regsbase addr is missing!\n",

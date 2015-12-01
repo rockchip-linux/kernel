@@ -1831,7 +1831,7 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 			MMC_DBG_SW_VOL_FUNC(host->mmc,"%s =%dmV set 3.3 end, ret = %d\n",
 				__func__, regulator_get_voltage(host->vmmc), ret);
         		if (ret) {
-				MMC_DBG_SW_VOL_FUNC(host->mmc,
+				MMC_DBG_ERR_FUNC(host->mmc,
 					"%s: Switching to 3.3V signalling voltage "
 					" failed\n", mmc_hostname(host->mmc));
 				return -EIO;
@@ -1876,7 +1876,7 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 					"%s   =%dmV  set 1.8end, ret=%d . \n",
 					__func__, regulator_get_voltage(host->vmmc), ret);
 			if (ret) {
-				MMC_DBG_SW_VOL_FUNC(host->mmc,
+				MMC_DBG_ERR_FUNC(host->mmc,
 					"%s: Switching to 1.8V signalling voltage "
 					" failed\n", mmc_hostname(host->mmc));
 				return -EIO;
@@ -1900,7 +1900,7 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 		if (uhs_reg & SDMMC_UHS_VOLT_REG_18)
 			return 0;
 
-		MMC_DBG_SW_VOL_FUNC(host->mmc,
+		MMC_DBG_WARN_FUNC(host->mmc,
 			"%s: 1.8V regulator output did not became stable\n",
 			mmc_hostname(host->mmc));
 
@@ -1914,7 +1914,7 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 				ret = regulator_set_voltage(host->vmmc,
 					1200000, 1200000);
 			if (ret) {
-				MMC_DBG_SW_VOL_FUNC(host->mmc,
+				MMC_DBG_ERR_FUNC(host->mmc,
 					"%s: Switching to 1.2V signalling voltage "
 					" failed\n", mmc_hostname(host->mmc));
 				return -EIO;
@@ -2219,12 +2219,15 @@ static void dw_mci_command_complete(struct dw_mci *host, struct mmc_command *cmd
 			cmd->opcode, cmd->error, mmc_hostname(host->mmc));
 
 	if (cmd->error) {
+		MMC_DBG_ERR_FUNC(host->mmc, "cmd%d Error: %d, status: 0x%08x. [%s]",
+			cmd->opcode, cmd->error, status, mmc_hostname(host->mmc));
+
 		if(MMC_SEND_STATUS != cmd->opcode)
 			if(host->cmd_rto >= SDMMC_CMD_RTO_MAX_HOLD){
-				MMC_DBG_CMD_FUNC(host->mmc,
-					"Command complete, cmd=%d,cmdError=%d [%s]",
-					cmd->opcode, cmd->error, mmc_hostname(host->mmc));
 				host->cmd_rto = 0;
+				MMC_DBG_ERR_FUNC(host->mmc,
+					"Cmd response timeout hold times overflow. [%s]",
+					mmc_hostname(host->mmc));
 			}
 
 		/* newer ip versions need a delay between retries */
@@ -2397,12 +2400,13 @@ static void dw_mci_tasklet_func(unsigned long priv)
 					data->bytes_xfered = 0;
 					data->error = -ETIMEDOUT;
 				} else {
-					dev_err(host->dev,
-						"data FIFO error "
-						"(status=%08x)\n",
-						status);
+					/* SDMMC_INT_SBE is included */
 					data->error = -EIO;
 				}
+
+				MMC_DBG_ERR_FUNC(host->mmc, "data error, status 0x%08x [%s]",
+								 status, mmc_hostname(host->mmc));
+
 				/*
 				 * After an error, there may be data lingering
 				 * in the FIFO, so reset it - doing so
@@ -2962,8 +2966,6 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 			mci_writel(host, RINTSTS, DW_MCI_DATA_ERROR_FLAGS);
 			host->data_status = pending;
 			smp_wmb();
-			printk(KERN_ERR "[%s] Data transmission error !!!!  MINTSTS: [0x%08x]\n",
-			       mmc_hostname(host->mmc), pending);
 			mmc_retune_needed(host->mmc);
 			set_bit(EVENT_DATA_ERROR, &host->pending_events);
 
