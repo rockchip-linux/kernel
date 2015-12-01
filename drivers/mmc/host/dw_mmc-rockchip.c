@@ -94,12 +94,6 @@ static int dw_mci_rockchip_priv_init(struct dw_mci *host)
 					pr_err("No rockchip,grf phandle specified");
 					return PTR_ERR(host->grf);
 				}
-				host->cru = syscon_regmap_lookup_by_phandle(
-					host->dev->of_node, "rockchip,cru");
-				if (IS_ERR(host->cru)) {
-					pr_err("No rockchip,cru phandle specified");
-					return PTR_ERR(host->cru);
-				}
 			}
 		}
 	}
