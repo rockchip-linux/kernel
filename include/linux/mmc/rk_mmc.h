@@ -216,7 +216,6 @@ struct dw_mci {
 	struct pinctrl_state	*pins_idle;    /* Gpio port */
 	struct pinctrl_state    *pins_udbg;    /* uart_dbg port */
 
-	u32	cid;
 	struct regmap	*grf;
 	u32 *regs_buffer;
 	const struct dw_mci_rst_ops *rst_ops;

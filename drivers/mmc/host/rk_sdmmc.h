@@ -386,4 +386,12 @@ DW_MCI_TYPE_RK3368,
 DW_MCI_TYPE_RK3228,
 };
 
+/* Rockchip implementation specific driver private data */
+struct dw_mci_rockchip_priv_data {
+	enum dw_mci_rockchip_type               ctrl_type;
+	u8                              ciu_div;
+	u32                             sdr_timing;
+	u32                             ddr_timing;
+	u32                             cur_speed;
+};
 #endif /* _DW_MMC_H_ */

@@ -29,15 +29,6 @@
 
 #include "rk_sdmmc_dbg.h"
 
-/* Rockchip implementation specific driver private data */
-struct dw_mci_rockchip_priv_data {
-	enum dw_mci_rockchip_type		ctrl_type;
-	u8				ciu_div;
-	u32				sdr_timing;
-	u32				ddr_timing;
-	u32				cur_speed;
-};
-
 static struct dw_mci_rockchip_compatible {
 	char				*compatible;
 	enum dw_mci_rockchip_type		ctrl_type;
@@ -86,7 +77,6 @@ static int dw_mci_rockchip_priv_init(struct dw_mci *host)
 		if (of_device_is_compatible(host->dev->of_node,
 					    rockchip_compat[idx].compatible)) {
 			priv->ctrl_type = rockchip_compat[idx].ctrl_type;
-			host->cid = priv->ctrl_type;
 			if (priv->ctrl_type == DW_MCI_TYPE_RK3368) {
 				host->grf = syscon_regmap_lookup_by_phandle(
 						host->dev->of_node, "rockchip,grf");
@@ -143,6 +133,7 @@ static int dw_mci_rockchip_parse_dt(struct dw_mci *host)
 static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 {
 	unsigned long rate = clk_get_rate(host->clk_mmc)/2; /* 150M */
+	struct dw_mci_rockchip_priv_data *priv = host->priv;
 	u8 nineties, remainder;
 	u8 delay_num;
 	u32 raw_value;
@@ -152,7 +143,7 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 	u32 sample_degree_offset;
 	u32 sample_mask;
 
-	switch (host->cid) {
+	switch (priv->ctrl_type) {
 	case DW_MCI_TYPE_RK3288:
 	case DW_MCI_TYPE_RK3368:
 		delay_sel = 1 << 10;
@@ -167,8 +158,8 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 		sample_mask = 0x0fff;
 		break;
 	default:
-		pr_err("chip_cid(%d) unsupported tune !!!.\n",
-		       host->cid);
+		pr_err("Unknown ctrl type(%d) or doesn't support tune.\n",
+		       priv->ctrl_type);
 		return -EPERM;
 	}
 

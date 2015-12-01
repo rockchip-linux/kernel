@@ -1337,10 +1337,9 @@ static void dw_mci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
-	#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
         struct dw_mci *host = slot->host;
-        #endif
-	const struct dw_mci_drv_data *drv_data = slot->host->drv_data;
+	const struct dw_mci_drv_data *drv_data = host->drv_data;
+	const struct dw_mci_rockchip_priv_data *priv = host->priv;
 	u32 regs;
 	
         #ifdef SDMMC_WAIT_FOR_UNBUSY
@@ -1400,7 +1399,7 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	/* DDR mode set */
 	if (ios->timing == MMC_TIMING_UHS_DDR50) {
 		regs |= ((0x1 << slot->id) << 16);
-		if (slot->host->cid == DW_MCI_TYPE_RK3228)
+		if (priv->ctrl_type == DW_MCI_TYPE_RK3228)
 			cru_writel(((0x3 << 1) << 16) | (0x2 << 1),
 				   RK3228_CRU_EMMC_CON1);
 	} else {
@@ -1788,7 +1787,7 @@ static void dw_mci_do_grf_io_domain_switch(struct dw_mci *host, u32 voltage)
 			grf_writel((voltage << 7) | (1 << 23), RK3288_GRF_IO_VSEL);
 		else
 			return ;
-	} else if (host->cid == DW_MCI_TYPE_RK3368) {
+	} else if (priv->ctrl_type == DW_MCI_TYPE_RK3368) {
 		if(host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD)
 			 regmap_write(host->grf, 0x900, (voltage << 6) | (1 << 22));	
 		else
@@ -3510,6 +3509,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	struct mmc_host *mmc;
 	struct dw_mci_slot *slot;
 	const struct dw_mci_drv_data *drv_data = host->drv_data;
+	const struct dw_mci_rockchip_priv_data *priv = host->priv;
 	int ctrl_id, ret;
 	u32 freq[2];
 	u8 bus_width;
@@ -3563,14 +3563,14 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 
 	/* Disable force_jtag */
 	if (!rockchip_jtag_enabled) {
-		if (host->cid == DW_MCI_TYPE_RK3368) {
+		if (priv->ctrl_type == DW_MCI_TYPE_RK3368) {
 			if (IS_ERR(host->grf))
 				pr_err("rk_sdmmc: dts couldn't find grf regmap for 3368\n");
 			else
 				regmap_write(host->grf, 0x43c, (1<<13)<<16 | (0 << 13));
 		} else if (cpu_is_rk3288()) {
 			grf_writel(((1 << 12) << 16) | (0 << 12), RK3288_GRF_SOC_CON0);
-		} else if (host->cid == DW_MCI_TYPE_RK3228) {
+		} else if (priv->ctrl_type == DW_MCI_TYPE_RK3228) {
 			grf_writel(((1 << 8) << 16) | (0 << 8), RK3228_GRF_SOC_CON6);
 		}
 	}
