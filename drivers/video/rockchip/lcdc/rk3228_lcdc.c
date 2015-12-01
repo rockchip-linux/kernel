@@ -1574,7 +1574,10 @@ static int vop_enable_irq(struct rk_lcdc_driver *dev_drv)
 
 	vop_mask_writel(vop_dev, INTR_CLEAR0, INTR_MASK, INTR_MASK);
 
-	val = INTR_FS | INTR_LINE_FLAG0 | INTR_BUS_ERROR | INTR_LINE_FLAG1;
+	val = INTR_FS | INTR_LINE_FLAG0 | INTR_BUS_ERROR | INTR_LINE_FLAG1 |
+		INTR_WIN0_EMPTY | INTR_WIN1_EMPTY | INTR_HWC_EMPTY |
+		INTR_POST_BUF_EMPTY;
+
 	vop_mask_writel(vop_dev, INTR_EN0, INTR_MASK, val);
 
 	return 0;
@@ -3388,6 +3391,27 @@ static irqreturn_t vop_isr(int irq, void *dev_id)
 		intr_status &= ~INTR_BUS_ERROR;
 		dev_warn_ratelimited(vop_dev->dev, "bus error!");
 	}
+
+	if (intr_status & INTR_WIN0_EMPTY) {
+		intr_status &= ~INTR_WIN0_EMPTY;
+		dev_warn_ratelimited(vop_dev->dev, "intr win0 empty!");
+	}
+
+	if (intr_status & INTR_WIN1_EMPTY) {
+		intr_status &= ~INTR_WIN1_EMPTY;
+		dev_warn_ratelimited(vop_dev->dev, "intr win1 empty!");
+	}
+
+	if (intr_status & INTR_HWC_EMPTY) {
+		intr_status &= ~INTR_HWC_EMPTY;
+		dev_warn_ratelimited(vop_dev->dev, "intr hwc empty!");
+	}
+
+	if (intr_status & INTR_POST_BUF_EMPTY) {
+		intr_status &= ~INTR_POST_BUF_EMPTY;
+		dev_warn_ratelimited(vop_dev->dev, "intr post buf empty!");
+	}
+
 	if (intr_status)
 		dev_err(vop_dev->dev, "Unknown VOP IRQs: %#02x\n", intr_status);
 
