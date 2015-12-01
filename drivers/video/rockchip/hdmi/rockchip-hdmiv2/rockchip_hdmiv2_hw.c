@@ -2040,6 +2040,8 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_powerdown(hdmi_dev);
 		if (hdmi_dev->soctype == HDMI_SOC_RK3228)
 			ext_pll_set_27m_out(hdmi_dev);
+	} else {
+		hdmi->hotplug = hdmi_dev_detect_hotplug(hdmi);
 	}
 	/*mute unnecessary interrrupt, only enable hpd*/
 	hdmi_writel(hdmi_dev, IH_MUTE_FC_STAT0, 0xff);
