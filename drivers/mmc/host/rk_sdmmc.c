@@ -2189,7 +2189,6 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			
                         if (cmd->data && cmd->error) {
 				dw_mci_stop_dma(host);
-				#if 1
                                 if (data->stop) {
                                         send_stop_cmd(host, data);
                                         state = STATE_SENDING_STOP;
@@ -2197,11 +2196,6 @@ static void dw_mci_tasklet_func(unsigned long priv)
                                 }else{
                                        /*  host->data = NULL; */
                                 }
-				#else
-				send_stop_abort(host, data);
-				state = STATE_SENDING_STOP;
-				break;
-				#endif
                                 set_bit(EVENT_DATA_COMPLETE, &host->completed_events);
 			}
 
@@ -2217,21 +2211,17 @@ static void dw_mci_tasklet_func(unsigned long priv)
 			if (test_and_clear_bit(EVENT_DATA_ERROR,
 				&host->pending_events)) {
 				dw_mci_stop_dma(host);
-				#if 1
-				if (data->stop){
+				if (data->stop) {
 					send_stop_cmd(host, data);
-				}else{
-                                        /*single block read/write, send stop cmd
-					manually to prevent host controller halt*/
-                                        MMC_DBG_INFO_FUNC(host->mmc,
-						"%s status 1 0x%08x [%s]\n",
-						__func__, mci_readl(host, STATUS),
-						mmc_hostname(host->mmc));
-                        
+				} else {
+                                        /*
+					* single block read/write, send stop cmd
+					* manually to prevent host controller halt
+					*/
 					mci_writel(host, CMDARG, 0);
                                         wmb();
                                         cmd_flags = SDMMC_CMD_STOP | SDMMC_CMD_RESP_CRC |
-						SDMMC_CMD_RESP_EXP | MMC_STOP_TRANSMISSION;
+						    SDMMC_CMD_RESP_EXP | MMC_STOP_TRANSMISSION;
 
 					if(host->mmc->hold_reg_flag)
 						cmd_flags |= SDMMC_CMD_USE_HOLD_REG;
@@ -2245,14 +2235,11 @@ static void dw_mci_tasklet_func(unsigned long priv)
 						if (!(mci_readl(host, CMD) & SDMMC_CMD_START))
 							break;
 					}
-					if(false == ret)
+					if (false == ret)
 						MMC_DBG_ERR_FUNC(host->mmc,
 							"%s EVENT_DATA_ERROR recovery failed!!! [%s]\n",
 							__func__, mmc_hostname(host->mmc));
 				}
-				#else
-				send_stop_abort(host, data);
-				#endif
 				state = STATE_DATA_ERROR;
 				break;
 			}
@@ -2316,7 +2303,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				}
 
 				MMC_DBG_ERR_FUNC(host->mmc, "data error, status 0x%08x [%s]",
-								 status, mmc_hostname(host->mmc));
+						 status, mmc_hostname(host->mmc));
 
 				/*
 				 * After an error, there may be data lingering
@@ -2375,19 +2362,7 @@ static void dw_mci_tasklet_func(unsigned long priv)
 				dw_mci_fifo_reset(host);
 			}
 
-			/*
-			host->cmd = NULL;
-			host->data = NULL;
-			*/
-			#if 1
 			dw_mci_command_complete(host, host->mrq->stop);
-			#else
-			if (host->mrq->stop)
-				dw_mci_command_complete(host, host->mrq->stop);
-			else
-				host->cmd_status = 0;
-                        #endif
-            
 			dw_mci_request_end(host, host->mrq);
 			goto unlock;
 
@@ -3151,7 +3126,7 @@ static int dw_mci_of_get_slot_quirks(struct device *dev, u8 slot)
 /* find out bus-width for a given slot */
 static u32 dw_mci_of_get_bus_wd(struct device *dev, u8 slot)
 {
-	struct device_node *np = dev->of_node;//dw_mci_of_find_slot_node(dev, slot);
+	struct device_node *np = dev->of_node;
 	u32 bus_wd = 1;
 
 	if (!np)
@@ -3167,7 +3142,7 @@ static u32 dw_mci_of_get_bus_wd(struct device *dev, u8 slot)
 /* find the pwr-en gpio for a given slot; or -1 if none specified */
 static int dw_mci_of_get_pwr_en_gpio(struct device *dev, u8 slot)
 {
-	struct device_node *np = dev->of_node;//dw_mci_of_find_slot_node(dev, slot);
+	struct device_node *np = dev->of_node;
 	int gpio;
 
 	if (!np)
@@ -3616,29 +3591,19 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
         /* pwr_en */   
         slot->pwr_en_gpio = dw_mci_of_get_pwr_en_gpio(host->dev, slot->id);
 
-        if (!(mmc->restrict_caps & RESTRICT_CARD_TYPE_SD))
-        {
-                host->vmmc = NULL;
-        }else{
-
-                if(mmc->restrict_caps & RESTRICT_CARD_TYPE_SD)
-                        host->vmmc = devm_regulator_get(mmc_dev(mmc), "vmmc");
-                else
-                        host->vmmc = NULL;
-    	 
-                if (IS_ERR(host->vmmc)) {
-    		        pr_info("%s: no vmmc regulator found\n", mmc_hostname(mmc));
-    		        host->vmmc = NULL;
-    	        }else{
-                        ret = regulator_enable(host->vmmc);
-                        if (ret) {
-    			        dev_err(host->dev,
-    				        "failed to enable regulator: %d\n", ret);
-    		                host->vmmc = NULL;
-    			        goto err_setup_bus;
-                        }
-                }
-        }
+	host->vmmc = NULL;
+	if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) {
+		host->vmmc = devm_regulator_get(mmc_dev(mmc), "vmmc");
+		if (!IS_ERR(host->vmmc)) {
+			ret = regulator_enable(host->vmmc);
+			if (ret) {
+				dev_err(host->dev,
+					"failed to enable regulator: %d\n", ret);
+				host->vmmc = NULL;
+				goto err_setup_bus;
+			}
+		}
+	}
     
         slot->wp_gpio = dw_mci_of_get_wp_gpio(host->dev, slot->id);
 	
