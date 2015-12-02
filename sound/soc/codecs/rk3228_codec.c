@@ -49,7 +49,7 @@
  *  31: 6dB
  *  Step: 1.5dB
 */
-#define  OUT_VOLUME    (0x1a)
+#define  OUT_VOLUME    (0x18)
 
 struct rk3228_codec_priv {
 	struct regmap *regmap;
