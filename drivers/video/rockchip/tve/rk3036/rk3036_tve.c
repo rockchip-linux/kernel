@@ -21,6 +21,7 @@
 #include <linux/rk_fb.h>
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
+#include "../../hdmi/rockchip-hdmiv2/rockchip_hdmiv2.h"
 #include "rk3036_tve.h"
 
 
@@ -226,6 +227,8 @@ static int tve_switch_fb(const struct fb_videomode *modedb, int enable)
 	rk_fb_switch_screen(screen, enable, 0);
 
 	if (enable) {
+		if (rk3036_tve->soctype == SOC_RK3228)
+			ext_pll_set_27m_out();
 		if (screen->mode.yres == 480)
 			tve_set_mode(TVOUT_CVBS_NTSC);
 		else
