@@ -348,12 +348,11 @@ static void dw_mci_dma_cleanup(struct dw_mci *host)
 {
 	struct mmc_data *data = host->data;
 
-	if (data)
-		if (!data->host_cookie)
-			dma_unmap_sg(host->dev,
-				     data->sg,
-				     data->sg_len,
-				     dw_mci_get_dma_dir(data));
+	if (data && !data->host_cookie)
+		dma_unmap_sg(host->dev,
+			     data->sg,
+			     data->sg_len,
+			     dw_mci_get_dma_dir(data));
 }
 
 static void dw_mci_idmac_reset(struct dw_mci *host)
@@ -490,18 +489,6 @@ static const struct dw_mci_dma_ops dw_mci_idmac_ops = {
 	.complete = dw_mci_idmac_complete_dma,
 	.cleanup = dw_mci_dma_cleanup,
 };
-
-
-static void dw_mci_edma_cleanup(struct dw_mci *host)
-{
-	struct mmc_data *data = host->data;
-
-	if (data)
-                if (!data->host_cookie)
-			dma_unmap_sg(host->dev,
-                                        data->sg, data->sg_len,
-                                        dw_mci_get_dma_dir(data));
-}
 
 static void dw_mci_edmac_stop_dma(struct dw_mci *host)
 {
@@ -668,7 +655,7 @@ static const struct dw_mci_dma_ops dw_mci_edmac_ops = {
         .start = dw_mci_edmac_start_dma,
         .stop = dw_mci_edmac_stop_dma,
         .complete = dw_mci_edmac_complete_dma,
-        .cleanup = dw_mci_edma_cleanup,
+        .cleanup = dw_mci_dma_cleanup,
 };
 #endif /* CONFIG_MMC_DW_IDMAC */
 
