@@ -562,54 +562,38 @@ static void dw_mci_edmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 	slave_config.dst_maxburst = mburst;
 	slave_config.src_maxburst = slave_config.dst_maxburst;
 
-	if(host->data->flags & MMC_DATA_WRITE){
+	if (host->data->flags & MMC_DATA_WRITE)
 		slave_config.direction = DMA_MEM_TO_DEV;
-		ret = dmaengine_slave_config(host->dms->ch, &slave_config);
-		if(ret){
-			dev_err(host->dev,
-				"Error in dw_mci edmac write configuration.\n");
-			return;
-		}
+	else
+		slave_config.direction = DMA_DEV_TO_MEM;
 
-		desc = dmaengine_prep_slave_sg(host->dms->ch, sgl, sg_len,
-					DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
-		if (!desc) {
-			dev_err(host->dev,
-				"Cannot prepare slave write sg the dw_mci edmac!\n");
-			return;
-		}
+	ret = dmaengine_slave_config(host->dms->ch, &slave_config);
+	if (ret) {
+		dev_err(host->dev,
+			"Error in dw_mci edmac write configuration.\n");
+		return;
+	}
 
-		/* Set dw_mci_edmac_complete_dma as callback */
-		desc->callback = dw_mci_edmac_complete_dma;
-		desc->callback_param = (void *)host;
-		dmaengine_submit(desc);
+	desc = dmaengine_prep_slave_sg(host->dms->ch, sgl, sg_len,
+				       slave_config.direction,
+				       DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	if (!desc) {
+		dev_err(host->dev,
+			 "Cannot prepare slave write sg the dw_mci edmac!\n");
+		return;
+	}
 
+	/* Set dw_mci_edmac_complete_dma as callback */
+	desc->callback = dw_mci_edmac_complete_dma;
+	desc->callback_param = (void *)host;
+	dmaengine_submit(desc);
+
+	if (host->data->flags & MMC_DATA_WRITE)
 		/* Flush cache before write */
 		dma_sync_sg_for_device(mmc_dev(host->mmc), sgl,
-				sg_elems, DMA_TO_DEVICE);
-		dma_async_issue_pending(host->dms->ch);
-	} else {
-		/* MMC_DATA_READ*/
-		slave_config.direction = DMA_DEV_TO_MEM;
-		ret = dmaengine_slave_config(host->dms->ch, &slave_config);
-		if (ret) {
-			dev_err(host->dev,
-				"Error in dw_mci edmac read configuration.\n");
-			return;
-		}
-		desc = dmaengine_prep_slave_sg(host->dms->ch, sgl, sg_len,
-					DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
-		if (!desc) {
-			dev_err(host->dev,
-				"Cannot prepare slave read sg for the dw_mci edmac!\n");
-			return;
-		}
-		/* set dw_mci_edmac_complete_dma as callback */
-		desc->callback = dw_mci_edmac_complete_dma;
-		desc->callback_param = (void *)host;
-		dmaengine_submit(desc);
-		dma_async_issue_pending(host->dms->ch);
-	}
+				       sg_elems, DMA_TO_DEVICE);
+
+	dma_async_issue_pending(host->dms->ch);
 }
 
 static int dw_mci_edmac_init(struct dw_mci *host)
