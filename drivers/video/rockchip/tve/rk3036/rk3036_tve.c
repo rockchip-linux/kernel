@@ -285,10 +285,11 @@ cvbs_set_mode(struct rk_display_device *device, struct fb_videomode *mode)
 			if (rk3036_tve->mode != &rk3036_cvbs_mode[i]) {
 				rk3036_tve->mode =
 				(struct fb_videomode *)&rk3036_cvbs_mode[i];
-				if (rk3036_tve->enable && !rk3036_tve->suspend)
+				if (rk3036_tve->enable && !rk3036_tve->suspend) {
 					dac_enable(false);
 					tve_switch_fb(rk3036_tve->mode, 1);
 					dac_enable(true);
+				}
 			}
 			return 0;
 		}
@@ -477,7 +478,8 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 			return PTR_ERR(rk3036_tve->dac_clk);
 		}
 		clk_prepare_enable(rk3036_tve->dac_clk);
-		rk3228_dac_init();
+		if (cvbsformat < 0)
+			rk3228_dac_init();
 	}
 	INIT_LIST_HEAD(&(rk3036_tve->modelist));
 	for (i = 0; i < ARRAY_SIZE(rk3036_cvbs_mode); i++)
