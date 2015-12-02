@@ -2619,6 +2619,14 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 			atomic_add(1, &pservice->reset_request);
 
 		writel_relaxed(0, dev->regs + task->reg_irq);
+
+		/*
+		 * NOTE: rkvdec need to reset after each task to avoid timeout
+		 *       error on H.264 switch to H.265
+		 */
+		if (data->mode == VCODEC_RUNNING_MODE_RKVDEC)
+			writel(0x100000, dev->regs + task->reg_irq);
+
 		atomic_add(1, &dev->irq_count_codec);
 		time_diff(task);
 	}
