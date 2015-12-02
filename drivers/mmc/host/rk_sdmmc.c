@@ -3300,23 +3300,22 @@ static void dw_mci_of_set_cd_gpio_irq(struct device *dev, u32 gpio,
 		return;
 
 	irq = gpio_to_irq(gpio);
-	if (irq >= 0) {
-		ret = devm_request_threaded_irq(
-					&mmc->class_dev, irq,
+	if (irq < 0) {
+		dev_err(host->dev,
+			"Cannot convert gpio %d to irq!\n", gpio);
+		return;
+	}
+
+	ret = devm_request_threaded_irq(&mmc->class_dev, irq,
 					NULL, dw_mci_gpio_cd_irqt,
 					IRQF_TRIGGER_LOW | IRQF_ONESHOT,
 					"dw_mci_cd", mmc);
-		if (ret < 0) {
-			irq = ret;
-			dev_err(host->dev,
-				"Request cd-gpio %d interrupt error!\n", gpio);
-		} else{
-			/* enable wakeup event for gpio-cd in idle or deep suspend*/
-			enable_irq_wake(irq);
-		}
-	} else {
-		dev_err(host->dev, "Cannot convert gpio %d to irq!\n", gpio);
-	}
+	if (ret < 0)
+		dev_err(host->dev,
+			"Request cd-gpio %d interrupt error!\n", gpio);
+	else
+		/* enable card event as wakeup source for deep suspend */
+		enable_irq_wake(irq);
 }
 
 static void dw_mci_of_free_cd_gpio_irq(struct device *dev, u32 gpio,
