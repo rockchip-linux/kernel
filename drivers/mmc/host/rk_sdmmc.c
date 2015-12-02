@@ -1317,18 +1317,16 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	unsigned long   time_loop;
 	bool ret = true;
 
+	time_loop = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
+
         #ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-        if(host->svi_flags == 1)
+        if (host->svi_flags == 1)
                 time_loop = jiffies + msecs_to_jiffies(SDMMC_DATA_TIMEOUT_SD);
-        else
-                time_loop = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
-        #else
-                time_loop = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
-        #endif
+	#endif
         
-	if(!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)){
-		printk("%d..%s:  no card. [%s]\n", \
-			__LINE__, __FUNCTION__, mmc_hostname(mmc));
+	if (!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
+		dev_info(host->dev, "%s:  no card. [%s]\n",
+			 __FUNCTION__, mmc_hostname(mmc));
 		goto EXIT_POWER;
 	}
     
@@ -1340,15 +1338,15 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
     			break;
 	};
 	
-	if(false == ret)
-	{
-		printk("slot->flags = %lu ", slot->flags);
+	if (false == ret) {
+		dev_info(host->dev, "slot->flags = %lu ", slot->flags);
 		#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-                if(host->svi_flags != 1)
+                if (host->svi_flags != 1)
                 #endif
-			dump_stack();
-		printk("%s:  wait for unbusy timeout....... STATUS = 0x%x [%s]\n",
-			 __FUNCTION__, regs, mmc_hostname(mmc));
+		dump_stack();
+		dev_err(host->dev,
+			"%s:  wait for unbusy timeout.. STATUS = 0x%x [%s]\n",
+			__FUNCTION__, regs, mmc_hostname(mmc));
 	}
         #endif
         
@@ -1391,7 +1389,6 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 
 	/* Slot specific timing and width adjustment */
 	dw_mci_setup_bus(slot, false);
-		//return -EAGAIN;
 
 EXIT_POWER:
 	switch (ios->power_mode) {
@@ -1909,8 +1906,9 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 		(opcode == MMC_SEND_TUNING_BLOCK))
 		return;
 
-	printk("[%s] -- Timeout recovery procedure start --\n",
-		mmc_hostname(host->mmc));
+	dev_info(host->dev,
+		 "[%s] -- Timeout recovery procedure start --\n",
+		 mmc_hostname(host->mmc));
 
 	/* unmask irq */
 	mci_writel(host, INTMASK, 0x0);
@@ -2003,8 +2001,9 @@ retry_stop:
 	}
 	mci_writel(host, RINTSTS, 0xFFFFFFFF);
 
-	printk("[%s] -- Timeout recovery procedure finished --\n",
-		mmc_hostname(host->mmc));
+	dev_info(host->dev,
+		 "[%s] -- Timeout recovery procedure finished --\n",
+		 mmc_hostname(host->mmc));
 }
 
 static const struct mmc_host_ops dw_mci_ops = {
@@ -2721,7 +2720,8 @@ static void dw_mci_read_data_pio(struct dw_mci *host, bool dto)
 	unsigned int remain, fcnt;
 
 	if(!host->mmc->bus_refs){
-		printk("Note: %s host->mmc->bus_refs is 0!!!\n", __func__);
+		dev_err(host->dev,
+			"%s bus_refs had come down to zero\n", __func__);
 		goto host_put;
 	}
 	do {
@@ -2781,7 +2781,8 @@ static void dw_mci_write_data_pio(struct dw_mci *host)
 	unsigned int remain, fcnt;
 	
 	if (!host->mmc->bus_refs){
-		printk("Note: %s host->mmc->bus_refs is 0!!!\n", __func__);
+		dev_err(host->dev,
+			"%s bus_refs had come down to zero\n", __func__);
 		goto host_put;
 	}
 
@@ -3253,7 +3254,8 @@ static irqreturn_t dw_mci_gpio_cd_irqt(int irq, void *dev_id)
 	if(mmc->rescan_disable == 0)
 		queue_work(host->card_workqueue, &host->card_work);
 	else
-		printk("%s: rescan been disabled!\n", __FUNCTION__);
+		dev_info(host->dev,
+			 "%s: rescan been disabled!\n", __FUNCTION__);
 
 	return IRQ_HANDLED;
 }
@@ -3447,14 +3449,16 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 		mmc->f_min = DW_MCI_FREQ_MIN;
 		mmc->f_max = DW_MCI_FREQ_MAX;
 		
-                printk("%s: fmin=%d, fmax=%d [%s]\n",
+                dev_info(host->dev,
+			 "%s: fmin=%d, fmax=%d [%s]\n",
 			 __FUNCTION__, mmc->f_min,
 			 mmc->f_max, mmc_hostname(mmc));
 	} else {
 		mmc->f_min = freq[0];
 		mmc->f_max = freq[1];
 		
-                printk("%s: fmin=%d, fmax=%d [%s]\n",
+                dev_info(host->dev,
+			 "%s: fmin=%d, fmax=%d [%s]\n",
 			 __FUNCTION__, mmc->f_min,
 			 mmc->f_max, mmc_hostname(mmc));
 	}
