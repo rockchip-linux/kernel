@@ -262,10 +262,8 @@ struct vpu_reg {
 	struct list_head status_link;
 
 	unsigned long size;
-#if defined(CONFIG_VCODEC_MMU)
 	struct list_head mem_region_list;
 	u32 dec_base;
-#endif
 	u32 *reg;
 };
 
@@ -337,9 +335,7 @@ struct vpu_subdev_data {
 	struct dentry *debugfs_file_regs;
 #endif
 
-#if defined(CONFIG_VCODEC_MMU)
 	struct device *mmu_dev;
-#endif
 };
 
 struct vpu_service_info {
@@ -384,10 +380,8 @@ struct vpu_service_info {
 
 	u32 irq_status;
 	atomic_t reset_request;
-#if defined(CONFIG_VCODEC_MMU)
 	struct ion_client *ion_client;
 	struct list_head mem_region_list;
-#endif
 
 	enum vcodec_device_id dev_id;
 
@@ -872,7 +866,6 @@ static inline int reg_probe_hevc_y_stride(struct vpu_reg *reg)
 	return y_virstride;
 }
 
-#if defined(CONFIG_VCODEC_MMU)
 static int vcodec_fd_to_iova(struct vpu_subdev_data *data,
 			     struct vpu_reg *reg, int fd)
 {
@@ -895,8 +888,15 @@ static int vcodec_fd_to_iova(struct vpu_subdev_data *data,
 	}
 
 	mem_region->hdl = hdl;
-	ret = ion_map_iommu(data->dev, pservice->ion_client, mem_region->hdl,
-			    &mem_region->iova, &mem_region->len);
+	if (data->mmu_dev)
+		ret = ion_map_iommu(data->dev, pservice->ion_client,
+				    mem_region->hdl, &mem_region->iova,
+				    &mem_region->len);
+	else
+		ret = ion_phys(pservice->ion_client,
+			       mem_region->hdl,
+			       (ion_phys_addr_t *)&mem_region->iova,
+			       (size_t *)&mem_region->len);
 
 	if (ret < 0) {
 		vpu_err("ion map iommu failed\n");
@@ -1073,11 +1073,18 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 
 		mem_region->hdl = hdl;
 		mem_region->reg_idx = tbl[i];
-		ret = ion_map_iommu(data->dev,
-				    pservice->ion_client,
-				    mem_region->hdl,
-				    &mem_region->iova,
-				    &mem_region->len);
+
+		if (data->mmu_dev)
+			ret = ion_map_iommu(data->dev,
+					    pservice->ion_client,
+					    mem_region->hdl,
+					    &mem_region->iova,
+					    &mem_region->len);
+		else
+			ret = ion_phys(pservice->ion_client,
+				       mem_region->hdl,
+				       (ion_phys_addr_t *)&mem_region->iova,
+				       (size_t *)&mem_region->len);
 
 		if (ret < 0) {
 			dev_err(pservice->dev, "ion map iommu failed\n");
@@ -1131,7 +1138,6 @@ static int vcodec_reg_address_translate(struct vpu_subdev_data *data,
 	pr_err("found invalid format type!\n");
 	return -1;
 }
-#endif
 
 static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 				struct vpu_session *session,
@@ -1167,10 +1173,7 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 	INIT_LIST_HEAD(&reg->session_link);
 	INIT_LIST_HEAD(&reg->status_link);
 
-#if defined(CONFIG_VCODEC_MMU)
-	if (data->mmu_dev)
-		INIT_LIST_HEAD(&reg->mem_region_list);
-#endif
+	INIT_LIST_HEAD(&reg->mem_region_list);
 
 	if (copy_from_user(&reg->reg[0], (void __user *)src, size)) {
 		vpu_err("error: copy_from_user failed in reg_init\n");
@@ -1184,14 +1187,11 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		return NULL;
 	}
 
-#if defined(CONFIG_VCODEC_MMU)
-	if (data->mmu_dev &&
-	    0 > vcodec_reg_address_translate(data, reg, &extra_info)) {
+	if (0 > vcodec_reg_address_translate(data, reg, &extra_info)) {
 		vpu_err("error: translate reg address failed\n");
 		kfree(reg);
 		return NULL;
 	}
-#endif
 
 	mutex_lock(&pservice->lock);
 	list_add_tail(&reg->status_link, &pservice->waiting);
@@ -1226,9 +1226,7 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 static void reg_deinit(struct vpu_subdev_data *data, struct vpu_reg *reg)
 {
 	struct vpu_service_info *pservice = data->pservice;
-#if defined(CONFIG_VCODEC_MMU)
 	struct vcodec_mem_region *mem_region = NULL, *n;
-#endif
 
 	list_del_init(&reg->session_link);
 	list_del_init(&reg->status_link);
@@ -1237,17 +1235,13 @@ static void reg_deinit(struct vpu_subdev_data *data, struct vpu_reg *reg)
 	if (reg == pservice->reg_pproc)
 		pservice->reg_pproc = NULL;
 
-#if defined(CONFIG_VCODEC_MMU)
 	/* release memory region attach to this registers table. */
-	if (data->mmu_dev) {
-		list_for_each_entry_safe(mem_region, n,
-					 &reg->mem_region_list, reg_lnk) {
-			ion_free(pservice->ion_client, mem_region->hdl);
-			list_del_init(&mem_region->reg_lnk);
-			kfree(mem_region);
-		}
+	list_for_each_entry_safe(mem_region, n,
+			&reg->mem_region_list, reg_lnk) {
+		ion_free(pservice->ion_client, mem_region->hdl);
+		list_del_init(&mem_region->reg_lnk);
+		kfree(mem_region);
 	}
-#endif
 
 	kfree(reg);
 }
@@ -1304,7 +1298,7 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 	case VPU_DEC: {
 		pservice->reg_codec = NULL;
 		reg_copy_from_hw(reg, data->dec_dev.regs, hw_info->dec_reg_num);
-#if defined(CONFIG_VCODEC_MMU)
+
 		/* revert hack for decoded length */
 		if (task->reg_len > 0) {
 			int reg_len = task->reg_len;
@@ -1316,7 +1310,7 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 				  dec_get, dec_length);
 			reg->reg[reg_len] = dec_length << 10;
 		}
-#endif
+
 		reg->reg[task->reg_irq] = pservice->irq_status;
 	} break;
 	case VPU_PP: {
@@ -1329,7 +1323,7 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 		pservice->reg_pproc = NULL;
 		reg_copy_from_hw(reg, data->dec_dev.regs, hw_info->dec_reg_num);
 		writel_relaxed(0, data->dec_dev.regs + task->reg_irq);
-#if defined(CONFIG_VCODEC_MMU)
+
 		/* revert hack for decoded length */
 		if (task->reg_len > 0) {
 			u32 dec_get = reg->reg[task->reg_len];
@@ -1340,7 +1334,7 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 				  dec_get, dec_length);
 			reg->reg[12] = dec_length << 10;
 		}
-#endif
+
 		reg->reg[task->reg_irq] = pservice->irq_status;
 	} break;
 	default: {
@@ -1753,13 +1747,9 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		mutex_unlock(&pservice->lock);
 	} break;
 	case VPU_IOC_PROBE_IOMMU_STATUS: {
-		int iommu_enable = 0;
+		int iommu_enable = 1;
 
 		vpu_debug(DEBUG_IOCTL, "VPU_IOC_PROBE_IOMMU_STATUS\n");
-
-#if defined(CONFIG_VCODEC_MMU)
-		iommu_enable = data->mmu_dev ? 1 : 0;
-#endif
 
 		if (copy_to_user((void __user *)arg,
 				 &iommu_enable, sizeof(int))) {
@@ -1903,12 +1893,9 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		mutex_unlock(&pservice->lock);
 	} break;
 	case COMPAT_VPU_IOC_PROBE_IOMMU_STATUS: {
-		int iommu_enable = 0;
+		int iommu_enable = 1;
 
 		vpu_debug(DEBUG_IOCTL, "COMPAT_VPU_IOC_PROBE_IOMMU_STATUS\n");
-#if defined(CONFIG_VCODEC_MMU)
-		iommu_enable = data->mmu_dev ? 1 : 0;
-#endif
 
 		if (copy_to_user(compat_ptr((compat_uptr_t)arg),
 				 &iommu_enable, sizeof(int))) {
@@ -2028,7 +2015,6 @@ static irqreturn_t vepu_irq(int irq, void *dev_id);
 static irqreturn_t vepu_isr(int irq, void *dev_id);
 static void get_hw_info(struct vpu_subdev_data *data);
 
-#ifdef CONFIG_VCODEC_MMU
 static struct device *rockchip_get_sysmmu_dev(const char *compt)
 {
 	struct device_node *dn = NULL;
@@ -2135,7 +2121,6 @@ int vcodec_sysmmu_fault_hdl(struct device *dev,
 
 	return 0;
 }
-#endif
 
 static int vcodec_subdev_probe(struct platform_device *pdev,
 			       struct vpu_service_info *pservice)
@@ -2150,12 +2135,11 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	struct device_node *np = pdev->dev.of_node;
 	struct vpu_subdev_data *data =
 		devm_kzalloc(dev, sizeof(struct vpu_subdev_data), GFP_KERNEL);
-#if defined(CONFIG_VCODEC_MMU)
 	u32 iommu_en = 0;
 	char mmu_dev_dts_name[40];
 
 	of_property_read_u32(np, "iommu_enabled", &iommu_en);
-#endif
+
 	pr_info("probe device %s\n", dev_name(dev));
 
 	data->pservice = pservice;
@@ -2226,7 +2210,7 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	atomic_set(&data->dec_dev.irq_count_pp, 0);
 	atomic_set(&data->enc_dev.irq_count_codec, 0);
 	atomic_set(&data->enc_dev.irq_count_pp, 0);
-#if defined(CONFIG_VCODEC_MMU)
+
 	if (iommu_en) {
 		if (data->mode == VCODEC_RUNNING_MODE_HEVC)
 			sprintf(mmu_dev_dts_name,
@@ -2248,7 +2232,7 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 
 		rockchip_iovmm_set_fault_handler(dev, vcodec_sysmmu_fault_hdl);
 	}
-#endif
+
 	get_hw_info(data);
 	pservice->auto_freq = true;
 
@@ -2704,7 +2688,7 @@ static irqreturn_t vepu_irq(int irq, void *dev_id)
 		  task->reg_irq, irq_status,
 		  task->irq_mask, task->ready_mask, task->error_mask);
 
-	vpu_debug(DEBUG_IRQ_STATUS, "vepu_irq dec status %08x\n", irq_status);
+	vpu_debug(DEBUG_IRQ_STATUS, "vepu_irq enc status %08x\n", irq_status);
 
 	if (likely(irq_status & task->irq_mask)) {
 		time_record(task, 1);
