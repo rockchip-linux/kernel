@@ -494,8 +494,8 @@
 		compatible = "rockchip-i2s";
 		reg = <0x100c0000 0x1000>;
 		i2s-id = <0>;
-		clocks = <&clk_i2s0>, <&clk_gates8 7>;
-		clock-names = "i2s_clk", "i2s_hclk";
+		clocks = <&clk_i2s0>, <&clk_gates8 7>, <&clk_gates0 5>;
+		clock-names = "i2s_clk", "i2s_hclk", "g_i2s_clk";
 		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		dmas = <&pdma 11>, <&pdma 12>;
 		#dma-cells = <2>;
@@ -507,8 +507,16 @@
 		compatible = "rockchip-i2s";
 		reg = <0x100b0000 0x1000>;
 		i2s-id = <1>;
-		clocks = <&clk_i2s1>, <&clk_i2s1_out>, <&clk_gates8 8>;
-		clock-names = "i2s_clk", "i2s_mclk", "i2s_hclk";
+		clocks = <&clk_i2s1>,
+			 <&clk_i2s1_out>,
+			 <&clk_gates8 8>,
+			 <&clk_gates0 13>,
+			 <&clk_gates0 14>;
+		clock-names = "i2s_clk",
+			      "i2s_mclk",
+			      "i2s_hclk",
+			      "g_i2s_mclk",
+			      "g_i2s_clk";
 		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
 		dmas = <&pdma 14>, <&pdma 15>;
 		#dma-cells = <2>;
@@ -531,8 +539,8 @@
 		compatible = "rockchip-i2s";
 		reg = <0x100e0000 0x1000>;
 		i2s-id = <2>;
-		clocks = <&clk_i2s2>, <&clk_gates8 9>;
-		clock-names = "i2s_clk", "i2s_hclk";
+		clocks = <&clk_i2s2>, <&clk_gates8 9>, <&clk_gates0 9>;
+		clock-names = "i2s_clk", "i2s_hclk", "g_i2s_clk";
 		interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
 		dmas = <&pdma 0>, <&pdma 1>;
 		#dma-cells = <2>;
