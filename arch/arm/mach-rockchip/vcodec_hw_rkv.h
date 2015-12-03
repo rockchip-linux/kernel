@@ -127,7 +127,12 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 
 static struct vpu_hw_info hw_rkhevc = {
 	.hw_id		= HEVC_ID,
-	.dec_offset	= 0x0,
+
+	.enc_offset	= 0,
+	.enc_reg_num	= 0,
+	.enc_io_size	= 0,
+
+	.dec_offset	= 0,
 	.dec_reg_num	= REG_NUM_HEVC_DEC,
 	.dec_io_size	= REG_NUM_HEVC_DEC * 4,
 
@@ -142,6 +147,11 @@ static struct vpu_hw_info hw_rkhevc = {
 
 static struct vpu_hw_info hw_rkvdec = {
 	.hw_id		= RKV_DEC_ID,
+
+	.enc_offset	= 0,
+	.enc_reg_num	= 0,
+	.enc_io_size	= 0,
+
 	.dec_offset	= 0x0,
 	.dec_reg_num	= REG_NUM_RKV_DEC,
 	.dec_io_size	= REG_NUM_RKV_DEC * 4,

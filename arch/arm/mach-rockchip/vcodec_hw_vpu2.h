@@ -171,9 +171,11 @@ static struct vpu_task_info task_vpu2[TASK_TYPE_BUTT] = {
 
 static struct vpu_hw_info hw_vpu2 = {
 	.hw_id		= VPU2_ID,
+
 	.enc_offset	= 0x0,
 	.enc_reg_num	= REG_NUM_VPU2_ENC,
 	.enc_io_size	= REG_NUM_VPU2_ENC * 4,
+
 	.dec_offset	= REG_NUM_VPU2_DEC_OFFSET,
 	.dec_reg_num	= REG_NUM_VPU2_DEC_PP,
 	.dec_io_size	= REG_NUM_VPU2_DEC_PP * 4,

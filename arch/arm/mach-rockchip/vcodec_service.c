@@ -2172,15 +2172,17 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	hw_info = data->hw_info;
 	regs = (u8 *)data->regs;
 
-	data->dec_dev.iosize = hw_info->dec_io_size;
-	data->dec_dev.regs = (u32 *)(regs + hw_info->dec_offset);
-	data->reg_size = data->dec_dev.iosize;
+	if (hw_info->dec_reg_num) {
+		data->dec_dev.iosize = hw_info->dec_io_size;
+		data->dec_dev.regs = (u32 *)(regs + hw_info->dec_offset);
+	}
 
-	if (data->mode == VCODEC_RUNNING_MODE_VPU) {
+	if (hw_info->enc_reg_num) {
 		data->enc_dev.iosize = hw_info->enc_io_size;
-		data->reg_size = max(data->reg_size, data->enc_dev.iosize);
 		data->enc_dev.regs = (u32 *)(regs + hw_info->enc_offset);
 	}
+
+	data->reg_size = max(hw_info->dec_io_size, hw_info->enc_io_size);
 
 	data->irq_enc = platform_get_irq_byname(pdev, "irq_enc");
 	if (data->irq_enc > 0) {

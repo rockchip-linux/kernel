@@ -175,9 +175,11 @@ static struct vpu_task_info task_vpu[TASK_TYPE_BUTT] = {
 
 static struct vpu_hw_info hw_vpu_8270 = {
 	.hw_id		= VPU_ID_8270,
+
 	.enc_offset	= 0x0,
 	.enc_reg_num	= REG_NUM_ENC_8270,
 	.enc_io_size	= REG_NUM_ENC_8270 * 4,
+
 	.dec_offset	= REG_SIZE_ENC_8270,
 	.dec_reg_num	= REG_NUM_9190_DEC_PP,
 	.dec_io_size	= REG_NUM_9190_DEC_PP * 4,
@@ -192,9 +194,11 @@ static struct vpu_hw_info hw_vpu_8270 = {
 
 static struct vpu_hw_info hw_vpu_4831 = {
 	.hw_id		= VPU_ID_4831,
+
 	.enc_offset	= 0x0,
 	.enc_reg_num	= REG_NUM_ENC_4831,
 	.enc_io_size	= REG_NUM_ENC_4831 * 4,
+
 	.dec_offset	= REG_SIZE_ENC_4831,
 	.dec_reg_num	= REG_NUM_9190_DEC_PP,
 	.dec_io_size	= REG_NUM_9190_DEC_PP * 4,
@@ -209,9 +213,11 @@ static struct vpu_hw_info hw_vpu_4831 = {
 
 static struct vpu_hw_info hw_vpu_9190 = {
 	.hw_id		= VPU_DEC_ID_9190,
+
 	.enc_offset	= 0x0,
 	.enc_reg_num	= 0,
 	.enc_io_size	= 0,
+
 	.dec_offset	= 0,
 	.dec_reg_num	= REG_NUM_9190_DEC_PP,
 	.dec_io_size	= REG_NUM_9190_DEC_PP * 4,
