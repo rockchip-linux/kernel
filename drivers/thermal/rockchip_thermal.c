@@ -311,7 +311,6 @@ static u32 rk_tsadcv3_temp_to_code(long temp)
 {
 	int high, low, mid;
 
-
 	low = 0;
 	high = ARRAY_SIZE(v3_code_table) - 1;
 	mid = (high + low) / 2;
@@ -320,12 +319,15 @@ static u32 rk_tsadcv3_temp_to_code(long temp)
 		return 0;
 
 	while (low <= high) {
-		if (temp == v3_code_table[mid].temp)
-			return v3_code_table[mid].code;
-		else if (temp < v3_code_table[mid].temp)
-			high = mid - 1;
-		else
+		if (temp <= v3_code_table[mid].temp && temp >
+			v3_code_table[mid - 1].temp)
+			return v3_code_table[mid - 1].code + (v3_code_table[mid].code -
+				v3_code_table[mid - 1].code) * (temp - v3_code_table[mid - 1].temp)
+				/ (v3_code_table[mid].temp - v3_code_table[mid - 1].temp);
+		else if (temp > v3_code_table[mid].temp)
 			low = mid + 1;
+		else
+			high = mid - 1;
 		mid = (low + high) / 2;
 	}
 
