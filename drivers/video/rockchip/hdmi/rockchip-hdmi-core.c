@@ -86,7 +86,7 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 	video->sink_hdmi = hdmi->edid.sink_hdmi;
 	video->format_3d = hdmi->mode_3d;
 	video->colorimetry = hdmi->colorimetry;
-
+	video->color_output_depth = 8;
 	if (hdmi->autoset)
 		hdmi->vic = hdmi_find_best_mode(hdmi, 0);
 	else
@@ -120,8 +120,6 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 		    (hdmi->colordepth == HDMI_DEPP_COLOR_AUTO ||
 		     hdmi->colordepth == 10))
 			video->color_output_depth = 10;
-		else
-			video->color_output_depth = 8;
 	}
 	pr_info("hdmi output corlor mode is %d\n", video->color_output);
 	if ((hdmi->property->feature & SUPPORT_YCBCR_INPUT) &&
