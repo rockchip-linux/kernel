@@ -6,7 +6,7 @@
 
 / {
 	chosen {
-		bootargs = "vmalloc=496M psci=enable";
+		bootargs = "vmalloc=496M psci=enable rockchip_jtag";
 	};
 
 	fiq-debugger {
