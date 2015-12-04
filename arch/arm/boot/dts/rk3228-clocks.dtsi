@@ -1883,7 +1883,7 @@
 					<&dummy>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
-					<&clk_gpu>,	<&clk_gpu>;
+					<&dummy>,	<&clk_gates7 14>;
 
 					clock-output-names =
 					"clk_ddrphy",	"clk4x_ddrphy",
@@ -2129,11 +2129,11 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x010c 0x4>;
 					clocks =
-					<&aclk_vpu>,	<&hclk_vpu>,
-					<&aclk_rkvdec>,	<&hclk_rkvdec>,
+					<&dummy>,	<&dummy>,
+					<&dummy>,	<&dummy>,
 
-					<&aclk_vpu>,	<&hclk_vpu>,
-					<&aclk_rkvdec>,	<&hclk_rkvdec>,
+					<&clk_gates15 0>,	<&clk_gates15 1>,
+					<&clk_gates15 2>,	<&clk_gates15 3>,
 
 					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>,
