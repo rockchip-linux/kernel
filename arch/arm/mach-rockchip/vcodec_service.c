@@ -1396,11 +1396,8 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 	int i;
 	u32 *src = (u32 *)&reg->reg[0];
 	u32 enable_mask = task->enable_mask;
+	u32 gating_mask = task->gating_mask;
 	u32 reg_en = task->reg_en;
-	u32 reg_len = task->reg_len;
-
-	vpu_debug(DEBUG_TASK_INFO, "reg: en %2d len %2d en_mask %x\n",
-		  reg_en, reg_len, enable_mask);
 
 	vpu_debug_enter();
 
@@ -1413,26 +1410,28 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 	switch (reg->type) {
 	case VPU_ENC: {
-		int enc_count = hw_info->enc_reg_num;
 		u32 *dst = data->enc_dev.regs;
+		u32 base = 0;
+		u32 end  = hw_info->enc_reg_num;
+		/* u32 reg_gating = task->reg_gating; */
 
 		pservice->reg_codec = reg;
+
+		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
+			  base, end, reg_en, enable_mask, gating_mask);
 
 		/*
 		 * NOTE: encoder need to setup mode first
 		 */
 		writel_relaxed(src[reg_en] & enable_mask, dst + reg_en);
 
-		for (i = 0; i < reg_en; i++)
-			writel_relaxed(src[i], dst + i);
+		/* NOTE: encoder gating is not on enable register */
+		/* src[reg_gating] |= gating_mask; */
 
-		for (i = reg_en + 1; i < enc_count; i++)
-			writel_relaxed(src[i], dst + i);
-
-		VEPU_CLEAN_CACHE(dst);
-
-		writel_relaxed(src[VPU_REG_ENC_GATE] | VPU_REG_ENC_GATE_BIT,
-			       dst + VPU_REG_ENC_GATE);
+		for (i = base; i < end; i++) {
+			if (i != reg_en)
+				writel_relaxed(src[i], dst + i);
+		}
 
 		writel(src[reg_en], dst + reg_en);
 		dsb(sy);
@@ -1446,6 +1445,9 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 		u32 end  = hw_info->end_dec;
 
 		pservice->reg_codec = reg;
+
+		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
+			  base, end, reg_en, enable_mask, gating_mask);
 
 		/* on rkvdec set cache size to 64byte */
 		if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
@@ -1463,13 +1465,12 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 		 * NOTE: The end register is invalid. Do NOT write to it
 		 *       Also the base register must be written
 		 */
-		for (i = end - 1; i > reg_en; i--)
-			writel_relaxed(src[i], dst + i);
+		for (i = base; i < end; i++) {
+			if (i != reg_en)
+				writel_relaxed(src[i], dst + i);
+		}
 
-		for (i = reg_en - 1; i >= base; i--)
-			writel_relaxed(src[i], dst + i);
-
-		writel(src[reg_en], dst + reg_en);
+		writel(src[reg_en] | gating_mask, dst + reg_en);
 		dsb(sy);
 
 		time_record(reg->task, 0);
@@ -1481,13 +1482,15 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		pservice->reg_pproc = reg;
 
-		for (i = end - 1; i > reg_en; i--)
-			writel_relaxed(src[i], dst + i);
+		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
+			  base, end, reg_en, enable_mask, gating_mask);
 
-		for (i = reg_en - 1; i >= base; i--)
-			writel_relaxed(src[i], dst + i);
+		for (i = base; i < end; i++) {
+			if (i != reg_en)
+				writel_relaxed(src[i], dst + i);
+		}
 
-		writel(src[reg_en], dst + reg_en);
+		writel(src[reg_en] | gating_mask, dst + reg_en);
 		dsb(sy);
 
 		time_record(reg->task, 0);
@@ -1500,21 +1503,23 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 		pservice->reg_codec = reg;
 		pservice->reg_pproc = reg;
 
+		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
+			  base, end, reg_en, enable_mask, gating_mask);
+
 		/* VDPU_SOFT_RESET(dst); */
 		/* VDPU_CLEAN_CACHE(dst); */
 
-		for (i = base; i < reg_en; i++)
-			writel_relaxed(src[i], dst + i);
-
-		for (i = reg_en + 1; i < end; i++)
-			writel_relaxed(src[i], dst + i);
+		for (i = base; i < end; i++) {
+			if (i != reg_en)
+				writel_relaxed(src[i], dst + i);
+		}
 
 		/* VDPU_CLEAN_CACHE(dst); */
 
 		/* disable dec output */
 		src[reg_en]   = src[reg_en] | 0x2;
 
-		writel(src[reg_en], dst + reg_en);
+		writel(src[reg_en] | gating_mask, dst + reg_en);
 		dsb(sy);
 
 		time_record(reg->task, 0);
@@ -2612,6 +2617,9 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 		 */
 		if (data->mode == VCODEC_RUNNING_MODE_RKVDEC)
 			writel(0x100000, dev->regs + task->reg_irq);
+
+		/* set clock gating to save power */
+		writel(task->gating_mask, dev->regs + task->reg_irq);
 
 		atomic_add(1, &dev->irq_count_codec);
 		time_diff(task);

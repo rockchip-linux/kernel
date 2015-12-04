@@ -30,7 +30,7 @@
 
 /* enable and gating register */
 #define VPU2_REG_EN_ENC			103
-#define VPU2_REG_ENC_GATE		2
+#define VPU2_REG_ENC_GATE		109
 #define VPU2_REG_ENC_GATE_BIT		BIT(4)
 
 #define VPU2_REG_EN_DEC			57
@@ -118,11 +118,13 @@ static struct vpu_task_info task_vpu2[TASK_TYPE_BUTT] = {
 	{
 		.name = "vpu2_enc",
 		.reg_en = VPU2_REG_EN_ENC,
+		.reg_gating = VPU2_REG_ENC_GATE,
 		.reg_irq = VPU2_ENC_INTERRUPT_REGISTER,
 		.reg_len = -1,
 		.reg_dir_mv = -1,
 		.reg_pps = -1,
 		.enable_mask = 0x30,
+		.gating_mask = VPU2_REG_ENC_GATE_BIT,
 		.irq_mask = VPU2_ENC_INTERRUPT_BIT,
 		.ready_mask = VPU2_ENC_READY_BIT,
 		.error_mask = VPU2_ENC_ERR_MASK,
@@ -136,6 +138,7 @@ static struct vpu_task_info task_vpu2[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = 62,
 		.reg_pps = -1,
 		.enable_mask = 0,
+		.gating_mask = VPU2_REG_DEC_GATE_BIT,
 		.irq_mask = VPU2_DEC_INTERRUPT_BIT,
 		.ready_mask = VPU2_DEC_READY_BIT,
 		.error_mask = VPU2_DEC_ERR_MASK,
@@ -149,6 +152,7 @@ static struct vpu_task_info task_vpu2[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = -1,
 		.reg_pps = -1,
 		.enable_mask = 0,
+		.gating_mask = VPU2_REG_PP_GATE_BIT,
 		.irq_mask = VPU2_PP_INTERRUPT_BIT,
 		.ready_mask = VPU2_PP_READY_BIT,
 		.error_mask = VPU2_PP_ERR_MASK,
@@ -162,6 +166,7 @@ static struct vpu_task_info task_vpu2[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = 62,
 		.reg_pps = -1,
 		.enable_mask = 0,
+		.gating_mask = VPU2_REG_DEC_GATE_BIT,
 		.irq_mask = VPU2_DEC_INTERRUPT_BIT,
 		.ready_mask = VPU2_DEC_READY_BIT,
 		.error_mask = VPU2_DEC_ERR_MASK,

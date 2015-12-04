@@ -25,6 +25,7 @@
 
 /* enable and gating register */
 #define RKV_REG_EN_DEC			1
+#define RKV_REG_DEC_GATING_BIT		BIT(1)
 
 /* interrupt and error status register */
 #define HEVC_INTERRUPT_REGISTER		1
@@ -80,6 +81,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = 0,
 		.reg_pps = 0,
 		.enable_mask = 0,
+		.gating_mask = 0,
 		.irq_mask = 0,
 		.ready_mask = 0,
 		.error_mask = 0,
@@ -93,6 +95,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = -1,
 		.reg_pps = 42,
 		.enable_mask = 0,
+		.gating_mask = RKV_REG_DEC_GATING_BIT,
 		.irq_mask = HEVC_INTERRUPT_BIT,
 		.ready_mask = HEVC_READY_BIT,
 		.error_mask = HEVC_DEC_ERR_MASK,
@@ -106,6 +109,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = 0,
 		.reg_pps = 0,
 		.enable_mask = 0,
+		.gating_mask = 0,
 		.irq_mask = 0,
 		.ready_mask = 0,
 		.error_mask = 0,
@@ -119,6 +123,7 @@ static struct vpu_task_info task_rkv[TASK_TYPE_BUTT] = {
 		.reg_dir_mv = 0,
 		.reg_pps = 0,
 		.enable_mask = 0,
+		.gating_mask = 0,
 		.irq_mask = 0,
 		.ready_mask = 0,
 		.error_mask = 0,

@@ -130,6 +130,9 @@ struct vpu_task_info {
 	 */
 	int reg_en;
 
+	/* register of task auto gating, alway valid */
+	int reg_gating;
+
 	/* register of task irq, alway valid */
 	int reg_irq;
 
@@ -160,6 +163,9 @@ struct vpu_task_info {
 
 	/* task enable bit mask for enable register */
 	u32 enable_mask;
+
+	/* task auto gating mask for enable register */
+	u32 gating_mask;
 
 	/* task inturrpt bit mask for irq register */
 	u32 irq_mask;
