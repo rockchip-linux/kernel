@@ -1672,7 +1672,9 @@ enum{
 };
 static void dw_mci_do_grf_io_domain_switch(struct dw_mci *host, u32 voltage)
 {
-	switch(voltage){
+	const struct dw_mci_rockchip_priv_data *priv = host->priv;
+
+	switch (voltage) {
 	case IO_DOMAIN_33:
 		voltage = 0;
 		break;
@@ -1691,20 +1693,18 @@ static void dw_mci_do_grf_io_domain_switch(struct dw_mci *host, u32 voltage)
 		break;
 	}
 
-	if (cpu_is_rk3288()) {
-		if(host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD)
+	if (host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) {
+		switch (priv->ctrl_type) {
+		case DW_MCI_TYPE_RK3288:
 			grf_writel((voltage << 7) | (1 << 23), RK3288_GRF_IO_VSEL);
-		else
-			return ;
-	} else if (priv->ctrl_type == DW_MCI_TYPE_RK3368) {
-		if(host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD)
-			 regmap_write(host->grf, 0x900, (voltage << 6) | (1 << 22));	
-		else
-			return;
-	} else {
-		MMC_DBG_ERR_FUNC(host->mmc,
-			"%s : unknown chip [%s]\n",
-			__FUNCTION__, mmc_hostname(host->mmc));
+			break;
+		case DW_MCI_TYPE_RK3368:
+			regmap_write(host->grf, 0x900, (voltage << 6) | (1 << 22));
+			break;
+		default:
+			MMC_DBG_ERR_FUNC(host->mmc, "%s : unknown chip [%s]\n",
+					 __FUNCTION__, mmc_hostname(host->mmc));
+			break;
 	}
 }
 
@@ -1721,35 +1721,38 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 	if (host->verid < DW_MMC_240A)
 		return 0;
 
+	if (!host->vmmc)
+		return 0;
+
 	uhs_reg = mci_readl(host, UHS_REG);
 	MMC_DBG_SW_VOL_FUNC(host->mmc, "%s: vol=%d.[%s]\n",
-		 __FUNCTION__, ios->signal_voltage, mmc_hostname(host->mmc));
+			    __FUNCTION__, ios->signal_voltage,
+			    mmc_hostname(host->mmc));
 
 	switch (ios->signal_voltage) {
 	case MMC_SIGNAL_VOLTAGE_330:
-	/* Set 1.8V Signal Enable in the Host Control2 register to 0 */
-        	if (host->vmmc) {
-			if (cpu_is_rk3288())
-				ret = io_domain_regulator_set_voltage(
-						host->vmmc, 3300000, 3300000);
-			else
-				ret = regulator_set_voltage(host->vmmc,
-							3300000, 3300000);
+		if (cpu_is_rk3288())
+			ret = io_domain_regulator_set_voltage(host->vmmc,
+							      3300000, 3300000);
+		else
+			ret = regulator_set_voltage(host->vmmc,
+						    3300000, 3300000);
 
-			/* regulator_put(host->vmmc); */
-			MMC_DBG_SW_VOL_FUNC(host->mmc,"%s =%dmV set 3.3 end, ret = %d\n",
-				__func__, regulator_get_voltage(host->vmmc), ret);
-        		if (ret) {
-				MMC_DBG_ERR_FUNC(host->mmc,
+		/* regulator_put(host->vmmc); */
+		MMC_DBG_SW_VOL_FUNC(host->mmc,"%s =%dmV set 3.3 end, ret = %d\n",
+				    __func__, regulator_get_voltage(host->vmmc),
+				    ret);
+		if (ret) {
+			MMC_DBG_ERR_FUNC(host->mmc,
 					"%s: Switching to 3.3V signalling voltage "
 					" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
-        		}
-			dw_mci_do_grf_io_domain_switch(host, IO_DOMAIN_33);
+			ret = -EIO;
+			break;
 		}
+		dw_mci_do_grf_io_domain_switch(host, IO_DOMAIN_33);
 
 		MMC_DBG_SW_VOL_FUNC(host->mmc, "%s: [%s]\n",
-				__FUNCTION__, mmc_hostname(host->mmc));
+				    __FUNCTION__, mmc_hostname(host->mmc));
 
 		/* set High-power mode */
 		value = mci_readl(host, CLKENA);
@@ -1764,34 +1767,37 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 
 		/* 3.3V regulator output should be stable within 5 ms */
 		uhs_reg = mci_readl(host, UHS_REG);
-		if( !(uhs_reg & SDMMC_UHS_VOLT_REG_18))
-			return 0;
+		if (!(uhs_reg & SDMMC_UHS_VOLT_REG_18)) {
+			ret =  0;
+			break;
+		}
 
 		MMC_DBG_SW_VOL_FUNC(host->mmc,
 			"%s: 3.3V regulator output did not became stable\n",
 			mmc_hostname(host->mmc));
 
-		return -EAGAIN;
+		ret = -EAGAIN;
+		break;
 	case MMC_SIGNAL_VOLTAGE_180:
-		if (host->vmmc) {
-			if (cpu_is_rk3288())
-				ret = io_domain_regulator_set_voltage(
-					host->vmmc, 1800000, 1800000);
-			else
-				ret = regulator_set_voltage(
-						host->vmmc, 1800000, 1800000);
-			/* regulator_put(host->vmmc); */
-			MMC_DBG_SW_VOL_FUNC(host->mmc,
-					"%s   =%dmV  set 1.8end, ret=%d . \n",
-					__func__, regulator_get_voltage(host->vmmc), ret);
-			if (ret) {
-				MMC_DBG_ERR_FUNC(host->mmc,
-					"%s: Switching to 1.8V signalling voltage "
-					" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
-			}
-			dw_mci_do_grf_io_domain_switch(host, IO_DOMAIN_18);
+		if (cpu_is_rk3288())
+			ret = io_domain_regulator_set_voltage(host->vmmc,
+							      1800000, 1800000);
+		else
+			ret = regulator_set_voltage(host->vmmc,
+						    1800000,
+						    1800000);
+		MMC_DBG_SW_VOL_FUNC(host->mmc,
+				    "%s   =%dmV  set 1.8end, ret=%d . \n",
+				    __func__, regulator_get_voltage(host->vmmc),
+				    ret);
+		if (ret) {
+			MMC_DBG_ERR_FUNC(host->mmc,
+					 "%s: Switch to 1.8V voltage failed\n "
+					, mmc_hostname(host->mmc));
+			ret = -EIO;
+			break;
 		}
+		dw_mci_do_grf_io_domain_switch(host, IO_DOMAIN_18);
 
 		/*
 		* Enable 1.8V Signal Enable in the Host Control2
@@ -1801,39 +1807,45 @@ static int dw_mci_do_start_signal_voltage_switch(struct dw_mci *host,
 
 		/* Wait for 5ms */
 		usleep_range(5000, 5500);
-		MMC_DBG_SW_VOL_FUNC(host->mmc, "%d..%s: .[%s]\n",__LINE__,
-				__FUNCTION__, mmc_hostname(host->mmc));
 
 		/* 1.8V regulator output should be stable within 5 ms */
 		uhs_reg = mci_readl(host, UHS_REG);
-		if (uhs_reg & SDMMC_UHS_VOLT_REG_18)
-			return 0;
+		if (uhs_reg & SDMMC_UHS_VOLT_REG_18) {
+			ret = 0;
+			break;
+		}
 
 		MMC_DBG_WARN_FUNC(host->mmc,
 			"%s: 1.8V regulator output did not became stable\n",
 			mmc_hostname(host->mmc));
 
-		return -EAGAIN;
+		ret = -EAGAIN;
+		break;
 	case MMC_SIGNAL_VOLTAGE_120:
-		if (host->vmmc) {
-			if (cpu_is_rk3288())
-				ret = io_domain_regulator_set_voltage(
-					host->vmmc, 1200000, 1200000);
-			else
-				ret = regulator_set_voltage(host->vmmc,
-					1200000, 1200000);
-			if (ret) {
-				MMC_DBG_ERR_FUNC(host->mmc,
-					"%s: Switching to 1.2V signalling voltage "
-					" failed\n", mmc_hostname(host->mmc));
-				return -EIO;
-			}
+		if (cpu_is_rk3288())
+			ret = io_domain_regulator_set_voltage(host->vmmc,
+							      1200000,
+							      1200000);
+		else
+			ret = regulator_set_voltage(host->vmmc,
+						    1200000,
+						    1200000);
+		if (ret) {
+			MMC_DBG_ERR_FUNC(host->mmc,
+					 "%s: Switch to 1.2V voltage failed\n"
+					 , mmc_hostname(host->mmc));
+			ret = -EIO;
+			break;
 		}
-		return 0;
+
+		ret = 0;
+		break;
 	default:
 		/* No signal voltage switch required */
-		return 0;
+		ret = 0;
 	}
+
+	return ret;
 }
 
 
@@ -3460,7 +3472,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 				pr_err("rk_sdmmc: dts couldn't find grf regmap for 3368\n");
 			else
 				regmap_write(host->grf, 0x43c, (1<<13)<<16 | (0 << 13));
-		} else if (cpu_is_rk3288()) {
+		} else if (priv->ctrl_type == DW_MCI_TYPE_RK3288) {
 			grf_writel(((1 << 12) << 16) | (0 << 12), RK3288_GRF_SOC_CON0);
 		} else if (priv->ctrl_type == DW_MCI_TYPE_RK322X) {
 			grf_writel(((1 << 8) << 16) | (0 << 8), RK322X_GRF_SOC_CON6);
@@ -3602,6 +3614,8 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 				host->vmmc = NULL;
 				goto err_setup_bus;
 			}
+		} else {
+			host->vmmc = NULL;
 		}
 	}
     
@@ -4134,7 +4148,7 @@ err_dmaunmap:
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
-	if (host->vmmc){
+	if (host->vmmc) {
 		regulator_disable(host->vmmc);
 		regulator_put(host->vmmc);
 	}
@@ -4178,7 +4192,7 @@ void dw_mci_remove(struct dw_mci *host)
         if (gpio_is_valid(slot->cd_gpio))
                 dw_mci_of_free_cd_gpio_irq(host->dev, slot->cd_gpio, host->mmc);
 
-        if (host->vmmc){
+        if (host->vmmc) {
                 regulator_disable(host->vmmc);
                 regulator_put(host->vmmc);
         }
@@ -4209,7 +4223,7 @@ int dw_mci_suspend(struct dw_mci *host)
 		get_wifi_chip_type() > WIFI_AP6XXX_SERIES))
 		return 0;
 
-	if(host->vmmc)
+	if (host->vmmc)
 		regulator_disable(host->vmmc);
 
 	/* Only for sdmmc controller */
@@ -4304,7 +4318,7 @@ int dw_mci_resume(struct dw_mci *host)
                         /* RK3036_GRF_SOC_CON0 is compatible with rk312x, tmp setting */
                         grf_writel(((1 << 8) << 16) | (0 << 8), RK3036_GRF_SOC_CON0);
 	}
-	if (host->vmmc){
+	if (host->vmmc) {
 		ret = regulator_enable(host->vmmc);
 		if (ret){
 			dev_err(host->dev,
