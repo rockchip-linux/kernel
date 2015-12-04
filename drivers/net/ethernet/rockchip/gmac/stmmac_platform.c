@@ -726,6 +726,13 @@ int stmmc_pltfr_init(struct platform_device *pdev) {
 
 	pr_info("%s:\n", __func__);
 	phy_iface = bsp_priv->phy_iface;
+
+	if (bsp_priv->chip == RK3228_GMAC) {
+		/* disable macphy */
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
+			     GRF_CLR_BIT(0));
+	}
+
 /* power */
 	if (!gpio_is_valid(bsp_priv->power_io)) {
 		pr_err("%s: ERROR: Get power-gpio failed.\n", __func__);
