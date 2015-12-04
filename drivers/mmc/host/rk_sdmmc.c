@@ -1370,7 +1370,7 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		regs |= ((0x1 << slot->id) << 16);
 		if (priv->ctrl_type == DW_MCI_TYPE_RK3228)
 			cru_writel(((0x3 << 1) << 16) | (0x2 << 1),
-				   RK3228_CRU_EMMC_CON1);
+				   RK322X_CRU_EMMC_CON1);
 	} else {
 		regs &= ~((0x1 << slot->id) << 16);
 	}
@@ -3463,7 +3463,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 		} else if (cpu_is_rk3288()) {
 			grf_writel(((1 << 12) << 16) | (0 << 12), RK3288_GRF_SOC_CON0);
 		} else if (priv->ctrl_type == DW_MCI_TYPE_RK3228) {
-			grf_writel(((1 << 8) << 16) | (0 << 8), RK3228_GRF_SOC_CON6);
+			grf_writel(((1 << 8) << 16) | (0 << 8), RK322X_GRF_SOC_CON6);
 		}
 	}
 

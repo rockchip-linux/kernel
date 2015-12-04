@@ -1936,7 +1936,7 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	if (temp_div > 1)
 		cru_writel(RK3036_CLK_CORE_DIV(temp_div), RK3036_CRU_CLKSELS_CON(0));
 
-	if (cpu_is_rk3228())
+	if (cpu_is_rk322x())
 		cru_writel(RK3228_CPU_SEL_PLL(1), RK3036_CRU_CLKSELS_CON(0));
 	else
 		cru_writel(RK3036_CORE_SEL_PLL(1), RK3036_CRU_CLKSELS_CON(0));
@@ -1965,7 +1965,7 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	rk3036_pll_wait_lock(hw);
 
 	/************select apll******************/
-	if (cpu_is_rk3228())
+	if (cpu_is_rk322x())
 		cru_writel(RK3228_CPU_SEL_PLL(0), RK3036_CRU_CLKSELS_CON(0));
 	else
 		cru_writel(RK3036_CORE_SEL_PLL(0), RK3036_CRU_CLKSELS_CON(0));

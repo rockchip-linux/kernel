@@ -9,13 +9,13 @@ static void usb20otg_hw_init(void)
 {
 	/* open pre-emphasize in non-chirp state */
 	writel(UOC_HIWORD_UPDATE(0x4, 0x7, 0),
-	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON3);
+	       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON3);
 	/* Turn off differential receiver in suspend mode */
 	writel(UOC_HIWORD_UPDATE(0, 1, 2),
-	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON9);
+	       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON9);
 	/* Set disconnect detection trigger point to 600mv */
 	writel(UOC_HIWORD_UPDATE(1, 0xf, 11),
-	       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON10);
+	       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON10);
 	/*
 	 * other haredware init,include
 	 * DRV_VBUS GPIO init
@@ -33,12 +33,12 @@ static void usb20otg_phy_suspend(void *pdata, int suspend)
 	if (suspend) {
 		/* enable soft control */
 		writel(UOC_HIWORD_UPDATE(0x1d1, 0x1ff, 0),
-		       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON0);
+		       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON0);
 		usbpdata->phy_status = 1;
 	} else {
 		/* exit suspend */
 		writel(UOC_HIWORD_UPDATE(0x0, 0x1, 0),
-		       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON0);
+		       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON0);
 		usbpdata->phy_status = 0;
 	}
 }
@@ -70,11 +70,11 @@ static void usb20otg_soft_reset(void *pdata, enum rkusb_rst_flag rst_type)
 	case RST_POR:
 		/* PHY reset */
 		writel(UOC_HIWORD_UPDATE(0x1, 0x3, 0),
-		       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON0);
+		       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON0);
 		reset_control_assert(rst_otg_p);
 		udelay(15);
 		writel(UOC_HIWORD_UPDATE(0x2, 0x3, 0),
-		       RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON0);
+		       RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON0);
 		udelay(1500);
 		reset_control_deassert(rst_otg_p);
 		udelay(2);
@@ -148,7 +148,7 @@ static void usb20otg_clock_enable(void *pdata, int enable)
 static int usb20otg_get_status(int id)
 {
 	int ret = -1;
-	u32 soc_status0 = readl(RK_GRF_VIRT + RK3228_GRF_SOC_STATUS0);
+	u32 soc_status0 = readl(RK_GRF_VIRT + RK322X_GRF_SOC_STATUS0);
 
 	switch (id) {
 	case USB_STATUS_BVABLID:
@@ -164,7 +164,7 @@ static int usb20otg_get_status(int id)
 		ret = soc_status0 & (0x1 << 1);
 		break;
 	case USB_STATUS_UARTMODE:
-		ret = readl(RK_GRF_VIRT + RK3228_GRF_USBPHY0_CON2) & (1 << 3);
+		ret = readl(RK_GRF_VIRT + RK322X_GRF_USBPHY0_CON2) & (1 << 3);
 		break;
 	case USB_CHIP_ID:
 		ret = control_usb->chip_id;
@@ -205,12 +205,12 @@ static void dwc_otg_uart_mode(void *pdata, int enter_usb_uart_mode)
 	if ((enter_usb_uart_mode == 1) && dwc_otg_uart_enabled()) {
 		/* bypass dm, enter uart mode */
 		writel(UOC_HIWORD_UPDATE(0x3, 0x3, 2), RK_GRF_VIRT +
-		       RK3228_GRF_USBPHY0_CON2);
+		       RK322X_GRF_USBPHY0_CON2);
 
 	} else if (enter_usb_uart_mode == 0) {
 		/* enter usb mode */
 		writel(UOC_HIWORD_UPDATE(0x0, 0x3, 2), RK_GRF_VIRT +
-		       RK3228_GRF_USBPHY0_CON2);
+		       RK322X_GRF_USBPHY0_CON2);
 	}
 }
 #else

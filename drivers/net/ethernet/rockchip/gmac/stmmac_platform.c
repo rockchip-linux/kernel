@@ -104,10 +104,7 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 #define RK3368_GMAC_CLK_RX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 8)
 #define RK3368_GMAC_CLK_TX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 0)
 
-#define RK3228_GRF_MAC_CON0	0x0900
-#define RK3228_GRF_MAC_CON1	0x0904
-
-/* RK3228_GRF_MAC_CON1 */
+/* RK322X_GRF_MAC_CON1 */
 #define RK3228_GMAC_PHY_INTF_SEL_RGMII	\
 		(GRF_BIT(4) | GRF_CLR_BIT(5) | GRF_CLR_BIT(6))
 #define RK3228_GMAC_PHY_INTF_SEL_RMII	\
@@ -128,7 +125,7 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 #define RK3228_GMAC_RXCLK_DLY_ENABLE	GRF_BIT(1)
 #define RK3228_GMAC_RXCLK_DLY_DISABLE	GRF_CLR_BIT(1)
 
-/* RK3228_GRF_MAC_CON0 */
+/* RK322X_GRF_MAC_CON0 */
 #define RK3228_GMAC_CLK_RX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 7)
 #define RK3228_GMAC_CLK_TX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 0)
 
@@ -178,13 +175,13 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_PHY_INTF_SEL_RGMII |
 			     RK3228_GMAC_RMII_MODE_CLR |
 			     RK3228_GMAC_RXCLK_DLY_ENABLE |
 			     RK3228_GMAC_TXCLK_DLY_ENABLE);
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON0,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON0,
 			     RK3228_GMAC_CLK_RX_DL_CFG(rx_delay) |
 			     RK3228_GMAC_CLK_TX_DL_CFG(tx_delay));
 	}
@@ -219,12 +216,12 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_PHY_INTF_SEL_RMII |
 			     RK3228_GMAC_RMII_MODE);
 
 		/* set MAC to RMII mode */
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1, GRF_BIT(11));
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, GRF_BIT(11));
 
 	}
 }
@@ -255,7 +252,7 @@ static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_CLK_2_5M);
 	}
 }
@@ -286,7 +283,7 @@ static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_CLK_25M);
 	}
 }
@@ -317,7 +314,7 @@ static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_CLK_125M);
 	}
 }
@@ -351,7 +348,7 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_RMII_CLK_2_5M |
 			     RK3228_GMAC_SPEED_10M);
 
@@ -387,7 +384,7 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK3228_GRF_MAC_CON1,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK3228_GMAC_RMII_CLK_25M |
 			     RK3228_GMAC_SPEED_100M);
 
@@ -659,28 +656,28 @@ static int phy_power_on(bool enable)
 		regmap_write(bsp_priv->grf, 0x50, GRF_BIT(15));
 
 		/* macphy_cfg_clk_freq set to 50MHz */
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 			     GRF_BIT(14));
 
-		/* regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+		/* regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 		*	     GRF_BIT(15));
 		*/
 
 		/* macphy_cfg_mii_mode, set to 01*/
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 			     GRF_BIT(6) | GRF_CLR_BIT(7));
 
 		/* phy_addr set to 0x1*/
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON1, GRF_BIT(3));
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON1, GRF_BIT(3));
 
 		/* phy_id set to 0x351234*/
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON2,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON2,
 			     HIWORD_UPDATE(0x1234, 0xffff, 0));
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON3,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON3,
 			     HIWORD_UPDATE(0x35, 0x3f, 0));
 
 		/* disable macphy */
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 			     GRF_CLR_BIT(0));
 		/* reset macphy */
 		regmap_write(bsp_priv->cru, 0x11c, GRF_BIT(15));
@@ -688,11 +685,11 @@ static int phy_power_on(bool enable)
 		regmap_write(bsp_priv->cru, 0x11c, GRF_CLR_BIT(15));
 		mdelay(1);
 		/* enable macphy */
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0, GRF_BIT(0));
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(0));
 		return 0;
 	} else {
 		/* disable macphy */
-		regmap_write(bsp_priv->grf, RK3228_GRF_MACPHY_CON0,
+		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 			     GRF_CLR_BIT(0));
 	}
 

@@ -679,7 +679,7 @@ static int rockchip_wifi_voltage_select(void)
 	        LOG("%s: unsupport wifi & sdio reference voltage!\n", __func__);
 	        return -1;
 	    }
-	} else if (cpu_is_rk3036() || cpu_is_rk312x() || cpu_is_rk3228()) {
+	} else if (cpu_is_rk3036() || cpu_is_rk312x() || cpu_is_rk322x()) {
 	} else { // rk3368
 #ifdef CONFIG_MFD_SYSCON
 	    if (voltage > 2700 && voltage < 3500) {

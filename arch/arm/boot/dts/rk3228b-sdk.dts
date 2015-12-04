@@ -1,6 +1,6 @@
 /dts-v1/;
 
-#include "rk3228.dtsi"
+#include "rk3228b.dtsi"
 #include "lcd-box.dtsi"
 #include <dt-bindings/input/input.h>
 
@@ -12,7 +12,6 @@
 	fiq-debugger {
 		status = "okay";
 	};
-
 	wireless-wlan {
 		compatible = "wlan-platdata";
 		/* wifi_chip_type - wifi chip define
@@ -21,7 +20,7 @@
 		* esp8089 ==> esp8089;
 		* other   ==> for other wifi;
 		*/
-		wifi_chip_type = "rtl8189es";
+		wifi_chip_type = "ap6335";
 		sdio_vref = <1800>;
 		/* keep_wifi_power_on; */
 		/* power_ctrl_by_pmu; */
@@ -48,23 +47,11 @@
 		/* BT,reset_gpio = <&gpio2 GPIO_D5 GPIO_ACTIVE_HIGH>; */
 		BT,wake_gpio = <&gpio3 GPIO_D3 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio3 GPIO_D2 GPIO_ACTIVE_HIGH>;
-		status = "disabled";
+		status = "okay";
 	};
-
-	power-led {
-		compatible = "gpio-leds";
-		green {
-			gpios = <&gpio3 GPIO_C5 GPIO_ACTIVE_HIGH>;
-			default-state = "on";
-		};
-		red {
-			gpios = <&gpio0 GPIO_B0 GPIO_ACTIVE_HIGH>;
-			default-state = "off";
-		};
-	};
-
 	io-domains {
 		status = "okay";
+
 		vccio1-supply = <&vccio_3v3_reg>;
 		vccio2-supply = <&vccio_1v8_reg>;
 		vccio4-supply = <&vccio_3v3_reg>;
@@ -304,6 +291,7 @@
 	remote_pwm_id = <3>;
 	handle_cpu_id = <1>;
 	status = "okay";
+
 	ir_key1{
 		rockchip,usercode = <0x4040>;
 		rockchip,key_table =
@@ -397,7 +385,7 @@
 };
 
 &gmac_clkin {
-	clock-frequency = <125000000>;
+        clock-frequency = <125000000>;
 };
 
 &gmac {

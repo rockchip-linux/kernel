@@ -33,50 +33,60 @@
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include "loader.h"
-#define CPU 3228
+#define CPU 322x
 #include "sram.h"
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/psci.h>
 #include "pm.h"
 
-#define RK3228_DEVICE(name) \
+#define RK322X_DEVICE(name) \
 	{ \
 		.virtual	= (unsigned long) RK_##name##_VIRT, \
-		.pfn		= __phys_to_pfn(RK3228_##name##_PHYS), \
-		.length		= RK3228_##name##_SIZE, \
+		.pfn		= __phys_to_pfn(RK322X_##name##_PHYS), \
+		.length		= RK322X_##name##_SIZE, \
 		.type		= MT_DEVICE, \
 	}
 
-static const char * const rk3228_dt_compat[] __initconst = {
-	"rockchip,rk3228",
+static const char * const rk3228a_dt_compat[] __initconst = {
+	"rockchip,rk3228a",
 	NULL,
 };
 
-static struct map_desc rk3228_io_desc[] __initdata = {
-	RK3228_DEVICE(CRU),
-	RK3228_DEVICE(GRF),
-	RK3228_DEVICE(TIMER),
-	RK3228_DEVICE(EFUSE),
-	RK3228_DEVICE(CPU_AXI_BUS),
-	RK_DEVICE(RK_DEBUG_UART_VIRT, RK3228_UART2_PHYS, RK3228_UART_SIZE),
-	RK_DEVICE(RK_DDR_VIRT, RK3228_DDR_PCTL_PHYS, RK3228_DDR_PCTL_SIZE),
-	RK_DEVICE(RK_DDR_VIRT + RK3228_DDR_PCTL_SIZE, RK3228_DDR_PHY_PHYS,
-		  RK3228_DDR_PHY_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(0), RK3228_GPIO0_PHYS, RK3228_GPIO_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(1), RK3228_GPIO1_PHYS, RK3228_GPIO_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(2), RK3228_GPIO2_PHYS, RK3228_GPIO_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(3), RK3228_GPIO3_PHYS, RK3228_GPIO_SIZE),
-	RK_DEVICE(RK_GIC_VIRT, RK3228_GIC_DIST_PHYS, RK3228_GIC_DIST_SIZE),
-	RK_DEVICE(RK_GIC_VIRT + RK3228_GIC_DIST_SIZE, RK3228_GIC_CPU_PHYS,
-		  RK3228_GIC_CPU_SIZE),
-	RK_DEVICE(RK_PWM_VIRT, RK3228_PWM_PHYS, RK3228_PWM_SIZE),
+static const char * const rk3228b_dt_compat[] __initconst = {
+	"rockchip,rk3228b",
+	NULL,
 };
 
-static void __init rk3228_boot_mode_init(void)
+static const char * const rk3229_dt_compat[] __initconst = {
+	"rockchip,rk3229",
+	NULL,
+};
+
+static struct map_desc rk322x_io_desc[] __initdata = {
+	RK322X_DEVICE(CRU),
+	RK322X_DEVICE(GRF),
+	RK322X_DEVICE(TIMER),
+	RK322X_DEVICE(EFUSE),
+	RK322X_DEVICE(CPU_AXI_BUS),
+	RK_DEVICE(RK_DEBUG_UART_VIRT, RK322X_UART2_PHYS, RK322X_UART_SIZE),
+	RK_DEVICE(RK_DDR_VIRT, RK322X_DDR_PCTL_PHYS, RK322X_DDR_PCTL_SIZE),
+	RK_DEVICE(RK_DDR_VIRT + RK322X_DDR_PCTL_SIZE, RK322X_DDR_PHY_PHYS,
+		  RK322X_DDR_PHY_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(0), RK322X_GPIO0_PHYS, RK322X_GPIO_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(1), RK322X_GPIO1_PHYS, RK322X_GPIO_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(2), RK322X_GPIO2_PHYS, RK322X_GPIO_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(3), RK322X_GPIO3_PHYS, RK322X_GPIO_SIZE),
+	RK_DEVICE(RK_GIC_VIRT, RK322X_GIC_DIST_PHYS, RK322X_GIC_DIST_SIZE),
+	RK_DEVICE(RK_GIC_VIRT + RK322X_GIC_DIST_SIZE, RK322X_GIC_CPU_PHYS,
+		  RK322X_GIC_CPU_SIZE),
+	RK_DEVICE(RK_PWM_VIRT, RK322X_PWM_PHYS, RK322X_PWM_SIZE),
+};
+
+static void __init rk322x_boot_mode_init(void)
 {
-	u32 flag = readl_relaxed(RK_GRF_VIRT + RK3228_GRF_OS_REG0);
-	u32 mode = readl_relaxed(RK_GRF_VIRT + RK3228_GRF_OS_REG1);
-	u32 rst_st = readl_relaxed(RK_CRU_VIRT + RK3228_CRU_GLB_RST_ST);
+	u32 flag = readl_relaxed(RK_GRF_VIRT + RK322X_GRF_OS_REG0);
+	u32 mode = readl_relaxed(RK_GRF_VIRT + RK322X_GRF_OS_REG1);
+	u32 rst_st = readl_relaxed(RK_CRU_VIRT + RK322X_CRU_GLB_RST_ST);
 
 	if (flag == (SYS_KERNRL_REBOOT_FLAG | BOOT_RECOVER))
 		mode = BOOT_MODE_RECOVERY;
@@ -86,25 +96,41 @@ static void __init rk3228_boot_mode_init(void)
 	rockchip_boot_mode_init(flag, mode);
 }
 
-void __init rk3228_dt_map_io(void)
+static void __init rk322x_dt_map_io(void)
 {
-	rockchip_soc_id = ROCKCHIP_SOC_RK3228;
-
-	iotable_init(rk3228_io_desc, ARRAY_SIZE(rk3228_io_desc));
+	iotable_init(rk322x_io_desc, ARRAY_SIZE(rk322x_io_desc));
 	debug_ll_io_init();
 
-	rk3228_boot_mode_init();
+	rk322x_boot_mode_init();
 	rockchip_efuse_init();
 }
 
-static void __init rk3228_dt_init_timer(void)
+static void __init rk3228a_dt_map_io(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RK3228A;
+	rk322x_dt_map_io();
+}
+
+static void __init rk3228b_dt_map_io(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RK3228B;
+	rk322x_dt_map_io();
+}
+
+static void __init rk3229_dt_map_io(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RK3229;
+	rk322x_dt_map_io();
+}
+
+static void __init rk322x_dt_init_timer(void)
 {
 	of_clk_init(NULL);
 	clocksource_of_init();
 	of_dvfs_init();
 }
 
-static void __init rk3228_reserve(void)
+static void __init rk322x_reserve(void)
 {
 	/* reserve memory for uboot */
 	rockchip_uboot_mem_reserve();
@@ -113,7 +139,7 @@ static void __init rk3228_reserve(void)
 	rockchip_ion_reserve();
 }
 
-static void __init rk3228_suspend_init(void)
+static void __init rk322x_suspend_init(void)
 {
 	struct device_node *parent;
 	u32 pm_ctrbits = 0;
@@ -135,42 +161,61 @@ static void __init rk3228_suspend_init(void)
 	PM_LOG("%s: pm_ctrbits = 0x%x\n", __func__, pm_ctrbits);
 }
 
-static void __init rk3228_init_late(void)
+static void __init rk322x_init_late(void)
 {
 	if (rockchip_jtag_enabled)
 		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
 
-	rk3228_suspend_init();
+	rk322x_suspend_init();
 	rockchip_suspend_init();
 }
 
-static void rk3228_restart(char mode, const char *cmd)
+static void rk322x_restart(char mode, const char *cmd)
 {
 	u32 boot_flag, boot_mode;
 
 	rockchip_restart_get_boot_mode(cmd, &boot_flag, &boot_mode);
 
 	/* for loader */
-	writel_relaxed(boot_flag, RK_GRF_VIRT + RK3228_GRF_OS_REG0);
+	writel_relaxed(boot_flag, RK_GRF_VIRT + RK322X_GRF_OS_REG0);
 	/* for linux */
-	writel_relaxed(boot_mode, RK_GRF_VIRT + RK3228_GRF_OS_REG1);
+	writel_relaxed(boot_mode, RK_GRF_VIRT + RK322X_GRF_OS_REG1);
 
 	dsb();
 
 	/* pll enter slow mode */
-	writel_relaxed(0x11010000, RK_CRU_VIRT + RK3228_CRU_MODE_CON);
+	writel_relaxed(0x11010000, RK_CRU_VIRT + RK322X_CRU_MODE_CON);
 	dsb();
-	writel_relaxed(0xeca8, RK_CRU_VIRT + RK3228_CRU_GLB_SRST_SND_VALUE);
+	writel_relaxed(0xeca8, RK_CRU_VIRT + RK322X_CRU_GLB_SRST_SND_VALUE);
 	dsb();
 }
 
-DT_MACHINE_START(RK3228_DT, "Rockchip RK3228")
+DT_MACHINE_START(RK3228A_DT, "Rockchip RK3228A")
 	.smp		= smp_ops(rockchip_smp_ops),
-	.map_io		= rk3228_dt_map_io,
-	.init_time	= rk3228_dt_init_timer,
-	.dt_compat	= rk3228_dt_compat,
-	.init_late	= rk3228_init_late,
-	.reserve	= rk3228_reserve,
-	.restart	= rk3228_restart,
+	.map_io		= rk3228a_dt_map_io,
+	.init_time	= rk322x_dt_init_timer,
+	.dt_compat	= rk3228a_dt_compat,
+	.init_late	= rk322x_init_late,
+	.reserve	= rk322x_reserve,
+	.restart	= rk322x_restart,
 MACHINE_END
 
+DT_MACHINE_START(RK3228B_DT, "Rockchip RK3228B")
+	.smp		= smp_ops(rockchip_smp_ops),
+	.map_io		= rk3228b_dt_map_io,
+	.init_time	= rk322x_dt_init_timer,
+	.dt_compat	= rk3228b_dt_compat,
+	.init_late	= rk322x_init_late,
+	.reserve	= rk322x_reserve,
+	.restart	= rk322x_restart,
+MACHINE_END
+
+DT_MACHINE_START(RK3229_DT, "Rockchip RK3229")
+	.smp		= smp_ops(rockchip_smp_ops),
+	.map_io		= rk3229_dt_map_io,
+	.init_time	= rk322x_dt_init_timer,
+	.dt_compat	= rk3229_dt_compat,
+	.init_late	= rk322x_init_late,
+	.reserve	= rk322x_reserve,
+	.restart	= rk322x_restart,
+MACHINE_END

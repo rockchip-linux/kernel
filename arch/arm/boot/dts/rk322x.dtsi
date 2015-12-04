@@ -2,15 +2,15 @@
 #include <dt-bindings/rkfb/rk_fb.h>
 
 #include "skeleton.dtsi"
-#include "rk3228-clocks.dtsi"
+#include "rk322x-clocks.dtsi"
 
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/gpio/gpio.h>
-#include <rk3228_dram_default_timing.dtsi>
+#include <rk322x_dram_default_timing.dtsi>
 #include <dt-bindings/suspend/rockchip-pm.h>
 
 / {
-	compatible = "rockchip,rk3228";
+	compatible = "rockchip,rk322x";
 	interrupt-parent = <&gic>;
 
 	aliases {

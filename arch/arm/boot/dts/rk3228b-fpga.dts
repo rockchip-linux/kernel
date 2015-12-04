@@ -4,10 +4,10 @@
 #include <dt-bindings/rkfb/rk_fb.h>
 
 #include "skeleton.dtsi"
-#include "rk3228-clocks.dtsi"
+#include "rk322x-clocks.dtsi"
 
 / {
-	compatible = "rockchip,rk3228";
+	compatible = "rockchip,rk3228b";
 	interrupt-parent = <&gic>;
 
 	cpus {
