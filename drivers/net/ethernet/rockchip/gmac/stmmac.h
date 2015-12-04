@@ -147,8 +147,7 @@ struct bsp_priv {
 	struct clk *pclk_mac;
 	struct clk *mac_clkin;
 	struct clk *phy_50m_out;
-	struct clk *clk_macphy_mux;
-	struct clk *clk_macphy_div;
+	struct clk *clk_macphy;
 	bool clk_enable;
 
 	int (*phy_power_on)(bool enable);

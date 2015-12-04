@@ -451,15 +451,10 @@ int gmac_clk_init(struct device *device)
 		pr_warn("%s: warning: cannot get %s clock\n",
 			__func__, "phy_50m_out");
 
-	bsp_priv->clk_macphy_mux = clk_get(device, "clk_macphy_mux");
-	if (IS_ERR(bsp_priv->clk_macphy_mux))
+	bsp_priv->clk_macphy = clk_get(device, "clk_macphy");
+	if (IS_ERR(bsp_priv->clk_macphy))
 		pr_warn("%s: warning: cannot get %s clock\n",
-			__func__, "clk_macphy_mux");
-
-	bsp_priv->clk_macphy_div = clk_get(device, "clk_macphy_div");
-	if (IS_ERR(bsp_priv->clk_macphy_div))
-		pr_warn("%s: warning: cannot get %s clock\n",
-			__func__, "clk_macphy_div");
+			__func__, "clk_macphy");
 
 	if (bsp_priv->clock_input) {
 		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
@@ -634,10 +629,10 @@ static int phy_power_on(bool enable)
 		pr_info("use internal PHY\n");
 
 		/* S29_12 set to 0 */
-		clk_set_parent(bsp_priv->clk_macphy_mux, bsp_priv->clk_mac_pll);
-
 		/* S29_8 & S29_9 set to 0 */
-		clk_set_rate(bsp_priv->clk_macphy_div, 50000000);
+		/* G5_7 set to 0 */
+		clk_set_rate(bsp_priv->clk_macphy, 50000000);
+		clk_prepare_enable(bsp_priv->clk_macphy);
 
 		if (bsp_priv->clock_input) {
 			/* S29_10 set to 1, use_iner_phy_50m */
@@ -691,6 +686,8 @@ static int phy_power_on(bool enable)
 		/* disable macphy */
 		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 			     GRF_CLR_BIT(0));
+		/* G5_7 set to 1 */
+		clk_disable_unprepare(bsp_priv->clk_macphy);
 	}
 
 	if (bsp_priv->power_ctrl_by_pmu) {

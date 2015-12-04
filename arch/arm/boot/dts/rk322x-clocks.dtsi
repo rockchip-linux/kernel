@@ -1358,7 +1358,7 @@
 						compatible = "rockchip,rk3188-div-con";
 						rockchip,bits = <8 3>;
 						clocks = <&clk_macphy>;
-						clock-output-names = "clk_macphy_div";
+						clock-output-names = "clk_macphy";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
@@ -1386,7 +1386,7 @@
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <12 1>;
 						clocks = <&clk_mac_pll_div>, <&gmac_clkin>;
-						clock-output-names = "clk_macphy_mux";
+						clock-output-names = "clk_macphy";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
 					};
