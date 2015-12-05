@@ -589,7 +589,7 @@
 	};
 
 	tsadc: tsadc@11150000 {
-		compatible = "rockchip,rk3228-tsadc";
+		compatible = "rockchip,rk322x-tsadc";
 		reg = <0x11150000 0x100>;
 		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
 		clock-frequency = <32768>;
