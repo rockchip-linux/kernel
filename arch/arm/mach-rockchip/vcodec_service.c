@@ -2281,20 +2281,15 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 
 #ifdef CONFIG_DEBUG_FS
 	data->debugfs_dir = vcodec_debugfs_create_device_dir(name, parent);
-	if (data->debugfs_dir == NULL)
+	if (!IS_ERR_OR_NULL(data->debugfs_dir))
+		data->debugfs_file_regs =
+			debugfs_create_file("regs", 0664, data->debugfs_dir,
+					data, &debug_vcodec_fops);
+	else
 		vpu_err("create debugfs dir %s failed\n", name);
-
-	data->debugfs_file_regs =
-		debugfs_create_file("regs", 0664, data->debugfs_dir, data,
-				    &debug_vcodec_fops);
 #endif
 	return 0;
 err:
-	if (data->irq_enc > 0)
-		free_irq(data->irq_enc, (void *)data);
-	if (data->irq_dec > 0)
-		free_irq(data->irq_dec, (void *)data);
-
 	if (data->child_dev) {
 		device_destroy(data->cls, data->dev_t);
 		cdev_del(&data->cdev);
@@ -2308,16 +2303,21 @@ err:
 
 static void vcodec_subdev_remove(struct vpu_subdev_data *data)
 {
+	struct vpu_service_info *pservice = data->pservice;
+
+	mutex_lock(&pservice->lock);
+	cancel_delayed_work_sync(&pservice->power_off_work);
+	vpu_service_power_off(pservice);
+	mutex_unlock(&pservice->lock);
+
 	device_destroy(data->cls, data->dev_t);
 	class_destroy(data->cls);
 	cdev_del(&data->cdev);
 	unregister_chrdev_region(data->dev_t, 1);
 
-	free_irq(data->irq_enc, (void *)&data);
-	free_irq(data->irq_dec, (void *)&data);
-
 #ifdef CONFIG_DEBUG_FS
-	debugfs_remove_recursive(data->debugfs_dir);
+	if (!IS_ERR_OR_NULL(data->debugfs_dir))
+		debugfs_remove_recursive(data->debugfs_dir);
 #endif
 }
 
