@@ -135,7 +135,7 @@ struct tsadc_table
 	int temp;
 };
 
-static const struct tsadc_table rk3228_table[] =
+static const struct tsadc_table rk322x_table[] =
 {
 	{0, -40},
 
@@ -249,11 +249,11 @@ void rockchip_tsadc_auto_ht_work(struct work_struct *work)
 	tsadc_writel(val &(~ (1 <<8) ), TSADC_INT_PD);
 	ret = tsadc_readl(TSADC_INT_PD);
 	tsadc_writel(ret | 0xff, TSADC_INT_PD);       //clr irq status
-	if (g_data->tsadc_type == RK3228_TSADC) {
+	if (g_data->tsadc_type == RK322X_TSADC) {
 		if ((val & 0x1000) != 0) {
-			dev_info(&g_data->pdev->dev, "rk3228 tsadc is low temp\n");
+			dev_info(&g_data->pdev->dev, "rk322x tsadc is low temp\n");
 		} else if ((val & 0x1) != 0) {
-			dev_info(&g_data->pdev->dev, "rk3228 tsadc is over temp\n");
+			dev_info(&g_data->pdev->dev, "rk322x tsadc is over temp\n");
 			pm_power_off();
 		}
 	} else if ((g_data->tsadc_type == RK3288_TSADC) &&
@@ -390,37 +390,37 @@ int rockchip_rk3288_tsadc_get_temp(int chn, int voltage)
 }
 EXPORT_SYMBOL(rockchip_rk3288_tsadc_get_temp);
 
-static void rockchip_rk3228_tsadc_set_cmpn_int_vale(int chn)
+static void rockchip_rk322x_tsadc_set_cmpn_int_vale(int chn)
 {
 	u32 code = 0;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
-		if ((tsadc_ht_temp - 10) >= rk3228_table[i].temp &&
-		    (tsadc_ht_temp - 10) < rk3228_table[i + 1].temp)
-			code = rk3228_table[i].code;
+	for (i = 0; i < ARRAY_SIZE(rk322x_table) - 1; i++) {
+		if ((tsadc_ht_temp - 10) >= rk322x_table[i].temp &&
+		    (tsadc_ht_temp - 10) < rk322x_table[i + 1].temp)
+			code = rk322x_table[i].code;
 	}
 	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
 		     (TSADC_COMP0_INT + chn * 4));
 
-	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
-		if (tsadc_ht_temp >= rk3228_table[i].temp &&
-		    tsadc_ht_temp <  rk3228_table[i + 1].temp)
-			code = rk3228_table[i].code;
+	for (i = 0; i < ARRAY_SIZE(rk322x_table) - 1; i++) {
+		if (tsadc_ht_temp >= rk322x_table[i].temp &&
+		    tsadc_ht_temp <  rk322x_table[i + 1].temp)
+			code = rk322x_table[i].code;
 	}
 	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
 		     (TSADC_COMP0_SHUT + chn * 4));
 
-	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
-		if (tsadc_low_temp >= rk3228_table[i].temp &&
-		    tsadc_low_temp < rk3228_table[i + 1].temp)
-			code = rk3228_table[i].code;
+	for (i = 0; i < ARRAY_SIZE(rk322x_table) - 1; i++) {
+		if (tsadc_low_temp >= rk322x_table[i].temp &&
+		    tsadc_low_temp < rk322x_table[i + 1].temp)
+			code = rk322x_table[i].code;
 	}
 	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
 		     (TSADC_COMP0_LOW_INT + chn * 4));
 }
 
-static void rockchip_rk3228_tsadc_set_auto_int_en(int chn,
+static void rockchip_rk322x_tsadc_set_auto_int_en(int chn,
 						  int ht_int_en,
 						  int tshut_en)
 {
@@ -444,7 +444,7 @@ static void rockchip_rk3228_tsadc_set_auto_int_en(int chn,
 			| TSADC_LT_INTEN_SRC(chn), TSADC_INT_EN);
 }
 
-static void rockchip_rk3228_tsadc_auto_mode_set(int chn,
+static void rockchip_rk322x_tsadc_auto_mode_set(int chn,
 						int int_en,
 						int shut_en)
 {
@@ -464,7 +464,7 @@ static void rockchip_rk3228_tsadc_auto_mode_set(int chn,
 	msleep(10);
 	if ((tsadc_readl(TSADC_AUTO_CON) & TSADC_AUTO_STAS_BUSY_MASK) !=
 	    TSADC_AUTO_STAS_BUSY) {
-		rockchip_rk3228_tsadc_set_cmpn_int_vale(chn);
+		rockchip_rk322x_tsadc_set_cmpn_int_vale(chn);
 
 		tsadc_writel(TSADC_AUTO_PERIOD_TIME,
 			     TSADC_AUTO_PERIOD);
@@ -476,7 +476,7 @@ static void rockchip_rk3228_tsadc_auto_mode_set(int chn,
 		tsadc_writel(TSADC_HIGHT_TSHUT_DEBOUNCE_TIME,
 			     TSADC_HIGHT_TSHUT_DEBOUNCE);
 
-		rockchip_rk3228_tsadc_set_auto_int_en(chn, int_en, shut_en);
+		rockchip_rk322x_tsadc_set_auto_int_en(chn, int_en, shut_en);
 	}
 
 	msleep(10);
@@ -488,16 +488,16 @@ static void rockchip_rk3228_tsadc_auto_mode_set(int chn,
 	mutex_unlock(&tsadc_mutex);
 }
 
-int rockchip_rk3228_tsadc_set_auto_temp(int chn)
+int rockchip_rk322x_tsadc_set_auto_temp(int chn)
 {
-	rockchip_rk3228_tsadc_auto_mode_set(chn,
+	rockchip_rk322x_tsadc_auto_mode_set(chn,
 					    TSADC_TEMP_INT_EN,
 					    TSADC_TEMP_SHUT_EN);
 	return 0;
 }
-EXPORT_SYMBOL(rockchip_rk3228_tsadc_set_auto_temp);
+EXPORT_SYMBOL(rockchip_rk322x_tsadc_set_auto_temp);
 
-int rockchip_rk3228_tsadc_get_temp(int chn, int voltage)
+int rockchip_rk322x_tsadc_get_temp(int chn, int voltage)
 {
 	int i, val = 0, reg = 0;
 
@@ -507,17 +507,17 @@ int rockchip_rk3228_tsadc_get_temp(int chn, int voltage)
 	}
 
 	reg = tsadc_readl((TSADC_DATA0 + chn * 4)) & TSADC_DATA_MASK;
-	for (i = 0; i < ARRAY_SIZE(rk3228_table) - 1; i++) {
-		if ((reg) <= rk3228_table[i + 1].code &&
-		    (reg) > rk3228_table[i].code)
-			val = rk3228_table[i].temp + (rk3228_table[i + 1].temp
-			- rk3228_table[i].temp) * ((reg) - rk3228_table[i].code)
-			/ (rk3228_table[i + 1].code - rk3228_table[i].code);
+	for (i = 0; i < ARRAY_SIZE(rk322x_table) - 1; i++) {
+		if ((reg) <= rk322x_table[i + 1].code &&
+		    (reg) > rk322x_table[i].code)
+			val = rk322x_table[i].temp + (rk322x_table[i + 1].temp
+			- rk322x_table[i].temp) * ((reg) - rk322x_table[i].code)
+			/ (rk322x_table[i + 1].code - rk322x_table[i].code);
 	}
 
 	return val;
 }
-EXPORT_SYMBOL(rockchip_rk3228_tsadc_get_temp);
+EXPORT_SYMBOL(rockchip_rk322x_tsadc_get_temp);
 
 int rockchip_tsadc_get_temp(int chn, int voltage)
 {
@@ -677,9 +677,9 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 		rockchip_tsadc_set_auto_temp(1);
 		data->ops.read_sensor = rockchip_rk3288_tsadc_get_temp;
 		break;
-	case RK3228_TSADC:
-		rockchip_rk3228_tsadc_set_auto_temp(0);
-		data->ops.read_sensor = rockchip_rk3228_tsadc_get_temp;
+	case RK322X_TSADC:
+		rockchip_rk322x_tsadc_set_auto_temp(0);
+		data->ops.read_sensor = rockchip_rk322x_tsadc_get_temp;
 		break;
 	}
 
