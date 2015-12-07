@@ -595,7 +595,7 @@
 		clock-frequency = <32768>;
 		clocks = <&clk_tsadc>, <&clk_gates9 15>;
 		clock-names = "tsadc", "pclk_tsadc";
-		resets = <&reset RK3228_RST_TSADC>;
+		resets = <&reset RK322X_RST_TSADC>;
 		reset-names = "tsadc-apb";
 		#io-channel-cells = <1>;
 		io-channel-ranges;
@@ -710,7 +710,7 @@
 		interrupt-names = "irq_dec", "irq_enc";
 		clocks = <&aclk_vpu>, <&hclk_vpu>;
 		clock-names = "aclk_vcodec", "hclk_vcodec";
-		resets = <&reset RK3228_RST_VPU_H>, <&reset RK3228_RST_VPU_A>;
+		resets = <&reset RK322X_RST_VPU_H>, <&reset RK322X_RST_VPU_A>;
 		reset-names = "video_h", "video_a";
 		name = "vpu_service";
 		dev_mode = <0>;
@@ -725,7 +725,7 @@
 		interrupt-names = "irq_dec";
 		clocks = <&aclk_rkvdec>, <&hclk_rkvdec>, <&clk_vdec_cabac>, <&clk_vdec_core>;
 		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac", "clk_core";
-		resets = <&reset RK3228_RST_RKVDEC_H>, <&reset RK3228_RST_RKVDEC_A>;
+		resets = <&reset RK322X_RST_RKVDEC_H>, <&reset RK322X_RST_RKVDEC_A>;
 		reset-names = "video_h", "video_a";
 		dev_mode = <2>;
 		name = "rkvdec";
@@ -822,7 +822,7 @@
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmi_cec &hdmii2c_xfer &hdmi_hpd>;
 		pinctrl-1 = <&i2c3_gpio>;
-		resets = <&reset RK3228_RST_HDMI_P>;
+		resets = <&reset RK322X_RST_HDMI_P>;
 		reset-names = "hdmi";
 		rockchip,grf = <&grf>;
 		rockchip,grf_reg_offset = <0x400>;
@@ -871,7 +871,7 @@
 		fifo-depth = <0x100>;
 		bus-width = <8>;
 		tune_regsbase = <0x1d8>;
-		resets = <&reset RK3228_RST_EMMC>;
+		resets = <&reset RK322X_RST_EMMC>;
 		reset-names = "mmc_ahb_reset";
 	};
 
@@ -890,7 +890,7 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
-		resets = <&reset RK3228_RST_SDMMC0>;
+		resets = <&reset RK322X_RST_SDMMC0>;
 		reset-names = "mmc_ahb_reset";
 	};
 
@@ -909,7 +909,7 @@
 		fifo-depth = <0x100>;
 		bus-width = <4>;
 		tune_regsbase = <0x1c8>;
-		resets = <&reset RK3228_RST_SDIO>;
+		resets = <&reset RK322X_RST_SDIO>;
 		reset-names = "mmc_ahb_reset";
 	};
 
@@ -950,8 +950,8 @@
 		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates1 5>, <&clk_gates11 12>, <&clk_gates11 13>;
 		clock-names = "clk_usbphy0", "hclk_otg", "hclk_otg_pmu";
-		resets = <&reset RK3228_RST_USBOTG0>, <&reset RK3228_RST_UTMI0>,
-				<&reset RK3228_RST_OTGC0>;
+		resets = <&reset RK322X_RST_USBOTG0>, <&reset RK322X_RST_UTMI0>,
+				<&reset RK322X_RST_OTGC0>;
 		reset-names = "otg_ahb", "otg_phy", "otg_controller";
 		/*0 - Normal, 1 - Force Host, 2 - Force Device*/
 		rockchip,usb-mode = <0>;
@@ -965,8 +965,8 @@
 		clock-names = "clk_usbphy0", "hclk_host0", "hclk_host0_arb";
 		phys = <&usbphy0>;
 		phy-names = "usb";
-		resets = <&reset RK3228_RST_USBHOST0>, <&reset RK3228_RST_UTMI1>,
-				<&reset RK3228_RST_HOST_CTRL0>;
+		resets = <&reset RK322X_RST_USBHOST0>, <&reset RK322X_RST_UTMI1>,
+				<&reset RK322X_RST_HOST_CTRL0>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
 	};
 
@@ -984,8 +984,8 @@
 		clock-names = "clk_usbphy1", "hclk_host1", "hclk_host1_arb";
 		phys = <&usbphy1>;
 		phy-names = "usb";
-		resets = <&reset RK3228_RST_USBHOST1>, <&reset RK3228_RST_UTMI2>,
-				<&reset RK3228_RST_HOST_CTRL1>;
+		resets = <&reset RK322X_RST_USBHOST1>, <&reset RK322X_RST_UTMI2>,
+				<&reset RK322X_RST_HOST_CTRL1>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
 	};
 
@@ -1003,8 +1003,8 @@
 		clock-names = "clk_usbphy1", "hclk_host2", "hck_host2_arb";
 		phys = <&usbphy2>;
 		phy-names = "usb";
-		resets = <&reset RK3228_RST_USBHOST2>, <&reset RK3228_RST_UTMI3>,
-				<&reset RK3228_RST_HOST_CTRL2>;
+		resets = <&reset RK322X_RST_USBHOST2>, <&reset RK322X_RST_UTMI3>,
+				<&reset RK322X_RST_HOST_CTRL2>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
 	};
 
