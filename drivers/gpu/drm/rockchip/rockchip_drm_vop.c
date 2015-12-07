@@ -1411,6 +1411,29 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	u64 vblank_time;
 
 	/*
+	 * Make sure we disable _before_ changing the mode / disabling the
+	 * clock since we need the mode to be right during the disable.
+	 */
+	vblank_time = (adjusted_mode->vtotal - adjusted_mode->vdisplay);
+	vblank_time *= (u64)NSEC_PER_SEC * adjusted_mode->htotal;
+	do_div(vblank_time,
+	       clk_round_rate(vop->dclk, adjusted_mode->clock * 1000));
+
+	if (vblank_time <= DMC_SET_RATE_TIME_NS + DMC_PAUSE_CPU_TIME_NS) {
+		/*
+		 * Set a large timeout so we can change the clk rate to max when
+		 * dmc freq is disabled.
+		 */
+		rockchip_dmc_lock();
+		vop->vblank_time = DMC_DEFAULT_TIMEOUT_NS;
+		rockchip_dmc_unlock();
+		if (!vop->dmc_disabled)
+			rockchip_dmc_disable();
+
+		vop->dmc_disabled = true;
+	}
+
+	/*
 	 * Wait for any pending updates to complete before full mode set.
 	 *
 	 * There is a funny quirk during full mode_set.  Full mode_set does:
@@ -1446,6 +1469,7 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 		VOP_CTRL_SET(vop, hdmi_en, 1);
 		break;
 	default:
+		/* TODO: undo stuff already done */
 		DRM_ERROR("unsupport connector_type[%d]\n",
 			  vop->connector_type);
 		return -EINVAL;
@@ -1471,6 +1495,7 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 
 	ret = vop_crtc_mode_set_base(crtc, x, y, fb);
 	if (ret)
+		/* TODO: undo stuff already done */
 		return ret;
 
 	/*
@@ -1488,10 +1513,6 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 	}
 	clk_set_rate(vop->dclk, adjusted_mode->clock * 1000);
 
-	vblank_time = (adjusted_mode->vtotal - adjusted_mode->vdisplay);
-	vblank_time *= (u64)NSEC_PER_SEC * adjusted_mode->htotal;
-	do_div(vblank_time, clk_get_rate(vop->dclk));
-
 	if (vblank_time > DMC_SET_RATE_TIME_NS + DMC_PAUSE_CPU_TIME_NS) {
 		rockchip_dmc_lock();
 		vop->vblank_time = vblank_time;
@@ -1500,18 +1521,6 @@ static int vop_crtc_mode_set(struct drm_crtc *crtc,
 			rockchip_dmc_enable();
 
 		vop->dmc_disabled = false;
-	} else {
-		/*
-		 * Set a large timeout so we can change the clk rate to max when
-		 * dmc freq is disabled.
-		 */
-		rockchip_dmc_lock();
-		vop->vblank_time = DMC_DEFAULT_TIMEOUT_NS;
-		rockchip_dmc_unlock();
-		if (!vop->dmc_disabled)
-			rockchip_dmc_disable();
-
-		vop->dmc_disabled = true;
 	}
 
 	return 0;
