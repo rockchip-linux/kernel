@@ -851,7 +851,7 @@
 	};
 
 	tve: tve {
-		compatible = "rockchip,rk3228-tve";
+		compatible = "rockchip,rk322x-tve";
 		reg = <0x20053e00 0x100>,
 		      <0x12020000 0x10000>;
 		clocks = <&clk_gates10 8>;
