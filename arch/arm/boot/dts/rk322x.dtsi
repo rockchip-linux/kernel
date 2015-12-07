@@ -1047,7 +1047,7 @@
 	};
 
 	pinctrl: pinctrl {
-		compatible = "rockchip,rk3228-pinctrl";
+		compatible = "rockchip,rk322x-pinctrl";
 		rockchip,grf = <&grf>;
 		#address-cells = <1>;
 		#size-cells = <1>;

@@ -74,7 +74,7 @@ enum rockchip_pinctrl_type {
 	RK2928,
 	RK3066B,
 	RK3188,
-	RK3228,
+	RK322X,
 	RK3288,
 	RK3368,
 };
@@ -515,8 +515,8 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 #define RK3188_PULL_BANK_STRIDE		16
 #define RK3188_PULL_PMU_OFFSET		0x64
 
-#define RK3228_PULL_PMU_OFFSET		0x100
-#define RK3228_PULL_OFFSET		0x110
+#define RK322X_PULL_PMU_OFFSET		0x100
+#define RK322X_PULL_OFFSET		0x110
 
 #define RK3288_PULL_OFFSET		0x140
 #define RK3368_PULL_PMU_OFFSET		0x10
@@ -531,9 +531,9 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 
 	/* The first 24 pins of the first bank are located in PMU */
 	if (bank->bank_num == 0) {
-		if (ctrl->type == RK3228) {
+		if (ctrl->type == RK322X) {
 			*regmap = info->regmap_base;
-			*reg = RK3228_PULL_PMU_OFFSET;
+			*reg = RK322X_PULL_PMU_OFFSET;
 		} else if (ctrl->type == RK3288) {
 			*regmap = info->regmap_pmu;
 			*reg = RK3188_PULL_PMU_OFFSET;
@@ -547,8 +547,8 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 		*bit *= RK3188_PULL_BITS_PER_PIN;
 	} else {
 		*regmap = info->regmap_base;
-		if (ctrl->type == RK3228)
-			*reg = RK3228_PULL_OFFSET;
+		if (ctrl->type == RK322X)
+			*reg = RK322X_PULL_OFFSET;
 		else if (ctrl->type == RK3288)
 			*reg = RK3288_PULL_OFFSET;
 		else if (ctrl->type == RK3368)
@@ -564,8 +564,8 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 	}
 }
 
-#define RK3228_DRV_PMU_OFFSET		0x200
-#define RK3228_DRV_GRF_OFFSET		0x210
+#define RK322X_DRV_PMU_OFFSET		0x200
+#define RK322X_DRV_GRF_OFFSET		0x210
 
 #define RK3288_DRV_PMU_OFFSET		0x70
 #define RK3288_DRV_GRF_OFFSET		0x1c0
@@ -586,9 +586,9 @@ static void rk3288_calc_drv_reg_and_bit(struct rockchip_pin_bank *bank,
 
 	/* The first 24 pins of the first bank are located in PMU */
 	if (bank->bank_num == 0) {
-		if (ctrl->type == RK3228) {
+		if (ctrl->type == RK322X) {
 			*regmap = info->regmap_base;
-			*reg = RK3228_DRV_PMU_OFFSET;
+			*reg = RK322X_DRV_PMU_OFFSET;
 		} else if (ctrl->type == RK3288) {
 			*regmap = info->regmap_pmu;
 			*reg = RK3288_DRV_PMU_OFFSET;
@@ -602,8 +602,8 @@ static void rk3288_calc_drv_reg_and_bit(struct rockchip_pin_bank *bank,
 		*bit *= RK3288_DRV_BITS_PER_PIN;
 	} else {
 		*regmap = info->regmap_base;
-		if (ctrl->type == RK3228)
-			*reg = RK3228_DRV_GRF_OFFSET;
+		if (ctrl->type == RK322X)
+			*reg = RK322X_DRV_GRF_OFFSET;
 		else if (ctrl->type == RK3288)
 			*reg = RK3288_DRV_GRF_OFFSET;
 		else if (ctrl->type == RK3368)
@@ -702,7 +702,7 @@ static int rockchip_get_pull(struct rockchip_pin_bank *bank, int pin_num)
 				? PIN_CONFIG_BIAS_PULL_PIN_DEFAULT
 				: PIN_CONFIG_BIAS_DISABLE;
 	case RK3188:
-	case RK3228:
+	case RK322X:
 	case RK3288:
 	case RK3368:
 		data >>= bit;
@@ -759,7 +759,7 @@ static int rockchip_set_pull(struct rockchip_pin_bank *bank,
 		spin_unlock_irqrestore(&bank->slock, flags);
 		break;
 	case RK3188:
-	case RK3228:
+	case RK322X:
 	case RK3288:
 	case RK3368:
 		spin_lock_irqsave(&bank->slock, flags);
@@ -970,7 +970,7 @@ static bool rockchip_pinconf_pull_valid(struct rockchip_pin_ctrl *ctrl,
 	case RK3066B:
 		return pull ? false : true;
 	case RK3188:
-	case RK3228:
+	case RK322X:
 	case RK3288:
 	case RK3368:
 		return (pull != PIN_CONFIG_BIAS_PULL_PIN_DEFAULT);
@@ -1039,9 +1039,9 @@ static int rockchip_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 			break;
 
 		case PIN_CONFIG_DRIVE_STRENGTH:
-			/* rk3228 rk3288 rk3368 is the first
+			/* rk322x rk3288 rk3368 is the first
 				with per-pin drive-strength */
-			if ((RK3228 != info->ctrl->type) &&
+			if ((RK322X != info->ctrl->type) &&
 			    (RK3288 != info->ctrl->type) &&
 			    (RK3368 != info->ctrl->type))
 				return -ENOTSUPP;
@@ -1099,10 +1099,10 @@ static int rockchip_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		arg = rc ? 1 : 0;
 		break;
 	case PIN_CONFIG_DRIVE_STRENGTH:
-		/* rk3228 rk3288 RK3368 is the first with per-pin
+		/* rk322x rk3288 RK3368 is the first with per-pin
 		* drive-strength
 		*/
-		if ((RK3228 != info->ctrl->type) &&
+		if ((RK322X != info->ctrl->type) &&
 		    (RK3288 != info->ctrl->type) &&
 		    (RK3368 != info->ctrl->type))
 			return -ENOTSUPP;
@@ -2122,18 +2122,18 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static struct rockchip_pin_bank rk3228_pin_banks[] = {
+static struct rockchip_pin_bank rk322x_pin_banks[] = {
 	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0", 0, 0, 0, 0),
 	PIN_BANK_IOMUX_FLAGS(1, 32, "gpio1", 0, 0, 0, 0),
 	PIN_BANK_IOMUX_FLAGS(2, 32, "gpio2", 0, 0, 0, 0),
 	PIN_BANK_IOMUX_FLAGS(3, 32, "gpio3", 0, 0, 0, 0),
 };
 
-static struct rockchip_pin_ctrl rk3228_pin_ctrl = {
-		.pin_banks		= rk3228_pin_banks,
-		.nr_banks		= ARRAY_SIZE(rk3228_pin_banks),
-		.label			= "RK3228-GPIO",
-		.type			= RK3228,
+static struct rockchip_pin_ctrl rk322x_pin_ctrl = {
+		.pin_banks		= rk322x_pin_banks,
+		.nr_banks		= ARRAY_SIZE(rk322x_pin_banks),
+		.label			= "RK322X-GPIO",
+		.type			= RK322X,
 		.grf_mux_offset		= 0x0,
 		.pmu_mux_offset		= 0x0,
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
@@ -2174,8 +2174,8 @@ static struct rockchip_pin_ctrl rk3368_pin_ctrl = {
 };
 
 static const struct of_device_id rockchip_pinctrl_dt_match[] = {
-	{ .compatible = "rockchip,rk3228-pinctrl",
-		.data = (void *)&rk3228_pin_ctrl },
+	{ .compatible = "rockchip,rk322x-pinctrl",
+		.data = (void *)&rk322x_pin_ctrl },
 	{ .compatible = "rockchip,rk3368-pinctrl",
 		.data = (void *)&rk3368_pin_ctrl },
 	{},
