@@ -2130,7 +2130,7 @@
 					reg = <0x010c 0x4>;
 					clocks =
 					<&dummy>,	<&dummy>,
-					<&dummy>,	<&dummy>,
+					<&aclk_rkvdec>,	<&hclk_rkvdec>,
 
 					<&clk_gates15 0>,	<&clk_gates15 1>,
 					<&clk_gates15 2>,	<&clk_gates15 3>,
