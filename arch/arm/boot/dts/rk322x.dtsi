@@ -749,7 +749,7 @@
 		compatible = "rockchip,rga2";
 		reg = <0x20060000 0x1000>;
 		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&aclk_rga>, <&aclk_rga>, <&aclk_rga>;
+		clocks = <&clk_gates13 0>, <&clk_gates13 1>, <&aclk_rga>;
 		clock-names = "aclk_rga", "hclk_rga", "pd_rga";
 	};
 
