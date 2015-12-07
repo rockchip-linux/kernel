@@ -1015,7 +1015,7 @@
 	};
 
 	gmac: eth@30200000 {
-		compatible = "rockchip,rk3228-gmac";
+		compatible = "rockchip,rk322x-gmac";
 		reg = <0x30200000 0x10000>;
 		rockchip,cru = <&cru>;
 		rockchip,grf = <&grf>;
