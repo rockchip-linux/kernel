@@ -1,5 +1,5 @@
 /*
- * rk3228_codec.h  --  rk3228 ALSA Soc Audio driver
+ * rk322x_codec.h  --  rk322x ALSA Soc Audio driver
  *
  * Copyright (c) 2015, Fuzhou Rockchip Electronics Co., Ltd All rights reserved.
  *
@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef _RK3228_CODEC_H
-#define _RK3228_CODEC_H
+#ifndef _RK322X_CODEC_H
+#define _RK322X_CODEC_H
 
 /* codec register */
 #define CODEC_RESET			(0x00 << 2)
@@ -207,9 +207,9 @@
 #define HPOUTL_POP_WORK			(2 << 0)
 #define HPOUTL_POP_MASK			(3 << 0)
 
-#define	RK3228_HIFI			(0)
+#define	RK322x_HIFI			(0)
 
-struct rk3228_reg_msk_val {
+struct rk322x_reg_msk_val {
 	unsigned int reg;
 	unsigned int msk;
 	unsigned int val;

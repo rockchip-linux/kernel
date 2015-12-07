@@ -1,5 +1,5 @@
 /*
- * rk3228_codec.c  --  rk3228 ALSA Soc Audio driver
+ * rk322x_codec.c  --  rk322x ALSA Soc Audio driver
  *
  * Copyright (c) 2015, Fuzhou Rockchip Electronics Co., Ltd All rights reserved.
  *
@@ -41,7 +41,7 @@
 #include <sound/dmaengine_pcm.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
-#include "rk3228_codec.h"
+#include "rk322x_codec.h"
 
 /* volume setting
  *  0: -39dB
@@ -51,14 +51,14 @@
 */
 #define  OUT_VOLUME    (0x18)
 
-struct rk3228_codec_priv {
+struct rk322x_codec_priv {
 	struct regmap *regmap;
 	struct clk *pclk;
 	unsigned int sclk;
 	int spk_ctl_gpio;
 };
 
-static const struct reg_default rk3228_codec_reg_defaults[] = {
+static const struct reg_default rk322x_codec_reg_defaults[] = {
 	{ CODEC_RESET, 0x03 },
 	{ DAC_INIT_CTRL1, 0x00 },
 	{ DAC_INIT_CTRL2, 0x50 },
@@ -73,22 +73,22 @@ static const struct reg_default rk3228_codec_reg_defaults[] = {
 	{ HPOUT_POP_CTRL, 0x11 },
 };
 
-static int rk3228_codec_reset(struct snd_soc_codec *codec)
+static int rk322x_codec_reset(struct snd_soc_codec *codec)
 {
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 
-	regmap_write(rk3228->regmap, CODEC_RESET, 0);
+	regmap_write(rk322x->regmap, CODEC_RESET, 0);
 	mdelay(10);
-	regmap_write(rk3228->regmap, CODEC_RESET, 0x03);
+	regmap_write(rk322x->regmap, CODEC_RESET, 0x03);
 
 	return 0;
 }
 
-static int rk3228_set_dai_fmt(struct snd_soc_dai *codec_dai,
+static int rk322x_set_dai_fmt(struct snd_soc_dai *codec_dai,
 			      unsigned int fmt)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	unsigned int val = 0;
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -102,7 +102,7 @@ static int rk3228_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		return -EINVAL;
 	}
 
-	regmap_update_bits(rk3228->regmap, DAC_INIT_CTRL1,
+	regmap_update_bits(rk322x->regmap, DAC_INIT_CTRL1,
 			   PIN_DIRECTION_MASK | DAC_I2S_MODE_MASK, val);
 
 	val = 0;
@@ -124,25 +124,25 @@ static int rk3228_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		return -EINVAL;
 	}
 
-	regmap_update_bits(rk3228->regmap, DAC_INIT_CTRL2,
+	regmap_update_bits(rk322x->regmap, DAC_INIT_CTRL2,
 			   DAC_MODE_MASK, val);
 	return 0;
 }
 
-static int rk3228_set_dai_sysclk(struct snd_soc_dai *codec_dai,
+static int rk322x_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 				 int clk_id, unsigned int freq, int dir)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 
-	rk3228->sclk = freq;
+	rk322x->sclk = freq;
 	return 0;
 }
 
-static int rk3228_digital_mute(struct snd_soc_dai *dai, int mute)
+static int rk322x_digital_mute(struct snd_soc_dai *dai, int mute)
 {
 	struct snd_soc_codec *codec = dai->codec;
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	unsigned int val = 0;
 
 	if (mute)
@@ -150,19 +150,19 @@ static int rk3228_digital_mute(struct snd_soc_dai *dai, int mute)
 	else
 		val = HPOUTL_UNMUTE | HPOUTR_UNMUTE;
 
-	regmap_update_bits(rk3228->regmap, HPOUT_CTRL,
+	regmap_update_bits(rk322x->regmap, HPOUT_CTRL,
 			   HPOUTL_MUTE_MASK | HPOUTR_MUTE_MASK, val);
 	return 0;
 }
 
-static int rk3228_codec_power_on(struct snd_soc_codec *codec, int wait_ms)
+static int rk322x_codec_power_on(struct snd_soc_codec *codec, int wait_ms)
 {
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
+	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_XCHARGE_MASK, DAC_CHARGE_PRECHARGE);
 	mdelay(10);
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
+	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_ALL_ON);
 
@@ -172,14 +172,14 @@ static int rk3228_codec_power_on(struct snd_soc_codec *codec, int wait_ms)
 	return 0;
 }
 
-static int rk3228_codec_power_off(struct snd_soc_codec *codec, int wait_ms)
+static int rk322x_codec_power_off(struct snd_soc_codec *codec, int wait_ms)
 {
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
+	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_XCHARGE_MASK, DAC_CHARGE_DISCHARGE);
 	mdelay(10);
-	regmap_update_bits(rk3228->regmap, DAC_PRECHARGE_CTRL,
+	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
 			   DAC_CHARGE_CURRENT_ALL_ON);
 
@@ -188,7 +188,7 @@ static int rk3228_codec_power_off(struct snd_soc_codec *codec, int wait_ms)
 	return 0;
 }
 
-static struct rk3228_reg_msk_val playback_open_list[] = {
+static struct rk322x_reg_msk_val playback_open_list[] = {
 	{ DAC_PWR_CTRL, DAC_PWR_MASK, DAC_PWR_ON },
 	{ DAC_PWR_CTRL, DACL_PATH_REFV_MASK | DACR_PATH_REFV_MASK,
 	  DACL_PATH_REFV_ON | DACR_PATH_REFV_ON },
@@ -219,30 +219,30 @@ static struct rk3228_reg_msk_val playback_open_list[] = {
 
 #define PLAYBACK_OPEN_LIST_LEN ARRAY_SIZE(playback_open_list)
 
-static int rk3228_codec_open_playback(struct snd_soc_codec *codec)
+static int rk322x_codec_open_playback(struct snd_soc_codec *codec)
 {
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
 	pr_info("%s\n", __func__);
 
 	for (i = 0; i < PLAYBACK_OPEN_LIST_LEN; i++) {
-		regmap_update_bits(rk3228->regmap,
+		regmap_update_bits(rk322x->regmap,
 				   playback_open_list[i].reg,
 				   playback_open_list[i].msk,
 				   playback_open_list[i].val);
 		mdelay(1);
 	}
 
-	regmap_update_bits(rk3228->regmap, HPOUTL_GAIN_CTRL,
+	regmap_update_bits(rk322x->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, OUT_VOLUME);
-	regmap_update_bits(rk3228->regmap, HPOUTR_GAIN_CTRL,
+	regmap_update_bits(rk322x->regmap, HPOUTR_GAIN_CTRL,
 			   HPOUTR_GAIN_MASK, OUT_VOLUME);
 
 	return 0;
 }
 
-static struct rk3228_reg_msk_val playback_close_list[] = {
+static struct rk322x_reg_msk_val playback_close_list[] = {
 	{ HPMIX_CTRL, HPMIXL_INIT2_MASK | HPMIXR_INIT2_MASK,
 	  HPMIXL_INIT2_DIS | HPMIXR_INIT2_DIS },
 	{ DAC_SELECT, DACL_SELECT_MASK | DACR_SELECT_MASK,
@@ -270,18 +270,18 @@ static struct rk3228_reg_msk_val playback_close_list[] = {
 
 #define PLAYBACK_CLOSE_LIST_LEN ARRAY_SIZE(playback_close_list)
 
-static int rk3228_codec_close_playback(struct snd_soc_codec *codec)
+static int rk322x_codec_close_playback(struct snd_soc_codec *codec)
 {
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
-	regmap_update_bits(rk3228->regmap, HPOUTL_GAIN_CTRL,
+	regmap_update_bits(rk322x->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, 0);
-	regmap_update_bits(rk3228->regmap, HPOUTR_GAIN_CTRL,
+	regmap_update_bits(rk322x->regmap, HPOUTR_GAIN_CTRL,
 			   HPOUTR_GAIN_MASK, 0);
 
 	for (i = 0; i < PLAYBACK_CLOSE_LIST_LEN; i++) {
-		regmap_update_bits(rk3228->regmap,
+		regmap_update_bits(rk322x->regmap,
 				   playback_close_list[i].reg,
 				   playback_open_list[i].msk,
 				   playback_close_list[i].val);
@@ -291,12 +291,12 @@ static int rk3228_codec_close_playback(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int rk3228_hw_params(struct snd_pcm_substream *substream,
+static int rk322x_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_pcm_hw_params *params,
 			    struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
-	struct rk3228_codec_priv *rk3228 = snd_soc_codec_get_drvdata(codec);
+	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	unsigned int val = 0;
 
 	switch (params_format(params)) {
@@ -316,43 +316,43 @@ static int rk3228_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	regmap_update_bits(rk3228->regmap, DAC_INIT_CTRL2, DAC_VDL_MASK, val);
+	regmap_update_bits(rk322x->regmap, DAC_INIT_CTRL2, DAC_VDL_MASK, val);
 	val = DAC_WL_32BITS | DAC_RST_DIS;
-	regmap_update_bits(rk3228->regmap, DAC_INIT_CTRL3,
+	regmap_update_bits(rk322x->regmap, DAC_INIT_CTRL3,
 			   DAC_WL_MASK | DAC_RST_MASK, val);
 
 	return 0;
 }
 
-static int rk3228_pcm_startup(struct snd_pcm_substream *substream,
+static int rk322x_pcm_startup(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
 
-	return rk3228_codec_open_playback(codec);
+	return rk322x_codec_open_playback(codec);
 }
 
-static void rk3228_pcm_shutdown(struct snd_pcm_substream *substream,
+static void rk322x_pcm_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	/* struct snd_soc_codec *codec = dai->codec;
 
-	rk3228_codec_close_playback(codec); */
+	rk322x_codec_close_playback(codec); */
 }
 
-static struct snd_soc_dai_ops rk3228_dai_ops = {
-	.hw_params = rk3228_hw_params,
-	.set_fmt = rk3228_set_dai_fmt,
-	.set_sysclk = rk3228_set_dai_sysclk,
-	.digital_mute = rk3228_digital_mute,
-	.startup = rk3228_pcm_startup,
-	.shutdown = rk3228_pcm_shutdown,
+static struct snd_soc_dai_ops rk322x_dai_ops = {
+	.hw_params = rk322x_hw_params,
+	.set_fmt = rk322x_set_dai_fmt,
+	.set_sysclk = rk322x_set_dai_sysclk,
+	.digital_mute = rk322x_digital_mute,
+	.startup = rk322x_pcm_startup,
+	.shutdown = rk322x_pcm_shutdown,
 };
 
-static struct snd_soc_dai_driver rk3228_dai[] = {
+static struct snd_soc_dai_driver rk322x_dai[] = {
 	{
-		.name = "rk3228-hifi",
-		.id = RK3228_HIFI,
+		.name = "rk322x-hifi",
+		.id = RK322x_HIFI,
 		.playback = {
 			.stream_name = "HIFI Playback",
 			.channels_min = 1,
@@ -363,11 +363,11 @@ static struct snd_soc_dai_driver rk3228_dai[] = {
 				    SNDRV_PCM_FMTBIT_S24_LE |
 				    SNDRV_PCM_FMTBIT_S32_LE),
 		},
-		.ops = &rk3228_dai_ops,
+		.ops = &rk322x_dai_ops,
 	},
 };
 
-static int rk3228_set_bias_level(struct snd_soc_codec *codec,
+static int rk322x_set_bias_level(struct snd_soc_codec *codec,
 				 enum snd_soc_bias_level level)
 {
 	switch (level) {
@@ -388,43 +388,43 @@ static int rk3228_set_bias_level(struct snd_soc_codec *codec,
 	return 0;
 }
 
-static int rk3228_codec_probe(struct snd_soc_codec *codec)
+static int rk322x_codec_probe(struct snd_soc_codec *codec)
 {
-	rk3228_codec_reset(codec);
-	rk3228_codec_power_on(codec, 0);
+	rk322x_codec_reset(codec);
+	rk322x_codec_power_on(codec, 0);
 
 	return 0;
 }
 
-static int rk3228_codec_remove(struct snd_soc_codec *codec)
+static int rk322x_codec_remove(struct snd_soc_codec *codec)
 {
-	rk3228_codec_close_playback(codec);
-	rk3228_codec_power_off(codec, 0);
+	rk322x_codec_close_playback(codec);
+	rk322x_codec_power_off(codec, 0);
 
 	return 0;
 }
 
-static int rk3228_suspend(struct snd_soc_codec *codec)
+static int rk322x_suspend(struct snd_soc_codec *codec)
 {
-	rk3228_set_bias_level(codec, SND_SOC_BIAS_OFF);
+	rk322x_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	return 0;
 }
 
-static int rk3228_resume(struct snd_soc_codec *codec)
+static int rk322x_resume(struct snd_soc_codec *codec)
 {
-	rk3228_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
+	rk322x_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	return 0;
 }
 
-static struct snd_soc_codec_driver soc_codec_dev_rk3228 = {
-	.probe = rk3228_codec_probe,
-	.remove = rk3228_codec_remove,
-	.suspend = rk3228_suspend,
-	.resume = rk3228_resume,
-	.set_bias_level = rk3228_set_bias_level,
+static struct snd_soc_codec_driver soc_codec_dev_rk322x = {
+	.probe = rk322x_codec_probe,
+	.remove = rk322x_codec_remove,
+	.suspend = rk322x_suspend,
+	.resume = rk322x_resume,
+	.set_bias_level = rk322x_set_bias_level,
 };
 
-static bool rk3228_codec_write_read_reg(struct device *dev, unsigned int reg)
+static bool rk322x_codec_write_read_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
 	case CODEC_RESET:
@@ -446,7 +446,7 @@ static bool rk3228_codec_write_read_reg(struct device *dev, unsigned int reg)
 	}
 }
 
-static bool rk3228_codec_volatile_reg(struct device *dev, unsigned int reg)
+static bool rk322x_codec_volatile_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
 	case CODEC_RESET:
@@ -456,52 +456,52 @@ static bool rk3228_codec_volatile_reg(struct device *dev, unsigned int reg)
 	}
 }
 
-static const struct regmap_config rk3228_codec_regmap_config = {
+static const struct regmap_config rk322x_codec_regmap_config = {
 	.reg_bits = 32,
 	.reg_stride = 4,
 	.val_bits = 32,
 	.max_register = HPOUT_POP_CTRL,
-	.writeable_reg = rk3228_codec_write_read_reg,
-	.readable_reg = rk3228_codec_write_read_reg,
-	.volatile_reg = rk3228_codec_volatile_reg,
-	.reg_defaults = rk3228_codec_reg_defaults,
-	.num_reg_defaults = ARRAY_SIZE(rk3228_codec_reg_defaults),
+	.writeable_reg = rk322x_codec_write_read_reg,
+	.readable_reg = rk322x_codec_write_read_reg,
+	.volatile_reg = rk322x_codec_volatile_reg,
+	.reg_defaults = rk322x_codec_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(rk322x_codec_reg_defaults),
 	.cache_type = REGCACHE_FLAT,
 };
 
-static int rk3228_platform_probe(struct platform_device *pdev)
+static int rk322x_platform_probe(struct platform_device *pdev)
 {
-	struct device_node *rk3228_np = pdev->dev.of_node;
-	struct rk3228_codec_priv *rk3228;
+	struct device_node *rk322x_np = pdev->dev.of_node;
+	struct rk322x_codec_priv *rk322x;
 	struct resource *res;
 	void __iomem *base;
 	int ret = 0;
 
-	rk3228 = devm_kzalloc(&pdev->dev, sizeof(*rk3228), GFP_KERNEL);
-	if (!rk3228)
+	rk322x = devm_kzalloc(&pdev->dev, sizeof(*rk322x), GFP_KERNEL);
+	if (!rk322x)
 		return -ENOMEM;
 
-	rk3228->spk_ctl_gpio = of_get_named_gpio(rk3228_np, "spk_ctl_io", 0);
-	if (!gpio_is_valid(rk3228->spk_ctl_gpio)) {
+	rk322x->spk_ctl_gpio = of_get_named_gpio(rk322x_np, "spk_ctl_io", 0);
+	if (!gpio_is_valid(rk322x->spk_ctl_gpio)) {
 		dev_err(&pdev->dev, "invalid spk ctl gpio\n");
 		return -EINVAL;
 	}
 
-	ret = devm_gpio_request(&pdev->dev, rk3228->spk_ctl_gpio, "spk_ctl");
+	ret = devm_gpio_request(&pdev->dev, rk322x->spk_ctl_gpio, "spk_ctl");
 	if (ret < 0) {
 		dev_err(&pdev->dev, "spk_ctl_gpio request fail\n");
 		return ret;
 	}
 
-	gpio_direction_output(rk3228->spk_ctl_gpio, 1);
+	gpio_direction_output(rk322x->spk_ctl_gpio, 1);
 
-	rk3228->pclk = devm_clk_get(&pdev->dev, "g_pclk_acodec");
-	if (IS_ERR(rk3228->pclk)) {
+	rk322x->pclk = devm_clk_get(&pdev->dev, "g_pclk_acodec");
+	if (IS_ERR(rk322x->pclk)) {
 		dev_err(&pdev->dev, "can't get acodec pclk\n");
-		return PTR_ERR(rk3228->pclk);
+		return PTR_ERR(rk322x->pclk);
 	}
 
-	ret = clk_prepare_enable(rk3228->pclk);
+	ret = clk_prepare_enable(rk322x->pclk);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to enable acodec pclk\n");
 		return ret;
@@ -512,42 +512,42 @@ static int rk3228_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
-	rk3228->regmap = devm_regmap_init_mmio(&pdev->dev, base,
-					    &rk3228_codec_regmap_config);
-	if (IS_ERR(rk3228->regmap))
-		return PTR_ERR(rk3228->regmap);
+	rk322x->regmap = devm_regmap_init_mmio(&pdev->dev, base,
+					    &rk322x_codec_regmap_config);
+	if (IS_ERR(rk322x->regmap))
+		return PTR_ERR(rk322x->regmap);
 
-	platform_set_drvdata(pdev, rk3228);
+	platform_set_drvdata(pdev, rk322x);
 
-	return snd_soc_register_codec(&pdev->dev, &soc_codec_dev_rk3228,
-				      rk3228_dai, ARRAY_SIZE(rk3228_dai));
+	return snd_soc_register_codec(&pdev->dev, &soc_codec_dev_rk322x,
+				      rk322x_dai, ARRAY_SIZE(rk322x_dai));
 }
 
-static int rk3228_platform_remove(struct platform_device *pdev)
+static int rk322x_platform_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_codec(&pdev->dev);
 	return 0;
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id rk3228codec_of_match[] = {
-		{ .compatible = "rockchip,rk3228-codec", },
+static const struct of_device_id rk322xcodec_of_match[] = {
+		{ .compatible = "rockchip,rk322x-codec", },
 		{},
 };
-MODULE_DEVICE_TABLE(of, rk3228codec_of_match);
+MODULE_DEVICE_TABLE(of, rk322xcodec_of_match);
 #endif
 
-static struct platform_driver rk3228_codec_driver = {
+static struct platform_driver rk322x_codec_driver = {
 	.driver = {
-		   .name = "rk3228-codec",
+		   .name = "rk322x-codec",
 		   .owner = THIS_MODULE,
-		   .of_match_table = of_match_ptr(rk3228codec_of_match),
+		   .of_match_table = of_match_ptr(rk322xcodec_of_match),
 	},
-	.probe = rk3228_platform_probe,
-	.remove = rk3228_platform_remove,
+	.probe = rk322x_platform_probe,
+	.remove = rk322x_platform_remove,
 };
-module_platform_driver(rk3228_codec_driver);
+module_platform_driver(rk322x_codec_driver);
 
 MODULE_AUTHOR("Sugar Zhang <sugar.zhang@rock-chips.com>");
-MODULE_DESCRIPTION("ASoC rk3228 codec driver");
+MODULE_DESCRIPTION("ASoC rk322x codec driver");
 MODULE_LICENSE("GPL v2");

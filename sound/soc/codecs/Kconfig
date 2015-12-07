@@ -325,7 +325,7 @@ config SND_SOC_RK3036
 config SND_SOC_RK312X
         tristate
 
-config SND_SOC_RK3228
+config SND_SOC_RK322X
 	select REGMAP_MMIO
 	tristate
 

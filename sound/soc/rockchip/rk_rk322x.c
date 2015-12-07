@@ -1,5 +1,5 @@
 /*
- * Rockchip machine ASoC driver for boards using a rk3228 CODEC.
+ * Rockchip machine ASoC driver for boards using a rk322x CODEC.
  *
  * Copyright (c) 2015, Fuzhou Rockchip Electronics Co., Ltd All rights reserved.
  *
@@ -28,7 +28,7 @@
 #include "card_info.h"
 #include "rk_i2s.h"
 
-static int rk3228_hw_params(struct snd_pcm_substream *substream,
+static int rk322x_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -90,34 +90,34 @@ static int rk3228_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int rk3228_asoc_init(struct snd_soc_pcm_runtime *rtd)
+static int rk322x_asoc_init(struct snd_soc_pcm_runtime *rtd)
 {
 	return 0;
 }
 
-static struct snd_soc_ops rk3228_ops = {
-	.hw_params = rk3228_hw_params,
+static struct snd_soc_ops rk322x_ops = {
+	.hw_params = rk322x_hw_params,
 };
 
-static struct snd_soc_dai_link rk3228_dai_link[] = {
+static struct snd_soc_dai_link rk322x_dai_link[] = {
 	{
-		.name = "rk3228",
-		.stream_name = "rk3228 codec pcm",
-		.codec_dai_name = "rk3228-hifi",
-		.init = rk3228_asoc_init,
-		.ops = &rk3228_ops,
+		.name = "rk322x",
+		.stream_name = "rk322x codec pcm",
+		.codec_dai_name = "rk322x-hifi",
+		.init = rk322x_asoc_init,
+		.ops = &rk322x_ops,
 	}
 };
 
-static struct snd_soc_card snd_soc_card_rk3228 = {
-	.name = "RK_RK3228",
-	.dai_link = rk3228_dai_link,
+static struct snd_soc_card snd_soc_card_rk322x = {
+	.name = "RK_RK322x",
+	.dai_link = rk322x_dai_link,
 	.num_links = 1,
 };
 
-static int rk3228_audio_probe(struct platform_device *pdev)
+static int rk322x_audio_probe(struct platform_device *pdev)
 {
-	struct snd_soc_card *card = &snd_soc_card_rk3228;
+	struct snd_soc_card *card = &snd_soc_card_rk322x;
 	int ret = 0;
 
 	card->dev = &pdev->dev;
@@ -129,7 +129,7 @@ static int rk3228_audio_probe(struct platform_device *pdev)
 	return snd_soc_register_card(card);
 }
 
-static int rk3228_audio_remove(struct platform_device *pdev)
+static int rk322x_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
@@ -137,24 +137,24 @@ static int rk3228_audio_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id rk3228_audio_of_match[] = {
-	{ .compatible = "rockchip,rk3228-audio", },
+static const struct of_device_id rk322x_audio_of_match[] = {
+	{ .compatible = "rockchip,rk322x-audio", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, rk3228_audio_of_match);
+MODULE_DEVICE_TABLE(of, rk322x_audio_of_match);
 #endif
 
-static struct platform_driver rk3228_audio_driver = {
+static struct platform_driver rk322x_audio_driver = {
 	.driver = {
-		.name = "rk3228-audio",
+		.name = "rk322x-audio",
 		.owner = THIS_MODULE,
-		.of_match_table = of_match_ptr(rk3228_audio_of_match),
+		.of_match_table = of_match_ptr(rk322x_audio_of_match),
 	},
-	.probe = rk3228_audio_probe,
-	.remove = rk3228_audio_remove,
+	.probe = rk322x_audio_probe,
+	.remove = rk322x_audio_remove,
 };
-module_platform_driver(rk3228_audio_driver);
+module_platform_driver(rk322x_audio_driver);
 
 MODULE_AUTHOR("Sugar Zhang <sugar.zhang@rock-chips.com>");
-MODULE_DESCRIPTION("ROCKCHIP rk3228 machine ASoC driver");
+MODULE_DESCRIPTION("ROCKCHIP rk322x machine ASoC driver");
 MODULE_LICENSE("GPL v2");
