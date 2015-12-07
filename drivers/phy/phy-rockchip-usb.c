@@ -64,7 +64,7 @@ static int rk33_usb_phy_power(struct rockchip_usb_phy *phy,
 		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d5);
 }
 
-static int rk3228_usb_phy_power(struct rockchip_usb_phy *phy,
+static int rk322x_usb_phy_power(struct rockchip_usb_phy *phy,
 				bool on)
 {
 	if (on)
@@ -122,8 +122,8 @@ static const struct of_device_id rockchip_usb_phy_dt_ids[] = {
 		.data = (void *)rk33_usb_phy_power
 	},
 	{
-		.compatible = "rockchip,rk3228-usb-phy",
-		.data = (void *)rk3228_usb_phy_power
+		.compatible = "rockchip,rk322x-usb-phy",
+		.data = (void *)rk322x_usb_phy_power
 	},
 	{}
 };

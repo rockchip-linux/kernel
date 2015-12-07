@@ -244,7 +244,7 @@ static void usb20otg_phy_power_down(int power_down)
 		;
 	}
 }
-struct dwc_otg_platform_data usb20otg_pdata_rk3228 = {
+struct dwc_otg_platform_data usb20otg_pdata_rk322x = {
 	.phyclk = NULL,
 	.ahbclk = NULL,
 	.ahbclk_otg_pmu = NULL,
@@ -266,13 +266,13 @@ struct dwc_otg_platform_data usb20otg_pdata_rk3228 = {
 #ifdef CONFIG_OF
 static const struct of_device_id rk_usb_control_id_table[] = {
 	{
-	 .compatible = "rockchip,rk3228-usb-control",
+	 .compatible = "rockchip,rk322x-usb-control",
 	 },
 	{},
 };
 #endif
 /*********************************************************************
-			rk3228 usb detections
+			rk322x usb detections
 *********************************************************************/
 
 #define WAKE_LOCK_TIMEOUT (HZ * 10)
@@ -404,7 +404,7 @@ static int otg_irq_detect_init(struct platform_device *pdev)
 	return 0;
 }
 
-/********** end of rk3228 usb detections **********/
+/********** end of rk322x usb detections **********/
 static int rk_usb_control_probe(struct platform_device *pdev)
 {
 	int gpio, err;
@@ -492,7 +492,7 @@ static struct platform_driver rk_usb_control_driver = {
 	.probe = rk_usb_control_probe,
 	.remove = rk_usb_control_remove,
 	.driver = {
-		   .name = "rk3228-usb-control",
+		   .name = "rk322x-usb-control",
 		   .owner = THIS_MODULE,
 		   .of_match_table = of_match_ptr(rk_usb_control_id_table),
 		   },
@@ -502,7 +502,7 @@ static struct platform_driver rk_usb_control_driver = {
 
 static const struct of_device_id dwc_otg_control_usb_id_table[] = {
 	{
-	 .compatible = "rockchip,rk3228-dwc-control-usb",
+	 .compatible = "rockchip,rk322x-dwc-control-usb",
 	 },
 	{},
 };
@@ -557,7 +557,7 @@ static struct platform_driver dwc_otg_control_usb_driver = {
 	.probe = dwc_otg_control_usb_probe,
 	.remove = dwc_otg_control_usb_remove,
 	.driver = {
-		   .name = "rk3228-dwc-control-usb",
+		   .name = "rk322x-dwc-control-usb",
 		   .owner = THIS_MODULE,
 		   .of_match_table = of_match_ptr(dwc_otg_control_usb_id_table),
 		   },

@@ -130,7 +130,7 @@
 	};
 
 	usb_control {
-		compatible = "rockchip,rk3228-usb-control";
+		compatible = "rockchip,rk322x-usb-control";
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
 		host_drv_gpio = <&gpio3 GPIO_C4 GPIO_ACTIVE_LOW>;
