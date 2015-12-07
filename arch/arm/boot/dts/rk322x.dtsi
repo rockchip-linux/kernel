@@ -137,7 +137,7 @@
 	};
 
 	io-domains {
-		compatible = "rockchip,rk3228-io-voltage-domain";
+		compatible = "rockchip,rk322x-io-voltage-domain";
 		rockchip,grf = <&grf>;
 		status = "disabled";
 	};
