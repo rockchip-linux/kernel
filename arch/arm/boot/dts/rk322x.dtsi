@@ -806,7 +806,7 @@
 	};
 
 	hdmi: hdmi@200a0000 {
-		compatible = "rockchip,rk3228-hdmi";
+		compatible = "rockchip,rk322x-hdmi";
 		reg = <0x200a0000 0x20000>,
 		      <0x12030000 0x10000>;
 		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>,
@@ -834,7 +834,7 @@
 	};
 
 	hdmi_hdcp2: hdmi_hdcp2@20090000 {
-		compatible = "rockchip,rk3228-hdmi-hdcp2";
+		compatible = "rockchip,rk322x-hdmi-hdcp2";
 		reg = <0x20090000 0x10000>;
 		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates13 10>,
