@@ -151,7 +151,7 @@
 	};
 
 	rockchip_audio {
-		compatible = "rockchip,rk3228-audio";
+		compatible = "rockchip,rk322x-audio";
 		dais {
 			dai0 {
 				audio-codec = <&codec>;

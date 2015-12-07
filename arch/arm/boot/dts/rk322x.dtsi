@@ -570,7 +570,7 @@
 	};
 
 	codec: codec@12010000 {
-		compatible = "rockchip,rk3228-codec";
+		compatible = "rockchip,rk322x-codec";
 		reg = <0x12010000 0x1000>;
 		clocks = <&clk_gates10 5>;
 		clock-names = "g_pclk_acodec";
