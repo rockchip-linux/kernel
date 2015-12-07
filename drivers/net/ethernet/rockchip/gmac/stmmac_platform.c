@@ -530,7 +530,8 @@ static int gmac_clk_enable(bool enable) {
 					clk_disable_unprepare(
 						bsp_priv->clk_mac_ref);
 
-				if (!IS_ERR(bsp_priv->clk_mac_refout))
+				if ((!IS_ERR(bsp_priv->clk_mac_refout)) &&
+				    (!bsp_priv->internal_phy))
 					clk_disable_unprepare(
 						bsp_priv->clk_mac_refout);
 			}
