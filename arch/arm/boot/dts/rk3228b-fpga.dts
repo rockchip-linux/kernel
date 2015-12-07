@@ -115,7 +115,7 @@
 	};
 
 	vop: vop@20020000 {
-		compatible = "rockchip,rk3228-lcdc";
+		compatible = "rockchip,rk322x-lcdc";
 		backlight = <&backlight>;
 
 		rockchip,cabc_mode = <0>;

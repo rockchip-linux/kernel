@@ -733,7 +733,7 @@
 	};
 
 	vop: vop@20050000 {
-		compatible = "rockchip,rk3228-lcdc";
+		compatible = "rockchip,rk322x-lcdc";
 
 		rockchip,prop = <PRMRY>;
 		rockchip,cabc_mode = <0>;
