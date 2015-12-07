@@ -56,3 +56,7 @@ obj-$(CONFIG_DM_CACHE_CLEANER)	+= dm-cache-cleaner.o
 ifeq ($(CONFIG_DM_UEVENT),y)
 dm-mod-objs			+= dm-uevent.o
 endif
+
+ifeq ($(CONFIG_DM_VERITY_FEC),y)
+dm-verity-objs			+= dm-verity-fec.o
+endif
