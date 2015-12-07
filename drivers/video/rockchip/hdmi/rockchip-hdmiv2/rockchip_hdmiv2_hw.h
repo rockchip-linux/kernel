@@ -1526,7 +1526,7 @@ struct phy_mpll_config_tab {
 	u16 gmp_cntrl;
 };
 
-/* PHY Defined for RK3228 */
+/* PHY Defined for RK322X */
 #define EXT_PHY_CONTROL		0
 	#define EXT_PHY_ANALOG_RESET_MASK		0x80
 	#define EXT_PHY_DIGITAL_RESET_MASK		0x40
@@ -1616,8 +1616,8 @@ struct phy_mpll_config_tab {
 #define EXT_PHY_TERM_RESIS_MANUAL_D1	0xfd
 #define EXT_PHY_TERM_RESIS_MANUAL_D0	0xfe
 
-#define RK3228_DDC_MASK_EN	((3 << 13) | (3 << (13 + 16)))
-#define RK3228_IO_3V_DOMAIN	((7 << 4) | (7 << (4 + 16)))
+#define RK322X_DDC_MASK_EN	((3 << 13) | (3 << (13 + 16)))
+#define RK322X_IO_3V_DOMAIN	((7 << 4) | (7 << (4 + 16)))
 
 struct ext_pll_config_tab {
 	u32	pix_clock;
