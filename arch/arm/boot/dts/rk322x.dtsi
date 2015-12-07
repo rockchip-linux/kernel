@@ -281,9 +281,6 @@
 			<&clk_gates4 2>,
 
 			/*PD_BUS*/
-			<&aclk_bus>,
-			<&hclk_bus>,
-			<&pclk_bus>,
 			<&clk_gates6 3>,/*pclk_bus_pre*/
 			<&clk_gates7 1>,/*clk4x_ddrphy*/
 			<&clk_gates8 5>,/*clk_ddrupctl*/
@@ -291,7 +288,6 @@
 			<&clk_gates8 1>,/*clk_intmem_mbist*/
 			<&clk_gates8 2>,/*aclk_dmac_bus*/
 			<&clk_gates10 1>,/*g_aclk_bus*/
-			<&clk_gates13 9>,/*aclk_gic400*/
 			<&clk_gates8 3>,/*hclk_rom*/
 			<&clk_gates8 4>,/*pclk_ddrupctl*/
 			<&clk_gates8 6>,/*pclk_ddrmon*/
@@ -306,16 +302,12 @@
 			<&clk_gates10 2>,/*pclk_mschniu*/
 
 			/*PD_PERI*/
-			<&aclk_peri>,
-			<&hclk_peri>,
-			<&pclk_peri>,
 			<&clk_gates12 0>,/*aclk_peri_noc*/
 			<&clk_gates12 1>,/*hclk_peri_noc*/
 			<&clk_gates12 2>,/*pclk_peri_noc*/
 
 			/*PD_VIO*/
 			<&clk_gates13 7>,/*hclk_vio_ahb_arbi*/
-			<&clk_gates13 8>,/*hclk_vio_noc*/
 			<&clk_gates14 7>,/*hclk_vio_h2p*/
 
 			<&clk_gates6 5>, /* g_clk_timer0 */

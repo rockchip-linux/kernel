@@ -1754,7 +1754,7 @@
 					<&clk_hdmi_cec>,	<&dummy>,
 					<&dummy>,	<&aclk_vpu>,
 
-					<&dummy>,	<&dummy>,
+					<&dummy>,	<&clk_gpu>,
 					<&dummy>,	<&dummy>;
 
 					clock-output-names =
@@ -1768,7 +1768,7 @@
 					"reserved",	"aclk_vpu",
 
 					"reserved",	"reserved",
-					"reserved",	"reserved";
+					"reserved",	"clk_gpu";
 
 					#clock-cells = <1>;
 				};
@@ -2065,11 +2065,11 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0104 0x4>;
 					clocks =
-					<&aclk_rga>,	<&hclk_vio>,
-					<&aclk_iep>,	<&hclk_vio>,
+					<&clk_gates13 11>,	<&hclk_vio>,
+					<&clk_gates13 9>,	<&hclk_vio>,
 
 					<&dummy>,	<&aclk_vop>,
-					<&hclk_vio>,	<&hclk_vio>,
+					<&hclk_vio>,	<&clk_gates13 8>,
 
 					<&hclk_vio>,	<&aclk_iep>,
 					<&aclk_hdcp>,	<&aclk_rga>,
