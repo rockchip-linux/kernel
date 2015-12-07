@@ -61,13 +61,20 @@ EXPORT_SYMBOL_GPL(rockchip_dmc_lock);
 /**
  * rockchip_dmc_wait - Call sync notifiers.
  */
-void rockchip_dmc_wait(ktime_t *timeout)
+int rockchip_dmc_wait(ktime_t *timeout)
 {
+	int ret;
+
 	WARN_ON(!mutex_is_locked(&sync_lock));
 	/* Set a default timeout. */
 	*timeout = ktime_add_ns(ktime_get(), DMC_DEFAULT_TIMEOUT_NS);
-	if (!timeout_disabled)
-		raw_notifier_call_chain(&sync_chain, 0, timeout);
+	if (!timeout_disabled) {
+		ret = raw_notifier_call_chain(&sync_chain, 0, timeout);
+		if (ret == NOTIFY_BAD)
+			return -ETIMEDOUT;
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(rockchip_dmc_wait);
 

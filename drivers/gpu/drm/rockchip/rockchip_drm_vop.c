@@ -1615,6 +1615,7 @@ static int dmc_notify(struct notifier_block *nb,
 {
 	struct vop *vop = container_of(nb, struct vop, dmc_nb);
 	ktime_t *timeout = data;
+	unsigned long jiffies_left;
 
 	if (WARN_ON(!vop->is_enabled))
 		return NOTIFY_BAD;
@@ -1623,9 +1624,14 @@ static int dmc_notify(struct notifier_block *nb,
 
 	vop_line_flag_irq_enable(vop);
 
-	wait_for_completion(&vop->dmc_completion);
-
+	jiffies_left = wait_for_completion_timeout(&vop->dmc_completion,
+						   msecs_to_jiffies(100));
 	vop_line_flag_irq_disable(vop);
+
+	if (jiffies_left == 0) {
+		dev_err(vop->dev, "Timeout waiting for IRQ\n");
+		return NOTIFY_BAD;
+	}
 
 	*timeout = ktime_add_ns(vop->vop_isr_ktime, vop->vblank_time);
 

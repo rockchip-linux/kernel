@@ -1032,7 +1032,13 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	/* Make sure other CPUs aren't processing the previous IPI. */
 	kick_all_cpus_sync();
 	rockchip_dmc_lock();
-	rockchip_dmc_wait(&timeout);
+	ret = rockchip_dmc_wait(&timeout);
+	if (ret) {
+		dev_err(dmc->dev, "Failed to determine timeout\n");
+		ret = -ETIMEDOUT;
+		goto out_locked;
+	}
+
 	/*
 	 * We need to disable softirqs when pausing the other cpus. We deadlock
 	 * without this in this scenario:
@@ -1051,7 +1057,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	if (ktime_compare(now, timeout) >= 0) {
 		dev_err(dmc->dev, "timeout before pausing cpus\n");
 		ret = -ETIMEDOUT;
-		goto out;
+		goto out_bh_disabled;
 	}
 
 	this_cpu = smp_processor_id();
@@ -1069,7 +1075,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 					"pause cpu %d timeout\n", cpu);
 				params->set_major_cpu_paused(this_cpu, false);
 				ret = -ETIMEDOUT;
-				goto out;
+				goto out_bh_disabled;
 			}
 			cpu_relax();
 		}
@@ -1082,7 +1088,7 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 		local_irq_enable();
 		dev_err(dmc->dev, "timeout after pausing cpus\n");
 		ret = -ETIMEDOUT;
-		goto out;
+		goto out_bh_disabled;
 	}
 	dmc_set_rate(dmc);
 	/*
@@ -1092,8 +1098,9 @@ static int dmc_set_rate_single_cpu(struct rk3288_dmcclk *dmc)
 	 */
 	params->set_major_cpu_paused(this_cpu, false);
 	local_irq_enable();
-out:
+out_bh_disabled:
 	local_bh_enable();
+out_locked:
 	rockchip_dmc_unlock();
 
 	WARN(dmc->training_retries > 0, "data training retries %d times\n",
