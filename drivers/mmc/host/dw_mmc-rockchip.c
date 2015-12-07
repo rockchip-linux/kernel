@@ -54,8 +54,8 @@ static struct dw_mci_rockchip_compatible {
 		.ctrl_type      = DW_MCI_TYPE_RK3368,
 	},
 	{
-		.compatible	= "rockchip,rk3228-sdmmc",
-		.ctrl_type	= DW_MCI_TYPE_RK3228,
+		.compatible	= "rockchip,rk322x-sdmmc",
+		.ctrl_type	= DW_MCI_TYPE_RK322X,
 	},
 };
 
@@ -100,7 +100,7 @@ static int dw_mci_rockchip_setup_clock(struct dw_mci *host)
 	    (priv->ctrl_type == DW_MCI_TYPE_RK3036) ||
 	    (priv->ctrl_type == DW_MCI_TYPE_RK312X) ||
 	    (priv->ctrl_type == DW_MCI_TYPE_RK3368) ||
-	    (priv->ctrl_type == DW_MCI_TYPE_RK3228))
+	    (priv->ctrl_type == DW_MCI_TYPE_RK322X))
 		host->bus_hz /= (priv->ciu_div + 1);
 
 	return 0;
@@ -151,7 +151,7 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 		sample_degree_offset = 0x0;
 		sample_mask = 0x07ff;
 		break;
-	case DW_MCI_TYPE_RK3228:
+	case DW_MCI_TYPE_RK322X:
 		delay_sel = 1 << 11;
 		sample_delaynum_offset = 0x3;
 		sample_degree_offset = 0x1;

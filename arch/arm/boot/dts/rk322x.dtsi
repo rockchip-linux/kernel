@@ -860,7 +860,7 @@
 	};
 
 	emmc: rksdmmc@30020000 {
-		compatible = "rockchip,rk_mmc", "rockchip,rk3228-sdmmc";
+		compatible = "rockchip,rk_mmc", "rockchip,rk322x-sdmmc";
 		reg = <0x30020000 0x10000>;
 		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -876,7 +876,7 @@
 	};
 
 	sdmmc: rksdmmc@30000000 {
-		compatible = "rockchip,rk_mmc", "rockchip,rk3228-sdmmc";
+		compatible = "rockchip,rk_mmc", "rockchip,rk322x-sdmmc";
 		reg = <0x30000000 0x10000>;
 		interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -895,7 +895,7 @@
 	};
 
 	sdio: rksdmmc@30010000 {
-		compatible = "rockchip,rk_mmc", "rockchip,rk3228-sdmmc";
+		compatible = "rockchip,rk_mmc", "rockchip,rk322x-sdmmc";
 		reg = <0x30010000 0x10000>;
 		interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
