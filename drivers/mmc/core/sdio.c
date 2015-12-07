@@ -666,6 +666,11 @@ try_again:
 	if (host->ops->init_card)
 		host->ops->init_card(host, card);
 
+	if (rocr & R4_18V_PRESENT)
+		rocr &= ~R4_18V_PRESENT;
+	else
+		ocr &= ~R4_18V_PRESENT;
+
 	/*
 	 * If the host and card support UHS-I mode request the card
 	 * to switch to 1.8V signaling level.  No 1.8v signalling if
@@ -673,17 +678,6 @@ try_again:
 	 * systems that claim 1.8v signalling in fact do not support
 	 * it.
 	 */
-
-        /*
-         * Fixme: ap6335 should not set S18A=1 if mmc I/F voltage
-         *        has been 1.8v yet.
-         */
-        #ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-        #ifdef CONFIG_AP6335
-        rocr &= ~R4_18V_PRESENT;
-        #endif
-        #endif
-        
 	if (!powered_resume && (rocr & ocr & R4_18V_PRESENT)) {
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180,
 					ocr);
@@ -698,13 +692,6 @@ try_again:
 			ocr &= ~R4_18V_PRESENT;
 		}
 		err = 0;
-	} else {
-	        #ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-	        #ifdef CONFIG_AP6335
-	        #else
-	        ocr &= ~R4_18V_PRESENT;
-		#endif
-		#endif
 	}
 
 	/*
