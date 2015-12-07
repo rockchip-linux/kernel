@@ -135,7 +135,7 @@ codec: codec@20030000 {
 
 Required SoC Specific Properties:
 
-- compatible : "rockchip,rk3228-codec"
+- compatible : "rockchip,rk322x-codec"
 - reg: physical base address of the controller and length of memory mapped
   region.
 - clocks: must include clock specifiers corresponding to entries in the
@@ -147,21 +147,21 @@ Required SoC Specific Properties:
 Example:
 
 codec: codec@12010000 {
-	compatible = "rockchip,rk3228-codec";
+	compatible = "rockchip,rk322x-codec";
 	reg = <0x12010000 0x1000>;
 	clocks = <&clk_gates10 5>;
 	clock-names = "g_pclk_acodec";
 	spk_ctl_io = <&gpio1 GPIO_A3 GPIO_ACTIVE_HIGH>;
 };
 
-- compatible : "rockchip,rk3228-audio"
+- compatible : "rockchip,rk322x-audio"
 - audio-controller: The phandle of i2s controller
 - audio-codec: The phandle of audio codec
 
 Example:
 
 rockchip-audio {
-	compatible = "rockchip,rk3228-audio";
+	compatible = "rockchip,rk322x-audio";
 	dais {
 		dai0 {
 			audio-codec = <&codec>;
