@@ -2768,6 +2768,7 @@ static void __exit vcodec_service_exit(void)
 
 module_init(vcodec_service_init);
 module_exit(vcodec_service_exit);
+MODULE_LICENSE("Proprietary");
 
 #ifdef CONFIG_DEBUG_FS
 #include <linux/seq_file.h>
