@@ -466,3 +466,14 @@
 	status = "okay";
 };
 
+&rockchip_suspend {
+	rockchip,ctrbits = <
+		(0
+		 |RKPM_CTR_GTCLKS
+		 |RKPM_CTR_PLLS
+		 |RKPM_CTR_IDLESRAM_MD
+		 |RKPM_CTR_VOL_PWM1
+		 |RKPM_CTR_VOL_PWM2
+		)
+	>;
+};
