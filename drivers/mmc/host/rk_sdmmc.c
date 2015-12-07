@@ -1910,29 +1910,32 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 	u32 sdio_int;
 	unsigned long timeout = 0;
 	bool ret_timeout = true;
-	u32 opcode;
-
-	opcode = host->mrq->cmd->opcode;
-	/* In tune mode, the timeout is normal */
-	if ((opcode == MMC_SEND_TUNING_BLOCK_HS200) ||
-		(opcode == MMC_SEND_TUNING_BLOCK))
-		return;
-
-	dev_info(host->dev,
-		 "[%s] -- Timeout recovery procedure start --\n",
-		 mmc_hostname(host->mmc));
+	u32 opcode, int_val;
 
 	/* unmask irq */
+	int_val = mci_readl(host, INTMASK);
 	mci_writel(host, INTMASK, 0x0);
 
 	/* send stop dma */
 	if (host->cur_slot->mrq->data)
 		dw_mci_stop_dma(host);
 
+	opcode = host->mrq->cmd->opcode;
 	host->cur_slot->mrq = NULL;
 	host->mrq = NULL;
 	host->state = STATE_IDLE;
 	host->data = NULL;
+
+	/* In tune mode, the timeout is normal */
+	if ((opcode == MMC_SEND_TUNING_BLOCK_HS200) ||
+		(opcode == MMC_SEND_TUNING_BLOCK)) {
+		mci_writel(host, INTMASK, int_val);
+		return;
+	}
+
+	dev_info(host->dev,
+		 "[%s] -- Timeout recovery procedure start --\n",
+		 mmc_hostname(host->mmc));
 
 retry_stop:
 	/* send stop cmd */
