@@ -404,7 +404,7 @@
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <12 1>;
 						clocks = <&clk_i2s1>, <&xin12m>;
-						clock-output-names = "i2s_clkout";
+						clock-output-names = "clk_i2s1_out";
 						#clock-cells = <0>;
 					};
 
@@ -1665,14 +1665,14 @@
 					"reserved",	"reserved",
 					"reserved",	"clk_i2s0_pll",
 
-					"i2s0_frac",	"i2s0_8ch",
+					"i2s0_frac",	"clk_i2s0",
 					"reserved",	"clk_i2s2_pll",
 
-					"i2s2_frac",	"i2s2_2ch",
+					"i2s2_frac",	"clk_i2s2",
 					"clk_i2s1_pll",	"i2s1_frac",
 
-					"reserved",	"i2s_clkout",
-					"i2s1_8ch",	"testclk";
+					"reserved",	"clk_i2s1_out",
+					"clk_i2s1",	"testclk";
 
 					#clock-cells = <1>;
 				};
