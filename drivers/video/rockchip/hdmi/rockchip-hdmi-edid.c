@@ -122,8 +122,12 @@ int hdmi_edid_parse_base(unsigned char *buf,
 	fb_edid_to_monspecs(buf, pedid->specs);
 
 out:
+	/* For some sink, edid checksum is failed because several
+	 * byte is wrong. To fix this case, we think it is a good
+	 * edid if 1 <= *extend_num <= 4.
+	 */
 	if ((rc != E_HDMI_EDID_SUCCESS) &&
-	    (*extend_num < 1 && *extend_num > 4))
+	    (*extend_num < 1 || *extend_num > 4))
 		return rc;
 	else
 		return E_HDMI_EDID_SUCCESS;
