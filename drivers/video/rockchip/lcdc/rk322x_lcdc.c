@@ -211,10 +211,10 @@ static int __maybe_unused vop_disable_irq(struct vop_device *vop_dev)
 {
 	if (likely(vop_dev->clk_on)) {
 		spin_lock(&vop_dev->reg_lock);
-		vop_writel(vop_dev, INTR_EN0, 0);
-		vop_writel(vop_dev, INTR_EN1, 0);
-		vop_writel(vop_dev, INTR_CLEAR0, 0xffff);
-		vop_writel(vop_dev, INTR_CLEAR1, 0xffff);
+		vop_writel(vop_dev, INTR_EN0, 0xffff0000);
+		vop_writel(vop_dev, INTR_EN1, 0xffff0000);
+		vop_writel(vop_dev, INTR_CLEAR0, 0xffffffff);
+		vop_writel(vop_dev, INTR_CLEAR1, 0xffffffff);
 		vop_cfg_done(vop_dev);
 		spin_unlock(&vop_dev->reg_lock);
 	};
