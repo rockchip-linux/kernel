@@ -1421,6 +1421,8 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
 			  base, end, reg_en, enable_mask, gating_mask);
 
+		VEPU_CLEAN_CACHE(dst);
+
 		/*
 		 * NOTE: encoder need to setup mode first
 		 */
@@ -1449,6 +1451,8 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
 			  base, end, reg_en, enable_mask, gating_mask);
+
+		VDPU_CLEAN_CACHE(dst);
 
 		/* on rkvdec set cache size to 64byte */
 		if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
@@ -1508,14 +1512,12 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 			  base, end, reg_en, enable_mask, gating_mask);
 
 		/* VDPU_SOFT_RESET(dst); */
-		/* VDPU_CLEAN_CACHE(dst); */
+		VDPU_CLEAN_CACHE(dst);
 
 		for (i = base; i < end; i++) {
 			if (i != reg_en)
 				writel_relaxed(src[i], dst + i);
 		}
-
-		/* VDPU_CLEAN_CACHE(dst); */
 
 		/* disable dec output */
 		src[reg_en]   = src[reg_en] | 0x2;
