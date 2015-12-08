@@ -2522,6 +2522,13 @@ static void get_hw_info(struct vpu_subdev_data *data)
 	struct vpu_dec_config *dec = &pservice->dec_config;
 	struct vpu_enc_config *enc = &pservice->enc_config;
 
+	if (cpu_is_rk2928() || cpu_is_rk3036() ||
+	    cpu_is_rk30xx() || cpu_is_rk312x() ||
+	    cpu_is_rk3188() || cpu_is_rk322x())
+		dec->max_dec_pic_width = 1920;
+	else
+		dec->max_dec_pic_width = 4096;
+
 	if (data->mode == VCODEC_RUNNING_MODE_VPU) {
 		dec->h264_support = 3;
 		dec->jpeg_support = 1;
@@ -2539,7 +2546,6 @@ static void get_hw_info(struct vpu_subdev_data *data)
 		dec->custom_mpeg4_support = 1;
 		dec->reserve = 0;
 		dec->mvc_support = 1;
-		dec->max_dec_pic_width = 4096;
 
 		if (!cpu_is_rk3036()) {
 			u32 config_reg = readl_relaxed(data->enc_dev.regs + 63);
@@ -2561,10 +2567,6 @@ static void get_hw_info(struct vpu_subdev_data *data)
 
 		pservice->bug_dec_addr = cpu_is_rk30xx();
 	} else {
-		if (cpu_is_rk3036()  || cpu_is_rk312x())
-			dec->max_dec_pic_width = 1920;
-		else
-			dec->max_dec_pic_width = 4096;
 		/* disable frequency switch in hevc.*/
 		pservice->auto_freq = false;
 	}
