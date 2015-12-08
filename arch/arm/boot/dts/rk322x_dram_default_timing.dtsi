@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 #include <dt-bindings/clock/ddr.h>
-#include <dt-bindings/dram/rockchip,rk3228.h>
+#include <dt-bindings/dram/rockchip,rk322x.h>
 
 / {
 	dram_timing: dram_timing {
