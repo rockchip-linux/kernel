@@ -58,8 +58,6 @@ struct rk_i2s_dev {
 	struct clk *clk; /* bclk */
 	struct clk *mclk; /*mclk output only */
 	struct clk *hclk; /*ahb clk */
-	struct clk *g_clk; /* i2s clk gate */
-	struct clk *g_mclk; /* mclk gate */
 	struct snd_dmaengine_dai_dma_data capture_dma_data;
 	struct snd_dmaengine_dai_dma_data playback_dma_data;
 	struct regmap *regmap;
@@ -636,10 +634,6 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 		clk_prepare_enable(i2s->hclk);
 	}
 
-	i2s->g_clk = devm_clk_get(&pdev->dev, "g_i2s_clk");
-	if (!IS_ERR(i2s->g_clk))
-		clk_prepare_enable(i2s->g_clk);
-
 	i2s->clk = devm_clk_get(&pdev->dev, "i2s_clk");
 	if (IS_ERR(i2s->clk)) {
 		dev_err(&pdev->dev, "Can't retrieve i2s clock\n");
@@ -663,10 +657,6 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 	#endif
 		clk_prepare_enable(i2s->mclk);
 	}
-
-	i2s->g_mclk = devm_clk_get(&pdev->dev, "g_i2s_mclk");
-	if (!IS_ERR(i2s->g_mclk))
-		clk_prepare_enable(i2s->g_mclk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	regs = devm_ioremap_resource(&pdev->dev, res);
@@ -762,12 +752,6 @@ static int rockchip_i2s_remove(struct platform_device *pdev)
 
 	clk_disable_unprepare(i2s->clk);
 	clk_disable_unprepare(i2s->hclk);
-
-	if (!IS_ERR(i2s->g_mclk))
-		clk_disable_unprepare(i2s->g_mclk);
-	if (!IS_ERR(i2s->g_clk))
-		clk_disable_unprepare(i2s->g_clk);
-
 	rockchip_pcm_platform_unregister(&pdev->dev);
 	snd_soc_unregister_component(&pdev->dev);
 
