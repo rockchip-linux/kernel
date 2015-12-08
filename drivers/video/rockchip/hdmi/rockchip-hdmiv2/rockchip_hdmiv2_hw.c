@@ -2009,15 +2009,12 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 			reset_control_assert(hdmi_dev->reset);
 			usleep_range(10, 20);
 			reset_control_deassert(hdmi_dev->reset);
-			if (hdmi_dev->soctype == HDMI_SOC_RK322X) {
-				rockchip_hdmiv2_write_phy(hdmi_dev, 0x00, 0x00);
-				usleep_range(10, 20);
-				rockchip_hdmiv2_write_phy(hdmi_dev, 0x00, 0xc0);
-			}
 		}
 		rockchip_hdmiv2_powerdown(hdmi_dev);
 	} else {
 		hdmi->hotplug = hdmi_dev_detect_hotplug(hdmi);
+		if (hdmi->hotplug != HDMI_HPD_ACTIVED)
+			hdmi->uboot = 0;
 	}
 	/*mute unnecessary interrrupt, only enable hpd*/
 	hdmi_writel(hdmi_dev, IH_MUTE_FC_STAT0, 0xff);
