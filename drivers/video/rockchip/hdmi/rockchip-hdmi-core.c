@@ -125,7 +125,7 @@ static void hdmi_wq_set_video(struct hdmi *hdmi)
 	if ((hdmi->property->feature & SUPPORT_YCBCR_INPUT) &&
 	    (video->color_output == HDMI_COLOR_YCBCR444 ||
 	     video->color_output == HDMI_COLOR_YCBCR422))
-	     video->color_input = HDMI_COLOR_YCBCR444;
+		video->color_input = HDMI_COLOR_YCBCR444;
 	else if (video->color_output == HDMI_COLOR_YCBCR420)
 		video->color_input = HDMI_COLOR_YCBCR420;
 	else
@@ -518,13 +518,13 @@ struct hdmi *rockchip_hdmi_register(struct hdmi_property *property,
 	hdmi->audio.word_length = HDMI_AUDIO_DEFAULT_WORDLENGTH;
 	hdmi->xscale = 100;
 	hdmi->yscale = 100;
-	hdmi_init_modelist(hdmi);
 
 	if (hdmi->property->videosrc == DISPLAY_SOURCE_LCDC0)
 		hdmi->lcdc = rk_get_lcdc_drv("lcdc0");
 	else
 		hdmi->lcdc = rk_get_lcdc_drv("lcdc1");
-
+	if (!hdmi->lcdc)
+		goto err_create_wq;
 	if (hdmi->lcdc->prop == EXTEND)
 		hdmi->property->display = DISPLAY_AUX;
 	else
@@ -542,6 +542,7 @@ struct hdmi *rockchip_hdmi_register(struct hdmi_property *property,
 		goto err_register_display;
 	}
 	hdmi->id = i;
+	hdmi_init_modelist(hdmi);
 	#ifdef CONFIG_SWITCH
 	if (hdmi->id == 0) {
 		hdmi->switchdev.name = "hdmi";
