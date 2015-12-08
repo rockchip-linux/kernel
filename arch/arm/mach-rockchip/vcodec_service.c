@@ -1326,13 +1326,14 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 
 		/* revert hack for decoded length */
 		if (task->reg_len > 0) {
-			u32 dec_get = reg->reg[task->reg_len];
+			int reg_len = task->reg_len;
+			u32 dec_get = reg->reg[reg_len];
 			s32 dec_length = dec_get - reg->dec_base;
 
 			vpu_debug(DEBUG_REGISTER,
 				  "dec_get %08x dec_length %d\n",
 				  dec_get, dec_length);
-			reg->reg[12] = dec_length << 10;
+			reg->reg[reg_len] = dec_length << 10;
 		}
 
 		reg->reg[task->reg_irq] = pservice->irq_status;
