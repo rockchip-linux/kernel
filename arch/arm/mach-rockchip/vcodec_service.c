@@ -725,6 +725,15 @@ static void vpu_service_dump(struct vpu_service_info *pservice)
 {
 }
 
+#if VCODEC_CLOCK_ENABLE
+static void set_32_div_clk(struct clk *clock)
+{
+	struct clk* parent = clk_get_parent(clock);
+	int rate = clk_get_rate(parent);
+	clk_set_rate(clock, (rate / 32) + 1);
+}
+#endif
+
 static void vpu_service_power_off(struct vpu_service_info *pservice)
 {
 	int total_running;
@@ -758,16 +767,29 @@ static void vpu_service_power_off(struct vpu_service_info *pservice)
 #endif
 
 #if VCODEC_CLOCK_ENABLE
-	if (pservice->pd_video)
-		clk_disable_unprepare(pservice->pd_video);
-	if (pservice->hclk_vcodec)
-		clk_disable_unprepare(pservice->hclk_vcodec);
-	if (pservice->aclk_vcodec)
-		clk_disable_unprepare(pservice->aclk_vcodec);
-	if (pservice->clk_core)
-		clk_disable_unprepare(pservice->clk_core);
-	if (pservice->clk_cabac)
-		clk_disable_unprepare(pservice->clk_cabac);
+	if (cpu_is_rk322x()) {
+		/*
+		 * rk322x do not have power domain
+		 * we just lower the clock to minimize the power consumption
+		 */
+		if (pservice->aclk_vcodec)
+			set_32_div_clk(pservice->aclk_vcodec);
+		if (pservice->clk_core)
+			set_32_div_clk(pservice->clk_core);
+		if (pservice->clk_cabac)
+			set_32_div_clk(pservice->clk_cabac);
+	} else {
+		if (pservice->pd_video)
+			clk_disable_unprepare(pservice->pd_video);
+		if (pservice->hclk_vcodec)
+			clk_disable_unprepare(pservice->hclk_vcodec);
+		if (pservice->aclk_vcodec)
+			clk_disable_unprepare(pservice->aclk_vcodec);
+		if (pservice->clk_core)
+			clk_disable_unprepare(pservice->clk_core);
+		if (pservice->clk_cabac)
+			clk_disable_unprepare(pservice->clk_cabac);
+	}
 #endif
 
 	atomic_add(1, &pservice->power_off_cnt);
@@ -831,6 +853,20 @@ static void vpu_service_power_on(struct vpu_service_info *pservice)
 		clk_prepare_enable(pservice->clk_cabac);
 	if (pservice->pd_video)
 		clk_prepare_enable(pservice->pd_video);
+
+	if (cpu_is_rk322x()) {
+		unsigned long rate = 300*MHZ;
+
+		if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC)
+			rate = 500*MHZ;
+
+		if (pservice->aclk_vcodec)
+			clk_set_rate(pservice->aclk_vcodec,  rate);
+		if (pservice->clk_core)
+			clk_set_rate(pservice->clk_core,  300*MHZ);
+		if (pservice->clk_cabac)
+			clk_set_rate(pservice->clk_cabac, 300*MHZ);
+	}
 #endif
 
 	udelay(5);
