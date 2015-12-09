@@ -681,7 +681,7 @@ static void vpu_reset(struct vpu_subdev_data *data)
 			reset_control_assert(pservice->rst_v);
 		reset_control_assert(pservice->rst_a);
 		reset_control_assert(pservice->rst_h);
-		usleep_range(10, 20);
+		udelay(5);
 		reset_control_deassert(pservice->rst_h);
 		reset_control_deassert(pservice->rst_a);
 		if (pservice->rst_v)
