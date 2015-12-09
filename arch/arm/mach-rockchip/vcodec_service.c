@@ -1139,6 +1139,33 @@ static int vcodec_reg_address_translate(struct vpu_subdev_data *data,
 	return -1;
 }
 
+static void get_reg_freq(struct vpu_subdev_data *data, struct vpu_reg *reg)
+{
+	/* rk322x use default frequency */
+	if (cpu_is_rk322x())
+		return;
+
+	if (!soc_is_rk2928g()) {
+		if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
+			if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
+				if (reg_probe_width(reg) > 3200) {
+					/*raise frequency for 4k avc.*/
+					reg->freq = VPU_FREQ_600M;
+				}
+			} else {
+				if (reg_check_interlace(reg))
+					reg->freq = VPU_FREQ_400M;
+			}
+		}
+		if (data->hw_id == HEVC_ID) {
+			if (reg_probe_hevc_y_stride(reg) > 60000)
+				reg->freq = VPU_FREQ_400M;
+		}
+		if (reg->type == VPU_PP)
+			reg->freq = VPU_FREQ_400M;
+	}
+}
+
 static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 				struct vpu_session *session,
 				void __user *src, u32 size)
@@ -1198,27 +1225,9 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 	list_add_tail(&reg->session_link, &session->waiting);
 	mutex_unlock(&pservice->lock);
 
-	if (pservice->auto_freq) {
-		if (!soc_is_rk2928g()) {
-			if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
-				if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
-					if (reg_probe_width(reg) > 3200) {
-						/*raise frequency for 4k avc.*/
-						reg->freq = VPU_FREQ_600M;
-					}
-				} else {
-					if (reg_check_interlace(reg))
-						reg->freq = VPU_FREQ_400M;
-				}
-			}
-			if (data->hw_id == HEVC_ID) {
-				if (reg_probe_hevc_y_stride(reg) > 60000)
-					reg->freq = VPU_FREQ_400M;
-			}
-			if (reg->type == VPU_PP)
-				reg->freq = VPU_FREQ_400M;
-		}
-	}
+	if (pservice->auto_freq)
+		get_reg_freq(data, reg);
+
 	vpu_debug_leave();
 	return reg;
 }
@@ -1381,10 +1390,24 @@ static void vpu_service_set_freq(struct vpu_service_info *pservice,
 		clk_set_rate(pservice->aclk_vcodec, 600*MHZ);
 	} break;
 	default: {
+		unsigned long rate = 300*MHZ;
+
 		if (soc_is_rk2928g())
-			clk_set_rate(pservice->aclk_vcodec, 400*MHZ);
-		else
-			clk_set_rate(pservice->aclk_vcodec, 300*MHZ);
+			rate = 400*MHZ;
+		else if (cpu_is_rk322x()) {
+			/*
+			 * special process for rk322x
+			 * rk322x rkvdec has more clocks to set
+			 * vpu/vpu2 still only need to set aclk
+			 */
+			if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
+				clk_set_rate(pservice->clk_core,  300*MHZ);
+				clk_set_rate(pservice->clk_cabac, 300*MHZ);
+				rate = 500*MHZ;
+			}
+		}
+
+		clk_set_rate(pservice->aclk_vcodec, rate);
 	} break;
 	}
 }
@@ -1404,6 +1427,7 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 	atomic_add(1, &pservice->total_running);
 	atomic_add(1, &reg->session->task_running);
+
 	if (pservice->auto_freq)
 		vpu_service_set_freq(pservice, reg);
 
@@ -2566,6 +2590,9 @@ static void get_hw_info(struct vpu_subdev_data *data)
 		atomic_set(&pservice->freq_status, VPU_FREQ_BUT);
 
 		pservice->bug_dec_addr = cpu_is_rk30xx();
+	} else if (data->mode == VCODEC_RUNNING_MODE_RKVDEC) {
+		pservice->auto_freq = true;
+		atomic_set(&pservice->freq_status, VPU_FREQ_BUT);
 	} else {
 		/* disable frequency switch in hevc.*/
 		pservice->auto_freq = false;
