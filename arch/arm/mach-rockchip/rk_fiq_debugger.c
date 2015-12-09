@@ -38,8 +38,12 @@
 #include <linux/clk.h>
 #include "rk_fiq_debugger.h"
 
-#ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
-#include "linux/rockchip/psci.h"
+#if defined(CONFIG_FIQ_DEBUGGER_EL3_TO_EL1) || defined(CONFIG_ARM_PSCI)
+#include <linux/rockchip/psci.h>
+#endif
+
+#ifdef CONFIG_ARM_PSCI
+#include <asm/psci.h>
 #endif
 
 #define UART_USR	0x1f	/* In: UART Status Register */
@@ -290,10 +294,57 @@ static int fiq_debugger_uart_dev_resume(struct platform_device *pdev)
 }
 #endif
 
+#ifdef CONFIG_ARM_PSCI
+static struct pt_regs fiq_pt_regs;
+
+static void rk_fiq_debugger_switch_cpu(struct platform_device *pdev,
+				       unsigned int cpu)
+{
+	psci_fiq_debugger_switch_cpu(cpu);
+}
+
+static void rk_fiq_debugger_enable_debug(struct platform_device *pdev, bool val)
+{
+	psci_fiq_debugger_enable_debug(val);
+}
+
+static void fiq_debugger_uart_irq_tf(struct sm_nsec_ctx *nsec_ctx)
+{
+	fiq_pt_regs.ARM_r0 = nsec_ctx->r0;
+	fiq_pt_regs.ARM_r1 = nsec_ctx->r1;
+	fiq_pt_regs.ARM_r2 = nsec_ctx->r2;
+	fiq_pt_regs.ARM_r3 = nsec_ctx->r3;
+	fiq_pt_regs.ARM_r4 = nsec_ctx->r4;
+	fiq_pt_regs.ARM_r5 = nsec_ctx->r5;
+	fiq_pt_regs.ARM_r6 = nsec_ctx->r6;
+	fiq_pt_regs.ARM_r7 = nsec_ctx->r7;
+	fiq_pt_regs.ARM_r8 = nsec_ctx->r8;
+	fiq_pt_regs.ARM_r9 = nsec_ctx->r9;
+	fiq_pt_regs.ARM_r10 = nsec_ctx->r10;
+	fiq_pt_regs.ARM_fp = nsec_ctx->r11;
+	fiq_pt_regs.ARM_ip = nsec_ctx->r12;
+	fiq_pt_regs.ARM_sp = nsec_ctx->svc_sp;
+	fiq_pt_regs.ARM_lr = nsec_ctx->svc_lr;
+	fiq_pt_regs.ARM_pc = nsec_ctx->mon_lr;
+	fiq_pt_regs.ARM_cpsr = nsec_ctx->mon_spsr;
+
+	fiq_debugger_fiq_tf(&fiq_pt_regs);
+}
+
+static int fiq_debugger_uart_dev_resume(struct platform_device *pdev)
+{
+	struct rk_fiq_debugger *t;
+
+	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
+	psci_fiq_debugger_uart_irq_tf_init(t->irq, fiq_debugger_uart_irq_tf);
+	return 0;
+}
+#endif
+
 static int rk_fiq_debugger_id;
 
-void rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
-			  int wakeup_irq, unsigned int baudrate)
+void __init rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
+				 int wakeup_irq, unsigned int baudrate)
 {
 	struct rk_fiq_debugger *t = NULL;
 	struct platform_device *pdev = NULL;
@@ -357,6 +408,21 @@ void rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
 	} else {
 		t->pdata.switch_cpu = NULL;
 		t->pdata.enable_debug = NULL;
+	}
+#endif
+
+#ifdef CONFIG_ARM_PSCI
+	if (psci_smp_available()) {
+		if (signal_irq > 0) {
+			t->pdata.switch_cpu = rk_fiq_debugger_switch_cpu;
+			t->pdata.enable_debug = rk_fiq_debugger_enable_debug;
+			t->pdata.uart_dev_resume = fiq_debugger_uart_dev_resume;
+			psci_fiq_debugger_uart_irq_tf_init(irq,
+							   fiq_debugger_uart_irq_tf);
+		} else {
+			t->pdata.switch_cpu = NULL;
+			t->pdata.enable_debug = NULL;
+		}
 	}
 #endif
 

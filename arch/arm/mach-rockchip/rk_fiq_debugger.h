@@ -16,4 +16,8 @@ rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
 void fiq_debugger_fiq(void *regs);
 #endif
 
+#ifdef CONFIG_ARM_PSCI
+void fiq_debugger_fiq_tf(void *regs);
+#endif
+
 #endif

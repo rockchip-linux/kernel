@@ -35,6 +35,10 @@
 #include <linux/tty_flip.h>
 #include <linux/wakelock.h>
 
+#if defined(CONFIG_FIQ_DEBUGGER_EL3_TO_EL1) || defined(CONFIG_ARM_PSCI)
+#include <linux/rockchip/psci.h>
+#endif
+
 #ifdef CONFIG_FIQ_GLUE
 #include <asm/fiq_glue.h>
 #endif
@@ -142,7 +146,7 @@ static bool initial_debug_enable;
 static bool initial_console_enable;
 #endif
 
-#ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
+#if defined(CONFIG_FIQ_DEBUGGER_EL3_TO_EL1) || defined(CONFIG_ARM_PSCI)
 static struct fiq_debugger_state *state_tf;
 #endif
 
@@ -668,6 +672,14 @@ static void fiq_debugger_switch_cpu(struct fiq_debugger_state *state, int cpu)
 			return;
 		}
 
+#ifdef CONFIG_ARM_PSCI
+		if (is_psci_enable()) {
+			if (state->pdata->switch_cpu)
+				state->pdata->switch_cpu(state->pdev, cpu);
+			state->current_cpu = cpu;
+			return;
+		}
+#endif
 		cpumask_clear(&cpumask);
 		cpumask_set_cpu(cpu, &cpumask);
 
@@ -729,6 +741,11 @@ static bool fiq_debugger_fiq_exec(struct fiq_debugger_state *state,
 #ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
 		if (state->pdata->enable_debug)
 			state->pdata->enable_debug(state->pdev, false);
+#elif defined(CONFIG_ARM_PSCI)
+		if (is_psci_enable()) {
+			if (state->pdata->enable_debug)
+				state->pdata->enable_debug(state->pdev, false);
+		}
 #endif
 	} else if (!strcmp(cmd, "cpu")) {
 		fiq_debugger_printf(&state->output, "cpu %d\n", state->current_cpu);
@@ -1022,6 +1039,12 @@ static bool fiq_debugger_handle_uart_interrupt(struct fiq_debugger_state *state,
 #ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
 			if (state->pdata->enable_debug)
 				state->pdata->enable_debug(state->pdev, true);
+#elif defined(CONFIG_ARM_PSCI)
+			if (is_psci_enable()) {
+				if (state->pdata->enable_debug)
+					state->pdata->enable_debug(state->pdev,
+								   true);
+			}
 #endif
 			fiq_debugger_prompt(state);
 #ifdef CONFIG_FIQ_DEBUGGER_CONSOLE
@@ -1165,6 +1188,21 @@ void fiq_debugger_fiq(void *regs)
 
 	if (!state)
 		return;
+	need_irq = fiq_debugger_handle_uart_interrupt(state, smp_processor_id(),
+						      regs,
+						      current_thread_info());
+	if (need_irq)
+		fiq_debugger_force_irq(state);
+}
+#elif defined(CONFIG_ARM_PSCI)
+void fiq_debugger_fiq_tf(void *regs)
+{
+	struct fiq_debugger_state *state = state_tf;
+	bool need_irq;
+
+	if (!state)
+		return;
+
 	need_irq = fiq_debugger_handle_uart_interrupt(state, smp_processor_id(),
 						      regs,
 						      current_thread_info());
@@ -1485,14 +1523,7 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 	state->console_enable = initial_console_enable;
 
 	state->fiq = fiq;
-#ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
-	if (fiq > 0)
-		state->uart_irq = fiq;
-	else
-		state->uart_irq = uart_irq;
-#else
 	state->uart_irq = uart_irq;
-#endif
 
 	state->signal_irq = platform_get_irq_byname(pdev, "signal");
 	state->wakeup_irq = platform_get_irq_byname(pdev, "wakeup");
@@ -1532,8 +1563,13 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 				"<hit enter %sto activate fiq debugger>\n",
 				state->no_sleep ? "" : "twice ");
 
-#ifdef CONFIG_FIQ_GLUE
 	if (fiq_debugger_have_fiq(state)) {
+#ifdef CONFIG_FIQ_GLUE
+#ifdef CONFIG_ARM_PSCI
+		if (is_psci_enable()) {
+		} else
+#endif
+		{
 		state->handler.fiq = fiq_debugger_fiq;
 		state->handler.resume = fiq_debugger_resume;
 		ret = fiq_glue_register_handler(&state->handler);
@@ -1548,9 +1584,9 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 		gic_set_irq_priority(irq_get_irq_data(state->fiq), 0x90);
 #endif
 		pdata->fiq_enable(pdev, state->fiq, 1);
-	} else
+		}
 #endif
-	{
+	} else {
 		ret = request_irq(state->uart_irq, fiq_debugger_uart_irq,
 				  IRQF_NO_SUSPEND, "debug", state);
 		if (ret) {
@@ -1594,8 +1630,7 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 	}
 	if (state->no_sleep)
 		fiq_debugger_handle_wakeup(state);
-
-#ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
+#if defined(CONFIG_FIQ_DEBUGGER_EL3_TO_EL1) || defined(CONFIG_ARM_PSCI)
 	state_tf = state;
 #endif
 

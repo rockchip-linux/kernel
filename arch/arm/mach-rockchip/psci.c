@@ -21,6 +21,7 @@
 #include <asm/compiler.h>
 #include <asm/smp_plat.h>
 #ifdef CONFIG_ARM
+#include <linux/mm.h>
 #include <asm/opcodes-sec.h>
 #endif
 
@@ -229,3 +230,59 @@ void psci_fiq_debugger_enable_debug(bool val)
 			    0, UARTDBG_CFG_OSHDL_DEBUG_DISABLE);
 }
 #endif
+
+#ifdef CONFIG_ARM
+static u32 ft_fiq_mem_phy;
+static void __iomem *ft_fiq_mem_base;
+static void (*psci_fiq_debugger_uart_irq_tf)(void *reg_base);
+static int psci_enable;
+
+int is_psci_enable(void)
+{
+	return psci_enable;
+}
+
+void psci_fiq_debugger_uart_irq_tf_cb(u32 offset)
+{
+	psci_fiq_debugger_uart_irq_tf((char *)ft_fiq_mem_base + offset);
+	reg_wr_fn(PSCI_SIP_UARTDBG_CFG, 0, 0, UARTDBG_CFG_OSHDL_TO_OS);
+}
+
+void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
+{
+	psci_fiq_debugger_uart_irq_tf = callback;
+
+	ft_fiq_mem_base = (void *)get_zeroed_page(GFP_KERNEL);
+	if (IS_ERR_OR_NULL(ft_fiq_mem_base)) {
+		pr_err("%s: alloc mem failed\n", __func__);
+		return;
+	}
+	ft_fiq_mem_phy = virt_to_phys(ft_fiq_mem_base);
+
+	reg_wr_fn(PSCI_SIP_UARTDBG_CFG, irq_id,
+		  (u32)psci_fiq_debugger_uart_irq_tf_cb,
+		  UARTDBG_CFG_INIT);
+
+	reg_wr_fn(PSCI_SIP_UARTDBG_CFG, ft_fiq_mem_phy, 0,
+		  UARTDBG_CFG_SET_SHARE_MEM);
+
+	psci_enable = 1;
+}
+
+u32 psci_fiq_debugger_switch_cpu(u32 cpu)
+{
+	return reg_wr_fn(PSCI_SIP_UARTDBG_CFG, cpu, 0,
+			 UARTDBG_CFG_OSHDL_CPUSW);
+}
+
+void psci_fiq_debugger_enable_debug(bool val)
+{
+	if (val)
+		reg_wr_fn(PSCI_SIP_UARTDBG_CFG, 0, 0,
+			  UARTDBG_CFG_OSHDL_DEBUG_ENABLE);
+	else
+		reg_wr_fn(PSCI_SIP_UARTDBG_CFG, 0, 0,
+			  UARTDBG_CFG_OSHDL_DEBUG_DISABLE);
+}
+#endif
+

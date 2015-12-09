@@ -65,10 +65,14 @@ struct fiq_debugger_pdata {
 			      unsigned int count);
 #endif
 
-#ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
+#if defined(CONFIG_FIQ_DEBUGGER_EL3_TO_EL1) || defined(CONFIG_ARM_PSCI)
 	void (*switch_cpu)(struct platform_device *pdev, u32 cpu);
 	void (*enable_debug)(struct platform_device *pdev, bool val);
 #endif
 };
+
+#ifdef CONFIG_ARM_PSCI
+void fiq_debugger_fiq_tf(void *regs);
+#endif
 
 #endif

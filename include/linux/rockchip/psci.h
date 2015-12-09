@@ -36,6 +36,7 @@
 #define UARTDBG_CFG_OSHDL_CPUSW		0xf3
 #define UARTDBG_CFG_OSHDL_DEBUG_ENABLE	0xf4
 #define UARTDBG_CFG_OSHDL_DEBUG_DISABLE	0xf5
+#define UARTDBG_CFG_SET_SHARE_MEM	0xf6
 
 /*
  * rockchip psci function call interface
@@ -70,6 +71,42 @@ static inline u32 psci_set_memory_secure(bool val)
 {
 	return 0;
 }
+#endif
+
+#ifdef CONFIG_ARM_PSCI
+struct sm_nsec_ctx {
+	u32 usr_sp;
+	u32 usr_lr;
+	u32 irq_spsr;
+	u32 irq_sp;
+	u32 irq_lr;
+	u32 svc_spsr;
+	u32 svc_sp;
+	u32 svc_lr;
+	u32 abt_spsr;
+	u32 abt_sp;
+	u32 abt_lr;
+	u32 und_spsr;
+	u32 und_sp;
+	u32 und_lr;
+	u32 mon_lr;
+	u32 mon_spsr;
+	u32 r4;
+	u32 r5;
+	u32 r6;
+	u32 r7;
+	u32 r8;
+	u32 r9;
+	u32 r10;
+	u32 r11;
+	u32 r12;
+	u32 r0;
+	u32 r1;
+	u32 r2;
+	u32 r3;
+};
+
+int is_psci_enable(void);
 #endif
 
 #endif /* __ROCKCHIP_PSCI_H */
