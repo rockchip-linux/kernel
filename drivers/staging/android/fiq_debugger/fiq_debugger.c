@@ -645,6 +645,7 @@ static void fiq_debugger_take_affinity(void *info)
 
 	cpumask_clear(&cpumask);
 	cpumask_set_cpu(get_cpu(), &cpumask);
+	put_cpu();
 
 	irq_set_affinity(state->uart_irq, &cpumask);
 }
