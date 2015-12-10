@@ -213,6 +213,8 @@ const struct vpu_trans_info trans_rkv[FMT_TYPE_BUTT] = {
 	EMPTY_FMT_TBL(FMT_VP8D),
 	SETUP_FMT_TBL(FMT_VP9D  , rkv_vp9d),
 
+	EMPTY_FMT_TBL(FMT_PP),
+
 	EMPTY_FMT_TBL(FMT_VC1D),
 	EMPTY_FMT_TBL(FMT_AVSD),
 

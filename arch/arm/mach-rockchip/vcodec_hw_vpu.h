@@ -105,6 +105,11 @@ static enum FORMAT_TYPE vpu_dec_get_fmt(u32 *regs)
 	return type;
 }
 
+static enum FORMAT_TYPE vpu_pp_get_fmt(u32 *regs)
+{
+	return FMT_PP;
+}
+
 static const enum FORMAT_TYPE vpu_enc_fmt_tbl[] = {
 	[0]  = FMT_TYPE_BUTT,
 	[1]  = FMT_VP8E,
@@ -166,7 +171,7 @@ static struct vpu_task_info task_vpu[TASK_TYPE_BUTT] = {
 		.irq_mask = VPU_PP_INTERRUPT_BIT,
 		.ready_mask = VPU_PP_READY_BIT,
 		.error_mask = VPU_PP_ERR_MASK,
-		.get_fmt = NULL,
+		.get_fmt = vpu_pp_get_fmt,
 	},
 	{
 		.name = "vpu_dec_pp",
@@ -273,6 +278,10 @@ DEF_FMT_TRANS_TBL(vpu_defaultd,
 		  12, 13, 14, 15, 16, 17, 40, 41
 );
 
+DEF_FMT_TRANS_TBL(vpu_default_pp,
+		  63, 64, 65, 66, 67, 73, 74
+);
+
 DEF_FMT_TRANS_TBL(vpu_defaulte,
 		  5, 6, 7, 8, 9, 10, 11, 12, 13, 51
 );
@@ -294,6 +303,8 @@ const struct vpu_trans_info trans_vpu[FMT_TYPE_BUTT] = {
 
 	SETUP_FMT_TBL(FMT_VC1D  , vpu_vc1d),
 	SETUP_FMT_TBL(FMT_AVSD  , vpu_defaultd),
+
+	SETUP_FMT_TBL(FMT_PP    , vpu_default_pp),
 
 	SETUP_FMT_TBL(FMT_JPEGE , vpu_defaulte),
 	SETUP_FMT_TBL(FMT_H264E , vpu_defaulte),
