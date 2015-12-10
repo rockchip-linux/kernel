@@ -63,6 +63,7 @@
 					|VPU_DEC_TIMEOUT_BIT)
 
 #define VPU_PP_INTERRUPT_REGISTER	60
+#define VPU_PP_PIPELINE_MODE_BIT	BIT(1)
 #define VPU_PP_INTERRUPT_BIT		BIT(8)
 #define VPU_PP_READY_BIT		BIT(12)
 #define VPU_PP_BUS_ERROR_BIT		BIT(13)
@@ -126,8 +127,10 @@ static struct vpu_task_info task_vpu[TASK_TYPE_BUTT] = {
 		.reg_len = -1,
 		.reg_dir_mv = -1,
 		.reg_pps = -1,
+		.reg_pipe = -1,
 		.enable_mask = 0x6,
 		.gating_mask = 0,
+		.pipe_mask = 0,
 		.irq_mask = VPU_ENC_INTERRUPT_BIT,
 		.ready_mask = VPU_ENC_READY_BIT,
 		.error_mask = VPU_ENC_ERR_MASK,
@@ -140,8 +143,10 @@ static struct vpu_task_info task_vpu[TASK_TYPE_BUTT] = {
 		.reg_len = 12,
 		.reg_dir_mv = 41,
 		.reg_pps = -1,
+		.reg_pipe = VPU_PP_INTERRUPT_REGISTER,
 		.enable_mask = 0,
 		.gating_mask = 0,
+		.pipe_mask = VPU_PP_PIPELINE_MODE_BIT,
 		.irq_mask = VPU_DEC_INTERRUPT_BIT,
 		.ready_mask = VPU_DEC_READY_BIT,
 		.error_mask = VPU_DEC_ERR_MASK,
@@ -154,8 +159,10 @@ static struct vpu_task_info task_vpu[TASK_TYPE_BUTT] = {
 		.reg_len = -1,
 		.reg_dir_mv = -1,
 		.reg_pps = -1,
+		.reg_pipe = VPU_PP_INTERRUPT_REGISTER,
 		.enable_mask = 0,
 		.gating_mask = 0,
+		.pipe_mask = VPU_PP_PIPELINE_MODE_BIT,
 		.irq_mask = VPU_PP_INTERRUPT_BIT,
 		.ready_mask = VPU_PP_READY_BIT,
 		.error_mask = VPU_PP_ERR_MASK,
@@ -168,8 +175,10 @@ static struct vpu_task_info task_vpu[TASK_TYPE_BUTT] = {
 		.reg_len = 12,
 		.reg_dir_mv = 41,
 		.reg_pps = -1,
+		.reg_pipe = VPU_PP_INTERRUPT_REGISTER,
 		.enable_mask = 0,
 		.gating_mask = 0,
+		.pipe_mask = VPU_PP_PIPELINE_MODE_BIT,
 		.irq_mask = VPU_DEC_INTERRUPT_BIT,
 		.ready_mask = VPU_DEC_READY_BIT,
 		.error_mask = VPU_DEC_ERR_MASK,

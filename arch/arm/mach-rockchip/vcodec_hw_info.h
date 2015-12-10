@@ -161,11 +161,22 @@ struct vpu_task_info {
 	 */
 	int reg_pps;
 
+	/*
+	 * decoder pipeline mode register
+	 *
+	 * valid on vpu & vpu2
+	 * -1 for invalid
+	 */
+	int reg_pipe;
+
 	/* task enable bit mask for enable register */
 	u32 enable_mask;
 
 	/* task auto gating mask for enable register */
 	u32 gating_mask;
+
+	/* task pipeline mode mask for pipe register */
+	u32 pipe_mask;
 
 	/* task inturrpt bit mask for irq register */
 	u32 irq_mask;
