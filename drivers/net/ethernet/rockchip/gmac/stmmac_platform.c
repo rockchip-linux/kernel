@@ -685,11 +685,13 @@ static int phy_power_on(bool enable)
 		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(0));
 		return 0;
 	} else {
-		/* disable macphy */
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-			     GRF_CLR_BIT(0));
-		/* G5_7 set to 1 */
-		clk_disable_unprepare(bsp_priv->clk_macphy);
+		if (bsp_priv->chip == RK322X_GMAC) {
+			/* disable macphy */
+			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
+				     GRF_CLR_BIT(0));
+			/* G5_7 set to 1 */
+			clk_disable_unprepare(bsp_priv->clk_macphy);
+		}
 	}
 
 	if (bsp_priv->power_ctrl_by_pmu) {
@@ -927,7 +929,7 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	ret = of_property_read_string(np, "phy-type", &strings);
 	if (ret) {
 		pr_err("%s: Can not read property: phy-type.\n", __func__);
-		g_bsp_priv.clock_input = true;
+		g_bsp_priv.internal_phy = false;
 	} else {
 		pr_info("%s: internal PHY/external PHY? (%s).\n",
 			__func__, strings);
