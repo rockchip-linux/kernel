@@ -2065,14 +2065,14 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0104 0x4>;
 					clocks =
-					<&clk_gates13 11>,	<&hclk_vio>,
+					<&aclk_rga>,	<&hclk_vio>,
 					<&clk_gates13 9>,	<&hclk_vio>,
 
 					<&dummy>,	<&aclk_vop>,
 					<&hclk_vio>,	<&clk_gates13 8>,
 
 					<&hclk_vio>,	<&aclk_iep>,
-					<&aclk_hdcp>,	<&aclk_rga>,
+					<&aclk_hdcp>,	<&dummy>,
 
 					<&aclk_vop>,	<&hclk_vio>,
 					<&dummy>,	<&dummy>;

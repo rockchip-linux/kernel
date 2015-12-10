@@ -319,6 +319,8 @@
 			<&clk_gates15 6>,/*g_aclk_rkvdec_noc*/
 			<&clk_gates15 5>,/*g_hclk_vpu_noc*/
 			<&clk_gates15 7>,/*g_hclk_rkvdec_noc*/
+
+			<&clk_gates13 11>,/*g_aclk_rga_noc*/
 			
 			<&clk_gates7 15>, /* g_aclk_gpu_noc */
 
