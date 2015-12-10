@@ -1364,10 +1364,18 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 		writel_relaxed(0, data->dec_dev.regs + task->reg_irq);
 	} break;
 	case VPU_DEC_PP: {
+		u32 pipe_mode;
+		u32 *regs = data->dec_dev.regs;
+
 		pservice->reg_codec = NULL;
 		pservice->reg_pproc = NULL;
+
 		reg_copy_from_hw(reg, data->dec_dev.regs, hw_info->dec_reg_num);
-		writel_relaxed(0, data->dec_dev.regs + task->reg_irq);
+
+		/* NOTE: remove pp pipeline mode flag first */
+		pipe_mode = readl_relaxed(regs + task->reg_pipe);
+		pipe_mode &= ~task->pipe_mask;
+		writel_relaxed(pipe_mode, regs + task->reg_pipe);
 
 		/* revert hack for decoded length */
 		if (task->reg_len > 0) {
@@ -1579,8 +1587,7 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 				writel_relaxed(src[i], dst + i);
 		}
 
-		/* disable dec output */
-		src[reg_en]   = src[reg_en] | 0x2;
+		/* NOTE: dec output must be disabled */
 
 		writel(src[reg_en] | gating_mask, dst + reg_en);
 		dsb(sy);
@@ -1713,12 +1720,14 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 	switch (cmd) {
 	case VPU_IOC_SET_CLIENT_TYPE: {
 		session->type = (enum VPU_CLIENT_TYPE)arg;
-		vpu_debug(DEBUG_IOCTL, "set client type %d\n", session->type);
+		vpu_debug(DEBUG_IOCTL, "pid %d set client type %d\n",
+			  session->pid, session->type);
 	} break;
 	case VPU_IOC_GET_HW_FUSE_STATUS: {
 		struct vpu_request req;
 
-		vpu_debug(DEBUG_IOCTL, "get hw status %d\n", session->type);
+		vpu_debug(DEBUG_IOCTL, "pid %d get hw status %d\n",
+			  session->pid, session->type);
 		if (copy_from_user(&req, (void __user *)arg, sizeof(req))) {
 			vpu_err("error: get hw status copy_from_user failed\n");
 			return -EFAULT;
@@ -1741,7 +1750,8 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		struct vpu_request req;
 		struct vpu_reg *reg;
 
-		vpu_debug(DEBUG_IOCTL, "set reg type %d\n", session->type);
+		vpu_debug(DEBUG_IOCTL, "pid %d set reg type %d\n",
+			  session->pid, session->type);
 		if (copy_from_user(&req, (void __user *)arg,
 				   sizeof(struct vpu_request))) {
 			vpu_err("error: set reg copy_from_user failed\n");
@@ -1761,7 +1771,8 @@ static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
 		struct vpu_reg *reg;
 		int ret;
 
-		vpu_debug(DEBUG_IOCTL, "get reg type %d\n", session->type);
+		vpu_debug(DEBUG_IOCTL, "pid %d get reg type %d\n",
+			  session->pid, session->type);
 		if (copy_from_user(&req, (void __user *)arg,
 				   sizeof(struct vpu_request))) {
 			vpu_err("error: get reg copy_from_user failed\n");
