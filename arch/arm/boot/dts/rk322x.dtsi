@@ -525,7 +525,7 @@
 			     &i2s_sdo1
 			     &i2s_sdo2
 			     &i2s_sdo3>;
-		pinctrl-1 = <&i2s_gpio>;
+		pinctrl-1 = <&i2s_sleep>;
 		status = "disabled";
 	};
 
@@ -539,6 +539,9 @@
 		dmas = <&pdma 0>, <&pdma 1>;
 		#dma-cells = <2>;
 		dma-names = "tx", "rx";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&pcm_rx &pcm_tx &pcm_clk &pcm_sync>;
+		pinctrl-1 = <&pcm_sleep>;
 		status = "disabled";
 	};
 
@@ -1359,16 +1362,41 @@
 				rockchip,pins =	<1 GPIO_A5 RK_FUNC_2 &pcfg_pull_none>;
 			};
 
-			i2s_gpio: i2s-gpio {
-				rockchip,pins = <0 GPIO_B0  RK_FUNC_GPIO &pcfg_pull_none>,
-						<0 GPIO_B1 RK_FUNC_GPIO &pcfg_pull_none>,
-						<0 GPIO_B3 RK_FUNC_GPIO &pcfg_pull_none>,
-						<0 GPIO_B4 RK_FUNC_GPIO &pcfg_pull_none>,
-						<0 GPIO_B6 RK_FUNC_GPIO &pcfg_pull_none>,
-						<0 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_A2 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_A4 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_A5 RK_FUNC_GPIO &pcfg_pull_none>;
+			i2s_sleep: i2s-sleep {
+				rockchip,pins = <0 GPIO_B0  RK_FUNC_GPIO &pcfg_input_high>,
+						<0 GPIO_B1 RK_FUNC_GPIO &pcfg_input_high>,
+						<0 GPIO_B3 RK_FUNC_GPIO &pcfg_input_high>,
+						<0 GPIO_B4 RK_FUNC_GPIO &pcfg_input_high>,
+						<0 GPIO_B6 RK_FUNC_GPIO &pcfg_input_high>,
+						<0 GPIO_B5 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_A2 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_A4 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_A5 RK_FUNC_GPIO &pcfg_input_high>;
+			};
+		};
+
+		pcm {
+			pcm_rx: pcm-rx {
+				rockchip,pins = <0 GPIO_D2 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			pcm_tx: pcm-tx {
+				rockchip,pins = <0 GPIO_D3 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			pcm_clk: pcm-clk {
+				rockchip,pins = <3 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			pcm_sync: pcm-sync {
+				rockchip,pins = <3 GPIO_B4 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			pcm_sleep: pcm-sleep {
+				rockchip,pins = <0 GPIO_D2 RK_FUNC_GPIO &pcfg_input_high>,
+						<0 GPIO_D3 RK_FUNC_GPIO &pcfg_input_high>,
+						<3 GPIO_B3 RK_FUNC_GPIO &pcfg_input_high>,
+						<3 GPIO_B4 RK_FUNC_GPIO &pcfg_input_high>;
 			};
 		};
 
