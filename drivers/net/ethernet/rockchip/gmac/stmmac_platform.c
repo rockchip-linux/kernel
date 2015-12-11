@@ -683,7 +683,6 @@ static int phy_power_on(bool enable)
 		mdelay(1);
 		/* enable macphy */
 		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(0));
-		return 0;
 	} else {
 		if (bsp_priv->chip == RK322X_GMAC) {
 			/* disable macphy */
@@ -709,6 +708,12 @@ static int phy_power_on(bool enable)
 			gpio_direction_output(bsp_priv->reset_io,
 					      !bsp_priv->reset_io_level);
 		}
+		if (bsp_priv->chip == RK322X_GMAC) {
+			/* enable macphy */
+			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
+				     GRF_BIT(0));
+		}
+
 		mdelay(30);
 
 	} else {
@@ -716,6 +721,12 @@ static int phy_power_on(bool enable)
 		if (gpio_is_valid(bsp_priv->reset_io)) {
 			gpio_direction_output(bsp_priv->reset_io,
 					      bsp_priv->reset_io_level);
+		}
+
+		if (bsp_priv->chip == RK322X_GMAC) {
+			/* disable macphy */
+			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
+				     GRF_CLR_BIT(0));
 		}
 	}
 
