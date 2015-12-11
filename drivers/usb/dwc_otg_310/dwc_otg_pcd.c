@@ -1774,7 +1774,6 @@ static void dwc_otg_pcd_ep_stop_transfer(dwc_otg_core_if_t
 					diepint, diepint.d32);
 		}
 
-		depctl.d32 = 0;
 		depctl.b.epdis = 1;
 		DWC_WRITE_REG32(&core_if->dev_if->
 				in_ep_regs[ep->num]->diepctl,
@@ -1816,7 +1815,6 @@ static void dwc_otg_pcd_ep_stop_transfer(dwc_otg_core_if_t
 					->gintsts, gintsts.d32);
 		}
 
-		depctl.d32 = 0;
 		depctl.b.epdis = 1;
 		depctl.b.snak = 1;
 		DWC_WRITE_REG32(&core_if->dev_if->out_ep_regs[ep->num]->
