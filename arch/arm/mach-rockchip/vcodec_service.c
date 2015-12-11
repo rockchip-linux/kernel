@@ -1491,6 +1491,11 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		VEPU_CLEAN_CACHE(dst);
 
+		if (debug & DEBUG_SET_REG)
+			for (i = base; i < end; i++)
+				vpu_debug(DEBUG_SET_REG, "set reg[%02d] %08x\n",
+					  i, src[i]);
+
 		/*
 		 * NOTE: encoder need to setup mode first
 		 */
@@ -1530,9 +1535,10 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 			writel_relaxed(val, cache_base + 0x17);
 		}
 
-		for (i = 0; i < len; i++)
-			vpu_debug(DEBUG_SET_REG, "set reg[%02d] %08x\n",
-				  i, src[i]);
+		if (debug & DEBUG_SET_REG)
+			for (i = 0; i < len; i++)
+				vpu_debug(DEBUG_SET_REG, "set reg[%02d] %08x\n",
+					  i, src[i]);
 
 		/*
 		 * NOTE: The end register is invalid. Do NOT write to it
@@ -1558,6 +1564,11 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 		vpu_debug(DEBUG_TASK_INFO, "reg: base %3d end %d en %2d mask: en %x gate %x\n",
 			  base, end, reg_en, enable_mask, gating_mask);
 
+		if (debug & DEBUG_SET_REG)
+			for (i = base; i < end; i++)
+				vpu_debug(DEBUG_SET_REG, "set reg[%02d] %08x\n",
+					  i, src[i]);
+
 		for (i = base; i < end; i++) {
 			if (i != reg_en)
 				writel_relaxed(src[i], dst + i);
@@ -1581,6 +1592,11 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 
 		/* VDPU_SOFT_RESET(dst); */
 		VDPU_CLEAN_CACHE(dst);
+
+		if (debug & DEBUG_SET_REG)
+			for (i = base; i < end; i++)
+				vpu_debug(DEBUG_SET_REG, "set reg[%02d] %08x\n",
+					  i, src[i]);
 
 		for (i = base; i < end; i++) {
 			if (i != reg_en)
