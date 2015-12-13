@@ -746,6 +746,9 @@ static int dwc_otg_pcd_pullup(struct usb_gadget *_gadget, int is_on)
 		pcd->conn_status = 0;
 	} else {
 		dwc_otg_pcd_pullup_disable(pcd);
+		/* report disconnect; the driver is already quiesced */
+		if (pcd->fops->disconnect)
+			pcd->fops->disconnect(pcd);
 		pcd->conn_en = 0;
 	}
 
