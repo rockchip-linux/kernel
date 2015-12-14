@@ -361,7 +361,7 @@ static void watchdog_overflow_callback(struct perf_event *event,
 
 		raw_spin_unlock(&watchdog_output_lock);
 		if (hardlockup_panic)
-			nmi_panic("Hard LOCKUP");
+			nmi_panic(regs, "Hard LOCKUP");
 
 		__this_cpu_write(hard_watchdog_warn, true);
 		return;
