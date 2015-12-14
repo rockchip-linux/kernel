@@ -31,7 +31,7 @@
 		lpddr2_drv = <LP2_DS_34ohm>;
 		/* lpddr2 not supported odt */
 		phy_ddr3_clk_drv = <PHY_DDR3_RON_RTT_45ohm>;
-		phy_ddr3_cmd_drv = <PHY_DDR3_RON_RTT_34ohm>;
+		phy_ddr3_cmd_drv = <PHY_DDR3_RON_RTT_45ohm>;
 		phy_ddr3_dqs_drv = <PHY_DDR3_RON_RTT_34ohm>;
 		phy_ddr3_odt = <PHY_DDR3_RON_RTT_225ohm>;
 		phy_lp23_clk_drv = <PHY_LP23_RON_RTT_43ohm>;
