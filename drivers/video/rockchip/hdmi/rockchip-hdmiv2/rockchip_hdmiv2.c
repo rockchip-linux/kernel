@@ -653,6 +653,31 @@ failed:
 	return ret;
 }
 
+static int rockchip_hdmiv2_suspend(struct platform_device *pdev,
+				   pm_message_t state)
+{
+	if (hdmi_dev &&
+	    hdmi_dev->grf_base &&
+	    hdmi_dev->soctype == HDMI_SOC_RK322X) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK322X_GRF_SOC_CON2,
+			     RK322X_PLL_POWER_DOWN);
+	}
+	return 0;
+}
+
+static int rockchip_hdmiv2_resume(struct platform_device *pdev)
+{
+	if (hdmi_dev &&
+	    hdmi_dev->grf_base &&
+	    hdmi_dev->soctype == HDMI_SOC_RK322X) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK322X_GRF_SOC_CON2,
+			     RK322X_PLL_POWER_UP);
+	}
+	return 0;
+}
+
 static int rockchip_hdmiv2_remove(struct platform_device *pdev)
 {
 	dev_info(&pdev->dev, "rk3288 hdmi driver removed.\n");
@@ -684,7 +709,9 @@ static struct platform_driver rockchip_hdmiv2_driver = {
 		.of_match_table = of_match_ptr(rk_hdmi_dt_ids),
 		#endif
 	},
-	.shutdown   = rockchip_hdmiv2_shutdown,
+	.suspend	= rockchip_hdmiv2_suspend,
+	.resume		= rockchip_hdmiv2_resume,
+	.shutdown	= rockchip_hdmiv2_shutdown,
 };
 
 static int __init rockchip_hdmiv2_init(void)

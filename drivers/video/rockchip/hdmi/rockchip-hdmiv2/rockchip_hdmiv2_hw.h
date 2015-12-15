@@ -1620,6 +1620,10 @@ struct phy_mpll_config_tab {
 
 #define RK322X_DDC_MASK_EN	((3 << 13) | (3 << (13 + 16)))
 #define RK322X_IO_3V_DOMAIN	((7 << 4) | (7 << (4 + 16)))
+#define RK322X_PLL_POWER_DOWN	(BIT(12) | BIT(12 + 16))
+#define RK322X_PLL_POWER_UP	BIT(12 + 16)
+#define RK322X_PLL_PDATA_DEN	BIT(11 + 16)
+#define RK322X_PLL_PDATA_EN	(BIT(11) | BIT(11 + 16))
 
 struct ext_pll_config_tab {
 	u32	pix_clock;

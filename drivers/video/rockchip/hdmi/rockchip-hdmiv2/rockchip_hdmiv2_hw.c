@@ -424,15 +424,20 @@ static const struct phy_mpll_config_tab *get_phy_mpll_tab(
 static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 {
 	hdmi_msk_reg(hdmi_dev, PHY_MASK, m_PHY_LOCK, v_PHY_LOCK(1));
-	if (hdmi_dev->soctype != HDMI_SOC_RK322X)
+	if (hdmi_dev->soctype != HDMI_SOC_RK322X) {
 		hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 			     m_PDDQ_SIG | m_TXPWRON_SIG |
 			     m_ENHPD_RXSENSE_SIG | m_SVSRET_SIG,
 			     v_PDDQ_SIG(1) | v_TXPWRON_SIG(0) |
 			     v_ENHPD_RXSENSE_SIG(1)) | v_SVSRET_SIG(0);
-	else
+	} else {
 		hdmi_msk_reg(hdmi_dev, PHY_CONF0,
-			     m_TXPWRON_SIG, v_TXPWRON_SIG(0));
+			     m_TXPWRON_SIG | m_ENHPD_RXSENSE_SIG,
+			     v_TXPWRON_SIG(0) | v_ENHPD_RXSENSE_SIG(0));
+		regmap_write(hdmi_dev->grf_base,
+			     RK322X_GRF_SOC_CON2,
+			     RK322X_PLL_PDATA_DEN);
+	}
 	hdmi_writel(hdmi_dev, MC_CLKDIS, 0x7f);
 }
 
@@ -521,10 +526,6 @@ int rockchip_hdmiv2_read_phy(struct hdmi_dev *hdmi_dev,
 }
 
 #define PHY_TIMEOUT	10000
-#define RK322X_PLL_POWER_DOWN	(BIT(12) | BIT(12 + 16))
-#define RK322X_PLL_POWER_UP	BIT(12 + 16)
-#define RK322X_PLL_PDATA_DEN	BIT(11 + 16)
-#define RK322X_PLL_PDATA_EN	(BIT(11) | BIT(11 + 16))
 
 static int ext_phy_config(struct hdmi_dev *hdmi_dev)
 {
@@ -1580,13 +1581,18 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 
 	if (!hdmi->uboot) {
 		/* befor configure video, we power off phy */
-		if (hdmi_dev->soctype != HDMI_SOC_RK322X)
+		if (hdmi_dev->soctype != HDMI_SOC_RK322X) {
 			hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 				     m_PDDQ_SIG | m_TXPWRON_SIG,
 				     v_PDDQ_SIG(1) | v_TXPWRON_SIG(0));
-		else
+		} else {
 			hdmi_msk_reg(hdmi_dev, PHY_CONF0,
-				     m_PDDQ_SIG, v_PDDQ_SIG(0));
+				     m_ENHPD_RXSENSE_SIG,
+				     v_ENHPD_RXSENSE_SIG(1));
+			regmap_write(hdmi_dev->grf_base,
+				     RK322X_GRF_SOC_CON2,
+				     RK322X_PLL_POWER_DOWN);
+		}
 		/* force output blue */
 		if (vpara->color_output == HDMI_COLOR_RGB_0_255) {
 			hdmi_writel(hdmi_dev, FC_DBGTMDS2, 0x00);	/*R*/
