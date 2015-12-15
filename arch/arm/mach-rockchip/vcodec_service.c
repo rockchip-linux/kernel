@@ -945,6 +945,21 @@ static int vcodec_fd_to_iova(struct vpu_subdev_data *data,
 	return mem_region->iova;
 }
 
+/*
+ * NOTE: rkvdec/rkhevc put scaling list address in pps buffer hardware will read
+ * it by pps id in video stream data.
+ *
+ * So we need to translate the address in iommu case. The address data is also
+ * 10bit fd + 22bit offset mode.
+ * Because userspace decoder do not give the pps id in the register file sets
+ * kernel driver need to translate each scaling list address in pps buffer which
+ * means 256 pps for H.264, 64 pps for H.265.
+ *
+ * In order to optimize the performance kernel driver ask userspace decoder to
+ * set all scaling list address in pps buffer to the same one which will be used
+ * on current decoding task. Then kernel driver can only translate the first
+ * address then copy it all pps buffer.
+ */
 static void fill_scaling_list_addr_in_pps(
 		struct vpu_subdev_data *data,
 		struct vpu_reg *reg,
@@ -953,47 +968,24 @@ static void fill_scaling_list_addr_in_pps(
 		int pps_info_size,
 		int scaling_list_addr_offset)
 {
-	int i = 0;
+	int base = scaling_list_addr_offset;
+	int scaling_fd = 0;
+	u32 scaling_offset;
 
-	for (i = 0; i < pps_info_count; i++) {
-		u32 scaling_offset;
-		int scaling_fd = 0;
-		int base = i * pps_info_size + scaling_list_addr_offset;
+	scaling_offset  = (u32)pps[base + 0];
+	scaling_offset += (u32)pps[base + 1] << 8;
+	scaling_offset += (u32)pps[base + 2] << 16;
+	scaling_offset += (u32)pps[base + 3] << 24;
 
-/*
-		pr_info("pps %02d pos %02d val %02x\n", i, base+0, pps[base+0]);
-		pr_info("pps %02d pos %02d val %02x\n", i, base+1, pps[base+1]);
-		pr_info("pps %02d pos %02d val %02x\n", i, base+2, pps[base+2]);
-		pr_info("pps %02d pos %02d val %02x\n", i, base+3, pps[base+3]);
+	scaling_fd = scaling_offset & 0x3ff;
+	scaling_offset = scaling_offset >> 10;
 
-		pr_info("pps val %02x%02x%02x%02x\n",
-				pps[base-1], pps[base-2],
-				pps[base-3], pps[base-4]);
-		if (!(pps[base-1] & 0x1)) {
-			pr_info("skip pps %d\n", i);
-			continue;
-		}
-*/
-		scaling_offset  = (u32)pps[base + 0];
-		scaling_offset += (u32)pps[base + 1] << 8;
-		scaling_offset += (u32)pps[base + 2] << 16;
-		scaling_offset += (u32)pps[base + 3] << 24;
+	if (scaling_fd > 0) {
+		int i = 0;
+		u32 tmp = vcodec_fd_to_iova(data, reg, scaling_fd);
+		tmp += scaling_offset;
 
-/*
-		pr_info("scaling_list_addr in u32 %08x\n", scaling_offset);
-*/
-
-		scaling_fd = scaling_offset & 0x3ff;
-		scaling_offset = scaling_offset >> 10;
-
-/*
-		pr_info("scaling list fd %d offset %x\n",
-			scaling_fd, scaling_offset);
-*/
-		if (scaling_fd > 0) {
-			u32 tmp = vcodec_fd_to_iova(data, reg, scaling_fd);
-
-			tmp += scaling_offset;
+		for (i = 0; i < pps_info_count; i++, base += pps_info_size) {
 			pps[base + 0] = (tmp >>  0) & 0xff;
 			pps[base + 1] = (tmp >>  8) & 0xff;
 			pps[base + 2] = (tmp >> 16) & 0xff;
