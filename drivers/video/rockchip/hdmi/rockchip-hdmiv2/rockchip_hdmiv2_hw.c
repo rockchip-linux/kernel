@@ -1011,7 +1011,9 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 	}
 #endif
 
-	hdmi_writel(hdmi_dev, FC_PRCONF, v_FC_PR_FACTOR(timing->pixelrepeat));
+	hdmi_writel(hdmi_dev, FC_PRCONF,
+		    v_FC_PR_FACTOR(timing->pixelrepeat) |
+		    v_FC_PR_FACTOR_OUT(timing->pixelrepeat - 1));
 
 	return 0;
 }

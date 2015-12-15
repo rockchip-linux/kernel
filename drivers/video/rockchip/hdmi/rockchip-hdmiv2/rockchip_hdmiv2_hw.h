@@ -688,6 +688,8 @@ enum {
 #define	FC_PRCONF			0x10e0
 #define m_FC_PR_FACTOR		(0x0f << 4)
 #define v_FC_PR_FACTOR(n)	(((n)&0x0f) << 4)
+#define m_FC_PR_FACTOR_OUT	(0x0f)
+#define v_FC_PR_FACTOR_OUT(n)	((n) & 0x0f)
 
 #define	FC_SCRAMBLER_CTRL		0x10e1
 #define m_FC_SCRAMBLE_UCP	(1 << 4)
