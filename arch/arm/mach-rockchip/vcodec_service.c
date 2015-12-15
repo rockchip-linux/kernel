@@ -1723,29 +1723,46 @@ static void try_set_reg(struct vpu_subdev_data *data)
 static int return_reg(struct vpu_subdev_data *data,
 		      struct vpu_reg *reg, u32 __user *dst)
 {
-	int ret = 0;
+	struct vpu_hw_info *hw_info = data->hw_info;
+	u32 base;
+	u32 end;
+	size_t size;
 
 	vpu_debug_enter();
 	switch (reg->type) {
 	case VPU_ENC: {
-		if (copy_to_user(dst, &reg->reg[0], data->hw_info->enc_io_size))
-			ret = -EFAULT;
+		base = 0;
+		end = hw_info->enc_reg_num;
 	} break;
-	case VPU_DEC:
-	case VPU_PP:
+	case VPU_DEC: {
+		base = hw_info->base_dec;
+		end = hw_info->end_dec;
+	} break;
+	case VPU_PP: {
+		base = hw_info->base_pp;
+		end = hw_info->end_pp;
+	} break;
 	case VPU_DEC_PP: {
-		if (copy_to_user(dst, &reg->reg[0], data->hw_info->dec_io_size))
-			ret = -EFAULT;
+		base = hw_info->base_pp;
+		end = hw_info->end_pp;
 	} break;
 	default: {
-		ret = -EFAULT;
 		vpu_err("error: copy reg to user with unknown type %d\n",
 			reg->type);
+		return -EFAULT;
 	} break;
 	}
+
+	size = (end - base) * sizeof(u32);
+
+	if (copy_to_user(dst, &reg->reg[base], size)) {
+		vpu_err("error: return_reg copy_to_user failed\n");
+		return -EFAULT;
+	}
+
 	reg_deinit(data, reg);
 	vpu_debug_leave();
-	return ret;
+	return 0;
 }
 
 static long vpu_service_ioctl(struct file *filp, unsigned int cmd,
