@@ -1055,7 +1055,7 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 			switch (type) {
 			case FMT_H264D: {
 				pps_info_offset = offset;
-				pps_info_count = 1;
+				pps_info_count = 256;
 				pps_info_size = 32;
 				scaling_list_addr_offset = 23;
 			} break;
