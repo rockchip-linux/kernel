@@ -56,6 +56,7 @@ struct rk322x_codec_priv {
 	struct clk *pclk;
 	unsigned int sclk;
 	int spk_ctl_gpio;
+	int spk_depop_time; /* msec */
 };
 
 static const struct reg_default rk322x_codec_reg_defaults[] = {
@@ -137,6 +138,11 @@ static int rk322x_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 
 	rk322x->sclk = freq;
 	return 0;
+}
+
+static void rk322x_analog_output(struct rk322x_codec_priv *rk322x, int mute)
+{
+	gpio_direction_output(rk322x->spk_ctl_gpio, mute);
 }
 
 static int rk322x_digital_mute(struct snd_soc_dai *dai, int mute)
@@ -224,7 +230,9 @@ static int rk322x_codec_open_playback(struct snd_soc_codec *codec)
 	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
-	pr_info("%s\n", __func__);
+	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
+			   DAC_CHARGE_CURRENT_ALL_MASK,
+			   DAC_CHARGE_CURRENT_ALL_ON);
 
 	for (i = 0; i < PLAYBACK_OPEN_LIST_LEN; i++) {
 		regmap_update_bits(rk322x->regmap,
@@ -234,11 +242,13 @@ static int rk322x_codec_open_playback(struct snd_soc_codec *codec)
 		mdelay(1);
 	}
 
+	msleep(rk322x->spk_depop_time);
+	rk322x_analog_output(rk322x, 1);
+
 	regmap_update_bits(rk322x->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, OUT_VOLUME);
 	regmap_update_bits(rk322x->regmap, HPOUTR_GAIN_CTRL,
 			   HPOUTR_GAIN_MASK, OUT_VOLUME);
-
 	return 0;
 }
 
@@ -275,6 +285,8 @@ static int rk322x_codec_close_playback(struct snd_soc_codec *codec)
 	struct rk322x_codec_priv *rk322x = snd_soc_codec_get_drvdata(codec);
 	int i = 0;
 
+	rk322x_analog_output(rk322x, 0);
+
 	regmap_update_bits(rk322x->regmap, HPOUTL_GAIN_CTRL,
 			   HPOUTL_GAIN_MASK, 0);
 	regmap_update_bits(rk322x->regmap, HPOUTR_GAIN_CTRL,
@@ -283,11 +295,14 @@ static int rk322x_codec_close_playback(struct snd_soc_codec *codec)
 	for (i = 0; i < PLAYBACK_CLOSE_LIST_LEN; i++) {
 		regmap_update_bits(rk322x->regmap,
 				   playback_close_list[i].reg,
-				   playback_open_list[i].msk,
+				   playback_close_list[i].msk,
 				   playback_close_list[i].val);
 		mdelay(1);
 	}
 
+	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
+			   DAC_CHARGE_CURRENT_ALL_MASK,
+			   DAC_CHARGE_CURRENT_I);
 	return 0;
 }
 
@@ -335,9 +350,9 @@ static int rk322x_pcm_startup(struct snd_pcm_substream *substream,
 static void rk322x_pcm_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
-	/* struct snd_soc_codec *codec = dai->codec;
+	struct snd_soc_codec *codec = dai->codec;
 
-	rk322x_codec_close_playback(codec); */
+	rk322x_codec_close_playback(codec);
 }
 
 static struct snd_soc_dai_ops rk322x_dai_ops = {
@@ -481,6 +496,13 @@ static int rk322x_platform_probe(struct platform_device *pdev)
 	if (!rk322x)
 		return -ENOMEM;
 
+	ret = of_property_read_u32(rk322x_np, "spk_depop_time",
+				   &rk322x->spk_depop_time);
+	if (ret < 0) {
+		dev_info(&pdev->dev, "spk_depop_time undefined, use default value.\n");
+		rk322x->spk_depop_time = 200;
+	}
+
 	rk322x->spk_ctl_gpio = of_get_named_gpio(rk322x_np, "spk_ctl_io", 0);
 	if (!gpio_is_valid(rk322x->spk_ctl_gpio)) {
 		dev_err(&pdev->dev, "invalid spk ctl gpio\n");
@@ -493,7 +515,7 @@ static int rk322x_platform_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	gpio_direction_output(rk322x->spk_ctl_gpio, 1);
+	rk322x_analog_output(rk322x, 0);
 
 	rk322x->pclk = devm_clk_get(&pdev->dev, "g_pclk_acodec");
 	if (IS_ERR(rk322x->pclk)) {
