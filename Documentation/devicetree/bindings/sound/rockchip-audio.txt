@@ -143,6 +143,7 @@ Required SoC Specific Properties:
 - clocks-names: list of clock names sorted in the same order as the clocks
   property.
 - spk_ctl_io: mute/unmute for L/R output.
+- spk_depop_time: delay millisecond for depop spk output.
 
 Example:
 
@@ -152,6 +153,7 @@ codec: codec@12010000 {
 	clocks = <&clk_gates10 5>;
 	clock-names = "g_pclk_acodec";
 	spk_ctl_io = <&gpio1 GPIO_A3 GPIO_ACTIVE_HIGH>;
+	spk_depop_time = <200>;
 };
 
 - compatible : "rockchip,rk322x-audio"
