@@ -117,6 +117,11 @@ static ssize_t wifi_chip_read(struct class *cls, struct class_attribute *attr, c
 	    printk("Current WiFi chip is ESP8089.\n");
 	}
 
+        if(type == WIFI_RTL8189FS) {
+            count = sprintf(_buf, "%s", "RTL8189FS");
+            printk("Current WiFi chip is RTL8189FS.\n");
+        }
+
     return count;
 }
 
