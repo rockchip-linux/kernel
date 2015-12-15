@@ -520,8 +520,8 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 		return status_old;
 
 	/* Cannot unlock; would unlock larger region than requested */
-	if (stm_is_locked_sr(nor, status_old, ofs - mtd->erasesize,
-			     mtd->erasesize))
+	if (stm_is_locked_sr(nor, ofs - mtd->erasesize, mtd->erasesize,
+			     status_old))
 		return -EINVAL;
 
 	/*
