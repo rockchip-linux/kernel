@@ -1008,6 +1008,7 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 {
 	struct vpu_service_info *pservice = data->pservice;
 	struct vpu_task_info *task = reg->task;
+	enum FORMAT_TYPE type;
 	struct ion_handle *hdl;
 	int ret = 0;
 	struct vcodec_mem_region *mem_region;
@@ -1016,6 +1017,13 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 
 	if (tbl == NULL || size <= 0) {
 		dev_err(pservice->dev, "input arguments invalidate\n");
+		return -1;
+	}
+
+	if (task->get_fmt)
+		type = task->get_fmt(reg->reg);
+	else {
+		pr_err("invalid task with NULL get_fmt\n");
 		return -1;
 	}
 
@@ -1031,8 +1039,24 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 
 		/*
 		 * special offset scale case
+		 *
+		 * This translation is for fd + offset translation.
+		 * One register has 32bits. We need to transfer both buffer file
+		 * handle and the start address offset so we packet file handle
+		 * and offset together using below format.
+		 *
+		 *  0~9  bit for buffer file handle range 0 ~ 1023
+		 * 10~31 bit for offset range 0 ~ 4M
+		 *
+		 * But on 4K case the offset can be larger the 4M
+		 * So on H.264 4K vpu/vpu2 decoder we scale the offset by 16
+		 * But MPEG4 will use the same register for colmv and it do not
+		 * need scale.
+		 *
+		 * RKVdec do not have this issue.
 		 */
-		if (task->reg_dir_mv > 0 && task->reg_dir_mv == tbl[i])
+		if (type == FMT_H264D && task->reg_dir_mv > 0 &&
+		    task->reg_dir_mv == tbl[i])
 			offset = reg->reg[tbl[i]] >> 10 << 4;
 		else
 			offset = reg->reg[tbl[i]] >> 10;
@@ -1046,7 +1070,6 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 		}
 
 		if (task->reg_pps > 0 && task->reg_pps == tbl[i]) {
-			enum FORMAT_TYPE type = reg->task->get_fmt(reg->reg);
 			int pps_info_offset;
 			int pps_info_count;
 			int pps_info_size;
