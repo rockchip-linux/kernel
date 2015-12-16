@@ -1716,27 +1716,22 @@ static int return_reg(struct vpu_subdev_data *data,
 		      struct vpu_reg *reg, u32 __user *dst)
 {
 	struct vpu_hw_info *hw_info = data->hw_info;
+	size_t size = reg->size;
 	u32 base;
-	u32 end;
-	size_t size;
 
 	vpu_debug_enter();
 	switch (reg->type) {
 	case VPU_ENC: {
 		base = 0;
-		end = hw_info->enc_reg_num;
 	} break;
 	case VPU_DEC: {
-		base = hw_info->base_dec;
-		end = hw_info->end_dec;
+		base = hw_info->base_dec_pp;
 	} break;
 	case VPU_PP: {
 		base = hw_info->base_pp;
-		end = hw_info->end_pp;
 	} break;
 	case VPU_DEC_PP: {
-		base = hw_info->base_pp;
-		end = hw_info->end_pp;
+		base = hw_info->base_dec_pp;
 	} break;
 	default: {
 		vpu_err("error: copy reg to user with unknown type %d\n",
@@ -1744,8 +1739,6 @@ static int return_reg(struct vpu_subdev_data *data,
 		return -EFAULT;
 	} break;
 	}
-
-	size = (end - base) * sizeof(u32);
 
 	if (copy_to_user(dst, &reg->reg[base], size)) {
 		vpu_err("error: return_reg copy_to_user failed\n");
