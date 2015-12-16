@@ -1681,6 +1681,11 @@
 						<2 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,
 						<2 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>;
 			};
+
+			phy_pins: phy-pins {
+				rockchip,pins =	<2 GPIO_B6 RK_FUNC_2 &pcfg_pull_none>,
+						<2 GPIO_B0 RK_FUNC_2 &pcfg_pull_none>;
+			};
 		};
 
 		tsadc_pin {

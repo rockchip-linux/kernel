@@ -348,6 +348,11 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
+		if (bsp_priv->internal_phy) {
+			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON1,
+				     GRF_CLR_BIT(8));
+		}
+
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_RMII_CLK_2_5M |
 			     RK322X_GMAC_SPEED_10M);
@@ -382,6 +387,11 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
 			return;
+		}
+
+		if (bsp_priv->internal_phy) {
+			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON1,
+				     GRF_BIT(8));
 		}
 
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
