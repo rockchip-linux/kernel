@@ -3624,14 +3624,8 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
     
         slot->wp_gpio = dw_mci_of_get_wp_gpio(host->dev, slot->id);
 	
-        if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO) {
-		if (!IS_ERR(host->clk_mmc))
-			clk_disable_unprepare(host->clk_mmc);
-		if (!IS_ERR(host->hclk_mmc))
-			clk_disable_unprepare(host->hclk_mmc);
-
-	        clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
-	}
+        if (mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO)
+                clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
 
         dw_mci_init_pinctrl(host);
         ret = mmc_add_host(mmc);
