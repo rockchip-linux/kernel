@@ -448,6 +448,7 @@ static void vop_deint(struct vop_device *vop_dev)
 
 		vop_cfg_done(vop_dev);
 		spin_unlock(&vop_dev->reg_lock);
+		mdelay(50);
 	}
 }
 
