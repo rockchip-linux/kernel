@@ -76,6 +76,32 @@
 		regulator-always-on;
 		regulator-boot-on;
 	};
+
+	bt_regulator: bt-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio2 9 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_rst_l>;
+		regulator-name = "bt_regulator";
+	};
+
+	wifi_regulator: wifi-regulator {
+		/*
+		 * On the module itself this is one of these (depending
+		 * on the actual card populated):
+		 * - SDIO_RESET_L_WL_REG_ON
+		 * - PDN (power down when low)
+		 */
+
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 26 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+		regulator-name = "wifi_regulator";
+		vin-supply = <&bt_regulator>;
+	};
 };
 
 &acodec {
@@ -304,6 +330,21 @@
 	status = "okay";
 };
 
+&sdio {
+	status = "okay";
+
+	broken-cd;
+	bus-width = <4>;
+	cap-sdio-irq;
+	card-external-vcc-supply = <&wifi_regulator>;
+	default-sample-phase = <90>;
+	keep-power-in-suspend;
+	non-removable;
+	num-slots = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio_clk &sdio_cmd &sdio_bus4 &bt_wake_h>;
+};
+
 &uart2 {
 	status = "okay";
 };
@@ -324,6 +365,20 @@
 	pmic {
 		pmic_int: pmic-int {
 			rockchip,pins = <2 2 RK_FUNC_GPIO &pcfg_pull_default>;
+		};
+	};
+
+	sdio {
+		wifi_enable_h: wifienable-h {
+			rockchip,pins = <0 26 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		bt_rst_l: bt-rst-l {
+			rockchip,pins = <2 9 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		bt_wake_h: bt-wake-h {
+			rockchip,pins = <2 8 RK_FUNC_GPIO &pcfg_pull_default>;
 		};
 	};
 
