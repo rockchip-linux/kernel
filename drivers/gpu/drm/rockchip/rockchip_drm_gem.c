@@ -383,7 +383,8 @@ static int rockchip_gem_acquire(struct drm_device *dev,
 	ret = wait_for_completion_interruptible(&compl);
 	mutex_lock(&dev->struct_mutex);
 	if (ret < 0) {
-		DRM_ERROR("Failed wait for reservation callback %d.\n", ret);
+		if (ret != -ERESTARTSYS)
+			DRM_ERROR("Failed wait for reservation callback %d.\n", ret);
 		drm_reservation_cb_fini(&rcb);
 		/* somebody else may be already waiting on it */
 		drm_fence_signal_and_put(&fence);
