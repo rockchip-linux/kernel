@@ -1352,14 +1352,25 @@ static int rockchip_hdmiv2_video_csc(struct hdmi_dev *hdmi_dev,
 static int hdmi_dev_detect_hotplug(struct hdmi *hdmi)
 {
 	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
-	u32 value;
+	u32 value, hotplug = HDMI_HPD_REMOVED;
 
 	value = hdmi_readl(hdmi_dev, PHY_STAT0);
 	HDMIDBG("[%s] reg%x value %02x\n", __func__, PHY_STAT0, value);
 	if (value & m_PHY_HPD)
-		return HDMI_HPD_ACTIVED;
+		hotplug = HDMI_HPD_ACTIVED;
 
-	return HDMI_HPD_REMOVED;
+	if (hdmi_dev->soctype == HDMI_SOC_RK322X &&
+	    hdmi_dev->tmdsclk &&
+	    hdmi->hotplug == hotplug &&
+	    hotplug == HDMI_HPD_ACTIVED) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK322X_GRF_SOC_CON2,
+			     RK322X_PLL_PDATA_DEN);
+		regmap_write(hdmi_dev->grf_base,
+			     RK322X_GRF_SOC_CON2,
+			     RK322X_PLL_PDATA_EN);
+	}
+	return hotplug;
 }
 
 static int hdmi_dev_read_edid(struct hdmi *hdmi, int block, unsigned char *buff)
