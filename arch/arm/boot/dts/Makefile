@@ -161,6 +161,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3036-rk88.dtb \
 	rk3036-sdk.dtb \
 	rk3126-86v.dtb \
+	rk3126-86v-r2.dtb \
 	rk3126-fpga.dtb \
 	rk3126-sdk.dtb \
 	rk3128-86v.dtb \
