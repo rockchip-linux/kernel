@@ -2125,18 +2125,13 @@ static int dsp_y_pos(int mirror_en, struct rk_screen *screen,
 	if (screen->y_mirror && mirror_en)
 		pr_err("not support both win and global mirror\n");
 
-	if (screen->mode.vmode & FB_VMODE_INTERLACED) {
-		pos = area->ypos / 2 + screen->mode.upper_margin +
+	if ((!mirror_en) && (!screen->y_mirror))
+		pos = area->ypos + screen->mode.upper_margin +
 			screen->mode.vsync_len;
-	} else {
-		if ((!mirror_en) && (!screen->y_mirror))
-			pos = area->ypos + screen->mode.upper_margin +
-				screen->mode.vsync_len;
-		else
-			pos = screen->mode.yres - area->ypos -
-				area->ysize + screen->mode.upper_margin +
-				screen->mode.vsync_len;
-	}
+	else
+		pos = screen->mode.yres - area->ypos -
+			area->ysize + screen->mode.upper_margin +
+			screen->mode.vsync_len;
 
 	return pos;
 }
