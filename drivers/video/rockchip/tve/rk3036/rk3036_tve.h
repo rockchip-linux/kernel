@@ -145,6 +145,7 @@ struct rk3036_tve {
 	struct rk_screen		screen;
 	int test_mode;
 	int saturation;
+	struct mutex tve_lock;	/* mutex for tve resume operation*/
 };
 
 #endif

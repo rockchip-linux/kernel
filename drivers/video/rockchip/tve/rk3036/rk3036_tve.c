@@ -240,10 +240,13 @@ static int tve_switch_fb(const struct fb_videomode *modedb, int enable)
 static int cvbs_set_enable(struct rk_display_device *device, int enable)
 {
 	TVEDBG("%s enable %d\n", __func__, enable);
+	mutex_lock(&rk3036_tve->tve_lock);
 	if (rk3036_tve->enable != enable) {
 		rk3036_tve->enable = enable;
-		if (rk3036_tve->suspend)
+		if (rk3036_tve->suspend) {
+			mutex_unlock(&rk3036_tve->tve_lock);
 			return 0;
+		}
 
 		if (enable == 0) {
 			dac_enable(false);
@@ -254,6 +257,7 @@ static int cvbs_set_enable(struct rk_display_device *device, int enable)
 			dac_enable(true);
 		}
 	}
+	mutex_unlock(&rk3036_tve->tve_lock);
 	return 0;
 }
 
@@ -333,6 +337,7 @@ tve_fb_event_notify(struct notifier_block *self,
 		switch (blank_mode) {
 		case FB_BLANK_UNBLANK:
 			TVEDBG("resume tve\n");
+			mutex_lock(&rk3036_tve->tve_lock);
 			if (rk3036_tve->suspend) {
 				if (rk3036_tve->soctype == SOC_RK322X) {
 					clk_prepare_enable(rk3036_tve->dac_clk);
@@ -344,6 +349,7 @@ tve_fb_event_notify(struct notifier_block *self,
 					dac_enable(true);
 				}
 			}
+			mutex_unlock(&rk3036_tve->tve_lock);
 			break;
 		default:
 			break;
@@ -481,6 +487,7 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 		if (cvbsformat < 0)
 			rk322x_dac_init();
 	}
+	mutex_init(&rk3036_tve->tve_lock);
 	INIT_LIST_HEAD(&(rk3036_tve->modelist));
 	for (i = 0; i < ARRAY_SIZE(rk3036_cvbs_mode); i++)
 		fb_add_videomode(&rk3036_cvbs_mode[i], &(rk3036_tve->modelist));
