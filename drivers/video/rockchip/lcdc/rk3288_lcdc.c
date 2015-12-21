@@ -3369,32 +3369,36 @@ static int rk3288_set_dsp_lut(struct rk_lcdc_driver *dev_drv, int *lut)
 
 	struct lcdc_device *lcdc_dev =
 	    container_of(dev_drv, struct lcdc_device, driver);
+
+	if (!lut) {
+		dev_err(dev_drv->dev, "no buffer to backup lut data!\n");
+		return -1;
+	}
+
 	lcdc_msk_reg(lcdc_dev, DSP_CTRL1, m_DSP_LUT_EN, v_DSP_LUT_EN(0));
 	lcdc_cfg_done(lcdc_dev);
 	mdelay(25);
-	if (dev_drv->cur_screen->dsp_lut) {
-		for (i = 0; i < 256; i++) {
-			v = dev_drv->cur_screen->dsp_lut[i] = lut[i];
-			c = lcdc_dev->dsp_lut_addr_base + (i << 2);
-			b = (v & 0xff) << 2;
-			g = (v & 0xff00) << 4;
-			r = (v & 0xff0000) << 6;
-			v = r + g + b;
-			for (j = 0; j < 4; j++) {
-				writel_relaxed(v, c);
-				v += (1 + (1 << 10) + (1 << 20)) ;
-				c++;
-			}
+	for (i = 0; i < 256; i++) {
+		if (dev_drv->cur_screen->dsp_lut)
+			dev_drv->cur_screen->dsp_lut[i] = lut[i];
+		v = lut[i];
+		c = lcdc_dev->dsp_lut_addr_base + (i << 2);
+		b = (v & 0xff) << 2;
+		g = (v & 0xff00) << 4;
+		r = (v & 0xff0000) << 6;
+		v = r + g + b;
+		for (j = 0; j < 4; j++) {
+			writel_relaxed(v, c);
+			v += (1 + (1 << 10) + (1 << 20)) ;
+			c++;
 		}
-	} else {
-		dev_err(dev_drv->dev, "no buffer to backup lut data!\n");
-		ret = -1;
 	}
-	
-	do{
+
+	do {
 		lcdc_msk_reg(lcdc_dev, DSP_CTRL1, m_DSP_LUT_EN, v_DSP_LUT_EN(1));
 		lcdc_cfg_done(lcdc_dev);
-	}while(!lcdc_read_bit(lcdc_dev,DSP_CTRL1,m_DSP_LUT_EN));
+	} while(!lcdc_read_bit(lcdc_dev, DSP_CTRL1, m_DSP_LUT_EN));
+
 	return ret;
 }
 
