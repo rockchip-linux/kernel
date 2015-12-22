@@ -38,6 +38,7 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <dt-bindings/clock/rockchip,rk808.h>
 #include <dt-bindings/pwm/pwm.h>
 #include "rk3288.dtsi"
 #include "rk3288-veyron-lpddr.dtsi"
@@ -201,6 +202,45 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&hp_det>;
 	};
+
+	wifi_regulator: wifi-regulator {
+		/*
+		 * On the module itself this is one of these (depending
+		 * on the actual card populated):
+		 * - SDIO_RESET_L_WL_REG_ON
+		 * - PDN (power down when low)
+		 */
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio4 28 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+		regulator-name = "wifi_regulator";
+
+		/* Faux input supply.  See bt_regulator description. */
+		vin-supply = <&bt_regulator>;
+	};
+
+	bt_regulator: bt-regulator {
+		/*
+		 * On the module itself this is one of these (depending
+		 * on the actual card pouplated):
+		 * - BT_I2S_WS_BT_RFDISABLE_L
+		 * - No connect
+		 */
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio4 29 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_enable_l>;
+		regulator-name = "bt_regulator";
+	};
+
+	io-domains {
+		compatible = "rockchip,rk3288-io-voltage-domain";
+		rockchip,grf = <&grf>;
+		wifi-supply = <&vcc_18>;
+	};
 };
 
 &cpu0 {
@@ -312,6 +352,31 @@
 	status = "okay";
 	vmmc-supply = <&vcc_sd>;
 	vqmmc-supply = <&vccio_sd>;
+};
+
+&sdio0 {
+	broken-cd;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	sd-uhs-sdr12;
+	sd-uhs-sdr25;
+	sd-uhs-sdr50;
+	sd-uhs-sdr104;
+	clock-freq-min-max = <400000 50000000>;
+	cap-sdio-irq;
+	card-external-vcc-supply = <&wifi_regulator>;
+	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&cru SCLK_SDIO0_DRV>,
+		 <&cru SCLK_SDIO0_SAMPLE>, <&rk808 RK808_CLKOUT1>;
+	clock-names = "biu", "ciu", "ciu_drv", "ciu_sample", "card_ext_clock";
+	keep-power-in-suspend;
+	non-removable;
+	num-slots = <1>;
+	default-sample-phase = <90>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdio0_clk &sdio0_cmd &sdio0_bus4>;
+	status = "okay";
+	vmmc-supply = <&vcc_sys>;
+	vqmmc-supply = <&vcc_wl>;
 };
 
 &i2c0 {
@@ -482,6 +547,40 @@
 
 		sdmmc_pwr: sdmmc-pwr {
 			rockchip,pins = <7 11 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	sdio0 {
+		wifi_enable_h: wifienable-h {
+			rockchip,pins = <4 28 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		/* NOTE: mislabelled on schematic; should be bt_enable_h */
+		bt_enable_l: bt-enable-l {
+			rockchip,pins = <4 29 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		bt_host_wake: bt-host-wake {
+			rockchip,pins = <4 31 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+
+		/*
+		 * We run sdio0 at max speed; bump up drive strength.
+		 * We also have external pulls, so disable the internal ones.
+		 */
+		sdio0_bus4: sdio0-bus4 {
+			rockchip,pins = <4 20 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<4 21 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<4 22 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
+					<4 23 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdio0_cmd: sdio0-cmd {
+			rockchip,pins = <4 24 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		};
+
+		sdio0_clk: sdio0-clk {
+			rockchip,pins = <4 25 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
 		};
 	};
 
