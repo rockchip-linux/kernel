@@ -155,7 +155,8 @@
 						1008000 1200000
 						>;
 					temp-limit-enable = <1>;
-					target-temp = <90>;
+					target-temp = <95>;
+					min_temp_limit = <600000>;
 					normal-temp-limit = <
 					/*delta-temp    delta-freq*/
 						3	96000
