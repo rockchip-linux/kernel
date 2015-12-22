@@ -106,6 +106,14 @@ ORIG_CFLAGS := $(KBUILD_CFLAGS)
 KBUILD_CFLAGS = $(subst -pg, , $(ORIG_CFLAGS))
 endif
 
+ifeq ($(CONFIG_ARM_ATAG_DTB_COMPAT),y)
+CFLAGS_atags_to_fdt.o := -fno-stack-protector
+CFLAGS_fdt.o := -fno-stack-protector
+CFLAGS_fdt_ro.o := -fno-stack-protector
+CFLAGS_fdt_rw.o := -fno-stack-protector
+CFLAGS_fdt_wip.o := -fno-stack-protector
+endif
+
 ccflags-y := -fpic -mno-single-pic-base -fno-builtin -I$(obj)
 asflags-y := -DZIMAGE
 
