@@ -42,6 +42,8 @@ static int pd_gpu_off, early_suspend;
 static DEFINE_MUTEX(switch_vdd_gpu_mutex);
 struct regulator *vdd_gpu_regulator;
 static DEFINE_MUTEX(temp_limit_mutex);
+static u32 cpu_target_temp;
+static bool temp_limit_rkvdec;
 
 static int dvfs_get_temp(int chn)
 {
@@ -184,6 +186,28 @@ static int early_suspend_notifier_call(struct notifier_block *self,
 
 static struct notifier_block early_suspend_notifier = {
 		.notifier_call = early_suspend_notifier_call,
+};
+
+#define CPU_TARGET_TMEP_4K	105
+#define CPU_MIN_RATE_4K		1008000000
+static int sys_stat_notifier_call(struct notifier_block *nb,
+				  unsigned long val, void *data)
+{
+	if (clk_cpu_dvfs_node && cpu_is_rk322x()) {
+		if (val & SYS_STATUS_VIDEO_4K) {
+			clk_cpu_dvfs_node->min_rate = CPU_MIN_RATE_4K;
+			clk_cpu_dvfs_node->target_temp = CPU_TARGET_TMEP_4K;
+		} else {
+			clk_cpu_dvfs_node->min_rate =
+				clk_cpu_dvfs_node->dvfs_table[0].frequency;
+			clk_cpu_dvfs_node->target_temp = cpu_target_temp;
+		}
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block sys_stat_notifier = {
+		.notifier_call = sys_stat_notifier_call,
 };
 
 #define DVFS_REGULATOR_MODE_STANDBY	1
@@ -1239,6 +1263,27 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 						  dvfs_node->last_set_rate);
 			}
 		}
+		if (cpu_is_rk322x() &&
+		    (rockchip_get_system_status() & SYS_STATUS_VIDEO_4K)) {
+			struct clk *clk;
+
+			clk = clk_get(NULL, "aclk_rkvdec");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 50 * MHz);
+				clk_put(clk);
+			}
+			clk = clk_get(NULL, "clk_vdec_core");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 50 * MHz);
+				clk_put(clk);
+			}
+			clk = clk_get(NULL, "clk_vdec_cabac");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 50 * MHz);
+				clk_put(clk);
+			}
+			temp_limit_rkvdec = true;
+		}
 	} else {
 		if (dvfs_node->temp_limit_rate < dvfs_node->max_rate) {
 			delta_temp = dvfs_node->target_temp - temp;
@@ -1260,6 +1305,28 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 				dvfs_clk_set_rate(dvfs_node,
 						  dvfs_node->last_set_rate);
 			}
+		}
+		if (cpu_is_rk322x() &&
+		    (rockchip_get_system_status() & SYS_STATUS_VIDEO_4K) &&
+		    temp_limit_rkvdec) {
+			struct clk *clk;
+
+			clk = clk_get(NULL, "aclk_rkvdec");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 500 * MHz);
+				clk_put(clk);
+			}
+			clk = clk_get(NULL, "clk_vdec_core");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 300 * MHz);
+				clk_put(clk);
+			}
+			clk = clk_get(NULL, "clk_vdec_cabac");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 300 * MHz);
+				clk_put(clk);
+			}
+			temp_limit_rkvdec = false;
 		}
 	}
 }
@@ -2626,6 +2693,11 @@ static int __init dvfs_init(void)
 
 		fb_register_client(&early_suspend_notifier);
 		register_reboot_notifier(&vdd_gpu_reboot_notifier);
+	}
+
+	if (clk_cpu_dvfs_node && cpu_is_rk322x()) {
+		cpu_target_temp = clk_cpu_dvfs_node->target_temp;
+		rockchip_register_system_status_notifier(&sys_stat_notifier);
 	}
 
 	return ret;
