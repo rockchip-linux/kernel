@@ -1464,8 +1464,6 @@ static int rk312x_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	rk312x_lcdc_set_dclk(dev_drv, 1);
 	lcdc_cfg_done(lcdc_dev);
 
-	if (dev_drv->trsm_ops && dev_drv->trsm_ops->enable)
-		dev_drv->trsm_ops->enable();
 	if (screen->init)
 		screen->init();
 
@@ -1511,6 +1509,8 @@ static int rk312x_lcdc_open(struct rk_lcdc_driver *dev_drv, int win_id,
 			dev_drv->standby = 1;
 			rk312x_load_screen(dev_drv, 1);
 			rk312x_lcdc_standby(dev_drv, false);
+			if (dev_drv->trsm_ops && dev_drv->trsm_ops->enable)
+				dev_drv->trsm_ops->enable();
 		}
 
 		/* set screen lut */
@@ -2530,10 +2530,10 @@ static int rk312x_lcdc_dsp_black(struct rk_lcdc_driver *dev_drv, int enable)
 		}
 		spin_unlock(&lcdc_dev->reg_lock);
 
+		rk312x_lcdc_standby(dev_drv, false);
+		msleep(20);
 		if (dev_drv->trsm_ops && dev_drv->trsm_ops->enable)
 			dev_drv->trsm_ops->enable();
-
-		rk312x_lcdc_standby(dev_drv, false);
 
 		msleep(100);
 		/* open the backlight */
