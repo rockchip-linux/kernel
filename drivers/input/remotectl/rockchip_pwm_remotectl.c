@@ -60,11 +60,13 @@ struct rkxx_remotectl_drvdata {
 	int keycode;
 	int press;
 	int pre_press;
-	int period;
 	int irq;
 	int remote_pwm_id;
 	int handle_cpu_id;
 	int wakeup;
+	int clk_rate;
+	unsigned long period;
+	int pwm_freq_nstime;
 	struct input_dev *input;
 	struct timer_list timer;
 	struct tasklet_struct remote_tasklet;
@@ -242,7 +244,7 @@ static void rk_pwm_remotectl_do_something(unsigned long  data)
 	}
 	break;
 	case RMC_SEQUENCE:{
-		DBG("S=%d\n", ddata->period);
+		DBG("S=%ld\n", ddata->period);
 		if ((RK_PWM_TIME_RPT_MIN < ddata->period) &&
 		    (ddata->period < RK_PWM_TIME_RPT_MAX)) {
 			DBG("S1\n");
@@ -300,12 +302,11 @@ static irqreturn_t rockchip_pwm_irq(int irq, void *dev_id)
 		if (val & PWM_CH0_INT) {
 			if ((val & PWM_CH0_POL) == 0) {
 				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				ddata->period = val;
 				tasklet_hi_schedule(&ddata->remote_tasklet);
-				DBG("hpr=0x%x\n", val);
+				ddata->period = ddata->pwm_freq_nstime * val /1000;
+				DBG("period=%ld\n", ddata->period);
 			} else {
 				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-				DBG("lpr=0x%x\n", val);
 			}
 			writel_relaxed(PWM_CH0_INT, ddata->base + PWM0_REG_INTSTS);
 			if (ddata->state == RMC_PRELOAD)
@@ -319,12 +320,11 @@ static irqreturn_t rockchip_pwm_irq(int irq, void *dev_id)
 		if (val & PWM_CH1_INT) {
 			if ((val & PWM_CH1_POL) == 0) {
 				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				ddata->period = val;
 				tasklet_hi_schedule(&ddata->remote_tasklet);
-				DBG("hpr=0x%x\n", val);
+				ddata->period = ddata->pwm_freq_nstime * val /1000;
+				DBG("period=%ld\n", ddata->period);
 			} else {
 				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-				DBG("lpr=0x%x\n", val);
 			}
 			writel_relaxed(PWM_CH1_INT, ddata->base + PWM1_REG_INTSTS);
 			if (ddata->state == RMC_PRELOAD)
@@ -338,12 +338,11 @@ static irqreturn_t rockchip_pwm_irq(int irq, void *dev_id)
 		if (val & PWM_CH2_INT) {
 			if ((val & PWM_CH2_POL) == 0) {
 				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				ddata->period = val;
 				tasklet_hi_schedule(&ddata->remote_tasklet);
-				DBG("hpr=0x%x\n", val);
+				ddata->period = ddata->pwm_freq_nstime * val / 1000;
+				DBG("period=%ld\n", ddata->period);
 			} else {
 				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-				DBG("lpr=0x%x\n", val);
 			}
 			writel_relaxed(PWM_CH2_INT, ddata->base + PWM2_REG_INTSTS);
 			if (ddata->state == RMC_PRELOAD)
@@ -357,12 +356,11 @@ static irqreturn_t rockchip_pwm_irq(int irq, void *dev_id)
 		if (val & PWM_CH3_INT) {
 			if ((val & PWM_CH3_POL) == 0) {
 				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				ddata->period = val;
 				tasklet_hi_schedule(&ddata->remote_tasklet);
-				DBG("hpr=0x%x\n", val);
+				ddata->period = ddata->pwm_freq_nstime * val /1000;
+				DBG("period=%ld\n", ddata->period);
 			} else {
 				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-				DBG("lpr=0x%x\n", val);
 			}
 			writel_relaxed(PWM_CH3_INT, ddata->base + PWM3_REG_INTSTS);
 			if (ddata->state == RMC_PRELOAD)
@@ -388,7 +386,7 @@ static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 	val = (val & 0xFFFFFFF9) | PWM_MODE_CAPTURE;
 	writel_relaxed(val, ddata->base + PWM_REG_CTRL);
 	val = readl_relaxed(ddata->base + PWM_REG_CTRL);
-	val = (val & 0xFF008DFF) | 0x00646200;
+	val = (val & 0xFF008DFF) | 0x0006000;
 	writel_relaxed(val, ddata->base + PWM_REG_CTRL);
 	switch (ddata->remote_pwm_id) {
 	case 0: {
@@ -425,7 +423,6 @@ static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 }
 
 
-
 static int rk_pwm_probe(struct platform_device *pdev)
 {
 	struct rkxx_remotectl_drvdata *ddata;
@@ -440,6 +437,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	int i, j;
 	int cpu_id;
 	int pwm_id;
+	int pwm_freq;
 
 	pr_err(".. rk pwm remotectl v1.1 init\n");
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -533,6 +531,8 @@ static int rk_pwm_probe(struct platform_device *pdev)
 		return ret;
 	}
 	rk_pwm_remotectl_hw_init(ddata);
+	pwm_freq = clk_get_rate(clk) / 64;
+	ddata->pwm_freq_nstime = 1000000000 / pwm_freq;
 	return ret;
 }
 
