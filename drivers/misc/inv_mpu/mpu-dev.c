@@ -1690,9 +1690,9 @@ static ssize_t gsensor_clear_store(struct device *dev,
 
 }
 
-static DEVICE_ATTR(gsensorcheck, 0666, show_gsensor_check, gsensor_check_store);
-static DEVICE_ATTR(gsensorclear, 0666, NULL, gsensor_clear_store);
-
+static DEVICE_ATTR(gsensorcheck, S_IRUGO | S_IWUSR,
+		   show_gsensor_check, gsensor_check_store);
+static DEVICE_ATTR(gsensorclear, S_IWUSR, NULL, gsensor_clear_store);
 
 static int gsensor_sysfs_init(void)
 {
