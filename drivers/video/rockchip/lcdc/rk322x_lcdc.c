@@ -2307,7 +2307,7 @@ static int hwc_set_par(struct vop_device *vop_dev,
 		xvir = win->area[0].xvir;
 		yvir = win->area[0].yvir;
 	}
-	vop_hwc_reg_update(&vop_dev->driver, 4);
+	vop_hwc_reg_update(&vop_dev->driver, 2);
 	spin_unlock(&vop_dev->reg_lock);
 
 	DBG(1, "lcdc[%d]:hwc>>%s\n>>format:%s>>>xact:%d>>yact:%d>>xsize:%d",
