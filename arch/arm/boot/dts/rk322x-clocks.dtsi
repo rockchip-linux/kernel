@@ -254,6 +254,7 @@
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
+						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
 					};
 
 					aclk_bus_mux: aclk_bus_mux {
