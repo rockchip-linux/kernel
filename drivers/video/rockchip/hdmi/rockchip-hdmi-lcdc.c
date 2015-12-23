@@ -381,13 +381,10 @@ static void hdmi_sort_modelist(struct hdmi_edid *edid, int feature)
 				    hdmi_mode[i].mode.vmode &
 				     FB_VMODE_INTERLACED)
 					continue;
-				vic = modelist->vic;
-				modelist->vic = hdmi_mode[i].vic;
 				modelist->mode = hdmi_mode[i].mode;
-				if (vic & HDMI_VIDEO_YUV420) {
-					modelist->vic |= HDMI_VIDEO_YUV420;
+				if (modelist->vic & HDMI_VIDEO_YUV420)
 					modelist->mode.flag = 1;
-				}
+
 				compare = 1;
 				m = (struct fb_videomode *)&(modelist->mode);
 				list_for_each(pos_new, &head_new) {
