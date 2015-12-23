@@ -23,6 +23,7 @@
 
 #include <linux/rbtree_augmented.h>
 #include <linux/export.h>
+#include <linux/rcupdate.h>
 
 /*
  * red-black trees properties:  http://en.wikipedia.org/wiki/Rbtree
@@ -590,3 +591,13 @@ struct rb_node *rb_first_postorder(const struct rb_root *root)
 	return rb_left_deepest_node(root->rb_node);
 }
 EXPORT_SYMBOL(rb_first_postorder);
+
+void rb_link_node_rcu(struct rb_node *node, struct rb_node *parent,
+				    struct rb_node **rb_link)
+{
+	node->__rb_parent_color = (unsigned long)parent;
+	node->rb_left = node->rb_right = NULL;
+
+	rcu_assign_pointer(*rb_link, node);
+}
+EXPORT_SYMBOL(rb_link_node_rcu);
