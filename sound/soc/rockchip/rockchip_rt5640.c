@@ -249,6 +249,48 @@ static irqreturn_t mic_detect_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static int snd_rk_mc_gpio_init(struct platform_device *pdev)
+{
+	int ret;
+
+	hpdet_gpiod = devm_gpiod_get(&pdev->dev, "hpdet");
+
+	if (IS_ERR(hpdet_gpiod)) {
+		dev_err(&pdev->dev,
+			"%s() Can not read property hpdet-gpios\n", __func__);
+		goto do_err;
+	} else {
+		ret = gpiod_direction_input(hpdet_gpiod);
+		if (ret < 0) {
+			pr_err("%s() gpio_direction_input hpdet set ERROR\n", __func__);
+			goto do_err;
+		}
+
+		printk("request_threaded_irq hpdet_gpiod ok\n");
+	}
+
+	micdet_gpiod = devm_gpiod_get(&pdev->dev, "micdet");
+
+	if (IS_ERR(micdet_gpiod)) {
+		dev_err(&pdev->dev,
+			"%s() Can not read property micdet-gpios\n", __func__);
+		goto do_err;
+	} else {
+		ret = gpiod_direction_input(micdet_gpiod);
+		if (ret < 0) {
+			pr_err("%s() gpio_direction_input micdet set ERROR\n", __func__);
+			goto do_err;
+		}
+
+		printk("request_threaded_irq micdet_gpiod ok\n");
+	}
+
+	return 0;
+
+do_err:
+	return -EINVAL;
+}
+
 static int snd_rk_mc_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -276,6 +318,8 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 
 	rk_dailink.platform_of_node = rk_dailink.cpu_of_node;
 
+	snd_rk_mc_gpio_init(pdev);
+
 	ret = snd_soc_of_parse_card_name(card, "rockchip,model");
 	if (ret) {
 		dev_err(&pdev->dev,
@@ -290,61 +334,23 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	hpdet_gpiod = devm_gpiod_get(&pdev->dev, "hpdet");
+	INIT_DELAYED_WORK(&hp_detect_work, rt5640_headphone_detect_work);
+	INIT_DELAYED_WORK(&mic_detect_work, rt5640_mic_detect_work);
 
-	if (IS_ERR(hpdet_gpiod)) {
-		dev_err(&pdev->dev,
-			"%s() Can not read property hpdet-gpios\n", __func__);
+	ret = request_threaded_irq(gpiod_to_irq(hpdet_gpiod), NULL, headphone_detect_irq,
+		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
+		| IRQF_ONESHOT, "hp_irq", NULL);
+	if (ret) {
+		pr_err("Failed to reguest IRQ: %d\n", ret);
 		goto do_err;
-	} else {
-		int irq = gpiod_to_irq(hpdet_gpiod);
-
-		ret = gpiod_direction_input(hpdet_gpiod); 
-		if (ret < 0) {
-			pr_err("%s() gpio_direction_input hpdet set ERROR\n", __func__);
-			goto do_err;
-		}
-
-		INIT_DELAYED_WORK(&hp_detect_work, rt5640_headphone_detect_work);
-
-		ret = request_threaded_irq(irq, NULL, headphone_detect_irq,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
-			| IRQF_ONESHOT, "hp_irq", NULL);
-
-		if (ret) {
-			pr_err("Failed to reguest IRQ: %d\n", ret);
-			goto do_err;
-		}
-
-		printk("request_threaded_irq hpdet_gpiod irq = %d ok\n", irq);
 	}
 
-	micdet_gpiod = devm_gpiod_get(&pdev->dev, "micdet");
-
-	if (IS_ERR(micdet_gpiod)) {
-		dev_err(&pdev->dev,
-			"%s() Can not read property micdet-gpios\n", __func__);
+	ret = request_threaded_irq(gpiod_to_irq(micdet_gpiod), NULL, mic_detect_irq,
+		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
+		| IRQF_ONESHOT, "mic_irq", NULL);
+	if (ret) {
+		pr_err("Failed to reguest IRQ: %d\n", ret);
 		goto do_err;
-	} else {
-		int irq = gpiod_to_irq(micdet_gpiod);
-
-		ret = gpiod_direction_input(micdet_gpiod);
-		if (ret < 0) {
-			pr_err("%s() gpio_direction_input micdet set ERROR\n", __func__);
-			goto do_err;
-		}
-
-		INIT_DELAYED_WORK(&mic_detect_work, rt5640_mic_detect_work);
-
-		ret = request_threaded_irq(irq, NULL, mic_detect_irq,
-			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
-			| IRQF_ONESHOT, "mic_irq", NULL);
-		if (ret) {
-			pr_err("Failed to reguest IRQ: %d\n", ret);
-			goto do_err;
-		}
-
-		printk("request_threaded_irq micdet_gpiod irq = %d ok\n", irq);
 	}
 
 do_err:
