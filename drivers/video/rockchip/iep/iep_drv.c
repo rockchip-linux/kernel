@@ -87,18 +87,17 @@ iep_service_info iep_service;
 
 static void iep_reg_deinit(struct iep_reg *reg)
 {
-#if defined(CONFIG_IEP_IOMMU)
 	struct iep_mem_region *mem_region = NULL, *n;
 	/* release memory region attach to this registers table.*/
-	if (iep_service.iommu_dev) {
-		list_for_each_entry_safe(mem_region, n, &reg->mem_region_list, reg_lnk) {
-			/*ion_unmap_iommu(iep_service.iommu_dev, iep_service.ion_client, mem_region->hdl);*/
-			ion_free(iep_service.ion_client, mem_region->hdl);
-			list_del_init(&mem_region->reg_lnk);
-			kfree(mem_region);
-		}
+	list_for_each_entry_safe(mem_region, n,
+				 &reg->mem_region_list, reg_lnk) {
+		/*ion_unmap_iommu(iep_service.iommu_dev,
+				  iep_service.ion_client,
+				  mem_region->hdl);*/
+		ion_free(iep_service.ion_client, mem_region->hdl);
+		list_del_init(&mem_region->reg_lnk);
+		kfree(mem_region);
 	}
-#endif
 	list_del_init(&reg->session_link);
 	list_del_init(&reg->status_link);
 	kfree(reg);
@@ -1141,17 +1140,17 @@ static int iep_drv_probe(struct platform_device *pdev)
 		goto err_misc_register;
 	}
 
-#if defined(CONFIG_IEP_IOMMU)
 	iep_service.iommu_dev = NULL;
+	iep_service.ion_client = rockchip_ion_client_create("iep");
+	if (IS_ERR(iep_service.ion_client)) {
+		IEP_ERR("failed to create ion client for vcodec");
+		return PTR_ERR(iep_service.ion_client);
+	} else {
+		IEP_INFO("iep ion client create success!\n");
+	}
+#if defined(CONFIG_IEP_IOMMU)
 	if (iommu_en) {
 		iep_power_on();
-		iep_service.ion_client = rockchip_ion_client_create("iep");
-		if (IS_ERR(iep_service.ion_client)) {
-			IEP_ERR("failed to create ion client for vcodec");
-			return PTR_ERR(iep_service.ion_client);
-		} else {
-			IEP_INFO("iep ion client create success!\n");
-		}
 
 		mmu_dev = rockchip_get_sysmmu_device_by_compatible(
 			IEP_IOMMU_COMPATIBLE_NAME);

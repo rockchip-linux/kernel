@@ -142,10 +142,8 @@ typedef struct iep_service_info {
 
 	struct mutex	    mutex;  // mutex
 
-#ifdef CONFIG_IEP_IOMMU
 	struct ion_client *ion_client;
 	struct device *iommu_dev;
-#endif
 } iep_service_info;
 
 struct iep_reg {

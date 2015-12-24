@@ -917,51 +917,27 @@ static void iep_config_src_addr(struct IEP_MSG *iep_msg)
 	//**********************************************//
 	//***********yuv address   *********************//
 	//**********************************************//
-	if (iep_service.iommu_dev == NULL) {
-		src_addr_yrgb = ((u32)iep_msg->src.mem_addr) + offset_addr_y;
-		src_addr_cbcr = ((u32)iep_msg->src.uv_addr) + offset_addr_uv;
-		src_addr_cr = ((u32)iep_msg->src.v_addr) + offset_addr_v;
+	src_addr_yrgb = ((u32)iep_msg->src.mem_addr) + (offset_addr_y << 10);
+	src_addr_cbcr = ((u32)iep_msg->src.uv_addr) + (offset_addr_uv << 10);
+	src_addr_cr = ((u32)iep_msg->src.v_addr) + (offset_addr_v << 10);
 
-		src_addr_y1 = ((u32)iep_msg->src1.mem_addr) + offset_addr_y;
-		src_addr_cbcr1 = ((u32)iep_msg->src1.uv_addr) + offset_addr_uv;
-		src_addr_cr1 = ((u32)iep_msg->src1.v_addr) + offset_addr_v;
+	src_addr_y1 = ((u32)iep_msg->src1.mem_addr) + (offset_addr_y << 10);
+	src_addr_cbcr1 = ((u32)iep_msg->src1.uv_addr) + (offset_addr_uv  << 10);
+	src_addr_cr1 = ((u32)iep_msg->src1.v_addr) + (offset_addr_v << 10);
 
-		src_addr_y_itemp = ((u32)iep_msg->src_itemp.mem_addr) +
-			offset_addr_y;
-		src_addr_cbcr_itemp = ((u32)iep_msg->src_itemp.uv_addr) +
-			offset_addr_uv;
-		src_addr_cr_itemp = ((u32)iep_msg->src_itemp.v_addr) +
-			offset_addr_v;
+	src_addr_y_itemp = ((u32)iep_msg->src_itemp.mem_addr) +
+		(offset_addr_y << 10);
+	src_addr_cbcr_itemp = ((u32)iep_msg->src_itemp.uv_addr) +
+		(offset_addr_uv << 10);
+	src_addr_cr_itemp = ((u32)iep_msg->src_itemp.v_addr) +
+		(offset_addr_v << 10);
 
-		src_addr_y_ftemp = ((u32)iep_msg->src_ftemp.mem_addr) +
-			offset_addr_y;
-		src_addr_cbcr_ftemp = ((u32)iep_msg->src_ftemp.uv_addr) +
-			offset_addr_uv;
-		src_addr_cr_ftemp = ((u32)iep_msg->src_ftemp.v_addr) +
-			offset_addr_v;
-	} else {
-		src_addr_yrgb = ((u32)iep_msg->src.mem_addr) + (offset_addr_y << 10);
-		src_addr_cbcr = ((u32)iep_msg->src.uv_addr) + (offset_addr_uv << 10);
-		src_addr_cr = ((u32)iep_msg->src.v_addr) + (offset_addr_v << 10);
-
-		src_addr_y1 = ((u32)iep_msg->src1.mem_addr) + (offset_addr_y << 10);
-		src_addr_cbcr1 = ((u32)iep_msg->src1.uv_addr) + (offset_addr_uv  << 10);
-		src_addr_cr1 = ((u32)iep_msg->src1.v_addr) + (offset_addr_v << 10);
-
-		src_addr_y_itemp = ((u32)iep_msg->src_itemp.mem_addr) +
-			(offset_addr_y << 10);
-		src_addr_cbcr_itemp = ((u32)iep_msg->src_itemp.uv_addr) +
-			(offset_addr_uv << 10);
-		src_addr_cr_itemp = ((u32)iep_msg->src_itemp.v_addr) +
-			(offset_addr_v << 10);
-
-		src_addr_y_ftemp = ((u32)iep_msg->src_ftemp.mem_addr) +
-			(offset_addr_y << 10);
-		src_addr_cbcr_ftemp = ((u32)iep_msg->src_ftemp.uv_addr) +
-			(offset_addr_uv << 10);
-		src_addr_cr_ftemp = ((u32)iep_msg->src_ftemp.v_addr) +
-			(offset_addr_v << 10);
-	}
+	src_addr_y_ftemp = ((u32)iep_msg->src_ftemp.mem_addr) +
+		(offset_addr_y << 10);
+	src_addr_cbcr_ftemp = ((u32)iep_msg->src_ftemp.uv_addr) +
+		(offset_addr_uv << 10);
+	src_addr_cr_ftemp = ((u32)iep_msg->src_ftemp.v_addr) +
+		(offset_addr_v << 10);
 
 	if ((iep_msg->dein_mode == IEP_DEINTERLACE_MODE_I4O1 ||
 	     iep_msg->dein_mode == IEP_DEINTERLACE_MODE_I4O2) &&
@@ -1150,53 +1126,28 @@ static void iep_config_dst_addr(struct IEP_MSG *iep_msg)
 	//***********yuv address   *********************//
 	//**********************************************//
 
-	if (iep_service.iommu_dev == NULL) {
-		dst_addr_yrgb = ((u32)iep_msg->dst.mem_addr) + offset_addr_y;
-		dst_addr_cbcr = ((u32)iep_msg->dst.uv_addr) + offset_addr_uv;
-		dst_addr_cr = ((u32)iep_msg->dst.v_addr) + offset_addr_v;
+	dst_addr_yrgb = ((u32)iep_msg->dst.mem_addr) + (offset_addr_y << 10);
+	dst_addr_cbcr = ((u32)iep_msg->dst.uv_addr) + (offset_addr_uv << 10);
+	dst_addr_cr = ((u32)iep_msg->dst.v_addr) + (offset_addr_v << 10);
 
-		// former frame when processing deinterlace
-		dst_addr_y1 = ((u32)iep_msg->dst1.mem_addr) + offset_addr_y;
-		dst_addr_cbcr1 = ((u32)iep_msg->dst1.uv_addr) + offset_addr_uv;
-		dst_addr_cr1 = ((u32)iep_msg->dst1.v_addr) + offset_addr_v;
+	/* former frame when processing deinterlace */
+	dst_addr_y1 = ((u32)iep_msg->dst1.mem_addr) + (offset_addr_y << 10);
+	dst_addr_cbcr1 = ((u32)iep_msg->dst1.uv_addr) + (offset_addr_uv << 10);
+	dst_addr_cr1 = ((u32)iep_msg->dst1.v_addr) + (offset_addr_v << 10);
 
-		dst_addr_y_itemp = ((u32)iep_msg->dst_itemp.mem_addr) +
-			offset_addr_y;
-		dst_addr_cbcr_itemp = ((u32)iep_msg->dst_itemp.uv_addr) +
-			offset_addr_uv;
-		dst_addr_cr_itemp = ((u32)iep_msg->dst_itemp.v_addr) +
-			offset_addr_v;
+	dst_addr_y_itemp = ((u32)iep_msg->dst_itemp.mem_addr) +
+		(offset_addr_y << 10);
+	dst_addr_cbcr_itemp = ((u32)iep_msg->dst_itemp.uv_addr) +
+		(offset_addr_uv << 10);
+	dst_addr_cr_itemp = ((u32)iep_msg->dst_itemp.v_addr) +
+		(offset_addr_v << 10);
 
-		dst_addr_y_ftemp = ((u32)iep_msg->dst_ftemp.mem_addr) +
-			offset_addr_y;
-		dst_addr_cbcr_ftemp = ((u32)iep_msg->dst_ftemp.uv_addr) +
-			offset_addr_uv;
-		dst_addr_cr_ftemp = ((u32)iep_msg->dst_ftemp.v_addr) +
-			offset_addr_v;
-	} else {
-		dst_addr_yrgb = ((u32)iep_msg->dst.mem_addr) + (offset_addr_y << 10);
-		dst_addr_cbcr = ((u32)iep_msg->dst.uv_addr) + (offset_addr_uv << 10);
-		dst_addr_cr = ((u32)iep_msg->dst.v_addr) + (offset_addr_v << 10);
-
-		// former frame when processing deinterlace
-		dst_addr_y1 = ((u32)iep_msg->dst1.mem_addr) + (offset_addr_y << 10);
-		dst_addr_cbcr1 = ((u32)iep_msg->dst1.uv_addr) + (offset_addr_uv << 10);
-		dst_addr_cr1 = ((u32)iep_msg->dst1.v_addr) + (offset_addr_v << 10);
-
-		dst_addr_y_itemp = ((u32)iep_msg->dst_itemp.mem_addr) +
-			(offset_addr_y << 10);
-		dst_addr_cbcr_itemp = ((u32)iep_msg->dst_itemp.uv_addr) +
-			(offset_addr_uv << 10);
-		dst_addr_cr_itemp = ((u32)iep_msg->dst_itemp.v_addr) +
-			(offset_addr_v << 10);
-
-		dst_addr_y_ftemp = ((u32)iep_msg->dst_ftemp.mem_addr) +
-			(offset_addr_y << 10);
-		dst_addr_cbcr_ftemp = ((u32)iep_msg->dst_ftemp.uv_addr) +
-			(offset_addr_uv << 10);
-		dst_addr_cr_ftemp = ((u32)iep_msg->dst_ftemp.v_addr) +
-			(offset_addr_v << 10);
-	}
+	dst_addr_y_ftemp = ((u32)iep_msg->dst_ftemp.mem_addr) +
+		(offset_addr_y << 10);
+	dst_addr_cbcr_ftemp = ((u32)iep_msg->dst_ftemp.uv_addr) +
+		(offset_addr_uv << 10);
+	dst_addr_cr_ftemp = ((u32)iep_msg->dst_ftemp.v_addr) +
+		(offset_addr_v << 10);
 
 	IEP_REGB_DST_ADDR_YRGB(iep_msg->base, dst_addr_yrgb);
 	IEP_REGB_DST_ADDR_CBCR(iep_msg->base, dst_addr_cbcr);
@@ -1414,7 +1365,7 @@ void iep_switch_input_address(void *base)
 	IEP_REGB_SRC_ADDR_CR1(base, src_addr_cr);
 }
 
-#if defined(CONFIG_IEP_IOMMU)
+#if defined(CONFIG_ION_ROCKCHIP)
 static int iep_bufid_to_iova(iep_service_info *pservice, u8 *tbl,
 	int size, struct iep_reg *reg)
 {
@@ -1423,56 +1374,61 @@ static int iep_bufid_to_iova(iep_service_info *pservice, u8 *tbl,
 	int offset = 0;
 
 	if (tbl == NULL || size <= 0) {
-		dev_err(pservice->iommu_dev, "input arguments invalidate\n");
+		IEP_ERR("input arguments invalidate\n");
 		return -1;
 	}
 
 	for (i = 0; i < size; i++) {
+		struct ion_handle *hdl;
+		int ret;
+		struct iep_mem_region *mem_region;
+
 		usr_fd = reg->reg[tbl[i]] & 0x3FF;
 		offset = reg->reg[tbl[i]] >> 10;
-		if (usr_fd != 0) {
-			struct ion_handle *hdl;
-			int ret;
-			struct iep_mem_region *mem_region;
 
-			hdl = ion_import_dma_buf(pservice->ion_client, usr_fd);
-			if (IS_ERR(hdl)) {
-				dev_err(pservice->iommu_dev,
-					"import dma-buf from fd %d"
-					" failed, reg[%d]\n",
-					usr_fd, tbl[i]);
-				return PTR_ERR(hdl);
-			}
+		if (usr_fd == 0)
+			continue;
 
-			mem_region = kzalloc(sizeof(struct iep_mem_region),
-				GFP_KERNEL);
-
-			if (mem_region == NULL) {
-				dev_err(pservice->iommu_dev,
-					"allocate memory for"
-					" iommu memory region failed\n");
-				ion_free(pservice->ion_client, hdl);
-				return -1;
-			}
-
-			mem_region->hdl = hdl;
-
-			ret = ion_map_iommu(pservice->iommu_dev,
-				pservice->ion_client, mem_region->hdl,
-				&mem_region->iova, &mem_region->len);
-			if (ret < 0) {
-				dev_err(pservice->iommu_dev,
-					"ion map iommu failed\n");
-				kfree(mem_region);
-				ion_free(pservice->ion_client, hdl);
-				return ret;
-			}
-
-			reg->reg[tbl[i]] = mem_region->iova + offset;
-			INIT_LIST_HEAD(&mem_region->reg_lnk);
-			list_add_tail(&mem_region->reg_lnk,
-				&reg->mem_region_list);
+		hdl = ion_import_dma_buf(pservice->ion_client, usr_fd);
+		if (IS_ERR(hdl)) {
+			IEP_ERR("import fd %d failed, reg[%d]\n",
+				usr_fd, tbl[i]);
+			return PTR_ERR(hdl);
 		}
+
+		mem_region = kzalloc(sizeof(*mem_region),
+				     GFP_KERNEL);
+
+		if (mem_region == NULL) {
+			IEP_ERR("allocate memory region failed\n");
+			ion_free(pservice->ion_client, hdl);
+			return -1;
+		}
+
+		mem_region->hdl = hdl;
+		if (pservice->iommu_dev)
+			ret = ion_map_iommu(pservice->iommu_dev,
+					    pservice->ion_client,
+					    mem_region->hdl,
+					    &mem_region->iova,
+					    &mem_region->len);
+		else
+			ret = ion_phys(pservice->ion_client,
+				       mem_region->hdl,
+				       (ion_phys_addr_t *)&mem_region->iova,
+				       (size_t *)&mem_region->len);
+
+		if (ret < 0) {
+			IEP_ERR("ion acquire memory address failed\n");
+			kfree(mem_region);
+			ion_free(pservice->ion_client, hdl);
+			return ret;
+		}
+
+		reg->reg[tbl[i]] = mem_region->iova + offset;
+		INIT_LIST_HEAD(&mem_region->reg_lnk);
+		list_add_tail(&mem_region->reg_lnk,
+			      &reg->mem_region_list);
 	}
 
 	return 0;
@@ -1503,23 +1459,19 @@ void iep_config(iep_session *session, struct IEP_MSG *iep_msg)
 
 	INIT_LIST_HEAD(&reg->session_link);
 	INIT_LIST_HEAD(&reg->status_link);
-
-#if defined(CONFIG_IEP_IOMMU)
 	INIT_LIST_HEAD(&reg->mem_region_list);
-#endif
 
-	//write config
 	iep_config_src_size(iep_msg);
 	iep_config_dst_size(iep_msg);
-	iep_config_dst_width_tile(iep_msg); //not implement
+	iep_config_dst_width_tile(iep_msg);
 	iep_config_dst_fmt(iep_msg);
 	iep_config_src_fmt(iep_msg);
 	iep_config_scl(iep_msg);
 	iep_config_cg_order(iep_msg);
 
 	iep_config_cg(iep_msg);
-	iep_config_dde(iep_msg);            //not implement
-	iep_config_color_enh(iep_msg);      //not implement
+	iep_config_dde(iep_msg);
+	iep_config_color_enh(iep_msg);
 	iep_config_yuv_dns(iep_msg);
 	iep_config_dil(iep_msg);
 	iep_config_yuv_enh(iep_msg);
@@ -1532,7 +1484,7 @@ void iep_config(iep_session *session, struct IEP_MSG *iep_msg)
 	iep_config_src_addr(iep_msg);
 	iep_config_dst_addr(iep_msg);
 	iep_config_lcdc_path(iep_msg);
-	iep_config_misc(iep_msg);           //not implement
+	iep_config_misc(iep_msg);
 
 	if (iep_msg->lcdc_path_en) {
 		reg->dpi_en     = true;
@@ -1559,16 +1511,11 @@ void iep_config(iep_session *session, struct IEP_MSG *iep_msg)
 	iep_config_mmu_dte_addr(iep_msg->base,
 		(uint32_t)virt_to_phys((uint32_t *)session->dte_table));
 #endif
-
-#if defined(CONFIG_IEP_IOMMU)
-	if (iep_service.iommu_dev) {
-		if (0 > iep_reg_address_translate(&iep_service, reg)) {
-			IEP_ERR("error: translate reg address failed\n");
-			kfree(reg);
-			return;
-		}
+	if (0 > iep_reg_address_translate(&iep_service, reg)) {
+		IEP_ERR("error: translate reg address failed\n");
+		kfree(reg);
+		return;
 	}
-#endif
 	/* workaround for iommu enable case when 4k video input */
 	w = (iep_msg->src.act_w + 15) & (0xfffffff0);
 	h = (iep_msg->src.act_h + 15) & (0xfffffff0);
