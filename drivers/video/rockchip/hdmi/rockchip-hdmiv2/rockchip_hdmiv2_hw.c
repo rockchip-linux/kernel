@@ -1579,6 +1579,40 @@ static int hdmi_dev_config_vsi(struct hdmi *hdmi,
 	return 0;
 }
 
+static int hdmi_dev_config_spd(struct hdmi *hdmi, const char *vendor,
+			       const char *product, char deviceinfo)
+{
+	struct hdmi_dev *hdmi_dev;
+	int i, len;
+
+	if (!hdmi || !vendor || !product)
+		return -1;
+	hdmi_dev = hdmi->property->priv;
+
+	hdmi_msk_reg(hdmi_dev, FC_DATAUTO0, m_SPD_AUTO, v_SPD_AUTO(0));
+	len = strlen(vendor);
+	for (i = 0; i < 8; i++) {
+		if (i < len)
+			hdmi_writel(hdmi_dev, FC_SPDVENDORNAME0 + i,
+				    vendor[i]);
+		else
+			hdmi_writel(hdmi_dev, FC_SPDVENDORNAME0 + i,
+				    0);
+	}
+	len = strlen(product);
+	for (i = 0; i < 16; i++) {
+		if (i < len)
+			hdmi_writel(hdmi_dev, FC_SPDPRODUCTNAME0 + i,
+				    product[i]);
+		else
+			hdmi_writel(hdmi_dev, FC_SPDPRODUCTNAME0 + i,
+				    0);
+	}
+	hdmi_writel(hdmi_dev, FC_SPDDEVICEINF, deviceinfo);
+	hdmi_msk_reg(hdmi_dev, FC_DATAUTO0, m_SPD_AUTO, v_SPD_AUTO(1));
+	return 0;
+}
+
 static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 {
 	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
@@ -1636,6 +1670,9 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 
 	if (vpara->sink_hdmi == OUTPUT_HDMI) {
 		hdmi_dev_config_avi(hdmi_dev, vpara);
+		hdmi_dev_config_spd(hdmi, hdmi_dev->vendor_name,
+				    hdmi_dev->product_name,
+				    hdmi_dev->deviceinfo);
 		if (vpara->format_3d != HDMI_3D_NONE) {
 			hdmi_dev_config_vsi(hdmi,
 					    vpara->format_3d,

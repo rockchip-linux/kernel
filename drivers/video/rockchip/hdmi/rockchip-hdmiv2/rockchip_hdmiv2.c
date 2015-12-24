@@ -462,6 +462,13 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 		pr_info("hdmi phy_table not exist\n");
 	}
 
+	of_property_read_string(np, "rockchip,vendor",
+				&(hdmi_dev->vendor_name));
+	of_property_read_string(np, "rockchip,product",
+				&(hdmi_dev->product_name));
+	if (!of_property_read_u32(np, "rockchip,deviceinfo", &val))
+		hdmi_dev->deviceinfo = val & 0xff;
+
 	#ifdef CONFIG_MFD_SYSCON
 	hdmi_dev->grf_base =
 		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
