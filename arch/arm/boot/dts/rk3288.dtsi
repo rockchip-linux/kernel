@@ -710,6 +710,16 @@
 		status = "disabled";
 	};
 
+	crypto: rockchip-crypto@ff8a0000 {
+		compatible = "rockchip-crypto";
+		reg = <0xff8a0000 0x10000>;
+		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_crypto";
+		clocks = <&clk_crypto>, <&clk_gates11 6>, <&clk_gates11 7>;
+		clock-names = "clk_crypto", "aclk_crypto", "hclk_crypto";
+		status = "disabled";
+	};
+
 	fb: fb{
 		compatible = "rockchip,rk-fb";
 		rockchip,disp-mode = <DUAL>;
