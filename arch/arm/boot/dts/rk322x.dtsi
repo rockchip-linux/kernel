@@ -493,6 +493,16 @@
 		};
 	};
 
+	crypto: crypto@100a0000 {
+		compatible = "rockchip-crypto";
+		reg = <0x100a0000 0x10000>;
+		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_crypto";
+		clocks = <&clk_crypto>, <&clk_gates8 12>, <&clk_gates8 11>;
+		clock-names = "clk_crypto", "hclk_crypto", "aclk_crypto";
+		status = "disabled";
+	};
+
 	i2s0: i2s0@100c0000 {
 		compatible = "rockchip-i2s";
 		reg = <0x100c0000 0x1000>;
