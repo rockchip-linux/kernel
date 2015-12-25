@@ -1415,8 +1415,8 @@
 		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "irq_crypto";
 			clocks = <&clk_crypto>, <&clk_gates13 4>, <&clk_gates13 3>;
-		clock-names = "clk_crypto", "sclk_crypto", "mclk_crypto";
-		status = "okay";
+		clock-names = "clk_crypto", "hclk_crypto", "aclk_crypto";
+		status = "disabled";
 	};
 
 	dwc_control_usb: dwc-control-usb {
