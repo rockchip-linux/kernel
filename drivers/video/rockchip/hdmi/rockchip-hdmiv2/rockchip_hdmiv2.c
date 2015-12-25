@@ -5,6 +5,7 @@
 #include <linux/interrupt.h>
 #include <linux/clk.h>
 #include <linux/of_gpio.h>
+#include <linux/rockchip/cpu.h>
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/mfd/syscon.h>
@@ -584,6 +585,10 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 				SUPPORT_YCBCR_INPUT |
 				SUPPORT_1080I |
 				SUPPORT_480I_576I;
+		if (rockchip_get_cpu_version())
+			rk_hdmi_property.feature |=
+				SUPPORT_YUV420 |
+				SUPPORT_DEEP_10BIT;
 	} else {
 		ret = -ENXIO;
 		goto failed1;
