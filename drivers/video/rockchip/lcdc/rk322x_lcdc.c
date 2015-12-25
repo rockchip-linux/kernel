@@ -1385,14 +1385,48 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 	if (likely(vop_dev->clk_on)) {
 		switch (screen->face) {
 		case OUT_P888:
-			face = OUT_P888;
-			val = V_DITHER_DOWN_EN(0);
+			if (rockchip_get_cpu_version())
+				face = OUT_P101010;
+			else
+				face = OUT_P888;
+
+			val = V_DITHER_DOWN_EN(0) | V_DITHER_UP_EN(0)
+				| V_PRE_DITHER_DOWN_EN(1);
 			break;
 		case OUT_YUV_420:
-			/*yuv420 output prefer yuv domain overlay */
-			face = OUT_YUV_420;
-			dclk_ddr = 1;
-			val = V_DITHER_DOWN_EN(0);
+			if (rockchip_get_cpu_version()) {
+				face = OUT_YUV_420;
+				dclk_ddr = 1;
+				val = V_DITHER_DOWN_EN(0) | V_DITHER_UP_EN(0)
+					| V_PRE_DITHER_DOWN_EN(1);
+				break;
+			}
+			dev_err(vop_dev->dev,
+				"This chip can't supported screen face[%d]\n",
+				screen->face);
+			break;
+		case OUT_YUV_420_10BIT:
+			if (rockchip_get_cpu_version()) {
+				face = OUT_YUV_420;
+				dclk_ddr = 1;
+				val = V_DITHER_DOWN_EN(0) | V_DITHER_UP_EN(1)
+					| V_PRE_DITHER_DOWN_EN(0);
+				break;
+			}
+			dev_err(vop_dev->dev,
+				"This chip can't supported screen face[%d]\n",
+				screen->face);
+			break;
+		case OUT_P101010:
+			if (rockchip_get_cpu_version()) {
+				face = OUT_P101010;
+				val = V_DITHER_DOWN_EN(0) | V_DITHER_UP_EN(1)
+					| V_PRE_DITHER_DOWN_EN(0);
+				break;
+			}
+			dev_err(vop_dev->dev,
+				"This chip can't supported screen face[%d]\n",
+				screen->face);
 			break;
 		default:
 			dev_err(vop_dev->dev, "un supported screen face[%d]!\n",
