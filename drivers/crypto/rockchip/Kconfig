@@ -1,0 +1,14 @@
+config CRYPTO_DEV_ROCKCHIP_ENCRYPT
+	bool "Encryption acceleration support"
+	select CRYPTO_AES
+	select CRYPTO_TDES
+	select CRYPTO_HASH
+	select CRYPTO_RSA
+
+	help
+	  Say Y here to support for Rockchip encryption acceleration.
+	  This module supports acceleration for AES(ecb/cbc/ctr),
+	  DES/TDES(ecb/cbc), HASH(sha1/sha256/md5) and RSA algorithms.
+
+	  Say N here if you don't want to use the processor.
+

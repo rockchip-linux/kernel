@@ -386,4 +386,13 @@ config CRYPTO_DEV_ATMEL_SHA
 	  To compile this driver as a module, choose M here: the module
 	  will be called atmel-sha.
 
+config CRYPTO_DEV_ROCKCHIP
+	tristate "Support for Rockchip crypto accelerator"
+	help
+	  This option allows you to have support for rockchip crypto acceleration.
+
+if CRYPTO_DEV_ROCKCHIP
+	source "drivers/crypto/rockchip/Kconfig"
+endif
+
 endif # CRYPTO_HW
