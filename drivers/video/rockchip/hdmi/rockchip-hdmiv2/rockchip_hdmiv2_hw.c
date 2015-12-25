@@ -855,24 +855,36 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 		tmdsclk = 2 * mode->pixclock;
 	else
 		tmdsclk = mode->pixclock;
-	switch (vpara->color_output_depth) {
-	case 10:
-		tmdsclk += tmdsclk / 4;
-		break;
-	case 12:
-		tmdsclk += tmdsclk / 2;
-		break;
-	case 16:
-		tmdsclk += tmdsclk;
-		break;
-	case 8:
-	default:
-		break;
+	if (vpara->color_output != HDMI_COLOR_YCBCR422) {
+		switch (vpara->color_output_depth) {
+		case 10:
+			tmdsclk += tmdsclk / 4;
+			break;
+		case 12:
+			tmdsclk += tmdsclk / 2;
+			break;
+		case 16:
+			tmdsclk += tmdsclk;
+			break;
+		case 8:
+		default:
+			break;
+		}
+	} else if (vpara->color_output_depth > 12) {
+		/* YCbCr422 mode only support up to 12bit */
+		vpara->color_output_depth = 12;
 	}
-
-	if (tmdsclk > 594000000) {
+	if ((tmdsclk > 594000000) ||
+	    (tmdsclk > 340000000 &&
+	     tmdsclk > hdmi_drv->edid.maxtmdsclock)) {
+		pr_warn("out of max tmds clock, limit to 8bit\n");
 		vpara->color_output_depth = 8;
-		tmdsclk = mode->pixclock;
+		if (vpara->color_input == HDMI_COLOR_YCBCR420)
+			tmdsclk = mode->pixclock / 2;
+		else if (vpara->format_3d == HDMI_3D_FRAME_PACKING)
+			return -1;
+		else
+			tmdsclk = mode->pixclock;
 	}
 
 	if ((tmdsclk > 340000000) ||
@@ -887,8 +899,13 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 	else
 		hdmi_dev->pixelclk = mode->pixclock;
 	hdmi_dev->pixelrepeat = timing->pixelrepeat;
-	hdmi_dev->colordepth = vpara->color_output_depth;
-
+	/* hdmi_dev->colordepth is used for find pll config.
+	 * For YCbCr422, tmdsclk is same on all color depth.
+	 */
+	if (vpara->color_output == HDMI_COLOR_YCBCR422)
+		hdmi_dev->colordepth = 8;
+	else
+		hdmi_dev->colordepth = vpara->color_output_depth;
 	pr_info("pixel clk is %lu tmds clk is %u\n",
 		hdmi_dev->pixelclk, hdmi_dev->tmdsclk);
 	/* Start/stop HDCP keepout window generation */
@@ -1022,7 +1039,7 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 static int rockchip_hdmiv2_video_packetizer(struct hdmi_dev *hdmi_dev,
 					    struct hdmi_video *vpara)
 {
-	unsigned char color_depth = 0;
+	unsigned char color_depth = COLOR_DEPTH_24BIT_DEFAULT;
 	unsigned char output_select = 0;
 	unsigned char remap_size = 0;
 
@@ -1066,12 +1083,10 @@ static int rockchip_hdmiv2_video_packetizer(struct hdmi_dev *hdmi_dev,
 			output_select = OUT_FROM_8BIT_BYPASS;
 			break;
 		}
-
-		/*Config Color Depth*/
-		hdmi_msk_reg(hdmi_dev, VP_PR_CD,
-			     m_COLOR_DEPTH, v_COLOR_DEPTH(color_depth));
 	}
-
+	/*Config Color Depth*/
+	hdmi_msk_reg(hdmi_dev, VP_PR_CD,
+		     m_COLOR_DEPTH, v_COLOR_DEPTH(color_depth));
 	/*Config pixel repettion*/
 	hdmi_msk_reg(hdmi_dev, VP_PR_CD, m_DESIRED_PR_FACTOR,
 		     v_DESIRED_PR_FACTOR(hdmi_dev->pixelrepeat - 1));
