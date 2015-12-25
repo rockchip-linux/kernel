@@ -108,6 +108,13 @@
 	status = "okay";
 };
 
+&cpu0 {
+	operating-points = <
+		/* KHz    uV */
+		 600000 1000000
+	>;
+};
+
 &emmc {
 	status = "okay";
 };
