@@ -1705,6 +1705,7 @@ static void dw_mci_do_grf_io_domain_switch(struct dw_mci *host, u32 voltage)
 			MMC_DBG_ERR_FUNC(host->mmc, "%s : unknown chip [%s]\n",
 					 __FUNCTION__, mmc_hostname(host->mmc));
 			break;
+		}
 	}
 }
 
@@ -3818,6 +3819,7 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	struct device *dev = host->dev;
 	struct device_node *np = dev->of_node;
 	const struct dw_mci_drv_data *drv_data = host->drv_data;
+	const struct dw_mci_rockchip_priv_data *priv = host->priv;
 	int  ret;
 	u32 clock_frequency;
 
@@ -3900,6 +3902,12 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		host->power_inverted = true;
 	else
 		host->power_inverted = false;
+
+	if ((priv->ctrl_type == DW_MCI_TYPE_RK322X) &&
+		!rockchip_get_cpu_version()) {
+		pdata->caps2 &= ~MMC_CAP2_HS200;
+		pdata->bus_hz = 50000000;
+	}
 
 	return pdata;
 }
