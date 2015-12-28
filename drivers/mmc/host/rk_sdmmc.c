@@ -2987,95 +2987,74 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 
 		present = dw_mci_get_cd(mmc);
 
-		/* Card insert, switch data line to uart function, and vice verse.
-		ONLY audi chip need switched by software, using udbg tag in dts!
-		*/
-                if (!(IS_ERR(host->pins_udbg)) &&
-			!(IS_ERR(host->pins_default))) {
-			if (present) {
-				if (pinctrl_select_state(host->pinctrl,
-					host->pins_default) < 0)
-                                        dev_err(host->dev,
-						"%s: Default pinctrl setting failed!\n",
-						mmc_hostname(host->mmc));
-			} else {
-				if (pinctrl_select_state(host->pinctrl,
-					host->pins_udbg) < 0)
-					dev_err(host->dev,
-						"%s: Udbg pinctrl setting failed!\n",
-						mmc_hostname(host->mmc));
-			}
-		}
-
 		while (present != slot->last_detect_state) {
 			dev_dbg(&slot->mmc->class_dev, "card %s\n",
 				present ? "inserted" : "removed");
 			MMC_DBG_BOOT_FUNC(mmc, "  The card is %s.  ===!!!!!!==[%s]\n",
 				present ? "inserted" : "removed.", mmc_hostname(mmc));
-	
-			dw_mci_ctrl_all_reset(host);
-			/* Stop edma when rountine card triggered */
-			if(cpu_is_rk3036() || cpu_is_rk312x())
-				if(host->dma_ops && host->dma_ops->stop)
-					host->dma_ops->stop(host);
+
 			rk_send_wakeup_key();//wake up system
 			spin_lock_bh(&host->lock);
 
 			/* Card change detected */
 			slot->last_detect_state = present;
 
-			/* Clean up queue if present */
 			mrq = slot->mrq;
-			if (mrq) {
-				if (mrq == host->mrq) {
-					host->data = NULL;
-					host->cmd = NULL;
-
-					switch (host->state) {
-					case STATE_IDLE:
-						break;
-					case STATE_SENDING_CMD:
-						mrq->cmd->error = -ENOMEDIUM;
-						if (!mrq->data)
-							break;
-						/* fall through */
-					case STATE_SENDING_DATA:
-						mrq->data->error = -ENOMEDIUM;
-						dw_mci_stop_dma(host);
-						break;
-					case STATE_DATA_BUSY:
-					case STATE_DATA_ERROR:
-						if (mrq->data->error == -EINPROGRESS)
-							mrq->data->error = -ENOMEDIUM;
-						if (!mrq->stop)
-							break;
-						/* fall through */
-					case STATE_SENDING_STOP:
-						mrq->stop->error = -ENOMEDIUM;
-						break;
-					}
-
-					dw_mci_request_end(host, mrq);
-				} else {
-					list_del(&slot->queue_node);
-					mrq->cmd->error = -ENOMEDIUM;
-					if (mrq->data)
-						mrq->data->error = -ENOMEDIUM;
-					if (mrq->stop)
-						mrq->stop->error = -ENOMEDIUM;
-
-					MMC_DBG_CMD_FUNC(host->mmc,
-						"dw_mci_work--reqeuest done, cmd=%d [%s]",
-						mrq->cmd->opcode, mmc_hostname(mmc));
-
-					spin_unlock(&host->lock);
-					mmc_request_done(slot->mmc, mrq);
-					spin_lock(&host->lock);
-				}
-			}
-
-			/* Power down slot */
+			/* Clean up queue if present */
 			if (present == 0) {
+				if (mrq) {
+					if (mrq == host->mrq) {
+						host->data = NULL;
+						host->cmd = NULL;
+
+						switch (host->state) {
+						case STATE_IDLE:
+							break;
+						case STATE_SENDING_CMD:
+							mrq->cmd->error = -ENOMEDIUM;
+							if (!mrq->data)
+								break;
+							/* fall through */
+						case STATE_SENDING_DATA:
+							mrq->data->error = -ENOMEDIUM;
+							dw_mci_stop_dma(host);
+							break;
+						case STATE_DATA_BUSY:
+						case STATE_DATA_ERROR:
+							if (mrq->data->error == -EINPROGRESS)
+								mrq->data->error = -ENOMEDIUM;
+							if (!mrq->stop)
+								break;
+							/* fall through */
+						case STATE_SENDING_STOP:
+							mrq->stop->error = -ENOMEDIUM;
+							break;
+						}
+
+						dw_mci_request_end(host, mrq);
+					} else {
+						list_del(&slot->queue_node);
+						mrq->cmd->error = -ENOMEDIUM;
+						if (mrq->data)
+							mrq->data->error = -ENOMEDIUM;
+						if (mrq->stop)
+							mrq->stop->error = -ENOMEDIUM;
+
+						MMC_DBG_CMD_FUNC(host->mmc,
+							"dw_mci_work--reqeuest done, cmd=%d [%s]",
+							mrq->cmd->opcode, mmc_hostname(mmc));
+
+						spin_unlock(&host->lock);
+						mmc_request_done(slot->mmc, mrq);
+						spin_lock(&host->lock);
+					}
+				}
+
+				dw_mci_ctrl_all_reset(host);
+				/* Stop edma when rountine card triggered */
+				if (cpu_is_rk3036() || cpu_is_rk312x())
+					if (host->dma_ops && host->dma_ops->stop)
+						host->dma_ops->stop(host);
 				/* Clear down the FIFO */
 				dw_mci_fifo_reset(host);
 #ifdef CONFIG_MMC_DW_IDMAC
@@ -4233,8 +4212,6 @@ EXPORT_SYMBOL(dw_mci_remove);
 extern int get_wifi_chip_type(void);
 int dw_mci_suspend(struct dw_mci *host)
 {
-	int present = dw_mci_get_cd(host->mmc);
-
 	if((host->mmc->restrict_caps &
 		RESTRICT_CARD_TYPE_SDIO) &&
 		(get_wifi_chip_type() == WIFI_ESP8089 ||
@@ -4247,12 +4224,10 @@ int dw_mci_suspend(struct dw_mci *host)
 	/* Only for sdmmc controller */
 	if (host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) {
 		disable_irq(host->irq);
-		if (present) {
 			if (pinctrl_select_state(host->pinctrl, host->pins_idle) < 0)
 				MMC_DBG_ERR_FUNC(host->mmc,
 					"Idle pinctrl setting failed! [%s]",
 					mmc_hostname(host->mmc));
-		}
 
                 /* Soc rk3126/3036 already in gpio_cd mode */
                 if (!soc_is_rk3126() && !soc_is_rk3126b() && !soc_is_rk3036()) {
