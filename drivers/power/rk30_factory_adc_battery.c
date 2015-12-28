@@ -1558,7 +1558,7 @@ static int rk30_adc_battery_get_health(struct rk30_adc_battery_data *bat)
 
 static int rk30_adc_battery_get_present(struct rk30_adc_battery_data *bat)
 {
-	return (bat->bat_voltage < BATT_MAX_VOL_VALUE) ? 0 : 1;
+	return 1;
 }
 
 static int rk30_adc_battery_get_voltage(struct rk30_adc_battery_data *bat)
