@@ -522,6 +522,16 @@
 		pinctrl-0 = <&spdif_tx>;
 	};	
 
+	crypto: crypto@100fc000 {
+		compatible = "rockchip,rk312x-crypto";
+		reg = <0x100fc000 0x4000>;
+		interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_crypto";
+		clocks = <&clk_crypto_div>, <&clk_gates3 5>;
+		clock-names = "clk_crypto", "hclk_crypto";
+		status = "disabled";
+	};
+
 	dsihost0: mipi@10110000{
 		compatible = "rockchip,rk312x-dsi";
 		rockchip,prop = <0>;
