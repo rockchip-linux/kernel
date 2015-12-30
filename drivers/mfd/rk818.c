@@ -68,6 +68,11 @@ static struct mfd_cell rk818s[] = {
 #define VOL_MIN_IDX 0x00
 #define VOL_MAX_IDX 0x3f
 #define RK818_I2C_ADDR_RATE  200*1000
+#define RK818_SF_SLEEP_EN	(1 << 1)
+
+static u8 dcdc_sleep_volt_save[4];
+static u8 ldo_sleep_volt_save[9];
+static u8 sleep_state_save[2];
 
 const static int buck_set_vol_base_addr[] = {
 	RK818_BUCK1_ON_REG,
@@ -497,22 +502,158 @@ static int rk818_dcdc_select_min_voltage(struct regulator_dev *dev,
 	return vsel;
 }
 
+static int rk818_save_sleep_reg_setting(struct rk818 *rk818)
+{
+	int i, ret = 0;
+	u8 dcdc_sleep_volt[4];
+	u8 ldo_sleep_volt[9];
+	u8 sleep_state[2];
+
+	for (i = 0; i < 4; i++) {
+		if (i == 2)
+			continue;
+		dcdc_sleep_volt_save[i] =
+		rk818_reg_read(rk818, rk818_BUCK_SET_SLP_VOL_REG(i))
+			       & BUCK_VOL_MASK;
+		dcdc_sleep_volt[i] =
+		rk818_reg_read(rk818, rk818_BUCK_SET_VOL_REG(i))
+			       & BUCK_VOL_MASK;
+		ret = rk818_set_bits(rk818,
+				     rk818_BUCK_SET_SLP_VOL_REG(i),
+				     BUCK_VOL_MASK,
+				     dcdc_sleep_volt[i]);
+	}
+	for (i = 0; i < 9; i++) {
+		ldo_sleep_volt_save[i] =
+		rk818_reg_read(rk818, rk818_LDO_SET_SLP_VOL_REG(i))
+			       & LDO_VOL_MASK;
+		ldo_sleep_volt[i] =
+		rk818_reg_read(rk818, rk818_LDO_SET_VOL_REG(i))
+			       & LDO_VOL_MASK;
+		ret = rk818_set_bits(rk818,
+				     rk818_LDO_SET_SLP_VOL_REG(i),
+				     LDO_VOL_MASK, ldo_sleep_volt[i]);
+	}
+	for (i = 0; i < 2; i++) {
+		sleep_state_save[i] =
+		rk818_reg_read(rk818,
+			       RK818_SLEEP_SET_OFF_REG1 + i);
+		sleep_state[i] = rk818_reg_read(rk818,
+						RK818_DCDC_EN_REG + i);
+		ret = rk818_set_bits(rk818,
+				     RK818_SLEEP_SET_OFF_REG1 + i,
+				     0xff, (~(sleep_state[i])));
+	}
+
+	return ret;
+}
+
+static int rk818_restore_sleep_reg_setting(struct rk818 *rk818)
+{
+	int i, ret = 0;
+
+	for (i = 0; i < 4; i++) {
+		if (i == 2)
+			continue;
+		ret = rk818_set_bits(rk818,
+				     rk818_BUCK_SET_SLP_VOL_REG(i),
+				     BUCK_VOL_MASK,
+				     dcdc_sleep_volt_save[i]);
+	}
+	for (i = 0; i < 9; i++)
+		ret = rk818_set_bits(rk818,
+				     rk818_LDO_SET_VOL_REG(i),
+				     LDO_VOL_MASK,
+				     ldo_sleep_volt_save[i]);
+
+	for (i = 0; i < 2; i++)
+		ret = rk818_set_bits(rk818,
+				     RK818_SLEEP_SET_OFF_REG1 + i,
+				     0xff, sleep_state_save[i]);
+
+	return ret;
+}
+
+static int rk818_dcdc_set_voltage_by_sleep_reg(struct regulator_dev *dev,
+					       int min_uV,
+					       int max_uV)
+{
+	struct rk818 *rk818 = rdev_get_drvdata(dev);
+	int ret = 0, old_voltage = 0, vol_temp = 0;
+	int buck = rdev_get_id(dev) - RK818_DCDC1;
+	u16 val;
+
+	old_voltage = rk818_dcdc_get_voltage(dev);
+	if (min_uV > old_voltage) {
+		vol_temp = old_voltage;
+		do {
+			vol_temp += 12500;
+			val = rk818_dcdc_select_min_voltage(dev,
+							    vol_temp,
+							    vol_temp,
+							    buck);
+			ret = rk818_set_bits(rk818,
+					     rk818_BUCK_SET_SLP_VOL_REG(buck),
+					     BUCK_VOL_MASK, val);
+		} while (vol_temp < min_uV);
+	} else {
+		val = rk818_dcdc_select_min_voltage(dev, min_uV, min_uV, buck);
+		ret = rk818_set_bits(rk818,
+				     rk818_BUCK_SET_SLP_VOL_REG(buck),
+				     BUCK_VOL_MASK, val);
+	}
+
+	ret = rk818_set_bits(rk818, RK818_DEVCTRL_REG,
+			     RK818_SF_SLEEP_EN, RK818_SF_SLEEP_EN);
+	return ret;
+}
+
 static int rk818_dcdc_set_voltage(struct regulator_dev *dev,
 				  int min_uV, int max_uV,unsigned *selector)
 {
 	struct rk818 *rk818 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - RK818_DCDC1;
-	u16 val;
-	int ret = 0;
+	u16 val, real_val, old_val;
+	int ret = 0, delay = 100;
 
-	if (buck ==2){
+	if (buck == 2) {
 		return 0;
-	}else if (buck==3){
-		val = rk818_dcdc_select_min_voltage(dev,min_uV,max_uV,buck);	
+	} else if (buck == 3) {
+		val = rk818_dcdc_select_min_voltage(dev,min_uV,max_uV,buck);
 		ret = rk818_set_bits(rk818, rk818_BUCK_SET_VOL_REG(buck), BUCK_VOL_MASK, val);
+	} else {
+		old_val = rk818_reg_read(rk818, rk818_BUCK_SET_VOL_REG(buck))
+					 & BUCK_VOL_MASK;
+		val = rk818_dcdc_select_min_voltage(dev, min_uV, max_uV, buck)
+						    & BUCK_VOL_MASK;
+		if ((old_val & 0x30) != (val & 0x30)) {
+			rk818_dcdc_set_voltage_by_sleep_reg(dev,
+							    min_uV,
+							    max_uV);
+			do {
+				ret =
+				rk818_set_bits(rk818,
+					       rk818_BUCK_SET_VOL_REG(buck),
+					       BUCK_VOL_MASK, val);
+				real_val =
+				rk818_reg_read(rk818,
+					       rk818_BUCK_SET_VOL_REG(buck))
+					       & BUCK_VOL_MASK;
+				delay--;
+			} while ((val != real_val) && (delay > 0));
+			if (delay == 0)
+				pr_err("ERROR:%s:rk818 set voltage timeout.\n",
+				       __func__);
+
+			ret = rk818_clear_bits(rk818,
+					       RK818_DEVCTRL_REG,
+					       RK818_SF_SLEEP_EN);
+		} else {
+			ret = rk818_set_bits(rk818,
+					     rk818_BUCK_SET_VOL_REG(buck),
+					     BUCK_VOL_MASK, val);
+		}
 	}
-	val = rk818_dcdc_select_min_voltage(dev,min_uV,max_uV,buck);
-	ret = rk818_set_bits(rk818, rk818_BUCK_SET_VOL_REG(buck), BUCK_VOL_MASK, val);
 	return ret;
 }
 static int rk818_dcdc_set_sleep_voltage(struct regulator_dev *dev,
@@ -1102,6 +1243,7 @@ static int rk818_suspend(struct i2c_client *i2c, pm_message_t mesg)
 	struct rk818 *rk818 = g_rk818;
 
 	rk818_device_suspend();
+	rk818_restore_sleep_reg_setting(rk818);
 	/************set vbat low 3v4 to irq**********/
 	val = rk818_reg_read(rk818, RK818_VB_MON_REG);
 	val &= (~(VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK));
@@ -1122,6 +1264,7 @@ static int rk818_resume(struct i2c_client *i2c)
 	struct rk818 *rk818 = g_rk818;
 
 	rk818_device_resume();
+	rk818_save_sleep_reg_setting(rk818);
 	/********set vbat low 3v0 to shutdown**********/
 	val = rk818_reg_read(rk818, RK818_VB_MON_REG);
 	val &= (~(VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK));
@@ -1342,7 +1485,9 @@ static int  rk818_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
         }
 	#endif
 	/*********************************************/
-	
+
+	rk818_save_sleep_reg_setting(rk818);
+
 	g_rk818 = rk818;
 	if (pdev->pm_off && !pm_power_off) {
 		pm_power_off = rk818_device_shutdown;
