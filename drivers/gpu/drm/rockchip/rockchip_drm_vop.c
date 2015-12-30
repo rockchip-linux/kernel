@@ -1549,7 +1549,7 @@ static int vop_crtc_page_flip(struct drm_crtc *crtc,
 	/* when the page flip is requested, crtc should be on */
 	if (!vop->is_enabled) {
 		DRM_DEBUG("page flip request rejected because crtc is off.\n");
-		return 0;
+		return -EINVAL;
 	}
 
 	crtc->primary->fb = fb;
