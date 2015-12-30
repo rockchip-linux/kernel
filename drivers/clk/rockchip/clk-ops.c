@@ -605,6 +605,7 @@ static long clk_3288_dclk_lcdc0_determine_rate(struct clk_hw *hw, unsigned long 
 {
 	struct clk *gpll = clk_get(NULL, "clk_gpll");
 	struct clk *cpll = clk_get(NULL, "clk_cpll");
+	struct clk *dclk_lcdc1 = clk_get(NULL, "dclk_lcdc1");
 	unsigned long best, div, prate, gpll_rate;
 
 	gpll_rate = __clk_get_rate(gpll);
@@ -614,11 +615,18 @@ static long clk_3288_dclk_lcdc0_determine_rate(struct clk_hw *hw, unsigned long 
 		best = rate;
 		*best_parent_rate = gpll_rate;
 	} else {
-		*best_parent_p = cpll;
-		div = RK3288_LIMIT_PLL_VIO0/rate;
-		prate = div * rate;
-		*best_parent_rate = clk_round_rate(cpll, prate);
-		best = (*best_parent_rate)/div;	
+		if (clk_get_parent(dclk_lcdc1) == cpll) {
+			*best_parent_p = cpll;
+			*best_parent_rate = __clk_get_rate(cpll);
+			div = *best_parent_rate / rate;
+			best = (*best_parent_rate) / div;
+		} else {
+			*best_parent_p = cpll;
+			div = RK3288_LIMIT_PLL_VIO0/rate;
+			prate = div * rate;
+			*best_parent_rate = clk_round_rate(cpll, prate);
+			best = (*best_parent_rate) / div;
+		}
 	}
 
 	return best;
