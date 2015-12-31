@@ -129,6 +129,8 @@ struct bsp_priv {
 	int reset_io_level;
 	int phyirq_io;
 	int phyirq_io_level;
+	int link_io;
+	int link_io_level;
 	int phy_iface;
 	bool clock_input;
 	bool internal_phy;

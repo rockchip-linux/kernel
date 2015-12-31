@@ -28,6 +28,7 @@
 	https://bugzilla.stlinux.com/
 *******************************************************************************/
 
+#include <linux/gpio.h>
 #include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
@@ -694,6 +695,7 @@ static void stmmac_adjust_link(struct net_device *dev)
 	unsigned long flags;
 	int new_state = 0;
 	unsigned int fc = priv->flow_ctrl, pause_time = priv->pause;
+	struct bsp_priv *bsp_priv = priv->plat->bsp_priv;
 
 	if (phydev == NULL)
 		return;
@@ -702,6 +704,21 @@ static void stmmac_adjust_link(struct net_device *dev)
 	    phydev->addr, phydev->link);
 
 	spin_lock_irqsave(&priv->lock, flags);
+
+	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy) &&
+	    gpio_is_valid(bsp_priv->link_io)) {
+		if (phydev->link != priv->oldlink) {
+			if (phydev->link) {
+				/* link LED on */
+				gpio_direction_output(bsp_priv->link_io,
+						      bsp_priv->link_io_level);
+			} else {
+				/* link LED off */
+				gpio_direction_output(bsp_priv->link_io,
+						      !bsp_priv->link_io_level);
+			}
+		}
+	}
 
 	if (phydev->link) {
 		u32 ctrl = readl(priv->ioaddr + MAC_CTRL_REG);
