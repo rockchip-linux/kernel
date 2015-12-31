@@ -12,6 +12,7 @@ obj-$(CONFIG_SND_RK_SOC_I2S) += snd-soc-rockchip-i2s.o
 obj-$(CONFIG_SND_RK_SOC_SPDIF) += snd-soc-rockchip-spdif.o
 
 # ROCKCHIP Machine Support
+snd-soc-nau8540-objs := rk_nau8540.o
 snd-soc-wm8900-objs := rk_wm8900.o
 snd-soc-rt5621-objs := rk_rt5621.o
 snd-soc-rt5631-objs := rk_rt5631.o
@@ -45,6 +46,7 @@ snd-soc-hdmi-spdif-objs := rk_hdmi_spdif.o
 snd-soc-rt5512-objs := rk_rt5512.o
 snd-soc-cx2070x-objs := rk_cx2070x.o
 
+obj-$(CONFIG_SND_RK_SOC_NAU8540) += snd-soc-nau8540.o
 obj-$(CONFIG_SND_RK_SOC_WM8994) += snd-soc-wm8994.o
 obj-$(CONFIG_SND_RK_SOC_WM8988) += snd-soc-wm8988.o
 obj-$(CONFIG_SND_RK_SOC_WM8900) += snd-soc-wm8900.o
