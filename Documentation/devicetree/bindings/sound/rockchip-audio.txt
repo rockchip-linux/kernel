@@ -172,3 +172,20 @@ rockchip-audio {
 		};
 	};
 };
+
+- compatible : "rockchip,nau8540-audio"
+- audio-controller: The phandle of i2s controller
+- audio-codec: The phandle of audio codec
+
+Example:
+
+rockchip-nau8540 {
+	compatible = "rockchip,nau8540-audio";
+	dais {
+		dai0 {
+			audio-codec = <&nau8540>;
+			audio-controller = <&i2s1>;
+			format = "i2s";
+		};
+	};
+};
