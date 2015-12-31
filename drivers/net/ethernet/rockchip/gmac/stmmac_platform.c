@@ -699,6 +699,7 @@ static int phy_power_on(bool enable)
 			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 				     GRF_CLR_BIT(0));
 			/* G5_7 set to 1 */
+			clk_prepare_enable(bsp_priv->clk_macphy);
 			clk_disable_unprepare(bsp_priv->clk_macphy);
 		}
 	}
