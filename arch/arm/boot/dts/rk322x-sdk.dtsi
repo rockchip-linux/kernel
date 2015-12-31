@@ -382,6 +382,7 @@
 	/* phyirq-gpio = <&gpio0 GPIO_B1 GPIO_ACTIVE_LOW>; */
 	/* control link LED */
 	link-gpio = <&gpio2 GPIO_B6 GPIO_ACTIVE_HIGH>;
+	led-gpio = <&gpio2 GPIO_B0 GPIO_ACTIVE_HIGH>;
 	phy-mode = "rmii";
 	pinctrl-names = "default";
 	/* rmii_pins, rgmii_pins, phy_pins */
