@@ -829,6 +829,16 @@ int stmmc_pltfr_init(struct platform_device *pdev) {
 		}
 	}
 
+	if (!gpio_is_valid(bsp_priv->led_io)) {
+		pr_err("%s: ERROR: Get led-gpio failed.\n", __func__);
+	} else {
+		err = gpio_request(bsp_priv->led_io, "phy_led");
+		if (err) {
+			pr_err("%s: ERROR: Request pin %s failed.\n",
+			       "phy_led", __func__);
+		}
+	}
+
 /* rmii or rgmii */
 	if (phy_iface == PHY_INTERFACE_MODE_RGMII) {
 		pr_info("%s: init for RGMII\n", __func__);
@@ -996,6 +1006,9 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	g_bsp_priv.link_io =
 			of_get_named_gpio_flags(np, "link-gpio", 0, &flags);
 	g_bsp_priv.link_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	g_bsp_priv.led_io =
+			of_get_named_gpio_flags(np, "led-gpio", 0, &flags);
+	g_bsp_priv.led_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
 
 	if ((g_bsp_priv.internal_phy) && gpio_is_valid(g_bsp_priv.link_io)) {
 		/* link LED off */
