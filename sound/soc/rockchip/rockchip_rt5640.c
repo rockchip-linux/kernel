@@ -209,8 +209,13 @@ static void rt5640_headphone_detect(void)
 
 static void rt5640_mic_detect(void)
 {
-	int level = gpiod_get_value(micdet_gpiod);
+	int level;
 	struct snd_soc_codec *codec = g_mc_codec;
+
+	if (IS_ERR(micdet_gpiod))
+		return;
+
+	level = gpiod_get_value(micdet_gpiod);
 
 	printk("%s -- line = %d, level = %d\n", __func__, __LINE__, level);
 
@@ -345,14 +350,15 @@ static int snd_rk_mc_probe(struct platform_device *pdev)
 		goto do_err;
 	}
 
-	ret = request_threaded_irq(gpiod_to_irq(micdet_gpiod), NULL, mic_detect_irq,
-		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
-		| IRQF_ONESHOT, "mic_irq", NULL);
-	if (ret) {
-		pr_err("Failed to reguest IRQ: %d\n", ret);
-		goto do_err;
+	if (!IS_ERR(micdet_gpiod)) {
+		ret = request_threaded_irq(gpiod_to_irq(micdet_gpiod), NULL, mic_detect_irq,
+			IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING
+			| IRQF_ONESHOT, "mic_irq", NULL);
+		if (ret) {
+			pr_err("Failed to reguest IRQ: %d\n", ret);
+			goto do_err;
+		}
 	}
-
 do_err:
 	return ret;
 }
