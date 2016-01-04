@@ -53,6 +53,16 @@
 		regulator-name = "vcc_lcd";
 		vin-supply = <&vcc_io>;
 	};
+
+	vcc_wl: vcc-wl {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio7 9 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_pwr>;
+		regulator-name = "vcc_wl";
+		vin-supply = <&vcc_18>;
+	};
 };
 
 &i2c0 {
@@ -212,6 +222,12 @@
 	lcd {
 		lcd_en: lcd-en  {
 			rockchip,pins = <7 3 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wifi {
+		wifi_pwr: wifi-pwr {
+			rockchip,pins = <7 9 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };

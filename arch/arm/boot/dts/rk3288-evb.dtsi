@@ -38,7 +38,6 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <dt-bindings/clock/rockchip,rk808.h>
 #include <dt-bindings/pwm/pwm.h>
 #include "rk3288.dtsi"
 #include "rk3288-veyron-lpddr.dtsi"
@@ -366,8 +365,8 @@
 	cap-sdio-irq;
 	card-external-vcc-supply = <&wifi_regulator>;
 	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&cru SCLK_SDIO0_DRV>,
-		 <&cru SCLK_SDIO0_SAMPLE>, <&rk808 RK808_CLKOUT1>;
-	clock-names = "biu", "ciu", "ciu_drv", "ciu_sample", "card_ext_clock";
+		 <&cru SCLK_SDIO0_SAMPLE>;
+	clock-names = "biu", "ciu", "ciu_drv", "ciu_sample";
 	keep-power-in-suspend;
 	non-removable;
 	num-slots = <1>;

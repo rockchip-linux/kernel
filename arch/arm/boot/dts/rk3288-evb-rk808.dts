@@ -40,6 +40,7 @@
 
 /dts-v1/;
 #include "rk3288-evb.dtsi"
+#include <dt-bindings/clock/rockchip,rk808.h>
 
 / {
 	compatible = "rockchip,rk3288-evb-rk808", "google,veyron-jerry-rev0",
@@ -218,4 +219,10 @@
 			};
 		};
 	};
+};
+
+&sdio0 {
+	clocks = <&cru HCLK_SDIO0>, <&cru SCLK_SDIO0>, <&cru SCLK_SDIO0_DRV>,
+		 <&cru SCLK_SDIO0_SAMPLE>, <&rk808 RK808_CLKOUT1>;
+	clock-names = "biu", "ciu", "ciu_drv", "ciu_sample", "card_ext_clock";
 };
