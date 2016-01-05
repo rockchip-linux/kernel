@@ -649,14 +649,12 @@ static int ext_phy_config(struct hdmi_dev *hdmi_dev)
 				  stat | 0x20);
 	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL,
 				  (stat >> 8) & 0xff);
-	if (hdmi_dev->tmdsclk > 200000000) {
-		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PLL_BW, 0x00);
-		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_BW, 0x02);
-	} else {
-		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PLL_BW, 0x11);
-		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_BW, 0x10);
-	}
-
+	if (hdmi_dev->tmdsclk > 200000000)
+		stat = 0;
+	else
+		stat = 0x11;
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PLL_BW, stat);
+	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_PPLL_BW, 0x27);
 	if (hdmi_dev->grf_base)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322X_GRF_SOC_CON2,
