@@ -1289,7 +1289,8 @@ static void vop_bcsh_path_sel(struct rk_lcdc_driver *dev_drv)
 }
 
 static int vop_get_dspbuf_info(struct rk_lcdc_driver *dev_drv, u16 *xact,
-			       u16 *yact, int *format, u32 *dsp_addr)
+			       u16 *yact, int *format, u32 *dsp_addr,
+			       int *ymirror)
 {
 	struct vop_device *vop_dev =
 			container_of(dev_drv, struct vop_device, driver);
@@ -1303,6 +1304,7 @@ static int vop_get_dspbuf_info(struct rk_lcdc_driver *dev_drv, u16 *xact,
 
 	val = vop_readl(vop_dev, WIN0_CTRL0);
 	*format = (val & MASK(WIN0_DATA_FMT)) >> 1;
+	*ymirror = (val & MASK(WIN0_Y_MIR_EN)) >> 22;
 	*dsp_addr = vop_readl(vop_dev, WIN0_YRGB_MST);
 
 	spin_unlock(&vop_dev->reg_lock);
@@ -1311,14 +1313,16 @@ static int vop_get_dspbuf_info(struct rk_lcdc_driver *dev_drv, u16 *xact,
 }
 
 static int vop_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
-			   int format, u16 xact, u16 yact, u16 xvir)
+			   int format, u16 xact, u16 yact, u16 xvir,
+			   int ymirror)
 {
 	struct vop_device *vop_dev =
 			container_of(dev_drv, struct vop_device, driver);
 	int swap = (format == RGB888) ? 1 : 0;
 	u64 val;
 
-	val = V_WIN0_DATA_FMT(format) | V_WIN0_RB_SWAP(swap);
+	val = V_WIN0_DATA_FMT(format) | V_WIN0_RB_SWAP(swap) |
+		V_WIN0_Y_MIR_EN(ymirror);
 	vop_msk_reg(vop_dev, WIN0_CTRL0, val);
 
 	vop_msk_reg(vop_dev, WIN0_VIR,	V_WIN0_VIR_STRIDE(xvir));
