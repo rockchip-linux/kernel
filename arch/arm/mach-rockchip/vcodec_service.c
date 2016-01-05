@@ -747,7 +747,7 @@ static void vpu_service_power_off(struct vpu_service_info *pservice)
 	pservice->curr_mode = VCODEC_RUNNING_MODE_NONE;
 #endif
 
-    pm_runtime_put(pservice->dev);
+    pm_runtime_put_sync(pservice->dev);
 #if VCODEC_CLOCK_ENABLE
 	//if (pservice->pd_video)
 	//	clk_disable_unprepare(pservice->pd_video);
@@ -821,7 +821,6 @@ static void vpu_service_power_on(struct vpu_service_info *pservice)
     //pm_runtime_set_autosuspend_delay(pservice->dev, 100);
     //pm_runtime_use_autosuspend(pservice->dev);
 
-    pm_runtime_enable(pservice->dev);
     pm_runtime_get_sync(pservice->dev);//寮曠敤浣弍ower-dom
 
 	udelay(10);
@@ -2224,6 +2223,7 @@ static int vcodec_probe(struct platform_device *pdev)
 		pservice->dev_id = VCODEC_DEVICE_ID_COMBO;
 
 	pservice->dev = dev;
+	pm_runtime_enable(pservice->dev);
 
 	if (0 > vpu_get_clk(pservice))
 		goto err;
@@ -2296,6 +2296,8 @@ static int vcodec_remove(struct platform_device *pdev)
 	wake_lock_destroy(&pservice->wake_lock);
 
     destroy_workqueue(delay_work_queue);
+
+	pm_runtime_disable(pservice->dev);
 
 	return 0;
 }
