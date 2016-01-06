@@ -162,6 +162,18 @@
 			};
 		};
 	};
+
+	rockchip_nau8540 {
+		status = "disabled";
+		compatible = "rockchip,nau8540-audio";
+		dais {
+			dai0 {
+				audio-codec = <&nau8540>;
+				audio-controller = <&i2s1>;
+				format = "i2s";
+			};
+		};
+	};
 };
 
 &nandc {
@@ -209,6 +221,19 @@
 	status = "okay";
 	dma-names = "!tx", "!rx";
 	pinctrl-0 = <&uart11_xfer &uart11_cts>;
+};
+
+&i2c1 {
+	status = "disabled";
+	nau8540: nau8540@1c {
+		compatible = "nuvoton,nau8540";
+		reg = <0x1c>;
+	};
+
+	nau8540_aux: nau8540@1d {
+		compatible = "nuvoton,nau8540";
+		reg = <0x1d>;
+	};
 };
 
 &i2s0 {
