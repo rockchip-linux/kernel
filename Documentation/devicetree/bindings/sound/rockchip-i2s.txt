@@ -18,6 +18,8 @@ Required SoC Specific Properties:
 - pinctrl-names: must contain a "default" entry.
 - pinctrl-0: pin control group to be used for this controller.
 - pinctrl-1: pin control group to be used for gpio.
+- rockchip,playback-channels: max playback channels, if not set, 8 channels default.
+- rockchip,capture-channels: max capture channels, if not set, 2 channels default.
 
 Example:
 
@@ -33,4 +35,6 @@ i2s0: i2s@10220000 {
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&i2s0_mclk &i2s0_sclk &i2s0_lrckrx &i2s0_lrcktx &i2s0_sdi &i2s0_sdo>;
 	pinctrl-1 = <&i2s0_gpio>;
+	rockchip,playback-channels = <8>;
+	rockchip,capture-channels = <8>;
 };
