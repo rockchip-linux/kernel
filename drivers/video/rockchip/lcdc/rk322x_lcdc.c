@@ -1319,6 +1319,7 @@ static int vop_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
 	struct vop_device *vop_dev =
 			container_of(dev_drv, struct vop_device, driver);
 	int swap = (format == RGB888) ? 1 : 0;
+	struct rk_lcdc_win *win = dev_drv->win[0];
 	u64 val;
 
 	val = V_WIN0_DATA_FMT(format) | V_WIN0_RB_SWAP(swap) |
@@ -1332,6 +1333,8 @@ static int vop_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
 	vop_writel(vop_dev, WIN0_YRGB_MST, rgb_mst);
 
 	vop_cfg_done(vop_dev);
+	win->state = 1;
+	win->last_state = 1;
 
 	return 0;
 }
