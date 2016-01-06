@@ -57,6 +57,9 @@
  * RXCR
  * receive operation control register
 */
+#define I2S_RXCR_CSR_SHIFT	15
+#define I2S_RXCR_CSR(x)		(x << I2S_RXCR_CSR_SHIFT)
+#define I2S_RXCR_CSR_MASK	(3 << I2S_RXCR_CSR_SHIFT)
 #define I2S_RXCR_HWT		BIT(14)
 #define I2S_RXCR_SJM_SHIFT	12
 #define I2S_RXCR_SJM_R		(0 << I2S_RXCR_SJM_SHIFT)

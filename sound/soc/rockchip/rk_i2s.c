@@ -316,6 +316,7 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 				   val);
 	} else {
 		regmap_update_bits(i2s->regmap, I2S_RXCR,
+				   I2S_RXCR_CSR_MASK |
 				   I2S_RXCR_VDW_MASK, val);
 	}
 
@@ -433,45 +434,24 @@ static struct snd_soc_dai_ops rockchip_i2s_dai_ops = {
 			      SNDRV_PCM_FMTBIT_S24_LE | \
 			      SNDRV_PCM_FORMAT_S32_LE)
 
-struct snd_soc_dai_driver rockchip_i2s_dai[] = {
-	{
-		.probe = rockchip_i2s_dai_probe,
-		.name = "rockchip-i2s.0",
-		.id = 0,
-		.playback = {
-			.channels_min = 2,
-			.channels_max = 8,
-			.rates = ROCKCHIP_I2S_RATES,
-			.formats = ROCKCHIP_I2S_FORMATS,
-		},
-		.capture = {
-			.channels_min = 2,
-			.channels_max = 2,
-			.rates = ROCKCHIP_I2S_RATES,
-			.formats = ROCKCHIP_I2S_FORMATS,
-		},
-		.ops = &rockchip_i2s_dai_ops,
-		.symmetric_rates = 1,
+static struct snd_soc_dai_driver rockchip_i2s_dai = {
+	.probe = rockchip_i2s_dai_probe,
+	.playback = {
+		.stream_name = "Playback",
+		.channels_min = 2,
+		.channels_max = 8,
+		.rates = ROCKCHIP_I2S_RATES,
+		.formats = ROCKCHIP_I2S_FORMATS,
 	},
-	{
-		.probe = rockchip_i2s_dai_probe,
-		.name = "rockchip-i2s.1",
-		.id = 1,
-		.playback = {
-			.channels_min = 2,
-			.channels_max = 2,
-			.rates = ROCKCHIP_I2S_RATES,
-			.formats = ROCKCHIP_I2S_FORMATS,
-		},
-		.capture = {
-			.channels_min = 2,
-			.channels_max = 2,
-			.rates = ROCKCHIP_I2S_RATES,
-			.formats = ROCKCHIP_I2S_FORMATS,
-		},
-		.ops = &rockchip_i2s_dai_ops,
-		.symmetric_rates = 1,
+	.capture = {
+		.stream_name = "Capture",
+		.channels_min = 2,
+		.channels_max = 8,
+		.rates = ROCKCHIP_I2S_RATES,
+		.formats = ROCKCHIP_I2S_FORMATS,
 	},
+	.ops = &rockchip_i2s_dai_ops,
+	.symmetric_rates = 1,
 };
 
 static const struct snd_soc_component_driver rockchip_i2s_component = {
@@ -582,9 +562,11 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct rk_i2s_dev *i2s;
+	struct snd_soc_dai_driver *soc_dai;
 	struct resource *res;
 	void __iomem *regs;
 	int ret;
+	int val;
 
 	ret = of_property_read_u32(node, "i2s-id", &pdev->id);
 	if (ret < 0) {
@@ -695,8 +677,25 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 			goto err_pm_disable;
 	}
 
-	ret = snd_soc_register_component(&pdev->dev, &rockchip_i2s_component,
-					 &rockchip_i2s_dai[pdev->id], 1);
+	soc_dai = devm_kzalloc(&pdev->dev,
+			       sizeof(*soc_dai), GFP_KERNEL);
+	if (!soc_dai)
+		return -ENOMEM;
+
+	memcpy(soc_dai, &rockchip_i2s_dai, sizeof(*soc_dai));
+	if (!of_property_read_u32(node, "rockchip,playback-channels", &val)) {
+		if (val >= 2 && val <= 8)
+			soc_dai->playback.channels_max = val;
+	}
+
+	if (!of_property_read_u32(node, "rockchip,capture-channels", &val)) {
+		if (val >= 2 && val <= 8)
+			soc_dai->capture.channels_max = val;
+	}
+
+	ret = snd_soc_register_component(&pdev->dev,
+					 &rockchip_i2s_component,
+					 soc_dai, 1);
 
 	if (ret) {
 		dev_err(&pdev->dev, "Could not register DAI: %d\n", ret);
