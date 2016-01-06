@@ -97,10 +97,28 @@ static struct snd_soc_dai_link nau8540_dai_link[] = {
 	}
 };
 
+static struct snd_soc_aux_dev nau_aux_dev[] = {
+	{
+		.name = "nau8540b",
+		.codec_name = "nau8540.1-001d",
+	},
+};
+
+static struct snd_soc_codec_conf nau_codec_conf[] = {
+	{
+		.dev_name = "nau8540.1-001d",
+		.name_prefix = "b",
+	},
+};
+
 static struct snd_soc_card snd_soc_card_nau8540 = {
 	.name = "RK_NAU8540",
 	.dai_link = nau8540_dai_link,
-	.num_links = 1,
+	.num_links = ARRAY_SIZE(nau8540_dai_link),
+	.aux_dev = nau_aux_dev,
+	.num_aux_devs = ARRAY_SIZE(nau_aux_dev),
+	.codec_conf = nau_codec_conf,
+	.num_configs = ARRAY_SIZE(nau_codec_conf),
 };
 
 static int nau8540_audio_probe(struct platform_device *pdev)
