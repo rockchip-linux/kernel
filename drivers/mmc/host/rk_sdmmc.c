@@ -3883,7 +3883,8 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		host->power_inverted = false;
 
 	if ((priv->ctrl_type == DW_MCI_TYPE_RK322X) &&
-		!rockchip_get_cpu_version()) {
+		!rockchip_get_cpu_version() &&
+		(pdata->caps2 & MMC_CAP2_HS200)) {
 		pdata->caps2 &= ~MMC_CAP2_HS200;
 		pdata->bus_hz = 50000000;
 	}
