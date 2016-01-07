@@ -14,6 +14,7 @@
 #include <linux/err.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio/consumer.h>
+#include <linux/regulator/consumer.h>
 
 #include <linux/mmc/host.h>
 
@@ -24,6 +25,7 @@ struct mmc_pwrseq_simple {
 	bool clk_enabled;
 	struct clk *ext_clk;
 	struct gpio_descs *reset_gpios;
+	struct regulator *regulator;
 };
 
 static void mmc_pwrseq_simple_set_gpios_value(struct mmc_pwrseq_simple *pwrseq,
@@ -44,6 +46,13 @@ static void mmc_pwrseq_simple_pre_power_on(struct mmc_host *host)
 {
 	struct mmc_pwrseq_simple *pwrseq = container_of(host->pwrseq,
 					struct mmc_pwrseq_simple, pwrseq);
+
+	if (!IS_ERR(pwrseq->regulator)) {
+		dev_dbg(host->parent, "Enabling external regulator\n");
+		if (regulator_enable(pwrseq->regulator))
+			dev_err(host->parent,
+				"Failed to enable external regulator\n");
+	}
 
 	if (!IS_ERR(pwrseq->ext_clk) && !pwrseq->clk_enabled) {
 		clk_prepare_enable(pwrseq->ext_clk);
@@ -114,6 +123,13 @@ struct mmc_pwrseq *mmc_pwrseq_simple_alloc(struct mmc_host *host,
 	pwrseq->reset_gpios = gpiod_get_array(dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(pwrseq->reset_gpios)) {
 		ret = PTR_ERR(pwrseq->reset_gpios);
+		goto clk_put;
+	}
+
+	pwrseq->regulator = devm_regulator_get(dev, "ext-vcc");
+	if (IS_ERR(pwrseq->regulator) &&
+	    PTR_ERR(pwrseq->regulator) != -EPROBE_DEFER) {
+		ret = PTR_ERR(pwrseq->regulator);
 		goto clk_put;
 	}
 
