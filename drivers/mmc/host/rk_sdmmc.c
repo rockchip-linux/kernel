@@ -2146,7 +2146,7 @@ static void dw_mci_command_complete(struct dw_mci *host, struct mmc_command *cmd
 			cmd->opcode, cmd->error, mmc_hostname(host->mmc));
 
 	if (cmd->error) {
-		MMC_DBG_ERR_FUNC(host->mmc, "cmd%d Error: %d, status: 0x%08x. [%s]",
+		MMC_DBG_WARN_FUNC(host->mmc, "cmd%d Error: %d, status: 0x%08x. [%s]",
 			cmd->opcode, cmd->error, status, mmc_hostname(host->mmc));
 
 		if(MMC_SEND_STATUS != cmd->opcode)
