@@ -979,11 +979,50 @@ static int vop_win_0_1_reg_update(struct rk_lcdc_driver *dev_drv, int win_id)
 	struct rk_lcdc_win *win = dev_drv->win[win_id];
 	u64 val;
 	uint32_t off;
+	int format;
 
 	off = win_id * 0x40;
 
 	if (win->state == 1) {
 		vop_axi_gather_cfg(vop_dev, win);
+
+		/*
+		 * rk322x have a bug on windows 0 and 1:
+		 *
+		 * When switch win format from RGB to YUV, would flash
+		 * some green lines on the top of the windows.
+		 *
+		 * Use bg_en show one blank frame to skip the error frame.
+		 */
+		if (IS_YUV(win->area[0].fmt_cfg)) {
+			val = vop_readl(vop_dev, WIN0_CTRL0);
+			format = (val & MASK(WIN0_DATA_FMT)) >> 1;
+
+			if (!IS_YUV(format)) {
+				if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
+					val = V_WIN0_DSP_BG_RED(0x200) |
+						V_WIN0_DSP_BG_GREEN(0x40) |
+						V_WIN0_DSP_BG_BLUE(0x200) |
+						V_WIN0_BG_EN(1);
+					vop_msk_reg(vop_dev, WIN0_DSP_BG + off,
+						    val);
+				} else {
+					val = V_WIN0_DSP_BG_RED(0) |
+						V_WIN0_DSP_BG_GREEN(0) |
+						V_WIN0_DSP_BG_BLUE(0) |
+						V_WIN0_BG_EN(1);
+					vop_msk_reg(vop_dev, WIN0_DSP_BG + off,
+						    val);
+				}
+			} else {
+				val = V_WIN0_BG_EN(0);
+				vop_msk_reg(vop_dev, WIN0_DSP_BG + off, val);
+			}
+		} else {
+			val = V_WIN0_BG_EN(0);
+			vop_msk_reg(vop_dev, WIN0_DSP_BG + off, val);
+		}
+
 		val = V_WIN0_EN(win->state) |
 			V_WIN0_DATA_FMT(win->area[0].fmt_cfg) |
 			V_WIN0_FMT_10(win->fmt_10) |
