@@ -1,8 +1,6 @@
 /dts-v1/;
 
 #include "rk3228b.dtsi"
-#include "lcd-box.dtsi"
-#include <dt-bindings/input/input.h>
 #include "rk322x-sdk.dtsi"
 
 / {
@@ -17,3 +15,17 @@
 	};
 };
 
+&clk_core_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		408000 950000
+		600000 975000
+		816000 1000000
+		1008000 1175000
+		1200000 1275000
+		1296000 1325000
+		1392000 1350000
+		1464000 1350000
+		>;
+	status = "okay";
+};

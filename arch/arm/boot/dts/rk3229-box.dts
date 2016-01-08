@@ -1,6 +1,6 @@
 /dts-v1/;
 
-#include "rk3228b.dtsi"
+#include "rk3229.dtsi"
 #include "rk322x-sdk.dtsi"
 
 / {
@@ -36,6 +36,6 @@
 		1296000	1325000
 		1392000	1350000
 		1464000	1350000
-		>;
+		>
 	status = "okay";
 };

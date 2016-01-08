@@ -1,11 +1,11 @@
 /dts-v1/;
 
-#include "rk3228b.dtsi"
+#include "rk3228a.dtsi"
 #include "rk322x-sdk.dtsi"
 
 / {
 	wireless-wlan {
-		wifi_chip_type = "rtl8189es";
+		wifi_chip_type = "rtl8189fs";
 	};
 
 	wireless-bluetooth {
@@ -19,9 +19,25 @@
 			default-state = "on";
 		};
 		red {
-			gpios = <&gpio0 GPIO_B0 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio1 GPIO_A7 GPIO_ACTIVE_HIGH>;
 			default-state = "off";
 		};
+	};
+
+	key {
+		compatible = "rockchip,key";
+		power-key {
+			gpios = <&gpio3 GPIO_C7 GPIO_ACTIVE_LOW>;
+			linux,code = <116>;
+			label = "power";
+			gpio-key,wakeup;
+		};
+	};
+
+	gpio_poweroff {
+		compatible = "gpio-poweroff";
+		gpios = <&gpio3 GPIO_C1 GPIO_ACTIVE_LOW>;
+		status = "okay";
 	};
 };
 
@@ -34,8 +50,6 @@
 		1008000	1175000
 		1200000	1275000
 		1296000	1325000
-		1392000	1350000
-		1464000	1350000
 		>;
 	status = "okay";
 };
