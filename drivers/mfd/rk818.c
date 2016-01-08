@@ -540,6 +540,10 @@ static int rk818_save_sleep_reg_setting(struct rk818 *rk818)
 			       RK818_SLEEP_SET_OFF_REG1 + i);
 		sleep_state[i] = rk818_reg_read(rk818,
 						RK818_DCDC_EN_REG + i);
+		if (i == 0)
+			sleep_state[i] |= 0x60;
+		else
+			sleep_state[i] |= 0xff;
 		ret = rk818_set_bits(rk818,
 				     RK818_SLEEP_SET_OFF_REG1 + i,
 				     0xff, (~(sleep_state[i])));
