@@ -92,8 +92,8 @@ enum pwm_div {
 /********************************************************************
 **                            ∫Í∂®“Â                                *
 ********************************************************************/
-#define RK_PWM_TIME_PRE_MIN	4500
-#define RK_PWM_TIME_PRE_MAX	5500
+#define RK_PWM_TIME_PRE_MIN	4000
+#define RK_PWM_TIME_PRE_MAX	5000
 
 #define RK_PWM_TIME_BIT0_MIN	700
 #define RK_PWM_TIME_BIT0_MAX	1300
@@ -104,8 +104,8 @@ enum pwm_div {
 #define RK_PWM_TIME_RPT_MIN	2000
 #define RK_PWM_TIME_RPT_MAX	2500
 
-#define RK_PWM_TIME_SEQ1_MIN	92000
-#define RK_PWM_TIME_SEQ1_MAX	95000
+#define RK_PWM_TIME_SEQ1_MIN	95000
+#define RK_PWM_TIME_SEQ1_MAX	98000
 
 #define RK_PWM_TIME_SEQ2_MIN	26000
 #define RK_PWM_TIME_SEQ2_MAX	50000
