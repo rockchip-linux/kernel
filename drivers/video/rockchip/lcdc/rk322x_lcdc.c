@@ -1028,8 +1028,8 @@ static int vop_win_0_1_reg_update(struct rk_lcdc_driver *dev_drv, int win_id)
 			V_WIN0_FMT_10(win->fmt_10) |
 			V_WIN0_LB_MODE(win->win_lb_mode) |
 			V_WIN0_RB_SWAP(win->area[0].swap_rb) |
-			V_WIN0_X_MIR_EN(win->mirror_en) |
-			V_WIN0_Y_MIR_EN(win->mirror_en) |
+			V_WIN0_X_MIR_EN(win->xmirror) |
+			V_WIN0_Y_MIR_EN(win->ymirror) |
 			V_WIN0_UV_SWAP(win->area[0].swap_uv);
 		vop_msk_reg(vop_dev, WIN0_CTRL0 + off, val);
 		val = V_WIN0_BIC_COE_SEL(win->bic_coe_el) |
@@ -1372,6 +1372,7 @@ static int vop_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
 	vop_writel(vop_dev, WIN0_YRGB_MST, rgb_mst);
 
 	vop_cfg_done(vop_dev);
+	win->ymirror = ymirror;
 	win->state = 1;
 	win->last_state = 1;
 
@@ -1951,7 +1952,7 @@ static int vop_cal_scl_fac(struct rk_lcdc_win *win, struct rk_screen *screen)
 		break;
 	}
 
-	if (win->mirror_en == 1)
+	if (win->ymirror == 1)
 		win->yrgb_vsd_mode = SCALE_DOWN_BIL;
 	if (screen->mode.vmode & FB_VMODE_INTERLACED) {
 		/* interlace mode must bill */
@@ -2226,8 +2227,8 @@ static int win_0_1_set_par(struct vop_device *vop_dev,
 	u8 fmt_cfg = 0, swap_rb, swap_uv = 0;
 	char fmt[9] = "NULL";
 
-	xpos = dsp_x_pos(win->mirror_en, screen, &win->area[0]);
-	ypos = dsp_y_pos(win->mirror_en, screen, &win->area[0]);
+	xpos = dsp_x_pos(win->xmirror, screen, &win->area[0]);
+	ypos = dsp_y_pos(win->ymirror, screen, &win->area[0]);
 
 	spin_lock(&vop_dev->reg_lock);
 	if (likely(vop_dev->clk_on)) {
