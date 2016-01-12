@@ -86,7 +86,7 @@
 		regulator-name = "bt_regulator";
 	};
 
-	wifi_regulator: wifi-regulator {
+	wlreg_on: wifi-regulator {
 		/*
 		 * On the module itself this is one of these (depending
 		 * on the actual card populated):
@@ -99,8 +99,14 @@
 		gpio = <&gpio0 26 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_enable_h>;
-		regulator-name = "wifi_regulator";
+		regulator-name = "wlreg_on";
 		vin-supply = <&bt_regulator>;
+	};
+
+	bcmdhd_wlan_0: bcmdhd_wlan@0 {
+		compatible = "android,bcmdhd_wlan";
+		gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;
+		wlreg_on-supply = <&wlreg_on>;
 	};
 };
 
@@ -348,7 +354,7 @@
 	sd-uhs-sdr50;
 	sd-uhs-sdr104;
 	cap-sdio-irq;
-	card-external-vcc-supply = <&wifi_regulator>;
+	card-external-vcc-supply = <&wlreg_on>;
 	default-sample-phase = <90>;
 	keep-power-in-suspend;
 	non-removable;
