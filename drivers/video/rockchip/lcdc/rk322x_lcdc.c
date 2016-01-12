@@ -1372,6 +1372,12 @@ static int vop_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
 	vop_writel(vop_dev, WIN0_YRGB_MST, rgb_mst);
 
 	vop_cfg_done(vop_dev);
+
+	if (format == RGB888)
+		win->area[0].format = BGR888;
+	else
+		win->area[0].format = format;
+
 	win->ymirror = ymirror;
 	win->state = 1;
 	win->last_state = 1;
@@ -2266,6 +2272,11 @@ static int win_0_1_set_par(struct vop_device *vop_dev,
 		case XBGR888:
 		case ABGR888:
 			fmt_cfg = 0;
+			swap_rb = 1;
+			win->fmt_10 = 0;
+			break;
+		case BGR888:
+			fmt_cfg = 1;
 			swap_rb = 1;
 			win->fmt_10 = 0;
 			break;
