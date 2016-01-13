@@ -87,6 +87,9 @@ enum hrtimer_restart {
  * @function:	timer expiry callback function
  * @base:	pointer to the timer base (per cpu and per clock)
  * @state:	state information (See bit values above)
+ * @cb_entry:	list entry to defer timers from hardirq context
+ * @irqsafe:	timer can run in hardirq context
+ * @praecox:	timer expiry time if expired at the time of programming
  * @start_pid: timer statistics field to store the pid of the task which
  *		started the timer
  * @start_site:	timer statistics field to store the site where the timer
@@ -135,6 +138,7 @@ struct hrtimer_sleeper {
  *			timer to a base on another cpu.
  * @clockid:		clock id for per_cpu support
  * @active:		red black tree root node for the active timers
+ * @expired:		list head for deferred timers.
  * @get_time:		function to retrieve the current time of the clock
  * @offset:		offset of this clock to the monotonic base
  */

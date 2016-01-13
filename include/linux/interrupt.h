@@ -208,6 +208,7 @@ extern void resume_device_irqs(void);
  * @irq:		Interrupt to which notification applies
  * @kref:		Reference count, for internal use
  * @work:		Work item, for internal use
+ * @list:		List item for deferred callbacks
  * @notify:		Function to be called on change.  This will be
  *			called in process context.
  * @release:		Function to be called on release.  This will be
