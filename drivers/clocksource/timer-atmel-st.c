@@ -150,7 +150,7 @@ static int clkevt32k_set_oneshot(struct clock_event_device *dev)
 
 static int clkevt32k_set_periodic(struct clock_event_device *dev)
 {
-	int irq;
+	int ret;
 
 	clkdev32k_disable_and_flush_irq();
 
@@ -229,8 +229,8 @@ static void __init atmel_st_timer_init(struct device_node *node)
 	regmap_read(regmap_st, AT91_ST_SR, &val);
 
 	/* Get the interrupts property */
-	irq  = irq_of_parse_and_map(node, 0);
-	if (!irq)
+	atmel_st_irq  = irq_of_parse_and_map(node, 0);
+	if (!atmel_st_irq)
 		panic(pr_fmt("Unable to get IRQ from DT\n"));
 
 	sclk = of_clk_get(node, 0);

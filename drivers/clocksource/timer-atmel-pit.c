@@ -96,10 +96,11 @@ static int pit_clkevt_shutdown(struct clock_event_device *dev)
 
 	/* disable irq, leaving the clocksource active */
 	pit_write(data->base, AT91_PIT_MR, (data->cycle - 1) | AT91_PIT_PITEN);
-	free_irq(atmel_pit_irq, data);
+	free_irq(data->irq, data);
 	return 0;
 }
 
+static irqreturn_t at91sam926x_pit_interrupt(int irq, void *dev_id);
 /*
  * Clockevent device:  interrupts every 1/HZ (== pit_cycles * MCK/16)
  */
@@ -189,7 +190,6 @@ static void __init at91sam926x_pit_common_init(struct pit_data *data)
 {
 	unsigned long	pit_rate;
 	unsigned	bits;
-	int		ret;
 
 	/*
 	 * Use our actual MCK to figure out how many MCK/16 ticks per
