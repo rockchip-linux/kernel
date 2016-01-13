@@ -1435,6 +1435,7 @@ static inline int hrtimer_rt_defer(struct hrtimer *timer) { return 0; }
 
 #endif
 
+static enum hrtimer_restart hrtimer_wakeup(struct hrtimer *timer);
 
 static void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now)
 {
@@ -1480,17 +1481,15 @@ static void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now)
 			if (basenow.tv64 < hrtimer_get_softexpires_tv64(timer))
 				break;
 
-			 if (!hrtimer_rt_defer(timer))
-				 __run_hrtimer(cpu_base, base, timer, &basenow);
-			 else
-				 raise = 1;
+			if (!hrtimer_rt_defer(timer))
+				__run_hrtimer(cpu_base, base, timer, &basenow);
+			else
+				raise = 1;
 		}
 	}
 	if (raise)
 		raise_softirq_irqoff(HRTIMER_SOFTIRQ);
 }
-
-static enum hrtimer_restart hrtimer_wakeup(struct hrtimer *timer);
 
 #ifdef CONFIG_HIGH_RES_TIMERS
 
