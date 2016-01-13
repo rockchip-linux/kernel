@@ -1092,6 +1092,15 @@ void check_preempt_curr(struct rq *rq, struct task_struct *p, int flags)
 		rq_clock_skip_update(rq, true);
 }
 
+#if defined(CONFIG_PREEMPT_RT_FULL) && defined(CONFIG_SMP)
+#define MIGRATE_DISABLE_SET_AFFIN	(1<<30) /* Can't make a negative */
+#define migrate_disabled_updated(p)	((p)->migrate_disable & MIGRATE_DISABLE_SET_AFFIN)
+#define migrate_disable_count(p)	((p)->migrate_disable & ~MIGRATE_DISABLE_SET_AFFIN)
+#else
+static inline void update_migrate_disable(struct task_struct *p) { }
+#define migrate_disabled_updated(p)		0
+#endif
+
 #ifdef CONFIG_SMP
 /*
  * This is how migration works:
@@ -1208,15 +1217,6 @@ void set_cpus_allowed_common(struct task_struct *p, const struct cpumask *new_ma
 	cpumask_copy(&p->cpus_allowed, new_mask);
 	p->nr_cpus_allowed = cpumask_weight(new_mask);
 }
-
-#if defined(CONFIG_PREEMPT_RT_FULL) && defined(CONFIG_SMP)
-#define MIGRATE_DISABLE_SET_AFFIN	(1<<30) /* Can't make a negative */
-#define migrate_disabled_updated(p)	((p)->migrate_disable & MIGRATE_DISABLE_SET_AFFIN)
-#define migrate_disable_count(p)	((p)->migrate_disable & ~MIGRATE_DISABLE_SET_AFFIN)
-#else
-static inline void update_migrate_disable(struct task_struct *p) { }
-#define migrate_disabled_updated(p)		0
-#endif
 
 void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 {
