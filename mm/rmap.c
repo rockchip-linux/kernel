@@ -89,10 +89,8 @@ static inline struct anon_vma *anon_vma_alloc(void)
 	return anon_vma;
 }
 
-#include <linux/delay.h>
-static void anon_vma_free(struct anon_vma *anon_vma)
+static inline void anon_vma_free(struct anon_vma *anon_vma)
 {
-	int cnt = 0;
 	VM_BUG_ON(atomic_read(&anon_vma->refcount));
 
 	/*
@@ -113,17 +111,9 @@ static void anon_vma_free(struct anon_vma *anon_vma)
 	 * happen _before_ what follows.
 	 */
 	might_sleep();
-retry:
 	if (rwsem_is_locked(&anon_vma->root->rwsem)) {
 		anon_vma_lock_write(anon_vma);
 		anon_vma_unlock_write(anon_vma);
-
-		if (rwsem_is_locked(&anon_vma->root->rwsem)) {
-			cnt++;
-			if (cnt > 3)
-				msleep(1);
-		}
-		goto retry;
 	}
 
 	kmem_cache_free(anon_vma_cachep, anon_vma);
