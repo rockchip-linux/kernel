@@ -217,7 +217,7 @@
 	};
 
 	usbphy: phy {
-		compatible = "rockchip,rk3036-usb-phy";
+		compatible = "rockchip,rk3036-usb-phy", "rockchip,rk3288-usb-phy";
 		rockchip,grf = <&grf>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -232,7 +232,7 @@
 	};
 
 	usb_otg: usb@10180000 {
-		compatible = "rockchip,rk3288-usb", "rockchip,rk3066-usb",
+		compatible = "rockchip,rk3036-usb", "rockchip,rk3066-usb",
 				"snps,dwc2";
 		reg = <0x10180000 0x40000>;
 		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
@@ -247,7 +247,7 @@
 	};
 
 	usb_host: usb@101c0000 {
-		compatible = "rockchip,rk3288-usb", "rockchip,rk3066-usb",
+		compatible = "rockchip,rk3036-usb", "rockchip,rk3066-usb",
 				"snps,dwc2";
 		reg = <0x101c0000 0x40000>;
 		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
@@ -258,7 +258,7 @@
 	};
 
 	sdmmc: dwmmc@10214000 {
-		compatible = "rockchip,rk3288-dw-mshc";
+		compatible = "rockchip,rk3036-dw-mshc", "rockchip,rk3288-dw-mshc";
 		clock-frequency = <37500000>;
 		clock-freq-min-max = <400000 37500000>;
 		clocks = <&cru HCLK_SDMMC>, <&cru SCLK_SDMMC>;
@@ -270,7 +270,7 @@
 	};
 
 	sdio: dwmmc@10218000 {
-		compatible = "rockchip,rk3288-dw-mshc";
+		compatible = "rockchip,rk3036-dw-mshc", "rockchip,rk3288-dw-mshc";
 		clock-freq-min-max = <400000 37500000>;
 		clocks = <&cru HCLK_SDIO>, <&cru SCLK_SDIO>,
 			<&cru SCLK_SDIO_DRV>, <&cru SCLK_SDIO_SAMPLE>;
@@ -282,7 +282,7 @@
 	};
 
 	emmc: dwmmc@1021c000 {
-		compatible = "rockchip,rk3288-dw-mshc";
+		compatible = "rockchip,rk3036-dw-mshc", "rockchip,rk3288-dw-mshc";
 		reg = <0x1021c000 0x4000>;
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		broken-cd;
@@ -413,7 +413,7 @@
 	};
 
 	i2c1: i2c@20056000 {
-		compatible = "rockchip,rk3288-i2c";
+		compatible = "rockchip,rk3036-i2c", "rockchip,rk3288-i2c";
 		reg = <0x20056000 0x1000>;
 		interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -426,7 +426,7 @@
 	};
 
 	i2c2: i2c@2005a000 {
-		compatible = "rockchip,rk3288-i2c";
+		compatible = "rockchip,rk3036-i2c", "rockchip,rk3288-i2c";
 		reg = <0x2005a000 0x1000>;
 		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -481,7 +481,7 @@
 	};
 
 	i2c0: i2c@20072000 {
-		compatible = "rockchip,rk3288-i2c";
+		compatible = "rockchip,rk3036-i2c", "rockchip,rk3288-i2c";
 		reg = <0x20072000 0x1000>;
 		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -493,7 +493,7 @@
 	};
 
 	usb_otg: usb@10180000 {
-		compatible = "rockchip,rk3288-usb", "rockchip,rk3066-usb",
+		compatible = "rockchip,rk3036-usb", "rockchip,rk3066-usb",
 				"snps,dwc2";
 		reg = <0x10180000 0x40000>;
 		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
@@ -510,7 +510,7 @@
 	};
 
 	usb_host: usb@101c0000 {
-		compatible = "rockchip,rk3288-usb", "rockchip,rk3066-usb",
+		compatible = "rockchip,rk3036-usb", "rockchip,rk3066-usb",
 				"snps,dwc2";
 		reg = <0x101c0000 0x40000>;
 		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
