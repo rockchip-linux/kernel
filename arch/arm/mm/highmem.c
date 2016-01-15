@@ -34,6 +34,11 @@ static inline pte_t get_fixmap_pte(unsigned long vaddr)
 	return *ptep;
 }
 
+static unsigned int fixmap_idx(int type)
+{
+	return FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+}
+
 void *kmap(struct page *page)
 {
 	might_sleep();
@@ -80,7 +85,7 @@ void *kmap_atomic(struct page *page)
 
 	type = kmap_atomic_idx_push();
 
-	idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+	idx = fixmap_idx(type);
 	vaddr = __fix_to_virt(idx);
 #ifdef CONFIG_DEBUG_HIGHMEM
 	/*
@@ -110,7 +115,7 @@ void __kunmap_atomic(void *kvaddr)
 
 	if (kvaddr >= (void *)FIXADDR_START) {
 		type = kmap_atomic_idx();
-		idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+		idx = fixmap_idx(type);
 
 		if (cache_is_vivt())
 			__cpuc_flush_dcache_area((void *)vaddr, PAGE_SIZE);
@@ -146,7 +151,7 @@ void *kmap_atomic_pfn(unsigned long pfn)
 		return page_address(page);
 
 	type = kmap_atomic_idx_push();
-	idx = FIX_KMAP_BEGIN + type + KM_TYPE_NR * smp_processor_id();
+	idx = fixmap_idx(type);
 	vaddr = __fix_to_virt(idx);
 #ifdef CONFIG_DEBUG_HIGHMEM
 	BUG_ON(!pte_none(get_fixmap_pte(vaddr)));
@@ -167,7 +172,7 @@ void switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p)
 	 * Clear @prev's kmap_atomic mappings
 	 */
 	for (i = 0; i < prev_p->kmap_idx; i++) {
-		int idx = i + KM_TYPE_NR * smp_processor_id();
+		int idx = fixmap_idx(i);
 
 		set_fixmap_pte(idx, __pte(0));
 	}
@@ -175,7 +180,7 @@ void switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p)
 	 * Restore @next_p's kmap_atomic mappings
 	 */
 	for (i = 0; i < next_p->kmap_idx; i++) {
-		int idx = i + KM_TYPE_NR * smp_processor_id();
+		int idx = fixmap_idx(i);
 
 		if (!pte_none(next_p->kmap_pte[i]))
 			set_fixmap_pte(idx, next_p->kmap_pte[i]);
