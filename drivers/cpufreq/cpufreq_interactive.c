@@ -1161,7 +1161,7 @@ static void cpufreq_interactive_input_event(struct input_handle *handle, unsigne
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct cpufreq_interactive_tunables *tunables;
 
-	if (type != EV_ABS)
+	if ((type != EV_ABS) && (type != EV_KEY))
 		return;
 
 	trace_cpufreq_interactive_boost("touch");
@@ -1254,6 +1254,10 @@ static const struct input_device_id cpufreq_interactive_ids[] = {
 		.keybit = { [BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH) },
 		.absbit = { [BIT_WORD(ABS_X)] =
 			BIT_MASK(ABS_X) | BIT_MASK(ABS_Y) },
+	},
+	{
+		.flags = INPUT_DEVICE_ID_MATCH_EVBIT,
+		.evbit = { BIT_MASK(EV_KEY) },
 	},
 	{ },
 };
