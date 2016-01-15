@@ -1453,7 +1453,7 @@ u64 get_next_timer_interrupt(unsigned long basej, u64 basem)
 	 * the base lock to check when the next timer is pending and so
 	 * we assume the next jiffy.
 	 */
-	return basej;
+	return basem + TICK_NSEC;
 #endif
 	spin_lock(&base->lock);
 	if (base->active_timers) {
