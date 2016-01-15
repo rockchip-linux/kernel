@@ -37,7 +37,8 @@
 
 // BW and sideband setting
 #define rBWIndication_Jaguar		0x834
-#define rL1PeakTH_Jaguar		0x848
+#define rL1PeakTH_Jaguar			0x848
+#define rFPGA0_XA_LSSIReadBack	0x8a0	/*Tranceiver LSSI Readback*/
 #define rRFMOD_Jaguar			0x8ac	//RF mode 
 #define rADC_Buf_Clk_Jaguar		0x8c4
 #define rRFECTRL_Jaguar			0x900
@@ -436,9 +437,11 @@
 //
 #define rCCK0_System				0xa00
 #define rCCK0_AFESetting				0xa04	// Disable init gain now // Select RX path by RSSI
+#define	rCCK0_DSPParameter2			0xa1c	//SQ threshold
 #define rCCK0_TxFilter1				0xa20
 #define rCCK0_TxFilter2				0xa24
 #define rCCK0_DebugPort				0xa28	//debug port and Tx filter3
+#define	rCCK0_FalseAlarmReport			0xa2c	//0xa2d	useless now 0xa30-a4f channel report
 
 //
 // PageB(0xB00)

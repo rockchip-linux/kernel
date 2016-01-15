@@ -26,11 +26,7 @@ extern u8 sd_hal_bus_deinit(PADAPTER padapter);
 
 u8 sd_int_isr(PADAPTER padapter);
 void sd_int_dpc(PADAPTER padapter);
-void rtw_set_hal_ops(_adapter *padapter);
-
-#ifdef CONFIG_RTL8723A
-void rtl8723as_set_hal_ops(PADAPTER padapter);
-#endif
+u8 rtw_set_hal_ops(_adapter *padapter);
 
 #ifdef CONFIG_RTL8188E
 void rtl8188es_set_hal_ops(PADAPTER padapter);

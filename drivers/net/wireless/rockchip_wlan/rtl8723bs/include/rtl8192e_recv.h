@@ -31,8 +31,10 @@
 	#else
 		#ifdef CONFIG_PLATFORM_MSTAR
 			#define MAX_RECVBUF_SZ (8192) // 8K
+		#elif defined(CONFIG_PLATFORM_HISILICON)
+			#define MAX_RECVBUF_SZ (16384) /* 16k */
 		#else
-		#define MAX_RECVBUF_SZ (32768) // 32k
+			#define MAX_RECVBUF_SZ (32768) /* 32k */
 		#endif
 		//#define MAX_RECVBUF_SZ (20480) //20K
 		//#define MAX_RECVBUF_SZ (10240) //10K 
@@ -52,7 +54,7 @@
 
 #elif defined(CONFIG_SDIO_HCI)
 
-#define MAX_RECVBUF_SZ (10240)
+#define MAX_RECVBUF_SZ (16384)
 
 #endif
 
@@ -151,9 +153,9 @@
 
 
 #ifdef CONFIG_SDIO_HCI
-s32 rtl8812s_init_recv_priv(PADAPTER padapter);
-void rtl8812s_free_recv_priv(PADAPTER padapter);
-void rtl8812s_recv_hdl(PADAPTER padapter, struct recv_buf *precvbuf);
+s32 rtl8192es_init_recv_priv(PADAPTER padapter);
+void rtl8192es_free_recv_priv(PADAPTER padapter);
+void rtl8192es_recv_hdl(PADAPTER padapter, struct recv_buf *precvbuf);
 #endif
 
 #ifdef CONFIG_USB_HCI
@@ -172,7 +174,6 @@ void rtl8192ee_free_recv_priv(PADAPTER padapter);
 #endif
 
 void rtl8192e_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc);
-void rtl8192e_query_rx_phy_status(union recv_frame *prframe, u8 *pphy_stat);
 
-#endif
+#endif /* __RTL8192E_RECV_H__ */
 

@@ -178,6 +178,7 @@ u16 sdio_read16(struct intf_hdl *pintfhdl, u32 addr)
 
 _func_enter_;
 	ftaddr = _cvrt2ftaddr(addr, NULL, NULL);
+	val = 0;
 	sd_cmd52_read(pintfhdl, ftaddr, 2, (u8*)&val);
 	val = le16_to_cpu(val);
 
@@ -202,6 +203,7 @@ _func_enter_;
 	padapter = pintfhdl->padapter;
 	ftaddr = _cvrt2ftaddr(addr, &deviceId, &offset);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if (((deviceId == WLAN_IOREG_DEVICE_ID) && (offset < 0x100))
 		|| (_FALSE == bMacPwrCtrlOn)
@@ -210,6 +212,7 @@ _func_enter_;
 #endif
 		)
 	{
+		val = 0;
 		err = sd_cmd52_read(pintfhdl, ftaddr, 4, (u8*)&val);
 #ifdef SDIO_DEBUG_IO
 		if (!err) {
@@ -238,7 +241,9 @@ _func_enter_;
 		}
 
 		ftaddr &= ~(u16)0x3;
-		sd_read(pintfhdl, ftaddr, 8, ptmpbuf);
+		err = sd_read(pintfhdl, ftaddr, 8, ptmpbuf);
+		if (err)
+			return SDIO_ERR_VAL32;
 		_rtw_memcpy(&val, ptmpbuf+shift, 4);
 		val = le32_to_cpu(val);
 
@@ -267,6 +272,7 @@ _func_enter_;
 
 	ftaddr = _cvrt2ftaddr(addr, &deviceId, &offset);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if (((deviceId == WLAN_IOREG_DEVICE_ID) && (offset < 0x100))
 		|| (_FALSE == bMacPwrCtrlOn)
@@ -309,6 +315,7 @@ s32 sdio_write8(struct intf_hdl *pintfhdl, u32 addr, u8 val)
 
 _func_enter_;
 	ftaddr = _cvrt2ftaddr(addr, NULL, NULL);
+	err = 0;
 	sd_write8(pintfhdl, ftaddr, val, &err);
 
 _func_exit_;
@@ -349,6 +356,7 @@ _func_enter_;
 
 	ftaddr = _cvrt2ftaddr(addr, &deviceId, &offset);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if (((deviceId == WLAN_IOREG_DEVICE_ID) && (offset < 0x100))
 		|| (_FALSE == bMacPwrCtrlOn)
@@ -419,6 +427,7 @@ _func_enter_;
 
 	ftaddr = _cvrt2ftaddr(addr, &deviceId, &offset);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if (((deviceId == WLAN_IOREG_DEVICE_ID) && (offset < 0x100))
 		|| (_FALSE == bMacPwrCtrlOn)
@@ -654,6 +663,7 @@ s32 _sdio_local_read(
 
 	HalSdioGetCmdAddr8723BSdio(padapter, SDIO_LOCAL_DEVICE_ID, addr, &addr);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if (_FALSE == bMacPwrCtrlOn)
 	{
@@ -695,6 +705,7 @@ s32 sdio_local_read(
 
 	HalSdioGetCmdAddr8723BSdio(padapter, SDIO_LOCAL_DEVICE_ID, addr, &addr);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if ((_FALSE == bMacPwrCtrlOn)
 #ifdef CONFIG_LPS_LCLK
@@ -745,6 +756,7 @@ s32 _sdio_local_write(
 
 	HalSdioGetCmdAddr8723BSdio(padapter, SDIO_LOCAL_DEVICE_ID, addr, &addr);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if ((_FALSE == bMacPwrCtrlOn)
 #ifdef CONFIG_LPS_LCLK
@@ -794,6 +806,7 @@ s32 sdio_local_write(
 
 	HalSdioGetCmdAddr8723BSdio(padapter, SDIO_LOCAL_DEVICE_ID, addr, &addr);
 
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if ((_FALSE == bMacPwrCtrlOn)
 #ifdef CONFIG_LPS_LCLK
@@ -864,6 +877,7 @@ u32 SdioLocalCmd53Read4Byte(PADAPTER padapter, u32 addr)
 	struct intf_hdl * pintfhdl=&padapter->iopriv.intf;
 
 	HalSdioGetCmdAddr8723BSdio(padapter, SDIO_LOCAL_DEVICE_ID, addr, &addr);
+	bMacPwrCtrlOn = _FALSE;
 	rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
 	if ((_FALSE == bMacPwrCtrlOn)
 #ifdef CONFIG_LPS_LCLK

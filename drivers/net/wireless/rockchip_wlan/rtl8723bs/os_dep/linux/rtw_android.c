@@ -76,6 +76,7 @@ const char *android_wifi_cmd_str[ANDROID_WIFI_CMD_MAX] = {
 
 	"MACADDR",
 
+	"BLOCK_SCAN",
 	"BLOCK",
 	"WFD-ENABLE",
 	"WFD-DISABLE",
@@ -86,7 +87,7 @@ const char *android_wifi_cmd_str[ANDROID_WIFI_CMD_MAX] = {
 	"HOSTAPD_SET_MACADDR_ACL",
 	"HOSTAPD_ACL_ADD_STA",
 	"HOSTAPD_ACL_REMOVE_STA",
-#ifdef CONFIG_GTK_OL
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0))
 	"GTK_REKEY_OFFLOAD",
 #endif //CONFIG_GTK_OL
 /*	Private command for	P2P disable*/
@@ -409,6 +410,18 @@ int rtw_android_get_p2p_dev_addr(struct net_device *net, char *command, int tota
 	return bytes_written;
 }
 
+int rtw_android_set_block_scan(struct net_device *net, char *command, int total_len)
+{
+	_adapter *adapter = (_adapter *)rtw_netdev_priv(net);
+	char *block_value = command + strlen(android_wifi_cmd_str[ANDROID_WIFI_CMD_BLOCK_SCAN]) + 1;
+
+	#ifdef CONFIG_IOCTL_CFG80211
+	adapter_wdev_data(adapter)->block_scan = (*block_value == '0')?_FALSE:_TRUE;
+	#endif
+
+	return 0;
+}
+
 int rtw_android_set_block(struct net_device *net, char *command, int total_len)
 {
 	_adapter *adapter = (_adapter *)rtw_netdev_priv(net);
@@ -425,11 +438,11 @@ int rtw_android_setband(struct net_device *net, char *command, int total_len)
 {
 	_adapter *adapter = (_adapter *)rtw_netdev_priv(net);
 	char *arg = command + strlen(android_wifi_cmd_str[ANDROID_WIFI_CMD_SETBAND]) + 1;
-	u32 band = GHZ_MAX;
+	u32 band = WIFI_FREQUENCY_BAND_AUTO;
 	int ret = _FAIL;
 
-	sscanf(arg, "%u", &band);
-	ret = rtw_set_band(adapter, band);
+	if (sscanf(arg, "%u", &band) >= 1)
+		ret = rtw_set_band(adapter, band);
 
 	return (ret==_SUCCESS)?0:-1;
 }
@@ -444,31 +457,11 @@ int rtw_android_getband(struct net_device *net, char *command, int total_len)
 	return bytes_written;
 }
 
-enum {
-	MIRACAST_DISABLED = 0,
-	MIRACAST_SOURCE,
-	MIRACAST_SINK,
-	MIRACAST_INVALID,
-};
-
-static const char *miracast_mode_str[] = {
-	"DISABLED",
-	"SOURCE",
-	"SINK",
-	"INVALID",
-};
-
-static const char *get_miracast_mode_str(int mode)
-{
-	if (mode < MIRACAST_DISABLED || mode >= MIRACAST_INVALID)
-		mode = MIRACAST_INVALID;
-
-	return miracast_mode_str[mode];
-}
-
+#ifdef CONFIG_WFD
 int rtw_android_set_miracast_mode(struct net_device *net, char *command, int total_len)
 {
 	_adapter *adapter = (_adapter *)rtw_netdev_priv(net);
+	struct wifi_display_info *wfd_info = &adapter->wfd_info;
 	char *arg = command + strlen(android_wifi_cmd_str[ANDROID_WIFI_CMD_MIRACAST]) + 1;
 	u8 mode;
 	int num;
@@ -477,12 +470,14 @@ int rtw_android_set_miracast_mode(struct net_device *net, char *command, int tot
 	num = sscanf(arg, "%hhu", &mode);
 
 	if (num >= 1) {
-		DBG_871X("Miracast mode: %s(%u)\n", get_miracast_mode_str(mode), mode);
+		wfd_info->stack_wfd_mode = mode;
+		DBG_871X("Miracast mode: %s(%u)\n", get_miracast_mode_str(wfd_info->stack_wfd_mode), wfd_info->stack_wfd_mode);
 		ret = _SUCCESS;
 	}
 
-	return (ret==_SUCCESS)?0:-1;
+	return (ret == _SUCCESS)?0:-1;
 }
+#endif /* CONFIG_WFD */
 
 int get_int_from_command( char* pcmd )
 {
@@ -500,7 +495,7 @@ int get_int_from_command( char* pcmd )
 	return ( rtw_atoi( pcmd + i ) );
 }
 
-#ifdef CONFIG_GTK_OL
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0))
 int rtw_gtk_offload(struct net_device *net, u8 *cmd_ptr)
 {
 	int i;
@@ -659,7 +654,11 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	case ANDROID_WIFI_CMD_MACADDR:
 		bytes_written = rtw_android_get_macaddr(net, command, priv_cmd.total_len);
 		break;
-		
+
+	case ANDROID_WIFI_CMD_BLOCK_SCAN:
+		bytes_written = rtw_android_set_block_scan(net, command, priv_cmd.total_len);
+		break;
+
 	case ANDROID_WIFI_CMD_BLOCK:
 		bytes_written = rtw_android_set_block(net, command, priv_cmd.total_len);
 		break;
@@ -710,10 +709,6 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = rtw_android_getband(net, command, priv_cmd.total_len);
 		break;
 
-	case ANDROID_WIFI_CMD_MIRACAST:
-		bytes_written = rtw_android_set_miracast_mode(net, command, priv_cmd.total_len);
-		break;
-
 	case ANDROID_WIFI_CMD_COUNTRY:
 		bytes_written = rtw_android_set_country(net, command, priv_cmd.total_len);
 		break;
@@ -757,6 +752,11 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 #endif //CONFIG_IOCTL_CFG80211
 
 #ifdef CONFIG_WFD
+
+	case ANDROID_WIFI_CMD_MIRACAST:
+		bytes_written = rtw_android_set_miracast_mode(net, command, priv_cmd.total_len);
+		break;
+
 	case ANDROID_WIFI_CMD_WFD_ENABLE:
 	{
 		//	Commented by Albert 2012/07/24
@@ -847,7 +847,7 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		rtw_acl_remove_sta(padapter, addr);
 		break;
 	}
-#ifdef CONFIG_GTK_OL
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0))
 	case ANDROID_WIFI_CMD_GTK_REKEY_OFFLOAD:
 		rtw_gtk_offload(net, (u8*)command);
 		break;
@@ -912,9 +912,14 @@ static struct resource *wifi_irqres = NULL;
 static int wifi_add_dev(void);
 static void wifi_del_dev(void);
 
+extern int rockchip_wifi_get_oob_irq(void);
 int rtw_android_wifictrl_func_add(void)
 {
 	int ret = 0;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
+        oob_irq = rockchip_wifi_get_oob_irq();
+        printk("%s: rockchip_wifi_get_oob_irq :%d\n", __func__, oob_irq);
+#else
 	sema_init(&wifi_control_sem, 0);
 
 	ret = wifi_add_dev();
@@ -929,7 +934,7 @@ int rtw_android_wifictrl_func_add(void)
 		ret = -EINVAL;
 		DBG_871X("%s: platform_driver_register timeout\n", __FUNCTION__);
 	}
-
+#endif
 	return ret;
 }
 

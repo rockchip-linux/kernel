@@ -41,6 +41,8 @@ typedef enum _RTL8812_H2C_CMD
 	H2C_8812_RA_MASK = 0x40,
 	H2C_8812_TxBF = 0x41,
 	H2C_8812_RSSI_REPORT = 0x42,
+	H2C_8812_IQ_CALIBRATION = 0x45,
+	H2C_8812_RA_PARA_ADJUST = 0x46,
 
 	H2C_8812_BT_FW_PATCH = 0x6a,
 
@@ -65,12 +67,21 @@ typedef enum _RTL8812_C2H_EVT
 	C2H_8812_BT_INFO = 9,
 	C2H_8812_BT_MP = 11,
 	C2H_8812_RA_RPT=12,
+	C2H_8812_RA_PARA_RPT = 14,
 
 	C2H_8812_FW_SWCHNL = 0x10,
 	C2H_8812_IQK_FINISH = 0x11,
 	C2H_8812_MAILBOX_STATUS = 0x15,
+#ifdef CONFIG_FW_C2H_DEBUG
+	C2H_8812_EXTEND = 0xff,
+#endif //CONFIG_FW_C2H_DEBUG
 	MAX_8812_C2HEVENT
 }RTL8812_C2H_EVT;
+
+typedef enum _RTL8812_EXTEND_C2H_EVT {
+	EXTEND_C2H_8812_DBG_PRINT = 0
+
+} RTL8812_EXTEND_C2H_EVT;
 
 
 struct cmd_msg_parm {
@@ -134,7 +145,12 @@ u8 rtl8812_set_rssi_cmd(PADAPTER padapter, u8 *param);
 void rtl8812_set_raid_cmd(PADAPTER padapter, u32 bitmap, u8* arg);
 void rtl8812_Add_RateATid(PADAPTER padapter, u32 bitmap, u8* arg, u8 rssi_level);
 void rtl8812_set_wowlan_cmd(_adapter* padapter, u8 enable);
+s32 FillH2CCmd_8812(PADAPTER padapter, u8 ElementID, u32 CmdLen, u8 *pCmdBuffer);
+u8 GetTxBufferRsvdPageNum8812(_adapter *padapter, bool wowlan);
 
+#ifdef CONFIG_BT_COEXIST
+void rtl8812a_download_BTCoex_AP_mode_rsvd_page(PADAPTER padapter);
+#endif // CONFIG_BT_COEXIST
 #ifdef CONFIG_P2P_PS
 void rtl8812_set_p2p_ps_offload_cmd(PADAPTER padapter, u8 p2p_ps_state);
 #endif //CONFIG_P2P
@@ -172,6 +188,10 @@ typedef struct _SETWOWLAN_PARM{
 void rtl8812a_set_wowlan_cmd(_adapter* padapter, u8 enable);
 void SetFwRelatedForWoWLAN8812(_adapter* padapter, u8 bHostIsGoingtoSleep);
 #endif//CONFIG_WOWLAN
+#ifdef CONFIG_AP_WOWLAN
+void rtl8812a_set_ap_wowlan_cmd(_adapter *padapter, u8 enable);
+void rtl8812a_set_ap_ps_wowlan_cmd(_adapter *padapter, u8 enable);
+#endif /*CONFIG_AP_WOWLAN */
 
 //------------------------------------
 //     C2H format

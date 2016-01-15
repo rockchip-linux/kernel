@@ -66,7 +66,6 @@
 		#define CONFIG_HOSTAPD_MLME
 	#endif
 	//#define CONFIG_FIND_BEST_CHANNEL
-	//#define CONFIG_NO_WIRELESS_HANDLERS
 	#define CONFIG_TX_MCAST2UNI	// Support IP multicast->unicast
 #endif
 
@@ -76,9 +75,8 @@
 	//The CONFIG_WFD is for supporting the Wi-Fi display
 	#define CONFIG_WFD
 
-	#ifndef CONFIG_WIFI_TEST
-		#define CONFIG_P2P_REMOVE_GROUP_INFO
-	#endif
+	#define CONFIG_P2P_REMOVE_GROUP_INFO
+
 	//#define CONFIG_DBG_P2P
 	#define CONFIG_P2P_PS
 	//#define CONFIG_P2P_IPS
@@ -88,13 +86,14 @@
 #endif
 
 // Added by Kurt 20110511
-//#define CONFIG_TDLS
 #ifdef CONFIG_TDLS
+	#define CONFIG_TDLS_DRIVER_SETUP
 //	#ifndef CONFIG_WFD
 //		#define CONFIG_WFD
 //	#endif
 //	#define CONFIG_TDLS_AUTOSETUP
-//	#define CONFIG_TDLS_AUTOCHECKALIVE
+	#define CONFIG_TDLS_AUTOCHECKALIVE
+	#define CONFIG_TDLS_CH_SW		/* Enable "CONFIG_TDLS_CH_SW" by default, however limit it to only work in wifi logo test mode but not in normal mode currently */
 #endif
 
 //#define CONFIG_CONCURRENT_MODE	// Set from Makefile
@@ -110,12 +109,6 @@
 
 #define CONFIG_LAYER2_ROAMING
 #define CONFIG_LAYER2_ROAMING_RESUME
-
-//#define CONFIG_SCAN_SPARSE 	//partial scan, ASUS RK3188 use the feature
-#ifdef CONFIG_SCAN_SPARSE 
-	#define ALLOW_SCAN_INTERVAL	12000 // unit is ms
-	#define SCAN_DIVISION_NUM 4
-#endif 	
 
 //#define CONFIG_80211D
 
@@ -251,7 +244,6 @@
 	#ifndef WAKEUP_GPIO_IDX
 		#define WAKEUP_GPIO_IDX	12	// WIFI Chip Side
 	#endif // !WAKEUP_GPIO_IDX
-	#define CONFIG_GPIO_WAKEUP_LOW_ACTIVE	// mark this for HIGH active
 #endif // CONFIG_GPIO_WAKEUP
 
 
@@ -260,21 +252,7 @@
  */
 
 #define TESTCHIP_SUPPORT				0
-
-#define RTL8192CE_SUPPORT				0
-#define RTL8192CU_SUPPORT				0
-#define RTL8192C_SUPPORT				(RTL8192CE_SUPPORT|RTL8192CU_SUPPORT)
-
-#define RTL8192DE_SUPPORT				0
-#define RTL8192DU_SUPPORT				0
-#define RTL8192D_SUPPORT				(RTL8192DE_SUPPORT|RTL8192DU_SUPPORT)
-
-#define RTL8723AS_SUPPORT				0
-#define RTL8723AU_SUPPORT				0
-#define RTL8723AE_SUPPORT				0
-#define RTL8723A_SUPPORT				(RTL8723AU_SUPPORT|RTL8723AS_SUPPORT|RTL8723AE_SUPPORT)
-#define RTL8723_FPGA_VERIFICATION		0
-
+ 
 #define RTL8188E_SUPPORT				0
 #define RTL8812A_SUPPORT				0
 #define RTL8821A_SUPPORT				0

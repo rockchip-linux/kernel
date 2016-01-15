@@ -20,6 +20,7 @@
 #define _HCI_INTF_C_
 
 #include <drv_types.h>
+#include <hal_data.h>
 #include <platform_ops.h>
 
 #ifndef CONFIG_SDIO_HCI
@@ -45,9 +46,6 @@ static struct mmc_host *mmc_host = NULL;
 
 static const struct sdio_device_id sdio_ids[] =
 {
-#ifdef CONFIG_RTL8723A
-	{ SDIO_DEVICE(0x024c, 0x8723),.driver_data = RTL8723A},
-#endif //CONFIG_RTL8723A
 #ifdef CONFIG_RTL8723B
 	{ SDIO_DEVICE(0x024c, 0xB723),.driver_data = RTL8723B},
 #endif
@@ -361,13 +359,6 @@ static void rtw_decide_chip_type_by_device_id(PADAPTER padapter, const struct sd
 {
 	padapter->chip_type = pdid->driver_data;
 
-#if defined(CONFIG_RTL8723A)
-	if( padapter->chip_type == RTL8723A){
-		padapter->HardwareType = HARDWARE_TYPE_RTL8723AS;
-		DBG_871X("CHIP TYPE: RTL8723A\n");
-	}
-#endif
-
 #if defined(CONFIG_RTL8188E)
 	if(padapter->chip_type == RTL8188E){
 		padapter->HardwareType = HARDWARE_TYPE_RTL8188ES;
@@ -389,7 +380,7 @@ static void rtw_decide_chip_type_by_device_id(PADAPTER padapter, const struct sd
 
 #if defined(CONFIG_RTL8192E)
 	if (padapter->chip_type == RTL8192E) {
-		padapter->HardwareType = HARDWARE_TYPE_RTL8192E;
+		padapter->HardwareType = HARDWARE_TYPE_RTL8192ES;
 		DBG_871X("CHIP TYPE: RTL8192E\n");
 	}
 #endif
@@ -397,16 +388,12 @@ static void rtw_decide_chip_type_by_device_id(PADAPTER padapter, const struct sd
 
 }
 
-void rtw_set_hal_ops(PADAPTER padapter)
+u8 rtw_set_hal_ops(PADAPTER padapter)
 {
 	//alloc memory for HAL DATA
-	rtw_hal_data_init(padapter);
-	
-#if defined(CONFIG_RTL8723A)
-	if( padapter->chip_type == RTL8723A){
-		rtl8723as_set_hal_ops(padapter);
-	}
-#endif
+	if(rtw_hal_data_init(padapter) == _FAIL)
+		return _FAIL;
+
 #if defined(CONFIG_RTL8188E)
 	if(padapter->chip_type == RTL8188E){
 		rtl8188es_set_hal_ops(padapter);
@@ -428,7 +415,10 @@ void rtw_set_hal_ops(PADAPTER padapter)
 		rtl8192es_set_hal_ops(padapter);
 	}
 #endif
+	if( rtw_hal_ops_check(padapter) == _FAIL)
+		return _FAIL;
 
+	return _SUCCESS;
 }
 
 static void sd_intf_start(PADAPTER padapter)
@@ -479,7 +469,7 @@ _adapter *rtw_sdio_if1_init(struct dvobj_priv *dvobj, const struct sdio_device_i
 	dvobj->padapters[dvobj->iface_nums++] = padapter;
 	padapter->iface_id = IFACE_ID0;
 
-#if defined(CONFIG_CONCURRENT_MODE) || defined(CONFIG_DUALMAC_CONCURRENT)
+#if defined(CONFIG_CONCURRENT_MODE)
 	//set adapter_type/iface type for primary padapter
 	padapter->isprimary = _TRUE;
 	padapter->adapter_type = PRIMARY_ADAPTER;	
@@ -509,8 +499,8 @@ _adapter *rtw_sdio_if1_init(struct dvobj_priv *dvobj, const struct sdio_device_i
 	//3 3. init driver special setting, interface, OS and hardware relative
 
 	//4 3.1 set hardware operation functions
-	rtw_set_hal_ops(padapter);
-
+	if (rtw_set_hal_ops(padapter)== _FAIL)
+		goto free_hal_data;
 
 	//3 5. initialize Chip version
 	padapter->intf_start = &sd_intf_start;
@@ -548,8 +538,8 @@ _adapter *rtw_sdio_if1_init(struct dvobj_priv *dvobj, const struct sdio_device_i
 
 	//3 8. get WLan MAC address
 	// set mac addr
-	rtw_macaddr_cfg(padapter->eeprompriv.mac_addr);
-	rtw_init_wifidirect_addrs(padapter, padapter->eeprompriv.mac_addr, padapter->eeprompriv.mac_addr);
+	rtw_macaddr_cfg(adapter_mac_addr(padapter),  get_hal_mac_addr(padapter));
+	rtw_init_wifidirect_addrs(padapter, adapter_mac_addr(padapter), adapter_mac_addr(padapter));
 
 	rtw_hal_disable_interrupt(padapter);
 
@@ -563,8 +553,8 @@ _adapter *rtw_sdio_if1_init(struct dvobj_priv *dvobj, const struct sdio_device_i
 	status = _SUCCESS;
 	
 free_hal_data:
-	if(status != _SUCCESS && padapter->HalData)
-		rtw_mfree(padapter->HalData, sizeof(*(padapter->HalData)));
+	if (status != _SUCCESS && padapter->HalData)
+		rtw_hal_free_data(padapter);
 
 free_wdev:
 	if(status != _SUCCESS) {
@@ -619,8 +609,6 @@ static void rtw_sdio_if1_deinit(_adapter *if1)
 
 	rtw_dev_unload(if1);
 	DBG_871X("+r871xu_dev_remove, hw_init_completed=%d\n", if1->hw_init_completed);
-	
-	rtw_handle_dualmac(if1, 0);
 
 #ifdef CONFIG_IOCTL_CFG80211
 	if (if1->rtw_wdev) {
@@ -716,9 +704,8 @@ static int rtw_drv_init(
 #endif
 
 	//dev_alloc_name && register_netdev
-	if((status = rtw_drv_register_netdev(if1)) != _SUCCESS) {
+	if (rtw_drv_register_netdev(if1) != _SUCCESS)
 		goto free_if2;
-	}
 
 #ifdef CONFIG_HOSTAPD_MLME
 	hostapd_mode_init(if1);
@@ -730,7 +717,7 @@ static int rtw_drv_init(
 #endif
 
 	if (sdio_alloc_irq(dvobj) != _SUCCESS)
-		goto free_if2;
+		goto unregister_ndevs;
 
 #ifdef	CONFIG_GPIO_WAKEUP
 #ifdef CONFIG_PLATFORM_ARM_SUN6I
@@ -755,6 +742,9 @@ static int rtw_drv_init(
 
 	status = _SUCCESS;
 
+unregister_ndevs:
+	if (status != _SUCCESS)
+		rtw_unregister_netdevs(dvobj);
 free_if2:
 	if(status != _SUCCESS && if2) {
 		#ifdef CONFIG_CONCURRENT_MODE
@@ -838,12 +828,18 @@ static int rtw_sdio_suspend(struct device *dev)
 {
 	struct sdio_func *func =dev_to_sdio_func(dev);
 	struct dvobj_priv *psdpriv = sdio_get_drvdata(func);
-	struct pwrctrl_priv *pwrpriv = dvobj_to_pwrctl(psdpriv);
-	_adapter *padapter = psdpriv->if1;
-	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;
+	struct pwrctrl_priv *pwrpriv = NULL;
+	_adapter *padapter = NULL;
+	struct debug_priv *pdbgpriv = NULL;
 	int ret = 0;
 	u8 ch, bw, offset;
 
+	if (psdpriv == NULL)
+		goto exit;
+
+	pwrpriv = dvobj_to_pwrctl(psdpriv);
+	padapter = psdpriv->if1;
+	pdbgpriv = &psdpriv->drv_dbg;
 	if(padapter->bDriverStopped == _TRUE)
 	{
 		DBG_871X("%s bDriverStopped = %d\n", __FUNCTION__, padapter->bDriverStopped);
@@ -873,7 +869,8 @@ exit:
 		DBG_871X("cmd: %s: suspend: PM flag = 0x%x\n", sdio_func_id(func), pm_flag);
 		if (!(pm_flag & MMC_PM_KEEP_POWER)) {
 			DBG_871X("%s: cannot remain alive while host is suspended\n", sdio_func_id(func));
-			pdbgpriv->dbg_suspend_error_cnt++;
+			if (pdbgpriv)
+				pdbgpriv->dbg_suspend_error_cnt++;
 			return -ENOSYS;
 		} else {
 			DBG_871X("cmd: suspend with MMC_PM_KEEP_POWER\n");
@@ -955,7 +952,7 @@ static int rtw_sdio_resume(struct device *dev)
 
 }
 
-static int  rtw_drv_entry(void)
+static int /*__init*/ rtw_drv_entry(void)
 {
 	int ret = 0;
 
@@ -1002,7 +999,7 @@ exit:
 	return ret;
 }
 
-static void  rtw_drv_halt(void)
+static void /*__exit*/ rtw_drv_halt(void)
 {
 	DBG_871X_LEVEL(_drv_always_, "module exit start\n");
 
@@ -1038,13 +1035,18 @@ int rtw_sdio_set_power(int on)
 }
 #endif //CONFIG_PLATFORM_INTEL_BYT
 
-#include "wifi_version.h"
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
 #include <linux/rfkill-wlan.h>
-extern int rockchip_wifi_power(int on);
-extern int rockchip_wifi_set_carddetect(int val);
 extern int get_wifi_chip_type(void);
+#else
+extern int rk29sdk_wifi_power(int on);
+#endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
 int rockchip_wifi_init_module_rtkwifi(void)
+#else
+int rockchip_wifi_init_module(void)
+#endif
 {
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
     int type = get_wifi_chip_type();
@@ -1054,14 +1056,22 @@ int rockchip_wifi_init_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723BS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", RTL8723BS_DRV_VERSION);
-
+    printk("Realtek 8723BS SDIO WiFi driver (Powered by Rockchip) init.\n");
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
     rockchip_wifi_power(1);
     rockchip_wifi_set_carddetect(1);
+#else
+    rk29sdk_wifi_power(1);
+#endif
+
     return rtw_drv_entry();
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
 void rockchip_wifi_exit_module_rtkwifi(void)
+#else
+void rockchip_wifi_exit_module(void)
+#endif
 {
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
     int type = get_wifi_chip_type();
@@ -1071,14 +1081,17 @@ void rockchip_wifi_exit_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("==== Dislaunching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723BS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", RTL8723BS_DRV_VERSION);
-
+    printk("Realtek 8723BS SDIO WiFi driver (Powered by Rockchip) init.\n");
     rtw_drv_halt();
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
     rockchip_wifi_set_carddetect(0);
     rockchip_wifi_power(0);
+#else
+    rk29sdk_wifi_power(0);
+#endif
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
 late_initcall(rockchip_wifi_init_module_rtkwifi);
 module_exit(rockchip_wifi_exit_module_rtkwifi);
@@ -1086,6 +1099,16 @@ module_exit(rockchip_wifi_exit_module_rtkwifi);
 EXPORT_SYMBOL(rockchip_wifi_init_module_rtkwifi);
 EXPORT_SYMBOL(rockchip_wifi_exit_module_rtkwifi);
 #endif
+#else
+#ifdef CONFIG_ANDROID_4_2
+module_init(rockchip_wifi_init_module);
+module_exit(rockchip_wifi_exit_module);
+#else
+EXPORT_SYMBOL(rockchip_wifi_init_module);
+EXPORT_SYMBOL(rockchip_wifi_exit_module);
+#endif
+#endif
+
 //module_init(rtw_drv_entry);
 //module_exit(rtw_drv_halt);
 

@@ -37,6 +37,10 @@
 		//#define MAX_RECVBUF_SZ (10240) //10K
 		//#define MAX_RECVBUF_SZ (15360) // 15k < 16k
 		//#define MAX_RECVBUF_SZ (8192+1024) // 8K+1k
+		#ifdef CONFIG_PLATFORM_NOVATEK_NT72668
+		#undef MAX_RECVBUF_SZ
+		#define MAX_RECVBUF_SZ (15360) // 15k < 16k
+		#endif //CONFIG_PLATFORM_NOVATEK_NT72668
 	#else
 		#define MAX_RECVBUF_SZ (4000) // about 4K
 	#endif
@@ -157,8 +161,7 @@ s32 rtl8812ae_init_recv_priv(PADAPTER padapter);
 void rtl8812ae_free_recv_priv(PADAPTER padapter);
 #endif
 
-void	rtl8812_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc);
-void	rtl8812_query_rx_phy_status(union recv_frame *prframe, u8 *pphy_stat);
+void rtl8812_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc);
 
-#endif
+#endif /* __RTL8812A_RECV_H__ */
 

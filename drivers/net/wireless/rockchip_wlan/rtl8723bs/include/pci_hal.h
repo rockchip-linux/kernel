@@ -20,14 +20,6 @@
 #ifndef __PCI_HAL_H__
 #define __PCI_HAL_H__
 
-#ifdef CONFIG_RTL8192C
-void rtl8192ce_set_hal_ops(_adapter * padapter);
-#endif
-
-#ifdef CONFIG_RTL8192D
-void rtl8192de_set_hal_ops(_adapter * padapter);
-#endif
-
 #ifdef CONFIG_RTL8188E
 void rtl8188ee_set_hal_ops(_adapter * padapter);
 #endif
@@ -44,7 +36,7 @@ void rtl8192ee_set_hal_ops(_adapter * padapter);
 void rtl8723be_set_hal_ops(_adapter * padapter);
 #endif
 
-void rtw_set_hal_ops(_adapter *padapter);
+u8 rtw_set_hal_ops(_adapter *padapter);
 
 #endif //__PCIE_HAL_H__
 

@@ -21,11 +21,7 @@
 #define __RTL8812A_HAL_H__
 
 //#include "hal_com.h"
-#if 1
 #include "hal_data.h"
-#else
-#include "../hal/OUTSRC/odm_precomp.h"
-#endif
 
 //include HAL Related header after HAL Related compiling flags 
 #include "rtl8812a_spec.h"
@@ -58,6 +54,7 @@
 		#define RTL8812_PHY_REG_PG					"rtl8812a/PHY_REG_PG.txt"
 		#define RTL8812_PHY_REG_MP 				"rtl8812a/PHY_REG_MP.txt" 
 		#define RTL8812_TXPWR_LMT					"rtl8812a/TXPWR_LMT.txt" 
+		#define RTL8812_WIFI_ANT_ISOLATION		"rtl8812a/wifi_ant_isolation.txt"
 
 //---------------------------------------------------------------------
 //		RTL8821U From file
@@ -161,6 +158,12 @@ typedef struct _RT_FIRMWARE_8812 {
 //for 8812
 // TX 128K, RX 16K, Page size 512B for TX, 128B for RX
 #define MAX_RX_DMA_BUFFER_SIZE_8812	0x3E80   //0x3FFF	// RX 16K
+#ifdef CONFIG_FW_C2H_DEBUG 
+#define RX_DMA_RESERVED_SIZE_8812	0x100	// 256B, reserved for c2h debug message
+#else
+#define RX_DMA_RESERVED_SIZE_8812	0x0	// 0B
+#endif
+#define RX_DMA_BOUNDARY_8812		(MAX_RX_DMA_BUFFER_SIZE_8812 - RX_DMA_RESERVED_SIZE_8812 - 1)
 
 #define BCNQ_PAGE_NUM_8812		0x07
 
@@ -197,6 +200,12 @@ typedef struct _RT_FIRMWARE_8812 {
 #define PAGE_SIZE_RX_8821A					128
 
 #define MAX_RX_DMA_BUFFER_SIZE_8821			0x3E80	// RX 16K
+#ifdef CONFIG_FW_C2H_DEBUG 
+#define RX_DMA_RESERVED_SIZE_8821	0x100	// 256B, reserved for c2h debug message
+#else
+#define RX_DMA_RESERVED_SIZE_8821	0x0	// 0B
+#endif
+#define RX_DMA_BOUNDARY_8821		(MAX_RX_DMA_BUFFER_SIZE_8821 - RX_DMA_RESERVED_SIZE_8821 - 1)
 
 #define BCNQ_PAGE_NUM_8821		0x08
 #ifdef CONFIG_CONCURRENT_MODE
@@ -236,7 +245,7 @@ typedef struct _RT_FIRMWARE_8812 {
 #define	EFUSE_HIDDEN_812AU_VL				2
 #define	EFUSE_HIDDEN_812AU_VN				3
 
-#ifdef CONFIG_PCI_HCI
+#if 0
 #define EFUSE_REAL_CONTENT_LEN_JAGUAR		1024
 #define HWSET_MAX_SIZE_JAGUAR					1024
 #else
@@ -270,17 +279,6 @@ typedef enum _TX_PWR_PERCENTAGE{
 //#define IS_MULTI_FUNC_CHIP(_Adapter)	(((((PHAL_DATA_TYPE)(_Adapter->HalData))->MultiFunc) & (RT_MULTI_FUNC_BT|RT_MULTI_FUNC_GPS)) ? _TRUE : _FALSE)
 
 //#define RT_IS_FUNC_DISABLED(__pAdapter, __FuncBits) ( (__pAdapter)->DisabledFunctions & (__FuncBits) )
-
-#define GetRegTxBBSwing_2G(_Adapter)	(_Adapter->registrypriv.TxBBSwing_2G)
-#define GetRegTxBBSwing_5G(_Adapter)	(_Adapter->registrypriv.TxBBSwing_5G)
-
-#define GetRegAmplifierType2G(_Adapter)	(_Adapter->registrypriv.AmplifierType_2G)
-#define GetRegAmplifierType5G(_Adapter)	(_Adapter->registrypriv.AmplifierType_5G)
-
-#define GetRegbENRFEType(_Adapter)	(_Adapter->registrypriv.bEn_RFE)
-#define GetRegRFEType(_Adapter)	(_Adapter->registrypriv.RFE_Type)
-
-#define GetDefaultAdapter(padapter)	padapter
 
 // rtl8812_hal_init.c
 void	_8051Reset8812(PADAPTER padapter);
@@ -342,6 +340,11 @@ void rtl8812_stop_thread(PADAPTER padapter);
 BOOLEAN	InterruptRecognized8812AE(PADAPTER Adapter);
 VOID	UpdateInterruptMask8812AE(PADAPTER Adapter, u32 AddMSR, u32 AddMSR1, u32 RemoveMSR, u32 RemoveMSR1);
 #endif
+
+#ifdef CONFIG_BT_COEXIST
+void rtl8812a_combo_card_WifiOnlyHwInit(PADAPTER Adapter);
+#endif
+
 
 #endif //__RTL8188E_HAL_H__
 

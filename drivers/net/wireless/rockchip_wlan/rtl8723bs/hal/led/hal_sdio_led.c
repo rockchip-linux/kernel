@@ -19,6 +19,7 @@
  ******************************************************************************/
 
 #include <drv_types.h>
+#include <hal_data.h>
 
 //
 //	Description:
@@ -148,13 +149,13 @@ SwLedBlink1(
 	)
 {
 	_adapter				*padapter = pLed->padapter;
-	EEPROM_EFUSE_PRIV	*pEEPROM = GET_EEPROM_EFUSE_PRIV(padapter);
+	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(padapter);	
 	struct led_priv		*ledpriv = &(padapter->ledpriv);
 	struct mlme_priv		*pmlmepriv = &(padapter->mlmepriv);
 	PLED_SDIO 			pLed1 = &(ledpriv->SwLed1);
 	u8					bStopBlinking = _FALSE;
 	
-	if(pEEPROM->CustomerID == RT_CID_819x_CAMEO)
+	if(pHalData->CustomerID == RT_CID_819x_CAMEO)
 		pLed = &(ledpriv->SwLed1);
 
 	// Change LED according to BlinkingLedState specified.
@@ -170,7 +171,7 @@ SwLedBlink1(
 	}
 
 
-	if(pEEPROM->CustomerID == RT_CID_DEFAULT)
+	if(pHalData->CustomerID == RT_CID_DEFAULT)
 	{
 		if(check_fwstate(pmlmepriv, _FW_LINKED)== _TRUE)
 		{
@@ -1220,9 +1221,9 @@ SwLedControlMode1(
 	struct led_priv		*ledpriv = &(padapter->ledpriv);
 	PLED_SDIO			pLed = &(ledpriv->SwLed0);
 	struct mlme_priv		*pmlmepriv = &(padapter->mlmepriv);
-	EEPROM_EFUSE_PRIV	*pEEPROM = GET_EEPROM_EFUSE_PRIV(padapter);
+	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(padapter);
 	
-	if(pEEPROM->CustomerID == RT_CID_819x_CAMEO)
+	if(pHalData->CustomerID == RT_CID_819x_CAMEO)
 		pLed = &(ledpriv->SwLed1);
 
 	switch(LedAction)
@@ -2162,10 +2163,10 @@ SwLedControlMode5(
 {
 	struct led_priv	*ledpriv = &(padapter->ledpriv);
 	struct mlme_priv	*pmlmepriv = &padapter->mlmepriv;
-	EEPROM_EFUSE_PRIV	*pEEPROM = GET_EEPROM_EFUSE_PRIV(padapter);
+	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
 	PLED_SDIO		pLed = &(ledpriv->SwLed0);
 
-	if(pEEPROM->CustomerID == RT_CID_819x_CAMEO)
+	if(pHalData->CustomerID == RT_CID_819x_CAMEO)
 		pLed = &(ledpriv->SwLed1);
 
 	switch(LedAction)
