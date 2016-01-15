@@ -434,13 +434,13 @@ struct sk_buff *__netdev_alloc_skb(struct net_device *dev, unsigned int len,
 	if (sk_memalloc_socks())
 		gfp_mask |= __GFP_MEMALLOC;
 
-	local_irq_save(flags);
+	local_lock_irqsave(netdev_alloc_lock, flags);
 
 	nc = this_cpu_ptr(&netdev_alloc_cache);
 	data = __alloc_page_frag(nc, len, gfp_mask);
 	pfmemalloc = nc->pfmemalloc;
 
-	local_irq_restore(flags);
+	local_unlock_irqrestore(netdev_alloc_lock, flags);
 
 	if (unlikely(!data))
 		return NULL;
