@@ -67,7 +67,7 @@ static const enum FORMAT_TYPE rkv_dec_fmt_tbl[] = {
 
 static enum FORMAT_TYPE rkv_dec_get_fmt(u32 *regs)
 {
-	u32 fmt_id = (regs[2] >> 20) && 0x3;
+	u32 fmt_id = (regs[2] >> 20) & 0x3;
 	enum FORMAT_TYPE type = rkv_dec_fmt_tbl[fmt_id];
 	return type;
 }
