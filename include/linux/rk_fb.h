@@ -213,13 +213,17 @@ enum {
 
 //display data format
 enum data_format {
-	ARGB888,
-	RGB888,
-	BGR888,
-	RGB565,
+	/*
+	 * Note: ARGB888, RGB888 RGB565 may direct config to hardware
+	 * register, keep its value, don't change it.
+	 */
+	ARGB888 = 0,
+	RGB888 = 1,
+	RGB565 = 2,
 	XRGB888,
 	XBGR888,
 	ABGR888,
+	BGR888,
 	FBDC_RGB_565,
 	FBDC_ARGB_888,
 	FBDC_RGBX_888,
