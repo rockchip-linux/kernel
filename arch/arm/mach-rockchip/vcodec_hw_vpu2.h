@@ -212,7 +212,7 @@ static struct vpu_hw_info hw_vpu2 = {
  * file handle translate information
  */
 DEF_FMT_TRANS_TBL(vpu2_jpegd,
-		  64, 61, 21, 22
+		  131, 64, 63, 61, 21, 22
 );
 
 DEF_FMT_TRANS_TBL(vpu2_h264d,
