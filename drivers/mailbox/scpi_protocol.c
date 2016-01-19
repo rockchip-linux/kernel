@@ -506,6 +506,33 @@ int scpi_sys_set_mcu_state_resume(void)
 }
 EXPORT_SYMBOL_GPL(scpi_sys_set_mcu_state_resume);
 
+int scpi_sys_set_jtagmux_on_off(u32 en)
+{
+	int ret;
+	struct scpi_data_buf sdata;
+	struct rockchip_mbox_msg mdata;
+	struct __packed1 {
+		u32 enable;
+	} tx_buf;
+
+	struct __packed2 {
+		u32 status;
+	} rx_buf;
+
+	tx_buf.enable = en;
+	SCPI_SETUP_DBUF(sdata, mdata, SCPI_CL_SYS,
+			SCPI_SYS_SET_JTAGMUX_ON_OFF, tx_buf, rx_buf);
+
+	ret = scpi_execute_cmd(&sdata);
+	if (ret)
+		pr_err("set jtagmux on-off failed, ret=%d\n", ret);
+	else
+		ret = rx_buf.status;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(scpi_sys_set_jtagmux_on_off);
+
 int scpi_ddr_init(u32 dram_speed_bin, u32 freq, u32 lcdc_type, u32 addr_mcu_el3)
 {
 	struct scpi_data_buf sdata;

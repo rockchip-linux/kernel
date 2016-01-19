@@ -16,7 +16,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define SCPI_VERSION		0x01000001	/* version: 1.0.0.0 */
+#define SCPI_VERSION		0x01000002	/* version: 1.0.0.2 */
 
 enum scpi_error_codes {
 	SCPI_SUCCESS = 0, /* Success */
@@ -60,6 +60,7 @@ enum scpi_sys_cmd {
 	SCPI_SYS_REFRESH_MCU_FREQ,
 	SCPI_SYS_SET_MCU_STATE_SUSPEND,
 	SCPI_SYS_SET_MCU_STATE_RESUME,
+	SCPI_SYS_SET_JTAGMUX_ON_OFF,
 };
 
 enum scpi_std_cmd {

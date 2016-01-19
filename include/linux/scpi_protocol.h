@@ -37,6 +37,7 @@ int scpi_dvfs_set_idx(u8 domain, u8 idx);
 struct scpi_opp *scpi_dvfs_get_opps(u8 domain);
 int scpi_get_sensor(char *name);
 int scpi_get_sensor_value(u16 sensor, u32 *val);
+int scpi_sys_set_jtagmux_on_off(u32 en);
 int scpi_sys_set_mcu_state_suspend(void);
 int scpi_sys_set_mcu_state_resume(void);
 
@@ -80,6 +81,12 @@ static inline int scpi_get_sensor_value(u16 sensor, u32 *val)
 {
 	return -EPERM;
 }
+
+static int scpi_sys_set_jtagmux_on_off(u32 en)
+{
+	return -EPERM;
+}
+
 static inline int scpi_sys_set_mcu_state_suspend(void)
 {
 	return -EPERM;
