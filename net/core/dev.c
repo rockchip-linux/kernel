@@ -4955,7 +4955,7 @@ static void net_rx_action(struct softirq_action *h)
 	list_splice_tail(&repoll, &list);
 	list_splice(&list, &sd->poll_list);
 	if (!list_empty(&sd->poll_list))
-		__raise_softirq_irqoff(NET_RX_SOFTIRQ);
+		__raise_softirq_irqoff_ksoft(NET_RX_SOFTIRQ);
 
 	net_rps_action_and_irq_enable(sd);
 }
