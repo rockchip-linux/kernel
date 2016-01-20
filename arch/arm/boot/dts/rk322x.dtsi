@@ -198,6 +198,7 @@
 						300000 1200000
 						400000 1200000
 						>;
+					channel = <2>;
 					status = "disabled";
 				};
 			};
@@ -210,6 +211,7 @@
 						300000 1200000
 						400000 1200000
 						>;
+					channel = <1>;
 					status = "okay";
 					regu-mode-table = <
 						/*freq     mode*/
