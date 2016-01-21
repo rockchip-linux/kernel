@@ -4112,13 +4112,6 @@ int dw_mci_probe(struct dw_mci *host)
 	mci_writel(host, INTMASK, regs);
 
 	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE); /* Enable mci interrupt */
-
-	if (host->mmc->restrict_caps & RESTRICT_CARD_TYPE_SDIO) {
-		if (!IS_ERR(host->clk_mmc))
-			clk_disable_unprepare(host->clk_mmc);
-		if (!IS_ERR(host->hclk_mmc))
-			clk_disable_unprepare(host->hclk_mmc);
-	}
 	
 	dev_info(host->dev, "DW MMC controller at irq %d, "
 		 "%d bit host data width, "
