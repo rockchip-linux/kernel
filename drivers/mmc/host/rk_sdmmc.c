@@ -50,6 +50,8 @@
 #include <linux/log2.h>
 #include <linux/rockchip/cru.h>
 #include <linux/reset.h>
+#include <linux/scpi_protocol.h>
+
 #include <asm-generic/dma-mapping-common.h>
 #include "rk_sdmmc.h"
 #include "rk_sdmmc_dbg.h"
@@ -3460,6 +3462,10 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 		} else if (priv->ctrl_type == DW_MCI_TYPE_RK322X) {
 			grf_writel(((1 << 8) << 16) | (0 << 8), RK322X_GRF_SOC_CON6);
 		}
+	} else {
+		if (priv->ctrl_type == DW_MCI_TYPE_RK3368)
+			if (scpi_sys_set_jtagmux_on_off(1))
+				pr_err("rk_sdmmc: 3368: enable jtagmux failed !!!\n");
 	}
 
 	/* We assume only low-level chip use gpio_cd */
