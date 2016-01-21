@@ -3283,12 +3283,17 @@ static inline int __migrate_disabled(struct task_struct *p)
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
 static inline const struct cpumask *tsk_cpus_allowed(struct task_struct *p)
 {
-#ifdef CONFIG_PREEMPT_RT_FULL
-	if (p->migrate_disable)
+	if (__migrate_disabled(p))
 		return cpumask_of(task_cpu(p));
-#endif
 
 	return &p->cpus_allowed;
+}
+
+static inline int tsk_nr_cpus_allowed(struct task_struct *p)
+{
+	if (__migrate_disabled(p))
+		return 1;
+	return p->nr_cpus_allowed;
 }
 
 extern long sched_setaffinity(pid_t pid, const struct cpumask *new_mask);
