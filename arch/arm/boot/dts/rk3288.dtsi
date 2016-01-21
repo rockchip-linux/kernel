@@ -799,15 +799,25 @@
 
 	vpu: vpu_service@ff9a0000 {
 		compatible = "vpu_service";
-		iommus = <0>;
+		iommus = <&vpu_mmu>;
+		iommu_enabled = <1>;
 		reg = <0xff9a0000 0x800>;
 		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "irq_enc", "irq_dec";
 		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
 		clock-names = "aclk_vcodec", "hclk_vcodec";
-		power-domains = <&power RK3288_PD_VIDEO>;
 		name = "vpu_service";
 		dev_mode = <0>;
+		power-domains = <&power RK3288_PD_VIDEO>;
+	};
+
+	vpu_mmu: iommu@ff9a0800 {
+		compatible = "rockchip,iommu";
+		reg = <0xff9a0800 0x100>;
+		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vpu_mmu";
+		#iommu-cells = <0>;
+		power-domains = <&power RK3288_PD_VIDEO>;
 	};
 
 	gpu: gpu@ffa30000 {
