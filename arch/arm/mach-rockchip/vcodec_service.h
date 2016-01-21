@@ -46,58 +46,58 @@
 #endif
 
 enum VPU_CLIENT_TYPE {
-	VPU_ENC                 = 0x0,
-	VPU_DEC                 = 0x1,
-	VPU_PP                  = 0x2,
-	VPU_DEC_PP              = 0x3,
-	VPU_TYPE_BUTT           ,
+    VPU_ENC                 = 0x0,
+    VPU_DEC                 = 0x1,
+    VPU_PP                  = 0x2,
+    VPU_DEC_PP              = 0x3,
+    VPU_TYPE_BUTT           ,
 };
 
 /* Hardware decoder configuration description */
 
 struct vpu_dec_config {
-	u32 maxDecPicWidth;         /* Maximum video decoding width supported  */
-	u32 maxPpOutPicWidth;       /* Maximum output width of Post-Processor */
-	u32 h264_support;            /* HW supports h.264 */
-	u32 jpegSupport;            /* HW supports JPEG */
-	u32 mpeg4Support;           /* HW supports MPEG-4 */
-	u32 customMpeg4Support;     /* HW supports custom MPEG-4 features */
-	u32 vc1Support;             /* HW supports VC-1 Simple */
-	u32 mpeg2Support;           /* HW supports MPEG-2 */
-	u32 ppSupport;              /* HW supports post-processor */
-	u32 ppConfig;               /* HW post-processor functions bitmask */
-	u32 sorensonSparkSupport;   /* HW supports Sorenson Spark */
-	u32 refBufSupport;          /* HW supports reference picture buffering */
-	u32 vp6Support;             /* HW supports VP6 */
-	u32 vp7Support;             /* HW supports VP7 */
-	u32 vp8Support;             /* HW supports VP8 */
-	u32 avsSupport;             /* HW supports AVS */
-	u32 jpegESupport;           /* HW supports JPEG extensions */
-	u32 rvSupport;              /* HW supports REAL */
-	u32 mvcSupport;             /* HW supports H264 MVC extension */
+    u32 maxDecPicWidth;         /* Maximum video decoding width supported  */
+    u32 maxPpOutPicWidth;       /* Maximum output width of Post-Processor */
+    u32 h264_support;            /* HW supports h.264 */
+    u32 jpegSupport;            /* HW supports JPEG */
+    u32 mpeg4Support;           /* HW supports MPEG-4 */
+    u32 customMpeg4Support;     /* HW supports custom MPEG-4 features */
+    u32 vc1Support;             /* HW supports VC-1 Simple */
+    u32 mpeg2Support;           /* HW supports MPEG-2 */
+    u32 ppSupport;              /* HW supports post-processor */
+    u32 ppConfig;               /* HW post-processor functions bitmask */
+    u32 sorensonSparkSupport;   /* HW supports Sorenson Spark */
+    u32 refBufSupport;          /* HW supports reference picture buffering */
+    u32 vp6Support;             /* HW supports VP6 */
+    u32 vp7Support;             /* HW supports VP7 */
+    u32 vp8Support;             /* HW supports VP8 */
+    u32 avsSupport;             /* HW supports AVS */
+    u32 jpegESupport;           /* HW supports JPEG extensions */
+    u32 rvSupport;              /* HW supports REAL */
+    u32 mvcSupport;             /* HW supports H264 MVC extension */
 };
 
 /* Hardware encoder configuration description */
 
 struct vpu_enc_config {
-	u32 maxEncodedWidth;        /* Maximum supported width for video encoding (not JPEG) */
-	u32 h264Enabled;            /* HW supports H.264 */
-	u32 jpegEnabled;            /* HW supports JPEG */
-	u32 mpeg4Enabled;           /* HW supports MPEG-4 */
-	u32 vsEnabled;              /* HW supports video stabilization */
-	u32 rgbEnabled;             /* HW supports RGB input */
-	u32 reg_size;
-	u32 reserv[2];              /* reverved */
+    u32 maxEncodedWidth;        /* Maximum supported width for video encoding (not JPEG) */
+    u32 h264Enabled;            /* HW supports H.264 */
+    u32 jpegEnabled;            /* HW supports JPEG */
+    u32 mpeg4Enabled;           /* HW supports MPEG-4 */
+    u32 vsEnabled;              /* HW supports video stabilization */
+    u32 rgbEnabled;             /* HW supports RGB input */
+    u32 reg_size;
+    u32 reserv[2];              /* reverved */
 };
 
 union vpu_config {
-	struct vpu_dec_config vpu_dec_conf;
-	struct vpu_enc_config vpu_enc_conf;
+    struct vpu_dec_config vpu_dec_conf;
+    struct vpu_enc_config vpu_enc_conf;
 };
 
 struct VPUHwCfgReq_t {
-	u32 *cfg;
-	u32 size;
+    u32 *cfg;
+    u32 size;
 };
 
 #define DWL_MPEG2_E         31  /* 1 bit */
@@ -245,27 +245,26 @@ struct VPUHwCfgReq_t {
 #define VPU_PP_HW_FUSE_CFG          41
 
 struct VPUHwFuseStatus_t {
-	u32 h264SupportFuse;            /* HW supports h.264 */
-	u32 mpeg4SupportFuse;           /* HW supports MPEG-4 */
-	u32 mpeg2SupportFuse;           /* HW supports MPEG-2 */
-	u32 sorensonSparkSupportFuse;   /* HW supports Sorenson Spark */
-	u32 jpegSupportFuse;            /* HW supports JPEG */
-	u32 vp6SupportFuse;             /* HW supports VP6 */
-	u32 vp7SupportFuse;             /* HW supports VP6 */
-	u32 vp8SupportFuse;             /* HW supports VP6 */
-	u32 vc1SupportFuse;             /* HW supports VC-1 Simple */
-	u32 jpegProgSupportFuse;        /* HW supports Progressive JPEG */
-	u32 ppSupportFuse;              /* HW supports post-processor */
-	u32 ppConfigFuse;               /* HW post-processor functions bitmask */
-	u32 maxDecPicWidthFuse;         /* Maximum video decoding width supported  */
-	u32 maxPpOutPicWidthFuse;       /* Maximum output width of Post-Processor */
-	u32 refBufSupportFuse;          /* HW supports reference picture buffering */
-	u32 avsSupportFuse;             /* one of the AVS values defined above */
-	u32 rvSupportFuse;              /* one of the REAL values defined above */
-	u32 mvcSupportFuse;
-	u32 customMpeg4SupportFuse;     /* Fuse for custom MPEG-4 */
+    u32 h264SupportFuse;            /* HW supports h.264 */
+    u32 mpeg4SupportFuse;           /* HW supports MPEG-4 */
+    u32 mpeg2SupportFuse;           /* HW supports MPEG-2 */
+    u32 sorensonSparkSupportFuse;   /* HW supports Sorenson Spark */
+    u32 jpegSupportFuse;            /* HW supports JPEG */
+    u32 vp6SupportFuse;             /* HW supports VP6 */
+    u32 vp7SupportFuse;             /* HW supports VP6 */
+    u32 vp8SupportFuse;             /* HW supports VP6 */
+    u32 vc1SupportFuse;             /* HW supports VC-1 Simple */
+    u32 jpegProgSupportFuse;        /* HW supports Progressive JPEG */
+    u32 ppSupportFuse;              /* HW supports post-processor */
+    u32 ppConfigFuse;               /* HW post-processor functions bitmask */
+    u32 maxDecPicWidthFuse;         /* Maximum video decoding width supported  */
+    u32 maxPpOutPicWidthFuse;       /* Maximum output width of Post-Processor */
+    u32 refBufSupportFuse;          /* HW supports reference picture buffering */
+    u32 avsSupportFuse;             /* one of the AVS values defined above */
+    u32 rvSupportFuse;              /* one of the REAL values defined above */
+    u32 mvcSupportFuse;
+    u32 customMpeg4SupportFuse;     /* Fuse for custom MPEG-4 */
 };
-
 
 #endif
 
