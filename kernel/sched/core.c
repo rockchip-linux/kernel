@@ -3180,7 +3180,6 @@ void migrate_disable(void)
 	preempt_lazy_disable();
 	pin_current_cpu();
 	p->migrate_disable = 1;
-	p->nr_cpus_allowed = 1;
 	preempt_enable();
 }
 EXPORT_SYMBOL(migrate_disable);
