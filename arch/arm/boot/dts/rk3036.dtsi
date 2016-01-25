@@ -60,6 +60,7 @@
 		serial0 = &uart0;
 		serial1 = &uart1;
 		serial2 = &uart2;
+		spi0 = &spi0;
 	};
 
 	memory {
@@ -308,7 +309,7 @@
 		reg = <0x1021c000 0x4000>;
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		broken-cd;
-		bus-width = <8>;
+		bus-width = <4>;
 		cap-mmc-highspeed;
 		clock-frequency = <37500000>;
 		clock-freq-min-max = <400000 37500000>;
@@ -324,7 +325,7 @@
 		non-removable;
 		num-slots = <1>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
+		pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus4>;
 		status = "disabled";
 	};
 
@@ -544,6 +545,24 @@
 		pinctrl-0 = <&i2c0_xfer>;
 	};
 
+	spi0: spi@20074000 {
+		compatible = "rockchip,rockchip-spi";
+		reg = <0x20074000 0x1000>;
+		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi0_txd &spi0_rxd &spi0_clk &spi0_cs0 &spi0_cs1>;
+		rockchip,spi-src-clk = <0>;
+		num-cs = <2>;
+		clocks =<&cru SCLK_SPI>, <&cru PCLK_SPI>;
+		clock-names = "spi","pclk_spi0";
+		dmas = <&pdma 8>, <&pdma 9>;
+		#dma-cells = <2>;
+		dma-names = "tx", "rx";
+		status = "disabled";
+	};
+
 	usb_otg: usb@10180000 {
 		compatible = "rockchip,rk3036-usb", "rockchip,rk3066-usb",
 				"snps,dwc2";
@@ -709,15 +728,11 @@
 				rockchip,pins = <2 1 RK_FUNC_2 &pcfg_pull_default>;
 			};
 
-			emmc_bus8: emmc-bus8 {
+			emmc_bus4: emmc-bus4 {
 				rockchip,pins = <1 24 RK_FUNC_2 &pcfg_pull_default>,
 						<1 25 RK_FUNC_2 &pcfg_pull_default>,
 						<1 26 RK_FUNC_2 &pcfg_pull_default>,
-						<1 27 RK_FUNC_2 &pcfg_pull_default>,
-						<1 28 RK_FUNC_2 &pcfg_pull_default>,
-						<1 29 RK_FUNC_2 &pcfg_pull_default>,
-						<1 30 RK_FUNC_2 &pcfg_pull_default>,
-						<1 31 RK_FUNC_2 &pcfg_pull_default>;
+						<1 27 RK_FUNC_2 &pcfg_pull_default>;
 			};
 		};
 
@@ -832,6 +847,30 @@
 						<1 19 RK_FUNC_2 &pcfg_pull_none>;
 			};
 			/* no rts / cts for uart2 */
+		};
+
+		gpio1_spi0 {
+			spi0_txd:spi0-txd {
+				rockchip,pins = <1 29 RK_FUNC_3 &pcfg_pull_default>;
+			};
+
+			spi0_rxd:spi0-rxd {
+				rockchip,pins = <1 28 RK_FUNC_3 &pcfg_pull_default>;
+			};
+
+			spi0_clk:spi0-clk {
+				rockchip,pins = <2 0 RK_FUNC_2 &pcfg_pull_default>;
+			};
+
+			spi0_cs0:spi0-cs0 {
+				rockchip,pins = <1 30 RK_FUNC_3 &pcfg_pull_default>;
+
+			};
+
+			spi0_cs1:spi0-cs1 {
+				rockchip,pins = <1 31 RK_FUNC_3 &pcfg_pull_default>;
+
+			};
 		};
 	};
 };
