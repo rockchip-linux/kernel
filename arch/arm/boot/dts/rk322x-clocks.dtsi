@@ -1756,7 +1756,7 @@
 					<&clk_hdmi_cec>,	<&dummy>,
 					<&dummy>,	<&aclk_vpu>,
 
-					<&dummy>,	<&clk_gpu>,
+					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>;
 
 					clock-output-names =
@@ -1769,8 +1769,8 @@
 					"clk_hdmi_cec",	"reserved",
 					"reserved",	"aclk_vpu",
 
-					"reserved",	"reserved",
-					"reserved",	"clk_gpu";
+					"reserved",	"clk_gpu",
+					"reserved",	"reserved";
 
 					#clock-cells = <1>;
 				};
