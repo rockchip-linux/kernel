@@ -935,7 +935,7 @@ static int vcodec_fd_to_iova(struct vpu_subdev_data *data,
 			       (size_t *)&mem_region->len);
 
 	if (ret < 0) {
-		vpu_err("ion map iommu failed\n");
+		vpu_err("fd %d ion map iommu failed\n", fd);
 		kfree(mem_region);
 		ion_free(pservice->ion_client, hdl);
 		return ret;
@@ -1022,9 +1022,6 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 	for (i = 0; i < size; i++) {
 		int usr_fd = reg->reg[tbl[i]] & 0x3FF;
 
-		vpu_debug(DEBUG_IOMMU, "pos %3d fd %3d offset %10d\n",
-			  tbl[i], usr_fd, offset);
-
 		/* if userspace do not set the fd at this register, skip */
 		if (usr_fd == 0)
 			continue;
@@ -1047,11 +1044,14 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 		 *
 		 * RKVdec do not have this issue.
 		 */
-		if (type == FMT_H264D && task->reg_dir_mv > 0 &&
-		    task->reg_dir_mv == tbl[i])
+		if ((type == FMT_H264D || type == FMT_VP9D) &&
+		    task->reg_dir_mv > 0 && task->reg_dir_mv == tbl[i])
 			offset = reg->reg[tbl[i]] >> 10 << 4;
 		else
 			offset = reg->reg[tbl[i]] >> 10;
+
+		vpu_debug(DEBUG_IOMMU, "pos %3d fd %3d offset %10d\n",
+			  tbl[i], usr_fd, offset);
 
 		hdl = ion_import_dma_buf(pservice->ion_client, usr_fd);
 		if (IS_ERR(hdl)) {
@@ -1138,7 +1138,8 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 				       (size_t *)&mem_region->len);
 
 		if (ret < 0) {
-			dev_err(pservice->dev, "ion map iommu failed\n");
+			dev_err(pservice->dev, "reg %d fd %d ion map iommu failed\n",
+				tbl[i], usr_fd);
 			kfree(mem_region);
 			ion_free(pservice->ion_client, hdl);
 			return ret;
