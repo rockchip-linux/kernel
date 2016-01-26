@@ -23,6 +23,7 @@
 #ifdef CONFIG_ARM
 #include <linux/mm.h>
 #include <asm/opcodes-sec.h>
+#include <linux/dma-mapping.h>
 #endif
 
 /*
@@ -252,12 +253,11 @@ void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 {
 	psci_fiq_debugger_uart_irq_tf = callback;
 
-	ft_fiq_mem_base = (void *)get_zeroed_page(GFP_KERNEL);
+	ft_fiq_mem_base = dma_alloc_coherent(NULL, PAGE_SIZE, &ft_fiq_mem_phy, GFP_KERNEL);
 	if (IS_ERR_OR_NULL(ft_fiq_mem_base)) {
 		pr_err("%s: alloc mem failed\n", __func__);
 		return;
 	}
-	ft_fiq_mem_phy = virt_to_phys(ft_fiq_mem_base);
 
 	reg_wr_fn(PSCI_SIP_UARTDBG_CFG, irq_id,
 		  (u32)psci_fiq_debugger_uart_irq_tf_cb,
