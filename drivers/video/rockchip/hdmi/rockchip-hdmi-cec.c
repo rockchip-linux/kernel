@@ -72,6 +72,11 @@ void rockchip_hdmi_cec_submit_work(int event, int delay, void *data)
 
 	CECDBG("%s event %04x delay %d\n", __func__, event, delay);
 
+	if (!cec_dev) {
+		pr_err("HDMI CEC: cec_dev is null!\n");
+		return;
+	}
+
 	work = kmalloc(sizeof(*work), GFP_ATOMIC);
 
 	if (work) {

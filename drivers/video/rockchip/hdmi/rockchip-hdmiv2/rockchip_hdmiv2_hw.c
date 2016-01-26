@@ -2143,7 +2143,8 @@ irqreturn_t rockchip_hdmiv2_dev_irq(int irq, void *priv)
 	/* CEC */
 	if (cec_int) {
 		hdmi_writel(hdmi_dev, IH_CEC_STAT0, cec_int);
-		rockchip_hdmiv2_cec_isr(hdmi_dev, cec_int);
+		if (hdmi_dev->hdmi->property->feature & SUPPORT_CEC)
+			rockchip_hdmiv2_cec_isr(hdmi_dev, cec_int);
 	}
 	/* HDCP */
 	if (hdcp_int) {
