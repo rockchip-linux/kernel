@@ -529,17 +529,6 @@
 		dmas = <&pdma 14>, <&pdma 15>;
 		#dma-cells = <2>;
 		dma-names = "tx", "rx";
-		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&i2s_mclk
-			     &i2s_sclk
-			     &i2s_lrckrx
-			     &i2s_lrcktx
-			     &i2s_sdi
-			     &i2s_sdo0
-			     &i2s_sdo1
-			     &i2s_sdo2
-			     &i2s_sdo3>;
-		pinctrl-1 = <&i2s_sleep>;
 		status = "disabled";
 	};
 
