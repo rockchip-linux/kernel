@@ -377,6 +377,29 @@ static const struct panel_desc auo_b101ean01 = {
 	},
 };
 
+static const struct drm_display_mode cpt_claa070wp03xg_mode = {
+	.clock = 67000,
+	.hdisplay = 800,
+	.hsync_start = 800 + 24,
+	.hsync_end = 800 + 24 + 16,
+	.htotal = 800 + 24 + 16 + 24,
+	.vdisplay = 1280,
+	.vsync_start = 1280 + 2,
+	.vsync_end = 1280 + 2 + 2,
+	.vtotal = 1280 + 2 + 2 + 4,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc cpt_claa070wp03xg = {
+	.modes = &cpt_claa070wp03xg_mode,
+	.num_modes = 1,
+	.bpc = 6,
+	.size = {
+		.width = 94,
+		.height = 151,
+	},
+};
+
 static const struct drm_display_mode auo_b133xtn01_mode = {
 	.clock = 69500,
 	.hdisplay = 1366,
@@ -630,6 +653,9 @@ static const struct panel_desc chimei_bn0701083a = {
 
 static const struct of_device_id platform_of_match[] = {
 	{
+		.compatible = "cpt,claa070wp03xg",
+		.data = &cpt_claa070wp03xg,
+	}, {
 		.compatible = "auo,b101aw03",
 		.data = &auo_b101aw03,
 	}, {
