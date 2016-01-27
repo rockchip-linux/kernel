@@ -94,11 +94,20 @@
 		pwms = <&pwm0 0 1000000 PWM_POLARITY_INVERTED>;
 	};
 
-	panel: panel {
+	edp_panel: edp_dp_panel {
 		compatible ="sdk,f402","simple-panel";
 		status = "okay";
 		power-supply = <&vcc_lcd>;
 		enable-gpios = <&gpio7 4 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&lcd_cs>;
+		backlight = <&backlight>;
+	};
+
+	lvds_panel: lvds_panel {
+		compatible ="cpt,claa070wp03xg","simple-panel";
+		status = "okay";
+		power-supply = <&vcc_lcd>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&lcd_cs>;
 		backlight = <&backlight>;
@@ -275,7 +284,7 @@
 
 &edp {
 	status = "okay";
-	rockchip,panel = <&panel>;
+	rockchip,panel = <&edp_panel>;
 };
 
 &emmc {
@@ -321,6 +330,14 @@
 &hdmi {
 	ddc-i2c-bus = <&i2c5>;
 	status = "okay";
+};
+
+&lvds {
+	rockchip,data-mapping = "jeida";
+	rockchip,data-width = <24>;
+	rockchip,output = "lvds";
+	rockchip,panel = <&lvds_panel>;
+	status = "disabled";
 };
 
 &vopb {
