@@ -36,7 +36,24 @@
 #include <linux/suspend.h>
 
 #define CONFIG_BLUEDROID		1 /* bleuz 0, bluedroid 1 */
+#define USE_CONTROLLER_BDADDR  1  /* 1:use efuse or bt config, 0:use external file */
 
+#if USE_CONTROLLER_BDADDR
+#else
+#define BDADDR_FILE "/data/misc/bluetooth/bdaddr"
+#define FACTORY_BT_BDADDR_STORAGE_LEN 17
+struct rtk_bt_vendor_config_entry{
+    uint16_t offset;
+    uint8_t entry_len;
+    uint8_t entry_data[0];
+} __attribute__ ((packed));
+
+struct rtk_bt_vendor_config{
+    uint32_t signature;
+    uint16_t data_len;
+    struct rtk_bt_vendor_config_entry entry[0];
+} __attribute__ ((packed));
+#endif
 /* Some Android system may use standard Linux kernel, while
  * standard Linux may also implement early suspend feature.
  * So exclude earysuspend.h from CONFIG_BLUEDROID.
@@ -60,7 +77,7 @@
 /* when OS suspended, module is still powered,usb is not powered,
  * this may set to 1, and must comply with special patch code.
  */
-#define CONFIG_RESET_RESUME		0
+#define CONFIG_RESET_RESUME		1
 #define PRINT_CMD_EVENT			0
 #define PRINT_ACL_DATA			0
 #define PRINT_SCO_DATA			0
@@ -83,11 +100,8 @@
 #define GET_DRV_DATA(x)		x->driver_data
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
 #define SCO_NUM    hdev->conn_hash.sco_num
-#else
-#define SCO_NUM     hci_conn_num(hdev, SCO_LINK)
-#endif
+
 
 #define BTUSB_RPM		(0 * USB_RPM) /* 1 SS enable; 0 SS disable */
 #define BTUSB_WAKEUP_HOST		0	/* 1  enable; 0  disable */
@@ -102,11 +116,23 @@
 #define HCI_VENDOR_CHANGE_BDRATE 0xfc17
 #define HCI_VENDOR_READ_RTK_ROM_VERISION 0xfc6d
 #define HCI_VENDOR_READ_LMP_VERISION 0x1001
+#define HCI_VENDOR_FORCE_RESET_AND_PATCHABLE 0xfc66
+#define HCI_VENDOR_RESET                       0x0C03
 
+
+#define DRV_NORMAL_MODE 0
+#define DRV_MP_MODE 1 
+
+#define ROM_LMP_NONE                0x0000
 #define ROM_LMP_8723a               0x1200
 #define ROM_LMP_8723b               0x8723
 #define ROM_LMP_8821a               0X8821
 #define ROM_LMP_8761a               0X8761
+#define ROM_LMP_8703a               0x8723
+#define ROM_LMP_8763a               0x8763
+#define ROM_LMP_8703b               0x8703//???????
+#define ROM_LMP_8723c               0x87c3//???????
+#define ROM_LMP_8822b               0x8822
 
 /* signature: Realtek */
 const uint8_t RTK_EPATCH_SIGNATURE[8] = {0x52,0x65,0x61,0x6C,0x74,0x65,0x63,0x68};
@@ -117,12 +143,24 @@ uint16_t project_id[] = {
 	ROM_LMP_8723a,
 	ROM_LMP_8723b,
 	ROM_LMP_8821a,
-	ROM_LMP_8761a
+	ROM_LMP_8761a,
+    ROM_LMP_8703a,
+    ROM_LMP_8763a,
+    ROM_LMP_8703b,
+    ROM_LMP_8723c,
+    ROM_LMP_8822b,
+	ROM_LMP_NONE
 };
 struct rtk_eversion_evt {
 	uint8_t status;
 	uint8_t version;
 } __attribute__ ((packed));
+
+/*modified by lamparten 1020*/
+struct rtk_reset_evt {
+	uint8_t status;
+} __attribute__ ((packed));
+/*modified by lamparten 1020*/
 
 struct rtk_epatch_entry {
 	uint16_t chip_id;
@@ -404,9 +442,9 @@ static inline void *hci_get_drvdata(struct hci_dev *hdev)
 	return dev_get_drvdata(&hdev->dev);
 }
 
-static inline int hci_set_drvdata(struct hci_dev *hdev, void *data)
+static inline void hci_set_drvdata(struct hci_dev *hdev, void *data)
 {
-	return dev_set_drvdata(&hdev->dev, data);
+	dev_set_drvdata(&hdev->dev, data);
 }
 
 #define SET_HCIDEV_DEV(hdev, pdev) ((hdev)->parent = (pdev))
@@ -450,6 +488,7 @@ static inline int hci_set_drvdata(struct hci_dev *hdev, void *data)
 #define HCI_OP_SET_EVENT_MASK		0x0c01
 #define HCI_OP_RESET			0x0c03
 #define HCI_OP_SET_EVENT_FLT		0x0c05
+#define HCI_OP_Write_Extended_Inquiry_Response		0x0c52
 
 /* -----  HCI events---- */
 #define HCI_OP_DISCONNECT		0x0406
