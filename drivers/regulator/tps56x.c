@@ -641,7 +641,7 @@ static int tps56x_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *
 	ret = tps56x_set_bits(tps56x, TPS56X_REG_CTR_A, 0x80, 0x80);				// internal mode.
 	ret = tps56x_set_bits(tps56x, TPS56X_REG_CTR_A, 0x04, 0x04);	
 	ret = tps56x_set_bits(tps56x, TPS56X_REG_CTR_A, 0x03, TPS56X_NORMAL_MODE);	
-	ret = tps56x_set_bits(tps56x, TPS56X_REG_VOUT, 0xFF, (0x80 | 40));	
+
 #else
 	ret = tps56x_set_bits(tps56x,TPS56X_CONTR_REG1,(1 << 6),(1<<6));  //10mv/2.4us
 #endif
