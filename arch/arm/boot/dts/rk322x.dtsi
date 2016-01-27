@@ -328,6 +328,12 @@
 			
 			<&clk_gates7 15>, /* g_aclk_gpu_noc */
 
+			<&clk_gates13 9>,/*g_aclk_iep_noc*/
+			<&clk_gates13 12>,/*g_aclk_vop_noc*/
+			<&clk_gates13 10>,/*g_aclk_hdcp_noc*/
+			<&clk_gates13 8>,/*g_hclk_vio_noc*/
+			<&clk_gates13 13>,/*g_hclk_vop_noc*/
+
 			<&clk_gates1 3>;/*clk_jtag*/
 	};
 
