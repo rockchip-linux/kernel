@@ -825,6 +825,8 @@
 
 #include  "../../../arm/boot/dts/rk808.dtsi"
 &rk808 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&gpio0_a5>;
 	gpios =<&gpio0 GPIO_A5 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
 	rk808,system-power-controller;
 
