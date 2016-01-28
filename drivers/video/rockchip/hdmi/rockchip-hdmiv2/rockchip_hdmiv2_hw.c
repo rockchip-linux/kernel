@@ -8,11 +8,12 @@
 #include "rockchip_hdmiv2_hw.h"
 
 static const struct phy_mpll_config_tab PHY_MPLL_TABLE[] = {
-	/*tmdsclk = (pixclk / ref_cntrl ) * (fbdiv2 * fbdiv1) / nctrl / tmdsmhl
-	  opmode: 0:HDMI1.4	1:HDMI2.0
-	*/
-/*	|pixclock|	tmdsclock|pixrepet|colordepth|prepdiv|tmdsmhl|opmode|
-		fbdiv2|fbdiv1|ref_cntrl|nctrl|propctrl|intctrl|gmpctrl| */
+/*	tmdsclk = (pixclk / ref_cntrl ) * (fbdiv2 * fbdiv1) / nctrl / tmdsmhl
+ *	opmode: 0:HDMI1.4	1:HDMI2.0
+ *
+ *	|pixclock|	tmdsclock|pixrepet|colordepth|prepdiv|tmdsmhl|opmode|
+ *		fbdiv2|fbdiv1|ref_cntrl|nctrl|propctrl|intctrl|gmpctrl|
+ */
 	{27000000,	27000000,	0,	8,	0,	0,	0,
 		2,	3,	0,	3,	3,	0,	0},
 	{27000000,	33750000,	0,	10,	1,	0,	0,
@@ -31,8 +32,6 @@ static const struct phy_mpll_config_tab PHY_MPLL_TABLE[] = {
 		1,	3,	0,	1,	7,	0,	2},
 	{65000000,	65000000,	0,	8,	0,	0,	0,
 		1,	3,	0,	2,	5,	0,	1},
-/*	{74250000,	74250000,	0,	8,	0,	0,	0,
-	1,	3,	0,	2,	5,	0,	1}, */
 	{74250000,      74250000,	0,      8,      0,      0,      0,
 		4,      3,      3,      2,      7,      0,      3},
 	{74250000,	92812500,	0,	10,	1,	0,	0,
@@ -71,8 +70,6 @@ static const struct phy_mpll_config_tab PHY_MPLL_TABLE[] = {
 		1,	2,	0,	1,	7,	0,	3},
 	{297000000,	594000000,	0,	16,	3,	3,	1,
 		1,	3,	1,	0,	0,	0,	3},
-/*	{594000000,	297000000,	0,	8,	0,	0,	0,
-		1,	3,	3,	1,	0,	0,	3},*/
 	{594000000,	297000000,	0,	8,	0,	0,	0,
 		1,	0,	1,	0,	0,	0,	3},
 	{594000000,	371250000,	0,	10,	1,	3,	1,
@@ -217,7 +214,7 @@ static int rockchip_hdmiv2_i2cm_read_data(struct hdmi_dev *hdmi_dev, u8 offset)
 
 static void rockchip_hdmiv2_i2cm_mask_int(struct hdmi_dev *hdmi_dev, int mask)
 {
-	if (0 == mask) {
+	if (!mask) {
 		hdmi_msk_reg(hdmi_dev, I2CM_INT,
 			     m_I2CM_DONE_MASK, v_I2CM_DONE_MASK(0));
 		hdmi_msk_reg(hdmi_dev, I2CM_CTLINT,
@@ -360,7 +357,7 @@ static int rockchip_hdmiv2_scrambling_enable(struct hdmi_dev *hdmi_dev,
 					     int enable)
 {
 	HDMIDBG("%s enable %d\n", __func__, enable);
-	if (1 == enable) {
+	if (enable == 1) {
 		/* Write on Rx the bit Scrambling_Enable, register 0x20 */
 		rockchip_hdmiv2_i2cm_write_data(hdmi_dev, 1, SCDC_TMDS_CONFIG);
 		/* TMDS software reset request */
@@ -469,12 +466,12 @@ int rockchip_hdmiv2_write_phy(struct hdmi_dev *hdmi_dev,
 				break;
 		}
 
-		if (op_status & m_I2CMPHY_DONE)
-			return 0;
-		else
+		if (!(op_status & m_I2CMPHY_DONE))
 			dev_err(hdmi_dev->hdmi->dev,
 				"[%s] operation error,trytime=%d\n",
 				__func__, trytime);
+		else
+			return 0;
 		msleep(100);
 	}
 
@@ -508,16 +505,16 @@ int rockchip_hdmiv2_read_phy(struct hdmi_dev *hdmi_dev,
 				break;
 		}
 
-		if (op_status & m_I2CMPHY_DONE) {
+		if (!(op_status & m_I2CMPHY_DONE)) {
+			pr_err("[%s] operation error,trytime=%d\n",
+			       __func__, trytime);
+		} else {
 			val = hdmi_readl(hdmi_dev, PHY_I2CM_DATAI_1);
 			val = (val & 0xff) << 8;
 			val += (hdmi_readl(hdmi_dev, PHY_I2CM_DATAI_0) & 0xff);
 			pr_debug("phy_reg0x%02x: 0x%04x",
 				 reg_addr, val);
 			return val;
-		} else {
-			pr_err("[%s] operation error,trytime=%d\n",
-			       __func__, trytime);
 		}
 		msleep(100);
 	}
@@ -793,12 +790,7 @@ static int rockchip_hdmiv2_config_phy(struct hdmi_dev *hdmi_dev)
 		msleep(100);
 	/* power on PHY */
 	hdmi_writel(hdmi_dev, PHY_CONF0, 0x2e);
-	/*
-	hdmi_msk_reg(hdmi_dev, PHY_CONF0,
-		     m_PDDQ_SIG | m_TXPWRON_SIG | m_ENHPD_RXSENSE_SIG,
-		     v_PDDQ_SIG(0) | v_TXPWRON_SIG(1) |
-		     v_ENHPD_RXSENSE_SIG(1));
-	*/
+
 	/* check if the PHY PLL is locked */
 
 	i = 0;
@@ -879,10 +871,10 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 		vpara->color_output_depth = 8;
 		if (vpara->color_input == HDMI_COLOR_YCBCR420)
 			tmdsclk = mode->pixclock / 2;
-		else if (vpara->format_3d == HDMI_3D_FRAME_PACKING)
-			return -1;
-		else
+		else if (vpara->format_3d != HDMI_3D_FRAME_PACKING)
 			tmdsclk = mode->pixclock;
+		else
+			return -1;
 	}
 
 	if ((tmdsclk > 340000000) ||
@@ -1000,8 +992,9 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 	value = mode->vsync_len;
 	hdmi_writel(hdmi_dev, FC_VSYNCINWIDTH, (value & 0xff));
 
-	/*Set the control period minimum duration
-	 (min. of 12 pixel clock cycles, refer to HDMI 1.4b specification)*/
+	/* Set the control period minimum duration (min. of 12 pixel
+	 * clock cycles, refer to HDMI 1.4b specification)
+	 */
 	hdmi_writel(hdmi_dev, FC_CTRLDUR, 12);
 	hdmi_writel(hdmi_dev, FC_EXCTRLDUR, 32);
 
@@ -1188,7 +1181,8 @@ static int rockchip_hdmiv2_video_sampler(struct hdmi_dev *hdmi_dev,
 	}
 
 	/* Set Data enable signal from external
-	   and set video sample input mapping */
+	 * and set video sample input mapping
+	 */
 	hdmi_msk_reg(hdmi_dev, TX_INVID0,
 		     m_INTERNAL_DE_GEN | m_VIDEO_MAPPING,
 		     v_INTERNAL_DE_GEN(0) | v_VIDEO_MAPPING(map_code));
@@ -1212,9 +1206,10 @@ static int rockchip_hdmiv2_video_sampler(struct hdmi_dev *hdmi_dev,
 
 static const char coeff_csc[][24] = {
 		/*   G		R	    B		Bias
-		     A1    |	A2     |    A3     |	A4    |
-		     B1    |    B2     |    B3     |    B4    |
-		     C1    |    C2     |    C3     |    C4    | */
+		 *   A1    |	A2     |    A3     |	A4    |
+		 *   B1    |    B2     |    B3     |    B4    |
+		 *   C1    |    C2     |    C3     |    C4    |
+		 */
 	{	/* CSC_RGB_0_255_TO_RGB_16_235_8BIT */
 		0x36, 0xf7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,		/*G*/
 		0x00, 0x00, 0x36, 0xf7, 0x00, 0x00, 0x00, 0x40,		/*R*/
@@ -1569,15 +1564,10 @@ static int hdmi_dev_config_vsi(struct hdmi *hdmi,
 	for (i = 0; i < 3; i++)
 		hdmi_writel(hdmi_dev, FC_VSDPAYLOAD0 + i, data[i]);
 	hdmi_writel(hdmi_dev, FC_VSDSIZE, 0x6);
-/*	if (auto_send) { */
+
 	hdmi_writel(hdmi_dev, FC_DATAUTO1, 0);
 	hdmi_writel(hdmi_dev, FC_DATAUTO2, 0x11);
 	hdmi_msk_reg(hdmi_dev, FC_DATAUTO0, m_VSD_AUTO, v_VSD_AUTO(1));
-/*	}
-	else {
-		hdmi_msk_reg(hdmi_dev, FC_DATMAN, m_VSD_MAN, v_VSD_MAN(1));
-	}
-*/
 	return 0;
 }
 
@@ -1650,9 +1640,9 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 			hdmi_writel(hdmi_dev, FC_DBGTMDS1, 0x10);	/*G*/
 			hdmi_writel(hdmi_dev, FC_DBGTMDS0, 0x10);	/*B*/
 		} else {
-			hdmi_writel(hdmi_dev, FC_DBGTMDS2, 0x80);	/*R*/
-			hdmi_writel(hdmi_dev, FC_DBGTMDS1, 0x10);	/*G*/
-			hdmi_writel(hdmi_dev, FC_DBGTMDS0, 0x80);	/*B*/
+			hdmi_writel(hdmi_dev, FC_DBGTMDS2, 0x80);	/*Cr*/
+			hdmi_writel(hdmi_dev, FC_DBGTMDS1, 0x10);	/*Y*/
+			hdmi_writel(hdmi_dev, FC_DBGTMDS0, 0x80);	/*Cb*/
 		}
 		hdmi_msk_reg(hdmi_dev, FC_DBGFORCE,
 			     m_FC_FORCEVIDEO, v_FC_FORCEVIDEO(1));
@@ -1706,23 +1696,25 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 static void hdmi_dev_config_aai(struct hdmi_dev *hdmi_dev,
 				struct hdmi_audio *audio)
 {
-	/*Refer to CEA861-E Audio infoFrame*/
-	/*Set both Audio Channel Count and Audio Coding
-	  Type Refer to Stream Head for HDMI*/
+	/* Refer to CEA861-E Audio infoFrame
+	 * Set both Audio Channel Count and Audio Coding
+	 * Type Refer to Stream Head for HDMI
+	 */
 	hdmi_msk_reg(hdmi_dev, FC_AUDICONF0,
 		     m_FC_CHN_CNT | m_FC_CODING_TYEP,
 		     v_FC_CHN_CNT(audio->channel-1) | v_FC_CODING_TYEP(0));
 
-	/*Set both Audio Sample Size and Sample Frequency
-	  Refer to Stream Head for HDMI*/
+	/* Set both Audio Sample Size and Sample Frequency
+	 * Refer to Stream Head for HDMI
+	 */
 	hdmi_msk_reg(hdmi_dev, FC_AUDICONF1,
 		     m_FC_SAMPLE_SIZE | m_FC_SAMPLE_FREQ,
 		     v_FC_SAMPLE_SIZE(0) | v_FC_SAMPLE_FREQ(0));
 
-	/*Set Channel Allocation*/
+	/* Set Channel Allocation */
 	hdmi_writel(hdmi_dev, FC_AUDICONF2, 0x00);
 
-	/*Set LFEPBL¡¢DOWN-MIX INH and LSV*/
+	/* Set LFEPBLDOWN-MIX INH and LSV */
 	hdmi_writel(hdmi_dev, FC_AUDICONF3, 0x00);
 }
 
@@ -1881,12 +1873,12 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 		hdmi_writel(hdmi_dev, MC_SWRSTZREQ, 0xF7);
 		hdmi_writel(hdmi_dev, AUD_CONF2, 0x0);
 		usleep_range(90, 100);
-		if (I2S_CHANNEL_7_8 == channel) {
+		if (channel == I2S_CHANNEL_7_8) {
 			HDMIDBG("hbr mode.\n");
 			hdmi_writel(hdmi_dev, AUD_CONF2, 0x1);
 			word_length = I2S_24BIT_SAMPLE;
-		} else if ((HDMI_AUDIO_FS_48000 == audio->rate) ||
-			   (HDMI_AUDIO_FS_192000 == audio->rate)) {
+		} else if ((audio->rate == HDMI_AUDIO_FS_48000) ||
+			   (audio->rate == HDMI_AUDIO_FS_192000)) {
 			HDMIDBG("nlpcm mode.\n");
 			hdmi_writel(hdmi_dev, AUD_CONF2, 0x2);
 			word_length = I2S_24BIT_SAMPLE;
@@ -1964,20 +1956,15 @@ static int hdmi_dev_control_output(struct hdmi *hdmi, int enable)
 			}
 		}
 /*		if (enable & HDMI_AUDIO_MUTE) {
-			hdmi_msk_reg(hdmi_dev, FC_AUDSCONF,
-				     m_AUD_PACK_SAMPFIT,
-				     v_AUD_PACK_SAMPFIT(0x0F));
-		}
-*/		if (enable == (HDMI_VIDEO_MUTE | HDMI_AUDIO_MUTE)) {
+ *			hdmi_msk_reg(hdmi_dev, FC_AUDSCONF,
+ *				     m_AUD_PACK_SAMPFIT,
+ *				     v_AUD_PACK_SAMPFIT(0x0F));
+ *		}
+ */
+		if (enable == (HDMI_VIDEO_MUTE | HDMI_AUDIO_MUTE)) {
 			if (hdmi->ops->hdcp_power_off_cb)
 				hdmi->ops->hdcp_power_off_cb(hdmi);
-			rockchip_hdmiv2_powerdown(hdmi_dev);
-/*
-			hdmi_msk_reg(hdmi_dev, PHY_CONF0,
-				     m_PDDQ_SIG | m_TXPWRON_SIG,
-				     v_PDDQ_SIG(1) | v_TXPWRON_SIG(0));
-			hdmi_writel(hdmi_dev, MC_CLKDIS, 0x7f);
-*/		}
+			rockchip_hdmiv2_powerdown(hdmi_dev);		}
 	}
 	return 0;
 }

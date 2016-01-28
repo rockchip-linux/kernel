@@ -159,10 +159,7 @@ static void hdmi_wq_parse_edid(struct hdmi *hdmi)
 	INIT_LIST_HEAD(&pedid->modelist);
 
 	pedid->raw[0] = kmalloc(HDMI_EDID_BLOCK_SIZE, GFP_KERNEL);
-	if (pedid->raw[0] == NULL) {
-		dev_err(hdmi->dev,
-			"[%s] can not allocate memory for edid buff.\n",
-			__func__);
+	if (!pedid->raw[0]) {
 		rc = HDMI_ERROR_FALSE;
 		goto out;
 	}
@@ -176,7 +173,7 @@ static void hdmi_wq_parse_edid(struct hdmi *hdmi)
 	for (trytimes = 0; trytimes < 3; trytimes++) {
 		if (trytimes)
 			msleep(50);
-		memset(pedid->raw[0], 0 , HDMI_EDID_BLOCK_SIZE);
+		memset(pedid->raw[0], 0, HDMI_EDID_BLOCK_SIZE);
 		rc = hdmi->ops->getedid(hdmi, 0, pedid->raw[0]);
 		if (rc) {
 			dev_err(hdmi->dev,
@@ -208,7 +205,7 @@ static void hdmi_wq_parse_edid(struct hdmi *hdmi)
 		for (trytimes = 0; trytimes < 3; trytimes++) {
 			if (trytimes)
 				msleep(20);
-			memset(pedid->raw[i], 0 , HDMI_EDID_BLOCK_SIZE);
+			memset(pedid->raw[i], 0, HDMI_EDID_BLOCK_SIZE);
 			rc = hdmi->ops->getedid(hdmi, i, pedid->raw[i]);
 			if (rc) {
 				dev_err(hdmi->dev,
@@ -483,10 +480,9 @@ struct hdmi *rockchip_hdmi_register(struct hdmi_property *property,
 	    property->videosrc,  property->display);
 
 	hdmi = kmalloc(sizeof(*hdmi), GFP_KERNEL);
-	if (!hdmi) {
-		pr_err("HDMI: no memory to allocate hdmi device.\n");
+	if (!hdmi)
 		return NULL;
-	}
+
 	memset(hdmi, 0, sizeof(struct hdmi));
 	mutex_init(&hdmi->lock);
 
@@ -609,26 +605,6 @@ int hdmi_config_audio(struct hdmi_audio	*audio)
 		if (ref_info[i].ref == 0)
 			continue;
 		hdmi = ref_info[i].hdmi;
-
-		/*
-		if (memcmp(audio, &hdmi->audio, sizeof(struct hdmi_audio)) == 0)
-			continue;
-		*/
-		/*for (j = 0; j < hdmi->edid.audio_num; j++) {
-			if (audio->type == hdmi->edid.audio_num)
-				break;
-		}*/
-
-		/*if ( (j == hdmi->edid.audio_num) ||
-			(audio->channel > hdmi->edid.audio[j].channel) ||
-			((audio->rate & hdmi->edid.audio[j].rate) == 0)||
-			((audio->type == HDMI_AUDIO_LPCM) &&
-			((audio->word_length &
-			  hdmi->edid.audio[j].word_length) == 0)) ) {
-			pr_warn("[%s] warning : input audio type
-				not supported in hdmi sink\n", __func__);
-			continue;
-		}*/
 		memcpy(&hdmi->audio, audio, sizeof(struct hdmi_audio));
 		if (hdmi->hotplug == HDMI_HPD_ACTIVED)
 			hdmi_submit_work(hdmi, HDMI_SET_AUDIO, 0, 0);
@@ -670,7 +646,7 @@ int snd_config_hdmi_audio(struct snd_pcm_hw_params *params)
 
 	audio_cfg.rate = rate;
 
-	if (HW_PARAMS_FLAG_NLPCM == params->flags)
+	if (params->flags == HW_PARAMS_FLAG_NLPCM)
 		audio_cfg.type = HDMI_AUDIO_NLPCM;
 	else
 		audio_cfg.type = HDMI_AUDIO_LPCM;

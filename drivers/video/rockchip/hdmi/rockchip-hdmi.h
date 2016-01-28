@@ -230,11 +230,13 @@ enum hdmi_audio_word_length {
 
 /* HDMI Hotplug Status */
 enum hdmi_hotpulg_status {
-	HDMI_HPD_REMOVED = 0,		/* HDMI is disconnected */
-	HDMI_HPD_INSERT,		/* HDMI is connected, but HDP is low
-					or TMDS link is not pull up to 3.3V*/
-	HDMI_HPD_ACTIVED		/* HDMI is connected, all singnal
-					  is normal */
+	HDMI_HPD_REMOVED = 0,	/* HDMI is disconnected */
+	HDMI_HPD_INSERT,	/* HDMI is connected, but HDP is low
+				 * or TMDS link is not pull up to 3.3V.
+				 */
+	HDMI_HPD_ACTIVED	/* HDMI is connected, all singnal
+				 * is normal
+				 */
 };
 
 enum hdmi_mute_status {
@@ -282,18 +284,20 @@ struct hdmi_audio {
 #define HDMI_MAX_EDID_BLOCK		8
 /* HDMI EDID Information */
 struct hdmi_edid {
-	unsigned char sink_hdmi;	/*HDMI display device flag*/
-	unsigned char ycbcr444;		/*Display device support YCbCr444*/
-	unsigned char ycbcr422;		/*Display device support YCbCr422*/
-	unsigned char ycbcr420;		/*Display device support YCbCr420*/
-	unsigned char deepcolor;	/*bit3:DC_48bit; bit2:DC_36bit;
-					  bit1:DC_30bit; bit0:DC_Y444;*/
+	unsigned char sink_hdmi;	/* HDMI display device flag */
+	unsigned char ycbcr444;		/* Display device support YCbCr444 */
+	unsigned char ycbcr422;		/* Display device support YCbCr422 */
+	unsigned char ycbcr420;		/* Display device support YCbCr420 */
+	unsigned char deepcolor;	/* bit3:DC_48bit; bit2:DC_36bit;
+					 * bit1:DC_30bit; bit0:DC_Y444;
+					 */
 	unsigned char deepcolor_420;
-	unsigned int  cecaddress;	/*CEC physical address*/
-	unsigned int  maxtmdsclock;	/*Max supported tmds clock*/
-	unsigned char fields_present;	/*bit7: latency
-					  bit6: i_lantency
-					  bit5: hdmi_video*/
+	unsigned int  cecaddress;	/* CEC physical address */
+	unsigned int  maxtmdsclock;	/* Max supported tmds clock */
+	unsigned char fields_present;	/* bit7: latency
+					 * bit6: i_lantency
+					 * bit5: hdmi_video
+					 */
 	unsigned char video_latency;
 	unsigned char audio_latency;
 	unsigned char interlaced_video_latency;
@@ -388,7 +392,7 @@ struct hdmi {
 	struct hdmi_property *property;
 	struct hdmi_ops *ops;
 
-	struct mutex lock;			/* mutex for hdmi operation*/
+	struct mutex lock;			/* mutex for hdmi operation */
 	struct workqueue_struct *workqueue;
 
 	bool uboot;	/* if true, HDMI is initialized in uboot*/
@@ -396,9 +400,10 @@ struct hdmi {
 	int hotplug;	/* hot plug status*/
 	int autoset;	/* if true, auto set hdmi output mode according EDID.*/
 	int mute;	/* HDMI display status:
-			   2 means mute audio,
-			   1 means mute display;
-			   0 is unmute*/
+			 * 2 - mute audio,
+			 * 1 - mute display;
+			 * 0 - unmute
+			 */
 	int colordepth;			/* Output color depth*/
 	int colormode;			/* Output color mode*/
 	int colorimetry;		/* Output colorimetry */
@@ -439,11 +444,14 @@ struct hdmi {
 #define SCDC_TEST_CFG_0		0xc0	/* Test_config_0        */
 #define SCDC_TEST_RESERVED	0xc1	/* 0xc1-0xcf		*/
 #define SCDC_MAN_OUI_3RD	0xd0	/* Manufacturer IEEE OUI,
-					   Third Octet */
+					 * Third Octet
+					 */
 #define SCDC_MAN_OUI_2ND	0xd1	/* Manufacturer IEEE OUI,
-					   Second Octet */
+					 * Second Octet
+					 */
 #define SCDC_MAN_OUI_1ST	0xd2	/* Manufacturer IEEE OUI,
-					   First Octet */
+					 * First Octet
+					 */
 #define SCDC_DEVICE_ID		0xd3	/* 0xd3-0xdd - Device ID            */
 #define SCDC_MAN_SPECIFIC	0xde	/* 0xde-0xff - ManufacturerSpecific */
 

@@ -18,43 +18,53 @@ enum {
 /* Color Space Convertion Mode */
 enum {
 	CSC_RGB_0_255_TO_RGB_16_235_8BIT,	/* RGB 0-255 input to RGB
-						   16-235 output that is 8bit
-						   clolor depth */
+						 * 16-235 output that is 8bit
+						 * clolor depth
+						 */
 	CSC_RGB_0_255_TO_RGB_16_235_10BIT,	/* RGB 0-255 input to RGB
-						   16-235 output that is 8bit
-						   clolor depth */
+						 * 16-235 output that is 8bit
+						 * clolor depth
+						 */
 	CSC_RGB_0_255_TO_ITU601_16_235_8BIT,	/* RGB 0-255 input to YCbCr
-						   16-235 output according
-						   BT601 that is 8bit clolor
-						   depth */
+						 * 16-235 output according
+						 * BT601 that is 8bit clolor
+						 * depth
+						 */
 	CSC_RGB_0_255_TO_ITU601_16_235_10BIT,	/* RGB 0-255 input to YCbCr
-						   16-235 output according
-						   BT601 that is 10bit clolor
-						   depth */
+						 * 16-235 output according
+						 * BT601 that is 10bit clolor
+						 * depth
+						 */
 	CSC_RGB_0_255_TO_ITU709_16_235_8BIT,	/* RGB 0-255 input to YCbCr
-						   16-235 output accroding
-						   BT709 that is 8bit clolor
-						   depth */
+						 * 16-235 output accroding
+						 * BT709 that is 8bit clolor
+						 * depth
+						 */
 	CSC_RGB_0_255_TO_ITU709_16_235_10BIT,	/* RGB 0-255 input to YCbCr
-						   16-235 output accroding
-						   BT709 that is 10bit clolor
-						   depth */
+						 * 16-235 output accroding
+						 * BT709 that is 10bit clolor
+						 * depth
+						 */
 	CSC_ITU601_16_235_TO_RGB_0_255_8BIT,	/* YCbCr 16-235 input to RGB
-						   0-255 output according
-						   BT601 that is 8bit clolor
-						   depth */
+						 * 0-255 output according
+						 * BT601 that is 8bit clolor
+						 * depth
+						 */
 	CSC_ITU709_16_235_TO_RGB_0_255_8BIT,	/* YCbCr 16-235 input to RGB
-						   0-255 output according
-						   BT709 that is 8bit clolor
-						   depth */
+						 * 0-255 output according
+						 * BT709 that is 8bit clolor
+						 * depth
+						 */
 	CSC_ITU601_16_235_TO_RGB_16_235_8BIT,	/* YCbCr 16-235 input to RGB
-						   16-235 output according
-						   BT601 that is 8bit clolor
-						   depth */
+						 * 16-235 output according
+						 * BT601 that is 8bit clolor
+						 * depth
+						 */
 	CSC_ITU709_16_235_TO_RGB_16_235_8BIT	/* YCbCr 16-235 input to RGB
-						   16-235 output according
-						   BT709 that is 8bit clolor
-						   depth */
+						 * 16-235 output according
+						 * BT709 that is 8bit clolor
+						 * depth
+						 */
 };
 
 #define HDMI_SCL_RATE		(100*1000)

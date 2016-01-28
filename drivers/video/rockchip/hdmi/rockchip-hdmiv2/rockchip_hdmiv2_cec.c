@@ -110,7 +110,7 @@ void rockchip_hdmiv2_cec_init(struct hdmi *hdmi)
 		init = 0;
 		/* init_waitqueue_head(&wait); */
 	}
-	/* 
+	/*
 	 * Enable sending all message even if sink refuse
 	 * message broadcasted by us.
 	 */

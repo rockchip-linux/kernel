@@ -42,10 +42,8 @@ static void cecworkfunc(struct work_struct *work)
 		break;
 	case EVENT_RX_FRAME:
 		list_node = kmalloc(sizeof(*list_node), GFP_KERNEL);
-		if (list_node == NULL) {
-			pr_err("HDMI CEC: list kmalloc fail! ");
+		if (!list_node)
 			return;
-		}
 		cecreadframe(&list_node->cecframe);
 		if (cec_dev->enable) {
 			mutex_lock(&cec_dev->cec_lock);
@@ -72,10 +70,8 @@ void rockchip_hdmi_cec_submit_work(int event, int delay, void *data)
 
 	CECDBG("%s event %04x delay %d\n", __func__, event, delay);
 
-	if (!cec_dev) {
-		pr_err("HDMI CEC: cec_dev is null!\n");
+	if (!cec_dev)
 		return;
-	}
 
 	work = kmalloc(sizeof(*work), GFP_ATOMIC);
 
@@ -257,10 +253,9 @@ int rockchip_hdmi_cec_init(struct hdmi *hdmi,
 	int ret, i;
 
 	cec_dev = kmalloc(sizeof(*cec_dev), GFP_KERNEL);
-	if (!cec_dev) {
-		pr_err("HDMI CEC: kmalloc fail!");
+	if (!cec_dev)
 		return -ENOMEM;
-	}
+
 	memset(cec_dev, 0, sizeof(struct cec_device));
 	mutex_init(&cec_dev->cec_lock);
 	INIT_LIST_HEAD(&cec_dev->ceclist);
