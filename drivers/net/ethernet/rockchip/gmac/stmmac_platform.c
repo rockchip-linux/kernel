@@ -829,6 +829,12 @@ int stmmc_pltfr_init(struct platform_device *pdev) {
 		}
 	}
 
+	if ((g_bsp_priv.internal_phy) && gpio_is_valid(g_bsp_priv.link_io)) {
+		/* link LED off */
+		gpio_direction_output(g_bsp_priv.link_io,
+				      !g_bsp_priv.link_io_level);
+	}
+
 	if (!gpio_is_valid(bsp_priv->led_io)) {
 		pr_err("%s: ERROR: Get led-gpio failed.\n", __func__);
 	} else {
@@ -1009,12 +1015,6 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	g_bsp_priv.led_io =
 			of_get_named_gpio_flags(np, "led-gpio", 0, &flags);
 	g_bsp_priv.led_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
-
-	if ((g_bsp_priv.internal_phy) && gpio_is_valid(g_bsp_priv.link_io)) {
-		/* link LED off */
-		gpio_direction_output(g_bsp_priv.link_io,
-				      !g_bsp_priv.link_io_level);
-	}
 
 	g_bsp_priv.phy_iface = plat->interface;
 	g_bsp_priv.phy_power_on = phy_power_on;
