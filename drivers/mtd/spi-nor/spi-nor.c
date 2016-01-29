@@ -448,17 +448,38 @@ static void stm_get_locked_range(struct spi_nor *nor, u8 sr, loff_t *ofs,
 }
 
 /*
- * Return 1 if the entire region is locked, 0 otherwise
+ * Return 1 if the entire region is locked (if @locked is true) or unlocked (if
+ * @locked is false); 0 otherwise
  */
-static int stm_is_locked_sr(struct spi_nor *nor, loff_t ofs, uint64_t len,
-			    u8 sr)
+static int stm_check_lock_status_sr(struct spi_nor *nor, loff_t ofs, uint64_t len,
+				    u8 sr, bool locked)
 {
 	loff_t lock_offs;
 	uint64_t lock_len;
 
+	if (!len)
+		return 1;
+
 	stm_get_locked_range(nor, sr, &lock_offs, &lock_len);
 
-	return (ofs + len <= lock_offs + lock_len) && (ofs >= lock_offs);
+	if (locked)
+		/* Requested range is a sub-range of locked range */
+		return (ofs + len <= lock_offs + lock_len) && (ofs >= lock_offs);
+	else
+		/* Requested range does not overlap with locked range */
+		return (ofs >= lock_offs + lock_len) || (ofs + len <= lock_offs);
+}
+
+static int stm_is_locked_sr(struct spi_nor *nor, loff_t ofs, uint64_t len,
+			    u8 sr)
+{
+	return stm_check_lock_status_sr(nor, ofs, len, sr, true);
+}
+
+static int stm_is_unlocked_sr(struct spi_nor *nor, loff_t ofs, uint64_t len,
+			      u8 sr)
+{
+	return stm_check_lock_status_sr(nor, ofs, len, sr, false);
 }
 
 /*
@@ -542,7 +563,7 @@ static int stm_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	 *
 	 *   pow = ceil(log2(size / len)) = log2(size) - floor(log2(len))
 	 */
-	pow = ilog2(mtd->size) - ilog2(len);
+	pow = ilog2(mtd->size) - ilog2(lock_len);
 	val = mask - (pow << shift);
 	if (val & ~mask)
 		return -EINVAL;
@@ -627,8 +648,8 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	 *
 	 *   pow = floor(log2(size / len)) = log2(size) - ceil(log2(len))
 	 */
-	pow = ilog2(mtd->size) - order_base_2(mtd->size - (ofs + len));
-	if (ofs + len == mtd->size) {
+	pow = ilog2(mtd->size) - order_base_2(lock_len);
+	if (lock_len == 0) {
 		val = 0; /* fully unlocked */
 	} else {
 		val = mask - (pow << shift);
@@ -640,7 +661,7 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 	status_new = (status_old & ~mask & ~SR_TB) | val;
 
 	/* Don't protect status register if we're fully unlocked */
-	if (lock_len == mtd->size)
+	if (lock_len == 0)
 		status_new &= ~SR_SRWD;
 
 	if (!use_top)
@@ -995,7 +1016,6 @@ static const struct flash_info *spi_nor_read_id(struct spi_nor *nor)
 		id[0], id[1], id[2]);
 	return ERR_PTR(-ENODEV);
 }
-
 
 static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char *buf)
