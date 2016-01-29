@@ -496,8 +496,12 @@ static int stm_lock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 
 	status_new = (status_old & ~mask) | val;
 
+	/* Don't bother if they're the same */
+	if (status_new == status_old)
+		return 0;
+
 	/* Only modify protection if it will not unlock other areas */
-	if ((status_new & mask) <= (status_old & mask))
+	if ((status_new & mask) < (status_old & mask))
 		return -EINVAL;
 
 	write_enable(nor);
@@ -550,8 +554,12 @@ static int stm_unlock(struct spi_nor *nor, loff_t ofs, uint64_t len)
 
 	status_new = (status_old & ~mask) | val;
 
+	/* Don't bother if they're the same */
+	if (status_new == status_old)
+		return 0;
+
 	/* Only modify protection if it will not lock other areas */
-	if ((status_new & mask) >= (status_old & mask))
+	if ((status_new & mask) > (status_old & mask))
 		return -EINVAL;
 
 	write_enable(nor);
