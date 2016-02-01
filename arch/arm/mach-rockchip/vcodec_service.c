@@ -521,7 +521,7 @@ static void vcodec_enter_mode(struct vpu_subdev_data *data)
 		return;
 	}
 #else
-	if (pervice->grf_base) {
+	if (pservice->grf_base) {
 		u32 *grf_base = pservice->grf_base;
 
 		raw = readl_relaxed(grf_base + pservice->mode_ctrl / 4);
