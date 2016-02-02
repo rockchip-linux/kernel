@@ -56,7 +56,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *  L 0.18:
  *          If fix freq,then don't force to drop freq to the lowest.
  *  L 0.22:
- *			merge 1.4_ED3632227 DDK code
+ *		merge 1.4_ED3632227 DDK code
+ *  L 0.23:
+ *		1. Fix RGXCheckFirmwareCCBs crash bug.
+ *		2. Adjust gpu frequency sequence.
  */
 
 #define PVR_STR(X) #X
@@ -84,5 +87,5 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PVRVERSION_UNPACK_MIN(VERSION) (((VERSION) >> 0) & 0xFFFF)
 
 //chenli:define rockchip version
-#define RKVERSION                   "Rogue L 0.22"
+#define RKVERSION                   "Rogue L 0.23"
 #endif /* _PVRVERSION_H_ */

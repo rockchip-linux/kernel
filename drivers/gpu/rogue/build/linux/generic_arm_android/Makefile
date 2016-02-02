@@ -67,7 +67,7 @@ KERNEL_CROSS_COMPILE ?= arm-eabi-
 endif
 
 ifeq ($(MULTIARCH),1)
-override TARGET_DEVICE := rk3368
+override TARGET_DEVICE := rk3368_64
 else
 override TARGET_DEVICE := rk3368_32
 endif

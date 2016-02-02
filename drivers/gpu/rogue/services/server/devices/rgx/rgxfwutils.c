@@ -2919,6 +2919,10 @@ IMG_VOID RGXCheckFirmwareCCBs(PVRSRV_RGXDEV_INFO *psDevInfo)
 		RGXFWIF_CCB_CTL *psFWCCBCtl = psDevInfo->apsFirmwareCCBCtl[ui32DMCount];
 		IMG_UINT8 		*psFWCCB = psDevInfo->apsFirmwareCCB[ui32DMCount];
 
+		/* zxl: add this to RGXCheckFirmwareCCBs crash. */
+		if (!psFWCCBCtl || !psFWCCB)
+			continue;
+
 		while (psFWCCBCtl->ui32ReadOffset != psFWCCBCtl->ui32WriteOffset)
 		{
 			/* Point to the next command */

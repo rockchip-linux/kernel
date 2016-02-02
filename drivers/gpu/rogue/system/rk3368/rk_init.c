@@ -212,29 +212,50 @@ static IMG_BOOL calculate_dvfs_max_min_threshold(IMG_UINT32 level)
 
 static void rk33_dvfs_set_clock(int freq)
 {
-    struct rk_context       *platform;
+	struct rk_context *platform;
+	unsigned long old_freq;
 
-    platform = dev_get_drvdata(&gpsPVRLDMDev->dev);
+	platform = dev_get_drvdata(&gpsPVRLDMDev->dev);
 
-    if (NULL == platform)
-        panic("oops");
+	if (NULL == platform)
+		panic("oops");
 
-    if ( !platform->aclk_gpu_mem || !platform->aclk_gpu_cfg || !platform->dvfs_enabled)
-    {
-        printk("aclk_gpu_mem or aclk_gpu_cfg not init\n");
-        return;
-    }
-    //mutex_lock(&rgx_set_clock_lock);
-    rk33_clk_set_normal_node(platform->aclk_gpu_mem, freq);
-    rk33_clk_set_normal_node(platform->aclk_gpu_cfg, freq);
+	if (!platform->aclk_gpu_mem || !platform->aclk_gpu_cfg ||
+	    !platform->dvfs_enabled) {
+		pr_err("aclk_gpu_mem or aclk_gpu_cfg not init\n");
+		return;
+	}
 
-    if(platform->gpu_clk_node)
-        rk33_clk_set_dvfs_node(platform->gpu_clk_node, freq);
-    else if(platform->clk_gpu)
-        rk33_clk_set_normal_node(platform->clk_gpu, freq);
+	if (!platform->gpu_clk_node && !platform->clk_gpu) {
+		pr_err("%s:clk_gpu & gpu_clk_node is null\n", __func__);
+		return;
+	}
 
-    //mutex_unlock(&rgx_set_clock_lock);
-    return;
+	if (platform->gpu_clk_node)
+		old_freq = clk_get_rate(platform->gpu_clk_node->clk);
+	else if (platform->clk_gpu)
+		old_freq = clk_get_rate(platform->clk_gpu);
+
+	if (old_freq > freq) {
+		if (platform->gpu_clk_node)
+			rk33_clk_set_dvfs_node(platform->gpu_clk_node, freq);
+		else if (platform->clk_gpu)
+			rk33_clk_set_normal_node(platform->clk_gpu, freq);
+	}
+
+	/* mutex_lock(&rgx_set_clock_lock); */
+	rk33_clk_set_normal_node(platform->aclk_gpu_mem, freq);
+	rk33_clk_set_normal_node(platform->aclk_gpu_cfg, freq);
+
+	if (old_freq < freq) {
+		if (platform->gpu_clk_node)
+			rk33_clk_set_dvfs_node(platform->gpu_clk_node, freq);
+		else if (platform->clk_gpu)
+			rk33_clk_set_normal_node(platform->clk_gpu, freq);
+	}
+
+	/* mutex_unlock(&rgx_set_clock_lock); */
+	return;
 }
 
 #if RK33_DVFS_FREQ_LIMIT
