@@ -282,6 +282,10 @@ DEF_FMT_TRANS_TBL(vpu_default_pp,
 		  63, 64, 65, 66, 67, 73, 74
 );
 
+DEF_FMT_TRANS_TBL(vpu_vp8e,
+		  5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 26, 51, 52, 58, 59
+);
+
 DEF_FMT_TRANS_TBL(vpu_defaulte,
 		  5, 6, 7, 8, 9, 10, 11, 12, 13, 51
 );
@@ -308,7 +312,7 @@ const struct vpu_trans_info trans_vpu[FMT_TYPE_BUTT] = {
 
 	SETUP_FMT_TBL(FMT_JPEGE , vpu_defaulte),
 	SETUP_FMT_TBL(FMT_H264E , vpu_defaulte),
-	SETUP_FMT_TBL(FMT_VP8E  , vpu_defaulte),
+	SETUP_FMT_TBL(FMT_VP8E  , vpu_vp8e),
 };
 
 #endif
