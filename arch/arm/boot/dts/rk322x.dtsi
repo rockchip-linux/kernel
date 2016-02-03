@@ -857,6 +857,13 @@
 		      <0x12020000 0x10000>;
 		clocks = <&clk_gates10 8>;
 		clock-names = "pclk_vdac";
+		saturation = <0x00305b46>;
+		brightcontrast = <0x00009900>;
+		adjtiming = <0xd6c00880>;
+		lumafilter0 = <0x02ff0001>;
+		lumafilter1 = <0xf40200fe>;
+		lumafilter2 = <0xf332d910>;
+		daclevel = <0x15>;
 		status = "disabled";
 	};
 
