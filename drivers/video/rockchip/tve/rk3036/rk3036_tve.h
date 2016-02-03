@@ -143,8 +143,14 @@ struct rk3036_tve {
 	struct fb_videomode		*mode;
 	struct list_head		modelist;
 	struct rk_screen		screen;
-	int test_mode;
-	int saturation;
+	u32 test_mode;
+	u32 saturation;
+	u32 brightcontrast;
+	u32 adjtiming;
+	u32 lumafilter0;
+	u32 lumafilter1;
+	u32 lumafilter2;
+	u32 daclevel;
 	struct mutex tve_lock;	/* mutex for tve resume operation*/
 };
 
