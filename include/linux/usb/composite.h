@@ -340,6 +340,7 @@ static inline struct usb_composite_driver *to_cdriver(
  * @gadget: read-only, abstracts the gadget's usb peripheral controller
  * @req: used for control responses; buffer is pre-allocated
  * @config: the currently active configuration
+ * @deactivation_lock: spinlock for protecting deactivation counter
  *
  * One of these devices is allocated and initialized before the
  * associated device driver's bind() is called.
@@ -386,6 +387,7 @@ struct usb_composite_dev {
 	 * while the deactivation count is nonzero.
 	 */
 	unsigned			deactivations;
+	spinlock_t			deactivation_lock;
 
 	/* the composite driver won't complete the control transfer's
 	 * data/status stages till delayed_status is zero.
