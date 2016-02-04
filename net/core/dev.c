@@ -2983,7 +2983,7 @@ static inline void xmit_rec_inc(void)
 	__this_cpu_inc(xmit_recursion);
 }
 
-static inline int xmit_rec_dec(void)
+static inline void xmit_rec_dec(void)
 {
 	__this_cpu_dec(xmit_recursion);
 }
