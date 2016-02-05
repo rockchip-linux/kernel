@@ -1103,8 +1103,16 @@ static void  noinline __sched rt_spin_lock_slowunlock(struct rt_mutex *lock)
 	rt_mutex_adjust_prio(current);
 }
 
+void __lockfunc rt_spin_lock__no_mg(spinlock_t *lock)
+{
+	rt_spin_lock_fastlock(&lock->lock, rt_spin_lock_slowlock);
+	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+}
+EXPORT_SYMBOL(rt_spin_lock__no_mg);
+
 void __lockfunc rt_spin_lock(spinlock_t *lock)
 {
+	migrate_disable();
 	rt_spin_lock_fastlock(&lock->lock, rt_spin_lock_slowlock);
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 }
@@ -1112,24 +1120,41 @@ EXPORT_SYMBOL(rt_spin_lock);
 
 void __lockfunc __rt_spin_lock(struct rt_mutex *lock)
 {
+	migrate_disable();
 	rt_spin_lock_fastlock(lock, rt_spin_lock_slowlock);
 }
 EXPORT_SYMBOL(__rt_spin_lock);
 
+void __lockfunc __rt_spin_lock__no_mg(struct rt_mutex *lock)
+{
+	rt_spin_lock_fastlock(lock, rt_spin_lock_slowlock);
+}
+EXPORT_SYMBOL(__rt_spin_lock__no_mg);
+
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 void __lockfunc rt_spin_lock_nested(spinlock_t *lock, int subclass)
 {
+	migrate_disable();
 	rt_spin_lock_fastlock(&lock->lock, rt_spin_lock_slowlock);
 	spin_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
 }
 EXPORT_SYMBOL(rt_spin_lock_nested);
 #endif
 
+void __lockfunc rt_spin_unlock__no_mg(spinlock_t *lock)
+{
+	/* NOTE: we always pass in '1' for nested, for simplicity */
+	spin_release(&lock->dep_map, 1, _RET_IP_);
+	rt_spin_lock_fastunlock(&lock->lock, rt_spin_lock_slowunlock);
+}
+EXPORT_SYMBOL(rt_spin_unlock__no_mg);
+
 void __lockfunc rt_spin_unlock(spinlock_t *lock)
 {
 	/* NOTE: we always pass in '1' for nested, for simplicity */
 	spin_release(&lock->dep_map, 1, _RET_IP_);
 	rt_spin_lock_fastunlock(&lock->lock, rt_spin_lock_slowunlock);
+	migrate_enable();
 }
 EXPORT_SYMBOL(rt_spin_unlock);
 
@@ -1156,12 +1181,27 @@ int __lockfunc __rt_spin_trylock(struct rt_mutex *lock)
 	return rt_mutex_trylock(lock);
 }
 
-int __lockfunc rt_spin_trylock(spinlock_t *lock)
+int __lockfunc rt_spin_trylock__no_mg(spinlock_t *lock)
 {
-	int ret = rt_mutex_trylock(&lock->lock);
+	int ret;
 
+	ret = rt_mutex_trylock(&lock->lock);
 	if (ret)
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
+	return ret;
+}
+EXPORT_SYMBOL(rt_spin_trylock__no_mg);
+
+int __lockfunc rt_spin_trylock(spinlock_t *lock)
+{
+	int ret;
+
+	migrate_disable();
+	ret = rt_mutex_trylock(&lock->lock);
+	if (ret)
+		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
+	else
+		migrate_enable();
 	return ret;
 }
 EXPORT_SYMBOL(rt_spin_trylock);
@@ -1200,12 +1240,10 @@ int atomic_dec_and_spin_lock(atomic_t *atomic, spinlock_t *lock)
 	/* Subtract 1 from counter unless that drops it to 0 (ie. it was 1) */
 	if (atomic_add_unless(atomic, -1, 1))
 		return 0;
-	migrate_disable();
 	rt_spin_lock(lock);
 	if (atomic_dec_and_test(atomic))
 		return 1;
 	rt_spin_unlock(lock);
-	migrate_enable();
 	return 0;
 }
 EXPORT_SYMBOL(atomic_dec_and_spin_lock);

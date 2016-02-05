@@ -43,9 +43,9 @@ struct local_irq_lock {
  * for CONFIG_PREEMPT_BASE map to the normal spin_* calls.
  */
 #ifdef CONFIG_PREEMPT_RT_FULL
-# define spin_lock_local(lock)			rt_spin_lock(lock)
-# define spin_trylock_local(lock)		rt_spin_trylock(lock)
-# define spin_unlock_local(lock)		rt_spin_unlock(lock)
+# define spin_lock_local(lock)			rt_spin_lock__no_mg(lock)
+# define spin_trylock_local(lock)		rt_spin_trylock__no_mg(lock)
+# define spin_unlock_local(lock)		rt_spin_unlock__no_mg(lock)
 #else
 # define spin_lock_local(lock)			spin_lock(lock)
 # define spin_trylock_local(lock)		spin_trylock(lock)
