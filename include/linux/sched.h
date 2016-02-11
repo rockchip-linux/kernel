@@ -183,8 +183,6 @@ extern void update_cpu_load_nohz(void);
 static inline void update_cpu_load_nohz(void) { }
 #endif
 
-extern unsigned long get_parent_ip(unsigned long addr);
-
 extern void dump_cpu_task(int cpu);
 
 struct seq_file;
