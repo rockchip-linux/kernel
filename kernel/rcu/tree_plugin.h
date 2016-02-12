@@ -24,24 +24,9 @@
  *	   Paul E. McKenney <paulmck@linux.vnet.ibm.com>
  */
 
-#include <linux/delay.h>
-#include <linux/gfp.h>
-#include <linux/oom.h>
-#include <linux/smpboot.h>
-#include "../time/tick-internal.h"
-
 #ifdef CONFIG_RCU_BOOST
 
 #include "../locking/rtmutex_common.h"
-
-/*
- * Control variables for per-CPU and per-rcu_node kthreads.  These
- * handle all flavors of RCU.
- */
-static DEFINE_PER_CPU(struct task_struct *, rcu_cpu_kthread_task);
-DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_status);
-DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_loops);
-DEFINE_PER_CPU(char, rcu_cpu_has_work);
 
 #else /* #ifdef CONFIG_RCU_BOOST */
 
@@ -54,6 +39,14 @@ DEFINE_PER_CPU(char, rcu_cpu_has_work);
 #define rt_mutex_owner(a) ({ WARN_ON_ONCE(1); NULL; })
 
 #endif /* #else #ifdef CONFIG_RCU_BOOST */
+
+/*
+ * Control variables for per-CPU and per-rcu_node kthreads.  These
+ * handle all flavors of RCU.
+ */
+DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_status);
+DEFINE_PER_CPU(unsigned int, rcu_cpu_kthread_loops);
+DEFINE_PER_CPU(char, rcu_cpu_has_work);
 
 #ifdef CONFIG_RCU_NOCB_CPU
 static cpumask_var_t rcu_nocb_mask; /* CPUs to have callbacks offloaded. */
@@ -432,7 +425,7 @@ void rcu_read_unlock_special(struct task_struct *t)
 	}
 
 	/* Hardware IRQ handlers cannot block, complain if they get here. */
-	if (in_irq() || in_serving_softirq()) {
+	if (preempt_count() & (HARDIRQ_MASK | SOFTIRQ_OFFSET)) {
 		lockdep_rcu_suspicious(__FILE__, __LINE__,
 				       "rcu_read_unlock() from irq or softirq with blocking in critical section!!!\n");
 		pr_alert("->rcu_read_unlock_special: %#x (b: %d, enq: %d nq: %d)\n",
@@ -644,15 +637,6 @@ static void rcu_preempt_check_callbacks(void)
 	    __this_cpu_read(rcu_data_p->cpu_no_qs.b.norm))
 		t->rcu_read_unlock_special.b.need_qs = true;
 }
-
-#ifdef CONFIG_RCU_BOOST
-
-static void rcu_preempt_do_callbacks(void)
-{
-	rcu_do_batch(rcu_state_p, this_cpu_ptr(rcu_data_p));
-}
-
-#endif /* #ifdef CONFIG_RCU_BOOST */
 
 /*
  * Queue a preemptible-RCU callback for invocation after a grace period.
@@ -930,6 +914,19 @@ void exit_rcu(void)
 
 #endif /* #else #ifdef CONFIG_PREEMPT_RCU */
 
+/*
+ * If boosting, set rcuc kthreads to realtime priority.
+ */
+static void rcu_cpu_kthread_setup(unsigned int cpu)
+{
+#ifdef CONFIG_RCU_BOOST
+	struct sched_param sp;
+
+	sp.sched_priority = kthread_prio;
+	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
+#endif /* #ifdef CONFIG_RCU_BOOST */
+}
+
 #ifdef CONFIG_RCU_BOOST
 
 #include "../locking/rtmutex_common.h"
@@ -960,16 +957,6 @@ static void rcu_initiate_boost_trace(struct rcu_node *rnp)
 }
 
 #endif /* #else #ifdef CONFIG_RCU_TRACE */
-
-static void rcu_wake_cond(struct task_struct *t, int status)
-{
-	/*
-	 * If the thread is yielding, only wake it when this
-	 * is invoked from idle
-	 */
-	if (status != RCU_KTHREAD_YIELDING || is_idle_task(current))
-		wake_up_process(t);
-}
 
 /*
  * Carry out RCU priority boosting on the task indicated by ->exp_tasks
@@ -1115,23 +1102,6 @@ static void rcu_initiate_boost(struct rcu_node *rnp, unsigned long flags)
 }
 
 /*
- * Wake up the per-CPU kthread to invoke RCU callbacks.
- */
-static void invoke_rcu_callbacks_kthread(void)
-{
-	unsigned long flags;
-
-	local_irq_save(flags);
-	__this_cpu_write(rcu_cpu_has_work, 1);
-	if (__this_cpu_read(rcu_cpu_kthread_task) != NULL &&
-	    current != __this_cpu_read(rcu_cpu_kthread_task)) {
-		rcu_wake_cond(__this_cpu_read(rcu_cpu_kthread_task),
-			      __this_cpu_read(rcu_cpu_kthread_status));
-	}
-	local_irq_restore(flags);
-}
-
-/*
  * Is the current CPU running the RCU-callbacks kthread?
  * Caller must have preemption disabled.
  */
@@ -1186,67 +1156,6 @@ static int rcu_spawn_one_boost_kthread(struct rcu_state *rsp,
 	return 0;
 }
 
-static void rcu_kthread_do_work(void)
-{
-	rcu_do_batch(&rcu_sched_state, this_cpu_ptr(&rcu_sched_data));
-	rcu_do_batch(&rcu_bh_state, this_cpu_ptr(&rcu_bh_data));
-	rcu_preempt_do_callbacks();
-}
-
-static void rcu_cpu_kthread_setup(unsigned int cpu)
-{
-	struct sched_param sp;
-
-	sp.sched_priority = kthread_prio;
-	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
-}
-
-static void rcu_cpu_kthread_park(unsigned int cpu)
-{
-	per_cpu(rcu_cpu_kthread_status, cpu) = RCU_KTHREAD_OFFCPU;
-}
-
-static int rcu_cpu_kthread_should_run(unsigned int cpu)
-{
-	return __this_cpu_read(rcu_cpu_has_work);
-}
-
-/*
- * Per-CPU kernel thread that invokes RCU callbacks.  This replaces the
- * RCU softirq used in flavors and configurations of RCU that do not
- * support RCU priority boosting.
- */
-static void rcu_cpu_kthread(unsigned int cpu)
-{
-	unsigned int *statusp = this_cpu_ptr(&rcu_cpu_kthread_status);
-	char work, *workp = this_cpu_ptr(&rcu_cpu_has_work);
-	int spincnt;
-
-	for (spincnt = 0; spincnt < 10; spincnt++) {
-		trace_rcu_utilization(TPS("Start CPU kthread@rcu_wait"));
-		local_bh_disable();
-		*statusp = RCU_KTHREAD_RUNNING;
-		this_cpu_inc(rcu_cpu_kthread_loops);
-		local_irq_disable();
-		work = *workp;
-		*workp = 0;
-		local_irq_enable();
-		if (work)
-			rcu_kthread_do_work();
-		local_bh_enable();
-		if (*workp == 0) {
-			trace_rcu_utilization(TPS("End CPU kthread@rcu_wait"));
-			*statusp = RCU_KTHREAD_WAITING;
-			return;
-		}
-	}
-	*statusp = RCU_KTHREAD_YIELDING;
-	trace_rcu_utilization(TPS("Start CPU kthread@rcu_yield"));
-	schedule_timeout_interruptible(2);
-	trace_rcu_utilization(TPS("End CPU kthread@rcu_yield"));
-	*statusp = RCU_KTHREAD_WAITING;
-}
-
 /*
  * Set the per-rcu_node kthread's affinity to cover all CPUs that are
  * served by the rcu_node in question.  The CPU hotplug lock is still
@@ -1276,26 +1185,12 @@ static void rcu_boost_kthread_setaffinity(struct rcu_node *rnp, int outgoingcpu)
 	free_cpumask_var(cm);
 }
 
-static struct smp_hotplug_thread rcu_cpu_thread_spec = {
-	.store			= &rcu_cpu_kthread_task,
-	.thread_should_run	= rcu_cpu_kthread_should_run,
-	.thread_fn		= rcu_cpu_kthread,
-	.thread_comm		= "rcuc/%u",
-	.setup			= rcu_cpu_kthread_setup,
-	.park			= rcu_cpu_kthread_park,
-};
-
 /*
  * Spawn boost kthreads -- called as soon as the scheduler is running.
  */
 static void __init rcu_spawn_boost_kthreads(void)
 {
 	struct rcu_node *rnp;
-	int cpu;
-
-	for_each_possible_cpu(cpu)
-		per_cpu(rcu_cpu_has_work, cpu) = 0;
-	BUG_ON(smpboot_register_percpu_thread(&rcu_cpu_thread_spec));
 	rcu_for_each_leaf_node(rcu_state_p, rnp)
 		(void)rcu_spawn_one_boost_kthread(rcu_state_p, rnp);
 }
@@ -1316,11 +1211,6 @@ static void rcu_initiate_boost(struct rcu_node *rnp, unsigned long flags)
 	__releases(rnp->lock)
 {
 	raw_spin_unlock_irqrestore(&rnp->lock, flags);
-}
-
-static void invoke_rcu_callbacks_kthread(void)
-{
-	WARN_ON_ONCE(1);
 }
 
 static bool rcu_is_callbacks_kthread(void)
@@ -1346,7 +1236,7 @@ static void rcu_prepare_kthreads(int cpu)
 
 #endif /* #else #ifdef CONFIG_RCU_BOOST */
 
-#if !defined(CONFIG_RCU_FAST_NO_HZ)
+#if !defined(CONFIG_RCU_FAST_NO_HZ) || defined(CONFIG_PREEMPT_RT_FULL)
 
 /*
  * Check to see if any future RCU-related work will need to be done
@@ -1363,7 +1253,9 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	return IS_ENABLED(CONFIG_RCU_NOCB_CPU_ALL)
 	       ? 0 : rcu_cpu_has_callbacks(NULL);
 }
+#endif /* !defined(CONFIG_RCU_FAST_NO_HZ) || defined(CONFIG_PREEMPT_RT_FULL) */
 
+#if !defined(CONFIG_RCU_FAST_NO_HZ)
 /*
  * Because we do not have RCU_FAST_NO_HZ, don't bother cleaning up
  * after it.
@@ -1459,6 +1351,8 @@ static bool __maybe_unused rcu_try_advance_all_cbs(void)
 	return cbs_ready;
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
+
 /*
  * Allow the CPU to enter dyntick-idle mode unless it has callbacks ready
  * to invoke.  If the CPU has callbacks, try to advance them.  Tell the
@@ -1504,6 +1398,7 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	*nextevt = basemono + dj * TICK_NSEC;
 	return 0;
 }
+#endif /* #ifndef CONFIG_PREEMPT_RT_FULL */
 
 /*
  * Prepare a CPU for idle from an RCU perspective.  The first major task
@@ -1824,7 +1719,7 @@ early_param("rcu_nocb_poll", parse_rcu_nocb_poll);
  */
 static void rcu_nocb_gp_cleanup(struct rcu_state *rsp, struct rcu_node *rnp)
 {
-	wake_up_all(&rnp->nocb_gp_wq[rnp->completed & 0x1]);
+	swait_wake_all(&rnp->nocb_gp_wq[rnp->completed & 0x1]);
 }
 
 /*
@@ -1842,8 +1737,8 @@ static void rcu_nocb_gp_set(struct rcu_node *rnp, int nrq)
 
 static void rcu_init_one_nocb(struct rcu_node *rnp)
 {
-	init_waitqueue_head(&rnp->nocb_gp_wq[0]);
-	init_waitqueue_head(&rnp->nocb_gp_wq[1]);
+	init_swait_head(&rnp->nocb_gp_wq[0]);
+	init_swait_head(&rnp->nocb_gp_wq[1]);
 }
 
 #ifndef CONFIG_RCU_NOCB_CPU_ALL
@@ -1868,7 +1763,7 @@ static void wake_nocb_leader(struct rcu_data *rdp, bool force)
 	if (READ_ONCE(rdp_leader->nocb_leader_sleep) || force) {
 		/* Prior smp_mb__after_atomic() orders against prior enqueue. */
 		WRITE_ONCE(rdp_leader->nocb_leader_sleep, false);
-		wake_up(&rdp_leader->nocb_wq);
+		swait_wake(&rdp_leader->nocb_wq);
 	}
 }
 
@@ -2081,7 +1976,7 @@ static void rcu_nocb_wait_gp(struct rcu_data *rdp)
 	 */
 	trace_rcu_future_gp(rnp, rdp, c, TPS("StartWait"));
 	for (;;) {
-		wait_event_interruptible(
+		swait_event_interruptible(
 			rnp->nocb_gp_wq[c & 0x1],
 			(d = ULONG_CMP_GE(READ_ONCE(rnp->completed), c)));
 		if (likely(d))
@@ -2109,7 +2004,7 @@ wait_again:
 	/* Wait for callbacks to appear. */
 	if (!rcu_nocb_poll) {
 		trace_rcu_nocb_wake(my_rdp->rsp->name, my_rdp->cpu, "Sleep");
-		wait_event_interruptible(my_rdp->nocb_wq,
+		swait_event_interruptible(my_rdp->nocb_wq,
 				!READ_ONCE(my_rdp->nocb_leader_sleep));
 		/* Memory barrier handled by smp_mb() calls below and repoll. */
 	} else if (firsttime) {
@@ -2184,7 +2079,7 @@ wait_again:
 			 * List was empty, wake up the follower.
 			 * Memory barriers supplied by atomic_long_add().
 			 */
-			wake_up(&rdp->nocb_wq);
+			swait_wake(&rdp->nocb_wq);
 		}
 	}
 
@@ -2205,7 +2100,7 @@ static void nocb_follower_wait(struct rcu_data *rdp)
 		if (!rcu_nocb_poll) {
 			trace_rcu_nocb_wake(rdp->rsp->name, rdp->cpu,
 					    "FollowerSleep");
-			wait_event_interruptible(rdp->nocb_wq,
+			swait_event_interruptible(rdp->nocb_wq,
 						 READ_ONCE(rdp->nocb_follower_head));
 		} else if (firsttime) {
 			/* Don't drown trace log with "Poll"! */
@@ -2364,7 +2259,7 @@ void __init rcu_init_nohz(void)
 static void __init rcu_boot_init_nocb_percpu_data(struct rcu_data *rdp)
 {
 	rdp->nocb_tail = &rdp->nocb_head;
-	init_waitqueue_head(&rdp->nocb_wq);
+	init_swait_head(&rdp->nocb_wq);
 	rdp->nocb_follower_tail = &rdp->nocb_follower_head;
 }
 

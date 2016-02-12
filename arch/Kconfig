@@ -9,6 +9,7 @@ config OPROFILE
 	tristate "OProfile system profiling"
 	depends on PROFILING
 	depends on HAVE_OPROFILE
+	depends on !PREEMPT_RT_FULL
 	select RING_BUFFER
 	select RING_BUFFER_ALLOW_SWAP
 	help
@@ -52,6 +53,7 @@ config KPROBES
 config JUMP_LABEL
        bool "Optimize very unlikely/likely branches"
        depends on HAVE_ARCH_JUMP_LABEL
+       depends on (!INTERRUPT_OFF_HIST && !PREEMPT_OFF_HIST && !WAKEUP_LATENCY_HIST && !MISSED_TIMER_OFFSETS_HIST)
        help
          This option enables a transparent branch optimization that
 	 makes certain almost-always-true or almost-always-false branch

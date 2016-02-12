@@ -125,6 +125,9 @@ void blk_rq_init(struct request_queue *q, struct request *rq)
 
 	INIT_LIST_HEAD(&rq->queuelist);
 	INIT_LIST_HEAD(&rq->timeout_list);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	INIT_WORK(&rq->work, __blk_mq_complete_request_remote_work);
+#endif
 	rq->cpu = -1;
 	rq->q = q;
 	rq->__sector = (sector_t) -1;
@@ -233,7 +236,7 @@ EXPORT_SYMBOL(blk_start_queue_async);
  **/
 void blk_start_queue(struct request_queue *q)
 {
-	WARN_ON(!irqs_disabled());
+	WARN_ON_NONRT(!irqs_disabled());
 
 	queue_flag_clear(QUEUE_FLAG_STOPPED, q);
 	__blk_run_queue(q);
@@ -657,7 +660,7 @@ int blk_queue_enter(struct request_queue *q, gfp_t gfp)
 		if (!gfpflags_allow_blocking(gfp))
 			return -EBUSY;
 
-		ret = wait_event_interruptible(q->mq_freeze_wq,
+		ret = swait_event_interruptible(q->mq_freeze_wq,
 				!atomic_read(&q->mq_freeze_depth) ||
 				blk_queue_dying(q));
 		if (blk_queue_dying(q))
@@ -677,7 +680,7 @@ static void blk_queue_usage_counter_release(struct percpu_ref *ref)
 	struct request_queue *q =
 		container_of(ref, struct request_queue, q_usage_counter);
 
-	wake_up_all(&q->mq_freeze_wq);
+	swait_wake_all(&q->mq_freeze_wq);
 }
 
 struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
@@ -739,7 +742,7 @@ struct request_queue *blk_alloc_queue_node(gfp_t gfp_mask, int node_id)
 	q->bypass_depth = 1;
 	__set_bit(QUEUE_FLAG_BYPASS, &q->queue_flags);
 
-	init_waitqueue_head(&q->mq_freeze_wq);
+	init_swait_head(&q->mq_freeze_wq);
 
 	/*
 	 * Init percpu_ref in atomic mode so that it's faster to shutdown.
@@ -3198,7 +3201,7 @@ static void queue_unplugged(struct request_queue *q, unsigned int depth,
 		blk_run_queue_async(q);
 	else
 		__blk_run_queue(q);
-	spin_unlock(q->queue_lock);
+	spin_unlock_irq(q->queue_lock);
 }
 
 static void flush_plug_callbacks(struct blk_plug *plug, bool from_schedule)
@@ -3246,7 +3249,6 @@ EXPORT_SYMBOL(blk_check_plugged);
 void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 {
 	struct request_queue *q;
-	unsigned long flags;
 	struct request *rq;
 	LIST_HEAD(list);
 	unsigned int depth;
@@ -3266,11 +3268,6 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	q = NULL;
 	depth = 0;
 
-	/*
-	 * Save and disable interrupts here, to avoid doing it for every
-	 * queue lock we have to take.
-	 */
-	local_irq_save(flags);
 	while (!list_empty(&list)) {
 		rq = list_entry_rq(list.next);
 		list_del_init(&rq->queuelist);
@@ -3283,7 +3280,7 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 				queue_unplugged(q, depth, from_schedule);
 			q = rq->q;
 			depth = 0;
-			spin_lock(q->queue_lock);
+			spin_lock_irq(q->queue_lock);
 		}
 
 		/*
@@ -3310,8 +3307,6 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	 */
 	if (q)
 		queue_unplugged(q, depth, from_schedule);
-
-	local_irq_restore(flags);
 }
 
 void blk_finish_plug(struct blk_plug *plug)

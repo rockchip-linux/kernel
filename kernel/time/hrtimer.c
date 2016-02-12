@@ -48,11 +48,13 @@
 #include <linux/sched/rt.h>
 #include <linux/sched/deadline.h>
 #include <linux/timer.h>
+#include <linux/kthread.h>
 #include <linux/freezer.h>
 
 #include <asm/uaccess.h>
 
 #include <trace/events/timer.h>
+#include <trace/events/hist.h>
 
 #include "tick-internal.h"
 
@@ -712,6 +714,44 @@ static void clock_was_set_work(struct work_struct *work)
 
 static DECLARE_WORK(hrtimer_work, clock_was_set_work);
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+/*
+ * RT can not call schedule_work from real interrupt context.
+ * Need to make a thread to do the real work.
+ */
+static struct task_struct *clock_set_delay_thread;
+static bool do_clock_set_delay;
+
+static int run_clock_set_delay(void *ignore)
+{
+	while (!kthread_should_stop()) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (do_clock_set_delay) {
+			do_clock_set_delay = false;
+			schedule_work(&hrtimer_work);
+		}
+		schedule();
+	}
+	__set_current_state(TASK_RUNNING);
+	return 0;
+}
+
+void clock_was_set_delayed(void)
+{
+	do_clock_set_delay = true;
+	/* Make visible before waking up process */
+	smp_wmb();
+	wake_up_process(clock_set_delay_thread);
+}
+
+static __init int create_clock_set_delay_thread(void)
+{
+	clock_set_delay_thread = kthread_run(run_clock_set_delay, NULL, "kclksetdelayd");
+	BUG_ON(!clock_set_delay_thread);
+	return 0;
+}
+early_initcall(create_clock_set_delay_thread);
+#else /* PREEMPT_RT_FULL */
 /*
  * Called from timekeeping and resume code to reprogramm the hrtimer
  * interrupt device on all cpus.
@@ -720,6 +760,7 @@ void clock_was_set_delayed(void)
 {
 	schedule_work(&hrtimer_work);
 }
+#endif
 
 #else
 
@@ -729,11 +770,8 @@ static inline int hrtimer_is_hres_enabled(void) { return 0; }
 static inline void hrtimer_switch_to_hres(void) { }
 static inline void
 hrtimer_force_reprogram(struct hrtimer_cpu_base *base, int skip_equal) { }
-static inline int hrtimer_reprogram(struct hrtimer *timer,
-				    struct hrtimer_clock_base *base)
-{
-	return 0;
-}
+static inline void hrtimer_reprogram(struct hrtimer *timer,
+				     struct hrtimer_clock_base *base) { }
 static inline void hrtimer_init_hres(struct hrtimer_cpu_base *base) { }
 static inline void retrigger_next_event(void *arg) { }
 
@@ -865,6 +903,32 @@ u64 hrtimer_forward(struct hrtimer *timer, ktime_t now, ktime_t interval)
 }
 EXPORT_SYMBOL_GPL(hrtimer_forward);
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+# define wake_up_timer_waiters(b)	wake_up(&(b)->wait)
+
+/**
+ * hrtimer_wait_for_timer - Wait for a running timer
+ *
+ * @timer:	timer to wait for
+ *
+ * The function waits in case the timers callback function is
+ * currently executed on the waitqueue of the timer base. The
+ * waitqueue is woken up after the timer callback function has
+ * finished execution.
+ */
+void hrtimer_wait_for_timer(const struct hrtimer *timer)
+{
+	struct hrtimer_clock_base *base = timer->base;
+
+	if (base && base->cpu_base && !timer->irqsafe)
+		wait_event(base->cpu_base->wait,
+				!(hrtimer_callback_running(timer)));
+}
+
+#else
+# define wake_up_timer_waiters(b)	do { } while (0)
+#endif
+
 /*
  * enqueue_hrtimer - internal function to (re)start a timer
  *
@@ -905,6 +969,11 @@ static void __remove_hrtimer(struct hrtimer *timer,
 	timer->state = newstate;
 	if (!(state & HRTIMER_STATE_ENQUEUED))
 		return;
+
+	if (unlikely(!list_empty(&timer->cb_entry))) {
+		list_del_init(&timer->cb_entry);
+		return;
+	}
 
 	if (!timerqueue_del(&base->active, &timer->node))
 		cpu_base->active_bases &= ~(1 << base->index);
@@ -994,7 +1063,16 @@ void hrtimer_start_range_ns(struct hrtimer *timer, ktime_t tim,
 	new_base = switch_hrtimer_base(timer, base, mode & HRTIMER_MODE_PINNED);
 
 	timer_stats_hrtimer_set_start_info(timer);
+#ifdef CONFIG_MISSED_TIMER_OFFSETS_HIST
+	{
+		ktime_t now = new_base->get_time();
 
+		if (ktime_to_ns(tim) < ktime_to_ns(now))
+			timer->praecox = now;
+		else
+			timer->praecox = ktime_set(0, 0);
+	}
+#endif
 	leftmost = enqueue_hrtimer(timer, new_base);
 	if (!leftmost)
 		goto unlock;
@@ -1066,7 +1144,7 @@ int hrtimer_cancel(struct hrtimer *timer)
 
 		if (ret >= 0)
 			return ret;
-		cpu_relax();
+		hrtimer_wait_for_timer(timer);
 	}
 }
 EXPORT_SYMBOL_GPL(hrtimer_cancel);
@@ -1126,6 +1204,7 @@ static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 
 	base = hrtimer_clockid_to_base(clock_id);
 	timer->base = &cpu_base->clock_base[base];
+	INIT_LIST_HEAD(&timer->cb_entry);
 	timerqueue_init(&timer->node);
 
 #ifdef CONFIG_TIMER_STATS
@@ -1166,6 +1245,7 @@ bool hrtimer_active(const struct hrtimer *timer)
 		seq = raw_read_seqcount_begin(&cpu_base->seq);
 
 		if (timer->state != HRTIMER_STATE_INACTIVE ||
+		    cpu_base->running_soft == timer ||
 		    cpu_base->running == timer)
 			return true;
 
@@ -1256,10 +1336,112 @@ static void __run_hrtimer(struct hrtimer_cpu_base *cpu_base,
 	cpu_base->running = NULL;
 }
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+static void hrtimer_rt_reprogram(int restart, struct hrtimer *timer,
+				 struct hrtimer_clock_base *base)
+{
+	int leftmost;
+
+	if (restart != HRTIMER_NORESTART &&
+	    !(timer->state & HRTIMER_STATE_ENQUEUED)) {
+
+		leftmost = enqueue_hrtimer(timer, base);
+		if (!leftmost)
+			return;
+#ifdef CONFIG_HIGH_RES_TIMERS
+		if (!hrtimer_is_hres_active(timer)) {
+			/*
+			 * Kick to reschedule the next tick to handle the new timer
+			 * on dynticks target.
+			 */
+			if (base->cpu_base->nohz_active)
+				wake_up_nohz_cpu(base->cpu_base->cpu);
+		} else {
+
+			hrtimer_reprogram(timer, base);
+		}
+#endif
+	}
+}
+
+/*
+ * The changes in mainline which removed the callback modes from
+ * hrtimer are not yet working with -rt. The non wakeup_process()
+ * based callbacks which involve sleeping locks need to be treated
+ * seperately.
+ */
+static void hrtimer_rt_run_pending(void)
+{
+	enum hrtimer_restart (*fn)(struct hrtimer *);
+	struct hrtimer_cpu_base *cpu_base;
+	struct hrtimer_clock_base *base;
+	struct hrtimer *timer;
+	int index, restart;
+
+	local_irq_disable();
+	cpu_base = &per_cpu(hrtimer_bases, smp_processor_id());
+
+	raw_spin_lock(&cpu_base->lock);
+
+	for (index = 0; index < HRTIMER_MAX_CLOCK_BASES; index++) {
+		base = &cpu_base->clock_base[index];
+
+		while (!list_empty(&base->expired)) {
+			timer = list_first_entry(&base->expired,
+						 struct hrtimer, cb_entry);
+
+			/*
+			 * Same as the above __run_hrtimer function
+			 * just we run with interrupts enabled.
+			 */
+			debug_deactivate(timer);
+			cpu_base->running_soft = timer;
+			raw_write_seqcount_barrier(&cpu_base->seq);
+
+			__remove_hrtimer(timer, base, HRTIMER_STATE_INACTIVE, 0);
+			timer_stats_account_hrtimer(timer);
+			fn = timer->function;
+
+			raw_spin_unlock_irq(&cpu_base->lock);
+			restart = fn(timer);
+			raw_spin_lock_irq(&cpu_base->lock);
+
+			hrtimer_rt_reprogram(restart, timer, base);
+			raw_write_seqcount_barrier(&cpu_base->seq);
+
+			WARN_ON_ONCE(cpu_base->running_soft != timer);
+			cpu_base->running_soft = NULL;
+		}
+	}
+
+	raw_spin_unlock_irq(&cpu_base->lock);
+
+	wake_up_timer_waiters(cpu_base);
+}
+
+static int hrtimer_rt_defer(struct hrtimer *timer)
+{
+	if (timer->irqsafe)
+		return 0;
+
+	__remove_hrtimer(timer, timer->base, timer->state, 0);
+	list_add_tail(&timer->cb_entry, &timer->base->expired);
+	return 1;
+}
+
+#else
+
+static inline int hrtimer_rt_defer(struct hrtimer *timer) { return 0; }
+
+#endif
+
+static enum hrtimer_restart hrtimer_wakeup(struct hrtimer *timer);
+
 static void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now)
 {
 	struct hrtimer_clock_base *base = cpu_base->clock_base;
 	unsigned int active = cpu_base->active_bases;
+	int raise = 0;
 
 	for (; active; base++, active >>= 1) {
 		struct timerqueue_node *node;
@@ -1274,6 +1456,15 @@ static void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now)
 			struct hrtimer *timer;
 
 			timer = container_of(node, struct hrtimer, node);
+
+			trace_hrtimer_interrupt(raw_smp_processor_id(),
+			    ktime_to_ns(ktime_sub(ktime_to_ns(timer->praecox) ?
+				timer->praecox : hrtimer_get_expires(timer),
+				basenow)),
+			    current,
+			    timer->function == hrtimer_wakeup ?
+			    container_of(timer, struct hrtimer_sleeper,
+				timer)->task : NULL);
 
 			/*
 			 * The immediate goal for using the softexpires is
@@ -1290,9 +1481,14 @@ static void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now)
 			if (basenow.tv64 < hrtimer_get_softexpires_tv64(timer))
 				break;
 
-			__run_hrtimer(cpu_base, base, timer, &basenow);
+			if (!hrtimer_rt_defer(timer))
+				__run_hrtimer(cpu_base, base, timer, &basenow);
+			else
+				raise = 1;
 		}
 	}
+	if (raise)
+		raise_softirq_irqoff(HRTIMER_SOFTIRQ);
 }
 
 #ifdef CONFIG_HIGH_RES_TIMERS
@@ -1455,16 +1651,18 @@ static enum hrtimer_restart hrtimer_wakeup(struct hrtimer *timer)
 void hrtimer_init_sleeper(struct hrtimer_sleeper *sl, struct task_struct *task)
 {
 	sl->timer.function = hrtimer_wakeup;
+	sl->timer.irqsafe = 1;
 	sl->task = task;
 }
 EXPORT_SYMBOL_GPL(hrtimer_init_sleeper);
 
-static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mode)
+static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mode,
+				unsigned long state)
 {
 	hrtimer_init_sleeper(t, current);
 
 	do {
-		set_current_state(TASK_INTERRUPTIBLE);
+		set_current_state(state);
 		hrtimer_start_expires(&t->timer, mode);
 
 		if (likely(t->task))
@@ -1506,7 +1704,8 @@ long __sched hrtimer_nanosleep_restart(struct restart_block *restart)
 				HRTIMER_MODE_ABS);
 	hrtimer_set_expires_tv64(&t.timer, restart->nanosleep.expires);
 
-	if (do_nanosleep(&t, HRTIMER_MODE_ABS))
+	/* cpu_chill() does not care about restart state. */
+	if (do_nanosleep(&t, HRTIMER_MODE_ABS, TASK_INTERRUPTIBLE))
 		goto out;
 
 	rmtp = restart->nanosleep.rmtp;
@@ -1523,8 +1722,10 @@ out:
 	return ret;
 }
 
-long hrtimer_nanosleep(struct timespec *rqtp, struct timespec __user *rmtp,
-		       const enum hrtimer_mode mode, const clockid_t clockid)
+static long
+__hrtimer_nanosleep(struct timespec *rqtp, struct timespec __user *rmtp,
+		    const enum hrtimer_mode mode, const clockid_t clockid,
+		    unsigned long state)
 {
 	struct restart_block *restart;
 	struct hrtimer_sleeper t;
@@ -1537,7 +1738,7 @@ long hrtimer_nanosleep(struct timespec *rqtp, struct timespec __user *rmtp,
 
 	hrtimer_init_on_stack(&t.timer, clockid, mode);
 	hrtimer_set_expires_range_ns(&t.timer, timespec_to_ktime(*rqtp), slack);
-	if (do_nanosleep(&t, mode))
+	if (do_nanosleep(&t, mode, state))
 		goto out;
 
 	/* Absolute timers do not update the rmtp value and restart: */
@@ -1564,6 +1765,12 @@ out:
 	return ret;
 }
 
+long hrtimer_nanosleep(struct timespec *rqtp, struct timespec __user *rmtp,
+		       const enum hrtimer_mode mode, const clockid_t clockid)
+{
+	return __hrtimer_nanosleep(rqtp, rmtp, mode, clockid, TASK_INTERRUPTIBLE);
+}
+
 SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,
 		struct timespec __user *, rmtp)
 {
@@ -1578,6 +1785,26 @@ SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,
 	return hrtimer_nanosleep(&tu, rmtp, HRTIMER_MODE_REL, CLOCK_MONOTONIC);
 }
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+/*
+ * Sleep for 1 ms in hope whoever holds what we want will let it go.
+ */
+void cpu_chill(void)
+{
+	struct timespec tu = {
+		.tv_nsec = NSEC_PER_MSEC,
+	};
+	unsigned int freeze_flag = current->flags & PF_NOFREEZE;
+
+	current->flags |= PF_NOFREEZE;
+	__hrtimer_nanosleep(&tu, NULL, HRTIMER_MODE_REL, CLOCK_MONOTONIC,
+			    TASK_UNINTERRUPTIBLE);
+	if (!freeze_flag)
+		current->flags &= ~PF_NOFREEZE;
+}
+EXPORT_SYMBOL(cpu_chill);
+#endif
+
 /*
  * Functions related to boot-time initialization:
  */
@@ -1589,10 +1816,14 @@ static void init_hrtimers_cpu(int cpu)
 	for (i = 0; i < HRTIMER_MAX_CLOCK_BASES; i++) {
 		cpu_base->clock_base[i].cpu_base = cpu_base;
 		timerqueue_init_head(&cpu_base->clock_base[i].active);
+		INIT_LIST_HEAD(&cpu_base->clock_base[i].expired);
 	}
 
 	cpu_base->cpu = cpu;
 	hrtimer_init_hres(cpu_base);
+#ifdef CONFIG_PREEMPT_RT_BASE
+	init_waitqueue_head(&cpu_base->wait);
+#endif
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -1690,11 +1921,21 @@ static struct notifier_block hrtimers_nb = {
 	.notifier_call = hrtimer_cpu_notify,
 };
 
+#ifdef CONFIG_PREEMPT_RT_BASE
+static void run_hrtimer_softirq(struct softirq_action *h)
+{
+	hrtimer_rt_run_pending();
+}
+#endif
+
 void __init hrtimers_init(void)
 {
 	hrtimer_cpu_notify(&hrtimers_nb, (unsigned long)CPU_UP_PREPARE,
 			  (void *)(long)smp_processor_id());
 	register_cpu_notifier(&hrtimers_nb);
+#ifdef CONFIG_PREEMPT_RT_BASE
+	open_softirq(HRTIMER_SOFTIRQ, run_hrtimer_softirq);
+#endif
 }
 
 /**
