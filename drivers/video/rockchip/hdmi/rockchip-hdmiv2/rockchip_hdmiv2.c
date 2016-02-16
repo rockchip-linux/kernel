@@ -470,6 +470,17 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 	if (!of_property_read_u32(np, "rockchip,deviceinfo", &val))
 		hdmi_dev->deviceinfo = val & 0xff;
 
+	hdmi_dev->io_pullup = -1;
+	if (hdmi_dev->soctype == HDMI_SOC_RK322X) {
+		val = of_get_named_gpio(np, "rockchip,pullup", 0);
+		if (gpio_is_valid(val) &&
+		    !devm_gpio_request_one(hdmi_dev->dev, val,
+					   GPIOF_DIR_OUT, "tmds_pullup"))
+			hdmi_dev->io_pullup = val;
+		else
+			pr_warn("HDMI: no pull up gpio\n");
+	}
+
 	#ifdef CONFIG_MFD_SYSCON
 	hdmi_dev->grf_base =
 		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");

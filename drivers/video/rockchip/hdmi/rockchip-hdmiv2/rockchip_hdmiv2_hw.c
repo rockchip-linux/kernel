@@ -434,6 +434,8 @@ static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322X_GRF_SOC_CON2,
 			     RK322X_PLL_PDATA_DEN);
+		if (gpio_is_valid(hdmi_dev->io_pullup))
+			gpio_set_value(hdmi_dev->io_pullup, 0);
 	}
 	hdmi_writel(hdmi_dev, MC_CLKDIS, 0x7f);
 }
@@ -636,16 +638,29 @@ static int ext_phy_config(struct hdmi_dev *hdmi_dev)
 				  ((stat >> 8) & 0xff) | 0x80);
 	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL_DIV_L,
 				  stat & 0xff);
-	if (hdmi_dev->tmdsclk > 340000000)
+	if (hdmi_dev->tmdsclk > 340000000) {
 		stat = EXT_PHY_AUTO_R100_OHMS;
-	else if (hdmi_dev->tmdsclk > 200000000)
-		stat = EXT_PHY_AUTO_R50_OHMS;
-	else
+	} else if (hdmi_dev->tmdsclk > 200000000) {
+		if (gpio_is_valid(hdmi_dev->io_pullup))
+			stat = EXT_PHY_MANAUL_150_OHMS;
+		else
+			stat = EXT_PHY_AUTO_R50_OHMS;
+	} else {
 		stat = EXT_PHY_AUTO_ROPEN_CIRCUIT;
-	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_RESIS_AUTO,
-				  stat | 0x20);
-	rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL,
-				  (stat >> 8) & 0xff);
+	}
+	if (stat & EXT_PHY_TERM_CAL_EN_MASK) {
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0xfc,
+					  stat & 0x7f);
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0xfd,
+					  stat & 0x7f);
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0xfe,
+					  stat & 0x7f);
+	} else {
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_RESIS_AUTO,
+					  stat | 0x20);
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY_TERM_CAL,
+					  (stat >> 8) & 0xff);
+	}
 	if (hdmi_dev->tmdsclk > 200000000)
 		stat = 0;
 	else
@@ -1964,7 +1979,8 @@ static int hdmi_dev_control_output(struct hdmi *hdmi, int enable)
 		if (enable == (HDMI_VIDEO_MUTE | HDMI_AUDIO_MUTE)) {
 			if (hdmi->ops->hdcp_power_off_cb)
 				hdmi->ops->hdcp_power_off_cb(hdmi);
-			rockchip_hdmiv2_powerdown(hdmi_dev);		}
+			rockchip_hdmiv2_powerdown(hdmi_dev);
+		}
 	}
 	return 0;
 }
@@ -1976,6 +1992,8 @@ static int hdmi_dev_insert(struct hdmi *hdmi)
 	HDMIDBG("%s\n", __func__);
 	if (!hdmi->uboot)
 		hdmi_writel(hdmi_dev, MC_CLKDIS, m_HDCPCLK_DISABLE);
+	if (gpio_is_valid(hdmi_dev->io_pullup))
+		gpio_set_value(hdmi_dev->io_pullup, 1);
 	return HDMI_ERROR_SUCESS;
 }
 
