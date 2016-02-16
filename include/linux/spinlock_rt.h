@@ -18,6 +18,10 @@ do {							\
 	__rt_spin_lock_init(slock, #slock, &__key);	\
 } while (0)
 
+void __lockfunc rt_spin_lock__no_mg(spinlock_t *lock);
+void __lockfunc rt_spin_unlock__no_mg(spinlock_t *lock);
+int __lockfunc rt_spin_trylock__no_mg(spinlock_t *lock);
+
 extern void __lockfunc rt_spin_lock(spinlock_t *lock);
 extern unsigned long __lockfunc rt_spin_lock_trace_flags(spinlock_t *lock);
 extern void __lockfunc rt_spin_lock_nested(spinlock_t *lock, int subclass);
@@ -32,20 +36,16 @@ extern int atomic_dec_and_spin_lock(atomic_t *atomic, spinlock_t *lock);
  * lockdep-less calls, for derived types like rwlock:
  * (for trylock they can use rt_mutex_trylock() directly.
  */
+extern void __lockfunc __rt_spin_lock__no_mg(struct rt_mutex *lock);
 extern void __lockfunc __rt_spin_lock(struct rt_mutex *lock);
 extern void __lockfunc __rt_spin_unlock(struct rt_mutex *lock);
 extern int __lockfunc __rt_spin_trylock(struct rt_mutex *lock);
 
-#define spin_lock(lock)				\
-	do {					\
-		migrate_disable();		\
-		rt_spin_lock(lock);		\
-	} while (0)
+#define spin_lock(lock)			rt_spin_lock(lock)
 
 #define spin_lock_bh(lock)			\
 	do {					\
 		local_bh_disable();		\
-		migrate_disable();		\
 		rt_spin_lock(lock);		\
 	} while (0)
 
@@ -56,24 +56,19 @@ extern int __lockfunc __rt_spin_trylock(struct rt_mutex *lock);
 #define spin_trylock(lock)			\
 ({						\
 	int __locked;				\
-	migrate_disable();			\
 	__locked = spin_do_trylock(lock);	\
-	if (!__locked)				\
-		migrate_enable();		\
 	__locked;				\
 })
 
 #ifdef CONFIG_LOCKDEP
 # define spin_lock_nested(lock, subclass)		\
 	do {						\
-		migrate_disable();			\
 		rt_spin_lock_nested(lock, subclass);	\
 	} while (0)
 
 #define spin_lock_bh_nested(lock, subclass)		\
 	do {						\
 		local_bh_disable();			\
-		migrate_disable();			\
 		rt_spin_lock_nested(lock, subclass);	\
 	} while (0)
 
@@ -81,7 +76,6 @@ extern int __lockfunc __rt_spin_trylock(struct rt_mutex *lock);
 	do {						 \
 		typecheck(unsigned long, flags);	 \
 		flags = 0;				 \
-		migrate_disable();			 \
 		rt_spin_lock_nested(lock, subclass);	 \
 	} while (0)
 #else
@@ -117,16 +111,11 @@ static inline unsigned long spin_lock_trace_flags(spinlock_t *lock)
 /* FIXME: we need rt_spin_lock_nest_lock */
 #define spin_lock_nest_lock(lock, nest_lock) spin_lock_nested(lock, 0)
 
-#define spin_unlock(lock)				\
-	do {						\
-		rt_spin_unlock(lock);			\
-		migrate_enable();			\
-	} while (0)
+#define spin_unlock(lock)			rt_spin_unlock(lock)
 
 #define spin_unlock_bh(lock)				\
 	do {						\
 		rt_spin_unlock(lock);			\
-		migrate_enable();			\
 		local_bh_enable();			\
 	} while (0)
 

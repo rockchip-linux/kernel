@@ -10,7 +10,7 @@
 # define lg_do_unlock(l)	arch_spin_unlock(l)
 #else
 # define lg_lock_ptr		struct rt_mutex
-# define lg_do_lock(l)		__rt_spin_lock(l)
+# define lg_do_lock(l)		__rt_spin_lock__no_mg(l)
 # define lg_do_unlock(l)	__rt_spin_unlock(l)
 #endif
 /*

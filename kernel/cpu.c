@@ -127,8 +127,8 @@ struct hotplug_pcp {
 };
 
 #ifdef CONFIG_PREEMPT_RT_FULL
-# define hotplug_lock(hp) rt_spin_lock(&(hp)->lock)
-# define hotplug_unlock(hp) rt_spin_unlock(&(hp)->lock)
+# define hotplug_lock(hp) rt_spin_lock__no_mg(&(hp)->lock)
+# define hotplug_unlock(hp) rt_spin_unlock__no_mg(&(hp)->lock)
 #else
 # define hotplug_lock(hp) mutex_lock(&(hp)->mutex)
 # define hotplug_unlock(hp) mutex_unlock(&(hp)->mutex)

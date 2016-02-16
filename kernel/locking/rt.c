@@ -235,7 +235,6 @@ EXPORT_SYMBOL(rt_read_trylock);
 void __lockfunc rt_write_lock(rwlock_t *rwlock)
 {
 	rwlock_acquire(&rwlock->dep_map, 0, 0, _RET_IP_);
-	migrate_disable();
 	__rt_spin_lock(&rwlock->lock);
 }
 EXPORT_SYMBOL(rt_write_lock);
@@ -249,7 +248,6 @@ void __lockfunc rt_read_lock(rwlock_t *rwlock)
 	 * recursive read locks succeed when current owns the lock
 	 */
 	if (rt_mutex_owner(lock) != current) {
-		migrate_disable();
 		rwlock_acquire(&rwlock->dep_map, 0, 0, _RET_IP_);
 		__rt_spin_lock(lock);
 	}
