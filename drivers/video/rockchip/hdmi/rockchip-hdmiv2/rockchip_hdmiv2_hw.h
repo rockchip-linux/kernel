@@ -1335,10 +1335,14 @@ enum {
 #define CEC_ENGINE_BASE			0x7d00
 
 #define	CEC_CTRL			0x7d00
+	#define m_CEC_BC_S_NCK		BIT(5)	 /* Ignore ack of sending
+						  * broadcast message.
+						  */
 	#define m_CEC_STANBY		(1 << 4)
 	#define m_CEC_BC_NCK		(1 << 3)
 	#define m_CEC_FRAME_TYPE	(3 << 1)
 	#define m_CEC_SEND		(1 << 0)
+	#define v_CEC_BC_S_NCK(n)	((n & 0x1) << 4)
 	#define v_CEC_STANBY(n)		((n & 0x1) << 4)
 	#define v_CEC_BC_NCK(n)		((n & 0x1) << 3)
 	#define v_CEC_FRAME_TYPE(n)	((n & 0x3) << 1)
