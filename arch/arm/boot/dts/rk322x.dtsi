@@ -826,8 +826,6 @@
 		resets = <&reset RK322X_RST_HDMI_P>;
 		reset-names = "hdmi";
 		rockchip,grf = <&grf>;
-		rockchip,grf_reg_offset = <0x400>;
-		rockchip,grf_reg_shift = <9>;
 		rockchip,hdmi_audio_source = <0>;
 		rockchip,hdcp_enable = <0>;
 		rockchip,cec_enable = <0>;
