@@ -484,7 +484,7 @@ out:
 static void nfs_inode_dio_write_done(struct inode *inode)
 {
 	nfs_zap_mapping(inode, inode->i_mapping);
-	inode_dio_done(inode);
+	inode_dio_end(inode);
 }
 
 #if IS_ENABLED(CONFIG_NFS_V3) || IS_ENABLED(CONFIG_NFS_V4)
@@ -821,7 +821,7 @@ static ssize_t nfs_direct_write_schedule_iovec(struct nfs_direct_req *dreq,
 			      &nfs_direct_write_completion_ops);
 	desc.pg_dreq = dreq;
 	get_dreq(dreq);
-	atomic_inc(&inode->i_dio_count);
+	inode_dio_begin(inode);
 
 	NFS_I(dreq->inode)->write_io += iov_length(iov, nr_segs);
 	for (seg = 0; seg < nr_segs; seg++) {
@@ -841,7 +841,7 @@ static ssize_t nfs_direct_write_schedule_iovec(struct nfs_direct_req *dreq,
 	 * generic layer handle the completion.
 	 */
 	if (requested_bytes == 0) {
-		inode_dio_done(inode);
+		inode_dio_end(inode);
 		nfs_direct_req_release(dreq);
 		return result < 0 ? result : -EIO;
 	}
