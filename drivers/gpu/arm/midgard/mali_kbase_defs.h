@@ -145,6 +145,8 @@
 #define MIDGARD_MMU_TOPLEVEL    1
 #endif
 
+#define MIDGARD_MMU_BOTTOMLEVEL 3
+
 #define GROWABLE_FLAGS_REQUIRED (KBASE_REG_PF_GROW | KBASE_REG_GPU_WR)
 
 /** setting in kbase_context::as_nr that indicates it's invalid */
@@ -387,6 +389,9 @@ struct kbase_jd_atom {
 	/* Pointer to atom that has cross-slot dependency on this atom */
 	struct kbase_jd_atom *x_post_dep;
 
+	/* The GPU's flush count recorded at the time of submission, used for
+	 * the cache flush optimisation */
+	u32 flush_id;
 
 	struct kbase_jd_atom_backend backend;
 #ifdef CONFIG_DEBUG_FS
@@ -935,10 +940,6 @@ struct kbase_device {
 	struct list_head        kctx_list;
 	struct mutex            kctx_list_lock;
 
-#ifdef CONFIG_MALI_MIDGARD_RT_PM
-	struct delayed_work runtime_pm_workqueue;
-#endif
-
 #ifdef CONFIG_PM_DEVFREQ
 	struct devfreq_dev_profile devfreq_profile;
 	struct devfreq *devfreq;
@@ -1217,6 +1218,9 @@ struct kbase_context {
 	struct list_head completed_jobs;
 	/* Number of work items currently pending on job_done_wq */
 	atomic_t work_count;
+
+	/* true if context is counted in kbdev->js_data.nr_contexts_runnable */
+	bool ctx_runnable_ref;
 };
 
 enum kbase_reg_access_type {

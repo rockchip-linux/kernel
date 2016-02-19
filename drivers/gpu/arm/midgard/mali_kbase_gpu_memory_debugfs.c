@@ -32,7 +32,6 @@
 
 static int kbasep_gpu_memory_seq_show(struct seq_file *sfile, void *data)
 {
-	ssize_t ret = 0;
 	struct list_head *entry;
 	const struct list_head *kbdev_list;
 
@@ -43,14 +42,14 @@ static int kbasep_gpu_memory_seq_show(struct seq_file *sfile, void *data)
 
 		kbdev = list_entry(entry, struct kbase_device, entry);
 		/* output the total memory usage and cap for this device */
-		ret = seq_printf(sfile, "%-16s  %10u\n",
+		seq_printf(sfile, "%-16s  %10u\n",
 				kbdev->devname,
 				atomic_read(&(kbdev->memdev.used_pages)));
 		mutex_lock(&kbdev->kctx_list_lock);
 		list_for_each_entry(element, &kbdev->kctx_list, link) {
 			/* output the memory usage and cap for each kctx
 			* opened on this device */
-			ret = seq_printf(sfile, "  %s-0x%p %10u\n",
+			seq_printf(sfile, "  %s-0x%p %10u\n",
 				"kctx",
 				element->kctx,
 				atomic_read(&(element->kctx->used_pages)));
@@ -58,7 +57,7 @@ static int kbasep_gpu_memory_seq_show(struct seq_file *sfile, void *data)
 		mutex_unlock(&kbdev->kctx_list_lock);
 	}
 	kbase_dev_list_put(kbdev_list);
-	return ret;
+	return 0;
 }
 
 /*
