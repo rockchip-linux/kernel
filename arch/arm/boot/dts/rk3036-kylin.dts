@@ -46,6 +46,12 @@
 	model = "Rockchip RK3036 KylinBoard";
 	compatible = "rockchip,rk3036-kylin", "rockchip,rk3036";
 
+	bcmdhd_wlan_0: bcmdhd_wlan@0 {
+		compatible = "android,bcmdhd_wlan";
+		gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;
+		wlreg_on-supply = <&sdio_pwrseq>;
+	};
+
 	leds: gpio-leds {
 		compatible = "gpio-leds";
 
