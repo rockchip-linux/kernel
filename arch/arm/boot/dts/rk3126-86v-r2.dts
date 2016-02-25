@@ -367,5 +367,5 @@
 };
 
 &pinctrl {
-	init-gpios = <&gpio1 GPIO_C1 GPIO_ACTIVE_LOW>;
+	init-gpios = <&gpio1 GPIO_C1 0>;
 };
