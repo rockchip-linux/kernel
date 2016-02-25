@@ -90,7 +90,8 @@ enum hrtimer_restart {
  * @cb_entry:	list entry to defer timers from hardirq context
  * @irqsafe:	timer can run in hardirq context
  * @praecox:	timer expiry time if expired at the time of programming
- * @start_pid: timer statistics field to store the pid of the task which
+ * @is_rel:	Set if the timer was armed relative
+ * @start_pid:  timer statistics field to store the pid of the task which
  *		started the timer
  * @start_site:	timer statistics field to store the site where the timer
  *		was started
@@ -104,12 +105,13 @@ struct hrtimer {
 	ktime_t				_softexpires;
 	enum hrtimer_restart		(*function)(struct hrtimer *);
 	struct hrtimer_clock_base	*base;
-	unsigned long			state;
+	u8				state;
 	struct list_head		cb_entry;
 	int				irqsafe;
 #ifdef CONFIG_MISSED_TIMER_OFFSETS_HIST
 	ktime_t				praecox;
 #endif
+	u8				is_rel;
 #ifdef CONFIG_TIMER_STATS
 	int				start_pid;
 	void				*start_site;
@@ -331,6 +333,27 @@ static inline void clock_was_set_delayed(void) { }
 
 #endif
 
+static inline ktime_t
+__hrtimer_expires_remaining_adjusted(const struct hrtimer *timer, ktime_t now)
+{
+	ktime_t rem = ktime_sub(timer->node.expires, now);
+
+	/*
+	 * Adjust relative timers for the extra we added in
+	 * hrtimer_start_range_ns() to prevent short timeouts.
+	 */
+	if (IS_ENABLED(CONFIG_TIME_LOW_RES) && timer->is_rel)
+		rem.tv64 -= hrtimer_resolution;
+	return rem;
+}
+
+static inline ktime_t
+hrtimer_expires_remaining_adjusted(const struct hrtimer *timer)
+{
+	return __hrtimer_expires_remaining_adjusted(timer,
+						    timer->base->get_time());
+}
+
 extern void clock_was_set(void);
 #ifdef CONFIG_TIMERFD
 extern void timerfd_clock_was_set(void);
@@ -407,7 +430,12 @@ static inline void hrtimer_restart(struct hrtimer *timer)
 #endif
 
 /* Query timers: */
-extern ktime_t hrtimer_get_remaining(const struct hrtimer *timer);
+extern ktime_t __hrtimer_get_remaining(const struct hrtimer *timer, bool adjust);
+
+static inline ktime_t hrtimer_get_remaining(const struct hrtimer *timer)
+{
+	return __hrtimer_get_remaining(timer, false);
+}
 
 extern u64 hrtimer_get_next_event(void);
 
