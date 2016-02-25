@@ -175,14 +175,15 @@
 						0          3
 					>;
 					regu-mode-en = <0>;
-					lkg_adjust_volt_en = <0>;
+					lkg_adjust_volt_en = <1>;
 					channel = <0>;
 					tsadc-ch = <0>;
-					def_table_lkg = <35>;
-					min_adjust_freq = <1200000>;
+					def_table_lkg = <4>;
+					min_adjust_freq = <1008000>;
 					lkg_adjust_volt_table = <
 						/*lkg(mA)  volt(uV)*/
-						60         25000
+						10	   50000
+						60         100000
 						>;
 				};
 			};
@@ -198,7 +199,14 @@
 						300000 1200000
 						400000 1200000
 						>;
+					lkg_adjust_volt_en = <1>;
 					channel = <2>;
+					def_table_lkg = <8>;
+					min_adjust_freq = <800000>;
+					lkg_adjust_volt_table = <
+						/*lkg(mA)  volt(uV)*/
+						60         50000
+						>;
 					status = "disabled";
 				};
 			};
@@ -211,7 +219,7 @@
 						300000 1200000
 						400000 1200000
 						>;
-					channel = <1>;
+					channel = <2>;
 					status = "okay";
 					regu-mode-table = <
 						/*freq     mode*/
