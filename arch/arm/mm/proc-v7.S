@@ -271,7 +271,7 @@ __v7_setup:
 	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
 	and	r10, r0, #0xff000000		@ ARM?
 	teq	r10, #0x41000000
-	bne	3f
+	bne	6f
 	and	r5, r0, #0x00f00000		@ variant
 	and	r6, r0, #0x0000000f		@ revision
 	orr	r6, r6, r5, lsr #20-4		@ combine variant and revision
@@ -302,7 +302,7 @@ __v7_setup:
 	orreq	r10, r10, #(1 << 22)		@ set the Write Allocate disable bit
 	mcreq	p15, 1, r10, c9, c0, 2		@ write the L2 cache aux ctrl register
 #endif
-	b	3f
+	b	6f
 
 	/* Cortex-A9 Errata */
 2:	ldr	r10, =0x00000c09		@ Cortex-A9 primary part number
@@ -337,11 +337,35 @@ __v7_setup:
 	mcrlt	p15, 0, r10, c15, c0, 1		@ write diagnostic register
 1:
 #endif
+	b	6f
 
-	/* Cortex-A15 Errata */
-3:	ldr	r10, =0x00000c0f		@ Cortex-A15 primary part number
+	/* Cortex-A12 Errata */
+3:	ldr	r10, =0x00000c0d		@ Cortex-A12 primary part number
 	teq	r0, r10
 	bne	4f
+#ifdef CONFIG_ARM_ERRATA_818325_852422
+	mrc	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orr	r10, r10, #1 << 12		@ set bit #12
+	mcr	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+	b	6f
+
+	/* Cortex-A17 Errata */
+4:	ldr	r10, =0x00000c0e		@ Cortex-A17 primary part number
+	teq	r0, r10
+	bne	5f
+#ifdef CONFIG_ARM_ERRATA_852423
+	cmp	r6, #0x12			@ only present up to r1p2
+	mrcle	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orrle	r10, r10, #1 << 12		@ set bit #12
+	mcrle	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+	b	6f
+
+	/* Cortex-A15 Errata */
+5:	ldr	r10, =0x00000c0f		@ Cortex-A15 primary part number
+	teq	r0, r10
+	bne	6f
 
 #ifdef CONFIG_ARM_ERRATA_773022
 	cmp	r6, #0x4			@ only present up to r0p4
@@ -350,20 +374,7 @@ __v7_setup:
 	mcrle	p15, 0, r10, c1, c0, 1		@ write aux control register
 #endif
 
-	/* Cortex-A12 Errata */
-4:	ldr	r10, =0x00000c0d		@ Cortex-A12 primary part number
-	teq	r0, r10
-	bne	5f
-#ifdef CONFIG_ARM_ERRATA_818325
-	teq	r6, #0x00			@ present in r0p0
-	teqne	r6, #0x01			@ present in r0p1-00lac0-rc11
-	mrceq	p15, 0, r10, c15, c0, 1		@ read diagnostic register
-	orreq	r10, r10, #1 << 12		@ set bit #12
-	mcreq	p15, 0, r10, c15, c0, 1		@ write diagnostic register
-	isb
-#endif
-
-5:	mov	r10, #0
+6:	mov	r10, #0
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
 #ifdef CONFIG_MMU
 	mcr	p15, 0, r10, c8, c7, 0		@ invalidate I + D TLBs
