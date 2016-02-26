@@ -59,6 +59,16 @@ static void __noreturn rk3288_resume_c(void)
 		asm("mcr p15, 1, %0, c9, c0, 2" : :
 			"r" (rk3288_resume_params.l2ctlr));
 
+	/* We will have lost this when the CPU powered off */
+	if (IS_ENABLED(CONFIG_ARM_ERRATA_818325_852422)) {
+		u32 diag_reg;
+
+		asm volatile("mrc p15, 0, %0, c15, c0, 1" : "=r" (diag_reg));
+		diag_reg |= (1 << 12);
+		asm volatile("mcr p15, 0, %0, c15, c0, 1" : : "r" (diag_reg));
+		asm volatile("isb");
+	}
+
 	if (rk3288_resume_params.ddr_resume_f)
 		rk3288_ddr_resume_early(&rk3288_resume_params.ddr_save_data);
 
