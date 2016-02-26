@@ -832,7 +832,6 @@ static struct configfs_subsystem sdcardfs_packages = {
 			.ci_namebuf = "sdcardfs",
 			.ci_type = &packages_type,
 		},
-		.default_groups = sd_default_groups,
 	},
 };
 
@@ -841,9 +840,11 @@ static int configfs_sdcardfs_init(void)
 	int ret, i;
 	struct configfs_subsystem *subsys = &sdcardfs_packages;
 
-	for (i = 0; sd_default_groups[i]; i++)
-		config_group_init(sd_default_groups[i]);
 	config_group_init(&subsys->su_group);
+	for (i = 0; sd_default_groups[i]; i++) {
+		config_group_init(sd_default_groups[i]);
+		configfs_add_default_group(sd_default_groups[i], &subsys->su_group);
+	}
 	mutex_init(&subsys->su_mutex);
 	ret = configfs_register_subsystem(subsys);
 	if (ret) {
