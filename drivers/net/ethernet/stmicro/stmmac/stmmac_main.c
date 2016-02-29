@@ -1101,6 +1101,7 @@ static int init_dma_desc_rings(struct net_device *dev, gfp_t flags)
 		priv->tx_skbuff_dma[i].buf = 0;
 		priv->tx_skbuff_dma[i].map_as_page = false;
 		priv->tx_skbuff_dma[i].len = 0;
+		priv->tx_skbuff_dma[i].last_segment = false;
 		priv->tx_skbuff[i] = NULL;
 	}
 
@@ -1333,7 +1334,7 @@ static void stmmac_tx_clean(struct stmmac_priv *priv)
 			break;
 
 		/* Verify tx error by looking at the last segment. */
-		last = priv->hw->desc->get_tx_ls(p);
+		last = priv->tx_skbuff_dma[entry].last_segment;
 		if (likely(last)) {
 			int tx_error =
 			    priv->hw->desc->tx_status(&priv->dev->stats,
@@ -1366,6 +1367,7 @@ static void stmmac_tx_clean(struct stmmac_priv *priv)
 			priv->tx_skbuff_dma[entry].map_as_page = false;
 		}
 		priv->hw->mode->clean_desc3(priv, p);
+		priv->tx_skbuff_dma[entry].last_segment = false;
 
 		if (likely(skb != NULL)) {
 			pkts_compl++;
@@ -2026,6 +2028,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* Finalize the latest segment. */
 	priv->hw->desc->close_tx_desc(desc);
+	priv->tx_skbuff_dma[entry].last_segment = true;
 
 	wmb();
 	/* According to the coalesce parameter the IC bit for the latest
