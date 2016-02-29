@@ -1100,6 +1100,7 @@ static int init_dma_desc_rings(struct net_device *dev, gfp_t flags)
 		p->des2 = 0;
 		priv->tx_skbuff_dma[i].buf = 0;
 		priv->tx_skbuff_dma[i].map_as_page = false;
+		priv->tx_skbuff_dma[i].len = 0;
 		priv->tx_skbuff[i] = NULL;
 	}
 
@@ -1143,12 +1144,12 @@ static void dma_free_tx_skbufs(struct stmmac_priv *priv)
 			if (priv->tx_skbuff_dma[i].map_as_page)
 				dma_unmap_page(priv->device,
 					       priv->tx_skbuff_dma[i].buf,
-					       priv->hw->desc->get_tx_len(p),
+					       priv->tx_skbuff_dma[i].len,
 					       DMA_TO_DEVICE);
 			else
 				dma_unmap_single(priv->device,
 						 priv->tx_skbuff_dma[i].buf,
-						 priv->hw->desc->get_tx_len(p),
+						 priv->tx_skbuff_dma[i].len,
 						 DMA_TO_DEVICE);
 		}
 
@@ -1354,12 +1355,12 @@ static void stmmac_tx_clean(struct stmmac_priv *priv)
 			if (priv->tx_skbuff_dma[entry].map_as_page)
 				dma_unmap_page(priv->device,
 					       priv->tx_skbuff_dma[entry].buf,
-					       priv->hw->desc->get_tx_len(p),
+					       priv->tx_skbuff_dma[entry].len,
 					       DMA_TO_DEVICE);
 			else
 				dma_unmap_single(priv->device,
 						 priv->tx_skbuff_dma[entry].buf,
-						 priv->hw->desc->get_tx_len(p),
+						 priv->tx_skbuff_dma[entry].len,
 						 DMA_TO_DEVICE);
 			priv->tx_skbuff_dma[entry].buf = 0;
 			priv->tx_skbuff_dma[entry].map_as_page = false;
@@ -1984,6 +1985,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 		if (dma_mapping_error(priv->device, desc->des2))
 			goto dma_map_err;
 		priv->tx_skbuff_dma[entry].buf = desc->des2;
+		priv->tx_skbuff_dma[entry].len = nopaged_len;
 		priv->hw->desc->prepare_tx_desc(desc, 1, nopaged_len,
 						csum_insertion, priv->mode);
 	} else {
@@ -2012,6 +2014,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 		priv->tx_skbuff_dma[entry].buf = desc->des2;
 		priv->tx_skbuff_dma[entry].map_as_page = true;
+		priv->tx_skbuff_dma[entry].len = len;
 		priv->hw->desc->prepare_tx_desc(desc, 0, len, csum_insertion,
 						priv->mode);
 		wmb();
