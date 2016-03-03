@@ -213,6 +213,7 @@ device_initcall_sync(rockchip_tf_ver_check);
 
 static int rk3288_efuse_readregs(u32 addr, u32 length, u8 *buf)
 {
+#ifndef CONFIG_ARM_TRUSTZONE
 	int ret = length;
 
 	if (!length)
@@ -245,6 +246,9 @@ static int rk3288_efuse_readregs(u32 addr, u32 length, u8 *buf)
 	udelay(1);
 
 	return ret;
+#else
+	return 0;
+#endif
 }
 
 static int __init rk3288_get_efuse_version(void)
