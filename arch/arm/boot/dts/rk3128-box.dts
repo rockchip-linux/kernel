@@ -417,3 +417,7 @@
 			<0xb5	KEY_BACKSPACE>;
 	};
 };
+
+&scr {
+	status = "disabled";
+};
