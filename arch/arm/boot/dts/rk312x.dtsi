@@ -543,6 +543,19 @@
 		status = "okay";
 	};
 
+	scr: rkscr@20048000 {
+		compatible = "rockchip-scr";
+		reg = <0x20048000 0x4000>;
+		interrupts = <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&scr_io &scr_detect &scr_rst &scr_clk>;
+		clocks = <&clk_gates9 12>;
+		clock-names = "g_pclk_sim_card";
+		status = "disabled";
+	};
+
 	emmc: rksdmmc@1021c000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk312x-sdmmc";
 		reg = <0x1021c000 0x4000>;

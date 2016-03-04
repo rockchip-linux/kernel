@@ -886,6 +886,35 @@
 
 		};
 
+		gpio8_scr {
+			scr_detect: scr-detect {
+				rockchip,pins = <SC_DET>;
+				rockchip,pull = <VALUE_PULL_DISABLE>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+				//rockchip,tristate = <VALUE_TRI_DEFAULT>;
+			};
+
+			scr_io: scr-io {
+				rockchip,pins = <SC_IO>;
+				rockchip,pull = <VALUE_PULL_UP>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+			};
+
+			scr_rst: scr-rst {
+				rockchip,pins = <SC_RST>;
+				rockchip,pull = <VALUE_PULL_DISABLE>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+				//rockchip,tristate = <VALUE_TRI_DEFAULT>;
+			};
+
+			scr_clk: scr-clk {
+				rockchip,pins = <SC_CLK>;
+				rockchip,pull = <VALUE_PULL_DISABLE>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+				//rockchip,tristate = <VALUE_TRI_DEFAULT>;
+			};
+		};
+
 		//to add 
 
 		
