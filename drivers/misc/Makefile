@@ -58,3 +58,4 @@ obj-$(CONFIG_SRAM)		+= sram.o
 obj-$(CONFIG_UID_CPUTIME) += uid_cputime.o
 
 obj-$(CONFIG_5V_EN)	+= 5v_en.o
+obj-$(CONFIG_ROCKCHIP_SCR) += rk_scr.o
