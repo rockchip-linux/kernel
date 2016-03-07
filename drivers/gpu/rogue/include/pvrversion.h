@@ -49,17 +49,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *  Rogue KM Version Note
  *
  *  L 0.16:
- *          Support gpu disable dvfs case.
- *          Add rk_tf_check_version to compatible for rk3328.
+ *          	Support gpu disable dvfs case.
+ *          	Add rk_tf_check_version to compatible for rk3328.
  *  L 0.17:
- *          merge 1.4_ED3573678 DDK code
+ *          	merge 1.4_ED3573678 DDK code
  *  L 0.18:
- *          If fix freq,then don't force to drop freq to the lowest.
+ *          	If fix freq,then don't force to drop freq to the lowest.
  *  L 0.22:
  *		merge 1.4_ED3632227 DDK code
  *  L 0.23:
  *		1. Fix RGXCheckFirmwareCCBs crash bug.
  *		2. Adjust gpu frequency sequence.
+ *  L 0.28:
+ *		update PVRVERSION_BUILD to 3632228.
  */
 
 #define PVR_STR(X) #X
@@ -70,7 +72,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #define PVRVERSION_FAMILY           "rogueddk"
 #define PVRVERSION_BRANCHNAME       "1.4"
-#define PVRVERSION_BUILD             3632227
+#define PVRVERSION_BUILD             3632228
 #define PVRVERSION_BSCONTROL        "Rogue_DDK_Android_RSCompute"
 
 #define PVRVERSION_STRING           "Rogue_DDK_Android_RSCompute rogueddk 1.4@" PVR_STR2(PVRVERSION_BUILD)
@@ -87,5 +89,5 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define PVRVERSION_UNPACK_MIN(VERSION) (((VERSION) >> 0) & 0xFFFF)
 
 //chenli:define rockchip version
-#define RKVERSION                   "Rogue L 0.23"
+#define RKVERSION                   "Rogue L 0.28"
 #endif /* _PVRVERSION_H_ */
