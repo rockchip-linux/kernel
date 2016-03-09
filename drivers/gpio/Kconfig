@@ -724,4 +724,12 @@ config GPIO_VIPERBOARD
           River Tech's viperboard.h for detailed meaning
           of the module parameters.
 
+config GPIO_RK816
+	tristate "Rockchip RK816 GPIO"
+	depends on MFD_RK816
+	default n
+	help
+	  If you say yes here you will get support for the gpio of RK816 PMIC.
+	  This driver can give support for RK816 gpio Interface.
+
 endif

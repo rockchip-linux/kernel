@@ -63,3 +63,4 @@ obj-$(CONFIG_INPUT_WM831X_ON)		+= wm831x-on.o
 obj-$(CONFIG_INPUT_XEN_KBDDEV_FRONTEND)	+= xen-kbdfront.o
 obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
 obj-$(CONFIG_INPUT_RICOH619_PWRKEY)	+= ricoh619-pwrkey.o
+obj-$(CONFIG_INPUT_RK816_PWRKEY)	+= rk816-pwrkey.o
