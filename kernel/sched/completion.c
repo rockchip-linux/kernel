@@ -32,7 +32,7 @@ void complete(struct completion *x)
 
 	raw_spin_lock_irqsave(&x->wait.lock, flags);
 	x->done++;
-	__swait_wake_locked(&x->wait, TASK_NORMAL, 1);
+	swake_up_locked(&x->wait);
 	raw_spin_unlock_irqrestore(&x->wait.lock, flags);
 }
 EXPORT_SYMBOL(complete);
@@ -52,7 +52,7 @@ void complete_all(struct completion *x)
 
 	raw_spin_lock_irqsave(&x->wait.lock, flags);
 	x->done += UINT_MAX/2;
-	__swait_wake_locked(&x->wait, TASK_NORMAL, 0);
+	swake_up_all_locked(&x->wait);
 	raw_spin_unlock_irqrestore(&x->wait.lock, flags);
 }
 EXPORT_SYMBOL(complete_all);
@@ -62,9 +62,9 @@ do_wait_for_common(struct completion *x,
 		   long (*action)(long), long timeout, int state)
 {
 	if (!x->done) {
-		DEFINE_SWAITER(wait);
+		DECLARE_SWAITQUEUE(wait);
 
-		swait_prepare_locked(&x->wait, &wait);
+		__prepare_to_swait(&x->wait, &wait);
 		do {
 			if (signal_pending_state(state, current)) {
 				timeout = -ERESTARTSYS;
@@ -75,7 +75,7 @@ do_wait_for_common(struct completion *x,
 			timeout = action(timeout);
 			raw_spin_lock_irq(&x->wait.lock);
 		} while (!x->done && timeout);
-		swait_finish_locked(&x->wait, &wait);
+		__finish_swait(&x->wait, &wait);
 		if (!x->done)
 			return timeout;
 	}

@@ -5,7 +5,7 @@
  * PREEMPT_RT_FULL safe. The callbacks are executed in kthread context.
  */
 
-#include <linux/wait-simple.h>
+#include <linux/swait.h>
 #include <linux/work-simple.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
@@ -19,7 +19,7 @@ static struct sworker *glob_worker;
 
 struct sworker {
 	struct list_head events;
-	struct swait_head wq;
+	struct swait_queue_head wq;
 
 	raw_spinlock_t lock;
 
@@ -80,7 +80,7 @@ static struct sworker *swork_create(void)
 
 	INIT_LIST_HEAD(&worker->events);
 	raw_spin_lock_init(&worker->lock);
-	init_swait_head(&worker->wq);
+	init_swait_queue_head(&worker->wq);
 
 	worker->task = kthread_run(swork_kthread, worker, "kswork");
 	if (IS_ERR(worker->task)) {
@@ -117,7 +117,7 @@ bool swork_queue(struct swork_event *sev)
 	list_add_tail(&sev->item, &glob_worker->events);
 	raw_spin_unlock_irqrestore(&glob_worker->lock, flags);
 
-	swait_wake(&glob_worker->wq);
+	swake_up(&glob_worker->wq);
 	return true;
 }
 EXPORT_SYMBOL_GPL(swork_queue);
