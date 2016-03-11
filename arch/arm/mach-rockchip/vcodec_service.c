@@ -995,8 +995,7 @@ static void fill_scaling_list_addr_in_pps(
 }
 
 static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
-				int size, struct vpu_reg *reg,
-				struct extra_info_for_iommu *ext_inf)
+				int size, struct vpu_reg *reg)
 {
 	struct vpu_service_info *pservice = data->pservice;
 	struct vpu_task_info *task = reg->task;
@@ -1161,22 +1160,11 @@ static int vcodec_bufid_to_iova(struct vpu_subdev_data *data, const u8 *tbl,
 		list_add_tail(&mem_region->reg_lnk, &reg->mem_region_list);
 	}
 
-	if (ext_inf != NULL && ext_inf->magic == EXTRA_INFO_MAGIC) {
-		for (i = 0; i < ext_inf->cnt; i++) {
-			vpu_debug(DEBUG_IOMMU, "reg[%d] + offset %d\n",
-				  ext_inf->elem[i].index,
-				  ext_inf->elem[i].offset);
-			reg->reg[ext_inf->elem[i].index] +=
-				ext_inf->elem[i].offset;
-		}
-	}
-
 	return 0;
 }
 
 static int vcodec_reg_address_translate(struct vpu_subdev_data *data,
-					struct vpu_reg *reg,
-					struct extra_info_for_iommu *ext_inf)
+					struct vpu_reg *reg)
 {
 	enum FORMAT_TYPE type = reg->task->get_fmt(reg->reg);
 
@@ -1185,7 +1173,7 @@ static int vcodec_reg_address_translate(struct vpu_subdev_data *data,
 		const u8 *tbl = info->table;
 		int size = info->count;
 
-		return vcodec_bufid_to_iova(data, tbl, size, reg, ext_inf);
+		return vcodec_bufid_to_iova(data, tbl, size, reg);
 	}
 	pr_err("found invalid format type!\n");
 	return -1;
@@ -1215,6 +1203,22 @@ static void get_reg_freq(struct vpu_subdev_data *data, struct vpu_reg *reg)
 		}
 		if (reg->type == VPU_PP)
 			reg->freq = VPU_FREQ_400M;
+	}
+}
+
+static void translate_extra_info(struct vpu_reg *reg,
+				 struct extra_info_for_iommu *ext_inf)
+{
+	if (ext_inf != NULL && ext_inf->magic == EXTRA_INFO_MAGIC) {
+		int i;
+
+		for (i = 0; i < ext_inf->cnt; i++) {
+			vpu_debug(DEBUG_IOMMU, "reg[%d] + offset %d\n",
+				  ext_inf->elem[i].index,
+				  ext_inf->elem[i].offset);
+			reg->reg[ext_inf->elem[i].index] +=
+				ext_inf->elem[i].offset;
+		}
 	}
 }
 
@@ -1260,13 +1264,17 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		return NULL;
 	}
 
-	if (copy_from_user(&extra_info, (u8 *)src + size, extra_size)) {
-		vpu_err("error: copy_from_user failed in reg_init\n");
-		kfree(reg);
-		return NULL;
+	if (extra_size) {
+		if (copy_from_user(&extra_info, (u8 *)src + size, extra_size)) {
+			vpu_err("error: copy_from_user failed in reg_init\n");
+			kfree(reg);
+			return NULL;
+		}
+	} else {
+		memset(&extra_info, 0, sizeof(extra_info));
 	}
 
-	if (0 > vcodec_reg_address_translate(data, reg, &extra_info)) {
+	if (0 > vcodec_reg_address_translate(data, reg)) {
 		int i = 0;
 
 		vpu_err("error: translate reg address failed, dumping regs\n");
@@ -1276,6 +1284,8 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 		kfree(reg);
 		return NULL;
 	}
+
+	translate_extra_info(reg, &extra_info);
 
 	mutex_lock(&pservice->lock);
 	list_add_tail(&reg->status_link, &pservice->waiting);
