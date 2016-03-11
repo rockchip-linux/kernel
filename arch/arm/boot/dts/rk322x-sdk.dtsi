@@ -252,7 +252,7 @@
 };
 
 &codec {
-	spk_depop_time = <200>;
+	spk_depop_time = <100>;
 	status = "okay";
 };
 
