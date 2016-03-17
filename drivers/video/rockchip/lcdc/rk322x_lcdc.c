@@ -2337,7 +2337,6 @@ static int win_0_1_set_par(struct vop_device *vop_dev,
 		xvir = win->area[0].xvir;
 		yvir = win->area[0].yvir;
 	}
-	vop_win_0_1_reg_update(&vop_dev->driver, win->id);
 	spin_unlock(&vop_dev->reg_lock);
 
 	DBG(1, "lcdc[%d]:win[%d]\n>>format:%s>>>xact:%d>>yact:%d>>xsize:%d",
@@ -2395,7 +2394,6 @@ static int hwc_set_par(struct vop_device *vop_dev,
 		xvir = win->area[0].xvir;
 		yvir = win->area[0].yvir;
 	}
-	vop_hwc_reg_update(&vop_dev->driver, 2);
 	spin_unlock(&vop_dev->reg_lock);
 
 	DBG(1, "lcdc[%d]:hwc>>%s\n>>format:%s>>>xact:%d>>yact:%d>>xsize:%d",
@@ -2987,6 +2985,7 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 	vop_msk_reg(vop_dev, SYS_CTRL, V_VOP_STANDBY_EN(vop_dev->standby));
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
 		win = dev_drv->win[i];
+
 		if ((win->state == 0) && (win->last_state == 1)) {
 			switch (win->id) {
 			case 0:
@@ -3004,7 +3003,10 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 			default:
 				break;
 			}
+		} else {
+			vop_layer_update_regs(vop_dev, win);
 		}
+
 		win->last_state = win->state;
 	}
 	vop_cfg_done(vop_dev);
