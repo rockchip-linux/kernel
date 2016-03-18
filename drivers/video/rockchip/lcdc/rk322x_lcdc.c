@@ -3003,7 +3003,7 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 			default:
 				break;
 			}
-		} else {
+		} else if (win->state == 1){
 			vop_layer_update_regs(vop_dev, win);
 		}
 
