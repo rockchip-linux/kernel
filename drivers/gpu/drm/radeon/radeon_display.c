@@ -403,7 +403,8 @@ static void radeon_flip_work_func(struct work_struct *__work)
 	struct drm_crtc *crtc = &radeon_crtc->base;
 	unsigned long flags;
 	int r;
-	int vpos, hpos, stat, min_udelay;
+	int vpos, hpos, stat, min_udelay = 0;
+	unsigned repcnt = 4;
 	struct drm_vblank_crtc *vblank = &crtc->dev->vblank[work->crtc_id];
 
         down_read(&rdev->exclusive_lock);
@@ -454,7 +455,7 @@ static void radeon_flip_work_func(struct work_struct *__work)
 	 * In practice this won't execute very often unless on very fast
 	 * machines because the time window for this to happen is very small.
 	 */
-	for (;;) {
+	while (radeon_crtc->enabled && repcnt--) {
 		/* GET_DISTANCE_TO_VBLANKSTART returns distance to real vblank
 		 * start in hpos, and to the "fudged earlier" vblank start in
 		 * vpos.
@@ -472,9 +473,21 @@ static void radeon_flip_work_func(struct work_struct *__work)
 		/* Sleep at least until estimated real start of hw vblank */
 		spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
 		min_udelay = (-hpos + 1) * max(vblank->linedur_ns / 1000, 5);
+		if (min_udelay > vblank->framedur_ns / 2000) {
+			/* Don't wait ridiculously long - something is wrong */
+			repcnt = 0;
+			break;
+		}
 		usleep_range(min_udelay, 2 * min_udelay);
 		spin_lock_irqsave(&crtc->dev->event_lock, flags);
 	};
+
+	if (!repcnt)
+		DRM_DEBUG_DRIVER("Delay problem on crtc %d: min_udelay %d, "
+				 "framedur %d, linedur %d, stat %d, vpos %d, "
+				 "hpos %d\n", work->crtc_id, min_udelay,
+				 vblank->framedur_ns / 1000,
+				 vblank->linedur_ns / 1000, stat, vpos, hpos);
 
 	/* do the flip (mmio) */
 	radeon_page_flip(rdev, radeon_crtc->crtc_id, work->base);
@@ -1849,6 +1862,7 @@ int radeon_get_crtc_scanoutpos(struct drm_device *dev, unsigned int pipe,
 	struct radeon_device *rdev = dev->dev_private;
 
 	/* preempt_disable_rt() should go right here in PREEMPT_RT patchset. */
+	preempt_disable_rt();
 
 	/* Get optional system timestamp before query. */
 	if (stime)
@@ -1941,6 +1955,7 @@ int radeon_get_crtc_scanoutpos(struct drm_device *dev, unsigned int pipe,
 		*etime = ktime_get();
 
 	/* preempt_enable_rt() should go right here in PREEMPT_RT patchset. */
+	preempt_enable_rt();
 
 	/* Decode into vertical and horizontal scanout position. */
 	*vpos = position & 0x1fff;

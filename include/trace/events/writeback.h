@@ -132,7 +132,7 @@ DEFINE_EVENT(writeback_dirty_inode_template, writeback_dirty_inode,
 );
 
 #ifdef CREATE_TRACE_POINTS
-#ifdef CONFIG_CGROUP_WRITEBACK
+#if defined(CONFIG_CGROUP_WRITEBACK) && !defined(CONFIG_PREEMPT_RT_FULL)
 
 static inline size_t __trace_wb_cgroup_size(struct bdi_writeback *wb)
 {

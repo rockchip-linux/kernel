@@ -98,8 +98,8 @@ static void async_pf_execute(struct work_struct *work)
 	 * This memory barrier pairs with prepare_to_wait's set_current_state()
 	 */
 	smp_mb();
-	if (swaitqueue_active(&vcpu->wq))
-		swait_wake_interruptible(&vcpu->wq);
+	if (swait_active(&vcpu->wq))
+		swake_up(&vcpu->wq);
 
 	mmput(mm);
 	kvm_put_kvm(vcpu->kvm);
@@ -173,7 +173,7 @@ int kvm_setup_async_pf(struct kvm_vcpu *vcpu, gva_t gva, unsigned long hva,
 	 * do alloc nowait since if we are going to sleep anyway we
 	 * may as well sleep faulting in page
 	 */
-	work = kmem_cache_zalloc(async_pf_cache, GFP_NOWAIT);
+	work = kmem_cache_zalloc(async_pf_cache, GFP_NOWAIT | __GFP_NOWARN);
 	if (!work)
 		return 0;
 

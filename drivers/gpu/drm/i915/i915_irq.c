@@ -812,6 +812,7 @@ static int i915_get_crtc_scanoutpos(struct drm_device *dev, unsigned int pipe,
 	spin_lock_irqsave(&dev_priv->uncore.lock, irqflags);
 
 	/* preempt_disable_rt() should go right here in PREEMPT_RT patchset. */
+	preempt_disable_rt();
 
 	/* Get optional system timestamp before query. */
 	if (stime)
@@ -863,6 +864,7 @@ static int i915_get_crtc_scanoutpos(struct drm_device *dev, unsigned int pipe,
 		*etime = ktime_get();
 
 	/* preempt_enable_rt() should go right here in PREEMPT_RT patchset. */
+	preempt_enable_rt();
 
 	spin_unlock_irqrestore(&dev_priv->uncore.lock, irqflags);
 
@@ -2354,9 +2356,13 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 				spt_irq_handler(dev, pch_iir);
 			else
 				cpt_irq_handler(dev, pch_iir);
-		} else
-			DRM_ERROR("The master control interrupt lied (SDE)!\n");
-
+		} else {
+			/*
+			 * Like on previous PCH there seems to be something
+			 * fishy going on with forwarding PCH interrupts.
+			 */
+			DRM_DEBUG_DRIVER("The master control interrupt lied (SDE)!\n");
+		}
 	}
 
 	I915_WRITE_FW(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);

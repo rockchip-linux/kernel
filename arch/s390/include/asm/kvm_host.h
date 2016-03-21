@@ -427,7 +427,7 @@ struct kvm_s390_irq_payload {
 struct kvm_s390_local_interrupt {
 	spinlock_t lock;
 	struct kvm_s390_float_interrupt *float_int;
-	struct swait_head *wq;
+	struct swait_queue_head *wq;
 	atomic_t *cpuflags;
 	DECLARE_BITMAP(sigp_emerg_pending, KVM_MAX_VCPUS);
 	struct kvm_s390_irq_payload irq;
@@ -506,7 +506,6 @@ struct kvm_vcpu_arch {
 	struct kvm_s390_sie_block *sie_block;
 	unsigned int      host_acrs[NUM_ACRS];
 	struct fpu	  host_fpregs;
-	struct fpu	  guest_fpregs;
 	struct kvm_s390_local_interrupt local_int;
 	struct hrtimer    ckc_timer;
 	struct kvm_s390_pgm_info pgm;
