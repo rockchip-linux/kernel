@@ -1699,6 +1699,7 @@ static void rk_fb_update_win(struct rk_lcdc_driver *dev_drv,
 				}
 			} else {
 				win->area[i].state = 0;
+				win->area[i].fbdc_en = 0;
 				if (dev_drv->iommu_enabled) {
 					g_now_config_addr[win->id][i] = 0;
 					g_now_config_state[win->id][i] = 0;
@@ -1878,8 +1879,10 @@ static void rk_fb_update_reg(struct rk_lcdc_driver *dev_drv,
 		} else {
 			win->z_order = -1;
 			win->state = 0;
-			for (j = 0; j < 4; j++)
+			for (j = 0; j < 4; j++) {
 				win->area[j].state = 0;
+				win->area[j].fbdc_en = 0;
+			}
 			if (dev_drv->iommu_enabled) {
 				for (j = 0; j < 4; j++) {
 					g_now_config_addr[i][j] = 0;
