@@ -1163,6 +1163,7 @@ static int rk_iommu_remove(struct platform_device *pdev)
 #ifdef CONFIG_OF
 static const struct of_device_id rk_iommu_dt_ids[] = {
 	{ .compatible = "rockchip,iommu" },
+	{ .compatible = "rockchip,vpu_mmu" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, rk_iommu_dt_ids);

@@ -851,7 +851,7 @@
 	};
 
 	vpu_mmu: iommu@ff9a0800 {
-		compatible = "rockchip,iommu";
+		compatible = "rockchip,vpu_mmu";
 		reg = <0xff9a0800 0x100>;
 		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "vpu_mmu";
