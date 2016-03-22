@@ -1295,20 +1295,6 @@ static int rk32_mipi_dsi_get_id(void *arg)
 	return id;
 }
 
-/* the most top level of mipi dsi init */
-static int rk_mipi_dsi_probe(struct dsi *dsi)
-{
-	int ret = 0;
-
-	register_dsi_ops(dsi->dsi_id, &dsi->ops);
-	ret = dsi_probe_current_chip(dsi->dsi_id);
-	if (ret) {
-		MIPI_TRACE("mipi dsi probe fail\n");
-		return -ENODEV;
-	}
-	return 0;
-}
-
 #ifdef MIPI_DSI_REGISTER_IO
 #include <linux/proc_fs.h>
 #include <asm/uaccess.h>
@@ -1882,12 +1868,7 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 	sprintf(ops->name, "rk_mipi_dsi.%d", dsi->dsi_id);
 	platform_set_drvdata(pdev, dsi);
 
-	ret = rk_mipi_dsi_probe(dsi);
-	if (ret) {
-		dev_err(&pdev->dev, "rk mipi_dsi probe fail!\n");
-		dev_err(&pdev->dev, "%s\n", RK_MIPI_DSI_VERSION_AND_TIME);
-		return -1;
-	}
+	register_dsi_ops(dsi->dsi_id, &dsi->ops);
 
 	if (id == 1) {
 		/*
