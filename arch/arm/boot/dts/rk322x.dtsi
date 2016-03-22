@@ -748,7 +748,7 @@
 		rockchip,cabc_mode = <0>;
 		rockchip,pwr18 = <0>;
 		rockchip,iommu-enabled = <1>;
-		reg = <0x20050000 0x300>;
+		reg = <0x20050000 0x2000>;
 		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates13 5>,
 			 <&dclk_vop0>,
