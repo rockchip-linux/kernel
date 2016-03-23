@@ -53,7 +53,7 @@ static const uint32_t csc_y2r_bt601_limit[12] = {
 	0x04a8, 0x0812,       0, 0xfffbaeac,
 };
 
-static const uint32_t csc_y2r_bt709_full[12] = {
+static const uint32_t csc_y2r_bt709_limit[12] = {
 	0x04a8,      0,  0x072c, 0xfffc219e,
 	0x04a8, 0xff26,  0xfdde, 0x0001357b,
 	0x04a8, 0x0873,       0, 0xfffb7dee,
@@ -71,7 +71,7 @@ static const uint32_t csc_y2r_bt601_limit_10[12] = {
 	0x04a8, 0x0812,       0, 0xffeeb4b0,
 };
 
-static const uint32_t csc_y2r_bt709_full_10[12] = {
+static const uint32_t csc_y2r_bt709_limit_10[12] = {
 	0x04a8,      0,  0x072c, 0xfff08077,
 	0x04a8, 0xff26,  0xfdde, 0x0004cfed,
 	0x04a8, 0x0873,       0, 0xffedf1b8,
@@ -95,7 +95,7 @@ static const uint32_t csc_r2y_bt601_limit[12] = {
 	0x01c2, 0xfe87, 0xffb7, 0x20200,
 };
 
-static const uint32_t csc_r2y_bt709_full[12] = {
+static const uint32_t csc_r2y_bt709_limit[12] = {
 	0x00bb, 0x0275, 0x003f, 0x04200,
 	0xff99, 0xfea5, 0x01c2, 0x20200,
 	0x01c2, 0xfe68, 0xffd7, 0x20200,
@@ -113,7 +113,7 @@ static const uint32_t csc_r2y_bt601_limit_10[12] = {
 	0x01c2, 0xfe87, 0xffb7, 0x80200,
 };
 
-static const uint32_t csc_r2y_bt709_full_10[12] = {
+static const uint32_t csc_r2y_bt709_limit_10[12] = {
 	0x00bb, 0x0275, 0x003f, 0x10200,
 	0xff99, 0xfea5, 0x01c2, 0x80200,
 	0x01c2, 0xfe68, 0xffd7, 0x80200,
@@ -577,7 +577,7 @@ static void vop_post_csc_cfg(struct rk_lcdc_driver *dev_drv)
 		win_csc = COLOR_RGB;
 		val |= V_YUV2YUV_POST_Y2R_EN(1);
 		vop_load_csc_table(vop_dev, POST_YUV2YUV_Y2R_COE,
-				   csc_y2r_bt709_full);
+				   csc_y2r_bt709_limit_10);
 	}
 	if (win_csc == COLOR_YCBCR_BT2020 &&
 	    output_color != COLOR_YCBCR_BT2020) {
@@ -613,11 +613,17 @@ static void vop_post_csc_cfg(struct rk_lcdc_driver *dev_drv)
 					   csc_r2y_bt2020);
 		else
 			vop_load_csc_table(vop_dev, POST_YUV2YUV_R2Y_COE,
-					   csc_r2y_bt709_full);
+					   csc_r2y_bt709_limit_10);
 	}
 
 	DBG(1, "win_csc=%d output_color=%d val=%llx overlay_mode=%d\n",
 	    win_csc, output_color, val, overlay_mode);
+	if (overlay_mode == VOP_YUV_DOMAIN) {
+		vop_msk_reg(vop_dev, DSP_BG,
+			    V_DSP_BG_BLUE(0x200) |
+			    V_DSP_BG_GREEN(0x40) |
+			    V_DSP_BG_RED(0x200));
+	}
 	vop_msk_reg(vop_dev, SYS_CTRL, V_OVERLAY_MODE(overlay_mode));
 	vop_msk_reg(vop_dev, YUV2YUV_POST, val);
 }
