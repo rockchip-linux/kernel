@@ -313,19 +313,6 @@ static int rk816_bat_set_bits(struct rk816_battery *di, u8 reg, u8 mask, u8 val)
 	return ret;
 }
 
-static int rk816_bat_clr_bits(struct rk816_battery *di, u8 reg, u8 mask)
-{
-	int ret;
-
-	ret = rk816_clear_bits(di->rk816, reg, mask);
-	if (ret < 0) {
-		di->dbg_i2c_wr_err++;
-		dev_err(di->dev, "clr reg:0x%02x failed\n", reg);
-	}
-
-	return ret;
-}
-
 static void rk816_bat_dump_regs(struct rk816_battery *di, u8 start, u8 end)
 {
 	int i;
@@ -1251,7 +1238,8 @@ static void rk816_bat_set_otg_state(struct rk816_battery *di, int state)
 				   OTG_EN_ON_MASK, OTG_EN_ON_MASK);
 		break;
 	case USB_OTG_POWER_OFF:
-		rk816_bat_clr_bits(di, RK816_DCDC_EN_REG2, OTG_EN_OFF_MASK);
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
+				   OTG_EN_ON_MASK, OTG_EN_OFF_MASK);
 		break;
 	default:
 		break;

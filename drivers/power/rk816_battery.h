@@ -126,8 +126,8 @@
 #define CHRG_TERM_DIG_SIGNAL	(1 << 5)
 #define CHRG_TIMER_CCCV_EN	(1 << 2)
 
-#define OTG_EN_ON_MASK		((1 << 6) | (1 << 2))
-#define OTG_EN_OFF_MASK		((1 << 6) | (0 << 2))
+#define OTG_EN_ON_MASK		((0x3 << 5) | (0x3 << 1))
+#define OTG_EN_OFF_MASK		((0x3 << 5) | (0x0 << 1))
 #define CHRG_EN			(1 << 7)
 
 #define CHRG_VOL_SEL_SHIFT	4
