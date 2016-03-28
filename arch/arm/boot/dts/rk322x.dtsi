@@ -183,7 +183,8 @@
 					lkg_adjust_volt_table = <
 						/*lkg(mA)  volt(uV)*/
 						10	   50000
-						60         100000
+						20	   100000
+						60         150000
 						>;
 				};
 			};
@@ -205,7 +206,7 @@
 					min_adjust_freq = <800000>;
 					lkg_adjust_volt_table = <
 						/*lkg(mA)  volt(uV)*/
-						60         50000
+						60         100000
 						>;
 					status = "disabled";
 				};
