@@ -77,6 +77,8 @@ struct display_timing {
 	enum display_flags flags;		/* display flags */
 #if defined(CONFIG_FB_ROCKCHIP) || defined(CONFIG_DRM_ROCKCHIP)
 	u16 screen_type;			/*screen type*/
+	u16 screen_widt;			/* screen physical size */
+	u16 screen_hight;
 	u16 lvds_format;			/*lvds data format for lvds screen*/
 	u16 face;				/*display output  interface format:24bit 18bit 16bit*/
 	u16 color_mode;				/* input color mode: RGB or YUV */
