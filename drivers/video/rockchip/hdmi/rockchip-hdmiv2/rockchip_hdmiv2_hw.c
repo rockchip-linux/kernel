@@ -1951,8 +1951,6 @@ static int hdmi_dev_control_output(struct hdmi *hdmi, int enable)
 				     v_FC_SET_AVMUTE(0) | v_FC_CLR_AVMUTE(1));
 	} else {
 		if (enable & HDMI_VIDEO_MUTE) {
-			hdmi_msk_reg(hdmi_dev, FC_DBGFORCE,
-				     m_FC_FORCEVIDEO, v_FC_FORCEVIDEO(1));
 			if (hdmi->edid.sink_hdmi == OUTPUT_HDMI) {
 				hdmi_msk_reg(hdmi_dev, FC_GCP,
 					     m_FC_SET_AVMUTE |
