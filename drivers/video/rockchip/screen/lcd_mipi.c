@@ -444,7 +444,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
 				return -EINVAL;
 			}
 
-			if (length > CMD_LEN_MAX) {
+			if ((length / sizeof(u32)) > CMD_LEN_MAX) {
 				/* the length can not longer than the cmds arrary in struct dcs_cmds */
 				MIPI_SCREEN_DBG("error: the dcs cmd length is %d, but the max length supported is %d\n",
 					length, CMD_LEN_MAX);
