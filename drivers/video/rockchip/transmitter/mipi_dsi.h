@@ -112,32 +112,33 @@ typedef unsigned long u64;
 
 //iomux
 #define OLD_RK_IOMUX 0
+#define CMD_LEN_MAX 0x100
 
 struct spi_t {
 	u32 cs;
-#if OLD_RK_IOMUX	
+#if OLD_RK_IOMUX
 	char* cs_mux_name;
-#endif	
+#endif
 	int sck;
-#if OLD_RK_IOMUX	
+#if OLD_RK_IOMUX
 	char* sck_mux_name;
-#endif	
+#endif
 	int miso;
-#if OLD_RK_IOMUX	
+#if OLD_RK_IOMUX
 	char* miso_mux_name;
-#endif	
+#endif
 	int mosi;
-#if OLD_RK_IOMUX	
+#if OLD_RK_IOMUX
 	char* mosi_mux_name;
-#endif	
+#endif
 };
 
 struct power_t {
 	int	enable_pin;    //gpio that control power
-#if OLD_RK_IOMUX	
+#if OLD_RK_IOMUX
 	char* mux_name;
 	u32 mux_mode;
-#endif	
+#endif
 	u32 effect_value;
 	
 	char *name;
@@ -148,10 +149,10 @@ struct power_t {
 
 struct reset_t {
 	int	reset_pin;    //gpio that control reset
-#if OLD_RK_IOMUX	
+#if OLD_RK_IOMUX
 	char* mux_name;
 	u32 mux_mode;
-#endif	
+#endif
 	u32 effect_value;
 	
 	u32 time_before_reset;    //ms
@@ -213,7 +214,7 @@ struct mipi_dsi_screen {
 	u16 type;
 	u16 face;
 	u8 lcdc_id;    
-	u8 screen_id; 
+	u8 screen_id;
 
 	/* Timing */
 	u32 pixclock;
@@ -252,11 +253,11 @@ struct mipi_dsi_screen {
 struct dcs_cmd {
 	u8 type;
 	u8 dtype;
-    u8 dsi_id;
-    u8 cmd_len;
-	int cmds[32];
+	u8 dsi_id;
+	u8 cmd_len;
+	int *cmds;
 	int delay;
-    char name[32];
+	char name[32];
 };
 
 struct mipi_dcs_cmd_ctr_list {
@@ -266,19 +267,18 @@ struct mipi_dcs_cmd_ctr_list {
 
 struct mipi_screen
 {
-    u8 screen_init; 
-    u8 mipi_dsi_num;
-    u8 lcd_rst_atv_val;
-    u8 lcd_en_atv_val;
-    u8 dsi_lane;
-    
-    u32 hs_tx_clk;
-    u32 lcd_en_gpio;
-    u32 lcd_en_delay;
-    u32 lcd_rst_gpio;
-    u32 lcd_rst_delay;
+	u8 screen_init;
+	u8 mipi_dsi_num;
+	u8 lcd_rst_atv_val;
+	u8 lcd_en_atv_val;
+	u8 dsi_lane;
 
-    struct list_head cmdlist_head;
+	u32 hs_tx_clk;
+	u32 lcd_en_gpio;
+	u32 lcd_en_delay;
+	u32 lcd_rst_gpio;
+	u32 lcd_rst_delay;
+	struct list_head cmdlist_head;
 };
 
 int register_dsi_ops(unsigned int id, struct mipi_dsi_ops *ops);
