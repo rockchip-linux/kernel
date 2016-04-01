@@ -522,6 +522,8 @@ static int enter_state(suspend_state_t state)
 	return error;
 }
 
+bool pm_in_action;
+
 /**
  * pm_suspend - Externally visible function for suspending the system.
  * @state: System sleep state to enter.
@@ -536,6 +538,8 @@ int pm_suspend(suspend_state_t state)
 	if (state <= PM_SUSPEND_ON || state >= PM_SUSPEND_MAX)
 		return -EINVAL;
 
+	pm_in_action = true;
+
 	error = enter_state(state);
 	if (error) {
 		suspend_stats.fail++;
@@ -543,6 +547,7 @@ int pm_suspend(suspend_state_t state)
 	} else {
 		suspend_stats.success++;
 	}
+	pm_in_action = false;
 	return error;
 }
 EXPORT_SYMBOL(pm_suspend);
