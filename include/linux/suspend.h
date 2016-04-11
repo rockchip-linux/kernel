@@ -194,6 +194,12 @@ struct platform_freeze_ops {
 	void (*end)(void);
 };
 
+#if defined(CONFIG_SUSPEND) || defined(CONFIG_HIBERNATION)
+extern bool pm_in_action;
+#else
+# define pm_in_action false
+#endif
+
 #ifdef CONFIG_SUSPEND
 /**
  * suspend_set_ops - set platform dependent suspend operations

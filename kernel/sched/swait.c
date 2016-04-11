@@ -1,5 +1,6 @@
 #include <linux/sched.h>
 #include <linux/swait.h>
+#include <linux/suspend.h>
 
 void __init_swait_queue_head(struct swait_queue_head *q, const char *name,
 			     struct lock_class_key *key)
@@ -42,7 +43,9 @@ void swake_up_all_locked(struct swait_queue_head *q)
 		list_del_init(&curr->task_list);
 		wakes++;
 	}
-	WARN_ON(wakes > 2);
+	if (pm_in_action)
+		return;
+	WARN(wakes > 2, "complate_all() with %d waiters\n", wakes);
 }
 EXPORT_SYMBOL(swake_up_all_locked);
 
