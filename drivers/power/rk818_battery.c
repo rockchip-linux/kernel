@@ -2588,7 +2588,7 @@ static void rk81x_bat_emulator_dischrg(struct rk81x_battery *di)
 	if  (sec_unit > soc_time) {
 		di->dsoc--;
 		di->dischrg_emu_base = get_runtime_sec();
-		di->dischrg_save_sec = 0;
+		di->dischrg_save_sec = sec_unit % soc_time;
 	}
 
 	DBG("<%s> soc_time=%d, sec_unit=%lu\n",
@@ -2624,7 +2624,7 @@ static void rk81x_bat_emulator_chrg(struct rk81x_battery *di)
 	if  (chrg_emu_sec > soc_time) {
 		di->dsoc += plus_soc;
 		di->chrg_emu_base = get_runtime_sec();
-		di->chrg_save_sec = 0;
+		di->chrg_save_sec = chrg_emu_sec % soc_time;
 	}
 
 	DBG("<%s>. soc_time=%d, chrg_emu_sec=%lu, plus_soc=%d\n",
@@ -2653,7 +2653,7 @@ static void rk81x_bat_terminal_chrg(struct rk81x_battery *di)
 	if  (chrg_term_sec > soc_time) {
 		di->dsoc += plus_soc;
 		di->chrg_term_base = get_runtime_sec();
-		di->chrg_save_sec = 0;
+		di->chrg_save_sec = chrg_term_sec % soc_time;
 	}
 	DBG("<%s>. soc_time=%d, chrg_term_sec=%lu, plus_soc=%d\n",
 	    __func__, soc_time, chrg_term_sec, plus_soc);
@@ -2686,7 +2686,8 @@ static void rk81x_bat_normal_dischrg(struct rk81x_battery *di)
 		if (dischrg_normal_sec > soc_time * 3 / 2) {
 			di->dsoc--;
 			di->dischrg_normal_base = get_runtime_sec();
-			di->dischrg_save_sec = 0;
+			di->dischrg_save_sec = dischrg_normal_sec %
+							(soc_time * 3 / 2);
 		}
 		di->discharge_smooth_status = true;
 
@@ -2695,7 +2696,8 @@ static void rk81x_bat_normal_dischrg(struct rk81x_battery *di)
 		if (dischrg_normal_sec > soc_time * 3 / 4) {
 			di->dsoc--;
 			di->dischrg_normal_base = get_runtime_sec();
-			di->dischrg_save_sec = 0;
+			di->dischrg_save_sec = dischrg_normal_sec %
+							(soc_time * 3 / 4);
 		}
 		di->discharge_smooth_status = true;
 
@@ -2965,7 +2967,7 @@ static void rk81x_bat_finish_chrg(struct rk81x_battery *di)
 		if (sec_finish > soc_time) {
 			di->dsoc += plus_soc;
 			di->chrg_finish_base = get_runtime_sec();
-			di->chrg_save_sec = 0;
+			di->chrg_save_sec = sec_finish % soc_time;
 		}
 		DBG("<%s>,CHARGE_FINISH:dsoc<100,dsoc=%d\n"
 		    "soc_time=%d, sec_finish=%lu, plus_soc=%d\n",
@@ -3010,7 +3012,7 @@ static void rk81x_bat_normal_chrg(struct rk81x_battery *di)
 		if  (chrg_normal_sec > unit_sec) {
 			di->dsoc += plus_soc;
 			di->chrg_normal_base = get_runtime_sec();
-			di->chrg_save_sec = 0;
+			di->chrg_save_sec = chrg_normal_sec % unit_sec;
 		}
 		di->charge_smooth_status = true;
 	} else if (di->rsoc > di->dsoc + 1) {
@@ -3020,7 +3022,7 @@ static void rk81x_bat_normal_chrg(struct rk81x_battery *di)
 		if  (chrg_normal_sec > unit_sec) {
 			di->dsoc += plus_soc;
 			di->chrg_normal_base = get_runtime_sec();
-			di->chrg_save_sec = 0;
+			di->chrg_save_sec = chrg_normal_sec % unit_sec;
 		}
 		di->charge_smooth_status = true;
 	} else if (di->rsoc == di->dsoc + 1) {
