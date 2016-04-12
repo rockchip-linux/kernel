@@ -121,6 +121,7 @@ module_param_named(dbg_level, dbg_enable, int, 0644);
 #define TEST_PRESET		1
 #define TEST_AC_ONLINE		1
 #define TEST_USB_ONLINE		0
+#define TEST_TEMP		220
 
 #define ZERO_ALGOR_THRESD	3800
 #define DISCHRG_ZERO_MODE	1
@@ -208,7 +209,7 @@ struct rk81x_battery {
 	int				psy_status;
 	int				current_avg;
 	int				current_offset;
-
+	int				temperature;
 	uint16_t			voltage;
 	uint16_t			voltage_ocv;
 	uint16_t			relax_voltage;
@@ -1066,6 +1067,54 @@ static int rk81x_bat_get_raw_adc_current(struct rk81x_battery *di)
 	return val;
 }
 
+/*get ntc resistance*/
+static int rk81x_bat_get_ntc_res(struct rk81x_battery *di)
+{
+	u8 buf;
+	int ret, val;
+
+	ret = rk81x_bat_read(di, TS1_ADC_REGL, &buf, 1);
+	if (ret < 0) {
+		dev_err(di->dev, "error reading TS1_ADC_REGL");
+		return ret;
+	}
+
+	val = buf;
+	ret = rk81x_bat_read(di, TS1_ADC_REGH, &buf, 1);
+	if (ret < 0) {
+		dev_err(di->dev, "error reading TS1_ADC_REGH");
+		return ret;
+	}
+
+	val |= buf << 8;
+	val = val * 7; /*reference voltage 2.2V,current 80ua*/
+	DBG("<%s>. ntc_res=%d\n", __func__, val);
+
+	return val;
+}
+
+static void rk81x_bat_update_temp(struct rk81x_battery *di)
+{
+	u32 ntc_size, *ntc_table;
+	int i, res;
+
+	ntc_table = di->pdata->battery_ntc;
+	ntc_size = di->pdata->ntc_size;
+
+	if (ntc_size) {
+		res = rk81x_bat_get_ntc_res(di);
+		if (res < 0)
+			return;
+		for (i = 0; i < ntc_size; i++) {
+			if (res > ntc_table[i])
+				break;
+		}
+		di->temperature = (i + di->pdata->ntc_temp_min) * 10;
+	} else {
+		di->temperature = TEST_TEMP;
+	}
+}
+
 static void rk81x_bat_ioffset_sample_set(struct rk81x_battery *di, int time)
 {
 	u8 ggcon;
@@ -1410,6 +1459,7 @@ static enum power_supply_property rk_battery_props[] = {
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_CAPACITY,
+	POWER_SUPPLY_PROP_TEMP,
 };
 
 static int rk81x_battery_get_property(struct power_supply *psy,
@@ -1451,6 +1501,11 @@ static int rk81x_battery_get_property(struct power_supply *psy,
 		if (di->fg_drv_mode == TEST_POWER_MODE)
 			val->intval = TEST_STATUS;
 
+		break;
+	case POWER_SUPPLY_PROP_TEMP:
+		val->intval = di->temperature;
+		if (di->fg_drv_mode == TEST_POWER_MODE)
+			val->intval = TEST_TEMP;
 		break;
 	default:
 		return -EINVAL;
@@ -2854,7 +2909,7 @@ static void rk81x_bat_dbg_dmp_info(struct rk81x_battery *di)
 	   );
 
 	DBG("#######################################################\n"
-	    "voltage = %d, current-avg = %d\n"
+	    "voltage = %d, current-avg = %d, temperature = %d\n"
 	    "fcc = %d, remain_capacity = %d, ocv_volt = %d\n"
 	    "check_ocv = %d, check_soc = %d, bat_res = %d\n"
 	    "display_soc = %d, cpapacity_soc = %d\n"
@@ -2865,7 +2920,7 @@ static void rk81x_bat_dbg_dmp_info(struct rk81x_battery *di)
 	    "emu_dischrg = %lu, power_on_sec = %lu\n"
 	    "mode:%d, save_chrg_sec = %lu, save_dischrg_sec = %lu\n"
 	    "#########################################################\n",
-	    di->voltage, di->current_avg,
+	    di->voltage, di->current_avg, di->temperature,
 	    di->fcc, di->remain_capacity, di->voltage_ocv,
 	    di->est_ocv_vol, di->est_ocv_soc, di->bat_res,
 	    di->dsoc, di->rsoc,
@@ -3702,6 +3757,7 @@ static void rk81x_battery_work(struct work_struct *work)
 	rk81x_bat_display_smooth(di);
 	rk81x_bat_update_time(di);
 	rk81x_bat_update_info(di);
+	rk81x_bat_update_temp(di);
 	rk81x_bat_rsoc_check(di);
 	rk81x_bat_power_supply_changed(di);
 	rk81x_bat_save_dsoc(di, di->dsoc);
@@ -4091,6 +4147,36 @@ static int rk81x_bat_parse_dt(struct rk81x_battery *di)
 	if (ret < 0)
 		return ret;
 
+	prop = of_find_property(np, "ntc_table", &length);
+	if (!prop) {
+		pdata->ntc_size = 0;
+	} else {
+		ret = of_property_read_u32_index(np, "ntc_temp_min", 1,
+						 &pdata->ntc_temp_min);
+		if (ret) {
+			dev_err(dev, "invalid ntc_temp_range min\n");
+			return -EINVAL;
+		}
+
+		of_property_read_u32_index(np, "ntc_temp_min", 0, &out_value);
+		if (!out_value)
+			pdata->ntc_temp_min = -pdata->ntc_temp_min;
+
+		pdata->ntc_size = length / sizeof(u32);
+	}
+
+	if (pdata->ntc_size) {
+		size = sizeof(*pdata->battery_ntc) * pdata->ntc_size;
+		pdata->battery_ntc = devm_kzalloc(rk818->dev, size, GFP_KERNEL);
+		if (!pdata->battery_ntc)
+			return -ENOMEM;
+		ret = of_property_read_u32_array(np, "ntc_table",
+						 pdata->battery_ntc,
+						 pdata->ntc_size);
+		if (ret < 0)
+			return ret;
+	}
+
 	/******************** charger param  ****************************/
 	ret = of_property_read_u32(np, "max_chrg_currentmA", &out_value);
 	if (ret < 0) {
@@ -4187,13 +4273,16 @@ static int rk81x_bat_parse_dt(struct rk81x_battery *di)
 	    "sleep_exit_current:%d\n"
 	    "support_usb_adp:%d\n"
 	    "support_dc_adp:%d\n"
-	    "power_off_thresd:%d\n",
+	    "power_off_thresd:%d\n"
+	    "ntc_temp_min:%d\n"
+	    "ntc_size=%d\n",
 	    pdata->sense_resistor_mohm, pdata->max_charger_ilimitmA,
 	    pdata->max_charger_currentmA, pdata->max_charger_voltagemV,
 	    cell_cfg->design_capacity, cell_cfg->design_qmax,
 	    cell_cfg->ocv->sleep_enter_current,
 	    cell_cfg->ocv->sleep_exit_current,
-	    support_usb_adp, support_dc_adp, pdata->power_off_thresd);
+	    support_usb_adp, support_dc_adp, pdata->power_off_thresd,
+	    pdata->ntc_temp_min, pdata->ntc_size);
 
 	return 0;
 }

@@ -615,6 +615,9 @@ struct battery_platform_data {
 	u32 *battery_ocv;
 	unsigned int  ocv_size;
 
+	u32 *battery_ntc;
+	int ntc_size;
+	int ntc_temp_min;
 	unsigned int monitoring_interval;
 	unsigned int max_charger_ilimitmA;
 	unsigned int max_charger_currentmA;
