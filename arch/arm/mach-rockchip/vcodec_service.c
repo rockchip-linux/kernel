@@ -79,6 +79,7 @@
 #define DEBUG_EXTRA_INFO			0x00000080
 #define DEBUG_TIMING				0x00000100
 #define DEBUG_TASK_INFO				0x00000200
+#define DEBUG_DUMP_ERR_REG			0x00000400
 
 #define DEBUG_SET_REG				0x00001000
 #define DEBUG_GET_REG				0x00002000
@@ -721,6 +722,16 @@ static void vpu_service_session_clear(struct vpu_subdev_data *data,
 	}
 }
 
+static void dump_reg(u32 *regs, int count)
+{
+	int i;
+
+	pr_info("dumping vpu_device registers:");
+
+	for (i = 0; i < count; i++)
+		pr_info("reg[%02d]: %08x\n", i, readl_relaxed(regs + i));
+}
+
 static void vpu_service_dump(struct vpu_service_info *pservice)
 {
 }
@@ -1275,11 +1286,10 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 	}
 
 	if (0 > vcodec_reg_address_translate(data, reg)) {
-		int i = 0;
+		vpu_err("error: translate reg address failed.\n");
 
-		vpu_err("error: translate reg address failed, dumping regs\n");
-		for (i = 0; i < size >> 2; i++)
-			pr_err("reg[%02d]: %08x\n", i, *((u32 *)src + i));
+		if (unlikely(debug & DEBUG_DUMP_ERR_REG))
+			dump_reg((u32 *)src, size >> 2);
 
 		kfree(reg);
 		return NULL;
@@ -1343,9 +1353,12 @@ static void reg_copy_from_hw(struct vpu_reg *reg, u32 *src, u32 count)
 	for (i = 0; i < count; i++, src++)
 		*dst++ = readl_relaxed(src);
 
-	dst = (u32 *)&reg->reg[0];
-	for (i = 0; i < count; i++)
-		vpu_debug(DEBUG_GET_REG, "get reg[%02d] %08x\n", i, dst[i]);
+	if (unlikely(debug & DEBUG_GET_REG)) {
+		dst = (u32 *)&reg->reg[0];
+
+		for (i = 0; i < count; i++)
+			pr_info("get reg[%02d] %08x\n", i, dst[i]);
+	}
 
 	vpu_debug_leave();
 }
@@ -2742,8 +2755,12 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 			} while ((dec_status & 0x40001) == 0x40001);
 		}
 
-		if (check_irq_err(task, dec_status))
+		if (check_irq_err(task, dec_status)) {
 			atomic_add(1, &pservice->reset_request);
+
+			if (unlikely(debug & DEBUG_DUMP_ERR_REG))
+				dump_reg(dev->regs, dev->iosize >> 2);
+		}
 
 		writel_relaxed(0, dev->regs + task->reg_irq);
 
@@ -2770,8 +2787,12 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 			vpu_debug(DEBUG_IRQ_STATUS, "vdpu_irq pp status %08x\n",
 				  pp_status);
 
-			if (check_irq_err(task, dec_status))
+			if (check_irq_err(task, dec_status)) {
 				atomic_add(1, &pservice->reset_request);
+
+				if (unlikely(debug & DEBUG_DUMP_ERR_REG))
+					dump_reg(dev->regs, dev->iosize >> 2);
+			}
 
 			/* clear pp IRQ */
 			writel_relaxed(pp_status & (~task->reg_irq),
@@ -2839,8 +2860,12 @@ static irqreturn_t vepu_irq(int irq, void *dev_id)
 	if (likely(irq_status & task->irq_mask)) {
 		time_record(task, 1);
 
-		if (check_irq_err(task, irq_status))
+		if (check_irq_err(task, irq_status)) {
 			atomic_add(1, &pservice->reset_request);
+
+			if (unlikely(debug & DEBUG_DUMP_ERR_REG))
+				dump_reg(dev->regs, dev->iosize >> 2);
+		}
 
 		/* clear enc IRQ */
 		writel_relaxed(irq_status & (~task->irq_mask),
