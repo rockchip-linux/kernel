@@ -683,6 +683,8 @@ static void stmmac_release_ptp(struct stmmac_priv *priv)
 	stmmac_ptp_unregister(priv);
 }
 
+static int g_bmcr = 0;
+
 /**
  * stmmac_adjust_link
  * @dev: net device structure
@@ -706,17 +708,22 @@ static void stmmac_adjust_link(struct net_device *dev)
 	spin_lock_irqsave(&priv->lock, flags);
 
 	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy) &&
-	    gpio_is_valid(bsp_priv->link_io)) {
-		if (phydev->link != priv->oldlink) {
-			if (phydev->link) {
+	    (phydev->link != priv->oldlink)) {
+		if (phydev->link) {
+			if (gpio_is_valid(bsp_priv->link_io))
 				/* link LED on */
 				gpio_direction_output(bsp_priv->link_io,
 						      bsp_priv->link_io_level);
-			} else {
+		} else {
+			if (priv->speed == 10) {
+				/* restore MII_BMCR */
+				phy_write(phydev, MII_BMCR, g_bmcr);
+			}
+
+			if (gpio_is_valid(bsp_priv->link_io))
 				/* link LED off */
 				gpio_direction_output(bsp_priv->link_io,
 						      !bsp_priv->link_io_level);
-			}
 		}
 	}
 
@@ -759,6 +766,27 @@ static void stmmac_adjust_link(struct net_device *dev)
 					ctrl &= ~priv->hw->link.port;
 				}
 				stmmac_hw_fix_mac_speed(priv);
+
+				if ((bsp_priv->chip == RK322X_GMAC) &&
+				    (bsp_priv->internal_phy) &&
+				    (phydev->speed == 10)) {
+					int an_expan;
+
+					an_expan = phy_read(phydev,
+							    MII_EXPANSION);
+					/* link partner does not have */
+					/* auto-negotiation ability, setting */
+					/* PHY to 10M full-duplex by force */
+					if (!(an_expan & 0x1) &&
+					    (phydev->speed == 10)) {
+						g_bmcr = phy_read(phydev,
+								  MII_BMCR);
+						pr_info("10BT-no auto-neg\n");
+						phy_write(phydev, MII_BMCR,
+							  0x100);
+					}
+				}
+
 				break;
 			default:
 				if (netif_msg_link(priv))
