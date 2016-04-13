@@ -95,7 +95,7 @@ static int rk816_disable(struct regulator_dev *dev)
 	u16 enable_val, enable_mask;
 
 	enable_mask = dev->desc->enable_mask | (dev->desc->enable_mask << 4);
-	enable_val = (~dev->desc->enable_mask) | (dev->desc->enable_mask << 4);
+	enable_val = dev->desc->enable_mask << 4;
 
 	return rk816_set_bits(rk816, dev->desc->enable_reg,
 			      enable_mask, enable_val);
