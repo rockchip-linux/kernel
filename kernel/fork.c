@@ -1379,8 +1379,7 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	prev_cputime_init(&p->prev_cputime);
 
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
-	raw_spin_lock_init(&p->vtime_lock);
-	seqcount_init(&p->vtime_seq);
+	seqlock_init(&p->vtime_seqlock);
 	p->vtime_snap = 0;
 	p->vtime_snap_whence = VTIME_SLEEPING;
 #endif
