@@ -416,8 +416,8 @@
 	/* rmii_pins, rgmii_pins, phy_pins */
 	pinctrl-0 = <&phy_pins>;
 	clock_in_out = "output";
-	tx_delay = <0x30>;
-	rx_delay = <0x10>;
+	tx_delay = <0x26>;
+	rx_delay = <0x11>;
 	/* internal or external */
 	phy-type = "internal";
 };
