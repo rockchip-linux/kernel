@@ -22,6 +22,7 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include "../../hdmi/rockchip-hdmiv2/rockchip_hdmiv2.h"
+#include "../../../arch/arm/mach-rockchip/efuse.h"
 #include "rk3036_tve.h"
 
 
@@ -50,6 +51,8 @@ static int cvbsformat = -1;
 #else
 #define TVEDBG(format, ...)
 #endif
+
+#define RK322X_VDAC_STANDARD 0x15
 
 static void dac_enable(bool enable)
 {
@@ -388,10 +391,11 @@ static int __init bootloader_tve_setup(char *str)
 early_param("tve.format", bootloader_tve_setup);
 
 static int rk3036_tve_parse_dt(struct device_node *np,
-			struct rk3036_tve *rk3036_tve)
+			       struct rk3036_tve *rk3036_tve)
 {
 	int ret;
 	u32 val;
+	int getdac;
 
 	if (rk3036_tve->soctype == SOC_RK312X) {
 		ret = of_property_read_u32(np, "test_mode", &val);
@@ -438,10 +442,23 @@ static int rk3036_tve_parse_dt(struct device_node *np,
 		rk3036_tve->lumafilter2 = val;
 
 	ret = of_property_read_u32(np, "daclevel", &val);
-	if ((val == 0) || (ret < 0))
+	if ((val == 0) || (ret < 0)) {
 		return -1;
-	else
+	} else {
 		rk3036_tve->daclevel = val;
+		if (rk3036_tve->soctype == SOC_RK322X) {
+			getdac = rockchip_get_cvbs_adjust();
+			if (getdac > 0) {
+				rk3036_tve->daclevel =
+				getdac + 5 + val - RK322X_VDAC_STANDARD;
+				if (rk3036_tve->daclevel > 0x3f ||
+				    rk3036_tve->daclevel < 0) {
+					pr_err("rk322x daclevel error!\n");
+					rk3036_tve->daclevel = val;
+				}
+			}
+		}
+	}
 
 	return 0;
 }
