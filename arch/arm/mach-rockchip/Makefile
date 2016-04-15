@@ -7,6 +7,7 @@ obj-y += rk3188.o
 obj-y += rk3288.o
 obj-y += rk322x.o
 obj-$(CONFIG_ARM_PSCI) += psci.o
+obj-$(CONFIG_ARM_PSCI) += psci_ddr.o
 ifneq ($(CONFIG_ARM_TRUSTZONE),y)
 obj-y += ddr_freq.o
 endif
