@@ -345,6 +345,11 @@ int rockchip_get_leakage(int ch)
 	return 0;
 }
 
+int rockchip_get_cvbs_adjust(void)
+{
+	return efuse_buf[29] >> 3;
+}
+
 int rockchip_efuse_get_temp_adjust(int ch)
 {
 	int temp;
