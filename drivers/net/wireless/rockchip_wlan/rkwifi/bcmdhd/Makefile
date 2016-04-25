@@ -15,7 +15,7 @@ DHDCFLAGS = -Wall -Wstrict-prototypes -Dlinux -DBCMDRIVER -DSDTEST       \
 	-DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT -DSUPPORT_PM2_ONLY             \
 	-DKEEP_ALIVE -DPKT_FILTER_SUPPORT -DPNO_SUPPORT -DDHDTCPACK_SUPPRESS  \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT -DRXFRAME_THREAD          \
-	-DSET_RANDOM_MAC_SOFTAP                                               \
+	-DSWTXGLOM                                                            \
 	-DENABLE_INSMOD_NO_FW_LOAD                                            \
 	-Idrivers/net/wireless/rockchip_wlan/rkwifi/bcmdhd \
 	-Idrivers/net/wireless/rockchip_wlan/rkwifi/bcmdhd/include
@@ -66,17 +66,17 @@ DHDCFLAGS += -DCUSTOMER_HW -DDHD_OF_SUPPORT -DGET_CUSTOM_MAC_ENABLE
 
 ifeq ($(CONFIG_DHD_USE_STATIC_BUF),y)
 # add dhd_static_buf to kernel image build
-#obj-y += dhd_static_buf.o
+#DHDOFILES += dhd_static_buf.o
 DHDCFLAGS += -DSTATIC_WL_PRIV_STRUCT -DENHANCED_STATIC_BUF
 endif
 
 ifneq ($(CONFIG_WIRELESS_EXT),)
-bcmdhd-objs += wl_iw.o
+DHDOFILES += wl_iw.o
 DHDCFLAGS += -DSOFTAP -DWL_WIRELESS_EXT -DUSE_IW
 endif
 ifneq ($(CONFIG_CFG80211),)
-bcmdhd-objs += wl_cfg80211.o wl_cfgp2p.o wl_linux_mon.o wl_cfg_btcoex.o
-bcmdhd-objs += dhd_cfg80211.o dhd_cfg_vendor.o
+DHDOFILES += wl_cfg80211.o wl_cfgp2p.o wl_linux_mon.o wl_cfg_btcoex.o
+DHDOFILES += dhd_cfg80211.o dhd_cfg_vendor.o
 DHDCFLAGS += -DWL_CFG80211 -DWLP2P -DWL_CFG80211_STA_EVENT -DWL_ENABLE_P2P_IF
 DHDCFLAGS += -DWL_IFACE_COMB_NUM_CHANNELS
 DHDCFLAGS += -DCUSTOM_ROAM_TRIGGER_SETTING=-65

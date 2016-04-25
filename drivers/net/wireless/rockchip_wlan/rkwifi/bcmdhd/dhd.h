@@ -822,6 +822,27 @@ extern int wl_iw_send_priv_event(struct net_device *dev, char *flag);
 
 /* Watchdog timer interval */
 extern uint dhd_watchdog_ms;
+extern bool dhd_os_wd_timer_enabled(void *bus);
+
+#ifdef PKT_STATICS
+typedef struct pkt_statics {
+	uint16	event_count;
+	uint32	event_size;
+	uint16	ctrl_count;
+	uint32	ctrl_size;
+	uint32	data_count;
+	uint32	data_size;
+	uint16	glom_1_count;
+	uint16	glom_3_count;
+	uint16	glom_3_8_count;
+	uint16	glom_8_count;
+	uint16	glom_max;
+	uint16	glom_count;
+	uint32	glom_size;
+	uint16	test_count;
+	uint32	test_size;
+} pkt_statics_t;
+#endif
 
 #if defined(DHD_DEBUG)
 /* Console output poll interval */
@@ -835,16 +856,6 @@ extern uint iw_msg_level;
 #endif
 #ifdef WL_CFG80211
 extern uint wl_dbg_level;
-#endif
-
-#ifdef CUSTOMER_HW
-struct wifi_platform_data {
-	int (*set_power)(bool val);
-	int (*set_carddetect)(bool val);
-	void *(*mem_prealloc)(int section, unsigned long size);
-	int (*get_mac_addr)(unsigned char *buf);
-	void *(*get_country_code)(char *ccode);
-};
 #endif
 
 extern uint dhd_slpauto;

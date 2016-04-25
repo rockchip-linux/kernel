@@ -132,6 +132,11 @@ extern int bcmsdh_send_buf(void *sdh, uint32 addr, uint fn, uint flags,
 extern int bcmsdh_recv_buf(void *sdh, uint32 addr, uint fn, uint flags,
                            uint8 *buf, uint nbytes, void *pkt,
                            bcmsdh_cmplt_fn_t complete_fn, void *handle);
+#if defined(SWTXGLOM)
+extern int bcmsdh_send_swtxglom_buf(void *sdh, uint32 addr, uint fn, uint flags,
+                           uint8 *buf, uint nbytes, void *pkt,
+                           bcmsdh_cmplt_fn_t complete_fn, void *handle);
+#endif
 
 extern void bcmsdh_glom_post(void *sdh, uint8 *frame, void *pkt, uint len);
 extern void bcmsdh_glom_clear(void *sdh);

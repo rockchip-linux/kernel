@@ -2567,10 +2567,6 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			DHD_ERROR(("%s: == Power OFF ==\n", __FUNCTION__));
 			bus->dhd->up = FALSE;
 			if (bus->dhd->busstate != DHD_BUS_DOWN) {
-				if (bus->intr) {
-					dhdpcie_bus_intr_disable(bus);
-					dhdpcie_free_irq(bus);
-				}
 #ifdef BCMPCIE_OOB_HOST_WAKE
 				/* Clean up any pending host wake IRQ */
 				dhd_bus_oob_intr_set(bus->dhd, FALSE);
@@ -2578,6 +2574,10 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 #endif /* BCMPCIE_OOB_HOST_WAKE */
 				dhd_os_wd_timer(dhdp, 0);
 				dhd_bus_stop(bus, TRUE);
+				if (bus->intr) {
+					dhdpcie_bus_intr_disable(bus);
+					dhdpcie_free_irq(bus);
+				}
 				dhd_prot_clear(dhdp);
 				dhd_clear(dhdp);
 				dhd_bus_release_dongle(bus);

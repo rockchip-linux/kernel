@@ -1653,10 +1653,11 @@ _dhd_wlfc_mac_entry_update(athost_wl_status_info_t* ctx, wlfc_mac_descriptor_t* 
 
 #ifdef P2PONEINT
 		if ((action == eWLFC_MAC_ENTRY_ACTION_ADD) ||
-		   ((action == eWLFC_MAC_ENTRY_ACTION_UPDATE) && (entry->psq.num_prec == 0))) {
+		   ((action == eWLFC_MAC_ENTRY_ACTION_UPDATE) && (entry->psq.num_prec == 0)))
 #else
-		if (action == eWLFC_MAC_ENTRY_ACTION_ADD) {
+		if (action == eWLFC_MAC_ENTRY_ACTION_ADD)
 #endif
+		{
 			dhd_pub_t *dhdp = (dhd_pub_t *)(ctx->dhdp);
 			pktq_init(&entry->psq, WLFC_PSQ_PREC_COUNT, WLFC_PSQ_LEN);
 			if (WLFC_GET_AFQ(dhdp->wlfc_mode)) {

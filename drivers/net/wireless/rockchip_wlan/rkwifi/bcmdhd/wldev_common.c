@@ -352,7 +352,9 @@ int wldev_set_country(
 		cspec.rev = -1;
 		memcpy(cspec.country_abbrev, country_code, WLC_CNTRY_BUF_SZ);
 		memcpy(cspec.ccode, country_code, WLC_CNTRY_BUF_SZ);
-		dhd_get_customized_country_code(dev, (char *)&cspec.country_abbrev, &cspec);
+		error = dhd_conf_get_country_from_config(dhd_get_pub(dev), &cspec);
+		if (error)
+			dhd_get_customized_country_code(dev, (char *)&cspec.country_abbrev, &cspec);
 		error = wldev_iovar_setbuf(dev, "country", &cspec, sizeof(cspec),
 			smbuf, sizeof(smbuf), NULL);
 		if (error < 0) {
@@ -363,8 +365,8 @@ int wldev_set_country(
 		dhd_conf_fix_country(dhd_get_pub(dev));
 		dhd_conf_get_country(dhd_get_pub(dev), &cspec);
 		dhd_bus_country_set(dev, &cspec, notify);
-		WLDEV_ERROR(("%s: set country for %s as %s rev %d\n",
-			__FUNCTION__, country_code, cspec.ccode, cspec.rev));
+		printf("%s: set country for %s as %s rev %d\n",
+			__FUNCTION__, country_code, cspec.ccode, cspec.rev);
 	}
 	return 0;
 }

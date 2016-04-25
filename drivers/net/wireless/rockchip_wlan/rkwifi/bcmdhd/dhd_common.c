@@ -411,6 +411,10 @@ dhd_iovar_parse_bssidx(dhd_pub_t *dhd_pub, char *params, int *idx, char **val)
 	return BCME_OK;
 }
 
+#ifdef PKT_STATICS
+extern pkt_statics_t tx_statics;
+extern void dhdsdio_txpktstatics(void);
+#endif
 static int
 dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const char *name,
             void *params, int plen, void *arg, int len, int val_size)
@@ -431,6 +435,9 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 	case IOV_GVAL(IOV_VERSION):
 		/* Need to have checked buffer length */
 		bcm_strncpy_s((char*)arg, len, dhd_version, len);
+#ifdef PKT_STATICS
+		memset((uint8*) &tx_statics, 0, sizeof(pkt_statics_t));
+#endif
 		break;
 
 	case IOV_GVAL(IOV_WLMSGLEVEL):
@@ -445,6 +452,9 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		int_val = (int32)wl_dbg_level;
 		bcopy(&int_val, arg, val_size);
 		printf("cfg_msg_level=0x%x\n", wl_dbg_level);
+#endif
+#ifdef PKT_STATICS
+		dhdsdio_txpktstatics();
 #endif
 		break;
 

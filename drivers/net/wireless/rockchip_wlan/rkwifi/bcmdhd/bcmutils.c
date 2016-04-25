@@ -868,6 +868,23 @@ pktgetdscp(uint8 *pktdata, uint pktlen, uint8 *dscp)
 	return rc;
 }
 
+/* Add to adjust the 802.1x priority */
+void
+pktset8021xprio(void *pkt, int prio)
+{
+	struct ether_header *eh;
+	uint8 *pktdata;
+	if(prio == PKTPRIO(pkt))
+		return;
+	pktdata = (uint8 *)PKTDATA(OSH_NULL, pkt);
+	ASSERT(ISALIGNED((uintptr)pktdata, sizeof(uint16)));
+	eh = (struct ether_header *) pktdata;
+	if (eh->ether_type == hton16(ETHER_TYPE_802_1X)) {
+		ASSERT(prio >= 0 && prio <= MAXPRIO);
+		PKTSETPRIO(pkt, prio);
+	}
+}
+
 /* The 0.5KB string table is not removed by compiler even though it's unused */
 
 static char bcm_undeferrstr[32];

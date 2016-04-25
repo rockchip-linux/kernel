@@ -174,6 +174,8 @@ extern uint pktsegcnt(osl_t *osh, void *p);
 extern uint pktsegcnt_war(osl_t *osh, void *p);
 extern uint8 *pktdataoffset(osl_t *osh, void *p,  uint offset);
 extern void *pktoffset(osl_t *osh, void *p,  uint offset);
+/* Add to adjust 802.1x priority */
+extern void pktset8021xprio(void *pkt, int prio);
 
 /* Get priority from a packet and pass it back in scb (or equiv) */
 #define	PKTPRIO_VDSCP	0x100		/* DSCP prio found after VLAN tag */

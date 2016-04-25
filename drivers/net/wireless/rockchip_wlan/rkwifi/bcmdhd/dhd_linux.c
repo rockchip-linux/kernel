@@ -155,6 +155,11 @@ extern bool ap_fw_loaded;
 /* enable HOSTIP cache update from the host side when an eth0:N is up */
 #define AOE_IP_ALIAS_SUPPORT 1
 
+
+#define CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP 1
+
+
+
 #ifdef BCM_FD_AGGR
 #include <bcm_rpc.h>
 #include <bcm_rpc_tp.h>
@@ -209,7 +214,7 @@ volatile bool dhd_mmc_suspend = FALSE;
 DECLARE_WAIT_QUEUE_HEAD(dhd_dpc_wait);
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP) */
 
-#if defined(OOB_INTR_ONLY)
+#if defined(OOB_INTR_ONLY) || defined(FORCE_WOWLAN)
 extern void dhd_enable_oob_intr(struct dhd_bus *bus, bool enable);
 #endif 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (1)
@@ -2442,7 +2447,7 @@ dhd_tx_dump(osl_t *osh, void *pkt)
 	dump_data = PKTDATA(osh, pkt);
 	eh = (struct ether_header *) dump_data;
 	protocol = ntoh16(eh->ether_type);
-	
+
 	DHD_ERROR(("TX DUMP - %s\n", _get_packet_type_str(protocol)));
 
 	if (protocol == ETHER_TYPE_802_1X) {
@@ -2532,6 +2537,11 @@ dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pktbuf)
 #if defined(DHD_TX_DUMP)
 	dhd_tx_dump(dhdp->osh, pktbuf);
 #endif
+
+	/* terence 20150901: Micky add to ajust the 802.1X priority */
+	/* Set the 802.1X packet with the highest priority 7 */
+	if (dhdp->conf->pktprio8021x >= 0)
+		pktset8021xprio(pktbuf, dhdp->conf->pktprio8021x);
 
 #ifdef PROP_TXSTATUS
 	if (dhd_wlfc_is_supported(dhdp)) {
@@ -5299,6 +5309,9 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 	if (dhdinfo->conf_path[0] == '\0') {
 		dhd_conf_set_conf_path_by_nv_path(&dhdinfo->pub, dhdinfo->conf_path, dhdinfo->nv_path);
 	}
+#ifdef CONFIG_PATH_AUTO_SELECT
+	dhd_conf_set_conf_name_by_chip(&dhdinfo->pub, dhdinfo->conf_path);
+#endif
 #endif /* BCMEMBEDIMAGE */
 
 	return TRUE;
@@ -5378,6 +5391,9 @@ dhd_bus_start(dhd_pub_t *dhdp)
 	/* Enable oob at firmware */
 	dhd_enable_oob_intr(dhd->pub.bus, TRUE);
 #endif /* BCMPCIE_OOB_HOST_WAKE */
+#elif defined(FORCE_WOWLAN)
+	/* Enable oob at firmware */
+	dhd_enable_oob_intr(dhd->pub.bus, TRUE);
 #endif 
 #ifdef PCIE_FULL_DONGLE
 	{
@@ -6098,9 +6114,11 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	dhd->suspend_bcn_li_dtim = CUSTOM_SUSPEND_BCN_LI_DTIM;
 	DHD_TRACE(("Enter %s\n", __FUNCTION__));
 
-	dhd_conf_set_band(dhd);
+	dhd_conf_set_fw_int_cmd(dhd, "WLC_SET_BAND", WLC_SET_BAND, dhd->conf->band, 0, FALSE);
+#ifdef DHDTCPACK_SUPPRESS
 	printf("%s: Set tcpack_sup_mode %d\n", __FUNCTION__, dhd->conf->tcpack_sup_mode);
 	dhd_tcpack_suppress_set(dhd, dhd->conf->tcpack_sup_mode);
+#endif
 
 	dhd->op_mode = 0;
 	if ((!op_mode && dhd_get_fw_mode(dhd->info) == DHD_FLAG_MFG_MODE) ||
@@ -6161,7 +6179,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 #endif
 		dhd->op_mode = DHD_FLAG_HOSTAP_MODE;
 #if defined(ARP_OFFLOAD_SUPPORT)
-			arpoe = 0;
+		arpoe = 0;
 #endif
 #ifdef PKT_FILTER_SUPPORT
 			dhd_pkt_filter_enable = FALSE;
@@ -6327,7 +6345,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s Set lpc failed  %d\n", __FUNCTION__, ret));
 	}
 #endif /* DHD_ENABLE_LPC */
-	dhd_conf_set_lpc(dhd);
+	dhd_conf_set_fw_string_cmd(dhd, "lpc", dhd->conf->lpc, 0, FALSE);
 
 	/* Set PowerSave mode */
 	if (dhd->conf->pm >= 0)
@@ -6351,7 +6369,6 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 	}
 #endif /* defined(BCMSDIO) */
-	dhd_conf_set_bus_txglom(dhd);
 
 	/* Setup timeout if Beacons are lost and roam is off to report link down */
 	bcm_mkiovar("bcn_timeout", (char *)&bcn_timeout, 4, iovbuf, sizeof(iovbuf));
@@ -6366,12 +6383,15 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	bcm_mkiovar("apsta", (char *)&apsta, 4, iovbuf, sizeof(iovbuf));
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 #endif /* defined(AP) && !defined(WLP2P) */
-	dhd_conf_set_mimo_bw_cap(dhd);
-	dhd_conf_force_wme(dhd);
-	dhd_conf_set_stbc(dhd);
-	dhd_conf_set_srl(dhd);
-	dhd_conf_set_lrl(dhd);
-	dhd_conf_set_spect(dhd);
+	/*  0:HT20 in ALL, 1:HT40 in ALL, 2: HT20 in 2G HT40 in 5G */
+	dhd_conf_set_fw_string_cmd(dhd, "mimo_bw_cap", dhd->conf->mimo_bw_cap, 1, TRUE);
+	dhd_conf_set_fw_string_cmd(dhd, "force_wme_ac", dhd->conf->force_wme_ac, 1, FALSE);
+	dhd_conf_set_fw_string_cmd(dhd, "stbc_tx", dhd->conf->stbc, 0, FALSE);
+	dhd_conf_set_fw_string_cmd(dhd, "stbc_rx", dhd->conf->stbc, 0, FALSE);
+	dhd_conf_set_fw_int_cmd(dhd, "WLC_SET_SRL", WLC_SET_SRL, dhd->conf->srl, 0, TRUE);
+	dhd_conf_set_fw_int_cmd(dhd, "WLC_SET_LRL", WLC_SET_LRL, dhd->conf->lrl, 0, FALSE);
+	dhd_conf_set_fw_int_cmd(dhd, "WLC_SET_SPECT_MANAGMENT", WLC_SET_SPECT_MANAGMENT, dhd->conf->spect, 0, FALSE);
+	dhd_conf_set_fw_string_cmd(dhd, "rsdb_mode", dhd->conf->rsdb_mode, -1, TRUE);
 
 #if defined(SOFTAP)
 	if (ap_fw_loaded == TRUE) {
@@ -6403,7 +6423,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s Set txbf failed  %d\n", __FUNCTION__, ret));
 	}
 #endif /* USE_WL_TXBF */
-	dhd_conf_set_txbf(dhd);
+	dhd_conf_set_fw_string_cmd(dhd, "txbf", dhd->conf->txbf, 0, FALSE);
 #ifdef USE_WL_FRAMEBURST
 	/* Set frameburst to value */
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_FAKEFRAG, (char *)&frameburst,
@@ -6411,7 +6431,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s Set frameburst failed  %d\n", __FUNCTION__, ret));
 	}
 #endif /* USE_WL_FRAMEBURST */
-	dhd_conf_set_frameburst(dhd);
+	dhd_conf_set_fw_string_cmd(dhd, "frameburst", dhd->conf->frameburst, 0, FALSE);
 #ifdef DHD_SET_FW_HIGHSPEED
 	/* Set ack_ratio */
 	bcm_mkiovar("ack_ratio", (char *)&ack_ratio, 4, iovbuf, sizeof(iovbuf));
@@ -6446,7 +6466,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		}
 	}
 #endif /* CUSTOM_AMPDU_BA_WSIZE || (WLAIBSS && CUSTOM_IBSS_AMPDU_BA_WSIZE) */
-	dhd_conf_set_ampdu_ba_wsize(dhd);
+	dhd_conf_set_fw_string_cmd(dhd, "ampdu_ba_wsize", dhd->conf->ampdu_ba_wsize, 1, FALSE);
 
 	iov_buf = (char*)kmalloc(WLC_IOCTL_SMLEN, GFP_KERNEL);
 	if (iov_buf == NULL) {
@@ -6788,6 +6808,8 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 
 #if defined(BCMSDIO)
 	dhd_txglom_enable(dhd, dhd->conf->bus_rxglom);
+	// terence 20151210: set bus:txglom after dhd_txglom_enable since it's possible changed in dhd_conf_set_txglom_params
+	dhd_conf_set_fw_string_cmd(dhd, "bus:txglom", dhd->conf->bus_txglom, 1, FALSE);
 #endif /* defined(BCMSDIO) */
 
 	dhd_conf_set_disable_proptx(dhd);
@@ -7688,20 +7710,22 @@ static int wifi_init_thread(void *data)
 
 int rockchip_wifi_init_module_rkwifi(void)
 {
+	
+	
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
     int type = get_wifi_chip_type();
     if (type > WIFI_AP6XXX_SERIES) return 0;
 #endif
-    printf("=======================================================\n");
-    printf("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
-    printf("=======================================================\n");
-    printf("%s WiFi driver (Powered by Rockchip,Ver %s) init.\n", WIFI_MODULE_NAME, RKWIFI_DRV_VERSION);
+    printk("=======================================================\n");
+    printk("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
+    printk("=======================================================\n");
+    printk("%s WiFi driver (Powered by Rockchip,Ver %s) init.\n", WIFI_MODULE_NAME, RKWIFI_DRV_VERSION);
 
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
 {
     struct task_struct *kthread = kthread_run(wifi_init_thread, NULL, "wifi_init_thread");
     if (kthread->pid < 0)
-        printf("create wifi_init_thread failed.\n");
+        printk("create wifi_init_thread failed.\n");
     return 0; 
 }
 #else
@@ -7715,16 +7739,18 @@ void rockchip_wifi_exit_module_rkwifi(void)
     int type = get_wifi_chip_type();    
     if (type > WIFI_AP6XXX_SERIES) return;
 #endif
-    printf("=======================================================\n");
-    printf("== Dis-launching Wi-Fi driver! (Powered by Rockchip) ==\n");
-    printf("=======================================================\n");
+    printk("=======================================================\n");
+    printk("== Dis-launching Wi-Fi driver! (Powered by Rockchip) ==\n");
+    printk("=======================================================\n");
     dhd_module_exit();
 }
 
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
+
 late_initcall(rockchip_wifi_init_module_rkwifi);
 module_exit(rockchip_wifi_exit_module_rkwifi);
 #else
+
 EXPORT_SYMBOL(rockchip_wifi_init_module_rkwifi);
 EXPORT_SYMBOL(rockchip_wifi_exit_module_rkwifi);
 #endif
@@ -10419,4 +10445,17 @@ void *dhd_get_pub(struct net_device *dev)
 		return (void *)&dhdinfo->pub;
 	else
 		return NULL;
+}
+
+bool dhd_os_wd_timer_enabled(void *bus)
+{
+	dhd_pub_t *pub = bus;
+	dhd_info_t *dhd = (dhd_info_t *)pub->info;
+
+	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+	if (!dhd) {
+		DHD_ERROR(("%s: dhd NULL\n", __FUNCTION__));
+		return FALSE;
+	}
+	return dhd->wd_timer_valid;
 }

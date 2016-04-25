@@ -292,7 +292,8 @@ si_buscore_setup(si_info_t *sii, chipcregs_t *cc, uint bustype, uint32 savewin,
 			/* for SDIO but downloaded on PCIE dev */
 			if (cid == PCIE2_CORE_ID) {
 				if ((CHIPID(sii->pub.chip) == BCM43602_CHIP_ID) ||
-					((CHIPID(sii->pub.chip) == BCM4345_CHIP_ID) &&
+					((CHIPID(sii->pub.chip) == BCM4345_CHIP_ID ||
+					CHIPID(sii->pub.chip) == BCM43454_CHIP_ID) &&
 					CST4345_CHIPMODE_PCIE(sii->pub.chipst))) {
 					pcieidx = i;
 					pcierev = crev;
@@ -507,7 +508,7 @@ si_doattach(si_info_t *sii, uint devid, osl_t *osh, void *regs,
 	sih->chiprev = (w & CID_REV_MASK) >> CID_REV_SHIFT;
 	sih->chippkg = (w & CID_PKG_MASK) >> CID_PKG_SHIFT;
 
-#if defined(HW_OOB)
+#if defined(HW_OOB) || defined(FORCE_WOWLAN)
 	dhd_conf_set_hw_oob_intr(sdh, sih->chip);
 #endif
 
@@ -1413,6 +1414,7 @@ si_chip_hostif(si_t *sih)
 		break;
 
 	case BCM4345_CHIP_ID:
+	case BCM43454_CHIP_ID:
 		if (CST4345_CHIPMODE_USB20D(sih->chipst) || CST4345_CHIPMODE_HSIC(sih->chipst))
 			hosti = CHIP_HOSTIF_USBMODE;
 		else if (CST4345_CHIPMODE_SDIOD(sih->chipst))
@@ -2817,6 +2819,7 @@ si_is_sprom_available(si_t *sih)
 			!(sih->chipst & CST4324_SFLASH_MASK));
 	case BCM4335_CHIP_ID:
 	case BCM4345_CHIP_ID:
+	case BCM43454_CHIP_ID:
 		return ((sih->chipst & CST4335_SPROM_MASK) &&
 			!(sih->chipst & CST4335_SFLASH_MASK));
 	case BCM4349_CHIP_GRPID:

@@ -532,7 +532,7 @@ wl_cfg80211_add_iw_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 bss
             uint8 ie_id, uint8 *data, uint8 data_len);
 #endif /* WL11U */
 
-static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *dev, void *data);
+static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *dev, dhd_pub_t *data);
 static void wl_free_wdev(struct bcm_cfg80211 *cfg);
 #ifdef CONFIG_CFG80211_INTERNAL_REGDB
 static int
@@ -2163,6 +2163,8 @@ static void wl_scan_prep(struct wl_scan_params *params, struct cfg80211_scan_req
 				(IEEE80211_CHAN_RADAR | IEEE80211_CHAN_NO_IR)))
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) */
 				continue;
+			if (!dhd_conf_match_channel(cfg->pub, channel))
+				continue;
 
 			if (request->channels[i]->band == IEEE80211_BAND_2GHZ) {
 #ifdef WL_HOST_BAND_MGMT
@@ -2709,7 +2711,7 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 		ssids = this_ssid;
 	}
 
-	if (request && !p2p_scan(cfg)) {
+	if (request && cfg->p2p && !p2p_scan(cfg)) {
 		WL_TRACE_HW4(("START SCAN\n"));
 	}
 
@@ -5106,13 +5108,9 @@ wl_cfg80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	return err;
 }
 
-// terence 20130703: Fix for wrong group_capab (timing issue)
-int p2p_disconnected = 0;
-struct ether_addr p2p_disconnected_bssid;
-
 #if defined(RSSIAVG)
 static wl_rssi_cache_ctrl_t g_rssi_cache_ctrl;
-static wl_rssi_cache_ctrl_t g_rssi2_cache_ctrl;
+static wl_rssi_cache_ctrl_t g_connected_rssi_cache_ctrl;
 #endif
 #if defined(BSSCACHE)
 static wl_bss_cache_ctrl_t g_bss_cache_ctrl;
@@ -5244,13 +5242,13 @@ wl_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 		}
 		rssi = dtoh32(scb_val.val);
 #if defined(RSSIAVG)
-		err = wl_update_connected_rssi_cache(dev, &g_rssi2_cache_ctrl, &rssi);
+		err = wl_update_connected_rssi_cache(dev, &g_connected_rssi_cache_ctrl, &rssi);
 		if (err) {
 			WL_ERR(("Could not get rssi (%d)\n", err));
 			goto get_station_err;
 		}
-		wl_delete_dirty_rssi_cache(&g_rssi2_cache_ctrl);
-		wl_reset_rssi_cache(&g_rssi2_cache_ctrl);
+		wl_delete_dirty_rssi_cache(&g_connected_rssi_cache_ctrl);
+		wl_reset_rssi_cache(&g_connected_rssi_cache_ctrl);
 #endif
 #if defined(RSSIOFFSET)
 		rssi = wl_update_rssi_offset(dev, rssi);
@@ -8778,7 +8776,7 @@ static const struct wiphy_wowlan_support brcm_wowlan_support = {
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) */
 #endif /* CONFIG_PM */
 
-static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev, void *context)
+static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev, dhd_pub_t *context)
 {
 	s32 err = 0;
 #if 1 && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) || defined(WL_COMPAT_WIRELESS))
@@ -8983,69 +8981,82 @@ static s32 wl_inform_bss(struct bcm_cfg80211 *cfg)
 
 	bss_list = cfg->bss_list;
 
-#if defined(BSSCACHE)
+	/* Free cache in p2p scanning*/
 	if (p2p_is_on(cfg) && p2p_scan(cfg)) {
 #if defined(RSSIAVG)
 		wl_free_rssi_cache(&g_rssi_cache_ctrl);
 #endif
+#if defined(BSSCACHE)
 		wl_free_bss_cache(&g_bss_cache_ctrl);
+#endif
 	}
-	wl_update_bss_cache(&g_bss_cache_ctrl, bss_list);
+
+	/* Delete disconnected cache */
+#if defined(BSSCACHE)
+	wl_delete_disconnected_bss_cache(&g_bss_cache_ctrl, (u8*)&cfg->disconnected_bssid);
+#if defined(RSSIAVG)
+	wl_delete_disconnected_rssi_cache(&g_rssi_cache_ctrl, (u8*)&cfg->disconnected_bssid);
+#endif
+	if (cfg->p2p_disconnected == 0)
+		memset(&cfg->disconnected_bssid, 0, ETHER_ADDR_LEN);
+#endif
+
+	/* Update cache */
+#if defined(RSSIAVG)
+	wl_update_rssi_cache(&g_rssi_cache_ctrl, bss_list);
+	if (!in_atomic())
+		wl_update_connected_rssi_cache(ndev, &g_rssi_cache_ctrl, &rssi);
+#endif
+#if defined(BSSCACHE)
+	wl_update_bss_cache(&g_bss_cache_ctrl,
+#if defined(RSSIAVG)
+		&g_rssi_cache_ctrl,
+#endif
+		bss_list);
+#endif
+
+	/* delete dirty cache */
+#if defined(RSSIAVG)
+	wl_delete_dirty_rssi_cache(&g_rssi_cache_ctrl);
+	wl_reset_rssi_cache(&g_rssi_cache_ctrl);
+#endif
+#if defined(BSSCACHE)
 	wl_delete_dirty_bss_cache(&g_bss_cache_ctrl);
 	wl_reset_bss_cache(&g_bss_cache_ctrl);
 #endif
 
-#if defined(RSSIAVG)
 #if defined(BSSCACHE)
+	if (cfg->p2p_disconnected > 0) {
+		// terence 20130703: Fix for wrong group_capab (timing issue)
+		wl_delete_disconnected_bss_cache(&g_bss_cache_ctrl, (u8*)&cfg->disconnected_bssid);
+#if defined(RSSIAVG)
+		wl_delete_disconnected_rssi_cache(&g_rssi_cache_ctrl, (u8*)&cfg->disconnected_bssid);
+#endif
+	}
+	WL_SCAN(("scanned AP count (%d)\n", bss_list->count));
 	node = g_bss_cache_ctrl.m_cache_head;
-	for (;node;) {
-		wl_update_rssi_cache(&g_rssi_cache_ctrl, &node->results);
+	for (i=0; node && i<WL_AP_MAX; i++) {
+		bi = node->results.bss_info;
+		err = wl_inform_single_bss(cfg, bi, false);
 		node = node->next;
 	}
 #else
-	wl_update_rssi_cache(&g_rssi_cache_ctrl, bss_list);
-#endif
-	if (!in_atomic())
-		wl_update_connected_rssi_cache(ndev, &g_rssi_cache_ctrl, &rssi);
-	wl_delete_dirty_rssi_cache(&g_rssi_cache_ctrl);
-	wl_reset_rssi_cache(&g_rssi_cache_ctrl);
-#endif
-
-#if defined(BSSCACHE)
-	if (p2p_disconnected > 0) {
-		// terence 20130703: Fix for wrong group_capab (timing issue)
-		wl_delete_disconnected_bss_cache(&g_bss_cache_ctrl, (u8*)&p2p_disconnected_bssid);
-#if defined(RSSIAVG)
-		wl_delete_disconnected_rssi_cache(&g_rssi_cache_ctrl, (u8*)&p2p_disconnected_bssid);
-#endif
-	}
-	WL_SCAN(("Inform cached AP list\n"));
-	node = g_bss_cache_ctrl.m_cache_head;
-	for (i=0; node && i<WL_AP_MAX; i++) {
-		if (node->dirty > 1) {
-			// just inform dirty bss
-			bi = node->results.bss_info;
-			err = wl_inform_single_bss(cfg, bi, false);
-		}
-		node = node->next;
-	}
-	bi = NULL;
-#endif
-
 	WL_SCAN(("scanned AP count (%d)\n", bss_list->count));
-
 	bi = next_bss(bss_list, bi);
 	for_each_bss(bss_list, bi, i) {
-		if (p2p_disconnected > 0 && !memcmp(&bi->BSSID, &p2p_disconnected_bssid, ETHER_ADDR_LEN))
+		if (cfg->p2p_disconnected > 0 && !memcmp(&bi->BSSID, &cfg->disconnected_bssid, ETHER_ADDR_LEN))
 			continue;
 		err = wl_inform_single_bss(cfg, bi, false);
 	}
+#endif
 
-	if (p2p_disconnected > 0) {
+	if (cfg->p2p_disconnected > 0) {
 		// terence 20130703: Fix for wrong group_capab (timing issue)
-		p2p_disconnected++;
-		if (p2p_disconnected >= REPEATED_SCAN_RESULT_CNT+1)
-			p2p_disconnected = 0;
+		cfg->p2p_disconnected++;
+		if (cfg->p2p_disconnected >= REPEATED_SCAN_RESULT_CNT+1) {
+			cfg->p2p_disconnected = 0;
+			memset(&cfg->disconnected_bssid, 0, ETHER_ADDR_LEN);
+		}
 	}
 
 	return err;
@@ -9135,7 +9146,7 @@ static s32 wl_inform_single_bss(struct bcm_cfg80211 *cfg, struct wl_bss_info *bi
 		return -EINVAL;
 	}
 	channel = ieee80211_get_channel(wiphy, freq);
-	WL_SCAN(("BSSID %pM, channel %d, rssi %d, capa 0x04%x, mgmt_type %d, "
+	WL_SCAN(("BSSID %pM, channel %2d, rssi %3d, capa 0x04%x, mgmt_type %d, "
 		"frame_len %d, SSID \"%s\"\n", &bi->BSSID, notif_bss_info->channel,
 		notif_bss_info->rssi, mgmt->u.beacon.capab_info, mgmt_type,
 		notif_bss_info->frame_len, bi->SSID));
@@ -9562,14 +9573,14 @@ wl_notify_connect_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 					printf("wl_bss_connect_done succeeded with " MACDBG "\n",
 						MAC2STRDBG((u8*)(&e->addr)));
 					wl_bss_connect_done(cfg, ndev, e, data, true);
-					dhd_conf_set_phyoclscdenable((dhd_pub_t *)cfg->pub);
+					dhd_conf_set_fw_string_cmd(cfg->pub, "phy_oclscdenable", cfg->pub->conf->phy_oclscdenable, 0, FALSE);
 					WL_DBG(("joined in BSS network \"%s\"\n",
 					((struct wlc_ssid *)
 					 wl_read_prof(cfg, ndev, WL_PROF_SSID))->SSID));
 				}
 			wl_update_prof(cfg, ndev, e, &act, WL_PROF_ACT);
 			wl_update_prof(cfg, ndev, NULL, (void *)&e->addr, WL_PROF_BSSID);
-			dhd_conf_set_wme((dhd_pub_t *)cfg->pub);
+			dhd_conf_set_wme(cfg->pub);
 
 		} else if (wl_is_linkdown(cfg, e)) {
 #ifdef P2PLISTEN_AP_SAMECHN
@@ -9604,9 +9615,9 @@ wl_notify_connect_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 				}
 				if (!memcmp(ndev->name, WL_P2P_INTERFACE_PREFIX, strlen(WL_P2P_INTERFACE_PREFIX))) {
 					// terence 20130703: Fix for wrong group_capab (timing issue)
-					p2p_disconnected = 1;
-					memcpy(&p2p_disconnected_bssid, curbssid, ETHER_ADDR_LEN);
+					cfg->p2p_disconnected = 1;
 				}
+				memcpy(&cfg->disconnected_bssid, curbssid, ETHER_ADDR_LEN);
 				wl_clr_drv_status(cfg, CONNECTED, ndev);
 				if (! wl_get_drv_status(cfg, DISCONNECTING, ndev)) {
 					/* To make sure disconnect, explictly send dissassoc
@@ -9749,7 +9760,7 @@ wl_notify_roaming_status(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 		act = true;
 		wl_update_prof(cfg, ndev, e, &act, WL_PROF_ACT);
 		wl_update_prof(cfg, ndev, NULL, (void *)&e->addr, WL_PROF_BSSID);
-		dhd_conf_set_wme((dhd_pub_t *)cfg->pub);
+		dhd_conf_set_wme(cfg->pub);
 	}
 	return err;
 }
@@ -10009,7 +10020,7 @@ wl_bss_roaming_done(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 #endif /* WLFBT */
 	printf("wl_bss_roaming_done succeeded to " MACDBG "\n",
 		MAC2STRDBG((u8*)(&e->addr)));
-	dhd_conf_set_wme((dhd_pub_t *)cfg->pub);
+	dhd_conf_set_wme(cfg->pub);
 
 	cfg80211_roamed(ndev,
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 39)) || defined(WL_COMPAT_WIRELESS)
@@ -10102,7 +10113,7 @@ wl_bss_connect_done(struct bcm_cfg80211 *cfg, struct net_device *ndev,
 			GFP_KERNEL);
 		if (completed) {
 			WL_INFORM(("Report connect result - connection succeeded\n"));
-			dhd_conf_set_wme((dhd_pub_t *)cfg->pub);
+			dhd_conf_set_wme(cfg->pub);
 		} else
 			WL_ERR(("Report connect result - connection failed\n"));
 	}
@@ -11257,7 +11268,7 @@ static s32 wl_escan_handler(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 			WL_ERR(("No valid band\n"));
 			goto exit;
 		}
-		if (!dhd_conf_match_channel((dhd_pub_t *)cfg->pub, channel))
+		if (!dhd_conf_match_channel(cfg->pub, channel))
 			goto exit;
 		/* ----- terence 20130524: skip invalid bss */
 
@@ -11991,7 +12002,7 @@ fail:
 	return err;
 }
 
-s32 wl_cfg80211_attach(struct net_device *ndev, void *context)
+s32 wl_cfg80211_attach(struct net_device *ndev, dhd_pub_t *context)
 {
 	struct wireless_dev *wdev;
 	struct bcm_cfg80211 *cfg;
@@ -12124,7 +12135,7 @@ void wl_cfg80211_detach(void *para)
 	wl_free_wdev(cfg);
 #if defined(RSSIAVG)
 	wl_free_rssi_cache(&g_rssi_cache_ctrl);
-	wl_free_rssi_cache(&g_rssi2_cache_ctrl);
+	wl_free_rssi_cache(&g_connected_rssi_cache_ctrl);
 #endif
 #if defined(BSSCACHE)
 	wl_release_bss_cache_ctrl(&g_bss_cache_ctrl);
@@ -12621,6 +12632,8 @@ static int wl_construct_reginfo(struct bcm_cfg80211 *cfg, s32 bw_cap)
 			index = j;
 		else
 			index = *n_cnt;
+		if (!dhd_conf_match_channel(cfg->pub, channel))
+			continue;
 		if (index <  array_size) {
 #if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 38) && !defined(WL_COMPAT_WIRELESS)
 			band_chan_arr[index].center_freq =
@@ -12630,6 +12643,7 @@ static int wl_construct_reginfo(struct bcm_cfg80211 *cfg, s32 bw_cap)
 				ieee80211_channel_to_frequency(channel, band);
 #endif
 			band_chan_arr[index].hw_value = channel;
+			WL_DBG(("channel = %d\n", channel));
 
 			if (CHSPEC_IS40(c) && ht40_allowed) {
 				/* assuming the order is HT20, HT40 Upper,
@@ -13457,7 +13471,7 @@ wl_notify_device_discovery(struct bcm_cfg80211 *cfg, bcm_struct_cfgdev *cfgdev,
 #endif
 #if !defined(RSSIAVG) && !defined(RSSIOFFSET)
 		// terence 20150419: limit the max. rssi to -2 or the bss will be filtered out in android OS
-		info->rssi = MIN(info->rssi, RSSI_MAXVAL);
+		info.rssi = MIN(info.rssi, RSSI_MAXVAL);
 #endif
 		memcpy(info.bssid, &bi->BSSID, ETH_ALEN);
 		info.ie_len = buflen;

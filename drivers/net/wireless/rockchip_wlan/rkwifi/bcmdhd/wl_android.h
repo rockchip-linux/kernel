@@ -104,11 +104,13 @@ int wl_android_set_ap_mac_list(struct net_device *dev, int macmode, struct macli
  * BSSCACHE: Cache bss list
  * RSSAVG: Average RSSI of BSS list
  * RSSIOFFSET: RSSI offset
+ * SORT_BSS_BY_RSSI: Sort BSS by RSSI
  */
-//#define BSSCACHE
-//#define RSSIAVG
+#define BSSCACHE
+#define RSSIAVG
 //#define RSSIOFFSET
 //#define RSSIOFFSET_NEW
+//#define SORT_BSS_BY_RSSI
 
 #define RSSI_MAXVAL -2
 #define RSSI_MINVAL -200
@@ -174,7 +176,11 @@ void wl_free_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 void wl_delete_dirty_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 void wl_delete_disconnected_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, u8 *bssid);
 void wl_reset_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl);
-void wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl, wl_scan_results_t *ss_list);
+void wl_update_bss_cache(wl_bss_cache_ctrl_t *bss_cache_ctrl,	
+#if defined(RSSIAVG)
+	wl_rssi_cache_ctrl_t *rssi_cache_ctrl,
+#endif
+	wl_scan_results_t *ss_list);
 void wl_release_bss_cache_ctrl(wl_bss_cache_ctrl_t *bss_cache_ctrl);
 #endif
 #endif /* _wl_android_ */

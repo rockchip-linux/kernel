@@ -26,7 +26,7 @@
 #include<linux/of_gpio.h>
 #endif /* CONFIG_DTS */
 
-#ifdef CUSTOMER_HW
+#if defined(CUSTOMER_HW)
 #if defined(CUSTOMER_OOB)
 extern uint bcm_wlan_get_oob_irq(void);
 extern uint bcm_wlan_get_oob_irq_flags(void);

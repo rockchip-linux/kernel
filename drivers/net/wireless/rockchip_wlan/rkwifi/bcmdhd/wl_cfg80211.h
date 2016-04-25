@@ -21,6 +21,8 @@
 #include <net/cfg80211.h>
 #include <linux/rfkill.h>
 
+#include <dngl_stats.h>
+#include <dhd.h>
 #include <wl_cfgp2p.h>
 
 struct wl_conf;
@@ -565,7 +567,7 @@ struct bcm_cfg80211 {
 #endif /* DEBUGFS_CFG80211 */
 	struct wl_pmk_list *pmk_list;	/* wpa2 pmk list */
 	tsk_ctl_t event_tsk;  		/* task of main event handler thread */
-	void *pub;
+	dhd_pub_t *pub;
 	u32 iface_cnt;
 	u32 channel;		/* current channel */
 	u32 af_sent_channel;	/* channel action frame is sent */
@@ -663,6 +665,8 @@ struct bcm_cfg80211 {
 	u32 tdls_mgmt_frame_len;
 	s32 tdls_mgmt_freq;
 #endif /* WLTDLS */
+	int p2p_disconnected; // terence 20130703: Fix for wrong group_capab (timing issue)
+	struct ether_addr disconnected_bssid;
 };
 
 
@@ -933,7 +937,7 @@ wl_get_netinfo_by_netdev(struct bcm_cfg80211 *cfg, struct net_device *ndev)
 	((wl_cfgp2p_find_wpsie((u8 *)_sme->ie, _sme->ie_len) != NULL) && \
 	 (!_sme->crypto.n_ciphers_pairwise) && \
 	 (!_sme->crypto.cipher_group))
-extern s32 wl_cfg80211_attach(struct net_device *ndev, void *context);
+extern s32 wl_cfg80211_attach(struct net_device *ndev, dhd_pub_t *context);
 extern s32 wl_cfg80211_attach_post(struct net_device *ndev);
 extern void wl_cfg80211_detach(void *para);
 

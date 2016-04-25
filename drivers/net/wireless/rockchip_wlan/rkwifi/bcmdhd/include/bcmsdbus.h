@@ -122,4 +122,14 @@ extern bool sdioh_gpioin(sdioh_info_t *sd, uint32 gpio);
 extern SDIOH_API_RC sdioh_gpioouten(sdioh_info_t *sd, uint32 gpio);
 extern SDIOH_API_RC sdioh_gpioout(sdioh_info_t *sd, uint32 gpio, bool enab);
 
+extern uint sdioh_set_mode(sdioh_info_t *sd, uint mode);
+#if defined(SWTXGLOM)
+/* read or write any buffer using cmd53 */
+extern SDIOH_API_RC sdioh_request_swtxglom_buffer(sdioh_info_t *si, uint pio_dma, uint fix_inc,
+	uint rw, uint fnc_num, uint32 addr, uint regwidth, uint32 buflen, uint8 *buffer,
+	void *pkt);
+extern void sdioh_glom_post(sdioh_info_t *sd, uint8 *frame, void *pkt, uint len);
+extern void sdioh_glom_clear(sdioh_info_t *sd);
+#endif
+
 #endif /* _sdio_api_h_ */

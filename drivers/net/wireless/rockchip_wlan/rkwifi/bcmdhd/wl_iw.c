@@ -459,9 +459,6 @@ wl_iw_set_pm(
 	error = dev_wlc_ioctl(dev, WLC_SET_PM, &pm, sizeof(pm));
 	return error;
 }
-
-#if WIRELESS_EXT > 17
-#endif /* WIRELESS_EXT > 17 */
 #endif /* WIRELESS_EXT > 12 */
 
 int
@@ -1488,12 +1485,13 @@ wl_iw_handle_scanresults_ies(char **event_p, char *end,
 			break;
 		}
 #endif /* BCMWAPI_WPI */
-	*event_p = event;
+		*event_p = event;
 	}
 
 #endif /* WIRELESS_EXT > 17 */
 	return 0;
 }
+
 static int
 wl_iw_get_scan(
 	struct net_device *dev,
@@ -2530,9 +2528,12 @@ wl_iw_set_encodeext(
 		bcopy(keystring, pmk.key, len);
 		pmk.flags = htod16(WSEC_PASSPHRASE);
 
+		WL_WSEC(("%s: set key %s\n", __FUNCTION__, keystring));
 		error = dev_wlc_ioctl(dev, WLC_SET_WSEC_PMK, &pmk, sizeof(pmk));
-		if (error)
+		if (error) {
+			WL_ERROR(("%s: WLC_SET_WSEC_PMK error %d\n", __FUNCTION__, error));
 			return error;
+		}
 	}
 
 	else {
@@ -2603,7 +2604,6 @@ wl_iw_set_encodeext(
 }
 
 
-#if WIRELESS_EXT > 17
 struct {
 	pmkid_list_t pmkids;
 	pmkid_t foo[MAXPMKID-1];
@@ -2690,7 +2690,6 @@ wl_iw_set_pmksa(
 	dev_wlc_bufvar_set(dev, "pmkid_info", (char *)&pmkid_list, sizeof(pmkid_list));
 	return 0;
 }
-#endif /* WIRELESS_EXT > 17 */
 
 static int
 wl_iw_get_encodeext(
@@ -2757,8 +2756,11 @@ wl_iw_set_wpaauth(
 			iw->gwsec = paramval;
 		}
 
-		if ((error = dev_wlc_intvar_get(dev, "wsec", &val)))
+		if ((error = dev_wlc_intvar_get(dev, "wsec", &val))) {
+			WL_ERROR(("%s: wsec error %d\n", __FUNCTION__, error));
 			return error;
+		}
+		WL_WSEC(("%s: get wsec=0x%x\n", __FUNCTION__, val));
 
 		cipher_combined = iw->gwsec | iw->pwsec;
 		val &= ~(WEP_ENABLED | TKIP_ENABLED | AES_ENABLED);
@@ -2788,21 +2790,29 @@ wl_iw_set_wpaauth(
 			}
 		}
 
-		if ((error = dev_wlc_intvar_set(dev, "wsec", val)))
+		WL_WSEC(("%s: set wsec=0x%x\n", __FUNCTION__, val));
+		if ((error = dev_wlc_intvar_set(dev, "wsec", val))) {
+			WL_ERROR(("%s: wsec error %d\n", __FUNCTION__, error));
 			return error;
+		}
 
 		/* Ensure in-dongle supplicant is turned on when FBT wants to do the 4-way
 		 * handshake.
 		 */
 		if (dev_wlc_intvar_get(dev, "fbt_cap", &fbt_cap) == 0) {
+			WL_WSEC(("%s: get fbt_cap=0x%x\n", __FUNCTION__, fbt_cap));
 			if (fbt_cap == WLC_FBT_CAP_DRV_4WAY_AND_REASSOC) {
 				if ((paramid == IW_AUTH_CIPHER_PAIRWISE) && (val & AES_ENABLED)) {
-					if ((error = dev_wlc_intvar_set(dev, "sup_wpa", 1)))
+					if ((error = dev_wlc_intvar_set(dev, "sup_wpa", 1))) {
+						WL_ERROR(("%s: sup_wpa 1 error %d\n", __FUNCTION__, error));
 						return error;
+					}
 				}
 				else if (val == 0) {
-					if ((error = dev_wlc_intvar_set(dev, "sup_wpa", 0)))
+					if ((error = dev_wlc_intvar_set(dev, "sup_wpa", 0))) {
+						WL_ERROR(("%s: sup_wpa 0 error %d\n", __FUNCTION__, error));
 						return error;
+					}
 				}
 			}
 		}
@@ -2810,8 +2820,11 @@ wl_iw_set_wpaauth(
 	}
 
 	case IW_AUTH_KEY_MGMT:
-		if ((error = dev_wlc_intvar_get(dev, "wpa_auth", &val)))
+		if ((error = dev_wlc_intvar_get(dev, "wpa_auth", &val))) {
+			WL_ERROR(("%s: wpa_auth error %d\n", __FUNCTION__, error));
 			return error;
+		}
+		WL_WSEC(("%s: get wpa_auth to %d\n", __FUNCTION__, val));
 
 		if (val & (WPA_AUTH_PSK | WPA_AUTH_UNSPECIFIED)) {
 			if (paramval & (IW_AUTH_KEY_MGMT_FT_PSK | IW_AUTH_KEY_MGMT_PSK))
@@ -3120,8 +3133,6 @@ enum {
 	WL_IW_SET_LEDDC = SIOCIWFIRSTPRIV,
 	WL_IW_SET_VLANMODE,
 	WL_IW_SET_PM,
-#if WIRELESS_EXT > 17
-#endif /* WIRELESS_EXT > 17 */
 	WL_IW_SET_LAST
 };
 
@@ -3129,8 +3140,6 @@ static iw_handler wl_iw_priv_handler[] = {
 	wl_iw_set_leddc,
 	wl_iw_set_vlanmode,
 	wl_iw_set_pm,
-#if WIRELESS_EXT > 17
-#endif /* WIRELESS_EXT > 17 */
 	NULL
 };
 
@@ -3153,8 +3162,6 @@ static struct iw_priv_args wl_iw_priv_args[] = {
 		0,
 		"set_pm"
 	},
-#if WIRELESS_EXT > 17
-#endif /* WIRELESS_EXT > 17 */
 	{ 0, 0, 0, { 0 } }
 };
 
