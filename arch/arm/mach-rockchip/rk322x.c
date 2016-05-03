@@ -29,6 +29,7 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/pmu.h>
+#include <linux/rockchip/psci_ddr.h>
 #include <asm/cputype.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -161,6 +162,12 @@ static void __init rk322x_suspend_init(void)
 	PM_LOG("%s: pm_ctrbits = 0x%x\n", __func__, pm_ctrbits);
 }
 
+static void __init rk322x_init_ddrfreq_func(void)
+{
+	ddr_change_freq = (void *)psci_ddr_change_freq;
+	ddr_set_auto_self_refresh = (void *)psci_ddr_set_auto_self_refresh;
+}
+
 static void __init rk322x_init_late(void)
 {
 	if (rockchip_jtag_enabled)
@@ -168,6 +175,7 @@ static void __init rk322x_init_late(void)
 
 	rk322x_suspend_init();
 	rockchip_suspend_init();
+	rk322x_init_ddrfreq_func();
 }
 
 static void rk322x_restart(char mode, const char *cmd)
