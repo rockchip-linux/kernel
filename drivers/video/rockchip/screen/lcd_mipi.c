@@ -153,8 +153,6 @@ static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
 				mipidelay(dcs_cmd->dcs_cmd.delay);
 		} else
 			MIPI_SCREEN_DBG("cmd type err.\n");
-		kfree(dcs_cmd->dcs_cmd.cmds);
-		dcs_cmd->dcs_cmd.cmds = NULL;
 	}
 
 #ifdef CONFIG_RK_3288_DSI_UBOOT
@@ -287,7 +285,8 @@ int rk_mipi_screen_standby(u8 enable)
 	return 0;
 }
 #ifdef CONFIG_LCD_MIPI
-static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
+static int rk_mipi_screen_init_dt(struct device *dev,
+				  struct mipi_screen *screen)
 {
 	struct device_node *childnode, *grandchildnode, *root;
 	struct mipi_dcs_cmd_ctr_list *dcs_cmd;
@@ -430,7 +429,7 @@ static int rk_mipi_screen_init_dt(struct mipi_screen *screen)
 			strcpy(dcs_cmd->dcs_cmd.name, childnode->name);
 
 			dcs_cmd->dcs_cmd.cmds =
-				kzalloc(CMD_LEN_MAX, GFP_KERNEL);
+				devm_kzalloc(dev, CMD_LEN_MAX, GFP_KERNEL);
 			if (!dcs_cmd->dcs_cmd.cmds) {
 				pr_err("malloc cmds fail!\n");
 				return -ENOMEM;
@@ -753,7 +752,7 @@ static int __init rk_mipi_screen_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	ret = rk_mipi_screen_init_dt(gmipi_screen);
+	ret = rk_mipi_screen_init_dt(&pdev->dev, gmipi_screen);
 	if (ret < 0) {
 		dev_err(&pdev->dev, " rk_mipi_screen_init_dt fail!\n");
 		return -1;
