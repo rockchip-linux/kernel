@@ -164,11 +164,8 @@ static inline int set_4byte(struct m25p *flash, u32 jedec_id, int enable)
 	}
 }
 
-/*
- * Service routine to read status register until ready, or timeout occurs.
- * Returns non-zero if error.
- */
-static int wait_till_ready(struct m25p *flash)
+static ssize_t m25p80_write(struct spi_nor *nor, loff_t to, size_t len,
+			size_t *retlen, const u_char *buf)
 {
 	unsigned long deadline;
 	int sr;
@@ -206,11 +203,7 @@ static int erase_chip(struct m25p *flash)
 	/* Send write enable, then erase commands. */
 	write_enable(flash);
 
-	/* Set up command buffer. */
-	flash->command[0] = OPCODE_CHIP_ERASE;
-
-	spi_write(flash->spi, flash->command, 1);
-
+	*retlen += m.actual_length - cmd_sz;
 	return 0;
 }
 
@@ -323,8 +316,8 @@ static int m25p80_erase(struct mtd_info *mtd, struct erase_info *instr)
  * Read an address range from the flash chip.  The address range
  * may be any size provided it is within the physical boundaries.
  */
-static int m25p80_read(struct mtd_info *mtd, loff_t from, size_t len,
-	size_t *retlen, u_char *buf)
+static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
+			size_t *retlen, u_char *buf)
 {
 	struct m25p *flash = mtd_to_m25p(mtd);
 	struct spi_transfer t[2];
