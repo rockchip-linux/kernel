@@ -165,7 +165,7 @@ static inline int set_4byte(struct m25p *flash, u32 jedec_id, int enable)
 }
 
 static ssize_t m25p80_write(struct spi_nor *nor, loff_t to, size_t len,
-			size_t *retlen, const u_char *buf)
+			    const u_char *buf)
 {
 	unsigned long deadline;
 	int sr;
@@ -200,11 +200,10 @@ static int erase_chip(struct m25p *flash)
 	if (wait_till_ready(flash))
 		return 1;
 
-	/* Send write enable, then erase commands. */
-	write_enable(flash);
-
-	*retlen += m.actual_length - cmd_sz;
-	return 0;
+	ret = m.actual_length - cmd_sz;
+	if (ret < 0)
+		return -EIO;
+	return ret;
 }
 
 static void m25p_addr2cmd(struct m25p *flash, unsigned int addr, u8 *cmd)
@@ -317,7 +316,7 @@ static int m25p80_erase(struct mtd_info *mtd, struct erase_info *instr)
  * may be any size provided it is within the physical boundaries.
  */
 static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
-			size_t *retlen, u_char *buf)
+			   u_char *buf)
 {
 	struct m25p *flash = mtd_to_m25p(mtd);
 	struct spi_transfer t[2];
@@ -326,6 +325,28 @@ static ssize_t m25p80_read(struct spi_nor *nor, loff_t from, size_t len,
 
 	/* convert the dummy cycles to the number of bytes */
 	dummy /= 8;
+
+	if (spi_flash_read_supported(spi)) {
+		struct spi_flash_read_message msg;
+
+		memset(&msg, 0, sizeof(msg));
+
+		msg.buf = buf;
+		msg.from = from;
+		msg.len = len;
+		msg.read_opcode = nor->read_opcode;
+		msg.addr_width = nor->addr_width;
+		msg.dummy_bytes = dummy;
+		/* TODO: Support other combinations */
+		msg.opcode_nbits = SPI_NBITS_SINGLE;
+		msg.addr_nbits = SPI_NBITS_SINGLE;
+		msg.data_nbits = m25p80_rx_nbits(nor);
+
+		ret = spi_flash_read(spi, &msg);
+		if (ret < 0)
+			return ret;
+		return msg.retlen;
+	}
 
 	spi_message_init(&m);
 	memset(t, 0, (sizeof t));
@@ -381,101 +402,10 @@ static int m25p80_write(struct mtd_info *mtd, loff_t to, size_t len,
 {
 	struct m25p *flash = nor->priv;
 
-	dev_dbg(nor->dev, "%dKiB at 0x%08x\n",
-		flash->spi_nor.mtd.erasesize / 1024, (u32)offset);
-
-	/* Set up command buffer. */
-	flash->command[0] = nor->erase_opcode;
-	m25p_addr2cmd(nor, offset, flash->command);
-
-static int m25p80_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
-{
-	struct m25p *flash = mtd_to_m25p(mtd);
-	uint32_t offset = ofs;
-	uint8_t status_old, status_new;
-	int res = 0;
-
-	mutex_lock(&flash->lock);
-	/* Wait until finished previous command */
-	if (wait_till_ready(flash)) {
-		res = 1;
-		goto err;
-	}
-
-	status_old = read_sr(flash);
-
-	if (offset < flash->mtd.size-(flash->mtd.size/2))
-		status_new = status_old | SR_BP2 | SR_BP1 | SR_BP0;
-	else if (offset < flash->mtd.size-(flash->mtd.size/4))
-		status_new = (status_old & ~SR_BP0) | SR_BP2 | SR_BP1;
-	else if (offset < flash->mtd.size-(flash->mtd.size/8))
-		status_new = (status_old & ~SR_BP1) | SR_BP2 | SR_BP0;
-	else if (offset < flash->mtd.size-(flash->mtd.size/16))
-		status_new = (status_old & ~(SR_BP0|SR_BP1)) | SR_BP2;
-	else if (offset < flash->mtd.size-(flash->mtd.size/32))
-		status_new = (status_old & ~SR_BP2) | SR_BP1 | SR_BP0;
-	else if (offset < flash->mtd.size-(flash->mtd.size/64))
-		status_new = (status_old & ~(SR_BP2|SR_BP0)) | SR_BP1;
-	else
-		status_new = (status_old & ~(SR_BP2|SR_BP1)) | SR_BP0;
-
-	/* Only modify protection if it will not unlock other areas */
-	if ((status_new&(SR_BP2|SR_BP1|SR_BP0)) >
-					(status_old&(SR_BP2|SR_BP1|SR_BP0))) {
-		write_enable(flash);
-		if (write_sr(flash, status_new) < 0) {
-			res = 1;
-			goto err;
-		}
-	}
-
-err:	mutex_unlock(&flash->lock);
-	return res;
-}
-
-static int m25p80_unlock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
-{
-	struct m25p *flash = mtd_to_m25p(mtd);
-	uint32_t offset = ofs;
-	uint8_t status_old, status_new;
-	int res = 0;
-
-	mutex_lock(&flash->lock);
-	/* Wait until finished previous command */
-	if (wait_till_ready(flash)) {
-		res = 1;
-		goto err;
-	}
-
-	status_old = read_sr(flash);
-
-	if (offset+len > flash->mtd.size-(flash->mtd.size/64))
-		status_new = status_old & ~(SR_BP2|SR_BP1|SR_BP0);
-	else if (offset+len > flash->mtd.size-(flash->mtd.size/32))
-		status_new = (status_old & ~(SR_BP2|SR_BP1)) | SR_BP0;
-	else if (offset+len > flash->mtd.size-(flash->mtd.size/16))
-		status_new = (status_old & ~(SR_BP2|SR_BP0)) | SR_BP1;
-	else if (offset+len > flash->mtd.size-(flash->mtd.size/8))
-		status_new = (status_old & ~SR_BP2) | SR_BP1 | SR_BP0;
-	else if (offset+len > flash->mtd.size-(flash->mtd.size/4))
-		status_new = (status_old & ~(SR_BP0|SR_BP1)) | SR_BP2;
-	else if (offset+len > flash->mtd.size-(flash->mtd.size/2))
-		status_new = (status_old & ~SR_BP1) | SR_BP2 | SR_BP0;
-	else
-		status_new = (status_old & ~SR_BP0) | SR_BP2 | SR_BP1;
-
-	/* Only modify protection if it will not lock other areas */
-	if ((status_new&(SR_BP2|SR_BP1|SR_BP0)) <
-					(status_old&(SR_BP2|SR_BP1|SR_BP0))) {
-		write_enable(flash);
-		if (write_sr(flash, status_new) < 0) {
-			res = 1;
-			goto err;
-		}
-	}
-
-err:	mutex_unlock(&flash->lock);
-	return res;
+	ret = m.actual_length - m25p_cmdsz(nor) - dummy;
+	if (ret < 0)
+		return -EIO;
+	return ret;
 }
 
 /****************************************************************************/
