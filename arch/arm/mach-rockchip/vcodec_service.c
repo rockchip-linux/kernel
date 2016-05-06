@@ -140,6 +140,18 @@ struct extra_info_for_iommu {
 	struct extra_info_elem elem[20];
 };
 
+struct vpu_subdev_data;
+struct vpu_service_info;
+struct vpu_reg;
+
+struct vcodec_hw_ops {
+	void (*power_on)(struct vpu_service_info *pservice);
+	void (*power_off)(struct vpu_service_info *pservice);
+	void (*get_freq)(struct vpu_subdev_data *data, struct vpu_reg *reg);
+	void (*set_freq)(struct vpu_service_info *pservice, struct vpu_reg *reg);
+	void (*reduce_freq)(struct vpu_service_info *pservice);
+};
+
 #define MHZ					(1000*1000)
 #define SIZE_REG(reg)				((reg)*4)
 
@@ -403,6 +415,8 @@ struct vpu_service_info {
 
 	u32 subcnt;
 	struct list_head subdev_list;
+
+	struct vcodec_hw_ops *hw_ops;
 };
 
 struct vpu_request {
@@ -738,11 +752,11 @@ static void vpu_service_dump(struct vpu_service_info *pservice)
 }
 
 #if VCODEC_CLOCK_ENABLE
-static void set_32_div_clk(struct clk *clock)
+static void set_div_clk(struct clk *clock, int divide)
 {
 	struct clk* parent = clk_get_parent(clock);
-	int rate = clk_get_rate(parent);
-	clk_set_rate(clock, (rate / 32) + 1);
+	unsigned long rate = clk_get_rate(parent);
+	clk_set_rate(clock, (rate / divide) + 1);
 }
 #endif
 
@@ -778,31 +792,8 @@ static void vpu_service_power_off(struct vpu_service_info *pservice)
 	pservice->curr_mode = VCODEC_RUNNING_MODE_NONE;
 #endif
 
-#if VCODEC_CLOCK_ENABLE
-	if (cpu_is_rk322x()) {
-		/*
-		 * rk322x do not have power domain
-		 * we just lower the clock to minimize the power consumption
-		 */
-		if (pservice->aclk_vcodec)
-			set_32_div_clk(pservice->aclk_vcodec);
-		if (pservice->clk_core)
-			set_32_div_clk(pservice->clk_core);
-		if (pservice->clk_cabac)
-			set_32_div_clk(pservice->clk_cabac);
-	} else {
-		if (pservice->pd_video)
-			clk_disable_unprepare(pservice->pd_video);
-		if (pservice->hclk_vcodec)
-			clk_disable_unprepare(pservice->hclk_vcodec);
-		if (pservice->aclk_vcodec)
-			clk_disable_unprepare(pservice->aclk_vcodec);
-		if (pservice->clk_core)
-			clk_disable_unprepare(pservice->clk_core);
-		if (pservice->clk_cabac)
-			clk_disable_unprepare(pservice->clk_cabac);
-	}
-#endif
+	if (pservice->hw_ops->power_off)
+		pservice->hw_ops->power_off(pservice);
 
 	atomic_add(1, &pservice->power_off_cnt);
 	wake_unlock(&pservice->wake_lock);
@@ -847,38 +838,8 @@ static void vpu_service_power_on(struct vpu_service_info *pservice)
 
 	pr_info("%s: power on\n", dev_name(pservice->dev));
 
-#define BIT_VCODEC_CLK_SEL	(1<<10)
-	if (cpu_is_rk312x())
-		writel_relaxed(readl_relaxed(RK_GRF_VIRT + RK312X_GRF_SOC_CON1)
-			| BIT_VCODEC_CLK_SEL | (BIT_VCODEC_CLK_SEL << 16),
-			RK_GRF_VIRT + RK312X_GRF_SOC_CON1);
-
-#if VCODEC_CLOCK_ENABLE
-	if (pservice->aclk_vcodec)
-		clk_prepare_enable(pservice->aclk_vcodec);
-	if (pservice->hclk_vcodec)
-		clk_prepare_enable(pservice->hclk_vcodec);
-	if (pservice->clk_core)
-		clk_prepare_enable(pservice->clk_core);
-	if (pservice->clk_cabac)
-		clk_prepare_enable(pservice->clk_cabac);
-	if (pservice->pd_video)
-		clk_prepare_enable(pservice->pd_video);
-
-	if (cpu_is_rk322x()) {
-		unsigned long rate = 300*MHZ;
-
-		if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC)
-			rate = 500*MHZ;
-
-		if (pservice->aclk_vcodec)
-			clk_set_rate(pservice->aclk_vcodec,  rate);
-		if (pservice->clk_core)
-			clk_set_rate(pservice->clk_core,  300*MHZ);
-		if (pservice->clk_cabac)
-			clk_set_rate(pservice->clk_cabac, 300*MHZ);
-	}
-#endif
+	if (pservice->hw_ops->power_on)
+		pservice->hw_ops->power_on(pservice);
 
 	udelay(5);
 	atomic_add(1, &pservice->power_on_cnt);
@@ -1190,33 +1151,6 @@ static int vcodec_reg_address_translate(struct vpu_subdev_data *data,
 	return -1;
 }
 
-static void get_reg_freq(struct vpu_subdev_data *data, struct vpu_reg *reg)
-{
-	/* rk322x use default frequency */
-	if (cpu_is_rk322x())
-		return;
-
-	if (!soc_is_rk2928g()) {
-		if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
-			if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
-				if (reg_probe_width(reg) > 3200) {
-					/*raise frequency for 4k avc.*/
-					reg->freq = VPU_FREQ_600M;
-				}
-			} else {
-				if (reg_check_interlace(reg))
-					reg->freq = VPU_FREQ_400M;
-			}
-		}
-		if (data->hw_id == HEVC_ID) {
-			if (reg_probe_hevc_y_stride(reg) > 60000)
-				reg->freq = VPU_FREQ_400M;
-		}
-		if (reg->type == VPU_PP)
-			reg->freq = VPU_FREQ_400M;
-	}
-}
-
 static void translate_extra_info(struct vpu_reg *reg,
 				 struct extra_info_for_iommu *ext_inf)
 {
@@ -1302,8 +1236,8 @@ static struct vpu_reg *reg_init(struct vpu_subdev_data *data,
 	list_add_tail(&reg->session_link, &session->waiting);
 	mutex_unlock(&pservice->lock);
 
-	if (pservice->auto_freq)
-		get_reg_freq(data, reg);
+	if (pservice->auto_freq && pservice->hw_ops->get_freq)
+		pservice->hw_ops->get_freq(data, reg);
 
 	vpu_debug_leave();
 	return reg;
@@ -1449,57 +1383,6 @@ static void reg_from_run_to_done(struct vpu_subdev_data *data,
 	vpu_debug_leave();
 }
 
-static void vpu_service_set_freq(struct vpu_service_info *pservice,
-				 struct vpu_reg *reg)
-{
-	enum VPU_FREQ curr = atomic_read(&pservice->freq_status);
-
-	if (curr == reg->freq)
-		return;
-
-	atomic_set(&pservice->freq_status, reg->freq);
-	switch (reg->freq) {
-	case VPU_FREQ_200M: {
-		clk_set_rate(pservice->aclk_vcodec, 200*MHZ);
-	} break;
-	case VPU_FREQ_266M: {
-		clk_set_rate(pservice->aclk_vcodec, 266*MHZ);
-	} break;
-	case VPU_FREQ_300M: {
-		clk_set_rate(pservice->aclk_vcodec, 300*MHZ);
-	} break;
-	case VPU_FREQ_400M: {
-		clk_set_rate(pservice->aclk_vcodec, 400*MHZ);
-	} break;
-	case VPU_FREQ_500M: {
-		clk_set_rate(pservice->aclk_vcodec, 500*MHZ);
-	} break;
-	case VPU_FREQ_600M: {
-		clk_set_rate(pservice->aclk_vcodec, 600*MHZ);
-	} break;
-	default: {
-		unsigned long rate = 300*MHZ;
-
-		if (soc_is_rk2928g())
-			rate = 400*MHZ;
-		else if (cpu_is_rk322x()) {
-			/*
-			 * special process for rk322x
-			 * rk322x rkvdec has more clocks to set
-			 * vpu/vpu2 still only need to set aclk
-			 */
-			if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
-				clk_set_rate(pservice->clk_core,  300*MHZ);
-				clk_set_rate(pservice->clk_cabac, 300*MHZ);
-				rate = 500*MHZ;
-			}
-		}
-
-		clk_set_rate(pservice->aclk_vcodec, rate);
-	} break;
-	}
-}
-
 static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 {
 	struct vpu_service_info *pservice = data->pservice;
@@ -1516,8 +1399,8 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 	atomic_add(1, &pservice->total_running);
 	atomic_add(1, &reg->session->task_running);
 
-	if (pservice->auto_freq)
-		vpu_service_set_freq(pservice, reg);
+	if (pservice->auto_freq && pservice->hw_ops->set_freq)
+		pservice->hw_ops->set_freq(pservice, reg);
 
 	vcodec_enter_mode(data);
 
@@ -1733,6 +1616,10 @@ static void try_set_reg(struct vpu_subdev_data *data)
 			reg_copy_to_hw(reg->data, reg);
 		}
 	}
+
+	if (pservice->hw_ops->reduce_freq)
+		pservice->hw_ops->reduce_freq(pservice);
+
 	vpu_debug_leave();
 }
 
@@ -2271,6 +2158,205 @@ int vcodec_sysmmu_fault_hdl(struct device *dev,
 	return 0;
 }
 
+/* special hw ops */
+static void vcodec_power_on_default(struct vpu_service_info *pservice)
+{
+#if VCODEC_CLOCK_ENABLE
+	if (pservice->aclk_vcodec)
+		clk_prepare_enable(pservice->aclk_vcodec);
+	if (pservice->hclk_vcodec)
+		clk_prepare_enable(pservice->hclk_vcodec);
+	if (pservice->clk_core)
+		clk_prepare_enable(pservice->clk_core);
+	if (pservice->clk_cabac)
+		clk_prepare_enable(pservice->clk_cabac);
+	if (pservice->pd_video)
+		clk_prepare_enable(pservice->pd_video);
+#endif
+}
+
+static void vcodec_power_on_rk312x(struct vpu_service_info *pservice)
+{
+#define BIT_VCODEC_CLK_SEL	(1<<10)
+	writel_relaxed(readl_relaxed(RK_GRF_VIRT + RK312X_GRF_SOC_CON1)
+		| BIT_VCODEC_CLK_SEL | (BIT_VCODEC_CLK_SEL << 16),
+		RK_GRF_VIRT + RK312X_GRF_SOC_CON1);
+
+	vcodec_power_on_default(pservice);
+}
+
+static void vcodec_power_on_rk322x(struct vpu_service_info *pservice)
+{
+	unsigned long rate = 300*MHZ;
+
+	vcodec_power_on_default(pservice);
+
+	if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC)
+		rate = 500*MHZ;
+
+	if (pservice->aclk_vcodec)
+		clk_set_rate(pservice->aclk_vcodec,  rate);
+	if (pservice->clk_core)
+		clk_set_rate(pservice->clk_core,  300*MHZ);
+	if (pservice->clk_cabac)
+		clk_set_rate(pservice->clk_cabac, 300*MHZ);
+}
+
+static void vcodec_power_off_default(struct vpu_service_info *pservice)
+{
+	if (pservice->pd_video)
+		clk_disable_unprepare(pservice->pd_video);
+	if (pservice->hclk_vcodec)
+		clk_disable_unprepare(pservice->hclk_vcodec);
+	if (pservice->aclk_vcodec)
+		clk_disable_unprepare(pservice->aclk_vcodec);
+	if (pservice->clk_core)
+		clk_disable_unprepare(pservice->clk_core);
+	if (pservice->clk_cabac)
+		clk_disable_unprepare(pservice->clk_cabac);
+}
+
+static void vcodec_power_off_rk322x(struct vpu_service_info *pservice)
+{
+	/*
+	 * rk322x do not have power domain
+	 * we just lower the clock to minimize the power consumption
+	 */
+	if (pservice->aclk_vcodec)
+		set_div_clk(pservice->aclk_vcodec, 32);
+	if (pservice->clk_core)
+		set_div_clk(pservice->clk_core, 32);
+	if (pservice->clk_cabac)
+		set_div_clk(pservice->clk_cabac, 32);
+}
+
+static void vcodec_get_reg_freq_default(struct vpu_subdev_data *data,
+					struct vpu_reg *reg)
+{
+	if (reg->type == VPU_DEC || reg->type == VPU_DEC_PP) {
+		if (reg_check_fmt(reg) == VPU_DEC_FMT_H264) {
+			if (reg_probe_width(reg) > 3200) {
+				/*raise frequency for 4k avc.*/
+				reg->freq = VPU_FREQ_600M;
+			}
+		} else {
+			if (reg_check_interlace(reg))
+				reg->freq = VPU_FREQ_400M;
+		}
+	}
+	if (data->hw_id == HEVC_ID) {
+		if (reg_probe_hevc_y_stride(reg) > 60000)
+			reg->freq = VPU_FREQ_400M;
+	}
+	if (reg->type == VPU_PP)
+		reg->freq = VPU_FREQ_400M;
+}
+
+static void vcodec_set_freq_default(struct vpu_service_info *pservice,
+				    struct vpu_reg *reg)
+{
+	enum VPU_FREQ curr = atomic_read(&pservice->freq_status);
+
+	if (curr == reg->freq)
+		return;
+
+	atomic_set(&pservice->freq_status, reg->freq);
+	switch (reg->freq) {
+	case VPU_FREQ_200M: {
+		clk_set_rate(pservice->aclk_vcodec, 200*MHZ);
+	} break;
+	case VPU_FREQ_266M: {
+		clk_set_rate(pservice->aclk_vcodec, 266*MHZ);
+	} break;
+	case VPU_FREQ_300M: {
+		clk_set_rate(pservice->aclk_vcodec, 300*MHZ);
+	} break;
+	case VPU_FREQ_400M: {
+		clk_set_rate(pservice->aclk_vcodec, 400*MHZ);
+	} break;
+	case VPU_FREQ_500M: {
+		clk_set_rate(pservice->aclk_vcodec, 500*MHZ);
+	} break;
+	case VPU_FREQ_600M: {
+		clk_set_rate(pservice->aclk_vcodec, 600*MHZ);
+	} break;
+	default: {
+		break;
+	}
+	}
+}
+
+static void vcodec_set_freq_rk322x(struct vpu_service_info *pservice,
+				   struct vpu_reg *reg)
+{
+	enum VPU_FREQ curr = atomic_read(&pservice->freq_status);
+
+	if (curr == reg->freq)
+		return;
+
+	/*
+	 * special process for rk322x
+	 * rk322x rkvdec has more clocks to set
+	 * vpu/vpu2 still only need to set aclk
+	 */
+	if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC) {
+		clk_set_rate(pservice->clk_core,  300*MHZ);
+		clk_set_rate(pservice->clk_cabac, 300*MHZ);
+		clk_set_rate(pservice->aclk_vcodec, 500 * MHZ);
+	} else {
+		clk_set_rate(pservice->aclk_vcodec, 300 * MHZ);
+	}
+}
+
+static void vcodec_set_freq_rk2928g(struct vpu_service_info *pservice,
+				    struct vpu_reg *reg)
+{
+	enum VPU_FREQ curr = atomic_read(&pservice->freq_status);
+
+	if (curr == reg->freq)
+		return;
+
+	clk_set_rate(pservice->aclk_vcodec, 400 * MHZ);
+}
+
+static void vcodec_reduce_freq_rk322x(struct vpu_service_info *pservice)
+{
+	if (list_empty(&pservice->running)) {
+		unsigned long rate = clk_get_rate(pservice->aclk_vcodec);
+
+		if (pservice->aclk_vcodec)
+			set_div_clk(pservice->aclk_vcodec, 32);
+
+		atomic_set(&pservice->freq_status, rate / 32);
+	}
+}
+
+static struct vcodec_hw_ops hw_ops_default = {
+	.power_on = vcodec_power_on_default,
+	.power_off = vcodec_power_off_default,
+	.get_freq = vcodec_get_reg_freq_default,
+	.set_freq = vcodec_set_freq_default,
+	.reduce_freq = NULL,
+};
+
+static void vcodec_set_hw_ops(struct vpu_service_info *pservice)
+{
+	pservice->hw_ops = &hw_ops_default;
+
+	if (cpu_is_rk322x()) {
+		pservice->hw_ops->power_on = vcodec_power_on_rk322x;
+		pservice->hw_ops->power_off = vcodec_power_off_rk322x;
+		pservice->hw_ops->get_freq = NULL;
+		pservice->hw_ops->set_freq = vcodec_set_freq_rk322x;
+		pservice->hw_ops->reduce_freq = vcodec_reduce_freq_rk322x;
+	} else if (soc_is_rk2928g()) {
+		pservice->hw_ops->get_freq = NULL;
+		pservice->hw_ops->set_freq = vcodec_set_freq_rk2928g;
+	} else if (cpu_is_rk312x()) {
+		pservice->hw_ops->power_on = vcodec_power_on_rk312x;
+	}
+}
+
 static int vcodec_subdev_probe(struct platform_device *pdev,
 			       struct vpu_service_info *pservice)
 {
@@ -2309,6 +2395,9 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 		data->regs = pservice->reg_base;
 		ioaddr = pservice->ioaddr;
 	}
+
+	if (pservice->hw_ops->power_on)
+		pservice->hw_ops->power_on(pservice);
 
 	clear_bit(MMU_ACTIVATED, &data->state);
 	vcodec_enter_mode(data);
@@ -2451,7 +2540,8 @@ static void vcodec_subdev_remove(struct vpu_subdev_data *data)
 
 	mutex_lock(&pservice->lock);
 	cancel_delayed_work_sync(&pservice->power_off_work);
-	vpu_service_power_off(pservice);
+	if (pservice->hw_ops->power_off)
+		pservice->hw_ops->power_off(pservice);
 	mutex_unlock(&pservice->lock);
 
 	device_destroy(data->cls, data->dev_t);
@@ -2554,6 +2644,8 @@ static void vcodec_init_drvdata(struct vpu_service_info *pservice)
 	} else {
 		vpu_debug(DEBUG_IOMMU, "vcodec ion client create success!\n");
 	}
+
+	vcodec_set_hw_ops(pservice);
 }
 
 static int vcodec_probe(struct platform_device *pdev)
@@ -2583,8 +2675,6 @@ static int vcodec_probe(struct platform_device *pdev)
 	if (0 > vpu_get_clk(pservice))
 		goto err;
 
-	vpu_service_power_on(pservice);
-
 	if (of_property_read_bool(np, "reg")) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -2613,7 +2703,8 @@ static int vcodec_probe(struct platform_device *pdev)
 		vcodec_subdev_probe(pdev, pservice);
 	}
 
-	vpu_service_power_off(pservice);
+	if (pservice->hw_ops->power_off)
+		pservice->hw_ops->power_off(pservice);
 
 	pr_info("init success\n");
 
@@ -2621,7 +2712,8 @@ static int vcodec_probe(struct platform_device *pdev)
 
 err:
 	pr_info("init failed\n");
-	vpu_service_power_off(pservice);
+	if (pservice->hw_ops->power_off)
+		pservice->hw_ops->power_off(pservice);
 	vpu_put_clk(pservice);
 	wake_lock_destroy(&pservice->wake_lock);
 
