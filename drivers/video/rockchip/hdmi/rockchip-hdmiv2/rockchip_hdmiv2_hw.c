@@ -155,7 +155,7 @@ static void rockchip_hdmiv2_i2cm_read_request(struct hdmi_dev *hdmi_dev,
 static void rockchip_hdmiv2_i2cm_write_data(struct hdmi_dev *hdmi_dev,
 					    u8 data, u8 offset)
 {
-	u8 interrupt;
+	u8 interrupt = 0;
 	int trytime = 2;
 	int i = 20;
 
@@ -188,7 +188,7 @@ static void rockchip_hdmiv2_i2cm_write_data(struct hdmi_dev *hdmi_dev,
 
 static int rockchip_hdmiv2_i2cm_read_data(struct hdmi_dev *hdmi_dev, u8 offset)
 {
-	u8 interrupt, val;
+	u8 interrupt = 0, val;
 	int trytime = 2;
 	int i = 20;
 
@@ -1427,6 +1427,11 @@ static const char coeff_csc[][24] = {
 		 *   B1    |    B2     |    B3     |    B4    |
 		 *   C1    |    C2     |    C3     |    C4    |
 		 */
+	{	/* CSC_BYPASS */
+		0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00,
+		0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00,
+		0x10, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00,
+	},
 	{	/* CSC_RGB_0_255_TO_RGB_16_235_8BIT */
 		0x36, 0xf7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,		/*G*/
 		0x00, 0x00, 0x36, 0xf7, 0x00, 0x00, 0x00, 0x40,		/*R*/
@@ -1473,7 +1478,7 @@ static const char coeff_csc[][24] = {
 static int rockchip_hdmiv2_video_csc(struct hdmi_dev *hdmi_dev,
 				     struct hdmi_video *vpara)
 {
-	int i, mode, interpolation, decimation, csc_scale;
+	int i, mode, interpolation, decimation, csc_scale = 0;
 	const char *coeff = NULL;
 	unsigned char color_depth = 0;
 
@@ -1498,6 +1503,9 @@ static int rockchip_hdmiv2_video_csc(struct hdmi_dev *hdmi_dev,
 		hdmi_msk_reg(hdmi_dev, CSC_CFG,
 			     m_CSC_DECIMODE, v_CSC_DECIMODE(decimation));
 	}
+
+	mode = CSC_BYPASS;
+	csc_scale = 0;
 
 	switch (vpara->vic) {
 	case HDMI_720X480I_60HZ_4_3:
@@ -1668,7 +1676,7 @@ exit:
 static void hdmi_dev_config_avi(struct hdmi_dev *hdmi_dev,
 				struct hdmi_video *vpara)
 {
-	unsigned char colorimetry, ext_colorimetry, aspect_ratio, y1y0;
+	unsigned char colorimetry, ext_colorimetry = 0, aspect_ratio, y1y0;
 	unsigned char rgb_quan_range = AVI_QUANTIZATION_RANGE_DEFAULT;
 
 	hdmi_msk_reg(hdmi_dev, FC_DATAUTO3, m_AVI_AUTO, v_AVI_AUTO(0));
@@ -1718,7 +1726,6 @@ static void hdmi_dev_config_avi(struct hdmi_dev *hdmi_dev,
 	} else if (vpara->color_output == HDMI_COLOR_RGB_16_235 ||
 		 vpara->color_output == HDMI_COLOR_RGB_0_255) {
 		colorimetry = AVI_COLORIMETRY_NO_DATA;
-		ext_colorimetry = 0;
 	} else if (vpara->colorimetry != HDMI_COLORIMETRY_NO_DATA) {
 		colorimetry = vpara->colorimetry;
 	}

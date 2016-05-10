@@ -337,7 +337,7 @@ static void hdmi_edid_parse_yuv420cmdb(unsigned char *buf, int count,
 {
 	struct list_head *pos;
 	struct display_modelist *modelist;
-	int i, j, yuv420_mask, vic;
+	int i, j, yuv420_mask = 0, vic;
 
 	if (count == 1) {
 		list_for_each(pos, head) {
