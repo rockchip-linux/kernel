@@ -156,8 +156,7 @@ extern struct task_group root_task_group;
 
 #ifdef CONFIG_VIRT_CPU_ACCOUNTING_GEN
 # define INIT_VTIME(tsk)						\
-	.vtime_lock = __RAW_SPIN_LOCK_UNLOCKED(tsk.vtime_lock),	\
-	.vtime_seq = SEQCNT_ZERO(tsk.vtime_seq),			\
+	.vtime_seqcount = SEQCNT_ZERO(tsk.vtime_seqcount),	\
 	.vtime_snap = 0,				\
 	.vtime_snap_whence = VTIME_SYS,
 #else
