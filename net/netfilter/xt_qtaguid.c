@@ -1938,7 +1938,7 @@ static int qtaguid_ctrl_proc_show(struct seq_file *m, void *v)
 			);
 		f_count = atomic_long_read(
 			&sock_tag_entry->socket->file->f_count);
-		seq_printf(m, "sock=%p tag=0x%llx (uid=%u) pid=%u "
+		seq_printf(m, "sock=%pK tag=0x%llx (uid=%u) pid=%u "
 			   "f_count=%lu\n",
 			   sock_tag_entry->sk,
 			   sock_tag_entry->tag, uid,
@@ -2534,7 +2534,7 @@ static int pp_stats_line(struct seq_file *m, struct tag_stat *ts_entry,
 	uid_t stat_uid = get_uid_from_tag(tag);
 	struct proc_print_info *ppi = m->private;
 	/* Detailed tags are not available to everybody */
-	if (get_atag_from_tag(tag) && !can_read_other_uid_stats(stat_uid)) {
+	if (!can_read_other_uid_stats(stat_uid)) {
 		CT_DEBUG("qtaguid: stats line: "
 			 "%s 0x%llx %u: insufficient priv "
 			 "from pid=%u tgid=%u uid=%u stats.gid=%u\n",
