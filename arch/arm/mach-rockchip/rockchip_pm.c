@@ -470,7 +470,9 @@ static int rkpm_enter(suspend_state_t state)
 
 #ifdef CONFIG_ARM_PSCI
 	if (psci_suspend_available()) {
+		RKPM_DDR_FUN(prepare);
 		cpu_suspend(0, rk_lpmode_enter);
+		RKPM_DDR_FUN(finish);
 		return 0;
 	}
 #endif

@@ -38,6 +38,7 @@
 #include "sram.h"
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/psci.h>
+#include <linux/wakeup_reason.h>
 #include "pm.h"
 
 #define RK322X_DEVICE(name) \
@@ -168,6 +169,53 @@ static void __init rk322x_init_ddrfreq_func(void)
 	ddr_set_auto_self_refresh = (void *)psci_ddr_set_auto_self_refresh;
 }
 
+#define GICD_ISPEND		0x200
+#define GPIO_NUMS		4
+#define GPIO_INTEN		0x30
+#define GPIO_INT_STATUS		0x40
+
+#define DUMP_GPIO_INTEN(ID) \
+	do { \
+		u32 en = readl_relaxed(RK_GPIO_VIRT(ID) + GPIO_INTEN); \
+		if (en) { \
+			printk("GPIO%d_INTEN: %08x\n", ID, en); \
+		} \
+	} while (0)
+
+static void rk322x_irq_prepare(void)
+{
+	DUMP_GPIO_INTEN(0);
+	DUMP_GPIO_INTEN(1);
+	DUMP_GPIO_INTEN(2);
+	DUMP_GPIO_INTEN(3);
+}
+
+static void rk322x_irq_finish(void)
+{
+	u32 irq_gpio, irq[4], val, i;
+
+	/* gpio0~3, irq: 83, 84, 85, 86 */
+	val = readl_relaxed(RK_GIC_VIRT + GICD_ISPEND + 8);
+	irq_gpio = (val >> 19) & 0x0f;
+
+	for (i = 0; i < ARRAY_SIZE(irq); i++)
+		irq[i] = readl_relaxed(RK_GIC_VIRT + GICD_ISPEND + (1 + i) * 4);
+
+	for (i = 0; i < ARRAY_SIZE(irq); i++) {
+		if (irq[i])
+			log_wakeup_reason(32 * (i + 1) + fls(irq[i]) - 1);
+	}
+
+	printk("wakeup irq: %08x %08x %08x %08x\n",
+	       irq[3], irq[2], irq[1], irq[0]);
+
+	for (i = 0; i < GPIO_NUMS; i++) {
+		if (irq_gpio & (1 << i))
+			printk("wakeup gpio%d: %08x\n", i,
+			       readl_relaxed(RK_GPIO_VIRT(i) + GPIO_INT_STATUS));
+	}
+}
+
 static void __init rk322x_init_late(void)
 {
 	if (rockchip_jtag_enabled)
@@ -176,6 +224,7 @@ static void __init rk322x_init_late(void)
 	rk322x_suspend_init();
 	rockchip_suspend_init();
 	rk322x_init_ddrfreq_func();
+	rkpm_set_ops_prepare_finish(rk322x_irq_prepare, rk322x_irq_finish);
 }
 
 static void rk322x_restart(char mode, const char *cmd)
