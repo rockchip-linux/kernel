@@ -505,7 +505,9 @@ static int rk816_pre_init(struct rk816 *rk816)
 {
 	int ret, val;
 
-	pr_info("%s,line=%d\n", __func__, __LINE__);
+	pr_info("pmic power on/off source: on=0x%x, off=0x%x\n",
+		rk816_reg_read(rk816, RK816_ON_SOURCE_REG),
+		rk816_reg_read(rk816, RK816_OFF_SOURCE_REG));
 
 	/***********set buck 12.5mv/us ************/
 	val = rk816_reg_read(rk816, RK816_BUCK1_CONFIG_REG);
