@@ -790,8 +790,10 @@
 		sleep_exit_current = <300>;
 		sleep_filter_current = <100>;
 		power_off_thresd = <3400>;
-		zero_algorithm_vol = <3800>;
-		max_soc_offset = <70>;
+		zero_algorithm_vol = <3850>;
+		fb_temperature = <115>;
+		energy_mode = <0>;
+		max_soc_offset = <60>;
 		monitor_sec = <5>;
 		virtual_power = <0>;
 		power_dc2otg = <1>;
