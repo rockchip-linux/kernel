@@ -37,6 +37,10 @@
 #include "tee_tz_priv.h"
 #include "handle.h"
 
+#ifdef CONFIG_OUTER_CACHE
+#undef CONFIG_OUTER_CACHE
+#endif
+
 #define SWITCH_CPU0_DEBUG
 
 #define _TEE_TZ_NAME "armtz"
@@ -71,8 +75,8 @@ static struct handle_db shm_handle_db = HANDLE_DB_INITIALIZER;
 static void switch_cpumask_to_cpu0(cpumask_t *saved_cpu_mask)
 {
 	long ret;
+
 	cpumask_t local_cpu_mask = CPU_MASK_NONE;
-	pr_info("switch_cpumask_to_cpu cpu0\n");
 	cpu_set(0, local_cpu_mask);
 	cpumask_copy(saved_cpu_mask, tsk_cpus_allowed(current));
 	ret = sched_setaffinity(0, &local_cpu_mask);
@@ -83,7 +87,7 @@ static void switch_cpumask_to_cpu0(cpumask_t *saved_cpu_mask)
 static void restore_cpumask(cpumask_t *saved_cpu_mask)
 {
 	long ret;
-	pr_info("restore_cpumask cpu0\n");
+
 	ret = sched_setaffinity(0, saved_cpu_mask);
 	if (ret)
 		pr_err("sched_setaffinity #2 -> 0x%lX", ret);
@@ -451,9 +455,9 @@ static void call_tee(struct tee_tz *ptee,
 #endif
 		ret = param.a0;
 
-		if (ret == TEESMC_RETURN_EBUSY) {
+		if (ret == TEESMC_RETURN_ETHREAD_LIMIT) {
 			/*
-			 * Since secure world returned busy, release the
+			 * Since secure world is out of threads, release the
 			 * lock we had when entering this function and wait
 			 * for "something to happen" (something else to
 			 * exit from secure world and needed resources may
