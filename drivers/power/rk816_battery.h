@@ -40,7 +40,7 @@
 #define OCV_SAMP_32MIN		(0x02 << 2)
 #define OCV_SAMP_48MIN		(0x03 << 2)
 #define ADC_CUR_MODE		(0x01 << 1)
-#define ADC_VOL_MODE		(0x00 << 1)
+#define AVG_CUR_MODE		(0x00 << 0)
 
 /*GGSTS*/
 #define RES_CUR_AVG_SEL		(3 << 5)
@@ -130,6 +130,7 @@
 #define OTG_EN_OFF_MASK		((0x3 << 5) | (0x0 << 1))
 #define CHRG_EN			(1 << 7)
 
+#define FB_TEMP_SHIFT		2
 #define CHRG_VOL_SEL_SHIFT	4
 #define CHRG_CRU_INPUT_SHIFT	0
 #define CHRG_CRU_SEL_SHIFT	0
@@ -137,7 +138,7 @@
 #define	OCV_CALIB_SHIFT		(1 << 1)
 #define PLUG_IN_STS		(1 << 6)
 
-#define DRIVER_VERSION		"1.0.0"
+#define DRIVER_VERSION		"1.1"
 #define TIMER_MS_COUNTS		1000
 #define MAX_PERCENTAGE		100
 #define MAX_INT			0x7FFF
@@ -146,10 +147,16 @@
 struct battery_platform_data {
 	u32 *ocv_table;
 	u32 *zero_table;
+	u32 *ntc_table;
 	u32 ocv_size;
+	u32 ntc_size;
+	int ntc_degree_from;
 	u32 max_input_current;
 	u32 max_chrg_current;
 	u32 max_chrg_voltage;
+	u32 lp_input_current;
+	u32 lp_soc_min;
+	u32 lp_soc_max;
 	u32 pwroff_vol;
 	u32 monitor_sec;
 	u32 zero_algorithm_vol;
@@ -162,10 +169,11 @@ struct battery_platform_data {
 	u32 power_dc2otg;
 	u32 max_soc_offset;
 	u32 bat_mode;
+	u32 fb_temp;
+	u32 energy_mode;
 	u32 cccv_hour;
 	u32 dc_det_adc;
 	int dc_det_pin;
-	int dc_det_irq;
 	u8  dc_det_level;
 	bool dc_gpio_enable;
 };
@@ -177,13 +185,15 @@ enum work_mode {
 };
 
 enum bat_mode {
-	MODE_BATTARY,
+	MODE_BATTARY = 0,
 	MODE_VIRTUAL,
 };
 
 enum charger_type {
 	UNKNOWN_CHARGER = 0,
-	NO_CHARGER,
+	NONE_CHARGER,
+	NO_ACUSB_CHARGER,
+	NO_DC_CHARGER,
 	USB_CHARGER,
 	AC_CHARGER,
 	DC_CHARGER,
@@ -192,6 +202,10 @@ enum charger_type {
 enum charger_state {
 	OFFLINE = 0,
 	ONLINE
+};
+
+static const u16 FEED_BACK_TEMP[] = {
+	85, 95, 105, 115
 };
 
 static const u16 CHRG_VOL_SEL[] = {
