@@ -976,6 +976,14 @@ static int rk322x_phy_adjust(struct phy_device *phydev) {
 	int resv1 = phy_read(phydev, 17);
 	printk("resv1 = %x\n", resv1);
 	phy_write(phydev, 17, resv1 & 0x3F);
+
+	// adjust TXAMP
+	phy_write(phydev,20,0x400);
+	phy_write(phydev,20,0x0);
+	phy_write(phydev,20,0x400);
+	phy_write(phydev,23,0xb);    // default is 0x8, set to 0xb
+	phy_write(phydev,20,0x4418);
+//	phy_write(phydev,20,0x8700);
 	return 0;
 }
 
