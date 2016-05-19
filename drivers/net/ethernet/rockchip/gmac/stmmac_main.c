@@ -971,6 +971,14 @@ static void macphy_led_work(struct work_struct *work)
 	}
 }
 
+static int rk322x_phy_adjust(struct phy_device *phydev) {
+	// disable auto MDIX
+	int resv1 = phy_read(phydev, 17);
+	printk("resv1 = %x\n", resv1);
+	phy_write(phydev, 17, resv1 & 0x3F);
+	return 0;
+}
+
 /**
  * stmmac_init_phy - PHY initialization
  * @dev: net device structure
@@ -1032,6 +1040,10 @@ static int stmmac_init_phy(struct net_device *dev)
 	priv->phydev = phydev;
 
 	gmac_create_sysfs(phydev);
+
+	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy)) {
+		rk322x_phy_adjust(phydev);
+	}
 
 	INIT_DELAYED_WORK(&bsp_priv->led_work, macphy_led_work);
 	/* Initialize next time the led can flash */
@@ -3143,6 +3155,10 @@ int stmmac_resume(struct net_device *ndev)
 
 	if (priv->phydev)
 		phy_start(priv->phydev);
+
+	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy)) {
+		rk322x_phy_adjust(priv->phydev);
+	}
 
 	return 0;
 }
