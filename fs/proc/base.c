@@ -3178,7 +3178,7 @@ int proc_pid_readdir(struct file *file, struct dir_context *ctx)
  * used for the node /proc/<pid>/task/<tid>/comm.
  * It bypasses generic permission checks in the case where a task of the same
  * task group attempts to access the node.
- * The rational behind this is that glibc and bionic access this node for
+ * The rationale behind this is that glibc and bionic access this node for
  * cross thread naming (pthread_set/getname_np(!self)). However, if
  * PR_SET_DUMPABLE gets set to 0 this node among others becomes uid=0 gid=0,
  * which locks out the cross thread naming implementation.
