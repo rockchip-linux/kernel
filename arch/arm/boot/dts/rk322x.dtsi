@@ -202,10 +202,11 @@
 						>;
 					lkg_adjust_volt_en = <1>;
 					channel = <2>;
-					def_table_lkg = <8>;
-					min_adjust_freq = <800000>;
+					def_table_lkg = <5>;
+					min_adjust_freq = <300000>;
 					lkg_adjust_volt_table = <
 						/*lkg(mA)  volt(uV)*/
+						7	   50000
 						60         100000
 						>;
 					status = "disabled";
@@ -247,7 +248,7 @@
 	dram: dram {
 		compatible = "rockchip,rk322x-dram";
 		status = "okay";
-		dram_freq = <800000000>;
+		dram_freq = <786000000>;
 		rockchip,dram_timing = <&dram_timing>;
 	};
 
