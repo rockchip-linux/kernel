@@ -66,6 +66,7 @@ struct rkxx_remotectl_drvdata {
 	int wakeup;
 	int clk_rate;
 	unsigned long period;
+	unsigned long temp_period;
 	int pwm_freq_nstime;
 	struct input_dev *input;
 	struct timer_list timer;
@@ -74,7 +75,6 @@ struct rkxx_remotectl_drvdata {
 };
 
 static struct rkxx_remotectl_button *remotectl_button;
-
 
 static int remotectl_keybd_num_lookup(struct rkxx_remotectl_drvdata *ddata)
 {
@@ -292,88 +292,42 @@ static void rk_pwm_remotectl_timer(unsigned long _data)
 
 static irqreturn_t rockchip_pwm_irq(int irq, void *dev_id)
 {
-	struct rkxx_remotectl_drvdata *ddata;
+	struct rkxx_remotectl_drvdata *ddata = dev_id;
 	int val;
+	int temp_hpr;
+	int temp_lpr;
+	int temp_period;
+	unsigned int id = ddata->remote_pwm_id;
 
-	ddata = (struct rkxx_remotectl_drvdata *)dev_id;
-	switch (ddata->remote_pwm_id) {
-	case 0: {
-		val = readl_relaxed(ddata->base + PWM0_REG_INTSTS);
-		if (val & PWM_CH0_INT) {
-			if ((val & PWM_CH0_POL) == 0) {
-				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				tasklet_hi_schedule(&ddata->remote_tasklet);
-				ddata->period = ddata->pwm_freq_nstime * val /1000;
-				DBG("period=%ld\n", ddata->period);
-			} else {
-				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-			}
-			writel_relaxed(PWM_CH0_INT, ddata->base + PWM0_REG_INTSTS);
-			if (ddata->state == RMC_PRELOAD)
-				wake_lock_timeout(&ddata->remotectl_wake_lock, HZ);
-			return IRQ_HANDLED;
+	if (id > 3)
+		return IRQ_NONE;
+	val = readl_relaxed(ddata->base + PWM_REG_INTSTS(id));
+	if ((val & PWM_CH_INT(id)) == 0)
+		return IRQ_NONE;
+	if ((val & PWM_CH_POL(id)) == 0) {
+		temp_hpr = readl_relaxed(ddata->base + PWM_REG_HPR);
+		DBG("hpr=%d\n", temp_hpr);
+		temp_lpr = readl_relaxed(ddata->base + PWM_REG_LPR);
+		DBG("lpr=%d\n", temp_lpr);
+		temp_period = ddata->pwm_freq_nstime * temp_lpr / 1000;
+		if (temp_period > RK_PWM_TIME_BIT0_MIN) {
+			ddata->period = ddata->temp_period
+			    + ddata->pwm_freq_nstime * temp_hpr / 1000;
+			tasklet_hi_schedule(&ddata->remote_tasklet);
+			ddata->temp_period = 0;
+			DBG("period+ =%ld\n", ddata->period);
+		} else {
+			ddata->temp_period += ddata->pwm_freq_nstime
+			    * (temp_hpr + temp_lpr) / 1000;
 		}
 	}
-	break;
-	case 1:	{
-		val = readl_relaxed(ddata->base + PWM1_REG_INTSTS);
-		if (val & PWM_CH1_INT) {
-			if ((val & PWM_CH1_POL) == 0) {
-				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				tasklet_hi_schedule(&ddata->remote_tasklet);
-				ddata->period = ddata->pwm_freq_nstime * val /1000;
-				DBG("period=%ld\n", ddata->period);
-			} else {
-				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-			}
-			writel_relaxed(PWM_CH1_INT, ddata->base + PWM1_REG_INTSTS);
-			if (ddata->state == RMC_PRELOAD)
-				wake_lock_timeout(&ddata->remotectl_wake_lock, HZ);
-			return IRQ_HANDLED;
-		}
-	}
-	break;
-	case 2:	{
-		val = readl_relaxed(ddata->base + PWM2_REG_INTSTS);
-		if (val & PWM_CH2_INT) {
-			if ((val & PWM_CH2_POL) == 0) {
-				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				tasklet_hi_schedule(&ddata->remote_tasklet);
-				ddata->period = ddata->pwm_freq_nstime * val / 1000;
-				DBG("period=%ld\n", ddata->period);
-			} else {
-				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-			}
-			writel_relaxed(PWM_CH2_INT, ddata->base + PWM2_REG_INTSTS);
-			if (ddata->state == RMC_PRELOAD)
-				wake_lock_timeout(&ddata->remotectl_wake_lock, HZ);
-			return IRQ_HANDLED;
-		}
-	}
-	break;
-	case 3:	{
-		val = readl_relaxed(ddata->base + PWM3_REG_INTSTS);
-		if (val & PWM_CH3_INT) {
-			if ((val & PWM_CH3_POL) == 0) {
-				val = readl_relaxed(ddata->base + PWM_REG_HPR);
-				tasklet_hi_schedule(&ddata->remote_tasklet);
-				ddata->period = ddata->pwm_freq_nstime * val /1000;
-				DBG("period=%ld\n", ddata->period);
-			} else {
-				val = readl_relaxed(ddata->base + PWM_REG_LPR);
-			}
-			writel_relaxed(PWM_CH3_INT, ddata->base + PWM3_REG_INTSTS);
-			if (ddata->state == RMC_PRELOAD)
-				wake_lock_timeout(&ddata->remotectl_wake_lock, HZ);
-			return IRQ_HANDLED;
-		}
-	}
-	break;
-	default:
-	break;
-	}
-	return IRQ_NONE;
+	writel_relaxed(PWM_CH_INT(id), ddata->base + PWM_REG_INTSTS(id));
+	if (ddata->state == RMC_PRELOAD)
+		wake_lock_timeout(&ddata->remotectl_wake_lock, HZ);
+	return IRQ_HANDLED;
 }
+
+
 
 static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 {
@@ -452,6 +406,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	ddata->state = RMC_PRELOAD;
+	ddata->temp_period = 0;
 	ddata->base = devm_ioremap_resource(&pdev->dev, r);
 	if (IS_ERR(ddata->base))
 		return PTR_ERR(ddata->base);

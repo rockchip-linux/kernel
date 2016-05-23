@@ -95,8 +95,8 @@ enum pwm_div {
 #define RK_PWM_TIME_PRE_MIN	4000
 #define RK_PWM_TIME_PRE_MAX	5000
 
-#define RK_PWM_TIME_BIT0_MIN	700
-#define RK_PWM_TIME_BIT0_MAX	1300
+#define RK_PWM_TIME_BIT0_MIN	480
+#define RK_PWM_TIME_BIT0_MAX	700
 
 #define RK_PWM_TIME_BIT1_MIN	1300
 #define RK_PWM_TIME_BIT1_MAX	2000
@@ -107,8 +107,14 @@ enum pwm_div {
 #define RK_PWM_TIME_SEQ1_MIN	95000
 #define RK_PWM_TIME_SEQ1_MAX	98000
 
-#define RK_PWM_TIME_SEQ2_MIN	26000
-#define RK_PWM_TIME_SEQ2_MAX	50000
+#define RK_PWM_TIME_SEQ2_MIN	30000
+#define RK_PWM_TIME_SEQ2_MAX	55000
+
+
+#define PWM_REG_INTSTS(n)       ((4 - (n)) * 0x10)
+#define PWM_CH_INT(n)   BIT(n)
+#define PWM_CH_POL(n)   BIT(n+8)
+
 
 /********************************************************************
 **                          结构定义                                *
