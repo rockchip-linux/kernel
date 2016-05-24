@@ -1,0 +1,6 @@
+Rockchip platforms device tree bindings
+---------------------------------------
+
+- Rockchip RK1108 FPGA board:
+    Required root node properties:
+      - compatible = "rockchip,fpga", "rockchip,rk1108";
