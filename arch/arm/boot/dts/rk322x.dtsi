@@ -264,7 +264,7 @@
 			<&hdmi_phy_clk &hdmiphy_out>, <&usb480m &usb480m_phy>,
 			<&aclk_rkvdec &clk_cpll>;
 		rockchip,clocks-init-rate =
-			<&clk_gpll 600000000>, <&clk_core 700000000>,
+			<&clk_gpll 1200000000>, <&clk_core 700000000>,
 			<&clk_cpll 500000000>, <&aclk_bus 250000000>,
 			<&hclk_bus 125000000>, <&pclk_bus 62500000>,
 			<&aclk_peri 250000000>, <&hclk_peri 125000000>,
@@ -273,7 +273,7 @@
 			<&aclk_rga 250000000>, <&clk_gpu 250000000>,
 			<&aclk_vpu 25000000>, <&clk_vdec_core 250000000>,
 			<&clk_vdec_cabac 250000000>, <&aclk_rkvdec 16000000>,
-			<&aclk_vop 500000000>;
+			<&aclk_vop 400000000>;
 /*
 		rockchip,clocks-uboot-has-init =
 			<&aclk_vio0>;
