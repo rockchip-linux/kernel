@@ -1,5 +1,6 @@
 obj-y += common.o
 obj-y += cpu.o
+obj-y += rk1108.o
 obj-y += rk3036.o
 obj-y += rk312x.o
 obj-y += rk3126b.o
