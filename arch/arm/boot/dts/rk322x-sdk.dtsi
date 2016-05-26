@@ -479,8 +479,16 @@
 &clk_ddr_dvfs_table {
 	operating-points = <
 		/* KHz    uV */
-		300000 1000000
+		300000 1050000
+		600000 1050000
+		700000 1100000
 		800000 1150000
+		>;
+	freq-table = <
+		/*status		freq(KHz)*/
+		SYS_STATUS_NORMAL	600000
+		SYS_STATUS_VIDEO_4K	700000
+		SYS_STATUS_VIDEO_4K_10B	786000
 		>;
 	status = "okay";
 };

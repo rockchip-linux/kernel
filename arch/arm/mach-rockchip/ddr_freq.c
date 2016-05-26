@@ -98,6 +98,7 @@ struct ddr {
 	unsigned long normal_rate;
 	unsigned long video_1080p_rate;
 	unsigned long video_4k_rate;
+	unsigned long video_4k_10b_rate;
 	unsigned long performance_rate;
 	unsigned long dualview_rate;
 	unsigned long hdmi_rate;
@@ -348,6 +349,15 @@ static noinline long ddrfreq_work(unsigned long sys_status)
 		}
 	}
 
+	if (ddr.video_4k_10b_rate &&
+	    (s & SYS_STATUS_VIDEO_4K_10B) && !(s & SYS_STATUS_SUSPEND)) {
+		if (ddr.video_4k_10b_rate > target_rate) {
+			target_rate = ddr.video_4k_10b_rate;
+			auto_self_refresh = false;
+			mode = "video_4k_10b";
+		}
+	}
+
 	if (ddr.video_1080p_rate && (s & SYS_STATUS_VIDEO_1080P)) {
 		if (ddr.video_1080p_rate > target_rate) {
 			target_rate = ddr.video_1080p_rate;
@@ -494,10 +504,10 @@ struct video_info *find_video_info(struct video_info *match_video_info)
 void update_video_info(void)
 {
 	struct video_info *video_info, *max_res_video;
-	int max_res=0, res=0;
+	int max_res = 0, max_stream_bitrate = 0, res = 0;
 
 	if (list_empty(&ddr.video_info_list)) {
-		rockchip_clear_system_status(SYS_STATUS_VIDEO_1080P|SYS_STATUS_VIDEO_4K);
+		rockchip_clear_system_status(SYS_STATUS_VIDEO);
 		return;
 	}
 
@@ -507,13 +517,18 @@ void update_video_info(void)
 			max_res = res;
 			max_res_video = video_info;
 		}
+		if (video_info->streamBitrate > max_stream_bitrate)
+			max_stream_bitrate = video_info->streamBitrate;
 	}
 
-	if (max_res <= 1920*1080)
+	if (max_res <= 1920*1080) {
 		rockchip_set_system_status(SYS_STATUS_VIDEO_1080P);
-	else
-		rockchip_set_system_status(SYS_STATUS_VIDEO_4K);
-
+	} else {
+		if (max_stream_bitrate == 10)
+			rockchip_set_system_status(SYS_STATUS_VIDEO_4K_10B);
+		else
+			rockchip_set_system_status(SYS_STATUS_VIDEO_4K);
+	}
 	return;
 }
 
@@ -918,6 +933,8 @@ int of_init_ddr_freq_table(void)
 			ddr.video_1080p_rate = rate;
 		if (status & SYS_STATUS_VIDEO_4K)
 			ddr.video_4k_rate = rate;
+		if (status & SYS_STATUS_VIDEO_4K_10B)
+			ddr.video_4k_10b_rate = rate;
 		if (status & SYS_STATUS_PERFORMANCE)
 			ddr.performance_rate= rate;
 		if ((status & SYS_STATUS_LCDC0)&&(status & SYS_STATUS_LCDC1))
@@ -957,7 +974,7 @@ static int ddrfreq_scale_rate_for_dvfs(struct clk *clk, unsigned long rate)
 	real_rate *= MHZ;
 	if (!real_rate)
 		return -EAGAIN;
-	if (cpu_is_rk312x()) {
+	if (cpu_is_rk312x() || cpu_is_rk322x()) {
 		clk->parent->rate = 2 * real_rate;
 		clk->rate = real_rate;
 	} else {
@@ -1035,14 +1052,15 @@ static int ddrfreq_init(void)
 	fb_register_client(&ddr_freq_suspend_notifier);
 
 	pr_info("verion 1.2 20140526\n");
-	pr_info("normal %luMHz video_1080p %luMHz video_4k %luMHz dualview %luMHz idle %luMHz suspend %luMHz reboot %luMHz\n",
+	pr_info("normal %luMHz video_1080p %luMHz video_4k %luMHz dualview %luMHz idle %luMHz suspend %luMHz reboot %luMHz video_4k_10b %luMHz\n",
 		ddr.normal_rate / MHZ,
 		ddr.video_1080p_rate / MHZ,
 		ddr.video_4k_rate / MHZ,
 		ddr.dualview_rate / MHZ,
 		ddr.idle_rate / MHZ,
 		ddr.suspend_rate / MHZ,
-		ddr.reboot_rate / MHZ);
+		ddr.reboot_rate / MHZ,
+		ddr.video_4k_10b_rate / MHZ);
 
 	pr_info("auto-freq=%d\n", ddr.auto_freq);
 	if (auto_freq_table) {

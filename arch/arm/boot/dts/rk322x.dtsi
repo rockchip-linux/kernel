@@ -6,6 +6,7 @@
 
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/clock/rk_system_status.h>
 #include <rk322x_dram_default_timing.dtsi>
 #include <dt-bindings/suspend/rockchip-pm.h>
 
