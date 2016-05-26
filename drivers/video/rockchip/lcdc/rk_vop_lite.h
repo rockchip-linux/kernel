@@ -101,10 +101,24 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define  V_DSP_BG_BLUE(x)			VAL_MASK(x, 8, 0)
 #define  V_DSP_BG_GREEN(x)			VAL_MASK(x, 8, 8)
 #define  V_DSP_BG_RED(x)			VAL_MASK(x, 8, 16)
-#define MCU_RESERVED			0x0000000c
+#define MCU_CTRL			0x0000000c
+#define  V_MCU_PIX_TOTAL(x)			VAL_MASK(x, 6, 0)
+#define  V_MCU_CS_PST(x)			VAL_MASK(x, 4, 6)
+#define  V_MCU_CS_PEND(x)			VAL_MASK(x, 6, 10)
+#define  V_MCU_RW_PST(x)			VAL_MASK(x, 4, 16)
+#define  V_MCU_RW_PEND(x)			VAL_MASK(x, 6, 20)
+#define  V_MCU_CLK_SEL(x)			VAL_MASK(x, 1, 26)
+#define  V_MCU_HOLD_MODE(x)			VAL_MASK(x, 1, 27)
+#define  V_MCU_FRAME_ST(x)			VAL_MASK(x, 1, 28)
+#define  V_MCU_RS(x)				VAL_MASK(x, 1, 29)
+#define  V_MCU_BYPASS(x)			VAL_MASK(x, 1, 30)
 #define SYS_CTRL0			0x00000010
 #define  V_DIRECT_PATH_EN(x)			VAL_MASK(x, 1, 0)
 #define  V_DIRECT_PATH_LAYER_SEL(x)		VAL_MASK(x, 1, 1)
+#define  V_UV_OFFSET_EN(x)			VAL_MASK(x, 1, 4)
+#define  V_TVE_MODE(x)				VAL_MASK(x, 1, 5)
+#define  V_GENLOCK(x)				VAL_MASK(x, 1, 6)
+#define  V_DAC_SEL(x)				VAL_MASK(x, 1, 7)
 #define SYS_CTRL1			0x00000014
 #define  V_SW_NOC_QOS_EN(x)			VAL_MASK(x, 1, 0)
 #define  V_SW_NOC_QOS_VALUE(x)			VAL_MASK(x, 2, 1)
@@ -147,6 +161,11 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define  V_MIPI_HSYNC_POL(x)			VAL_MASK(x, 1, 26)
 #define  V_MIPI_VSYNC_POL(x)			VAL_MASK(x, 1, 27)
 #define  V_MIPI_DEN_POL(x)			VAL_MASK(x, 1, 28)
+#define DSP_CTRL1                       0x00000024
+#define  V_TVE_DAC_DCLK_EN(x)			VAL_MASK(x, 1, 8)
+#define  V_TVE_DAC_DCLK_POL(x)			VAL_MASK(x, 1, 9)
+#define  V_TVE_DAC_HSYNC_POL(x)			VAL_MASK(x, 1, 10)
+#define  V_TVE_DAC_VSYNC_POL(x)			VAL_MASK(x, 1, 11)
 #define DSP_CTRL2			0x00000028
 #define  V_DSP_INTERLACE(x)			VAL_MASK(x, 1, 0)
 #define  V_INTERLACE_FIELD_POL(x)		VAL_MASK(x, 1, 1)
@@ -374,6 +393,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define FRC_LOWER11_1			0x00000184
 #define  V_LOWER11_FRM2(x)			VAL_MASK(x, 16, 0)
 #define  V_LOWER11_FRM3(x)			VAL_MASK(x, 16, 16)
+#define MCU_RW_BYPASS_PORT		0x0000018c
 #define DBG_REG_000			0x00000190
 #define BLANKING_VALUE			0x000001f4
 #define  V_SW_BLANKING_VALUE(x)			VAL_MASK(x, 24, 0)
@@ -382,6 +402,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define FLAG_REG			0x000001fc
 #define HWC_LUT_ADDR			0x00000600
 #define GAMMA_LUT_ADDR			0x00000a00
+#define TVE_CONFIGURATION		0x00000e00
 #define MMU_DTE_ADDR			0x00000f00
 #define MMU_STATUS			0x00000f04
 #define  V_PAGING_ENABLED(x)			VAL_MASK(x, 1, 0)
@@ -420,6 +441,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define INTR_MASK (INTR_FS0 | INTR_FS1 | INTR_ADDR_SAME | INTR_LINE_FLAG0 | \
 			INTR_LINE_FLAG1 | INTR_BUS_ERROR | INTR_WIN0_EMPTY | \
 			INTR_WIN1_EMPTY | INTR_DSP_HOLD_VALID | INTR_DMA_FINISH)
+#define MCU_SCREEN_MAX_FPS	60
 
 /* GRF register for VOP source select */
 #define GRF_WEN_SHIFT(x)	(BIT(x) << 16)
@@ -444,6 +466,7 @@ struct vop_sync_obj_s {
 
 struct vop_device {
 	int id;
+	const struct vop_data *data;
 	struct rk_lcdc_driver driver;
 	struct device *dev;
 	struct rk_screen *screen;
@@ -555,6 +578,19 @@ static inline void vop_msk_reg(struct vop_device *vop_dev, u32 offset, u64 v)
 	writel_relaxed(*_pv, vop_dev->regs + offset);
 }
 
+static inline void vop_msk_reg_nobak(struct vop_device *vop_dev,
+				     u32 offset, u64 v)
+{
+	u32 *_pv = (u32 *)vop_dev->regsbak;
+	u32 val;
+
+	_pv += (offset >> 2);
+	val = *_pv;
+	val &= (~(v >> 32));
+	val |= (u32)v;
+	writel_relaxed(val, vop_dev->regs + offset);
+}
+
 static inline void vop_mask_writel(struct vop_device *vop_dev, u32 offset,
 				   u32 mask, u32 v)
 {
@@ -632,6 +668,15 @@ enum _bcsh_video_mode {
 	BCSH_MODE_BLUE,
 	BCSH_MODE_COLORBAR,
 	BCSH_MODE_VIDEO,
+};
+
+enum {
+	VOP_RK1108,
+	VOP_RK3366,
+};
+
+struct vop_data {
+	int chip_type;
 };
 
 #define IS_YUV(x) ((x) >= VOP_FORMAT_YCBCR420)

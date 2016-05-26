@@ -31,6 +31,7 @@
 #include <linux/rockchip-iovmm.h>
 #include <asm/div64.h>
 #include <linux/uaccess.h>
+#include <linux/of_device.h>
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/grf.h>
@@ -40,6 +41,7 @@
 #include "rk_vop_lite.h"
 
 static int dbg_thresd;
+#define VOP_CHIP(dev)	(dev->data->chip_type)
 module_param(dbg_thresd, int, S_IRUGO | S_IWUSR);
 
 #define DBG(level, x...) do {			\
@@ -54,6 +56,24 @@ static struct rk_lcdc_win vop_win[] = {
 	{ .name = "win1", .id = 1},
 	{ .name = "hwc",  .id = 2}
 };
+
+static const struct vop_data rk3366_data = {
+	.chip_type = VOP_RK3366,
+};
+
+static const struct vop_data rk1108_data = {
+	.chip_type = VOP_RK1108,
+};
+
+#if defined(CONFIG_OF)
+static const struct of_device_id vop_dt_ids[] = {
+	{.compatible = "rockchip,rk3366-lcdc-lite",
+	 .data = &rk3366_data, },
+	{.compatible = "rockchip,rk1108-lcdc-lite",
+	 .data = &rk1108_data, },
+	{}
+};
+#endif
 
 static int vop_set_bcsh(struct rk_lcdc_driver *dev_drv, bool enable);
 
@@ -840,6 +860,41 @@ static int vop_set_dclk(struct rk_lcdc_driver *dev_drv, int reset_rate)
 	return 0;
 }
 
+static int vop_config_mcu_timing(struct rk_lcdc_driver *dev_drv)
+{
+	struct vop_device *vop_dev = to_vop_dev(dev_drv);
+	struct rk_screen *screen = dev_drv->cur_screen;
+
+	u32 mcu_total, mcu_cs_start, mcu_cs_end, mcu_rw_start, mcu_rw_end;
+	u32 ppixel_time, val;
+
+	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
+		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
+		return 0;
+	}
+	ppixel_time = NSEC_PER_SEC /
+		(MCU_SCREEN_MAX_FPS * screen->mode.xres * screen->mode.yres);
+	mcu_total  = ppixel_time / (NSEC_PER_SEC / screen->mode.pixclock);
+	if (mcu_total > 63)
+		mcu_total = 63;
+	if (mcu_total < 3)
+		mcu_total = 3;
+	mcu_rw_start = (mcu_total + 1) / 4 - 1;
+	mcu_rw_end = ((mcu_total + 1) * 3) / 4 - 1;
+	mcu_cs_start = (mcu_rw_start > 2) ? (mcu_rw_start - 3) : 0;
+	mcu_cs_end = (mcu_rw_end > 15) ? (mcu_rw_end-1) : mcu_rw_end;
+	dev_info(vop_dev->dev,
+		 "total:%d, cs_start:%d, rw_start:%d,, rw_end:%d, cs_end:%d\n",
+		 mcu_total, mcu_cs_start, mcu_rw_start, mcu_rw_end, mcu_cs_end);
+	val = V_MCU_PIX_TOTAL(mcu_total) | V_MCU_CS_PST(mcu_cs_start) |
+		V_MCU_CS_PEND(mcu_cs_end) | V_MCU_RW_PST(mcu_rw_start) |
+		V_MCU_RW_PEND(mcu_rw_end) | V_MCU_CLK_SEL(1) |
+		V_MCU_HOLD_MODE(1) | V_MCU_FRAME_ST(0);
+	vop_msk_reg(vop_dev, MCU_CTRL, val);
+
+	return 0;
+}
+
 static int vop_config_timing(struct rk_lcdc_driver *dev_drv)
 {
 	struct vop_device *vop_dev = to_vop_dev(dev_drv);
@@ -958,6 +1013,24 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 			V_MIPI_HSYNC_POL(screen->pin_hsync) |
 			V_MIPI_VSYNC_POL(screen->pin_vsync) |
 			V_MIPI_DEN_POL(screen->pin_den);
+		break;
+	case SCREEN_TVOUT:
+		val = V_UV_OFFSET_EN(1) | V_GENLOCK(1) | V_DAC_SEL(1);
+		if (screen->mode.xres == 720 &&
+		    screen->mode.yres == 576)
+			val |= V_TVE_MODE(1);
+		else
+			val |= V_TVE_MODE(0);
+		vop_msk_reg(vop_dev, SYS_CTRL0, val);
+
+		val = V_TVE_DAC_DCLK_EN(1) |
+			V_TVE_DAC_DCLK_POL(screen->pin_dclk) |
+			V_TVE_DAC_HSYNC_POL(screen->pin_hsync) |
+			V_TVE_DAC_VSYNC_POL(screen->pin_vsync);
+		vop_msk_reg(vop_dev, DSP_CTRL1, val);
+		break;
+	case SCREEN_MCU:
+		dev_info(vop_dev->dev, "mcu screen type!\n");
 		break;
 	default:
 		dev_err(vop_dev->dev, "un supported interface[%d]!\n",
@@ -1171,6 +1244,8 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		vop_config_interface(dev_drv);
 		vop_config_source(dev_drv);
 		vop_config_timing(dev_drv);
+		if (screen->type == SCREEN_MCU)
+			vop_config_mcu_timing(dev_drv);
 		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN)
 			vop_config_background(dev_drv, 0x801080);
 		else
@@ -1915,6 +1990,21 @@ static int vop_fb_win_remap(struct rk_lcdc_driver *dev_drv, u16 order)
 	return 0;
 }
 
+static int vop_mcu_refresh(struct rk_lcdc_driver *dev_drv)
+{
+	struct vop_device *vop_dev = to_vop_dev(dev_drv);
+
+	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
+		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
+		return 0;
+	}
+	if (vop_dev->screen->refresh)
+		vop_dev->screen->refresh(1);
+	vop_msk_reg_nobak(vop_dev, MCU_CTRL, V_MCU_FRAME_ST(1));
+
+	return 0;
+}
+
 static int vop_get_win_id(struct rk_lcdc_driver *dev_drv, const char *id)
 {
 	int win_id = 0;
@@ -1948,6 +2038,8 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 			vop_layer_update_regs(vop_dev, win);
 		}
 		vop_cfg_done(vop_dev);
+		if (dev_drv->cur_screen->type == SCREEN_MCU)
+			vop_mcu_refresh(dev_drv);
 	}
 	spin_unlock(&vop_dev->reg_lock);
 
@@ -2269,6 +2361,36 @@ vop_dsp_black(struct rk_lcdc_driver *dev_drv, int enable)
 	return 0;
 }
 
+static int vop_mcu_ctrl(struct rk_lcdc_driver *dev_drv, unsigned int cmd,
+			unsigned int arg)
+{
+	struct vop_device *vop_dev = to_vop_dev(dev_drv);
+
+	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
+		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
+		return 0;
+	}
+	switch (cmd) {
+	case MCU_WRCMD:
+		vop_msk_reg(vop_dev, MCU_CTRL, V_MCU_RS(0));
+		vop_writel(vop_dev, MCU_RW_BYPASS_PORT, arg);
+		vop_msk_reg(vop_dev, MCU_CTRL, V_MCU_RS(1));
+		break;
+	case MCU_WRDATA:
+		vop_msk_reg(vop_dev, MCU_CTRL, V_MCU_RS(1));
+		vop_writel(vop_dev, MCU_RW_BYPASS_PORT, arg);
+		break;
+	case MCU_SETBYPASS:
+		vop_msk_reg(vop_dev, MCU_CTRL, V_MCU_BYPASS(!!arg));
+		vop_cfg_done(vop_dev);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.open = vop_open,
 	.win_direct_en = vop_win_direct_en,
@@ -2307,6 +2429,7 @@ static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	/*.dsp_black = vop_dsp_black,*/
 	.backlight_close = vop_backlight_close,
 	.mmu_en = vop_mmu_enable,
+	.mcu_ctrl = vop_mcu_ctrl,
 };
 
 static irqreturn_t vop_isr(int irq, void *dev_id)
@@ -2466,6 +2589,7 @@ static int vop_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	struct device_node *np = pdev->dev.of_node;
+	const struct of_device_id *of_id;
 	int prop;
 	int ret = 0;
 
@@ -2485,6 +2609,8 @@ static int vop_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, vop_dev);
 	vop_dev->dev = dev;
+	of_id = of_match_device(vop_dt_ids, dev);
+	vop_dev->data = of_id->data;
 	vop_parse_dt(vop_dev);
 
 	/* enable power domain */
@@ -2493,23 +2619,25 @@ static int vop_probe(struct platform_device *pdev)
 	vop_dev->hclk = devm_clk_get(vop_dev->dev, "hclk_lcdc");
 	if (IS_ERR(vop_dev->hclk)) {
 		dev_err(vop_dev->dev, "failed to get hclk source\n");
-		return PTR_ERR(vop_dev->hclk);
+		vop_dev->hclk = NULL;
 	}
 
 	vop_dev->aclk = devm_clk_get(vop_dev->dev, "aclk_lcdc");
 	if (IS_ERR(vop_dev->aclk)) {
 		dev_err(vop_dev->dev, "failed to get aclk source\n");
-		return PTR_ERR(vop_dev->aclk);
+		vop_dev->aclk = NULL;
 	}
 	vop_dev->dclk = devm_clk_get(vop_dev->dev, "dclk_lcdc");
 	if (IS_ERR(vop_dev->dclk)) {
 		dev_err(vop_dev->dev, "failed to get dclk source\n");
-		return PTR_ERR(vop_dev->dclk);
+		vop_dev->dclk = NULL;
 	}
-
-	clk_prepare(vop_dev->hclk);
-	clk_prepare(vop_dev->aclk);
-	clk_prepare(vop_dev->dclk);
+	if (vop_dev->hclk)
+		clk_prepare(vop_dev->hclk);
+	if (vop_dev->aclk)
+		clk_prepare(vop_dev->aclk);
+	if (vop_dev->dclk)
+		clk_prepare(vop_dev->dclk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	vop_dev->regs = devm_ioremap_resource(dev, res);
@@ -2534,7 +2662,7 @@ static int vop_probe(struct platform_device *pdev)
 		vop_dev->grf_base = NULL;
 	}
 
-	vop_dev->id = 1;
+	vop_dev->id = VOP_CHIP(vop_dev);
 	dev_set_name(vop_dev->dev, "vop%d", vop_dev->id);
 	dev_drv = &vop_dev->driver;
 	dev_drv->dev = dev;
@@ -2581,9 +2709,12 @@ static int vop_probe(struct platform_device *pdev)
 	return 0;
 
 err_exit:
-	clk_unprepare(vop_dev->dclk);
-	clk_unprepare(vop_dev->aclk);
-	clk_unprepare(vop_dev->hclk);
+	if (vop_dev->dclk)
+		clk_unprepare(vop_dev->dclk);
+	if (vop_dev->aclk)
+		clk_unprepare(vop_dev->aclk);
+	if (vop_dev->hclk)
+		clk_unprepare(vop_dev->hclk);
 	pm_runtime_disable(dev);
 
 	return ret;
@@ -2610,13 +2741,6 @@ static void vop_shutdown(struct platform_device *pdev)
 	vop_deinit(vop_dev);
 	rk_disp_pwr_disable(dev_drv);
 }
-
-#if defined(CONFIG_OF)
-static const struct of_device_id vop_dt_ids[] = {
-	{.compatible = "rockchip,rk3366-lcdc-lite",},
-	{}
-};
-#endif
 
 static struct platform_driver vop_driver = {
 	.probe = vop_probe,

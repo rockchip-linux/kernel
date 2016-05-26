@@ -559,6 +559,8 @@ struct rk_lcdc_drv_ops {
 	int (*extern_func)(struct rk_lcdc_driver *dev_drv, int cmd);
 	int (*wait_frame_start)(struct rk_lcdc_driver *dev_drv, int enable);
 	int (*set_wb)(struct rk_lcdc_driver *dev_drv);
+	int (*mcu_ctrl)(struct rk_lcdc_driver *dev_drv, unsigned int cmd,
+			unsigned int arg);
 };
 
 struct rk_fb_area_par {
