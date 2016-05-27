@@ -43,7 +43,10 @@ static DEFINE_MUTEX(switch_vdd_gpu_mutex);
 struct regulator *vdd_gpu_regulator;
 static DEFINE_MUTEX(temp_limit_mutex);
 static u32 cpu_target_temp;
-static bool temp_limit_rkvdec;
+static bool temp_limit_4k;
+
+static int dvfs_get_rate_range(struct dvfs_node *clk_dvfs_node);
+static void dvfs_temp_unlimit_4k(void);
 
 static int dvfs_get_temp(int chn)
 {
@@ -189,19 +192,27 @@ static struct notifier_block early_suspend_notifier = {
 };
 
 #define CPU_TARGET_TMEP_4K	105
-#define CPU_MIN_RATE_4K		1008000000
+#define CPU_MIN_RATE_4K		408000000
+#define CPU_MAX_RATE_4K		816000000
 static int sys_stat_notifier_call(struct notifier_block *nb,
 				  unsigned long val, void *data)
 {
 	if (clk_cpu_dvfs_node && cpu_is_rk322x()) {
-		if (val & SYS_STATUS_VIDEO_4K) {
+		mutex_lock(&temp_limit_mutex);
+		if (val & (SYS_STATUS_VIDEO_4K_10B | SYS_STATUS_VIDEO_4K)) {
 			clk_cpu_dvfs_node->min_rate = CPU_MIN_RATE_4K;
+			clk_cpu_dvfs_node->max_rate = CPU_MAX_RATE_4K;
 			clk_cpu_dvfs_node->target_temp = CPU_TARGET_TMEP_4K;
 		} else {
-			clk_cpu_dvfs_node->min_rate =
-				clk_cpu_dvfs_node->dvfs_table[0].frequency;
+			dvfs_get_rate_range(clk_cpu_dvfs_node);
 			clk_cpu_dvfs_node->target_temp = cpu_target_temp;
+			dvfs_temp_unlimit_4k();
 		}
+		clk_cpu_dvfs_node->temp_limit_rate =
+			clk_cpu_dvfs_node->max_rate;
+		dvfs_clk_set_rate(clk_cpu_dvfs_node,
+				  clk_cpu_dvfs_node->last_set_rate);
+		mutex_unlock(&temp_limit_mutex);
 	}
 	return NOTIFY_OK;
 }
@@ -1221,6 +1232,71 @@ static void dvfs_virt_temp_limit_work_func(struct dvfs_node *dvfs_node)
 	}
 }
 
+static void dvfs_temp_limit_4k(void)
+{
+	struct clk *clk;
+	struct dvfs_node *clk_ddr_dvfs_node = clk_get_dvfs_node("clk_ddr");
+
+	if (cpu_is_rk322x() &&
+	    (rockchip_get_system_status() &
+	     (SYS_STATUS_VIDEO_4K | SYS_STATUS_VIDEO_4K_10B))) {
+		clk = clk_get(NULL, "aclk_rkvdec");
+		if (!IS_ERR_OR_NULL(clk)) {
+			clk_set_rate(clk, 100 * MHz);
+			clk_put(clk);
+		}
+		clk = clk_get(NULL, "clk_vdec_core");
+		if (!IS_ERR_OR_NULL(clk)) {
+			clk_set_rate(clk, 100 * MHz);
+			clk_put(clk);
+		}
+		clk = clk_get(NULL, "clk_vdec_cabac");
+		if (!IS_ERR_OR_NULL(clk)) {
+			clk_set_rate(clk, 100 * MHz);
+			clk_put(clk);
+		}
+
+		clk_ddr_dvfs_node->temp_limit_rate = 350000000;
+		dvfs_clk_set_rate(clk_ddr_dvfs_node,
+				  clk_ddr_dvfs_node->last_set_rate);
+
+		temp_limit_4k = true;
+	}
+}
+
+static void dvfs_temp_unlimit_4k(void)
+{
+	struct clk *clk;
+	struct dvfs_node *clk_ddr_dvfs_node = clk_get_dvfs_node("clk_ddr");
+
+	if (cpu_is_rk322x() && temp_limit_4k) {
+		clk_ddr_dvfs_node->temp_limit_rate =
+				clk_ddr_dvfs_node->max_rate;
+		dvfs_clk_set_rate(clk_ddr_dvfs_node,
+				  clk_ddr_dvfs_node->last_set_rate);
+
+		if (rockchip_get_system_status() &
+		    (SYS_STATUS_VIDEO_4K | SYS_STATUS_VIDEO_4K_10B)) {
+			clk = clk_get(NULL, "aclk_rkvdec");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 500 * MHz);
+				clk_put(clk);
+			}
+			clk = clk_get(NULL, "clk_vdec_core");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 300 * MHz);
+				clk_put(clk);
+			}
+			clk = clk_get(NULL, "clk_vdec_cabac");
+			if (!IS_ERR_OR_NULL(clk)) {
+				clk_set_rate(clk, 300 * MHz);
+				clk_put(clk);
+			}
+		}
+		temp_limit_4k = false;
+	}
+}
+
 static void dvfs_temp_limit_performance(struct dvfs_node *dvfs_node, int temp)
 {
 	int i;
@@ -1261,31 +1337,12 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 					dvfs_node->min_temp_limit;
 				dvfs_clk_set_rate(dvfs_node,
 						  dvfs_node->last_set_rate);
+				dvfs_temp_limit_4k();
 			}
-		}
-		if (cpu_is_rk322x() &&
-		    (rockchip_get_system_status() & SYS_STATUS_VIDEO_4K)) {
-			struct clk *clk;
-
-			clk = clk_get(NULL, "aclk_rkvdec");
-			if (!IS_ERR_OR_NULL(clk)) {
-				clk_set_rate(clk, 50 * MHz);
-				clk_put(clk);
-			}
-			clk = clk_get(NULL, "clk_vdec_core");
-			if (!IS_ERR_OR_NULL(clk)) {
-				clk_set_rate(clk, 50 * MHz);
-				clk_put(clk);
-			}
-			clk = clk_get(NULL, "clk_vdec_cabac");
-			if (!IS_ERR_OR_NULL(clk)) {
-				clk_set_rate(clk, 50 * MHz);
-				clk_put(clk);
-			}
-			temp_limit_rkvdec = true;
 		}
 	} else {
-		if (dvfs_node->temp_limit_rate < dvfs_node->max_rate) {
+		if (dvfs_node->temp_limit_rate < dvfs_node->max_rate ||
+		    temp_limit_4k) {
 			delta_temp = dvfs_node->target_temp - temp;
 			for (i = 0;
 			dvfs_node->nor_temp_limit_table[i].frequency !=
@@ -1304,29 +1361,8 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 					dvfs_node->max_rate;
 				dvfs_clk_set_rate(dvfs_node,
 						  dvfs_node->last_set_rate);
+				dvfs_temp_unlimit_4k();
 			}
-		}
-		if (cpu_is_rk322x() &&
-		    (rockchip_get_system_status() & SYS_STATUS_VIDEO_4K) &&
-		    temp_limit_rkvdec) {
-			struct clk *clk;
-
-			clk = clk_get(NULL, "aclk_rkvdec");
-			if (!IS_ERR_OR_NULL(clk)) {
-				clk_set_rate(clk, 500 * MHz);
-				clk_put(clk);
-			}
-			clk = clk_get(NULL, "clk_vdec_core");
-			if (!IS_ERR_OR_NULL(clk)) {
-				clk_set_rate(clk, 300 * MHz);
-				clk_put(clk);
-			}
-			clk = clk_get(NULL, "clk_vdec_cabac");
-			if (!IS_ERR_OR_NULL(clk)) {
-				clk_set_rate(clk, 300 * MHz);
-				clk_put(clk);
-			}
-			temp_limit_rkvdec = false;
 		}
 	}
 }

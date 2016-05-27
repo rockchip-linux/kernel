@@ -210,6 +210,7 @@
 						7	   50000
 						60         100000
 						>;
+					temp-limit-enable = <1>;
 					status = "disabled";
 				};
 			};
