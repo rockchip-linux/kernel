@@ -82,6 +82,8 @@ static void __init rk1108_boot_mode_init(void)
 
 static void __init rk1108_dt_map_io(void)
 {
+	rockchip_soc_id = ROCKCHIP_SOC_RK1108;
+
 	iotable_init(rk1108_io_desc, ARRAY_SIZE(rk1108_io_desc));
 	debug_ll_io_init();
 
