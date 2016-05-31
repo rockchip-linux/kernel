@@ -2,6 +2,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include "skeleton.dtsi"
+#include "rk1108-clocks.dtsi"
 
 / {
 	compatible = "rockchip,rk1108";
@@ -42,7 +43,7 @@
 	};
 
 	chosen {
-		bootargs = "initrd=0x62000000,0x01000000 init=/init console=ttyFIQ0,115200 earlyprintk=uart8250-32bit,0x10210000";
+		bootargs = "initrd=0x62000000,0x01000000 init=/init console=ttyFIQ0,115200 earlyprintk=uart8250-32bit,0x10210000 clk_ignore_unused";
 	};
 
 	aliases {
@@ -69,4 +70,90 @@
 		rockchip,irq-mode-enable = <1>;  /* If enable uart uses irq instead of fiq */
 		rockchip,baudrate = <115200>;  /* Only 115200 and 1500000 */
 	};
+
+	rockchip_clocks_init: clocks-init{
+		compatible = "rockchip,clocks-init";
+		rockchip,clocks-init-parent =
+			<&aclk_bus_pre &clk_gpll>, <&aclk_peri &clk_gpll>;
+		rockchip,clocks-init-rate =
+			<&clk_gpll 1248000000>, <&clk_core 816000000>,
+			<&clk_dsp 416000000>, <&aclk_bus_pre 156000000>,
+			<&hclk_bus_pre 156000000>, <&pclk_bus_pre 78000000>,
+			<&aclk_peri 156000000>, <&hclk_peri 156000000>,
+			<&pclk_peri 78000000>, <&aclk_vio0_pre 312000000>,
+			<&aclk_vio1_pre 312000000>, <&hclk_vio_pre 156000000>,
+			<&pclk_vio_pre 156000000>, <&aclk_rkvdec_pre 312000000>,
+			<&aclk_vpu_pre 312000000>, <&clk_hevc_cabac 312000000>,
+			<&clk_hevc_core 312000000>, <&aclk_rkvenc_pre 312000000>,
+			<&clk_venc_core 312000000>;
+	};
+
+	rockchip_clocks_enable: clocks-enable {
+		compatible = "rockchip,clocks-enable";
+		clocks =
+			/*PLL*/
+			<&clk_apll>,
+			<&clk_dpll>,
+			<&clk_gpll>,
+
+			/*PD_CORE*/
+			<&clk_core>,
+			<&pclk_dbg>,
+			<&aclk_core>,
+			<&clk_gates11 0>,/*aclk_core_niu*/
+			<&clk_gates11 1>,/*pclk_core_niu*/
+			<&clk_gates10 9>,/*clk_ddrphy4x*/
+
+			/*PD_BUS*/
+			<&clk_gates12 1>,/*clk_intmem0*/
+			<&clk_gates12 2>,/*aclk_dmac_bus*/
+			<&clk_gates12 3>,/*hclk_rom*/
+			<&clk_gates12 4>,/*pclk_ddr_upctl*/
+			<&clk_gates12 5>,/*clk_ddr_upctl*/
+			<&clk_gates12 6>,/*pclk_ddrmon*/
+			<&clk_gates12 12>,/*pclk_efuse0*/
+			<&clk_gates12 13>,/*pclk_efuse1*/
+			<&clk_gates14 0>,/*pclk_grf*/
+			<&clk_gates14 1>,/*aclk_niu*/
+			<&clk_gates14 2>,/*pclk_mschniu*/
+			<&clk_gates14 3>,/*pclk_top_niu*/
+			<&clk_gates14 4>,/*pclk_ddrphy*/
+			<&clk_gates14 5>,/*pclk_cru*/
+			<&clk_gates14 14>,/*pclk_usbgrf*/
+
+			/*PD_PERI*/
+			<&clk_gates15 11>,/*aclk_peri_niu*/
+			<&clk_gates15 12>,/*hclk_peri_niu*/
+			<&clk_gates15 13>,/*pclk_peri_niu*/
+
+			/*PD_PMU*/
+			<&clk_gates10 0>,/*pclk_pmu*/
+			<&clk_gates10 1>,/*pclk_intmem1*/
+			<&clk_gates10 3>,/*pclk_pmugrf*/
+			<&clk_gates10 4>,/*pclk_pmu_niu*/
+
+			/*PD_DSP*/
+			<&clk_gates11 8>,/*aclk_dsp_edp_perf*/
+			<&clk_gates16 4>,/*pclk_dsp_iop_niu*/
+			<&clk_gates16 5>,/*aclk_dsp_epp_niu*/
+			<&clk_gates16 6>,/*aclk_dsp_edp_niu*/
+			<&clk_gates16 7>,/*pclk_dsp_dbg_niu*/
+			<&clk_gates16 8>,/*pclk_dsp_cfg_niu*/
+			<&clk_gates16 9>,/*pclk_ceva_pfm_mon*/
+			<&clk_gates16 14>,/*aclk_dsp_edap_niu*/
+			<&clk_gates16 15>,/*aclk_dsp_epp_perf*/
+
+			/*PD_VIDEO*/
+			<&clk_gates19 4>,/*aclk_rkvdec_niu*/
+			<&clk_gates19 5>,/*hclk_rkvdec_niu*/
+			<&clk_gates19 6>,/*aclk_vpu_niu*/
+			<&clk_gates19 10>,/*hclk_rkvenc_niu*/
+			<&clk_gates19 11>,/*aclk_rkvenc_niu*/
+
+			<&clk_gates1 9>, /* clk_timer0 */
+			<&clk_gates1 10>, /* clk_timer1 */
+
+			<&clk_gates0 3>;/*clk_jtag*/
+	};
+
 };
