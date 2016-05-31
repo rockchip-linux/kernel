@@ -455,11 +455,80 @@
 	.clksel1 = RK3368_ATCLK_CORE_DIV(atclk_div) | RK3368_PCLK_DBG_DIV(pclk_dbg_div) \
 }
 
+
+/***************************RK1108 PLL**************************************/
+#define RK1108_CRU_CLKSEL_CON		0x60
+#define RK1108_CRU_CLKSELS_CON(i)	(RK1108_CRU_CLKSEL_CON + ((i) * 4))
+#define RK1108_CORE_CLK_PLL_SEL_SHIFT	(8)
+#define RK1108_CORE_CLK_PLL_SEL_MASK	(0x3)
+#define RK1108_CPU_SEL_PLL(plls)	CRU_W_MSK_SETBITS(plls, RK1108_CORE_CLK_PLL_SEL_SHIFT, RK1108_CORE_CLK_PLL_SEL_MASK)
+
+#define RK1108_PLL_FBDIV_MASK		(0xfff)
+#define RK1108_PLL_FBDIV_SHIFT		(0)
+
+#define RK1108_PLL_REFDIV_MASK		(0x3f)
+#define RK1108_PLL_REFDIV_SHIFT		(0)
+#define RK1108_PLL_POSTDIV1_MASK	(0x7)
+#define RK1108_PLL_POSTDIV1_SHIFT	(8)
+#define RK1108_PLL_POSTDIV2_MASK	(0x7)
+#define RK1108_PLL_POSTDIV2_SHIFT	(12)
+
+#define RK1108_PLL_FRAC_MASK		(0xffffff)
+#define RK1108_PLL_FRAC_SHIFT		(0)
+
+#define RK1108_PLL_DSMPD_SHIFT		(3)
+
+#define RK1108_PLL_SET_REFDIV(val)	CRU_W_MSK_SETBITS(val, RK1108_PLL_REFDIV_SHIFT, RK1108_PLL_REFDIV_MASK)
+#define RK1108_PLL_SET_FBDIV(val)	CRU_W_MSK_SETBITS(val, RK1108_PLL_FBDIV_SHIFT, RK1108_PLL_FBDIV_MASK)
+#define RK1108_PLL_SET_POSTDIV1(val)	CRU_W_MSK_SETBITS(val, RK1108_PLL_POSTDIV1_SHIFT, RK1108_PLL_POSTDIV1_MASK)
+#define RK1108_PLL_SET_POSTDIV2(val)	CRU_W_MSK_SETBITS(val, RK1108_PLL_POSTDIV2_SHIFT, RK1108_PLL_POSTDIV2_MASK)
+#define RK1108_PLL_SET_FRAC(val)	CRU_SET_BITS(val, RK1108_PLL_FRAC_SHIFT, RK1108_PLL_FRAC_MASK)
+
+#define RK1108_PLL_GET_REFDIV(reg)	CRU_GET_REG_BITS_VAL(reg, RK1108_PLL_REFDIV_SHIFT, RK1108_PLL_REFDIV_MASK)
+#define RK1108_PLL_GET_FBDIV(reg)	CRU_GET_REG_BITS_VAL(reg, RK1108_PLL_FBDIV_SHIFT, RK1108_PLL_FBDIV_MASK)
+#define RK1108_PLL_GET_POSTDIV1(reg)	CRU_GET_REG_BITS_VAL(reg, RK1108_PLL_POSTDIV1_SHIFT, RK1108_PLL_POSTDIV1_MASK)
+#define RK1108_PLL_GET_POSTDIV2(reg)	CRU_GET_REG_BITS_VAL(reg, RK1108_PLL_POSTDIV2_SHIFT, RK1108_PLL_POSTDIV2_MASK)
+#define RK1108_PLL_GET_FRAC(reg)	CRU_GET_REG_BITS_VAL(reg, RK1108_PLL_FRAC_SHIFT, RK1108_PLL_FRAC_MASK)
+
+#define RK1108_PLL_SET_DSMPD(val)	CRU_W_MSK_SETBIT(val, RK1108_PLL_DSMPD_SHIFT)
+#define RK1108_PLL_GET_DSMPD(reg)	CRU_GET_REG_BIT_VAL(reg, RK1108_PLL_DSMPD_SHIFT)
+
+#define RK1108_ACLK_CORE_DIV_MASK	(0x7)
+#define RK1108_ACLK_CORE_DIV_SHIFT	(0)
+#define RK1108_PCLK_DBG_DIV_MASK	(0xf)
+#define RK1108_PCLK_DBG_DIV_SHIFT	(4)
+
+#define RK1108_ACLK_CORE_DIV(val)	CRU_W_MSK_SETBITS(val - 1, RK1108_ACLK_CORE_DIV_SHIFT, RK1108_ACLK_CORE_DIV_MASK)
+#define RK1108_PCLK_DBG_DIV(val)	CRU_W_MSK_SETBITS(val - 1, RK1108_PCLK_DBG_DIV_SHIFT, RK1108_PCLK_DBG_DIV_MASK)
+
+#define _RK1108_APLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac, \
+		aclk_core_div, pclk_dbg_div) \
+{ \
+	.rate	= (_mhz) * MHZ,	\
+	.pllcon0 = RK1108_PLL_SET_FBDIV(_fbdiv),	\
+	.pllcon1 = RK1108_PLL_SET_POSTDIV1(_postdiv1) | RK1108_PLL_SET_POSTDIV2(_postdiv2) | RK1108_PLL_SET_REFDIV(_refdiv),	\
+	.pllcon2 = RK1108_PLL_SET_FRAC(_frac),	\
+	.pllcon3 = RK1108_PLL_SET_DSMPD(_dsmpd),	\
+	.clksel1 = RK1108_ACLK_CORE_DIV(aclk_core_div) | RK1108_PCLK_DBG_DIV(pclk_dbg_div),	\
+	.lpj	= (CLK_LOOPS_JIFFY_REF * _mhz) / CLK_LOOPS_RATE_REF,	\
+	.rst_dly = 0,\
+}
+
+#define _RK1108_PLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac) \
+{ \
+	.rate	= (_mhz) * KHZ, \
+	.pllcon0 = RK1108_PLL_SET_FBDIV(_fbdiv),	\
+	.pllcon1 = RK1108_PLL_SET_POSTDIV1(_postdiv1) | RK1108_PLL_SET_POSTDIV2(_postdiv2) | RK1108_PLL_SET_REFDIV(_refdiv),	\
+	.pllcon2 = RK1108_PLL_SET_FRAC(_frac),	\
+	.pllcon3 = RK1108_PLL_SET_DSMPD(_dsmpd),	\
+}
+
 struct pll_clk_set {
 	unsigned long	rate;
 	u32	pllcon0;
 	u32	pllcon1;
 	u32	pllcon2;
+	u32	pllcon3;
 	unsigned long	rst_dly;//us
 };
 
@@ -468,6 +537,7 @@ struct apll_clk_set {
 	u32	pllcon0;
 	u32	pllcon1;
 	u32	pllcon2;
+	u32	pllcon3;
 	u32 	rst_dly;//us
 	u32	clksel0;
 	u32	clksel1;
