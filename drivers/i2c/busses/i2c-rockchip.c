@@ -1035,6 +1035,9 @@ static void rockchip_i2c_shutdown(void)
 	struct rockchip_i2c_data *data = rockchip_i2c_get_data();
 	u32 i;
 
+	if (system_state != SYSTEM_RESTART)
+		return;
+
 	for (i = 0; i < data->num; i++) {
 		mutex_lock(&data->map[i]->suspend_lock);
 		data->map[i]->suspended = 1;
