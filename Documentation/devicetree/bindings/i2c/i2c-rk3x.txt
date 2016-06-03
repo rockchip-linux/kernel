@@ -7,6 +7,7 @@ Required properties :
 
  - reg : Offset and length of the register set for the device
  - compatible: should be one of the following:
+   - "rockchip,rk1108-i2c": for rk1108
    - "rockchip,rk3066-i2c": for rk3066
    - "rockchip,rk3188-i2c": for rk3188
    - "rockchip,rk3228-i2c": for rk3228
@@ -17,7 +18,7 @@ Required properties :
    - For older hardware (rk3066, rk3188, rk3228, rk3288):
      - There is one clock that's used both to derive the functional clock
        for the device and as the bus clock.
-   - For newer hardware (rk3399): specified by name
+   - For newer hardware (rk1108, rk3399): specified by name
      - "i2c": This is used to derive the functional clock.
      - "pclk": This is the bus clock.
 
