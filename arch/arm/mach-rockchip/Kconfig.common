@@ -57,4 +57,7 @@ config RK_VCODEC
 config RK_PL330_DMA_TEST
 	bool "pl330 DMA memcpy test"
 
+config RK_SLT_DMA
+	bool "pl330 DMA memcpy test for slt"
+
 endif

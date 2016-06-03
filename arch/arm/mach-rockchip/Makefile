@@ -25,6 +25,7 @@ obj-$(CONFIG_RK_LAST_LOG) += last_log.o
 obj-$(CONFIG_DVFS) += dvfs.o
 obj-$(CONFIG_RK_VCODEC) += vcodec_service.o
 obj-$(CONFIG_RK_PL330_DMA_TEST) += dma_memcpy_test.o
+obj-$(CONFIG_RK_SLT_DMA) += slt_dma.o
 obj-$(CONFIG_BLOCK_RKNAND) += rknandbase.o
 obj-$(CONFIG_DDR_TEST) += ddr_test.o
 obj-$(CONFIG_RK_PM_TESTS) += rk_pm_tests/
