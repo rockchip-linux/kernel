@@ -29,7 +29,7 @@
 #include <linux/pm.h>
 #include <linux/thermal.h>
 #include <linux/debugfs.h>
-#include <linux/work-simple.h>
+#include <linux/swork.h>
 #include <asm/cpu_device_id.h>
 #include <asm/mce.h>
 

@@ -40,7 +40,7 @@
 #include <linux/ramfs.h>
 #include <linux/percpu-refcount.h>
 #include <linux/mount.h>
-#include <linux/work-simple.h>
+#include <linux/swork.h>
 
 #include <asm/kmap_types.h>
 #include <asm/uaccess.h>
