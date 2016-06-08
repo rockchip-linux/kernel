@@ -259,7 +259,6 @@
 			<&clk_i2s0_pll &clk_gpll>, <&clk_i2s1_pll &clk_gpll>,
 			<&clk_i2s2_pll &clk_gpll>, <&clk_spdif_pll &clk_gpll>,
 			<&clk_gpu &clk_cpll>, <&dclk_vop0 &hdmi_phy_clk>,
-			<&aclk_bus &clk_gpll>, <&aclk_peri &clk_gpll>,
 			<&clk_sdmmc0 &clk_cpll>, <&clk_emmc &clk_cpll>,
 			<&clk_sdio &clk_cpll>, <&aclk_vpu &clk_cpll>,
 			<&hdmi_phy_clk &hdmiphy_out>, <&usb480m &usb480m_phy>,

@@ -255,6 +255,7 @@
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
+						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
 					};
 
 					aclk_bus_mux: aclk_bus_mux {
@@ -654,6 +655,7 @@
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
+						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
 					};
 
 					/* 7:5: reserved */
