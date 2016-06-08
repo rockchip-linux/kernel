@@ -387,6 +387,15 @@
 		#reset-cells = <1>;
 	};
 
+	sfc: sfc@301c0000 {
+		compatible = "rockchip,sfc";
+		reg = <0x301c0000 0x200>;
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_sfc>, <&hclk_sfc>;
+		clock-names = "clk_sfc", "hclk_sfc";
+		status = "disabled";
+	};
+
 	gic: interrupt-controller@32010000 {
 		compatible = "arm,cortex-a15-gic";
 		interrupt-controller;
