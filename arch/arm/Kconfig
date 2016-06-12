@@ -1365,6 +1365,7 @@ config ARM_ERRATA_798181
 config ARM_ERRATA_818325
 	bool "ARM errata: Execution of an UNPREDICTABLE STR or STM instruction might deadlock"
 	depends on CPU_V7
+	depends on !ARM_TRUSTZONE
 	help
 	  This option enables the workaround for the 818325 Cortex-A12
 	  (r0p0..r0p1-00lac0-rc11) erratum. When a CPU executes a sequence of
@@ -1378,6 +1379,7 @@ config ARM_ERRATA_818325
 config ARM_ERRATA_821420
 	bool "ARM errata: A sequence of VMOV to core registers instruction might lead to a deadlock"
 	depends on CPU_V7
+	depends on !ARM_TRUSTZONE
 	help
 	  This option enables the workaround for the 821420 Cortex-A12 (r0p0,
 	  r0p1) erratum. In very rare timing conditions, a sequence of VMOV to

@@ -31,7 +31,11 @@ struct psci_operations psci_ops;
 #define PSCI_SUP_DISABLED		0
 #define PSCI_SUP_ENABLED		1
 
+#ifdef CONFIG_ARM_TRUSTZONE
+static unsigned int psci = PSCI_SUP_ENABLED;
+#else
 static unsigned int psci;
+#endif
 static int (*invoke_psci_fn)(u32, u32, u32, u32);
 
 enum psci_function {
@@ -39,6 +43,7 @@ enum psci_function {
 	PSCI_FN_CPU_ON,
 	PSCI_FN_CPU_OFF,
 	PSCI_FN_MIGRATE,
+	PSCI_FN_AFFINITY_INFO,
 	PSCI_FN_MAX,
 };
 
@@ -162,6 +167,17 @@ static int psci_migrate(unsigned long cpuid)
 	return psci_to_linux_errno(err);
 }
 
+static int psci_affinity_info(unsigned long target_affinity,
+		unsigned long lowest_affinity_level)
+{
+	int err;
+	u32 fn;
+
+	fn = psci_function_id[PSCI_FN_AFFINITY_INFO];
+	err = invoke_psci_fn(fn, target_affinity, lowest_affinity_level, 0);
+	return err;
+}
+
 static const struct of_device_id psci_of_match[] __initconst = {
 	{ .compatible = "arm,psci",	},
 	{},
@@ -214,6 +230,11 @@ void __init psci_init(void)
 	if (!of_property_read_u32(np, "migrate", &id)) {
 		psci_function_id[PSCI_FN_MIGRATE] = id;
 		psci_ops.migrate = psci_migrate;
+	}
+
+	if (!of_property_read_u32(np, "affinity_info", &id)) {
+		psci_function_id[PSCI_FN_AFFINITY_INFO] = id;
+		psci_ops.affinity_info = psci_affinity_info;
 	}
 
 out_put_node:

@@ -4,7 +4,6 @@
 config TRUSTED_LITTLE_KERNEL
 	bool "Enable Open Trusted Execution driver"
 	depends on ARM_TRUSTZONE
-	default y
 	help
 	  This option adds kernel support for communication with the
 	  Trusted LK secure OS monitor/runtime support.
@@ -13,7 +12,6 @@ config TRUSTED_LITTLE_KERNEL
 config TRUST_OS_LOGGER
 	bool "Enable TLK logs in linux kmsg"
 	depends on TRUSTED_LITTLE_KERNEL
-	default y
 	help
 	 This option adds support in the kernel driver to read the logs
 	 from the secure world and make them available as a part of kmsg.

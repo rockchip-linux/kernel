@@ -31,6 +31,11 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/pmu.h>
+#ifdef CONFIG_ARM_TRUSTZONE
+#include <linux/wakeup_reason.h>
+#include <linux/rockchip/psci.h>
+#include <linux/rockchip/psci_ddr.h>
+#endif
 #include <linux/fb.h>
 #include <asm/cpuidle.h>
 #include <asm/cputype.h>
@@ -59,10 +64,14 @@
 static struct map_desc rk3288_io_desc[] __initdata = {
 	RK3288_DEVICE(CRU),
 	RK3288_DEVICE(GRF),
+#ifndef CONFIG_ARM_TRUSTZONE
 	RK3288_DEVICE(SGRF),
+#endif
 	RK3288_DEVICE(PMU),
+#ifndef CONFIG_ARM_TRUSTZONE
 	RK3288_DEVICE(ROM),
 	RK3288_DEVICE(EFUSE),
+#endif
 	RK3288_SERVICE_DEVICE(CORE),
 	RK3288_SERVICE_DEVICE(DMAC),
 	RK3288_SERVICE_DEVICE(GPU),
@@ -155,7 +164,6 @@ static void __init rk3288_dt_map_io(void)
 	/* disable address remap */
 #ifndef CONFIG_ARM_TRUSTZONE
 	writel_relaxed(0x08000000, RK_SGRF_VIRT + RK3288_SGRF_SOC_CON0);
-#endif
 
 	/* enable timer7 for core */
 	writel_relaxed(0, RK3288_TIMER7_VIRT + 0x10);
@@ -165,15 +173,14 @@ static void __init rk3288_dt_map_io(void)
 	dsb();
 	writel_relaxed(1, RK3288_TIMER7_VIRT + 0x10);
 	dsb();
+#endif
 
 	/* power up/down GPU domain wait 1us */
 	writel_relaxed(24, RK_PMU_VIRT + RK3288_PMU_GPU_PWRDWN_CNT);
 	writel_relaxed(24, RK_PMU_VIRT + RK3288_PMU_GPU_PWRUP_CNT);
 
 	rk3288_boot_mode_init();
-#ifndef CONFIG_ARM_TRUSTZONE
 	rockchip_efuse_init();
-#endif
 }
 
 static const u8 pmu_st_map[] = {
@@ -557,6 +564,10 @@ static void __init rk3288_init_late(void)
 #ifdef CONFIG_CPU_IDLE
 	rk3288_init_cpuidle();
 #endif
+#ifdef CONFIG_ARM_TRUSTZONE
+	ddr_change_freq = (void *)psci_ddr_change_freq;
+	ddr_set_auto_self_refresh = (void *)psci_ddr_set_auto_self_refresh;
+#endif
 	if (rockchip_jtag_enabled)
 		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
 }
@@ -571,6 +582,83 @@ DT_MACHINE_START(RK3288_DT, "Rockchip RK3288 (Flattened Device Tree)")
 	.restart	= rk3288_restart,
 MACHINE_END
 
+#ifdef CONFIG_ARM_TRUSTZONE
+#define GPIO_INTEN		0x30
+#define GPIO_INT_STATUS		0x40
+#define DUMP_GPIO_INTEN(ID) \
+	do { \
+		u32 en = readl_relaxed(RK_GPIO_VIRT(ID) + GPIO_INTEN); \
+		if (en) { \
+			pr_info("GPIO%d_INTEN: %08x\n", ID, en); \
+		} \
+	} while (0)
+
+static void rk3288_irq_prepare(void)
+{
+	DUMP_GPIO_INTEN(0);
+	DUMP_GPIO_INTEN(1);
+	DUMP_GPIO_INTEN(2);
+	DUMP_GPIO_INTEN(3);
+	DUMP_GPIO_INTEN(4);
+	DUMP_GPIO_INTEN(5);
+	DUMP_GPIO_INTEN(6);
+	DUMP_GPIO_INTEN(7);
+	DUMP_GPIO_INTEN(8);
+}
+
+#define GIC_DIST_PENDING_SET	0x200
+static void rk3288_irq_finish(void)
+{
+	u32 irq_gpio;
+	u32 irq[4];
+	int i;
+
+	irq_gpio = readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET + 12);
+	irq_gpio = (irq_gpio >> 17) & 0x1FF;
+
+	for (i = 0; i < ARRAY_SIZE(irq); i++)
+		irq[i] = readl_relaxed(RK_GIC_VIRT + GIC_DIST_PENDING_SET +
+				       (1 + i) * 4);
+	for (i = 0; i < ARRAY_SIZE(irq); i++) {
+		if (irq[i])
+			log_wakeup_reason(32 * (i + 1) + fls(irq[i]) - 1);
+	}
+	pr_info("wakeup irq: %08x %08x %08x %08x\n",
+		irq[0], irq[1], irq[2], irq[3]);
+	for (i = 0; i <= 8; i++) {
+		if (irq_gpio & (1 << i))
+			pr_info("wakeup gpio%d: %08x\n", i,
+				readl_relaxed(RK_GPIO_VIRT(i) +
+					      GPIO_INT_STATUS));
+	}
+}
+
+static void __init rk3288_init_suspend(void)
+{
+	struct device_node *parent;
+	u32 pm_ctrbits = 0;
+
+	parent = of_find_node_by_name(NULL, "rockchip_suspend");
+	if (IS_ERR_OR_NULL(parent)) {
+		PM_ERR("%s dev node err\n", __func__);
+		return;
+	}
+
+	if (of_property_read_u32_array(parent, "rockchip,ctrbits",
+				       &pm_ctrbits, 1)) {
+		PM_ERR("%s: read rockchip ctrbits error\n", __func__);
+		return;
+	}
+
+	rockchip_psci_smc_write(PSCI_SIP_SUSPEND_WR_CTRBITS,
+				pm_ctrbits, 0, SEC_REG_WR);
+	PM_LOG("%s: pm_ctrbits = 0x%x\n", __func__, pm_ctrbits);
+
+	fb_register_client(&rk3288_pll_early_suspend_notifier);
+	rockchip_suspend_init();
+	rkpm_set_ops_prepare_finish(rk3288_irq_prepare, rk3288_irq_finish);
+}
+#else /* !CONFIG_ARM_TRUSTZONE */
 char PIE_DATA(sram_stack)[1024];
 EXPORT_PIE_SYMBOL(DATA(sram_stack));
 
@@ -702,4 +790,4 @@ static int __init rk3288_ddr_init(void)
     return 0;
 }
 arch_initcall_sync(rk3288_ddr_init);
-
+#endif /* CONFIG_ARM_TRUSTZONE */

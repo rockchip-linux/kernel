@@ -1,3 +1,4 @@
+#include <generated/autoconf.h>
 #include <dt-bindings/clock/rk_system_status.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/rkfb/rk_fb.h>
@@ -57,6 +58,15 @@
 			compatible = "arm,cortex-a15";
 			reg = <0x503>;
 		};
+	};
+
+	psci {
+		compatible	= "arm,psci";
+		method		= "smc";
+		cpu_suspend	= <0x84000001>;
+		cpu_off		= <0x84000002>;
+		cpu_on		= <0x84000003>;
+		affinity_info	= <0x84000004>;
 	};
 
 	gic: interrupt-controller@ffc01000 {
@@ -198,12 +208,21 @@
 		clock-frequency = <24000000>;
 	};
 
+#ifdef CONFIG_ARM_TRUSTZONE
+	timer@ff6b0000 {
+		compatible = "rockchip,timer";
+		reg = <0xff6b0000 0x20>;
+		interrupts = <GIC_SPI 66 IRQ_TYPE_LEVEL_HIGH>;
+		rockchip,broadcast = <1>;
+	};
+#else
 	timer@ff810000 {
 		compatible = "rockchip,timer";
 		reg = <0xff810000 0x20>;
 		interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
 		rockchip,broadcast = <1>;
 	};
+#endif
 
 	watchdog: wdt@2004c000 {
 		compatible = "rockchip,watch dog";
@@ -225,9 +244,15 @@
 		interrupt-parent = <&gic>;
 		ranges;
 
+#ifdef CONFIG_ARM_TRUSTZONE
+		pdma0: pdma@ff600000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = <0xff600000 0x4000>;
+#else
 		pdma0: pdma@ffb20000 {
 			compatible = "arm,pl330", "arm,primecell";
 			reg = <0xffb20000 0x4000>;
+#endif
 			clocks = <&clk_gates10 12>;
 			clock-names = "apb_pclk";
 			interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
@@ -499,6 +524,9 @@
 		rockchip,serial-id = <2>;
 		rockchip,signal-irq = <106>;
 		rockchip,wake-irq = <0>;
+#ifdef CONFIG_ARM_TRUSTZONE
+		rockchip,irq-mode-enable = <1>;  /* If enable uart uses irq instead of fiq */
+#endif
 		status = "disabled";
 	};
 

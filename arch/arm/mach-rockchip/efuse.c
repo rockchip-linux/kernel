@@ -12,14 +12,24 @@
 #include <linux/platform_device.h>
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/iomap.h>
+#ifdef CONFIG_ARM
+#include <linux/rockchip/psci.h>
+#endif
 #include <asm/compiler.h>
 #include <asm/psci.h>
 #include <asm/system_info.h>
 #include "efuse.h"
 
 #ifdef CONFIG_ARM
+#ifdef CONFIG_ARM_TRUSTZONE
+#define efuse_readl(offset) \
+	rockchip_secure_reg_read(RK3288_EFUSE_PHYS + offset)
+#define efuse_writel(val, offset) \
+	rockchip_secure_reg_write(RK3288_EFUSE_PHYS + offset, val)
+#else
 #define efuse_readl(offset) readl_relaxed(RK_EFUSE_VIRT + offset)
 #define efuse_writel(val, offset) writel_relaxed(val, RK_EFUSE_VIRT + offset)
+#endif
 #endif
 
 #define FRAC_BITS 10
@@ -213,7 +223,6 @@ device_initcall_sync(rockchip_tf_ver_check);
 
 static int rk3288_efuse_readregs(u32 addr, u32 length, u8 *buf)
 {
-#ifndef CONFIG_ARM_TRUSTZONE
 	int ret = length;
 
 	if (!length)
@@ -246,9 +255,6 @@ static int rk3288_efuse_readregs(u32 addr, u32 length, u8 *buf)
 	udelay(1);
 
 	return ret;
-#else
-	return 0;
-#endif
 }
 
 static int __init rk3288_get_efuse_version(void)
