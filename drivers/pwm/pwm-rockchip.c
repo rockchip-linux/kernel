@@ -54,6 +54,9 @@ module_param_named(dbg_level, pwm_dbg_level, int, 0644);
 #define PWM_ENABLE      				(1 << 3)
 #define PWM_TIMER_EN    				(1 << 0)
 
+#define PWM_LOCK_EN		(1 << 6)
+#define PWM_UNLOCK_EN		(~PWM_LOCK_EN)
+
 #define RK_PWM_DISABLE                     (0 << 0) 
 #define RK_PWM_ENABLE                       (1 << 0)
 
@@ -288,7 +291,6 @@ static int  rk_pwm_config_v2(struct pwm_chip *chip, struct pwm_device *pwm,
        spinlock_t *lock;
 
        lock = (&pc->lock);//&pwm_lock[pwm->hwpwm];
-	on   =  RK_PWM_ENABLE ;
 	conf = PWM_OUTPUT_LEFT|PWM_LP_DISABLE|
 	                    PWM_CONTINUMOUS|PWM_DUTY_POSTIVE|PWM_INACTIVE_NEGATIVE;
 	/*
@@ -340,6 +342,12 @@ static int  rk_pwm_config_v2(struct pwm_chip *chip, struct pwm_device *pwm,
 	barrier();
 	//rk_pwm_writel(pc, pwm->hwpwm, PWM_REG_CTRL,off);
 	//dsb(sy);
+
+	/* lock */
+	on = rk_pwm_readl(pc, pwm->hwpwm, PWM_REG_CTRL);
+	on |= PWM_LOCK_EN;
+	rk_pwm_writel(pc, pwm->hwpwm, PWM_REG_CTRL, on);
+
 	if (!rk3368_lcdc_cabc_status()) {
 	    rk_pwm_writel(pc, pwm->hwpwm, PWM_REG_DUTY,dc);//0x1900);// dc);
 	    rk_pwm_writel(pc, pwm->hwpwm, PWM_REG_PERIOD,pv);//0x5dc0);//pv);
@@ -348,6 +356,11 @@ static int  rk_pwm_config_v2(struct pwm_chip *chip, struct pwm_device *pwm,
 	}
 	rk_pwm_writel(pc, pwm->hwpwm, PWM_REG_CNTR,0);
 	dsb(sy);
+
+	/* unlock */
+	on = rk_pwm_readl(pc, pwm->hwpwm, PWM_REG_CTRL);
+	on &= PWM_UNLOCK_EN;
+	on |= RK_PWM_ENABLE;
 	rk_pwm_writel(pc, pwm->hwpwm, PWM_REG_CTRL,on|conf);
        spin_unlock_irqrestore(lock, flags);	
 
