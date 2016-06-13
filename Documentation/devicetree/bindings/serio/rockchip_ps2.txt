@@ -1,0 +1,4 @@
+ROCKCHIP PS/2 controller
+
+Required properties:
+- compatible : should be "rockchip,ps2c".
