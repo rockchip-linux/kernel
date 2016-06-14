@@ -1643,6 +1643,7 @@ static int uvc_init_video_bulk(struct uvc_streaming *stream,
 		stream->urb[i] = urb;
 
 		/* ddl@rock-chips.com  */
+		atomic_set(&stream->urb_state[i], UrbActive); //Active Urb while device resume
 		stream->tasklet[i] = kmalloc(sizeof(struct tasklet_struct), GFP_KERNEL);
 		if (stream->tasklet[i] == NULL) {
 			uvc_printk(KERN_ERR, "device %s requested tasklet memory fail!\n",
