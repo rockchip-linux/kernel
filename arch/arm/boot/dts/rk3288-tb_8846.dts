@@ -661,6 +661,10 @@
 	rockchip,hdmi_video_source = <DISPLAY_SOURCE_LCDC1>;
 };
 
+&ps2c {
+	status = "okay";
+};
+
 &adc {
 	status = "okay";
 
