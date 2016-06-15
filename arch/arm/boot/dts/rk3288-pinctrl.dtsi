@@ -319,6 +319,26 @@
 			};
 		};
 
+		gpio8_ps2 {
+			ps2_data: ps2-data {
+				rockchip,pins = <PS2_DATA>;
+				rockchip,pull = <VALUE_PULL_DISABLE>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+			};
+
+			ps2_clk: ps2-clk {
+				rockchip,pins = <PS2_CLK>;
+				rockchip,pull = <VALUE_PULL_DISABLE>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+			};
+
+			ps2_gpio: ps2-gpio {
+				rockchip,pins = <FUNC_TO_GPIO(PS2_DATA)>,
+						<FUNC_TO_GPIO(PS2_CLK)>;
+				rockchip,drive = <VALUE_DRV_DEFAULT>;
+			};
+		};
+
 		gpio6_i2c2 {
 			i2c2_sda:i2c2-sda {
 				rockchip,pins = <I2C2AUDIO_SDA>;

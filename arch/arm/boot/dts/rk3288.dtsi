@@ -1433,6 +1433,17 @@
 		status = "okay";
 	};
 
+	ps2c: rockchip-ps2c@ff260000 {
+		compatible = "rockchip,ps2c";
+		reg = <0xff260000 0x10000>;
+		clocks = <&clk_gates5 13>, <&clk_gates6 7>;
+		clock-names = "clk_ps2c", "pclk_ps2c";
+		interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ps2_data &ps2_clk>;
+		status = "disabled";
+	};
+
 	tsadc: tsadc@ff280000 {
 		compatible = "rockchip,tsadc";
 		reg = <0xff280000 0x100>;
