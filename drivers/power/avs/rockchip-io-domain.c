@@ -204,6 +204,31 @@ static void rk3368_iodomain_init(struct rockchip_iodomain *iod)
 		dev_warn(iod->dev, "couldn't update flash0 ctrl\n");
 }
 
+static const struct rockchip_iodomain_soc_data soc_data_rk1108 = {
+	.grf_offset = 0x404,
+	.pmugrf_offset = 0x104,
+	.grf_supply_names = {
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		"vccio1",
+		"vccio2",
+		"vccio3",
+		"vccio5",
+		"vccio6",
+	},
+	.pmugrf_supply_names = {
+		"pmu",
+	},
+};
 
 /*
  * On the rk3188 the io-domains are handled by a shared register with the
@@ -285,6 +310,10 @@ static const struct rockchip_iodomain_soc_data soc_data_rk3368 = {
 
 
 static const struct of_device_id rockchip_iodomain_match[] = {
+	{
+		.compatible = "rockchip,rk1108-io-voltage-domain",
+		.data = (void *)&soc_data_rk1108
+	},
 	{
 		.compatible = "rockchip,rk3188-io-voltage-domain",
 		.data = (void *)&soc_data_rk3188
