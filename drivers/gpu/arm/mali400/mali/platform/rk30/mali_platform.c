@@ -135,6 +135,7 @@ static int mali_clock_init(struct device *dev)
 		dev_err(dev, "prepare clk gpu failed, %d\n", ret);
 		return ret;
 	}
+	clk_enable_dvfs(drv_data->clk);
 
 	ret = dvfs_clk_prepare_enable(drv_data->clk);
 	if (ret) {
