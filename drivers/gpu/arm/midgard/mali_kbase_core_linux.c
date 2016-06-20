@@ -85,9 +85,6 @@
 
 #include <mali_kbase_config.h>
 
-#ifdef CONFIG_MACH_MANTA
-#include <plat/devs.h>
-#endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0))
 #include <linux/pm_opp.h>
@@ -108,10 +105,8 @@ EXPORT_SYMBOL(shared_kernel_test_data);
 #endif /* MALI_UNIT_TEST */
 
 #define KBASE_DRV_NAME "mali"
-/** rk_ext : version of rk_ext on mali_ko, aka. rk_ko_ver. */
+/* rk_ext : version of rk_ext on mali_ko, aka. rk_ko_ver. */
 #define ROCKCHIP_VERSION    (13)
-
-static const char kbase_drv_name[] = KBASE_DRV_NAME;
 
 static int kbase_dev_nr;
 
@@ -1766,7 +1761,6 @@ u32 kbase_os_reg_read(struct kbase_device *kbdev, u16 offset)
 }
 #endif /* !CONFIG_MALI_NO_MALI */
 
-
 /** Show callback for the @c power_policy sysfs file.
  *
  * This function is called to get the contents of the @c power_policy sysfs
@@ -2885,7 +2879,7 @@ static ssize_t kbase_show_gpuinfo(struct device *dev,
 		{ .id = GPU_ID_PI_T86X, .name = "Mali-T86x" },
 		{ .id = GPU_ID_PI_TFRX, .name = "Mali-T88x" },
 		{ .id = GPU_ID2_PRODUCT_TMIX >> GPU_ID_VERSION_PRODUCT_ID_SHIFT,
-		  .name = "Mali-TMIx" },
+		  .name = "Mali-G71" },
 	};
 	const char *product_name = "(Unknown Mali GPU)";
 	struct kbase_device *kbdev;
@@ -3310,6 +3304,7 @@ static void kbase_common_reg_unmap(struct kbase_device * const kbdev)
 
 static int registers_map(struct kbase_device * const kbdev)
 {
+
 		/* the first memory resource is the physical address of the GPU
 		 * registers */
 		struct platform_device *pdev = to_platform_device(kbdev->dev);
@@ -3477,30 +3472,6 @@ MAKE_QUIRK_ACCESSORS(mmu);
 
 #endif /* KBASE_GPU_RESET_EN */
 
-static int kbasep_secure_mode_seq_show(struct seq_file *m, void *p)
-{
-	struct kbase_device *kbdev = m->private;
-
-	if (!kbdev->secure_mode_support)
-		seq_puts(m, "unsupported\n");
-	else
-		seq_printf(m, "%s\n", kbdev->secure_mode ? "Y" : "N");
-
-	return 0;
-}
-
-static int kbasep_secure_mode_debugfs_open(struct inode *in, struct file *file)
-{
-	return single_open(file, kbasep_secure_mode_seq_show, in->i_private);
-}
-
-static const struct file_operations kbasep_secure_mode_debugfs_fops = {
-	.open = kbasep_secure_mode_debugfs_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
-};
-
 static int kbase_device_debugfs_init(struct kbase_device *kbdev)
 {
 	struct dentry *debugfs_ctx_defaults_directory;
@@ -3565,10 +3536,6 @@ static int kbase_device_debugfs_init(struct kbase_device *kbdev)
 #ifdef CONFIG_MALI_TRACE_TIMELINE
 	kbasep_trace_timeline_debugfs_init(kbdev);
 #endif /* CONFIG_MALI_TRACE_TIMELINE */
-
-	debugfs_create_file("secure_mode", S_IRUGO,
-			kbdev->mali_debugfs_directory, kbdev,
-			&kbasep_secure_mode_debugfs_fops);
 
 	return 0;
 
@@ -3647,7 +3614,6 @@ static void kbase_logging_started_cb(void *data)
 	dev_info(kbdev->dev, "KBASE - Bus logger restarted\n");
 }
 #endif
-
 
 static struct attribute *kbase_attrs[] = {
 #ifdef CONFIG_MALI_DEBUG
@@ -3785,7 +3751,6 @@ static int kbase_platform_device_remove(struct platform_device *pdev)
 		kbdev->inited_subsys &= ~inited_backend_early;
 	}
 
-
 	if (kbdev->inited_subsys & inited_power_control) {
 		power_control_term(kbdev);
 		kbdev->inited_subsys &= ~inited_power_control;
@@ -3876,7 +3841,6 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		return err;
 	}
 	kbdev->inited_subsys |= inited_power_control;
-
 
 	err = kbase_backend_early_init(kbdev);
 	if (err) {
@@ -4248,19 +4212,15 @@ static int __init kbase_driver_init(void)
 	if (ret)
 		return ret;
 
-#ifndef CONFIG_MACH_MANTA
 #ifdef CONFIG_MALI_PLATFORM_FAKE
 	ret = kbase_platform_fake_register();
 	if (ret)
 		return ret;
 #endif
-#endif
 	ret = platform_driver_register(&kbase_platform_driver);
-#ifndef CONFIG_MACH_MANTA
 #ifdef CONFIG_MALI_PLATFORM_FAKE
 	if (ret)
 		kbase_platform_fake_unregister();
-#endif
 #endif
 	return ret;
 }
@@ -4268,10 +4228,8 @@ static int __init kbase_driver_init(void)
 static void __exit kbase_driver_exit(void)
 {
 	platform_driver_unregister(&kbase_platform_driver);
-#ifndef CONFIG_MACH_MANTA
 #ifdef CONFIG_MALI_PLATFORM_FAKE
 	kbase_platform_fake_unregister();
-#endif
 #endif
 }
 
