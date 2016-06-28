@@ -18,7 +18,7 @@
 	dram_timing: dram_timing {
 		compatible = "rockchip,dram-timing";
 		dram_spd_bin = <DDR3_DEFAULT>;
-		sr_idle = <0xc>;
+		sr_idle = <0x18>;
 		pd_idle = <0x20>;
 		dram_dll_disb_freq = <300>;
 		phy_dll_disb_freq = <400>;
