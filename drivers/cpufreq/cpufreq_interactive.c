@@ -21,6 +21,7 @@
 #include <linux/cpufreq.h>
 #ifdef CONFIG_ARCH_ROCKCHIP
 #include <linux/input.h>
+#include <linux/rockchip/dvfs.h>
 #endif
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -1151,6 +1152,7 @@ static struct notifier_block cpufreq_interactive_idle_nb = {
 };
 
 #ifdef CONFIG_ARCH_ROCKCHIP
+static struct dvfs_node *clk_cpu_dvfs_node;
 static void cpufreq_interactive_input_event(struct input_handle *handle, unsigned int type,
 		unsigned int code, int value)
 {
@@ -1158,6 +1160,7 @@ static void cpufreq_interactive_input_event(struct input_handle *handle, unsigne
 	int i;
 	int anyboost = 0;
 	unsigned long flags[2];
+	unsigned long delay;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct cpufreq_interactive_tunables *tunables;
 
@@ -1198,7 +1201,13 @@ static void cpufreq_interactive_input_event(struct input_handle *handle, unsigne
 	}
 
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
-	if (anyboost)
+
+	delay = usecs_to_jiffies(tunables->touchboostpulse_duration_val);
+	dvfs_clk_boost(clk_cpu_dvfs_node,
+		       1000 * tunables->touchboost_freq,
+		       delay);
+
+	if (anyboost || pcpu->policy->cur < tunables->touchboost_freq)
 		wake_up_process(speedchange_task);
 }
 
@@ -1223,6 +1232,8 @@ static int cpufreq_interactive_input_connect(struct input_handler *handler,
 	error = input_open_device(handle);
 	if (error)
 		goto err1;
+
+	clk_cpu_dvfs_node = clk_get_dvfs_node("clk_core");
 
 	return 0;
 err1:

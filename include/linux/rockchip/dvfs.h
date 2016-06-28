@@ -131,6 +131,7 @@ struct dvfs_node {
 	int			support_pvtm;
 	unsigned int		min_rate;	//limit min frequency
 	unsigned int		max_rate;	//limit max frequency
+	unsigned long		boost_freq;
 	unsigned long		last_set_rate;
 	unsigned int		channel;
 	unsigned int		tsadc_ch;
@@ -144,6 +145,7 @@ struct dvfs_node {
 	struct vd_node		*vd;
 	struct list_head	node;
 	struct notifier_block	*dvfs_nb;
+	struct delayed_work	dwork;
 	struct cpufreq_frequency_table	*dvfs_table;
 	struct cpufreq_frequency_table	*pvtm_table;
 	struct cpufreq_frequency_table	*per_temp_limit_table;
@@ -218,6 +220,9 @@ int dvfs_clk_register_set_rate_callback(struct dvfs_node *clk_dvfs_node, clk_set
 int dvfs_clk_enable_limit(struct dvfs_node *clk_dvfs_node, unsigned int min_rate, unsigned max_rate);
 int dvfs_clk_get_limit(struct dvfs_node *clk_dvfs_node, unsigned int *min_rate, unsigned int *max_rate) ;
 int dvfs_clk_disable_limit(struct dvfs_node *clk_dvfs_node);
+void dvfs_clk_boost(struct dvfs_node *clk_dvfs_node,
+		    unsigned long boost_freq,
+		    unsigned long delay);
 int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node);
 int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node);
 void dvfs_disable_temp_limit(void);
@@ -245,6 +250,12 @@ static inline int dvfs_clk_register_set_rate_callback(struct dvfs_node *clk_dvfs
 static inline int dvfs_clk_enable_limit(struct dvfs_node *clk_dvfs_node, unsigned int min_rate, unsigned max_rate){ return 0; };
 static inline int dvfs_clk_get_limit(struct dvfs_node *clk_dvfs_node, unsigned int *min_rate, unsigned int *max_rate) { return 0; };
 static inline int dvfs_clk_disable_limit(struct dvfs_node *clk_dvfs_node){ return 0; };
+static inline void dvfs_clk_boost(struct dvfs_node *clk_dvfs_node,
+				  unsigned long boost_freq,
+				  unsigned long delay)
+{
+	return 0;
+};
 static inline int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node){ return 0; };
 static inline int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node){ return 0; };
 static inline void dvfs_disable_temp_limit(void) {};

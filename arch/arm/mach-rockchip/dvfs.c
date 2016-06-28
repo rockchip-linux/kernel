@@ -1498,6 +1498,32 @@ int dvfs_clk_disable_limit(struct dvfs_node *clk_dvfs_node)
 }
 EXPORT_SYMBOL(dvfs_clk_disable_limit);
 
+static void dvfs_clk_boost_work_func(struct work_struct *work)
+{
+	struct dvfs_node *clk_dvfs_node;
+
+	clk_dvfs_node = container_of(work, struct dvfs_node, dwork.work);
+	mutex_lock(&clk_dvfs_node->vd->mutex);
+	clk_dvfs_node->boost_freq = 0;
+	mutex_unlock(&clk_dvfs_node->vd->mutex);
+
+	dvfs_clk_set_rate(clk_dvfs_node, clk_dvfs_node->last_set_rate);
+}
+
+void dvfs_clk_boost(struct dvfs_node *clk_dvfs_node, unsigned long boost_freq,
+		    unsigned long delay)
+{
+	if (!clk_dvfs_node)
+		return;
+
+	cancel_delayed_work(&clk_dvfs_node->dwork);
+	clk_dvfs_node->boost_freq = boost_freq;
+
+	if (boost_freq)
+		queue_delayed_work(dvfs_wq, &clk_dvfs_node->dwork, delay);
+}
+EXPORT_SYMBOL(dvfs_clk_boost);
+
 void dvfs_disable_temp_limit(void) {
 	if (clk_cpu_b_dvfs_node)
 		clk_cpu_b_dvfs_node->temp_limit_enable = 0;
@@ -1699,6 +1725,8 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 		dvfs_table_round_volt(clk_dvfs_node);
 		clk_dvfs_node->set_freq = clk_dvfs_node_get_rate_kz(clk_dvfs_node->clk);
 		clk_dvfs_node->last_set_rate = clk_dvfs_node->set_freq*1000;
+		INIT_DELAYED_WORK(&clk_dvfs_node->dwork,
+				  dvfs_clk_boost_work_func);
 		
 		DVFS_DBG("%s: %s get freq %u!\n", 
 			__func__, clk_dvfs_node->name, clk_dvfs_node->set_freq);
@@ -1831,6 +1859,11 @@ static unsigned long dvfs_get_limit_rate(struct dvfs_node *clk_dvfs_node, unsign
 		if (limit_rate > clk_dvfs_node->max_limit_freq)
 			limit_rate = clk_dvfs_node->max_limit_freq;
 	}
+
+	if (clk_dvfs_node->boost_freq &&
+	    clk_dvfs_node->old_temp < clk_dvfs_node->target_temp &&
+	    clk_dvfs_node->boost_freq > limit_rate)
+		limit_rate = clk_dvfs_node->boost_freq;
 
 	DVFS_DBG("%s: rate:%ld, limit_rate:%ld,\n", __func__, rate, limit_rate);
 
