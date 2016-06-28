@@ -431,8 +431,12 @@ static int rk_lpmode_enter(unsigned long arg)
 		.type = PSCI_POWER_STATE_TYPE_POWER_DOWN,
 	};
 
-	if (psci_suspend_available())
+	if (psci_suspend_available()) {
+		local_flush_tlb_all();
+		outer_flush_all();
+		flush_cache_all();
 		return psci_ops.cpu_suspend(ps, virt_to_phys(cpu_resume));
+	}
 #endif
         //RKPM_DDR_PFUN(slp_setting(rkpm_jdg_sram_ctrbits),slp_setting); 
     
