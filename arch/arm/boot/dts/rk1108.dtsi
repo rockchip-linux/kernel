@@ -46,6 +46,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include "rk1108-clocks.dtsi"
 #include "skeleton.dtsi"
+#include <dt-bindings/rkfb/rk_fb.h>
 
 / {
 	compatible = "rockchip,rk1108";
@@ -387,6 +388,33 @@
 		reg = <0x20200180 0x30>;
 		rockchip,reset-flag = <ROCKCHIP_RESET_HIWORD_MASK>;
 		#reset-cells = <1>;
+	};
+
+	fb: fb {
+		status = "disabled";
+		compatible = "rockchip,rk-fb";
+		rockchip,disp-mode = <NO_DUAL>;
+		rockchip,uboot-logo-on = <0>;
+	};
+
+	rk_screen: rk_screen {
+		status = "disabled";
+		compatible = "rockchip,screen";
+	};
+
+	vop: vop@30040000 {
+		status = "disabled";
+		compatible = "rockchip,rk1108-lcdc-lite";
+		rockchip,prop = <PRMRY>;
+		rockchip,pwr18 = <0>;
+		rockchip,iommu-enabled = <0>;
+		reg = <0x30040000 0xe00>;
+		interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates18 0>, <&dclk_lcdc>, <&clk_gates18 1>;
+		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
+		pinctrl-names = "default", "gpio";
+		pinctrl-0 = <&lcdc_data>;
+		pinctrl-1 = <&lcdc_gpio>;
 	};
 
 	sfc: sfc@301c0000 {
@@ -787,6 +815,58 @@
 		pwm3 {
 			pwm3_pin: pwm3-pin {
 				rockchip,pins = <0 GPIO_C0 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		gpio1_lcdc0 {
+			lcdc_data: lcdc-data {
+				rockchip,pins = <1 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>,//DCLK
+						<1 GPIO_A0 RK_FUNC_1 &pcfg_pull_none>,//D0
+						<1 GPIO_A1 RK_FUNC_1 &pcfg_pull_none>,//D1
+						<1 GPIO_A2 RK_FUNC_1 &pcfg_pull_none>,//D2
+						<1 GPIO_A3 RK_FUNC_1 &pcfg_pull_none>,//D3
+						<1 GPIO_A4 RK_FUNC_1 &pcfg_pull_none>,//D4
+						<1 GPIO_A5 RK_FUNC_1 &pcfg_pull_none>,//D5
+						<1 GPIO_A6 RK_FUNC_1 &pcfg_pull_none>,//D6
+						<1 GPIO_A7 RK_FUNC_1 &pcfg_pull_none>,//D7
+						<1 GPIO_A8 RK_FUNC_1 &pcfg_pull_none>,//D8
+						<1 GPIO_A9 RK_FUNC_1 &pcfg_pull_none>,//D9
+						<1 GPIO_C4 RK_FUNC_1 &pcfg_pull_none>,//HSYNC
+						<1 GPIO_C3 RK_FUNC_1 &pcfg_pull_none>,//VSYNC
+						<1 GPIO_C2 RK_FUNC_1 &pcfg_pull_none>,//DEN
+						<1 GPIO_C1 RK_FUNC_1 &pcfg_pull_none>,//D10
+						<1 GPIO_C0 RK_FUNC_1 &pcfg_pull_none>,//D11
+						<1 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>,//D12
+						<1 GPIO_B6 RK_FUNC_1 &pcfg_pull_none>,//D13
+						<1 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>,//D14
+						<1 GPIO_B4 RK_FUNC_1 &pcfg_pull_none>,//D15
+						<1 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>,//D16
+						<1 GPIO_B2 RK_FUNC_1 &pcfg_pull_none>;//D17
+			};
+
+			lcdc_gpio: lcdc-gpio {
+				rockchip,pins = <1 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_none>,//DCLK
+						<1 GPIO_A0 RK_FUNC_GPIO &pcfg_pull_none>,//D0
+						<1 GPIO_A1 RK_FUNC_GPIO &pcfg_pull_none>,//D1
+						<1 GPIO_A2 RK_FUNC_GPIO &pcfg_pull_none>,//D2
+						<1 GPIO_A3 RK_FUNC_GPIO &pcfg_pull_none>,//D3
+						<1 GPIO_A4 RK_FUNC_GPIO &pcfg_pull_none>,//D4
+						<1 GPIO_A5 RK_FUNC_GPIO &pcfg_pull_none>,//D5
+						<1 GPIO_A6 RK_FUNC_GPIO &pcfg_pull_none>,//D6
+						<1 GPIO_A7 RK_FUNC_GPIO &pcfg_pull_none>,//D7
+						<1 GPIO_A8 RK_FUNC_GPIO &pcfg_pull_none>,//D8
+						<1 GPIO_A9 RK_FUNC_GPIO &pcfg_pull_none>,//D9
+						<1 GPIO_C4 RK_FUNC_GPIO &pcfg_pull_none>,//HSYNC
+						<1 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_none>,//VSYNC
+						<1 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_none>,//DEN
+						<1 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,//D10
+						<1 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>,//D11
+						<1 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_none>,//D12
+						<1 GPIO_B6 RK_FUNC_GPIO &pcfg_pull_none>,//D13
+						<1 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>,//D14
+						<1 GPIO_B4 RK_FUNC_GPIO &pcfg_pull_none>,//D15
+						<1 GPIO_B3 RK_FUNC_GPIO &pcfg_pull_none>,//D16
+						<1 GPIO_B2 RK_FUNC_GPIO &pcfg_pull_none>;//D17
 			};
 		};
 	};
