@@ -1188,7 +1188,9 @@ static struct clk_core *__clk_set_parent_before(struct clk_core *core,
 	struct clk_core *old_parent = core->parent;
 
 	/*
-	 * Migrate prepare state between parents and prevent race with
+	 * 1. enable parents for CLK_OPS_PARENT_ENABLE clock
+	 *
+	 * 2. Migrate prepare state between parents and prevent race with
 	 * clk_enable().
 	 *
 	 * If the clock is not prepared, then a race with
@@ -1204,12 +1206,17 @@ static struct clk_core *__clk_set_parent_before(struct clk_core *core,
 	 *
 	 * See also: Comment for clk_set_parent() below.
 	 */
+
+	/* enable old_parent & parent if CLK_OPS_PARENT_ENABLE is set */
+	if (core->flags & CLK_OPS_PARENT_ENABLE) {
+		clk_core_prepare_enable(old_parent);
+		clk_core_prepare_enable(parent);
+	}
+
+	/* migrate prepare count if > 0 */
 	if (core->prepare_count) {
-		clk_core_prepare(parent);
-		flags = clk_enable_lock();
-		clk_core_enable(parent);
-		clk_core_enable(core);
-		clk_enable_unlock(flags);
+		clk_core_prepare_enable(parent);
+		clk_core_enable_lock(core);
 	}
 
 	/* update the clk tree topology */
@@ -1224,18 +1231,19 @@ static void __clk_set_parent_after(struct clk_core *core,
 				   struct clk_core *parent,
 				   struct clk_core *old_parent)
 {
-	unsigned long flags;
-
 	/*
 	 * Finish the migration of prepare state and undo the changes done
 	 * for preventing a race with clk_enable().
 	 */
 	if (core->prepare_count) {
-		flags = clk_enable_lock();
-		clk_core_disable(core);
-		clk_core_disable(old_parent);
-		clk_enable_unlock(flags);
-		clk_core_unprepare(old_parent);
+		clk_core_disable_lock(core);
+		clk_core_disable_unprepare(old_parent);
+	}
+
+	/* re-balance ref counting if CLK_OPS_PARENT_ENABLE is set */
+	if (core->flags & CLK_OPS_PARENT_ENABLE) {
+		clk_core_disable_unprepare(parent);
+		clk_core_disable_unprepare(old_parent);
 	}
 }
 
@@ -1485,13 +1493,17 @@ static void clk_change_rate(struct clk_core *core)
 	unsigned long best_parent_rate = 0;
 	bool skip_set_rate = false;
 	struct clk_core *old_parent;
+	struct clk_core *parent = NULL;
 
 	old_rate = core->rate;
 
-	if (core->new_parent)
+	if (core->new_parent) {
+		parent = core->new_parent;
 		best_parent_rate = core->new_parent->rate;
-	else if (core->parent)
+	} else if (core->parent) {
+		parent = core->parent;
 		best_parent_rate = core->parent->rate;
+	}
 
 	if (core->flags & CLK_SET_RATE_UNGATE) {
 		unsigned long flags;
@@ -1519,6 +1531,9 @@ static void clk_change_rate(struct clk_core *core)
 		__clk_set_parent_after(core, core->new_parent, old_parent);
 	}
 
+	if (core->flags & CLK_OPS_PARENT_ENABLE)
+		clk_core_prepare_enable(parent);
+
 	trace_clk_set_rate(core, core->new_rate);
 
 	if (!skip_set_rate && core->ops->set_rate)
@@ -1536,6 +1551,9 @@ static void clk_change_rate(struct clk_core *core)
 		clk_enable_unlock(flags);
 		clk_core_unprepare(core);
 	}
+
+	if (core->flags & CLK_OPS_PARENT_ENABLE)
+		clk_core_disable_unprepare(parent);
 
 	if (core->notifier_count && old_rate != core->rate)
 		__clk_notify(core, POST_RATE_CHANGE, old_rate, core->rate);
