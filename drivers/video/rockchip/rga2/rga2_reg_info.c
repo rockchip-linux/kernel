@@ -291,14 +291,8 @@ RGA2_set_reg_src_info(RK_U8 *base, struct rga2_req *msg)
     reg = ((reg & (~m_RGA2_SRC_INFO_SW_SW_YUV10_ROUND_E)) | (s_RGA2_SRC_INFO_SW_SW_YUV10_ROUND_E((yuv10))));
     RGA2_reg_get_param(base, msg);
 
-    if (yuv10 == 0) {
-        stride = (((msg->src.vir_w * pixel_width) + 3) & ~3) >> 2;
-        uv_stride = ((msg->src.vir_w / xdiv + 3) & ~3);
-    }
-    else {
-        stride = ((((msg->src.vir_w * pixel_width) + 3) & ~3)*10/8) >> 2;
-        uv_stride = (((msg->src.vir_w / xdiv + 3) & ~3)*10/8 );
-    }
+    stride = (((msg->src.vir_w * pixel_width) + 3) & ~3) >> 2;
+    uv_stride = ((msg->src.vir_w / xdiv + 3) & ~3);
 
     *bRGA_SRC_BASE0 = (RK_U32)(msg->src.yrgb_addr + msg->src.y_offset * (stride<<2) + msg->src.x_offset * pixel_width);
     *bRGA_SRC_BASE1 = (RK_U32)(msg->src.uv_addr + (msg->src.y_offset / ydiv) * uv_stride + (msg->src.x_offset / xdiv));

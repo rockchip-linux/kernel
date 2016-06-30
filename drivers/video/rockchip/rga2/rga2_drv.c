@@ -626,11 +626,9 @@ static int rga2_convert_dma_buf(struct rga2_req *req)
     int ret;
     uint32_t src_vir_w, dst_vir_w;
 
-    if (req->src.format >= RGA2_FORMAT_YCbCr_420_SP_10B)
-        src_vir_w = req->src.vir_w * 10 / 8;
-    else
-        src_vir_w = req->src.vir_w;
-
+   
+ 
+    src_vir_w = req->src.vir_w;
     dst_vir_w = req->dst.vir_w;
 
     req->sg_src0 = NULL;
