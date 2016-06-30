@@ -989,6 +989,11 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 			V_RGB_HSYNC_POL(screen->pin_hsync) |
 			V_RGB_VSYNC_POL(screen->pin_vsync) |
 			V_RGB_DEN_POL(screen->pin_den);
+		if (VOP_CHIP(vop_dev) == VOP_RK1108) {
+			if (vop_dev->pins && !IS_ERR(vop_dev->pins->default_state))
+				pinctrl_select_state(vop_dev->pins->p,
+						     vop_dev->pins->default_state);
+		}
 		break;
 	case SCREEN_HDMI:
 		vop_grf_writel(vop_dev->grf_base, GRF_SOC_CON0,
@@ -2696,6 +2701,34 @@ static int vop_probe(struct platform_device *pdev)
 
 	if (dev_drv->iommu_enabled)
 		strcpy(dev_drv->mmu_dts_name, VOPL_IOMMU_COMPATIBLE_NAME);
+
+	if (VOP_CHIP(vop_dev) == VOP_RK1108) {
+		vop_dev->pins = devm_kzalloc(vop_dev->dev,
+					     sizeof(*(vop_dev->pins)),
+					     GFP_KERNEL);
+		if (!vop_dev->pins) {
+			dev_err(vop_dev->dev, "kzalloc vop pins failed\n");
+			return -ENOMEM;
+		}
+
+		vop_dev->pins->p = devm_pinctrl_get(vop_dev->dev);
+		if (IS_ERR(vop_dev->pins->p)) {
+			dev_info(vop_dev->dev, "no pinctrl handle\n");
+			devm_kfree(vop_dev->dev, vop_dev->pins);
+			vop_dev->pins = NULL;
+		} else {
+			vop_dev->pins->default_state =
+				pinctrl_lookup_state(vop_dev->pins->p, "default");
+			vop_dev->pins->sleep_state =
+				pinctrl_lookup_state(vop_dev->pins->p, "gpio");
+			if (IS_ERR(vop_dev->pins->default_state) ||
+			    IS_ERR(vop_dev->pins->sleep_state)) {
+				dev_info(vop_dev->dev, "can't find pinctrl state\n");
+				devm_kfree(vop_dev->dev, vop_dev->pins);
+				vop_dev->pins = NULL;
+			}
+		}
+	}
 
 	ret = rk_fb_register(dev_drv, vop_win, vop_dev->id);
 	if (ret < 0) {

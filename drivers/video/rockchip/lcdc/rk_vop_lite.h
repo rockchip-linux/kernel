@@ -504,6 +504,7 @@ struct vop_device {
 	/* lock vop irq reg */
 	spinlock_t irq_lock;
 	struct vop_sync_obj_s sync;
+	struct dev_pin_info *pins;
 };
 
 static inline int vop_completion_timeout_ms(struct completion *comp, int to)
