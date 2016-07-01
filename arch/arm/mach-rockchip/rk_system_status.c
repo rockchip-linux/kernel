@@ -80,11 +80,5 @@ int rockchip_clear_system_status(unsigned long status)
 
 unsigned long rockchip_get_system_status(void)
 {
-	unsigned long ret;
-
-	mutex_lock(&system_status_mutex);
-	ret = system_status;
-	mutex_unlock(&system_status_mutex);
-
-	return ret;
+	return system_status;
 }
