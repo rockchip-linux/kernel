@@ -8,5 +8,5 @@ obj-$(CONFIG_FB_ROCKCHIP) += display-sys.o lcdc/
 obj-$(CONFIG_RK_HDMI) += hdmi/
 obj-$(CONFIG_IEP) += iep/
 obj-$(CONFIG_RK_TVENCODER) += tve/
-
+obj-$(CONFIG_ROCKCHIP_MPP_SERVICE) += mpp/
 

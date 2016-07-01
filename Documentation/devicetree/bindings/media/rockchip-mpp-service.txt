@@ -1,0 +1,29 @@
+* Rockchip MPP (Media Process Platform) service
+
+Rockchip mpp service is a common task handling service module in kernel.
+mpp service proivdes two main functions:
+1. serializing userspace task handling by different task handling status list.
+2. providing standard task based hardware transaction flow by work queue for
+   each hardware.
+
+Because some multimedia devices in Rockchip SoCs share the resources, such
+as RK312x, vpu and rkvdec share the registers and inner ram, and these devices
+cannot running at the same time, therefor, a service maintain unit queue is
+required.
+
+Required properties:
+  - compatible : value should be either one among the following
+	(a) "rockchip,mpp_service" for a common version present in Rockchip SoCs
+
+Optional properties:
+
+  - reg : Physical base address of the combo IP registers and length of memory
+	  mapped region.
+
+Example:
+SoC specific DT entry:
+
+rkvenc_srv: rkvenc_srv {
+	compatible = "rockchip,mpp_service";
+};
+
