@@ -69,6 +69,7 @@ enum {
     WIFI_RTL8188FU,
     WIFI_RTL_SERIES,
     WIFI_ESP8089,
+    WIFI_SSV6051,
     TYPE_MAX,
 };
 

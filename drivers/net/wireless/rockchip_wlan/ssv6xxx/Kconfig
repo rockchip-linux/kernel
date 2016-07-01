@@ -1,0 +1,23 @@
+menu "iComm WLAN support"
+config SSV6051
+        tristate "ssv6051 Wireless driver"
+	depends on MMC
+	select CFG80211
+	select MAC80211
+	select NL80211_TESTMODE
+	---help---
+	  Enable iComm ssv6051 WLAN kernel driver.
+
+config SSV6051_P2P
+	default y
+	bool "SSV6051_P2P"
+	---help---
+	  Enable iComm ssv6051 P2P interface.
+
+config SSV6051_SDIO
+	default y
+	bool "SSV6051_SDIO"
+	---help---
+	  iComm ssv6051 sdio setting.
+
+endmenu

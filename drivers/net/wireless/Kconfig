@@ -61,6 +61,7 @@ endif
 #source "drivers/net/wireless/rockchip_wlan/mt5931/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/esp8089/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rkwifi/Kconfig"
+source "drivers/net/wireless/rockchip_wlan/ssv6xxx/Kconfig"
 
 choice	
 	depends on RKWIFI
