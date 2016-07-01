@@ -1,0 +1,65 @@
+/dts-v1/;
+
+#include "rk3228a.dtsi"
+#include "rk322x-sdk.dtsi"
+
+/ {
+	wireless-wlan {
+		wifi_chip_type = "ssv6051";
+	};
+
+	wireless-bluetooth {
+		status = "disabled";
+	};
+
+	power-led {
+		compatible = "gpio-leds";
+		green {
+			gpios = <&gpio3 GPIO_C5 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+		red {
+			gpios = <&gpio1 GPIO_A7 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+};
+
+&clk_core_dvfs_table {
+	operating-points = <
+		/* KHz	uV */
+		408000	950000
+		600000	975000
+		816000	1000000
+		1008000	1175000
+		1200000	1275000
+		1296000	1325000
+		>;
+	status = "okay";
+};
+
+&clk_ddr_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		300000 1050000
+		600000 1050000
+		700000 1100000
+		800000 1150000
+		>;
+	freq-table = <
+		/*status		freq(KHz)*/
+		SYS_STATUS_NORMAL	700000
+		SYS_STATUS_VIDEO_4K	786000
+		SYS_STATUS_VIDEO_4K_10B	786000
+		>;
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+	rockchip,pullup = <&gpio2 GPIO_D3 GPIO_ACTIVE_HIGH>;
+	rockchip,phy_table =
+		<225000000 0 0 4 8 8 8>,
+		<340000000 1 0 6 14 14 14>,
+		<594000000 1 0 7 13 13 13>;
+};
