@@ -108,6 +108,15 @@ config SERIO_SA1111
 	tristate "Intel SA1111 keyboard controller"
 	depends on SA1111
 
+config SERIO_ROCKCHIP_PS2
+	tristate "RockChip PS/2 keyboard and mouse controller"
+	help
+	  Say Y here if you want to use the PS/2 on RK3288 devices
+	  and connect a PS/2 keyboard and/or mouse to it.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rockchip_ps2.
+
 config SERIO_GSCPS2
 	tristate "HP GSC PS/2 keyboard and PS/2 mouse controller"
 	depends on GSC
