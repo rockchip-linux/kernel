@@ -797,7 +797,7 @@ static struct device *rockchip_get_sysmmu_dev(const char *compt)
 
 #if defined(CONFIG_OF)
 static const struct of_device_id mpp_dev_dt_ids[] = {
-	{.compatible = "rockchip,rkvenc", },
+	{.compatible = "rockchip,rkvenc", .data = &rkvenc_variant, },
 	{},
 };
 #endif

@@ -329,4 +329,6 @@ static inline int mpp_get_dma_addr(struct rockchip_mpp_dev *mpp,
 	return ret;
 }
 
+extern const struct rockchip_mpp_dev_variant rkvenc_variant;
+
 #endif
