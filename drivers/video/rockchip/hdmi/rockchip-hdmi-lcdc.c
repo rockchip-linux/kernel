@@ -1227,7 +1227,7 @@ int hdmi_ouputmode_select(struct hdmi *hdmi, int edid_ok)
 				/* If there is no valid information in EDID,
 				 * just list common hdmi foramt.
 				 */
-				if (mode->xres > 3840 ||
+				if (mode->xres >= 3840 ||
 				    mode->refresh < 50 ||
 				    (mode->vmode & FB_VMODE_INTERLACED) ||
 				    hdmi_mode[i].vic & HDMI_VIDEO_DMT)

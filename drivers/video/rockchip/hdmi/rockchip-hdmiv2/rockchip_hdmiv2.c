@@ -577,16 +577,24 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 				SUPPORT_YCBCR_INPUT |
 				SUPPORT_VESA_DMT;
 	} else if (hdmi_dev->soctype == HDMI_SOC_RK322X) {
+		struct sysinfo val;
+
 		rk_hdmi_property.feature |=
 				SUPPORT_4K |
 				SUPPORT_4K_4096 |
 				SUPPORT_YCBCR_INPUT |
 				SUPPORT_1080I |
 				SUPPORT_480I_576I;
-		if (rockchip_get_cpu_version())
-			rk_hdmi_property.feature |=
-				SUPPORT_YUV420 |
-				SUPPORT_DEEP_10BIT;
+		si_meminfo(&val);
+		if (((val.totalram * PAGE_SIZE) <= SZ_512M) &&
+		    (hdmi_dev->soctype == HDMI_SOC_RK322X)) {
+			dev_info(&pdev->dev, "hdmi low memory config!\n");
+		} else {
+			if (rockchip_get_cpu_version())
+				rk_hdmi_property.feature |=
+					SUPPORT_YUV420 |
+					SUPPORT_DEEP_10BIT;
+		}
 	} else {
 		ret = -ENXIO;
 		goto failed1;
