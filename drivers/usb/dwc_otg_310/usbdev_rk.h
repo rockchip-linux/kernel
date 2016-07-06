@@ -82,6 +82,8 @@ extern struct dwc_otg_platform_data usb20ohci_pdata_rk3368;
 extern struct dwc_otg_platform_data usb20otg_pdata_rk3368;
 /* rk322x platform data */
 extern struct dwc_otg_platform_data usb20otg_pdata_rk322x;
+/* rk1108 platform data */
+extern struct dwc_otg_platform_data usb20otg_pdata_rk1108;
 
 struct dwc_otg_platform_data {
 	void *privdata;
@@ -134,6 +136,7 @@ struct dwc_otg_control_usb {
 	pGRF_SOC_STATUS21_RK3288 grf_soc_status21_rk3288;
 
 	struct regmap *grf;
+	struct regmap *usb_grf;
 	struct gpio *host_gpios;
 	struct gpio *otg_gpios;
 	struct clk *hclk_usb_peri;
