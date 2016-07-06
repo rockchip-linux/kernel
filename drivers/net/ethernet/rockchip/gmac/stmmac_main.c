@@ -942,11 +942,11 @@ gmac_set_network_leds(struct bsp_priv *bsp_priv, int active)
 	if ((bsp_priv->internal_phy) && (gpio_is_valid(bsp_priv->led_io))) {
 		if (active) {
 			/* LED on */
-			gpio_direction_output(bsp_priv->led_io,
+			gpio_set_value(bsp_priv->led_io,
 					      bsp_priv->led_io_level);
 		} else {
 			/* LED off */
-			gpio_direction_output(bsp_priv->led_io,
+			gpio_set_value(bsp_priv->led_io,
 					      !bsp_priv->led_io_level);
 		}
 	}
@@ -1064,6 +1064,9 @@ static int stmmac_init_phy(struct net_device *dev)
 
 	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy)) {
 		rk322x_phy_adjust(phydev);
+		/* LED off */
+		gpio_direction_output(bsp_priv->led_io,
+				      !bsp_priv->led_io_level);
 	}
 
 	INIT_DELAYED_WORK(&bsp_priv->led_work, macphy_led_work);
