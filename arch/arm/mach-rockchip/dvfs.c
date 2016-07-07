@@ -1256,7 +1256,7 @@ static void dvfs_temp_limit_4k(void)
 			clk_put(clk);
 		}
 
-		clk_ddr_dvfs_node->temp_limit_rate = 350000000;
+		clk_ddr_dvfs_node->temp_limit_rate = 400000000;
 		dvfs_clk_set_rate(clk_ddr_dvfs_node,
 				  clk_ddr_dvfs_node->last_set_rate);
 
