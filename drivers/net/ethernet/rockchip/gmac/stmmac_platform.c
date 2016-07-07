@@ -129,6 +129,16 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 #define RK322X_GMAC_CLK_RX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 7)
 #define RK322X_GMAC_CLK_TX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 0)
 
+/* RK1108_GRF_MAC_CON0 */
+#define RK1108_GMAC_PHY_INTF_SEL_RMII	\
+		(GRF_CLR_BIT(4) | GRF_CLR_BIT(5) | GRF_BIT(6))
+#define RK1108_GMAC_FLOW_CTRL		GRF_BIT(3)
+#define RK1108_GMAC_FLOW_CTRL_CLR	GRF_CLR_BIT(3)
+#define RK1108_GMAC_SPEED_10M		GRF_CLR_BIT(2)
+#define RK1108_GMAC_SPEED_100M		GRF_BIT(2)
+#define RK1108_GMAC_RMII_CLK_25M	GRF_BIT(7)
+#define RK1108_GMAC_RMII_CLK_2_5M	GRF_CLR_BIT(7)
+
 static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		      int tx_delay, int rx_delay)
 {
@@ -222,7 +232,17 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 
 		/* set MAC to RMII mode */
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, GRF_BIT(11));
+	} else if (type == RK1108_GMAC) {
+		struct device *dev = &bsp_priv->pdev->dev;
 
+		if (IS_ERR(bsp_priv->grf)) {
+			dev_err(dev, "%s: Missing rockchip,grf property\n",
+				__func__);
+			return;
+		}
+
+		regmap_write(bsp_priv->grf, RK1108_GRF_SOC_CON0,
+			     RK1108_GMAC_PHY_INTF_SEL_RMII);
 	}
 }
 
@@ -357,7 +377,18 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_RMII_CLK_2_5M |
 			     RK322X_GMAC_SPEED_10M);
+	} else if (type == RK1108_GMAC) {
+		struct device *dev = &bsp_priv->pdev->dev;
 
+		if (IS_ERR(bsp_priv->grf)) {
+			dev_err(dev, "%s: Missing rockchip,grf property\n",
+				__func__);
+			return;
+		}
+
+		regmap_write(bsp_priv->grf, RK1108_GRF_SOC_CON0,
+			     RK1108_GMAC_RMII_CLK_2_5M |
+			     RK1108_GMAC_SPEED_10M);
 	}
 }
 
@@ -399,7 +430,18 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_RMII_CLK_25M |
 			     RK322X_GMAC_SPEED_100M);
+	} else if (type == RK1108_GMAC) {
+		struct device *dev = &bsp_priv->pdev->dev;
 
+		if (IS_ERR(bsp_priv->grf)) {
+			dev_err(dev, "%s: Missing rockchip,grf property\n",
+				__func__);
+			return;
+		}
+
+		regmap_write(bsp_priv->grf, RK1108_GRF_SOC_CON0,
+			     RK1108_GMAC_RMII_CLK_25M |
+			     RK1108_GMAC_SPEED_100M);
 	}
 }
 
@@ -914,6 +956,8 @@ void stmmc_pltfr_fix_mac_speed(void *priv, unsigned int speed){
 }
 
 
+static const struct of_device_id stmmac_dt_ids[];
+
 #ifdef CONFIG_OF
 static int stmmac_probe_config_dt(struct platform_device *pdev,
 				  struct plat_stmmacenet_data *plat,
@@ -924,6 +968,11 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	int ret;
 	const char * strings = NULL;
 	int value;
+	const struct of_device_id *match;
+
+	match = of_match_device(stmmac_dt_ids, &pdev->dev);
+	if (!match)
+		return -EINVAL;
 
 	if (!np)
 		return -ENODEV;
@@ -1035,21 +1084,8 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 		plat->pmt = 1;
 	}
 
-	if (of_device_is_compatible(np, "rockchip,rk3288-gmac")) {
-		g_bsp_priv.chip = RK3288_GMAC;
-		pr_info("%s: is rockchip,rk3288-gmac\n", __func__);
-	} else if (of_device_is_compatible(np, "rockchip,rk312x-gmac")) {
-		g_bsp_priv.chip = RK312X_GMAC;
-		pr_info("%s: is rockchip,rk312x-gmac\n", __func__);
-	} else if (of_device_is_compatible(np, "rockchip,rk3368-gmac")) {
-		g_bsp_priv.chip = RK3368_GMAC;
-		pr_info("%s: is rockchip,rk3368-gmac\n", __func__);
-	} else if (of_device_is_compatible(np, "rockchip,rk322x-gmac")) {
-		g_bsp_priv.chip = RK322X_GMAC;
-		pr_info("%s: is rockchip,rk322x-gmac\n", __func__);
-	} else {
-		pr_info("%s: unknown platform\n", __func__);
-	}
+
+	g_bsp_priv.chip = (unsigned long)match->data;
 
 	return 0;
 }
@@ -1232,10 +1268,21 @@ static const struct dev_pm_ops stmmac_pltfr_pm_ops;
 #endif /* CONFIG_PM */
 
 static const struct of_device_id stmmac_dt_ids[] = {
-	{ .compatible = "rockchip,rk3288-gmac"},
-	{ .compatible = "rockchip,rk312x-gmac"},
-	{ .compatible = "rockchip,rk3368-gmac"},
-	{ .compatible = "rockchip,rk322x-gmac"},
+	{ .compatible = "rockchip,rk3288-gmac",
+	  .data = (void *) RK3288_GMAC
+	},
+	{ .compatible = "rockchip,rk312x-gmac",
+	  .data = (void *) RK312X_GMAC
+	},
+	{ .compatible = "rockchip,rk3368-gmac",
+	  .data = (void *) RK3368_GMAC
+	},
+	{ .compatible = "rockchip,rk322x-gmac",
+	  .data = (void *) RK322X_GMAC
+	},
+	{ .compatible = "rockchip,rk1108-gmac",
+	  .data = (void *) RK1108_GMAC
+	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, stmmac_dt_ids);
