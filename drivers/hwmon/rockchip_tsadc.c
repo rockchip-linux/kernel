@@ -135,6 +135,75 @@ struct tsadc_table
 	int temp;
 };
 
+/**
+ * The conversion table has the adc value and temperature.
+ * ADC_DECREMENT: the adc value is of diminishing.(e.g. rk3288_code_table)
+ * ADC_INCREMENT: the adc value is incremental.(e.g. rk3368_code_table)
+ */
+enum adc_sort_mode {
+	ADC_DECREMENT = 0,
+	ADC_INCREMENT,
+};
+
+/**
+ * struct chip_tsadc_table - hold information about chip-specific differences
+ * @id: conversion table
+ * @length: size of conversion table
+ * @data_mask: mask to apply on data inputs
+ * @mode: sort mode of this adc variant (incrementing or decrementing)
+ */
+struct chip_tsadc_table {
+	const struct tsadc_table *id;
+	unsigned int length;
+	u32 data_mask;
+	enum adc_sort_mode mode;
+};
+
+#define TSADCV3_DATA_MASK			0x3ff
+
+static struct chip_tsadc_table *this_table;
+
+static const struct tsadc_table rk1108_table[] = {
+	{0, -40},
+
+	{374, -40},
+	{382, -35},
+	{389, -30},
+	{397, -25},
+	{405, -20},
+	{413, -15},
+	{421, -10},
+	{429, -5},
+	{436, 0},
+	{444, 5},
+	{452, 10},
+	{460, 15},
+	{468, 20},
+	{476, 25},
+	{483, 30},
+	{491, 35},
+	{499, 40},
+	{507, 45},
+	{515, 50},
+	{523, 55},
+	{531, 60},
+	{539, 65},
+	{547, 70},
+	{555, 75},
+	{562, 80},
+	{570, 85},
+	{578, 90},
+	{586, 95},
+	{594, 100},
+	{602, 105},
+	{610, 110},
+	{618, 115},
+	{626, 120},
+	{634, 125},
+
+	{TSADC_DATA_MASK, 125},
+};
+
 static const struct tsadc_table rk322x_table[] =
 {
 	{0, -40},
@@ -249,7 +318,8 @@ void rockchip_tsadc_auto_ht_work(struct work_struct *work)
 	tsadc_writel(val &(~ (1 <<8) ), TSADC_INT_PD);
 	ret = tsadc_readl(TSADC_INT_PD);
 	tsadc_writel(ret | 0xff, TSADC_INT_PD);       //clr irq status
-	if (g_data->tsadc_type == RK322X_TSADC) {
+	if (g_data->tsadc_type == RK322X_TSADC ||
+	    g_data->tsadc_type == RK1108_TSADC) {
 		if ((val & 0x1000) != 0) {
 			dev_info(&g_data->pdev->dev, "rk322x tsadc is low temp\n");
 		} else if ((val & 0x1) != 0) {
@@ -269,10 +339,140 @@ static irqreturn_t rockchip_tsadc_auto_ht_interrupt(int irq, void *data)
 	struct rockchip_tsadc_temp *dev = data;
 
 	printk("%s,line=%d\n", __func__,__LINE__);
-	
+
 	queue_work(dev->workqueue, &dev->auto_ht_irq_work);
-	
+
 	return IRQ_HANDLED;
+}
+
+static int rockchip_temp_to_code(int temp, u32 *code)
+{
+	unsigned int low = 1;
+	unsigned int high = this_table->length - 1;
+	unsigned int mid = (low + high) / 2;
+	unsigned int num;
+	unsigned long denom;
+	*code = TSADC_DATA_MASK;
+
+	WARN_ON(this_table->length < 2);
+
+	temp &= this_table->data_mask;
+	if (temp < this_table->id[low].temp)
+		return -EAGAIN;	/* Incorrect reading */
+
+	while (low <= high) {
+		if (temp == this_table->id[mid].temp) {
+			*code = this_table->id[mid].code;
+			break;
+		} else if (temp > this_table->id[mid].temp) {
+			low = mid + 1;
+		} else {
+			high = mid - 1;
+		}
+
+		mid = (low + high) / 2;
+	}
+	/*
+	 * The 5C granularity provided by the table is too much. Let's
+	 * assume that the relationship between sensor readings and
+	 * temperature between 2 table entries is linear and interpolate
+	 * to produce less granular result.
+	 */
+	if (*code == TSADC_DATA_MASK) {
+		num = abs(this_table->id[low].code - this_table->id[high].code);
+		num *= abs(this_table->id[high].temp - temp);
+		denom =
+		    abs(this_table->id[high].temp - this_table->id[low].temp);
+		*code = this_table->id[high].code + (num / denom);
+	}
+
+	return 0;
+}
+
+static int rockchip_code_to_temp(u32 code, int *temp)
+{
+	unsigned int low = 1;
+	unsigned int high = this_table->length - 1;
+	unsigned int mid = (low + high) / 2;
+	unsigned int num;
+	unsigned long denom;
+	*temp = INVALID_TEMP;
+
+	WARN_ON(this_table->length < 2);
+
+	switch (this_table->mode) {
+	case ADC_DECREMENT:
+		code &= this_table->data_mask;
+		if (code < this_table->id[high].code)
+			return -EAGAIN;	/* Incorrect reading */
+
+		while (low <= high) {
+			if (code == this_table->id[mid].code) {
+				*temp = this_table->id[mid].temp;
+				break;
+			} else if (code < this_table->id[mid].code) {
+				low = mid + 1;
+			} else {
+				high = mid - 1;
+			}
+
+			mid = (low + high) / 2;
+		}
+		break;
+	case ADC_INCREMENT:
+		code &= this_table->data_mask;
+		if (code < this_table->id[low].code)
+			return -EAGAIN;	/* Incorrect reading */
+
+		while (low <= high) {
+			if (code == this_table->id[mid].code) {
+				*temp = this_table->id[mid].temp;
+				break;
+			} else if (code > this_table->id[mid].code) {
+				low = mid + 1;
+			} else {
+				high = mid - 1;
+			}
+
+			mid = (low + high) / 2;
+		}
+		break;
+	default:
+		pr_err("Invalid the conversion table\n");
+	}
+
+	/*
+	 * The 5C granularity provided by the table is too much. Let's
+	 * assume that the relationship between sensor readings and
+	 * temperature between 2 table entries is linear and interpolate
+	 * to produce less granular result.
+	 */
+	if (*temp == INVALID_TEMP) {
+		num = abs(this_table->id[low].temp - this_table->id[high].temp);
+		num *= abs(this_table->id[high].code - code);
+		denom =
+		    abs(this_table->id[high].code - this_table->id[low].code);
+		*temp = this_table->id[high].temp + (num / denom);
+	}
+
+	return 0;
+}
+
+static void rockchip_v1_tsadc_set_cmpn_int_code(int chn)
+{
+	u32 code = 0;
+
+	rockchip_temp_to_code(tsadc_ht_temp - 10, &code);
+	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
+		     (TSADC_COMP0_INT + chn * 4));
+
+	rockchip_temp_to_code(tsadc_ht_temp, &code);
+	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
+		     (TSADC_COMP0_SHUT + chn * 4));
+
+	rockchip_temp_to_code(tsadc_low_temp, &code);
+	tsadc_writel((code & TSADC_COMP_INT_DATA_MASK),
+		     (TSADC_COMP0_LOW_INT + chn * 4));
 }
 
 static void rockchip_tsadc_set_cmpn_int_vale( int chn, int temp)
@@ -317,22 +517,22 @@ static void rockchip_tsadc_set_auto_int_en( int chn, int ht_int_en,int tshut_en)
 			tsadc_writel(ret | (0xf << (chn + 4)), TSADC_INT_EN);
 		else if (tsadc_ht_reset_cru)
 			tsadc_writel(ret | (0xf << (chn + 8)), TSADC_INT_EN);
-	}	
+	}
 
 }
 static void rockchip_tsadc_auto_mode_set(int chn, int int_temp,
 	int shut_temp, int int_en, int shut_en)
 {
 	u32 ret;
-	
+
 	if (!g_dev || chn > 4)
 		return;
-	
+
 	mutex_lock(&tsadc_mutex);
-	
+
 	clk_enable(g_dev->pclk);
 	clk_enable(g_dev->clk);
-	
+
 	msleep(10);
 	tsadc_writel(0, TSADC_AUTO_CON);
 	tsadc_writel(3 << (4+chn), TSADC_AUTO_CON);
@@ -348,17 +548,17 @@ static void rockchip_tsadc_auto_mode_set(int chn, int int_temp,
 			TSADC_HIGHT_INT_DEBOUNCE);
 		tsadc_writel(TSADC_HIGHT_TSHUT_DEBOUNCE_TIME,
 			TSADC_HIGHT_TSHUT_DEBOUNCE);
-		
-		rockchip_tsadc_set_auto_int_en(chn,int_en,shut_en);	
+
+		rockchip_tsadc_set_auto_int_en(chn, int_en, shut_en);
 	}
 
 	msleep(10);
 
 	ret = tsadc_readl(TSADC_AUTO_CON);
 	tsadc_writel(ret | (1 <<0) , TSADC_AUTO_CON);
-	
+
 	mutex_unlock(&tsadc_mutex);
-		
+
 }
 
 int rockchip_tsadc_set_auto_temp(int chn)
@@ -444,6 +644,53 @@ static void rockchip_rk322x_tsadc_set_auto_int_en(int chn,
 			| TSADC_LT_INTEN_SRC(chn), TSADC_INT_EN);
 }
 
+struct chip_tsadc_table rk1108_tsadc_data = {
+	.id = rk1108_table,
+	.length = ARRAY_SIZE(rk1108_table),
+	.data_mask = TSADCV3_DATA_MASK,
+	.mode = ADC_INCREMENT,
+};
+
+static void rockchip_v1_tsadc_auto_mode_set(int chn, int int_en, int shut_en)
+{
+	u32 ret;
+
+	if (!g_dev || chn > 4)
+		return;
+
+	mutex_lock(&tsadc_mutex);
+
+	clk_enable(g_dev->pclk);
+	clk_enable(g_dev->clk);
+
+	usleep_range(9, 10);
+	tsadc_writel(0, TSADC_AUTO_CON);
+	tsadc_writel(1 << (4 + chn), TSADC_AUTO_CON);
+	usleep_range(9, 10);
+	if ((tsadc_readl(TSADC_AUTO_CON) & TSADC_AUTO_STAS_BUSY_MASK) !=
+	    TSADC_AUTO_STAS_BUSY) {
+		rockchip_v1_tsadc_set_cmpn_int_code(chn);
+
+		tsadc_writel(TSADC_AUTO_PERIOD_TIME, TSADC_AUTO_PERIOD);
+		tsadc_writel(TSADC_AUTO_PERIOD_HT_TIME, TSADC_AUTO_PERIOD_HT);
+
+		tsadc_writel(TSADC_HIGHT_INT_DEBOUNCE_TIME,
+			     TSADC_HIGHT_INT_DEBOUNCE);
+		tsadc_writel(TSADC_HIGHT_TSHUT_DEBOUNCE_TIME,
+			     TSADC_HIGHT_TSHUT_DEBOUNCE);
+
+		rockchip_rk322x_tsadc_set_auto_int_en(chn, int_en, shut_en);
+	}
+
+	usleep_range(9, 10);
+
+	ret = tsadc_readl(TSADC_AUTO_CON);
+	tsadc_writel(ret | TSADC_AUTO_MODE_EN | TSADC_SRC_LT_EN(chn) |
+		     TSADC_Q_SEL_EN, TSADC_AUTO_CON);
+
+	mutex_unlock(&tsadc_mutex);
+}
+
 static void rockchip_rk322x_tsadc_auto_mode_set(int chn,
 						int int_en,
 						int shut_en)
@@ -488,6 +735,13 @@ static void rockchip_rk322x_tsadc_auto_mode_set(int chn,
 	mutex_unlock(&tsadc_mutex);
 }
 
+static int rockchip_v1_tsadc_set_auto_temp(int chn)
+{
+	rockchip_v1_tsadc_auto_mode_set(chn, TSADC_TEMP_INT_EN,
+					TSADC_TEMP_SHUT_EN);
+	return 0;
+}
+
 int rockchip_rk322x_tsadc_set_auto_temp(int chn)
 {
 	rockchip_rk322x_tsadc_auto_mode_set(chn,
@@ -496,6 +750,18 @@ int rockchip_rk322x_tsadc_set_auto_temp(int chn)
 	return 0;
 }
 EXPORT_SYMBOL(rockchip_rk322x_tsadc_set_auto_temp);
+
+static int rockchip_v1_tsadc_get_temp(int chn, int voltage)
+{
+	int temp = INVALID_TEMP, code = 0;
+
+	if (!g_dev || chn > 4)
+		return temp;
+
+	code = tsadc_readl((TSADC_DATA0 + chn * 4)) & TSADC_DATA_MASK;
+	rockchip_code_to_temp(code, &temp);
+	return temp;
+}
 
 int rockchip_rk322x_tsadc_get_temp(int chn, int voltage)
 {
@@ -574,7 +840,7 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 	int ret,irq;
 	u32 rate;
 	struct tsadc_port *uap;
-	
+
 	rockchip_tsadc_data = devm_kzalloc(&data->pdev->dev, sizeof(*rockchip_tsadc_data),
 		GFP_KERNEL);
 	if (!rockchip_tsadc_data)
@@ -585,9 +851,8 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 	if (!rockchip_tsadc_data->regs) {
 		dev_err(&data->pdev->dev, "cannot map IO\n");
 		return -ENXIO;
-	} 
+	}
 
-	//irq request	
 	irq = platform_get_irq(data->pdev, 0);
 	if (irq < 0) {
 		dev_err(&data->pdev->dev, "no irq resource?\n");
@@ -598,12 +863,11 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 	if (ret < 0) {
 		dev_err(&data->pdev->dev, "failed to attach tsadc irq\n");
 		return -EPERM;
-	}	
+	}
 
 	rockchip_tsadc_data->workqueue = create_singlethread_workqueue("rockchip_tsadc");
 	INIT_WORK(&rockchip_tsadc_data->auto_ht_irq_work, rockchip_tsadc_auto_ht_work);
-	
-	//clk enable
+
 	rockchip_tsadc_data->clk = devm_clk_get(&data->pdev->dev, "tsadc");
 	if (IS_ERR(rockchip_tsadc_data->clk)) {
 	    dev_err(&data->pdev->dev, "failed to get tsadc clock\n");
@@ -673,6 +937,11 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 	}
 
 	switch (data->tsadc_type) {
+	case RK1108_TSADC:
+		this_table = &rk1108_tsadc_data;
+		rockchip_v1_tsadc_set_auto_temp(0);
+		data->ops.read_sensor = rockchip_v1_tsadc_get_temp;
+		break;
 	case RK3288_TSADC:
 		rockchip_tsadc_set_auto_temp(1);
 		data->ops.read_sensor = rockchip_rk3288_tsadc_get_temp;

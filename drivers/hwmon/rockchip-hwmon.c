@@ -1,7 +1,7 @@
 /*
  * Copyright (C) rockchip 2014
  * Author:zhangqing <zhangqing@rock-chips.com>
- *        
+ *
  * License Terms: GNU General Public License v2
  *
  * rockchip tsadc does not provide auto tsADC, so to monitor the required temperatures,
@@ -346,7 +346,7 @@ struct attribute *rockchip_temp_attributes[] = {
 	&sensor_dev_attr_temp3_min_alarm.dev_attr.attr,
 	&sensor_dev_attr_temp3_max_alarm.dev_attr.attr,
 
-	
+
 	NULL
 };
 
@@ -359,6 +359,10 @@ static const struct of_device_id rockchip_temp_match[] = {
 	{
 		.compatible = "rockchip,tsadc",
 		.data = (void *)RK3288_TSADC,
+	},
+	{
+		.compatible = "rockchip,rk1108-tsadc",
+		.data = (void *)RK1108_TSADC,
 	},
 	{
 		.compatible = "rockchip,rk322x-tsadc",

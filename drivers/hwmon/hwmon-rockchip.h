@@ -14,6 +14,7 @@ struct rockchip_temp;
 
 #define RK3288_TSADC	0
 #define RK322X_TSADC	1
+#define RK1108_TSADC	2
 
 /*
  * struct rockchip_temp_ops - rockchip chip specific ops
