@@ -511,6 +511,26 @@
 		status = "disabled";
 	};
 
+	gmac: eth@30200000 {
+		compatible = "rockchip,rk1108-gmac";
+		reg = <0x30200000 0x10000>;
+		rockchip,grf = <&grf>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "macirq";
+		clocks = <&clk_mac>, <&clk_gates4 8>,
+			 <&clk_gates4 8>, <&clk_gates4 6>,
+			 <&clk_gates4 7>, <&clk_gates15 4>,
+			 <&clk_gates15 5>;
+		clock-names = "clk_mac", "mac_clk_rx",
+			      "mac_clk_tx", "clk_mac_ref",
+			      "clk_mac_refout", "aclk_mac",
+			      "pclk_mac";
+		phy-mode = "rmii";
+		pinctrl-names = "default";
+		pinctrl-0 = <&rmii_pins>;
+		status = "disabled";
+	};
+
 	gic: interrupt-controller@32010000 {
 		compatible = "arm,cortex-a15-gic";
 		interrupt-controller;
@@ -962,6 +982,21 @@
 						<1 GPIO_B4 RK_FUNC_GPIO &pcfg_pull_none>,//D15
 						<1 GPIO_B3 RK_FUNC_GPIO &pcfg_pull_none>,//D16
 						<1 GPIO_B2 RK_FUNC_GPIO &pcfg_pull_none>;//D17
+			};
+		};
+
+		gmac {
+			rmii_pins: rmii-pins {
+				rockchip,pins =	<1 GPIO_C5 RK_FUNC_2 &pcfg_pull_none>,
+						<1 GPIO_C3 RK_FUNC_2 &pcfg_pull_none>,
+						<1 GPIO_C4 RK_FUNC_2 &pcfg_pull_none>,
+						<1 GPIO_B2 RK_FUNC_3 &pcfg_pull_none_drv_12ma>,
+						<1 GPIO_B3 RK_FUNC_3 &pcfg_pull_none_drv_12ma>,
+						<1 GPIO_B4 RK_FUNC_3 &pcfg_pull_none_drv_12ma>,
+						<1 GPIO_B5 RK_FUNC_3 &pcfg_pull_none>,
+						<1 GPIO_B6 RK_FUNC_3 &pcfg_pull_none>,
+						<1 GPIO_B7 RK_FUNC_3 &pcfg_pull_none>,
+						<1 GPIO_C2 RK_FUNC_3 &pcfg_pull_none>;
 			};
 		};
 
