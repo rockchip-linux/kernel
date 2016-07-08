@@ -202,6 +202,9 @@ static const struct iio_chan_spec rk_adc_iio_channels[] = {
 	ADC_CHANNEL(0, "adc0"),
 	ADC_CHANNEL(1, "adc1"),
 	ADC_CHANNEL(2, "adc2"),
+	ADC_CHANNEL(3, "adc3"),
+	ADC_CHANNEL(4, "adc4"),
+	ADC_CHANNEL(5, "adc5"),
 	ADC_CHANNEL(6, "adc6"),
 };
 
