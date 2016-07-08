@@ -275,10 +275,10 @@
 			<&aclk_vpu 25000000>, <&clk_vdec_core 250000000>,
 			<&clk_vdec_cabac 250000000>, <&aclk_rkvdec 16000000>,
 			<&aclk_vop 400000000>, <&clk_rga 300000000>;
-/*
+
 		rockchip,clocks-uboot-has-init =
-			<&aclk_vio0>;
-*/
+			<&dclk_vop0>, <&dclk_vop0_pll>;
+		rockchip,set_div_for_pll_init;
 	};
 
 	rockchip_clocks_enable: clocks-enable {
