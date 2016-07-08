@@ -2144,6 +2144,42 @@ static int rkclk_uboot_has_init(struct device_node *np, const char *clk_name)
 	return 0;
 }
 
+static void rockchip_set_div_for_pll_init(struct device_node *np,
+					  struct clk *clk_c,
+					  unsigned long clk_rate)
+{
+	unsigned long old_rate, child_rate;
+	struct clk *clk_p, *child;
+	int div;
+
+	old_rate = clk_get_rate(clk_c);
+	div = clk_rate / old_rate;
+	if (clk_rate % old_rate)
+		div += 1;
+
+	if ((clk_c->flags == 0) && (clk_rate > old_rate)) {
+		hlist_for_each_entry(child, &clk_c->children,
+				     child_node) {
+			if (uboot_logo_on && rkclk_uboot_has_init(np,
+								  child->name)) {
+				clk_debug("%s: %s has been inited in uboot, ingored\n",
+					  __func__, child->name);
+				continue;
+			}
+			clk_p = clk_get_parent(child);
+			if (strcmp(clk_p->name, clk_c->name) == 0) {
+				child_rate = clk_get_rate(child);
+				clk_debug("%s: pllname=%s,childname=%s,pll_rate=%ld,pll_new_rate=%ld,child_rate=%ld,child_new_rate=%ld\n",
+					  __func__, clk_c->name,
+					  child->name, old_rate,
+					  clk_rate, child_rate,
+					  child_rate / div);
+				clk_set_rate(child, child_rate / div);
+			}
+		}
+	}
+}
+
 void __init rkclk_init_clks(struct device_node *np)
 {
 	//struct device_node *np;
@@ -2204,6 +2240,9 @@ void __init rkclk_init_clks(struct device_node *np)
 
 		if((clk_rate<1*MHZ)||(clk_rate>2000*MHZ))
 			clk_err("warning: clk_rate < 1*MHZ or > 2000*MHZ\n");
+
+		if (of_property_read_bool(np, "rockchip,set_div_for_pll_init"))
+			rockchip_set_div_for_pll_init(np, clk_c, clk_rate);
 
 		clk_set_rate(clk_c, clk_rate);
 
