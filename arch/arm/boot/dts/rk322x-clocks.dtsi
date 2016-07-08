@@ -799,6 +799,8 @@
 						clock-output-names = "clk_uart0_pll";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
+						rockchip,clkops-idx =
+							<CLKOPS_RATE_MUX_DIV>;
 						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
 					};
 
@@ -843,6 +845,8 @@
 						clock-output-names = "clk_uart1_pll";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
+						rockchip,clkops-idx =
+							<CLKOPS_RATE_MUX_DIV>;
 						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
 					};
 
@@ -886,6 +890,8 @@
 						clock-output-names = "clk_uart2_pll";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
+						rockchip,clkops-idx =
+							<CLKOPS_RATE_MUX_DIV>;
 						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
 					};
 
@@ -1186,6 +1192,7 @@
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
+						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
 						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
 					};
 
