@@ -395,6 +395,21 @@
 		status = "disabled";
 	};
 
+	tsadc: tsadc@10370000 {
+		compatible = "rockchip,rk1108-tsadc";
+		reg = <0x10370000 0x100>;
+		interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
+		clock-frequency = <750000>;
+		clocks = <&clk_tsadc>, <&clk_gates13 13>;
+		clock-names = "tsadc", "pclk_tsadc";
+		pinctrl-names = "default";
+		pinctrl-0 = <&tsadc_gpio>;
+		tsadc-ht-temp = <120>;
+		tsadc-ht-reset-cru = <1>;
+		tsadc-ht-pull-gpio = <0>;
+		status = "disabled";
+	};
+
 	cru: syscon@20200000 {
 		compatible = "rockchip,rk1108-cru", "rockchip,cru", "syscon";
 		reg = <0x20200000 0x1000>;
@@ -900,6 +915,15 @@
 						<1 GPIO_B4 RK_FUNC_GPIO &pcfg_pull_none>,//D15
 						<1 GPIO_B3 RK_FUNC_GPIO &pcfg_pull_none>,//D16
 						<1 GPIO_B2 RK_FUNC_GPIO &pcfg_pull_none>;//D17
+			};
+		};
+
+		tsadc {
+			tsadc_int: tsadc-int {
+				rockchip,pins =	<0 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>;
+			};
+			tsadc_gpio: tsadc-gpio {
+				rockchip,pins =	<0 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 	};
