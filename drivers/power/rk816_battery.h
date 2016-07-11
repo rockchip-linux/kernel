@@ -19,36 +19,25 @@
 
 /*TS_CTRL_REG*/
 #define GG_EN			BIT(7)
-#define ADC_VOL_EN		BIT(7)
 #define ADC_CUR_EN		BIT(6)
 #define ADC_TS1_EN		BIT(5)
 #define ADC_TS2_EN		BIT(4)
-#define ADC_PHASE		BIT(3)
 
 /*GGCON*/
-#define CUR_SAMPL_CON_TIMES	(3 << 6)
-#define ADC_OFF_CAL_INTERV	(3 << 4)
-#define OCV_SAMPL_INTERV	(3 << 2)
-#define ADC_CUR_VOL_MODE	(1 << 1)
-#define ADC_RES_MODE		1
-#define ADC_SAMP_8MIN		(0x00 << 4)
-#define ADC_SAMP_16MIN		(0x01 << 4)
-#define ADC_SAMP_32MIN		(0x02 << 4)
-#define ADC_SAMP_48MIN		(0x03 << 4)
-#define OCV_SAMP_8MIN		(0x00 << 2)
-#define OCV_SAMP_16MIN		(0x01 << 2)
-#define OCV_SAMP_32MIN		(0x02 << 2)
-#define OCV_SAMP_48MIN		(0x03 << 2)
 #define ADC_CUR_MODE		(0x01 << 1)
 #define AVG_CUR_MODE		(0x00 << 0)
+#define ADC_CAL_MIN_MSK		0x30
+#define ADC_CAL_8MIN		(0x00 << 4)
+#define OCV_SAMP_MIN_MSK	0x0c
+#define OCV_SAMP_8MIN		(0x00 << 2)
 
 /*GGSTS*/
-#define RES_CUR_AVG_SEL		(3 << 5)
+#define FCC_LOCK		(1 << 5)
 #define BAT_CON			(1 << 4)
-#define RELAX_VOL1_UPD		(1 << 3)
-#define RELAX_VOL2_UPD		(1 << 2)
 #define RELAX_STS		(1 << 1)
-#define IV_AVG_UPD_STS		(1 << 0)
+#define RELAX_VOL1_UPD		BIT(3)
+#define RELAX_VOL2_UPD		BIT(2)
+#define RELAX_VOL12_UPD_MSK	(RELAX_VOL1_UPD | RELAX_VOL2_UPD)
 
 /*SUP_STS_REG*/
 #define BAT_EXS			(1 << 7)
@@ -62,9 +51,17 @@
 #define TIMER_ERR		(0x07 << 4)
 #define USB_EXIST		(1 << 1)
 #define USB_EFF			(1 << 0)
+#define USB_VLIMIT_EN		BIT(3)
+#define USB_CLIMIT_EN		BIT(2)
+#define CHRG_STATUS_MSK		0x70
 
 /*USB_CTRL_REG*/
 #define CHRG_CT_EN		(1 << 7)
+#define INPUT_CUR_MSK		(0x0f)
+#define FINISH_CUR_MSK		0xc0
+
+/* THERMAL_REG */
+#define FB_TEMP_MSK		0x0c
 
 /*CHGR_CUR_INPUT*/
 #define INPUT_CUR450MA		(0x00)
@@ -127,10 +124,17 @@
 #define CHRG_TIMER_CCCV_EN	(1 << 2)
 
 #define BOOST_OTG_MASK		((0x3 << 5) | (0x3 << 1))
-#define BOOST_ON		((0x3 << 5) | (0x1 << 1))
-#define OTG_ON			((0x3 << 5) | (0x3 << 1))
-#define BOOST_OTG_OFF		((0x3 << 5) | (0x0 << 1))
+#define BOOST_ON_OTG_OFF	((0x3 << 5) | (0x1 << 1))
+#define BOOST_ON_OTG_ON		((0x3 << 5) | (0x3 << 1))
+#define BOOST_OFF_OTG_OFF	((0x3 << 5) | (0x0 << 1))
 #define CHRG_EN			(1 << 7)
+
+/* MISC_MARK_REG */
+#define FG_INIT			BIT(3)
+#define FG_RESET_LATE		BIT(1)
+#define FG_RESET_NOW		BIT(0)
+#define ALGO_REST_MODE_MSK	(0xc0)
+#define ALGO_REST_MODE_SHIFT	6
 
 #define FB_TEMP_SHIFT		2
 #define CHRG_VOL_SEL_SHIFT	4
@@ -140,7 +144,7 @@
 #define	OCV_CALIB_SHIFT		(1 << 1)
 #define PLUG_IN_STS		(1 << 6)
 
-#define DRIVER_VERSION		"1.1"
+#define DRIVER_VERSION		"1.2"
 #define TIMER_MS_COUNTS		1000
 #define MAX_PERCENTAGE		100
 #define MAX_INT			0x7FFF
@@ -162,6 +166,7 @@ struct battery_platform_data {
 	u32 pwroff_vol;
 	u32 monitor_sec;
 	u32 zero_algorithm_vol;
+	u32 zero_reserve_dsoc;
 	u32 bat_res;
 	u32 design_capacity;
 	u32 design_qmax;
@@ -177,13 +182,14 @@ struct battery_platform_data {
 	u32 dc_det_adc;
 	int dc_det_pin;
 	u8  dc_det_level;
-	bool dc_gpio_enable;
 };
 
 enum work_mode {
 	MODE_ZERO = 0,
-	MODE_SMOOTH,
 	MODE_FINISH,
+	MODE_SMOOTH_CHRG,
+	MODE_SMOOTH_DISCHRG,
+	MODE_SMOOTH,
 };
 
 enum bat_mode {
@@ -193,12 +199,12 @@ enum bat_mode {
 
 enum charger_type {
 	UNKNOWN_CHARGER = 0,
-	NONE_CHARGER,
-	NO_ACUSB_CHARGER,
-	NO_DC_CHARGER,
-	USB_CHARGER,
-	AC_CHARGER,
-	DC_CHARGER,
+	USB_DC_TYPE_NONE_CHARGER,
+	USB_TYPE_NONE_CHARGER,
+	USB_TYPE_USB_CHARGER,
+	USB_TYPE_AC_CHARGER,
+	DC_TYPE_DC_CHARGER,
+	DC_TYPE_NONE_CHARGER,
 };
 
 enum charger_state {

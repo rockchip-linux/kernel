@@ -268,9 +268,9 @@
 #define RK816_REBOOT_CNT_REG			0xEC
 #define RK816_PCB_IOFFSET_REG			0xED
 #define RK816_MISC_MARK_REG			0xEE
-#define DATA15_REG				0xEF
-#define DATA16_REG				0xF0
-#define DATA17_REG				0xF1
+#define RK816_HALT_CNT_REG			0xEF
+#define RK816_CALC_REST_REGH			0xF0
+#define RK816_CALC_REST_REGL			0xF1
 #define DATA18_REG				0xF2
 
 /* IRQ Definitions */
