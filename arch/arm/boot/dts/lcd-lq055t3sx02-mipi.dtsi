@@ -1,0 +1,161 @@
+/*
+ * RockChip. DisplayPort screen LQ055T3SX02
+ *
+ */
+
+/ {
+		/* about mipi */
+		disp_mipi_init: mipi_dsi_init {
+			compatible = "rockchip,mipi_dsi_init";
+			rockchip,screen_init	= <1>;
+			rockchip,dsi_lane	= <4>;
+			rockchip,dsi_hs_clk	= <940>;
+			rockchip,mipi_dsi_num	= <1>;
+			rockchip,adjust_gpio1 = <&gpio5 GPIO_B7 GPIO_ACTIVE_HIGH>;
+			rockchip,adjust_gpio2 = <&gpio5 GPIO_C0 GPIO_ACTIVE_HIGH>;
+		};
+
+		disp_mipi_power_ctr: mipi_power_ctr {
+			compatible = "rockchip,mipi_power_ctr";
+
+			mipi_lcd_rst:mipi_lcd_rst{
+				compatible = "rockchip,lcd_rst";
+				rockchip,gpios = <&gpio7 GPIO_A4 GPIO_ACTIVE_HIGH>;
+				rockchip,delay = <500>;
+			};
+			mipi_lcd_en:mipi_lcd_en {
+				compatible = "rockchip,lcd_en";
+				rockchip,gpios = <&gpio7 GPIO_A3 GPIO_ACTIVE_HIGH>;
+				rockchip,delay = <10>;
+			};
+		};
+
+		disp_mipi_init_cmds: screen-on-cmds {
+			rockchip,cmd_debug = <1>;
+			compatible = "rockchip,screen-on-cmds";
+
+			rockchip,on-cmds1 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xff 0x01>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds2 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xfb 0x01>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds3 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0x6e 0x80>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds4 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xff 0x05>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds5 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xfb 0x01>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds6 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0x9f 0x00>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds10 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xff 0x00>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds11 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xfb 0x01>;
+				rockchip,cmd_delay = <50>;//20
+			};
+			rockchip,on-cmds12 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xff 0x00>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds13 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xd3 0x08>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds14 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x15 0xd4 0x0e>;
+				rockchip,cmd_delay = <20>;
+			};
+			rockchip,on-cmds15 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x05 0x11>;
+				rockchip,cmd_delay = <120>;
+			};
+			rockchip,on-cmds16 {
+				compatible = "rockchip,on-cmds";
+				rockchip,cmd_type = <LPDT>;
+				rockchip,dsi_id = <0>;
+				rockchip,cmd = <0x05 0x29>;
+				rockchip,cmd_delay = <100>;//40
+			};
+		};
+
+		disp_timings: display-timings {
+			native-mode = <&timing0>;
+			compatible = "rockchip,display-timings";
+
+			timing0: timing0 {
+				screen-type = <SCREEN_MIPI>;
+				lvds-format = <LVDS_8BIT_2>;
+				out-face    = <OUT_P888>;
+				clock-frequency = <136000000>;
+				hactive = <1080>;
+				vactive = <1920>;
+
+				hsync-len = <4>;//19
+				hback-porch = <4>;//40
+				hfront-porch = <72>;//123
+
+				vsync-len = <2>;
+				vback-porch = <7>;
+				vfront-porch = <14>;
+
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+				swap-rb = <0>;
+				swap-rg = <0>;
+				swap-gb = <0>;
+				adjust_gpio1 = <&gpio5 GPIO_B7 GPIO_ACTIVE_HIGH>;
+				adjust_gpio2 = <&gpio5 GPIO_C0 GPIO_ACTIVE_HIGH>;
+			};
+		};
+};
