@@ -299,10 +299,10 @@ config REGULATOR_XZ3216
 	  Support the voltage and current regulators of the XZ321X series of DCDC devices.
 
 config REGULATOR_RK816
-	tristate "Rockchip RK816 Power regulators"
+	tristate "Rockchip RK816/805 Power regulators"
 	depends on MFD_RK816
 	help
-	  Select this option to enable the power regulator of ROCKCHIP PMIC RK816.
+	  Select this option to enable the power regulator of ROCKCHIP PMIC RK816/805.
 	  This driver supports the control of different power rails of device
 	  through regulator interface. The device supports multiple DCDC/LDO
 	  outputs which can be controlled by i2c communication.

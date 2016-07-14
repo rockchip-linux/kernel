@@ -17,9 +17,74 @@
 #include <linux/regulator/machine.h>
 #include <linux/wakelock.h>
 #include <linux/power_supply.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/of_regulator.h>
+#include <linux/mfd/core.h>
+#include <linux/regmap.h>
+#include <linux/syscore_ops.h>
+#include <linux/irq.h>
+#include <linux/iio/iio.h>
+#include <linux/iio/machine.h>
+#include <linux/iio/driver.h>
+#include <linux/iio/consumer.h>
 
+/*************************** RK805 ********************************************/
+/*INTERRUPT REGISTER*/
+#define RK805_INT_STS_REG			0x4C
+#define RK805_INT_STS_MSK_REG			0x4D
+#define RK805_GPIO_IO_POL_REG			0x50
+#define RK805_OUT_REG				0x52
+#define RK805_ON_SOURCE_REG			0xAE
+#define RK805_OFF_SOURCE_REG			0xAF
+
+/*POWER CHANNELS ENABLE REGISTER*/
+#define RK805_DCDC_EN_REG			0x23
+#define RK805_SLP_DCDC_EN_REG			0x25
+#define RK805_SLP_LDO_EN_REG			0x26
+#define RK805_LDO_EN_REG			0x27
+
+/*BUCK AND LDO CONFIG REGISTER*/
+#define RK805_BUCK_LDO_SLP_LP_EN_REG		0x2A
+#define RK805_BUCK1_CONFIG_REG			0x2E
+#define RK805_BUCK1_ON_VSEL_REG			0x2F
+#define RK805_BUCK1_SLP_VSEL_REG		0x30
+#define RK805_BUCK2_CONFIG_REG			0x32
+#define RK805_BUCK2_ON_VSEL_REG			0x33
+#define RK805_BUCK2_SLP_VSEL_REG		0x34
+#define RK805_BUCK3_CONFIG_REG			0x36
+#define RK805_BUCK4_CONFIG_REG			0x37
+#define RK805_BUCK4_ON_VSEL_REG			0x38
+#define RK805_BUCK4_SLP_VSEL_REG		0x39
+#define RK805_LDO1_ON_VSEL_REG			0x3B
+#define RK805_LDO1_SLP_VSEL_REG			0x3C
+#define RK805_LDO2_ON_VSEL_REG			0x3D
+#define RK805_LDO2_SLP_VSEL_REG			0x3E
+#define RK805_LDO3_ON_VSEL_REG			0x3F
+#define RK805_LDO3_SLP_VSEL_REG			0x40
+
+/* IRQ Definitions */
+#define RK805_IRQ_PWRON_RISE			0
+#define RK805_IRQ_VB_LOW			1
+#define RK805_IRQ_PWRON				2
+#define RK805_IRQ_PWRON_LP			3
+#define RK805_IRQ_HOTDIE			4
+#define RK805_IRQ_RTC_ALARM			5
+#define RK805_IRQ_RTC_PERIOD			6
+#define RK805_IRQ_PWRON_FALL			7
+
+#define RK805_IRQ_PWRON_RISE_MSK		BIT(0)
+#define RK805_IRQ_VB_LOW_MSK			BIT(1)
+#define RK805_IRQ_PWRON_MSK			BIT(2)
+#define RK805_IRQ_PWRON_LP_MSK			BIT(3)
+#define RK805_IRQ_HOTDIE_MSK			BIT(4)
+#define RK805_IRQ_RTC_ALARM_MSK			BIT(5)
+#define RK805_IRQ_RTC_PERIOD_MSK		BIT(6)
+#define RK805_IRQ_PWRON_FALL_MSK		BIT(7)
+
+#define RK805_NUM_REGULATORS			7
+
+/*************************** RK816 ********************************************/
 #define RK816_I2C_SPEED				(200 * 1000)
-
 #define RK816_DCDC1				0
 #define RK816_LDO1				4
 
@@ -230,10 +295,7 @@
 #define RK816_IRQ_CHG_CVTLIM_MSK		BIT(6)
 #define RK816_IRQ_DISCHG_ILIM_MSK		BIT(7)
 
-#define RK816_NUM_IRQ				16
-
 #define RK816_NUM_REGULATORS			10
-struct rk816;
 
 #define RK816_VBAT_LOW_2V8			0x00
 #define RK816_VBAT_LOW_2V9			0x01
@@ -243,14 +305,46 @@ struct rk816;
 #define RK816_VBAT_LOW_3V3			0x05
 #define RK816_VBAT_LOW_3V4			0x06
 #define RK816_VBAT_LOW_3V5			0x07
+#define RK816_PWR_FALL_INT_STATUS		(0x1 << 5)
+#define RK816_PWR_RISE_INT_STATUS		(0x1 << 6)
+#define RK816_ALARM_INT_STATUS			(0x1 << 5)
+
+/******************************************************************************/
 #define VBAT_LOW_VOL_MASK			(0x7 << 0)
 #define EN_VABT_LOW_SHUT_DOWN			(0x0 << 4)
 #define EN_VBAT_LOW_IRQ				(0x1 << 4)
 #define VBAT_LOW_ACT_MASK			(0x1 << 4)
+#define SLP_SD_MSK				(0x3 << 2)
+#define SHUTDOWN_FUN				(0x2 << 2)
+#define SLEEP_FUN				(0x1 << 2)
+#define RTC_TIMER_ALARM_INT_MSK			(0x3 << 2)
+#define RTC_TIMER_ALARM_INT_DIS			(0x0 << 2)
+#define RTC_PERIOD_ALARM_INT_MSK		(0x3 << 5)
+#define RTC_PERIOD_ALARM_INT_ST			(0x3 << 5)
+#define RTC_PERIOD_ALARM_INT_DIS		(0x3 << 5)
+#define RTC_PERIOD_ALARM_INT_EN			(0x9f)
+#define VB_LOW_IRQ_DIS				(1 << 1)
+#define VB_LOW_IRQ_EN				(0 << 1)
+#define VB_LOW_IRQ_MSK				(1 << 1)
+#define REG_WRITE_MSK				0xff
+#define TEMP105C				0x08
+#define BUCK4_MAX_ILIMIT			0x2c
+#define BUCK_RATE_MSK				(0x3 << 3)
+#define BUCK_RATE_12_5MV_US			(0x2 << 3)
+#define ALL_INT_FLAGS_ST			0xff
+#define PLUGIN_OUT_INT_EN			0xfc
+#define PWRON_FALL_RISE_INT_EN			0x9f
+#define DEV_OFF					(1 << 0)
 
-#define RK816_PWR_FALL_INT_STATUS		(0x1 << 5)
-#define RK816_PWR_RISE_INT_STATUS		(0x1 << 6)
-#define RK816_ALARM_INT_STATUS			(0x1 << 5)
+enum rk805_reg_id {
+	RK805_ID_DCDC1,
+	RK805_ID_DCDC2,
+	RK805_ID_DCDC3,
+	RK805_ID_DCDC4,
+	RK805_ID_LDO1,
+	RK805_ID_LDO2,
+	RK805_ID_LDO3,
+};
 
 enum rk816_reg_id {
 	RK816_ID_DCDC1,
@@ -290,6 +384,42 @@ struct rk816 {
 	struct regmap *regmap;
 	struct regmap_irq_chip_data *irq_data;
 	struct regmap_irq_chip_data *battery_irq_data;
+};
+
+struct rk8xx_regulator_data {
+	u8 dcdc1_id;
+	u8 ldo1_id;
+	u8 slp_ldo_en_reg;
+	u8 slp_dcdc_en_reg;
+	u8 num_regulators;
+	const struct regulator_desc *reg_desc;
+	struct of_regulator_match *reg_matches;
+};
+
+struct rk8xx_reg_data {
+	u8 reg;
+	u8 val;
+	u8 mask;
+};
+
+struct rk8xx_platform_data {
+	const char *chip_name;
+};
+
+struct rk8xx_mfd_data {
+	int cell_num;
+	struct mfd_cell *cell;
+	int init_reg_num;
+	struct rk8xx_reg_data *init_reg;
+	int suspend_reg_num;
+	struct rk8xx_reg_data *suspend_reg;
+	int resume_reg_num;
+	struct rk8xx_reg_data *resume_reg;
+	const struct regmap_config *regmap_config;
+	struct regmap_irq_chip *irq_chip;
+	struct regmap_irq_chip *irq_battery_chip;
+	const char *parse_dt_pm_lable;
+	void (*register_pm_power_off)(struct rk816_board *pdev);
 };
 
 int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest);

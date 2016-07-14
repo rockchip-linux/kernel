@@ -448,7 +448,7 @@ config MFD_RK818
 	  Power Management chips.
 
 config MFD_RK816
-	tristate "RK816 Power Management chip"
+	tristate "RK816/805 Power Management chip"
 	depends on I2C=y
 	select REGMAP_I2C
 	select REGMAP_IRQ
@@ -457,7 +457,7 @@ config MFD_RK816
 	select REGULATOR_RK816
 	select INPUT_RK816_PWRKEY
 	help
-	  if you say yes here you get support for the RK816 series of Power Management
+	  if you say yes here you get support for the RK816/805 series of Power Management
 	  chips. This driver provides common support for accessing the device through
 	  I2C interface. The device supports multiple sub-devices including interrupts,
 	  RTC, LDO & DCDC regulators, and onkey.

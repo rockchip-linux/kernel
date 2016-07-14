@@ -436,11 +436,11 @@ config  RK818_RTC
 		enable rk818 rtc for system
 
 config RTC_RK816
-	tristate "Rockchip RK816 RTC"
+	tristate "Rockchip RK816/805 RTC"
 	depends on MFD_RK816
 	help
 	  If you say yes here you will get support for the
-	  RTC of RK816 PMIC. This driver can also be built as a module.
+	  RTC of RK816/805 PMIC. This driver can also be built as a module.
 	  If so, the module will be called rtc-rk816.
 
 config RTC_RT5036
