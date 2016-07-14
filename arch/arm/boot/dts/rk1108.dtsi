@@ -829,8 +829,8 @@
 						<1 GPIO_A5 RK_FUNC_1 &pcfg_pull_none>,//D5
 						<1 GPIO_A6 RK_FUNC_1 &pcfg_pull_none>,//D6
 						<1 GPIO_A7 RK_FUNC_1 &pcfg_pull_none>,//D7
-						<1 GPIO_A8 RK_FUNC_1 &pcfg_pull_none>,//D8
-						<1 GPIO_A9 RK_FUNC_1 &pcfg_pull_none>,//D9
+						<1 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,//D8
+						<1 GPIO_B1 RK_FUNC_1 &pcfg_pull_none>,//D9
 						<1 GPIO_C4 RK_FUNC_1 &pcfg_pull_none>,//HSYNC
 						<1 GPIO_C3 RK_FUNC_1 &pcfg_pull_none>,//VSYNC
 						<1 GPIO_C2 RK_FUNC_1 &pcfg_pull_none>,//DEN
@@ -854,8 +854,8 @@
 						<1 GPIO_A5 RK_FUNC_GPIO &pcfg_pull_none>,//D5
 						<1 GPIO_A6 RK_FUNC_GPIO &pcfg_pull_none>,//D6
 						<1 GPIO_A7 RK_FUNC_GPIO &pcfg_pull_none>,//D7
-						<1 GPIO_A8 RK_FUNC_GPIO &pcfg_pull_none>,//D8
-						<1 GPIO_A9 RK_FUNC_GPIO &pcfg_pull_none>,//D9
+						<1 GPIO_B0 RK_FUNC_GPIO &pcfg_pull_none>,//D8
+						<1 GPIO_B1 RK_FUNC_GPIO &pcfg_pull_none>,//D9
 						<1 GPIO_C4 RK_FUNC_GPIO &pcfg_pull_none>,//HSYNC
 						<1 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_none>,//VSYNC
 						<1 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_none>,//DEN
