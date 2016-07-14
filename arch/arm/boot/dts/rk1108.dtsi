@@ -438,7 +438,7 @@
 		compatible = "rockchip,sfc";
 		reg = <0x301c0000 0x200>;
 		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_sfc>, <&hclk_sfc>;
+		clocks = <&clk_sfc>, <&clk_gates15 10>;
 		clock-names = "clk_sfc", "hclk_sfc";
 		status = "disabled";
 	};
