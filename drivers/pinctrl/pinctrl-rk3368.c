@@ -396,6 +396,8 @@ static const struct pinctrl_ops rockchip_pctrl_ops = {
 	.dt_free_map		= rockchip_dt_free_map,
 };
 
+#define RK1108_VOP_DATA_MUX_SOC_OFFSET		0x418
+
 /*
  * Hardware access
  */
@@ -403,6 +405,7 @@ static const struct pinctrl_ops rockchip_pctrl_ops = {
 static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 {
 	struct rockchip_pinctrl *info = bank->drvdata;
+	struct rockchip_pin_ctrl *ctrl = info->ctrl;
 	int iomux_num = (pin / 8);
 	struct regmap *regmap;
 	unsigned int val;
@@ -425,7 +428,7 @@ static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 
 	/* get basic quadrupel of mux registers and the correct reg inside */
 	mask = (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) ? 0xf : 0x3;
-	reg = bank->iomux[iomux_num].offset;
+
 	if (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) {
 		if ((pin % 8) >= 4)
 			reg += 0x4;
@@ -433,6 +436,12 @@ static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 	} else {
 		bit = (pin % 8) * 2;
 	}
+
+	/* vop data special mux case at grf con_soc register for rk1108 */
+	if ((ctrl->type == RK1108) && (bank->bank_num == 1) && (pin <= 9))
+		reg = RK1108_VOP_DATA_MUX_SOC_OFFSET + (pin / 8) * 0x4;
+	else
+		reg = bank->iomux[iomux_num].offset;
 
 	ret = regmap_read(regmap, reg, &val);
 	if (ret)
@@ -457,6 +466,7 @@ static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 {
 	struct rockchip_pinctrl *info = bank->drvdata;
+	struct rockchip_pin_ctrl *ctrl = info->ctrl;
 	int iomux_num = (pin / 8);
 	struct regmap *regmap;
 	int reg, ret, mask;
@@ -490,7 +500,7 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 
 	/* get basic quadrupel of mux registers and the correct reg inside */
 	mask = (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) ? 0xf : 0x3;
-	reg = bank->iomux[iomux_num].offset;
+
 	if (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) {
 		if ((pin % 8) >= 4)
 			reg += 0x4;
@@ -498,6 +508,12 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 	} else {
 		bit = (pin % 8) * 2;
 	}
+
+	/* vop data special mux case at grf con_soc register for rk1108 */
+	if ((ctrl->type == RK1108) && (bank->bank_num == 1) && (pin <= 9))
+		reg = RK1108_VOP_DATA_MUX_SOC_OFFSET + (pin / 8) * 0x4;
+	else
+		reg = bank->iomux[iomux_num].offset;
 
 	spin_lock_irqsave(&bank->slock, flags);
 
