@@ -190,6 +190,23 @@
 			<&clk_gates0 3>; /* clk_jtag */
 	};
 
+	dvfs {
+		vd_logic: vd-logic {
+			regulator_name = "vdd_logic";
+			pd_core {
+				clk_core_dvfs_table: clk_core {
+					operating-points = <
+						/* KHz    uV */
+						312000 1000000
+						504000 1000000
+						816000 1000000
+						>;
+					status = "disabled";
+				};
+			};
+		};
+	};
+
 	i2s0: i2s0@10110000 {
 		compatible = "rockchip-i2s";
 		reg = <0x10110000 0x1000>;
