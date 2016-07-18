@@ -476,6 +476,32 @@
 		status = "disabled";
 	};
 
+	hdmi: hdmi@300c0000 {
+		compatible = "rockchip,rk1108-hdmi";
+		reg = <0x300c0000 0x20000>,
+		      <0x20220000 0x10000>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates6 8>,
+			 <&clk_gates18 9>,
+			 <&clk_gates14 8>,
+			 <&clk_hdmi_cec>;
+		clock-names = "hdcp_clk_hdmi",
+			      "pclk_hdmi",
+			      "pclk_hdmi_phy",
+			      "cec_clk_hdmi";
+		pinctrl-names = "default", "gpio";
+		pinctrl-0 = <&hdmi_cec &i2c1m05v_xfer &hdmi_hpd>;
+		pinctrl-1 = <&i2c1m05v_gpio>;
+		resets = <&reset RK1108_RST_HDMI_P>;
+		reset-names = "hdmi";
+		rockchip,grf = <&grf>;
+		rockchip,hdmi_audio_source = <0>;
+		rockchip,hdcp_enable = <0>;
+		rockchip,cec_enable = <0>;
+		status = "disabled";
+	};
+
 	sfc: sfc@301c0000 {
 		compatible = "rockchip,sfc";
 		reg = <0x301c0000 0x200>;
@@ -613,12 +639,22 @@
 				rockchip,pins = <0 GPIO_C2 RK_FUNC_2 &pcfg_pull_none>,
 						<0 GPIO_C6 RK_FUNC_3 &pcfg_pull_none>;
 			};
+
+			i2c1m1_gpio: i2c1m1-gpio {
+				rockchip,pins = <0 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_none>,
+						<0 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
 		};
 
 		i2c1m05v {
 			i2c1m05v_xfer: i2c1m05v-xfer {
 				rockchip,pins = <1 GPIO_D5 RK_FUNC_2 &pcfg_pull_none>,
 						<1 GPIO_D4 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			i2c1m05v_gpio: i2c1m05v-gpio {
+				rockchip,pins = <1 GPIO_D5 RK_FUNC_GPIO &pcfg_pull_none>,
+						<1 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
@@ -935,6 +971,16 @@
 			};
 			tsadc_gpio: tsadc-gpio {
 				rockchip,pins =	<0 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+		};
+
+		hdmi_pin {
+			hdmi_cec: hdmi-cec {
+				rockchip,pins = <1 GPIO_D7 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			hdmi_hpd: hdmi-hpd {
+				rockchip,pins = <1 GPIO_D6 RK_FUNC_1 &pcfg_pull_down>;
 			};
 		};
 	};
