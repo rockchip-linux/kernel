@@ -394,6 +394,11 @@
 		reg = <0x20060000 0x1000>;
 	};
 
+	usbgrf: syscon@202a0000 {
+		compatible = "rockchip,rk1108-usbgrf", "rockchip,usbgrf", "syscon";
+		reg = <0x202a0000 0x1000>;
+	};
+
 	timer: timer@10350000 {
 		compatible = "rockchip,timer";
 		reg = <0x10350000 0x20>;
@@ -605,6 +610,44 @@
 		bus-width = <4>;
 		resets = <&reset RK1108_RST_SDMMC_H>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
+	};
+
+	dwc_control_usb: dwc-control-usb {
+		compatible = "rockchip,rk1108-dwc-control-usb";
+		rockchip,grf = <&grf>;
+		rockchip,usbgrf = <&usbgrf>;
+		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "otg-irq";
+		clocks = <&clk_gates15 8>, <&clk_gates15 9>;
+		clock-names = "hclk_otg", "hclk_otg_pmu";
+		status = "disabled";
+	};
+
+	usb_host_ehci: usb@30140000 {
+		compatible = "generic-ehci";
+		reg = <0x30140000 0x20000>;
+		interrupts = <GIC_SPI 15 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates15 6>, <&clk_gates15 7>;
+		clock-names = "hclk_host0", "hclk_host0_arb";
+		status = "disabled";
+	};
+
+	usb_host_ohci: usb@30160000 {
+		compatible = "generic-ohci";
+		reg = <0x30160000 0x20000>;
+		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates15 6>, <&clk_gates15 7>;
+		clock-names = "hclk_host0", "hclk_host0_arb";
+		status = "disabled";
+	};
+
+	usb_otg: usb@30180000 {
+		compatible = "rockchip,rk1108_usb20_otg";
+		reg = <0x30180000 0x40000>;
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		/* 0-Normal, 1-Force Host, 2-Force Device */
+		rockchip,usb-mode = <0>;
 		status = "disabled";
 	};
 
