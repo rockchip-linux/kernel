@@ -244,3 +244,20 @@
 		};
 	};
 };
+
+&dwc_control_usb {
+	rockchip,usb_irq_wakeup;
+	status = "okay";
+};
+
+&usb_host_ehci {
+	status = "okay";
+};
+
+&usb_host_ohci {
+	status = "okay";
+};
+
+&usb_otg {
+	status = "okay";
+};
