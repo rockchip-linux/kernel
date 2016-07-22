@@ -465,6 +465,20 @@
 		status = "disabled";
 	};
 
+	cif_cif0: cif_cif@30060000 {
+		compatible = "rockchip,rk1108-cif-cif";
+		rockchip,grf = <&grf>;
+		cif-id = <0>;
+		reg = <0x30060000 0x10000>;
+		clocks = <&vip0_clk>, <&pclkin_cvbs2cif>, <&clk_gates18 6>, <&clk_gates18 7>, <&clk_gates7 9>;
+		clock-names = "cif_clk", "cif_clk_parent", "aclk_cif", "hclk_cif", "pclkin_cif";
+		resets = <&reset RK1108_RST_VIP0_A>, <&reset RK1108_RST_VIP0_H>, <&reset RK1108_RST_VIP0_P>;
+		reset-names = "cif_arst", "cif_hrst", "cif_prst";
+		interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq";
+		status = "disabled";
+	};
+
 	mipi_dsi: mipi_dsi@300e0000 {
 		compatible = "rockchip,rk1108-dsi";
 		rockchip,prop = <0>;
