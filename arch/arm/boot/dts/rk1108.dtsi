@@ -479,6 +479,13 @@
 		status = "disabled";
 	};
 
+	cvbsin: cvbsin@30070000 {
+		compatible = "rockchip,cvbsin";
+		reg = <0x30070000 0x10000>;
+		device_type = "v4l2-pltfrm-subdev";
+		status = "disabled";
+	};
+
 	mipi_dsi: mipi_dsi@300e0000 {
 		compatible = "rockchip,rk1108-dsi";
 		rockchip,prop = <0>;
