@@ -11,3 +11,11 @@ config VIDEO_RK_CIF_CIF10
 	---help---
 	  Say Y here to enable selecting the
 	  rockchip cif isp10 camera sensors
+
+config VIDEO_CVBSIN
+	tristate "cif cvbs in"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  Say Y here to enable selecting the
+	  rockchip cif cvbs in
