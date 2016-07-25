@@ -449,9 +449,9 @@
 		pinctrl-1 = <&lcdc_gpio>;
 	};
 
-	tve: tve@30070000 {
+	tve: tve@30040e00 {
 		compatible = "rockchip,rk1108-tve";
-		reg = <0x30070000 0x100>,
+		reg = <0x30040e00 0x100>,
 		      <0x20250000 0x10000>;
 		clocks = <&clk_gates14 9>;
 		clock-names = "pclk_vdac";
