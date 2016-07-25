@@ -131,10 +131,11 @@ struct rk816_battery {
 	struct power_supply		usb;
 	struct battery_platform_data	*pdata;
 	struct workqueue_struct		*bat_monitor_wq;
-	struct workqueue_struct		*dc_monitor_wq;
+	struct workqueue_struct		*charger_wq;
 	struct delayed_work		bat_delay_work;
 	struct delayed_work		dc_delay_work;
 	struct delayed_work		calib_delay_work;
+	struct delayed_work		bc_delay_work;
 	struct wake_lock		wake_lock;
 	struct notifier_block		bc_detect_nb;
 	struct notifier_block           fb_nb;
@@ -150,6 +151,7 @@ struct rk816_battery {
 	u8				usb_in;
 	u8				otg_in;
 	u8				dc_in;
+	unsigned long			bc_event;
 	u8				prop_val;
 	int				current_avg;
 	int				current_relax;
@@ -1278,11 +1280,14 @@ static void rk816_bat_set_otg_state(struct rk816_battery *di, int state)
 	switch (state) {
 	case USB_OTG_POWER_ON:
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
-				   OTG_EN_ON_MASK, OTG_EN_ON_MASK);
+				   BOOST_OTG_MASK, BOOST_ON);
+		msleep(100);
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
+				   BOOST_OTG_MASK, OTG_ON);
 		break;
 	case USB_OTG_POWER_OFF:
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
-				   OTG_EN_ON_MASK, OTG_EN_OFF_MASK);
+				   BOOST_OTG_MASK, BOOST_OTG_OFF);
 		break;
 	default:
 		break;
@@ -1368,7 +1373,7 @@ static void rk816_bat_dc_delay_work(struct work_struct *work)
 out:
 	/* adc need check all the time */
 	if (di->pdata->dc_det_adc)
-		queue_delayed_work(di->dc_monitor_wq,
+		queue_delayed_work(di->charger_wq,
 				   &di->dc_delay_work,
 				   msecs_to_jiffies(1000));
 }
@@ -2728,17 +2733,29 @@ static void rk816_battery_work(struct work_struct *work)
 static int rk816_bat_usb_notifier_call(struct notifier_block *nb,
 				       unsigned long event, void *data)
 {
-	enum charger_type charger;
 	struct rk816_battery *di =
 	    container_of(nb, struct rk816_battery, bc_detect_nb);
-	const char *event_name[] = {"DISCNT", "USB", "AC", "AC",
-				    "UNKNOWN", "OTG ON", "OTG OFF"};
 
 	if (di->pdata->bat_mode == MODE_VIRTUAL)
 		return NOTIFY_OK;
 
-	BAT_INFO("receive usb notifier event: %s..\n", event_name[event]);
-	switch (event) {
+	di->bc_event = event;
+	queue_delayed_work(di->charger_wq, &di->bc_delay_work,
+			   msecs_to_jiffies(10));
+
+	return NOTIFY_OK;
+}
+
+static void rk816_bat_bc_delay_work(struct work_struct *work)
+{
+	enum charger_type charger;
+	struct rk816_battery *di = container_of(work,
+			struct rk816_battery, bc_delay_work.work);
+	const char *event_name[] = {"DISCNT", "USB", "AC", "AC",
+				    "UNKNOWN", "OTG ON", "OTG OFF"};
+
+	BAT_INFO("receive bc notifier event: %s..\n", event_name[di->bc_event]);
+	switch (di->bc_event) {
 	case USB_BC_TYPE_DISCNT:
 		rk816_bat_set_chrg_param(di, NO_ACUSB_CHARGER);
 		break;
@@ -2772,8 +2789,6 @@ static int rk816_bat_usb_notifier_call(struct notifier_block *nb,
 	default:
 		break;
 	}
-
-	return NOTIFY_OK;
 }
 
 static irqreturn_t rk816_vb_low_irq(int irq, void *bat)
@@ -2819,8 +2834,8 @@ static irqreturn_t rk816_vbat_dc_det(int irq, void *bat)
 		irq_set_irq_type(irq, IRQF_TRIGGER_HIGH);
 
 	BAT_INFO("dc det isr: in/out\n");
-	queue_delayed_work(di->dc_monitor_wq,
-			   &di->dc_delay_work, msecs_to_jiffies(10));
+	queue_delayed_work(di->charger_wq, &di->dc_delay_work,
+			   msecs_to_jiffies(500));
 	rk_send_wakeup_key();
 
 	return IRQ_HANDLED;
@@ -2980,19 +2995,10 @@ static enum charger_type rk816_bat_init_dc_det(struct rk816_battery *di)
 	else
 		type = rk816_bat_init_gpio_dc_det(di);
 
-	if (di->pdata->dc_gpio_enable || di->pdata->dc_det_adc) {
-		di->dc_monitor_wq = alloc_ordered_workqueue("%s",
-					WQ_MEM_RECLAIM | WQ_FREEZABLE,
-					"rk816-bat-charger-wq");
-		INIT_DELAYED_WORK(&di->dc_delay_work,
-				  rk816_bat_dc_delay_work);
-		/* adc dc need poll every 1s */
-		if (di->pdata->dc_det_adc)
-			queue_delayed_work(di->dc_monitor_wq,
-					   &di->dc_delay_work,
-					   msecs_to_jiffies(1000));
-	}
-
+	/* adc dc need poll every 1s */
+	if (di->pdata->dc_det_adc)
+		queue_delayed_work(di->charger_wq, &di->dc_delay_work,
+				   msecs_to_jiffies(1000));
 	return type;
 }
 
@@ -3000,6 +3006,11 @@ static void rk816_bat_init_charger(struct rk816_battery *di)
 {
 	enum charger_type dc_charger, usb_charger;
 
+	di->charger_wq = alloc_ordered_workqueue("%s",
+				WQ_MEM_RECLAIM | WQ_FREEZABLE,
+				"rk816-bat-charger-wq");
+	INIT_DELAYED_WORK(&di->bc_delay_work, rk816_bat_bc_delay_work);
+	INIT_DELAYED_WORK(&di->dc_delay_work, rk816_bat_dc_delay_work);
 	dc_charger = rk816_bat_init_dc_det(di);
 	usb_charger = rk816_bat_get_acusb_state(di);
 	di->usb_in = (usb_charger == USB_CHARGER) ? ONLINE : OFFLINE;
