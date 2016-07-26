@@ -1,6 +1,6 @@
 /*
 **************************************************************************
- * Rockchip driver for CIF ISP 1.0
+ * Rockchip driver for CIF ISP 1.1
  * (Based on Intel driver for sofiaxxx)
  *
  * Copyright (C) 2015 Intel Mobile Communications GmbH
@@ -49,6 +49,7 @@ struct isp_supplemental_sensor_mode_data {
 
 
 struct camera_module_info_s {
+	char sensor_name[CAMERA_STRLEN];
 	char module_name[CAMERA_STRLEN];
 	char len_name[CAMERA_STRLEN];
 	char fov_h[CAMERA_STRLEN];
