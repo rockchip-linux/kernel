@@ -78,3 +78,11 @@
 	};
 };
 
+&cif_cif0 {
+	rockchip,camera-modules-attached = <&cvbsin>;
+	status = "okay";
+};
+
+&cvbsin {
+	status = "okay";
+};
