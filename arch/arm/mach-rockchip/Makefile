@@ -30,3 +30,4 @@ obj-$(CONFIG_BLOCK_RKNAND) += rknandbase.o
 obj-$(CONFIG_DDR_TEST) += ddr_test.o
 obj-$(CONFIG_RK_PM_TESTS) += rk_pm_tests/
 obj-$(CONFIG_ROCK_CHIP_SOC_CAMERA) += rk_camera.o
+obj-$(CONFIG_RK_DSP) += dsp/
