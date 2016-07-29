@@ -154,6 +154,8 @@
 				swap-rb = <0>;
 				swap-rg = <0>;
 				swap-gb = <0>;
+				screen-width = <68>;
+				screen-hight = <121>;
 				adjust_gpio1 = <&gpio5 GPIO_B7 GPIO_ACTIVE_HIGH>;
 				adjust_gpio2 = <&gpio5 GPIO_C0 GPIO_ACTIVE_HIGH>;
 			};
