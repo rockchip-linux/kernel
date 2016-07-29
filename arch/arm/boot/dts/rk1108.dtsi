@@ -465,6 +465,15 @@
 		status = "disabled";
 	};
 
+	rga: rga@30050000 {
+		compatible = "rockchip,rga2";
+		reg = <0x30050000 0x1000>;
+		interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates18 4>, <&clk_gates18 5>, <&clk_rga>;
+		clock-names = "aclk_rga", "hclk_rga", "clk_rga";
+		status = "disabled";
+	};
+
 	cif_cif0: cif_cif@30060000 {
 		compatible = "rockchip,rk1108-cif-cif";
 		rockchip,grf = <&grf>;
