@@ -554,6 +554,22 @@
 		compatible = "rockchip,screen";
 	};
 
+	cif_isp0: cif_isp@30020000 {
+		compatible = "rockchip,rk1108-cif-isp";
+		rockchip,grf = <&grf>;
+		reg = <0x30020000 0x10000>, <0x20258000 0x8000>, <0x20200000 0x1000>;
+		reg-names = "register", "csiphy_base", "cru_base";
+		clocks = <&clk_gates18 12>, <&clk_gates18 11>, <&clk_isp>, <&clk_isp>,
+			 <&clk_gates14 12>, <&clk_gates18 10>, <&clk_gates9 12>;
+		clock-names = "aclk_isp", "hclk_isp", "sclk_isp", "sclk_isp_jpe",
+			      "pclk_mipi_csi", "pclk_isp_in", "sclk_mipidsi_24m";
+		resets = <&reset RK1108_RST_ISP>;
+		reset-names = "rst_isp";
+		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "cif_isp11_irq";
+		status = "disabled";
+	};
+
 	vop: vop@30040000 {
 		status = "disabled";
 		compatible = "rockchip,rk1108-lcdc-lite";
@@ -1361,6 +1377,21 @@
 
 			hdmi_hpd: hdmi-hpd {
 				rockchip,pins = <1 GPIO_D6 RK_FUNC_1 &pcfg_pull_down>;
+			};
+		};
+
+		cam_pins {
+			cam0_default_pins: cam0_default_pins {
+				rockchip,pins = /*sensor power down pin: GPIO3_B0*/
+						<RK_GPIO3 8 RK_FUNC_GPIO &pcfg_pull_none>,
+						/*sensor mclk: cif_clkout*/
+						<RK_GPIO3 13 RK_FUNC_1 &pcfg_pull_none>;
+			};
+			cam0_sleep_pins: cam0_sleep_pins {
+				rockchip,pins = /* cif power down pin */
+						<RK_GPIO3 8 RK_FUNC_GPIO &pcfg_pull_none>,
+						/* cif_clkout */
+						<RK_GPIO3 13 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 	};
