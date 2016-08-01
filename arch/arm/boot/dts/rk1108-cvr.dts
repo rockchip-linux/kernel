@@ -123,3 +123,7 @@
 	cap-sdio-irq;
 	status = "okay";
 };
+
+&sfc {
+	status = "okay";
+};
