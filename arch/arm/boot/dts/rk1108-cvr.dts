@@ -321,3 +321,25 @@
 &usb_otg {
 	status = "okay";
 };
+
+&fb {
+	status = "okay";
+};
+
+&rk_screen {
+	status = "okay";
+};
+
+&vop {
+	status = "okay";
+	power_ctr: power_ctr {
+		rockchip,debug = <0>;
+		/*
+		lcd_en: lcd_en {
+			rockchip,power_type = <GPIO>;
+			gpios = <&gpio3 GPIO_C4 GPIO_ACTIVE_HIGH>;
+			rockchip,delay = <10>;
+		};
+		*/
+	};
+};
