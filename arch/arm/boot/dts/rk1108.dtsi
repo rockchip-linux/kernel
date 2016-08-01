@@ -267,6 +267,8 @@
 		reg-io-width = <4>;
 		dmas = <&pdma 6>, <&pdma 7>;
 		#dma-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2m1_xfer>;
 		status = "disabled";
 	};
 
@@ -281,6 +283,8 @@
 		reg-io-width = <4>;
 		dmas = <&pdma 4>, <&pdma 5>;
 		#dma-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart1_xfer &uart1_cts &uart1_rts>;
 		status = "disabled";
 	};
 
@@ -295,6 +299,8 @@
 		reg-io-width = <4>;
 		dmas = <&pdma 2>, <&pdma 3>;
 		#dma-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart0_xfer &uart0_cts &uart0_rts>;
 		status = "disabled";
 	};
 
@@ -305,6 +311,8 @@
 		rockchip,wake-irq = <0>;
 		rockchip,irq-mode-enable = <0>;  /* If enable uart uses irq instead of fiq */
 		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2m1_xfer>;
 		status = "disabled";
 	};
 
