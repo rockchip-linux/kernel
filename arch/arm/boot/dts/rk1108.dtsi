@@ -534,7 +534,7 @@
 
 	emmc: rksdmmc@30110000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk1108-sdmmc";
-		reg = <30110000 0x10000>;
+		reg = <0x30110000 0x10000>;
 		interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -546,11 +546,12 @@
 		tune_regsbase = <0x1ec>;
 		resets = <&reset RK1108_RST_EMMC_H>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
 	};
 
 	sdio: rksdmmc@30120000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk1108-sdmmc";
-		reg = <30120000 0x10000>;
+		reg = <0x30120000 0x10000>;
 		interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -565,11 +566,12 @@
 		tune_regsbase = <0x1e4>;
 		resets = <&reset RK1108_RST_SDIO_H>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
 	};
 
 	sdmmc: rksdmmc@30130000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk1108-sdmmc";
-		reg = <30130000 0x10000>;
+		reg = <0x30130000 0x10000>;
 		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -584,6 +586,7 @@
 		bus-width = <4>;
 		resets = <&reset RK1108_RST_SDMMC_H>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
 	};
 
 	sfc: sfc@301c0000 {
