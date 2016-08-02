@@ -43,6 +43,7 @@
 /dts-v1/;
 
 #include "rk1108.dtsi"
+#include "lcd-ili9806e_mipi.dtsi"
 
 / {
 	model = "Rockchip RK1108 CVR SDK BOARD";
@@ -327,6 +328,10 @@
 };
 
 &rk_screen {
+	status = "okay";
+};
+
+&mipi_dsi {
 	status = "okay";
 };
 
