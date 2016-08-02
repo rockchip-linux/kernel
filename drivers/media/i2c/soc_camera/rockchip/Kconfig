@@ -11,3 +11,24 @@ config VIDEO_OV2710
 	default n
 	---help---
 	  This is ov2710 camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_OV4689
+	tristate "ov4689 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is ov4689 camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_AR0330CS
+	tristate "ar0330cs driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is ar0330cs camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_IMX323
+	tristate "imx323 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is imx323 camera driver adapt to rockchip cif isp platform.
