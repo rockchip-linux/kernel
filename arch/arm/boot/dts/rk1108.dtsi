@@ -109,18 +109,20 @@
 	rockchip_clocks_init: clocks-init{
 		compatible = "rockchip,clocks-init";
 		rockchip,clocks-init-parent =
-			<&aclk_bus_pre &clk_gpll>, <&aclk_peri &clk_gpll>;
+			<&aclk_bus_pre &clk_gpll>, <&aclk_peri &clk_gpll>,
+			<&clk_emmc &clk_gpll>, <&clk_sdio &clk_gpll>,
+			<&hdmiphy &hdmiphy_pll>, <&usb480m &usbphy_480m>;
 		rockchip,clocks-init-rate =
-			<&clk_gpll 1248000000>, <&clk_core 816000000>,
-			<&clk_dsp 416000000>, <&aclk_bus_pre 156000000>,
-			<&hclk_bus_pre 156000000>, <&pclk_bus_pre 78000000>,
-			<&aclk_peri 156000000>, <&hclk_peri 156000000>,
-			<&pclk_peri 78000000>, <&aclk_vio0_pre 312000000>,
-			<&aclk_vio1_pre 312000000>, <&hclk_vio_pre 156000000>,
-			<&pclk_vio_pre 156000000>, <&aclk_rkvdec_pre 312000000>,
-			<&aclk_vpu_pre 312000000>, <&clk_hevc_cabac 312000000>,
-			<&clk_hevc_core 312000000>, <&aclk_rkvenc_pre 312000000>,
-			<&clk_venc_core 312000000>;
+			<&clk_gpll 1188000000>, <&clk_core 816000000>,
+			<&clk_dsp 396000000>, <&aclk_bus_pre 150000000>,
+			<&hclk_bus_pre 150000000>, <&pclk_bus_pre 75000000>,
+			<&aclk_peri 150000000>, <&hclk_peri 150000000>,
+			<&pclk_peri 75000000>, <&aclk_vio0_pre 300000000>,
+			<&aclk_vio1_pre 300000000>, <&hclk_vio_pre 150000000>,
+			<&pclk_vio_pre 150000000>, <&aclk_rkvdec_pre 300000000>,
+			<&aclk_vpu_pre 300000000>, <&clk_hevc_cabac 300000000>,
+			<&clk_hevc_core 300000000>, <&aclk_rkvenc_pre 300000000>,
+			<&clk_venc_core 300000000>;
 	};
 
 	rockchip_clocks_enable: clocks-enable {

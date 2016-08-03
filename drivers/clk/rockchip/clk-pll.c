@@ -385,6 +385,7 @@ static const struct apll_clk_set rk1108_apll_table[] = {
 
 static const struct pll_clk_set rk1108_pll_com_table[] = {
 	_RK1108_PLL_SET_CLKS(1248000, 1, 52, 1,  1, 1, 0),
+	_RK1108_PLL_SET_CLKS(1188000, 1, 99, 2, 1, 1, 0),
 	_RK1108_PLL_SET_CLKS(1000000, 3, 125, 1,  1, 1, 0),
 	_RK1108_PLL_SET_CLKS(800000, 1, 100, 3, 1, 1, 0),
 	_RK1108_PLL_SET_CLKS(594000, 2, 99, 2, 1, 1, 0),
