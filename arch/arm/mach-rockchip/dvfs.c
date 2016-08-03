@@ -1967,12 +1967,18 @@ out:
 
 unsigned long dvfs_clk_round_rate(struct dvfs_node *clk_dvfs_node, unsigned long rate)
 {
+	if (!clk_dvfs_node)
+		return 0;
+
 	return __clk_round_rate(clk_dvfs_node->clk, rate);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_round_rate);
 
 unsigned long dvfs_clk_get_rate(struct dvfs_node *clk_dvfs_node)
 {
+	if (!clk_dvfs_node)
+		return 0;
+
 	return __clk_get_rate(clk_dvfs_node->clk);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_get_rate);
@@ -1980,6 +1986,9 @@ EXPORT_SYMBOL_GPL(dvfs_clk_get_rate);
 unsigned long dvfs_clk_get_last_set_rate(struct dvfs_node *clk_dvfs_node)
 {
 	unsigned long last_set_rate;
+
+	if (!clk_dvfs_node)
+		return 0;
 
 	mutex_lock(&clk_dvfs_node->vd->mutex);
 	last_set_rate = clk_dvfs_node->last_set_rate;
@@ -1992,12 +2001,18 @@ EXPORT_SYMBOL_GPL(dvfs_clk_get_last_set_rate);
 
 int dvfs_clk_enable(struct dvfs_node *clk_dvfs_node)
 {
+	if (!clk_dvfs_node)
+		return 0;
+
 	return clk_enable(clk_dvfs_node->clk);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_enable);
 
 void dvfs_clk_disable(struct dvfs_node *clk_dvfs_node)
 {
+	if (!clk_dvfs_node)
+		return;
+
 	return clk_disable(clk_dvfs_node->clk);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_disable);
@@ -2007,6 +2022,9 @@ struct dvfs_node *clk_get_dvfs_node(char *clk_name)
 	struct vd_node *vd;
 	struct pd_node *pd;
 	struct dvfs_node *clk_dvfs_node;
+
+	if (!clk_name)
+		return NULL;
 
 	mutex_lock(&rk_dvfs_mutex);
 	list_for_each_entry(vd, &rk_dvfs_tree, node) {
@@ -2036,6 +2054,9 @@ EXPORT_SYMBOL_GPL(clk_put_dvfs_node);
 
 int dvfs_clk_prepare_enable(struct dvfs_node *clk_dvfs_node)
 {
+	if (!clk_dvfs_node)
+		return 0;
+
 	return clk_prepare_enable(clk_dvfs_node->clk);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_prepare_enable);
@@ -2043,6 +2064,9 @@ EXPORT_SYMBOL_GPL(dvfs_clk_prepare_enable);
 
 void dvfs_clk_disable_unprepare(struct dvfs_node *clk_dvfs_node)
 {
+	if (!clk_dvfs_node)
+		return;
+
 	clk_disable_unprepare(clk_dvfs_node->clk);
 }
 EXPORT_SYMBOL_GPL(dvfs_clk_disable_unprepare);
