@@ -457,6 +457,11 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define GRF_IO_VSEL		0x0900
 #define V_VOP_IOVOL_SEL(x)		(((x) << 0) | GRF_WEN_SHIFT(0))
 
+/* rk1108 only*/
+#define DPHY_TTL_EN		0x038c
+#define DPHY_TTL_LANE_EN	0x03ac
+#define MIPI_DSI_HOST_PHY_RSTZ	0x00a0
+
 struct vop_sync_obj_s {
 	struct completion stdbyfin;	/* standby finish */
 	int stdbyfin_to;
@@ -472,6 +477,8 @@ struct vop_device {
 	struct rk_screen *screen;
 
 	void __iomem *regs;
+	void __iomem *dsi_phy_regs;
+	void __iomem *dsi_host_regs;
 	void *regsbak;
 	u32 reg_phy_base;
 	u32 len;
@@ -603,6 +610,12 @@ static inline void vop_cfg_done(struct vop_device *vop_dev)
 {
 	writel_relaxed(0x001f001f, vop_dev->regs + REG_CFG_DONE);
 	dsb(sy);
+}
+
+static inline int vop_mipi_dsi_writel(void __iomem *regs, u32 offset, u32 val)
+{
+	writel_relaxed(val, regs + offset);
+	return 0;
 }
 
 static inline int vop_grf_writel(struct regmap *base, u32 offset, u32 val)

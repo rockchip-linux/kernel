@@ -993,6 +993,12 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 			if (vop_dev->pins && !IS_ERR(vop_dev->pins->default_state))
 				pinctrl_select_state(vop_dev->pins->p,
 						     vop_dev->pins->default_state);
+			vop_mipi_dsi_writel(vop_dev->dsi_phy_regs,
+					    DPHY_TTL_EN, 0x04);
+			vop_mipi_dsi_writel(vop_dev->dsi_phy_regs,
+					    DPHY_TTL_LANE_EN, 0xfd);
+			vop_mipi_dsi_writel(vop_dev->dsi_host_regs,
+					    MIPI_DSI_HOST_PHY_RSTZ, 0xf);
 		}
 		break;
 	case SCREEN_HDMI:
@@ -2643,12 +2649,37 @@ static int vop_probe(struct platform_device *pdev)
 		clk_prepare(vop_dev->aclk);
 	if (vop_dev->dclk)
 		clk_prepare(vop_dev->dclk);
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	vop_dev->regs = devm_ioremap_resource(dev, res);
-	if (IS_ERR(vop_dev->regs)) {
-		ret = PTR_ERR(vop_dev->regs);
-		goto err_exit;
+	if (VOP_CHIP(vop_dev) == VOP_RK1108) {
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+						   "mipi_dsi_phy");
+		vop_dev->dsi_phy_regs =
+			devm_ioremap(dev, res->start, resource_size(res));
+		if (IS_ERR(vop_dev->dsi_phy_regs)) {
+			ret = PTR_ERR(vop_dev->dsi_phy_regs);
+			goto err_exit;
+		}
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+						   "mipi_dsi_host");
+		vop_dev->dsi_host_regs =
+			devm_ioremap(dev, res->start, resource_size(res));
+		if (IS_ERR(vop_dev->dsi_host_regs)) {
+			ret = PTR_ERR(vop_dev->dsi_host_regs);
+			goto err_exit;
+		}
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+						   "vop_reg");
+		vop_dev->regs = devm_ioremap_resource(dev, res);
+		if (IS_ERR(vop_dev->regs)) {
+			ret = PTR_ERR(vop_dev->regs);
+			goto err_exit;
+		}
+	} else {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		vop_dev->regs = devm_ioremap_resource(dev, res);
+		if (IS_ERR(vop_dev->regs)) {
+			ret = PTR_ERR(vop_dev->regs);
+			goto err_exit;
+		}
 	}
 
 	vop_dev->reg_phy_base = res->start;
