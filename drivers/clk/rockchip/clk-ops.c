@@ -654,7 +654,7 @@ static int clk_3288_dclk_lcdc0_set_rate(struct clk_hw *hw, unsigned long rate,
 	if (parent_rate	== __clk_get_rate(gpll)) {
 		parent = clk_get(NULL, "clk_gpll");
 		clk_set_parent(aclk_vio0, gpll);
-		clk_set_rate(aclk_vio0, 300*MHZ);
+		clk_set_rate(aclk_vio0, __clk_get_rate(gpll));
 	} else {
 		parent = clk_get(NULL, "clk_cpll");
 		clk_set_parent(aclk_vio0, cpll);
