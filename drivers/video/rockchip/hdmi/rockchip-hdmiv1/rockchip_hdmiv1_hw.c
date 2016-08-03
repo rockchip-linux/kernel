@@ -522,6 +522,14 @@ static void rockchip_hdmiv1_config_avi(struct hdmi *hdmi_drv,
 	    (AVI_CODED_FRAME_ASPECT_NO_DATA << 4) |
 	    ACTIVE_ASPECT_RATE_SAME_AS_CODED_FRAME;
 	info[6] = 0;
+	if (vic == HDMI_720X480P_60HZ_16_9)
+		vic = HDMI_720X480P_60HZ_4_3;
+	else if (vic == HDMI_720X480I_60HZ_16_9)
+		vic = HDMI_720X480I_60HZ_4_3;
+	else if (vic == HDMI_720X576P_50HZ_16_9)
+		vic = HDMI_720X576P_50HZ_4_3;
+	else if (vic == HDMI_720X576I_50HZ_16_9)
+		vic = HDMI_720X576I_50HZ_4_3;
 	info[7] = vic;
 	if ((vic == HDMI_720X480I_60HZ_4_3) ||
 	    (vic == HDMI_720X576I_50HZ_4_3) ||
