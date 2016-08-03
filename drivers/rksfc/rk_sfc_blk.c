@@ -50,28 +50,31 @@ static int rk_sfc_dev_initialised;
 static char *mtd_read_temp_buffer;
 #define MTD_RW_SECTORS (512)
 
-struct STRUCT_PART_INFO g_part;  /* size 2KB */
 #define RK_PARTITION_TAG 0x50464B52
 unsigned int rk_partition_init(struct sfc_part *part)
 {
-	int i;
+	int i, part_num = 0;
+	struct STRUCT_PART_INFO *g_part;  /* size 2KB */
 
-	if (snor_read(0, 4, &g_part) == 0) {
-		if (g_part.hdr.ui_fw_tag == RK_PARTITION_TAG) {
-			for (i = 0;
-				i < g_part.hdr.ui_part_entry_count;
-				i++) {
+	g_part = kmalloc(sizeof(*g_part), GFP_KERNEL | GFP_DMA);
+	if (!g_part)
+		return 0;
+
+	if (snor_read(0, 4, g_part) == 0) {
+		if (g_part->hdr.ui_fw_tag == RK_PARTITION_TAG) {
+			part_num = g_part->hdr.ui_part_entry_count;
+			for (i = 0; i < part_num; i++) {
 				memcpy(part[i].name,
-				       g_part.part[i].sz_name,
+				       g_part->part[i].sz_name,
 				       32);
-				part[i].offset = g_part.part[i].ui_pt_off;
-				part[i].size = g_part.part[i].ui_pt_sz;
+				part[i].offset = g_part->part[i].ui_pt_off;
+				part[i].size = g_part->part[i].ui_pt_sz;
 				part[i].type = 0;
 			}
-			return g_part.hdr.ui_part_entry_count;
 		}
 	}
-	return 0;
+	kfree(g_part);
+	return part_num;
 }
 
 static int rksfc_proc_show(struct seq_file *m, void *v)

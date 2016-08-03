@@ -142,7 +142,7 @@ static int rksfc_probe(struct platform_device *pdev)
 		return -1;
 	}
 	clk_prepare_enable(g_sfc_info.ahb_clk);
-	clk_set_rate(g_sfc_info.clk, 100 * 1000 * 1000);
+	clk_set_rate(g_sfc_info.clk, 50 * 1000 * 1000);
 	g_sfc_info.clk_rate = clk_get_rate(g_sfc_info.clk);
 	clk_prepare_enable(g_sfc_info.clk);
 	dev_info(&pdev->dev,
