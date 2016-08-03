@@ -116,6 +116,23 @@
 		default-brightness-level = <200>;
 	};
 
+	io-domains {
+		compatible = "rockchip,rk1108-io-voltage-domain";
+		rockchip,grf = <&grf>;
+		rockchip,pmugrf = <&pmugrf>;
+
+		/* GRF_IO_VSEL */
+		status = "okay";
+		vccio1-supply = <&rk805_dcdc4_reg>;
+		vccio2-supply = <&rk805_ldo2_reg>;
+		vccio3-supply = <&rk805_dcdc4_reg>;
+		vccio5-supply = <&rk805_ldo2_reg>;
+		vccio6-supply = <&rk805_dcdc4_reg>;
+
+		/* PMU_GRF_IO_VSEL */
+		pmu-supply = <&rk805_dcdc4_reg>;
+	};
+
 	/* pmic_sleep */
 	gpio_poweroff {
 		compatible = "gpio-poweroff";
