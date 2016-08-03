@@ -2768,12 +2768,12 @@ static int __init dvfs_init(void)
 		clk_gpu_dvfs_node->temp_limit_rate =
 		clk_gpu_dvfs_node->max_rate;
 
+	dvfs_wq = alloc_workqueue("dvfs", WQ_NON_REENTRANT |
+		WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_FREEZABLE, 1);
 	if ((clk_cpu_b_dvfs_node && clk_cpu_b_dvfs_node->temp_limit_enable) ||
 	    (clk_cpu_l_dvfs_node && clk_cpu_l_dvfs_node->temp_limit_enable) ||
 	    (clk_gpu_dvfs_node && clk_gpu_dvfs_node->temp_limit_enable) ||
 	    (clk_cpu_dvfs_node && clk_cpu_dvfs_node->temp_limit_enable)) {
-		dvfs_wq = alloc_workqueue("dvfs", WQ_NON_REENTRANT |
-			WQ_MEM_RECLAIM | WQ_HIGHPRI | WQ_FREEZABLE, 1);
 		queue_delayed_work_on(0, dvfs_wq, &dvfs_temp_limit_work, 0*HZ);
 	}
 
