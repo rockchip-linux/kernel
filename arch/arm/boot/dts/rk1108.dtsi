@@ -560,7 +560,8 @@
 		rockchip,prop = <PRMRY>;
 		rockchip,pwr18 = <0>;
 		rockchip,iommu-enabled = <0>;
-		reg = <0x30040000 0xe00>;
+		reg = <0x30040000 0xe00>, <0x20228000 0x400>, <0x300e0000 0x400>;
+		reg-names = "vop_reg", "mipi_dsi_phy", "mipi_dsi_host";
 		interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates18 0>, <&dclk_lcdc>, <&clk_gates18 1>;
 		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
