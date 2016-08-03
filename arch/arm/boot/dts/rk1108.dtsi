@@ -384,6 +384,54 @@
 		status = "disabled";
 	};
 
+	pwm4: pwm@10280000 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x10280000 0x10>;
+		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm4_pin>;
+		clocks = <&clk_gates3 10>, <&clk_gates13 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
+	pwm5: pwm@10280010 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x10280010 0x10>;
+		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm5_pin>;
+		clocks = <&clk_gates3 10>, <&clk_gates13 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
+	pwm6: pwm@10280020 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x10280020 0x10>;
+		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm6_pin>;
+		clocks = <&clk_gates3 10>, <&clk_gates13 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
+	pwm7: pwm@10280030 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x10280030 0x10>;
+		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm7_pin>;
+		clocks = <&clk_gates3 10>, <&clk_gates13 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
 	grf: syscon@10300000 {
 		compatible = "rockchip,rk1108-grf", "rockchip,grf", "syscon";
 		reg = <0x10300000 0x1000>;
@@ -431,6 +479,54 @@
 		tsadc-ht-temp = <120>;
 		tsadc-ht-reset-cru = <1>;
 		tsadc-ht-pull-gpio = <0>;
+		status = "disabled";
+	};
+
+	pwm0: pwm@20040000 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x20040000 0x10>;
+		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm0_pin>;
+		clocks = <&clk_gates8 15>, <&clk_gates10 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
+	pwm1: pwm@20040010 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x20040010 0x10>;
+		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm1_pin>;
+		clocks = <&clk_gates8 15>, <&clk_gates10 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
+	pwm2: pwm@20040020 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x20040020 0x10>;
+		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm2_pin>;
+		clocks = <&clk_gates8 15>, <&clk_gates10 6>;
+		clock-names = "pwm", "pclk";
+		status = "disabled";
+	};
+
+	pwm3: pwm@20040030 {
+		compatible = "rockchip,rk-pwm";
+		reg = <0x20040030 0x10>;
+		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+		#pwm-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm3_pin>;
+		clocks = <&clk_gates8 15>, <&clk_gates10 6>;
+		clock-names = "pwm", "pclk";
 		status = "disabled";
 	};
 
@@ -1154,6 +1250,30 @@
 		pwm3 {
 			pwm3_pin: pwm3-pin {
 				rockchip,pins = <0 GPIO_C0 RK_FUNC_1 &pcfg_pull_none>;
+			};
+		};
+
+		pwm4 {
+			pwm4_pin: pwm4-pin {
+				rockchip,pins = <1 GPIO_C1 RK_FUNC_3 &pcfg_pull_none>;
+			};
+		};
+
+		pwm5 {
+			pwm5_pin: pwm5-pin {
+				rockchip,pins = <1 GPIO_A7 RK_FUNC_2 &pcfg_pull_none>;
+			};
+		};
+
+		pwm6 {
+			pwm6_pin: pwm6-pin {
+				rockchip,pins = <1 GPIO_B0 RK_FUNC_2 &pcfg_pull_none>;
+			};
+		};
+
+		pwm7 {
+			pwm7_pin: pwm7-pin {
+				rockchip,pins = <1 GPIO_B1 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 
