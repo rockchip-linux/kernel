@@ -95,11 +95,11 @@ struct rga2_drvdata_t {
 	struct clk *aclk_rga2;
 	struct clk *hclk_rga2;
 	struct clk *pd_rga2;
-    struct clk *rga2;
+	struct clk *clk_rga2;
 
-    #if defined(CONFIG_ION_ROCKCHIP)
-    struct ion_client * ion_client;
-    #endif
+#if defined(CONFIG_ION_ROCKCHIP)
+	struct ion_client * ion_client;
+#endif
 };
 
 struct rga2_drvdata_t *rga2_drvdata;
@@ -231,11 +231,14 @@ static void rga2_power_on(void)
 	}
 	if (rga2_service.enable)
 		return;
-
-    clk_prepare_enable(rga2_drvdata->rga2);
-	clk_prepare_enable(rga2_drvdata->aclk_rga2);
-	clk_prepare_enable(rga2_drvdata->hclk_rga2);
-	clk_prepare_enable(rga2_drvdata->pd_rga2);
+	if (!IS_ERR(rga2_drvdata->clk_rga2))
+		clk_prepare_enable(rga2_drvdata->clk_rga2);
+	if (!IS_ERR(rga2_drvdata->aclk_rga2))
+		clk_prepare_enable(rga2_drvdata->aclk_rga2);
+	if (!IS_ERR(rga2_drvdata->hclk_rga2))
+		clk_prepare_enable(rga2_drvdata->hclk_rga2);
+	if (!IS_ERR(rga2_drvdata->pd_rga2))
+		clk_prepare_enable(rga2_drvdata->pd_rga2);
 	wake_lock(&rga2_drvdata->wake_lock);
 	rga2_service.enable = true;
 }
@@ -257,12 +260,16 @@ static void rga2_power_off(void)
 		rga2_dump();
 	}
 
-    clk_disable_unprepare(rga2_drvdata->rga2);
-    clk_disable_unprepare(rga2_drvdata->pd_rga2);
-	clk_disable_unprepare(rga2_drvdata->aclk_rga2);
-	clk_disable_unprepare(rga2_drvdata->hclk_rga2);
+	if (!IS_ERR(rga2_drvdata->pd_rga2))
+		clk_disable_unprepare(rga2_drvdata->pd_rga2);
+	if (!IS_ERR(rga2_drvdata->clk_rga2))
+		clk_disable_unprepare(rga2_drvdata->clk_rga2);
+	if (!IS_ERR(rga2_drvdata->aclk_rga2))
+		clk_disable_unprepare(rga2_drvdata->aclk_rga2);
+	if (!IS_ERR(rga2_drvdata->hclk_rga2))
+		clk_disable_unprepare(rga2_drvdata->hclk_rga2);
 	wake_unlock(&rga2_drvdata->wake_lock);
-    first_RGA2_proc = 0;
+	first_RGA2_proc = 0;
 	rga2_service.enable = false;
 }
 
@@ -1241,10 +1248,10 @@ static int rga2_drv_probe(struct platform_device *pdev)
 	wake_lock_init(&data->wake_lock, WAKE_LOCK_SUSPEND, "rga");
 
 	//data->pd_rga2 = clk_get(NULL, "pd_rga");
-    data->rga2 = devm_clk_get(&pdev->dev, "clk_rga");
-    data->pd_rga2 = devm_clk_get(&pdev->dev, "pd_rga");
+	data->clk_rga2 = devm_clk_get(&pdev->dev, "clk_rga");
+	data->pd_rga2 = devm_clk_get(&pdev->dev, "pd_rga");
 	data->aclk_rga2 = devm_clk_get(&pdev->dev, "aclk_rga");
-    data->hclk_rga2 = devm_clk_get(&pdev->dev, "hclk_rga");
+	data->hclk_rga2 = devm_clk_get(&pdev->dev, "hclk_rga");
 
 	/* map the registers */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1297,9 +1304,7 @@ static int rga2_drv_probe(struct platform_device *pdev)
 	return 0;
 
 err_misc_register:
-	free_irq(data->irq, pdev);
 err_irq:
-	iounmap(data->rga_base);
 err_ioremap:
 	wake_lock_destroy(&data->wake_lock);
 	//kfree(data);
@@ -1314,16 +1319,6 @@ static int rga2_drv_remove(struct platform_device *pdev)
 
 	wake_lock_destroy(&data->wake_lock);
 	misc_deregister(&(data->miscdev));
-	free_irq(data->irq, &data->miscdev);
-	iounmap((void __iomem *)(data->rga_base));
-
-	//clk_put(data->pd_rga2);
-	devm_clk_put(&pdev->dev, data->rga2);
-    devm_clk_put(&pdev->dev, data->pd_rga2);
-	devm_clk_put(&pdev->dev, data->aclk_rga2);
-	devm_clk_put(&pdev->dev, data->hclk_rga2);
-
-	kfree(data);
 	return 0;
 }
 
