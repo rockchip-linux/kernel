@@ -43,6 +43,7 @@
  * rockchip psci function call interface
  */
 
+#if defined(CONFIG_ARM_PSCI) || defined(CONFIG_ARM64)
 u32 rockchip_psci_smc_read(u32 function_id, u32 arg0, u32 arg1, u32 arg2,
 			   u32 *val);
 u32 rockchip_psci_smc_write(u32 function_id, u32 arg0, u32 arg1, u32 arg2);
@@ -65,9 +66,28 @@ u32 psci_fiq_debugger_switch_cpu(u32 cpu);
 void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback);
 void psci_fiq_debugger_enable_debug(bool val);
 
-#if defined(CONFIG_ARM_PSCI) || defined(CONFIG_ARM64)
 u32 psci_set_memory_secure(bool val);
 #else
+static inline u32 rockchip_psci_smc_read(u32 function_id, u32 arg0, u32 arg1,
+					 u32 arg2, u32 *val)
+{
+	return 0;
+}
+static inline u32 rockchip_psci_smc_write(u32 function_id, u32 arg0,
+					  u32 arg1, u32 arg2)
+{
+	return 0;
+}
+
+static inline u32 rockchip_psci_smc_get_tf_ver(void) { return 0; }
+static inline u32 rockchip_secure_reg_read(u32 addr_phy) { return 0; }
+static inline u32 rockchip_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
+
+static inline u32 psci_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
+static inline void
+psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback) { }
+static inline void psci_fiq_debugger_enable_debug(bool val) { }
+
 static inline u32 psci_set_memory_secure(bool val)
 {
 	return 0;

@@ -28,11 +28,22 @@
 #define DRAM_FREQ_CONFIG_DRAM_GET_BW		(4)
 #define DRAM_FREQ_CONFIG_DRAM_GET_RATE		(5)
 
+#if defined(CONFIG_ARM_PSCI) || defined(CONFIG_ARM64)
 uint32_t psci_ddr_init(uint32_t freq, void *dram_param);
 uint32_t psci_ddr_change_freq(uint32_t freq);
 uint32_t psci_ddr_round_rate(uint32_t n_mhz);
 uint32_t psci_ddr_recalc_rate(void);
 void psci_ddr_set_auto_self_refresh(bool en);
 void psci_ddr_bandwidth_get(void *ddr_bw_ch0, void *ddr_bw_ch1);
+#else
+static inline uint32_t
+psci_ddr_init(uint32_t freq, void *dram_param) { return 0; }
+static inline uint32_t psci_ddr_change_freq(uint32_t freq) { return 0; }
+static inline uint32_t psci_ddr_round_rate(uint32_t n_mhz) { return 0; }
+static inline uint32_t psci_ddr_recalc_rate(void) { return 0; }
+static inline void psci_ddr_set_auto_self_refresh(bool en) { }
+static inline void
+psci_ddr_bandwidth_get(void *ddr_bw_ch0, void *ddr_bw_ch1) { }
+#endif
 
 #endif /* __ROCKCHIP_PSCI_DDR_H */
