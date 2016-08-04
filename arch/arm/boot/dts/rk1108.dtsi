@@ -341,7 +341,7 @@
 		clocks = <&clk_i2c1>, <&clk_gates13 0>;
 		clock-names = "i2c", "pclk";
 		pinctrl-names = "default";
-		pinctrl-0 = <&i2c1m1_xfer>;
+		pinctrl-0 = <&i2c1_xfer>;
 		status = "disabled";
 	};
 
@@ -354,7 +354,7 @@
 		clocks = <&clk_i2c2>, <&clk_gates13 1>;
 		clock-names = "i2c", "pclk";
 		pinctrl-names = "default";
-		pinctrl-0 = <&i2c2_xfer>;
+		pinctrl-0 = <&i2c2m1_xfer>;
 		status = "disabled";
 	};
 
@@ -642,8 +642,8 @@
 			      "pclk_hdmi_phy",
 			      "cec_clk_hdmi";
 		pinctrl-names = "default", "gpio";
-		pinctrl-0 = <&hdmi_cec &i2c1m05v_xfer &hdmi_hpd>;
-		pinctrl-1 = <&i2c1m05v_gpio>;
+		pinctrl-0 = <&hdmi_cec &i2c2m05v_xfer &hdmi_hpd>;
+		pinctrl-1 = <&i2c2m05v_gpio>;
 		resets = <&reset RK1108_RST_HDMI_P>;
 		reset-names = "hdmi";
 		rockchip,grf = <&grf>;
@@ -900,41 +900,41 @@
 			};
 		};
 
-		i2c1m1 {
-			i2c1m1_xfer: i2c1m1-xfer {
+		i2c1 {
+			i2c1_xfer: i2c1-xfer {
+				rockchip,pins = <2 GPIO_D3 RK_FUNC_1 &pcfg_pull_up>,
+						<2 GPIO_D4 RK_FUNC_1 &pcfg_pull_up>;
+			};
+		};
+
+		i2c2m1 {
+			i2c2m1_xfer: i2c2m1-xfer {
 				rockchip,pins = <0 GPIO_C2 RK_FUNC_2 &pcfg_pull_none>,
 						<0 GPIO_C6 RK_FUNC_3 &pcfg_pull_none>;
 			};
 
-			i2c1m1_gpio: i2c1m1-gpio {
+			i2c2m1_gpio: i2c2m1-gpio {
 				rockchip,pins = <0 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_none>,
 						<0 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
-		i2c1m05v {
-			i2c1m05v_xfer: i2c1m05v-xfer {
+		i2c2m05v {
+			i2c2m05v_xfer: i2c2m05v-xfer {
 				rockchip,pins = <1 GPIO_D5 RK_FUNC_2 &pcfg_pull_none>,
 						<1 GPIO_D4 RK_FUNC_2 &pcfg_pull_none>;
 			};
 
-			i2c1m05v_gpio: i2c1m05v-gpio {
+			i2c2m05v_gpio: i2c2m05v-gpio {
 				rockchip,pins = <1 GPIO_D5 RK_FUNC_GPIO &pcfg_pull_none>,
 						<1 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
-		i2c2 {
-			i2c2_xfer: i2c2-xfer {
-				rockchip,pins = <0 GPIO_B6 RK_FUNC_1 &pcfg_pull_none>,
-						<0 GPIO_C4 RK_FUNC_2 &pcfg_pull_none>;
-			};
-		};
-
 		i2c3 {
 			i2c3_xfer: i2c3-xfer {
-				rockchip,pins = <2 GPIO_D3 RK_FUNC_1 &pcfg_pull_none>,
-						<2 GPIO_D4 RK_FUNC_1 &pcfg_pull_none>;
+				rockchip,pins = <0 GPIO_B6 RK_FUNC_1 &pcfg_pull_none>,
+						<0 GPIO_C4 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 
