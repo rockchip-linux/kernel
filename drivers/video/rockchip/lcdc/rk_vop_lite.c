@@ -1383,18 +1383,48 @@ static int win_0_1_set_par(struct vop_device *vop_dev,
 			   struct rk_screen *screen, struct rk_lcdc_win *win)
 {
 	char fmt[9] = "NULL";
+	struct rk_lcdc_driver *dev_drv = &vop_dev->driver;
+
+	if (win->id != 0) {
+		if ((dev_drv->overscan.left != 100) ||
+		    (dev_drv->overscan.right != 100) ||
+		    (dev_drv->overscan.top != 100) ||
+		    (dev_drv->overscan.bottom != 100)) {
+			pr_err("win%d unsupport scale\n", win->id);
+			dev_drv->overscan.left = 100;
+			dev_drv->overscan.right = 100;
+			dev_drv->overscan.top = 100;
+			dev_drv->overscan.bottom = 100;
+		}
+	}
+	win->post_cfg.xpos = win->area[0].xpos *
+		(dev_drv->overscan.left + dev_drv->overscan.right) / 200 +
+		screen->mode.xres * (100 - dev_drv->overscan.left) / 200;
+
+	win->post_cfg.ypos = win->area[0].ypos *
+		(dev_drv->overscan.top + dev_drv->overscan.bottom) / 200 +
+		screen->mode.yres * (100 - dev_drv->overscan.top) / 200;
+	win->post_cfg.xsize = win->area[0].xsize * (dev_drv->overscan.left +
+		dev_drv->overscan.right) / 200;
+	win->post_cfg.ysize = win->area[0].ysize * (dev_drv->overscan.top +
+		dev_drv->overscan.bottom) / 200;
 
 	win->area[0].dsp_stx = win->area[0].xpos + screen->mode.left_margin +
-				screen->mode.hsync_len;
+				screen->mode.hsync_len + win->post_cfg.xpos;
 	if (screen->mode.vmode & FB_VMODE_INTERLACED) {
 		win->area[0].ysize /= 2;
+		win->post_cfg.ysize /= 2;
 		win->area[0].dsp_sty = win->area[0].ypos / 2 +
-			screen->mode.upper_margin + screen->mode.vsync_len;
+			screen->mode.upper_margin + screen->mode.vsync_len +
+			win->post_cfg.ypos / 2;
 	} else {
 		win->area[0].dsp_sty = win->area[0].ypos +
-			screen->mode.upper_margin + screen->mode.vsync_len;
+			screen->mode.upper_margin + screen->mode.vsync_len +
+			win->post_cfg.ypos;
 	}
 
+	win->area[0].xsize = win->post_cfg.xsize;
+	win->area[0].ysize = win->post_cfg.ysize;
 	win->scale_yrgb_x = CALSCALE(win->area[0].xact, win->area[0].xsize);
 	win->scale_yrgb_y = CALSCALE(win->area[0].yact, win->area[0].ysize);
 
