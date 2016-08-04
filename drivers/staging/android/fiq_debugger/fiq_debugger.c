@@ -370,6 +370,7 @@ static void fiq_debugger_dump_irqs(struct fiq_debugger_state *state)
 			state->last_local_irqs[cpu][n] = irqs;
 		}
 	}
+#ifdef CONFIG_SMP
 	for (n = 0; n < NR_IPI; n++) {
 #define S(x,s)	[x] = s
 #ifdef CONFIG_ARM
@@ -421,6 +422,7 @@ static void fiq_debugger_dump_irqs(struct fiq_debugger_state *state)
 			state->last_local_irqs[cpu][n] = irqs;
 		}
 	}
+#endif /* CONFIG_SMP */
 #endif
 }
 

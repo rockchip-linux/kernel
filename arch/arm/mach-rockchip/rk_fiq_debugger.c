@@ -294,7 +294,7 @@ static int fiq_debugger_uart_dev_resume(struct platform_device *pdev)
 }
 #endif
 
-#ifdef CONFIG_ARM_PSCI
+#if defined(CONFIG_ARM_PSCI) && defined(CONFIG_SMP)
 static struct pt_regs fiq_pt_regs;
 
 static void rk_fiq_debugger_switch_cpu(struct platform_device *pdev,
@@ -411,7 +411,7 @@ void __init rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
 	}
 #endif
 
-#ifdef CONFIG_ARM_PSCI
+#if defined(CONFIG_ARM_PSCI) && defined(CONFIG_SMP)
 	if (psci_smp_available()) {
 		if (signal_irq > 0) {
 			t->pdata.switch_cpu = rk_fiq_debugger_switch_cpu;
