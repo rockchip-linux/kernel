@@ -1396,17 +1396,13 @@
 		};
 
 		cam_pins {
-			cam0_default_pins: cam0_default_pins {
-				rockchip,pins = /*sensor power down pin: GPIO3_B0*/
-						<RK_GPIO3 8 RK_FUNC_GPIO &pcfg_pull_none>,
-						/*sensor mclk: cif_clkout*/
-						<RK_GPIO3 13 RK_FUNC_1 &pcfg_pull_none>;
+			cam0_default_pins: cam0-default-pins {
+				rockchip,pins = <3 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,
+						<3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
 			};
-			cam0_sleep_pins: cam0_sleep_pins {
-				rockchip,pins = /* cif power down pin */
-						<RK_GPIO3 8 RK_FUNC_GPIO &pcfg_pull_none>,
-						/* cif_clkout */
-						<RK_GPIO3 13 RK_FUNC_GPIO &pcfg_pull_none>;
+			cam0_sleep_pins: cam0-sleep-pins {
+				rockchip,pins = <3 GPIO_B0 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
