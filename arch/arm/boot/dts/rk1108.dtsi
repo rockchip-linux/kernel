@@ -817,6 +817,24 @@
 		      <0x32012000 0x1000>;
 	};
 
+	dsp: dsp@33000000 {
+		compatible = "rockchip,rk1108-dsp", "rockchip,dsp";
+		reg = <0x33800000 0x10000>,
+		      <0x33000000 0x800000>,
+		      <0x33810000 0x10000>;
+		clocks = <&clk_dsp>,
+			 <&clk_dsp_iop>, <&clk_dsp_epp>,
+			 <&clk_dsp_edp>, <&clk_dsp_edap>;
+		clock-names = "clk_dsp",
+			      "clk_dsp_iop", "clk_dsp_epp",
+			      "clk_dsp_edp", "clk_dsp_edap";
+		resets = <&reset RK1108_RST_DSP_CORE>, <&reset RK1108_RST_DSP_SYS>,
+			 <&reset RK1108_RST_DSP_GLOBAL>, <&reset RK1108_RST_DSP_OECM>;
+		reset-names = "core_rst", "sys_rst",
+			      "global_rst", "oecm_rst";
+		interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
 	pinctrl: pinctrl {
 		compatible = "rockchip,rk1108-pinctrl";
 		rockchip,grf = <&grf>;
