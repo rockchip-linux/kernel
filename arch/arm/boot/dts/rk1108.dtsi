@@ -378,9 +378,11 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		rockchip,spi-src-clk = <0>;
-		num-cs = <2>;
+		num-cs = <1>;
 		clocks =<&clk_spi>, <&clk_gates13 5>;
 		clock-names = "spi", "pclk_spi0";
+		dmas = <&pdma 8>, <&pdma 9>;
+		#dma-cells = <2>;
 		status = "disabled";
 	};
 
