@@ -1407,5 +1407,52 @@
 						<RK_GPIO3 13 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
+
+		cif_dvp_pins {
+			cif_dvp_d10d11: cif-dvp-d10d11 {
+				rockchip,pins = <3 GPIO_D5 RK_FUNC_1 &pcfg_pull_none>, /* cif_d10 */
+						<3 GPIO_D6 RK_FUNC_1 &pcfg_pull_none>; /* cif_d11 */
+			};
+			cif_dvp_d2d9: cif-dvp-d2d9 {
+				rockchip,pins = <2 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>, /* cif_d2 */
+						<2 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>, /* cif_d3 */
+						<1 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>, /* cif_d4 */
+						<1 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>, /* cif_d5 */
+						<2 GPIO_C0 RK_FUNC_1 &pcfg_pull_none>, /* cif_d6 */
+						<2 GPIO_C1 RK_FUNC_1 &pcfg_pull_none>, /* cif_d7 */
+						<3 GPIO_D3 RK_FUNC_1 &pcfg_pull_none>, /* cif_d8 */
+						<3 GPIO_D4 RK_FUNC_1 &pcfg_pull_none>; /* cif_d9 */
+			};
+			cif_dvp_d0d1: cif-dvp-d0d1 {
+				rockchip,pins = <2 GPIO_C3 RK_FUNC_1 &pcfg_pull_none>, /* cif_d0 */
+						<2 GPIO_C4 RK_FUNC_1 &pcfg_pull_none>; /* cif_d1 */
+			};
+			cif_dvp_sync: cif-dvp-sync {
+				rockchip,pins = <3 GPIO_D0 RK_FUNC_1 &pcfg_pull_none>, /* cif_href */
+						<3 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>; /* cif_vsync */
+			};
+			cif_dvp_clk: cif-dvp-clk {
+				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>, /* cif_clkout */
+						<3 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>; /* cif_clkin */
+			};
+			cif_dvp_sleep: cif-dvp-sleep {
+				rockchip,pins = <2 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
+						<1 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
+						<1 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D3 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D5 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D6 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C4 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D0 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D2 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+		};
 	};
 };
