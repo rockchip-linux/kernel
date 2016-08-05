@@ -1966,11 +1966,11 @@ static int cif_isp11_config_mipi(
 		CIF_MIPI_CTRL_ERR_SOT_HS_ENA |
 		CIF_MIPI_CTRL_CLOCKLANE_ENA;
 
-	/* mipi_dphy */
-	cif_isp11_pltfrm_mipi_dphy_config(dev);
-
 	cif_iowrite32(mipi_ctrl,
 		dev->config.base_addr + CIF_MIPI_CTRL);
+
+	/* mipi_dphy */
+	cif_isp11_pltfrm_mipi_dphy_config(dev);
 
 	/* Configure Data Type and Virtual Channel */
 	if (CIF_ISP11_PIX_FMT_IS_YUV(in_pix_fmt)) {
