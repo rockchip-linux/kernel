@@ -140,6 +140,14 @@
 		gpios = <&gpio0 GPIO_B5 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "rtl8723bs_vq0";
+		WIFI,poweren_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
+		WIFI,host_wake_irq = <&gpio0 GPIO_A3 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
 &adc {
