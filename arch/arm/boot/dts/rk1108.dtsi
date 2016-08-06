@@ -1237,7 +1237,7 @@
 			};
 
 			sdio_cmd: sdio-cmd {
-				rockchip,pins = <2 GPIO_D6 RK_FUNC_2 &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <2 GPIO_D6 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
 			};
 
 			sdio_clk: sdio-clk {
