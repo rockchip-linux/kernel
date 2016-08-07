@@ -145,11 +145,11 @@ static struct mipi_dphy_hsfreqrange mipi_dphy_hsfreq_range[] = {
 	{500, 600, 0x07},
 	{600, 700, 0x08},
 	{700, 800, 0x09},
-	{800, 1000, 0x10},
-	{1000, 1200, 0x11},
-	{1200, 1400, 0x12},
-	{1400, 1600, 0x13},
-	{1600, 1800, 0x14}
+	{800, 1000, 0x0a},
+	{1000, 1200, 0x0b},
+	{1200, 1400, 0x0c},
+	{1400, 1600, 0x0d},
+	{1600, 1800, 0x0e}
 #endif
 };
 
@@ -209,21 +209,21 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 	if (input_sel == 0) {
 #ifndef FPGA_TEST
 	write_grf_reg(GRF_SOC_CON5_OFFSET,
-	DPHY_RX_FORCERXMODE_MASK | DPHY_RX_FORCERXMODE_BIT); 
+	DPHY_RX_FORCERXMODE_MASK | DPHY_RX_FORCERXMODE_BIT);
 
 	/*set clock lane */
-	/*write_csiphy_reg(0x34,0x00); */	
+	/*write_csiphy_reg(0x34,0x00); */
     write_csiphy_reg((0x100),hsfreqrange|
     				(read_csiphy_reg(0x100)&(~0xf)));
-	if(para->nb_lanes > 0x00){/*lane0*/
+	if(para->nb_lanes >= 0x00){/*lane0*/
 		write_csiphy_reg((0x180),hsfreqrange|
 						(read_csiphy_reg(0x180)&(~0xf)));
 	}
-	if(para->nb_lanes > 0x02){/*lane1*/
+	if(para->nb_lanes >= 0x02){/*lane1*/
 		write_csiphy_reg(0x200,hsfreqrange|
 						(read_csiphy_reg(0x200)&(~0xf)));
 	}
-	if(para->nb_lanes > 0x04){/*lane4*/
+	if(para->nb_lanes >= 0x04){/*lane4*/
 		write_csiphy_reg(0x280,hsfreqrange|
 						(read_csiphy_reg(0x280)&(~0xf)));
 		write_csiphy_reg(0x300,hsfreqrange|
@@ -231,23 +231,23 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 	}
 
 	/*set data lane num and enable clock lane */
-	write_csiphy_reg(0x00, ((para->nb_lanes << 2)|(0x1<<6)|0x1));
+	write_csiphy_reg(0x00, ((datalane_en << 2)|(0x1<<6)|0x1));
 
     write_cifisp_reg((MRV_MIPI_BASE+MRV_MIPI_CTRL),
 		read_cifisp_reg(MRV_MIPI_BASE+MRV_MIPI_CTRL) & (~(0x0f<<8)));
 #else
 	write_cifcru_reg(CRU_BASE_USER+0x20, 0x04000000);/*TESTCLR=0*/
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x08000000);/*RSTZCAL=1*/	
+	write_cifcru_reg(CRU_BASE_USER+0x20, 0x08000000);/*RSTZCAL=1*/
 	udelay(100);
 	write_cifcru_reg(CRU_BASE_USER+0x20, 0x01000100);/*TESTCLK=1*/
 	write_cifcru_reg(CRU_BASE_USER+0x20, 0x80008000);/*TESTCLR=1*/
 	write_cifcru_reg(CRU_BASE_USER+0x20, 0x80000000);/*TESTCLR=0*/
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x40004000);/*RSTZCAL=1*/	
-#if (LANE_NUMBER == 1) 
+	write_cifcru_reg(CRU_BASE_USER+0x20, 0x40004000);/*RSTZCAL=1*/
+#if (LANE_NUMBER == 1)
 		MIPI_DPHY_WriteReg(0xAC, 0x00); /* 1 lane */
 #elif (LANE_NUMBER == 2)
 		MIPI_DPHY_WriteReg(0xAC, 0x01); /* 2 lane */
-#elif (LANE_NUMBER == 4)  
+#elif (LANE_NUMBER == 4)
 		MIPI_DPHY_WriteReg(0xAC, 0x03); /* 4 lane */
 #endif
 #if (LANE_NUMBER == 1)
