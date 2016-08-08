@@ -28,6 +28,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/pagemap.h>
 #include <linux/slab.h>
+
 #define CIF_ISP11_V4L2_SP_DEV_MAJOR 0
 #define CIF_ISP11_V4L2_ISP_DEV_MAJOR 1
 #define CIF_ISP11_V4L2_MP_DEV_MAJOR 2
@@ -131,22 +132,24 @@ static struct cif_isp11_device *to_cif_isp11_device(
 }
 
 static enum cif_isp11_stream_id to_cif_isp11_stream_id(
-	enum v4l2_buf_type buf_type)
+	struct videobuf_queue *queue)
 {
-	if (buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		if (g_path == (int)CIF_ISP11_STREAM_Y12)
-			return CIF_ISP11_STREAM_Y12;/* need modify */
-		else/*  if(g_path == (int)CIF_ISP11_STREAM_MP) */
-			return CIF_ISP11_STREAM_MP;
-	} else if (buf_type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return CIF_ISP11_STREAM_MP;
-	else if (buf_type == V4L2_BUF_TYPE_VIDEO_OVERLAY)
+	struct cif_isp11_v4l2_node *node =
+		container_of(queue, struct cif_isp11_v4l2_node, buf_queue);
+	struct video_device *vdev =
+		&node->vdev;
+
+	if (!strcmp(vdev->name, SP_VDEV_NAME))
 		return CIF_ISP11_STREAM_SP;
-	else if (buf_type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
+	else if (!strcmp(vdev->name, MP_VDEV_NAME))
+		return CIF_ISP11_STREAM_MP;
+	else if (!strcmp(vdev->name, Y12_VDEV_NAME))
+		return CIF_ISP11_STREAM_Y12;
+	else if (!strcmp(vdev->name, DMA_VDEV_NAME))
 		return CIF_ISP11_STREAM_DMA;
 	else {
 		cif_isp11_pltfrm_pr_err(NULL,
-			"unsupported/unknown buffer type %d\n", buf_type);
+			"unsupported/unknown device name %s\n", vdev->name);
 		return -EINVAL;
 	}
 }
@@ -592,7 +595,7 @@ static void cif_isp11_v4l2_buf_queue(
 	struct videobuf_buffer *buf)
 {
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
-	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue->type);
+	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue);
 
 	cif_isp11_pltfrm_pr_dbg(NULL,
 		"%s %dx%d, size %lu, bytesperline %d\n",
@@ -612,7 +615,7 @@ static int cif_isp11_v4l2_buf_setup(
 {
 	int ret;
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
-	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue->type);
+	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue);
 
 	cif_isp11_pltfrm_pr_dbg(NULL, "%s count %d, size %d\n",
 		cif_isp11_v4l2_buf_type_string(queue->type),
@@ -639,7 +642,7 @@ static int cif_isp11_v4l2_buf_prepare(
 {
 	int ret;
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
-	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue->type);
+	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue);
 	u32 size;
 
 	cif_isp11_pltfrm_pr_dbg(NULL, "%s\n",
@@ -709,7 +712,7 @@ static int cif_isp11_v4l2_reqbufs(
 	int ret;
 	struct videobuf_queue *queue = to_videobuf_queue(file);
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
-	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue->type);
+	enum cif_isp11_stream_id strm = to_cif_isp11_stream_id(queue);
 
 	cif_isp11_pltfrm_pr_dbg(NULL,
 		"%s requested type %s, count %d\n",
@@ -911,11 +914,9 @@ static int cif_isp11_v4l2_open(
 	} else if (vdev->minor == cif_isp11_v4l2_dev->node[MP_DEV].vdev.minor) {
 		buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		stream_id = CIF_ISP11_STREAM_MP;
-		g_path = (int)CIF_ISP11_STREAM_MP;
 	} else if (vdev->minor == cif_isp11_v4l2_dev->node[Y12_DEV].vdev.minor) {
 		buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		stream_id = CIF_ISP11_STREAM_Y12;
-		g_path = (int)CIF_ISP11_STREAM_Y12;
 	} else if (vdev->minor ==
 				cif_isp11_v4l2_dev->node[DMA_DEV].vdev.minor) {
 		buf_type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
@@ -1045,6 +1046,47 @@ static unsigned int cif_isp11_v4l2_poll(
 	return ret;
 }
 
+static void cif_isp11_v4l2_vm_open(struct vm_area_struct *vma)
+{
+	struct cif_isp11_metadata_s *metadata =
+		(struct cif_isp11_metadata_s *)vma->vm_private_data;
+
+	metadata->vmas++;
+	return;
+}
+
+static void cif_isp11_v4l2_vm_close(struct vm_area_struct *vma)
+{
+	struct cif_isp11_metadata_s *metadata =
+		(struct cif_isp11_metadata_s *)vma->vm_private_data;
+
+	metadata->vmas--;
+	return;
+}
+
+static const struct vm_operations_struct cif_isp11_vm_ops = {
+	.open		= cif_isp11_v4l2_vm_open,
+	.close		= cif_isp11_v4l2_vm_close,
+};
+
+int cif_isp11_v4l2_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct videobuf_queue *queue = to_videobuf_queue(file);
+	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
+	enum cif_isp11_stream_id strm = to_stream_id(file);
+	int retval;
+
+	retval = cif_isp11_mmap(dev, strm, vma);
+	if (retval < 0)
+		goto done;
+
+	vma->vm_ops          = &cif_isp11_vm_ops;
+	vma->vm_flags       |= VM_DONTEXPAND | VM_DONTDUMP;
+	cif_isp11_v4l2_vm_open(vma);
+
+done:
+	return retval;
+}
 const struct v4l2_file_operations cif_isp11_v4l2_fops = {
 	.open = cif_isp11_v4l2_open,
 	.unlocked_ioctl = video_ioctl2,
@@ -1053,6 +1095,7 @@ const struct v4l2_file_operations cif_isp11_v4l2_fops = {
 #endif
 	.release = cif_isp11_v4l2_release,
 	.poll = cif_isp11_v4l2_poll,
+	.mmap = cif_isp11_v4l2_mmap,
 };
 
 /*TBD: clean up code below this line******************************************/
@@ -1166,7 +1209,6 @@ static long v4l2_default_ioctl(struct file *file, void *fh,
 	int ret = -EINVAL;
 	struct videobuf_queue *queue = to_videobuf_queue(file);
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
-	u32 stream_ids = to_stream_id(file);
 
 	if (arg == NULL) {
 		cif_isp11_pltfrm_pr_err(dev->dev,
@@ -1187,11 +1229,6 @@ static long v4l2_default_ioctl(struct file *file, void *fh,
 				"failed to get sensor mode data\n");
 			return ret;
 		}
-
-		dev->exposure_valid_frame = p_mode_data->exposure_valid_frame;
-		if (dev->exposure_valid_frame < 2 ||
-		    dev->exposure_valid_frame > 6)
-			dev->exposure_valid_frame = 4;
 
 		ret = cif_isp11_calc_isp_cropping(dev,
 			&p_mode_data->isp_input_width,
@@ -1216,11 +1253,6 @@ static long v4l2_default_ioctl(struct file *file, void *fh,
 				"failed to get camera module information\n");
 			return ret;
 		}
-	} else if (cmd == RK_VIDIOC_V4L2BUFFER_TIMEINFO) {
-		struct v4l2_buffer_timeinfo_s *p_v4l2buffer_t =
-		(struct v4l2_buffer_timeinfo_s *)arg;
-
-		ret = cif_isp11_fill_timeinfo(dev, stream_ids, p_v4l2buffer_t);
 	}
 
 	return ret;
@@ -1363,85 +1395,41 @@ static int v4l2_s_ext_ctrls(struct file *file, void *priv,
 	struct v4l2_ext_controls *vc_ext)
 {
 	struct cif_isp11_img_src_ctrl *ctrls;
-	struct cif_isp11_img_src_ext_ctrl ctrl;
-	int i;
+	struct cif_isp11_img_src_ext_ctrl *ctrl;
 	struct videobuf_queue *queue = to_videobuf_queue(file);
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
-	unsigned long lock_flags = 0;
-	unsigned int exp_id, gain_id, gain_percent;
-	bool set_exp = false;
 	int ret = -EINVAL;
+	unsigned int i;
 
 	/* The only use-case is gain and exposure to sensor. Thus no check if
 	 this shall go to img_src or not as of now.*/
-
 	cif_isp11_pltfrm_pr_dbg(dev->dev, "count %d\n",
 		vc_ext->count);
 
 	if (vc_ext->count == 0)
 		return ret;
 
+	ctrl = kmalloc(sizeof(struct cif_isp11_img_src_ext_ctrl), GFP_KERNEL);
+	if (!ctrl)
+		return -ENOMEM;
+
 	ctrls = kmalloc(vc_ext->count *
 		sizeof(struct cif_isp11_img_src_ctrl), GFP_KERNEL);
-
 	if (!ctrls)
 		return -ENOMEM;
+
+	ctrl->cnt = vc_ext->count;
+	ctrl->class = vc_ext->ctrl_class;
+	ctrl->ctrls = ctrls;
 
 	for (i = 0; i < vc_ext->count; i++) {
 		ctrls[i].id = vc_ext->controls[i].id;
 		ctrls[i].val = vc_ext->controls[i].value;
-		if ((ctrls[i].id == V4L2_CID_EXPOSURE) ||
-		    (ctrls[i].id == V4L2_CID_GAIN))
-			set_exp = true;
-		if (ctrls[i].id == V4L2_CID_EXPOSURE)
-			exp_id = i;
-		if (ctrls[i].id == V4L2_CID_GAIN)
-			gain_id = i;
-		if (ctrls[i].id == RK_V4L2_CID_GAIN_PERCENT)
-			gain_percent = ctrls[i].val;
 	}
 
-	ctrl.cnt = vc_ext->count;
-	ctrl.class = vc_ext->ctrl_class;
-	ctrl.ctrls = ctrls;
-
-	if (dev->img_src != NULL)
-		ret = cif_isp11_img_src_s_ext_ctrls(dev->img_src, &ctrl);
-	else
-		cif_isp11_pltfrm_pr_err(dev->dev, "dev->img_src is NULL\n");
-
-	if (set_exp) {
-		struct isp_supplemental_sensor_mode_data p_mode_data;
-
-		ret = (int)cif_isp11_img_src_ioctl(dev->img_src,
-			RK_VIDIOC_SENSOR_MODE_DATA, &p_mode_data);
-		if (ret < 0)
-			cif_isp11_pltfrm_pr_warn(
-				dev->dev,
-				"failed to get sensor mode data\n");
-#ifndef CONFIG_DEBUG_FS
-		cif_isp11_dbgfs_fill_sensor_aec_para(dev,
-						     p_mode_data.exp_time,
-						     p_mode_data.gain);
-#endif
-		spin_lock_irqsave(&dev->isp_dev.irq_lock, lock_flags);
-		dev->isp_dev.frame_id_setexp = dev->isp_dev.frame_id +
-			dev->exposure_valid_frame;
-		spin_unlock_irqrestore(&dev->isp_dev.irq_lock, lock_flags);
-		cif_isp11_pltfrm_pr_dbg(
-			dev->dev,
-			"SetExposure:	frame_id: %d, exp_t: %d, gain:%d, gain_percent: %d, exposure_valid_frame: %d",
-			dev->isp_dev.frame_id_setexp,
-			ctrls[exp_id].val, ctrls[gain_id].val,
-			gain_percent, dev->exposure_valid_frame);
-
-		vc_ext->controls[exp_id].value = dev->isp_dev.frame_id_setexp;
-		vc_ext->controls[gain_id].value = dev->isp_dev.frame_id_setexp;
-	}
-
-	kfree(ctrls);
-
+	ret = cif_isp11_s_exp(dev, ctrl);
 	return ret;
+
 }
 
 int cif_isp11_v4l2_cropcap(

@@ -388,9 +388,9 @@ int cif_isp11_img_src_v4l2_subdev_s_ctrl(
 const char *cif_isp11_img_src_v4l2_subdev_g_name(
 	void *img_src)
 {
-/*	struct v4l2_subdev *subdev = img_src;
-	return dev_driver_string(subdev->v4l2_dev->dev); */
-	return (char *)"fpga_test";
+	struct v4l2_subdev *subdev = img_src;
+
+	return (char *)subdev->name;
 }
 
 int cif_isp11_img_src_v4l2_subdev_s_ext_ctrls(

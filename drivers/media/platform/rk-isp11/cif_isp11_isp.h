@@ -32,70 +32,35 @@ enum cif_isp11_pix_fmt_quantization {
 	CIF_ISP11_QUANTIZATION_FULL_RANGE = 1,
 	CIF_ISP11_QUANTIZATION_LIM_RANGE = 2
 };
+struct cif_isp11_isp_other_cfgs {
+	struct cifisp_isp_other_cfg *last_or_new;
+	struct cifisp_isp_other_cfg *curr;
+	struct cifisp_isp_other_cfg cfgs[2];
+	unsigned int module_updates;
+};
+
+struct cif_isp11_isp_meas_cfgs {
+	struct cifisp_isp_meas_cfg *last_or_new;
+	struct cifisp_isp_meas_cfg *curr;
+	struct cifisp_isp_meas_cfg cfgs[2];
+	unsigned int module_updates;
+};
+
+struct cif_isp11_isp_meas_stats {
+	unsigned int g_frame_id;
+	struct cifisp_stat_buffer stat;
+};
 
 struct cif_isp11_isp_dev {
-	bool dpcc_en;
-	bool bls_en;
-	bool sdg_en;
-	bool lsc_en;
-	bool awb_meas_en;
-	bool awb_gain_en;
-	bool flt_en;
-	bool bdm_en;
-	bool ctk_en;
-	bool goc_en;
-	bool hst_en;
-	bool aec_en;
-	bool cproc_en;
-	bool afc_en;
-	bool ie_en;
-	bool dpf_en;
-	bool wdr_en;
-	bool y12_en;
-
 	/* Purpose of mutex is to protect and serialize use
 		of isp data structure and CIF API calls. */
 	struct mutex mutex;
 	/* Current ISP parameters */
 	spinlock_t config_lock;
-	struct cifisp_dpcc_config dpcc_config;
-	struct cifisp_bls_config bls_config;
-	struct cifisp_sdg_config sdg_config;
-	struct cifisp_lsc_config lsc_config;
-	struct cifisp_awb_meas_config awb_meas_config;
-	struct cifisp_awb_gain_config awb_gain_config;
-	struct cifisp_flt_config flt_config;
-	struct cifisp_bdm_config bdm_config;
-	struct cifisp_ctk_config ctk_config;
-	struct cifisp_goc_config goc_config;
-	struct cifisp_hst_config hst_config;
-	struct cifisp_aec_config aec_config;
-	struct cifisp_cproc_config cproc_config;
-	struct cifisp_afc_config afc_config;
-	struct cifisp_ie_config ie_config;
-	struct cifisp_dpf_config dpf_config;
-	struct cifisp_dpf_strength_config dpf_strength_config;
-	struct cifisp_wdr_config wdr_config;
+	struct cif_isp11_isp_other_cfgs other_cfgs;
+	struct cif_isp11_isp_meas_cfgs meas_cfgs;
+	struct cif_isp11_isp_meas_stats meas_stats;
 
-	bool isp_param_dpcc_update_needed;
-	bool isp_param_bls_update_needed;
-	bool isp_param_sdg_update_needed;
-	bool isp_param_lsc_update_needed;
-	bool isp_param_awb_meas_update_needed;
-	bool isp_param_awb_gain_update_needed;
-	bool isp_param_flt_update_needed;
-	bool isp_param_bdm_update_needed;
-	bool isp_param_ctk_update_needed;
-	bool isp_param_goc_update_needed;
-	bool isp_param_hst_update_needed;
-	bool isp_param_aec_update_needed;
-	bool isp_param_cproc_update_needed;
-	bool isp_param_afc_update_needed;
-	bool isp_param_ie_update_needed;
-	bool isp_param_range_update_needed;
-	bool isp_param_wdr_update_needed;
-	bool isp_param_dpf_update_needed;
-	bool isp_param_dpf_strength_update_needed;
 	bool cif_ism_cropping;
 
 	enum cif_isp11_pix_fmt_quantization quantization;
@@ -115,14 +80,30 @@ struct cif_isp11_isp_dev {
 
 	bool streamon;
 	unsigned int v_blanking_us;
-	bool ignore_measurement_check;
 
 	unsigned int frame_id;
 	unsigned int frame_id_setexp;
 	unsigned int active_meas;
-	struct timeval frame_start_tv;
+
+	struct timeval vs_t;	/* updated each frame */
+	struct timeval fi_t;	/* updated each frame */
+	struct workqueue_struct *readout_wq;
 
 	unsigned int *dev_id;
+};
+
+enum cif_isp11_isp_readout_cmd {
+	CIF_ISP11_ISP_READOUT_MEAS = 0,
+	CIF_ISP11_ISP_READOUT_META = 1,
+};
+struct cif_isp11_isp_readout_work {
+	struct work_struct work;
+	struct cif_isp11_isp_dev *isp_dev;
+
+	unsigned int frame_id;
+	enum cif_isp11_isp_readout_cmd readout;
+	struct videobuf_buffer *vb;
+	unsigned int stream_id;
 };
 
 int register_cifisp_device(
@@ -139,6 +120,9 @@ void cifisp_disable_isp(struct cif_isp11_isp_dev *isp_dev);
 int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis);
 void cifisp_v_start(struct cif_isp11_isp_dev *isp_dev,
 	const struct timeval *timestamp);
-
+void cifisp_frame_in(
+	struct cif_isp11_isp_dev *isp_dev,
+	const struct timeval *fi_t);
+void cifisp_isp_readout_work(struct work_struct *work);
 
 #endif

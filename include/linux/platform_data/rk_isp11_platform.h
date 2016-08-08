@@ -83,22 +83,24 @@ struct pltfrm_cam_itf {
 		struct pltfrm_cam_mipi_config mipi;
 		struct pltfrm_cam_dvp_config dvp;
 	} cfg;
+	unsigned int mclk_hz;
 };
 
 
-#define PLTFRM_CAM_ITF_MIPI_CFG(v, nb, br) \
+#define PLTFRM_CAM_ITF_MIPI_CFG(v, nb, br, mk)\
 	.itf_cfg = {\
 		.type =  PLTFRM_CAM_ITF_MIPI,\
-		.cfg = {\
-			.mipi = {\
-				.dphy_index = 0,\
-				.vc = v,\
-				.nb_lanes = nb,\
-				.bit_rate = br,\
-			}\
-		}\
+			.cfg = {\
+				.mipi = {\
+					.dphy_index = 0,\
+					.vc = v,\
+					.nb_lanes = nb,\
+					.bit_rate = br,\
+				}\
+			},\
+		.mclk_hz = mk\
 	}
-#define PLTFRM_CAM_ITF_DVP_CFG(ty, vs, hs, ck)\
+#define PLTFRM_CAM_ITF_DVP_CFG(ty, vs, hs, ck, mk)\
 	.itf_cfg = {\
 		.type =  ty,\
 		.cfg = {\
@@ -107,10 +109,11 @@ struct pltfrm_cam_itf {
 				.hsync = hs,\
 				.pclk = ck,\
 			}\
-		}\
+		},\
+		.mclk_hz = mk\
 	}
 
-#define PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE		0x00	 
+#define PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE		0x00
 #define PLTFRM_CIFCAM_G_ITF_CFG				(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 1)
 #define PLTFRM_CIFCAM_G_DEFRECT				(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 2)
 #define PLTFRM_CIFCAM_ATTACH					(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 3)
@@ -155,7 +158,7 @@ struct pltfrm_soc_mclk_para {
 };
 struct pltfrm_soc_cfg_para {
 	enum pltfrm_soc_cfg_cmd cmd;
-	void* cfg_para;
+	void * cfg_para;
 };
 struct pltfrm_soc_cfg {
 	char name[32];

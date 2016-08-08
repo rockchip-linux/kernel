@@ -443,9 +443,10 @@ struct cif_isp11_buffer {
 #define cif_isp11_buffer videobuf_buffer
 #endif
 
-struct cif_isp11_frame_timeinfo_s {
+struct cif_isp11_metadata_s {
 	unsigned int cnt;
-	struct frame_timeinfo_s *frame_t;
+	unsigned int vmas;
+	unsigned char *d;
 };
 
 struct cif_isp11_stream {
@@ -459,7 +460,7 @@ struct cif_isp11_stream {
 	bool stall;
 	bool stop;
 	CIF_ISP11_PLTFRM_EVENT done;
-	struct cif_isp11_frame_timeinfo_s frame;
+	struct cif_isp11_metadata_s metadata;
 };
 
 struct cif_isp11_jpeg_config {
@@ -526,6 +527,35 @@ struct cif_isp11_mi_state {
 	unsigned int cr_size;
 };
 
+struct cif_isp11_img_src_exp {
+	struct list_head list;
+	struct cif_isp11_img_src_ext_ctrl *exp;
+};
+
+struct cif_isp11_img_src_data {
+	unsigned int v_frame_id;
+	struct isp_supplemental_sensor_mode_data data;
+};
+
+struct cif_isp11_img_src_exps {
+	spinlock_t lock;	/* protect list */
+	struct list_head list;
+
+	struct mutex mutex;	/* protect frm_exp */
+	struct cif_isp11_img_src_data data[2];
+	unsigned char exp_valid_frms;
+};
+
+enum cif_isp11_isp_vs_cmd {
+	CIF_ISP11_VS_EXP = 0,
+};
+
+struct cif_isp11_isp_vs_work {
+	struct work_struct work;
+	struct cif_isp11_device *dev;
+	enum cif_isp11_isp_vs_cmd cmd;
+	void *param;
+};
 /* ======================================================================== */
 
 struct cif_isp11_fmt {
@@ -554,6 +584,7 @@ struct cif_isp11_device {
 	struct cif_isp11_img_src *img_src;
 	struct cif_isp11_img_src *img_src_array[CIF_ISP11_NUM_INPUTS];
 	unsigned int img_src_cnt;
+	struct cif_isp11_img_src_exps img_src_exps;
 
 	struct cif_isp11_config config;
 	struct cif_isp11_isp_dev isp_dev;
@@ -561,7 +592,8 @@ struct cif_isp11_device {
 	struct cif_isp11_stream mp_stream;
 	struct cif_isp11_stream y12_stream;
 	struct cif_isp11_stream dma_stream;
-	struct timeval curr_frame_time; /* updated each frame */
+
+	struct workqueue_struct *vs_wq;
 	void (*sof_event)(struct cif_isp11_device *dev, __u32 frame_sequence);
 	/* requeue_bufs() is used to clean and rebuild the local buffer
 	lists xx_stream.buf_queue. This is used e.g. in the CAPTURE use
@@ -572,7 +604,6 @@ struct cif_isp11_device {
 	bool   b_mi_frame_end;
 	int   otf_zsl_mode;
 	struct flash_timeinfo_s flash_t;
-	unsigned char exposure_valid_frame;
 
 	struct pltfrm_soc_cfg *soc_cfg;
 	void *nodes;
@@ -637,6 +668,10 @@ int cif_isp11_reqbufs(
 	struct cif_isp11_device *dev,
 	enum cif_isp11_stream_id strm,
 	struct v4l2_requestbuffers *req);
+int cif_isp11_mmap(
+	struct cif_isp11_device *dev,
+	enum cif_isp11_stream_id stream_id,
+	struct vm_area_struct *vma);
 
 int cif_isp11_get_target_frm_size(
 	struct cif_isp11_device *dev,
@@ -669,9 +704,21 @@ void cif_isp11_dbgfs_fill_sensor_aec_para(
 	s32 exp_time,
 	u16 gain);
 
-int cif_isp11_fill_timeinfo(
+int cif_isp11_s_isp_metadata(
 	struct cif_isp11_device *dev,
-	enum cif_isp11_stream_id strm,
-	struct v4l2_buffer_timeinfo_s *p_v4l2buffer_t);
+	unsigned int stream_id,
+	struct videobuf_buffer *vb,
+	struct cifisp_isp_other_cfg *new_other,
+	struct cifisp_isp_meas_cfg *new_meas,
+	struct cifisp_stat_buffer *new_stats);
+
+int cif_isp11_s_exp(
+	struct cif_isp11_device *dev,
+	struct cif_isp11_img_src_ext_ctrl *exp_ctrl);
+
+void cif_isp11_sensor_mode_data_sync(
+	struct cif_isp11_device *dev,
+	unsigned int frame_id,
+	struct isp_supplemental_sensor_mode_data *data);
 /* #define FPGA_TEST */
 #endif
