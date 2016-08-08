@@ -406,6 +406,12 @@ struct rk8xx_pwrkey_data {
 	int pwr_rise_irq;
 };
 
+struct rk8xx_rtc_data {
+	u8 int_status_reg;
+	u8 alarm_int_status;
+	int alarm_irq;
+};
+
 struct rk8xx_regulator_data {
 	u8 dcdc1_id;
 	u8 ldo1_id;

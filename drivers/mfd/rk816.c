@@ -73,7 +73,9 @@ static struct mfd_cell rk816_cells[] = {
 		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},
 	{
-		.name = "rk816-rtc",
+		.name = "rk8xx-rtc",
+		.platform_data = &rk816_platform_data,
+		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},
 	{
 		.name = "rk8xx-pwrkey",
@@ -95,7 +97,10 @@ static struct mfd_cell rk805_cells[] = {
 		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},
 	{
-		.name = "rk816-rtc",
+		.name = "rk8xx-rtc",
+		.platform_data = &rk805_platform_data,
+		.pdata_size = sizeof(struct rk8xx_platform_data),
+
 	},
 	{
 		.name = "rk8xx-pwrkey",

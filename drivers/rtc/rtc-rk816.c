@@ -61,6 +61,22 @@ struct rk816_rtc {
 	struct rk816 *rk816;
 	struct rtc_device *rtc;
 	unsigned int alarm_enabled:1;
+	struct workqueue_struct	*workqueue;
+	struct work_struct alarm_work;
+};
+
+static struct rk8xx_rtc_data *rk8xx_rtc;
+
+static struct rk8xx_rtc_data rk816_rtc_data = {
+	.int_status_reg = RK816_INT_STS_REG2,
+	.alarm_int_status = RK816_ALARM_INT_STATUS,
+	.alarm_irq = RK816_IRQ_RTC_ALARM,
+};
+
+static struct rk8xx_rtc_data rk805_rtc_data = {
+	.int_status_reg = RK805_INT_STS_REG,
+	.alarm_int_status = RK805_ALARM_INT_STATUS,
+	.alarm_irq = RK805_IRQ_RTC_ALARM,
 };
 
 /*
@@ -311,13 +327,23 @@ static int rk816_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 static irqreturn_t rk816_alm_irq(int irq, void *data)
 {
 	struct rk816_rtc *rk816_rtc = data;
-	int ret;
+
+	queue_work(rk816_rtc->workqueue, &rk816_rtc->alarm_work);
+
+	return IRQ_HANDLED;
+}
+
+static void rk8xx_rtc_alarm_work(struct work_struct *work)
+{
+	int ret = 0;
 	u8 rtc_ctl;
+	struct rk816_rtc *rk816_rtc = container_of(work,
+					struct rk816_rtc, alarm_work);
 
 	ret = rk816_reg_read(rk816_rtc->rk816, RK816_RTC_STATUS_REG);
 	if (ret < 0) {
 		pr_err("%s:Failed to read RTC status: %d\n", __func__, ret);
-		return ret;
+		return;
 	}
 	rtc_ctl = ret & 0xff;
 
@@ -328,20 +354,19 @@ static irqreturn_t rk816_alm_irq(int irq, void *data)
 	ret = rk816_reg_write(rk816_rtc->rk816, RK816_RTC_STATUS_REG, rtc_ctl);
 	if (ret < 0) {
 		pr_err("%s:Failed to read RTC status: %d\n", __func__, ret);
-		return ret;
+		return;
 	}
 
-	ret = rk816_set_bits(rk816_rtc->rk816, RK816_INT_STS_REG2,
-			     RK816_ALARM_INT_STATUS, RK816_ALARM_INT_STATUS);
+	ret = rk816_set_bits(rk816_rtc->rk816, rk8xx_rtc->int_status_reg,
+			     rk8xx_rtc->alarm_int_status,
+			     rk8xx_rtc->alarm_int_status);
 	if (ret < 0) {
 		pr_err("%s:Failed to read RTC status: %d\n", __func__, ret);
-		return ret;
+		return;
 	}
 
 	rtc_update_irq(rk816_rtc->rtc, 1, RTC_IRQF | RTC_AF);
-	pr_info("%s:irq=%d,rtc_ctl=0x%x\n", __func__, irq, rtc_ctl);
-
-	return IRQ_HANDLED;
+	pr_info("%s:rtc_ctl=0x%x\n", __func__, rtc_ctl);
 }
 
 static const struct rtc_class_ops rk816_rtc_ops = {
@@ -427,6 +452,7 @@ struct rtc_time rk816_tm_def = {
 static int rk816_rtc_probe(struct platform_device *pdev)
 {
 	struct rk816 *rk816 = dev_get_drvdata(pdev->dev.parent);
+	struct rk8xx_platform_data *pdata = pdev->dev.platform_data;
 	struct rk816_rtc *rk816_rtc;
 	struct rtc_time tm;
 	int alm_irq;
@@ -435,12 +461,24 @@ static int rk816_rtc_probe(struct platform_device *pdev)
 
 	pr_info("%s,line=%d\n", __func__, __LINE__);
 
+	if (!strcmp(pdata->chip_name, "rk816")) {
+		rk8xx_rtc = &rk816_rtc_data;
+	} else if (!strcmp(pdata->chip_name, "rk805")) {
+		rk8xx_rtc = &rk805_rtc_data;
+	} else {
+		dev_err(&pdev->dev, "failed to match device data\n");
+		return -EINVAL;
+	}
+
 	rk816_rtc = devm_kzalloc(&pdev->dev, sizeof(*rk816_rtc), GFP_KERNEL);
 	if (rk816_rtc == NULL)
 		return -ENOMEM;
 
 	platform_set_drvdata(pdev, rk816_rtc);
 	rk816_rtc->rk816 = rk816;
+
+	rk816_rtc->workqueue = create_singlethread_workqueue("rk816_rtc");
+	INIT_WORK(&rk816_rtc->alarm_work, rk8xx_rtc_alarm_work);
 
 	/*start rtc default*/
 	ret = rk816_reg_read(rk816, RK816_RTC_CTRL_REG);
@@ -485,7 +523,7 @@ static int rk816_rtc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	alm_irq = regmap_irq_get_virq(rk816->irq_data, RK816_IRQ_RTC_ALARM);
+	alm_irq = regmap_irq_get_virq(rk816->irq_data, rk8xx_rtc->alarm_irq);
 	if (alm_irq < 0) {
 		if (alm_irq != -EPROBE_DEFER)
 			dev_err(&pdev->dev, "Wake up is not possible as irq = %d\n",
@@ -504,7 +542,7 @@ static int rk816_rtc_probe(struct platform_device *pdev)
 
 	rk816_pdev = pdev;
 
-	pr_info("%s:ok\n", __func__);
+	pr_info("%s: rtc ok\n", pdata->chip_name);
 
 	return ret;
 }
@@ -521,7 +559,7 @@ static const struct dev_pm_ops rk816_rtc_pm_ops = {
 static struct platform_driver rk816_rtc_driver = {
 	.probe = rk816_rtc_probe,
 	.driver = {
-		.name = "rk816-rtc",
+		.name = "rk8xx-rtc",
 		.pm = &rk816_rtc_pm_ops,
 	},
 };
