@@ -67,6 +67,8 @@ struct ov_camera_module_timings {
 	u32 crop_vertical_end;
 	u8 binning_factor_x;
 	u8 binning_factor_y;
+	u32 exp_time;
+	u32 gain;
 };
 struct ov_camera_module_config {
 	const char *name;
@@ -185,6 +187,7 @@ struct ov_camera_module {
 	struct ov_camera_module_config *active_config;
 	struct ov_camera_module_otp_work otp_work;
 	u32 ctrl_updt;
+	u32 vts_cur;
 	u32 vts_min;
 	bool auto_adjust_fps;
 	bool update_config;

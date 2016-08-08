@@ -82,6 +82,7 @@
 #define ov8858_BINING_SIZE_RESOLUTION_WIDTH 1632
 #define ov8858_VIDEO_SIZE_RESOLUTION_WIDTH 3200
 
+#define ov8858_EXP_VALID_FRAMES		4
 /* High byte of product ID */
 #define ov8858_PIDH_MAGIC 0x88
 /* Low byte of product ID  */
@@ -1991,7 +1992,7 @@ static struct ov_camera_module_config ov8858_configs[] = {
 		.reg_diff_table = NULL,
 		.reg_diff_table_num_entries = 0,
 		.v_blanking_time_us = 7251,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 481)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 4, 481, 24000000)
 	}
 };
 
@@ -2018,7 +2019,7 @@ static struct ov_camera_module_config ov8858_configs_R1A[] = {
 			/
 			sizeof(ov8858_init_tab_1632_1224_30fps_R1A[0]),
 		.v_blanking_time_us = 6579,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 720)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 720, 24000000)
 	},
 	{
 		.name = "3264x2448_15fps",
@@ -2042,7 +2043,7 @@ static struct ov_camera_module_config ov8858_configs_R1A[] = {
 			/
 			sizeof(ov8858_init_tab_3264_2448_15fps_R1A[0]),
 		.v_blanking_time_us = 6579,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 720)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 720, 24000000)
 	}
 };
 
@@ -2068,6 +2069,7 @@ static int ov8858_g_VTS(struct ov_camera_module *cam_mod, u32 *vts)
 		goto err;
 
 	*vts = (msb << 8) | lsb;
+	cam_mod->vts_cur = *vts;
 
 	return 0;
 err:
@@ -2097,12 +2099,14 @@ static int ov8858_auto_adjust_fps(struct ov_camera_module *cam_mod,
 		ov8858_TIMING_VTS_HIGH_REG,
 		(vts >> 8) & 0xFF);
 
-	if (IS_ERR_VALUE(ret))
+	if (IS_ERR_VALUE(ret)) {
 		ov_camera_module_pr_err(cam_mod,
-				"failed with error (%d)\n", ret);
-	else
+			"failed with error (%d)\n", ret);
+	} else {
 		ov_camera_module_pr_debug(cam_mod,
-					  "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+			"updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
 
 	return ret;
 }
@@ -2207,20 +2211,28 @@ static int ov8858_filltimings(struct ov_camera_module_custom_config *custom)
 		reg_table_num_entries = config->reg_table_num_entries;
 		timings = &config->timings;
 
+		memset(timings, 0x00, sizeof(*timings));
 		for (j = 0; j < reg_table_num_entries; j++) {
 			switch (reg_table[j].reg) {
 			case ov8858_TIMING_VTS_HIGH_REG:
-				timings->frame_length_lines = reg_table[j].val << 8;
+				timings->frame_length_lines =
+					((reg_table[j].val << 8) |
+					(timings->frame_length_lines & 0xff));
 				break;
 			case ov8858_TIMING_VTS_LOW_REG:
-				timings->frame_length_lines |= reg_table[j].val;
+				timings->frame_length_lines =
+					(reg_table[j].val |
+					(timings->frame_length_lines & 0xff00));
 				break;
 			case ov8858_TIMING_HTS_HIGH_REG:
 				timings->line_length_pck =
-					(reg_table[j].val << 8);
+					((reg_table[j].val << 8) |
+					timings->line_length_pck);
 				break;
 			case ov8858_TIMING_HTS_LOW_REG:
-				timings->line_length_pck |= reg_table[j].val;
+				timings->line_length_pck =
+					(reg_table[j].val |
+					(timings->line_length_pck & 0xff00));
 				break;
 			case ov8858_TIMING_X_INC:
 				timings->binning_factor_x = ((reg_table[j].val >> 4) + 1) / 2;
@@ -2233,56 +2245,109 @@ static int ov8858_filltimings(struct ov_camera_module_custom_config *custom)
 					timings->binning_factor_y = 1;
 				break;
 			case ov8858_HORIZONTAL_START_HIGH_REG:
-				timings->crop_horizontal_start = reg_table[j].val << 8;
+				timings->crop_horizontal_start =
+					((reg_table[j].val << 8) |
+					(timings->crop_horizontal_start & 0xff));
 				break;
 			case ov8858_HORIZONTAL_START_LOW_REG:
-				timings->crop_horizontal_start |= reg_table[j].val;
+				timings->crop_horizontal_start =
+					(reg_table[j].val |
+					(timings->crop_horizontal_start & 0xff00));
 				break;
 			case ov8858_VERTICAL_START_HIGH_REG:
-				timings->crop_vertical_start = reg_table[j].val << 8;
+				timings->crop_vertical_start =
+					((reg_table[j].val << 8) |
+					(timings->crop_vertical_start & 0xff));
 				break;
 			case ov8858_VERTICAL_START_LOW_REG:
-				timings->crop_vertical_start |= reg_table[j].val;
+				timings->crop_vertical_start =
+					((reg_table[j].val) |
+					(timings->crop_vertical_start & 0xff00));
 				break;
 			case ov8858_HORIZONTAL_END_HIGH_REG:
-				timings->crop_horizontal_end = reg_table[j].val << 8;
+				timings->crop_horizontal_end =
+					((reg_table[j].val << 8) |
+					(timings->crop_horizontal_end & 0xff));
 				break;
 			case ov8858_HORIZONTAL_END_LOW_REG:
-				timings->crop_horizontal_end |= reg_table[j].val;
+				timings->crop_horizontal_end =
+					(reg_table[j].val |
+					(timings->crop_horizontal_end & 0xff00));
 				break;
 			case ov8858_VERTICAL_END_HIGH_REG:
-				timings->crop_vertical_end = reg_table[j].val << 8;
+				timings->crop_vertical_end =
+					((reg_table[j].val << 8) |
+					(timings->crop_vertical_end & 0xff));
 				break;
 			case ov8858_VERTICAL_END_LOW_REG:
-				timings->crop_vertical_end |= reg_table[j].val;
+				timings->crop_vertical_end =
+					(reg_table[j].val |
+					(timings->crop_vertical_end & 0xff00));
 				break;
 			case ov8858_HORIZONTAL_OUTPUT_SIZE_HIGH_REG:
-				timings->sensor_output_width = reg_table[j].val << 8;
+				timings->sensor_output_width =
+					((reg_table[j].val << 8) |
+					(timings->sensor_output_width & 0xff));
 				break;
 			case ov8858_HORIZONTAL_OUTPUT_SIZE_LOW_REG:
-				timings->sensor_output_width |= reg_table[j].val;
+				timings->sensor_output_width =
+					(reg_table[j].val |
+					(timings->sensor_output_width & 0xff00));
 				break;
 			case ov8858_VERTICAL_OUTPUT_SIZE_HIGH_REG:
-				timings->sensor_output_height = reg_table[j].val << 8;
+				timings->sensor_output_height =
+					((reg_table[j].val << 8) |
+					(timings->sensor_output_height & 0xff));
 				break;
 			case ov8858_VERTICAL_OUTPUT_SIZE_LOW_REG:
-				timings->sensor_output_height |= reg_table[j].val;
+				timings->sensor_output_height =
+					(reg_table[j].val |
+					(timings->sensor_output_height & 0xff00));
+				break;
+			case ov8858_AEC_PK_LONG_EXPO_1ST_REG:
+				timings->exp_time =
+					((reg_table[j].val) |
+					(timings->exp_time & 0xffff00));
+				break;
+			case ov8858_AEC_PK_LONG_EXPO_2ND_REG:
+				timings->exp_time =
+					((reg_table[j].val << 8) |
+					(timings->exp_time & 0x00ff00));
+				break;
+			case ov8858_AEC_PK_LONG_EXPO_3RD_REG:
+				timings->exp_time =
+					(((reg_table[j].val & 0x0f) << 16) |
+					(timings->exp_time & 0xff0000));
+				break;
+			case ov8858_AEC_PK_LONG_GAIN_LOW_REG:
+				timings->gain =
+					(reg_table[j].val |
+					(timings->gain & 0x0700));
+				break;
+			case ov8858_AEC_PK_LONG_GAIN_HIGH_REG:
+				timings->gain =
+					(((reg_table[j].val & 0x07) << 8) |
+					(timings->gain & 0xff));
 				break;
 			}
 		}
 
-		timings->vt_pix_clk_freq_hz = config->frm_intrvl.interval.denominator
-					* timings->frame_length_lines
-					* timings->line_length_pck;
+		timings->exp_time >>= 4;
+		timings->vt_pix_clk_freq_hz =
+			config->frm_intrvl.interval.denominator
+			* timings->frame_length_lines
+			* timings->line_length_pck;
 
-		timings->coarse_integration_time_min = ov8858_COARSE_INTG_TIME_MIN;
+		timings->coarse_integration_time_min =
+			ov8858_COARSE_INTG_TIME_MIN;
 		timings->coarse_integration_time_max_margin =
 			ov8858_COARSE_INTG_TIME_MAX_MARGIN;
 
 		/* OV Sensor do not use fine integration time. */
-		timings->fine_integration_time_min = ov8858_FINE_INTG_TIME_MIN;
+		timings->fine_integration_time_min =
+			ov8858_FINE_INTG_TIME_MIN;
 		timings->fine_integration_time_max_margin =
-				ov8858_FINE_INTG_TIME_MAX_MARGIN;
+			ov8858_FINE_INTG_TIME_MAX_MARGIN;
 	}
 
 	return 0;
@@ -2291,21 +2356,25 @@ static int ov8858_g_timings(struct ov_camera_module *cam_mod,
 	struct ov_camera_module_timings *timings)
 {
 	int ret = 0;
+	unsigned int vts;
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config))
 		goto err;
 
 	*timings = cam_mod->active_config->timings;
 
+	vts = (!cam_mod->vts_cur) ?
+		timings->frame_length_lines :
+		cam_mod->vts_cur;
 	if (cam_mod->frm_intrvl_valid)
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->frm_intrvl.interval.denominator
-			* timings->frame_length_lines
+			* vts
 			* timings->line_length_pck;
 	else
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->active_config->frm_intrvl.interval.denominator
-			* timings->frame_length_lines
+			*vts
 			* timings->line_length_pck;
 
 	return ret;
@@ -2943,6 +3012,10 @@ err:
 	return ret;
 }
 
+static int ov8858_g_exposure_valid_frame(struct ov_camera_module *cam_mod)
+{
+	return ov8858_EXP_VALID_FRAMES;
+}
 /* ======================================================================== */
 /* This part is platform dependent */
 /* ======================================================================== */
@@ -2979,7 +3052,7 @@ static struct ov_camera_module_custom_config ov8858_custom_config = {
 	.g_ctrl = ov8858_g_ctrl,
 	.g_timings = ov8858_g_timings,
 	.check_camera_id = ov8858_check_camera_id,
-	/*.set_flip = ov8858_set_flip,*/
+	.g_exposure_valid_frame = ov8858_g_exposure_valid_frame,
 	.read_otp = ov8858_otp_read,
 	.configs = ov8858_configs,
 	.num_configs = sizeof(ov8858_configs) / sizeof(ov8858_configs[0]),
@@ -3001,7 +3074,7 @@ static int ov8858_probe(
 		goto err;
 
 	dev_info(&client->dev, "probing successful\n");
-	printk("%s exit\n", __func__);
+
 	return 0;
 err:
 	dev_err(&client->dev, "probing failed with error (%d)\n", ret);

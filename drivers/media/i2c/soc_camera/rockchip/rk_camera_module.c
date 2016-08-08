@@ -35,6 +35,7 @@
 #include <linux/videodev2.h>
 #include <linux/lcm.h>
 #include <linux/clk.h>
+#include <linux/regulator/consumer.h>
 #include <linux/platform_data/rk_isp11_platform_camera_module.h>
 #include <linux/platform_data/rk_isp11_platform.h>
 #include <media/v4l2-controls_rockchip.h>
@@ -65,7 +66,10 @@
 #define OF_CAMERA_MODULE_DEFRECT2 "rockchip,camera-module-defrect2"
 #define OF_CAMERA_MODULE_DEFRECT3 "rockchip,camera-module-defrect3"
 #define OF_CAMERA_MODULE_MIPI_DPHY_INDEX "rockchip,camera-module-mipi-dphy-index"
-#define OF_CAMERA_MODULE_DOVDD "rockchip,camera-module-dovdd"
+
+#define OF_CAMERA_MODULE_REGULATORS "rockchip,camera-module-regulator-names"
+#define OF_CAMERA_MODULE_REGULATOR_VOLTAGES "rockchip,camera-module-regulator-voltages"
+#define OF_CAMERA_MODULE_MCLK_NAME "rockchip,camera-module-mclk-name"
 
 const char *PLTFRM_CAMERA_MODULE_PIN_PD = OF_OV_GPIO_PD;
 const char *PLTFRM_CAMERA_MODULE_PIN_PWR = OF_OV_GPIO_PWR;
@@ -81,6 +85,17 @@ struct pltfrm_camera_module_gpio {
 	int pltfrm_gpio;
 	const char *label;
 	bool active_low;
+};
+
+struct pltfrm_camera_module_regulator {
+	struct regulator *regulator;
+	unsigned int min_uV;
+	unsigned int max_uV;
+};
+
+struct pltfrm_camera_module_regulators {
+	unsigned int cnt;
+	struct pltfrm_camera_module_regulator *regulator;
 };
 
 struct pltfrm_camera_module_fl{
@@ -136,6 +151,7 @@ struct pltfrm_camera_module_data {
 	struct pltfrm_cam_defrect defrects[4];
 	struct clk *mclk;
 	struct pltfrm_soc_cfg *soc_cfg;
+	struct pltfrm_camera_module_regulators regulators;
 
 	void *priv;
 };
@@ -246,7 +262,8 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	struct v4l2_subdev *sd)
 {
 	int ret = 0;
-	const char *facing = "";
+	int elem_size, elem_index;
+	const char *str = "";
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct device_node *np = of_node_get(client->dev.of_node);
 	struct device_node *af_ctrl_node = NULL;
@@ -254,6 +271,7 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	struct device_node *fl_ctrl_node = NULL;
 	struct i2c_client *fl_ctrl_client = NULL;
 	struct pltfrm_camera_module_data *pdata = NULL;
+	struct property *prop;
 
 	pltfrm_camera_module_pr_debug(sd, "\n");
 
@@ -265,24 +283,39 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 
 	client->dev.platform_data = pdata;
 
-	pdata->mclk = devm_clk_get(&client->dev, "clk_cif_out");
-	if (IS_ERR_OR_NULL(pdata->mclk)) {
+	ret = of_property_read_string(np, OF_CAMERA_MODULE_MCLK_NAME, &str);
+	if (ret) {
 		pltfrm_camera_module_pr_err(sd,
-			"cannot not get clk_cif_out property of node %s\n",
+			"cannot not get camera-module-mclk-name property of node %s\n",
 			np->name);
 		ret = -ENODEV;
 		goto err;
 	}
 
-	ret = of_property_read_string(np, "rockchip,camera-module-facing", &facing);
+	pdata->mclk = devm_clk_get(&client->dev, str);
+	if (IS_ERR_OR_NULL(pdata->mclk)) {
+		pltfrm_camera_module_pr_err(sd,
+			"cannot not get clk_mipicsi_out property of node %s\n",
+			np->name);
+		ret = -ENODEV;
+		goto err;
+	}
+
+	ret = of_property_read_string(np, "rockchip,camera-module-facing", &str);
 	if (ret) {
 		pltfrm_camera_module_pr_err(sd,
-				"cannot not get camera-module-facing property of node %s\n",
-				np->name);
+			"cannot not get camera-module-facing property of node %s\n",
+			np->name);
 	} else {
 		pltfrm_camera_module_pr_debug(sd,
 			"camera module camera-module-facing driver is %s\n",
-			facing);
+			str);
+	}
+	pdata->info.facing = -1;
+	if (!strcmp(str, "back")) {
+		pdata->info.facing = 0;
+	} else if (!strcmp(str, "front")) {
+		pdata->info.facing = 1;
 	}
 
 	ret = of_property_read_string(np, "rockchip,flash-driver",
@@ -360,6 +393,53 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 			"could not get sleep pinstate\n");
 	}
 
+	elem_size = of_property_count_elems_of_size(
+		np,
+		OF_CAMERA_MODULE_REGULATOR_VOLTAGES,
+		sizeof(u32));
+	prop = of_find_property(
+		np,
+		OF_CAMERA_MODULE_REGULATORS,
+		NULL);
+	if (!IS_ERR_VALUE(elem_size) &&
+		!IS_ERR_OR_NULL(prop)) {
+		struct pltfrm_camera_module_regulator *regulator;
+		pdata->regulators.regulator = devm_kzalloc(&client->dev,
+			elem_size*sizeof(struct pltfrm_camera_module_regulator),
+			GFP_KERNEL);
+		if (!pdata->regulators.regulator) {
+			pltfrm_camera_module_pr_err(sd,
+				"could not malloc pltfrm_camera_module_regulator\n");
+			goto err;
+		}
+		pdata->regulators.cnt = elem_size;
+		str = NULL;
+		elem_index = 0;
+		regulator = pdata->regulators.regulator;
+		do {
+			str = of_prop_next_string(prop, str);
+			if (!str) {
+				pltfrm_camera_module_pr_err(sd,
+					"%s is not match %s in dts\n",
+					OF_CAMERA_MODULE_REGULATORS,
+					OF_CAMERA_MODULE_REGULATOR_VOLTAGES);
+				break;
+			}
+			regulator->regulator =
+				devm_regulator_get_optional(&client->dev, str);
+			if (IS_ERR(regulator->regulator))
+				pltfrm_camera_module_pr_err(sd,
+					"devm_regulator_get %s failed\n",
+					str);
+			of_property_read_u32_index(
+				np,
+				OF_CAMERA_MODULE_REGULATOR_VOLTAGES,
+				elem_index++,
+				&regulator->min_uV);
+			regulator->max_uV = regulator->min_uV;
+			regulator++;
+		} while (--elem_size);
+	}
 	pdata->gpios[0].label = PLTFRM_CAMERA_MODULE_PIN_PD;
 	pdata->gpios[0].pltfrm_gpio =
 		of_get_named_gpio_flags(np, pdata->gpios[0].label, 0, NULL);
@@ -396,13 +476,6 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 		of_get_named_gpio_flags(np, pdata->gpios[4].label, 0, NULL);
 	pdata->gpios[4].active_low =
 		of_property_read_bool(np, OF_OV_GPIO_RESET "-is_active_low");
-
-	pdata->info.facing = -1;
-	if (!strcmp(facing, "back")) {
-		pdata->info.facing = 0;
-	} else if (!strcmp(facing, "front")) {
-		pdata->info.facing = 1;
-	}
 
 	ret = of_property_read_string(np, OF_CAMERA_MODULE_NAME,
 			&pdata->info.module_name);
@@ -566,12 +639,21 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	return pdata;
 err:
 	pltfrm_camera_module_pr_err(sd, "failed with error %d\n", ret);
+	if (!IS_ERR_OR_NULL(pdata->regulators.regulator)) {
+		devm_kfree(
+			&client->dev,
+			pdata->regulators.regulator);
+		pdata->regulators.regulator = NULL;
+	}
+
 	if (!IS_ERR_OR_NULL(pdata->mclk)) {
 		devm_clk_put(&client->dev, pdata->mclk);
 		pdata->mclk = NULL;
 	}
-	if (!IS_ERR_OR_NULL(pdata))
+	if (!IS_ERR_OR_NULL(pdata)) {
 		devm_kfree(&client->dev, pdata);
+		pdata = NULL;
+	}
 	of_node_put(np);
 	return ERR_PTR(ret);
 }
@@ -1086,6 +1168,8 @@ int pltfrm_camera_module_set_pm_state(
 		pdata->soc_cfg;
 	struct pltfrm_soc_mclk_para mclk_para;
 	struct pltfrm_soc_cfg_para cfg_para;
+	struct pltfrm_cam_itf itf_cfg;
+	unsigned int i;
 
 	if (on) {
 		if (IS_ERR_OR_NULL(soc_cfg)) {
@@ -1094,16 +1178,66 @@ int pltfrm_camera_module_set_pm_state(
 				soc_cfg);
 			return -EINVAL;
 		}
+
+		if (pdata->regulators.regulator) {
+			for (i = 0; i < pdata->regulators.cnt; i++) {
+				struct pltfrm_camera_module_regulator *regulator;
+
+				regulator = pdata->regulators.regulator + i;
+				if (IS_ERR(regulator->regulator))
+					continue;
+				regulator_set_voltage(
+					regulator->regulator,
+					regulator->min_uV,
+					regulator->max_uV);
+				if (regulator_enable(regulator->regulator))
+					pltfrm_camera_module_pr_err(sd,
+						"regulator_enable failed!\n");
+			}
+		}
+
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_PWR,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
+
 		mclk_para.io_voltage = PLTFRM_IO_1V8;
 		mclk_para.drv_strength = PLTFRM_DRV_STRENGTH_2;
 		cfg_para.cmd = PLTFRM_MCLK_CFG;
 		cfg_para.cfg_para = (void *)&mclk_para;
 		(soc_cfg->soc_cfg)(&cfg_para);
 
-		clk_set_rate(pdata->mclk, 24000000);
+		if (v4l2_subdev_call(sd,
+			core,
+			ioctl,
+			PLTFRM_CIFCAM_G_ITF_CFG,
+			(void *)&itf_cfg) == 0) {
+			clk_set_rate(pdata->mclk, itf_cfg.mclk_hz);
+		} else {
+			pltfrm_camera_module_pr_err(sd,
+				"PLTFRM_CIFCAM_G_ITF_CFG failed,"
+				"mclk set 24m default.\n");
+			clk_set_rate(pdata->mclk, 24000000);
+		}
 		clk_prepare_enable(pdata->mclk);
 	} else {
 		clk_disable_unprepare(pdata->mclk);
+
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_PWR,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
+
+		if (pdata->regulators.regulator) {
+			for (i = 0; i < pdata->regulators.cnt; i++) {
+				struct pltfrm_camera_module_regulator *regulator;
+
+				regulator = pdata->regulators.regulator + i;
+				if (IS_ERR(regulator->regulator))
+					continue;
+				regulator_disable(regulator->regulator);
+			}
+		}
 	}
 
 	return 0;

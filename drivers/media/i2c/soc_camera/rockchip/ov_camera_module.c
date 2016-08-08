@@ -52,6 +52,10 @@ static void ov_camera_module_reset(
 	cam_mod->ctrl_updt = 0;
 	cam_mod->state = OV_CAMERA_MODULE_POWER_OFF;
 	cam_mod->state_before_suspend = OV_CAMERA_MODULE_POWER_OFF;
+
+	cam_mod->exp_config.exp_time = 0;
+	cam_mod->exp_config.gain = 0;
+	cam_mod->vts_cur = 0;
 }
 /* ======================================================================== */
 
@@ -484,10 +488,6 @@ int ov_camera_module_s_power(struct v4l2_subdev *sd, int on)
 		}
 		if (OV_CAMERA_MODULE_HW_STANDBY == cam_mod->state) {
 			ret = pltfrm_camera_module_set_pin_state(&cam_mod->sd,
-				PLTFRM_CAMERA_MODULE_PIN_PWR,
-				PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-			usleep_range(1000, 1500);
-			ret = pltfrm_camera_module_set_pin_state(&cam_mod->sd,
 				PLTFRM_CAMERA_MODULE_PIN_PD,
 				PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
 			if (!IS_ERR_VALUE(ret)) {
@@ -517,10 +517,8 @@ int ov_camera_module_s_power(struct v4l2_subdev *sd, int on)
 			ret = pltfrm_camera_module_set_pin_state(
 				&cam_mod->sd,
 				PLTFRM_CAMERA_MODULE_PIN_PD,
-				PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
-			ret = pltfrm_camera_module_set_pin_state(&cam_mod->sd,
-				PLTFRM_CAMERA_MODULE_PIN_PWR,
-				PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
+				PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
+
 			if (!IS_ERR_VALUE(ret))
 				cam_mod->state = OV_CAMERA_MODULE_HW_STANDBY;
 		}
@@ -922,9 +920,14 @@ long ov_camera_module_ioctl(struct v4l2_subdev *sd,
 		if (cam_mod->custom.g_exposure_valid_frame)
 			timings->exposure_valid_frame =
 				cam_mod->custom.g_exposure_valid_frame(cam_mod);
-		timings->exp_time = cam_mod->exp_config.exp_time;
-		timings->gain = cam_mod->exp_config.gain;
-
+		if (cam_mod->exp_config.exp_time)
+			timings->exp_time = cam_mod->exp_config.exp_time;
+		else
+			timings->exp_time = ov_timings.exp_time;
+		if (cam_mod->exp_config.gain)
+			timings->gain = cam_mod->exp_config.gain;
+		else
+			timings->gain = ov_timings.gain;
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
 		struct pltfrm_cam_itf *itf_cfg = (struct pltfrm_cam_itf *)arg;

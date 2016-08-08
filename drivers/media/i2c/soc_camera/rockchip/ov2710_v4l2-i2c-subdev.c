@@ -191,7 +191,7 @@ static struct ov_camera_module_reg ov2710_init_tab_1920_1080_30fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3502, 0x00},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3503, 0x33},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x350a, 0x00},
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x350b, 0x00},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x350b, 0x1f},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5000, 0x5f},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x5001, 0x4e},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3406, 0x01},
@@ -201,10 +201,11 @@ static struct ov_camera_module_reg ov2710_init_tab_1920_1080_30fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3403, 0x00},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3404, 0x04},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3405, 0x00},
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4800, 0x24},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4800, 0x24}
+/*reduce frequency
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3010, 0x30},
-
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3012, 0x02}
+*/
 };
 
 /* ======================================================================== */
@@ -232,7 +233,7 @@ static struct ov_camera_module_config ov2710_configs[] = {
 			sizeof(ov2710_init_tab_1920_1080_30fps[0]),
 		.v_blanking_time_us = 3078,
 		.ignore_measurement_check = 1,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 1, 720)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 1, 720, 24000000)
 		/*.set_exposure = {
 			.exposure_effect_mode = CAMERA_MODULE_SET_EXPOSURE_MODE_VSTART,
 			.exposure_gain_interval = 0,
@@ -450,21 +451,28 @@ static int ov2710_filltimings(struct ov_camera_module_custom_config *custom)
 		reg_table_num_entries = config->reg_table_num_entries;
 		timings = &config->timings;
 
+		memset(timings, 0x00, sizeof(*timings));
 		for (j = 0; j < reg_table_num_entries; j++) {
 			switch (reg_table[j].reg) {
 			case OV2710_TIMING_VTS_HIGH_REG:
 				timings->frame_length_lines =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->frame_length_lines & 0xff));
 				break;
 			case OV2710_TIMING_VTS_LOW_REG:
-				timings->frame_length_lines |= reg_table[j].val;
+				timings->frame_length_lines =
+					(reg_table[j].val |
+					(timings->frame_length_lines & 0xff00));
 				break;
 			case OV2710_TIMING_HTS_HIGH_REG:
 				timings->line_length_pck =
-					(reg_table[j].val << 8);
+					((reg_table[j].val << 8) |
+					timings->line_length_pck);
 				break;
 			case OV2710_TIMING_HTS_LOW_REG:
-				timings->line_length_pck |= reg_table[j].val;
+				timings->line_length_pck =
+					(reg_table[j].val |
+					(timings->line_length_pck & 0xff00));
 				break;
 			case OV2710_TIMING_X_INC:
 				timings->binning_factor_x =
@@ -480,35 +488,43 @@ static int ov2710_filltimings(struct ov_camera_module_custom_config *custom)
 				break;
 			case OV2710_HORIZONTAL_START_HIGH_REG:
 				timings->crop_horizontal_start =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->crop_horizontal_start & 0xff));
 				break;
 			case OV2710_HORIZONTAL_START_LOW_REG:
-				timings->crop_horizontal_start |=
-					reg_table[j].val;
+				timings->crop_horizontal_start =
+					(reg_table[j].val |
+					(timings->crop_horizontal_start & 0xff00));
 				break;
 			case OV2710_VERTICAL_START_HIGH_REG:
 				timings->crop_vertical_start =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->crop_vertical_start & 0xff));
 				break;
 			case OV2710_VERTICAL_START_LOW_REG:
-				timings->crop_vertical_start |=
-					reg_table[j].val;
+				timings->crop_vertical_start =
+					((reg_table[j].val) |
+					(timings->crop_vertical_start & 0xff00));
 				break;
 			case OV2710_HORIZONTAL_END_HIGH_REG:
 				timings->crop_horizontal_end =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->crop_horizontal_end & 0xff));
 				break;
 			case OV2710_HORIZONTAL_END_LOW_REG:
-				timings->crop_horizontal_end |=
-					reg_table[j].val;
+				timings->crop_horizontal_end =
+					(reg_table[j].val |
+					(timings->crop_horizontal_end & 0xff00));
 				break;
 			case OV2710_VERTICAL_END_HIGH_REG:
 				timings->crop_vertical_end =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->crop_vertical_end & 0xff));
 				break;
 			case OV2710_VERTICAL_END_LOW_REG:
-				timings->crop_vertical_end |=
-					reg_table[j].val;
+				timings->crop_vertical_end =
+					(reg_table[j].val |
+					(timings->crop_vertical_end & 0xff00));
 				break;
 			case OV2710_H_WIN_OFF_HIGH_REG:
 				win_h_off = (reg_table[j].val & 0xf) << 8;
@@ -524,19 +540,23 @@ static int ov2710_filltimings(struct ov_camera_module_custom_config *custom)
 				break;
 			case OV2710_HORIZONTAL_OUTPUT_SIZE_HIGH_REG:
 				timings->sensor_output_width =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->sensor_output_width & 0xff));
 				break;
 			case OV2710_HORIZONTAL_OUTPUT_SIZE_LOW_REG:
-				timings->sensor_output_width |=
-					reg_table[j].val;
+				timings->sensor_output_width =
+					(reg_table[j].val |
+					(timings->sensor_output_width & 0xff00));
 				break;
 			case OV2710_VERTICAL_OUTPUT_SIZE_HIGH_REG:
 				timings->sensor_output_height =
-					reg_table[j].val << 8;
+					((reg_table[j].val << 8) |
+					(timings->sensor_output_height & 0xff));
 				break;
 			case OV2710_VERTICAL_OUTPUT_SIZE_LOW_REG:
-				timings->sensor_output_height |=
-					reg_table[j].val;
+				timings->sensor_output_height =
+					(reg_table[j].val |
+					(timings->sensor_output_height & 0xff00));
 				break;
 			}
 		}
@@ -546,6 +566,7 @@ static int ov2710_filltimings(struct ov_camera_module_custom_config *custom)
 		timings->crop_vertical_start += win_v_off;
 		timings->crop_vertical_end -= win_v_off;
 
+		timings->exp_time >>= 4;
 		timings->vt_pix_clk_freq_hz =
 			config->frm_intrvl.interval.denominator
 			*timings->frame_length_lines
@@ -572,20 +593,26 @@ static int ov2710_g_timings(struct ov_camera_module *cam_mod,
 			    struct ov_camera_module_timings *timings)
 {
 	int ret = 0;
+	unsigned int vts;
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config))
 		goto err;
 
 	*timings = cam_mod->active_config->timings;
 
-	timings->vt_pix_clk_freq_hz = cam_mod->frm_intrvl.interval.denominator
-					*timings->frame_length_lines
-					*timings->line_length_pck;
-
-	ov_camera_module_pr_debug(cam_mod,
-			"vt_pix_clk_freq_hz: %d, frame_length_lines: 0x%x, line_length_pck: 0x%x\n",
-			timings->vt_pix_clk_freq_hz, timings->frame_length_lines,
-			timings->line_length_pck);
+	vts = (!cam_mod->vts_cur) ?
+		timings->frame_length_lines :
+		cam_mod->vts_cur;
+	if (cam_mod->frm_intrvl_valid)
+		timings->vt_pix_clk_freq_hz =
+			cam_mod->frm_intrvl.interval.denominator
+			* vts
+			* timings->line_length_pck;
+	else
+		timings->vt_pix_clk_freq_hz =
+			cam_mod->active_config->frm_intrvl.interval.denominator
+			*vts
+			* timings->line_length_pck;
 
 	return ret;
 err:
