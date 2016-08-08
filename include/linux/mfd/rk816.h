@@ -81,6 +81,18 @@
 #define RK805_IRQ_RTC_PERIOD_MSK		BIT(6)
 #define RK805_IRQ_PWRON_FALL_MSK		BIT(7)
 
+#define RK805_PWR_RISE_INT_STATUS		BIT(0)
+#define RK805_VB_LOW_INT_STATUS			BIT(1)
+#define RK805_PWRON_INT_STATUS			BIT(2)
+#define RK805_PWRON_LP_INT_STATUS		BIT(3)
+#define RK805_HOTDIE_INT_STATUS			BIT(4)
+#define RK805_ALARM_INT_STATUS			BIT(5)
+#define RK805_PERIOD_INT_STATUS			BIT(6)
+#define RK805_PWR_FALL_INT_STATUS		BIT(7)
+
+#define RK805_PWRON_FALL_RISE_INT_EN		0x0
+#define RK805_PWRON_FALL_RISE_INT_MSK		0x81
+
 #define RK805_NUM_REGULATORS			7
 
 /*************************** RK816 ********************************************/
@@ -333,7 +345,7 @@
 #define BUCK_RATE_12_5MV_US			(0x2 << 3)
 #define ALL_INT_FLAGS_ST			0xff
 #define PLUGIN_OUT_INT_EN			0xfc
-#define PWRON_FALL_RISE_INT_EN			0x9f
+#define RK816_PWRON_FALL_RISE_INT_EN		0x9f
 #define DEV_OFF					(1 << 0)
 
 enum rk805_reg_id {
@@ -384,6 +396,14 @@ struct rk816 {
 	struct regmap *regmap;
 	struct regmap_irq_chip_data *irq_data;
 	struct regmap_irq_chip_data *battery_irq_data;
+};
+
+struct rk8xx_pwrkey_data {
+	u8 int_status_reg;
+	u8 pwr_fall_int_status;
+	u8 pwr_rise_int_status;
+	int pwr_fall_irq;
+	int pwr_rise_irq;
 };
 
 struct rk8xx_regulator_data {

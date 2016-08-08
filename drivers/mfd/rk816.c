@@ -76,7 +76,9 @@ static struct mfd_cell rk816_cells[] = {
 		.name = "rk816-rtc",
 	},
 	{
-		.name = "rk816-pwrkey",
+		.name = "rk8xx-pwrkey",
+		.platform_data = &rk816_platform_data,
+		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},
 	{
 		.name = "rk816-battery",
@@ -94,6 +96,11 @@ static struct mfd_cell rk805_cells[] = {
 	},
 	{
 		.name = "rk816-rtc",
+	},
+	{
+		.name = "rk8xx-pwrkey",
+		.platform_data = &rk805_platform_data,
+		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},
 };
 
@@ -519,7 +526,7 @@ static struct rk8xx_reg_data rk816_init_reg[] = {
 	{RK816_VB_MON_REG, RK816_VBAT_LOW_3V0 | EN_VABT_LOW_SHUT_DOWN,
 	 VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK},
 	/* enable PWRON rising/faling int */
-	{RK816_INT_STS_MSK_REG1, PWRON_FALL_RISE_INT_EN, REG_WRITE_MSK},
+	{RK816_INT_STS_MSK_REG1, RK816_PWRON_FALL_RISE_INT_EN, REG_WRITE_MSK},
 	/* enable PLUG IN/OUT int */
 	{RK816_INT_STS_MSK_REG3, PLUGIN_OUT_INT_EN, REG_WRITE_MSK},
 	/* clear int flags */
@@ -529,6 +536,9 @@ static struct rk8xx_reg_data rk816_init_reg[] = {
 };
 
 static struct rk8xx_reg_data rk805_init_reg[] = {
+	/* enable PWRON rising/faling int */
+	{RK805_INT_STS_MSK_REG, RK805_PWRON_FALL_RISE_INT_EN,
+	 RK805_PWRON_FALL_RISE_INT_MSK},
 	/* clear int flags */
 	{RK805_INT_STS_REG, ALL_INT_FLAGS_ST, REG_WRITE_MSK},
 	/* sleep pin set as default: sleep mode */

@@ -27,55 +27,102 @@ struct rk816_pwr_button {
 	struct input_dev *input_dev;
 	struct device		*dev;
 	int report_key;
+	struct workqueue_struct	*workqueue;
+	struct work_struct fall_work;
+	struct work_struct rise_work;
+};
+
+static struct rk8xx_pwrkey_data *rk8xx_pwrkey;
+
+static struct rk8xx_pwrkey_data rk816_pwrkey = {
+	.int_status_reg = RK816_INT_STS_REG1,
+	.pwr_fall_irq = RK816_IRQ_PWRON_FALL,
+	.pwr_rise_irq = RK816_IRQ_PWRON_RISE,
+	.pwr_fall_int_status = RK816_PWR_FALL_INT_STATUS,
+	.pwr_rise_int_status = RK816_PWR_RISE_INT_STATUS,
+};
+
+static struct rk8xx_pwrkey_data rk805_pwrkey = {
+	.int_status_reg = RK805_INT_STS_REG,
+	.pwr_fall_irq = RK805_IRQ_PWRON_FALL,
+	.pwr_rise_irq = RK805_IRQ_PWRON_RISE,
+	.pwr_fall_int_status = RK805_PWR_FALL_INT_STATUS,
+	.pwr_rise_int_status = RK805_PWR_RISE_INT_STATUS,
 };
 
 static irqreturn_t rk816_powkey_irq_falling(int irq, void *_pwr)
 {
 	struct rk816_pwr_button *pwr = _pwr;
-	int ret = 0;
 
-	ret = rk816_set_bits(pwr->rk816, RK816_INT_STS_REG1,
-			     RK816_PWR_FALL_INT_STATUS,
-			     RK816_PWR_FALL_INT_STATUS);
-	if (ret < 0) {
-		pr_err("%s:Failed to read pwrkey status: %d\n", __func__, ret);
-		return ret;
-	}
-
-	input_report_key(pwr->input_dev, pwr->report_key, 1);
-	input_sync(pwr->input_dev);
-
+	queue_work(pwr->workqueue, &pwr->fall_work);
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t rk816_powkey_irq_rising(int irq, void *_pwr)
 {
 	struct rk816_pwr_button *pwr = _pwr;
-	int ret = 0;
 
-	ret = rk816_set_bits(pwr->rk816, RK816_INT_STS_REG1,
-			     RK816_PWR_RISE_INT_STATUS,
-			     RK816_PWR_RISE_INT_STATUS);
+	queue_work(pwr->workqueue, &pwr->rise_work);
+	return IRQ_HANDLED;
+}
+
+static void rk816_pwrkey_fall_work(struct work_struct *work)
+{
+	int ret = 0;
+	struct rk816_pwr_button *pwr = container_of(work,
+			struct rk816_pwr_button, fall_work);
+
+	ret = rk816_set_bits(pwr->rk816, rk8xx_pwrkey->int_status_reg,
+			     rk8xx_pwrkey->pwr_fall_int_status,
+			     rk8xx_pwrkey->pwr_fall_int_status);
 	if (ret < 0) {
 		pr_err("%s:Failed to read pwrkey status: %d\n", __func__, ret);
-		return ret;
+		return;
+	}
+
+	input_report_key(pwr->input_dev, pwr->report_key, 1);
+	input_sync(pwr->input_dev);
+}
+
+static void rk816_pwrkey_rise_work(struct work_struct *work)
+{
+	int ret = 0;
+	struct rk816_pwr_button *pwr = container_of(work,
+			struct rk816_pwr_button, rise_work);
+
+	ret = rk816_set_bits(pwr->rk816, rk8xx_pwrkey->int_status_reg,
+			     rk8xx_pwrkey->pwr_rise_int_status,
+			     rk8xx_pwrkey->pwr_rise_int_status);
+	if (ret < 0) {
+		pr_err("%s:Failed to read pwrkey status: %d\n", __func__, ret);
+		return;
 	}
 
 	input_report_key(pwr->input_dev, pwr->report_key, 0);
 	input_sync(pwr->input_dev);
-
-	return IRQ_HANDLED;
 }
 
-static int __init rk816_pwrkey_probe(struct platform_device *pdev)
+static int rk816_pwrkey_probe(struct platform_device *pdev)
 {
 	int err;
 	struct rk816_pwr_button *pwrkey;
 	struct rk816 *rk816 = dev_get_drvdata(pdev->dev.parent);
-	int fall_irq = regmap_irq_get_virq(rk816->irq_data,
-					   RK816_IRQ_PWRON_FALL);
-	int rise_irq = regmap_irq_get_virq(rk816->irq_data,
-					   RK816_IRQ_PWRON_RISE);
+	struct rk8xx_platform_data *pdata = pdev->dev.platform_data;
+	int fall_irq, rise_irq;
+
+	if (!strcmp(pdata->chip_name, "rk816")) {
+		rk8xx_pwrkey = &rk816_pwrkey;
+	} else if (!strcmp(pdata->chip_name, "rk805")) {
+		rk8xx_pwrkey = &rk805_pwrkey;
+	} else {
+		dev_err(&pdev->dev, "failed to match device data\n");
+		return -EINVAL;
+	}
+
+	fall_irq = regmap_irq_get_virq(rk816->irq_data,
+				       rk8xx_pwrkey->pwr_fall_irq);
+	rise_irq = regmap_irq_get_virq(rk816->irq_data,
+				       rk8xx_pwrkey->pwr_rise_irq);
 	pwrkey = devm_kzalloc(&pdev->dev,
 			      sizeof(struct rk816_pwr_button), GFP_KERNEL);
 	if (!pwrkey)
@@ -96,6 +143,10 @@ static int __init rk816_pwrkey_probe(struct platform_device *pdev)
 	pwrkey->input_dev->name = "rk816_pwrkey";
 	pwrkey->input_dev->phys = "rk816_pwrkey/input0";
 	pwrkey->input_dev->dev.parent = &pdev->dev;
+	pwrkey->workqueue = create_singlethread_workqueue("rk816_pwrkey");
+	INIT_WORK(&pwrkey->fall_work, rk816_pwrkey_fall_work);
+	INIT_WORK(&pwrkey->rise_work, rk816_pwrkey_rise_work);
+
 	err = devm_request_threaded_irq(&pdev->dev, fall_irq,
 					NULL, rk816_powkey_irq_falling,
 					IRQF_TRIGGER_FALLING,
@@ -121,21 +172,33 @@ static int __init rk816_pwrkey_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, pwrkey);
 
+	pr_info("%s register rk8xx_pwrkey driver\n", pdata->chip_name);
+
 	return 0;
 }
 
 static struct platform_driver rk816_pwrkey_driver = {
+	.probe = rk816_pwrkey_probe,
 	.driver		= {
-		.name	= "rk816-pwrkey",
+		.name	= "rk8xx-pwrkey",
 		.owner	= THIS_MODULE,
 	},
 };
 
-module_platform_driver_probe(rk816_pwrkey_driver,
-			     rk816_pwrkey_probe);
+static int __init rk816_pwrkey_init(void)
+{
+	return platform_driver_register(&rk816_pwrkey_driver);
+}
+
+static void rk816_pwrkey_exit(void)
+{
+	platform_driver_unregister(&rk816_pwrkey_driver);
+}
+
+module_init(rk816_pwrkey_init);
+module_exit(rk816_pwrkey_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:rk816_pwrkey");
 MODULE_DESCRIPTION("RK816 Power Button");
 MODULE_AUTHOR("zhangqing <zhangqing@rock-chips.com>");
-
