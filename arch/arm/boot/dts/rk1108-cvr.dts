@@ -233,7 +233,7 @@
 		reg = <0x36>;
 		device_type = "v4l2-i2c-subdev";
 		clocks = <&clk_mipicsi_out>;
-		clock-names = "cif_clk_out";
+		clock-names = "clk_mipicsi_out";
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&cam0_default_pins>;
 		pinctrl-1 = <&cam0_sleep_pins>;
@@ -241,6 +241,7 @@
 		rockchip,pd-gpio-is_active_high;
 		rockchip,pwr-gpio = <&gpio3 25 GPIO_ACTIVE_HIGH>;
 		rockchip,pwr-gpio-is_active_high;
+		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
 		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
 		rockchip,camera-module-regulator-voltages = <1450000 3300000>;
 		rockchip,camera-module-facing = "back";
