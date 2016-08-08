@@ -270,6 +270,21 @@
 	status = "okay";
 };
 
+&gmac_clkin {
+	clock-frequency = <50000000>;
+};
+
+&gmac {
+	status = "okay";
+
+	/* pmu_regulator = "act_ldo5"; */
+	/* power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>; */
+	reset-gpio = <&gpio1 GPIO_C1 GPIO_ACTIVE_LOW>;
+
+	phy-mode = "rmii";
+	clock_in_out = "output";
+};
+
 &pwm0 {
 	status = "okay";
 };
