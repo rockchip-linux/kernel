@@ -1079,7 +1079,8 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	if (of_device_is_compatible(np, "rockchip,rk3288-gmac") ||
 	    of_device_is_compatible(np, "rockchip,rk312x-gmac") ||
 	    of_device_is_compatible(np, "rockchip,rk3368-gmac") ||
-	    of_device_is_compatible(np, "rockchip,rk322x-gmac")) {
+	    of_device_is_compatible(np, "rockchip,rk322x-gmac") ||
+	    of_device_is_compatible(np, "rockchip,rk1108-gmac")) {
 		plat->has_gmac = 1;
 		plat->pmt = 1;
 	}
