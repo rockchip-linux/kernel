@@ -792,7 +792,7 @@
 		compatible = "rockchip,rk1108-gmac";
 		reg = <0x30200000 0x10000>;
 		rockchip,grf = <&grf>;
-		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
 		clocks = <&clk_mac>, <&clk_gates4 8>,
 			 <&clk_gates4 8>, <&clk_gates4 6>,
