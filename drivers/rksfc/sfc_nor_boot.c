@@ -27,11 +27,11 @@
 #include "sfc.h"
 #include "sfc_nor.h"
 
-#define SPI_VENDOR_TEST         0
+#define SPI_VENDOR_TEST		0
 #define	DRM_DEBUG		1
 
 #if DRM_DEBUG
-#define DLOG(fmt, args...)	printk(fmt, ##args)
+#define DLOG(fmt, args...)	pr_info(fmt, ##args)
 #else
 #define DLOG(x...)
 #endif
@@ -42,7 +42,7 @@ void rknand_print_hex(char *s, void *buf, int width, int len)
 		       16, width, buf, len, 0);
 }
 
-struct tag_vendor_item {
+struct vendor_item {
 	u16  id;
 	u16  offset;
 	u16  size;
@@ -51,38 +51,42 @@ struct tag_vendor_item {
 
 #define	SPI_VENDOR_PART_START	8
 #define	SPI_VENDOR_PART_SIZE	8
-#define SPI_VENDOR_PART_NUM	7
+#define SPI_VENDOR_PART_NUM	4
 #define SPI_VENDOR_TAG		0x524B5644
 struct tag_vendor_info {
-	u32  tag;
+	u32	tag;
 	u32	version;
 	u16	next_index;
 	u16	item_num;
-	u16  free_offset;
+	u16	free_offset;
 	u16	free_size;
-	struct tag_vendor_item item[62]; /* 62 * 8*/
+	struct vendor_item item[62]; /* 62 * 8*/
 	u8	data[SPI_VENDOR_PART_SIZE * 512 - 512 - 8];
 	u32	hash;
-	u32	tag2;
+	u32	version2;
 };
 
-struct tag_vendor_info g_vendor;
+static struct tag_vendor_info *g_vendor;
 
 u32 spi_vendor_init(void)
 {
 	u32 i, max_ver, max_index;
+
+	g_vendor = kmalloc(sizeof(*g_vendor), GFP_KERNEL | GFP_DMA);
+	if (!g_vendor)
+		return 0;
 
 	max_ver = 0;
 	max_index = 0;
 	for (i = 0; i < SPI_VENDOR_PART_NUM; i++) {
 		snor_read(SPI_VENDOR_PART_START + SPI_VENDOR_PART_SIZE * i,
 			  SPI_VENDOR_PART_SIZE,
-			  &g_vendor);
-		if (g_vendor.tag == SPI_VENDOR_TAG &&
-		    g_vendor.tag2 == SPI_VENDOR_TAG) {
-			if (max_ver < g_vendor.version) {
+			  g_vendor);
+		if (g_vendor->tag == SPI_VENDOR_TAG &&
+		    g_vendor->version == g_vendor->version2) {
+			if (max_ver < g_vendor->version) {
 				max_index = i;
-				max_ver = g_vendor.version;
+				max_ver = g_vendor->version;
 			}
 		}
 	}
@@ -91,16 +95,16 @@ u32 spi_vendor_init(void)
 		snor_read(SPI_VENDOR_PART_START +
 		SPI_VENDOR_PART_SIZE * max_index,
 		SPI_VENDOR_PART_SIZE,
-		&g_vendor);
+		g_vendor);
 	} else {
-		memset(&g_vendor, 0, sizeof(g_vendor));
-		g_vendor.version = 1;
-		g_vendor.tag = SPI_VENDOR_TAG;
-		g_vendor.tag2 = g_vendor.tag;
-		g_vendor.free_offset = 0;
-		g_vendor.free_size = sizeof(g_vendor.data);
+		memset(g_vendor, 0, sizeof(g_vendor));
+		g_vendor->version = 1;
+		g_vendor->tag = SPI_VENDOR_TAG;
+		g_vendor->version2 = g_vendor->version;
+		g_vendor->free_offset = 0;
+		g_vendor->free_size = sizeof(g_vendor->data);
 	}
-	/* rknand_print_hex("vendor:", &g_vendor, 4, 1024); */
+	/* rknand_print_hex("vendor:", g_vendor, 4, 1024); */
 	return 0;
 }
 
@@ -108,14 +112,17 @@ u32 spi_vendor_read(u8 cs, u32 id, void *pbuf, u32 size)
 {
 	u32 i;
 
-	for (i = 0; i < g_vendor.item_num; i++) {
-		if (g_vendor.item[i].id == id) {
-			if (size > g_vendor.item[i].size)
-				return -1;
+	if (!g_vendor)
+		return -1;
+
+	for (i = 0; i < g_vendor->item_num; i++) {
+		if (g_vendor->item[i].id == id) {
+			if (size > g_vendor->item[i].size)
+				size = g_vendor->item[i].size;
 			memcpy(pbuf,
-			       &g_vendor.data[g_vendor.item[i].offset],
+			       &g_vendor->data[g_vendor->item[i].offset],
 			       size);
-			return 0;
+			return size;
 		}
 	}
 	return (-1);
@@ -124,46 +131,49 @@ u32 spi_vendor_read(u8 cs, u32 id, void *pbuf, u32 size)
 u32 spi_vendor_write(u8 cs, u32 id, void *pbuf, u32 size)
 {
 	u32 i, next_index, algin_size;
+	struct vendor_item *item;
 
-	next_index = g_vendor.next_index;
-	for (i = 0; i < g_vendor.item_num; i++) {
-		if (g_vendor.item[i].id == id) {
-			if (size > g_vendor.item[i].size)
+	algin_size = (size + 0x3F) & (~0x3F); /* algin to 64 bytes*/
+	next_index = g_vendor->next_index;
+	for (i = 0; i < g_vendor->item_num; i++) {
+		if (g_vendor->item[i].id == id) {
+			if (size > algin_size)
 				return -1;
-			memcpy(&g_vendor.data[g_vendor.item[i].offset],
+			memcpy(&g_vendor->data[g_vendor->item[i].offset],
 			       pbuf,
 			       size);
-			g_vendor.version++;
-			g_vendor.next_index++;
-			if (g_vendor.next_index >= SPI_VENDOR_PART_NUM)
-				g_vendor.next_index = 0;
+			g_vendor->item[i].size = size;
+			g_vendor->version++;
+			g_vendor->next_index++;
+			if (g_vendor->next_index >= SPI_VENDOR_PART_NUM)
+				g_vendor->next_index = 0;
 			snor_write(SPI_VENDOR_PART_START +
 				SPI_VENDOR_PART_SIZE * next_index,
 				SPI_VENDOR_PART_SIZE,
-				&g_vendor);
+				g_vendor);
 			return 0;
 		}
 	}
 
-	algin_size = (size + 0x1F) & (~0x1F); /* algin to 32 bytes*/
-	if (g_vendor.free_size >= algin_size) {
-		g_vendor.item[g_vendor.item_num].id = id;
-		g_vendor.item[g_vendor.item_num].offset = g_vendor.free_offset;
-		g_vendor.item[g_vendor.item_num].size = algin_size;
-		g_vendor.free_offset += algin_size;
-		g_vendor.free_size -= algin_size;
-		memcpy(&g_vendor.data[g_vendor.item[g_vendor.item_num].offset],
-		       pbuf,
-		       size);
-		g_vendor.item_num++;
-		g_vendor.version++;
-		g_vendor.next_index++;
-		if (g_vendor.next_index >= SPI_VENDOR_PART_NUM)
-			g_vendor.next_index = 0;
+	if (g_vendor->free_size >= algin_size) {
+		item = &g_vendor->item[g_vendor->item_num];
+		item->id = id;
+		item->offset = g_vendor->free_offset;
+		item->size = algin_size;
+		item->size = size;
+		g_vendor->free_offset += algin_size;
+		g_vendor->free_size -= algin_size;
+		memcpy(&g_vendor->data[item->offset], pbuf, size);
+		g_vendor->item_num++;
+		g_vendor->version++;
+		g_vendor->next_index++;
+		g_vendor->version2 = g_vendor->version;
+		if (g_vendor->next_index >= SPI_VENDOR_PART_NUM)
+			g_vendor->next_index = 0;
 		snor_write(SPI_VENDOR_PART_START +
 			SPI_VENDOR_PART_SIZE * next_index,
 			SPI_VENDOR_PART_SIZE,
-			&g_vendor);
+			g_vendor);
 		return 0;
 	}
 
