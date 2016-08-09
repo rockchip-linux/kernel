@@ -152,6 +152,21 @@ static int rksfc_probe(struct platform_device *pdev)
 	return rksfc_dev_init(g_sfc_info.reg_base);
 }
 
+static int rksfc_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	return rksfc_dev_suspend();
+}
+
+static int rksfc_resume(struct platform_device *pdev)
+{
+	return rksfc_dev_resume();
+}
+
+static void rksfc_shutdown(struct platform_device *pdev)
+{
+	rksfc_dev_shutdown();
+}
+
 #ifdef CONFIG_OF
 static const struct of_device_id of_rk_sfc_match[] = {
 	{.compatible = "rockchip,sfc"},
@@ -161,6 +176,9 @@ static const struct of_device_id of_rk_sfc_match[] = {
 
 static struct platform_driver rksfc_driver = {
 	.probe		= rksfc_probe,
+	.suspend	= rksfc_suspend,
+	.resume		= rksfc_resume,
+	.shutdown	= rksfc_shutdown,
 	.driver		= {
 		.name	= "sfc",
 #ifdef CONFIG_OF

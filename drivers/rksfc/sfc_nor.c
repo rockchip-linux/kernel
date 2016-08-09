@@ -20,12 +20,13 @@
 #define NOR_SECS_BLK		(NOR_BLOCK_SIZE/512)
 #define NOR_SECS_PAGE		4
 
-#define FEA_READ_STATUE_MASK    (0x3<<0)
-#define FEA_STATUE_MODE1        0
-#define FEA_STATUE_MODE2        1
-#define FEA_4BIT_READ           (1 << 2)
-#define FEA_4BIT_PROG           (1 << 3)
-#define FEA_4BYTE_ADDR          (1 << 4)
+#define FEA_READ_STATUE_MASK	(0x3<<0)
+#define FEA_STATUE_MODE1	0
+#define FEA_STATUE_MODE2	1
+#define FEA_4BIT_READ		BIT(2)
+#define FEA_4BIT_PROG		BIT(3)
+#define FEA_4BYTE_ADDR		BIT(4)
+#define FEA_4BYTE_ADDR_MODE	BIT(5)
 
 struct flash_info {
 	u32 id;
@@ -55,6 +56,10 @@ struct flash_info spi_flash_tbl[] = {
 	{0xc84018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0D, 15, 9, 0},
 	/* GD25Q256B */
 	{0xc84019, 128, 8, 0x13, 0x12, 0x6C, 0x3E, 0x21, 0xDC, 0x1C, 16, 6, 0},
+	/* 25Q128FV */
+	{0xef4018, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0C, 15, 9, 0},
+	/* 25Q256FV */
+	{0xef4019, 128, 8, 0x13, 0x02, 0x6C, 0x32, 0x20, 0xD8, 0x3C, 16, 9, 0},
 };
 
 struct flash_info *g_spi_flash_info;
@@ -119,6 +124,35 @@ static int snor_write_en(void)
 
 	ret = sfc_request(sfcmd.d32, 0, 0, NULL);
 
+	return ret;
+}
+
+static int snor_reset_device(void)
+{
+	int ret;
+	union SFCCMD_DATA sfcmd;
+
+	sfcmd.d32 = 0;
+	sfcmd.b.cmd = CMD_ENABLE_RESER;
+	sfc_request(sfcmd.d32, 0, 0, NULL);
+
+	sfcmd.d32 = 0;
+	sfcmd.b.cmd = CMD_RESET_DEVICE;
+	ret = sfc_request(sfcmd.d32, 0, 0, NULL);
+	/* tRST=30us , delay 1ms here */
+	mdelay(1);
+	return ret;
+}
+
+static int snor_enter_4byte_mode(void)
+{
+	int ret;
+	union SFCCMD_DATA sfcmd;
+
+	sfcmd.d32 = 0;
+	sfcmd.b.cmd = CMD_ENTER_4BYTE_MODE;
+
+	ret = sfc_request(sfcmd.d32, 0, 0, NULL);
 	return ret;
 }
 
@@ -323,6 +357,32 @@ static int snor_enable_QE(void)
 			return SFC_OK;
 
 		status |= (1 << bit_offset);
+		return p_dev->write_status(reg_index, status);
+	}
+
+	return ret;
+}
+
+static int snor_disable_QE(void)
+{
+	int ret = SFC_OK;
+	int reg_index;
+	int bit_offset;
+	u8 status;
+	struct SFNOR_DEV *p_dev = &sfnor_dev;
+
+	if (p_dev->manufacturer == MID_GIGADEV ||
+	    p_dev->manufacturer == MID_WINBOND) {
+		reg_index = p_dev->QE_bits >> 3;
+		bit_offset = p_dev->QE_bits & 0x7;
+		ret = snor_read_status(reg_index, &status);
+		if (ret != SFC_OK)
+			return ret;
+
+		if (!(status & (1 << bit_offset)))
+			return SFC_OK;
+
+		status &= ~(1 << bit_offset);
 		return p_dev->write_status(reg_index, status);
 	}
 
@@ -633,13 +693,18 @@ int snor_init(void)
 				p_dev->read_cmd = g_spi_flash_info->read_cmd_4;
 			}
 		}
-		if (g_spi_flash_info->feature & FEA_4BIT_PROG) {
+		if ((g_spi_flash_info->feature & FEA_4BIT_PROG) &&
+		    (p_dev->read_lines == DATA_LINES_X4)) {
 			p_dev->prog_lines = DATA_LINES_X4;
 			p_dev->prog_cmd = g_spi_flash_info->prog_cmd_4;
 		}
 
 		if (g_spi_flash_info->feature & FEA_4BYTE_ADDR)
 			p_dev->addr_mode = ADDR_MODE_4BYTE;
+
+		if ((g_spi_flash_info->feature & FEA_4BYTE_ADDR_MODE))
+			snor_enter_4byte_mode();
+
 		#if (PRINT_SPI_CHIP_INFO)
 		PRINT_E("addr_mode: %x\n", p_dev->addr_mode);
 		PRINT_E("read_lines: %x\n", p_dev->read_lines);
@@ -690,4 +755,15 @@ int snor_init(void)
 	#endif
 
 	return SFC_OK;
+}
+
+void snor_deinit(void)
+{
+	snor_disable_QE();
+	snor_reset_device();
+}
+
+int snor_resume(void)
+{
+	return snor_init();
 }

@@ -60,6 +60,10 @@
 /* X1 cmd, X4 addr, X4 data, SUPPORT MARCONIX */
 #define CMD_PAGE_PROG_A4        (0x38)
 #define CMD_RESET_NAND          (0xFF)
+#define CMD_ENTER_4BYTE_MODE    (0xB7)
+#define CMD_EXIT_4BYTE_MODE     (0xE9)
+#define CMD_ENABLE_RESER	(0x66)
+#define CMD_RESET_DEVICE	(0x99)
 
 enum NOR_ERASE_TYPE {
 	ERASE_SECTOR = 0,

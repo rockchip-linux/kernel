@@ -96,11 +96,10 @@ struct STRUCT_PART_INFO {
 	struct STRUCT_PART_ENTRY part[12];	/* 1.5KB */
 } __packed;
 
-void rksfc_dev_suspend(void);
-void rksfc_dev_resume(void);
+int rksfc_dev_suspend(void);
+int rksfc_dev_resume(void);
 void rksfc_dev_shutdown(void);
 void rksfc_dev_flush(void);
 int rksfc_dev_init(void __iomem *reg_addr);
 int rksfc_dev_exit(void);
-
 #endif

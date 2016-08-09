@@ -579,6 +579,19 @@ int rksfc_dev_exit(void)
 	return 0;
 }
 
+int rksfc_dev_suspend(void)
+{
+	rksfc_device_lock();
+	return 0;
+}
+
+int rksfc_dev_resume(void)
+{
+	snor_resume();
+	rksfc_device_unlock();
+	return 0;
+}
+
 void rksfc_dev_shutdown(void)
 {
 	pr_info("rksfc_shutdown...\n");
@@ -588,6 +601,6 @@ void rksfc_dev_shutdown(void)
 		wait_for_completion(&mytr.thread_exit);
 		/* rk_ftl_de_init(); */
 	}
+	snor_deinit();
 	pr_info("rksfc_shutdown:OK\n");
 }
-

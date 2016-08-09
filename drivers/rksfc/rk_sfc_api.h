@@ -16,5 +16,8 @@ int snor_write(unsigned int sec, unsigned int n_sec, void *p_data);
 unsigned int snor_get_capacity(void);
 void rknand_print_hex(char *s, void *buf, int width, int len);
 void sfc_clean_irq(void);
+void snor_deinit(void);
+int snor_resume(void);
+
 #endif
 
