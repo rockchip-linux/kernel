@@ -1368,21 +1368,20 @@
 					#address-cells = <1>;
 					#size-cells = <1>;
 
-					dclk_vop_div: dclk_vop_div {
+					dclk_vop: dclk_vop_div {
 						compatible = "rockchip,rk3188-div-con";
 						rockchip,bits = <0 6>;
-						clocks = <&dclk_vop>;
+						clocks = <&dclk_vop_pll>;
 						clock-output-names = "dclk_vop";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
-						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
 					};
 
-					dclk_vop: dclk_vop_mux {
+					dclk_vop_pll: dclk_vop_pll_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <6 1>;
 						clocks = <&clk_gpll>, <&dummy>;
-						clock-output-names = "dclk_vop";
+						clock-output-names = "dclk_vop_pll";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
 					};
@@ -1390,7 +1389,7 @@
 					dclk_lcdc: dclk_lcdc_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <7 1>;
-						clocks = <&dclk_lcdc_pll>, <&dclk_vop_div>;
+						clocks = <&dclk_lcdc_pll>, <&dclk_vop>;
 						clock-output-names = "dclk_lcdc";
 						rockchip,flags = <CLK_SET_RATE_PARENT>;
 						#clock-cells = <0>;
@@ -1400,11 +1399,10 @@
 					dclk_hdmiphy: dclk_hdmiphy_div {
 						compatible = "rockchip,rk3188-div-con";
 						rockchip,bits = <8 6>;
-						clocks = <&dclk_vop>;
+						clocks = <&dclk_vop_pll>;
 						clock-output-names = "dclk_hdmiphy";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
-						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
 					};
 
 					/* 14 reserved */
