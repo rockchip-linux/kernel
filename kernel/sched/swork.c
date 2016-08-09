@@ -6,7 +6,7 @@
  */
 
 #include <linux/swait.h>
-#include <linux/work-simple.h>
+#include <linux/swork.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>

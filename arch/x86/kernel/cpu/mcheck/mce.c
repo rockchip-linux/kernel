@@ -42,7 +42,7 @@
 #include <linux/irq_work.h>
 #include <linux/export.h>
 #include <linux/jiffies.h>
-#include <linux/work-simple.h>
+#include <linux/swork.h>
 
 #include <asm/processor.h>
 #include <asm/traps.h>
