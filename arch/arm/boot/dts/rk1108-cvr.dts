@@ -215,6 +215,10 @@
 &i2c0 {
 	status = "okay";
 
+	i2c-scl-rising-time-ns = <275>;
+	i2c-scl-falling-time-ns = <16>;
+	clock-frequency = <400000>;
+
 	rk805: rk805@18 {
 		reg = <0x18>;
 		status = "okay";
