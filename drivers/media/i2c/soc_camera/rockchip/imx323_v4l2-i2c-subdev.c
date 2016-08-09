@@ -118,7 +118,8 @@ static struct imx_camera_module_config imx323_configs[] = {
 			PLTFRM_CAM_ITF_BT656_10,
 			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
 			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
-			PLTFRM_CAM_SDR_NEG_EDG)
+			PLTFRM_CAM_SDR_NEG_EDG,
+			IMX323_EXT_CLK)
 	}
 };
 

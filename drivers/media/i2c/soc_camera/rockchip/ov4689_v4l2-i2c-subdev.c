@@ -368,7 +368,7 @@ static struct ov_camera_module_config ov4689_configs[] = {
 			/
 			sizeof(ov4689_init_tab_2688_1520_30fps[0]),
 		.v_blanking_time_us = 5000,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 1008)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 1008, ov4689_EXT_CLK)
 	}
 };
 

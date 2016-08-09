@@ -146,7 +146,7 @@ static struct aptina_camera_module_config ar0330cs_configs[] = {
 			/
 			sizeof(ar0330cs_init_tab_2048_1536_30fps[0]),
 		.v_blanking_time_us = 5000,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 98)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 98, AR0330CS_EXT_CLK)
 	}
 };
 
