@@ -501,7 +501,7 @@ static int vop_clr_key_cfg(struct rk_lcdc_driver *dev_drv)
 	struct rk_lcdc_win *win;
 	int i;
 
-	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
+	for (i = 0; i < dev_drv->lcdc_win_num - 1; i++) {
 		win = dev_drv->win[i];
 		switch (i) {
 		case 0:
