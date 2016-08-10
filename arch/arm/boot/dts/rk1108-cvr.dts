@@ -157,14 +157,14 @@
 		compatible = "rockchip,key";
 		io-channels = <&adc 0>;
 
-		vol-up-key {
-			linux,code = <115>;
-			label = "volume up";
-			rockchip,adc_value = <0>;
+		tab-key {
+			linux,code = <15>;
+			label = "tab";
+			rockchip,adc_value = <1>;
 		};
 
-		vol-down-key {
-			linux,code = <114>;
+		enter-key {
+			linux,code = <28>;
 			label = "volume down";
 			rockchip,adc_value = <169>;
 		};
@@ -198,16 +198,16 @@
 			rockchip,adc_value = <559>;
 		};
 
-		update-key {
-			linux,code = <63>;
-			label = "update";
+		menu-key {
+			linux,code = <127>;
+			label = "menu";
 			rockchip,adc_value = <169>;
 		};
 
-		return-key {
+		esc-key {
 			linux,code = <1>;
-			label = "return";
-			rockchip,adc_value = <0>;
+			label = "esc";
+			rockchip,adc_value = <1>;
 		};
 	};
 };
