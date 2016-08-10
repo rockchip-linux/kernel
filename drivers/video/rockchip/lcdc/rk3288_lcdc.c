@@ -1172,6 +1172,8 @@ static int rk3288_get_dspbuf_info(struct rk_lcdc_driver *dev_drv, u16 *xact,
 	val = lcdc_readl(lcdc_dev, WIN0_CTRL0);
 	*format = (val & m_WIN0_DATA_FMT) >> 1;
 	*dsp_addr = lcdc_readl(lcdc_dev, WIN0_YRGB_MST);
+	val = lcdc_readl(lcdc_dev, DSP_CTRL0);
+	*ymirror = (val & m_DSP_Y_MIR_EN) >> 23;
 
 	spin_unlock(&lcdc_dev->reg_lock);
 
@@ -1198,6 +1200,8 @@ static int rk3288_post_dspbuf(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
 		    v_WIN0_ACT_HEIGHT(yact));
 
 	lcdc_writel(lcdc_dev, WIN0_YRGB_MST, rgb_mst);
+	lcdc_msk_reg(lcdc_dev, DSP_CTRL0, m_DSP_Y_MIR_EN,
+		     v_DSP_Y_MIR_EN(ymirror));
 
 	lcdc_cfg_done(lcdc_dev);
 	win->state = 1;
@@ -1771,6 +1775,8 @@ static int rk3288_lcdc_pan_display(struct rk_lcdc_driver *dev_drv, int win_id)
 	/*this is the first frame of the system ,enable frame start interrupt */
 	if ((dev_drv->first_frame)) {
 		dev_drv->first_frame = 0;
+		lcdc_msk_reg(lcdc_dev, DSP_CTRL0, m_DSP_Y_MIR_EN,
+			     v_DSP_Y_MIR_EN(dev_drv->cur_screen->y_mirror));
 		rk3288_lcdc_enable_irq(dev_drv);
 	}
 #if defined(WAIT_FOR_SYNC)
