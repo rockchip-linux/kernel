@@ -492,7 +492,7 @@ enum cifisp_wdr_mode {
 /* Configuration used by Gamma Out correction */
 struct cifisp_wdr_config {
 	enum cifisp_wdr_mode mode;
-	unsigned short c_wdr[CIFISP_WDR_SIZE];
+	unsigned int c_wdr[CIFISP_WDR_SIZE];
 };
 struct cifisp_isp_other_cfg {
 	unsigned int s_frame_id;/* Set isp hardware frame id */

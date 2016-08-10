@@ -2153,7 +2153,7 @@ static void cifisp_get_aec_meas(struct cif_isp11_isp_dev *isp_dev,
 {
 	unsigned int i;
 
-	pbuf->meas_type = CIFISP_STAT_AUTOEXP;	/*Set the measurement type */
+	pbuf->meas_type |= CIFISP_STAT_AUTOEXP;	/*Set the measurement type */
 	for (i = 0; i < CIFISP_AE_MEAN_MAX; i++) {
 		pbuf->params.ae.exp_mean[i] =
 			(u8) cifisp_ioread32(CIF_ISP_EXP_MEAN_00 + i*4);

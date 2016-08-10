@@ -105,7 +105,7 @@
 #define CIFISP_IOC_G_LAST_CONFIG \
 	_IOR('v', BASE_VIDIOC_PRIVATE + 35, struct cifisp_last_capture_config)
 #define CIFISP_IOC_S_WDR \
-	_IOR('v', BASE_VIDIOC_PRIVATE + 36, struct cifisp_wdr_config)
+	_IOW('v', BASE_VIDIOC_PRIVATE + 36, struct cifisp_wdr_config)
 #define CIFISP_IOC_G_WDR \
 	_IOR('v', BASE_VIDIOC_PRIVATE + 37, struct cifisp_wdr_config)
 
