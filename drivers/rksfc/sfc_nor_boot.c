@@ -26,6 +26,7 @@
 #include "typedef.h"
 #include "sfc.h"
 #include "sfc_nor.h"
+#include "rk_sfc_blk.h"
 
 #define SPI_VENDOR_TEST		0
 #define	DRM_DEBUG		1
@@ -108,7 +109,7 @@ u32 spi_vendor_init(void)
 	return 0;
 }
 
-u32 spi_vendor_read(u8 cs, u32 id, void *pbuf, u32 size)
+int spi_vendor_read(u32 id, void *pbuf, u32 size)
 {
 	u32 i;
 
@@ -127,8 +128,9 @@ u32 spi_vendor_read(u8 cs, u32 id, void *pbuf, u32 size)
 	}
 	return (-1);
 }
+EXPORT_SYMBOL(spi_vendor_read);
 
-u32 spi_vendor_write(u8 cs, u32 id, void *pbuf, u32 size)
+int spi_vendor_write(u32 id, void *pbuf, u32 size)
 {
 	u32 i, next_index, algin_size;
 	struct vendor_item *item;
@@ -144,13 +146,16 @@ u32 spi_vendor_write(u8 cs, u32 id, void *pbuf, u32 size)
 			       size);
 			g_vendor->item[i].size = size;
 			g_vendor->version++;
+			g_vendor->version2 = g_vendor->version;
 			g_vendor->next_index++;
 			if (g_vendor->next_index >= SPI_VENDOR_PART_NUM)
 				g_vendor->next_index = 0;
+			rksfc_device_lock();
 			snor_write(SPI_VENDOR_PART_START +
 				SPI_VENDOR_PART_SIZE * next_index,
 				SPI_VENDOR_PART_SIZE,
 				g_vendor);
+			rksfc_device_unlock();
 			return 0;
 		}
 	}
@@ -170,15 +175,18 @@ u32 spi_vendor_write(u8 cs, u32 id, void *pbuf, u32 size)
 		g_vendor->version2 = g_vendor->version;
 		if (g_vendor->next_index >= SPI_VENDOR_PART_NUM)
 			g_vendor->next_index = 0;
+		rksfc_device_lock();
 		snor_write(SPI_VENDOR_PART_START +
 			SPI_VENDOR_PART_SIZE * next_index,
 			SPI_VENDOR_PART_SIZE,
 			g_vendor);
+		rksfc_device_unlock();
 		return 0;
 	}
 
 	return(-1);
 }
+EXPORT_SYMBOL(spi_vendor_write);
 
 #if (SPI_VENDOR_TEST)
 void spi_vendor_test(void)
@@ -189,18 +197,18 @@ void spi_vendor_test(void)
 	memset(test_buf, 0, 512);
 	for (i = 0; i < 62; i++) {
 		memset(test_buf, i, i+1);
-		spi_vendor_write(0, i, test_buf, i+1);
+		spi_vendor_write(i, test_buf, i+1);
 	}
 	memset(test_buf, 0, 512);
 	for (i = 0; i < 62; i++) {
-		spi_vendor_read(0, i, test_buf, i+1);
+		spi_vendor_read(i, test_buf, i+1);
 		PRINT_E("id = %d ,size = %d\n", i, i+1);
 		rknand_print_hex("data:", test_buf, 1, i+1);
 	}
 	spi_vendor_init();
 	memset(test_buf, 0, 512);
 	for (i = 0; i < 62; i++) {
-		spi_vendor_read(0, i, test_buf, i+1);
+		spi_vendor_read(i, test_buf, i+1);
 		PRINT_E("id = %d ,size = %d\n", i, i+1);
 		rknand_print_hex("data:", test_buf, 1, i+1);
 	}
@@ -234,6 +242,7 @@ static long rk_vendor_ioctl(struct file *file,
 			    unsigned long arg)
 {
 	long ret = -EINVAL;
+	int size;
 	u32 *temp_buf;
 	struct RK_VENDOR_REQ *req;
 
@@ -254,12 +263,15 @@ static long rk_vendor_ioctl(struct file *file,
 			break;
 		}
 		if (req->tag == VENDOR_REQ_TAG) {
-			ret = spi_vendor_read(0, req->id, req->data, req->len);
-			if (ret == 0)
+			size = spi_vendor_read(req->id, req->data, req->len);
+			if (size > 0) {
+				req->len = size;
+				ret = 0;
 				if (copy_to_user((void __user *)arg,
 						 temp_buf,
 						 sizeof(*req)))
 					ret = -EFAULT;
+			}
 		}
 	} break;
 	case VENDOR_WRITE_IO:
@@ -272,7 +284,7 @@ static long rk_vendor_ioctl(struct file *file,
 			break;
 		}
 		if (req->tag == VENDOR_REQ_TAG)
-			ret = spi_vendor_write(0, req->id, req->data, req->len);
+			ret = spi_vendor_write(req->id, req->data, req->len);
 	} break;
 	default:
 		return -EINVAL;

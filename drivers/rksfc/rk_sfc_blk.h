@@ -102,4 +102,6 @@ void rksfc_dev_shutdown(void);
 void rksfc_dev_flush(void);
 int rksfc_dev_init(void __iomem *reg_addr);
 int rksfc_dev_exit(void);
+void rksfc_device_unlock(void);
+void rksfc_device_lock(void);
 #endif
