@@ -186,7 +186,7 @@
 #define CIF_MI_INIT_Y12_Y_EN               (1<<0)
 #define CIF_MI_INIT_Y12_UV_EN              (1<<1)
 #define CIF_MI_INIT_SKIP                   (1<<2)
-#define CIF_MI_INIT_Y12_ENDIAN_MODE_LITTLE (1<<3)
+#define CIF_MI_INIT_Y12_ENDIAN_MODE_LITTLE (0<<3)
 #define CIF_MI_INIT_Y12_ENDIAN_MODE_BIG    (1<<3)
 #define CIF_MI_INIT_SOFT_UPD               (1<<4)
 #define CIF_MI_INIT_UPDATE_MODE            (1<<5)

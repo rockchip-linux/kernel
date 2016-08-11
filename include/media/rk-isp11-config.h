@@ -485,8 +485,8 @@ struct cifisp_last_capture_config {
 };
 
 enum cifisp_wdr_mode {
-	CIFISP_WDR_MODE_BLACK = 0x140d3,
-	CIFISP_WDR_MODE_GLOBAL = 0x140d2
+	CIFISP_WDR_MODE_BLOCK,
+	CIFISP_WDR_MODE_GLOBAL
 };
 
 /* Configuration used by Gamma Out correction */

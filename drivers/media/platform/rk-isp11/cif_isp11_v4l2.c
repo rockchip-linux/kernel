@@ -310,8 +310,13 @@ static enum cif_isp11_image_effect cif_isp11_v4l2_colorfx2cif_isp11_ie(
 }
 
 static enum cif_isp11_pix_fmt cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
-	u32 v4l2_pix_fmt)
+	u32 v4l2_pix_fmt, struct videobuf_queue *queue)
 {
+	struct cif_isp11_v4l2_node *node =
+		container_of(queue, struct cif_isp11_v4l2_node, buf_queue);
+	struct video_device *vdev =
+		&node->vdev;
+
 	switch (v4l2_pix_fmt) {
 	case V4L2_PIX_FMT_GREY:
 		return CIF_YUV400;
@@ -320,7 +325,12 @@ static enum cif_isp11_pix_fmt cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
 	case V4L2_PIX_FMT_YVU420:
 		return CIF_YVU420P;
 	case V4L2_PIX_FMT_NV12:
-		return CIF_YUV420SP;
+	{
+		if (!strcmp(vdev->name, Y12_VDEV_NAME))
+			return CIF_Y12_420SP;
+		else
+			return CIF_YUV420SP;
+	}
 	case V4L2_PIX_FMT_NV21:
 		return CIF_YVU420SP;
 	case V4L2_PIX_FMT_YUYV:
@@ -330,7 +340,12 @@ static enum cif_isp11_pix_fmt cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
 	case V4L2_PIX_FMT_YUV422P:
 		return CIF_YUV422P;
 	case V4L2_PIX_FMT_NV16:
-		return CIF_YUV422SP;
+	{
+		if (!strcmp(vdev->name, Y12_VDEV_NAME))
+			return CIF_Y12_422SP;
+		else
+			return CIF_YUV422SP;
+	}
 	case V4L2_PIX_FMT_YUV444:
 		return CIF_YUV444P;
 	case V4L2_PIX_FMT_NV24:
@@ -809,7 +824,7 @@ static int cif_isp11_v4l2_s_fmt(
 
 	strm_fmt.frm_fmt.pix_fmt =
 		cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
-			f->fmt.pix.pixelformat);
+			f->fmt.pix.pixelformat, queue);
 	strm_fmt.frm_fmt.width = f->fmt.pix.width;
 	strm_fmt.frm_fmt.height = f->fmt.pix.height;
 /* strm_fmt.frm_fmt.quantization = f->fmt.pix.quantization; */

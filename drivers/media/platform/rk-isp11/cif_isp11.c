@@ -675,6 +675,10 @@ static const char *cif_isp11_pix_fmt_string(int pixfmt)
 		return "JPEG";
 	case CIF_Y12:
 		return "Y12";
+	case CIF_Y12_420SP:
+		return "Y12_420sp";
+	case CIF_Y12_422SP:
+		return "Y12_422sp";
 	default:
 		return "unknown/unsupported";
 	}
@@ -1673,27 +1677,22 @@ static int cif_isp11_config_isp(
 			}
 
 			if (dev->config.mi_config.y12.output.pix_fmt == CIF_Y12) {
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_GAMMA_OUT_12BIT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
+				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN |
+								CIF_ISP_CTRL_ISP_GAMMA_OUT_12BIT_EN,
+								dev->config.base_addr + CIF_ISP_CTRL);
 			}
-			if (dev->config.mi_config.y12.output.pix_fmt == CIF_YUV420SP) {
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_UV_OUT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_GAMMA_OUT_12BIT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
+			if (dev->config.mi_config.y12.output.pix_fmt == CIF_Y12_420SP) {
+				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN |
+								CIF_ISP_CTRL_ISP_Y12_UV_OUT_EN |
+								CIF_ISP_CTRL_ISP_GAMMA_OUT_12BIT_EN,
+								dev->config.base_addr + CIF_ISP_CTRL);
 				y12_uv_ds_mode = CIF_ISP_ACQ_PROP_Y12_UV_DS_MODE_YUV420;
 			}
-			if (dev->config.mi_config.y12.output.pix_fmt == CIF_YUV422SP) {
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_UV_OUT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
-				cif_iowrite32OR(CIF_ISP_CTRL_ISP_GAMMA_OUT_12BIT_EN,
-					dev->config.base_addr + CIF_ISP_CTRL);
+			if (dev->config.mi_config.y12.output.pix_fmt == CIF_Y12_422SP) {
+				cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN |
+								CIF_ISP_CTRL_ISP_Y12_UV_OUT_EN |
+								CIF_ISP_CTRL_ISP_GAMMA_OUT_12BIT_EN,
+								dev->config.base_addr + CIF_ISP_CTRL);
 				y12_uv_ds_mode = CIF_ISP_ACQ_PROP_Y12_UV_DS_MODE_YUV422;
 			}
 		} else {
@@ -3465,14 +3464,9 @@ static int cif_isp11_config_cif(
 		if (IS_ERR_VALUE(ret))
 			goto err;
 
-		if (stream_ids & CIF_ISP11_STREAM_Y12) {
-			dev->config.isp_config.ism_config.ism_en = false;
-			/*cif_isp11_config_ism(dev, true);*/
-			dev->config.isp_config.ism_config.ism_update_needed = false;
-		} else {
-			cif_isp11_config_ism(dev, true);
-			dev->config.isp_config.ism_config.ism_update_needed = false;
-		}
+		cif_isp11_config_ism(dev, true);
+		dev->config.isp_config.ism_config.ism_update_needed = false;
+
 		if (stream_ids & CIF_ISP11_STREAM_SP)
 			dev->config.sp_config.rsz_config.ism_adjust = true;
 		if (stream_ids & CIF_ISP11_STREAM_MP)
@@ -3931,6 +3925,7 @@ static int cif_isp11_update_mi_y12(
 			/* disable MI Y12 */
 			cif_isp11_pltfrm_pr_dbg(NULL, "disabling Y12 MI\n");
 			/* 'switch off' MI interface */
+			/*
 			if (dev->config.mi_config.y12.output.pix_fmt == CIF_Y12) {
 				cif_iowrite32AND_verify(~(CIF_MI_INIT_Y12_Y_EN),
 					dev->config.base_addr + CIF_MI_INIT, ~0);
@@ -3940,6 +3935,7 @@ static int cif_isp11_update_mi_y12(
 			}
 				cif_isp11_pltfrm_pr_dbg(NULL, "CIF_MI_INIT 0x%x\n",
 							cif_ioread32(dev->config.base_addr + CIF_MI_INIT));
+			*/
 		} else if (dev->config.mi_config.y12.curr_buff_addr ==
 			CIF_ISP11_INVALID_BUFF_ADDR) {
 			/* re-enable MI Y12 */
@@ -4078,8 +4074,8 @@ static int cif_isp11_s_fmt_y12(
 		strm_fmt->frm_fmt.quantization);
 
 	if (!(strm_fmt->frm_fmt.pix_fmt == CIF_Y12 ||
-		strm_fmt->frm_fmt.pix_fmt == CIF_YUV420SP ||
-		strm_fmt->frm_fmt.pix_fmt == CIF_YUV422SP)) {
+		strm_fmt->frm_fmt.pix_fmt == CIF_Y12_420SP ||
+		strm_fmt->frm_fmt.pix_fmt == CIF_Y12_422SP)) {
 		cif_isp11_pltfrm_pr_dbg(dev->dev,
 			"Y12 path don't support format %s,"
 			" only YUV420SP and YUV422SP support.",
@@ -4667,6 +4663,9 @@ static void cif_isp11_stop_mi(
 			CIF_MI_Y12_UV_FRAME |
 			CIF_MI_ALL_FRAME,
 			dev->config.base_addr + CIF_MI_ICR);
+		cif_iowrite32AND_verify(~(CIF_MI_Y12_Y_FRAME |
+			CIF_MI_Y12_UV_FRAME|CIF_MI_ALL_FRAME),
+			dev->config.base_addr + CIF_MI_IMSC, ~0);
 		cif_iowrite32AND_verify(~(CIF_MI_INIT_Y12_Y_EN|
 			CIF_MI_INIT_Y12_UV_EN),
 			dev->config.base_addr + CIF_MI_INIT, ~0);
@@ -4867,6 +4866,12 @@ static int cif_isp11_stop(
 			dev->config.base_addr + CIF_MI_IMSC, ~0);
 
 	} else if (stop_y12) {
+		if (!dev->config.mi_config.async_updt) {
+			local_irq_save(flags);
+			cif_isp11_stop_mi(dev, false, false, true);
+			local_irq_restore(flags);
+		}
+
 		cif_isp11_stop_y12(dev);
 		cif_iowrite32AND_verify(~(CIF_MI_Y12_Y_FRAME |
 			CIF_MI_Y12_UV_FRAME |
@@ -4982,16 +4987,6 @@ static int cif_isp11_start(
 
 		/* Activate ISP ! */
 		if (CIF_ISP11_INP_NEED_ISP(dev->config.input_sel))
-			if (start_y12) {
-				if (dev->config.mi_config.y12.output.pix_fmt == CIF_Y12) {
-					cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN,
-						dev->config.base_addr + CIF_ISP_CTRL);
-				} else {
-					cif_iowrite32OR(CIF_ISP_CTRL_ISP_Y12_Y_OUT_EN |
-						CIF_ISP_CTRL_ISP_Y12_UV_OUT_EN,
-						dev->config.base_addr + CIF_ISP_CTRL);
-				}
-			}
 			cif_iowrite32OR(CIF_ISP_CTRL_ISP_CFG_UPD |
 				CIF_ISP_CTRL_ISP_INFORM_ENABLE |
 				CIF_ISP_CTRL_ISP_ENABLE,
@@ -5175,9 +5170,6 @@ static int cif_isp11_mi_isr(unsigned int mi_mis, void *cntxt)
 		cif_ioread32(dev->config.base_addr + CIF_MI_RIS),
 		cif_ioread32(dev->config.base_addr + CIF_MI_IMSC));
 
-	udelay(200);
-
-
 	if (mi_mis & CIF_MI_SP_FRAME) {
 		dev->config.mi_config.sp.busy = false;
 		cif_iowrite32(CIF_MI_SP_FRAME,
@@ -5198,28 +5190,26 @@ static int cif_isp11_mi_isr(unsigned int mi_mis, void *cntxt)
 						"mp icr err: 0x%x\n",
 						mi_mis_tmp);
 	}
-	if (mi_mis & (CIF_MI_Y12_Y_FRAME | CIF_MI_ALL_FRAME)) {
+	if (mi_mis & (CIF_MI_Y12_Y_FRAME | CIF_MI_Y12_UV_FRAME)) {
 		dev->config.mi_config.y12.busy = false;
-		cif_iowrite32(CIF_MI_Y12_Y_FRAME | CIF_MI_Y12_UV_FRAME | CIF_MI_ALL_FRAME,
-			dev->config.base_addr + CIF_MI_ICR);
-		mi_mis_tmp = cif_ioread32(dev->config.base_addr + CIF_MI_MIS);
-		if (mi_mis_tmp & (CIF_MI_Y12_Y_FRAME | CIF_MI_ALL_FRAME))
-			cif_isp11_pltfrm_pr_err(dev->dev,
-						"y12-y icr err: 0x%x\n",
-						mi_mis_tmp);
+		if (mi_mis & CIF_MI_Y12_Y_FRAME) {
+			cif_iowrite32(CIF_MI_Y12_Y_FRAME, dev->config.base_addr + CIF_MI_ICR);
+			mi_mis_tmp = cif_ioread32(dev->config.base_addr + CIF_MI_MIS);
+			if (mi_mis_tmp & CIF_MI_Y12_Y_FRAME)
+				cif_isp11_pltfrm_pr_err(dev->dev,
+							"y12 icr err: 0x%x\n",
+							mi_mis_tmp);
+		}
+		if (mi_mis & CIF_MI_Y12_UV_FRAME) {
+			cif_iowrite32(CIF_MI_Y12_UV_FRAME, dev->config.base_addr + CIF_MI_ICR);
+			mi_mis_tmp = cif_ioread32(dev->config.base_addr + CIF_MI_MIS);
+			if (mi_mis_tmp & CIF_MI_Y12_UV_FRAME)
+				cif_isp11_pltfrm_pr_err(dev->dev,
+							"y12 icr err: 0x%x\n",
+							mi_mis_tmp);
+		}
 	}
-	/*
-	if (mi_mis & CIF_MI_Y12_UV_FRAME) {
-		dev->config.mi_config.y12.busy = false;
-		cif_iowrite32(CIF_MI_Y12_UV_FRAME | CIF_MI_ALL_FRAME,
-			dev->config.base_addr + CIF_MI_ICR);
-		mi_mis_tmp = cif_ioread32(dev->config.base_addr + CIF_MI_MIS);
-		if (mi_mis_tmp & CIF_MI_Y12_UV_FRAME)
-			cif_isp11_pltfrm_pr_err(dev->dev,
-						"y12-cbcr icr err: 0x%x\n",
-						mi_mis_tmp);
-	}
-*/
+
 	if (mi_mis & CIF_MI_DMA_READY)
 		(void)cif_isp11_dma_ready(dev);
 	if (dev->config.jpeg_config.enable &&
@@ -5376,7 +5366,7 @@ static int cif_isp11_mi_isr(unsigned int mi_mis, void *cntxt)
 
 	cif_iowrite32(~(CIF_MI_MP_FRAME |
 		CIF_MI_SP_FRAME | CIF_MI_DMA_READY | CIF_MI_Y12_Y_FRAME |
-		CIF_MI_Y12_UV_FRAME | CIF_MI_ALL_FRAME),
+		CIF_MI_Y12_UV_FRAME),
 		dev->config.base_addr + CIF_MI_ICR);
 
 	return 0;
@@ -5599,7 +5589,7 @@ int cif_isp11_streamon(
 				streamon_mp = true;
 				dev->mp_stream.updt_cfg = true;
 			}
-			if (dev->mp_stream.state == CIF_ISP11_STATE_STREAMING) {
+			if (dev->y12_stream.state == CIF_ISP11_STATE_STREAMING) {
 				ret = cif_isp11_stop(dev, false, false, true);
 				if (IS_ERR_VALUE(ret))
 					goto err;
@@ -5618,7 +5608,7 @@ int cif_isp11_streamon(
 			streamon_sp = true;
 			dev->sp_stream.updt_cfg = true;
 		}
-		if (dev->sp_stream.state == CIF_ISP11_STATE_STREAMING) {
+		if (dev->y12_stream.state == CIF_ISP11_STATE_STREAMING) {
 			ret = cif_isp11_stop(dev, false, false, true);
 			if (IS_ERR_VALUE(ret))
 				goto err;
@@ -6110,6 +6100,7 @@ struct cif_isp11_device *cif_isp11_create(
 	cif_isp11_pltfrm_event_init(dev->dev, &dev->dma_stream.done);
 	cif_isp11_pltfrm_event_init(dev->dev, &dev->sp_stream.done);
 	cif_isp11_pltfrm_event_init(dev->dev, &dev->mp_stream.done);
+	cif_isp11_pltfrm_event_init(dev->dev, &dev->y12_stream.done);
 
 	dev->img_src_exps.exp_valid_frms = 2;
 	mutex_init(&dev->img_src_exps.mutex);

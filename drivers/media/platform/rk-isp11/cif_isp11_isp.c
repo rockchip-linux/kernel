@@ -123,7 +123,7 @@
 /* FLT */
 #define CIFISP_FLT_MODE_MAX	(1)
 #define CIFISP_FLT_CHROMA_MODE_MAX	(3)
-#define CIFISP_FLT_GREEN_STAGE1_MAX	(3)
+#define CIFISP_FLT_GREEN_STAGE1_MAX	(8)
 #define CIFISP_FLT_MODE(v)	(v << 1)
 #define CIFISP_FLT_CHROMA_V_MODE(v)	(v << 4)
 #define CIFISP_FLT_CHROMA_H_MODE(v)	(v << 6)
@@ -818,7 +818,8 @@ static int cifisp_wdr_param(struct cif_isp11_isp_dev *isp_dev,
 		CIFISP_DPRINT(CIFISP_ERROR,
 		      "incompatible param 0x%x in  function: %s\n",
 		      arg->mode, __func__);
-		return -EINVAL;
+		retval = -EINVAL;
+		goto end;
 	}
 
 	memcpy(&isp_dev->other_cfgs.last_or_new->wdr_config,
@@ -1832,7 +1833,7 @@ static void cifisp_wdr_config(const struct cif_isp11_isp_dev *isp_dev)
 				CIF_ISP_WDR_CTRL + i * 4);
 		else
 			cifisp_iowrite32(pconfig->c_wdr[i],
-				CIF_ISP_WDR_CTRL0 + (i - 39) * 4);
+				CIF_ISP_WDR_CTRL0 + (i - 40) * 4);
 	}
 }
 
@@ -2497,90 +2498,12 @@ static void cifisp_ie_en(const struct cif_isp11_isp_dev *isp_dev)
 	}
 }
 
-/*****************************************************************************/
 static void cifisp_ie_end(const struct cif_isp11_isp_dev *isp_dev)
 {
 	/* Disable measurement */
 	cifisp_iowrite32AND(~CIF_IMG_EFF_CTRL_ENABLE, CIF_IMG_EFF_CTRL);
 	cifisp_iowrite32AND(~CIF_ICCL_IE_CLK, CIF_ICCL);
 }
-
-/*****************************************************************************/
-/*
-int cifisp_wdr_config(struct cif_isp11_isp_dev *isp_dev)
-{
-	CIFISP_DPRINT(CIFISP_DEBUG, "%s enter.\n", __FUNCTION__);
-	cifisp_iowrite32(0x00000812, CIF_ISP_WDR_CTRL);
-	cifisp_iowrite32(0x33232110, CIF_ISP_WDR_TONECURVE_1);
-	cifisp_iowrite32(0x44444434, CIF_ISP_WDR_TONECURVE_2);
-	cifisp_iowrite32(0x55545454, CIF_ISP_WDR_TONECURVE_3);
-	cifisp_iowrite32(0x23345455, CIF_ISP_WDR_TONECURVE_4);
-	cifisp_iowrite32(0x00000000, CIF_ISP_WDR_TONECURVE_YM_0);
-	cifisp_iowrite32(0x011c00a2, CIF_ISP_WDR_TONECURVE_YM_1);
-	cifisp_iowrite32(0x011c00a2, CIF_ISP_WDR_TONECURVE_YM_2);
-	cifisp_iowrite32(0x02d8016a, CIF_ISP_WDR_TONECURVE_YM_3);
-	cifisp_iowrite32(0x037501e6, CIF_ISP_WDR_TONECURVE_YM_4);
-	cifisp_iowrite32(0x0478029c, CIF_ISP_WDR_TONECURVE_YM_5);
-	cifisp_iowrite32(0x054f02e6, CIF_ISP_WDR_TONECURVE_YM_6);
-	cifisp_iowrite32(0x06090368, CIF_ISP_WDR_TONECURVE_YM_7);
-	cifisp_iowrite32(0x06b003d9, CIF_ISP_WDR_TONECURVE_YM_8);
-	cifisp_iowrite32(0x07d6049b, CIF_ISP_WDR_TONECURVE_YM_9);
-	cifisp_iowrite32(0x07d6049b, CIF_ISP_WDR_TONECURVE_YM_10);
-	cifisp_iowrite32(0x09b9058d, CIF_ISP_WDR_TONECURVE_YM_11);
-	cifisp_iowrite32(0x0b490619, CIF_ISP_WDR_TONECURVE_YM_12);
-	cifisp_iowrite32(0x0ca5069a, CIF_ISP_WDR_TONECURVE_YM_13);
-	cifisp_iowrite32(0x0ddc0712, CIF_ISP_WDR_TONECURVE_YM_14);
-	cifisp_iowrite32(0x0ef80783, CIF_ISP_WDR_TONECURVE_YM_15);
-	cifisp_iowrite32(0x0fff07ed, CIF_ISP_WDR_TONECURVE_YM_16);
-	cifisp_iowrite32(0x00000852, CIF_ISP_WDR_TONECURVE_YM_17);
-	cifisp_iowrite32(0x0000090e, CIF_ISP_WDR_TONECURVE_YM_18);
-	cifisp_iowrite32(0x00000967, CIF_ISP_WDR_TONECURVE_YM_19);
-	cifisp_iowrite32(0x00000a0f, CIF_ISP_WDR_TONECURVE_YM_20);
-	cifisp_iowrite32(0x00000a5f, CIF_ISP_WDR_TONECURVE_YM_21);
-	cifisp_iowrite32(0x00000af9, CIF_ISP_WDR_TONECURVE_YM_22);
-	cifisp_iowrite32(0x00000af9, CIF_ISP_WDR_TONECURVE_YM_23);
-	cifisp_iowrite32(0x00000af9, CIF_ISP_WDR_TONECURVE_YM_24);
-	cifisp_iowrite32(0x00000c9a, CIF_ISP_WDR_TONECURVE_YM_25);
-	cifisp_iowrite32(0x00000d1e, CIF_ISP_WDR_TONECURVE_YM_26);
-	cifisp_iowrite32(0x00000d69, CIF_ISP_WDR_TONECURVE_YM_27);
-	cifisp_iowrite32(0x00000e21, CIF_ISP_WDR_TONECURVE_YM_28);
-	cifisp_iowrite32(0x00000e9f, CIF_ISP_WDR_TONECURVE_YM_29);
-	cifisp_iowrite32(0x00000ef4, CIF_ISP_WDR_TONECURVE_YM_30);
-	cifisp_iowrite32(0x00000f74, CIF_ISP_WDR_TONECURVE_YM_31);
-	cifisp_iowrite32(0x00001000, CIF_ISP_WDR_TONECURVE_YM_32);
-	cifisp_iowrite32(0x00000000, CIF_ISP_WDR_OFFSET);
-	cifisp_iowrite32(0x00000000, CIF_ISP_WDR_DELTAMIN);
-	cifisp_iowrite32(0x00030cf1, CIF_ISP_WDR_CTRL0);
-	cifisp_iowrite32(0x000140d3, CIF_ISP_WDR_CTRL1);
-	cifisp_iowrite32(0x000000cd, CIF_ISP_WDR_BLKOFF);
-	cifisp_iowrite32(0x0ccc00ee, CIF_ISP_WDR_AVG_CLIP);
-	cifisp_iowrite32(0x00000036, CIF_ISP_WDR_COE_0);
-	cifisp_iowrite32(0x000000b7, CIF_ISP_WDR_COE_1);
-	cifisp_iowrite32(0x00000012, CIF_ISP_WDR_COE_2);
-	cifisp_iowrite32(0x00000000, CIF_ISP_WDR_COE_OFF);
-	CIFISP_DPRINT(CIFISP_DEBUG, "%s exit.\n", __FUNCTION__);
-
-	return 0;
-}
-
-int cifisp_wdr_enable(struct cif_isp11_isp_dev *isp_dev)
-{
-	CIFISP_DPRINT(CIFISP_DEBUG, "%s enter.\n", __FUNCTION__);
-	cifisp_iowrite32(0x00030cf1, CIF_ISP_WDR_CTRL0);
-	CIFISP_DPRINT(CIFISP_DEBUG, "%s exit.\n", __FUNCTION__);
-
-	return 0;
-}
-
-int cifisp_wdr_disable(struct cif_isp11_isp_dev *isp_dev)
-{
-	CIFISP_DPRINT(CIFISP_DEBUG, "%s enter.\n", __FUNCTION__);
-	cifisp_iowrite32(0x00030cf0, CIF_ISP_WDR_CTRL0);
-	CIFISP_DPRINT(CIFISP_DEBUG, "%s exit.\n", __FUNCTION__);
-
-	return 0;
-}
-*/
 
 static void cifisp_csm_config(const struct cif_isp11_isp_dev *isp_dev,
 				enum cif_isp11_pix_fmt_quantization quantization)
