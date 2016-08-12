@@ -2314,7 +2314,7 @@ static int DataCheck(void)
 	return 1;
 }
 
-void gsl_DataInit(unsigned int * conf_in)
+void gsl_DataInit(unsigned int *conf_in)
 {
 	int i;
 	unsigned int *conf;
@@ -2455,9 +2455,9 @@ void gsl_DataInit(unsigned int * conf_in)
 		for(i=0;i<4;i++)
 			multi_y_array[i] = conf[251+i];
 		diagonal = conf[255];
-		for(i=0;i<256;i++)
+		for (i = 0; i < 64; i++)
 			multi_group[0][i] = conf[256+i];
-		for(i=0;i<32;i++)
+		for (i = 0; i < 8; i++)
 		{
 			ps_coe[0][i] = conf[256 + 64*3 + i];
 			pr_coe[0][i] = conf[256 + 64*3 + i + 32];
@@ -2539,17 +2539,15 @@ void gsl_DataInit(unsigned int * conf_in)
 			coordinate_correct_coe_x[i] = (conf[0x109+i/4]>>(i%4*8)) & 0xff;
 			coordinate_correct_coe_y[i] = (conf[0x109+64/4+i/4]>>(i%4*8)) & 0xff;
 		}	
-		for(i=0;i<256;i++)
-		{
+		for (i = 0; i < 64; i++)
 			multi_group[0][i] = (conf[0x109+64/4*2+i/4]>>(i%4*8)) & 0xff;
-		}
 
 		filter_able = conf[0x180];
 		for(i=0;i<4;i++)
 			filter_coe[i] = conf[0x181+i];
 		for(i=0;i<4;i++)
 			median_dis[i] = (unsigned char)conf[0x185+i];
-		for(i=0;i<32;i++)
+		for (i = 0; i < 8; i++)
 		{
 			ps_coe[0][i] = conf[0x189 + i];
 			pr_coe[0][i] = conf[0x189 + i + 32];
@@ -2582,7 +2580,7 @@ void gsl_DataInit(unsigned int * conf_in)
 	for(i=0;i<CONFIG_LENGTH;i++)
 		config_static[i] = 0;
 }
-//EXPORT_SYMBOL(gsl_DataInit);
+/*EXPORT_SYMBOL(gsl_DataInit);*/
 
 unsigned int gsl_version_id(void)
 {

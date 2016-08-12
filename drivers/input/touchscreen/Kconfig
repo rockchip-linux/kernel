@@ -27,6 +27,14 @@ config TOUCHSCREEN_GSLX680_VR
 	help
 	  gslX680 touchpad driver for VR
 
+config TOUCHSCREEN_GSLX680_PX5
+	tristate "gslX680 touchscreen driver for PX5"
+	help
+	  Say Y here if you have a touchscreen interface using the
+	  gslx680, and your board-specific initialization
+	  code includes that in its table of IIC devices.
+	  If unsure, say N.
+
 config TOUCHSCREEN_GT8XX
 	tristate "Goodix touch screen gt801X2 support for rockchip based platform"
 	help
