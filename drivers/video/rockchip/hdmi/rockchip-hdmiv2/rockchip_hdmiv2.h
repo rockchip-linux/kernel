@@ -43,6 +43,7 @@ struct hdmi_dev {
 	struct clk		*hdcp_clk;
 	struct clk		*cec_clk;
 	struct clk		*pclk_phy;
+	struct clk		*dclk_phy;
 	struct hdmi		*hdmi;
 	struct device		*dev;
 	struct dentry		*debugfs_dir;
