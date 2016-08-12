@@ -62,6 +62,9 @@ struct dsp_loader {
 	struct dsp_dma *dma;
 	struct list_head images;
 
+	/* Reserved dsp external text memory */
+	u8 *external_text;
+
 	int (*load_image)(struct dsp_loader *, u32 id);
 };
 

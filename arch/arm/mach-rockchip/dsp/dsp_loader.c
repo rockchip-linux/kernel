@@ -13,8 +13,16 @@
  *
  */
 #include <linux/slab.h>
+#include <linux/err.h>
+#if defined(CONFIG_ION_ROCKCHIP)
+#include <linux/rockchip_ion.h>
+#endif
 #include "dsp_dbg.h"
 #include "dsp_loader.h"
+
+/* 1MB memory region for dsp running code on DDR */
+#define DSP_TEXT_MEM_SIZE          (0x100000)
+#define DSP_TEXT_OFFSET_MASK       (0xfffff)
 
 #define FIRMWARE_MAGIC_SIZE        16
 #define FIRMWARE_VERSION_SIZE      16
@@ -239,6 +247,7 @@ static int dsp_loader_load_image(struct dsp_loader *loader, u32 id)
 {
 	int ret = 0;
 	int i;
+	u32 offset = 0;
 	struct dsp_image *image;
 
 	dsp_debug_enter();
@@ -260,22 +269,32 @@ static int dsp_loader_load_image(struct dsp_loader *loader, u32 id)
 		case DSP_IMAGE_CODE_INTERNAL:
 			loader->dma->transfer_code(loader->dma, section->src,
 						   section->dst, section->size);
-			dsp_debug(DEBUG_LOADER, "load section, src=0x%p, dst=0x%p",
+			dsp_debug(DEBUG_LOADER,
+				  "load section, src=0x%p, dst=0x%p\n",
 				  section->src, section->dst);
 			break;
 		case DSP_IMAGE_CODE_EXTERNAL:
-			memcpy(phys_to_virt((u32)section->dst),
+			offset = (u32)section->dst & DSP_TEXT_OFFSET_MASK;
+			memcpy(loader->external_text + offset,
 			       section->src, section->size);
+			dsp_debug(DEBUG_LOADER,
+				  "load section, src=0x%p, dst=0x%p\n",
+				  section->src, section->dst);
 			break;
 		case DSP_IMAGE_DATA_INTERNAL:
 			loader->dma->transfer_data(loader->dma, section->src,
 						   section->dst, section->size);
-			dsp_debug(DEBUG_LOADER, "load section, src=0x%p, dst=0x%p",
+			dsp_debug(DEBUG_LOADER,
+				  "load section, src=0x%p, dst=0x%p\n",
 				  section->src, section->dst);
 			break;
 		case DSP_IMAGE_DATA_EXTERNAL:
-			memcpy(phys_to_virt((u32)section->dst),
+			offset = (u32)section->dst & DSP_TEXT_OFFSET_MASK;
+			memcpy(loader->external_text + offset,
 			       section->src, section->size);
+			dsp_debug(DEBUG_LOADER,
+				  "load section, src=0x%p, dst=0x%p\n",
+				  section->src, section->dst);
 			break;
 		default:
 			dsp_err("unknown section type\n");
@@ -311,6 +330,8 @@ out:
 int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader_out)
 {
 	int ret = 0;
+	struct ion_client *ion_client;
+	struct ion_handle *hdl;
 	struct dsp_loader *loader;
 
 	dsp_debug_enter();
@@ -321,6 +342,21 @@ int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader_out)
 		ret = -ENOMEM;
 		goto out;
 	}
+
+	ion_client = rockchip_ion_client_create("dsp");
+	if (IS_ERR(ion_client)) {
+		ret = PTR_ERR(ion_client);
+		dsp_err("cannot create ion client\n");
+		goto out;
+	}
+	hdl = ion_alloc(ion_client, (size_t)DSP_TEXT_MEM_SIZE, 0,
+			ION_HEAP(ION_CARVEOUT_HEAP_ID), 0);
+	if (IS_ERR(hdl)) {
+		dsp_err("cannnot alloc memory for dsp to run\n");
+		ret = PTR_ERR(hdl);
+		goto out;
+	}
+	loader->external_text = ion_map_kernel(ion_client, hdl);
 
 	loader->load_image = dsp_loader_load_image;
 	loader->dma = dma;
