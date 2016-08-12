@@ -744,17 +744,20 @@
 	hdmi: hdmi@300c0000 {
 		compatible = "rockchip,rk1108-hdmi";
 		reg = <0x300c0000 0x20000>,
-		      <0x20220000 0x10000>;
+		      <0x20220000 0x8000>;
 		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
+			     <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates6 8>,
 			 <&clk_gates18 9>,
 			 <&clk_gates14 8>,
-			 <&clk_hdmi_cec>;
+			 <&clk_hdmi_cec>,
+			 <&dclk_hdmiphy>;
 		clock-names = "hdcp_clk_hdmi",
 			      "pclk_hdmi",
 			      "pclk_hdmi_phy",
-			      "cec_clk_hdmi";
+			      "cec_clk_hdmi",
+			      "dclk_hdmi_phy";
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmi_cec &i2c2m05v_xfer &hdmi_hpd>;
 		pinctrl-1 = <&i2c2m05v_gpio>;
@@ -764,6 +767,9 @@
 		rockchip,hdmi_audio_source = <0>;
 		rockchip,hdcp_enable = <0>;
 		rockchip,cec_enable = <0>;
+		rockchip,phy_table =
+			<100000000 0 0 5 8 8 8>,
+			<165000000 8 13 5 8 8 8>;
 		status = "disabled";
 	};
 
@@ -1492,7 +1498,7 @@
 			};
 
 			hdmi_hpd: hdmi-hpd {
-				rockchip,pins = <1 GPIO_D6 RK_FUNC_1 &pcfg_pull_down>;
+				rockchip,pins = <0 GPIO_C1 RK_FUNC_1 &pcfg_pull_down>;
 			};
 		};
 
