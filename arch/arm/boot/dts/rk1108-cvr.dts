@@ -552,6 +552,10 @@
 	status = "okay";
 };
 
+&iep {
+	status = "okay";
+};
+
 &fb {
 	status = "okay";
 };

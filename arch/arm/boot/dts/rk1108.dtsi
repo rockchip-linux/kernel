@@ -595,6 +595,17 @@
 		status = "disabled";
 	};
 
+        iep: iep@30030000 {
+		compatible = "rockchip,iep";
+		iommu_enabled = <0>;
+		reg = <0x30030000 0x800>;
+		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates18 2>, <&clk_gates18 3>;
+		clock-names = "aclk_iep", "hclk_iep";
+		version = <3>;
+		status = "disabled";
+	};
+
 	vop: vop@30040000 {
 		status = "disabled";
 		compatible = "rockchip,rk1108-lcdc-lite";
