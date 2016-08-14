@@ -588,6 +588,61 @@
 		status = "disabled";
 	};
 
+	rkvenc_srv: rkvenc_srv {
+		compatible = "rockchip,mpp_service";
+	};
+
+	rkvenc: rkvenc@28000000 {
+		compatible = "rockchip,rk1108-rkvenc", "rockchip,rkvenc";
+		rockchip,grf = <&grf>;
+		iommu_enabled = <0>;
+		reg = <0x28000000 0x400>;
+		interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&aclk_rkvenc_pre>, <&clk_gates19 9>,
+			<&clk_venc_core>;
+		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core";
+		resets = <&reset RK1108_RST_RKVENC_H>,
+			<&reset RK1108_RST_RKVENC_A>,
+			<&reset RK1108_RST_RKVENC_CORE>;
+		reset-names = "video_h", "video_a", "video_c";
+		rockchip,srv = <&rkvenc_srv>;
+		name = "rkvenc";
+		status = "disabled";
+	};
+
+	vpu: vpu_service@30000000 {
+		compatible = "rockchip,rk1108-vpu", "vpu_service";
+		rockchip,grf = <&grf>;
+		iommu_enabled = <0>;
+		reg = <0x30000000 0x800>;
+		interrupts = <GIC_SPI  9 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec", "irq_enc";
+		clocks = <&aclk_vpu_pre>, <&clk_gates19 3>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		resets = <&reset RK1108_RST_VPU_H>, <&reset RK1108_RST_VPU_A>;
+		reset-names = "video_h", "video_a";
+		name = "vpu_service";
+		dev_mode = <0>;
+		status = "disabled";
+	};
+
+	rkvdec: rkvdec@30010000 {
+		compatible = "rockchip,rk1108-rkvdec", "rockchip,rkvdec";
+		rockchip,grf = <&grf>;
+		iommu_enabled = <0>;
+		reg = <0x30010000 0x400>;
+		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec";
+		clocks = <&aclk_rkvdec_pre>, <&clk_gates19 2>, <&clk_hevc_cabac>, <&clk_hevc_core>;
+		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac", "clk_core";
+		resets = <&reset RK1108_RST_RKVDEC_H>, <&reset RK1108_RST_RKVDEC_A>;
+		reset-names = "video_h", "video_a";
+		dev_mode = <2>;
+		name = "rkvdec";
+		status = "disabled";
+	};
+
 	fb: fb {
 		status = "disabled";
 		compatible = "rockchip,rk-fb";
