@@ -21,7 +21,7 @@
 			mipi_lcd_rst:mipi_lcd_rst{
 				compatible = "rockchip,lcd_rst";
 				rockchip,gpios = <&gpio7 GPIO_A4 GPIO_ACTIVE_HIGH>;
-				rockchip,delay = <500>;
+				rockchip,delay = <50>;
 			};
 			mipi_lcd_en:mipi_lcd_en {
 				compatible = "rockchip,lcd_en";
