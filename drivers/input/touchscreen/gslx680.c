@@ -344,7 +344,7 @@ static u32 gsl_write_interface(struct i2c_client *client,
 	xfer_msg[0].len = num + 1;
 	xfer_msg[0].flags = client->flags & I2C_M_TEN;
 	xfer_msg[0].buf = buf;
-	xfer_msg[0].scl_rate = 100 * 1000;
+	xfer_msg[0].scl_rate = 400 * 1000;
 
 	return i2c_transfer(client->adapter, xfer_msg, 1) == 1 ? 0 : -EFAULT;
 }
