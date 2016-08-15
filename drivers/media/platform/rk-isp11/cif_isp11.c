@@ -1345,16 +1345,12 @@ static void cif_isp11_config_ism(struct cif_isp11_device *dev, bool async)
 			dev->config.base_addr + CIF_ISP_IS_H_OFFS);
 		cif_iowrite32(0,
 			dev->config.base_addr + CIF_ISP_IS_V_OFFS);
-		cif_iowrite32(dev->isp_dev.input_width,
+		cif_iowrite32(dev->config.isp_config.output.width,
 			dev->config.base_addr + CIF_ISP_IS_H_SIZE);
-		cif_iowrite32(dev->isp_dev.input_height,
+		cif_iowrite32(dev->config.isp_config.output.height,
 			dev->config.base_addr + CIF_ISP_IS_V_SIZE);
 		cif_iowrite32(0,
 			dev->config.base_addr + CIF_ISP_IS_CTRL);
-		dev->config.isp_config.output.width =
-			dev->isp_dev.input_width;
-		dev->config.isp_config.output.height =
-			dev->isp_dev.input_height;
 	}
 
 	if (async)
@@ -1595,8 +1591,6 @@ static int cif_isp11_config_isp(
 	struct cif_isp11_device *dev)
 {
 	int ret = 0;
-	u32 input_width;
-	u32 input_height;
 	u32 h_offs;
 	u32 v_offs;
 	u32 yuv_seq = 0;
@@ -1627,8 +1621,6 @@ static int cif_isp11_config_isp(
 		dev->config.base_addr + CIF_ICCL);
 
 	in_pix_fmt = dev->config.isp_config.input->pix_fmt;
-	input_width = dev->config.isp_config.input->defrect.width;
-	input_height = dev->config.isp_config.input->defrect.height;
 
 	output = &dev->config.isp_config.output;
 	cam_itf = &dev->config.cam_itf;
@@ -1852,9 +1844,15 @@ static int cif_isp11_config_isp(
 		dev->config.base_addr + CIF_ISP_ACQ_NR_FRAMES);
 
 	/* Acquisition Size */
-	cif_iowrite32(acq_mult * input_width,
+	cif_iowrite32(dev->config.isp_config.input->defrect.left,
+		dev->config.base_addr + CIF_ISP_ACQ_H_OFFS);
+	cif_iowrite32(dev->config.isp_config.input->defrect.top,
+		dev->config.base_addr + CIF_ISP_ACQ_V_OFFS);
+	cif_iowrite32(
+		acq_mult * dev->config.isp_config.input->defrect.width,
 		dev->config.base_addr + CIF_ISP_ACQ_H_SIZE);
-	cif_iowrite32(input_height,
+	cif_iowrite32(
+		dev->config.isp_config.input->defrect.height,
 		dev->config.base_addr + CIF_ISP_ACQ_V_SIZE);
 
 	/* do cropping to match output aspect ratio */
@@ -1864,8 +1862,6 @@ static int cif_isp11_config_isp(
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
-	h_offs += dev->config.isp_config.input->defrect.left;
-	v_offs += dev->config.isp_config.input->defrect.top;
 	cif_iowrite32(v_offs,
 		dev->config.base_addr + CIF_ISP_OUT_V_OFFS);
 	cif_iowrite32(h_offs,
@@ -1875,8 +1871,10 @@ static int cif_isp11_config_isp(
 	cif_iowrite32(output->height,
 		dev->config.base_addr + CIF_ISP_OUT_V_SIZE);
 
-	dev->isp_dev.input_width = output->width;
-	dev->isp_dev.input_height = output->height;
+	dev->isp_dev.input_width =
+		dev->config.isp_config.input->defrect.width;
+	dev->isp_dev.input_height =
+		dev->config.isp_config.input->defrect.height;
 
 	/* interrupt mask */
 	irq_mask |=

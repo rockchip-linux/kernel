@@ -1245,11 +1245,14 @@ static long v4l2_default_ioctl(struct file *file, void *fh,
 			return ret;
 		}
 
-		ret = cif_isp11_calc_isp_cropping(dev,
-			&p_mode_data->isp_input_width,
-			&p_mode_data->isp_input_height,
-			&p_mode_data->isp_input_horizontal_start,
-			&p_mode_data->isp_input_vertical_start);
+		p_mode_data->isp_input_width =
+			dev->config.isp_config.input->defrect.width;
+		p_mode_data->isp_input_height =
+			dev->config.isp_config.input->defrect.height;
+		p_mode_data->isp_input_horizontal_start =
+			dev->config.isp_config.input->defrect.left;
+		p_mode_data->isp_input_vertical_start =
+			dev->config.isp_config.input->defrect.top;
 
 		if (ret < 0) {
 			cif_isp11_pltfrm_pr_err(dev->dev,
