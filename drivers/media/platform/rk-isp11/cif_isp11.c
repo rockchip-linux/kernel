@@ -3859,7 +3859,6 @@ static int cif_isp11_update_mi_mp(
 			if (dev->config.mi_config.mp.next_buff_addr ==
 				CIF_ISP11_INVALID_BUFF_ADDR) {
 				/* disable MI MP */
-				/*
 				cif_isp11_pltfrm_pr_dbg(NULL,
 					"disabling MP MI\n");
 				cif_iowrite32AND_verify(
@@ -3868,7 +3867,6 @@ static int cif_isp11_update_mi_mp(
 					CIF_MI_CTRL_RAW_ENABLE),
 					dev->config.base_addr + CIF_MI_CTRL,
 					~0);
-				*/
 			} else if (dev->config.mi_config.mp.curr_buff_addr ==
 				CIF_ISP11_INVALID_BUFF_ADDR) {
 				/* re-enable MI MP */
@@ -3876,7 +3874,6 @@ static int cif_isp11_update_mi_mp(
 					"enabling MP MI\n");
 				cif_iowrite32(CIF_MI_MP_FRAME,
 					dev->config.base_addr + CIF_MI_ICR);
-
 				cif_iowrite32AND_verify(
 					    ~(CIF_MI_CTRL_MP_ENABLE_IN |
 						CIF_MI_CTRL_JPEG_ENABLE |
@@ -3923,7 +3920,6 @@ static int cif_isp11_update_mi_y12(
 			/* disable MI Y12 */
 			cif_isp11_pltfrm_pr_dbg(NULL, "disabling Y12 MI\n");
 			/* 'switch off' MI interface */
-			/*
 			if (dev->config.mi_config.y12.output.pix_fmt == CIF_Y12) {
 				cif_iowrite32AND_verify(~(CIF_MI_INIT_Y12_Y_EN),
 					dev->config.base_addr + CIF_MI_INIT, ~0);
@@ -3931,9 +3927,6 @@ static int cif_isp11_update_mi_y12(
 				cif_iowrite32AND_verify(~(CIF_MI_INIT_Y12_Y_EN|CIF_MI_INIT_Y12_UV_EN),
 					dev->config.base_addr + CIF_MI_INIT, ~0);
 			}
-				cif_isp11_pltfrm_pr_dbg(NULL, "CIF_MI_INIT 0x%x\n",
-							cif_ioread32(dev->config.base_addr + CIF_MI_INIT));
-			*/
 		} else if (dev->config.mi_config.y12.curr_buff_addr ==
 			CIF_ISP11_INVALID_BUFF_ADDR) {
 			/* re-enable MI Y12 */
@@ -4365,7 +4358,8 @@ static int cif_isp11_mi_frame_end(
 
 	if ((stream->next_buf == NULL) &&
 		!(dev->config.jpeg_config.enable &&
-		(stream_id == CIF_ISP11_STREAM_MP)/*||(stream_id == CIF_ISP11_STREAM_Y12)*/)) {
+		(stream_id == CIF_ISP11_STREAM_MP)
+		/*||(stream_id == CIF_ISP11_STREAM_Y12)*/)) {
 		stream->stall = dev->config.out_of_buffer_stall;
 	} else if ((stream->next_buf != NULL) &&
 		(videobuf_to_dma_contig(stream->next_buf) !=
@@ -4383,7 +4377,14 @@ static int cif_isp11_mi_frame_end(
 	}
 
 	if (!stream->stall) {
-		if (stream->curr_buf != NULL) {
+		/*
+		 * If mi restart after switch off for buffer is empty,
+		 * mi may be restart failed. So mi write data to last
+		 * buffer, the last buffer isn't been release to user
+		 * until new buffer queue;
+		 */
+		if ((stream->curr_buf != NULL) &&
+			(stream->next_buf != NULL)) {
 			bool wake_now;
 
 			stream->curr_buf->field_count = dev->isp_dev.frame_id;
@@ -4429,8 +4430,11 @@ static int cif_isp11_mi_frame_end(
 			}
 			stream->curr_buf = NULL;
 		}
-		stream->curr_buf = stream->next_buf;
-		stream->next_buf = NULL;
+
+		if (stream->curr_buf == NULL) {
+			stream->curr_buf = stream->next_buf;
+			stream->next_buf = NULL;
+		}
 	}
 
 	if (stream->next_buf == NULL) {
@@ -4448,19 +4452,31 @@ static int cif_isp11_mi_frame_end(
 				stream->next_buf);
 		} else if (!dev->config.out_of_buffer_stall ||
 			(dev->config.jpeg_config.enable &&
-			(stream_id == CIF_ISP11_STREAM_MP
-			/*||stream_id == CIF_ISP11_STREAM_Y12*/)))
+			(stream_id == CIF_ISP11_STREAM_MP))) {
+				/*
+				 * If mi restart after switch off for buffer is empty,
+				 * mi may be restart failed. So mi write data to last
+				 * buffer, the last buffer isn't been release to user
+				 * until new buffer queue;
+
+				 * if
+				 * *next_buff_addr = CIF_ISP11_INVALID_BUFF_ADDR;
+				 * mi will stop;
+				 */
 				*next_buff_addr =
-					CIF_ISP11_INVALID_BUFF_ADDR;
+					videobuf_to_dma_contig(stream->curr_buf);
+
+		}
 	}
 	(void)update_mi(dev);
 
 	stream->stall = false;
 
 	cif_isp11_pltfrm_pr_dbg(dev->dev,
-		"%s curr_buff %d, next_buf %d, next_buff_addr = 0x%08x\n",
+		"%s curr_buff: %d, 0x%08x next_buf: %d, 0x%08x\n",
 		cif_isp11_stream_id_string(stream_id),
 		(stream->curr_buf) ? stream->curr_buf->i : -1,
+		(stream->curr_buf) ? videobuf_to_dma_contig(stream->curr_buf) : -1,
 		(stream->next_buf) ? stream->next_buf->i : -1,
 		*next_buff_addr);
 
@@ -5178,6 +5194,7 @@ static int cif_isp11_mi_isr(unsigned int mi_mis, void *cntxt)
 						"sp icr err: 0x%x\n",
 						mi_mis_tmp);
 	}
+
 	if (mi_mis & CIF_MI_MP_FRAME) {
 		dev->config.mi_config.mp.busy = false;
 		cif_iowrite32(CIF_MI_MP_FRAME,
