@@ -662,9 +662,14 @@
 	};
 
 	cvbsin: cvbsin@30070000 {
-		compatible = "rockchip,cvbsin";
+		compatible = "rockchip,rk1108-cvbsin", "rockchip,cvbsin";
+		rockchip,grf = <&grf>;
 		reg = <0x30070000 0x10000>;
 		device_type = "v4l2-pltfrm-subdev";
+		clocks = <&vip0_clk>, <&pclkin_cvbs2cif>, <&clk_cvbs_host>, <&clk_gpll>, <&clk_gates6 7>;
+		clock-names = "cif_clk", "cif_clk_parent", "clk_cvbs", "clk_cvbs_parent", "clk_cvbs_host";
+		resets = <&reset RK1108_RST_CVBS_P>, <&reset RK1108_RST_CVBS_CLK>, <&reset RK1108_RST_CVBS_H>;
+		reset-names = "cvbs_prst", "cvbs_clk_rst", "cvbs_hrst";
 		status = "disabled";
 	};
 
