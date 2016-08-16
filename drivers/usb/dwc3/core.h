@@ -683,6 +683,8 @@ struct dwc3_scratchpad_array {
  *			in GUSB2PHYCFG, specify that USB2 PHY doesn't
  *			provide a free-running PHY clock.
  * @del_phy_power_chg_quirk: set if we enable delay phy power change quirk
+ * @dis_del_phy_power_chg_quirk: set if we disable delay phy power
+ *			change quirk.
  */
 struct dwc3 {
 	struct usb_ctrlrequest	*ctrl_req;
@@ -786,6 +788,7 @@ struct dwc3 {
 	unsigned		dis_u2_susphy_quirk:1;
 	unsigned		dis_u2_freeclk_exists_quirk:1;
 	unsigned		del_phy_power_chg_quirk:1;
+	unsigned		dis_del_phy_power_chg_quirk:1;
 };
 
 /* -------------------------------------------------------------------------- */
