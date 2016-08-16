@@ -154,6 +154,17 @@
 		WIFI,host_wake_irq = <&gpio0 GPIO_A3 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+
+	rockchip_audio {
+		compatible = "rockchip,rk1108-audio";
+		dais {
+			dai0 {
+				audio-codec = <&codec>;
+				audio-controller = <&i2s1>;
+				format = "i2s";
+			};
+		};
+	};
 };
 
 &clk_core_dvfs_table {
@@ -567,5 +578,13 @@
 };
 
 &rga {
+	status = "okay";
+};
+
+&i2s1 {
+	status = "okay";
+};
+
+&codec {
 	status = "okay";
 };
