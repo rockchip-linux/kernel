@@ -603,6 +603,10 @@ config SND_SOC_RK1000
 	tristate
 	depends on MFD_RK1000
 
+config SND_SOC_RK1108
+	select REGMAP_MMIO
+	tristate
+
 config SND_SOC_RK2928
 	tristate
 	depends on ARCH_RK2928
