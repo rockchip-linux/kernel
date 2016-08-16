@@ -557,6 +557,16 @@
 		#reset-cells = <1>;
 	};
 
+	codec: codec@20230000 {
+		compatible = "rockchip,rk1108-codec";
+		reg = <0x20230000 0x1000>;
+		rockchip,grf = <&grf>;
+		clocks = <&clk_gates14 6>;
+		clock-names = "g_pclk_acodec";
+		spk_ctl_io = <&gpio0 GPIO_C1 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
+	};
+
 	fb: fb {
 		status = "disabled";
 		compatible = "rockchip,rk-fb";
