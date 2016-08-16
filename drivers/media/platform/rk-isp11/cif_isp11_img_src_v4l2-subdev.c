@@ -273,7 +273,7 @@ int cif_isp11_img_src_v4l2_subdev_enum_strm_fmts(
 
 		defrect.width = fie.width;
 		defrect.height = fie.height;
-		memset(&defrect, 0x00, sizeof(struct v4l2_rect));
+		memset(&defrect.defrect, 0x00, sizeof(struct v4l2_rect));
 		v4l2_subdev_call(subdev,
 			core,
 			ioctl,
