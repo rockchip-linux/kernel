@@ -266,6 +266,15 @@ config SND_RK_SOC_RK1000
 	  Say Y if you want to add support for SoC audio on rockchip
 	  with the RK1000.
 
+config SND_RK_SOC_RK1108
+	tristate "SoC I2S Audio support for rockchip - RK1108"
+	depends on SND_RK_SOC
+	select SND_RK_SOC_I2S
+	select SND_SOC_RK1108
+	help
+	  Say Y if you want to add support for SoC audio on rockchip
+	  with the RK1108 internal codec.
+
 config SND_RK_SOC_RK3036
 	tristate "SoC I2S Audio support for rockchip - RK3036"
 	depends on SND_RK_SOC
