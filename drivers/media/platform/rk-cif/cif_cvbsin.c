@@ -26,12 +26,36 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+#include <linux/clk.h>
+#include <linux/reset.h>
 
-#define CVBSIN_CTRL2   (0x01 * 4)
-#define CVBSIN_CTRL4   (0x03 * 4)
-#define CVBSIN_STATUS  (0x1f * 4)
-#define CVBSIN_OUTCTRL (0x20 * 4)
+#define CVBSIN_CTRL2    (0x01 * 4)
+#define CVBSIN_CTRL3    (0x02 * 4)
+#define CVBSIN_CTRL4    (0x03 * 4)
+#define CVBSIN_STATUS   (0x1f * 4)
+#define CVBSIN_OUTCTRL  (0x20 * 4)
 
+#define FCOMB_BYPASS    (0x1 << 6)
+#define FCOMB_DISABLE   (0x1 << 5)
+#define COMB_MODE_SE    (0x4)
+#define CTRL2_VAL       (FCOMB_BYPASS | FCOMB_DISABLE | COMB_MODE_SE)
+#define TWOS_COMPLEMENT (0x1 << 1)
+#define CTRL3_VAL       (TWOS_COMPLEMENT)
+#define AGC		(0x1 << 4)
+#define ABL		(0x1 << 3)
+#define CTRL4_VAL       (AGC | ABL | 0x3)
+
+#define RST_DISABLE     (0x0)
+#define RST_ENABLE      (0x1)
+
+#define RK1108_GRF_SOC_CON4  (0x0410)
+#define RK1108_GRF_SOC_CON10 (0x0428)
+#define RK1108_GRF_SOC_CON11 (0x042c)
+#define VADC_PD_CLMP         (0x1 << 5)
+#define VADC_LPF_BW_BYPASS   (0x3 << 12)
+#define VADC_ICLMP_CTL_400MA (0x8 << 8)
+#define VADC_GAIN            (0xa << 4)
+#define CIF_DATA_FROM_CVBSIN (0x0 << 16 | 0x3)
 
 struct cvbsin_module_config {
 	const char *name;
@@ -49,6 +73,16 @@ struct cif_cvbsin_module {
 	struct v4l2_subdev_frame_interval frm_intrvl;
 
 	struct pltfrm_soc_cfg *soc_cfg;
+	struct regmap *regmap_grf;
+	struct clk *cvbs_clk_in;
+	struct clk *cvbs_clk;
+	struct clk *cvbs_clk_parent;
+	struct clk *cif_clk;
+	struct clk *cif_clk_parent;
+
+	struct reset_control *cvbs_prst;
+	struct reset_control *cvbs_hrst;
+	struct reset_control *cvbs_clk_rst;
 };
 static struct cif_cvbsin_module *cvbsin;
 
@@ -56,6 +90,11 @@ static struct cif_cvbsin_module *cvbsin;
 	__raw_writel(val, addr + cvbsin->base_addr)
 #define read_cvbsin_reg(addr)			\
 	__raw_readl(addr + cvbsin->base_addr)
+
+#define write_grf_reg(addr, val)	\
+	regmap_write(cvbsin->regmap_grf, addr, val)
+#define read_grf_reg(addr)	        \
+	regmap_read(cvbsin->regmap_grf, addr)
 
 static struct cvbsin_module_config cvbsin_configs[] = {
 	{
@@ -111,6 +150,13 @@ static  int cvbsin_module_s_ext_ctrls(
 
 static int cvbsin_module_s_power(struct v4l2_subdev *sd, int on)
 {
+	if (on) {
+		clk_set_parent(cvbsin->cif_clk,
+			       cvbsin->cif_clk_parent);
+		write_grf_reg(RK1108_GRF_SOC_CON4,
+			      CIF_DATA_FROM_CVBSIN);
+	}
+
 	return 0;
 }
 
@@ -150,12 +196,23 @@ static long cvbsin_module_ioctl(
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_RESET) {
 		dev_info(cvbsin->dev, "cvbsin softreset\n");
-		write_cvbsin_reg(CVBSIN_OUTCTRL, 0x1);
+		/* rst */
+		reset_control_assert(cvbsin->cvbs_prst);
+		reset_control_assert(cvbsin->cvbs_hrst);
+		reset_control_assert(cvbsin->cvbs_clk_rst);
+		udelay(5);
+		reset_control_deassert(cvbsin->cvbs_prst);
+		reset_control_deassert(cvbsin->cvbs_hrst);
+		reset_control_deassert(cvbsin->cvbs_clk_rst);
+		udelay(5);
+
+		write_cvbsin_reg(CVBSIN_OUTCTRL, RST_ENABLE);
 		mdelay(5);
-		write_cvbsin_reg(CVBSIN_OUTCTRL, 0x0);
+		write_cvbsin_reg(CVBSIN_OUTCTRL, RST_DISABLE);
 		mdelay(5);
-		write_cvbsin_reg(CVBSIN_CTRL4, 0xb);
-		write_cvbsin_reg(CVBSIN_CTRL2, 0x64);
+		write_cvbsin_reg(CVBSIN_CTRL4, CTRL4_VAL);
+		write_cvbsin_reg(CVBSIN_CTRL3, CTRL3_VAL);
+		write_cvbsin_reg(CVBSIN_CTRL2, CTRL2_VAL);
 		return ret;
 	} else {
 		dev_warn(cvbsin->dev, "cvbsin not support this ioctl\n");
@@ -186,7 +243,7 @@ static int cvbsin_module_s_stream(struct v4l2_subdev *sd, int enable)
 	if (enable)
 		write_cvbsin_reg(CVBSIN_OUTCTRL, 0xfc);
 	else
-		write_cvbsin_reg(CVBSIN_OUTCTRL, 0x0);
+		write_cvbsin_reg(CVBSIN_OUTCTRL, RST_DISABLE);
 
 	return 0;
 }
@@ -272,12 +329,12 @@ static int cif_cvbsin_drv_probe(struct platform_device *pdev)
 	struct resource *res;
 	void __iomem *base_addr;
 	int ret = 0;
+	struct device_node *np = pdev->dev.of_node;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
 		pr_err("platform_get_resource_byname failed\n");
-		ret = -ENODEV;
-		return ret;
+		return -ENODEV;
 	}
 	base_addr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR_OR_NULL(base_addr)) {
@@ -293,10 +350,8 @@ static int cif_cvbsin_drv_probe(struct platform_device *pdev)
 				&pdev->dev,
 				sizeof(struct cif_cvbsin_module),
 				GFP_KERNEL);
-	if (!cvbsin) {
-		ret = -ENOMEM;
-		return ret;
-	}
+	if (!cvbsin)
+		return -ENOMEM;
 
 	v4l2_subdev_init(&cvbsin->sd, &cvbsin_module_ops);
 
@@ -314,9 +369,93 @@ static int cif_cvbsin_drv_probe(struct platform_device *pdev)
 
 	cvbsin->base_addr = base_addr;
 
-	write_cvbsin_reg(CVBSIN_CTRL4, 0xb);
-	write_cvbsin_reg(CVBSIN_CTRL2, 0x64);
-	write_cvbsin_reg(CVBSIN_OUTCTRL, 0x0);
+	cvbsin->regmap_grf =
+		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(cvbsin->regmap_grf)) {
+		dev_err(&pdev->dev,
+			"Can't regmap cvbsin rk1108 grf\n");
+		return PTR_ERR(cvbsin->regmap_grf);
+	}
+
+	/* get clks resouce */
+	cvbsin->cvbs_clk_in =
+		devm_clk_get(&pdev->dev, "clk_cvbs_host");
+	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk_in)) {
+		dev_err(&pdev->dev,
+			"Get clk_cvbs_host clock resouce failed !\n");
+		return -EINVAL;
+	}
+	cvbsin->cvbs_clk =
+		devm_clk_get(&pdev->dev, "clk_cvbs");
+	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk)) {
+		dev_err(&pdev->dev,
+			"Get clk_cvbs clock resouce failed !\n");
+		return -EINVAL;
+	}
+	cvbsin->cvbs_clk_parent =
+		devm_clk_get(&pdev->dev, "clk_cvbs_parent");
+	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk_parent)) {
+		dev_err(&pdev->dev,
+			"Get clk_cvbsin_parent clock resouce failed !\n");
+		return -EINVAL;
+	}
+	cvbsin->cif_clk =
+		devm_clk_get(&pdev->dev, "cif_clk");
+	if (IS_ERR_OR_NULL(cvbsin->cif_clk)) {
+		dev_err(&pdev->dev,
+			"Get cif_clk clock resouce failed !\n");
+		return -EINVAL;
+	}
+	cvbsin->cif_clk_parent =
+		devm_clk_get(&pdev->dev, "cif_clk_parent");
+	if (IS_ERR_OR_NULL(cvbsin->cif_clk_parent)) {
+		dev_err(&pdev->dev,
+			"Get cif_clk_parent clock resouce failed !\n");
+		return -EINVAL;
+	}
+
+	/* get rsts resouce */
+	cvbsin->cvbs_prst =
+		devm_reset_control_get(&pdev->dev, "cvbs_prst");
+	if (IS_ERR_OR_NULL(cvbsin->cvbs_prst)) {
+		dev_err(&pdev->dev,
+			"Get cvbsin prst resouce failed !\n");
+		return -EINVAL;
+	}
+	cvbsin->cvbs_hrst =
+		devm_reset_control_get(&pdev->dev, "cvbs_hrst");
+	if (IS_ERR_OR_NULL(cvbsin->cvbs_hrst)) {
+		dev_err(&pdev->dev,
+			"Get cvbsin hrst resouce failed !\n");
+		return -EINVAL;
+	}
+	cvbsin->cvbs_clk_rst =
+		devm_reset_control_get(&pdev->dev, "cvbs_clk_rst");
+	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk_rst)) {
+		dev_err(&pdev->dev,
+			"Get cvbsin clk rst resouce failed !\n");
+		return -EINVAL;
+	}
+
+	/* config clk */
+	clk_set_parent(cvbsin->cvbs_clk,
+		       cvbsin->cvbs_clk_parent);
+	clk_set_rate(cvbsin->cvbs_clk_in, 54000000);
+	clk_prepare_enable(cvbsin->cvbs_clk_in);
+
+	/* config adc */
+	write_grf_reg(RK1108_GRF_SOC_CON10,
+		      0xFFFF0000 |
+		      VADC_LPF_BW_BYPASS |
+		      VADC_ICLMP_CTL_400MA |
+		      VADC_GAIN);
+	write_grf_reg(RK1108_GRF_SOC_CON11, 0xFFFF0000 | VADC_PD_CLMP);
+
+	/* config tvd */
+	write_cvbsin_reg(CVBSIN_CTRL4, CTRL4_VAL);
+	write_cvbsin_reg(CVBSIN_CTRL3, CTRL3_VAL);
+	write_cvbsin_reg(CVBSIN_CTRL2, CTRL2_VAL);
+	write_cvbsin_reg(CVBSIN_OUTCTRL, RST_DISABLE);
 
 	pr_info("cvbsin probe success\n");
 	return ret;
