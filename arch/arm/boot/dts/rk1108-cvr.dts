@@ -251,10 +251,10 @@
 		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
 		rockchip,camera-module-regulator-voltages = <1450000 3300000>;
 		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "cmk-cb0695-fv1";
-		rockchip,camera-module-len-name = "lg9569a2";
-		rockchip,camera-module-fov-h = "66.0";
-		rockchip,camera-module-fov-v = "50.1";
+		rockchip,camera-module-name = "LA6110PA ";
+		rockchip,camera-module-len-name = "YM6011P";
+		rockchip,camera-module-fov-h = "128";
+		rockchip,camera-module-fov-v = "55.7";
 		rockchip,camera-module-orientation = <0>;
 		rockchip,camera-module-iq-flip = <0>;
 		rockchip,camera-module-iq-mirror = <0>;
