@@ -200,16 +200,45 @@ struct fsl_qspi_devtype_data {
 	int txfifo;
 };
 
-static struct fsl_qspi_devtype_data vybrid_data = {
+static const struct fsl_qspi_devtype_data vybrid_data = {
 	.devtype = FSL_QUADSPI_VYBRID,
 	.rxfifo = 128,
 	.txfifo = 64
 };
 
-static struct fsl_qspi_devtype_data imx6sx_data = {
+static const struct fsl_qspi_devtype_data imx6sx_data = {
 	.devtype = FSL_QUADSPI_IMX6SX,
 	.rxfifo = 128,
-	.txfifo = 512
+	.txfifo = 512,
+	.ahb_buf_size = 1024,
+	.driver_data = QUADSPI_QUIRK_4X_INT_CLK
+		       | QUADSPI_QUIRK_TKT245618,
+};
+
+static const struct fsl_qspi_devtype_data imx7d_data = {
+	.devtype = FSL_QUADSPI_IMX7D,
+	.rxfifo = 512,
+	.txfifo = 512,
+	.ahb_buf_size = 1024,
+	.driver_data = QUADSPI_QUIRK_TKT253890
+		       | QUADSPI_QUIRK_4X_INT_CLK,
+};
+
+static const struct fsl_qspi_devtype_data imx6ul_data = {
+	.devtype = FSL_QUADSPI_IMX6UL,
+	.rxfifo = 128,
+	.txfifo = 512,
+	.ahb_buf_size = 1024,
+	.driver_data = QUADSPI_QUIRK_TKT253890
+		       | QUADSPI_QUIRK_4X_INT_CLK,
+};
+
+static struct fsl_qspi_devtype_data ls1021a_data = {
+	.devtype = FSL_QUADSPI_LS1021A,
+	.rxfifo = 128,
+	.txfifo = 64,
+	.ahb_buf_size = 1024,
+	.driver_data = 0,
 };
 
 #define FSL_QSPI_MAX_CHIP	4
