@@ -535,6 +535,7 @@
 };
 
 &dwc_control_usb {
+	rockchip,remote_wakeup;
 	rockchip,usb_irq_wakeup;
 	status = "okay";
 };
