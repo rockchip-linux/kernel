@@ -332,7 +332,7 @@ regmap_failed:
 	return err;
 }
 
-int pltfrm_rk1108_cfg(
+int pltfrm_rk1108_cif_cfg(
 		struct pltfrm_soc_cfg_para *cfg)
 {
 	switch (cfg->cmd) {

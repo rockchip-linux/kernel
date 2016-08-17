@@ -1402,7 +1402,7 @@ const struct v4l2_ioctl_ops cif_cif10_v4l2_ioctlops = {
 
 static struct pltfrm_soc_cfg rk1108_cfg = {
 	.name = CIF_CIF10_SOC_RK1108,
-	.soc_cfg = pltfrm_rk1108_cfg,
+	.soc_cfg = pltfrm_rk1108_cif_cfg,
 };
 
 static const struct of_device_id cif_cif10_v4l2_of_match[] = {

@@ -550,10 +550,6 @@ void cif_cif10_dbgfs_fill_sensor_aec_para(
 	s32 exp_time,
 	u16 gain);
 
-int cif_cif10_fill_timeinfo(
-	struct cif_cif10_device *dev,
-	struct v4l2_buffer_timeinfo_s *p_v4l2buffer_t);
-
 u32 cif_cif10_calc_llength(
 	u32 width,
 	u32 stride,

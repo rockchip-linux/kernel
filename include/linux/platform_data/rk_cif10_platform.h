@@ -188,6 +188,6 @@ struct pltfrm_soc_cfg {
 	int (*soc_cfg)(struct pltfrm_soc_cfg_para *cfg);
 };
 
-int pltfrm_rk1108_cfg(
+int pltfrm_rk1108_cif_cfg(
 		struct pltfrm_soc_cfg_para *cfg);
 #endif

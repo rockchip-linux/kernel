@@ -25,7 +25,7 @@
 
 static void init_output_formats(void);
 
-struct v4l2_fmtdesc output_formats[MAX_NB_FORMATS];
+static struct v4l2_fmtdesc output_formats[MAX_NB_FORMATS];
 
 static struct cif_cif10_fmt cif_cif10_output_format[] = {
 /* ************* YUV422 ************* */
@@ -1491,35 +1491,6 @@ int cif_cif10_reqbufs(
 			"kzalloc frame_timeinfo_s failed\n");
 		return -ENOMEM;
 	}
-
-	return 0;
-}
-
-int cif_cif10_fill_timeinfo(
-	struct cif_cif10_device *dev,
-	struct v4l2_buffer_timeinfo_s *p_v4l2buffer_t)
-{
-	struct cif_cif10_stream *strm_dev;
-
-	strm_dev = &dev->stream;
-
-	if (strm_dev->frame.frame_t) {
-		if (p_v4l2buffer_t->index <
-		    strm_dev->frame.cnt) {
-			p_v4l2buffer_t->frame =
-			 *(strm_dev->frame.frame_t +
-			 p_v4l2buffer_t->index);
-		} else {
-			cif_cif10_pltfrm_pr_err(
-				dev->dev,
-				"index: %d is invalidate, frame.cnt: %d\n",
-				p_v4l2buffer_t->index,
-				strm_dev->frame.cnt);
-		}
-	}
-
-	p_v4l2buffer_t->flash = dev->flash_t;
-	p_v4l2buffer_t->frame.exposure_active = false;
 
 	return 0;
 }
