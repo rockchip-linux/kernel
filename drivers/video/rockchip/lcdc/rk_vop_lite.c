@@ -2736,7 +2736,10 @@ static int vop_probe(struct platform_device *pdev)
 	dev_drv->id = vop_dev->id;
 	dev_drv->ops = &lcdc_drv_ops;
 	dev_drv->lcdc_win_num = ARRAY_SIZE(vop_win);
-	dev_drv->reserved_fb = 0;
+	if (VOP_CHIP(vop_dev) == VOP_RK1108)
+		dev_drv->reserved_fb = ONE_FB_BUFFER;
+	else
+		dev_drv->reserved_fb = DEFAULT_FB_BUFFER;
 	spin_lock_init(&vop_dev->reg_lock);
 	spin_lock_init(&vop_dev->irq_lock);
 	init_completion(&vop_dev->sync.stdbyfin);

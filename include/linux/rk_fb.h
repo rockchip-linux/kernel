@@ -291,6 +291,12 @@ enum rk_vop_feature {
 	SUPPORT_YUV420_OUTPUT	= BIT(4)
 };
 
+enum rk_fb_buffer {
+	DEFAULT_FB_BUFFER	= 0,
+	ONE_FB_BUFFER		= 1,
+	TWO_FB_BUFFER		= 2,
+};
+
 struct rk_vop_property {
 	u32 feature;
 	u32 max_output_x;
