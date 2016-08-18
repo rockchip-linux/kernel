@@ -1516,6 +1516,9 @@ void dvfs_clk_boost(struct dvfs_node *clk_dvfs_node, unsigned long boost_freq,
 	if (!clk_dvfs_node)
 		return;
 
+	if (!dvfs_wq)
+		return;
+
 	cancel_delayed_work(&clk_dvfs_node->dwork);
 	clk_dvfs_node->boost_freq = boost_freq;
 
