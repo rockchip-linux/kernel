@@ -1201,6 +1201,16 @@ int pltfrm_camera_module_set_pm_state(
 			PLTFRM_CAMERA_MODULE_PIN_PWR,
 			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
 
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_RESET,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
+		usleep_range(100, 300);
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_RESET,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
+
 		mclk_para.io_voltage = PLTFRM_IO_1V8;
 		mclk_para.drv_strength = PLTFRM_DRV_STRENGTH_2;
 		cfg_para.cmd = PLTFRM_MCLK_CFG;
