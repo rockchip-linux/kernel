@@ -588,8 +588,10 @@
 			 <&clk_gates14 12>, <&clk_gates18 10>, <&clk_gates9 12>;
 		clock-names = "aclk_isp", "hclk_isp", "sclk_isp", "sclk_isp_jpe",
 			      "pclk_mipi_csi", "pclk_isp_in", "sclk_mipidsi_24m";
-		resets = <&reset RK1108_RST_ISP>;
-		reset-names = "rst_isp";
+		resets = <&reset RK1108_RST_ISP>, <&reset RK1108_RST_ISP_NIU_A>,
+			<&reset RK1108_RST_ISP_NIU_H>, <&reset RK1108_RST_ISP_H>;
+		reset-names = "rst_isp", "rst_isp_niu_a",
+			"rst_isp_niu_h", "rst_isp_h";
 		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "cif_isp11_irq";
 		status = "disabled";
