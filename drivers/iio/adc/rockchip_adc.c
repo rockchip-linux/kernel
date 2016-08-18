@@ -32,6 +32,7 @@
 #include <linux/of_irq.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_platform.h>
+#include <linux/spinlock.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/machine.h>
@@ -73,16 +74,19 @@ enum host_chn_mask{
 #define SAMPLE_RATE		(20/ADC_CLK_RATE)  //20 CLK
 
 #define MAX_RK_ADC_CHANNELS	3
-#define RK_ADC_TIMEOUT		HZ
+#define RK_ADC_TIMEOUT		msecs_to_jiffies(100)
 
 struct rk_adc {
 	void __iomem	*regs;
 	struct clk		*pclk;
 	struct clk		*clk;
-	struct completion	completion;
+
+	/* Synchronization & notification */
+	spinlock_t		lock;
+	struct completion       completion;
 	unsigned int		irq;
 	u32                 vref_mv;
-    u32                 num_channels;
+	u32                 num_channels;
 	u32			        value;
 };
 
@@ -111,13 +115,14 @@ static int rk_read_raw(struct iio_dev *indio_dev,
 {
 	int ret = IIO_VAL_INT;
 	struct rk_adc *info = iio_priv(indio_dev);
-	unsigned long timeout;
+	unsigned long timeout, flags;
 
 	if (mask != IIO_CHAN_INFO_RAW)
 		return -EINVAL;
 
 	mutex_lock(&indio_dev->mlock);
 
+	spin_lock_irqsave(&info->lock, flags);
 	INIT_COMPLETION(info->completion);
 
 	clk_enable(info->clk);
@@ -126,22 +131,26 @@ static int rk_read_raw(struct iio_dev *indio_dev,
         /* Select the channel to be used and Trigger conversion */
         writel_relaxed(0x08, info->regs + ADC_DELAY_PU_SOC);
 	writel_relaxed(ADC_CTRL_POWER_UP|ADC_CTRL_CH(chan->channel)|ADC_CTRL_IRQ_ENABLE, info->regs + ADC_CTRL);
+	spin_unlock_irqrestore(&info->lock, flags);
 
 	timeout = wait_for_completion_timeout
 			(&info->completion, RK_ADC_TIMEOUT);
+
+	spin_lock_irqsave(&info->lock, flags);
 	*val = info->value;
-	
+
 	RK_ADC_DBG("read adc value: %d form channel: %d\n", *val, chan->channel);
-	if (timeout == 0)
-	{
+	if (timeout == 0) {
 		rk_adc_dump(indio_dev);
-		writel_relaxed(0, info->regs + ADC_CTRL);
-		writel_relaxed(0, info->regs + ADC_DELAY_PU_SOC);
 		ret = -ETIMEDOUT;
 	}
 
+	writel_relaxed(0, info->regs + ADC_CTRL);
+	writel_relaxed(0, info->regs + ADC_DELAY_PU_SOC);
+
 	clk_disable(info->clk);
 	clk_disable(info->pclk);
+	spin_unlock_irqrestore(&info->lock, flags);
 
 	mutex_unlock(&indio_dev->mlock);
 
@@ -152,6 +161,7 @@ static irqreturn_t rk_adc_isr(int irq, void *dev_id)
 {
 	struct rk_adc *info = (struct rk_adc *)dev_id;
 
+	spin_lock(&info->lock);
 	/* Read value */
 	info->value = readl_relaxed(info->regs + ADC_DATA) & ADC_DATA_MASK;
 	/* clear irq & power down adc*/
@@ -159,6 +169,7 @@ static irqreturn_t rk_adc_isr(int irq, void *dev_id)
         writel_relaxed(0, info->regs + ADC_DELAY_PU_SOC);
 
 	complete(&info->completion);
+	spin_unlock(&info->lock);
 
 	return IRQ_HANDLED;
 }
@@ -172,12 +183,8 @@ static int rk_adc_reg_access(struct iio_dev *indio_dev,
 	if (readval == NULL)
 		return -EINVAL;
 
-	clk_enable(info->clk);
 	clk_enable(info->pclk);
-
 	*readval = readl_relaxed(info->regs + reg);
-
-	clk_disable(info->clk);
 	clk_disable(info->pclk);
 
 	return 0;
@@ -304,6 +311,8 @@ static int rk_adc_probe(struct platform_device *pdev)
                 goto err_clk;
     }
     indio_dev->num_channels = sizeof(rk_adc_iio_channels)/sizeof(struct iio_chan_spec);
+
+	spin_lock_init(&info->lock);
 
 	ret = iio_device_register(indio_dev);
 	if (ret)
