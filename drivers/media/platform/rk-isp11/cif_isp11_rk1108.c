@@ -84,8 +84,12 @@ struct cif_isp11_clk_rst_rk1108 {
 	struct clk	*sclk_isp_jpe;
 	struct clk *sclk_mipidsi_24m;
 	struct clk *pclk_mipi_csi;
-	struct clk *pclk_isp_in;	
+	struct clk *pclk_isp_in;
+
 	struct reset_control *isp_rst;
+	struct reset_control *isp_niu_arst;
+	struct reset_control *isp_niu_hrst;
+	struct reset_control *isp_hrst;
 };
 
 
@@ -179,8 +183,8 @@ unsigned char MIPI_DPHY_ReadReg(unsigned char addr)
 }
 #endif
 static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
-{    
-	unsigned char hsfreqrange=0xff, i;
+{
+	unsigned char hsfreqrange = 0xff, i;
 	struct mipi_dphy_hsfreqrange *hsfreqrange_p;
 	unsigned char datalane_en, input_sel;
 
@@ -203,7 +207,7 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 	/*hsfreqrange <<= 1;*/
 	input_sel = para->dphy_index;
 	datalane_en = 0;
-	for (i=0; i<para->nb_lanes; i++)
+	for (i = 0; i < para->nb_lanes; i++)
 		datalane_en |= (1<<i);
 
 	if (input_sel == 0) {
@@ -213,27 +217,27 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 
 	/*set clock lane */
 	/*write_csiphy_reg(0x34,0x00); */
-    write_csiphy_reg((0x100),hsfreqrange|
-    				(read_csiphy_reg(0x100)&(~0xf)));
-	if(para->nb_lanes >= 0x00){/*lane0*/
-		write_csiphy_reg((0x180),hsfreqrange|
-						(read_csiphy_reg(0x180)&(~0xf)));
+	write_csiphy_reg((0x100), hsfreqrange|
+		(read_csiphy_reg(0x100) & (~0xf)));
+	if (para->nb_lanes >= 0x00) {/*lane0*/
+		write_csiphy_reg((0x180), hsfreqrange|
+			(read_csiphy_reg(0x180)&(~0xf)));
 	}
-	if(para->nb_lanes >= 0x02){/*lane1*/
-		write_csiphy_reg(0x200,hsfreqrange|
-						(read_csiphy_reg(0x200)&(~0xf)));
+	if (para->nb_lanes >= 0x02) {/*lane1*/
+		write_csiphy_reg(0x200, hsfreqrange|
+			(read_csiphy_reg(0x200)&(~0xf)));
 	}
-	if(para->nb_lanes >= 0x04){/*lane4*/
-		write_csiphy_reg(0x280,hsfreqrange|
-						(read_csiphy_reg(0x280)&(~0xf)));
-		write_csiphy_reg(0x300,hsfreqrange|
-						(read_csiphy_reg(0x300)&(~0xf)));
+	if (para->nb_lanes >= 0x04) {/*lane4*/
+		write_csiphy_reg(0x280, hsfreqrange|
+			(read_csiphy_reg(0x280)&(~0xf)));
+		write_csiphy_reg(0x300, hsfreqrange|
+			(read_csiphy_reg(0x300)&(~0xf)));
 	}
 
 	/*set data lane num and enable clock lane */
 	write_csiphy_reg(0x00, ((datalane_en << 2)|(0x1<<6)|0x1));
 
-    write_cifisp_reg((MRV_MIPI_BASE+MRV_MIPI_CTRL),
+	write_cifisp_reg((MRV_MIPI_BASE+MRV_MIPI_CTRL),
 		read_cifisp_reg(MRV_MIPI_BASE+MRV_MIPI_CTRL) & (~(0x0f<<8)));
 #else
 	write_cifcru_reg(CRU_BASE_USER+0x20, 0x04000000);/*TESTCLR=0*/
@@ -282,7 +286,7 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 		/*RSTZ	 =1*/
 		write_cifcru_reg(CRU_BASE_USER+0x20, 0x04000400);
 #endif
-	} else if (input_sel == 1){
+	} else if (input_sel == 1) {
 
 	} else {
 		goto fail;
@@ -305,6 +309,16 @@ static int soc_clk_enable(void)
 	clk_prepare_enable(clk_rst->sclk_mipidsi_24m);
 	clk_prepare_enable(clk_rst->pclk_isp_in);
 	clk_prepare_enable(clk_rst->pclk_mipi_csi);
+
+	reset_control_assert(clk_rst->isp_rst);
+	reset_control_assert(clk_rst->isp_niu_arst);
+	reset_control_assert(clk_rst->isp_niu_hrst);
+	reset_control_assert(clk_rst->isp_hrst);
+	udelay(10);
+	reset_control_deassert(clk_rst->isp_rst);
+	reset_control_deassert(clk_rst->isp_niu_arst);
+	reset_control_deassert(clk_rst->isp_niu_hrst);
+	reset_control_deassert(clk_rst->isp_hrst);
 #endif
 	return 0;
 }
@@ -376,11 +390,15 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 	clk_rst->aclk_isp = devm_clk_get(&pdev->dev, "aclk_isp");
 	clk_rst->hclk_isp = devm_clk_get(&pdev->dev, "hclk_isp");
 	clk_rst->sclk_isp = devm_clk_get(&pdev->dev, "sclk_isp");
-	clk_rst->sclk_isp_jpe = devm_clk_get(&pdev->dev, "sclk_isp_jpe");	
-	clk_rst->sclk_mipidsi_24m = devm_clk_get(&pdev->dev, "sclk_mipidsi_24m");	
+	clk_rst->sclk_isp_jpe = devm_clk_get(&pdev->dev, "sclk_isp_jpe");
+	clk_rst->sclk_mipidsi_24m = devm_clk_get(&pdev->dev, "sclk_mipidsi_24m");
 	clk_rst->pclk_mipi_csi = devm_clk_get(&pdev->dev, "pclk_mipi_csi");
-	clk_rst->isp_rst = devm_reset_control_get(&pdev->dev, "rst_isp");
 	clk_rst->pclk_isp_in = devm_clk_get(&pdev->dev, "pclk_isp_in");
+
+	clk_rst->isp_rst = devm_reset_control_get(&pdev->dev, "rst_isp");
+	clk_rst->isp_niu_arst = devm_reset_control_get(&pdev->dev, "rst_isp_niu_a");
+	clk_rst->isp_niu_hrst = devm_reset_control_get(&pdev->dev, "rst_isp_niu_h");
+	clk_rst->isp_hrst = devm_reset_control_get(&pdev->dev, "rst_isp_h");
 
 	if (IS_ERR_OR_NULL(clk_rst->aclk_isp) ||
 		IS_ERR_OR_NULL(clk_rst->hclk_isp) ||
@@ -389,8 +407,11 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 		IS_ERR_OR_NULL(clk_rst->pclk_mipi_csi) ||
 		IS_ERR_OR_NULL(clk_rst->isp_rst) ||
 		IS_ERR_OR_NULL(clk_rst->pclk_isp_in) ||
-		IS_ERR_OR_NULL(clk_rst->sclk_mipidsi_24m)) {
-		dev_err(&pdev->dev,"Get rk1108 cif isp11 clock resouce failed !\n");
+		IS_ERR_OR_NULL(clk_rst->sclk_mipidsi_24m) ||
+		IS_ERR_OR_NULL(clk_rst->isp_niu_arst) ||
+		IS_ERR_OR_NULL(clk_rst->isp_niu_hrst) ||
+		IS_ERR_OR_NULL(clk_rst->isp_hrst)) {
+		dev_err(&pdev->dev, "Get rk1108 cif isp11 clock resouce failed !\n");
 		err = -EINVAL;
 		goto clk_failed;
 	}
@@ -424,17 +445,17 @@ clk_failed:
 	}
 	if (!IS_ERR_OR_NULL(clk_rst->sclk_mipidsi_24m)) {
 		devm_clk_put(&pdev->dev, clk_rst->sclk_mipidsi_24m);
-	}	
-	
+	}
+
 	if (!IS_ERR_OR_NULL(clk_rst->isp_rst)) {
 		reset_control_put(clk_rst->isp_rst);
 	}
 #endif
 regmap_failed:
-	
+
 
 alloc_failed:
-	
+
 	return err;
 
 }
@@ -452,7 +473,7 @@ int pltfrm_rk1108_cfg (
 			write_grf_reg(GRF_IO_VSEL_OFFSET, DVP_V18SEL);
 		else
 			write_grf_reg(GRF_IO_VSEL_OFFSET, DVP_V33SEL);
-		
+
 		write_grf_reg(GRF_GPIO2B_E_OFFSET,
 			CIF_CLKOUT_STRENGTH(mclk_para->drv_strength));
 		#endif
@@ -470,20 +491,20 @@ int pltfrm_rk1108_cfg (
 		soc_clk_disable();
 		break;
 
-	case PLTFRM_CLKRST: 
+	case PLTFRM_CLKRST:
 		#ifndef FPGA_TEST
 		reset_control_assert(rk1108->clk_rst.isp_rst);
-		udelay(10);
+		usleep_range(5, 30);
 		reset_control_deassert(rk1108->clk_rst.isp_rst);
 		#endif
 		break;
 
-	case PLTFRM_SOC_INIT: 
+	case PLTFRM_SOC_INIT:
 		soc_init((struct pltfrm_soc_init_para *)cfg->cfg_para);
 		break;
 
 	default:
-		break;  
+		break;
 
 	}
 
