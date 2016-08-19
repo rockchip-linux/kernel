@@ -272,8 +272,8 @@
 		pinctrl-1 = <&cam0_sleep_pins>;
 		rockchip,pd-gpio = <&gpio3 8 GPIO_ACTIVE_HIGH>;
 		rockchip,pd-gpio-is_active_high;
-		rockchip,pwr-gpio = <&gpio3 25 GPIO_ACTIVE_HIGH>;
-		rockchip,pwr-gpio-is_active_high;
+		rockchip,rst-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
+		rockchip,rst-gpio-is_active_low;
 		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
 		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
 		rockchip,camera-module-regulator-voltages = <1450000 3300000>;
@@ -305,8 +305,8 @@
 		pinctrl-1 = <&cam0_sleep_pins>;
 		rockchip,pd-gpio = <&gpio3 8 GPIO_ACTIVE_HIGH>;
 		rockchip,pd-gpio-is_active_low;
-		rockchip,pwr-gpio = <&gpio3 25 GPIO_ACTIVE_HIGH>;
-		rockchip,pwr-gpio-is_active_high;
+		rockchip,rst-gpio = <&gpio3 25 GPIO_ACTIVE_HIGH>;
+		rockchip,rst-gpio-is_active_high;
 		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
 		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
 		rockchip,camera-module-regulator-voltages = <1200000 2800000>;
