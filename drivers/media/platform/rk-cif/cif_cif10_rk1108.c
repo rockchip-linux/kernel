@@ -28,41 +28,6 @@
 #include "cif_cif10_regs.h"
 #include "cif_cif10.h"
 
-/*
-*GRF_IO_VSEL
-*/
-#define GRF_IO_VSEL_OFFSET		(0x0380)
-#define DVP_V18SEL				((1<<1) | (1<<17))
-#define DVP_V33SEL				((0<<1) | (1<<17))
-
-/*
-*GRF_IO_VSEL
-*/
-#define GRF_GPIO2B_E_OFFSET		(0x0380)
-#define CIF_CLKOUT_STRENGTH(a)	(((a&0x03)<<3) | (0x03<<19))
-
-#define CRU_CLKSEL_CON                (0x00DC)
-#define CIF0_CLKSEL_IO			      (0x3 << 16 | 0x0)
-#define CIF0_CLKSEL_CIF1T4			  (0x3 << 16 | 0x1)
-#define CIF0_CLKSEL_CVBS			  (0x3 << 16 | 0x2)
-
-#define CIF1_CLKSEL_IO			      (0x3 << 18 | 0x0)
-#define CIF1_CLKSEL_CIF1T4			  (0x3 << 18 | 0x1)
-#define CIF1_CLKSEL_CVBS			  (0x3 << 18 | 0x2)
-
-#define CIF2_CLKSEL_IO			      (0x3 << 20 | 0x0)
-#define CIF2_CLKSEL_CIF1T4			  (0x3 << 20 | 0x1)
-#define CIF2_CLKSEL_CVBS			  (0x3 << 20 | 0x2)
-
-#define CIF3_CLKSEL_IO			      (0x3 << 22 | 0x0)
-#define CIF3_CLKSEL_CIF1T4			  (0x3 << 22 | 0x1)
-#define CIF3_CLKSEL_CVBS			  (0x3 << 22 | 0x2)
-
-#define GRF_SOC_CON4                  (0x0410)
-#define CIF0_DATASEL_CVBS             (0x3 << 16 | 0x0)
-#define CIF0_DATASEL_CAM              (0x3 << 16 | 0x2)
-#define CIF0_DATASEL_CIF1T4           (0x3 << 16 | 0x3)
-
 
 /* read/write registers */
 #define write_cif_reg(addr, val)	\
@@ -79,9 +44,7 @@ struct cif_cif10_clk_rst_rk1108 {
 
 	struct clk	*aclk_cif;
 	struct clk	*hclk_cif;
-	struct clk	*cif_clk_in;
-	struct clk	*cif_clk;
-	struct clk	*cif_clk_parent;
+	struct clk	*pclk_cif;
 
 	struct reset_control *cif_arst;
 	struct reset_control *cif_hrst;
@@ -104,7 +67,7 @@ static int soc_clk_enable(struct pltfrm_soc_init_para *init)
 
 	clk_prepare_enable(clk_rst->aclk_cif);
 	clk_prepare_enable(clk_rst->hclk_cif);
-	clk_prepare_enable(clk_rst->cif_clk_in);
+	clk_prepare_enable(clk_rst->pclk_cif);
 
 	return 0;
 }
@@ -116,7 +79,7 @@ static int soc_clk_disable(struct pltfrm_soc_init_para *init)
 
 	clk_disable_unprepare(clk_rst->aclk_cif);
 	clk_disable_unprepare(clk_rst->hclk_cif);
-	clk_disable_unprepare(clk_rst->cif_clk_in);
+	clk_disable_unprepare(clk_rst->pclk_cif);
 
 	return 0;
 }
@@ -187,149 +150,77 @@ static void soc_cif_reset(struct pltfrm_soc_init_para *init)
 	write_cif_reg(CIF_CIF_INTEN, inten_reg);
 }
 
-static void soc_cif_sel_data_clk(
-		struct pltfrm_cam_itf_init_para *init)
-{
-	struct platform_device *pdev = init->pdev;
-	struct cif_cif10_clk_rst_rk1108 *clk_rst;
-
-	if (!pdev || rk1108.clk_rst[pdev->id].cif_base == NULL)
-		return;
-
-	clk_rst = &rk1108.clk_rst[init->pdev->id];
-	rk1108.cif_base = rk1108.clk_rst[pdev->id].cif_base;
-
-	switch (pdev->id) {
-	case 0:
-		if (PLTFRM_CAM_ITF_IS_CVBS(init->type)) {
-			write_grf_reg(
-					GRF_SOC_CON4,
-					CIF0_DATASEL_CVBS);
-		} else if (PLTFRM_CAM_ITF_IS_DVP(init->type)) {
-			write_grf_reg(GRF_SOC_CON4,   CIF0_DATASEL_CAM);
-		} else {
-			write_grf_reg(
-					GRF_SOC_CON4,
-					CIF0_DATASEL_CIF1T4);
-		}
-		clk_set_parent(
-				clk_rst->cif_clk,
-				clk_rst->cif_clk_parent);
-		break;
-	case 1:
-		clk_set_parent(
-				clk_rst->cif_clk,
-				clk_rst->cif_clk_parent);
-		break;
-	case 2:
-		clk_set_parent(
-				clk_rst->cif_clk,
-				clk_rst->cif_clk_parent);
-		break;
-	case 3:
-		clk_set_parent(
-				clk_rst->cif_clk,
-				clk_rst->cif_clk_parent);
-		break;
-	default:
-		dev_err(
-				&pdev->dev,
-				"invalid parameter pdev->id =%d\n",
-				pdev->id);
-		break;
-	}
-}
-
 static int soc_init(struct pltfrm_soc_init_para *init)
 {
 	struct cif_cif10_clk_rst_rk1108 *clk_rst;
 	struct platform_device *pdev = init->pdev;
-	struct device_node *np = pdev->dev.of_node, *node;
-	int err;
+	struct device_node *np = pdev->dev.of_node;
 
-	if (!rk1108.regmap_grf) {
-		node = of_parse_phandle(np, "rockchip,grf", 0);
-		if (node) {
-			rk1108.regmap_grf = syscon_node_to_regmap(node);
-			if (IS_ERR(rk1108.regmap_grf)) {
-				dev_err(&pdev->dev, "Can't regmap rk1108 grf\n");
-				err = -ENODEV;
-				goto regmap_failed;
-			}
-		}
+	rk1108.regmap_grf =
+		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(rk1108.regmap_grf)) {
+		dev_err(&pdev->dev, "Can't regmap rk1108 grf\n");
+		return PTR_ERR(rk1108.regmap_grf);
 	}
 
 	pr_info("init cif%d clk&rst\n", pdev->id);
 
 	clk_rst = &rk1108.clk_rst[pdev->id];
 
-	clk_rst->cif_clk =
-		devm_clk_get(&pdev->dev, "cif_clk");
 	clk_rst->aclk_cif =
 		devm_clk_get(&pdev->dev, "aclk_cif");
+	if (IS_ERR_OR_NULL(clk_rst->aclk_cif)) {
+		dev_err(&pdev->dev,
+			"Get rk1108 cif%d aclk resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
 	clk_rst->hclk_cif =
 		devm_clk_get(&pdev->dev, "hclk_cif");
-	clk_rst->cif_clk_in =
+	if (IS_ERR_OR_NULL(clk_rst->hclk_cif)) {
+		dev_err(&pdev->dev,
+			"Get rk1108 cif%d hclk resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
+	clk_rst->pclk_cif =
 		devm_clk_get(&pdev->dev, "pclkin_cif");
-	clk_rst->cif_clk_parent =
-		devm_clk_get(&pdev->dev, "cif_clk_parent");
+	if (IS_ERR_OR_NULL(clk_rst->pclk_cif)) {
+		dev_err(&pdev->dev,
+			"Get rk1108 cif%d pclk resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
 
 	clk_rst->cif_arst =
 		devm_reset_control_get(&pdev->dev, "cif_arst");
+	if (IS_ERR_OR_NULL(clk_rst->cif_arst)) {
+		dev_err(&pdev->dev,
+			"Get rk1108 cif%d arst resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
 	clk_rst->cif_hrst =
 		devm_reset_control_get(&pdev->dev, "cif_hrst");
+	if (IS_ERR_OR_NULL(clk_rst->cif_hrst)) {
+		dev_err(&pdev->dev,
+			"Get rk1108 cif%d hrst resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
 	clk_rst->cif_prst =
 		devm_reset_control_get(&pdev->dev, "cif_prst");
-
-	if (
-		IS_ERR_OR_NULL(clk_rst->aclk_cif)   ||
-		IS_ERR_OR_NULL(clk_rst->hclk_cif)   ||
-		IS_ERR_OR_NULL(clk_rst->cif_clk)    ||
-		IS_ERR_OR_NULL(clk_rst->cif_clk_in) ||
-		IS_ERR_OR_NULL(clk_rst->cif_arst)   ||
-		IS_ERR_OR_NULL(clk_rst->cif_hrst)   ||
-		IS_ERR_OR_NULL(clk_rst->cif_clk_parent) ||
-		IS_ERR_OR_NULL(clk_rst->cif_prst)) {
-		dev_err(
-				&pdev->dev,
-				"Get rk1108 cif%d clock resouce failed !\n",
-				pdev->id);
-		err = -EINVAL;
-		goto clk_failed;
+	if (IS_ERR_OR_NULL(clk_rst->cif_prst)) {
+		dev_err(&pdev->dev,
+			"Get rk1108 cif%d prst resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
 	}
 
 	clk_rst->cif_base = init->cif_base;
 	rk1108.cif_base = init->cif_base;
 
 	return 0;
-
-clk_failed:
-	if (!IS_ERR_OR_NULL(clk_rst->cif_clk))
-		devm_clk_put(&pdev->dev, clk_rst->cif_clk);
-
-	if (!IS_ERR_OR_NULL(clk_rst->cif_clk_parent))
-		devm_clk_put(&pdev->dev, clk_rst->cif_clk_parent);
-
-	if (!IS_ERR_OR_NULL(clk_rst->aclk_cif))
-		devm_clk_put(&pdev->dev, clk_rst->aclk_cif);
-
-	if (!IS_ERR_OR_NULL(clk_rst->hclk_cif))
-		devm_clk_put(&pdev->dev, clk_rst->hclk_cif);
-
-	if (!IS_ERR_OR_NULL(clk_rst->cif_clk_in))
-		devm_clk_put(&pdev->dev, clk_rst->cif_clk_in);
-
-	if (!IS_ERR_OR_NULL(clk_rst->cif_arst))
-		reset_control_put(clk_rst->cif_arst);
-
-	if (!IS_ERR_OR_NULL(clk_rst->cif_hrst))
-		reset_control_put(clk_rst->cif_hrst);
-
-	if (!IS_ERR_OR_NULL(clk_rst->cif_prst))
-		reset_control_put(clk_rst->cif_prst);
-regmap_failed:
-
-	return err;
 }
 
 int pltfrm_rk1108_cif_cfg(
@@ -346,11 +237,6 @@ int pltfrm_rk1108_cif_cfg(
 
 	case PLTFRM_CLKRST:
 		soc_cif_reset((struct pltfrm_soc_init_para *)cfg->cfg_para);
-		break;
-
-	case PLTFRM_SEL_DATA_CLK:
-		soc_cif_sel_data_clk(
-			(struct pltfrm_cam_itf_init_para *)cfg->cfg_para);
 		break;
 
 	case PLTFRM_SOC_INIT:

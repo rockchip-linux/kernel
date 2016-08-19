@@ -921,13 +921,6 @@ static int cif_cif10_config_cif(
 		cfg_para.cfg_para = &init_para;
 		init_para.pdev = pdev;
 		(dev->soc_cfg->soc_cfg)(&cfg_para);
-
-		/*select cif clk&data*/
-		cfg_para.cmd = PLTFRM_SEL_DATA_CLK;
-		cfg_para.cfg_para = &init_para;
-		init_para.pdev = pdev;
-		init_para.type = dev->config.cam_itf.type;
-		(dev->soc_cfg->soc_cfg)(&cfg_para);
 	} else {
 		cif_cif10_pltfrm_pr_err(
 				dev->dev,

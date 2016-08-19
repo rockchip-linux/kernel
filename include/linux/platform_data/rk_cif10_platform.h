@@ -145,7 +145,6 @@ enum pltfrm_soc_cfg_cmd {
 	PLTFRM_CLKDIS,
 	PLTFRM_CLKRST,
 
-	PLTFRM_SEL_DATA_CLK,
 
 	PLTFRM_SOC_INIT
 };
