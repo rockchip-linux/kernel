@@ -32,6 +32,7 @@
 #include <linux/module.h>
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/cru.h>
+#include <linux/rockchip_ion.h>
 #include <asm/cacheflush.h>
 #include "iep_drv.h"
 #if defined(CONFIG_IEP_MMU)
@@ -1004,10 +1005,10 @@ static int iep_drv_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct resource *res = NULL;
 	u32 version;
+	struct device_node *np = pdev->dev.of_node;
 #if defined(CONFIG_IEP_IOMMU)
 	u32 iommu_en = 0;
 	struct device *mmu_dev = NULL;
-	struct device_node *np = pdev->dev.of_node;
 	of_property_read_u32(np, "iommu_enabled", &iommu_en);
 #endif
 

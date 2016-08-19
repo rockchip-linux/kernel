@@ -9,11 +9,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  */
 
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/rockchip_ion.h>
 #include "hw_iep_reg.h"
 #include "iep.h"
 #include "hw_iep_config_addr.h"
