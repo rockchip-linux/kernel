@@ -421,8 +421,8 @@ int rk_disp_pwr_enable(struct rk_lcdc_driver *dev_drv)
 				continue;
 			}
 			regulator_set_voltage(regulator_lcd, pwr_ctr->volt, pwr_ctr->volt);
-			while (!regulator_is_enabled(regulator_lcd)) {
-				if (regulator_enable(regulator_lcd) == 0 || count == 0)
+			while (count) {
+				if (regulator_enable(regulator_lcd) == 0)
 					break;
 				else
 					dev_err(dev_drv->dev,
