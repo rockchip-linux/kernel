@@ -706,8 +706,7 @@ void cif_isp11_dbgfs_fill_sensor_aec_para(
 
 int cif_isp11_s_isp_metadata(
 	struct cif_isp11_device *dev,
-	unsigned int stream_id,
-	struct videobuf_buffer *vb,
+	struct cif_isp11_isp_readout_work *readout_work,
 	struct cifisp_isp_other_cfg *new_other,
 	struct cifisp_isp_meas_cfg *new_meas,
 	struct cifisp_stat_buffer *new_stats);

@@ -3688,6 +3688,7 @@ static void cifisp_send_measurement(
 			meas_work->frame_id);
 		goto end;
 	}
+
 	if (!list_empty(&isp_dev->stat)) {
 		vb = list_first_entry(&isp_dev->stat, struct videobuf_buffer, queue);
 	} else {
@@ -3696,6 +3697,7 @@ static void cifisp_send_measurement(
 			"Not enought measurement bufs\n");
 		goto end;
 	}
+
 	spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
 	vb->state = VIDEOBUF_ACTIVE;
 
@@ -3703,30 +3705,23 @@ static void cifisp_send_measurement(
 	memset(stat_buf, 0x00, sizeof(struct cifisp_stat_buffer));
 
 	if (active_meas & CIF_ISP_AWB_DONE) {
-			cifisp_get_awb_meas(isp_dev, stat_buf);
+		cifisp_get_awb_meas(isp_dev, stat_buf);
 	}
+
 	if (active_meas & CIF_ISP_AFM_FIN) {
 		cifisp_get_afc_meas(isp_dev, stat_buf);
 	}
+
 	if (active_meas & CIF_ISP_EXP_END) {
 		cifisp_get_aec_meas(isp_dev, stat_buf);
 		cifisp_bls_get_meas(isp_dev, stat_buf);
-
-		cif_isp11_sensor_mode_data_sync(cif_dev,
-			meas_work->frame_id,
-			&stat_buf->sensor_mode);
-
-		/*pr_info("%s: exp_time: %d, gain: %d,  frame_id: %d\n",
-			__func__,
-			stat_buf->sensor_mode.exp_time,
-			stat_buf->sensor_mode.gain,
-			meas_work->frame_id);*/
 	}
+
 	if (active_meas & CIF_ISP_HIST_MEASURE_RDY) {
 		cifisp_get_hst_meas(isp_dev, stat_buf);
 	}
-
 	spin_lock_irqsave(&isp_dev->irq_lock, lock_flags);
+
 	if (isp_dev->frame_id != meas_work->frame_id) {
 		spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
 		CIFISP_DPRINT(CIFISP_ERROR,
@@ -3735,6 +3730,7 @@ static void cifisp_send_measurement(
 			meas_work->frame_id);
 		goto end;
 	}
+
 	vb->ts = isp_dev->vs_t;
 	list_del(&vb->queue);
 	spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
@@ -3756,9 +3752,16 @@ static void cifisp_send_measurement(
 		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_AFM_FIN;
 	}
 	if (active_meas & CIF_ISP_EXP_END) {
+		cif_isp11_sensor_mode_data_sync(cif_dev,
+			meas_work->frame_id,
+			&stat_buf->sensor_mode);
 		memcpy(&isp_dev->meas_stats.stat.params.ae,
 			&stat_buf->params.ae,
 			sizeof(struct cifisp_ae_stat));
+		memcpy(&isp_dev->meas_stats.stat.sensor_mode,
+			&stat_buf->sensor_mode,
+			sizeof(struct isp_supplemental_sensor_mode_data));
+
 		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_AUTOEXP;
 	}
 	if (active_meas & CIF_ISP_HIST_MEASURE_RDY) {
@@ -3767,7 +3770,7 @@ static void cifisp_send_measurement(
 			sizeof(struct cifisp_hist_stat));
 		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_HIST;
 	}
-	isp_dev->meas_stats.g_frame_id = isp_dev->frame_id;
+	isp_dev->meas_stats.g_frame_id = meas_work->frame_id;
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		"Measurement done(%d, %d)\n",
 		vb->field_count,
@@ -3836,8 +3839,7 @@ void cifisp_isp_readout_work(struct work_struct *work)
 
 		cif_isp11_s_isp_metadata(
 			cif_dev,
-			readout_work->stream_id,
-			readout_work->vb,
+			readout_work,
 			other_new,
 			meas_new,
 			stat_new);
@@ -4255,7 +4257,6 @@ int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis)
 #ifdef LOG_ISR_EXE_TIME
 	ktime_t in_t = ktime_get();
 #endif
-
 	if (isp_mis & (CIF_ISP_DATA_LOSS | CIF_ISP_PIC_SIZE_ERROR))
 		return 0;
 
@@ -4292,7 +4293,6 @@ int cifisp_isp_isr(struct cif_isp11_isp_dev *isp_dev, u32 isp_mis)
 				work->readout = CIF_ISP11_ISP_READOUT_MEAS;
 				work->isp_dev = isp_dev;
 				work->frame_id = isp_dev->frame_id;
-
 				if (!queue_work(isp_dev->readout_wq,
 					(struct work_struct *)work)) {
 					CIFISP_DPRINT(CIFISP_ERROR,

@@ -4392,6 +4392,15 @@ static int cif_isp11_mi_frame_end(
 			wake_now = false;
 
 			if (stream->metadata.d && dev->isp_dev.streamon) {
+				struct v4l2_buffer_metadata_s *metadata;
+
+				metadata = (struct v4l2_buffer_metadata_s *)
+					(stream->metadata.d +
+					stream->curr_buf->i*CAMERA_METADATA_LEN);
+				metadata->frame_id = dev->isp_dev.frame_id;
+				metadata->frame_t.vs_t = dev->isp_dev.vs_t;
+				metadata->frame_t.fi_t = dev->isp_dev.fi_t;
+
 				work = (struct cif_isp11_isp_readout_work *)
 					kmalloc(
 					sizeof(struct cif_isp11_isp_readout_work),
@@ -5481,8 +5490,6 @@ static void cif_isp11_vs_work(struct work_struct *work)
 	kfree(vs_wk);
 	vs_wk = NULL;
 }
-
-
 /**Public Functions***********************************************************/
 void cif_isp11_sensor_mode_data_sync(
 	struct cif_isp11_device *dev,
@@ -6315,12 +6322,15 @@ failed:
 
 int cif_isp11_s_isp_metadata(
 	struct cif_isp11_device *dev,
-	unsigned int stream_id,
-	struct videobuf_buffer *vb,
+	struct cif_isp11_isp_readout_work *readout_work,
 	struct cifisp_isp_other_cfg *new_other,
 	struct cifisp_isp_meas_cfg *new_meas,
 	struct cifisp_stat_buffer *new_stats)
 {
+	unsigned int stream_id =
+		readout_work->stream_id;
+	struct videobuf_buffer *vb =
+		readout_work->vb;
 	struct cif_isp11_stream *strm_dev;
 	struct v4l2_buffer_metadata_s *metadata;
 	struct cifisp_isp_metadata *isp_last;
@@ -6345,6 +6355,8 @@ int cif_isp11_s_isp_metadata(
 		metadata = (struct v4l2_buffer_metadata_s *)
 			(strm_dev->metadata.d +
 			vb->i*CAMERA_METADATA_LEN);
+
+		metadata->frame_id = readout_work->frame_id;
 		isp_last =
 			(struct cifisp_isp_metadata *)metadata->isp;
 
@@ -6372,6 +6384,10 @@ int cif_isp11_s_isp_metadata(
 			memcpy(&isp_last->meas_stat,
 				new_stats,
 				sizeof(struct cifisp_stat_buffer));
+			metadata->sensor.exp_time =
+				new_stats->sensor_mode.exp_time;
+			metadata->sensor.gain =
+				new_stats->sensor_mode.gain;
 		} else
 			isp_last->meas_stat.meas_type = 0x00;
 
