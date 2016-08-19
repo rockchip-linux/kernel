@@ -294,11 +294,11 @@ static int rfkill_rk_set_power(void *data, bool blocked)
 
         rfkill_rk_sleep_bt(BT_WAKEUP); // ensure bt is wakeup
 
-		if (gpio_is_valid(poweron->io))
+        if (&rfkill->pdata->bt_power_remain == false && gpio_is_valid(poweron->io))
         {
-			gpio_direction_output(poweron->io, !poweron->enable);
+            gpio_direction_output(poweron->io, !poweron->enable);
             msleep(20);
-			gpio_direction_output(poweron->io, poweron->enable);
+            gpio_direction_output(poweron->io, poweron->enable);
             msleep(20);
         }
 		if (gpio_is_valid(reset->io))
@@ -322,7 +322,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
         bt_power_state = 1;
     	LOG("bt turn on power\n");
 	} else {
-            if (gpio_is_valid(poweron->io))
+            if (&rfkill->pdata->bt_power_remain == false && gpio_is_valid(poweron->io))
             {      
                 gpio_direction_output(poweron->io, !poweron->enable);
                 msleep(20);
@@ -483,6 +483,13 @@ static int bluetooth_platdata_parse_dt(struct device *dev,
         data->power_toggle = false;
     }
 
+    if (of_find_property(node, "keep_bt_power_on", NULL)) {
+        data->bt_power_remain = true;
+        LOG("%s: get property keep_bt_power_on.\n", __func__);
+    } else {
+        data->bt_power_remain = false;
+    }
+
     gpio = of_get_named_gpio_flags(node, "uart_rts_gpios", 0, &flags);
     if (gpio_is_valid(gpio)) {
         data->rts_gpio.io = gpio;
@@ -495,12 +502,12 @@ static int bluetooth_platdata_parse_dt(struct device *dev,
         } else {
             data->pinctrl = NULL;
             LOG("%s: dts does't define the uart rts iomux.\n", __func__);
-            return -EINVAL;
+            //return -EINVAL;
         }
     } else {
         data->pinctrl = NULL;
         LOG("%s: uart_rts_gpios is unvalid.\n", __func__);
-        return -EINVAL;
+        //return -EINVAL;
     }
 
     gpio = of_get_named_gpio_flags(node, "BT,power_gpio", 0, &flags);
@@ -644,7 +651,10 @@ static int rfkill_rk_probe(struct platform_device *pdev)
     // bt turn off power
     if (gpio_is_valid(pdata->poweron_gpio.io))
     {
-        gpio_direction_output(pdata->poweron_gpio.io, !pdata->poweron_gpio.enable);
+        if (pdata->bt_power_remain)
+            gpio_direction_output(pdata->poweron_gpio.io, pdata->poweron_gpio.enable);
+        else
+            gpio_direction_output(pdata->poweron_gpio.io, !pdata->poweron_gpio.enable);
     }
     if (gpio_is_valid(pdata->reset_gpio.io))
     {
