@@ -30,9 +30,9 @@
 		* rtl8188eu, rtl8723bs, rtl8723bu
 		* esp8089
 		*/
-		wifi_chip_type = "ap6335";
+		wifi_chip_type = "rtl8723bs";
 
-		sdio_vref = <1800>; //1800mv or 3300mv
+		sdio_vref = <3300>; //1800mv or 3300mv
 
 		//keep_wifi_power_on;
 
@@ -45,7 +45,7 @@
 		vref_pmu_regulator = "vccio";
 		vref_pmu_enable_level = <1>; //1->HIGH, 0->LOW
 
-		WIFI,poweren_gpio = <&gpio3 GPIO_A4 GPIO_ACTIVE_HIGH>;
+		WIFI,poweren_gpio = <&gpio3 GPIO_A5 GPIO_ACTIVE_HIGH>;
 		WIFI,host_wake_irq = <&gpio3 GPIO_A6 GPIO_ACTIVE_HIGH>;
 		//WIFI,reset_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
 
@@ -56,16 +56,17 @@
 		compatible = "bluetooth-platdata";
 
 		//wifi-bt-power-toggle;
+		keep_bt_power_on;
 
-		uart_rts_gpios = <&gpio2 GPIO_D3 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default","rts_gpio";
-		pinctrl-0 = <&uart0_rts>;
-		pinctrl-1 = <&uart0_rts_gpio>;
+		//uart_rts_gpios = <&gpio2 GPIO_D3 GPIO_ACTIVE_LOW>;
+		//pinctrl-names = "default","rts_gpio";
+		//pinctrl-0 = <&uart0_rts>;
+		//pinctrl-1 = <&uart0_rts_gpio>;
 
-		BT,power_gpio = <&gpio3 GPIO_A3 GPIO_ACTIVE_HIGH>;
-		BT,reset_gpio = <&gpio3 GPIO_A5 GPIO_ACTIVE_HIGH>;
-		BT,wake_gpio = <&gpio3 GPIO_A2 GPIO_ACTIVE_HIGH>;
-		BT,wake_host_irq = <&gpio3 GPIO_A7 GPIO_ACTIVE_HIGH>;
+		BT,power_gpio = <&gpio3 GPIO_A4 GPIO_ACTIVE_HIGH>;
+		BT,reset_gpio = <&gpio3 GPIO_A2 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio3 GPIO_A7 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio3 GPIO_A3 GPIO_ACTIVE_HIGH>;
 
 		status = "okay";
 	};
@@ -392,7 +393,7 @@
 &uart_bt {
 	status = "okay";
 	dma-names = "!tx", "!rx";
-	pinctrl-0 = <&uart0_xfer &uart0_cts>;
+	pinctrl-0 = <&uart1_xfer &uart1_cts>;
 };
 
 &tsadc {
