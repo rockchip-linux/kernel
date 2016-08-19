@@ -1,4 +1,4 @@
 config RTL8723BS_VQ0
-	tristate "Realtek 8723BS-VQ0 COB WiFi"
+	tristate "Realtek 8723BS_VQ0 WiFi"
 	---help---
-	  Help message of RTL8723BS-VQ0 COB
+	  Help message of RTL8723BS-VQ0

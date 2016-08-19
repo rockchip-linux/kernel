@@ -37,11 +37,11 @@ static void freerecvbuf(struct recv_buf *precvbuf)
 	_rtw_spinlock_free(&precvbuf->recvbuf_lock);
 }
 
-static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbuf, struct phy_stat *pphy_status)
+static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbuf, u8 *pphy_status)
 {
 	s32 ret=_SUCCESS;
 #ifdef CONFIG_CONCURRENT_MODE
-	u8 *primary_myid, *secondary_myid, *paddr1;
+	u8 *secondary_myid, *paddr1;
 	union recv_frame	*precvframe_if2 = NULL;
 	_adapter *primary_padapter = precvframe->u.hdr.adapter;
 	_adapter *secondary_padapter = primary_padapter->pbuddy_adapter;
@@ -56,8 +56,7 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 
 	if(IS_MCAST(paddr1) == _FALSE)//unicast packets
 	{
-		//primary_myid = myid(&primary_padapter->eeprompriv);
-		secondary_myid = myid(&secondary_padapter->eeprompriv);
+		secondary_myid = adapter_mac_addr(secondary_padapter);
 
 		if(_rtw_memcmp(paddr1, secondary_myid, ETH_ALEN))
 		{
@@ -121,7 +120,7 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 			recvframe_pull_tail(precvframe_if2, IEEE80211_FCS_LEN);
 
 		if (pattrib->physt)
-			rtl8723b_query_rx_phy_status(precvframe_if2, pphy_status);
+			rx_query_phy_status(precvframe_if2, pphy_status);
 
 		if(rtw_recv_entry(precvframe_if2) != _SUCCESS)
 		{
@@ -131,7 +130,7 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 	}
 
 	if (precvframe->u.hdr.attrib.physt)
-		rtl8723b_query_rx_phy_status(precvframe, pphy_status);
+		rx_query_phy_status(precvframe, pphy_status);
 
 	ret = rtw_recv_entry(precvframe);
 #endif
@@ -323,7 +322,7 @@ static void rtl8723bs_recv_tasklet(void *priv)
 #ifdef CONFIG_CONCURRENT_MODE
 					if (rtw_buddy_adapter_up(padapter))
 					{
-						if (pre_recv_entry(precvframe, precvbuf, (struct phy_stat*)ptr) != _SUCCESS) {
+						if (pre_recv_entry(precvframe, precvbuf, ptr) != _SUCCESS) {
 							RT_TRACE(_module_rtl871x_recv_c_,_drv_err_,
 								("recvbuf2recvframe: recv_entry(precvframe) != _SUCCESS\n"));
 						}
@@ -332,7 +331,7 @@ static void rtl8723bs_recv_tasklet(void *priv)
 #endif
 					{
 						if (pattrib->physt)
-							rtl8723b_query_rx_phy_status(precvframe, (struct phy_stat*)ptr);
+							rx_query_phy_status(precvframe, ptr);
 
 						if (rtw_recv_entry(precvframe) != _SUCCESS) {
 							RT_TRACE(_module_rtl871x_recv_c_, _drv_dump_, ("%s: rtw_recv_entry(precvframe) != _SUCCESS\n",__FUNCTION__));
@@ -483,7 +482,7 @@ static void rtl8723bs_recv_tasklet(void *priv)
 
 					// The case of can't allocte skb is serious and may never be recovered,
 					// once bDriverStopped is enable, this task should be stopped.
-					if (padapter->bDriverStopped == _FALSE) {
+					if (!rtw_is_drv_stopped(padapter)) {
 #ifdef PLATFORM_LINUX
 						tasklet_schedule(&precvpriv->recv_tasklet);
 #endif
@@ -515,7 +514,7 @@ static void rtl8723bs_recv_tasklet(void *priv)
 #ifdef CONFIG_CONCURRENT_MODE
 					if (rtw_buddy_adapter_up(padapter))
 					{
-						if (pre_recv_entry(precvframe, precvbuf, (struct phy_stat*)ptr) != _SUCCESS) {
+						if (pre_recv_entry(precvframe, precvbuf, ptr) != _SUCCESS) {
 							RT_TRACE(_module_rtl871x_recv_c_,_drv_err_,
 								("recvbuf2recvframe: recv_entry(precvframe) != _SUCCESS\n"));
 						}
@@ -524,7 +523,7 @@ static void rtl8723bs_recv_tasklet(void *priv)
 #endif
 					{
 						if (pattrib->physt)
-							rtl8723b_query_rx_phy_status(precvframe, (struct phy_stat*)ptr);
+							rx_query_phy_status(precvframe, ptr);
 
 						if (rtw_recv_entry(precvframe) != _SUCCESS)
 						{

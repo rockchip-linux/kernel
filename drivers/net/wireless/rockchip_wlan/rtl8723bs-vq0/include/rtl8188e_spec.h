@@ -148,7 +148,11 @@
 //========================================================
 
 #define MACID_NUM_88E 64
-#define CAM_ENTRY_NUM_88E 32
+#define SEC_CAM_ENT_NUM_88E 32
+#define NSS_NUM_88E 1
+#define BAND_CAP_88E (BAND_CAP_2G)
+#define BW_CAP_88E (BW_CAP_20M | BW_CAP_40M)
+#define PROTO_CAP_88E (PROTO_CAP_11B|PROTO_CAP_11G|PROTO_CAP_11N)
 
 //----------------------------------------------------------------------------
 //       8192C EEPROM/EFUSE share register definition.
