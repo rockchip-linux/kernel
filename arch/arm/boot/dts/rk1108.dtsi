@@ -841,6 +841,16 @@
 		status = "disabled";
 	};
 
+	u2phy: usb2-phy {
+		compatible = "rockchip,rk1108-usb2phy";
+		rockchip,grf = <&grf>;
+		rockchip,usbgrf = <&usbgrf>;
+		interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "linestate";
+		#phy-cells = <0>;
+		status = "disabled";
+	};
+
 	usb_host_ehci: usb@30140000 {
 		compatible = "generic-ehci";
 		reg = <0x30140000 0x20000>;
