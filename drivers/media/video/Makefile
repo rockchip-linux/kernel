@@ -15,7 +15,8 @@ nt99240_2way.o \
 ov2659.o \
 ov5640.o \
 sp0838.o \
-sp2518.o
+sp2518.o \
+tp2825.o
 obj-$(CONFIG_RK30_CAMERA_ONEFRAME) += rk30_camera_oneframe.o generic_sensor.o \
 gc0307.o \
 gc0308.o \
@@ -33,4 +34,5 @@ nt99240_2way.o \
 ov2659.o \
 ov5640.o \
 sp0838.o \
-sp2518.o
+sp2518.o \
+tp2825.o

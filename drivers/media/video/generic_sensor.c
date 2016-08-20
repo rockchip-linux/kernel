@@ -1210,12 +1210,20 @@ long generic_sensor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
             }
             break;
         }
-        default:
-        {
-            SENSOR_TR("%s cmd(0x%x) is unknown !\n",__FUNCTION__,cmd);
-            break;
-        }
-    }
+
+		case RK29_CAM_SUBDEV_GET_INTERFACE:
+		{
+			memcpy(arg, &sensor->info_priv.dev_sig_cnf, sizeof(sensor->info_priv.dev_sig_cnf));
+			SENSOR_DG("%s ioctl get src fmt: %s", __func__, (char *)arg);
+			break;
+		}
+
+		default:
+		{
+			SENSOR_TR("%s cmd(0x%x) is unknown !\n", __func__, cmd);
+			break;
+		}
+	}
 sensor_ioctl_end:
     return ret;
 }

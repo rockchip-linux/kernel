@@ -107,6 +107,7 @@
 #define RK29_CAM_SUBDEV_DEACTIVATE          0x01
 #define RK29_CAM_SUBDEV_IOREQUEST			0x02
 #define RK29_CAM_SUBDEV_CB_REGISTER         0x03
+#define RK29_CAM_SUBDEV_GET_INTERFACE		0x04
 
 #define Sensor_HasBeen_PwrOff(a)            (a&0x01)
 #define Sensor_Support_DirectResume(a)      ((a&0x10)==0x10)
@@ -196,6 +197,36 @@ typedef struct rk_camera_device_register_info {
     struct platform_device device_info;
 }rk_camera_device_register_info_t;
 
+enum rk_camera_signal_polarity {
+	RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL = 1,
+	RK_CAMERA_DEVICE_SIGNAL_LOW_LEVEL = 0,
+};
+
+enum rk_camera_device_type {
+	RK_CAMERA_DEVICE_BT601_8	= 0x10000011,
+	RK_CAMERA_DEVICE_BT601_10	= 0x10000012,
+	RK_CAMERA_DEVICE_BT601_12	= 0x10000014,
+	RK_CAMERA_DEVICE_BT601_16	= 0x10000018,
+
+	RK_CAMERA_DEVICE_BT656_8	= 0x10000021,
+	RK_CAMERA_DEVICE_BT656_10	= 0x10000022,
+	RK_CAMERA_DEVICE_BT656_12	= 0x10000024,
+	RK_CAMERA_DEVICE_BT656_16	= 0x10000028,
+
+	RK_CAMERA_DEVICE_CVBS_NTSC	= 0x20000001,
+	RK_CAMERA_DEVICE_CVBS_PAL	= 0x20000002
+};
+
+struct rk_camera_dvp_config {
+	enum rk_camera_signal_polarity vsync;
+	enum rk_camera_signal_polarity hsync;
+};
+
+struct rk_camera_device_signal_config {
+	enum rk_camera_device_type type;
+	struct rk_camera_dvp_config dvp;
+};
+
 struct rkcamera_platform_data {
     rk_camera_device_register_info_t dev;
     char dev_name[32];
@@ -235,7 +266,6 @@ struct rkcamera_platform_data {
 	int powerdown_pmu_voltage;
 	struct device_node *of_node;
 	struct rkcamera_platform_data *next_camera;/*yzm*/
-                      
 };
 
 struct rk29camera_platform_data {

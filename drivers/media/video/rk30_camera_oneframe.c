@@ -344,6 +344,7 @@ struct rk_cif_clk
     struct clk *hclk_cif;
     struct clk *cif_clk_in;
     struct clk *cif_clk_out;
+	struct clk *pclk_cif;
 	/************must modify end************/
 
    // spinlock_t lock;
@@ -1254,7 +1255,7 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
 
     clk = &cif_clk[cif];
    
-    if(!clk->aclk_cif || !clk->hclk_cif || !clk->cif_clk_in || !clk->cif_clk_out) {
+    if (!clk->aclk_cif || !clk->hclk_cif || !clk->cif_clk_in || !clk->cif_clk_out || !clk->pclk_cif){
         RKCAMERA_TR(KERN_ERR "failed to get cif clock source\n");
         err = -ENOENT;
         goto rk_camera_clk_ctrl_end;
@@ -1269,6 +1270,7 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
     	clk_prepare_enable(clk->hclk_cif);
     	clk_prepare_enable(clk->cif_clk_in);
     	clk_prepare_enable(clk->cif_clk_out);
+		clk_prepare_enable(clk->pclk_cif);
         clk_set_rate(clk->cif_clk_out,clk_rate);
         clk->on = true;
     } else if (!on && clk->on) {
@@ -1276,6 +1278,7 @@ static int rk_camera_mclk_ctrl(int cif_idx, int on, int clk_rate)
         clk_disable_unprepare(clk->aclk_cif);
     	clk_disable_unprepare(clk->hclk_cif);
     	clk_disable_unprepare(clk->cif_clk_in);
+		clk_disable_unprepare(clk->pclk_cif);
 		if(CHIP_NAME == 3126){
 			write_cru_reg(CRU_CLKSEL29_CON, 0x007c0000);
 			write_cru_reg(CRU_CLK_OUT, 0x00800080);
@@ -1658,12 +1661,31 @@ static void rk_camera_setup_format(struct soc_camera_device *icd, __u32 host_pix
 {
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
     struct rk_camera_dev *pcdev = ici->priv;
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
     unsigned int cif_fs = 0,cif_crop = 0;
-    unsigned int cif_fmt_val = read_cif_reg(pcdev->base,CIF_CIF_FOR) | INPUT_MODE_YUV|YUV_INPUT_422|INPUT_420_ORDER_EVEN|OUTPUT_420_ORDER_EVEN;
-	
+	unsigned int cif_fmt_val;
 	const struct soc_mbus_pixelfmt *fmt;
-	fmt = soc_mbus_get_fmtdesc(icd_code);
+	struct rk_camera_device_signal_config dev_sig_cnf;
 
+	v4l2_subdev_call(sd, core, ioctl, RK29_CAM_SUBDEV_GET_INTERFACE, &dev_sig_cnf);
+	if (dev_sig_cnf.type == RK_CAMERA_DEVICE_CVBS_NTSC)
+		cif_fmt_val = read_cif_reg(pcdev->base, CIF_CIF_FOR) | INPUT_MODE_NTSC | YUV_OUTPUT_420;
+	else
+		cif_fmt_val = read_cif_reg(pcdev->base, CIF_CIF_FOR) | INPUT_MODE_YUV | YUV_INPUT_422 | INPUT_420_ORDER_EVEN | OUTPUT_420_ORDER_EVEN;
+
+	if (dev_sig_cnf.type == RK_CAMERA_DEVICE_BT601_8) {
+		if (dev_sig_cnf.dvp.vsync == RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL)
+			cif_fmt_val |= VSY_HIGH_ACTIVE;
+		else
+			cif_fmt_val |= VSY_LOW_ACTIVE;
+
+		if (dev_sig_cnf.dvp.hsync == RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL)
+			cif_fmt_val |= HSY_HIGH_ACTIVE;
+		else
+			cif_fmt_val |= HSY_LOW_ACTIVE;
+	}
+
+	fmt = soc_mbus_get_fmtdesc(icd_code);
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()/n", __FILE__, __LINE__,__FUNCTION__);
 
 
@@ -3100,6 +3122,7 @@ static int rk_camera_probe(struct platform_device *pdev)
         cif_clk[0].hclk_cif = devm_clk_get(dev_cif, "hclk_cif0");
         cif_clk[0].cif_clk_in = devm_clk_get(dev_cif, "cif0_in");
         cif_clk[0].cif_clk_out = devm_clk_get(dev_cif, "cif0_out");
+		cif_clk[0].pclk_cif = devm_clk_get(dev_cif, "pclk_cif");
         //spin_lock_init(&cif_clk[0].lock);
         cif_clk[0].on = false;
         rk_camera_cif_iomux(dev_cif);
@@ -3112,6 +3135,7 @@ static int rk_camera_probe(struct platform_device *pdev)
         cif_clk[1].hclk_cif = devm_clk_get(dev_cif, "hclk_cif0");
         cif_clk[1].cif_clk_in = devm_clk_get(dev_cif, "cif0_in");
         cif_clk[1].cif_clk_out = devm_clk_get(dev_cif, "cif0_out");
+		cif_clk[1].pclk_cif = devm_clk_get(dev_cif, "pclk_cif");
         //spin_lock_init(&cif_clk[1].lock);
         cif_clk[1].on = false;
         rk_camera_cif_iomux(dev_cif);
@@ -3239,20 +3263,6 @@ exit_reqirq:
 exit_ioremap_vip:
     release_mem_region(res->start, res->end - res->start + 1);
 exit_reqmem_vip:
-    if (clk) {
-		if(CHIP_NAME != 3368){
-			if (clk->pd_cif)
-			    clk_put(clk->pd_cif);
-		}
-        if (clk->aclk_cif)
-            clk_put(clk->aclk_cif);
-        if (clk->hclk_cif)
-            clk_put(clk->hclk_cif);
-        if (clk->cif_clk_in)
-            clk_put(clk->cif_clk_in);
-        if (clk->cif_clk_out)
-            clk_put(clk->cif_clk_out);
-    }
     kfree(pcdev);
 exit_alloc:
 

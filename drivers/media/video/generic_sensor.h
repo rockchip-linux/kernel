@@ -202,6 +202,7 @@ typedef struct rk_sensor_priv_s
 	unsigned int gReg_mask;
 	unsigned int gVal_mask;
 	unsigned int gI2c_speed;
+	struct rk_camera_device_signal_config dev_sig_cnf;
 
     bool stream;
 	
