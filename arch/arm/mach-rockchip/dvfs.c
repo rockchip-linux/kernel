@@ -2394,6 +2394,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 		for (i = 0; i < ARRAY_SIZE(pvtm_info_table); i++) {
 			struct pvtm_info *pvtm_info = pvtm_info_table[i];
 
+			if (soc_is_rk3288w())
+				break;
+
 			if ((pvtm_info->channel == dvfs_node->channel) &&
 			    (pvtm_info->process_version == process_version) &&
 			    (pvtm_info->cluster == dvfs_node->cluster) &&
