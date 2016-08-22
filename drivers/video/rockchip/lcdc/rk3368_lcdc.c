@@ -2353,7 +2353,7 @@ static int win_0_1_display(struct lcdc_device *lcdc_dev,
 		lcdc_writel(lcdc_dev, WIN0_CBR_MST + off, win->area[0].uv_addr);
 		if (win->area[0].fbdc_en == 1)
 			lcdc_writel(lcdc_dev, IFBDC_BASE_ADDR,
-				    win->area[0].y_addr);
+				    win->area[0].smem_start);
 	}
 	spin_unlock(&lcdc_dev->reg_lock);
 
@@ -2384,7 +2384,7 @@ static int win_2_3_display(struct lcdc_device *lcdc_dev,
 		lcdc_writel(lcdc_dev, WIN2_MST3 + off, win->area[3].y_addr);
 		if (win->area[0].fbdc_en == 1)
 			lcdc_writel(lcdc_dev, IFBDC_BASE_ADDR,
-				    win->area[0].y_addr);
+				    win->area[0].smem_start);
 	}
 	spin_unlock(&lcdc_dev->reg_lock);
 	return 0;
