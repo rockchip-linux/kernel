@@ -174,12 +174,7 @@ static long cvbsin_module_ioctl(
 
 	if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
 		itf_cfg = (struct pltfrm_cam_itf *)arg;
-		itf_cfg->base_addr = cvbsin->base_addr;
-		index = read_cvbsin_reg(CVBSIN_STATUS) & 0x1;
-		if (index == 0)
-			itf_cfg->type = PLTFRM_CAM_ITF_CVBS_NTSC;
-		else
-			itf_cfg->type = PLTFRM_CAM_ITF_CVBS_PAL;
+		itf_cfg->type = PLTFRM_CAM_ITF_BT601_8_FIELD;
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_ATTACH) {
 		cvbsin->soc_cfg = (struct pltfrm_soc_cfg *)arg;
