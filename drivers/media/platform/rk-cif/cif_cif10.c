@@ -747,58 +747,49 @@ static void cif_cif10_config_frm_addr(
 
 	cif_cif10_next_buff(cif_cif10_dev);
 	curr_buf = cif_cif10_dev->stream.curr_buf;
+	if (curr_buf == NULL)
+		return;
 
-	if (PLTFRM_CAM_ITF_IS_CVBS(
+	if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
 				cif_cif10_dev->config.cam_itf.type)) {
-		if (curr_buf != NULL) {
-			if (curr_buf->memory == V4L2_MEMORY_USERPTR)
-				cif_frm0_addr_y = curr_buf->baddr;
-			else if (curr_buf->memory == V4L2_MEMORY_MMAP)
-				cif_frm0_addr_y = curr_buf->boff;
+		if (curr_buf->memory == V4L2_MEMORY_USERPTR)
+			cif_frm0_addr_y = curr_buf->baddr;
+		else if (curr_buf->memory == V4L2_MEMORY_MMAP)
+			cif_frm0_addr_y = curr_buf->boff;
 
-			cif_frm0_addr_uv =
-				cif_frm0_addr_y +
-					(output_fmt->defrect.width *
-					output_fmt->defrect.height);
-			cif_frm1_addr_y  = cif_frm0_addr_y +
-						output_fmt->defrect.width;
-			cif_frm1_addr_uv = cif_frm0_addr_uv +
-						output_fmt->defrect.width;
-		}
+		cif_frm0_addr_uv = cif_frm0_addr_y +
+				   (output_fmt->defrect.width *
+				   output_fmt->defrect.height);
+		cif_frm1_addr_y  = cif_frm0_addr_y +
+				   output_fmt->defrect.width;
+		cif_frm1_addr_uv = cif_frm0_addr_uv +
+				   output_fmt->defrect.width;
 	} else {
-		if (curr_buf != NULL) {
-			if (curr_buf->memory == V4L2_MEMORY_USERPTR)
-				cif_frm0_addr_y = curr_buf->baddr;
-			else if (curr_buf->memory == V4L2_MEMORY_MMAP)
-				cif_frm0_addr_y = curr_buf->boff;
+		if (curr_buf->memory == V4L2_MEMORY_USERPTR)
+			cif_frm0_addr_y = curr_buf->baddr;
+		else if (curr_buf->memory == V4L2_MEMORY_MMAP)
+			cif_frm0_addr_y = curr_buf->boff;
 
-			cif_frm0_addr_uv =
-				cif_frm0_addr_y +
-					(output_fmt->defrect.width *
-						output_fmt->defrect.height);
-		}
+		cif_frm0_addr_uv = cif_frm0_addr_y +
+				   (output_fmt->defrect.width *
+				   output_fmt->defrect.height);
 	}
 
-	cif_iowrite32(
-			cif_frm0_addr_y,
-			cif_cif10_dev->config.base_addr +
-				CIF_CIF_FRM0_ADDR_Y);
-	cif_iowrite32(
-			cif_frm0_addr_uv,
-			cif_cif10_dev->config.base_addr +
-				CIF_CIF_FRM0_ADDR_UV);
+	cif_iowrite32(cif_frm0_addr_y,
+		      cif_cif10_dev->config.base_addr +
+		      CIF_CIF_FRM0_ADDR_Y);
+	cif_iowrite32(cif_frm0_addr_uv,
+		      cif_cif10_dev->config.base_addr +
+		      CIF_CIF_FRM0_ADDR_UV);
 
-	if (cif_ioread32(
-			cif_cif10_dev->config.base_addr + CIF_CIF_CTRL) &
-			MODE_PINGPONG) {
-		cif_iowrite32(
-				cif_frm1_addr_y,
-				cif_cif10_dev->config.base_addr +
-					CIF_CIF_FRM1_ADDR_Y);
-		cif_iowrite32(
-				cif_frm1_addr_uv,
-				cif_cif10_dev->config.base_addr +
-					CIF_CIF_FRM1_ADDR_UV);
+	if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
+				cif_cif10_dev->config.cam_itf.type)) {
+		cif_iowrite32(cif_frm1_addr_y,
+			      cif_cif10_dev->config.base_addr +
+			      CIF_CIF_FRM1_ADDR_Y);
+		cif_iowrite32(cif_frm1_addr_uv,
+			      cif_cif10_dev->config.base_addr +
+			      CIF_CIF_FRM1_ADDR_UV);
 	}
 }
 
@@ -817,58 +808,62 @@ static int cif_cif10_config_cif_phy(
 	output = &dev->config.output;
 
 	cif_ctrl_val = AXI_BURST_16 | DISABLE_CAPTURE;
-	if (PLTFRM_CAM_ITF_IS_CVBS(dev->config.cam_itf.type))
+	if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
+				dev->config.cam_itf.type))
 		cif_ctrl_val |=  MODE_PINGPONG;
 	else
 		cif_ctrl_val |=  MODE_ONEFRAME;
 
-	cif_iowrite32(
-			cif_ctrl_val,
-			dev->config.base_addr + CIF_CIF_CTRL);
+	cif_iowrite32(cif_ctrl_val,
+		      dev->config.base_addr + CIF_CIF_CTRL);
 
 	cif_cif10_config_for(dev);
 	cif_cif10_config_frm_addr(dev);
 
-	cif_iowrite32(
-			0xFFFFFFFF,
-			dev->config.base_addr + CIF_CIF_INTSTAT);
+	cif_iowrite32(0xFFFFFFFF,
+		      dev->config.base_addr +
+		      CIF_CIF_INTSTAT);
 
-	cif_crop = (output->defrect.left + (output->defrect.top << 16));
+	cif_crop = output->defrect.left +
+		   (output->defrect.top << 16);
 
-	if (cif_ioread32(
-				dev->config.base_addr + CIF_CIF_CTRL) &
-						MODE_PINGPONG) {
-		if (PLTFRM_CAM_ITF_IS_CVBS(dev->config.cam_itf.type)) {
+	if (cif_ioread32(dev->config.base_addr + CIF_CIF_CTRL) &
+	    MODE_PINGPONG) {
+		if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
+					dev->config.cam_itf.type)) {
 			cif_fs  = ((output->defrect.height / 2) << 16) +
-					      output->defrect.width;
-			cif_width =	output->defrect.width * 2;
+				  output->defrect.width;
+			cif_width = output->defrect.width * 2;
+		} else {
+			cif_fs  = (output->defrect.height << 16) +
+				  output->defrect.width;
+			cif_width = output->defrect.width;
 		}
-	} else if (
-			cif_ioread32(dev->config.base_addr + CIF_CIF_CTRL) &
-			MODE_ONEFRAME){ /* this is one frame mode*/
-		cif_fs  =
-			(output->defrect.width +
-				(output->defrect.height << 16));
+	} else if (cif_ioread32(dev->config.base_addr + CIF_CIF_CTRL) &
+		   MODE_ONEFRAME){/* this is one frame mode */
+		cif_fs  = output->defrect.width +
+			  (output->defrect.height << 16);
 		cif_width = output->defrect.width;
 	} else {
 		BUG();
 	}
 
-	cif_iowrite32(
-			cif_crop,
-			dev->config.base_addr + CIF_CIF_CROP);
-	cif_iowrite32(
-			cif_fs,
-			dev->config.base_addr + CIF_CIF_SET_SIZE);
-	cif_iowrite32(
-			cif_width,
-			dev->config.base_addr + CIF_CIF_VIR_LINE_WIDTH);
-	cif_iowrite32(
-			0x00000000,
-			dev->config.base_addr + CIF_CIF_FRAME_STATUS);
-	/*MUST bypass scale */
-	cif_iowrite32(0x10, dev->config.base_addr +
-						CIF_CIF_SCL_CTRL);
+	cif_iowrite32(cif_crop,
+		      dev->config.base_addr +
+		      CIF_CIF_CROP);
+	cif_iowrite32(cif_fs,
+		      dev->config.base_addr +
+		      CIF_CIF_SET_SIZE);
+	cif_iowrite32(cif_width,
+		      dev->config.base_addr +
+		      CIF_CIF_VIR_LINE_WIDTH);
+	cif_iowrite32(0x00000000,
+		      dev->config.base_addr +
+		      CIF_CIF_FRAME_STATUS);
+	/* MUST bypass scale */
+	cif_iowrite32(0x10,
+		      dev->config.base_addr +
+		      CIF_CIF_SCL_CTRL);
 
 	return 0;
 }

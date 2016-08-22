@@ -39,6 +39,9 @@
 #define CIF_CLS_F1_STAT     (0xFFFFFFFD)
 #define CIF_CLS_F0F1_STAT   (0xFFFFFFFC)
 
+#define PAL_HEIGHT  (576)
+#define NTSC_HEIGHT (480)
+
 #define CIF_RESET_WORK
 #if defined(CIF_RESET_WORK)
 static void cif_cif10_cifrest(struct work_struct *work)
@@ -90,7 +93,8 @@ static inline irqreturn_t cif_cif10_cifirq(int irq, void *data)
 		cif_cif10_dev->irqinfo.cifirq_interval;
 	cif_cif10_dev->irqinfo.cifirq_interval = now;
 
-	frm_fmt = &cif_cif10_dev->config.output;
+	frm_fmt =
+		&(cif_cif10_dev->config.img_src_output.frm_fmt);
 
 	reg_intstat = cif_ioread32(
 			cif_cif10_dev->config.base_addr + CIF_CIF_INTSTAT);
@@ -128,8 +132,7 @@ static inline irqreturn_t cif_cif10_cifirq(int irq, void *data)
 		else if (tmp_cif_frmst & CIF_F1_READY)
 			frm_flag = 1;
 
-		if (PLTFRM_CAM_ITF_IS_CVBS_NTSC(
-				cif_cif10_dev->config.cam_itf.type)) {
+		if (frm_fmt->defrect.height == NTSC_HEIGHT) {
 			if (interval > 17000) {
 				if (cif_cif10_dev->irqinfo.plug < 3)
 					cif_cif10_dev->irqinfo.plug++;
@@ -142,8 +145,7 @@ static inline irqreturn_t cif_cif10_cifirq(int irq, void *data)
 					cif_cif10_dev->irqinfo.plug = 0;
 				}
 			}
-		} else if (PLTFRM_CAM_ITF_IS_CVBS_PAL(
-				cif_cif10_dev->config.cam_itf.type)) {
+		} else if (frm_fmt->defrect.height == PAL_HEIGHT) {
 			if (interval > 20500) {
 				if (cif_cif10_dev->irqinfo.plug < 3)
 					cif_cif10_dev->irqinfo.plug++;
