@@ -71,6 +71,13 @@
 		status = "okay";
 	};
 
+	wireless-gps {
+		compatible = "gps-platdata";
+		keep_gps_power_on;
+		GPS,power_gpio = <&gpio0 GPIO_C6 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
 	hallsensor {
 		compatible = "hall_och165t";
 		type = <SENSOR_TYPE_HALL>;
