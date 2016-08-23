@@ -613,7 +613,7 @@
 
 	ddr: ddr {
 		compatible = "rockchip,rk3368-ddr";
-		status = "disabled";
+		status = "okay";
 		rockchip,ddrpctl = <&ddrpctl>;
 		rockchip,grf = <&grf>;
 		rockchip,msch = <&msch>;
