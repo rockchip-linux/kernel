@@ -83,8 +83,23 @@ int dsp_work_copy_to_user(struct dsp_work *work, void *user)
 
 	dsp_debug_enter();
 
+	ret = copy_from_user(&user_work, (void __user *)user,
+			     sizeof(user_work));
+	if (ret) {
+		dsp_err("copy from user work failed\n");
+		goto out;
+	}
+
 	user_work.hdl = work->id;
 	user_work.result = work->result;
+
+	ret = copy_to_user((void __user *)user_work.render.packet_virt,
+			   (void *)work->params.render.packet_virt,
+			   work->params.render.size);
+	if (ret) {
+		dsp_err("copy to user failed\n");
+		goto out;
+	}
 
 	ret = copy_to_user((void __user *)user, &user_work, sizeof(user_work));
 	if (ret) {
