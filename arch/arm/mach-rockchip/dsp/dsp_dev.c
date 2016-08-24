@@ -254,7 +254,7 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 	reset_control_deassert(dev->oecm_rst);
 	usleep_range(500, 1000);
 
-	ret = dev->loader->load_image(dev->loader, DSP_IMAGE_MAIN);
+	ret = dev->loader->load_image(dev->loader, "MAIN");
 	if (ret) {
 		dsp_err("load dsp os image failed\n");
 		goto out;

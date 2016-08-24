@@ -49,8 +49,9 @@ struct dsp_firmware_header {
 	u8 reserve[FIRMWARE_RESERVE_SIZE];
 };
 
-static int dsp_loader_get_image_by_id(struct dsp_loader *loader, u32 id,
-				      struct dsp_image **image_out)
+static int dsp_loader_get_image_by_name(struct dsp_loader *loader,
+					const char *name,
+					struct dsp_image **image_out)
 {
 	struct list_head *pos, *n;
 
@@ -58,7 +59,7 @@ static int dsp_loader_get_image_by_id(struct dsp_loader *loader, u32 id,
 		struct dsp_image *image = container_of(pos,
 				struct dsp_image, list_node);
 
-		if (image->id == id) {
+		if (strcmp(image->name, name) == 0) {
 			(*image_out) = image;
 			return 0;
 		}
@@ -158,9 +159,8 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 		memcpy(section->src, image_data + offset, section->size);
 		offset += section->size;
 
-		/* TODO change to phys address */
-
-		section->valid = 1;
+		if (section->size > 0)
+			section->valid = 1;
 	}
 
 	if (offset != image_size) {
@@ -238,12 +238,12 @@ out:
 }
 
 /*
- * dsp_loader_load_image - loader DSP image by image id
+ * dsp_loader_load_image - load DSP image by image name
  *
  * @loader: DSP loader ptr
- * @id: image id
+ * @name: image name
  */
-static int dsp_loader_load_image(struct dsp_loader *loader, u32 id)
+static int dsp_loader_load_image(struct dsp_loader *loader, const char *name)
 {
 	int ret = 0;
 	int i;
@@ -252,9 +252,9 @@ static int dsp_loader_load_image(struct dsp_loader *loader, u32 id)
 
 	dsp_debug_enter();
 
-	ret = dsp_loader_get_image_by_id(loader, id, &image);
+	ret = dsp_loader_get_image_by_name(loader, name, &image);
 	if (!image) {
-		dsp_err("cannot found image for dsp, id=%d\n", id);
+		dsp_err("cannot found image for dsp, name=%s\n", name);
 		ret = -EEXIST;
 		goto out;
 	}

@@ -18,12 +18,6 @@
 #include <linux/firmware.h>
 #include "dsp_dma.h"
 
-/*
- * DSP image ids
- */
-#define DSP_IMAGE_MAIN    1
-#define DSP_IMAGE_3DNR    2
-
 #define DSP_IMAGE_NAME_SIZE            32
 #define DSP_IMAGE_MAX_SECTION          4
 
@@ -65,7 +59,7 @@ struct dsp_loader {
 	/* Reserved dsp external text memory */
 	u8 *external_text;
 
-	int (*load_image)(struct dsp_loader *, u32 id);
+	int (*load_image)(struct dsp_loader *, const char *name);
 };
 
 void dsp_loader_request_firmware(const struct firmware *fw, void *context);
