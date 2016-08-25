@@ -59,7 +59,7 @@
 	};
 
 	chosen {
-		bootargs = "rockchip_jtag clk_ignore_unused noinitrd root=/dev/rootfs rootfstype=squashfs";
+		bootargs = "rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
 	};
 
 	ion {
