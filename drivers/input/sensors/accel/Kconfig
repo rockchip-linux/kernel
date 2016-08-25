@@ -83,6 +83,13 @@ config GS_LSM303D
 	To have support for your sepcific gsensor you will have to
 	select het proper drivers which depend on this option.
 
+config BMA2XX_ACC
+	bool "Sensor bma2xx_acc"
+	default y
+	help
+	  To have support for your specific gsesnor you will have to
+	  select the proper drivers which depend on this option.
+
 config GS_BMA023
   bool "gsensor bma023"
   help
