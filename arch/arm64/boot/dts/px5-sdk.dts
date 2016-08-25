@@ -261,6 +261,9 @@
 		gpio0_c1: gpio0-c1 {
 			rockchip,pins = <0 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
+		gpio2_c1: gpio2-c1 {
+			rockchip,pins = <2 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
 		//to add
 	};
 
@@ -442,6 +445,18 @@
 
 &i2c1 {
 	status = "okay";
+
+	bma2x2:bma250@18 {
+		compatible = "bma2xx_acc";
+		reg = <0x18>;
+		type = <SENSOR_TYPE_ACCEL>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio2_c1>;
+		irq-gpio = <&gpio2 17 IRQ_TYPE_LEVEL_LOW>;
+		irq_enable = <1>;
+		poll_delay_ms = <200>;
+		layout = <6>;
+	};
 
 	mpu6050:mpu@68{
 		compatible = "mpu6050";
