@@ -401,12 +401,11 @@ int cif_cif10_pltfrm_dev_init(
 		goto err;
 	}
 
-	ret = of_property_read_u32(pdev->dev.of_node, "cif-id", &pdev->id);
-	if (ret < 0) {
-			dev_err(&pdev->dev, "Property 'cif-id' missing or invalid\n");
-			ret = -EINVAL;
-			goto err;
-	}
+	/* Try to set the cif id from dt */
+	pdev->id = of_alias_get_id(pdev->dev.of_node, "cif");
+	cif_cif10_pltfrm_pr_info(dev,
+				 "get cif%d pltfrm data\n",
+				 pdev->id);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
@@ -427,7 +426,7 @@ int cif_cif10_pltfrm_dev_init(
 	*reg_base_addr = base_addr;
 	pdata->base_addr = base_addr;
 
-	irq = platform_get_irq_byname(pdev, "irq");
+	irq = platform_get_irq(pdev, 0);
 	if (IS_ERR_VALUE(irq)) {
 		ret = irq;
 		goto err;
