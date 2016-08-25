@@ -84,6 +84,14 @@
 		irq-gpio = <&gpio0 GPIO_C0 IRQ_TYPE_EDGE_BOTH>;
 	};
 
+	modem {
+		compatible = "rockchip,modem";
+		status = "okay";
+		power-en_gpio = <&gpio3 GPIO_B3 GPIO_ACTIVE_HIGH>;
+		power-on_gpio = <&gpio3 GPIO_B4 GPIO_ACTIVE_HIGH>;
+		reset_gpio = <&gpio3 GPIO_C2 GPIO_ACTIVE_HIGH>;
+	};
+
 	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm0 0 25000>;
