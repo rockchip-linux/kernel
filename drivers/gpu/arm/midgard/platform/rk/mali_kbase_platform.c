@@ -51,6 +51,11 @@
 
 /*---------------------------------------------------------------------------*/
 
+/* default duration to average of gpu_utilisation, in second.*/
+#define DEFAULT_DURATION_TO_AVERAGE_UTILISATION		(5)
+
+/*---------------------------------------------------------------------------*/
+
 int kbase_platform_set_freq_of_clk_gpu(struct kbase_device *kbdev,
 				       unsigned long rate)
 {
@@ -405,8 +410,80 @@ static ssize_t set_dvfs(struct device *dev,
 	return count;
 }
 
+static ssize_t show_dvfs_ave(struct device *dev,
+			     struct device_attribute *attr,
+			     char *buf)
+{
+	ssize_t ret = 0;
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	struct rk_context *platform = get_rk_context(kbdev);
+	unsigned int clkrate;
+	unsigned int cnt = 0;
+	unsigned int uti_total = 0;
+	/* period of accumulating utilization, in ms. */
+	const unsigned long PERIOD_IN_MS = 10;
+	const unsigned long PERIOD_IN_US = PERIOD_IN_MS * 1000;
+
+	if (platform->ave_time == 0)
+		platform->ave_time = DEFAULT_DURATION_TO_AVERAGE_UTILISATION;
+
+	clkrate = dvfs_clk_get_rate(platform->clk_gpu);
+
+	if (kbase_platform_dvfs_is_enabled(kbdev)) {
+		while (cnt < (platform->ave_time * 1000 / PERIOD_IN_MS)) {
+			uti_total += kbase_platform_dvfs_get_utilisation(kbdev);
+			cnt++;
+			usleep_range(PERIOD_IN_US, PERIOD_IN_US + 100);
+		}
+
+		ret += snprintf(buf + ret,
+				PAGE_SIZE - ret,
+				"mali_dvfs is ON\n");
+		ret += snprintf(buf + ret,
+				PAGE_SIZE - ret,
+				"gpu_utilisation average: %d, duration: %d s\n",
+				uti_total / cnt,
+				platform->ave_time);
+		ret += snprintf(buf + ret,
+				PAGE_SIZE - ret,
+				"clk_gpu: %u MHz",
+				clkrate / 1000000);
+	} else {
+		ret += snprintf(buf + ret,
+				PAGE_SIZE - ret,
+				"mali_dvfs is OFF\n");
+		ret += snprintf(buf + ret,
+				PAGE_SIZE - ret,
+				"clk_gpu: %u MHz, gpu_utilisation : %d.",
+				clkrate / 1000000,
+				kbase_platform_dvfs_get_utilisation(kbdev));
+	}
+
+	return ret;
+}
+
+static ssize_t set_dvfs_ave(struct device *dev,
+			    struct device_attribute *attr,
+			    const char *buf,
+			    size_t count)
+{
+	struct kbase_device *kbdev = dev_get_drvdata(dev);
+	struct rk_context *platform = get_rk_context(kbdev);
+	int ret;
+
+	ret = kstrtouint(buf, 0, &platform->ave_time);
+	if (ret) {
+		E("invalid input ave_time : %s.", buf);
+		return ret;
+	}
+	D("To set mali_dvfs ave_time =%d", platform->ave_time);
+
+	return count;
+}
+
 static DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
 static DEVICE_ATTR(dvfs, S_IRUGO | S_IWUSR, show_dvfs, set_dvfs);
+static DEVICE_ATTR(dvfs_ave, S_IRUGO | S_IWUSR, show_dvfs_ave, set_dvfs_ave);
 
 /*---------------------------------------------------------------------------*/
 
@@ -423,8 +500,14 @@ static int kbase_platform_create_sysfs_file(struct device *dev)
 		goto term_sysfs_clock;
 	}
 
-	return 0;
+	if (device_create_file(dev, &dev_attr_dvfs_ave)) {
+		E("couldn't create sysfs file 'dvfs_ave'.");
+		goto term_sysfs_dvfs;
+	}
 
+	return 0;
+term_sysfs_dvfs:
+	device_remove_file(dev, &dev_attr_dvfs);
 term_sysfs_clock:
 	device_remove_file(dev, &dev_attr_clock);
 out:
@@ -434,6 +517,7 @@ out:
 static void kbase_platform_remove_sysfs_file(struct device *dev)
 {
 	device_remove_file(dev, &dev_attr_clock);
+	device_remove_file(dev, &dev_attr_dvfs);
 	device_remove_file(dev, &dev_attr_dvfs);
 }
 
@@ -505,6 +589,10 @@ int kbase_platform_init(struct kbase_device *kbdev)
 		E("fail to register reboot_event_notifier.");
 		goto unregister_pm_event_notifier;
 	}
+
+	/*-----------------------------------*/
+
+	platform->ave_time = DEFAULT_DURATION_TO_AVERAGE_UTILISATION;
 
 	return 0;
 

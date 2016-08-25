@@ -46,6 +46,9 @@ struct rk_context {
 	/* to prevent calling rk_dvfs_module in particular system_states. */
 	struct notifier_block pm_event_notifier;
 	struct notifier_block reboot_event_notifier;
+
+	/* duration to average of gpu_utilisation, in second.*/
+	unsigned int ave_time;
 };
 
 /*-------------------------------------------------------*/
