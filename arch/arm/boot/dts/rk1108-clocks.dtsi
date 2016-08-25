@@ -1456,7 +1456,8 @@
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
-						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
+						rockchip,flags = <(CLK_SET_RATE_PARENT_IN_ORDER |
+								  CLK_SET_RATE_NO_REPARENT)>;
 					};
 
 					clk_cvbs_host: clk_cvbs_host_mux {
@@ -2141,7 +2142,7 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0138 0x4>;
 					clocks =
-					<&aclk_vio0_pre>,	<&aclk_vio1_pre>,
+					<&dummy>,	<&dummy>,
 					<&dummy>,	<&clk_isp>,
 
 					<&dummy>,	<&dclk_vop>,
@@ -2154,7 +2155,7 @@
 					<&dummy>,	<&dummy>;
 
 					clock-output-names =
-					"aclk_vio0_pre",	"aclk_vio1_pre",
+					"reserved",	"reserved",
 					"reserved",	"clk_isp",
 
 					"reserved",	"dclk_vop",
@@ -2174,7 +2175,7 @@
 					reg = <0x013c 0x4>;
 					clocks =
 					<&dummy>,	<&dummy>,
-					<&aclk_vio0_pre>,	<&aclk_vio0_pre>,
+					<&dummy>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
 					<&pclkin_vip>,	<&dummy>,
@@ -2187,7 +2188,7 @@
 
 					clock-output-names =
 					"reserved",	"reserved",
-					"hclk_vio_pre",	"pclk_vio_pre",
+					"reserved",	"reserved",
 
 					"reserved",	"reserved",
 					"pclk_isp_pre",	"reserved",
@@ -2205,27 +2206,27 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0140 0x4>;
 					clocks =
-					<&aclk_rkvdec_pre>,	<&clk_hevc_cabac>,
-					<&clk_hevc_core>,	<&aclk_vpu_pre>,
+					<&dummy>,	<&dummy>,
+					<&clk_hevc_core>,	<&dummy>,
 
-					<&hclk_rkvdec_pre>,	<&dummy>,
+					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>,
 
-					<&aclk_rkvenc_pre>,	<&clk_venc_core>,
-					<&hclk_rkvenc_pre>,	<&dummy>,
+					<&dummy>,	<&clk_venc_core>,
+					<&dummy>,	<&dummy>,
 
 					<&pclk_pmu_pre>,	<&xin24m>,
 					<&clk_i2c0>,	<&clk_pwm0>;
 
 					clock-output-names =
-					"aclk_rkvdec_pre",	"clk_hevc_cabac",
-					"clk_hevc_core",	"aclk_vpu_pre",
+					"reserved",	"reserved",
+					"clk_hevc_core",	"reserved",
 
-					"hclk_rkvdec_pre",	"reserved",
+					"reserved",	"reserved",
 					"reserved",	"reserved",
 
-					"aclk_rkvenc_pre",	"clk_venc_core",
-					"hclk_rkvenc_pre",	"reserved",
+					"reserved",	"clk_venc_core",
+					"reserved",	"reserved",
 
 					"pclk_pmu_pre",	"clk_pvtm_pmu",
 					"clk_i2c0",	"clk_pwm0";
@@ -2494,7 +2495,7 @@
 					reg = <0x0164 0x4>;
 					clocks =
 					<&aclk_vio0_pre>,	<&aclk_vio1_pre>,
-					<&hclk_vio_pre>,	<&pclk_vio_pre>,
+					<&aclk_vio0_pre>,	<&aclk_vio1_pre>,
 
 					<&dummy>,	<&dummy>,
 					<&aclk_vio1_pre>,	<&hclk_vio_pre>,
@@ -2506,8 +2507,8 @@
 					<&dummy>,	<&dummy>;
 
 					clock-output-names =
-					"aclk_vio0",	"aclk_vio1",
-					"hclk_vio",	"pclk_vio",
+					"aclk_vio0_pre",	"aclk_vio1_pre",
+					"hclk_vio_pre",	"pclk_vio_pre",
 
 					"reserved",	"reserved",
 					"aclk_cif1",	"hclk_cif1",
@@ -2560,23 +2561,23 @@
 					<&aclk_rkvdec_pre>,	<&aclk_vpu_pre>,
 					<&hclk_rkvdec_pre>,	<&hclk_rkvdec_pre>,
 
-					<&aclk_rkvdec_pre>,	<&hclk_rkvdec_pre>,
-					<&aclk_vpu_pre>,	<&dummy>,
+					<&dummy>,	<&dummy>,
+					<&dummy>,	<&dummy>,
 
 					<&aclk_rkvenc_pre>,	<&hclk_rkvenc_pre>,
-					<&aclk_rkvenc_pre>,	<&hclk_rkvenc_pre>,
+					<&dummy>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>;
 
 					clock-output-names =
-					"aclk_rkvdec",	"aclk_vpu",
-					"hclk_rkvdec",	"hclk_vpu",
+					"aclk_rkvdec_pre",	"aclk_vpu_pre",
+					"hclk_rkvdec_pre",	"hclk_vpu",
 
 					"aclk_rkvdec_niu",	"hclk_rkvdec_niu",
 					"aclk_vpu_niu",	"reserved",
 
-					"aclk_rkvenc",	"hclk_rkvenc",
+					"aclk_rkvenc_pre",	"hclk_rkvenc_pre",
 					"aclk_rkvenc_niu",	"hclk_rkvenc_niu",
 
 					"reserved",	"reserved",

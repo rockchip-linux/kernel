@@ -146,6 +146,7 @@
 			<&clk_gates10 9>, /* clk_ddrphy4x */
 
 			/* PD_BUS */
+			<&clk_gates1 6>, /* pclk_bus */
 			<&clk_gates12 1>, /* clk_intmem0 */
 			<&clk_gates12 2>, /* aclk_dmac_bus */
 			<&clk_gates12 3>, /* hclk_rom */
