@@ -854,7 +854,6 @@ out:
 	mutex_unlock(&client->lock);
 	return ret;
 }
-EXPORT_SYMBOL(ion_map_iommu);
 
 static void ion_iommu_release(struct kref *kref)
 {
@@ -924,7 +923,6 @@ out:
 	mutex_unlock(&buffer->lock);
 	mutex_unlock(&client->lock);
 }
-EXPORT_SYMBOL(ion_unmap_iommu);
 
 static int ion_debug_client_show_buffer_map(struct seq_file *s, struct ion_buffer *buffer)
 {
@@ -963,6 +961,8 @@ void ion_unmap_iommu(struct device *iommu_dev, struct ion_client *client,
 {
 }
 #endif
+EXPORT_SYMBOL(ion_map_iommu);
+EXPORT_SYMBOL(ion_unmap_iommu);
 
 static int ion_debug_client_show_buffer(struct seq_file *s, void *unused)
 {
