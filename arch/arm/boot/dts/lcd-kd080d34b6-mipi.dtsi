@@ -35,7 +35,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE0 0x00>;
+			rockchip,cmd		= <0x23 0xE0 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -43,7 +43,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE1 0x93>;
+			rockchip,cmd		= <0x23 0xE1 0x93>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -51,7 +51,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE2 0x65>;
+			rockchip,cmd		= <0x23 0xE2 0x65>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -59,7 +59,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE3 0xF8>;
+			rockchip,cmd		= <0x23 0xE3 0xF8>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -67,7 +67,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x80 0x03>;
+			rockchip,cmd		= <0x23 0x80 0x03>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -75,7 +75,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE0 0x04>;
+			rockchip,cmd		= <0x23 0xE0 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -83,7 +83,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2D 0x03>;
+			rockchip,cmd		= <0x23 0x2D 0x03>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -91,7 +91,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE0 0x01>;
+			rockchip,cmd		= <0x23 0xE0 0x01>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -99,7 +99,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x00 0x00>;
+			rockchip,cmd		= <0x23 0x00 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -107,7 +107,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x01 0x6F>;
+			rockchip,cmd		= <0x23 0x01 0x6F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -115,7 +115,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x03 0x00>;
+			rockchip,cmd		= <0x23 0x03 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -123,7 +123,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x04 0x6F>;
+			rockchip,cmd		= <0x23 0x04 0x6F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -131,7 +131,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x17 0x00>;
+			rockchip,cmd		= <0x23 0x17 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -139,7 +139,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x18 0xD7>;
+			rockchip,cmd		= <0x23 0x18 0xD7>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -147,7 +147,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x19 0x05>;
+			rockchip,cmd		= <0x23 0x19 0x05>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -155,7 +155,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1A 0x00>;
+			rockchip,cmd		= <0x23 0x1A 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -163,7 +163,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1B 0xD7>;
+			rockchip,cmd		= <0x23 0x1B 0xD7>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -171,7 +171,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1C 0x05>;
+			rockchip,cmd		= <0x23 0x1C 0x05>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -179,7 +179,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1F 0x79>;
+			rockchip,cmd		= <0x23 0x1F 0x79>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -187,7 +187,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x20 0x2D>;
+			rockchip,cmd		= <0x23 0x20 0x2D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -195,7 +195,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x21 0x2D>;
+			rockchip,cmd		= <0x23 0x21 0x2D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -203,7 +203,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x22 0x4F>;
+			rockchip,cmd		= <0x23 0x22 0x4F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -211,7 +211,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x26 0xF1>;
+			rockchip,cmd		= <0x23 0x26 0xF1>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -219,7 +219,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x37 0x09>;
+			rockchip,cmd		= <0x23 0x37 0x09>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -227,7 +227,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x38 0x04>;
+			rockchip,cmd		= <0x23 0x38 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -235,7 +235,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x39 0x08>;
+			rockchip,cmd		= <0x23 0x39 0x08>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -243,7 +243,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3A 0x12>;
+			rockchip,cmd		= <0x23 0x3A 0x12>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -251,7 +251,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3C 0x78>;
+			rockchip,cmd		= <0x23 0x3C 0x78>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -259,7 +259,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3E 0x80>;
+			rockchip,cmd		= <0x23 0x3E 0x80>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -267,7 +267,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3F 0x80>;
+			rockchip,cmd		= <0x23 0x3F 0x80>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -275,7 +275,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x40 0x06>;
+			rockchip,cmd		= <0x23 0x40 0x06>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -283,7 +283,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x41 0xA0>;
+			rockchip,cmd		= <0x23 0x41 0xA0>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -291,7 +291,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x55 0x0F>;
+			rockchip,cmd		= <0x23 0x55 0x0F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -299,7 +299,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x56 0x01>;
+			rockchip,cmd		= <0x23 0x56 0x01>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -307,7 +307,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x57 0xA8>;
+			rockchip,cmd		= <0x23 0x57 0xA8>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -315,7 +315,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x58 0x0A>;
+			rockchip,cmd		= <0x23 0x58 0x0A>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -323,7 +323,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x59 0x2A>;
+			rockchip,cmd		= <0x23 0x59 0x2A>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -331,7 +331,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5A 0x37>;
+			rockchip,cmd		= <0x23 0x5A 0x37>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -339,7 +339,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5B 0x19>;
+			rockchip,cmd		= <0x23 0x5B 0x19>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -347,7 +347,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5D 0x70>;
+			rockchip,cmd		= <0x23 0x5D 0x70>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -355,7 +355,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5E 0x50>;
+			rockchip,cmd		= <0x23 0x5E 0x50>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -363,7 +363,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5F 0x3F>;
+			rockchip,cmd		= <0x23 0x5F 0x3F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -371,7 +371,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x60 0x31>;
+			rockchip,cmd		= <0x23 0x60 0x31>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -379,7 +379,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x61 0x2D>;
+			rockchip,cmd		= <0x23 0x61 0x2D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -387,7 +387,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x62 0x1D>;
+			rockchip,cmd		= <0x23 0x62 0x1D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -395,7 +395,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x63 0x22>;
+			rockchip,cmd		= <0x23 0x63 0x22>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -403,7 +403,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x64 0x0C>;
+			rockchip,cmd		= <0x23 0x64 0x0C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -411,7 +411,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x65 0x25>;
+			rockchip,cmd		= <0x23 0x65 0x25>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -419,7 +419,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x66 0x24>;
+			rockchip,cmd		= <0x23 0x66 0x24>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -427,7 +427,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x67 0x24>;
+			rockchip,cmd		= <0x23 0x67 0x24>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -435,7 +435,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x68 0x41>;
+			rockchip,cmd		= <0x23 0x68 0x41>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -443,7 +443,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x69 0x2F>;
+			rockchip,cmd		= <0x23 0x69 0x2F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -451,7 +451,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6A 0x36>;
+			rockchip,cmd		= <0x23 0x6A 0x36>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -459,7 +459,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6B 0x28>;
+			rockchip,cmd		= <0x23 0x6B 0x28>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -467,7 +467,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6C 0x26>;
+			rockchip,cmd		= <0x23 0x6C 0x26>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -475,7 +475,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6D 0x1C>;
+			rockchip,cmd		= <0x23 0x6D 0x1C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -483,7 +483,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6E 0x08>;
+			rockchip,cmd		= <0x23 0x6E 0x08>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -491,7 +491,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6F 0x02>;
+			rockchip,cmd		= <0x23 0x6F 0x02>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -499,7 +499,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x70 0x70>;
+			rockchip,cmd		= <0x23 0x70 0x70>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -507,7 +507,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x71 0x50>;
+			rockchip,cmd		= <0x23 0x71 0x50>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -515,7 +515,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x72 0x3F>;
+			rockchip,cmd		= <0x23 0x72 0x3F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -523,7 +523,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x73 0x31>;
+			rockchip,cmd		= <0x23 0x73 0x31>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -531,7 +531,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x74 0x2D>;
+			rockchip,cmd		= <0x23 0x74 0x2D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -539,7 +539,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x75 0x1D>;
+			rockchip,cmd		= <0x23 0x75 0x1D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -547,7 +547,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x76 0x22>;
+			rockchip,cmd		= <0x23 0x76 0x22>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -555,7 +555,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x77 0x0C>;
+			rockchip,cmd		= <0x23 0x77 0x0C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -563,7 +563,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x78 0x25>;
+			rockchip,cmd		= <0x23 0x78 0x25>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -571,7 +571,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x79 0x24>;
+			rockchip,cmd		= <0x23 0x79 0x24>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -579,7 +579,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7A 0x24>;
+			rockchip,cmd		= <0x23 0x7A 0x24>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -587,7 +587,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7B 0x41>;
+			rockchip,cmd		= <0x23 0x7B 0x41>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -595,7 +595,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7C 0x2F>;
+			rockchip,cmd		= <0x23 0x7C 0x2F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -603,7 +603,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7D 0x36>;
+			rockchip,cmd		= <0x23 0x7D 0x36>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -611,7 +611,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7E 0x28>;
+			rockchip,cmd		= <0x23 0x7E 0x28>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -619,7 +619,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7F 0x26>;
+			rockchip,cmd		= <0x23 0x7F 0x26>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -627,7 +627,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x80 0x1C>;
+			rockchip,cmd		= <0x23 0x80 0x1C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -635,7 +635,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x81 0x08>;
+			rockchip,cmd		= <0x23 0x81 0x08>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -643,7 +643,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x82 0x02>;
+			rockchip,cmd		= <0x23 0x82 0x02>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -651,7 +651,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE0 0x02>;
+			rockchip,cmd		= <0x23 0xE0 0x02>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -659,7 +659,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x00 0x00>;
+			rockchip,cmd		= <0x23 0x00 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -667,7 +667,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x01 0x04>;
+			rockchip,cmd		= <0x23 0x01 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -675,7 +675,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x02 0x06>;
+			rockchip,cmd		= <0x23 0x02 0x06>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -683,7 +683,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x03 0x08>;
+			rockchip,cmd		= <0x23 0x03 0x08>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -691,7 +691,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x04 0x0A>;
+			rockchip,cmd		= <0x23 0x04 0x0A>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -699,7 +699,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x05 0x0C>;
+			rockchip,cmd		= <0x23 0x05 0x0C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -707,7 +707,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x06 0x0E>;
+			rockchip,cmd		= <0x23 0x06 0x0E>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -715,7 +715,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x07 0x17>;
+			rockchip,cmd		= <0x23 0x07 0x17>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -723,7 +723,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x08 0x37>;
+			rockchip,cmd		= <0x23 0x08 0x37>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -731,7 +731,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x09 0x1F>;
+			rockchip,cmd		= <0x23 0x09 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -739,7 +739,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x0A 0x10>;
+			rockchip,cmd		= <0x23 0x0A 0x10>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -747,7 +747,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x0B 0x1F>;
+			rockchip,cmd		= <0x23 0x0B 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -755,7 +755,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x0C 0x1F>;
+			rockchip,cmd		= <0x23 0x0C 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -763,7 +763,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x0D 0x1F>;
+			rockchip,cmd		= <0x23 0x0D 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -771,7 +771,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x0E 0x1F>;
+			rockchip,cmd		= <0x23 0x0E 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -779,7 +779,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x0F 0x1F>;
+			rockchip,cmd		= <0x23 0x0F 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -787,7 +787,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x10 0x1F>;
+			rockchip,cmd		= <0x23 0x10 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -795,7 +795,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x11 0x1F>;
+			rockchip,cmd		= <0x23 0x11 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -803,7 +803,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x12 0x1F>;
+			rockchip,cmd		= <0x23 0x12 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -811,7 +811,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x13 0x12>;
+			rockchip,cmd		= <0x23 0x13 0x12>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -819,7 +819,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x14 0x1F>;
+			rockchip,cmd		= <0x23 0x14 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -827,7 +827,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x15 0x1F>;
+			rockchip,cmd		= <0x23 0x15 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -835,7 +835,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x16 0x01>;
+			rockchip,cmd		= <0x23 0x16 0x01>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -843,7 +843,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x17 0x05>;
+			rockchip,cmd		= <0x23 0x17 0x05>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -851,7 +851,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x18 0x07>;
+			rockchip,cmd		= <0x23 0x18 0x07>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -859,7 +859,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x19 0x09>;
+			rockchip,cmd		= <0x23 0x19 0x09>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -867,7 +867,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1A 0x0B>;
+			rockchip,cmd		= <0x23 0x1A 0x0B>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -875,7 +875,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1B 0x0D>;
+			rockchip,cmd		= <0x23 0x1B 0x0D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -883,7 +883,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1C 0x0F>;
+			rockchip,cmd		= <0x23 0x1C 0x0F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -891,7 +891,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1D 0x17>;
+			rockchip,cmd		= <0x23 0x1D 0x17>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -899,7 +899,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1E 0x37>;
+			rockchip,cmd		= <0x23 0x1E 0x37>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -907,7 +907,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x1F 0x1F>;
+			rockchip,cmd		= <0x23 0x1F 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -915,7 +915,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x20 0x11>;
+			rockchip,cmd		= <0x23 0x20 0x11>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -923,7 +923,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x21 0x1F>;
+			rockchip,cmd		= <0x23 0x21 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -931,7 +931,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x22 0x1F>;
+			rockchip,cmd		= <0x23 0x22 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -939,7 +939,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x23 0x1F>;
+			rockchip,cmd		= <0x23 0x23 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -947,7 +947,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x24 0x1F>;
+			rockchip,cmd		= <0x23 0x24 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -955,7 +955,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x25 0x1F>;
+			rockchip,cmd		= <0x23 0x25 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -963,7 +963,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x26 0x1F>;
+			rockchip,cmd		= <0x23 0x26 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -971,7 +971,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x27 0x1F>;
+			rockchip,cmd		= <0x23 0x27 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -979,7 +979,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x28 0x1F>;
+			rockchip,cmd		= <0x23 0x28 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -987,7 +987,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x29 0x13>;
+			rockchip,cmd		= <0x23 0x29 0x13>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -995,7 +995,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2A 0x1F>;
+			rockchip,cmd		= <0x23 0x2A 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1003,7 +1003,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2B 0x1F>;
+			rockchip,cmd		= <0x23 0x2B 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1011,7 +1011,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2C 0x11>;
+			rockchip,cmd		= <0x23 0x2C 0x11>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1019,7 +1019,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2D 0x0F>;
+			rockchip,cmd		= <0x23 0x2D 0x0F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1027,7 +1027,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2E 0x0D>;
+			rockchip,cmd		= <0x23 0x2E 0x0D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1035,7 +1035,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2F 0x0B>;
+			rockchip,cmd		= <0x23 0x2F 0x0B>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1043,7 +1043,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x30 0x09>;
+			rockchip,cmd		= <0x23 0x30 0x09>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1051,7 +1051,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x31 0x07>;
+			rockchip,cmd		= <0x23 0x31 0x07>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1059,7 +1059,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x32 0x05>;
+			rockchip,cmd		= <0x23 0x32 0x05>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1067,7 +1067,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x33 0x37>;
+			rockchip,cmd		= <0x23 0x33 0x37>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1075,7 +1075,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x34 0x17>;
+			rockchip,cmd		= <0x23 0x34 0x17>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1083,7 +1083,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x35 0x1F>;
+			rockchip,cmd		= <0x23 0x35 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1091,7 +1091,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x36 0x01>;
+			rockchip,cmd		= <0x23 0x36 0x01>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1099,7 +1099,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x37 0x1F>;
+			rockchip,cmd		= <0x23 0x37 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1107,7 +1107,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x38 0x1F>;
+			rockchip,cmd		= <0x23 0x38 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1115,7 +1115,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x39 0x1F>;
+			rockchip,cmd		= <0x23 0x39 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1123,7 +1123,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3A 0x1F>;
+			rockchip,cmd		= <0x23 0x3A 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1131,7 +1131,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3B 0x1F>;
+			rockchip,cmd		= <0x23 0x3B 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1139,7 +1139,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3C 0x1F>;
+			rockchip,cmd		= <0x23 0x3C 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1147,7 +1147,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3D 0x1F>;
+			rockchip,cmd		= <0x23 0x3D 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1155,7 +1155,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3E 0x1F>;
+			rockchip,cmd		= <0x23 0x3E 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1163,7 +1163,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x3F 0x13>;
+			rockchip,cmd		= <0x23 0x3F 0x13>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1171,7 +1171,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x40 0x1F>;
+			rockchip,cmd		= <0x23 0x40 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1179,7 +1179,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x41 0x1F>;
+			rockchip,cmd		= <0x23 0x41 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1187,7 +1187,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x42 0x10>;
+			rockchip,cmd		= <0x23 0x42 0x10>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1195,7 +1195,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x43 0x0E>;
+			rockchip,cmd		= <0x23 0x43 0x0E>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1203,7 +1203,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x44 0x0C>;
+			rockchip,cmd		= <0x23 0x44 0x0C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1211,7 +1211,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x45 0x0A>;
+			rockchip,cmd		= <0x23 0x45 0x0A>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1219,7 +1219,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x46 0x08>;
+			rockchip,cmd		= <0x23 0x46 0x08>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1227,7 +1227,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x47 0x06>;
+			rockchip,cmd		= <0x23 0x47 0x06>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1235,7 +1235,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x48 0x04>;
+			rockchip,cmd		= <0x23 0x48 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1243,7 +1243,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x49 0x37>;
+			rockchip,cmd		= <0x23 0x49 0x37>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1251,7 +1251,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x4A 0x17>;
+			rockchip,cmd		= <0x23 0x4A 0x17>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1259,7 +1259,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x4B 0x1F>;
+			rockchip,cmd		= <0x23 0x4B 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1267,7 +1267,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x4C 0x00>;
+			rockchip,cmd		= <0x23 0x4C 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1275,7 +1275,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x4D 0x1F>;
+			rockchip,cmd		= <0x23 0x4D 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1283,7 +1283,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x4E 0x1F>;
+			rockchip,cmd		= <0x23 0x4E 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1291,7 +1291,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x4F 0x1F>;
+			rockchip,cmd		= <0x23 0x4F 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1299,7 +1299,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x50 0x1F>;
+			rockchip,cmd		= <0x23 0x50 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1307,7 +1307,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x51 0x1F>;
+			rockchip,cmd		= <0x23 0x51 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1315,7 +1315,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x52 0x1F>;
+			rockchip,cmd		= <0x23 0x52 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1323,7 +1323,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x53 0x1F>;
+			rockchip,cmd		= <0x23 0x53 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1331,7 +1331,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x54 0x1F>;
+			rockchip,cmd		= <0x23 0x54 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1339,7 +1339,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x55 0x12>;
+			rockchip,cmd		= <0x23 0x55 0x12>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1347,7 +1347,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x56 0x1F>;
+			rockchip,cmd		= <0x23 0x56 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1355,7 +1355,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x57 0x1F>;
+			rockchip,cmd		= <0x23 0x57 0x1F>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1363,7 +1363,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x58 0x10>;
+			rockchip,cmd		= <0x23 0x58 0x10>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1371,7 +1371,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x59 0x00>;
+			rockchip,cmd		= <0x23 0x59 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1379,7 +1379,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5A 0x00>;
+			rockchip,cmd		= <0x23 0x5A 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1387,7 +1387,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5B 0x10>;
+			rockchip,cmd		= <0x23 0x5B 0x10>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1395,7 +1395,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5C 0x07>;
+			rockchip,cmd		= <0x23 0x5C 0x07>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1403,7 +1403,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5D 0x30>;
+			rockchip,cmd		= <0x23 0x5D 0x30>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1411,7 +1411,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5E 0x00>;
+			rockchip,cmd		= <0x23 0x5E 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1419,7 +1419,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x5F 0x00>;
+			rockchip,cmd		= <0x23 0x5F 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1427,7 +1427,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x60 0x30>;
+			rockchip,cmd		= <0x23 0x60 0x30>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1435,7 +1435,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x61 0x03>;
+			rockchip,cmd		= <0x23 0x61 0x03>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1443,7 +1443,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x62 0x04>;
+			rockchip,cmd		= <0x23 0x62 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1451,7 +1451,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x63 0x03>;
+			rockchip,cmd		= <0x23 0x63 0x03>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1459,7 +1459,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x64 0x6A>;
+			rockchip,cmd		= <0x23 0x64 0x6A>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1467,7 +1467,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x65 0x75>;
+			rockchip,cmd		= <0x23 0x65 0x75>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1475,7 +1475,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x66 0x0D>;
+			rockchip,cmd		= <0x23 0x66 0x0D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1483,7 +1483,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x67 0xB3>;
+			rockchip,cmd		= <0x23 0x67 0xB3>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1491,7 +1491,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x68 0x09>;
+			rockchip,cmd		= <0x23 0x68 0x09>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1499,7 +1499,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x69 0x06>;
+			rockchip,cmd		= <0x23 0x69 0x06>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1507,7 +1507,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6A 0x6A>;
+			rockchip,cmd		= <0x23 0x6A 0x6A>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1515,7 +1515,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6B 0x04>;
+			rockchip,cmd		= <0x23 0x6B 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1523,7 +1523,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6C 0x00>;
+			rockchip,cmd		= <0x23 0x6C 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1531,7 +1531,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6D 0x04>;
+			rockchip,cmd		= <0x23 0x6D 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1539,7 +1539,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6E 0x04>;
+			rockchip,cmd		= <0x23 0x6E 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1547,7 +1547,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x6F 0x88>;
+			rockchip,cmd		= <0x23 0x6F 0x88>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1555,7 +1555,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x70 0x00>;
+			rockchip,cmd		= <0x23 0x70 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1563,7 +1563,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x71 0x00>;
+			rockchip,cmd		= <0x23 0x71 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1571,7 +1571,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x72 0x06>;
+			rockchip,cmd		= <0x23 0x72 0x06>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1579,7 +1579,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x73 0x7B>;
+			rockchip,cmd		= <0x23 0x73 0x7B>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1587,7 +1587,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x74 0x00>;
+			rockchip,cmd		= <0x23 0x74 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1595,7 +1595,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x75 0xBC>;
+			rockchip,cmd		= <0x23 0x75 0xBC>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1603,7 +1603,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x76 0x00>;
+			rockchip,cmd		= <0x23 0x76 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1611,7 +1611,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x77 0x0D>;
+			rockchip,cmd		= <0x23 0x77 0x0D>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1619,7 +1619,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x78 0x2C>;
+			rockchip,cmd		= <0x23 0x78 0x2C>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1627,7 +1627,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x79 0x00>;
+			rockchip,cmd		= <0x23 0x79 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1635,7 +1635,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7A 0x00>;
+			rockchip,cmd		= <0x23 0x7A 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1643,7 +1643,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7B 0x00>;
+			rockchip,cmd		= <0x23 0x7B 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1651,7 +1651,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7C 0x00>;
+			rockchip,cmd		= <0x23 0x7C 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1659,7 +1659,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7D 0x03>;
+			rockchip,cmd		= <0x23 0x7D 0x03>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1667,7 +1667,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x7E 0x7B>;
+			rockchip,cmd		= <0x23 0x7E 0x7B>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1675,7 +1675,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE0 0x04>;
+			rockchip,cmd		= <0x23 0xE0 0x04>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1683,7 +1683,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2B 0x2B>;
+			rockchip,cmd		= <0x23 0x2B 0x2B>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1691,7 +1691,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x2E 0x44>;
+			rockchip,cmd		= <0x23 0x2E 0x44>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1699,7 +1699,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE0 0x00>;
+			rockchip,cmd		= <0x23 0xE0 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1707,7 +1707,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE6 0x02>;
+			rockchip,cmd		= <0x23 0xE6 0x02>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1715,7 +1715,7 @@
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0xE7 0x02>;
+			rockchip,cmd		= <0x23 0xE7 0x02>;
 			rockchip,cmd_delay	= <0>;
 		};
 
@@ -1724,7 +1724,7 @@
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
 			rockchip,cmd		= <0x05 dcs_exit_sleep_mode>;
-			rockchip,cmd_delay	= <0>;
+			rockchip,cmd_delay	= <120>;
 		};
 
 		rockchip,on-cmds213 {
@@ -1734,15 +1734,15 @@
 			rockchip,cmd		= <0x05 dcs_set_display_on>;
 			rockchip,cmd_delay	= <0>;
 		};
-
+/*
 		rockchip,on-cmds214 {
 			compatible		= "rockchip,on-cmds";
 			rockchip,cmd_type	= <LPDT>;
 			rockchip,dsi_id		= <0>;
-			rockchip,cmd		= <0x15 0x35 0x00>;
+			rockchip,cmd		= <0x23 0x35 0x00>;
 			rockchip,cmd_delay	= <0>;
 		};
-
+*/
 	};
 
 	disp_timings: display-timings {
@@ -1753,15 +1753,15 @@
 			screen-type		= <SCREEN_MIPI>;
 			lvds-format		= <LVDS_8BIT_1>;
 			out-face		= <OUT_P888>;
-			clock-frequency		= <75000000>;
+			clock-frequency		= <67000000>;
 			hactive			= <800>;
 			vactive			= <1280>;
-			hback-porch		= <64>;
-			hfront-porch		= <70>;
-			vback-porch		= <16>;
-			vfront-porch		= <9>;
-			hsync-len		= <20>;
-			vsync-len		= <2>;
+			hback-porch		= <18>;
+			hfront-porch		= <18>;
+			vback-porch		= <10>;
+			vfront-porch		= <20>;
+			hsync-len		= <18>;
+			vsync-len		= <4>;
 			screen-width		= <115>;
 			screen-hight		= <184>;
 			hsync-active		= <0>;
