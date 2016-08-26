@@ -1250,6 +1250,13 @@
                 status = "disabled";
 	};
 
+	cpu_state: cpu_state {
+		compatible = "rockchip,px5-access-cpu-state";
+		clocks = <&clk_gates13 1>;
+		clock-names = "cpu_state_clk";
+		status = "okay";
+	};
+
 	gpu {
 		compatible = "arm,rogue-G6110", "arm,rk3368-gpu";
 		reg = <0x0 0xffa30000 0x0 0x10000>;
