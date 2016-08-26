@@ -121,6 +121,8 @@ int sfc_request(u32 sfcmd, u32 sfctrl, u32 addr, void *data)
 		/* Controller plus 1 automatically */
 		writel(ctrl.b.addrbits - 1, g_sfc_reg + SFC_ABIT);
 	}
+	/* shift in the data at negedge sclk_out */
+	sfctrl |= 0x2;
 
 	writel(sfctrl, g_sfc_reg + SFC_CTRL);
 	writel(sfcmd, g_sfc_reg + SFC_CMD);
