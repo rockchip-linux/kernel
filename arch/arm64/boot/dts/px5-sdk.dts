@@ -136,6 +136,22 @@
 		compatible = "hdmi-spdif";
 	};
 
+	gpio-det {
+		compatible = "gpio-detection";
+		status = "okay";
+		car-reverse {
+			gpios = <&gpio3 GPIO_B2 GPIO_ACTIVE_LOW>;
+			label = "car-reverse";
+			gpio,wakeup;
+		};
+
+		car-acc {
+			gpios = <&gpio3 GPIO_B1 GPIO_ACTIVE_LOW>;
+			label = "car-acc";
+			gpio,wakeup;
+		};
+	};
+
 	rockchip-hdmi-i2s {
 		compatible = "rockchip-hdmi-i2s";
 		dais {
