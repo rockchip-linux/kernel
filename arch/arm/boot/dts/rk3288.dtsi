@@ -1125,7 +1125,7 @@
 
 	vpu: vpu_service@ff9a0000 {
 		compatible = "vpu_service";
-		iommu_enabled = <0>;
+		iommu_enabled = <1>;
 		reg = <0xff9a0000 0x800>;
 		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
@@ -1142,7 +1142,7 @@
 
 	hevc: hevc_service@ff9c0000 {
 		compatible = "rockchip,hevc_service";
-		iommu_enabled = <0>;
+		iommu_enabled = <1>;
 		reg = <0xff9c0000 0x800>;
 		interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "irq_dec";
