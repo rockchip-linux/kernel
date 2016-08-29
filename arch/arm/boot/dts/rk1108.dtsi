@@ -122,11 +122,12 @@
 			<&hclk_bus_pre 150000000>, <&pclk_bus_pre 75000000>,
 			<&aclk_peri 150000000>, <&hclk_peri 150000000>,
 			<&pclk_peri 75000000>, <&aclk_vio0_pre 300000000>,
-			<&aclk_vio1_pre 300000000>, <&hclk_vio_pre 150000000>,
-			<&pclk_vio_pre 150000000>, <&aclk_rkvdec_pre 300000000>,
+			<&aclk_vio1_pre 300000000>, <&hclk_vio_pre 75000000>,
+			<&pclk_vio_pre 75000000>, <&aclk_rkvdec_pre 300000000>,
 			<&aclk_vpu_pre 300000000>, <&clk_hevc_cabac 300000000>,
 			<&clk_hevc_core 300000000>, <&aclk_rkvenc_pre 300000000>,
-			<&clk_venc_core 300000000>;
+			<&clk_venc_core 300000000>, <&clk_crypto 150000000>,
+			<&clk_nandc 150000000>;
 	};
 
 	rockchip_clocks_enable: clocks-enable {

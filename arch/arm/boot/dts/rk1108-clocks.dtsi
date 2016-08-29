@@ -600,6 +600,7 @@
 						clocks = <&dummy>, <&clk_gpll>;
 						clock-output-names = "clk_crypto";
 						#clock-cells = <0>;
+						#clock-init-cells = <1>;
 					};
 
 					clk_spi_div: clk_spi_div {
@@ -1184,6 +1185,7 @@
 						clocks = <&dummy>, <&clk_gpll>;
 						clock-output-names = "clk_nandc";
 						#clock-cells = <0>;
+						#clock-init-cells = <1>;
 					};
 
 					/* 15 reserved */
