@@ -216,6 +216,18 @@
 					status = "disabled";
 				};
 			};
+			pd_dsp {
+				clk_dsp_dvfs_table: clk_dsp {
+					operating-points = <
+						/* KHz    uV */
+						300000 850000
+						400000 900000
+						600000 1100000
+						//700000 1200000
+						>;
+					status = "okay";
+				};
+			};
 		};
 	};
 
