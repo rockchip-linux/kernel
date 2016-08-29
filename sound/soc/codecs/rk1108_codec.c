@@ -266,6 +266,7 @@ static int rk1108_digital_mute(struct snd_soc_dai *dai, int mute)
 }
 
 static struct rk1108_reg_msk_val playback_open_list[] = {
+	{ RK1108_DAC_INT_CTL3, RK1108_DAC_DSM_MASK, RK1108_DAC_DSM(2) },
 	{ RK1108_DAC_CTL, RK1108_REF_VOL_DACL_MASK | RK1108_REF_VOL_DACR_MASK,
 	  RK1108_REF_VOL_DACL_EN | RK1108_REF_VOL_DACR_EN },
 	{ RK1108_LOUT_CTL, RK1108_LOUTL_MSK | RK1108_LOUTR_MSK,
@@ -578,6 +579,7 @@ static const struct reg_default rk1108_codec_reg_defaults[] = {
 	{ RK1108_ADC_INT_CTL2, 0x0e },
 	{ RK1108_DAC_INT_CTL1, 0x50 },
 	{ RK1108_DAC_INT_CTL2, 0x0e },
+	{ RK1108_DAC_INT_CTL3, 0x32 },
 	{ RK1108_SELECT_CURRENT, 0x01 },
 	{ RK1108_ALCL_GAIN_CTL, 0x0c },
 	{ RK1108_ALCR_GAIN_CTL, 0x0c },
@@ -599,6 +601,7 @@ static bool rk1108_codec_write_read_reg(struct device *dev, unsigned int reg)
 	case RK1108_ADC_INT_CTL2:
 	case RK1108_DAC_INT_CTL1:
 	case RK1108_DAC_INT_CTL2:
+	case RK1108_DAC_INT_CTL3:
 	case RK1108_BIST_CTL:
 	case RK1108_SELECT_CURRENT:
 	case RK1108_BIAS_CTL:

@@ -25,6 +25,7 @@
 #define RK1108_ADC_INT_CTL2			(0x0c) /* REG 0x03 */
 #define RK1108_DAC_INT_CTL1			(0x10) /* REG 0x04 */
 #define RK1108_DAC_INT_CTL2			(0x14) /* REG 0x05 */
+#define RK1108_DAC_INT_CTL3			(0x18) /* REG 0x06 */
 #define RK1108_BIST_CTL				(0x1c) /* REG 0x07 */
 #define RK1108_SELECT_CURRENT			(0x88) /* REG 0x22 */
 #define RK1108_BIAS_CTL				(0x8c) /* REG 0x23 */
@@ -133,6 +134,11 @@
 #define RK1108_DBCLK_POL_SFT			0
 #define RK1108_DBCLK_POL_EN			(0x1 << 0)
 #define RK1108_DBCLK_POL_DIS			(0x0 << 0)
+
+/* DAC INTERFACE CONTROL 3 (REG 0X06) */
+#define RK1108_DAC_DSM_SFT			4
+#define RK1108_DAC_DSM_MASK			(0x7 << RK1108_DAC_DSM_SFT)
+#define RK1108_DAC_DSM(x)			(x << RK1108_DAC_DSM_SFT)
 
 /* SELECT CURR PRECHAGRGE/DISCHARGE (REG 0X22) */
 #define RK1108_XCHARGE_MASK			(0x1 << 7)
