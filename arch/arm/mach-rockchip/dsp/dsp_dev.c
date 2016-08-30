@@ -239,12 +239,17 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 	dsp_debug_enter();
 
 	clk_prepare_enable(dev->clk_dsp);
-	/* clk_set_rate(dev->clk_dsp, DSP_RATE); */
+	clk_prepare_enable(dev->clk_dsp_free);
+	clk_prepare_enable(dev->clk_iop);
+	clk_prepare_enable(dev->clk_epp);
+	clk_prepare_enable(dev->clk_edp);
+	clk_prepare_enable(dev->clk_edap);
 
 	dsp_set_div_clk(dev->clk_iop, 4);
 	dsp_set_div_clk(dev->clk_epp, 2);
 	dsp_set_div_clk(dev->clk_edp, 2);
 	dsp_set_div_clk(dev->clk_edap, 2);
+	usleep_range(200, 500);
 
 	writel_relaxed((DSP_GLOBAL_RSTN_REQ << 16) | DSP_GLOBAL_RSTN_REQ,
 		       dev->dsp_grf + DSP_GRF_CON0);
@@ -272,7 +277,15 @@ out:
 
 		writel_relaxed(DSP_GLOBAL_RSTN_REQ << 16,
 			       dev->dsp_grf + DSP_GRF_CON0);
+
+		clk_disable_unprepare(dev->clk_dsp);
+		clk_disable_unprepare(dev->clk_dsp_free);
+		clk_disable_unprepare(dev->clk_iop);
+		clk_disable_unprepare(dev->clk_epp);
+		clk_disable_unprepare(dev->clk_edp);
+		clk_disable_unprepare(dev->clk_edap);
 	}
+
 	dsp_debug_leave();
 	return ret;
 }
@@ -294,8 +307,12 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 
 	writel_relaxed(DSP_GLOBAL_RSTN_REQ << 16, dev->dsp_grf + DSP_GRF_CON0);
 
-	if (dev->clk_dsp)
-		clk_disable_unprepare(dev->clk_dsp);
+	clk_disable_unprepare(dev->clk_dsp);
+	clk_disable_unprepare(dev->clk_dsp_free);
+	clk_disable_unprepare(dev->clk_iop);
+	clk_disable_unprepare(dev->clk_epp);
+	clk_disable_unprepare(dev->clk_edp);
+	clk_disable_unprepare(dev->clk_edap);
 
 	dev->status = DSP_OFF;
 
@@ -312,6 +329,13 @@ static int dsp_dev_clk_init(struct platform_device *pdev, struct dsp_dev *dev)
 	dev->clk_dsp = devm_clk_get(&pdev->dev, "clk_dsp");
 	if (IS_ERR(dev->clk_dsp)) {
 		dsp_err("failed to get clk_dsp\n");
+		ret = -EFAULT;
+		goto out;
+	}
+
+	dev->clk_dsp_free = devm_clk_get(&pdev->dev, "clk_dsp_free");
+	if (IS_ERR(dev->clk_dsp_free)) {
+		dsp_err("failed to get clk_dsp_free\n");
 		ret = -EFAULT;
 		goto out;
 	}

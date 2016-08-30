@@ -59,6 +59,7 @@ struct dsp_dev {
 	u32 trace_index;
 
 	struct clk *clk_dsp;
+	struct clk *clk_dsp_free;
 	struct clk *clk_iop;
 	struct clk *clk_epp;
 	struct clk *clk_edp;
