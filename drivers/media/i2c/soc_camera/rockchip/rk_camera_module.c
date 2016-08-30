@@ -84,7 +84,7 @@ const char *PLTFRM_CAMERA_MODULE_PIN_RESET = OF_OV_GPIO_RESET;
 struct pltfrm_camera_module_gpio {
 	int pltfrm_gpio;
 	const char *label;
-	bool active_low;
+	enum of_gpio_flags active_low;
 };
 
 struct pltfrm_camera_module_regulator {
@@ -441,41 +441,46 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 		} while (--elem_size);
 	}
 	pdata->gpios[0].label = PLTFRM_CAMERA_MODULE_PIN_PD;
-	pdata->gpios[0].pltfrm_gpio =
-		of_get_named_gpio_flags(np, pdata->gpios[0].label, 0, NULL);
-	pdata->gpios[0].active_low =
-		of_property_read_bool(np, OF_OV_GPIO_PD "-is_active_low");
+	pdata->gpios[0].pltfrm_gpio = of_get_named_gpio_flags(
+		np,
+		pdata->gpios[0].label,
+		0,
+		&pdata->gpios[0].active_low);
 
 	pdata->gpios[1].label = PLTFRM_CAMERA_MODULE_PIN_PWR;
-	pdata->gpios[1].pltfrm_gpio =
-		of_get_named_gpio_flags(np, pdata->gpios[1].label, 0, NULL);
-	pdata->gpios[1].active_low =
-		of_property_read_bool(np, OF_OV_GPIO_PWR "-is_active_low");
+	pdata->gpios[1].pltfrm_gpio = of_get_named_gpio_flags(
+		np,
+		pdata->gpios[1].label,
+		0,
+		&pdata->gpios[1].active_low);
 
 	pdata->gpios[2].label = PLTFRM_CAMERA_MODULE_PIN_FLASH;
-	pdata->gpios[2].pltfrm_gpio =
-		of_get_named_gpio_flags(np, pdata->gpios[2].label, 0, NULL);
-	pdata->gpios[2].active_low =
-		of_property_read_bool(np, OF_OV_GPIO_FLASH "-is_active_low");
+	pdata->gpios[2].pltfrm_gpio = of_get_named_gpio_flags(
+		np,
+		pdata->gpios[2].label,
+		0,
+		&pdata->gpios[2].active_low);
 
 
 	/*set fl_ctrl  flash reference*/
 	pdata->fl_ctrl.fl_flash = &(pdata->gpios[2]);
 
 	pdata->gpios[3].label = PLTFRM_CAMERA_MODULE_PIN_TORCH;
-	pdata->gpios[3].pltfrm_gpio =
-		of_get_named_gpio_flags(np, pdata->gpios[3].label, 0, NULL);
-	pdata->gpios[3].active_low =
-		of_property_read_bool(np, OF_OV_GPIO_TORCH "-is_active_low");
+	pdata->gpios[3].pltfrm_gpio = of_get_named_gpio_flags(
+		np,
+		pdata->gpios[3].label,
+		0,
+		&pdata->gpios[3].active_low);
 
 	/*set fl_ctrl torch reference*/
 	pdata->fl_ctrl.fl_torch = &(pdata->gpios[3]);
 
 	pdata->gpios[4].label = PLTFRM_CAMERA_MODULE_PIN_RESET;
-	pdata->gpios[4].pltfrm_gpio =
-		of_get_named_gpio_flags(np, pdata->gpios[4].label, 0, NULL);
-	pdata->gpios[4].active_low =
-		of_property_read_bool(np, OF_OV_GPIO_RESET "-is_active_low");
+	pdata->gpios[4].pltfrm_gpio = of_get_named_gpio_flags(
+		np,
+		pdata->gpios[4].label,
+		0,
+		&pdata->gpios[4].active_low);
 
 	ret = of_property_read_string(np, OF_CAMERA_MODULE_NAME,
 			&pdata->info.module_name);
@@ -1269,9 +1274,11 @@ int pltfrm_camera_module_set_pin_state(
 			if (!gpio_is_valid(pdata->gpios[i].pltfrm_gpio))
 				return 0;
 			if (state == PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE)
-				gpio_val = pdata->gpios[i].active_low ? 0 : 1;
+				gpio_val = (pdata->gpios[i].active_low ==
+					OF_GPIO_ACTIVE_LOW) ? 0 : 1;
 			else
-				gpio_val = pdata->gpios[i].active_low ? 1 : 0;
+				gpio_val = (pdata->gpios[i].active_low ==
+					OF_GPIO_ACTIVE_LOW) ? 1 : 0;
 			gpio_set_value(pdata->gpios[i].pltfrm_gpio, gpio_val);
 			pltfrm_camera_module_pr_debug(sd,
 				"set GPIO #%d ('%s') to %s\n",
