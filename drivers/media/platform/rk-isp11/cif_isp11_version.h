@@ -20,11 +20,12 @@
  /*
 *       CIF DRIVER VERSION NOTE
 *
-*v1.1.0:
-*
+*v0.1.0:
+*	1. New mi register update mode is invalidate in raw/jpeg for rk1108,
+*	    All path used old mode for rk1108;
 *
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 1)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0)
 
 #endif

@@ -189,7 +189,8 @@
 #define CIF_MI_INIT_Y12_ENDIAN_MODE_LITTLE (0<<3)
 #define CIF_MI_INIT_Y12_ENDIAN_MODE_BIG    (1<<3)
 #define CIF_MI_INIT_SOFT_UPD               (1<<4)
-#define CIF_MI_INIT_UPDATE_MODE            (1<<5)
+#define CIF_MI_INIT_UPDATE_MODE_OLD            (0<<5)
+#define CIF_MI_INIT_UPDATE_MODE_NEW            (1<<5)
 
 /* RSZ_CTRL */
 #define CIF_RSZ_CTRL_SCALE_HY_ENABLE      (1<<0)

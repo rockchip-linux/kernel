@@ -4577,6 +4577,12 @@ static void cif_isp11_start_mi(
 		dev->y12_stream.stall = false;
 	}
 
+	/*
+	 *   New mi register update mode is invalidate in raw/jpeg for rk1108,
+	 * All path used old mode for rk1108;
+	 */
+	cif_iowrite32AND_verify(~CIF_MI_INIT_UPDATE_MODE_NEW,
+		dev->config.base_addr + CIF_MI_INIT, ~0);
 	cif_iowrite32OR(CIF_MI_INIT_SOFT_UPD,
 		dev->config.base_addr + CIF_MI_INIT);
 	cif_isp11_pltfrm_pr_dbg(NULL,
