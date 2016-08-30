@@ -2231,6 +2231,12 @@
 						<2 GPIO_B1 RK_FUNC_2 &pcfg_pull_up>;
 			};
 		};
+
+		pmic_pin {
+			pmic_int: pmic-int {
+				rockchip,pins = <0 GPIO_A5 RK_FUNC_GPIO &pcfg_pull_up>;
+			};
+		};
 	};
 
 	reboot {
