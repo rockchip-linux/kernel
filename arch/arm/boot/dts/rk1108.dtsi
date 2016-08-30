@@ -182,7 +182,10 @@
 			<&clk_gates16 6>, /* aclk_dsp_edp_niu */
 			<&clk_gates16 7>, /* pclk_dsp_dbg_niu */
 			<&clk_gates16 8>, /* pclk_dsp_cfg_niu */
-			<&clk_gates16 9>, /* pclk_ceva_pfm_mon */
+			<&clk_gates16 9>, /* pclk_dsp_pfm_mon */
+			<&clk_gates16 10>, /* pclk_intc */
+			<&clk_gates16 11>, /* pclk_dsp_grf */
+			<&clk_gates16 12>, /* pclk_mailbox */
 			<&clk_gates16 14>, /* aclk_dsp_edap_niu */
 			<&clk_gates16 15>, /* aclk_dsp_epp_perf */
 

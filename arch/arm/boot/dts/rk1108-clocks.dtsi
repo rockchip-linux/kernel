@@ -1809,11 +1809,11 @@
 					#address-cells = <1>;
 					#size-cells = <1>;
 
-					clk_ceva_pfm: clk_ceva_pfm_div {
+					clk_dsp_pfm: clk_dsp_pfm_div {
 						compatible = "rockchip,rk3188-div-con";
 						rockchip,bits = <0 5>;
 						clocks = <&clk_dsp_div>;
-						clock-output-names = "clk_ceva_pfm";
+						clock-output-names = "clk_dsp_pfm";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						rockchip,clkops-idx =
@@ -1913,7 +1913,7 @@
 					clk_test_mux: clk_test_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 4>;
-						clocks = <&clk_core>, <&aclk_bus_pre>, <&aclk_vio0_pre>, <&aclk_vio1_pre>, <&aclk_peri>, <&clk_ceva_pfm>, <&aclk_rkvdec_pre>, <&aclk_rkvenc_pre>, <&xin24m>, <&clk_ddr_div>, <&dclk_lcdc>, <&clk_wifi>, <&clk_rga>, <&clk_isp>, <&aclk_vpu_pre>, <&clk_venc_core>;
+						clocks = <&clk_core>, <&aclk_bus_pre>, <&aclk_vio0_pre>, <&aclk_vio1_pre>, <&aclk_peri>, <&clk_dsp_pfm>, <&aclk_rkvdec_pre>, <&aclk_rkvenc_pre>, <&xin24m>, <&clk_ddr_div>, <&dclk_lcdc>, <&clk_wifi>, <&clk_rga>, <&clk_isp>, <&aclk_vpu_pre>, <&clk_venc_core>;
 						clock-output-names = "clk_test_mux";
 						#clock-cells = <0>;
 					};
@@ -2244,7 +2244,7 @@
 					<&clk_dsp_epp>,	<&clk_dsp_edp>,
 
 					<&clk_dsp_edap>,	<&pclk_dsp_cfg>,
-					<&clk_ceva_pfm>,	<&dummy>,
+					<&clk_dsp_pfm>,	<&dummy>,
 
 					<&clk_wifi>,	<&clk_test>,
 					<&xin24m>,	<&clk_cif_out>,
@@ -2257,7 +2257,7 @@
 					"clk_dsp_epp",	"clk_dsp_edp",
 
 					"clk_dsp_edap",	"pclk_dsp_cfg",
-					"clk_ceva_pfm",	"reserved",
+					"clk_dsp_pfm",	"reserved",
 
 					"clk_wifi",	"clk_test",
 					"clk_dsiphy_24m",	"clk_cif_out",
@@ -2310,7 +2310,7 @@
 					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>,
 
-					<&clk_dsp_edp>,	<&dummy>,
+					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
@@ -2467,26 +2467,26 @@
 					<&clk_dsp>,	<&clk_dsp>,
 					<&clk_dsp>,	<&clk_dsp>,
 
-					<&clk_dsp_iop>,	<&clk_dsp_epp>,
-					<&clk_dsp_edp>,	<&clk_dsp>,
+					<&dummy>,	<&dummy>,
+					<&dummy>,	<&clk_dsp>,
 
 					<&pclk_dsp_cfg>,	<&pclk_dsp_cfg>,
 					<&pclk_dsp_cfg>,	<&pclk_dsp_cfg>,
 
 					<&pclk_dsp_cfg>,	<&clk_dsp>,
-					<&clk_dsp_edap>,	<&clk_dsp_epp>;
+					<&dummy>,	<&dummy>;
 
 					clock-output-names =
-					"clk_ceva_sys_wd",	"clk_ceva_epp_wd",
-					"clk_ceva_edp_wd",	"clk_ceva_iop_wd",
+					"clk_dsp_sys_wd",	"clk_dsp_epp_wd",
+					"clk_dsp_edp_wd",	"clk_dsp_iop_wd",
 
 					"p_dsp_iop_niu",	"p_dsp_epp_niu",
 					"a_dsp_edp_niu",	"p_dsp_dbg_niu",
 
-					"p_dsp_cfg_niu",	"p_ceva_pfm_mon",
+					"p_dsp_cfg_niu",	"p_dsp_pfm_mon",
 					"pclk_intc",	"pclk_dsp_grf",
 
-					"pclk_mailbox",	"clk_cevaxm4_fe",
+					"pclk_mailbox",	"clk_dsp_free",
 					"a_dsp_edap_niu",	"a_dsp_epp_perf";
 
 					#clock-cells = <1>;
