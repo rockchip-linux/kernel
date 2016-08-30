@@ -34,6 +34,8 @@ struct gpio_data {
 	int atv_val;
 	int val;
 	int irq;
+	struct delayed_work work;
+	unsigned int debounce_ms;
 	int wakeup;
 };
 
@@ -107,9 +109,10 @@ static void gpio_det_report_event(struct gpio_data *gpiod)
 		gpio_det_notifier_call_chain(GPIO_EVENT, &event);
 }
 
-static irqreturn_t gpio_det_interrupt(int irq, void *dev_id)
+static void gpio_det_work_func(struct work_struct *work)
 {
-	struct gpio_data *gpiod = dev_id;
+	struct gpio_data *gpiod = container_of(work, struct gpio_data,
+					       work.work);
 	int val = gpio_get_value(gpiod->gpio);
 
 	if (gpiod->val != val) {
@@ -120,6 +123,22 @@ static irqreturn_t gpio_det_interrupt(int irq, void *dev_id)
 			rk_send_power_key(0);
 		}
 	}
+}
+
+static irqreturn_t gpio_det_interrupt(int irq, void *dev_id)
+{
+	struct gpio_data *gpiod = dev_id;
+	int val = gpio_get_value(gpiod->gpio);
+	unsigned int irqflags = IRQF_ONESHOT;
+
+	if (val)
+		irqflags |= IRQ_TYPE_EDGE_FALLING;
+	else
+		irqflags |= IRQ_TYPE_EDGE_RISING;
+	irq_set_irq_type(gpiod->irq, irqflags);
+
+	mod_delayed_work(system_wq, &gpiod->work,
+			 msecs_to_jiffies(gpiod->debounce_ms));
 
 	return IRQ_HANDLED;
 }
@@ -279,10 +298,8 @@ static int gpio_det_parse_dt(struct gpio_detection *gpio_det)
 		gpiod->atv_val = !(flags & OF_GPIO_ACTIVE_LOW);
 		gpiod->name = of_get_property(node, "label", NULL);
 		gpiod->wakeup = !!of_get_property(node, "gpio,wakeup", NULL);
-		gpiod->irq = irq_of_parse_and_map(node, 0);
-		if (gpiod->irq <= 0)
-			dev_err(gpio_det->dev, "Failed to map irq(%s)\n",
-				gpiod->name);
+		of_property_read_u32(node, "linux,debounce-ms",
+				     &gpiod->debounce_ms);
 	}
 	gpio_det->num = num;
 	gpio_det->data = data;
@@ -324,21 +341,39 @@ static int gpio_det_probe(struct platform_device *pdev)
 		       "gpio_detection");
 	for (i = 0; i < gpio_det->num; i++) {
 		gpiod = &gpio_det->data[i];
-		gpiod->val = gpio_get_value(gpiod->gpio);
+		ret = devm_gpio_request(&pdev->dev, gpiod->gpio, gpiod->name);
+		if (ret < 0) {
+			dev_err(gpio_det->dev, "failed to request gpio for %s(%d)\n",
+				gpiod->name, ret);
+			continue;
+		}
+
+		gpio_direction_input(gpiod->gpio);
+
+		gpiod->irq = gpio_to_irq(gpiod->gpio);
+		if (gpiod->irq < 0) {
+			dev_err(gpio_det->dev, "failed to get irq number for GPIO %s\n",
+				gpiod->name);
+			continue;
+		}
+
 		ret = gpio_detection_class_register(gpio_det, gpiod);
 		if (ret < 0)
 			return ret;
-		if (gpiod->irq <= 0)
-			continue;
-		if (gpiod->wakeup)
-			irqflags |= IRQF_NO_SUSPEND;
+		INIT_DELAYED_WORK(&gpiod->work, gpio_det_work_func);
+		gpiod->val = gpio_get_value(gpiod->gpio);
+		if  (gpiod->val)
+			irqflags |= IRQ_TYPE_EDGE_FALLING;
+		else
+			irqflags |= IRQ_TYPE_EDGE_RISING;
 		ret = devm_request_threaded_irq(gpio_det->dev, gpiod->irq,
 						NULL, gpio_det_interrupt,
 						irqflags, gpiod->name, gpiod);
 		if (ret < 0)
-			dev_err(gpio_det->dev, "request irq(%s) failed\n",
-				gpiod->name);
+			dev_err(gpio_det->dev, "request irq(%s) failed:%d\n",
+				gpiod->name, ret);
 	}
+
 	if (gpio_det->info) {
 		ret = class_create_file(gpio_detection_class,
 					&gpio_det->cls_attr);
@@ -346,6 +381,7 @@ static int gpio_det_probe(struct platform_device *pdev)
 			dev_warn(gpio_det->dev, "create class file failed:%d\n",
 				 ret);
 	}
+
 	gpio_det_fb_notifier_register(gpio_det);
 	gpio_det_init_status_check(gpio_det);
 
