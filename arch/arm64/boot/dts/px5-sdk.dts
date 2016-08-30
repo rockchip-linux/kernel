@@ -30,7 +30,7 @@
 		* rtl8188eu, rtl8723bs, rtl8723bu
 		* esp8089
 		*/
-		wifi_chip_type = "rtl8723bs";
+		wifi_chip_type = "rtl8723bs_vq0";
 
 		sdio_vref = <3300>; //1800mv or 3300mv
 
