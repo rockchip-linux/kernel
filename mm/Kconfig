@@ -505,6 +505,16 @@ config CMA_DEBUG
 	  processing calls such as dma_alloc_from_contiguous().
 	  This option does not affect warning and error messages.
 
+config CMA_STINGY
+	bool "CMA behaves stingy"
+	def_bool n
+	depends on CMA
+	help
+	  When system total memory is low, system may borrow memory form CMA,
+	  then total CMA memory turns lower that will make CMA allocation
+	  failed. Turns on this if CMA allocation must be successful under
+	  the above situation.
+
 config ZPOOL
 	tristate "Common API for compressed memory storage"
 	default n
