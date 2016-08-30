@@ -230,6 +230,12 @@ void psci_fiq_debugger_enable_debug(bool val)
 		reg_wr_fn64(PSCI_SIP_UARTDBG_CFG64, 0,
 			    0, UARTDBG_CFG_OSHDL_DEBUG_DISABLE);
 }
+
+u32 psci_fiq_debugger_set_print_port(u32 port, u32 baudrate)
+{
+	return reg_wr_fn64(PSCI_SIP_UARTDBG_CFG64, port, baudrate,
+			   UARTDBG_CFG_SET_PRINT_PORT);
+}
 #endif
 
 #ifdef CONFIG_ARM
@@ -284,5 +290,12 @@ void psci_fiq_debugger_enable_debug(bool val)
 		reg_wr_fn(PSCI_SIP_UARTDBG_CFG, 0, 0,
 			  UARTDBG_CFG_OSHDL_DEBUG_DISABLE);
 }
+
+u32 psci_fiq_debugger_set_print_port(u32 port, u32 baudrate)
+{
+	return reg_wr_fn(PSCI_SIP_UARTDBG_CFG, port, baudrate,
+			 UARTDBG_CFG_SET_PRINT_PORT);
+}
+
 #endif
 

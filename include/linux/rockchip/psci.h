@@ -38,6 +38,7 @@
 #define UARTDBG_CFG_OSHDL_DEBUG_ENABLE	0xf4
 #define UARTDBG_CFG_OSHDL_DEBUG_DISABLE	0xf5
 #define UARTDBG_CFG_SET_SHARE_MEM	0xf6
+#define UARTDBG_CFG_SET_PRINT_PORT	0xf7
 
 /*
  * rockchip psci function call interface
@@ -65,6 +66,7 @@ void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset);
 u32 psci_fiq_debugger_switch_cpu(u32 cpu);
 void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback);
 void psci_fiq_debugger_enable_debug(bool val);
+u32 psci_fiq_debugger_set_print_port(u32 port, u32 baudrate);
 
 u32 psci_set_memory_secure(bool val);
 #else
@@ -87,6 +89,8 @@ static inline u32 psci_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
 static inline void
 psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback) { }
 static inline void psci_fiq_debugger_enable_debug(bool val) { }
+static inline u32
+psci_fiq_debugger_set_print_port(u32 port, u32 baudrate) { return 0; }
 
 static inline u32 psci_set_memory_secure(bool val)
 {
