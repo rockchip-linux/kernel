@@ -63,6 +63,9 @@ int ovl_setattr(struct dentry *dentry, struct iattr *attr)
 	if (!err) {
 		upperdentry = ovl_dentry_upper(dentry);
 
+		if (attr->ia_valid & (ATTR_KILL_SUID|ATTR_KILL_SGID))
+			attr->ia_valid &= ~ATTR_MODE;
+
 		mutex_lock(&upperdentry->d_inode->i_mutex);
 		err = notify_change(upperdentry, attr, NULL);
 		if (!err)
@@ -412,12 +415,11 @@ struct inode *ovl_new_inode(struct super_block *sb, umode_t mode,
 	if (!inode)
 		return NULL;
 
-	mode &= S_IFMT;
-
 	inode->i_ino = get_next_ino();
 	inode->i_mode = mode;
 	inode->i_flags |= S_NOATIME | S_NOCMTIME;
 
+	mode &= S_IFMT;
 	switch (mode) {
 	case S_IFDIR:
 		inode->i_private = oe;
