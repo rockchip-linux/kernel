@@ -415,10 +415,6 @@
 	*/
 };
 
-&uart_dbg {
-	status = "okay";
-};
-
 &uart_bt {
 	status = "okay";
 	dma-names = "!tx", "!rx";
@@ -817,6 +813,8 @@
 
 /include/ "../../../arm/boot/dts/rk808.dtsi"
 &rk808 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pmic_int>;
 	gpios = <&gpio0 GPIO_A5 GPIO_ACTIVE_HIGH>,<&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
 	rk808,system-power-controller;
 
@@ -831,7 +829,7 @@
 			regulator-initial-state = <3>;
 			regulator-state-mem {
 				regulator-state-mode = <0x2>;
-				regulator-state-enabled;
+				regulator-state-disabled;
 				regulator-state-uv = <900000>;
 			};
 		};
@@ -902,7 +900,7 @@
 			regulator-boot-on;
 			regulator-initial-state = <3>;
 			regulator-state-mem {
-				regulator-state-enabled;
+				regulator-state-disabled;
 				regulator-state-uv = <3300000>;
 			};
 		};
@@ -928,7 +926,7 @@
 			regulator-boot-on;
 			regulator-initial-state = <3>;
 			regulator-state-mem {
-				regulator-state-enabled;
+				regulator-state-disabled;
 				regulator-state-uv = <3300000>;
 			};
 		};
