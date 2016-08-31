@@ -112,6 +112,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define  V_MCU_FRAME_ST(x)			VAL_MASK(x, 1, 28)
 #define  V_MCU_RS(x)				VAL_MASK(x, 1, 29)
 #define  V_MCU_BYPASS(x)			VAL_MASK(x, 1, 30)
+#define  V_MCU_TYPE(x)				VAL_MASK(x, 1, 31)
 #define SYS_CTRL0			0x00000010
 #define  V_DIRECT_PATH_EN(x)			VAL_MASK(x, 1, 0)
 #define  V_DIRECT_PATH_LAYER_SEL(x)		VAL_MASK(x, 1, 1)

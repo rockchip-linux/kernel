@@ -866,7 +866,8 @@ static int vop_config_mcu_timing(struct rk_lcdc_driver *dev_drv)
 	struct rk_screen *screen = dev_drv->cur_screen;
 
 	u32 mcu_total, mcu_cs_start, mcu_cs_end, mcu_rw_start, mcu_rw_end;
-	u32 ppixel_time, val;
+	u32 ppixel_time;
+	u64 val;
 
 	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
 		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
@@ -889,7 +890,7 @@ static int vop_config_mcu_timing(struct rk_lcdc_driver *dev_drv)
 	val = V_MCU_PIX_TOTAL(mcu_total) | V_MCU_CS_PST(mcu_cs_start) |
 		V_MCU_CS_PEND(mcu_cs_end) | V_MCU_RW_PST(mcu_rw_start) |
 		V_MCU_RW_PEND(mcu_rw_end) | V_MCU_CLK_SEL(1) |
-		V_MCU_HOLD_MODE(1) | V_MCU_FRAME_ST(0);
+		V_MCU_HOLD_MODE(1) | V_MCU_FRAME_ST(0) | V_MCU_TYPE(1);
 	vop_msk_reg(vop_dev, MCU_CTRL, val);
 
 	return 0;
@@ -982,6 +983,7 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 	u64 val = 0;
 
 	switch (screen->type) {
+	case SCREEN_MCU:
 	case SCREEN_RGB:
 		vop_grf_writel(vop_dev->grf_base, GRF_SOC_CON5,
 			       V_RGB_VOP_SEL(dev_drv->id));
@@ -1040,9 +1042,6 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 			V_TVE_DAC_VSYNC_POL(screen->pin_vsync);
 		vop_msk_reg(vop_dev, DSP_CTRL1, val);
 		break;
-	case SCREEN_MCU:
-		dev_info(vop_dev->dev, "mcu screen type!\n");
-		break;
 	default:
 		dev_err(vop_dev->dev, "un supported interface[%d]!\n",
 			screen->type);
@@ -1078,6 +1077,9 @@ static int vop_config_interface(struct rk_lcdc_driver *dev_drv)
 	switch (screen->face) {
 	case OUT_P888:
 		val = V_DSP_OUT_MODE(OUT_P888) | V_DITHER_DOWN(0);
+		break;
+	case OUT_S888:
+		val = V_DSP_OUT_MODE(OUT_S888) | V_DITHER_DOWN(0);
 		break;
 	case OUT_P565:
 		val = V_DSP_OUT_MODE(OUT_P565) | V_DITHER_DOWN(1) |
@@ -2039,8 +2041,8 @@ static int vop_mcu_refresh(struct rk_lcdc_driver *dev_drv)
 		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
 		return 0;
 	}
-	if (vop_dev->screen->refresh)
-		vop_dev->screen->refresh(1);
+	if (dev_drv->cur_screen->refresh)
+		dev_drv->cur_screen->refresh(1);
 	vop_msk_reg_nobak(vop_dev, MCU_CTRL, V_MCU_FRAME_ST(1));
 
 	return 0;
