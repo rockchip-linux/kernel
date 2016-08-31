@@ -113,6 +113,10 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 	mutex_lock(&dev->lock);
 
 	work->done = dsp_dev_work_done;
+	if (dev->dsp_dvfs_node)
+		work->rate = dvfs_clk_get_rate(dev->dsp_dvfs_node);
+	else
+		work->rate = 0;
 	dev->mbox->send_data(dev->mbox, MBOX_CHAN_0, DSP_CMD_WORK,
 			     work->dma_addr);
 	dsp_debug_leave();
@@ -143,6 +147,15 @@ static int dsp_dev_receive_data(struct dsp_mbox_client *client,
 				dsp_err("invalid work from dsp\n");
 				ret = -EFAULT;
 				goto out;
+			}
+			/*
+			 * Algorithms can request its satisfying DSP
+			 * rate respectively
+			 */
+			if (dev->dsp_dvfs_node && work->rate) {
+				dvfs_clk_set_rate(dev->dsp_dvfs_node, work->rate);
+				dsp_debug(DEBUG_DEVICE, "request DSP rate=%d\n",
+					  work->rate);
 			}
 			work->done(work, dev);
 		}
@@ -490,6 +503,10 @@ int dsp_dev_create(struct platform_device *pdev, struct dma_pool *dma_pool,
 		memset(dev->trace_buffer, 0, DSP_TRACE_BUFFER_SIZE);
 		dev->trace_dma = dma_addr;
 	}
+
+	dev->dsp_dvfs_node = clk_get_dvfs_node("clk_dsp");
+	if (dev->dsp_dvfs_node)
+		clk_enable_dvfs(dev->dsp_dvfs_node);
 
 	(*dev_out) = dev;
 out:

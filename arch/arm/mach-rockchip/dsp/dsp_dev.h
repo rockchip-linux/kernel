@@ -19,6 +19,7 @@
 #include <linux/dmapool.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/rockchip/dvfs.h>
 #include "dsp_loader.h"
 #include "dsp_dma.h"
 #include "dsp_mbox.h"
@@ -57,6 +58,8 @@ struct dsp_dev {
 	char *trace_buffer;
 	u32 trace_dma;
 	u32 trace_index;
+
+	struct dvfs_node *dsp_dvfs_node;
 
 	struct clk *clk_dsp;
 	struct clk *clk_dsp_free;

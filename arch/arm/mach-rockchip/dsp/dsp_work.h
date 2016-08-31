@@ -52,6 +52,7 @@ struct dsp_work_hw {
  * @id: user work id
  * @type: work type, see enum dsp_work_type
  * @result: work result return by DSP core
+ * @rate: inform DSP its real rate
  * @params: work parameters
  * @session: session address
  * @status: work status
@@ -62,6 +63,7 @@ struct dsp_work {
 	u32 id;
 	u32 type;
 	u32 result;
+	u32 rate;
 
 	union {
 		struct dsp_render_params render;
