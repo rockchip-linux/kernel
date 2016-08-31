@@ -557,6 +557,11 @@ config GPIO_DET
 	help
 	  Enable this driver will support gpio detection.
 
+config ONBOARD_MODEM
+	tristate "on board 4g module control interface"
+	help
+	  on board 4g module control interface.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

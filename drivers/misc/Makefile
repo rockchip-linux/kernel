@@ -60,3 +60,4 @@ obj-$(CONFIG_UID_CPUTIME) += uid_cputime.o
 obj-$(CONFIG_5V_EN)	+= 5v_en.o
 obj-$(CONFIG_ROCKCHIP_SCR) += rk_scr.o
 obj-$(CONFIG_GPIO_DET)		+= gpio-detection.o
+obj-$(CONFIG_ONBOARD_MODEM) += rk_modem_control.o
