@@ -545,6 +545,8 @@ static int __init rk_fiq_debugger_init(void) {
 	if (!ok)
 		return -EINVAL;
 
+	psci_fiq_debugger_set_print_port(serial_id, baudrate);
+
 	pclk = of_clk_get_by_name(np, "pclk_uart");
 	clk = of_clk_get_by_name(np, "sclk_uart");
 	if (unlikely(IS_ERR(clk)) || unlikely(IS_ERR(pclk))) {
