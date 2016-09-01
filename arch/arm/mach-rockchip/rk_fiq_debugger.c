@@ -545,7 +545,12 @@ static int __init rk_fiq_debugger_init(void) {
 	if (!ok)
 		return -EINVAL;
 
+#if defined(CONFIG_ARM_PSCI) && defined(CONFIG_SMP)
+	if (psci_smp_available())
+		psci_fiq_debugger_set_print_port(serial_id, baudrate);
+#elif defined(CONFIG_ARM64)
 	psci_fiq_debugger_set_print_port(serial_id, baudrate);
+#endif
 
 	pclk = of_clk_get_by_name(np, "pclk_uart");
 	clk = of_clk_get_by_name(np, "sclk_uart");
