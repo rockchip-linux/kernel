@@ -66,6 +66,26 @@
 		 */
 		reset-gpios = <&gpio4 28 GPIO_ACTIVE_LOW>;
 	};
+
+	vdd_log: pwm-regulator {
+		compatible = "pwm-regulator";
+		pwms = <&pwm1 0 2000 0>;
+
+		voltage-table = <1350000 0>,
+				<1300000 10>,
+				<1250000 20>,
+				<1200000 31>,
+				<1150000 41>,
+				<1100000 52>,
+				<1050000 62>,
+				<1000000 72>,
+				< 950000 83>;
+
+		regulator-min-microvolt = <950000>;
+		regulator-max-microvolt = <1350000>;
+		regulator-name = "vdd_logic";
+		regulator-ramp-delay = <4000>;
+	};
 };
 
 &cpu0 {

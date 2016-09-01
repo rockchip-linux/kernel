@@ -265,6 +265,28 @@
 	};
 };
 
+&dmc {
+	status = "okay";
+	logic-supply = <&vdd_log>;
+	rockchip,odt-disable-freq = <333000000>;
+	rockchip,dll-disable-freq = <333000000>;
+	rockchip,sr-enable-freq = <333000000>;
+	rockchip,auto-self-refresh-cnt = <0>;
+	rockchip,auto-power-down-cnt = <64>;
+	rockchip,ddr-speed-bin = <21>;
+	rockchip,trcd = <10>;
+	rockchip,trp = <10>;
+	rockchip,pd-enable-freq = <533000000>;
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		333000 1100000
+		533000 1200000
+	>;
+
+	#cooling-cells = <2>; /* min followed by max */
+};
+
 &emmc {
 	bus-width = <8>;
 	cap-mmc-highspeed;
@@ -427,6 +449,46 @@
 	status = "okay";
 };
 
+&usbphy {
+	status = "okay";
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host1 {
+	status = "okay";
+};
+
+&usb_otg {
+	status = "okay";
+};
+
+&lvds {
+	rockchip,data-mapping = "jeida";
+	rockchip,data-width = <24>;
+	rockchip,output = "lvds";
+	rockchip,panel = <&lvds_panel>;
+	status = "disabled";
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
+};
+
 &pinctrl {
 	pcfg_pull_none_drv_8ma: pcfg-pull-none-drv-8ma {
 		drive-strength = <8>;
@@ -513,44 +575,4 @@
 			rockchip,pins = <4 19 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
-};
-
-&usbphy {
-	status = "okay";
-};
-
-&usb_host0_ehci {
-	status = "okay";
-};
-
-&usb_host1 {
-	status = "okay";
-};
-
-&usb_otg {
-	status = "okay";
-};
-
-&lvds {
-	rockchip,data-mapping = "jeida";
-	rockchip,data-width = <24>;
-	rockchip,output = "lvds";
-	rockchip,panel = <&lvds_panel>;
-	status = "disabled";
-};
-
-&vopb {
-	status = "okay";
-};
-
-&vopb_mmu {
-	status = "okay";
-};
-
-&vopl {
-	status = "okay";
-};
-
-&vopl_mmu {
-	status = "okay";
 };
