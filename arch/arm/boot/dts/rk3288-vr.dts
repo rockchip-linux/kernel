@@ -1309,7 +1309,7 @@
 };
 
 &rk3288_cif_sensor{
-	status = "okay";
+	status = "disabled";
 };
 
 &dsihost0{
