@@ -39,8 +39,8 @@ module_param(debug, int, S_IRUGO|S_IWUSR);
 					V4L2_MBUS_DATA_ACTIVE_HIGH | SOCAM_MCLK_24MHZ)
 
 #define NTSC_FULL 0
-#define YUV_720P_50HZ 0
-#define YUV_720P_30HZ 1
+#define YUV_720P_50HZ 1
+#define YUV_720P_30HZ 0
 #define YUV_720P_25HZ 0
 #if NTSC_FULL
 #define SENSOR_PREVIEW_W                      960
@@ -63,12 +63,16 @@ static struct rk_camera_device_signal_config dev_info[] = {
 		.dvp = {
 			.vsync = RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL,
 			.hsync = RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL
+		},
+		.crop = {
+			.top = 20,
+			.left = 8
 		}
 	}
 };
 #endif
 
-#define SENSOR_PREVIEW_FPS			15000		/* 15fps	*/
+#define SENSOR_PREVIEW_FPS		30000		/* 30fps	*/
 #define SENSOR_FULLRES_L_FPS		7500		/* 7.5fps	*/
 #define SENSOR_FULLRES_H_FPS		7500		/* 7.5fps	*/
 #define SENSOR_720P_FPS				0

@@ -225,6 +225,7 @@ struct rk_camera_dvp_config {
 struct rk_camera_device_signal_config {
 	enum rk_camera_device_type type;
 	struct rk_camera_dvp_config dvp;
+	struct v4l2_rect crop;
 };
 
 struct rkcamera_platform_data {
