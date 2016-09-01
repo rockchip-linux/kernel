@@ -385,6 +385,10 @@ struct vpu_service_info {
 	struct clk *clk_cabac;
 	struct clk *pd_video;
 
+	unsigned long aclk_vcodec_default_rate;
+	unsigned long clk_core_default_rate;
+	unsigned long clk_cabac_default_rate;
+
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst_a;
 	struct reset_control *rst_h;
@@ -600,17 +604,27 @@ static int vpu_get_clk(struct vpu_service_info *pservice)
 		if (IS_ERR(pservice->clk_cabac)) {
 			dev_err(dev, "failed on clk_get clk_cabac\n");
 			pservice->clk_cabac = NULL;
+		} else {
+			pservice->clk_cabac_default_rate =
+				clk_get_rate(pservice->clk_cabac);
 		}
+
 		pservice->clk_core = devm_clk_get(dev, "clk_core");
 		if (IS_ERR(pservice->clk_core)) {
 			dev_err(dev, "failed on clk_get clk_core\n");
 			return -1;
+		} else {
+			pservice->clk_core_default_rate =
+				clk_get_rate(pservice->clk_core);
 		}
 	case VCODEC_DEVICE_ID_VPU:
 		pservice->aclk_vcodec = devm_clk_get(dev, "aclk_vcodec");
 		if (IS_ERR(pservice->aclk_vcodec)) {
 			dev_err(dev, "failed on clk_get aclk_vcodec\n");
 			return -1;
+		} else {
+			pservice->aclk_vcodec_default_rate =
+				clk_get_rate(pservice->aclk_vcodec);
 		}
 
 		pservice->hclk_vcodec = devm_clk_get(dev, "hclk_vcodec");
@@ -2295,6 +2309,8 @@ static void vcodec_set_freq_default(struct vpu_service_info *pservice,
 		clk_set_rate(pservice->aclk_vcodec, 600*MHZ);
 	} break;
 	default: {
+		clk_set_rate(pservice->aclk_vcodec,
+			     pservice->aclk_vcodec_default_rate);
 		break;
 	}
 	}
