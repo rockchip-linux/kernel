@@ -147,14 +147,19 @@
 	gpio-det {
 		compatible = "gpio-detection";
 		status = "okay";
+
+		pinctrl-0 = <&gpio3_b1 &gpio3_b2>;
+		pinctrl-names = "default";
 		car-reverse {
 			gpios = <&gpio3 GPIO_B2 GPIO_ACTIVE_LOW>;
+			linux,debounce-ms = <5>;
 			label = "car-reverse";
 			gpio,wakeup;
 		};
 
 		car-acc {
 			gpios = <&gpio3 GPIO_B1 GPIO_ACTIVE_LOW>;
+			linux,debounce-ms = <5>;
 			label = "car-acc";
 			gpio,wakeup;
 		};
@@ -290,6 +295,14 @@
 		};
 		gpio2_c3: gpio2-c3 {
 			rockchip,pins = <2 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		gpio3_b1: gpio3-b1 {
+			rockchip,pins = <3 GPIO_B1 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+
+		gpio3_b2: gpio3-b2 {
+			rockchip,pins = <3 GPIO_B2 RK_FUNC_GPIO &pcfg_pull_up>;
 		};
 		//to add
 	};
