@@ -178,6 +178,7 @@ static int sfc_dev_transfer(struct sfc_blk_dev *dev,
 
 static DECLARE_WAIT_QUEUE_HEAD(rksfc_thread_wait);
 static unsigned long rk_sfc_req_jiffies;
+static unsigned int rknand_req_do;
 static int req_check_buffer_align(struct request *req, char **pbuf)
 {
 	int nr_vec = 0;
@@ -230,9 +231,9 @@ static int sfc_blktrans_thread(void *arg)
 			spin_unlock_irq(rq->queue_lock);
 			rk_sfc_req_jiffies = HZ / 10;
 			wait_event_timeout(sfc_ops->thread_wq,
-					   sfc_ops->quit,
+					   sfc_ops->quit || rknand_req_do,
 					   rk_sfc_req_jiffies);
-
+			rknand_req_do = 0;
 			spin_lock_irq(rq->queue_lock);
 			remove_wait_queue(&sfc_ops->thread_wq, &wait);
 			continue;
@@ -338,6 +339,7 @@ static void sfc_blk_request(struct request_queue *rq)
 			__blk_end_request_all(req, -ENODEV);
 		return;
 	}
+	rknand_req_do = 1;
 	wake_up(&sfc_ops->thread_wq);
 }
 
@@ -484,6 +486,7 @@ static int sfc_blk_register(struct sfc_blk_ops *sfc_ops)
 	int i, ret;
 	int offset;
 
+	rknand_req_do = 0;
 	sfc_ops->quit = 0;
 	sfc_ops->sfc_th_quited = 0;
 
