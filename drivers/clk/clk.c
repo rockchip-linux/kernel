@@ -1045,6 +1045,28 @@ static unsigned long clk_core_get_rate(struct clk_core *core)
 	return rate;
 }
 
+unsigned long __clk_get_rate(struct clk *clk)
+{
+        unsigned long ret;
+
+        if (!clk) {
+                ret = 0;
+                goto out;
+        }
+
+        ret = clk->core->rate;
+
+        if (clk->core->flags & CLK_IS_ROOT)
+                goto out;
+
+        if (!clk->core->parent)
+                ret = 0;
+
+out:
+        return ret;
+}
+EXPORT_SYMBOL_GPL(__clk_get_rate);
+
 /**
  * clk_get_rate - return the rate of clk
  * @clk: the clk whose rate is being returned

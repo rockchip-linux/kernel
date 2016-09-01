@@ -111,4 +111,6 @@ config ARM_RK3399_DMC_DEVFREQ
 
 source "drivers/devfreq/event/Kconfig"
 
+source "drivers/devfreq/rockchip/Kconfig"
+
 endif # PM_DEVFREQ
