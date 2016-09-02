@@ -1097,7 +1097,7 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 	if (vpara->format_3d == HDMI_3D_FRAME_PACKING)
 		hdmi_dev->pixelclk = 2 * mode->pixclock;
 	else if (vpara->color_input == HDMI_COLOR_YCBCR420 &&
-		 hdmi_dev->soctype != HDMI_SOC_RK3368)
+		 hdmi_dev->soctype == HDMI_SOC_RK3288)
 		hdmi_dev->pixelclk = mode->pixclock / 2;
 	else
 		hdmi_dev->pixelclk = mode->pixclock;
