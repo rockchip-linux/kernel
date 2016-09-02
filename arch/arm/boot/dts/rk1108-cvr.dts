@@ -317,7 +317,7 @@
 		rockchip,camera-module-iq-flip = <0>;
 		rockchip,camera-module-iq-mirror = <0>;
 		rockchip,camera-module-flip = <0>;
-		rockchip,camera-module-mirror = <0>;
+		rockchip,camera-module-mirror = <1>;
 		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
 		rockchip,camera-module-defrect0 = <2688 1520 0 0 2688 1520>;
 		rockchip,camera-module-flash-support = <0>;
