@@ -2080,30 +2080,29 @@ static void cifisp_get_awb_meas(struct cif_isp11_isp_dev *isp_dev,
 	struct cifisp_stat_buffer *pbuf)
 {
 	/* Protect against concurrent access from ISR? */
-	int i;
 	u32 reg_val;
 	const struct cifisp_awb_meas_config *pconfig =
 		&(isp_dev->meas_cfgs.curr->awb_meas_config);
 
 	pbuf->meas_type |= CIFISP_STAT_AWB;
 	reg_val = cifisp_ioread32(CIF_ISP_AWB_WHITE_CNT);
-	pbuf->params.awb.awb_mean[i].cnt =
+	pbuf->params.awb.awb_mean[0].cnt =
 		CIFISP_AWB_GET_PIXEL_CNT(reg_val);
 	reg_val = cifisp_ioread32(CIF_ISP_AWB_MEAN);
 
 	if (pconfig->awb_mode == CIFISP_AWB_MODE_RGB) {
-		pbuf->params.awb.awb_mean[i].mean_r =
+		pbuf->params.awb.awb_mean[0].mean_r =
 			CIFISP_AWB_GET_MEAN_R(reg_val);
-		pbuf->params.awb.awb_mean[i].mean_b =
+		pbuf->params.awb.awb_mean[0].mean_b =
 			CIFISP_AWB_GET_MEAN_B(reg_val);
-		pbuf->params.awb.awb_mean[i].mean_g =
+		pbuf->params.awb.awb_mean[0].mean_g =
 			CIFISP_AWB_GET_MEAN_G(reg_val);
 	} else {
-		pbuf->params.awb.awb_mean[i].mean_cr =
+		pbuf->params.awb.awb_mean[0].mean_cr =
 			(u8) CIFISP_AWB_GET_MEAN_CR(reg_val);
-		pbuf->params.awb.awb_mean[i].mean_cb =
+		pbuf->params.awb.awb_mean[0].mean_cb =
 			(u8) CIFISP_AWB_GET_MEAN_CB(reg_val);
-		pbuf->params.awb.awb_mean[i].mean_y =
+		pbuf->params.awb.awb_mean[0].mean_y =
 			(u8) CIFISP_AWB_GET_MEAN_Y(reg_val);
 	}
 }
