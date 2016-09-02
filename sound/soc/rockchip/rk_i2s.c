@@ -432,7 +432,7 @@ static struct snd_soc_dai_ops rockchip_i2s_dai_ops = {
 #define ROCKCHIP_I2S_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | \
 			      SNDRV_PCM_FMTBIT_S20_3LE | \
 			      SNDRV_PCM_FMTBIT_S24_LE | \
-			      SNDRV_PCM_FORMAT_S32_LE)
+			      SNDRV_PCM_FMTBIT_S32_LE)
 
 static struct snd_soc_dai_driver rockchip_i2s_dai = {
 	.probe = rockchip_i2s_dai_probe,
