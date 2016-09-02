@@ -53,6 +53,8 @@ struct vd_node {
 	struct regulator	*regulator;
 	struct list_head	node;
 	struct list_head	pd_list;
+	int total_clock_nodes;
+	int enabled_clock_nodes;
 	struct mutex		mutex;
 	dvfs_set_rate_callback	vd_dvfs_target;
 	unsigned int 		n_voltages;

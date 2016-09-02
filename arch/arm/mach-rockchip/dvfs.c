@@ -1673,6 +1673,37 @@ static void adjust_table_by_leakage(struct dvfs_node *dvfs_node)
 	}
 }
 
+static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node)
+{
+	struct vd_node *vd;
+	int volt_new;
+	int volt_old;
+	int ret;
+
+	vd = clk_dvfs_node->vd;
+	if (vd->enabled_clock_nodes == vd->total_clock_nodes) {
+		volt_new = dvfs_vd_get_newvolt_bypd(vd);
+		volt_old = vd->cur_volt;
+		if (volt_old != volt_new) {
+			ret = dvfs_scale_volt_direct(vd, volt_new);
+			if (ret < 0) {
+				clk_dvfs_node->enable_count = 0;
+				vd->enabled_clock_nodes--;
+				DVFS_ERR("dvfs enable clk %s,set volt error\n",
+					 clk_dvfs_node->name);
+				return -EAGAIN;
+			}
+		}
+		DVFS_LOG("dvfs vd %s fixed up setting: old %d new %d.\n",
+			 vd->name, volt_old, volt_new);
+
+	} else if (vd->enabled_clock_nodes > vd->total_clock_nodes) {
+		DVFS_ERR("dvfs enable clks %d, total clks %d\n",
+			 vd->enabled_clock_nodes, vd->total_clock_nodes);
+	}
+	return 0;
+}
+
 int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 {
 	struct cpufreq_frequency_table clk_fv;
@@ -1759,19 +1790,9 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 			clk_notifier_register(clk, clk_dvfs_node->dvfs_nb);
 		}
 #endif
-		if(clk_dvfs_node->vd->cur_volt != volt_new) {
-			ret = dvfs_regulator_set_voltage_readback(clk_dvfs_node->vd->regulator, volt_new, volt_new);
-			dvfs_volt_up_delay(clk_dvfs_node->vd,volt_new, clk_dvfs_node->vd->cur_volt);
-			if (ret < 0) {
-				clk_dvfs_node->vd->volt_set_flag = DVFS_SET_VOLT_FAILURE;
-				clk_dvfs_node->enable_count = 0;
-				DVFS_ERR("dvfs enable clk %s,set volt error \n", clk_dvfs_node->name);
-				mutex_unlock(&clk_dvfs_node->vd->mutex);
-				return -EAGAIN;
-			}
-			clk_dvfs_node->vd->cur_volt = volt_new;
-			clk_dvfs_node->vd->volt_set_flag = DVFS_SET_VOLT_SUCCESS;
-		}
+		clk_dvfs_node->vd->enabled_clock_nodes++;
+
+		dvfs_update_vd_volt(clk_dvfs_node);
 
 	} else {
 		DVFS_DBG("%s: dvfs already enable clk enable = %d!\n",
@@ -1828,6 +1849,7 @@ int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node)
 		if (0 == clk_dvfs_node->enable_count) {
 			DVFS_DBG("%s:dvfs clk(%s) disable dvfs ok!\n",
 				__func__, __clk_get_name(clk_dvfs_node->clk));
+			clk_dvfs_node->vd->enabled_clock_nodes--;
 			volt_new = dvfs_vd_get_newvolt_byclk(clk_dvfs_node);
 			dvfs_scale_volt_direct(clk_dvfs_node->vd, volt_new);
 
@@ -2114,6 +2136,8 @@ int rk_regist_vd(struct vd_node *vd)
 	vd->mode_flag=0;
 	vd->volt_time_flag=0;
 	vd->n_voltages=0;
+	vd->total_clock_nodes = 0;
+	vd->enabled_clock_nodes = 0;
 	INIT_LIST_HEAD(&vd->pd_list);
 	mutex_lock(&rk_dvfs_mutex);
 	list_add(&vd->node, &rk_dvfs_tree);
@@ -2158,6 +2182,7 @@ int rk_regist_clk(struct dvfs_node *clk_dvfs_node)
 
 	mutex_lock(&vd->mutex);
 	list_add(&clk_dvfs_node->node, &pd->clk_list);
+	vd->total_clock_nodes++;
 	mutex_unlock(&vd->mutex);
 	
 	return 0;
