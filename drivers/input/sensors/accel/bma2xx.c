@@ -2168,8 +2168,8 @@ struct sensor_operate gsensor_bma2x2_ops = {
 	.id_i2c				= ACCEL_ID_BMA2XX,				/*i2c id number*/
 	.read_reg			= BMA2X2_X_AXIS_LSB_REG,		/*read data*/
 	.read_len			= 6,							/*data length*/
-	.id_reg				= SENSOR_UNKNOW_DATA,			/*read device id from this register*/
-	.id_data			= SENSOR_UNKNOW_DATA,			/*device id*/
+	.id_reg				= BMA2X2_CHIP_ID_REG,	/* read device id from this register */
+	.id_data			= BMA250_CHIP_ID,	/* device id */
 	.precision			= SENSOR_UNKNOW_DATA,			/*12 bit*/
 	.ctrl_reg			= BMA2X2_MODE_CTRL_REG,			/*enable or disable*/
 	/*intterupt status register*/
