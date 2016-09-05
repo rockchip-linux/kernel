@@ -436,6 +436,12 @@
 	*/
 };
 
+&uart_gps {
+	status = "okay";
+	dma-names = "!tx", "!rx";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
+};
+
 &uart_bt {
 	status = "okay";
 	dma-names = "!tx", "!rx";

@@ -17,10 +17,10 @@
 	#size-cells = <2>;
 
 	aliases {
-		serial0 = &uart_bb;
+		serial0 = &uart_gps;
 		serial1 = &uart_bt;
 		serial2 = &uart_dbg;
-		serial3 = &uart_gps;
+		serial3 = &uart_bb;
 		serial4 = &uart_exp;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
@@ -501,7 +501,7 @@
 		status = "disabled";
 	};
 
-	uart_bb: serial@ff180000 {
+	uart_gps: serial@ff180000 {
 		compatible = "rockchip,serial";
 		reg = <0x0 0xff180000 0x0 0x100>;
 		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
@@ -549,7 +549,7 @@
 		status = "disabled";
 	};
 
-	uart_gps: serial@ff1b0000 {
+	uart_bb: serial@ff1b0000 {
 		compatible = "rockchip,serial";
 		reg = <0x0 0xff1b0000 0x0 0x100>;
 		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
