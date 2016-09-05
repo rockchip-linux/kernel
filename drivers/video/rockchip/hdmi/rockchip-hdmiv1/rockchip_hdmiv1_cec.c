@@ -36,7 +36,7 @@ static int rockchip_hdmiv1_cec_read_frame(struct hdmi *hdmi,
 static int rockchip_hdmiv1_cec_send_frame(struct hdmi *hdmi,
 					  struct cec_framedata *frame)
 {
-	int i;
+	int i, interrupt;
 	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
 
 	CECDBG("CEC: TX srcdestaddr %x opcode %x ",
@@ -76,11 +76,29 @@ static int rockchip_hdmiv1_cec_send_frame(struct hdmi *hdmi,
 		hdmi_writel(hdmi_dev, CEC_CTRL, 0);
 	CECDBG("end tx,tx_done=%d\n", cec.tx_done);
 
-	if (cec.tx_done == 1) {
+	i = 400;
+	/*
+	 * time = 2.4(ms)*(1 + 16)(head + param)*11(bit)
+	 * 11bit = start bit(4.5ms) + data bit(2.4ms)
+	 */
+	while (i--) {
+		usleep_range(900, 1000);
+		interrupt = 0;
+		hdmi_readl(hdmi_dev, CEC_TX_INT, &interrupt);
+		if (interrupt & (m_TX_DONE | m_TX_NOACK |
+				 m_TX_BROADCAST_REJ | m_TX_BUSNOTFREE)) {
+			hdmi_writel(hdmi_dev, CEC_TX_INT, interrupt);
+			break;
+		}
+	}
+
+	if (interrupt & m_TX_DONE) {
 		cec.tx_done = 0;
 		return CEC_SEND_SUCCESS;
-	} else {
+	} else if (interrupt & m_TX_NOACK) {
 		return CEC_SEND_NACK;
+	} else {
+		return CEC_SEND_BUSY;
 	}
 }
 
