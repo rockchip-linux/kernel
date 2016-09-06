@@ -537,6 +537,10 @@
 	status = "okay";
 };
 
+&tsadc {
+	status = "okay";
+};
+
 &usb_host_ehci {
 	status = "okay";
 };
