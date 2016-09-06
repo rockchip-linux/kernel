@@ -2042,10 +2042,14 @@ static int cif_isp11_config_mipi(
 	/* Enable MIPI interrupts */
 	cif_iowrite32(~0,
 		dev->config.base_addr + CIF_MIPI_ICR);
+	/*
+	*  Disable CIF_MIPI_ERR_DPHY interrupt here temporary for
+	*isp bus may be dead when switch isp.
+	*/
 	cif_iowrite32(
 		CIF_MIPI_FRAME_END |
 		CIF_MIPI_ERR_CSI |
-		CIF_MIPI_ERR_DPHY |
+		/*CIF_MIPI_ERR_DPHY |*/
 		CIF_MIPI_SYNC_FIFO_OVFLW(3) |
 		CIF_MIPI_ADD_DATA_OVFLW,
 		dev->config.base_addr + CIF_MIPI_IMSC);
@@ -3429,8 +3433,12 @@ static int cif_isp11_config_cif(
 		cif_isp11_pltfrm_pr_dbg(dev->dev,
 			"CIF_ID 0x%08x\n", cif_id);
 
-		cif_iowrite32(CIF_IRCL_CIF_SW_RST,
-			dev->config.base_addr + CIF_IRCL);
+		/*
+		*  Cancel isp reset internal here temporary for
+		*isp bus may be dead when switch isp.
+		*/
+		/*cif_iowrite32(CIF_IRCL_CIF_SW_RST,
+			dev->config.base_addr + CIF_IRCL);*/
 
 		cif_isp11_config_clk(dev);
 
@@ -4585,6 +4593,7 @@ static void cif_isp11_start_mi(
 		dev->config.base_addr + CIF_MI_INIT, ~0);
 	cif_iowrite32OR(CIF_MI_INIT_SOFT_UPD,
 		dev->config.base_addr + CIF_MI_INIT);
+
 	cif_isp11_pltfrm_pr_dbg(NULL,
 		"CIF_MI_INIT_SOFT_UPD\n");
 
@@ -4819,6 +4828,8 @@ static int cif_isp11_stop(
 	bool stop_y12)
 {
 	unsigned long flags = 0;
+	bool stop_all;
+	int timeout;
 
 	cif_isp11_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, Y12 state = %s, img_src state = %s, stop_sp = %d, stop_mp = %d, stop_y12 = %d\n",
@@ -4839,14 +4850,27 @@ static int cif_isp11_stop(
 		return 0;
 	}
 
-	if ((stop_mp && stop_sp && stop_y12) ||
+	stop_all = ((stop_mp && stop_sp && stop_y12) ||
 		(stop_sp &&
-		(dev->mp_stream.state != CIF_ISP11_STATE_STREAMING)) ||
+		(dev->mp_stream.state != CIF_ISP11_STATE_STREAMING) &&
+		(dev->y12_stream.state != CIF_ISP11_STATE_STREAMING)) ||
 		(stop_mp &&
-		(dev->sp_stream.state != CIF_ISP11_STATE_STREAMING)) ||
+		(dev->sp_stream.state != CIF_ISP11_STATE_STREAMING) &&
+		(dev->y12_stream.state != CIF_ISP11_STATE_STREAMING)) ||
 		(stop_y12 &&
-		(dev->y12_stream.state != CIF_ISP11_STATE_STREAMING))) {
+		(dev->mp_stream.state != CIF_ISP11_STATE_STREAMING) &&
+		(dev->sp_stream.state != CIF_ISP11_STATE_STREAMING)));
 
+	if (stop_all) {
+		/*
+		*Modify ISP stop sequence for isp bus dead:
+		*ISP(mi) stop in mi frame end -> Stop ISP(mipi) ->
+		*Stop ISP(isp) ->wait for ISP isp off
+		*/
+
+		cif_isp11_stop_y12(dev);
+		cif_isp11_stop_mp(dev);
+		cif_isp11_stop_sp(dev);
 		cif_isp11_stop_dma(dev);
 
 		local_irq_save(flags);
@@ -4863,15 +4887,19 @@ static int cif_isp11_stop(
 
 		cif_iowrite32AND(~CIF_MIPI_CTRL_OUTPUT_ENA,
 			dev->config.base_addr + CIF_MIPI_CTRL);
-
-		/* stop MI, MIPI, and ISP */
+		/* stop ISP */
 		cif_iowrite32AND(~(CIF_ISP_CTRL_ISP_INFORM_ENABLE |
 			CIF_ISP_CTRL_ISP_ENABLE),
 			dev->config.base_addr + CIF_ISP_CTRL);
 		cif_iowrite32OR(CIF_ISP_CTRL_ISP_CFG_UPD,
 			dev->config.base_addr + CIF_ISP_CTRL);
 
-		cif_isp11_stop_mi(dev, stop_sp, stop_mp, stop_y12);
+		timeout = 100;
+		while ((timeout-- > 0) &&
+			((cif_ioread32(dev->config.base_addr + CIF_ISP_RIS) & CIF_ISP_OFF)
+			!= CIF_ISP_OFF)) {
+			msleep(1);
+		};
 		local_irq_restore(flags);
 
 		if (!CIF_ISP11_INP_IS_DMA(dev->config.input_sel)) {
@@ -5084,7 +5112,6 @@ static int cif_isp11_start(
 		dev->dma_stream.stop = false;
 		cif_isp11_dma_next_buff(dev);
 	}
-
 	cif_isp11_pltfrm_pr_dbg(dev->dev,
 		"SP state = %s, MP state = %s, Y12 state = %s, DMA state = %s, img_src state = %s\n"
 		"  MI_CTRL 0x%08x\n"
@@ -6795,139 +6822,37 @@ int cif_isp11_mipi_isr(unsigned int mipi_mis, void *cntxt)
 	struct cif_isp11_device *dev =
 	    (struct cif_isp11_device *)cntxt;
 	unsigned int mipi_ris = 0;
-	unsigned int i = 0;
 
 	mipi_ris = cif_ioread32(dev->config.base_addr +	CIF_MIPI_RIS);
+	mipi_mis = cif_ioread32(dev->config.base_addr + CIF_MIPI_MIS);
 
 	cif_isp11_pltfrm_rtrace_printf(dev->dev,
 		"MIPI_MIS %08x, MIPI_RIS %08x, MIPI_IMSC %08x\n",
 		mipi_mis,
-		cif_ioread32(dev->config.base_addr + CIF_MIPI_RIS),
+		mipi_ris,
 		cif_ioread32(dev->config.base_addr + CIF_MIPI_IMSC));
 
+	cif_iowrite32(~0,
+		dev->config.base_addr + CIF_MIPI_ICR);
+
 	if (mipi_mis & CIF_MIPI_ERR_DPHY) {
-		/* clear_mipi_dphy_error*/
-		cif_iowrite32(CIF_MIPI_ERR_DPHY,
-			      dev->config.base_addr + CIF_MIPI_ICR);
-
-		for (i = 0;
-		     i <
-		     (sizeof(cif_isp11_hw_errors) /
-		      sizeof(struct cif_isp11_hw_error)); i++) {
-			if (cif_isp11_hw_errors[i].type != 1)
-				continue;	/*skip if not mipi dphy error*/
-
-			if (cif_isp11_hw_errors[i].
-			    mask & (mipi_mis & CIF_MIPI_ERR_DPHY)) {
-				cif_isp11_hw_errors[i].count++;
-				cif_isp11_pltfrm_pr_err(dev->dev,
-					"CIF_MIPI_ERR_DPHY 0x%x\n",
-					mipi_ris);
-				break;
-			}
-		}
+		cif_isp11_pltfrm_pr_warn(dev->dev,
+			"CIF_MIPI_ERR_DPHY: 0x%x\n", mipi_mis);
 	}
+
 	if (mipi_mis & CIF_MIPI_ERR_CSI) {
-		/*clear_mipi_csi_error*/
-		cif_iowrite32(CIF_MIPI_ERR_CSI,
-			      dev->config.base_addr + CIF_MIPI_ICR);
-
-		for (i = 0;
-		     i <
-		     (sizeof(cif_isp11_hw_errors) /
-		      sizeof(struct cif_isp11_hw_error)); i++) {
-			if (cif_isp11_hw_errors[i].type != 2)
-				continue;	/*skip if not mipi csi error*/
-
-			if (cif_isp11_hw_errors[i].
-			    mask & (mipi_mis & CIF_MIPI_ERR_CSI)) {
-				cif_isp11_hw_errors[i].count++;
-				cif_isp11_pltfrm_pr_err(dev->dev,
-					"CIF_MIPI_ERR_CSI 0x%x\n",
-					mipi_ris);
-				break;
-			}
-		}
-	}
-	if ((mipi_mis & CIF_MIPI_SYNC_FIFO_OVFLW(3))) {
-		/* clear_mipi_fifo_error*/
-		cif_iowrite32(CIF_MIPI_SYNC_FIFO_OVFLW(3),
-			      dev->config.base_addr + CIF_MIPI_ICR);
-
-		cif_iowrite32OR(CIF_MIPI_CTRL_OUTPUT_ENA,
-				dev->config.base_addr + CIF_MIPI_CTRL);
-		for (i = 0; i < (sizeof(cif_isp11_hw_errors) / sizeof(struct cif_isp11_hw_error)); i++) {
-			if (cif_isp11_hw_errors[i].type != 2)
-				continue;	/*skip if not mipi error*/
-
-			if (cif_isp11_hw_errors[i].mask & (mipi_mis & CIF_MIPI_SYNC_FIFO_OVFLW(3))) {
-				u32 mi_status = cif_ioread32(dev->config.base_addr +
-					CIF_MI_STATUS);
-
-				cif_isp11_hw_errors[i].count++;
-				if (mi_status & (CIF_MI_STATUS_MP_Y_FIFO_FULL |
-					CIF_MI_STATUS_SP_Y_FIFO_FULL))
-					cif_isp11_pltfrm_pr_err(dev->dev,
-						"CIF_MIPI_SYNC_FIFO_OVFLW, backpressure (0x%08x)\n",
-						mi_status);
-				else
-					cif_isp11_pltfrm_pr_err(dev->dev,
-						"CIF_MIPI_SYNC_FIFO_OVFLW 0x%x\n",
-						mipi_ris);
-				break;
-			}
-		}
-
-		cif_iowrite32AND_verify(~CIF_MI_CTRL_SP_ENABLE,
-			dev->config.base_addr + CIF_MI_CTRL, ~0);
-
-		cif_iowrite32AND_verify(~(CIF_MI_CTRL_MP_ENABLE_IN |
-			CIF_MI_CTRL_SP_ENABLE |
-			CIF_MI_CTRL_JPEG_ENABLE |
-			CIF_MI_CTRL_RAW_ENABLE),
-			dev->config.base_addr + CIF_MI_CTRL, ~0);
-
-		cif_iowrite32(CIF_MI_INIT_SOFT_UPD,
-			dev->config.base_addr + CIF_MI_INIT);
-		cif_iowrite32AND(~(CIF_ISP_CTRL_ISP_INFORM_ENABLE |
-		CIF_ISP_CTRL_ISP_ENABLE), dev->config.base_addr + CIF_ISP_CTRL);
-		cif_iowrite32OR(CIF_ISP_CTRL_ISP_CFG_UPD,
-			dev->config.base_addr + CIF_ISP_CTRL);
-		cif_iowrite32AND(~CIF_MIPI_CTRL_OUTPUT_ENA,
-			dev->config.base_addr + CIF_MIPI_CTRL);
-
-		cif_iowrite32(0x00000841, dev->config.base_addr + CIF_IRCL);
-		cif_iowrite32(0x0, dev->config.base_addr + CIF_IRCL);
-
+		cif_isp11_pltfrm_pr_warn(dev->dev,
+			"CIF_MIPI_ERR_CSI: 0x%x\n", mipi_mis);
 	}
 
-	if (mipi_mis & CIF_MIPI_ADD_DATA_OVFLW) {
-		/* clear_mipi_fifo_error*/
-		cif_iowrite32(CIF_MIPI_ADD_DATA_OVFLW,
-			      dev->config.base_addr + CIF_MIPI_ICR);
-
-		for (i = 0; i < (sizeof(cif_isp11_hw_errors) /
-			sizeof(struct cif_isp11_hw_error)); i++) {
-			if (cif_isp11_hw_errors[i].type != 1)
-				continue;	/*skip if not mipi error*/
-			if (cif_isp11_hw_errors[i].
-			    mask & (mipi_mis & CIF_MIPI_ADD_DATA_OVFLW)) {
-				cif_isp11_hw_errors[i].count++;
-				cif_isp11_pltfrm_pr_err(dev->dev,
-					"CIF_MIPI_ADD_DATA_OVFLW");
-				break;
-			}
-		}
-	}
-
-	if (mipi_mis & CIF_MIPI_FRAME_END) {
-		cif_iowrite32(CIF_MIPI_FRAME_END,
-			      dev->config.base_addr + CIF_MIPI_ICR);
+	if (mipi_mis & CIF_MIPI_SYNC_FIFO_OVFLW(3)) {
+		cif_isp11_pltfrm_pr_warn(dev->dev,
+			"CIF_MIPI_SYNC_FIFO_OVFLW: 0x%x\n", mipi_mis);
 	}
 
 	mipi_mis = cif_ioread32(dev->config.base_addr + CIF_MIPI_MIS);
 
-	if (mipi_mis & CIF_MIPI_FRAME_END) {
+	if (mipi_mis) {
 		cif_isp11_pltfrm_pr_err(dev->dev,
 			"mipi_mis icr err: 0x%x\n", mipi_mis);
 	}
