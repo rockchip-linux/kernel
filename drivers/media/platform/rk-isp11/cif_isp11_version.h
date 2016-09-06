@@ -33,8 +33,12 @@
 *	1. Disable CIF_MIPI_ERR_DPHY interrupt here temporary for
 *isp bus may be dead when switch isp;
 *	2. Cancel hw restart isp operation in mipi isr, only notice error log;
+*
+*v0.1.3:
+*	1. fix camerahal query exp info failed from cifisp_stat_buffer, because
+*wake_up buffer before cif_isp11_sensor_mode_data_sync;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 2)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 3)
 
 #endif

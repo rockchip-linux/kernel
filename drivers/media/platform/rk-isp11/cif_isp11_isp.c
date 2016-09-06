@@ -3734,10 +3734,6 @@ static void cifisp_send_measurement(
 	list_del(&vb->queue);
 	spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
 
-	vb->field_count = meas_work->frame_id;
-	vb->state = VIDEOBUF_DONE;
-	wake_up(&vb->done);
-
 	if (active_meas & CIF_ISP_AWB_DONE) {
 		memcpy(&isp_dev->meas_stats.stat.params.awb,
 			&stat_buf->params.awb,
@@ -3770,6 +3766,11 @@ static void cifisp_send_measurement(
 		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_HIST;
 	}
 	isp_dev->meas_stats.g_frame_id = meas_work->frame_id;
+
+	vb->field_count = meas_work->frame_id;
+	vb->state = VIDEOBUF_DONE;
+	wake_up(&vb->done);
+
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		"Measurement done(%d, %d)\n",
 		vb->field_count,
