@@ -1202,6 +1202,9 @@ static void cpufreq_interactive_input_event(struct input_handle *handle, unsigne
 
 	spin_unlock_irqrestore(&speedchange_cpumask_lock, flags[0]);
 
+	if (!tunables)
+		return;
+
 	delay = usecs_to_jiffies(tunables->touchboostpulse_duration_val);
 	dvfs_clk_boost(clk_cpu_dvfs_node,
 		       1000 * tunables->touchboost_freq,
