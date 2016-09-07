@@ -59,34 +59,45 @@ static struct imx_camera_module_custom_config imx323_custom_config;
 /* Base sensor configs */
 /* ======================================================================== */
 
-/* MCLK:37.125MHz  1920x1080  30fps   DVP_10_DATA   PCLK:74.25MHz */
+/* MCLK:37.125MHz  1920x1080  30fps   DVP_12_DATA   PCLK:74.25MHz */
 static struct imx_camera_module_reg imx323_init_tab_1920_1080_30fps[] = {
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0100, 0x00},//MODEL_SEL
-{IMX_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x01},
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0009, 0x3f},//I2C BLKLEVEL
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0340, 0x04},//FRM_LENGTH H
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0341, 0x65},//FRM_LENGTH L
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0342, 0x04},//LINE_LENGTH H
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0343, 0x4c},//LINE_LENGTH L
-{IMX_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x01},
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3000, 0x31},//standby/register write valid
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3002, 0x0f},//HD 1080P
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3011, 0x00},//2 times INCK
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3013, 0x40},//fix
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x3c},//HD 1080P
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x301a, 0x51},//fix
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x301f, 0x73},//fix
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3021, 0x80},//10bit/h sync pulse low level width
-{IMX_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x01},
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3022, 0x40},//v sync pulse low level width
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3027, 0x20},//fix
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x302c, 0x00},//XMSTA
-//{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x302d, 0x48},//low 10bit out
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x304f, 0x47},//DCK sync mode
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3054, 0x10},//DCK sync mode
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x307a, 0x40},//10bit
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x307b, 0x02},//10bit
-{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3117, 0x0d}//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0100, 0x00},//MODEL_SEL
+	{IMX_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x01},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0009, 0xf0},//I2C BLKLEVEL
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0112, 0x0c},//AD gradation
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0113, 0x0c},//AD gradation
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0340, 0x04},//FRM_LENGTH H
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0341, 0x65},//FRM_LENGTH L
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0342, 0x04},//LINE_LENGTH H
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x0343, 0x4c},//LINE_LENGTH L
+	{IMX_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x01},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3000, 0x31},//standby/register write valid
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3002, 0x0f},//HD 1080P
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3011, 0x00},//2 times INCK
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3012, 0x82},//12bit
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3013, 0x40},//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x3c},//HD 1080P
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x301a, 0xc9},//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x301c, 0x50},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x301f, 0x73},//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3021, 0x00},//12bit/h sync pulse low level width
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3022, 0x40},//v sync pulse low level width
+	{IMX_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 0x01},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3027, 0x20},//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x302c, 0x00},//XMSTA
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x303f, 0x0a},//
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x304f, 0x47},//DCK sync mode
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3054, 0x11},//DCK sync mode
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x307a, 0x00},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x307b, 0x00},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3098, 0x26},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3099, 0x02},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x309a, 0x26},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x309b, 0x02},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x30ce, 0x16},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x30cf, 0x82},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x30d0, 0x00},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA, 0x3117, 0x0d}//fix
 };
 
 /* ======================================================================== */
@@ -95,9 +106,9 @@ static struct imx_camera_module_config imx323_configs[] = {
 	{
 		.name = "1920x1080_30fps",
 		.frm_fmt = {
-			.width = 1920,
-			.height = 1080,
-			.code = V4L2_MBUS_FMT_SRGGB10_1X10
+			.width = 2200,
+			.height = 1125,
+			.code = V4L2_MBUS_FMT_SGBRG12_1X12
 		},
 		.frm_intrvl = {
 			.interval = {
@@ -113,9 +124,9 @@ static struct imx_camera_module_config imx323_configs[] = {
 			sizeof(imx323_init_tab_1920_1080_30fps)
 			/
 			sizeof(imx323_init_tab_1920_1080_30fps[0]),
-		.v_blanking_time_us = 5000,
+		.v_blanking_time_us = 3,
 		PLTFRM_CAM_ITF_DVP_CFG(
-			PLTFRM_CAM_ITF_BT656_10,
+			PLTFRM_CAM_ITF_BT601_12,
 			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
 			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
 			PLTFRM_CAM_SDR_NEG_EDG,
@@ -270,6 +281,8 @@ static int imx323_filltimings(struct imx_camera_module_custom_config *custom)
 			}
 		}
 
+		timings->exp_time >>= 4;
+		timings->line_length_pck = timings->line_length_pck * 2;
 		timings->vt_pix_clk_freq_hz = config->frm_intrvl.interval.denominator
 					* timings->frame_length_lines
 					* timings->line_length_pck;
@@ -288,24 +301,27 @@ static int imx323_g_timings(struct imx_camera_module *cam_mod,
 	struct imx_camera_module_timings *timings)
 {
 	int ret = 0;
+	unsigned int vts;
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config))
 		goto err;
 
 	*timings = cam_mod->active_config->timings;
 
+	vts = (!cam_mod->vts_cur) ?
+		timings->frame_length_lines :
+		cam_mod->vts_cur;
+
 	if (cam_mod->frm_intrvl_valid)
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->frm_intrvl.interval.denominator
-			* timings->frame_length_lines
-			* timings->line_length_pck
-			* 2;
+			* vts
+			* timings->line_length_pck;
 	else
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->active_config->frm_intrvl.interval.denominator
-			* timings->frame_length_lines
-			* timings->line_length_pck
-			* 2;
+			* vts
+			* timings->line_length_pck;
 
 	return ret;
 err:
