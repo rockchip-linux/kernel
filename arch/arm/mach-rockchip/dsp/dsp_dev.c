@@ -59,7 +59,8 @@ static int dsp_dev_trace(struct dsp_dev *dev, u32 index)
 
 	if (trace_end < trace_start ||
 	    trace_end - trace_start > DSP_TRACE_SLOT_COUNT) {
-		dsp_err("trace slot overflow\n");
+		dsp_err("trace slot overflow, start=%d, end=%d\n",
+			trace_start, trace_end);
 		ret = -EFAULT;
 		goto out;
 	}
@@ -187,10 +188,13 @@ static int dsp_dev_config(struct dsp_dev *dev)
 	config_params.type = DSP_CONFIG_INIT;
 	config_params.trace_buffer = dev->trace_dma;
 	config_params.trace_slot_size = DSP_TRACE_SLOT_SIZE;
-	if (dev->trace_buffer)
+	if (dev->trace_buffer) {
+		memset(dev->trace_buffer, 0, DSP_TRACE_BUFFER_SIZE);
+		dev->trace_index = 0;
 		config_params.trace_buffer_size = DSP_TRACE_BUFFER_SIZE;
-	else
+	} else {
 		config_params.trace_buffer_size = 0;
+	}
 
 	dsp_debug(DEBUG_DEVICE, "dsp trace start 0x%08x\n", dev->trace_dma);
 
