@@ -332,7 +332,7 @@
 		clocks = <&clk_cif_out>;
 		clock-names = "clk_cif_out";
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&cif_dvp_d2d9 &cif_dvp_d10d11 &cif_dvp_clk>;
+		pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11 &cif_dvp_clk &cif_dvp_sync>;
 		pinctrl-1 = <&cif_dvp_sleep>;
 		rockchip,pd-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
 		rockchip,pwr-gpio = <&gpio0 18 GPIO_ACTIVE_HIGH>;
@@ -351,7 +351,7 @@
 		rockchip,camera-module-flip = <0>;
 		rockchip,camera-module-mirror = <0>;
 		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
-		rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
+		rockchip,camera-module-defrect0 = <2200 1125 48 13 1920 1080>;
 		rockchip,camera-module-flash-support = <0>;
 	};
 };
