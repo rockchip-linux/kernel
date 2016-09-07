@@ -13,6 +13,7 @@
  */
 
 /* #define ENABLE_DEBUG_LOG */
+/* #define ENABLE_VERBOSE_LOG */
 #include "custom_log.h"
 
 #include <mali_kbase.h>
@@ -64,7 +65,7 @@
  * if counter_of_requests_to_jump_down_in_dvfs_level_table reaches this value,
  * the current_dvfs_level will jump down one level actually.
  */
-#define NUM_OF_REQUESTS_TO_PERFORM_ACTUAL_JUMP_DOWN 2
+#define NUM_OF_REQUESTS_TO_PERFORM_ACTUAL_JUMP_DOWN 10
 
 /* Upper limit of GPU temp. */
 #define TEMP_UPPER_LIMIT		(110)
@@ -133,6 +134,16 @@ static inline int get_current_level(const struct rk_dvfs_t *dvfs)
 	return dvfs->current_level;
 }
 
+static int get_lowest_level(const struct rk_dvfs_t *dvfs)
+{
+	return 0;
+}
+
+static int get_highest_level_available(const struct rk_dvfs_t *dvfs)
+{
+	return s_num_of_mali_dvfs_levels - 1;
+}
+
 /*
  * Jump down one level in dvfs_level_table.
  * The caller must ensure that dvfs_level could jump down indeed.
@@ -145,6 +156,11 @@ static inline int jump_down_actually(struct rk_dvfs_t *dvfs)
 static inline int jump_up_actually(struct rk_dvfs_t *dvfs)
 {
 	return set_dvfs_level_internal(dvfs, get_current_level(dvfs) + 1);
+}
+
+static inline int jump_up_to_highest(struct rk_dvfs_t *dvfs)
+{
+	return set_dvfs_level_internal(dvfs, get_highest_level_available(dvfs));
 }
 
 static inline void reset_requests_to_jump_up(struct rk_dvfs_t *dvfs)
@@ -177,16 +193,6 @@ static inline bool are_enough_jump_down_requests(const struct rk_dvfs_t *dvfs)
 {
 	return (dvfs->requests_to_jump_down
 			>= NUM_OF_REQUESTS_TO_PERFORM_ACTUAL_JUMP_DOWN);
-}
-
-static int get_lowest_level(const struct rk_dvfs_t *dvfs)
-{
-	return 0;
-}
-
-static int get_highest_level_available(const struct rk_dvfs_t *dvfs)
-{
-	return s_num_of_mali_dvfs_levels - 1;
 }
 
 static inline bool could_jump_up(const struct rk_dvfs_t *dvfs)
@@ -288,10 +294,10 @@ static void mali_dvfs_event_proc(struct work_struct *w)
 		inc_requests_to_jump_up(dvfs);
 
 		if (are_enough_jump_up_requests(dvfs)) {
-			V("to jump up actually, util:%d, curr_level:%d. ",
+			V("to jump up to highest, util:%d, curr_level:%d.",
 			  dvfs->utilisation,
 			  get_current_level(dvfs));
-			ret = jump_up_actually(dvfs);
+			ret = jump_up_to_highest(dvfs);
 			if (ret) {
 				E("fail to jump up, ret:%d.", ret);
 				goto EXIT;
@@ -322,9 +328,9 @@ static void mali_dvfs_event_proc(struct work_struct *w)
 		reset_requests_to_jump_down(dvfs);
 		reset_requests_to_jump_up(dvfs);
 
-		V("stay in current_level, util:%d, curr_level:%d."
-				dvfs->utilisation,
-				get_current_level(dvfs));
+		V("stay in current_level, util:%d, curr_level:%d.",
+		  dvfs->utilisation,
+		  get_current_level(dvfs));
 	}
 
 EXIT:
