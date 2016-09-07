@@ -950,6 +950,7 @@
 		dma-names = "tx";
 		pinctrl-names = "default";
 		pinctrl-0 = <&spdif_tx>;
+		status = "disabled";
 	};
 
 	pwm0: pwm@ff680000 {

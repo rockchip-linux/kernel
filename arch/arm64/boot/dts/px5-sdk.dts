@@ -161,6 +161,17 @@
 		};
 	};
 
+	rockchip-es8396 {
+		compatible = "rockchip-es8396";
+		dais {
+			dai0 {
+				audio-codec = <&es8396>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+			};
+		};
+	};
+
 	io-domains {
 		compatible = "rockchip,rk3368-io-voltage-domain";
 		rockchip,grf = <&grf>;
@@ -365,6 +376,20 @@
 
 &i2c3 {
 	status = "okay";
+
+	fm1288@60{
+		compatible = "fm1288";
+		reg = <0x60>;
+		pwd-con-gpio = <&gpio0 GPIO_D1 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	es8396: es8396@10 {
+		compatible = "es8396";
+		reg = <0x10>;
+		spk-con-gpio = <&gpio2 GPIO_C7 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
 &i2c4 {
@@ -426,18 +451,6 @@
 
 &adc {
 	status = "okay";
-
-	rockchip_headset {
-		compatible = "rockchip_headset";
-		headset_gpio = <&gpio0 GPIO_C7 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&gpio0_c7>;//gpio0_c7
-		rockchip,headset_wakeup = <0>;
-/*
-		hook_gpio = ;
-		hook_down_type = ; //interrupt hook key down status
-		*/
-	};
 
 	key {
 		compatible = "rockchip,key";
