@@ -932,7 +932,6 @@ static const struct drm_display_mode innolux_n116bge_mode = {
 	.vsync_end = 768 + 8 + 12,
 	.vtotal = 768 + 8 + 12 + 12,
 	.vrefresh = 60,
-	.flags = DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC,
 };
 
 static const struct panel_desc innolux_n116bge = {

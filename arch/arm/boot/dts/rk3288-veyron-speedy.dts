@@ -54,15 +54,7 @@
 		     "google,veyron-speedy-rev3", "google,veyron-speedy-rev2",
 		     "google,veyron-speedy", "google,veyron", "rockchip,rk3288";
 
-	panel_regulator: panel-regulator {
-		compatible = "regulator-fixed";
-		enable-active-high;
-		gpio = <&gpio7 14 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&lcd_enable_h>;
-		regulator-name = "panel_regulator";
-		vin-supply = <&vcc33_sys>;
-	};
+
 
 	vcc18_lcd: vcc18-lcd {
 		compatible = "regulator-fixed";
@@ -86,6 +78,23 @@
 		vin-supply = <&vcc33_sys>;
 		startup-delay-us = <15000>;
 	};
+
+};
+
+&backlight {
+	power-supply = <&backlight_regulator>;
+};
+
+&edp {
+	/delete-property/pinctrl-names;
+	/delete-property/pinctrl-0;
+
+	force-hpd;
+};
+
+&panel {
+	enable-gpios = <&gpio7 14 GPIO_ACTIVE_HIGH>;
+	pinctrl-0 = <&lcd_enable_h>;
 };
 
 &rk808 {

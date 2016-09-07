@@ -1,0 +1,1 @@
+console=tty1 printk.time=1 rootwait root=/dev/mmcblk0p2 rw rootfstype=ext4

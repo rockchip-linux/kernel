@@ -1,7 +1,7 @@
 /*
- * Google Veyron (and derivatives) fragment for sdmmc cards
+ * Google Veyron Brain Rev 0 board device tree source
  *
- * Copyright 2015 Google, Inc
+ * Copyright 2014 Google, Inc
  *
  * This file is dual-licensed: you can use it either under the terms
  * of the GPL or the X11 license, at your option. Note that this dual
@@ -42,86 +42,98 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
-&io_domains {
-	sdcard-supply = <&vccio_sd>;
+/dts-v1/;
+#include "rk3288-veyron.dtsi"
+
+/ {
+	model = "Google Brain";
+	compatible = "google,veyron-brain-rev0", "google,veyron-brain",
+		     "google,veyron", "rockchip,rk3288";
+
+	vcc33_sys: vcc33-sys {
+		vin-supply = <&vcc_5v>;
+	};
+
+	vcc33_io: vcc33_io {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc33_io";
+		regulator-always-on;
+		regulator-boot-on;
+		vin-supply = <&vcc33_sys>;
+		/* This is gated by vcc_18 too */
+	};
+
+	/* This turns on vbus for host2 and otg (dwc2) */
+	vcc5_host2: vcc5-host2-regulator {
+		compatible = "regulator-fixed";
+		enable-active-high;
+		gpio = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb2_pwr_en>;
+		regulator-name = "vcc5_host2";
+		regulator-always-on;
+		regulator-boot-on;
+	};
 };
 
 &pinctrl {
-	sdmmc {
-		/*
-		 * We run sdmmc at max speed; bump up drive strength.
-		 * We also have external pulls, so disable the internal ones.
-		 */
-		sdmmc_bus4: sdmmc-bus4 {
-			rockchip,pins = <6 16 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
-					<6 17 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
-					<6 18 RK_FUNC_1 &pcfg_pull_none_drv_8ma>,
-					<6 19 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+	hdmi {
+		vcc50_hdmi_en: vcc50-hdmi-en {
+			rockchip,pins = <7 2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	pmic {
+		dvs_1: dvs-1 {
+			rockchip,pins = <7 11 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
 
-		sdmmc_clk: sdmmc-clk {
-			rockchip,pins = <6 20 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
+		dvs_2: dvs-2 {
+			rockchip,pins = <7 15 RK_FUNC_GPIO &pcfg_pull_down>;
 		};
+	};
 
-		sdmmc_cmd: sdmmc-cmd {
-			rockchip,pins = <6 21 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
-		};
-
-		/*
-		 * Builtin CD line is hooked to ground to prevent JTAG at boot
-		 * (and also to get the voltage rail correct).
-		 * Configure gpio6_C6 as GPIO so dw_mmc builtin CD doesn't
-		 * think there's a card inserted
-		 */
-		sdmmc_cd_disabled: sdmmc-cd-disabled {
-			rockchip,pins = <6 22 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		/* This is where we actually hook up CD */
-		sdmmc_cd_gpio: sdmmc-cd-gpio {
-			rockchip,pins = <7 5 RK_FUNC_GPIO &pcfg_pull_none>;
+	usb-host {
+		usb2_pwr_en: usb2-pwr-en {
+			rockchip,pins = <0 12 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };
 
 &rk808 {
-	vcc9-supply = <&vcc_5v>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pmic_int_l &dvs_1 &dvs_2>;
+	dvs-gpios = <&gpio7 11 GPIO_ACTIVE_HIGH>,
+		    <&gpio7 15 GPIO_ACTIVE_HIGH>;
+
+	/delete-property/ vcc6-supply;
 
 	regulators {
-		vccio_sd: LDO_REG4 {
-			regulator-name = "vccio_sd";
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <3300000>;
-			regulator-state-mem {
-				regulator-off-in-suspend;
-			};
+		/* vcc33_io is sourced directly from vcc33_sys */
+		/delete-node/ LDO_REG1;
+
+		/* This is not a pwren anymore, but the real power supply */
+		vdd10_lcd: LDO_REG7 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-name = "vdd10_lcd";
+			regulator-suspend-mem-disabled;
 		};
 
-		vcc33_sd: LDO_REG5 {
-			regulator-name = "vcc33_sd";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			regulator-state-mem {
-				regulator-off-in-suspend;
-			};
+		vcc18_hdmi: SWITCH_REG2 {
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-name = "vcc18_hdmi";
+			regulator-suspend-mem-disabled;
 		};
 	};
 };
 
-&sdmmc {
-	status = "okay";
-	supports-sd;
-	bus-width = <4>;
-	cap-mmc-highspeed;
-	cap-sd-highspeed;
-	card-detect-delay = <200>;
-	cd-gpios = <&gpio7 5 GPIO_ACTIVE_LOW>;
-	rockchip,default-sample-phase = <90>;
-	num-slots = <1>;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-sdr104;
-	vmmc-supply = <&vcc33_sd>;
-	vqmmc-supply = <&vccio_sd>;
+&vcc50_hdmi {
+	enable-active-high;
+	gpio = <&gpio7 2 GPIO_ACTIVE_HIGH>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vcc50_hdmi_en>;
 };

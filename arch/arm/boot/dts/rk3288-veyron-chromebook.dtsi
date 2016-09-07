@@ -46,6 +46,7 @@
 #include <dt-bindings/clock/rockchip,rk808.h>
 #include <dt-bindings/input/input.h>
 #include "rk3288-veyron.dtsi"
+#include "rk3288-veyron-analog-audio.dtsi"
 #include "rk3288-veyron-sdmmc.dtsi"
 
 / {
@@ -91,7 +92,7 @@
 			248 249 250 251 252 253 254 255>;
 		default-brightness-level = <128>;
 		enable-gpios = <&gpio7 2 GPIO_ACTIVE_HIGH>;
-		backlight-boot-off;
+        backlight-boot-off;
 		pinctrl-names = "default";
 		pinctrl-0 = <&bl_en>;
 		pwms = <&pwm0 0 1000000 0>;
@@ -109,8 +110,16 @@
 	panel: panel {
 		compatible ="innolux,n116bge", "simple-panel";
 		status = "okay";
-		power-supply = <&vcc33_lcd>;
+        power-supply = <&vcc33_lcd>;
 		backlight = <&backlight>;
+
+		ports {
+			panel_in: port {
+				panel_in_edp: endpoint {
+					remote-endpoint = <&edp_out_panel>;
+				};
+			};
+		};
 	};
 
 	/* A non-regulated voltage from power supply or battery */
@@ -154,16 +163,43 @@
 	};
 };
 
+&edp {
+	status = "okay";
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&edp_hpd>;
+
+	ports {
+		edp_out: port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			edp_out_panel: endpoint {
+				reg = <0>;
+				remote-endpoint = <&panel_in_edp>;
+			};
+		};
+	};
+};
+
+&edp_phy {
+	status = "okay";
+};
+
 &gpio_keys {
 	pinctrl-0 = <&pwr_key_l &ap_lid_int_l>;
 	lid {
 		label = "Lid";
 		gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
-		gpio-key,wakeup;
+		wakeup-source;
 		linux,code = <0>; /* SW_LID */
 		linux,input-type = <5>; /* EV_SW */
 		debounce-interval = <1>;
 	};
+};
+
+&pwm0 {
+	status = "okay";
 };
 
 &rk808 {
@@ -217,6 +253,14 @@
 		vcc-supply = <&vcc33_io>;
 		wakeup-source;
 	};
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
+	status = "okay";
 };
 
 &pinctrl {

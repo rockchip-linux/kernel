@@ -10,7 +10,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-
+#define DEBUG 1
 #include <linux/clk.h>
 #include <linux/completion.h>
 #include <linux/cpu.h>
