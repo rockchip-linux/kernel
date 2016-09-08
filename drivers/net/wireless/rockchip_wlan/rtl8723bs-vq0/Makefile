@@ -779,7 +779,7 @@ EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"$(USER_EFUSE_MAP_PATH)\"
 else ifeq ($(MODULE_NAME), 8189es)
 EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_8189e.map\"
 else ifeq ($(MODULE_NAME), 8723bs)
-EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_8723bs-vq0.map\"
+EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/firmware/wifi_efuse_8723bs-vq0.map\"
 else
 EXTRA_CFLAGS += -DEFUSE_MAP_PATH=\"/system/etc/wifi/wifi_efuse_$(MODULE_NAME).map\"
 endif
