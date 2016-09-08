@@ -456,7 +456,7 @@
 			regulator-name= "vdd_cam";
 			regulator-min-microvolt = <700000>;
 			regulator-max-microvolt = <2000000>;
-			regulator-initial-mode = <0x2>;
+			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-state-mem {
 				regulator-state-disabled;
