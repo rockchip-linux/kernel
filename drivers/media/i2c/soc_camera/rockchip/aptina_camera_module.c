@@ -433,6 +433,7 @@ static int aptina_camera_module_attach(
 err:
 	pltfrm_camera_module_pr_err(&cam_mod->sd,
 				"failed with error %d\n", ret);
+	aptina_camera_module_release(cam_mod);
 	return ret;
 }
 
@@ -1191,6 +1192,7 @@ long aptina_camera_module_ioctl(struct v4l2_subdev *sd,
 		pltfrm_camera_module_ioctl(sd, PLTFRM_CIFCAM_G_ITF_CFG, arg);
 		return 0;
 	} else if (cmd == PLTFRM_CIFCAM_ATTACH) {
+		aptina_camera_module_init(cam_mod, &cam_mod->custom);
 		pltfrm_camera_module_ioctl(sd, cmd, arg);
 		return aptina_camera_module_attach(cam_mod);
 	} else {
@@ -1362,7 +1364,6 @@ int aptina_camera_module_init(struct aptina_camera_module *cam_mod,
 
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
 
-	cam_mod->custom = *custom;
 	aptina_camera_module_reset(cam_mod);
 
 	if (IS_ERR_OR_NULL(custom->start_streaming) ||

@@ -597,24 +597,15 @@ static int ar0330cs_probe(
 	struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	int ret = 0;
-
 	dev_info(&client->dev, "probing...\n");
 
 	ar0330cs_filltimings(&ar0330cs_custom_config);
 	v4l2_i2c_subdev_init(&ar0330cs.sd, client, &ar0330cs_camera_module_ops);
+	ar0330cs.custom = ar0330cs_custom_config;
 
-	ret = aptina_camera_module_init(&ar0330cs,
-			&ar0330cs_custom_config);
-	if (IS_ERR_VALUE(ret))
-		goto err;
 	dev_info(&client->dev, "probing successful\n");
 
 	return 0;
-err:
-	dev_err(&client->dev, "probing failed with error (%d)\n", ret);
-	aptina_camera_module_release(&ar0330cs);
-	return -22;
 }
 
 static int ar0330cs_remove(struct i2c_client *client)

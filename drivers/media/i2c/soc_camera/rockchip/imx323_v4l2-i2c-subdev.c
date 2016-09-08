@@ -596,22 +596,14 @@ static int imx323_probe(
 	struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	int ret = 0;
-
 	dev_info(&client->dev, "probing...\n");
 
 	imx323_filltimings(&imx323_custom_config);
 	v4l2_i2c_subdev_init(&imx323.sd, client, &imx323_camera_module_ops);
-	ret = imx_camera_module_init(&imx323, &imx323_custom_config);
-	if (IS_ERR_VALUE(ret))
-		goto err;
+	imx323.custom = imx323_custom_config;
 
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
-err:
-	dev_err(&client->dev, "probing failed with error (%d)\n", ret);
-	imx_camera_module_release(&imx323);
-	return -22;
 }
 
 static int imx323_remove(struct i2c_client *client)

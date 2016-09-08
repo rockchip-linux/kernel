@@ -838,23 +838,16 @@ static int ov2710_probe(
 	struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	int ret = 0;
-
 	dev_info(&client->dev, "probing...\n");
 
 	ov2710_filltimings(&ov2710_custom_config);
 	v4l2_i2c_subdev_init(&ov2710.sd, client,
 				&ov2710_camera_module_ops);
-	ret = ov_camera_module_init(&ov2710, &ov2710_custom_config);
-	if (IS_ERR_VALUE(ret))
-		goto err;
+
+	ov2710.custom = ov2710_custom_config;
 
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
-err:
-	dev_err(&client->dev, "probing failed with error (%d)\n", ret);
-	ov_camera_module_release(&ov2710);
-	return ret;
 }
 
 /* ======================================================================== */

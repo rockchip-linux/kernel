@@ -368,7 +368,7 @@ static struct ov_camera_module_config ov4689_configs[] = {
 			/
 			sizeof(ov4689_init_tab_2688_1520_30fps[0]),
 		.v_blanking_time_us = 5000,
-		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 1008, ov4689_EXT_CLK)
+		PLTFRM_CAM_ITF_MIPI_CFG(0, 2, 999, ov4689_EXT_CLK)
 	}
 };
 
@@ -867,23 +867,15 @@ static int ov4689_probe(
 	struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	int ret = 0;
-
 	dev_info(&client->dev, "probing...\n");
 
 	ov4689_filltimings(&ov4689_custom_config);
 	v4l2_i2c_subdev_init(&ov4689.sd, client, &ov4689_camera_module_ops);
-	ret = ov_camera_module_init(&ov4689,
-			&ov4689_custom_config);
-	if (IS_ERR_VALUE(ret))
-		goto err;
+
+	ov4689.custom = ov4689_custom_config;
 
 	dev_info(&client->dev, "probing successful\n");
 	return 0;
-err:
-	dev_err(&client->dev, "probing failed with error (%d)\n", ret);
-	ov_camera_module_release(&ov4689);
-	return -22;
 }
 
 static int ov4689_remove(struct i2c_client *client)

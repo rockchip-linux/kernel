@@ -70,6 +70,8 @@
 #define OF_CAMERA_MODULE_REGULATORS "rockchip,camera-module-regulator-names"
 #define OF_CAMERA_MODULE_REGULATOR_VOLTAGES "rockchip,camera-module-regulator-voltages"
 #define OF_CAMERA_MODULE_MCLK_NAME "rockchip,camera-module-mclk-name"
+#define OF_CAMERA_PINCTRL_STATE_DEFAULT "rockchip,camera_default"
+#define OF_CAMERA_PINCTRL_STATE_SLEEP "rockchip,camera_sleep"
 
 const char *PLTFRM_CAMERA_MODULE_PIN_PD = OF_OV_GPIO_PD;
 const char *PLTFRM_CAMERA_MODULE_PIN_PWR = OF_OV_GPIO_PWR;
@@ -381,13 +383,13 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	if (!IS_ERR(pdata->pinctrl)) {
 
 		pdata->pins_default = pinctrl_lookup_state(
-				pdata->pinctrl, PINCTRL_STATE_DEFAULT);
+				pdata->pinctrl, OF_CAMERA_PINCTRL_STATE_DEFAULT);
 		if (IS_ERR(pdata->pins_default))
 			pltfrm_camera_module_pr_warn(sd,
 			"could not get default pinstate\n");
 
 		pdata->pins_sleep = pinctrl_lookup_state(
-				pdata->pinctrl, PINCTRL_STATE_SLEEP);
+				pdata->pinctrl, OF_CAMERA_PINCTRL_STATE_SLEEP);
 		if (IS_ERR(pdata->pins_sleep))
 			pltfrm_camera_module_pr_warn(sd,
 			"could not get sleep pinstate\n");
@@ -1505,6 +1507,12 @@ void pltfrm_camera_module_release(
 				pdata->gpios[i].pltfrm_gpio);
 		}
 	}
+	for (i = 0; i < pdata->regulators.cnt; i++){
+		if (pdata->regulators.regulator[i].regulator)
+			devm_regulator_put(pdata->regulators.regulator[i].regulator);
+	}
+	if (pdata->pinctrl)
+		devm_pinctrl_put(pdata->pinctrl);
 }
 
 /* ======================================================================== */
