@@ -16,6 +16,10 @@ config TOUCHSCREEN_ZET62XX
 	help
 	  zet62xx touchscreen driver
 
+config TOUCHSCREEN_GSL3673
+	tristate "gsl3673 touchscreen driver"
+	help
+	  gsl3673 touchscreen driver
 
 config TOUCHSCREEN_GSLX680
 	tristate "gslX680 touchscreen driver"
