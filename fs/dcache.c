@@ -40,6 +40,8 @@
 #include <linux/ratelimit.h>
 #include <linux/list_lru.h>
 #include <linux/kasan.h>
+#include <linux/sched/rt.h>
+#include <linux/sched/deadline.h>
 
 #include "internal.h"
 #include "mount.h"
@@ -748,6 +750,8 @@ static inline bool fast_dput(struct dentry *dentry)
  */
 void dput(struct dentry *dentry)
 {
+	struct dentry *parent;
+
 	if (unlikely(!dentry))
 		return;
 
@@ -784,14 +788,17 @@ repeat:
 	return;
 
 kill_it:
-	dentry = dentry_kill(dentry);
-	if (dentry) {
+	parent = dentry_kill(dentry);
+	if (parent) {
 		int r;
 
-		/* the task with the highest priority won't schedule */
-		r = cond_resched();
-		if (!r)
-			cpu_chill();
+		if (parent == dentry) {
+			/* the task with the highest priority won't schedule */
+			r = cond_resched();
+			if (!r && (rt_task(current) || dl_task(current)))
+				cpu_chill();
+		} else
+			dentry = parent;
 		goto repeat;
 	}
 }
