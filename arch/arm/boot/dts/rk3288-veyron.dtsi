@@ -454,7 +454,7 @@
 };
 
 &dmc {
-	status = "okay";
+	status = "disabled";
 	logic-supply = <&vdd_logic>;
 	rockchip,odt-disable-freq = <333000000>;
 	rockchip,dll-disable-freq = <333000000>;
@@ -484,8 +484,8 @@
 	assigned-clock-rates = <48000000>;
 
 	/* Pins don't include flow control by default; add that in */
-	pinctrl-names = "default";
-	pinctrl-0 = <&uart0_xfer &uart0_cts &uart0_rts>;
+    pinctrl-names = "default";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
 };
 
 &uart1 {
