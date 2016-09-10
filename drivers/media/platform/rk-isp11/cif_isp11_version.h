@@ -17,28 +17,38 @@
 #define _CIF_ISP11_RK_VERSION_H_
 #include <linux/version.h>
 
- /*
+/*
 *       CIF DRIVER VERSION NOTE
 *
 *v0.1.0:
-*	1. New mi register update mode is invalidate in raw/jpeg for rk1108,
-*	    All path used old mode for rk1108;
+*1. New mi register update mode is invalidate in raw/jpeg for rk1108,
+* All path used old mode for rk1108;
 *v0.1.1:
-*	1. Modify CIF stop sequence for fix isp bus may dead when switch isp:
-* Original stop sequence: Stop ISP(mipi) -> Stop ISP(isp) ->wait for ISP isp off -> Stop ISP(mi)
-* Current stop sequence: ISP(mi) stop in mi frame end -> Stop ISP(mipi) -> Stop ISP(isp) ->wait for ISP isp off;
+*1. Modify CIF stop sequence for fix isp bus may dead when switch isp:
+*Original stop sequence: Stop ISP(mipi) -> Stop ISP(isp) ->wait for ISP isp off -> Stop ISP(mi)
+*Current stop sequence: ISP(mi) stop in mi frame end -> Stop ISP(mipi) -> Stop ISP(isp) ->wait for ISP isp off;
 * Current stop sequence is only match sensor stream v-blanking >= 1.5ms;
 *
 *v0.1.2:
-*	1. Disable CIF_MIPI_ERR_DPHY interrupt here temporary for
+*1. Disable CIF_MIPI_ERR_DPHY interrupt here temporary for
 *isp bus may be dead when switch isp;
-*	2. Cancel hw restart isp operation in mipi isr, only notice error log;
+*2. Cancel hw restart isp operation in mipi isr, only notice error log;
 *
 *v0.1.3:
-*	1. fix camerahal query exp info failed from cifisp_stat_buffer, because
+*1. fix camerahal query exp info failed from cifisp_stat_buffer, because
 *wake_up buffer before cif_isp11_sensor_mode_data_sync;
+*
+*v0.1.4:
+*1. Disable DPHY errctrl interrupt, because this dphy erctrl signal
+*is assert and until the next changes in line state. This time is may
+*be too long and cpu is hold in this interrupt. Enable DPHY errctrl
+*interrupt again, if mipi have receive the whole frame without any error.
+*2. Modify mipi_dphy_cfg follow vendor recommended process in
+*document.
+*3. Select the limit dphy setting if sensor mipi datarate is overflow,
+*and print warning information to user.
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 3)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 4)
 
 #endif

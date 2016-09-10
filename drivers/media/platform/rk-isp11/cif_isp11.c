@@ -2049,7 +2049,7 @@ static int cif_isp11_config_mipi(
 	cif_iowrite32(
 		CIF_MIPI_FRAME_END |
 		CIF_MIPI_ERR_CSI |
-		/*CIF_MIPI_ERR_DPHY |*/
+		CIF_MIPI_ERR_DPHY |
 		CIF_MIPI_SYNC_FIFO_OVFLW(3) |
 		CIF_MIPI_ADD_DATA_OVFLW,
 		dev->config.base_addr + CIF_MIPI_IMSC);
@@ -6838,6 +6838,14 @@ int cif_isp11_mipi_isr(unsigned int mipi_mis, void *cntxt)
 	if (mipi_mis & CIF_MIPI_ERR_DPHY) {
 		cif_isp11_pltfrm_pr_warn(dev->dev,
 			"CIF_MIPI_ERR_DPHY: 0x%x\n", mipi_mis);
+		/*
+		*Disable DPHY errctrl interrupt, because this dphy erctrl signal
+		*is assert and until the next changes in line state. This time is may
+		*be too long and cpu is hold in this interrupt.
+		*/
+		if (mipi_mis & CIF_MIPI_ERR_CTRL(3))
+			cif_iowrite32AND(~(CIF_MIPI_ERR_CTRL(3)),
+				dev->config.base_addr + CIF_MIPI_IMSC);
 	}
 
 	if (mipi_mis & CIF_MIPI_ERR_CSI) {
@@ -6848,6 +6856,15 @@ int cif_isp11_mipi_isr(unsigned int mipi_mis, void *cntxt)
 	if (mipi_mis & CIF_MIPI_SYNC_FIFO_OVFLW(3)) {
 		cif_isp11_pltfrm_pr_warn(dev->dev,
 			"CIF_MIPI_SYNC_FIFO_OVFLW: 0x%x\n", mipi_mis);
+	}
+
+	if (mipi_mis == CIF_MIPI_FRAME_END) {
+		/*
+		*Enable DPHY errctrl interrupt again, if mipi have receive
+		*the whole frame without any error.
+		*/
+		cif_iowrite32OR(CIF_MIPI_ERR_CTRL(3),
+			dev->config.base_addr + CIF_MIPI_IMSC);
 	}
 
 	mipi_mis = cif_ioread32(dev->config.base_addr + CIF_MIPI_MIS);

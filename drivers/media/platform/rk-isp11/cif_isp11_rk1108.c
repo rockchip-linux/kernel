@@ -26,45 +26,39 @@
 #include <linux/platform_device.h>
 #include <linux/platform_data/rk_isp11_platform.h>
 #include "cif_isp11_pltfrm.h"
+#include "cif_isp11_regs.h"
 
-/*MARVIN REGISTER*/
-#define MRV_MIPI_BASE                           0x1C00
-#define MRV_MIPI_CTRL                           0x00
-
+/*
+*GRF Registers
+*/
 #define GRF_SOC_CON5_OFFSET    (0x0414)
 
 #define DPHY_RX_FORCERXMODE_MASK		(0xf<<16)
 #define DPHY_RX_FORCERXMODE_BIT			(0x0)
 
 /*
-*GRF_IO_VSEL
+*MIPI PHY Registers
 */
-#define GRF_IO_VSEL_OFFSET		(0x0380)
-#define DVP_V18SEL			((1<<1) | (1<<17))
-#define DVP_V33SEL			((0<<1) | (1<<17))
+#define DPHY_CTRL_BASE	0x00
+#define DPHY_CTRL_LANE_ENABLE	(DPHY_CTRL_BASE + 0)
+#define DPHY_CTRL_PWRCTL		(DPHY_CTRL_BASE + 4)
+#define DPHY_CTRL_DIG_RST		(DPHY_CTRL_BASE + 0x80)
+#define DPHY_CTRL_SIG_INV		(DPHY_CTRL_BASE + 0x84)
 
-/*
-*GRF_IO_VSEL
-*/
-#define GRF_GPIO2B_E_OFFSET		(0x0380)
-#define CIF_CLKOUT_STRENGTH(a)	(((a&0x03)<<3) | (0x03<<19))
+#define DPHY_CLOCK_LANE_BASE	0x100
+#define DPHY_CLOCK_THS_SETTLE	 	(DPHY_CLOCK_LANE_BASE + 0x00)
 
-/*
-*CSI HOST
-*/
+#define DPHY_DATA_LANE0_BASE 0x180
+#define DPHY_DATA_LANE0_THS_SETTLE (DPHY_DATA_LANE0_BASE + 0x00)
 
-#define CSIHOST_PHY_TEST_CTRL0            (0x30)
-#define CSIHOST_PHY_TEST_CTRL1            (0x34)
-#define CSIHOST_PHY_SHUTDOWNZ             (0x08)
-#define CSIHOST_DPHY_RSTZ                 (0x0c)
-#define CSIHOST_N_LANES                   (0x04)
-#define CSIHOST_CSI2_RESETN               (0x10)
-#define CSIHOST_PHY_STATE                 (0x14)
-#define CSIHOST_DATA_IDS1                 (0x18)
-#define CSIHOST_DATA_IDS2                 (0x1C)
-#define CSIHOST_ERR1                      (0x20)
-#define CSIHOST_ERR2                      (0x24)
+#define DPHY_DATA_LANE1_BASE 0x200
+#define DPHY_DATA_LANE1_THS_SETTLE (DPHY_DATA_LANE0_BASE + 0x00)
 
+#define DPHY_DATA_LANE2_BASE 0x280
+#define DPHY_DATA_LANE2_THS_SETTLE (DPHY_DATA_LANE0_BASE + 0x00)
+
+#define DPHY_DATA_LANE3_BASE 0x300
+#define DPHY_DATA_LANE3_THS_SETTLE (DPHY_DATA_LANE0_BASE + 0x00)
 
 #define write_cifisp_reg(addr, val)		__raw_writel(val, addr+rk1108->isp_base)
 #define read_cifisp_reg(addr)		__raw_readl(addr+rk1108->isp_base)
@@ -108,37 +102,6 @@ struct mipi_dphy_hsfreqrange {
 };
 
 static struct mipi_dphy_hsfreqrange mipi_dphy_hsfreq_range[] = {
-#ifdef FPGA_TEST
-	{80, 90, 0x00},
-	{90, 100, 0x10},
-	{100, 110, 0x20},
-	{110, 130, 0x01},
-	{130, 140, 0x11},
-	{140, 150, 0x21},
-	{150, 170, 0x02},
-	{170, 180, 0x12},
-	{180, 200, 0x22},
-	{200, 220, 0x03},
-	{220, 240, 0x13},
-	{240, 250, 0x23},
-	{250, 270, 0x4},
-	{270, 300, 0x14},
-	{300, 330, 0x5},
-	{330, 360, 0x15},
-	{360, 400, 0x25},
-	{400, 450, 0x06},
-	{450, 500, 0x16},
-	{500, 550, 0x07},
-	{550, 600, 0x17},
-	{600, 650, 0x08},
-	{650, 700, 0x18},
-	{700, 750, 0x09},
-	{750, 800, 0x19},
-	{800, 850, 0x29},
-	{850, 900, 0x39},
-	{900, 950, 0x0a},
-	{950, 1000, 0x1a}
-#else
 	{80, 110, 0x00},
 	{110, 150, 0x01},
 	{150, 200, 0x02},
@@ -149,39 +112,11 @@ static struct mipi_dphy_hsfreqrange mipi_dphy_hsfreq_range[] = {
 	{500, 600, 0x07},
 	{600, 700, 0x08},
 	{700, 800, 0x09},
-	{800, 1000, 0x0a},
-	{1000, 1200, 0x0b},
-	{1200, 1400, 0x0c},
-	{1400, 1600, 0x0d},
-	{1600, 1800, 0x0e}
-#endif
+	{800, 1000, 0x0a}
 };
 
 static struct cif_isp11_rk1108 *rk1108;
-#ifdef FPGA_TEST
 
-#define LANE_NUMBER 1
-#define CRU_BASE_USER (0x800)
-
-void MIPI_DPHY_WriteReg(unsigned char addr, unsigned char data)
-{
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x02ff0200|addr);
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x01000000);
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x02ff0000|data);
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x01000100);
-}
-
-unsigned char MIPI_DPHY_ReadReg(unsigned char addr)
-{
-    unsigned char data;
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x02ff0200|addr);
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x01000000);
-    data = (read_cifcru_reg(CRU_BASE_USER+0x18) & 0xff);
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x03000100);
-
-    return data;
-}
-#endif
 static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 {
 	unsigned char hsfreqrange = 0xff, i;
@@ -202,8 +137,23 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 	}
 
 	if (hsfreqrange == 0xff) {
-		hsfreqrange = 0x00;
+		if (para->bit_rate > 1000) {
+			hsfreqrange = 0x0a;
+			printk(KERN_WARNING
+				"%s: hsfreqrange(%d Mbps) isn't support,"
+				"so use 1Gbps setting!\n",
+				__func__,
+				para->bit_rate);
+		} else if (para->bit_rate <= 80) {
+			hsfreqrange = 0x00;
+			printk(KERN_WARNING
+				"%s: hsfreqrange(%d Mbps) isn't support,"
+				"so use 80Mbps setting!\n",
+				__func__,
+				para->bit_rate);
+		}
 	}
+
 	/*hsfreqrange <<= 1;*/
 	input_sel = para->dphy_index;
 	datalane_en = 0;
@@ -211,84 +161,54 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 		datalane_en |= (1<<i);
 
 	if (input_sel == 0) {
-#ifndef FPGA_TEST
-	write_grf_reg(GRF_SOC_CON5_OFFSET,
-	DPHY_RX_FORCERXMODE_MASK | DPHY_RX_FORCERXMODE_BIT);
+		write_csiphy_reg(DPHY_CTRL_PWRCTL, 0xe4);
 
-	/*set clock lane */
-	/*write_csiphy_reg(0x34,0x00); */
-	write_csiphy_reg((0x100), hsfreqrange|
-		(read_csiphy_reg(0x100) & (~0xf)));
-	if (para->nb_lanes >= 0x00) {/*lane0*/
-		write_csiphy_reg((0x180), hsfreqrange|
-			(read_csiphy_reg(0x180)&(~0xf)));
-	}
-	if (para->nb_lanes >= 0x02) {/*lane1*/
-		write_csiphy_reg(0x200, hsfreqrange|
-			(read_csiphy_reg(0x200)&(~0xf)));
-	}
-	if (para->nb_lanes >= 0x04) {/*lane4*/
-		write_csiphy_reg(0x280, hsfreqrange|
-			(read_csiphy_reg(0x280)&(~0xf)));
-		write_csiphy_reg(0x300, hsfreqrange|
-			(read_csiphy_reg(0x300)&(~0xf)));
-	}
+		/*set data lane num and enable clock lane */
+		write_csiphy_reg(DPHY_CTRL_LANE_ENABLE,
+			((datalane_en << 2)|(0x1<<6)|0x1));
+		/*Reset dphy analog part*/
+		write_csiphy_reg(DPHY_CTRL_PWRCTL, 0xe0);
+		msleep(1);
+		/*Reset dphy digital part*/
+		write_csiphy_reg(DPHY_CTRL_DIG_RST, 0x1e);
+		write_csiphy_reg(DPHY_CTRL_DIG_RST, 0x1f);
 
-	/*set data lane num and enable clock lane */
-	write_csiphy_reg(0x00, ((datalane_en << 2)|(0x1<<6)|0x1));
+		write_grf_reg(GRF_SOC_CON5_OFFSET,
+			DPHY_RX_FORCERXMODE_MASK |
+			DPHY_RX_FORCERXMODE_BIT);
 
-	write_cifisp_reg((MRV_MIPI_BASE+MRV_MIPI_CTRL),
-		read_cifisp_reg(MRV_MIPI_BASE+MRV_MIPI_CTRL) & (~(0x0f<<8)));
-#else
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x04000000);/*TESTCLR=0*/
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x08000000);/*RSTZCAL=1*/
-	udelay(100);
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x01000100);/*TESTCLK=1*/
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x80008000);/*TESTCLR=1*/
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x80000000);/*TESTCLR=0*/
-	write_cifcru_reg(CRU_BASE_USER+0x20, 0x40004000);/*RSTZCAL=1*/
-#if (LANE_NUMBER == 1)
-		MIPI_DPHY_WriteReg(0xAC, 0x00); /* 1 lane */
-#elif (LANE_NUMBER == 2)
-		MIPI_DPHY_WriteReg(0xAC, 0x01); /* 2 lane */
-#elif (LANE_NUMBER == 4)
-		MIPI_DPHY_WriteReg(0xAC, 0x03); /* 4 lane */
-#endif
-#if (LANE_NUMBER == 1)
-	/*600-650M*/
-		MIPI_DPHY_WriteReg(0x34, 0x0a);
-	/*	MIPI_DPHY_WriteReg(0x44,0x10); */
-#elif (LANE_NUMBER == 2)
-	/*300-330M*/
-		MIPI_DPHY_WriteReg(0x34, 0x0a);
-		MIPI_DPHY_WriteReg(0x44, 0x0a);
-#elif (LANE_NUMBER == 4)
-	/*200-220M*/
-		MIPI_DPHY_WriteReg(0x34, 0x06);
-		MIPI_DPHY_WriteReg(0x44, 0x06);
-#endif
-
-		MIPI_DPHY_ReadReg(0x00);/*Normal operation*/
-		/*TESTEN   =0,TESETCLK=1*/
-		write_cifcru_reg(CRU_BASE_USER+0x20, 0x03000100);
-#if (LANE_NUMBER == 1)
-		/*ENABLE_0 =0,ENABLE_1=0*/
-		write_cifcru_reg(CRU_BASE_USER+0x20, 0x30000000);
-#elif (LANE_NUMBER == 2)
-		/*ENABLE_0 =1,ENABLE_1=0*/
-		write_cifcru_reg(CRU_BASE_USER+0x20, 0x30002000);
-#elif (LANE_NUMBER == 4)
-		/*ENABLE_0 =1,ENABLE_1=1*/
-		write_cifcru_reg(CRU_BASE_USER+0x20, 0x30003000);
-#endif
-		/*SHUTDOWNZ=1*/
-		write_cifcru_reg(CRU_BASE_USER+0x20, 0x08000800);
-		/*RSTZ	 =1*/
-		write_cifcru_reg(CRU_BASE_USER+0x20, 0x04000400);
-#endif
-	} else if (input_sel == 1) {
-
+		/*set clock lane */
+		write_csiphy_reg(DPHY_CLOCK_THS_SETTLE,
+			hsfreqrange |
+			(read_csiphy_reg(DPHY_CLOCK_THS_SETTLE) & (~0xf)));
+		if (para->nb_lanes >= 0x00) {/*lane0*/
+			write_csiphy_reg(DPHY_DATA_LANE0_THS_SETTLE,
+				hsfreqrange |
+				(read_csiphy_reg(DPHY_DATA_LANE0_THS_SETTLE)&(~0xf)));
+		}
+		if (para->nb_lanes >= 0x02) {/*lane1*/
+			write_csiphy_reg(DPHY_DATA_LANE1_THS_SETTLE,
+				hsfreqrange |
+				(read_csiphy_reg(DPHY_DATA_LANE1_THS_SETTLE)&(~0xf)));;
+		}
+		if (para->nb_lanes >= 0x04) {/*lane4*/
+			write_csiphy_reg(DPHY_DATA_LANE2_THS_SETTLE,
+				hsfreqrange |
+				(read_csiphy_reg(DPHY_DATA_LANE2_THS_SETTLE)&(~0xf)));
+			write_csiphy_reg(DPHY_DATA_LANE3_THS_SETTLE,
+				hsfreqrange |
+				(read_csiphy_reg(DPHY_DATA_LANE3_THS_SETTLE)&(~0xf)));
+		}
+		/*
+		*MIPI CTRL bit8:11 SHUTDOWN_LANE are invert
+		*connect to dphy pin_enable_x
+		*/
+		write_cifisp_reg(CIF_MIPI_CTRL,
+			read_cifisp_reg(CIF_MIPI_CTRL) & (~(0x0f<<8)));
 	} else {
+		printk(KERN_ERR
+			"MIPI DPHY %d isn't support for rk1108\n",
+			input_sel);
 		goto fail;
 	}
 
@@ -299,7 +219,6 @@ fail:
 
 static int soc_clk_enable(void)
 {
-#ifndef FPGA_TEST
 	struct cif_isp11_clk_rst_rk1108 *clk_rst = &rk1108->clk_rst;
 
 	clk_prepare_enable(clk_rst->hclk_isp);
@@ -319,13 +238,12 @@ static int soc_clk_enable(void)
 	reset_control_deassert(clk_rst->isp_niu_arst);
 	reset_control_deassert(clk_rst->isp_niu_hrst);
 	reset_control_deassert(clk_rst->isp_hrst);
-#endif
+
 	return 0;
 }
 
 static int soc_clk_disable(void)
 {
-#ifndef FPGA_TEST
 	struct cif_isp11_clk_rst_rk1108 *clk_rst = &rk1108->clk_rst;
 
 	clk_disable_unprepare(clk_rst->hclk_isp);
@@ -335,16 +253,13 @@ static int soc_clk_disable(void)
 	clk_disable_unprepare(clk_rst->sclk_mipidsi_24m);
 	clk_disable_unprepare(clk_rst->pclk_isp_in);
 	clk_disable_unprepare(clk_rst->pclk_mipi_csi);
-#endif
 	return 0;
 }
 
 static int soc_init(struct pltfrm_soc_init_para *init)
 {
-#ifndef FPGA_TEST
 	struct cif_isp11_clk_rst_rk1108 *clk_rst;
 	struct resource *res;
-#endif
 	struct platform_device *pdev = init->pdev;
 	struct device_node *np = pdev->dev.of_node, *node;
 	int err;
@@ -368,7 +283,7 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 			goto regmap_failed;
 		}
 	}
-#ifndef FPGA_TEST
+
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "csiphy_base");
 	if (res == NULL) {
 		dev_err(&pdev->dev,
@@ -419,11 +334,10 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 	clk_set_rate(clk_rst->sclk_isp, 300000000);
 	clk_set_rate(clk_rst->sclk_isp_jpe, 300000000);
 	reset_control_deassert(clk_rst->isp_rst);
-#endif
+
 	rk1108->isp_base = init->isp_base;
 	return 0;
 
-#ifndef FPGA_TEST
 clk_failed:
 	if (!IS_ERR_OR_NULL(clk_rst->aclk_isp)) {
 		devm_clk_put(&pdev->dev, clk_rst->aclk_isp);
@@ -450,7 +364,6 @@ clk_failed:
 	if (!IS_ERR_OR_NULL(clk_rst->isp_rst)) {
 		reset_control_put(clk_rst->isp_rst);
 	}
-#endif
 regmap_failed:
 
 
@@ -464,21 +377,9 @@ int pltfrm_rk1108_cfg (
 		struct pltfrm_soc_cfg_para *cfg)
 {
 	switch (cfg->cmd) {
-	case PLTFRM_MCLK_CFG: {
-		#if 0
-		struct pltfrm_soc_mclk_para *mclk_para;
-		mclk_para = (struct pltfrm_soc_mclk_para *)cfg->cfg_para;
-
-		if (mclk_para->io_voltage == PLTFRM_IO_1V8)
-			write_grf_reg(GRF_IO_VSEL_OFFSET, DVP_V18SEL);
-		else
-			write_grf_reg(GRF_IO_VSEL_OFFSET, DVP_V33SEL);
-
-		write_grf_reg(GRF_GPIO2B_E_OFFSET,
-			CIF_CLKOUT_STRENGTH(mclk_para->drv_strength));
-		#endif
+	case PLTFRM_MCLK_CFG:
 		break;
-	}
+
 	case PLTFRM_MIPI_DPHY_CFG:
 		mipi_dphy_cfg((struct pltfrm_cam_mipi_config *)cfg->cfg_para);
 		break;
@@ -492,11 +393,9 @@ int pltfrm_rk1108_cfg (
 		break;
 
 	case PLTFRM_CLKRST:
-		#ifndef FPGA_TEST
 		reset_control_assert(rk1108->clk_rst.isp_rst);
 		usleep_range(5, 30);
 		reset_control_deassert(rk1108->clk_rst.isp_rst);
-		#endif
 		break;
 
 	case PLTFRM_SOC_INIT:
