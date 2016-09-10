@@ -507,6 +507,10 @@ int ov_camera_module_s_power(struct v4l2_subdev *sd, int on)
 				}
 			}
 		}
+		if (cam_mod->update_config) {
+			ov_camera_module_write_config(cam_mod);
+			cam_mod->update_config = false;
+		}
 	} else {
 		if (OV_CAMERA_MODULE_STREAMING == cam_mod->state) {
 			ret = ov_camera_module_s_stream(sd, 0);

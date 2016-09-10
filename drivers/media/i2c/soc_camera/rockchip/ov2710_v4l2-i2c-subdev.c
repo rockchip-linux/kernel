@@ -14,8 +14,11 @@
  * kind, whether express or implied.
  *
  * Note:
- *    07/01/2014: new implementation using v4l2-subdev
- *                        instead of v4l2-int-device.
+ *
+ *v0.1.0:
+ *	1. Initialize version;
+ *	2. Stream on sensor in configuration, and stream off sensor after 1frame;
+ *	3. Stream delay time is define in power_up_delays_ms[2];
  */
 
 #include <linux/i2c.h>
@@ -180,10 +183,10 @@ static struct ov_camera_module_reg ov2710_init_tab_1920_1080_30fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a1e, 0x30},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a11, 0x90},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3a1f, 0x10},
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x09},//HTS H
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x74},//HTS L
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x04},//VTS H
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x50},//VTS L
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380c, 0x09},/*HTS H*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380d, 0x74},/*HTS L*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380e, 0x04},/*VTS H*/
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x380f, 0x50},/*VTS L*/
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3500, 0x00},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3501, 0x28},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3502, 0x90},
@@ -199,7 +202,14 @@ static struct ov_camera_module_reg ov2710_init_tab_1920_1080_30fps[] = {
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3403, 0x00},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3404, 0x04},
 {OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3405, 0x00},
-{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4800, 0x24}
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4800, 0x24},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4201, 0x00},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4202, 0x00},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3008, 0x02},
+{OV_CAMERA_MODULE_REG_TYPE_TIMEOUT, 0x0000, 40},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x3008, 0x42},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4201, 0x00},
+{OV_CAMERA_MODULE_REG_TYPE_DATA, 0x4202, 0x0f}
 };
 
 /* ======================================================================== */
@@ -690,7 +700,6 @@ static int ov2710_start_streaming(struct ov_camera_module *cam_mod)
 
 	if (IS_ERR_VALUE(ret))
 		goto err;
-	msleep(25);
 
 	return 0;
 err:
@@ -707,13 +716,12 @@ static int ov2710_stop_streaming(struct ov_camera_module *cam_mod)
 
 	ov_camera_module_pr_debug(cam_mod, "\n");
 	ret = ov_camera_module_write_reg(cam_mod, 0x3008, 0x42);
-	ret = ov_camera_module_write_reg(cam_mod, 0x4201, 0x00);
+	ret |= ov_camera_module_write_reg(cam_mod, 0x4201, 0x00);
 	ret |= ov_camera_module_write_reg(cam_mod, 0x4202, 0x0f);
 
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
-	msleep(25);
 	return 0;
 err:
 	ov_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
@@ -823,7 +831,7 @@ static struct ov_camera_module_custom_config ov2710_custom_config = {
 	.check_camera_id = ov2710_check_camera_id,
 	.configs = ov2710_configs,
 	.num_configs = sizeof(ov2710_configs) / sizeof(ov2710_configs[0]),
-	.power_up_delays_ms = {5, 30, 0}
+	.power_up_delays_ms = {5, 30, 30}
 };
 
 static int ov2710_probe(
