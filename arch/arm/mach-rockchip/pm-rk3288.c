@@ -96,6 +96,8 @@ enum rk_plls_id {
 
 #define RKPM_BOOT_CPUSP_PHY (RKPM_BOOTRAM_PHYS+((RKPM_BOOTRAM_SIZE-1)&~0x7))
 
+#define SGRF_DAPDEVICEEN_WRITE		BIT(16)
+
 // the value is used to control cpu resume flow
 static u32 sleep_resume_data[RKPM_BOOTDATA_ARR_SIZE];
 static char *resume_data_base=(char *)( RKPM_BOOT_DATA_BASE);
@@ -932,6 +934,7 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
     u32 mode_set,mode_set1;
     // setting gpio0_a0 arm off pin
 
+	reg_writel(SGRF_DAPDEVICEEN_WRITE, RK_SGRF_VIRT + RK3288_SGRF_CPU_CON0);
     sgrf_soc_con0=reg_readl(RK_SGRF_VIRT+RK3288_SGRF_SOC_CON0);
     
     pmu_wakeup_cfg0=pmu_readl(RK3288_PMU_WAKEUP_CFG0);  
@@ -1054,6 +1057,7 @@ static u32  rkpm_slp_mode_set(u32 ctrbits)
 static inline void  rkpm_slp_mode_set_resume(void)
 {
 
+	reg_writel(SGRF_DAPDEVICEEN_WRITE, RK_SGRF_VIRT + RK3288_SGRF_CPU_CON0);
     pmu_writel(pmu_wakeup_cfg0,RK3288_PMU_WAKEUP_CFG0);  
     pmu_writel(pmu_wakeup_cfg1,RK3288_PMU_WAKEUP_CFG1);  
     
