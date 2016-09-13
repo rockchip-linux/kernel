@@ -3,6 +3,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/rkfb/rk_fb.h>
 #include "px5.dtsi"
+//#include <../../../arm/boot/dts/lcd-claa070wp03xg.dtsi>
 //#include <../../../arm/boot/dts/lcd-kd080d24h6-mipi.dtsi>
 #include <../../../arm/boot/dts/lcd-kd080d34b6-mipi.dtsi>
 #include "px5-cif-sensor.dtsi"
@@ -103,7 +104,7 @@
 			224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242
 			243 244 245 246 247 248 249 250 251 252 253 254 255>;
 		default-brightness-level = <200>;
-		enable-gpios = <&gpio0 GPIO_C4 GPIO_ACTIVE_HIGH>;
+		enable-gpios = <&gpio0 GPIO_B6 GPIO_ACTIVE_HIGH>;
 	};
 
 	codec_hdmi_i2s: codec-hdmi-i2s {
@@ -397,6 +398,10 @@
 };
 
 &i2c5 {
+	status = "disabled";
+};
+
+&lvds {
 	status = "disabled";
 };
 
