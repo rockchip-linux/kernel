@@ -6338,7 +6338,7 @@ int cif_isp11_s_exp(
 	exp->exp = exp_ctrl;
 
 	spin_lock_irqsave(&dev->img_src_exps.lock, lock_flags);
-	list_add(&exp->list, &dev->img_src_exps.list);
+	list_add_tail(&exp->list, &dev->img_src_exps.list);
 	spin_unlock_irqrestore(&dev->img_src_exps.lock, lock_flags);
 
 	return 0;

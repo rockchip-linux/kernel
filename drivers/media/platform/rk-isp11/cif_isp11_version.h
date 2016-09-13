@@ -47,8 +47,12 @@
 *document.
 *3. Select the limit dphy setting if sensor mipi datarate is overflow,
 *and print warning information to user.
+*
+*v0.1.5:
+*Exposure list must be queue operation, not stack. list_add switch to
+*list_add_tail in cif_isp11_s_exp;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 4)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 5)
 
 #endif
