@@ -14,6 +14,7 @@
 #ifndef __LINUX_REGULATOR_rk816_H
 #define __LINUX_REGULATOR_rk816_H
 
+#include <linux/gpio.h>
 #include <linux/regulator/machine.h>
 #include <linux/wakelock.h>
 #include <linux/power_supply.h>
@@ -420,6 +421,18 @@ struct rk8xx_regulator_data {
 	u8 num_regulators;
 	const struct regulator_desc *reg_desc;
 	struct of_regulator_match *reg_matches;
+};
+
+struct rk8xx_gpio_reg {
+	u8 reg;
+	u8 dir_msk;
+	u8 val_msk;
+	u8 fun_msk;
+};
+
+struct rk8xx_gpio_data {
+	int ngpio;
+	struct rk8xx_gpio_reg *gpio_reg;
 };
 
 struct rk8xx_reg_data {

@@ -86,7 +86,9 @@ static struct mfd_cell rk816_cells[] = {
 		.name = "rk816-battery",
 	},
 	{
-		.name = "rk816-gpio",
+		.name = "rk8xx-gpio",
+		.platform_data = &rk816_platform_data,
+		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},
 };
 
@@ -104,6 +106,11 @@ static struct mfd_cell rk805_cells[] = {
 	},
 	{
 		.name = "rk8xx-pwrkey",
+		.platform_data = &rk805_platform_data,
+		.pdata_size = sizeof(struct rk8xx_platform_data),
+	},
+	{
+		.name = "rk8xx-gpio",
 		.platform_data = &rk805_platform_data,
 		.pdata_size = sizeof(struct rk8xx_platform_data),
 	},

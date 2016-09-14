@@ -725,11 +725,11 @@ config GPIO_VIPERBOARD
           of the module parameters.
 
 config GPIO_RK816
-	tristate "Rockchip RK816 GPIO"
+	tristate "Rockchip RK816/805 GPIO"
 	depends on MFD_RK816
 	default y
 	help
-	  If you say yes here you will get support for the gpio of RK816 PMIC.
-	  This driver can give support for RK816 gpio Interface.
+	  If you say yes here you will get support for the gpio of RK816/805 PMIC.
+	  This driver can give support for RK816/805 gpio Interface.
 
 endif
