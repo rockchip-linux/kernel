@@ -47,7 +47,7 @@ struct dsp_work_hw {
 
 /*
  * dsp_work - A work prensents jobs that DSP can do.
- * Current there has two types of work, render and config.
+ * Currently there has two types of work, render and config.
  *
  * @id: user work id
  * @type: work type, see enum dsp_work_type
@@ -57,7 +57,7 @@ struct dsp_work_hw {
  * @session: session address
  * @status: work status
  * @dma_addr: work dma address
- * @listeners: a list contain listeners of this work
+ * @list_node: list node
  */
 struct dsp_work {
 	u32 id;
@@ -73,20 +73,19 @@ struct dsp_work {
 	/*
 	 * Members below are used by DSP kernel driver.
 	 * User and hardware do not need to know anything
-	 * in this struct.
+	 * about these members.
 	 */
 	u32 session;
 	u32 status;
 	u32 dma_addr;
-
-	int (*done)(struct dsp_work *, void *);
-
 	struct list_head list_node;
 };
 
 int dsp_work_set_type(struct dsp_work *work, enum dsp_work_type type);
 
 int dsp_work_set_params(struct dsp_work *work, void *params);
+
+int dsp_work_set_status(struct dsp_work *work, u32 status);
 
 int dsp_work_copy_from_user(struct dma_pool *dma_pool, struct dsp_work *work,
 			    void *user);

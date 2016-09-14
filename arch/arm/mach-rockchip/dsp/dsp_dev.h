@@ -35,6 +35,7 @@ struct dsp_dev_client {
 	void *data;
 
 	int (*device_ready)(struct dsp_dev_client *);
+	int (*device_pause)(struct dsp_dev_client *);
 	int (*work_done)(struct dsp_dev_client *, struct dsp_work *);
 };
 
@@ -45,7 +46,6 @@ struct dsp_dev {
 	int (*off)(struct dsp_dev *);
 	int (*suspend)(struct dsp_dev *);
 	int (*resume)(struct dsp_dev *);
-	int (*config)(struct dsp_dev *);
 	int (*work)(struct dsp_dev *, struct dsp_work *);
 
 	struct dsp_dma *dma;
@@ -54,6 +54,8 @@ struct dsp_dev {
 	struct dma_pool *dma_pool;
 	struct dsp_dev_client *client;
 	struct dsp_mbox_client mbox_client;
+	struct dsp_work *running_work;
+	struct delayed_work guard_work;
 
 	char *trace_buffer;
 	u32 trace_dma;

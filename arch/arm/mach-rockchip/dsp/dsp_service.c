@@ -277,8 +277,6 @@ static int dsp_work_consume(void *data)
 
 	dsp_debug_enter();
 
-	service->dev->config(service->dev);
-
 	while (!kthread_should_stop()) {
 		if (!wait_event_timeout(service->wait,
 					!list_empty(&service->pending), HZ))
@@ -329,6 +327,22 @@ static int dsp_work_done(struct dsp_dev_client *client, struct dsp_work *work)
 	return ret;
 }
 
+static int dsp_device_pause(struct dsp_dev_client *client)
+{
+	struct dsp_service *service =
+		container_of(client, struct dsp_service, dev_client);
+
+	dsp_debug_enter();
+
+	/* Wake up work consumer thread and stop it */
+	kthread_stop(service->work_consumer);
+	wake_up(&service->wait);
+	service->work_consumer = NULL;
+
+	dsp_debug_leave();
+	return 0;
+}
+
 /*
  * dsp_device_ready - a callback function will be called when
  * DSP core is ready to work.
@@ -337,14 +351,15 @@ static int dsp_work_done(struct dsp_dev_client *client, struct dsp_work *work)
  */
 static int dsp_device_ready(struct dsp_dev_client *client)
 {
-	int ret = 0;
 	struct dsp_service *service = client->data;
 
 	dsp_debug_enter();
-	service->work_consumer = kthread_run(dsp_work_consume, service,
-				"dsp_work_consumer");
+	if (service->work_consumer == NULL)
+		service->work_consumer = kthread_run(dsp_work_consume,
+						     service,
+						     "dsp_work_consumer");
 	dsp_debug_leave();
-	return ret;
+	return 0;
 }
 
 /*
@@ -369,6 +384,7 @@ static int dsp_service_prepare(struct platform_device *pdev,
 
 	service->dev_client.data = service;
 	service->dev_client.device_ready = dsp_device_ready;
+	service->dev_client.device_pause = dsp_device_pause;
 	service->dev_client.work_done = dsp_work_done;
 
 	atomic_set(&service->ref, 0);
@@ -422,6 +438,7 @@ static int dsp_service_release(struct dsp_service *service)
 	}
 
 	kthread_stop(service->work_consumer);
+	service->work_consumer = NULL;
 
 	dma_pool_destroy(service->dma_pool);
 	ret = dsp_dev_destroy(service->dev);

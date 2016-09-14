@@ -21,6 +21,7 @@
 #define DSP_CMD_READY         0xa0000001
 #define DSP_CMD_WORK          0xa0000002
 #define DSP_CMD_TRACE         0xa0000003
+#define DSP_CMD_CONFIG        0xa0000004
 
 enum mbox_chan_id {
 	MBOX_CHAN_0 = 0,

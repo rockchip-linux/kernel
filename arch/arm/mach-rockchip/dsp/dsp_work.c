@@ -31,6 +31,12 @@ int dsp_work_set_params(struct dsp_work *work, void *params)
 	return 0;
 }
 
+int dsp_work_set_status(struct dsp_work *work, u32 status)
+{
+	work->status = status;
+	return 0;
+}
+
 int dsp_work_copy_from_user(struct dma_pool *dma_pool, struct dsp_work *work,
 			    void *user)
 {
