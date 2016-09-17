@@ -322,6 +322,7 @@ static int rga2_flush(rga2_session *session, unsigned long arg)
 	return ret;
 }
 
+static int rga2_prepare(rga2_session *session);
 
 static int rga2_get_result(rga2_session *session, unsigned long arg)
 {
@@ -805,11 +806,13 @@ static int rga2_blit_sync(rga2_session *session, struct rga2_req *req)
     if(ret < 0)
         return ret;
 
-    ret_timeout = wait_event_timeout(session->wait, atomic_read(&session->done), RGA2_TIMEOUT_DELAY);
+    ret_timeout = wait_event_timeout(session->wait, atomic_read(&session->done),
+                                     RGA2_TIMEOUT_DELAY);
 
     if (unlikely(ret_timeout< 0))
     {
-		//pr_err("sync pid %d wait task ret %d\n", session->pid, ret_timeout);
+		pr_err("sync pid %d wait task ret %dint[0x%x]status[0x%x]\n",
+		  session->pid, ret_timeout,rga2_read(RGA2_INT),rga2_read(RGA2_STATUS));
         mutex_lock(&rga2_service.lock);
         rga2_del_running_list();
         mutex_unlock(&rga2_service.lock);
@@ -817,7 +820,9 @@ static int rga2_blit_sync(rga2_session *session, struct rga2_req *req)
 	}
     else if (0 == ret_timeout)
     {
-		//pr_err("sync pid %d wait %d task done timeout\n", session->pid, atomic_read(&session->task_running));
+		pr_err("sync pid %d wait %d task done timeout:int[0x%x]status[0x%x]\n",
+		                      session->pid, atomic_read(&session->task_running),
+		                            rga2_read(RGA2_INT),rga2_read(RGA2_STATUS));
         mutex_lock(&rga2_service.lock);
         rga2_del_running_list_timeout();
         rga2_try_set_reg();
@@ -836,124 +841,103 @@ static int rga2_blit_sync(rga2_session *session, struct rga2_req *req)
 
 static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 {
-    struct rga2_req req, req_first;
-    struct rga_req req_rga;
+	struct rga2_req req;
+	struct rga_req req_rga;
 	int ret = 0;
-    rga2_session *session;
+	rga2_session *session;
 
-    memset(&req, 0x0, sizeof(req));
+	memset(&req, 0x0, sizeof(req));
 
-    mutex_lock(&rga2_service.mutex);
+	mutex_lock(&rga2_service.mutex);
 
-    session = (rga2_session *)file->private_data;
+	session = (rga2_session *)file->private_data;
 
-	if (NULL == session)
-    {
-        printk("%s [%d] rga thread session is null\n",__FUNCTION__,__LINE__);
-        mutex_unlock(&rga2_service.mutex);
+	if (NULL == session) {
+		printk("%s [%d] rga thread session is null\n",
+		       __FUNCTION__, __LINE__);
+		mutex_unlock(&rga2_service.mutex);
 		return -EINVAL;
 	}
 
-    memset(&req, 0x0, sizeof(req));
+	memset(&req, 0x0, sizeof(req));
 
-	switch (cmd)
-	{
-        case RGA_BLIT_SYNC:
-    		if (unlikely(copy_from_user(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
-            RGA_MSG_2_RGA2_MSG(&req_rga, &req);
-
-            if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode && rga2_service.dev_mode == 1) {
-                memcpy(&req_first, &req, sizeof(struct rga2_req));
-                if ((req_first.src.act_w != req_first.dst.act_w)
-                    || (req_first.src.act_h != req_first.dst.act_h)) {
-                    req_first.src.act_w = MIN(320, MIN(req_first.src.act_w, req_first.dst.act_w));
-                    req_first.src.act_h = MIN(240, MIN(req_first.src.act_h, req_first.dst.act_h));
-                    req_first.dst.act_w = req_first.src.act_w;
-                    req_first.dst.act_h = req_first.src.act_h;
-                    ret = rga2_blit_async(session, &req_first);
-                }
-                ret = rga2_blit_sync(session, &req);
-                first_RGA2_proc = 1;
-            }
-            else {
-                ret = rga2_blit_sync(session, &req);
-            }
-            break;
-		case RGA_BLIT_ASYNC:
-    		if (unlikely(copy_from_user(&req_rga, (struct rga_req*)arg, sizeof(struct rga_req))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
-
-            RGA_MSG_2_RGA2_MSG(&req_rga, &req);
-
-            if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode && rga2_service.dev_mode == 1) {
-                memcpy(&req_first, &req, sizeof(struct rga2_req));
-                if ((req_first.src.act_w != req_first.dst.act_w)
-                    || (req_first.src.act_h != req_first.dst.act_h)) {
-                    req_first.src.act_w = MIN(320, MIN(req_first.src.act_w, req_first.dst.act_w));
-                    req_first.src.act_h = MIN(240, MIN(req_first.src.act_h, req_first.dst.act_h));
-                    req_first.dst.act_w = req_first.src.act_w;
-                    req_first.dst.act_h = req_first.src.act_h;
-                    ret = rga2_blit_async(session, &req_first);
-                }
-                ret = rga2_blit_async(session, &req);
-                first_RGA2_proc = 1;
-            }
-            else {
-                ret = rga2_blit_async(session, &req);
-            }
+	switch (cmd) {
+	case RGA_BLIT_SYNC:
+		if (unlikely(copy_from_user(&req_rga,
+		    (struct rga_req*)arg, sizeof(struct rga_req)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
+			break;
+		}
+		RGA_MSG_2_RGA2_MSG(&req_rga, &req);
+		if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode &&
+		    rga2_service.dev_mode == 1) {
+			ret = rga2_prepare(session);
+			ret = rga2_blit_sync(session, &req);
+			first_RGA2_proc = 1;
+		} else {
+			ret = rga2_blit_sync(session, &req);
+		}
 		break;
-		case RGA2_BLIT_SYNC:
-    		if (unlikely(copy_from_user(&req, (struct rga2_req*)arg, sizeof(struct rga2_req))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
-            ret = rga2_blit_sync(session, &req);
-            break;
-		case RGA2_BLIT_ASYNC:
-    		if (unlikely(copy_from_user(&req, (struct rga2_req*)arg, sizeof(struct rga2_req))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
+	case RGA_BLIT_ASYNC:
+		if (unlikely(copy_from_user(&req_rga, (struct rga_req*)arg,
+		    sizeof(struct rga_req)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
+			break;
+		}
 
-            if((atomic_read(&rga2_service.total_running) > 16))
-            {
-			    ret = rga2_blit_sync(session, &req);
-            }
-            else
-            {
-                ret = rga2_blit_async(session, &req);
-            }
+		RGA_MSG_2_RGA2_MSG(&req_rga, &req);
+
+		if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode &&
+		    rga2_service.dev_mode == 1) {
+			ret = rga2_prepare(session);
+			ret = rga2_blit_async(session, &req);
+			first_RGA2_proc = 1;
+		} else {
+			ret = rga2_blit_async(session, &req);
+		}
+		break;
+	case RGA2_BLIT_SYNC:
+		if (unlikely(copy_from_user(&req, (struct rga2_req*)arg,
+		    sizeof(struct rga2_req)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
 			break;
-        case RGA_FLUSH:
-		case RGA2_FLUSH:
-			ret = rga2_flush(session, arg);
+		}
+		ret = rga2_blit_sync(session, &req);
+		break;
+	case RGA2_BLIT_ASYNC:
+		if (unlikely(copy_from_user(&req, (struct rga2_req*)arg,
+		    sizeof(struct rga2_req)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
 			break;
-        case RGA_GET_RESULT:
-        case RGA2_GET_RESULT:
-            ret = rga2_get_result(session, arg);
-            break;
-        case RGA_GET_VERSION:
-        case RGA2_GET_VERSION:
-            ret = copy_to_user((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
-            //ret = 0;
-            break;
-		default:
-			ERR("unknown ioctl cmd!\n");
-			ret = -EINVAL;
-			break;
+		}
+
+		if((atomic_read(&rga2_service.total_running) > 16)) {
+			ret = rga2_blit_sync(session, &req);
+		} else {
+			ret = rga2_blit_async(session, &req);
+		}
+		break;
+	case RGA_FLUSH:
+	case RGA2_FLUSH:
+		ret = rga2_flush(session, arg);
+		break;
+	case RGA_GET_RESULT:
+	case RGA2_GET_RESULT:
+		ret = rga2_get_result(session, arg);
+		break;
+	case RGA_GET_VERSION:
+	case RGA2_GET_VERSION:
+		ret = copy_to_user((void *)arg,
+				   RGA2_VERSION, sizeof(RGA2_VERSION));
+		break;
+	default:
+		ERR("unknown ioctl cmd!\n");
+		ret = -EINVAL;
+		break;
 	}
 
 	mutex_unlock(&rga2_service.mutex);
@@ -964,129 +948,109 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 #ifdef CONFIG_COMPAT
 static long compat_rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
 {
-    struct rga2_req req, req_first;
-    struct rga_req_32 req_rga;
+	struct rga2_req req;
+	struct rga_req_32 req_rga;
 	int ret = 0;
-    rga2_session *session;
+	rga2_session *session;
 
-    memset(&req, 0x0, sizeof(req));
+	memset(&req, 0x0, sizeof(req));
 
-    mutex_lock(&rga2_service.mutex);
+	mutex_lock(&rga2_service.mutex);
 
-    session = (rga2_session *)file->private_data;
+	session = (rga2_session *)file->private_data;
 
-    #if RGA2_TEST_MSG
-    printk("use compat_rga_ioctl\n");
-    #endif
+#if RGA2_TEST_MSG
+	printk("use compat_rga_ioctl\n");
+#endif
 
 	if (NULL == session) {
-        printk("%s [%d] rga thread session is null\n",__FUNCTION__,__LINE__);
-        mutex_unlock(&rga2_service.mutex);
+		printk("%s [%d] rga thread session is null\n",
+		       __FUNCTION__,__LINE__);
+		mutex_unlock(&rga2_service.mutex);
 		return -EINVAL;
 	}
 
-    memset(&req, 0x0, sizeof(req));
+	memset(&req, 0x0, sizeof(req));
 
 	switch (cmd) {
         case RGA_BLIT_SYNC:
-    		if (unlikely(copy_from_user(&req_rga, compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
-
-            RGA_MSG_2_RGA2_MSG_32(&req_rga, &req);
-
-            if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode && rga2_service.dev_mode == 1) {
-                memcpy(&req_first, &req, sizeof(struct rga2_req));
-                if ((req_first.src.act_w != req_first.dst.act_w)
-                    || (req_first.src.act_h != req_first.dst.act_h)) {
-                    req_first.src.act_w = MIN(320, MIN(req_first.src.act_w, req_first.dst.act_w));
-                    req_first.src.act_h = MIN(240, MIN(req_first.src.act_h, req_first.dst.act_h));
-                    req_first.dst.act_w = req_first.src.act_w;
-                    req_first.dst.act_h = req_first.src.act_h;
-                    ret = rga2_blit_async(session, &req_first);
-                }
-                ret = rga2_blit_sync(session, &req);
-                first_RGA2_proc = 1;
-            }
-            else {
-                ret = rga2_blit_sync(session, &req);
-            }
-            break;
-		case RGA_BLIT_ASYNC:
-    		if (unlikely(copy_from_user(&req_rga, compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
-            RGA_MSG_2_RGA2_MSG_32(&req_rga, &req);
-
-            if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode && rga2_service.dev_mode == 1) {
-                memcpy(&req_first, &req, sizeof(struct rga2_req));
-                if ((req_first.src.act_w != req_first.dst.act_w)
-                    || (req_first.src.act_h != req_first.dst.act_h)) {
-                    req_first.src.act_w = MIN(320, MIN(req_first.src.act_w, req_first.dst.act_w));
-                    req_first.src.act_h = MIN(240, MIN(req_first.src.act_h, req_first.dst.act_h));
-                    req_first.dst.act_w = req_first.src.act_w;
-                    req_first.dst.act_h = req_first.src.act_h;
-                    ret = rga2_blit_async(session, &req_first);
-                }
-                ret = rga2_blit_sync(session, &req);
-                first_RGA2_proc = 1;
-            }
-            else {
-                ret = rga2_blit_sync(session, &req);
-            }
-
-            //if((atomic_read(&rga2_service.total_running) > 8))
-			//    ret = rga2_blit_sync(session, &req);
-            //else
-            //    ret = rga2_blit_async(session, &req);
-
+		if (unlikely(copy_from_user(&req_rga,
+		    compat_ptr((compat_uptr_t)arg), sizeof(struct rga_req_32))))
+		{
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
 			break;
-		case RGA2_BLIT_SYNC:
-    		if (unlikely(copy_from_user(&req, compat_ptr((compat_uptr_t)arg), sizeof(struct rga2_req))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
-            ret = rga2_blit_sync(session, &req);
-            break;
-		case RGA2_BLIT_ASYNC:
-    		if (unlikely(copy_from_user(&req, compat_ptr((compat_uptr_t)arg), sizeof(struct rga2_req))))
-            {
-        		ERR("copy_from_user failed\n");
-        		ret = -EFAULT;
-                break;
-        	}
+		}
 
-            if((atomic_read(&rga2_service.total_running) > 16))
-			    ret = rga2_blit_sync(session, &req);
-            else
-                ret = rga2_blit_async(session, &req);
+		RGA_MSG_2_RGA2_MSG_32(&req_rga, &req);
 
+		if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode &&
+		    rga2_service.dev_mode == 1) {
+			ret = rga2_prepare(session);
+			ret = rga2_blit_sync(session, &req);
+			first_RGA2_proc = 1;
+		} else {
+			ret = rga2_blit_sync(session, &req);
+		}
+		break;
+	case RGA_BLIT_ASYNC:
+		if (unlikely(copy_from_user(&req_rga, compat_ptr((compat_uptr_t)arg),
+		    sizeof(struct rga_req_32)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
 			break;
-        case RGA_FLUSH:
-		case RGA2_FLUSH:
-			ret = rga2_flush(session, arg);
+		}
+		RGA_MSG_2_RGA2_MSG_32(&req_rga, &req);
+
+		if (first_RGA2_proc == 0 && req.bitblt_mode == bitblt_mode &&
+		    rga2_service.dev_mode == 1) {
+			ret = rga2_prepare(session);
+			ret = rga2_blit_sync(session, &req);
+			first_RGA2_proc = 1;
+		} else {
+			ret = rga2_blit_sync(session, &req);
+		}
+
+		break;
+	case RGA2_BLIT_SYNC:
+		if (unlikely(copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
+		    sizeof(struct rga2_req)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
 			break;
-        case RGA_GET_RESULT:
-        case RGA2_GET_RESULT:
-            ret = rga2_get_result(session, arg);
-            break;
-        case RGA_GET_VERSION:
-        case RGA2_GET_VERSION:
-            ret = copy_to_user((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
-            //ret = 0;
-            break;
-		default:
-			ERR("unknown ioctl cmd!\n");
-			ret = -EINVAL;
+		}
+		ret = rga2_blit_sync(session, &req);
+		break;
+	case RGA2_BLIT_ASYNC:
+		if (unlikely(copy_from_user(&req, compat_ptr((compat_uptr_t)arg),
+		    sizeof(struct rga2_req)))) {
+			ERR("copy_from_user failed\n");
+			ret = -EFAULT;
 			break;
+		}
+
+		if((atomic_read(&rga2_service.total_running) > 16))
+			ret = rga2_blit_sync(session, &req);
+		else
+			ret = rga2_blit_async(session, &req);
+
+		break;
+	case RGA_FLUSH:
+	case RGA2_FLUSH:
+		ret = rga2_flush(session, arg);
+		break;
+	case RGA_GET_RESULT:
+	case RGA2_GET_RESULT:
+		ret = rga2_get_result(session, arg);
+		break;
+	case RGA_GET_VERSION:
+	case RGA2_GET_VERSION:
+		ret = copy_to_user((void *)arg, RGA2_VERSION, sizeof(RGA2_VERSION));
+		break;
+	default:
+		ERR("unknown ioctl cmd!\n");
+		ret = -EINVAL;
+		break;
 	}
 
 	mutex_unlock(&rga2_service.mutex);
@@ -1196,7 +1160,6 @@ static irqreturn_t rga2_irq(int irq,  void *dev_id)
 {
 	/*clear INT */
 	rga2_write(rga2_read(RGA2_INT) | (0x1<<4) | (0x1<<5) | (0x1<<6) | (0x1<<7), RGA2_INT);
-
 	return IRQ_WAKE_THREAD;
 }
 
@@ -1393,7 +1356,6 @@ static void __exit rga2_exit(void)
 	platform_driver_unregister(&rga2_driver);
 }
 
-
 #if RGA2_TEST_CASE
 
 void rga2_test_0(void)
@@ -1547,8 +1509,84 @@ void rga2_test_0(void)
     if(dst)
         kfree(dst);
 }
-
 #endif
+
+static int rga2_prepare(rga2_session *session)
+{
+	struct rga2_req req;
+	unsigned int *src, *dst;
+	int ret = 0;
+	int t = 500;
+
+	memset(&req, 0, sizeof(struct rga2_req));
+	src = kmalloc(480*320*4, GFP_KERNEL);
+	if (src == NULL)
+		goto out;
+
+	dst = kmalloc(480*320*4, GFP_KERNEL);
+	if (dst == NULL)
+		goto free_src;
+
+	req.src.act_w = 320;
+	req.src.act_h = 240;
+
+	req.src.vir_w = 320;
+	req.src.vir_h = 240;
+	req.src.yrgb_addr = 0;
+	req.src.uv_addr = (unsigned long)virt_to_phys(src);
+	req.src.v_addr = 0;
+	req.src.format = RGA2_FORMAT_YCbCr_420_SP;
+
+	req.dst.act_w  = 320;
+	req.dst.act_h = 240;
+	req.dst.x_offset = 0;
+	req.dst.y_offset = 0;
+
+	req.dst.vir_w = 320;
+	req.dst.vir_h = 240;
+
+	req.dst.yrgb_addr = 0;
+	req.dst.uv_addr = (unsigned long)virt_to_phys(dst);
+	req.dst.format = RGA2_FORMAT_YCbCr_420_SP;
+
+	req.rotate_mode = 0;
+	req.scale_bicu_mode = 2;
+
+	ret = rga2_blit_async(session, &req);
+
+	if (ret < 0)
+		goto free_dst;
+
+	ret = wait_event_timeout(session->wait, atomic_read(&session->done), t);
+
+	if (unlikely(ret < 0)) {
+		pr_err("sync pid %d wait task ret %dint[0x%x]status[0x%x]\n",
+		       session->pid, ret,
+		       rga2_read(RGA2_INT), rga2_read(RGA2_STATUS));
+		mutex_lock(&rga2_service.lock);
+		rga2_del_running_list();
+		mutex_unlock(&rga2_service.lock);
+	} else if (0 == ret) {
+		pr_err("sync pid %d wait %d task timeout:int[%x]status[%x]\n",
+		       session->pid, atomic_read(&session->task_running),
+		       rga2_read(RGA2_INT), rga2_read(RGA2_STATUS));
+		mutex_lock(&rga2_service.lock);
+		rga2_del_running_list_timeout();
+		rga2_try_set_reg();
+		mutex_unlock(&rga2_service.lock);
+		ret = -ETIMEDOUT;
+	}
+
+free_dst:
+	if(dst)
+		kfree(dst);
+free_src:
+	if(src)
+		kfree(src);
+out:
+	return ret;
+}
+
 fs_initcall(rga2_init);
 module_exit(rga2_exit);
 
