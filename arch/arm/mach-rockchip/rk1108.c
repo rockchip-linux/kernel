@@ -64,6 +64,7 @@ static struct map_desc rk1108_io_desc[] __initdata = {
 	RK_DEVICE(RK_GIC_VIRT + RK1108_GIC_DIST_SIZE, RK1108_GIC_CPU_PHYS,
 		  RK1108_GIC_CPU_SIZE),
 	RK_DEVICE(RK_PWM_VIRT, RK1108_PWM_PHYS, RK1108_PWM_SIZE),
+	RK_DEVICE(RK_PMU_VIRT, RK1108_PMU_PHYS, RK1108_PMU_SIZE),
 };
 
 static void __init rk1108_boot_mode_init(void)
@@ -91,8 +92,55 @@ static void __init rk1108_dt_map_io(void)
 	rockchip_efuse_init();
 }
 
+static DEFINE_SPINLOCK(pmu_idle_lock);
+
+static const u8 rk1108_pmu_idle_map[] = {
+	[IDLE_REQ_DSP] = 2,
+	[IDLE_REQ_CORE] = 3,
+	[IDLE_REQ_BUS] = 4,
+	[IDLE_REQ_PERI] = 6,
+	[IDLE_REQ_VIDEO] = 7,
+	[IDLE_REQ_VIO] = 8,
+	[IDLE_REQ_MSCH] = 11,
+	[IDLE_REQ_HEVC] = 12,
+	[IDLE_REQ_PMU] = 13,
+};
+
+static int rk1108_set_idle_request(enum pmu_idle_req req, bool idle)
+{
+	u32 bit = rk1108_pmu_idle_map[req];
+	u32 idle_mask, idle_target;
+	u32 mask = BIT(bit);
+	u32 val;
+	unsigned long flags;
+
+	if (req == IDLE_REQ_DSP)
+		bit = bit + 3;
+
+	idle_mask = BIT(bit) | BIT(bit + 16);
+	idle_target = (idle << bit) | (idle << (bit + 16));
+
+	spin_lock_irqsave(&pmu_idle_lock, flags);
+	val = readl_relaxed(RK_PMU_VIRT + RK1108_PMU_IDLE_REQ);
+	if (idle)
+		val |=  mask;
+	else
+		val &= ~mask;
+	writel_relaxed(val, RK_PMU_VIRT + RK1108_PMU_IDLE_REQ);
+
+	dsb();
+
+	while ((readl_relaxed(RK_PMU_VIRT + RK1108_PMU_IDLE_ST) & idle_mask) != idle_target)
+		;
+
+	spin_unlock_irqrestore(&pmu_idle_lock, flags);
+
+	return 0;
+}
+
 static void __init rk1108_dt_init_timer(void)
 {
+	rockchip_pmu_ops.set_idle_request = rk1108_set_idle_request;
 	of_clk_init(NULL);
 	clocksource_of_init();
 	of_dvfs_init();
