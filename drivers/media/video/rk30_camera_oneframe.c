@@ -518,7 +518,8 @@ static inline void rk_cru_set_soft_reset(u32 idx, bool on , u32 RK_CRU_SOFTRST_C
 
 static void rk_camera_cif_reset(struct rk_camera_dev *pcdev, int only_rst)
 {
-    int ctrl_reg,inten_reg,crop_reg,set_size_reg,for_reg,vir_line_width_reg,scl_reg,y_reg,uv_reg;
+	int ctrl_reg, inten_reg, crop_reg, set_size_reg, for_reg;
+	int vir_line_width_reg, scl_reg, y_reg, uv_reg;
 	u32 RK_CRU_SOFTRST_CON = 0;
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()\n", __FILE__, __LINE__,__FUNCTION__);
 	if(CHIP_NAME == 3126){
@@ -527,41 +528,42 @@ static void rk_camera_cif_reset(struct rk_camera_dev *pcdev, int only_rst)
 		RK_CRU_SOFTRST_CON = RK3288_CRU_SOFTRSTS_CON(6);
 	}else if(CHIP_NAME == 3368){
 		RK_CRU_SOFTRST_CON = RK3368_CRU_SOFTRSTS_CON(6);
+		return;
 	}
-	
-	if (only_rst == true) {
-        rk_cru_set_soft_reset(0, true ,RK_CRU_SOFTRST_CON);
-        udelay(5);
-        rk_cru_set_soft_reset(0, false ,RK_CRU_SOFTRST_CON);
-    } else {
-        ctrl_reg = read_cif_reg(pcdev->base,CIF_CIF_CTRL);
-        if (ctrl_reg & ENABLE_CAPTURE) {
-            write_cif_reg(pcdev->base,CIF_CIF_CTRL, ctrl_reg&~ENABLE_CAPTURE);
-        }
-    	crop_reg = read_cif_reg(pcdev->base,CIF_CIF_CROP);
-    	set_size_reg = read_cif_reg(pcdev->base,CIF_CIF_SET_SIZE);
-    	inten_reg = read_cif_reg(pcdev->base,CIF_CIF_INTEN);
-    	for_reg = read_cif_reg(pcdev->base,CIF_CIF_FOR);
-    	vir_line_width_reg = read_cif_reg(pcdev->base,CIF_CIF_VIR_LINE_WIDTH);
-    	scl_reg = read_cif_reg(pcdev->base,CIF_CIF_SCL_CTRL);
-    	y_reg = read_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_Y);
-    	uv_reg = read_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_UV);
-    	
-    	rk_cru_set_soft_reset(0, true ,RK_CRU_SOFTRST_CON);
-    	udelay(5);
-    	rk_cru_set_soft_reset(0, false ,RK_CRU_SOFTRST_CON); 
 
-        write_cif_reg(pcdev->base,CIF_CIF_CTRL, ctrl_reg&~ENABLE_CAPTURE);
-	    write_cif_reg(pcdev->base,CIF_CIF_INTEN, inten_reg);
-	    write_cif_reg(pcdev->base,CIF_CIF_CROP, crop_reg);
-	    write_cif_reg(pcdev->base,CIF_CIF_SET_SIZE, set_size_reg);
-	    write_cif_reg(pcdev->base,CIF_CIF_FOR, for_reg);
-	    write_cif_reg(pcdev->base,CIF_CIF_VIR_LINE_WIDTH,vir_line_width_reg);
-	    write_cif_reg(pcdev->base,CIF_CIF_SCL_CTRL,scl_reg);
-	    write_cif_reg(pcdev->base,CIF_CIF_FRM0_ADDR_Y,y_reg);      /*ddl@rock-chips.com v0.3.0x13 */
-	    write_cif_reg(pcdev->base,CIF_CIF_FRM0_ADDR_UV,uv_reg);
-    }
-    return;
+	if (only_rst == true) {
+		rk_cru_set_soft_reset(0, true, RK_CRU_SOFTRST_CON);
+		udelay(5);
+		rk_cru_set_soft_reset(0, false, RK_CRU_SOFTRST_CON);
+	} else {
+		ctrl_reg = read_cif_reg(pcdev->base, CIF_CIF_CTRL);
+		if (ctrl_reg & ENABLE_CAPTURE)
+			write_cif_reg(pcdev->base, CIF_CIF_CTRL, ctrl_reg & ~ENABLE_CAPTURE);
+
+		crop_reg = read_cif_reg(pcdev->base, CIF_CIF_CROP);
+		set_size_reg = read_cif_reg(pcdev->base, CIF_CIF_SET_SIZE);
+		inten_reg = read_cif_reg(pcdev->base, CIF_CIF_INTEN);
+		for_reg = read_cif_reg(pcdev->base, CIF_CIF_FOR);
+		vir_line_width_reg = read_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH);
+		scl_reg = read_cif_reg(pcdev->base, CIF_CIF_SCL_CTRL);
+		y_reg = read_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_Y);
+		uv_reg = read_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_UV);
+
+		rk_cru_set_soft_reset(0, true, RK_CRU_SOFTRST_CON);
+		udelay(5);
+		rk_cru_set_soft_reset(0, false, RK_CRU_SOFTRST_CON);
+
+		write_cif_reg(pcdev->base, CIF_CIF_CTRL, ctrl_reg & ~ENABLE_CAPTURE);
+		write_cif_reg(pcdev->base, CIF_CIF_INTEN, inten_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_CROP, crop_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_SET_SIZE, set_size_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_FOR, for_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH, vir_line_width_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_SCL_CTRL, scl_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_Y, y_reg);      /*ddl@rock-chips.com v0.3.0x13 */
+		write_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_UV, uv_reg);
+	}
+	return;
 }
 
 
@@ -1671,9 +1673,9 @@ static void rk_camera_setup_format(struct soc_camera_device *icd, __u32 host_pix
 
 	v4l2_subdev_call(sd, core, ioctl, RK29_CAM_SUBDEV_GET_INTERFACE, &dev_sig_cnf);
 	if (dev_sig_cnf.type == RK_CAMERA_DEVICE_CVBS_NTSC)
-		cif_fmt_val = read_cif_reg(pcdev->base, CIF_CIF_FOR) | INPUT_MODE_NTSC | YUV_OUTPUT_420;
+		cif_fmt_val = INPUT_MODE_NTSC | YUV_OUTPUT_420;
 	else
-		cif_fmt_val = read_cif_reg(pcdev->base, CIF_CIF_FOR) | INPUT_MODE_YUV | YUV_INPUT_422 | INPUT_420_ORDER_EVEN | OUTPUT_420_ORDER_EVEN;
+		cif_fmt_val = INPUT_MODE_YUV | YUV_INPUT_422 | INPUT_420_ORDER_EVEN | OUTPUT_420_ORDER_EVEN;
 
 	if (dev_sig_cnf.type == RK_CAMERA_DEVICE_BT601_8) {
 		if (dev_sig_cnf.dvp.vsync == RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL)
