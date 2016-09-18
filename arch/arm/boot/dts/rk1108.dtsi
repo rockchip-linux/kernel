@@ -674,8 +674,12 @@
 		compatible = "rockchip,rk1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x30060000 0x10000>;
-		clocks = <&clk_gates18 6>, <&clk_gates18 7>, <&clk_gates7 9>;
-		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif";
+		clocks = <&clk_gates18 6>, <&clk_gates18 7>, <&clk_gates7 9>,
+			 <&vip0_clk>, <&pclkin_cvbs2cif>, <&pclkin_vip>,
+			 <&pclk_cif0_out>;
+		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
+			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
+			      "pclk_cif1t4_out";
 		resets = <&reset RK1108_RST_VIP0_A>, <&reset RK1108_RST_VIP0_H>, <&reset RK1108_RST_VIP0_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
@@ -687,8 +691,8 @@
 		rockchip,grf = <&grf>;
 		reg = <0x30070000 0x10000>;
 		device_type = "v4l2-pltfrm-subdev";
-		clocks = <&vip0_clk>, <&pclkin_cvbs2cif>, <&clk_cvbs_host>, <&clk_gpll>, <&clk_gates6 7>;
-		clock-names = "cif_clk", "cif_clk_parent", "clk_cvbs", "clk_cvbs_parent", "clk_cvbs_host";
+		clocks = <&clk_cvbs_host>, <&clk_gpll>, <&clk_gates6 7>, <&clk_gates17 12>;
+		clock-names = "clk_cvbs", "clk_cvbs_parent", "pclk_cvbs", "hclk_cvbs";
 		resets = <&reset RK1108_RST_CVBS_P>, <&reset RK1108_RST_CVBS_CLK>, <&reset RK1108_RST_CVBS_H>;
 		reset-names = "cvbs_prst", "cvbs_clk_rst", "cvbs_hrst";
 		status = "disabled";
@@ -698,8 +702,12 @@
 		compatible = "rockchip,rk1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x30080000 0x10000>;
-		clocks = <&clk_gates17 6>, <&clk_gates17 7>, <&clk_gates7 10>;
-		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif";
+		clocks = <&clk_gates17 6>, <&clk_gates17 7>, <&clk_gates7 10>,
+			 <&vip1_clk>, <&pclkin_cvbs2cif>, <&pclkin_vip>,
+			 <&pclk_cif1_out>;
+		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
+			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
+			      "pclk_cif1t4_out";
 		resets = <&reset RK1108_RST_VIP1_A>, <&reset RK1108_RST_VIP1_H>, <&reset RK1108_RST_VIP1_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
@@ -710,8 +718,12 @@
 		compatible = "rockchip,rk1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x30090000 0x10000>;
-		clocks = <&clk_gates17 8>, <&clk_gates17 9>, <&clk_gates7 11>;
-		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif";
+		clocks = <&clk_gates17 8>, <&clk_gates17 9>, <&clk_gates7 11>,
+			 <&vip2_clk>, <&pclkin_cvbs2cif>, <&pclkin_vip>,
+			 <&pclk_cif2_out>;
+		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
+			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
+			      "pclk_cif1t4_out";
 		resets = <&reset RK1108_RST_VIP2_A>, <&reset RK1108_RST_VIP2_H>, <&reset RK1108_RST_VIP2_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
@@ -722,8 +734,12 @@
 		compatible = "rockchip,rk1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x300a0000 0x10000>;
-		clocks = <&clk_gates17 10>, <&clk_gates17 11>, <&clk_gates7 12>;
-		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif";
+		clocks = <&clk_gates17 10>, <&clk_gates17 11>, <&clk_gates7 12>,
+			 <&vip3_clk>, <&pclkin_cvbs2cif>, <&pclkin_vip>,
+			 <&pclk_cif3_out>;
+		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
+			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
+			      "pclk_cif1t4_out";
 		resets = <&reset RK1108_RST_VIP3_A>, <&reset RK1108_RST_VIP3_H>, <&reset RK1108_RST_VIP3_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>;
