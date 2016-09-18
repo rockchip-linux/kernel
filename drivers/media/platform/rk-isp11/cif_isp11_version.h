@@ -51,8 +51,12 @@
 *v0.1.5:
 *Exposure list must be queue operation, not stack. list_add switch to
 *list_add_tail in cif_isp11_s_exp;
+*
+*v0.1.6:
+*Add isp output size in struct isp_supplemental_sensor_mode_data.
+*
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 5)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 6)
 
 #endif

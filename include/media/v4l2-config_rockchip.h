@@ -37,8 +37,10 @@ struct isp_supplemental_sensor_mode_data {
 	unsigned int sensor_output_height;
 	unsigned int isp_input_horizontal_start;
 	unsigned int isp_input_vertical_start;
-	unsigned int isp_input_width;
+	unsigned int isp_input_width;		/* cif isp input */
 	unsigned int isp_input_height;
+	unsigned int isp_output_width;	/* cif isp output */
+	unsigned int isp_output_height;
 	unsigned char binning_factor_x; /* horizontal binning factor used */
 	unsigned char binning_factor_y; /* vertical binning factor used */
 	unsigned char exposure_valid_frame;

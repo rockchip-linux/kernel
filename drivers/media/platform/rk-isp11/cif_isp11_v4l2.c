@@ -1254,6 +1254,11 @@ static long v4l2_default_ioctl(struct file *file, void *fh,
 		p_mode_data->isp_input_vertical_start =
 			dev->config.isp_config.input->defrect.top;
 
+		p_mode_data->isp_output_width =
+			dev->config.isp_config.output.width;
+		p_mode_data->isp_output_height =
+			dev->config.isp_config.output.height;
+
 		if (ret < 0) {
 			cif_isp11_pltfrm_pr_err(dev->dev,
 				"failed to get isp input info\n");
