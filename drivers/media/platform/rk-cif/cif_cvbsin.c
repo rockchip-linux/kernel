@@ -28,6 +28,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include "cif_cvbsin.h"
 
 #define CVBSIN_CTRL2    (0x01 * 4)
 #define CVBSIN_CTRL3    (0x02 * 4)
@@ -48,14 +49,10 @@
 #define RST_DISABLE     (0x0)
 #define RST_ENABLE      (0x1)
 
-#define RK1108_GRF_SOC_CON4  (0x0410)
-#define RK1108_GRF_SOC_CON10 (0x0428)
-#define RK1108_GRF_SOC_CON11 (0x042c)
-#define VADC_PD_CLMP         (0x1 << 5)
-#define VADC_LPF_BW_BYPASS   (0x3 << 12)
-#define VADC_ICLMP_CTL_400MA (0x8 << 8)
-#define VADC_GAIN            (0xa << 4)
-#define CIF_DATA_FROM_CVBSIN (0x0 << 16 | 0x3)
+#define OF_CAMERA_MODULE_DEFRECT0 "rockchip,camera-module-defrect0"
+#define OF_CAMERA_MODULE_DEFRECT1 "rockchip,camera-module-defrect1"
+#define OF_CAMERA_MODULE_DEFRECT2 "rockchip,camera-module-defrect2"
+#define OF_CAMERA_MODULE_DEFRECT3 "rockchip,camera-module-defrect3"
 
 struct cvbsin_module_config {
 	const char *name;
@@ -72,17 +69,9 @@ struct cif_cvbsin_module {
 	struct v4l2_mbus_framefmt frm_fmt;
 	struct v4l2_subdev_frame_interval frm_intrvl;
 
-	struct pltfrm_soc_cfg *soc_cfg;
-	struct regmap *regmap_grf;
-	struct clk *cvbs_clk_in;
-	struct clk *cvbs_clk;
-	struct clk *cvbs_clk_parent;
-	struct clk *cif_clk;
-	struct clk *cif_clk_parent;
+	struct pltfrm_cvbsin_cfg *soc_cfg;
 
-	struct reset_control *cvbs_prst;
-	struct reset_control *cvbs_hrst;
-	struct reset_control *cvbs_clk_rst;
+	struct pltfrm_cam_defrect defrects[4];
 };
 static struct cif_cvbsin_module *cvbsin;
 
@@ -90,11 +79,6 @@ static struct cif_cvbsin_module *cvbsin;
 	__raw_writel(val, addr + cvbsin->base_addr)
 #define read_cvbsin_reg(addr)			\
 	__raw_readl(addr + cvbsin->base_addr)
-
-#define write_grf_reg(addr, val)	\
-	regmap_write(cvbsin->regmap_grf, addr, val)
-#define read_grf_reg(addr)	        \
-	regmap_read(cvbsin->regmap_grf, addr)
 
 static struct cvbsin_module_config cvbsin_configs[] = {
 	{
@@ -150,11 +134,21 @@ static  int cvbsin_module_s_ext_ctrls(
 
 static int cvbsin_module_s_power(struct v4l2_subdev *sd, int on)
 {
+	struct pltfrm_cvbsin_cfg_para cfg_para;
 	if (on) {
-		clk_set_parent(cvbsin->cif_clk,
-			       cvbsin->cif_clk_parent);
-		write_grf_reg(RK1108_GRF_SOC_CON4,
-			      CIF_DATA_FROM_CVBSIN);
+		cfg_para.cmd = PLTFRM_CVBSIN_POWERON;
+		(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
+
+		write_cvbsin_reg(CVBSIN_OUTCTRL, RST_ENABLE);
+		mdelay(5);
+		write_cvbsin_reg(CVBSIN_OUTCTRL, RST_DISABLE);
+		mdelay(5);
+		write_cvbsin_reg(CVBSIN_CTRL4, CTRL4_VAL);
+		write_cvbsin_reg(CVBSIN_CTRL3, CTRL3_VAL);
+		write_cvbsin_reg(CVBSIN_CTRL2, CTRL2_VAL);
+	} else {
+		cfg_para.cmd = PLTFRM_CVBSIN_POWEROFF;
+		(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
 	}
 
 	return 0;
@@ -165,11 +159,11 @@ static long cvbsin_module_ioctl(
 	unsigned int cmd,
 	void *arg)
 {
-	int index = 0, ret = 0;
+	int ret = 0;
 	struct pltfrm_cam_itf *itf_cfg = NULL;
-	struct pltfrm_cam_defrect *defrect = NULL;
+	struct pltfrm_cvbsin_cfg_para cfg_para;
 
-	if (!cvbsin)
+	if (!cvbsin || !cvbsin->soc_cfg)
 		return -1;
 
 	if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
@@ -177,29 +171,22 @@ static long cvbsin_module_ioctl(
 		itf_cfg->type = PLTFRM_CAM_ITF_BT601_8_FIELD;
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_ATTACH) {
-		cvbsin->soc_cfg = (struct pltfrm_soc_cfg *)arg;
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_G_DEFRECT) {
-		index = read_cvbsin_reg(CVBSIN_STATUS) & 0x1;
-		defrect = (struct pltfrm_cam_defrect *)arg;
-		defrect->defrect.top = 0;
-		defrect->defrect.left = 0;
-		defrect->defrect.width =
-			cvbsin_configs[index].frm_fmt.width;
-		defrect->defrect.height =
-			cvbsin_configs[index].frm_fmt.height;
-		return ret;
+		struct pltfrm_cam_defrect *defrect =
+			(struct pltfrm_cam_defrect *)arg;
+		unsigned int i;
+
+		for (i = 0; i < 4; i++) {
+			if ((cvbsin->defrects[i].width == defrect->width) &&
+			    (cvbsin->defrects[i].height == defrect->height))
+				defrect->defrect = cvbsin->defrects[i].defrect;
+		}
+		return 0;
 	} else if (cmd == PLTFRM_CIFCAM_RESET) {
 		dev_info(cvbsin->dev, "cvbsin softreset\n");
-		/* rst */
-		reset_control_assert(cvbsin->cvbs_prst);
-		reset_control_assert(cvbsin->cvbs_hrst);
-		reset_control_assert(cvbsin->cvbs_clk_rst);
-		udelay(5);
-		reset_control_deassert(cvbsin->cvbs_prst);
-		reset_control_deassert(cvbsin->cvbs_hrst);
-		reset_control_deassert(cvbsin->cvbs_clk_rst);
-		udelay(5);
+		cfg_para.cmd = PLTFRM_CVBSIN_RST;
+		(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
 
 		write_cvbsin_reg(CVBSIN_OUTCTRL, RST_ENABLE);
 		mdelay(5);
@@ -254,12 +241,16 @@ static int cvbsin_module_enum_frameintervals(
 	struct v4l2_subdev_frame_interval_enum *fie)
 {
 	int index = 0;
-
+	struct pltfrm_cvbsin_cfg_para cfg_para;
 	if (fie->index >= 1)
 		return -EINVAL;
 
-	if (cvbsin == NULL)
+	if (!cvbsin || !cvbsin->soc_cfg)
 		return -1;
+
+	cfg_para.cmd = PLTFRM_CVBSIN_POWERON;
+	(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
+	msleep(1000);
 
 	index = read_cvbsin_reg(CVBSIN_STATUS) & 0x1;
 
@@ -314,26 +305,46 @@ static struct v4l2_subdev_ops cvbsin_module_ops = {
 	.pad = &cvbsin_module_pad_ops
 };
 
+static struct pltfrm_cvbsin_cfg rk1108_cvbsin_cfg = {
+	.name = CIF_CIF10_SOC_RK1108,
+	.soc_cfg = pltfrm_rk1108_cvbsin_cfg,
+};
+
 static const struct of_device_id cif_cvbsin_of_match[] = {
-	{.compatible = "rockchip,cvbsin"},
+	{.compatible = "rockchip,cvbsin",
+	 .data = (void *)&rk1108_cvbsin_cfg
+	},
 	{},
 };
 
 static int cif_cvbsin_drv_probe(struct platform_device *pdev)
 {
-	struct resource *res;
-	void __iomem *base_addr;
 	int ret = 0;
+	struct resource *res = NULL;
+	void __iomem *base_addr = NULL;
+	const struct of_device_id *match = NULL;
 	struct device_node *np = pdev->dev.of_node;
+	struct pltfrm_cvbsin_cfg_para cfg_para;
+	struct pltfrm_cvbsin_init_para init_para;
+	struct pltfrm_cvbsin_cfg *soc_cfg = NULL;
+
+	match = of_match_node(cif_cvbsin_of_match, np);
+	if (match == NULL) {
+		dev_err(&pdev->dev, "no match\n");
+		return -ENODEV;
+	}
+	soc_cfg = (struct pltfrm_cvbsin_cfg *)match->data;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res == NULL) {
-		pr_err("platform_get_resource_byname failed\n");
+		dev_err(&pdev->dev,
+			"platform_get_resource_byname failed\n");
 		return -ENODEV;
 	}
 	base_addr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR_OR_NULL(base_addr)) {
-		pr_err("devm_ioremap_resource failed\n");
+		dev_err(&pdev->dev,
+			"devm_ioremap_resource failed\n");
 		if (IS_ERR(base_addr))
 			ret = PTR_ERR(base_addr);
 		else
@@ -364,87 +375,36 @@ static int cif_cvbsin_drv_probe(struct platform_device *pdev)
 
 	cvbsin->base_addr = base_addr;
 
-	cvbsin->regmap_grf =
-		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
-	if (IS_ERR(cvbsin->regmap_grf)) {
-		dev_err(&pdev->dev,
-			"Can't regmap cvbsin rk1108 grf\n");
-		return PTR_ERR(cvbsin->regmap_grf);
+	if (!IS_ERR_OR_NULL(soc_cfg) &&
+	    !IS_ERR_OR_NULL(soc_cfg->soc_cfg)) {
+		cfg_para.cmd = PLTFRM_CVBSIN_INIT;
+		cfg_para.cfg_para = &init_para;
+		init_para.pdev = pdev;
+		ret = (soc_cfg->soc_cfg)(&cfg_para);
+		if (ret == 0)
+			cvbsin->soc_cfg = soc_cfg;
 	}
 
-	/* get clks resouce */
-	cvbsin->cvbs_clk_in =
-		devm_clk_get(&pdev->dev, "clk_cvbs_host");
-	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk_in)) {
-		dev_err(&pdev->dev,
-			"Get clk_cvbs_host clock resouce failed !\n");
-		return -EINVAL;
-	}
-	cvbsin->cvbs_clk =
-		devm_clk_get(&pdev->dev, "clk_cvbs");
-	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk)) {
-		dev_err(&pdev->dev,
-			"Get clk_cvbs clock resouce failed !\n");
-		return -EINVAL;
-	}
-	cvbsin->cvbs_clk_parent =
-		devm_clk_get(&pdev->dev, "clk_cvbs_parent");
-	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk_parent)) {
-		dev_err(&pdev->dev,
-			"Get clk_cvbsin_parent clock resouce failed !\n");
-		return -EINVAL;
-	}
-	cvbsin->cif_clk =
-		devm_clk_get(&pdev->dev, "cif_clk");
-	if (IS_ERR_OR_NULL(cvbsin->cif_clk)) {
-		dev_err(&pdev->dev,
-			"Get cif_clk clock resouce failed !\n");
-		return -EINVAL;
-	}
-	cvbsin->cif_clk_parent =
-		devm_clk_get(&pdev->dev, "cif_clk_parent");
-	if (IS_ERR_OR_NULL(cvbsin->cif_clk_parent)) {
-		dev_err(&pdev->dev,
-			"Get cif_clk_parent clock resouce failed !\n");
-		return -EINVAL;
-	}
-
-	/* get rsts resouce */
-	cvbsin->cvbs_prst =
-		devm_reset_control_get(&pdev->dev, "cvbs_prst");
-	if (IS_ERR_OR_NULL(cvbsin->cvbs_prst)) {
-		dev_err(&pdev->dev,
-			"Get cvbsin prst resouce failed !\n");
-		return -EINVAL;
-	}
-	cvbsin->cvbs_hrst =
-		devm_reset_control_get(&pdev->dev, "cvbs_hrst");
-	if (IS_ERR_OR_NULL(cvbsin->cvbs_hrst)) {
-		dev_err(&pdev->dev,
-			"Get cvbsin hrst resouce failed !\n");
-		return -EINVAL;
-	}
-	cvbsin->cvbs_clk_rst =
-		devm_reset_control_get(&pdev->dev, "cvbs_clk_rst");
-	if (IS_ERR_OR_NULL(cvbsin->cvbs_clk_rst)) {
-		dev_err(&pdev->dev,
-			"Get cvbsin clk rst resouce failed !\n");
-		return -EINVAL;
-	}
-
-	/* config clk */
-	clk_set_parent(cvbsin->cvbs_clk,
-		       cvbsin->cvbs_clk_parent);
-	clk_set_rate(cvbsin->cvbs_clk_in, 54000000);
-	clk_prepare_enable(cvbsin->cvbs_clk_in);
-
-	/* config adc */
-	write_grf_reg(RK1108_GRF_SOC_CON10,
-		      0xFFFF0000 |
-		      VADC_LPF_BW_BYPASS |
-		      VADC_ICLMP_CTL_400MA |
-		      VADC_GAIN);
-	write_grf_reg(RK1108_GRF_SOC_CON11, 0xFFFF0000 | VADC_PD_CLMP);
+	of_property_read_u32_array(
+		np,
+		OF_CAMERA_MODULE_DEFRECT0,
+		(unsigned int *)&cvbsin->defrects[0],
+		6);
+	of_property_read_u32_array(
+		np,
+		OF_CAMERA_MODULE_DEFRECT1,
+		(unsigned int *)&cvbsin->defrects[1],
+		6);
+	of_property_read_u32_array(
+		np,
+		OF_CAMERA_MODULE_DEFRECT2,
+		(unsigned int *)&cvbsin->defrects[2],
+		6);
+	of_property_read_u32_array(
+		np,
+		OF_CAMERA_MODULE_DEFRECT3,
+		(unsigned int *)&cvbsin->defrects[3],
+		6);
 
 	/* config tvd */
 	write_cvbsin_reg(CVBSIN_CTRL4, CTRL4_VAL);
