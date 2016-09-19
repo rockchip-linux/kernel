@@ -523,7 +523,7 @@
 		1200000 1150000
 		1296000 1225000
 	>;
-	support-pvtm = <1>;
+	support-pvtm = <0>;
 	pvtm-operating-points = <
 		/* KHz    uV    margin(uV)*/
 		216000 950000   25000
@@ -550,7 +550,7 @@
 		816000 1025000
 		1008000 1125000
 	>;
-	support-pvtm = <1>;
+	support-pvtm = <0>;
 	pvtm-operating-points = <
 		/* KHz    uV    margin(uV)*/
 		216000 950000   25000
