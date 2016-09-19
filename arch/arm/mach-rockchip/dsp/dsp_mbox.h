@@ -18,10 +18,28 @@
 
 #define MBOX_MAX_CHAN 4
 
-#define DSP_CMD_READY         0xa0000001
-#define DSP_CMD_WORK          0xa0000002
-#define DSP_CMD_TRACE         0xa0000003
-#define DSP_CMD_CONFIG        0xa0000004
+#define DSP_CMD_ARM2DSP    0x01
+#define DSP_CMD_DSP2ARM    0x02
+
+#define DSP_CMD_DEFINE(chan, dir, id)  \
+		((chan & 0xff) << 16 | (dir & 0xff) << 8 | (id & 0xff))
+
+#define DSP_CMD_WORK        \
+		DSP_CMD_DEFINE(MBOX_CHAN_0, DSP_CMD_ARM2DSP, 0x01)
+#define DSP_CMD_WORK_DONE   \
+		DSP_CMD_DEFINE(MBOX_CHAN_0, DSP_CMD_DSP2ARM, 0x01)
+
+#define DSP_CMD_READY       \
+		DSP_CMD_DEFINE(MBOX_CHAN_1, DSP_CMD_DSP2ARM, 0x01)
+#define DSP_CMD_CONFIG      \
+		DSP_CMD_DEFINE(MBOX_CHAN_1, DSP_CMD_ARM2DSP, 0x02)
+#define DSP_CMD_CONFIG_DONE \
+		DSP_CMD_DEFINE(MBOX_CHAN_1, DSP_CMD_DSP2ARM, 0x02)
+
+#define DSP_CMD_TRACE       \
+		DSP_CMD_DEFINE(MBOX_CHAN_3, DSP_CMD_DSP2ARM, 0x01)
+#define DSP_CMD_TRACE_DONE  \
+		DSP_CMD_DEFINE(MBOX_CHAN_3, DSP_CMD_ARM2DSP, 0x01)
 
 enum mbox_chan_id {
 	MBOX_CHAN_0 = 0,

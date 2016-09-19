@@ -249,7 +249,7 @@ static int dsp_dev_receive_data(struct dsp_mbox_client *client,
 
 	switch (chan) {
 	case MBOX_CHAN_0: {
-		if (cmd == DSP_CMD_WORK) {
+		if (cmd == DSP_CMD_WORK_DONE) {
 			struct dsp_work *work;
 
 			work = (struct dsp_work *)phys_to_virt(data);
@@ -265,7 +265,7 @@ static int dsp_dev_receive_data(struct dsp_mbox_client *client,
 	case MBOX_CHAN_1: {
 		if (cmd == DSP_CMD_READY) {
 			dsp_dev_config(dev);
-		} else if (cmd == DSP_CMD_CONFIG) {
+		} else if (cmd == DSP_CMD_CONFIG_DONE) {
 			struct dsp_work *work;
 
 			work = (struct dsp_work *)phys_to_virt(data);
@@ -281,7 +281,8 @@ static int dsp_dev_receive_data(struct dsp_mbox_client *client,
 	case MBOX_CHAN_3: {
 		if (cmd == DSP_CMD_TRACE) {
 			ret = dsp_dev_trace(dev, data);
-			dev->mbox->send_data(dev->mbox, chan, cmd,
+			dev->mbox->send_data(dev->mbox, chan,
+					     DSP_CMD_TRACE_DONE,
 					     dev->trace_index);
 		}
 	} break;
