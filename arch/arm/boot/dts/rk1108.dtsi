@@ -670,6 +670,16 @@
 		status = "disabled";
 	};
 
+	cif1to4: cif1to4 {
+		compatible = "rockchip,rk1108-cif1to4","rockchip,cif1to4";
+		rockchip,grf = <&grf>;
+		clocks = <&clk_gates7 8>, <&pclkin_vip>, <&pclkin_vip_inv>;
+		clock-names = "cif1to4_pclk", "pclkin_vip", "pclkin_vip_inv";
+		resets = <&reset RK1108_RST_CIF1TO4_P>;
+		reset-names = "cif1to4_rst";
+		status = "disabled";
+	};
+
 	cif_cif0: cif_cif@30060000 {
 		compatible = "rockchip,rk1108-cif-cif";
 		rockchip,grf = <&grf>;
