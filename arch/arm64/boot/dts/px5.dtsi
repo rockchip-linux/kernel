@@ -9,7 +9,7 @@
 #include <rk3368_dram_default_timing.dtsi>
 
 / {
-	compatible = "rockchip,rk3368";
+	compatible = "rockchip,px5";
 
 	rockchip,sram = <&sram>;
 	interrupt-parent = <&gic>;
