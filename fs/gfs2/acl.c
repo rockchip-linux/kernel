@@ -268,15 +268,10 @@ static int gfs2_xattr_system_set(struct dentry *dentry, const char *name,
 
 	if (type == ACL_TYPE_ACCESS) {
 		umode_t mode = inode->i_mode;
-		error = posix_acl_equiv_mode(acl, &mode);
+		error = posix_acl_update_mode(inode, &inode->i_mode, &acl);
 
-		if (error <= 0) {
-			posix_acl_release(acl);
-			acl = NULL;
-
-			if (error < 0)
-				return error;
-		}
+		if (error)
+			goto out_release;
 
 		error = gfs2_set_mode(inode, mode);
 		if (error)
