@@ -93,6 +93,10 @@ int cif_cif10_img_src_s_streaming(
 	struct cif_cif10_img_src *img_src,
 	bool enable)
 {
+	if (NULL == img_src) {
+		cif_cif10_pltfrm_pr_err(NULL, "img_src is NULL\n");
+		return -EINVAL;
+	}
 	return img_src->ops->s_streaming(img_src->img_src, enable);
 }
 
@@ -100,6 +104,10 @@ int cif_cif10_img_src_s_power(
 	struct cif_cif10_img_src *img_src,
 	bool on)
 {
+	if (NULL == img_src) {
+		cif_cif10_pltfrm_pr_err(NULL, "img_src is NULL\n");
+		return -EINVAL;
+	}
 	return img_src->ops->s_power(img_src->img_src, on);
 }
 
@@ -108,6 +116,10 @@ int cif_cif10_img_src_enum_strm_fmts(
 	u32 index,
 	struct cif_cif10_strm_fmt_desc *strm_fmt_desc)
 {
+	if (NULL == img_src) {
+		cif_cif10_pltfrm_pr_err(NULL, "img_src is NULL\n");
+		return -EINVAL;
+	}
 	return img_src->ops->enum_strm_fmts(img_src->img_src,
 		index, strm_fmt_desc);
 }

@@ -18,6 +18,7 @@
 #define _CIF_CIF10_H
 
 #include <linux/platform_device.h>
+#include <linux/irqreturn.h>
 #include "cif_cif10_pltfrm.h"
 #include "cif_cif10_img_src.h"
 #include <linux/platform_data/rk_cif10_platform.h>
@@ -554,4 +555,16 @@ u32 cif_cif10_calc_llength(
 	u32 width,
 	u32 stride,
 	enum cif_cif10_pix_fmt pix_fmt);
+
+int cif_cif10_enum_fmt(
+	struct cif_cif10_device *dev,
+	struct cif_cif10_strm_fmt_desc *strm_fmt_desc);
+
+inline irqreturn_t cif_cif10_cifirq(
+	int irq,
+	void *data);
+
+inline irqreturn_t cif_cif10_oneframe_irq(
+	int irq,
+	void *data);
 #endif

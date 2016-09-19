@@ -31,27 +31,12 @@
 #include "cif_cif10_regs.h"
 #include <linux/platform_data/rk_cif10_platform.h>
 #include <media/videobuf-core.h>
+#include <media/videobuf-dma-contig.h>
 
-#define CIF_F0_READY (0x01<<0)
-#define CIF_F1_READY (0x01<<1)
-
-#define CIF_CLS_F0_STAT     (0xFFFFFFFE)
-#define CIF_CLS_F1_STAT     (0xFFFFFFFD)
-#define CIF_CLS_F0F1_STAT   (0xFFFFFFFC)
-
-#define PAL_HEIGHT  (576)
-#define NTSC_HEIGHT (480)
-
-#define CIF_RESET_WORK
-#if defined(CIF_RESET_WORK)
-static void cif_cif10_cifrest(struct work_struct *work)
+void cif_cif10_cifrest(struct work_struct *work)
 {
 	struct cif_cif10_device *cif_cif10_dev =
 		  container_of(work, struct cif_cif10_device, work);
-#else
-static void cif_cif10_cifrest(struct cif_cif10_device *cif_cif10_dev)
-{
-#endif
 	struct device *dev = cif_cif10_dev->dev;
 	struct platform_device *pdev =
 		container_of(dev, struct platform_device, dev);
@@ -59,252 +44,23 @@ static void cif_cif10_cifrest(struct cif_cif10_device *cif_cif10_dev)
 	struct pltfrm_soc_cfg_para cfg_para;
 	struct pltfrm_soc_init_para init_para;
 
+	/* reset sensor */
+	cif_cif10_img_src_ioctl(cif_cif10_dev->img_src,
+				PLTFRM_CIFCAM_RESET,
+				NULL);
+
 	cfg_para.cmd = PLTFRM_CLKRST;
 	cfg_para.cfg_para = &init_para;
 	init_para.pdev = pdev;
 	init_para.cif_base = cif_cif10_dev->config.base_addr;
 	(soc_cfg->soc_cfg)(&cfg_para);
 
-	cif_iowrite32(
-			0x200 | 0x001,
-			cif_cif10_dev->config.base_addr + CIF_CIF_INTEN);
+	cif_iowrite32(FRAME_END_EN | PST_INF_FRAME_END_EN,
+		      cif_cif10_dev->config.base_addr + CIF_CIF_INTEN);
 	cif_iowrite32OR(ENABLE_CAPTURE,
 			cif_cif10_dev->config.base_addr + CIF_CIF_CTRL);
 	mdelay(5);
 	cif_cif10_img_src_s_streaming(cif_cif10_dev->img_src, true);
-}
-
-static inline irqreturn_t cif_cif10_cifirq(int irq, void *data)
-{
-	short reset = 0, cif_err = 0, frm_flag;
-	int ret;
-	unsigned long y_addr, uv_addr;
-	struct timeval tv;
-	unsigned long long now, interval;
-	unsigned int cifctrl, lastpix, lastline;
-	unsigned long tmp_cif_frmst, reg_intstat;
-	struct cif_cif10_device *cif_cif10_dev = data;
-	struct cif_cif10_frm_fmt *frm_fmt = NULL;
-	struct videobuf_buffer *curr_buf = NULL, *next_buf = NULL;
-
-	do_gettimeofday(&tv);
-	now = tv.tv_sec*1000000 + tv.tv_usec;
-	interval = now -
-		cif_cif10_dev->irqinfo.cifirq_interval;
-	cif_cif10_dev->irqinfo.cifirq_interval = now;
-
-	frm_fmt =
-		&(cif_cif10_dev->config.img_src_output.frm_fmt);
-
-	reg_intstat = cif_ioread32(
-			cif_cif10_dev->config.base_addr + CIF_CIF_INTSTAT);
-
-	if ((reg_intstat & 0x200) && (reg_intstat & 0x001)) {
-		cif_iowrite32(
-				0x3FF,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_INTSTAT);
-		cifctrl  = cif_ioread32(
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_CTRL);
-		tmp_cif_frmst = cif_ioread32(
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_FRAME_STATUS);
-		lastpix  = cif_ioread32(
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_LAST_PIX);
-		lastline = cif_ioread32(
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_LAST_LINE);
-
-		if (
-			(tmp_cif_frmst & CIF_F0_READY) &&
-				(tmp_cif_frmst & CIF_F1_READY)) {
-			cif_cif10_pltfrm_pr_err(
-				cif_cif10_dev->dev,
-				"cif frm0&frm1 now reset it (frm_stat reg_val = %#lx)\n",
-				tmp_cif_frmst);
-			cif_err = 1;
-			goto cif_rst;
-		}
-		if (tmp_cif_frmst & CIF_F0_READY)
-			frm_flag = 0;
-		else if (tmp_cif_frmst & CIF_F1_READY)
-			frm_flag = 1;
-
-		if (frm_fmt->defrect.height == NTSC_HEIGHT) {
-			if (interval > 17000) {
-				if (cif_cif10_dev->irqinfo.plug < 3)
-					cif_cif10_dev->irqinfo.plug++;
-			} else {
-				if (cif_cif10_dev->irqinfo.plug == 3) {
-					cif_cif10_dev->irqinfo.plug = 0;
-					reset = 1;
-					goto cif_rst;
-				} else {
-					cif_cif10_dev->irqinfo.plug = 0;
-				}
-			}
-		} else if (frm_fmt->defrect.height == PAL_HEIGHT) {
-			if (interval > 20500) {
-				if (cif_cif10_dev->irqinfo.plug < 3)
-					cif_cif10_dev->irqinfo.plug++;
-			} else {
-				if (cif_cif10_dev->irqinfo.plug == 3) {
-					cif_cif10_dev->irqinfo.plug = 0;
-					reset = 1;
-					goto cif_rst;
-				} else {
-					cif_cif10_dev->irqinfo.plug = 0;
-				}
-			}
-		}
-
-		curr_buf = cif_cif10_dev->stream.curr_buf;
-
-		if (
-			!list_empty(&cif_cif10_dev->stream.buf_queue) &&
-						!cif_cif10_dev->stream.stop) {
-			next_buf = list_entry(
-					cif_cif10_dev->stream.buf_queue.next,
-					struct videobuf_buffer,
-					queue);
-			WARN_ON(next_buf->state != VIDEOBUF_QUEUED);
-			if (frm_flag == 0) {
-				y_addr = next_buf->baddr;
-				uv_addr = y_addr +
-					next_buf->width * next_buf->height;
-				cif_iowrite32(
-					y_addr,
-					cif_cif10_dev->config.base_addr +
-						CIF_CIF_FRM0_ADDR_Y);
-				cif_iowrite32(
-					uv_addr,
-					cif_cif10_dev->config.base_addr +
-						CIF_CIF_FRM0_ADDR_UV);
-				 cif_cif10_dev->irqinfo.cif_frm0_ok = 1;
-			} else if (frm_flag == 1 &&
-					cif_cif10_dev->irqinfo.cif_frm0_ok){
-				cif_cif10_dev->irqinfo.cif_frm1_ok = 1;
-
-				y_addr = next_buf->baddr + next_buf->width;
-				uv_addr = y_addr +
-					next_buf->width * next_buf->height;
-
-				cif_iowrite32(
-					y_addr,
-					cif_cif10_dev->config.base_addr +
-						CIF_CIF_FRM1_ADDR_Y);
-				cif_iowrite32(
-					uv_addr,
-					cif_cif10_dev->config.base_addr +
-						CIF_CIF_FRM1_ADDR_UV);
-
-				cif_cif10_dev->stream.curr_buf = next_buf;
-				list_del_init(&next_buf->queue);
-			}
-
-			if (
-				frm_flag == 1 &&
-					cif_cif10_dev->irqinfo.cif_frm0_ok &&
-					cif_cif10_dev->irqinfo.cif_frm0_ok) {
-				do_gettimeofday(&curr_buf->ts);
-				cif_cif10_dev->irqinfo.cif_frm0_ok = 0;
-				cif_cif10_dev->irqinfo.cif_frm1_ok = 0;
-				if (
-					(curr_buf->state == VIDEOBUF_QUEUED) ||
-					(curr_buf->state == VIDEOBUF_ACTIVE)) {
-					curr_buf->state =
-						VIDEOBUF_DONE;
-					curr_buf->field_count++;
-				}
-				wake_up(&curr_buf->done);
-			}
-		} else {
-			cif_cif10_dev->irqinfo.cif_frm0_ok = 0;
-			cif_cif10_dev->irqinfo.cif_frm1_ok = 0;
-			pr_info("video_buf queue is empty!\n");
-			goto end;
-		}
-	} else {
-		cif_cif10_pltfrm_pr_err(
-			cif_cif10_dev->dev,
-			"cif devices error now reset it (intsat reg_val = %#lx)\n",
-			reg_intstat);
-		cif_iowrite32(
-				0x3FF,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_INTSTAT);
-		cif_err = 1;
-		goto cif_rst;
-	}
-
-cif_rst:
-	if (
-		(cifctrl & ENABLE_CAPTURE) &&
-		((cifctrl >> 1) & 0x3) == MODE_ONEFRAME) {
-			cif_iowrite32(
-				(cifctrl & ~ENABLE_CAPTURE),
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_CTRL);
-	}
-
-	if (reset || cif_err) {
-		cif_iowrite32AND(
-				~ENABLE_CAPTURE,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_CTRL);
-		cif_iowrite32(
-				0x0,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_INTEN);
-
-		/*reset cvbsin*/
-		ret = cif_cif10_img_src_ioctl(
-				cif_cif10_dev->img_src,
-				PLTFRM_CIFCAM_RESET,
-				NULL);
-		if (IS_ERR_VALUE(ret)) {
-			cif_cif10_pltfrm_pr_err(
-				dev,
-				"cif_cif10_img_src_ioctl PLTFRM_CIFCAM_RESET failed!\n");
-			return ret;
-		}
-#if defined(CIF_RESET_WORK)
-		INIT_WORK(&(cif_cif10_dev->work), cif_cif10_cifrest);
-		queue_work(cif_cif10_dev->wq, &cif_cif10_dev->work);
-#else
-		cif_cif10_cifrest(cif_cif10_dev);
-#endif
-	}
-
-end:
-	if (
-			cif_cif10_dev->stream.stop &&
-			(cif_cif10_dev->stream.state ==
-				CIF_CIF10_STATE_STREAMING)) {
-		cif_cif10_dev->stream.state = CIF_CIF10_STATE_READY;
-		cif_iowrite32AND(
-				~ENABLE_CAPTURE,
-				cif_cif10_dev->config.base_addr + CIF_CIF_CTRL);
-		cif_iowrite32(
-				0x0,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_INTEN);
-		cif_iowrite32(
-				0xffffffff,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_INTSTAT);
-		cif_iowrite32(
-				0x00000000,
-				cif_cif10_dev->config.base_addr +
-				CIF_CIF_FRAME_STATUS);
-		cif_cif10_pltfrm_event_signal(
-				cif_cif10_dev->dev,
-				&cif_cif10_dev->stream.done);
-	}
-
-	return IRQ_HANDLED;
 }
 
 static irqreturn_t cif_cif10_pltfrm_irq_handler(int irq, void *cntxt)
@@ -316,7 +72,11 @@ static irqreturn_t cif_cif10_pltfrm_irq_handler(int irq, void *cntxt)
 		return IRQ_NONE;
 	cif_cif10_dev = dev_get_drvdata(dev);
 
-	cif_cif10_cifirq(irq, cif_cif10_dev);
+	if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
+				cif_cif10_dev->config.cam_itf.type))
+		cif_cif10_cifirq(irq, cif_cif10_dev);
+	else
+		cif_cif10_oneframe_irq(irq, cif_cif10_dev);
 
 	return IRQ_HANDLED;
 }
@@ -745,9 +505,10 @@ int cif_cif10_pltfrm_get_img_src_device(
 				goto err;
 		}
 
-		if (!strcmp(
-					camera_list_node->type,
-					"v4l2-i2c-subdev")) {
+		client = NULL;
+		pltfrm_dev = NULL;
+		if (!strcmp(camera_list_node->type,
+			    "v4l2-i2c-subdev")) {
 			client = of_find_i2c_device_by_node(
 				camera_list_node);
 			of_node_put(camera_list_node);
@@ -761,6 +522,7 @@ int cif_cif10_pltfrm_get_img_src_device(
 					"v4l2-pltfrm-subdev")) {
 			pltfrm_dev =
 				of_find_pltfrm_device_by_node(camera_list_node);
+			of_node_put(camera_list_node);
 			if (IS_ERR_OR_NULL(pltfrm_dev)) {
 				cif_cif10_pltfrm_pr_err(
 					dev,

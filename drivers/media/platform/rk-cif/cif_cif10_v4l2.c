@@ -819,6 +819,34 @@ static int cif_cif10_v4l2_s_ctrl(
 	return cif_cif10_s_ctrl(dev, id, val);
 }
 
+static int cif_cif10_v4l2_try_fmt_vid_cap(
+	struct file *file,
+	void *fh,
+	struct v4l2_format *f)
+{
+	int ret = 0;
+	struct videobuf_queue *queue = to_videobuf_queue(file);
+	struct cif_cif10_device *dev = to_cif_cif10_device(queue);
+	struct cif_cif10_strm_fmt_desc strm_fmt_desc;
+
+	/* find the best matching format from the image source */
+	/* TODO: frame interval and pixel format handling */
+	ret = cif_cif10_enum_fmt(dev, &strm_fmt_desc);
+	if (strm_fmt_desc.discrete_frmsize) {
+		f->fmt.pix.width =
+			strm_fmt_desc.min_frmsize.width;
+		f->fmt.pix.height =
+			strm_fmt_desc.min_frmsize.height;
+	}
+
+	cif_cif10_pltfrm_pr_dbg(NULL,
+				"width %d height %d\n",
+				strm_fmt_desc.min_frmsize.width,
+				strm_fmt_desc.min_frmsize.height);
+
+	return ret;
+}
+
 static int cif_cif10_v4l2_s_fmt(
 	struct file *file,
 	void *priv,
@@ -1122,11 +1150,16 @@ static int v4l2_querycap(struct file *file,
 	int ret = 0;
 	struct videobuf_queue *queue = to_videobuf_queue(file);
 	struct cif_cif10_device *dev = to_cif_cif10_device(queue);
+	struct platform_device *pdev =
+		container_of(dev->dev, struct platform_device, dev);
 
 	strcpy(cap->driver, DRIVER_NAME);
 	strcpy(cap->card, dev->soc_cfg->name);
+	snprintf(cap->bus_info, sizeof(cap->bus_info),
+		 "platform:"DRIVER_NAME"-%d",
+		 pdev->id);
 
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE|
+	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE |
 		V4L2_CAP_STREAMING;
 	cap->capabilities |= V4L2_CAP_DEVICE_CAPS;
 	cap->device_caps = V4L2_CAP_DEVICE_CAPS;
@@ -1398,6 +1431,7 @@ const struct v4l2_ioctl_ops cif_cif10_v4l2_ioctlops = {
 	.vidioc_s_crop = cif_cif10_v4l2_s_crop,
 	.vidioc_g_crop = cif_cif10_v4l2_g_crop,
 	.vidioc_default = v4l2_default_ioctl,
+	.vidioc_try_fmt_vid_cap = cif_cif10_v4l2_try_fmt_vid_cap,
 };
 
 static struct pltfrm_soc_cfg rk1108_cfg = {
@@ -1451,7 +1485,7 @@ static int cif_cif10_v4l2_drv_probe(struct platform_device *pdev)
 		&cif_cif10_v4l2_dev.node[pdev->id].vdev,
 		vdev_name,
 		V4L2_CAP_VIDEO_CAPTURE,
-		pdev->id,
+		-1,
 		&cif_cif10_v4l2_fops,
 		&cif_cif10_v4l2_ioctlops);
 	if (ret)
@@ -1607,7 +1641,7 @@ static void __exit cif_cif10_v4l2_exit(void)
 	platform_driver_unregister(&cif_cif10_v4l2_plat_drv);
 }
 
-device_initcall_sync(cif_cif10_v4l2_init);
+late_initcall(cif_cif10_v4l2_init);
 module_exit(cif_cif10_v4l2_exit);
 
 MODULE_DESCRIPTION("V4L2 interface for CIF CIF10 driver");

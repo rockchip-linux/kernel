@@ -19,3 +19,11 @@ config VIDEO_CVBSIN
 	---help---
 	  Say Y here to enable selecting the
 	  rockchip cif cvbs in
+
+config VIDEO_CIF1TO4
+	tristate "cif1to4"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  Say Y here to enable selecting the
+	  rockchip cif1to4

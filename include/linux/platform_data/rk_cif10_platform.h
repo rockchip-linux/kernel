@@ -19,6 +19,11 @@
 
 #define CIF_CIF10_SOC_RK1108	"rk1108"
 
+enum pltfrm_cam_io_voltage {
+	PLTFRM_CAM_IO_1800 = 1800,
+	PLTFRM_CAM_IO_3300 = 3300,
+};
+
 enum pltfrm_cam_signal_polarity {
 	PLTFRM_CAM_SIGNAL_HIGH_LEVEL = 0,
 	PLTFRM_CAM_SIGNAL_LOW_LEVEL = 1,
@@ -36,6 +41,9 @@ enum pltfrm_cam_itf_type {
 	PLTFRM_CAM_ITF_BT601_8	     = 0x20000071,
 	PLTFRM_CAM_ITF_BT601_8_FIELD = 0x20000171,
 	PLTFRM_CAM_ITF_BT656_8	     = 0x20000072,
+	PLTFRM_CAM_ITF_BT656_8_1     = 0x20000272,
+	PLTFRM_CAM_ITF_BT656_8_2     = 0x20000672,
+	PLTFRM_CAM_ITF_BT656_8_4     = 0x20000E72,
 	PLTFRM_CAM_ITF_BT601_10	     = 0x20000091,
 	PLTFRM_CAM_ITF_BT656_10	     = 0x20000092,
 	PLTFRM_CAM_ITF_BT601_12	     = 0x200000B1,
@@ -47,7 +55,9 @@ enum pltfrm_cam_itf_type {
 #define PLTFRM_CAM_ITF_MAIN_MASK       0xf0000000
 #define PLTFRM_CAM_ITF_SUB_MASK        0x0000000f
 #define PLTFRM_CAM_ITF_DVP_BW_MASK     0x000000f0
-#define PLTFRM_CAM_ITF_DVP_FIELD_MASK  0x00000300
+#define PLTFRM_CAM_ITF_DVP_FIELD_MASK  0x00000100
+#define PLTFRM_CAM_ITF_DVP_MIX_MASK    0x00000200
+#define PLTFRM_CAM_ITF_DVP_CHS_MASK    0x00000C00
 
 #define PLTFRM_CAM_ITF_IS_MIPI(a)	\
 	((a & PLTFRM_CAM_ITF_MAIN_MASK) == 0x10000000)
@@ -56,6 +66,9 @@ enum pltfrm_cam_itf_type {
 #define PLTFRM_CAM_ITF_IS_BT656(a)	\
 	(PLTFRM_CAM_ITF_IS_DVP(a) &&    \
 		((a & PLTFRM_CAM_ITF_SUB_MASK) == 0x02))
+#define PLTFRM_CAM_ITF_IS_BT656_MIX(a)	\
+	(PLTFRM_CAM_ITF_IS_BT656(a) &&	\
+		((a & PLTFRM_CAM_ITF_DVP_MIX_MASK) == 0x200))
 #define PLTFRM_CAM_ITF_IS_BT601(a)	\
 	(PLTFRM_CAM_ITF_IS_DVP(a) &&    \
 		((a & PLTFRM_CAM_ITF_SUB_MASK) == 0x01))
@@ -64,6 +77,8 @@ enum pltfrm_cam_itf_type {
 		((a & PLTFRM_CAM_ITF_DVP_FIELD_MASK) == 0x100))
 #define PLTFRM_CAM_ITF_DVP_BW(a)	\
 	(((a & PLTFRM_CAM_ITF_DVP_BW_MASK) >> 4) + 1)
+#define PLTFRM_CAM_ITF_DVP_CHS(a)	\
+	(((a & PLTFRM_CAM_ITF_DVP_CHS_MASK) >> 10) + 1)
 
 
 struct pltfrm_cam_mipi_config {
@@ -77,10 +92,12 @@ struct pltfrm_cam_dvp_config {
 	enum pltfrm_cam_signal_polarity vsync;
 	enum pltfrm_cam_signal_polarity hsync;
 	enum pltfrm_cam_sample_type pclk;
+	enum pltfrm_cam_io_voltage io_vol;
 };
 
 struct pltfrm_cam_itf {
 	enum pltfrm_cam_itf_type type;
+	short cif_id;
 	union {
 		struct pltfrm_cam_mipi_config mipi;
 		struct pltfrm_cam_dvp_config dvp;
@@ -137,7 +154,7 @@ enum pltfrm_soc_cfg_cmd {
 	PLTFRM_CLKDIS,
 	PLTFRM_CLKRST,
 
-
+	PLTFRM_CLKINIT,
 	PLTFRM_SOC_INIT
 };
 
@@ -156,11 +173,7 @@ enum pltfrm_soc_drv_strength {
 struct pltfrm_soc_init_para {
 	struct platform_device *pdev;
 	void __iomem *cif_base;
-};
-
-struct pltfrm_cam_itf_init_para {
-	struct platform_device *pdev;
-	enum pltfrm_cam_itf_type type;
+	struct pltfrm_cam_itf cam_itf;
 };
 
 struct pltfrm_soc_mclk_para {

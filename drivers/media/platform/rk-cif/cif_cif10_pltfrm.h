@@ -181,4 +181,5 @@ int cif_cif10_pltfrm_soc_init(
 int cif_cif10_pltfrm_mipi_dphy_config(
 	struct cif_cif10_device *cif_cif10_dev);
 
+void cif_cif10_cifrest(struct work_struct *work);
 #endif
