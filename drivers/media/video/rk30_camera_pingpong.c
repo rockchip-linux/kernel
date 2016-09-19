@@ -518,7 +518,8 @@ static void rk_camera_diffchips(const char *rockchip_name)
 		CRU_CLKSEL29_CON = 0xb8;
 
 		CHIP_NAME = 3126;
-	}else if(strstr(rockchip_name,"3368"))
+	} else if (strstr(rockchip_name, "3368") ||
+		   strstr(rockchip_name, "px5"))
 	{	
 		CRU_PCLK_REG30 = 0x154;
 		ENANABLE_INVERT_PCLK_CIF0 = ((0x1<<29)|(0x1<<13));
@@ -556,7 +557,8 @@ static void rk_camera_cif_reset(struct rk_camera_dev *pcdev, int only_rst)
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()\n", __FILE__, __LINE__,__FUNCTION__);
 	if(strstr(pcdev->pdata->rockchip_name,"3128")||strstr(pcdev->pdata->rockchip_name,"3126"))
 		RK_CRU_SOFTRST_CON = RK312X_CRU_SOFTRSTS_CON(6);
-	else if(strstr(pcdev->pdata->rockchip_name,"3368"))
+	else if (strstr(pcdev->pdata->rockchip_name, "3368") ||
+		 strstr(pcdev->pdata->rockchip_name, "px5"))
 		RK_CRU_SOFTRST_CON = RK3368_CRU_SOFTRSTS_CON(6);
 	
 	if (only_rst == true) {

@@ -482,8 +482,8 @@ static void rk_camera_diffchips(const char *rockchip_name)
 
 		CRU_CLK_OUT = 0x16c;
 		CHIP_NAME = 3288;
-	}
-	else if(strstr(rockchip_name,"3368"))
+	} else if (strstr(rockchip_name, "3368") ||
+		   strstr(rockchip_name, "px5"))
 	{	
 		CRU_PCLK_REG30 = 0x154;
 		ENANABLE_INVERT_PCLK_CIF0 = ((0x1<<29)|(0x1<<13));

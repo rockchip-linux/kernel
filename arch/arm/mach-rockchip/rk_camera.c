@@ -358,7 +358,8 @@ static int rk_dts_cif_probe(struct platform_device *pdev)
 		printk("get vpu_node failed,vpu_iommu_enabled == 0 !!!!!!\n");
 	}
 	
-	if(strstr(rk_camera_platform_data.rockchip_name,"3368")){
+	if (strstr(rk_camera_platform_data.rockchip_name, "3368") ||
+	    strstr(rk_camera_platform_data.rockchip_name, "px5")) {
 		//get cru base
 	    vpu_node = of_parse_phandle(dev->of_node, "rockchip,cru", 0);
 	    rk_cif_cru_base = (unsigned long)of_iomap(vpu_node, 0);

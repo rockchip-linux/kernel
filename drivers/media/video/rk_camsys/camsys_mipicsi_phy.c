@@ -114,7 +114,7 @@ int camsys_mipiphy_probe_cb(struct platform_device *pdev, camsys_dev_t *camsys_d
     } else {
         camsys_trace(1, "compatible is %s\n",compatible);
     }
-	if(strstr(compatible, "rk3368"))
+	if (strstr(compatible, "rk3368") || strstr(compatible, "px5"))
 		CHIP_TYPE = 3368;
 	else if(strstr(compatible, "rk3288"))
 		CHIP_TYPE = 3288;
