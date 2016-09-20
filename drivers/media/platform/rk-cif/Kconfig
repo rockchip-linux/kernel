@@ -27,3 +27,11 @@ config VIDEO_CIF1TO4
 	---help---
 	  Say Y here to enable selecting the
 	  rockchip cif1to4
+
+config VIDEO_NVP6124
+	tristate "nvp6124"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  Say Y here to enable selecting the
+	  rockchip cif cvbs in
