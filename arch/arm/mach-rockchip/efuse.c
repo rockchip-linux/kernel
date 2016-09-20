@@ -488,7 +488,7 @@ void __init rockchip_efuse_init(void)
 {
 	int ret;
 
-	if (cpu_is_rk3288() || cpu_is_rk322x()) {
+	if (cpu_is_rk3288() || cpu_is_rk322x() || cpu_is_rk1108()) {
 		rk3288_efuse_init();
 	} else if (cpu_is_rk312x()) {
 		ret = rk312x_efuse_readregs(0, 32, efuse_buf);
