@@ -995,6 +995,26 @@
 				regulator-state-uv = <1800000>;
 			};
 		};
+
+		rk808_ldo9_reg: regulator@12 {
+			regulator-name= "vcc_sd";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+			};
+		};
+
+		rk808_ldo10_reg: regulator@13 {
+			regulator-name= "vcc_lan";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+			};
+		};
 	};
 };
 
