@@ -336,9 +336,9 @@
 		compatible = "ls_stk3410";
 		reg = <0x48>;
 		type = <SENSOR_TYPE_LIGHT>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&gpio2_c3>;
-		irq-gpio = <&gpio2 19 IRQ_TYPE_LEVEL_LOW>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&gpio2_c3>;
+		//irq-gpio = <&gpio2 19 IRQ_TYPE_LEVEL_LOW>;
 		irq_enable = <0>;
 		als_threshold_high = <100>;
 		als_threshold_low = <10>;

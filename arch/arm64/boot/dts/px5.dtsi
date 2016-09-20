@@ -923,7 +923,7 @@
 		#dma-cells = <2>;
 		dma-names = "tx", "rx";
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&i2s_mclk &i2s_sclk &i2s_lrckrx &i2s_lrcktx &i2s_sdi &i2s_sdo0 &i2s_sdo1 &i2s_sdo2 &i2s_sdo3>;
+		pinctrl-0 = <&i2s_mclk &i2s_sclk &i2s_lrckrx &i2s_lrcktx &i2s_sdi &i2s_sdo0>;
 		pinctrl-1 = <&i2s_gpio>;
 	};
 
@@ -1878,10 +1878,7 @@
 						<2 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>,
 						<2 GPIO_B6 RK_FUNC_GPIO &pcfg_pull_none>,
 						<2 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_none>;
+						<2 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
