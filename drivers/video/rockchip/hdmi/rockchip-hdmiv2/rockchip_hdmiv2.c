@@ -425,6 +425,53 @@ static void rockchip_hdmiv2_irq_work_func(struct work_struct *work)
 }
 #endif
 
+static irqreturn_t rk_hdmiv2_phy_hardirq(int irq, void *priv)
+{
+	struct hdmi_dev *hdmi_dev = priv;
+	int int1 = rockchip_hdmiv2_read_phy(hdmi_dev, 0x04);
+	int int2 = rockchip_hdmiv2_read_phy(hdmi_dev, 0x06);
+	int int3 = rockchip_hdmiv2_read_phy(hdmi_dev, 0x08);
+
+	if (int1)
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0x04, int1);
+	if (int2)
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0x06, int2);
+	if (int3)
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0x08, int3);
+	if ((int1 || int2 || int3) &&
+	    hdmi_dev->hdmi->hotplug == HDMI_HPD_ACTIVATED) {
+		pr_info("%s int1 %02x int2 %02x int3 %02x\n",
+			__func__, int1, int2, int3);
+		return IRQ_WAKE_THREAD;
+	}
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rk_hdmiv2_phy_irq(int irq, void *priv)
+{
+	struct hdmi_dev *hdmi_dev = priv;
+
+	if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK1108_GRF_SOC_CON4,
+			     RK1108_PLL_PDATA_DEN);
+		udelay(10);
+		regmap_write(hdmi_dev->grf_base,
+			     RK1108_GRF_SOC_CON4,
+			     RK1108_PLL_PDATA_EN);
+	} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK322XH_GRF_SOC_CON3,
+			     RK322XH_PLL_PDATA_DEN);
+		udelay(10);
+		regmap_write(hdmi_dev->grf_base,
+			     RK322XH_GRF_SOC_CON3,
+			     RK322XH_PLL_PDATA_EN);
+	}
+	return IRQ_HANDLED;
+}
+
 static struct hdmi_ops rk_hdmi_ops;
 
 #if defined(CONFIG_OF)
@@ -703,6 +750,31 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 			"hdmi request_irq failed (%d).\n",
 			ret);
 		goto failed1;
+	}
+	if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+	    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+		hdmi_dev->irq_phy = platform_get_irq(pdev, 2);
+		if (hdmi_dev->irq_phy <= 0) {
+			dev_err(hdmi_dev->dev,
+				"failed to get hdmi irq resource (%d).\n",
+				hdmi_dev->irq_phy);
+			ret = -ENXIO;
+			goto failed1;
+		}
+
+		ret = devm_request_threaded_irq(hdmi_dev->dev,
+						hdmi_dev->irq_phy,
+						rk_hdmiv2_phy_hardirq,
+						rk_hdmiv2_phy_irq,
+						IRQF_TRIGGER_HIGH,
+						dev_name(hdmi_dev->dev),
+						hdmi_dev);
+		if (ret) {
+			dev_err(hdmi_dev->dev,
+				"hdmi request_irq failed (%d).\n",
+				ret);
+			goto failed1;
+		}
 	}
 #else
 	hdmi_dev->workqueue =

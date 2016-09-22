@@ -441,6 +441,12 @@ static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 			regmap_write(hdmi_dev->grf_base,
 				     RK1108_GRF_SOC_CON4,
 				     RK1108_PLL_PDATA_DEN);
+		if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+		    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+			/* Disable PHY IRQ */
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0x05, 0);
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0x07, 0);
+		}
 	} else {
 		hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 			     m_PDDQ_SIG | m_TXPWRON_SIG |
@@ -699,6 +705,17 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TMDS_D0_LEVEL,
 					  hdmi_dev->phy_table[i].data0_level);
 	}
+	/* bit[7:6] of reg c8/c9/ca/c8 is ESD detect threshold:
+	 * 00 - 340mV
+	 * 01 - 280mV
+	 * 10 - 260mV
+	 * 11 - 240mV
+	 * default is 240mV, now we set it to 340mV
+	 */
+	rockchip_hdmiv2_write_phy(hdmi_dev, 0xc8, 0);
+	rockchip_hdmiv2_write_phy(hdmi_dev, 0xc9, 0);
+	rockchip_hdmiv2_write_phy(hdmi_dev, 0xca, 0);
+	rockchip_hdmiv2_write_phy(hdmi_dev, 0xcb, 0);
 
 	if (hdmi_dev->tmdsclk > 340000000) {
 		/* Set termination resistor to 100ohm */
@@ -754,6 +771,9 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
 			     RK322XH_PLL_PDATA_EN);
+	/* Enable PHY IRQ */
+	rockchip_hdmiv2_write_phy(hdmi_dev, 0x05, 0x22);
+	rockchip_hdmiv2_write_phy(hdmi_dev, 0x07, 0x22);
 	return 0;
 }
 
@@ -2486,6 +2506,11 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 					     RK322XH_GRF_SOC_CON4,
 					     RK322XH_IO_3V_DOMAIN);
 			hdmi->uboot = 0;
+		} else if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+			   hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+			/* Enable PHY IRQ */
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0x05, 0x22);
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0x07, 0x22);
 		}
 	}
 	/*mute unnecessary interrupt, only enable hpd*/
