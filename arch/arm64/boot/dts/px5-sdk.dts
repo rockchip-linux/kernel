@@ -810,8 +810,9 @@
 	};
 };
 
+/* the second val is size, set 40MB default */
 &ion_cma {
-	reg = <0x00000000 0x00000000>; /* 0MB */
+	reg = <0x00000000 0x02800000>;
 };
 
 &px5_cif_sensor{
