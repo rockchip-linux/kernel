@@ -1508,7 +1508,7 @@ void pltfrm_camera_module_release(
 		}
 	}
 	for (i = 0; i < pdata->regulators.cnt; i++){
-		if (pdata->regulators.regulator[i].regulator)
+		if (!IS_ERR(pdata->regulators.regulator[i].regulator))
 			devm_regulator_put(pdata->regulators.regulator[i].regulator);
 	}
 	if (pdata->pinctrl)
