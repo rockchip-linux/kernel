@@ -443,13 +443,14 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	vop_read_reg_default_cfg(vop_dev);
 
 	/* vop io voltage select-->0: 3.3v; 1: 1.8v */
-	if (vop_dev->pwr18 == 1)
-		vop_grf_writel(vop_dev->grf_base, GRF_IO_VSEL,
-			       V_VOP_IOVOL_SEL(1));
-	else
-		vop_grf_writel(vop_dev->grf_base, GRF_IO_VSEL,
-			       V_VOP_IOVOL_SEL(0));
-
+	if (VOP_CHIP(vop_dev) == VOP_RK3366) {
+		if (vop_dev->pwr18 == 1)
+			vop_grf_writel(vop_dev->grf_base, RK3366_GRF_IO_VSEL,
+				       RK3366_V_VOP_IOVOL_SEL(1));
+		else
+			vop_grf_writel(vop_dev->grf_base, RK3366_GRF_IO_VSEL,
+				       RK3366_V_VOP_IOVOL_SEL(0));
+	}
 	vop_msk_reg(vop_dev, SYS_CTRL1, V_SW_AXI_MAX_OUTSTAND_EN(1) |
 		    V_SW_AXI_MAX_OUTSTAND_NUM(31));
 	vop_msk_reg(vop_dev, SYS_CTRL2, V_IMD_AUTO_GATING_EN(0));
@@ -985,8 +986,6 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 	switch (screen->type) {
 	case SCREEN_MCU:
 	case SCREEN_RGB:
-		vop_grf_writel(vop_dev->grf_base, GRF_SOC_CON5,
-			       V_RGB_VOP_SEL(dev_drv->id));
 		val = V_RGB_DCLK_EN(1) | V_RGB_DCLK_POL(screen->pin_dclk) |
 			V_RGB_HSYNC_POL(screen->pin_hsync) |
 			V_RGB_VSYNC_POL(screen->pin_vsync) |
@@ -1001,27 +1000,35 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 					    DPHY_TTL_LANE_EN, 0xfd);
 			vop_mipi_dsi_writel(vop_dev->dsi_host_regs,
 					    MIPI_DSI_HOST_PHY_RSTZ, 0xf);
+			vop_grf_writel(vop_dev->grf_base, RK1108_GRF_SOC_CON4,
+					RK1108_GRF_DCLK_INV(screen->pin_dclk));
+		} else if (VOP_CHIP(vop_dev) == VOP_RK3366) {
+			vop_grf_writel(vop_dev->grf_base, RK3366_GRF_SOC_CON5,
+			       RK3366_V_RGB_VOP_SEL(dev_drv->id));
+			vop_grf_writel(vop_dev->grf_base, RK3366_GRF_SOC_CON4,
+					RK3366_GRF_VOP1_DCLK_INV(screen->pin_dclk));
 		}
 		break;
 	case SCREEN_HDMI:
-		vop_grf_writel(vop_dev->grf_base, GRF_SOC_CON0,
-			       V_HDMI_VOP_SEL(dev_drv->id));
+		if (VOP_CHIP(vop_dev) == VOP_RK3366)
+			vop_grf_writel(vop_dev->grf_base, RK3366_GRF_SOC_CON0,
+				       RK3366_V_HDMI_VOP_SEL(dev_drv->id));
 		val = V_HDMI_DCLK_EN(1) | V_HDMI_DCLK_POL(screen->pin_dclk) |
 			V_HDMI_HSYNC_POL(screen->pin_hsync) |
 			V_HDMI_VSYNC_POL(screen->pin_vsync) |
 			V_HDMI_DEN_POL(screen->pin_den);
 		break;
 	case SCREEN_LVDS:
-		vop_grf_writel(vop_dev->grf_base, GRF_SOC_CON0,
-			       V_LVDS_VOP_SEL(dev_drv->id));
+		vop_grf_writel(vop_dev->grf_base, RK3366_GRF_SOC_CON0,
+			       RK3366_V_LVDS_VOP_SEL(dev_drv->id));
 		val = V_LVDS_DCLK_EN(1) | V_LVDS_DCLK_POL(screen->pin_dclk) |
 			V_LVDS_HSYNC_POL(screen->pin_hsync) |
 			V_LVDS_VSYNC_POL(screen->pin_vsync) |
 			V_LVDS_DEN_POL(screen->pin_den);
 		break;
 	case SCREEN_MIPI:
-		vop_grf_writel(vop_dev->grf_base, GRF_SOC_CON0,
-			       V_DSI0_VOP_SEL(dev_drv->id));
+		vop_grf_writel(vop_dev->grf_base, RK3366_GRF_SOC_CON0,
+			       RK3366_V_DSI0_VOP_SEL(dev_drv->id));
 		val = V_MIPI_DCLK_EN(1) | V_MIPI_DCLK_POL(screen->pin_dclk) |
 			V_MIPI_HSYNC_POL(screen->pin_hsync) |
 			V_MIPI_VSYNC_POL(screen->pin_vsync) |
