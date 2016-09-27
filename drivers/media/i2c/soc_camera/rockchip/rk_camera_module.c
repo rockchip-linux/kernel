@@ -186,7 +186,7 @@ static int pltfrm_camera_module_init_gpio(
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct pltfrm_camera_module_data *pdata =
 		dev_get_platdata(&client->dev);
-	int i;
+	int i = 0;
 
 	ret = pltfrm_camera_module_set_pinctrl_state(sd, pdata->pins_default);
 	if (IS_ERR_VALUE(ret))
@@ -257,6 +257,9 @@ static int pltfrm_camera_module_init_gpio(
 	return 0;
 err:
 	pltfrm_camera_module_pr_err(sd, "failed with error %d\n", ret);
+	for (; i < ARRAY_SIZE(pdata->gpios); i++) {
+		pdata->gpios[i].pltfrm_gpio = -1;
+	}
 	return ret;
 }
 
