@@ -528,7 +528,6 @@ static void rk_camera_cif_reset(struct rk_camera_dev *pcdev, int only_rst)
 		RK_CRU_SOFTRST_CON = RK3288_CRU_SOFTRSTS_CON(6);
 	}else if(CHIP_NAME == 3368){
 		RK_CRU_SOFTRST_CON = RK3368_CRU_SOFTRSTS_CON(6);
-		return;
 	}
 
 	if (only_rst == true) {
@@ -558,7 +557,8 @@ static void rk_camera_cif_reset(struct rk_camera_dev *pcdev, int only_rst)
 		write_cif_reg(pcdev->base, CIF_CIF_CROP, crop_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_SET_SIZE, set_size_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_FOR, for_reg);
-		write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH, vir_line_width_reg);
+		if (CHIP_NAME != 3368)
+			write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH, vir_line_width_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_SCL_CTRL, scl_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_Y, y_reg);      /*ddl@rock-chips.com v0.3.0x13 */
 		write_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_UV, uv_reg);
@@ -960,27 +960,34 @@ rk_camera_capture_process_end:
 
 static void rk_camera_cifrest_delay(struct work_struct *work)
 {
-    struct rk_camera_work *camera_work = container_of(work, struct rk_camera_work, work);  
-    struct rk_camera_dev *pcdev = camera_work->pcdev; 
-    unsigned long flags = 0;   
+	struct rk_camera_work *camera_work = container_of(work, struct rk_camera_work, work);
+	struct rk_camera_dev *pcdev = camera_work->pcdev;
+	unsigned long flags = 0;
+	unsigned int vir_line_width;
 
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()/n", __FILE__, __LINE__,__FUNCTION__);
 
-    
-    mdelay(1);
-    rk_camera_cif_reset(pcdev,false);
+	mdelay(1);
+	rk_camera_cif_reset(pcdev, false);
 
-    spin_lock_irqsave(&pcdev->camera_work_lock, flags);    
-    list_add_tail(&camera_work->queue, &pcdev->camera_work_queue);    
-    spin_unlock_irqrestore(&pcdev->camera_work_lock, flags); 
+	spin_lock_irqsave(&pcdev->camera_work_lock, flags);
+	list_add_tail(&camera_work->queue, &pcdev->camera_work_queue);
+	spin_unlock_irqrestore(&pcdev->camera_work_lock, flags);
 
-    spin_lock_irqsave(&pcdev->lock,flags);
-    if (atomic_read(&pcdev->stop_cif) == false) {
-        write_cif_reg(pcdev->base,CIF_CIF_CTRL, (read_cif_reg(pcdev->base,CIF_CIF_CTRL) | ENABLE_CAPTURE));
-        RKCAMERA_DG2("After reset cif, enable capture again!\n");
-    }
-    spin_unlock_irqrestore(&pcdev->lock,flags);
-    return;
+	spin_lock_irqsave(&pcdev->lock, flags);
+	if (atomic_read(&pcdev->stop_cif) == false) {
+		write_cif_reg(pcdev->base, CIF_CIF_CTRL, (read_cif_reg(pcdev->base, CIF_CIF_CTRL) | ENABLE_CAPTURE));
+		RKCAMERA_DG2("After reset cif, enable capture again!\n");
+	}
+	spin_unlock_irqrestore(&pcdev->lock, flags);
+	if (CHIP_NAME == 3368) {
+		vir_line_width = read_cif_reg(pcdev->base, CIF_CIF_SET_SIZE);
+		RKCAMERA_TR("%s(%d): cif reset need reinit vir_line_width 0x%x\n",
+			    __func__, __LINE__, vir_line_width);
+		mdelay(100);
+		write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH, vir_line_width & 0xffff);
+	};
+	return;
 }
 
 static inline irqreturn_t rk_camera_cifirq(int irq, void *data)
@@ -2654,10 +2661,10 @@ static enum hrtimer_restart rk_camera_fps_func(struct hrtimer *timer)
 
     if ((pcdev->last_fps != pcdev->fps) && (pcdev->reinit_times))             /*ddl@rock-chips.com v0.3.0x13*/
         pcdev->reinit_times = 0;
-	
+
     pcdev->last_fps = pcdev->fps ;
-    pcdev->fps_timer.timer.node.expires= ktime_add_us(pcdev->fps_timer.timer.node.expires, ktime_to_us(ktime_set(3, 0)));
-    pcdev->fps_timer.timer._softexpires= ktime_add_us(pcdev->fps_timer.timer._softexpires, ktime_to_us(ktime_set(3, 0)));
+	pcdev->fps_timer.timer.node.expires = ktime_add_us(pcdev->fps_timer.timer.node.expires, ktime_to_us(ktime_set(1, 0)));
+	pcdev->fps_timer.timer._softexpires = ktime_add_us(pcdev->fps_timer.timer._softexpires, ktime_to_us(ktime_set(1, 0)));
     /*return HRTIMER_NORESTART;*/
     if(pcdev->reinit_times >=2)
         return HRTIMER_NORESTART;
