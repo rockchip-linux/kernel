@@ -2208,7 +2208,7 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0140 0x4>;
 					clocks =
-					<&dummy>,	<&dummy>,
+					<&dummy>,	<&clk_hevc_cabac>,
 					<&clk_hevc_core>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
@@ -2221,7 +2221,7 @@
 					<&clk_i2c0>,	<&clk_pwm0>;
 
 					clock-output-names =
-					"reserved",	"reserved",
+					"reserved",	"clk_hevc_cabac",
 					"clk_hevc_core",	"reserved",
 
 					"reserved",	"reserved",
