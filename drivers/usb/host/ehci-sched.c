@@ -964,11 +964,13 @@ iso_stream_init (
 	unsigned		epnum, maxp;
 	int			is_input;
 	long			bandwidth;
+	struct usb_host_endpoint *ep;
 
 	/*
 	 * this might be a "high bandwidth" highspeed endpoint,
 	 * as encoded in the ep descriptor's wMaxPacket field
 	 */
+	ep = usb_pipe_endpoint(dev, pipe);
 	epnum = usb_pipeendpoint (pipe);
 	is_input = usb_pipein (pipe) ? USB_DIR_IN : 0;
 	maxp = usb_maxpacket(dev, pipe, !is_input);
@@ -980,7 +982,7 @@ iso_stream_init (
 
 	/* knows about ITD vs SITD */
 	if (dev->speed == USB_SPEED_HIGH) {
-		unsigned multi = hb_mult(maxp);
+		unsigned multi = usb_endpoint_maxp_mult(&ep->desc);
 
 		stream->highspeed = 1;
 
