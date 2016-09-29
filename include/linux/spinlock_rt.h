@@ -26,6 +26,7 @@ extern void __lockfunc rt_spin_lock(spinlock_t *lock);
 extern unsigned long __lockfunc rt_spin_lock_trace_flags(spinlock_t *lock);
 extern void __lockfunc rt_spin_lock_nested(spinlock_t *lock, int subclass);
 extern void __lockfunc rt_spin_unlock(spinlock_t *lock);
+extern int __lockfunc rt_spin_unlock_no_deboost(spinlock_t *lock);
 extern void __lockfunc rt_spin_unlock_wait(spinlock_t *lock);
 extern int __lockfunc rt_spin_trylock_irqsave(spinlock_t *lock, unsigned long *flags);
 extern int __lockfunc rt_spin_trylock_bh(spinlock_t *lock);
@@ -112,6 +113,7 @@ static inline unsigned long spin_lock_trace_flags(spinlock_t *lock)
 #define spin_lock_nest_lock(lock, nest_lock) spin_lock_nested(lock, 0)
 
 #define spin_unlock(lock)			rt_spin_unlock(lock)
+#define spin_unlock_no_deboost(lock)		rt_spin_unlock_no_deboost(lock)
 
 #define spin_unlock_bh(lock)				\
 	do {						\

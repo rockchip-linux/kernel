@@ -1288,7 +1288,7 @@ static int wake_futex_pi(u32 __user *uaddr, u32 uval, struct futex_q *this,
 	 * deboost first (and lose our higher priority), then the task might get
 	 * scheduled away before the wake up can take place.
 	 */
-	spin_unlock(&hb->lock);
+	deboost |= spin_unlock_no_deboost(&hb->lock);
 	wake_up_q(&wake_q);
 	wake_up_q_sleeper(&wake_sleeper_q);
 	if (deboost)
