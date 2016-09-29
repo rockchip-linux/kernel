@@ -153,7 +153,7 @@ static void rockchip_hdmiv2_early_suspend(struct early_suspend *h)
 	struct hdmi *hdmi = hdmi_dev->hdmi;
 	struct pinctrl_state *gpio_state;
 
-	HDMIDBG("hdmi enter early suspend\n");
+	HDMIDBG(2, "hdmi enter early suspend\n");
 	hdmi_submit_work(hdmi, HDMI_SUSPEND_CTL, 0, 1);
 	/* iomux to gpio and pull down when suspend */
 	gpio_state = pinctrl_lookup_state(hdmi_dev->dev->pins->p, "gpio");
@@ -165,7 +165,7 @@ static void rockchip_hdmiv2_early_resume(struct early_suspend *h)
 {
 	struct hdmi *hdmi = hdmi_dev->hdmi;
 
-	HDMIDBG("hdmi exit early resume\n");
+	HDMIDBG(2, "hdmi exit early resume\n");
 	/* iomux to default state for hdmi use when resume */
 	pinctrl_select_state(hdmi_dev->dev->pins->p,
 			     hdmi_dev->dev->pins->default_state);
@@ -334,7 +334,7 @@ static int rockchip_hdmiv2_fb_event_notify(struct notifier_block *self,
 		case FB_BLANK_UNBLANK:
 			break;
 		default:
-			HDMIDBG("suspend hdmi\n");
+			HDMIDBG(2, "suspend hdmi\n");
 			if (!hdmi->sleep) {
 				hdmi_submit_work(hdmi,
 						 HDMI_SUSPEND_CTL,
@@ -362,7 +362,7 @@ static int rockchip_hdmiv2_fb_event_notify(struct notifier_block *self,
 	} else if (action == FB_EVENT_BLANK) {
 		switch (blank_mode) {
 		case FB_BLANK_UNBLANK:
-			HDMIDBG("resume hdmi\n");
+			HDMIDBG(2, "resume hdmi\n");
 			if (hdmi->sleep) {
 				#ifdef CONFIG_PINCTRL
 				pinctrl_select_state(pins->p,
@@ -511,7 +511,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 	int ret = -1;
 	struct resource *res;
 
-	HDMIDBG("%s\n", __func__);
+	HDMIDBG(2, "%s\n", __func__);
 	hdmi_dev = kmalloc(sizeof(*hdmi_dev), GFP_KERNEL);
 	if (!hdmi_dev) {
 		dev_err(&pdev->dev, ">>rockchip hdmiv2 kmalloc fail!");
