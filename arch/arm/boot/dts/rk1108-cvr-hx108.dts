@@ -1,0 +1,565 @@
+/*
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/dts-v1/;
+
+#include "rk1108.dtsi"
+#include "lcd-ili9806e_mipi.dtsi"
+
+/ {
+	model = "Rockchip RK1108 CVR 2 Layer SDK BOARD";
+	compatible = "rockchip,rk1108-cvr-hx108", "rockchip,rk1108";
+
+	memory {
+		device_type = "memory";
+		reg = <0x60000000 0x08000000>;
+	};
+
+	fiq-debugger {
+		status = "okay";
+		rockchip,serial-id = <2>;
+		pinctrl-0 = <&uart2m0_xfer>;
+	};
+
+	chosen {
+		bootargs = "rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
+	};
+
+	ion {
+		compatible = "rockchip,ion";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* memory region for dsp pool, start from 0x62000000 */
+		dsp {
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <2>;
+			reg = <0x62000000 0x100000>; /* 1MB@32M */
+		};
+		ion_cma: rockchip,ion-heap@4 { /* CMA HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <4>;
+			reg = <0x00000000 0x04000000>; /* 64MB */
+		};
+		rockchip,ion-heap@0 { /* VMALLOC HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <0>;
+		};
+	};
+
+	backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm0 0 25000>;
+		brightness-levels = <
+			  0   1   2   3   4   5   6   7
+			  8   9  10  11  12  13  14  15
+			 16  17  18  19  20  21  22  23
+			 24  25  26  27  28  29  30  31
+			 32  33  34  35  36  37  38  39
+			 40  41  42  43  44  45  46  47
+			 48  49  50  51  52  53  54  55
+			 56  57  58  59  60  61  62  63
+			 64  65  66  67  68  69  70  71
+			 72  73  74  75  76  77  78  79
+			 80  81  82  83  84  85  86  87
+			 88  89  90  91  92  93  94  95
+			 96  97  98  99 100 101 102 103
+			104 105 106 107 108 109 110 111
+			112 113 114 115 116 117 118 119
+			120 121 122 123 124 125 126 127
+			128 129 130 131 132 133 134 135
+			136 137 138 139 140 141 142 143
+			144 145 146 147 148 149 150 151
+			152 153 154 155 156 157 158 159
+			160 161 162 163 164 165 166 167
+			168 169 170 171 172 173 174 175
+			176 177 178 179 180 181 182 183
+			184 185 186 187 188 189 190 191
+			192 193 194 195 196 197 198 199
+			200 201 202 203 204 205 206 207
+			208 209 210 211 212 213 214 215
+			216 217 218 219 220 221 222 223
+			224 225 226 227 228 229 230 231
+			232 233 234 235 236 237 238 239
+			240 241 242 243 244 245 246 247
+			248 249 250 251 252 253 254 255>;
+		default-brightness-level = <200>;
+	};
+
+	io-domains {
+		compatible = "rockchip,rk1108-io-voltage-domain";
+		rockchip,grf = <&grf>;
+		rockchip,pmugrf = <&pmugrf>;
+
+		/* GRF_IO_VSEL */
+		status = "okay";
+		vccio1-supply = <&rk805_dcdc4_reg>;
+		vccio2-supply = <&rk805_ldo2_reg>;
+		vccio3-supply = <&rk805_dcdc4_reg>;
+		vccio5-supply = <&rk805_ldo2_reg>;
+		vccio6-supply = <&rk805_dcdc4_reg>;
+
+		/* PMU_GRF_IO_VSEL */
+		pmu-supply = <&rk805_dcdc4_reg>;
+	};
+
+	/* pmic_sleep */
+	gpio_poweroff {
+		compatible = "gpio-poweroff";
+		gpios = <&gpio0 GPIO_B5 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = "rtl8723bs_vq0";
+		WIFI,poweren_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
+		WIFI,host_wake_irq = <&gpio0 GPIO_A3 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	rockchip_audio {
+		compatible = "rockchip,rk1108-audio";
+		dais {
+			dai0 {
+				audio-codec = <&codec>;
+				audio-controller = <&i2s1>;
+				format = "i2s";
+			};
+		};
+	};
+};
+
+&clk_core_dvfs_table {
+
+	operating-points = <
+		/* KHz	  uV */
+		408000 1000000
+		600000 1000000
+		816000 1000000
+		1008000 1050000
+		>;
+	status = "okay";
+};
+
+&adc {
+	status = "okay";
+
+	key0 {
+		compatible = "rockchip,key";
+		io-channels = <&adc 0>;
+		adc-drift = <45>;
+
+		tab-key {
+			linux,code = <15>;
+			label = "tab";
+			rockchip,adc_value = <685>;
+		};
+
+		enter-key {
+			linux,code = <28>;
+			label = "volume down";
+			rockchip,adc_value = <802>;
+		};
+
+		up-key {
+			linux,code = <103>;
+			label = "up";
+			rockchip,adc_value = <238>;
+		};
+
+		down-key {
+			linux,code = <108>;
+			label = "down";
+			rockchip,adc_value = <353>;
+		};
+
+		left-key {
+			linux,code = <105>;
+			label = "left";
+			rockchip,adc_value = <465>;
+		};
+
+		right-key {
+			linux,code = <106>;
+			label = "right";
+			rockchip,adc_value = <109>;
+		};
+
+		menu-key {
+			linux,code = <127>;
+			label = "menu";
+			rockchip,adc_value = <581>;
+		};
+
+		esc-key {
+			linux,code = <1>;
+			label = "esc";
+			rockchip,adc_value = <1>;
+		};
+	};
+};
+
+&i2c0 {
+	status = "okay";
+
+	i2c-scl-rising-time-ns = <275>;
+	i2c-scl-falling-time-ns = <16>;
+	clock-frequency = <400000>;
+
+	rk805: rk805@18 {
+		reg = <0x18>;
+		status = "okay";
+	};
+};
+
+&i2c1 {
+	status = "okay";
+	camera0: camera-module@36 {
+		status = "okay";
+		compatible = "omnivision,ov2710-v4l2-i2c-subdev";
+		reg = <0x36>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&clk_mipicsi_out>;
+		clock-names = "clk_mipicsi_out";
+		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+		pinctrl-0 = <&cam0_default_pins>;
+		pinctrl-1 = <&cam0_sleep_pins>;
+		rockchip,pd-gpio = <&gpio3 8 GPIO_ACTIVE_HIGH>;
+		rockchip,pwr-gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+		rockchip,rst-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
+		rockchip,camera-module-regulator-names = "vdd_cam";
+		rockchip,camera-module-regulator-voltages = <1450000>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "LA6110PA";
+		rockchip,camera-module-len-name = "YM6011P";
+		rockchip,camera-module-fov-h = "128";
+		rockchip,camera-module-fov-v = "55.7";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <0>;
+		rockchip,camera-module-mirror = <0>;
+		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+		rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <0>;
+	};
+
+	camera1: camera-module@36-1 {
+		status = "okay";
+		compatible = "omnivision,ov4689-v4l2-i2c-subdev";
+		reg = <0x36>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&clk_mipicsi_out>;
+		clock-names = "clk_mipicsi_out";
+		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+		pinctrl-0 = <&cam0_default_pins>;
+		pinctrl-1 = <&cam0_sleep_pins>;
+		rockchip,pd-gpio = <&gpio3 8 GPIO_ACTIVE_LOW>;
+		rockchip,pwr-gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+		rockchip,rst-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
+		rockchip,camera-module-regulator-names = "vdd_cam";
+		rockchip,camera-module-regulator-voltages = <1200000>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "LA6111PA";
+		rockchip,camera-module-len-name = "YM6011P";
+		rockchip,camera-module-fov-h = "116";
+		rockchip,camera-module-fov-v = "61";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <0>;
+		rockchip,camera-module-mirror = <1>;
+		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+		rockchip,camera-module-defrect0 = <2688 1520 0 0 2688 1520>;
+		rockchip,camera-module-flash-support = <0>;
+		rockchip,camera-module-mipi-dphy-index = <0>;
+	};
+
+	camera2: camera-module@1a {
+		status = "disabled";
+		compatible = "sony,imx323-v4l2-i2c-subdev";
+		reg = <0x1a>;
+		device_type = "v4l2-i2c-subdev";
+		clocks = <&clk_cif_out>;
+		clock-names = "clk_cif_out";
+		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+		pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11 &cif_dvp_clk &cif_dvp_sync>;
+		pinctrl-1 = <&cif_dvp_sleep>;
+		rockchip,pd-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
+		rockchip,pwr-gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
+		rockchip,rst-gpio = <&gpio3 8 GPIO_ACTIVE_LOW>;
+		rockchip,camera-module-mclk-name = "clk_cif_out";
+		rockchip,camera-module-regulator-names = "vdd_cam";
+		rockchip,camera-module-regulator-voltages = <1200000>;
+		rockchip,camera-module-facing = "back";
+		rockchip,camera-module-name = "LA6114PA";
+		rockchip,camera-module-len-name = "YM6011P";
+		rockchip,camera-module-fov-h = "122";
+		rockchip,camera-module-fov-v = "63";
+		rockchip,camera-module-orientation = <0>;
+		rockchip,camera-module-iq-flip = <0>;
+		rockchip,camera-module-iq-mirror = <0>;
+		rockchip,camera-module-flip = <0>;
+		rockchip,camera-module-mirror = <0>;
+		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+		rockchip,camera-module-defrect0 = <2200 1125 48 13 1920 1080>;
+		rockchip,camera-module-flash-support = <0>;
+	};
+};
+
+&cif_cif0 {
+	rockchip,camera-modules-attached = <&cvbsin>;
+	status = "okay";
+};
+
+&cif_isp0 {
+	rockchip,camera-modules-attached = <&camera0 &camera1 &camera2>;
+	status = "okay";
+};
+
+&cvbsin {
+	status = "okay";
+};
+
+&pwm0 {
+	status = "okay";
+};
+
+&sdmmc {
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <200000 50000000>;
+	supports-highspeed;
+	supports-sd;
+	broken-cd;
+	card-detect-delay = <200>;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	power-inverted;
+	status = "okay";
+};
+
+&sdio {
+	clock-frequency = <50000000>;
+	clock-freq-min-max = <200000 50000000>;
+	supports-highspeed;
+	supports-sdio;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	cap-sdio-irq;
+	status = "okay";
+};
+
+&sfc {
+	status = "okay";
+};
+
+#include "rk805.dtsi"
+&rk805 {
+	gpios = <&gpio0 GPIO_B4 GPIO_ACTIVE_HIGH>, <&gpio0 GPIO_B5 GPIO_ACTIVE_LOW>;
+	rk805,system-power-controller;
+	rk805,support_dc_chg = <1>; /* 1: dc chg; 0: usb chg */
+
+	regulators {
+		rk805_dcdc1_reg: regulator@0 {
+			regulator-name= "vdd_core";
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <900000>;
+			};
+		};
+
+		rk805_dcdc2_reg: regulator@1 {
+			regulator-name= "vdd_cam";
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <2000000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+			};
+		};
+
+		rk805_dcdc3_reg: regulator@2 {
+			regulator-name= "vcc_ddr";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};
+		};
+
+		rk805_dcdc4_reg: regulator@3 {
+			regulator-name= "vcc_io";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk805_ldo1_reg: regulator@4 {
+			regulator-name= "vdd_10";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+
+		rk805_ldo2_reg: regulator@5 {
+			regulator-name= "vcc_18";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+		rk805_ldo3_reg: regulator@6 {
+			regulator-name= "vdd10_pmu";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+	};
+};
+
+&dwc_control_usb {
+	rockchip,remote_wakeup;
+	rockchip,usb_irq_wakeup;
+	status = "okay";
+};
+
+&tsadc {
+	status = "okay";
+};
+
+&usb_host_ehci {
+	status = "okay";
+};
+
+&usb_host_ohci {
+	status = "okay";
+};
+
+&usb_otg {
+	status = "okay";
+};
+
+&iep {
+	status = "okay";
+};
+
+&fb {
+	status = "okay";
+};
+
+&rk_screen {
+	status = "okay";
+};
+
+&mipi_dsi {
+	status = "okay";
+};
+
+&vop {
+	status = "okay";
+	power_ctr: power_ctr {
+		rockchip,debug = <0>;
+		/*
+		lcd_en: lcd_en {
+			rockchip,power_type = <GPIO>;
+			gpios = <&gpio3 GPIO_C4 GPIO_ACTIVE_HIGH>;
+			rockchip,delay = <10>;
+		};
+		*/
+	};
+};
+
+&rga {
+	status = "okay";
+};
+
+&i2s1 {
+	status = "okay";
+};
+
+&codec {
+	status = "okay";
+};
