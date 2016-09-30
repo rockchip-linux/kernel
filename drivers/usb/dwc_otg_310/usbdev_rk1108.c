@@ -116,7 +116,7 @@ static void usb20otg_clock_enable(void *pdata, int enable)
 		clk_prepare_enable(usbpdata->phyclk);
 	} else {
 		clk_disable_unprepare(usbpdata->ahbclk);
-		clk_prepare_enable(usbpdata->ahbclk_otg_pmu);
+		clk_disable_unprepare(usbpdata->ahbclk_otg_pmu);
 		clk_disable_unprepare(usbpdata->phyclk);
 	}
 }
@@ -266,7 +266,7 @@ static int dwc_otg_control_usb_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
-	int ret;
+	int gpio, ret;
 
 	control_usb = devm_kzalloc(dev, sizeof(*control_usb), GFP_KERNEL);
 	if (!control_usb)
@@ -285,6 +285,18 @@ static int dwc_otg_control_usb_probe(struct platform_device *pdev)
 	if (IS_ERR(control_usb->usb_grf)) {
 		dev_err(dev, "Missing rockchip,usbgrf property\n");
 		return PTR_ERR(control_usb->usb_grf);
+	}
+
+	gpio = of_get_named_gpio(np, "vbus_drv", 0);
+	if (gpio_is_valid(gpio)) {
+		ret = devm_gpio_request(dev, gpio, "vbus_drv_pullup");
+		if (ret) {
+			dev_err(dev, "can't request pullup gpio %d, err: %d\n",
+				gpio, ret);
+			return ret;
+		}
+
+		gpio_direction_output(gpio, 1);
 	}
 
 	control_usb->remote_wakeup =
