@@ -529,6 +529,7 @@
 };
 
 &dwc_control_usb {
+	vbus_drv = <&gpio0 GPIO_B0 GPIO_ACTIVE_LOW>;
 	rockchip,remote_wakeup;
 	rockchip,usb_irq_wakeup;
 	status = "okay";
