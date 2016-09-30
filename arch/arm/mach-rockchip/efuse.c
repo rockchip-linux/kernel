@@ -185,40 +185,6 @@ static void efuse_writel(u32 val, u32 offset)
 {
 	secure_regs_wr_32(efuse_phys + offset, val);
 }
-
-#define RKTF_VER_MAJOR(ver) (((ver) >> 16) & 0xffff)
-#define RKTF_VER_MINOR(ver) ((ver) & 0xffff)
-/* valid ver */
-#define RKTF_VLDVER_MAJOR (1)
-#define RKTF_VLDVER_MINOR (3)
-
-
-static int __init rockchip_tf_ver_check(void)
-{
-	u64 val;
-	u32 ver_val;
-
-	ver_val = reg_rd_fn(PSCI_SIP_RKTF_VER, 0, 0, 0, &val);
-	if (ver_val == 0xffffffff)
-		goto ver_error;
-
-	if ((RKTF_VER_MAJOR(ver_val) >= RKTF_VLDVER_MAJOR) &&
-		(RKTF_VER_MINOR(ver_val) >= RKTF_VLDVER_MINOR))
-		return 0;
-
-ver_error:
-
-	pr_err("read tf version 0x%x!\n", ver_val);
-
-	do {
-		mdelay(1000);
-		pr_err("trusted firmware need to update to(%d.%d) or is invaild!\n",
-			RKTF_VLDVER_MAJOR, RKTF_VLDVER_MINOR);
-	} while(1);
-
-	return 0;
-}
-device_initcall_sync(rockchip_tf_ver_check);
 #endif
 
 static int rk3288_efuse_readregs(u32 addr, u32 length, u8 *buf)
