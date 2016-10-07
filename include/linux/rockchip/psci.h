@@ -1,6 +1,13 @@
 #ifndef __ROCKCHIP_PSCI_H
 #define __ROCKCHIP_PSCI_H
 
+struct arm_smccc_res {
+	unsigned long a0;
+	unsigned long a1;
+	unsigned long a2;
+	unsigned long a3;
+};
+
 #define SEC_REG_RD (0x0)
 #define SEC_REG_WR (0x1)
 
@@ -21,13 +28,25 @@
 #define PSCI_SIP_UARTDBG_CFG		(0x82000005)
 #define PSCI_SIP_UARTDBG_CFG64		(0xc2000005)
 #define PSCI_SIP_EL3FIQ_CFG		(0x82000006)
+#define PSCI_SIP_ACCESS_CHIP_STATE64	(0xc2000006)
 #define PSCI_SIP_SMEM_CONFIG		(0x82000007)
+#define PSCI_SIP_ACCESS_CHIP_EXTRA_STATE64 (0xc2000007)
 #define PSCI_SIP_DRAM_FREQ_CONFIG	(0x82000008)
+#define PSCI_SIP_SHARE_MEM		(0x82000009)
+#define PSCI_SIP_IMPLEMENT_CALL_VER	(0x8200000a)
 
 /*
  * pcsi smc funciton err code
  */
+#define PSCI_SMC_SUCCESS		0
+#define PSCI_SMC_NOT_SUPPORTED		-1
+#define PSCI_SMC_INVALID_PARAMS		-2
+#define PSCI_SMC_INVALID_ADDRESS	-3
+#define PSCI_SMC_DENIED			-4
 #define PSCI_SMC_FUNC_UNK		0xffffffff
+
+#define SIP_IMPLEMENT_V1		(1)
+#define SIP_IMPLEMENT_V2		(2)
 
 /*
  * define PSCI_SIP_UARTDBG_CFG call type
@@ -43,38 +62,43 @@
 /*
  * rockchip psci function call interface
  */
-
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_ARM64)
-u32 rockchip_psci_smc_read(u32 function_id, u32 arg0, u32 arg1, u32 arg2,
-			   u32 *val);
+struct arm_smccc_res rockchip_psci_smc_read(u32 function_id, u32 arg0,
+					    u32 arg1, u32 arg2);
 u32 rockchip_psci_smc_write(u32 function_id, u32 arg0, u32 arg1, u32 arg2);
 
 u32 rockchip_psci_smc_get_tf_ver(void);
+int rockchip_psci_smc_set_suspend_mode(u32 mode);
 u32 rockchip_secure_reg_read(u32 addr_phy);
-u32 rockchip_secure_reg_write(u32 addr_phy, u32 val);
+int rockchip_secure_reg_write(u32 addr_phy, u32 val);
 
 #ifdef CONFIG_ARM64
-u32 rockchip_psci_smc_write64(u64 function_id, u64 arg0, u64 arg1, u64 arg2);
-u32 rockchip_psci_smc_read64(u64 function_id, u64 arg0, u64 arg1, u64 arg2,
-			     u64 *val);
-u64 rockchip_secure_reg_read64(u64 addr_phy);
-u32 rockchip_secure_reg_write64(u64 addr_phy, u64 val);
+int rockchip_psci_smc_write64(u64 function_id, u64 arg0, u64 arg1, u64 arg2);
+struct arm_smccc_res rockchip_psci_smc_read64(u64 function_id, u64 arg0,
+					      u64 arg1, u64 arg2);
+
+struct arm_smccc_res rockchip_secure_reg_read64(u64 addr_phy);
+int rockchip_secure_reg_write64(u64 addr_phy, u64 val);
 
 void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset);
 #endif
 
-u32 psci_fiq_debugger_switch_cpu(u32 cpu);
+int psci_fiq_debugger_switch_cpu(u32 cpu);
 void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback);
 void psci_fiq_debugger_enable_debug(bool val);
-u32 psci_fiq_debugger_set_print_port(u32 port, u32 baudrate);
+int psci_fiq_debugger_set_print_port(u32 port, u32 baudrate);
 
-u32 psci_set_memory_secure(bool val);
+int psci_set_memory_secure(bool val);
 #else
-static inline u32 rockchip_psci_smc_read(u32 function_id, u32 arg0, u32 arg1,
-					 u32 arg2, u32 *val)
+static inline struct arm_smccc_res
+	rockchip_psci_smc_read(u32 function_id, u32 arg0, u32 arg1, u32 arg2)
 {
-	return 0;
+	struct arm_smccc_res res;
+
+	memset(&res, 0, sizeof(struct arm_smccc_res));
+	return res;
 }
+
 static inline u32 rockchip_psci_smc_write(u32 function_id, u32 arg0,
 					  u32 arg1, u32 arg2)
 {
@@ -82,10 +106,11 @@ static inline u32 rockchip_psci_smc_write(u32 function_id, u32 arg0,
 }
 
 static inline u32 rockchip_psci_smc_get_tf_ver(void) { return 0; }
+static inline int rockchip_psci_smc_set_suspend_mode(u32 mode) { return 0; }
 static inline u32 rockchip_secure_reg_read(u32 addr_phy) { return 0; }
-static inline u32 rockchip_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
+static inline int rockchip_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
 
-static inline u32 psci_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
+static inline int psci_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
 static inline void
 psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback) { }
 static inline void psci_fiq_debugger_enable_debug(bool val) { }
