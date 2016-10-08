@@ -16,6 +16,8 @@
  *v0.1.0:
  *1. Initialize version;
  *2. Support config sensor gain and shutter time in 	imx_camera_module_custom_config.exposure_valid_frame;
+ *v0.1.1:
+ *1. v_blanking time 3us -> 5ms;
  */
 
 #include <linux/i2c.h>
@@ -129,7 +131,7 @@ static struct imx_camera_module_config imx323_configs[] = {
 			sizeof(imx323_init_tab_1920_1080_30fps)
 			/
 			sizeof(imx323_init_tab_1920_1080_30fps[0]),
-		.v_blanking_time_us = 3,
+		.v_blanking_time_us = 5000,
 		PLTFRM_CAM_ITF_DVP_CFG(
 			PLTFRM_CAM_ITF_BT601_12,
 			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
