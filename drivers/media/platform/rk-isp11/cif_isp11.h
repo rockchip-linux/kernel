@@ -529,7 +529,7 @@ struct cif_isp11_mi_state {
 
 struct cif_isp11_img_src_exp {
 	struct list_head list;
-	struct cif_isp11_img_src_ext_ctrl *exp;
+	struct cif_isp11_img_src_ext_ctrl exp;
 };
 
 struct cif_isp11_img_src_data {
@@ -543,11 +543,13 @@ struct cif_isp11_img_src_exps {
 
 	struct mutex mutex;	/* protect frm_exp */
 	struct cif_isp11_img_src_data data[2];
-	unsigned char exp_valid_frms;
+	unsigned char exp_valid_frms[2];
 };
 
 enum cif_isp11_isp_vs_cmd {
-	CIF_ISP11_VS_EXP = 0,
+	CIF_ISP11_VS_EXIT = 0,
+	CIF_ISP11_VS_EXP = 1
+
 };
 
 struct cif_isp11_isp_vs_work {

@@ -156,6 +156,7 @@ struct imx_camera_module_custom_config {
 	struct imx_camera_module_config *configs;
 	u32 num_configs;
 	u32 power_up_delays_ms[3];
+	unsigned short exposure_valid_frame[2];
 	void *priv;
 };
 

@@ -899,9 +899,10 @@ long imx_camera_module_ioctl(struct v4l2_subdev *sd,
 		timings->fine_integration_time_min =
 			imx_timings.fine_integration_time_min;
 
-		if (cam_mod->custom.g_exposure_valid_frame)
-			timings->exposure_valid_frame =
-				cam_mod->custom.g_exposure_valid_frame(cam_mod);
+		timings->exposure_valid_frame[0] =
+			cam_mod->custom.exposure_valid_frame[0];
+		timings->exposure_valid_frame[1] =
+			cam_mod->custom.exposure_valid_frame[1];
 		timings->exp_time = cam_mod->exp_config.exp_time;
 		timings->gain = cam_mod->exp_config.gain;
 
@@ -916,7 +917,7 @@ long imx_camera_module_ioctl(struct v4l2_subdev *sd,
 			timings->gain = imx_timings.gain;
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
-		struct pltfrm_cam_itf *itf_cfg = (struct pltfrm_cam_itf*)arg;
+		struct pltfrm_cam_itf *itf_cfg = (struct pltfrm_cam_itf *)arg;
 		struct imx_camera_module_config *config;
 
 		if (cam_mod->custom.num_configs <= 0) {

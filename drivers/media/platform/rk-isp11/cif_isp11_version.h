@@ -55,8 +55,13 @@
 *v0.1.6:
 *Add isp output size in struct isp_supplemental_sensor_mode_data.
 *
+*v0.1.7:
+*1. Direct config isp lsc table size in cifisp_lsc_config. Because active_lsc_width
+*is not same with isp register after isp reset.
+*2. Support separate config sensor gain and shutter time for some sensor which
+*gain and shutter isn't valid at the same time. Ex. ov2710.
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 6)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 7)
 
 #endif

@@ -694,7 +694,6 @@ int ov_camera_module_s_ext_ctrls(
 	if (ctrls->count == 0)
 		return -EINVAL;
 
-
 	for (i = 0; i < ctrls->count; i++) {
 		struct v4l2_ext_control *ctrl;
 		u32 ctrl_updt = 0;
@@ -922,9 +921,10 @@ long ov_camera_module_ioctl(struct v4l2_subdev *sd,
 		timings->fine_integration_time_min =
 			ov_timings.fine_integration_time_min;
 
-		if (cam_mod->custom.g_exposure_valid_frame)
-			timings->exposure_valid_frame =
-				cam_mod->custom.g_exposure_valid_frame(cam_mod);
+		timings->exposure_valid_frame[0] =
+			cam_mod->custom.exposure_valid_frame[0];
+		timings->exposure_valid_frame[1] =
+			cam_mod->custom.exposure_valid_frame[1];
 		if (cam_mod->exp_config.exp_time)
 			timings->exp_time = cam_mod->exp_config.exp_time;
 		else

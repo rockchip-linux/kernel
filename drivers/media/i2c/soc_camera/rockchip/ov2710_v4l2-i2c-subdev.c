@@ -16,9 +16,11 @@
  * Note:
  *
  *v0.1.0:
- *	1. Initialize version;
- *	2. Stream on sensor in configuration, and stream off sensor after 1frame;
- *	3. Stream delay time is define in power_up_delays_ms[2];
+ *1. Initialize version;
+ *2. Stream on sensor in configuration, and stream off sensor after 1frame;
+ *3. Stream delay time is define in power_up_delays_ms[2];
+ *v0.1.1:
+ *1. Support config sensor gain and shutter time in ov_camera_module_custom_config.exposure_valid_frame;
  */
 
 #include <linux/i2c.h>
@@ -663,14 +665,8 @@ static int ov2710_s_ext_ctrls(struct ov_camera_module *cam_mod,
 {
 	int ret = 0;
 
-	/* Handles only exposure and gain together special case. */
-	if (ctrls->count == 1)
-		ret = ov2710_s_ctrl(cam_mod, ctrls->ctrls[0].id);
-	else if ((ctrls->count == 3) &&
-		(ctrls->ctrls[0].id == V4L2_CID_GAIN ||
-		ctrls->ctrls[0].id == V4L2_CID_EXPOSURE ||
-		ctrls->ctrls[1].id == V4L2_CID_GAIN ||
-		ctrls->ctrls[1].id == V4L2_CID_EXPOSURE))
+	if ((ctrls->ctrls[0].id == V4L2_CID_GAIN ||
+		ctrls->ctrls[0].id == V4L2_CID_EXPOSURE))
 		ret = ov2710_write_aec(cam_mod);
 	else
 		ret = -EINVAL;
@@ -831,7 +827,13 @@ static struct ov_camera_module_custom_config ov2710_custom_config = {
 	.check_camera_id = ov2710_check_camera_id,
 	.configs = ov2710_configs,
 	.num_configs = sizeof(ov2710_configs) / sizeof(ov2710_configs[0]),
-	.power_up_delays_ms = {5, 30, 30}
+	.power_up_delays_ms = {5, 30, 30},
+	/*
+	*0: Exposure time valid fileds;
+	*1: Exposure gain valid fileds;
+	*(2 fileds == 1 frames)
+	*/
+	.exposure_valid_frame = {4, 2}
 };
 
 static int ov2710_probe(

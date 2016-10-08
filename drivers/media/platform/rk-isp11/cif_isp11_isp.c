@@ -1585,40 +1585,34 @@ static bool cifisp_lsc_config(struct cif_isp11_isp_dev *isp_dev)
 
 	cifisp_lsc_correct_matrix_config(isp_dev);
 
-	if (isp_dev->active_lsc_width !=
-		pconfig->config_width ||
-		isp_dev->active_lsc_height !=
-		pconfig->config_height) {
+	for (i = 0; i < 4; i++) {
+		/* program x size tables */
+		data = CIFISP_LSC_SECT_SIZE(
+				pconfig->x_size_tbl[i*2],
+				pconfig->x_size_tbl[i*2 + 1]);
+		cifisp_iowrite32(data, CIF_ISP_LSC_XSIZE_01 + i * 4);
 
-		for (i = 0; i < 4; i++) {
-			/* program x size tables */
-			data = CIFISP_LSC_SECT_SIZE(
-					pconfig->x_size_tbl[i*2],
-					pconfig->x_size_tbl[i*2 + 1]);
-			cifisp_iowrite32(data, CIF_ISP_LSC_XSIZE_01 + i * 4);
+		/* program x grad tables */
+		data = CIFISP_LSC_SECT_SIZE(
+				pconfig->x_grad_tbl[i*2],
+				pconfig->x_grad_tbl[i*2 + 1]);
+		cifisp_iowrite32(data, CIF_ISP_LSC_XGRAD_01 + i * 4);
 
-			/* program x grad tables */
-			data = CIFISP_LSC_SECT_SIZE(
-					pconfig->x_grad_tbl[i*2],
-					pconfig->x_grad_tbl[i*2 + 1]);
-			cifisp_iowrite32(data, CIF_ISP_LSC_XGRAD_01 + i * 4);
+		/* program y size tables */
+		data = CIFISP_LSC_SECT_SIZE(
+				pconfig->y_size_tbl[i*2],
+				pconfig->y_size_tbl[i*2 + 1]);
+		cifisp_iowrite32(data, CIF_ISP_LSC_YSIZE_01 + i * 4);
 
-			/* program y size tables */
-			data = CIFISP_LSC_SECT_SIZE(
-					pconfig->y_size_tbl[i*2],
-					pconfig->y_size_tbl[i*2 + 1]);
-			cifisp_iowrite32(data, CIF_ISP_LSC_YSIZE_01 + i * 4);
-
-			/* program y grad tables */
-			data = CIFISP_LSC_SECT_SIZE(
-					pconfig->y_grad_tbl[i*2],
-					pconfig->y_grad_tbl[i*2 + 1]);
-			cifisp_iowrite32(data, CIF_ISP_LSC_YGRAD_01 + i * 4);
-		}
-
-		isp_dev->active_lsc_width = pconfig->config_width;
-		isp_dev->active_lsc_height = pconfig->config_height;
+		/* program y grad tables */
+		data = CIFISP_LSC_SECT_SIZE(
+				pconfig->y_grad_tbl[i*2],
+				pconfig->y_grad_tbl[i*2 + 1]);
+		cifisp_iowrite32(data, CIF_ISP_LSC_YGRAD_01 + i * 4);
 	}
+
+	isp_dev->active_lsc_width = pconfig->config_width;
+	isp_dev->active_lsc_height = pconfig->config_height;
 
 	cifisp_iowrite32(1, CIF_ISP_LSC_CTRL);
 
@@ -3766,7 +3760,6 @@ static void cifisp_send_measurement(
 		isp_dev->meas_stats.stat.meas_type |= CIFISP_STAT_HIST;
 	}
 	isp_dev->meas_stats.g_frame_id = meas_work->frame_id;
-
 	vb->field_count = meas_work->frame_id;
 	vb->state = VIDEOBUF_DONE;
 	wake_up(&vb->done);

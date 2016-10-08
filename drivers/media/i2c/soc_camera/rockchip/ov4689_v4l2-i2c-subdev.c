@@ -11,6 +11,11 @@
  * version 2. This program is licensed "as is" without any warranty of any
  * kind, whether express or implied.
  *
+ * Note:
+ *
+ *v0.1.0:
+ *1. Initialize version;
+ *2. Support config sensor gain and shutter time in 	ov_camera_module_custom_config.exposure_valid_frame;
  */
 
 #include <linux/i2c.h>
@@ -34,7 +39,7 @@
 #define ov4689_AEC_PK_LONG_EXPO_1ST_REG 0x3502	/* Exposure Bits 0-7 */
 #define ov4689_FETCH_3RD_BYTE_EXP(VAL) ((VAL >> 12) & 0xF)	/* 4 Bits */
 #define ov4689_FETCH_2ND_BYTE_EXP(VAL) ((VAL >> 4) & 0xFF)	/* 8 Bits */
-#define ov4689_FETCH_1ST_BYTE_EXP(VAL) ((VAL & 0x0F) <<4 )	/* 4 Bits */
+#define ov4689_FETCH_1ST_BYTE_EXP(VAL) ((VAL & 0x0F) << 4)		/* 4 Bits */
 
 #define ov4689_AEC_GROUP_UPDATE_ADDRESS		0x3208
 #define ov4689_AEC_GROUP_UPDATE_START_DATA	0x00
@@ -432,10 +437,10 @@ static int ov4689_write_aec(struct ov_camera_module *cam_mod)
 	int ret = 0;
 
 	ov_camera_module_pr_debug(cam_mod,
-				  "exp_time = %d, gain = %d, flash_mode = %d\n",
-				  cam_mod->exp_config.exp_time,
-				  cam_mod->exp_config.gain,
-				  cam_mod->exp_config.flash_mode);
+		  "exp_time = %d, gain = %d, flash_mode = %d\n",
+		  cam_mod->exp_config.exp_time,
+		  cam_mod->exp_config.gain,
+		  cam_mod->exp_config.flash_mode);
 
 	/* if the sensor is already streaming, write to shadow registers,
 		if the sensor is in SW standby, write to active registers,
@@ -729,13 +734,8 @@ static int ov4689_s_ext_ctrls(struct ov_camera_module *cam_mod,
 	int ret = 0;
 
 	/* Handles only exposure and gain together special case. */
-	if (ctrls->count == 1)
-		ret = ov4689_s_ctrl(cam_mod, ctrls->ctrls[0].id);
-	else if ((ctrls->count == 3) &&
-		 ((ctrls->ctrls[0].id == V4L2_CID_GAIN &&
-		   ctrls->ctrls[1].id == V4L2_CID_EXPOSURE) ||
-		  (ctrls->ctrls[1].id == V4L2_CID_GAIN &&
-		   ctrls->ctrls[0].id == V4L2_CID_EXPOSURE)))
+	if ((ctrls->ctrls[0].id == V4L2_CID_GAIN ||
+		ctrls->ctrls[0].id == V4L2_CID_EXPOSURE))
 		ret = ov4689_write_aec(cam_mod);
 	else
 		ret = -EINVAL;
@@ -860,7 +860,13 @@ static struct ov_camera_module_custom_config ov4689_custom_config = {
 	.set_flip = ov4689_set_flip,
 	.configs = ov4689_configs,
 	.num_configs = sizeof(ov4689_configs) / sizeof(ov4689_configs[0]),
-	.power_up_delays_ms = {5, 20, 0}
+	.power_up_delays_ms = {5, 20, 0},
+	/*
+	*0: Exposure time valid fileds;
+	*1: Exposure gain valid fileds;
+	*(2 fileds == 1 frames)
+	*/
+	.exposure_valid_frame = {4, 4}
 };
 
 static int ov4689_probe(

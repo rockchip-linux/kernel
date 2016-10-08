@@ -19,7 +19,8 @@
 
 #define CAMERA_STRLEN   32
 #define CAMERA_METADATA_LEN	(2*PAGE_SIZE)
-
+#define VALID_FR_EXP_T_INDEX	0
+#define VALID_FR_EXP_G_INDEX	1
 /* Sensor resolution specific data for AE calculation.*/
 struct isp_supplemental_sensor_mode_data {
 	unsigned int coarse_integration_time_min;
@@ -43,7 +44,12 @@ struct isp_supplemental_sensor_mode_data {
 	unsigned int isp_output_height;
 	unsigned char binning_factor_x; /* horizontal binning factor used */
 	unsigned char binning_factor_y; /* vertical binning factor used */
-	unsigned char exposure_valid_frame;
+	/*
+	*0: Exposure time valid fileds;
+	*1: Exposure gain valid fileds;
+	*(2 fileds == 1 frames)
+	*/
+	unsigned char exposure_valid_frame[2];
 	int exp_time;
 	unsigned short gain;
 };

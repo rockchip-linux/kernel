@@ -1418,9 +1418,9 @@ static int v4l2_s_ext_ctrls(struct file *file, void *priv,
 	struct v4l2_ext_controls *vc_ext)
 {
 	struct cif_isp11_img_src_ctrl *ctrls;
-	struct cif_isp11_img_src_ext_ctrl *ctrl;
 	struct videobuf_queue *queue = to_videobuf_queue(file);
 	struct cif_isp11_device *dev = to_cif_isp11_device(queue);
+	struct cif_isp11_img_src_ext_ctrl ctrl;
 	int ret = -EINVAL;
 	unsigned int i;
 
@@ -1432,25 +1432,21 @@ static int v4l2_s_ext_ctrls(struct file *file, void *priv,
 	if (vc_ext->count == 0)
 		return ret;
 
-	ctrl = kmalloc(sizeof(struct cif_isp11_img_src_ext_ctrl), GFP_KERNEL);
-	if (!ctrl)
-		return -ENOMEM;
-
 	ctrls = kmalloc(vc_ext->count *
 		sizeof(struct cif_isp11_img_src_ctrl), GFP_KERNEL);
 	if (!ctrls)
 		return -ENOMEM;
 
-	ctrl->cnt = vc_ext->count;
-	ctrl->class = vc_ext->ctrl_class;
-	ctrl->ctrls = ctrls;
+	ctrl.cnt = vc_ext->count;
+	ctrl.class = vc_ext->ctrl_class;
+	ctrl.ctrls = ctrls;
 
 	for (i = 0; i < vc_ext->count; i++) {
 		ctrls[i].id = vc_ext->controls[i].id;
 		ctrls[i].val = vc_ext->controls[i].value;
 	}
 
-	ret = cif_isp11_s_exp(dev, ctrl);
+	ret = cif_isp11_s_exp(dev, &ctrl);
 	return ret;
 
 }
