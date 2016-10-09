@@ -6,7 +6,8 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3368-p9_818.dtb \
 	rk3368-tb_8846.dtb \
 	rk3368-tb_mipi.dtb \
-	px5-sdk.dtb
+	px5-sdk.dtb \
+	rk3228h-evb.dtb
 
 dtb-$(CONFIG_ARCH_VEXPRESS) += rtsm_ve-aemv8a.dtb foundation-v8.dtb \
 				fvp-base-gicv2-psci.dtb
