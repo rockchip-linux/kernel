@@ -51,6 +51,7 @@
 #define DSP_RENDER_HDR     0x00000010
 #define DSP_RENDER_DEFOG   0x00000020
 #define DSP_RENDER_LLE     0x00000040
+#define DSP_RENDER_TEST    0x80000000
 
 /*
  * DSP config types
@@ -103,13 +104,13 @@ struct dsp_config_params {
  * dsp_user_work - This struct is used by user ioctl
  *
  * @magic: work magic should be DSP_RENDER_WORK_MAGIC
- * @hdl: user handle
+ * @id: user work id
  * @result: work result, if success result is 0
  * @render: render params
  */
 struct dsp_user_work {
 	u32 magic;
-	u32 hdl;
+	u32 id;
 	u32 result;
 
 	struct dsp_render_params render;

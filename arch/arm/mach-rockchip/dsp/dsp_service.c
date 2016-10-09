@@ -335,8 +335,8 @@ static int dsp_device_pause(struct dsp_dev_client *client)
 	dsp_debug_enter();
 
 	/* Wake up work consumer thread and stop it */
-	kthread_stop(service->work_consumer);
 	wake_up(&service->wait);
+	kthread_stop(service->work_consumer);
 	service->work_consumer = NULL;
 
 	dsp_debug_leave();
@@ -490,7 +490,7 @@ static long dsp_ioctl(struct file *filp, unsigned int cmd,
 			struct dsp_user_work user_work;
 
 			if (ret == -EBUSY) {
-				user_work.hdl = 0;
+				user_work.id = 0;
 				user_work.result = DSP_WORK_ETIMEOUT;
 			}
 			if (copy_to_user((void __user *)arg,
@@ -529,8 +529,13 @@ static int dsp_open(struct inode *inode, struct file *filp)
 	}
 
 	/* Power on DSP if service has more than one session */
-	if (atomic_read(&service->ref))
-		service->dev->on(service->dev);
+	if (atomic_read(&service->ref)) {
+		ret = service->dev->on(service->dev);
+		if (ret) {
+			dsp_err("power on dsp device failed\n");
+			goto out;
+		}
+	}
 
 	filp->private_data = session;
 out:

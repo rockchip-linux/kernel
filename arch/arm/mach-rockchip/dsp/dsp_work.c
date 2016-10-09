@@ -59,23 +59,25 @@ int dsp_work_copy_from_user(struct dma_pool *dma_pool, struct dsp_work *work,
 		goto out;
 	}
 
-	work->id = user_work.hdl;
+	work->id = user_work.id;
 	work->type = DSP_RENDER_WORK;
 	render->type = user_work.render.type;
 	render->size = user_work.render.size;
 
-	render->packet_virt = (u32)dma_pool_alloc(dma_pool, GFP_KERNEL,
-						  &render->packet_phys);
-	if (!render->packet_virt) {
-		dsp_err("cannot alloc dma buffer for render packet\n");
-		return -ENOMEM;
-	}
-	ret = copy_from_user((void *)render->packet_virt,
-			     (void __user *)user_work.render.packet_virt,
-			     render->size);
-	if (ret) {
-		dsp_err("copy from user packet failed\n");
-		goto out;
+	if (render->size != 0) {
+		render->packet_virt = (u32)dma_pool_alloc(dma_pool, GFP_KERNEL,
+							  &render->packet_phys);
+		if (!render->packet_virt) {
+			dsp_err("cannot alloc dma buffer for render packet\n");
+			return -ENOMEM;
+		}
+		ret = copy_from_user((void *)render->packet_virt,
+				     (void __user *)user_work.render.packet_virt,
+				     render->size);
+		if (ret) {
+			dsp_err("copy from user packet failed\n");
+			goto out;
+		}
 	}
 out:
 	dsp_debug_leave();
@@ -96,15 +98,17 @@ int dsp_work_copy_to_user(struct dsp_work *work, void *user)
 		goto out;
 	}
 
-	user_work.hdl = work->id;
+	user_work.id = work->id;
 	user_work.result = work->result;
 
-	ret = copy_to_user((void __user *)user_work.render.packet_virt,
-			   (void *)work->params.render.packet_virt,
-			   work->params.render.size);
-	if (ret) {
-		dsp_err("copy to user failed\n");
-		goto out;
+	if (work->params.render.size != 0) {
+		ret = copy_to_user((void __user *)user_work.render.packet_virt,
+				   (void *)work->params.render.packet_virt,
+				   work->params.render.size);
+		if (ret) {
+			dsp_err("copy to user failed\n");
+			goto out;
+		}
 	}
 
 	ret = copy_to_user((void __user *)user, &user_work, sizeof(user_work));
@@ -150,8 +154,9 @@ int dsp_work_destroy(struct dma_pool *dma_pool, struct dsp_work *work)
 	if (work->type == DSP_RENDER_WORK) {
 		struct dsp_render_params *render = &work->params.render;
 
-		dma_pool_free(dma_pool, (void *)render->packet_virt,
-			      render->packet_phys);
+		if (render->packet_virt)
+			dma_pool_free(dma_pool, (void *)render->packet_virt,
+				      render->packet_phys);
 	}
 
 	dma_pool_free(dma_pool, work, work->dma_addr);
