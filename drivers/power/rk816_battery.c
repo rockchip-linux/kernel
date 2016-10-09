@@ -885,7 +885,13 @@ static bool is_rk816_bat_first_pwron(struct rk816_battery *di)
 
 static u8 rk816_bat_get_pwroff_min(struct rk816_battery *di)
 {
-	return rk816_bat_read(di, RK816_NON_ACT_TIMER_CNT_REG);
+	u8 now_min, last_min;
+
+	now_min = rk816_bat_read(di, RK816_NON_ACT_TIMER_CNT_REG);
+	last_min = rk816_bat_read(di, RK816_NON_ACT_TIMER_CNT_REG_SAVE);
+	rk816_bat_write(di, RK816_NON_ACT_TIMER_CNT_REG_SAVE, now_min);
+
+	return (now_min != last_min) ? now_min : 0;
 }
 
 static u8 is_rk816_bat_initialized(struct rk816_battery *di)
