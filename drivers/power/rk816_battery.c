@@ -232,9 +232,15 @@ struct rk816_battery {
 	bool				is_first_on;
 	bool				is_force_calib;
 	int				last_dsoc;
-	u8				plug_in_irq;
-	u8				plug_out_irq;
-	u8				vb_low_irq;
+	u8				plugin_irq;
+	u8				plugout_irq;
+	u8				vblow_irq;
+	u8				cvtlmt_irq;
+	u8				plugin_trigger;
+	u8				plugout_trigger;
+	u8				vblow_trigger;
+	u8				cvtlmt_trigger;
+	u8				cvtlmt_int_event;
 	int				ocv_pre_dsoc;
 	int				ocv_new_dsoc;
 	int				max_pre_dsoc;
@@ -719,7 +725,7 @@ static int rk816_bat_get_iadc(struct rk816_battery *di)
 	return val;
 }
 
-static bool is_rk816_bat_cvtlim(struct rk816_battery *di)
+static bool is_rk816_bat_st_cvtlim(struct rk816_battery *di)
 {
 	return (rk816_bat_read(di, RK816_INT_STS_REG1) & 0x80) ? true : false;
 }
@@ -732,28 +738,57 @@ static bool rk816_bat_adc_calib(struct rk816_battery *di)
 	    (di->adc_calib_cnt > ADC_CALIB_CNT) ||
 	    (base2min(di->boot_base) < ADC_CALIB_LMT_MIN) ||
 	    (abs(di->current_avg) < ADC_CALIB_THRESHOLD) ||
-	    (is_rk816_bat_cvtlim(di)))
+	    (is_rk816_bat_st_cvtlim(di)))
 		return false;
 
 	di->adc_calib_cnt++;
 	save_coffset = rk816_bat_get_coffset(di);
 	for (i = 0; i < 5; i++) {
-		adc = rk816_bat_get_iadc(di);
 		if (!rk816_bat_chrg_online(di)) {
 			rk816_bat_set_coffset(di, save_coffset);
 			BAT_INFO("quit, charger plugout when calib adc\n");
 			return false;
 		}
+
+		/* check status and int cvtlmt */
+		if (is_rk816_bat_st_cvtlim(di)) {
+			rk816_bat_set_coffset(di, save_coffset);
+			BAT_INFO("1 cvtlmt(st) when calib adc\n");
+			return false;
+		}
+		enable_irq(di->cvtlmt_irq);
+		msleep(2000);
+		disable_irq(di->cvtlmt_irq);
+		if (di->cvtlmt_int_event) {
+			di->cvtlmt_int_event = 0;
+			rk816_bat_set_coffset(di, save_coffset);
+			BAT_INFO("1 cvtlmt(int) when calib adc\n");
+			return false;
+		}
+
+		/* it's ok to update coffset */
+		adc = rk816_bat_get_iadc(di);
 		coffset = rk816_bat_get_coffset(di);
 		rk816_bat_set_coffset(di, coffset + adc);
-		msleep(2000);
-		if (is_rk816_bat_cvtlim(di)) {
+
+		/* check status and int cvtlmt again */
+		if (is_rk816_bat_st_cvtlim(di)) {
 			rk816_bat_set_coffset(di, save_coffset);
-			BAT_INFO("cvtlmt when calib adc\n");
+			BAT_INFO("2 cvtlmt(st) when calib adc\n");
 			return false;
-		} else {
-			adc = rk816_bat_get_iadc(di);
 		}
+		enable_irq(di->cvtlmt_irq);
+		msleep(2000);
+		disable_irq(di->cvtlmt_irq);
+		if (di->cvtlmt_int_event) {
+			di->cvtlmt_int_event = 0;
+			rk816_bat_set_coffset(di, save_coffset);
+			BAT_INFO("2 cvtlmt(int) when calib adc\n");
+			return false;
+		}
+
+		/* it's ok to check calib adc result */
+		adc = rk816_bat_get_iadc(di);
 		if (abs(adc) < ADC_CALIB_THRESHOLD) {
 			coffset = rk816_bat_get_coffset(di);
 			ioffset = rk816_bat_get_ioffset(di);
@@ -766,9 +801,10 @@ static bool rk816_bat_adc_calib(struct rk816_battery *di)
 			BAT_INFO("coffset calib again %d.., max_cnt=%d\n",
 				 i, di->adc_calib_cnt);
 			rk816_bat_set_coffset(di, coffset);
-			msleep(2000);
 		}
 	}
+
+	rk816_bat_set_coffset(di, save_coffset);
 
 	return false;
 }
@@ -2441,7 +2477,8 @@ static void rk816_bat_wait_finish_sig(struct rk816_battery *di)
 	if (!rk816_bat_chrg_online(di))
 		return;
 
-	if ((di->chrg_status == CHARGE_FINISH) && (!is_rk816_bat_cvtlim(di)) &&
+	if ((di->chrg_status == CHARGE_FINISH) &&
+	    (!is_rk816_bat_st_cvtlim(di)) &&
 	    (di->voltage_avg > chrg_finish_vol - 150) && di->adc_allow_update) {
 		rk816_bat_update_age_fcc(di);/* save new fcc*/
 		if (rk816_bat_adc_calib(di))
@@ -3364,24 +3401,28 @@ static void rk816_bat_irq_delay_work(struct work_struct *work)
 	struct rk816_battery *di = container_of(work,
 			struct rk816_battery, irq_delay_work.work);
 
-	if (di->vb_low_irq) {
-		di->vb_low_irq = 0;
+	if (di->vblow_trigger) {
+		di->vblow_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG2, BIT(1));
 		BAT_INFO("lower power yet, power off system! v=%d\n",
 			 di->voltage_avg);
 		di->dsoc = 0;
 		rk_send_wakeup_key();
 		power_supply_changed(&di->bat);
-	} else if (di->plug_in_irq) {
-		di->plug_in_irq = 0;
+	} else if (di->plugin_trigger) {
+		di->plugin_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG3, BIT(0));
 		rk_send_wakeup_key();
 		BAT_INFO("pmic: plug in\n");
-	} else if (di->plug_out_irq) {
-		di->plug_out_irq = 0;
+	} else if (di->plugout_trigger) {
+		di->plugout_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG3, BIT(1));
 		rk_send_wakeup_key();
 		BAT_INFO("pmic: plug out\n");
+	} else if (di->cvtlmt_trigger) {
+		di->cvtlmt_trigger = 0;
+		di->cvtlmt_int_event = 1;
+		BAT_INFO("pmic: cvtlmt irq\n");
 	} else {
 		BAT_INFO("pmic: unknown irq\n");
 	}
@@ -3391,7 +3432,7 @@ static irqreturn_t rk816_vb_low_irq(int irq, void *bat)
 {
 	struct rk816_battery *di = (struct rk816_battery *)bat;
 
-	di->vb_low_irq = 1;
+	di->vblow_trigger = 1;
 	queue_delayed_work(di->charger_wq, &di->irq_delay_work, 0);
 
 	return IRQ_HANDLED;
@@ -3401,7 +3442,17 @@ static irqreturn_t rk816_plug_in(int irq, void *bat)
 {
 	struct rk816_battery *di = (struct rk816_battery *)bat;
 
-	di->plug_in_irq = 1;
+	di->plugin_trigger = 1;
+	queue_delayed_work(di->charger_wq, &di->irq_delay_work, 0);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rk816_cvtlmt(int irq, void  *bat)
+{
+	struct rk816_battery *di = (struct rk816_battery *)bat;
+
+	di->cvtlmt_trigger = 1;
 	queue_delayed_work(di->charger_wq, &di->irq_delay_work, 0);
 
 	return IRQ_HANDLED;
@@ -3411,7 +3462,7 @@ static irqreturn_t rk816_plug_out(int irq, void  *bat)
 {
 	struct rk816_battery *di = (struct rk816_battery *)bat;
 
-	di->plug_out_irq = 1;
+	di->plugout_trigger = 1;
 	queue_delayed_work(di->charger_wq, &di->irq_delay_work, 0);
 
 	return IRQ_HANDLED;
@@ -3450,7 +3501,7 @@ static void rk816_bat_init_sysfs(struct rk816_battery *di)
 static int rk816_bat_init_irqs(struct rk816_battery *di)
 {
 	int ret;
-	int plug_in_irq, plug_out_irq, vb_lo_irq;
+	int plug_in_irq, plug_out_irq, vb_lo_irq, cvtlmt_irq;
 	struct rk816 *rk816 = di->rk816;
 	struct platform_device *pdev = di->pdev;
 
@@ -3472,6 +3523,13 @@ static int rk816_bat_init_irqs(struct rk816_battery *di)
 	if (plug_out_irq < 0) {
 		dev_err(&pdev->dev, "find plug_out_irq error\n");
 		return plug_out_irq;
+	}
+
+	cvtlmt_irq = regmap_irq_get_virq(rk816->battery_irq_data,
+					 RK816_IRQ_CHG_CVTLIM);
+	if (cvtlmt_irq < 0) {
+		dev_err(&pdev->dev, "find cvtlmt_irq error\n");
+		return cvtlmt_irq;
 	}
 
 	/* low power */
@@ -3502,6 +3560,21 @@ static int rk816_bat_init_irqs(struct rk816_battery *di)
 		dev_err(di->dev, "plug out irq request failed!\n");
 		return ret;
 	}
+
+	/* cvtlmt */
+	ret = devm_request_threaded_irq(di->dev, cvtlmt_irq, NULL,
+					rk816_cvtlmt, IRQF_TRIGGER_FALLING,
+					"rk816_cvtlmt", di);
+	if (ret != 0) {
+		dev_err(di->dev, "cvtlmt irq request failed!\n");
+		return ret;
+	}
+	disable_irq(cvtlmt_irq);
+
+	di->plugin_irq = plug_in_irq;
+	di->plugout_irq = plug_out_irq;
+	di->vblow_irq = vb_lo_irq;
+	di->cvtlmt_irq = cvtlmt_irq;
 
 	return 0;
 }
