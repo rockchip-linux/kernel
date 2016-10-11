@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2010-2016 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2015 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -23,7 +23,6 @@
 
 #include <mali_kbase.h>
 #include "mali_kbase_js_affinity.h"
-#include "mali_kbase_hw.h"
 
 #include <backend/gpu/mali_kbase_pm_internal.h>
 
@@ -115,14 +114,9 @@ bool kbase_js_choose_affinity(u64 * const affinity,
 	if ((core_req & (BASE_JD_REQ_FS | BASE_JD_REQ_CS | BASE_JD_REQ_T)) ==
 								BASE_JD_REQ_T) {
 		spin_unlock_irqrestore(&kbdev->pm.power_change_lock, flags);
-		 /* If the hardware supports XAFFINITY then we'll only enable
-		  * the tiler (which is the default so this is a no-op),
-		  * otherwise enable shader core 0. */
-		if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY))
-			*affinity = 1;
-		else
-			*affinity = 0;
-
+		/* Tiler only job, bit 0 needed to enable tiler but no shader
+		 * cores required */
+		*affinity = 1;
 		return true;
 	}
 
@@ -178,12 +172,9 @@ bool kbase_js_choose_affinity(u64 * const affinity,
 	if (*affinity == 0)
 		return false;
 
-	/* Enable core 0 if tiler required for hardware without XAFFINITY
-	 * support (notes above) */
-	if (core_req & BASE_JD_REQ_T) {
-		if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY))
-			*affinity = *affinity | 1;
-	}
+	/* Enable core 0 if tiler required */
+	if (core_req & BASE_JD_REQ_T)
+		*affinity = *affinity | 1;
 
 	return true;
 }
