@@ -41,6 +41,8 @@
 
 #define DSP_DEV_SESSION      0
 
+static int dsp_dev_power_off(struct dsp_dev *dev);
+
 static void dsp_set_div_clk(struct clk *clock, int divide)
 {
 	struct clk *parent = clk_get_parent(clock);
@@ -325,7 +327,13 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 
 	dsp_debug_enter();
 
-	clk_prepare_enable(dev->clk_dsp);
+	if (dev->dsp_dvfs_node) {
+		clk_enable_dvfs(dev->dsp_dvfs_node);
+		dvfs_clk_prepare_enable(dev->dsp_dvfs_node);
+	} else {
+		clk_prepare_enable(dev->clk_dsp);
+	}
+
 	clk_prepare_enable(dev->clk_dsp_free);
 	clk_prepare_enable(dev->clk_iop);
 	clk_prepare_enable(dev->clk_epp);
@@ -347,6 +355,7 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 
 	ret = dev->loader->load_image(dev->loader, "MAIN");
 	if (ret) {
+		dev->status = DSP_ON;
 		dsp_err("load dsp os image failed\n");
 		goto out;
 	}
@@ -356,20 +365,8 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 
 	dev->status = DSP_ON;
 out:
-	if (ret) {
-		reset_control_assert(dev->sys_rst);
-		reset_control_assert(dev->global_rst);
-		reset_control_assert(dev->oecm_rst);
-
-		dsp_grf_global_reset_assert(dev);
-
-		clk_disable_unprepare(dev->clk_dsp);
-		clk_disable_unprepare(dev->clk_dsp_free);
-		clk_disable_unprepare(dev->clk_iop);
-		clk_disable_unprepare(dev->clk_epp);
-		clk_disable_unprepare(dev->clk_edp);
-		clk_disable_unprepare(dev->clk_edap);
-	}
+	if (ret)
+		dsp_dev_power_off(dev);
 
 	dsp_debug_leave();
 	return ret;
@@ -392,12 +389,18 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 
 	dsp_grf_global_reset_assert(dev);
 
-	clk_disable_unprepare(dev->clk_dsp);
 	clk_disable_unprepare(dev->clk_dsp_free);
 	clk_disable_unprepare(dev->clk_iop);
 	clk_disable_unprepare(dev->clk_epp);
 	clk_disable_unprepare(dev->clk_edp);
 	clk_disable_unprepare(dev->clk_edap);
+
+	if (dev->dsp_dvfs_node) {
+		dvfs_clk_disable_unprepare(dev->dsp_dvfs_node);
+		clk_disable_dvfs(dev->dsp_dvfs_node);
+	} else {
+		clk_disable_unprepare(dev->clk_dsp);
+	}
 
 	dev->status = DSP_OFF;
 
@@ -576,9 +579,6 @@ int dsp_dev_create(struct platform_device *pdev, struct dma_pool *dma_pool,
 	}
 
 	dev->dsp_dvfs_node = clk_get_dvfs_node("clk_dsp");
-	if (dev->dsp_dvfs_node)
-		clk_enable_dvfs(dev->dsp_dvfs_node);
-
 	INIT_DELAYED_WORK(&dev->guard_work, dsp_dev_work_timeout);
 
 	(*dev_out) = dev;
