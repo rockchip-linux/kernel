@@ -285,6 +285,24 @@
 		layout = <2>;
 		status = "okay";
 	};
+
+	nvp6124: nvp6124@30 {
+		status = "disabled";
+		compatible = "rockchip,nvp";
+		reg = <0x30>;
+		device_type = "v4l2-i2c-subdev";
+		/* 1 or 2 or 4 */
+		channels = <4>;
+		/* 1.8v or 3.3v */
+		apio_vol = <3300>;
+		/* PAL or NTSC */
+		cvbs_mode = "PAL";
+		reset-gpio = <&gpio3 GPIO_C6 GPIO_ACTIVE_LOW>;
+		irq-gpio = <&gpio3 GPIO_D3 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&cif_dvp_d2d9 &cif_dvp_clk>;
+		pinctrl-1 = <&cif_dvp_sleep>;
+	};
 };
 
 &i2c1 {
@@ -385,9 +403,28 @@
 	};
 };
 
+&cif1to4 {
+	status = "disabled";
+};
+
 &cif_cif0 {
-	rockchip,camera-modules-attached = <&cvbsin>;
+	rockchip,camera-modules-attached = <&nvp6124 &cvbsin>;
 	status = "okay";
+};
+
+&cif_cif1 {
+	rockchip,camera-modules-attached = <&nvp6124>;
+	status = "disabled";
+};
+
+&cif_cif2 {
+	rockchip,camera-modules-attached = <&nvp6124>;
+	status = "disabled";
+};
+
+&cif_cif3 {
+	rockchip,camera-modules-attached = <&nvp6124>;
+	status = "disabled";
 };
 
 &cif_isp0 {
