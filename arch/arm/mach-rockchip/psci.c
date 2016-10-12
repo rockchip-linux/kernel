@@ -32,8 +32,7 @@
 static int sip_version;
 
 static void __invoke_sip_fn_smc32(u32 function_id, u32 arg0,
-				  u32 arg1, u32 arg2,
-				  struct arm_smccc_res *res)
+				  u32 arg1, u32 arg2, struct arm_smccc_res *res)
 {
 	asm volatile(
 #ifdef CONFIG_ARM
@@ -64,11 +63,9 @@ static void (*sip_fn_smc32)(u32, u32, u32, u32, struct arm_smccc_res *) =
 							__invoke_sip_fn_smc32;
 
 #ifdef CONFIG_ARM64
-static struct arm_smccc_res __invoke_sip_fn_smc64(u64 function_id, u64 arg0,
-						  u64 arg1, u64 arg2)
+static void __invoke_sip_fn_smc64(u64 function_id, u64 arg0,
+				  u64 arg1, u64 arg2, struct arm_smccc_res *res)
 {
-	struct arm_smccc_res res;
-
 	asm volatile(
 			__asmeq("%0", "x0")
 			__asmeq("%1", "x1")
@@ -78,15 +75,15 @@ static struct arm_smccc_res __invoke_sip_fn_smc64(u64 function_id, u64 arg0,
 		: "+r" (function_id), "+r" (arg0)
 		: "r" (arg1), "r" (arg2));
 
-	res.a0 = function_id;
-	res.a1 = arg0;
-	res.a2 = arg1;
-	res.a3 = arg2;
-
-	return res;
+	if (res) {
+		res->a0 = function_id;
+		res->a1 = arg0;
+		res->a2 = arg1;
+		res->a3 = arg2;
+	}
 }
 
-static struct arm_smccc_res (*sip_fn_smc64)(u64, u64, u64, u64) =
+static void (*sip_fn_smc64)(u64, u64, u64, u64, struct arm_smccc_res *) =
 							__invoke_sip_fn_smc64;
 
 struct arm_smccc_res rockchip_psci_smc_read64(u64 function_id,
@@ -94,27 +91,33 @@ struct arm_smccc_res rockchip_psci_smc_read64(u64 function_id,
 					      u64 arg1,
 					      u64 arg2)
 {
-	return sip_fn_smc64(function_id, arg0, arg1, arg2);
+	struct arm_smccc_res res;
+
+	sip_fn_smc64(function_id, arg0, arg1, arg2, &res);
+	return res;
 }
 
 int rockchip_psci_smc_write64(u64 function_id, u64 arg0, u64 arg1, u64 arg2)
 {
 	struct arm_smccc_res res;
 
-	res = sip_fn_smc64(function_id, arg0, arg1, arg2);
+	sip_fn_smc64(function_id, arg0, arg1, arg2, &res);
 	return res.a0;
 }
 
 struct arm_smccc_res rockchip_secure_reg_read64(u64 addr_phy)
 {
-	return sip_fn_smc64(PSCI_SIP_ACCESS_REG64, 0, addr_phy, SEC_REG_RD);
+	struct arm_smccc_res res;
+
+	sip_fn_smc64(PSCI_SIP_ACCESS_REG64, 0, addr_phy, SEC_REG_RD, &res);
+	return res;
 }
 
 int rockchip_secure_reg_write64(u64 addr_phy, u64 val)
 {
 	struct arm_smccc_res res;
 
-	res = sip_fn_smc64(PSCI_SIP_ACCESS_REG64, val, addr_phy, SEC_REG_WR);
+	sip_fn_smc64(PSCI_SIP_ACCESS_REG64, val, addr_phy, SEC_REG_WR, &res);
 	return res.a0;
 }
 #endif /*CONFIG_ARM64*/
@@ -191,7 +194,8 @@ void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset)
 		return;
 
 	psci_fiq_debugger_uart_irq_tf((char *)ft_fiq_mem_base + offset, sp_el1);
-	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, 0, 0, UARTDBG_CFG_OSHDL_TO_OS);
+	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, 0, 0,
+		     UARTDBG_CFG_OSHDL_TO_OS, NULL);
 }
 
 void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
@@ -199,9 +203,9 @@ void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 	struct arm_smccc_res res;
 
 	psci_fiq_debugger_uart_irq_tf = callback;
-	res = sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, irq_id,
-			   (u64)psci_fiq_debugger_uart_irq_tf_cb,
-			   UARTDBG_CFG_INIT);
+	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, irq_id,
+		     (u64)psci_fiq_debugger_uart_irq_tf_cb,
+		     UARTDBG_CFG_INIT, &res);
 	if (sip_version == SIP_IMPLEMENT_V2) {
 		if (res.a0)
 			return;
@@ -217,8 +221,8 @@ int psci_fiq_debugger_switch_cpu(u32 cpu)
 {
 	struct arm_smccc_res res;
 
-	res = sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, cpu_logical_map(cpu),
-			   0, UARTDBG_CFG_OSHDL_CPUSW);
+	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, cpu_logical_map(cpu),
+		     0, UARTDBG_CFG_OSHDL_CPUSW, &res);
 	return res.a0;
 }
 
@@ -228,15 +232,15 @@ void psci_fiq_debugger_enable_debug(bool val)
 
 	enable = val ? UARTDBG_CFG_OSHDL_DEBUG_ENABLE :
 		       UARTDBG_CFG_OSHDL_DEBUG_DISABLE;
-	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, 0, 0, enable);
+	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, 0, 0, enable, NULL);
 }
 
 int psci_fiq_debugger_set_print_port(u32 port, u32 baudrate)
 {
 	struct arm_smccc_res res;
 
-	res = sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, port, baudrate,
-			   UARTDBG_CFG_SET_PRINT_PORT);
+	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, port, baudrate,
+		     UARTDBG_CFG_SET_PRINT_PORT, &res);
 	return res.a0;
 }
 #endif
