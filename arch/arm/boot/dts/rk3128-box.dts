@@ -251,6 +251,10 @@
 	test_mode = <0>;
 };
 
+&i2c1 {
+	status = "disabled";
+};
+
 &i2c2 {
 	status = "disabled";
 };
