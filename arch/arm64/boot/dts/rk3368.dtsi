@@ -2114,7 +2114,11 @@
 						<1 GPIO_A2 RK_FUNC_1 &pcfg_pull_none>,//cif_data4
 						<1 GPIO_A3 RK_FUNC_1 &pcfg_pull_none>,//cif_data5
 						<1 GPIO_A4 RK_FUNC_1 &pcfg_pull_none>,//cif_data6
-						<1 GPIO_A5 RK_FUNC_1 &pcfg_pull_none>;//cif_data7
+						<1 GPIO_A5 RK_FUNC_1 &pcfg_pull_none>,//cif_data7
+						<1 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,//cif_sync
+						<1 GPIO_B1 RK_FUNC_1 &pcfg_pull_none>,//cif_href
+						<1 GPIO_B2 RK_FUNC_1 &pcfg_pull_none>,//cif_clkin
+						<1 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>;//cif_clkout
 			};
 
 			isp_dvp_d4d11: isp-dvp-d4d11 {
@@ -2126,7 +2130,11 @@
 						<1 GPIO_A6 RK_FUNC_1 &pcfg_pull_none>,//cif_data8
 						<1 GPIO_A7 RK_FUNC_1 &pcfg_pull_none>,//cif_data9
 						<1 GPIO_B6 RK_FUNC_1 &pcfg_pull_none>,//cif_data10
-						<1 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>;//cif_data11
+						<1 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>,//cif_data11
+						<1 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,//cif_sync
+						<1 GPIO_B1 RK_FUNC_1 &pcfg_pull_none>,//cif_href
+						<1 GPIO_B2 RK_FUNC_1 &pcfg_pull_none>,//cif_clkin
+						<1 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>;//cif_clkout
 			};
 
 			isp_shutter: isp-shutter {
