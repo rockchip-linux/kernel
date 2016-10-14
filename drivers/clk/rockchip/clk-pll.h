@@ -521,6 +521,36 @@
 	.pllcon3 = RK1108_PLL_SET_DSMPD(_dsmpd),	\
 }
 
+/***************************RK322XH PLL**************************************/
+#define RK322XH_CRU_CLKSEL_CON		0x100
+#define RK322XH_CRU_CLKSELS_CON(i)	(RK322XH_CRU_CLKSEL_CON + ((i) * 4))
+#define RK322XH_CORE_CLK_PLL_SEL_SHIFT	(6)
+#define RK322XH_CORE_CLK_PLL_SEL_MASK	(0x3)
+#define RK322XH_CPU_SEL_PLL(plls)	CRU_W_MSK_SETBITS(plls, RK322XH_CORE_CLK_PLL_SEL_SHIFT, RK322XH_CORE_CLK_PLL_SEL_MASK)
+
+#define RK322XH_ACLK_CORE_DIV_MASK	(0x7)
+#define RK322XH_ACLK_CORE_DIV_SHIFT	(4)
+#define RK322XH_PCLK_DBG_DIV_MASK	(0xf)
+#define RK322XH_PCLK_DBG_DIV_SHIFT	(0)
+#define RK322XH_CLK_CORE_DIV_MASK	(0x1f)
+#define RK322XH_CLK_CORE_DIV_SHIFT	(0)
+
+#define RK322XH_ACLK_CORE_DIV(val)	RK3036_CLK_SET_DIV_CON_SUB1(val, RK322XH_ACLK_CORE_DIV_SHIFT, RK322XH_ACLK_CORE_DIV_MASK)
+#define RK322XH_PCLK_DBG_DIV(val)	RK3036_CLK_SET_DIV_CON_SUB1(val, RK322XH_PCLK_DBG_DIV_SHIFT, RK322XH_PCLK_DBG_DIV_MASK)
+#define RK322XH_CLK_CORE_DIV(val)	RK3036_CLK_SET_DIV_CON_SUB1(val, RK322XH_CLK_CORE_DIV_SHIFT, RK322XH_CLK_CORE_DIV_MASK)
+
+#define _RK322XH_APLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac, \
+		pclk_dbg_div, aclk_core_div, flag) \
+{ \
+	.rate	= (_mhz) * MHZ,	\
+	.pllcon0 = RK3036_PLL_SET_POSTDIV1(_postdiv1) | RK3036_PLL_SET_FBDIV(_fbdiv),	\
+	.pllcon1 = RK3036_PLL_SET_DSMPD(_dsmpd) | RK3036_PLL_SET_POSTDIV2(_postdiv2) | RK3036_PLL_SET_REFDIV(_refdiv),	\
+	.pllcon2 = RK3036_PLL_SET_FRAC(_frac),	\
+	.clksel1 = RK322XH_ACLK_CORE_DIV(aclk_core_div) | RK322XH_PCLK_DBG_DIV(pclk_dbg_div),	\
+	.lpj	= (CLK_LOOPS_JIFFY_REF * _mhz) / CLK_LOOPS_RATE_REF,	\
+	.rst_dly = flag,\
+}
+
 struct pll_clk_set {
 	unsigned long	rate;
 	u32	pllcon0;
