@@ -52,8 +52,68 @@ static const struct snd_kcontrol_new rk_mc_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Ext Spk"),
 };
 
-static int rk_hw_params(struct snd_pcm_substream *substream,
-			  struct snd_pcm_hw_params *params)
+static int es8396_aif1_hw_params(struct snd_pcm_substream *substream,
+				 struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	unsigned int pll_out = 0, dai_fmt = rtd->card->dai_link->dai_fmt;
+	int ret;
+
+	pr_debug("Enter::%s----%d\n", __func__, __LINE__);
+
+	/* set codec DAI configuration */
+	ret = snd_soc_dai_set_fmt(codec_dai, dai_fmt);
+	if (ret < 0) {
+		pr_err("%s():failed to set the format for codec side\n",
+		       __func__);
+		return ret;
+	}
+
+	/* set cpu DAI configuration */
+	ret = snd_soc_dai_set_fmt(cpu_dai, dai_fmt);
+	if (ret < 0) {
+		pr_err("%s():failed to set the format for cpu side\n",
+		       __func__);
+		return ret;
+	}
+
+	switch (params_rate(params)) {
+	case 8000:
+	case 16000:
+	case 24000:
+	case 32000:
+	case 48000:
+		pll_out = 12288000;
+		break;
+	case 11025:
+	case 22050:
+	case 44100:
+		pll_out = 11289600;
+		break;
+	default:
+		pr_err("Enter:%s, %d, Error rate=%d\n",
+		       __func__, __LINE__, params_rate(params));
+		return -EINVAL;
+	}
+	pr_debug("Enter:%s, %d, rate=%d\n", __func__, __LINE__,
+		 params_rate(params));
+
+	if ((dai_fmt & SND_SOC_DAIFMT_MASTER_MASK) == SND_SOC_DAIFMT_CBS_CFS) {
+		snd_soc_dai_set_sysclk(cpu_dai, 0, pll_out, 0);
+		snd_soc_dai_set_clkdiv(cpu_dai, ROCKCHIP_DIV_BCLK,
+				       (pll_out/4)/params_rate(params)-1);
+		snd_soc_dai_set_clkdiv(cpu_dai, ROCKCHIP_DIV_MCLK, 3);
+	}
+
+	pr_debug("Enter:%s, %d, LRCK=%d\n", __func__, __LINE__,
+		 (pll_out/4)/params_rate(params));
+	return 0;
+}
+
+static int es8396_aif2_hw_params(struct snd_pcm_substream *substream,
+				 struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
@@ -127,25 +187,35 @@ static int rk_es8396_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static struct snd_soc_ops rk_ops = {
-	.hw_params = rk_hw_params,
+static struct snd_soc_ops es8396_aif1_ops = {
+	.hw_params = es8396_aif1_hw_params,
 };
 
-static struct snd_soc_dai_link rk_dai = {
-	.name = "ES8396",
-	.stream_name = "ES8396 PCM",
-	.codec_name = "ES8396.v01a",
-	.platform_name = "rockchip-audio",
-	.codec_dai_name = "ES8396 HiFi",
-	.init = rk_es8396_init,
-	.ops = &rk_ops,
+static struct snd_soc_ops es8396_aif2_ops = {
+	.hw_params = es8396_aif2_hw_params,
+};
+
+static struct snd_soc_dai_link rk_dai[] = {
+	{
+		.name = "ES8396i I2S1",
+		.stream_name = "ES8396 PCM",
+		.codec_dai_name = "es8396-aif1",
+		.init = rk_es8396_init,
+		.ops = &es8396_aif1_ops,
+	},
+	{
+		.name = "ES8396 I2S2",
+		.stream_name = "ES8396 PCM",
+		.codec_dai_name = "es8396-aif2",
+		.ops = &es8396_aif2_ops,
+	},
 };
 
 /* SoC card */
 static struct snd_soc_card rockchip_es8396_snd_card = {
 	.name = "RK_ES8396",
-	.dai_link = &rk_dai,
-	.num_links = 1,
+	.dai_link = rk_dai,
+	.num_links = 2,
 	.dapm_widgets = rk_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(rk_dapm_widgets),
 	.dapm_routes = rk_audio_map,
