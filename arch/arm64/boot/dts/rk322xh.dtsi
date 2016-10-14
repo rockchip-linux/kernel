@@ -45,6 +45,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/sensor-dev.h>
 #include <dt-bindings/clock/rk_system_status.h>
+#include "rk322xh-clocks.dtsi"
 
 / {
 	compatible = "rockchip,rk322xh";
@@ -119,6 +120,108 @@
 		status = "disabled";
 	};
 
+	rockchip_clocks_init: clocks-init {
+		compatible = "rockchip,clocks-init";
+		rockchip,clocks-init-parent =
+			<&clk_i2s0_pll &clk_cpll>, <&clk_i2s1_pll &clk_cpll>,
+			<&clk_i2s2_pll &clk_cpll>, <&clk_spdif_pll &clk_cpll>,
+			<&hdmi_phy_clk &hdmiphy_out>, <&usb480m &usbphy_480m>;
+		rockchip,clocks-init-rate =
+			<&clk_gpll 983040000>, <&clk_core 600000000>,
+			<&clk_cpll 1200000000>, <&aclk_bus 150000000>,
+			<&hclk_bus 75000000>, <&pclk_bus 75000000>,
+			<&clk_crypto 150000000>, <&aclk_peri 150000000>,
+			<&hclk_peri 75000000>, <&pclk_peri 75000000>,
+			<&aclk_vio 200000000>, <&hclk_vio 100000000>,
+			<&aclk_rga 200000000>, <&clk_rga 200000000>,
+			<&aclk_vop 300000000>, <&aclk_rkvdec 400000000>,
+			<&aclk_rkvenc 200000000>, <&aclk_vpu 300000000>,
+			<&clk_vdec_cabac 300000000>, <&clk_vdec_core 200000000>,
+			<&clk_venc_core 200000000>, <&clk_venc_dsp 100000000>,
+			<&clk_efuse 24000000>, <&clk_pdm 61440000>;
+		/*rockchip,clocks-uboot-has-init =
+			<&dclk_vop>, <&dclk_vop_pll>;*/
+		rockchip,set_div_for_pll_init;
+	};
+
+	rockchip_clocks_enable: clocks-enable {
+		compatible = "rockchip,clocks-enable";
+		clocks =
+			/* PLL */
+			<&clk_apll>,
+			<&clk_dpll>,
+			<&clk_gpll>,
+			<&clk_cpll>,
+
+			/* PD_CORE */
+			<&clk_gates13 0>, /* aclk_core_noc */
+			<&clk_gates13 1>, /* aclk_gic */
+
+			/* PD_BUS */
+			<&aclk_bus>,
+			<&hclk_bus>,
+			<&pclk_bus>,
+			<&clk_gates15 0>, /* aclk_intmem */
+			<&clk_gates15 12>, /* aclk_bus_noc */
+			<&clk_gates15 1>, /* aclk_dmac_bus */
+			<&clk_gates15 2>, /* hclk_rom */
+			<&clk_gates15 13>, /* hclk_bus_noc */
+			<&clk_gates15 14>, /* pclk_bus_noc */
+			<&clk_gates15 9>, /* pclk_efuse */
+			<&clk_gates28 4>, /* pclk_otp */
+			<&clk_gates17 0>, /* pclk_grf */
+			<&clk_gates17 4>, /* pclk_cru */
+			<&clk_gates17 6>, /* pclk_sgrf */
+			<&clk_gates17 10>, /* pclk_sim */
+			<&clk_gates28 1>, /* pclk_pmu */
+			<&clk_gates17 14>, /* pclk_usb2grf */
+			<&clk_gates17 2>, /* pclk_usb3grf */
+			<&clk_gates17 3>, /* pclk_ddrphy */
+			<&clk_gates15 15>, /* pclk_phy_niu */
+			<&clk_gates16 3>, /* pclk_timer0 */
+			<&clk_gates16 4>, /* pclk_stimer */
+
+			/* PD_PERI */
+			<&aclk_peri>,
+			<&hclk_peri>,
+			<&pclk_peri>,
+			<&clk_gates19 11>, /* aclk_peri_noc */
+			<&clk_gates19 7>, /* hclk_host0_arb */
+			<&clk_gates19 12>, /* hclk_peri_noc */
+			<&clk_gates19 13>, /* pclk_peri_noc */
+			<&clk_gates19 9>, /* hclk_otg_pmu */
+
+			/* PD_DDR */
+			<&clk_gates18 1>, /* pclk_ddrctrl */
+			<&clk_gates18 2>, /* pclk_ddr_msch */
+			<&clk_gates18 3>, /* pclk_ddr_mon */
+			<&clk_gates18 9>, /* pclk_ddr_grf */
+
+			/* PD_GMAC */
+			<&clk_gates26 4>, /* aclk_gmac_niu */
+			<&clk_gates26 5>, /* pclk_gmac_niu */
+
+			/* PD_VIO */
+			<&clk_gates22 3>, /* aclk_rga_niu */
+			<&clk_gates21 4>, /* aclk_vop_niu */
+			<&clk_gates22 2>, /* aclk_vio_niu */
+			<&clk_gates21 5>, /* hclk_vop_niu */
+			<&clk_gates21 12>, /* hclk_ahb1tom */
+			<&clk_gates22 0>, /* hclk_hdcp_mmu */
+			<&clk_gates22 1>, /* hclk_vio_noc */
+
+			/* PD_VIDEO */
+			<&clk_gates23 2>, /* aclk_vpu_noc */
+			<&clk_gates23 3>, /* hclk_vpu_noc */
+			<&clk_gates24 2>, /* aclk_rkvdec_noc */
+			<&clk_gates24 3>, /* hclk_rkvdec_noc */
+			<&clk_gates25 0>, /* aclk_rkvenc_noc */
+			<&clk_gates25 1>, /* hclk_rkvenc_noc */
+
+			<&clk_gates14 1>, /* clk_gpu_noc */
+			<&clk_gates7 2>; /* clk_jtag */
+	};
+
 	sram: sram@ff090000 {
 		compatible = "mmio-sram";
 		reg = <0x0 0xff090000 0x0 0x9000>; /* 36KB */
@@ -134,9 +237,9 @@
 		compatible = "rockchip,serial";
 		reg = <0x0 0xff130000 0x0 0x100>;
 		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
-		//clock-frequency = <24000000>;
-		//clocks = <&xin24m>, <&xin24m>;
-		//clock-names = "sclk_uart", "pclk_uart";
+		clock-frequency = <24000000>;
+		clocks = <&clk_uart2>, <&clk_gates16 13>;
+		clock-names = "sclk_uart", "pclk_uart";
 		reg-shift = <2>;
 		reg-io-width = <4>;
 		status = "disabled";
