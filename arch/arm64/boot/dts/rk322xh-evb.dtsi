@@ -42,7 +42,7 @@
 
 / {
 	chosen {
-		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
+		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 clk_ignore_unused";
 	};
 
 	fiq-debugger {
