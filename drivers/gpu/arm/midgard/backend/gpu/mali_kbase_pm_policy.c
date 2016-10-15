@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2010-2016 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2010-2015 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -21,6 +21,7 @@
 
 #include <mali_kbase.h>
 #include <mali_midg_regmap.h>
+#include <mali_kbase_gator.h>
 #include <mali_kbase_pm.h>
 #include <mali_kbase_config_defaults.h>
 #include <backend/gpu/mali_kbase_pm_internal.h>
@@ -154,22 +155,16 @@ static inline void kbase_timeline_pm_cores_func(struct kbase_device *kbdev,
 static void kbasep_pm_do_poweroff_cores(struct kbase_device *kbdev)
 {
 	u64 prev_shader_state = kbdev->pm.backend.desired_shader_state;
-	u64 prev_tiler_state = kbdev->pm.backend.desired_tiler_state;
 
 	lockdep_assert_held(&kbdev->pm.power_change_lock);
 
 	kbdev->pm.backend.desired_shader_state &=
 			~kbdev->pm.backend.shader_poweroff_pending;
-	kbdev->pm.backend.desired_tiler_state &=
-			~kbdev->pm.backend.tiler_poweroff_pending;
 
 	kbdev->pm.backend.shader_poweroff_pending = 0;
-	kbdev->pm.backend.tiler_poweroff_pending = 0;
 
-	if (prev_shader_state != kbdev->pm.backend.desired_shader_state ||
-			prev_tiler_state !=
-				kbdev->pm.backend.desired_tiler_state ||
-			kbdev->pm.backend.ca_in_transition) {
+	if (prev_shader_state != kbdev->pm.backend.desired_shader_state
+			|| kbdev->pm.backend.ca_in_transition) {
 		bool cores_are_available;
 
 		KBASE_TIMELINE_PM_CHECKTRANS(kbdev,
@@ -207,8 +202,7 @@ kbasep_pm_do_gpu_poweroff_callback(struct hrtimer *timer)
 		queue_work(kbdev->pm.backend.gpu_poweroff_wq,
 					&kbdev->pm.backend.gpu_poweroff_work);
 
-	if (kbdev->pm.backend.shader_poweroff_pending ||
-			kbdev->pm.backend.tiler_poweroff_pending) {
+	if (kbdev->pm.backend.shader_poweroff_pending) {
 		kbdev->pm.backend.shader_poweroff_pending_time--;
 
 		KBASE_DEBUG_ASSERT(
@@ -333,7 +327,6 @@ void kbase_pm_cancel_deferred_poweroff(struct kbase_device *kbdev)
 	kbdev->pm.backend.gpu_poweroff_pending = 0;
 
 	kbdev->pm.backend.shader_poweroff_pending = 0;
-	kbdev->pm.backend.tiler_poweroff_pending = 0;
 	kbdev->pm.backend.shader_poweroff_pending_time = 0;
 
 	spin_unlock_irqrestore(&kbdev->pm.power_change_lock, flags);
@@ -388,10 +381,8 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 		 * when there are contexts active */
 		KBASE_DEBUG_ASSERT(pm->active_count == 0);
 
-		if (backend->shader_poweroff_pending ||
-				backend->tiler_poweroff_pending) {
+		if (backend->shader_poweroff_pending) {
 			backend->shader_poweroff_pending = 0;
-			backend->tiler_poweroff_pending = 0;
 			backend->shader_poweroff_pending_time = 0;
 		}
 
@@ -450,7 +441,6 @@ void kbase_pm_update_active(struct kbase_device *kbdev)
 void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 {
 	u64 desired_bitmap;
-	u64 desired_tiler_bitmap;
 	bool cores_are_available;
 	bool do_poweroff = false;
 
@@ -463,37 +453,23 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 		kbdev->pm.backend.pm_current_policy->get_core_mask(kbdev);
 	desired_bitmap &= kbase_pm_ca_get_core_mask(kbdev);
 
+	/* Enable core 0 if tiler required, regardless of core availability */
 	if (kbdev->tiler_needed_cnt > 0 || kbdev->tiler_inuse_cnt > 0)
-		desired_tiler_bitmap = 1;
-	else
-		desired_tiler_bitmap = 0;
-
-	if (!kbase_hw_has_feature(kbdev, BASE_HW_FEATURE_XAFFINITY)) {
-		/* Unless XAFFINITY is supported, enable core 0 if tiler
-		 * required, regardless of core availability */
-		if (kbdev->tiler_needed_cnt > 0 || kbdev->tiler_inuse_cnt > 0)
-			desired_bitmap |= 1;
-	}
+		desired_bitmap |= 1;
 
 	if (kbdev->pm.backend.desired_shader_state != desired_bitmap)
 		KBASE_TRACE_ADD(kbdev, PM_CORES_CHANGE_DESIRED, NULL, NULL, 0u,
 							(u32)desired_bitmap);
 	/* Are any cores being powered on? */
 	if (~kbdev->pm.backend.desired_shader_state & desired_bitmap ||
-	    ~kbdev->pm.backend.desired_tiler_state & desired_tiler_bitmap ||
 	    kbdev->pm.backend.ca_in_transition) {
 		/* Check if we are powering off any cores before updating shader
 		 * state */
-		if (kbdev->pm.backend.desired_shader_state & ~desired_bitmap ||
-				kbdev->pm.backend.desired_tiler_state &
-				~desired_tiler_bitmap) {
+		if (kbdev->pm.backend.desired_shader_state & ~desired_bitmap) {
 			/* Start timer to power off cores */
 			kbdev->pm.backend.shader_poweroff_pending |=
 				(kbdev->pm.backend.desired_shader_state &
 							~desired_bitmap);
-			kbdev->pm.backend.tiler_poweroff_pending |=
-				(kbdev->pm.backend.desired_tiler_state &
-							~desired_tiler_bitmap);
 
 			if (kbdev->pm.poweroff_shader_ticks)
 				kbdev->pm.backend.shader_poweroff_pending_time =
@@ -503,28 +479,21 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 		}
 
 		kbdev->pm.backend.desired_shader_state = desired_bitmap;
-		kbdev->pm.backend.desired_tiler_state = desired_tiler_bitmap;
 
 		/* If any cores are being powered on, transition immediately */
 		cores_are_available = kbase_pm_check_transitions_nolock(kbdev);
-	} else if (kbdev->pm.backend.desired_shader_state & ~desired_bitmap ||
-				kbdev->pm.backend.desired_tiler_state &
-				~desired_tiler_bitmap) {
+	} else if (kbdev->pm.backend.desired_shader_state & ~desired_bitmap) {
 		/* Start timer to power off cores */
 		kbdev->pm.backend.shader_poweroff_pending |=
 				(kbdev->pm.backend.desired_shader_state &
 							~desired_bitmap);
-		kbdev->pm.backend.tiler_poweroff_pending |=
-				(kbdev->pm.backend.desired_tiler_state &
-							~desired_tiler_bitmap);
 		if (kbdev->pm.poweroff_shader_ticks)
 			kbdev->pm.backend.shader_poweroff_pending_time =
 					kbdev->pm.poweroff_shader_ticks;
 		else
 			kbasep_pm_do_poweroff_cores(kbdev);
 	} else if (kbdev->pm.active_count == 0 && desired_bitmap != 0 &&
-			desired_tiler_bitmap != 0 &&
-			kbdev->pm.backend.poweroff_timer_needed) {
+				kbdev->pm.backend.poweroff_timer_needed) {
 		/* If power policy is keeping cores on despite there being no
 		 * active contexts then disable poweroff timer as it isn't
 		 * required.
@@ -535,17 +504,11 @@ void kbase_pm_update_cores_state_nolock(struct kbase_device *kbdev)
 
 	/* Ensure timer does not power off wanted cores and make sure to power
 	 * off unwanted cores */
-	if (kbdev->pm.backend.shader_poweroff_pending ||
-			kbdev->pm.backend.tiler_poweroff_pending) {
+	if (kbdev->pm.backend.shader_poweroff_pending != 0) {
 		kbdev->pm.backend.shader_poweroff_pending &=
 				~(kbdev->pm.backend.desired_shader_state &
 								desired_bitmap);
-		kbdev->pm.backend.tiler_poweroff_pending &=
-				~(kbdev->pm.backend.desired_tiler_state &
-				desired_tiler_bitmap);
-
-		if (!kbdev->pm.backend.shader_poweroff_pending &&
-				!kbdev->pm.backend.tiler_poweroff_pending)
+		if (kbdev->pm.backend.shader_poweroff_pending == 0)
 			kbdev->pm.backend.shader_poweroff_pending_time = 0;
 	}
 

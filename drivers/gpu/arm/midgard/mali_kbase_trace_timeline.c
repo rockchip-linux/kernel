@@ -1,6 +1,6 @@
 /*
  *
- * (C) COPYRIGHT 2012-2016 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2012-2015 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -102,7 +102,7 @@ static const struct file_operations kbasep_trace_timeline_debugfs_fops = {
 	.open = kbasep_trace_timeline_debugfs_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
-	.release = seq_release,
+	.release = seq_release_private,
 };
 
 void kbasep_trace_timeline_debugfs_init(struct kbase_device *kbdev)
