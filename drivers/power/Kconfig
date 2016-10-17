@@ -471,6 +471,13 @@ config BATTERY_RK818
          Support for RK818 Battery driver.
          This driver can give support for Rk818 Battery Charge Interface.
 
+config RK1108_POWER
+	tristate "rk1108 power driver"
+	depends on IIO
+	default n
+	help
+		This driver is used for rk1108 power. It's safe to say M here.
+
 config CHARGER_DISPLAY
 	bool "Support charger display"
 
