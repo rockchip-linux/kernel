@@ -72,7 +72,7 @@ module_param_named(dbg_level, dbg_enable, int, 0644);
 #define DEFAULT_CHRG_CUR_INPUT		INPUT_CUR2000MA
 #define DEFAULT_POFFSET			42
 #define DEFAULT_MAX_SOC_OFFSET		60
-#define DEFAULT_FB_TEMP			TEMP_105C
+#define DEFAULT_FB_TEMP			TEMP_115C
 #define DEFAULT_ENERGY_MODE		0
 #define DEFAULT_POFFSET			42
 #define DEFAULT_COFFSET			0x832

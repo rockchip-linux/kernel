@@ -143,6 +143,7 @@
 #define CHRG_CT_EN		BIT(7)
 #define FINISH_CUR_MSK		0xc0
 #define TEMP_105C		(0x02 << 2)
+#define TEMP_115C		(0x03 << 2)
 #define FINISH_100MA		(0x00 << 6)
 #define FINISH_150MA		(0x01 << 6)
 #define FINISH_200MA		(0x02 << 6)
