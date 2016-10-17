@@ -269,6 +269,17 @@
 		reg = <0x18>;
 		status = "okay";
 	};
+
+	sensor: sensor@19 {
+		compatible = "bma2xx_acc";
+		reg = <0x19>;
+		type = <2>;
+		irq-gpio = <&gpio0 GPIO_B3 IRQ_TYPE_LEVEL_HIGH>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <2>;
+		status = "okay";
+	};
 };
 
 &i2c1 {
