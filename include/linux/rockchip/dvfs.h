@@ -128,6 +128,7 @@ struct dvfs_node {
 	const char		*name;
 	int			set_freq;	//KHZ
 	int			set_volt;	//MV
+	bool			is_initialized;
 	int			enable_count;
 	int			freq_limit_en;	//sign if use limit frequency
 	int			support_pvtm;

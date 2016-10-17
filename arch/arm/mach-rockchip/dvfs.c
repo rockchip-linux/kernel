@@ -1704,6 +1704,59 @@ static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node)
 	return 0;
 }
 
+static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
+{
+	if (clk_dvfs_node->is_initialized)
+		return 0;
+
+	if (IS_ERR_OR_NULL(clk_dvfs_node->vd->regulator)) {
+		if (clk_dvfs_node->vd->regulator_name)
+			clk_dvfs_node->vd->regulator =
+			    dvfs_regulator_get(NULL,
+					       clk_dvfs_node->vd->
+					       regulator_name);
+		if (!IS_ERR_OR_NULL(clk_dvfs_node->vd->regulator)) {
+			DVFS_DBG("%s: vd(%s) get regulator(%s) ok\n",
+				 __func__, clk_dvfs_node->vd->name,
+				 clk_dvfs_node->vd->regulator_name);
+			clk_enable_dvfs_regulator_check(clk_dvfs_node->vd);
+			dvfs_get_vd_regulator_volt_list(clk_dvfs_node->vd);
+			dvfs_vd_get_regulator_volt_time_info(clk_dvfs_node->vd);
+		} else {
+			clk_dvfs_node->vd->regulator = NULL;
+			clk_dvfs_node->enable_count = 0;
+			DVFS_ERR("%s: vd(%s) can't get regulator(%s)!\n",
+				 __func__, clk_dvfs_node->vd->name,
+				 clk_dvfs_node->vd->regulator_name);
+			mutex_unlock(&clk_dvfs_node->vd->mutex);
+			return -ENXIO;
+		}
+	} else {
+		clk_enable_dvfs_regulator_check(clk_dvfs_node->vd);
+	}
+
+	DVFS_DBG("%s: vd(%s) cur volt=%d\n",
+		 __func__, clk_dvfs_node->name, clk_dvfs_node->vd->cur_volt);
+
+	dvfs_table_round_clk_rate(clk_dvfs_node);
+	dvfs_get_rate_range(clk_dvfs_node);
+	clk_dvfs_node->freq_limit_en = 1;
+	clk_dvfs_node->max_limit_freq = clk_dvfs_node->max_rate;
+
+	if (clk_dvfs_node->lkg_adjust_volt_en)
+		adjust_table_by_leakage(clk_dvfs_node);
+	if (clk_dvfs_node->support_pvtm)
+		pvtm_set_dvfs_table(clk_dvfs_node);
+
+	dvfs_table_round_volt(clk_dvfs_node);
+
+	INIT_DELAYED_WORK(&clk_dvfs_node->dwork, dvfs_clk_boost_work_func);
+
+	clk_dvfs_node->is_initialized = true;
+
+	return 0;
+}
+
 int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 {
 	struct cpufreq_frequency_table clk_fv;
@@ -1724,43 +1777,14 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 	}
 	mutex_lock(&clk_dvfs_node->vd->mutex);
 	if (clk_dvfs_node->enable_count == 0) {
-		if (IS_ERR_OR_NULL(clk_dvfs_node->vd->regulator)) {
-			if (clk_dvfs_node->vd->regulator_name)
-				clk_dvfs_node->vd->regulator = dvfs_regulator_get(NULL, clk_dvfs_node->vd->regulator_name);
-			if (!IS_ERR_OR_NULL(clk_dvfs_node->vd->regulator)) {
-				DVFS_DBG("%s: vd(%s) get regulator(%s) ok\n",
-					__func__, clk_dvfs_node->vd->name, clk_dvfs_node->vd->regulator_name);
-				clk_enable_dvfs_regulator_check(clk_dvfs_node->vd);
-				dvfs_get_vd_regulator_volt_list(clk_dvfs_node->vd);
-				dvfs_vd_get_regulator_volt_time_info(clk_dvfs_node->vd);
-			} else {
-				clk_dvfs_node->vd->regulator = NULL;
-				clk_dvfs_node->enable_count = 0;
-				DVFS_ERR("%s: vd(%s) can't get regulator(%s)!\n", 
-					__func__, clk_dvfs_node->vd->name, clk_dvfs_node->vd->regulator_name);
-				mutex_unlock(&clk_dvfs_node->vd->mutex);
-				return -ENXIO;
-			}
-		} else {
-			clk_enable_dvfs_regulator_check(clk_dvfs_node->vd);
-		}
+		ret = initialize_dvfs_node(clk_dvfs_node);
+		if (ret)
+			return ret;
 		
-		DVFS_DBG("%s: vd(%s) cur volt=%d\n",
-			__func__, clk_dvfs_node->name, clk_dvfs_node->vd->cur_volt);
 
-		dvfs_table_round_clk_rate(clk_dvfs_node);
-		dvfs_get_rate_range(clk_dvfs_node);
-		clk_dvfs_node->freq_limit_en = 1;
-		clk_dvfs_node->max_limit_freq = clk_dvfs_node->max_rate;
-		if (clk_dvfs_node->lkg_adjust_volt_en)
-			adjust_table_by_leakage(clk_dvfs_node);
-		if (clk_dvfs_node->support_pvtm)
-			pvtm_set_dvfs_table(clk_dvfs_node);
-		dvfs_table_round_volt(clk_dvfs_node);
 		clk_dvfs_node->set_freq = clk_dvfs_node_get_rate_kz(clk_dvfs_node->clk);
 		clk_dvfs_node->last_set_rate = clk_dvfs_node->set_freq*1000;
-		INIT_DELAYED_WORK(&clk_dvfs_node->dwork,
-				  dvfs_clk_boost_work_func);
+
 		
 		DVFS_DBG("%s: %s get freq %u!\n", 
 			__func__, clk_dvfs_node->name, clk_dvfs_node->set_freq);
