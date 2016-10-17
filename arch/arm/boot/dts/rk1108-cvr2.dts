@@ -203,6 +203,11 @@
 &adc {
 	status = "okay";
 
+	battery_value {
+		compatible = "rockchip,rk1108_battery";
+		io-channels = <&adc 2>;
+	};
+
 	key0 {
 		compatible = "rockchip,key";
 		io-channels = <&adc 0>;
