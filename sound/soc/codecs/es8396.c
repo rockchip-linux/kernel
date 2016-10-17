@@ -36,6 +36,8 @@
 #define INVALID_GPIO -1
 
 static struct snd_soc_codec *tron_codec;
+static int es8396_set_bias_level(struct snd_soc_codec *codec,
+				 enum snd_soc_bias_level level);
 
 /*
  * ES8396 register cache
@@ -173,12 +175,12 @@ static struct reg_default es8396_reg_defaults[] = {
 };
 
 static u8 es8396_equalizer_lpf_bt_incall[] = {
-	0x6C, 0x1F, 0x43, 0x03, 0x9F, 0xE7, 0x3B, 0x22, 0x6C, 0x1F, 0x43, 0x03,
-	0x8F, 0xA5, 0x33, 0x03, 0xFF, 0xB9, 0x65, 0x08,
-	0xFF, 0x3D, 0x86, 0x0A, 0xFF, 0xB9, 0x75, 0x08, 0xFF, 0x3D, 0x86, 0x0A,
-	0xE8, 0x96, 0x19, 0x00, 0x8E, 0x23, 0x5B, 0x23,
-	0x6C, 0x1F, 0x43, 0x03, 0x9F, 0xE7, 0x3B, 0x22, 0x6C, 0x1F, 0x43, 0x03,
-	0x8F, 0xA5, 0x33, 0x03, 0xFF, 0xB9, 0x65, 0x08,
+	0x6D, 0x27, 0x64, 0x09, 0x4C, 0xA3, 0x53, 0x07, 0x6D, 0x27, 0x64, 0x09,
+	0x8D, 0xE5, 0x23, 0x00, 0x2A, 0xA3, 0x4A, 0x22,
+	0x6D, 0x27, 0x64, 0x09, 0x4C, 0xA3, 0x53, 0x07, 0x6D, 0x27, 0x64, 0x09,
+	0x8D, 0xE5, 0x23, 0x00, 0x2A, 0xA3, 0x4A, 0x22,
+	0x6D, 0x27, 0x64, 0x09, 0x4C, 0xA3, 0x53, 0x07, 0x6D, 0x27, 0x64, 0x09,
+	0x8D, 0xE5, 0x23, 0x00, 0x2A, 0xA3, 0x4A, 0x22,
 };
 
 struct sp_config {
@@ -226,15 +228,29 @@ struct es8396_private {
 
 	bool calibrate;
 	u8 output_device_selected;
+	u8 aif1_select;
+	u8 aif2_select;
 	/*
 	 * Add a delay work-quenue, to debug DC calibration
 	 */
 	struct mutex adc_depop_mlock;
 	struct delayed_work adc_depop_work;
-	/*for playback pop noise*/
+
+	/* for playback pop noise */
 	struct mutex pcm_depop_mlock;
 	struct delayed_work pcm_pop_work;
-	/*for hp calibration*/
+	/* for playback pop noise */
+	struct mutex pcm_shutdown_depop_mlock;
+	struct delayed_work pcm_shutdown_depop_work;
+
+	/* for voice pop noise */
+	struct mutex voice_depop_mlock;
+	struct delayed_work voice_pop_work;
+	/* for voice pop noise */
+	struct mutex voice_shutdown_depop_mlock;
+	struct delayed_work voice_shutdown_depop_work;
+
+	/* for hp calibration */
 	struct mutex init_cali_mlock;
 	struct delayed_work init_cali_work;
 	int pcm_pop_work_retry;
@@ -318,63 +334,175 @@ static int es8396_readable_register(struct snd_soc_codec *codec,
 	return false;
 }
 
-static void init_cali_work_events(struct work_struct *work)
+
+static void pcm_shutdown_depop_events(struct work_struct *work)
 {
 	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
 
-	mutex_lock(&es8396->init_cali_mlock);
-	pr_debug("pcm_pop_work_events\n");
+	mutex_lock(&es8396->pcm_shutdown_depop_mlock);
+	snd_soc_update_bits(tron_codec, ES8396_SDP1_IN_FMT_REG1F, 0x40,
+			    0x40);
+	es8396->aif1_select &= 0xfe;
+	mutex_unlock(&es8396->pcm_shutdown_depop_mlock);
+}
 
-	if (es8396->calibrate == 0) {
+static void voice_shutdown_depop_events(struct work_struct *work)
+{
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
+
+	mutex_lock(&es8396->voice_shutdown_depop_mlock);
+	snd_soc_update_bits(tron_codec, ES8396_SDP2_IN_FMT_REG22,
+			    0x7F, 0x53);
+	es8396->aif2_select &= 0xfe;
+	if ((es8396->aif1_select) != 0) {
+		snd_soc_write(tron_codec, 0x1A, 0x00);
+		snd_soc_write(tron_codec, 0x67, 0x00);
+		snd_soc_write(tron_codec, 0x69, 0x00);
+		snd_soc_write(tron_codec, 0x66, 0x02);
+	}
+	mutex_unlock(&es8396->voice_shutdown_depop_mlock);
+}
+
+static void init_cali_work_events(struct work_struct *work)
+{
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
+	unsigned int value;
+
+	mutex_lock(&es8396->init_cali_mlock);
+	pr_debug("init_cali_work_events\n");
+	if ((es8396->pcm_pop_work_retry) > 0) {
+		es8396->pcm_pop_work_retry--;
 		pr_debug("Enter into %s  %d\n", __func__, __LINE__);
 		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x86);
 		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x06);
-		msleep(100);
-		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x86);
-		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x06);
-		usleep_range(20000, 21000);
-		es8396->calibrate = true;
-		snd_soc_write(tron_codec, 0x40, 0x66);
+		schedule_delayed_work(&es8396->init_cali_work,
+				      msecs_to_jiffies(100));
+	} else {
+		snd_soc_write(tron_codec, ES8396_DAC_CSM_REG66, 0x00);
+		snd_soc_write(tron_codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x00);
+
+		snd_soc_write(tron_codec, 0x1f, 0x00);
+		snd_soc_write(tron_codec, 0x20, 0x40);
+
+		if (es8396_valid_micbias(es8396->mic_bias_lvl) == false) {
+			pr_err("MIC BIAS Level error.\n");
+		} else {
+			value = es8396->mic_bias_lvl;
+			value &= 0x07;
+			value = (value << 4) | 0x08;
+			/* enable micbias1 */
+			snd_soc_write(tron_codec,
+				      ES8396_SYS_MICBIAS_CTRL_REG74,
+				      value);
+		}
+
+		snd_soc_write(tron_codec, ES8396_ADC_CSM_REG53, 0x00);
+		snd_soc_write(tron_codec, ES8396_ADC_PGA_GAIN_REG61, 0x33);
+		snd_soc_write(tron_codec, ES8396_ADC_MICBOOST_REG60, 0x22);
+		if (es8396->dmic_amic == MIC_AMIC)
+			/* use analog mic */
+			snd_soc_write(tron_codec,
+				      ES8396_ADC_DMIC_RAMPRATE_REG54,
+				      0x00);
+		else
+			/* use digital mic */
+			snd_soc_write(tron_codec,
+				      ES8396_ADC_DMIC_RAMPRATE_REG54,
+				      0xf0);
+
+		/* Enable HPF, LDATA= LADC, RDATA = LADC */
+		snd_soc_write(tron_codec, ES8396_ADC_HPF_COMP_DASEL_REG55,
+			      0x31);
+
+		/*
+		 * setup hp detection
+		 */
+
+		/* gpio 2 for irq, AINL as irq src, gpio1 for dmic clk */
+		snd_soc_write(tron_codec, ES8396_ALRCK_GPIO_SEL_REG15, 0xfa);
+		snd_soc_write(tron_codec, ES8396_DAC_JACK_DET_COMP_REG69, 0x00);
+		if (es8396->jackdet_enable == 1) {
+			/* jack detection from AINL pin, AINL=0, HP Insert */
+			snd_soc_write(tron_codec,
+				      ES8396_DAC_JACK_DET_COMP_REG69,
+				      0x04);
+			if (es8396->gpio_int_pol == 0)
+				/* if HP insert, GPIO2=Low */
+				snd_soc_write(tron_codec, ES8396_GPIO_IRQ_REG16,
+					      0x80);
+			else
+				/* if HP insert, GPIO2=High */
+				snd_soc_write(tron_codec, ES8396_GPIO_IRQ_REG16,
+					      0xc0);
+		} else {
+			snd_soc_write(tron_codec, ES8396_GPIO_IRQ_REG16, 0x00);
+		}
+
+		/*
+		 * setup mono in in differential mode or stereo mode
+		 */
+
+		/* monoin in differential mode */
+		if (es8396->monoin_differential == 1)
+			snd_soc_update_bits(tron_codec,
+					    ES8396_MN_MIXER_REF_LP_REG39,
+					    0x08, 0x08);
+		else
+			snd_soc_update_bits(tron_codec,
+					    ES8396_MN_MIXER_REF_LP_REG39,
+					    0x08, 0x00);
+
+		snd_soc_write(tron_codec, ES8396_DAC_JACK_DET_COMP_REG69, 0x00);
+		snd_soc_write(tron_codec, ES8396_BCLK_DIV_M1_REG0E, 0x24);
+		snd_soc_write(tron_codec, ES8396_LRCK_DIV_M3_REG10, 0x22);
+		snd_soc_write(tron_codec, ES8396_SDP_2_MS_REG13, 0x00);
+
+		es8396_set_bias_level(tron_codec, SND_SOC_BIAS_STANDBY);
+		snd_soc_write(tron_codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x3C);
+		snd_soc_write(tron_codec, 0x6C, 0x96);
 	}
 	mutex_unlock(&es8396->init_cali_mlock);
 }
 
+static void voice_pop_work_events(struct work_struct *work)
+{
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
+
+	mutex_lock(&es8396->voice_depop_mlock);
+	pr_debug("voice_pop_work_events\n");
+	/*
+	 * set the clock source to pll out
+	 * set divider for voice playback
+	 * set Equalizer
+	 * set DAC source from equalizer
+	 */
+	snd_soc_update_bits(tron_codec, ES8396_SDP2_IN_FMT_REG22,
+			    0x3F, 0x13);
+	snd_soc_update_bits(tron_codec, ES8396_SDP2_OUT_FMT_REG23,
+			    0x7F, 0x33);
+	/* unmute dac */
+	snd_soc_write(tron_codec, 0x66, 0x02);
+	mutex_unlock(&es8396->voice_depop_mlock);
+}
+
 static void pcm_pop_work_events(struct work_struct *work)
 {
-	int regv;
 	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
 
 	mutex_lock(&es8396->pcm_depop_mlock);
 	pr_debug("pcm_pop_work_events\n");
 
-	if (es8396->calibrate == 0) {
-		pr_debug("Enter into %s  %d\n", __func__, __LINE__);
+	if ((es8396->pcm_pop_work_retry) > 0) {
+		es8396->pcm_pop_work_retry--;
 		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x86);
 		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x06);
-		usleep_range(20000, 21000);
-		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x86);
-		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x06);
-		usleep_range(20000, 21000);
+		schedule_delayed_work(&es8396->pcm_pop_work,
+				      msecs_to_jiffies(20));
+	} else {
 		es8396->calibrate = true;
-		snd_soc_write(tron_codec, 0x40, 0x66);
-	}
-
-	snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x86);
-
-	if (es8396->output_device_selected == 0) {	/* speaker */
-		regv = snd_soc_read(tron_codec, ES8396_SPK_EN_VOL_REG3B);
-		regv |= 0x88;
-		/* set enspk_l,enspk_r */
-		snd_soc_write(tron_codec, ES8396_SPK_EN_VOL_REG3B, regv);
-		snd_soc_write(tron_codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x16);
-		/* dac csm startup, dac digital still on */
 		snd_soc_update_bits(tron_codec, ES8396_DAC_CSM_REG66,
 				    0x03, 0x02);
-	} else {	/* headphone */
-		/* dac csm startup, dac digital still on */
-		snd_soc_update_bits(tron_codec, ES8396_DAC_CSM_REG66,
-				    0x03, 0x02);
-		snd_soc_write(tron_codec, ES8396_CPHP_ENABLE_REG40, 0x6e);
+		snd_soc_write(tron_codec, ES8396_CPHP_ENABLE_REG40, 0x66);
 	}
 	mutex_unlock(&es8396->pcm_depop_mlock);
 }
@@ -416,8 +544,6 @@ static int classd_event(struct snd_soc_dapm_widget *w,
 			lvl &= 0x07;
 			regv1 |= lvl;
 			regv1 |= 0x10;
-			/* snd_soc_write(w->codec, ES8396_SPK_CTRL_1_REG3C,
-					 regv1); */
 		}
 		if (priv->spkmono == 1) {	/* speaker in mono mode */
 			regv1 = regv1 | 0x40;
@@ -435,7 +561,7 @@ static int classd_event(struct snd_soc_dapm_widget *w,
 		snd_soc_write(w->codec, ES8396_SPK_MIXER_VOL_REG28, 0x33);
 
 		snd_soc_write(w->codec, ES8396_SPK_CTRL_SRC_REG3A, 0xA9);
-		/*L&R DAC Vol=-6db */
+		/* L&R DAC Vol=-6db */
 		snd_soc_write(w->codec, ES8396_DAC_LDAC_VOL_REG6A, 0x00);
 		snd_soc_write(w->codec, ES8396_DAC_RDAC_VOL_REG6B, 0x00);
 
@@ -454,15 +580,14 @@ static int classd_event(struct snd_soc_dapm_widget *w,
 		regv1 = snd_soc_read(w->codec, ES8396_CPHP_CTRL_2_REG43);
 		regv1 &= 0x7f;
 		snd_soc_write(w->codec, ES8396_CPHP_CTRL_2_REG43, regv1);
-
-		break;
-	case SND_SOC_DAPM_POST_PMU:	/*after power up */
-		pr_debug("SND_SOC_DAPM_POST_PMU = 0x%x\n", event);
 		es8396->output_device_selected = 0;
+		break;
+	case SND_SOC_DAPM_POST_PMU:	/* after power up */
+		pr_debug("SND_SOC_DAPM_POST_PMU = 0x%x\n", event);
 		schedule_delayed_work(&es8396->pcm_pop_work,
 				      msecs_to_jiffies(50));
 		break;
-	case SND_SOC_DAPM_PRE_PMD:	/*prepare power down */
+	case SND_SOC_DAPM_PRE_PMD:	/* prepare power down */
 		pr_debug("SND_SOC_DAPM_PRE_PMD = 0x%x\n", event);
 		/* read the clock configure */
 		regv1 = snd_soc_read(w->codec, ES8396_CLK_CTRL_REG08);
@@ -567,8 +692,6 @@ static int adc_event(struct snd_soc_dapm_widget *w,
 		snd_soc_write(w->codec, ES8396_ADC_ALC_CTRL_6_REG5D, 0x11);
 		snd_soc_write(w->codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x0);
 		/* Enable MIC BOOST */
-		/* snd_soc_update_bits(w->codec, ES8396_SYS_MIC_IBIAS_EN_REG75,
-				       0x01, 0x00); */
 		snd_soc_write(w->codec, ES8396_SYS_MIC_IBIAS_EN_REG75, 0x02);
 
 		/* axMixer Gain boost */
@@ -606,8 +729,6 @@ static int adc_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_PRE_PMD:
 		pr_debug("Enter into SND_SOC_DAPM_PRE_PMD %s  %d\n", __func__,
 			 __LINE__);
-		snd_soc_update_bits(w->codec, ES8396_SDP1_OUT_FMT_REG20, 0x40,
-				    0x40);
 		snd_soc_write(w->codec, ES8396_ADC_CSM_REG53, 0x20);
 		snd_soc_write(w->codec, ES8396_ADC_CLK_DIV_REG09, 0x04);
 		break;
@@ -659,28 +780,17 @@ static int hpamp_event(struct snd_soc_dapm_widget *w,
 		regv = snd_soc_read(w->codec, ES8396_CPHP_CTRL_2_REG43);
 		regv &= 0x7f;
 		snd_soc_write(w->codec, ES8396_CPHP_CTRL_2_REG43, regv);
-
+		es8396->output_device_selected = 1;
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_POST_PMU\n",
 			 __func__, __LINE__);
-		es8396->output_device_selected = 1;
 		schedule_delayed_work(&es8396->pcm_pop_work,
 				      msecs_to_jiffies(50));
-
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
 		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_PRE_PMD\n",
 			 __func__, __LINE__);
-		snd_soc_write(w->codec, ES8396_CPHP_ENABLE_REG40, 0x08);
-
-		regv = snd_soc_read(w->codec, ES8396_CPHP_CTRL_1_REG42);
-		regv |= 0x20;
-		snd_soc_write(w->codec, ES8396_CPHP_CTRL_1_REG42, regv);
-
-		regv = snd_soc_read(w->codec, ES8396_CPHP_CTRL_3_REG44);
-		regv |= 0x03;
-		snd_soc_write(w->codec, ES8396_CPHP_CTRL_3_REG44, regv);
 		/* dac analog power down */
 		snd_soc_update_bits(w->codec, ES8396_DAC_CSM_REG66, 0x42, 0x00);
 		break;
@@ -708,165 +818,6 @@ static int hpamp_event(struct snd_soc_dapm_widget *w,
 
 	return 0;
 }
-
-/*********************************************************************
- * setup SRC (sample rate converting) for 3G voice
- *********************************************************************/
-static int music_rec_event(struct snd_soc_dapm_widget *w,
-			   struct snd_kcontrol *kcontrol, int event)
-{
-	pr_debug("Enter into %s  %d\n", __func__, __LINE__);
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMU:
-		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_PRE_PMU\n",
-			 __func__, __LINE__);
-		snd_soc_write(w->codec, 0x1A, 0x00);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x8, 0x10);
-		snd_soc_write(w->codec, 0xd, 0x00);
-		snd_soc_write(w->codec, 0x9, 0x04);
-		snd_soc_write(w->codec, 0x69, 0x00);
-		snd_soc_write(w->codec, 0x67, 0x00);
-		break;
-	case SND_SOC_DAPM_PRE_PMD:
-		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_PRE_PMU\n",
-			 __func__, __LINE__);
-		snd_soc_write(w->codec, 0x20, 0x40);	/* MUTE SDP1 OUT */
-		break;
-	default:
-		pr_debug("Enter into %s  %d, event = others\n", __func__,
-			 __LINE__);
-		break;
-	}
-	return 0;
-}
-
-/*********************************************************************
- * The Event for I2S1 music playback
- *********************************************************************/
-static int music_play_event(struct snd_soc_dapm_widget *w,
-			    struct snd_kcontrol *kcontrol, int event)
-{
-	pr_debug("Enter into %s  %d\n", __func__, __LINE__);
-	switch (event) {
-	case SND_SOC_DAPM_POST_PMU:
-		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_POST_PMU\n",
-			 __func__, __LINE__);
-		snd_soc_write(w->codec, 0x1A, 0x00);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x8, 0x10);
-		snd_soc_write(w->codec, 0xd, 0x00);
-		snd_soc_write(w->codec, 0x9, 0x04);
-		snd_soc_write(w->codec, 0x69, 0x00);
-		snd_soc_write(w->codec, 0x67, 0x00);
-		break;
-	default:
-		pr_debug("Enter into %s  %d, event = others\n", __func__,
-			 __LINE__);
-		break;
-	}
-	return 0;
-}
-
-/*********************************************************************
- * The event for btincall play(i2s2 dac playback)
- *********************************************************************/
-static int voice_play_event(struct snd_soc_dapm_widget *w,
-			    struct snd_kcontrol *kcontrol, int event)
-{
-	unsigned int index;
-
-	pr_debug("Enter into %s  %d\n", __func__, __LINE__);
-	switch (event) {
-	case SND_SOC_DAPM_POST_PMU:
-		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_POST_PMU\n",
-			 __func__, __LINE__);
-		/* DSP-B, 1st SCLK after LRCK edge, I2S2 SDPIN */
-		snd_soc_update_bits(w->codec, ES8396_SDP2_IN_FMT_REG22,
-				    0x3F, 0x13);
-		/* //DSP-B, 1st SCLK after LRCK edge, I2S2 SDPO */
-		snd_soc_update_bits(w->codec, ES8396_SDP2_OUT_FMT_REG23,
-				    0x3F, 0x33);
-		snd_soc_write(w->codec, 0x8, 0x1f);
-		snd_soc_write(w->codec, 0xd, 0x00);
-		snd_soc_write(w->codec, 0x9, 0x04);
-		snd_soc_write(w->codec, 0x18, 0x51);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x19, 0x51);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x1A, 0x40);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x67, 0x0d);
-		snd_soc_write(w->codec, 0x69, 0x04);
-		/* clk2 used as EQ clk, OSR = 6xFs for 8k resampling to 48k */
-		snd_soc_write(w->codec, ES8396_EQ_CLK_OSR_SEL_REG1C, 0x35);
-		snd_soc_write(w->codec, ES8396_SHARED_ADDR_REG1D, 0x00);
-
-		for (index = 0; index < 59; index++) {
-			snd_soc_write(w->codec, ES8396_SHARED_DATA_REG1E,
-				      es8396_equalizer_lpf_bt_incall[index]);
-		}
-		snd_soc_write(w->codec, ES8396_SHARED_ADDR_REG1D, 0xbb);
-		snd_soc_write(w->codec, ES8396_SHARED_DATA_REG1E,
-			      es8396_equalizer_lpf_bt_incall[59]);
-		break;
-	default:
-		pr_debug("Enter into %s  %d, event = others\n", __func__,
-			 __LINE__);
-		break;
-	}
-	return 0;
-}
-
-/*********************************************************************
- * The event for btincall record(i2s2 dac record)
- *********************************************************************/
-static int voice_rec_event(struct snd_soc_dapm_widget *w,
-			   struct snd_kcontrol *kcontrol, int event)
-{
-	unsigned int index;
-
-	pr_debug("Enter into %s  %d\n", __func__, __LINE__);
-	switch (event) {
-	case SND_SOC_DAPM_PRE_PMU:
-		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_PRE_PMU\n",
-			 __func__, __LINE__);
-		/* DSP-B, 1st SCLK after LRCK edge, I2S2 SDPIN */
-		snd_soc_update_bits(w->codec, ES8396_SDP2_IN_FMT_REG22,
-				    0x3F, 0x13);
-		/* DSP-B, 1st SCLK after LRCK edge, I2S2 SDPO */
-		snd_soc_update_bits(w->codec, ES8396_SDP2_OUT_FMT_REG23,
-				    0x3F, 0x33);
-		snd_soc_write(w->codec, 0x8, 0x1f);
-		snd_soc_write(w->codec, 0xd, 0x00);
-		snd_soc_write(w->codec, 0x9, 0x04);
-		snd_soc_write(w->codec, 0x18, 0x51);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x19, 0x51);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x1A, 0x40);	/* Enable HPOUT */
-		snd_soc_write(w->codec, 0x67, 0x0d);
-		snd_soc_write(w->codec, 0x69, 0x04);
-		/* clk2 used as EQ clk, OSR = 6xFs for 8k resampling to 48k */
-		snd_soc_write(w->codec, ES8396_EQ_CLK_OSR_SEL_REG1C, 0x35);
-		snd_soc_write(w->codec, ES8396_SHARED_ADDR_REG1D, 0x00);
-
-		for (index = 0; index < 59; index++)
-			snd_soc_write(w->codec, ES8396_SHARED_DATA_REG1E,
-				      es8396_equalizer_lpf_bt_incall[index]);
-
-		snd_soc_write(w->codec, ES8396_SHARED_ADDR_REG1D, 0xbb);
-		snd_soc_write(w->codec, ES8396_SHARED_DATA_REG1E,
-			      es8396_equalizer_lpf_bt_incall[59]);
-		break;
-	case SND_SOC_DAPM_PRE_PMD:
-		pr_debug("Enter into %s  %d, event = SND_SOC_DAPM_PRE_PMU\n",
-			 __func__, __LINE__);
-		/* DSP-B, 1st SCLK after LRCK edge, I2S2 SDPO */
-		snd_soc_update_bits(w->codec, ES8396_SDP2_OUT_FMT_REG23,
-				    0x40, 0x40);
-		break;
-	default:
-		pr_debug("Enter into %s  %d, event = others\n", __func__,
-			 __LINE__);
-		break;
-	}
-	return 0;
-}
-
 /*
  * ES8396 Controls
  */
@@ -950,7 +901,7 @@ static const struct snd_kcontrol_new es8396_snd_controls[] = {
  * DAPM Controls
  */
 static const struct snd_kcontrol_new es8396_dac_controls =
-SOC_DAPM_SINGLE("Switch", ES8396_DAC_CSM_REG66, 6, 1, 1);
+SOC_DAPM_SINGLE("Switch", ES8396_DAC_CSM_REG66, 3, 1, 1);
 
 static const struct snd_kcontrol_new hp_amp_ctl =
 SOC_DAPM_SINGLE("Switch", ES8396_CP_CLK_DIV_REG0B, 1, 1, 1);
@@ -958,13 +909,15 @@ SOC_DAPM_SINGLE("Switch", ES8396_CP_CLK_DIV_REG0B, 1, 1, 1);
 static const struct snd_kcontrol_new es8396_hpl_mixer_controls[] = {
 	SOC_DAPM_SINGLE("LNMUX2HPMIX_L Switch", ES8396_HP_MIXER_REG2A, 6, 1, 0),
 	SOC_DAPM_SINGLE("AXMUX2HPMIX_L Switch", ES8396_HP_MIXER_REG2A, 5, 1, 0),
-	SOC_DAPM_SINGLE("DACL2HPMIX Switch", ES8396_HP_MIXER_REG2A, 7, 1, 0),
+	SOC_DAPM_SINGLE("DACL2HPMIX Switch", ES8396_HP_MIXER_REF_LP_REG2D,
+			5, 1, 0),
 };
 
 static const struct snd_kcontrol_new es8396_hpr_mixer_controls[] = {
 	SOC_DAPM_SINGLE("LNMUX2HPMIX_R Switch", ES8396_HP_MIXER_REG2A, 2, 1, 0),
 	SOC_DAPM_SINGLE("AXMUX2HPMIX_R Switch", ES8396_HP_MIXER_REG2A, 1, 1, 0),
-	SOC_DAPM_SINGLE("DACR2HPMIX Switch", ES8396_HP_MIXER_REG2A, 3, 1, 0),
+	SOC_DAPM_SINGLE("DACR2HPMIX Switch", ES8396_HP_MIXER_REF_LP_REG2D,
+			4, 1, 0),
 };
 
 /*
@@ -1182,8 +1135,6 @@ static const char *const es8396_right_lnmux_txt[] = {
 	"AINR"
 };
 
-/* static const unsigned int es8396_right_lnmux_values[] = {
-		0,1,2,4,8}; */
 static const struct soc_enum es8396_right_lnmux_enum =
 SOC_VALUE_ENUM_SINGLE(ES8396_ADC_LN_MUX_REG64, 4, 15,
 		      ARRAY_SIZE(es8396_right_lnmux_txt),
@@ -1493,27 +1444,16 @@ static const struct snd_soc_dapm_widget es8396_dapm_widgets[] = {
 	/*
 	 * AIF OUT AND MUX
 	 */
-	SND_SOC_DAPM_AIF_OUT_E("VOICESDPOL", "SDP1 Capture", 0, SND_SOC_NOPM, 6,
-			       1,
-			       music_rec_event,
-			       SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-	SND_SOC_DAPM_AIF_OUT_E("VOICESDPOR", "SDP1 Capture", 0, SND_SOC_NOPM, 6,
-			       1,
-			       music_rec_event,
-			       SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-
+	SND_SOC_DAPM_AIF_OUT("VOICESDPOL", "SDP1 Capture", 0,
+			     ES8396_SDP1_OUT_FMT_REG20, 6, 1),
+	SND_SOC_DAPM_AIF_OUT("VOICESDPOR", "SDP1 Capture", 0,
+			     ES8396_SDP1_OUT_FMT_REG20, 6, 1),
 	SND_SOC_DAPM_VALUE_MUX("VOICESDPO Mux", SND_SOC_NOPM, 0, 0,
 			       &es8396_i2s1_out_mux_controls),
-
-	SND_SOC_DAPM_AIF_OUT_E("MASTERSDPOL", "SDP2 Capture", 0, SND_SOC_NOPM,
-			       6, 1,
-			       voice_rec_event,
-			       SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-	SND_SOC_DAPM_AIF_OUT_E("MASTERSDPOR", "SDP2 Capture", 0, SND_SOC_NOPM,
-			       6, 1,
-			       voice_rec_event,
-			       SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
-
+	SND_SOC_DAPM_AIF_OUT("MASTERSDPOL", "SDP2 Capture", 0,
+			     ES8396_SDP2_OUT_FMT_REG23, 6, 1),
+	SND_SOC_DAPM_AIF_OUT("MASTERSDPOR", "SDP2 Capture", 0,
+			     ES8396_SDP2_OUT_FMT_REG23, 6, 1),
 	SND_SOC_DAPM_VALUE_MUX("MASTERSDPO Mux", SND_SOC_NOPM, 0, 0,
 			       &es8396_i2s2_out_mux_controls),
 
@@ -1547,13 +1487,12 @@ static const struct snd_soc_dapm_widget es8396_dapm_widgets[] = {
 
 	SND_SOC_DAPM_ADC("ADC Left", NULL, ES8396_ADC_ANALOG_CTRL_REG5E, 2, 1),
 	SND_SOC_DAPM_ADC("ADC Right", NULL, ES8396_ADC_ANALOG_CTRL_REG5E, 3, 1),
-
 	SND_SOC_DAPM_SWITCH_E("ADC_1", SND_SOC_NOPM, 0, 0,
 			      &es8396_adc_controls, adc_event,
-			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
+			      SND_SOC_DAPM_PRE_PMD),
 
 	/*
-	 *Analog MIC Muxes
+	 * Analog MIC Muxes
 	 */
 	SND_SOC_DAPM_SWITCH("AMIC Mux", ES8396_SYS_MIC_IBIAS_EN_REG75, 0, 1,
 			    &es8396_micin_mux_controls),
@@ -1568,7 +1507,7 @@ static const struct snd_soc_dapm_widget es8396_dapm_widgets[] = {
 	SND_SOC_DAPM_VALUE_MUX("RLN Mux", SND_SOC_NOPM, 0, 0,
 			       &es8396_right_lnmux_controls),
 	/*
-	 *AX MUX
+	 * AX MUX
 	 */
 	SND_SOC_DAPM_VALUE_MUX("LAX Mux", SND_SOC_NOPM, 0, 0,
 			       &es8396_left_axmux_controls),
@@ -1577,18 +1516,14 @@ static const struct snd_soc_dapm_widget es8396_dapm_widgets[] = {
 	/*
 	 * AIF IN
 	 */
-	SND_SOC_DAPM_AIF_IN_E("VOICESDPIL", "SDP1 Playback", 0,
-			      ES8396_SDP1_IN_FMT_REG1F, 6, 1, music_play_event,
-			      SND_SOC_DAPM_POST_PMU),
-	SND_SOC_DAPM_AIF_IN_E("VOICESDPIR", "SDP1 Playback", 0,
-			      ES8396_SDP1_IN_FMT_REG1F, 6, 1, music_play_event,
-			      SND_SOC_DAPM_POST_PMU),
-	SND_SOC_DAPM_AIF_IN_E("MASTERSDPIL", "SDP2 Playback", 0,
-			      ES8396_SDP2_IN_FMT_REG22, 6, 1, voice_play_event,
-			      SND_SOC_DAPM_POST_PMU),
-	SND_SOC_DAPM_AIF_IN_E("MASTERSDPIR", "SDP2 Playback", 0,
-			      ES8396_SDP2_IN_FMT_REG22, 6, 1, voice_play_event,
-			      SND_SOC_DAPM_POST_PMU),
+	SND_SOC_DAPM_AIF_IN("VOICESDPIL", "SDP1 Playback", 0,
+			    ES8396_SDP1_IN_FMT_REG1F, 6, 1),
+	SND_SOC_DAPM_AIF_IN("VOICESDPIR", "SDP1 Playback", 0,
+			    ES8396_SDP1_IN_FMT_REG1F, 6, 1),
+	SND_SOC_DAPM_AIF_IN("MASTERSDPIL", "SDP2 Playback", 0,
+			    SND_SOC_NOPM, 6, 1),
+	SND_SOC_DAPM_AIF_IN("MASTERSDPIR", "SDP2 Playback", 0,
+			    SND_SOC_NOPM, 6, 1),
 	SND_SOC_DAPM_AIF_IN("AUXSDPIL", "SDP3 Playback", 0,
 			    ES8396_SDP3_IN_FMT_REG24, 6, 1),
 	SND_SOC_DAPM_AIF_IN("AUXSDPIR", "SDP3 Playback", 0,
@@ -1690,20 +1625,18 @@ static const struct snd_soc_dapm_widget es8396_dapm_widgets[] = {
 	/*
 	 * SND_SOC_DAPM_MIXER("HPL Mix", ES8396_HP_MIXER_BOOST_REG2B, 4, 1,
 	 */
-	SND_SOC_DAPM_MIXER("HPL Mix", SND_SOC_NOPM, 0, 0,
+	SND_SOC_DAPM_MIXER("HPL Mix", SND_SOC_NOPM, 6, 0,
 			   &es8396_hpl_mixer_controls[0],
 			   ARRAY_SIZE(es8396_hpl_mixer_controls)),
 	/*
 	 * SND_SOC_DAPM_MIXER("HPR Mix", ES8396_HP_MIXER_BOOST_REG2B, 0, 1,
 	 */
-	SND_SOC_DAPM_MIXER("HPR Mix", SND_SOC_NOPM, 0, 0,
+	SND_SOC_DAPM_MIXER("HPR Mix", SND_SOC_NOPM, 2, 0,
 			   &es8396_hpr_mixer_controls[0],
 			   ARRAY_SIZE(es8396_hpr_mixer_controls)),
-
 	SND_SOC_DAPM_SWITCH_E("HP Amp", SND_SOC_NOPM, 0, 0,
 			      &hp_amp_ctl, hpamp_event,
-			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
-			      SND_SOC_DAPM_PRE_PMD),
+			      SND_SOC_DAPM_PRE_PMU),
 	/*
 	 * mixerSPK
 	 */
@@ -1713,13 +1646,9 @@ static const struct snd_soc_dapm_widget es8396_dapm_widgets[] = {
 	SND_SOC_DAPM_MIXER("SPKR Mix", SND_SOC_NOPM, 0, 0,
 			   &es8396_speaker_rmixer_controls[0],
 			   ARRAY_SIZE(es8396_speaker_rmixer_controls)),
-	/*
-	 * SND_SOC_DAPM_SWITCH_E("SPK Amp", ES8396_SPK_CTRL_1_REG3C, 5, 1,
-	 */
 	SND_SOC_DAPM_SWITCH_E("SPK Amp", SND_SOC_NOPM, 0, 0,
 			      &es8396_spkldo_pwrswitch_controls, classd_event,
-			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMU |
-			      SND_SOC_DAPM_PRE_PMD | SND_SOC_DAPM_POST_PMD),
+			      SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_PRE_PMD),
 
 	SND_SOC_DAPM_OUTPUT("MONOOUTP"),
 	SND_SOC_DAPM_OUTPUT("MONOOUTN"),
@@ -2193,7 +2122,7 @@ static int es8396_set_pll(struct snd_soc_dai *dai, int pll_id,
 	default:
 		return -EINVAL;
 	}
-	/*get N & K */
+	/* get N & K */
 	tmp = 0;
 	if ((source == ES8396_PLL_SRC_FRM_MCLK) ||
 	    (source == ES8396_PLL_SRC_FRM_BCLK)) {
@@ -2217,7 +2146,7 @@ static int es8396_set_pll(struct snd_soc_dai *dai, int pll_id,
 				 mclk_div, pll_div, freq_in);
 			pr_debug("N=%d, K3=%d, K2=%d, K1=%d\n", N, K3, K2, K1);
 
-			/*set N & K */
+			/* set N & K */
 			snd_soc_write(codec, ES8396_PLL_N_REG04, N);
 			snd_soc_write(codec, ES8396_PLL_K2_REG05, K3);
 			snd_soc_write(codec, ES8396_PLL_K1_REG06, K2);
@@ -2324,19 +2253,19 @@ static int es8396_set_dai_sysclk(struct snd_soc_dai *dai,
 		}
 		switch (dai->id) {
 		case ES8396_SDP1:
-			/*bclkdiv m1 use clk1 */
+			/* bclkdiv m1 use clk1 */
 			snd_soc_update_bits(codec, ES8396_BCLK_DIV_M1_REG0E,
 					    0x20, 0x00);
-			/*lrckdiv m3 use clk1 */
+			/* lrckdiv m3 use clk1 */
 			snd_soc_update_bits(codec, ES8396_LRCK_DIV_M3_REG10,
 					    0x20, 0x00);
 			break;
 		case ES8396_SDP2:
 		case ES8396_SDP3:
-			/*bclkdiv m1 use clk1 */
+			/* bclkdiv m1 use clk1 */
 			snd_soc_update_bits(codec, ES8396_BCLK_DIV_M2_REG0F,
 					    0x20, 0x00);
-			/*lrckdiv m4 use clk1 */
+			/* lrckdiv m4 use clk1 */
 			snd_soc_update_bits(codec, ES8396_LRCK_DIV_M4_REG11,
 					    0x20, 0x00);
 			break;
@@ -2349,7 +2278,7 @@ static int es8396_set_dai_sysclk(struct snd_soc_dai *dai,
 	case ES8396_CLKID_BCLK:
 		reg = snd_soc_read(codec, ES8396_CLK_SRC_SEL_REG01);
 		reg &= 0xFC;
-		reg |= 0x03;	/*clksrc1= bclk */
+		reg |= 0x03;	/* clksrc1= bclk */
 		snd_soc_write(codec, ES8396_CLK_SRC_SEL_REG01, reg);
 		/* always use clk1 */
 		reg = snd_soc_read(codec, ES8396_CLK_CTRL_REG08);
@@ -2359,13 +2288,13 @@ static int es8396_set_dai_sysclk(struct snd_soc_dai *dai,
 		priv->sysclk[dai->id] = clk_id;
 		priv->mclk[dai->id] = freq;
 		if (freq > 19600000) {
-			/*mclk div2 */
+			/* mclk div2 */
 			snd_soc_update_bits(codec, ES8396_CLK_SRC_SEL_REG01,
 					    0x10, 0x10);
 		}
 		switch (dai->id) {
 		case ES8396_SDP1:
-			/*bclkdiv m1 use clk1 */
+			/* bclkdiv m1 use clk1 */
 			snd_soc_update_bits(codec, ES8396_BCLK_DIV_M1_REG0E,
 					    0x20, 0x00);
 			/* lrckdiv m3 use clk1 */
@@ -2510,7 +2439,7 @@ static int es8396_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 		mmcc &= ~MS_MASTER;
 		mmcc |= 0x24;
 		if (id == ES8396_SDP1) {
-			mmcc &= 0xe4;	/*select bclkm1,lrckm3 */
+			mmcc &= 0xe4;	/* select bclkm1,lrckm3 */
 		} else {
 			mmcc &= 0xe4;	/* select bclkm2,lrckm4 */
 			mmcc |= 0x09;
@@ -2651,79 +2580,91 @@ static int es8396_set_bias_level(struct snd_soc_codec *codec,
 
 	switch (level) {
 	case SND_SOC_BIAS_ON:
-		/* dac csm startup, dac digital still oN
+		/*
+		 * dac csm startup, dac digital still oN
 		 * snd_soc_update_bits(codec, ES8396_DAC_CSM_REG66, 0xFF, 0x00);
 		 * dac analog power on
 		 * snd_soc_update_bits(codec, ES8396_DAC_REF_PWR_CTRL_REG6E,
 		 * 0xff, 0x00);
 		 */
+		snd_soc_write(codec, 0x40, 0x66);
 		break;
 
 	case SND_SOC_BIAS_PREPARE:
+		if (es8396->aif1_select == 0 && es8396->aif2_select == 0)
+			snd_soc_write(codec, 0x40, 0x22);
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
-			snd_soc_write(codec, ES8396_SYS_VMID_REF_REG71, 0xEE);
-			if (es8396_valid_analdo(es8396->ana_ldo_lvl)) {
-				value = es8396->ana_ldo_lvl;
-				value &= 0x07;
-				snd_soc_write(codec,
-					      ES8396_SYS_CHIP_ANA_CTL_REG70,
-					      value);
+		if (es8396->aif1_select == 0 && es8396->aif2_select == 0) {
+			if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
+				snd_soc_write(codec, ES8396_SYS_VMID_REF_REG71,
+					      0xEE);
+				if (es8396_valid_analdo(es8396->ana_ldo_lvl)) {
+					value = es8396->ana_ldo_lvl;
+					value &= 0x07;
+					snd_soc_write(codec, 0x70, value);
+				}
 			}
 		}
-		/* dac csm startup, dac digital still stop
+		/*
+		 * dac csm startup, dac digital still stop
 		 * snd_soc_update_bits(codec, ES8396_DAC_CSM_REG66, 0xFF, 0x04);
 		 * adc csm startup, adc digital still stop
 		 * snd_soc_update_bits(codec, ES8396_ADC_CSM_REG53, 0xFF, 0x00);
-		*/
+		 */
 		break;
 
 	case SND_SOC_BIAS_OFF:
-		/* cphp pdn */
-		snd_soc_update_bits(codec, ES8396_CPHP_ENABLE_REG40,
-				    0xff, 0x00);
-		snd_soc_update_bits(codec, ES8396_CPHP_CTRL_1_REG42, 0xff,
-				    0x20);
-		snd_soc_update_bits(codec, ES8396_CPHP_CTRL_2_REG43, 0xff,
-				    0x82);
-		snd_soc_update_bits(codec, ES8396_CPHP_CTRL_3_REG44, 0xff,
-				    0x33);
-		snd_soc_update_bits(codec, ES8396_LNOUT_REFERENCE_REG52, 0xff,
-				    0xc0);
-		snd_soc_update_bits(codec, ES8396_MONOHP_REF_LP_REG45, 0xff,
-				    0xe0);
+		if (es8396->aif1_select == 0 && es8396->aif2_select == 0) {
+			/* cphp pdn */
+			snd_soc_update_bits(codec, ES8396_CPHP_ENABLE_REG40,
+					    0xff, 0x00);
+			snd_soc_update_bits(codec, ES8396_CPHP_CTRL_1_REG42,
+					    0xff, 0x20);
+			snd_soc_update_bits(codec, ES8396_CPHP_CTRL_2_REG43,
+					    0xff, 0x82);
+			snd_soc_update_bits(codec, ES8396_CPHP_CTRL_3_REG44,
+					    0xff, 0x33);
+			snd_soc_update_bits(codec, ES8396_LNOUT_REFERENCE_REG52,
+					    0xff, 0xc0);
+			snd_soc_update_bits(codec, ES8396_MONOHP_REF_LP_REG45,
+					    0xff, 0xe0);
 
-		value = snd_soc_read(codec, ES8396_SPK_EN_VOL_REG3B);
-		value &= 0x77;
-		/* clear enspk_l,enspk_r */
-		snd_soc_write(codec, ES8396_SPK_EN_VOL_REG3B, value);
-		value = snd_soc_read(codec, ES8396_SPK_CTRL_SRC_REG3A);
-		/* set pdnspkl_biasgen, set pdnspkr_biasgen */
-		value |= 0x44;
-		snd_soc_write(codec, ES8396_SPK_CTRL_SRC_REG3A, value);
-		value = snd_soc_read(codec, ES8396_SPK_MIXER_REG26);
-		/* clear pdnspkl_biasgen, clear pdnspkr_biasgen */
-		value |= 0x11;
-		snd_soc_write(codec, ES8396_SPK_MIXER_REG26, value);
-		/* spk pdn */
-		snd_soc_update_bits(codec, ES8396_SPK_CTRL_1_REG3C,
-				    0x20, 0x20);
-		/* dac analog power down */
-		snd_soc_update_bits(codec, ES8396_DAC_REF_PWR_CTRL_REG6E,
-				    0xff, 0xc0);
-		/*adc analog power down */
-		snd_soc_update_bits(codec, ES8396_ADC_ANALOG_CTRL_REG5E,
-				    0xff, 0x3c);
-		snd_soc_update_bits(codec, ES8396_SYS_VMID_REF_REG71, 0xff,
-				    0x92);
-		snd_soc_update_bits(codec, ES8396_SYS_MIC_IBIAS_EN_REG75, 0xff,
-				    0x01);
-		snd_soc_update_bits(codec, ES8396_SYS_CHIP_ANA_CTL_REG70, 0xff,
-				    0x53);
-		/* dac dig reset  */
-		snd_soc_update_bits(codec, ES8396_DAC_CSM_REG66, 0xff, 0x40);
+			value = snd_soc_read(codec, ES8396_SPK_EN_VOL_REG3B);
+			value &= 0x77;
+			/* clear enspk_l,enspk_r */
+			snd_soc_write(codec, ES8396_SPK_EN_VOL_REG3B, value);
+			value = snd_soc_read(codec, ES8396_SPK_CTRL_SRC_REG3A);
+			/* set pdnspkl_biasgen, set pdnspkr_biasgen */
+			value |= 0x44;
+			snd_soc_write(codec, ES8396_SPK_CTRL_SRC_REG3A, value);
+			value = snd_soc_read(codec, ES8396_SPK_MIXER_REG26);
+			/* clear pdnspkl_biasgen, clear pdnspkr_biasgen */
+			value |= 0x11;
+			snd_soc_write(codec, ES8396_SPK_MIXER_REG26, value);
+			/* spk pdn */
+			snd_soc_update_bits(codec, ES8396_SPK_CTRL_1_REG3C,
+					    0x20, 0x20);
+			/* dac analog power down */
+			snd_soc_update_bits(codec,
+					    ES8396_DAC_REF_PWR_CTRL_REG6E,
+					    0xff, 0xc0);
+			/* adc analog power down */
+			snd_soc_update_bits(codec, ES8396_ADC_ANALOG_CTRL_REG5E,
+					    0xff, 0x3c);
+			snd_soc_update_bits(codec, ES8396_SYS_VMID_REF_REG71,
+					    0xff, 0x92);
+			snd_soc_update_bits(codec,
+					    ES8396_SYS_MIC_IBIAS_EN_REG75,
+					    0xff, 0x01);
+			snd_soc_update_bits(codec,
+					    ES8396_SYS_CHIP_ANA_CTL_REG70,
+					    0xff, 0x53);
+			/* dac dig reset */
+			snd_soc_update_bits(codec, ES8396_DAC_CSM_REG66, 0xff,
+					    0x40);
+		}
 		break;
 	}
 	codec->dapm.bias_level = level;
@@ -2754,57 +2695,58 @@ static int es8396_pcm_startup(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *dai)
 {
 	bool playback = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK);
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
 	int ret;
 	int regv;
 
 	pr_debug(">>>>>>>>es8396_pcm_startup\n");
 	ret = snd_soc_read(tron_codec, ES8396_ADC_CSM_REG53);
 	pr_debug("ES8396_ADC_CSM_REG53===0x%x\n", ret);
+	/*
+	 * set the clock source to MCLK pin
+	 * set divider for music playback
+	 * set DAC source from SDP1 in
+	 */
+	snd_soc_write(tron_codec, 0x66, 0x01);
+	if ((es8396->aif2_select & 0x01) == 0) {
+		pr_debug(">>>>>>>>es8396_pcm_startup, only power on sdp1 for music\n");
+		/* if don't have voice requirement */
+		snd_soc_write(tron_codec, 0x1A, 0x00);
+		snd_soc_write(tron_codec, 0x8, 0x10);
+		snd_soc_write(tron_codec, 0xd, 0x00);
+		snd_soc_write(tron_codec, 0x9, 0x04);
+		snd_soc_write(tron_codec, 0x69, 0x00);
+		snd_soc_write(tron_codec, 0x67, 0x00);
+	} else {
+		pr_debug(">>>>>>>>es8396_pcm_startup, already power on sdp2 for voice\n");
+		snd_soc_write(tron_codec, 0x18, 0x00);	/* set eq source */
+		snd_soc_write(tron_codec, 0x19, 0x51);	/* set eq source */
+		/* if have voice requirement */
+		snd_soc_write(tron_codec, 0x1A, 0x40);
+		snd_soc_write(tron_codec, 0x8, 0x10);
+		snd_soc_write(tron_codec, 0xd, 0x00);
+		snd_soc_write(tron_codec, 0x9, 0x04);
+		snd_soc_write(tron_codec, 0x67, 0x0c);
+		snd_soc_write(tron_codec, 0x69, 0x04);
+	}
+
 	if (playback) {
 		pr_debug(">>>>>>>>>>>es8396_pcm_startup playback\n");
-		/* set adc alc */
-		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_1_REG58, 0xC6);
-		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_2_REG59, 0x12);
-		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_4_REG5B, 0x0a);
-		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_5_REG5C, 0xC8);
-		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_6_REG5D, 0x11);
-		snd_soc_write(tron_codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x0);
-		snd_soc_write(tron_codec, ES8396_SYS_MIC_IBIAS_EN_REG75, 0x02);
+		es8396->aif1_select |= 0x01;
+		if (es8396->calibrate == 0) {
+			pr_debug("Enter into %s  %d\n", __func__, __LINE__);
+			snd_soc_write(tron_codec, 0x40, 0x00);
+			snd_soc_write(tron_codec, 0x44, 0x00);
+			snd_soc_write(tron_codec, 0x41, 0x00);
+			es8396->pcm_pop_work_retry = 5;
+		}
+		schedule_delayed_work(&es8396->pcm_pop_work,
+				      msecs_to_jiffies(20));
 
-		/*axMixer Gain boost */
-		regv = snd_soc_read(tron_codec, ES8396_AX_MIXER_BOOST_REG2F);
-		regv |= 0x88;
-		snd_soc_write(tron_codec, ES8396_AX_MIXER_BOOST_REG2F, regv);
-		/* axmixer vol = +12db */
-		snd_soc_write(tron_codec, ES8396_AX_MIXER_VOL_REG30, 0xaa);
-		/* axmixer high driver capacility */
-		snd_soc_write(tron_codec, ES8396_AX_MIXER_REF_LP_REG31, 0x02);
-
-		/*MNMixer Gain boost */
-		regv = snd_soc_read(tron_codec, ES8396_MN_MIXER_BOOST_REG37);
-		regv |= 0x88;
-		snd_soc_write(tron_codec, ES8396_MN_MIXER_BOOST_REG37, regv);
-		/* mnmixer vol = +12db */
-		snd_soc_write(tron_codec, ES8396_MN_MIXER_VOL_REG38, 0x44);
-		/* mnmixer high driver capacility */
-		snd_soc_write(tron_codec, ES8396_MN_MIXER_REF_LP_REG39, 0x02);
-
-		snd_soc_write(tron_codec, 0x33, 0);
-
-		msleep(200);
-		/* ADC STM and Digital Startup, ADC DS Mode */
-		snd_soc_write(tron_codec, ES8396_ADC_CSM_REG53, 0x00);
-		/* force adc stm to normal */
-		snd_soc_write(tron_codec, ES8396_ADC_FORCE_REG77, 0x40);
-		snd_soc_write(tron_codec, ES8396_ADC_FORCE_REG77, 0x0);
-		/* ADC Volume =0db */
-		snd_soc_write(tron_codec, ES8396_ADC_LADC_VOL_REG56, 0x0);
-		snd_soc_write(tron_codec, ES8396_ADC_RADC_VOL_REG57, 0x0);
-		snd_soc_write(tron_codec, ES8396_ADC_CLK_DIV_REG09, 0x04);
-		ret = snd_soc_read(tron_codec, ES8396_ADC_CSM_REG53);
-		pr_debug("ES8396_ADC_CSM_REG53===0x%x\n", ret);
 	} else {
 		pr_debug(">>>>>>>>>>>es8396_pcm_startup capture\n");
+		snd_soc_update_bits(tron_codec, ES8396_SDP1_OUT_FMT_REG20, 0x40,
+				    0x40);
 		/* set adc alc */
 		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_1_REG58, 0xC6);
 		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_2_REG59, 0x12);
@@ -2812,9 +2754,10 @@ static int es8396_pcm_startup(struct snd_pcm_substream *substream,
 		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_5_REG5C, 0xC8);
 		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_6_REG5D, 0x11);
 		snd_soc_write(tron_codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x0);
+		/* Enable MIC BOOST */
 		snd_soc_write(tron_codec, ES8396_SYS_MIC_IBIAS_EN_REG75, 0x02);
 
-		/*axMixer Gain boost */
+		/* axMixer Gain boost */
 		regv = snd_soc_read(tron_codec, ES8396_AX_MIXER_BOOST_REG2F);
 		regv |= 0x88;
 		snd_soc_write(tron_codec, ES8396_AX_MIXER_BOOST_REG2F, regv);
@@ -2822,8 +2765,8 @@ static int es8396_pcm_startup(struct snd_pcm_substream *substream,
 		snd_soc_write(tron_codec, ES8396_AX_MIXER_VOL_REG30, 0xaa);
 		/* axmixer high driver capacility */
 		snd_soc_write(tron_codec, ES8396_AX_MIXER_REF_LP_REG31, 0x02);
-
-		/*MNMixer Gain boost */
+		snd_soc_write(tron_codec, 0x33, 0);
+		/* MNMixer Gain boost */
 		regv = snd_soc_read(tron_codec, ES8396_MN_MIXER_BOOST_REG37);
 		regv |= 0x88;
 		snd_soc_write(tron_codec, ES8396_MN_MIXER_BOOST_REG37, regv);
@@ -2832,7 +2775,6 @@ static int es8396_pcm_startup(struct snd_pcm_substream *substream,
 		/* mnmixer high driver capacility */
 		snd_soc_write(tron_codec, ES8396_MN_MIXER_REF_LP_REG39, 0x02);
 
-		msleep(200);
 		/* ADC STM and Digital Startup, ADC DS Mode */
 		snd_soc_write(tron_codec, ES8396_ADC_CSM_REG53, 0x00);
 		/* force adc stm to normal */
@@ -2842,56 +2784,196 @@ static int es8396_pcm_startup(struct snd_pcm_substream *substream,
 		snd_soc_write(tron_codec, ES8396_ADC_LADC_VOL_REG56, 0x0);
 		snd_soc_write(tron_codec, ES8396_ADC_RADC_VOL_REG57, 0x0);
 		snd_soc_write(tron_codec, ES8396_ADC_CLK_DIV_REG09, 0x04);
-		ret = snd_soc_read(tron_codec, ES8396_ADC_CSM_REG53);
-		pr_debug("ES8396_ADC_CSM_REG53===0x%x\n", ret);
+		es8396->aif1_select |= 0x02;
+		schedule_delayed_work(&es8396->adc_depop_work,
+				      msecs_to_jiffies(150));
 	}
 	return 0;
+}
+
+static void es8396_pcm_shutdown(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	bool playback = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK);
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
+
+	pr_debug(">>>>>>>>es8396_pcm_shutdown\n");
+
+	/*
+	 * mute SDP1 in and mute SDP1 out
+	 */
+	if (playback) {
+		pr_debug(">>>>>>>>es8396_pcm_shutdown, playback\n");
+		schedule_delayed_work(&es8396->pcm_shutdown_depop_work,
+				      msecs_to_jiffies(200));
+	} else {
+		pr_debug(">>>>>>>>es8396_pcm_shutdown, capture\n");
+		snd_soc_update_bits(tron_codec, ES8396_SDP1_OUT_FMT_REG20, 0x40,
+				    0x40);
+		es8396->aif1_select &= 0xfd;
+	}
+}
+
+static int es8396_voice_startup(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	unsigned int index;
+	bool playback = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK);
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
+	int regv;
+
+	pr_debug("****************es8396_voice_startup\n");
+
+	if (playback) {
+		pr_debug("****************es8396_voice_startup, playback\n");
+		es8396->aif2_select |= 0x01;
+		/* mute dac */
+		snd_soc_write(tron_codec, 0x66, 0x03);
+		/* DSP-B, 1st SCLK after LRCK edge, I2S2 SDPIN */
+		snd_soc_update_bits(tron_codec, ES8396_SDP2_IN_FMT_REG22,
+				    0x7F, 0x13);
+		snd_soc_write(tron_codec, 0x18, 0x00);	/* set eq source */
+		snd_soc_write(tron_codec, 0x19, 0x51);	/* set eq source */
+		snd_soc_write(tron_codec, 0x8, 0x10);
+		snd_soc_write(tron_codec, 0xd, 0x00);
+		snd_soc_write(tron_codec, 0x9, 0x04);
+		snd_soc_write(tron_codec, 0x1A, 0x40);	/* Enable HPOUT */
+		if ((es8396->aif1_select & 0x01) == 0) {
+			/* if only voice */
+			snd_soc_write(tron_codec, 0x67, 0x0c);
+			snd_soc_write(tron_codec, 0x69, 0x04);
+		} else {
+			snd_soc_write(tron_codec, 0x67, 0x0c);
+			snd_soc_write(tron_codec, 0x69, 0x04);
+		}
+		/* clk2 used as EQ clk, OSR = 6xFs for 8k resampling to 48k */
+		snd_soc_write(tron_codec, ES8396_EQ_CLK_OSR_SEL_REG1C, 0x35);
+		snd_soc_write(tron_codec, ES8396_SHARED_ADDR_REG1D, 0x00);
+
+		for (index = 0; index < 59; index++) {
+			snd_soc_write(tron_codec, ES8396_SHARED_DATA_REG1E,
+				      es8396_equalizer_lpf_bt_incall[index]);
+		}
+		snd_soc_write(tron_codec, ES8396_SHARED_ADDR_REG1D, 0xbb);
+		snd_soc_write(tron_codec, ES8396_SHARED_DATA_REG1E,
+			      es8396_equalizer_lpf_bt_incall[59]);
+
+		schedule_delayed_work(&es8396->voice_pop_work,
+				      msecs_to_jiffies(150));
+	} else {
+		pr_debug("****************es8396_voice_startup, capture\n");
+		es8396->aif2_select |= 0x02;
+		/* set adc alc */
+		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_1_REG58, 0xC6);
+		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_2_REG59, 0x12);
+		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_4_REG5B, 0x0a);
+		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_5_REG5C, 0xC8);
+		snd_soc_write(tron_codec, ES8396_ADC_ALC_CTRL_6_REG5D, 0x11);
+		snd_soc_write(tron_codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x0);
+		snd_soc_write(tron_codec, ES8396_SYS_MIC_IBIAS_EN_REG75, 0x02);
+
+		/* axMixer Gain boost */
+		regv = snd_soc_read(tron_codec, ES8396_AX_MIXER_BOOST_REG2F);
+		regv |= 0x88;
+		snd_soc_write(tron_codec, ES8396_AX_MIXER_BOOST_REG2F, regv);
+		/* axmixer vol = +12db */
+		snd_soc_write(tron_codec, ES8396_AX_MIXER_VOL_REG30, 0xaa);
+		/* axmixer high driver capacility */
+		snd_soc_write(tron_codec, ES8396_AX_MIXER_REF_LP_REG31, 0x02);
+		snd_soc_write(tron_codec, 0x33, 0);
+		/* MNMixer Gain boost */
+		regv = snd_soc_read(tron_codec, ES8396_MN_MIXER_BOOST_REG37);
+		regv |= 0x88;
+		snd_soc_write(tron_codec, ES8396_MN_MIXER_BOOST_REG37, regv);
+		/* mnmixer vol = +12db */
+		snd_soc_write(tron_codec, ES8396_MN_MIXER_VOL_REG38, 0x44);
+		/* mnmixer high driver capacility */
+		snd_soc_write(tron_codec, ES8396_MN_MIXER_REF_LP_REG39, 0x02);
+
+		/* ADC STM and Digital Startup, ADC DS Mode */
+		snd_soc_write(tron_codec, ES8396_ADC_CSM_REG53, 0x00);
+		/* force adc stm to normal */
+		snd_soc_write(tron_codec, ES8396_ADC_FORCE_REG77, 0x40);
+		snd_soc_write(tron_codec, ES8396_ADC_FORCE_REG77, 0x0);
+		/* ADC Volume =0db */
+		snd_soc_write(tron_codec, ES8396_ADC_LADC_VOL_REG56, 0x0);
+		snd_soc_write(tron_codec, ES8396_ADC_RADC_VOL_REG57, 0x0);
+
+		/* clk2 used as EQ clk, OSR = 6xFs for 8k resampling to 48k */
+		snd_soc_update_bits(tron_codec, ES8396_SDP2_OUT_FMT_REG23,
+				    0x7F, 0x33);
+	}
+	return 0;
+}
+
+static void es8396_voice_shutdown(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
+{
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(tron_codec);
+	bool playback = (substream->stream == SNDRV_PCM_STREAM_PLAYBACK);
+
+	pr_debug("****************es8396_voice_shutdown\n");
+
+	/* DSP-B, 1st SCLK after LRCK edge, I2S2 SDPIN */
+	if (playback) {
+		snd_soc_write(tron_codec, 0x66, 0x03);
+		pr_debug("****************es8396_voice_shutdown, playback\n");
+		schedule_delayed_work(&es8396->voice_shutdown_depop_work,
+				      msecs_to_jiffies(200));
+	} else {
+		pr_debug("****************es8396_voice_shutdown, captuer\n");
+		/* //DSP-B, 1st SCLK after LRCK edge, I2S2 SDPO */
+		snd_soc_update_bits(tron_codec, ES8396_SDP2_OUT_FMT_REG23,
+				    0x7F, 0x73);
+		es8396->aif2_select &= 0xfd;
+	}
 }
 
 /*
  * Only mute SDP IN(for dac)
  */
-static int es8396_aif_mute(struct snd_soc_dai *codec_dai, int mute)
+static int es8396_aif1_mute(struct snd_soc_dai *codec_dai, int mute)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(codec);
-	u8 mute_reg_i;
-	u8 reg;
-
-	switch (codec_dai->id) {
-	case ES8396_SDP1:
-		mute_reg_i = ES8396_SDP1_IN_FMT_REG1F;
-		/* mute_reg_o = ES8396_SDP1_OUT_FMT_REG20; */
-		break;
-	case ES8396_SDP2:
-		mute_reg_i = ES8396_SDP2_IN_FMT_REG22;
-		/* mute_reg_o = ES8396_SDP2_OUT_FMT_REG23; */
-		break;
-	case ES8396_SDP3:
-		mute_reg_i = ES8396_SDP3_IN_FMT_REG24;
-		/* mute_reg_o = ES8396_SDP3_OUT_FMT_REG25; */
-		break;
-	default:
-		return -EINVAL;
-	}
-
+	pr_debug("es8396_aif1_mute id = %d, mute = %d", codec_dai->id, mute);
 	if (mute) {
-		if (es8396->spk_ctl_gpio != INVALID_GPIO) {
+		if (es8396->spk_ctl_gpio != INVALID_GPIO &&
+		    es8396->aif2_select == 0) {
 			pr_debug("spk_ctl_gpio set %d\n", es8396->spk_ctl_gpio);
 			gpio_set_value(es8396->spk_ctl_gpio, 0);
 		}
 		msleep(100);
-		reg = ES8396_AIF_MUTE;
-		snd_soc_update_bits(codec, mute_reg_i, ES8396_AIF_MUTE, reg);
 	} else {
-		reg = 0;
-		snd_soc_update_bits(codec, mute_reg_i, ES8396_AIF_MUTE, reg);
 		if (es8396->spk_ctl_gpio != INVALID_GPIO) {
 			pr_debug("spk_ctl_gpio set %d\n", es8396->spk_ctl_gpio);
 			gpio_set_value(es8396->spk_ctl_gpio, 1);
 		}
 	}
 
+	return 0;
+}
+
+static int es8396_aif2_mute(struct snd_soc_dai *codec_dai, int mute)
+{
+	struct snd_soc_codec *codec = codec_dai->codec;
+	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(codec);
+
+	pr_debug("es8396_aif2_mute id = %d, mute = %d", codec_dai->id, mute);
+
+	if (mute) {
+		if (es8396->spk_ctl_gpio != INVALID_GPIO &&
+		    es8396->aif1_select == 0) {
+			pr_debug("spk_ctl_gpio set %d\n", es8396->spk_ctl_gpio);
+			gpio_set_value(es8396->spk_ctl_gpio, 0);
+		}
+		msleep(100);
+	} else {
+		if (es8396->spk_ctl_gpio != INVALID_GPIO) {
+			pr_debug("spk_ctl_gpio set %d\n", es8396->spk_ctl_gpio);
+			gpio_set_value(es8396->spk_ctl_gpio, 1);
+		}
+	}
 	return 0;
 }
 
@@ -2902,42 +2984,61 @@ static int es8396_aif_mute(struct snd_soc_dai *codec_dai, int mute)
 
 static const struct snd_soc_dai_ops es8396_aif1_dai_ops = {
 	.startup = es8396_pcm_startup,
+	.shutdown = es8396_pcm_shutdown,
 	.set_sysclk = es8396_set_dai_sysclk,
 	.set_fmt = es8396_set_dai_fmt,
 	.hw_params = es8396_pcm_hw_params,
-	.digital_mute = es8396_aif_mute,
+	.digital_mute = es8396_aif1_mute,
 	.set_pll = es8396_set_pll,
 	.set_tristate = es8396_set_tristate,
 };
 
 static const struct snd_soc_dai_ops es8396_aif2_dai_ops = {
-	.startup = es8396_pcm_startup,
+	.startup = es8396_voice_startup,
+	.shutdown = es8396_voice_shutdown,
 	.set_sysclk = es8396_set_dai_sysclk,
 	.set_fmt = es8396_set_dai_fmt,
 	.hw_params = es8396_pcm_hw_params,
-	.digital_mute = es8396_aif_mute,
+	.digital_mute = es8396_aif2_mute,
 	.set_pll = es8396_set_pll,
 };
 
 static struct snd_soc_dai_driver es8396_dai[] = {
 	{
-		.name = "ES8396 HiFi",
-		.id = 0,
+		.name = "es8396-aif1",
 		.playback = {
-			.stream_name = "Playback",
+			.stream_name = "SDP1 Playback",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = ES8396_RATES,
 			.formats = ES8396_FORMATS,
 		},
 		.capture = {
-			.stream_name = "Capture",
+			.stream_name = "SDP1 Capture",
 			.channels_min = 1,
 			.channels_max = 2,
 			.rates = ES8396_RATES,
 			.formats = ES8396_FORMATS,
 		},
 		.ops = &es8396_aif1_dai_ops,
+	},
+	{
+		.name = "es8396-aif2",
+		.playback = {
+			.stream_name = "SDP2 Playback",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = ES8396_RATES,
+			.formats = ES8396_FORMATS,
+		},
+		.capture = {
+			.stream_name = "SDP2 Capture",
+			.channels_min = 1,
+			.channels_max = 2,
+			.rates = ES8396_RATES,
+			.formats = ES8396_FORMATS,
+		},
+		.ops = &es8396_aif2_dai_ops,
 	},
 };
 
@@ -2951,7 +3052,7 @@ static int es8396_suspend(struct device *dev)
 	es8396_set_bias_level(tron_codec, SND_SOC_BIAS_OFF);
 
 	for (i = 0; i < ES8396_SDP3; i++) {
-		/*if pll be used, power down it */
+		/* if pll be used, power down it */
 		if (es8396->sysclk[i] == ES8396_CLKID_PLLO) {
 			ret = 1;
 			break;
@@ -2997,7 +3098,7 @@ static int es8396_resume(struct device *dev)
 
 static int es8396_probe(struct snd_soc_codec *codec)
 {
-	int ret;
+	int ret, regv;
 	u8 value;
 
 	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(codec);
@@ -3008,7 +3109,14 @@ static int es8396_probe(struct snd_soc_codec *codec)
 		return ret;
 	}
 	tron_codec = codec;
-
+	regv = snd_soc_read(codec, ES8396_PLL_K2_REG05);
+	if (regv == 0x00) {
+		snd_soc_write(codec, 0x40, 0x00);
+		snd_soc_write(codec, ES8396_DAC_SRC_SDP1O_SRC_REG1A, 0x30);
+	} else {
+		snd_soc_write(codec, 0x40, 0x00);
+		snd_soc_write(codec, ES8396_DAC_SRC_SDP1O_SRC_REG1A, 0x30);
+	}
 	/*
 	 * setup system analog control
 	 */
@@ -3020,6 +3128,7 @@ static int es8396_probe(struct snd_soc_codec *codec)
 	} else {
 		value = es8396->ana_ldo_lvl;
 		value &= 0x07;
+		value |= 0x10;
 		snd_soc_write(codec, ES8396_SYS_CHIP_ANA_CTL_REG70, value);
 	}
 	/* mic enable, mic d2se enable */
@@ -3036,26 +3145,26 @@ static int es8396_probe(struct snd_soc_codec *codec)
 	snd_soc_write(codec, ES8396_PLL_CTRL_1_REG02, 0x41);
 
 	/* adc,dac,cphp,class d clk enable,from clk2 */
-	snd_soc_write(codec, ES8396_CLK_CTRL_REG08, 0x00);
+	snd_soc_write(codec, ES8396_CLK_CTRL_REG08, 0x0F);
 	/* adc clk ratio=1 */
 	snd_soc_write(codec, ES8396_ADC_CLK_DIV_REG09, 0x04);
 	/* dac clk ratio=1 */
 	snd_soc_write(codec, ES8396_DAC_CLK_DIV_REG0A, 0x01);
 	snd_soc_write(codec, ES8396_BCLK_DIV_M2_REG0F, 0x24);
 	snd_soc_write(codec, ES8396_LRCK_DIV_M4_REG11, 0x22);
-	snd_soc_write(codec, ES8396_DAC_SRC_SDP1O_SRC_REG1A, 0x00);
+
 	snd_soc_write(codec, ES8396_TEST_MODE_REG76, 0xA0);
 	snd_soc_write(codec, ES8396_NGTH_REG7A, 0x20);
-	msleep(50);
+	msleep(30);
 	snd_soc_write(codec, ES8396_SPK_EN_VOL_REG3B, 0x11);
-	/*set hp out for calibration */
-	snd_soc_write(codec, ES8396_CPHP_ICAL_VOL_REG41, 0x44);
+	/* set hp out for calibration */
+	snd_soc_write(codec, ES8396_CPHP_ICAL_VOL_REG41, 0x00);
 	snd_soc_write(codec, ES8396_CPHP_CTRL_1_REG42, 0x09);
 	snd_soc_write(codec, ES8396_CPHP_CTRL_2_REG43, 0x59);
 	snd_soc_write(codec, ES8396_CPHP_CTRL_3_REG44, 0x30);
 	/* setup hp mixer */
 	snd_soc_write(codec, ES8396_HP_MIXER_REG2A, 0x88);
-	snd_soc_write(codec, ES8396_HP_MIXER_BOOST_REG2B, 0x88);
+	snd_soc_write(codec, ES8396_HP_MIXER_BOOST_REG2B, 0x00);
 	snd_soc_write(codec, ES8396_HP_MIXER_VOL_REG2C, 0xBB);
 	/* power up adc and dac analog */
 	snd_soc_write(codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x00);
@@ -3067,99 +3176,39 @@ static int es8396_probe(struct snd_soc_codec *codec)
 	snd_soc_write(codec, ES8396_ADC_LADC_VOL_REG56, 0x84);
 	snd_soc_write(codec, ES8396_ADC_RADC_VOL_REG57, 0xdc);
 	snd_soc_write(codec, ES8396_DAC_OFFSET_CALI_REG6F, 0x06);
-	snd_soc_write(codec, ES8396_DAC_RAMP_RATE_REG67, 0x00);
+	snd_soc_write(codec, ES8396_DAC_RAMP_RATE_REG67, 0x05);
 	/* enable adc and dac stm for calibrate */
-	snd_soc_write(codec, ES8396_DAC_CSM_REG66, 0x00);
+	snd_soc_write(codec, ES8396_DAC_CSM_REG66, 0x04);
 	snd_soc_write(codec, ES8396_ADC_CSM_REG53, 0x00);
 	snd_soc_write(codec, ES8396_ADC_FORCE_REG77, 0x40);
 	snd_soc_write(codec, ES8396_ADC_FORCE_REG77, 0x00);
 	snd_soc_write(codec, ES8396_DLL_CTRL_REG0D, 0x00);
-	msleep(100);
-	snd_soc_write(codec, ES8396_DAC_CSM_REG66, 0x00);
-	snd_soc_write(codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x00);
-
-	snd_soc_write(tron_codec, 0x1f, 0x40);
-	snd_soc_write(tron_codec, 0x20, 0x40);
-	snd_soc_write(tron_codec, 0x22, 0x53);
-	snd_soc_write(tron_codec, 0x23, 0x73);
-
-	if (es8396_valid_micbias(es8396->mic_bias_lvl) == false) {
-		pr_err("MIC BIAS Level error.\n");
-		return -EINVAL;
-	} else {
-		value = es8396->mic_bias_lvl;
-		value &= 0x07;
-		value = (value << 4) | 0x08;
-		/* enable micbias1 */
-		snd_soc_write(codec, ES8396_SYS_MICBIAS_CTRL_REG74, value);
-	}
-
-	snd_soc_write(codec, ES8396_ADC_CSM_REG53, 0x20);
-	snd_soc_write(codec, ES8396_ADC_PGA_GAIN_REG61, 0x33);
-	snd_soc_write(codec, ES8396_ADC_MICBOOST_REG60, 0x22);
-	if (es8396->dmic_amic == MIC_AMIC)
-		/*use analog mic */
-		snd_soc_write(codec, ES8396_ADC_DMIC_RAMPRATE_REG54, 0x00);
-	else
-		/*use digital mic */
-		snd_soc_write(codec, ES8396_ADC_DMIC_RAMPRATE_REG54, 0xf0);
-
-	/*Enable HPF, LDATA= LADC, RDATA = LADC */
-	snd_soc_write(codec, ES8396_ADC_HPF_COMP_DASEL_REG55, 0x31);
-
-	/*
-	 * setup hp detection
-	 */
-
-	/* gpio 2 for irq, AINL as irq src, gpio1 for dmic clk */
-	snd_soc_write(codec, ES8396_ALRCK_GPIO_SEL_REG15, 0xfa);
-	snd_soc_write(codec, ES8396_DAC_JACK_DET_COMP_REG69, 0x00);
-	if (es8396->jackdet_enable == 1) {
-		/* jack detection from AINL pin, AINL=0, HP Insert */
-		snd_soc_write(codec, ES8396_DAC_JACK_DET_COMP_REG69, 0x04);
-		if (es8396->gpio_int_pol == 0)
-			/* if HP insert, GPIO2=Low */
-			snd_soc_write(codec, ES8396_GPIO_IRQ_REG16, 0x80);
-		else
-			/* if HP insert, GPIO2=High */
-			snd_soc_write(codec, ES8396_GPIO_IRQ_REG16, 0xc0);
-	} else {
-		snd_soc_write(codec, ES8396_GPIO_IRQ_REG16, 0x00);
-	}
-
-	/*
-	 * setup mono in in differential mode or stereo mode
-	 */
-
-	/* monoin in differential mode */
-	if (es8396->monoin_differential == 1)
-		snd_soc_update_bits(codec, ES8396_MN_MIXER_REF_LP_REG39, 0x08,
-				    0x08);
-	else
-		snd_soc_update_bits(codec, ES8396_MN_MIXER_REF_LP_REG39, 0x08,
-				    0x00);
-
-	snd_soc_write(codec, ES8396_DAC_JACK_DET_COMP_REG69, 0x00);
-	snd_soc_write(codec, ES8396_BCLK_DIV_M1_REG0E, 0x24);
-	snd_soc_write(codec, ES8396_LRCK_DIV_M3_REG10, 0x22);
-	snd_soc_write(codec, ES8396_SDP_2_MS_REG13, 0x00);
-
-	es8396_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	snd_soc_write(codec, ES8396_ADC_ANALOG_CTRL_REG5E, 0x3C);
 
 	INIT_DELAYED_WORK(&es8396->adc_depop_work, adc_depop_work_events);
 	mutex_init(&es8396->adc_depop_mlock);
 	INIT_DELAYED_WORK(&es8396->pcm_pop_work, pcm_pop_work_events);
 	mutex_init(&es8396->pcm_depop_mlock);
+
+	INIT_DELAYED_WORK(&es8396->voice_pop_work, voice_pop_work_events);
+	mutex_init(&es8396->voice_depop_mlock);
+
 	INIT_DELAYED_WORK(&es8396->init_cali_work, init_cali_work_events);
 	mutex_init(&es8396->init_cali_mlock);
 
+	INIT_DELAYED_WORK(&es8396->pcm_shutdown_depop_work,
+			  pcm_shutdown_depop_events);
+	mutex_init(&es8396->pcm_shutdown_depop_mlock);
+
+	INIT_DELAYED_WORK(&es8396->voice_shutdown_depop_work,
+			  voice_shutdown_depop_events);
+	mutex_init(&es8396->voice_shutdown_depop_mlock);
+
+	schedule_delayed_work(&es8396->init_cali_work, msecs_to_jiffies(50));
 	/*
 	 * TODO: pop noise occur when HS calibration during probe
 	 * increase the delay of a period of time if necessary
 	 * msleep(50);
 	 */
-	schedule_delayed_work(&es8396->init_cali_work, msecs_to_jiffies(500));
 	return ret;
 }
 
@@ -3208,8 +3257,10 @@ static int init_es8396_prv(struct es8396_private *es8396)
 	es8396->gpio_int_pol = 0;
 	es8396->dmic_amic = MIC_AMIC;
 	es8396->calibrate = false;
-	es8396->pcm_pop_work_retry = 0;
+	es8396->pcm_pop_work_retry = 5;
 	es8396->output_device_selected = 0;
+	es8396->aif1_select = 0;
+	es8396->aif2_select = 0;
 	return 0;
 }
 
