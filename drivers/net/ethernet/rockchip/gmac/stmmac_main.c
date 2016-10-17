@@ -684,6 +684,7 @@ static void stmmac_release_ptp(struct stmmac_priv *priv)
 }
 
 static int g_bmcr = 0;
+static int g_bmcr_change = 0;
 
 /**
  * stmmac_adjust_link
@@ -716,9 +717,10 @@ static void stmmac_adjust_link(struct net_device *dev)
 				gpio_direction_output(bsp_priv->link_io,
 						      bsp_priv->link_io_level);
 		} else {
-			if (priv->speed == 10) {
+			if (priv->speed == 10 && g_bmcr_change) {
 				/* restore MII_BMCR */
 				phy_write(phydev, MII_BMCR, g_bmcr);
+                                g_bmcr_change = 0;
 			}
 
 			if (gpio_is_valid(bsp_priv->link_io))
@@ -785,6 +787,7 @@ static void stmmac_adjust_link(struct net_device *dev)
 						pr_info("10BT-no auto-neg\n");
 						phy_write(phydev, MII_BMCR,
 							  0x100);
+                                                g_bmcr_change = 1;
 					}
 				}
 
