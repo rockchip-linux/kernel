@@ -555,6 +555,8 @@ static struct rk8xx_reg_data rk805_init_reg[] = {
 	{RK805_INT_STS_REG, ALL_INT_FLAGS_ST, REG_WRITE_MSK},
 	/* sleep pin set as default: sleep mode */
 	{RK805_GPIO_IO_POL_REG, SLEEP_FUN, SLP_SD_MSK},
+	/* hotdie temperature: 115c */
+	{RK805_THERMAL_REG, TEMP115C, TEMP_HOTDIE_MSK},
 };
 
 static int rk816_pre_init_regs(struct rk816 *rk816)

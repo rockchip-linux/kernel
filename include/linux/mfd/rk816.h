@@ -44,6 +44,9 @@
 #define RK805_SLP_LDO_EN_REG			0x26
 #define RK805_LDO_EN_REG			0x27
 
+/*CONFIG REGISTER*/
+#define RK805_THERMAL_REG			0x22
+
 /*BUCK AND LDO CONFIG REGISTER*/
 #define RK805_BUCK_LDO_SLP_LP_EN_REG		0x2A
 #define RK805_BUCK1_CONFIG_REG			0x2E
@@ -341,6 +344,8 @@
 #define VB_LOW_IRQ_MSK				(1 << 1)
 #define REG_WRITE_MSK				0xff
 #define TEMP105C				0x08
+#define TEMP115C				0x0c
+#define TEMP_HOTDIE_MSK				0x0c
 #define BUCK4_MAX_ILIMIT			0x2c
 #define BUCK_RATE_MSK				(0x3 << 3)
 #define BUCK_RATE_12_5MV_US			(0x2 << 3)
