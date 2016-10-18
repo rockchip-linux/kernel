@@ -167,22 +167,22 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 		led_trigger_event(host->led, LED_OFF);
 
 		pr_debug("%s: req done (CMD%u): %d: %08x %08x %08x %08x\n",
-			 mmc_hostname(host), cmd->opcode, err,
-			 cmd->resp[0], cmd->resp[1],
-			 cmd->resp[2], cmd->resp[3]);
+			mmc_hostname(host), cmd->opcode, err,
+			cmd->resp[0], cmd->resp[1],
+			cmd->resp[2], cmd->resp[3]);
 
 		if (mrq->data) {
 			pr_debug("%s:     %d bytes transferred: %d\n",
-				 mmc_hostname(host),
-				 mrq->data->bytes_xfered, mrq->data->error);
+				mmc_hostname(host),
+				mrq->data->bytes_xfered, mrq->data->error);
 		}
 
 		if (mrq->stop) {
 			pr_debug("%s:     (CMD%u): %d: %08x %08x %08x %08x\n",
-				 mmc_hostname(host), mrq->stop->opcode,
-				 mrq->stop->error,
-				 mrq->stop->resp[0], mrq->stop->resp[1],
-				 mrq->stop->resp[2], mrq->stop->resp[3]);
+				mmc_hostname(host), mrq->stop->opcode,
+				mrq->stop->error,
+				mrq->stop->resp[0], mrq->stop->resp[1],
+				mrq->stop->resp[2], mrq->stop->resp[3]);
 		}
 
 		if (mrq->done)
@@ -191,6 +191,7 @@ void mmc_request_done(struct mmc_host *host, struct mmc_request *mrq)
 		mmc_host_clk_release(host);
 	}
 }
+
 EXPORT_SYMBOL(mmc_request_done);
 
 static void __mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
@@ -228,11 +229,12 @@ mmc_start_request(struct mmc_host *host, struct mmc_request *mrq)
 		 mrq->cmd->arg, mrq->cmd->flags);
 
 	if (mrq->data) {
-		pr_debug("%s:     blksz %d blocks %d flags %08x tsac %d ms nsac %d\n",
-			 mmc_hostname(host), mrq->data->blksz,
-			 mrq->data->blocks, mrq->data->flags,
-			 mrq->data->timeout_ns / 1000000,
-			 mrq->data->timeout_clks);
+		pr_debug("%s:     blksz %d blocks %d flags %08x "
+			"tsac %d ms nsac %d\n",
+			mmc_hostname(host), mrq->data->blksz,
+			mrq->data->blocks, mrq->data->flags,
+			mrq->data->timeout_ns / 1000000,
+			mrq->data->timeout_clks);
 	}
 
 	if (mrq->stop) {
@@ -567,7 +569,7 @@ static void mmc_wait_for_req_done(struct mmc_host *host,
  *	performed while another request is running on the host.
  */
 static void mmc_pre_req(struct mmc_host *host, struct mmc_request *mrq,
-			bool is_first_req)
+		 bool is_first_req)
 {
 	if (host->ops->pre_req) {
 		mmc_host_clk_hold(host);
@@ -722,7 +724,7 @@ int mmc_interrupt_hpi(struct mmc_card *card)
 	default:
 		/* In all other states, it's illegal to issue HPI */
 		pr_debug("%s: HPI cannot be sent. Card state=%d\n",
-			 mmc_hostname(card->host), R1_CURRENT_STATE(status));
+			mmc_hostname(card->host), R1_CURRENT_STATE(status));
 		err = -EINVAL;
 		goto out;
 	}
@@ -757,9 +759,7 @@ EXPORT_SYMBOL(mmc_interrupt_hpi);
  *	to complete.  Return any error that occurred while the command
  *	was executing.  Do not attempt to parse the response.
  */
-int mmc_wait_for_cmd(struct mmc_host *host,
-		     struct mmc_command *cmd,
-		     int retries)
+int mmc_wait_for_cmd(struct mmc_host *host, struct mmc_command *cmd, int retries)
 {
 	struct mmc_request mrq = {NULL};
 
@@ -775,6 +775,7 @@ int mmc_wait_for_cmd(struct mmc_host *host,
 
 	return cmd->error;
 }
+
 EXPORT_SYMBOL(mmc_wait_for_cmd);
 
 /**
@@ -995,16 +996,15 @@ int __mmc_claim_host(struct mmc_host *host, atomic_t *abort)
 		host->claimed = 1;
 		host->claimer = current;
 		host->claim_cnt += 1;
-	} else {
+	} else
 		wake_up(&host->wq);
-	}
-
 	spin_unlock_irqrestore(&host->lock, flags);
 	remove_wait_queue(&host->wq, &wait);
 	if (host->ops->enable && !stop && host->claim_cnt == 1)
 		host->ops->enable(host);
 	return stop;
 }
+
 EXPORT_SYMBOL(__mmc_claim_host);
 
 /**
@@ -1067,7 +1067,8 @@ static inline void mmc_set_ios(struct mmc_host *host)
 {
 	struct mmc_ios *ios = &host->ios;
 
-	pr_debug("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u width %u timing %u\n",
+	pr_debug("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
+		"width %u timing %u\n",
 		 mmc_hostname(host), ios->clock, ios->bus_mode,
 		 ios->power_mode, ios->chip_select, ios->vdd,
 		 ios->bus_width, ios->timing);
@@ -1380,8 +1381,8 @@ EXPORT_SYMBOL_GPL(mmc_regulator_get_ocrmask);
  * set_ios() method.
  */
 int mmc_regulator_set_ocr(struct mmc_host *mmc,
-			  struct regulator *supply,
-			  unsigned short vdd_bit)
+			struct regulator *supply,
+			unsigned short vdd_bit)
 {
 	int			result = 0;
 	int			min_uV, max_uV;
@@ -1520,6 +1521,7 @@ int __mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage)
 		host->ios.signal_voltage = old_signal_voltage;
 
 	return err;
+
 }
 
 int mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage, u32 ocr)
@@ -1920,9 +1922,9 @@ void mmc_init_erase(struct mmc_card *card)
 			card->pref_erase = 2 * 1024 * 1024 / 512;
 		else
 			card->pref_erase = 4 * 1024 * 1024 / 512;
-		if (card->pref_erase < card->erase_size) {
+		if (card->pref_erase < card->erase_size)
 			card->pref_erase = card->erase_size;
-		} else {
+		else {
 			sz = card->pref_erase % card->erase_size;
 			if (sz)
 				card->pref_erase += card->erase_size - sz;
@@ -2128,7 +2130,7 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 		err = mmc_wait_for_cmd(card->host, &cmd, 0);
 		if (err || (cmd.resp[0] & 0xFDF92000)) {
 			pr_err("error %d requesting status %#x\n",
-			       err, cmd.resp[0]);
+				err, cmd.resp[0]);
 			err = -EIO;
 			goto out;
 		}
@@ -2138,7 +2140,7 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 		 */
 		if (time_after(jiffies, timeout)) {
 			pr_err("%s: Card stuck in programming state! %s\n",
-			       mmc_hostname(card->host), __func__);
+				mmc_hostname(card->host), __func__);
 			err =  -EIO;
 			goto out;
 		}
@@ -2367,7 +2369,7 @@ int mmc_set_blocklen(struct mmc_card *card, unsigned int blocklen)
 EXPORT_SYMBOL(mmc_set_blocklen);
 
 int mmc_set_blockcount(struct mmc_card *card, unsigned int blockcount,
-		       bool is_rel_write)
+			bool is_rel_write)
 {
 	struct mmc_command cmd = {0};
 
@@ -2619,8 +2621,8 @@ void mmc_rescan(struct work_struct *work)
 	 * if there is a _removable_ card registered, check whether it is
 	 * still present
 	 */
-	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead &&
-	    !(host->caps & MMC_CAP_NONREMOVABLE))
+	if (host->bus_ops && host->bus_ops->detect && !host->bus_dead
+	    && !(host->caps & MMC_CAP_NONREMOVABLE))
 		host->bus_ops->detect(host);
 
 	host->detect_change = 0;
@@ -2695,7 +2697,6 @@ void mmc_stop_host(struct mmc_host *host)
 {
 #ifdef CONFIG_MMC_DEBUG
 	unsigned long flags;
-
 	spin_lock_irqsave(&host->lock, flags);
 	host->removed = 1;
 	spin_unlock_irqrestore(&host->lock, flags);
@@ -2789,13 +2790,13 @@ int mmc_flush_cache(struct mmc_card *card)
 		return err;
 
 	if (mmc_card_mmc(card) &&
-	    (card->ext_csd.cache_size > 0) &&
-	    (card->ext_csd.cache_ctrl & 1)) {
+			(card->ext_csd.cache_size > 0) &&
+			(card->ext_csd.cache_ctrl & 1)) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-				 EXT_CSD_FLUSH_CACHE, 1, 0);
+				EXT_CSD_FLUSH_CACHE, 1, 0);
 		if (err)
 			pr_err("%s: cache flush error %d\n",
-			       mmc_hostname(card->host), err);
+					mmc_hostname(card->host), err);
 	}
 
 	return err;
@@ -2847,7 +2848,7 @@ EXPORT_SYMBOL(mmc_cache_ctrl);
    to sync the card.
 */
 int mmc_pm_notify(struct notifier_block *notify_block,
-		  unsigned long mode, void *unused)
+					unsigned long mode, void *unused)
 {
 	struct mmc_host *host = container_of(
 		notify_block, struct mmc_host, pm_notify);
@@ -2932,6 +2933,7 @@ void mmc_set_embedded_sdio_data(struct mmc_host *host,
 	host->embedded_sdio_data.funcs = funcs;
 	host->embedded_sdio_data.num_funcs = num_funcs;
 }
+
 EXPORT_SYMBOL(mmc_set_embedded_sdio_data);
 #endif
 

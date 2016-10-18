@@ -1487,14 +1487,14 @@ out:
  */
 static int mmc_suspend(struct mmc_host *host)
 {
-    int err;
+	int err;
 
-    err = _mmc_suspend(host, true);
+	err = _mmc_suspend(host, true);
 	if (!err) {
 		pm_runtime_disable(&host->card->dev);
 		pm_runtime_set_suspended(&host->card->dev);
 	}
-	
+
 	return err;
 }
 
@@ -1541,6 +1541,7 @@ static int mmc_resume(struct mmc_host *host)
 	pm_runtime_enable(&host->card->dev);
 	return err;
 }
+
 /*
  * Shutdown callback
  */
