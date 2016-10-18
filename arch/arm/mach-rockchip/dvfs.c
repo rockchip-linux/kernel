@@ -1673,7 +1673,7 @@ static void adjust_table_by_leakage(struct dvfs_node *dvfs_node)
 	}
 }
 
-static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node)
+static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node, bool force)
 {
 	struct vd_node *vd;
 	int volt_new;
@@ -1681,14 +1681,13 @@ static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node)
 	int ret;
 
 	vd = clk_dvfs_node->vd;
-	if (vd->enabled_clock_nodes == vd->total_clock_nodes) {
+	if (vd->volt_init_enable_cnt == vd->volt_init_total_cnt || force) {
 		volt_new = dvfs_vd_get_newvolt_bypd(vd);
 		volt_old = vd->cur_volt;
 		if (volt_old != volt_new) {
 			ret = dvfs_scale_volt_direct(vd, volt_new);
 			if (ret < 0) {
 				clk_dvfs_node->enable_count = 0;
-				vd->enabled_clock_nodes--;
 				DVFS_ERR("dvfs enable clk %s,set volt error\n",
 					 clk_dvfs_node->name);
 				return -EAGAIN;
@@ -1697,18 +1696,15 @@ static int dvfs_update_vd_volt(struct dvfs_node *clk_dvfs_node)
 		DVFS_LOG("dvfs vd %s fixed up setting: old %d new %d.\n",
 			 vd->name, volt_old, volt_new);
 
-	} else if (vd->enabled_clock_nodes > vd->total_clock_nodes) {
+	} else if (vd->volt_init_enable_cnt > vd->volt_init_total_cnt) {
 		DVFS_ERR("dvfs enable clks %d, total clks %d\n",
-			 vd->enabled_clock_nodes, vd->total_clock_nodes);
+			 vd->volt_init_enable_cnt, vd->volt_init_total_cnt);
 	}
 	return 0;
 }
 
 static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 {
-	if (clk_dvfs_node->is_initialized)
-		return 0;
-
 	if (IS_ERR_OR_NULL(clk_dvfs_node->vd->regulator)) {
 		if (clk_dvfs_node->vd->regulator_name)
 			clk_dvfs_node->vd->regulator =
@@ -1749,6 +1745,8 @@ static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 		pvtm_set_dvfs_table(clk_dvfs_node);
 
 	dvfs_table_round_volt(clk_dvfs_node);
+	if (!clk_dvfs_node->skip_adjusting_volt)
+		clk_dvfs_node->vd->volt_init_enable_cnt++;
 
 	INIT_DELAYED_WORK(&clk_dvfs_node->dwork, dvfs_clk_boost_work_func);
 
@@ -1763,6 +1761,7 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 	int volt_new;
 	unsigned int mode;
 	int ret;
+	bool dvfs_has_init = false;
 
 	if (!clk_dvfs_node)
 		return -EINVAL;
@@ -1777,10 +1776,13 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 	}
 	mutex_lock(&clk_dvfs_node->vd->mutex);
 	if (clk_dvfs_node->enable_count == 0) {
-		ret = initialize_dvfs_node(clk_dvfs_node);
-		if (ret)
-			return ret;
-		
+		if (!clk_dvfs_node->is_initialized) {
+			ret = initialize_dvfs_node(clk_dvfs_node);
+			if (ret)
+				return ret;
+		} else {
+			dvfs_has_init = true;
+		}
 
 		clk_dvfs_node->set_freq = clk_dvfs_node_get_rate_kz(clk_dvfs_node->clk);
 		clk_dvfs_node->last_set_rate = clk_dvfs_node->set_freq*1000;
@@ -1814,9 +1816,7 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 			clk_notifier_register(clk, clk_dvfs_node->dvfs_nb);
 		}
 #endif
-		clk_dvfs_node->vd->enabled_clock_nodes++;
-
-		dvfs_update_vd_volt(clk_dvfs_node);
+		dvfs_update_vd_volt(clk_dvfs_node, dvfs_has_init);
 
 	} else {
 		DVFS_DBG("%s: dvfs already enable clk enable = %d!\n",
@@ -1873,7 +1873,6 @@ int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node)
 		if (0 == clk_dvfs_node->enable_count) {
 			DVFS_DBG("%s:dvfs clk(%s) disable dvfs ok!\n",
 				__func__, __clk_get_name(clk_dvfs_node->clk));
-			clk_dvfs_node->vd->enabled_clock_nodes--;
 			volt_new = dvfs_vd_get_newvolt_byclk(clk_dvfs_node);
 			dvfs_scale_volt_direct(clk_dvfs_node->vd, volt_new);
 
@@ -2160,8 +2159,8 @@ int rk_regist_vd(struct vd_node *vd)
 	vd->mode_flag=0;
 	vd->volt_time_flag=0;
 	vd->n_voltages=0;
-	vd->total_clock_nodes = 0;
-	vd->enabled_clock_nodes = 0;
+	vd->volt_init_total_cnt = 0;
+	vd->volt_init_enable_cnt = 0;
 	INIT_LIST_HEAD(&vd->pd_list);
 	mutex_lock(&rk_dvfs_mutex);
 	list_add(&vd->node, &rk_dvfs_tree);
@@ -2206,7 +2205,8 @@ int rk_regist_clk(struct dvfs_node *clk_dvfs_node)
 
 	mutex_lock(&vd->mutex);
 	list_add(&clk_dvfs_node->node, &pd->clk_list);
-	vd->total_clock_nodes++;
+	if (!clk_dvfs_node->skip_adjusting_volt)
+		vd->volt_init_total_cnt++;
 	mutex_unlock(&vd->mutex);
 	
 	return 0;
@@ -2381,6 +2381,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 	int process_version = rockchip_process_version();
 	int i = 0;
 	int ret;
+
+	of_property_read_u32_index(np, "skip_adjusting_volt", 0,
+				   &dvfs_node->skip_adjusting_volt);
 
 	of_property_read_u32_index(np, "channel", 0, &dvfs_node->channel);
 

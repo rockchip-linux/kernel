@@ -53,8 +53,10 @@ struct vd_node {
 	struct regulator	*regulator;
 	struct list_head	node;
 	struct list_head	pd_list;
-	int total_clock_nodes;
-	int enabled_clock_nodes;
+	/*count the total nodes for voltage init when dvfs start working */
+	int volt_init_total_cnt;
+	/*count the enabled nodes for voltage init when dvfs start working */
+	int volt_init_enable_cnt;
 	struct mutex		mutex;
 	dvfs_set_rate_callback	vd_dvfs_target;
 	unsigned int 		n_voltages;
@@ -115,6 +117,8 @@ struct lkg_info {
  * @name:		Dvfs clock's Name
  * @set_freq:		Dvfs clock's Current Frequency
  * @set_volt:		Dvfs clock's Current Voltage
+ * @is_initialized:	Indicating dvfs node initialized or not
+ * @skip_adjusting_volt:Indicating skip adjusting volt or not
  * @enable_dvfs:	Sign if DVFS clock enable
  * @clk:		System clk's point
  * @pd:			Power Domains dvfs clock belongs to
@@ -124,11 +128,11 @@ struct lkg_info {
  * @clk_dvfs_target:	Callback function
  */
 struct dvfs_node {
-	struct device		dev;		//for opp
 	const char		*name;
 	int			set_freq;	//KHZ
 	int			set_volt;	//MV
 	bool			is_initialized;
+	int			skip_adjusting_volt;
 	int			enable_count;
 	int			freq_limit_en;	//sign if use limit frequency
 	int			support_pvtm;
