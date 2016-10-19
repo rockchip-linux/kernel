@@ -460,6 +460,37 @@
 		status = "disabled";
 	};
 
+	hdmi@ff3c0000 {
+		compatible = "rockchip,rk322xh-hdmi";
+		reg = <0x0 0xff3c0000 0x0 0x20000>,
+		      <0x0 0xff430000 0x0 0x10000>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates5 4>,
+			 <&clk_gates17 7>,
+			 <&clk_gates22 4>,
+			 <&clk_rtc32k>,
+			 <&dclk_hdmiphy>;
+		clock-names = "hdcp_clk_hdmi",
+			      "pclk_hdmi_phy",
+			      "pclk_hdmi",
+			      "cec_clk_hdmi",
+			      "dclk_hdmi_phy";
+		pinctrl-names = "default", "gpio";
+		pinctrl-0 = <&hdmi_cec &hdmii2c_xfer &hdmi_hpd>;
+		pinctrl-1 = <&i2c3_gpio>;
+		resets = <&reset RK322XH_SRST_HDMI_P>,
+			 <&reset RK322XH_SRST_HDMIPHY>;
+		reset-names = "hdmi",
+			      "hdmiphy";
+		rockchip,grf = <&grf>;
+		rockchip,hdmi_audio_source = <0>;
+		rockchip,hdcp_enable = <0>;
+		rockchip,cec_enable = <0>;
+		status = "disabled";
+	};
+
 	cru: syscon@ff440000 {
 		compatible = "rockchip,rk322xh-cru", "rockchip,cru", "syscon";
 		reg = <0x0 0xff440000 0x0 0x1000>;
@@ -626,6 +657,11 @@
 				rockchip,pins =
 					<0 GPIO_A5 RK_FUNC_2 &pcfg_pull_none>,
 					<0 GPIO_A6 RK_FUNC_2 &pcfg_pull_none>;
+			};
+			i2c3_gpio: i2c3-gpio {
+				rockchip,pins =
+					<0 GPIO_A5 RK_FUNC_GPIO &pcfg_pull_none>,
+					<0 GPIO_A6 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
