@@ -76,7 +76,11 @@ static irqreturn_t cif_cif10_pltfrm_irq_handler(int irq, void *cntxt)
 				cif_cif10_dev->config.cam_itf.type))
 		cif_cif10_cifirq(irq, cif_cif10_dev);
 	else
+#if defined(CONFIG_CIF_PINGPONG_MODE)
+		cif_cif10_pingpong_irq(irq, cif_cif10_dev);
+#else
 		cif_cif10_oneframe_irq(irq, cif_cif10_dev);
+#endif
 
 	return IRQ_HANDLED;
 }

@@ -1,7 +1,7 @@
 #
 #rk cif
 #
-config VIDEO_RK_CIF_CIF10
+menuconfig VIDEO_RK_CIF_CIF10
 	tristate "Rockchip cif cif10 camera sensors"
 	depends on VIDEO_V4L2 && I2C
 	select VIDEOBUF_GEN
@@ -11,6 +11,25 @@ config VIDEO_RK_CIF_CIF10
 	---help---
 	  Say Y here to enable selecting the
 	  rockchip cif isp10 camera sensors
+
+choice
+	prompt "select cif work mode"
+	depends on VIDEO_RK_CIF_CIF10
+	default CIF_PINGPONG_MODE
+
+config CIF_PINGPONG_MODE
+	bool "pingpong mode"
+	depends on VIDEO_RK_CIF_CIF10
+	---help---
+	  Say Y here to enable cif work on pingpong mode
+
+config CIF_ONEFRAME_MODE
+	bool "oneframe mode"
+	depends on VIDEO_RK_CIF_CIF10
+	---help---
+	  Say Y here to enable cif work on oneframe mode
+
+endchoice
 
 config VIDEO_CVBSIN
 	tristate "cif cvbs in"

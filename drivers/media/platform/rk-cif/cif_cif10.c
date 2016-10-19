@@ -752,17 +752,23 @@ static void cif_cif10_config_frm_addr(
 {
 	unsigned int cif_frm0_addr_y, cif_frm0_addr_uv;
 	unsigned int cif_frm1_addr_y, cif_frm1_addr_uv;
+	unsigned int cif_ctrl_val;
+	struct cif_cif10_stream *stream;
 	struct cif_cif10_frm_fmt *output_fmt;
-	struct videobuf_buffer *curr_buf;
+	struct videobuf_buffer *curr_buf, *next_buf;
 
 	if (cif_cif10_dev == NULL)
 		return;
 
+	stream = &cif_cif10_dev->stream;
+	cif_ctrl_val =
+		cif_ioread32(cif_cif10_dev->config.base_addr +
+			     CIF_CIF_CTRL);
 	output_fmt =
 		&(cif_cif10_dev->config.output);
 
 	cif_cif10_next_buff(cif_cif10_dev);
-	curr_buf = cif_cif10_dev->stream.curr_buf;
+	curr_buf = stream->curr_buf;
 	if (curr_buf == NULL)
 		return;
 
@@ -791,6 +797,34 @@ static void cif_cif10_config_frm_addr(
 		cif_frm0_addr_uv = cif_frm0_addr_y +
 				   (output_fmt->defrect.width *
 				   output_fmt->defrect.height);
+		if (cif_ctrl_val & MODE_PINGPONG) {
+			dev_info(cif_cif10_dev->dev, "cif work on pingpong\n");
+
+			if (!list_empty(&stream->buf_queue)) {
+				stream->next_buf =
+					list_first_entry(&stream->buf_queue,
+							 struct videobuf_buffer,
+							 queue);
+				next_buf = stream->next_buf;
+				list_del_init(&next_buf->queue);
+			} else {
+				dev_err(cif_cif10_dev->dev,
+					"no buffer\n");
+				cif_frm1_addr_y = cif_frm0_addr_y;
+				cif_frm1_addr_uv = cif_frm0_addr_uv;
+				return;
+			}
+			next_buf->state = VIDEOBUF_ACTIVE;
+			if (next_buf->memory == V4L2_MEMORY_USERPTR)
+				cif_frm1_addr_y =
+					videobuf_to_dma_contig(next_buf);
+			else if (next_buf->memory == V4L2_MEMORY_MMAP)
+				cif_frm1_addr_y = next_buf->boff;
+
+			cif_frm1_addr_uv = cif_frm1_addr_y +
+					   (output_fmt->defrect.width *
+					    output_fmt->defrect.height);
+		}
 	}
 
 	cif_iowrite32(cif_frm0_addr_y,
@@ -800,8 +834,7 @@ static void cif_cif10_config_frm_addr(
 		      cif_cif10_dev->config.base_addr +
 		      CIF_CIF_FRM0_ADDR_UV);
 
-	if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
-				cif_cif10_dev->config.cam_itf.type)) {
+	if (cif_ctrl_val & MODE_PINGPONG) {
 		cif_iowrite32(cif_frm1_addr_y,
 			      cif_cif10_dev->config.base_addr +
 			      CIF_CIF_FRM1_ADDR_Y);
@@ -830,7 +863,11 @@ static int cif_cif10_config_cif_phy(
 				dev->config.cam_itf.type))
 		cif_ctrl_val |=  MODE_PINGPONG;
 	else
+#if defined(CONFIG_CIF_PINGPONG_MODE)
+		cif_ctrl_val |=  MODE_PINGPONG;
+#else
 		cif_ctrl_val |=  MODE_ONEFRAME;
+#endif
 
 	cif_iowrite32(cif_ctrl_val,
 		      dev->config.base_addr + CIF_CIF_CTRL);
@@ -1777,7 +1814,7 @@ int get_cif_cif10_output_format_desc_size(void)
 	return ARRAY_SIZE(cif_cif10_output_format);
 }
 
-inline irqreturn_t cif_cif10_cifirq(int irq, void *data)
+irqreturn_t cif_cif10_cifirq(int irq, void *data)
 {
 	short reset = 0, cif_err = 0, frm_flag;
 	unsigned long y_addr, uv_addr;
@@ -1937,7 +1974,6 @@ cif_rst:
 		cif_iowrite32(INTEN_DISABLE,
 			      base_addr + CIF_CIF_INTEN);
 
-		INIT_WORK(&(cif_cif10_dev->work), cif_cif10_cifrest);
 		queue_work(cif_cif10_dev->wq, &cif_cif10_dev->work);
 	}
 
@@ -1962,7 +1998,7 @@ end:
 	return IRQ_HANDLED;
 }
 
-inline irqreturn_t cif_cif10_oneframe_irq(int irq, void *data)
+irqreturn_t cif_cif10_oneframe_irq(int irq, void *data)
 {
 	short cif_err = 0;
 	unsigned long y_addr, uv_addr;
@@ -2066,7 +2102,146 @@ cif_rst:
 			      base_addr +
 			      CIF_CIF_INTEN);
 
-		INIT_WORK(&(cif_cif10_dev->work), cif_cif10_cifrest);
+		queue_work(cif_cif10_dev->wq, &cif_cif10_dev->work);
+	}
+
+end:
+	if (cif_cif10_dev->stream.stop &&
+	    (cif_cif10_dev->stream.state ==
+	     CIF_CIF10_STATE_STREAMING)) {
+		cif_cif10_dev->stream.state = CIF_CIF10_STATE_READY;
+		cif_iowrite32AND(~ENABLE_CAPTURE,
+				 base_addr + CIF_CIF_CTRL);
+		cif_iowrite32(INTEN_DISABLE,
+			      base_addr + CIF_CIF_INTEN);
+		cif_iowrite32(INTSTAT_CLS,
+			      base_addr + CIF_CIF_INTSTAT);
+		cif_iowrite32(FRAME_STAT_CLS,
+			      base_addr + CIF_CIF_FRAME_STATUS);
+		cif_cif10_pltfrm_event_signal(
+				cif_cif10_dev->dev,
+				&cif_cif10_dev->stream.done);
+	}
+
+	return IRQ_HANDLED;
+}
+
+irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
+{
+	short reset = 0, cif_err = 0, frm_flag;
+	unsigned long y_addr, uv_addr;
+	unsigned int cifctrl, lastpix, lastline;
+	unsigned long tmp_cif_frmst, reg_intstat;
+	struct cif_cif10_device *cif_cif10_dev = data;
+	struct cif_cif10_frm_fmt *frm_fmt = NULL;
+	struct videobuf_buffer *curr_buf = NULL, *next_buf = NULL;
+	void __iomem *base_addr =
+		cif_cif10_dev->config.base_addr;
+
+	frm_fmt =
+		&cif_cif10_dev->config.img_src_output.frm_fmt;
+
+	reg_intstat =
+		cif_ioread32(base_addr + CIF_CIF_INTSTAT);
+
+	if ((reg_intstat & PST_INF_FRAME_END) &&
+	    (reg_intstat & FRAME_END)) {
+		cif_iowrite32(INTSTAT_CLS,
+			      base_addr +
+			      CIF_CIF_INTSTAT);
+		cifctrl  = cif_ioread32(base_addr +
+					CIF_CIF_CTRL);
+		tmp_cif_frmst = cif_ioread32(base_addr +
+					     CIF_CIF_FRAME_STATUS);
+		lastpix  = cif_ioread32(base_addr +
+					CIF_CIF_LAST_PIX);
+		lastline = cif_ioread32(base_addr +
+					CIF_CIF_LAST_LINE);
+
+		if ((tmp_cif_frmst & CIF_F0_READY) &&
+		    (tmp_cif_frmst & CIF_F1_READY)) {
+			cif_cif10_pltfrm_pr_err(cif_cif10_dev->dev,
+						"frm0&frm1 now reset frm_stat %#lx\n",
+						tmp_cif_frmst);
+			cif_err = 1;
+			goto cif_rst;
+		}
+		if (tmp_cif_frmst & CIF_F0_READY) {
+			frm_flag = 0;
+			curr_buf = cif_cif10_dev->stream.curr_buf;
+		} else if (tmp_cif_frmst & CIF_F1_READY) {
+			frm_flag = 1;
+			curr_buf = cif_cif10_dev->stream.next_buf;
+		}
+
+		if (!curr_buf) {
+			dev_err(cif_cif10_dev->dev,
+				"<pingpong mode>curr buf null\n");
+			goto end;
+		}
+
+		if (!list_empty(&cif_cif10_dev->stream.buf_queue) &&
+		    !cif_cif10_dev->stream.stop) {
+			next_buf = list_entry(
+					cif_cif10_dev->stream.buf_queue.next,
+					struct videobuf_buffer,
+					queue);
+			WARN_ON(next_buf->state != VIDEOBUF_QUEUED);
+			y_addr = videobuf_to_dma_contig(next_buf);
+			uv_addr = y_addr +
+				next_buf->width * next_buf->height;
+			if (frm_flag == 0) {
+				cif_iowrite32(
+					y_addr,
+					base_addr +
+					CIF_CIF_FRM0_ADDR_Y);
+				cif_iowrite32(
+					uv_addr,
+					base_addr +
+					CIF_CIF_FRM0_ADDR_UV);
+				cif_cif10_dev->stream.curr_buf = next_buf;
+			} else if (frm_flag == 1) {
+				cif_iowrite32(y_addr,
+					      base_addr +
+					      CIF_CIF_FRM1_ADDR_Y);
+				cif_iowrite32(uv_addr,
+					      base_addr +
+					      CIF_CIF_FRM1_ADDR_UV);
+				cif_cif10_dev->stream.next_buf = next_buf;
+			}
+			list_del_init(&next_buf->queue);
+
+			if (frm_flag == 0 || frm_flag == 1) {
+				do_gettimeofday(&curr_buf->ts);
+				if ((curr_buf->state == VIDEOBUF_QUEUED) ||
+				    (curr_buf->state == VIDEOBUF_ACTIVE)) {
+					curr_buf->state =
+						VIDEOBUF_DONE;
+					curr_buf->field_count++;
+				}
+				wake_up(&curr_buf->done);
+			}
+		} else {
+			pr_info("video_buf queue is empty!\n");
+			goto end;
+		}
+	} else {
+		cif_cif10_pltfrm_pr_err(cif_cif10_dev->dev,
+					"error now reset it intsat %#lx\n",
+					reg_intstat);
+		cif_iowrite32(INTSTAT_CLS,
+			      base_addr + CIF_CIF_INTSTAT);
+		cif_err = 1;
+		goto cif_rst;
+	}
+
+cif_rst:
+	if (reset || cif_err) {
+		cif_iowrite32AND(~ENABLE_CAPTURE,
+				 base_addr + CIF_CIF_CTRL);
+		cif_iowrite32(INTEN_DISABLE,
+			      base_addr + CIF_CIF_INTEN);
+
 		queue_work(cif_cif10_dev->wq, &cif_cif10_dev->work);
 	}
 

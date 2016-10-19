@@ -560,11 +560,15 @@ int cif_cif10_enum_fmt(
 	struct cif_cif10_device *dev,
 	struct cif_cif10_strm_fmt_desc *strm_fmt_desc);
 
-inline irqreturn_t cif_cif10_cifirq(
+irqreturn_t cif_cif10_cifirq(
 	int irq,
 	void *data);
 
-inline irqreturn_t cif_cif10_oneframe_irq(
+irqreturn_t cif_cif10_oneframe_irq(
+	int irq,
+	void *data);
+
+irqreturn_t cif_cif10_pingpong_irq(
 	int irq,
 	void *data);
 #endif

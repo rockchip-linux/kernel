@@ -1498,6 +1498,7 @@ static int cif_cif10_v4l2_drv_probe(struct platform_device *pdev)
 				"V4L2 Create workqueue failed\n");
 		goto err;
 	}
+	INIT_WORK(&cif_cif10_dev->work, cif_cif10_cifrest);
 
 	cif_cif10_v4l2_dev.node_num++;
 
