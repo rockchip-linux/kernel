@@ -263,6 +263,7 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		new_camera->io.gpio_power = power;
 		new_camera->io.gpio_af = af;
 		new_camera->io.gpio_flash = flash;
+		new_camera->io.gpio_irq = of_get_named_gpio_flags(cp, "irq_active", 0, NULL);
 		new_camera->io.gpio_flag = ((pwr_active&0x01)<<RK29_CAM_POWERACTIVE_BITPOS)
 									|((rst_active&0x01)<<RK29_CAM_RESETACTIVE_BITPOS)
 									|((pwdn_active&0x01)<<RK29_CAM_POWERDNACTIVE_BITPOS)
@@ -305,13 +306,14 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		if (of_property_read_u32(cp, "rockchip,power_pmu_voltage2", &(new_camera->power_pmu_voltage2))) {
 			dprintk("%s:Get %s rockchip,resolution failed!\n",__func__, cp->name);				
 		}
-			debug_printk( "******************* /n power = %x\n", power);
-			debug_printk( "******************* /n powerdown = %x\n", powerdown);
-			debug_printk( "******************* /n i2c_add = %x\n", new_camera->dev.i2c_cam_info.addr << 1);
-			debug_printk( "******************* /n i2c_chl = %d\n", new_camera->dev.desc_info.host_desc.i2c_adapter_id);
-			debug_printk( "******************* /n init_name = %s\n", new_camera->dev.device_info.dev.init_name);
-			debug_printk( "******************* /n dev_name = %s\n", new_camera->dev_name);
-			debug_printk( "******************* /n module_name = %s\n", new_camera->dev.desc_info.host_desc.module_name);
+			debug_printk("******************* /n power = %x\n", power);
+			debug_printk("******************* /n powerdown = %x\n", powerdown);
+			debug_printk("******************* /n i2c_add = %x\n", new_camera->dev.i2c_cam_info.addr << 1);
+			debug_printk("******************* /n i2c_chl = %d\n", new_camera->dev.desc_info.host_desc.i2c_adapter_id);
+			debug_printk("******************* /n init_name = %s\n", new_camera->dev.device_info.dev.init_name);
+			debug_printk("******************* /n dev_name = %s\n", new_camera->dev_name);
+			debug_printk("******************* /n module_name = %s\n", new_camera->dev.desc_info.host_desc.module_name);
+			debug_printk("******************* /n irq_active = %d\n", new_camera->io.gpio_irq);
 	};
 	new_camera_list->next_camera = NULL;
 	return 0;
@@ -974,7 +976,6 @@ static int rk_sensor_ioctrl(struct device *dev,enum rk29camera_ioctrl_cmd cmd, i
                 WARN_ON(1);
 			}
 
-			printk("ret: %d\n",ret);
 			break;
 		}
 		case Cam_Reset:

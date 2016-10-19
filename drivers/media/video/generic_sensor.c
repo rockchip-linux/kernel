@@ -1220,7 +1220,7 @@ long generic_sensor_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 		default:
 		{
-			SENSOR_TR("%s cmd(0x%x) is unknown !\n", __func__, cmd);
+			SENSOR_TR("%s cmd(0x%x) is unknown !", __func__, cmd);
 			break;
 		}
 	}

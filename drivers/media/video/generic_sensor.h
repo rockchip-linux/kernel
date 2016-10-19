@@ -203,6 +203,7 @@ typedef struct rk_sensor_priv_s
 	unsigned int gVal_mask;
 	unsigned int gI2c_speed;
 	struct rk_camera_device_signal_config dev_sig_cnf;
+	struct dentry *debugfs_dir;
 
     bool stream;
 	
@@ -246,6 +247,11 @@ struct	rk_flash_timer{
 	struct hrtimer timer;
 };
 
+struct rk_state_check_work {
+	struct workqueue_struct *state_check_wq;
+	struct delayed_work work;
+};
+
 struct generic_sensor
 {
     char dev_name[32];
@@ -254,7 +260,9 @@ struct generic_sensor
     rk_sensor_info_priv_t info_priv;
     int model;	/* V4L2_IDENT_OV* codes from v4l2-chip-ident.h */
 
-    int crop_percent;
+	int crop_percent;
+	int irq;
+	struct rk_state_check_work state_check_work;
 
     bool is_need_tasklock;
     atomic_t tasklock_cnt;
@@ -1293,9 +1301,10 @@ MODULE_DEVICE_TABLE(i2c, sensor_id);
 	}\
 \
 	v4l2_i2c_subdev_init(&spsensor->common_sensor.subdev, client, &sensor_subdev_ops);\
-    sensor_init_parameters(spsensor,icd);\
+	sensor_init_parameters(spsensor, icd);\
+	spsensor->common_sensor.client = client;\
 \
-    ret = sensor_video_probe(icd, client);\
+	ret = sensor_video_probe(icd, client);\
 \
 sensor_probe_end:\
     if (ret != 0) {\
@@ -1329,30 +1338,36 @@ sensor_probe_end:\
 	struct specific_sensor *spsensor = to_specific_sensor(sensor);\
 	int sensor_config;\
 \
-    sensor_config = SensorConfiguration;\
+	sensor_config = SensorConfiguration;\
 	if(CFG_FunChk(sensor_config,CFG_Focus)){ \
 		if (sensor->sensor_focus.sensor_wq) {\
 			destroy_workqueue(sensor->sensor_focus.sensor_wq);\
 			sensor->sensor_focus.sensor_wq = NULL;\
 		}\
 	}\
-    if (icd->ops) {\
-        if (icd->ops->controls) {\
-            kfree(icd->ops->controls);\
-            icd->ops->controls = NULL;\
-        }\
-        if (icd->ops->menus) {\
-            kfree(icd->ops->menus);\
-            icd->ops->menus = NULL;\
-        }\
-	    kfree(icd->ops);\
-	    icd->ops = NULL;\
-    }\
+\
+	if (sensor->state_check_work.state_check_wq) {\
+		destroy_workqueue(sensor->state_check_work.state_check_wq);\
+		sensor->state_check_work.state_check_wq = NULL;\
+	}\
+\
+	if (icd->ops) {\
+		if (icd->ops->controls) {\
+			kfree(icd->ops->controls);\
+			icd->ops->controls = NULL;\
+		}\
+		if (icd->ops->menus) {\
+			kfree(icd->ops->menus);\
+			icd->ops->menus = NULL;\
+		}\
+		kfree(icd->ops);\
+		icd->ops = NULL;\
+	}\
 	i2c_set_clientdata(client, NULL);\
 	client->driver = NULL;\
-    if (spsensor) {\
-        kfree(spsensor);\
-    }\
+	if (spsensor) {\
+		kfree(spsensor);\
+	}\
 	spsensor = NULL;\
 	return 0;\
 }

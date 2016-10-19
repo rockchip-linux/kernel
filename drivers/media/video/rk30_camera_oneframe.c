@@ -1681,6 +1681,8 @@ static void rk_camera_setup_format(struct soc_camera_device *icd, __u32 host_pix
 	v4l2_subdev_call(sd, core, ioctl, RK29_CAM_SUBDEV_GET_INTERFACE, &dev_sig_cnf);
 	if (dev_sig_cnf.type == RK_CAMERA_DEVICE_CVBS_NTSC)
 		cif_fmt_val = INPUT_MODE_NTSC | YUV_OUTPUT_420;
+	else if (dev_sig_cnf.type == RK_CAMERA_DEVICE_CVBS_PAL)
+		cif_fmt_val = INPUT_MODE_PAL | YUV_OUTPUT_420;
 	else
 		cif_fmt_val = INPUT_MODE_YUV | YUV_INPUT_422 | INPUT_420_ORDER_EVEN | OUTPUT_420_ORDER_EVEN;
 
