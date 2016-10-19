@@ -23,6 +23,7 @@
 #include <linux/clocksource.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
+#include <linux/i2c.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/hardware/cache-l2x0.h>
@@ -32,6 +33,12 @@
 #define RK3288_GRF_SOC_CON0 0x244
 #define RK3288_GRF_SOC_CON2 0x24C
 #define RK3288_TIMER6_7_PHYS 0xff810000
+
+static struct i2c_board_info __initdata i2c_devices_tinker_mcu[] = {
+      {
+               I2C_BOARD_INFO("tinker_mcu", 0x45),
+      },
+};
 
 static void __init rockchip_timer_init(void)
 {
@@ -62,6 +69,8 @@ static void __init rockchip_dt_init(void)
 	rockchip_suspend_init();
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	platform_device_register_simple("cpufreq-dt", 0, NULL, 0);
+
+	i2c_register_board_info(3, i2c_devices_tinker_mcu, ARRAY_SIZE(i2c_devices_tinker_mcu));
 }
 
 static const char * const rockchip_board_dt_compat[] = {
