@@ -572,16 +572,17 @@ static void rga2_try_set_reg(void)
 
 static void rga2_del_running_list(void)
 {
+	struct rga2_mmu_buf_t *tbuf = &rga2_mmu_buf;
 	struct rga2_reg *reg;
 
 	while(!list_empty(&rga2_service.running)) {
 		reg = list_entry(rga2_service.running.next, struct rga2_reg,
 				 status_link);
-		if(reg->MMU_len != 0) {
-			if (rga2_mmu_buf.back + reg->MMU_len > 2 * rga2_mmu_buf.size)
-				rga2_mmu_buf.back = reg->MMU_len + rga2_mmu_buf.size;
+		if (reg->MMU_len != 0 && tbuf != NULL) {
+			if (tbuf->back + reg->MMU_len > 2 * tbuf->size)
+				tbuf->back = reg->MMU_len + tbuf->size;
 			else
-				rga2_mmu_buf.back += reg->MMU_len;
+				tbuf->back += reg->MMU_len;
 		}
 		atomic_sub(1, &reg->session->task_running);
 		atomic_sub(1, &rga2_service.total_running);
@@ -597,13 +598,19 @@ static void rga2_del_running_list(void)
 /* Caller must hold rga_service.lock */
 static void rga2_del_running_list_timeout(void)
 {
+	struct rga2_mmu_buf_t *tbuf = &rga2_mmu_buf;
 	struct rga2_reg *reg;
 
 	while (!list_empty(&rga2_service.running)) {
 		reg = list_entry(rga2_service.running.next, struct rga2_reg,
 				 status_link);
-		if (reg->MMU_base != NULL) {
+		if (reg->MMU_base != NULL)
 			kfree(reg->MMU_base);
+		if (reg->MMU_len != 0 && tbuf != NULL) {
+			if (tbuf->back + reg->MMU_len > 2 * tbuf->size)
+				tbuf->back = reg->MMU_len + tbuf->size;
+			else
+				tbuf->back += reg->MMU_len;
 		}
 		atomic_sub(1, &reg->session->task_running);
 		atomic_sub(1, &rga2_service.total_running);
