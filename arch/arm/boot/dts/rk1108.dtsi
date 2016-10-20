@@ -246,6 +246,17 @@
 		dmas = <&pdma 11>, <&pdma 12>;
 		#dma-cells = <2>;
 		dma-names = "tx", "rx";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&i2sm0_mclk
+			     &i2sm0_sclk
+			     &i2sm0_lrckrx
+			     &i2sm0_lrcktx
+			     &i2sm0_sdi
+			     &i2sm0_sdo0
+			     &i2sm0_sdo1
+			     &i2sm0_sdo2
+			     &i2sm0_sdo3>;
+		pinctrl-1 = <&i2sm0_gpio>;
 		status = "disabled";
 	};
 
@@ -272,6 +283,9 @@
 		dmas = <&pdma 15>, <&pdma 16>;
 		#dma-cells = <2>;
 		dma-names = "tx", "rx";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&pcm_tx &pcm_rx &pcm_sync &pcm_clk>;
+		pinctrl-1 = <&pcm_sleep>;
 		status = "disabled";
 	};
 
@@ -1305,15 +1319,15 @@
 			};
 
 			i2sm0_gpio: i2sm0-gpio {
-				rockchip,pins = <1 GPIO_B4 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_B3 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_B6 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_B2 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_none>;
+				rockchip,pins = <1 GPIO_B4 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_B3 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_C0 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_B6 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_C1 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_B2 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_B5 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_B7 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_C2 RK_FUNC_GPIO &pcfg_input_high>;
 			};
 		};
 
@@ -1355,15 +1369,40 @@
 			};
 
 			i2sm1_gpio: i2sm1-gpio {
-				rockchip,pins = <2 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C4 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_none>,
-						<2 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
-						<1 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>,
-						<3 GPIO_D3 RK_FUNC_GPIO &pcfg_pull_none>;
+				rockchip,pins = <2 GPIO_C5 RK_FUNC_GPIO &pcfg_input_high>,
+						<2 GPIO_C4 RK_FUNC_GPIO &pcfg_input_high>,
+						<2 GPIO_C0 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_C6 RK_FUNC_GPIO &pcfg_input_high>,
+						<2 GPIO_C1 RK_FUNC_GPIO &pcfg_input_high>,
+						<2 GPIO_C3 RK_FUNC_GPIO &pcfg_input_high>,
+						<2 GPIO_C6 RK_FUNC_GPIO &pcfg_input_high>,
+						<1 GPIO_C7 RK_FUNC_GPIO &pcfg_input_high>,
+						<3 GPIO_D3 RK_FUNC_GPIO &pcfg_input_high>;
+			};
+		};
+
+		pcm {
+			pcm_tx: pcm-tx {
+				rockchip,pins = <3 GPIO_B1 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			pcm_rx: pcm-rx {
+				rockchip,pins = <3 GPIO_B2 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			pcm_clk: pcm-clk {
+				rockchip,pins = <3 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			pcm_sync: pcm-sync {
+				rockchip,pins = <3 GPIO_B4 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			pcm_sleep: pcm-sleep {
+				rockchip,pins = <3 GPIO_B1 RK_FUNC_GPIO &pcfg_input_high>,
+						<3 GPIO_B2 RK_FUNC_GPIO &pcfg_input_high>,
+						<3 GPIO_B3 RK_FUNC_GPIO &pcfg_input_high>,
+						<3 GPIO_B4 RK_FUNC_GPIO &pcfg_input_high>;
 			};
 		};
 
