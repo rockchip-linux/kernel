@@ -121,12 +121,19 @@ ssize_t zcomp_available_show(const char *comp, char *buf)
 
 struct zcomp_strm *zcomp_stream_get(struct zcomp *comp)
 {
-	return *get_cpu_ptr(comp->stream);
+	struct zcomp_strm *zstrm;
+
+	zstrm = *this_cpu_ptr(comp->stream);
+	spin_lock(&zstrm->zcomp_lock);
+	return zstrm;
 }
 
 void zcomp_stream_put(struct zcomp *comp)
 {
-	put_cpu_ptr(comp->stream);
+	struct zcomp_strm *zstrm;
+
+	zstrm = *this_cpu_ptr(comp->stream);
+	spin_unlock(&zstrm->zcomp_lock);
 }
 
 int zcomp_compress(struct zcomp_strm *zstrm,
@@ -177,6 +184,7 @@ static int __zcomp_cpu_notifier(struct zcomp *comp,
 			pr_err("Can't allocate a compression stream\n");
 			return NOTIFY_BAD;
 		}
+		spin_lock_init(&zstrm->zcomp_lock);
 		*per_cpu_ptr(comp->stream, cpu) = zstrm;
 		break;
 	case CPU_DEAD:
