@@ -2017,7 +2017,7 @@
 					reg = <0x0128 0x4>;
 					clocks =
 					<&clk_i2s0_pll>,	<&i2s0_frac>,
-					<&clk_i2s0>,	<&clk_i2s0>,
+					<&clk_i2s0>,	<&i2s0_clkout>,
 
 					<&clk_i2s1_pll>,	<&i2s1_frac>,
 					<&clk_i2s1>,	<&dummy>,

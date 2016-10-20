@@ -127,7 +127,10 @@
 			<&aclk_vpu_pre 300000000>, <&clk_hevc_cabac 300000000>,
 			<&clk_hevc_core 300000000>, <&aclk_rkvenc_pre 300000000>,
 			<&clk_venc_core 300000000>, <&clk_crypto 150000000>,
-			<&clk_nandc 150000000>;
+			<&clk_nandc 150000000>, <&clk_i2s0_pll 594000000>,
+			<&clk_i2s1_pll 594000000>, <&clk_i2s2_pll 594000000>,
+			<&clk_uart0_pll 297000000>, <&clk_uart1_pll 297000000>,
+			<&clk_uart2_pll 297000000>;
 	};
 
 	rockchip_clocks_enable: clocks-enable {
