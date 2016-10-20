@@ -10,6 +10,7 @@ Required properties:
 		"rockchip,rk322x-lcdc"; /* for RK322X SoCs */
 		"rockchip,rk3366-lcdc-lite"; /* for RK3366 SoCs */
 		"rockchip,rk1108-lcdc-lite"; /* for RK1108 SoCs */
+		"rockchip,rk322xh-lcdc"; /* for RK322xH SoCs */
 - rockchip,prop: set the lcdc as primary or extend display.
 - rochchip,pwr18: set the controller IO voltage,0 is 3.3v,1 is 1.8v.
 - reg: physical base address and length of the LCDC registers set.
