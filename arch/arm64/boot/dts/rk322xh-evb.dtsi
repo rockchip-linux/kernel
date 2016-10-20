@@ -40,6 +40,7 @@
  *     OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "../../../arm/boot/dts/lcd-box.dtsi"
 / {
 	chosen {
 		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 clk_ignore_unused";
@@ -188,6 +189,25 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	cap-sdio-irq;
+	status = "okay";
+};
+
+&disp_timings {
+	native-mode = <&timing0>;
+};
+
+&rk_screen {
+	status = "okay";
+	display-timings = <&disp_timings>;
+};
+
+&fb {
+	status = "okay";
+	rockchip,disp-policy = <DISPLAY_POLICY_BOX>;
+	rockchip,uboot-logo-on = <0>;
+};
+
+&vop {
 	status = "okay";
 };
 
