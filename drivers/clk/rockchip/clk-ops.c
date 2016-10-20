@@ -129,7 +129,10 @@ static long clk_fracdiv_round_rate(struct clk_hw *hw, unsigned long rate,
 	 *so we set parent->parent->rate as best_parent_rate.
 	 */
 	rate_out = rate;
-	*prate = parent->parent->rate;
+	if (rate_out * 20 > parent->rate)
+		*prate = parent->parent->rate;
+	else
+		*prate = parent->rate;
 
 	return rate_out;
 }
