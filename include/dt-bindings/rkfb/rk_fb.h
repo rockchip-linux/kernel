@@ -74,6 +74,7 @@
 #define COLOR_YCBCR		2
 #define COLOR_YCBCR_BT709	3
 #define COLOR_YCBCR_BT2020	4
+#define COLOR_YCBCR_BT601F	5
 
 #define IS_YUV_COLOR(x)                ((x) >= COLOR_YCBCR)
 
