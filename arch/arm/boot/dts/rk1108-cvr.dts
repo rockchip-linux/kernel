@@ -44,6 +44,7 @@
 
 #include "rk1108.dtsi"
 #include "lcd-ili9806e_mipi.dtsi"
+#include "dt-bindings/suspend/rockchip-pm.h"
 
 / {
 	model = "Rockchip RK1108 CVR SDK BOARD";
@@ -56,6 +57,23 @@
 
 	fiq-debugger {
 		status = "okay";
+	};
+
+	rockchip_suspend: rockchip_suspend {
+		rockchip,ctrbits = <
+			(0
+			|RKPM_CTR_GTCLKS
+			|RKPM_CTR_PLLS
+			/*|RKPM_CTR_ARMOFF_LPMD*/
+			|RKPM_CTR_ARMLOGDP_LPMD
+			/*|RKPM_CTR_IDLESRAM_MD*/
+			|RKPM_CTR_DDR
+			|RKPM_CTR_PMIC
+			/*|RKPM_CTR_BUS_IDLE*/
+			|RKPM_CTR_SYSCLK_32K
+			)
+			>;
+		rockchip,pmic-suspend_gpios = <0>;
 	};
 
 	chosen {
