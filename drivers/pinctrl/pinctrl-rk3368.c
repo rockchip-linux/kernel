@@ -76,6 +76,7 @@ enum rockchip_pinctrl_type {
 	RK3066B,
 	RK3188,
 	RK322X,
+	RK322XH,
 	RK3288,
 	RK3368,
 };
@@ -83,10 +84,13 @@ enum rockchip_pinctrl_type {
 /**
  * Encode variants of iomux registers into a type variable
  */
-#define IOMUX_GPIO_ONLY		BIT(0)
-#define IOMUX_WIDTH_4BIT	BIT(1)
-#define IOMUX_SOURCE_PMU	BIT(2)
-#define IOMUX_UNROUTED		BIT(3)
+#define IOMUX_GPIO_ONLY			BIT(0)
+#define IOMUX_WIDTH_4BIT		BIT(1)
+#define IOMUX_SOURCE_PMU		BIT(2)
+#define IOMUX_UNROUTED			BIT(3)
+#define IOMUX_WIDTH_3BIT		BIT(4)
+#define IOMUX_WIDTH_2BIT_3BIT_MIX	BIT(5)
+#define IOMUX_WIDTH_3BIT_2BIT_MIX	BIT(6)
 
 /**
  * @type: iomux variant using IOMUX_* constants
@@ -396,11 +400,91 @@ static const struct pinctrl_ops rockchip_pctrl_ops = {
 	.dt_free_map		= rockchip_dt_free_map,
 };
 
-#define RK1108_VOP_DATA_MUX_SOC_OFFSET		0x418
 
 /*
  * Hardware access
  */
+#define RK1108_VOP_DATA_MUX_SOC_OFFSET		0x418
+
+struct rk322xh_recalc_data {
+	u8 num;
+	u8 bit;
+	int min_pin;
+	int max_pin;
+	int reg;
+	int mask;
+};
+
+static const struct rk322xh_recalc_data rk322xh_mux_recalc_data[] = {
+	{
+		.num = 2,
+		.bit = 0x2,
+		.min_pin = 8,
+		.max_pin = 14,
+		.reg = 0x0,
+		.mask = 0x3
+	},
+	{
+		.num = 2,
+		.bit = 0,
+		.min_pin = 15,
+		.max_pin = 15,
+		.reg = 0x28,
+		.mask = 0x7
+	},
+	{
+		.num = 2,
+		.bit = 14,
+		.min_pin = 23,
+		.max_pin = 23,
+		.reg = 0x30,
+		.mask = 0x3
+	},
+	{
+		.num = 3,
+		.bit = 0,
+		.min_pin = 8,
+		.max_pin = 8,
+		.reg = 0x40,
+		.mask = 0x7
+	},
+	{
+		.num = 3,
+		.bit = 0x2,
+		.min_pin = 9,
+		.max_pin = 15,
+		.reg = 0x4,
+		.mask = 0x3
+	},
+};
+
+static void rk322xh_recalc_mux(u8 bank_num, int pin, int *reg,
+			       int *mask, u8 *bit)
+{
+	const struct rk322xh_recalc_data *data = NULL;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rk322xh_mux_recalc_data); i++)
+		if (rk322xh_mux_recalc_data[i].num == bank_num &&
+		    rk322xh_mux_recalc_data[i].min_pin <= pin &&
+		    rk322xh_mux_recalc_data[i].max_pin >= pin) {
+			data = &rk322xh_mux_recalc_data[i];
+			break;
+		}
+
+	if (!data)
+		return;
+
+	if (data->min_pin == data->max_pin) {
+		*reg = data->reg;
+		*mask = data->mask;
+		*bit = data->bit;
+	} else {
+		*reg += data->reg;
+		*mask = data->mask;
+		*bit = (pin % 8) * data->bit;
+	}
+}
 
 static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 {
@@ -409,7 +493,7 @@ static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 	int iomux_num = (pin / 8);
 	struct regmap *regmap;
 	unsigned int val;
-	int reg, ret, mask;
+	int reg, ret, mask, mux_type;
 	u8 bit;
 
 	if (iomux_num > 3)
@@ -427,21 +511,38 @@ static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 				? info->regmap_pmu : info->regmap_base;
 
 	/* get basic quadrupel of mux registers and the correct reg inside */
-	mask = (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) ? 0xf : 0x3;
-
-	if (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) {
+	mux_type = bank->iomux[iomux_num].type;
+	reg = bank->iomux[iomux_num].offset;
+	switch (mux_type) {
+	case IOMUX_WIDTH_4BIT:
+		mask = 0xf;
 		if ((pin % 8) >= 4)
 			reg += 0x4;
 		bit = (pin % 4) * 4;
+		break;
+
+	case IOMUX_WIDTH_3BIT:
+		mask = 0x7;
+		if ((pin % 8) >= 5) {
+			reg += 0x4;
+			bit = ((pin % 8) % 5) * 3;
 	} else {
+			bit = (pin % 8) * 3;
+		}
+		break;
+
+	default:
+		mask = 0x3;
 		bit = (pin % 8) * 2;
+		break;
 	}
 
 	/* vop data special mux case at grf con_soc register for rk1108 */
 	if ((ctrl->type == RK1108) && (bank->bank_num == 1) && (pin <= 9))
 		reg = RK1108_VOP_DATA_MUX_SOC_OFFSET + (pin / 8) * 0x4;
-	else
-		reg = bank->iomux[iomux_num].offset;
+	 else if ((ctrl->type == RK322XH) && (mux_type & (IOMUX_WIDTH_3BIT |
+		   IOMUX_WIDTH_2BIT_3BIT_MIX | IOMUX_WIDTH_3BIT_2BIT_MIX)))
+		rk322xh_recalc_mux(bank->bank_num,  pin, &reg, &mask, &bit);
 
 	ret = regmap_read(regmap, reg, &val);
 	if (ret)
@@ -469,7 +570,7 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 	struct rockchip_pin_ctrl *ctrl = info->ctrl;
 	int iomux_num = (pin / 8);
 	struct regmap *regmap;
-	int reg, ret, mask;
+	int reg, ret, mask, mux_type;
 	unsigned long flags;
 	u8 bit;
 	u32 data, rmask;
@@ -499,21 +600,38 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 				? info->regmap_pmu : info->regmap_base;
 
 	/* get basic quadrupel of mux registers and the correct reg inside */
-	mask = (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) ? 0xf : 0x3;
-
-	if (bank->iomux[iomux_num].type & IOMUX_WIDTH_4BIT) {
+	mux_type = bank->iomux[iomux_num].type;
+	reg = bank->iomux[iomux_num].offset;
+	switch (mux_type) {
+	case IOMUX_WIDTH_4BIT:
+		mask = 0xf;
 		if ((pin % 8) >= 4)
 			reg += 0x4;
 		bit = (pin % 4) * 4;
+		break;
+
+	case IOMUX_WIDTH_3BIT:
+		mask = 0x7;
+		if ((pin % 8) >= 5) {
+			reg += 0x4;
+			bit = ((pin % 8) % 5) * 3;
 	} else {
+			bit = (pin % 8) * 3;
+		}
+		break;
+
+	default:
+		mask = 0x3;
 		bit = (pin % 8) * 2;
+		break;
 	}
 
 	/* vop data special mux case at grf con_soc register for rk1108 */
 	if ((ctrl->type == RK1108) && (bank->bank_num == 1) && (pin <= 9))
 		reg = RK1108_VOP_DATA_MUX_SOC_OFFSET + (pin / 8) * 0x4;
-	else
-		reg = bank->iomux[iomux_num].offset;
+	else if ((ctrl->type == RK322XH) && (mux_type & (IOMUX_WIDTH_3BIT |
+		  IOMUX_WIDTH_2BIT_3BIT_MIX | IOMUX_WIDTH_3BIT_2BIT_MIX)))
+		rk322xh_recalc_mux(bank->bank_num, pin, &reg, &mask, &bit);
 
 	spin_lock_irqsave(&bank->slock, flags);
 
@@ -538,6 +656,9 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 #define RK322X_PULL_PMU_OFFSET		0x100
 #define RK322X_PULL_OFFSET		0x110
 
+#define RK322XH_PULL_PMU_OFFSET		0x100
+#define RK322XH_PULL_OFFSET		0x110
+
 #define RK3288_PULL_OFFSET		0x140
 #define RK3368_PULL_PMU_OFFSET		0x10
 #define RK3368_PULL_OFFSET		0x100
@@ -559,6 +680,10 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 		case RK322X:
 			*regmap = info->regmap_base;
 			*reg = RK322X_PULL_PMU_OFFSET;
+			break;
+		case RK322XH:
+			*regmap = info->regmap_base;
+			*reg = RK322XH_PULL_PMU_OFFSET;
 			break;
 		case RK3288:
 			*regmap = info->regmap_pmu;
@@ -583,6 +708,9 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 			break;
 		case RK322X:
 			*reg = RK322X_PULL_OFFSET;
+			break;
+		case RK322XH:
+			*reg = RK322XH_PULL_OFFSET;
 			break;
 		case RK3288:
 			*reg = RK3288_PULL_OFFSET;
@@ -612,6 +740,9 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 #define RK322X_DRV_PMU_OFFSET		0x200
 #define RK322X_DRV_GRF_OFFSET		0x210
 
+#define RK322XH_DRV_PMU_OFFSET		0x200
+#define RK322XH_DRV_GRF_OFFSET		0x210
+
 #define RK3288_DRV_PMU_OFFSET		0x70
 #define RK3288_DRV_GRF_OFFSET		0x1c0
 #define RK3288_DRV_BITS_PER_PIN		2
@@ -640,6 +771,10 @@ static void rk3288_calc_drv_reg_and_bit(struct rockchip_pin_bank *bank,
 			*regmap = info->regmap_base;
 			*reg = RK322X_DRV_PMU_OFFSET;
 			break;
+		case RK322XH:
+			*regmap = info->regmap_base;
+			*reg = RK322XH_DRV_PMU_OFFSET;
+			break;
 		case RK3288:
 			*regmap = info->regmap_pmu;
 			*reg = RK3288_DRV_PMU_OFFSET;
@@ -663,6 +798,9 @@ static void rk3288_calc_drv_reg_and_bit(struct rockchip_pin_bank *bank,
 			break;
 		case RK322X:
 			*reg = RK322X_DRV_GRF_OFFSET;
+			break;
+		case RK322XH:
+			*reg = RK322XH_DRV_GRF_OFFSET;
 			break;
 		case RK3288:
 			*reg = RK3288_DRV_GRF_OFFSET;
@@ -771,6 +909,7 @@ static int rockchip_get_pull(struct rockchip_pin_bank *bank, int pin_num)
 	case RK1108:
 	case RK3188:
 	case RK322X:
+	case RK322XH:
 	case RK3288:
 	case RK3368:
 		data >>= bit;
@@ -829,6 +968,7 @@ static int rockchip_set_pull(struct rockchip_pin_bank *bank,
 	case RK1108:
 	case RK3188:
 	case RK322X:
+	case RK322XH:
 	case RK3288:
 	case RK3368:
 		spin_lock_irqsave(&bank->slock, flags);
@@ -1041,6 +1181,7 @@ static bool rockchip_pinconf_pull_valid(struct rockchip_pin_ctrl *ctrl,
 	case RK1108:
 	case RK3188:
 	case RK322X:
+	case RK322XH:
 	case RK3288:
 	case RK3368:
 		return (pull != PIN_CONFIG_BIAS_PULL_PIN_DEFAULT);
@@ -1113,6 +1254,7 @@ static int rockchip_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 				with per-pin drive-strength */
 			if ((RK1108 != info->ctrl->type) &&
 			    (RK322X != info->ctrl->type) &&
+			    (RK322XH != info->ctrl->type) &&
 			    (RK3288 != info->ctrl->type) &&
 			    (RK3368 != info->ctrl->type))
 				return -ENOTSUPP;
@@ -1175,6 +1317,7 @@ static int rockchip_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		*/
 		if ((RK1108 != info->ctrl->type) &&
 		    (RK322X != info->ctrl->type) &&
+		    (RK322XH != info->ctrl->type) &&
 		    (RK3288 != info->ctrl->type) &&
 		    (RK3368 != info->ctrl->type))
 			return -ENOTSUPP;
@@ -2044,7 +2187,10 @@ static struct rockchip_pin_ctrl *rockchip_pinctrl_get_soc_data(
 			 * Increase offset according to iomux width.
 			 * 4bit iomux'es are spread over two registers.
 			 */
-			inc = (iom->type & IOMUX_WIDTH_4BIT) ? 8 : 4;
+			inc = (iom->type & (IOMUX_WIDTH_4BIT |
+					    IOMUX_WIDTH_3BIT |
+					    IOMUX_WIDTH_2BIT_3BIT_MIX |
+					    IOMUX_WIDTH_3BIT_2BIT_MIX)) ? 8 : 4;
 			if (iom->type & IOMUX_SOURCE_PMU)
 				pmu_offs += inc;
 			else
@@ -2245,6 +2391,30 @@ static struct rockchip_pin_ctrl rk322x_pin_ctrl = {
 					"uart1",
 	},
 };
+
+static struct rockchip_pin_bank rk322xh_pin_banks[] = {
+	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0", 0, 0, 0, 0),
+	PIN_BANK_IOMUX_FLAGS(1, 32, "gpio1", 0, 0, 0, 0),
+	PIN_BANK_IOMUX_FLAGS(2, 32, "gpio2", 0,
+			     IOMUX_WIDTH_2BIT_3BIT_MIX,
+			     IOMUX_WIDTH_3BIT,
+			     0),
+	PIN_BANK_IOMUX_FLAGS(3, 32, "gpio3",
+			     IOMUX_WIDTH_3BIT,
+			     IOMUX_WIDTH_3BIT_2BIT_MIX,
+			     0,
+			     0),
+};
+
+static struct rockchip_pin_ctrl rk322xh_pin_ctrl = {
+		.pin_banks		= rk322xh_pin_banks,
+		.nr_banks		= ARRAY_SIZE(rk322xh_pin_banks),
+		.label			= "RK322XH-GPIO",
+		.type			= RK322XH,
+		.grf_mux_offset		= 0x0,
+		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
+};
+
 static struct rockchip_pin_bank rk3368_pin_banks[] = {
 	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0", IOMUX_SOURCE_PMU,
 			     IOMUX_SOURCE_PMU,
@@ -2270,6 +2440,8 @@ static const struct of_device_id rockchip_pinctrl_dt_match[] = {
 		.data = (void *)&rk1108_pin_ctrl },
 	{ .compatible = "rockchip,rk322x-pinctrl",
 		.data = (void *)&rk322x_pin_ctrl },
+	{ .compatible = "rockchip,rk322xh-pinctrl",
+		.data = (void *)&rk322xh_pin_ctrl },
 	{ .compatible = "rockchip,rk3368-pinctrl",
 		.data = (void *)&rk3368_pin_ctrl },
 	{},
