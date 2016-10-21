@@ -87,6 +87,9 @@ extern void setup_per_cpu_areas(void);
 
 #endif	/* SMP */
 
+/* 3.18 backport */
+#define raw_cpu_ptr(ptr)	__this_cpu_ptr(ptr)
+
 #ifndef PER_CPU_BASE_SECTION
 #ifdef CONFIG_SMP
 #define PER_CPU_BASE_SECTION ".data..percpu"
