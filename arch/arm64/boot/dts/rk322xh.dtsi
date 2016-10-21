@@ -57,6 +57,10 @@
 
 	aliases {
 		serial2 = &uart_dbg;
+		i2c0 = &i2c0;
+		i2c1 = &i2c1;
+		i2c2 = &i2c2;
+		i2c3 = &i2c3;
 	};
 
 	cpus {
@@ -248,6 +252,58 @@
 	pmu: syscon@ff140000 {
 		compatible = "rockchip,rk322xh-pmu", "rockchip,pmu", "syscon";
 		reg = <0x0 0xff140000 0x0 0x1000>;
+	};
+
+	i2c0: i2c@ff150000 {
+		compatible = "rockchip,rk322xh-i2c";
+		reg = <0x0 0xff150000 0x0 0x1000>;
+		interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&clk_gates2 9>, <&clk_gates15 10>;
+		clock-names = "i2c", "pclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c0_xfer>;
+		status = "disabled";
+	};
+
+	i2c1: i2c@ff160000 {
+		compatible = "rockchip,rk322xh-i2c";
+		reg = <0x0 0xff160000 0x0 0x1000>;
+		interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&clk_gates2 10>, <&clk_gates16 0>;
+		clock-names = "i2c", "pclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c1_xfer>;
+		status = "disabled";
+	};
+
+	i2c2: i2c@ff170000 {
+		compatible = "rockchip,rk322xh-i2c";
+		reg = <0x0 0xff170000 0x0 0x1000>;
+		interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&clk_gates2 11>, <&clk_gates16 1>;
+		clock-names = "i2c", "pclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c2_xfer>;
+		status = "disabled";
+	};
+
+	i2c3: i2c@ff180000 {
+		compatible = "rockchip,rk322xh-i2c";
+		reg = <0x0 0xff180000 0x0 0x1000>;
+		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&clk_gates2 12>, <&clk_gates16 2>;
+		clock-names = "i2c", "pclk";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c3_xfer>;
+		status = "disabled";
 	};
 
 	timer@ff1c0000 {
