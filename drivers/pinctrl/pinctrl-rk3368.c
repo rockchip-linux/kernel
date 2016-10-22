@@ -89,8 +89,6 @@ enum rockchip_pinctrl_type {
 #define IOMUX_SOURCE_PMU		BIT(2)
 #define IOMUX_UNROUTED			BIT(3)
 #define IOMUX_WIDTH_3BIT		BIT(4)
-#define IOMUX_WIDTH_2BIT_3BIT_MIX	BIT(5)
-#define IOMUX_WIDTH_3BIT_2BIT_MIX	BIT(6)
 
 /**
  * @type: iomux variant using IOMUX_* constants
@@ -421,7 +419,7 @@ static const struct rk322xh_recalc_data rk322xh_mux_recalc_data[] = {
 		.bit = 0x2,
 		.min_pin = 8,
 		.max_pin = 14,
-		.reg = 0x0,
+		.reg = 0x24,
 		.mask = 0x3
 	},
 	{
@@ -453,7 +451,7 @@ static const struct rk322xh_recalc_data rk322xh_mux_recalc_data[] = {
 		.bit = 0x2,
 		.min_pin = 9,
 		.max_pin = 15,
-		.reg = 0x4,
+		.reg = 0x44,
 		.mask = 0x3
 	},
 };
@@ -475,15 +473,13 @@ static void rk322xh_recalc_mux(u8 bank_num, int pin, int *reg,
 	if (!data)
 		return;
 
-	if (data->min_pin == data->max_pin) {
-		*reg = data->reg;
-		*mask = data->mask;
+	*reg = data->reg;
+	*mask = data->mask;
+
+	if (data->min_pin == data->max_pin)
 		*bit = data->bit;
-	} else {
-		*reg += data->reg;
-		*mask = data->mask;
+	else
 		*bit = (pin % 8) * data->bit;
-	}
 }
 
 static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
@@ -540,8 +536,7 @@ static int rockchip_get_mux(struct rockchip_pin_bank *bank, int pin)
 	/* vop data special mux case at grf con_soc register for rk1108 */
 	if ((ctrl->type == RK1108) && (bank->bank_num == 1) && (pin <= 9))
 		reg = RK1108_VOP_DATA_MUX_SOC_OFFSET + (pin / 8) * 0x4;
-	 else if ((ctrl->type == RK322XH) && (mux_type & (IOMUX_WIDTH_3BIT |
-		   IOMUX_WIDTH_2BIT_3BIT_MIX | IOMUX_WIDTH_3BIT_2BIT_MIX)))
+	 else if ((ctrl->type == RK322XH) && (mux_type & IOMUX_WIDTH_3BIT))
 		rk322xh_recalc_mux(bank->bank_num,  pin, &reg, &mask, &bit);
 
 	ret = regmap_read(regmap, reg, &val);
@@ -629,8 +624,7 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 	/* vop data special mux case at grf con_soc register for rk1108 */
 	if ((ctrl->type == RK1108) && (bank->bank_num == 1) && (pin <= 9))
 		reg = RK1108_VOP_DATA_MUX_SOC_OFFSET + (pin / 8) * 0x4;
-	else if ((ctrl->type == RK322XH) && (mux_type & (IOMUX_WIDTH_3BIT |
-		  IOMUX_WIDTH_2BIT_3BIT_MIX | IOMUX_WIDTH_3BIT_2BIT_MIX)))
+	else if ((ctrl->type == RK322XH) && (mux_type & IOMUX_WIDTH_3BIT))
 		rk322xh_recalc_mux(bank->bank_num, pin, &reg, &mask, &bit);
 
 	spin_lock_irqsave(&bank->slock, flags);
@@ -2188,9 +2182,7 @@ static struct rockchip_pin_ctrl *rockchip_pinctrl_get_soc_data(
 			 * 4bit iomux'es are spread over two registers.
 			 */
 			inc = (iom->type & (IOMUX_WIDTH_4BIT |
-					    IOMUX_WIDTH_3BIT |
-					    IOMUX_WIDTH_2BIT_3BIT_MIX |
-					    IOMUX_WIDTH_3BIT_2BIT_MIX)) ? 8 : 4;
+					    IOMUX_WIDTH_3BIT)) ? 8 : 4;
 			if (iom->type & IOMUX_SOURCE_PMU)
 				pmu_offs += inc;
 			else
@@ -2396,12 +2388,12 @@ static struct rockchip_pin_bank rk322xh_pin_banks[] = {
 	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0", 0, 0, 0, 0),
 	PIN_BANK_IOMUX_FLAGS(1, 32, "gpio1", 0, 0, 0, 0),
 	PIN_BANK_IOMUX_FLAGS(2, 32, "gpio2", 0,
-			     IOMUX_WIDTH_2BIT_3BIT_MIX,
+			     IOMUX_WIDTH_3BIT,
 			     IOMUX_WIDTH_3BIT,
 			     0),
 	PIN_BANK_IOMUX_FLAGS(3, 32, "gpio3",
 			     IOMUX_WIDTH_3BIT,
-			     IOMUX_WIDTH_3BIT_2BIT_MIX,
+			     IOMUX_WIDTH_3BIT,
 			     0,
 			     0),
 };
