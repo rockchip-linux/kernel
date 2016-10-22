@@ -423,15 +423,16 @@ static const struct pinctrl_ops rockchip_pctrl_ops = {
 /*
  * Hardware access
  */
-#define RK1108_VOP_DATA_MUX_SOC_OFFSET		0x418
 
-struct rk322xh_recalc_data {
-	u8 num;
-	u8 bit;
-	int min_pin;
-	int max_pin;
-	int reg;
-	int mask;
+static const struct rockchip_mux_recalced_data rk1108_mux_recalced_data[] = {
+	{
+		.num = 1,
+		.bit = 0x2,
+		.min_pin = 0,
+		.max_pin = 9,
+		.reg = 0x418,
+		.mask = 0x3
+	},
 };
 
 static const struct rockchip_mux_recalced_data rk322xh_mux_recalced_data[] = {
@@ -476,6 +477,26 @@ static const struct rockchip_mux_recalced_data rk322xh_mux_recalced_data[] = {
 		.mask = 0x3
 	},
 };
+
+static void rk1108_recalc_mux(u8 bank_num, int pin, int *reg,
+			      int *mask, u8 *bit)
+{
+	const struct rockchip_mux_recalced_data *data = NULL;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(rk1108_mux_recalced_data); i++)
+		if (rk1108_mux_recalced_data[i].num == bank_num &&
+		    rk1108_mux_recalced_data[i].min_pin <= pin &&
+		    rk1108_mux_recalced_data[i].max_pin >= pin) {
+			data = &rk1108_mux_recalced_data[i];
+			break;
+		}
+
+	if (!data)
+		return;
+
+	*reg = data->reg + (pin / 8) * 0x4;
+}
 
 static void rk322xh_recalc_mux(u8 bank_num, int pin, int *reg,
 			       int *mask, u8 *bit)
@@ -2340,7 +2361,11 @@ static struct rockchip_pin_bank rk1108_pin_banks[] = {
 					     IOMUX_SOURCE_PMU,
 					     IOMUX_SOURCE_PMU,
 					     IOMUX_SOURCE_PMU),
-	PIN_BANK_IOMUX_FLAGS(1, 32, "gpio1", 0, 0, 0, 0),
+	PIN_BANK_IOMUX_FLAGS(1, 32, "gpio1",
+			     IOMUX_RECALCED_FLAG,
+			     IOMUX_RECALCED_FLAG,
+			     0,
+			     0),
 	PIN_BANK_IOMUX_FLAGS(2, 32, "gpio2", 0, 0, 0, 0),
 	PIN_BANK_IOMUX_FLAGS(3, 32, "gpio3", 0, 0, 0, 0),
 };
@@ -2353,6 +2378,7 @@ static struct rockchip_pin_ctrl rk1108_pin_ctrl = {
 		.grf_mux_offset		= 0x10,
 		.pmu_mux_offset		= 0x0,
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
+		.iomux_recalc		= rk1108_recalc_mux,
 };
 
 static struct rockchip_pin_bank rk322x_pin_banks[] = {
