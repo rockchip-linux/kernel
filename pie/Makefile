@@ -68,6 +68,7 @@ OBJCOPYFLAGS_pie_stage3.o += -j ".pie.rk312x.text" -j ".pie.rk312x.data"
 OBJCOPYFLAGS_pie_stage3.o += -j ".pie.rk3126b.text" -j ".pie.rk3126b.data"
 OBJCOPYFLAGS_pie_stage3.o += -j ".pie.rk3188.text" -j ".pie.rk3188.data"
 OBJCOPYFLAGS_pie_stage3.o += -j ".pie.rk3288.text" -j ".pie.rk3288.data"
+OBJCOPYFLAGS_pie_stage3.o += -j ".pie.rk1108.text" -j ".pie.rk1108.data"
 
 $(obj)/pie_stage3.o: $(obj)/pie_stage2.o
 	$(call if_changed,objcopy)
