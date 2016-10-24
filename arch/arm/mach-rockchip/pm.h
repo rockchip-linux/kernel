@@ -143,6 +143,9 @@ struct rkpm_gpios_info_st{
 #define reg_readl(base) readl_relaxed(base)
 #define reg_writel(v, base)	do { writel_relaxed(v, base); dsb(); } while (0)
 
+#define pmu_grf_readl(offset)	readl_relaxed(RK_PMU_GRF_VIRT + offset)
+#define pmu_grf_writel(v, offset)	do { writel_relaxed(v, RK_PMU_GRF_VIRT + offset); dsb(); } while (0)
+
 #if 0
 #define PM_ERR(fmt, args...) printk(KERN_ERR fmt, ##args)
 #define PM_LOG(fmt, args...) printk(KERN_ERR fmt, ##args)

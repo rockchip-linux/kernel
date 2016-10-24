@@ -457,8 +457,6 @@
 
 
 /***************************RK1108 PLL**************************************/
-#define RK1108_CRU_CLKSEL_CON		0x60
-#define RK1108_CRU_CLKSELS_CON(i)	(RK1108_CRU_CLKSEL_CON + ((i) * 4))
 #define RK1108_CORE_CLK_PLL_SEL_SHIFT	(8)
 #define RK1108_CORE_CLK_PLL_SEL_MASK	(0x3)
 #define RK1108_CPU_SEL_PLL(plls)	CRU_W_MSK_SETBITS(plls, RK1108_CORE_CLK_PLL_SEL_SHIFT, RK1108_CORE_CLK_PLL_SEL_MASK)
