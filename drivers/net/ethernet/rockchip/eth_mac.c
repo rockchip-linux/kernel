@@ -2,7 +2,7 @@
  * Copyright (C) 2010 ROCKCHIP, Inc.
  * Author: roger_chen <cz@rock-chips.com>
  *
- * This program is the virtual flash device 
+ * This program is the virtual flash device
  * used to store bd_addr or MAC
  *
  */
@@ -77,23 +77,23 @@ int eth_mac_idb(u8 *eth_mac)
 *大写转小写
 *
 */
-static void   to_lower(char   *str) 
-{ 
-	int   i=0; 
-	while(str[i]!=0) 
-	{ 
-		if((str[i] >= 'A')&&(str[i] <= 'Z')) 
-			str[i]+=32; 
-		i++; 
-	} 
-} 
+static void   to_lower(char   *str)
+{
+	int   i=0;
+	while(str[i]!=0)
+	{
+		if((str[i] >= 'A')&&(str[i] <= 'Z'))
+			str[i]+=32;
+		i++;
+	}
+}
 
 /**
   *字符串格式转为mac 格式.
   *
   *
   */
-static void  trans( char *src ,int * k) 
+static void  trans( char *src ,int * k)
 {
     char c;
     int i;
@@ -112,15 +112,15 @@ static void  trans( char *src ,int * k)
       temp2 = 0;
       c = *src;
       if( c == ':' ){
-	  	src++;
+		src++;
 		c = *src;
-      	}
+	}
       if( c >= 'a' && c <= 'f' )          // 两个字符中的第一个 比如 "0f" ,则表示是字符 '0'
-         temp = ( c - 'a' ) + 10; 
+         temp = ( c - 'a' ) + 10;
       else
          temp = ( c - '0' ) ;
       src++;
-      
+
       c = *src;
       if( i == 5){                         //wifi mac 末尾加1
 	if(c =='f'){
@@ -154,43 +154,43 @@ int eth_mac_wifi(u8 *eth_mac){
 	int maci[6];
 
 	memset(eth_mac, 0, 6);
-	
+
 	file = filp_open(WLAN_MAC_FILE, O_RDWR,0);
 	if (IS_ERR(file))
 	{
 		printk("open %s failed.", WLAN_MAC_FILE);
 		return -ENOENT;
-	} 
+	}
 
 	old_fs = get_fs();
-    	set_fs(get_ds());
-    
-    	file->f_op->llseek(file,0,0);
-    	ret = file->f_op->read(file, wifi_mac, 32, &file->f_pos);
-    
-    	set_fs(old_fs);
-    
-   	 if(ret > 0){
-        	//printk("mac read from %s: %s\n", WLAN_MAC_FILE,wifi_mac);
+	set_fs(get_ds());
+
+	file->f_op->llseek(file,0,0);
+	ret = file->f_op->read(file, wifi_mac, 32, &file->f_pos);
+
+	set_fs(old_fs);
+
+	if(ret > 0){
+		//printk("mac read from %s: %s\n", WLAN_MAC_FILE,wifi_mac);
 
 		to_lower(wifi_mac);
 		trans(wifi_mac,maci);
 		for (i = 0;i< 6;i++){
 			eth_mac[i] = maci[i];
 		}
-		
-   	 }
-    	 else if(ret == 0)
-       	printk("read nothing from %s........\n",WLAN_MAC_FILE);
-    	 else 
+
+	}
+	else if(ret == 0)
+		printk("read nothing from %s........\n",WLAN_MAC_FILE);
+	else
         {
-            	printk("read wifi mac error\n");
-           	 return -ENOENT;
+		printk("read wifi mac error\n");
+		return -ENOENT;
         }
 
 	filp_close(file,NULL);
 	return 0;
-	
+
 }
 
 #endif
