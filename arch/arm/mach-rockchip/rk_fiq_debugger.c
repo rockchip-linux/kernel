@@ -37,6 +37,7 @@
 #include <linux/irqchip/arm-gic.h>
 #include <linux/clk.h>
 #include "rk_fiq_debugger.h"
+#include <linux/delay.h>
 
 #if defined(CONFIG_FIQ_DEBUGGER_EL3_TO_EL1) || defined(CONFIG_ARM_PSCI)
 #include <linux/rockchip/psci.h>
@@ -52,6 +53,7 @@
 #define UART_USR_TX_FIFO_EMPTY		0x04 /* Transmit FIFO empty */
 #define UART_USR_TX_FIFO_NOT_FULL	0x02 /* Transmit FIFO not full */
 #define UART_USR_BUSY			0x01 /* UART busy indicator */
+#define UART_SRR			0x22 /* software reset register */
 
 struct rk_fiq_debugger {
 	int irq;
@@ -107,7 +109,15 @@ static int debug_port_init(struct platform_device *pdev)
 		break;
 	}
 
+	/* reset uart */
+	rk_fiq_write(t, 0x07, UART_SRR);
+	udelay(10);
+
+	/* set uart to loop back mode */
+	rk_fiq_write(t, 0x10, UART_MCR);
+
 	rk_fiq_write(t, 0x83, UART_LCR);
+
 	/* set baud rate */
 	rk_fiq_write(t, dll, UART_DLL);
 	rk_fiq_write(t, dlm, UART_DLM);
@@ -115,13 +125,18 @@ static int debug_port_init(struct platform_device *pdev)
 
 	/* enable rx and lsr interrupt */
 	rk_fiq_write(t, UART_IER_RLSI | UART_IER_RDI, UART_IER);
-	/* interrupt on every character when receive,but we can enable fifo for TX
-	I found that if we enable the RX fifo, some problem may vanish such as when
-	you continuously input characters in the command line the uart irq may be disable
-	because of the uart irq is served when CPU is at IRQ exception,but it is
-	found unregistered, so it is disable.
-	hhb@rock-chips.com */
+
+	/*
+	 * Interrupt on every character when received, but we can enable fifo for TX
+	 * I found that if we enable the RX fifo, some problem may vanish such as when
+	 * you continuously input characters in the command line the uart irq may be disable
+	 * because of the uart irq is served when CPU is at IRQ exception, but it is
+	 * found unregistered, so it is disable.
+	 */
 	rk_fiq_write(t, 0xc1, UART_FCR);
+
+	/* disbale loop back mode */
+	rk_fiq_write(t, 0x0, UART_MCR);
 
 	return 0;
 }
@@ -164,10 +179,11 @@ static int debug_getc(struct platform_device *pdev)
 static void debug_putc(struct platform_device *pdev, unsigned int c)
 {
 	struct rk_fiq_debugger *t;
+	unsigned int count = 10000;
 
 	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
 
-	while (!(rk_fiq_read(t, UART_USR) & UART_USR_TX_FIFO_NOT_FULL))
+	while (!(rk_fiq_read(t, UART_USR) & UART_USR_TX_FIFO_NOT_FULL) && count--)
 		cpu_relax();
 	rk_fiq_write(t, c, UART_TX);
 }
@@ -175,9 +191,10 @@ static void debug_putc(struct platform_device *pdev, unsigned int c)
 static void debug_flush(struct platform_device *pdev)
 {
 	struct rk_fiq_debugger *t;
+	unsigned int count = 10000;
 	t = container_of(dev_get_platdata(&pdev->dev), typeof(*t), pdata);
 
-	while (!(rk_fiq_read_lsr(t) & UART_LSR_TEMT))
+	while (!(rk_fiq_read_lsr(t) & UART_LSR_TEMT) && count--)
 		cpu_relax();
 }
 
