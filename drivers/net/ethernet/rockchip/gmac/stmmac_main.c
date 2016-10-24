@@ -1218,7 +1218,7 @@ static int stmmac_init_rx_buffers(struct stmmac_priv *priv, struct dma_desc *p,
  * and allocates the socket buffers. It suppors the chained and ring
  * modes.
  */
-static void init_dma_desc_rings(struct net_device *dev)
+static int init_dma_desc_rings(struct net_device *dev)
 {
 	int i;
 	struct stmmac_priv *priv = netdev_priv(dev);
@@ -1249,8 +1249,10 @@ static void init_dma_desc_rings(struct net_device *dev)
 							  dma_extended_desc),
 						   &priv->dma_tx_phy,
 						   GFP_KERNEL);
-		if ((!priv->dma_erx) || (!priv->dma_etx))
-			return;
+		if ((!priv->dma_erx) || (!priv->dma_etx)) {
+			dev_err(&dev->dev, "dma_alloc_coherent dma_etx or dmaerx fail \n");
+			return -ENOMEM;
+		}
 	} else {
 		priv->dma_rx = dma_alloc_coherent(priv->device, rxsize *
 						  sizeof(struct dma_desc),
@@ -1260,8 +1262,10 @@ static void init_dma_desc_rings(struct net_device *dev)
 						  sizeof(struct dma_desc),
 						  &priv->dma_tx_phy,
 						  GFP_KERNEL);
-		if ((!priv->dma_rx) || (!priv->dma_tx))
-			return;
+		if ((!priv->dma_rx) || (!priv->dma_tx)) {
+			dev_err(&dev->dev, "dma_alloc_coherent dma_tx or dma_rx fail \n");
+			return -ENOMEM;
+		}
 
 		memset(priv->dma_rx, 0, rxsize * sizeof(struct dma_desc));
 		memset(priv->dma_tx, 0, txsize * sizeof(struct dma_desc));
@@ -1333,6 +1337,8 @@ static void init_dma_desc_rings(struct net_device *dev)
 
 	if (netif_msg_hw(priv))
 		stmmac_display_rings(priv);
+
+	return 0;
 }
 
 static void dma_free_rx_skbufs(struct stmmac_priv *priv)
@@ -1833,7 +1839,11 @@ static int stmmac_open(struct net_device *dev)
 	priv->dma_tx_size = STMMAC_ALIGN(dma_txsize);
 	priv->dma_rx_size = STMMAC_ALIGN(dma_rxsize);
 	priv->dma_buf_sz = STMMAC_ALIGN(buf_sz);
-	init_dma_desc_rings(dev);
+	ret = init_dma_desc_rings(dev);
+	if (ret < 0) {
+		pr_err("%s: init_dma_desc_rings failed\n", __func__);
+		goto open_error;
+	}
 
 	/* DMA initialization and SW reset */
 	ret = stmmac_init_dma_engine(priv);
