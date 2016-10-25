@@ -223,6 +223,7 @@ struct rockchip_pmx_func {
 	u8			ngroups;
 	u8			con_mux_sel;
 	u8			idx;
+	u32			mask;
 };
 
 struct rockchip_pinctrl {
@@ -1065,10 +1066,7 @@ static int rockchip_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 	const unsigned int *pins = info->groups[group].pins;
 	const struct rockchip_pin_config *data = info->groups[group].data;
 	struct rockchip_pin_bank *bank;
-	const char **group_con_mux_names;
-	const char *con_mux_name;
 	int cnt, ret = 0;
-	u32 val, idx = 0;
 
 	pinctrl_dbg(info->dev, "enable function %s group %s\n",
 		    info->functions[selector].name, info->groups[group].name);
@@ -1094,21 +1092,20 @@ static int rockchip_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 	}
 
 	if (info->functions[selector].con_mux_sel) {
-		idx = info->functions[selector].idx;
-		group_con_mux_names =
-			(const char **)info->ctrl->grf_con_iomux_names;
-		if (group_con_mux_names) {
-			con_mux_name = group_con_mux_names[idx];
-			if (strncmp(con_mux_name,
-				    info->functions[selector].name,
-				    strlen(con_mux_name) + 1) == 0)
-				val = 0;
-			else
-				val = 1;
+		const char *p, *name, *func_name;
+		u32 val, idx, mask = 0;
 
-			val <<= idx;
-			/* apply hiword-mask */
-			val |= BIT(idx + 16);
+		idx = info->functions[selector].idx;
+		mask = info->functions[selector].mask;
+		name = info->ctrl->grf_con_iomux_names[idx];
+		func_name = info->functions[selector].name;
+		if (!strncmp(func_name, name, strlen(name)) &&
+		    strlen(func_name) > strlen(name)) {
+			p = func_name + strlen(name);
+			if (kstrtou32(p, 10, &val))
+				return -EINVAL;
+
+			val = (mask << (idx + 16)) | (val << idx);
 			ret = regmap_write(info->regmap_base,
 					   info->ctrl->grf_con_iomux_offset,
 					   val);
@@ -1117,7 +1114,7 @@ static int rockchip_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 		}
 	}
 
-	return 0;
+	return ret;
 }
 
 static void rockchip_pmx_disable(struct pinctrl_dev *pctldev,
@@ -1497,9 +1494,17 @@ static int rockchip_pinctrl_parse_functions(struct device_node *np,
 				     strlen(con_mux_name))) {
 				func->con_mux_sel = 1;
 				func->idx = i;
+				func->mask++;
+			} else if (func->con_mux_sel) {
 				break;
 			}
 		}
+
+		if (func->con_mux_sel) {
+			func->idx = func->idx - (func->mask - 1);
+			func->mask = (1 << func->mask) - 1;
+		}
+
 	}
 
 	return 0;
@@ -2398,18 +2403,18 @@ static struct rockchip_pin_ctrl rk322x_pin_ctrl = {
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
 		.grf_con_iomux_offset   = 0x50,
 		.grf_con_iomux_names	= {
-					"pwm0",
-					"pwm1",
-					"pwm2",
-					"pwmir",
-					"sdio",
-					"spi0",
+					"pwm0-",
+					"pwm1-",
+					"pwm2-",
+					"pwmir-",
+					"sdio-",
+					"spi-",
 					NULL,
-					"emmc",
-					"uart2",
+					"emmc-",
+					"uart2-",
 					NULL,
 					NULL,
-					"uart1",
+					"uart1-",
 	},
 };
 
