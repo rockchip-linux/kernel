@@ -126,6 +126,12 @@
 		status = "disabled";
 	};
 
+	io-domains {
+		compatible = "rockchip,rk322xh-io-voltage-domain";
+		rockchip,grf = <&grf>;
+		status = "disabled";
+	};
+
 	rockchip_clocks_init: clocks-init {
 		compatible = "rockchip,clocks-init";
 		rockchip,clocks-init-parent =

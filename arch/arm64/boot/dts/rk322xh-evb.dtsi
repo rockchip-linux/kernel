@@ -49,6 +49,18 @@
 		status = "okay";
 	};
 
+	io-domains {
+		status = "okay";
+
+		vccio1-supply = <&rk805_dcdc4_reg>;
+		vccio2-supply = <&rk805_ldo2_reg>;
+		vccio3-supply = <&rk805_dcdc4_reg>;
+		vccio4-supply = <&rk805_ldo1_reg>;
+		vccio5-supply = <&rk805_dcdc4_reg>;
+		vccio6-supply = <&rk805_dcdc4_reg>;
+		pmuio-supply = <&rk805_dcdc4_reg>;
+	};
+
 	/* pmic_sleep */
 	gpio_poweroff {
 		compatible = "gpio-poweroff";
