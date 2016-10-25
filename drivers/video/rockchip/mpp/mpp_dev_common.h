@@ -330,5 +330,6 @@ static inline int mpp_get_dma_addr(struct rockchip_mpp_dev *mpp,
 }
 
 extern const struct rockchip_mpp_dev_variant rkvenc_variant;
+extern const struct rockchip_mpp_dev_variant vepu_variant;
 
 #endif
