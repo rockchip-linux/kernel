@@ -371,6 +371,23 @@
 		status = "disabled";
 	};
 
+	tve: tve@ff373e00 {
+		compatible = "rockchip,rk322xh-tve", "rockchip,rk322x-tve";
+		reg = <0x0 0xff373e00 0x0 0x100>,
+		      <0x0 0xff420000 0x0 0x10000>;
+		clocks = <&clk_gates17 8>;
+		clock-names = "pclk_vdac";
+		saturation = <0x00325d46>;
+		brightcontrast = <0x00009e00>;
+		adjtiming = <0xc6c00880>;
+		lumafilter0 = <0x02ff0000>;
+		lumafilter1 = <0xf40200fe>;
+		lumafilter2 = <0xf332d910>;
+		daclevel = <0x2f>;
+		dac1level = <0xf>;
+		status = "disabled";
+	};
+
 	cru: syscon@ff440000 {
 		compatible = "rockchip,rk322xh-cru", "rockchip,cru", "syscon";
 		reg = <0x0 0xff440000 0x0 0x1000>;
