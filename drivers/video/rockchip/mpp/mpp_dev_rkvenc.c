@@ -140,12 +140,12 @@ static void rockchip_mpp_war_init(struct rockchip_mpp_dev *mpp)
 	enc->war_reg->adr_srcu = enc->war_reg->adr_srcy + img_y_size;
 	enc->war_reg->adr_srcv = enc->war_reg->adr_srcu + img_u_size;
 	enc->war_reg->adr_bsbb = enc->war_reg->adr_srcv + img_u_size;
-	enc->war_reg->adr_bsbt = enc->war_reg->adr_bsbb + img_y_size * 2;
+	enc->war_reg->adr_bsbt = enc->war_reg->adr_bsbb + img_size;
 	enc->war_reg->adr_bsbr = enc->war_reg->adr_bsbb;
 	enc->war_reg->adr_bsbw = enc->war_reg->adr_bsbb;
 
 	/* 1k align required */
-	enc->war_reg->adr_dspw = enc->war_dma_addr + 0x400;
+	enc->war_reg->adr_dspw = enc->war_dma_addr + 0x4000;
 	enc->war_reg->adr_dspr = enc->war_reg->adr_dspw + 0x400;
 
 	enc->dummy_ctx = kzalloc(sizeof(*enc->dummy_ctx), GFP_KERNEL);
@@ -695,7 +695,14 @@ static int rockchip_mpp_rkvenc_probe(struct rockchip_mpp_dev *mpp)
 
 	enc->lkt_cpu_addr = ion_map_kernel(mpp->ion_client, enc->lkt_hdl);
 
-	enc->war_hdl = mpp_alloc_ion_buf(mpp, MPP_ALIGN_SIZE, MPP_ALIGN_SIZE);
+	/*
+	 * buffer for workaround context running, include input picture, output
+	 * stream, reconstruction picture. we set the output stream buffer to 1
+	 * time picture size, so the total buffer size is 3 times picture size,
+	 * 64 * 64 * 3 / 2 * 3 = 4.5 * 4k.
+	 */
+	enc->war_hdl = mpp_alloc_ion_buf(mpp, MPP_ALIGN_SIZE * 5,
+					 MPP_ALIGN_SIZE);
 	if (enc->war_hdl == NULL) {
 		dev_err(mpp->dev, "allocate workaround buffer failure\n");
 		goto fail;
