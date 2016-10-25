@@ -20,16 +20,18 @@
 #include <linux/power_supply.h>
 #include <linux/of_platform.h>
 
+#define BATTERY_STABLE_COUNT	1
 #define MIN_BATTERY_VALUE		790
 
 static int ac_online			= 1;
 static int usb_online			= 1;
 static int battery_status		= POWER_SUPPLY_STATUS_CHARGING;
 static int battery_health		= POWER_SUPPLY_HEALTH_GOOD;
-static int battery_present		= 1; /* true */
+static int battery_present		= 1;
 static int battery_technology	= POWER_SUPPLY_TECHNOLOGY_LION;
 static int battery_capacity		= 50;
 static int battery_voltage		= 3300;
+static int battery_stable		= BATTERY_STABLE_COUNT;
 
 struct rk1108_battery_data {
 	struct platform_device *pdev;
@@ -257,6 +259,14 @@ static void rk1108_battery_work_func(struct work_struct *work)
 		return;
 	}
 	if ((value - battery_voltage > 2) || (value - battery_voltage < -2)) {
+		if ((value - battery_voltage > 10) ||
+		    (value - battery_voltage < -10)) {
+			if ((changed != 1) && (battery_stable >= 0)) {
+				battery_stable--;
+				goto out;
+			}
+		}
+		battery_stable = BATTERY_STABLE_COUNT;
 		/* Get ADC value and send user */
 		battery_voltage = value;
 		rk1108_battery_capacity_change(value);
@@ -264,7 +274,7 @@ static void rk1108_battery_work_func(struct work_struct *work)
 	}
 	if (changed == 1)
 		power_supply_changed(&rk1108_power_supplies[1]);
-
+out:
 	/* start work queue */
 	schedule_delayed_work(&gdata->work, msecs_to_jiffies(500));
 }
