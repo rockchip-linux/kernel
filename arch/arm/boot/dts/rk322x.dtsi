@@ -1254,7 +1254,7 @@
 			};
 		};
 
-		uart1 {
+		uart1-0 {
 			uart1_xfer: uart1-xfer {
 				rockchip,pins = <1 GPIO_B2 RK_FUNC_1 &pcfg_pull_up>,
 						<1 GPIO_B1 RK_FUNC_1 &pcfg_pull_none>;
@@ -1273,7 +1273,7 @@
 			};
 		};
 
-		uart11 {
+		uart1-1 {
 			uart11_xfer: uart11-xfer {
 				rockchip,pins = <3 GPIO_B6 RK_FUNC_1 &pcfg_pull_up>,
 						<3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
@@ -1292,7 +1292,7 @@
 			};
 		};
 
-		uart2 {
+		uart2-0 {
 			uart2_xfer: uart2-xfer {
 				rockchip,pins = <1 GPIO_C2 RK_FUNC_2 &pcfg_pull_up>,
 						<1 GPIO_C3 RK_FUNC_2 &pcfg_pull_none>;
@@ -1307,14 +1307,14 @@
 			};
 		};
 
-		uart21 {
+		uart2-1 {
 			uart21_xfer: uart21-xfer {
 				rockchip,pins = <1 GPIO_B2 RK_FUNC_2 &pcfg_pull_up>,
 						<1 GPIO_B1 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 
-		spi0 {
+		spi-0 {
 			spi0_clk: spi0-clk {
 				rockchip,pins = <0 GPIO_B1 RK_FUNC_2 &pcfg_pull_up>;
 			};
@@ -1332,7 +1332,7 @@
 			};
 		};
 
-		spi1 {
+		spi-1 {
 			spi1_clk: spi1-clk {
 				rockchip,pins = <0 GPIO_C7 RK_FUNC_2 &pcfg_pull_up>;
 			};
@@ -1482,7 +1482,7 @@
 			};
 		};
 
-		sdio {
+		sdio-0 {
 			sdio_bus1: sdio-bus1 {
 				rockchip,pins = <1 GPIO_A1 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
 			};
@@ -1517,7 +1517,7 @@
 			};
 		};
 
-		sdio1 {
+		sdio-1 {
 			sdio1_bus1: sdio1-bus1 {
 				rockchip,pins = <3 GPIO_A2 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
 			};
@@ -1547,7 +1547,7 @@
 			};
 		};
 
-		emmc {
+		emmc-0 {
 			emmc_clk: emmc-clk {
 				rockchip,pins = <2 GPIO_A7 RK_FUNC_2 &pcfg_pull_none_drv_8ma>;
 			};
@@ -1587,7 +1587,7 @@
 			};
 		};
 
-		emmc1 {
+		emmc-1 {
 			emmc1_clk: emmc1-clk {
 				rockchip,pins = <2 GPIO_A7 RK_FUNC_2 &pcfg_pull_none_drv_8ma>;
 			};
@@ -1627,49 +1627,49 @@
 			};
 		};
 
-		pwm0 {
+		pwm0-0 {
 			pwm0_pin: pwm0-pin {
 				rockchip,pins = <0 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 
-		pwm01 {
+		pwm0-1 {
 			pwm01_pin: pwm01-pin {
 				rockchip,pins = <3 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 
-		pwm1 {
+		pwm1-0 {
 			pwm1_pin: pwm1-pin {
 				rockchip,pins = <0 GPIO_D3 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 
-		pwm11 {
+		pwm1-1 {
 			pwm11_pin: pwm11-pin {
 				rockchip,pins = <0 GPIO_D6 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 
-		pwm2 {
+		pwm2-0 {
 			pwm2_pin: pwm2-pin {
 				rockchip,pins = <0 GPIO_D4 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 
-		pwm21 {
+		pwm2-1 {
 			pwm21_pin: pwm21-pin {
 				rockchip,pins = <1 GPIO_B4 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 
-		pwmir {
+		pwmir-0 {
 			pwmir_pin: pwmir-pin {
 				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
 			};
 		};
 
-		pwmir1 {
+		pwmir-1 {
 			pwmir1_pin: pwmir1-pin {
 				rockchip,pins = <1 GPIO_B3 RK_FUNC_2 &pcfg_pull_none>;
 			};
