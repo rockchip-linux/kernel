@@ -2440,6 +2440,19 @@ static struct rockchip_pin_ctrl rk322xh_pin_ctrl = {
 		.grf_mux_offset		= 0x0,
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
 		.iomux_recalc		= rk322xh_recalc_mux,
+		.grf_con_iomux_offset   = 0x50,
+		.grf_con_iomux_names	= {
+					"uart2-",
+					"uart2-",
+					"gmac-",
+					"pdm-",
+					"spi0-",
+					"spi0-",
+					"i2s2-",
+					"card-",
+					"tsp-",
+					"cif-",
+	},
 };
 
 static struct rockchip_pin_bank rk3368_pin_banks[] = {
