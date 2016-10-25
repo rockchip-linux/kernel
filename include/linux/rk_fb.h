@@ -748,9 +748,6 @@ struct rk_lcdc_driver {
 	struct list_head pwrlist_head;
 	struct rk_lcdc_drv_ops *ops;
 	struct rk_fb_trsm_ops *trsm_ops;
-#ifdef CONFIG_DRM_ROCKCHIP
-	void (*irq_call_back)(struct rk_lcdc_driver *driver);
-#endif
 	struct overscan overscan;
 	struct rk_lcdc_bcsh bcsh;
 	int *hwc_lut;
