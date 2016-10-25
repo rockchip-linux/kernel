@@ -1214,7 +1214,7 @@
 					/* mac_rxd1 */
 					<0 GPIO_B6 RK_FUNC_1 &pcfg_pull_none>,
 					/* mac_rxd0 */
-					<0 GPIO_B6 RK_FUNC_1 &pcfg_pull_none>,
+					<0 GPIO_B7 RK_FUNC_1 &pcfg_pull_none>,
 					/* mac_txd1 */
 					<0 GPIO_C0 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
 					/* mac_txd0 */
