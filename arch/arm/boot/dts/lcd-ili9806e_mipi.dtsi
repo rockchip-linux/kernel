@@ -925,7 +925,7 @@
 			screen-type = <SCREEN_MIPI>;
 			/*lvds-format = <LVDS_8BIT_2>;*/
 			out-face    = <OUT_P888>;
-			clock-frequency = <35390050>;
+			clock-frequency = <18562500>;
 			hactive = <480>;
 			vactive = <854>;
 			hsync-len = <8>;
