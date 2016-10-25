@@ -48,5 +48,127 @@
 	fiq-debugger {
 		status = "okay";
 	};
+
+	/* pmic_sleep */
+	gpio_poweroff {
+		compatible = "gpio-poweroff";
+		gpios = <&gpio2 GPIO_D2 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
 };
 
+&i2c1 {
+	rk805: rk805@18 {
+		reg = <0x18>;
+		status = "okay";
+	};
+};
+
+#include "../../../arm/boot/dts/rk805.dtsi"
+&rk805 {
+	gpios = <&gpio2 GPIO_A6 GPIO_ACTIVE_HIGH>, <&gpio2 GPIO_D2 GPIO_ACTIVE_LOW>;
+	rk805,system-power-controller;
+	gpio-controller;
+	#gpio-cells = <2>;
+
+	regulators {
+		rk805_dcdc1_reg: regulator@0 {
+			regulator-name = "vdd_logic";
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+
+		rk805_dcdc2_reg: regulator@1 {
+			regulator-name = "vdd_arm";
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <900000>;
+			};
+		};
+
+		rk805_dcdc3_reg: regulator@2 {
+			regulator-name = "vcc_ddr";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};
+		};
+
+		rk805_dcdc4_reg: regulator@3 {
+			regulator-name = "vcc_io";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk805_ldo1_reg: regulator@4 {
+			regulator-name = "vdd_18";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+		rk805_ldo2_reg: regulator@5 {
+			regulator-name = "vcc_18emmc";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+		rk805_ldo3_reg: regulator@6 {
+			regulator-name = "vdd_10";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+	};
+};
