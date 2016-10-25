@@ -56,6 +56,8 @@
 	#size-cells = <2>;
 
 	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
 		serial2 = &uart_dbg;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
@@ -237,6 +239,38 @@
 		reg = <0x0 0xff100000 0x0 0x1000>;
 	};
 
+	uart0: serial@ff110000 {
+		compatible = "rockchip,serial";
+		reg = <0x0 0xff110000 0x0 0x100>;
+		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
+		clock-frequency = <24000000>;
+		clocks = <&clk_uart0>, <&clk_gates16 11>;
+		clock-names = "sclk_uart", "pclk_uart";
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		dmas = <&pdma 2>, <&pdma 3>;
+		#dma-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart0_xfer &uart0_cts &uart0_rts>;
+		status = "disabled";
+	};
+
+	uart1: serial@ff120000 {
+		compatible = "rockchip,serial";
+		reg = <0x0 0xff120000 0x0 0x100>;
+		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
+		clock-frequency = <24000000>;
+		clocks = <&clk_uart1>, <&clk_gates16 12>;
+		clock-names = "sclk_uart", "pclk_uart";
+		reg-shift = <2>;
+		reg-io-width = <4>;
+		dmas = <&pdma 4>, <&pdma 5>;
+		#dma-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart1_xfer &uart1_cts &uart1_rts>;
+		status = "disabled";
+	};
+
 	uart_dbg: serial@ff130000 {
 		compatible = "rockchip,serial";
 		reg = <0x0 0xff130000 0x0 0x100>;
@@ -246,6 +280,10 @@
 		clock-names = "sclk_uart", "pclk_uart";
 		reg-shift = <2>;
 		reg-io-width = <4>;
+		dmas = <&pdma 6>, <&pdma 7>;
+		#dma-cells = <2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2m1_xfer>;
 		status = "disabled";
 	};
 
