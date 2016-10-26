@@ -60,8 +60,11 @@
 *is not same with isp register after isp reset.
 *2. Support separate config sensor gain and shutter time for some sensor which
 *gain and shutter isn't valid at the same time. Ex. ov2710.
+*
+*v0.1.8:
+*1. Register v4l2 subdev for support subdev api; ex s_frame_interval;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 7)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 8)
 
 #endif

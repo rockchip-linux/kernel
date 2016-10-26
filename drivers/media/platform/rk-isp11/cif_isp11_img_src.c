@@ -173,3 +173,13 @@ const char *cif_isp11_img_src_g_name(
 	return img_src->ops->g_name(img_src->img_src);
 }
 
+void *cif_isp11_img_src_g_img_src(
+	struct cif_isp11_img_src *img_src)
+{
+	if (img_src) {
+		return img_src->img_src;
+	}
+
+	return NULL;
+}
+

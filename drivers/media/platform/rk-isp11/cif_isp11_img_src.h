@@ -79,5 +79,6 @@ long cif_isp11_img_src_ioctl(
 	struct cif_isp11_img_src *img_src,
 	unsigned int cmd,
 	void *arg);
-
+void *cif_isp11_img_src_g_img_src(
+	struct cif_isp11_img_src *img_src);
 #endif

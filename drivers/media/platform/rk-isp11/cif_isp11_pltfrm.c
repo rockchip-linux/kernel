@@ -1428,8 +1428,7 @@ int cif_isp11_pltfrm_get_img_src_device(
 					array_len);
 				break;
 			}
-		} else
-		continue;
+		}
 	}
 
 	return num_cameras;

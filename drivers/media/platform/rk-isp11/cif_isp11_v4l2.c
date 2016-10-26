@@ -436,6 +436,30 @@ err:
 	return ret;
 }
 
+static int cif_isp11_v4l2_register_imgsrc_subdev(
+	struct cif_isp11_device *dev)
+{
+	unsigned int i;
+	struct v4l2_subdev *sd;
+
+	for (i = 0; i < dev->img_src_cnt; i++) {
+		if (dev->img_src_array[i] != NULL) {
+			sd = (struct v4l2_subdev *)
+				cif_isp11_img_src_g_img_src(
+					dev->img_src_array[i]);
+			if (sd) {
+				if (v4l2_device_register_subdev(
+					&dev->v4l2_dev,
+					sd) < 0)
+					cif_isp11_pltfrm_pr_err(dev->dev,
+						"register subdev(%s) failed!",
+						cif_isp11_img_src_g_name(dev->img_src_array[i]));
+			}
+		}
+	}
+
+	return v4l2_device_register_subdev_nodes(&dev->v4l2_dev);
+}
 
 static int cif_isp11_v4l2_streamon(
 	struct file *file,
@@ -1754,6 +1778,9 @@ static int cif_isp11_v4l2_drv_probe(struct platform_device *pdev)
 		&cif_isp11_v4l2_dma_ioctlops);
 	if (ret)
 		goto err;
+
+	cif_isp11_v4l2_register_imgsrc_subdev(
+		dev);
 
 	pm_runtime_enable(&pdev->dev);
 
