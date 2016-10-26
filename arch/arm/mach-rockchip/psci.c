@@ -192,6 +192,14 @@ rockchip_request_share_memory(enum share_page_type_t page_type,
 	return res;
 }
 
+int rockchip_psci_remotectl_config(u32 func, u32 data)
+{
+	struct arm_smccc_res res;
+
+	sip_fn_smc32(PSCI_SIP_REMOTECTL_CFG, func, data, 0, &res);
+	return res.a0;
+}
+
 /*************************** fiq debug *****************************/
 #ifdef CONFIG_ARM64
 static u64 ft_fiq_mem_phy;

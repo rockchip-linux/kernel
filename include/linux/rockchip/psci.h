@@ -34,6 +34,7 @@ struct arm_smccc_res {
 #define PSCI_SIP_DRAM_FREQ_CONFIG	(0x82000008)
 #define PSCI_SIP_SHARE_MEM		(0x82000009)
 #define PSCI_SIP_IMPLEMENT_CALL_VER	(0x8200000a)
+#define PSCI_SIP_REMOTECTL_CFG		(0x8200000b)
 
 /*
  * pcsi smc funciton err code
@@ -58,6 +59,17 @@ struct arm_smccc_res {
 #define UARTDBG_CFG_OSHDL_DEBUG_DISABLE	0xf5
 #define UARTDBG_CFG_SET_SHARE_MEM	0xf6
 #define UARTDBG_CFG_SET_PRINT_PORT	0xf7
+
+/*
+ * define PSCI_SIP_REMOTECTL_CFG call type
+ */
+#define	REMOTECTL_SET_IRQ		0xf0
+#define REMOTECTL_SET_PWM_CH		0xf1
+#define REMOTECTL_SET_PWRKEY		0xf2
+#define REMOTECTL_GET_WAKEUP_STATE	0xf3
+#define REMOTECTL_ENABLE		0xf4
+/* wakeup state */
+#define REMOTECTL_PWRKEY_WAKEUP		0xdeadbeaf
 
 /* Share mem page types */
 enum share_page_type_t {
@@ -86,6 +98,7 @@ int rockchip_secure_reg_write(u32 addr_phy, u32 val);
 struct arm_smccc_res
 rockchip_request_share_memory(enum share_page_type_t page_type,
 			      u32 page_nums);
+int rockchip_psci_remotectl_config(u32 func, u32 data);
 
 #ifdef CONFIG_ARM64
 int rockchip_psci_smc_write64(u64 function_id, u64 arg0, u64 arg1, u64 arg2);
@@ -121,6 +134,8 @@ static inline u32 rockchip_psci_smc_write(u32 function_id, u32 arg0,
 }
 
 static inline u32 rockchip_psci_smc_get_tf_ver(void) { return 0; }
+static inline int
+rockchip_psci_remotectl_config(u32 func, u32 data) { return 0; }
 static inline int rockchip_psci_smc_set_suspend_mode(u32 mode) { return 0; }
 static inline u32 rockchip_secure_reg_read(u32 addr_phy) { return 0; }
 static inline int rockchip_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
