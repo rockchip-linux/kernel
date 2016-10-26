@@ -36,8 +36,11 @@
 #define DSP_FIRMWARE_NAME    "rkdsp.bin"
 #define DSP_CMP_OFFSET       0x400000
 
-#define DSP_GRF_CON0         0x0000
-#define DSP_GLOBAL_RSTN_REQ  BIT(13)
+#define DSP_GRF_CON0                0x0000
+#	define DSP_GLOBAL_RSTN_REQ  BIT(13)
+#define DSP_GRF_STAT1               0x0024
+#	define DSP_PSU_CORE_IDLE    BIT(5)
+#	define DSP_PSU_DSP_IDLE     BIT(4)
 
 #define DSP_DEV_SESSION      0
 
@@ -49,6 +52,44 @@ static void dsp_set_div_clk(struct clk *clock, int divide)
 	unsigned long rate = clk_get_rate(parent);
 
 	clk_set_rate(clock, (rate / divide) + 1);
+}
+
+static void dsp_dev_clk_enable(struct dsp_dev *dev)
+{
+
+	if (dev->dsp_dvfs_node) {
+		clk_enable_dvfs(dev->dsp_dvfs_node);
+		dvfs_clk_prepare_enable(dev->dsp_dvfs_node);
+	} else {
+		clk_prepare_enable(dev->clk_dsp);
+	}
+
+	clk_prepare_enable(dev->clk_dsp_free);
+	clk_prepare_enable(dev->clk_iop);
+	clk_prepare_enable(dev->clk_epp);
+	clk_prepare_enable(dev->clk_edp);
+	clk_prepare_enable(dev->clk_edap);
+
+	dsp_set_div_clk(dev->clk_iop, 4);
+	dsp_set_div_clk(dev->clk_epp, 2);
+	dsp_set_div_clk(dev->clk_edp, 2);
+	dsp_set_div_clk(dev->clk_edap, 2);
+}
+
+static void dsp_dev_clk_disable(struct dsp_dev *dev)
+{
+	clk_disable_unprepare(dev->clk_dsp_free);
+	clk_disable_unprepare(dev->clk_iop);
+	clk_disable_unprepare(dev->clk_epp);
+	clk_disable_unprepare(dev->clk_edp);
+	clk_disable_unprepare(dev->clk_edap);
+
+	if (dev->dsp_dvfs_node) {
+		dvfs_clk_disable_unprepare(dev->dsp_dvfs_node);
+		clk_disable_dvfs(dev->dsp_dvfs_node);
+	} else {
+		clk_disable_unprepare(dev->clk_dsp);
+	}
 }
 
 static void dsp_grf_global_reset_assert(struct dsp_dev *dev)
@@ -106,6 +147,8 @@ static int dsp_dev_work_done(struct dsp_dev *dev, struct dsp_work *work)
 		dsp_debug(DEBUG_DEVICE, "request DSP rate=%d\n", work->rate);
 	}
 
+	dev->suspend(dev);
+
 	/* We should not cancel work in timeout callback */
 	if (work->result != DSP_WORK_ETIMEOUT)
 		cancel_delayed_work_sync(&dev->guard_work);
@@ -125,6 +168,8 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 	dsp_debug_enter();
 
 	mutex_lock(&dev->lock);
+
+	dev->resume(dev);
 
 	if (dev->dsp_dvfs_node)
 		work->rate = dvfs_clk_get_rate(dev->dsp_dvfs_node);
@@ -170,7 +215,7 @@ static void dsp_dev_work_timeout(struct work_struct *work)
 	 */
 	rockchip_pmu_ops.set_idle_request(IDLE_REQ_DSP, true);
 	reset_control_assert(dev->core_rst);
-	usleep_range(100, 200);
+	udelay(1);
 	rockchip_pmu_ops.set_idle_request(IDLE_REQ_DSP, false);
 	reset_control_deassert(dev->core_rst);
 
@@ -296,13 +341,30 @@ out:
 
 static int dsp_dev_suspend(struct dsp_dev *dev)
 {
+	u32 status = 0;
 	int ret = 0;
 
 	dsp_debug_enter();
-	/* TODO wait DSP idle and config DSP enter sleep mode */
-	dev->status = DSP_SLEEP;
-	dsp_debug_leave();
 
+	if (dev->status != DSP_ON)
+		goto out;
+
+	/*
+	 * Only if DSP is in standby mode, we can disable DSP external clock.
+	 * After that DSP is in DSP_SLEEP status.
+	 */
+	status = readl_relaxed(dev->dsp_grf + DSP_GRF_STAT1);
+	if (status & DSP_PSU_DSP_IDLE) {
+		dsp_debug(DEBUG_DEVICE, "Disbale DSP clk when standby\n");
+		dsp_dev_clk_disable(dev);
+		dev->status = DSP_SLEEP;
+	} else {
+		dsp_err("DSP is working, cannot enter suspend status\n");
+		ret = -EFAULT;
+	}
+
+out:
+	dsp_debug_leave();
 	return ret;
 }
 
@@ -311,10 +373,17 @@ static int dsp_dev_resume(struct dsp_dev *dev)
 	int ret = 0;
 
 	dsp_debug_enter();
-	/* TODO config DSP enter work state */
-	dev->status = DSP_ON;
-	dsp_debug_leave();
 
+	if (dev->status != DSP_SLEEP)
+		goto out;
+
+	/* Restore DSP external clock when DSP is in standby mode */
+	dsp_debug(DEBUG_DEVICE, "Enable DSP clk when standby\n");
+	dsp_dev_clk_enable(dev);
+	dev->status = DSP_ON;
+
+out:
+	dsp_debug_leave();
 	return ret;
 }
 
@@ -322,36 +391,20 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 {
 	int ret = 0;
 
-	if (!(dev->status == DSP_OFF))
-		return ret;
-
 	dsp_debug_enter();
 
-	if (dev->dsp_dvfs_node) {
-		clk_enable_dvfs(dev->dsp_dvfs_node);
-		dvfs_clk_prepare_enable(dev->dsp_dvfs_node);
-	} else {
-		clk_prepare_enable(dev->clk_dsp);
-	}
+	if (!(dev->status == DSP_OFF))
+		goto out;
 
-	clk_prepare_enable(dev->clk_dsp_free);
-	clk_prepare_enable(dev->clk_iop);
-	clk_prepare_enable(dev->clk_epp);
-	clk_prepare_enable(dev->clk_edp);
-	clk_prepare_enable(dev->clk_edap);
-
-	dsp_set_div_clk(dev->clk_iop, 4);
-	dsp_set_div_clk(dev->clk_epp, 2);
-	dsp_set_div_clk(dev->clk_edp, 2);
-	dsp_set_div_clk(dev->clk_edap, 2);
-	usleep_range(200, 500);
+	dsp_dev_clk_enable(dev);
+	udelay(1);
 
 	dsp_grf_global_reset_deassert(dev);
 
 	reset_control_deassert(dev->sys_rst);
 	reset_control_deassert(dev->global_rst);
 	reset_control_deassert(dev->oecm_rst);
-	usleep_range(500, 1000);
+	udelay(1);
 
 	ret = dev->loader->load_image(dev->loader, "MAIN");
 	if (ret) {
@@ -376,10 +429,13 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 {
 	int ret = 0;
 
-	if (dev->status == DSP_OFF)
-		return ret;
-
 	dsp_debug_enter();
+
+	if (dev->status == DSP_OFF)
+		goto out;
+
+	dev->resume(dev);
+
 	dsp_dev_trace(dev, dev->trace_index + DSP_TRACE_SLOT_COUNT);
 
 	reset_control_assert(dev->core_rst);
@@ -388,22 +444,10 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 	reset_control_assert(dev->oecm_rst);
 
 	dsp_grf_global_reset_assert(dev);
-
-	clk_disable_unprepare(dev->clk_dsp_free);
-	clk_disable_unprepare(dev->clk_iop);
-	clk_disable_unprepare(dev->clk_epp);
-	clk_disable_unprepare(dev->clk_edp);
-	clk_disable_unprepare(dev->clk_edap);
-
-	if (dev->dsp_dvfs_node) {
-		dvfs_clk_disable_unprepare(dev->dsp_dvfs_node);
-		clk_disable_dvfs(dev->dsp_dvfs_node);
-	} else {
-		clk_disable_unprepare(dev->clk_dsp);
-	}
+	dsp_dev_clk_disable(dev);
 
 	dev->status = DSP_OFF;
-
+out:
 	dsp_debug_leave();
 	return ret;
 }
