@@ -4173,7 +4173,7 @@ static void hmp_attr_add(
 static int hmp_attr_init(void)
 {
 	int ret;
-	memset(&hmp_data, sizeof(hmp_data), 0);
+	memset(&hmp_data, 0, sizeof(hmp_data));
 	hmp_attr_add("hmp_domains",
 		NULL,
 		NULL,
