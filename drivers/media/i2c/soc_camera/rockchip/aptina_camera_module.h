@@ -147,6 +147,8 @@ struct aptina_camera_module_custom_config {
 	int (*g_ctrl)(struct aptina_camera_module *cam_mod, u32 ctrl_id);
 	int (*g_timings)(struct aptina_camera_module *cam_mod,
 		struct aptina_camera_module_timings *timings);
+	int (*s_vts)(struct aptina_camera_module *cam_mod,
+		u32 vts);
 	int (*s_ext_ctrls)(struct aptina_camera_module *cam_mod,
 		struct aptina_camera_module_ext_ctrls *ctrls);
 	int (*set_flip)(struct aptina_camera_module *cam_mod);

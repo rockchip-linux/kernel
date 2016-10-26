@@ -18,6 +18,8 @@
  *2. Support config sensor gain and shutter time in 	imx_camera_module_custom_config.exposure_valid_frame;
  *v0.1.1:
  *1. v_blanking time 3us -> 5ms;
+ *v0.1.2:
+ *1. Support v4l2 subdev api for s_frame_interval;
  */
 
 #include <linux/i2c.h>
@@ -178,18 +180,20 @@ static int imx323_auto_adjust_fps(struct imx_camera_module *cam_mod,
 	int ret;
 	u32 vts;
 
-	if ((cam_mod->exp_config.exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN)
+	if ((exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN)
 		> cam_mod->vts_min)
-		vts = cam_mod->exp_config.exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN;
+		vts =exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN;
 	else
 		vts = cam_mod->vts_min;
 	ret = imx_camera_module_write_reg(cam_mod, IMX323_TIMING_VTS_LOW_REG, vts & 0xFF);
 	ret |= imx_camera_module_write_reg(cam_mod, IMX323_TIMING_VTS_HIGH_REG, (vts >> 8) & 0xFF);
 
-	if (IS_ERR_VALUE(ret))
+	if (IS_ERR_VALUE(ret)) {
 		imx_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
-	else
+	} else {
 		imx_camera_module_pr_debug(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
 
 	return ret;
 }
@@ -586,6 +590,7 @@ static struct imx_camera_module_custom_config imx323_custom_config = {
 	.g_timings = imx323_g_timings,
 	.check_camera_id = imx323_check_camera_id,
 	.set_flip = imx323_set_flip,
+	.s_vts = imx323_auto_adjust_fps,
 	.configs = imx323_configs,
 	.num_configs = sizeof(imx323_configs) / sizeof(imx323_configs[0]),
 	.power_up_delays_ms = {5, 20, 0},
@@ -605,6 +610,7 @@ static int imx323_probe(
 
 	imx323_filltimings(&imx323_custom_config);
 	v4l2_i2c_subdev_init(&imx323.sd, client, &imx323_camera_module_ops);
+	imx323.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	imx323.custom = imx323_custom_config;
 
 	dev_info(&client->dev, "probing successful\n");

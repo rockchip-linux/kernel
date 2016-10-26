@@ -152,7 +152,8 @@ struct ov_camera_module_custom_config {
 	int (*g_ctrl)(struct ov_camera_module *cam_mod, u32 ctrl_id);
 	int (*g_timings)(struct ov_camera_module *cam_mod,
 		struct ov_camera_module_timings *timings);
-	int (*g_exposure_valid_frame)(struct ov_camera_module *cam_mod);
+	int (*s_vts)(struct ov_camera_module *cam_mod,
+		u32 vts);
 	int (*s_ext_ctrls)(struct ov_camera_module *cam_mod,
 		struct ov_camera_module_ext_ctrls *ctrls);
 	int (*set_flip)(

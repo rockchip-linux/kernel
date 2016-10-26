@@ -148,10 +148,11 @@ struct imx_camera_module_custom_config {
 	int (*g_ctrl)(struct imx_camera_module *cam_mod, u32 ctrl_id);
 	int (*g_timings)(struct imx_camera_module *cam_mod,
 		struct imx_camera_module_timings *timings);
-	int (*g_exposure_valid_frame)(struct imx_camera_module *cam_mod);
+	int (*s_vts)(struct imx_camera_module *cam_mod,
+		u32 vts);
 	int (*s_ext_ctrls)(struct imx_camera_module *cam_mod,
 		struct imx_camera_module_ext_ctrls *ctrls);
-	int (*set_flip)(struct imx_camera_module *cam_mod);
+	int (*set_flip)(struct imx_camera_module *cam_mod);	
 	int (*init_common)(struct imx_camera_module *cam_mod);
 	struct imx_camera_module_config *configs;
 	u32 num_configs;

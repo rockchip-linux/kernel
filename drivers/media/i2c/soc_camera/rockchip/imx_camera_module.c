@@ -318,6 +318,8 @@ int imx_camera_module_s_frame_interval(
 	struct imx_camera_module *cam_mod = to_imx_camera_module(sd);
 	unsigned long gcdiv;
 	struct v4l2_subdev_frame_interval norm_interval;
+	struct imx_camera_module_config *config;
+	unsigned int vts;
 	int ret = 0;
 
 	if ((0 == interval->interval.denominator) ||
@@ -344,22 +346,32 @@ int imx_camera_module_s_frame_interval(
 	norm_interval.interval.denominator =
 		interval->interval.denominator / gcdiv;
 
-	if (IS_ERR_OR_NULL(imx_camera_module_find_config(cam_mod,
-			NULL, &norm_interval))) {
-		pltfrm_camera_module_pr_err(&cam_mod->sd,
-			"frame interval %d/%d not supported\n",
-			interval->interval.numerator,
-			interval->interval.denominator);
-		ret = -EINVAL;
-		goto err;
+	config = imx_camera_module_find_config(cam_mod,
+			NULL, &norm_interval);
+
+	if (IS_ERR_OR_NULL(config)) {
+		if (cam_mod->state != IMX_CAMERA_MODULE_STREAMING)
+			goto end;
+
+		if (!cam_mod->custom.s_vts)
+			goto err;
+
+		if (norm_interval.interval.denominator >
+			cam_mod->active_config->frm_intrvl.interval.denominator)
+			goto err;
+
+		vts = cam_mod->active_config->timings.frame_length_lines;
+		vts *= cam_mod->active_config->frm_intrvl.interval.denominator/
+			norm_interval.interval.denominator;
+		cam_mod->custom.s_vts(cam_mod, vts);
+	} else {		
+		imx_camera_module_set_active_config(cam_mod, config);
 	}
+
+end:
 	cam_mod->frm_intrvl_valid = true;
 	cam_mod->frm_intrvl = norm_interval;
-	if (cam_mod->frm_fmt_valid) {
-		imx_camera_module_set_active_config(cam_mod,
-			imx_camera_module_find_config(cam_mod,
-				&cam_mod->frm_fmt, interval));
-	}
+	cam_mod->auto_adjust_fps = false;
 	return 0;
 err:
 	pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -373,6 +385,7 @@ int imx_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	int ret = 0;
 	struct imx_camera_module *cam_mod =  to_imx_camera_module(sd);
+	unsigned int vts;
 
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "%d\n", enable);
 
@@ -400,12 +413,36 @@ int imx_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 		ret = cam_mod->custom.start_streaming(cam_mod);
 		if (IS_ERR_VALUE(ret))
 			goto err;
+
+		if (cam_mod->frm_intrvl_valid) {
+			if ((cam_mod->frm_intrvl.interval.numerator !=
+				cam_mod->active_config->frm_intrvl.interval.numerator) ||
+				(cam_mod->frm_intrvl.interval.denominator !=
+				cam_mod->active_config->frm_intrvl.interval.denominator)) {
+				if (cam_mod->frm_intrvl.interval.denominator >
+					cam_mod->active_config->frm_intrvl.interval.denominator) {
+					pltfrm_camera_module_pr_warn(&cam_mod->sd,
+						"sensor is not support stream: %dx%d@(%d/%d)fps!\n",
+						cam_mod->active_config->frm_fmt.width,
+						cam_mod->active_config->frm_fmt.height,
+						cam_mod->frm_intrvl.interval.denominator,
+						cam_mod->frm_intrvl.interval.numerator);
+					goto end;
+				}
+				vts = cam_mod->active_config->timings.frame_length_lines;
+				vts *= cam_mod->active_config->frm_intrvl.interval.denominator/
+					cam_mod->frm_intrvl.interval.denominator;
+				cam_mod->custom.s_vts(cam_mod, vts);
+			}
+		}
+
 		if (!cam_mod->inited && cam_mod->update_config)
 			cam_mod->inited = true;
 		cam_mod->update_config = false;
 		cam_mod->ctrl_updt = 0;
 		mdelay(cam_mod->custom.power_up_delays_ms[2]);
 		cam_mod->state = IMX_CAMERA_MODULE_STREAMING;
+
 	} else {
 		int pclk;
 		int wait_ms;
@@ -441,7 +478,7 @@ int imx_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 
 		msleep(wait_ms + 1);
 	}
-
+end:
 	cam_mod->state_before_suspend = cam_mod->state;
 
 	return 0;

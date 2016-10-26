@@ -3052,11 +3052,16 @@ static struct ov_camera_module_custom_config ov8858_custom_config = {
 	.g_ctrl = ov8858_g_ctrl,
 	.g_timings = ov8858_g_timings,
 	.check_camera_id = ov8858_check_camera_id,
-	.g_exposure_valid_frame = ov8858_g_exposure_valid_frame,
 	.read_otp = ov8858_otp_read,
 	.configs = ov8858_configs,
 	.num_configs = sizeof(ov8858_configs) / sizeof(ov8858_configs[0]),
-	.power_up_delays_ms = {5, 20, 0}
+	.power_up_delays_ms = {5, 20, 0},
+	/*
+	*0: Exposure time valid fileds;
+	*1: Exposure gain valid fileds;
+	*(2 fileds == 1 frames)
+	*/
+	.exposure_valid_frame = {4, 4}
 };
 
 static int ov8858_probe(

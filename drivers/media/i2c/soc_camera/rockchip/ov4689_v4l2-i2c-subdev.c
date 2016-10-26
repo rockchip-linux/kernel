@@ -16,6 +16,9 @@
  *v0.1.0:
  *1. Initialize version;
  *2. Support config sensor gain and shutter time in 	ov_camera_module_custom_config.exposure_valid_frame;
+ *
+ *v0.1.1:
+ *1. Support v4l2 subdev api for s_frame_interval;
  */
 
 #include <linux/i2c.h>
@@ -414,18 +417,21 @@ static int ov4689_auto_adjust_fps(struct ov_camera_module *cam_mod,
 	int ret;
 	u32 vts;
 
-	if ((cam_mod->exp_config.exp_time + ov4689_COARSE_INTG_TIME_MAX_MARGIN)
+	if ((exp_time + ov4689_COARSE_INTG_TIME_MAX_MARGIN)
 		> cam_mod->vts_min)
-		vts = cam_mod->exp_config.exp_time + ov4689_COARSE_INTG_TIME_MAX_MARGIN;
+		vts = exp_time + ov4689_COARSE_INTG_TIME_MAX_MARGIN;
 	else
 		vts = cam_mod->vts_min;
+
 	ret = ov_camera_module_write_reg(cam_mod, ov4689_TIMING_VTS_LOW_REG, vts & 0xFF);
 	ret |= ov_camera_module_write_reg(cam_mod, ov4689_TIMING_VTS_HIGH_REG, (vts >> 8) & 0xFF);
 
-	if (IS_ERR_VALUE(ret))
+	if (IS_ERR_VALUE(ret)) {
 		ov_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);
-	else
+	} else {
 		ov_camera_module_pr_debug(cam_mod, "updated vts = %d,vts_min=%d\n", vts, cam_mod->vts_min);
+		cam_mod->vts_cur = vts;
+	}
 
 	return ret;
 }
@@ -858,6 +864,7 @@ static struct ov_camera_module_custom_config ov4689_custom_config = {
 	.g_timings = ov4689_g_timings,
 	.check_camera_id = ov4689_check_camera_id,
 	.set_flip = ov4689_set_flip,
+	.s_vts = ov4689_auto_adjust_fps,
 	.configs = ov4689_configs,
 	.num_configs = sizeof(ov4689_configs) / sizeof(ov4689_configs[0]),
 	.power_up_delays_ms = {5, 20, 0},
@@ -877,7 +884,7 @@ static int ov4689_probe(
 
 	ov4689_filltimings(&ov4689_custom_config);
 	v4l2_i2c_subdev_init(&ov4689.sd, client, &ov4689_camera_module_ops);
-
+	ov4689.sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov4689.custom = ov4689_custom_config;
 
 	dev_info(&client->dev, "probing successful\n");
