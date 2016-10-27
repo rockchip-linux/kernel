@@ -158,7 +158,6 @@ int camsys_mipiphy_probe_cb(struct platform_device *pdev, camsys_dev_t *camsys_d
             }
         }
 
-        memset(str,sizeof(str),0x00);
         sprintf(str,"hclk_mipiphy%d",i);
 
         clk = devm_clk_get(&pdev->dev, str);

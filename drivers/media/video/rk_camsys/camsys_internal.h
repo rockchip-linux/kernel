@@ -125,8 +125,10 @@
          1) rk3368 camera: hold vio0 noc clock during the camera work, fixed isp iommu stall failed.
 *v0.0x21.0:
          1) add isp-dvp-d4d11 iomux support.
+*v0.0x22.0:
+         1) remove memset function wrong called code.
 */
-#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0,0x21,0)
+#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0,0x22,0)
 
 
 #define CAMSYS_PLATFORM_DRV_NAME                "RockChip-CamSys"
