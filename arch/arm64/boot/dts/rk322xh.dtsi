@@ -455,6 +455,13 @@
 		reg = <0x0 0xff440000 0x0 0x1000>;
 	};
 
+	reset: reset@ff440300 {
+		compatible = "rockchip,reset";
+		reg = <0x0 0xff440300 0x0 0x38>;
+		rockchip,reset-flag = <ROCKCHIP_RESET_HIWORD_MASK>;
+		#reset-cells = <1>;
+	};
+
 	msch: syscon@ff720000 {
 		compatible = "rockchip,rk322xh-msch", "rockchip,msch", "syscon";
 		reg = <0x0 0xff720000 0x0 0x3000>;
