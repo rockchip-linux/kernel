@@ -200,6 +200,10 @@
 	status = "okay";
 };
 
+&watchdog {
+	status = "okay";
+};
+
 &adc {
 	status = "okay";
 

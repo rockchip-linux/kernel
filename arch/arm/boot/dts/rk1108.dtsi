@@ -488,9 +488,9 @@
 		clocks = <&clk_gates13 3>;
 		clock-names = "pclk_wdt";
 		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
-		rockchip,irq = <1>;
+		rockchip,irq = <0>;
 		rockchip,timeout = <60>;
-		rockchip,atboot = <1>;
+		rockchip,atboot = <0>;
 		rockchip,debug = <0>;
 		status = "disabled";
 	};
