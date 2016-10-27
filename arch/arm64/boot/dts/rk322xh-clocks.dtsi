@@ -2937,8 +2937,8 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0268 0x4>;
 					clocks =
-					<&aclk_gmac>,	<&aclk_gmac>,
-					<&pclk_gmac>,	<&pclk_gmac>,
+					<&aclk_gmac>,	<&pclk_gmac>,
+					<&aclk_gmac>,	<&pclk_gmac>,
 
 					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>,
@@ -2950,8 +2950,8 @@
 					<&dummy>,	<&dummy>;
 
 					clock-output-names =
-					"aclk_gmac2phy",	"aclk_gmac2io",
-					"pclk_gmac2phy",	"pclk_gmac2io",
+					"aclk_gmac2phy",	"pclk_gmac2phy",
+					"aclk_gmac2io",	"pclk_gmac2io",
 
 					"aclk_gmac_niu",	"pclk_gmac_niu",
 					"reserved",	"reserved",
