@@ -1,0 +1,52 @@
+* Rockchip Video Decoder (RKVDEC)
+
+Rockchip Video Decoder (RKVDEC) is the IP present in Rockchip SoCs which
+supports high resolution decoding functionalities.
+The RKVDEC device driver which can decode video h.264, h.265 elementary streams,
+vp9 ivf to nv12 yuv data.
+
+Required properties:
+  - compatible : value should be either one among the following
+	(a) "rockchip,rkvdec" for a common version present in Rockchip SoCs
+	(b) "rockchip,rk322xh-rkvdec" for the rkvdec present in rk322xh SoC
+
+  - reg : Physical base address of the IP registers and length of memory
+	  mapped region.
+
+  - interrupts : RKVENC interrupt number to the CPU.
+
+  - clocks : RKVENC clock source.
+
+Optional properties:
+
+  - resets : The reset controller to reset the ip.
+
+  - rockchip,grf : general register set, used to configure the general feature
+		   in the Rockchip SoCs.
+
+Example:
+SoC specific DT entry:
+
+rkvdec: rkvdec@ff360000 {
+	compatible = "rockchip,rk322xh-rkvdec", "rockchip,rkvdec";
+	rockchip,grf = <&grf>;
+	iommu_enabled = <1>;
+	reg = <0x0 0x36000000 0x0 0x400>;
+	interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&aclk_rkvdec>, <&clk_gates11 0>, <&clk_vdec_cabac>,
+		<&clk_vdec_core>;
+	clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac",
+		"clk_core";
+	resets = <&reset RK322XH_SRST_VDEC_H>,
+		<&reset RK322XH_SRST_VDEC_A>;
+	reset-names = "video_h", "video_a";
+	name = "rkvdec";
+	status = "disabled";
+};
+
+Board specific DT entry:
+
+rkvdec {
+	status = "okay";
+};
+

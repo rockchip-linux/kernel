@@ -1,0 +1,62 @@
+* Rockchip Video Encode Process Unit (VEPU)
+
+Rockchip Video Encode Process Unit (VEPU) is the IP present in Rockchip SoCs
+which supports encoding functionalities.
+The VEPU device driver base on Media Process Platform (MPP) which can encode
+video raw sequences to h.264 elementary streams, vp8 ivf, and jpeg.
+
+Required properties:
+  - compatible : value should be either one among the following
+	(a) "rockchip,vepu" for a common version present in Rockchip SoCs
+	(b) "rockchip,rk322xh-vepu" for the vepu present in rk322xh SoC
+
+  - reg : Physical base address of the IP registers and length of memory
+	  mapped region.
+
+  - interrupts : RKVENC interrupt number to the CPU.
+
+  - clocks : RKVENC clock source.
+
+Optional properties:
+
+  - resets : The reset controller to reset the ip.
+
+  - rockchip,grf : general register set, used to configure the general feature
+		   in the Rockchip SoCs.
+
+  - mode_bit : control bit in grf control register
+
+  - mode_ctrl : control register in grf, which used to switch working ip using
+		the same service.
+
+Example:
+SoC specific DT entry:
+
+venc_srv: venc_srv {
+	compatible = "rockchip,mpp_service";
+};
+
+rkvenc: rkvenc@ff34000000 {
+	compatible = "rockchip,rk322xh-vepu", "rockchip,vepu";
+	rockchip,grf = <&grf>;
+	iommu_enabled = <1>;
+	reg = <0x0 0xff340000 0x0 0x400>;
+	interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
+	clocks = <&aclk_rkvenc>, <&hclk_rkvenc>;
+	clock-names = "aclk_vcodec", "hclk_vcodec";
+	resets = <&reset RK322XH_SRST_H264_H>,
+		<&reset RK322XH_SRST_H264_A>;
+	reset-names = "video_h", "video_a";
+	rockchip,srv = <&venc_srv>;
+	mode_bit = <11>;
+	mode_ctrl = <0x40c>;
+	name = "vepu";
+	status = "disabled";
+};
+
+Board specific DT entry:
+
+vepu {
+	status = "okay";
+};
+
