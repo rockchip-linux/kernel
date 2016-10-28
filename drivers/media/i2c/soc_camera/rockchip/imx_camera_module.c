@@ -280,6 +280,10 @@ int imx_camera_module_s_fmt(struct v4l2_subdev *sd,
 		imx_camera_module_set_active_config(cam_mod,
 			imx_camera_module_find_config(cam_mod,
 				fmt, &cam_mod->frm_intrvl));
+	} else {
+		imx_camera_module_set_active_config(cam_mod,
+			imx_camera_module_find_config(cam_mod,
+				fmt, NULL));
 	}
 	return 0;
 err:
