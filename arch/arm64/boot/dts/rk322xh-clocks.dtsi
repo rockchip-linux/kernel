@@ -214,7 +214,7 @@
 				clk_npll: pll-clk@00a0 {
 					compatible = "rockchip,rk3188-pll-clk";
 					reg = <0x00a0 0x10>;
-					mode-reg = <0x80 15>;
+					mode-reg = <0x80 1>;
 					status-reg = <0xa4 10>;
 					clocks = <&xin24m>;
 					clock-output-names = "clk_npll";
