@@ -234,6 +234,16 @@
 			<&clk_gates7 2>; /* clk_jtag */
 	};
 
+	crypto: crypto@ff060000{
+		compatible = "rockchip-crypto";
+		reg = <0x0 0xff060000 0x0 0x10000>;
+		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_crypto";
+		clocks = <&clk_crypto>, <&clk_gates15 8>, <&clk_gates15 7>;
+		clock-names = "clk_crypto", "hclk_crypto", "aclk_crypto";
+		status = "disabled";
+	};
+
 	sram: sram@ff090000 {
 		compatible = "mmio-sram";
 		reg = <0x0 0xff090000 0x0 0x9000>; /* 36KB */
