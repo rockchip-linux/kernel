@@ -32,6 +32,16 @@
 #endif
 #endif
 
+struct efuse_info {
+	u32 flag;
+	u32 len;
+	u32 reserved[6];
+	char data[];
+};
+
+#define EFUSE_INFO_ADDRESS	(0x10f000)
+#define EFUSE_VALID_FLAG	(0x524f434b) /* ROCK */
+
 #define FRAC_BITS 10
 #define int_to_frac(x) ((x) << FRAC_BITS)
 #define frac_to_int(x) ((x) >> FRAC_BITS)
@@ -184,6 +194,26 @@ static u32 efuse_readl(u32 offset)
 static void efuse_writel(u32 val, u32 offset)
 {
 	secure_regs_wr_32(efuse_phys + offset, val);
+}
+
+static int __init rockchip_copy_efuse(void)
+{
+	struct efuse_info __iomem *efuse_info;
+	u32 length = sizeof(efuse_buf);
+
+	efuse_info = ioremap(EFUSE_INFO_ADDRESS, SZ_4K);
+	if (!IS_ERR_OR_NULL(efuse_info)) {
+		if (efuse_info->flag == EFUSE_VALID_FLAG) {
+			length = min(length, efuse_info->len);
+			memcpy(efuse_buf, efuse_info->data, length);
+			iounmap(efuse_info);
+			return 0;
+		}
+		iounmap(efuse_info);
+		return -EINVAL;
+	}
+
+	return -ENOMEM;
 }
 #endif
 
@@ -470,6 +500,19 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 {
 	struct resource *regs;
 
+	if (of_device_is_compatible(pdev->dev.of_node,
+				    "rockchip,rk322xh-efuse-256")) {
+		rockchip_copy_efuse();
+
+		efuse.get_leakage = rk3288_get_leakage;
+		efuse.efuse_version = rk3288_get_efuse_version();
+		efuse.process_version = rk3288_get_process_version();
+		rockchip_set_cpu_version((efuse_buf[6] >> 4) & 3);
+		rk3288_set_system_serial();
+
+		return 0;
+	}
+
 	regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!regs) {
 		dev_err(&pdev->dev, "failed to get I/O memory\n");
@@ -483,6 +526,7 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 
 static const struct of_device_id rockchip_efuse_of_match[] = {
 	{ .compatible = "rockchip,rk3368-efuse-256", .data = NULL, },
+	{ .compatible = "rockchip,rk322xh-efuse-256", .data = NULL, },
 	{},
 };
 
