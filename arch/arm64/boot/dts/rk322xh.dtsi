@@ -514,6 +514,49 @@
 		#reset-cells = <1>;
 	};
 
+	gmac2io: eth@ff540000 {
+		compatible = "rockchip,rk322xh-gmac","rockchip,rk322x-gmac";
+		reg = <0x0 0xff540000 0x0 0x10000>;
+		rockchip,cru = <&cru>;
+		rockchip,grf = <&grf>;
+		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "macirq";
+		clocks = <&clk_mac2io>, <&clk_gates9 4>,
+			<&clk_gates9 5>, <&clk_gates9 7>,
+			<&clk_gates9 6>, <&clk_gates26 2>,
+			<&clk_gates26 3>;
+		clock-names = "clk_mac", "mac_clk_rx",
+			"mac_clk_tx", "clk_mac_ref",
+			"clk_mac_refout", "aclk_mac",
+			"pclk_mac";
+		phy-mode = "rgmii";
+		pinctrl-names = "default";
+		pinctrl-0 = <&rgmiim1_pins>;
+		status = "disabled";
+	};
+
+	gmac2phy: eth@ff550000 {
+		compatible = "rockchip,rk322xh-gmac","rockchip,rk322x-gmac";
+		reg = <0x0 0xff550000 0x0 0x10000>;
+		rockchip,cru = <&cru>;
+		rockchip,grf = <&grf>;
+		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "macirq";
+		clocks = <&clk_mac2phy>, <&clk_gates9 1>,
+			<&clk_gates9 1>, <&clk_gates9 3>,
+			<&clk_gates9 2>, <&clk_gates26 0>,
+			<&clk_gates26 1>;
+		clock-names = "clk_mac", "mac_clk_rx",
+			"mac_clk_tx", "clk_mac_ref",
+			"clk_macphy", "aclk_mac",
+			"pclk_mac";
+		phy-mode = "rmii";
+		phy-type = "internal";
+		pinctrl-names = "default";
+		pinctrl-0 = <&fephyled_rxm1 &fephyled_linkm1>;
+		status = "disabled";
+	};
+
 	msch: syscon@ff720000 {
 		compatible = "rockchip,rk322xh-msch", "rockchip,msch", "syscon";
 		reg = <0x0 0xff720000 0x0 0x3000>;
