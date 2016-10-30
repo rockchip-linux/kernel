@@ -76,6 +76,9 @@ static int pmu_set_power_domain(int pd, bool on)
 	struct reset_control *rstc = rockchip_get_core_reset(pd);
 	int ret;
 
+	if (pd == 3)
+		return 0;
+
 	if (IS_ERR(rstc) && read_cpuid_part() != ARM_CPU_PART_CORTEX_A9) {
 		pr_err("%s: could not get reset control for core %d\n",
 		       __func__, pd);
@@ -125,6 +128,8 @@ static int pmu_set_power_domain(int pd, bool on)
 static int rockchip_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	int ret;
+
+	BUG_ON(cpu == 3);
 
 	if (!sram_base_addr || (has_pmu && !pmu)) {
 		pr_err("%s: sram or pmu missing for cpu boot\n", __func__);
