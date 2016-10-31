@@ -118,6 +118,7 @@ struct rk312x_codec_priv {
 	struct switch_dev sdev;
 	struct work_struct work;
 	struct delayed_work init_delayed_work;
+	struct delayed_work mute_delayed_work;
 	struct delayed_work hpdet_work;
 };
 static struct rk312x_codec_priv *rk312x_priv;
@@ -1705,9 +1706,7 @@ static int rk312x_digital_mute(struct snd_soc_dai *dai, int mute)
 		rk312x_codec_ctl_gpio(CODEC_SET_HP, !rk312x_priv->hp_active_level);
 	} else {
 		if (!rk312x_priv->rk312x_for_mid) {
-			INIT_DELAYED_WORK(&rk312x_priv->init_delayed_work,
-					  rk312x_codec_unpop);
-			schedule_delayed_work(&rk312x_priv->init_delayed_work,
+			schedule_delayed_work(&rk312x_priv->mute_delayed_work,
 				msecs_to_jiffies(rk312x_priv->spk_mute_delay));
 		} else {
 			switch (rk312x_priv->playback_path) {
@@ -2362,6 +2361,7 @@ static int rk312x_probe(struct snd_soc_codec *codec)
 	snd_soc_add_codec_controls(codec, rk312x_snd_path_controls,
 				   ARRAY_SIZE(rk312x_snd_path_controls));
 	INIT_DELAYED_WORK(&rk312x_priv->init_delayed_work, rk312x_delay_workq);
+	INIT_DELAYED_WORK(&rk312x_priv->mute_delayed_work, rk312x_codec_unpop);
 	INIT_DELAYED_WORK(&rk312x_priv->hpdet_work, hpdet_work_func);
 
 	schedule_delayed_work(&rk312x_priv->init_delayed_work, msecs_to_jiffies(3000));
