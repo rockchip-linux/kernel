@@ -2300,7 +2300,7 @@
 					<&aclk_rga>,	<&clk_rga>,
 					<&aclk_vio>,	<&clk_cif_out>,
 
-					<&dummy>,	<&aclk_vop>,
+					<&xin24m>,	<&aclk_vop>,
 					<&dclk_vop_pll>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
@@ -2313,7 +2313,7 @@
 					"aclk_rga",	"clk_rga",
 					"aclk_vio",	"clk_cif_out",
 
-					"reserved",	"aclk_vop",
+					"clk_hdmi_sfc",	"aclk_vop",
 					"dclk_vop_pll",	"reserved",
 
 					"reserved",	"reserved",
