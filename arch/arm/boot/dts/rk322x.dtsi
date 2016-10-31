@@ -873,6 +873,7 @@
 		lumafilter1 = <0xf40200fe>;
 		lumafilter2 = <0xf332d910>;
 		daclevel = <0x15>;
+		dac1level = <7>;
 		status = "disabled";
 	};
 
