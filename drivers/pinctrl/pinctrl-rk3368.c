@@ -1221,67 +1221,67 @@ static int rockchip_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 	u16 arg;
 	int rc;
 
-		param = pinconf_to_config_param(configs);
-		arg = pinconf_to_config_argument(configs);
+	param = pinconf_to_config_param(configs);
+	arg = pinconf_to_config_argument(configs);
 
-		switch (param) {
-		case PIN_CONFIG_BIAS_DISABLE:
-			rc =  rockchip_set_pull(bank, pin - bank->pin_base,
-						param);
-			if (rc)
-				return rc;
-			break;
-		case PIN_CONFIG_BIAS_PULL_UP:
-		case PIN_CONFIG_BIAS_PULL_DOWN:
-		case PIN_CONFIG_BIAS_PULL_PIN_DEFAULT:
-		case PIN_CONFIG_BIAS_BUS_HOLD:
-			if (!rockchip_pinconf_pull_valid(info->ctrl, param))
-				return -ENOTSUPP;
-
-			if (!arg)
-				return -EINVAL;
-
-			rc = rockchip_set_pull(bank, pin - bank->pin_base,
-					       param);
-			if (rc)
-				return rc;
-			break;
-		case PIN_CONFIG_OUTPUT:
-			rc = rockchip_gpio_direction_output(
-				&bank->gpio_chip,
-				pin - bank->pin_base,
-				arg);
-			if (rc)
-				return rc;
-			break;
-
-		case PIN_CONFIG_INPUT_ENABLE:
-			if (arg == 1) {
-				rc = rockchip_gpio_direction_input(
-					&bank->gpio_chip, pin - bank->pin_base);
-				if (rc)
-					return rc;
-			}
-			break;
-
-		case PIN_CONFIG_DRIVE_STRENGTH:
-			/* rk1108 rk322x rk3288 rk3368 is the first
-				with per-pin drive-strength */
-			if ((RK1108 != info->ctrl->type) &&
-			    (RK322X != info->ctrl->type) &&
-			    (RK322XH != info->ctrl->type) &&
-			    (RK3288 != info->ctrl->type) &&
-			    (RK3368 != info->ctrl->type))
-				return -ENOTSUPP;
-
-			rc = rk3288_set_drive(bank, pin - bank->pin_base, arg);
-			if (rc < 0)
-				return rc;
-			break;
-		default:
+	switch (param) {
+	case PIN_CONFIG_BIAS_DISABLE:
+		rc =  rockchip_set_pull(bank, pin - bank->pin_base,
+					param);
+		if (rc)
+			return rc;
+		break;
+	case PIN_CONFIG_BIAS_PULL_UP:
+	case PIN_CONFIG_BIAS_PULL_DOWN:
+	case PIN_CONFIG_BIAS_PULL_PIN_DEFAULT:
+	case PIN_CONFIG_BIAS_BUS_HOLD:
+		if (!rockchip_pinconf_pull_valid(info->ctrl, param))
 			return -ENOTSUPP;
-			break;
+
+		if (!arg)
+			return -EINVAL;
+
+		rc = rockchip_set_pull(bank, pin - bank->pin_base,
+				       param);
+		if (rc)
+			return rc;
+		break;
+	case PIN_CONFIG_OUTPUT:
+		rc = rockchip_gpio_direction_output(
+			&bank->gpio_chip,
+			pin - bank->pin_base,
+			arg);
+		if (rc)
+			return rc;
+		break;
+
+	case PIN_CONFIG_INPUT_ENABLE:
+		if (arg == 1) {
+			rc = rockchip_gpio_direction_input(
+				&bank->gpio_chip, pin - bank->pin_base);
+			if (rc)
+				return rc;
 		}
+		break;
+
+	case PIN_CONFIG_DRIVE_STRENGTH:
+		/* rk1108 rk322x rk3288 rk3368 is the first
+			with per-pin drive-strength */
+		if ((RK1108 != info->ctrl->type) &&
+		    (RK322X != info->ctrl->type) &&
+		    (RK322XH != info->ctrl->type) &&
+		    (RK3288 != info->ctrl->type) &&
+		    (RK3368 != info->ctrl->type))
+			return -ENOTSUPP;
+
+		rc = rk3288_set_drive(bank, pin - bank->pin_base, arg);
+		if (rc < 0)
+			return rc;
+		break;
+	default:
+		return -ENOTSUPP;
+		break;
+	}
 
 	return 0;
 }
@@ -1844,6 +1844,7 @@ static int rockchip_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 		polarity &= ~mask;
 		break;
 	default:
+		spin_unlock_irqrestore(&bank->slock, flags);
 		return -EINVAL;
 	}
 
@@ -1960,11 +1961,8 @@ static int rockchip_gpio_irq_map(struct irq_domain *d, unsigned int irq,
 	struct rockchip_pin_bank *bank = d->host_data;
 	struct irq_data *irq_data = irq_get_irq_data(irq);
 
-	if (!bank) {
-		dev_err(bank->drvdata->dev, "%s:bank=0x%p,irq=%d\n",
-			__func__, bank, irq);
+	if (!bank)
 		return -EINVAL;
-	}
 
 	irq_set_chip_and_handler(irq, &rockchip_gpio_irq_chip,
 				 handle_level_irq);
@@ -2257,10 +2255,10 @@ static void rockchip_pinctrl_resume(void)
 			clk_prepare_enable(bank->clk);
 
 		/* keep enable for resume irq */
-		 isr = __raw_readl(bank->reg_base + GPIO_INT_STATUS);
-			__raw_writel(bank->saved_wakeup
-				| (bank->suspend_wakeup & isr)
-					, bank->reg_base + GPIO_INTEN);
+		isr = __raw_readl(bank->reg_base + GPIO_INT_STATUS);
+		__raw_writel(bank->saved_wakeup |
+			    (bank->suspend_wakeup & isr),
+			     bank->reg_base + GPIO_INTEN);
 		bank++;
 	}
 }
