@@ -15,6 +15,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/rockchip/common.h>
 #include <asm/system_misc.h>
+#include <linux/rockchip/cru.h>
+#include <linux/rockchip/grf.h>
 
 /* high 24 bits is tag, low 8 bits is type */
 #define SYS_LOADER_REBOOT_FLAG   0x5242C300
@@ -38,6 +40,7 @@ enum {
 
 static struct regmap *cru;
 static struct regmap *pmugrf;
+static struct regmap *grf;
 
 #define RK3368_CRU_APLLB_CON3	0x0c
 #define RK3368_CRU_APLLL_CON3	0x01c
@@ -106,8 +109,58 @@ static __init int rk3368_reboot_init(struct platform_device *pdev)
 	return 0;
 }
 
+static void rk322xh_reboot(char str, const char *cmd)
+{
+	u32 flag, mode;
+
+	rockchip_restart_get_boot_mode(cmd, &flag, &mode);
+	/* for loader */
+	regmap_write(grf, RK322XH_GRF_OS_REG0, flag);
+	/* for linux */
+	regmap_write(grf, RK322XH_GRF_OS_REG1, mode);
+
+	/* pll enter slow mode */
+	regmap_write(cru, RK322XH_CRU_CRU_MODE, 0x11030000);
+	regmap_write(cru, RK322XH_CRU_GLB_SRST_FST_VALUE, 0xfdb9);
+}
+
+static __init int rk322xh_reboot_init(struct platform_device *pdev)
+{
+	u32 flag, mode, rst_st;
+	struct device_node *np = pdev->dev.of_node;
+
+	cru = syscon_regmap_lookup_by_phandle(np, "rockchip,cru");
+	if (IS_ERR(cru)) {
+		dev_err(&pdev->dev, "No rockchip,cru phandle specified");
+		return PTR_ERR(cru);
+	}
+
+	grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	if (IS_ERR(grf)) {
+		dev_err(&pdev->dev, "No rockchip,grf phandle specified");
+		return PTR_ERR(grf);
+	}
+
+	regmap_read(grf, RK322XH_GRF_OS_REG0, &flag);
+	regmap_read(grf, RK322XH_GRF_OS_REG1, &mode);
+	regmap_read(cru, RK322XH_CRU_GLB_RST_ST, &rst_st);
+
+	if (flag == (SYS_KERNRL_REBOOT_FLAG | BOOT_RECOVER))
+		mode = BOOT_MODE_RECOVERY;
+	if (rst_st & ((1 << 4) | (1 << 5)))
+		mode = BOOT_MODE_WATCHDOG;
+	else if (rst_st & ((1 << 2) | (1 << 3)))
+		mode = BOOT_MODE_TSADC;
+	rockchip_boot_mode_init(flag, mode);
+
+	arm_pm_restart = rk322xh_reboot;
+
+	return 0;
+}
+
 static struct of_device_id rockchip_reboot_of_match[] __refdata = {
 	{ .compatible = "rockchip,rk3368-reboot", .data = rk3368_reboot_init },
+	{ .compatible = "rockchip,rk322xh-reboot", .data = rk322xh_reboot_init },
 	{}
 };
 
