@@ -1341,6 +1341,53 @@
 			};
 		};
 
+		gmac2phy {
+			fephyled_speed100: fephyled-speed100 {
+				rockchip,pins =
+					<0 GPIO_D7 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			fephyled_speed10: fephyled-speed10 {
+				rockchip,pins =
+					<0 GPIO_D6 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			fephyled_duplex: fephyled-duplex {
+				rockchip,pins =
+					<0 GPIO_D6 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			fephyled_rxm0: fephyled-rxm0 {
+				rockchip,pins =
+					<0 GPIO_D5 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			fephyled_txm0: fephyled-txm0 {
+				rockchip,pins =
+					<0 GPIO_D5 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			fephyled_linkm0: fephyled-linkm0 {
+				rockchip,pins =
+					<0 GPIO_D4 RK_FUNC_1 &pcfg_pull_none>;
+			};
+
+			fephyled_rxm1: fephyled-rxm1 {
+				rockchip,pins =
+					<2 GPIO_D1 RK_FUNC_2 &pcfg_pull_none>;
+			};
+
+			fephyled_txm1: fephyled-txm1 {
+				rockchip,pins =
+					<2 GPIO_D1 RK_FUNC_3 &pcfg_pull_none>;
+			};
+
+			fephyled_linkm1: fephyled-linkm1 {
+				rockchip,pins =
+					<2 GPIO_D0 RK_FUNC_2 &pcfg_pull_none>;
+			};
+		};
+
 		tsadc_pin {
 			tsadc_int: tsadc-int {
 				rockchip,pins =
