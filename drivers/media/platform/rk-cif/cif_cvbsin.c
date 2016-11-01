@@ -241,15 +241,14 @@ static int cvbsin_module_enum_frameintervals(
 	struct v4l2_subdev_frame_interval_enum *fie)
 {
 	int index = 0;
-	struct pltfrm_cvbsin_cfg_para cfg_para;
+
 	if (fie->index >= 1)
 		return -EINVAL;
 
 	if (!cvbsin || !cvbsin->soc_cfg)
 		return -1;
 
-	cfg_para.cmd = PLTFRM_CVBSIN_POWERON;
-	(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
+	cvbsin_module_s_power(sd, 1);
 	msleep(1000);
 
 	index = read_cvbsin_reg(CVBSIN_STATUS) & 0x1;

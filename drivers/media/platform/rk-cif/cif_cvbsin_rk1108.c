@@ -69,9 +69,13 @@ static void soc_cvbsin_reset(void)
 
 static int soc_cvbsin_poweron(void)
 {
+	clk_prepare_enable(rk1108_cvbs.cvbs_pclk);
+	clk_prepare_enable(rk1108_cvbs.cvbs_hclk);
+	usleep_range(1000, 10 * 1000);
 	write_grf_reg(RK1108_GRF_SOC_CON11,
 		      0xFFFF0000 |
 		      VADC_PD_CLMP);
+	usleep_range(1000, 10 * 1000);
 	return 0;
 }
 
@@ -83,6 +87,8 @@ static int soc_cvbsin_poweroff(void)
 		      VADC_PD_CLMP |
 		      VADC_PD_BG |
 		      VADC_PD_ADC);
+	clk_disable_unprepare(rk1108_cvbs.cvbs_pclk);
+	clk_disable_unprepare(rk1108_cvbs.cvbs_hclk);
 	return 0;
 }
 
@@ -156,8 +162,6 @@ static int soc_cvbsin_init(struct pltfrm_cvbsin_init_para *init)
 	clk_set_parent(rk1108_cvbs.cvbs_clk,
 		       rk1108_cvbs.cvbs_clk_parent);
 	clk_set_rate(rk1108_cvbs.cvbs_pclk, 54000000);
-	clk_prepare_enable(rk1108_cvbs.cvbs_pclk);
-	clk_prepare_enable(rk1108_cvbs.cvbs_hclk);
 
 	soc_cvbsin_reset();
 	/* config adc */
