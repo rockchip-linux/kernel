@@ -142,8 +142,12 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		      int tx_delay, int rx_delay)
 {
+	struct device *dev = &bsp_priv->pdev->dev;
+
 	pr_info("tx delay=0x%x\nrx delay=0x%x\n", tx_delay, rx_delay);
-	if (type == RK3288_GMAC) {
+
+	switch (type) {
+	case RK3288_GMAC:
 		grf_writel(GMAC_PHY_INTF_SEL_RGMII, RK3288_GRF_SOC_CON1);
 		grf_writel(GMAC_RMII_MODE_CLR, RK3288_GRF_SOC_CON1);
 		grf_writel(GMAC_RXCLK_DLY_ENABLE, RK3288_GRF_SOC_CON3);
@@ -151,7 +155,8 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		grf_writel(GMAC_CLK_RX_DL_CFG(rx_delay), RK3288_GRF_SOC_CON3);
 		grf_writel(GMAC_CLK_TX_DL_CFG(tx_delay), RK3288_GRF_SOC_CON3);
 		pr_info("tx delay=0x%x\nrx delay=0x%x\n", tx_delay, rx_delay);
-	} else if (type == RK312X_GMAC) {
+		break;
+	case RK312X_GMAC:
 		grf_writel(GMAC_PHY_INTF_SEL_RGMII, RK312X_GRF_MAC_CON1);
 		grf_writel(GMAC_RMII_MODE_CLR, RK312X_GRF_MAC_CON1);
 		grf_writel(GMAC_RXCLK_DLY_ENABLE, RK312X_GRF_MAC_CON0);
@@ -159,9 +164,8 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		grf_writel(GMAC_CLK_RX_DL_CFG(rx_delay), RK312X_GRF_MAC_CON0);
 		grf_writel(GMAC_CLK_TX_DL_CFG(tx_delay), RK312X_GRF_MAC_CON0);
 		pr_info("tx delay=0x%x\nrx delay=0x%x\n", tx_delay, rx_delay);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -176,9 +180,8 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 			     RK3368_GMAC_TXCLK_DLY_ENABLE |
 			     RK3368_GMAC_CLK_RX_DL_CFG(rx_delay) |
 			     RK3368_GMAC_CLK_TX_DL_CFG(tx_delay));
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -194,20 +197,27 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON0,
 			     RK322X_GMAC_CLK_RX_DL_CFG(rx_delay) |
 			     RK322X_GMAC_CLK_TX_DL_CFG(tx_delay));
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 {
-	if (type == RK3288_GMAC) {
+	struct device *dev = &bsp_priv->pdev->dev;
+
+	switch (type) {
+	case RK3288_GMAC:
 		grf_writel(GMAC_PHY_INTF_SEL_RMII, RK3288_GRF_SOC_CON1);
 		grf_writel(GMAC_RMII_MODE, RK3288_GRF_SOC_CON1);
-	} else if (type == RK312X_GMAC) {
+		break;
+	case RK312X_GMAC:
 		grf_writel(GMAC_PHY_INTF_SEL_RMII, RK312X_GRF_MAC_CON1);
 		grf_writel(GMAC_RMII_MODE, RK312X_GRF_MAC_CON1);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -217,9 +227,8 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK3368_GRF_SOC_CON15,
 			     RK3368_GMAC_PHY_INTF_SEL_RMII |
 			     RK3368_GMAC_RMII_MODE);
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -232,9 +241,8 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 
 		/* set MAC to RMII mode */
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, GRF_BIT(11));
-	} else if (type == RK1108_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -243,18 +251,25 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK1108_GRF_GMAC_CON0,
 			     RK1108_GMAC_PHY_INTF_SEL_RMII);
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 {
-	if (type == RK3288_GMAC) {
-		grf_writel(GMAC_CLK_2_5M, RK3288_GRF_SOC_CON1);
-	} else if (type == RK312X_GMAC) {
-		grf_writel(GMAC_CLK_2_5M, RK312X_GRF_MAC_CON1);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
+	struct device *dev = &bsp_priv->pdev->dev;
 
+	switch (type) {
+	case RK3288_GMAC:
+		grf_writel(GMAC_CLK_2_5M, RK3288_GRF_SOC_CON1);
+		break;
+	case RK312X_GMAC:
+		grf_writel(GMAC_CLK_2_5M, RK312X_GRF_MAC_CON1);
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -263,9 +278,8 @@ static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK3368_GRF_SOC_CON15,
 			     RK3368_GMAC_CLK_2_5M);
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -274,18 +288,25 @@ static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_CLK_2_5M);
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 {
-	if (type == RK3288_GMAC) {
-		grf_writel(GMAC_CLK_25M, RK3288_GRF_SOC_CON1);
-	} else if (type == RK312X_GMAC) {
-		grf_writel(GMAC_CLK_25M, RK312X_GRF_MAC_CON1);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
+	struct device *dev = &bsp_priv->pdev->dev;
 
+	switch (type) {
+	case RK3288_GMAC:
+		grf_writel(GMAC_CLK_25M, RK3288_GRF_SOC_CON1);
+		break;
+	case RK312X_GMAC:
+		grf_writel(GMAC_CLK_25M, RK312X_GRF_MAC_CON1);
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -294,9 +315,8 @@ static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK3368_GRF_SOC_CON15,
 			     RK3368_GMAC_CLK_25M);
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -305,18 +325,25 @@ static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_CLK_25M);
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 {
-	if (type == RK3288_GMAC) {
-		grf_writel(GMAC_CLK_125M, RK3288_GRF_SOC_CON1);
-	} else if (type == RK312X_GMAC) {
-		grf_writel(GMAC_CLK_125M, RK312X_GRF_MAC_CON1);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
+	struct device *dev = &bsp_priv->pdev->dev;
 
+	switch (type) {
+	case RK3288_GMAC:
+		grf_writel(GMAC_CLK_125M, RK3288_GRF_SOC_CON1);
+		break;
+	case RK312X_GMAC:
+		grf_writel(GMAC_CLK_125M, RK312X_GRF_MAC_CON1);
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -325,9 +352,8 @@ static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK3368_GRF_SOC_CON15,
 			     RK3368_GMAC_CLK_125M);
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -336,20 +362,27 @@ static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_CLK_125M);
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 {
-	if (type == RK3288_GMAC) {
+	struct device *dev = &bsp_priv->pdev->dev;
+
+	switch (type) {
+	case RK3288_GMAC:
 		grf_writel(GMAC_RMII_CLK_2_5M, RK3288_GRF_SOC_CON1);
 		grf_writel(GMAC_SPEED_10M, RK3288_GRF_SOC_CON1);
-	} else if (type == RK312X_GMAC) {
+		break;
+	case RK312X_GMAC:
 		grf_writel(GMAC_RMII_CLK_2_5M, RK312X_GRF_MAC_CON1);
 		grf_writel(GMAC_SPEED_10M, RK312X_GRF_MAC_CON1);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -359,9 +392,8 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK3368_GRF_SOC_CON15,
 			     RK3368_GMAC_RMII_CLK_2_5M |
 			     RK3368_GMAC_SPEED_10M);
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -377,9 +409,8 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_RMII_CLK_2_5M |
 			     RK322X_GMAC_SPEED_10M);
-	} else if (type == RK1108_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -389,20 +420,27 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK1108_GRF_GMAC_CON0,
 			     RK1108_GMAC_RMII_CLK_2_5M |
 			     RK1108_GMAC_SPEED_10M);
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 {
-	if (type == RK3288_GMAC) {
+	struct device *dev = &bsp_priv->pdev->dev;
+
+	switch (type) {
+	case RK3288_GMAC:
 		grf_writel(GMAC_RMII_CLK_25M, RK3288_GRF_SOC_CON1);
 		grf_writel(GMAC_SPEED_100M, RK3288_GRF_SOC_CON1);
-	} else if (type == RK312X_GMAC) {
+		break;
+	case RK312X_GMAC:
 		grf_writel(GMAC_RMII_CLK_25M, RK312X_GRF_MAC_CON1);
 		grf_writel(GMAC_SPEED_100M, RK312X_GRF_MAC_CON1);
-	} else if (type == RK3368_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK3368_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -412,9 +450,8 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK3368_GRF_SOC_CON15,
 			     RK3368_GMAC_RMII_CLK_25M |
 			     RK3368_GMAC_SPEED_100M);
-	} else if (type == RK322X_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK322X_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -430,9 +467,8 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
 			     RK322X_GMAC_RMII_CLK_25M |
 			     RK322X_GMAC_SPEED_100M);
-	} else if (type == RK1108_GMAC) {
-		struct device *dev = &bsp_priv->pdev->dev;
-
+		break;
+	case RK1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -442,12 +478,16 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 		regmap_write(bsp_priv->grf, RK1108_GRF_GMAC_CON0,
 			     RK1108_GMAC_RMII_CLK_25M |
 			     RK1108_GMAC_SPEED_100M);
+		break;
+	default:
+		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
+		return;
 	}
 }
 
 static struct bsp_priv g_bsp_priv;
 
-int gmac_clk_init(struct device *device)
+static int gmac_clk_init(struct device *device)
 {
 	struct bsp_priv * bsp_priv = &g_bsp_priv;
 
@@ -794,7 +834,8 @@ static int phy_power_on(bool enable)
 	return ret;
 }
 
-int stmmc_pltfr_init(struct platform_device *pdev) {
+static int stmmc_pltfr_init(struct platform_device *pdev)
+{
 	int phy_iface;
 	int err;
 	struct bsp_priv *bsp_priv = &g_bsp_priv;
@@ -902,56 +943,56 @@ int stmmc_pltfr_init(struct platform_device *pdev) {
 	return 0;
 }
 
-void stmmc_pltfr_fix_mac_speed(void *priv, unsigned int speed){
+static void stmmc_pltfr_fix_mac_speed(void *priv, unsigned int speed)
+{
 	struct bsp_priv * bsp_priv = priv;
 	int interface;
 
 	pr_info("%s: fix speed to %d\n", __func__, speed);
 
-	if (bsp_priv) {
-		interface = bsp_priv->phy_iface;
+	if (!bsp_priv) {
+		pr_err("%s bsp_priv error\n", __func__);
+		return;
 	}
+	interface = bsp_priv->phy_iface;
 
-	if (interface == PHY_INTERFACE_MODE_RGMII) {
+	switch (interface) {
+	case PHY_INTERFACE_MODE_RGMII:
 		pr_info("%s: fix speed for RGMII\n", __func__);
-
 		switch (speed) {
-			case 10: {
-				SET_RGMII_10M(bsp_priv, bsp_priv->chip);
-				break;
-			}
-			case 100: {
-				SET_RGMII_100M(bsp_priv, bsp_priv->chip);
-				break;
-			}
-			case 1000: {
-				SET_RGMII_1000M(bsp_priv, bsp_priv->chip);
-				break;
-			}
-			default: {
-				pr_err("%s: ERROR: speed %d is not defined!\n",
-				       __func__, speed);
-			}
+		case 10:
+			SET_RGMII_10M(bsp_priv, bsp_priv->chip);
+			break;
+		case 100:
+			SET_RGMII_100M(bsp_priv, bsp_priv->chip);
+			break;
+		case 1000:
+			SET_RGMII_1000M(bsp_priv, bsp_priv->chip);
+			break;
+		default:
+			pr_err("%s: ERROR: speed %d is not defined!\n",
+			       __func__, speed);
+			return;
 		}
-
-	} else if (interface == PHY_INTERFACE_MODE_RMII) {
+		break;
+	case PHY_INTERFACE_MODE_RMII:
 		pr_info("%s: fix speed for RMII\n", __func__);
 		switch (speed) {
-			case 10: {
-				SET_RMII_10M(bsp_priv, bsp_priv->chip);
-				break;
-			}
-			case 100: {
-				SET_RMII_100M(bsp_priv, bsp_priv->chip);
-				break;
-			}
-			default: {
-				pr_err("%s: ERROR: speed %d is not defined!\n",
-				       __func__, speed);
-			}
+		case 10:
+			SET_RMII_10M(bsp_priv, bsp_priv->chip);
+			break;
+		case 100:
+			SET_RMII_100M(bsp_priv, bsp_priv->chip);
+			break;
+		default:
+			pr_err("%s: ERROR: speed %d is not defined!\n",
+			       __func__, speed);
+			return;
 		}
-	} else {
+		break;
+	default:
 		pr_err("%s: ERROR: NO interface defined!\n", __func__);
+		return;
 	}
 }
 
@@ -1231,7 +1272,7 @@ static int stmmac_pltfr_resume(struct device *dev)
 	return stmmac_resume(ndev);
 }
 
-int stmmac_pltfr_freeze(struct device *dev)
+static int stmmac_pltfr_freeze(struct device *dev)
 {
 	int ret;
 	struct plat_stmmacenet_data *plat_dat = dev_get_platdata(dev);
@@ -1245,7 +1286,7 @@ int stmmac_pltfr_freeze(struct device *dev)
 	return ret;
 }
 
-int stmmac_pltfr_restore(struct device *dev)
+static int stmmac_pltfr_restore(struct device *dev)
 {
 	struct plat_stmmacenet_data *plat_dat = dev_get_platdata(dev);
 	struct net_device *ndev = dev_get_drvdata(dev);
