@@ -249,7 +249,7 @@ int snor_erase(u32 addr, enum NOR_ERASE_TYPE erase_type)
 {
 	int ret;
 	union SFCCMD_DATA sfcmd;
-	int timeout[] = {10, 100, 20000};   /* ms */
+	int timeout[] = {400, 2000, 40000};   /* ms */
 	struct SFNOR_DEV *p_dev = &sfnor_dev;
 
 	if (erase_type > ERASE_CHIP)
