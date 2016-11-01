@@ -59,7 +59,7 @@ void cif_cif10_cifrest(struct work_struct *work)
 		      cif_cif10_dev->config.base_addr + CIF_CIF_INTEN);
 	cif_iowrite32OR(ENABLE_CAPTURE,
 			cif_cif10_dev->config.base_addr + CIF_CIF_CTRL);
-	mdelay(5);
+	msleep(200);
 	cif_cif10_img_src_s_streaming(cif_cif10_dev->img_src, true);
 }
 

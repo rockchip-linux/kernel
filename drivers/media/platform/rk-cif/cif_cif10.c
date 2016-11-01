@@ -1827,6 +1827,7 @@ irqreturn_t cif_cif10_cifirq(int irq, void *data)
 	struct videobuf_buffer *curr_buf = NULL, *next_buf = NULL;
 	void __iomem *base_addr =
 		cif_cif10_dev->config.base_addr;
+	static short cvbs_plug_out = 3;
 
 	do_gettimeofday(&tv);
 	now = tv.tv_sec*1000000 + tv.tv_usec;
@@ -1867,32 +1868,45 @@ irqreturn_t cif_cif10_cifirq(int irq, void *data)
 		else if (tmp_cif_frmst & CIF_F1_READY)
 			frm_flag = 1;
 
-		if (frm_fmt->defrect.height == NTSC_HEIGHT) {
-			if (interval > 17000) {
-				if (cif_cif10_dev->irqinfo.plug < 3)
-					cif_cif10_dev->irqinfo.plug++;
-			} else {
-				if (cif_cif10_dev->irqinfo.plug == 3) {
-					cif_cif10_dev->irqinfo.plug = 0;
-					reset = 1;
-					goto cif_rst;
-				} else {
-					cif_cif10_dev->irqinfo.plug = 0;
-				}
+		/*
+		 * CVBSIN没有信号输入时,TVD是以一个默认的
+		 * 时序输出interval以45ms和20ms交替,当检测
+		 * 到这种信号表示CVBSIN被拔出或poweroff,当
+		 * 检测到信号频率是以20ms左右持续输出说明
+		 * CVBSIN有输入,重设CIF和CVBSIN确保不错场
+		 */
+		if (interval > 45000) {
+			/* recount cvbsin */
+			cif_cif10_dev->irqinfo.plug = 3;
+
+			/* detect signal of cvbsin plug out */
+			if (cvbs_plug_out == 3)
+				cvbs_plug_out = 2;
+			/* cvbsin plug out */
+			if (cvbs_plug_out == 1)
+				cvbs_plug_out = 0;
+		} else {
+			if (cvbs_plug_out == 2)
+				cvbs_plug_out = 1;
+			/*
+			 * 连续三次中断间隔20ms(pal)或16ms(nstc)左右
+			 * 表示有外部信号输入
+			 */
+			if (cif_cif10_dev->irqinfo.plug > 0)
+				cif_cif10_dev->irqinfo.plug--;
+		}
+
+		if (cif_cif10_dev->irqinfo.plug == 0) {
+			if (cvbs_plug_out == 0) {
+				reset = 1;
+				dev_info(cif_cif10_dev->dev,
+					 "cvbsin plugout\n");
 			}
-		} else if (frm_fmt->defrect.height == PAL_HEIGHT) {
-			if (interval > 20500) {
-				if (cif_cif10_dev->irqinfo.plug < 3)
-					cif_cif10_dev->irqinfo.plug++;
-			} else {
-				if (cif_cif10_dev->irqinfo.plug == 3) {
-					cif_cif10_dev->irqinfo.plug = 0;
-					reset = 1;
-					goto cif_rst;
-				} else {
-					cif_cif10_dev->irqinfo.plug = 0;
-				}
-			}
+			/* reset flag of cvbsin plugout */
+			cvbs_plug_out = 3;
+
+			if (reset)
+				goto cif_rst;
 		}
 
 		curr_buf = cif_cif10_dev->stream.curr_buf;
