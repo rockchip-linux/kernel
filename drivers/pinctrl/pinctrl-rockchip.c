@@ -2127,8 +2127,6 @@ static int rockchip_pinctrl_parse_groups(struct device_node *np,
         if (!grp->pins || !grp->data)
                 return -ENOMEM;
 
-	pinconfig = kzalloc(configlen * sizeof(*pinconfig), GFP_KERNEL);
-
         for (i = 0; i < size; i++) {
 		m.mode = be32_to_cpu(*list++);
 		
@@ -2138,7 +2136,6 @@ static int rockchip_pinctrl_parse_groups(struct device_node *np,
 		
 		grp->pins[i] = bank->pin_base + (m.mux.goff - 0x0A) * 8 + m.mux.off;
 		grp->data[i].func = m.mode;
-
 		
 		j = 0;
 		configlen = 0;
@@ -2153,6 +2150,8 @@ static int rockchip_pinctrl_parse_groups(struct device_node *np,
 			configlen++;
 		
 		pinconfig = kzalloc(configlen * sizeof(*pinconfig), GFP_KERNEL);	
+		if (!pinconfig)
+			return -ENOMEM;
 			
 		if (!of_property_read_u32(np, "rockchip,pull", &val)) {
 			enum pin_config_param pull = PIN_CONFIG_END;
@@ -2190,12 +2189,10 @@ static int rockchip_pinctrl_parse_groups(struct device_node *np,
 
 		grp->data[i].configs = pinconfig;
 		grp->data[i].nconfigs = configlen;
-
         }
 
         return 0;
 }
-
 
 static int rockchip_pinctrl_parse_functions(struct device_node *np,
 						struct rockchip_pinctrl *info,
