@@ -792,6 +792,39 @@
 		status = "disabled";
 	};
 
+	usb2phy_grf: syscon@ff450000 {
+		compatible = "rockchip,rk322xh-usb2phy-grf",
+			     "rockchip,usb2phy-grf", "syscon";
+		reg = <0x0 0xff450000 0x0 0x1000>;
+	};
+
+	dwc_control_usb: dwc-control-usb {
+		compatible = "rockchip,rk322xh-dwc-control-usb";
+		rockchip,grf = <&usb2phy_grf>;
+		interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "otg_bvalid", "otg_id",
+				  "otg_linestate", "host0_linestate";
+		status = "disabled";
+		usb_bc {
+			compatible = "inno,phy";
+			regbase = &dwc_control_usb;
+			rk_usb,bvalid     = <0x120 9 1>;
+			rk_usb,iddig      = <0x120 6 1>;
+			rk_usb,vdmsrcen   = <0x108 12 1>;
+			rk_usb,vdpsrcen   = <0x108 11 1>;
+			rk_usb,rdmpden    = <0x108 10 1>;
+			rk_usb,idpsrcen   = <0x108  9 1>;
+			rk_usb,idmsinken  = <0x108  8 1>;
+			rk_usb,idpsinken  = <0x108  7 1>;
+			rk_usb,dpattach   = <0x120 25 1>;
+			rk_usb,cpdet      = <0x120 24 1>;
+			rk_usb,dcpattach  = <0x120 23 1>;
+		};
+	};
+
 	gmac2phy: eth@ff550000 {
 		compatible = "rockchip,rk322xh-gmac","rockchip,rk322x-gmac";
 		reg = <0x0 0xff550000 0x0 0x10000>;
@@ -834,6 +867,21 @@
 		tune_regsbase = <0x39c>;
 		resets = <&reset RK322XH_SRST_SDMMCEXT>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
+	};
+
+	usb2_otg: usb@ff580000 {
+		compatible = "rockchip,rk322xh_usb20_otg";
+		reg = <0x0 0xff580000 0x0 0x40000>;
+		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates17 14>, <&clk_gates19 8>, <&clk_gates19 9>;
+		clock-names = "pclk_usb2grf", "hclk_otg", "hclk_otg_pmu";
+		resets = <&reset RK322XH_SRST_USB2OTG_H>,
+			 <&reset RK322XH_SRST_USB2OTG_UTMI>,
+			 <&reset RK322XH_SRST_USB2OTG>;
+		reset-names = "otg_ahb", "otg_phy", "otg_controller";
+		/*0 - Normal, 1 - Force Host, 2 - Force Device*/
+		rockchip,usb-mode = <0>;
 		status = "disabled";
 	};
 

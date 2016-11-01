@@ -211,6 +211,13 @@
 	status = "okay";
 };
 
+&dwc_control_usb {
+	usb_otg_drv = <&gpio0 28 GPIO_ACTIVE_LOW>;
+
+	rockchip,remote_wakeup;
+	rockchip,usb_irq_wakeup;
+};
+
 #include "../../../arm/boot/dts/rk805.dtsi"
 &rk805 {
 	gpios = <&gpio2 GPIO_A6 GPIO_ACTIVE_HIGH>, <&gpio2 GPIO_D2 GPIO_ACTIVE_LOW>;
