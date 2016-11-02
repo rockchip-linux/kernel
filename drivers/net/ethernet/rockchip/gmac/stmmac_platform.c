@@ -1111,23 +1111,17 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	g_bsp_priv.gmac_clk_enable = gmac_clk_enable;
 
 	plat->bsp_priv = &g_bsp_priv;
+	g_bsp_priv.chip = (unsigned long)match->data;
 
 	/*
 	 * Currently only the properties needed on SPEAr600
 	 * are provided. All other properties should be added
 	 * once needed on other platforms.
 	 */
-	if (of_device_is_compatible(np, "rockchip,rk3288-gmac") ||
-	    of_device_is_compatible(np, "rockchip,rk312x-gmac") ||
-	    of_device_is_compatible(np, "rockchip,rk3368-gmac") ||
-	    of_device_is_compatible(np, "rockchip,rk322x-gmac") ||
-	    of_device_is_compatible(np, "rockchip,rk1108-gmac")) {
+	if (g_bsp_priv.chip < RK_MAX_GMAC) {
 		plat->has_gmac = 1;
 		plat->pmt = 1;
 	}
-
-
-	g_bsp_priv.chip = (unsigned long)match->data;
 
 	return 0;
 }

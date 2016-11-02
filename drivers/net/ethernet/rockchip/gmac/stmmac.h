@@ -115,7 +115,8 @@ enum {
 	RK312X_GMAC,
 	RK3368_GMAC,
 	RK322X_GMAC,
-	RK1108_GMAC
+	RK1108_GMAC,
+	RK_MAX_GMAC
 };
 
 struct bsp_priv {
