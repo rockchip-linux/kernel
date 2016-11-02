@@ -5,8 +5,9 @@ The device node has following properties.
 
 DWC_OTG OTG20
 Required properties:
- - compatible : Should be "rockchip,rk3188_usb20_otg" or
-   "rockchip,rk3288_usb20_otg" and so on, depending upon the SoC.
+ - compatible : Should be "rockchip,rk3188_usb20_otg"
+   "rockchip,rk3288_usb20_otg" or "rockchip,rk322xh_usb20_otg"
+   and so on, depending upon the SoC.
  - reg : Physical base address of the controller and
    length of memory mapped region.
  - interrupts : interrupt number to the cpu.
@@ -132,8 +133,8 @@ Example:
 ROCKCHIP USB-PHY CONTROL
 Required properties:
  - compatible : Should be "rockchip,rk3188-dwc-control-usb"
-   or "rockchip,rk3288-dwc-control-usb" and so on, depending
-   upon the SoC.
+   "rockchip,rk3288-dwc-control-usb" or "rockchip,rk322xh-dwc-control-usb"
+   and so on, depending upon the SoC.
  - reg : Physical base address of USB-PHY GRF registers.
    It contains the address of "GRF_SOC_STATUSX" and
    "GRF_UOCX_BASE" depending upon the number of usb controllers
@@ -260,4 +261,21 @@ Example:
 
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
+	};
+
+ROCKCHIP USB USB2PHY GRF
+Required properties:
+ - compatible : Should be "rockchip,rk322xh-usb2phy-grf"
+   and so on, depending upon the SoC.
+
+Optional properties:
+ -
+
+Example:
+ - RK322XH
+
+	usb2phy_grf: syscon@ff450000 {
+		compatible = "rockchip,rk322xh-usb2phy-grf",
+			     "rockchip,usb2phy-grf", "syscon";
+		reg = <0x0 0xff450000 0x0 0x1000>;
 	};
