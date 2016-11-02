@@ -573,6 +573,25 @@
 		status = "disabled";
 	};
 
+	usbdrd3: usb@ff600000 {
+		compatible = "rockchip,rk322xh-dwc3";
+		clocks = <&clk_usb3otg_ref>, <&clk_usb3otg0_s>,
+			 <&clk_gates19 14>;
+		clock-names = "ref_clk", "suspend_clk",
+			      "bus_clk";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		status = "disabled";
+		usbdrd_dwc3: dwc3@ff600000 {
+			compatible = "snps,dwc3";
+			reg = <0x0 0xff600000 0x0 0x100000>;
+			interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
+			dr_mode = "host";
+			status = "disabled";
+		};
+	};
+
 	msch: syscon@ff720000 {
 		compatible = "rockchip,rk322xh-msch", "rockchip,msch", "syscon";
 		reg = <0x0 0xff720000 0x0 0x3000>;
