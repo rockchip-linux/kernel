@@ -350,26 +350,57 @@ int imx_camera_module_s_frame_interval(
 	norm_interval.interval.denominator =
 		interval->interval.denominator / gcdiv;
 
-	config = imx_camera_module_find_config(cam_mod,
-			NULL, &norm_interval);
+	if (!cam_mod->frm_fmt_valid)
+		goto end;
 
-	if (IS_ERR_OR_NULL(config)) {
+	config = imx_camera_module_find_config(
+			cam_mod,
+			&cam_mod->active_config->frm_fmt,
+			&norm_interval);
+
+	if (!IS_ERR_OR_NULL(config) && (config != cam_mod->active_config)) {
+		imx_camera_module_set_active_config(cam_mod, config);
+		if (cam_mod->state == IMX_CAMERA_MODULE_STREAMING) {
+			cam_mod->custom.stop_streaming(cam_mod);
+			imx_camera_module_write_config(cam_mod);
+			cam_mod->custom.start_streaming(cam_mod);
+		}
+	} else {
+		if (IS_ERR_OR_NULL(cam_mod->active_config)) {
+			pltfrm_camera_module_pr_err(
+				&cam_mod->sd,
+				"no active sensor configuration");
+			ret = -EFAULT;
+			goto err;
+		}
+
+		if (cam_mod->active_config->frm_intrvl.interval.denominator <
+			norm_interval.interval.denominator) {
+			pltfrm_camera_module_pr_err(
+				&cam_mod->sd,
+				"%dx%d@%dfps isn't support!",
+				cam_mod->active_config->frm_fmt.width,
+				cam_mod->active_config->frm_fmt.height,
+				norm_interval.interval.denominator);
+			ret = -EFAULT;
+			goto err;
+		}
+
+		if (!cam_mod->custom.s_vts) {
+			pltfrm_camera_module_pr_err(
+				&cam_mod->sd,
+				"custom.s_vts isn't support!");
+			ret = -EFAULT;
+			goto err;
+		}
+
 		if (cam_mod->state != IMX_CAMERA_MODULE_STREAMING)
 			goto end;
 
-		if (!cam_mod->custom.s_vts)
-			goto err;
-
-		if (norm_interval.interval.denominator >
-			cam_mod->active_config->frm_intrvl.interval.denominator)
-			goto err;
-
 		vts = cam_mod->active_config->timings.frame_length_lines;
-		vts *= cam_mod->active_config->frm_intrvl.interval.denominator/
-			norm_interval.interval.denominator;
+		vts *= cam_mod->active_config->frm_intrvl.interval.denominator;
+		vts /= norm_interval.interval.denominator;
 		cam_mod->custom.s_vts(cam_mod, vts);
-	} else {		
-		imx_camera_module_set_active_config(cam_mod, config);
 	}
 
 end:
