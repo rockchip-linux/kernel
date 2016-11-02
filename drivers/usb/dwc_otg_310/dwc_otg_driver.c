@@ -1322,6 +1322,10 @@ static const struct of_device_id usb20_otg_of_match[] = {
 	 .compatible = "rockchip,rk3368_usb20_otg",
 	 .data = &usb20otg_pdata_rk3368,
 	 },
+	{
+	 .compatible = "rockchip,rk322xh_usb20_otg",
+	 .data = &usb20otg_pdata_rk322xh,
+	},
 #endif
 	{ },
 };
