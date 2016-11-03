@@ -57,6 +57,10 @@ static struct dw_mci_rockchip_compatible {
 		.compatible	= "rockchip,rk322x-sdmmc",
 		.ctrl_type	= DW_MCI_TYPE_RK322X,
 	},
+	{
+		.compatible	= "rockchip,rk322xh-sdmmc",
+		.ctrl_type	= DW_MCI_TYPE_RK322XH,
+	},
 };
 
 #define syscon_find(np, property) \
@@ -85,6 +89,16 @@ static int dw_mci_rockchip_priv_init(struct dw_mci *host)
 					return PTR_ERR(host->grf);
 				}
 			}
+
+			if (priv->ctrl_type == DW_MCI_TYPE_RK322XH) {
+				host->grf =
+				    syscon_regmap_lookup_by_phandle(
+					host->dev->of_node, "rockchip,grf");
+				if (IS_ERR(host->grf)) {
+					pr_err("No rockchip,grf phandle specified");
+					return PTR_ERR(host->grf);
+				}
+			}
 		}
 	}
 
@@ -100,7 +114,8 @@ static int dw_mci_rockchip_setup_clock(struct dw_mci *host)
 	    (priv->ctrl_type == DW_MCI_TYPE_RK3036) ||
 	    (priv->ctrl_type == DW_MCI_TYPE_RK312X) ||
 	    (priv->ctrl_type == DW_MCI_TYPE_RK3368) ||
-	    (priv->ctrl_type == DW_MCI_TYPE_RK322X))
+	    (priv->ctrl_type == DW_MCI_TYPE_RK322X) ||
+	    (priv->ctrl_type == DW_MCI_TYPE_RK322XH))
 		host->bus_hz /= (priv->ciu_div + 1);
 
 	return 0;

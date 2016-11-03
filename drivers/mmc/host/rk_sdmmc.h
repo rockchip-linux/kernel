@@ -384,6 +384,7 @@ DW_MCI_TYPE_RK3036,
 DW_MCI_TYPE_RK312X,
 DW_MCI_TYPE_RK3368,
 DW_MCI_TYPE_RK322X,
+DW_MCI_TYPE_RK322XH,
 };
 
 /* Rockchip implementation specific driver private data */

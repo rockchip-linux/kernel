@@ -3461,6 +3461,12 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 			grf_writel(((1 << 12) << 16) | (0 << 12), RK3288_GRF_SOC_CON0);
 		} else if (priv->ctrl_type == DW_MCI_TYPE_RK322X) {
 			grf_writel(((1 << 8) << 16) | (0 << 8), RK322X_GRF_SOC_CON6);
+		} else if (priv->ctrl_type == DW_MCI_TYPE_RK322XH) {
+			if (!IS_ERR(host->grf))
+				regmap_write(host->grf, RK322XH_GRF_SOC_CON4,
+					     (1 << 12) << 16 | (0 << 12));
+			else
+				pr_err("rk_sdmmc couldn't find grf for RK322XH\n");
 		}
 	} else {
 		if (priv->ctrl_type == DW_MCI_TYPE_RK3368)
