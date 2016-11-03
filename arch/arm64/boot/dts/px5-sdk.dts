@@ -170,6 +170,11 @@
 				audio-controller = <&i2s0>;
 				format = "i2s";
 			};
+			dai1 {
+				audio-codec = <&es8396>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+			};
 		};
 	};
 
