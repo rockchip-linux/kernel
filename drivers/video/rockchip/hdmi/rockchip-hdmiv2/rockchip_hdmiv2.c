@@ -99,6 +99,7 @@ static int hdmi_regs_phy_show(struct seq_file *s, void *v)
 	u32 i, count;
 
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X ||
+	    hdmi_dev->soctype == HDMI_SOC_RK322XH ||
 	    hdmi_dev->soctype == HDMI_SOC_RK1108)
 		count = 0x100;
 	else
@@ -202,6 +203,7 @@ void ext_pll_set_27m_out(void)
 static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 {
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X ||
+	    hdmi_dev->soctype == HDMI_SOC_RK322XH ||
 	    hdmi_dev->soctype == HDMI_SOC_RK1108) {
 		if ((hdmi_dev->clk_on & HDMI_EXT_PHY_CLK_ON) == 0) {
 			if (!hdmi_dev->pclk_phy) {
@@ -410,9 +412,10 @@ static struct hdmi_ops rk_hdmi_ops;
 #if defined(CONFIG_OF)
 static const struct of_device_id rk_hdmi_dt_ids[] = {
 	{.compatible = "rockchip,rk1108-hdmi",},
+	{.compatible = "rockchip,rk322x-hdmi",},
+	{.compatible = "rockchip,rk322xh-hdmi",},
 	{.compatible = "rockchip,rk3288-hdmi",},
 	{.compatible = "rockchip,rk3368-hdmi",},
-	{.compatible = "rockchip,rk322x-hdmi",},
 	{}
 };
 
@@ -432,6 +435,8 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 		hdmi_dev->soctype = HDMI_SOC_RK3368;
 	} else if (!strcmp(match->compatible, "rockchip,rk322x-hdmi")) {
 		hdmi_dev->soctype = HDMI_SOC_RK322X;
+	} else if (!strcmp(match->compatible, "rockchip,rk322xh-hdmi")) {
+		hdmi_dev->soctype = HDMI_SOC_RK322XH;
 	} else if (!strcmp(match->compatible, "rockchip,rk1108-hdmi")) {
 		hdmi_dev->soctype = HDMI_SOC_RK1108;
 	} else {
@@ -539,7 +544,8 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 		goto failed;
 	}
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
-	    hdmi_dev->soctype == HDMI_SOC_RK322X) {
+	    hdmi_dev->soctype == HDMI_SOC_RK322X ||
+	    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 		if (!res) {
 			dev_err(&pdev->dev,
@@ -617,6 +623,15 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 					SUPPORT_YUV420 |
 					SUPPORT_DEEP_10BIT;
 		}
+	} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+		rk_hdmi_property.feature |=
+				SUPPORT_4K |
+				SUPPORT_4K_4096 |
+				SUPPORT_YCBCR_INPUT |
+				SUPPORT_1080I |
+				SUPPORT_480I_576I |
+				SUPPORT_YUV420 |
+				SUPPORT_DEEP_10BIT;
 	} else {
 		ret = -ENXIO;
 		goto failed1;
@@ -696,12 +711,15 @@ failed:
 static int rockchip_hdmiv2_suspend(struct platform_device *pdev,
 				   pm_message_t state)
 {
-	if (hdmi_dev &&
-	    hdmi_dev->grf_base &&
-	    hdmi_dev->soctype == HDMI_SOC_RK322X) {
-		regmap_write(hdmi_dev->grf_base,
-			     RK322X_GRF_SOC_CON2,
-			     RK322X_PLL_POWER_DOWN);
+	if (hdmi_dev && hdmi_dev->grf_base) {
+		if (hdmi_dev->soctype == HDMI_SOC_RK322X) {
+			regmap_write(hdmi_dev->grf_base,
+				     RK322X_GRF_SOC_CON2,
+				     RK322X_PLL_POWER_DOWN);
+		} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
+			regmap_write(hdmi_dev->grf_base,
+				     RK322XH_GRF_SOC_CON3,
+				     RK322XH_PLL_POWER_DOWN);
 	}
 	return 0;
 }
