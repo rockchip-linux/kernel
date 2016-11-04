@@ -151,6 +151,7 @@ struct rk3036_tve {
 	u32 lumafilter1;
 	u32 lumafilter2;
 	u32 daclevel;
+	u32 dac1level;
 	struct mutex tve_lock;	/* mutex for tve resume operation*/
 };
 

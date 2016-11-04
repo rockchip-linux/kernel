@@ -72,7 +72,8 @@ static void dac_enable(bool enable)
 			      v_DAC_GAIN(rk3036_tve->daclevel);
 			grfreg = RK3036_GRF_SOC_CON3;
 		} else if (rk3036_tve->soctype == SOC_RK322X) {
-			val = 0x70;
+			val = v_CUR_REG(rk3036_tve->dac1level) |
+			      v_DR_PWR_DOWN(0) | v_BG_PWR_DOWN(0);
 		}
 	} else {
 		mask = m_VBG_EN | m_DAC_EN;
@@ -82,7 +83,8 @@ static void dac_enable(bool enable)
 		else if (rk3036_tve->soctype == SOC_RK3036)
 			grfreg = RK3036_GRF_SOC_CON3;
 		else if (rk3036_tve->soctype == SOC_RK322X)
-			val = v_CUR_REG(0x7) | m_DR_PWR_DOWN | m_BG_PWR_DOWN;
+			val = v_CUR_REG(rk3036_tve->dac1level) |
+			      m_DR_PWR_DOWN | m_BG_PWR_DOWN;
 	}
 	if (grfreg)
 		grf_writel(grfreg, (mask << 16) | val);
@@ -93,7 +95,7 @@ static void dac_enable(bool enable)
 static void rk322x_dac_init(void)
 {
 	/*tve_dac_writel(VDAC_VDAC0, 0x0);*/
-	tve_dac_writel(VDAC_VDAC1, v_CUR_REG(0x7) |
+	tve_dac_writel(VDAC_VDAC1, v_CUR_REG(rk3036_tve->dac1level) |
 				   m_DR_PWR_DOWN | m_BG_PWR_DOWN);
 	tve_dac_writel(VDAC_VDAC2, v_CUR_CTR(rk3036_tve->daclevel));
 	tve_dac_writel(VDAC_VDAC3, v_CAB_EN(0));
@@ -401,50 +403,50 @@ static int rk3036_tve_parse_dt(struct device_node *np,
 	if (rk3036_tve->soctype == SOC_RK312X) {
 		ret = of_property_read_u32(np, "test_mode", &val);
 		if (ret < 0)
-			return -1;
+			goto errer;
 		else
 			rk3036_tve->test_mode = val;
 	}
 
 	ret = of_property_read_u32(np, "saturation", &val);
 	if ((val == 0) || (ret < 0))
-		return -1;
+		goto errer;
 	else
 		rk3036_tve->saturation = val;
 
 	ret = of_property_read_u32(np, "brightcontrast", &val);
 	if ((val == 0) || (ret < 0))
-		return -1;
+		goto errer;
 	else
 		rk3036_tve->brightcontrast = val;
 
 	ret = of_property_read_u32(np, "adjtiming", &val);
 	if ((val == 0) || (ret < 0))
-		return -1;
+		goto errer;
 	else
 		rk3036_tve->adjtiming = val;
 
 	ret = of_property_read_u32(np, "lumafilter0", &val);
 	if ((val == 0) || (ret < 0))
-		return -1;
+		goto errer;
 	else
 		rk3036_tve->lumafilter0 = val;
 
 	ret = of_property_read_u32(np, "lumafilter1", &val);
 	if ((val == 0) || (ret < 0))
-		return -1;
+		goto errer;
 	else
 		rk3036_tve->lumafilter1 = val;
 
 	ret = of_property_read_u32(np, "lumafilter2", &val);
 	if ((val == 0) || (ret < 0))
-		return -1;
+		goto errer;
 	else
 		rk3036_tve->lumafilter2 = val;
 
 	ret = of_property_read_u32(np, "daclevel", &val);
 	if ((val == 0) || (ret < 0)) {
-		return -1;
+		goto errer;
 	} else {
 		rk3036_tve->daclevel = val;
 		if (rk3036_tve->soctype == SOC_RK322X) {
@@ -460,8 +462,15 @@ static int rk3036_tve_parse_dt(struct device_node *np,
 			}
 		}
 	}
+	ret = of_property_read_u32(np, "dac1level", &val);
+	if ((val == 0) || (ret < 0))
+		goto errer;
+	else
+		rk3036_tve->dac1level = val;
 
 	return 0;
+errer:
+	return -1;
 }
 
 static int rk3036_tve_probe(struct platform_device *pdev)
