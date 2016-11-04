@@ -670,6 +670,70 @@
 		#reset-cells = <1>;
 	};
 
+	emmc: rksdmmc@ff520000 {
+		compatible = "rockchip,rk_mmc", "rockchip,rk322xh-sdmmc";
+		reg = <0x0 0xff520000 0x0 0x10000>;
+		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		clocks = <&clk_emmc>, <&clk_gates19 2>;
+		clock-names = "clk_mmc", "hclk_mmc";
+		num-slots = <1>;
+		fifo-depth = <0x100>;
+		bus-width = <8>;
+		rockchip,grf = <&grf>;
+		tune_regsbase = <0x394>;
+		resets = <&reset RK322XH_SRST_EMMC>;
+		reset-names = "mmc_ahb_reset";
+		status = "disabled";
+	};
+
+	sdmmc: rksdmmc@ff500000 {
+		compatible = "rockchip,rk_mmc", "rockchip,rk322xh-sdmmc";
+		reg = <0x0 0xff500000 0x0 0x10000>;
+		interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_dectn
+			     &sdmmc0_bus4>;
+		pinctrl-1 = <&sdmmc0_gpio>;
+		cd-gpios = <&gpio1 GPIO_A5 GPIO_ACTIVE_HIGH>; /* CD GPIO */
+		clocks = <&clk_sdmmc>, <&clk_gates19 0>;
+		clock-names = "clk_mmc", "hclk_mmc";
+		num-slots = <1>;
+		fifo-depth = <0x100>;
+		bus-width = <4>;
+		rockchip,grf = <&grf>;
+		tune_regsbase = <0x384>;
+		resets = <&reset RK322XH_SRST_MMC0>;
+		reset-names = "mmc_ahb_reset";
+		status = "disabled";
+	};
+
+	sdio: rksdmmc@ff510000 {
+		compatible = "rockchip,rk_mmc", "rockchip,rk322xh-sdmmc";
+		reg = <0x0 0xff510000 0x0 0x10000>;
+		interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&sdmmc1_cmd &sdmmc1_clk &sdmmc0_dectn
+			     &sdmmc1_bus4>;
+		pinctrl-1 = <&sdmmc1_gpio>;
+		cd-gpios = <&gpio1 GPIO_C3 GPIO_ACTIVE_HIGH>; /* CD GPIO */
+		clocks = <&clk_sdio>, <&clk_gates19 1>;
+		clock-names = "clk_mmc", "hclk_mmc";
+		num-slots = <1>;
+		fifo-depth = <0x100>;
+		bus-width = <4>;
+		rockchip,grf = <&grf>;
+		tune_regsbase = <0x38c>;
+		resets = <&reset RK322XH_SRST_SDIO>;
+		reset-names = "mmc_ahb_reset";
+		status = "disabled";
+	};
+
 	gmac2io: eth@ff540000 {
 		compatible = "rockchip,rk322xh-gmac","rockchip,rk322x-gmac";
 		reg = <0x0 0xff540000 0x0 0x10000>;
@@ -710,6 +774,29 @@
 		phy-type = "internal";
 		pinctrl-names = "default";
 		pinctrl-0 = <&fephyled_rxm1 &fephyled_linkm1>;
+		status = "disabled";
+	};
+
+	sdmmc_ext: rksdmmc@ff5f0000 {
+		compatible = "rockchip,rk_mmc", "rockchip,rk322xh-sdmmc";
+		reg = <0x0 0xff5f0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default", "idle";
+		pinctrl-0 = <&sdmmc0ext_clk &sdmmc0ext_cmd &sdmmc0ext_dectn
+			     &sdmmc0ext_bus4>;
+		pinctrl-1 = <&sdmmc0ext_gpio>;
+		cd-gpios = <&gpio3 GPIO_A1 GPIO_ACTIVE_HIGH>; /* CD GPIO */
+		clocks = <&clk_sdmmcext>, <&clk_gates19 15>;
+		clock-names = "clk_mmc", "hclk_mmc";
+		num-slots = <1>;
+		fifo-depth = <0x100>;
+		bus-width = <4>;
+		rockchip,grf = <&grf>;
+		tune_regsbase = <0x39c>;
+		resets = <&reset RK322XH_SRST_SDMMCEXT>;
+		reset-names = "mmc_ahb_reset";
 		status = "disabled";
 	};
 

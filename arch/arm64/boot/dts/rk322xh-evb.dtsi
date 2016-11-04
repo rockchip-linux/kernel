@@ -141,6 +141,56 @@
 	};
 };
 
+&emmc {
+	clock-frequency = <125000000>;
+	clock-freq-min-max = <400000 125000000>;
+	supports-highspeed;
+	supports-emmc;
+	bootpart-no-access;
+	supports-DDR_MODE;
+	caps2-mmc-hs200;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	status = "okay";
+};
+
+&sdmmc {
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <400000 37500000>;
+	supports-highspeed;
+	supports-sd;
+	broken-cd;
+	card-detect-delay = <800>;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	power-inverted;
+	status = "disabled";
+};
+
+&sdmmc_ext {
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <400000 37500000>;
+	supports-highspeed;
+	supports-sd;
+	broken-cd;
+	card-detect-delay = <800>;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	power-inverted;
+	status = "disabled";
+};
+
+&sdio {
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <200000 37500000>;
+	supports-highspeed;
+	supports-sdio;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	cap-sdio-irq;
+	status = "okay";
+};
+
 #include "../../../arm/boot/dts/rk805.dtsi"
 &rk805 {
 	gpios = <&gpio2 GPIO_A6 GPIO_ACTIVE_HIGH>, <&gpio2 GPIO_D2 GPIO_ACTIVE_LOW>;
