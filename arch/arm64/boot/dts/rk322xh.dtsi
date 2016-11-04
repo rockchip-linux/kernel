@@ -627,6 +627,19 @@
 		status = "disabled";
 	};
 
+	hdmi_hdcp2: hdmi_hdcp2@ff3e0000 {
+		compatible = "rockchip,rk322xh-hdmi-hdcp2";
+		reg = <0x0 0xff3e0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates21 15>,
+			 <&clk_gates22 0>,
+			 <&clk_gates22 5>;
+		clock-names = "aclk_hdcp2",
+			      "hclk_hdcp2_mmu",
+			      "pclk_hdcp2";
+		status = "disabled";
+	};
+
 	codec: codec@ff410000 {
 		compatible = "rockchip,rk322xh-codec", "rockchip,rk322x-codec";
 		reg = <0x0 0xff410000 0x0 0x1000>;
