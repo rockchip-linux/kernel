@@ -137,6 +137,49 @@
 		status = "disabled";
 	};
 
+	dvfs {
+		vd_arm: vd_arm {
+			regulator_name = "vdd_arm";
+			pd_core {
+				clk_core_dvfs_table: clk_core {
+					operating-points = <
+						/* KHz    uV */
+						408000 1000000
+						600000 1000000
+						816000 1000000
+						>;
+					status = "disabled";
+				};
+			};
+		};
+
+		vd_logic: vd_logic {
+			regulator_name = "vdd_logic";
+			pd_ddr {
+				clk_ddr_dvfs_table: clk_ddr {
+					operating-points = <
+						/* KHz    uV */
+						200000 1000000
+						300000 1000000
+						400000 1000000
+						>;
+					status = "disabled";
+				};
+			};
+
+			pd_gpu {
+				clk_gpu_dvfs_table: clk_gpu {
+					operating-points = <
+						/* KHz    uV */
+						200000 1000000
+						300000 1000000
+						>;
+					status = "disabled";
+				};
+			};
+		};
+	};
+
 	rockchip_clocks_init: clocks-init {
 		compatible = "rockchip,clocks-init";
 		rockchip,clocks-init-parent =
