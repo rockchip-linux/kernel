@@ -302,7 +302,7 @@
 					aclk_bus_pre_mux: aclk_bus_pre_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 2>;
-						clocks = <&clk_gpll>, <&clk_apll>, <&dummy>, <&dummy>;
+						clocks = <&clk_gpll>, <&dummy>, <&dummy>, <&dummy>;
 						clock-output-names = "aclk_bus_pre";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -369,7 +369,7 @@
 					clk_ddr: clk_ddr_pll_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 2>;
-						clocks = <&clk_dpll>, <&clk_apll>, <&clk_gpll>, <&dummy>;
+						clocks = <&clk_dpll>, <&dummy>, <&clk_gpll>, <&dummy>;
 						clock-output-names = "clk_ddr";
 						#clock-cells = <0>;
 					};
@@ -1465,7 +1465,7 @@
 					clk_cvbs_host: clk_cvbs_host_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <13 2>;
-						clocks = <&clk_apll>, <&io_cvbs_clkin>, <&dummy>, <&clk_gpll>;
+						clocks = <&dummy>, <&io_cvbs_clkin>, <&dummy>, <&clk_gpll>;
 						clock-output-names = "clk_cvbs_host";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -1794,7 +1794,7 @@
 					clk_dsp: clk_dsp_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 2>;
-						clocks = <&clk_dpll>, <&clk_gpll>, <&clk_apll>, <&usb480m>;
+						clocks = <&dummy>, <&clk_gpll>, <&dummy>, <&usb480m>;
 						clock-output-names = "clk_dsp";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
