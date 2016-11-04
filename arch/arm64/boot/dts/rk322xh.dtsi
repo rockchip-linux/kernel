@@ -596,7 +596,7 @@
 		status = "disabled";
 	};
 
-	hdmi@ff3c0000 {
+	hdmi: hdmi@ff3c0000 {
 		compatible = "rockchip,rk322xh-hdmi";
 		reg = <0x0 0xff3c0000 0x0 0x20000>,
 		      <0x0 0xff430000 0x0 0x10000>;
