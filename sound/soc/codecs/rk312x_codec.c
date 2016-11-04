@@ -2246,7 +2246,7 @@ static irqreturn_t codec_hp_det_isr(int irq, void *data)
 		DBG("%s hp det falling\n", __func__);
 		writel_relaxed(val|0x20002, RK_GRF_VIRT + GRF_ACODEC_CON);
 	}
-	cancel_delayed_work_sync(&rk312x_priv->hpdet_work);
+	cancel_delayed_work(&rk312x_priv->hpdet_work);
 	schedule_delayed_work(&rk312x_priv->hpdet_work, msecs_to_jiffies(20));
 	return IRQ_HANDLED;
 }
