@@ -282,6 +282,67 @@
 			<&clk_gates7 2>; /* clk_jtag */
 	};
 
+	i2s0: i2s@ff000000 {
+		compatible = "rockchip-i2s";
+		reg = <0x0 0xff000000 0x0 0x1000>;
+		i2s-id = <0>;
+		clocks = <&clk_i2s0>, <&clk_gates15 3>;
+		clock-names = "i2s_clk", "i2s_hclk";
+		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&pdma 11>, <&pdma 12>;
+		#dma-cells = <2>;
+		dma-names = "tx", "rx";
+		status = "disabled";
+	};
+
+	i2s1: i2s@ff010000 {
+		compatible = "rockchip-i2s";
+		reg = <0x0 0xff010000 0x0 0x1000>;
+		i2s-id = <1>;
+		clocks = <&clk_i2s1>, <&clk_i2s1_out>, <&clk_gates15 4>;
+		clock-names = "i2s_clk", "i2s_mclk", "i2s_hclk";
+		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&pdma 14>, <&pdma 15>;
+		#dma-cells = <2>;
+		dma-names = "tx", "rx";
+		status = "disabled";
+	};
+
+	i2s2: i2s@ff020000 {
+		compatible = "rockchip-i2s";
+		reg = <0x0 0xff020000 0x0 0x1000>;
+		i2s-id = <2>;
+		clocks = <&clk_i2s2>, <&clk_i2s2_out>, <&clk_gates15 5>;
+		clock-names = "i2s_clk", "i2s_mclk", "i2s_hclk";
+		interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&pdma 0>, <&pdma 1>;
+		#dma-cells = <2>;
+		dma-names = "tx", "rx";
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&i2s2m0_mclk
+			     &i2s2m0_sclk
+			     &i2s2m0_lrcktx
+			     &i2s2m0_lrckrx
+			     &i2s2m0_sdo
+			     &i2s2m0_sdi>;
+		pinctrl-1 = <&i2s2m0_sleep>;
+		status = "disabled";
+	};
+
+	spdif: spdif@ff030000 {
+		compatible = "rockchip-spdif";
+		reg = <0x0 0xff030000 0x0 0x1000>;
+		clocks = <&clk_spdif>, <&clk_gates15 6>;
+		clock-names = "spdif_mclk", "spdif_hclk";
+		interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL_HIGH>;
+		dmas = <&pdma 10>;
+		#dma-cells = <1>;
+		dma-names = "tx";
+		pinctrl-names = "default";
+		pinctrl-0 = <&spdifm2_tx>;
+		status = "disabled";
+	};
+
 	crypto: crypto@ff060000{
 		compatible = "rockchip-crypto";
 		reg = <0x0 0xff060000 0x0 0x10000>;
@@ -563,6 +624,24 @@
 		rockchip,hdmi_audio_source = <0>;
 		rockchip,hdcp_enable = <0>;
 		rockchip,cec_enable = <0>;
+		status = "disabled";
+	};
+
+	codec: codec@ff410000 {
+		compatible = "rockchip,rk322xh-codec", "rockchip,rk322x-codec";
+		reg = <0x0 0xff410000 0x0 0x1000>;
+		clocks = <&clk_gates17 5>;
+		clock-names = "g_pclk_acodec";
+		status = "disabled";
+	};
+
+	codec_spdif: codec-spdif {
+		compatible = "hdmi-spdif";
+		status = "disabled";
+	};
+
+	codec_hdmi_i2s: codec-hdmi-i2s {
+		compatible = "hdmi-i2s";
 		status = "disabled";
 	};
 
