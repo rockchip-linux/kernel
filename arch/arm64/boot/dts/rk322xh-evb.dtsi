@@ -67,6 +67,63 @@
 		gpios = <&gpio2 GPIO_D2 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
+
+	rockchip_audio {
+		compatible = "rockchip,rk322xh-audio", "rockchip,rk322x-audio";
+		dais {
+			dai0 {
+				audio-codec = <&codec>;
+				audio-controller = <&i2s1>;
+				format = "i2s";
+			};
+		};
+	};
+
+	rockchip_spdif_card {
+		compatible = "rockchip-spdif-card";
+		dais {
+			dai0 {
+				audio-codec = <&codec_spdif>;
+				audio-controller = <&spdif>;
+			};
+		};
+	};
+
+	rockchip_hdmi_i2s {
+		compatible = "rockchip-hdmi-i2s";
+		dais {
+			dai0 {
+				audio-codec = <&codec_hdmi_i2s>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+			};
+		};
+	};
+};
+
+&i2s0 {
+	status = "okay";
+};
+
+&i2s1 {
+	status = "okay";
+};
+
+&spdif {
+	status = "okay";
+};
+
+&codec {
+	spk_depop_time = <100>;
+	status = "okay";
+};
+
+&codec_spdif {
+	status = "okay";
+};
+
+&codec_hdmi_i2s {
+	status = "okay";
 };
 
 &i2c1 {
