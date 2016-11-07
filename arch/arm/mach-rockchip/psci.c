@@ -190,10 +190,9 @@ static void (*psci_fiq_debugger_uart_irq_tf)(void *reg_base, u64 sp_el1);
 
 void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset)
 {
-	if (!ft_fiq_mem_base)
-		return;
-
-	psci_fiq_debugger_uart_irq_tf((char *)ft_fiq_mem_base + offset, sp_el1);
+	if (ft_fiq_mem_base)
+		psci_fiq_debugger_uart_irq_tf((char *)ft_fiq_mem_base + offset,
+					      sp_el1);
 	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, 0, 0,
 		     UARTDBG_CFG_OSHDL_TO_OS, NULL);
 }
@@ -213,8 +212,8 @@ void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 	} else {
 		ft_fiq_mem_phy = res.a0;
 	}
-
-	ft_fiq_mem_base = ioremap(ft_fiq_mem_phy, 8 * 1024);
+	if (!ft_fiq_mem_base)
+		ft_fiq_mem_base = ioremap(ft_fiq_mem_phy, 8 * 1024);
 }
 
 int psci_fiq_debugger_switch_cpu(u32 cpu)
@@ -258,10 +257,8 @@ int is_psci_enable(void)
 
 void psci_fiq_debugger_uart_irq_tf_cb(u32 offset)
 {
-	if (!psci_enable)
-		return;
-
-	psci_fiq_debugger_uart_irq_tf((char *)ft_fiq_mem_base + offset);
+	if (!IS_ERR_OR_NULL(ft_fiq_mem_base))
+		psci_fiq_debugger_uart_irq_tf((char *)ft_fiq_mem_base + offset);
 	sip_fn_smc32(PSCI_SIP_UARTDBG_CFG, 0, 0, UARTDBG_CFG_OSHDL_TO_OS, NULL);
 }
 
@@ -270,11 +267,15 @@ void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 	struct arm_smccc_res res;
 
 	psci_fiq_debugger_uart_irq_tf = callback;
-	ft_fiq_mem_base = dma_alloc_coherent(NULL, PAGE_SIZE,
-					     &ft_fiq_mem_phy, GFP_KERNEL);
-	if (IS_ERR_OR_NULL(ft_fiq_mem_base)) {
-		pr_err("%s: alloc mem failed\n", __func__);
-		return;
+	if (!ft_fiq_mem_base) {
+		ft_fiq_mem_base = dma_alloc_coherent(NULL, PAGE_SIZE,
+						     &ft_fiq_mem_phy,
+						     GFP_KERNEL);
+		if (IS_ERR_OR_NULL(ft_fiq_mem_base)) {
+			ft_fiq_mem_base = NULL;
+			pr_err("%s: alloc mem failed\n", __func__);
+			return;
+		}
 	}
 
 	sip_fn_smc32(PSCI_SIP_UARTDBG_CFG, irq_id,
