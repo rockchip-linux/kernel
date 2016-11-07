@@ -1035,7 +1035,6 @@
 	gmac: eth@30200000 {
 		compatible = "rockchip,rk322x-gmac";
 		reg = <0x30200000 0x10000>;
-		rockchip,cru = <&cru>;
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
@@ -1047,6 +1046,8 @@
 			"mac_clk_tx", "clk_mac_ref",
 			"clk_mac_refout", "aclk_mac",
 			"pclk_mac";
+		resets = <&reset RK322X_RST_MACPHY>;
+		reset-names = "mac-phy";
 		phy-mode = "rgmii";
 		pinctrl-names = "default";
 		pinctrl-0 = <&rgmii_pins>;
