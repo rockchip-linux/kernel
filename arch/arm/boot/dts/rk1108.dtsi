@@ -1559,6 +1559,21 @@
 		};
 
 		gpio1_lcdc0 {
+			lcdc_mipi_data: lcdc-mipi_data {
+				rockchip,pins = <1 GPIO_A0 RK_FUNC_1 &pcfg_pull_none>,//DSI_CLKP
+						<1 GPIO_A1 RK_FUNC_1 &pcfg_pull_none>,//DSI_CLKN
+						<1 GPIO_A2 RK_FUNC_1 &pcfg_pull_none>,//D0P
+						<1 GPIO_A3 RK_FUNC_1 &pcfg_pull_none>,//D0N
+						<1 GPIO_A4 RK_FUNC_1 &pcfg_pull_none>,//D1P
+						<1 GPIO_A5 RK_FUNC_1 &pcfg_pull_none>,//D1N
+						<1 GPIO_A6 RK_FUNC_1 &pcfg_pull_none>,//D2P
+						<1 GPIO_A7 RK_FUNC_1 &pcfg_pull_none>,//D2N
+						<1 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,//D3P
+						<1 GPIO_B1 RK_FUNC_1 &pcfg_pull_none>,//D3N
+						<1 GPIO_C1 RK_FUNC_1 &pcfg_pull_none>,//D10
+						<1 GPIO_C0 RK_FUNC_1 &pcfg_pull_none>;//D11
+			};
+
 			lcdc_data: lcdc-data {
 				rockchip,pins = <1 GPIO_C5 RK_FUNC_1 &pcfg_pull_none>,//DCLK
 						<1 GPIO_A0 RK_FUNC_1 &pcfg_pull_none>,//D0
@@ -1582,6 +1597,21 @@
 						<1 GPIO_B4 RK_FUNC_1 &pcfg_pull_none>,//D15
 						<1 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>,//D16
 						<1 GPIO_B2 RK_FUNC_1 &pcfg_pull_none>;//D17
+			};
+
+			lcdc_mipi_gpio: lcdc-mipi_gpio {
+				rockchip,pins = <1 GPIO_A0 RK_FUNC_GPIO &pcfg_pull_none>,//DSI_CLKP
+						<1 GPIO_A1 RK_FUNC_GPIO &pcfg_pull_none>,//DSI_CLKN
+						<1 GPIO_A2 RK_FUNC_GPIO &pcfg_pull_none>,//D0P
+						<1 GPIO_A3 RK_FUNC_GPIO &pcfg_pull_none>,//D0N
+						<1 GPIO_A4 RK_FUNC_GPIO &pcfg_pull_none>,//D1P
+						<1 GPIO_A5 RK_FUNC_GPIO &pcfg_pull_none>,//D1N
+						<1 GPIO_A6 RK_FUNC_GPIO &pcfg_pull_none>,//D2P
+						<1 GPIO_A7 RK_FUNC_GPIO &pcfg_pull_none>,//D2N
+						<1 GPIO_B0 RK_FUNC_GPIO &pcfg_pull_none>,//D3P
+						<1 GPIO_B1 RK_FUNC_GPIO &pcfg_pull_none>,//D3N
+						<1 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,//D10
+						<1 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>;//D11
 			};
 
 			lcdc_gpio: lcdc-gpio {
