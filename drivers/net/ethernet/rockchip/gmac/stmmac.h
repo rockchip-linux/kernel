@@ -32,6 +32,7 @@
 #include <linux/pci.h>
 #include "common.h"
 #include <linux/ptp_clock_kernel.h>
+#include <linux/reset.h>
 
 struct stmmac_priv {
 	/* Frequently used values are kept adjacent for cache effect */
@@ -121,7 +122,7 @@ enum {
 
 struct bsp_priv {
 	struct regmap *grf;
-	struct regmap *cru;
+	struct reset_control *macphy_reset;
 	struct platform_device *pdev;
 	bool power_ctrl_by_pmu;
 	char pmu_regulator[32];
