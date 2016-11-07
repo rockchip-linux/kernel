@@ -1709,9 +1709,27 @@
 				rockchip,pins = <3 GPIO_D0 RK_FUNC_1 &pcfg_pull_none>, /* cif_href */
 						<3 GPIO_C6 RK_FUNC_1 &pcfg_pull_none>; /* cif_vsync */
 			};
-			cif_dvp_clk: cif-dvp-clk {
-				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>, /* cif_clkout */
-						<3 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>; /* cif_clkin */
+			cif_dvp_clk_out: cif-dvp-clk-out {
+				rockchip,pins = <3 GPIO_D2 RK_FUNC_1 &pcfg_pull_none>;
+			};
+			cif_dvp_clk_in: cif-dvp-clk-in {
+				rockchip,pins = <3 GPIO_C7 RK_FUNC_1 &pcfg_pull_none>;
+			};
+			cif_dvp_d2d9_sleep: cif-dvp-d2d9-sleep {
+				rockchip,pins = <2 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
+						<1 GPIO_C6 RK_FUNC_GPIO &pcfg_pull_none>,
+						<1 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_none>,
+						<2 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D3 RK_FUNC_GPIO &pcfg_pull_none>,
+						<3 GPIO_D4 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+			cif_dvp_clk_out_sleep: cif-dvp-clk-out-sleep {
+				rockchip,pins = <3 GPIO_D2 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+			cif_dvp_clk_in_sleep: cif-dvp-clk-in-sleep {
+				rockchip,pins = <3 GPIO_C7 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 			cif_dvp_sleep: cif-dvp-sleep {
 				rockchip,pins = <2 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_none>,

@@ -348,7 +348,8 @@
 		clocks = <&clk_cif_out>;
 		clock-names = "clk_cif_out";
 		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
-		pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11 &cif_dvp_clk &cif_dvp_sync>;
+		pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11
+			&cif_dvp_clk_in &cif_dvp_clk_out &cif_dvp_sync>;
 		pinctrl-1 = <&cif_dvp_sleep>;
 		rockchip,pd-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
 		rockchip,pwr-gpio = <&gpio3 24 GPIO_ACTIVE_HIGH>;
