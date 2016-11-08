@@ -612,6 +612,22 @@
 		compatible = "rockchip,mpp_service";
 	};
 
+	h265e: h265e@ff330000 {
+		compatible = "rockchip,h265e";
+		rockchip,grf = <&grf>;
+		iommu_enabled = <1>;
+		reg = <0x0 0xff330000 0 0x10000>;
+		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates25 2>, <&clk_gates25 3>,
+			<&clk_venc_core>, <&clk_venc_dsp>;
+		clock-names = "aclk_venc", "pclk_venc", "clk_core", "clk_dsp";
+		rockchip,srv = <&venc_srv>;
+		mode_bit = <11>;
+		mode_ctrl = <0x40c>;
+		name = "h265e";
+		status = "disabled";
+	};
+
 	vepu: vepu@ff340000 {
 		compatible = "rockchip,rk322xh-vepu", "rockchip,vepu";
 		rockchip,grf = <&grf>;
