@@ -153,6 +153,7 @@ dtc_cpp_flags  = -Wp,-MD,$(depfile).pre.tmp -nostdinc                    \
 		 -I$(srctree)/arch/$(SRCARCH)/boot/dts                   \
 		 -I$(srctree)/arch/$(SRCARCH)/boot/dts/include           \
 		 -I$(srctree)/include                                    \
+		 -I$(objtree)/include                                    \
 		 -undef -D__DTS__
 
 # Finds the multi-part object the current object will be linked into
