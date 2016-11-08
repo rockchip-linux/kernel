@@ -653,6 +653,9 @@
 
 &vop {
 	status = "okay";
+	pinctrl-names = "default", "gpio";
+	pinctrl-0 = <&lcdc_mipi_data>;
+	pinctrl-1 = <&lcdc_mipi_gpio>;
 	power_ctr: power_ctr {
 		rockchip,debug = <0>;
 		/*
