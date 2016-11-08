@@ -674,5 +674,6 @@
 };
 
 &codec {
+	spk_ctl_io = <&gpio0 GPIO_A5 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
