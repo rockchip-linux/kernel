@@ -217,3 +217,28 @@ DT_MACHINE_START(RK1108_DT, "Rockchip RK1108")
 	.reserve	= rk1108_reserve,
 	.restart	= rk1108_restart,
 MACHINE_END
+
+char PIE_DATA(sram_stack)[1024];
+EXPORT_PIE_SYMBOL(DATA(sram_stack));
+
+static int __init rk1108_pie_init(void)
+{
+	int err;
+
+	err = rockchip_pie_init();
+	if (err)
+		return err;
+
+	rockchip_pie_chunk = pie_load_sections(rockchip_sram_pool, rk1108);
+	if (IS_ERR(rockchip_pie_chunk)) {
+		err = PTR_ERR(rockchip_pie_chunk);
+		pr_err("%s: failed to load section %d\n", __func__, err);
+		rockchip_pie_chunk = NULL;
+		return err;
+	}
+	rockchip_sram_virt = kern_to_pie(rockchip_pie_chunk, &__pie_common_start[0]);
+	rockchip_sram_stack = kern_to_pie(rockchip_pie_chunk, (char *)DATA(sram_stack) + sizeof(DATA(sram_stack)));
+
+	return 0;
+}
+arch_initcall(rk1108_pie_init);
