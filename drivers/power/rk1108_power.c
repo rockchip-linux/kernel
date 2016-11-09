@@ -21,7 +21,6 @@
 #include <linux/of_platform.h>
 
 #define BATTERY_STABLE_COUNT	1
-#define MIN_BATTERY_VALUE		790
 
 static int ac_online			= 1;
 static int usb_online			= 1;
@@ -37,6 +36,9 @@ struct rk1108_battery_data {
 	struct platform_device *pdev;
 	struct delayed_work work;
 	struct iio_channel *chan;
+
+	int max_voltage;
+	int *levels;
 };
 
 extern int dwc_vbus_status(void);
@@ -197,31 +199,73 @@ static int rk1108_battery_dt_parse(
 	struct rk1108_battery_data *gdata)
 {
 	int rv = 0;
+	int length;
 	struct iio_channel *chan;
+	struct property *prop;
 
 	chan = iio_channel_get(dev, NULL);
 	if (IS_ERR(chan)) {
 		dev_err(dev, "no io-channnels defined\n");
 		chan = NULL;
 		rv = PTR_ERR(chan);
+		return rv;
 	}
 	gdata->chan = chan;
 
-	return rv;
+	prop = of_find_property(dev->of_node, "battery-levels", &length);
+	if (!prop)
+		return -EINVAL;
+
+	gdata->max_voltage = length / sizeof(u32);
+	/* read brightness levels from DT property */
+	if (gdata->max_voltage > 0) {
+		size_t size = sizeof(*gdata->levels) * gdata->max_voltage;
+
+		gdata->levels = devm_kzalloc(dev, size, GFP_KERNEL);
+		if (!gdata->levels)
+			return -ENOMEM;
+
+		rv = of_property_read_u32_array(
+							dev->of_node,
+							"battery-levels",
+							gdata->levels,
+							gdata->max_voltage);
+		if (rv < 0)
+			return rv;
+
+		gdata->max_voltage--;
+	}
+
+	return 0;
 }
 
-static void rk1108_battery_capacity_change(int value)
+static int rk1108_adc_to_voltage(int adc_value)
 {
-	int base_value;
+	int voltage;
 
-	base_value = MIN_BATTERY_VALUE;
-	if (value - base_value < 0) {
-		battery_capacity = 0;
-	} else {
-		battery_capacity = (value - base_value) / 2;
-		if (battery_capacity > 100)
-			battery_capacity = 100;
+	voltage = (((adc_value * 11) / 6) / 4) * 9;
+
+	return voltage;
+}
+
+static void rk1108_battery_capacity_change(
+	int adc_value,
+	struct rk1108_battery_data *gdata)
+{
+	int i;
+	int voltage;
+
+	voltage = rk1108_adc_to_voltage(adc_value);
+
+	for (i = 0; i <= gdata->max_voltage; i++) {
+		if (voltage < gdata->levels[i]) {
+			battery_capacity = i;
+			break;
+		}
 	}
+
+	if (i == 100)
+		battery_capacity = 100;
 }
 
 static void rk1108_battery_work_func(struct work_struct *work)
@@ -269,7 +313,7 @@ static void rk1108_battery_work_func(struct work_struct *work)
 		battery_stable = BATTERY_STABLE_COUNT;
 		/* Get ADC value and send user */
 		battery_voltage = value;
-		rk1108_battery_capacity_change(value);
+		rk1108_battery_capacity_change(value, gdata);
 		changed = 1;
 	}
 	if (changed == 1)
