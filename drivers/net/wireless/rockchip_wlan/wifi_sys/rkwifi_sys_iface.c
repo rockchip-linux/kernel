@@ -177,13 +177,17 @@ static int wifi_init_exit_module(int enable)
 	int type = 0;
 #ifdef CONFIG_WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
 	type = get_wifi_chip_type();
+#ifdef CONFIG_ESP8089
 	if (type == WIFI_ESP8089) {
 		if (enable > 0)
 			ret = rockchip_wifi_init_module_esp8089();
 		else
 			rockchip_wifi_exit_module_esp8089();
 		return ret;
-        } else if (type == WIFI_RTL8723BS_VQ0) {
+	}
+#endif
+#ifdef CONFIG_RTL_WIRELESS_SOLUTION
+	if (type == WIFI_RTL8723BS_VQ0) {
 		if (enable > 0)
 			ret = rockchip_wifi_init_module_rtkwifi();
 		else
@@ -196,6 +200,7 @@ static int wifi_init_exit_module(int enable)
 			rockchip_wifi_exit_module_rtkwifi();
 		return ret;
 	}
+#endif
 #else
 	type = get_wifi_chip_type();
 //#ifdef CONFIG_RKWIFI
