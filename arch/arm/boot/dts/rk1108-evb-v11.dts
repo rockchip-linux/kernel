@@ -104,7 +104,7 @@
 		};
 	};
 
-	backlight {
+	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm0 0 25000>;
 		brightness-levels = <
@@ -657,6 +657,10 @@
 
 &vop {
 	status = "okay";
+	backlight = <&backlight>;
+	pinctrl-names = "default", "gpio";
+	pinctrl-0 = <&lcdc_mipi_data>;
+	pinctrl-1 = <&lcdc_mipi_gpio>;
 	power_ctr: power_ctr {
 		rockchip,debug = <0>;
 		/*
@@ -679,5 +683,9 @@
 
 &codec {
 	spk_ctl_io = <&gpio0 GPIO_A5 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&hdmi {
 	status = "okay";
 };
