@@ -982,6 +982,7 @@
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 		/* 0-Normal, 1-Force Host, 2-Force Device */
 		rockchip,usb-mode = <0>;
+		rockchip,usb-early-detect = <3>;
 		status = "disabled";
 	};
 
