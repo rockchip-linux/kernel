@@ -253,6 +253,12 @@
 		};
 	};
 
+	sram: sram@10080000 {
+		compatible = "mmio-sram";
+		reg = <0x10080000 0x2000>;
+		map-exec;
+	};
+
 	i2s0: i2s0@10110000 {
 		compatible = "rockchip-i2s";
 		reg = <0x10110000 0x1000>;
@@ -552,12 +558,6 @@
 		clocks = <&clk_gates3 12>, <&clk_gates13 14>;
 		clock-names = "saradc", "pclk_saradc";
 		status = "disabled";
-	};
-
-	sram: sram@20020000 {
-		compatible = "mmio-sram";
-		reg = <0x20020000 0x1000>;
-		map-exec;
 	};
 
 	pwm0: pwm@20040000 {
