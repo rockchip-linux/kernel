@@ -1733,6 +1733,7 @@ static void dwc_otg_pcd_work_init(dwc_otg_pcd_t *pcd,
 
 	struct dwc_otg_device *otg_dev = pcd->otg_dev;
 	struct dwc_otg_platform_data *pldata = otg_dev->pldata;
+	u32 usb_early_detect = otg_dev->core_if->usb_early_detect;
 
 	pcd->vbus_status = USB_BC_TYPE_DISCNT;
 	pcd->phy_suspend = USB_PHY_ENABLED;
@@ -1756,7 +1757,9 @@ static void dwc_otg_pcd_work_init(dwc_otg_pcd_t *pcd,
 		/* host mode,enter usb phy mode */
 		pldata->dwc_otg_uart_mode(pldata, PHY_USB_MODE);
 	}
-	schedule_delayed_work(&pcd->check_id_work, 8 * HZ);
+
+	schedule_delayed_work(&pcd->check_id_work, usb_early_detect * HZ);
+
 	if (otg_dev->core_if->usb_mode == USB_MODE_FORCE_DEVICE) {
 		pcd->vbus_status = 0;
 		dwc_otg_core_init(otg_dev->core_if);

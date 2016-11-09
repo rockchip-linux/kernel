@@ -1514,6 +1514,12 @@ static int otg20_driver_probe(struct platform_device *_dev)
 	of_property_read_u32(node, "rockchip,usb-mode", &val);
 	dwc_otg_device->core_if->usb_mode = val;
 
+	/* usb early detect */
+	if (of_property_read_u32(node, "rockchip,usb-early-detect", &val))
+		dwc_otg_device->core_if->usb_early_detect = 8;
+	else
+		dwc_otg_device->core_if->usb_early_detect = val;
+
 #ifndef DWC_HOST_ONLY
 	/*
 	 * Initialize the PCD
