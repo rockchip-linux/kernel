@@ -230,3 +230,21 @@ static int __init rv1108_pie_init(void)
 	return 0;
 }
 arch_initcall(rv1108_pie_init);
+
+#include "ddr_rv1108.c"
+static int __init rv1108_ddr_init(void)
+{
+	struct device_node *np = NULL;
+
+	if (soc_is_rv1108()) {
+		ddr_change_freq = _ddr_change_freq;
+		ddr_round_rate = _ddr_round_rate;
+		ddr_set_auto_self_refresh = _ddr_set_auto_self_refresh;
+		np = of_find_node_by_name(np, "ddr_timing");
+		ddr_init(0, np);
+	}
+
+	return 0;
+}
+arch_initcall_sync(rv1108_ddr_init);
+
