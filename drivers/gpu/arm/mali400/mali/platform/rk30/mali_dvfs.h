@@ -17,6 +17,10 @@
  * mali_dvfs_context_t, context of mali_dvfs_facility.
  */
 struct mali_dvfs {
+	/*
+	 * is rk_dvfs_module ready.
+	 */
+	bool is_rk_dvfs_ready;
 	/**
 	 * work_to_handle_mali_utilization_event.
 	 */

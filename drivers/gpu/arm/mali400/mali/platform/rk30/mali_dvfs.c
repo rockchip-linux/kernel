@@ -42,6 +42,11 @@
 
 /*---------------------------------------------------------------------------*/
 
+static bool is_rk_dvfs_module_ready(const struct mali_dvfs *dvfs)
+{
+	return dvfs->is_rk_dvfs_ready;
+}
+
 static bool mali_dvfs_should_jump_up(const struct mali_dvfs *p_dvfs)
 {
 	return (p_dvfs->m_count_of_requests_to_jump_up
@@ -171,6 +176,11 @@ void mali_dvfs_enable(struct device *dev)
 	struct mali_platform_drv_data *drv_data = dev_get_drvdata(dev);
 	struct mali_dvfs *dvfs = &drv_data->dvfs;
 
+	if (!is_rk_dvfs_module_ready(dvfs)) {
+		WARN_ONCE(1, "rk_dvfs is not ready, can't enable mali_dvfs\n");
+		return;
+	}
+
 	dvfs->enabled = true;
 }
 
@@ -181,6 +191,9 @@ void mali_dvfs_disable(struct device *dev)
 {
 	struct mali_platform_drv_data *drv_data = dev_get_drvdata(dev);
 	struct mali_dvfs *dvfs = &drv_data->dvfs;
+
+	if (!is_rk_dvfs_module_ready(dvfs))
+		return;
 
 	dvfs->enabled = false;
 	cancel_work_sync(&dvfs->work);
@@ -212,6 +225,9 @@ int mali_dvfs_event(struct device *dev, u32 utilisation)
 
 	dvfs->utilisation = utilisation;
 	V("mali_utilization_in_percentage : %d", utilisation * 100 / 256);
+
+	if (!is_rk_dvfs_module_ready(dvfs))
+		return 0;
 
 	if (dvfs->enabled) {
 		/* 将 work_to_handle_mali_utilization_event,
@@ -276,10 +292,12 @@ int mali_dvfs_init(struct device *dev)
 	int div_dvfs;
 	int ret;
 
+	dvfs->is_rk_dvfs_ready = false;
+
 	freq_table = dvfs_get_freq_volt_table(drv_data->clk);
 	if (!freq_table) {
-		dev_err(dev, "Can't find dvfs table in dts\n");
-		return -1;
+		dev_warn(dev, "Can't get dvfs table in dts\n");
+		return 0;
 	}
 
 	/* 确定 len_of_avaialble_dvfs_level_list. */
@@ -320,6 +338,8 @@ int mali_dvfs_init(struct device *dev)
 	dvfs->m_count_of_requests_to_jump_up = 0;
 	dvfs->m_count_of_requests_to_jump_down = 0;
 
+	dvfs->is_rk_dvfs_ready = true;
+
 	return 0;
 }
 
@@ -327,6 +347,9 @@ void mali_dvfs_term(struct device *dev)
 {
 	struct mali_platform_drv_data *drv_data = dev_get_drvdata(dev);
 	struct mali_dvfs *dvfs = &drv_data->dvfs;
+
+	if (!is_rk_dvfs_module_ready(dvfs))
+		return;
 
 	dvfs->m_count_of_requests_to_jump_up = 0;
 	dvfs->m_count_of_requests_to_jump_down = 0;
