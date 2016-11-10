@@ -715,6 +715,73 @@ static int power_on_by_gpio(bool enable) {
 	return 0;
 }
 
+static void internal_phy_power_on(struct bsp_priv *priv, bool enable)
+{
+	if (enable) {
+		/* disable macphy */
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON0, GRF_CLR_BIT(0));
+		/* cru reset macphy */
+		reset_control_assert(priv->macphy_reset);
+		usleep_range(400, 500);
+		reset_control_deassert(priv->macphy_reset);
+		usleep_range(400, 500);
+		/* enable macphy */
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(0));
+	} else {
+		/* disable macphy */
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON0, GRF_CLR_BIT(0));
+	}
+}
+
+static void internal_phy_init(struct bsp_priv *priv, bool enable)
+{
+	if (priv->internal_phy && enable) {
+		pr_info("use internal PHY\n");
+		if (gpio_is_valid(priv->link_io))
+			/* link LED off */
+			gpio_direction_output(priv->link_io,
+					      !priv->link_io_level);
+
+		/* S29_12 set to 0 */
+		/* S29_8 & S29_9 set to 0 */
+		/* G5_7 set to 0 */
+		clk_set_rate(priv->clk_macphy, 50000000);
+		clk_prepare_enable(priv->clk_macphy);
+
+		/* S29_11 set to 0, NOT use_iner_phy_txrx */
+		/* regmap_write(bsp_priv->cru, 0xb8, GRF_CLR_BIT(11)); */
+
+		/* grf_con_iomux_gmac set to 1(RGMII) */
+		regmap_write(priv->grf, 0x50, GRF_BIT(15));
+
+		/* macphy_cfg_clk_freq set to 50MHz */
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(14));
+
+		/* regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
+		*	     GRF_BIT(15));
+		*/
+
+		/* macphy_cfg_mii_mode, set to 01*/
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON0,
+			     GRF_BIT(6) | GRF_CLR_BIT(7));
+
+		/* phy_addr set to 0x1*/
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON1, GRF_BIT(3));
+
+		/* phy_id set to 0x351234*/
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON2,
+			     HIWORD_UPDATE(0x1234, 0xffff, 0));
+		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON3,
+			     HIWORD_UPDATE(0x35, 0x3f, 0));
+	} else {
+		/* disable macphy */
+		internal_phy_power_on(priv, false);
+		/* G5_7 set to 1 */
+		clk_prepare_enable(priv->clk_macphy);
+		clk_disable_unprepare(priv->clk_macphy);
+	}
+}
+
 static int phy_power_on(bool enable)
 {
 	struct bsp_priv *bsp_priv = &g_bsp_priv;
@@ -722,84 +789,13 @@ static int phy_power_on(bool enable)
 
 	pr_info("%s: enable = %d\n", __func__, enable);
 
-	if (bsp_priv->internal_phy) {
-		pr_info("use internal PHY\n");
+	if (bsp_priv->chip == RK322X_GMAC)
+		internal_phy_init(bsp_priv, enable);
 
-		if (gpio_is_valid(bsp_priv->link_io)) {
-			/* link LED off */
-			gpio_direction_output(g_bsp_priv.link_io,
-					      !g_bsp_priv.link_io_level);
-		}
-
-		/* S29_12 set to 0 */
-		/* S29_8 & S29_9 set to 0 */
-		/* G5_7 set to 0 */
-		clk_set_rate(bsp_priv->clk_macphy, 50000000);
-		clk_prepare_enable(bsp_priv->clk_macphy);
-
-		if (bsp_priv->clock_input) {
-			/* S29_10 set to 1, use_iner_phy_50m */
-			clk_set_parent(bsp_priv->mac_clkin,
-				       bsp_priv->phy_50m_out);
-		} else {
-			/* S29_10 set to 0, use gmac_clkin */
-			clk_set_parent(bsp_priv->mac_clkin,
-				       bsp_priv->gmac_clkin);
-		}
-
-		/* S29_11 set to 0, NOT use_iner_phy_txrx */
-		/* regmap_write(bsp_priv->cru, 0xb8, GRF_CLR_BIT(11)); */
-
-		/* grf_con_iomux_gmac set to 1(RGMII) */
-		regmap_write(bsp_priv->grf, 0x50, GRF_BIT(15));
-
-		/* macphy_cfg_clk_freq set to 50MHz */
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-			     GRF_BIT(14));
-
-		/* regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-		*	     GRF_BIT(15));
-		*/
-
-		/* macphy_cfg_mii_mode, set to 01*/
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-			     GRF_BIT(6) | GRF_CLR_BIT(7));
-
-		/* phy_addr set to 0x1*/
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON1, GRF_BIT(3));
-
-		/* phy_id set to 0x351234*/
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON2,
-			     HIWORD_UPDATE(0x1234, 0xffff, 0));
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON3,
-			     HIWORD_UPDATE(0x35, 0x3f, 0));
-
-		/* disable macphy */
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-			     GRF_CLR_BIT(0));
-		/* cru reset macphy */
-		reset_control_assert(bsp_priv->macphy_reset);
-		usleep_range(400, 500);
-		reset_control_deassert(bsp_priv->macphy_reset);
-		usleep_range(400, 500);
-		/* enable macphy */
-		regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(0));
-	} else {
-		if (bsp_priv->chip == RK322X_GMAC) {
-			/* disable macphy */
-			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-				     GRF_CLR_BIT(0));
-			/* G5_7 set to 1 */
-			clk_prepare_enable(bsp_priv->clk_macphy);
-			clk_disable_unprepare(bsp_priv->clk_macphy);
-		}
-	}
-
-	if (bsp_priv->power_ctrl_by_pmu) {
+	if (bsp_priv->power_ctrl_by_pmu)
 		ret = power_on_by_pmu(enable);
-	} else {
+	else
 		ret =  power_on_by_gpio(enable);
-	}
 
 	if (enable) {
 		/* reset */
@@ -810,14 +806,11 @@ static int phy_power_on(bool enable)
 			gpio_direction_output(bsp_priv->reset_io,
 					      !bsp_priv->reset_io_level);
 		}
-		if (bsp_priv->chip == RK322X_GMAC) {
-			/* enable macphy */
-			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-				     GRF_BIT(0));
-		}
+
+		if (bsp_priv->internal_phy)
+			internal_phy_power_on(bsp_priv, enable);
 
 		mdelay(30);
-
 	} else {
 		/* pull down reset */
 		if (gpio_is_valid(bsp_priv->reset_io)) {
@@ -825,11 +818,8 @@ static int phy_power_on(bool enable)
 					      bsp_priv->reset_io_level);
 		}
 
-		if (bsp_priv->chip == RK322X_GMAC) {
-			/* disable macphy */
-			regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
-				     GRF_CLR_BIT(0));
-		}
+		if (bsp_priv->internal_phy)
+			internal_phy_power_on(bsp_priv, enable);
 	}
 
 	return ret;
