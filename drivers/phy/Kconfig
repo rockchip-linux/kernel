@@ -272,6 +272,13 @@ config PHY_RK1108_USB2
 	help
 	  Support for RK1108 USB2.0(EHCI & OHCI) PHY.
 
+config PHY_ROCKCHIP_INNO_USB3
+	tristate "Rockchip INNO USB3PHY Driver"
+	depends on ARCH_ROCKCHIP && OF
+	select GENERIC_PHY
+	help
+	  Support for Rockchip USB3.0 PHY with Innosilicon IP block.
+
 config PHY_ST_SPEAR1310_MIPHY
 	tristate "ST SPEAR1310-MIPHY driver"
 	select GENERIC_PHY
