@@ -130,6 +130,13 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 #define RK322X_GMAC_CLK_RX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 7)
 #define RK322X_GMAC_CLK_TX_DL_CFG(val)	HIWORD_UPDATE(val, 0x7F, 0)
 
+/* RK322XH_GRF_MAC_CON0 */
+#define RK322XH_GMAC_RMII_MODE		GRF_BIT(9)
+#define RK322XH_GMAC_RMII_MODE_CLR	GRF_CLR_BIT(9)
+#define RK322XH_GMAC_CLK_125M		(GRF_CLR_BIT(11) | GRF_CLR_BIT(12))
+#define RK322XH_GMAC_CLK_25M		(GRF_BIT(11) | GRF_BIT(12))
+#define RK322XH_GMAC_CLK_2_5M		(GRF_CLR_BIT(11) | GRF_BIT(12))
+
 /* RK1108_GRF_GMAC_CON0 */
 #define RK1108_GMAC_PHY_INTF_SEL_RMII	\
 		(GRF_CLR_BIT(4) | GRF_CLR_BIT(5) | GRF_BIT(6))
@@ -144,6 +151,7 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		      int tx_delay, int rx_delay)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 val;
 
 	pr_info("tx delay=0x%x\nrx delay=0x%x\n", tx_delay, rx_delay);
 
@@ -183,15 +191,17 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 			     RK3368_GMAC_CLK_TX_DL_CFG(tx_delay));
 		break;
 	case RK322X_GMAC:
+	case RK322XH_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
 			return;
 		}
 
+		val = (type == RK322X_GMAC) ?
+		       RK322X_GMAC_RMII_MODE_CLR : RK322XH_GMAC_RMII_MODE_CLR;
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
-			     RK322X_GMAC_PHY_INTF_SEL_RGMII |
-			     RK322X_GMAC_RMII_MODE_CLR |
+			     RK322X_GMAC_PHY_INTF_SEL_RGMII | val |
 			     RK322X_GMAC_RXCLK_DLY_ENABLE |
 			     RK322X_GMAC_TXCLK_DLY_ENABLE);
 
@@ -208,6 +218,7 @@ static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 reg;
 
 	switch (type) {
 	case RK3288_GMAC:
@@ -243,6 +254,20 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 		/* set MAC to RMII mode */
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, GRF_BIT(11));
 		break;
+	case RK322XH_GMAC:
+		if (IS_ERR(bsp_priv->grf)) {
+			dev_err(dev, "%s: Missing rockchip,grf property\n",
+				__func__);
+			return;
+		}
+
+		reg = bsp_priv->internal_phy ? RK322XH_GRF_MAC_CON2 :
+		      RK322XH_GRF_MAC_CON1;
+
+		regmap_write(bsp_priv->grf, reg,
+			     RK322X_GMAC_PHY_INTF_SEL_RMII |
+			      RK322XH_GMAC_RMII_MODE);
+		break;
 	case RK1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
@@ -262,6 +287,7 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 val;
 
 	switch (type) {
 	case RK3288_GMAC:
@@ -281,14 +307,16 @@ static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 			     RK3368_GMAC_CLK_2_5M);
 		break;
 	case RK322X_GMAC:
+	case RK322XH_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
-			     RK322X_GMAC_CLK_2_5M);
+		val = (type == RK322X_GMAC) ?
+		       RK322X_GMAC_CLK_2_5M : RK322XH_GMAC_CLK_2_5M;
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, val);
 		break;
 	default:
 		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
@@ -299,6 +327,7 @@ static void SET_RGMII_10M(struct bsp_priv *bsp_priv, int type)
 static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 val;
 
 	switch (type) {
 	case RK3288_GMAC:
@@ -318,14 +347,16 @@ static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 			     RK3368_GMAC_CLK_25M);
 		break;
 	case RK322X_GMAC:
+	case RK322XH_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
-			     RK322X_GMAC_CLK_25M);
+		val = (type == RK322X_GMAC) ?
+		       RK322X_GMAC_CLK_25M : RK322XH_GMAC_CLK_25M;
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, val);
 		break;
 	default:
 		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
@@ -336,6 +367,7 @@ static void SET_RGMII_100M(struct bsp_priv *bsp_priv, int type)
 static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 val;
 
 	switch (type) {
 	case RK3288_GMAC:
@@ -355,14 +387,16 @@ static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 			     RK3368_GMAC_CLK_125M);
 		break;
 	case RK322X_GMAC:
+	case RK322XH_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
-			     RK322X_GMAC_CLK_125M);
+		val = (type == RK322X_GMAC) ?
+		       RK322X_GMAC_CLK_125M : RK322XH_GMAC_CLK_125M;
+		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1, val);
 		break;
 	default:
 		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
@@ -373,6 +407,7 @@ static void SET_RGMII_1000M(struct bsp_priv *bsp_priv, int type)
 static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 reg;
 
 	switch (type) {
 	case RK3288_GMAC:
@@ -411,6 +446,20 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 			     RK322X_GMAC_RMII_CLK_2_5M |
 			     RK322X_GMAC_SPEED_10M);
 		break;
+	case RK322XH_GMAC:
+		if (IS_ERR(bsp_priv->grf)) {
+			dev_err(dev, "%s: Missing rockchip,grf property\n",
+				__func__);
+			return;
+		}
+
+		reg = bsp_priv->internal_phy ? RK322XH_GRF_MAC_CON2 :
+		      RK322XH_GRF_MAC_CON1;
+
+		regmap_write(bsp_priv->grf, reg,
+			     RK322X_GMAC_RMII_CLK_2_5M |
+			     RK322X_GMAC_SPEED_10M);
+		break;
 	case RK1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
@@ -431,6 +480,7 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 {
 	struct device *dev = &bsp_priv->pdev->dev;
+	u32 reg;
 
 	switch (type) {
 	case RK3288_GMAC:
@@ -466,6 +516,20 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 		}
 
 		regmap_write(bsp_priv->grf, RK322X_GRF_MAC_CON1,
+			     RK322X_GMAC_RMII_CLK_25M |
+			     RK322X_GMAC_SPEED_100M);
+		break;
+	case RK322XH_GMAC:
+		if (IS_ERR(bsp_priv->grf)) {
+			dev_err(dev, "%s: Missing rockchip,grf property\n",
+				__func__);
+			return;
+		}
+
+		reg = bsp_priv->internal_phy ? RK322XH_GRF_MAC_CON2 :
+		      RK322XH_GRF_MAC_CON1;
+
+		regmap_write(bsp_priv->grf, reg,
 			     RK322X_GMAC_RMII_CLK_25M |
 			     RK322X_GMAC_SPEED_100M);
 		break;
@@ -556,7 +620,8 @@ static int gmac_clk_init(struct device *device)
 			clk_set_rate(bsp_priv->gmac_clkin, 50000000);
 		}
 
-		if (bsp_priv->chip == RK322X_GMAC) {
+		switch (bsp_priv->chip) {
+		case RK322X_GMAC:
 			clk_set_parent(bsp_priv->clk_mac, bsp_priv->mac_clkin);
 			if (bsp_priv->internal_phy) {
 				clk_set_parent(bsp_priv->mac_clkin,
@@ -565,8 +630,18 @@ static int gmac_clk_init(struct device *device)
 				clk_set_parent(bsp_priv->mac_clkin,
 					       bsp_priv->gmac_clkin);
 			}
-		} else {
+			break;
+		case RK322XH_GMAC:
+			if (bsp_priv->internal_phy)
+				clk_set_parent(bsp_priv->clk_mac,
+					       bsp_priv->phy_50m_out);
+			else
+				clk_set_parent(bsp_priv->clk_mac,
+					       bsp_priv->gmac_clkin);
+			break;
+		default:
 			clk_set_parent(bsp_priv->clk_mac, bsp_priv->gmac_clkin);
+			break;
 		}
 	} else {
 		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
@@ -735,7 +810,7 @@ static void internal_phy_power_on(struct bsp_priv *priv, bool enable)
 
 static void internal_phy_init(struct bsp_priv *priv, bool enable)
 {
-	if (priv->internal_phy && enable) {
+	if (enable) {
 		pr_info("use internal PHY\n");
 		if (gpio_is_valid(priv->link_io))
 			/* link LED off */
@@ -757,6 +832,14 @@ static void internal_phy_init(struct bsp_priv *priv, bool enable)
 		/* macphy_cfg_clk_freq set to 50MHz */
 		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON0, GRF_BIT(14));
 
+		if (priv->chip == RK322X_GMAC)
+			/* grf_con_iomux_gmac set to 1(RGMII) */
+			regmap_write(priv->grf, 0x50, GRF_BIT(15));
+		else if (priv->chip == RK322XH_GMAC)
+			/* choose rmii mode --> rx_dv */
+			regmap_write(priv->grf, RK322X_GRF_MACPHY_CON1,
+				     GRF_BIT(9));
+
 		/* regmap_write(bsp_priv->grf, RK322X_GRF_MACPHY_CON0,
 		*	     GRF_BIT(15));
 		*/
@@ -774,10 +857,6 @@ static void internal_phy_init(struct bsp_priv *priv, bool enable)
 		regmap_write(priv->grf, RK322X_GRF_MACPHY_CON3,
 			     HIWORD_UPDATE(0x35, 0x3f, 0));
 	} else {
-		/* disable macphy */
-		internal_phy_power_on(priv, false);
-		/* G5_7 set to 1 */
-		clk_prepare_enable(priv->clk_macphy);
 		clk_disable_unprepare(priv->clk_macphy);
 	}
 }
@@ -789,8 +868,19 @@ static int phy_power_on(bool enable)
 
 	pr_info("%s: enable = %d\n", __func__, enable);
 
-	if (bsp_priv->chip == RK322X_GMAC)
-		internal_phy_init(bsp_priv, enable);
+	/* Just the RK322X_GMAC need to disable macphy when it uses
+	 * external phy. But the RK322XH_GMAC's gmac2io uses the
+	 * external phy, we could not disable macphy, because we
+	 * do not know whether the gmac2phy is used, they are two
+	 * same gmac ip, but different use.
+	 */
+	if ((bsp_priv->chip == RK322X_GMAC) &&
+	    !bsp_priv->internal_phy) {
+		internal_phy_power_on(bsp_priv, false);
+		/* G5_7 set to 1 */
+		clk_prepare_enable(bsp_priv->clk_macphy);
+		clk_disable_unprepare(bsp_priv->clk_macphy);
+	}
 
 	if (bsp_priv->power_ctrl_by_pmu)
 		ret = power_on_by_pmu(enable);
@@ -807,8 +897,10 @@ static int phy_power_on(bool enable)
 					      !bsp_priv->reset_io_level);
 		}
 
-		if (bsp_priv->internal_phy)
+		if (bsp_priv->internal_phy) {
+			internal_phy_init(bsp_priv, enable);
 			internal_phy_power_on(bsp_priv, enable);
+		}
 
 		mdelay(30);
 	} else {
@@ -818,8 +910,10 @@ static int phy_power_on(bool enable)
 					      bsp_priv->reset_io_level);
 		}
 
-		if (bsp_priv->internal_phy)
+		if (bsp_priv->internal_phy) {
 			internal_phy_power_on(bsp_priv, enable);
+			internal_phy_init(bsp_priv, enable);
+		}
 	}
 
 	return ret;
@@ -1314,6 +1408,9 @@ static const struct of_device_id stmmac_dt_ids[] = {
 	},
 	{ .compatible = "rockchip,rk322x-gmac",
 	  .data = (void *) RK322X_GMAC
+	},
+	{ .compatible = "rockchip,rk322xh-gmac",
+	  .data = (void *)RK322XH_GMAC
 	},
 	{ .compatible = "rockchip,rk1108-gmac",
 	  .data = (void *) RK1108_GMAC
