@@ -3875,6 +3875,34 @@ static struct rk_lcdc_win lcdc_win[] = {
 	       },	       
 };
 
+static int rk3288_lcdc_extern_func(struct rk_lcdc_driver *dev_drv, int cmd)
+{
+	struct lcdc_device *lcdc_dev =
+		container_of(dev_drv, struct lcdc_device, driver);
+	u32 mask, val;
+
+	if (unlikely(!lcdc_dev->clk_on)) {
+		dev_info(lcdc_dev->dev, "clk_on = %d\n", lcdc_dev->clk_on);
+		return 0;
+	}
+
+	switch (cmd) {
+	case SET_DSP_MIRROR:
+		mask = m_DSP_X_MIR_EN | m_DSP_Y_MIR_EN;
+		val = v_DSP_X_MIR_EN(dev_drv->cur_screen->x_mirror) |
+		      v_DSP_Y_MIR_EN(dev_drv->cur_screen->y_mirror);
+		lcdc_msk_reg(lcdc_dev, DSP_CTRL0, mask, val);
+		dev_info(lcdc_dev->dev, "xmirror: %d, ymirror: %d\n",
+			 dev_drv->cur_screen->x_mirror,
+			 dev_drv->cur_screen->y_mirror);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.open 			= rk3288_lcdc_open,
 	.win_direct_en		= rk3288_lcdc_win_direct_en,
@@ -3913,6 +3941,7 @@ static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.set_irq_to_cpu  	= rk3288_lcdc_set_irq_to_cpu,
 	.mmu_en    = rk3288_lcdc_mmu_en,
 	.set_overscan   	= rk3288_lcdc_set_overscan,
+	.extern_func		= rk3288_lcdc_extern_func,
 
 };
 
