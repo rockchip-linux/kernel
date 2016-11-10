@@ -575,7 +575,7 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 		handle = ERR_PTR(ret);
 	}
 
-	trace_ion_buffer_alloc(client->display_name, (void*)buffer,
+	trace_ion_alloc(client->display_name, (void*)buffer,
 		buffer->size);
 
 	return handle;
@@ -594,7 +594,7 @@ static void ion_free_nolock(struct ion_client *client, struct ion_handle *handle
 		WARN(1, "%s: invalid handle passed to free.\n", __func__);
 		return;
 	}
-	trace_ion_buffer_free(client->display_name, (void*)handle->buffer,
+	trace_ion_free(client->display_name, (void*)handle->buffer,
 			handle->buffer->size);
 	ion_handle_put_nolock(handle);
 }
@@ -714,7 +714,7 @@ void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle)
 	vaddr = ion_handle_kmap_get(handle);
 	mutex_unlock(&buffer->lock);
 	mutex_unlock(&client->lock);
-	trace_ion_kernel_map(client->display_name, (void*)buffer,
+	trace_ion_map_kernel(client->display_name, (void*)buffer,
 			buffer->size, (void*)vaddr);
 	return vaddr;
 }
@@ -727,7 +727,7 @@ void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle)
 	mutex_lock(&client->lock);
 	buffer = handle->buffer;
 	mutex_lock(&buffer->lock);
-	trace_ion_kernel_unmap(client->display_name, (void*)buffer,
+	trace_ion_unmap_kernel(client->display_name, (void*)buffer,
 			buffer->size);
 	ion_handle_kmap_put(handle);
 	mutex_unlock(&buffer->lock);
@@ -872,7 +872,7 @@ int ion_map_iommu(struct device *iommu_dev, struct ion_client *client,
 	if (!ret)
 		buffer->iommu_map_cnt++;
 	*size = buffer->size;
-	trace_ion_iommu_map(client->display_name, (void*)buffer, buffer->size,
+	trace_ion_map_iommu(client->display_name, (void*)buffer, buffer->size,
 		dev_name(iommu_dev), *iova, *size, buffer->iommu_map_cnt);
 out:
 	mutex_unlock(&buffer->lock);
@@ -939,7 +939,7 @@ void ion_unmap_iommu(struct device *iommu_dev, struct ion_client *client,
 
 	buffer->iommu_map_cnt--;
 
-	trace_ion_iommu_unmap(client->display_name, (void*)buffer, buffer->size,
+	trace_ion_unmap_iommu(client->display_name, (void*)buffer, buffer->size,
 		dev_name(iommu_dev), iommu_map->iova_addr,
 		iommu_map->mapped_size, buffer->iommu_map_cnt);
 
@@ -1388,7 +1388,7 @@ static int ion_mmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 		pr_err("%s: failure mapping buffer to userspace\n",
 		       __func__);
 
-	trace_ion_buffer_mmap("", (void*)buffer, buffer->size,
+	trace_ion_mmap("", (void*)buffer, buffer->size,
 		vma->vm_start, vma->vm_end);
 
 	return ret;
@@ -1398,7 +1398,7 @@ int ion_munmap(struct dma_buf *dmabuf, struct vm_area_struct *vma)
 {
 	struct ion_buffer *buffer = dmabuf->priv;
 
-	trace_ion_buffer_munmap("", (void*)buffer, buffer->size,
+	trace_ion_munmap("", (void*)buffer, buffer->size,
 		vma->vm_start, vma->vm_end);
 
 	return 0;
@@ -1409,6 +1409,8 @@ static void ion_dma_buf_release(struct dma_buf *dmabuf)
 	struct ion_buffer *buffer = dmabuf->priv;
 
 	ion_buffer_put(buffer);
+
+	trace_ion_dma_buf_release("", (void*)buffer, buffer->size);
 }
 
 static void *ion_dma_buf_kmap(struct dma_buf *dmabuf, unsigned long offset)
@@ -1510,7 +1512,7 @@ int ion_share_dma_buf_fd(struct ion_client *client, struct ion_handle *handle)
 	if (fd < 0)
 		dma_buf_put(dmabuf);
 
-	trace_ion_buffer_share(client->display_name, (void*)handle->buffer,
+	trace_ion_share_dma_buf_fd(client->display_name, (void*)handle->buffer,
 				handle->buffer->size, fd);
 	return fd;
 }
@@ -1542,6 +1544,8 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 	if (!IS_ERR(handle)) {
 		ion_handle_get(handle);
 		mutex_unlock(&client->lock);
+		trace_ion_import_dma_buf(client->display_name, (void *)buffer,
+								buffer->size);
 		goto end;
 	}
 
@@ -1558,7 +1562,7 @@ struct ion_handle *ion_import_dma_buf(struct ion_client *client, int fd)
 		handle = ERR_PTR(ret);
 	}
 
-	trace_ion_buffer_import(client->display_name, (void*)buffer,
+	trace_ion_import_dma_buf(client->display_name, (void*)buffer,
 				buffer->size);
 end:
 	dma_buf_put(dmabuf);
@@ -1936,6 +1940,7 @@ static const struct file_operations debug_heap_bitmap_fops = {
 };
 #endif
 
+#ifdef ION_TRACE_EMIT
 static ssize_t
 rockchip_ion_debug_write(struct file *filp, const char __user *ubuf, size_t cnt,
 		       loff_t *ppos)
@@ -1971,6 +1976,7 @@ static const struct file_operations rockchip_ion_debug_fops = {
 	.read = rockchip_ion_debug_read,
 	.write = rockchip_ion_debug_write,
 };
+#endif
 
 void ion_device_add_heap(struct ion_device *dev, struct ion_heap *heap)
 {
@@ -2048,7 +2054,9 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 {
 	struct ion_device *idev;
 	int ret;
+#ifdef ION_TRACE_EMIT
 	struct dentry* ion_debug;
+#endif
 
 	idev = kzalloc(sizeof(struct ion_device), GFP_KERNEL);
 	if (!idev)
@@ -2083,6 +2091,7 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 	rockchip_ion_snapshot_debugfs(idev->debug_root);
 #endif
 
+#ifdef ION_TRACE_EMIT
 	ion_debug = debugfs_create_file("debug", 0664, idev->debug_root,
 					NULL, &rockchip_ion_debug_fops);
 	if (!ion_debug) {
@@ -2090,6 +2099,7 @@ struct ion_device *ion_device_create(long (*custom_ioctl)
 		path = dentry_path(idev->debug_root, buf, 256);
 		pr_err("Failed to create debugfs at %s/%s\n",path, "ion_debug");
 	}
+#endif
 
 debugfs_done:
 

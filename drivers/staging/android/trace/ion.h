@@ -1,4 +1,4 @@
-#define ION_TRACE_EMIT
+//#define ION_TRACE_EMIT
 
 #ifdef ION_TRACE_EMIT
 
@@ -15,19 +15,19 @@ static int ion_trace_lvl = 0;
 		printk(KERN_INFO "%15.s-%5.d: %s: "pr_fmt(fmt), current->comm,\
 		       current->pid, __func__, ##__VA_ARGS__)
 
-static inline void trace_ion_buffer_alloc(const char* client, void* buf,
+static inline void trace_ion_alloc(const char* client, void* buf,
                                    unsigned int size)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d\n", client, buf, size);
 }
 
-static inline void trace_ion_buffer_free(const char* client, void* buf,
+static inline void trace_ion_free(const char* client, void* buf,
                                    unsigned int size)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d\n", client, buf, size);
 }
 
-static inline void trace_ion_buffer_import(const char* client, void* buf,
+static inline void trace_ion_import_dma_buf(const char* client, void* buf,
                                    unsigned int size)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d\n", client, buf, size);
@@ -39,13 +39,13 @@ static inline void trace_ion_buffer_destroy(const char* client, void* buf,
 	pr_ion_trace(2, "client=%s,buffer=%p:%d\n", client, buf, size);
 }
 
-static inline void trace_ion_kernel_unmap(const char* client, void* buf,
+static inline void trace_ion_unmap_kernel(const char* client, void* buf,
                                    unsigned int size)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d\n", client, buf, size);
 }
 
-static inline void trace_ion_buffer_share(const char* client, void* buf,
+static inline void trace_ion_share_dma_buf_fd(const char* client, void* buf,
                                    unsigned int size, int fd)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d,fd=%d\n", client, buf, size, fd);
@@ -61,7 +61,7 @@ static inline void trace_ion_client_destroy(const char* client)
 	pr_ion_trace(2, "client=%s\n", client);
 }
 
-static inline void trace_ion_iommu_map(const char* client, void* buf,
+static inline void trace_ion_map_iommu(const char* client, void* buf,
                                 unsigned int size, const char* iommu_dev,
                                 unsigned int iommu_addr,
                                 unsigned int iommu_size, unsigned int map_cnt)
@@ -71,7 +71,7 @@ static inline void trace_ion_iommu_map(const char* client, void* buf,
 		     iommu_addr+iommu_size, map_cnt);
 }
 
-static inline void trace_ion_iommu_unmap(const char* client, void* buf,
+static inline void trace_ion_unmap_iommu(const char* client, void* buf,
                                 unsigned int size, const char* iommu_dev,
                                 unsigned int iommu_addr,
                                 unsigned int iommu_size, unsigned int map_cnt)
@@ -91,14 +91,14 @@ static inline void trace_ion_iommu_release(const char* client, void* buf,
 		     iommu_addr+iommu_size, map_cnt);
 }
 
-static inline void trace_ion_kernel_map(const char* client, void* buf,
+static inline void trace_ion_map_kernel(const char* client, void* buf,
                                  unsigned int size, void* kaddr)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d,kaddr=%p\n", client, buf, size,
 		     kaddr);
 }
 
-static inline void trace_ion_buffer_mmap(const char* client, void* buf,
+static inline void trace_ion_mmap(const char* client, void* buf,
                                   unsigned int size, unsigned long vm_start,
                                   unsigned long vm_end)
 {
@@ -106,12 +106,18 @@ static inline void trace_ion_buffer_mmap(const char* client, void* buf,
 		     buf, size, vm_start, vm_end);
 }
 
-static inline void trace_ion_buffer_munmap(const char* client, void* buf,
+static inline void trace_ion_munmap(const char* client, void* buf,
                                     unsigned int size, unsigned long vm_start,
                                     unsigned long vm_end)
 {
 	pr_ion_trace(2, "client=%s,buffer=%p:%d,vma[%08lx:%08lx]\n", client,
 		     buf, size, vm_start, vm_end);
+}
+
+static inline void trace_ion_dma_buf_release(const char* client, void* buf,
+                                    unsigned int size)
+{
+	pr_ion_trace(2, "client=%s,buffer=%p:%d\n", client, buf, size);
 }
 
 #else
@@ -141,15 +147,15 @@ DECLARE_EVENT_CLASS(ion_buffer_op,
 	TP_printk("client=%s,buffer=%p:%d",
 		  __get_str(client), __entry->buf, __entry->size)
 );
-DEFINE_EVENT(ion_buffer_op, ion_buffer_alloc,
+DEFINE_EVENT(ion_buffer_op, ion_alloc,
 	TP_PROTO(const char* client, void* buffer, unsigned int size),
 	TP_ARGS(client, buffer, size));
 
-DEFINE_EVENT(ion_buffer_op, ion_buffer_free,
+DEFINE_EVENT(ion_buffer_op, ion_free,
 	TP_PROTO(const char* client, void* buffer, unsigned int size),
 	TP_ARGS(client, buffer, size));
 
-DEFINE_EVENT(ion_buffer_op, ion_buffer_import,
+DEFINE_EVENT(ion_buffer_op, ion_import_dma_buf,
 	TP_PROTO(const char* client, void* buffer, unsigned int size),
 	TP_ARGS(client, buffer, size));
 
@@ -157,11 +163,15 @@ DEFINE_EVENT(ion_buffer_op, ion_buffer_destroy,
 	TP_PROTO(const char* client, void* buffer, unsigned int size),
 	TP_ARGS(client, buffer, size));
 
-DEFINE_EVENT(ion_buffer_op, ion_kernel_unmap,
+DEFINE_EVENT(ion_buffer_op, ion_unmap_kernel,
 	TP_PROTO(const char* client, void* buffer, unsigned int size),
 	TP_ARGS(client, buffer, size));
 
-TRACE_EVENT(ion_buffer_share,
+DEFINE_EVENT(ion_buffer_op, ion_dma_buf_release,
+	TP_PROTO(const char* client, void* buffer, unsigned int size),
+	TP_ARGS(client, buffer, size));
+
+TRACE_EVENT(ion_share_dma_buf_fd,
 	TP_PROTO(const char* client, void* buf, unsigned int size, int fd),
 	TP_ARGS(client, buf, size, fd),
 	TP_STRUCT__entry(
@@ -226,12 +236,12 @@ DECLARE_EVENT_CLASS(ion_iommu_op,
 		  __get_str(iommu_dev), __entry->iommu_addr, __entry->iommu_size,
 		  __entry->map_cnt)
 );
-DEFINE_EVENT(ion_iommu_op, ion_iommu_map,
+DEFINE_EVENT(ion_iommu_op, ion_map_iommu,
 	TP_PROTO(const char* client, void* buf, unsigned int size,
 		const char* iommu_dev, unsigned int iommu_addr,
 		unsigned int iommu_size, unsigned int map_cnt),
 	TP_ARGS(client, buf, size, iommu_dev, iommu_addr, iommu_size, map_cnt));
-DEFINE_EVENT(ion_iommu_op, ion_iommu_unmap,
+DEFINE_EVENT(ion_iommu_op, ion_unmap_iommu,
 	TP_PROTO(const char* client, void* buf, unsigned int size,
 		const char* iommu_dev, unsigned int iommu_addr,
 		unsigned int iommu_size, unsigned int map_cnt),
@@ -260,7 +270,7 @@ DECLARE_EVENT_CLASS(ion_kmap_op,
 	TP_printk("client=%s,buffer=%p:%d,kaddr=%p",
 		  __get_str(client), __entry->buf, __entry->size, __entry->kaddr)
 );
-DEFINE_EVENT(ion_kmap_op, ion_kernel_map,
+DEFINE_EVENT(ion_kmap_op, ion_map_kernel,
 	TP_PROTO(const char* client, void* buffer, unsigned int size, void* kaddr),
 	TP_ARGS(client, buffer, size, kaddr));
 
@@ -287,12 +297,12 @@ DECLARE_EVENT_CLASS(ion_mmap_op,
 		  __entry->vm_start, __entry->vm_end)
 );
 
-DEFINE_EVENT(ion_mmap_op, ion_buffer_mmap,
+DEFINE_EVENT(ion_mmap_op, ion_mmap,
 	TP_PROTO(const char* client, void* buf, unsigned int size,
 		unsigned long vm_start, unsigned long vm_end),
 	TP_ARGS(client, buf, size, vm_start, vm_end));
 
-DEFINE_EVENT(ion_mmap_op, ion_buffer_munmap,
+DEFINE_EVENT(ion_mmap_op, ion_munmap,
 	TP_PROTO(const char* client, void* buf, unsigned int size,
 		unsigned long vm_start, unsigned long vm_end),
 	TP_ARGS(client, buf, size, vm_start, vm_end));
