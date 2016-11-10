@@ -460,3 +460,7 @@
 			<0xb5	KEY_BACKSPACE>;
 	};
 };
+
+&gpu {
+	status = "okay";
+};
