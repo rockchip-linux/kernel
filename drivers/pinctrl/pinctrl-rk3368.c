@@ -1105,6 +1105,16 @@ static int rockchip_pmx_enable(struct pinctrl_dev *pctldev, unsigned selector,
 			if (kstrtou32(p, 10, &val))
 				return -EINVAL;
 
+			/* If the gmac m1 mux (GRF_COM_IOMUX[2]) is selected,
+			 * the GRF_COM_IOMUX[10] need to be selecetd for
+			 * optimization.
+			 */
+			if ((info->ctrl->type == RK322XH) &&
+			    (idx == 2) && val) {
+				val |= BIT(10 - idx);
+				mask |= BIT(10 - idx);
+			}
+
 			val = (mask << (idx + 16)) | (val << idx);
 			ret = regmap_write(info->regmap_base,
 					   info->ctrl->grf_con_iomux_offset,
