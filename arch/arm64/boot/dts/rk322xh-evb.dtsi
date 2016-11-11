@@ -192,6 +192,26 @@
 	status = "okay";
 };
 
+&gmac_clkin {
+	clock-frequency = <125000000>;
+};
+
+&gmac2io {
+	/* pmu_regulator = "act_ldo5"; */
+	/* power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>; */
+	reset-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
+	/* phyirq-gpio = <&gpio0 GPIO_B1 GPIO_ACTIVE_LOW>; */
+	phy-mode = "rmii";
+	pinctrl-names = "default";
+	pinctrl-0 = <&rmiim1_pins>;
+	clock_in_out = "output";
+};
+
+&gmac2phy {
+	status = "okay";
+	clock_in_out = "output";
+};
+
 &disp_timings {
 	native-mode = <&timing0>;
 };

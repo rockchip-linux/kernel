@@ -861,9 +861,8 @@
 	};
 
 	gmac2io: eth@ff540000 {
-		compatible = "rockchip,rk322xh-gmac","rockchip,rk322x-gmac";
+		compatible = "rockchip,rk322xh-gmac";
 		reg = <0x0 0xff540000 0x0 0x10000>;
-		rockchip,cru = <&cru>;
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
@@ -915,9 +914,8 @@
 	};
 
 	gmac2phy: eth@ff550000 {
-		compatible = "rockchip,rk322xh-gmac","rockchip,rk322x-gmac";
+		compatible = "rockchip,rk322xh-gmac";
 		reg = <0x0 0xff550000 0x0 0x10000>;
-		rockchip,cru = <&cru>;
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
@@ -929,6 +927,8 @@
 			"mac_clk_tx", "clk_mac_ref",
 			"clk_macphy", "aclk_mac",
 			"pclk_mac";
+		resets = <&reset RK322XH_SRST_MACPHY>;
+		reset-names = "mac-phy";
 		phy-mode = "rmii";
 		phy-type = "internal";
 		pinctrl-names = "default";
