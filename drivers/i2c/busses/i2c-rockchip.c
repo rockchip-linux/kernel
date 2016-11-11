@@ -926,8 +926,8 @@ static int rockchip_i2c_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = devm_request_irq(&pdev->dev, i2c->irq, rockchip_i2c_irq, 0,
-			dev_name(&i2c->adap.dev), i2c);
+	ret = devm_request_irq(&pdev->dev, i2c->irq, rockchip_i2c_irq,
+			       IRQF_NO_SUSPEND, dev_name(&i2c->adap.dev), i2c);
 	if (ret) {
 		dev_err(&pdev->dev, "cannot claim IRQ %d\n", i2c->irq);
 		return ret;
