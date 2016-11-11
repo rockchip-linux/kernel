@@ -1103,8 +1103,6 @@ static int pvtm_set_single_dvfs(struct dvfs_node *dvfs_node, u32 idx,
 		}
 	}
 
-	return -EINVAL;
-
 	return 0;
 }
 
@@ -1119,7 +1117,7 @@ static void pvtm_set_dvfs_table(struct dvfs_node *dvfs_node)
 	unsigned int n_voltages = dvfs_node->vd->n_voltages;
 	int *volt_list = dvfs_node->vd->volt_list;
 
-	if (!info)
+	if (!info || !dvfs_node->pvtm_table)
 		return;
 
 	clk_set_rate(dvfs_node->clk, info->scan_rate_hz);
@@ -1614,7 +1612,7 @@ static int get_adjust_volt_by_leakage(struct dvfs_node *dvfs_node)
 	int i = 0;
 	int adjust_volt = 0;
 
-	if (!dvfs_node->vd)
+	if (!dvfs_node->vd || !dvfs_node->lkg_info.table)
 		return 0;
 
 	if (dvfs_node->lkg_info.def_table_lkg == -1)
@@ -1724,7 +1722,6 @@ static int initialize_dvfs_node(struct dvfs_node *clk_dvfs_node)
 			DVFS_ERR("%s: vd(%s) can't get regulator(%s)!\n",
 				 __func__, clk_dvfs_node->vd->name,
 				 clk_dvfs_node->vd->regulator_name);
-			mutex_unlock(&clk_dvfs_node->vd->mutex);
 			return -ENXIO;
 		}
 	} else {
@@ -1778,8 +1775,10 @@ int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node)
 	if (clk_dvfs_node->enable_count == 0) {
 		if (!clk_dvfs_node->is_initialized) {
 			ret = initialize_dvfs_node(clk_dvfs_node);
-			if (ret)
+			if (ret) {
+				mutex_unlock(&clk_dvfs_node->vd->mutex);
 				return ret;
+			}
 		} else {
 			dvfs_has_init = true;
 		}
@@ -2235,6 +2234,9 @@ static struct cpufreq_frequency_table *of_get_temp_limit_table(struct device_nod
 	temp_limt_table = kzalloc(sizeof(struct cpufreq_frequency_table) *
 			     (nr/2 + 1), GFP_KERNEL);
 
+	if (!temp_limt_table)
+		return NULL;
+
 	val = prop->value;
 
 	for (i=0; i<nr/2; i++){
@@ -2271,6 +2273,9 @@ static int of_get_dvfs_table(struct device_node *dev_node,
 
 	tmp_dvfs_table = kzalloc(sizeof(*tmp_dvfs_table) *
 			     (nr/2 + 1), GFP_KERNEL);
+	if (!tmp_dvfs_table)
+		return -ENOMEM;
+
 	val = prop->value;
 
 	for (i = 0; i < nr/2; i++) {
@@ -2314,6 +2319,8 @@ static int of_get_dvfs_pvtm_table(struct device_node *dev_node,
 
 	tmp_pvtm_table = kzalloc(sizeof(*tmp_pvtm_table) *
 			     (nr/3 + 1), GFP_KERNEL);
+	if (!tmp_dvfs_table || !tmp_pvtm_table)
+		return -ENOMEM;
 
 	val = prop->value;
 
@@ -2361,6 +2368,9 @@ static struct lkg_adjust_volt_table
 	lkg_adjust_volt_table =
 		kzalloc(sizeof(struct lkg_adjust_volt_table) *
 		(nr/2 + 1), GFP_KERNEL);
+
+	if (!lkg_adjust_volt_table)
+		return NULL;
 
 	val = prop->value;
 
