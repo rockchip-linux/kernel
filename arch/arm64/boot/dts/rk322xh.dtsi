@@ -609,21 +609,6 @@
 		status = "disabled";
 	};
 
-	vop: vop@ff370000 {
-		compatible = "rockchip,rk322xh-lcdc";
-		rockchip,prop = <PRMRY>;
-		rockchip,iommu-enabled = <1>;
-		reg = <0x0 0xff370000 0x0 0x2000>;
-		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&aclk_vop>,
-			 <&dclk_vop>,
-			 <&clk_gates21 3>;
-		clock-names = "aclk_vop",
-			      "dclk_vop",
-			      "hclk_vop";
-		status = "disabled";
-	};
-
 	venc_srv: venc_srv {
 		compatible = "rockchip,mpp_service";
 	};
@@ -694,6 +679,21 @@
 		reset-names = "video_h", "video_a";
 		dev_mode = <2>;
 		name = "rkvdec";
+		status = "disabled";
+	};
+
+	vop: vop@ff370000 {
+		compatible = "rockchip,rk322xh-lcdc";
+		rockchip,prop = <PRMRY>;
+		rockchip,iommu-enabled = <1>;
+		reg = <0x0 0xff370000 0x0 0x2000>;
+		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&aclk_vop>,
+			 <&dclk_vop>,
+			 <&clk_gates21 3>;
+		clock-names = "aclk_vop",
+			      "dclk_vop",
+			      "hclk_vop";
 		status = "disabled";
 	};
 
@@ -796,6 +796,12 @@
 		#reset-cells = <1>;
 	};
 
+	usb2phy_grf: syscon@ff450000 {
+		compatible = "rockchip,rk322xh-usb2phy-grf",
+			     "rockchip,usb2phy-grf", "syscon";
+		reg = <0x0 0xff450000 0x0 0x1000>;
+	};
+
 	emmc: rksdmmc@ff520000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk322xh-sdmmc";
 		reg = <0x0 0xff520000 0x0 0x10000>;
@@ -880,12 +886,6 @@
 		status = "disabled";
 	};
 
-	usb2phy_grf: syscon@ff450000 {
-		compatible = "rockchip,rk322xh-usb2phy-grf",
-			     "rockchip,usb2phy-grf", "syscon";
-		reg = <0x0 0xff450000 0x0 0x1000>;
-	};
-
 	dwc_control_usb: dwc-control-usb {
 		compatible = "rockchip,rk322xh-dwc-control-usb";
 		rockchip,grf = <&usb2phy_grf>;
@@ -936,6 +936,21 @@
 		status = "disabled";
 	};
 
+	usb2_otg: usb@ff580000 {
+		compatible = "rockchip,rk322xh_usb20_otg";
+		reg = <0x0 0xff580000 0x0 0x40000>;
+		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates17 14>, <&clk_gates19 8>, <&clk_gates19 9>;
+		clock-names = "pclk_usb2grf", "hclk_otg", "hclk_otg_pmu";
+		resets = <&reset RK322XH_SRST_USB2OTG_H>,
+			 <&reset RK322XH_SRST_USB2OTG_UTMI>,
+			 <&reset RK322XH_SRST_USB2OTG>;
+		reset-names = "otg_ahb", "otg_phy", "otg_controller";
+		/*0 - Normal, 1 - Force Host, 2 - Force Device*/
+		rockchip,usb-mode = <0>;
+		status = "disabled";
+	};
+
 	sdmmc_ext: rksdmmc@ff5f0000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk322xh-sdmmc";
 		reg = <0x0 0xff5f0000 0x0 0x10000>;
@@ -956,21 +971,6 @@
 		tune_regsbase = <0x39c>;
 		resets = <&reset RK322XH_SRST_SDMMCEXT>;
 		reset-names = "mmc_ahb_reset";
-		status = "disabled";
-	};
-
-	usb2_otg: usb@ff580000 {
-		compatible = "rockchip,rk322xh_usb20_otg";
-		reg = <0x0 0xff580000 0x0 0x40000>;
-		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_gates17 14>, <&clk_gates19 8>, <&clk_gates19 9>;
-		clock-names = "pclk_usb2grf", "hclk_otg", "hclk_otg_pmu";
-		resets = <&reset RK322XH_SRST_USB2OTG_H>,
-			 <&reset RK322XH_SRST_USB2OTG_UTMI>,
-			 <&reset RK322XH_SRST_USB2OTG>;
-		reset-names = "otg_ahb", "otg_phy", "otg_controller";
-		/*0 - Normal, 1 - Force Host, 2 - Force Device*/
-		rockchip,usb-mode = <0>;
 		status = "disabled";
 	};
 
