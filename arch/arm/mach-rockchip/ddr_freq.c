@@ -968,21 +968,12 @@ int of_init_ddr_freq_table(void)
 
 static int ddrfreq_scale_rate_for_dvfs(struct clk *clk, unsigned long rate)
 {
-	unsigned long real_rate;
+	int ret = EINVAL;
 
-	real_rate = ddr_change_freq(rate/MHZ);
-	real_rate *= MHZ;
-	if (!real_rate)
-		return -EAGAIN;
-	if (cpu_is_rk312x() || cpu_is_rk322x()) {
-		clk->parent->rate = 2 * real_rate;
-		clk->rate = real_rate;
-	} else {
-		clk->rate = real_rate;
-		clk->parent->rate = real_rate;
-	}
+	if (clk && clk->ops && clk->ops->set_rate)
+		ret = clk->ops->set_rate(clk->hw, rate, rate);
 
-	return 0;
+	return ret;
 }
 
 #if defined(CONFIG_RK_PM_TESTS)
