@@ -463,6 +463,16 @@ static int rk_lpmode_enter(unsigned long arg)
 }
 
 int cpu_suspend(unsigned long arg, int (*fn)(unsigned long));
+
+#else
+
+static int (*psci_cpu_suspend)(unsigned long) = cpu_suspend;
+
+void set_psci_cpu_suspend(int (*fn)(unsigned long))
+{
+	psci_cpu_suspend = fn;
+}
+
 #endif /* CONFIG_ARM */
 
 static int rkpm_enter(suspend_state_t state)
@@ -535,7 +545,7 @@ static int rkpm_enter(suspend_state_t state)
         }
 #else
 	flush_cache_all();
-	cpu_suspend(1);
+	psci_cpu_suspend(1);
 #endif
 
         rkpm_ddr_printch('5');
