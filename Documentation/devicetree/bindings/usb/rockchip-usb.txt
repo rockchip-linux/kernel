@@ -58,9 +58,10 @@ Example:
 
 EHCI
 Required properties:
- - compatible : Should be "rockchip,rk3188_rk_ehci_host" or
-   "rockchip,rk3288_rk_ehci_host" and so on, for USB 2.0 EHCI
-   controller in host mode, depending upon the SoC.
+ - compatible : Should be "rockchip,rk3188_rk_ehci_host"
+   "generic-ehci" or "rockchip,rk3288_rk_ehci_host" and so on,
+   for USB 2.0 EHCI controller in host mode, depending upon
+   the SoC.
  - reg : Physical base address of the controller and
    length of memory mapped region.
  - interrupts : Interrupt number to the cpu.
@@ -81,9 +82,10 @@ Example:
 
 OHCI
 Required properties:
- - compatible : Should be "rockchip,rk3188_rk_ohci_host" or
-   "rockchip,rk3288_rk_ohci_host" and so on, for USB 2.0 OHCI
-   companion controller in host mode, depending upon the SoC.
+ - compatible : Should be "rockchip,rk3188_rk_ohci_host"
+   "generic-ohci" or "rockchip,rk3288_rk_ohci_host" and so on,
+   for USB 2.0 OHCI companion controller in host mode,
+   depending upon the SoC.
  - reg : Physical base address of the controller and
    length of memory mapped region.
  - interrupts : Interrupt number to the cpu.
@@ -261,21 +263,4 @@ Example:
 
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
-	};
-
-ROCKCHIP USB USB2PHY GRF
-Required properties:
- - compatible : Should be "rockchip,rk322xh-usb2phy-grf"
-   and so on, depending upon the SoC.
-
-Optional properties:
- -
-
-Example:
- - RK322XH
-
-	usb2phy_grf: syscon@ff450000 {
-		compatible = "rockchip,rk322xh-usb2phy-grf",
-			     "rockchip,usb2phy-grf", "syscon";
-		reg = <0x0 0xff450000 0x0 0x1000>;
 	};
