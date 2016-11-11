@@ -284,6 +284,22 @@
 			<&clk_gates7 2>; /* clk_jtag */
 	};
 
+	ion {
+		compatible = "rockchip,ion";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ion_cma: rockchip,ion-heap@4 { /* CMA HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <4>;
+			reg = <0x00000000 0x00000000>; /* 0MB */
+		};
+		rockchip,ion-heap@0 { /* VMALLOC HEAP */
+			compatible = "rockchip,ion-heap";
+			rockchip,ion_heap = <0>;
+		};
+	};
+
 	i2s0: i2s@ff000000 {
 		compatible = "rockchip-i2s";
 		reg = <0x0 0xff000000 0x0 0x1000>;
