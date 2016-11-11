@@ -1065,8 +1065,7 @@ static void xhci_handle_cmd_set_deq(struct xhci_hcd *xhci, int slot_id,
 			break;
 		case COMP_CONTEXT_STATE_ERROR:
 			xhci_warn(xhci, "WARN Set TR Deq Ptr cmd failed due to incorrect slot or ep state.\n");
-			ep_state = le32_to_cpu(ep_ctx->ep_info);
-			ep_state &= EP_STATE_MASK;
+			ep_state = GET_EP_CTX_STATE(ep_ctx);
 			slot_state = le32_to_cpu(slot_ctx->dev_state);
 			slot_state = GET_SLOT_STATE(slot_state);
 			xhci_dbg_trace(xhci, trace_xhci_dbg_cancel_urb,
@@ -1866,8 +1865,7 @@ static int xhci_requires_manual_halt_cleanup(struct xhci_hcd *xhci,
 		 * endpoint anyway.  Check if a babble halted the
 		 * endpoint.
 		 */
-		if ((ep_ctx->ep_info & cpu_to_le32(EP_STATE_MASK)) ==
-		    cpu_to_le32(EP_STATE_HALTED))
+		if (GET_EP_CTX_STATE(ep_ctx) == EP_STATE_HALTED)
 			return 1;
 
 	return 0;
@@ -2391,12 +2389,9 @@ static int handle_tx_event(struct xhci_hcd *xhci,
 	ep = &xdev->eps[ep_index];
 	ep_ring = xhci_dma_to_transfer_ring(ep, le64_to_cpu(event->buffer));
 	ep_ctx = xhci_get_ep_ctx(xhci, xdev->out_ctx, ep_index);
-	if (!ep_ring ||
-	    (le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK) ==
-	    EP_STATE_DISABLED) {
-		xhci_err(xhci,
-			 "ERROR Transfer event for disabled endpoint slot %u ep %u or incorrect stream ring\n",
-			 slot_id, ep_index);
+	if (!ep_ring ||  GET_EP_CTX_STATE(ep_ctx) == EP_STATE_DISABLED) {
+		xhci_err(xhci, "ERROR Transfer event for disabled endpoint "
+				"or incorrect stream ring\n");
 		xhci_err(xhci, "@%016llx %08x %08x %08x %08x\n",
 			 (unsigned long long) xhci_trb_virt_to_dma(
 				 xhci->event_ring->deq_seg,
@@ -3037,8 +3032,7 @@ static int prepare_transfer(struct xhci_hcd *xhci,
 		return -EINVAL;
 	}
 
-	ret = prepare_ring(xhci, ep_ring,
-			   le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK,
+	ret = prepare_ring(xhci, ep_ring, GET_EP_CTX_STATE(ep_ctx),
 			   num_trbs, mem_flags);
 	if (ret)
 		return ret;
@@ -4079,7 +4073,7 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
 	/* Check the ring to guarantee there is enough room for the whole urb.
 	 * Do not insert any td of the urb to the ring if the check failed.
 	 */
-	ret = prepare_ring(xhci, ep_ring, le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK,
+	ret = prepare_ring(xhci, ep_ring, GET_EP_CTX_STATE(ep_ctx),
 			   num_trbs, mem_flags);
 	if (ret)
 		return ret;
@@ -4111,8 +4105,7 @@ int xhci_queue_isoc_tx_prepare(struct xhci_hcd *xhci, gfp_t mem_flags,
 
 	/* Calculate the start frame and put it in urb->start_frame. */
 	if (HCC_CFC(xhci->hcc_params) && !list_empty(&ep_ring->td_list)) {
-		if ((le32_to_cpu(ep_ctx->ep_info) & EP_STATE_MASK) ==
-				EP_STATE_RUNNING) {
+		if (GET_EP_CTX_STATE(ep_ctx) ==	EP_STATE_RUNNING) {
 			urb->start_frame = xep->next_frame_id;
 			goto skip_start_over;
 		}
