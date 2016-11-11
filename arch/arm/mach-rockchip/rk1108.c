@@ -37,6 +37,7 @@
 #include "sram.h"
 #include <linux/rockchip/cpu.h>
 #include "pm.h"
+#include "pm-rk1108.c"
 
 #define RK1108_DEVICE(name) \
 	{ \
@@ -52,7 +53,11 @@ static struct map_desc rk1108_io_desc[] __initdata = {
 	RK1108_DEVICE(TIMER),
 	RK1108_DEVICE(EFUSE),
 	RK1108_DEVICE(CPU_AXI_BUS),
+#ifdef RK1108_EVB_V11
 	RK_DEVICE(RK_DEBUG_UART_VIRT, RK1108_UART2_PHYS, RK1108_UART_SIZE),
+#else
+	RK_DEVICE(RK_DEBUG_UART_VIRT, RK1108_UART0_PHYS, RK1108_UART_SIZE),
+#endif
 	RK_DEVICE(RK_DDR_VIRT, RK1108_DDR_PCTL_PHYS, RK1108_DDR_PCTL_SIZE),
 	RK_DEVICE(RK_DDR_VIRT + RK1108_DDR_PCTL_SIZE, RK1108_DDR_PHY_PHYS,
 		  RK1108_DDR_PHY_SIZE),
@@ -63,6 +68,8 @@ static struct map_desc rk1108_io_desc[] __initdata = {
 	RK_DEVICE(RK_GIC_VIRT, RK1108_GIC_DIST_PHYS, RK1108_GIC_DIST_SIZE),
 	RK_DEVICE(RK_GIC_VIRT + RK1108_GIC_DIST_SIZE, RK1108_GIC_CPU_PHYS,
 		  RK1108_GIC_CPU_SIZE),
+	RK_DEVICE(RK_PMU_GRF_VIRT, RK1108_PMU_GRF_PHYS, RK1108_PMU_GRF_SIZE),
+	RK_DEVICE(RK_PMU_MEM_VIRT, RK1108_PMU_MEM_PHYS, RK1108_PMU_MEM_SIZE),
 	RK_DEVICE(RK_PWM_VIRT, RK1108_PWM_PHYS, RK1108_PWM_SIZE),
 	RK_DEVICE(RK_PMU_VIRT, RK1108_PMU_PHYS, RK1108_PMU_SIZE),
 };
@@ -152,32 +159,10 @@ static void __init rk1108_reserve(void)
 	rockchip_ion_reserve();
 }
 
-static void __init rk1108_suspend_init(void)
-{
-	struct device_node *parent;
-	u32 pm_ctrbits = 0;
-
-	parent = of_find_node_by_name(NULL, "rockchip_suspend");
-	if (IS_ERR_OR_NULL(parent)) {
-		PM_ERR("%s dev node err\n", __func__);
-		return;
-	}
-
-	if (of_property_read_u32_array(parent, "rockchip,ctrbits",
-				       &pm_ctrbits, 1)) {
-		PM_ERR("%s: read rockchip ctrbits error\n", __func__);
-		return;
-	}
-
-	/* TODO some suspend code should be done */
-	PM_LOG("%s: pm_ctrbits = 0x%x\n", __func__, pm_ctrbits);
-}
-
 static void __init rk1108_init_late(void)
 {
 	if (rockchip_jtag_enabled)
 		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
-
 	rk1108_suspend_init();
 	rockchip_suspend_init();
 }
