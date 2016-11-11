@@ -232,7 +232,7 @@
 };
 
 &dwc_control_usb {
-	usb_otg_drv = <&gpio0 28 GPIO_ACTIVE_LOW>;
+	usb_otg_drv = <&gpio0 GPIO_D3 GPIO_ACTIVE_LOW>;
 
 	rockchip,remote_wakeup;
 	rockchip,usb_irq_wakeup;
