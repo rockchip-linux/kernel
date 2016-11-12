@@ -209,7 +209,6 @@
 };
 
 &gmac2phy {
-	status = "okay";
 	clock_in_out = "output";
 };
 
