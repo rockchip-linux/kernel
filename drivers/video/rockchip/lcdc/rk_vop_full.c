@@ -599,6 +599,10 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	vop_writel(vop_dev, FRC_LOWER11_0, 0xdeb77deb);
 	vop_writel(vop_dev, FRC_LOWER11_1, 0xed7bb7de);
 
+	vop_writel(vop_dev, WIN0_CTRL2, 0x21);
+	vop_writel(vop_dev, WIN1_CTRL2, 0x43);
+	vop_writel(vop_dev, WIN2_CTRL2, 0x65);
+
 	vop_msk_reg(vop_dev, SYS_CTRL, V_AUTO_GATING_EN(0));
 	vop_msk_reg(vop_dev, DSP_CTRL1, V_DITHER_UP_EN(1));
 
