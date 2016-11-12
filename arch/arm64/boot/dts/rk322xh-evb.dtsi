@@ -136,6 +136,7 @@
 };
 
 &i2c1 {
+	status = "okay";
 	rk805: rk805@18 {
 		reg = <0x18>;
 		status = "okay";
