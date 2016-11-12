@@ -183,20 +183,24 @@
 		rockchip,clocks-init-parent =
 			<&clk_i2s0_pll &clk_cpll>, <&clk_i2s1_pll &clk_cpll>,
 			<&clk_i2s2_pll &clk_cpll>, <&clk_spdif_pll &clk_cpll>,
-			<&hdmi_phy_clk &hdmiphy_out>, <&usb480m &usbphy_480m>;
+			<&hdmi_phy_clk &hdmiphy_out>, <&usb480m &usbphy_480m>,
+			<&clk_uart0 &xin24m>, <&clk_uart1 &xin24m>,
+			<&clk_uart2 &xin24m>, <&clk_rtc32k &clk_gpll>;
 		rockchip,clocks-init-rate =
-			<&clk_gpll 983040000>, <&clk_core 600000000>,
+			<&clk_gpll 491520000>, <&clk_core 600000000>,
 			<&clk_cpll 1200000000>, <&aclk_bus 150000000>,
 			<&hclk_bus 75000000>, <&pclk_bus 75000000>,
 			<&clk_crypto 150000000>, <&aclk_peri 150000000>,
 			<&hclk_peri 75000000>, <&pclk_peri 75000000>,
-			<&aclk_vio 200000000>, <&hclk_vio 100000000>,
-			<&aclk_rga 200000000>, <&clk_rga 200000000>,
-			<&aclk_vop 300000000>, <&aclk_rkvdec 400000000>,
+			<&aclk_vio 300000000>, <&hclk_vio 100000000>,
+			<&aclk_rga 300000000>, <&clk_rga 200000000>,
+			<&aclk_vop 300000000>, <&aclk_rkvdec 500000000>,
 			<&aclk_rkvenc 200000000>, <&aclk_vpu 300000000>,
 			<&clk_vdec_cabac 300000000>, <&clk_vdec_core 200000000>,
 			<&clk_venc_core 200000000>, <&clk_venc_dsp 100000000>,
-			<&clk_efuse 24000000>, <&clk_pdm 61440000>;
+			<&clk_efuse 24000000>, <&aclk_gmac 100000000>,
+			<&pclk_ddr 100000000>, <&clk_rtc32k 32768>,
+			<&clk_pdm 61440000>;
 		/*rockchip,clocks-uboot-has-init =
 			<&dclk_vop>, <&dclk_vop_pll>;*/
 		rockchip,set_div_for_pll_init;

@@ -206,7 +206,7 @@
 					status-reg = <0x64 10>;
 					clocks = <&xin24m>;
 					clock-output-names = "clk_gpll";
-					rockchip,pll-type = <CLK_PLL_3036PLUS_AUTO>;
+					rockchip,pll-type = <CLK_PLL_312XPLUS>;
 					#clock-cells = <0>;
 					#clock-init-cells = <1>;
 				};
@@ -982,7 +982,7 @@
 					clk_pdm: clk_pdm_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&dummy>, <&clk_gpll>, <&dummy>;
+						clocks = <&dummy>, <&clk_gpll>, <&dummy>, <&dummy>;
 						clock-output-names = "clk_pdm";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -1625,13 +1625,14 @@
 
 					clk_rtc32k_div: clk_rtc32k_div {
 						compatible = "rockchip,rk3188-div-con";
-						rockchip,bits = <6 8>;
+						rockchip,bits = <0 14>;
 						clocks = <&clk_rtc32k>;
 						clock-output-names = "clk_rtc32k";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
-						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
+						rockchip,flags = <(CLK_SET_RATE_PARENT_IN_ORDER |
+								  CLK_SET_RATE_NO_REPARENT)>;
 					};
 
 					clk_rtc32k: clk_rtc32k_mux {
@@ -2425,11 +2426,11 @@
 					compatible = "rockchip,rk3188-gate-clk";
 					reg = <0x0224 0x4>;
 					clocks =
-					<&aclk_gmac>,	<&clk_mac2phy>,
-					<&clk_mac2phy>,	<&clk_mac2phy>,
+					<&aclk_gmac>,	<&clk_gmac2phy>,
+					<&clk_mac2phy>,	<&clk_gmac2phy>,
 
-					<&clk_mac2io>,	<&clk_mac2io>,
-					<&clk_mac2io>,	<&clk_mac2io>,
+					<&clk_gmac2io>,	<&clk_gmac2io>,
+					<&clk_gmac2io>,	<&clk_gmac2io>,
 
 					<&dummy>,	<&dummy>,
 					<&dummy>,	<&dummy>,
@@ -3028,6 +3029,33 @@
 
 					#clock-cells = <1>;
 				};
+			};
+		};
+
+		special_regs {
+			compatible = "rockchip,rk-clock-special-regs";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			ranges;
+
+			clk_gmac2io: clk_gmac2io_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x0 0xff100904 0x0 0x4>;
+				rockchip,bits = <10 1>;
+				clocks = <&clk_mac2io>, <&gmac_clkin>;
+				clock-output-names = "clk_gmac2io";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
+			};
+
+			clk_gmac2phy: clk_gmac2phy_mux {
+				compatible = "rockchip,rk3188-mux-con";
+				reg = <0x0 0xff100908 0x0 0x4>;
+				rockchip,bits = <10 1>;
+				clocks = <&clk_mac2phy>, <&phy_50m_out>;
+				clock-output-names = "clk_gmac2phy";
+				#clock-cells = <0>;
+				#clock-init-cells = <1>;
 			};
 		};
 	};
