@@ -135,6 +135,10 @@
 		status = "disabled";
 	};
 
+	cpufreq {
+		compatible = "rockchip,rk322xh-cpufreq", "rockchip,cpufreq";
+	};
+
 	dvfs {
 		vd_arm: vd_arm {
 			regulator_name = "vdd_arm";
