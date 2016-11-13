@@ -2429,7 +2429,9 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 					     RK322XH_GRF_SOC_CON3,
 					     RK322XH_IO_CTRL_BY_HDMI);
 				regmap_write(hdmi_dev->grf_base,
-					     RK322XH_GRF_SOC_CON2, BIT(2));
+					     RK322XH_GRF_SOC_CON2,
+					     RK322XH_DDC_MASK_EN |
+					     BIT(2 + 16));
 			} else if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
 				regmap_write(hdmi_dev->grf_base,
 					     RK1108_GRF_SOC_CON3,
