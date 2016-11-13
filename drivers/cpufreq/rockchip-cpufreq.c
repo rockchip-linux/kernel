@@ -25,6 +25,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/string.h>
 #include <linux/rockchip/cpu.h>
 #include <linux/rockchip/dvfs.h>
@@ -472,4 +474,29 @@ static int __init cpufreq_driver_init(void)
 	return cpufreq_register_driver(&cpufreq_driver);
 }
 
+#ifdef CONFIG_ARM
 device_initcall(cpufreq_driver_init);
+#else
+static int __init rockchip_cpufreq_probe(struct platform_device *pdev)
+{
+	return cpufreq_driver_init();
+}
+
+static const struct of_device_id rockchip_cpufreq_match[] = {
+	{
+		.compatible = "rockchip,cpufreq",
+	},
+	{},
+};
+MODULE_DEVICE_TABLE(of, rockchip_cpufreq_match);
+
+static struct platform_driver rockchip_cpufreq_platdrv = {
+	.driver = {
+		.name	= "rockchip-cpufreq",
+		.owner	= THIS_MODULE,
+		.of_match_table = rockchip_cpufreq_match,
+	},
+};
+
+module_platform_driver_probe(rockchip_cpufreq_platdrv, rockchip_cpufreq_probe);
+#endif
