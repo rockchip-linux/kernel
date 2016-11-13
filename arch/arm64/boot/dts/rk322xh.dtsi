@@ -688,6 +688,14 @@
 		status = "disabled";
 	};
 
+	vepu_mmu@ff340800 {
+		dbgname = "vepu";
+		compatible = "rockchip,vepu_mmu";
+		reg = <0x0 0xff340800 0x0 0x40>;
+		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vepu_mmu";
+	};
+
 	vdpu: vpu_service@ff350000 {
 		compatible = "rockchip,rk322xh-vdpu", "vpu_service";
 		rockchip,grf = <&grf>;
@@ -702,6 +710,14 @@
 		dev_mode = <0>;
 		name = "vpu_service";
 		status = "disabled";
+	};
+
+	vpu_mmu@ff350800 {
+		dbgname = "vpu";
+		compatible = "rockchip,vpu_mmu";
+		reg = <0x0 0xff350800 0x0 0x40>;
+		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vpu_mmu";
 	};
 
 	rkvdec: rkvdec@ff360000 {
@@ -721,6 +737,15 @@
 		dev_mode = <2>;
 		name = "rkvdec";
 		status = "disabled";
+	};
+
+	vdec_mmu@ff360480 {
+		dbgname = "vdec";
+		compatible = "rockchip,vdec_mmu";
+		reg = <0x0 0xff360480 0x0 0x40>,
+		      <0x0 0xff3604c0 0x0 0x40>;
+		interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vdec_mmu";
 	};
 
 	vop: vop@ff370000 {
