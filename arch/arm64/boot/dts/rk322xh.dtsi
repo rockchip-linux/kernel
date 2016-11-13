@@ -185,7 +185,8 @@
 			<&clk_i2s2_pll &clk_cpll>, <&clk_spdif_pll &clk_cpll>,
 			<&hdmi_phy_clk &hdmiphy_out>, <&usb480m &usbphy_480m>,
 			<&clk_uart0 &xin24m>, <&clk_uart1 &xin24m>,
-			<&clk_uart2 &xin24m>, <&clk_rtc32k &clk_gpll>;
+			<&clk_uart2 &xin24m>, <&clk_rtc32k &clk_gpll>,
+			<&dclk_vop &hdmi_phy_clk>;
 		rockchip,clocks-init-rate =
 			<&clk_gpll 491520000>, <&clk_core 600000000>,
 			<&clk_cpll 1200000000>, <&aclk_bus 150000000>,
