@@ -139,7 +139,12 @@ static int rockchip_usb_phy_probe(struct platform_device *pdev)
 	unsigned int reg_offset;
 	int (*rk_usb_phy_power)(struct rockchip_usb_phy *phy, bool siddq);
 
-	grf = syscon_regmap_lookup_by_phandle(dev->of_node, "rockchip,grf");
+	if (of_property_read_bool(dev->of_node, "rockchip,grf"))
+		grf = syscon_regmap_lookup_by_phandle(dev->of_node,
+						      "rockchip,grf");
+	else
+		grf = syscon_node_to_regmap(dev->parent->of_node);
+
 	if (IS_ERR(grf)) {
 		dev_err(&pdev->dev, "Missing rockchip,grf property\n");
 		return PTR_ERR(grf);
