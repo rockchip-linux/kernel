@@ -809,8 +809,23 @@
 
 	usb2phy_grf: syscon@ff450000 {
 		compatible = "rockchip,rk322xh-usb2phy-grf",
-			     "rockchip,usb2phy-grf", "syscon";
+			     "rockchip,usb2phy-grf", "syscon", "simple-mfd";
 		reg = <0x0 0xff450000 0x0 0x1000>;
+
+		u2phy: usb2-phy@104 {
+			compatible = "rockchip,rk322xh-usb-phy",
+				     "rockchip,rk322x-usb-phy";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			u2phy_host: host-port {
+				#phy-cells = <0>;
+				reg = <0x104>;
+				interrupts =<GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH> ;
+				interrupt-names = "linestate";
+			};
+		};
 	};
 
 	emmc: rksdmmc@ff520000 {
@@ -982,6 +997,26 @@
 		tune_regsbase = <0x39c>;
 		resets = <&reset RK322XH_SRST_SDMMCEXT>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
+	};
+
+	usb_ehci: usb@ff5c0000 {
+		compatible = "generic-ehci";
+		reg = <0x0 0xff5c0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates19 6>, <&clk_gates19 7>;
+		clock-names = "hclk_host0", "hclk_host0_arb";
+		phys = <&u2phy_host>;
+		phy-names = "usb";
+		status = "disabled";
+	};
+
+	usb_ohci: usb@ff5d0000 {
+		compatible = "generic-ohci";
+		reg = <0x0 0xff5d0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 17 IRQ_TYPE_LEVEL_HIGH>;
+		phys = <&u2phy_host>;
+		phy-names = "usb";
 		status = "disabled";
 	};
 

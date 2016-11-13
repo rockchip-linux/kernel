@@ -240,6 +240,18 @@
 	rockchip,usb_irq_wakeup;
 };
 
+&u2phy {
+	status = "okay";
+};
+
+&usb_ehci {
+	status = "okay";
+};
+
+&usb_ohci {
+	status = "okay";
+};
+
 #include "../../../arm/boot/dts/rk805.dtsi"
 &rk805 {
 	gpios = <&gpio2 GPIO_A6 GPIO_ACTIVE_HIGH>, <&gpio2 GPIO_D2 GPIO_ACTIVE_LOW>;
