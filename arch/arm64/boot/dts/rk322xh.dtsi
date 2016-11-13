@@ -879,14 +879,14 @@
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
-		clocks = <&clk_mac2io>, <&clk_gates9 4>,
+		clocks = <&clk_gmac2io>, <&clk_gates9 4>,
 			<&clk_gates9 5>, <&clk_gates9 7>,
 			<&clk_gates9 6>, <&clk_gates26 2>,
-			<&clk_gates26 3>;
+			<&clk_gates26 3>, <&clk_mac2io>;
 		clock-names = "clk_mac", "mac_clk_rx",
 			"mac_clk_tx", "clk_mac_ref",
 			"clk_mac_refout", "aclk_mac",
-			"pclk_mac";
+			"pclk_mac", "clk_mac_pll";
 		phy-mode = "rgmii";
 		pinctrl-names = "default";
 		pinctrl-0 = <&rgmiim1_pins>;
@@ -926,14 +926,14 @@
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "macirq";
-		clocks = <&clk_mac2phy>, <&clk_gates9 1>,
+		clocks = <&clk_gmac2phy>, <&clk_gates9 1>,
 			<&clk_gates9 1>, <&clk_gates9 3>,
 			<&clk_gates9 2>, <&clk_gates26 0>,
-			<&clk_gates26 1>;
+			<&clk_gates26 1>, <&clk_mac2phy>;
 		clock-names = "clk_mac", "mac_clk_rx",
 			"mac_clk_tx", "clk_mac_ref",
 			"clk_macphy", "aclk_mac",
-			"pclk_mac";
+			"pclk_mac", "clk_mac_pll";
 		resets = <&reset RK322XH_SRST_MACPHY>;
 		reset-names = "mac-phy";
 		phy-mode = "rmii";
