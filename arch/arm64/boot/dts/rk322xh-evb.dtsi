@@ -237,6 +237,18 @@
 	status = "okay";
 };
 
+&vepu {
+	status = "okay";
+};
+
+&vpu_combo {
+	status = "okay";
+};
+
+&rkvdec {
+	status = "okay";
+};
+
 &disp_timings {
 	native-mode = <&timing0>;
 };
