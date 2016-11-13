@@ -103,6 +103,18 @@
 	};
 };
 
+&clk_core_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		408000 950000
+		600000 950000
+		816000 1025000
+		1008000 1100000
+		1200000 1200000
+		>;
+	status = "okay";
+};
+
 &i2s0 {
 	status = "okay";
 };
