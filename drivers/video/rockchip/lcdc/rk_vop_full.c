@@ -688,7 +688,7 @@ static void rk322xh_vop_win_csc_mode(struct vop_device *vop_dev,
 		y2r_en = 0;
 	}
 
-	shift = win->id << 2;
+	shift = win->id * 2;
 	val = (V_WIN0_R2Y_EN(r2y_en) | V_WIN0_Y2R_EN(y2r_en)) << shift;
 	vop_msk_reg(vop_dev, SDR2HDR_CTRL, val);
 	if (r2y_en | y2r_en) {
@@ -2892,7 +2892,7 @@ static int vop_get_win_state(struct rk_lcdc_driver *dev_drv,
 		area_status = vop_read_bit(vop_dev, WIN1_CTRL0, V_WIN1_EN(0));
 		break;
 	case 2:
-		area_status = vop_read_bit(vop_dev, WIN1_CTRL0, V_WIN2_EN(0));
+		area_status = vop_read_bit(vop_dev, WIN2_CTRL0, V_WIN2_EN(0));
 		break;
 	case 3:
 		area_status = vop_read_bit(vop_dev, HWC_CTRL0, V_HWC_EN(0));
@@ -3300,9 +3300,10 @@ static ssize_t vop_get_disp_info(struct rk_lcdc_driver *dev_drv,
 	memset(dsp_buf, 0, sizeof(dsp_buf));
 
 	size += snprintf(dsp_buf, 80,
-		"vop output:\n  data space: %s\n  color mode: %s\n",
+		"vop output:\n  data space: %s\n  color mode: %s[%d]\n",
 		screen->data_space ? "HDR" : "SDR",
-		(screen->color_mode > COLOR_RGB_BT2020) ? "Ycbcr" : "RGB");
+		(screen->color_mode > COLOR_RGB_BT2020) ? "Ycbcr" : "RGB",
+		screen->color_mode);
 
 	strcat(buf, dsp_buf);
 	memset(dsp_buf, 0, sizeof(dsp_buf));
