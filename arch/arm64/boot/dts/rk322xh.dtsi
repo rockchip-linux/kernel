@@ -300,6 +300,12 @@
 		};
 	};
 
+	reboot {
+		compatible = "rockchip,rk322xh-reboot";
+		rockchip,cru = <&cru>;
+		rockchip,grf = <&grf>;
+	};
+
 	i2s0: i2s@ff000000 {
 		compatible = "rockchip-i2s";
 		reg = <0x0 0xff000000 0x0 0x1000>;
