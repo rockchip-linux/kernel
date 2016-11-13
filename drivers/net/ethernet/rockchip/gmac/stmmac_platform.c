@@ -616,12 +616,10 @@ static int gmac_clk_init(struct device *device)
 			__func__, "clk_macphy");
 
 	if (bsp_priv->clock_input) {
-		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
-			clk_set_rate(bsp_priv->gmac_clkin, 50000000);
-		}
-
 		switch (bsp_priv->chip) {
 		case RK322X_GMAC:
+			if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII)
+				clk_set_rate(bsp_priv->gmac_clkin, 50000000);
 			clk_set_parent(bsp_priv->clk_mac, bsp_priv->mac_clkin);
 			if (bsp_priv->internal_phy) {
 				clk_set_parent(bsp_priv->mac_clkin,
@@ -632,21 +630,31 @@ static int gmac_clk_init(struct device *device)
 			}
 			break;
 		case RK322XH_GMAC:
-			if (bsp_priv->internal_phy)
+			if (bsp_priv->internal_phy) {
+				if (bsp_priv->phy_iface ==
+				    PHY_INTERFACE_MODE_RMII)
+					clk_set_rate(bsp_priv->clk_mac_pll,
+						     50000000);
 				clk_set_parent(bsp_priv->clk_mac,
 					       bsp_priv->phy_50m_out);
-			else
+			} else {
+				if (bsp_priv->phy_iface ==
+				    PHY_INTERFACE_MODE_RMII)
+					clk_set_rate(bsp_priv->mac_clkin,
+						     50000000);
 				clk_set_parent(bsp_priv->clk_mac,
 					       bsp_priv->gmac_clkin);
+			}
 			break;
 		default:
+			if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII)
+				clk_set_rate(bsp_priv->gmac_clkin, 50000000);
 			clk_set_parent(bsp_priv->clk_mac, bsp_priv->gmac_clkin);
 			break;
 		}
 	} else {
-		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII) {
+		if (bsp_priv->phy_iface == PHY_INTERFACE_MODE_RMII)
 			clk_set_rate(bsp_priv->clk_mac_pll, 50000000);
-		}
 		clk_set_parent(bsp_priv->clk_mac, bsp_priv->clk_mac_pll);
 	}
 	return 0;
