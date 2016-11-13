@@ -1,0 +1,45 @@
+ROCKCHIP USB2.0 PHY WITH INNO IP BLOCK
+
+Required properties (phy grf node):
+ - compatible : should be the listed compatibles:
+	* "rockchip,rk322xh-usb2phy-grf"
+	* "rockchip,usb2phy-grf"
+	* "syscon"
+	* "simple-mfd";
+- reg : the base address of grf for usb-phy configuration.
+
+Required properties (phy (parent) node):
+- compatible : should be the listed compatibles:
+	* "rockchip,rk322xh-usb-phy"
+	* "rockchip,rk322x-usb-phy"
+- #address-cells : should be 1
+- #size-cells : should be 0
+
+Required properties (port (child) node):
+- #phy-cells : must be 0. See ./phy-bindings.txt for details.
+- reg : the address offset of grf for usb-phy configuration.
+- interrupts : specify an interrupt for each entry in interrupt-names.
+- interrupt-names : a list which shall be the following entries:
+	* "linestate" : for the host linestate interrupt.
+Example:
+
+usb2phy_grf: syscon@ff450000 {
+	compatible = "rockchip,rk322xh-usb2phy-grf",
+		     "rockchip,usb2phy-grf", "syscon", "simple-mfd";
+	reg = <0x0 0xff450000 0x0 0x1000>;
+
+	u2phy: usb2-phy@104 {
+		compatible = "rockchip,rk322xh-usb-phy",
+			     "rockchip,rk322x-usb-phy";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "disabled";
+
+		u2phy_host: host-port {
+			#phy-cells = <0>;
+			reg = <0x104>;
+			interrupts =<GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH> ;
+			interrupt-names = "linestate";
+		};
+	};
+};
