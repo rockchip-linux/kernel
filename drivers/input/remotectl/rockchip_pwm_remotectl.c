@@ -384,6 +384,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	struct resource *r;
 	struct input_dev *input;
 	struct clk *clk;
+	struct clk *p_clk;
 	struct cpumask cpumask;
 	int num;
 	int irq;
@@ -392,6 +393,7 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	int cpu_id;
 	int pwm_id;
 	int pwm_freq;
+	int count;
 
 	pr_err(".. rk pwm remotectl v1.1 init\n");
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -410,9 +412,36 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	ddata->base = devm_ioremap_resource(&pdev->dev, r);
 	if (IS_ERR(ddata->base))
 		return PTR_ERR(ddata->base);
-	clk = devm_clk_get(&pdev->dev, "pclk_pwm");
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
+	count = of_property_count_strings(np, "clock-names");
+	if (count == 2) {
+		clk = devm_clk_get(&pdev->dev, "pwm");
+		p_clk = devm_clk_get(&pdev->dev, "pclk");
+	} else {
+		clk = devm_clk_get(&pdev->dev, "pclk_pwm");
+		p_clk = clk;
+	}
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Can't get bus clk: %d\n", ret);
+		return ret;
+	}
+	if (IS_ERR(p_clk)) {
+		ret = PTR_ERR(p_clk);
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "Can't get periph clk: %d\n", ret);
+		return ret;
+	}
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't get bus clk: %d\n", ret);
+		return ret;
+	}
+	ret = clk_prepare_enable(p_clk);
+	if (ret) {
+		dev_err(&pdev->dev, "Can't get bus periph clk: %d\n", ret);
+		return ret;
+	}
 	platform_set_drvdata(pdev, ddata);
 	num = rk_remotectl_get_irkeybd_count(pdev);
 	if (num == 0) {
@@ -439,9 +468,6 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	ddata->input = input;
 	wake_lock_init(&ddata->remotectl_wake_lock,
 		       WAKE_LOCK_SUSPEND, "rk29_pwm_remote");
-	ret = clk_prepare_enable(clk);
-	if (ret)
-		return ret;
 	irq = platform_get_irq(pdev, 0);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "cannot find IRQ\n");
