@@ -687,7 +687,8 @@ static int rockchip_mpp_rkvenc_probe(struct rockchip_mpp_dev *mpp)
 		return -1;
 	}
 
-	ret = mpp_get_dma_addr(mpp, enc->lkt_hdl, &enc->lkt_dma_addr, &tmp);
+	ret = mpp_get_dma_addr(mpp, enc->lkt_hdl,
+			       &enc->lkt_dma_addr, (u32 *)&tmp);
 	if (ret < 0) {
 		dev_err(mpp->dev, "get link table dma_addr failed\n");
 		goto fail;
@@ -708,7 +709,8 @@ static int rockchip_mpp_rkvenc_probe(struct rockchip_mpp_dev *mpp)
 		goto fail;
 	}
 
-	ret = mpp_get_dma_addr(mpp, enc->war_hdl, &enc->war_dma_addr, &tmp);
+	ret = mpp_get_dma_addr(mpp, enc->war_hdl,
+			       &enc->war_dma_addr, (u32 *)&tmp);
 	if (ret < 0) {
 		dev_err(mpp->dev, "get war dma_addr failed\n");
 		goto fail;
