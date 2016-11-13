@@ -1877,7 +1877,7 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			val = V_DSP_OUT_RGB_YUV(0);
 			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 			val = V_DSP_BG_BLUE(0) | V_DSP_BG_GREEN(0) |
-				V_DSP_BG_RED(0x3ff);
+				V_DSP_BG_RED(0);
 			vop_msk_reg(vop_dev, DSP_BG, val);
 		}
 		vop_config_timing(dev_drv);
