@@ -1223,6 +1223,7 @@ static const struct of_device_id iommu_dt_ids[] = {
 	{ .compatible = VOP_IOMMU_COMPATIBLE_NAME},
 	{ .compatible = VDEC_IOMMU_COMPATIBLE_NAME},
 	{ .compatible = H265E_IOMMU_COMPATIBLE_NAME},
+	{ .compatible = VEPU_IOMMU_COMPATIBLE_NAME},
 	{ /* end */ }
 };
 

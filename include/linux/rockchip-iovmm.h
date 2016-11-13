@@ -21,6 +21,7 @@
 #define VPU_IOMMU_COMPATIBLE_NAME "rockchip,vpu_mmu"
 #define VDEC_IOMMU_COMPATIBLE_NAME "rockchip,vdec_mmu"
 #define H265E_IOMMU_COMPATIBLE_NAME "rockchip,h265e_mmu"
+#define VEPU_IOMMU_COMPATIBLE_NAME "rockchip,vepu_mmu"
 
 enum rk_iommu_inttype {
 	IOMMU_PAGEFAULT,
