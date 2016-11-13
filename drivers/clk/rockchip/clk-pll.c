@@ -424,7 +424,7 @@ static const struct apll_clk_set rk322xh_apll_table[] = {
 	_RK322XH_APLL_SET_CLKS(1488, 1, 62, 1, 1, 1, 0, 8, 2, 1),
 	_RK322XH_APLL_SET_CLKS(1464, 1, 61, 1, 1, 1, 0, 8, 2, 1),
 	_RK322XH_APLL_SET_CLKS(1440, 1, 60, 1, 1, 1, 0, 8, 2, 1),
-	_RK322XH_APLL_SET_CLKS(1416, 1, 59, 1, 1, 1, 0, 8, 2, 0),
+	_RK322XH_APLL_SET_CLKS(1416, 1, 59, 1, 1, 1, 0, 8, 2, 1),
 	_RK322XH_APLL_SET_CLKS(1392, 1, 58, 1, 1, 1, 0, 8, 2, 0),
 	_RK322XH_APLL_SET_CLKS(1368, 1, 57, 1, 1, 1, 0, 8, 2, 0),
 	_RK322XH_APLL_SET_CLKS(1344, 1, 56, 1, 1, 1, 0, 8, 2, 0),
@@ -2730,11 +2730,12 @@ static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 		while (aps->rate) {
 			if (aps->rst_dly == 0)
 				break;
-			aps--;
+			aps++;
 		}
-		curr = (rate / 1000 - aps->rate / 1000) * 24 / 600 +
-			aps->rate / 1000;
-		if (rk3036_pll_clk_get_set(parent_rate, curr * 1000, &refdiv,
+		curr = (((rate / KHZ - aps->rate / KHZ) *
+			RK322XH_APLL_REFIN) / RK322XH_APLL_SCALE) +
+			aps->rate / KHZ;
+		if (rk3036_pll_clk_get_set(parent_rate, curr * KHZ, &refdiv,
 					   &fbdiv, &postdiv1, &postdiv2,
 					   &frac) != 0) {
 			pr_err("pll auto set rate error\n");
@@ -2752,7 +2753,6 @@ static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 		ps->pllcon2 = RK3036_PLL_SET_FRAC(frac);
 		ps->clksel1 = RK322XH_ACLK_CORE_DIV(2) |
 			      RK322XH_PCLK_DBG_DIV(8);
-		ps->rst_dly = 0;
 	}
 
 	if (!arm_gpll) {
@@ -2785,7 +2785,6 @@ static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 
 	/**************enter slow mode 24M***********/
 	/*cru_writel(_RK3188_PLL_MODE_SLOW_SET(pll->mode_shift), pll->mode_offset);*/
-	loops_per_jiffy = LPJ_24M;
 
 	cru_writel(ps->pllcon0, pll->reg + RK3188_PLL_CON(0));
 	cru_writel(ps->pllcon1, pll->reg + RK3188_PLL_CON(1));
@@ -2811,10 +2810,32 @@ static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 	if (rate < old_rate)
 		cru_writel(ps->clksel1, RK322XH_CRU_CLKSELS_CON(1));
 
-	loops_per_jiffy = ps->lpj;
 	local_irq_restore(flags);
 
 	return 0;
+}
+
+static unsigned long clk_pll_recalc_rate_322xh_apll(struct clk_hw *hw,
+						    unsigned long parent_rate)
+{
+	struct apll_clk_set *ps = (struct apll_clk_set *)(rk322xh_apll_table);
+	unsigned long rate, curr;
+
+	rate = rk3036_pll_clk_recalc(hw, parent_rate);
+	while (ps->rate) {
+		if (ps->rst_dly == 0)
+			break;
+		ps++;
+	}
+	if (rate > ps->rate) {
+		curr = roundup(((ps->rate / KHZ +
+			(((rate / KHZ - ps->rate / KHZ) *
+			RK322XH_APLL_SCALE) / RK322XH_APLL_REFIN)) * KHZ),
+			24 * MHZ);
+		return curr;
+	} else {
+		return rate;
+	}
 }
 
 static long clk_pll_round_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
@@ -2832,7 +2853,7 @@ static long clk_pll_round_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 }
 
 static const struct clk_ops clk_pll_ops_322xh_apll = {
-	.recalc_rate = clk_pll_recalc_rate_3036_apll,
+	.recalc_rate = clk_pll_recalc_rate_322xh_apll,
 	.round_rate = clk_pll_round_rate_322xh_apll,
 	.set_rate = clk_pll_set_rate_322xh_apll,
 };

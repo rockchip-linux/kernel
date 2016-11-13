@@ -539,6 +539,9 @@
 #define RK322XH_PCLK_DBG_DIV(val)	RK3036_CLK_SET_DIV_CON_SUB1(val, RK322XH_PCLK_DBG_DIV_SHIFT, RK322XH_PCLK_DBG_DIV_MASK)
 #define RK322XH_CLK_CORE_DIV(val)	RK3036_CLK_SET_DIV_CON_SUB1(val, RK322XH_CLK_CORE_DIV_SHIFT, RK322XH_CLK_CORE_DIV_MASK)
 
+#define RK322XH_APLL_REFIN		24
+#define RK322XH_APLL_SCALE		600
+
 #define _RK322XH_APLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac, \
 		pclk_dbg_div, aclk_core_div, flag) \
 { \
