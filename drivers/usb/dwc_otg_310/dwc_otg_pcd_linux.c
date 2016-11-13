@@ -1744,18 +1744,22 @@ static void dwc_otg_pcd_work_init(dwc_otg_pcd_t *pcd,
 
 	wake_lock_init(&pcd->wake_lock, WAKE_LOCK_SUSPEND, "usb_pcd");
 
-	if (dwc_otg_is_device_mode(pcd->core_if) &&
-	    (otg_dev->core_if->usb_mode != USB_MODE_FORCE_HOST)) {
-		if (pldata->get_status(USB_STATUS_BVABLID)) {
-			/* enter usb phy mode */
-			pldata->dwc_otg_uart_mode(pldata, PHY_USB_MODE);
+	if (pldata->dwc_otg_uart_mode != NULL) {
+		if (dwc_otg_is_device_mode(pcd->core_if) &&
+		    (otg_dev->core_if->usb_mode != USB_MODE_FORCE_HOST)) {
+			if (pldata->get_status(USB_STATUS_BVABLID)) {
+				/* enter usb phy mode */
+				pldata->dwc_otg_uart_mode(pldata,
+							  PHY_USB_MODE);
+			} else {
+				/* usb phy bypass to uart mode */
+				pldata->dwc_otg_uart_mode(pldata,
+							  PHY_UART_MODE);
+			}
 		} else {
-			/* usb phy bypass to uart mode */
-			pldata->dwc_otg_uart_mode(pldata, PHY_UART_MODE);
+			/* host mode,enter usb phy mode */
+			pldata->dwc_otg_uart_mode(pldata, PHY_USB_MODE);
 		}
-	} else if (pldata->dwc_otg_uart_mode != NULL) {
-		/* host mode,enter usb phy mode */
-		pldata->dwc_otg_uart_mode(pldata, PHY_USB_MODE);
 	}
 
 	schedule_delayed_work(&pcd->check_id_work, usb_early_detect * HZ);

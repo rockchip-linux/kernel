@@ -112,7 +112,7 @@ static void usb20otg_clock_init(void *pdata)
 	}
 
 	usbpdata->ahbclk = ahbclk;
-	usbpdata->ahbclk = ahbclk_otg_pmu;
+	usbpdata->ahbclk_otg_pmu = ahbclk_otg_pmu;
 }
 
 static void usb20otg_clock_enable(void *pdata, int enable)
