@@ -314,6 +314,10 @@
 		rockchip,grf = <&grf>;
 	};
 
+	efuse_256 {
+		compatible = "rockchip,rk322xh-efuse-256";
+	};
+
 	i2s0: i2s@ff000000 {
 		compatible = "rockchip-i2s";
 		reg = <0x0 0xff000000 0x0 0x1000>;
