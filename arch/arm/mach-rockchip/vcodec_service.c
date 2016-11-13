@@ -192,6 +192,12 @@ static struct vcodec_info vcodec_info_set[] = {
 		.task_info	= task_vpu2,
 		.trans_info	= trans_vpu2,
 	},
+	[6] = {
+		.hw_id		= RKV_DEC_ID2,
+		.hw_info	= &hw_rkvdec,
+		.task_info	= task_rkv,
+		.trans_info	= trans_rkv,
+	},
 };
 
 #define DEBUG
@@ -489,7 +495,7 @@ static void vcodec_enter_mode(struct vpu_subdev_data *data)
 #if defined(CONFIG_VCODEC_MMU)
 	struct vpu_subdev_data *subdata, *n;
 #endif
-	if (pservice->subcnt < 2) {
+	if (pservice->subcnt < 2 || pservice->mode_ctrl == 0) {
 #if defined(CONFIG_VCODEC_MMU)
 		if (data->mmu_dev && !test_bit(MMU_ACTIVATED, &data->state)) {
 			set_bit(MMU_ACTIVATED, &data->state);
@@ -2812,7 +2818,7 @@ static void get_hw_info(struct vpu_subdev_data *data)
 		dec->reserve = 0;
 		dec->mvc_support = 1;
 
-		if (!cpu_is_rk3036()) {
+		if (data->enc_dev.iosize != 0) {
 			u32 config_reg = readl_relaxed(data->enc_dev.regs + 63);
 
 			enc->max_encoded_width = config_reg & ((1 << 11) - 1);

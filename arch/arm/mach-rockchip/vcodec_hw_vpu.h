@@ -274,6 +274,10 @@ DEF_FMT_TRANS_TBL(vpu_vc1d,
 		  12, 13, 14, 15, 16, 17, 27, 41
 );
 
+DEF_FMT_TRANS_TBL(vpu_avsd,
+		  12, 13, 14, 15, 16, 17, 40, 41, 45
+);
+
 DEF_FMT_TRANS_TBL(vpu_defaultd,
 		  12, 13, 14, 15, 16, 17, 40, 41
 );
@@ -306,7 +310,7 @@ const struct vpu_trans_info trans_vpu[FMT_TYPE_BUTT] = {
 	EMPTY_FMT_TBL(FMT_VP9D),
 
 	SETUP_FMT_TBL(FMT_VC1D  , vpu_vc1d),
-	SETUP_FMT_TBL(FMT_AVSD  , vpu_defaultd),
+	SETUP_FMT_TBL(FMT_AVSD  , vpu_avsd),
 
 	SETUP_FMT_TBL(FMT_PP    , vpu_default_pp),
 
