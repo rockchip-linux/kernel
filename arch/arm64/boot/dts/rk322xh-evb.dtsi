@@ -238,9 +238,15 @@
 
 	rockchip,remote_wakeup;
 	rockchip,usb_irq_wakeup;
+
+	status = "okay";
 };
 
 &u2phy {
+	status = "okay";
+};
+
+&usb2_otg {
 	status = "okay";
 };
 
