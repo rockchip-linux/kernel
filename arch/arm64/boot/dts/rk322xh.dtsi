@@ -833,8 +833,9 @@
 	};
 
 	codec: codec@ff410000 {
-		compatible = "rockchip,rk322xh-codec", "rockchip,rk322x-codec";
+		compatible = "rockchip,rk322xh-codec";
 		reg = <0x0 0xff410000 0x0 0x1000>;
+		rockchip,grf = <&grf>;
 		clocks = <&clk_gates17 5>;
 		clock-names = "g_pclk_acodec";
 		status = "disabled";
