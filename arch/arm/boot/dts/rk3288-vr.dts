@@ -1109,7 +1109,7 @@
 			regulator-boot-on-volt = <1150000>;
 			regulator-state-mem {
 				regulator-state-mode = <0x2>;
-				regulator-state-disabled;
+				regulator-state-enabled;
 				regulator-state-uv = <900000>;
 			};
 		};
