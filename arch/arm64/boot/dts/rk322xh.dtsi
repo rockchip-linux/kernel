@@ -662,6 +662,14 @@
 		status = "disabled";
 	};
 
+	h265e_mmu@ff330200 {
+		dbgname = "h265e";
+		compatible = "rockchip,h265e_mmu";
+		reg = <0x0 0xff330200 0 0x100>;
+		interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "h265e_mmu";
+	};
+
 	vepu: vepu@ff340000 {
 		compatible = "rockchip,rk322xh-vepu", "rockchip,vepu";
 		rockchip,grf = <&grf>;
