@@ -255,9 +255,13 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
 
 	cmdr = cmd->opcode;
 
-	if (cmdr == MMC_STOP_TRANSMISSION)
+	if (cmd->opcode == MMC_STOP_TRANSMISSION ||
+	    cmd->opcode == MMC_GO_IDLE_STATE ||
+	    cmd->opcode == MMC_GO_INACTIVE_STATE ||
+	    (cmd->opcode == SD_IO_RW_DIRECT &&
+	    ((cmd->arg >> 9) & 0x1FFFF) == SDIO_CCCR_ABORT))
 		cmdr |= SDMMC_CMD_STOP;
-	else
+	else if (cmd->opcode != MMC_SEND_STATUS && cmd->data)
 		cmdr |= SDMMC_CMD_PRV_DAT_WAIT;
 
 	if (cmd->flags & MMC_RSP_PRESENT) {
@@ -1130,11 +1134,10 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 }
 
 extern struct mmc_card *this_card;
-static void dw_mci_wait_unbusy(struct dw_mci *host)
+static void dw_mci_wait_unbusy(struct dw_mci *host, u32 cmd_flags)
 {
         unsigned int timeout = SDMMC_DATA_TIMEOUT_SDIO;
         unsigned long time_loop;
-        unsigned int status;
         unsigned int tmo = 300000;
 	/* Secure erase flag */
 	u32 se_flag = 0;
@@ -1161,12 +1164,19 @@ static void dw_mci_wait_unbusy(struct dw_mci *host)
                 timeout = SDMMC_DATA_TIMEOUT_SD;
         }
 
-        time_loop = jiffies + msecs_to_jiffies(timeout);
-        do {
-                status = mci_readl(host, STATUS);
-                if (!(status & (SDMMC_STAUTS_DATA_BUSY | SDMMC_STAUTS_MC_BUSY)))
-                        break;
-        } while (time_before(jiffies, time_loop));
+	time_loop = jiffies + msecs_to_jiffies(timeout);
+
+	if ((cmd_flags & SDMMC_CMD_PRV_DAT_WAIT) &&
+	    !(cmd_flags & SDMMC_CMD_VOLT_SWITCH)) {
+		while (mci_readl(host, STATUS) &
+		      (SDMMC_STAUTS_DATA_BUSY | SDMMC_STAUTS_MC_BUSY)) {
+			if (time_after(jiffies, time_loop)) {
+				/* Command will fail; we'll pass error then */
+				dev_err(host->dev, "Busy; trying anyway\n");
+				break;
+			}
+		}
+	}
 }
 
 #ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
@@ -1211,8 +1221,6 @@ static void __dw_mci_start_request(struct dw_mci *host,
 
 	host->cur_slot = slot;
 	host->mrq = mrq;
-
-        dw_mci_wait_unbusy(host);
     
 	host->pending_events = 0;
 	host->completed_events = 0;
@@ -1236,6 +1244,8 @@ static void __dw_mci_start_request(struct dw_mci *host,
 		dw_mci_submit_data(host, data);
 		wmb();
 	}
+
+	dw_mci_wait_unbusy(host, cmdflags);
 
 	dw_mci_start_command(host, cmd, cmdflags);
 
@@ -2043,15 +2053,6 @@ static const struct mmc_host_ops dw_mci_ops = {
         #endif
 };
 
-static void dw_mci_deal_data_end(struct dw_mci *host, struct mmc_request *mrq)
-	__releases(&host->lock)
-	__acquires(&host->lock)
-{
-	if (DW_MCI_SEND_STATUS == host->dir_status){
-		dw_mci_wait_unbusy(host);
-	}
-}
-
 static void dw_mci_request_end(struct dw_mci *host, struct mmc_request *mrq)
 	__releases(&host->lock)
 	__acquires(&host->lock)
@@ -2060,8 +2061,6 @@ static void dw_mci_request_end(struct dw_mci *host, struct mmc_request *mrq)
 	struct mmc_host	*prev_mmc = host->cur_slot->mmc;
 
 	//WARN_ON(host->cmd || host->data);
-
-	dw_mci_deal_data_end(host, mrq);
 
 	if(mrq->cmd)
 		MMC_DBG_CMD_FUNC(host->mmc,
@@ -2284,7 +2283,6 @@ static void dw_mci_tasklet_func(unsigned long priv)
 						&host->pending_events))
 				break;
 
-			dw_mci_deal_data_end(host, host->mrq);			
                         MMC_DBG_INFO_FUNC(host->mmc, 
 				"Pre-state[%d]-->NowState[%d]: STATE_DATA_BUSY, "
 				"after EVENT_DATA_COMPLETE. [%s]",
