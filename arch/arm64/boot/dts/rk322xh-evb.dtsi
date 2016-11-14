@@ -490,3 +490,7 @@
 &gpu {
 	status = "okay";
 };
+
+&tve {
+	status = "okay";
+};
