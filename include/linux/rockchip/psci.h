@@ -39,11 +39,11 @@ struct arm_smccc_res {
  * pcsi smc funciton err code
  */
 #define PSCI_SMC_SUCCESS		0
-#define PSCI_SMC_NOT_SUPPORTED		-1
-#define PSCI_SMC_INVALID_PARAMS		-2
-#define PSCI_SMC_INVALID_ADDRESS	-3
-#define PSCI_SMC_DENIED			-4
-#define PSCI_SMC_FUNC_UNK		0xffffffff
+#define PSCI_SMC_FUNC_UNK		-1
+#define PSCI_SMC_NOT_SUPPORTED		-2
+#define PSCI_SMC_INVALID_PARAMS		-3
+#define PSCI_SMC_INVALID_ADDRESS	-4
+#define PSCI_SMC_DENIED			-5
 
 #define SIP_IMPLEMENT_V1		(1)
 #define SIP_IMPLEMENT_V2		(2)
@@ -58,6 +58,18 @@ struct arm_smccc_res {
 #define UARTDBG_CFG_OSHDL_DEBUG_DISABLE	0xf5
 #define UARTDBG_CFG_SET_SHARE_MEM	0xf6
 #define UARTDBG_CFG_SET_PRINT_PORT	0xf7
+
+/* Share mem page types */
+enum share_page_type_t {
+	SHARE_PAGE_TYPE_INVALID = 0,
+	SHARE_PAGE_TYPE_UARTDBG,
+	SHARE_PAGE_TYPE_MAX,
+};
+
+#define FIQ_UARTDBG_PAGE_NUMS		2
+#define FIQ_UARTDBG_SHARE_MEM_SIZE	((FIQ_UARTDBG_PAGE_NUMS) * 4096)
+
+#define IS_SIP_ERROR(x)			(!!(x))
 
 /*
  * rockchip psci function call interface
@@ -84,7 +96,7 @@ void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset);
 #endif
 
 int psci_fiq_debugger_switch_cpu(u32 cpu);
-void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback);
+int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback);
 void psci_fiq_debugger_enable_debug(bool val);
 int psci_fiq_debugger_set_print_port(u32 port, u32 baudrate);
 
@@ -111,7 +123,7 @@ static inline u32 rockchip_secure_reg_read(u32 addr_phy) { return 0; }
 static inline int rockchip_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
 
 static inline int psci_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
-static inline void
+static inline int
 psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback) { }
 static inline void psci_fiq_debugger_enable_debug(bool val) { }
 static inline u32

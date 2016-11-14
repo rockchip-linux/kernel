@@ -197,23 +197,44 @@ void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset)
 		     UARTDBG_CFG_OSHDL_TO_OS, NULL);
 }
 
-void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
+int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 {
 	struct arm_smccc_res res;
+
+	if (sip_version == SIP_IMPLEMENT_V2) {
+		/* request page share memory */
+		sip_fn_smc32(PSCI_SIP_SHARE_MEM, FIQ_UARTDBG_PAGE_NUMS,
+			     SHARE_PAGE_TYPE_UARTDBG, 0, &res);
+		if (IS_SIP_ERROR(res.a0)) {
+			pr_err("%s: uartdbg req share memory fail\n", __func__);
+			return res.a0;
+		}
+	}
 
 	psci_fiq_debugger_uart_irq_tf = callback;
 	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, irq_id,
 		     (u64)psci_fiq_debugger_uart_irq_tf_cb,
 		     UARTDBG_CFG_INIT, &res);
 	if (sip_version == SIP_IMPLEMENT_V2) {
-		if (res.a0)
-			return;
+		if (IS_SIP_ERROR(res.a0)) {
+			pr_err("%s: uartdbg init tf cb fail\n", __func__);
+			return res.a0;
+		}
 		ft_fiq_mem_phy = res.a1;
 	} else {
 		ft_fiq_mem_phy = res.a0;
 	}
-	if (!ft_fiq_mem_base)
-		ft_fiq_mem_base = ioremap(ft_fiq_mem_phy, 8 * 1024);
+
+	if (!ft_fiq_mem_base) {
+		ft_fiq_mem_base = ioremap(ft_fiq_mem_phy,
+					  FIQ_UARTDBG_SHARE_MEM_SIZE);
+		if (!ft_fiq_mem_base) {
+			pr_err("%s: share memory ioremap fail\n", __func__);
+			return -ENOMEM;
+		}
+	}
+
+	return PSCI_SMC_SUCCESS;
 }
 
 int psci_fiq_debugger_switch_cpu(u32 cpu)
@@ -262,7 +283,7 @@ void psci_fiq_debugger_uart_irq_tf_cb(u32 offset)
 	sip_fn_smc32(PSCI_SIP_UARTDBG_CFG, 0, 0, UARTDBG_CFG_OSHDL_TO_OS, NULL);
 }
 
-void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
+int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 {
 	struct arm_smccc_res res;
 
@@ -274,22 +295,33 @@ void psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 		if (IS_ERR_OR_NULL(ft_fiq_mem_base)) {
 			ft_fiq_mem_base = NULL;
 			pr_err("%s: alloc mem failed\n", __func__);
-			return;
+			return PSCI_SMC_INVALID_PARAMS;
 		}
 	}
 
 	sip_fn_smc32(PSCI_SIP_UARTDBG_CFG, irq_id,
 		     (u32)psci_fiq_debugger_uart_irq_tf_cb,
 		     UARTDBG_CFG_INIT, &res);
-	if (sip_version == SIP_IMPLEMENT_V2 && res.a0)
-		return;
+
+	if (sip_version == SIP_IMPLEMENT_V2 && IS_SIP_ERROR(res.a0)) {
+		pr_err("%s: uartdbg init tf cb fail\n", __func__);
+		return res.a0;
+	} else if (sip_version == SIP_IMPLEMENT_V1 &&
+		   (int)res.a0 == PSCI_SMC_FUNC_UNK) {
+		pr_err("%s: uartdbg init tf cb fail(smc_unk)\n", __func__);
+		return PSCI_SMC_FUNC_UNK;
+	}
 
 	sip_fn_smc32(PSCI_SIP_UARTDBG_CFG, ft_fiq_mem_phy, 0,
 		     UARTDBG_CFG_SET_SHARE_MEM, &res);
-	if (sip_version == SIP_IMPLEMENT_V2 && res.a0)
-		return;
+	if (sip_version == SIP_IMPLEMENT_V2 && IS_SIP_ERROR(res.a0)) {
+		pr_err("%s: uartdbg set share mem fail\n", __func__);
+		return res.a0;
+	}
 
 	psci_enable = 1;
+
+	return PSCI_SMC_SUCCESS;
 }
 
 int psci_fiq_debugger_switch_cpu(u32 cpu)
