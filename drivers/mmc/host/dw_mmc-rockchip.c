@@ -167,6 +167,7 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 		sample_mask = 0x07ff;
 		break;
 	case DW_MCI_TYPE_RK322X:
+	case DW_MCI_TYPE_RK322XH:
 		delay_sel = 1 << 11;
 		sample_delaynum_offset = 0x3;
 		sample_degree_offset = 0x1;
