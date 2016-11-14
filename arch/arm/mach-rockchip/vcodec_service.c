@@ -2906,6 +2906,7 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 
 		atomic_add(1, &dev->irq_count_codec);
 		time_diff(task);
+		pservice->irq_status = raw_status;
 	}
 
 	task = &data->task_info[TASK_PP];
@@ -2931,8 +2932,6 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 			time_diff(task);
 		}
 	}
-
-	pservice->irq_status = raw_status;
 
 	if (atomic_read(&dev->irq_count_pp) ||
 	    atomic_read(&dev->irq_count_codec))
