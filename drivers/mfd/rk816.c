@@ -146,7 +146,8 @@ int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest)
 	ret = i2c_transfer(adap, msgs, 2);
 
 	RK816_DBG("***run in %s %x  %x\n", __func__, i2c->addr, *(msgs[1].buf));
-	return ret;
+
+	return (ret < 0) ? ret : 0;
 }
 
 int rk816_i2c_write(struct rk816 *rk816, char reg, int count,  const u8 src)
@@ -173,7 +174,8 @@ int rk816_i2c_write(struct rk816 *rk816, char reg, int count,  const u8 src)
 	msg.scl_rate = RK816_I2C_SPEED;
 
 	ret = i2c_transfer(adap, &msg, 1);
-	return ret;
+
+	return (ret < 0) ? ret : 0;
 }
 
 int rk816_reg_read(struct rk816 *rk816, u8 reg)
