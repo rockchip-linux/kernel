@@ -249,6 +249,10 @@
 	status = "okay";
 };
 
+&iep {
+	status = "okay";
+};
+
 &disp_timings {
 	native-mode = <&timing0>;
 };
