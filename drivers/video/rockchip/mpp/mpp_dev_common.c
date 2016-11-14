@@ -799,6 +799,7 @@ static struct device *rockchip_get_sysmmu_dev(const char *compt)
 static const struct of_device_id mpp_dev_dt_ids[] = {
 	{.compatible = "rockchip,rkvenc", .data = &rkvenc_variant, },
 	{.compatible = "rockchip,vepu", .data = &vepu_variant, },
+	{.compatible = "rockchip,h265e", .data = &h265e_variant, },
 	{},
 };
 #endif
