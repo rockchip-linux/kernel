@@ -697,6 +697,7 @@
 	};
 
 	vdpu: vpu_service@ff350000 {
+		compatible = "vpu,sub";
 		iommu_enabled = <1>;
 		reg = <0x0 0xff350000 0x0 0x800>;
 		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
@@ -706,6 +707,7 @@
 	};
 
 	avsd: avsd@ff351000 {
+		compatible = "vpu,sub";
 		iommu_enabled = <1>;
 		reg = <0x0 0xff351000 0x0 0x200>;
 		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
