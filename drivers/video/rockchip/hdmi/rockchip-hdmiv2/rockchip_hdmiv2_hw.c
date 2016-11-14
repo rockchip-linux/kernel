@@ -701,6 +701,22 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TMDS_D0_LEVEL,
 					  hdmi_dev->phy_table[i].data0_level);
 	}
+
+	if (hdmi_dev->tmdsclk > 340000000) {
+		/* Set termination resistor to 100ohm */
+		stat = clk_get_rate(hdmi_dev->pclk_phy) / 100000;
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
+					  ((stat >> 8) & 0xff) | 0x80);
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL2,
+					  stat & 0xff);
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_RESIS_AUTO,
+					  3 << 1);
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
+					  ((stat >> 8) & 0xff));
+	} else {
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
+					  0x81);
+	}
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
 		regmap_write(hdmi_dev->grf_base,
 			     RK1108_GRF_SOC_CON4,
