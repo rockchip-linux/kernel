@@ -610,19 +610,31 @@
 		};
 	};
 
+	thermal-zones {
+		cpu_thermal: cpu-thermal {
+			polling-delay-passive = <1000>; /* milliseconds */
+			polling-delay = <5000>; /* milliseconds */
+			/* sensor	ID */
+			thermal-sensors = <&tsadc	0>;
+		};
+	};
+
 	tsadc: tsadc@ff250000 {
-		compatible = "rockchip,tsadc";
+		compatible = "rockchip,rk322xh-tsadc";
 		reg = <0x0 0xff250000 0x0 0x100>;
 		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
 		clock-frequency = <50000>;
 		clocks = <&clk_tsadc>, <&clk_gates16 14>;
-		clock-names = "tsadc", "pclk_tsadc";
+		clock-names = "tsadc", "apb_pclk";
 		pinctrl-names = "default", "tsadc_int";
 		pinctrl-0 = <&tsadc_gpio>;
 		pinctrl-1 = <&tsadc_int>;
-		tsadc-ht-temp = <120>;
-		tsadc-ht-reset-cru = <1>;
-		tsadc-ht-pull-gpio = <0>;
+		resets = <&reset RK322XH_SRST_TSADC_P>;
+		reset-names = "tsadc-apb";
+		hw-shut-temp = <120000>;
+		tsadc-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
+		tsadc-tshut-polarity = <1>; /* tshut polarity 0:LOW 1:HIGH */
+		#thermal-sensor-cells = <1>;
 		status = "disabled";
 	};
 
