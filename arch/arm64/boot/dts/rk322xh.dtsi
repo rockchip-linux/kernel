@@ -898,7 +898,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		pinctrl-names = "default", "idle";
-		pinctrl-0 = <&sdmmc1_cmd &sdmmc1_clk &sdmmc0_dectn
+		pinctrl-0 = <&sdmmc1_cmd &sdmmc1_clk &sdmmc1_dectn
 			     &sdmmc1_bus4>;
 		pinctrl-1 = <&sdmmc1_gpio>;
 		cd-gpios = <&gpio1 GPIO_C3 GPIO_ACTIVE_HIGH>; /* CD GPIO */
@@ -1695,7 +1695,7 @@
 					<1 GPIO_B4 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
 					<1 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
 					<1 GPIO_B6 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-					<1 GPIO_A7 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
+					<1 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
 					<1 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
 					<1 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
 					<1 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
