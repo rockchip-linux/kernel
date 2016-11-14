@@ -28,9 +28,11 @@
 #include <linux/of_gpio.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
+#include <linux/rockchip/grf.h>
 #include <linux/slab.h>
 #include <asm/dma.h>
 #include <sound/core.h>
@@ -51,12 +53,19 @@
 */
 #define  OUT_VOLUME    (0x18)
 
+enum codec_type {
+	RK322X_CODEC = 0,
+	RK322XH_CODEC,
+};
+
 struct rk322x_codec_priv {
 	struct regmap *regmap;
+	struct regmap *grf;
 	struct clk *pclk;
 	unsigned int sclk;
 	int spk_ctl_gpio;
 	int spk_depop_time; /* msec */
+	int codec_type;
 };
 
 static const struct reg_default rk322x_codec_reg_defaults[] = {
@@ -142,7 +151,11 @@ static int rk322x_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 
 static void rk322x_analog_output(struct rk322x_codec_priv *rk322x, int mute)
 {
-	gpio_direction_output(rk322x->spk_ctl_gpio, mute);
+	if (RK322XH_CODEC == rk322x->codec_type)
+		regmap_write(rk322x->grf, RK322XH_GRF_SOC_CON10,
+			     (BIT(1) << 16) | (mute << 1));
+	else
+		gpio_direction_output(rk322x->spk_ctl_gpio, mute);
 }
 
 static int rk322x_digital_mute(struct snd_soc_dai *dai, int mute)
@@ -485,9 +498,20 @@ static const struct regmap_config rk322x_codec_regmap_config = {
 	.cache_type = REGCACHE_FLAT,
 };
 
+#ifdef CONFIG_OF
+static const struct of_device_id rk322xcodec_of_match[] = {
+		{ .compatible = "rockchip,rk322x-codec", },
+		{ .compatible = "rockchip,rk322xh-codec",
+		  .data = (void *)RK322XH_CODEC },
+		{},
+};
+MODULE_DEVICE_TABLE(of, rk322xcodec_of_match);
+#endif
+
 static int rk322x_platform_probe(struct platform_device *pdev)
 {
 	struct device_node *rk322x_np = pdev->dev.of_node;
+	const struct of_device_id *match;
 	struct rk322x_codec_priv *rk322x;
 	struct resource *res;
 	void __iomem *base;
@@ -497,23 +521,42 @@ static int rk322x_platform_probe(struct platform_device *pdev)
 	if (!rk322x)
 		return -ENOMEM;
 
+	match = of_match_node(rk322xcodec_of_match, rk322x_np);
+	if (match->data == (void *)RK322XH_CODEC) {
+		struct regmap *grf;
+
+		rk322x->codec_type = RK322XH_CODEC;
+		grf = syscon_regmap_lookup_by_phandle(rk322x_np,
+						      "rockchip,grf");
+		if (IS_ERR(grf)) {
+			dev_err(&pdev->dev, "missing 'rockchip,grf'\n");
+			return PTR_ERR(grf);
+		}
+		rk322x->grf = grf;
+		/* enable i2s_acodec_en */
+		regmap_write(grf, RK322XH_GRF_SOC_CON2,
+			     (BIT(14) << 16 | BIT(14)));
+	} else {
+		rk322x->spk_ctl_gpio = of_get_named_gpio(rk322x_np,
+							 "spk_ctl_io", 0);
+		if (!gpio_is_valid(rk322x->spk_ctl_gpio)) {
+			dev_err(&pdev->dev, "invalid spk ctl gpio\n");
+			return -EINVAL;
+		}
+
+		ret = devm_gpio_request(&pdev->dev,
+					rk322x->spk_ctl_gpio, "spk_ctl");
+		if (ret < 0) {
+			dev_err(&pdev->dev, "spk_ctl_gpio request fail\n");
+			return ret;
+		}
+	}
+
 	ret = of_property_read_u32(rk322x_np, "spk_depop_time",
 				   &rk322x->spk_depop_time);
 	if (ret < 0) {
 		dev_info(&pdev->dev, "spk_depop_time undefined, use default value.\n");
 		rk322x->spk_depop_time = 200;
-	}
-
-	rk322x->spk_ctl_gpio = of_get_named_gpio(rk322x_np, "spk_ctl_io", 0);
-	if (!gpio_is_valid(rk322x->spk_ctl_gpio)) {
-		dev_err(&pdev->dev, "invalid spk ctl gpio\n");
-		return -EINVAL;
-	}
-
-	ret = devm_gpio_request(&pdev->dev, rk322x->spk_ctl_gpio, "spk_ctl");
-	if (ret < 0) {
-		dev_err(&pdev->dev, "spk_ctl_gpio request fail\n");
-		return ret;
 	}
 
 	rk322x_analog_output(rk322x, 0);
@@ -551,14 +594,6 @@ static int rk322x_platform_remove(struct platform_device *pdev)
 	snd_soc_unregister_codec(&pdev->dev);
 	return 0;
 }
-
-#ifdef CONFIG_OF
-static const struct of_device_id rk322xcodec_of_match[] = {
-		{ .compatible = "rockchip,rk322x-codec", },
-		{},
-};
-MODULE_DEVICE_TABLE(of, rk322xcodec_of_match);
-#endif
 
 static struct platform_driver rk322x_codec_driver = {
 	.driver = {
