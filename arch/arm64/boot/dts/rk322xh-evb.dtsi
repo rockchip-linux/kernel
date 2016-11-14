@@ -115,6 +115,16 @@
 	status = "okay";
 };
 
+&clk_gpu_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		200000 1050000
+		300000 1050000
+		400000 1100000
+		>;
+	status = "okay";
+};
+
 &i2s0 {
 	status = "okay";
 };
