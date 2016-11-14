@@ -1,0 +1,60 @@
+ROCKCHIP USB3.0 PHY WITH INNO IP BLOCK
+
+Required properties (phy (parent) node):
+ - compatible : should be one of the listed compatibles:
+	* "rockchip,rk322xh-u3phy"
+ - reg : the base address of usb3phy.
+ - rockchip,u3phygrf : phandle to the syscon managing the
+	"usb3.0 phy general register files".
+ - interrupts : specify an interrupt for each entry in interrupt-names.
+ - interrupt-names : a list which shall be the following entries:
+	* "linestate" : for the host/otg linestate interrupt.
+ - usb30-drv : gpio control for usb3.0 vbus.
+
+Optional properties:
+ - clocks : phandle + phy specifier pair, for the input clock of phy.
+ - clock-names : input clock name of phy, must be "phyclk".
+
+Required nodes : a sub-node is required for usb3.0 or usb2.0 the phy provides.
+		 The sub-node name is used to identify phy type, and shall be
+		 the following entries:
+	* "pipe" : usb3.0 pipe phy.
+	* "utmi" : usb2.0 utmi phy.
+
+Required properties (port (child) node):
+ - reg : address and length of the register set for the port.
+ - #phy-cells : must be 0. See ./phy-bindings.txt for details.
+
+Optional properties:
+ none
+
+Example:
+
+usb3phy_grf: syscon@ff460000 {
+	compatible = "rockchip,usb3phy-grf", "syscon";
+	reg = <0x0 0xff460000 0x0 0x1000>;
+};
+
+...
+
+u3phy: usb3-phy@ff470000 {
+	compatible = "rockchip,rk322xh-u3phy";
+	reg = <0x0 0xff470000 0x0 0x0>;
+	rockchip,usb3grf = <&usb3phy_grf>;
+	interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "linestate";
+	usb30_drv = <&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+	ranges;
+
+	u3phy_pipe: pipe@ff470000 {
+		reg = <0x0 0xff470000 0x0 0x8000>;
+		#phy-cells = <0>;
+	};
+
+	u3phy_utmi: utmi@ff478000 {
+		reg = <0x0 0xff478000 0x0 0x8000>;
+		#phy-cells = <0>;
+	};
+};
