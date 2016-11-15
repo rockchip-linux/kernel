@@ -462,11 +462,14 @@ static int rk3036_tve_parse_dt(struct device_node *np,
 			}
 		}
 	}
-	ret = of_property_read_u32(np, "dac1level", &val);
-	if ((val == 0) || (ret < 0))
-		goto errer;
-	else
-		rk3036_tve->dac1level = val;
+
+	if (rk3036_tve->soctype == SOC_RK322X) {
+		ret = of_property_read_u32(np, "dac1level", &val);
+		if ((val == 0) || (ret < 0))
+			goto errer;
+		else
+			rk3036_tve->dac1level = val;
+	}
 
 	return 0;
 errer:
