@@ -171,7 +171,7 @@
 					status-reg = <0x04 10>;
 					clocks = <&xin24m>;
 					clock-output-names = "clk_apll";
-					rockchip,pll-type = <CLK_PLL_322XH_APLL>;
+					rockchip,pll-type = <CLK_PLL_312XPLUS>;
 					#clock-cells = <0>;
 					#clock-init-cells = <1>;
 				};
@@ -254,7 +254,7 @@
 					clk_core: clk_core_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <6 2>;
-						clocks = <&clk_apll>, <&clk_gpll>, <&clk_dpll>;
+						clocks = <&clk_apll>, <&clk_gpll>, <&clk_dpll>, <&clk_npll>;
 						clock-output-names = "clk_core";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -275,7 +275,7 @@
 					aclk_bus_mux: aclk_bus_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <13 2>;
-						clocks = <&clk_cpll>, <&clk_gpll>, <&hdmi_phy_clk>;
+						clocks = <&clk_cpll>, <&clk_gpll>, <&dummy>;
 						clock-output-names = "aclk_bus";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -974,7 +974,8 @@
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
 						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
-						rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
+						rockchip,flags = <(CLK_SET_RATE_PARENT |
+								  CLK_SET_RATE_NO_REPARENT)>;
 					};
 
 					/* 13 reserved */
@@ -982,7 +983,7 @@
 					clk_pdm: clk_pdm_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&dummy>, <&clk_gpll>, <&dummy>, <&dummy>;
+						clocks = <&dummy>, <&dummy>, <&clk_apll>, <&dummy>;
 						clock-output-names = "clk_pdm";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
