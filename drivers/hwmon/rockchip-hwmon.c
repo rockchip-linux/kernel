@@ -105,12 +105,14 @@ static void tsadc_monitor(struct work_struct *work)
 		}
 
 		if (updated_min_alarm) {
-			ret = sprintf(alarm_node, "temp%d_min_alarm", i + 1);
+			ret = sprintf(alarm_node, "temp%d_min_alarm", i);
 			sysfs_notify(&data->pdev->dev.kobj, NULL, alarm_node);
+			kobject_uevent(&data->pdev->dev.kobj, KOBJ_CHANGE);
 		}
 		if (updated_max_alarm) {
-			ret = sprintf(alarm_node, "temp%d_max_alarm", i + 1);
+			ret = sprintf(alarm_node, "temp%d_max_alarm", i);
 			sysfs_notify(&data->pdev->dev.kobj, NULL, alarm_node);
+			kobject_uevent(&data->pdev->dev.kobj, KOBJ_CHANGE);
 		}
 	}
 
@@ -162,6 +164,7 @@ static ssize_t set_min(struct device *dev, struct device_attribute *devattr,
 
 	mutex_lock(&data->lock);
 	data->min[attr->index] = val;
+	data->min_alarm[attr->index] = false;
 	threshold_updated(data);
 	mutex_unlock(&data->lock);
 
@@ -182,6 +185,7 @@ static ssize_t set_max(struct device *dev, struct device_attribute *devattr,
 
 	mutex_lock(&data->lock);
 	data->max[attr->index] = val;
+	data->max_alarm[attr->index] = false;
 	threshold_updated(data);
 	mutex_unlock(&data->lock);
 
