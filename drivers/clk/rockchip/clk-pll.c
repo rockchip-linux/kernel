@@ -459,6 +459,8 @@ static const struct apll_clk_set rk322xh_apll_table[] = {
 	_RK322XH_APLL_SET_CLKS(0, 1, 0, 1, 1, 1, 0, 2, 2, 0),
 };
 
+static int SOC_IS_RK322XH;
+
 static void pll_wait_lock(struct clk_hw *hw)
 {
 	struct clk_pll *pll = to_clk_pll(hw);
@@ -1946,8 +1948,12 @@ static  int rk3036_pll_clk_set_rate(struct pll_clk_set *clk_set,
 	struct clk_pll *pll = to_clk_pll(hw);
 
 	/*enter slowmode*/
-	cru_writel(_RK3188_PLL_MODE_SLOW_SET(pll->mode_shift),
-	pll->mode_offset);
+	if (SOC_IS_RK322XH)
+		cru_writel(RK322XH_PLL_SLOWM_SET(pll->mode_shift),
+			   pll->mode_offset);
+	else
+		cru_writel(_RK3188_PLL_MODE_SLOW_SET(pll->mode_shift),
+			   pll->mode_offset);
 
 	cru_writel(clk_set->pllcon0,  pll->reg + RK3188_PLL_CON(0));
 	cru_writel(clk_set->pllcon1,  pll->reg + RK3188_PLL_CON(1));
@@ -1961,8 +1967,12 @@ static  int rk3036_pll_clk_set_rate(struct pll_clk_set *clk_set,
 	rk3036_pll_wait_lock(hw);
 
 	/*return form slow*/
-	cru_writel(_RK3188_PLL_MODE_NORM_SET(pll->mode_shift),
-	pll->mode_offset);
+	if (SOC_IS_RK322XH)
+		cru_writel(RK322XH_PLL_NORM_SET(pll->mode_shift),
+			   pll->mode_offset);
+	else
+		cru_writel(_RK3188_PLL_MODE_NORM_SET(pll->mode_shift),
+			   pll->mode_offset);
 
 	return 0;
 }
@@ -2760,6 +2770,7 @@ static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 		return 0;
 	}
 
+	ps->clksel0 = cru_readl(RK322XH_CRU_CLKSELS_CON(0));
 	old_rate = __clk_get_rate(clk);
 	arm_gpll_rate = __clk_get_rate(arm_gpll);
 
@@ -2801,9 +2812,12 @@ static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 	rk3036_pll_wait_lock(hw);
 
 	/************select apll******************/
-	cru_writel(RK322XH_CPU_SEL_PLL(0), RK322XH_CRU_CLKSELS_CON(0));
+	cru_writel(ps->clksel0 |
+		   (RK322XH_CORE_CLK_PLL_SEL_MASK <<
+		   (RK322XH_CORE_CLK_PLL_SEL_SHIFT + 16)),
+		   RK322XH_CRU_CLKSELS_CON(0));
 	/**************return slow mode***********/
-	cru_writel(_RK3188_PLL_MODE_NORM_SET(pll->mode_shift), pll->mode_offset);
+	cru_writel(RK322XH_PLL_NORM_SET(pll->mode_shift), pll->mode_offset);
 
 	cru_writel(RK322XH_CLK_CORE_DIV(1), RK322XH_CRU_CLKSELS_CON(0));
 
@@ -2898,6 +2912,7 @@ const struct clk_ops *rk_get_pll_ops(u32 pll_flags)
 			return &clk_pll_ops_3368_low_jitter;
 
 		case CLK_PLL_322XH_APLL:
+			SOC_IS_RK322XH = 1;
 			return &clk_pll_ops_322xh_apll;
 
 		default:
