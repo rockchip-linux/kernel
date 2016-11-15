@@ -690,7 +690,7 @@
 		vol-up-key {
 			linux,code = <115>;
 			label = "volume up";
-			rockchip,adc_value = <100>;
+			rockchip,adc_value = <350>;
 		};
 
 		vol-down-key {
