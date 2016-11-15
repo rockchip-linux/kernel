@@ -227,6 +227,54 @@ struct tsadc_table {
 static struct rockchip_thermal_data *s_thermal = NULL;
 static long soc_is_rk3368;
 
+#define TSADC_DATA_MASK		0xfff
+
+static const struct tsadc_table v1_code_table[] = {
+	{0, -40000},
+	{296, -40000},
+	{304, -35000},
+	{313, -30000},
+	{331, -20000},
+	{340, -15000},
+	{349, -10000},
+	{359, -5000},
+	{368, 0},
+	{378, 5000},
+	{388, 10000},
+	{398, 15000},
+	{408, 20000},
+	{418, 25000},
+	{429, 30000},
+	{440, 35000},
+	{451, 40000},
+	{462, 45000},
+	{473, 50000},
+	{485, 55000},
+	{496, 60000},
+	{508, 65000},
+	{521, 70000},
+	{533, 75000},
+	{546, 80000},
+	{559, 85000},
+	{572, 90000},
+	{586, 95000},
+	{600, 100000},
+	{614, 105000},
+	{629, 110000},
+	{644, 115000},
+	{659, 120000},
+	{675, 125000},
+
+	{TSADC_DATA_MASK, 125000},
+};
+
+static const struct chip_tsadc_table v1_tsadc = {
+	.id = v1_code_table,
+	.length = ARRAY_SIZE(v1_code_table),
+	.data_mask = 0xfff,
+	.mode = ADC_INCREMENT,
+};
+
 static const struct tsadc_table v2_code_table[] = {
 	{TSADCV2_DATA_MASK, -40000},
 	{3800, -40000},
@@ -722,6 +770,29 @@ static const struct rockchip_tsadc_chip rk3228_tsadc_data = {
 	.set_tshut_mode = rk_tsadc_tshut_mode,
 };
 
+static const struct rockchip_tsadc_chip rk322xh_tsadc_data = {
+	.tshut_mode = TSHUT_MODE_CRU,	/* default TSHUT via GPIO give PMIC */
+	.tshut_polarity = TSHUT_LOW_ACTIVE,	/* default TSHUT LOW ACTIVE */
+	.hw_shut_temp = 120000,
+	.mode = TSADC_AUTO_MODE,
+	.chn_num = 1,
+	.chn_id[0] = 0,
+	.temp_table = &v1_tsadc,
+
+	.init_cmd_table = &v2_init_cmd_table,
+	.enable_cmd_table = &v3_enable_cmd_table,
+	.disable_cmd_table = &v2_disable_cmd_table,
+	.ack_cmd_table = &v4_ack_cmd_table,
+
+	.init = rk_tsadc_init,
+	.irq_ack = rk_tsadc_irq_ack,
+	.control = rk_tsadc_control,
+	.get_temp = rk_tsadc_get_temp,
+	.set_alarm_temp = rk_tsadc_alarm_temp,
+	.set_tshut_temp = rk_tsadc_tshut_temp,
+	.set_tshut_mode = rk_tsadc_tshut_mode,
+};
+
 static const struct of_device_id of_rockchip_thermal_match[] = {
 	{
 		.compatible = "rockchip,rk3288-tsadc",
@@ -734,6 +805,10 @@ static const struct of_device_id of_rockchip_thermal_match[] = {
 	{
 		.compatible = "rockchip,rk3228-tsadc",
 		.data = (void *)&rk3228_tsadc_data,
+	},
+	{
+		.compatible = "rockchip,rk322xh-tsadc",
+		.data = (void *)&rk322xh_tsadc_data,
 	},
 	{ /* end */ },
 };
