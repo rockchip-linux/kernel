@@ -48,6 +48,7 @@
 #include "rv1108-clocks.dtsi"
 #include "skeleton.dtsi"
 #include <dt-bindings/rkfb/rk_fb.h>
+#include <rv1108_dram_default_timing.dtsi>
 
 / {
 	compatible = "rockchip,rv1108";
