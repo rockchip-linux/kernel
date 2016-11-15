@@ -2360,6 +2360,11 @@ static int hdmi_dev_insert(struct hdmi *hdmi)
 		hdmi_writel(hdmi_dev, MC_CLKDIS, m_HDCPCLK_DISABLE);
 	if (gpio_is_valid(hdmi_dev->io_pullup))
 		gpio_set_value(hdmi_dev->io_pullup, 1);
+	if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK322XH_GRF_SOC_CON4,
+			     RK322XH_IO_5V_DOMAIN);
+	}
 	return HDMI_ERROR_SUCESS;
 }
 
@@ -2373,6 +2378,11 @@ static int hdmi_dev_remove(struct hdmi *hdmi)
 	rockchip_hdmiv2_powerdown(hdmi_dev);
 	if (gpio_is_valid(hdmi_dev->io_pullup))
 		gpio_set_value(hdmi_dev->io_pullup, 0);
+	if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+		regmap_write(hdmi_dev->grf_base,
+			     RK322XH_GRF_SOC_CON4,
+			     RK322XH_IO_3V_DOMAIN);
+	}
 	hdmi_dev->tmdsclk = 0;
 	return HDMI_ERROR_SUCESS;
 }
@@ -2439,7 +2449,7 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 			} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 				regmap_write(hdmi_dev->grf_base,
 					     RK322XH_GRF_SOC_CON4,
-					     RK322XH_IO_5V_DOMAIN |
+					     RK322XH_IO_3V_DOMAIN |
 					     RK322XH_HPD_3V);
 				regmap_write(hdmi_dev->grf_base,
 					     RK322XH_GRF_SOC_CON3,
@@ -2464,8 +2474,13 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_powerdown(hdmi_dev);
 	} else {
 		hdmi->hotplug = hdmi_dev_detect_hotplug(hdmi);
-		if (hdmi->hotplug != HDMI_HPD_ACTIVED)
+		if (hdmi->hotplug != HDMI_HPD_ACTIVED) {
+			if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
+				regmap_write(hdmi_dev->grf_base,
+					     RK322XH_GRF_SOC_CON4,
+					     RK322XH_IO_3V_DOMAIN);
 			hdmi->uboot = 0;
+		}
 	}
 	/*mute unnecessary interrrupt, only enable hpd*/
 	hdmi_writel(hdmi_dev, IH_MUTE_FC_STAT0, 0xff);

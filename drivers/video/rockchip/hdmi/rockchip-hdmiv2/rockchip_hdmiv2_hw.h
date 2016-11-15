@@ -1653,8 +1653,10 @@ struct phy_mpll_config_tab {
 #define RK322X_PLL_PDATA_EN	(BIT(11) | BIT(11 + 16))
 
 #define RK322XH_DDC_MASK_EN	((3 << 10) | (3 << (10 + 16)))
+#define RK322XH_IO_CTRL_BY_GRF	(0xf0000000 | BIT(13) | BIT(14) | BIT(15))
 #define RK322XH_IO_CTRL_BY_HDMI	(0xf0000000 | BIT(13))
 #define RK322XH_IO_5V_DOMAIN	((7 << 9) | (7 << (9 + 16)))
+#define RK322XH_IO_3V_DOMAIN	(7 << (9 + 16))
 #define RK322XH_HPD_3V		(BIT(8 + 16) | BIT(13 + 16))
 #define RK322XH_PLL_POWER_DOWN	(BIT(8) | BIT(8 + 16))
 #define RK322XH_PLL_POWER_UP	BIT(8 + 16)
