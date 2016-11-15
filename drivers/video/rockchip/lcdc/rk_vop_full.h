@@ -342,9 +342,9 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define  V_MIPI_DEN_POL(x)                      VAL_MASK(x, 1, 30)
 #define  V_MIPI_DCLK_POL(x)                     VAL_MASK(x, 1, 31)
 #define DSP_BG                          0x00000018
-#define  V_DSP_BG_BLUE(x)                       VAL_MASK(x, 8, 0)
-#define  V_DSP_BG_GREEN(x)                      VAL_MASK(x, 8, 8)
-#define  V_DSP_BG_RED(x)                        VAL_MASK(x, 8, 16)
+#define  V_DSP_BG_BLUE(x)                       VAL_MASK(x, 10, 0)
+#define  V_DSP_BG_GREEN(x)                      VAL_MASK(x, 10, 10)
+#define  V_DSP_BG_RED(x)                        VAL_MASK(x, 10, 20)
 #define AUTO_GATING_EN                  0x0000003c
 #define  V_WIN0_ACLK_GATING_EN(x)               VAL_MASK(x, 1, 0)
 #define  V_WIN1_ACLK_GATING_EN(x)               VAL_MASK(x, 1, 1)
