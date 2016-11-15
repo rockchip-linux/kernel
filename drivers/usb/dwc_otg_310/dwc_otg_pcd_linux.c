@@ -1711,20 +1711,29 @@ void dwc_otg_pcd_start_check_vbus_work(dwc_otg_pcd_t *pcd)
 int dwc_vbus_status(void)
 {
 #ifdef CONFIG_USB20_OTG
+	struct dwc_otg_platform_data *pldata;
 	dwc_otg_pcd_t *pcd = 0;
-	if (gadget_wrapper) {
-		pcd = gadget_wrapper->pcd;
-	}
 
-	if (!pcd)
+	if (gadget_wrapper)
+		pcd = gadget_wrapper->pcd;
+
+	if (pcd) {
+		pldata = pcd->otg_dev->pldata;
+		if (pldata->get_status(USB_STATUS_BVABLID) &&
+		    pldata->get_status(USB_STATUS_ID)) {
+			if (pcd->vbus_status)
+				return pcd->vbus_status;
+			else
+				return USB_BC_TYPE_SDP;
+		}
+			return 0;
+	} else {
 		return 0;
-	else
-		return pcd->vbus_status;
+	}
 #else
 	return 0;
 #endif
 }
-
 EXPORT_SYMBOL(dwc_vbus_status);
 
 static void dwc_otg_pcd_work_init(dwc_otg_pcd_t *pcd,
