@@ -272,6 +272,10 @@
 	status = "okay";
 };
 
+&rga {
+	status = "okay";
+};
+
 &dwc_control_usb {
 	otg_drv_gpio = <&gpio0 GPIO_D3 GPIO_ACTIVE_LOW>;
 
