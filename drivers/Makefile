@@ -162,3 +162,4 @@ obj-y				+= headset_observe/
 obj-$(CONFIG_CORESIGHT)		+= coresight/
 obj-$(CONFIG_ANDROID)		+= android/
 obj-$(CONFIG_RK_SFC)		+= rksfc/
+obj-y                           += rk_nand/
