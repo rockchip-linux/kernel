@@ -2162,6 +2162,67 @@ static int sensor_init(struct i2c_client *client)
 	return ret;
 }
 
+static int sensor_use_interrupt(struct i2c_client *client, int num, int enable)
+{
+	int result = 0;
+	char data;
+
+	switch (num) {
+	case 1: /* interrupt 1*/
+		if (enable == 1) {
+			/* slope_enable_z interrupt */
+			data = 0x01;
+			sensor_write_reg(client, BMA2X2_SLOPE_DURN_REG, data);
+			data = 0x04;
+			sensor_write_reg(client, BMA2X2_SLOPE_THRES_REG, data);
+			data = 0x04;
+			sensor_write_reg(client, BMA2X2_INT_ENABLE1_REG, data);
+			data = 0x04;
+			sensor_write_reg(client, BMA2X2_INT1_PAD_SEL_REG, data);
+		} else {
+			/* slope_disable_z interrupt */
+			data = 0x00;
+			sensor_write_reg(client, BMA2X2_SLOPE_DURN_REG, data);
+			data = 0x14;
+			sensor_write_reg(client, BMA2X2_SLOPE_THRES_REG, data);
+			data = 0x00;
+			sensor_write_reg(client, BMA2X2_INT_ENABLE1_REG, data);
+			data = 0x00;
+			sensor_write_reg(client, BMA2X2_INT1_PAD_SEL_REG, data);
+		}
+		break;
+
+	case 2:/* interrupt 2*/
+		if (enable == 1) {
+			/* slope_enable_z interrupt */
+			data = 0x01;
+			sensor_write_reg(client, BMA2X2_SLOPE_DURN_REG, data);
+			data = 0x04;
+			sensor_write_reg(client, BMA2X2_SLOPE_THRES_REG, data);
+			data = 0x04;
+			sensor_write_reg(client, BMA2X2_INT_ENABLE1_REG, data);
+			data = 0x04;
+			sensor_write_reg(client, BMA2X2_INT2_PAD_SEL_REG, data);
+		} else {
+			/* slope_disable_z interrupt */
+			data = 0x00;
+			sensor_write_reg(client, BMA2X2_SLOPE_DURN_REG, data);
+			data = 0x14;
+			sensor_write_reg(client, BMA2X2_SLOPE_THRES_REG, data);
+			data = 0x00;
+			sensor_write_reg(client, BMA2X2_INT_ENABLE1_REG, data);
+			data = 0x00;
+			sensor_write_reg(client, BMA2X2_INT2_PAD_SEL_REG, data);
+		}
+		break;
+
+	default:
+		result = -1;
+		break;
+	}
+	return result;
+}
+
 struct sensor_operate gsensor_bma2x2_ops = {
 	.name				= "bma2xx_acc",
 	.type				= SENSOR_TYPE_ACCEL,			/*sensor type and it should be correct*/
@@ -2179,6 +2240,7 @@ struct sensor_operate gsensor_bma2x2_ops = {
 	.active				= sensor_active,
 	.init				= sensor_init,
 	.report				= sensor_report_value,
+	.interrupt_use		= sensor_use_interrupt,
 };
 
 /****************operate according to sensor chip:end************/

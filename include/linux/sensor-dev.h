@@ -150,6 +150,7 @@ struct sensor_operate {
 	int (*report)(struct i2c_client *client);
 	int (*suspend)(struct i2c_client *client);
 	int (*resume)(struct i2c_client *client);
+	int (*interrupt_use)(struct i2c_client *client, int num, int enable);
 	struct miscdevice *misc_dev;
 
 };
@@ -251,14 +252,17 @@ extern int sensor_unregister_slave(int type,struct i2c_client *client,
 #define GBUFF_SIZE				12	/* Rx buffer size */
 
 /* IOCTLs for MMA8452 library */
-#define GSENSOR_IOCTL_INIT			_IO(GSENSOR_IOCTL_MAGIC, 0x01)
-#define GSENSOR_IOCTL_RESET      	        _IO(GSENSOR_IOCTL_MAGIC, 0x04)
-#define GSENSOR_IOCTL_CLOSE		        _IO(GSENSOR_IOCTL_MAGIC, 0x02)
-#define GSENSOR_IOCTL_START		        _IO(GSENSOR_IOCTL_MAGIC, 0x03)
-#define GSENSOR_IOCTL_GETDATA               	_IOR(GSENSOR_IOCTL_MAGIC, 0x08, char[GBUFF_SIZE+1])
-/* IOCTLs for APPs */
-#define GSENSOR_IOCTL_APP_SET_RATE		_IOW(GSENSOR_IOCTL_MAGIC, 0x10, char)
+#define GSENSOR_IOCTL_INIT		_IO(GSENSOR_IOCTL_MAGIC, 0x01)
+#define GSENSOR_IOCTL_CLOSE		_IO(GSENSOR_IOCTL_MAGIC, 0x02)
+#define GSENSOR_IOCTL_START		_IO(GSENSOR_IOCTL_MAGIC, 0x03)
+#define GSENSOR_IOCTL_RESET		_IO(GSENSOR_IOCTL_MAGIC, 0x04)
+#define GSENSOR_IOCTL_USE_INT1	_IOW(GSENSOR_IOCTL_MAGIC, 0x05, char)
+#define GSENSOR_IOCTL_USE_INT2	_IOW(GSENSOR_IOCTL_MAGIC, 0x06, char)
+#define GSENSOR_IOCTL_GETDATA \
+_IOR(GSENSOR_IOCTL_MAGIC, 0x08, char[GBUFF_SIZE + 1])
 
+/* IOCTLs for APPs */
+#define GSENSOR_IOCTL_APP_SET_RATE _IOW(GSENSOR_IOCTL_MAGIC, 0x10, char)
 
 #define COMPASS_IOCTL_MAGIC                   'c'
 /* IOCTLs for APPs */

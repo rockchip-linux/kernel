@@ -574,6 +574,7 @@ static long gsensor_dev_ioctl(struct file *file,
 	struct sensor_axis axis = {0};
 	char rate;
 	int result = 0;
+	int int_status;
 
 	switch (cmd) {
 	case GSENSOR_IOCTL_APP_SET_RATE:
@@ -588,6 +589,34 @@ static long gsensor_dev_ioctl(struct file *file,
 	}
 
 	switch (cmd) {
+	case GSENSOR_IOCTL_USE_INT1:
+		if (copy_from_user(&int_status, argp, sizeof(int_status))) {
+			result = -EFAULT;
+			goto error;
+		}
+		if (int_status == 1) {
+			DBG("Gsensor INT1 use\n");
+			sensor->ops->interrupt_use(client, 1, 1);
+		} else {
+			DBG("Gsensor INT1 forbid\n");
+			sensor->ops->interrupt_use(client, 1, 0);
+		}
+		break;
+
+	case GSENSOR_IOCTL_USE_INT2:
+		if (copy_from_user(&int_status, argp, sizeof(int_status))) {
+			result = -EFAULT;
+			goto error;
+		}
+		if (int_status == 1) {
+			DBG("Gsensor INT2 use\n");
+			sensor->ops->interrupt_use(client, 2, 1);
+		} else {
+			DBG("Gsensor INT2 forbid\n");
+			sensor->ops->interrupt_use(client, 2, 0);
+		}
+		break;
+
 	case GSENSOR_IOCTL_START:
 		DBG("%s:GSENSOR_IOCTL_START start,status=%d\n", __func__,sensor->status_cur);
 		mutex_lock(&sensor->operation_mutex);
