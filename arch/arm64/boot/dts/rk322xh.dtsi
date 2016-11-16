@@ -230,7 +230,6 @@
 			<&pclk_bus>,
 			<&clk_gates15 0>, /* aclk_intmem */
 			<&clk_gates15 12>, /* aclk_bus_noc */
-			<&clk_gates15 1>, /* aclk_dmac_bus */
 			<&clk_gates15 2>, /* hclk_rom */
 			<&clk_gates15 13>, /* hclk_bus_noc */
 			<&clk_gates15 14>, /* pclk_bus_noc */
@@ -253,16 +252,18 @@
 			<&hclk_peri>,
 			<&pclk_peri>,
 			<&clk_gates19 11>, /* aclk_peri_noc */
-			<&clk_gates19 7>, /* hclk_host0_arb */
 			<&clk_gates19 12>, /* hclk_peri_noc */
 			<&clk_gates19 13>, /* pclk_peri_noc */
-			<&clk_gates19 9>, /* hclk_otg_pmu */
 
 			/* PD_DDR */
 			<&clk_gates18 1>, /* pclk_ddrctrl */
 			<&clk_gates18 2>, /* pclk_ddr_msch */
 			<&clk_gates18 3>, /* pclk_ddr_mon */
 			<&clk_gates18 9>, /* pclk_ddr_grf */
+			<&clk_gates18 4>, /* aclk_ddrupctl */
+			<&clk_gates18 5>, /* clk_ddrupctl */
+			<&clk_gates18 6>, /* clk_ddrmsch */
+			<&clk_gates18 7>, /* pclk_ddrstdby */
 
 			/* PD_GMAC */
 			<&clk_gates26 4>, /* aclk_gmac_niu */
