@@ -228,9 +228,9 @@ struct rockchip_mpp_dev {
  * @release	a specific instance release operation for hardware.
  */
 struct mpp_dev_ops {
-	/* size: in 4bytes unit, register set length */
+	/* size: in bytes, data sent from userspace, length in bytes */
 	struct mpp_ctx *(*init)(struct rockchip_mpp_dev *mpp,
-				void __user *src, u32 dwsize);
+				void __user *src, u32 size);
 	int (*prepare)(struct rockchip_mpp_dev *mpp);
 	int (*run)(struct rockchip_mpp_dev *mpp);
 	int (*done)(struct rockchip_mpp_dev *mpp);
