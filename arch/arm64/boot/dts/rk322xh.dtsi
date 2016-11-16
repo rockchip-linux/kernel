@@ -2061,7 +2061,22 @@
 					/* mac_txd3 */
 					<1 GPIO_C0 RK_FUNC_2 &pcfg_pull_none_drv_12ma>,
 					/* mac_txd2 */
-					<1 GPIO_C1 RK_FUNC_2 &pcfg_pull_none_drv_12ma>;
+					<1 GPIO_C1 RK_FUNC_2 &pcfg_pull_none_drv_12ma>,
+
+					/* mac_txclk */
+					<0 GPIO_B0 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_txen */
+					<0 GPIO_B4 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_clk */
+					<0 GPIO_D0 RK_FUNC_1 &pcfg_pull_none>,
+					/* mac_txd1 */
+					<0 GPIO_C0 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_txd0 */
+					<0 GPIO_C1 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_txd3 */
+					<0 GPIO_C7 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_txd2 */
+					<0 GPIO_C6 RK_FUNC_1 &pcfg_pull_none_drv_12ma>;
 			};
 
 			rmiim1_pins: rmiim1-pins {
@@ -2085,7 +2100,19 @@
 					/* mac_txd1 */
 					<1 GPIO_B0 RK_FUNC_2 &pcfg_pull_none_drv_12ma>,
 					/* mac_txd0 */
-					<1 GPIO_B1 RK_FUNC_2 &pcfg_pull_none_drv_12ma>;
+					<1 GPIO_B1 RK_FUNC_2 &pcfg_pull_none_drv_12ma>,
+					/* mac_mdio */
+					<0 GPIO_B3 RK_FUNC_1 &pcfg_pull_none>,
+					/* mac_txen */
+					<0 GPIO_B4 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_clk */
+					<0 GPIO_D0 RK_FUNC_1 &pcfg_pull_none>,
+					/* mac_mdc */
+					<0 GPIO_C3 RK_FUNC_1 &pcfg_pull_none>,
+					/* mac_txd1 */
+					<0 GPIO_C0 RK_FUNC_1 &pcfg_pull_none_drv_12ma>,
+					/* mac_txd0 */
+					<0 GPIO_C1 RK_FUNC_1 &pcfg_pull_none_drv_12ma>;
 			};
 		};
 
