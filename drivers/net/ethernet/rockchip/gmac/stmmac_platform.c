@@ -643,6 +643,9 @@ static int gmac_clk_init(struct device *device)
 						     50000000);
 				clk_set_parent(bsp_priv->clk_mac,
 					       bsp_priv->gmac_clkin);
+				/* control the IO OEN for gmac2io */
+				regmap_write(bsp_priv->grf, RK322X_GRF_SOC_CON4,
+					     0x40004000);
 			}
 			break;
 		default:
