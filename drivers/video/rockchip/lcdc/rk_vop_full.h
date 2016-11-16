@@ -805,6 +805,104 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define DBG_WIN2_REG2                   0x000003f8
 #define DBG_WIN2_RESERVED               0x000003fc
 #define  V_RESERVED(x)                          VAL_MASK(x, 1, 0)
+#define WIN3_CTRL0                      0x00000400
+#define  V_WIN3_EN(x)                           VAL_MASK(x, 1, 0)
+#define  V_WIN3_DATA_FMT(x)                     VAL_MASK(x, 3, 1)
+#define  V_WIN3_FMT_10(x)                       VAL_MASK(x, 1, 4)
+#define  V_WIN3_LB_MODE(x)                      VAL_MASK(x, 3, 5)
+#define  V_WIN3_INTERLACE_READ(x)               VAL_MASK(x, 1, 8)
+#define  V_WIN3_NO_OUTSTANDING(x)               VAL_MASK(x, 1, 9)
+#define  V_WIN3_CSC_MODE(x)                     VAL_MASK(x, 2, 10)
+#define  V_WIN3_RB_SWAP(x)                      VAL_MASK(x, 1, 12)
+#define  V_WIN3_ALPHA_SWAP(x)                   VAL_MASK(x, 1, 13)
+#define  V_WIN3_MID_SWAP(x)                     VAL_MASK(x, 1, 14)
+#define  V_WIN3_UV_SWAP(x)                      VAL_MASK(x, 1, 15)
+#define  V_WIN3_HW_PRE_MUL_EN(x)                VAL_MASK(x, 1, 16)
+#define  V_WIN3_YRGB_DEFLICK(x)                 VAL_MASK(x, 1, 18)
+#define  V_WIN3_CBR_DEFLICK(x)                  VAL_MASK(x, 1, 19)
+#define  V_WIN3_YUV_CLIP(x)                     VAL_MASK(x, 1, 20)
+#define  V_WIN3_X_MIR_EN(x)                     VAL_MASK(x, 1, 21)
+#define  V_WIN3_Y_MIR_EN(x)                     VAL_MASK(x, 1, 22)
+#define  V_WIN3_AXI_MAX_OUTSTANDING_EN(x)       VAL_MASK(x, 1, 24)
+#define  V_WIN3_AXI_MAX_OUTSTANDING_NUM(x)      VAL_MASK(x, 5, 25)
+#define  V_WIN3_DMA_BURST_LENGTH(x)             VAL_MASK(x, 2, 30)
+#define WIN3_CTRL1                      0x00000404
+#define  V_WIN3_YRGB_AXI_GATHER_EN(x)           VAL_MASK(x, 1, 0)
+#define  V_WIN3_CBR_AXI_GATHER_EN(x)            VAL_MASK(x, 1, 1)
+#define  V_WIN3_BIC_COE_SEL(x)                  VAL_MASK(x, 2, 2)
+#define  V_WIN3_VSD_YRGB_GT4(x)                 VAL_MASK(x, 1, 4)
+#define  V_WIN3_VSD_YRGB_GT2(x)                 VAL_MASK(x, 1, 5)
+#define  V_WIN3_VSD_CBR_GT4(x)                  VAL_MASK(x, 1, 6)
+#define  V_WIN3_VSD_CBR_GT2(x)                  VAL_MASK(x, 1, 7)
+#define  V_WIN3_YRGB_AXI_GATHER_NUM(x)          VAL_MASK(x, 4, 8)
+#define  V_WIN3_CBR_AXI_GATHER_NUM(x)           VAL_MASK(x, 3, 12)
+#define  V_WIN3_LINE_LOAD_MODE(x)               VAL_MASK(x, 1, 15)
+#define  V_WIN3_YRGB_HOR_SCL_MODE(x)            VAL_MASK(x, 2, 16)
+#define  V_WIN3_YRGB_VER_SCL_MODE(x)            VAL_MASK(x, 2, 18)
+#define  V_WIN3_YRGB_HSD_MODE(x)                VAL_MASK(x, 2, 20)
+#define  V_WIN3_YRGB_VSU_MODE(x)                VAL_MASK(x, 1, 22)
+#define  V_WIN3_YRGB_VSD_MODE(x)                VAL_MASK(x, 1, 23)
+#define  V_WIN3_CBR_HOR_SCL_MODE(x)             VAL_MASK(x, 2, 24)
+#define  V_WIN3_CBR_VER_SCL_MODE(x)             VAL_MASK(x, 2, 26)
+#define  V_WIN3_CBR_HSD_MODE(x)                 VAL_MASK(x, 2, 28)
+#define  V_WIN3_CBR_VSU_MODE(x)                 VAL_MASK(x, 1, 30)
+#define  V_WIN3_CBR_VSD_MODE(x)                 VAL_MASK(x, 1, 31)
+#define WIN3_COLOR_KEY                  0x00000408
+#define  V_WIN3_KEY_COLOR(x)                    VAL_MASK(x, 24, 0)
+#define  V_WIN3_KEY_EN(x)                       VAL_MASK(x, 1, 31)
+#define WIN3_VIR                        0x0000040c
+#define  V_WIN3_VIR_STRIDE(x)                   VAL_MASK(x, 16, 0)
+#define  V_WIN3_VIR_STRIDE_UV(x)                VAL_MASK(x, 16, 16)
+#define WIN3_YRGB_MST                   0x00000410
+#define  V_WIN3_YRGB_MST(x)                     VAL_MASK(x, 32, 0)
+#define WIN3_CBR_MST                    0x00000414
+#define  V_WIN3_CBR_MST(x)                      VAL_MASK(x, 32, 0)
+#define WIN3_ACT_INFO                   0x00000418
+#define  V_WIN3_ACT_WIDTH(x)                    VAL_MASK(x, 13, 0)
+#define  V_WIN3_ACT_HEIGHT(x)                   VAL_MASK(x, 13, 16)
+#define WIN3_DSP_INFO                   0x0000041c
+#define  V_WIN3_DSP_WIDTH(x)                    VAL_MASK(x, 12, 0)
+#define  V_WIN3_DSP_HEIGHT(x)                   VAL_MASK(x, 12, 16)
+#define WIN3_DSP_ST                     0x00000420
+#define  V_WIN3_DSP_XST(x)                      VAL_MASK(x, 13, 0)
+#define  V_WIN3_DSP_YST(x)                      VAL_MASK(x, 13, 16)
+#define WIN3_SCL_FACTOR_YRGB            0x00000424
+#define  V_WIN3_HS_FACTOR_YRGB(x)               VAL_MASK(x, 16, 0)
+#define  V_WIN3_VS_FACTOR_YRGB(x)               VAL_MASK(x, 16, 16)
+#define WIN3_SCL_FACTOR_CBR             0x00000428
+#define  V_WIN3_HS_FACTOR_CBR(x)                VAL_MASK(x, 16, 0)
+#define  V_WIN3_VS_FACTOR_CBR(x)                VAL_MASK(x, 16, 16)
+#define WIN3_SCL_OFFSET                 0x0000042c
+#define  V_WIN3_HS_OFFSET_YRGB(x)               VAL_MASK(x, 8, 0)
+#define  V_WIN3_HS_OFFSET_CBR(x)                VAL_MASK(x, 8, 8)
+#define  V_WIN3_VS_OFFSET_YRGB(x)               VAL_MASK(x, 8, 16)
+#define  V_WIN3_VS_OFFSET_CBR(x)                VAL_MASK(x, 8, 24)
+#define WIN3_SRC_ALPHA_CTRL             0x00000430
+#define  V_WIN3_SRC_ALPHA_EN(x)                 VAL_MASK(x, 1, 0)
+#define  V_WIN3_SRC_COLOR_MODE(x)               VAL_MASK(x, 1, 1)
+#define  V_WIN3_SRC_ALPHA_MODE(x)               VAL_MASK(x, 1, 2)
+#define  V_WIN3_SRC_BLEND_MODE(x)               VAL_MASK(x, 2, 3)
+#define  V_WIN3_SRC_ALPHA_CAL_MODE(x)           VAL_MASK(x, 1, 5)
+#define  V_WIN3_SRC_FACTOR_MODE(x)              VAL_MASK(x, 3, 6)
+#define  V_WIN3_SRC_GLOBAL_ALPHA(x)             VAL_MASK(x, 8, 16)
+#define  V_WIN3_FADING_VALUE(x)                 VAL_MASK(x, 8, 24)
+#define WIN3_DST_ALPHA_CTRL             0x00000434
+#define  V_WIN3_DSP_M0_RESERVED(x)              VAL_MASK(x, 6, 0)
+#define  V_WIN3_DST_FACTOR_M0(x)                VAL_MASK(x, 3, 6)
+#define WIN3_FADING_CTRL                0x00000438
+#define  V_WIN3_FADING_OFFSET_R(x)              VAL_MASK(x, 8, 0)
+#define  V_WIN3_FADING_OFFSET_G(x)              VAL_MASK(x, 8, 8)
+#define  V_WIN3_FADING_OFFSET_B(x)              VAL_MASK(x, 8, 16)
+#define  V_WIN3_FADING_EN(x)                    VAL_MASK(x, 1, 24)
+#define WIN3_CTRL2                      0x0000043c
+#define  V_WIN_RID_WIN3_YRGB(x)                 VAL_MASK(x, 4, 0)
+#define  V_WIN_RID_WIN3_CBR(x)                  VAL_MASK(x, 4, 4)
+#define DBG_WIN3_REG0                   0x000004f0
+#define DBG_WIN3_REG1                   0x000004f4
+#define DBG_WIN3_REG2                   0x000004f8
+#define DBG_WIN3_RESERVED               0x000004fc
+#define  V_RESERVED(x)                          VAL_MASK(x, 1, 0)
+
 #define HWC_CTRL0                       0x00000500
 #define  V_HWC_EN(x)                            VAL_MASK(x, 1, 0)
 #define  V_HWC_DATA_FMT(x)                      VAL_MASK(x, 3, 1)

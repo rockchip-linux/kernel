@@ -71,9 +71,17 @@ static struct rk_lcdc_win rk322xh_vop_win[] = {
 				SUPPORT_YUV10BIT,
 	  .property.max_input_x = 4096,
 	  .property.max_input_y = 2304},
+	{ .name = "win3",
+		  .id = 3,
+		  .property.feature = SUPPORT_WIN_IDENTIFY |
+					SUPPORT_SCALE | SUPPORT_YUV |
+					SUPPORT_YUV10BIT,
+		  .property.max_input_x = 4096,
+		  .property.max_input_y = 2304},
+
 	{
 	  .name = "hwc",
-	  .id = 3,
+	  .id = 4,
 	  .property.feature = SUPPORT_WIN_IDENTIFY | SUPPORT_HW_EXIST |
 				SUPPORT_HWC_LAYER,
 	  .property.max_input_x = 128,
@@ -1311,6 +1319,10 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 		dst_alpha_ctl = WIN2_DST_ALPHA_CTRL;
 		break;
 	case 3:
+		src_alpha_ctl = WIN3_SRC_ALPHA_CTRL;
+		dst_alpha_ctl = WIN3_DST_ALPHA_CTRL;
+		break;
+	case 4:
 		src_alpha_ctl = HWC_SRC_ALPHA_CTRL;
 		dst_alpha_ctl = HWC_DST_ALPHA_CTRL;
 		break;
@@ -1540,7 +1552,7 @@ static int vop_layer_update_regs(struct vop_device *vop_dev,
 		case 2:
 			vop_win_full_reg_update(dev_drv, win->id);
 			break;
-		case 3:
+		case 4:
 			vop_hwc_reg_update(dev_drv, win->id);
 			break;
 		default:
@@ -2139,7 +2151,7 @@ static int vop_pan_display(struct rk_lcdc_driver *dev_drv, int win_id)
 	case 2:
 		win_full_display(vop_dev, win);
 		break;
-	case 3:
+	case 4:
 		hwc_display(vop_dev, win);
 		break;
 	default:
@@ -2824,7 +2836,7 @@ static int vop_set_par(struct rk_lcdc_driver *dev_drv, int win_id)
 	case 2:
 		win_full_set_par(vop_dev, screen, win);
 		break;
-	case 3:
+	case 4:
 		hwc_set_par(vop_dev, screen, win);
 		break;
 	default:
@@ -2979,6 +2991,9 @@ static int vop_get_win_state(struct rk_lcdc_driver *dev_drv,
 		area_status = vop_read_bit(vop_dev, WIN2_CTRL0, V_WIN2_EN(0));
 		break;
 	case 3:
+		area_status = vop_read_bit(vop_dev, WIN3_CTRL0, V_WIN3_EN(0));
+		break;
+	case 4:
 		area_status = vop_read_bit(vop_dev, HWC_CTRL0, V_HWC_EN(0));
 		break;
 	default:
@@ -3501,6 +3516,10 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 				vop_msk_reg(vop_dev, WIN2_CTRL0, val);
 				break;
 			case 3:
+				val = V_WIN3_EN(0);
+				vop_msk_reg(vop_dev, WIN3_CTRL0, val);
+				break;
+			case 4:
 				val = V_HWC_EN(0);
 				vop_msk_reg(vop_dev, HWC_CTRL0, val);
 				break;
@@ -3564,7 +3583,8 @@ static int vop_get_dsp_addr(struct rk_lcdc_driver *dev_drv,
 		dsp_addr[0][0] = vop_readl(vop_dev, WIN0_YRGB_MST);
 		dsp_addr[1][0] = vop_readl(vop_dev, WIN1_YRGB_MST);
 		dsp_addr[2][0] = vop_readl(vop_dev, WIN2_YRGB_MST);
-		dsp_addr[3][0] = vop_readl(vop_dev, HWC_MST);
+		dsp_addr[3][0] = vop_readl(vop_dev, WIN3_YRGB_MST);
+		dsp_addr[4][0] = vop_readl(vop_dev, HWC_MST);
 	}
 	spin_unlock(&vop_dev->reg_lock);
 	return 0;
