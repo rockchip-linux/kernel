@@ -79,12 +79,12 @@ static int senosr_i2c_read(struct i2c_adapter *i2c_adap,
 	msgs[0].buf = &reg;
 	msgs[0].len = 1;
 	msgs[0].scl_rate = SENSOR_I2C_RATE;
-	
+
 	msgs[1].addr = address;
 	msgs[1].flags = I2C_M_RD;
 	msgs[1].buf = data;
 	msgs[1].len = len;
-	msgs[1].scl_rate = SENSOR_I2C_RATE;	
+	msgs[1].scl_rate = SENSOR_I2C_RATE;
 
 	res = i2c_transfer(i2c_adap, msgs, 2);
 	if (res == 2)
@@ -99,13 +99,13 @@ static int senosr_i2c_read(struct i2c_adapter *i2c_adap,
 
 int sensor_rx_data(struct i2c_client *client, char *rxData, int length)
 {
-	//struct sensor_private_data* sensor = 
+	//struct sensor_private_data* sensor =
 	//	(struct sensor_private_data *)i2c_get_clientdata(client);
 	int i = 0;
 	int ret = 0;
 	char reg = rxData[0];
 	ret = senosr_i2c_read(client->adapter, client->addr, reg, length, rxData);
-	
+
 	DBG("addr=0x%x,len=%d,rxdata:",reg,length);
 	for(i=0; i<length; i++)
 		DBG("0x%x,",rxData[i]);
@@ -116,7 +116,7 @@ EXPORT_SYMBOL(sensor_rx_data);
 
 int sensor_tx_data(struct i2c_client *client, char *txData, int length)
 {
-	//struct sensor_private_data* sensor = 
+	//struct sensor_private_data* sensor =
 		//(struct sensor_private_data *)i2c_get_clientdata(client);
 	int i = 0;
 	int ret = 0;
@@ -135,14 +135,14 @@ int sensor_write_reg(struct i2c_client *client, int addr, int value)
 {
 	char buffer[2];
 	int ret = 0;
-	struct sensor_private_data* sensor = 
+	struct sensor_private_data* sensor =
 		(struct sensor_private_data *)i2c_get_clientdata(client);
-	
-	mutex_lock(&sensor->i2c_mutex);	
+
+	mutex_lock(&sensor->i2c_mutex);
 	buffer[0] = addr;
 	buffer[1] = value;
-	ret = sensor_tx_data(client, &buffer[0], 2);	
-	mutex_unlock(&sensor->i2c_mutex);	
+	ret = sensor_tx_data(client, &buffer[0], 2);
+	mutex_unlock(&sensor->i2c_mutex);
 	return ret;
 }
 EXPORT_SYMBOL(sensor_write_reg);
@@ -150,15 +150,15 @@ EXPORT_SYMBOL(sensor_write_reg);
 int sensor_read_reg(struct i2c_client *client, int addr)
 {
 	char tmp[1] = {0};
-	int ret = 0;	
-	struct sensor_private_data* sensor = 
+	int ret = 0;
+	struct sensor_private_data* sensor =
 		(struct sensor_private_data *)i2c_get_clientdata(client);
-	
-	mutex_lock(&sensor->i2c_mutex);	
+
+	mutex_lock(&sensor->i2c_mutex);
 	tmp[0] = addr;
 	ret = sensor_rx_data(client, tmp, 1);
 	mutex_unlock(&sensor->i2c_mutex);
-	
+
 	return tmp[0];
 }
 
@@ -169,7 +169,7 @@ static int i2c_master_normal_recv(const struct i2c_client *client, char *buf, in
      struct i2c_adapter *adap=client->adapter;
      struct i2c_msg msg;
     int ret;
- 
+
     msg.addr = client->addr;
     msg.flags = client->flags | I2C_M_RD;
 	msg.len = count;
@@ -184,7 +184,7 @@ static int i2c_master_normal_send(const struct i2c_client *client, const char *b
 {
 	int ret;
 	struct i2c_adapter *adap=client->adapter;
-	struct i2c_msg msg; 
+	struct i2c_msg msg;
 
 	msg.addr = client->addr;
 	msg.flags = client->flags;
@@ -200,7 +200,7 @@ int sensor_tx_data_normal(struct i2c_client *client, char *buf, int num)
 {
 	int ret = 0;
 	ret = i2c_master_normal_send(client, buf, num, SENSOR_I2C_RATE);
-	
+
 	return (ret == num) ? 0 : ret;
 }
 EXPORT_SYMBOL(sensor_tx_data_normal);
@@ -210,7 +210,7 @@ int sensor_rx_data_normal(struct i2c_client *client, char *buf, int num)
 {
 	int ret = 0;
 	ret = i2c_master_normal_recv(client, buf, num, SENSOR_I2C_RATE);
-	
+
 	return (ret == num) ? 0 : ret;
 }
 
@@ -221,13 +221,13 @@ int sensor_write_reg_normal(struct i2c_client *client, char value)
 {
 	char buffer[2];
 	int ret = 0;
-	struct sensor_private_data* sensor = 
+	struct sensor_private_data* sensor =
 		(struct sensor_private_data *)i2c_get_clientdata(client);
-	
-	mutex_lock(&sensor->i2c_mutex);	
+
+	mutex_lock(&sensor->i2c_mutex);
 	buffer[0] = value;
-	ret = sensor_tx_data_normal(client, &buffer[0], 1);	
-	mutex_unlock(&sensor->i2c_mutex);	
+	ret = sensor_tx_data_normal(client, &buffer[0], 1);
+	mutex_unlock(&sensor->i2c_mutex);
 	return ret;
 }
 EXPORT_SYMBOL(sensor_write_reg_normal);
@@ -235,14 +235,14 @@ EXPORT_SYMBOL(sensor_write_reg_normal);
 int sensor_read_reg_normal(struct i2c_client *client)
 {
 	char tmp[1] = {0};
-	int ret = 0;	
-	struct sensor_private_data* sensor = 
+	int ret = 0;
+	struct sensor_private_data* sensor =
 		(struct sensor_private_data *)i2c_get_clientdata(client);
-	
-	mutex_lock(&sensor->i2c_mutex);	
+
+	mutex_lock(&sensor->i2c_mutex);
 	ret = sensor_rx_data_normal(client, tmp, 1);
 	mutex_unlock(&sensor->i2c_mutex);
-	
+
 	return tmp[0];
 }
 
