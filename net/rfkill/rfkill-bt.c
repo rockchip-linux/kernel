@@ -266,6 +266,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
 	struct rfkill_rk_data *rfkill = data;
     struct rfkill_rk_gpio *poweron = &rfkill->pdata->poweron_gpio;
     struct rfkill_rk_gpio *reset = &rfkill->pdata->reset_gpio;
+	struct rfkill_rk_gpio *wake_host = &rfkill->pdata->wake_host_irq.gpio;
 #if defined(CONFIG_AP6210) || defined(CONFIG_AP6335)
     struct rfkill_rk_gpio* rts = &rfkill->pdata->rts_gpio;
     struct pinctrl *pinctrl = rfkill->pdata->pinctrl;
@@ -294,13 +295,17 @@ static int rfkill_rk_set_power(void *data, bool blocked)
 
         rfkill_rk_sleep_bt(BT_WAKEUP); // ensure bt is wakeup
 
-        if (&rfkill->pdata->bt_power_remain == false && gpio_is_valid(poweron->io))
-        {
+	LOG("%s: set bt wake_host pin output high!\n", __func__);
+	gpio_direction_output(wake_host->io, 1);
+	msleep(20);
+	if (gpio_is_valid(poweron->io)) {
             gpio_direction_output(poweron->io, !poweron->enable);
             msleep(20);
             gpio_direction_output(poweron->io, poweron->enable);
             msleep(20);
-        }
+	    gpio_direction_input(wake_host->io);
+	    LOG("%s: set bt wake_host pin input!\n", __func__);
+	}
 		if (gpio_is_valid(reset->io))
         {
 			gpio_direction_output(reset->io, !reset->enable);
@@ -322,7 +327,7 @@ static int rfkill_rk_set_power(void *data, bool blocked)
         bt_power_state = 1;
     	LOG("bt turn on power\n");
 	} else {
-            if (&rfkill->pdata->bt_power_remain == false && gpio_is_valid(poweron->io))
+	if (gpio_is_valid(poweron->io))
             {      
                 gpio_direction_output(poweron->io, !poweron->enable);
                 msleep(20);
