@@ -533,8 +533,10 @@ dhd_conf_set_fw_name_by_chip(dhd_pub_t *dhd, char *fw_path, char *nv_path)
 			}
 			break;
 		case BCM4356_CHIP_ID:
-			if (chiprev == BCM4356A2_CHIP_REV)
+			if (chiprev == BCM4356A2_CHIP_REV) {
 				strcpy(&fw_path[i+1], bcm4356a2_ag_fw_name[fw_type]);
+				strcpy(&nv_path[j+1], "nvram_ap6356s.txt");
+			}
 			break;
 		case BCM4371_CHIP_ID:
 			if (chiprev == BCM4356A2_CHIP_REV)
