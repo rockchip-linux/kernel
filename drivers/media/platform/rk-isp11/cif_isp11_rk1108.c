@@ -331,8 +331,8 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 		goto clk_failed;
 	}
 
-	clk_set_rate(clk_rst->sclk_isp, 300000000);
-	clk_set_rate(clk_rst->sclk_isp_jpe, 300000000);
+	clk_set_rate(clk_rst->sclk_isp, 400000000);
+	clk_set_rate(clk_rst->sclk_isp_jpe, 400000000);
 	reset_control_deassert(clk_rst->isp_rst);
 
 	rk1108->isp_base = init->isp_base;
