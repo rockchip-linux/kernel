@@ -171,6 +171,8 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 
 	dev->resume(dev);
 
+	schedule_delayed_work(&dev->guard_work, HZ);
+
 	if (dev->dsp_dvfs_node)
 		work->rate = dvfs_clk_get_rate(dev->dsp_dvfs_node);
 	else
@@ -180,8 +182,6 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 	dev->running_work = work;
 	dev->mbox->send_data(dev->mbox, MBOX_CHAN_0, DSP_CMD_WORK,
 			     work->dma_addr);
-
-	schedule_delayed_work(&dev->guard_work, HZ);
 
 	dsp_debug_leave();
 	return ret;
