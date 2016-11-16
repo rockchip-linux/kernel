@@ -532,6 +532,7 @@ static int dsp_open(struct inode *inode, struct file *filp)
 	if (atomic_read(&service->ref)) {
 		ret = service->dev->on(service->dev);
 		if (ret) {
+			dsp_session_destroy(session);
 			dsp_err("power on dsp device failed\n");
 			goto out;
 		}
