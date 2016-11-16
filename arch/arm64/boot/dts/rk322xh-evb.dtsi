@@ -267,6 +267,9 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&rmiim1_pins>;
 	clock_in_out = "output";
+	/* delay line for rgmii + 1000M mode */
+	tx_delay = <0x25>;
+	rx_delay = <0x11>;
 };
 
 &gmac2phy {
