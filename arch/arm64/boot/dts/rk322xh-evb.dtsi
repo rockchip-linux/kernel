@@ -44,7 +44,7 @@
 #include <dt-bindings/input/input.h>
 / {
 	chosen {
-		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000 clk_ignore_unused";
+		bootargs = "rockchip_jtag earlyprintk=uart8250-32bit,0xff130000";
 	};
 
 	fiq-debugger {
