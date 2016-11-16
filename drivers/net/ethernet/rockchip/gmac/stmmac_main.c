@@ -1806,10 +1806,10 @@ static int stmmac_open(struct net_device *dev)
 		struct bsp_priv * bsp_priv = priv->plat->bsp_priv;
 		if (bsp_priv) { 
 			if (bsp_priv->phy_power_on) {
-				bsp_priv->phy_power_on(true);
+				bsp_priv->phy_power_on(bsp_priv, true);
 			}
 			if (bsp_priv->gmac_clk_enable) {
-				bsp_priv->gmac_clk_enable(true);
+				bsp_priv->gmac_clk_enable(bsp_priv, true);
 			}
 		}
 	}
@@ -1963,7 +1963,7 @@ open_error:
 	if ((priv->plat) && (priv->plat->bsp_priv)) {
 		struct bsp_priv * bsp_priv = priv->plat->bsp_priv;
 		if ((bsp_priv) && (bsp_priv->gmac_clk_enable)) {
-			bsp_priv->gmac_clk_enable(false);
+			bsp_priv->gmac_clk_enable(bsp_priv, false);
 		}
 	}
 
@@ -2028,10 +2028,10 @@ static int stmmac_release(struct net_device *dev)
 		struct bsp_priv * bsp_priv = priv->plat->bsp_priv;
 		if (bsp_priv) { 
 			if (bsp_priv->phy_power_on) {
-				bsp_priv->phy_power_on(false);
+				bsp_priv->phy_power_on(bsp_priv, false);
 			}
 			if (bsp_priv->gmac_clk_enable) {
-				bsp_priv->gmac_clk_enable(false);
+				bsp_priv->gmac_clk_enable(bsp_priv, false);
 			}
 		}
 	}
@@ -3129,7 +3129,7 @@ int stmmac_suspend(struct net_device *ndev)
 			bsp_priv = priv->plat->bsp_priv;
 			pwr_off_phy = true;
 			if (bsp_priv && bsp_priv->gmac_clk_enable) {
-				bsp_priv->gmac_clk_enable(false);
+				bsp_priv->gmac_clk_enable(bsp_priv, false);
 			}
 		}
 	}
@@ -3137,7 +3137,7 @@ int stmmac_suspend(struct net_device *ndev)
 
 	if (pwr_off_phy && bsp_priv) {
 		if (bsp_priv->phy_power_on) {
-			bsp_priv->phy_power_on(false);
+			bsp_priv->phy_power_on(bsp_priv, false);
 		}
 	}
 
@@ -3169,7 +3169,7 @@ int stmmac_resume(struct net_device *ndev)
 		if (priv->plat && (priv->plat->bsp_priv)) {
 			bsp_priv = priv->plat->bsp_priv;
 			if (bsp_priv && bsp_priv->gmac_clk_enable) {
-				bsp_priv->gmac_clk_enable(true);
+				bsp_priv->gmac_clk_enable(bsp_priv, true);
 			}
 
 			pwr_on_phy = true;
@@ -3193,7 +3193,7 @@ int stmmac_resume(struct net_device *ndev)
 
 	if (pwr_on_phy && bsp_priv) {
 		if (bsp_priv->phy_power_on) {
-			bsp_priv->phy_power_on(true);
+			bsp_priv->phy_power_on(bsp_priv, true);
 		}
 	}
 

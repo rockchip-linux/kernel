@@ -164,8 +164,8 @@ struct bsp_priv {
 	struct clk *clk_macphy;
 	bool clk_enable;
 
-	int (*phy_power_on)(bool enable);
-	int (*gmac_clk_enable)(bool enable);
+	int (*phy_power_on)(struct bsp_priv *bsp_priv, bool enable);
+	int (*gmac_clk_enable)(struct bsp_priv *bsp_priv, bool enable);
 };
 
 extern int phyaddr;

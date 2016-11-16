@@ -550,11 +550,10 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 	}
 }
 
-static struct bsp_priv g_bsp_priv;
-
 static int gmac_clk_init(struct device *device)
 {
-	struct bsp_priv * bsp_priv = &g_bsp_priv;
+	struct plat_stmmacenet_data *plat_data = device->platform_data;
+	struct bsp_priv *bsp_priv = plat_data->bsp_priv;
 
 	bsp_priv->clk_enable = false;
 
@@ -660,9 +659,9 @@ static int gmac_clk_init(struct device *device)
 	return 0;
 }
 
-static int gmac_clk_enable(bool enable) {
+static int gmac_clk_enable(struct bsp_priv *bsp_priv, bool enable)
+{
 	int phy_iface = -1;
-	struct bsp_priv * bsp_priv = &g_bsp_priv;
 	phy_iface = bsp_priv->phy_iface;
 
 	if (enable) {
@@ -733,8 +732,8 @@ static int gmac_clk_enable(bool enable) {
 	return 0;
 }
 
-static int power_on_by_pmu(bool enable) {
-	struct bsp_priv * bsp_priv = &g_bsp_priv;
+static int power_on_by_pmu(struct bsp_priv *bsp_priv, bool enable)
+{
 	struct regulator * ldo;
 	char * ldostr = bsp_priv->pmu_regulator;
 	int ret;
@@ -779,8 +778,8 @@ static int power_on_by_pmu(bool enable) {
 	return 0;
 }
 
-static int power_on_by_gpio(bool enable) {
-	struct bsp_priv * bsp_priv = &g_bsp_priv;
+static int power_on_by_gpio(struct bsp_priv *bsp_priv, bool enable)
+{
 	if (enable) {
 		/* power on */
 		if (gpio_is_valid(bsp_priv->power_io)) {
@@ -869,9 +868,8 @@ static void internal_phy_init(struct bsp_priv *priv, bool enable)
 	}
 }
 
-static int phy_power_on(bool enable)
+static int phy_power_on(struct bsp_priv *bsp_priv, bool enable)
 {
-	struct bsp_priv *bsp_priv = &g_bsp_priv;
 	int ret = -1;
 
 	pr_info("%s: enable = %d\n", __func__, enable);
@@ -891,9 +889,9 @@ static int phy_power_on(bool enable)
 	}
 
 	if (bsp_priv->power_ctrl_by_pmu)
-		ret = power_on_by_pmu(enable);
+		ret = power_on_by_pmu(bsp_priv, enable);
 	else
-		ret =  power_on_by_gpio(enable);
+		ret =  power_on_by_gpio(bsp_priv, enable);
 
 	if (enable) {
 		/* reset */
@@ -929,9 +927,10 @@ static int phy_power_on(bool enable)
 
 static int stmmc_pltfr_init(struct platform_device *pdev)
 {
+	struct plat_stmmacenet_data *plat_data = pdev->dev.platform_data;
+	struct bsp_priv *bsp_priv = plat_data->bsp_priv;
 	int phy_iface;
 	int err;
-	struct bsp_priv *bsp_priv = &g_bsp_priv;
 	int irq;
 
 	pr_info("%s:\n", __func__);
@@ -1005,10 +1004,10 @@ static int stmmc_pltfr_init(struct platform_device *pdev)
 		}
 	}
 
-	if ((g_bsp_priv.internal_phy) && gpio_is_valid(g_bsp_priv.link_io)) {
+	if ((bsp_priv->internal_phy) && gpio_is_valid(bsp_priv->link_io)) {
 		/* link LED off */
-		gpio_direction_output(g_bsp_priv.link_io,
-				      !g_bsp_priv.link_io_level);
+		gpio_direction_output(bsp_priv->link_io,
+				      !bsp_priv->link_io_level);
 	}
 
 	if (!gpio_is_valid(bsp_priv->led_io)) {
@@ -1103,6 +1102,7 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	const char * strings = NULL;
 	int value;
 	const struct of_device_id *match;
+	struct bsp_priv *bsp_priv = plat->bsp_priv;
 
 	match = of_match_device(stmmac_dt_ids, &pdev->dev);
 	if (!match)
@@ -1117,6 +1117,10 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	plat->mdio_bus_data = devm_kzalloc(&pdev->dev,
 					   sizeof(struct stmmac_mdio_bus_data),
 					   GFP_KERNEL);
+	if (!plat->mdio_bus_data) {
+		pr_err("%s: ERROR: no memory", __func__);
+		return	-ENOMEM;
+	}
 
 	plat->init = stmmc_pltfr_init;
 	plat->fix_mac_speed = stmmc_pltfr_fix_mac_speed;
@@ -1124,102 +1128,101 @@ static int stmmac_probe_config_dt(struct platform_device *pdev,
 	ret = of_property_read_string(np, "pmu_regulator", &strings);
 	if (ret) {
 		pr_err("%s: Can not read property: pmu_regulator.\n", __func__);
-		g_bsp_priv.power_ctrl_by_pmu = false;
+		bsp_priv->power_ctrl_by_pmu = false;
 	} else {
 		pr_info("%s: ethernet phy power controled by pmu(%s).\n",
 			__func__, strings);
-		g_bsp_priv.power_ctrl_by_pmu = true;
-		strcpy(g_bsp_priv.pmu_regulator, strings);
+		bsp_priv->power_ctrl_by_pmu = true;
+		strcpy(bsp_priv->pmu_regulator, strings);
 	}
 
 	ret = of_property_read_string(np, "clock_in_out", &strings);
 	if (ret) {
 		pr_err("%s: Can not read property: clock_in_out.\n", __func__);
-		g_bsp_priv.clock_input = true;
+		bsp_priv->clock_input = true;
 	} else {
 		pr_info("%s: clock input/output? (%s).\n", __func__, strings);
 		if (!strcmp(strings, "input")) {
-			g_bsp_priv.clock_input = true;
+			bsp_priv->clock_input = true;
 		} else {
-			g_bsp_priv.clock_input = false;
+			bsp_priv->clock_input = false;
 		}
 	}
 
 	ret = of_property_read_u32(np, "tx_delay", &value);
 	if (ret) {
-		g_bsp_priv.tx_delay = 0x30;
+		bsp_priv->tx_delay = 0x30;
 		pr_err("%s: Can not read property: tx_delay.\n", __func__);
-		pr_err("set tx_delay to 0x%x\n", g_bsp_priv.tx_delay);
+		pr_err("set tx_delay to 0x%x\n", bsp_priv->tx_delay);
 	} else {
 		pr_info("%s: TX delay(0x%x).\n", __func__, value);
-		g_bsp_priv.tx_delay = value;
+		bsp_priv->tx_delay = value;
 	}
 
 	ret = of_property_read_u32(np, "rx_delay", &value);
 	if (ret) {
-		g_bsp_priv.rx_delay = 0x10;
+		bsp_priv->rx_delay = 0x10;
 		pr_err("%s: Can not read property: rx_delay.\n", __func__);
-		pr_err("set rx_delay to 0x%x\n", g_bsp_priv.rx_delay);
+		pr_err("set rx_delay to 0x%x\n", bsp_priv->rx_delay);
 	} else {
 		pr_info("%s: RX delay(0x%x).\n", __func__, value);
-		g_bsp_priv.rx_delay = value;
+		bsp_priv->rx_delay = value;
 	}
 
 	ret = of_property_read_string(np, "phy-type", &strings);
 	if (ret) {
 		pr_err("%s: Can not read property: phy-type.\n", __func__);
-		g_bsp_priv.internal_phy = false;
+		bsp_priv->internal_phy = false;
 	} else {
 		pr_info("%s: internal PHY/external PHY? (%s).\n",
 			__func__, strings);
 		if (!strcmp(strings, "internal")) {
-			g_bsp_priv.internal_phy = true;
-			g_bsp_priv.macphy_reset =
+			bsp_priv->internal_phy = true;
+			bsp_priv->macphy_reset =
 				devm_reset_control_get(&pdev->dev, "mac-phy");
-			if (IS_ERR(g_bsp_priv.macphy_reset)) {
-				ret = PTR_ERR(g_bsp_priv.macphy_reset);
+			if (IS_ERR(bsp_priv->macphy_reset)) {
+				ret = PTR_ERR(bsp_priv->macphy_reset);
 				dev_err(&pdev->dev, "failed to get macphy reset: %d\n",
 					ret);
 				return ret;
 			}
 		} else {
-			g_bsp_priv.internal_phy = false;
+			bsp_priv->internal_phy = false;
 		}
 	}
 
-	g_bsp_priv.grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
-	g_bsp_priv.pdev = pdev;
+	bsp_priv->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+	bsp_priv->pdev = pdev;
 
-	g_bsp_priv.phyirq_io =
+	bsp_priv->phyirq_io =
 			of_get_named_gpio_flags(np, "phyirq-gpio", 0, &flags);
-	g_bsp_priv.phyirq_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	bsp_priv->phyirq_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
 
-	g_bsp_priv.reset_io =
+	bsp_priv->reset_io =
 			of_get_named_gpio_flags(np, "reset-gpio", 0, &flags);
-	g_bsp_priv.reset_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
-	g_bsp_priv.power_io =
+	bsp_priv->reset_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	bsp_priv->power_io =
 			of_get_named_gpio_flags(np, "power-gpio", 0, &flags);
-	g_bsp_priv.power_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
-	g_bsp_priv.link_io =
+	bsp_priv->power_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	bsp_priv->link_io =
 			of_get_named_gpio_flags(np, "link-gpio", 0, &flags);
-	g_bsp_priv.link_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
-	g_bsp_priv.led_io =
+	bsp_priv->link_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	bsp_priv->led_io =
 			of_get_named_gpio_flags(np, "led-gpio", 0, &flags);
-	g_bsp_priv.led_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
+	bsp_priv->led_io_level = (flags == GPIO_ACTIVE_HIGH) ? 1 : 0;
 
-	g_bsp_priv.phy_iface = plat->interface;
-	g_bsp_priv.phy_power_on = phy_power_on;
-	g_bsp_priv.gmac_clk_enable = gmac_clk_enable;
+	bsp_priv->phy_iface = plat->interface;
+	bsp_priv->phy_power_on = phy_power_on;
+	bsp_priv->gmac_clk_enable = gmac_clk_enable;
 
-	plat->bsp_priv = &g_bsp_priv;
-	g_bsp_priv.chip = (unsigned long)match->data;
+	bsp_priv->chip = (unsigned long)match->data;
 
 	/*
 	 * Currently only the properties needed on SPEAr600
 	 * are provided. All other properties should be added
 	 * once needed on other platforms.
 	 */
-	if (g_bsp_priv.chip < RK_MAX_GMAC) {
+	if (bsp_priv->chip < RK_MAX_GMAC) {
 		plat->has_gmac = 1;
 		plat->pmt = 1;
 	}
@@ -1251,6 +1254,7 @@ static int stmmac_pltfr_probe(struct platform_device *pdev)
 	struct stmmac_priv *priv = NULL;
 	struct plat_stmmacenet_data *plat_dat = NULL;
 	const char *mac = NULL;
+	struct bsp_priv *bsp_priv;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
@@ -1269,6 +1273,12 @@ static int stmmac_pltfr_probe(struct platform_device *pdev)
 			return  -ENOMEM;
 		}
 
+		bsp_priv = devm_kzalloc(&pdev->dev, sizeof(struct bsp_priv),
+					GFP_KERNEL);
+		if (!bsp_priv)
+			return -ENOMEM;
+		plat_dat->bsp_priv = bsp_priv;
+
 		ret = stmmac_probe_config_dt(pdev, plat_dat, &mac);
 		if (ret) {
 			pr_err("%s: main dt probe failed", __func__);
@@ -1276,7 +1286,6 @@ static int stmmac_pltfr_probe(struct platform_device *pdev)
 		}
 
 		pdev->dev.platform_data = plat_dat;
-
 	} else {
 		plat_dat = pdev->dev.platform_data;
 	}
@@ -1297,7 +1306,6 @@ static int stmmac_pltfr_probe(struct platform_device *pdev)
 		pr_err("%s: main driver probe failed", __func__);
 		return -ENODEV;
 	}
-
 
 	/* Get MAC address if available (DT) */
 	if (mac)
