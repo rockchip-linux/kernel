@@ -190,7 +190,7 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	power-inverted;
-	status = "disabled";
+	status = "okay";
 };
 
 &sdmmc_ext {
