@@ -19,6 +19,10 @@ struct IEP_CAP {
 	u8 max_enhance_radius;
 };
 
+struct iep_dil_mtn_tbl {
+	u32 dil_mtn_tbl[8];
+};
+
 #define IEP_IOC_MAGIC 'i'
 
 #define IEP_SET_PARAMETER_REQ		_IOW(IEP_IOC_MAGIC, 1, unsigned long)
@@ -32,6 +36,8 @@ struct IEP_CAP {
 #define IEP_RELEASE_CURRENT_TASK	_IOW(IEP_IOC_MAGIC, 9, unsigned long)
 #define IEP_GET_IOMMU_STATE		_IOR(IEP_IOC_MAGIC,10, unsigned long)
 #define IEP_QUERY_CAP			_IOR(IEP_IOC_MAGIC,11, struct IEP_CAP)
+#define IEP_SET_DIL_MTN_TBL		\
+				_IOW(IEP_IOC_MAGIC, 12,	struct iep_dil_mtn_tbl)
 
 #ifdef CONFIG_COMPAT
 #define COMPAT_IEP_SET_PARAMETER_REQ		_IOW(IEP_IOC_MAGIC, 1, u32)
@@ -144,13 +150,13 @@ enum {
 }; /* for video mode */
 
 /*
-          Alpha    Red     Green   Blue  
-{  4, 32, {{32,24,   24,16,  16, 8,  8, 0 }}, GGL_RGBA },    IEP_FORMAT_ARGB_8888
-{  4, 32, {{32,24,   8, 0,  16, 8,  24,16 }}, GGL_RGB  },    IEP_FORMAT_ABGR_8888
-{  4, 32, {{ 8, 0,  32,24,  24,16,  16, 8 }}, GGL_RGB  },    IEP_FORMAT_RGBA_8888
-{  4, 32, {{ 8, 0,  16, 8,  24,16,  32,24 }}, GGL_BGRA },    IEP_FORMAT_BGRA_8888
-{  2, 16, {{ 0, 0,  16,11,  11, 5,   5, 0 }}, GGL_RGB  },    IEP_FORMAT_RGB_565
-{  2, 16, {{ 0, 0,   5, 0,  11, 5,  16,11 }}, GGL_RGB  },    IEP_FORMAT_RGB_565
+	    Alpha    Red     Green   Blue
+{  4, 32, {{32,24,   24,16,  16, 8,  8, 0 }}, GGL_RGBA },  IEP_FORMAT_ARGB_8888
+{  4, 32, {{32,24,   8, 0,  16, 8,  24,16 }}, GGL_RGB  },  IEP_FORMAT_ABGR_8888
+{  4, 32, {{ 8, 0,  32,24,  24,16,  16, 8 }}, GGL_RGB  },  IEP_FORMAT_RGBA_8888
+{  4, 32, {{ 8, 0,  16, 8,  24,16,  32,24 }}, GGL_BGRA },  IEP_FORMAT_BGRA_8888
+{  2, 16, {{ 0, 0,  16,11,  11, 5,   5, 0 }}, GGL_RGB  },  IEP_FORMAT_RGB_565
+{  2, 16, {{ 0, 0,   5, 0,  11, 5,  16,11 }}, GGL_RGB  },  IEP_FORMAT_RGB_565
 */
 enum {
 	IEP_FORMAT_ARGB_8888    = 0x0,

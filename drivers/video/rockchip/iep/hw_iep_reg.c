@@ -447,41 +447,43 @@ static void iep_config_yuv_dns(struct IEP_MSG *iep_msg)
 
 static void iep_config_dil(struct IEP_MSG *iep_msg)
 {
-    int dein_mode;
-    switch (iep_msg->dein_mode) {
-    case IEP_DEINTERLACE_MODE_DISABLE:
-        dein_mode = dein_mode_bypass_dis;
-        break;
-    case IEP_DEINTERLACE_MODE_I2O1:
-        dein_mode = iep_msg->field_order == FIELD_ORDER_TOP_FIRST ? dein_mode_I2O1T : dein_mode_I2O1B;
-        break;
-    case IEP_DEINTERLACE_MODE_I4O1:
-#if 1
-        dein_mode = iep_msg->field_order == FIELD_ORDER_TOP_FIRST ? dein_mode_I4O1B : dein_mode_I4O1T;
-#else
-        dein_mode = iep_msg->field_order == FIELD_ORDER_TOP_FIRST ? dein_mode_I4O1T : dein_mode_I4O1B;
-#endif
-        break;
-    case IEP_DEINTERLACE_MODE_I4O2:
-        dein_mode = dein_mode_I4O2;
-        break;
-    case IEP_DEINTERLACE_MODE_BYPASS:
-        dein_mode = dein_mode_bypass;
-        break;
-    default:
-        IEP_ERR("unknown deinterlace mode, set deinterlace mode (bypass)\n");
-        dein_mode = dein_mode_bypass;
-    }
+	int dein_mode;
 
-    IEP_REGB_DIL_MODE(iep_msg->base, dein_mode);
-    //hf
-    IEP_REGB_DIL_HF_EN(iep_msg->base, iep_msg->dein_high_fre_en);
-    if (iep_msg->dein_high_fre_en == 1) IEP_REGB_DIL_HF_FCT(iep_msg->base, iep_msg->dein_high_fre_fct);
-    //ei
-    IEP_REGB_DIL_EI_MODE(iep_msg->base, iep_msg->dein_ei_mode);
-    IEP_REGB_DIL_EI_SMOOTH(iep_msg->base, iep_msg->dein_ei_smooth);
-    IEP_REGB_DIL_EI_SEL(iep_msg->base, iep_msg->dein_ei_sel);
-    if (iep_msg->dein_ei_sel == 0) IEP_REGB_DIL_EI_RADIUS(iep_msg->base, iep_msg->dein_ei_radius);
+	switch (iep_msg->dein_mode) {
+	case IEP_DEINTERLACE_MODE_DISABLE:
+		dein_mode = dein_mode_bypass_dis;
+		break;
+	case IEP_DEINTERLACE_MODE_I2O1:
+		dein_mode = iep_msg->field_order == FIELD_ORDER_TOP_FIRST ?
+			dein_mode_I2O1T : dein_mode_I2O1B;
+		break;
+	case IEP_DEINTERLACE_MODE_I4O1:
+		dein_mode = iep_msg->field_order == FIELD_ORDER_TOP_FIRST ?
+			dein_mode_I4O1B : dein_mode_I4O1T;
+		break;
+	case IEP_DEINTERLACE_MODE_I4O2:
+		dein_mode = dein_mode_I4O2;
+		break;
+	case IEP_DEINTERLACE_MODE_BYPASS:
+		dein_mode = dein_mode_bypass;
+		break;
+	default:
+		IEP_ERR("unknown deinterlace mode, set mode (bypass)\n");
+		dein_mode = dein_mode_bypass;
+	}
+
+	IEP_REGB_DIL_MODE(iep_msg->base, dein_mode);
+	/* high frequency */
+	IEP_REGB_DIL_HF_EN(iep_msg->base, iep_msg->dein_high_fre_en);
+	if (iep_msg->dein_high_fre_en == 1)
+		IEP_REGB_DIL_HF_FCT(iep_msg->base, iep_msg->dein_high_fre_fct);
+	/* eage interpolation */
+	IEP_REGB_DIL_EI_MODE(iep_msg->base, iep_msg->dein_ei_mode);
+	IEP_REGB_DIL_EI_SMOOTH(iep_msg->base, iep_msg->dein_ei_smooth);
+	IEP_REGB_DIL_EI_SEL(iep_msg->base, iep_msg->dein_ei_sel);
+	if (iep_msg->dein_ei_sel == 0)
+		IEP_REGB_DIL_EI_RADIUS(iep_msg->base, iep_msg->dein_ei_radius);
+
 	IEP_REGB_DIL_MTN_TAB0(iep_msg->base, 0x40404040);
 	IEP_REGB_DIL_MTN_TAB1(iep_msg->base, 0x3c3e3f3f);
 	IEP_REGB_DIL_MTN_TAB2(iep_msg->base, 0x3336393b);
@@ -1403,7 +1405,7 @@ static int iep_bufid_to_iova(iep_service_info *pservice, u8 *tbl,
 		if (mem_region == NULL) {
 			IEP_ERR("allocate memory region failed\n");
 			ion_free(pservice->ion_client, hdl);
-			return -1;
+			return -ENOMEM;
 		}
 
 		mem_region->hdl = hdl;
@@ -1454,6 +1456,10 @@ void iep_config(iep_session *session, struct IEP_MSG *iep_msg)
 	int w;
 	int h;
 
+	if (reg == NULL) {
+		IEP_ERR("allocate config failed\n");
+		return;
+	}
 	reg->session = session;
 	iep_msg->base = reg->reg;
 	atomic_set(&reg->session->done, 0);
@@ -1486,6 +1492,19 @@ void iep_config(iep_session *session, struct IEP_MSG *iep_msg)
 	iep_config_dst_addr(iep_msg);
 	iep_config_lcdc_path(iep_msg);
 	iep_config_misc(iep_msg);
+
+	if (session->mtn_tbl_set) {
+		struct iep_dil_mtn_tbl *tbl = &session->dil_mtn_tbl;
+
+		IEP_REGB_DIL_MTN_TAB0(iep_msg->base, tbl->dil_mtn_tbl[0]);
+		IEP_REGB_DIL_MTN_TAB1(iep_msg->base, tbl->dil_mtn_tbl[1]);
+		IEP_REGB_DIL_MTN_TAB2(iep_msg->base, tbl->dil_mtn_tbl[2]);
+		IEP_REGB_DIL_MTN_TAB3(iep_msg->base, tbl->dil_mtn_tbl[3]);
+		IEP_REGB_DIL_MTN_TAB4(iep_msg->base, tbl->dil_mtn_tbl[4]);
+		IEP_REGB_DIL_MTN_TAB5(iep_msg->base, tbl->dil_mtn_tbl[5]);
+		IEP_REGB_DIL_MTN_TAB6(iep_msg->base, tbl->dil_mtn_tbl[6]);
+		IEP_REGB_DIL_MTN_TAB7(iep_msg->base, tbl->dil_mtn_tbl[7]);
+	}
 
 	if (iep_msg->lcdc_path_en) {
 		reg->dpi_en     = true;

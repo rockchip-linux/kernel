@@ -803,6 +803,19 @@ static long iep_ioctl(struct file *filp, uint32_t cmd, unsigned long arg)
 			}
 		}
 		break;
+	case IEP_SET_DIL_MTN_TBL:
+		{
+			if (copy_from_user(&session->dil_mtn_tbl,
+					   (void __user *)arg,
+					   sizeof(session->dil_mtn_tbl))) {
+				IEP_ERR("error: copy_from_user failed\n");
+				ret = -EFAULT;
+				break;
+			}
+
+			session->mtn_tbl_set = true;
+		}
+		break;
 	case IEP_QUERY_CAP:
 		if (copy_to_user((void __user *)arg, &iep_drvdata1->cap,
 			sizeof(struct IEP_CAP))) {
@@ -896,9 +909,22 @@ static long compat_iep_ioctl(struct file *filp, uint32_t cmd,
 			}
 		}
 		break;
+	case IEP_SET_DIL_MTN_TBL:
+		{
+			if (copy_from_user(&session->dil_mtn_tbl,
+					   compat_ptr((compat_uptr_t)arg),
+					   sizeof(session->dil_mtn_tbl))) {
+				IEP_ERR("error: copy_from_user failed\n");
+				ret = -EFAULT;
+				break;
+			}
+
+			session->mtn_tbl_set = true;
+		}
+		break;
 	case COMPAT_IEP_QUERY_CAP:
-		if (copy_to_user((void __user *)arg, &iep_drvdata1->cap,
-			sizeof(struct IEP_CAP))) {
+		if (copy_to_user(compat_ptr((compat_uptr_t)arg),
+				 &iep_drvdata1->cap, sizeof(struct IEP_CAP))) {
 			IEP_ERR("error: copy_to_user failed\n");
 			ret = -EFAULT;
 		}
@@ -1145,7 +1171,7 @@ static int iep_drv_probe(struct platform_device *pdev)
 	iep_service.ion_client = rockchip_ion_client_create("iep");
 	if (IS_ERR(iep_service.ion_client)) {
 		IEP_ERR("failed to create ion client for vcodec");
-		return PTR_ERR(iep_service.ion_client);
+		goto err_misc_register;
 	} else {
 		IEP_INFO("iep ion client create success!\n");
 	}

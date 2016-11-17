@@ -124,6 +124,8 @@ typedef struct iep_session {
 	struct list_head    pte_list;
 	struct task_struct *tsk;
 #endif
+	bool mtn_tbl_set;
+	struct iep_dil_mtn_tbl dil_mtn_tbl;
 } iep_session;
 
 typedef struct iep_service_info {
