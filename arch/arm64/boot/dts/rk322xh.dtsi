@@ -221,6 +221,7 @@
 			<&clk_cpll>,
 
 			/* PD_CORE */
+			<&pclk_dbg>,
 			<&clk_gates13 0>, /* aclk_core_noc */
 			<&clk_gates13 1>, /* aclk_gic */
 
@@ -286,6 +287,7 @@
 			<&clk_gates25 0>, /* aclk_rkvenc_noc */
 			<&clk_gates25 1>, /* hclk_rkvenc_noc */
 
+			<&clk_gates8 5>, /* clk_timer0 */
 			<&clk_gates14 1>, /* clk_gpu_noc */
 			<&clk_gates7 2>; /* clk_jtag */
 	};
