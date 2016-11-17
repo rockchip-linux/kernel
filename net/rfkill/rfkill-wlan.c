@@ -688,6 +688,9 @@ static int rockchip_wifi_voltage_select(void)
 	        return -1;
 	    }
 	} else if (cpu_is_rk3036() || cpu_is_rk312x() || cpu_is_rk322x()) {
+	} else if (of_machine_is_compatible("rockchip,rk3228h") ||
+		of_machine_is_compatible("rockchip,rk3229h")) {
+			LOG("%s: this is rk3228h or rk3229h ,todo......!\n", __func__);
 	} else { // rk3368
 #ifdef CONFIG_MFD_SYSCON
 	    if (voltage > 2700 && voltage < 3500) {
