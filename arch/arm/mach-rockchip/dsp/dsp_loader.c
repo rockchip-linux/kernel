@@ -315,6 +315,11 @@ void dsp_loader_request_firmware(const struct firmware *fw, void *context)
 
 	dsp_debug_enter();
 
+	if (!fw) {
+		dsp_err("DSP firmware cannot be found.\n");
+		goto out;
+	}
+
 	/* Check firmware magic, must be #RKCPDSPFW# */
 	if (memcmp(fw->data, magic, strlen(magic))) {
 		dsp_err("invalid dsp firmware\n");
