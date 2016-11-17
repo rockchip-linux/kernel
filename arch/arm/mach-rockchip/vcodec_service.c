@@ -2894,13 +2894,6 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 
 		writel_relaxed(0, dev->regs + task->reg_irq);
 
-		/*
-		 * NOTE: rkvdec need to reset after each task to avoid timeout
-		 *       error on H.264 switch to H.265
-		 */
-		if (data->mode == VCODEC_RUNNING_MODE_RKVDEC)
-			writel(0x100000, dev->regs + task->reg_irq);
-
 		/* set clock gating to save power */
 		writel(task->gating_mask, dev->regs + task->reg_en);
 
