@@ -529,6 +529,8 @@
 	watchdog: wdt@ff1a0000 {
 		compatible = "rockchip,watch dog";
 		reg = <0x0 0xff1a0000 0x0 0x100>;
+		clocks = <&clk_gates28 15>;  /* dummy clk */
+		clock-names = "pclk_wdt";
 		interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
 		rockchip,irq = <1>;
 		rockchip,timeout = <60>;
