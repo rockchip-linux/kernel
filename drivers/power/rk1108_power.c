@@ -21,6 +21,8 @@
 #include <linux/of_platform.h>
 
 #define BATTERY_STABLE_COUNT	1
+#define DIVIDER_RESISTANCE_A	200
+#define DIVIDER_RESISTANCE_B	120
 
 static int ac_online			= 1;
 static int usb_online			= 1;
@@ -242,8 +244,10 @@ static int rk1108_battery_dt_parse(
 static int rk1108_adc_to_voltage(int adc_value)
 {
 	int voltage;
+	int ra = DIVIDER_RESISTANCE_A;
+	int rb = DIVIDER_RESISTANCE_B;
 
-	voltage = (((adc_value * 11) / 6) / 4) * 9;
+	voltage = ((adc_value * 11) / 6) * (ra + rb) / rb;
 
 	return voltage;
 }
@@ -256,7 +260,6 @@ static void rk1108_battery_capacity_change(
 	int voltage;
 
 	voltage = rk1108_adc_to_voltage(adc_value);
-
 	for (i = 0; i <= gdata->max_voltage; i++) {
 		if (voltage < gdata->levels[i]) {
 			battery_capacity = i;
@@ -266,6 +269,17 @@ static void rk1108_battery_capacity_change(
 
 	if (i == 100)
 		battery_capacity = 100;
+}
+
+static int rk1108_battery_checkvbus(void)
+{
+	int vbus_connect;
+
+	vbus_connect = dwc_vbus_status();
+	if (vbus_connect >= 1)
+		return 1;
+	else
+		return 0;
 }
 
 static void rk1108_battery_work_func(struct work_struct *work)
@@ -285,7 +299,7 @@ static void rk1108_battery_work_func(struct work_struct *work)
 	changed = 0;
 
 	/* Check vbus status */
-	result = dwc_vbus_status();
+	result = rk1108_battery_checkvbus();
 	if ((1 == result) && (result != usb_online)) {
 		usb_online = 1;
 		battery_status = POWER_SUPPLY_STATUS_CHARGING;
