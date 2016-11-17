@@ -2513,6 +2513,9 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	get_hw_info(data);
 	pservice->auto_freq = true;
 
+	if (pservice->hw_ops->power_off)
+		pservice->hw_ops->power_off(pservice);
+
 	vcodec_exit_mode(data);
 	/* create device node */
 	ret = alloc_chrdev_region(&data->dev_t, 0, 1, name);
@@ -2560,6 +2563,8 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 #endif
 	return 0;
 err:
+	if (pservice->hw_ops->power_off)
+		pservice->hw_ops->power_off(pservice);
 	if (data->child_dev) {
 		device_destroy(data->cls, data->dev_t);
 		cdev_del(&data->cdev);
@@ -2740,17 +2745,12 @@ static int vcodec_probe(struct platform_device *pdev)
 		vcodec_subdev_probe(pdev, pservice);
 	}
 
-	if (pservice->hw_ops->power_off)
-		pservice->hw_ops->power_off(pservice);
-
 	pr_info("init success\n");
 
 	return 0;
 
 err:
 	pr_info("init failed\n");
-	if (pservice->hw_ops->power_off)
-		pservice->hw_ops->power_off(pservice);
 	vpu_put_clk(pservice);
 	wake_lock_destroy(&pservice->wake_lock);
 
