@@ -2786,7 +2786,7 @@
 					<&aclk_vio>,	<&hclk_vio>,
 
 					<&aclk_vio>,	<&hclk_vio>,
-					<&dummy>,	<&hclk_vio>,
+					<&aclk_rga>,	<&hclk_vio>,
 
 					<&hclk_vio>,	<&hclk_vio>,
 					<&hclk_vio>,	<&aclk_vio>;
@@ -2799,7 +2799,7 @@
 					"aclk_iep",	"hclk_iep",
 
 					"aclk_cif",	"hclk_cif",
-					"reserved",	"hclk_rga",
+					"p_aclk_rga",	"hclk_rga",
 
 					"hclk_ahb1tom",	"pclk_h2p",
 					"hclk_h2p",	"aclk_hdcp";
@@ -2812,7 +2812,7 @@
 					reg = <0x0258 0x4>;
 					clocks =
 					<&hclk_vio>,	<&dummy>,
-					<&dummy>,	<&dummy>,
+					<&dummy>,	<&aclk_rga>,
 
 					<&hclk_vio>,	<&hclk_vio>,
 					<&dummy>,	<&dummy>,

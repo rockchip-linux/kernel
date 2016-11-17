@@ -819,7 +819,7 @@
 		compatible = "rockchip,rga2";
 		reg = <0x0 0xff390000 0x0 0x1000>;
 		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&aclk_rga>, <&clk_gates21 11>, <&clk_rga>;
+		clocks = <&clk_gates21 10>, <&clk_gates21 11>, <&clk_rga>;
 		clock-names = "aclk_rga", "hclk_rga", "clk_rga";
 		status = "disabled";
 	};
