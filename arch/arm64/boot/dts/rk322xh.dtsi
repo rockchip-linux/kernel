@@ -278,6 +278,8 @@
 			<&clk_gates21 12>, /* hclk_ahb1tom */
 			<&clk_gates22 0>, /* hclk_hdcp_mmu */
 			<&clk_gates22 1>, /* hclk_vio_noc */
+			<&clk_gates21 13>, /* pclk_h2p */
+			<&clk_gates21 14>, /* hclk_h2p */
 
 			/* PD_VIDEO */
 			<&clk_gates23 2>, /* aclk_vpu_noc */
