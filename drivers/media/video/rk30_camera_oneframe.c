@@ -1964,6 +1964,26 @@ static bool rk_camera_fmt_capturechk(struct v4l2_format *f)
 		RKCAMERA_DG1("%dx%d is capture format\n",f->fmt.pix.width, f->fmt.pix.height);
 	return ret;
 }
+
+static int rk_camera_get_fmt(struct soc_camera_device *icd,
+			     struct v4l2_format *f)
+{
+	struct v4l2_pix_format *pix = &f->fmt.pix;
+	struct v4l2_subdev *sd = soc_camera_to_subdev(icd);
+	struct rk_camera_device_signal_config dev_sig_cnf;
+
+	v4l2_subdev_call(sd, core, ioctl,
+			 RK29_CAM_SUBDEV_GET_INTERFACE, &dev_sig_cnf);
+	if (dev_sig_cnf.crop.width > 32 && dev_sig_cnf.crop.width <= 8192) {
+		pix->width = dev_sig_cnf.crop.width;
+		pix->height = dev_sig_cnf.crop.height;
+		RKCAMERA_DG1("rk_camera_get_fmt: f->fmt->pixsize %dx%d\n",
+			     f->fmt.pix.width, f->fmt.pix.height);
+	}
+
+	return 0;
+}
+
 static int rk_camera_set_fmt(struct soc_camera_device *icd,
 			      struct v4l2_format *f)
 {
@@ -3004,28 +3024,29 @@ rk_camera_set_ctrl_end:
 
 static struct soc_camera_host_ops rk_soc_camera_host_ops =
 {
-    .owner		= THIS_MODULE,
-    .add		= rk_camera_add_device,
-    .remove		= rk_camera_remove_device,
-    .suspend	= rk_camera_suspend,
-    .resume		= rk_camera_resume,
-    .enum_frameinervals = rk_camera_enum_frameintervals,
-    .cropcap    = rk_camera_cropcap,
-    .set_crop	= rk_camera_set_crop,
-    .get_crop   = rk_camera_get_crop,
-    .get_formats	= rk_camera_get_formats, 
-    .put_formats	= rk_camera_put_formats,
-    .set_fmt	= rk_camera_set_fmt,
-    .try_fmt	= rk_camera_try_fmt,
-    .init_videobuf	= rk_camera_init_videobuf,
-    .reqbufs	= rk_camera_reqbufs,
-    .poll		= rk_camera_poll,
-    .querycap	= rk_camera_querycap,
-    .set_bus_param	= rk_camera_set_bus_param,
-    .s_stream = rk_camera_s_stream,   /* ddl@rock-chips.com : Add stream control for host */
-    .set_ctrl = rk_camera_set_ctrl,
-    .controls = rk_camera_controls,
-    .num_controls = ARRAY_SIZE(rk_camera_controls)
+	.owner			= THIS_MODULE,
+	.add			= rk_camera_add_device,
+	.remove			= rk_camera_remove_device,
+	.suspend		= rk_camera_suspend,
+	.resume			= rk_camera_resume,
+	.enum_frameinervals	= rk_camera_enum_frameintervals,
+	.cropcap		= rk_camera_cropcap,
+	.set_crop		= rk_camera_set_crop,
+	.get_crop		= rk_camera_get_crop,
+	.get_formats		= rk_camera_get_formats,
+	.put_formats		= rk_camera_put_formats,
+	.get_fmt		= rk_camera_get_fmt,
+	.set_fmt		= rk_camera_set_fmt,
+	.try_fmt		= rk_camera_try_fmt,
+	.init_videobuf		= rk_camera_init_videobuf,
+	.reqbufs		= rk_camera_reqbufs,
+	.poll			= rk_camera_poll,
+	.querycap		= rk_camera_querycap,
+	.set_bus_param		= rk_camera_set_bus_param,
+	.s_stream		= rk_camera_s_stream,   /* ddl@rock-chips.com : Add stream control for host */
+	.set_ctrl		= rk_camera_set_ctrl,
+	.controls		= rk_camera_controls,
+	.num_controls		= ARRAY_SIZE(rk_camera_controls)
 };
 
 static int rk_camera_cif_iomux(struct device *dev)

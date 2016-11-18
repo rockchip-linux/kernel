@@ -107,6 +107,7 @@ struct soc_camera_host_ops {
 	 * to change the output sizes
 	 */
 	int (*set_livecrop)(struct soc_camera_device *, const struct v4l2_crop *);
+	int (*get_fmt)(struct soc_camera_device *, struct v4l2_format *);
 	int (*set_fmt)(struct soc_camera_device *, struct v4l2_format *);
 	int (*try_fmt)(struct soc_camera_device *, struct v4l2_format *);
 	void (*init_videobuf)(struct videobuf_queue *,

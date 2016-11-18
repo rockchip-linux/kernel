@@ -821,6 +821,7 @@ static int soc_camera_g_fmt_vid_cap(struct file *file, void *priv,
 				    struct v4l2_format *f)
 {
 	struct soc_camera_device *icd = file->private_data;
+	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct v4l2_pix_format *pix = &f->fmt.pix;
 
 	WARN_ON(priv != file->private_data);
@@ -837,6 +838,8 @@ static int soc_camera_g_fmt_vid_cap(struct file *file, void *priv,
 	pix->colorspace		= icd->colorspace;
 	dev_dbg(icd->pdev, "current_fmt->fourcc: 0x%08x\n",
 		icd->current_fmt->host_fmt->fourcc);
+
+	ici->ops->get_fmt(icd, f);
 	return 0;
 }
 
