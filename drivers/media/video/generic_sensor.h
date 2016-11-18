@@ -263,6 +263,7 @@ struct generic_sensor
 	int crop_percent;
 	int irq;
 	struct rk_state_check_work state_check_work;
+	int channel_id;
 
     bool is_need_tasklock;
     atomic_t tasklock_cnt;
@@ -709,7 +710,7 @@ static int sensor_v4l2ctrl_mirror_cb(struct soc_camera_device *icd, struct senso
 													 struct v4l2_ext_control *ext_ctrl);
 static int sensor_v4l2ctrl_flip_cb(struct soc_camera_device *icd, struct sensor_v4l2ctrl_info_s *ctrl_info, 
 													 struct v4l2_ext_control *ext_ctrl);
-													 
+
 static inline int sensor_v4l2ctrl_mirror_default_cb(struct soc_camera_device *icd, struct sensor_v4l2ctrl_info_s *ctrl_info, 
 													 struct v4l2_ext_control *ext_ctrl,bool is_set){
 	return sensor_v4l2ctrl_mirror_cb(icd,ctrl_info, ext_ctrl);
