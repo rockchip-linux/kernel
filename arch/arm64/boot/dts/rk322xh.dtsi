@@ -240,7 +240,7 @@
 			<&clk_gates17 4>, /* pclk_cru */
 			<&clk_gates17 6>, /* pclk_sgrf */
 			<&clk_gates17 10>, /* pclk_sim */
-			<&clk_gates28 1>, /* pclk_pmu */
+			<&clk_gates28 3>, /* pclk_pmu */
 			<&clk_gates17 14>, /* pclk_usb2grf */
 			<&clk_gates17 2>, /* pclk_usb3grf */
 			<&clk_gates17 3>, /* pclk_ddrphy */
