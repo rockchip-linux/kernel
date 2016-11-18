@@ -1374,7 +1374,17 @@ static struct platform_driver rk3x_i2c_driver = {
 	},
 };
 
-module_platform_driver(rk3x_i2c_driver);
+static int __init rk3x_i2c_init_driver(void)
+{
+	return platform_driver_register(&rk3x_i2c_driver);
+}
+subsys_initcall(rk3x_i2c_init_driver);
+
+static void __exit rk3x_i2c_exit_driver(void)
+{
+	platform_driver_unregister(&rk3x_i2c_driver);
+}
+module_exit(rk3x_i2c_exit_driver);
 
 MODULE_DESCRIPTION("Rockchip RK3xxx I2C Bus driver");
 MODULE_AUTHOR("Max Schwarz <max.schwarz@online.de>");
