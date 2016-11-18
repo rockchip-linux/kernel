@@ -707,7 +707,7 @@
 		iommu_enabled = <1>;
 		reg = <0x0 0xff340000 0x0 0x400>;
 		interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&aclk_rkvenc>, <&hclk_rkvenc>;
+		clocks = <&clk_gates25 4>, <&clk_gates25 5>;
 		clock-names = "aclk_vcodec", "hclk_vcodec";
 		resets = <&reset RK322XH_SRST_RKVENC_H264_H>,
 			<&reset RK322XH_SRST_RKVENC_H264_A>;
