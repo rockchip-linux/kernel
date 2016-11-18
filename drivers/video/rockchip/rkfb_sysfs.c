@@ -1237,6 +1237,84 @@ static ssize_t set_car_reverse(struct device *dev,
 	return count;
 }
 
+static ssize_t show_hdr_bt1886eotf(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+static ssize_t set_hdr_bt1886eotf(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct rk_fb_par *fb_par = (struct rk_fb_par *)fbi->par;
+	struct rk_lcdc_driver *dev_drv = fb_par->lcdc_drv;
+	int bt1886eotf_yn_for_hdr[65];
+	const char *start = buf;
+	int i = 0, temp;
+	int space_max = 10;
+
+	for (i = 0; i < 65; i++) {
+		space_max = 10;	/* max space number 10 */
+		temp = simple_strtoul(start, NULL, 10);
+		bt1886eotf_yn_for_hdr[i] = temp;
+		do {
+			start++;
+			space_max--;
+		} while ((*start != ' ') && space_max);
+
+		if (!space_max)
+			break;
+		start++;
+	}
+
+	if (dev_drv->ops->set_hdr_bt1886eotf)
+		dev_drv->ops->set_hdr_bt1886eotf(dev_drv,
+						 bt1886eotf_yn_for_hdr);
+
+	return count;
+}
+
+static ssize_t show_hdr_st2084oetf(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+static ssize_t set_hdr_st2084oetf(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct rk_fb_par *fb_par = (struct rk_fb_par *)fbi->par;
+	struct rk_lcdc_driver *dev_drv = fb_par->lcdc_drv;
+	int st2084oetf_yn_for_hdr[65];
+	const char *start = buf;
+	int i = 0, temp;
+	int space_max = 10;
+
+	for (i = 0; i < 65; i++) {
+		space_max = 10;	/* max space number 10 */
+		temp = simple_strtoul(start, NULL, 10);
+		st2084oetf_yn_for_hdr[i] = temp;
+		do {
+			start++;
+			space_max--;
+		} while ((*start != ' ') && space_max);
+
+		if (!space_max)
+			break;
+		start++;
+	}
+
+	if (dev_drv->ops->set_hdr_st2084oetf)
+		dev_drv->ops->set_hdr_st2084oetf(dev_drv,
+						 st2084oetf_yn_for_hdr);
+
+	return count;
+}
+
 static struct device_attribute rkfb_attrs[] = {
 	__ATTR(phys_addr, S_IRUGO, show_phys, NULL),
 	__ATTR(virt_addr, S_IRUGO, show_virt, NULL),
@@ -1259,6 +1337,10 @@ static struct device_attribute rkfb_attrs[] = {
 	__ATTR(win_property, S_IRUGO, show_win_property, NULL),
 	__ATTR(car_reverse, S_IWUSR, NULL, set_car_reverse),
 	__ATTR(dsp_mode, S_IRUGO, show_dsp_mode, NULL),
+	__ATTR(hdr_bt1886eotf, S_IRUGO | S_IWUSR, show_hdr_bt1886eotf,
+	       set_hdr_bt1886eotf),
+	__ATTR(hdr_st2084oetf, S_IRUGO | S_IWUSR, show_hdr_st2084oetf,
+	       set_hdr_st2084oetf),
 };
 
 int rkfb_create_sysfs(struct fb_info *fbi)

@@ -123,70 +123,7 @@ static const u32 sdr2hdr_bt1886eotf_yn_for_bt2020[65] = {
 	255978, 258024, 260079, 262143,
 };
 
-static const u32 sdr2hdr_bt1886eotf_yn_for_hdr[65] = {
-#if 0
-	0,
-	5,     21,    49,    91,
-	150,   225,   320,   434,
-	569,   726,   905,   1108,
-	1336,  1588,  1866,  2171,
-	2502,  2862,  3250,  3667,
-	3887,  4114,  4349,  4591,
-	4841,  5099,  5364,  5638,
-	5920,  6209,  6507,  6812,
-	6968,  7126,  7287,  7449,
-	7613,  7779,  7948,  8118,
-	8291,  8466,  8643,  8822,
-	9003,  9187,  9372,  9560,
-	9655,  9750,  9846,  9942,
-	10039, 10136, 10234, 10333,
-	10432, 10531, 10631, 10732,
-	10833, 10935, 11038, 11141,
-#endif
-
-#if 0
-	/* dst_range 300int */
-	0,
-	4,    15,   36,   66,
-	108,  162,  229,  310,
-	406,  517,  644,  788,
-	949,  1127, 1324, 1539,
-	1773, 2027, 2301, 2595,
-	2750, 2911, 3076, 3247,
-	3423, 3605, 3793, 3985,
-	4184, 4388, 4598, 4814,
-	4924, 5035, 5148, 5262,
-	5378, 5495, 5614, 5734,
-	5856, 5979, 6104, 6230,
-	6358, 6487, 6618, 6750,
-	6817, 6884, 6951, 7019,
-	7087, 7156, 7225, 7295,
-	7364, 7435, 7505, 7576,
-	7647, 7719, 7791, 7864,
-#endif
-
-#if 0
-	/* dst_range 400int */
-	0,
-	5,     20,    46,    86,
-	141,   213,   302,   410,
-	537,   684,   853,   1044,
-	1258,  1496,  1758,  2044,
-	2357,  2695,  3060,  3453,
-	3660,  3873,  4094,  4322,
-	4558,  4800,  5050,  5308,
-	5573,  5845,  6125,  6413,
-	6560,  6708,  6859,  7012,
-	7166,  7323,  7481,  7642,
-	7804,  7969,  8135,  8304,
-	8474,  8647,  8821,  8998,
-	9087,  9177,  9267,  9357,
-	9449,  9540,  9632,  9725,
-	9818,  9912,  10006, 10101,
-	10196, 10292, 10388, 10485,
-#endif
-
-#if 1
+static u32 sdr2hdr_bt1886eotf_yn_for_hdr[65] = {
 	/* dst_range 425int */
 	0,
 	5,     21,    49,     91,
@@ -205,7 +142,6 @@ static const u32 sdr2hdr_bt1886eotf_yn_for_hdr[65] = {
 	10039, 10136, 10234, 10333,
 	10432, 10531, 10631, 10732,
 	10833, 10935, 11038, 11141,
-#endif
 };
 
 static const u32 sdr2hdr_st2084oetf_yn_for_bt2020[65] = {
@@ -228,26 +164,7 @@ static const u32 sdr2hdr_st2084oetf_yn_for_bt2020[65] = {
 	12963, 14210, 15347, 16383,
 };
 
-static const u32 sdr2hdr_st2084oetf_yn_for_hdr[65] = {
-#if 0
-	0,
-	668,   910,   1217,  1600,
-	2068,  2384,  2627,  3282,
-	3710,  4033,  4879,  5416,
-	5815,  6135,  6401,  6631,
-	6833,  7176,  7462,  7707,
-	7921,  8113,  8285,  8442,
-	8586,  8843,  9068,  9268,
-	9447,  9760,  10027, 10259,
-	10465, 10650, 10817, 10971,
-	11243, 11480, 11689, 11877,
-	12047, 12202, 12345, 12477,
-	12601, 12716, 12926, 13115,
-	13285, 13441, 13583, 13716,
-	13839, 13953, 14163, 14350,
-	14519, 14673, 14945, 15180,
-	15570, 15887, 16153, 16383,
-#else
+static u32 sdr2hdr_st2084oetf_yn_for_hdr[65] = {
 	0,
 	281,   418,   610,   871,
 	1217,  1464,  1662,  2218,
@@ -265,7 +182,6 @@ static const u32 sdr2hdr_st2084oetf_yn_for_hdr[65] = {
 	13469, 13600, 13840, 14055,
 	14248, 14425, 14737, 15006,
 	15453, 15816, 16121, 16383,
-#endif
 };
 
 static const u32 sdr2hdr_st2084oetf_dxn_pow2[64] = {
@@ -3883,6 +3799,36 @@ static int vop_set_overscan(struct rk_lcdc_driver *dev_drv,
 	return 0;
 }
 
+static int vop_set_hdr_bt1886eotf(struct rk_lcdc_driver *dev_drv,
+				  int *bt1886eotf_yn_for_hdr)
+{
+	int i;
+	struct vop_device *vop_dev =
+		container_of(dev_drv, struct vop_device, driver);
+
+	spin_lock(&vop_dev->reg_lock);
+	for (i = 0; i < 65; i++)
+		sdr2hdr_bt1886eotf_yn_for_hdr[i] = bt1886eotf_yn_for_hdr[i];
+	spin_unlock(&vop_dev->reg_lock);
+
+	return 0;
+}
+
+static int vop_set_hdr_st2084oetf(struct rk_lcdc_driver *dev_drv,
+				  int *st2084oetf_yn_for_hdr)
+{
+	int i;
+	struct vop_device *vop_dev =
+		container_of(dev_drv, struct vop_device, driver);
+
+	spin_lock(&vop_dev->reg_lock);
+	for (i = 0; i < 65; i++)
+		sdr2hdr_st2084oetf_yn_for_hdr[i] = st2084oetf_yn_for_hdr[i];
+	spin_unlock(&vop_dev->reg_lock);
+
+	return 0;
+}
+
 static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.open = vop_open,
 	.win_direct_en = vop_win_direct_en,
@@ -3917,6 +3863,8 @@ static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	/*.dsp_black = vop_dsp_black,*/
 	.mmu_en    = vop_mmu_en,
 	.set_overscan   = vop_set_overscan,
+	.set_hdr_bt1886eotf = vop_set_hdr_bt1886eotf,
+	.set_hdr_st2084oetf = vop_set_hdr_st2084oetf,
 };
 
 static irqreturn_t vop_isr(int irq, void *dev_id)

@@ -592,6 +592,10 @@ struct rk_lcdc_drv_ops {
 	int (*set_wb)(struct rk_lcdc_driver *dev_drv);
 	int (*mcu_ctrl)(struct rk_lcdc_driver *dev_drv, unsigned int cmd,
 			unsigned int arg);
+	int (*set_hdr_bt1886eotf)(struct rk_lcdc_driver *dev_drv,
+				  int *bt1886eotf_yn_for_hdr);
+	int (*set_hdr_st2084oetf)(struct rk_lcdc_driver *dev_drv,
+				  int *st2084oetf_yn_for_hdr);
 };
 
 struct rk_fb_area_par {
