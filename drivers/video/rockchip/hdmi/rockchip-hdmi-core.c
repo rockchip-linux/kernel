@@ -787,7 +787,7 @@ static int __init hdmi_class_init(void)
 		ref_info[i].ref = 0;
 		ref_info[i].hdmi = NULL;
 	}
-	pr_info("Rockchip hdmi driver version 2.0\n.");
+	pr_info("Rockchip hdmi driver version 2.0\n");
 	return 0;
 }
 
