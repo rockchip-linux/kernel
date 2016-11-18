@@ -1728,7 +1728,8 @@ static void rk322xh_vop_bcsh_path_sel(struct rk_lcdc_driver *dev_drv)
 
 	vop_msk_reg(vop_dev, SYS_CTRL, V_OVERLAY_MODE(dev_drv->overlay_mode));
 	vop_msk_reg(vop_dev, SYS_CTRL1,
-		    V_LEVEL2_OVERLAY_EN(dev_drv->pre_overlay));
+		    V_LEVEL2_OVERLAY_EN(dev_drv->pre_overlay) |
+		    V_ALPHA_HARD_CALC(dev_drv->pre_overlay));
 	/* BG color */
 	if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
 		val = V_DSP_OUT_RGB_YUV(1);
