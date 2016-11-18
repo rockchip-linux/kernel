@@ -111,6 +111,9 @@
 #define RK1108_PMU_SYS_REG3		0x70
 #define RK1108_PMU_TIMEOUT_CNT		0x74
 
+#define RK322XH_PMU_IDLE_REQ		0x414
+#define RK322XH_PMU_IDLE_ST		0x484
+
 enum pmu_power_domain {
 	PD_BCPU,
 	PD_BDSP,
@@ -148,6 +151,7 @@ enum pmu_idle_req {
 	IDLE_REQ_CRYPTO,
 	IDLE_REQ_DSP,
 	IDLE_REQ_PMU,
+	IDLE_REQ_VPU,
 };
 
 struct rockchip_pmu_operations {
