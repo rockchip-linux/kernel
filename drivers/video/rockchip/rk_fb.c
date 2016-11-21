@@ -3578,14 +3578,13 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 	hdmi_switch_state = 0;
 	dev_drv->hdmi_switch = 1;
 	if (!dev_drv->uboot_logo) {
-		mdelay(200);
 		list_is_empty = list_empty(&dev_drv->update_regs_list) &&
 					   list_empty(&dev_drv->saved_list);
 		if (!list_is_empty) {
 			ret = wait_event_timeout(dev_drv->update_regs_wait,
 						 list_empty(&dev_drv->update_regs_list) &&
 						 list_empty(&dev_drv->saved_list),
-						 msecs_to_jiffies(60));
+						 msecs_to_jiffies(200));
 			if (ret <= 0)
 				pr_info("%s: wait update_regs_wait timeout\n",
 					__func__);
