@@ -3013,7 +3013,7 @@
 					<&dummy>,	<&dummy>,
 
 					<&dummy>,	<&dummy>,
-					<&dummy>,	<&dummy>;
+					<&dummy>,	<&pclk_bus>;
 
 					clock-output-names =
 					"hclk_pdm",	"p_usb3phy_otg",
@@ -3026,7 +3026,7 @@
 					"reserved",	"reserved",
 
 					"reserved",	"reserved",
-					"reserved",	"reserved";
+					"reserved",	"pclk_wdt";
 
 					#clock-cells = <1>;
 				};
