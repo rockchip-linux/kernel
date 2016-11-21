@@ -72,6 +72,18 @@
 		status = "okay";
 	};
 
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio1 GPIO_B2 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_rts_gpio>;
+		BT,power_gpio = <&gpio1 GPIO_C5 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio3 GPIO_A0 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio1 GPIO_D2 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
 	/* pmic_sleep */
 	gpio_poweroff {
 		compatible = "gpio-poweroff";
@@ -229,6 +241,12 @@
 	keep-power-in-suspend;
 	cap-sdio-irq;
 	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	dma-names = "!tx", "!rx";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
 };
 
 &gmac_clkin {
