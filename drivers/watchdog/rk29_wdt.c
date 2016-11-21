@@ -117,7 +117,7 @@ static struct resource	*wdt_irq;
 static struct clk	*wdt_clock;
 static void __iomem	*wdt_base;
 static char		 expect_close;
-
+static int		 clk_en_count;
 
 /* watchdog control routines */
 
@@ -153,8 +153,11 @@ static void __rk29_wdt_stop(void)
 
 void rk29_wdt_stop(void)
 {
-	__rk29_wdt_stop();
-	clk_disable_unprepare(wdt_clock);
+	if (clk_en_count > 0) {
+		__rk29_wdt_stop();
+		clk_disable_unprepare(wdt_clock);
+		clk_en_count = 0;
+	}
 }
 
 /* timeout unit second */
@@ -193,6 +196,7 @@ void rk29_wdt_start(void)
 	rk29_wdt_set_heartbeat(tmr_margin);
 	wtcon = (RK29_WDT_EN << 0) | (RK29_RESPONSE_MODE << 1) | (RK29_RESET_PULSE << 2);
 	wdt_writel(wtcon, RK29_WDT_CR);
+	clk_en_count = 1;
 }
 
 /*
@@ -431,7 +435,12 @@ static int rk29_wdt_remove(struct platform_device *dev)
 	wdt_mem = NULL;
 	free_irq(wdt_irq->start, dev);
 	wdt_irq = NULL;
-	clk_disable_unprepare(wdt_clock);
+
+	if (clk_en_count > 0) {
+		clk_disable_unprepare(wdt_clock);
+		clk_en_count = 0;
+	}
+
 	wdt_clock = NULL;
 	misc_deregister(&rk29_wdt_miscdev);
 	return 0;
