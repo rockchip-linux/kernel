@@ -21,10 +21,14 @@
 #include <linux/rk_fb.h>
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
+#include <linux/irqreturn.h>
+#include <linux/of_gpio.h>
+#include <dt-bindings/gpio/gpio.h>
 #include "../../hdmi/rockchip-hdmiv2/rockchip_hdmiv2.h"
 #include "../../../arch/arm/mach-rockchip/efuse.h"
 #include "rk3036_tve.h"
-
 
 static const struct fb_videomode rk3036_cvbs_mode[] = {
 	/*name		refresh	xres	yres	pixclock	h_bp	h_fp	v_bp	v_fp	h_pw	v_pw			polariry				PorI		flag*/
@@ -53,6 +57,21 @@ static int cvbsformat = -1;
 #endif
 
 #define RK322X_VDAC_STANDARD 0x15
+
+static void cvbsout_send_uevent(struct rk3036_tve *rk3036_tve, int uevent)
+{
+	char *envp[3];
+
+	envp[0] = "INTERFACE=CVBSOUT";
+	envp[1] = kmalloc(32, GFP_KERNEL);
+	if (!envp[1])
+		return;
+	snprintf(envp[1], 32, "MODE=%dx%d", rk3036_tve->mode->xres,
+		 rk3036_tve->mode->yres);
+	envp[2] = NULL;
+	kobject_uevent_env(&rk3036_tve->ddev->dev->kobj, uevent, envp);
+	kfree(envp[1]);
+}
 
 static void dac_enable(bool enable)
 {
@@ -231,9 +250,11 @@ static int cvbs_set_enable(struct rk_display_device *device, int enable)
 			dac_enable(false);
 			cvbsformat = -1;
 			tve_switch_fb(rk3036_tve->mode, 0);
+			cvbsout_send_uevent(rk3036_tve, KOBJ_REMOVE);
 		} else if (enable == 1) {
 			tve_switch_fb(rk3036_tve->mode, 1);
 			dac_enable(true);
+			cvbsout_send_uevent(rk3036_tve, KOBJ_ADD);
 		}
 	}
 	mutex_unlock(&rk3036_tve->tve_lock);
@@ -248,7 +269,10 @@ static int cvbs_get_enable(struct rk_display_device *device)
 
 static int cvbs_get_status(struct rk_display_device *device)
 {
-	return 1;
+	if (gpio_is_valid(rk3036_tve->det_io))
+		return !gpio_get_value(rk3036_tve->det_io);
+	else
+		return 1;
 }
 
 static int
@@ -371,6 +395,31 @@ static struct rk_display_ops cvbs_display_ops = {
 	.setdebug = cvbs_set_debug,
 };
 
+static void cvbsout_det_delay_work(struct work_struct *work)
+{
+	struct rk3036_tve *rk3036_tve =
+		container_of(work, struct rk3036_tve, det_delay_work.work);
+	int enable;
+
+	if (gpio_is_valid(rk3036_tve->det_io))
+		enable = !gpio_get_value(rk3036_tve->det_io);
+	else
+		enable = false;
+
+	cvbs_set_enable(NULL, enable);
+}
+
+static irqreturn_t rk3036_tve_det_irq(int irq, void *data)
+{
+	struct rk3036_tve *rk3036_tve = (struct rk3036_tve *)data;
+
+	queue_delayed_work(rk3036_tve->det_wq,
+			   &rk3036_tve->det_delay_work,
+			   msecs_to_jiffies(300));
+
+	return IRQ_HANDLED;
+}
+
 static int
 display_cvbs_probe(struct rk_display_device *device, void *devdata)
 {
@@ -411,6 +460,52 @@ static int __init bootloader_tve_setup(char *str)
 }
 
 early_param("tve.format", bootloader_tve_setup);
+
+static int rk3036_tve_init_gpio(struct device_node *np,
+			       struct rk3036_tve *rk3036_tve)
+{
+	int ret;
+	int irq;
+	enum of_gpio_flags flags;
+
+	rk3036_tve->det_io = of_get_named_gpio_flags(np, "det_io", 0, &flags);
+	if (!gpio_is_valid(rk3036_tve->det_io)) {
+		dev_warn(rk3036_tve->dev, "Can not read det_io\n");
+	} else {
+		ret = devm_gpio_request(rk3036_tve->dev,
+					rk3036_tve->det_io,
+					"cvbs_out_det");
+		if (ret) {
+			dev_err(rk3036_tve->dev,
+				"request cvbs_out_det gpio fail\n");
+			goto err;
+		}
+
+		ret = gpio_direction_input(rk3036_tve->det_io);
+		if (ret) {
+			dev_err(rk3036_tve->dev, "failed to set gpio input\n");
+			goto err;
+		}
+
+		irq = gpio_to_irq(rk3036_tve->det_io);
+		ret = devm_request_irq(rk3036_tve->dev,
+				      irq,
+				      rk3036_tve_det_irq,
+				      IRQF_TRIGGER_FALLING,
+				      "cvbsout detect",
+				      rk3036_tve);
+		if (ret) {
+			dev_err(rk3036_tve->dev,
+				"failed request detect irq %d errno %d\n",
+				irq, ret);
+			goto err;
+		}
+	}
+
+	return 0;
+err:
+	return ret;
+}
 
 static int rk3036_tve_parse_dt(struct device_node *np,
 			       struct rk3036_tve *rk3036_tve)
@@ -589,6 +684,27 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 
 	fb_register_client(&tve_fb_notifier);
 	cvbsformat = -1;
+
+	rk3036_tve->det_wq = alloc_ordered_workqueue("%s", WQ_MEM_RECLAIM |
+						     WQ_FREEZABLE,
+						     "cvbsout_det-wq");
+	if (!rk3036_tve->det_wq) {
+		dev_err(rk3036_tve->dev,
+			"failed to alloc detect workqueue\n");
+		return -ENOMEM;
+	}
+	INIT_DELAYED_WORK(&rk3036_tve->det_delay_work,
+			  cvbsout_det_delay_work);
+
+	ret = rk3036_tve_init_gpio(np, rk3036_tve);
+	if (ret) {
+		destroy_workqueue(rk3036_tve->det_wq);
+		return ret;
+	}
+
+	queue_delayed_work(rk3036_tve->det_wq, &rk3036_tve->det_delay_work,
+			   msecs_to_jiffies(1000));
+
 	dev_info(&pdev->dev, "%s tv encoder probe ok\n", match->compatible);
 	return 0;
 }

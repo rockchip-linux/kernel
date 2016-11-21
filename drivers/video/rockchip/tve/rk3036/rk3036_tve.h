@@ -154,6 +154,10 @@ struct rk3036_tve {
 	u32 daclevel;
 	u32 dac1level;
 	struct mutex tve_lock;	/* mutex for tve resume operation*/
+
+	u32 det_io;
+	struct workqueue_struct         *det_wq;
+	struct delayed_work             det_delay_work;
 };
 
 #endif
