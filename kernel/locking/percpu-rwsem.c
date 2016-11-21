@@ -18,7 +18,7 @@ int __percpu_init_rwsem(struct percpu_rw_semaphore *sem,
 	/* ->rw_sem represents the whole percpu_rw_semaphore for lockdep */
 	rcu_sync_init(&sem->rss, RCU_SCHED_SYNC);
 	__init_rwsem(&sem->rw_sem, name, rwsem_key);
-	init_waitqueue_head(&sem->writer);
+	init_swait_queue_head(&sem->writer);
 	sem->readers_block = 0;
 	return 0;
 }
@@ -103,7 +103,7 @@ void __percpu_up_read(struct percpu_rw_semaphore *sem)
 	__this_cpu_dec(*sem->read_count);
 
 	/* Prod writer to recheck readers_active */
-	wake_up(&sem->writer);
+	swake_up(&sem->writer);
 }
 EXPORT_SYMBOL_GPL(__percpu_up_read);
 
@@ -160,7 +160,7 @@ void percpu_down_write(struct percpu_rw_semaphore *sem)
 	 */
 
 	/* Wait for all now active readers to complete. */
-	wait_event(sem->writer, readers_active_check(sem));
+	swait_event(sem->writer, readers_active_check(sem));
 }
 EXPORT_SYMBOL_GPL(percpu_down_write);
 
