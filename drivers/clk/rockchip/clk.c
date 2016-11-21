@@ -2151,6 +2151,7 @@ static void rockchip_set_div_for_pll_init(struct device_node *np,
 	unsigned long old_rate, child_rate;
 	struct clk *clk_p, *child;
 	int div;
+	struct hlist_node *tmp;
 
 	old_rate = clk_get_rate(clk_c);
 	div = clk_rate / old_rate;
@@ -2158,10 +2159,10 @@ static void rockchip_set_div_for_pll_init(struct device_node *np,
 		div += 1;
 
 	if ((clk_c->flags == 0) && (clk_rate > old_rate)) {
-		hlist_for_each_entry(child, &clk_c->children,
-				     child_node) {
-			if (uboot_logo_on && rkclk_uboot_has_init(np,
-								  child->name)) {
+		hlist_for_each_entry_safe(child, tmp,
+					  &clk_c->children,
+					  child_node) {
+			if (rkclk_uboot_has_init(np, child->name)) {
 				clk_debug("%s: %s has been inited in uboot, ingored\n",
 					  __func__, child->name);
 				continue;
