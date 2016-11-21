@@ -794,9 +794,15 @@
 			<&clk_vdec_core>;
 		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac",
 			"clk_core";
-		resets = <&reset RK322XH_SRST_VDEC_H>,
-			<&reset RK322XH_SRST_VDEC_A>;
-		reset-names = "video_h", "video_a";
+		resets = <&reset RK322XH_SRST_VDEC_A>,
+			<&reset RK322XH_SRST_VDEC_H>,
+			<&reset RK322XH_SRST_VDEC_NIU_A>,
+			<&reset RK322XH_SRST_VDEC_NIU_H>,
+			<&reset RK322XH_SRST_VDEC_CORE>,
+			<&reset RK322XH_SRST_VDEC_CABAC>;
+		reset-names = "video_a", "video_h",
+				"niu_a", "niu_h",
+				"video", "cabac";
 		dev_mode = <2>;
 		name = "rkvdec";
 		status = "disabled";
