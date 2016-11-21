@@ -1667,7 +1667,6 @@
 						clock-output-names = "pclk_pmu_pre";
 						rockchip,div-type = <CLK_DIVIDER_PLUS_ONE>;
 						#clock-cells = <0>;
-						rockchip,clkops-idx = <CLKOPS_RATE_MUX_DIV>;
 					};
 
 					/* 15:5 reserved */
