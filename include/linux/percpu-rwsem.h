@@ -4,7 +4,7 @@
 #include <linux/atomic.h>
 #include <linux/rwsem.h>
 #include <linux/percpu.h>
-#include <linux/wait.h>
+#include <linux/swait.h>
 #include <linux/rcu_sync.h>
 #include <linux/lockdep.h>
 
@@ -12,7 +12,7 @@ struct percpu_rw_semaphore {
 	struct rcu_sync		rss;
 	unsigned int __percpu	*read_count;
 	struct rw_semaphore	rw_sem;
-	wait_queue_head_t	writer;
+	struct swait_queue_head	writer;
 	int			readers_block;
 };
 
