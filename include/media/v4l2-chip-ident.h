@@ -86,6 +86,7 @@ enum {
 	V4L2_IDENT_OV7690 = 267,
 	V4L2_IDENT_OV3660 = 268,
 	V4L2_IDENT_TP2825 = 269,
+	V4L2_IDENT_GC2155 = 270,
 /***********yzm********end*/
 	/* module saa7146: reserved range 300-309 */
 	V4L2_IDENT_SAA7146 = 300,
