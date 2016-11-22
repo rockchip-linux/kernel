@@ -298,13 +298,13 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		}
 		
 		if (of_property_read_u32(cp, "rockchip,powerdown_pmu_voltage", &(new_camera->powerdown_pmu_voltage))) {
-			dprintk("%s:Get %s rockchip,resolution failed!\n",__func__, cp->name);				
+			dprintk("%s:Get %s rockchip,powerdown_pmu_voltage failed!\n", __func__, cp->name);
 		}
 		if (of_property_read_u32(cp, "rockchip,power_pmu_voltage1", &(new_camera->power_pmu_voltage1))) {
-			dprintk("%s:Get %s rockchip,resolution failed!\n",__func__, cp->name);				
+			dprintk("%s:Get %s rockchip,power_pmu_voltage1 failed!\n", __func__, cp->name);
 		}
 		if (of_property_read_u32(cp, "rockchip,power_pmu_voltage2", &(new_camera->power_pmu_voltage2))) {
-			dprintk("%s:Get %s rockchip,resolution failed!\n",__func__, cp->name);				
+			dprintk("%s:Get %s rockchip,power_pmu_voltage2 failed!\n", __func__,  cp->name);
 		}
 			debug_printk("******************* /n power = %x\n", power);
 			debug_printk("******************* /n powerdown = %x\n", powerdown);
@@ -361,7 +361,8 @@ static int rk_dts_cif_probe(struct platform_device *pdev)
 	}
 	
 	if (strstr(rk_camera_platform_data.rockchip_name, "3368") ||
-	    strstr(rk_camera_platform_data.rockchip_name, "px5")) {
+	    strstr(rk_camera_platform_data.rockchip_name, "px5") ||
+		strstr(rk_camera_platform_data.rockchip_name, "rk3228h")) {
 		//get cru base
 	    vpu_node = of_parse_phandle(dev->of_node, "rockchip,cru", 0);
 	    rk_cif_cru_base = (unsigned long)of_iomap(vpu_node, 0);
@@ -677,7 +678,7 @@ static int _rk_sensor_io_init_(struct rk29camera_gpio_res *gpio_res,struct devic
 
     if (camera_reset != INVALID_GPIO) {
 		
-		camera_power = of_get_named_gpio_flags(of_node,"rockchip,reset",0,&flags);
+		camera_reset = of_get_named_gpio_flags(of_node, "rockchip,reset", 0, &flags);
 		gpio_res->gpio_reset = camera_reset;/* information back to the IO*/
         ret = gpio_request(camera_reset, "camera reset");
         if (ret) {
