@@ -183,6 +183,10 @@
 #define RK1108_BSTL_MUTE_MASK			(0x1 << 5)
 #define RK1108_BSTL_MUTE			(0x0 << 5)
 #define RK1108_BSTL_UNMUTE			(0x1 << 5)
+#define RK1108_BSTL_MODE_SHIFT			(0x4)
+#define RK1108_BSTL_MODE_MASK			(0x1 << 4)
+#define RK1108_BSTL_SINGLE			(0x0 << 4)
+#define RK1108_BSTL_DIFFERENTIAL		(0x1 << 4)
 #define RK1108_BSTR_PWRD_MASK			(0x1 << 3)
 #define RK1108_BSTR_EN				(0x1 << 3)
 #define RK1108_BSTR_DIS				(0x0 << 3)
@@ -192,6 +196,10 @@
 #define RK1108_BSTR_MUTE_MASK			(0x1 << 1)
 #define RK1108_BSTR_MUTE			(0x0 << 1)
 #define RK1108_BSTR_UNMUTE			(0x1 << 1)
+#define RK1108_BSTR_MODE_SHIFT			(0x0)
+#define RK1108_BSTR_MODE_MASK			(0x1 << 0)
+#define RK1108_BSTR_SINGLE			(0x0 << 0)
+#define RK1108_BSTR_DIFFERENTIAL		(0x1 << 0)
 
 /* MUXINL ALCL MUXINR ALCR  (REG 0X26)  */
 #define RK1108_ALCL_PWR_MASK			(0x1 << 5)

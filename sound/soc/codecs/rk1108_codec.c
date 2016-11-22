@@ -69,6 +69,12 @@ struct rk1108_codec_priv {
 	struct clk *pclk;
 	atomic_t refcount;
 	int spk_ctl_gpio;
+	int bst_mode;
+};
+
+enum {
+	SINGLE_ENDED = 0,
+	DIFFERENTIAL_ENDED,
 };
 
 static void rk1108_analog_output(struct rk1108_codec_priv *rk1108, int mute)
@@ -549,9 +555,15 @@ static int rk1108_resume(struct snd_soc_codec *codec)
 
 static int rk1108_probe(struct snd_soc_codec *codec)
 {
+	struct rk1108_codec_priv *rk1108 = snd_soc_codec_get_drvdata(codec);
+
 	rk1108_reset(codec);
 	rk1108_codec_power_on(codec);
 
+	regmap_update_bits(rk1108->regmap, RK1108_BST_CTL,
+			   RK1108_BSTL_MODE_MASK | RK1108_BSTR_MODE_MASK,
+			   rk1108->bst_mode << RK1108_BSTL_MODE_SHIFT |
+			   rk1108->bst_mode << RK1108_BSTR_MODE_SHIFT);
 	return 0;
 }
 
@@ -681,6 +693,11 @@ static int rk1108_platform_probe(struct platform_device *pdev)
 	rk1108 = devm_kzalloc(&pdev->dev, sizeof(*rk1108), GFP_KERNEL);
 	if (!rk1108)
 		return -ENOMEM;
+
+	rk1108->bst_mode = DIFFERENTIAL_ENDED;
+	ret = of_property_read_bool(np, "rockchip,single-ended");
+	if (ret)
+		rk1108->bst_mode = SINGLE_ENDED;
 
 	rk1108->spk_ctl_gpio = of_get_named_gpio(np, "spk_ctl_io", 0);
 	if (!gpio_is_valid(rk1108->spk_ctl_gpio)) {
