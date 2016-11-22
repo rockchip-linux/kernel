@@ -234,7 +234,7 @@
 
 #ifdef CONFIG_GPIO_WAKEUP
 	#ifndef WAKEUP_GPIO_IDX
-		#define WAKEUP_GPIO_IDX	8	/* WIFI Chip Side */
+		#define WAKEUP_GPIO_IDX	12	/* WIFI Chip Side */
 	#endif /* !WAKEUP_GPIO_IDX */
 #endif /* CONFIG_GPIO_WAKEUP */
 
@@ -286,7 +286,7 @@
 /*
  * Debug Related Config
  */
-//#define CONFIG_DEBUG
+#define CONFIG_DEBUG
 
 #ifdef CONFIG_DEBUG
 #define DBG	1	/* for ODM & BTCOEX debug */

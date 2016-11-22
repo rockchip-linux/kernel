@@ -18,7 +18,7 @@
 #define	BT_INFO_8703B_1ANT_B_CONNECTION				BIT(0)
 
 #define	BT_INFO_8703B_1ANT_A2DP_BASIC_RATE(_BT_INFO_EXT_)	\
-	(((_BT_INFO_EXT_&BIT(0))) ? true : false)
+		(((_BT_INFO_EXT_&BIT(0))) ? true : false)
 
 #define	BTC_RSSI_COEX_THRESH_TOL_8703B_1ANT		2
 
@@ -30,7 +30,6 @@
 #define	BT_8703B_1ANT_ANTDET_PSDTHRES_2ANT_GOODISOLATION			55
 #define	BT_8703B_1ANT_ANTDET_PSDTHRES_1ANT							35
 #define	BT_8703B_1ANT_ANTDET_RETRY_INTERVAL							10	/* retry timer if ant det is fail, unit: second */
-#define	BT_8703B_1ANT_ANTDET_SWEEPPOINT_DELAY							40000
 #define	BT_8703B_1ANT_ANTDET_ENABLE									0
 #define	BT_8703B_1ANT_ANTDET_COEXMECHANISMSWITCH_ENABLE				0
 
@@ -117,18 +116,6 @@ enum bt_8703b_1ant_coex_algo {
 	BT_8703B_1ANT_COEX_ALGO_HID_A2DP			= 0xa,
 	BT_8703B_1ANT_COEX_ALGO_MAX				= 0xb,
 };
-
-enum bt_8703b_1ant_phase{
-	BT_8703B_1ANT_PHASE_COEX_INIT								= 0x0,
-	BT_8703B_1ANT_PHASE_WLANONLY_INIT							= 0x1,	
-	BT_8703B_1ANT_PHASE_WLAN_OFF								= 0x2,
-	BT_8703B_1ANT_PHASE_2G_RUNTIME								= 0x3,
-	BT_8703B_1ANT_PHASE_5G_RUNTIME								= 0x4,
-	BT_8703B_1ANT_PHASE_BTMPMODE								= 0x5,
-	BT_8703B_1ANT_PHASE_ANTENNA_DET								= 0x6,
-	BT_8703B_1ANT_PHASE_MAX
-};
-
 
 struct coex_dm_8703b_1ant {
 	/* hw setting */
@@ -242,17 +229,6 @@ struct coex_sta_8703b_1ant {
 	boolean					concurrent_rx_mode_on;
 
 	u16					score_board;
-
-	u8					a2dp_bit_pool;
-	u8					cut_version;
-	boolean				acl_busy;
-	boolean				wl_rf_off_on_event;
-	boolean				bt_create_connection;
-
-	u32					bt_coex_supported_feature;
-	u32					bt_coex_supported_version;
-
-	boolean				run_time_state;
 };
 
 #define  BT_8703B_1ANT_ANTDET_PSD_POINTS			256	/* MAX:1024 */
@@ -323,6 +299,8 @@ void ex_halbtc8703b1ant_rf_status_notify(IN struct btc_coexist *btcoexist,
 void ex_halbtc8703b1ant_halt_notify(IN struct btc_coexist *btcoexist);
 void ex_halbtc8703b1ant_pnp_notify(IN struct btc_coexist *btcoexist,
 				   IN u8 pnp_state);
+void ex_halbtc8703b1ant_ScoreBoardStatusNotify(IN struct btc_coexist *btcoexist,
+		IN u8 *tmp_buf, IN u8 length);
 void ex_halbtc8703b1ant_coex_dm_reset(IN struct btc_coexist *btcoexist);
 void ex_halbtc8703b1ant_periodical(IN struct btc_coexist *btcoexist);
 void ex_halbtc8703b1ant_display_coex_info(IN struct btc_coexist *btcoexist);
@@ -350,6 +328,7 @@ void ex_halbtc8703b1ant_display_ant_detection(IN struct btc_coexist *btcoexist);
 #define	ex_halbtc8703b1ant_rf_status_notify(btcoexist, type)
 #define	ex_halbtc8703b1ant_halt_notify(btcoexist)
 #define	ex_halbtc8703b1ant_pnp_notify(btcoexist, pnp_state)
+#define	ex_halbtc8703b1ant_ScoreBoardStatusNotify(btcoexist, tmp_buf, length)
 #define	ex_halbtc8703b1ant_coex_dm_reset(btcoexist)
 #define	ex_halbtc8703b1ant_periodical(btcoexist)
 #define	ex_halbtc8703b1ant_display_coex_info(btcoexist)

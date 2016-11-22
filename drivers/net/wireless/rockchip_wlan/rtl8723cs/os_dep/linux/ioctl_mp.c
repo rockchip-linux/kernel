@@ -368,13 +368,9 @@ int rtw_mp_start(struct net_device *dev,
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	struct hal_ops *pHalFunc = &padapter->HalFunc;
-	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
 
 	rtw_pm_set_ips(padapter, IPS_NONE);
 	LeaveAllPowerSaveMode(padapter);
-
-	if (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY))
-		rtw_scan_abort(padapter);
 
 	if (padapter->registrypriv.mp_mode == 0) {
 		rtw_hal_deinit(padapter);

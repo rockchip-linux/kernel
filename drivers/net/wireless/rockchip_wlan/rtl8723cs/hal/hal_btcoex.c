@@ -174,9 +174,7 @@ typedef enum _bt_op_code {
 	BT_OP_GET_BT_VERSION	= 0,
 	BT_OP_WRITE_REG_ADDR	= 12,
 	BT_OP_WRITE_REG_VALUE,
-	BT_OP_READ_REG						= 17,
-	BT_OP_GET_BT_COEX_SUPPORTED_FEATURE	= 42,
-	BT_OP_GET_BT_COEX_SUPPORTED_VERSION	= 43
+	BT_OP_READ_REG		= 17
 } BT_OP_CODE;
 
 #define BTC_MPOPER_TIMEOUT	50	/* unit: ms */
@@ -1940,107 +1938,6 @@ COL_H2C_STATUS halbtcoutsrc_CoexH2cProcess(void *pBtCoexist,
 	return ret_status;
 }
 
-u32 halbtcoutsrc_GetBtCoexSupportedFeature(void *pBtcContext)
-{
-	PBTC_COEXIST pBtCoexist;
-	u32 ret = BT_STATUS_BT_OP_SUCCESS;
-	u32 data = 0;
-
-	pBtCoexist = (PBTC_COEXIST)pBtcContext;
-
-	if (halbtcoutsrc_IsHwMailboxExist(pBtCoexist) == _TRUE) {
-		u8 buf[3] = {0};
-		_irqL irqL;
-		u8 op_code;
-		u8 status;
-		
-		_enter_critical_mutex(&GLBtcBtMpOperLock, &irqL);
-
-		op_code = BT_OP_GET_BT_COEX_SUPPORTED_FEATURE;
-		status = _btmpoper_cmd(pBtCoexist, op_code, 0, buf, 0);
-		if (status == BT_STATUS_BT_OP_SUCCESS)
-			data = le16_to_cpu(*(u16 *)GLBtcBtMpRptRsp);
-		else
-			ret = SET_BT_MP_OPER_RET(op_code, status);
-
-		_exit_critical_mutex(&GLBtcBtMpOperLock, &irqL);
-
-	} else
-		ret = BT_STATUS_NOT_IMPLEMENT;
-
-	return data;
-}
-
-u32 halbtcoutsrc_GetBtCoexSupportedVersion(void *pBtcContext)
-{
-	PBTC_COEXIST pBtCoexist;
-	u32 ret = BT_STATUS_BT_OP_SUCCESS;
-	u32 data = 0;
-
-	pBtCoexist = (PBTC_COEXIST)pBtcContext;
-
-	if (halbtcoutsrc_IsHwMailboxExist(pBtCoexist) == _TRUE) {
-		u8 buf[3] = {0};
-		_irqL irqL;
-		u8 op_code;
-		u8 status;
-		
-		
-		_enter_critical_mutex(&GLBtcBtMpOperLock, &irqL);
-
-		op_code = BT_OP_GET_BT_COEX_SUPPORTED_VERSION;
-		status = _btmpoper_cmd(pBtCoexist, op_code, 0, buf, 0);
-		if (status == BT_STATUS_BT_OP_SUCCESS)
-			data = le16_to_cpu(*(u16 *)GLBtcBtMpRptRsp);
-		else
-			ret = SET_BT_MP_OPER_RET(op_code, status);
-
-		_exit_critical_mutex(&GLBtcBtMpOperLock, &irqL);
-
-	} else
-		ret = BT_STATUS_NOT_IMPLEMENT;
-
-	return data;
-}	
-
-u32 halbtcoutsrc_GetPhydmVersion(void *pBtcContext)
-{
-	struct btc_coexist *pBtCoexist = (struct btc_coexist *)pBtcContext;
-	PADAPTER		Adapter = pBtCoexist->Adapter;
-
-#ifdef CONFIG_RTL8192E
-	return RELEASE_VERSION_8192E;
-#endif
-
-#ifdef CONFIG_RTL8821A
-	return RELEASE_VERSION_8821A;
-#endif
-
-#ifdef CONFIG_RTL8723B
-	return RELEASE_VERSION_8723B;
-#endif
-
-#ifdef CONFIG_RTL8812A
-	return RELEASE_VERSION_8812A;
-#endif
-
-#ifdef CONFIG_RTL8703B
-	return RELEASE_VERSION_8703B;
-#endif
-
-#ifdef CONFIG_RTL8822B
-	return RELEASE_VERSION_8822B;
-#endif
-
-#ifdef CONFIG_RTL8723D
-	return RELEASE_VERSION_8723D;
-#endif
-
-#ifdef CONFIG_RTL8821C
-	return RELEASE_VERSION_8821C;
-#endif
-}
-
 #if 0
 static void BT_CoexOffloadRecordErrC2hAck(PADAPTER	Adapter)
 {
@@ -2272,9 +2169,6 @@ u8 EXhalbtcoutsrc_InitlizeVariables(void *padapter)
 	pBtCoexist->btc_set_bt_reg = halbtcoutsrc_SetBtReg;
 	pBtCoexist->btc_set_bt_ant_detection = halbtcoutsrc_SetBtAntDetection;
 	pBtCoexist->btc_coex_h2c_process = halbtcoutsrc_CoexH2cProcess;
-	pBtCoexist->btc_get_bt_coex_supported_feature = halbtcoutsrc_GetBtCoexSupportedFeature;
-	pBtCoexist->btc_get_bt_coex_supported_version= halbtcoutsrc_GetBtCoexSupportedVersion;
-	pBtCoexist->btc_get_bt_phydm_version = halbtcoutsrc_GetPhydmVersion;
 
 	pBtCoexist->cli_buf = &GLBtcDbgBuf[0];
 
@@ -3006,12 +2900,10 @@ void EXhalbtcoutsrc_pnp_notify(PBTC_COEXIST pBtCoexist, u8 pnpState)
 
 void EXhalbtcoutsrc_ScoreBoardStatusNotify(PBTC_COEXIST pBtCoexist, u8 *tmpBuf, u8 length)
 {
-#if 0
 	if (IS_HARDWARE_TYPE_8703B(pBtCoexist->Adapter)) {
 		if (pBtCoexist->board_info.btdm_ant_num == 1)
 			ex_halbtc8703b1ant_ScoreBoardStatusNotify(pBtCoexist, tmpBuf, length);
 	}
-#endif
 }
 
 void EXhalbtcoutsrc_CoexDmSwitch(PBTC_COEXIST pBtCoexist)
@@ -3627,7 +3519,7 @@ void hal_btcoex_BtMpRptNotify(PADAPTER padapter, u8 length, u8 *tmpBuf)
 	}
 
 	status = tmpBuf[1] & 0xF;
-	len = length - 3;
+	len = tmpBuf[1] >> 4;
 	seq = tmpBuf[2] >> 4;
 
 	GLBtcBtMpRptSeq = seq;

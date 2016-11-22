@@ -66,7 +66,6 @@ do {\
 } while (0)
 #endif
 #else
-#undef RT_TRACE
 #define RT_TRACE(dbgtype, dbgflag, printstr)
 #endif
 

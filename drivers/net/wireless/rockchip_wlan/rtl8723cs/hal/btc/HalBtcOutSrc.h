@@ -41,8 +41,6 @@ extern u1Byte	gl_btc_trace_buf[];
 #define		BTC_ANT_PATH_WIFI			0
 #define		BTC_ANT_PATH_BT				1
 #define		BTC_ANT_PATH_PTA			2
-#define		BTC_ANT_PATH_WIFI5G			3
-#define		BTC_ANT_PATH_AUTO			4
 // dual Antenna definition
 #define		BTC_ANT_WIFI_AT_MAIN		0
 #define		BTC_ANT_WIFI_AT_AUX			1
@@ -603,21 +601,6 @@ typedef COL_H2C_STATUS
 	IN	u1Byte			h2c_par_len
 	);
 
-typedef u4Byte 
-(*BFP_BTC_GET_BT_COEX_SUPPORTED_FEATURE)(
-	IN 	PVOID			pBtcContext
-	);
-
-typedef u4Byte 
-(*BFP_BTC_GET_BT_COEX_SUPPORTED_VERSION)(
-	IN 	PVOID			pBtcContext
-	);
-
-typedef u4Byte 
-(*BFP_BTC_GET_PHYDM_VERSION)(
-	IN 	PVOID			pBtcContext
-	);
-
 typedef struct _BTC_BT_INFO{
 	BOOLEAN					bBtDisabled;
 	u1Byte					rssiAdjustForAgcTableOn;
@@ -746,9 +729,6 @@ struct btc_coexist{
 	BFP_BTC_SET_BT_ANT_DETECTION	btc_set_bt_ant_detection;
 
 	BFP_BTC_COEX_H2C_PROCESS	btc_coex_h2c_process;
-	BFP_BTC_GET_BT_COEX_SUPPORTED_FEATURE btc_get_bt_coex_supported_feature;
-	BFP_BTC_GET_BT_COEX_SUPPORTED_VERSION btc_get_bt_coex_supported_version;
-	BFP_BTC_GET_PHYDM_VERSION		btc_get_bt_phydm_version;
 };
 typedef struct btc_coexist *PBTC_COEXIST;
 

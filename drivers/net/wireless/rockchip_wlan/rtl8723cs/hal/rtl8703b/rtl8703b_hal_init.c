@@ -1646,10 +1646,6 @@ Hal_EfusePowerSwitch(
 
 	if (PwrState == _TRUE)
 	{
-		/* enable BT power cut 0x6A[14] = 1*/
-		tempval = rtw_read8(padapter, 0x6B);
-		tempval |= BIT(6);
-		rtw_write8(padapter, 0x6B, tempval);
 #ifdef CONFIG_SDIO_HCI
 		// To avoid cannot access efuse regsiters after disable/enable several times during DTM test. 
 		// Suggested by SD1 IsaacHsu. 2013.07.08, added by tynli. 
@@ -1710,8 +1706,7 @@ Hal_EfusePowerSwitch(
 			// Enable LDO 2.5V before read/write action
 			tempval = rtw_read8(padapter, EFUSE_TEST+3);
 			tempval &= 0x0F;
-			/*tempval |= (VOLTAGE_V25 << 4);*/
-			tempval |= 0x70; /* 0x34[30:28] = 0b'111,  Use LDO 2.25V, Suggested by SD1 Morris & Victor*/
+			tempval |= (VOLTAGE_V25 << 4);
 			rtw_write8(padapter, EFUSE_TEST+3, (tempval | 0x80));
 
 			//rtw_write8(padapter, REG_EFUSE_ACCESS, EFUSE_ACCESS_ON);
@@ -1719,12 +1714,6 @@ Hal_EfusePowerSwitch(
 	}
 	else
 	{
-
-		/*enable BT output isolation 0x6A[15] = 1 */
-		tempval = rtw_read8(padapter, 0x6B);
-		tempval |= BIT(7);
-		rtw_write8(padapter, 0x6B, tempval);
-
 		rtw_write8(padapter, REG_EFUSE_ACCESS, EFUSE_ACCESS_OFF);
 
 		if (bWrite == _TRUE) {
@@ -2418,10 +2407,9 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[0], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[1], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
+
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[0], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr+1, &tmpdata[1], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[0]!=tmpdata[0]) || (data[1]!=tmpdata[1])) {
 			badworden &= (~BIT(0));
 		}
@@ -2431,10 +2419,9 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[2], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[3], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
+
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[2], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr+1, &tmpdata[3], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[2]!=tmpdata[2]) || (data[3]!=tmpdata[3])) {
 			badworden &= (~BIT(1));
 		}
@@ -2444,10 +2431,9 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[4], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[5], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
+
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[4], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr+1, &tmpdata[5], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[4]!=tmpdata[4]) || (data[5]!=tmpdata[5])) {
 			badworden &= (~BIT(2));
 		}
@@ -2457,10 +2443,9 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[6], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[7], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
+
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[6], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr+1, &tmpdata[7], bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[6]!=tmpdata[6]) || (data[7]!=tmpdata[7])) {
 			badworden &= (~BIT(3));
 		}
@@ -2817,42 +2802,6 @@ hal_EfusePartialWriteCheck(
 	return bRet;
 }
 
-BOOLEAN
-hal_EfuseFixHeaderProcess(
-	IN		PADAPTER			pAdapter,
-	IN		u1Byte				efuseType,
-	IN		PPGPKT_STRUCT		pFixPkt,
-	IN		pu2Byte				pAddr,
-	IN		BOOLEAN				bPseudoTest
-)
-{
-	u1Byte	originaldata[8], badworden=0;
-	u2Byte	efuse_addr=*pAddr;
-	u4Byte	PgWriteSuccess=0;
-
-	_rtw_memset((PVOID)originaldata, 8, 0xff);
-
-	if (Efuse_PgPacketRead(pAdapter, pFixPkt->offset, originaldata, bPseudoTest)) {
-		badworden = Hal_EfuseWordEnableDataWrite(pAdapter, efuse_addr+1, pFixPkt->word_en, originaldata, bPseudoTest);
-
-		if (badworden != 0xf) {
-
-			PgWriteSuccess = Efuse_PgPacketWrite(pAdapter, pFixPkt->offset, badworden, originaldata, bPseudoTest);
-			if (!PgWriteSuccess)
-				return FALSE;
-			else
-				efuse_addr = Hal_EfuseGetCurrentSize(pAdapter, efuseType, bPseudoTest);
-		} else {
-			efuse_addr = efuse_addr + (pFixPkt->word_cnts*2) +1;
-		}
-	} else {
-		efuse_addr = efuse_addr + (pFixPkt->word_cnts*2) +1;
-	}
-
-	*pAddr = efuse_addr;
-	return TRUE;
-}
-
 static u8
 hal_EfusePgPacketWrite1ByteHeader(
 	PADAPTER		pAdapter,
@@ -2870,36 +2819,20 @@ hal_EfusePgPacketWrite1ByteHeader(
 //	DBG_8192C("%s\n", __FUNCTION__);
 	pg_header = ((pTargetPkt->offset << 4) & 0xf0) | pTargetPkt->word_en;
 
+	do {
 		efuse_OneByteWrite(pAdapter, efuse_addr, pg_header, bPseudoTest);
-
-	PHY_SetMacReg(pAdapter, EFUSE_TEST, BIT26, 0); 
-
 		efuse_OneByteRead(pAdapter, efuse_addr, &tmp_header, bPseudoTest);
-
-	PHY_SetMacReg(pAdapter, EFUSE_TEST, BIT26, 1);
-
-	while (tmp_header == 0xFF || pg_header != tmp_header) {
-		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-				DBG_8192C("retry %d times fail!!\n", repeatcnt);
+		if (tmp_header != 0xFF) break;
+		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_)
+		{
+			DBG_8192C("%s: Repeat over limit for pg_header!!\n", __FUNCTION__);
 			return _FALSE;
 		}
-		efuse_OneByteWrite(pAdapter,efuse_addr, pg_header, bPseudoTest);
-		efuse_OneByteRead(pAdapter,efuse_addr, &tmp_header, bPseudoTest);
-		DBG_8192C("===>%s: Keep %d-th retrying,pg_header = 0x%X tmp_header = 0x%X\n", __FUNCTION__,repeatcnt, pg_header, tmp_header);
-	}
+	} while (1);
 
-	if (pg_header == tmp_header)
-		bRet = _TRUE;
-	else {
-		PGPKT_STRUCT	fixPkt;
-
-		DBG_8192C(" pg_header(0x%X) != tmp_header(0x%X)\n", pg_header, tmp_header);
-		DBG_8192C("Error condition for fixed PG packet, need to cover the existed data: (Addr, Data) = (0x%X, 0x%X)\n",
-						efuse_addr, tmp_header);
-		fixPkt.offset = (tmp_header>>4) & 0x0F;
-		fixPkt.word_en = tmp_header & 0x0F;
-		fixPkt.word_cnts = Efuse_CalculateWordCnts(fixPkt.word_en);
-		if (!hal_EfuseFixHeaderProcess(pAdapter, efuseType, &fixPkt, &efuse_addr, bPseudoTest))
+	if (tmp_header != pg_header)
+	{
+		DBG_8192C(KERN_ERR "%s: PG Header Fail!!(pg=0x%02X read=0x%02X)\n", __FUNCTION__, pg_header, tmp_header);
 		return _FALSE;
 	}
 
@@ -2917,7 +2850,7 @@ hal_EfusePgPacketWrite2ByteHeader(
 	u8				bPseudoTest)
 {
 	u16	efuse_addr, efuse_max_available_len=0;
-	u8	pg_header = 0, tmp_header = 0, pg_header_temp = 0;
+	u8	pg_header=0, tmp_header=0;
 	u8	repeatcnt=0;
 
 
@@ -2931,67 +2864,45 @@ hal_EfusePgPacketWrite2ByteHeader(
 		return _FALSE;
 	}
 
-	while (efuse_addr < efuse_max_available_len) {
 	pg_header = ((pTargetPkt->offset & 0x07) << 5) | 0x0F;
-		efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
-		efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
-		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
+//	DBG_8192C("%s: pg_header=0x%x\n", __FUNCTION__, pg_header);
 
-		while (tmp_header == 0xFF || pg_header != tmp_header) {
-		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-				DBG_8192C("%s, Repeat over limit for pg_header!!\n", __FUNCTION__);
+	do {
+		efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
+		efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
+		if (tmp_header != 0xFF) break;
+		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_)
+		{
+			DBG_8192C("%s: Repeat over limit for pg_header!!\n", __FUNCTION__);
 			return _FALSE;
 		}
+	} while (1);
 
-			efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
-			efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
+	if (tmp_header != pg_header)
+	{
+		DBG_8192C(KERN_ERR "%s: PG Header Fail!!(pg=0x%02X read=0x%02X)\n", __FUNCTION__, pg_header, tmp_header);
+		return _FALSE;
 	}
 
-		/*to write ext_header*/
-		if (tmp_header == pg_header) {
+	// to write ext_header
 	efuse_addr++;
-			pg_header_temp = pg_header;
 	pg_header = ((pTargetPkt->offset & 0x78) << 1) | pTargetPkt->word_en;
 
+	do {
 		efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
-			PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
-			PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
-
-			while (tmp_header == 0xFF || pg_header != tmp_header) {
-		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-					DBG_8192C("%s, Repeat over limit for ext_header!!\n", __FUNCTION__);
+		if (tmp_header != 0xFF) break;
+		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_)
+		{
+			DBG_8192C("%s: Repeat over limit for ext_header!!\n", __FUNCTION__);
 			return _FALSE;
 		}
+	} while (1);
 
-				efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
-				efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
-			}
-
-			if ((tmp_header & 0x0F) == 0x0F) {
-				if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-					DBG_8192C("Repeat over limit for word_en!!\n");
-					return _FALSE;
-				} else {
-					efuse_addr++;
-					continue;
-				}
-			} else if (pg_header != tmp_header) {
-				PGPKT_STRUCT	fixPkt;
-				DBG_8192C("Error, efuse_PgPacketWrite2ByteHeader(), offset PG fail, need to cover the existed data!!\n");
-				DBG_8192C("Error condition for offset PG fail, need to cover the existed data\n");
-				fixPkt.offset = ((pg_header_temp & 0xE0) >> 5) | ((tmp_header & 0xF0) >> 1);
-				fixPkt.word_en = tmp_header & 0x0F;
-				fixPkt.word_cnts = Efuse_CalculateWordCnts(fixPkt.word_en);
-				if (!hal_EfuseFixHeaderProcess(padapter, efuseType, &fixPkt, &efuse_addr, bPseudoTest))
+	if (tmp_header != pg_header)	//offset PG fail
+	{
+		DBG_8192C(KERN_ERR "%s: PG EXT Header Fail!!(pg=0x%02X read=0x%02X)\n", __FUNCTION__, pg_header, tmp_header);
 		return _FALSE;
-			} else
-				break;
-		} else if ((tmp_header & 0x1F) == 0x0F) {/*wrong extended header*/
-			efuse_addr += 2;
-			continue;
-		}
 	}
 
 	*pAddr = efuse_addr;
@@ -3031,24 +2942,17 @@ hal_EfusePgPacketWriteData(
 {
 	u16	efuse_addr;
 	u8	badworden;
-	u8	PgWriteSuccess = 0;
 
 
 	efuse_addr = *pAddr;
 	badworden = Efuse_WordEnableDataWrite(pAdapter, efuse_addr+1, pTargetPkt->word_en, pTargetPkt->data, bPseudoTest);
-	if (badworden == 0x0F) {
+	if (badworden != 0x0F)
+	{
 		DBG_8192C("%s: Fail!!\n", __FUNCTION__);
-			return _TRUE;
-		} else {	/* Reorganize other pg packet */
-			DBG_8192C ("Error, efuse_PgPacketWriteData(), wirte data fail!!\n");
-			DBG_8192C ("efuse_PgPacketWriteData Fail!!\n");
-			PgWriteSuccess = Efuse_PgPacketWrite(pAdapter, pTargetPkt->offset, badworden, pTargetPkt->data, bPseudoTest);
-			if (!PgWriteSuccess)
-				return FALSE;
-			else
-				return TRUE;
+		return _FALSE;
 	}
 
+//	DBG_8192C("%s: ok\n", __FUNCTION__);
 	return _TRUE;
 }
 

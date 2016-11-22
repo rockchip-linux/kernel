@@ -816,6 +816,7 @@ check_bss:
 	#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) || defined(COMPAT_KERNEL_RELEASE)	
 		DBG_8192C("pwdev->sme_state(b)=%d\n", pwdev->sme_state);
 	#endif
+	if (rtw_cfg80211_check_bss(padapter))
 		cfg80211_connect_result(padapter->pnetdev, cur_network->network.MacAddress
 			, pmlmepriv->assoc_req+sizeof(struct rtw_ieee80211_hdr_3addr)+2
 			, pmlmepriv->assoc_req_len-sizeof(struct rtw_ieee80211_hdr_3addr)-2
