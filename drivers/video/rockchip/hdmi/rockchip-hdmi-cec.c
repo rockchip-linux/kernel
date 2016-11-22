@@ -16,35 +16,29 @@ static int cecreadframe(struct cec_framedata *frame)
 {
 	int ret = -1;
 
-	if (!frame || !cec_dev || !cec_dev->readframe || !cec_dev->enable) {
-		return ret;
-	} else {
+	if (frame && cec_dev && cec_dev->readframe && cec_dev->enable) {
 		mutex_lock(&cec_dev->hdmi->pclk_lock);
 		ret = cec_dev->readframe(cec_dev->hdmi, frame);
 		mutex_unlock(&cec_dev->hdmi->pclk_lock);
-		return ret;
 	}
+	return ret;
 }
 
 static int cecsendframe(struct cec_framedata *frame)
 {
 	int ret = -1;
 
-	if (!frame || !cec_dev || !cec_dev->sendframe) {
-		return ret;
-	} else {
+	if (frame && cec_dev && cec_dev->sendframe) {
 		mutex_lock(&cec_dev->hdmi->pclk_lock);
 		ret = cec_dev->sendframe(cec_dev->hdmi, frame);
 		mutex_unlock(&cec_dev->hdmi->pclk_lock);
-		return ret;
 	}
+	return ret;
 }
 
 static void cecsetlogicaddr(int addr)
 {
-	if (!cec_dev || !cec_dev->setceclogicaddr) {
-		return;
-	} else {
+	if (cec_dev && cec_dev->setceclogicaddr) {
 		mutex_lock(&cec_dev->hdmi->pclk_lock);
 		cec_dev->setceclogicaddr(cec_dev->hdmi, addr);
 		mutex_unlock(&cec_dev->hdmi->pclk_lock);
@@ -67,7 +61,7 @@ static void cecworkfunc(struct work_struct *work)
 		cecreadframe(&list_node->cecframe);
 		if (cec_dev->enable) {
 			mutex_lock(&cec_dev->cec_lock);
-			list_add_tail(&(list_node->framelist),
+			list_add_tail(&list_node->framelist,
 				      &cec_dev->ceclist);
 			sysfs_notify(&cec_dev->device.this_device->kobj,
 				     NULL, "stat");
@@ -140,7 +134,7 @@ static ssize_t cec_enable_store(struct device *dev,
 {
 	int ret;
 
-	ret = kstrtoint(buf, 0, &(cec_dev->enable));
+	ret = kstrtoint(buf, 0, &cec_dev->enable);
 	return count;
 }
 
@@ -156,7 +150,7 @@ static ssize_t cec_phy_store(struct device *dev,
 {
 	int ret;
 
-	ret = kstrtoint(buf, 0, &(cec_dev->address_phy));
+	ret = kstrtoint(buf, 0, &cec_dev->address_phy);
 	return count;
 }
 
@@ -172,7 +166,7 @@ static ssize_t cec_logic_store(struct device *dev,
 {
 	int ret;
 
-	ret = kstrtoint(buf, 0, &(cec_dev->address_logic));
+	ret = kstrtoint(buf, 0, &cec_dev->address_logic);
 	return count;
 }
 
@@ -193,9 +187,9 @@ static ssize_t  cec_state_show(struct device *dev,
 }
 
 static struct device_attribute cec_attrs[] = {
-	__ATTR(logic, 0666, cec_logic_show, cec_logic_store),
-	__ATTR(phy, 0666, cec_phy_show, cec_phy_store),
-	__ATTR(enable, 0666, cec_enable_show, cec_enable_store),
+	__ATTR(logic, 0644, cec_logic_show, cec_logic_store),
+	__ATTR(phy, 0644, cec_phy_show, cec_phy_store),
+	__ATTR(enable, 0644, cec_enable_show, cec_enable_store),
 	__ATTR(stat, S_IRUGO, cec_state_show, NULL),
 };
 
@@ -225,10 +219,10 @@ static long cec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		ret = copy_from_user(&cec_dev->enable, argp, sizeof(int));
 		break;
 	case HDMI_IOCTL_CECPHY:
-		ret = copy_to_user(argp, &(cec_dev->address_phy), sizeof(int));
+		ret = copy_to_user(argp, &cec_dev->address_phy, sizeof(int));
 		break;
 	case HDMI_IOCTL_CECLOGIC:
-		ret = copy_to_user(argp, &(cec_dev->address_logic),
+		ret = copy_to_user(argp, &cec_dev->address_logic,
 				   sizeof(int));
 		break;
 	case HDMI_IOCTL_CECREAD:
@@ -246,7 +240,7 @@ static long cec_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case HDMI_IOCTL_CECCLEARLA:
 		break;
 	case HDMI_IOCTL_CECWAKESTATE:
-		ret = copy_to_user(argp, &(cec_dev->hdmi->sleep), sizeof(int));
+		ret = copy_to_user(argp, &cec_dev->hdmi->sleep, sizeof(int));
 		break;
 
 	default:
@@ -283,7 +277,7 @@ int rockchip_hdmi_cec_init(struct hdmi *hdmi,
 	cec_dev->readframe = readframe;
 	cec_dev->setceclogicaddr = setceclogicaddr;
 	cec_dev->workqueue = create_singlethread_workqueue("hdmi-cec");
-	if (cec_dev->workqueue == NULL) {
+	if (!cec_dev->workqueue) {
 		pr_err("HDMI CEC: create workqueue failed.\n");
 		return -1;
 	}

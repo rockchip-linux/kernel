@@ -17,7 +17,7 @@
 #include "rockchip_hdmiv2.h"
 #include "rockchip_hdmiv2_hw.h"
 
-#define HDMI_SEL_LCDC(x)	((((x)&1)<<4)|(1<<20))
+#define HDMI_SEL_LCDC(x)	((((x) & 1) << 4) | (1 << 20))
 #define grf_writel(v, offset)	writel_relaxed(v, RK_GRF_VIRT + offset)
 
 static struct hdmi_dev *hdmi_dev;
@@ -61,7 +61,7 @@ static int hdmi_regs_ctrl_show(struct seq_file *s, void *v)
 		for (j = hdmi_reg_table[i].reg_base;
 		     j <= hdmi_reg_table[i].reg_end; j++) {
 			val = hdmi_readl(hdmi_dev, j);
-			if ((j - hdmi_reg_table[i].reg_base)%16 == 0)
+			if ((j - hdmi_reg_table[i].reg_base) % 16 == 0)
 				seq_printf(s, "\n>>>hdmi_ctl %04x:", j);
 			seq_printf(s, " %02x", val);
 		}
@@ -264,7 +264,7 @@ static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 	}
 
 	if ((hdmi_dev->clk_on & HDMI_PCLK_ON) == 0) {
-		if (hdmi_dev->pclk == NULL) {
+		if (!hdmi_dev->pclk) {
 			hdmi_dev->pclk =
 				devm_clk_get(hdmi_dev->dev, "pclk_hdmi");
 			if (IS_ERR(hdmi_dev->pclk)) {
@@ -278,7 +278,7 @@ static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 	}
 
 	if ((hdmi_dev->clk_on & HDMI_HDCPCLK_ON) == 0) {
-		if (hdmi_dev->hdcp_clk == NULL) {
+		if (!hdmi_dev->hdcp_clk) {
 			hdmi_dev->hdcp_clk =
 				devm_clk_get(hdmi_dev->dev, "hdcp_clk_hdmi");
 			if (IS_ERR(hdmi_dev->hdcp_clk)) {
@@ -293,7 +293,7 @@ static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 
 	if ((rk_hdmi_property.feature & SUPPORT_CEC) &&
 	    (hdmi_dev->clk_on & HDMI_CECCLK_ON) == 0) {
-		if (hdmi_dev->cec_clk == NULL) {
+		if (!hdmi_dev->cec_clk) {
 			hdmi_dev->cec_clk =
 				devm_clk_get(hdmi_dev->dev, "cec_clk_hdmi");
 			if (IS_ERR(hdmi_dev->cec_clk)) {
@@ -313,19 +313,19 @@ static int rockchip_hdmiv2_clk_disable(struct hdmi_dev *hdmi_dev)
 	if (hdmi_dev->clk_on == 0)
 		return 0;
 
-	if ((hdmi_dev->clk_on & HDMI_PD_ON) && (hdmi_dev->pd != NULL)) {
+	if ((hdmi_dev->clk_on & HDMI_PD_ON) && hdmi_dev->pd) {
 		clk_disable_unprepare(hdmi_dev->pd);
 		hdmi_dev->clk_on &= ~HDMI_PD_ON;
 	}
 
 	if ((hdmi_dev->clk_on & HDMI_PCLK_ON) &&
-	    (hdmi_dev->pclk != NULL)) {
+	    hdmi_dev->pclk) {
 		clk_disable_unprepare(hdmi_dev->pclk);
 		hdmi_dev->clk_on &= ~HDMI_PCLK_ON;
 	}
 
 	if ((hdmi_dev->clk_on & HDMI_HDCPCLK_ON) &&
-	    (hdmi_dev->hdcp_clk != NULL)) {
+	    hdmi_dev->hdcp_clk) {
 		clk_disable_unprepare(hdmi_dev->hdcp_clk);
 		hdmi_dev->clk_on &= ~HDMI_HDCPCLK_ON;
 	}
@@ -419,7 +419,7 @@ static void rockchip_hdmiv2_irq_work_func(struct work_struct *work)
 	if (hdmi_dev->enable) {
 		rockchip_hdmiv2_dev_irq(0, hdmi_dev);
 		queue_delayed_work(hdmi_dev->workqueue,
-				   &(hdmi_dev->delay_work),
+				   &hdmi_dev->delay_work,
 				   msecs_to_jiffies(50));
 	}
 }
@@ -445,7 +445,7 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 
 	match = of_match_node(rk_hdmi_dt_ids, np);
 	if (!match)
-		return PTR_ERR(match);
+		return -EINVAL;
 
 	if (!strcmp(match->compatible, "rockchip,rk3288-hdmi")) {
 		hdmi_dev->soctype = HDMI_SOC_RK3288;
@@ -501,9 +501,9 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 	}
 
 	of_property_read_string(np, "rockchip,vendor",
-				&(hdmi_dev->vendor_name));
+				&hdmi_dev->vendor_name);
 	of_property_read_string(np, "rockchip,product",
-				&(hdmi_dev->product_name));
+				&hdmi_dev->product_name);
 	if (!of_property_read_u32(np, "rockchip,deviceinfo", &val))
 		hdmi_dev->deviceinfo = val & 0xff;
 
@@ -657,7 +657,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 	}
 	hdmi_dev->hdmi =
 		rockchip_hdmi_register(&rk_hdmi_property, &rk_hdmi_ops);
-	if (hdmi_dev->hdmi == NULL) {
+	if (!hdmi_dev->hdmi) {
 		dev_err(&pdev->dev, "register hdmi device failed\n");
 		ret = -ENOMEM;
 		goto failed1;
@@ -708,13 +708,13 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 #else
 	hdmi_dev->workqueue =
 		create_singlethread_workqueue("rockchip hdmiv2 irq");
-	INIT_DELAYED_WORK(&(hdmi_dev->delay_work),
+	INIT_DELAYED_WORK(&hdmi_dev->delay_work,
 			  rockchip_hdmiv2_irq_work_func);
 	rockchip_hdmiv2_irq_work_func(NULL);
 
 #endif
 	rk_display_device_enable(hdmi_dev->hdmi->ddev);
-	dev_info(&pdev->dev, "rockchip hdmiv2 probe sucess.\n");
+	dev_info(&pdev->dev, "rockchip hdmiv2 probe success.\n");
 	return 0;
 
 failed1:
@@ -770,7 +770,7 @@ static void rockchip_hdmiv2_shutdown(struct platform_device *pdev)
 		unregister_early_suspend(&hdmi_dev->early_suspend);
 		#endif
 		hdmi = hdmi_dev->hdmi;
-		if (hdmi->hotplug == HDMI_HPD_ACTIVED &&
+		if (hdmi->hotplug == HDMI_HPD_ACTIVATED &&
 		    hdmi->ops->setmute)
 			hdmi->ops->setmute(hdmi, HDMI_VIDEO_MUTE);
 	}

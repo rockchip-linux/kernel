@@ -69,23 +69,23 @@ static void sha_reset(struct sha_t *sha)
 				     ((word) >> (32 - (bits))))
 void sha_processblock(struct sha_t *sha)
 {
-	const unsigned K[] = {
+	const unsigned int K[] = {
 	/* constants defined in SHA-1 */
 	0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xCA62C1D6 };
-	unsigned W[80]; /* word sequence */
-	unsigned A, B, C, D, E; /* word buffers */
-	unsigned temp = 0;
+	unsigned int W[80]; /* word sequence */
+	unsigned int A, B, C, D, E; /* word buffers */
+	unsigned int temp = 0;
 	int t = 0;
 
 	/* Initialize the first 16 words in the array W */
 	for (t = 0; t < 80; t++) {
 		if (t < 16) {
-			W[t] = ((unsigned) sha->mblock[t * 4 + 0]) << 24;
-			W[t] |= ((unsigned) sha->mblock[t * 4 + 1]) << 16;
-			W[t] |= ((unsigned) sha->mblock[t * 4 + 2]) << 8;
-			W[t] |= ((unsigned) sha->mblock[t * 4 + 3]) << 0;
+			W[t] = ((unsigned int)sha->mblock[t * 4 + 0]) << 24;
+			W[t] |= ((unsigned int)sha->mblock[t * 4 + 1]) << 16;
+			W[t] |= ((unsigned int)sha->mblock[t * 4 + 2]) << 8;
+			W[t] |= ((unsigned int)sha->mblock[t * 4 + 3]) << 0;
 		} else {
-			A = W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16];
+			A = W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16];
 			W[t] = shacircularshift(1, A);
 		}
 	}
@@ -211,7 +211,7 @@ static int hdcpverify_ksv(const u8 *data, u32 size)
 	u32 i = 0;
 	struct sha_t sha;
 
-	if ((data == NULL) || (size < (HEADER + SHAMAX))) {
+	if ((!data) || (size < (HEADER + SHAMAX))) {
 		pr_err("invalid input data");
 		return false;
 	}
@@ -224,7 +224,7 @@ static int hdcpverify_ksv(const u8 *data, u32 size)
 	}
 
 	for (i = 0; i < SHAMAX; i++) {
-		if (data[size - SHAMAX + i] != (u8) (sha.mdigest[i / 4]
+		if (data[size - SHAMAX + i] != (u8)(sha.mdigest[i / 4]
 				>> ((i % 4) * 8))) {
 			pr_err("SHA digest does not match");
 			return false;
@@ -344,7 +344,7 @@ static void hdcp_load_key(struct hdmi *hdmi, struct hdcp_keys *key)
 		value = hdmi_readl(hdmi_dev, HDCPREG_RMSTS);
 	} while ((value & m_DPK_WR_OK_STS) == 0);
 
-	if (hdcp->seeds != NULL) {
+	if (hdcp->seeds) {
 		hdmi_writel(hdmi_dev, HDCPREG_RMCTL, 1);
 		hdmi_writel(hdmi_dev, HDCPREG_SEED1, hdcp->seeds[0]);
 		hdmi_writel(hdmi_dev, HDCPREG_SEED0, hdcp->seeds[1]);
@@ -375,7 +375,7 @@ static void hdcp_load_keys_cb(const struct firmware *fw,
 {
 	struct hdmi *hdmi = (struct hdmi *)context;
 
-	if (fw == NULL) {
+	if (!fw) {
 		pr_info("HDCP: firmware is not loaded\n");
 		return;
 	}
@@ -548,9 +548,9 @@ static ssize_t hdcp_enable_write(struct device *device,
 {
 	int enable;
 
-	if (hdcp == NULL)
+	if (!hdcp)
 		return -EINVAL;
-	if (hdcp->keys == NULL) {
+	if (!hdcp->keys) {
 		pr_err("HDCP: key is not loaded\n");
 		return -EINVAL;
 	}
@@ -567,8 +567,7 @@ static ssize_t hdcp_enable_write(struct device *device,
 
 	return count;
 }
-static DEVICE_ATTR(enable, S_IRUGO|S_IWUSR,
-		   hdcp_enable_read, hdcp_enable_write);
+static DEVICE_ATTR(enable, 0644, hdcp_enable_read, hdcp_enable_write);
 
 static ssize_t hdcp_trytimes_read(struct device *device,
 				  struct device_attribute *attr, char *buf)
@@ -587,7 +586,7 @@ static ssize_t hdcp_trytimes_wrtie(struct device *device,
 {
 	int trytimes;
 
-	if (hdcp == NULL)
+	if (!hdcp)
 		return -EINVAL;
 
 	if (kstrtoint(buf, 0, &trytimes))
@@ -598,8 +597,7 @@ static ssize_t hdcp_trytimes_wrtie(struct device *device,
 
 	return count;
 }
-static DEVICE_ATTR(trytimes, S_IRUGO|S_IWUSR,
-		   hdcp_trytimes_read, hdcp_trytimes_wrtie);
+static DEVICE_ATTR(trytimes, 0644, hdcp_trytimes_read, hdcp_trytimes_wrtie);
 
 static int hdcp_init(struct hdmi *hdmi)
 {
@@ -657,8 +655,6 @@ error3:
 error2:
 	misc_deregister(&mdev);
 error1:
-	kfree(hdcp->keys);
-	kfree(hdcp->invalidkeys);
 	kfree(hdcp);
 error0:
 	return ret;
@@ -667,8 +663,12 @@ error0:
 void rockchip_hdmiv2_hdcp_init(struct hdmi *hdmi)
 {
 	pr_info("%s", __func__);
-	if (hdcp == NULL)
+	if (!hdcp) {
 		hdcp_init(hdmi);
-	else
-		hdcp_load_key(hdmi, hdcp->keys);
+	} else {
+		if (hdcp->keys)
+			hdcp_load_key(hdmi, hdcp->keys);
+		else
+			pr_info("hdcpkeys is no load\n");
+	}
 }

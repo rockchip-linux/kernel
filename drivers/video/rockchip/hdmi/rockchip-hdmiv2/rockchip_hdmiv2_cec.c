@@ -19,7 +19,7 @@ static int rockchip_hdmiv2_cec_readframe(struct hdmi *hdmi,
 {
 	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
 	int i, count;
-	char *data = (char *)frame;
+	u8 *data = (u8 *)frame;
 
 	if (((hdmi_dev->clk_on & HDMI_PCLK_ON) == 0) || !frame)
 		return -1;
@@ -34,7 +34,6 @@ static int rockchip_hdmiv2_cec_readframe(struct hdmi *hdmi,
 	return 0;
 }
 
-
 void rockchip_hdmiv2_cec_setcecla(struct hdmi *hdmi, int ceclgaddr)
 {
 	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
@@ -46,7 +45,7 @@ void rockchip_hdmiv2_cec_setcecla(struct hdmi *hdmi, int ceclgaddr)
 		return;
 	val = 1 << ceclgaddr;
 	hdmi_writel(hdmi_dev, CEC_ADDR_L, val & 0xff);
-	hdmi_writel(hdmi_dev, CEC_ADDR_H, val>>8);
+	hdmi_writel(hdmi_dev, CEC_ADDR_H, val >> 8);
 }
 
 static int rockchip_hdmiv2_cec_sendframe(struct hdmi *hdmi,
@@ -114,9 +113,10 @@ void rockchip_hdmiv2_cec_init(struct hdmi *hdmi)
 		init = 0;
 		/* init_waitqueue_head(&wait); */
 	}
-
-	/* Enable sending all message if sink refuse message broadcasted
-	   by us. For 3288, sending action will be break.*/
+	/*
+	 * Enable sending all message even if sink refuse
+	 * message broadcasted by us.
+	 */
 	if (hdmi_dev->soctype == HDMI_SOC_RK3288 &&
 	    hdmi_readl(hdmi_dev, REVISION_ID) == 0x1a)
 		writel_relaxed((1 << 4) | (1 << 20),

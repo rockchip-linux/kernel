@@ -1177,7 +1177,7 @@ static void hdmi_sort_modelist(struct hdmi_edid *edid, int feature)
 /**
  * hdmi_ouputmode_select - select hdmi transmitter output mode: hdmi or dvi?
  * @hdmi: handle of hdmi
- * @edid_ok: get EDID data success or not, HDMI_ERROR_SUCESS means success.
+ * @edid_ok: get EDID data success or not, HDMI_ERROR_SUCCESS means success.
  */
 int hdmi_ouputmode_select(struct hdmi *hdmi, int edid_ok)
 {
@@ -1186,7 +1186,7 @@ int hdmi_ouputmode_select(struct hdmi *hdmi, int edid_ok)
 	struct fb_videomode *modedb = NULL, *mode = NULL;
 	int i, pixclock, feature = hdmi->property->feature;
 
-	if (edid_ok != HDMI_ERROR_SUCESS) {
+	if (edid_ok != HDMI_ERROR_SUCCESS) {
 		dev_err(hdmi->dev, "warning: EDID error, assume sink as HDMI !!!!");
 		hdmi->edid.status = -1;
 		hdmi->edid.sink_hdmi = 1;
@@ -1281,7 +1281,7 @@ int hdmi_ouputmode_select(struct hdmi *hdmi, int edid_ok)
 		hdmi_sort_modelist(&hdmi->edid, hdmi->property->feature);
 	}
 
-	return HDMI_ERROR_SUCESS;
+	return HDMI_ERROR_SUCCESS;
 }
 
 /**
