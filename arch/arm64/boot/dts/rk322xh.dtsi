@@ -696,8 +696,10 @@
 		reg = <0x0 0xff330000 0 0x10000>;
 		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_gates25 2>, <&clk_gates25 3>,
-			<&clk_venc_core>, <&clk_venc_dsp>;
-		clock-names = "aclk_venc", "pclk_venc", "clk_core", "clk_dsp";
+			<&clk_venc_core>, <&clk_venc_dsp>,
+			<&aclk_rkvenc>;
+		clock-names = "aclk_h265", "pclk_h265", "clk_core",
+			"clk_dsp", "aclk_venc";
 		rockchip,srv = <&venc_srv>;
 		mode_bit = <11>;
 		mode_ctrl = <0x40c>;
