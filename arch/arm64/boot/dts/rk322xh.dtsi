@@ -851,6 +851,19 @@
 		interrupt-names = "vopb_mmu";
 	};
 
+	cif: cif@ff380000 {
+		compatible = "rockchip,rk322xh-cif", "rockchip,cif";
+		reg = <0x0 0xff380000 0x0 0x10000>;
+		interrupts = <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_gates21 8>, <&clk_gates21 9>, <&clk_cif_out>;
+		clock-names = "aclk_cif0", "hclk_cif0", "cif0_out";
+		pinctrl-names = "cif_pin_all";
+		pinctrl-0 = <&dvp_d2d9_m1>;
+		rockchip,grf = <&grf>;
+		rockchip,cru = <&cru>;
+		status = "disabled";
+	};
+
 	rga: rga@ff390000 {
 		compatible = "rockchip,rga2";
 		reg = <0x0 0xff390000 0x0 0x1000>;
@@ -2137,6 +2150,66 @@
 			hdmi_hpd: hdmi-hpd {
 				rockchip,pins =
 					<0 GPIO_A4 RK_FUNC_1 &pcfg_pull_down>;
+			};
+		};
+
+		cif-0 {
+			dvp_d2d9_m0:dvp-d2d9-m0 {
+				rockchip,pins =
+					/* cif_d0 */
+					<3 GPIO_A4 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d1 */
+					<3 GPIO_A5 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d2 */
+					<3 GPIO_A6 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d3 */
+					<3 GPIO_A7 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d4 */
+					<3 GPIO_B0 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d5m0 */
+					<3 GPIO_B1 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d6m0 */
+					<3 GPIO_B2 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d7m0 */
+					<3 GPIO_B3 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_href */
+					<3 GPIO_A1 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_vsync */
+					<3 GPIO_A0 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_clkoutm0 */
+					<3 GPIO_A3 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_clkin */
+					<3 GPIO_A2 RK_FUNC_2 &pcfg_pull_none>;
+			};
+		};
+
+		cif-1 {
+			dvp_d2d9_m1:dvp-d2d9-m1 {
+				rockchip,pins =
+					/* cif_d0 */
+					<3 GPIO_A4 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d1 */
+					<3 GPIO_A5 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d2 */
+					<3 GPIO_A6 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d3 */
+					<3 GPIO_A7 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d4 */
+					<3 GPIO_B0 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_d5m1 */
+					<2 GPIO_C0 RK_FUNC_4 &pcfg_pull_none>,
+					/* cif_d6m1 */
+					<2 GPIO_C1 RK_FUNC_4 &pcfg_pull_none>,
+					/* cif_d7m1 */
+					<2 GPIO_C2 RK_FUNC_4 &pcfg_pull_none>,
+					/* cif_href */
+					<3 GPIO_A1 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_vsync */
+					<3 GPIO_A0 RK_FUNC_2 &pcfg_pull_none>,
+					/* cif_clkoutm1 */
+					<2 GPIO_B7 RK_FUNC_4 &pcfg_pull_none>,
+					/* cif_clkin */
+					<3 GPIO_A2 RK_FUNC_2 &pcfg_pull_none>;
 			};
 		};
 	};
