@@ -41,6 +41,7 @@
  */
 
 #include "../../../arm/boot/dts/lcd-box.dtsi"
+#include "rk322xh-cif-sensor.dtsi"
 #include <dt-bindings/input/input.h>
 / {
 	chosen {
@@ -178,6 +179,10 @@
 		<165000000 8 13 5 8 8 8>,
 		<340000000 40 13 5 13 13 13>,
 		<594000000 8 0 16 26 26 26>;
+};
+
+&i2c0 {
+	status = "okay";
 };
 
 &i2c1 {
@@ -571,5 +576,13 @@
 };
 
 &tve {
+	status = "okay";
+};
+
+&cif {
+	status = "okay";
+};
+
+&rk3228_cif_sensor {
 	status = "okay";
 };

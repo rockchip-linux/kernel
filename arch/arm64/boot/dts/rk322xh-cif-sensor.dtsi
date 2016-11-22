@@ -1,0 +1,25 @@
+#include "../../../arm/mach-rockchip/rk_camera_sensor_info.h"
+
+/{
+	rk3228_cif_sensor: rk3228_cif_sensor {
+		compatible = "rockchip,sensor";
+		status = "disabled";
+
+		gc2155 {
+			is_front = <0>;
+			rockchip,powerdown = <&gpio2 GPIO_C4 GPIO_ACTIVE_HIGH>;
+			pwdn_active = <1>;
+			mir = <0>;
+			flash_attach = <1>;
+			flash_active = <1>;
+			resolution = <gc2155_FULL_RESOLUTION>;
+			powerup_sequence = <gc2155_PWRSEQ>;
+			orientation = <0>;
+			i2c_add = <gc2155_I2C_ADDR>;
+			i2c_rata = <100000>;
+			i2c_chl = <0>;
+			cif_chl = <0>;
+			mclk_rate = <24>;
+		};
+	};
+};
