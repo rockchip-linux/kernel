@@ -351,6 +351,19 @@ void dwc_otg_clear_halt(struct urb *_urb)
 	}
 }
 
+static void hcd_phy_rst_work(struct work_struct *work)
+{
+	dwc_otg_hcd_t *dwc_otg_hcd =
+		container_of(work, dwc_otg_hcd_t, phy_rst_work);
+	dwc_otg_core_if_t *core_if = dwc_otg_hcd->core_if;
+	struct dwc_otg_platform_data *pldata = core_if->otg_dev->pldata;
+
+	if (pldata->soft_reset)
+		pldata->soft_reset(pldata, RST_CHN_HALT);
+
+	usleep_range(5000, 5500);
+}
+
 static struct dwc_otg_hcd_function_ops hcd_fops = {
 	.start = _start,
 	.disconnect = _disconnect,
@@ -525,6 +538,7 @@ int otg20_hcd_init(struct platform_device *_dev)
 		goto error2;
 	}
 
+	INIT_WORK(&dwc_otg_hcd->phy_rst_work, hcd_phy_rst_work);
 	dwc_otg_hcd_set_priv_data(dwc_otg_hcd, hcd);
 	dwc_otg_hcd->host_enabled = 1;
 	if (dwc_otg_is_host_mode(otg_dev->core_if) ||
@@ -533,6 +547,7 @@ int otg20_hcd_init(struct platform_device *_dev)
 				  otg20_hcd_connect_detect);
 		schedule_delayed_work(&dwc_otg_hcd->host_enable_work, 0);
 	}
+
 	return 0;
 
 error2:
@@ -619,6 +634,9 @@ int host20_hcd_init(struct platform_device *_dev)
 
 	dwc_otg_hcd_set_priv_data(dwc_otg_hcd, hcd);
 
+	INIT_DELAYED_WORK(&dwc_otg_hcd->host_enable_work, dwc_otg_hcd_enable);
+	INIT_WORK(&dwc_otg_hcd->phy_rst_work, hcd_phy_rst_work);
+
 	dwc_otg_hcd->host_enabled = 2;
 	dwc_otg_hcd->host_setenable = 2;
 	dwc_otg_hcd->connect_detect_timer.function = dwc_otg_hcd_connect_detect;
@@ -626,7 +644,6 @@ int host20_hcd_init(struct platform_device *_dev)
 	init_timer(&dwc_otg_hcd->connect_detect_timer);
 	mod_timer(&dwc_otg_hcd->connect_detect_timer, jiffies + (HZ << 1));
 
-	INIT_DELAYED_WORK(&dwc_otg_hcd->host_enable_work, dwc_otg_hcd_enable);
 	return 0;
 
 error2:

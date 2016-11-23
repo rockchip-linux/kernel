@@ -570,6 +570,7 @@ struct dwc_otg_hcd {
 	uint8_t host_setenable;
 	struct timer_list connect_detect_timer;
 	struct delayed_work host_enable_work;
+	struct work_struct phy_rst_work;
 };
 
 /** @name Transaction Execution Functions */
