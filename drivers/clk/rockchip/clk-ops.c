@@ -452,7 +452,7 @@ static int clk_ddr_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk *parent = __clk_get_parent(hw->clk);
 	struct clk *grand_p = __clk_get_parent(parent);
-
+	unsigned long real_rate;
 
 	/* Do nothing before ddr init */
 	if (!ddr_change_freq)
@@ -466,7 +466,9 @@ static int clk_ddr_set_rate(struct clk_hw *hw, unsigned long rate,
 	clk_debug("%s: will set rate = %lu\n", __func__, rate);
 
 	/* Func provided by ddr driver */
-	ddr_change_freq(rate/MHZ);
+	real_rate = ddr_change_freq(rate/MHZ);
+	real_rate *= MHZ;
+	hw->clk->rate = real_rate;
 
 	parent->rate = parent->ops->recalc_rate(parent->hw,
 			__clk_get_rate(grand_p));
