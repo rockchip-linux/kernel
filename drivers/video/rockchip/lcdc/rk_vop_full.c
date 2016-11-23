@@ -485,7 +485,7 @@ static int vop_reg_dump(struct rk_lcdc_driver *dev_drv)
 			vop_readl(vop_dev, i * 16 + 0xc));
 	}
 
-	for (i = 0x600; i <= 0x650 >> 2; i++) {
+	for (i = 0x600 >> 4; i <= 0x650 >> 4; i++) {
 		pr_info("0x%04x: ", i * 16 + 0x20020000);
 		pr_info("%08x  %08x  %08x  %08x\n",
 			vop_readl(vop_dev, i * 16 + 0x0),
@@ -494,7 +494,7 @@ static int vop_reg_dump(struct rk_lcdc_driver *dev_drv)
 			vop_readl(vop_dev, i * 16 + 0xc));
 	}
 
-	for (i = SDR2HDR_CTRL; i <= 0x730 >> 2; i++) {
+	for (i = SDR2HDR_CTRL >> 4; i <= 0x730 >> 4; i++) {
 		pr_info("0x%04x: ", i * 16 + 0x20020000);
 		pr_info("%08x  %08x  %08x  %08x\n",
 			vop_readl(vop_dev, i * 16 + 0x0),
@@ -503,7 +503,7 @@ static int vop_reg_dump(struct rk_lcdc_driver *dev_drv)
 			vop_readl(vop_dev, i * 16 + 0xc));
 	}
 
-	for (i = HDR2SDR_CTRL; i <= 0xa30 >> 2; i++) {
+	for (i = HDR2SDR_CTRL >> 4; i <= 0xa30 >> 4; i++) {
 		pr_info("0x%04x: ", i * 16 + 0x20020000);
 		pr_info("%08x  %08x  %08x  %08x\n",
 			vop_readl(vop_dev, i * 16 + 0x0),
@@ -696,7 +696,7 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	vop_writel(vop_dev, WIN1_CTRL2, 0x43);
 	vop_writel(vop_dev, WIN2_CTRL2, 0x65);
 
-	vop_msk_reg(vop_dev, SYS_CTRL, V_AUTO_GATING_EN(0));
+	vop_msk_reg(vop_dev, SYS_CTRL, V_AUTO_GATING_EN(1));
 	vop_msk_reg(vop_dev, DSP_CTRL1, V_DITHER_UP_EN(1));
 
 	vop_msk_reg(vop_dev, SDR2HDR_CTRL, V_WIN_CSC_MODE_SEL(1));

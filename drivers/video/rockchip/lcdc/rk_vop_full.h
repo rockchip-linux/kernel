@@ -1180,7 +1180,7 @@ struct vop_device {
 	bool post_sdr2hdr;
 	bool post_hdr2sdr;
 
-	unsigned int		irq;
+	int		irq;
 
 	struct clk		*hclk;		/* lcdc AHP clk*/
 	struct clk		*dclk;		/* lcdc dclk*/
