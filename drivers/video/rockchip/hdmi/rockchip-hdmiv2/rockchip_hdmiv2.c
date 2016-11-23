@@ -182,23 +182,23 @@ void ext_pll_set_27m_out(void)
 {
 	if (!hdmi_dev)
 		return;
-	/* PHY PLL VCO is 1080MHz, output pclk is 27MHz */
+	/* PHY PLL VCO is 2160MHz, output pclk is 27MHz */
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X) {
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY_PLL_PRE_DIVIDER,
 					  1);
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY_PLL_FB_DIVIDER,
-					  45);
+					  0x5a);
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY_PCLK_DIVIDER1,
-					  0x61);
+					  0x6a);
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY_PCLK_DIVIDER2,
 					  0x64);
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY_TMDSCLK_DIVIDER,
-					  0x1d);
+					  0x37);
 	} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY1_PLL_PRE_DIVIDER,
