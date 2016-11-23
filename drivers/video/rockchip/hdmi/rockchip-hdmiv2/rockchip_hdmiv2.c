@@ -745,12 +745,16 @@ static int rockchip_hdmiv2_suspend(struct platform_device *pdev,
 
 static int rockchip_hdmiv2_resume(struct platform_device *pdev)
 {
-	if (hdmi_dev &&
-	    hdmi_dev->grf_base &&
-	    hdmi_dev->soctype == HDMI_SOC_RK322X) {
-		regmap_write(hdmi_dev->grf_base,
-			     RK322X_GRF_SOC_CON2,
-			     RK322X_PLL_POWER_UP);
+	if (hdmi_dev && hdmi_dev->grf_base) {
+		if (hdmi_dev->soctype == HDMI_SOC_RK322X) {
+			regmap_write(hdmi_dev->grf_base,
+				     RK322X_GRF_SOC_CON2,
+				     RK322X_PLL_POWER_UP);
+		} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
+			regmap_write(hdmi_dev->grf_base,
+				     RK322XH_GRF_SOC_CON3,
+				     RK322XH_PLL_POWER_UP);
+		}
 	}
 	return 0;
 }
