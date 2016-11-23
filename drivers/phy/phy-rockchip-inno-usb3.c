@@ -746,8 +746,8 @@ static int rk322xh_u3phy_tuning(struct rockchip_u3phy *u3phy,
 
 		/* enable SSC */
 		udelay(3);
-		writel(0x08, u3phy->ports[1].base + 0x000);
-		writel(0x0c, u3phy->ports[1].base + 0x120);
+		writel(0x08, u3phy_port->base + 0x000);
+		writel(0x0c, u3phy_port->base + 0x120);
 	} else {
 		dev_err(u3phy->dev, "invalid u3phy port type\n");
 		return -EINVAL;
