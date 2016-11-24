@@ -29,11 +29,11 @@
 #include <linux/pagemap.h>
 #include <linux/slab.h>
 
-#define CIF_ISP11_V4L2_SP_DEV_MAJOR 0
-#define CIF_ISP11_V4L2_ISP_DEV_MAJOR 1
-#define CIF_ISP11_V4L2_MP_DEV_MAJOR 2
-#define CIF_ISP11_V4L2_DMA_DEV_MAJOR 3
-#define CIF_ISP11_V4L2_Y12_DEV_MAJOR 4
+#define CIF_ISP11_V4L2_SP_DEV_MAJOR -1
+#define CIF_ISP11_V4L2_ISP_DEV_MAJOR -1
+#define CIF_ISP11_V4L2_MP_DEV_MAJOR -1
+#define CIF_ISP11_V4L2_DMA_DEV_MAJOR -1
+#define CIF_ISP11_V4L2_Y12_DEV_MAJOR -1
 
 #define SP_DEV 0
 #define MP_DEV 1
@@ -1283,11 +1283,7 @@ static long v4l2_default_ioctl(struct file *file, void *fh,
 		p_mode_data->isp_output_height =
 			dev->config.isp_config.output.height;
 
-		if (ret < 0) {
-			cif_isp11_pltfrm_pr_err(dev->dev,
-				"failed to get isp input info\n");
-			return ret;
-		}
+		return ret;
 	} else if (cmd == RK_VIDIOC_CAMERA_MODULEINFO) {
 		struct camera_module_info_s *p_camera_module =
 		(struct camera_module_info_s *)arg;
@@ -1333,7 +1329,7 @@ static int v4l2_enum_input(struct file *file, void *priv,
 
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = V4L2_STD_UNKNOWN;
-	strcpy(input->name, inp_name);
+	strlcpy(input->name, inp_name, sizeof(input->name));
 
 	return 0;
 }
@@ -1554,7 +1550,7 @@ int cif_isp11_v4l2_cropcap(
 		a->type = V4L2_BUF_TYPE_VIDEO_OVERLAY;
 	} else {
 		cif_isp11_pltfrm_pr_err(dev->dev,
-			"cif_isp11_v4l2_cropcap: invalid input\n");
+			"invalid input\n");
 	}
 
 	cif_isp11_pltfrm_pr_dbg(dev->dev,
@@ -1671,6 +1667,7 @@ const struct v4l2_ioctl_ops cif_isp11_v4l2_dma_ioctlops = {
 	.vidioc_cropcap = cif_isp11_v4l2_cropcap,
 	.vidioc_s_crop = cif_isp11_v4l2_s_crop,
 	.vidioc_g_crop = cif_isp11_v4l2_g_crop,
+	.vidioc_querycap = v4l2_querycap
 };
 
 static struct pltfrm_soc_cfg rk1108_cfg = {
