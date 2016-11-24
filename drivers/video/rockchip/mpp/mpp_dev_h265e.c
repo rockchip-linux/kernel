@@ -58,8 +58,10 @@ static u32 w_bs_size;
 #define H265E_POWER_SAVE 0
 #define H265E_CLK 0
 #ifdef CONFIG_MFD_SYSCON
-#define H265E_AXI_STATUS 0
+#define H265E_AXI_STATUS 1
 #endif
+static ktime_t h265e_now, h265e_last;
+
 static struct mpp_session *rockchip_mpp_h265e_open(
 				struct rockchip_mpp_dev *mpp);
 static void rockchip_mpp_h265e_release(
@@ -226,6 +228,7 @@ static int rockchip_mpp_h265e_write_encoder_file(struct rockchip_mpp_dev *mpp)
 	if (IS_ERR(fp_bs[index])) {
 		mpp_err("error: open yuv failed in load_yuv\n");
 		set_fs(old_fs);
+		mutex_unlock(&enc->lock);
 		return -1;
 	}
 	for (i = 0; i < (value * 3); i++) {
@@ -286,24 +289,33 @@ static struct mpp_ctx *rockchip_mpp_h265e_ctx_init(
 					void __user *src, u32 dwsize)
 {
 	struct h265e_ctx *ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+	struct rockchip_h265e_dev *enc =
+		container_of(mpp, struct rockchip_h265e_dev, dev);
 	struct mpp_mem_region *mem_bs_region = NULL;
 	struct mpp_mem_region *mem_src_region = NULL;
 	unsigned long size = 0;
 	int ret = 0;
 
+	mutex_lock(&enc->lock);
 	mpp_debug_enter();
-	if (!ctx)
+	if (!ctx) {
+		mutex_unlock(&enc->lock);
 		return NULL;
+	}
 	mpp_dev_common_ctx_init(mpp, &ctx->ictx);
 	if (copy_from_user(&ctx->cfg, src, dwsize)) {
 		mpp_err("error: copy_from_user failed in reg_init\n");
 		kfree(ctx);
+		mutex_unlock(&enc->lock);
 		return NULL;
 	}
-
+#if H265E_POWER_SAVE
+	rockchip_mpp_h265e_enable_clk(mpp);
+#endif
 	ctx->bs.hdl = ion_import_dma_buf(mpp->ion_client, ctx->cfg.bs_fd);
 	if (IS_ERR(ctx->bs.hdl)) {
 		mpp_err("import dma-buf from fd %d failed\n", ctx->cfg.bs_fd);
+		mutex_unlock(&enc->lock);
 		return NULL;
 	}
 
@@ -349,6 +361,7 @@ static struct mpp_ctx *rockchip_mpp_h265e_ctx_init(
 
 	ctx->mode = H265E_MODE_ONEFRAME;
 	mpp_debug_leave();
+	mutex_unlock(&enc->lock);
 
 	return &ctx->ictx;
 
@@ -379,7 +392,7 @@ FAIL:
 		kfree(ctx);
 		ctx = NULL;
 	}
-
+	mutex_unlock(&enc->lock);
 	return NULL;
 }
 
@@ -488,6 +501,9 @@ int rockchip_mpp_h265e_get_stream_header(
 		return -1;
 	}
 	mutex_lock(&enc->lock);
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_enable_clk(mpp);
+#endif
 	mpp_debug_enter();
 	head->size = 0;
 	instance = &enc->instance[index];
@@ -559,6 +575,9 @@ int rockchip_mpp_h265e_get_stream_header(
 		ion_free(mpp->ion_client, bs_hd);
 		bs_hd = NULL;
 	}
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_disable_clk(mpp);
+#endif
 	mutex_unlock(&enc->lock);
 	mpp_debug_leave();
 
@@ -1026,6 +1045,10 @@ static int rockchip_mpp_h265e_set_parameter(
 
 	mpp_debug_enter();
 	mutex_lock(&enc->lock);
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_enable_clk(mpp);
+#endif
+	mpp_dev_power_on(mpp);
 	if (instance->status != H265E_INSTANCE_STATUS_OPENED) {
 		mpp_err("error:status = %d\n", instance->status);
 		goto FAIL;
@@ -1042,6 +1065,9 @@ static int rockchip_mpp_h265e_set_parameter(
 	instance->status = H265E_INSTANCE_STATUS_SET_PARAMETER;
 	instance->cfg.cfg_mask = 0;
 	instance->cfg.cfg_option = 0;
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_disable_clk(mpp);
+#endif
 	mutex_unlock(&enc->lock);
 	mpp_debug_leave();
 	return 0;
@@ -1062,6 +1088,10 @@ static int rockchip_mpp_h265e_change_parameter(
 
 	mpp_debug_enter();
 	mutex_lock(&enc->lock);
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_enable_clk(mpp);
+#endif
+	mpp_dev_power_on(mpp);
 	if (instance->status == H265E_INSTANCE_STATUS_ERROR ||
 	    instance->status == H265E_INSTANCE_STATUS_CLOSE) {
 		mpp_err("error:status = %d\n", instance->status);
@@ -1085,6 +1115,9 @@ static int rockchip_mpp_h265e_change_parameter(
 	instance->status = H265E_INSTANCE_STATUS_SET_PARAMETER;
 	instance->cfg.cfg_mask = 0;
 	instance->cfg.cfg_option = 0;
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_disable_clk(mpp);
+#endif
 	mutex_unlock(&enc->lock);
 	mpp_debug_leave();
 	return 0;
@@ -1372,9 +1405,11 @@ static int rockchip_mpp_h265e_encode_one_frame(
 		return -1;
 
 	mutex_lock(&enc->lock);
+	h265e_last = ktime_get();
 #if H265E_POWER_SAVE
 	rockchip_mpp_h265e_enable_clk(mpp);
 #endif
+	mpp_dev_power_on(mpp);
 	if (instance->status != H265E_INSTANCE_STATUS_SET_PARAMETER) {
 		mutex_unlock(&enc->lock);
 		mpp_err("fail,status = %d,index = %d\n",
@@ -1527,15 +1562,18 @@ static int rockchip_mpp_h265e_get_encode_result(struct rockchip_mpp_dev *mpp,
 	struct rockchip_h265e_dev *enc =
 		container_of(mpp, struct rockchip_h265e_dev, dev);
 	struct h265e_result *result = NULL;
-	struct h265e_session *session =
-		container_of(ctx->ictx.session, struct h265e_session, isession);
-	int index = session->instance_index;
+	struct h265e_session *session = NULL;
+	int index;
 
 	mpp_debug_enter();
 	if (!mpp || !ctx) {
 		mpp_err("param is invalid");
 		return -1;
 	}
+	session = container_of(ctx->ictx.session,
+			       struct h265e_session,
+			       isession);
+	index = session->instance_index;
 	result = &ctx->result;
 	value = mpp_read(mpp, H265E_RET_SUCCESS);
 	if (value == 0) {
@@ -1565,6 +1603,10 @@ static int rockchip_mpp_h265e_get_encode_result(struct rockchip_mpp_dev *mpp,
 #if PRINT_BS_DATA
 	w_bs_size = result->bs_size;
 #endif
+	h265e_now = ktime_get();
+	mpp_debug(DEBUG_H265E_ENCODE_ONE_FRAME,
+		  "h265e encode time is:%d us\n",
+		  (int)ktime_to_us(ktime_sub(h265e_now, h265e_last)));
 	mpp_debug(DEBUG_H265E_ENCODE_ONE_FRAME,
 		  "RD_AXI_BYTE=%d,WR_AXI_BYTE=%d,WORK_CNT=%d\n",
 		  mpp_read(mpp, H265E_PERF_RD_AXI_TOTAL_BYTE),
@@ -1613,16 +1655,10 @@ static long rockchip_mpp_h265e_ioctl(struct mpp_session *isession,
 			mpp_err("error: set reg copy_from_user failed\n");
 			return -EFAULT;
 		}
-#if	H265E_POWER_SAVE
-		rockchip_mpp_h265e_enable_clk(mpp);
-#endif
 		if (instance->status == H265E_INSTANCE_STATUS_OPENED)
 			ret = rockchip_mpp_h265e_set_parameter(mpp, index);
 		else
 			ret = rockchip_mpp_h265e_change_parameter(mpp, index);
-#if	H265E_POWER_SAVE
-		rockchip_mpp_h265e_disable_clk(mpp);
-#endif
 		break;
 	case MPP_DEV_H265E_GET_HEAD_PARAMETER: {
 			struct hal_h265e_header head;
@@ -1633,16 +1669,10 @@ static long rockchip_mpp_h265e_ioctl(struct mpp_session *isession,
 				return -EFAULT;
 			}
 			head.size = 0;
-#if	H265E_POWER_SAVE
-			rockchip_mpp_h265e_enable_clk(mpp);
-#endif
 #ifdef	H265E_STREAM_HEADER
 			if (rockchip_mpp_h265e_get_stream_header(mpp,
 								 index, &head))
 				head.size = 0;
-#endif
-#if	H265E_POWER_SAVE
-			rockchip_mpp_h265e_disable_clk(mpp);
 #endif
 			if (copy_to_user((void __user *)arg,
 					 &head, sizeof(head))) {
@@ -1674,17 +1704,14 @@ static void rockchip_mpp_h265e_enable_clk(struct rockchip_mpp_dev *mpp)
 	struct rockchip_h265e_dev *enc =
 		container_of(mpp, struct rockchip_h265e_dev, dev);
 
-	if (!atomic_read(&enc->clk_status)) {
-		if (enc->aclk)
-			clk_prepare_enable(enc->aclk);
-		if (enc->pclk)
-			clk_prepare_enable(enc->pclk);
-		if (enc->core)
-			clk_prepare_enable(enc->core);
-		if (enc->dsp)
-			clk_prepare_enable(enc->dsp);
-		atomic_set(&enc->clk_status, 1);
-	}
+	if (enc->aclk)
+		clk_prepare_enable(enc->aclk);
+	if (enc->pclk)
+		clk_prepare_enable(enc->pclk);
+	if (enc->core)
+		clk_prepare_enable(enc->core);
+	if (enc->dsp)
+		clk_prepare_enable(enc->dsp);
 }
 
 static void rockchip_mpp_h265e_disable_clk(struct rockchip_mpp_dev *mpp)
@@ -1692,17 +1719,14 @@ static void rockchip_mpp_h265e_disable_clk(struct rockchip_mpp_dev *mpp)
 	struct rockchip_h265e_dev *enc =
 		container_of(mpp, struct rockchip_h265e_dev, dev);
 
-	if (atomic_read(&enc->clk_status)) {
-		if (enc->dsp)
-			clk_disable_unprepare(enc->dsp);
-		if (enc->core)
-			clk_disable_unprepare(enc->core);
-		if (enc->pclk)
-			clk_disable_unprepare(enc->pclk);
-		if (enc->aclk)
-			clk_disable_unprepare(enc->aclk);
-		atomic_set(&enc->clk_status, 0);
-	}
+	if (enc->dsp)
+		clk_disable_unprepare(enc->dsp);
+	if (enc->core)
+		clk_disable_unprepare(enc->core);
+	if (enc->pclk)
+		clk_disable_unprepare(enc->pclk);
+	if (enc->aclk)
+		clk_disable_unprepare(enc->aclk);
 }
 
 static void rockchip_mpp_h265e_power_on(struct rockchip_mpp_dev *mpp)
@@ -1728,6 +1752,13 @@ static struct mpp_session *rockchip_mpp_h265e_open(
 
 	mpp_debug_enter();
 	mutex_lock(&enc->lock);
+	if (!session) {
+		mpp_err("failed to allocate h265e_session data");
+		goto NFREE_FAIL;
+	}
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_enable_clk(mpp);
+#endif
 	mpp_dev_power_on(mpp);
 
 	if (!atomic_read(&enc->load_firmware)) {
@@ -1757,8 +1788,10 @@ static struct mpp_session *rockchip_mpp_h265e_open(
 			break;
 		}
 	}
-	if (i == H265E_INSTANCE_NUM)
+	if (i == H265E_INSTANCE_NUM) {
+		mpp_err("error: the num of instance up to H265E_INSTANCE_NUM\n");
 		goto NFREE_FAIL;
+	}
 	index = instance->index;
 	instance->status = H265E_INSTANCE_STATUS_ERROR;
 	mpp_debug(DEBUG_H265E_INFO,
@@ -1857,7 +1890,7 @@ NFREE_FAIL:
 	kfree(session);
 	session = NULL;
 	mutex_unlock(&enc->lock);
-	mpp_err("rockchip_mpp_h265e_open fail\n");
+	mpp_err("h265e open fail\n");
 	return NULL;
 }
 
@@ -1870,7 +1903,12 @@ static void rockchip_mpp_h265e_release(struct mpp_session *isession)
 		container_of(mpp, struct rockchip_h265e_dev, dev);
 	int index = 0;
 
+	mpp_debug_enter();
 	mutex_lock(&enc->lock);
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_enable_clk(mpp);
+#endif
+	mpp_dev_power_on(mpp);
 	index = session->instance_index;
 	rockchip_mpp_h265e_issue_command(mpp, index, H265E_CMD_FINI_SEQ);
 	if (rockchip_mpp_h265e_wait_busy(mpp) == -1)
@@ -1879,7 +1917,11 @@ static void rockchip_mpp_h265e_release(struct mpp_session *isession)
 		mpp_err("h265e close instance %d ret fail\n", index);
 	rockchip_mpp_h265e_free_instance(mpp, index);
 	kfree(session);
+#if	H265E_POWER_SAVE
+	rockchip_mpp_h265e_disable_clk(mpp);
+#endif
 	mutex_unlock(&enc->lock);
+	mpp_debug_leave();
 }
 
 static int rockchip_mpp_h265e_probe(struct rockchip_mpp_dev *mpp)
@@ -1894,7 +1936,6 @@ static int rockchip_mpp_h265e_probe(struct rockchip_mpp_dev *mpp)
 		atomic_set(&enc->instance[i].is_used, 0);
 	atomic_set(&enc->load_firmware, 0);
 	atomic_set(&enc->is_init, 0);
-	atomic_set(&enc->clk_status, 0);
 	mutex_init(&enc->lock);
 #if H265E_CLK
 	enc->aclk = devm_clk_get(mpp->dev, "aclk_venc");
@@ -1947,6 +1988,7 @@ static void rockchip_mpp_h265e_remove(struct rockchip_mpp_dev *mpp)
 	int i = 0;
 
 	mpp_debug_enter();
+	mutex_lock(&enc->lock);
 	for (i = 0; i < H265E_INSTANCE_NUM; i++) {
 		instance = &enc->instance[i];
 		if (atomic_read(&instance->is_used) == 1) {
@@ -1972,6 +2014,7 @@ static void rockchip_mpp_h265e_remove(struct rockchip_mpp_dev *mpp)
 		ion_free(mpp->ion_client, enc->firmware.hdl);
 		enc->firmware.hdl = NULL;
 	}
+	mutex_unlock(&enc->lock);
 	mpp_debug_leave();
 }
 

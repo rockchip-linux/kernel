@@ -52,7 +52,7 @@ struct h265e_result {
 	u32 num_merge;
 	u32 num_skip_block;
 	u32 avg_ctu_qp;
-	u32 recon_frame_index;
+	int recon_frame_index;
 	u32 gop_idx;
 	u32 poc;
 	u32 src_idx;
@@ -123,7 +123,6 @@ struct rockchip_h265e_dev {
 	u32 irq_status;
 	atomic_t is_init;
 	atomic_t load_firmware;
-	atomic_t clk_status;
 
 	struct delayed_work work_list;
 	struct mutex lock;
