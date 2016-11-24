@@ -71,7 +71,8 @@ static void dac_enable(bool enable)
 			val = m_VBG_EN | m_DAC_EN |
 			      v_DAC_GAIN(rk3036_tve->daclevel);
 			grfreg = RK3036_GRF_SOC_CON3;
-		} else if (rk3036_tve->soctype == SOC_RK322X) {
+		} else if (rk3036_tve->soctype == SOC_RK322X ||
+			   rk3036_tve->soctype == SOC_RK322XH) {
 			val = v_CUR_REG(rk3036_tve->dac1level) |
 			      v_DR_PWR_DOWN(0) | v_BG_PWR_DOWN(0);
 		}
@@ -82,7 +83,8 @@ static void dac_enable(bool enable)
 			grfreg = RK312X_GRF_TVE_CON;
 		else if (rk3036_tve->soctype == SOC_RK3036)
 			grfreg = RK3036_GRF_SOC_CON3;
-		else if (rk3036_tve->soctype == SOC_RK322X)
+		else if (rk3036_tve->soctype == SOC_RK322X ||
+			 rk3036_tve->soctype == SOC_RK322XH)
 			val = v_CUR_REG(rk3036_tve->dac1level) |
 			      m_DR_PWR_DOWN | m_BG_PWR_DOWN;
 	}
@@ -106,11 +108,6 @@ static void tve_set_mode(int mode)
 	TVEDBG("%s mode %d\n", __func__, mode);
 	if (cvbsformat >= 0)
 		return;
-	if (rk3036_tve->soctype != SOC_RK322X) {
-		tve_writel(TV_RESET, v_RESET(1));
-		usleep_range(100, 110);
-		tve_writel(TV_RESET, v_RESET(0));
-	}
 	if (rk3036_tve->inputformat == INPUT_FORMAT_RGB)
 		tve_writel(TV_CTRL, v_CVBS_MODE(mode) | v_CLK_UPSTREAM_EN(2) |
 			   v_TIMING_EN(2) | v_LUMA_FILTER_GAIN(0) |
@@ -208,7 +205,8 @@ static int tve_switch_fb(const struct fb_videomode *modedb, int enable)
 	rk_fb_switch_screen(screen, enable, 0);
 
 	if (enable) {
-		if (rk3036_tve->soctype == SOC_RK322X)
+		if (rk3036_tve->soctype == SOC_RK322X ||
+		    rk3036_tve->soctype == SOC_RK322XH)
 			ext_pll_set_27m_out();
 		if (screen->mode.yres == 480)
 			tve_set_mode(TVOUT_CVBS_NTSC);
@@ -309,7 +307,8 @@ tve_fb_event_notify(struct notifier_block *self,
 				if (rk3036_tve->enable) {
 					tve_switch_fb(rk3036_tve->mode, 0);
 					dac_enable(false);
-					if (rk3036_tve->soctype == SOC_RK322X)
+					if (rk3036_tve->soctype == SOC_RK322X ||
+					    rk3036_tve->soctype == SOC_RK322XH)
 						clk_disable_unprepare(rk3036_tve->dac_clk);
 				}
 			}
@@ -321,7 +320,8 @@ tve_fb_event_notify(struct notifier_block *self,
 			TVEDBG("resume tve\n");
 			mutex_lock(&rk3036_tve->tve_lock);
 			if (rk3036_tve->suspend) {
-				if (rk3036_tve->soctype == SOC_RK322X) {
+				if (rk3036_tve->soctype == SOC_RK322X ||
+				    rk3036_tve->soctype == SOC_RK322XH) {
 					clk_prepare_enable(rk3036_tve->dac_clk);
 					rk322x_dac_init();
 				}
@@ -454,8 +454,7 @@ static int rk3036_tve_parse_dt(struct device_node *np,
 			if (getdac > 0) {
 				rk3036_tve->daclevel =
 				getdac + 5 + val - RK322X_VDAC_STANDARD;
-				if (rk3036_tve->daclevel > 0x3f ||
-				    rk3036_tve->daclevel < 0) {
+				if (rk3036_tve->daclevel > 0x3f) {
 					pr_err("rk322x daclevel error!\n");
 					rk3036_tve->daclevel = val;
 				}
@@ -463,7 +462,8 @@ static int rk3036_tve_parse_dt(struct device_node *np,
 		}
 	}
 
-	if (rk3036_tve->soctype == SOC_RK322X) {
+	if (rk3036_tve->soctype == SOC_RK322X ||
+	    rk3036_tve->soctype == SOC_RK322XH) {
 		ret = of_property_read_u32(np, "dac1level", &val);
 		if ((val == 0) || (ret < 0))
 			goto errer;
@@ -486,7 +486,7 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 
 	match = of_match_node(rk3036_tve_dt_ids, np);
 	if (!match)
-		return PTR_ERR(match);
+		return -EINVAL;
 
 	rk3036_tve = devm_kzalloc(&pdev->dev,
 				  sizeof(struct rk3036_tve), GFP_KERNEL);
@@ -506,6 +506,9 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
 	} else if (!strcmp(match->compatible, "rockchip,rk1108-tve")) {
 		rk3036_tve->soctype = SOC_RK322X;
+		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
+	} else if (!strcmp(match->compatible, "rockchip,rk322xh-tve")) {
+		rk3036_tve->soctype = SOC_RK322XH;
 		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
 	} else {
 		dev_err(&pdev->dev, "It is not a valid tv encoder!");
@@ -529,7 +532,8 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 			"rk3036 tv encoder device map registers failed!");
 		return PTR_ERR(rk3036_tve->regbase);
 	}
-	if (rk3036_tve->soctype == SOC_RK322X) {
+	if (rk3036_tve->soctype == SOC_RK322X ||
+	    rk3036_tve->soctype == SOC_RK322XH) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 		rk3036_tve->len = resource_size(res);
 		rk3036_tve->vdacbase = devm_ioremap(rk3036_tve->dev,

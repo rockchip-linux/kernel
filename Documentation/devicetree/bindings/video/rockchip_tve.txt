@@ -1,0 +1,42 @@
+Device-Tree bindings for rockchip tve driver
+
+Required properties:
+- compatible: value should be following:
+	"rockchip,rk1108-tve",
+	"rockchip,rk3036-tve",
+	"rockchip,rk312x-tve",
+	"rockchip,rk322x-tve",
+	"rockchip,rk322xh-tve",
+- reg: tv encode base address of the tve and length of memory mapped
+        region.another one is used for vadc.
+- clocks: must include clock specifiers corresponding to entries in the
+        clock-names property. only for rk1108 rk322x and rk322xh.
+- clocks-names: list of clock names sorted in the same order as the clocks
+               property. only for rk1108 rk322x and rk322xh.
+- saturation: the value for TVE_COLOR_BUSRT_SAT(0x78)
+- brightcontrast: the value for TVE_BRIGHTNESS_CONTRAST(0x90)
+- adjtiming: the value for TVE_HOR_TIMING3(0x0c)
+- lumafilter0: the value for TVE_LUMA_FILTER1(0x14)
+- lumafilter1: the value for TVE_LUMA_FILTER2(0x18)
+- lumafilter2: the value for TVE_LUMA_FILTER3(0x1c)
+- daclevel: the value is used to adjust the voltage amplitude of the CVBS
+- dac1level: only for rk1108 rk322x and rk322xh
+Example:
+
+	tve: tve@ff373e00 {
+	        compatible = "rockchip,rk322xh-tve", "rockchip,rk322x-tve";
+	        reg = <0x0 0xff373e00 0x0 0x100>,
+	              <0x0 0xff420000 0x0 0x10000>;
+	        clocks = <&clk_gates17 8>;
+	        clock-names = "pclk_vdac";
+	        saturation = <0x00325d46>;
+	        brightcontrast = <0x00009e00>;
+	        adjtiming = <0xc6c00880>;
+	        lumafilter0 = <0x02ff0000>;
+	        lumafilter1 = <0xf40200fe>;
+	        lumafilter2 = <0xf332d910>;
+	        daclevel = <0x2f>;
+	        dac1level = <0xf>;
+	        status = "disabled";
+	};
+
