@@ -210,6 +210,9 @@ static int __init rk1108_pie_init(void)
 {
 	int err;
 
+	if (!cpu_is_rk1108())
+		return 0;
+
 	err = rockchip_pie_init();
 	if (err)
 		return err;
