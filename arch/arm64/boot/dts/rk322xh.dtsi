@@ -1363,6 +1363,26 @@
 			drive-strength = <12>;
 		};
 
+		pcfg_pull_disable_drv_2ma: pcfg-pull-disable-drv-2ma {
+			bias-disable;
+			drive-strength = <2>;
+		};
+
+		pcfg_pull_disable_drv_4ma: pcfg-pull-disable-drv-4ma {
+			bias-disable;
+			drive-strength = <4>;
+		};
+
+		pcfg_pull_disable_drv_8ma: pcfg-pull-disable-drv-8ma {
+			bias-disable;
+			drive-strength = <8>;
+		};
+
+		pcfg_pull_disable_drv_12ma: pcfg-pull-disable-drv-12ma {
+			bias-disable;
+			drive-strength = <12>;
+		};
+
 		pcfg_output_high: pcfg-output-high {
 			output-high;
 		};
