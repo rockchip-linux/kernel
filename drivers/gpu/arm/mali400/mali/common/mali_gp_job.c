@@ -173,7 +173,7 @@ struct mali_gp_job *mali_gp_job_create(struct mali_session_data *session, _mali_
 				}
 			}
 
-			if (uargs->varying_memsize > MALI_UK_BIG_VARYING_SIZE) {
+			if (job->uargs.varying_memsize > MALI_UK_BIG_VARYING_SIZE) {
 				job->big_job = 1;
 			}
 		}
