@@ -25,6 +25,9 @@
 			i2c_chl = <3>;
 			cif_chl = <0>;
 			mclk_rate = <24>;
+			rockchip,camera-module-defrect0 = <960 480 0 0 960 480>;
+			rockchip,camera-module-defrect1 = <960 576 0 0 960 576>;
+			rockchip,camera-module-defrect2 = <1280 720 8 20 1280 720>;
 		};
 	};
 };
