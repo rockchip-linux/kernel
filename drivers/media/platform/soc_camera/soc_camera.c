@@ -568,12 +568,6 @@ static int soc_camera_open(struct file *file)
 		if (sdesc->subdev_desc.reset)
 			sdesc->subdev_desc.reset(icd->pdev);
 
-		ret = ici->ops->add(icd);
-		if (ret < 0) {
-			dev_err(icd->pdev, "Couldn't activate the camera: %d\n", ret);
-			goto eiciadd;
-		}
-
 		ret = __soc_camera_power_on(icd);
 		if (ret < 0)
 			goto epower;
@@ -582,6 +576,13 @@ static int soc_camera_open(struct file *file)
 		ret = pm_runtime_resume(&icd->vdev->dev);
 		if (ret < 0 && ret != -ENOSYS)
 			goto eresume;
+
+		ret = ici->ops->add(icd);
+		if (ret < 0) {
+			dev_err(icd->pdev,
+				"Couldn't activate the camera: %d\n", ret);
+			goto eiciadd;
+		}
 
 		/*
 		 * Try to configure with default parameters. Notice: this is the
