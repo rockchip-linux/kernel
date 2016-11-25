@@ -55,6 +55,9 @@ static int dvfs_get_temp(int chn)
 #if IS_ENABLED(CONFIG_ROCKCHIP_THERMAL)
 	int read_back = 0;
 
+	if (clk_cpu_dvfs_node)
+		return rockchip_tsadc_get_temp(chn, 0);
+
 	if (clk_cpu_bl_dvfs_node == NULL ||
 	    IS_ERR_OR_NULL(clk_cpu_bl_dvfs_node->vd->regulator))
 		return temp;
