@@ -229,6 +229,12 @@ struct rk_camera_device_signal_config {
 	struct v4l2_rect crop;
 };
 
+struct rk_camera_device_defrect {
+	unsigned int width;
+	unsigned int height;
+	struct v4l2_rect defrect;
+};
+
 struct rkcamera_platform_data {
     rk_camera_device_register_info_t dev;
     char dev_name[32];
@@ -268,6 +274,7 @@ struct rkcamera_platform_data {
 	int powerdown_pmu_voltage;
 	struct device_node *of_node;
 	struct rkcamera_platform_data *next_camera;/*yzm*/
+	struct rk_camera_device_defrect defrects[4];
 };
 
 struct rk29camera_platform_data {

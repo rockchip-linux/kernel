@@ -62,11 +62,10 @@ static struct rk_camera_device_signal_config dev_info[] = {
 			.width = 1280,
 			.height = 720
 		}
-	},
-	{
-		.type = RK_CAMERA_DEVICE_CVBS_NTSC
 	}
 };
+
+static struct rk_camera_device_defrect defrects[4];
 
 #define SENSOR_PREVIEW_FPS		30000		/* 30fps	*/
 #define SENSOR_FULLRES_L_FPS		15000		/* 15fps	*/
@@ -1115,26 +1114,28 @@ static void tp2825_reinit_parameter(unsigned char cvstd, struct generic_sensor *
 		SENSOR_PREVIEW_W = 960;
 		SENSOR_PREVIEW_H = 576;
 		sensor->info_priv.dev_sig_cnf.type = RK_CAMERA_DEVICE_CVBS_PAL;
-		sensor->info_priv.dev_sig_cnf.crop.left = 0;
-		sensor->info_priv.dev_sig_cnf.crop.top = 0;
 		strcpy(input_mode, "PAL");
 	} else if (CVSTD_NTSC == cvstd) {
 		SENSOR_PREVIEW_W = 960;
 		SENSOR_PREVIEW_H = 480;
 		sensor->info_priv.dev_sig_cnf.type = RK_CAMERA_DEVICE_CVBS_NTSC;
-		sensor->info_priv.dev_sig_cnf.crop.left = 0;
-		sensor->info_priv.dev_sig_cnf.crop.top = 0;
 		strcpy(input_mode, "NTSC");
 	} else {
 		SENSOR_PREVIEW_W = 1280;
 		SENSOR_PREVIEW_H = 720;
 		sensor->info_priv.dev_sig_cnf.type = RK_CAMERA_DEVICE_BT601_8;
-		sensor->info_priv.dev_sig_cnf.crop.left = 8;
-		sensor->info_priv.dev_sig_cnf.crop.top = 20;
 		strcpy(input_mode, "720P");
 	}
-	sensor->info_priv.dev_sig_cnf.crop.width = SENSOR_PREVIEW_W;
-	sensor->info_priv.dev_sig_cnf.crop.height = SENSOR_PREVIEW_H;
+	for (i = 0; i < 4; i++) {
+		if ((defrects[i].width == SENSOR_PREVIEW_W) &&
+		    (defrects[i].height == SENSOR_PREVIEW_H)) {
+			SENSOR_PREVIEW_W = defrects[i].defrect.width;
+			SENSOR_PREVIEW_H = defrects[i].defrect.height;
+			memcpy(&sensor->info_priv.dev_sig_cnf.crop,
+			       &defrects[i].defrect,
+			       sizeof(defrects[i].defrect));
+		}
+	}
 
 	/*update sensor info_priv*/
 	for (i = 0; i < num_series; i++) {
@@ -1586,6 +1587,7 @@ static void sensor_init_parameters_user(struct specific_sensor *spsensor, struct
 		}
 		new_camera = new_camera->next_camera;
 	}
+	memcpy(&defrects, &new_camera->defrects, sizeof(new_camera->defrects));
 
 	/* init irq interrupt */
 	/*SENSOR_TR("%s(%d): irq_active %d.\n", __func__, __LINE__, new_camera->io.gpio_irq);

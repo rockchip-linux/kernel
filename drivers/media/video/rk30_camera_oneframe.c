@@ -1794,13 +1794,14 @@ static void rk_camera_setup_format(struct soc_camera_device *icd, __u32 host_pix
     write_cif_reg(pcdev->base,CIF_CIF_FOR,cif_fmt_val);         /* ddl@rock-chips.com: VIP capture mode and capture format must be set before FS register set */
 
     write_cif_reg(pcdev->base,CIF_CIF_INTSTAT,0xFFFFFFFF); 
-    if((read_cif_reg(pcdev->base,CIF_CIF_CTRL) & MODE_PINGPONG)
-		||(read_cif_reg(pcdev->base,CIF_CIF_CTRL) & MODE_LINELOOP)) {
-	    BUG();	
-    } else{ /* this is one frame mode*/
-	    cif_crop = ((rect->left + dev_sig_cnf.crop.left) + ((rect->top + dev_sig_cnf.crop.top) << 16));
-	    cif_fs	= (rect->width + (rect->height <<16));
-	}
+
+	cif_crop = ((rect->left + dev_sig_cnf.crop.left) +
+		((rect->top + dev_sig_cnf.crop.top) << 16));
+	if (dev_sig_cnf.crop.width)
+		cif_fs = (dev_sig_cnf.crop.width +
+			(dev_sig_cnf.crop.height << 16));
+	else
+		cif_fs = (rect->width + (rect->height << 16));
 
 	write_cif_reg(pcdev->base,CIF_CIF_CROP, cif_crop);
 	write_cif_reg(pcdev->base,CIF_CIF_SET_SIZE, cif_fs);

@@ -246,7 +246,28 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		if (of_property_read_u32(cp, "orientation", &orientation)) {
 			printk("%s:Get %s rockchip,orientation failed!\n",__func__, cp->name);				
 		}
-		
+
+		of_property_read_u32_array(
+			cp,
+			"rockchip,camera-module-defrect0",
+			(unsigned int *)&new_camera->defrects[0],
+			6);
+		of_property_read_u32_array(
+			cp,
+			"rockchip,camera-module-defrect1",
+			(unsigned int *)&new_camera->defrects[1],
+			6);
+		of_property_read_u32_array(
+			cp,
+			"rockchip,camera-module-defrect2",
+			(unsigned int *)&new_camera->defrects[2],
+			6);
+		of_property_read_u32_array(
+			cp,
+			"rockchip,camera-module-defrect3",
+			(unsigned int *)&new_camera->defrects[3],
+			6);
+
 		strcpy(new_camera->dev.i2c_cam_info.type, name);
 		new_camera->dev.i2c_cam_info.addr = i2c_add>>1;
 		new_camera->dev.desc_info.host_desc.bus_id = RK29_CAM_PLATFORM_DEV_ID+cif_chl;
