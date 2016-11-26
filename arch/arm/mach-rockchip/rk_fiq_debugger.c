@@ -411,7 +411,9 @@ void __init rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
 
 #ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
 	if (signal_irq > 0) {
-		ret = psci_fiq_debugger_uart_irq_tf_init(irq,
+		ret = psci_fiq_debugger_request_share_memory();
+		if (!ret)
+			ret = psci_fiq_debugger_uart_irq_tf_init(irq,
 						fiq_debugger_uart_irq_tf);
 		if (ret == 0)
 			tf_fiq_sup = true;
