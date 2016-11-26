@@ -182,6 +182,16 @@ int psci_set_memory_secure(bool val)
 	return res.a0;
 }
 
+struct arm_smccc_res
+rockchip_request_share_memory(enum share_page_type_t page_type,
+			      u32 page_nums)
+{
+	struct arm_smccc_res res;
+
+	sip_fn_smc32(PSCI_SIP_SHARE_MEM, page_nums, page_type, 0, &res);
+	return res;
+}
+
 /*************************** fiq debug *****************************/
 #ifdef CONFIG_ARM64
 static u64 ft_fiq_mem_phy;
@@ -197,19 +207,26 @@ void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset)
 		     UARTDBG_CFG_OSHDL_TO_OS, NULL);
 }
 
-int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
+int psci_fiq_debugger_request_share_memory(void)
 {
 	struct arm_smccc_res res;
 
-	if (sip_version == SIP_IMPLEMENT_V2) {
-		/* request page share memory */
-		sip_fn_smc32(PSCI_SIP_SHARE_MEM, FIQ_UARTDBG_PAGE_NUMS,
-			     SHARE_PAGE_TYPE_UARTDBG, 0, &res);
-		if (IS_SIP_ERROR(res.a0)) {
-			pr_err("%s: uartdbg req share memory fail\n", __func__);
-			return res.a0;
-		}
-	}
+	/* default success */
+	if (sip_version == SIP_IMPLEMENT_V1)
+		return 0;
+
+	/* request page share memory */
+	res = rockchip_request_share_memory(SHARE_PAGE_TYPE_UARTDBG,
+					    FIQ_UARTDBG_PAGE_NUMS);
+	if (IS_SIP_ERROR(res.a0))
+		return res.a0;
+
+	return 0;
+}
+
+int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
+{
+	struct arm_smccc_res res;
 
 	psci_fiq_debugger_uart_irq_tf = callback;
 	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, irq_id,

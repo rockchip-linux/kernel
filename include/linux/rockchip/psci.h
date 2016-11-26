@@ -83,6 +83,9 @@ u32 rockchip_psci_smc_get_tf_ver(void);
 int rockchip_psci_smc_set_suspend_mode(u32 mode);
 u32 rockchip_secure_reg_read(u32 addr_phy);
 int rockchip_secure_reg_write(u32 addr_phy, u32 val);
+struct arm_smccc_res
+rockchip_request_share_memory(enum share_page_type_t page_type,
+			      u32 page_nums);
 
 #ifdef CONFIG_ARM64
 int rockchip_psci_smc_write64(u64 function_id, u64 arg0, u64 arg1, u64 arg2);
@@ -93,13 +96,13 @@ struct arm_smccc_res rockchip_secure_reg_read64(u64 addr_phy);
 int rockchip_secure_reg_write64(u64 addr_phy, u64 val);
 
 void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset);
+int psci_fiq_debugger_request_share_memory(void);
 #endif
 
 int psci_fiq_debugger_switch_cpu(u32 cpu);
 int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback);
 void psci_fiq_debugger_enable_debug(bool val);
 int psci_fiq_debugger_set_print_port(u32 port, u32 baudrate);
-
 int psci_set_memory_secure(bool val);
 #else
 static inline struct arm_smccc_res
