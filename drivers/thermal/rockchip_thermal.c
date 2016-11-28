@@ -1041,12 +1041,14 @@ int rockchip_tsadc_get_temp(int chn, int voltage)
 		return temp;
 	}
 
-	if (soc_is_rk3368)
+	if (soc_is_rk3368) {
 		temp = rk3368_rockchip_tsadc_get_temp(chn, voltage);
-	else
+	} else {
 		thermal->chip->get_temp(thermal->chip->temp_table, chn,
 					thermal->regs, (long *)&temp);
-
+		/* Convert milli degree Celsius to degree Celsius. */
+		temp /= 1000;
+	}
 	mutex_unlock(&thermal->suspend_lock);
 
 	return temp;
