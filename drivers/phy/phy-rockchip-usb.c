@@ -37,12 +37,19 @@
 #define SIDDQ_ON		BIT(13)
 #define SIDDQ_OFF		(0 << 13)
 
+struct rockchip_usb_phy;
+
+struct rockchip_usb_phy_ops {
+	int (*rk_usb_phy_power)(struct rockchip_usb_phy *phy, bool on);
+	int (*rk_usb_phy_tuning)(struct rockchip_usb_phy *phy);
+};
+
 struct rockchip_usb_phy {
 	unsigned int	reg_offset;
 	struct regmap	*reg_base;
 	struct clk	*clk;
 	struct phy	*phy;
-	int (*rk_usb_phy_power)(struct rockchip_usb_phy *phy, bool on);
+	const struct rockchip_usb_phy_ops *rockchip_phy_ops;
 };
 
 static int rk32_usb_phy_power(struct rockchip_usb_phy *phy,
@@ -73,18 +80,54 @@ static int rk322x_usb_phy_power(struct rockchip_usb_phy *phy,
 		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d5);
 }
 
+static int rk322xh_usb_phy_power(struct rockchip_usb_phy *phy,
+				 bool on)
+{
+	if (on)
+		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff0000);
+	else
+		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d1);
+}
+
+static int rk322xh_usb_phy_tuning(struct rockchip_usb_phy *phy)
+{
+	int ret = 0;
+
+	/* Open debug mode for tuning */
+	ret = regmap_write(phy->reg_base, 0x2c, 0xffff0400);
+	if (ret)
+		return ret;
+	/* Open HS pre-emphasize function to increase HS slew rate */
+	ret = regmap_write(phy->reg_base, 0x30, 0xffff851d);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static int rockchip_usb_phy_init(struct phy *_phy)
+{
+	struct rockchip_usb_phy *phy = phy_get_drvdata(_phy);
+	int ret = 0;
+
+	if (phy->rockchip_phy_ops->rk_usb_phy_tuning)
+		ret = phy->rockchip_phy_ops->rk_usb_phy_tuning(phy);
+
+	return ret;
+}
+
 static int rockchip_usb_phy_power_off(struct phy *_phy)
 {
 	struct rockchip_usb_phy *phy = phy_get_drvdata(_phy);
 	int ret = 0;
 
-	ret = phy->rk_usb_phy_power(phy, 0);
-	if (ret)
-		return ret;
+	if (phy->rockchip_phy_ops->rk_usb_phy_power) {
+		ret = phy->rockchip_phy_ops->rk_usb_phy_power(phy, 0);
+		if (ret)
+			return ret;
+	}
 
 	clk_disable_unprepare(phy->clk);
-	if (ret)
-		return ret;
 
 	return 0;
 }
@@ -99,31 +142,55 @@ static int rockchip_usb_phy_power_on(struct phy *_phy)
 		return ret;
 
 	/* Power up usb phy analog blocks by set siddq 0 */
-	ret = phy->rk_usb_phy_power(phy, 1);
-	if (ret)
-		return ret;
+	if (phy->rockchip_phy_ops->rk_usb_phy_power) {
+		ret = phy->rockchip_phy_ops->rk_usb_phy_power(phy, 1);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
 
 static struct phy_ops ops = {
+	.init		= rockchip_usb_phy_init,
 	.power_on	= rockchip_usb_phy_power_on,
 	.power_off	= rockchip_usb_phy_power_off,
 	.owner		= THIS_MODULE,
 };
 
+static const struct rockchip_usb_phy_ops rk32_usb_phy_ops = {
+	.rk_usb_phy_power	= rk32_usb_phy_power,
+};
+
+static const struct rockchip_usb_phy_ops rk33_usb_phy_ops = {
+	.rk_usb_phy_power	= rk33_usb_phy_power,
+};
+
+static const struct rockchip_usb_phy_ops rk322x_usb_phy_ops = {
+	.rk_usb_phy_power	= rk322x_usb_phy_power,
+};
+
+static const struct rockchip_usb_phy_ops rk322xh_usb_phy_ops = {
+	.rk_usb_phy_power	= rk322xh_usb_phy_power,
+	.rk_usb_phy_tuning	= rk322xh_usb_phy_tuning,
+};
+
 static const struct of_device_id rockchip_usb_phy_dt_ids[] = {
 	{
 		.compatible = "rockchip,rk3288-usb-phy",
-		.data = (void *)rk32_usb_phy_power
+		.data = (void *)&rk32_usb_phy_ops,
 	},
 	{
 		.compatible = "rockchip,rk3368-usb-phy",
-		.data = (void *)rk33_usb_phy_power
+		.data = (void *)&rk33_usb_phy_ops,
 	},
 	{
 		.compatible = "rockchip,rk322x-usb-phy",
-		.data = (void *)rk322x_usb_phy_power
+		.data = (void *)&rk322x_usb_phy_ops,
+	},
+	{
+		.compatible = "rockchip,rk322xh-usb-phy",
+		.data = (void *)&rk322xh_usb_phy_ops,
 	},
 	{}
 };
@@ -136,8 +203,8 @@ static int rockchip_usb_phy_probe(struct platform_device *pdev)
 	struct device_node *child;
 	struct regmap *grf;
 	const struct of_device_id *match;
+	const struct rockchip_usb_phy_ops *rockchip_phy_ops;
 	unsigned int reg_offset;
-	int (*rk_usb_phy_power)(struct rockchip_usb_phy *phy, bool siddq);
 
 	if (of_property_read_bool(dev->of_node, "rockchip,grf"))
 		grf = syscon_regmap_lookup_by_phandle(dev->of_node,
@@ -152,7 +219,7 @@ static int rockchip_usb_phy_probe(struct platform_device *pdev)
 
 	match = of_match_device(rockchip_usb_phy_dt_ids, &pdev->dev);
 	if (match && match->data)
-		rk_usb_phy_power = match->data;
+		rockchip_phy_ops = match->data;
 	else
 		return PTR_ERR(match);
 
@@ -167,7 +234,7 @@ static int rockchip_usb_phy_probe(struct platform_device *pdev)
 			return -EINVAL;
 		}
 
-		rk_phy->rk_usb_phy_power = rk_usb_phy_power;
+		rk_phy->rockchip_phy_ops = rockchip_phy_ops;
 		rk_phy->reg_offset = reg_offset;
 		rk_phy->reg_base = grf;
 
