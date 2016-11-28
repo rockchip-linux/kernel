@@ -1,0 +1,13 @@
+if ARCH_ROCKCHIP || COMPILE_TEST
+
+#
+# Rockchip Soc drivers
+#
+config ROCKCHIP_VENDOR_STORAGE
+	bool "Rockchip vendor storage support"
+	default y
+	help
+	  Say y here to enable vendor storage support.
+	  Vendor storage is used for stored SN, MAC, BT ADDR etc.
+
+endif
