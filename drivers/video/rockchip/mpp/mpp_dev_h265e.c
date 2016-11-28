@@ -1943,7 +1943,7 @@ static int rockchip_mpp_h265e_probe(struct rockchip_mpp_dev *mpp)
 		dev_err(mpp->dev, "failed on clk_get aclk\n");
 		goto fail;
 	}
-	enc->pclk = devm_clk_get(mpp->dev, "pclk_venc");
+	enc->pclk = devm_clk_get(mpp->dev, "pclk_h265");
 	if (IS_ERR_OR_NULL(enc->pclk)) {
 		dev_err(mpp->dev, "failed on clk_get pclk\n");
 		goto fail;
