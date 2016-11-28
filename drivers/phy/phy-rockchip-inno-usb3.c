@@ -720,11 +720,11 @@ static int rk322xh_u3phy_tuning(struct rockchip_u3phy *u3phy,
 				struct rockchip_u3phy_port *u3phy_port)
 {
 	if (u3phy_port->type == U3PHY_TYPE_UTMI) {
-		/* HS eye height tuning 3'b111 */
-		writel(0x1c, u3phy_port->base + 0x124);
+		/* 3'b111: always enable pre-emphasis */
+		writel(0x0f, u3phy_port->base + 0x030);
 
-		/* 45ohm ODT tuning to 5'b11000 */
-		writel(0x18, u3phy_port->base + 0x11c);
+		/* 3'b000: pre_emphasize strength configure to the weakest */
+		writel(0x41, u3phy_port->base + 0x040);
 	} else if (u3phy_port->type == U3PHY_TYPE_PIPE) {
 		if (u3phy_port->refclk_25m_quirk) {
 			dev_dbg(u3phy->dev, "switch to 25m refclk\n");
