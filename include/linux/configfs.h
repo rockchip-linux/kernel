@@ -178,7 +178,7 @@ static struct configfs_attribute _pfx##attr_##_name = {	\
 struct configfs_item_operations {
 	void (*release)(struct config_item *);
 	int (*allow_link)(struct config_item *src, struct config_item *target);
-	int (*drop_link)(struct config_item *src, struct config_item *target);
+	void (*drop_link)(struct config_item *src, struct config_item *target);
 };
 
 struct configfs_group_operations {
