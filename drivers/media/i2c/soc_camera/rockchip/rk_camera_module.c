@@ -1258,6 +1258,7 @@ int pltfrm_camera_module_set_pm_state(
 				regulator_disable(regulator->regulator);
 			}
 		}
+		msleep(70);
 	}
 
 	return 0;
