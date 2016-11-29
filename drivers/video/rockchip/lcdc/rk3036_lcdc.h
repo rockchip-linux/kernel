@@ -494,7 +494,7 @@ struct lcdc_device {
 	u8 atv_layer_cnt;		/*active layer counter, when
 					  atv_layer_cnt = 0,disable lcdc*/
 
-	unsigned int		irq;
+	int		irq;
 
 	struct clk		*pd;	/*lcdc power domain*/
 	struct clk		*hclk;	/*lcdc AHP clk*/
