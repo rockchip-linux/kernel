@@ -544,6 +544,11 @@
 
 #define RK322XH_PLL_NORM_SET(shift)	CRU_W_MSK_SETBITS(1, shift, 1)
 #define RK322XH_PLL_SLOWM_SET(shift)	CRU_W_MSK_SETBITS(0, shift, 1)
+#define _RK322XH_PLL_MODE_GET(offset, shift)	\
+	((cru_readl(offset) >> (shift)) & 0x1)
+
+#define _RK322XH_PLL_MODE_IS_NORM(offset, shift)	\
+	(_RK322XH_PLL_MODE_GET(offset, shift) == 1)
 
 #define _RK322XH_APLL_SET_CLKS(_mhz, _refdiv, _fbdiv, _postdiv1, _postdiv2, _dsmpd, _frac, \
 		pclk_dbg_div, aclk_core_div, flag) \

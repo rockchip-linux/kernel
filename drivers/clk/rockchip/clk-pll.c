@@ -1844,11 +1844,18 @@ unsigned long parent_rate)
 	struct clk_pll *pll = to_clk_pll(hw);
 	unsigned long rate;
 	unsigned int dsmp = 0;
-	u64 rate64 = 0, frac_rate64 = 0;
+	u64 rate64 = 0, frac_rate64 = 0, pll_mode;
 
 	dsmp = RK3036_PLL_GET_DSMPD(cru_readl(pll->reg + RK3188_PLL_CON(1)));
 
-	if (_RK3188_PLL_MODE_IS_NORM(pll->mode_offset, pll->mode_shift)) {
+	if (SOC_IS_RK322XH)
+		pll_mode = _RK322XH_PLL_MODE_IS_NORM(pll->mode_offset,
+						     pll->mode_shift);
+	else
+		pll_mode = _RK3188_PLL_MODE_IS_NORM(pll->mode_offset,
+						    pll->mode_shift);
+
+	if (pll_mode) {
 		u32 pll_con0 = cru_readl(pll->reg + RK3188_PLL_CON(0));
 		u32 pll_con1 = cru_readl(pll->reg + RK3188_PLL_CON(1));
 		u32 pll_con2 = cru_readl(pll->reg + RK3188_PLL_CON(2));
