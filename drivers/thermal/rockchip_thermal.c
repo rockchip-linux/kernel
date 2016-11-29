@@ -1003,8 +1003,8 @@ static int rk3368_rockchip_tsadc_get_temp(int chn, int voltage)
 		    ((tsadc_data * voltage - data_adjust * 1000000) +
 		     500000) / 1000000;
 		rockchip_code_to_temp(tsadc->temp_table, code_temp, &out_temp);
-		out_temp = out_temp / 1000;
-		thermal->cpu_temp = (int)out_temp;
+		temp = (int)out_temp / 1000;
+		thermal->cpu_temp = temp;
 		if (thermal->logout)
 			printk("cpu code temp:[%d, %d], voltage: %d\n",
 			       tsadc_data, temp, voltage);
