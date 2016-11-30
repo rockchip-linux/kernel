@@ -91,6 +91,7 @@ static unsigned long cpu_l_safe_rate;
 static struct clk *aclk_cci;
 static unsigned long cci_rate;
 static unsigned int cpu_bl_freq[MAX_CLUSTERS];
+static struct cpufreq_policy *cur_policy[MAX_CLUSTERS];
 
 #ifdef CONFIG_ROCKCHIP_CPUQUIET
 static void rockchip_bl_balanced_cpufreq_transition(unsigned int cluster,
@@ -243,14 +244,10 @@ static int rockchip_bl_cpufreq_scale_rate_for_dvfs(struct clk *clk,
 	int ret;
 	struct cpufreq_freqs freqs;
 	struct cpufreq_policy *policy;
-	u32 cur_cluster, cpu;
+	u32 cur_cluster;
 
 	cur_cluster = clk_node_get_cluster_id(clk);
-	cpu = cpumask_first_and(cluster_policy_mask[cur_cluster],
-		cpu_online_mask);
-	if (cpu >= nr_cpu_ids)
-		return -EINVAL;
-	policy = cpufreq_cpu_get(cpu);
+	policy = cur_policy[cur_cluster];
 	if (!policy)
 		return -EINVAL;
 
@@ -273,7 +270,6 @@ static int rockchip_bl_cpufreq_scale_rate_for_dvfs(struct clk *clk,
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
 	cpu_last_rate[cur_cluster] = rate;
-	cpufreq_cpu_put(policy);
 	return ret;
 }
 
@@ -380,6 +376,16 @@ static int rockchip_bl_cpufreq_init(struct cpufreq_policy *policy)
 static int rockchip_bl_cpufreq_exit(struct cpufreq_policy *policy)
 {
 	u32 cur_cluster = cpu_to_cluster(policy->cpu);
+	int ret;
+
+	ret = __cpufreq_driver_target(policy, policy->min,
+				      CPUFREQ_RELATION_H);
+	if (ret)
+		pr_err("unable to set cluster%d suspend-freq: %u\n",
+		       cur_cluster, policy->min);
+	else
+		pr_debug("set cluster%d suspend-freq: %u\n",
+			 cur_cluster, policy->min);
 
 	if (policy->cpu == 0) {
 		cpufreq_unregister_notifier(&notifier_policy_block,
@@ -471,6 +477,8 @@ static int rockchip_bl_cpufreq_target(struct cpufreq_policy *policy,
 	}
 
 	mutex_lock(&cpufreq_mutex);
+
+	cur_policy[cur_cluster] = policy;
 
 	is_private = relation & CPUFREQ_PRIVATE;
 	relation &= ~CPUFREQ_PRIVATE;
