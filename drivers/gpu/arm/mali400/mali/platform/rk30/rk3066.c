@@ -38,7 +38,6 @@
 #include <linux/mali/mali_utgard.h>
 #include "mali_kernel_common.h"
 #include "mali_platform.h"
-#include "arm_core_scaling.h"
 
 #ifdef CONFIG_PM_RUNTIME
 static int mali_runtime_suspend(struct device *device)
@@ -219,20 +218,8 @@ static void mali_platform_device_add_config(struct platform_device *pdev)
 int mali_platform_device_init(struct platform_device *pdev)
 {
 	int err = 0;
-	int num_pp_cores = 0;
 
 	MALI_DEBUG_PRINT(2, ("mali_platform_device_register() called\n"));
-
-	if (cpu_is_rk312x())
-		num_pp_cores = 2;
-	else if (cpu_is_rk3036())
-		num_pp_cores = 1;
-	else if (cpu_is_rk3188())
-		num_pp_cores = 4;
-	else if (cpu_is_rk322x())
-		num_pp_cores = 2;
-	else if (of_machine_is_compatible("rockchip,rk3228h"))
-		num_pp_cores = 2;
 
 	mali_platform_device_add_config(pdev);
 
@@ -250,8 +237,6 @@ int mali_platform_device_init(struct platform_device *pdev)
 			pm_runtime_use_autosuspend(&(pdev->dev));
 			pm_runtime_enable(&(pdev->dev));
 #endif
-			MALI_DEBUG_ASSERT(0 < num_pp_cores);
-			mali_core_scaling_init(num_pp_cores);
 			return 0;
 		}
 	}
