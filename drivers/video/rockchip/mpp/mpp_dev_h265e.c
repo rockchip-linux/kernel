@@ -56,7 +56,7 @@ static u32 w_bs_size;
 #define DEBUG_H265E_INFO				0x00100000
 #define DEBUG_H265E_ENCODE_ONE_FRAME	0x00200000
 #define H265E_POWER_SAVE 0
-#define H265E_CLK 0
+#define H265E_CLK 1
 #ifdef CONFIG_MFD_SYSCON
 #define H265E_AXI_STATUS 1
 #endif
@@ -1712,6 +1712,10 @@ static void rockchip_mpp_h265e_enable_clk(struct rockchip_mpp_dev *mpp)
 		clk_prepare_enable(enc->core);
 	if (enc->dsp)
 		clk_prepare_enable(enc->dsp);
+#if H265E_AXI_STATUS
+	if (enc->aclk_axi2sram)
+		clk_prepare_enable(enc->aclk_axi2sram);
+#endif
 }
 
 static void rockchip_mpp_h265e_disable_clk(struct rockchip_mpp_dev *mpp)
@@ -1727,6 +1731,10 @@ static void rockchip_mpp_h265e_disable_clk(struct rockchip_mpp_dev *mpp)
 		clk_disable_unprepare(enc->pclk);
 	if (enc->aclk)
 		clk_disable_unprepare(enc->aclk);
+#if H265E_AXI_STATUS
+	if (enc->aclk_axi2sram)
+		clk_disable_unprepare(enc->aclk_axi2sram);
+#endif
 }
 
 static void rockchip_mpp_h265e_power_on(struct rockchip_mpp_dev *mpp)
@@ -1938,26 +1946,38 @@ static int rockchip_mpp_h265e_probe(struct rockchip_mpp_dev *mpp)
 	atomic_set(&enc->is_init, 0);
 	mutex_init(&enc->lock);
 #if H265E_CLK
-	enc->aclk = devm_clk_get(mpp->dev, "aclk_venc");
+	enc->aclk = devm_clk_get(mpp->dev, "aclk_h265");
 	if (IS_ERR_OR_NULL(enc->aclk)) {
 		dev_err(mpp->dev, "failed on clk_get aclk\n");
+		enc->aclk = NULL;
 		goto fail;
 	}
 	enc->pclk = devm_clk_get(mpp->dev, "pclk_h265");
 	if (IS_ERR_OR_NULL(enc->pclk)) {
 		dev_err(mpp->dev, "failed on clk_get pclk\n");
+		enc->pclk = NULL;
 		goto fail;
 	}
 	enc->core = devm_clk_get(mpp->dev, "clk_core");
 	if (IS_ERR_OR_NULL(enc->core)) {
 		dev_err(mpp->dev, "failed on clk_get core\n");
+		enc->core = NULL;
 		goto fail;
 	}
 	enc->dsp = devm_clk_get(mpp->dev, "clk_dsp");
 	if (IS_ERR_OR_NULL(enc->dsp)) {
 		dev_err(mpp->dev, "failed on clk_get dsp\n");
+		enc->dsp = NULL;
 		goto fail;
 	}
+	#if H265E_AXI_STATUS
+	enc->aclk_axi2sram = devm_clk_get(mpp->dev, "aclk_axi2sram");
+	if (IS_ERR_OR_NULL(enc->aclk_axi2sram)) {
+		dev_err(mpp->dev, "failed on clk_get aclk_axi2sram\n");
+		enc->aclk_axi2sram = NULL;
+		goto fail;
+	}
+	#endif
 #endif
 	if (of_property_read_bool(np, "mode_ctrl")) {
 		of_property_read_u32(np, "mode_bit", &enc->mode_bit);

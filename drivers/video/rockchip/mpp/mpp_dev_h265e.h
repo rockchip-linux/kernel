@@ -131,6 +131,7 @@ struct rockchip_h265e_dev {
 	struct mpp_h265e_buffer firmware;
 
 	struct clk *aclk;
+	struct clk *aclk_axi2sram;
 	struct clk *pclk;
 	struct clk *core;
 	struct clk *dsp;
