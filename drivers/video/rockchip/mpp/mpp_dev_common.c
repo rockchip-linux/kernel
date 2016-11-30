@@ -633,11 +633,11 @@ static int mpp_dev_release(struct inode *inode, struct file *filp)
 	list_del_init(&session->list_session);
 	mpp_dev_session_clear(mpp, session);
 	filp->private_data = NULL;
+	mpp_srv_unlock(mpp->srv);
 	if (mpp->ops->release)
 		mpp->ops->release(session);
 	else
 		kfree(session);
-	mpp_srv_unlock(mpp->srv);
 
 	pr_debug("dev closed\n");
 	mpp_debug_leave();
