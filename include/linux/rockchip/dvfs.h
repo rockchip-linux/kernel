@@ -146,6 +146,7 @@ struct dvfs_node {
 	unsigned int        target_temp;
 	unsigned int        temp_limit_enable;
 	unsigned int	    min_temp_limit;
+	unsigned int	    max_temp_limit;
 	int                 old_temp;
 	struct clk 		*clk;
 	struct pd_node		*pd;

@@ -1336,6 +1336,11 @@ static void dvfs_temp_limit_normal(struct dvfs_node *dvfs_node, int temp)
 					dvfs_node->min_temp_limit)
 					dvfs_node->temp_limit_rate =
 					dvfs_node->min_temp_limit;
+				if (dvfs_node->max_temp_limit &&
+					(dvfs_node->temp_limit_rate >
+					dvfs_node->max_temp_limit))
+					dvfs_node->temp_limit_rate =
+					dvfs_node->max_temp_limit;
 				dvfs_clk_set_rate(dvfs_node,
 						  dvfs_node->last_set_rate);
 				dvfs_temp_limit_4k();
@@ -2418,6 +2423,9 @@ static int dvfs_node_parse_dt(struct device_node *np,
 		of_property_read_u32_index(np, "min_temp_limit",
 					   0, &dvfs_node->min_temp_limit);
 		dvfs_node->min_temp_limit *= 1000;
+		of_property_read_u32_index(np, "max_temp_limit",
+					   0, &dvfs_node->max_temp_limit);
+		dvfs_node->max_temp_limit *= 1000;
 		of_property_read_u32_index(np, "target-temp",
 					   0, &dvfs_node->target_temp);
 		pr_info("target-temp:%d\n", dvfs_node->target_temp);
