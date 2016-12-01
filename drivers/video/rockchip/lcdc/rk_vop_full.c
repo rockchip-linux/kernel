@@ -919,7 +919,7 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 	struct rk_lcdc_win *win;
 	int i = 0, win_csc = 0;
 	int post_conv = 0, post_conv_mode = 0, pre_conv = 0, pre_conv_mode = 0;
-	int overlay_mode, force_rgb_overlay = 0;
+	int overlay_mode;
 	u64 val = 0;
 	u32 win_state = 0;
 	int output_color = dev_drv->output_color;
@@ -942,7 +942,6 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 		     (win_csc == COLOR_YCBCR_BT2020)) &&
 		    (output_color != COLOR_YCBCR_BT2020 &&
 		     output_color != COLOR_RGB_BT2020)) {
-			force_rgb_overlay = 1;
 			vop_load_sdr2hdr_table(vop_dev, SDR2HDR_FOR_BT2020);
 			/* enable bt2020->bt709 */
 			if (win->id == 0) {
@@ -956,7 +955,6 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 		     (win_csc != COLOR_YCBCR_BT2020)) &&
 		    (output_color == COLOR_YCBCR_BT2020 ||
 		     output_color == COLOR_RGB_BT2020)) {
-			force_rgb_overlay = 1;
 			vop_load_sdr2hdr_table(vop_dev, SDR2HDR_FOR_BT2020);
 			/* enable bt709->bt2020 */
 			if (win->id == 0) {
@@ -967,7 +965,6 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 				pre_conv_mode &= ~(1 << win->id);
 			}
 		} else {
-			force_rgb_overlay = 0;
 			if (win->id == 0) {
 				post_conv = 0;
 				post_conv_mode = 0;
@@ -977,7 +974,7 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 		}
 	}
 
-	if (force_rgb_overlay) {
+	if (post_conv) {
 		overlay_mode = VOP_RGB_DOMAIN;
 	} else {
 		if (output_color == COLOR_RGB)
@@ -1207,11 +1204,12 @@ static int vop_clr_key_cfg(struct rk_lcdc_driver *dev_drv)
 	return 0;
 }
 
-static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
+static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id,
+			 int alpha_id, int limit)
 {
 	struct vop_device *vop_dev =
 	    container_of(dev_drv, struct vop_device, driver);
-	struct rk_lcdc_win *win = dev_drv->win[win_id];
+	struct rk_lcdc_win *win = dev_drv->win[alpha_id];
 	struct alpha_config alpha_config;
 	u64 val;
 	int ppixel_alpha = 0, global_alpha = 0, i;
@@ -1226,7 +1224,8 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 				 (win->area[i].format == ABGR888)) ? 1 : 0;
 	}
 
-	global_alpha = (win->g_alpha_val == 0) ? 0 : 1;
+	global_alpha = ((win->g_alpha_val == 0) ||
+			(win->g_alpha_val == 255)) ? 0 : 1;
 
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
 		if (!dev_drv->win[i]->state)
@@ -1240,7 +1239,7 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 	 */
 	if (i == dev_drv->lcdc_win_num)
 		ppixel_alpha = 0;
-	alpha_config.src_global_alpha_val = win->g_alpha_val;
+	alpha_config.src_global_alpha_val = dev_drv->win[win_id]->g_alpha_val;
 	win->alpha_mode = AB_SRC_OVER;
 
 	switch (win->alpha_mode) {
@@ -1314,14 +1313,31 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 		pr_err("alpha mode error\n");
 		break;
 	}
-	if ((ppixel_alpha == 1) && (global_alpha == 1))
-		alpha_config.src_global_alpha_mode = AA_PER_PIX_GLOBAL;
-	else if (ppixel_alpha == 1)
+	if (ppixel_alpha && global_alpha) {
+		if (dev_drv->pre_overlay && dev_drv->win[win_id]->z_order &&
+		    limit) {
+			global_alpha = 0;
+			alpha_config.src_global_alpha_mode = AA_PER_PIX;
+		} else {
+			alpha_config.src_global_alpha_mode = AA_PER_PIX_GLOBAL;
+		}
+	} else if (ppixel_alpha == 1) {
 		alpha_config.src_global_alpha_mode = AA_PER_PIX;
-	else if (global_alpha == 1)
-		alpha_config.src_global_alpha_mode = AA_GLOBAL;
-	else
+	} else if (global_alpha == 1) {
+		if (dev_drv->pre_overlay && dev_drv->win[win_id]->z_order) {
+			alpha_config.src_color_mode = AA_SRC_NO_PRE_MUL;
+			alpha_config.src_factor_mode = AA_ONE;
+			if (win_id != alpha_id)
+				alpha_config.src_global_alpha_mode = AA_PER_PIX;
+			else
+				alpha_config.src_global_alpha_mode = AA_GLOBAL;
+		} else {
+			alpha_config.src_global_alpha_mode = AA_GLOBAL;
+		}
+	} else {
 		alpha_en = 0;
+	}
+
 	alpha_config.src_alpha_mode = AA_STRAIGHT;
 	alpha_config.src_alpha_cal_m0 = AA_NO_SAT;
 
@@ -1359,7 +1375,7 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 
 	vop_msk_reg(vop_dev, src_alpha_ctl, val);
 
-	return 0;
+	return ppixel_alpha || global_alpha;
 }
 
 static int vop_axi_gather_cfg(struct vop_device *vop_dev,
@@ -1372,6 +1388,7 @@ static int vop_axi_gather_cfg(struct vop_device *vop_dev,
 	switch (win->area[0].format) {
 	case ARGB888:
 	case XBGR888:
+	case XRGB888:
 	case ABGR888:
 		yrgb_gather_num = 3;
 		break;
@@ -2696,6 +2713,7 @@ static int win_full_set_par(struct vop_device *vop_dev,
 			win->area[0].fbdc_fmt_cfg = 0x3a;
 			break;
 		case ARGB888:
+		case XRGB888:
 			fmt_cfg = 0;
 			swap_rb = 0;
 			win->fmt_10 = 0;
@@ -3511,7 +3529,7 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 {
 	struct vop_device *vop_dev =
 	    container_of(dev_drv, struct vop_device, driver);
-	int i;
+	int i, layer2_alpha_en = 0;
 	u64 val;
 	struct rk_lcdc_win *win = NULL;
 
@@ -3519,9 +3537,32 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 	vop_post_cfg(dev_drv);
 
 	vop_msk_reg(vop_dev, SYS_CTRL, V_VOP_STANDBY_EN(vop_dev->standby));
+
+	vop_alpha_cfg(dev_drv, 0, 0, 0);
+	if (dev_drv->pre_overlay &&
+	    dev_drv->win[2]->state && dev_drv->win[1]->state) {
+		if (dev_drv->win[2]->z_order > dev_drv->win[1]->z_order) {
+			layer2_alpha_en = vop_alpha_cfg(dev_drv, 2, 2, 1);
+			if (layer2_alpha_en)
+				vop_alpha_cfg(dev_drv, 1, 2, 1);
+			else
+				vop_alpha_cfg(dev_drv, 1, 1, 1);
+		} else {
+			layer2_alpha_en = vop_alpha_cfg(dev_drv, 1, 1, 1);
+			if (layer2_alpha_en)
+				vop_alpha_cfg(dev_drv, 2, 1, 1);
+			else
+				vop_alpha_cfg(dev_drv, 2, 2, 1);
+		}
+	} else {
+		vop_alpha_cfg(dev_drv, 1, 1, 0);
+		vop_alpha_cfg(dev_drv, 2, 2, 0);
+	}
+	vop_alpha_cfg(dev_drv, 3, 3, 0);
+	vop_alpha_cfg(dev_drv, 4, 4, 0);
+
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
 		win = dev_drv->win[i];
-		vop_alpha_cfg(dev_drv, i);
 		if ((win->state == 0) && (win->last_state == 1)) {
 			switch (win->id) {
 			case 0:
