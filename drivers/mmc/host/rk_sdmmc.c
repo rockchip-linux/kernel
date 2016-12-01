@@ -1387,6 +1387,17 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		regs &= ~((0x1 << slot->id) << 16);
 	}
 
+	/* SDR/HS200 mode set */
+	if (ios->timing == MMC_TIMING_MMC_HS200) {
+		if (priv->ctrl_type == DW_MCI_TYPE_RK322XH)
+			cru_writel(((0x3 << 1) << 16) | (0x1 << 1),
+				   RK322XH_CRU_EMMC_CON0);
+	} else if (ios->timing == MMC_TIMING_UHS_SDR104) {
+		if (priv->ctrl_type == DW_MCI_TYPE_RK322XH)
+			cru_writel(((0x3 << 1) << 16) | (0x1 << 1),
+				   RK322XH_CRU_SDIO_CON0);
+	}
+
 	mci_writel(slot->host, UHS_REG, regs);
 	slot->host->timing = ios->timing;
 
