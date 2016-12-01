@@ -3061,7 +3061,6 @@ static void dw_mci_work_routine_card(struct work_struct *work)
 					}
 				}
 
-				dw_mci_ctrl_all_reset(host);
 				/* Stop edma when rountine card triggered */
 				if (cpu_is_rk3036() || cpu_is_rk312x())
 					if (host->dma_ops && host->dma_ops->stop)
