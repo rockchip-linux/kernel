@@ -211,6 +211,7 @@ struct rockchip_mpp_dev {
 	atomic_t power_off_cnt;
 	atomic_t total_running;
 	atomic_t enabled;
+	atomic_t reset_request;
 };
 
 /**
