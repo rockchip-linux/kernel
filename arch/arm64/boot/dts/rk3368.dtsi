@@ -695,6 +695,7 @@
 			<&clk_gates19 0>,/*hclk_peri_axi_matrix*/
 			<&clk_gates20 7>,/*hclk_peri_ahb_arbi*/
 			<&clk_gates19 1>,/*pclk_peri_axi_matrix*/
+			<&clk_gates20 2>,/* hclk_otg0_pmu */
 
 			<&clk_gates24 0>, /* g_clk_timer0 */
 			<&clk_gates24 1>, /* g_clk_timer1 */
