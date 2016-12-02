@@ -25,8 +25,11 @@ Required properties (port (child) node):
  - reg : address and length of the register set for the port.
  - #phy-cells : must be 0. See ./phy-bindings.txt for details.
 
-Optional properties:
- none
+Optional properties for utmi node:
+ - rockchip,odt-val-tuning : specify 45ohm ODT tuning value.
+
+Optional properties for pipe node:
+ - rockchip,refclk-25m-quirk : phy reference clock changed to 25m quirk.
 
 Example:
 

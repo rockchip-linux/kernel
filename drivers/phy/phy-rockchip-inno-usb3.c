@@ -86,22 +86,25 @@ struct rockchip_u3phy_grfcfg {
 	struct u3phy_reg	um_hstdct;
 };
 
+/**
+ * struct rockchip_u3phy_apbcfg: usb3-phy apb configuration.
+ * @u2_pre_emp: usb2-phy pre-emphasis tuning.
+ * @u2_pre_emp_sth: usb2-phy pre-emphasis strength tuning.
+ * @u2_odt_tuning: usb2-phy odt 45ohm tuning.
+ */
 struct rockchip_u3phy_apbcfg {
-	struct u3phy_reg	u2tx_drv_strength;
-
-	struct u3phy_reg	u3tx_bias_current;
-	struct u3phy_reg	u3tx_pre_emphasis;
-	struct u3phy_reg	u3tx_drv_strength;
-	struct u3phy_reg	u3tx_pll_factor;
+	unsigned int		u2_pre_emp;
+	unsigned int		u2_pre_emp_sth;
+	unsigned int		u2_odt_tuning;
 };
 
 struct rockchip_u3phy_cfg {
 	unsigned int	reg;
 	const struct rockchip_u3phy_grfcfg	grfcfg;
-	const struct rockchip_u3phy_apbcfg	apbcfg;
 
 	int (*phy_tuning)(struct rockchip_u3phy *,
-			  struct rockchip_u3phy_port *);
+			  struct rockchip_u3phy_port *,
+			  struct device_node *);
 };
 
 struct rockchip_u3phy_port {
@@ -121,6 +124,7 @@ struct rockchip_u3phy {
 	int		um_ls_irq;
 	struct clk	*clks[U3PHY_MAX_CLKS];
 	struct reset_control *rsts[U3PHY_RESET_MAX];
+	struct rockchip_u3phy_apbcfg	apbcfg;
 	const struct rockchip_u3phy_cfg	*cfgs;
 	struct rockchip_u3phy_port	ports[U3PHY_PORT_NUM];
 };
@@ -588,10 +592,9 @@ static int rockchip_u3phy_port_init(struct rockchip_u3phy *u3phy,
 
 	if (!of_node_cmp(child_np->name, "pipe")) {
 		u3phy_port->type = U3PHY_TYPE_PIPE;
-
-		if (of_property_read_bool(child_np, "refclk-25m-quirk"))
-			u3phy_port->refclk_25m_quirk = true;
-
+		u3phy_port->refclk_25m_quirk =
+			of_property_read_bool(child_np,
+					      "rockchip,refclk-25m-quirk");
 	} else {
 		u3phy_port->type = U3PHY_TYPE_UTMI;
 		INIT_DELAYED_WORK(&u3phy_port->um_sm_work,
@@ -609,7 +612,7 @@ static int rockchip_u3phy_port_init(struct rockchip_u3phy *u3phy,
 
 	if (u3phy->cfgs->phy_tuning) {
 		dev_dbg(u3phy->dev, "do u3phy tuning\n");
-		ret = u3phy->cfgs->phy_tuning(u3phy, u3phy_port);
+		ret = u3phy->cfgs->phy_tuning(u3phy, u3phy_port, child_np);
 		if (ret)
 			return ret;
 	}
@@ -717,14 +720,34 @@ put_child:
 }
 
 static int rk322xh_u3phy_tuning(struct rockchip_u3phy *u3phy,
-				struct rockchip_u3phy_port *u3phy_port)
+				struct rockchip_u3phy_port *u3phy_port,
+				struct device_node *child_np)
 {
 	if (u3phy_port->type == U3PHY_TYPE_UTMI) {
-		/* 3'b111: always enable pre-emphasis */
-		writel(0x0f, u3phy_port->base + 0x030);
+		/*
+		 * For rk322xh SoC, pre-emphasis and pre-emphasis strength must
+		 * be written as one fixed value as below.
+		 *
+		 * Dissimilarly, the odt 45ohm value should be flexibly tuninged
+		 * for the different boards to adjust HS eye height, so its
+		 * value can be assigned in DT in code design.
+		 */
 
-		/* 3'b000: pre_emphasize strength configure to the weakest */
-		writel(0x41, u3phy_port->base + 0x040);
+		/* {bits[2:0]=111}: always enable pre-emphasis */
+		u3phy->apbcfg.u2_pre_emp = 0x0f;
+
+		/* {bits[5:3]=000}: pre-emphasis strength as the weakest */
+		u3phy->apbcfg.u2_pre_emp_sth = 0x41;
+
+		/* {bits[4:0]=10101}: odt 45ohm tuning */
+		u3phy->apbcfg.u2_odt_tuning = 0xb5;
+		/* optional override of the odt 45ohm tuning */
+		of_property_read_u32(child_np, "rockchip,odt-val-tuning",
+				     &u3phy->apbcfg.u2_odt_tuning);
+
+		writel(u3phy->apbcfg.u2_pre_emp, u3phy_port->base + 0x030);
+		writel(u3phy->apbcfg.u2_pre_emp_sth, u3phy_port->base + 0x040);
+		writel(u3phy->apbcfg.u2_odt_tuning, u3phy_port->base + 0x11c);
 	} else if (u3phy_port->type == U3PHY_TYPE_PIPE) {
 		if (u3phy_port->refclk_25m_quirk) {
 			dev_dbg(u3phy->dev, "switch to 25m refclk\n");
