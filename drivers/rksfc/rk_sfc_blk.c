@@ -34,8 +34,10 @@
 #include "rk_sfc_blk.h"
 #include "rk_sfc_api.h"
 
+#define FW_HRADER_PT_NAME		("fw_header_p")
 static struct sfc_part disk_array[MAX_PART_COUNT];
 static int g_max_part_num = 4;
+static struct sfc_part fw_header_p;
 
 #define PART_READONLY 0x85
 #define PART_WRITEONLY 0x86
@@ -74,6 +76,12 @@ unsigned int rk_partition_init(struct sfc_part *part)
 		}
 	}
 	kfree(g_part);
+
+	memset(&fw_header_p, 0x0, sizeof(fw_header_p));
+	memcpy(fw_header_p.name, FW_HRADER_PT_NAME, strlen(FW_HRADER_PT_NAME));
+	fw_header_p.offset = 0x0;
+	fw_header_p.size = 0x4;
+	fw_header_p.type = 0;
 	return part_num;
 }
 
@@ -530,6 +538,7 @@ static int sfc_blk_register(struct sfc_blk_ops *sfc_ops)
 		sfc_add_dev(sfc_ops, &disk_array[i]);
 	}
 
+	sfc_add_dev(sfc_ops, &fw_header_p);
 	rksfc_create_procfs();
 	return 0;
 }
