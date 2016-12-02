@@ -1043,6 +1043,8 @@
 		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
 		clocks = <&clk_emmc>, <&clk_gates19 2>;
 		clock-names = "clk_mmc", "hclk_mmc";
 		num-slots = <1>;
@@ -1349,6 +1351,11 @@
 		pcfg_pull_up_drv_8ma: pcfg-pull-up-drv-8ma {
 			bias-pull-up;
 			drive-strength = <8>;
+		};
+
+		pcfg_pull_up_drv_12ma: pcfg-pull-up-drv-12ma {
+			bias-pull-up;
+			drive-strength = <12>;
 		};
 
 		pcfg_pull_none_drv_4ma: pcfg-pull-none-drv-4ma {
@@ -1866,40 +1873,40 @@
 		sdmmc1 {
 			sdmmc1_clk: sdmmc1-clk {
 				rockchip,pins =
-					<1 GPIO_B4 RK_FUNC_1 &pcfg_pull_none_drv_4ma>;
+					<1 GPIO_B4 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
 			};
 
 			sdmmc1_cmd: sdmmc1-cmd {
 				rockchip,pins =
-					<1 GPIO_B5 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+					<1 GPIO_B5 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc1_pwren: sdmmc1-pwren {
 				rockchip,pins =
-					<1 GPIO_C2 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+					<1 GPIO_C2 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc1_wrprt: sdmmc1-wrprt {
 				rockchip,pins =
-					<1 GPIO_C4 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+					<1 GPIO_C4 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc1_dectn: sdmmc1-dectn {
 				rockchip,pins =
-					<1 GPIO_C3 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+					<1 GPIO_C3 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc1_bus1: sdmmc1-bus1 {
 				rockchip,pins =
-					<1 GPIO_B6 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+					<1 GPIO_B6 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc1_bus4: sdmmc1-bus4 {
 				rockchip,pins =
-					<1 GPIO_B6 RK_FUNC_1 &pcfg_pull_up_drv_4ma>,
-					<1 GPIO_B7 RK_FUNC_1 &pcfg_pull_up_drv_4ma>,
-					<1 GPIO_C0 RK_FUNC_1 &pcfg_pull_up_drv_4ma>,
-					<1 GPIO_C1 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+					<1 GPIO_B6 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<1 GPIO_B7 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<1 GPIO_C0 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+					<1 GPIO_C1 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc1_gpio: sdmmc1-gpio {
@@ -1919,12 +1926,12 @@
 		emmc {
 			emmc_clk: emmc-clk {
 				rockchip,pins =
-					<3 GPIO_C5 RK_FUNC_2 &pcfg_pull_none_drv_8ma>;
+					<3 GPIO_C5 RK_FUNC_2 &pcfg_pull_none_drv_12ma>;
 			};
 
 			emmc_cmd: emmc-cmd {
 				rockchip,pins =
-					<3 GPIO_C3 RK_FUNC_2 &pcfg_pull_up_drv_8ma>;
+					<3 GPIO_C3 RK_FUNC_2 &pcfg_pull_up_drv_12ma>;
 			};
 
 			emmc_pwren: emmc-pwren {
@@ -1939,27 +1946,27 @@
 
 			emmc_bus1: emmc-bus1 {
 				rockchip,pins =
-					<0 GPIO_A7 RK_FUNC_2 &pcfg_pull_up_drv_8ma>;
+					<0 GPIO_A7 RK_FUNC_2 &pcfg_pull_up_drv_12ma>;
 			};
 
 			emmc_bus4: emmc-bus4 {
 				rockchip,pins =
-					<0 GPIO_A7 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D4 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D5 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D6 RK_FUNC_2 &pcfg_pull_up_drv_8ma>;
+					<0 GPIO_A7 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D4 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D5 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D6 RK_FUNC_2 &pcfg_pull_up_drv_12ma>;
 			};
 
 			emmc_bus8: emmc-bus8 {
 				rockchip,pins =
-					<0 GPIO_A7 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D4 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D5 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D6 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<2 GPIO_D7 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<3 GPIO_C0 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<3 GPIO_C1 RK_FUNC_2 &pcfg_pull_up_drv_8ma>,
-					<3 GPIO_C2 RK_FUNC_2 &pcfg_pull_up_drv_8ma>;
+					<0 GPIO_A7 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D4 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D5 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D6 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<2 GPIO_D7 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<3 GPIO_C0 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<3 GPIO_C1 RK_FUNC_2 &pcfg_pull_up_drv_12ma>,
+					<3 GPIO_C2 RK_FUNC_2 &pcfg_pull_up_drv_12ma>;
 			};
 		};
 
