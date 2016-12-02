@@ -2161,14 +2161,6 @@ static void dw_mci_command_complete(struct dw_mci *host, struct mmc_command *cmd
 		MMC_DBG_WARN_FUNC(host->mmc, "cmd%d Error: %d, status: 0x%08x. [%s]",
 			cmd->opcode, cmd->error, status, mmc_hostname(host->mmc));
 
-		if(MMC_SEND_STATUS != cmd->opcode)
-			if(host->cmd_rto >= SDMMC_CMD_RTO_MAX_HOLD){
-				host->cmd_rto = 0;
-				MMC_DBG_ERR_FUNC(host->mmc,
-					"Cmd response timeout hold times overflow. [%s]",
-					mmc_hostname(host->mmc));
-			}
-
 		/* newer ip versions need a delay between retries */
 		if (host->quirks & DW_MCI_QUIRK_RETRY_DELAY)
 			mdelay(20);
