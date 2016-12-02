@@ -245,7 +245,7 @@ static int rk322x_codec_open_playback(struct snd_soc_codec *codec)
 
 	regmap_update_bits(rk322x->regmap, DAC_PRECHARGE_CTRL,
 			   DAC_CHARGE_CURRENT_ALL_MASK,
-			   DAC_CHARGE_CURRENT_ALL_ON);
+			   DAC_CHARGE_CURRENT_I);
 
 	for (i = 0; i < PLAYBACK_OPEN_LIST_LEN; i++) {
 		regmap_update_bits(rk322x->regmap,
