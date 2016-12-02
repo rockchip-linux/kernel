@@ -728,6 +728,12 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 					  3 << 1);
 		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
 					  ((stat >> 8) & 0xff));
+	} else if (hdmi_dev->tmdsclk > 165000000) {
+		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
+					  0x81);
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0xc9, 0x10);
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0xca, 0x10);
+		rockchip_hdmiv2_write_phy(hdmi_dev, 0xcb, 0x10);
 	} else {
 		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
 					  0x81);
