@@ -257,6 +257,7 @@
 			<&clk_gates19 11>, /* aclk_peri_noc */
 			<&clk_gates19 12>, /* hclk_peri_noc */
 			<&clk_gates19 13>, /* pclk_peri_noc */
+			<&clk_gates19 9>, /* hclk_otg_pmu */
 
 			/* PD_DDR */
 			<&clk_gates18 1>, /* pclk_ddrctrl */
