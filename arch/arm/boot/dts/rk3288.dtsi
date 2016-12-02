@@ -589,6 +589,7 @@
 				/* PD_PERI */
 				<&aclk_peri>, <&hclk_peri>,
 				<&pclk_peri>,
+				<&clk_gates7 5>,/* hclk_otg0_pmu */
 
 				/* JTAG */
 				/* <&clk_gates4 14>, */
