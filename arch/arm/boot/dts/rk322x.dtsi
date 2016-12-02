@@ -321,6 +321,7 @@
 			<&clk_gates12 0>,/*aclk_peri_noc*/
 			<&clk_gates12 1>,/*hclk_peri_noc*/
 			<&clk_gates12 2>,/*pclk_peri_noc*/
+			<&clk_gates11 13>,/* hclk_otg_pmu */
 
 			/*PD_VIO*/
 			<&clk_gates13 7>,/*hclk_vio_ahb_arbi*/
