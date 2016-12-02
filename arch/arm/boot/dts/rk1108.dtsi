@@ -175,6 +175,7 @@
 			<&clk_gates15 11>, /* aclk_peri_niu */
 			<&clk_gates15 12>, /* hclk_peri_niu */
 			<&clk_gates15 13>, /* pclk_peri_niu */
+			<&clk_gates15 9>, /* hclk_otg_pmu */
 
 			/* PD_PMU */
 			<&clk_gates10 0>, /* pclk_pmu */
