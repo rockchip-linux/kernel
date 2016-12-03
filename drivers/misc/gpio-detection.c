@@ -372,6 +372,9 @@ static int gpio_det_probe(struct platform_device *pdev)
 		if (ret < 0)
 			dev_err(gpio_det->dev, "request irq(%s) failed:%d\n",
 				gpiod->name, ret);
+		else
+			if (gpiod->wakeup)
+				enable_irq_wake(gpiod->irq);
 	}
 
 	if (gpio_det->info) {
