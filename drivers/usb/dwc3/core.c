@@ -580,6 +580,8 @@ static int dwc3_probe(struct platform_device *pdev)
 				"snps,u2ss_inp3_quirk");
 		dwc->dis_enblslpm_quirk = of_property_read_bool(node,
 				"snps,dis_enblslpm_quirk");
+		dwc->dis_u3_autosuspend_quirk = of_property_read_bool(node,
+				"snps,dis-u3-autosuspend-quirk");
 		dwc->dis_u3_susphy_quirk = of_property_read_bool(node,
 				"snps,dis_u3_susphy_quirk");
 		dwc->dis_u2_susphy_quirk = of_property_read_bool(node,
@@ -600,6 +602,7 @@ static int dwc3_probe(struct platform_device *pdev)
 
 		dwc->u2ss_inp3_quirk = pdata->u2ss_inp3_quirk;
 		dwc->dis_enblslpm_quirk = pdata->dis_enblslpm_quirk;
+		dwc->dis_u3_autosuspend_quirk = pdata->dis_u3_autosuspend_quirk;
 		dwc->dis_u3_susphy_quirk = pdata->dis_u3_susphy_quirk;
 		dwc->dis_u2_susphy_quirk = pdata->dis_u2_susphy_quirk;
 		dwc->dis_u2_freeclk_exists_quirk =

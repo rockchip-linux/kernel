@@ -703,11 +703,11 @@ struct dwc3_scratchpad_array {
  * @usb3_lpm_capable: set if hadrware supports Link Power Management
  * @disable_scramble_quirk: set if we enable the disable scramble quirk
  * @u2exit_lfps_quirk: set if we enable u2exit lfps quirk
->>>>>>> eac68e8... usb: dwc3: make LPM configurable in DT
  * @u2ss_inp3_quirk: set if we enable P3 OK for U2/SS Inactive quirk
  * @dis_enblslpm_quirk: set if we clear enblslpm in GUSB2PHYCFG,
  *                      disabling the suspend signal to the PHY.
  * @is_fpga: true when we are using the FPGA board
+ * @dis_u3_autosuspend_quirk: set if the we disable usb3 autosuspend
  * @dis_u3_susphy_quirk: set if we disable usb3 suspend phy
  * @dis_u2_susphy_quirk: set if we disable usb2 suspend phy
  * @dis_u2_freeclk_exists_quirk : set if we clear u2_freeclk_exists
@@ -819,6 +819,7 @@ struct dwc3 {
 	unsigned		is_fpga:1;
 	unsigned		usb3_lpm_capable:1;
 
+	unsigned		dis_u3_autosuspend_quirk;
 	unsigned		dis_u3_susphy_quirk:1;
 	unsigned		dis_u2_susphy_quirk:1;
 	unsigned		dis_u2_freeclk_exists_quirk:1;
