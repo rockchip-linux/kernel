@@ -419,7 +419,7 @@
 			regulator-state-mem {
 				regulator-state-mode = <0x2>;
 				regulator-state-enabled;
-				regulator-state-uv = <900000>;
+				regulator-state-uv = <950000>;
 			};
 		};
 
