@@ -203,6 +203,11 @@
 		};
 	};
 
+	avs: avs {
+		compatible = "rockchip,avs";
+		avs-delta = <(-5)>;
+	};
+
 	rockchip_clocks_init: clocks-init {
 		compatible = "rockchip,clocks-init";
 		rockchip,clocks-init-parent =
