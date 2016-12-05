@@ -338,4 +338,6 @@ enum rk1108_cru_clk_gate {
 #define RK322XH_CRU_SDMMCEXT_CON0	0x0398
 #define RK322XH_CRU_SDMMCEXT_CON1	0x039C
 
+extern int rockchip_avs_delta;
+
 #endif

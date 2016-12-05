@@ -69,6 +69,7 @@ static int rk322xh_set_idle_request(enum pmu_idle_req req, bool idle)
 static __init int rk322xh_dt_init(void)
 {
 	struct device_node *node;
+	int avs_delta = -5;
 
 	node = of_find_compatible_node(NULL, NULL, "rockchip,rk322xh-grf");
 	if (node) {
@@ -82,6 +83,12 @@ static __init int rk322xh_dt_init(void)
 		return -ENODEV;
 	}
 	rockchip_pmu_ops.set_idle_request = rk322xh_set_idle_request;
+
+	node = of_find_compatible_node(NULL, NULL, "rockchip,avs");
+	if (node)
+		of_property_read_u32(node, "avs-delta", &avs_delta);
+
+	rockchip_avs_delta = avs_delta;
 
 	return 0;
 }

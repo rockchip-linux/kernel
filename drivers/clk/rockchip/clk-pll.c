@@ -2719,6 +2719,29 @@ static const struct clk_ops clk_pll_ops_3368_aplll = {
 	.set_rate = clk_pll_set_rate_3368_aplll,
 };
 
+int rockchip_avs_delta;
+
+static void clk_322xh_apll_table_correct(void)
+{
+	struct apll_clk_set *ps = (struct apll_clk_set *)(rk322xh_apll_table);
+	unsigned long corr_rate;
+
+	while (ps->rate) {
+		if (ps->rst_dly == 0)
+			break;
+		ps++;
+	}
+	corr_rate = ps->rate + (24 * MHZ * rockchip_avs_delta);
+	ps = (struct apll_clk_set *)(rk322xh_apll_table);
+	while (ps->rate) {
+		if (ps->rate > corr_rate)
+			ps->rst_dly = 1;
+		else
+			ps->rst_dly = 0;
+		ps++;
+	}
+}
+
 static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 				       unsigned long parent_rate)
 {
@@ -2920,6 +2943,7 @@ const struct clk_ops *rk_get_pll_ops(u32 pll_flags)
 
 		case CLK_PLL_322XH_APLL:
 			SOC_IS_RK322XH = 1;
+			clk_322xh_apll_table_correct();
 			return &clk_pll_ops_322xh_apll;
 
 		default:
