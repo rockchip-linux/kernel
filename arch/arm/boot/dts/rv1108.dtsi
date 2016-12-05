@@ -242,6 +242,17 @@
 						>;
 				};
 			};
+			pd_ddr {
+				clk_ddr_dvfs_table: clk_ddr {
+					operating-points = <
+						/* KHz    uV */
+						400000 900000
+						600000 1000000
+						800000 1050000
+						>;
+					status = "okay";
+				};
+			};
 			pd_dsp {
 				clk_dsp_dvfs_table: clk_dsp {
 					operating-points = <
