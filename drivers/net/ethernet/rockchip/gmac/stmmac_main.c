@@ -709,7 +709,9 @@ static void stmmac_adjust_link(struct net_device *dev)
 	spin_lock_irqsave(&priv->lock, flags);
 
 	bsp_priv->link = phydev->link;
-	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy) &&
+	if ((bsp_priv->chip == RK322X_GMAC ||
+	     bsp_priv->chip == RK322XH_GMAC) &&
+	    (bsp_priv->internal_phy) &&
 	    (phydev->link != priv->oldlink)) {
 		if (phydev->link) {
 			if (gpio_is_valid(bsp_priv->link_io))
@@ -770,7 +772,8 @@ static void stmmac_adjust_link(struct net_device *dev)
 				}
 				stmmac_hw_fix_mac_speed(priv);
 
-				if ((bsp_priv->chip == RK322X_GMAC) &&
+				if ((bsp_priv->chip == RK322X_GMAC ||
+				     bsp_priv->chip == RK322XH_GMAC) &&
 				    (bsp_priv->internal_phy) &&
 				    (phydev->speed == 10)) {
 					int an_expan;
@@ -1065,7 +1068,9 @@ static int stmmac_init_phy(struct net_device *dev)
 
 	gmac_create_sysfs(phydev);
 
-	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy)) {
+	if ((bsp_priv->chip == RK322X_GMAC ||
+	     bsp_priv->chip == RK322XH_GMAC) &&
+	    (bsp_priv->internal_phy)) {
 		rk322x_phy_adjust(phydev);
 		/* LED off */
 		gpio_direction_output(bsp_priv->led_io,
@@ -3200,11 +3205,15 @@ int stmmac_resume(struct net_device *ndev)
 	if (priv->phydev)
 		phy_start(priv->phydev);
 
-	if ((bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy)) {
+	if ((bsp_priv->chip == RK322X_GMAC ||
+	     bsp_priv->chip == RK322XH_GMAC) &&
+	    (bsp_priv->internal_phy)) {
 		rk322x_phy_adjust(priv->phydev);
 	}
 
-	if (bsp_priv && (bsp_priv->chip == RK322X_GMAC) && (bsp_priv->internal_phy))
+	if ((bsp_priv->chip == RK322X_GMAC ||
+	     bsp_priv->chip == RK322XH_GMAC) &&
+	    (bsp_priv->internal_phy))
 		schedule_delayed_work(&bsp_priv->resume_work, 2 * HZ); /* delay 2s */
 
 	return 0;
