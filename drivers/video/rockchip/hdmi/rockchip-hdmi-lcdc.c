@@ -1109,6 +1109,17 @@ static void hdmi_sort_modelist(struct hdmi_edid *edid, int feature)
 			}
 			if (vic == hdmi_mode[i].vic ||
 			    vic == hdmi_mode[i].vic_2nd) {
+				/* For some TV, e.g. Haier LS49AL88A92.
+				 * There is no YUV420 descriptor, but contain
+				 * 4k 60/50 RGB444 mode, e.g. 3840x2160p-60.
+				 * So we think it support 4K 60/50 YCbCr420
+				 * mode.
+				 */
+				if (hdmi_mode[i].mode.pixclock > 340000000 &&
+				    edid->maxtmdsclock < 340000000 &&
+				    !(modelist->vic & HDMI_VIDEO_YUV420))
+					modelist->vic |= HDMI_VIDEO_YUV420;
+
 				if ((feature & SUPPORT_4K) == 0 &&
 				    hdmi_mode[i].mode.xres >= 3840)
 					continue;
@@ -1135,7 +1146,6 @@ static void hdmi_sort_modelist(struct hdmi_edid *edid, int feature)
 				modelist->mode = hdmi_mode[i].mode;
 				if (modelist->vic & HDMI_VIDEO_YUV420)
 					modelist->mode.flag = 1;
-
 				compare = 1;
 				m = (struct fb_videomode *)&(modelist->mode);
 				list_for_each(pos_new, &head_new) {
