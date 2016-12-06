@@ -147,8 +147,6 @@ static int dsp_dev_work_done(struct dsp_dev *dev, struct dsp_work *work)
 		dsp_debug(DEBUG_DEVICE, "request DSP rate=%d\n", work->rate);
 	}
 
-	dev->suspend(dev);
-
 	/* We should not cancel work in timeout callback */
 	if (work->result != DSP_WORK_ETIMEOUT)
 		cancel_delayed_work_sync(&dev->guard_work);
@@ -168,8 +166,6 @@ static int dsp_dev_work(struct dsp_dev *dev, struct dsp_work *work)
 	dsp_debug_enter();
 
 	mutex_lock(&dev->lock);
-
-	dev->resume(dev);
 
 	schedule_delayed_work(&dev->guard_work, HZ);
 
