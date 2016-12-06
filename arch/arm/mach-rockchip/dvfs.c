@@ -653,6 +653,9 @@ static int vd_regulator_round_volt_max(struct vd_node *vd, int volt)
 	int sel_volt;
 	int i;
 	
+	if (volt >= vd->volt_list[vd->n_voltages - 1])
+		return vd->volt_list[vd->n_voltages - 1];
+
 	for (i = 0; i < vd->n_voltages; i++) {
 		sel_volt = vd->volt_list[i];
 		if(sel_volt <= 0){	
@@ -672,6 +675,9 @@ static int vd_regulator_round_volt_min(struct vd_node *vd, int volt)
 	int sel_volt;
 	int i;
 	
+	if (volt >= vd->volt_list[vd->n_voltages - 1])
+		return vd->volt_list[vd->n_voltages - 1];
+
 	for (i = 0; i < vd->n_voltages; i++) {
 		sel_volt = vd->volt_list[i];
 		if(sel_volt <= 0){	
