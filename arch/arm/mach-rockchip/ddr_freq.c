@@ -107,6 +107,7 @@ struct ddr {
 	unsigned long reboot_rate;
 	unsigned long boost_rate;
 	unsigned long isp_rate;
+	unsigned long low_power_rate;
 	bool auto_freq;
 	bool auto_self_refresh;
 	char *mode;
@@ -304,6 +305,11 @@ static noinline long ddrfreq_work(unsigned long sys_status)
 	if (ddr.reboot_rate && (s & SYS_STATUS_REBOOT)) {
 		ddrfreq_mode(false, ddr.reboot_rate, "shutdown/reboot");
 
+		return timeout;
+	}
+
+	if (ddr.low_power_rate && (s & SYS_STATUS_LOW_POWER)) {
+		ddrfreq_mode(false, ddr.low_power_rate, "low_power");
 		return timeout;
 	}
 
@@ -601,10 +607,20 @@ static ssize_t video_state_write(struct file *file, const char __user *buffer,
 		add_video_info(video_info);
 		update_video_info();
 		break;
-	case 'p'://performance
+	case 'L':
+		/* clear low power flag */
+		rockchip_clear_system_status(SYS_STATUS_LOW_POWER);
+		break;
+	case 'l':
+		/* set low power flag */
+		rockchip_set_system_status(SYS_STATUS_LOW_POWER);
+		break;
+	case 'p':
+		/* set performance flag */
 		rockchip_set_system_status(SYS_STATUS_PERFORMANCE);
 		break;
-	case 'n'://normal
+	case 'n':
+		/* clear performance flag */
 		rockchip_clear_system_status(SYS_STATUS_PERFORMANCE);
 		break;
 	default:
@@ -949,6 +965,8 @@ int of_init_ddr_freq_table(void)
 			ddr.boost_rate= rate;
 		if (status & SYS_STATUS_ISP)
 			ddr.isp_rate= rate;
+		if (status & SYS_STATUS_LOW_POWER)
+			ddr.low_power_rate = rate;
 
 		nr -= 2;
 	}
@@ -1043,8 +1061,10 @@ static int ddrfreq_init(void)
 	fb_register_client(&ddr_freq_suspend_notifier);
 
 	pr_info("verion 1.2 20140526\n");
-	pr_info("normal %luMHz video_1080p %luMHz video_4k %luMHz dualview %luMHz idle %luMHz suspend %luMHz reboot %luMHz video_4k_10b %luMHz\n",
+	pr_info("normal %luMHz performance %luMHz low_power %luMHz video_1080p %luMHz video_4k %luMHz dualview %luMHz idle %luMHz suspend %luMHz reboot %luMHz video_4k_10b %luMHz\n",
 		ddr.normal_rate / MHZ,
+		ddr.performance_rate / MHZ,
+		ddr.low_power_rate / MHZ,
 		ddr.video_1080p_rate / MHZ,
 		ddr.video_4k_rate / MHZ,
 		ddr.dualview_rate / MHZ,
