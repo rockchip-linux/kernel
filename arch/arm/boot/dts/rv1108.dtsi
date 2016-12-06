@@ -250,6 +250,12 @@
 						600000 1000000
 						800000 1050000
 						>;
+					freq-table = <
+						/*status		freq(KHz)*/
+						SYS_STATUS_LOW_POWER	400000
+						SYS_STATUS_NORMAL	600000
+						SYS_STATUS_PERFORMANCE	800000
+						>;
 					status = "okay";
 				};
 			};
