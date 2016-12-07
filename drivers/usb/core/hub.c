@@ -4911,7 +4911,27 @@ static void hub_events(void)
 						hub_port_disable(hub, i, 1);
 				} else {
 					usb_lock_device(udev);
-					status = usb_reset_device(udev);
+					/*
+					 * Some special SoCs (e.g. rk322xh) USB3
+					 * PHY lose the ability to detect a dis-
+					 * connection when USB3 device plug out,
+					 * fortunately, it can detect port link
+					 * state change here, so we can do soft
+					 * disconnect according to the PLC here.
+					 *
+					 * And we only need to do the soft dis-
+					 * connect for root hub. In addition, we
+					 * just reuse the autosuspend quirk but
+					 * not add a new quirk for this issue.
+					 * Because this issue always occurs with
+					 * autosuspend problem.
+					 */
+					if (!hub->hdev->parent && (hdev->quirks
+					    & USB_QUIRK_AUTO_SUSPEND))
+						status =
+							usb_remove_device(udev);
+					else
+						status = usb_reset_device(udev);
 					usb_unlock_device(udev);
 					connect_change = 0;
 				}
