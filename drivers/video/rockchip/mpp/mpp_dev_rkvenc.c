@@ -461,11 +461,9 @@ static int rockchip_mpp_rkvenc_done(struct rockchip_mpp_dev *mpp)
 
 	if (ctx == enc->dummy_ctx) {
 		mpp_debug(DEBUG_RESET, "war done\n");
-		mpp->srv->current_ctx = NULL;
+		list_del_init(&ictx->status_link);
 
 		/* for war do not trigger service done process */
-		clear_bit(HW_RUNNING, &mpp->srv->state);
-
 		if (enc->irq_status & RKVENC_TIMEOUT_ERROR) {
 			/*
 			 * according to war running, if the dummy encoding

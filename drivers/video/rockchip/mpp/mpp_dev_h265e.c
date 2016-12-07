@@ -424,7 +424,7 @@ static int rockchip_mpp_h265e_run(struct rockchip_mpp_dev *mpp)
 
 static int rockchip_mpp_h265e_done(struct rockchip_mpp_dev *mpp)
 {
-	struct mpp_ctx *ictx = mpp->srv->current_ctx;
+	struct mpp_ctx *ictx = mpp_srv_get_current_ctx(mpp->srv);
 	struct h265e_ctx *ctx = container_of(ictx, struct h265e_ctx, ictx);
 	int ret = 0;
 

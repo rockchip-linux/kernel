@@ -19,6 +19,8 @@
 
 #include <linux/ioctl.h>
 
+#include "mpp_dev_common.h"
+
 struct mpp_session {
 	/* a linked list of data so we can access them for debugging */
 	struct list_head list_session;
@@ -39,14 +41,11 @@ struct mpp_service {
 	struct mutex lock;
 	struct list_head pending;
 	struct list_head done;
+	struct list_head running;
 	/* link to list_session in struct mpp_session */
 	struct list_head session;
 
-	struct mpp_ctx *current_ctx;
-
 	struct device *dev;
-
-	unsigned long state;
 
 	void __iomem *reg_base;
 
@@ -65,6 +64,7 @@ void mpp_srv_attach(struct mpp_service *pservice, struct list_head *elem);
 void mpp_srv_detach(struct mpp_service *pservice, struct list_head *elem);
 struct mpp_ctx *mpp_srv_get_pending_ctx(struct mpp_service *pservice);
 struct mpp_ctx *mpp_srv_get_current_ctx(struct mpp_service *pservice);
+struct mpp_ctx *mpp_srv_get_last_running_ctx(struct mpp_service *pservice);
 struct mpp_session *mpp_srv_get_current_session(struct mpp_service *pservice);
 bool mpp_srv_pending_is_empty(struct mpp_service *pservice);
 struct mpp_ctx *mpp_srv_get_done_ctx(struct mpp_session *session);

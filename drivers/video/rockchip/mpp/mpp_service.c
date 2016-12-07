@@ -51,16 +51,15 @@ void mpp_srv_run(struct mpp_service *pservice)
 {
 	struct mpp_ctx *ctx = mpp_srv_get_pending_ctx(pservice);
 
-	set_bit(HW_RUNNING, &pservice->state);
-
 	list_del_init(&ctx->status_link);
-	pservice->current_ctx = ctx;
+	list_add_tail(&ctx->status_link, &pservice->running);
 }
 EXPORT_SYMBOL(mpp_srv_run);
 
 void mpp_srv_done(struct mpp_service *pservice)
 {
-	struct mpp_ctx *ctx = pservice->current_ctx;
+	struct mpp_ctx *ctx = list_entry(pservice->running.next,
+					 struct mpp_ctx, status_link);
 
 	list_del_init(&ctx->session_link);
 	list_add_tail(&ctx->session_link, &ctx->session->done);
@@ -69,9 +68,6 @@ void mpp_srv_done(struct mpp_service *pservice)
 	list_add_tail(&ctx->status_link, &pservice->done);
 
 	wake_up(&ctx->session->wait);
-	pservice->current_ctx = NULL;
-
-	clear_bit(HW_RUNNING, &pservice->state);
 }
 EXPORT_SYMBOL(mpp_srv_done);
 
@@ -83,13 +79,21 @@ EXPORT_SYMBOL(mpp_srv_get_pending_ctx);
 
 struct mpp_ctx *mpp_srv_get_current_ctx(struct mpp_service *pservice)
 {
-	return pservice->current_ctx;
+	return list_entry(pservice->running.next, struct mpp_ctx, status_link);
 }
 EXPORT_SYMBOL(mpp_srv_get_current_ctx);
 
+struct mpp_ctx *mpp_srv_get_last_running_ctx(struct mpp_service *pservice)
+{
+	return list_entry(pservice->running.prev, struct mpp_ctx, status_link);
+}
+EXPORT_SYMBOL(mpp_srv_get_last_running_ctx);
+
 struct mpp_session *mpp_srv_get_current_session(struct mpp_service *pservice)
 {
-	return pservice->current_ctx ? pservice->current_ctx->session : NULL;
+	struct mpp_ctx *ctx = list_entry(pservice->running.next,
+					 struct mpp_ctx, status_link);
+	return ctx ? ctx->session : NULL;
 }
 EXPORT_SYMBOL(mpp_srv_get_current_session);
 
@@ -122,7 +126,7 @@ EXPORT_SYMBOL(mpp_srv_detach);
 
 bool mpp_srv_is_running(struct mpp_service *pservice)
 {
-	return test_bit(HW_RUNNING, &pservice->state);
+	return !list_empty(&pservice->running);
 }
 EXPORT_SYMBOL(mpp_srv_is_running);
 
@@ -134,8 +138,7 @@ static void mpp_init_drvdata(struct mpp_service *pservice)
 	INIT_LIST_HEAD(&pservice->done);
 	INIT_LIST_HEAD(&pservice->session);
 	INIT_LIST_HEAD(&pservice->subdev_list);
-
-	pservice->current_ctx = NULL;
+	INIT_LIST_HEAD(&pservice->running);
 }
 
 #if defined(CONFIG_OF)

@@ -359,16 +359,16 @@ static void rockchip_mpp_run(struct rockchip_mpp_dev *mpp)
 
 	mpp_srv_run(mpp->srv);
 
-	ctx = mpp_srv_get_current_ctx(mpp->srv);
+	ctx = mpp_srv_get_last_running_ctx(mpp->srv);
 	mpp_time_record(ctx);
 
-	mpp_dev_power_on(ctx->mpp);
+	mpp_dev_power_on(mpp);
 #ifdef CONFIG_ROCKCHIP_IOMMU
 	if (mpp->iommu_enable)
 		rockchip_iovmm_invalidate_tlb(mpp->dev);
 #endif
 	mpp_debug(DEBUG_TASK_INFO, "pid %d, start hw %s\n",
-		  ctx->session->pid, dev_name(ctx->mpp->dev));
+		  ctx->session->pid, dev_name(mpp->dev));
 
 	if (atomic_read(&mpp->reset_request))
 		mpp_dev_reset(mpp);
@@ -386,15 +386,26 @@ static void rockchip_mpp_run(struct rockchip_mpp_dev *mpp)
 static void rockchip_mpp_try_run(struct rockchip_mpp_dev *mpp)
 {
 	int ret = 0;
+	struct rockchip_mpp_dev *pending;
+	struct mpp_ctx *ctx;
 
 	mpp_debug_enter();
 
 	if (!mpp_srv_pending_is_empty(mpp->srv)) {
+		/*
+		 * if prepare func in hw driver define, state will be determined
+		 * by hw driver prepare func, or state will be determined by
+		 * service. ret = 0, run ready ctx.
+		 */
+		ctx = mpp_srv_get_pending_ctx(mpp->srv);
+		pending = ctx->mpp;
 		if (mpp->ops->prepare)
-			ret = mpp->ops->prepare(mpp);
+			ret = mpp->ops->prepare(pending);
+		else if (mpp_srv_is_running(mpp->srv))
+			ret = -1;
 
-		if (ret == 0 && !mpp_srv_is_running(mpp->srv))
-			rockchip_mpp_run(mpp);
+		if (ret == 0)
+			rockchip_mpp_run(pending);
 	}
 
 	mpp_debug_leave();
