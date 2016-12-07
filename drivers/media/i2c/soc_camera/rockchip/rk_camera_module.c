@@ -1078,9 +1078,9 @@ int pltfrm_camera_module_write_reglist(
 			(msg + j)->len = 3;
 			(msg + j)->buf = (data + k);
 
-			data[k + 0] = (u8) ((reglist[i].reg & 0xFF00) >> 8);
-			data[k + 1] = (u8) (reglist[i].reg & 0xFF);
-			data[k + 2] = (u8) (reglist[i].val & 0xFF);
+			data[k + 0] = (u8)((reglist[i].reg & 0xFF00) >> 8);
+			data[k + 1] = (u8)(reglist[i].reg & 0xFF);
+			data[k + 2] = (u8)(reglist[i].val & 0xFF);
 			k = k + 3;
 			j++;
 			if (j == (I2C_MSG_MAX - 1)) {
@@ -1101,6 +1101,28 @@ int pltfrm_camera_module_write_reglist(
 				k = 0;
 				pltfrm_camera_module_pr_debug(sd,
 					"i2c_transfer return %d\n", ret);
+			}
+			break;
+		case PLTFRM_CAMERA_MODULE_REG_TYPE_DATA_SINGLE:
+			msg->addr = client->addr;
+			msg->flags = I2C_M_WR;
+			msg->len = 3;
+			msg->buf = data;
+
+			data[0] = (u8)((reglist[i].reg & 0xFF00) >> 8);
+			data[1] = (u8)(reglist[i].reg & 0xFF);
+			data[2] = (u8)(reglist[i].val & 0xFF);
+
+			pltfrm_camera_module_pr_debug(sd,
+				"messages transfers 1 0x%p msg\n", msg);
+			ret = i2c_transfer(client->adapter, msg, 1);
+			if (ret < 0) {
+				pltfrm_camera_module_pr_err(sd,
+					"i2c transfer returned with err %d\n",
+					ret);
+				kfree(msg);
+				kfree(data);
+				return ret;
 			}
 			break;
 		case PLTFRM_CAMERA_MODULE_REG_TYPE_TIMEOUT:
@@ -1211,15 +1233,6 @@ int pltfrm_camera_module_set_pm_state(
 			PLTFRM_CAMERA_MODULE_PIN_PWR,
 			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
 		usleep_range(3000, 4000);
-		pltfrm_camera_module_set_pin_state(
-			sd,
-			PLTFRM_CAMERA_MODULE_PIN_RESET,
-			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
-		usleep_range(100, 300);
-		pltfrm_camera_module_set_pin_state(
-			sd,
-			PLTFRM_CAMERA_MODULE_PIN_RESET,
-			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
 
 		mclk_para.io_voltage = PLTFRM_IO_1V8;
 		mclk_para.drv_strength = PLTFRM_DRV_STRENGTH_2;
@@ -1240,14 +1253,28 @@ int pltfrm_camera_module_set_pm_state(
 			clk_set_rate(pdata->mclk, 24000000);
 		}
 		clk_prepare_enable(pdata->mclk);
+
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_RESET,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
+		usleep_range(100, 300);
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_RESET,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
 	} else {
+		pltfrm_camera_module_set_pin_state(
+			sd,
+			PLTFRM_CAMERA_MODULE_PIN_RESET,
+			PLTFRM_CAMERA_MODULE_PIN_STATE_ACTIVE);
+
 		clk_disable_unprepare(pdata->mclk);
 
 		pltfrm_camera_module_set_pin_state(
 			sd,
 			PLTFRM_CAMERA_MODULE_PIN_PWR,
 			PLTFRM_CAMERA_MODULE_PIN_STATE_INACTIVE);
-
 		if (pdata->regulators.regulator) {
 			for (i = 0; i < pdata->regulators.cnt; i++) {
 				struct pltfrm_camera_module_regulator *regulator;
