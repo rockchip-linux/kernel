@@ -41,7 +41,6 @@ void mpp_srv_pending_locked(struct mpp_service *pservice,
 {
 	mpp_srv_lock(pservice);
 
-	INIT_LIST_HEAD(&ctx->status_link);
 	list_add_tail(&ctx->status_link, &pservice->pending);
 
 	mpp_srv_unlock(pservice);
