@@ -30,6 +30,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/reset.h>
+#include <linux/usb/phy.h>
 
 #define U3PHY_PORT_NUM	2
 #define U3PHY_MAX_CLKS	4
@@ -127,6 +128,7 @@ struct rockchip_u3phy {
 	struct rockchip_u3phy_apbcfg	apbcfg;
 	const struct rockchip_u3phy_cfg	*cfgs;
 	struct rockchip_u3phy_port	ports[U3PHY_PORT_NUM];
+	struct usb_phy			usb_phy;
 };
 
 static inline int param_write(bool grf, void __iomem *base,
@@ -622,6 +624,43 @@ static int rockchip_u3phy_port_init(struct rockchip_u3phy *u3phy,
 	/* return rockchip_u3phy_power_off(u3phy_port->phy); */
 }
 
+static int rk322xh_u3phy_on_init(struct usb_phy *usb_phy)
+{
+	struct rockchip_u3phy *u3phy =
+		container_of(usb_phy, struct rockchip_u3phy, usb_phy);
+
+	reset_control_deassert(u3phy->rsts[U3_POR_RSTN]);
+	usleep_range(250, 300);
+	reset_control_deassert(u3phy->rsts[PIPE_MAC_RSTN]);
+
+	return 0;
+}
+
+static void rk322xh_u3phy_on_shutdown(struct usb_phy *usb_phy)
+{
+	struct rockchip_u3phy *u3phy =
+		container_of(usb_phy, struct rockchip_u3phy, usb_phy);
+
+	reset_control_assert(u3phy->rsts[U3_POR_RSTN]);
+	reset_control_assert(u3phy->rsts[PIPE_MAC_RSTN]);
+	usleep_range(15, 20);
+}
+
+static int rk322xh_u3phy_on_disconnect(struct usb_phy *usb_phy,
+				       enum usb_device_speed speed)
+{
+	struct rockchip_u3phy *u3phy =
+		container_of(usb_phy, struct rockchip_u3phy, usb_phy);
+
+	dev_info(u3phy->dev, "%s device has disconnected\n",
+		 (speed == USB_SPEED_SUPER) ? "U3" : "UW/U2/U1.1/U1");
+
+	if (speed == USB_SPEED_SUPER)
+		atomic_notifier_call_chain(&usb_phy->notifier, 0, NULL);
+
+	return 0;
+}
+
 static int rockchip_u3phy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -710,6 +749,13 @@ static int rockchip_u3phy_probe(struct platform_device *pdev)
 		goto put_child;
 
 	rockchip_u3phy_rest_deassert(u3phy, U3PHY_MAC_RST);
+
+	u3phy->usb_phy.dev = dev;
+	u3phy->usb_phy.init = rk322xh_u3phy_on_init;
+	u3phy->usb_phy.shutdown = rk322xh_u3phy_on_shutdown;
+	u3phy->usb_phy.notify_disconnect = rk322xh_u3phy_on_disconnect;
+	usb_add_phy(&u3phy->usb_phy, USB_PHY_TYPE_USB3);
+	ATOMIC_INIT_NOTIFIER_HEAD(&u3phy->usb_phy.notifier);
 
 	dev_info(dev, "Rockchip u3phy initialized successfully\n");
 	return 0;
