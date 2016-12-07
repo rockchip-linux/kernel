@@ -12,7 +12,11 @@
 #include <linux/wakelock.h>
 #include <linux/slab.h>
 #include "rockchip_pwm_remotectl.h"
-
+#include <dt-bindings/input/input.h>
+#include <linux/rockchip/psci.h>
+#ifdef CONFIG_ARM_PSCI
+#include <asm/psci.h>
+#endif
 
 
 /*sys/module/rk_pwm_remotectl/parameters,
@@ -65,6 +69,7 @@ struct rkxx_remotectl_drvdata {
 	int handle_cpu_id;
 	int wakeup;
 	int clk_rate;
+	int support_psci;
 	unsigned long period;
 	unsigned long temp_period;
 	int pwm_freq_nstime;
@@ -394,6 +399,8 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	int pwm_id;
 	int pwm_freq;
 	int count;
+	int pwrkey;
+	int scancode;
 
 	pr_err(".. rk pwm remotectl v1.1 init\n");
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -449,14 +456,18 @@ static int rk_pwm_probe(struct platform_device *pdev)
 		return -1;
 	}
 	ddata->maxkeybdnum = num;
-	remotectl_button = kmalloc(
+	remotectl_button = devm_kzalloc(&pdev->dev,
 					num*sizeof(struct rkxx_remotectl_button),
 					GFP_KERNEL);
 	if (!remotectl_button) {
 		pr_err("failed to malloc remote button memory\n");
 		return -ENOMEM;
 	}
-	input = input_allocate_device();
+	input = devm_input_allocate_device(&pdev->dev);
+	if (!input) {
+		pr_err("failed to allocate input device\n");
+		return -ENOMEM;
+	}
 	input->name = pdev->name;
 	input->phys = "gpio-keys/remotectl";
 	input->dev.parent = &pdev->dev;
@@ -514,6 +525,44 @@ static int rk_pwm_probe(struct platform_device *pdev)
 	rk_pwm_remotectl_hw_init(ddata);
 	pwm_freq = clk_get_rate(clk) / 64;
 	ddata->pwm_freq_nstime = 1000000000 / pwm_freq;
+#if (defined(CONFIG_ARM_PSCI) && defined(CONFIG_SMP)) || defined(CONFIG_ARM64)
+#if (defined(CONFIG_ARM_PSCI) && defined(CONFIG_SMP))
+	if (!psci_smp_available())
+		goto end;
+#endif
+	if (of_property_read_u32(np, "remote_support_psci",
+				 &ddata->support_psci)) {
+		dev_err(&pdev->dev, "Missing psci property in the DT.\n");
+		goto end;
+	}
+	DBG("support_psci=0x%x\n", ddata->support_psci);
+	if (ddata->support_psci == 0)
+		goto end;
+	ret = rockchip_psci_remotectl_config(REMOTECTL_SET_IRQ, irq);
+	if (ret) {
+		ddata->support_psci = 0;
+		dev_err(&pdev->dev, "set irq err, set support_psci to 0 !!\n");
+		goto end;
+	}
+	rockchip_psci_remotectl_config(REMOTECTL_SET_PWM_CH, pwm_id);
+	for (j = 0; j < num; j++) {
+		for (i = 0; i < remotectl_button[j].nbuttons; i++) {
+			if (remotectl_button[j].key_table[i].keycode
+			    != KEY_POWER)
+				continue;
+			scancode = remotectl_button[j].key_table[i].scancode;
+			DBG("usercode=%x, key=%x\n",
+			    remotectl_button[j].usercode, scancode);
+			pwrkey = (remotectl_button[j].usercode & 0xffff) << 16;
+			pwrkey |= (scancode & 0xff) << 8;
+			DBG("deliver: key=%x\n", pwrkey);
+			rockchip_psci_remotectl_config(REMOTECTL_SET_PWRKEY,
+							pwrkey);
+		}
+	}
+	rockchip_psci_remotectl_config(REMOTECTL_ENABLE, 1);
+#endif
+end:
 	return ret;
 }
 
@@ -542,10 +591,21 @@ static int remotectl_resume(struct device *dev)
 	struct cpumask cpumask;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct rkxx_remotectl_drvdata *ddata = platform_get_drvdata(pdev);
+	int state;
 
 	cpumask_clear(&cpumask);
 	cpumask_set_cpu(ddata->handle_cpu_id, &cpumask);
 	irq_set_affinity(ddata->irq, &cpumask);
+	if (ddata->support_psci) {
+		/* loop wakeup state */
+		state = rockchip_psci_remotectl_config(
+					REMOTECTL_GET_WAKEUP_STATE, 0);
+		if (state == REMOTECTL_PWRKEY_WAKEUP) {
+			input_event(ddata->input, EV_KEY, KEY_POWER, 1);
+			input_sync(ddata->input);
+		}
+	}
+
 	return 0;
 }
 
