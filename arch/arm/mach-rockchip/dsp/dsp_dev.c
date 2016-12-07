@@ -628,8 +628,10 @@ int dsp_dev_create(struct platform_device *pdev, struct dma_pool *dma_pool,
 	(*dev_out) = dev;
 out:
 	if (ret) {
-		dsp_loader_destroy(dev->loader);
-		dsp_dma_destroy(dev->dma);
+		if (dev) {
+			dsp_loader_destroy(dev->loader);
+			dsp_dma_destroy(dev->dma);
+		}
 
 		(*dev_out) = NULL;
 	}
