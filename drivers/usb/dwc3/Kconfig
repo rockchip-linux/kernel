@@ -79,6 +79,14 @@ config USB_DWC3_OF_SIMPLE
 	 Currently supports Xilinx and Qualcomm DWC USB3 IP.
 	 Say 'Y' or 'M' if you have one such device.
 
+config USB_DWC3_RK322XH
+	tristate "Rockchip rk322xh Platform"
+	depends on OF && COMMON_CLK && ARCH_ROCKCHIP
+	default USB_DWC3
+	help
+	  Support of USB2/3 functionality in Rockchip rk322xh platform.
+	  say 'Y' or 'M' if you have one such device.
+
 comment "Debugging features"
 
 config USB_DWC3_DEBUG
