@@ -1072,9 +1072,10 @@ static int stmmac_init_phy(struct net_device *dev)
 	     bsp_priv->chip == RK322XH_GMAC) &&
 	    (bsp_priv->internal_phy)) {
 		rk322x_phy_adjust(phydev);
-		/* LED off */
-		gpio_direction_output(bsp_priv->led_io,
-				      !bsp_priv->led_io_level);
+		if (gpio_is_valid(bsp_priv->led_io))
+			/* LED off */
+			gpio_direction_output(bsp_priv->led_io,
+					      !bsp_priv->led_io_level);
 	}
 
 	INIT_DELAYED_WORK(&bsp_priv->led_work, macphy_led_work);
