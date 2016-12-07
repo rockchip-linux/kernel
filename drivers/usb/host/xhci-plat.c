@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/usb/xhci_pdriver.h>
 #include <linux/dma-mapping.h>
+#include <linux/usb/phy.h>
 
 #include "xhci.h"
 
@@ -125,6 +126,8 @@ static int xhci_plat_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto dealloc_usb2_hcd;
 	}
+
+	xhci->shared_hcd->phy = devm_usb_get_phy(&pdev->dev, USB_PHY_TYPE_USB3);
 
 	if ((node && of_property_read_bool(node, "usb3-lpm-capable")) ||
 			(pdata && pdata->usb3_lpm_capable))
