@@ -866,14 +866,14 @@
 		      <0x0 0xff420000 0x0 0x10000>;
 		clocks = <&clk_gates17 8>;
 		clock-names = "pclk_vdac";
-		saturation = <0x00325d46>;
-		brightcontrast = <0x00009e00>;
-		adjtiming = <0xc6c00880>;
-		lumafilter0 = <0x02ff0000>;
+		saturation = <0x00376749>;
+		brightcontrast = <0x0000a305>;
+		adjtiming = <0xb6c00880>;
+		lumafilter0 = <0x01ff0000>;
 		lumafilter1 = <0xf40200fe>;
-		lumafilter2 = <0xf332d910>;
-		daclevel = <0x2f>;
-		dac1level = <0xf>;
+		lumafilter2 = <0xf332d70c>;
+		daclevel = <0x22>;
+		dac1level = <0x7>;
 		status = "disabled";
 	};
 
