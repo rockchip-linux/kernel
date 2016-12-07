@@ -49,6 +49,14 @@ enum rockchip_u3phy_type {
 	U3PHY_TYPE_UTMI,
 };
 
+enum rockchip_u3phy_pipe_pwr {
+	PIPE_PWR_P0	= 0,
+	PIPE_PWR_P1	= 1,
+	PIPE_PWR_P2	= 2,
+	PIPE_PWR_P3	= 3,
+	PIPE_PWR_MAX	= 4,
+};
+
 enum rockchip_u3phy_rest_req {
 	U2_POR_RSTN	= 0,
 	U3_POR_RSTN	= 1,
@@ -80,11 +88,12 @@ struct u3phy_reg {
 
 struct rockchip_u3phy_grfcfg {
 	struct u3phy_reg	um_suspend;
-	struct u3phy_reg	pp_suspend;
 	struct u3phy_reg	ls_det_en;
 	struct u3phy_reg	ls_det_st;
 	struct u3phy_reg	um_ls;
 	struct u3phy_reg	um_hstdct;
+	struct u3phy_reg	pp_pwr_st;
+	struct u3phy_reg	pp_pwr_en[PIPE_PWR_MAX];
 };
 
 /**
@@ -103,6 +112,9 @@ struct rockchip_u3phy_cfg {
 	unsigned int	reg;
 	const struct rockchip_u3phy_grfcfg	grfcfg;
 
+	int (*phy_pipe_power)(struct rockchip_u3phy *,
+			      struct rockchip_u3phy_port *,
+			      bool on);
 	int (*phy_tuning)(struct rockchip_u3phy *,
 			  struct rockchip_u3phy_port *,
 			  struct device_node *);
@@ -131,43 +143,34 @@ struct rockchip_u3phy {
 	struct usb_phy			usb_phy;
 };
 
-static inline int param_write(bool grf, void __iomem *base,
+static inline int param_write(void __iomem *base,
 			      const struct u3phy_reg *reg, bool desired)
 {
 	unsigned int val, mask;
 	unsigned int tmp = desired ? reg->dvalue : reg->rvalue;
 	int ret = 0;
 
-	if (grf) {
-		mask = GENMASK(reg->bitend, reg->bitstart);
-		val = (tmp << reg->bitstart) | (mask << BIT_WRITEABLE_SHIFT);
-		ret = regmap_write(base, reg->offset, val);
-	} else {
-		val = readl(base + reg->offset);
-		val |= tmp << reg->bitstart;
-		writel(val, base + reg->offset);
-	}
+	mask = GENMASK(reg->bitend, reg->bitstart);
+	val = (tmp << reg->bitstart) | (mask << BIT_WRITEABLE_SHIFT);
+	ret = regmap_write(base, reg->offset, val);
 
 	return ret;
 }
 
-static inline bool param_desired(bool grf, void __iomem *base,
-				 const struct u3phy_reg *reg)
+static inline bool param_exped(void __iomem *base,
+			       const struct u3phy_reg *reg,
+			       unsigned int value)
 {
 	int ret;
 	unsigned int tmp, orig;
 	unsigned int mask = GENMASK(reg->bitend, reg->bitstart);
 
-	if (grf) {
-		ret = regmap_read(base, reg->offset, &orig);
-		if (ret)
-			return false;
-	} else {
-		orig = readl(base + reg->offset);
-	}
+	ret = regmap_read(base, reg->offset, &orig);
+	if (ret)
+		return false;
 
 	tmp = (orig & mask) >> reg->bitstart;
-	return tmp == reg->dvalue;
+	return tmp == value;
 }
 
 static const char *get_rest_name(enum rockchip_u3phy_rest_req rst)
@@ -259,21 +262,11 @@ static void rockchip_u3phy_clk_disable(struct rockchip_u3phy *u3phy)
 
 static int rockchip_u3phy_init(struct phy *phy)
 {
-	struct rockchip_u3phy_port *u3phy_port = phy_get_drvdata(phy);
-	struct rockchip_u3phy *u3phy = dev_get_drvdata(phy->dev.parent);
+	return 0;
+}
 
-	mutex_lock(&u3phy_port->mutex);
-
-	if (u3phy_port->type == U3PHY_TYPE_UTMI) {
-		param_write(1, u3phy->u3phy_grf,
-			    &u3phy->cfgs->grfcfg.ls_det_st, 1);
-		param_write(1, u3phy->u3phy_grf,
-			    &u3phy->cfgs->grfcfg.ls_det_en, 1);
-
-		schedule_delayed_work(&u3phy_port->um_sm_work, SCHEDULE_DELAY);
-	}
-
-	mutex_unlock(&u3phy_port->mutex);
+static int rockchip_u3phy_exit(struct phy *phy)
+{
 	return 0;
 }
 
@@ -283,18 +276,43 @@ static int rockchip_u3phy_power_on(struct phy *phy)
 	struct rockchip_u3phy *u3phy = dev_get_drvdata(phy->dev.parent);
 	int ret;
 
-	dev_info(&u3phy_port->phy->dev, "u3phy utmi power on\n");
+	dev_info(&u3phy_port->phy->dev, "u3phy %s power on\n",
+		 (u3phy_port->type == U3PHY_TYPE_UTMI) ? "u2" : "u3");
 
 	if (!u3phy_port->suspended)
 		return 0;
 
+	ret = rockchip_u3phy_clk_enable(u3phy);
+	if (ret)
+		return ret;
+
 	if (u3phy_port->type == U3PHY_TYPE_UTMI) {
-		ret = param_write(true, u3phy->u3phy_grf,
-				  &u3phy->cfgs->grfcfg.um_suspend, false);
-		if (ret)
-			return ret;
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.um_suspend, false);
+	} else {
+		/* current in p2 ? */
+		if (param_exped(u3phy->u3phy_grf,
+				&u3phy->cfgs->grfcfg.pp_pwr_st, PIPE_PWR_P2))
+			goto done;
+
+		if (u3phy->cfgs->phy_pipe_power) {
+			dev_dbg(u3phy->dev, "do pipe power up\n");
+			u3phy->cfgs->phy_pipe_power(u3phy, u3phy_port, true);
+		}
+
+		/* exit to p0 */
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.pp_pwr_en[PIPE_PWR_P0], true);
+		usleep_range(90, 100);
+
+		/* enter to p2 from p0 */
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.pp_pwr_en[PIPE_PWR_P2],
+			    false);
+		udelay(3);
 	}
 
+done:
 	u3phy_port->suspended = false;
 	return 0;
 }
@@ -303,33 +321,41 @@ static int rockchip_u3phy_power_off(struct phy *phy)
 {
 	struct rockchip_u3phy_port *u3phy_port = phy_get_drvdata(phy);
 	struct rockchip_u3phy *u3phy = dev_get_drvdata(phy->dev.parent);
-	int ret;
 
-	dev_info(&u3phy_port->phy->dev, "u3phy utmi power off\n");
+	dev_info(&u3phy_port->phy->dev, "u3phy %s power off\n",
+		 (u3phy_port->type == U3PHY_TYPE_UTMI) ? "u2" : "u3");
 
 	if (u3phy_port->suspended)
 		return 0;
 
 	if (u3phy_port->type == U3PHY_TYPE_UTMI) {
-		ret = param_write(true, u3phy->u3phy_grf,
-				  &u3phy->cfgs->grfcfg.um_suspend, true);
-		if (ret)
-			return ret;
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.um_suspend, true);
+	} else {
+		/* current in p3 ? */
+		if (param_exped(u3phy->u3phy_grf,
+				&u3phy->cfgs->grfcfg.pp_pwr_st, PIPE_PWR_P3))
+			goto done;
+
+		/* exit to p0 */
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.pp_pwr_en[PIPE_PWR_P0], true);
+		udelay(2);
+
+		/* enter to p3 from p0 */
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.pp_pwr_en[PIPE_PWR_P3], true);
+		udelay(6);
+
+		if (u3phy->cfgs->phy_pipe_power) {
+			dev_dbg(u3phy->dev, "do pipe power down\n");
+			u3phy->cfgs->phy_pipe_power(u3phy, u3phy_port, false);
+		}
 	}
 
-	u3phy_port->suspended = true;
-	return 0;
-}
-
-static int rockchip_u3phy_exit(struct phy *phy)
-{
-	struct rockchip_u3phy_port *u3phy_port = phy_get_drvdata(phy);
-	struct rockchip_u3phy *u3phy = dev_get_drvdata(phy->dev.parent);
-
-	if (u3phy_port->type == U3PHY_TYPE_UTMI)
-		cancel_delayed_work_sync(&u3phy_port->um_sm_work);
-
+done:
 	rockchip_u3phy_clk_disable(u3phy);
+	u3phy_port->suspended = true;
 	return 0;
 }
 
@@ -454,10 +480,10 @@ static void rockchip_u3phy_um_sm_work(struct work_struct *work)
 		 * activate the linestate detection to get the next device
 		 * plug-in irq.
 		 */
-		param_write(1, u3phy->u3phy_grf,
-			    &u3phy->cfgs->grfcfg.ls_det_st, 1);
-		param_write(1, u3phy->u3phy_grf,
-			    &u3phy->cfgs->grfcfg.ls_det_en, 1);
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.ls_det_st, true);
+		param_write(u3phy->u3phy_grf,
+			    &u3phy->cfgs->grfcfg.ls_det_en, true);
 
 		/*
 		 * we don't need to rearm the delayed work when the phy port
@@ -481,15 +507,17 @@ static irqreturn_t rockchip_u3phy_um_ls_irq(int irq, void *data)
 	struct rockchip_u3phy *u3phy =
 		dev_get_drvdata(u3phy_port->phy->dev.parent);
 
-	if (!param_desired(1, u3phy->u3phy_grf, &u3phy->cfgs->grfcfg.ls_det_st))
+	if (!param_exped(u3phy->u3phy_grf,
+			 &u3phy->cfgs->grfcfg.ls_det_st,
+			 u3phy->cfgs->grfcfg.ls_det_st.dvalue))
 		return IRQ_NONE;
 
 	dev_dbg(u3phy->dev, "utmi linestate interrupt\n");
 	mutex_lock(&u3phy_port->mutex);
 
 	/* disable linestate detect irq and clear its status */
-	param_write(1, u3phy->u3phy_grf, &u3phy->cfgs->grfcfg.ls_det_en, 0);
-	param_write(1, u3phy->u3phy_grf, &u3phy->cfgs->grfcfg.ls_det_st, 1);
+	param_write(u3phy->u3phy_grf, &u3phy->cfgs->grfcfg.ls_det_en, false);
+	param_write(u3phy->u3phy_grf, &u3phy->cfgs->grfcfg.ls_det_st, true);
 
 	mutex_unlock(&u3phy_port->mutex);
 
@@ -570,6 +598,7 @@ static int rockchip_u3phy_port_init(struct rockchip_u3phy *u3phy,
 	dev_dbg(u3phy->dev, "u3phy port initialize\n");
 
 	mutex_init(&u3phy_port->mutex);
+	u3phy_port->suspended = true; /* initial status */
 
 	phy = devm_phy_create(u3phy->dev, child_np, &rockchip_u3phy_ops);
 	if (IS_ERR(phy)) {
@@ -721,6 +750,12 @@ static int rockchip_u3phy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	ret = rockchip_u3phy_clk_enable(u3phy);
+	if (ret) {
+		dev_err(dev, "clk enable failed, ret(%d)\n", ret);
+		return ret;
+	}
+
 	rockchip_u3phy_rest_assert(u3phy);
 	rockchip_u3phy_rest_deassert(u3phy, U3PHY_APB_RST | U3PHY_POR_RST);
 
@@ -744,11 +779,8 @@ static int rockchip_u3phy_probe(struct platform_device *pdev)
 	if (IS_ERR_OR_NULL(provider))
 		goto put_child;
 
-	ret = rockchip_u3phy_clk_enable(u3phy);
-	if (ret)
-		goto put_child;
-
 	rockchip_u3phy_rest_deassert(u3phy, U3PHY_MAC_RST);
+	rockchip_u3phy_clk_disable(u3phy);
 
 	u3phy->usb_phy.dev = dev;
 	u3phy->usb_phy.init = rk322xh_u3phy_on_init;
@@ -763,6 +795,61 @@ static int rockchip_u3phy_probe(struct platform_device *pdev)
 put_child:
 	of_node_put(child_np);
 	return ret;
+}
+
+static int rk322xh_u3phy_pipe_power(struct rockchip_u3phy *u3phy,
+				    struct rockchip_u3phy_port *u3phy_port,
+				    bool on)
+{
+	unsigned int reg;
+
+	if (on) {
+		reg = readl(u3phy_port->base + 0x1a8);
+		reg &= ~BIT(4); /* ldo power up */
+		writel(reg, u3phy_port->base + 0x1a8);
+
+		reg = readl(u3phy_port->base + 0x044);
+		reg &= ~BIT(4); /* bg power on */
+		writel(reg, u3phy_port->base + 0x044);
+
+		reg = readl(u3phy_port->base + 0x150);
+		reg |= BIT(6); /* tx bias enable */
+		writel(reg, u3phy_port->base + 0x150);
+
+		reg = readl(u3phy_port->base + 0x080);
+		reg &= ~BIT(2); /* tx cm power up */
+		writel(reg, u3phy_port->base + 0x080);
+
+		reg = readl(u3phy_port->base + 0x0c0);
+		/* tx obs enable and rx cm enable */
+		reg |= (BIT(3) | BIT(4));
+		writel(reg, u3phy_port->base + 0x0c0);
+
+		udelay(1);
+	} else {
+		reg = readl(u3phy_port->base + 0x1a8);
+		reg |= BIT(4); /* ldo power down */
+		writel(reg, u3phy_port->base + 0x1a8);
+
+		reg = readl(u3phy_port->base + 0x044);
+		reg |= BIT(4); /* bg power down */
+		writel(reg, u3phy_port->base + 0x044);
+
+		reg = readl(u3phy_port->base + 0x150);
+		reg &= ~BIT(6); /* tx bias disable */
+		writel(reg, u3phy_port->base + 0x150);
+
+		reg = readl(u3phy_port->base + 0x080);
+		reg |= BIT(2); /* tx cm power down */
+		writel(reg, u3phy_port->base + 0x080);
+
+		reg = readl(u3phy_port->base + 0x0c0);
+		/* tx obs disable and rx cm disable */
+		reg &= ~(BIT(3) | BIT(4));
+		writel(reg, u3phy_port->base + 0x0c0);
+	}
+
+	return 0;
 }
 
 static int rk322xh_u3phy_tuning(struct rockchip_u3phy *u3phy,
@@ -833,8 +920,14 @@ static const struct rockchip_u3phy_cfg rk322xh_u3phy_cfgs[] = {
 			.um_ls		= { 0x0030, 5, 4, 0, 1 },
 			.um_hstdct	= { 0x0030, 7, 7, 0, 1 },
 			.ls_det_en	= { 0x0040, 0, 0, 0, 1 },
-			.ls_det_st	= { 0x0044, 0, 0, 0, 1 }
+			.ls_det_st	= { 0x0044, 0, 0, 0, 1 },
+			.pp_pwr_st	= { 0x0034, 14, 13, 0, 0},
+			.pp_pwr_en	= { {0x0020, 15, 0, 0x0014, 0x0005},
+					    {0x0020, 15, 0, 0x0014, 0x000d},
+					    {0x0020, 15, 0, 0x0014, 0x0015},
+					    {0x0020, 15, 0, 0x0014, 0x001d} },
 		},
+		.phy_pipe_power	= rk322xh_u3phy_pipe_power,
 		.phy_tuning	= rk322xh_u3phy_tuning,
 	},
 	{ /* sentinel */ }
