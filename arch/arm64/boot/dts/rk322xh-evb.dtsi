@@ -396,7 +396,7 @@
 		rk805_dcdc1_reg: regulator@0 {
 			regulator-name = "vdd_logic";
 			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <1500000>;
+			regulator-max-microvolt = <1350000>;
 			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-boot-on;
@@ -411,7 +411,7 @@
 		rk805_dcdc2_reg: regulator@1 {
 			regulator-name = "vdd_arm";
 			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <1500000>;
+			regulator-max-microvolt = <1350000>;
 			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-boot-on;
