@@ -325,7 +325,7 @@
 &fb {
 	status = "okay";
 	rockchip,disp-policy = <DISPLAY_POLICY_BOX>;
-	rockchip,uboot-logo-on = <0>;
+	rockchip,uboot-logo-on = <1>;
 };
 
 &vop {
