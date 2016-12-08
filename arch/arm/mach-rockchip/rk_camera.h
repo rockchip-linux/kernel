@@ -215,7 +215,8 @@ enum rk_camera_device_type {
 	RK_CAMERA_DEVICE_BT656_16	= 0x10000028,
 
 	RK_CAMERA_DEVICE_CVBS_NTSC	= 0x20000001,
-	RK_CAMERA_DEVICE_CVBS_PAL	= 0x20000002
+	RK_CAMERA_DEVICE_CVBS_PAL	= 0x20000002,
+	RK_CAMERA_DEVICE_CVBS_DEINTERLACE	= 0x20000003,
 };
 
 struct rk_camera_dvp_config {
@@ -233,6 +234,12 @@ struct rk_camera_device_defrect {
 	unsigned int width;
 	unsigned int height;
 	struct v4l2_rect defrect;
+	const char *interface;
+};
+
+struct rk_camera_device_channel_info {
+	unsigned int channel_total;
+	unsigned int default_id;
 };
 
 struct rkcamera_platform_data {
@@ -275,6 +282,7 @@ struct rkcamera_platform_data {
 	struct device_node *of_node;
 	struct rkcamera_platform_data *next_camera;/*yzm*/
 	struct rk_camera_device_defrect defrects[4];
+	struct rk_camera_device_channel_info channel_info;
 };
 
 struct rk29camera_platform_data {

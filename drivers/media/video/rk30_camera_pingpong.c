@@ -3289,7 +3289,7 @@ static int rk_camera_probe(struct platform_device *pdev)
 		clk = &cif_clk[0];
 		if (CHIP_NAME != 3228)
 			cif_clk[0].pd_cif = devm_clk_get(dev_cif, "pd_cif0");
-		if (CHIP_NAME != 3368)
+		if (CHIP_NAME == 3368)
 			cif_clk[0].pclk_cif =
 				devm_clk_get(dev_cif, "pclk_cif");
 		cif_clk[0].aclk_cif = devm_clk_get(dev_cif, "aclk_cif0");

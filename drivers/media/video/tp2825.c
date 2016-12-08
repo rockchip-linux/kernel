@@ -77,6 +77,7 @@ static struct rk_camera_device_defrect defrects[4];
 #define SENSOR_VALUE_LEN			1	/* sensor register value bytes */
 static char input_mode[10] = "720P";
 #define SENSOR_CHANNEL_REG		0x41
+#define SENSOR_CLAMPING_CONTROL		0x26
 
 static unsigned int SensorConfiguration = (CFG_Effect | CFG_Scene);
 static unsigned int SensorChipID[] = {SENSOR_ID};
@@ -174,13 +175,12 @@ static struct rk_sensor_reg sensor_preview_data_ntsc[] = {
 	{0x23, 0x3C},
 	{0x24, 0x56},
 	{0x25, 0xFF},
-	{0x26, 0x12},
 	{0x27, 0x2D},
 	{0x28, 0x00},
 	{0x29, 0x48},
 	{0x2A, 0x30},
 	{0x2B, 0x70},
-	{0x2C, 0x1A},
+	{0x2C, 0x0A},/*1a*/
 	{0x2D, 0x68},
 	{0x2E, 0x5E},
 	{0x2F, 0x00},
@@ -201,7 +201,6 @@ static struct rk_sensor_reg sensor_preview_data_ntsc[] = {
 	{0x3E, 0x00},
 	{0x3F, 0x00},
 	{0x40, 0x00},
-	{0x41, 0x00},
 	{0x42, 0x00},
 	{0x43, 0x12},
 	{0x44, 0x07},
@@ -267,7 +266,6 @@ static struct rk_sensor_reg sensor_preview_data_pal[] = {
 	{0x23, 0x3C},
 	{0x24, 0x56},
 	{0x25, 0xFF},
-	{0x26, 0x02},
 	{0x27, 0x2D},
 	{0x28, 0x00},
 	{0x29, 0x48},
@@ -294,7 +292,6 @@ static struct rk_sensor_reg sensor_preview_data_pal[] = {
 	{0x3E, 0x00},
 	{0x3F, 0x00},
 	{0x40, 0x00},
-	{0x41, 0x00},
 	{0x42, 0x00},
 	{0x43, 0x12},
 	{0x44, 0x07},
@@ -360,7 +357,6 @@ static struct rk_sensor_reg sensor_preview_data_720p_50hz[] = {
 	{0x23, 0x3C},
 	{0x24, 0x56},
 	{0x25, 0xFF},
-	{0x26, 0x02},
 	{0x27, 0x2D},
 	{0x28, 0x00},
 	{0x29, 0x48},
@@ -387,7 +383,6 @@ static struct rk_sensor_reg sensor_preview_data_720p_50hz[] = {
 	{0x3E, 0x00},
 	{0x3F, 0x00},
 	{0x40, 0x00},
-	{0x41, 0x00},
 	{0x42, 0x00},
 	{0x43, 0x12},
 	{0x44, 0x07},
@@ -452,7 +447,6 @@ static struct rk_sensor_reg sensor_preview_data_720p_30hz[] = {
 	{0x23, 0x3C},
 	{0x24, 0x56},
 	{0x25, 0xFF},
-	{0x26, 0x02},
 	{0x27, 0x2D},
 	{0x28, 0x00},
 	{0x29, 0x48},
@@ -479,7 +473,6 @@ static struct rk_sensor_reg sensor_preview_data_720p_30hz[] = {
 	{0x3E, 0x00},
 	{0x3F, 0x00},
 	{0x40, 0x03},
-	{0x41, 0x00},
 	{0x42, 0x00},
 	{0x43, 0x12},
 	{0x44, 0x07},
@@ -544,7 +537,6 @@ static struct rk_sensor_reg sensor_preview_data_720p_25hz[] = {
 	{0x23, 0x3C},
 	{0x24, 0x56},
 	{0x25, 0xFF},
-	{0x26, 0x02},
 	{0x27, 0x2D},
 	{0x28, 0x00},
 	{0x29, 0x48},
@@ -571,7 +563,6 @@ static struct rk_sensor_reg sensor_preview_data_720p_25hz[] = {
 	{0x3E, 0x00},
 	{0x3F, 0x00},
 	{0x40, 0x00},
-	{0x41, 0x00},
 	{0x42, 0x00},
 	{0x43, 0x12},
 	{0x44, 0x07},
@@ -637,7 +628,6 @@ static struct rk_sensor_reg sensor_preview_data[] = {
 	{0x23, 0x3C},
 	{0x24, 0x56},
 	{0x25, 0xFF},
-	{0x26, 0x02},
 	{0x27, 0x2D},
 	{0x28, 0x00},
 	{0x29, 0x48},
@@ -664,7 +654,6 @@ static struct rk_sensor_reg sensor_preview_data[] = {
 	{0x3E, 0x00},
 	{0x3F, 0x00},
 	{0x40, 0x00},
-	{0x41, 0x00},
 	{0x42, 0x00},
 	{0x43, 0x12},
 	{0x44, 0x07},
@@ -967,7 +956,6 @@ static inline int sensor_v4l2ctrl_inside_cb(struct soc_camera_device *icd,
 {
 	struct i2c_client *client = to_i2c_client(to_soc_camera_control(icd));
 	struct generic_sensor *sensor = to_generic_sensor(client);
-	int i;
 	int ret = 0;
 
 	switch (ctrl_info->qctrl->id) {
@@ -977,36 +965,43 @@ static inline int sensor_v4l2ctrl_inside_cb(struct soc_camera_device *icd,
 				SENSOR_TR("%s(%d): deinterlace is not support set!", __func__, __LINE__);
 				ret = -EINVAL;
 			} else {
-				if ((RK_CAMERA_DEVICE_CVBS_PAL == sensor->info_priv.dev_sig_cnf.type) || RK_CAMERA_DEVICE_CVBS_NTSC == sensor->info_priv.dev_sig_cnf.type) {
-					/* need deinterlace process */
-					ext_ctrl->value = 1;
-					ctrl_info->cur_value = 1;
-				} else {
+				if (RK_CAMERA_DEVICE_BT601_8 ==
+					sensor->info_priv.dev_sig_cnf.type) {
+					/* don't need deinterlace process */
 					ext_ctrl->value = 0;
 					ctrl_info->cur_value = 0;
+				} else {
+					ext_ctrl->value = 1;
+					ctrl_info->cur_value = 1;
 				}
 			}
 			break;
 		}
 	case V4L2_CID_CHANNEL:
-		{
-			if (is_set) {
-				if ((ext_ctrl->value < ctrl_info->qctrl->minimum) || (ext_ctrl->value > ctrl_info->qctrl->maximum)) {
-					SENSOR_TR("%s(%d): channel(%d) is not support!", __func__, __LINE__, ext_ctrl->value);
-					ret = -EINVAL;
-					goto cb_end;
-				}
-				sensor->channel_id = ext_ctrl->value;
-				for (i = 0; i < ARRAY_SIZE(sensor_preview_data); i++)
-					if (sensor_preview_data[i].reg == SENSOR_CHANNEL_REG)
-						sensor_preview_data[i].val = sensor->channel_id;
-				generic_sensor_write_array(client, sensor_preview_data);
-			} else {
-				ext_ctrl->value = sensor->channel_id;
-				ctrl_info->cur_value = sensor->channel_id;
+	{
+		if (is_set) {
+			if ((ext_ctrl->value < ctrl_info->qctrl->minimum) ||
+			    (ext_ctrl->value > ctrl_info->qctrl->maximum)) {
+				SENSOR_TR("%s(%d):channel(%d) is not support\n",
+					  __func__, __LINE__, ext_ctrl->value);
+				ret = -EINVAL;
+				goto cb_end;
 			}
-			break;
+			if (sensor->channel_id != ext_ctrl->value) {
+				SENSOR_TR("%s(%d):set channel(%d)!\n",
+					  __func__, __LINE__, ext_ctrl->value);
+				sensor->channel_id = ext_ctrl->value;
+				sensor_write(client, SENSOR_CHANNEL_REG,
+					     sensor->channel_id);
+				sensor_write(client, SENSOR_CLAMPING_CONTROL,
+					     0x01);
+			}
+		} else {
+			ext_ctrl->value = sensor->channel_id;
+			ctrl_info->cur_value = sensor->channel_id;
 		}
+		break;
+	}
 	default:
 		{
 			SENSOR_TR("%s(%d): cmd(0x%x) is unknown !",
@@ -1102,7 +1097,7 @@ enum {
 #define FLAG_LOCKED	0x60
 static int cvstd_mode = CVSTD_720P50;
 static int cvstd_old = CVSTD_720P50;
-static int cvstd_sd = CVSTD_NTSC;
+static int cvstd_sd = CVSTD_PAL;
 
 static void tp2825_reinit_parameter(unsigned char cvstd, struct generic_sensor *sensor)
 {
@@ -1134,6 +1129,25 @@ static void tp2825_reinit_parameter(unsigned char cvstd, struct generic_sensor *
 			memcpy(&sensor->info_priv.dev_sig_cnf.crop,
 			       &defrects[i].defrect,
 			       sizeof(defrects[i].defrect));
+			if (!defrects[i].interface) {
+				SENSOR_TR("%s(%d): interface is NULL\n",
+					  __func__, __LINE__);
+				continue;
+			}
+			if (!strcmp(defrects[i].interface, "bt601_8"))
+				sensor->info_priv.dev_sig_cnf.type =
+					RK_CAMERA_DEVICE_BT601_8;
+			if (!strcmp(defrects[i].interface, "cvbs_ntsc"))
+				sensor->info_priv.dev_sig_cnf.type =
+					RK_CAMERA_DEVICE_CVBS_NTSC;
+			if (!strcmp(defrects[i].interface, "cvbs_pal"))
+				sensor->info_priv.dev_sig_cnf.type =
+					RK_CAMERA_DEVICE_CVBS_PAL;
+			if (!strcmp(defrects[i].interface, "cvbs_deinterlace"))
+				sensor->info_priv.dev_sig_cnf.type =
+					RK_CAMERA_DEVICE_CVBS_DEINTERLACE;
+			SENSOR_TR("%s(%d): type 0x%x\n", __func__, __LINE__,
+				  sensor->info_priv.dev_sig_cnf.type);
 		}
 	}
 
@@ -1170,15 +1184,15 @@ check_continue:
 
 	if (status & FLAG_LOSS) {
 		state = VIDEO_UNPLUG;
-		sensor_write(client, 0x26, 0x01);
+		sensor_write(client, SENSOR_CLAMPING_CONTROL, 0x01);
 	} else if (FLAG_LOCKED == (status & FLAG_LOCKED)) {
 		/* video locked */
 		state = VIDEO_LOCKED;
-		sensor_write(client, 0x26, 0x02);
+		sensor_write(client, SENSOR_CLAMPING_CONTROL, 0x02);
 	} else {
 		/* video in but unlocked */
 		state = VIDEO_IN;
-		sensor_write(client, 0x26, 0x02);
+		sensor_write(client, SENSOR_CLAMPING_CONTROL, 0x02);
 	}
 	SENSOR_DG("%s(%d): state %s\n", __func__, __LINE__,
 		  (VIDEO_UNPLUG == state) ? "UNPLUG" : (VIDEO_LOCKED == state) ? "LOCKED" : "VIDEO_IN");
@@ -1258,12 +1272,14 @@ check_continue:
 			sensor_preview_data[i].val = 0x10;
 	}*/
 
-	generic_sensor_write_array(client, sensor_preview_data);
-
+	if (cvstd != cvstd_old) {
+		generic_sensor_write_array(client, sensor_preview_data);
+		sensor_write(client, SENSOR_CHANNEL_REG, sensor->channel_id);
+	}
 check_end:
 	if (check_count && is_first && (state != VIDEO_LOCKED)) {
 		check_count--;
-		mdelay(200);
+		msleep(400);
 		goto check_continue;
 	}
 	is_first = false;
@@ -1281,6 +1297,7 @@ static int sensor_activate_cb(struct i2c_client *client)
 {
 	struct generic_sensor *sensor = to_generic_sensor(client);
 
+	sensor_write(client, SENSOR_CHANNEL_REG, sensor->channel_id);
 	tp2825_check_cvstd(client, true);
 	cvstd_old = cvstd_mode;
 
@@ -1471,6 +1488,16 @@ static void tp2825_send_uevent(struct generic_sensor *sensor)
 }
 */
 /* config debug fs ops */
+#define DEBUG_FS_NTSC_WIDTH 0x8000
+#define DEBUG_FS_NTSC_HEIGHT 0x8001
+#define DEBUG_FS_NTSC_LEFT 0x8002
+#define DEBUG_FS_NTSC_TOP 0x8003
+
+#define DEBUG_FS_PAL_WIDTH 0x8004
+#define DEBUG_FS_PAL_HEIGHT 0x8005
+#define DEBUG_FS_PAL_LEFT 0x8006
+#define DEBUG_FS_PAL_TOP 0x8007
+
 static ssize_t tp2825_debugfs_reg_write(struct file *file,
 					const char __user *buf,
 					size_t count, loff_t *ppos)
@@ -1482,6 +1509,7 @@ static ssize_t tp2825_debugfs_reg_write(struct file *file,
 	unsigned char read;
 	char kbuf[30];
 	int nbytes = min(count, sizeof(kbuf) - 1);
+	int i = 0;
 
 	if (copy_from_user(kbuf, buf, nbytes))
 		return -EFAULT;
@@ -1492,19 +1520,82 @@ static ssize_t tp2825_debugfs_reg_write(struct file *file,
 
 	SENSOR_TR("%s(%d): register write reg: 0x%x, val 0x%x\n",
 		  __func__, __LINE__, reg, val);
-	ret = sensor_write(client, reg, val);
-	if (IS_ERR_VALUE(ret)) {
-		SENSOR_TR("%s(%d): register write failed reg: 0x%x, val 0x%x\n",
-			  __func__, __LINE__, reg, val);
-	}
 
-	ret = sensor_read(client, reg, &read);
-	if (IS_ERR_VALUE(ret)) {
-		SENSOR_TR("%s(%d): register write failed reg: 0x%x, val 0x%x\n",
-			  __func__, __LINE__, reg, read);
-	} else
-		SENSOR_TR("%s(%d): register read 0x%x return 0x%x\n",
-			  __func__, __LINE__, reg, val);
+	switch (reg) {
+	case DEBUG_FS_NTSC_WIDTH:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 480)
+					defrects[i].defrect.width = val;
+			break;
+		}
+	case DEBUG_FS_NTSC_HEIGHT:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 480)
+					defrects[i].defrect.height = val;
+			break;
+		}
+	case DEBUG_FS_NTSC_TOP:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 480)
+					defrects[i].defrect.top = val;
+			break;
+		}
+	case DEBUG_FS_NTSC_LEFT:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 480)
+					defrects[i].defrect.left = val;
+			break;
+		}
+	case DEBUG_FS_PAL_WIDTH:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 576)
+					defrects[i].defrect.width = val;
+			break;
+		}
+	case DEBUG_FS_PAL_HEIGHT:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 576)
+					defrects[i].defrect.height = val;
+			break;
+		}
+	case DEBUG_FS_PAL_LEFT:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 576)
+					defrects[i].defrect.left = val;
+			break;
+		}
+	case DEBUG_FS_PAL_TOP:
+		{
+			for (i = 0; i < 4; i++)
+				if (defrects[i].height == 576)
+					defrects[i].defrect.top = val;
+			break;
+		}
+	default:
+		{
+			ret = sensor_write(client, reg, val);
+			if (IS_ERR_VALUE(ret)) {
+				SENSOR_TR("d_fs: write fail: 0x%x, val 0x%x\n",
+					  reg, val);
+			}
+
+			ret = sensor_read(client, reg, &read);
+			if (IS_ERR_VALUE(ret)) {
+				SENSOR_TR("d_fs: write fail: 0x%x, val 0x%x\n",
+					  reg, read);
+			} else
+				SENSOR_TR("d_fs: read 0x%x return 0x%x\n",
+					  reg, val);
+			break;
+		}
+	}
 
 	return count;
 }
@@ -1524,8 +1615,7 @@ static int tp2825_debugfs_reg_show(struct seq_file *s, void *v)
 			SENSOR_TR("%s(%d): register read failed: 0x%x\n",
 				  __func__, __LINE__, i + 1);
 
-		if (val >= 0)
-			seq_printf(s, "0x%02x : 0x%02x\n", i + 1, (u8)val);
+		seq_printf(s, "0x%02x : 0x%02x\n", i + 1, (u8)val);
 	}
 
 	return 0;
@@ -1587,7 +1677,18 @@ static void sensor_init_parameters_user(struct specific_sensor *spsensor, struct
 		}
 		new_camera = new_camera->next_camera;
 	}
-	memcpy(&defrects, &new_camera->defrects, sizeof(new_camera->defrects));
+	if (!sensor_device) {
+		SENSOR_TR("%s(%d): Could not find %s\n", __func__, __LINE__,
+			  dev_name(icd->pdev));
+		return;
+	}
+	memcpy(&defrects, &sensor_device->defrects,
+	       sizeof(sensor_device->defrects));
+	SENSOR_TR("%s(%d): channel %d, default %d\n", __func__, __LINE__,
+		  sensor_device->channel_info.channel_total,
+		  sensor_device->channel_info.default_id);
+	spsensor->common_sensor.channel_id =
+		sensor_device->channel_info.default_id;
 
 	/* init irq interrupt */
 	/*SENSOR_TR("%s(%d): irq_active %d.\n", __func__, __LINE__, new_camera->io.gpio_irq);

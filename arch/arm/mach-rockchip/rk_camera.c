@@ -252,21 +252,42 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 			"rockchip,camera-module-defrect0",
 			(unsigned int *)&new_camera->defrects[0],
 			6);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-interface0",
+			&new_camera->defrects[0].interface);
 		of_property_read_u32_array(
 			cp,
 			"rockchip,camera-module-defrect1",
 			(unsigned int *)&new_camera->defrects[1],
 			6);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-interface1",
+			&new_camera->defrects[1].interface);
 		of_property_read_u32_array(
 			cp,
 			"rockchip,camera-module-defrect2",
 			(unsigned int *)&new_camera->defrects[2],
 			6);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-interface2",
+			&new_camera->defrects[2].interface);
 		of_property_read_u32_array(
 			cp,
 			"rockchip,camera-module-defrect3",
 			(unsigned int *)&new_camera->defrects[3],
 			6);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-interface3",
+			&new_camera->defrects[3].interface);
+		of_property_read_u32_array(
+			cp,
+			"rockchip,camera-module-channel",
+			(unsigned int *)&new_camera->channel_info,
+			2);
 
 		strcpy(new_camera->dev.i2c_cam_info.type, name);
 		new_camera->dev.i2c_cam_info.addr = i2c_add>>1;
