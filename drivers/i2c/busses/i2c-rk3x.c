@@ -369,9 +369,9 @@ static void rk3x_i2c_fill_transmit_buf(struct rk3x_i2c *i2c)
 static void rk3x_i2c_handle_start(struct rk3x_i2c *i2c, unsigned int ipd)
 {
 	if (!(ipd & REG_INT_START)) {
-		rk3x_i2c_stop(i2c, -EIO);
 		dev_warn(i2c->dev, "unexpected irq in START: 0x%x\n", ipd);
 		rk3x_i2c_clean_ipd(i2c);
+		rk3x_i2c_stop(i2c, -EIO);
 		return;
 	}
 
@@ -397,9 +397,9 @@ static void rk3x_i2c_handle_start(struct rk3x_i2c *i2c, unsigned int ipd)
 static void rk3x_i2c_handle_write(struct rk3x_i2c *i2c, unsigned int ipd)
 {
 	if (!(ipd & REG_INT_MBTF)) {
-		rk3x_i2c_stop(i2c, -EIO);
 		dev_err(i2c->dev, "unexpected irq in WRITE: 0x%x\n", ipd);
 		rk3x_i2c_clean_ipd(i2c);
+		rk3x_i2c_stop(i2c, -EIO);
 		return;
 	}
 
@@ -452,9 +452,9 @@ static void rk3x_i2c_handle_stop(struct rk3x_i2c *i2c, unsigned int ipd)
 	unsigned int con;
 
 	if (!(ipd & REG_INT_STOP)) {
-		rk3x_i2c_stop(i2c, -EIO);
 		dev_err(i2c->dev, "unexpected irq in STOP: 0x%x\n", ipd);
 		rk3x_i2c_clean_ipd(i2c);
+		rk3x_i2c_stop(i2c, -EIO);
 		return;
 	}
 
