@@ -1315,7 +1315,7 @@ static void stmmac_tx_clean(struct stmmac_priv *priv)
 	unsigned int bytes_compl = 0, pkts_compl = 0;
 	unsigned int entry = priv->dirty_tx;
 
-	spin_lock(&priv->tx_lock);
+	netif_tx_lock(priv->dev);
 
 	priv->xstats.tx_clean++;
 
@@ -1382,22 +1382,17 @@ static void stmmac_tx_clean(struct stmmac_priv *priv)
 	netdev_completed_queue(priv->dev, pkts_compl, bytes_compl);
 
 	if (unlikely(netif_queue_stopped(priv->dev) &&
-		     stmmac_tx_avail(priv) > STMMAC_TX_THRESH)) {
-		netif_tx_lock(priv->dev);
-		if (netif_queue_stopped(priv->dev) &&
-		    stmmac_tx_avail(priv) > STMMAC_TX_THRESH) {
-			if (netif_msg_tx_done(priv))
-				pr_debug("%s: restart transmit\n", __func__);
-			netif_wake_queue(priv->dev);
-		}
-		netif_tx_unlock(priv->dev);
+	    stmmac_tx_avail(priv) > STMMAC_TX_THRESH)) {
+		netif_dbg(priv, tx_done, priv->dev,
+			  "%s: restart transmit\n", __func__);
+		netif_wake_queue(priv->dev);
 	}
 
 	if ((priv->eee_enabled) && (!priv->tx_path_in_lpi_mode)) {
 		stmmac_enable_eee_mode(priv);
 		mod_timer(&priv->eee_ctrl_timer, STMMAC_LPI_T(eee_timer));
 	}
-	spin_unlock(&priv->tx_lock);
+	netif_tx_unlock(priv->dev);
 }
 
 static inline void stmmac_enable_dma_irq(struct stmmac_priv *priv)
@@ -1947,10 +1942,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct dma_desc *desc, *first;
 	unsigned int enh_desc;
 
-	spin_lock(&priv->tx_lock);
-
 	if (unlikely(stmmac_tx_avail(priv) < nfrags + 1)) {
-		spin_unlock(&priv->tx_lock);
 		if (!netif_queue_stopped(dev)) {
 			netif_stop_queue(dev);
 			/* This is a hard error, log it. */
@@ -2099,11 +2091,9 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 	netdev_sent_queue(dev, skb->len);
 	priv->hw->dma->enable_dma_transmission(priv->ioaddr);
 
-	spin_unlock(&priv->tx_lock);
 	return NETDEV_TX_OK;
 
 dma_map_err:
-	spin_unlock(&priv->tx_lock);
 	dev_err(priv->device, "Tx dma map failed\n");
 	dev_kfree_skb(skb);
 	priv->dev->stats.tx_dropped++;
@@ -2974,7 +2964,6 @@ int stmmac_dvr_probe(struct device *device,
 	netif_napi_add(ndev, &priv->napi, stmmac_poll, 64);
 
 	mutex_init(&priv->lock);
-	spin_lock_init(&priv->tx_lock);
 
 	/* If a specific clk_csr value is passed from the platform
 	 * this means that the CSR Clock Range selection cannot be
