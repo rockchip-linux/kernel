@@ -1459,30 +1459,30 @@
 
 		sdmmc {
 			sdmmc_clk: sdmmc-clk {
-				rockchip,pins = <3 GPIO_C4 RK_FUNC_1 &pcfg_pull_none_drv_4ma>;
+				rockchip,pins = <3 GPIO_C4 RK_FUNC_1 &pcfg_pull_none_drv_8ma>;
 			};
 
 			sdmmc_cmd: sdmmc-cmd {
-				rockchip,pins = <3 GPIO_C5 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <3 GPIO_C5 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc_dectn: sdmmc-dectn {
-				rockchip,pins = <0 GPIO_A1 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <0 GPIO_A1 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc_pwren: sdmmc-pwren {
-				rockchip,pins = <3 GPIO_B7 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <3 GPIO_B7 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc_bus1: sdmmc-bus1 {
-				rockchip,pins = <3 GPIO_C3 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <3 GPIO_C3 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc_bus4: sdmmc-bus4 {
-				rockchip,pins = <3 GPIO_C3 RK_FUNC_1 &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C2 RK_FUNC_1 &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C1 RK_FUNC_1 &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C0 RK_FUNC_1 &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <3 GPIO_C3 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+						<3 GPIO_C2 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+						<3 GPIO_C1 RK_FUNC_1 &pcfg_pull_up_drv_8ma>,
+						<3 GPIO_C0 RK_FUNC_1 &pcfg_pull_up_drv_8ma>;
 			};
 
 			sdmmc_gpio: sdmmc-gpio {
