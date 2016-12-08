@@ -231,7 +231,8 @@
 			<&clk_venc_core 200000000>, <&clk_venc_dsp 100000000>,
 			<&clk_efuse 24000000>, <&aclk_gmac 150000000>,
 			<&pclk_ddr 100000000>, <&clk_rtc32k 32768>,
-			<&clk_pdm 61440000>, <&pclk_gmac 50000000>;
+			<&clk_pdm 61440000>, <&pclk_gmac 50000000>,
+			<&clk_usb3otg0_s 32768>;
 		/*rockchip,clocks-uboot-has-init =
 			<&dclk_vop>, <&dclk_vop_pll>;*/
 		rockchip,set_div_for_pll_init;
