@@ -34,6 +34,7 @@
 
 static DECLARE_COMPLETION(ddrfreq_completion);
 static DEFINE_MUTEX(ddrfreq_mutex);
+static DEFINE_MUTEX(video_info_mutex);
 
 #define VOP_REQ_BLOCK
 #ifdef VOP_REQ_BLOCK
@@ -463,57 +464,56 @@ static int ddrfreq_task(void *data)
 	return 0;
 }
 
-void add_video_info(struct video_info *video_info)
+static void add_video_info(struct video_info *video_info)
 {
+	mutex_lock(&video_info_mutex);
 	if (video_info)
 		list_add(&video_info->node, &ddr.video_info_list);
+	mutex_unlock(&video_info_mutex);
 }
 
-void del_video_info(struct video_info *video_info)
+static void del_video_info(struct video_info *video_info)
 {
+	mutex_lock(&video_info_mutex);
 	if (video_info) {
 		list_del(&video_info->node);
 		kfree(video_info);
 	}
+	mutex_unlock(&video_info_mutex);
 }
 
-void clear_video_info(void)
-{
-	struct video_info *video_info, *next;
-
-	list_for_each_entry_safe(video_info, next, &ddr.video_info_list, node) {
-		del_video_info(video_info);
-	}
-}
-
-struct video_info *find_video_info(struct video_info *match_video_info)
+static struct video_info *find_video_info(struct video_info *match_video_info)
 {
 	struct video_info *video_info;
 
 	if (!match_video_info)
 		return NULL;
 
+	mutex_lock(&video_info_mutex);
 	list_for_each_entry(video_info, &ddr.video_info_list, node) {
 		if ((video_info->width == match_video_info->width)
 			&& (video_info->height == match_video_info->height)
 			&& (video_info->ishevc== match_video_info->ishevc)
 			&& (video_info->videoFramerate == match_video_info->videoFramerate)
 			&& (video_info->streamBitrate== match_video_info->streamBitrate)) {
-
+			mutex_unlock(&video_info_mutex);
 			return video_info;
 		}
 
 	}
 
+	mutex_unlock(&video_info_mutex);
 	return NULL;
 }
 
-void update_video_info(void)
+static void update_video_info(void)
 {
 	struct video_info *video_info, *max_res_video;
 	int max_res = 0, max_stream_bitrate = 0, res = 0;
 
+	mutex_lock(&video_info_mutex);
 	if (list_empty(&ddr.video_info_list)) {
+		mutex_unlock(&video_info_mutex);
 		rockchip_clear_system_status(SYS_STATUS_VIDEO);
 		return;
 	}
@@ -527,6 +527,7 @@ void update_video_info(void)
 		if (video_info->streamBitrate > max_stream_bitrate)
 			max_stream_bitrate = video_info->streamBitrate;
 	}
+	mutex_unlock(&video_info_mutex);
 
 	if (max_res <= 1920*1080) {
 		rockchip_set_system_status(SYS_STATUS_VIDEO_1080P);
