@@ -1007,8 +1007,7 @@
 		reg = <0x0 0xff450000 0x0 0x1000>;
 
 		u2phy: usb2-phy@104 {
-			compatible = "rockchip,rk322xh-usb-phy",
-				     "rockchip,rk322x-usb-phy";
+			compatible = "rockchip,rk322xh-usb-phy";
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
