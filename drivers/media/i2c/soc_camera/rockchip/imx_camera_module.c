@@ -1014,6 +1014,7 @@ long imx_camera_module_ioctl(struct v4l2_subdev *sd,
 			pltfrm_camera_module_ioctl(sd, cmd, arg);
 			return imx_camera_module_attach(cam_mod);
 		} else {
+			imx_camera_module_release(cam_mod);
 			return ret;
 		}
 	} else {

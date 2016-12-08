@@ -1032,6 +1032,7 @@ long ov_camera_module_ioctl(struct v4l2_subdev *sd,
 			pltfrm_camera_module_ioctl(sd, cmd, arg);
 			return ov_camera_module_attach(cam_mod);
 		} else {
+			ov_camera_module_release(cam_mod);
 			return ret;
 		}
 	} else {
