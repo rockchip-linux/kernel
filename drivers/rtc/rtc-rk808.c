@@ -70,6 +70,46 @@ struct rk808_rtc {
 };
 
 /*
+ * The Rockchip calendar used by the RK808 counts November with 31 days. We use
+ * these translation functions to convert its dates to/from the Gregorian
+ * calendar used by the rest of the world. We arbitrarily define Jan 1st, 2016
+ * as the day when both calendars were in sync, and treat all other dates
+ * relative to that.
+ * NOTE: Other system software (e.g. firmware) that reads the same hardware must
+ * implement this exact same conversion algorithm, with the same anchor date.
+ */
+static time_t nov2dec_transitions(struct rtc_time *tm)
+{
+	return (tm->tm_year + 1900) - 2016 + (tm->tm_mon + 1 > 11 ? 1 : 0);
+}
+
+static void rockchip_to_gregorian(struct rtc_time *tm)
+{
+	/* If it's Nov 31st, rtc_tm_to_time64() will count that like Dec 1st */
+	unsigned long time;
+
+	rtc_tm_to_time(tm, &time);
+	rtc_time_to_tm(time + nov2dec_transitions(tm) * 86400, tm);
+}
+
+static void gregorian_to_rockchip(struct rtc_time *tm)
+{
+	time_t extra_days = nov2dec_transitions(tm);
+	unsigned long time;
+
+	rtc_tm_to_time(tm, &time);
+	rtc_time_to_tm(time - extra_days * 86400, tm);
+
+	/* Compensate if we went back over Nov 31st (will work up to 2381) */
+	if (nov2dec_transitions(tm) < extra_days) {
+		if (tm->tm_mon + 1 == 11)
+			tm->tm_mday++;  /* This may result in 31! */
+		else
+			rtc_time_to_tm(time - (extra_days - 1) * 86400, tm);
+	}
+}
+
+/*
  * Read current time and date in RTC
  */
 static int rk808_rtc_readtime(struct device *dev, struct rtc_time *tm)
@@ -140,7 +180,7 @@ static int rk808_rtc_readtime(struct device *dev, struct rtc_time *tm)
          tm->tm_mon = bcd2bin(rtc_data[4]) - 1;
          tm->tm_year = bcd2bin(rtc_data[5]) + 100;       
          tm->tm_wday = bcd2bin(rtc_data[6]);
-
+	rockchip_to_gregorian(tm);
 	  dev_dbg(dev, "RTC date/time %4d-%02d-%02d(%d) %02d:%02d:%02d\n",
                         1900 + tm->tm_year, tm->tm_mon + 1, tm->tm_mday, tm->tm_wday,tm->tm_hour , tm->tm_min, tm->tm_sec);
 
@@ -159,6 +199,11 @@ static int rk808_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	int ret;
 	u8 rtc_ctl;	
 	unsigned char rtc_data[ALL_TIME_REGS + 1];
+
+	dev_dbg(dev, "set RTC date/time %4d-%02d-%02d(%d) %02d:%02d:%02d\n",
+		1900 + tm->tm_year, tm->tm_mon + 1, tm->tm_mday,
+		tm->tm_wday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+	gregorian_to_rockchip(tm);
 	
 	rtc_data[0] = bin2bcd(tm->tm_sec);
 	rtc_data[1] = bin2bcd(tm->tm_min);
@@ -167,9 +212,6 @@ static int rk808_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	rtc_data[4] = bin2bcd(tm->tm_mon + 1);
 	rtc_data[5] = bin2bcd(tm->tm_year - 100);
 	rtc_data[6] = bin2bcd(tm->tm_wday);
-
-	 dev_dbg(dev, "set RTC date/time %4d-%02d-%02d(%d) %02d:%02d:%02d\n",
-                        1900 + tm->tm_year, tm->tm_mon + 1, tm->tm_mday, tm->tm_wday,tm->tm_hour , tm->tm_min, tm->tm_sec);
 
 	/*Dummy read*/	
 	ret = rk808_reg_read(rk808, RK808_RTC_CTRL_REG);
@@ -259,6 +301,7 @@ static int rk808_rtc_readalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	alrm->time.tm_mday = bcd2bin(alrm_data[3]);
 	alrm->time.tm_mon = bcd2bin(alrm_data[4]) - 1;
 	alrm->time.tm_year = bcd2bin(alrm_data[5]) + 100;
+	rockchip_to_gregorian(&alrm->time);
 
 	ret = rk808_reg_read(rk808_rtc->rk808, RK808_RTC_INT_REG);
 	if (ret < 0) {
@@ -311,6 +354,7 @@ static int rk808_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	 dev_dbg(dev,"alrm set RTC date/time %4d-%02d-%02d(%d) %02d:%02d:%02d\n",
                         1900 + alrm->time.tm_year, alrm->time.tm_mon + 1, alrm->time.tm_mday, alrm->time.tm_wday, alrm->time.tm_hour, alrm->time.tm_min, alrm->time.tm_sec);
 
+	gregorian_to_rockchip(&alrm->time);
 	alrm_data[0] = bin2bcd(alrm->time.tm_sec);
 	alrm_data[1] = bin2bcd(alrm->time.tm_min);
 	alrm_data[2] = bin2bcd(alrm->time.tm_hour );
