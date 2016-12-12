@@ -525,6 +525,26 @@ int rk_fb_video_mode_from_timing(const struct display_timing *dt,
 		screen->pin_den = 1;
 	else
 		screen->pin_den = 0;
+	if (dt->flags & DISPLAY_FLAGS_SWAP_RG)
+		screen->swap_rb = 1;
+	else
+		screen->swap_rb = 0;
+	if (dt->flags & DISPLAY_FLAGS_SWAP_GB)
+		screen->swap_gb = 1;
+	else
+		screen->swap_gb = 0;
+	if (dt->flags & DISPLAY_FLAGS_SWAP_RB)
+		screen->swap_rb = 1;
+	else
+		screen->swap_rb = 0;
+	if (dt->flags & DISPLAY_FLAGS_SWAP_DELTA)
+		screen->swap_delta = 1;
+	else
+		screen->swap_delta = 0;
+	if (dt->flags & DISPLAY_FLAGS_SWAP_DUMMY)
+		screen->swap_dumy = 1;
+	else
+		screen->swap_dumy = 0;
 
 	return 0;
 }

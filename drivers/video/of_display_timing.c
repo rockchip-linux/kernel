@@ -108,6 +108,10 @@ static struct display_timing *of_get_display_timing(struct device_node *np)
 		dt->flags |= val ? DISPLAY_FLAGS_SWAP_GB : 0;
 	if (!of_property_read_u32(np, "swap-rb", &val))
 		dt->flags |= val ? DISPLAY_FLAGS_SWAP_RB : 0;
+	if (!of_property_read_u32(np, "swap-delta", &val))
+		dt->flags |= val ? DISPLAY_FLAGS_SWAP_DELTA : 0;
+	if (!of_property_read_u32(np, "swap-dummy", &val))
+		dt->flags |= val ? DISPLAY_FLAGS_SWAP_DUMMY : 0;
 	if (!of_property_read_u32(np, "screen-type", &val))
 		dt->screen_type = val;
 	if (!of_property_read_u32(np, "lvds-format", &val))
