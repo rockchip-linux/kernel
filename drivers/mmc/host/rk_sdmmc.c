@@ -1441,6 +1441,7 @@ EXIT_POWER:
 			regs &= ~(1 << slot->id);
 
 		mci_writel(slot->host, PWREN, regs);
+		dw_mci_ctrl_all_reset(host);
 		break;
 	default:
 		break;
