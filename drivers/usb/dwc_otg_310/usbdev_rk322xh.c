@@ -28,7 +28,6 @@ static void usb20otg_hw_init(void)
 
 	/* Set ODT compensation voltage reference */
 	uoc_write(UOC_HIWORD_UPDATE(0x1, 0x1, 15), 0x8);
-	uoc_write(UOC_HIWORD_UPDATE(0x3, 0x3, 0), 0xc);
 
 	/* Turn off differential receiver in suspend mode */
 	uoc_write(UOC_HIWORD_UPDATE(0, 1, 2), 0x18);
