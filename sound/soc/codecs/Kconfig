@@ -292,6 +292,9 @@ config SND_SOC_DFBMCS320
 config SND_SOC_DMIC
 	tristate
 
+config SND_SOC_DUMMY_CODEC
+	tristate
+
 config SND_SOC_ES8323
 	tristate
 
