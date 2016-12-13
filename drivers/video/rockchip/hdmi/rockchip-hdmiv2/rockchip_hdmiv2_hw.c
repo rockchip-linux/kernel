@@ -4,6 +4,7 @@
 #include <linux/rockchip/cru.h>
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
+#include "../../../arch/arm/mach-rockchip/efuse.h"
 #include "rockchip_hdmiv2.h"
 #include "rockchip_hdmiv2_hw.h"
 #include "../rockchip-hdmi-cec.h"
@@ -839,6 +840,17 @@ static int ext_phy_config(struct hdmi_dev *hdmi_dev)
 			rockchip_hdmiv2_write_phy(hdmi_dev,
 						  EXT_PHY_PPLL_PRE_DIVIDER,
 						  stat);
+		} else if (hdmi_dev->tmdsclk == 27000000 &&
+			   rockchip_get_hdmi_flag()) {
+			rockchip_hdmiv2_write_phy(hdmi_dev,
+						  EXT_PHY_PPLL_POST_DIVIDER,
+						  0x00);
+			rockchip_hdmiv2_write_phy(hdmi_dev,
+						  EXT_PHY_PPLL_PRE_DIVIDER,
+						  0xe1);
+			rockchip_hdmiv2_write_phy(hdmi_dev,
+						  EXT_PHY_PPLL_FB_DIVIDER,
+						  10);
 		} else {
 			stat = ((phy_ext->ppll_no / 2) - 1) << 4;
 			rockchip_hdmiv2_write_phy(hdmi_dev,
