@@ -141,6 +141,11 @@ static ssize_t wifi_chip_read(struct class *cls, struct class_attribute *attr, c
 	    count = sprintf(_buf, "%s", "SSV6051");
             printk("Current WiFi chip is SSV6051.\n");
 	}
+
+	if (type == WIFI_RTL8822BS) {
+	    count = sprintf(_buf, "%s", "RTL8822BS");
+	    printk("Current WiFi chip is RTL8822BS.\n");
+	}
     return count;
 }
 

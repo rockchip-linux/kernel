@@ -151,6 +151,8 @@ int get_wifi_chip_type(void)
         type = WIFI_RTL8189FS;
     } else if (strcmp(wifi_chip_type_string, "rtl8188fu") == 0) {
         type = WIFI_RTL8188FU;
+    } else if (strcmp(wifi_chip_type_string, "rtl8822bs") == 0) {
+	type = WIFI_RTL8822BS;
     } else if (strcmp(wifi_chip_type_string, "esp8089") == 0) {
         type = WIFI_ESP8089;
     } else if (strcmp(wifi_chip_type_string, "ssv6051") == 0) {
