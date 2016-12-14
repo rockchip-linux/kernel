@@ -142,7 +142,7 @@ static inline int rockchip_secure_reg_write(u32 addr_phy, u32 val) { return 0; }
 
 static inline int psci_fiq_debugger_switch_cpu(u32 cpu) { return 0; }
 static inline int
-psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback) { }
+psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback) { return 0; }
 static inline void psci_fiq_debugger_enable_debug(bool val) { }
 static inline u32
 psci_fiq_debugger_set_print_port(u32 port, u32 baudrate) { return 0; }
