@@ -207,6 +207,9 @@ void __init arm64_memblock_init(void)
 
 	early_init_fdt_scan_reserved_mem();
 #ifdef CONFIG_ARCH_ROCKCHIP
+	/* reserve memory for devinfo */
+	rockchip_devinfo_mem_reserve();
+
 	/* reserve memory for uboot */
 	rockchip_uboot_mem_reserve();
 
