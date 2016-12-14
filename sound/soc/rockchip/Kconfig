@@ -18,6 +18,13 @@ config SND_RK_SOC_SPDIF
 
 if SND_RK_SOC
 
+config SND_RK_PCM_SMALL_BUFFER
+	bool "small pcm buffer"
+	def_bool n
+	help
+	  Say Y if you want to use small pcm buffer, which is generally used for
+	  small memory system. and no need to support high resolution audio.
+
 if SND_RK_SOC && RK_HDMI
 
 choice

@@ -21,6 +21,23 @@
 #include <sound/dmaengine_pcm.h>
 
 #include "rk_pcm.h"
+/*
+ * small buffer case: support up to 48k 8ch 32bit audio
+ * period_max: 2048 frames, channel_max: 8, fmt_max: 4bytes
+ * period_bytes_max = 2048 * 8 * 4 = 64 * 1024
+ * buffer_bytes_max = 4 * period_bytes_max
+ * normal buffer case: support up to 192k 8ch 32bit audio
+ * period_max: 16384 frames, channel_max: 8, fmt_max: 4bytes
+ * period_bytes_max = 16384 * 8 * 4 = 512 * 1024
+ * buffer_bytes_max = 4 * period_bytes_max
+ */
+#ifdef CONFIG_SND_RK_PCM_SMALL_BUFFER
+#define BUFFER_BYTES_MAX	(256 * 1024)
+#define PERIOD_BYTES_MAX	(64 * 1024)
+#else
+#define BUFFER_BYTES_MAX	(2 * 1024 * 1024)
+#define PERIOD_BYTES_MAX	(512 * 1024)
+#endif
 
 static const struct snd_pcm_hardware rockchip_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED |
@@ -34,9 +51,9 @@ static const struct snd_pcm_hardware rockchip_pcm_hardware = {
 				    SNDRV_PCM_FMTBIT_S16_LE,
 	.channels_min		= 2,
 	.channels_max		= 8,
-	.buffer_bytes_max	= 2*1024*1024,/*128*1024,*/
+	.buffer_bytes_max	= BUFFER_BYTES_MAX,
 	.period_bytes_min	= 64,
-	.period_bytes_max	= 512*1024,/*32*1024,//2048*4,///PAGE_SIZE*2,*/
+	.period_bytes_max	= PERIOD_BYTES_MAX,
 	.periods_min		= 3,
 	.periods_max		= 128,
 	.fifo_size		= 16,
@@ -46,7 +63,7 @@ static const struct snd_dmaengine_pcm_config rockchip_dmaengine_pcm_config = {
 	.pcm_hardware = &rockchip_pcm_hardware,
 	.prepare_slave_config = snd_dmaengine_pcm_prepare_slave_config,
 	.compat_filter_fn = NULL,
-	.prealloc_buffer_size = PAGE_SIZE * 512,
+	.prealloc_buffer_size = BUFFER_BYTES_MAX,
 };
 
 int rockchip_pcm_platform_register(struct device *dev)
