@@ -108,4 +108,12 @@ config LEDS_TRIGGER_CAMERA
 	  This enables direct flash/torch on/off by the driver, kernel space.
 	  If unsure, say Y.
 
+config LEDS_TRIGGER_IR
+	tristate "LED IR Trigger"
+	depends on LEDS_TRIGGERS
+	help
+	  This allows LEDs to be controlled as a IR device: they
+	  turn off and on when the IR key press up and down.
+	  If unsure, say Y.
+
 endif # LEDS_TRIGGERS
