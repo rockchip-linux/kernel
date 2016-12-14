@@ -134,6 +134,9 @@ static void __init rk322x_dt_init_timer(void)
 
 static void __init rk322x_reserve(void)
 {
+	/* reserve memory for devinfo */
+	rockchip_devinfo_mem_reserve();
+
 	/* reserve memory for uboot */
 	rockchip_uboot_mem_reserve();
 

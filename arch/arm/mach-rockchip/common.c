@@ -361,3 +361,44 @@ static int __init rockchip_uboot_mem_late_init(void)
 	return 0;
 }
 late_initcall(rockchip_uboot_mem_late_init);
+
+phys_addr_t devinfo_base;
+EXPORT_SYMBOL(devinfo_base);
+
+phys_addr_t devinfo_size;
+EXPORT_SYMBOL(devinfo_size);
+
+static int __init parse_stb_devinfo(char *p)
+{
+	char *endp;
+
+	devinfo_size = memparse(p, &endp);
+	if (*endp == '@')
+		devinfo_base = memparse(endp + 1, &endp);
+
+	return 0;
+}
+early_param("stb_devinfo", parse_stb_devinfo);
+
+void __init rockchip_devinfo_mem_reserve(void)
+{
+	if (devinfo_size == 0)
+		return;
+
+	memblock_reserve(devinfo_base, devinfo_size);
+	pr_info("%s: reserve %pa@%pa for devinfo\n", __func__,
+		&devinfo_size, &devinfo_base);
+}
+
+static int __init rockchip_devinfo_mem_free(void)
+{
+	if (devinfo_size == 0)
+		return 0;
+
+	memblock_free(devinfo_base, devinfo_size);
+	pr_info("%s: Freeing devinfo memory: %pa@%pa\n", __func__,
+		&devinfo_size, &devinfo_base);
+
+	return 0;
+}
+late_initcall(rockchip_devinfo_mem_free);

@@ -60,6 +60,7 @@ void __init rockchip_efuse_init(void);
 void __init rockchip_suspend_init(void);
 void __init rockchip_ion_reserve(void);
 void __init rockchip_uboot_mem_reserve(void);
+void __init rockchip_devinfo_mem_reserve(void);
 
 enum rockchip_pm_policy {
 	ROCKCHIP_PM_POLICY_PERFORMANCE = 0,
