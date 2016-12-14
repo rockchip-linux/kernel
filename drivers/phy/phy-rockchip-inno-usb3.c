@@ -904,6 +904,20 @@ static int rk322xh_u3phy_tuning(struct rockchip_u3phy *u3phy,
 		udelay(3);
 		writel(0x08, u3phy_port->base + 0x000);
 		writel(0x0c, u3phy_port->base + 0x120);
+
+		/* rx compliance tuning */
+		writel(0x70, u3phy_port->base + 0x150);
+		writel(0x12, u3phy_port->base + 0x0c8);
+		writel(0x05, u3phy_port->base + 0x148);
+		writel(0x0c, u3phy_port->base + 0x068);
+		writel(0xf4, u3phy_port->base + 0x160);
+		writel(0xf0, u3phy_port->base + 0x1c4);
+		writel(0xff, u3phy_port->base + 0x070);
+		writel(0x0f, u3phy_port->base + 0x06c);
+		writel(0xe0, u3phy_port->base + 0x060);
+
+		/* increase the voltage of LFPS */
+		writel(0x08, u3phy_port->base + 0x180);
 	} else {
 		dev_err(u3phy->dev, "invalid u3phy port type\n");
 		return -EINVAL;
