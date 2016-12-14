@@ -70,8 +70,11 @@
 *
 *v0.1.a:
 *1. fix struct cifisp_hist_stat .hist_bins unsigned short to unsigned int;
+*
+*v0.1.b:
+*1. add wdr config in cifisp_isp_isr_other_config;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xa)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xb)
 
 #endif
