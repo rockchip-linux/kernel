@@ -110,6 +110,21 @@ int eth_mac_file(u8 *eth_mac)
 	return 0;
 }
 
+int eth_mac_devinfo(u8 *eth_mac)
+{
+	const char *symbol_name = "rk_devinfo_get_eth_mac";
+	void (*get_eth_mac)(u8 *mac);
+
+	get_eth_mac = __symbol_get(symbol_name);
+	if (!get_eth_mac)
+		return 0;
+
+	get_eth_mac(eth_mac);
+	__symbol_put(symbol_name);
+
+	return 0;
+}
+
 #if 0
 /**
 *大写转小写
