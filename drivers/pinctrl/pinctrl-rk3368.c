@@ -1030,6 +1030,38 @@ static int rockchip_set_pull(struct rockchip_pin_bank *bank,
 	return ret;
 }
 
+#define RK1108_SCHMITT_BITS_PER_PIN     1
+#define RK1108_SCHMITT_PINS_PER_REG     16
+#define RK1108_SCHMITT_BANK_STRIDE      8
+
+#define RK1108_SCHMITT_PMU_GRF_OFFSET   0x30
+#define RK1108_SCHMITT_GRF_OFFSET       0x388
+
+static void rk1108_calc_schmitt_reg_and_bit(struct rockchip_pin_bank *bank,
+					    int pin_num,
+					    struct regmap **regmap,
+					    int *reg, u8 *bit)
+{
+	struct rockchip_pinctrl *info = bank->drvdata;
+
+	if (bank->bank_num == 0) {
+		*regmap = info->regmap_pmu;
+		*reg = RK1108_SCHMITT_PMU_GRF_OFFSET;
+
+		*reg += ((pin_num / RK1108_SCHMITT_PINS_PER_REG) * 4);
+		*bit = pin_num % RK1108_SCHMITT_PINS_PER_REG;
+	} else {
+		*regmap = info->regmap_base;
+		*reg = RK1108_SCHMITT_GRF_OFFSET;
+
+		/* correct the offset, as we're starting with the 2nd bank */
+		*reg -= 0x8;
+		*reg += bank->bank_num * RK1108_SCHMITT_BANK_STRIDE;
+		*reg += ((pin_num / RK1108_SCHMITT_PINS_PER_REG) * 4);
+		*bit = pin_num % RK1108_SCHMITT_PINS_PER_REG;
+	}
+}
+
 #define RK322XH_SCHMITT_BITS_PER_PIN	1
 #define RK322XH_SCHMITT_PINS_PER_REG	16
 #define RK322XH_SCHMITT_BANK_STRIDE	8
@@ -2480,6 +2512,7 @@ static struct rockchip_pin_ctrl rk1108_pin_ctrl = {
 		.pmu_mux_offset		= 0x0,
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
 		.iomux_recalc		= rk1108_recalc_mux,
+		.schmitt_calc_reg	= rk1108_calc_schmitt_reg_and_bit,
 };
 
 static struct rockchip_pin_bank rk322x_pin_banks[] = {
