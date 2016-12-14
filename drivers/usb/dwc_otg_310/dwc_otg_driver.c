@@ -1638,7 +1638,9 @@ void rk_usb_power_up(void)
 {
 	struct dwc_otg_platform_data *pldata_otg;
 	struct dwc_otg_platform_data *pldata_host;
+#ifdef CONFIG_USB_EHCI_RK
 	struct rkehci_platform_data *pldata_ehci;
+#endif
 
 	if (cpu_is_rk3288()) {
 #ifdef CONFIG_RK_USB_UART
@@ -1692,7 +1694,9 @@ void rk_usb_power_down(void)
 {
 	struct dwc_otg_platform_data *pldata_otg;
 	struct dwc_otg_platform_data *pldata_host;
+#ifdef CONFIG_USB_EHCI_RK
 	struct rkehci_platform_data *pldata_ehci;
+#endif
 
 	if (cpu_is_rk3288()) {
 #ifdef CONFIG_RK_USB_UART
