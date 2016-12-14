@@ -568,6 +568,13 @@ config ONBOARD_MODEM
 	help
 	  on board 4g module control interface.
 
+config RESUME_REBOOT
+	bool "reboot when late resume if reboot flag is set"
+	default n
+	help
+	  This driver is to reboot when late resume if reboot flag is set.
+	  if your need this function please select it.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
