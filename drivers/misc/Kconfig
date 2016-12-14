@@ -133,6 +133,12 @@ config PHANTOM
 	  If you choose to build module, its name will be phantom. If unsure,
 	  say N here.
 
+config RK_DEVICEINFO
+	tristate "support deviceinfo partition"
+	default n
+	help
+	  Say Y here if you have a deviceinfo partition.
+
 config INTEL_MID_PTI
 	tristate "Parallel Trace Interface for MIPI P1149.7 cJTAG standard"
 	depends on PCI && TTY
