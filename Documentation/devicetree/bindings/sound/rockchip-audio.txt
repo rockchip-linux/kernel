@@ -212,3 +212,30 @@ codec: codec@20230000 {
 	clock-names = "g_pclk_acodec";
 	rockchip,single-ended;
 };
+
+Required SoC Specific Properties:
+
+- compatible : "rockchip,dummy-codec"
+
+Example:
+
+dummy_codec: dummy-codec {
+	compatible = "rockchip,dummy-codec";
+};
+
+- compatible : "rockchip,i2s-dummy-audio"
+- audio-controller: The phandle of i2s controller
+- audio-codec: The phandle of audio codec
+
+Example:
+
+rockchip-i2s-dummy {
+	compatible = "rockchip,i2s-dummy-audio";
+	dais {
+		dai0 {
+			audio-codec = <&dummy_codec>;
+			audio-controller = <&i2s0>;
+			format = "i2s";
+		};
+	};
+};
