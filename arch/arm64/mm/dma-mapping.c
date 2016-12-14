@@ -129,7 +129,7 @@ static void __dma_free_coherent(struct device *dev, size_t size,
 
 	freed = dma_release_from_contiguous(dev,
 					phys_to_page(paddr),
-					size >> PAGE_SHIFT);
+					PAGE_ALIGN(size) >> PAGE_SHIFT);
 	if (!freed)
 		swiotlb_free_coherent(dev, size, vaddr, dma_handle);
 }
@@ -187,6 +187,8 @@ static void __dma_free_noncoherent(struct device *dev, size_t size,
 				   struct dma_attrs *attrs)
 {
 	void *swiotlb_addr = phys_to_virt(dma_to_phys(dev, dma_handle));
+
+	size = PAGE_ALIGN(size);
 
 	if (__free_from_pool(vaddr, size))
 		return;
