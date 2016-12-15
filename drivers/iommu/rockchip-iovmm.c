@@ -39,6 +39,28 @@ int rockchip_iovmm_invalidate_tlb(struct device *dev)
 	return ret;
 }
 
+int rockchip_iovmm_map_iova(struct device *dev,
+			    unsigned long addr, phys_addr_t phys, size_t len)
+{
+	struct rk_iovmm *vmm = rockchip_get_iovmm(dev);
+	int ret;
+
+	ret = iommu_map(vmm->domain, addr, phys, len, 0);
+
+	return ret;
+}
+EXPORT_SYMBOL(rockchip_iovmm_map_iova);
+
+void rockchip_iovmm_unmap_iova(struct device *dev, dma_addr_t iova)
+{
+	struct rk_iovmm *vmm = rockchip_get_iovmm(dev);
+
+	iova = round_down(iova, PAGE_SIZE);
+
+	iommu_unmap(vmm->domain, iova, PAGE_SIZE);
+}
+EXPORT_SYMBOL(rockchip_iovmm_unmap_iova);
+
 void rockchip_iovmm_set_fault_handler(struct device *dev,
 				       rockchip_iommu_fault_handler_t handler)
 {

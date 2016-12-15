@@ -438,6 +438,10 @@ struct vpu_service_info {
 
 	struct vcodec_hw_ops *hw_ops;
 	const struct vcodec_hw_var *hw_var;
+
+	struct ion_handle *pf;
+	ion_phys_addr_t pf_pa;
+	unsigned long war_iova;
 };
 
 struct vpu_request {
@@ -2118,6 +2122,9 @@ static inline void platform_set_sysmmu(struct device *iommu,
 #endif
 
 #if defined(CONFIG_VCODEC_MMU)
+
+#define IOMMU_GET_BUS_ID(x)	(((x) >> 6) & 0x1f)
+
 int vcodec_sysmmu_fault_hdl(struct device *dev,
 			    enum rk_iommu_inttype itype,
 			    unsigned long pgtable_base,
@@ -2181,11 +2188,26 @@ int vcodec_sysmmu_fault_hdl(struct device *dev,
 				       i, readl_relaxed(base + i));
 		}
 
-		pr_alert("vcodec, page fault occur, reset hw\n");
-
 		set_bit(MMU_PAGEFAULT, &data->state);
-		/* reg->reg[101] = 1; */
-		vpu_reset(data);
+
+		/*
+		 * defeat workaround, invalidate address generated when rk322x
+		 * vdec pre-fetch colmv data.
+		 */
+		if (IOMMU_GET_BUS_ID(status) == 2) {
+			/* avoid another page fault occur after page fault */
+			if (pservice->war_iova)
+				rockchip_iovmm_unmap_iova(dev,
+							  pservice->war_iova);
+
+			/* get the page align iova */
+			pservice->war_iova = round_down(fault_addr, 4096);
+
+			rockchip_iovmm_map_iova(dev, pservice->war_iova,
+						pservice->pf_pa, 4096);
+		} else {
+			vpu_reset(data);
+		}
 	}
 
 	return 0;
@@ -2832,6 +2854,7 @@ static int vcodec_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct vpu_service_info *pservice =
 		devm_kzalloc(dev, sizeof(struct vpu_service_info), GFP_KERNEL);
+	size_t len;
 
 	pservice->dev = dev;
 
@@ -2878,12 +2901,33 @@ static int vcodec_probe(struct platform_device *pdev)
 		vcodec_subdev_probe(pdev, pservice);
 	}
 
+	/*
+	 * allocate memory using to create iommu pages for workaround the rkvdec
+	 * defeat that generating a invalidate address when pre-fetch colmv data
+	 * during decoding h265 with tile mode.
+	 */
+	pservice->pf = ion_alloc(pservice->ion_client, 4096,
+				 4096, ION_HEAP(ION_CMA_HEAP_ID), 0);
+	if (IS_ERR_OR_NULL(pservice->pf)) {
+		vpu_err("allocate colmv war buffer failed\n");
+		goto err;
+	}
+	ret = ion_phys(pservice->ion_client, pservice->pf,
+		       &pservice->pf_pa, &len);
+	if (ret < 0) {
+		vpu_err("get colmv war buffer phy address failed\n");
+		goto err;
+	}
+
 	pr_info("init success\n");
 
 	return 0;
 
 err:
 	pr_info("init failed\n");
+	if (pservice->pf)
+		ion_free(pservice->ion_client, pservice->pf);
+
 	vpu_put_clk(pservice);
 	wake_lock_destroy(&pservice->wake_lock);
 
@@ -2893,6 +2937,8 @@ err:
 static int vcodec_remove(struct platform_device *pdev)
 {
 	struct vpu_subdev_data *data = platform_get_drvdata(pdev);
+
+	ion_free(data->pservice->ion_client, data->pservice->pf);
 
 	vcodec_subdev_remove(data);
 	return 0;
@@ -3061,6 +3107,15 @@ static irqreturn_t vdpu_isr(int irq, void *dev_id)
 		if (pservice->reg_codec == NULL) {
 			vpu_err("error: dec isr with no task waiting\n");
 		} else {
+#if defined(CONFIG_VCODEC_MMU)
+			if (test_bit(MMU_PAGEFAULT, &data->state) &&
+			    pservice->war_iova) {
+				rockchip_iovmm_unmap_iova(pservice->dev,
+							  pservice->war_iova);
+				pservice->war_iova = 0;
+				clear_bit(MMU_PAGEFAULT, &data->state);
+			}
+#endif
 			reg_from_run_to_done(data, pservice->reg_codec);
 			/* avoid vpu timeout and can't recover problem */
 			VDPU_SOFT_RESET(data->regs);
