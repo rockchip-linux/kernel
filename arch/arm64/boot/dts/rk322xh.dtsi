@@ -788,7 +788,7 @@
 	};
 
 	vpu_combo: vpu_combo {
-		compatible = "rockchip,vpu_combo";
+		compatible = "rockchip,rk322xh-vpu-combo", "rockchip,vpu_combo";
 		rockchip,grf = <&grf>;
 		subcnt = <2>;
 		rockchip,sub = <&vdpu>, <&avsd>;
