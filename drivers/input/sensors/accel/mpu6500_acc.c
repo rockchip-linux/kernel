@@ -128,13 +128,8 @@ static int sensor_init(struct i2c_client *client)
 		printk("set MPU6500_ACCEL_CONFIG2 error,res: %d!\n", res);
 		return res;
 	}
-	res = sensor_write_reg(client, MPU6500_PWR_MGMT_2,0x3F); //set accl and gyro all axis into standby mode
-	if (res) 
-	{
-		printk("set MPU6500_PWR_MGMT_2 error,res: %d!\n", res);
-		return res;
-	}	
 	msleep(10);	
+
 	res = sensor_write_reg(client, MPU6500_PWR_MGMT_1,0x41);
 	if (res) 
 	{
