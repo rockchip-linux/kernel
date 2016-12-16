@@ -22,6 +22,9 @@
 #include <linux/module.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/err.h>
+#ifdef CONFIG_ARCH_ROCKCHIP
+#include <linux/fb.h>
+#endif
 
 struct gpio_led_data {
 	struct led_classdev cdev;
@@ -31,6 +34,13 @@ struct gpio_led_data {
 	u8 can_sleep;
 	u8 active_low;
 	u8 blinking;
+#ifdef CONFIG_ARCH_ROCKCHIP
+#define LED_M_BLANK	0x0001
+#define LED_M_UNBLANK	0x0002
+#define LED_M_SUSPEND	0x0004
+#define LED_M_RESUME	0x0008
+	u32 flags;
+#endif
 	int (*platform_gpio_blink_set)(unsigned gpio, int state,
 			unsigned long *delay_on, unsigned long *delay_off);
 };
@@ -136,6 +146,11 @@ static int create_gpio_led(const struct gpio_led *template,
 
 	INIT_WORK(&led_dat->work, gpio_led_work);
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+	dev_info(parent, "%-15s can_sleep:%d mode:%02x\n",
+			led_dat->cdev.name, led_dat->can_sleep,
+			led_dat->flags);
+#endif
 	ret = led_classdev_register(parent, &led_dat->cdev);
 	if (ret < 0)
 		return ret;
@@ -185,10 +200,17 @@ static struct gpio_leds_priv *gpio_leds_create_of(struct platform_device *pdev)
 		return ERR_PTR(-ENOMEM);
 
 	for_each_child_of_node(np, child) {
+#ifdef CONFIG_ARCH_ROCKCHIP
+		u32 mode = 0;
+#endif
 		struct gpio_led led = {};
 		enum of_gpio_flags flags;
 		const char *state;
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+		/* disable led class suspend */
+		led.retain_state_suspended = 1;
+#endif
 		led.gpio = of_get_gpio_flags(child, 0, &flags);
 		led.active_low = flags & OF_GPIO_ACTIVE_LOW;
 		led.name = of_get_property(child, "label", NULL) ? : child->name;
@@ -204,6 +226,10 @@ static struct gpio_leds_priv *gpio_leds_create_of(struct platform_device *pdev)
 				led.default_state = LEDS_GPIO_DEFSTATE_OFF;
 		}
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+		of_property_read_u32_array(child, "mode", &mode, 1);
+		priv->leds[priv->num_leds].flags = mode;
+#endif
 		ret = create_gpio_led(&led, &priv->leds[priv->num_leds++],
 				      &pdev->dev, NULL);
 		if (ret < 0) {
@@ -231,6 +257,70 @@ static struct gpio_leds_priv *gpio_leds_create_of(struct platform_device *pdev)
 }
 #endif /* CONFIG_OF_GPIO */
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+struct led_notifier {
+	struct platform_device *pdev;
+	struct notifier_block notifier;
+};
+
+static void led_mode_set(struct led_classdev *led, u32 flags, u32 mode)
+{
+	enum led_brightness brightness;
+
+	if (flags & mode) {
+		brightness = flags & (mode << 4);
+		gpio_led_set(led, !!brightness);
+	}
+}
+
+static int led_mode_request(struct platform_device *pdev, u32 mode)
+{
+	struct led_classdev *led;
+	struct gpio_leds_priv *priv = platform_get_drvdata(pdev);
+	int i;
+
+	for (i = 0; i < priv->num_leds; i++) {
+		led = &priv->leds[i].cdev;
+		led_mode_set(led, priv->leds[i].flags, mode);
+	}
+
+	return 0;
+}
+
+static int fb_event_notify(struct notifier_block *self,
+			   unsigned long action, void *data)
+{
+	struct led_notifier *n = container_of(self,
+			struct led_notifier, notifier);
+	struct fb_event *event = data;
+	int blank_mode = *((int *)event->data);
+
+	if (action == FB_EARLY_EVENT_BLANK) {
+		switch (blank_mode) {
+		case FB_BLANK_UNBLANK:
+			break;
+		default:
+			led_mode_request(n->pdev, LED_M_BLANK);
+			break;
+		}
+	} else if (action == FB_EVENT_BLANK) {
+		switch (blank_mode) {
+		case FB_BLANK_UNBLANK:
+			led_mode_request(n->pdev, LED_M_UNBLANK);
+			break;
+		default:
+			break;
+		}
+	}
+	return NOTIFY_OK;
+}
+
+static struct led_notifier led_n = {
+	.notifier = {
+		.notifier_call = fb_event_notify,
+	},
+};
+#endif
 
 static int gpio_led_probe(struct platform_device *pdev)
 {
@@ -271,6 +361,13 @@ static int gpio_led_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, priv);
 
+#ifdef CONFIG_ARCH_ROCKCHIP
+	led_n.pdev = pdev;
+	ret = fb_register_client(&led_n.notifier);
+	if (ret)
+		dev_err(&pdev->dev, "fail to register fb notify\n");
+#endif
+
 	return 0;
 }
 
@@ -283,9 +380,32 @@ static int gpio_led_remove(struct platform_device *pdev)
 		delete_gpio_led(&priv->leds[i]);
 
 	platform_set_drvdata(pdev, NULL);
+#ifdef CONFIG_ARCH_ROCKCHIP
+	fb_unregister_client(&led_n.notifier);
+#endif
 
 	return 0;
 }
+
+#if defined(CONFIG_ARCH_ROCKCHIP) && defined(CONFIG_PM_SLEEP)
+static int gpio_led_suspend(struct device *dev)
+{
+	return led_mode_request(to_platform_device(dev), LED_M_SUSPEND);
+}
+
+static int gpio_led_resume(struct device *dev)
+{
+	return led_mode_request(to_platform_device(dev), LED_M_RESUME);
+}
+
+static SIMPLE_DEV_PM_OPS(gpio_led_pm_ops, gpio_led_suspend, gpio_led_resume);
+#define GPIO_LED_PM_OPS (&gpio_led_pm_ops)
+
+#else
+
+#define GPIO_LED_PM_OPS NULL
+
+#endif /* CONFIG_PM_SLEEP && CONFIG_ARCH_ROCKCHIP */
 
 static struct platform_driver gpio_led_driver = {
 	.probe		= gpio_led_probe,
@@ -293,6 +413,7 @@ static struct platform_driver gpio_led_driver = {
 	.driver		= {
 		.name	= "leds-gpio",
 		.owner	= THIS_MODULE,
+		.pm     = GPIO_LED_PM_OPS,
 		.of_match_table = of_match_ptr(of_gpio_leds_match),
 	},
 };
