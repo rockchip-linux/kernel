@@ -129,6 +129,7 @@ typedef enum _RT_CHANNEL_DOMAIN
 	RTW_CHPLAN_MKK1_MKK1 = 0x27,
 	RTW_CHPLAN_WORLD_KCC1 = 0x28,
 	RTW_CHPLAN_WORLD_FCC2 = 0x29,
+	RTW_CHPLAN_FCC2_NULL = 0x2A,
 	RTW_CHPLAN_WORLD_FCC3 = 0x30,
 	RTW_CHPLAN_WORLD_FCC4 = 0x31,
 	RTW_CHPLAN_WORLD_FCC5 = 0x32,
@@ -159,6 +160,7 @@ typedef enum _RT_CHANNEL_DOMAIN
 	RTW_CHPLAN_FCC1_FCC10 = 0x57,
 	RTW_CHPLAN_MKK2_MKK4 = 0x58,
 	RTW_CHPLAN_WORLD_ETSI14 = 0x59,
+	RTW_CHPLAN_FCC1_FCC5 = 0x60,
 
 	RTW_CHPLAN_MAX,
 	RTW_CHPLAN_REALTEK_DEFINE = 0x7F,
@@ -174,6 +176,7 @@ typedef enum _RT_CHANNEL_DOMAIN_2G
 	RTW_RD_2G_ETSI2 = 5,	/* France */
 	RTW_RD_2G_GLOBAL = 6,	/* Global domain */
 	RTW_RD_2G_MKK2 = 7,		/* Japan */
+	RTW_RD_2G_FCC2 = 8,		/* US */
 
 	RTW_RD_2G_MAX,
 }RT_CHANNEL_DOMAIN_2G, *PRT_CHANNEL_DOMAIN_2G;
@@ -344,6 +347,8 @@ struct ss_res {
 	u16 scan_ch_ms;
 	u8 rx_ampdu_accept;
 	u8 rx_ampdu_size;
+	u8 igi_scan;
+	u8 igi_before_scan; /* used for restoring IGI value without enable DIG & FA_CNT */
 #ifdef CONFIG_SCAN_BACKOP
 	u8 backop_flags_sta; /* policy for station mode*/
 	u8 backop_flags_ap; /* policy for ap mode */
@@ -721,8 +726,6 @@ u32 rtw_get_on_cur_ch_time(_adapter *adapter);
 u8 rtw_get_offset_by_ch(u8 channel);
 
 void set_channel_bwmode(_adapter *padapter, unsigned char channel, unsigned char channel_offset, unsigned short bwmode);
-void SelectChannel(_adapter *padapter, unsigned char channel);
-void SetBWMode(_adapter *padapter, unsigned short bwmode, unsigned char channel_offset);
 
 unsigned int decide_wait_for_beacon_timeout(unsigned int bcn_interval);
 
@@ -833,13 +836,17 @@ void rtw_alloc_macid(_adapter *padapter, struct sta_info *psta);
 void rtw_release_macid(_adapter *padapter, struct sta_info *psta);
 u8 rtw_search_max_mac_id(_adapter *padapter);
 void rtw_macid_ctl_set_h2c_msr(struct macid_ctl_t *macid_ctl, u8 id, u8 h2c_msr);
+void rtw_macid_ctl_set_bw(struct macid_ctl_t *macid_ctl, u8 id, u8 bw);
+void rtw_macid_ctl_set_vht_en(struct macid_ctl_t *macid_ctl, u8 id, u8 en);
+void rtw_macid_ctl_set_rate_bmp0(struct macid_ctl_t *macid_ctl, u8 id, u32 bmp);
+void rtw_macid_ctl_set_rate_bmp1(struct macid_ctl_t *macid_ctl, u8 id, u32 bmp);
 void rtw_macid_ctl_init(struct macid_ctl_t *macid_ctl);
 void rtw_macid_ctl_deinit(struct macid_ctl_t *macid_ctl);
 
-void report_join_res(_adapter *padapter, int res);
+u32 report_join_res(_adapter *padapter, int res);
 void report_survey_event(_adapter *padapter, union recv_frame *precv_frame);
 void report_surveydone_event(_adapter *padapter);
-void report_del_sta_event(_adapter *padapter, unsigned char *MacAddr, unsigned short reason, bool enqueue);
+u32 report_del_sta_event(_adapter *padapter, unsigned char *MacAddr, unsigned short reason, bool enqueue);
 void report_add_sta_event(_adapter *padapter, unsigned char *MacAddr);
 bool rtw_port_switch_chk(_adapter *adapter);
 void report_wmm_edca_update(_adapter *padapter);
@@ -1000,6 +1007,8 @@ void rtw_dev_iface_status(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg
 	, u8 *ap_num, u8 *ld_ap_num);
 void rtw_dev_iface_status_no_self(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_num
 	, u8 *ap_num, u8 *ld_ap_num);
+
+u8 rtw_mp_mode_check(_adapter *padapter);
 
 struct cmd_hdl {
 	uint	parmsize;

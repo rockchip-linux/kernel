@@ -141,10 +141,6 @@ void CheckFwRsvdPageContent(PADAPTER padapter);
 int reset_tsf(PADAPTER Adapter, u8 reset_port );
 #endif	// CONFIG_TSF_RESET_OFFLOAD
 
-
-#if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
-void SetFwRelatedForWoWLAN8192E(_adapter* padapter, u8 bHostIsGoingtoSleep);
-#endif
 /// TX Feedback Content
 #define 	USEC_UNIT_FOR_8192E_C2H_TX_RPT_QUEUE_TIME			256
 

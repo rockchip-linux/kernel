@@ -896,7 +896,8 @@ void rtl8188f_set_FwJoinBssRpt_cmd(PADAPTER padapter, u8 mstatus)
 void rtl8188f_Add_RateATid(PADAPTER pAdapter, u64 rate_bitmap, u8 *arg, u8 rssi_level)
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
-	struct macid_ctl_t *macid_ctl = &pAdapter->dvobj->macid_ctl;
+	struct dvobj_priv *dvobj = adapter_to_dvobj(pAdapter);
+	struct macid_ctl_t *macid_ctl = dvobj_to_macidctl(dvobj);
 	struct sta_info	*psta = NULL;
 	u8 mac_id = arg[0];
 	u8 raid = arg[1];
@@ -913,13 +914,17 @@ void rtl8188f_Add_RateATid(PADAPTER pAdapter, u64 rate_bitmap, u8 *arg, u8 rssi_
 		return;
 	}
 
-	bw = psta->bw_mode;
+	bw = rtw_get_tx_bw_mode(pAdapter, psta);
 
 	if (rssi_level != DM_RATR_STA_INIT)
 		mask = ODM_Get_Rate_Bitmap(&pHalData->odmpriv, mac_id, mask, rssi_level);
 
 	DBG_871X("%s(): mac_id=%d raid=0x%x bw=%d mask=0x%x\n", __func__, mac_id, raid, bw, mask);
 	rtl8188f_set_FwMacIdConfig_cmd(pAdapter, mac_id, raid, bw, shortGI, mask);
+
+	rtw_macid_ctl_set_bw(macid_ctl, mac_id, bw);
+	rtw_macid_ctl_set_rate_bmp0(macid_ctl, mac_id, mask);
+	rtw_update_tx_rate_bmp(adapter_to_dvobj(pAdapter));
 }
 
 #if 0

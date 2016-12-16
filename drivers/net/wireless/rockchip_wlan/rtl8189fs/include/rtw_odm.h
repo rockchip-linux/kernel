@@ -34,6 +34,8 @@ void rtw_odm_dbg_level_set(_adapter *adapter, u32 level);
 void rtw_odm_ability_msg(void *sel, _adapter *adapter);
 void rtw_odm_ability_set(_adapter *adapter, u32 ability);
 
+void rtw_odm_init_ic_type(_adapter *adapter);
+
 void rtw_odm_adaptivity_config_msg(void *sel, _adapter *adapter);
 
 bool rtw_odm_adaptivity_needed(_adapter *adapter);

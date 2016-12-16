@@ -362,6 +362,8 @@ enum {
 	EFUSE_FILE,
 	MP_TX,
 	MP_RX,
+	MP_IQK,
+	MP_LCK,
 #ifdef CONFIG_WOWLAN
 	MP_WOW_ENABLE,
 	MP_WOW_SET_PATTERN,
@@ -795,6 +797,8 @@ u32	GetPhyRxPktCRC32Error(PADAPTER pAdapter);
 s32	SetPowerTracking(PADAPTER padapter, u8 enable);
 void	GetPowerTracking(PADAPTER padapter, u8 *enable);
 u32	mp_query_psd(PADAPTER pAdapter, u8 *data);
+void	rtw_mp_trigger_iqk(PADAPTER padapter);
+void	rtw_mp_trigger_lck(PADAPTER padapter);
 
 
 
@@ -811,7 +815,6 @@ s32 hal_mpt_SetThermalMeter(PADAPTER pAdapter, u8 target_ther);
 void hal_mpt_TriggerRFThermalMeter(PADAPTER pAdapter);
 u8 hal_mpt_ReadRFThermalMeter(PADAPTER pAdapter);
 void hal_mpt_GetThermalMeter(PADAPTER pAdapter, u8 *value);
-void hal_mpt_CCKTxPowerAdjustbyIndex(PADAPTER pAdapter, BOOLEAN beven);
 void hal_mpt_SetContinuousTx(PADAPTER pAdapter, u8 bStart);
 void hal_mpt_SetSingleCarrierTx(PADAPTER pAdapter, u8 bStart);
 void hal_mpt_SetSingleToneTx(PADAPTER pAdapter, u8 bStart);
@@ -974,6 +977,11 @@ int rtw_mp_rx(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra);
 u8 HwRateToMPTRate(u8 rate);
-
+int rtw_mp_iqk(struct net_device *dev,
+		 struct iw_request_info *info,
+		 struct iw_point *wrqu, char *extra);
+int rtw_mp_lck(struct net_device *dev, 
+		struct iw_request_info *info, 
+		struct iw_point *wrqu, char *extra);
 #endif //_RTW_MP_H_
 

@@ -166,6 +166,8 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 	#define MSG_8192C(x, ...) do {} while(0)
 	#define DBG_8192C(x,...) do {} while(0)
 	#define DBG_871X_LEVEL(x,...) do {} while(0)
+	#define RTW_WARN(x, ...) do {} while(0)
+	#define RTW_INFO(x, ...) do {} while(0)
 #endif
 
 #undef _dbgdump
@@ -208,6 +210,8 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 		}\
 	}while(0)
 
+	#define RTW_ERR(fmt, arg...) DBG_871X_LEVEL(_drv_err_, fmt, ##arg)
+
 /* without driver-defined prefix */
 #undef _DBG_871X_LEVEL
 #define _DBG_871X_LEVEL(level, fmt, arg...)	   \
@@ -229,7 +233,7 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 		if (sel == RTW_DBGDUMP)\
 			_DBG_871X_LEVEL(_drv_always_, fmt, ##arg); \
 		else {\
-			if(_seqdump(sel, fmt, ##arg)) /*rtw_warn_on(1)*/; \
+			_seqdump(sel, fmt, ##arg); \
 		} \
 	}while(0)
 
@@ -239,10 +243,12 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 		if (sel == RTW_DBGDUMP)\
 			DBG_871X_LEVEL(_drv_always_, fmt, ##arg); \
 		else {\
-			if(_seqdump(sel, fmt, ##arg)) /*rtw_warn_on(1)*/; \
+			_seqdump(sel, fmt, ##arg); \
 		} \
 	}while(0)
 
+#define RTW_PRINT_SEL DBG_871X_SEL_NL
+#define _RTW_PRINT_SEL DBG_871X_SEL
 #endif /* defined(_seqdump) */
 
 #endif /* defined(_dbgdump) */
@@ -263,6 +269,14 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 	#define DBG_8192C(...)     do {\
 		_dbgdump(DRIVER_PREFIX __VA_ARGS__);\
 	}while(0)
+
+	#undef RTW_WARN
+	#define RTW_WARN(...)	  do {\
+		_dbgdump(DRIVER_PREFIX"WARN " __VA_ARGS__);\
+	}while(0)
+
+	#undef RTW_INFO
+	#define RTW_INFO DBG_871X
 #endif /* defined(_dbgdump) */
 #endif /* CONFIG_DEBUG */
 
@@ -349,6 +363,7 @@ struct sta_info;
 void sta_rx_reorder_ctl_dump(void *sel, struct sta_info *sta);
 
 struct dvobj_priv;
+void dump_tx_rate_bmp(void *sel, struct dvobj_priv *dvobj);
 void dump_adapters_status(void *sel, struct dvobj_priv *dvobj);
 
 struct sec_cam_ent;

@@ -104,6 +104,11 @@ int rtw_rfkfree_enable = 2; /* disable kfree */
 #else
 int rtw_rfkfree_enable = 0; /* Default Enalbe kfree by efuse config */
 #endif
+
+uint rtw_tx_bw_mode = 0x21;
+module_param(rtw_tx_bw_mode, uint, 0644);
+MODULE_PARM_DESC(rtw_tx_bw_mode, "The max tx bw for 2.4G and 5G. format is the same as rtw_bw_mode");
+
 #ifdef CONFIG_80211N_HT
 int rtw_ht_enable = 1;
 // 0: 20 MHz, 1: 40 MHz, 2: 80 MHz, 3: 160MHz, 4: 80+80MHz
@@ -438,27 +443,13 @@ uint rtw_pll_ref_clk_sel = CONFIG_RTW_PLL_REF_CLK_SEL;
 module_param(rtw_pll_ref_clk_sel, uint, 0644);
 MODULE_PARM_DESC(rtw_pll_ref_clk_sel, "force pll_ref_clk_sel, 0xF:use autoload value");
 
-#if defined(CONFIG_CALIBRATE_TX_POWER_BY_REGULATORY) //eFuse: Regulatory selection=1
-int rtw_tx_pwr_lmt_enable = 1;
-int rtw_tx_pwr_by_rate = 1;
-#elif defined(CONFIG_CALIBRATE_TX_POWER_TO_MAX)//eFuse: Regulatory selection=0
-int rtw_tx_pwr_lmt_enable = 0;
-int rtw_tx_pwr_by_rate = 1;
-#else //eFuse: Regulatory selection=2
-#ifdef CONFIG_PCI_HCI
-int rtw_tx_pwr_lmt_enable = 2; // 2- Depend on efuse
-int rtw_tx_pwr_by_rate = 2;// 2- Depend on efuse
-#else // USB & SDIO
-int rtw_tx_pwr_lmt_enable = 0;
-int rtw_tx_pwr_by_rate = 0;
-#endif 
-#endif
+int rtw_tx_pwr_by_rate = CONFIG_TXPWR_BY_RATE_EN;
+module_param(rtw_tx_pwr_by_rate, int, 0644);
+MODULE_PARM_DESC(rtw_tx_pwr_by_rate, "0:Disable, 1:Enable, 2: Depend on efuse");
 
+int rtw_tx_pwr_lmt_enable = CONFIG_TXPWR_LIMIT_EN;
 module_param(rtw_tx_pwr_lmt_enable, int, 0644);
 MODULE_PARM_DESC(rtw_tx_pwr_lmt_enable,"0:Disable, 1:Enable, 2: Depend on efuse");
-
-module_param(rtw_tx_pwr_by_rate, int, 0644);
-MODULE_PARM_DESC(rtw_tx_pwr_by_rate,"0:Disable, 1:Enable, 2: Depend on efuse");
 
 static int rtw_target_tx_pwr_2g_a[RATE_SECTION_NUM] = CONFIG_RTW_TARGET_TX_PWR_2G_A;
 static int rtw_target_tx_pwr_2g_a_num = 0;
@@ -629,6 +620,8 @@ _func_enter_;
 
 	registry_par->RegRfKFreeEnable = (u8)rtw_rfkfree_enable;
 	
+	registry_par->tx_bw_mode = (u8)rtw_tx_bw_mode;
+
 #ifdef CONFIG_80211N_HT
 	registry_par->ht_enable = (u8)rtw_ht_enable;
 	registry_par->bw_mode = (u8)rtw_bw_mode;
@@ -1512,6 +1505,9 @@ u8 rtw_init_default_value(_adapter *padapter)
 	//for debug purpose
 	padapter->fix_rate = 0xFF;
 	padapter->data_fb = 0;
+
+	padapter->driver_tx_bw_mode = pregistrypriv->tx_bw_mode;
+
 	padapter->driver_ampdu_spacing = 0xFF;
 	padapter->driver_rx_ampdu_factor =  0xFF;
 	padapter->driver_rx_ampdu_spacing = 0xFF;
@@ -1539,6 +1535,7 @@ struct dvobj_priv *devobj_init(void)
 	_rtw_mutex_init(&pdvobj->h2c_fwcmd_mutex);
 	_rtw_mutex_init(&pdvobj->setch_mutex);
 	_rtw_mutex_init(&pdvobj->setbw_mutex);
+	_rtw_mutex_init(&pdvobj->rf_read_reg_mutex);
 #ifdef CONFIG_SDIO_INDIRECT_ACCESS
 	_rtw_mutex_init(&pdvobj->sd_indirect_access_mutex);
 #endif
@@ -1569,6 +1566,7 @@ void devobj_deinit(struct dvobj_priv *pdvobj)
 	_rtw_mutex_free(&pdvobj->h2c_fwcmd_mutex);
 	_rtw_mutex_free(&pdvobj->setch_mutex);
 	_rtw_mutex_free(&pdvobj->setbw_mutex);
+	_rtw_mutex_free(&pdvobj->rf_read_reg_mutex);
 #ifdef CONFIG_SDIO_INDIRECT_ACCESS
 	_rtw_mutex_free(&pdvobj->sd_indirect_access_mutex);
 #endif
@@ -3579,8 +3577,7 @@ int rtw_suspend_wow(_adapter *padapter)
 		rtw_set_drv_stopped(padapter);	/*for stop thread*/
 		rtw_stop_drv_threads(padapter);
 		#ifdef CONFIG_CONCURRENT_MODE	
-		if (rtw_buddy_adapter_up(padapter))
-			rtw_stop_drv_threads(padapter->pbuddy_adapter);
+		rtw_stop_drv_threads(padapter->pbuddy_adapter);
 		#endif /*CONFIG_CONCURRENT_MODE*/
 		rtw_clr_drv_stopped(padapter);	/*for 32k command*/
 

@@ -163,10 +163,6 @@ int reset_tsf(PADAPTER Adapter, u8 reset_port );
 //#define H2C_8188E_RSVDPAGE_LOC_LEN      5
 //#define H2C_8188E_AOAC_RSVDPAGE_LOC_LEN 7
 
-#ifdef CONFIG_WOWLAN
-void SetFwRelatedForWoWLAN8188ES(_adapter* padapter, u8 bHostIsGoingtoSleep);
-#endif//CONFIG_WOWLAN
-
 //---------------------------------------------------------------------------------------------------------//
 //----------------------------------    H2C CMD CONTENT    --------------------------------------------------//
 //---------------------------------------------------------------------------------------------------------//

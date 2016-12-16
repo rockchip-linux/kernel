@@ -23,6 +23,19 @@
 #include <drv_types.h>
 #include <hal_data.h>
 
+const u32 _chip_type_to_odm_ic_type[] = {
+	0,
+	ODM_RTL8188E,
+	ODM_RTL8192E,
+	ODM_RTL8812,
+	ODM_RTL8821,
+	ODM_RTL8723B,
+	ODM_RTL8814A,
+	ODM_RTL8703B,
+	ODM_RTL8188F,
+	0,
+};
+
 void rtw_hal_chip_configure(_adapter *padapter)
 {
 	padapter->HalFunc.intf_chip_configure(padapter);
@@ -50,6 +63,7 @@ void rtw_hal_read_chip_info(_adapter *padapter)
 void rtw_hal_read_chip_version(_adapter *padapter)
 {
 	padapter->HalFunc.read_chip_version(padapter);
+	rtw_odm_init_ic_type(padapter);
 }
 
 void rtw_hal_def_value_init(_adapter *padapter)
@@ -114,7 +128,7 @@ void rtw_hal_dm_init(_adapter *padapter)
 
 		_rtw_spinlock_init(&pHalData->IQKSpinLock);
 
-		phy_load_tx_power_ext_info(padapter, 1, 1);
+		phy_load_tx_power_ext_info(padapter, 1);
 	}
 }
 void rtw_hal_dm_deinit(_adapter *padapter)
@@ -300,6 +314,11 @@ u8 rtw_hal_check_ips_status(_adapter *padapter)
 	return val;
 }
 
+s32 rtw_hal_fw_dl(_adapter *padapter, u8 wowlan)
+{
+	return padapter->HalFunc.fw_dl(padapter, wowlan);
+}
+
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
 void rtw_hal_clear_interrupt(_adapter *padapter)
 {  
@@ -307,11 +326,6 @@ void rtw_hal_clear_interrupt(_adapter *padapter)
 	padapter->HalFunc.clear_interrupt(padapter);
 #endif
 }
-void rtw_hal_set_wowlan_fw(_adapter *padapter, u8 sleep)
-{
-	padapter->HalFunc.hal_set_wowlan_fw(padapter, sleep);
-}
-
 #endif
 
 #if defined(CONFIG_USB_HCI) || defined (CONFIG_PCI_HCI)
@@ -528,41 +542,42 @@ void	rtw_hal_interrupt_handler(_adapter *padapter, u16 pkt_len, u8 *pbuf)
 }
 #endif
 
-void	rtw_hal_set_bwmode(_adapter *padapter, CHANNEL_WIDTH Bandwidth, u8 Offset)
-{
-	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
-	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-	
-	ODM_AcquireSpinLock( pDM_Odm, RT_IQK_SPINLOCK);
-	if(pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
-		DBG_871X_LEVEL(_drv_err_, "%s, %d, IQK may race condition\n", __func__,__LINE__);
-	ODM_ReleaseSpinLock( pDM_Odm, RT_IQK_SPINLOCK);
-	padapter->HalFunc.set_bwmode_handler(padapter, Bandwidth, Offset);
-	
-}
-
-void	rtw_hal_set_chan(_adapter *padapter, u8 channel)
-{
-	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
-	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-	
-	ODM_AcquireSpinLock( pDM_Odm, RT_IQK_SPINLOCK);
-	if(pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
-		DBG_871X_LEVEL(_drv_err_, "%s, %d, IQK may race condition\n", __func__,__LINE__);
-	ODM_ReleaseSpinLock( pDM_Odm, RT_IQK_SPINLOCK);
-	padapter->HalFunc.set_channel_handler(padapter, channel);	
-}
-
 void	rtw_hal_set_chnl_bw(_adapter *padapter, u8 channel, CHANNEL_WIDTH Bandwidth, u8 Offset40, u8 Offset80)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
 	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-	
-	ODM_AcquireSpinLock( pDM_Odm, RT_IQK_SPINLOCK);
-	if(pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
-		DBG_871X_LEVEL(_drv_err_, "%s, %d, IQK may race condition\n", __func__,__LINE__);
-	ODM_ReleaseSpinLock( pDM_Odm, RT_IQK_SPINLOCK);
-	padapter->HalFunc.set_chnl_bw_handler(padapter, channel, Bandwidth, Offset40, Offset80);	
+	u8 cch_160 = Bandwidth == CHANNEL_WIDTH_160 ? channel : 0;
+	u8 cch_80 = Bandwidth == CHANNEL_WIDTH_80 ? channel : 0;
+	u8 cch_40 = Bandwidth == CHANNEL_WIDTH_40 ? channel : 0;
+	u8 cch_20 = Bandwidth == CHANNEL_WIDTH_20 ? channel : 0;
+
+	ODM_AcquireSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
+	if (pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
+		RTW_ERR("%s, %d, IQK may race condition\n", __func__, __LINE__);
+	ODM_ReleaseSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
+
+	/* MP mode channel don't use secondary channel */
+	if (rtw_mp_mode_check(padapter) == _FALSE) {
+		#if 0
+		if (cch_160 != 0)
+			cch_80 = rtw_get_scch_by_cch_offset(cch_160, CHANNEL_WIDTH_160, Offset80);
+		#endif
+		if (cch_80 != 0)
+			cch_40 = rtw_get_scch_by_cch_offset(cch_80, CHANNEL_WIDTH_80, Offset80);
+		if (cch_40 != 0)
+			cch_20 = rtw_get_scch_by_cch_offset(cch_40, CHANNEL_WIDTH_40, Offset40);
+	}
+
+	pHalData->cch_80 = cch_80;
+	pHalData->cch_40 = cch_40;
+	pHalData->cch_20 = cch_20;
+
+	if (0)
+		RTW_INFO("%s cch:%u, %s, offset40:%u, offset80:%u (%u, %u, %u)\n", __func__
+			, channel, ch_width_str(Bandwidth), Offset40, Offset80
+			, pHalData->cch_80, pHalData->cch_40, pHalData->cch_20);
+
+	padapter->HalFunc.set_chnl_bw_handler(padapter, channel, Bandwidth, Offset40, Offset80);
 }
 
 void	rtw_hal_set_tx_power_level(_adapter *padapter, u8 channel)
@@ -834,6 +849,16 @@ void rtw_hal_fw_correct_bcn(_adapter *padapter)
 		padapter->HalFunc.fw_correct_bcn(padapter);
 }
 
+void rtw_hal_set_tx_power_index(PADAPTER padapter, u32 powerindex, u8 rfpath, u8 rate)
+{
+	return padapter->HalFunc.set_tx_power_index_handler(padapter, powerindex, rfpath, rate);
+}
+
+u8 rtw_hal_get_tx_power_index(PADAPTER padapter, u8 rfpath, u8 rate, u8 bandwidth, u8 channel, struct txpwr_idx_comp *tic)
+{
+	return padapter->HalFunc.get_tx_power_index_handler(padapter, rfpath, rate, bandwidth, channel, tic);
+}
+
 #define rtw_hal_error_msg(ops_fun)		\
 	DBG_871X_LEVEL(_drv_always_, "### %s - Error : Please hook HalFunc.%s ###\n",__FUNCTION__,ops_fun)
 
@@ -985,16 +1010,6 @@ u8 rtw_hal_ops_check(_adapter *padapter)
 	#endif
 
 	/*** xxx section ***/
-	if (NULL == padapter->HalFunc.set_bwmode_handler) {
-		rtw_hal_error_msg("set_bwmode_handler");
-		ret = _FAIL;
-	}
-
-	if (NULL == padapter->HalFunc.set_channel_handler) {
-		rtw_hal_error_msg("set_channel_handler");
-		ret = _FAIL;
-	}
-
 	if (NULL == padapter->HalFunc.set_chnl_bw_handler) {
 		rtw_hal_error_msg("set_chnl_bw_handler");
 		ret = _FAIL;
@@ -1061,11 +1076,13 @@ u8 rtw_hal_ops_check(_adapter *padapter)
 		ret = _FAIL;
 	}
 	#endif
-	if (NULL == padapter->HalFunc.hal_set_wowlan_fw) {
-		rtw_hal_error_msg("hal_set_wowlan_fw");
+	#endif /* CONFIG_WOWLAN */
+
+	if (NULL == padapter->HalFunc.fw_dl) {
+		rtw_hal_error_msg("fw_dl");
 		ret = _FAIL;
 	}
-	#endif //CONFIG_WOWLAN
+
 	if ((IS_HARDWARE_TYPE_8814A(padapter)
 		|| IS_HARDWARE_TYPE_8822BU(padapter) || IS_HARDWARE_TYPE_8822BS(padapter))
 		&& NULL == padapter->HalFunc.fw_correct_bcn) {
@@ -1074,6 +1091,11 @@ u8 rtw_hal_ops_check(_adapter *padapter)
 	}
 	
 	
+	if (!padapter->HalFunc.get_tx_power_index_handler) {
+		rtw_hal_error_msg("get_tx_power_index_handler");
+		ret = _FAIL;
+	}
+
 	/*** SReset section ***/
 	#ifdef DBG_CONFIG_ERROR_DETECT		
 	if (NULL == padapter->HalFunc.sreset_init_value) {

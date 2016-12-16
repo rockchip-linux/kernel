@@ -82,20 +82,23 @@ PHY_RF6052SetBandwidth8188F(
 		RF_A_reg 0x18[11:10]=2'b11
 		RF_A_reg 0x87=0x00065
 		RF_A_reg 0x1c=0x00000
-		RF_A_reg 0x52=0xFAC2C (for USB)
 		RF_A_reg 0xDF=0x00140
-		RF_A_reg 0x1b=0x00c6c
+		RF_A_reg 0x1b=0x00c6c (for SDIO)
+		RF_A_reg 0x1b=0x01c6c (for USB)
 		*/
 		pHalData->RfRegChnlVal[0] = ((pHalData->RfRegChnlVal[0] & 0xfffff3ff) | BIT10 | BIT11);
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x18, bRFRegOffsetMask, pHalData->RfRegChnlVal[0]); /* RF TRX_BW */
 
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x87, bRFRegOffsetMask, 0x00065); /* FILTER BW&RC Corner (ACPR) */
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1C, bRFRegOffsetMask, 0x00000); /* FILTER BW&RC Corner (ACPR) */
+
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0xDF, bRFRegOffsetMask, 0x00140); /* RC Corner */
+#ifdef CONFIG_SDIO_HCI
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1B, bRFRegOffsetMask, 0x00C6C); /* RC Corner */
+#endif /* CONFIG_SDIO_HCI */
 #ifdef CONFIG_USB_HCI
-		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x52, bRFRegOffsetMask, 0xFAC2C); /* FILTER BW&RC Corner (ACPR) */
-#endif /* CONFIG_USB_HCI */
-		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0xDF, bRFRegOffsetMask, 0x00140); /* FILTER BW&RC Corner (ACPR) */
-		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1B, bRFRegOffsetMask, 0x00C6C); /* FILTER BW&RC Corner (ACPR) */
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1B, bRFRegOffsetMask, 0x01C6C); /* RC Corner */
+#endif
 		break;
 
 	case CHANNEL_WIDTH_40:
@@ -104,9 +107,9 @@ PHY_RF6052SetBandwidth8188F(
 		RF_A_reg 0x87=0x00025
 		RF_A_reg 0x1c=0x00800 (for SDIO)
 		RF_A_reg 0x1c=0x01000 (for USB)
-		RF_A_reg 0x52=0xFAC2C (for USB)
 		RF_A_reg 0xDF=0x00140
-		RF_A_reg 0x1b=0x00c6c
+		RF_A_reg 0x1b=0x00c6c (for SDIO)
+		RF_A_reg 0x1b=0x01c6c (for USB)
 		*/
 		pHalData->RfRegChnlVal[0] = ((pHalData->RfRegChnlVal[0] & 0xfffff3ff) | BIT10);
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x18, bRFRegOffsetMask, pHalData->RfRegChnlVal[0]); /* RF TRX_BW */
@@ -114,13 +117,14 @@ PHY_RF6052SetBandwidth8188F(
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x87, bRFRegOffsetMask, 0x00025); /* FILTER BW&RC Corner (ACPR) */
 #ifdef CONFIG_SDIO_HCI
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1C, bRFRegOffsetMask, 0x00800); /* FILTER BW&RC Corner (ACPR) */
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0xDF, bRFRegOffsetMask, 0x00140); /* RC Corner */
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1B, bRFRegOffsetMask, 0x00C6C); /* RC Corner */
 #endif /* CONFIG_SDIO_HCI */
 #ifdef CONFIG_USB_HCI
 		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1C, bRFRegOffsetMask, 0x01000); /* FILTER BW&RC Corner (ACPR) */
-		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x52, bRFRegOffsetMask, 0xFAC2C); /* FILTER BW&RC Corner (ACPR) */
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0xDF, bRFRegOffsetMask, 0x00140); /* RC Corner */
+		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1B, bRFRegOffsetMask, 0x01C6C); /* RC Corner */
 #endif
-		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0xDF, bRFRegOffsetMask, 0x00140); /* FILTER BW&RC Corner (ACPR) */
-		PHY_SetRFReg(Adapter, ODM_RF_PATH_A, 0x1B, bRFRegOffsetMask, 0x00C6C); /* FILTER BW&RC Corner (ACPR) */
 		break;
 
 	default:
@@ -154,15 +158,6 @@ phy_RF6052_Config_ParaFile(
 
 	int					rtStatus = _SUCCESS;
 	HAL_DATA_TYPE		*pHalData = GET_HAL_DATA(Adapter);
-
-	static char			sz8188RadioAFile[] = RTL8188F_PHY_RADIO_A;
-	static char			sz8188RadioBFile[] = RTL8188F_PHY_RADIO_B;
-	static s1Byte			sz8188FTxPwrTrackFile[] = RTL8188F_TXPWR_TRACK;
-	char					*pszRadioAFile, *pszRadioBFile, *pszTxPwrTrackFile;
-
-	pszRadioAFile = sz8188RadioAFile;
-	pszRadioBFile = sz8188RadioBFile;
-	pszTxPwrTrackFile = sz8188FTxPwrTrackFile;
 
 	/*3//----------------------------------------------------------------- */
 	/*3// <2> Initialize RF */
@@ -203,7 +198,7 @@ phy_RF6052_Config_ParaFile(
 		switch (eRFPath) {
 		case RF_PATH_A:
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-			if (PHY_ConfigRFWithParaFile(Adapter, pszRadioAFile, eRFPath) == _FAIL)
+			if (PHY_ConfigRFWithParaFile(Adapter, PHY_FILE_RADIO_A, eRFPath) == _FAIL)
 #endif
 			{
 #ifdef CONFIG_EMBEDDED_FWIMG
@@ -214,7 +209,7 @@ phy_RF6052_Config_ParaFile(
 			break;
 		case RF_PATH_B:
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-			if (PHY_ConfigRFWithParaFile(Adapter, pszRadioBFile, eRFPath) == _FAIL)
+			if (PHY_ConfigRFWithParaFile(Adapter, PHY_FILE_RADIO_B, eRFPath) == _FAIL)
 #endif
 			{
 #ifdef CONFIG_EMBEDDED_FWIMG
@@ -253,7 +248,7 @@ phy_RF6052_Config_ParaFile(
 	/*3 ----------------------------------------------------------------- */
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-	if (PHY_ConfigRFWithTxPwrTrackParaFile(Adapter, pszTxPwrTrackFile) == _FAIL)
+	if (PHY_ConfigRFWithTxPwrTrackParaFile(Adapter, PHY_FILE_TXPWR_TRACK) == _FAIL)
 #endif
 	{
 #ifdef CONFIG_EMBEDDED_FWIMG

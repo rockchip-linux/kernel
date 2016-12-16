@@ -273,6 +273,12 @@ void rtw_hal_config_rftype(PADAPTER  padapter);
 #define BW_CAP_80_80M	BIT6
 #define BW_CAP_BIT_NUM	7
 
+#define PROTO_CAP_11B		BIT0
+#define PROTO_CAP_11G		BIT1
+#define PROTO_CAP_11N		BIT2
+#define PROTO_CAP_11AC		BIT3
+#define PROTO_CAP_BIT_NUM	4
+
 #define WL_FUNC_P2P			BIT0
 #define WL_FUNC_MIRACAST	BIT1
 #define WL_FUNC_TDLS		BIT2
@@ -284,8 +290,10 @@ void dump_hal_spec(void *sel, _adapter *adapter);
 
 bool hal_chk_band_cap(_adapter *adapter, u8 cap);
 bool hal_chk_bw_cap(_adapter *adapter, u8 cap);
+bool hal_chk_proto_cap(_adapter *adapter, u8 cap);
 bool hal_is_band_support(_adapter *adapter, u8 band);
 bool hal_is_bw_support(_adapter *adapter, u8 bw);
+bool hal_is_wireless_mode_support(_adapter *adapter, u8 mode);
 u8 hal_largest_bw(_adapter *adapter, u8 in_bw);
 
 bool hal_chk_wl_func(_adapter *adapter, u8 func);
@@ -421,6 +429,7 @@ u32 Hal_ReadMACAddrFromFile(PADAPTER padapter, u8 *mac_addr);
 int check_phy_efuse_tx_power_info_valid(PADAPTER padapter);
 int hal_efuse_macaddr_offset(_adapter *adapter);
 int Hal_GetPhyEfuseMACAddr(PADAPTER padapter, u8 *mac_addr);
+void rtw_dump_cur_efuse(PADAPTER padapter);
 
 #ifdef CONFIG_RF_GAIN_OFFSET
 void rtw_bb_rf_gain_offset(_adapter *padapter);
@@ -512,7 +521,7 @@ static inline u32 rtw_phydm_ability_get(_adapter *adapter)
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
 extern char *rtw_phy_file_path;
-extern char file_path[PATH_LENGTH_MAX];
+extern char rtw_phy_para_file_path[PATH_LENGTH_MAX];
 #define GetLineFromBuffer(buffer)   strsep(&buffer, "\r\n")
 #endif
 

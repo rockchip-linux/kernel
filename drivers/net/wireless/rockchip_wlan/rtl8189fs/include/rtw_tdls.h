@@ -138,7 +138,6 @@ void rtw_build_tdls_peer_traffic_indication_ies(_adapter * padapter, struct xmit
 void rtw_build_tunneled_probe_req_ies(_adapter * padapter, struct xmit_frame * pxmitframe, u8 *pframe);
 void rtw_build_tunneled_probe_rsp_ies(_adapter * padapter, struct xmit_frame * pxmitframe, u8 *pframe);
 
-u8	update_sgi_tdls(_adapter *padapter, struct sta_info *psta);
 u32 update_mask_tdls(_adapter *padapter, struct sta_info *psta);
 int rtw_tdls_is_driver_setup(_adapter *padapter);
 void rtw_tdls_set_key(_adapter *padapter, struct sta_info *ptdls_sta);

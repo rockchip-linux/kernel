@@ -482,7 +482,10 @@ ODM_DMReset(
 	IN		PDM_ODM_T		pDM_Odm
 	)
 {
-	ODM_AntDivReset(pDM_Odm);
+	pDIG_T pDM_DigTable = &pDM_Odm->DM_DigTable;
+	
+	ODM_AntDivReset(pDM_Odm);	
+	phydm_setEDCCAThresholdAPI(pDM_Odm, pDM_DigTable->CurIGValue);
 }
 
 

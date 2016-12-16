@@ -311,7 +311,7 @@ static s32 polling_fwdl_chksum(_adapter *adapter, u32 min_cnt, u32 timeout_ms)
 	do {
 		cnt++;
 		value32 = rtw_read32(adapter, REG_MCUFWDL);
-		if (value32 & FWDL_ChkSum_rpt || RTW_CANNOT_RUN(adapter))
+		if (value32 & FWDL_ChkSum_rpt || RTW_CANNOT_IO(adapter))
 			break;
 		rtw_yield_os();
 	} while (rtw_get_passing_time_ms(start) < timeout_ms || cnt < min_cnt);
@@ -352,7 +352,7 @@ static s32 _FWFreeToGo(_adapter *adapter, u32 min_cnt, u32 timeout_ms)
 		cnt++;
 		value32 = rtw_read32(adapter, REG_MCUFWDL);
 		value_to_check = value32 & value_expected;
-		if ((value_to_check == value_expected) || RTW_CANNOT_RUN(adapter))
+		if ((value_to_check == value_expected) || RTW_CANNOT_IO(adapter))
 			break;
 		rtw_yield_os();
 	} while (rtw_get_passing_time_ms(start) < timeout_ms || cnt < min_cnt);
@@ -1080,7 +1080,6 @@ s32 rtl8188f_FirmwareDownload(PADAPTER padapter, BOOLEAN  bUsedWoWLANFw)
 	u8 write_fw = 0;
 	u32 fwdl_start_time;
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
-	s8			R8188FFwImageFileName[] = {RTL8188F_FW_IMG};
 	u8			*FwImage;
 	u32			FwImageLen;
 	u8			*pFwImageFileName;
@@ -1245,7 +1244,7 @@ s32 rtl8188f_FirmwareDownload(PADAPTER padapter, BOOLEAN  bUsedWoWLANFw)
 
 	_FWDownloadEnable(padapter, _TRUE);
 
-	while (!RTW_CANNOT_RUN(padapter)
+	while (!RTW_CANNOT_IO(padapter)
 		   && (write_fw++ < 3 || rtw_get_passing_time_ms(fwdl_start_time) < 500)) {
 		/* reset FWDL chksum */
 		rtw_write8(padapter, REG_MCUFWDL, rtw_read8(padapter, REG_MCUFWDL) | FWDL_ChkSum_rpt);
@@ -1347,6 +1346,8 @@ exit:
 	if (pFirmware)
 		rtw_mfree((u8 *)pFirmware, sizeof(RT_FIRMWARE_8188F));
 
+	rtl8188f_InitializeFirmwareVars(padapter);
+
 	DBG_871X(" <=== %s()\n", __func__);
 
 	return rtStatus;
@@ -1368,42 +1369,6 @@ void rtl8188f_InitializeFirmwareVars(PADAPTER padapter)
 	/*pHalData->H2CQueueTail = 0; */
 	/*pHalData->H2CStopInsertQueue = _FALSE; */
 }
-
-#if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
-/*=========================================== */
-
-/* */
-/* Description: Prepare some information to Fw for WoWLAN. */
-/*					(1) Download wowlan Fw. */
-/*					(2) Download RSVD page packets. */
-/*					(3) Enable AP offload if needed. */
-/* */
-/* 2011.04.12 by tynli. */
-/* */
-VOID
-SetFwRelatedForWoWLAN8188f(
-	IN		PADAPTER			padapter,
-	IN		u8					bHostIsGoingtoSleep
-)
-{
-	int				status = _FAIL;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
-	u8				bRecover = _FALSE;
-	/* */
-	/* 1. Before WoWLAN we need to re-download WoWLAN Fw. */
-	/* */
-	status = rtl8188f_FirmwareDownload(padapter, bHostIsGoingtoSleep);
-	if (status != _SUCCESS) {
-		DBG_871X("SetFwRelatedForWoWLAN8188f(): Re-Download Firmware failed!!\n");
-		return;
-	} else
-		DBG_871X("SetFwRelatedForWoWLAN8188f(): Re-Download Firmware Success !!\n");
-	/* */
-	/* 2. Re-Init the variables about Fw related setting. */
-	/* */
-	rtl8188f_InitializeFirmwareVars(padapter);
-}
-#endif /*CONFIG_WOWLAN */
 
 /*=========================================================== */
 /*				Efuse related code */
@@ -1520,7 +1485,7 @@ Hal_GetEfuseDefinition(
 		pu2Tmp = (u16 *)pOut;
 
 		if (efuseType == EFUSE_WIFI)
-			*pu2Tmp = EFUSE_MAX_MAP_LEN;
+			*pu2Tmp = EFUSE_MAP_LEN_8188F;
 		else
 			*pu2Tmp = EFUSE_BT_MAP_LEN;
 	}
@@ -1676,11 +1641,7 @@ Hal_EfusePowerSwitch(
 		if (bWrite == _TRUE) {
 			/* Enable LDO 2.5V before read/write action */
 			tempval = rtw_read8(padapter, EFUSE_TEST + 3);
-			tempval &= 0x0F;
-			tempval |= (VOLTAGE_V25 << 4);
 			rtw_write8(padapter, EFUSE_TEST + 3, (tempval | 0x80));
-
-			/*rtw_write8(padapter, REG_EFUSE_ACCESS, EFUSE_ACCESS_ON); */
 		}
 	} else {
 		rtw_write8(padapter, REG_EFUSE_ACCESS, EFUSE_ACCESS_OFF);
@@ -1807,13 +1768,6 @@ hal_ReadEFuse_WiFi(
 	for (i = 0; i < _size_byte; i++)
 		pbuf[i] = efuseTbl[_offset + i];
 
-#ifdef CONFIG_DEBUG
-	if (1) {
-		DBG_871X("Efuse Realmap:\n");
-		for (i = 0; i < _size_byte; i++)
-			printk("%02X%s", pbuf[i], (((i + 1) % 16) == 0)?"\n":" ");
-	}
-#endif
 	/* Calculate Efuse utilization */
 	total = 0;
 	EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_AVAILABLE_EFUSE_BYTES_TOTAL, &total, bPseudoTest);
@@ -2281,9 +2235,10 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[0], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[1], bPseudoTest);
-
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[0], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr + 1, &tmpdata[1], bPseudoTest);
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[0] != tmpdata[0]) || (data[1] != tmpdata[1]))
 			badworden &= (~BIT(0));
 	}
@@ -2291,9 +2246,10 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[2], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[3], bPseudoTest);
-
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[2], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr + 1, &tmpdata[3], bPseudoTest);
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[2] != tmpdata[2]) || (data[3] != tmpdata[3]))
 			badworden &= (~BIT(1));
 	}
@@ -2301,9 +2257,10 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[4], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[5], bPseudoTest);
-
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[4], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr + 1, &tmpdata[5], bPseudoTest);
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[4] != tmpdata[4]) || (data[5] != tmpdata[5]))
 			badworden &= (~BIT(2));
 	}
@@ -2311,9 +2268,10 @@ Hal_EfuseWordEnableDataWrite(
 		tmpaddr = start_addr;
 		efuse_OneByteWrite(padapter, start_addr++, data[6], bPseudoTest);
 		efuse_OneByteWrite(padapter, start_addr++, data[7], bPseudoTest);
-
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, tmpaddr, &tmpdata[6], bPseudoTest);
 		efuse_OneByteRead(padapter, tmpaddr + 1, &tmpdata[7], bPseudoTest);
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
 		if ((data[6] != tmpdata[6]) || (data[7] != tmpdata[7]))
 			badworden &= (~BIT(3));
 	}
@@ -2622,6 +2580,42 @@ hal_EfusePartialWriteCheck(
 	return bRet;
 }
 
+BOOLEAN
+hal_EfuseFixHeaderProcess(
+	IN		PADAPTER			pAdapter,
+	IN		u1Byte				efuseType,
+	IN		PPGPKT_STRUCT		pFixPkt,
+	IN		pu2Byte				pAddr,
+	IN		BOOLEAN				bPseudoTest
+)
+{
+	u1Byte	originaldata[8], badworden=0;
+	u2Byte	efuse_addr=*pAddr;
+	u4Byte	PgWriteSuccess=0;
+
+	_rtw_memset((PVOID)originaldata, 8, 0xff);
+
+	if (Efuse_PgPacketRead(pAdapter, pFixPkt->offset, originaldata, bPseudoTest)) {
+		badworden = Hal_EfuseWordEnableDataWrite(pAdapter, efuse_addr+1, pFixPkt->word_en, originaldata, bPseudoTest);
+
+		if (badworden != 0xf) {
+		
+			PgWriteSuccess = Efuse_PgPacketWrite(pAdapter, pFixPkt->offset, badworden, originaldata, bPseudoTest);
+			if (!PgWriteSuccess)
+				return FALSE;
+			else
+				efuse_addr = Hal_EfuseGetCurrentSize(pAdapter, efuseType, bPseudoTest);
+		} else {
+			efuse_addr = efuse_addr + (pFixPkt->word_cnts*2) +1;
+		}
+	} else {
+		efuse_addr = efuse_addr + (pFixPkt->word_cnts*2) +1;
+	}
+
+	*pAddr = efuse_addr;
+	return TRUE;
+}
+
 static u8
 hal_EfusePgPacketWrite1ByteHeader(
 	PADAPTER		pAdapter,
@@ -2638,19 +2632,39 @@ hal_EfusePgPacketWrite1ByteHeader(
 
 	/*DBG_8192C("%s\n", __func__); */
 	pg_header = ((pTargetPkt->offset << 4) & 0xf0) | pTargetPkt->word_en;
+	if (IS_HARDWARE_TYPE_8723BE(pAdapter))
+		efuse_OneByteWrite(pAdapter, 0x1FF, 00, FALSE); /* increase current */
 
-	do {
 		efuse_OneByteWrite(pAdapter, efuse_addr, pg_header, bPseudoTest);
+
+	PHY_SetMacReg(pAdapter, EFUSE_TEST, BIT26, 0); 
+
 		efuse_OneByteRead(pAdapter, efuse_addr, &tmp_header, bPseudoTest);
-		if (tmp_header != 0xFF) break;
+
+	PHY_SetMacReg(pAdapter, EFUSE_TEST, BIT26, 1);
+
+	while (tmp_header == 0xFF || pg_header != tmp_header) {
 		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-			DBG_8192C("%s: Repeat over limit for pg_header!!\n", __func__);
+				DBG_8192C("retry %d times fail!!\n", repeatcnt);
 			return _FALSE;
 		}
-	} while (1);
+		efuse_OneByteWrite(pAdapter,efuse_addr, pg_header, bPseudoTest);
+		efuse_OneByteRead(pAdapter,efuse_addr, &tmp_header, bPseudoTest);
+		DBG_8192C("===>%s: Keep %d-th retrying,pg_header = 0x%X tmp_header = 0x%X\n", __func__,repeatcnt, pg_header, tmp_header);
+	}
 
-	if (tmp_header != pg_header) {
-		DBG_8192C(KERN_ERR "%s: PG Header Fail!!(pg=0x%02X read=0x%02X)\n", __func__, pg_header, tmp_header);
+	if (pg_header == tmp_header)
+		bRet = _TRUE;
+	else {
+		PGPKT_STRUCT	fixPkt;
+
+		DBG_8192C(" pg_header(0x%X) != tmp_header(0x%X)\n", pg_header, tmp_header);
+		DBG_8192C("Error condition for fixed PG packet, need to cover the existed data: (Addr, Data) = (0x%X, 0x%X)\n",
+						efuse_addr, tmp_header);
+		fixPkt.offset = (tmp_header>>4) & 0x0F;
+		fixPkt.word_en = tmp_header & 0x0F;
+		fixPkt.word_cnts = Efuse_CalculateWordCnts(fixPkt.word_en);
+		if (!hal_EfuseFixHeaderProcess(pAdapter, efuseType, &fixPkt, &efuse_addr, bPseudoTest))
 		return _FALSE;
 	}
 
@@ -2668,7 +2682,7 @@ hal_EfusePgPacketWrite2ByteHeader(
 	u8				bPseudoTest)
 {
 	u16	efuse_addr, efuse_max_available_len = 0;
-	u8	pg_header = 0, tmp_header = 0;
+	u8	pg_header = 0, tmp_header = 0, pg_header_temp = 0;
 	u8	repeatcnt = 0;
 
 
@@ -2676,46 +2690,73 @@ hal_EfusePgPacketWrite2ByteHeader(
 	EFUSE_GetEfuseDefinition(padapter, efuseType, TYPE_AVAILABLE_EFUSE_BYTES_BANK, &efuse_max_available_len, bPseudoTest);
 
 	efuse_addr = *pAddr;
+
 	if (efuse_addr >= efuse_max_available_len) {
-		DBG_8192C("%s: addr(%d) over available(%d)!!\n", __func__, efuse_addr, efuse_max_available_len);
+		DBG_8192C("%s: addr(%d) over avaliable(%d)!!\n", __func__, efuse_addr, efuse_max_available_len);
 		return _FALSE;
 	}
 
+	while (efuse_addr < efuse_max_available_len) {
 	pg_header = ((pTargetPkt->offset & 0x07) << 5) | 0x0F;
-	/*DBG_8192C("%s: pg_header=0x%x\n", __func__, pg_header); */
-
-	do {
 		efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
-		if (tmp_header != 0xFF) break;
+		PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
+
+		while (tmp_header == 0xFF || pg_header != tmp_header) {
 		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-			DBG_8192C("%s: Repeat over limit for pg_header!!\n", __func__);
+				DBG_8192C("%s, Repeat over limit for pg_header!!\n", __func__);
 			return _FALSE;
 		}
-	} while (1);
 
-	if (tmp_header != pg_header) {
-		DBG_8192C(KERN_ERR "%s: PG Header Fail!!(pg=0x%02X read=0x%02X)\n", __func__, pg_header, tmp_header);
-		return _FALSE;
+			efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
+			efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
 	}
 
-	/* to write ext_header */
+		/*to write ext_header*/
+		if (tmp_header == pg_header) {
 	efuse_addr++;
+			pg_header_temp = pg_header;
 	pg_header = ((pTargetPkt->offset & 0x78) << 1) | pTargetPkt->word_en;
 
-	do {
 		efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
+			PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 0);
 		efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
-		if (tmp_header != 0xFF) break;
+			PHY_SetMacReg(padapter, EFUSE_TEST, BIT26, 1);
+
+			while (tmp_header == 0xFF || pg_header != tmp_header) {
 		if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
-			DBG_8192C("%s: Repeat over limit for ext_header!!\n", __func__);
+					DBG_8192C("%s, Repeat over limit for ext_header!!\n", __func__);
 			return _FALSE;
 		}
-	} while (1);
 
-	if (tmp_header != pg_header) {	/*offset PG fail */
-		DBG_8192C(KERN_ERR "%s: PG EXT Header Fail!!(pg=0x%02X read=0x%02X)\n", __func__, pg_header, tmp_header);
+				efuse_OneByteWrite(padapter, efuse_addr, pg_header, bPseudoTest);
+				efuse_OneByteRead(padapter, efuse_addr, &tmp_header, bPseudoTest);
+			}
+
+			if ((tmp_header & 0x0F) == 0x0F) {
+				if (repeatcnt++ > EFUSE_REPEAT_THRESHOLD_) {
+					DBG_8192C("Repeat over limit for word_en!!\n");
+					return _FALSE;
+				} else {
+					efuse_addr++;
+					continue;
+				}
+			} else if (pg_header != tmp_header) {
+				PGPKT_STRUCT	fixPkt;
+				DBG_8192C("Error, efuse_PgPacketWrite2ByteHeader(), offset PG fail, need to cover the existed data!!\n");
+				DBG_8192C("Error condition for offset PG fail, need to cover the existed data\n");
+				fixPkt.offset = ((pg_header_temp & 0xE0) >> 5) | ((tmp_header & 0xF0) >> 1);
+				fixPkt.word_en = tmp_header & 0x0F;
+				fixPkt.word_cnts = Efuse_CalculateWordCnts(fixPkt.word_en);
+				if (!hal_EfuseFixHeaderProcess(padapter, efuseType, &fixPkt, &efuse_addr, bPseudoTest))
 		return _FALSE;
+			} else
+				break;
+		} else if ((tmp_header & 0x1F) == 0x0F) {/*wrong extended header*/
+			efuse_addr += 2;
+			continue;
+		}
 	}
 
 	*pAddr = efuse_addr;
@@ -2751,16 +2792,24 @@ hal_EfusePgPacketWriteData(
 {
 	u16	efuse_addr;
 	u8	badworden;
+	u8	PgWriteSuccess = 0;
 
 
 	efuse_addr = *pAddr;
 	badworden = Efuse_WordEnableDataWrite(pAdapter, efuse_addr + 1, pTargetPkt->word_en, pTargetPkt->data, bPseudoTest);
-	if (badworden != 0x0F) {
-		DBG_8192C("%s: Fail!!\n", __func__);
-		return _FALSE;
+	if (badworden == 0x0F) {
+			RTW_INFO("%s: OK!!\n", __FUNCTION__);
+			return _TRUE;
+		} else {	/* Reorganize other pg packet */
+			DBG_8192C ("Error, efuse_PgPacketWriteData(), wirte data fail!!\n");
+			DBG_8192C ("efuse_PgPacketWriteData Fail!!\n");
+			PgWriteSuccess = Efuse_PgPacketWrite(pAdapter, pTargetPkt->offset, badworden, pTargetPkt->data, bPseudoTest);
+			if (!PgWriteSuccess)
+				return FALSE;
+			else
+				return TRUE;
 	}
 
-	/*DBG_8192C("%s: ok\n", __func__); */
 	return _TRUE;
 }
 
@@ -3138,7 +3187,9 @@ void UpdateHalRAMask8188F(PADAPTER padapter, u32 mac_id, u8 rssi_level)
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
-	struct macid_ctl_t *macid_ctl = &padapter->dvobj->macid_ctl;
+	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
+	struct macid_ctl_t *macid_ctl = dvobj_to_macidctl(dvobj);
+	u8 bw;
 
 	if (mac_id < macid_ctl->num)
 		psta = macid_ctl->sta[mac_id];
@@ -3148,7 +3199,8 @@ void UpdateHalRAMask8188F(PADAPTER padapter, u32 mac_id, u8 rssi_level)
 		return;
 	}
 
-	shortGIrate = query_ra_short_GI(psta);
+	bw = rtw_get_tx_bw_mode(padapter, psta);
+	shortGIrate = query_ra_short_GI(psta, bw);
 
 	mask = psta->ra_mask;
 
@@ -3178,11 +3230,15 @@ void UpdateHalRAMask8188F(PADAPTER padapter, u32 mac_id, u8 rssi_level)
 #endif
 
 	if (pHalData->fw_ractrl == _TRUE)
-		rtl8188f_set_FwMacIdConfig_cmd(padapter, mac_id, psta->raid, psta->bw_mode, shortGIrate, mask);
+		rtl8188f_set_FwMacIdConfig_cmd(padapter, mac_id, psta->raid, bw, shortGIrate, mask);
 
 	/*set correct initial date rate for each mac_id */
 	pHalData->INIDATA_RATE[mac_id] = psta->init_rate;
-	DBG_871X("%s(): mac_id=%d raid=0x%x bw=%d mask=0x%x init_rate=0x%x\n", __func__, mac_id, psta->raid, psta->bw_mode, mask, psta->init_rate);
+	DBG_871X("%s(): mac_id=%d raid=0x%x bw=%d mask=0x%x init_rate=0x%x\n", __func__, mac_id, psta->raid, bw, mask, psta->init_rate);
+
+	rtw_macid_ctl_set_bw(macid_ctl, mac_id, bw);
+	rtw_macid_ctl_set_rate_bmp0(macid_ctl, mac_id, mask);
+	rtw_update_tx_rate_bmp(adapter_to_dvobj(padapter));
 }
 
 /* */
@@ -3263,81 +3319,6 @@ void rtl8188f_fill_fake_txdesc(
 #endif
 }
 
-void rtl8188f_set_hal_ops(struct hal_ops *pHalFunc)
-{
-	pHalFunc->dm_init = &rtl8188f_init_dm_priv;
-	pHalFunc->dm_deinit = &rtl8188f_deinit_dm_priv;
-
-	pHalFunc->read_chip_version = &rtl8188f_read_chip_version;
-
-	pHalFunc->UpdateRAMaskHandler = &UpdateHalRAMask8188F;
-	pHalFunc->set_bwmode_handler = &PHY_SetBWMode8188F;
-	pHalFunc->set_channel_handler = &PHY_SwChnl8188F;
-	pHalFunc->set_chnl_bw_handler = &PHY_SetSwChnlBWMode8188F;
-
-	pHalFunc->set_tx_power_level_handler = &PHY_SetTxPowerLevel8188F;
-	pHalFunc->get_tx_power_level_handler = &PHY_GetTxPowerLevel8188F;
-
-	pHalFunc->hal_dm_watchdog = &rtl8188f_HalDmWatchDog;
-#ifdef CONFIG_LPS_LCLK_WD_TIMER
-	pHalFunc->hal_dm_watchdog_in_lps = &rtl8188f_HalDmWatchDog_in_LPS;
-#endif /* CONFIG_LPS_LCLK_WD_TIMER */
-
-#ifdef CONFIG_C2H_PACKET_EN
-	pHalFunc->SetHwRegHandlerWithBuf = &SetHwRegWithBuf8188F;
-#endif /* CONFIG_C2H_PACKET_EN */
-
-	pHalFunc->SetBeaconRelatedRegistersHandler = &rtl8188f_SetBeaconRelatedRegisters;
-
-	pHalFunc->Add_RateATid = &rtl8188f_Add_RateATid;
-
-	pHalFunc->run_thread = &rtl8188f_start_thread;
-	pHalFunc->cancel_thread = &rtl8188f_stop_thread;
-
-	pHalFunc->read_bbreg = &PHY_QueryBBReg_8188F;
-	pHalFunc->write_bbreg = &PHY_SetBBReg_8188F;
-	pHalFunc->read_rfreg = &PHY_QueryRFReg_8188F;
-	pHalFunc->write_rfreg = &PHY_SetRFReg_8188F;
-
-	/* Efuse related function */
-	pHalFunc->BTEfusePowerSwitch = &Hal_BT_EfusePowerSwitch;
-	pHalFunc->EfusePowerSwitch = &Hal_EfusePowerSwitch;
-	pHalFunc->ReadEFuse = &Hal_ReadEFuse;
-	pHalFunc->EFUSEGetEfuseDefinition = &Hal_GetEfuseDefinition;
-	pHalFunc->EfuseGetCurrentSize = &Hal_EfuseGetCurrentSize;
-	pHalFunc->Efuse_PgPacketRead = &Hal_EfusePgPacketRead;
-	pHalFunc->Efuse_PgPacketWrite = &Hal_EfusePgPacketWrite;
-	pHalFunc->Efuse_WordEnableDataWrite = &Hal_EfuseWordEnableDataWrite;
-	pHalFunc->Efuse_PgPacketWrite_BT = &Hal_EfusePgPacketWrite_BT;
-
-#ifdef DBG_CONFIG_ERROR_DETECT
-	pHalFunc->sreset_init_value = &sreset_init_value;
-	pHalFunc->sreset_reset_value = &sreset_reset_value;
-	pHalFunc->silentreset = &sreset_reset;
-	pHalFunc->sreset_xmit_status_check = &rtl8188f_sreset_xmit_status_check;
-	pHalFunc->sreset_linked_status_check  = &rtl8188f_sreset_linked_status_check;
-	pHalFunc->sreset_get_wifi_status  = &sreset_get_wifi_status;
-	pHalFunc->sreset_inprogress = &sreset_inprogress;
-#endif
-	pHalFunc->GetHalODMVarHandler = GetHalODMVar;
-	pHalFunc->SetHalODMVarHandler = SetHalODMVar;
-
-#ifdef CONFIG_XMIT_THREAD_MODE
-	pHalFunc->xmit_thread_handler = &hal_xmit_handler;
-#endif
-	pHalFunc->hal_notch_filter = &hal_notch_filter_8188f;
-
-	pHalFunc->c2h_handler = c2h_handler_8188f;
-	pHalFunc->c2h_id_filter_ccx = c2h_id_filter_ccx_8188f;
-
-	pHalFunc->fill_h2c_cmd = &FillH2CCmd8188F;
-	pHalFunc->fill_fake_txdesc = &rtl8188f_fill_fake_txdesc;
-#ifdef CONFIG_WOWLAN
-	pHalFunc->hal_set_wowlan_fw = &SetFwRelatedForWoWLAN8188f;
-#endif
-	pHalFunc->hal_get_tx_buff_rsvd_page_num = &GetTxBufferRsvdPageNum8188F;
-}
-
 void rtl8188f_InitAntenna_Selection(PADAPTER padapter)
 {
 	PHAL_DATA_TYPE pHalData;
@@ -3398,12 +3379,16 @@ void init_hal_spec_8188f(_adapter *adapter)
 {
 	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
 
+	hal_spec->ic_name = "rtl8188f";
 	hal_spec->macid_num = MACID_NUM_8188F;
 	hal_spec->sec_cam_ent_num = SEC_CAM_ENT_NUM_8188F;
 	hal_spec->sec_cap = 0;
+	hal_spec->rfpath_num = 1;
+	hal_spec->max_tx_cnt = 1;
 	hal_spec->nss_num = NSS_NUM_8188F;
 	hal_spec->band_cap = BAND_CAP_8188F;
 	hal_spec->bw_cap = BW_CAP_8188F;
+	hal_spec->proto_cap = PROTO_CAP_8188F;
 
 	hal_spec->wl_func = 0
 						| WL_FUNC_P2P
@@ -3872,56 +3857,6 @@ s32 CardDisableWithoutHWSM(PADAPTER padapter)
 }
 #endif /* CONFIG_USB_HCI || CONFIG_SDIO_HCI || CONFIG_GSPI_HCI */
 
-BOOLEAN
-Hal_GetChnlGroup8188F(
-	IN	u8 Channel,
-	OUT u8 *pGroup
-)
-{
-	BOOLEAN bIn24G = TRUE;
-
-	if (Channel <= 14) {
-		bIn24G = TRUE;
-
-		if (1 <= Channel && Channel <= 2)
-			*pGroup = 0;
-		else if (3  <= Channel && Channel <= 5)
-			*pGroup = 1;
-		else if (6  <= Channel && Channel <= 8)
-			*pGroup = 2;
-		else if (9  <= Channel && Channel <= 11)
-			*pGroup = 3;
-		else if (12 <= Channel && Channel <= 14)
-			*pGroup = 4;
-		else
-			RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("==>Hal_GetChnlGroup8188F in 2.4 G, but Channel %d in Group not found\n", Channel));
-	} else {
-		bIn24G = FALSE;
-
-		if (36 <= Channel && Channel <= 42)
-			*pGroup = 0;
-		else if (44   <= Channel && Channel <=  48)   *pGroup = 1;
-		else if (50   <= Channel && Channel <=  58)   *pGroup = 2;
-		else if (60   <= Channel && Channel <=  64)   *pGroup = 3;
-		else if (100  <= Channel && Channel <= 106)   *pGroup = 4;
-		else if (108  <= Channel && Channel <= 114)   *pGroup = 5;
-		else if (116  <= Channel && Channel <= 122)   *pGroup = 6;
-		else if (124  <= Channel && Channel <= 130)   *pGroup = 7;
-		else if (132  <= Channel && Channel <= 138)   *pGroup = 8;
-		else if (140  <= Channel && Channel <= 144)   *pGroup = 9;
-		else if (149  <= Channel && Channel <= 155)   *pGroup = 10;
-		else if (157  <= Channel && Channel <= 161)   *pGroup = 11;
-		else if (165  <= Channel && Channel <= 171)   *pGroup = 12;
-		else if (173  <= Channel && Channel <= 177)   *pGroup = 13;
-		else
-			RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("==>Hal_GetChnlGroup8188F in 5G, but Channel %d in Group not found\n", Channel));
-
-	}
-	RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("<==Hal_GetChnlGroup8188F,  (%s) Channel = %d, Group =%d,\n",
-			 (bIn24G) ? "2.4G" : "5G", Channel, *pGroup));
-	return bIn24G;
-}
-
 void
 Hal_InitPGData(
 	PADAPTER	padapter,
@@ -4013,121 +3948,6 @@ Hal_EEValueCheck(
 	}
 }
 
-static u8
-Hal_GetChnlGroup(
-	IN	u8 chnl
-)
-{
-	u8	group = 0;
-
-	if (chnl < 3)			/* Cjanel 1-3 */
-		group = 0;
-	else if (chnl < 9)		/* Channel 4-9 */
-		group = 1;
-	else					/* Channel 10-14 */
-		group = 2;
-
-	return group;
-}
-
-void
-Hal_ReadPowerValueFromPROM_8188F(
-	IN	PADAPTER 		Adapter,
-	IN	PTxPowerInfo24G	pwrInfo24G,
-	IN	u8				 *PROMContent,
-	IN	BOOLEAN			AutoLoadFail
-)
-{
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-	u4Byte rfPath, eeAddr = EEPROM_TX_PWR_INX_8188F, group, TxCount = 0;
-
-	_rtw_memset(pwrInfo24G, 0, sizeof(TxPowerInfo24G));
-
-	if (0xFF == PROMContent[eeAddr + 1])
-		AutoLoadFail = TRUE;
-
-	if (AutoLoadFail) {
-		DBG_871X("%s(): Use Default value!\n", __func__);
-		for (rfPath = 0; rfPath < MAX_RF_PATH; rfPath++) {
-			/*2.4G default value */
-			for (group = 0; group < MAX_CHNL_GROUP_24G; group++) {
-				pwrInfo24G->IndexCCK_Base[rfPath][group] =	EEPROM_DEFAULT_24G_INDEX;
-				pwrInfo24G->IndexBW40_Base[rfPath][group] =	EEPROM_DEFAULT_24G_INDEX;
-			}
-			for (TxCount = 0; TxCount < MAX_TX_COUNT; TxCount++) {
-				if (TxCount == 0) {
-					pwrInfo24G->BW20_Diff[rfPath][0] =	EEPROM_DEFAULT_24G_HT20_DIFF;
-					pwrInfo24G->OFDM_Diff[rfPath][0] =	EEPROM_DEFAULT_24G_OFDM_DIFF;
-				} else {
-					pwrInfo24G->BW20_Diff[rfPath][TxCount] =	EEPROM_DEFAULT_DIFF;
-					pwrInfo24G->BW40_Diff[rfPath][TxCount] =	EEPROM_DEFAULT_DIFF;
-					pwrInfo24G->CCK_Diff[rfPath][TxCount] =	EEPROM_DEFAULT_DIFF;
-					pwrInfo24G->OFDM_Diff[rfPath][TxCount] =	EEPROM_DEFAULT_DIFF;
-				}
-			}
-		}
-
-		return;
-	}
-
-	pHalData->bTXPowerDataReadFromEEPORM = TRUE;		/*YJ,move,120316 */
-
-	for (rfPath = 0; rfPath < MAX_RF_PATH; rfPath++) {
-		/*2 2.4G default value */
-		for (group = 0; group < MAX_CHNL_GROUP_24G; group++) {
-			pwrInfo24G->IndexCCK_Base[rfPath][group] =	PROMContent[eeAddr++];
-			if (pwrInfo24G->IndexCCK_Base[rfPath][group] == 0xFF)
-				pwrInfo24G->IndexCCK_Base[rfPath][group] = EEPROM_DEFAULT_24G_INDEX;
-		}
-		for (group = 0; group < MAX_CHNL_GROUP_24G - 1; group++) {
-			pwrInfo24G->IndexBW40_Base[rfPath][group] =	PROMContent[eeAddr++];
-			if (pwrInfo24G->IndexBW40_Base[rfPath][group] == 0xFF)
-				pwrInfo24G->IndexBW40_Base[rfPath][group] =	EEPROM_DEFAULT_24G_INDEX;
-		}
-		for (TxCount = 0; TxCount < MAX_TX_COUNT; TxCount++) {
-			if (TxCount == 0) {
-				pwrInfo24G->BW40_Diff[rfPath][TxCount] = 0;
-				pwrInfo24G->BW20_Diff[rfPath][TxCount] = (PROMContent[eeAddr] & 0xf0) >> 4;
-				if (pwrInfo24G->BW20_Diff[rfPath][TxCount] & BIT3)		/*4bit sign number to 8 bit sign number*/
-					pwrInfo24G->BW20_Diff[rfPath][TxCount] |= 0xF0;
-
-				pwrInfo24G->OFDM_Diff[rfPath][TxCount] = (PROMContent[eeAddr] & 0x0f);
-				if (pwrInfo24G->OFDM_Diff[rfPath][TxCount] & BIT3)		/*4bit sign number to 8 bit sign number*/
-					pwrInfo24G->OFDM_Diff[rfPath][TxCount] |= 0xF0;
-
-				pwrInfo24G->CCK_Diff[rfPath][TxCount] = 0;
-				eeAddr++;
-			} else {
-				pwrInfo24G->BW40_Diff[rfPath][TxCount] =	(PROMContent[eeAddr] & 0xf0) >> 4;
-				if (pwrInfo24G->BW40_Diff[rfPath][TxCount] & BIT3)		/*4bit sign number to 8 bit sign number*/
-					pwrInfo24G->BW40_Diff[rfPath][TxCount] |= 0xF0;
-
-				pwrInfo24G->BW20_Diff[rfPath][TxCount] =	(PROMContent[eeAddr] & 0x0f);
-				if (pwrInfo24G->BW20_Diff[rfPath][TxCount] & BIT3)		/*4bit sign number to 8 bit sign number*/
-					pwrInfo24G->BW20_Diff[rfPath][TxCount] |= 0xF0;
-
-				eeAddr++;
-
-				pwrInfo24G->OFDM_Diff[rfPath][TxCount] =	(PROMContent[eeAddr] & 0xf0) >> 4;
-				if (pwrInfo24G->OFDM_Diff[rfPath][TxCount] & BIT3)		/*4bit sign number to 8 bit sign number*/
-					pwrInfo24G->OFDM_Diff[rfPath][TxCount] |= 0xF0;
-
-
-				pwrInfo24G->CCK_Diff[rfPath][TxCount] =	(PROMContent[eeAddr] & 0x0f);
-				if (pwrInfo24G->CCK_Diff[rfPath][TxCount] & BIT3)		/*4bit sign number to 8 bit sign number*/
-					pwrInfo24G->CCK_Diff[rfPath][TxCount] |= 0xF0;
-
-				eeAddr++;
-			}
-		}
-
-		/* Ignore the unnecessary 5G parameters parsing, but still consider the efuse address offset */
-#define	TX_PWR_DIFF_OFFSET_5G	10
-		eeAddr += (MAX_CHNL_GROUP_5G + TX_PWR_DIFF_OFFSET_5G);
-	}
-}
-
-
 void
 Hal_EfuseParseTxPowerInfo_8188F(
 	IN	PADAPTER 		padapter,
@@ -4135,45 +3955,10 @@ Hal_EfuseParseTxPowerInfo_8188F(
 	IN	BOOLEAN			AutoLoadFail
 )
 {
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
-	TxPowerInfo24G	pwrInfo24G;
-	u8			rfPath, ch, group, TxCount = 1;
+	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
+	TxPowerInfo24G pwrInfo24G;
 
-	/*RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("%s(): AutoLoadFail = %d\n", __func__, AutoLoadFail)); */
-	Hal_ReadPowerValueFromPROM_8188F(padapter, &pwrInfo24G, PROMContent, AutoLoadFail);
-	for (rfPath = 0; rfPath < MAX_RF_PATH; rfPath++) {
-		for (ch = 0; ch < CENTER_CH_2G_NUM; ch++) {
-			Hal_GetChnlGroup8188F(ch + 1, &group);
-
-			if (ch == 14 - 1) {
-				pHalData->Index24G_CCK_Base[rfPath][ch] = pwrInfo24G.IndexCCK_Base[rfPath][5];
-				pHalData->Index24G_BW40_Base[rfPath][ch] = pwrInfo24G.IndexBW40_Base[rfPath][group];
-			} else {
-				pHalData->Index24G_CCK_Base[rfPath][ch] = pwrInfo24G.IndexCCK_Base[rfPath][group];
-				pHalData->Index24G_BW40_Base[rfPath][ch] = pwrInfo24G.IndexBW40_Base[rfPath][group];
-			}
-#ifdef CONFIG_DEBUG
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("======= Path %d, ChannelIndex %d, Group %d=======\n", rfPath, ch, group));
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("Index24G_CCK_Base[%d][%d] = 0x%x\n", rfPath, ch , pHalData->Index24G_CCK_Base[rfPath][ch]));
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("Index24G_BW40_Base[%d][%d] = 0x%x\n", rfPath, ch, pHalData->Index24G_BW40_Base[rfPath][ch]));
-#endif
-		}
-
-		for (TxCount = 0; TxCount < MAX_TX_COUNT; TxCount++) {
-			pHalData->CCK_24G_Diff[rfPath][TxCount] = pwrInfo24G.CCK_Diff[rfPath][TxCount];
-			pHalData->OFDM_24G_Diff[rfPath][TxCount] = pwrInfo24G.OFDM_Diff[rfPath][TxCount];
-			pHalData->BW20_24G_Diff[rfPath][TxCount] = pwrInfo24G.BW20_Diff[rfPath][TxCount];
-			pHalData->BW40_24G_Diff[rfPath][TxCount] = pwrInfo24G.BW40_Diff[rfPath][TxCount];
-
-#ifdef CONFIG_DEBUG
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("--------------------------------------- 2.4G ---------------------------------------\n"));
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("CCK_24G_Diff[%d][%d]= %d\n", rfPath, TxCount, pHalData->CCK_24G_Diff[rfPath][TxCount]));
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("OFDM_24G_Diff[%d][%d]= %d\n", rfPath, TxCount, pHalData->OFDM_24G_Diff[rfPath][TxCount]));
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("BW20_24G_Diff[%d][%d]= %d\n", rfPath, TxCount, pHalData->BW20_24G_Diff[rfPath][TxCount]));
-			RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("BW40_24G_Diff[%d][%d]= %d\n", rfPath, TxCount, pHalData->BW40_24G_Diff[rfPath][TxCount]));
-#endif
-		}
-	}
+	hal_load_txpwr_info(padapter, &pwrInfo24G, NULL, PROMContent);
 
 	/* 2010/10/19 MH Add Regulator recognize for CU. */
 	if (!AutoLoadFail) {
@@ -4201,122 +3986,6 @@ Hal_EfuseParseEEPROMVer_8188F(
 		pHalData->EEPROMVersion = 1;
 	RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("Hal_EfuseParseEEPROMVer(), EEVer = %d\n",
 			 pHalData->EEPROMVersion));
-}
-
-#ifndef DBG_PPG_MAC_HIDDEN_HANDLE
-	#define DBG_PPG_MAC_HIDDEN_HANDLE 0
-#endif
-
-#define PPG_MAC_HIDDEN_START_8188F		0xF8
-#define PPG_MAC_HIDDEN_END_8188F		0xFD
-
-#define IS_PPG_RANGE_UUID_8188F						((PPG_MAC_HIDDEN_START_8188F <= 0xF4) && (PPG_MAC_HIDDEN_END_8188F >= 0xF7))
-#define GET_PMH_UUID_X_8188F(_pmh_m)				LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF4 - PPG_MAC_HIDDEN_START_8188F, 0, 8)
-#define GET_PMH_UUID_Y_8188F(_pmh_m)				LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF5 - PPG_MAC_HIDDEN_START_8188F, 0, 8)
-#define GET_PMH_UUID_Z_8188F(_pmh_m)				LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF6 - PPG_MAC_HIDDEN_START_8188F, 0, 5)
-#define GET_PMH_UUID_CRC_8188F(_pmh_m)				LE_BITS_TO_2BYTE(((u8 *)(_pmh_m)) + 0xF6 - PPG_MAC_HIDDEN_START_8188F, 5, 11)
-
-#define IS_PPG_RANGE_HCI_TYPE_8188F					((PPG_MAC_HIDDEN_START_8188F <= 0xF8) && (PPG_MAC_HIDDEN_END_8188F >= 0xF8))
-#define IS_PPG_RANGE_PACKAGE_TYPE_8188F				((PPG_MAC_HIDDEN_START_8188F <= 0xF8) && (PPG_MAC_HIDDEN_END_8188F >= 0xF8))
-#define GET_PMH_HCI_TYPE_8188F(_pmh_m)				LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF8 - PPG_MAC_HIDDEN_START_8188F, 0, 4)
-#define GET_PMH_PACKAGE_TYPE_8188F(_pmh_m)			LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF8 - PPG_MAC_HIDDEN_START_8188F, 4, 4)
-
-#define IS_PPG_RANGE_WL_FUNC_8188F					((PPG_MAC_HIDDEN_START_8188F <= 0xF9) && (PPG_MAC_HIDDEN_END_8188F >= 0xF9))
-#define IS_PPG_RANGE_HW_SPECIAL_TYPE_8188F			((PPG_MAC_HIDDEN_START_8188F <= 0xF9) && (PPG_MAC_HIDDEN_END_8188F >= 0xF9))
-#define GET_PMH_WL_FUNC_8188F(_pmh_m)				LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF9 - PPG_MAC_HIDDEN_START_8188F, 0, 4)
-#define GET_PMH_HW_SPECIAL_TYPE_8188F(_pmh_m)		LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xF9 - PPG_MAC_HIDDEN_START_8188F, 4, 4)
-
-#define IS_PPG_RANGE_BW_8188F						((PPG_MAC_HIDDEN_START_8188F <= 0xFB) && (PPG_MAC_HIDDEN_END_8188F >= 0xFB))
-#define IS_PPG_RANGE_ANT_NUM_8188F					((PPG_MAC_HIDDEN_START_8188F <= 0xFB) && (PPG_MAC_HIDDEN_END_8188F >= 0xFB))
-#define GET_PMH_BW_8188F(_pmh_m)					LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xFB - PPG_MAC_HIDDEN_START_8188F, 0, 3)
-#define GET_PMH_ANT_NUM_8188F(_pmh_m)				LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xFB - PPG_MAC_HIDDEN_START_8188F, 5, 3)
-
-#define IS_PPG_RANGE_80211_PROTOCOL_8188F			((PPG_MAC_HIDDEN_START_8188F <= 0xFD) && (PPG_MAC_HIDDEN_END_8188F >= 0xFD))
-#define IS_PPG_RANGE_NIC_8188F						((PPG_MAC_HIDDEN_START_8188F <= 0xFD) && (PPG_MAC_HIDDEN_END_8188F >= 0xFD))
-#define GET_PMH_80211_PROTOCOL_8188F(_pmh_m)		LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xFD - PPG_MAC_HIDDEN_START_8188F, 2, 2)
-#define GET_PMH_NIC_8188F(_pmh_m)					LE_BITS_TO_1BYTE(((u8 *)(_pmh_m)) + 0xFD - PPG_MAC_HIDDEN_START_8188F, 6, 2)
-
-VOID
-Hal_EfuseParseMacHidden_8188F(
-	IN	PADAPTER		adapter,
-	IN	u8				*hwinfo,
-	IN	BOOLEAN 	AutoLoadFail
-)
-{
-	HAL_DATA_TYPE	*hal_data = GET_HAL_DATA(adapter);
-	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
-
-	u8 pmh_map[PPG_MAC_HIDDEN_END_8188F - PPG_MAC_HIDDEN_START_8188F + 1];
-	u16 start = PPG_MAC_HIDDEN_START_8188F;
-	u16 end = PPG_MAC_HIDDEN_END_8188F;
-	int i;
-
-	u8 uuid_x = 0;
-	u8 uuid_y = 0;
-	u8 uuid_z = 0;
-	u16 uuid_crc = 0;
-	u8 hci_type = 0x0F; /* no used */
-	u8 package_type = 0x0F; /* QFN24 */
-	u8 wl_func = 0xF; /* all support */
-	u8 hw_stype = 0x0F; /* no used */
-	u8 bw = 0x6; /* 40MHz */
-	u8 ant_num = 0x01 /* 1 ANT */;
-	u8 protocol = 0x02; /* 11n only */
-	u8 nic = 0x03; /* NIC */
-
-	Efuse_PowerSwitch(adapter, _FALSE, _TRUE);
-	for (i = 0; i <= end - start; i++)
-		efuse_OneByteRead(adapter, start + i, pmh_map + i, FALSE);
-	Efuse_PowerSwitch(adapter, _FALSE, _FALSE);
-
-#if IS_PPG_RANGE_UUID_8188F
-	uuid_x = GET_PMH_UUID_X_8188F(pmh_map);
-	uuid_y = GET_PMH_UUID_Y_8188F(pmh_map);
-	uuid_z = GET_PMH_UUID_Z_8188F(pmh_map);
-	uuid_crc = GET_PMH_UUID_CRC_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_HCI_TYPE_8188F
-	hci_type = GET_PMH_HCI_TYPE_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_PACKAGE_TYPE_8188F
-	package_type = GET_PMH_PACKAGE_TYPE_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_WL_FUNC_8188F
-	wl_func = GET_PMH_WL_FUNC_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_HW_SPECIAL_TYPE_8188F
-	hw_stype = GET_PMH_HW_SPECIAL_TYPE_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_BW_8188F
-	bw = GET_PMH_BW_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_ANT_NUM_8188F
-	ant_num = GET_PMH_ANT_NUM_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_80211_PROTOCOL_8188F
-	protocol = GET_PMH_80211_PROTOCOL_8188F(pmh_map);
-#endif
-#if IS_PPG_RANGE_NIC_8188F
-	nic = GET_PMH_NIC_8188F(pmh_map);
-#endif
-
-	if (DBG_PPG_MAC_HIDDEN_HANDLE) {
-		if (IS_PPG_RANGE_UUID_8188F)
-			DBG_871X("uuid x:0x%02x y:0x%02x z:0x%x crc:0x%x\n", uuid_x, uuid_y, uuid_z, uuid_crc);
-		DBG_871X("hci_type:0x%x\n", hci_type);
-		DBG_871X("package_type:0x%x\n", package_type);
-		DBG_871X("wl_func:0x%x\n", wl_func);
-		DBG_871X("hw_stype:0x%x\n", hw_stype);
-		DBG_871X("bw:0x%x\n", bw);
-		DBG_871X("ant_num:0x%x\n", ant_num);
-		DBG_871X("protocol:0x%x\n", protocol);
-		DBG_871X("nic:0x%x\n", nic);
-	}
-
-	hal_data->PackageType = package_type;
-	hal_spec->wl_func &= mac_hidden_wl_func_to_hal_wl_func(wl_func);
-	hal_spec->bw_cap &= mac_hidden_max_bw_to_hal_bw_cap(bw);
-	hal_spec->nss_num = rtw_min(hal_spec->nss_num, ant_num);
 }
 
 #if 0 /* Do not need for rtl8188f */
@@ -4496,42 +4165,41 @@ Hal_EfuseParseThermalMeter_8188F(
 	RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("EEPROM ThermalMeter=0x%x\n", pHalData->EEPROMThermalMeter));
 }
 
-
 void Hal_EfuseParseKFreeData_8188F(
 	IN		PADAPTER		Adapter,
 	IN		u8				*PROMContent,
 	IN		BOOLEAN 		AutoloadFail)
 {
 #ifdef CONFIG_RF_GAIN_OFFSET
+#define THERMAL_K_MEAN_OFFSET_8188F 5 /* 8188F FT thermal K mean value has +5 offset, it's special case */
 
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
 	struct kfree_data_t *kfree_data = &pHalData->kfree_data;
+	u8 pg_pwrtrim = 0xFF, pg_therm = 0xFF;
 
-	if ((Adapter->registrypriv.RegRfKFreeEnable == 1) || !AutoloadFail) {
+	pg_pwrtrim = EFUSE_Read1Byte(Adapter, PPG_BB_GAIN_2G_TXA_OFFSET_8188F);
+	pg_therm = EFUSE_Read1Byte(Adapter, PPG_THERMAL_OFFSET_8188F);
+
+	if (pg_pwrtrim != 0xFF) {
 		kfree_data->bb_gain[BB_GAIN_2G][RF_PATH_A]
-			= KFREE_BB_GAIN_2G_TX_OFFSET(EFUSE_Read1Byte(Adapter, PPG_BB_GAIN_2G_TXA_OFFSET_8188F) & PPG_BB_GAIN_2G_TX_OFFSET_MASK);
-		kfree_data->thermal
-			= KFREE_THERMAL_OFFSET(EFUSE_Read1Byte(Adapter, PPG_THERMAL_OFFSET_8188F) & PPG_THERMAL_OFFSET_MASK);
-
-		if (GET_PG_KFREE_ON_8188F(PROMContent) && PROMContent[0xc1] != 0xff)
-			kfree_data->flag |= KFREE_FLAG_ON;
-		if (GET_PG_KFREE_THERMAL_K_ON_8188F(PROMContent) && PROMContent[0xc8] != 0xff)
-			kfree_data->flag |= KFREE_FLAG_THERMAL_K_ON;
-
+			= KFREE_BB_GAIN_2G_TX_OFFSET(pg_pwrtrim & PPG_BB_GAIN_2G_TX_OFFSET_MASK);
+		kfree_data->flag |= KFREE_FLAG_ON;
 	}
 
-	if (Adapter->registrypriv.RegRfKFreeEnable == 1) {
-			kfree_data->flag |= KFREE_FLAG_ON;
+	if (pg_therm != 0xFF) {
+		kfree_data->thermal
+			= KFREE_THERMAL_OFFSET(pg_therm  & PPG_THERMAL_OFFSET_MASK) - THERMAL_K_MEAN_OFFSET_8188F;
+		if (GET_PG_KFREE_THERMAL_K_ON_8188F(PROMContent))
 			kfree_data->flag |= KFREE_FLAG_THERMAL_K_ON;
 	}
 
 	if (kfree_data->flag & KFREE_FLAG_THERMAL_K_ON)
-		pHalData->EEPROMThermalMeter += kfree_data->thermal;
+		pHalData->EEPROMThermalMeter -= kfree_data->thermal;
 
 	DBG_871X("kfree flag:%u\n", kfree_data->flag);
-	if (Adapter->registrypriv.RegRfKFreeEnable == 1 || kfree_data->flag & KFREE_FLAG_ON)
+	if (kfree_data->flag & KFREE_FLAG_ON)
 		DBG_871X("bb_gain:%d\n", kfree_data->bb_gain[BB_GAIN_2G][RF_PATH_A]);
-	if (Adapter->registrypriv.RegRfKFreeEnable == 1 || kfree_data->flag & KFREE_FLAG_THERMAL_K_ON)
+	if (kfree_data->flag & KFREE_FLAG_THERMAL_K_ON)
 		DBG_871X("thermal:%d\n", kfree_data->thermal);
 
 #endif /*CONFIG_RF_GAIN_OFFSET */
@@ -4725,8 +4393,12 @@ static void rtl8188f_fill_default_txdesc(
 		SET_TX_DESC_SEC_TYPE_8188F(pbuf, fill_txdesc_sectype(pattrib));
 		fill_txdesc_vcs_8188f(padapter, pattrib, pbuf);
 
-		if (pattrib->icmp_pkt == 1 && padapter->registrypriv.wifi_spec == 1)
-			drv_userate = 1;
+#ifdef CONFIG_P2P
+		if (!rtw_p2p_chk_state(&padapter->wdinfo, P2P_STATE_NONE)) {
+			if (pattrib->icmp_pkt == 1 && padapter->registrypriv.wifi_spec == 1)
+				drv_userate = 1;
+		}
+#endif
 
 		if ((pattrib->ether_type != 0x888e) &&
 			(pattrib->ether_type != 0x0806) &&
@@ -4956,10 +4628,6 @@ static void hw_var_set_monitor(PADAPTER Adapter, u8 variable, u8 *val)
 	struct mlme_priv *pmlmepriv = &(Adapter->mlmepriv);
 
 	if (*((u8 *)val) == _HW_STATE_MONITOR_) {
-
-		/* Leave IPS */
-		rtw_pm_set_ips(Adapter, IPS_NONE);
-		LeaveAllPowerSaveMode(Adapter);
 
 		/* Receive all type */
 		rcr_bits = RCR_AAP | RCR_APM | RCR_AM | RCR_AB | RCR_APWRMGT | RCR_ADF | RCR_ACF | RCR_AMF | RCR_APP_PHYST_RXFF;
@@ -6024,12 +5692,7 @@ void rtl8188f_c2h_packet_handler(PADAPTER padapter, u8 *pbuf, u16 length)
 		break;
 
 	default:
-		pdata = rtw_zmalloc(length);
-		if (pdata == NULL)
-			break;
-		_rtw_memcpy(pdata, pbuf, length);
-		if (rtw_c2h_packet_wk_cmd(padapter, pdata, length) == _FAIL)
-			rtw_mfree(pdata, length);
+		rtw_c2h_packet_wk_cmd(padapter, pbuf, length);
 		break;
 	}
 }
@@ -7161,5 +6824,76 @@ void rtl8188fs_hal_check_bt_hang(_adapter *adapter)
 }
 #endif
 
+void rtl8188f_set_hal_ops(struct hal_ops *pHalFunc)
+{
+	pHalFunc->dm_init = &rtl8188f_init_dm_priv;
+	pHalFunc->dm_deinit = &rtl8188f_deinit_dm_priv;
 
+	pHalFunc->read_chip_version = &rtl8188f_read_chip_version;
+
+	pHalFunc->UpdateRAMaskHandler = &UpdateHalRAMask8188F;
+	pHalFunc->set_chnl_bw_handler = &PHY_SetSwChnlBWMode8188F;
+
+	pHalFunc->set_tx_power_level_handler = &PHY_SetTxPowerLevel8188F;
+	pHalFunc->get_tx_power_level_handler = &PHY_GetTxPowerLevel8188F;
+
+	pHalFunc->get_tx_power_index_handler = &PHY_GetTxPowerIndex_8188F;
+
+	pHalFunc->hal_dm_watchdog = &rtl8188f_HalDmWatchDog;
+#ifdef CONFIG_LPS_LCLK_WD_TIMER
+	pHalFunc->hal_dm_watchdog_in_lps = &rtl8188f_HalDmWatchDog_in_LPS;
+#endif /* CONFIG_LPS_LCLK_WD_TIMER */
+
+#ifdef CONFIG_C2H_PACKET_EN
+	pHalFunc->SetHwRegHandlerWithBuf = &SetHwRegWithBuf8188F;
+#endif /* CONFIG_C2H_PACKET_EN */
+
+	pHalFunc->SetBeaconRelatedRegistersHandler = &rtl8188f_SetBeaconRelatedRegisters;
+
+	pHalFunc->Add_RateATid = &rtl8188f_Add_RateATid;
+
+	pHalFunc->run_thread = &rtl8188f_start_thread;
+	pHalFunc->cancel_thread = &rtl8188f_stop_thread;
+
+	pHalFunc->read_bbreg = &PHY_QueryBBReg_8188F;
+	pHalFunc->write_bbreg = &PHY_SetBBReg_8188F;
+	pHalFunc->read_rfreg = &PHY_QueryRFReg_8188F;
+	pHalFunc->write_rfreg = &PHY_SetRFReg_8188F;
+
+	/* Efuse related function */
+	pHalFunc->BTEfusePowerSwitch = &Hal_BT_EfusePowerSwitch;
+	pHalFunc->EfusePowerSwitch = &Hal_EfusePowerSwitch;
+	pHalFunc->ReadEFuse = &Hal_ReadEFuse;
+	pHalFunc->EFUSEGetEfuseDefinition = &Hal_GetEfuseDefinition;
+	pHalFunc->EfuseGetCurrentSize = &Hal_EfuseGetCurrentSize;
+	pHalFunc->Efuse_PgPacketRead = &Hal_EfusePgPacketRead;
+	pHalFunc->Efuse_PgPacketWrite = &Hal_EfusePgPacketWrite;
+	pHalFunc->Efuse_WordEnableDataWrite = &Hal_EfuseWordEnableDataWrite;
+	pHalFunc->Efuse_PgPacketWrite_BT = &Hal_EfusePgPacketWrite_BT;
+
+#ifdef DBG_CONFIG_ERROR_DETECT
+	pHalFunc->sreset_init_value = &sreset_init_value;
+	pHalFunc->sreset_reset_value = &sreset_reset_value;
+	pHalFunc->silentreset = &sreset_reset;
+	pHalFunc->sreset_xmit_status_check = &rtl8188f_sreset_xmit_status_check;
+	pHalFunc->sreset_linked_status_check  = &rtl8188f_sreset_linked_status_check;
+	pHalFunc->sreset_get_wifi_status  = &sreset_get_wifi_status;
+	pHalFunc->sreset_inprogress = &sreset_inprogress;
+#endif
+	pHalFunc->GetHalODMVarHandler = GetHalODMVar;
+	pHalFunc->SetHalODMVarHandler = SetHalODMVar;
+
+#ifdef CONFIG_XMIT_THREAD_MODE
+	pHalFunc->xmit_thread_handler = &hal_xmit_handler;
+#endif
+	pHalFunc->hal_notch_filter = &hal_notch_filter_8188f;
+
+	pHalFunc->c2h_handler = c2h_handler_8188f;
+	pHalFunc->c2h_id_filter_ccx = c2h_id_filter_ccx_8188f;
+
+	pHalFunc->fill_h2c_cmd = &FillH2CCmd8188F;
+	pHalFunc->fill_fake_txdesc = &rtl8188f_fill_fake_txdesc;
+	pHalFunc->fw_dl = &rtl8188f_FirmwareDownload;
+	pHalFunc->hal_get_tx_buff_rsvd_page_num = &GetTxBufferRsvdPageNum8188F;
+}
 

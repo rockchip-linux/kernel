@@ -368,6 +368,7 @@ int rtw_mp_start(struct net_device *dev,
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	struct hal_ops *pHalFunc = &padapter->HalFunc;
+	u8 rfreg0;
 
 	rtw_pm_set_ips(padapter, IPS_NONE);
 	LeaveAllPowerSaveMode(padapter);
@@ -408,6 +409,19 @@ int rtw_mp_start(struct net_device *dev,
 	rtw_write8(padapter, 0x66, 0x27); /*Open BT uart Log*/
 	rtw_write8(padapter, 0xc50, 0x20); /*for RX init Gain*/
 #endif
+#ifdef CONFIG_RTL8188F
+	DBG_871X("Set reg 0x88c, 0x58, 0x00\n");
+	rfreg0 = PHY_QueryRFReg(padapter, RF_PATH_A, 0x0, 0x1f);
+	PHY_SetBBReg(padapter, 0x88c, BIT21|BIT20, 0x3);
+	PHY_SetRFReg(padapter, RF_PATH_A, 0x58, BIT1, 0x1);
+	PHY_SetRFReg(padapter, RF_PATH_A, 0x0, 0xF001f, 0x2001f);
+	rtw_msleep_os(200);
+	PHY_SetRFReg(padapter, RF_PATH_A, 0x0, 0xF001f, 0x30000 | rfreg0);
+	PHY_SetRFReg(padapter, RF_PATH_A, 0x58, BIT1, 0x0);
+	PHY_SetBBReg(padapter, 0x88c, BIT21|BIT20, 0x0);
+	rtw_msleep_os(1000);
+#endif
+
 	ODM_Write_DIG(&pHalData->odmpriv, 0x20);
 
 	return 0;
@@ -477,7 +491,7 @@ int rtw_mp_rate(struct net_device *dev,
 	if (padapter->mppriv.rateidx >= DESC_RATEVHTSS4MCS9)
 		return -EINVAL;
 
-	pMptCtx->MptRateIndex = padapter->mppriv.rateidx;
+	pMptCtx->MptRateIndex = HwRateToMPTRate(padapter->mppriv.rateidx);
 	SetDataRate(padapter);
 
 	wrqu->length = strlen(extra);
@@ -1297,6 +1311,27 @@ int rtw_mp_PwrCtlDM(struct net_device *dev,
 	return 0;
 }
 
+int rtw_mp_iqk(struct net_device *dev,
+		 struct iw_request_info *info,
+		 struct iw_point *wrqu, char *extra)
+{
+	PADAPTER padapter = rtw_netdev_priv(dev);
+
+	rtw_mp_trigger_iqk(padapter);
+
+	return 0;
+}
+
+int rtw_mp_lck(struct net_device *dev,
+		 struct iw_request_info *info,
+		 struct iw_point *wrqu, char *extra)
+{
+	PADAPTER padapter = rtw_netdev_priv(dev);
+
+	rtw_mp_trigger_lck(padapter);
+
+	return 0;
+}
 
 int rtw_mp_getver(struct net_device *dev,
 				  struct iw_request_info *info,

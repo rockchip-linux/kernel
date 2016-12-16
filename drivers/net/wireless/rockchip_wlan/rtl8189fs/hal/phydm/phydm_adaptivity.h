@@ -144,6 +144,12 @@ Phydm_Adaptivity(
 	IN		u1Byte					IGI
 	);
 
+VOID
+phydm_setEDCCAThresholdAPI(
+	IN	PVOID	pDM_VOID,
+	IN	u1Byte	IGI
+);
+
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 VOID
 Phydm_DisableEDCCA(

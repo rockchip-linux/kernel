@@ -950,14 +950,9 @@ static struct resource *wifi_irqres = NULL;
 static int wifi_add_dev(void);
 static void wifi_del_dev(void);
 
-extern int rockchip_wifi_get_oob_irq(void);
 int rtw_android_wifictrl_func_add(void)
 {
 	int ret = 0;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
-        oob_irq = rockchip_wifi_get_oob_irq();
-        printk("%s: rockchip_wifi_get_oob_irq :%d\n", __func__, oob_irq);
-#else
 	sema_init(&wifi_control_sem, 0);
 
 	ret = wifi_add_dev();
@@ -972,7 +967,7 @@ int rtw_android_wifictrl_func_add(void)
 		ret = -EINVAL;
 		DBG_871X("%s: platform_driver_register timeout\n", __FUNCTION__);
 	}
-#endif
+
 	return ret;
 }
 
@@ -1078,7 +1073,7 @@ static int wifi_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_GPIO_WAKEUP
 	printk("%s: gpio:%d wifi_wake_gpio:%d\n", __func__,
-			(int)wifi_irqres->start, wifi_wake_gpio);
+			wifi_irqres->start, wifi_wake_gpio);
 
 	if (wifi_wake_gpio > 0) {
 #ifdef CONFIG_PLATFORM_INTEL_BYT

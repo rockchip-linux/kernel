@@ -3557,11 +3557,15 @@ int recv_indicatepkt_reorder(_adapter *padapter, union recv_frame *prframe)
 	//recv_indicatepkts_in_order(padapter, preorder_ctrl, _TRUE);
 	if(recv_indicatepkts_in_order(padapter, preorder_ctrl, _FALSE)==_TRUE)
 	{
+		if (!preorder_ctrl->bReorderWaiting) {
+			preorder_ctrl->bReorderWaiting = _TRUE;
 		_set_timer(&preorder_ctrl->reordering_ctrl_timer, REORDER_WAIT_TIME);
+		}
 		_exit_critical_bh(&ppending_recvframe_queue->lock, &irql);
 	}
 	else
 	{
+		preorder_ctrl->bReorderWaiting = _FALSE;
 		_exit_critical_bh(&ppending_recvframe_queue->lock, &irql);
 		_cancel_timer_ex(&preorder_ctrl->reordering_ctrl_timer);
 	}
@@ -3593,6 +3597,10 @@ void rtw_reordering_ctrl_timeout_handler(void *pcontext)
 	//DBG_871X("+rtw_reordering_ctrl_timeout_handler()=>\n");
 
 	_enter_critical_bh(&ppending_recvframe_queue->lock, &irql);
+
+	if (preorder_ctrl) {
+		preorder_ctrl->bReorderWaiting = _FALSE;
+	}
 
 	if(recv_indicatepkts_in_order(padapter, preorder_ctrl, _TRUE)==_TRUE)
 	{
@@ -3976,6 +3984,11 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 	/* (0 << IEEE80211_RADIOTAP_AMPDU_STATUS)      | \ */
 	/* (0 << IEEE80211_RADIOTAP_VHT)               | \ */
 #endif
+
+#ifndef IEEE80211_RADIOTAP_RX_FLAGS
+#define IEEE80211_RADIOTAP_RX_FLAGS 14
+#endif
+
 #ifndef IEEE80211_RADIOTAP_MCS
 #define IEEE80211_RADIOTAP_MCS 19
 #endif
@@ -4246,7 +4259,7 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 	return ret;
 
 }
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 int recv_frame_monitor(_adapter *padapter, union recv_frame *rframe)
 {
 	int ret = _SUCCESS;
@@ -4293,7 +4306,7 @@ int recv_frame_monitor(_adapter *padapter, union recv_frame *rframe)
 exit:
 	return ret;
 }
-
+#endif
 int recv_func_prehandle(_adapter *padapter, union recv_frame *rframe)
 {
 	int ret = _SUCCESS;
@@ -4511,7 +4524,9 @@ int recv_func(_adapter *padapter, union recv_frame *rframe)
 
 	if (check_fwstate(mlmepriv, WIFI_MONITOR_STATE)) {
 		/* monitor mode */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 		recv_frame_monitor(padapter, rframe);
+#endif
 		ret = _SUCCESS;
 		goto exit;
 	} else

@@ -189,20 +189,26 @@ struct kfree_data_t {
 bool kfree_data_is_bb_gain_empty(struct kfree_data_t *data);
 
 struct hal_spec_t {
+	char *ic_name;
 	u8 macid_num;
 
 	u8 sec_cam_ent_num;
 	u8 sec_cap;
 
+	u8 rfpath_num;	/* used for tx power index path */
+	u8 max_tx_cnt;
 	u8 nss_num;
 	u8 band_cap;	/* value of BAND_CAP_XXX */
 	u8 bw_cap;		/* value of BW_CAP_XXX */
+	u8 proto_cap;	/* value of PROTO_CAP_XXX */
 
 	u8 wl_func;		/* value of WL_FUNC_XXX */
 };
 
-typedef struct hal_com_data
-{
+#define HAL_SPEC_CHK_RF_PATH(_spec, _path) ((_spec)->rfpath_num > (_path))
+#define HAL_SPEC_CHK_TX_CNT(_spec, _cnt_idx) ((_spec)->max_tx_cnt > (_cnt_idx))
+
+typedef struct hal_com_data {
 	HAL_VERSION			VersionID;
 	RT_MULTI_FUNC		MultiFunc; // For multi-function consideration.
 	RT_POLARITY_CTL		PolarityCtl; // For Wifi PDn Polarity control.
@@ -224,6 +230,9 @@ typedef struct hal_com_data
 	BAND_TYPE		CurrentBandType;	/* 0:2.4G, 1:5G */
 	BAND_TYPE		BandSet;
 	u8				CurrentChannel;
+	u8				cch_20;
+	u8				cch_40;
+	u8				cch_80;
 	u8				CurrentCenterFrequencyIndex1;
 	u8				nCur40MhzPrimeSC;	/* Control channel sub-carrier */
 	u8				nCur80MhzPrimeSC;   /* used for primary 40MHz of 80MHz mode */
@@ -281,7 +290,6 @@ typedef struct hal_com_data
 	u8	EEPROMBluetoothAntNum;
 	u8	EEPROMBluetoothAntIsolation;
 	u8	EEPROMBluetoothRadioShared;
-	u8	bTXPowerDataReadFromEEPORM;
 	u8	EEPROMMACAddr[ETH_ALEN];
 	
 #ifdef CONFIG_RF_GAIN_OFFSET
@@ -299,26 +307,26 @@ typedef struct hal_com_data
 	EFUSE_HAL	EfuseHal;
 
 	/*---------------------------------------------------------------------------------*/
-	//3 [2.4G]
+	/* 2.4G TX power info for target TX power*/
 	u8	Index24G_CCK_Base[MAX_RF_PATH][CENTER_CH_2G_NUM];
 	u8	Index24G_BW40_Base[MAX_RF_PATH][CENTER_CH_2G_NUM];
-	//If only one tx, only BW20 and OFDM are used.
-	s8	CCK_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];	
+	s8	CCK_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	OFDM_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW20_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW40_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
-	//3 [5G]
+
+	/* 5G TX power info for target TX power*/
+#ifdef CONFIG_IEEE80211_BAND_5GHZ
 	u8	Index5G_BW40_Base[MAX_RF_PATH][CENTER_CH_5G_ALL_NUM];
 	u8	Index5G_BW80_Base[MAX_RF_PATH][CENTER_CH_5G_80M_NUM];
 	s8	OFDM_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW20_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW40_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW80_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
+#endif
 
 	u8	Regulation2_4G;
 	u8	Regulation5G;
-
-	u8	TxPwrInPercentage;
 
 	/********************************
 	*	TX power by rate table at most 4RF path.
@@ -626,6 +634,7 @@ typedef struct hal_com_data
 typedef struct hal_com_data HAL_DATA_TYPE, *PHAL_DATA_TYPE;
 #define GET_HAL_DATA(__pAdapter)			((HAL_DATA_TYPE *)((__pAdapter)->HalData))
 #define GET_HAL_SPEC(__pAdapter)			(&(GET_HAL_DATA((__pAdapter))->hal_spec))
+#define GET_ODM(__pAdapter)			(&(GET_HAL_DATA((__pAdapter))->odmpriv))
 
 #define GET_HAL_RFPATH_NUM(__pAdapter)		(((HAL_DATA_TYPE *)((__pAdapter)->HalData))->NumTotalRFPath )
 #define RT_GetInterfaceSelection(_Adapter) 		(GET_HAL_DATA(_Adapter)->InterfaceSel)

@@ -198,10 +198,6 @@ void rtl8723b_set_p2p_ps_offload_cmd(PADAPTER padapter, u8 p2p_ps_state);
 
 void CheckFwRsvdPageContent(PADAPTER padapter);
 
-#if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
-void SetFwRelatedForWoWLAN8723b(_adapter* padapter, u8 bHostIsGoingtoSleep);
-#endif//CONFIG_WOWLAN
-
 #ifdef CONFIG_P2P_WOWLAN
 void rtl8723b_set_p2p_wowlan_offload_cmd(PADAPTER padapter);
 #endif

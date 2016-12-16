@@ -203,11 +203,15 @@ u8 rtw_efuse_file_read(PADAPTER padapter,u8 *filepatch,u8 *buf, u32 len);
 extern const u8 _mac_hidden_max_bw_to_hal_bw_cap[];
 #define mac_hidden_max_bw_to_hal_bw_cap(max_bw) (((max_bw) >= MAC_HIDDEN_MAX_BW_NUM) ? 0 : _mac_hidden_max_bw_to_hal_bw_cap[(max_bw)])
 
+#define MAC_HIDDEN_PROTOCOL_NUM 4
+extern const u8 _mac_hidden_proto_to_hal_proto_cap[];
+#define mac_hidden_proto_to_hal_proto_cap(proto) (((proto) >= MAC_HIDDEN_PROTOCOL_NUM) ? 0 : _mac_hidden_proto_to_hal_proto_cap[(proto)])
+
 u8 mac_hidden_wl_func_to_hal_wl_func(u8 func);
 
 #ifdef PLATFORM_LINUX
 #ifdef CONFIG_EFUSE_CONFIG_FILE
-u32 rtw_read_efuse_from_file(const char *path, u8 *buf);
+u32 rtw_read_efuse_from_file(const char *path, u8 *buf, int map_size);
 u32 rtw_read_macaddr_from_file(const char *path, u8 *buf);
 #endif /* CONFIG_EFUSE_CONFIG_FILE */
 #endif /* PLATFORM_LINUX */

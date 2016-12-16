@@ -227,10 +227,6 @@ _func_enter_;
 	if (obj == NULL)
 		goto exit;
 
-	if(obj->cmdsz > MAX_CMDSZ ){
-		DBG_871X("%s failed due to obj->cmdsz(%d) > MAX_CMDSZ(%d) \n",__FUNCTION__, obj->cmdsz,MAX_CMDSZ);
-		goto exit;
-	}
 	//_enter_critical_bh(&queue->lock, &irqL);
 	_enter_critical(&queue->lock, &irqL);	
 
@@ -459,7 +455,13 @@ _func_enter_;
 		pcmdpriv = &(padapter->pbuddy_adapter->cmdpriv);
 #endif	
 
-	if( _FAIL == (res=rtw_cmd_filter(pcmdpriv, cmd_obj)) ) {
+	res = rtw_cmd_filter(pcmdpriv, cmd_obj);
+	if ((_FAIL == res) || (cmd_obj->cmdsz > MAX_CMDSZ)) {
+		if (cmd_obj->cmdsz > MAX_CMDSZ) {
+			DBG_871X("%s failed due to obj->cmdsz(%d) > MAX_CMDSZ(%d)\n", __func__, cmd_obj->cmdsz, MAX_CMDSZ);
+			rtw_warn_on(1);
+		}
+
 		if (cmd_obj->cmdcode == GEN_CMD_CODE(_Set_Drv_Extra)) {
 			struct drvextra_cmd_parm *extra_parm = (struct drvextra_cmd_parm *)cmd_obj->parmbuf;
 
@@ -1552,7 +1554,9 @@ _func_enter_;
 
 #ifdef CONFIG_80211AC_VHT
 	pvhtpriv->vht_option = _FALSE;
-	if (phtpriv->ht_option && pregistrypriv->vht_enable
+	if (phtpriv->ht_option
+		&& REGSTY_IS_11AC_ENABLE(pregistrypriv)
+		&& hal_chk_proto_cap(padapter, PROTO_CAP_11AC)
 		&& (!pmlmepriv->country_ent || COUNTRY_CHPLAN_EN_11AC(pmlmepriv->country_ent))
 	) {
 		rtw_restructure_vht_ie(padapter, &pnetwork->network.IEs[0], &psecnetwork->IEs[0], 
@@ -3789,6 +3793,7 @@ u8 rtw_c2h_packet_wk_cmd(PADAPTER padapter, u8 *pbuf, u16 length)
 	struct cmd_obj *ph2c;
 	struct drvextra_cmd_parm *pdrvextra_cmd_parm;
 	struct cmd_priv *pcmdpriv = &padapter->cmdpriv;
+	u8	*extra_cmd_buf;
 	u8	res = _SUCCESS;
 
 	ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));
@@ -3804,10 +3809,19 @@ u8 rtw_c2h_packet_wk_cmd(PADAPTER padapter, u8 *pbuf, u16 length)
 		goto exit;
 	}
 
+	extra_cmd_buf = rtw_zmalloc(length);
+	if (extra_cmd_buf == NULL) {
+		rtw_mfree((u8 *)ph2c, sizeof(struct cmd_obj));
+		rtw_mfree((u8 *)pdrvextra_cmd_parm, sizeof(struct drvextra_cmd_parm));
+		res = _FAIL;
+		goto exit;
+	}
+
+	_rtw_memcpy(extra_cmd_buf, pbuf, length);
 	pdrvextra_cmd_parm->ec_id = C2H_WK_CID;
 	pdrvextra_cmd_parm->type = 0;
 	pdrvextra_cmd_parm->size = length;
-	pdrvextra_cmd_parm->pbuf = pbuf;
+	pdrvextra_cmd_parm->pbuf = extra_cmd_buf;
 
 	init_h2fwcmd_w_parm_no_rsp(ph2c, pdrvextra_cmd_parm, GEN_CMD_CODE(_Set_Drv_Extra));
 

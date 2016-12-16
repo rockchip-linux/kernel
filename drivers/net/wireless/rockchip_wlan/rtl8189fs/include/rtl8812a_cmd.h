@@ -128,10 +128,6 @@ void CheckFwRsvdPageContent(PADAPTER padapter);
 int reset_tsf(PADAPTER Adapter, u8 reset_port );
 #endif	// CONFIG_TSF_RESET_OFFLOAD
 
-#ifdef CONFIG_WOWLAN
-void SetFwRelatedForWoWLAN8812(_adapter* padapter, u8 bHostIsGoingtoSleep);
-#endif//CONFIG_WOWLAN
-
 //------------------------------------
 //     C2H format
 //------------------------------------

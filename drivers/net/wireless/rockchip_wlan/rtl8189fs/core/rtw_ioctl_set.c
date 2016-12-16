@@ -1372,7 +1372,7 @@ u16 rtw_get_cur_max_rate(_adapter *adapter)
 	if (psta == NULL)
 		return 0;
 
-	short_GI = query_ra_short_GI(psta);
+	short_GI = query_ra_short_GI(psta, psta->bw_mode);
 
 #ifdef CONFIG_80211N_HT
 	if (IsSupportedHT(psta->wireless_mode)) {

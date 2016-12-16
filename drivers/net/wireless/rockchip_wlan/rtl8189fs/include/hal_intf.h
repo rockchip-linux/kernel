@@ -42,6 +42,9 @@ enum _CHIP_TYPE {
 	MAX_CHIP_TYPE
 };
 
+extern const u32 _chip_type_to_odm_ic_type[];
+#define chip_type_to_odm_ic_type(chip_type) (((chip_type) >= MAX_CHIP_TYPE) ? _chip_type_to_odm_ic_type[MAX_CHIP_TYPE] : _chip_type_to_odm_ic_type[(chip_type)])
+
 typedef enum _HAL_HW_TIMER_TYPE {
 	HAL_TIMER_NONE = 0,
 	HAL_TIMER_TXBF = 1,
@@ -221,6 +224,8 @@ typedef enum _HAL_INTF_PS_FUNC{
 
 typedef s32 (*c2h_id_filter)(u8 *c2h_evt);
 
+struct txpwr_idx_comp;
+
 struct hal_ops {
 	/*** initialize section ***/
 	void	(*read_chip_version)(_adapter *padapter);
@@ -276,14 +281,14 @@ struct hal_ops {
 	
 	void	(*InitSwLeds)(_adapter *padapter);
 	void	(*DeInitSwLeds)(_adapter *padapter);
-		
 
-	void	(*set_bwmode_handler)(_adapter *padapter, CHANNEL_WIDTH Bandwidth, u8 Offset);
-	void	(*set_channel_handler)(_adapter *padapter, u8 channel);
 	void	(*set_chnl_bw_handler)(_adapter *padapter, u8 channel, CHANNEL_WIDTH Bandwidth, u8 Offset40, u8 Offset80);
 
 	void	(*set_tx_power_level_handler)(_adapter *padapter, u8 channel);
 	void	(*get_tx_power_level_handler)(_adapter *padapter, s32 *powerlevel);
+
+	void (*set_tx_power_index_handler)(_adapter *padapter, u32 powerindex, u8 rfpath, u8 rate);
+	u8(*get_tx_power_index_handler)(_adapter *padapter, u8 rfpath, u8 rate, u8 bandwidth, u8 channel, struct txpwr_idx_comp *tic);
 
 	void	(*hal_dm_watchdog)(_adapter *padapter);
 #ifdef CONFIG_LPS_LCLK_WD_TIMER
@@ -355,9 +360,9 @@ struct hal_ops {
 	s32 (*fill_h2c_cmd)(PADAPTER, u8 ElementID, u32 CmdLen, u8 *pCmdBuffer);
 	void (*fill_fake_txdesc)(PADAPTER, u8 *pDesc, u32 BufferLen,
 			u8 IsPsPoll, u8 IsBTQosNull, u8 bDataFrame);
-	
+	s32 (*fw_dl)(_adapter *adapter, u8 wowlan);
+
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
-	void (*hal_set_wowlan_fw)(_adapter *adapter, u8 sleep);
 	void (*clear_interrupt)(_adapter *padapter);
 #endif	
 	u8 (*hal_get_tx_buff_rsvd_page_num)(_adapter *adapter, bool wowlan);
@@ -617,8 +622,6 @@ s32	rtw_hal_interrupt_handler(_adapter *padapter);
 void	rtw_hal_interrupt_handler(_adapter *padapter, u16 pkt_len, u8 *pbuf);
 #endif
 
-void	rtw_hal_set_bwmode(_adapter *padapter, CHANNEL_WIDTH Bandwidth, u8 Offset);
-void	rtw_hal_set_chan(_adapter *padapter, u8 channel);
 void	rtw_hal_set_chnl_bw(_adapter *padapter, u8 channel, CHANNEL_WIDTH Bandwidth, u8 Offset40, u8 Offset80);
 void	rtw_hal_dm_watchdog(_adapter *padapter);
 void	rtw_hal_dm_watchdog_in_lps(_adapter *padapter);
@@ -675,11 +678,15 @@ void rtw_hal_update_hisr_hsisr_ind(_adapter *padapter, u32 flag);
 #endif
 
 void rtw_hal_fw_correct_bcn(_adapter *padapter);
+s32 rtw_hal_fw_dl(_adapter *padapter, u8 wowlan);
 
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
 void rtw_hal_clear_interrupt(_adapter *padapter);
-void rtw_hal_set_wowlan_fw(_adapter *padapter, u8 sleep);
 #endif
+
+void rtw_hal_set_tx_power_index(PADAPTER, u32 powerindex, u8 rfpath, u8 rate);
+u8 rtw_hal_get_tx_power_index(PADAPTER, u8 rfpath, u8 rate, u8 bandwidth, u8 channel,struct txpwr_idx_comp *tic);
+
 u8 rtw_hal_ops_check(_adapter *padapter);
 
 #endif //__HAL_INTF_H__

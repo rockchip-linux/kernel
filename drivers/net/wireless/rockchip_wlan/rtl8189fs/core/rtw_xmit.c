@@ -20,6 +20,7 @@
 #define _RTW_XMIT_C_
 
 #include <drv_types.h>
+#include <hal_data.h>
 
 #if defined (PLATFORM_LINUX) && defined (PLATFORM_WINDOWS)
 #error "Shall be Linux or Windows, but not both!\n"
@@ -439,33 +440,308 @@ _func_exit_;
 
 }
 
-u8	query_ra_short_GI(struct sta_info *psta)
+u8 rtw_get_tx_bw_mode(_adapter *adapter, struct sta_info *sta)
+{
+	u8 bw;
+
+	bw = sta->bw_mode;
+	if (MLME_STATE(adapter) & WIFI_ASOC_STATE) {
+		if (adapter->mlmeextpriv.cur_channel <= 14)
+			bw = rtw_min(bw, ADAPTER_TX_BW_2G(adapter));
+		else
+			bw = rtw_min(bw, ADAPTER_TX_BW_5G(adapter));
+	}
+
+	return bw;
+}
+
+void rtw_get_adapter_tx_rate_bmp_by_bw(_adapter *adapter, u8 bw, u16 *r_bmp_cck_ofdm, u32 *r_bmp_ht, u32 *r_bmp_vht)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	struct macid_ctl_t *macid_ctl = dvobj_to_macidctl(dvobj);
+	struct mlme_ext_priv *mlmeext = &adapter->mlmeextpriv;
+	u8 fix_bw = 0xFF;
+	u16 bmp_cck_ofdm = 0;
+	u32 bmp_ht = 0;
+	u32 bmp_vht = 0;
+	int i;
+
+	#if 0
+	if (adapter->fix_rate != 0xFF && adapter->fix_bw != 0xFF)
+		fix_bw = adapter->fix_bw;
+	#endif
+
+	/* TODO: adapter->fix_rate */
+
+	for (i = 0; i < macid_ctl->num; i++) {
+		if (!rtw_macid_is_used(macid_ctl, i))
+			continue;
+		if (rtw_macid_get_if_g(macid_ctl, i) != adapter->iface_id)
+			continue;
+
+		if (bw == CHANNEL_WIDTH_20) /* CCK, OFDM always 20MHz */
+			bmp_cck_ofdm |= macid_ctl->rate_bmp0[i] & 0x00000FFF;
+
+		/* bypass mismatch bandwidth for HT, VHT */
+		if ((fix_bw != 0xFF && fix_bw != bw) || (fix_bw == 0xFF && macid_ctl->bw[i] != bw))
+			continue;
+
+		if (macid_ctl->vht_en[i])
+			bmp_vht |= (macid_ctl->rate_bmp0[i] >> 12) | (macid_ctl->rate_bmp1[i] << 20);
+		else
+			bmp_ht |= (macid_ctl->rate_bmp0[i] >> 12) | (macid_ctl->rate_bmp1[i] << 20);
+	}
+
+	/* TODO: mlmeext->tx_rate*/
+
+exit:
+	if (r_bmp_cck_ofdm)
+		*r_bmp_cck_ofdm = bmp_cck_ofdm;
+	if (r_bmp_ht)
+		*r_bmp_ht = bmp_ht;
+	if (r_bmp_vht)
+		*r_bmp_vht = bmp_vht;
+}
+
+void rtw_get_shared_macid_tx_rate_bmp_by_bw(struct dvobj_priv *dvobj, u8 bw, u16 *r_bmp_cck_ofdm, u32 *r_bmp_ht, u32 *r_bmp_vht)
+{
+	struct macid_ctl_t *macid_ctl = dvobj_to_macidctl(dvobj);
+	u16 bmp_cck_ofdm = 0;
+	u32 bmp_ht = 0;
+	u32 bmp_vht = 0;
+	int i;
+
+	for (i = 0; i < macid_ctl->num; i++) {
+		if (!rtw_macid_is_used(macid_ctl, i))
+			continue;
+		if (rtw_macid_get_if_g(macid_ctl, i) != -1)
+			continue;
+
+		if (bw == CHANNEL_WIDTH_20) /* CCK, OFDM always 20MHz */
+			bmp_cck_ofdm |= macid_ctl->rate_bmp0[i] & 0x00000FFF;
+
+		/* bypass mismatch bandwidth for HT, VHT */
+		if (macid_ctl->bw[i] != bw)
+			continue;
+
+		if (macid_ctl->vht_en[i])
+			bmp_vht |= (macid_ctl->rate_bmp0[i] >> 12) | (macid_ctl->rate_bmp1[i] << 20);
+		else
+			bmp_ht |= (macid_ctl->rate_bmp0[i] >> 12) | (macid_ctl->rate_bmp1[i] << 20);
+	}
+
+	if (r_bmp_cck_ofdm)
+		*r_bmp_cck_ofdm = bmp_cck_ofdm;
+	if (r_bmp_ht)
+		*r_bmp_ht = bmp_ht;
+	if (r_bmp_vht)
+		*r_bmp_vht = bmp_vht;
+}
+
+void rtw_update_tx_rate_bmp(struct dvobj_priv *dvobj)
+{
+	struct rf_ctl_t *rf_ctl = dvobj_to_rfctl(dvobj);
+	_adapter *adapter = dvobj_get_primary_adapter(dvobj);
+	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(adapter);
+	u8 bw;
+	u16 bmp_cck_ofdm, tmp_cck_ofdm;
+	u32 bmp_ht, tmp_ht, ori_bmp_ht[2];
+	u8 ori_highest_ht_rate_bw_bmp;
+	u32 bmp_vht, tmp_vht, ori_bmp_vht[4];
+	u8 ori_highest_vht_rate_bw_bmp;
+	int i;
+
+	/* backup the original ht & vht highest bw bmp */
+	ori_highest_ht_rate_bw_bmp = rf_ctl->highest_ht_rate_bw_bmp;
+	ori_highest_vht_rate_bw_bmp = rf_ctl->highest_vht_rate_bw_bmp;
+
+	for (bw = CHANNEL_WIDTH_20; bw <= CHANNEL_WIDTH_160; bw++) {
+		/* backup the original ht & vht bmp */
+		if (bw <= CHANNEL_WIDTH_40)
+			ori_bmp_ht[bw] = rf_ctl->rate_bmp_ht_by_bw[bw];
+		if (bw <= CHANNEL_WIDTH_160)
+			ori_bmp_vht[bw] = rf_ctl->rate_bmp_vht_by_bw[bw];
+
+		bmp_cck_ofdm = bmp_ht = bmp_vht = 0;
+		if (hal_is_bw_support(dvobj_get_primary_adapter(dvobj), bw)) {
+			for (i = 0; i < dvobj->iface_nums; i++) {
+				if (!dvobj->padapters[i])
+					continue;
+				rtw_get_adapter_tx_rate_bmp_by_bw(dvobj->padapters[i], bw, &tmp_cck_ofdm, &tmp_ht, &tmp_vht);
+				bmp_cck_ofdm |= tmp_cck_ofdm;
+				bmp_ht |= tmp_ht;
+				bmp_vht |= tmp_vht;
+			}
+			rtw_get_shared_macid_tx_rate_bmp_by_bw(dvobj, bw, &tmp_cck_ofdm, &tmp_ht, &tmp_vht);
+			bmp_cck_ofdm |= tmp_cck_ofdm;
+			bmp_ht |= tmp_ht;
+			bmp_vht |= tmp_vht;
+		}
+		if (bw == CHANNEL_WIDTH_20)
+			rf_ctl->rate_bmp_cck_ofdm = bmp_cck_ofdm;
+		if (bw <= CHANNEL_WIDTH_40)
+			rf_ctl->rate_bmp_ht_by_bw[bw] = bmp_ht;
+		if (bw <= CHANNEL_WIDTH_160)
+			rf_ctl->rate_bmp_vht_by_bw[bw] = bmp_vht;
+	}
+
+#ifndef DBG_HIGHEST_RATE_BMP_BW_CHANGE
+#define DBG_HIGHEST_RATE_BMP_BW_CHANGE 0
+#endif
+
+	{
+		u8 highest_rate_bw;
+		u8 highest_rate_bw_bmp;
+		u8 update_ht_rs = _FALSE;
+		u8 update_vht_rs = _FALSE;
+
+		highest_rate_bw_bmp = BW_CAP_20M;
+		highest_rate_bw = CHANNEL_WIDTH_20;
+		for (bw = CHANNEL_WIDTH_20; bw <= CHANNEL_WIDTH_40; bw++) {
+			if (rf_ctl->rate_bmp_ht_by_bw[highest_rate_bw] < rf_ctl->rate_bmp_ht_by_bw[bw]) {
+				highest_rate_bw_bmp = ch_width_to_bw_cap(bw);
+				highest_rate_bw = bw;
+			} else if (rf_ctl->rate_bmp_ht_by_bw[highest_rate_bw] == rf_ctl->rate_bmp_ht_by_bw[bw])
+				highest_rate_bw_bmp |= ch_width_to_bw_cap(bw);
+		}
+		rf_ctl->highest_ht_rate_bw_bmp = highest_rate_bw_bmp;
+
+		if (ori_highest_ht_rate_bw_bmp != rf_ctl->highest_ht_rate_bw_bmp
+			|| largest_bit(ori_bmp_ht[highest_rate_bw]) != largest_bit(rf_ctl->rate_bmp_ht_by_bw[highest_rate_bw])
+		) {
+			if (DBG_HIGHEST_RATE_BMP_BW_CHANGE) {
+				RTW_INFO("highest_ht_rate_bw_bmp:0x%02x=>0x%02x\n", ori_highest_ht_rate_bw_bmp, rf_ctl->highest_ht_rate_bw_bmp);
+				RTW_INFO("rate_bmp_ht_by_bw[%u]:0x%08x=>0x%08x\n", highest_rate_bw, ori_bmp_ht[highest_rate_bw], rf_ctl->rate_bmp_ht_by_bw[highest_rate_bw]);
+			}
+			update_ht_rs = _TRUE;
+		}
+
+		highest_rate_bw_bmp = BW_CAP_20M;
+		highest_rate_bw = CHANNEL_WIDTH_20;
+		for (bw = CHANNEL_WIDTH_20; bw <= CHANNEL_WIDTH_160; bw++) {
+			if (rf_ctl->rate_bmp_vht_by_bw[highest_rate_bw] < rf_ctl->rate_bmp_vht_by_bw[bw]) {
+				highest_rate_bw_bmp = ch_width_to_bw_cap(bw);
+				highest_rate_bw = bw;
+			} else if (rf_ctl->rate_bmp_vht_by_bw[highest_rate_bw] == rf_ctl->rate_bmp_vht_by_bw[bw])
+				highest_rate_bw_bmp |= ch_width_to_bw_cap(bw);
+		}
+		rf_ctl->highest_vht_rate_bw_bmp = highest_rate_bw_bmp;
+
+		if (ori_highest_vht_rate_bw_bmp != rf_ctl->highest_vht_rate_bw_bmp
+			|| largest_bit(ori_bmp_vht[highest_rate_bw]) != largest_bit(rf_ctl->rate_bmp_vht_by_bw[highest_rate_bw])
+		) {
+			if (DBG_HIGHEST_RATE_BMP_BW_CHANGE) {
+				RTW_INFO("highest_vht_rate_bw_bmp:0x%02x=>0x%02x\n", ori_highest_vht_rate_bw_bmp, rf_ctl->highest_vht_rate_bw_bmp);
+				RTW_INFO("rate_bmp_vht_by_bw[%u]:0x%08x=>0x%08x\n", highest_rate_bw, ori_bmp_vht[highest_rate_bw], rf_ctl->rate_bmp_vht_by_bw[highest_rate_bw]);
+			}
+			update_vht_rs = _TRUE;
+		}
+
+		/* TODO: per rfpath and rate section handling? */
+		if (update_ht_rs == _TRUE || update_vht_rs == _TRUE)
+			rtw_hal_set_tx_power_level(dvobj_get_primary_adapter(dvobj), hal_data->CurrentChannel);
+	}
+}
+
+inline u16 rtw_get_tx_rate_bmp_cck_ofdm(struct dvobj_priv *dvobj)
+{
+	struct rf_ctl_t *rf_ctl = dvobj_to_rfctl(dvobj);
+
+	return rf_ctl->rate_bmp_cck_ofdm;
+}
+
+inline u32 rtw_get_tx_rate_bmp_ht_by_bw(struct dvobj_priv *dvobj, u8 bw)
+{
+	struct rf_ctl_t *rf_ctl = dvobj_to_rfctl(dvobj);
+
+	return rf_ctl->rate_bmp_ht_by_bw[bw];
+}
+
+inline u32 rtw_get_tx_rate_bmp_vht_by_bw(struct dvobj_priv *dvobj, u8 bw)
+{
+	struct rf_ctl_t *rf_ctl = dvobj_to_rfctl(dvobj);
+
+	return rf_ctl->rate_bmp_vht_by_bw[bw];
+}
+
+u8 rtw_get_tx_bw_bmp_of_ht_rate(struct dvobj_priv *dvobj, u8 rate, u8 max_bw)
+{
+	struct rf_ctl_t *rf_ctl = dvobj_to_rfctl(dvobj);
+	u8 bw;
+	u8 bw_bmp = 0;
+	u32 rate_bmp;
+
+	if (!IS_HT_RATE(rate)) {
+		rtw_warn_on(1);
+		goto exit;
+	}
+
+	rate_bmp = 1 << (rate - MGN_MCS0);
+
+	if (max_bw > CHANNEL_WIDTH_40)
+		max_bw = CHANNEL_WIDTH_40;
+
+	for (bw = CHANNEL_WIDTH_20; bw <= max_bw; bw++) {
+		/* RA may use lower rate for retry */
+		if (rf_ctl->rate_bmp_ht_by_bw[bw] >= rate_bmp)
+			bw_bmp |= ch_width_to_bw_cap(bw);
+	}
+
+exit:
+	return bw_bmp;
+}
+
+u8 rtw_get_tx_bw_bmp_of_vht_rate(struct dvobj_priv *dvobj, u8 rate, u8 max_bw)
+{
+	struct rf_ctl_t *rf_ctl = dvobj_to_rfctl(dvobj);
+	u8 bw;
+	u8 bw_bmp = 0;
+	u32 rate_bmp;
+
+	if (!IS_VHT_RATE(rate)) {
+		rtw_warn_on(1);
+		goto exit;
+	}
+
+	rate_bmp = 1 << (rate - MGN_VHT1SS_MCS0);
+
+	if (max_bw > CHANNEL_WIDTH_160)
+		max_bw = CHANNEL_WIDTH_160;
+
+	for (bw = CHANNEL_WIDTH_20; bw <= max_bw; bw++) {
+		/* RA may use lower rate for retry */
+		if (rf_ctl->rate_bmp_vht_by_bw[bw] >= rate_bmp)
+			bw_bmp |= ch_width_to_bw_cap(bw);
+	}
+
+exit:
+	return bw_bmp;
+}
+
+u8 query_ra_short_GI(struct sta_info *psta, u8 bw)
 {
 	u8	sgi = _FALSE, sgi_20m = _FALSE, sgi_40m = _FALSE, sgi_80m = _FALSE;
 
 #ifdef CONFIG_80211N_HT
 #ifdef CONFIG_80211AC_VHT
-	if (psta->vhtpriv.vht_option) {
-		sgi_80m= psta->vhtpriv.sgi_80m;
-	}
-#endif //CONFIG_80211AC_VHT
-	{
-		sgi_20m = psta->htpriv.sgi_20m;
-		sgi_40m = psta->htpriv.sgi_40m;
-	}
+	if (psta->vhtpriv.vht_option)
+		sgi_80m = psta->vhtpriv.sgi_80m;
+#endif
+	sgi_20m = psta->htpriv.sgi_20m;
+	sgi_40m = psta->htpriv.sgi_40m;
 #endif
 
-	switch(psta->bw_mode){
-		case CHANNEL_WIDTH_80:
-			sgi = sgi_80m;
-			break;
-		case CHANNEL_WIDTH_40:
-			sgi = sgi_40m;
-			break;
-		case CHANNEL_WIDTH_20:
-		default:
-			sgi = sgi_20m;
-			break;
+	switch (bw) {
+	case CHANNEL_WIDTH_80:
+		sgi = sgi_80m;
+		break;
+	case CHANNEL_WIDTH_40:
+		sgi = sgi_40m;
+		break;
+	case CHANNEL_WIDTH_20:
+	default:
+		sgi = sgi_20m;
+		break;
 	}
 
 	return sgi;
@@ -618,6 +894,7 @@ static void update_attrib_vcs_info(_adapter *padapter, struct xmit_frame *pxmitf
 static void update_attrib_phy_info(_adapter *padapter, struct pkt_attrib *pattrib, struct sta_info *psta)
 {
 	struct mlme_ext_priv *mlmeext = &padapter->mlmeextpriv;
+	u8 bw;
 
 	pattrib->rtsen = psta->rtsen;
 	pattrib->cts2self = psta->cts2self;
@@ -632,12 +909,9 @@ static void update_attrib_phy_info(_adapter *padapter, struct pkt_attrib *pattri
 	
 	pattrib->raid = psta->raid;
 
-	if (mlmeext->cur_bwmode < psta->bw_mode)
-		pattrib->bwmode = mlmeext->cur_bwmode;
-	else
-		pattrib->bwmode = psta->bw_mode;
-
-	pattrib->sgi = query_ra_short_GI(psta);
+	bw = rtw_get_tx_bw_mode(padapter, psta);
+	pattrib->bwmode = rtw_min(bw, mlmeext->cur_bwmode);
+	pattrib->sgi = query_ra_short_GI(psta, pattrib->bwmode);
 
 	pattrib->ldpc = psta->ldpc;
 	pattrib->stbc = psta->stbc;
@@ -664,10 +938,10 @@ static void update_attrib_phy_info(_adapter *padapter, struct pkt_attrib *pattri
 
 		pattrib->raid = psta->raid;
 #ifdef CONFIG_80211N_HT
-		pattrib->bwmode = psta->bw_mode;
+		pattrib->bwmode = rtw_get_tx_bw_mode(padapter, psta);
 		pattrib->ht_en = psta->htpriv.ht_option;
 		pattrib->ch_offset = psta->htpriv.ch_offset;
-		pattrib->sgi= query_ra_short_GI(psta);
+		pattrib->sgi = query_ra_short_GI(psta, pattrib->bwmode);
 #endif /* CONFIG_80211N_HT */
 	}
 #endif /* CONFIG_TDLS */
@@ -3775,6 +4049,7 @@ static void do_queue_select(_adapter	*padapter, struct pkt_attrib *pattrib)
  *	0	success, hardware will handle this xmit frame(packet)
  *	<0	fail
  */
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 s32 rtw_monitor_xmit_entry(struct sk_buff *skb, struct net_device *ndev)
 {
 	int ret = 0;
@@ -3907,7 +4182,7 @@ fail:
 
 		return 0;
 }
-
+#endif
 /*
  * The main transmit(tx) entry
  *

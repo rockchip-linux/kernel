@@ -103,6 +103,7 @@ struct recv_reorder_ctrl
 	u8 ampdu_size;
 	_queue pending_recvframe_queue;
 	_timer reordering_ctrl_timer;
+	u8 bReorderWaiting;
 };
 
 struct	stainfo_rxcache	{

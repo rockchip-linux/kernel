@@ -567,6 +567,7 @@ Phydm_AdaptivityInit(
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	PADAPTIVITY_STATISTICS	Adaptivity = (PADAPTIVITY_STATISTICS)PhyDM_Get_Structure(pDM_Odm, PHYDM_ADAPTIVITY);
 	s1Byte	IGItarget = 0x32;
+	/*pDIG_T pDM_DigTable = &pDM_Odm->DM_DigTable;*/
 #if(DM_ODM_SUPPORT_TYPE == ODM_WIN)
 	PADAPTER		pAdapter	= pDM_Odm->Adapter;
 	PMGNT_INFO		pMgntInfo = &(pAdapter->MgntInfo);
@@ -633,7 +634,10 @@ Phydm_AdaptivityInit(
 	pDM_Odm->Adaptivity_IGI_upper = 0;
 	pDM_Odm->Adaptivity_enable = FALSE;	/*use this flag to decide enable or disable*/
 
-	pDM_Odm->EDCCA_enable = TRUE;		/*even no adaptivity, we still enable EDCCA*/
+	if (pDM_Odm->mp_mode == TRUE)
+		pDM_Odm->EDCCA_enable = FALSE;
+	else	
+		pDM_Odm->EDCCA_enable = TRUE;		/*even no adaptivity, we still enable EDCCA*/
 
 	pDM_Odm->TH_L2H_ini_mode2 = 20;
 	pDM_Odm->TH_EDCCA_HL_diff_mode2 = 8;
@@ -675,6 +679,8 @@ Phydm_AdaptivityInit(
 	Adaptivity->AdajustIGILevel = (u1Byte)((pDM_Odm->TH_L2H_ini + IGItarget) - PwdBUpperBound + DFIRloss);	/*IGI = L2H - PwdB - DFIRloss*/
 
 	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_ADAPTIVITY, ODM_DBG_LOUD, ("TH_L2H_ini = 0x%x, TH_EDCCA_HL_diff = 0x%x, Adaptivity->AdajustIGILevel = 0x%x\n", pDM_Odm->TH_L2H_ini, pDM_Odm->TH_EDCCA_HL_diff, Adaptivity->AdajustIGILevel));
+
+	/*phydm_setEDCCAThresholdAPI(pDM_Odm, pDM_DigTable->CurIGValue);*/
 
 }
 
@@ -894,3 +900,47 @@ Phydm_AdaptivityBSOD(
 }
 
 #endif
+
+VOID
+phydm_setEDCCAThresholdAPI(
+	IN	PVOID	pDM_VOID,
+	IN	u1Byte	IGI
+)
+{
+	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	PADAPTIVITY_STATISTICS	Adaptivity = (PADAPTIVITY_STATISTICS)PhyDM_Get_Structure(pDM_Odm, PHYDM_ADAPTIVITY);
+	s1Byte			TH_L2H_dmc, TH_H2L_dmc;
+	s1Byte			Diff = 0, IGI_target = 0x32;
+
+	if (pDM_Odm->SupportAbility & ODM_BB_ADAPTIVITY) {
+
+		if (pDM_Odm->SupportICType & (ODM_IC_11AC_GAIN_IDX_EDCCA | ODM_IC_11N_GAIN_IDX_EDCCA)) {
+			if (Adaptivity->AdajustIGILevel > IGI) 
+				Diff = Adaptivity->AdajustIGILevel - IGI;
+		
+			TH_L2H_dmc = pDM_Odm->TH_L2H_ini - Diff + IGI_target;
+			TH_H2L_dmc = TH_L2H_dmc - pDM_Odm->TH_EDCCA_HL_diff;
+		}
+#if (RTL8195A_SUPPORT == 0)
+		else	{
+			Diff = IGI_target - (s1Byte)IGI;
+			TH_L2H_dmc = pDM_Odm->TH_L2H_ini + Diff;
+			if (TH_L2H_dmc > 10)
+				TH_L2H_dmc = 10;
+
+			TH_H2L_dmc = TH_L2H_dmc - pDM_Odm->TH_EDCCA_HL_diff;
+
+			/*replace lower bound to prevent EDCCA always equal 1*/
+			if (TH_H2L_dmc < Adaptivity->H2L_lb)
+				TH_H2L_dmc = Adaptivity->H2L_lb;
+			if (TH_L2H_dmc < Adaptivity->L2H_lb)
+				TH_L2H_dmc = Adaptivity->L2H_lb;
+		}
+#endif
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_ADAPTIVITY, ODM_DBG_LOUD, ("API :IGI=0x%x, TH_L2H_dmc = %d, TH_H2L_dmc = %d\n", IGI, TH_L2H_dmc, TH_H2L_dmc));
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_ADAPTIVITY, ODM_DBG_LOUD, ("API :Adaptivity_IGI_upper=0x%x, H2L_lb = 0x%x, L2H_lb = 0x%x\n", pDM_Odm->Adaptivity_IGI_upper, Adaptivity->H2L_lb, Adaptivity->L2H_lb));
+
+		Phydm_SetEDCCAThreshold(pDM_Odm, TH_H2L_dmc, TH_L2H_dmc);
+	}
+
+}

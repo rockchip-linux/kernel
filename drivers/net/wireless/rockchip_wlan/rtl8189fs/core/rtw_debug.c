@@ -73,9 +73,12 @@ void dump_drv_version(void *sel)
 
 void dump_drv_cfg(void *sel)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 	char *kernel_version = utsname()->release;
 	
 	DBG_871X_SEL_NL(sel, "\nKernel Version: %s\n", kernel_version);
+#endif
+
 	DBG_871X_SEL_NL(sel, "Driver Version: %s\n", DRIVERVERSION);
 	DBG_871X_SEL_NL(sel, "------------------------------------------------\n");
 #ifdef CONFIG_IOCTL_CFG80211
@@ -102,6 +105,9 @@ void dump_drv_cfg(void *sel)
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
 	DBG_871X_SEL_NL(sel, "LOAD_PHY_PARA_FROM_FILE - REALTEK_CONFIG_PATH=%s\n", REALTEK_CONFIG_PATH);
+	#if defined(CONFIG_MULTIDRV) || defined(REALTEK_CONFIG_PATH_WITH_IC_NAME_FOLDER)
+	RTW_PRINT_SEL(sel, "LOAD_PHY_PARA_FROM_FILE - REALTEK_CONFIG_PATH_WITH_IC_NAME_FOLDER\n");
+	#endif
 	#ifdef CONFIG_CALIBRATE_TX_POWER_BY_REGULATORY
 	DBG_871X_SEL_NL(sel, "CONFIG_CALIBRATE_TX_POWER_BY_REGULATORY\n");
 	#endif
@@ -109,6 +115,11 @@ void dump_drv_cfg(void *sel)
 	DBG_871X_SEL_NL(sel, "CONFIG_CALIBRATE_TX_POWER_TO_MAX\n");
 	#endif
 #endif
+	RTW_PRINT_SEL(sel, "RTW_DEF_MODULE_REGULATORY_CERT=0x%02x\n", RTW_DEF_MODULE_REGULATORY_CERT);
+
+	RTW_PRINT_SEL(sel, "CONFIG_TXPWR_BY_RATE_EN=%d\n", CONFIG_TXPWR_BY_RATE_EN);
+	RTW_PRINT_SEL(sel, "CONFIG_TXPWR_LIMIT_EN=%d\n", CONFIG_TXPWR_LIMIT_EN);
+
 
 #ifdef CONFIG_DISABLE_ODM
 	DBG_871X_SEL_NL(sel, "CONFIG_DISABLE_ODM\n");
@@ -354,6 +365,45 @@ void sta_rx_reorder_ctl_dump(void *sel, struct sta_info *sta)
 				, i, reorder_ctl->enable, reorder_ctl->ampdu_size, reorder_ctl->indicate_seq
 			);
 		}
+	}
+}
+
+void dump_tx_rate_bmp(void *sel, struct dvobj_priv *dvobj)
+{
+	_adapter *adapter = dvobj_get_primary_adapter(dvobj);
+	struct rf_ctl_t *rfctl = dvobj_to_rfctl(dvobj);
+	u8 bw;
+
+	RTW_PRINT_SEL(sel, "%-6s", "bw");
+	if (hal_chk_proto_cap(adapter, PROTO_CAP_11AC))
+		_RTW_PRINT_SEL(sel, " %-11s", "vht");
+
+	_RTW_PRINT_SEL(sel, " %-11s %-4s %-3s\n", "ht", "ofdm", "cck");
+
+	for (bw = CHANNEL_WIDTH_20; bw <= CHANNEL_WIDTH_160; bw++) {
+		if (!hal_is_bw_support(adapter, bw))
+			continue;
+
+		RTW_PRINT_SEL(sel, "%6s", ch_width_str(bw));
+		if (hal_chk_proto_cap(adapter, PROTO_CAP_11AC)) {
+			_RTW_PRINT_SEL(sel, " %03x %03x %03x"
+				, RATE_BMP_GET_VHT_3SS(rfctl->rate_bmp_vht_by_bw[bw])
+				, RATE_BMP_GET_VHT_2SS(rfctl->rate_bmp_vht_by_bw[bw])
+				, RATE_BMP_GET_VHT_1SS(rfctl->rate_bmp_vht_by_bw[bw])
+			);
+		}
+
+		_RTW_PRINT_SEL(sel, " %02x %02x %02x %02x"
+			, bw <= CHANNEL_WIDTH_40 ? RATE_BMP_GET_HT_4SS(rfctl->rate_bmp_ht_by_bw[bw]) : 0
+			, bw <= CHANNEL_WIDTH_40 ? RATE_BMP_GET_HT_3SS(rfctl->rate_bmp_ht_by_bw[bw]) : 0
+			, bw <= CHANNEL_WIDTH_40 ? RATE_BMP_GET_HT_2SS(rfctl->rate_bmp_ht_by_bw[bw]) : 0
+			, bw <= CHANNEL_WIDTH_40 ? RATE_BMP_GET_HT_1SS(rfctl->rate_bmp_ht_by_bw[bw]) : 0
+		);
+
+		_RTW_PRINT_SEL(sel, "  %03x   %01x\n"
+			, bw <= CHANNEL_WIDTH_20 ? RATE_BMP_GET_OFDM(rfctl->rate_bmp_cck_ofdm) : 0
+			, bw <= CHANNEL_WIDTH_20 ? RATE_BMP_GET_CCK(rfctl->rate_bmp_cck_ofdm) : 0
+		);
 	}
 }
 
@@ -1374,8 +1424,13 @@ ssize_t proc_set_rate_ctl(struct file *file, const char __user *buffer, size_t c
 
 		int num = sscanf(tmp, "%hhx %hhu", &fix_rate, &data_fb);
 
-		if (num >= 1)
+		if (num >= 1) {
+			u8 fix_rate_ori = adapter->fix_rate;
+
 			adapter->fix_rate = fix_rate;
+			if (fix_rate_ori != fix_rate)
+				rtw_update_tx_rate_bmp(adapter_to_dvobj(adapter));
+		}
 		if (num >= 2)
 			adapter->data_fb = data_fb?1:0;
 	}

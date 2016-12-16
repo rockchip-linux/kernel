@@ -33,6 +33,7 @@ typedef enum _C2H_EVT {
 	C2H_IQK_FINISH = 0x11,
 	C2H_MAILBOX_STATUS = 0x15,
 	C2H_P2P_RPORT = 0x16,
+	C2H_MAC_HIDDEN_RPT = 0x19,
 	C2H_BT_SCOREBOARD_STATUS = 0x20,
 	C2H_EXTEND = 0xff,
 } C2H_EVT;
@@ -40,6 +41,10 @@ typedef enum _C2H_EVT {
 typedef enum _EXTEND_C2H_EVT {
 	EXTEND_C2H_DBG_PRINT = 0
 } EXTEND_C2H_EVT;
+
+#define MAC_HIDDEN_RPT_LEN 8
+int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
+int hal_read_mac_hidden_rpt(_adapter *adapter);
 
 #endif /* __COMMON_C2H_H__ */
 

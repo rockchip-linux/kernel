@@ -731,90 +731,6 @@ inline u32 rtw_get_on_cur_ch_time(_adapter *adapter)
 		return 0;
 }
 
-void SelectChannel(_adapter *padapter, unsigned char channel)
-{
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;	
-
-	_enter_critical_mutex(&(adapter_to_dvobj(padapter)->setch_mutex), NULL);
-
-#ifdef CONFIG_DFS_MASTER
-{
-	struct rf_ctl_t *rfctl = adapter_to_rfctl(padapter);
-	bool ori_overlap_radar_detect_ch = rtw_rfctl_overlap_radar_detect_ch(rfctl);
-	bool new_overlap_radar_detect_ch = _rtw_rfctl_overlap_radar_detect_ch(rfctl, channel
-		, adapter_to_dvobj(padapter)->oper_bwmode, adapter_to_dvobj(padapter)->oper_ch_offset);
-
-	if (!ori_overlap_radar_detect_ch && new_overlap_radar_detect_ch)
-		rtw_odm_radar_detect_enable(padapter);
-
-	if (new_overlap_radar_detect_ch && IS_UNDER_CAC(rfctl)) {
-		u8 pause = 0xFF;
-
-		rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-	}
-#endif /* CONFIG_DFS_MASTER */
-
-	//saved channel info
-	rtw_set_oper_ch(padapter, channel);
-
-	rtw_hal_set_chan(padapter, channel);
-
-#ifdef CONFIG_DFS_MASTER
-	if (ori_overlap_radar_detect_ch && !new_overlap_radar_detect_ch) {
-		u8 pause = 0x00;
-
-		rtw_odm_radar_detect_disable(padapter);
-		rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-	}
-}
-#endif /* CONFIG_DFS_MASTER */
-
-	_exit_critical_mutex(&(adapter_to_dvobj(padapter)->setch_mutex), NULL);
-		
-}
-
-void SetBWMode(_adapter *padapter, unsigned short bwmode, unsigned char channel_offset)
-{
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-
-	_enter_critical_mutex(&(adapter_to_dvobj(padapter)->setbw_mutex), NULL);
-
-#ifdef CONFIG_DFS_MASTER
-{
-	struct rf_ctl_t *rfctl = adapter_to_rfctl(padapter);
-	bool ori_overlap_radar_detect_ch = rtw_rfctl_overlap_radar_detect_ch(rfctl);
-	bool new_overlap_radar_detect_ch = _rtw_rfctl_overlap_radar_detect_ch(rfctl
-		, adapter_to_dvobj(padapter)->oper_channel, bwmode, channel_offset);
-
-	if (!ori_overlap_radar_detect_ch && new_overlap_radar_detect_ch)
-		rtw_odm_radar_detect_enable(padapter);
-
-	if (new_overlap_radar_detect_ch && IS_UNDER_CAC(rfctl)) {
-		u8 pause = 0xFF;
-
-		rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-	}
-#endif /* CONFIG_DFS_MASTER */
-
-	//saved bw info
-	rtw_set_oper_bw(padapter, bwmode);
-	rtw_set_oper_choffset(padapter, channel_offset);
-
-	rtw_hal_set_bwmode(padapter, (CHANNEL_WIDTH)bwmode, channel_offset);
-
-#ifdef CONFIG_DFS_MASTER
-	if (ori_overlap_radar_detect_ch && !new_overlap_radar_detect_ch) {
-		u8 pause = 0x00;
-
-		rtw_odm_radar_detect_disable(padapter);
-		rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-	}
-}
-#endif /* CONFIG_DFS_MASTER */
-
-	_exit_critical_mutex(&(adapter_to_dvobj(padapter)->setbw_mutex), NULL);
-}
-
 void set_channel_bwmode(_adapter *padapter, unsigned char channel, unsigned char channel_offset, unsigned short bwmode)
 {
 	u8 center_ch, chnl_offset80 = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
@@ -2172,8 +2088,6 @@ void HTOnAssocRsp(_adapter *padapter)
 				pmlmeext->cur_ch_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 				break;
 		}
-		
-		//SelectChannel(padapter, pmlmeext->cur_channel, pmlmeext->cur_ch_offset);
 	}
 #endif
 
@@ -3917,6 +3831,54 @@ inline void rtw_macid_ctl_set_h2c_msr(struct macid_ctl_t *macid_ctl, u8 id, u8 h
 	macid_ctl->h2c_msr[id] = h2c_msr;
 	if (0)
 		DBG_871X("macid:%u, h2c_msr:"H2C_MSR_FMT"\n", id, H2C_MSR_ARG(&macid_ctl->h2c_msr[id]));
+}
+
+inline void rtw_macid_ctl_set_bw(struct macid_ctl_t *macid_ctl, u8 id, u8 bw)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->bw[id] = bw;
+	if (0)
+		RTW_INFO("macid:%u, bw:%s\n", id, ch_width_str(macid_ctl->bw[id]));
+}
+
+inline void rtw_macid_ctl_set_vht_en(struct macid_ctl_t *macid_ctl, u8 id, u8 en)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->vht_en[id] = en;
+	if (0)
+		RTW_INFO("macid:%u, vht_en:%u\n", id, macid_ctl->vht_en[id]);
+}
+
+inline void rtw_macid_ctl_set_rate_bmp0(struct macid_ctl_t *macid_ctl, u8 id, u32 bmp)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->rate_bmp0[id] = bmp;
+	if (0)
+		RTW_INFO("macid:%u, rate_bmp0:0x%08X\n", id, macid_ctl->rate_bmp0[id]);
+}
+
+inline void rtw_macid_ctl_set_rate_bmp1(struct macid_ctl_t *macid_ctl, u8 id, u32 bmp)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->rate_bmp1[id] = bmp;
+	if (0)
+		RTW_INFO("macid:%u, rate_bmp1:0x%08X\n", id, macid_ctl->rate_bmp1[id]);
 }
 
 inline void rtw_macid_ctl_init(struct macid_ctl_t *macid_ctl)

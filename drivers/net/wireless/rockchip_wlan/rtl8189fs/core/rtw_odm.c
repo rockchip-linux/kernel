@@ -168,6 +168,18 @@ inline void rtw_odm_ability_set(_adapter *adapter, u32 ability)
 	rtw_phydm_ability_set(adapter, ability);
 }
 
+/* set ODM_CMNINFO_IC_TYPE based on chip_type */
+void rtw_odm_init_ic_type(_adapter *adapter)
+{
+	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(adapter);
+	DM_ODM_T *odm = &hal_data->odmpriv;
+	u4Byte ic_type = chip_type_to_odm_ic_type(rtw_get_chip_type(adapter));
+
+	rtw_warn_on(!ic_type);
+
+	ODM_CmnInfoInit(odm, ODM_CMNINFO_IC_TYPE, ic_type);
+}
+
 void rtw_odm_adaptivity_ver_msg(void *sel, _adapter *adapter)
 {
 	DBG_871X_SEL_NL(sel, "ADAPTIVITY_VERSION "ADAPTIVITY_VERSION"\n");

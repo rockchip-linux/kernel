@@ -27,7 +27,7 @@
 //#define CONFIG_GTK_OL_DBG
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-char	file_path[PATH_LENGTH_MAX];
+char rtw_phy_para_file_path[PATH_LENGTH_MAX];
 #endif
 
 void dump_chip_info(HAL_VERSION	ChipVersion)
@@ -821,6 +821,158 @@ exit:
 	return ret;
 }
 
+#define	GET_C2H_MAC_HIDDEN_RPT_UUID_X(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 0, 0, 8)
+#define	GET_C2H_MAC_HIDDEN_RPT_UUID_Y(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 1, 0, 8)
+#define	GET_C2H_MAC_HIDDEN_RPT_UUID_Z(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 2, 0, 5)
+#define	GET_C2H_MAC_HIDDEN_RPT_UUID_CRC(_data)			LE_BITS_TO_2BYTE(((u8 *)(_data)) + 2, 5, 11)
+#define	GET_C2H_MAC_HIDDEN_RPT_HCI_TYPE(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 4, 0, 4)
+#define	GET_C2H_MAC_HIDDEN_RPT_PACKAGE_TYPE(_data)		LE_BITS_TO_1BYTE(((u8 *)(_data)) + 4, 4, 4)
+#define	GET_C2H_MAC_HIDDEN_RPT_WL_FUNC(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 5, 0, 4)
+#define	GET_C2H_MAC_HIDDEN_RPT_HW_STYPE(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 5, 4, 4)
+#define	GET_C2H_MAC_HIDDEN_RPT_BW(_data)				LE_BITS_TO_1BYTE(((u8 *)(_data)) + 6, 0, 3)
+#define	GET_C2H_MAC_HIDDEN_RPT_ANT_NUM(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 6, 5, 3)
+#define	GET_C2H_MAC_HIDDEN_RPT_80211_PROTOCOL(_data)	LE_BITS_TO_1BYTE(((u8 *)(_data)) + 7, 2, 2)
+#define	GET_C2H_MAC_HIDDEN_RPT_NIC_ROUTER(_data)		LE_BITS_TO_1BYTE(((u8 *)(_data)) + 7, 6, 2)
+
+#ifndef DBG_C2H_MAC_HIDDEN_RPT_HANDLE
+#define DBG_C2H_MAC_HIDDEN_RPT_HANDLE 0
+#endif
+
+int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len)
+{
+	HAL_DATA_TYPE	*hal_data = GET_HAL_DATA(adapter);
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
+	int ret = _FAIL;
+
+	u32 uuid;
+	u8 uuid_x;
+	u8 uuid_y;
+	u8 uuid_z;
+	u16 uuid_crc;
+
+	u8 hci_type;
+	u8 package_type;
+	u8 wl_func;
+	u8 hw_stype;
+	u8 bw;
+	u8 ant_num;
+	u8 protocol;
+	u8 nic;
+
+	int i;
+
+	if (len < MAC_HIDDEN_RPT_LEN) {
+		DBG_871X_LEVEL(_drv_warning_, "%s len(%u) < %d\n", __func__, len, MAC_HIDDEN_RPT_LEN);
+		goto exit;
+	}
+
+	uuid_x = GET_C2H_MAC_HIDDEN_RPT_UUID_X(data);
+	uuid_y = GET_C2H_MAC_HIDDEN_RPT_UUID_Y(data);
+	uuid_z = GET_C2H_MAC_HIDDEN_RPT_UUID_Z(data);
+	uuid_crc = GET_C2H_MAC_HIDDEN_RPT_UUID_CRC(data);
+
+	hci_type = GET_C2H_MAC_HIDDEN_RPT_HCI_TYPE(data);
+	package_type = GET_C2H_MAC_HIDDEN_RPT_PACKAGE_TYPE(data);
+
+	wl_func = GET_C2H_MAC_HIDDEN_RPT_WL_FUNC(data);
+	hw_stype = GET_C2H_MAC_HIDDEN_RPT_HW_STYPE(data);
+
+	bw = GET_C2H_MAC_HIDDEN_RPT_BW(data);
+	ant_num = GET_C2H_MAC_HIDDEN_RPT_ANT_NUM(data);
+
+	protocol = GET_C2H_MAC_HIDDEN_RPT_80211_PROTOCOL(data);
+	nic = GET_C2H_MAC_HIDDEN_RPT_NIC_ROUTER(data);
+
+	if (DBG_C2H_MAC_HIDDEN_RPT_HANDLE) {
+		for (i = 0; i < len; i++)
+			DBG_871X("%s: 0x%02X\n", __func__, *(data + i));
+
+		DBG_871X("uuid x:0x%02x y:0x%02x z:0x%x crc:0x%x\n", uuid_x, uuid_y, uuid_z, uuid_crc);
+		DBG_871X("hci_type:0x%x\n", hci_type);
+		DBG_871X("package_type:0x%x\n", package_type);
+		DBG_871X("wl_func:0x%x\n", wl_func);
+		DBG_871X("hw_stype:0x%x\n", hw_stype);
+		DBG_871X("bw:0x%x\n", bw);
+		DBG_871X("ant_num:0x%x\n", ant_num);
+		DBG_871X("protocol:0x%x\n", protocol);
+		DBG_871X("nic:0x%x\n", nic);
+	}
+
+	hal_data->PackageType = package_type;
+	hal_spec->wl_func &= mac_hidden_wl_func_to_hal_wl_func(wl_func);
+	hal_spec->bw_cap &= mac_hidden_max_bw_to_hal_bw_cap(bw);
+	hal_spec->nss_num = rtw_min(hal_spec->nss_num, ant_num);
+	hal_spec->proto_cap &= mac_hidden_proto_to_hal_proto_cap(protocol);
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
+}
+
+int hal_read_mac_hidden_rpt(_adapter *adapter)
+{
+	int ret = _FAIL;
+	int ret_fwdl;
+	u8 mac_hidden_rpt[MAC_HIDDEN_RPT_LEN] = {0};
+	u32 start = rtw_get_current_time();
+	u32 cnt = 0;
+	u32 timeout_ms = 800;
+	u32 min_cnt = 10;
+	u8 id = C2H_MAC_HIDDEN_RPT + 1;
+	int i;
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_PCI_HCI)
+	u8 hci_type = rtw_get_intf_type(adapter);
+
+	if ((hci_type == RTW_USB || hci_type == RTW_PCIE)
+		&& !rtw_is_hw_init_completed(adapter))
+		rtw_hal_power_on(adapter);
+#endif
+
+	/* clear data ready */
+	rtw_write8(adapter, REG_C2HEVT_MSG_NORMAL, id);
+
+	/* download FW */
+	ret_fwdl = rtw_hal_fw_dl(adapter, _FALSE);
+	if (ret_fwdl != _SUCCESS)
+		goto mac_hidden_rpt_hdl;
+
+	/* polling for data ready */
+	start = rtw_get_current_time();
+	do {
+		cnt++;
+		id = rtw_read8(adapter, REG_C2HEVT_MSG_NORMAL);
+		if (id == C2H_MAC_HIDDEN_RPT || RTW_CANNOT_IO(adapter))
+			break;
+		rtw_msleep_os(10);
+	} while (rtw_get_passing_time_ms(start) < timeout_ms || cnt < min_cnt);
+
+	if (id == C2H_MAC_HIDDEN_RPT) {
+		/* read data */
+		for (i = 0; i < MAC_HIDDEN_RPT_LEN; i++)
+			mac_hidden_rpt[i] = rtw_read8(adapter, REG_C2HEVT_MSG_NORMAL + 2 + i);
+	}
+
+mac_hidden_rpt_hdl:
+	c2h_mac_hidden_rpt_hdl(adapter, mac_hidden_rpt, MAC_HIDDEN_RPT_LEN);
+
+	if (ret_fwdl == _SUCCESS && id == C2H_MAC_HIDDEN_RPT)
+		ret = _SUCCESS;
+
+exit:
+
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_PCI_HCI)
+	if ((hci_type == RTW_USB || hci_type == RTW_PCIE)
+		&& !rtw_is_hw_init_completed(adapter))
+		rtw_hal_power_off(adapter);
+#endif
+
+	DBG_871X("%s %s! (%u, %dms), fwdl:%d, id:0x%02x\n", __func__
+		, (ret == _SUCCESS)?"OK":"Fail", cnt, rtw_get_passing_time_ms(start), ret_fwdl, id);
+
+	return ret;
+}
 
 u8  rtw_hal_networktype_to_raid(_adapter *adapter, struct sta_info *psta)
 {
@@ -1068,7 +1220,7 @@ void rtw_sec_write_cam_ent(_adapter *adapter, u8 id, u16 ctrl, u8 *mac, u8 *key)
 
 	}
 #else
-	j = 5;
+	j = 7;
 #endif
 
 	for (; j >= 0; j--) {
@@ -1078,6 +1230,10 @@ void rtw_sec_write_cam_ent(_adapter *adapter, u8 id, u16 ctrl, u8 *mac, u8 *key)
 			break;
 		case 1:
 			wdata = (mac[2] | (mac[3] << 8) | (mac[4] << 16) | (mac[5] << 24));
+			break;
+		case 6:
+		case 7:
+			wdata = 0;
 			break;
 		default:
 			i = (j - 2) << 2;
@@ -1211,7 +1367,7 @@ void hw_var_port_switch(_adapter *adapter)
 	/* write port1 */
 	rtw_write8(adapter, REG_BCN_CTRL_1, bcn_ctrl & ~EN_BCN_FUNCTION);
 	for (i=0; i<2; i++)
-		rtw_write8(adapter, REG_ATIMWND_1+1, atimwnd[i]);
+		rtw_write8(adapter, REG_ATIMWND_1 + i, atimwnd[i]);
 	for (i=0; i<8; i++)
 		rtw_write8(adapter, REG_TSFTR1+i, tsftr[i]);
 	for (i=0; i<6; i++)
@@ -1381,8 +1537,17 @@ s32 rtw_hal_set_FwMediaStatusRpt_cmd(_adapter *adapter, bool opmode, bool miraca
 	if (macid_ind == 0)
 		macid_end = macid;
 
-	for (i = macid; macid <= macid_end; macid++)
+	for (i = macid; macid <= macid_end; macid++) {
 		rtw_macid_ctl_set_h2c_msr(macid_ctl, macid, parm[0]);
+		if (!opmode) {
+			rtw_macid_ctl_set_bw(macid_ctl, macid, CHANNEL_WIDTH_20);
+			rtw_macid_ctl_set_vht_en(macid_ctl, macid, 0);
+			rtw_macid_ctl_set_rate_bmp0(macid_ctl, macid, 0);
+			rtw_macid_ctl_set_rate_bmp1(macid_ctl, macid, 0);
+		}
+	}
+	if (!opmode)
+		rtw_update_tx_rate_bmp(adapter_to_dvobj(adapter));
 
 exit:
 	return ret;
@@ -2359,10 +2524,7 @@ static void rtw_hal_ap_wow_enable(_adapter *padapter)
 #endif /*DBG_CHECK_FW_PS_STATE*/
 
 	/* 1. Download WOWLAN FW*/
-	if (pHalFunc->hal_set_wowlan_fw != NULL)
-		pHalFunc->hal_set_wowlan_fw(padapter, _TRUE);
-	else
-		DBG_871X("hal_set_wowlan_fw is null\n");
+	rtw_hal_fw_dl(padapter, _TRUE);
 
 	media_status_rpt = RT_MEDIA_CONNECT;
 	rtw_hal_set_hwreg(padapter, HW_VAR_H2C_FW_JOINBSSRPT,
@@ -2441,10 +2603,8 @@ static void rtw_hal_ap_wow_disable(_adapter *padapter)
 
 	rtw_hal_force_enable_rxdma(padapter);
 
-	if (pHalFunc->hal_set_wowlan_fw != NULL)
-		pHalFunc->hal_set_wowlan_fw(padapter, _FALSE);
-	else
-		DBG_871X("hal_set_wowlan_fw is null\n");
+	rtw_hal_fw_dl(padapter, _FALSE);
+
 #ifdef CONFIG_GPIO_WAKEUP
 	val8 = (pwrctl->is_high_active == 0) ? 1 : 0;
 	DBG_871X_LEVEL(_drv_always_, "Set Wake GPIO to default(%d).\n", val8);
@@ -5262,7 +5422,7 @@ static void rtw_hal_wow_enable(_adapter *adapter)
 	if (pwrctl->wowlan_pattern)
 		rtw_hal_dl_pattern(adapter, _FALSE);
 
-	rtw_hal_set_wowlan_fw(adapter, _TRUE);
+	rtw_hal_fw_dl(adapter, _TRUE);
 	media_status_rpt = RT_MEDIA_CONNECT;
 	rtw_hal_set_hwreg(adapter, HW_VAR_H2C_FW_JOINBSSRPT,
 		(u8 *)&media_status_rpt);
@@ -5380,7 +5540,7 @@ static void rtw_hal_wow_disable(_adapter *adapter)
 		rtw_hal_update_gtk_offload_info(adapter);
 #endif /*CONFIG_GTK_OL*/
 
-	rtw_hal_set_wowlan_fw(adapter, _FALSE);
+	rtw_hal_fw_dl(adapter, _FALSE);
 
 #ifdef CONFIG_GPIO_WAKEUP
 	val8 = (pwrctl->is_high_active == 0) ? 1 : 0;
@@ -6241,7 +6401,12 @@ void GetHalODMVar(
 		}
 		break;
 #endif
-		
+	case HAL_ODM_INITIAL_GAIN:
+		{
+			pDIG_T pDM_DigTable = &podmpriv->DM_DigTable;
+			*((u8 *)pValue1) = pDM_DigTable->CurIGValue;
+		}
+		break;
 	default:
 		break;
 	}
@@ -6816,14 +6981,58 @@ exit:
 	return ret;
 }
 
+void rtw_dump_cur_efuse(PADAPTER padapter)
+{
+	int i =0;
+	int mapsize =0;
+	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(padapter);
+
+	EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_EFUSE_MAP_LEN , (void *)&mapsize, _FALSE);
+
+	if (mapsize <= 0 || mapsize > EEPROM_MAX_SIZE) {
+		DBG_871X_LEVEL(_drv_err_, "wrong map size %d\n", mapsize);
+		return;
+	}
+
+	if (hal_data->efuse_file_status == EFUSE_FILE_LOADED)
+		DBG_871X_LEVEL(_drv_always_, "EFUSE FILE\n");
+	else
+		DBG_871X_LEVEL(_drv_always_, "HW EFUSE\n");
+
+#ifdef CONFIG_DEBUG
+	for (i = 0; i < mapsize; i++) {
+		if (i % 16 == 0)
+			DBG_871X_SEL_NL(RTW_DBGDUMP, "0x%03x: ", i);
+
+		DBG_871X_SEL(RTW_DBGDUMP, "%02X%s"
+			, hal_data->efuse_eeprom_data[i]
+			, ((i + 1) % 16 == 0) ? "\n" : (((i + 1) % 8 == 0) ? "    " : " ")
+		);
+	}
+	DBG_871X_SEL(RTW_DBGDUMP, "\n");
+#endif
+}
+
 #ifdef CONFIG_EFUSE_CONFIG_FILE
 u32 Hal_readPGDataFromConfigFile(PADAPTER padapter)
 {
 	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(padapter);
-	u32 ret;
+	u32 ret = _FALSE;
+	u32 maplen = 0;
 
-	ret = rtw_read_efuse_from_file(EFUSE_MAP_PATH, hal_data->efuse_eeprom_data);
+	EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_EFUSE_MAP_LEN , (void *)&maplen, _FALSE);
+
+	if (maplen < 256 || maplen > EEPROM_MAX_SIZE) {
+		DBG_871X_LEVEL(_drv_err_, "eFuse length error :%d\n", maplen);
+		return _FALSE;
+	}
+
+	ret = rtw_read_efuse_from_file(EFUSE_MAP_PATH, hal_data->efuse_eeprom_data, maplen);
+
 	hal_data->efuse_file_status = ((ret == _FAIL) ? EFUSE_FILE_FAILED : EFUSE_FILE_LOADED);
+
+	if (hal_data->efuse_file_status == EFUSE_FILE_LOADED)
+		rtw_dump_cur_efuse(padapter);
 
 	return ret;
 }
@@ -7593,12 +7802,11 @@ void rtw_dump_phy_rxcnts_preprocess(_adapter* padapter,u8 rx_cnt_mode)
 {
 	u8 initialgain;
 	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(padapter);
-	DM_ODM_T *odm = &(hal_data->odmpriv);
-	DIG_T	*pDigTable = &odm->DM_DigTable;
 	
 	if((!(padapter->dump_rx_cnt_mode& DUMP_PHY_RX_COUNTER)) && (rx_cnt_mode & DUMP_PHY_RX_COUNTER))
 	{
-		initialgain = pDigTable->CurIGValue;
+		/*initialgain = pDigTable->CurIGValue;*/
+		rtw_hal_get_odm_var(padapter, HAL_ODM_INITIAL_GAIN, &initialgain, NULL);
 		DBG_871X("%s CurIGValue:0x%02x\n",__FUNCTION__,initialgain);
 		rtw_hal_set_odm_var(padapter, HAL_ODM_INITIAL_GAIN, &initialgain, _FALSE);
 		/*disable dynamic functions, such as high power, DIG*/
@@ -7919,6 +8127,13 @@ static const char * const _bw_cap_str[] = {
 	/* BIT6 */"80_80M",
 };
 
+static const char * const _proto_cap_str[] = {
+	/* BIT0 */"b",
+	/* BIT1 */"g",
+	/* BIT2 */"n",
+	/* BIT3 */"ac",
+};
+
 static const char * const _wl_func_str[] = {
 	/* BIT0 */"P2P",
 	/* BIT1 */"MIRACAST",
@@ -7950,6 +8165,13 @@ void dump_hal_spec(void *sel, _adapter *adapter)
 	}
 	DBG_871X_SEL(sel, "\n");
 
+	DBG_871X_SEL_NL(sel, "proto_cap:");
+	for (i = 0; i < PROTO_CAP_BIT_NUM; i++) {
+		if (((hal_spec->proto_cap) >> i) & BIT0 && _proto_cap_str[i])
+			DBG_871X_SEL(sel, "%s ", _proto_cap_str[i]);
+	}
+	DBG_871X_SEL(sel, "\n");
+
 	DBG_871X_SEL_NL(sel, "wl_func:");
 	for (i = 0; i < WL_FUNC_BIT_NUM; i++) {
 		if (((hal_spec->wl_func) >> i) & BIT0 && _wl_func_str[i])
@@ -7968,6 +8190,11 @@ inline bool hal_chk_bw_cap(_adapter *adapter, u8 cap)
 	return (GET_HAL_SPEC(adapter)->bw_cap & cap);
 }
 
+inline bool hal_chk_proto_cap(_adapter *adapter, u8 cap)
+{
+	return (GET_HAL_SPEC(adapter)->proto_cap & cap);
+}
+
 inline bool hal_chk_wl_func(_adapter *adapter, u8 func)
 {
 	return (GET_HAL_SPEC(adapter)->wl_func & func);
@@ -7981,6 +8208,37 @@ inline bool hal_is_band_support(_adapter *adapter, u8 band)
 inline bool hal_is_bw_support(_adapter *adapter, u8 bw)
 {
 	return (GET_HAL_SPEC(adapter)->bw_cap & ch_width_to_bw_cap(bw));
+}
+
+inline bool hal_is_wireless_mode_support(_adapter *adapter, u8 mode)
+{
+	u8 proto_cap = GET_HAL_SPEC(adapter)->proto_cap;
+
+	if (mode == WIRELESS_11B)
+		if ((proto_cap & PROTO_CAP_11B) && hal_chk_band_cap(adapter, BAND_CAP_2G))
+			return 1;
+
+	if (mode == WIRELESS_11G)
+		if ((proto_cap & PROTO_CAP_11G) && hal_chk_band_cap(adapter, BAND_CAP_2G))
+			return 1;
+
+	if (mode == WIRELESS_11A)
+		if ((proto_cap & PROTO_CAP_11G) && hal_chk_band_cap(adapter, BAND_CAP_5G))
+			return 1;
+
+	if (mode == WIRELESS_11_24N)
+		if ((proto_cap & PROTO_CAP_11N) && hal_chk_band_cap(adapter, BAND_CAP_2G))
+			return 1;
+
+	if (mode == WIRELESS_11_5N)
+		if ((proto_cap & PROTO_CAP_11N) && hal_chk_band_cap(adapter, BAND_CAP_5G))
+			return 1;
+
+	if (mode == WIRELESS_11AC)
+		if ((proto_cap & PROTO_CAP_11AC) && hal_chk_band_cap(adapter, BAND_CAP_5G))
+			return 1;
+
+	return 0;
 }
 
 /*

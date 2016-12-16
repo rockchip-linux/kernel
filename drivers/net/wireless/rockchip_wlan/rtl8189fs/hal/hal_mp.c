@@ -138,36 +138,90 @@ void hal_mpt_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14)
 	u32		CurrCCKSwingVal = 0, CCKSwingIndex = 12;
 	u8		i;
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-	
 	PMPT_CONTEXT		pMptCtx = &(Adapter->mppriv.MptCtx);
 	u1Byte				u1Channel = pHalData->CurrentChannel;
 	ULONG				ulRateIdx = pMptCtx->MptRateIndex;
 	u1Byte				DataRate = 0xFF;
 
+
 	DataRate = MptToMgntRate(ulRateIdx);
-	
+
 	if (u1Channel == 14 && IS_CCK_RATE(DataRate))
 		pHalData->bCCKinCH14 = TRUE;
 	else
-		pHalData->bCCKinCH14 = FALSE;	
+		pHalData->bCCKinCH14 = FALSE;
 
 	if (IS_HARDWARE_TYPE_8703B(Adapter)) {
-			if ((u1Channel == 14) && IS_CCK_RATE(DataRate)) {
-				/* Channel 14 in CCK, need to set 0xA26~0xA29 to 0 for 8703B */ 
-				PHY_SetBBReg(Adapter, rCCK0_TxFilter2, bMaskHWord, 0);
-				PHY_SetBBReg(Adapter, rCCK0_DebugPort, bMaskLWord, 0);
+		if ((u1Channel == 14) && IS_CCK_RATE(DataRate)) {
+			/* Channel 14 in CCK, need to set 0xA26~0xA29 to 0 for 8703B */
+			PHY_SetBBReg(Adapter, rCCK0_TxFilter2, bMaskHWord, 0);
+			PHY_SetBBReg(Adapter, rCCK0_DebugPort, bMaskLWord, 0);
 
-				RT_TRACE(_module_mp_, DBG_LOUD, ("MPT_CCKTxPowerAdjust 8703B CCK in Channel %u\n", u1Channel));
-			} else {
-				/* Normal setting for 8703B, just recover to the default setting. */
-				/* This hardcore values reference from the parameter which BB team gave. */
-				for (i = 0 ; i < 2 ; ++i)
-					PHY_SetBBReg(Adapter, pHalData->RegForRecover[i].offset, bMaskDWord, pHalData->RegForRecover[i].value);
+		} else {
+			/* Normal setting for 8703B, just recover to the default setting. */
+			/* This hardcore values reference from the parameter which BB team gave. */
+			for (i = 0 ; i < 2 ; ++i)
+				PHY_SetBBReg(Adapter, pHalData->RegForRecover[i].offset, bMaskDWord, pHalData->RegForRecover[i].value);
 
-				RT_TRACE(_module_mp_, DBG_LOUD, ("MPT_CCKTxPowerAdjust 8703B in Channel %u restore to default setting\n", u1Channel));
-			}
+		}
 	} else if (IS_HARDWARE_TYPE_8188F(Adapter)) {
-		/* No difference between CCK in CH14 and others, no need to change TX filter */
+		/* get current cck swing value and check 0xa22 & 0xa23 later to match the table.*/
+		CurrCCKSwingVal = read_bbreg(Adapter, rCCK0_TxFilter1, bMaskHWord);
+		CCKSwingIndex = 20; /* default index */
+
+		if (!pHalData->bCCKinCH14) {
+			/* Readback the current bb cck swing value and compare with the table to */
+			/* get the current swing index */
+			for (i = 0; i < CCK_TABLE_SIZE_88F; i++) {
+				if (((CurrCCKSwingVal & 0xff) == (u32)CCKSwingTable_Ch1_Ch13_88F[i][0]) &&
+				    (((CurrCCKSwingVal & 0xff00) >> 8) == (u32)CCKSwingTable_Ch1_Ch13_88F[i][1])) {
+					CCKSwingIndex = i;
+					break;
+				}
+			}
+			write_bbreg(Adapter, 0xa22, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][0]);
+			write_bbreg(Adapter, 0xa23, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][1]);
+			write_bbreg(Adapter, 0xa24, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][2]);
+			write_bbreg(Adapter, 0xa25, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][3]);
+			write_bbreg(Adapter, 0xa26, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][4]);
+			write_bbreg(Adapter, 0xa27, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][5]);
+			write_bbreg(Adapter, 0xa28, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][6]);
+			write_bbreg(Adapter, 0xa29, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][7]);
+			write_bbreg(Adapter, 0xa9a, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][8]);
+			write_bbreg(Adapter, 0xa9b, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][9]);
+			write_bbreg(Adapter, 0xa9c, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][10]);
+			write_bbreg(Adapter, 0xa9d, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][11]);
+			write_bbreg(Adapter, 0xaa0, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][12]);
+			write_bbreg(Adapter, 0xaa1, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][13]);
+			write_bbreg(Adapter, 0xaa2, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][14]);
+			write_bbreg(Adapter, 0xaa3, bMaskByte0, CCKSwingTable_Ch1_Ch13_88F[CCKSwingIndex][15]);
+			DBG_871X("%s , CCKSwingTable_Ch1_Ch13_88F[%d]\n", __func__, CCKSwingIndex);
+		}  else {
+			for (i = 0; i < CCK_TABLE_SIZE_88F; i++) {
+				if (((CurrCCKSwingVal & 0xff) == (u32)CCKSwingTable_Ch14_88F[i][0]) &&
+				    (((CurrCCKSwingVal & 0xff00) >> 8) == (u32)CCKSwingTable_Ch14_88F[i][1])) {
+					CCKSwingIndex = i;
+					break;
+				}
+			}
+			write_bbreg(Adapter, 0xa22, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][0]);
+			write_bbreg(Adapter, 0xa23, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][1]);
+			write_bbreg(Adapter, 0xa24, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][2]);
+			write_bbreg(Adapter, 0xa25, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][3]);
+			write_bbreg(Adapter, 0xa26, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][4]);
+			write_bbreg(Adapter, 0xa27, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][5]);
+			write_bbreg(Adapter, 0xa28, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][6]);
+			write_bbreg(Adapter, 0xa29, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][7]);
+			write_bbreg(Adapter, 0xa9a, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][8]);
+			write_bbreg(Adapter, 0xa9b, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][9]);
+			write_bbreg(Adapter, 0xa9c, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][10]);
+			write_bbreg(Adapter, 0xa9d, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][11]);
+			write_bbreg(Adapter, 0xaa0, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][12]);
+			write_bbreg(Adapter, 0xaa1, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][13]);
+			write_bbreg(Adapter, 0xaa2, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][14]);
+			write_bbreg(Adapter, 0xaa3, bMaskByte0, CCKSwingTable_Ch14_88F[CCKSwingIndex][15]);
+			DBG_871X("%s , CCKSwingTable_Ch14_88F[%d]\n", __func__, CCKSwingIndex);
+		}
 	} else {
 
 		/* get current cck swing value and check 0xa22 & 0xa23 later to match the table.*/
@@ -177,63 +231,58 @@ void hal_mpt_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14)
 			/* Readback the current bb cck swing value and compare with the table to */
 			/* get the current swing index */
 			for (i = 0; i < CCK_TABLE_SIZE; i++) {
-				if (((CurrCCKSwingVal&0xff) == (u32)CCKSwingTable_Ch1_Ch13[i][0]) &&
-					(((CurrCCKSwingVal&0xff00)>>8) == (u32)CCKSwingTable_Ch1_Ch13[i][1])) {
+				if (((CurrCCKSwingVal & 0xff) == (u32)CCKSwingTable_Ch1_Ch13[i][0]) &&
+				    (((CurrCCKSwingVal & 0xff00) >> 8) == (u32)CCKSwingTable_Ch1_Ch13[i][1])) {
 					CCKSwingIndex = i;
-					RT_TRACE(_module_mp_, DBG_LOUD, ("Ch1~13, Current reg0x%x = 0x%lx, CCKSwingIndex=0x%x\n",
-						(rCCK0_TxFilter1+2), CurrCCKSwingVal, CCKSwingIndex));
 					break;
 				}
 			}
 
-		/*Write 0xa22 0xa23*/
-		TempVal = CCKSwingTable_Ch1_Ch13[CCKSwingIndex][0] +
-				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][1]<<8);
+			/*Write 0xa22 0xa23*/
+			TempVal = CCKSwingTable_Ch1_Ch13[CCKSwingIndex][0] +
+				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][1] << 8);
 
 
-		/*Write 0xa24 ~ 0xa27*/
-		TempVal2 = 0;
-		TempVal2 = CCKSwingTable_Ch1_Ch13[CCKSwingIndex][2] +
-				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][3]<<8) +
-				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][4]<<16) +
-				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][5]<<24);
+			/*Write 0xa24 ~ 0xa27*/
+			TempVal2 = 0;
+			TempVal2 = CCKSwingTable_Ch1_Ch13[CCKSwingIndex][2] +
+				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][3] << 8) +
+				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][4] << 16) +
+				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][5] << 24);
 
-		/*Write 0xa28  0xa29*/
-		TempVal3 = 0;
-		TempVal3 = CCKSwingTable_Ch1_Ch13[CCKSwingIndex][6] +
-				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][7]<<8);
-	}  else {
-		for (i = 0; i < CCK_TABLE_SIZE; i++) {
-			if (((CurrCCKSwingVal&0xff) == (u32)CCKSwingTable_Ch14[i][0]) &&
-				(((CurrCCKSwingVal&0xff00)>>8) == (u32)CCKSwingTable_Ch14[i][1])) {
-				CCKSwingIndex = i;
-				RT_TRACE(_module_mp_, DBG_LOUD, ("Ch14, Current reg0x%x = 0x%lx, CCKSwingIndex=0x%x\n",
-					(rCCK0_TxFilter1+2), CurrCCKSwingVal, CCKSwingIndex));
-				break;
+			/*Write 0xa28  0xa29*/
+			TempVal3 = 0;
+			TempVal3 = CCKSwingTable_Ch1_Ch13[CCKSwingIndex][6] +
+				(CCKSwingTable_Ch1_Ch13[CCKSwingIndex][7] << 8);
+		}  else {
+			for (i = 0; i < CCK_TABLE_SIZE; i++) {
+				if (((CurrCCKSwingVal & 0xff) == (u32)CCKSwingTable_Ch14[i][0]) &&
+				    (((CurrCCKSwingVal & 0xff00) >> 8) == (u32)CCKSwingTable_Ch14[i][1])) {
+					CCKSwingIndex = i;
+					break;
+				}
 			}
+
+			/*Write 0xa22 0xa23*/
+			TempVal = CCKSwingTable_Ch14[CCKSwingIndex][0] +
+				  (CCKSwingTable_Ch14[CCKSwingIndex][1] << 8);
+
+			/*Write 0xa24 ~ 0xa27*/
+			TempVal2 = 0;
+			TempVal2 = CCKSwingTable_Ch14[CCKSwingIndex][2] +
+				   (CCKSwingTable_Ch14[CCKSwingIndex][3] << 8) +
+				(CCKSwingTable_Ch14[CCKSwingIndex][4] << 16) +
+				   (CCKSwingTable_Ch14[CCKSwingIndex][5] << 24);
+
+			/*Write 0xa28  0xa29*/
+			TempVal3 = 0;
+			TempVal3 = CCKSwingTable_Ch14[CCKSwingIndex][6] +
+				   (CCKSwingTable_Ch14[CCKSwingIndex][7] << 8);
 		}
 
-		/*Write 0xa22 0xa23*/
-		TempVal = CCKSwingTable_Ch14[CCKSwingIndex][0] +
-				(CCKSwingTable_Ch14[CCKSwingIndex][1]<<8);
-
-		/*Write 0xa24 ~ 0xa27*/
-		TempVal2 = 0;
-		TempVal2 = CCKSwingTable_Ch14[CCKSwingIndex][2] +
-				(CCKSwingTable_Ch14[CCKSwingIndex][3]<<8) +
-				(CCKSwingTable_Ch14[CCKSwingIndex][4]<<16) +
-				(CCKSwingTable_Ch14[CCKSwingIndex][5]<<24);
-
-		/*Write 0xa28  0xa29*/
-		TempVal3 = 0;
-		TempVal3 = CCKSwingTable_Ch14[CCKSwingIndex][6] +
-				(CCKSwingTable_Ch14[CCKSwingIndex][7]<<8);
-	}
-
-	write_bbreg(Adapter, rCCK0_TxFilter1, bMaskHWord, TempVal);
-	write_bbreg(Adapter, rCCK0_TxFilter2, bMaskDWord, TempVal2);
-	write_bbreg(Adapter, rCCK0_DebugPort, bMaskLWord, TempVal3);
-
+		write_bbreg(Adapter, rCCK0_TxFilter1, bMaskHWord, TempVal);
+		write_bbreg(Adapter, rCCK0_TxFilter2, bMaskDWord, TempVal2);
+		write_bbreg(Adapter, rCCK0_DebugPort, bMaskLWord, TempVal3);
 	}
 
 }
@@ -246,12 +295,9 @@ void hal_mpt_SetChannel(PADAPTER pAdapter)
 	struct mp_priv	*pmp = &pAdapter->mppriv;
 	u8		channel = pmp->channel;
 	u8		bandwidth = pmp->bandwidth;
-	u8		rate = pmp->rateidx;
 
 	hal_mpt_SwitchRfSetting(pAdapter);
-	
-	SelectChannel(pAdapter, channel);
-	
+
 	pHalData->bSwChnl = _TRUE;
 	pHalData->bSetChnlBW = _TRUE;
 	rtw_hal_set_chnl_bw(pAdapter, channel, bandwidth, 0, 0);
@@ -271,8 +317,7 @@ void hal_mpt_SetBandwidth(PADAPTER pAdapter)
 	
 	u8		channel = pmp->channel;
 	u8		bandwidth = pmp->bandwidth;
-	
-	SetBWMode(pAdapter, pmp->bandwidth, pmp->prime_channel_offset);
+
 	pHalData->bSwChnl = _TRUE;
 	pHalData->bSetChnlBW = _TRUE;
 	rtw_hal_set_chnl_bw(pAdapter, channel, bandwidth, 0, 0);
@@ -358,6 +403,8 @@ mpt_SetTxPower(
 	
 	if (IS_HARDWARE_TYPE_8814A(pAdapter))
 		EndPath = ODM_RF_PATH_D;
+	else if (IS_HARDWARE_TYPE_8188F(pAdapter))
+		EndPath = ODM_RF_PATH_A;
 
 	switch (Rate) {
 	case MPT_CCK:
@@ -487,8 +534,8 @@ void hal_mpt_SetDataRate(PADAPTER pAdapter)
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 	PMPT_CONTEXT		pMptCtx = &(pAdapter->mppriv.MptCtx);
 	u32 DataRate;
-	
-	DataRate = MptToMgntRate(pAdapter->mppriv.rateidx);
+
+	DataRate = MptToMgntRate(pMptCtx->MptRateIndex);
 	
 	hal_mpt_SwitchRfSetting(pAdapter);
 
@@ -556,8 +603,7 @@ VOID mpt_SetRFPath_8814A(PADAPTER	pAdapter)
 	PMPT_CONTEXT	pMptCtx = &pAdapter->mppriv.MptCtx;
 	R_ANTENNA_SELECT_OFDM	*p_ofdm_tx;	/* OFDM Tx register */
 	R_ANTENNA_SELECT_CCK	*p_cck_txrx;
-
-	u8	ForcedDataRate = HwRateToMRate(pAdapter->mppriv.rateidx);
+	u8	ForcedDataRate = MptToMgntRate(pMptCtx->MptRateIndex);
 	u8	HtStbcCap = pAdapter->registrypriv.stbc_cap;
 	/*/PRT_HIGH_THROUGHPUT		pHTInfo = GET_HT_INFO(pMgntInfo);*/
 	/*/PRT_VERY_HIGH_THROUGHPUT	pVHTInfo = GET_VHT_INFO(pMgntInfo);*/

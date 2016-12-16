@@ -431,7 +431,8 @@ void rtw_tdls_process_vht_cap(_adapter *padapter, struct sta_info *ptdls_sta, u8
 		ptdls_sta->flags &= ~WLAN_STA_VHT;
 
 	if (ptdls_sta->flags & WLAN_STA_VHT) {
-		if (padapter->registrypriv.vht_enable != 0
+		if (REGSTY_IS_11AC_ENABLE(&padapter->registrypriv)
+			&& hal_chk_proto_cap(padapter, PROTO_CAP_11AC)
 			&& (!pmlmepriv->country_ent || COUNTRY_CHPLAN_EN_11AC(pmlmepriv->country_ent)))
 			ptdls_sta->vhtpriv.vht_option = _TRUE;
 		else 
@@ -2522,8 +2523,10 @@ void rtw_build_tdls_setup_req_ies(_adapter * padapter, struct xmit_frame * pxmit
 		pframe = rtw_tdls_set_qos_cap(pframe, pattrib);
 
 #ifdef CONFIG_80211AC_VHT
-	if ((padapter->mlmepriv.htpriv.ht_option == _TRUE) && (pregistrypriv->vht_enable != 0) && (pmlmeext->cur_channel > 14)
-			&& (!padapter->mlmepriv.country_ent || COUNTRY_CHPLAN_EN_11AC(padapter->mlmepriv.country_ent))
+	if ((padapter->mlmepriv.htpriv.ht_option == _TRUE) && (pmlmeext->cur_channel > 14)
+		&& REGSTY_IS_11AC_ENABLE(pregistrypriv)
+		&& hal_chk_proto_cap(padapter, PROTO_CAP_11AC)
+		&& (!padapter->mlmepriv.country_ent || COUNTRY_CHPLAN_EN_11AC(padapter->mlmepriv.country_ent))
 	) {
 		pframe = rtw_tdls_set_aid(padapter, pframe, pattrib);
 		pframe = rtw_tdls_set_vht_cap(padapter, pframe, pattrib);
@@ -2620,8 +2623,10 @@ void rtw_build_tdls_setup_rsp_ies(_adapter * padapter, struct xmit_frame * pxmit
 		pframe = rtw_tdls_set_qos_cap(pframe, pattrib);
 
 #ifdef CONFIG_80211AC_VHT
-	if ((padapter->mlmepriv.htpriv.ht_option == _TRUE) && (pregistrypriv->vht_enable != 0) && (pmlmeext->cur_channel > 14)
-			&& (!padapter->mlmepriv.country_ent || COUNTRY_CHPLAN_EN_11AC(padapter->mlmepriv.country_ent))
+	if ((padapter->mlmepriv.htpriv.ht_option == _TRUE) && (pmlmeext->cur_channel > 14)
+		&& REGSTY_IS_11AC_ENABLE(pregistrypriv)
+		&& hal_chk_proto_cap(padapter, PROTO_CAP_11AC)
+		&& (!padapter->mlmepriv.country_ent || COUNTRY_CHPLAN_EN_11AC(padapter->mlmepriv.country_ent))
 	) {
 		pframe = rtw_tdls_set_aid(padapter, pframe, pattrib);
 		pframe = rtw_tdls_set_vht_cap(padapter, pframe, pattrib);
@@ -2694,8 +2699,10 @@ void rtw_build_tdls_setup_cfm_ies(_adapter * padapter, struct xmit_frame * pxmit
 		pframe = rtw_tdls_set_wmm_params(padapter, pframe, pattrib);
 
 #ifdef CONFIG_80211AC_VHT
-	if ((padapter->mlmepriv.htpriv.ht_option == _TRUE) && (pregistrypriv->vht_enable == _TRUE) 
+	if ((padapter->mlmepriv.htpriv.ht_option == _TRUE)
 		&& (ptdls_sta->vhtpriv.vht_option == _TRUE) && (pmlmeext->cur_channel > 14)
+		&& REGSTY_IS_11AC_ENABLE(pregistrypriv)
+		&& hal_chk_proto_cap(padapter, PROTO_CAP_11AC)
 		&& (!padapter->mlmepriv.country_ent || COUNTRY_CHPLAN_EN_11AC(padapter->mlmepriv.country_ent))
 	) {
 		pframe = rtw_tdls_set_vht_operation(padapter, pframe, pattrib, pmlmeext->cur_channel);
@@ -3077,11 +3084,6 @@ void rtw_free_tdls_timer(struct sta_info *psta)
 #endif
 	_cancel_timer_ex(&psta->handshake_timer);
 	_cancel_timer_ex(&psta->pti_timer);
-}
-
-u8	update_sgi_tdls(_adapter *padapter, struct sta_info *psta)
-{
-	return query_ra_short_GI(psta);
 }
 
 u32 update_mask_tdls(_adapter *padapter, struct sta_info *psta)

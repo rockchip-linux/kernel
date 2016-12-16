@@ -598,12 +598,20 @@ void	expire_timeout_chk(_adapter *padapter)
 #ifdef CONFIG_ACTIVE_KEEP_ALIVE_CHECK
 if (chk_alive_num) {
 
-	u8 backup_oper_channel=0;
+	u8 backup_ch = 0, backup_bw, backup_offset;
+	u8 union_ch = 0, union_bw, union_offset;
 	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
+
+	if (!rtw_get_ch_setting_union(padapter, &union_ch, &union_bw, &union_offset)
+		|| pmlmeext->cur_channel != union_ch)
+		goto bypass_active_keep_alive;
+
 	/* switch to correct channel of current network  before issue keep-alive frames */
 	if (rtw_get_oper_ch(padapter) != pmlmeext->cur_channel) {
-		backup_oper_channel = rtw_get_oper_ch(padapter);
-		SelectChannel(padapter, pmlmeext->cur_channel);
+		backup_ch = rtw_get_oper_ch(padapter);
+		backup_bw = rtw_get_oper_bw(padapter);
+		backup_offset = rtw_get_oper_choffset(padapter);
+		set_channel_bwmode(padapter, union_ch, union_offset, union_bw);
 	}
 
 	/* issue null data to check sta alive*/
@@ -652,8 +660,12 @@ if (chk_alive_num) {
 
 	}
 
-	if (backup_oper_channel>0) /* back to the original operation channel */
-		SelectChannel(padapter, backup_oper_channel);
+	/* back to the original operation channel */
+	if (backup_ch > 0)
+		set_channel_bwmode(padapter, backup_ch, backup_offset, backup_bw);
+
+bypass_active_keep_alive:
+	;
 }
 #endif /* CONFIG_ACTIVE_KEEP_ALIVE_CHECK */
 
@@ -669,6 +681,7 @@ void add_RATid(_adapter *padapter, struct sta_info *psta, u8 rssi_level)
 	struct ht_priv	*psta_ht = NULL;
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
 	WLAN_BSSID_EX *pcur_network = (WLAN_BSSID_EX *)&pmlmepriv->cur_network.network;
+	u8 bw;
 
 #ifdef CONFIG_80211N_HT
 	if(psta)
@@ -802,7 +815,8 @@ void add_RATid(_adapter *padapter, struct sta_info *psta, u8 rssi_level)
 	rtw_hal_update_sta_rate_mask(padapter, psta);
 	tx_ra_bitmap = psta->ra_mask;
 
-	shortGIrate = query_ra_short_GI(psta);
+	bw = rtw_get_tx_bw_mode(padapter, psta);
+	shortGIrate = query_ra_short_GI(psta, bw);
 
 	if ( pcur_network->Configuration.DSConfig > 14 ) {
 		
@@ -2118,10 +2132,7 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 		pmlmepriv->htpriv.ht_option = _TRUE;
 		pmlmepriv->qospriv.qos_option = 1;
 
-		if(pregistrypriv->ampdu_enable==1)
-		{
-			pmlmepriv->htpriv.ampdu_enable = _TRUE;
-		}
+		pmlmepriv->htpriv.ampdu_enable = pregistrypriv->ampdu_enable ? _TRUE : _FALSE;
 
 		HT_caps_handler(padapter, (PNDIS_802_11_VARIABLE_IEs)pHT_caps_ie);
 		
@@ -2144,15 +2155,13 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 	// if channel in 5G band, then add vht ie .
 	if ((pbss_network->Configuration.DSConfig > 14)
 		&& (pmlmepriv->htpriv.ht_option == _TRUE)
-		&& (pregistrypriv->vht_enable)
+		&& REGSTY_IS_11AC_ENABLE(pregistrypriv)
+		&& hal_chk_proto_cap(padapter, PROTO_CAP_11AC)
 		&& (!pmlmepriv->country_ent || COUNTRY_CHPLAN_EN_11AC(pmlmepriv->country_ent))
 	) {
-		if(vht_cap == _TRUE)
-		{
+		if (vht_cap == _TRUE)
 			pmlmepriv->vhtpriv.vht_option = _TRUE;
-		}
-		else if(pregistrypriv->vht_enable == 2) // auto enabled
-		{
+		else if (REGSTY_IS_11AC_AUTO(pregistrypriv)) {
 			u8	cap_len, operation_len;
 
 			rtw_vht_use_default_setting(padapter);
