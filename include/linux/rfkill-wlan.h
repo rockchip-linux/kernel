@@ -83,4 +83,11 @@ int rockchip_wifi_get_oob_irq(void);
 int rockchip_wifi_reset(int on);
 int rockchip_wifi_mac_addr(unsigned char *buf);
 void *rockchip_wifi_country_code(char *ccode);
+
+#ifdef CONFIG_RFKILL_RK
+int get_wifi_chip_type(void);
+#else
+static inline int get_wifi_chip_type(void) { return -1; }
+#endif
+
 #endif
