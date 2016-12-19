@@ -890,7 +890,7 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 		}
 	}
 
-	if (post_conv) {
+	if (post_conv || pre_conv) {
 		overlay_mode = VOP_RGB_DOMAIN;
 	} else {
 		if (output_color == COLOR_RGB)
@@ -910,7 +910,7 @@ static void rk322xh_vop_sdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 
 	/* pre conv for win1,2,3,hwc, mode:0: bt709->bt2020, 1: bt2020->bt709 */
 	win_state &= 0xfe;
-	if (pre_conv == 1) {
+	if (post_conv || pre_conv) {
 		dev_drv->pre_overlay = 1;
 		if (pre_conv_mode == win_state) {
 			val = V_BT1886EOTF_PRE_CONV_EN(1) |
