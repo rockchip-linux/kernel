@@ -95,6 +95,7 @@ module_param(debug, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug, "bit switch for vcodec_service debug information");
 
 #define VCODEC_CLOCK_ENABLE	1
+#define IOMMU_PAGE_SIZE		4096
 
 /*
  * hardware information organization
@@ -156,6 +157,7 @@ struct vcodec_hw_ops {
 struct vcodec_hw_var {
 	enum pmu_idle_req pmu_type;
 	struct vcodec_hw_ops *ops;
+	int (*init)(struct vpu_service_info *pservice);
 };
 
 #define MHZ					(1000*1000)
@@ -2194,17 +2196,19 @@ int vcodec_sysmmu_fault_hdl(struct device *dev,
 		 * defeat workaround, invalidate address generated when rk322x
 		 * vdec pre-fetch colmv data.
 		 */
-		if (IOMMU_GET_BUS_ID(status) == 2) {
+		if (IOMMU_GET_BUS_ID(status) == 2 && pservice->pf) {
 			/* avoid another page fault occur after page fault */
 			if (pservice->war_iova)
 				rockchip_iovmm_unmap_iova(dev,
 							  pservice->war_iova);
 
 			/* get the page align iova */
-			pservice->war_iova = round_down(fault_addr, 4096);
+			pservice->war_iova = round_down(fault_addr,
+							IOMMU_PAGE_SIZE);
 
 			rockchip_iovmm_map_iova(dev, pservice->war_iova,
-						pservice->pf_pa, 4096);
+						pservice->pf_pa,
+						IOMMU_PAGE_SIZE);
 		} else {
 			vpu_reset(data);
 		}
@@ -2456,6 +2460,34 @@ static void vcodec_reduce_freq_rk322xh(struct vpu_service_info *pservice)
 	}
 }
 
+static int vcodec_spec_init_rk322xh(struct vpu_service_info *pservice)
+{
+	int ret;
+	size_t len;
+
+	/*
+	 * allocate memory using to create iommu pages for workaround the rkvdec
+	 * defeat that generating a invalidate address when pre-fetch colmv data
+	 * during decoding h265 with tile mode.
+	 */
+	pservice->pf = ion_alloc(pservice->ion_client, IOMMU_PAGE_SIZE,
+				 IOMMU_PAGE_SIZE, ION_HEAP(ION_CMA_HEAP_ID), 0);
+	if (IS_ERR_OR_NULL(pservice->pf)) {
+		vpu_err("allocate colmv war buffer failed\n");
+		pservice->pf = NULL;
+	} else {
+		ret = ion_phys(pservice->ion_client, pservice->pf,
+			       &pservice->pf_pa, &len);
+		if (ret < 0) {
+			vpu_err("get colmv war buffer phy address failed\n");
+			ion_free(pservice->ion_client, pservice->pf);
+			pservice->pf = NULL;
+		}
+	}
+
+	return 0;
+}
+
 static struct vcodec_hw_ops hw_ops_default = {
 	.power_on = vcodec_power_on_default,
 	.power_off = vcodec_power_off_default,
@@ -2475,11 +2507,13 @@ static struct vcodec_hw_ops hw_ops_rk322xh_rkvdec = {
 static struct vcodec_hw_var rk322xh_rkvdec_var = {
 	.pmu_type = IDLE_REQ_VIDEO,
 	.ops = &hw_ops_rk322xh_rkvdec,
+	.init = vcodec_spec_init_rk322xh,
 };
 
 static struct vcodec_hw_var rk322xh_vpucombo_var = {
 	.pmu_type = IDLE_REQ_VPU,
 	.ops = &hw_ops_default,
+	.init = NULL,
 };
 
 static void vcodec_set_hw_ops(struct vpu_service_info *pservice)
@@ -2843,6 +2877,9 @@ static void vcodec_init_drvdata(struct vpu_service_info *pservice)
 	}
 
 	vcodec_set_hw_ops(pservice);
+
+	if (pservice->hw_var && pservice->hw_var->init)
+		pservice->hw_var->init(pservice);
 }
 
 static int vcodec_probe(struct platform_device *pdev)
@@ -2854,7 +2891,6 @@ static int vcodec_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct vpu_service_info *pservice =
 		devm_kzalloc(dev, sizeof(struct vpu_service_info), GFP_KERNEL);
-	size_t len;
 
 	pservice->dev = dev;
 
@@ -2901,32 +2937,12 @@ static int vcodec_probe(struct platform_device *pdev)
 		vcodec_subdev_probe(pdev, pservice);
 	}
 
-	/*
-	 * allocate memory using to create iommu pages for workaround the rkvdec
-	 * defeat that generating a invalidate address when pre-fetch colmv data
-	 * during decoding h265 with tile mode.
-	 */
-	pservice->pf = ion_alloc(pservice->ion_client, 4096,
-				 4096, ION_HEAP(ION_CMA_HEAP_ID), 0);
-	if (IS_ERR_OR_NULL(pservice->pf)) {
-		vpu_err("allocate colmv war buffer failed\n");
-		goto err;
-	}
-	ret = ion_phys(pservice->ion_client, pservice->pf,
-		       &pservice->pf_pa, &len);
-	if (ret < 0) {
-		vpu_err("get colmv war buffer phy address failed\n");
-		goto err;
-	}
-
 	pr_info("init success\n");
 
 	return 0;
 
 err:
 	pr_info("init failed\n");
-	if (pservice->pf)
-		ion_free(pservice->ion_client, pservice->pf);
 
 	vpu_put_clk(pservice);
 	wake_lock_destroy(&pservice->wake_lock);
@@ -2938,7 +2954,8 @@ static int vcodec_remove(struct platform_device *pdev)
 {
 	struct vpu_subdev_data *data = platform_get_drvdata(pdev);
 
-	ion_free(data->pservice->ion_client, data->pservice->pf);
+	if (!IS_ERR_OR_NULL(data->pservice->pf))
+		ion_free(data->pservice->ion_client, data->pservice->pf);
 
 	vcodec_subdev_remove(data);
 	return 0;
