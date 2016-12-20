@@ -4049,6 +4049,8 @@ int dw_mci_probe(struct dw_mci *host)
 	init_dma_attrs(&dw_mci_direct_attrs);
 	dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &dw_mci_direct_attrs);
 
+	dma_coerce_mask_and_coherent(host->dev, DMA_BIT_MASK(32));
+
 	host->dma_ops = host->pdata->dma_ops;
 	dw_mci_init_dma(host);
 
