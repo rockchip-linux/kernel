@@ -124,8 +124,7 @@ int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest)
 	struct i2c_msg msgs[2];
 
 	if (!i2c)
-		return ret;
-
+		return -EINVAL;
 	if (count != 1)
 		return -EIO;
 
@@ -152,14 +151,14 @@ int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest)
 
 int rk816_i2c_write(struct rk816 *rk816, char reg, int count,  const u8 src)
 {
-	int ret = -1;
+	int ret;
 	struct i2c_client *i2c = rk816->i2c;
 	struct i2c_adapter *adap;
 	struct i2c_msg msg;
 	char tx_buf[2];
 
 	if (!i2c)
-		return ret;
+		return -EINVAL;
 	if (count != 1)
 		return -EIO;
 
@@ -190,6 +189,7 @@ int rk816_reg_read(struct rk816 *rk816, u8 reg)
 		  (int)reg, (unsigned)val & 0xff);
 	if (ret < 0) {
 		mutex_unlock(&rk816->io_lock);
+		dev_err(rk816->dev, "read reg 0x%x failed: %d\n", reg, ret);
 		return ret;
 	}
 	mutex_unlock(&rk816->io_lock);
@@ -206,7 +206,7 @@ int rk816_reg_write(struct rk816 *rk816, u8 reg, u8 val)
 
 	err = rk816_i2c_write(rk816, reg, 1, val);
 	if (err < 0)
-		dev_err(rk816->dev, "Write for reg 0x%x failed\n", reg);
+		dev_err(rk816->dev, "write reg 0x%x failed: %d\n", reg, err);
 
 	mutex_unlock(&rk816->io_lock);
 	return err;

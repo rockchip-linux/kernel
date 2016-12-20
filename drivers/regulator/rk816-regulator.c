@@ -62,7 +62,7 @@ static int rk816_ldo_list_voltage(struct regulator_dev *dev, unsigned index)
 static int rk816_is_enabled(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 val;
+	int val;
 
 	val = rk816_reg_read(rk816, (u8)(dev->desc->enable_reg));
 	if (val < 0)
@@ -74,7 +74,7 @@ static int rk816_is_enabled(struct regulator_dev *dev)
 static int rk816_enable(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 enable_val, enable_mask;
+	u8 enable_val, enable_mask;
 
 	/* write mask */
 	enable_mask = dev->desc->enable_mask | (dev->desc->enable_mask << 4);
@@ -87,7 +87,7 @@ static int rk816_enable(struct regulator_dev *dev)
 static int rk816_disable(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 enable_val, enable_mask;
+	u8 enable_val, enable_mask;
 
 	/* write mask */
 	enable_mask = dev->desc->enable_mask | (dev->desc->enable_mask << 4);
@@ -101,7 +101,7 @@ static int rk816_ldo_suspend_enable(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int ldo = rdev_get_id(dev) - rk8xx_reg->ldo1_id;
-	u16 enable_val, enable_mask;
+	u8 enable_val, enable_mask;
 
 	/* without write mask */
 	enable_mask = (1 << ldo);
@@ -115,7 +115,7 @@ static int rk816_ldo_suspend_disable(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int ldo = rdev_get_id(dev) - rk8xx_reg->ldo1_id;
-	u16 enable_val, enable_mask;
+	u8 enable_val, enable_mask;
 
 	/* without write mask */
 	enable_mask = (1 << ldo);
@@ -128,7 +128,7 @@ static int rk816_ldo_suspend_disable(struct regulator_dev *dev)
 static int rk816_ldo_select_min_voltage(struct regulator_dev *dev,
 					int min_uV, int max_uV)
 {
-	u16 vsel = 0;
+	int vsel = 0;
 
 	if (min_uV < 800000)
 		vsel = 0;
@@ -146,9 +146,12 @@ static int rk816_ldo_select_min_voltage(struct regulator_dev *dev,
 static int rk816_ldo_get_voltage(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 reg = 0;
+	int reg;
 
 	reg = rk816_reg_read(rk816, (u8)dev->desc->vsel_reg);
+	if (reg < 0)
+		return reg;
+
 	reg &= dev->desc->vsel_mask;
 
 	return ldo_voltage_map[reg];
@@ -157,13 +160,14 @@ static int rk816_ldo_get_voltage(struct regulator_dev *dev)
 static int rk816_ldo_set_sleep_voltage(struct regulator_dev *dev, int uV)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 val;
-	int ret = 0;
+	int val, ret;
 
 	val = rk816_ldo_select_min_voltage(dev, uV, uV);
+	if (val < 0)
+		return val;
+
 	ret = rk816_set_bits(rk816, dev->desc->vsel_reg + RK816_SLP_REG_OFFSET,
 			     dev->desc->vsel_mask, val);
-
 	return ret;
 }
 
@@ -171,13 +175,14 @@ static int rk816_ldo_set_voltage(struct regulator_dev *dev,
 				 int min_uV, int max_uV, unsigned *selector)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 val;
-	int ret = 0;
+	int val, ret;
 
 	val = rk816_ldo_select_min_voltage(dev, min_uV, min_uV);
+	if (val < 0)
+		return val;
+
 	ret = rk816_set_bits(rk816, dev->desc->vsel_reg,
 			     dev->desc->vsel_mask, val);
-
 	return ret;
 }
 
@@ -209,14 +214,14 @@ static int rk816_dcdc_list_voltage(struct regulator_dev *dev, unsigned selector)
 		return -EINVAL;
 	}
 
-	return  volt;
+	return volt;
 }
 
 static int rk816_dcdc_suspend_enable(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int dcdc = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 enable_val, enable_mask;
+	u8 enable_val, enable_mask;
 
 	/* without write mask */
 	enable_mask = (1 << dcdc);
@@ -230,7 +235,7 @@ static int rk816_dcdc_suspend_disable(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int dcdc = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 enable_val, enable_mask;
+	u8 enable_val, enable_mask;
 
 	/* without write mask */
 	enable_mask = (1 << dcdc);
@@ -243,20 +248,21 @@ static int rk816_dcdc_suspend_disable(struct regulator_dev *dev)
 static int rk816_dcdc_get_voltage(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
-	u16 reg = 0;
-	int val;
+	int reg;
 
 	reg = rk816_reg_read(rk816, (u8)dev->desc->vsel_reg);
-	reg &= dev->desc->vsel_mask;
-	val = rk816_dcdc_list_voltage(dev, reg);
+	if (reg < 0)
+		return reg;
 
-	return val;
+	reg &= dev->desc->vsel_mask;
+
+	return rk816_dcdc_list_voltage(dev, reg);
 }
 
 static int rk816_dcdc_select_min_voltage(struct regulator_dev *dev,
 					 int min_uV, int max_uV, int buck)
 {
-	u16 vsel = 0;
+	int vsel = 0;
 
 	if (buck == 0 || buck == 1) {
 		if (min_uV < 712500)
@@ -291,13 +297,15 @@ static int rk816_dcdc_set_voltage(struct regulator_dev *dev,
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 val;
-	int ret = 0;
+	int val, ret = 0;
 
 	if (buck == 2) {
 		return 0;
 	} else {
 		val = rk816_dcdc_select_min_voltage(dev, min_uV, max_uV, buck);
+		if (val < 0)
+			return val;
+
 		ret = rk816_set_bits(rk816, dev->desc->vsel_reg,
 				     dev->desc->vsel_mask, val);
 	}
@@ -313,13 +321,15 @@ static int rk816_dcdc_set_sleep_voltage(struct regulator_dev *dev, int uV)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 val;
-	int ret = 0;
+	int val, ret = 0;
 
 	if (buck == 2) {
 		return 0;
 	} else {
 		val = rk816_dcdc_select_min_voltage(dev, uV, uV, buck);
+		if (val < 0)
+			return val;
+
 		ret = rk816_set_bits(rk816,
 				     dev->desc->vsel_reg + RK816_SLP_REG_OFFSET,
 				     dev->desc->vsel_mask, val);
@@ -332,8 +342,8 @@ static unsigned int rk816_dcdc_get_mode(struct regulator_dev *dev)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 mask = BIT(7);
-	u16 val;
+	u8 mask = BIT(7);
+	int val;
 
 	val = rk816_reg_read(rk816, buck_set_vol_base_addr[buck]);
 	if (val < 0)
@@ -349,7 +359,7 @@ static int rk816_dcdc_set_mode(struct regulator_dev *dev, unsigned int mode)
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 mask = BIT(7);
+	u8 mask = BIT(7);
 
 	switch (mode) {
 	case REGULATOR_MODE_FAST:
@@ -369,7 +379,7 @@ static int rk816_dcdc_set_suspend_mode(struct regulator_dev *dev,
 {
 	struct rk816 *rk816 = rdev_get_drvdata(dev);
 	int buck = rdev_get_id(dev) - rk8xx_reg->dcdc1_id;
-	u16 mask = BIT(7);
+	u8 mask = BIT(7);
 	int ret;
 
 	switch (mode) {
