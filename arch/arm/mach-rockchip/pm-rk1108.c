@@ -671,6 +671,7 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 		pmu_grf_writel(RK1108_PMU_MEM_PHYS,
 			       RK1108_PMUGRF_FAST_BOOT_ADDR);
 		cru_writel(0x000a0000, RK1108_CRU_CLKGATES_CON(12));
+		cru_writel(0x0, RK1108_CRU_GLB_RST_ST);
 	}
 
 	/* set pmu mode */
