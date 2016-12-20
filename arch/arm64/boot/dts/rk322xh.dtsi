@@ -1066,6 +1066,7 @@
 		compatible = "rockchip,rk322xh-u3phy";
 		reg = <0x0 0xff470000 0x0 0x0>;
 		rockchip,u3phygrf = <&usb3phy_grf>;
+		rockchip,grf = <&grf>;
 		clocks = <&clk_gates28 1>, <&clk_gates28 2>;
 		clock-names = "usb3phy-otg", "usb3phy-pipe";
 		interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
@@ -1079,7 +1080,7 @@
 		reset-names = "u3phy-u2-por", "u3phy-u3-por",
 			      "u3phy-pipe-mac", "u3phy-utmi-mac",
 			      "u3phy-utmi-apb", "u3phy-pipe-apb";
-		usb30-drv = <&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
+		usb30-drv-gpio = <&gpio0 GPIO_A0 GPIO_ACTIVE_LOW>;
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
