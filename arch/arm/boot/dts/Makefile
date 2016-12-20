@@ -185,7 +185,8 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-popmetal.dtb \
 	rk3288-tb_8846.dtb \
 	rk3288-tb.dtb \
-	rk3288-vr.dtb
+	rk3288-vr.dtb \
+	px3se-sdk.dtb
 dtb-$(CONFIG_ARCH_U8500) += snowball.dtb \
 	hrefprev60.dtb \
 	hrefv60plus.dtb \
