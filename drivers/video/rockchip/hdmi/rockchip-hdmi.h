@@ -392,7 +392,8 @@ enum rk_hdmi_feature {
 	SUPPORT_HDCP		=	(1 << 10),
 	SUPPORT_HDCP2		=	(1 << 11),
 	SUPPORT_YCBCR_INPUT	=	(1 << 12),
-	SUPPORT_VESA_DMT	=	(1 << 13)
+	SUPPORT_VESA_DMT	=	(1 << 13),
+	SUPPORT_CEC_WAKEUP	=	(1 << 14),
 };
 
 struct hdmi_property {

@@ -6,6 +6,7 @@
 #include <linux/rockchip/iomap.h>
 #include "rockchip_hdmiv2.h"
 #include "rockchip_hdmiv2_hw.h"
+#include "../rockchip-hdmi-cec.h"
 
 static const struct phy_mpll_config_tab PHY_MPLL_TABLE[] = {
 /*	tmdsclk = (pixclk / ref_cntrl ) * (fbdiv2 * fbdiv1) / nctrl / tmdsmhl
@@ -454,7 +455,10 @@ static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 			     v_PDDQ_SIG(1) | v_TXPWRON_SIG(0) |
 			     v_ENHPD_RXSENSE_SIG(1) | v_SVSRET_SIG(0));
 	}
-	hdmi_writel(hdmi_dev, MC_CLKDIS, 0x7f);
+	if (hdmi_dev->hdmi->property->feature & SUPPORT_CEC_WAKEUP)
+		hdmi_writel(hdmi_dev, MC_CLKDIS, 0x5f);
+	else
+		hdmi_writel(hdmi_dev, MC_CLKDIS, 0x7f);
 }
 
 int rockchip_hdmiv2_write_phy(struct hdmi_dev *hdmi_dev,
@@ -2425,7 +2429,10 @@ static int hdmi_dev_enable(struct hdmi *hdmi)
 
 	HDMIDBG(2, "%s\n", __func__);
 	if (!hdmi_dev->enable) {
-		hdmi_writel(hdmi_dev, IH_MUTE, 0x00);
+		if (hdmi->property->feature & SUPPORT_CEC_WAKEUP)
+			hdmi_writel(hdmi_dev, IH_MUTE, 0x02);
+		else
+			hdmi_writel(hdmi_dev, IH_MUTE, 0);
 		hdmi_dev->enable = 1;
 	}
 	hdmi_submit_work(hdmi, HDMI_HPD_CHANGE, 10, 0);
@@ -2439,6 +2446,8 @@ static int hdmi_dev_disable(struct hdmi *hdmi)
 	HDMIDBG(2, "%s\n", __func__);
 	if (hdmi_dev->enable) {
 		hdmi_dev->enable = 0;
+		if (hdmi->property->feature & SUPPORT_CEC_WAKEUP)
+			hdmi_writel(hdmi_dev, CEC_WKUPCTRL, 0xff);
 		hdmi_writel(hdmi_dev, IH_MUTE, 0x1);
 	}
 	return 0;
@@ -2608,5 +2617,19 @@ irqreturn_t rockchip_hdmiv2_dev_irq(int irq, void *priv)
 			hdmi_dev->hdcp2_start();
 		}
 	}
+	return IRQ_HANDLED;
+}
+
+irqreturn_t rockchip_hdmiv2_dev_cec_irq(int irq, void *priv)
+{
+	struct hdmi_dev *hdmi_dev = priv;
+	char wakeup, cec_int;
+
+	cec_int = hdmi_readl(hdmi_dev, IH_CEC_STAT0);
+	if (cec_int)
+		hdmi_writel(hdmi_dev, IH_CEC_STAT0, cec_int);
+	wakeup = hdmi_readl(hdmi_dev, CEC_WKUPCTRL);
+	hdmi_writel(hdmi_dev, CEC_WKUPCTRL, 0x00);
+	rockchip_hdmi_cec_submit_work(EVENT_RX_WAKEUP, 100, NULL);
 	return IRQ_HANDLED;
 }

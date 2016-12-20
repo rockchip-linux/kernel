@@ -313,27 +313,29 @@ static int rockchip_hdmiv2_clk_disable(struct hdmi_dev *hdmi_dev)
 	if (hdmi_dev->clk_on == 0)
 		return 0;
 
-	if ((hdmi_dev->clk_on & HDMI_PD_ON) && hdmi_dev->pd) {
-		clk_disable_unprepare(hdmi_dev->pd);
-		hdmi_dev->clk_on &= ~HDMI_PD_ON;
-	}
+	if (!(rk_hdmi_property.feature & SUPPORT_CEC_WAKEUP)) {
+		if ((hdmi_dev->clk_on & HDMI_PD_ON) && hdmi_dev->pd) {
+			clk_disable_unprepare(hdmi_dev->pd);
+			hdmi_dev->clk_on &= ~HDMI_PD_ON;
+		}
 
-	if ((hdmi_dev->clk_on & HDMI_PCLK_ON) &&
-	    hdmi_dev->pclk) {
-		clk_disable_unprepare(hdmi_dev->pclk);
-		hdmi_dev->clk_on &= ~HDMI_PCLK_ON;
-	}
+		if ((hdmi_dev->clk_on & HDMI_PCLK_ON) &&
+		    hdmi_dev->pclk) {
+			clk_disable_unprepare(hdmi_dev->pclk);
+			hdmi_dev->clk_on &= ~HDMI_PCLK_ON;
+		}
 
-	if ((hdmi_dev->clk_on & HDMI_HDCPCLK_ON) &&
-	    hdmi_dev->hdcp_clk) {
-		clk_disable_unprepare(hdmi_dev->hdcp_clk);
-		hdmi_dev->clk_on &= ~HDMI_HDCPCLK_ON;
-	}
+		if ((hdmi_dev->clk_on & HDMI_HDCPCLK_ON) &&
+		    hdmi_dev->hdcp_clk) {
+			clk_disable_unprepare(hdmi_dev->hdcp_clk);
+			hdmi_dev->clk_on &= ~HDMI_HDCPCLK_ON;
+		}
 
-	if ((hdmi_dev->clk_on & HDMI_EXT_PHY_CLK_ON) &&
-	    hdmi_dev->pclk_phy) {
-		clk_disable_unprepare(hdmi_dev->pclk_phy);
-		hdmi_dev->clk_on &= ~HDMI_EXT_PHY_CLK_ON;
+		if ((hdmi_dev->clk_on & HDMI_EXT_PHY_CLK_ON) &&
+		    hdmi_dev->pclk_phy) {
+			clk_disable_unprepare(hdmi_dev->pclk_phy);
+			hdmi_dev->clk_on &= ~HDMI_EXT_PHY_CLK_ON;
+		}
 	}
 	return 0;
 }
@@ -456,7 +458,7 @@ static irqreturn_t rk_hdmiv2_phy_irq(int irq, void *priv)
 		regmap_write(hdmi_dev->grf_base,
 			     RK1108_GRF_SOC_CON4,
 			     RK1108_PLL_PDATA_DEN);
-		udelay(10);
+		usleep_range(9, 10);
 		regmap_write(hdmi_dev->grf_base,
 			     RK1108_GRF_SOC_CON4,
 			     RK1108_PLL_PDATA_EN);
@@ -464,7 +466,7 @@ static irqreturn_t rk_hdmiv2_phy_irq(int irq, void *priv)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
 			     RK322XH_PLL_PDATA_DEN);
-		udelay(10);
+		usleep_range(9, 10);
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
 			     RK322XH_PLL_PDATA_EN);
@@ -519,6 +521,11 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 	    (val == 1)) {
 		pr_debug("hdmi support cec\n");
 		rk_hdmi_property.feature |= SUPPORT_CEC;
+		if (!of_property_read_u32(np, "rockchip,cec_wakeup", &val) &&
+		    (val == 1)) {
+			pr_debug("hdmi support cec wakeup\n");
+			rk_hdmi_property.feature |= SUPPORT_CEC_WAKEUP;
+		}
 	}
 	if (!of_property_read_u32(np, "rockchip,hdcp_enable", &val) &&
 	    (val == 1)) {
@@ -751,6 +758,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 			ret);
 		goto failed1;
 	}
+
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		hdmi_dev->irq_phy = platform_get_irq(pdev, 2);
@@ -775,6 +783,28 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 				ret);
 			goto failed1;
 		}
+	}
+	if (rk_hdmi_property.feature & SUPPORT_CEC_WAKEUP) {
+		hdmi_dev->cecirq = platform_get_irq(pdev, 1);
+		if (hdmi_dev->cecirq <= 0) {
+			dev_err(hdmi_dev->dev,
+				"failed to get hdmi_cec irq resource (%d).\n",
+				hdmi_dev->cecirq);
+			ret = -ENXIO;
+			goto failed1;
+		}
+		ret = devm_request_irq(hdmi_dev->dev, hdmi_dev->cecirq,
+				       rockchip_hdmiv2_dev_cec_irq,
+				       IRQF_TRIGGER_HIGH,
+				       dev_name(hdmi_dev->dev), hdmi_dev);
+		if (ret) {
+			dev_err(hdmi_dev->dev,
+				"hdmi_cec request_irq failed (%d).\n",
+				ret);
+			goto failed1;
+		}
+		device_init_wakeup(hdmi_dev->dev, 1);
+		enable_irq_wake(hdmi_dev->cecirq);
 	}
 #else
 	hdmi_dev->workqueue =
@@ -806,10 +836,11 @@ static int rockchip_hdmiv2_suspend(struct platform_device *pdev,
 			regmap_write(hdmi_dev->grf_base,
 				     RK322X_GRF_SOC_CON2,
 				     RK322X_PLL_POWER_DOWN);
-		} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
+		} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 			regmap_write(hdmi_dev->grf_base,
 				     RK322XH_GRF_SOC_CON3,
 				     RK322XH_PLL_POWER_DOWN);
+		}
 	}
 	return 0;
 }

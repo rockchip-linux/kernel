@@ -1804,6 +1804,7 @@ static inline int hdmi_msk_reg(struct hdmi_dev *hdmi_dev,
 }
 
 irqreturn_t rockchip_hdmiv2_dev_irq(int irq, void *priv);
+irqreturn_t rockchip_hdmiv2_dev_cec_irq(int irq, void *priv);
 void rockchip_hdmiv2_dev_init_ops(struct hdmi_ops *ops);
 void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev);
 void rockchip_hdmiv2_cec_init(struct hdmi *hdmi);

@@ -123,6 +123,7 @@ enum {
 enum {
 	EVENT_RX_FRAME,
 	EVENT_ENUMERATE,
+	EVENT_RX_WAKEUP,
 };
 
 enum {
@@ -164,6 +165,7 @@ struct cec_device {
 	int enable;
 	struct list_head ceclist;
 	struct mutex cec_lock;	/* mutex for hdmicec operation*/
+	struct input_dev *devinput;
 
 	int (*sendframe)(struct hdmi *, struct cec_framedata *);
 	int (*readframe)(struct hdmi *, struct cec_framedata *);

@@ -50,6 +50,7 @@ static void cecworkfunc(struct work_struct *work)
 	struct cec_delayed_work *cec_w =
 		container_of(work, struct cec_delayed_work, work.work);
 	struct cecframelist *list_node;
+	struct cec_framedata cecframe;
 
 	switch (cec_w->event) {
 	case EVENT_ENUMERATE:
@@ -68,6 +69,20 @@ static void cecworkfunc(struct work_struct *work)
 			mutex_unlock(&cec_dev->cec_lock);
 		} else {
 			kfree(list_node);
+		}
+		break;
+	case EVENT_RX_WAKEUP:
+		cecreadframe(&cecframe);
+		HDMIDBG(1, "%s opcode = 0x%x\n", __func__, cecframe.opcode);
+		if (cecframe.opcode == 0x86 || cecframe.opcode == 0x82 ||
+		    cecframe.opcode == 0x70 || cecframe.opcode == 0x44 ||
+		    cecframe.opcode == 0x42 || cecframe.opcode == 0x41 ||
+		    cecframe.opcode == 0x0D || cecframe.opcode == 0x04) {
+			pr_info("CEC wake up!\n");
+			input_event(cec_dev->devinput, EV_KEY, KEY_POWER, 1);
+			input_sync(cec_dev->devinput);
+			input_event(cec_dev->devinput, EV_KEY, KEY_POWER, 0);
+			input_sync(cec_dev->devinput);
 		}
 		break;
 	default:
@@ -255,6 +270,29 @@ static const struct file_operations cec_fops = {
 	.unlocked_ioctl	= cec_ioctl,
 };
 
+static int rockchip_hdmi_cec_input_init(void)
+{
+	int err;
+
+	cec_dev->devinput = input_allocate_device();
+	if (!cec_dev->devinput)
+		return -EPERM;
+	cec_dev->devinput->name = "hdmi_cec_key";
+	cec_dev->devinput->phys = "hdmi_cec_key/input0";
+	cec_dev->devinput->id.bustype = BUS_HOST;
+	cec_dev->devinput->id.vendor = 0x0001;
+	cec_dev->devinput->id.product = 0x0001;
+	cec_dev->devinput->id.version = 0x0100;
+	err = input_register_device(cec_dev->devinput);
+	if (err < 0) {
+		input_free_device(cec_dev->devinput);
+		HDMIDBG(1, "%s input device error", __func__);
+		return err;
+	}
+	input_set_capability(cec_dev->devinput, EV_KEY, KEY_POWER);
+	return 0;
+}
+
 int rockchip_hdmi_cec_init(struct hdmi *hdmi,
 			   int (*sendframe)(struct hdmi *,
 					    struct cec_framedata *),
@@ -285,6 +323,9 @@ int rockchip_hdmi_cec_init(struct hdmi *hdmi,
 	cec_dev->device.name = "cec";
 	cec_dev->device.mode = 0666;
 	cec_dev->device.fops = &cec_fops;
+
+	rockchip_hdmi_cec_input_init();
+
 	if (misc_register(&cec_dev->device)) {
 		pr_err("CEC: Could not add cec misc driver\n");
 		goto error;

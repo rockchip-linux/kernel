@@ -42,6 +42,8 @@ struct hdmi_dev {
 	struct dentry		*debugfs_dir;
 	int			irq;
 	int			irq_phy;
+	int			cecirq;
+
 	struct work_struct	irq_work;
 	struct delayed_work	delay_work;
 	struct workqueue_struct *workqueue;

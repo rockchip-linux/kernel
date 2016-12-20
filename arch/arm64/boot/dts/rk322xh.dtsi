@@ -945,7 +945,7 @@
 			      "dclk_hdmi_phy";
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmi_cec &hdmii2c_xfer &hdmi_hpd>;
-		pinctrl-1 = <&i2c3_gpio>;
+		pinctrl-1 = <&i2c3_gpio &hdmi_cec>;
 		resets = <&reset RK322XH_SRST_HDMI_P>,
 			 <&reset RK322XH_SRST_HDMIPHY>;
 		reset-names = "hdmi",
