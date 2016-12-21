@@ -20,6 +20,7 @@ drivers/video/rockchip/transmitter/rk32_mipi_dsi.h
 
 #define MIPI_DSI_HOST_OFFSET	0x1000
 
+#define RK3368_GRF_SOC_CON6	0x0418
 /* function bits definition    register addr | bits | offest */
 #define REG_ADDR(a)			((a) << 16)
 #define REG_BITS(a)			((a) << 8)
@@ -303,6 +304,7 @@ struct dsi {
 	struct dsi_host host;
 	struct mipi_dsi_ops ops;
 	struct mipi_dsi_screen screen;
+	struct regmap *grf;
 #ifdef CONFIG_MIPI_DSI_LINUX
 	struct clk	*dsi_pclk; /* for mipi phy */
 	struct clk	*dsi_host_pclk; /* for mipi host */

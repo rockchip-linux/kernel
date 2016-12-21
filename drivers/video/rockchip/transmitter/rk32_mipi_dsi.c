@@ -50,6 +50,9 @@
 #include "rk32_mipi_dsi.h"
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/cpu.h>
+#include <linux/rockchip/grf.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 
 #define	MIPI_DBG(x...)	/* printk(KERN_INFO x) */
 
@@ -1105,6 +1108,47 @@ static int rk32_mipi_dsi_is_active(void *arg)
 	return rk32_dsi_get_bits(dsi, shutdownz);
 }
 
+static void rockchip_dsi_dpishutdn(struct dsi *dsi, int status)
+{
+	int val = 0;
+
+	if (status) {
+		if (dsi->ops.id == DSI_RK312x) {
+			val = 1 << 20 | 1 << 4;
+			writel_relaxed(val, RK_GRF_VIRT + RK312X_GRF_LVDS_CON0);
+		} else if (dsi->ops.id == DSI_RK3288) {
+			if (dsi->dsi_id == 0)
+				val = 1 << 23 | 1 << 7;
+			else
+				val = 1 << 26 | 1 << 10;
+			writel_relaxed(val, RK_GRF_VIRT + RK3288_GRF_SOC_CON6);
+		} else if (dsi->ops.id == DSI_RK3368) {
+			val = 1 << 18 | 1 << 2;
+			regmap_write(dsi->grf, RK3368_GRF_SOC_CON6, val);
+		} else if (dsi->ops.id == DSI_RK1108) {
+			val = 1 << 22 | 1 << 6;
+			writel_relaxed(val, RK_GRF_VIRT + RK1108_GRF_SOC_CON4);
+		}
+	} else {
+		if (dsi->ops.id == DSI_RK312x) {
+			val = 1 << 20 | 0 << 4;
+			writel_relaxed(val, RK_GRF_VIRT + RK312X_GRF_LVDS_CON0);
+		} else if (dsi->ops.id == DSI_RK3288) {
+			if (dsi->dsi_id == 0)
+				val = 1 << 23 | 0 << 7;
+			else
+				val = 1 << 26 | 0 << 10;
+			writel_relaxed(val, RK_GRF_VIRT + RK3288_GRF_SOC_CON6);
+		} else if (dsi->ops.id == DSI_RK3368) {
+			val = 1 << 18 | 0 << 2;
+			regmap_write(dsi->grf, RK3368_GRF_SOC_CON6, val);
+		} else if (dsi->ops.id == DSI_RK1108) {
+			val = 1 << 22 | 0 << 6;
+			writel_relaxed(val, RK_GRF_VIRT + RK1108_GRF_SOC_CON4);
+		}
+	}
+}
+
 static int rk32_mipi_dsi_send_packet(void *arg, unsigned char cmds[], u32 length)
 {
 	struct dsi *dsi = arg;
@@ -1219,6 +1263,14 @@ static int rk32_mipi_dsi_send_packet(void *arg, unsigned char cmds[], u32 length
 		rk32_dsi_set_bits(dsi, regs[0], gen_sw_0p_tx);
 		data =  type;
 		break;
+	case DTYPE_DPI_SHUT_DOWN:
+		rockchip_dsi_dpishutdn(dsi, 1);
+		kfree(regs);
+		return 0;
+	case DTYPE_DPI_TURN_ON:
+		rockchip_dsi_dpishutdn(dsi, 0);
+		kfree(regs);
+		return 0;
 	default:
 		printk("0x%x:this type not suppport!\n", type);
 	}
@@ -1720,8 +1772,15 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 	struct mipi_dsi_screen *dsi_screen;
 	struct resource *res_host, *res_phy;
 	const struct dsi_type *data;
+	struct device_node *np = pdev->dev.of_node;
 	const struct of_device_id *of_id =
 			of_match_device(of_rk_mipi_dsi_match, &pdev->dev);
+
+	if (!np) {
+		dev_err(&pdev->dev, "Missing device tree node.\n");
+		return -EINVAL;
+	}
+
 	if (!of_id) {
 		dev_err(&pdev->dev, "failed to match device\n");
 		return -ENODEV;
@@ -1784,6 +1843,12 @@ static int rk32_mipi_dsi_probe(struct platform_device *pdev)
 		if (unlikely(IS_ERR(dsi->dsi_pd))) {
 			dev_err(&pdev->dev, "get pd_mipi_dsi clock fail\n");
 			return PTR_ERR(dsi->dsi_pd);
+		}
+
+		dsi->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
+		if (IS_ERR(dsi->grf)) {
+			dev_err(&pdev->dev, "can't find rockchip,grf property\n");
+			return PTR_ERR(dsi->grf);
 		}
 	}
 

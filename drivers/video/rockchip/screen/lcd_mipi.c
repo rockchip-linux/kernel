@@ -89,6 +89,37 @@ static void rk_mipi_screen_pwr_enable(struct mipi_screen *screen)
 		MIPI_SCREEN_DBG("lcd_rst_gpio is null\n");
 }
 
+static void rockchip_screen_dpishutd(struct mipi_screen *screen)
+{
+	u8 len = 2;
+	u8 cmds[4] = {0};
+	struct list_head *screen_pos;
+	struct mipi_dcs_cmd_ctr_list  *dcs_cmd;
+
+	list_for_each(screen_pos, &screen->cmdlist_head) {
+		dcs_cmd = list_entry(screen_pos,
+				     struct mipi_dcs_cmd_ctr_list, list);
+		if ((dcs_cmd->dcs_cmd.cmds[0] == DTYPE_DPI_SHUT_DOWN) ||
+		    (dcs_cmd->dcs_cmd.cmds[0] == DTYPE_DPI_TURN_ON)) {
+			cmds[1] = dcs_cmd->dcs_cmd.cmds[0];
+			if (dcs_cmd->dcs_cmd.dsi_id == 0) {
+				dsi_send_packet(0, cmds, len);
+			} else if (dcs_cmd->dcs_cmd.dsi_id == 1) {
+				dsi_send_packet(1, cmds, len);
+			} else if (dcs_cmd->dcs_cmd.dsi_id == 2) {
+				dsi_send_packet(0, cmds, len);
+				dsi_send_packet(1, cmds, len);
+			} else {
+				MIPI_SCREEN_DBG("dsi is err.\n");
+			}
+			if (dcs_cmd->dcs_cmd.delay != 0)
+				msleep(dcs_cmd->dcs_cmd.delay);
+		} else {
+			continue;
+		}
+	}
+}
+
 static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
 {
 	u8 len, i;
@@ -112,6 +143,9 @@ static void rk_mipi_screen_cmd_init(struct mipi_screen *screen)
 #endif
 	list_for_each(screen_pos, &screen->cmdlist_head) {
 		dcs_cmd = list_entry(screen_pos, struct mipi_dcs_cmd_ctr_list, list);
+		if ((dcs_cmd->dcs_cmd.cmds[0] == DTYPE_DPI_SHUT_DOWN) ||
+		    (dcs_cmd->dcs_cmd.cmds[0] == DTYPE_DPI_TURN_ON))
+			continue;
 		len = dcs_cmd->dcs_cmd.cmd_len + 1;
 		for (i = 1; i < len ; i++) {
 			cmds[i] = dcs_cmd->dcs_cmd.cmds[i-1];
@@ -240,6 +274,8 @@ int rk_mipi_screen(void)
 		if (rk_dsi_num == 2) {
 			dsi_enable_video_mode(1, 1);
 		}
+
+		rockchip_screen_dpishutd(gmipi_screen);
 	}
 
 	MIPI_SCREEN_DBG("++++++++++++++++%s:%d\n", __func__, __LINE__);
