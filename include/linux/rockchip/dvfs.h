@@ -152,7 +152,7 @@ struct dvfs_node {
 	struct pd_node		*pd;
 	struct vd_node		*vd;
 	struct list_head	node;
-	struct notifier_block	*dvfs_nb;
+	struct notifier_block	dvfs_nb;
 	struct delayed_work	dwork;
 	struct cpufreq_frequency_table	*dvfs_table;
 	struct cpufreq_frequency_table	*pvtm_table;
@@ -240,6 +240,8 @@ int rk_regist_pd(struct pd_node *pd);
 int rk_regist_clk(struct dvfs_node *clk_dvfs_node);
 struct regulator *dvfs_get_regulator(char *regulator_name);
 int of_dvfs_init(void);
+void register_dvfs_notifier_callback(struct dvfs_node *dvfs_node,
+				     notifier_fn_t callback);
 
 #else
 
@@ -273,6 +275,8 @@ static inline int rk_regist_pd(struct pd_node *pd){ return 0; };
 static inline int rk_regist_clk(struct dvfs_node *clk_dvfs_node){ return 0; };
 static inline struct regulator *dvfs_get_regulator(char *regulator_name){ return NULL; };
 static inline int of_dvfs_init(void){ return 0; };
+static inline void register_dvfs_notifier_callback(struct dvfs_node *dvfs_node,
+						   notifier_fn_t callback){ };
 #endif
 
 #endif

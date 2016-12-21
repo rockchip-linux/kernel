@@ -42,6 +42,7 @@
 #include <linux/rockchip/cru.h>
 #include <linux/rockchip/pmu.h>
 #include <linux/rockchip/grf.h>
+#include <linux/rockchip/dvfs.h>
 
 #if defined(CONFIG_ION_ROCKCHIP)
 #include <linux/rockchip_ion.h>
@@ -813,6 +814,40 @@ void rkvdec_set_clk(unsigned long vcodec_rate,
 	}
 	thermal_st = thermal_en;
 	mutex_unlock(&rkvdec_set_clk_lock);
+}
+
+static void dvfs_rkvdec_set_clk(u32 vcodec_rate, u32 core_rate, u32 cabac_rate)
+{
+	static struct clk *core_clk, *cabac_clk;
+	static struct dvfs_node *clk_rkvdec_dvfs_node;
+
+	if (IS_ERR_OR_NULL(clk_rkvdec_dvfs_node)) {
+		clk_rkvdec_dvfs_node = clk_get_dvfs_node("aclk_rkvdec");
+		if (IS_ERR_OR_NULL(clk_rkvdec_dvfs_node))
+			return;
+	}
+
+	if (IS_ERR_OR_NULL(core_clk)) {
+		core_clk = clk_get(NULL, "clk_vdec_core");
+		if (IS_ERR_OR_NULL(core_clk))
+			return;
+	}
+
+	if (IS_ERR_OR_NULL(cabac_clk)) {
+		cabac_clk = clk_get(NULL, "clk_vdec_cabac");
+		if (IS_ERR_OR_NULL(cabac_clk))
+			return;
+	}
+
+	if (core_rate > clk_get_rate(core_clk)) {
+		dvfs_clk_set_rate(clk_rkvdec_dvfs_node, vcodec_rate);
+		clk_set_rate(core_clk, core_rate);
+		clk_set_rate(cabac_clk, cabac_rate);
+	} else {
+		clk_set_rate(core_clk, core_rate);
+		clk_set_rate(cabac_clk, cabac_rate);
+		dvfs_clk_set_rate(clk_rkvdec_dvfs_node, vcodec_rate);
+	}
 }
 
 static void vpu_reset(struct vpu_subdev_data *data)
@@ -2391,6 +2426,7 @@ static void vcodec_power_on_rk322x(struct vpu_service_info *pservice)
 
 static void vcodec_power_on_rk322xh(struct vpu_service_info *pservice)
 {
+	dvfs_rkvdec_set_clk(500 * MHZ, 250 * MHZ, 400 * MHZ);
 	vcodec_power_on_default(pservice);
 }
 
@@ -2425,6 +2461,7 @@ static void vcodec_power_off_rk322x(struct vpu_service_info *pservice)
 static void vcodec_power_off_rk322xh(struct vpu_service_info *pservice)
 {
 	vcodec_power_off_default(pservice);
+	dvfs_rkvdec_set_clk(50 * MHZ, 50 * MHZ, 50 * MHZ);
 }
 
 static void vcodec_get_reg_freq_default(struct vpu_subdev_data *data,

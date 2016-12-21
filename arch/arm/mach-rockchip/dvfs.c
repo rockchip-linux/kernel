@@ -1403,6 +1403,15 @@ static void dvfs_temp_limit(struct dvfs_node *dvfs_node, int temp)
 		 temp, dvfs_node->temp_limit_rate);
 }
 
+static BLOCKING_NOTIFIER_HEAD(dvfs_notifier_list);
+void register_dvfs_notifier_callback(struct dvfs_node *dvfs_node,
+				     notifier_fn_t callback)
+{
+	dvfs_node->dvfs_nb.notifier_call = callback;
+	blocking_notifier_chain_register(&dvfs_notifier_list,
+					 &dvfs_node->dvfs_nb);
+}
+
 static void dvfs_temp_limit_work_func(struct work_struct *work)
 {
 	unsigned long delay = HZ/10;
@@ -1438,6 +1447,9 @@ static void dvfs_temp_limit_work_func(struct work_struct *work)
 		if (temp != INVALID_TEMP)
 			dvfs_temp_limit(clk_gpu_dvfs_node, temp);
 	}
+
+	blocking_notifier_call_chain(&dvfs_notifier_list, 0, NULL);
+
 	mutex_unlock(&temp_limit_mutex);
 }
 static DECLARE_DELAYED_WORK(dvfs_temp_limit_work, dvfs_temp_limit_work_func);
