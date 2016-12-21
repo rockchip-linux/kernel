@@ -200,6 +200,22 @@
 					status = "disabled";
 				};
 			};
+
+			pd_rkvdec {
+				clk_rkvdec_dvfs_table: aclk_rkvdec {
+					operating-points = <
+						/* KHz    uV */
+						50000 1000000
+						300000 1000000
+						500000 1050000
+						>;
+					channel = <2>;
+					temp-limit-enable = <1>;
+					tsadc-ch = <0>;
+					target-temp = <105>;
+					status = "okay";
+				};
+			};
 		};
 	};
 
