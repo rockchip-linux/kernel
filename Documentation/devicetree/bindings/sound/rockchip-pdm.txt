@@ -1,0 +1,38 @@
+* Rockchip PDM controller
+
+Required SoC Specific Properties:
+
+- compatible : "rockchip,pdm"
+- reg: physical base address of the controller and length of memory mapped
+  region.
+- clocks: must include clock specifiers corresponding to entries in the
+  clock-names property.
+- clocks-names: list of clock names sorted in the same order as the clocks
+  property. Must contain "pdm_clk" and "pdm_hclk".
+- interrupts: interrupt number to the cpu.
+- dmas: list of DMA controller phandle and DMA request line ordered pairs.
+- dma-names: identifier string for each DMA request line in the dmas property.
+  These strings correspond 1:1 with the ordered pairs in dmas.
+- pinctrl-names: must contain a "default" entry.
+- pinctrl-0: pin control group to be used for this controller.
+- pinctrl-1: pin control group to be used for gpio.
+
+Example:
+
+pdm: pdm@ff040000 {
+	compatible = "rockchip,pdm";
+	reg = <0x0 0xff040000 0x0 0x1000>;
+	clocks = <&clk_pdm>, <&clk_gates28 0>;
+	clock-names = "pdm_clk", "pdm_hclk";
+	dmas = <&pdma 16>;
+	#dma-cells = <1>;
+	dma-names = "rx";
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&pdmm0_clk
+		     &pdmm0_fsync
+		     &pdmm0_sdi0
+		     &pdmm0_sdi1
+		     &pdmm0_sdi2
+		     &pdmm0_sdi3>;
+	pinctrl-1 = <&pdmm0_sleep>;
+};

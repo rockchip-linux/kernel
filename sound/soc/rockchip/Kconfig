@@ -47,6 +47,14 @@ endchoice
 
 endif
 
+config SND_RK_SOC_PDM
+	tristate "Rockchip PDM Controller Driver"
+	depends on SND_RK_SOC
+	help
+	  Say Y or M if you want to add support for PDM Controller
+	  driver. The controller supports up to maximum of
+	  8 channels capture.
+
 config SND_RK_SOC_SPDIF_CARD
 	tristate "SoC spdif card support for rockchip"
 	depends on !SND_RK_SOC_HDMI_SPDIF

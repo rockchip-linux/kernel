@@ -5,10 +5,12 @@ snd-soc-rockchip-i2s-objs := rk29_i2s.o
 else
 snd-soc-rockchip-i2s-objs := rk_i2s.o
 endif
+snd-soc-rockchip-pdm-objs := rk_pdm.o
 snd-soc-rockchip-spdif-objs := rk_spdif.o
 
 obj-$(CONFIG_SND_RK_SOC) += snd-soc-rockchip.o
 obj-$(CONFIG_SND_RK_SOC_I2S) += snd-soc-rockchip-i2s.o
+obj-$(CONFIG_SND_RK_SOC_PDM) += snd-soc-rockchip-pdm.o
 obj-$(CONFIG_SND_RK_SOC_SPDIF) += snd-soc-rockchip-spdif.o
 
 # ROCKCHIP Machine Support
