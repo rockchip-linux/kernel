@@ -242,27 +242,27 @@ static const u32 sdr2hdr_st2084oetf_xn[63] = {
 };
 
 static const u32 hdr2sdr_eetf_yn[33] = {
-	647,
-	945,  1254, 1573, 1903,
-	2241, 2586, 2940, 3299,
-	3664, 4035, 4410, 4789,
-	5171, 5556, 5943, 6333,
-	6723, 7100, 7458, 7795,
-	8110, 8402, 8670, 8913,
-	9131, 9323, 9487, 9624,
-	9731, 9809, 9856, 9872,
+	1716,
+	1880,	2067,	2277,	2508,
+	2758,	3026,	3310,	3609,
+	3921,	4246,	4581,	4925,
+	5279,	5640,	6007,	6380,
+	6758,	7140,	7526,	7914,
+	8304,	8694,	9074,	9438,
+	9779,	10093,	10373,	10615,
+	10812,	10960,	11053,	11084,
 };
 
 static const u32 hdr2sdr_bt1886oetf_yn[33] = {
 	0,
-	0,     0,     0,     0,
-	0,     57,    295,   612,
-	1036,  1602,  2358,  2912,
-	3366,  3758,  4106,  4422,
-	4712,  5235,  5700,  6122,
-	6509,  7207,  7828,  8390,
-	8908,  9839,  10668, 11419,
-	12109, 13353, 14459, 16383,
+	0,	0,	0,	0,
+	0,	0,	0,	314,
+	746,	1323,	2093,	2657,
+	3120,	3519,	3874,	4196,
+	4492,	5024,	5498,	5928,
+	6323,	7034,	7666,	8239,
+	8766,	9716,	10560,	11325,
+	12029,	13296,	14422,	16383,
 };
 
 static const u32 hdr2sdr_sat_yn[9] = {
@@ -620,9 +620,9 @@ static int vop_pre_init(struct rk_lcdc_driver *dev_drv)
 	vop_msk_reg(vop_dev, HDR2SDR_SRC_RANGE, val);
 	val = V_NORMFACEETF(1327);
 	vop_msk_reg(vop_dev, HDR2SDR_NORMFACEETF, val);
-	val = V_SRC_MAX(4636) | V_SRC_MIN(0);
+	val = V_SRC_MAX(3276) | V_SRC_MIN(4);
 	vop_msk_reg(vop_dev, HDR2SDR_DST_RANGE, val);
-	val = V_NORMFACCGAMMA(10240);
+	val = V_NORMFACCGAMMA(5120);
 	vop_msk_reg(vop_dev, HDR2SDR_NORMFACCGAMMA, val);
 
 	vop_cfg_done(vop_dev);
