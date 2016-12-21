@@ -123,6 +123,22 @@
 			};
 		};
 	};
+
+	dummy_codec: dummy-codec {
+		compatible = "rockchip,dummy-codec";
+		status = "disabled";
+	};
+
+	rockchip_pdm_micarray {
+		status = "disabled";
+		compatible = "rockchip,pdm-micarray";
+		dais {
+			dai0 {
+				audio-codec = <&dummy_codec>;
+				audio-controller = <&pdm>;
+			};
+		};
+	};
 };
 
 &clk_core_dvfs_table {
@@ -171,6 +187,10 @@
 	status = "okay";
 };
 
+&pdm {
+	status = "disabled";
+};
+
 &spdif {
 	status = "okay";
 };
@@ -178,6 +198,10 @@
 &codec {
 	spk_depop_time = <100>;
 	status = "okay";
+};
+
+&dummy_codec {
+	status = "disabled";
 };
 
 &codec_spdif {
