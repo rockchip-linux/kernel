@@ -314,6 +314,9 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 				   I2S_TXCR_VDW_MASK |
 				   I2S_TXCR_CSR_MASK,
 				   val);
+#if defined(CONFIG_RK_HDMI) && defined(CONFIG_SND_RK_SOC_HDMI_I2S)
+		snd_config_hdmi_audio(params);
+#endif
 	} else {
 		regmap_update_bits(i2s->regmap, I2S_RXCR,
 				   I2S_RXCR_CSR_MASK |
@@ -324,9 +327,6 @@ static int rockchip_i2s_hw_params(struct snd_pcm_substream *substream,
 			   I2S_DMACR_TDL_MASK | I2S_DMACR_RDL_MASK,
 			   I2S_DMACR_TDL(16) | I2S_DMACR_RDL(16));
 
-#if defined(CONFIG_RK_HDMI) && defined(CONFIG_SND_RK_SOC_HDMI_I2S)
-	snd_config_hdmi_audio(params);
-#endif
 	spin_unlock_irqrestore(&lock, flags);
 
 	return 0;
