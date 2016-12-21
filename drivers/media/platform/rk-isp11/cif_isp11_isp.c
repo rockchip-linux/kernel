@@ -3675,10 +3675,6 @@ static void cifisp_send_measurement(
 	spin_lock_irqsave(&isp_dev->irq_lock, lock_flags);
 	if (isp_dev->frame_id != meas_work->frame_id) {
 		spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
-		CIFISP_DPRINT(CIFISP_ERROR,
-			"Measurement late(%d, %d)\n",
-			isp_dev->frame_id,
-			meas_work->frame_id);
 		goto end;
 	}
 
@@ -3717,10 +3713,6 @@ static void cifisp_send_measurement(
 
 	if (isp_dev->frame_id != meas_work->frame_id) {
 		spin_unlock_irqrestore(&isp_dev->irq_lock, lock_flags);
-		CIFISP_DPRINT(CIFISP_ERROR,
-			"Measurement late(%d, %d)\n",
-			isp_dev->frame_id,
-			meas_work->frame_id);
 		goto end;
 	}
 
