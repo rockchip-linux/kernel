@@ -160,6 +160,15 @@ config SND_RK_SOC_NAU8540
 	  Say Y if you want to add support for SoC audio on rockchip
 	  with the nau8540.
 
+config SND_RK_SOC_PDM_MICARRAY
+	tristate "SoC PDM MICARRAY Audio support for rockchip"
+	depends on SND_RK_SOC
+	select SND_RK_SOC_PDM
+	select SND_SOC_DUMMY_CODEC
+	help
+	  Say Y if you want to add support for SoC audio on rockchip
+	  with the PDM Micarray.
+
 config SND_RK_SOC_RK610
 	tristate "SoC I2S Audio support for rockchip - RK610"
 	depends on SND_RK_SOC && MFD_RK610

@@ -239,3 +239,19 @@ rockchip-i2s-dummy {
 		};
 	};
 };
+
+- compatible : "rockchip,pdm-micarray"
+- audio-controller: The phandle of pdm controller
+- audio-codec: The phandle of audio codec
+
+Example:
+
+rockchip_pdm_micarray {
+	compatible = "rockchip,pdm-micarray";
+	dais {
+		dai0 {
+			audio-codec = <&dummy_codec>;
+			audio-controller = <&pdm>;
+		};
+	};
+};
