@@ -820,6 +820,7 @@
 	dsihost0: mipi@ff960000{
 		compatible = "rockchip,rk3368-dsi";
 		rockchip,prop = <0>;
+		rockchip,grf = <&grf>;
 		reg = <0x0 0xff960000 0x0 0x4000>, <0x0 0xff968000 0x0 0x4000>;
 		reg-names = "mipi_dsi_host" ,"mipi_dsi_phy";
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
