@@ -229,6 +229,5 @@ static const u16 CHRG_CUR_INPUT[] = {
 };
 
 void kernel_power_off(void);
-void rk_send_wakeup_key(void);
 
 #endif

@@ -23,6 +23,7 @@
 #include <linux/of_gpio.h>
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
+#include <linux/rk_keys.h>
 #include <linux/wakelock.h>
 
 struct gpio_data {
@@ -53,7 +54,6 @@ struct gpio_detection {
 	int info;
 };
 
-void rk_send_power_key(int state);
 static struct class *gpio_detection_class;
 static BLOCKING_NOTIFIER_HEAD(gpio_det_notifier_list);
 static int system_suspend;
