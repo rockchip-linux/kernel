@@ -75,6 +75,13 @@ void mpp_srv_done(struct mpp_service *pservice)
 }
 EXPORT_SYMBOL(mpp_srv_done);
 
+void mpp_srv_clear_current_ctx(struct mpp_service *pservice)
+{
+	pservice->current_ctx = NULL;
+	clear_bit(HW_RUNNING, &pservice->state);
+}
+EXPORT_SYMBOL(mpp_srv_clear_current_ctx);
+
 struct mpp_ctx *mpp_srv_get_pending_ctx(struct mpp_service *pservice)
 {
 	return list_entry(pservice->pending.next, struct mpp_ctx, status_link);

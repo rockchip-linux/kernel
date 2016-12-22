@@ -142,7 +142,6 @@ struct mpp_dev_rkvenc_reg {
 	u32 unused_1c8[2];
 	u32 osd_pos[8];
 	u32 osd_addr[8];
-	u32 unused_210[11];
 };
 
 struct rockchip_rkvenc_dev {

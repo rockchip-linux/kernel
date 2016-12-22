@@ -70,6 +70,7 @@ bool mpp_srv_pending_is_empty(struct mpp_service *pservice);
 struct mpp_ctx *mpp_srv_get_done_ctx(struct mpp_session *session);
 bool mpp_srv_is_power_on(struct mpp_service *pservice);
 bool mpp_srv_is_running(struct mpp_service *pservice);
+void mpp_srv_clear_current_ctx(struct mpp_service *pservice);
 
 #endif
 
