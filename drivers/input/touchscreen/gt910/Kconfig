@@ -1,0 +1,5 @@
+config TOUCHSCREEN_GT910
+	tristate "goodix gt910 touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a goodix gt910 touchscreen.
