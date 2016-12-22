@@ -1664,7 +1664,7 @@ static void rk322xh_vop_bcsh_path_sel(struct rk_lcdc_driver *dev_drv)
 		    V_LEVEL2_OVERLAY_EN(dev_drv->pre_overlay) |
 		    V_ALPHA_HARD_CALC(dev_drv->pre_overlay));
 	/* BG color */
-	if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
+	if (IS_YUV_COLOR(dev_drv->output_color)) {
 		val = V_DSP_OUT_RGB_YUV(1);
 		vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 		val = V_DSP_BG_BLUE(0x200) | V_DSP_BG_GREEN(0x40) |
@@ -1917,7 +1917,7 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		dev_drv->output_color = screen->color_mode;
 		rk322xh_vop_csc_cfg(dev_drv);
 		/* BG color */
-		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
+		if (IS_YUV_COLOR(dev_drv->output_color)) {
 			val = V_DSP_OUT_RGB_YUV(1);
 			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 			val = V_DSP_BG_BLUE(0x200) | V_DSP_BG_GREEN(0x40) |
