@@ -201,8 +201,14 @@ void ext_pll_set_27m_out(void)
 					  0x37);
 	} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		rockchip_hdmiv2_write_phy(hdmi_dev,
+					  EXT_PHY1_PLL_CTRL,
+					  0);
+		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY1_PLL_PRE_DIVIDER,
 					  1);
+		rockchip_hdmiv2_write_phy(hdmi_dev,
+					  EXT_PHY1_PLL_SPM_CTRL,
+					  0xf0);
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY1_PLL_FB_DIVIDER,
 					  0x5a);
