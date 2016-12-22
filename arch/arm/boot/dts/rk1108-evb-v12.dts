@@ -288,6 +288,7 @@
 	i2c-scl-rising-time-ns = <275>;
 	i2c-scl-falling-time-ns = <16>;
 	clock-frequency = <400000>;
+	nack-retry = <1>;
 
 	rk805: rk805@18 {
 		reg = <0x18>;
