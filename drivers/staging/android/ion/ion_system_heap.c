@@ -154,6 +154,13 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
 	unsigned long size_remaining = PAGE_ALIGN(size);
 	unsigned int max_order = orders[0];
 
+	struct list_head lists[8];
+	unsigned int block_index[8] = {0};
+	unsigned int block_1M = 0;
+	unsigned int block_64K = 0;
+	unsigned int maximum;
+	int j;
+
 	if (align > PAGE_SIZE)
 		return -EINVAL;
 
@@ -161,16 +168,46 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&pages);
+
+	for (i = 0; i < 8; i++)
+		INIT_LIST_HEAD(&lists[i]);
+
+	i = 0;
+	/*
+	 * scatterlist length must arranged by  descending order or equal,
+	 * that is the new one length must equal to or less than the previous
+	 * scatterlist only has 3 types length: 1M, 64K, 4K
+	 * so, we do the optimization base the above two conditions
+	 */
 	while (size_remaining > 0) {
 		info = alloc_largest_available(sys_heap, buffer, size_remaining,
 						max_order);
 		if (!info)
 			goto err;
-		list_add_tail(&info->list, &pages);
+
 		size_remaining -= (1 << info->order) * PAGE_SIZE;
 		max_order = info->order;
+
+		if (info->order) {
+			if (info->order == 8)
+				block_1M++;
+			if (info->order == 4)
+				block_64K++;
+			list_add_tail(&info->list, &pages);
+		} else {
+			struct page *page = info->page;
+			dma_addr_t phys = page_to_phys(page);
+			unsigned int bit12_14 = (phys >> 12) & 0x7;
+
+			list_add_tail(&info->list, &lists[bit12_14]);
+			block_index[bit12_14]++;
+		}
+
 		i++;
 	}
+
+	pr_debug("%s, %d, i = %d, size = %ld\n", __func__, __LINE__, i, size);
+
 	table = kzalloc(sizeof(struct sg_table), GFP_KERNEL);
 	if (!table)
 		goto err;
@@ -178,6 +215,16 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
 	ret = sg_alloc_table(table, i, GFP_KERNEL);
 	if (ret)
 		goto err1;
+
+	maximum = block_index[0];
+	for (i = 1; i < 8; i++)
+		maximum = max(maximum, block_index[i]);
+
+	pr_debug("%s, %d, maximum = %d, block_1M = %d, block_64K = %d\n",
+		 __func__, __LINE__, maximum, block_1M, block_64K);
+
+	for (i = 0; i < 8; i++)
+		pr_debug("block_index[%d] = %d\n", i, block_index[i]);
 
 	sg = table->sgl;
 	list_for_each_entry_safe(info, tmp_info, &pages, list) {
@@ -188,6 +235,27 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
 		kfree(info);
 	}
 
+	/*
+	 * Although there may be some useless loop, this is the easiest one,
+	 * and the times of the useless loop is acceptable
+	 */
+	for (i = 0; i < maximum; i++) {
+		for (j = 0; j < 8; j++) {
+			if (!list_empty(&lists[j])) {
+				struct page_info *pi;
+				struct page *page;
+
+				pi = list_first_entry(&lists[j],
+						      struct page_info, list);
+				page = pi->page;
+				sg_set_page(sg, page, PAGE_SIZE, 0);
+				sg = sg_next(sg);
+				list_del(&pi->list);
+				kfree(pi);
+			}
+		}
+	}
+
 	buffer->priv_virt = table;
 	return 0;
 err1:
@@ -196,6 +264,14 @@ err:
 	list_for_each_entry_safe(info, tmp_info, &pages, list) {
 		free_buffer_page(sys_heap, buffer, info->page, info->order);
 		kfree(info);
+	}
+
+	for (i = 0; i < 8; i++) {
+		list_for_each_entry_safe(info, tmp_info, &lists[i], list) {
+			free_buffer_page(sys_heap, buffer, info->page,
+					 info->order);
+			kfree(info);
+		}
 	}
 	return -ENOMEM;
 }
