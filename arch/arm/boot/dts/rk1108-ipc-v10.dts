@@ -528,3 +528,7 @@
 	status = "okay";
 	pinctrl-0 = <&hdmi_cec &i2c2m1_xfer &hdmi_hpd>;
 };
+
+&camera2 {
+	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+};
