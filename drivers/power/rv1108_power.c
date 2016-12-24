@@ -24,7 +24,7 @@
 #define DIVIDER_RESISTANCE_A	200
 #define DIVIDER_RESISTANCE_B	120
 
-static int ac_online			= 1;
+static int ac_online;
 static int usb_online			= 1;
 static int battery_status		= POWER_SUPPLY_STATUS_CHARGING;
 static int battery_health		= POWER_SUPPLY_HEALTH_GOOD;
@@ -172,7 +172,7 @@ static char *rv1108_power_usb_supplied_to[] = {
 
 static struct power_supply rv1108_power_supplies[] = {
 	{
-		.name = "rk-ac",
+		.name = "ac",
 		.type = POWER_SUPPLY_TYPE_MAINS,
 		.supplied_to = rv1108_power_ac_supplied_to,
 		.num_supplicants = ARRAY_SIZE(rv1108_power_ac_supplied_to),
@@ -180,13 +180,13 @@ static struct power_supply rv1108_power_supplies[] = {
 		.num_properties = ARRAY_SIZE(rv1108_power_ac_props),
 		.get_property = rv1108_power_get_ac_property,
 	}, {
-		.name = "rk-bat",
+		.name = "battery",
 		.type = POWER_SUPPLY_TYPE_BATTERY,
 		.properties = rv1108_power_battery_props,
 		.num_properties = ARRAY_SIZE(rv1108_power_battery_props),
 		.get_property = rv1108_power_get_battery_property,
 	}, {
-		.name = "rk-usb",
+		.name = "usb",
 		.type = POWER_SUPPLY_TYPE_USB,
 		.supplied_to = rv1108_power_usb_supplied_to,
 		.num_supplicants = ARRAY_SIZE(rv1108_power_usb_supplied_to),
@@ -331,9 +331,10 @@ static void rv1108_battery_work_func(struct work_struct *work)
 	batv = batv / BATTERY_STABLE_COUNT;
 
 	changed_bat = rv1108_battery_capacity_change(batv, gdata);
-	if ((changed_vbus == 1) || (changed_bat == 1)) {
+	if (changed_bat)
 		power_supply_changed(&rv1108_power_supplies[1]);
-	}
+	if (changed_vbus)
+		power_supply_changed(&rv1108_power_supplies[2]);
 
 out:
 	/* start work queue */
