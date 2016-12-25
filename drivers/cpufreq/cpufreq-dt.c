@@ -22,6 +22,7 @@
 #include <linux/cpumask.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/of.h>
 #include <linux/pm_opp.h>
 #include <linux/platform_device.h>
@@ -30,6 +31,10 @@
 #include <linux/thermal.h>
 
 #define MAX_CLUSTERS		2
+#define MAX_PROP_NAME_LEN	6
+#define VERSION_ELEMENTS	1
+#define INVALID_VALUE		0xff
+#define SAFE_FREQ	(24 * 67 * 1000000)
 
 struct private_data {
 	struct device *cpu_dev;
@@ -43,12 +48,95 @@ static struct freq_attr *cpufreq_dt_attr[] = {
 	NULL,
 };
 
+static unsigned char package_info = INVALID_VALUE;
+extern unsigned long apll_safefreq;
 static int set_target(struct cpufreq_policy *policy, unsigned int index)
 {
 	struct private_data *priv = policy->driver_data;
 
 	return dev_pm_opp_set_rate(priv->cpu_dev,
 				   policy->freq_table[index].frequency * 1000);
+}
+
+static int fetch_package_info(struct device *dev, unsigned char *package_info)
+{
+	struct nvmem_cell *cell;
+	unsigned char *buf;
+	size_t len;
+
+	cell = nvmem_cell_get(dev, "package_info");
+	if (IS_ERR(cell))
+		return PTR_ERR(cell);
+
+	buf = (unsigned char *)nvmem_cell_read(cell, &len);
+
+	nvmem_cell_put(cell);
+
+	if (IS_ERR(buf))
+		return PTR_ERR(buf);
+
+	if (buf[0] == INVALID_VALUE)
+		return -EINVAL;
+
+	*package_info = buf[0];
+	kfree(buf);
+
+	return 0;
+}
+
+static int set_opp_info(struct device *dev)
+{
+	struct device_node *opp_np, *np;
+	unsigned char chip_vesion;
+	char name[MAX_PROP_NAME_LEN];
+	unsigned int version;
+	unsigned int count = 0;
+	int ret;
+
+	if (package_info == INVALID_VALUE) {
+		dev_info(dev, "package_info NULL\n");
+		return 0;
+	}
+
+	opp_np = of_parse_phandle(dev->of_node, "operating-points-v2", 0);
+	if (!opp_np)
+		return 0;
+	for_each_available_child_of_node(opp_np, np) {
+		ret = of_property_read_u32_index(np, "opp-supported-hw",
+						 VERSION_ELEMENTS - 1,
+						 &version);
+		if (!ret) {
+			count++;
+			break;
+		}
+	}
+	if (count == 0)
+		return 0;
+
+	if ((package_info & 0xc0) == 0xc0) {
+		chip_vesion = 1;
+		apll_safefreq = ULONG_MAX;
+	} else {
+		chip_vesion = 0;
+		apll_safefreq = SAFE_FREQ;
+	}
+	snprintf(name, MAX_PROP_NAME_LEN, "v%d", chip_vesion);
+	ret = dev_pm_opp_set_prop_name(dev, name);
+	if (ret) {
+		dev_err(dev, "Failed to set prop name\n");
+		return ret;
+	}
+
+	version = BIT(chip_vesion);
+	ret = dev_pm_opp_set_supported_hw(dev, &version, VERSION_ELEMENTS);
+	if (ret) {
+		dev_err(dev, "Failed to set supported hardware\n");
+		return ret;
+	}
+
+	dev_info(dev, "chip_version: %d 0x%x\n", chip_vesion, version);
+
+	return 0;
 }
 
 /*
@@ -141,6 +229,11 @@ static int resources_available(void)
 	}
 
 	regulator_put(cpu_reg);
+
+	ret = fetch_package_info(cpu_dev, &package_info);
+	if (ret)
+		dev_dbg(cpu_dev, "Failed to fetch wafer_info\n");
+
 	return 0;
 }
 
@@ -151,9 +244,8 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	struct device *cpu_dev;
 	struct clk *cpu_clk;
 	struct dev_pm_opp *suspend_opp;
-#ifdef CONFIG_ARCH_ROCKCHIP
 	struct cpumask cpus;
-#endif
+
 	unsigned int transition_latency;
 	unsigned long cur_freq;
 	bool opp_v1 = false;
@@ -187,6 +279,12 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 			goto out_put_clk;
 	}
 
+	if (!opp_v1) {
+		ret = set_opp_info(cpu_dev);
+		if (ret)
+			dev_err(cpu_dev, "Failed to set_opp_info: %d\n", ret);
+	}
+
 	/*
 	 * OPP layer will be taking care of regulators now, but it needs to know
 	 * the name of the regulator first.
@@ -211,7 +309,6 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	 *
 	 * OPPs might be populated at runtime, don't check for error here
 	 */
-#ifdef CONFIG_ARCH_ROCKCHIP
 	ret = dev_pm_opp_of_add_table(cpu_dev);
 	if (ret) {
 		dev_err(cpu_dev, "couldn't find opp table for cpu:%d, %d\n",
@@ -224,9 +321,6 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 				dev_pm_opp_of_remove_table(cpu_dev);
 		}
 	}
-#else
-	dev_pm_opp_of_cpumask_add_table(policy->cpus);
-#endif
 
 	/*
 	 * But we need OPP table to function so if it is not there let's
@@ -329,12 +423,11 @@ static int cpufreq_exit(struct cpufreq_policy *policy)
 	struct cpumask cpus;
 	struct private_data *priv = policy->driver_data;
 
-#ifdef CONFIG_ARCH_ROCKCHIP
 	cpumask_set_cpu(policy->cpu, policy->cpus);
 	if (cpufreq_generic_suspend(policy))
 		pr_err("%s: Failed to suspend driver: %p\n", __func__, policy);
 	cpumask_clear_cpu(policy->cpu, policy->cpus);
-#endif
+
 	priv->cpu_dev = get_cpu_device(policy->cpu);
 	cpufreq_cooling_unregister(priv->cdev);
 	dev_pm_opp_free_cpufreq_table(priv->cpu_dev, &policy->freq_table);
