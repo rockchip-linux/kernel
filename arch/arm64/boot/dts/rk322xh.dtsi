@@ -142,6 +142,7 @@
 	};
 
 	dvfs {
+		compatible = "rockchip,rk322xh-dvfs";
 		vd_arm: vd_arm {
 			regulator_name = "vdd_arm";
 			pd_core {
