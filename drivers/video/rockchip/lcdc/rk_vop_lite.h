@@ -452,8 +452,8 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define RK3366_V_HDMI_VOP_SEL(x)		(((x) << 1) | GRF_WEN_SHIFT(1))
 #define RK3366_V_DSI0_VOP_SEL(x)		(((x) << 2) | GRF_WEN_SHIFT(2))
 
-/* #define RK1108_GRF_SOC_CON4		0x0410 */
-#define RK1108_GRF_DCLK_INV(x)		((((x) << 4) | GRF_WEN_SHIFT(4)) | \
+#define RV1108_VOP_GRF_CON4		0x0410
+#define RV1108_GRF_DCLK_INV(x)		((((x) << 4) | GRF_WEN_SHIFT(4)) | \
 					(((x) << 5) | GRF_WEN_SHIFT(5)))
 #define RK3366_GRF_SOC_CON4		0x0410
 #define RK3366_GRF_VOP1_DCLK_INV(x)	(((x) << 7) | GRF_WEN_SHIFT(7))
@@ -464,7 +464,7 @@ static inline u64 val_mask(int val, u64 msk, int shift)
 #define RK3366_GRF_IO_VSEL		0x0900
 #define RK3366_V_VOP_IOVOL_SEL(x)		(((x) << 0) | GRF_WEN_SHIFT(0))
 
-/* rk1108 only*/
+/* RV1108 only*/
 #define DPHY_TTL_EN		0x038c
 #define DPHY_TTL_LANE_EN	0x03ac
 #define MIPI_DSI_HOST_PHY_RSTZ	0x00a0
@@ -504,7 +504,7 @@ struct vop_device {
 	/* active layer counter,when atv_layer_cnt = 0,disable lcdc */
 	u8 atv_layer_cnt;
 
-	unsigned int		irq;
+	int irq;
 
 	struct clk		*hclk;	/* lcdc AHP clk */
 	struct clk		*dclk;	/* lcdc dclk */
@@ -692,7 +692,7 @@ enum _bcsh_video_mode {
 };
 
 enum {
-	VOP_RK1108,
+	VOP_RV1108,
 	VOP_RK3366,
 };
 

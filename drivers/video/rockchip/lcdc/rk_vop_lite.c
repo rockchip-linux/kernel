@@ -61,16 +61,16 @@ static const struct vop_data rk3366_data = {
 	.chip_type = VOP_RK3366,
 };
 
-static const struct vop_data rk1108_data = {
-	.chip_type = VOP_RK1108,
+static const struct vop_data rv1108_data = {
+	.chip_type = VOP_RV1108,
 };
 
 #if defined(CONFIG_OF)
 static const struct of_device_id vop_dt_ids[] = {
 	{.compatible = "rockchip,rk3366-lcdc-lite",
 	 .data = &rk3366_data, },
-	{.compatible = "rockchip,rk1108-lcdc-lite",
-	 .data = &rk1108_data, },
+	{.compatible = "rockchip,rv1108-lcdc-lite",
+	 .data = &rv1108_data, },
 	{}
 };
 #endif
@@ -870,7 +870,7 @@ static int vop_config_mcu_timing(struct rk_lcdc_driver *dev_drv)
 	u32 ppixel_time;
 	u64 val;
 
-	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
+	if (VOP_CHIP(vop_dev) != VOP_RV1108) {
 		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
 		return 0;
 	}
@@ -990,7 +990,7 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 			V_RGB_HSYNC_POL(screen->pin_hsync) |
 			V_RGB_VSYNC_POL(screen->pin_vsync) |
 			V_RGB_DEN_POL(screen->pin_den);
-		if (VOP_CHIP(vop_dev) == VOP_RK1108) {
+		if (VOP_CHIP(vop_dev) == VOP_RV1108) {
 			if (vop_dev->pins && !IS_ERR(vop_dev->pins->default_state))
 				pinctrl_select_state(vop_dev->pins->p,
 						     vop_dev->pins->default_state);
@@ -1000,8 +1000,8 @@ static int vop_config_source(struct rk_lcdc_driver *dev_drv)
 					    DPHY_TTL_LANE_EN, 0xfd);
 			vop_mipi_dsi_writel(vop_dev->dsi_host_regs,
 					    MIPI_DSI_HOST_PHY_RSTZ, 0xf);
-			vop_grf_writel(vop_dev->grf_base, RK1108_GRF_SOC_CON4,
-					RK1108_GRF_DCLK_INV(screen->pin_dclk));
+			vop_grf_writel(vop_dev->grf_base, RV1108_VOP_GRF_CON4,
+					RV1108_GRF_DCLK_INV(screen->pin_dclk));
 		} else if (VOP_CHIP(vop_dev) == VOP_RK3366) {
 			vop_grf_writel(vop_dev->grf_base, RK3366_GRF_SOC_CON5,
 			       RK3366_V_RGB_VOP_SEL(dev_drv->id));
@@ -1619,7 +1619,7 @@ static int vop_get_backlight_device(struct rk_lcdc_driver *dev_drv)
 	struct vop_device *vop_dev = to_vop_dev(dev_drv);
 	struct device_node *backlight;
 	struct property *prop;
-	u32 *brightness_levels;
+	u32 *brightness_levels = NULL;
 	u32 length, max, last;
 
 	if (vop_dev->backlight)
@@ -1638,7 +1638,7 @@ static int vop_get_backlight_device(struct rk_lcdc_driver *dev_drv)
 	max = length / sizeof(u32);
 	last = max - 1;
 	brightness_levels = kmalloc(256, GFP_KERNEL);
-	if (brightness_levels)
+	if (!brightness_levels)
 		return -ENOMEM;
 
 	if (!of_property_read_u32_array(backlight, "brightness-levels",
@@ -2044,7 +2044,7 @@ static int vop_mcu_refresh(struct rk_lcdc_driver *dev_drv)
 {
 	struct vop_device *vop_dev = to_vop_dev(dev_drv);
 
-	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
+	if (VOP_CHIP(vop_dev) != VOP_RV1108) {
 		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
 		return 0;
 	}
@@ -2416,7 +2416,7 @@ static int vop_mcu_ctrl(struct rk_lcdc_driver *dev_drv, unsigned int cmd,
 {
 	struct vop_device *vop_dev = to_vop_dev(dev_drv);
 
-	if (VOP_CHIP(vop_dev) != VOP_RK1108) {
+	if (VOP_CHIP(vop_dev) != VOP_RV1108) {
 		pr_err("unsupport mcu screen type: %d\n", VOP_CHIP(vop_dev));
 		return 0;
 	}
@@ -2688,7 +2688,7 @@ static int vop_probe(struct platform_device *pdev)
 		clk_prepare(vop_dev->aclk);
 	if (vop_dev->dclk)
 		clk_prepare(vop_dev->dclk);
-	if (VOP_CHIP(vop_dev) == VOP_RK1108) {
+	if (VOP_CHIP(vop_dev) == VOP_RV1108) {
 		res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 						   "mipi_dsi_phy");
 		vop_dev->dsi_phy_regs =
@@ -2745,7 +2745,7 @@ static int vop_probe(struct platform_device *pdev)
 	dev_drv->id = vop_dev->id;
 	dev_drv->ops = &lcdc_drv_ops;
 	dev_drv->lcdc_win_num = ARRAY_SIZE(vop_win);
-	if (VOP_CHIP(vop_dev) == VOP_RK1108)
+	if (VOP_CHIP(vop_dev) == VOP_RV1108)
 		dev_drv->reserved_fb = ONE_FB_BUFFER;
 	else
 		dev_drv->reserved_fb = DEFAULT_FB_BUFFER;
@@ -2775,7 +2775,7 @@ static int vop_probe(struct platform_device *pdev)
 	if (dev_drv->iommu_enabled)
 		strcpy(dev_drv->mmu_dts_name, VOPL_IOMMU_COMPATIBLE_NAME);
 
-	if (VOP_CHIP(vop_dev) == VOP_RK1108) {
+	if (VOP_CHIP(vop_dev) == VOP_RV1108) {
 		vop_dev->pins = devm_kzalloc(vop_dev->dev,
 					     sizeof(*(vop_dev->pins)),
 					     GFP_KERNEL);
