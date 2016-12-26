@@ -1401,15 +1401,15 @@ static void rk818_bat_set_otg_state(struct rk818_battery *di, int state)
 				   PLUG_OUT_MSK, PLUG_OUT_MSK);
 		rk818_bat_set_bits(di, RK818_DCDC_EN_REG,
 				   OTG_EN_MASK, OTG_EN_MASK);
-		rk818_bat_set_bits(di, RK818_SLEEP_SET_OFF_REG1,
-				   OTG_EN_MASK, OTG_EN_MASK);
+		rk818_bat_clr_bits(di, RK818_SLEEP_SET_OFF_REG1,
+				   OTG_EN_MASK);
 		break;
 	case USB_OTG_POWER_OFF:
 		rk818_bat_clr_bits(di, RK818_INT_STS_MSK_REG2, PLUG_IN_MSK);
 		rk818_bat_clr_bits(di, RK818_INT_STS_MSK_REG2, PLUG_OUT_MSK);
 		rk818_bat_clr_bits(di, RK818_DCDC_EN_REG, OTG_EN_MASK);
-		rk818_bat_clr_bits(di, RK818_SLEEP_SET_OFF_REG1,
-				   OTG_EN_MASK);
+		rk818_bat_set_bits(di, RK818_SLEEP_SET_OFF_REG1,
+				   OTG_EN_MASK, OTG_EN_MASK);
 		break;
 	default:
 		break;
