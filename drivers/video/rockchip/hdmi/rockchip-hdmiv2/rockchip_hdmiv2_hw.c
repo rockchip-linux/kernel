@@ -2513,12 +2513,11 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 					     BIT(2 + 16));
 			} else if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
 				regmap_write(hdmi_dev->grf_base,
-					     RK1108_GRF_SOC_CON3,
-					     RK1108_SCL_READ_EN |
-					     RK1108_SDA_READ_EN);
-				regmap_write(hdmi_dev->grf_base,
 					     RK1108_GRF_SOC_CON4,
 					     RK1108_DDC_MASK_EN);
+				regmap_write(hdmi_dev->grf_base,
+					     RK1108_GRF_SOC_CON2,
+					     RK1108_SDA_READ_EN);
 			}
 			reset_control_assert(hdmi_dev->reset);
 			usleep_range(10, 20);

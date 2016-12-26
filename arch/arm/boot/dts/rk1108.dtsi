@@ -887,8 +887,8 @@
 			      "cec_clk_hdmi",
 			      "dclk_hdmi_phy";
 		pinctrl-names = "default", "gpio";
-		pinctrl-0 = <&hdmi_cec &i2c2m05v_xfer &hdmi_hpd>;
-		pinctrl-1 = <&i2c2m05v_gpio>;
+		pinctrl-0 = <&hdmi_cec &i2c2m1_xfer &hdmi_hpd>;
+		pinctrl-1 = <&i2c2m1_gpio>;
 		resets = <&reset RK1108_RST_HDMI_P>;
 		reset-names = "hdmi";
 		rockchip,grf = <&grf>;
