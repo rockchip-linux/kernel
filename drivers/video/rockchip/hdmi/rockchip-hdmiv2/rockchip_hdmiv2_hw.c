@@ -427,7 +427,7 @@ static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 	hdmi_msk_reg(hdmi_dev, PHY_MASK, m_PHY_LOCK, v_PHY_LOCK(1));
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322XH ||
-	    hdmi_dev->soctype == HDMI_SOC_RK1108) {
+	    hdmi_dev->soctype == HDMI_SOC_RV1108) {
 		hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 			     m_TXPWRON_SIG | m_ENHPD_RXSENSE_SIG,
 			     v_TXPWRON_SIG(0) | v_ENHPD_RXSENSE_SIG(0));
@@ -442,8 +442,8 @@ static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 		else
 			regmap_write(hdmi_dev->grf_base,
 				     RV1108_GRF_SOC_CON4,
-				     RK1108_PLL_PDATA_DEN);
-		if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+				     RV1108_PLL_PDATA_DEN);
+		if (hdmi_dev->soctype == HDMI_SOC_RV1108 ||
 		    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 			/* Disable PHY IRQ */
 			rockchip_hdmiv2_write_phy(hdmi_dev, 0x05, 0);
@@ -557,11 +557,11 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 	int stat = 0, i = 0, temp;
 	const struct ext_pll_config_tab *phy_ext = NULL;
 
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108)
 		regmap_write(hdmi_dev->grf_base,
 			     RV1108_GRF_SOC_CON4,
-			     RK1108_PLL_POWER_DOWN |
-			     RK1108_PLL_PDATA_DEN);
+			     RV1108_PLL_POWER_DOWN |
+			     RV1108_PLL_PDATA_DEN);
 	else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
@@ -743,10 +743,10 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_write_phy(hdmi_dev, EXT_PHY1_TERM_CAL_CTRL1,
 					  0x81);
 	}
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108)
 		regmap_write(hdmi_dev->grf_base,
 			     RV1108_GRF_SOC_CON4,
-			     RK1108_PLL_POWER_UP);
+			     RV1108_PLL_POWER_UP);
 	else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
@@ -774,10 +774,10 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 			(stat & m_PCLK_ON) >> 6, (stat & m_TMDSCLK_ON) >> 5);
 		return -1;
 	}
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108)
 		regmap_write(hdmi_dev->grf_base,
 			     RV1108_GRF_SOC_CON4,
-			     RK1108_PLL_PDATA_EN);
+			     RV1108_PLL_PDATA_EN);
 	else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
@@ -983,7 +983,7 @@ static int rockchip_hdmiv2_config_phy(struct hdmi_dev *hdmi_dev)
 
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X)
 		return ext_phy_config(hdmi_dev);
-	else if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+	else if (hdmi_dev->soctype == HDMI_SOC_RV1108 ||
 		 hdmi_dev->soctype == HDMI_SOC_RK322XH)
 		return ext_phy1_config(hdmi_dev);
 	hdmi_msk_reg(hdmi_dev, PHY_I2CM_DIV,
@@ -2005,7 +2005,7 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 		/* before configure video, we power off phy */
 		if (hdmi_dev->soctype != HDMI_SOC_RK322X &&
 		    hdmi_dev->soctype != HDMI_SOC_RK322XH &&
-		    hdmi_dev->soctype != HDMI_SOC_RK1108) {
+		    hdmi_dev->soctype != HDMI_SOC_RV1108) {
 			hdmi_msk_reg(hdmi_dev, PHY_CONF0,
 				     m_PDDQ_SIG | m_TXPWRON_SIG,
 				     v_PDDQ_SIG(1) | v_TXPWRON_SIG(0));
@@ -2021,10 +2021,10 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 				regmap_write(hdmi_dev->grf_base,
 					     RK322XH_GRF_SOC_CON3,
 					     RK322XH_PLL_POWER_DOWN);
-			else if (hdmi->soctype == HDMI_SOC_RK1108)
+			else if (hdmi->soctype == HDMI_SOC_RV1108)
 				regmap_write(hdmi_dev->grf_base,
 					     RV1108_GRF_SOC_CON4,
-					     RK1108_PLL_POWER_DOWN);
+					     RV1108_PLL_POWER_DOWN);
 		}
 		/* force output blue */
 		if (vpara->color_output == HDMI_COLOR_RGB_0_255) {
@@ -2511,13 +2511,13 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 					     RK322XH_GRF_SOC_CON2,
 					     RK322XH_DDC_MASK_EN |
 					     BIT(2 + 16));
-			} else if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
+			} else if (hdmi_dev->soctype == HDMI_SOC_RV1108) {
 				regmap_write(hdmi_dev->grf_base,
 					     RV1108_GRF_SOC_CON4,
-					     RK1108_DDC_MASK_EN);
+					     RV1108_DDC_MASK_EN);
 				regmap_write(hdmi_dev->grf_base,
 					     RV1108_GRF_SOC_CON2,
-					     RK1108_SDA_READ_EN);
+					     RV1108_SDA_READ_EN);
 			}
 			reset_control_assert(hdmi_dev->reset);
 			usleep_range(10, 20);
@@ -2532,7 +2532,7 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 					     RK322XH_GRF_SOC_CON4,
 					     RK322XH_IO_3V_DOMAIN);
 			hdmi->uboot = 0;
-		} else if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+		} else if (hdmi_dev->soctype == HDMI_SOC_RV1108 ||
 			   hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 			/* Enable PHY IRQ */
 			rockchip_hdmiv2_write_phy(hdmi_dev, 0x05, 0x22);

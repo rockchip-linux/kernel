@@ -406,7 +406,7 @@ struct hdmi_property {
 };
 
 enum {
-	HDMI_SOC_RK1108 = 0,
+	HDMI_SOC_RV1108 = 0,
 	HDMI_SOC_RK3036,
 	HDMI_SOC_RK312X,
 	HDMI_SOC_RK322X,

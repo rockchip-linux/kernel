@@ -100,7 +100,7 @@ static int hdmi_regs_phy_show(struct seq_file *s, void *v)
 
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322XH ||
-	    hdmi_dev->soctype == HDMI_SOC_RK1108)
+	    hdmi_dev->soctype == HDMI_SOC_RV1108)
 		count = 0x100;
 	else
 		count = 0x28;
@@ -228,7 +228,7 @@ static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 {
 	if (hdmi_dev->soctype == HDMI_SOC_RK322X ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322XH ||
-	    hdmi_dev->soctype == HDMI_SOC_RK1108) {
+	    hdmi_dev->soctype == HDMI_SOC_RV1108) {
 		if ((hdmi_dev->clk_on & HDMI_EXT_PHY_CLK_ON) == 0) {
 			if (!hdmi_dev->pclk_phy) {
 				hdmi_dev->pclk_phy =
@@ -243,7 +243,7 @@ static int rockchip_hdmiv2_clk_enable(struct hdmi_dev *hdmi_dev)
 			clk_prepare_enable(hdmi_dev->pclk_phy);
 			hdmi_dev->clk_on |= HDMI_EXT_PHY_CLK_ON;
 		}
-	/*	if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
+	/*	if (hdmi_dev->soctype == HDMI_SOC_RV1108) {
 			if (!hdmi_dev->dclk_phy) {
 				hdmi_dev->dclk_phy =
 					devm_clk_get(hdmi_dev->dev,
@@ -460,14 +460,14 @@ static irqreturn_t rk_hdmiv2_phy_irq(int irq, void *priv)
 {
 	struct hdmi_dev *hdmi_dev = priv;
 
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108) {
 		regmap_write(hdmi_dev->grf_base,
 			     RV1108_GRF_SOC_CON4,
-			     RK1108_PLL_PDATA_DEN);
+			     RV1108_PLL_PDATA_DEN);
 		usleep_range(9, 10);
 		regmap_write(hdmi_dev->grf_base,
 			     RV1108_GRF_SOC_CON4,
-			     RK1108_PLL_PDATA_EN);
+			     RV1108_PLL_PDATA_EN);
 	} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		regmap_write(hdmi_dev->grf_base,
 			     RK322XH_GRF_SOC_CON3,
@@ -484,7 +484,7 @@ static struct hdmi_ops rk_hdmi_ops;
 
 #if defined(CONFIG_OF)
 static const struct of_device_id rk_hdmi_dt_ids[] = {
-	{.compatible = "rockchip,rk1108-hdmi",},
+	{.compatible = "rockchip,rv1108-hdmi",},
 	{.compatible = "rockchip,rk322x-hdmi",},
 	{.compatible = "rockchip,rk322xh-hdmi",},
 	{.compatible = "rockchip,rk3288-hdmi",},
@@ -510,8 +510,8 @@ static int rockchip_hdmiv2_parse_dt(struct hdmi_dev *hdmi_dev)
 		hdmi_dev->soctype = HDMI_SOC_RK322X;
 	} else if (!strcmp(match->compatible, "rockchip,rk322xh-hdmi")) {
 		hdmi_dev->soctype = HDMI_SOC_RK322XH;
-	} else if (!strcmp(match->compatible, "rockchip,rk1108-hdmi")) {
-		hdmi_dev->soctype = HDMI_SOC_RK1108;
+	} else if (!strcmp(match->compatible, "rockchip,rv1108-hdmi")) {
+		hdmi_dev->soctype = HDMI_SOC_RV1108;
 	} else {
 		pr_err("It is not a valid rockchip soc!");
 		return -ENOMEM;
@@ -621,7 +621,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 			"cannot ioremap registers,err=%d\n", ret);
 		goto failed;
 	}
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108 ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322X ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
@@ -665,7 +665,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 	rk_hdmi_property.name = (char *)pdev->name;
 	rk_hdmi_property.priv = hdmi_dev;
 
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108) {
 		rk_hdmi_property.feature |= SUPPORT_YCBCR_INPUT;
 	} else if (hdmi_dev->soctype == HDMI_SOC_RK3288) {
 		rk_hdmi_property.feature |= SUPPORT_DEEP_10BIT;
@@ -765,7 +765,7 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 		goto failed1;
 	}
 
-	if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
+	if (hdmi_dev->soctype == HDMI_SOC_RV1108 ||
 	    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		hdmi_dev->irq_phy = platform_get_irq(pdev, 2);
 		if (hdmi_dev->irq_phy <= 0) {

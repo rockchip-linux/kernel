@@ -1690,16 +1690,16 @@ struct phy_mpll_config_tab {
 #define RK322XH_PLL_PDATA_DEN	BIT(7 + 16)
 #define RK322XH_PLL_PDATA_EN	(BIT(7) | BIT(7 + 16))
 
-#define RK1108_IO_5V_DOMAIN	(BIT(10) | BIT(10 + 16))
-#define RK1108_PLL_POWER_DOWN	(BIT(14) | BIT(14 + 16))
-#define RK1108_PLL_POWER_UP	BIT(14 + 16)
-#define RK1108_PLL_PDATA_DEN	BIT(13 + 16)
-#define RK1108_PLL_PDATA_EN	(BIT(13) | BIT(13 + 16))
-#define RK1108_SCL_READ_EN	(BIT(9) | BIT(9 + 16))
-#define RK1108_SDA_READ_EN	(BIT(8) | BIT(8 + 16))
-#define RK1108_DDC_MASK_EN	(BIT(15) | BIT(15 + 16))
+#define RV1108_IO_5V_DOMAIN	(BIT(10) | BIT(10 + 16))
+#define RV1108_PLL_POWER_DOWN	(BIT(14) | BIT(14 + 16))
+#define RV1108_PLL_POWER_UP	BIT(14 + 16)
+#define RV1108_PLL_PDATA_DEN	BIT(13 + 16)
+#define RV1108_PLL_PDATA_EN	(BIT(13) | BIT(13 + 16))
+#define RV1108_SCL_READ_EN	(BIT(9) | BIT(9 + 16))
+#define RV1108_SDA_READ_EN	(BIT(8) | BIT(8 + 16))
+#define RV1108_DDC_MASK_EN	(BIT(15) | BIT(15 + 16))
 
-/* PHY Defined for RK1108 */
+/* PHY Defined for RV1108 */
 #define EXT_PHY1_CTRL1			0x01
 #define EXT_PHY1_CTRL2			0x02
 #define EXT_PHY1_INT_MASK		0x03
