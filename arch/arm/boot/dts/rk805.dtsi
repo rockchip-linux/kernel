@@ -2,6 +2,10 @@
 &rk805 {
 	compatible = "rockchip,rk805";
 
+	rtc {
+		status = "disabled";
+	};
+
 	regulators {
 		#address-cells = <1>;
 		#size-cells = <0>;
