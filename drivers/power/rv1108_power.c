@@ -1,6 +1,6 @@
-/* drivers/power/rk1108_power.c
+/* drivers/power/rv1108_power.c
  *
- * battery detect driver for the rk1108
+ * battery detect driver for the rv1108
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -34,7 +34,7 @@ static int battery_capacity		= 50;
 static int battery_voltage		= 3300;
 static int pre_battery_capacity	= 100;
 
-struct rk1108_battery_data {
+struct rv1108_battery_data {
 	struct platform_device *pdev;
 	struct delayed_work work;
 	struct iio_channel *chan;
@@ -45,7 +45,7 @@ struct rk1108_battery_data {
 
 extern int dwc_vbus_status(void);
 
-static int rk1108_power_get_ac_property(
+static int rv1108_power_get_ac_property(
 	struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
@@ -60,7 +60,7 @@ static int rk1108_power_get_ac_property(
 	return 0;
 }
 
-static int rk1108_power_get_usb_property(
+static int rv1108_power_get_usb_property(
 	struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
@@ -75,14 +75,14 @@ static int rk1108_power_get_usb_property(
 	return 0;
 }
 
-static int rk1108_power_get_battery_property(
+static int rv1108_power_get_battery_property(
 	struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
 {
 	switch (psp) {
 	case POWER_SUPPLY_PROP_MODEL_NAME:
-		val->strval = "RK1108 battery";
+		val->strval = "RV1108 battery";
 		break;
 	case POWER_SUPPLY_PROP_MANUFACTURER:
 		val->strval = "Rock-Chip";
@@ -134,15 +134,15 @@ static int rk1108_power_get_battery_property(
 	return 0;
 }
 
-static enum power_supply_property rk1108_power_ac_props[] = {
+static enum power_supply_property rv1108_power_ac_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static enum power_supply_property rk1108_power_usb_props[] = {
+static enum power_supply_property rv1108_power_usb_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
-static enum power_supply_property rk1108_power_battery_props[] = {
+static enum power_supply_property rv1108_power_battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_CHARGE_TYPE,
 	POWER_SUPPLY_PROP_HEALTH,
@@ -162,43 +162,43 @@ static enum power_supply_property rk1108_power_battery_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 };
 
-static char *rk1108_power_ac_supplied_to[] = {
+static char *rv1108_power_ac_supplied_to[] = {
 	"rk_battery",
 };
 
-static char *rk1108_power_usb_supplied_to[] = {
+static char *rv1108_power_usb_supplied_to[] = {
 	"rk_battery",
 };
 
-static struct power_supply rk1108_power_supplies[] = {
+static struct power_supply rv1108_power_supplies[] = {
 	{
 		.name = "rk-ac",
 		.type = POWER_SUPPLY_TYPE_MAINS,
-		.supplied_to = rk1108_power_ac_supplied_to,
-		.num_supplicants = ARRAY_SIZE(rk1108_power_ac_supplied_to),
-		.properties = rk1108_power_ac_props,
-		.num_properties = ARRAY_SIZE(rk1108_power_ac_props),
-		.get_property = rk1108_power_get_ac_property,
+		.supplied_to = rv1108_power_ac_supplied_to,
+		.num_supplicants = ARRAY_SIZE(rv1108_power_ac_supplied_to),
+		.properties = rv1108_power_ac_props,
+		.num_properties = ARRAY_SIZE(rv1108_power_ac_props),
+		.get_property = rv1108_power_get_ac_property,
 	}, {
 		.name = "rk-bat",
 		.type = POWER_SUPPLY_TYPE_BATTERY,
-		.properties = rk1108_power_battery_props,
-		.num_properties = ARRAY_SIZE(rk1108_power_battery_props),
-		.get_property = rk1108_power_get_battery_property,
+		.properties = rv1108_power_battery_props,
+		.num_properties = ARRAY_SIZE(rv1108_power_battery_props),
+		.get_property = rv1108_power_get_battery_property,
 	}, {
 		.name = "rk-usb",
 		.type = POWER_SUPPLY_TYPE_USB,
-		.supplied_to = rk1108_power_usb_supplied_to,
-		.num_supplicants = ARRAY_SIZE(rk1108_power_usb_supplied_to),
-		.properties = rk1108_power_usb_props,
-		.num_properties = ARRAY_SIZE(rk1108_power_usb_props),
-		.get_property = rk1108_power_get_usb_property,
+		.supplied_to = rv1108_power_usb_supplied_to,
+		.num_supplicants = ARRAY_SIZE(rv1108_power_usb_supplied_to),
+		.properties = rv1108_power_usb_props,
+		.num_properties = ARRAY_SIZE(rv1108_power_usb_props),
+		.get_property = rv1108_power_get_usb_property,
 	},
 };
 
-static int rk1108_battery_dt_parse(
+static int rv1108_battery_dt_parse(
 	struct device *dev,
-	struct rk1108_battery_data *gdata)
+	struct rv1108_battery_data *gdata)
 {
 	int rv = 0;
 	int length;
@@ -241,7 +241,7 @@ static int rk1108_battery_dt_parse(
 	return 0;
 }
 
-static int rk1108_adc_to_voltage(int adc_value)
+static int rv1108_adc_to_voltage(int adc_value)
 {
 	int voltage;
 	int ra = DIVIDER_RESISTANCE_A;
@@ -252,14 +252,14 @@ static int rk1108_adc_to_voltage(int adc_value)
 	return voltage;
 }
 
-static int rk1108_battery_capacity_change(
+static int rv1108_battery_capacity_change(
 	int adc_value,
-	struct rk1108_battery_data *gdata)
+	struct rv1108_battery_data *gdata)
 {
 	int i;
 	int voltage;
 
-	voltage = rk1108_adc_to_voltage(adc_value);
+	voltage = rv1108_adc_to_voltage(adc_value);
 	battery_voltage = voltage;
 	for (i = 0; i <= gdata->max_voltage; i++) {
 		if (voltage < gdata->levels[i]) {
@@ -279,7 +279,7 @@ static int rk1108_battery_capacity_change(
 	return 0;
 }
 
-static int rk1108_battery_checkvbus(void)
+static int rv1108_battery_checkvbus(void)
 {
 	int vbus_connect;
 
@@ -290,9 +290,9 @@ static int rk1108_battery_checkvbus(void)
 		return 0;
 }
 
-static void rk1108_battery_work_func(struct work_struct *work)
+static void rv1108_battery_work_func(struct work_struct *work)
 {
-	struct rk1108_battery_data *gdata;
+	struct rv1108_battery_data *gdata;
 	struct iio_channel *channel;
 	struct device *dev;
 	int result = 0, i = 0, batv = 0;
@@ -301,14 +301,14 @@ static void rk1108_battery_work_func(struct work_struct *work)
 
 	gdata = container_of(
 			(struct delayed_work *)work,
-			struct rk1108_battery_data,
+			struct rv1108_battery_data,
 			work);
 
 	channel = gdata->chan;
 	dev = &gdata->pdev->dev;
 
 	/* Check vbus status */
-	result = rk1108_battery_checkvbus();
+	result = rv1108_battery_checkvbus();
 	if (result != usb_online)
 		changed_vbus = 1;
 	if (result == 1) {
@@ -330,9 +330,9 @@ static void rk1108_battery_work_func(struct work_struct *work)
 	}
 	batv = batv / BATTERY_STABLE_COUNT;
 
-	changed_bat = rk1108_battery_capacity_change(batv, gdata);
+	changed_bat = rv1108_battery_capacity_change(batv, gdata);
 	if ((changed_vbus == 1) || (changed_bat == 1)) {
-		power_supply_changed(&rk1108_power_supplies[1]);
+		power_supply_changed(&rv1108_power_supplies[1]);
 	}
 
 out:
@@ -340,15 +340,15 @@ out:
 	schedule_delayed_work(&gdata->work, msecs_to_jiffies(500));
 }
 
-static int rk1108_battery_probe(struct platform_device *pdev)
+static int rv1108_battery_probe(struct platform_device *pdev)
 {
 	int i;
 	int result;
-	struct rk1108_battery_data *gdata;
+	struct rv1108_battery_data *gdata;
 	struct device *dev = &pdev->dev;
 
-	for (i = 0; i < ARRAY_SIZE(rk1108_power_supplies); i++) {
-		result = power_supply_register(NULL, &rk1108_power_supplies[i]);
+	for (i = 0; i < ARRAY_SIZE(rv1108_power_supplies); i++) {
+		result = power_supply_register(NULL, &rv1108_power_supplies[i]);
 		if (result) {
 			dev_err(dev, "%s: failed to register\n", __func__);
 			goto err1;
@@ -357,64 +357,64 @@ static int rk1108_battery_probe(struct platform_device *pdev)
 
 	gdata = devm_kzalloc(dev, sizeof(*gdata), GFP_KERNEL);
 	if (gdata == NULL) {
-		dev_err(dev, "rk1108 battery malloc failure!\n");
+		dev_err(dev, "rv1108 battery malloc failure!\n");
 		result = -ENOMEM;
 		goto err1;
 	}
 	gdata->pdev = pdev;
 
-	result = rk1108_battery_dt_parse(dev, gdata);
+	result = rv1108_battery_dt_parse(dev, gdata);
 	if (result) {
-		dev_err(dev, "rk1108 analysis DTS failure!\n");
+		dev_err(dev, "rv1108 analysis DTS failure!\n");
 		goto err1;
 	}
 
-	INIT_DELAYED_WORK(&gdata->work, rk1108_battery_work_func);
+	INIT_DELAYED_WORK(&gdata->work, rv1108_battery_work_func);
 	schedule_delayed_work(&gdata->work, msecs_to_jiffies(500));
 
 	return 0;
 err1:
 	while (--i >= 0)
-		power_supply_unregister(&rk1108_power_supplies[i]);
+		power_supply_unregister(&rv1108_power_supplies[i]);
 	return result;
 }
 
-static int rk1108_battery_remove(struct platform_device *pdev)
+static int rv1108_battery_remove(struct platform_device *pdev)
 {
 	int i;
 	/* Let's see how we handle changes... */
 	ac_online = 0;
 	usb_online = 0;
 	battery_status = POWER_SUPPLY_STATUS_DISCHARGING;
-	for (i = 0; i < ARRAY_SIZE(rk1108_power_supplies); i++)
-		power_supply_changed(&rk1108_power_supplies[i]);
+	for (i = 0; i < ARRAY_SIZE(rv1108_power_supplies); i++)
+		power_supply_changed(&rv1108_power_supplies[i]);
 	pr_info("%s: 'changed' event sent, sleeping for 10 seconds...\n",
 		__func__);
 	ssleep(10);
 
-	for (i = 0; i < ARRAY_SIZE(rk1108_power_supplies); i++)
-		power_supply_unregister(&rk1108_power_supplies[i]);
+	for (i = 0; i < ARRAY_SIZE(rv1108_power_supplies); i++)
+		power_supply_unregister(&rv1108_power_supplies[i]);
 
 	return 0;
 }
 
 static struct of_device_id battery_match_table[] = {
-	{.compatible = "rockchip,rk1108_battery"},
+	{.compatible = "rockchip,rv1108_battery"},
 	{},
 };
 
-static struct platform_driver rk1108_battery_driver = {
-	.probe  = rk1108_battery_probe,
-	.remove = rk1108_battery_remove,
+static struct platform_driver rv1108_battery_driver = {
+	.probe  = rv1108_battery_probe,
+	.remove = rv1108_battery_remove,
 	.driver = {
-		.name  = "rk1108-battery",
+		.name  = "rv1108-battery",
 		.owner = THIS_MODULE,
 		.of_match_table = battery_match_table,
 	},
 };
 
-module_platform_driver(rk1108_battery_driver);
+module_platform_driver(rv1108_battery_driver);
 
-MODULE_DESCRIPTION("RK1108 Power supply driver");
+MODULE_DESCRIPTION("RV1108 Power supply driver");
 MODULE_AUTHOR("wangruoming <wrm@rock-chips.com>");
 MODULE_LICENSE("GPL");

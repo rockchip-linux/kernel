@@ -142,7 +142,7 @@
 	};
 
 	io-domains {
-		compatible = "rockchip,rk1108-io-voltage-domain";
+		compatible = "rockchip,rv1108-io-voltage-domain";
 		rockchip,grf = <&grf>;
 		rockchip,pmugrf = <&pmugrf>;
 
@@ -211,7 +211,7 @@
 	status = "okay";
 
 	battery_value {
-		compatible = "rockchip,rk1108_battery";
+		compatible = "rockchip,rv1108_battery";
 		io-channels = <&adc 2>;
 		battery-levels = <
 			3800 3853 3856 3859 3862 3865 3868 3871 3874 3877
