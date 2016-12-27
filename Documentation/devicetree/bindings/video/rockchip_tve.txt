@@ -2,7 +2,7 @@ Device-Tree bindings for rockchip tve driver
 
 Required properties:
 - compatible: value should be following:
-	"rockchip,rk1108-tve",
+	"rockchip,rv1108-tve",
 	"rockchip,rk3036-tve",
 	"rockchip,rk312x-tve",
 	"rockchip,rk322x-tve",
@@ -10,9 +10,9 @@ Required properties:
 - reg: tv encode base address of the tve and length of memory mapped
         region.another one is used for vadc.
 - clocks: must include clock specifiers corresponding to entries in the
-        clock-names property. only for rk1108 rk322x and rk322xh.
+        clock-names property. only for rv1108 rk322x and rk322xh.
 - clocks-names: list of clock names sorted in the same order as the clocks
-               property. only for rk1108 rk322x and rk322xh.
+               property. only for rv1108 rk322x and rk322xh.
 - saturation: the value for TVE_COLOR_BUSRT_SAT(0x78)
 - brightcontrast: the value for TVE_BRIGHTNESS_CONTRAST(0x90)
 - adjtiming: the value for TVE_HOR_TIMING3(0x0c)
@@ -20,7 +20,7 @@ Required properties:
 - lumafilter1: the value for TVE_LUMA_FILTER2(0x18)
 - lumafilter2: the value for TVE_LUMA_FILTER3(0x1c)
 - daclevel: the value is used to adjust the voltage amplitude of the CVBS
-- dac1level: only for rk1108 rk322x and rk322xh
+- dac1level: only for rv1108 rk322x and rk322xh
 Example:
 
 	tve: tve@ff373e00 {

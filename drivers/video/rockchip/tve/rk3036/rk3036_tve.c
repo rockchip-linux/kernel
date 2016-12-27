@@ -374,7 +374,7 @@ static const struct of_device_id rk3036_tve_dt_ids[] = {
 	{.compatible = "rockchip,rk3036-tve",},
 	{.compatible = "rockchip,rk312x-tve",},
 	{.compatible = "rockchip,rk322x-tve",},
-	{.compatible = "rockchip,rk1108-tve",},
+	{.compatible = "rockchip,rv1108-tve",},
 	{}
 };
 #endif
@@ -504,7 +504,7 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 	} else if (!strcmp(match->compatible, "rockchip,rk322x-tve")) {
 		rk3036_tve->soctype = SOC_RK322X;
 		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
-	} else if (!strcmp(match->compatible, "rockchip,rk1108-tve")) {
+	} else if (!strcmp(match->compatible, "rockchip,rv1108-tve")) {
 		rk3036_tve->soctype = SOC_RK322X;
 		rk3036_tve->inputformat = INPUT_FORMAT_YUV;
 	} else if (!strcmp(match->compatible, "rockchip,rk322xh-tve")) {
