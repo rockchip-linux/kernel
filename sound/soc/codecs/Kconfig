@@ -617,7 +617,7 @@ config SND_SOC_RK1000
 	tristate
 	depends on MFD_RK1000
 
-config SND_SOC_RK1108
+config SND_SOC_RV1108
 	select REGMAP_MMIO
 	tristate
 

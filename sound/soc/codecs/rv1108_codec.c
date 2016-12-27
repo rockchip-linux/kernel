@@ -43,7 +43,7 @@
 #include <sound/dmaengine_pcm.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
-#include "rk1108_codec.h"
+#include "rv1108_codec.h"
 
 
 /*
