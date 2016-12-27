@@ -192,7 +192,7 @@ rockchip-nau8540 {
 
 Required SoC Specific Properties:
 
-- compatible : "rockchip,rk1108-codec"
+- compatible : "rockchip,rv1108-codec"
 - reg: physical base address of the controller and length of memory mapped
   region.
 - clocks: must include clock specifiers corresponding to entries in the
@@ -206,7 +206,7 @@ Required SoC Specific Properties:
 Example:
 
 codec: codec@20230000 {
-	compatible = "rockchip,rk1108-codec";
+	compatible = "rockchip,rv1108-codec";
 	reg = <0x20230000 0x1000>;
 	clocks = <&clk_gates14 6>;
 	clock-names = "g_pclk_acodec";

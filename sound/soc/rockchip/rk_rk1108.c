@@ -1,5 +1,5 @@
 /*
- * Rockchip machine ASoC driver for boards using a rk1108 CODEC.
+ * Rockchip machine ASoC driver for boards using a rv1108 CODEC.
  *
  * Copyright (c) 2016, Fuzhou Rockchip Electronics Co., Ltd All rights reserved.
  *
@@ -28,7 +28,7 @@
 #include "card_info.h"
 #include "rk_i2s.h"
 
-static int rk1108_hw_params(struct snd_pcm_substream *substream,
+static int rv1108_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -79,28 +79,28 @@ static int rk1108_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static struct snd_soc_ops rk1108_hifi_ops = {
-	.hw_params = rk1108_hw_params,
+static struct snd_soc_ops rv1108_hifi_ops = {
+	.hw_params = rv1108_hw_params,
 };
 
 static struct snd_soc_dai_link rk_dai[] = {
 	{
-		.name = "rk1108",
-		.stream_name = "rk1108 pcm",
-		.codec_dai_name = "rk1108-hifi",
-		.ops = &rk1108_hifi_ops,
+		.name = "rv1108",
+		.stream_name = "rv1108 pcm",
+		.codec_dai_name = "rv1108-hifi",
+		.ops = &rv1108_hifi_ops,
 	},
 };
 
-static struct snd_soc_card snd_soc_card_rk1108 = {
-	.name = "RK_RK1108",
+static struct snd_soc_card snd_soc_card_rv1108 = {
+	.name = "RK_RV1108",
 	.dai_link = rk_dai,
 	.num_links = 1,
 };
 
-static int rk1108_audio_probe(struct platform_device *pdev)
+static int rv1108_audio_probe(struct platform_device *pdev)
 {
-	struct snd_soc_card *card = &snd_soc_card_rk1108;
+	struct snd_soc_card *card = &snd_soc_card_rv1108;
 	int ret = 0;
 
 	card->dev = &pdev->dev;
@@ -112,7 +112,7 @@ static int rk1108_audio_probe(struct platform_device *pdev)
 	return snd_soc_register_card(card);
 }
 
-static int rk1108_audio_remove(struct platform_device *pdev)
+static int rv1108_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
@@ -121,24 +121,24 @@ static int rk1108_audio_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id rockchip_rk1108_of_match[] = {
-	{ .compatible = "rockchip,rk1108-audio", },
+static const struct of_device_id rockchip_rv1108_of_match[] = {
+	{ .compatible = "rockchip,rv1108-audio", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, rockchip_rk1108_of_match);
+MODULE_DEVICE_TABLE(of, rockchip_rv1108_of_match);
 
-static struct platform_driver rockchip_rk1108_audio_driver = {
+static struct platform_driver rockchip_rv1108_audio_driver = {
 	.driver         = {
-		.name = "rockchip-rk1108",
+		.name = "rockchip-rv1108",
 		.owner = THIS_MODULE,
-		.of_match_table = of_match_ptr(rockchip_rk1108_of_match),
+		.of_match_table = of_match_ptr(rockchip_rv1108_of_match),
 	},
-	.probe          = rk1108_audio_probe,
-	.remove         = rk1108_audio_remove,
+	.probe          = rv1108_audio_probe,
+	.remove         = rv1108_audio_remove,
 };
 
-module_platform_driver(rockchip_rk1108_audio_driver);
+module_platform_driver(rockchip_rv1108_audio_driver);
 
 MODULE_AUTHOR("Sugar Zhang <sugar.zhang@rock-chips.com>");
-MODULE_DESCRIPTION("ROCKCHIP rk1108 machine ASoC driver");
+MODULE_DESCRIPTION("ROCKCHIP rv1108 machine ASoC driver");
 MODULE_LICENSE("GPL v2");
