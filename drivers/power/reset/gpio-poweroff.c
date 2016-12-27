@@ -35,7 +35,7 @@ static void gpio_poweroff_do_poweroff(void)
 {
 	BUG_ON(!gpio_is_valid(gpio_num));
 
-	if (cpu_is_rk1108()) {
+	if (cpu_is_rv1108()) {
 		pr_info("%s: vbus status: %d\n", __func__, dwc_vbus_status());
 		if (dwc_vbus_status())
 			machine_restart(NULL);
