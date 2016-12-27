@@ -575,6 +575,11 @@ config RESUME_REBOOT
 	  This driver is to reboot when late resume if reboot flag is set.
 	  if your need this function please select it.
 
+config MOTOR_GPIO
+	bool "motor gpio driver"
+	help
+	  Enable this driver will support motor gpio.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
