@@ -387,7 +387,7 @@
 	};
 
 	i2c0: i2c@20000000 {
-		compatible = "rockchip,rk1108-i2c";
+		compatible = "rockchip,rv1108-i2c";
 		reg = <0x20000000 0x1000>;
 		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -400,7 +400,7 @@
 	};
 
 	i2c1: i2c@10240000 {
-		compatible = "rockchip,rk1108-i2c";
+		compatible = "rockchip,rv1108-i2c";
 		reg = <0x10240000 0x1000>;
 		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -413,7 +413,7 @@
 	};
 
 	i2c2: i2c@10250000 {
-		compatible = "rockchip,rk1108-i2c";
+		compatible = "rockchip,rv1108-i2c";
 		reg = <0x10250000 0x1000>;
 		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -426,7 +426,7 @@
 	};
 
 	i2c3: i2c@10260000 {
-		compatible = "rockchip,rk1108-i2c";
+		compatible = "rockchip,rv1108-i2c";
 		reg = <0x10260000 0x1000>;
 		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
