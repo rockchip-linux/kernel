@@ -639,7 +639,7 @@
 	};
 
 	rkvenc: rkvenc@28000000 {
-		compatible = "rockchip,rk1108-rkvenc", "rockchip,rkvenc";
+		compatible = "rockchip,rv1108-rkvenc", "rockchip,rkvenc";
 		rockchip,grf = <&grf>;
 		iommu_enabled = <0>;
 		reg = <0x28000000 0x400>;
@@ -657,7 +657,7 @@
 	};
 
 	vpu: vpu_service@30000000 {
-		compatible = "rockchip,rk1108-vpu", "vpu_service";
+		compatible = "rockchip,rv1108-vpu", "vpu_service";
 		rockchip,grf = <&grf>;
 		iommu_enabled = <0>;
 		reg = <0x30000000 0x800>;
@@ -674,7 +674,7 @@
 	};
 
 	rkvdec: rkvdec@30010000 {
-		compatible = "rockchip,rk1108-rkvdec", "rockchip,rkvdec";
+		compatible = "rockchip,rv1108-rkvdec", "rockchip,rkvdec";
 		rockchip,grf = <&grf>;
 		iommu_enabled = <0>;
 		reg = <0x30010000 0x400>;
