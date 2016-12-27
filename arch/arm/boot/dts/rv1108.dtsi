@@ -512,7 +512,7 @@
 	};
 
 	usbgrf: syscon@202a0000 {
-		compatible = "rockchip,rk1108-usbgrf", "rockchip,usbgrf", "syscon";
+		compatible = "rockchip,rv1108-usbgrf", "rockchip,usbgrf", "syscon";
 		reg = <0x202a0000 0x1000>;
 	};
 
@@ -959,7 +959,7 @@
 	};
 
 	dwc_control_usb: dwc-control-usb {
-		compatible = "rockchip,rk1108-dwc-control-usb";
+		compatible = "rockchip,rv1108-dwc-control-usb";
 		rockchip,grf = <&grf>;
 		rockchip,usbgrf = <&usbgrf>;
 		interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
@@ -970,7 +970,7 @@
 	};
 
 	u2phy: usb2-phy {
-		compatible = "rockchip,rk1108-usb2phy";
+		compatible = "rockchip,rv1108-usb2phy";
 		rockchip,grf = <&grf>;
 		rockchip,usbgrf = <&usbgrf>;
 		interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
@@ -998,7 +998,7 @@
 	};
 
 	usb_otg: usb@30180000 {
-		compatible = "rockchip,rk1108_usb20_otg";
+		compatible = "rockchip,rv1108_usb20_otg";
 		reg = <0x30180000 0x40000>;
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 		/* 0-Normal, 1-Force Host, 2-Force Device */
