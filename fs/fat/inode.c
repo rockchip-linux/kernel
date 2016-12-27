@@ -911,6 +911,8 @@ static int fat_show_options(struct seq_file *m, struct dentry *root)
 		seq_puts(m, ",nfs=stale_rw");
 	if (opts->discard)
 		seq_puts(m, ",discard");
+	if (opts->force_fallocate)
+		seq_puts(m, ",force_fallocate");
 
 	return 0;
 }
@@ -925,7 +927,7 @@ enum {
 	Opt_uni_xl_no, Opt_uni_xl_yes, Opt_nonumtail_no, Opt_nonumtail_yes,
 	Opt_obsolete, Opt_flush, Opt_tz_utc, Opt_rodir, Opt_err_cont,
 	Opt_err_panic, Opt_err_ro, Opt_discard, Opt_nfs, Opt_time_offset,
-	Opt_nfs_stale_rw, Opt_nfs_nostale_ro, Opt_err,
+	Opt_nfs_stale_rw, Opt_nfs_nostale_ro, Opt_force_fallocate, Opt_err,
 };
 
 static const match_table_t fat_tokens = {
@@ -969,6 +971,7 @@ static const match_table_t fat_tokens = {
 	{Opt_obsolete, "cvf_format=%20s"},
 	{Opt_obsolete, "cvf_options=%100s"},
 	{Opt_obsolete, "posix"},
+	{Opt_force_fallocate, "force_fallocate"},
 	{Opt_err, NULL},
 };
 static const match_table_t msdos_tokens = {
@@ -1033,7 +1036,7 @@ static int parse_options(struct super_block *sb, char *options, int is_vfat,
 		opts->rodir = 1;
 	}
 	opts->name_check = 'n';
-	opts->quiet = opts->showexec = opts->sys_immutable = opts->dotsOK =  0;
+	opts->quiet = opts->showexec = opts->sys_immutable = opts->dotsOK = opts->force_fallocate = 0;
 	opts->utf8 = opts->unicode_xlate = 0;
 	opts->numtail = 1;
 	opts->usefree = opts->nocase = 0;
@@ -1223,6 +1226,12 @@ static int parse_options(struct super_block *sb, char *options, int is_vfat,
 		case Opt_obsolete:
 			fat_msg(sb, KERN_INFO, "\"%s\" option is obsolete, "
 			       "not supported now", p);
+			break;
+
+		/* force fallocate update file size*/
+		case Opt_force_fallocate:
+			fat_msg(sb, KERN_INFO, "force fallocate may be read the undefined data from not written area");
+			opts->force_fallocate = 1;
 			break;
 		/* unknown option */
 		default:

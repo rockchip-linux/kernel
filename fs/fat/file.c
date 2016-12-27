@@ -260,6 +260,11 @@ static long fat_fallocate(struct file *file, int mode,
 			if (err)
 				goto error;
 		}
+
+		if (sbi->options.force_fallocate) {
+			i_size_write(inode, offset + len);
+			MSDOS_I(inode)->mmu_private += nr_cluster << sbi->cluster_bits;
+		}
 	} else {
 		if ((offset + len) <= i_size_read(inode))
 			goto error;

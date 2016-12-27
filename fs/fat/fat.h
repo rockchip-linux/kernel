@@ -52,6 +52,7 @@ struct fat_mount_options {
 		 usefree:1,	   /* Use free_clusters for FAT32 */
 		 tz_set:1,	   /* Filesystem timestamps' offset set */
 		 rodir:1,	   /* allow ATTR_RO for directory */
+		 force_fallocate:1, /* force fallocate update file size */
 		 discard:1;	   /* Issue discard requests on deletions */
 };
 
