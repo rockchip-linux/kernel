@@ -1789,9 +1789,10 @@ exit:
 	return ret;
 }
 
-static void hdmi_dev_config_avi(struct hdmi_dev *hdmi_dev,
+static void hdmi_dev_config_avi(struct hdmi *hdmi,
 				struct hdmi_video *vpara)
 {
+	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
 	unsigned char colorimetry, ext_colorimetry = 0, aspect_ratio, y1y0;
 	unsigned char rgb_quan_range = AVI_QUANTIZATION_RANGE_DEFAULT;
 
@@ -1915,10 +1916,12 @@ static int hdmi_dev_config_vsi(struct hdmi *hdmi,
 #define HDR_LSB(n) ((n) & 0xff)
 #define HDR_MSB(n) (((n) & 0xff00) >> 8)
 
-static void hdmi_dev_config_hdr(struct hdmi_dev *hdmi_dev,
+static void hdmi_dev_config_hdr(struct hdmi *hdmi,
 				int eotf,
 				struct hdmi_hdr_metadata *hdr)
 {
+	struct hdmi_dev *hdmi_dev = hdmi->property->priv;
+
 	/* hdr is supportted after disignid = 0x21 */
 	if (!hdmi_dev || hdmi_readl(hdmi_dev, DESIGN_ID) < 0x21)
 		return;
@@ -2102,7 +2105,7 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 		return -1;
 
 	if (vpara->sink_hdmi == OUTPUT_HDMI) {
-		hdmi_dev_config_avi(hdmi_dev, vpara);
+		hdmi_dev_config_avi(hdmi, vpara);
 		hdmi_dev_config_spd(hdmi, hdmi_dev->vendor_name,
 				    hdmi_dev->product_name,
 				    hdmi_dev->deviceinfo);
@@ -2122,7 +2125,7 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 					    vpara->vic,
 					    HDMI_VIDEO_FORMAT_NORMAL);
 		}
-		hdmi_dev_config_hdr(hdmi_dev, vpara->eotf, NULL);
+		hdmi_dev_config_hdr(hdmi, vpara->eotf, &hdmi->hdr);
 		dev_info(hdmi->dev, "[%s] success output HDMI.\n", __func__);
 	} else {
 		dev_info(hdmi->dev, "[%s] success output DVI.\n", __func__);
@@ -2409,7 +2412,7 @@ static int hdmi_dev_control_output(struct hdmi *hdmi, int enable)
 					     v_FC_CLR_AVMUTE(0));
 				vpara.vic = hdmi->vic;
 				vpara.color_output = HDMI_COLOR_RGB_0_255;
-				hdmi_dev_config_avi(hdmi_dev, &vpara);
+				hdmi_dev_config_avi(hdmi, &vpara);
 				while ((!hdmi_readl(hdmi_dev, IH_FC_STAT1)) &
 				       m_AVI_INFOFRAME) {
 					usleep_range(900, 1000);
@@ -2509,7 +2512,9 @@ void rockchip_hdmiv2_dev_init_ops(struct hdmi_ops *ops)
 		ops->setvideo	= hdmi_dev_config_video;
 		ops->setaudio	= hdmi_dev_config_audio;
 		ops->setmute	= hdmi_dev_control_output;
+		ops->setavi	= hdmi_dev_config_avi;
 		ops->setvsi	= hdmi_dev_config_vsi;
+		ops->sethdr	= hdmi_dev_config_hdr;
 	}
 }
 
