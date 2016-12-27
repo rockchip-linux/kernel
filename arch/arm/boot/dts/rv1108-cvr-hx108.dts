@@ -158,7 +158,7 @@
 	};
 
 	rockchip_audio {
-		compatible = "rockchip,rk1108-audio";
+		compatible = "rockchip,rv1108-audio";
 		dais {
 			dai0 {
 				audio-codec = <&codec>;

@@ -625,7 +625,7 @@
 	};
 
 	codec: codec@20230000 {
-		compatible = "rockchip,rk1108-codec";
+		compatible = "rockchip,rv1108-codec";
 		reg = <0x20230000 0x1000>;
 		rockchip,grf = <&grf>;
 		clocks = <&clk_gates14 6>;
