@@ -537,7 +537,7 @@
 	};
 
 	tsadc: tsadc@10370000 {
-		compatible = "rockchip,rk1108-tsadc";
+		compatible = "rockchip,rv1108-tsadc";
 		reg = <0x10370000 0x100>;
 		interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
 		clock-frequency = <750000>;

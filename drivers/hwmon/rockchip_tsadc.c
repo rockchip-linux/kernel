@@ -163,7 +163,7 @@ struct chip_tsadc_table {
 
 static struct chip_tsadc_table *this_table;
 
-static const struct tsadc_table rk1108_table[] = {
+static const struct tsadc_table rv1108_table[] = {
 	{0, -40},
 
 	{374, -40},
@@ -319,7 +319,7 @@ void rockchip_tsadc_auto_ht_work(struct work_struct *work)
 	ret = tsadc_readl(TSADC_INT_PD);
 	tsadc_writel(ret | 0xff, TSADC_INT_PD);       //clr irq status
 	if (g_data->tsadc_type == RK322X_TSADC ||
-	    g_data->tsadc_type == RK1108_TSADC) {
+	    g_data->tsadc_type == RV1108_TSADC) {
 		if ((val & 0x1000) != 0) {
 			dev_info(&g_data->pdev->dev, "rk322x tsadc is low temp\n");
 		} else if ((val & 0x1) != 0) {
@@ -644,9 +644,9 @@ static void rockchip_rk322x_tsadc_set_auto_int_en(int chn,
 			| TSADC_LT_INTEN_SRC(chn), TSADC_INT_EN);
 }
 
-struct chip_tsadc_table rk1108_tsadc_data = {
-	.id = rk1108_table,
-	.length = ARRAY_SIZE(rk1108_table),
+struct chip_tsadc_table rv1108_tsadc_data = {
+	.id = rv1108_table,
+	.length = ARRAY_SIZE(rv1108_table),
 	.data_mask = TSADCV3_DATA_MASK,
 	.mode = ADC_INCREMENT,
 };
@@ -937,8 +937,8 @@ int rockchip_hwmon_init(struct rockchip_temp *data)
 	}
 
 	switch (data->tsadc_type) {
-	case RK1108_TSADC:
-		this_table = &rk1108_tsadc_data;
+	case RV1108_TSADC:
+		this_table = &rv1108_tsadc_data;
 		rockchip_v1_tsadc_set_auto_temp(0);
 		data->ops.read_sensor = rockchip_v1_tsadc_get_temp;
 		break;

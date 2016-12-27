@@ -365,8 +365,8 @@ static const struct of_device_id rockchip_temp_match[] = {
 		.data = (void *)RK3288_TSADC,
 	},
 	{
-		.compatible = "rockchip,rk1108-tsadc",
-		.data = (void *)RK1108_TSADC,
+		.compatible = "rockchip,rv1108-tsadc",
+		.data = (void *)RV1108_TSADC,
 	},
 	{
 		.compatible = "rockchip,rk322x-tsadc",
