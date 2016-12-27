@@ -859,7 +859,7 @@
 	};
 
 	mipi_dsi: mipi_dsi@300e0000 {
-		compatible = "rockchip,rk1108-dsi";
+		compatible = "rockchip,rv1108-dsi";
 		rockchip,prop = <0>;
 		reg = <0x300e0000 0x10000>, <0x20228000 0x8000>;
 		reg-names = "mipi_dsi_host", "mipi_dsi_phy";
