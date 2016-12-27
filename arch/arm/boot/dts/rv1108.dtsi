@@ -50,7 +50,7 @@
 #include <dt-bindings/rkfb/rk_fb.h>
 
 / {
-	compatible = "rockchip,rk1108";
+	compatible = "rockchip,rv1108";
 	rockchip,sram = <&sram>;
 	interrupt-parent = <&gic>;
 
@@ -647,9 +647,9 @@
 		clocks = <&aclk_rkvenc_pre>, <&clk_gates19 9>,
 			<&clk_venc_core>;
 		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_core";
-		resets = <&reset RK1108_RST_RKVENC_H>,
-			<&reset RK1108_RST_RKVENC_A>,
-			<&reset RK1108_RST_RKVENC_CORE>;
+		resets = <&reset RV1108_RST_RKVENC_H>,
+			<&reset RV1108_RST_RKVENC_A>,
+			<&reset RV1108_RST_RKVENC_CORE>;
 		reset-names = "video_h", "video_a", "video_c";
 		rockchip,srv = <&rkvenc_srv>;
 		name = "rkvenc";
@@ -666,7 +666,7 @@
 		interrupt-names = "irq_dec", "irq_enc";
 		clocks = <&aclk_vpu_pre>, <&clk_gates19 3>;
 		clock-names = "aclk_vcodec", "hclk_vcodec";
-		resets = <&reset RK1108_RST_VPU_H>, <&reset RK1108_RST_VPU_A>;
+		resets = <&reset RV1108_RST_VPU_H>, <&reset RV1108_RST_VPU_A>;
 		reset-names = "video_h", "video_a";
 		name = "vpu_service";
 		dev_mode = <0>;
@@ -682,7 +682,7 @@
 		interrupt-names = "irq_dec";
 		clocks = <&aclk_rkvdec_pre>, <&clk_gates19 2>, <&clk_hevc_cabac>, <&clk_hevc_core>;
 		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac", "clk_core";
-		resets = <&reset RK1108_RST_RKVDEC_H>, <&reset RK1108_RST_RKVDEC_A>;
+		resets = <&reset RV1108_RST_RKVDEC_H>, <&reset RV1108_RST_RKVDEC_A>;
 		reset-names = "video_h", "video_a";
 		dev_mode = <2>;
 		name = "rkvdec";
@@ -710,8 +710,8 @@
 			 <&clk_gates14 12>, <&clk_gates18 10>, <&clk_gates9 12>;
 		clock-names = "aclk_isp", "hclk_isp", "sclk_isp", "sclk_isp_jpe",
 			      "pclk_mipi_csi", "pclk_isp_in", "sclk_mipidsi_24m";
-		resets = <&reset RK1108_RST_ISP>, <&reset RK1108_RST_ISP_NIU_A>,
-			<&reset RK1108_RST_ISP_NIU_H>, <&reset RK1108_RST_ISP_H>;
+		resets = <&reset RV1108_RST_ISP>, <&reset RV1108_RST_ISP_NIU_A>,
+			<&reset RV1108_RST_ISP_NIU_H>, <&reset RV1108_RST_ISP_H>;
 		reset-names = "rst_isp", "rst_isp_niu_a",
 			"rst_isp_niu_h", "rst_isp_h";
 		interrupts = <GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>;
@@ -777,7 +777,7 @@
 		rockchip,grf = <&grf>;
 		clocks = <&clk_gates7 8>, <&pclkin_vip>, <&pclkin_vip_inv>;
 		clock-names = "cif1to4_pclk", "pclkin_vip", "pclkin_vip_inv";
-		resets = <&reset RK1108_RST_CIF1TO4_P>;
+		resets = <&reset RV1108_RST_CIF1TO4_P>;
 		reset-names = "cif1to4_rst";
 		status = "disabled";
 	};
@@ -792,7 +792,7 @@
 		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
 			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
 			      "pclk_cif1t4_out";
-		resets = <&reset RK1108_RST_VIP0_A>, <&reset RK1108_RST_VIP0_H>, <&reset RK1108_RST_VIP0_P>;
+		resets = <&reset RV1108_RST_VIP0_A>, <&reset RV1108_RST_VIP0_H>, <&reset RV1108_RST_VIP0_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
@@ -805,7 +805,7 @@
 		device_type = "v4l2-pltfrm-subdev";
 		clocks = <&clk_cvbs_host>, <&clk_gpll>, <&clk_gates6 7>, <&clk_gates17 12>;
 		clock-names = "clk_cvbs", "clk_cvbs_parent", "pclk_cvbs", "hclk_cvbs";
-		resets = <&reset RK1108_RST_CVBS_P>, <&reset RK1108_RST_CVBS_CLK>, <&reset RK1108_RST_CVBS_H>;
+		resets = <&reset RV1108_RST_CVBS_P>, <&reset RV1108_RST_CVBS_CLK>, <&reset RV1108_RST_CVBS_H>;
 		reset-names = "cvbs_prst", "cvbs_clk_rst", "cvbs_hrst";
 		status = "disabled";
 	};
@@ -820,7 +820,7 @@
 		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
 			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
 			      "pclk_cif1t4_out";
-		resets = <&reset RK1108_RST_VIP1_A>, <&reset RK1108_RST_VIP1_H>, <&reset RK1108_RST_VIP1_P>;
+		resets = <&reset RV1108_RST_VIP1_A>, <&reset RV1108_RST_VIP1_H>, <&reset RV1108_RST_VIP1_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
@@ -836,7 +836,7 @@
 		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
 			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
 			      "pclk_cif1t4_out";
-		resets = <&reset RK1108_RST_VIP2_A>, <&reset RK1108_RST_VIP2_H>, <&reset RK1108_RST_VIP2_P>;
+		resets = <&reset RV1108_RST_VIP2_A>, <&reset RV1108_RST_VIP2_H>, <&reset RV1108_RST_VIP2_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
@@ -852,7 +852,7 @@
 		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
 			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
 			      "pclk_cif1t4_out";
-		resets = <&reset RK1108_RST_VIP3_A>, <&reset RK1108_RST_VIP3_H>, <&reset RK1108_RST_VIP3_P>;
+		resets = <&reset RV1108_RST_VIP3_A>, <&reset RV1108_RST_VIP3_H>, <&reset RV1108_RST_VIP3_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
@@ -889,7 +889,7 @@
 		pinctrl-names = "default", "gpio";
 		pinctrl-0 = <&hdmi_cec &i2c2m1_xfer &hdmi_hpd>;
 		pinctrl-1 = <&i2c2m1_gpio>;
-		resets = <&reset RK1108_RST_HDMI_P>;
+		resets = <&reset RV1108_RST_HDMI_P>;
 		reset-names = "hdmi";
 		rockchip,grf = <&grf>;
 		rockchip,hdmi_audio_source = <0>;
@@ -913,7 +913,7 @@
 		fifo-depth = <0x100>;
 		bus-width = <8>;
 		tune_regsbase = <0x1ec>;
-		resets = <&reset RK1108_RST_EMMC_H>;
+		resets = <&reset RV1108_RST_EMMC_H>;
 		reset-names = "mmc_ahb_reset";
 		status = "disabled";
 	};
@@ -933,7 +933,7 @@
 		fifo-depth = <0x100>;
 		bus-width = <4>;
 		tune_regsbase = <0x1e4>;
-		resets = <&reset RK1108_RST_SDIO_H>;
+		resets = <&reset RV1108_RST_SDIO_H>;
 		reset-names = "mmc_ahb_reset";
 		status = "disabled";
 	};
@@ -953,7 +953,7 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
-		resets = <&reset RK1108_RST_SDMMC_H>;
+		resets = <&reset RV1108_RST_SDMMC_H>;
 		reset-names = "mmc_ahb_reset";
 		status = "disabled";
 	};
@@ -1056,8 +1056,8 @@
 		clock-names = "clk_dsp", "clk_dsp_free",
 			      "clk_dsp_iop", "clk_dsp_epp",
 			      "clk_dsp_edp", "clk_dsp_edap";
-		resets = <&reset RK1108_RST_DSP_CORE>, <&reset RK1108_RST_DSP_SYS>,
-			 <&reset RK1108_RST_DSP_GLOBAL>, <&reset RK1108_RST_DSP_OECM>;
+		resets = <&reset RV1108_RST_DSP_CORE>, <&reset RV1108_RST_DSP_SYS>,
+			 <&reset RV1108_RST_DSP_GLOBAL>, <&reset RV1108_RST_DSP_OECM>;
 		reset-names = "core_rst", "sys_rst",
 			      "global_rst", "oecm_rst";
 		interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>;

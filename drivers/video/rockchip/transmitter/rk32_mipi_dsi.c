@@ -1127,7 +1127,7 @@ static void rockchip_dsi_dpishutdn(struct dsi *dsi, int status)
 			regmap_write(dsi->grf, RK3368_GRF_SOC_CON6, val);
 		} else if (dsi->ops.id == DSI_RK1108) {
 			val = 1 << 22 | 1 << 6;
-			writel_relaxed(val, RK_GRF_VIRT + RK1108_GRF_SOC_CON4);
+			writel_relaxed(val, RK_GRF_VIRT + RV1108_GRF_SOC_CON4);
 		}
 	} else {
 		if (dsi->ops.id == DSI_RK312x) {
@@ -1144,7 +1144,7 @@ static void rockchip_dsi_dpishutdn(struct dsi *dsi, int status)
 			regmap_write(dsi->grf, RK3368_GRF_SOC_CON6, val);
 		} else if (dsi->ops.id == DSI_RK1108) {
 			val = 1 << 22 | 0 << 6;
-			writel_relaxed(val, RK_GRF_VIRT + RK1108_GRF_SOC_CON4);
+			writel_relaxed(val, RK_GRF_VIRT + RV1108_GRF_SOC_CON4);
 		}
 	}
 }

@@ -137,7 +137,7 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 #define RK322XH_GMAC_CLK_25M		(GRF_BIT(11) | GRF_BIT(12))
 #define RK322XH_GMAC_CLK_2_5M		(GRF_CLR_BIT(11) | GRF_BIT(12))
 
-/* RK1108_GRF_GMAC_CON0 */
+/* RV1108_GRF_GMAC_CON0 */
 #define RK1108_GMAC_PHY_INTF_SEL_RMII	\
 		(GRF_CLR_BIT(4) | GRF_CLR_BIT(5) | GRF_BIT(6))
 #define RK1108_GMAC_FLOW_CTRL		GRF_BIT(3)
@@ -275,7 +275,7 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK1108_GRF_GMAC_CON0,
+		regmap_write(bsp_priv->grf, RV1108_GRF_GMAC_CON0,
 			     RK1108_GMAC_PHY_INTF_SEL_RMII);
 		break;
 	default:
@@ -467,7 +467,7 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK1108_GRF_GMAC_CON0,
+		regmap_write(bsp_priv->grf, RV1108_GRF_GMAC_CON0,
 			     RK1108_GMAC_RMII_CLK_2_5M |
 			     RK1108_GMAC_SPEED_10M);
 		break;
@@ -540,7 +540,7 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 			return;
 		}
 
-		regmap_write(bsp_priv->grf, RK1108_GRF_GMAC_CON0,
+		regmap_write(bsp_priv->grf, RV1108_GRF_GMAC_CON0,
 			     RK1108_GMAC_RMII_CLK_25M |
 			     RK1108_GMAC_SPEED_100M);
 		break;

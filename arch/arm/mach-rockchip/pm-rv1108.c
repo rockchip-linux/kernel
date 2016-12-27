@@ -41,10 +41,10 @@ do { \
 		rkpm_ddr_printch('\n'); \
 	} \
 } while (0)
-#define RK1108_CRU_UNGATING_OPS(id) cru_writel( \
-	CRU_W_MSK_SETBITS(0,  (id) % 16, 0x1), RK1108_CRU_GATEID_CONS((id)))
-#define RK1108_CRU_GATING_OPS(id) cru_writel( \
-	CRU_W_MSK_SETBITS(1, (id) % 16, 0x1), RK1108_CRU_GATEID_CONS((id)))
+#define RV1108_CRU_UNGATING_OPS(id) cru_writel( \
+	CRU_W_MSK_SETBITS(0,  (id) % 16, 0x1), RV1108_CRU_GATEID_CONS((id)))
+#define RV1108_CRU_GATING_OPS(id) cru_writel( \
+	CRU_W_MSK_SETBITS(1, (id) % 16, 0x1), RV1108_CRU_GATEID_CONS((id)))
 
 enum rk_plls_id {
 	APLL_ID = 0,
@@ -53,22 +53,22 @@ enum rk_plls_id {
 	END_PLL_ID
 };
 
-#define RK1108_EVB_V11
+#define RV1108_EVB_V11
 
 static inline void  uart_printch(char bbyte)
 {
 	u32 reg_save[2];
-#ifdef RK1108_EVB_V11
-	u32 u_clk_id = (RK1108_CLKGATE_UART2_SRC + 0 * 2);
-	u32 u_pclk_id = (RK1108_CLKGATE_PCLK_UART2 + 0);
+#ifdef RV1108_EVB_V11
+	u32 u_clk_id = (RV1108_CLKGATE_UART2_SRC + 0 * 2);
+	u32 u_pclk_id = (RV1108_CLKGATE_PCLK_UART2 + 0);
 #else
-	u32 u_clk_id = (RK1108_CLKGATE_UART0_SRC + 0 * 2);
-	u32 u_pclk_id = (RK1108_CLKGATE_PCLK_UART0 + 0);
+	u32 u_clk_id = (RV1108_CLKGATE_UART0_SRC + 0 * 2);
+	u32 u_pclk_id = (RV1108_CLKGATE_PCLK_UART0 + 0);
 #endif
-	reg_save[0] = cru_readl(RK1108_CRU_GATEID_CONS(u_clk_id));
-	reg_save[1] = cru_readl(RK1108_CRU_GATEID_CONS(u_pclk_id));
-	RK1108_CRU_UNGATING_OPS(u_clk_id);
-	RK1108_CRU_UNGATING_OPS(u_pclk_id);
+	reg_save[0] = cru_readl(RV1108_CRU_GATEID_CONS(u_clk_id));
+	reg_save[1] = cru_readl(RV1108_CRU_GATEID_CONS(u_pclk_id));
+	RV1108_CRU_UNGATING_OPS(u_clk_id);
+	RV1108_CRU_UNGATING_OPS(u_pclk_id);
 
 	rkpm_udelay(1);
 
@@ -84,9 +84,9 @@ write_uart:
 	}
 
 	cru_writel(reg_save[0] | CRU_W_MSK(u_clk_id % 16, 0x1),
-		   RK1108_CRU_GATEID_CONS(u_clk_id));
+		   RV1108_CRU_GATEID_CONS(u_clk_id));
 	cru_writel(reg_save[1] | CRU_W_MSK(u_pclk_id % 16, 0x1),
-		   RK1108_CRU_GATEID_CONS(u_pclk_id));
+		   RV1108_CRU_GATEID_CONS(u_pclk_id));
 }
 
 void PIE_FUNC(sram_printch)(char byte)
@@ -99,24 +99,24 @@ static void pll_udelay(u32 udelay)
 #if 0
 	u32 mode;
 
-	mode = cru_readl(RK1108_CRU_MODE_CON);
-	cru_writel(RK1108_PLL_MODE_SLOW(APLL_ID), RK1108_CRU_MODE_CON);
+	mode = cru_readl(RV1108_CRU_MODE_CON);
+	cru_writel(RV1108_PLL_MODE_SLOW(APLL_ID), RV1108_CRU_MODE_CON);
 	rkpm_udelay(udelay * 5);
-	cru_writel(mode | (RK1108_PLL_MODE_MSK(APLL_ID) << 16),
-		   RK1108_CRU_MODE_CON);
+	cru_writel(mode | (RV1108_PLL_MODE_MSK(APLL_ID) << 16),
+		   RV1108_CRU_MODE_CON);
 #endif
 }
 
-#define RK1108_PLL_MODE_SLOW	((0x0 << 8) | \
-		(0x1 << (16 + RK1108_PLLS_MODE_OFFSET)))
+#define RV1108_PLL_MODE_SLOW	((0x0 << 8) | \
+		(0x1 << (16 + RV1108_PLLS_MODE_OFFSET)))
 
-#define RK1108_PLL_MODE_NORM	((0x1 << 8) | \
-		(0x1 << (16 + RK1108_PLLS_MODE_OFFSET)))
+#define RV1108_PLL_MODE_NORM	((0x1 << 8) | \
+		(0x1 << (16 + RV1108_PLLS_MODE_OFFSET)))
 
-#define RK1108_PLL_POWERDOWN	((0x1 << 0) | \
+#define RV1108_PLL_POWERDOWN	((0x1 << 0) | \
 		(0x1 << (16 + 0)))
 
-#define RK1108_PLL_POWERON	((0x0 << 0) | \
+#define RV1108_PLL_POWERON	((0x0 << 0) | \
 		(0x1 << (16 + 0)))
 
 static void pm_pll_wait_lock(u32 pll_idx)
@@ -130,7 +130,7 @@ static void pm_pll_wait_lock(u32 pll_idx)
 	dsb();
 	dsb();
 	while (delay > 0) {
-		if ((cru_readl(RK1108_PLL_CONS(pll_idx, 2)) & (0x1 << 31))) {
+		if ((cru_readl(RV1108_PLL_CONS(pll_idx, 2)) & (0x1 << 31))) {
 			rkpm_ddr_printascii("lock-pll-ok:");
 			rkpm_ddr_printhex(pll_idx);
 			rkpm_ddr_printch('\n');
@@ -145,55 +145,55 @@ static void pm_pll_wait_lock(u32 pll_idx)
 	}
 }
 
-/* #define RK1108_SOFT_PD_PLL */
-#define RK1108_SUSPEND_DEBUG
+/* #define RV1108_SOFT_PD_PLL */
+#define RV1108_SUSPEND_DEBUG
 static u32 cru_plls_con_save[END_PLL_ID][6];
 
 static inline void plls_suspend(u32 pll_id)
 {
 	int i;
 
-	cru_writel(RK1108_PLL_MODE_SLOW, RK1108_PLL_CONS(pll_id, 3));
+	cru_writel(RV1108_PLL_MODE_SLOW, RV1108_PLL_CONS(pll_id, 3));
 
-#ifdef RK1108_SOFT_PD_PLL
-	cru_writel(RK1108_PLL_POWERDOWN, RK1108_PLL_CONS((pll_id), 3));
+#ifdef RV1108_SOFT_PD_PLL
+	cru_writel(RV1108_PLL_POWERDOWN, RV1108_PLL_CONS((pll_id), 3));
 #endif
 
 	for (i = 0; i < 6; i++)
 		cru_plls_con_save[pll_id][i] = cru_readl(
-				RK1108_PLL_CONS(pll_id, i));
+				RV1108_PLL_CONS(pll_id, i));
 }
 
 static inline void plls_resume(u32 pll_id)
 {
 	cru_writel(cru_plls_con_save[pll_id][0] | 0xffff0000,
-		   RK1108_PLL_CONS(pll_id, 0));
+		   RV1108_PLL_CONS(pll_id, 0));
 	cru_writel(cru_plls_con_save[pll_id][1] | 0xffff0000,
-		   RK1108_PLL_CONS(pll_id, 1));
+		   RV1108_PLL_CONS(pll_id, 1));
 	cru_writel(cru_plls_con_save[pll_id][2],
-		   RK1108_PLL_CONS(pll_id, 2));
+		   RV1108_PLL_CONS(pll_id, 2));
 	cru_writel(cru_plls_con_save[pll_id][3] | 0xffff0000,
-		   RK1108_PLL_CONS(pll_id, 3));
+		   RV1108_PLL_CONS(pll_id, 3));
 	cru_writel(cru_plls_con_save[pll_id][4] | 0xffff0000,
-		   RK1108_PLL_CONS(pll_id, 4));
+		   RV1108_PLL_CONS(pll_id, 4));
 	cru_writel(cru_plls_con_save[pll_id][5] | 0xffff0000,
-		   RK1108_PLL_CONS(pll_id, 5));
+		   RV1108_PLL_CONS(pll_id, 5));
 
-#ifdef RK1108_SOFT_PD_PLL
-	cru_writel(RK1108_PLL_POWERON, RK1108_PLL_CONS((pll_id), 3));
+#ifdef RV1108_SOFT_PD_PLL
+	cru_writel(RV1108_PLL_POWERON, RV1108_PLL_CONS((pll_id), 3));
 #endif
 	pm_pll_wait_lock(pll_id);
 
-	cru_writel(RK1108_PLL_MODE_NORM, RK1108_PLL_CONS(pll_id, 3));
+	cru_writel(RV1108_PLL_MODE_NORM, RV1108_PLL_CONS(pll_id, 3));
 }
 
 static u32 clk_sel0, clk_sel1, clk_sel11;
 
 static void pm_plls_suspend(void)
 {
-	clk_sel0 = cru_readl(RK1108_CRU_CLKSELS_CON(0));
-	clk_sel1 = cru_readl(RK1108_CRU_CLKSELS_CON(1));
-	clk_sel11 = cru_readl(RK1108_CRU_CLKSELS_CON(11));
+	clk_sel0 = cru_readl(RV1108_CRU_CLKSELS_CON(0));
+	clk_sel1 = cru_readl(RV1108_CRU_CLKSELS_CON(1));
+	clk_sel11 = cru_readl(RV1108_CRU_CLKSELS_CON(11));
 
 	plls_suspend(GPLL_ID);
 	plls_suspend(APLL_ID);
@@ -201,17 +201,17 @@ static void pm_plls_suspend(void)
 #if 0
 	/* core */
 	cru_writel(CRU_W_MSK_SETBITS(0, 0, 0x1f),
-		   RK1108_CRU_CLKSELS_CON(0));
+		   RV1108_CRU_CLKSELS_CON(0));
 
 	/* pclk_dbg */
 	cru_writel(CRU_W_MSK_SETBITS(3, 4, 0xf),
-		   RK1108_CRU_CLKSELS_CON(1));
+		   RV1108_CRU_CLKSELS_CON(1));
 
 	/* crypto */
 	cru_writel(CRU_W_MSK_SETBITS(0, 0, 0x1f),
-		   RK1108_CRU_CLKSELS_CON(11));
+		   RV1108_CRU_CLKSELS_CON(11));
 #endif
-#ifdef RK1108_SUSPEND_DEBUG
+#ifdef RV1108_SUSPEND_DEBUG
 {
 	int i;
 	enum rk_plls_id plls_id;
@@ -220,7 +220,7 @@ static void pm_plls_suspend(void)
 	for (plls_id = APLL_ID; plls_id < END_PLL_ID; plls_id++) {
 		for (i = 0; i < 6; i++) {
 			rkpm_ddr_printhex(
-				cru_readl(RK1108_PLL_CONS(plls_id, i))
+				cru_readl(RV1108_PLL_CONS(plls_id, i))
 			);
 			rkpm_ddr_printch(' ');
 		}
@@ -236,21 +236,21 @@ static void pm_plls_resume(void)
 #if 0
 	/* crypto */
 	cru_writel(clk_sel11 | CRU_W_MSK(0, 0x1f),
-		   RK1108_CRU_CLKSELS_CON(11));
+		   RV1108_CRU_CLKSELS_CON(11));
 
 	/* pclk_dbg */
 	cru_writel(clk_sel1 | CRU_W_MSK(4, 0xf),
-		   RK1108_CRU_CLKSELS_CON(1));
+		   RV1108_CRU_CLKSELS_CON(1));
 
 	/* core */
 	cru_writel(clk_sel0 | CRU_W_MSK(0, 0x1f),
-		   RK1108_CRU_CLKSELS_CON(0));
+		   RV1108_CRU_CLKSELS_CON(0));
 #endif
 
 	plls_resume(APLL_ID);
 	plls_resume(GPLL_ID);
 
-#ifdef RK1108_SUSPEND_DEBUG
+#ifdef RV1108_SUSPEND_DEBUG
 {
 	int i;
 	enum rk_plls_id plls_id;
@@ -259,7 +259,7 @@ static void pm_plls_resume(void)
 	for (plls_id = APLL_ID; plls_id < END_PLL_ID; plls_id++) {
 		for (i = 0; i < 6; i++) {
 			rkpm_ddr_printhex(
-				cru_readl(RK1108_PLL_CONS(plls_id, i))
+				cru_readl(RV1108_PLL_CONS(plls_id, i))
 			);
 			rkpm_ddr_printch(' ');
 		}
@@ -287,7 +287,7 @@ static void  ddr_printch(char byte)
 	pll_udelay(2);
 }
 
-static noinline void rk1108_pm_dump_inten(void)
+static noinline void rv1108_pm_dump_inten(void)
 {
 	DUMP_GPIO_INTEN(0);
 	DUMP_GPIO_INTEN(1);
@@ -298,7 +298,7 @@ static noinline void rk1108_pm_dump_inten(void)
 	rkpm_ddr_printch('\n');
 }
 
-static noinline void rk1108_pm_dump_irq(void)
+static noinline void rv1108_pm_dump_irq(void)
 {
 	u32 irq[4];
 	int i;
@@ -333,12 +333,12 @@ static noinline void rk1108_pm_dump_irq(void)
 
 static void rkpm_prepare(void)
 {
-	rk1108_pm_dump_inten();
+	rv1108_pm_dump_inten();
 }
 
 static void rkpm_finish(void)
 {
-	rk1108_pm_dump_irq();
+	rv1108_pm_dump_irq();
 }
 
 enum pmu_wakeup_cfg2 {
@@ -351,7 +351,7 @@ enum pmu_wakeup_cfg2 {
 	wakeup_timeout_en = 10
 };
 
-enum rk1108_pwr_mode_core_con {
+enum rv1108_pwr_mode_core_con {
 	pmu_global_int_disable = 0,
 	pmu_clr_core = 5,
 	pmu_scu_pd_en = 6,
@@ -360,7 +360,7 @@ enum rk1108_pwr_mode_core_con {
 	pmu_gpll_pd_en = 14
 };
 
-enum rk1108_pwr_mode_common_con {
+enum rv1108_pwr_mode_common_con {
 	pmu_power_mode_en = 0,
 	pmu_wakeup_reset_en = 3,
 	pmu_pll_pd_en = 4,
@@ -391,34 +391,34 @@ enum rk1108_pwr_mode_common_con {
 #define RK_PMU_GRF_VIRT			(RK_PMU_VIRT + SZ_4K)
 
 #define RK_PMU_MEM_VIRT			(RK_BOOTRAM_VIRT + SZ_32K)
-#define RKPM_BOOTRAM_PHYS		(RK1108_PMU_MEM_PHYS)
+#define RKPM_BOOTRAM_PHYS		(RV1108_PMU_MEM_PHYS)
 #define RKPM_BOOTRAM_BASE		(RK_PMU_MEM_VIRT)
-#define RKPM_BOOTRAM_SIZE		(RK1108_PMU_MEM_SIZE)
+#define RKPM_BOOTRAM_SIZE		(RV1108_PMU_MEM_SIZE)
 
 #define RKPM_BOOT_CODE_OFFSET		(0x0)
-#define RK1108PM_BOOT_CODE_SIZE		(0x700)
+#define RV1108PM_BOOT_CODE_SIZE		(0x700)
 
-#define RK1108PM_BOOT_DATA_OFFSET	(RKPM_BOOT_CODE_OFFSET + \
-					 RK1108PM_BOOT_CODE_SIZE)
+#define RV1108PM_BOOT_DATA_OFFSET	(RKPM_BOOT_CODE_OFFSET + \
+					 RV1108PM_BOOT_CODE_SIZE)
 
-#define RK1108PM_BOOT_DDRCODE_OFFSET	(RK1108PM_BOOT_DATA_OFFSET + \
+#define RV1108PM_BOOT_DDRCODE_OFFSET	(RV1108PM_BOOT_DATA_OFFSET + \
 					 RKPM_BOOT_DATA_SIZE)
 
 #define  RKPM_BOOT_CODE_PHY	(RKPM_BOOTRAM_PHYS + RKPM_BOOT_CODE_OFFSET)
 #define  RKPM_BOOT_CODE_BASE	(RKPM_BOOTRAM_BASE + RKPM_BOOT_CODE_OFFSET)
 
 #define  RKPM_BOOT_DATA_PHY	(RKPM_BOOTRAM_PHYS + \
-				 RK1108PM_BOOT_DATA_OFFSET)
+				 RV1108PM_BOOT_DATA_OFFSET)
 
 #define  RKPM_BOOT_DATA_BASE	(RKPM_BOOTRAM_BASE + \
-				 RK1108PM_BOOT_DATA_OFFSET)
+				 RV1108PM_BOOT_DATA_OFFSET)
 
 /* ddr resume data in boot ram */
 #define  RKPM_BOOT_DDRCODE_PHY	(RKPM_BOOTRAM_PHYS + \
-				 RK1108PM_BOOT_DDRCODE_OFFSET)
+				 RV1108PM_BOOT_DDRCODE_OFFSET)
 
 #define  RKPM_BOOT_DDRCODE_BASE	(RKPM_BOOTRAM_BASE + \
-				 RK1108PM_BOOT_DDRCODE_OFFSET)
+				 RV1108PM_BOOT_DDRCODE_OFFSET)
 
 #define RKPM_BOOT_CPUSP_PHY	(RKPM_BOOTRAM_PHYS + \
 				((RKPM_BOOTRAM_SIZE - 1) & (~(0x7))))
@@ -433,7 +433,7 @@ static char *resume_data_base = (char *)(RKPM_BOOT_DATA_BASE);
 static char boot_ram_data[BOOT_RAM_SAVE_SIZE];/* 8K + 40byte */
 static char int_ram_data[INT_RAM_SIZE];
 
-extern void rk1108_pm_slp_cpu_resume(void);
+extern void rv1108_pm_slp_cpu_resume(void);
 
 static void sram_data_for_sleep(char *boot_save, char *int_save, u32 flag)
 {
@@ -449,8 +449,8 @@ static void sram_data_for_sleep(char *boot_save, char *int_save, u32 flag)
 
 	/**********move  resume code and data to boot sram*************/
 	data_dst = (char *)RKPM_BOOT_CODE_BASE;
-	data_src = (char *)rk1108_pm_slp_cpu_resume;
-	data_size = RK1108PM_BOOT_CODE_SIZE;
+	data_src = (char *)rv1108_pm_slp_cpu_resume;
+	data_size = RV1108PM_BOOT_CODE_SIZE;
 	memcpy(data_dst, data_src, data_size);
 
 	data_dst = (char *)resume_data_base;
@@ -459,12 +459,12 @@ static void sram_data_for_sleep(char *boot_save, char *int_save, u32 flag)
 	memcpy((char *)data_dst, (char *)data_src, data_size);
 }
 
-#define RK1108_PMUGRF_DLL_CON0			(0x0180)
-#define RK1108_PMUGRF_DLL_CON1			(0x0184)
-#define RK1108_PMUGRF_DLL_STATUS0		(0x0190)
-#define RK1108_PMUGRF_DLL_STATUS1		(0x0194)
-#define RK1108_PMUGRF_SOC_CON0			(0x0100)
-#define RK1108_PMUGRF_FAST_BOOT_ADDR		(0x0300)
+#define RV1108_PMUGRF_DLL_CON0			(0x0180)
+#define RV1108_PMUGRF_DLL_CON1			(0x0184)
+#define RV1108_PMUGRF_DLL_STATUS0		(0x0190)
+#define RV1108_PMUGRF_DLL_STATUS1		(0x0194)
+#define RV1108_PMUGRF_SOC_CON0			(0x0100)
+#define RV1108_PMUGRF_FAST_BOOT_ADDR		(0x0300)
 
 static u32 pmu_grf_dll_con0;
 static u32 pmu_grf_dll_con1;
@@ -473,8 +473,8 @@ static u32 pmu_grf_soc_con0;
 static u32 pmu_grf_fast_boot_addr;
 static u32 cru_clk_gate12;
 
-static u32 rk1108_core_powermode;
-static u32 rk1108_common_powermode;
+static u32 rv1108_core_powermode;
+static u32 rv1108_common_powermode;
 static u32 pmu_pwrmode_core_con;
 static u32 pmu_pwrmode_common_con;
 static u32 pmu_wakeup_conf0;
@@ -484,11 +484,11 @@ static u32 gpio_pmic_sleep_mode;
 static u32 pmic_sleep_gpio;
 static u32 pmu_sft_con;
 
-#define RK1108_24MOSC_CNT	(60)
-/* #define RK1108_SOFT_USE_LF */
-/* #define RK1108_TIMEOUT_WACKUP */
-/* #define RK1108_PMU_DEBUG */
-#ifdef RK1108_PMU_DEBUG
+#define RV1108_24MOSC_CNT	(60)
+/* #define RV1108_SOFT_USE_LF */
+/* #define RV1108_TIMEOUT_WACKUP */
+/* #define RV1108_PMU_DEBUG */
+#ifdef RV1108_PMU_DEBUG
 static u32 pmu_grf_gpio0a_iomux;
 static u32 pmu_grf_gpio0c_iomux;
 #endif
@@ -506,7 +506,7 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 	      RKPM_CTR_ARMLOGDP_LPMD) & ctrbits) == 0)
 		return 0;
 
-#ifdef RK1108_PMU_DEBUG
+#ifdef RV1108_PMU_DEBUG
 	/* set pmu debug */
 	pmu_grf_gpio0a_iomux = pmu_grf_readl(0x0);
 	pmu_grf_gpio0c_iomux = pmu_grf_readl(0x8);
@@ -517,40 +517,40 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 			CRU_W_MSK_SETBITS(0x2, 12, 0x3), 0x8);
 #endif
 #if 0
-	cru_misc_con = cru_readl(RK1108_CRU_MISC_CON);
+	cru_misc_con = cru_readl(RV1108_CRU_MISC_CON);
 	pmu_grf_writel(0 | CRU_W_MSK_SETBITS(0x2, 12, 0x3), 0x0);
-	cru_writel(CRU_W_MSK_SETBITS(0x0, 8, 0xf), RK1108_CRU_MISC_CON);
-	cru_writel(0x02000000, RK1108_CRU_CLKGATES_CON(9));
+	cru_writel(CRU_W_MSK_SETBITS(0x0, 8, 0xf), RV1108_CRU_MISC_CON);
+	cru_writel(0x02000000, RV1108_CRU_CLKGATES_CON(9));
 #endif
 	/* config wakeup source */
-	pmu_wakeup_conf0 = pmu_readl(RK1108_PMU_WAKEUP_CFG0);
-	pmu_wakeup_conf1 = pmu_readl(RK1108_PMU_WAKEUP_CFG1);
-	pmu_wakeup_conf2 = pmu_readl(RK1108_PMU_WAKEUP_CFG2);
+	pmu_wakeup_conf0 = pmu_readl(RV1108_PMU_WAKEUP_CFG0);
+	pmu_wakeup_conf1 = pmu_readl(RV1108_PMU_WAKEUP_CFG1);
+	pmu_wakeup_conf2 = pmu_readl(RV1108_PMU_WAKEUP_CFG2);
 
-	pmu_writel(0x0, RK1108_PMU_WAKEUP_CFG0);
-	pmu_writel(0x0, RK1108_PMU_WAKEUP_CFG1);
+	pmu_writel(0x0, RV1108_PMU_WAKEUP_CFG0);
+	pmu_writel(0x0, RV1108_PMU_WAKEUP_CFG1);
 	wakeup_conf2 = 0
 		     | BIT(wakeup_gpio_int_en)
-#ifdef RK1108_TIMEOUT_WACKUP
+#ifdef RV1108_TIMEOUT_WACKUP
 		     | BIT(wakeup_timeout_en)
 #endif
 		     ;
-	pmu_writel(wakeup_conf2, RK1108_PMU_WAKEUP_CFG2);
+	pmu_writel(wakeup_conf2, RV1108_PMU_WAKEUP_CFG2);
 
 	/* set sleep gpio, GPIO0_B5, [10, 11]=01:pmu_sleep*/
 	gpio_pmic_sleep_mode = pmu_grf_readl(0x04);
 	pmu_grf_writel(CRU_W_MSK_SETBITS(0x1, 10, 0x3), 0x04);
 
 	/* set pmu mode */
-	pmu_pwrmode_core_con = pmu_readl(RK1108_PMU_PWRMODE_CORE_CON);
-	pmu_pwrmode_common_con = pmu_readl(RK1108_PMU_PWRMODE_COMMON_CON);
+	pmu_pwrmode_core_con = pmu_readl(RV1108_PMU_PWRMODE_CORE_CON);
+	pmu_pwrmode_common_con = pmu_readl(RV1108_PMU_PWRMODE_COMMON_CON);
 
 	pwr_mode_core_config = 0
 				| BIT(pmu_global_int_disable)
 				| BIT(pmu_clr_core)
 				/* | BIT(pmu_scu_pd_en) */
 				| BIT(pmu_dpll_pd_en)
-#ifndef RK1108_SOFT_PD_PLL
+#ifndef RV1108_SOFT_PD_PLL
 				| BIT(pmu_apll_pd_en)
 				| BIT(pmu_gpll_pd_en)
 #endif
@@ -607,47 +607,47 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 				       ;
 	}
 
-	pmu_grf_dll_con0 = pmu_grf_readl(RK1108_PMUGRF_DLL_CON0);
-	pmu_grf_dll_con1 = pmu_grf_readl(RK1108_PMUGRF_DLL_CON1);
-	cru_clk_gate8 = cru_readl(RK1108_CRU_CLKGATES_CON(8));
+	pmu_grf_dll_con0 = pmu_grf_readl(RV1108_PMUGRF_DLL_CON0);
+	pmu_grf_dll_con1 = pmu_grf_readl(RV1108_PMUGRF_DLL_CON1);
+	cru_clk_gate8 = cru_readl(RV1108_CRU_CLKGATES_CON(8));
 	/* set 24m osc disable */
 	if (pwr_mode_common_config & BIT(pmu_osc_24m_dis)) {
 		pwr_mode_common_config |= BIT(pmu_pmu_use_lf);
-		pmu_writel(RK1108_24MOSC_CNT * 32, RK1108_PMU_OSC_CNT);
+		pmu_writel(RV1108_24MOSC_CNT * 32, RV1108_PMU_OSC_CNT);
 	}
 	/* set pvtm */
 	if (pwr_mode_common_config & BIT(pmu_pmu_use_lf)) {
 		/* enable pvtm clk */
-		cru_writel(0x20000000, RK1108_CRU_CLKGATES_CON(8));
+		cru_writel(0x20000000, RV1108_CRU_CLKGATES_CON(8));
 		/* enable pvtm */
-		pmu_grf_writel(0x00020002, RK1108_PMUGRF_DLL_CON0);
+		pmu_grf_writel(0x00020002, RV1108_PMUGRF_DLL_CON0);
 		for (i = 0; i < 10; i++)
 			asm("nop;");
 
-		pmu_grf_writel(0x01000, RK1108_PMUGRF_DLL_CON1);
+		pmu_grf_writel(0x01000, RV1108_PMUGRF_DLL_CON1);
 		pmu_grf_writel(CRU_W_MSK_SETBITS(511, 2, 0xfff),
-			       RK1108_PMUGRF_DLL_CON0);
+			       RV1108_PMUGRF_DLL_CON0);
 		for (i = 0; i < 10; i++)
 			asm("nop;");
 
-		pmu_grf_writel(0x00010001, RK1108_PMUGRF_DLL_CON0);
-		while ((pmu_grf_readl(RK1108_PMUGRF_DLL_STATUS0) & BIT(0)) == 0)
+		pmu_grf_writel(0x00010001, RV1108_PMUGRF_DLL_CON0);
+		while ((pmu_grf_readl(RV1108_PMUGRF_DLL_STATUS0) & BIT(0)) == 0)
 			;
-#ifdef RK1108_TIMEOUT_WACKUP
-		pmu_writel(300 * 32, RK1108_PMU_TIMEOUT_CNT);
+#ifdef RV1108_TIMEOUT_WACKUP
+		pmu_writel(300 * 32, RV1108_PMU_TIMEOUT_CNT);
 #endif
 
-#ifdef RK1108_SOFT_USE_LF
+#ifdef RV1108_SOFT_USE_LF
 		pwr_mode_common_config &= (~BIT(pmu_pmu_use_lf));
 #endif
 	}
 
 	/* enable ddr retention */
-	pmu_sft_con = pmu_readl(RK1108_PMU_SFT_CON);
-	pmu_grf_soc_con0 = pmu_grf_readl(RK1108_PMUGRF_SOC_CON0);
+	pmu_sft_con = pmu_readl(RV1108_PMU_SFT_CON);
+	pmu_grf_soc_con0 = pmu_grf_readl(RV1108_PMUGRF_SOC_CON0);
 	if (pwr_mode_common_config & BIT(pmu_ddr_ret_en)) {
 		/* firstly, set pmu_sft retention disable */
-		pmu_writel(pmu_sft_con & ~(1 << 11), RK1108_PMU_SFT_CON);
+		pmu_writel(pmu_sft_con & ~(1 << 11), RV1108_PMU_SFT_CON);
 
 		/* and then, set grf_soc_con0 retention enable */
 		pmugrf_soc_con0 |= CRU_W_MSK_SETBITS(0x0, 2, 0x1);
@@ -662,35 +662,35 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 				| CRU_W_MSK_SETBITS(0x3, 12, 0x3)
 				;
 	}
-	pmu_grf_writel(pmugrf_soc_con0, RK1108_PMUGRF_SOC_CON0);
+	pmu_grf_writel(pmugrf_soc_con0, RV1108_PMUGRF_SOC_CON0);
 
 	/* set fast boot addr */
-	pmu_grf_fast_boot_addr = pmu_grf_readl(RK1108_PMUGRF_FAST_BOOT_ADDR);
-	cru_clk_gate12 = cru_readl(RK1108_CRU_CLKGATES_CON(12));
+	pmu_grf_fast_boot_addr = pmu_grf_readl(RV1108_PMUGRF_FAST_BOOT_ADDR);
+	cru_clk_gate12 = cru_readl(RV1108_CRU_CLKGATES_CON(12));
 	if (ctrbits & (RKPM_CTR_ARMOFF_LPMD | RKPM_CTR_ARMLOGDP_LPMD)) {
-		pmu_grf_writel(RK1108_PMU_MEM_PHYS,
-			       RK1108_PMUGRF_FAST_BOOT_ADDR);
-		cru_writel(0x000a0000, RK1108_CRU_CLKGATES_CON(12));
-		cru_writel(0x0, RK1108_CRU_GLB_RST_ST);
+		pmu_grf_writel(RV1108_PMU_MEM_PHYS,
+			       RV1108_PMUGRF_FAST_BOOT_ADDR);
+		cru_writel(0x000a0000, RV1108_CRU_CLKGATES_CON(12));
+		cru_writel(0x0, RV1108_CRU_GLB_RST_ST);
 	}
 
 	/* set pmu mode */
-	pmu_writel(pwr_mode_core_config, RK1108_PMU_PWRMODE_CORE_CON);
-	pmu_writel(pwr_mode_common_config, RK1108_PMU_PWRMODE_COMMON_CON);
-	rk1108_core_powermode = pwr_mode_core_config;
-	rk1108_common_powermode = pwr_mode_common_config;
-#ifdef RK1108_SUSPEND_DEBUG
+	pmu_writel(pwr_mode_core_config, RV1108_PMU_PWRMODE_CORE_CON);
+	pmu_writel(pwr_mode_common_config, RV1108_PMU_PWRMODE_COMMON_CON);
+	rv1108_core_powermode = pwr_mode_core_config;
+	rv1108_common_powermode = pwr_mode_common_config;
+#ifdef RV1108_SUSPEND_DEBUG
 	rkpm_ddr_printascii("pwr_mode_core_config:");
-	rkpm_ddr_printhex(pmu_readl(RK1108_PMU_PWRMODE_CORE_CON));
+	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_PWRMODE_CORE_CON));
 	rkpm_ddr_printch('\n');
 	rkpm_ddr_printascii("pwr_mode_common_config:");
-	rkpm_ddr_printhex(pmu_readl(RK1108_PMU_PWRMODE_COMMON_CON));
+	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_PWRMODE_COMMON_CON));
 	rkpm_ddr_printch('\n');
 	rkpm_ddr_printascii("pmu_sft_con:");
-	rkpm_ddr_printhex(pmu_readl(RK1108_PMU_SFT_CON));
+	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_SFT_CON));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("grf_soc_con0:");
-	rkpm_ddr_printhex(pmu_grf_readl(RK1108_PMUGRF_SOC_CON0));
+	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_SOC_CON0));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("\nPMUGRF_GPIO_BMUX_:");
 	rkpm_ddr_printhex(pmu_grf_readl(0x04));
@@ -698,25 +698,25 @@ static u32 rkpm_slp_mode_set(u32 ctrbits)
 	rkpm_ddr_printhex(gpio_pmic_sleep_mode);
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("\nPMUGRF_DLL_CON0:");
-	rkpm_ddr_printhex(pmu_grf_readl(RK1108_PMUGRF_DLL_CON0));
+	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_CON0));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("PMUGRF_DLL_CON1:");
-	rkpm_ddr_printhex(pmu_grf_readl(RK1108_PMUGRF_DLL_CON1));
+	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_CON1));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("PMUGRF_DLL__STATUS0:");
-	rkpm_ddr_printhex(pmu_grf_readl(RK1108_PMUGRF_DLL_STATUS0));
+	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_STATUS0));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("PMUGRF_DLL__STATUS1:");
-	rkpm_ddr_printhex(pmu_grf_readl(RK1108_PMUGRF_DLL_STATUS1));
+	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_DLL_STATUS1));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("fast_boot_addr:");
-	rkpm_ddr_printhex(pmu_grf_readl(RK1108_PMUGRF_FAST_BOOT_ADDR));
+	rkpm_ddr_printhex(pmu_grf_readl(RV1108_PMUGRF_FAST_BOOT_ADDR));
 	rkpm_ddr_printch('\n');
 	rkpm_ddr_printascii("PMU_STABLE_CNT:");
-	rkpm_ddr_printhex(pmu_readl(RK1108_PMU_STABLE_CNT));
+	rkpm_ddr_printhex(pmu_readl(RV1108_PMU_STABLE_CNT));
 	rkpm_ddr_printch('\n');
-	rkpm_ddr_printascii("RK1108_CRU_MISC_CON:");
-	rkpm_ddr_printhex(cru_readl(RK1108_CRU_MISC_CON));
+	rkpm_ddr_printascii("RV1108_CRU_MISC_CON:");
+	rkpm_ddr_printhex(cru_readl(RV1108_CRU_MISC_CON));
 	rkpm_ddr_printascii("\n");
 	rkpm_ddr_printascii("sleep set end\n");
 #endif
@@ -747,7 +747,7 @@ static void sram_code_data_save(u32 core_power_mode, u32 common_power_mode)
 }
 
 #define RK_GICD_BASE		(RK_GIC_VIRT)
-#define RK_GICC_BASE		(RK_GIC_VIRT + RK1108_GIC_DIST_SIZE)
+#define RK_GICC_BASE		(RK_GIC_VIRT + RV1108_GIC_DIST_SIZE)
 #define PM_IRQN_START		(32)
 #define PM_IRQN_END		(107)
 #define gic_reg_dump(a, b, c)	{}
@@ -828,25 +828,25 @@ static void  rkpm_peri_save(u32 core_power_mode, u32 common_power_mode)
 	rkpm_gic_dist_save(&slp_gic_save[0]);
 }
 
-static u32 rk1108_ctrbits;
+static u32 rv1108_ctrbits;
 
 static void rkpm_save_setting(u32 ctrbits)
 {
-	rk1108_ctrbits = ctrbits;
+	rv1108_ctrbits = ctrbits;
 	if (((RKPM_CTR_ARMOFF_LPMD |
 	      RKPM_CTR_IDLESRAM_MD |
 	      RKPM_CTR_ARMLOGDP_LPMD) & ctrbits) == 0) {
 		return;
 	}
 	rkpm_slp_mode_set(ctrbits);
-	if (rk1108_common_powermode & BIT(pmu_power_mode_en)) {
+	if (rv1108_common_powermode & BIT(pmu_power_mode_en)) {
 		ddr_printch('v');
 		if (ctrbits & (RKPM_CTR_ARMOFF_LPMD | RKPM_CTR_ARMLOGDP_LPMD)) {
-			sram_code_data_save(rk1108_core_powermode,
-					    rk1108_common_powermode);
+			sram_code_data_save(rv1108_core_powermode,
+					    rv1108_common_powermode);
 			ddr_printch('e');
-			rkpm_peri_save(rk1108_core_powermode,
-				       rk1108_common_powermode);
+			rkpm_peri_save(rv1108_core_powermode,
+				       rv1108_common_powermode);
 		}
 	}
 }
@@ -862,27 +862,27 @@ static void rkpm_save_setting(u32 ctrbits)
 static void slp1108_uartdbg_resume(void)
 {
 	void __iomem *b_addr = RK_DEBUG_UART_VIRT;
-	u32 pclk_id = RK1108_CLKGATE_PCLK_UART2;
-	u32 clk_id = (RK1108_CLKGATE_UART0_SRC + 2 * 2);
+	u32 pclk_id = RV1108_CLKGATE_PCLK_UART2;
+	u32 clk_id = (RV1108_CLKGATE_UART0_SRC + 2 * 2);
 	u32 gate_reg[2];
 	u32 rfl_reg, lsr_reg;
 
-	gate_reg[0] = cru_readl(RK1108_CRU_GATEID_CONS(pclk_id));
-	gate_reg[1] = cru_readl(RK1108_CRU_GATEID_CONS(clk_id));
+	gate_reg[0] = cru_readl(RV1108_CRU_GATEID_CONS(pclk_id));
+	gate_reg[1] = cru_readl(RV1108_CRU_GATEID_CONS(clk_id));
 
-	RK1108_CRU_UNGATING_OPS(pclk_id);
+	RV1108_CRU_UNGATING_OPS(pclk_id);
 	grf_writel(0x00f00000, 0x00c0);
 
 	do {
 		cru_writel(CRU_W_MSK_SETBITS(0x2, 8, 0x3),
-			   RK1108_CRU_CLKSELS_CON(16));
+			   RV1108_CRU_CLKSELS_CON(16));
 		cru_writel(0 | CRU_W_MSK_SETBITS(1, 9, 0x1),
-			   RK1108_CRU_SOFTRSTS_CON(2));
+			   RV1108_CRU_SOFTRSTS_CON(2));
 		dsb();
 		dsb();
 		rkpm_udelay(10);
 		cru_writel(0 | CRU_W_MSK_SETBITS(0, 9, 0x1),
-			   RK1108_CRU_SOFTRSTS_CON(2));
+			   RV1108_CRU_SOFTRSTS_CON(2));
 
 		reg_writel(0x83, b_addr + UART_LCR * 4);
 
@@ -898,14 +898,14 @@ static void slp1108_uartdbg_resume(void)
 		lsr_reg = readl_relaxed(b_addr + 0x14);
 	} while ((rfl_reg & 0x1f) || (lsr_reg & 0xf));
 
-	cru_writel(CRU_W_MSK_SETBITS(0x2, 8, 0x3), RK1108_CRU_CLKSELS_CON(16));
+	cru_writel(CRU_W_MSK_SETBITS(0x2, 8, 0x3), RV1108_CRU_CLKSELS_CON(16));
 
 	grf_writel(0x00f000a0, 0x00c0);
 
 	cru_writel(gate_reg[0] | CRU_W_MSK(pclk_id % 16, 0x1),
-		   RK1108_CRU_GATEID_CONS(pclk_id));
+		   RV1108_CRU_GATEID_CONS(pclk_id));
 	cru_writel(gate_reg[1] | CRU_W_MSK(clk_id % 16, 0x1),
-		   RK1108_CRU_GATEID_CONS(clk_id));
+		   RV1108_CRU_GATEID_CONS(clk_id));
 }
 #endif
 
@@ -1031,7 +1031,7 @@ static inline void sram_code_data_resume(u32 core_power_mode,
 
 static inline void  rkpm_slp_mode_set_resume(void)
 {
-#ifdef RK1108_PMU_DEBUG
+#ifdef RV1108_PMU_DEBUG
 	/* pmu debug */
 	pmu_grf_writel(pmu_grf_gpio0a_iomux | CRU_W_MSK(12, 0x3), 0x0);
 	pmu_grf_writel(pmu_grf_gpio0c_iomux |
@@ -1040,24 +1040,24 @@ static inline void  rkpm_slp_mode_set_resume(void)
 			CRU_W_MSK(10, 0x3) |
 			CRU_W_MSK(12, 0x3), 0x8);
 #endif
-	pmu_grf_writel(pmu_grf_soc_con0 | 0xffff0000, RK1108_PMUGRF_SOC_CON0);
-	pmu_writel(pmu_sft_con, RK1108_PMU_SFT_CON);
+	pmu_grf_writel(pmu_grf_soc_con0 | 0xffff0000, RV1108_PMUGRF_SOC_CON0);
+	pmu_writel(pmu_sft_con, RV1108_PMU_SFT_CON);
 	/* pmu wakeup config */
-	pmu_writel(pmu_wakeup_conf0, RK1108_PMU_WAKEUP_CFG0);
-	pmu_writel(pmu_wakeup_conf1, RK1108_PMU_WAKEUP_CFG1);
-	pmu_writel(pmu_wakeup_conf2, RK1108_PMU_WAKEUP_CFG2);
+	pmu_writel(pmu_wakeup_conf0, RV1108_PMU_WAKEUP_CFG0);
+	pmu_writel(pmu_wakeup_conf1, RV1108_PMU_WAKEUP_CFG1);
+	pmu_writel(pmu_wakeup_conf2, RV1108_PMU_WAKEUP_CFG2);
 	/* sleep gpio */
 	pmu_grf_writel(gpio_pmic_sleep_mode | CRU_W_MSK(10, 0x3), 0x04);
 	/* pmu mode */
-	pmu_writel(pmu_pwrmode_core_con, RK1108_PMU_PWRMODE_CORE_CON);
-	pmu_writel(pmu_pwrmode_common_con, RK1108_PMU_PWRMODE_COMMON_CON);
+	pmu_writel(pmu_pwrmode_core_con, RV1108_PMU_PWRMODE_CORE_CON);
+	pmu_writel(pmu_pwrmode_common_con, RV1108_PMU_PWRMODE_COMMON_CON);
 	/* fast boot */
-	pmu_grf_writel(pmu_grf_fast_boot_addr, RK1108_PMUGRF_FAST_BOOT_ADDR);
-	cru_writel(cru_clk_gate12 | 0xffff0000, RK1108_CRU_CLKGATES_CON(12));
+	pmu_grf_writel(pmu_grf_fast_boot_addr, RV1108_PMUGRF_FAST_BOOT_ADDR);
+	cru_writel(cru_clk_gate12 | 0xffff0000, RV1108_CRU_CLKGATES_CON(12));
 	/* pvtm */
-	pmu_grf_writel(pmu_grf_dll_con0, RK1108_PMUGRF_DLL_CON0);
-	pmu_grf_writel(pmu_grf_dll_con1, RK1108_PMUGRF_DLL_CON1);
-	cru_writel(cru_clk_gate8 | 0xffff0000, RK1108_CRU_CLKGATES_CON(8));
+	pmu_grf_writel(pmu_grf_dll_con0, RV1108_PMUGRF_DLL_CON0);
+	pmu_grf_writel(pmu_grf_dll_con1, RV1108_PMUGRF_DLL_CON1);
+	cru_writel(cru_clk_gate8 | 0xffff0000, RV1108_CRU_CLKGATES_CON(8));
 }
 
 void fiq_glue_resume(void);
@@ -1073,19 +1073,19 @@ static inline void  rkpm_peri_resume(u32 core_power_mode,
 
 static void rkpm_save_setting_resume(void)
 {
-	if (rk1108_common_powermode == 0) {
+	if (rv1108_common_powermode == 0) {
 		rkpm_ddr_printascii("powermode==0\n");
 		return;
 	}
 
 	rkpm_slp_mode_set_resume();
-	if (rk1108_common_powermode & BIT(pmu_power_mode_en)) {
-		if (rk1108_ctrbits &
+	if (rv1108_common_powermode & BIT(pmu_power_mode_en)) {
+		if (rv1108_ctrbits &
 		    (RKPM_CTR_ARMOFF_LPMD | RKPM_CTR_ARMLOGDP_LPMD)) {
-			rkpm_peri_resume(rk1108_core_powermode,
-					 rk1108_common_powermode);
-			sram_code_data_resume(rk1108_core_powermode,
-					      rk1108_common_powermode);
+			rkpm_peri_resume(rv1108_core_powermode,
+					 rv1108_common_powermode);
+			sram_code_data_resume(rv1108_core_powermode,
+					      rv1108_common_powermode);
 		}
 	}
 }
@@ -1111,11 +1111,11 @@ static void rkpm_save_setting_resume_first(void)
 }
 #endif
 
-static u32 clk_ungt_msk[RK1108_CRU_CLKGATES_CON_CNT];
+static u32 clk_ungt_msk[RV1108_CRU_CLKGATES_CON_CNT];
 
-static u32 clk_ungt_msk_1[RK1108_CRU_CLKGATES_CON_CNT];
+static u32 clk_ungt_msk_1[RV1108_CRU_CLKGATES_CON_CNT];
 
-static u32 clk_ungt_save[RK1108_CRU_CLKGATES_CON_CNT];
+static u32 clk_ungt_save[RV1108_CRU_CLKGATES_CON_CNT];
 
 static u32 *p_rkpm_clkgt_last_set;
 #define CLK_MSK_GATING(msk, con)	cru_writel(((msk) << 16) | 0xffff, con)
@@ -1126,31 +1126,31 @@ static void gtclks_suspend(void)
 {
 	int i;
 
-	for (i = 0; i < RK1108_CRU_CLKGATES_CON_CNT; i++) {
-		clk_ungt_save[i] = cru_readl(RK1108_CRU_CLKGATES_CON(i));
-#ifdef RK1108_SUSPEND_DEBUG
+	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++) {
+		clk_ungt_save[i] = cru_readl(RV1108_CRU_CLKGATES_CON(i));
+#ifdef RV1108_SUSPEND_DEBUG
 		rkpm_ddr_printhex(i);
 		rkpm_ddr_printascii(" mask: ");
 		rkpm_ddr_printhex(clk_ungt_msk[i]);
 		rkpm_ddr_printascii(" save: ");
-		rkpm_ddr_printhex(cru_readl(RK1108_CRU_CLKGATES_CON(i)));
+		rkpm_ddr_printhex(cru_readl(RV1108_CRU_CLKGATES_CON(i)));
 #endif
-		CLK_MSK_UNGATING(clk_ungt_msk[i], RK1108_CRU_CLKGATES_CON(i));
+		CLK_MSK_UNGATING(clk_ungt_msk[i], RV1108_CRU_CLKGATES_CON(i));
 
-		/* cru_writel(0xffff0000, RK1108_CRU_CLKGATES_CON(i)); */
-#ifdef RK1108_SUSPEND_DEBUG
+		/* cru_writel(0xffff0000, RV1108_CRU_CLKGATES_CON(i)); */
+#ifdef RV1108_SUSPEND_DEBUG
 		rkpm_ddr_printascii(" ~msk: ");
 		rkpm_ddr_printhex(((~clk_ungt_msk[i]) << 16) | 0xffff);
 		rkpm_ddr_printascii(" after gating: ");
-		rkpm_ddr_printhex(cru_readl(RK1108_CRU_CLKGATES_CON(i)));
+		rkpm_ddr_printhex(cru_readl(RV1108_CRU_CLKGATES_CON(i)));
 		rkpm_ddr_printch('\n');
 #endif
 	}
 #if 0
-	CLK_MSK_UNGATING(0x1400, RK1108_CRU_CLKGATES_CON(9));
-	CLK_MSK_UNGATING(0x183e, RK1108_CRU_CLKGATES_CON(14));
-	CLK_MSK_UNGATING(0x7b, RK1108_CRU_CLKGATES_CON(6));
-	CLK_MSK_UNGATING(0x1e4c, RK1108_CRU_CLKGATES_CON(7));
+	CLK_MSK_UNGATING(0x1400, RV1108_CRU_CLKGATES_CON(9));
+	CLK_MSK_UNGATING(0x183e, RV1108_CRU_CLKGATES_CON(14));
+	CLK_MSK_UNGATING(0x7b, RV1108_CRU_CLKGATES_CON(6));
+	CLK_MSK_UNGATING(0x1e4c, RV1108_CRU_CLKGATES_CON(7));
 #endif
 }
 
@@ -1158,15 +1158,15 @@ static void gtclks_resume(void)
 {
 	int i;
 
-	for (i = 0; i < RK1108_CRU_CLKGATES_CON_CNT; i++)
+	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++)
 		cru_writel(clk_ungt_save[i] | 0xffff0000,
-			   RK1108_CRU_CLKGATES_CON(i));
+			   RV1108_CRU_CLKGATES_CON(i));
 #if 0
 	rkpm_ddr_printascii("resume gating:\n");
-	for (i = 0; i < RK1108_CRU_CLKGATES_CON_CNT; i++) {
+	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++) {
 		rkpm_ddr_printhex(i);
 		rkpm_ddr_printch(':');
-		rkpm_ddr_printhex(cru_readl(RK1108_CRU_CLKGATES_CON(i)));
+		rkpm_ddr_printhex(cru_readl(RV1108_CRU_CLKGATES_CON(i)));
 		rkpm_ddr_printch('\n');
 	}
 #endif
@@ -1178,17 +1178,17 @@ static void clks_gating_suspend_init(void)
 
 	if (clk_suspend_clkgt_info_get(clk_ungt_msk,
 				       p_rkpm_clkgt_last_set,
-				       RK1108_CRU_CLKGATES_CON_CNT) ==
-				       RK1108_CRU_CLKGATES_CON(0)) {
+				       RV1108_CRU_CLKGATES_CON_CNT) ==
+				       RV1108_CRU_CLKGATES_CON(0)) {
 		rkpm_set_ops_gtclks(gtclks_suspend, gtclks_resume);
 		pr_info("%s:init ok\n", __func__);
 	}
-#ifdef RK1108_SUSPEND_DEBUG
+#ifdef RV1108_SUSPEND_DEBUG
 {
 	int i;
 
 	pr_info("%s:ungt_mask:\n", __func__);
-	for (i = 0; i < RK1108_CRU_CLKGATES_CON_CNT; i++)
+	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++)
 		pr_info("%d:0x%x\n", i, clk_ungt_msk[i]);
 }
 #endif
@@ -1232,7 +1232,7 @@ static void reg_pread(void)
 	n = readl_relaxed(RK_PWM_VIRT);
 }
 
-static void __init rk1108_suspend_init(void)
+static void __init rv1108_suspend_init(void)
 {
 	struct device_node *parent;
 	u32 pm_ctrbits = 0;

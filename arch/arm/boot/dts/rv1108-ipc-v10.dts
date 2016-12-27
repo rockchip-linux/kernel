@@ -49,8 +49,8 @@
 #include "dt-bindings/suspend/rockchip-pm.h"
 
 / {
-	model = "Rockchip RK1108 IPC MAINBOARD V10";
-	compatible = "rockchip,rk1108-ipc-v10", "rockchip,rk1108";
+	model = "Rockchip RV1108 IPC MAINBOARD V10";
+	compatible = "rockchip,rv1108-ipc-v10", "rockchip,rv1108";
 
 	memory {
 		device_type = "memory";

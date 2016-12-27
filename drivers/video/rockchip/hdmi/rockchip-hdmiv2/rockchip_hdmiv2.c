@@ -462,11 +462,11 @@ static irqreturn_t rk_hdmiv2_phy_irq(int irq, void *priv)
 
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
 		regmap_write(hdmi_dev->grf_base,
-			     RK1108_GRF_SOC_CON4,
+			     RV1108_GRF_SOC_CON4,
 			     RK1108_PLL_PDATA_DEN);
 		usleep_range(9, 10);
 		regmap_write(hdmi_dev->grf_base,
-			     RK1108_GRF_SOC_CON4,
+			     RV1108_GRF_SOC_CON4,
 			     RK1108_PLL_PDATA_EN);
 	} else if (hdmi_dev->soctype == HDMI_SOC_RK322XH) {
 		regmap_write(hdmi_dev->grf_base,

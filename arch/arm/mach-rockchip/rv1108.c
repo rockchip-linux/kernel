@@ -39,46 +39,46 @@
 #include "pm.h"
 #include "pm-rv1108.c"
 
-#define RK1108_DEVICE(name) \
+#define RV1108_DEVICE(name) \
 	{ \
 		.virtual	= (unsigned long) RK_##name##_VIRT, \
-		.pfn		= __phys_to_pfn(RK1108_##name##_PHYS), \
-		.length		= RK1108_##name##_SIZE, \
+		.pfn		= __phys_to_pfn(RV1108_##name##_PHYS), \
+		.length		= RV1108_##name##_SIZE, \
 		.type		= MT_DEVICE, \
 	}
 
-static struct map_desc rk1108_io_desc[] __initdata = {
-	RK1108_DEVICE(CRU),
-	RK1108_DEVICE(GRF),
-	RK1108_DEVICE(TIMER),
-	RK1108_DEVICE(EFUSE),
-	RK1108_DEVICE(CPU_AXI_BUS),
-#ifdef RK1108_EVB_V11
-	RK_DEVICE(RK_DEBUG_UART_VIRT, RK1108_UART2_PHYS, RK1108_UART_SIZE),
+static struct map_desc rv1108_io_desc[] __initdata = {
+	RV1108_DEVICE(CRU),
+	RV1108_DEVICE(GRF),
+	RV1108_DEVICE(TIMER),
+	RV1108_DEVICE(EFUSE),
+	RV1108_DEVICE(CPU_AXI_BUS),
+#ifdef RV1108_EVB_V11
+	RK_DEVICE(RK_DEBUG_UART_VIRT, RV1108_UART2_PHYS, RV1108_UART_SIZE),
 #else
-	RK_DEVICE(RK_DEBUG_UART_VIRT, RK1108_UART0_PHYS, RK1108_UART_SIZE),
+	RK_DEVICE(RK_DEBUG_UART_VIRT, RV1108_UART0_PHYS, RV1108_UART_SIZE),
 #endif
-	RK_DEVICE(RK_DDR_VIRT, RK1108_DDR_PCTL_PHYS, RK1108_DDR_PCTL_SIZE),
-	RK_DEVICE(RK_DDR_VIRT + RK1108_DDR_PCTL_SIZE, RK1108_DDR_PHY_PHYS,
-		  RK1108_DDR_PHY_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(0), RK1108_GPIO0_PHYS, RK1108_GPIO_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(1), RK1108_GPIO1_PHYS, RK1108_GPIO_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(2), RK1108_GPIO2_PHYS, RK1108_GPIO_SIZE),
-	RK_DEVICE(RK_GPIO_VIRT(3), RK1108_GPIO3_PHYS, RK1108_GPIO_SIZE),
-	RK_DEVICE(RK_GIC_VIRT, RK1108_GIC_DIST_PHYS, RK1108_GIC_DIST_SIZE),
-	RK_DEVICE(RK_GIC_VIRT + RK1108_GIC_DIST_SIZE, RK1108_GIC_CPU_PHYS,
-		  RK1108_GIC_CPU_SIZE),
-	RK_DEVICE(RK_PMU_GRF_VIRT, RK1108_PMU_GRF_PHYS, RK1108_PMU_GRF_SIZE),
-	RK_DEVICE(RK_PMU_MEM_VIRT, RK1108_PMU_MEM_PHYS, RK1108_PMU_MEM_SIZE),
-	RK_DEVICE(RK_PWM_VIRT, RK1108_PWM_PHYS, RK1108_PWM_SIZE),
-	RK_DEVICE(RK_PMU_VIRT, RK1108_PMU_PHYS, RK1108_PMU_SIZE),
+	RK_DEVICE(RK_DDR_VIRT, RV1108_DDR_PCTL_PHYS, RV1108_DDR_PCTL_SIZE),
+	RK_DEVICE(RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE, RV1108_DDR_PHY_PHYS,
+		  RV1108_DDR_PHY_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(0), RV1108_GPIO0_PHYS, RV1108_GPIO_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(1), RV1108_GPIO1_PHYS, RV1108_GPIO_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(2), RV1108_GPIO2_PHYS, RV1108_GPIO_SIZE),
+	RK_DEVICE(RK_GPIO_VIRT(3), RV1108_GPIO3_PHYS, RV1108_GPIO_SIZE),
+	RK_DEVICE(RK_GIC_VIRT, RV1108_GIC_DIST_PHYS, RV1108_GIC_DIST_SIZE),
+	RK_DEVICE(RK_GIC_VIRT + RV1108_GIC_DIST_SIZE, RV1108_GIC_CPU_PHYS,
+		  RV1108_GIC_CPU_SIZE),
+	RK_DEVICE(RK_PMU_GRF_VIRT, RV1108_PMU_GRF_PHYS, RV1108_PMU_GRF_SIZE),
+	RK_DEVICE(RK_PMU_MEM_VIRT, RV1108_PMU_MEM_PHYS, RV1108_PMU_MEM_SIZE),
+	RK_DEVICE(RK_PWM_VIRT, RV1108_PWM_PHYS, RV1108_PWM_SIZE),
+	RK_DEVICE(RK_PMU_VIRT, RV1108_PMU_PHYS, RV1108_PMU_SIZE),
 };
 
-static void __init rk1108_boot_mode_init(void)
+static void __init rv1108_boot_mode_init(void)
 {
-	u32 flag = readl_relaxed(RK_GRF_VIRT + RK1108_GRF_OS_REG0);
-	u32 mode = readl_relaxed(RK_GRF_VIRT + RK1108_GRF_OS_REG1);
-	u32 rst_st = readl_relaxed(RK_CRU_VIRT + RK1108_CRU_GLB_RST_ST);
+	u32 flag = readl_relaxed(RK_GRF_VIRT + RV1108_GRF_OS_REG0);
+	u32 mode = readl_relaxed(RK_GRF_VIRT + RV1108_GRF_OS_REG1);
+	u32 rst_st = readl_relaxed(RK_CRU_VIRT + RV1108_CRU_GLB_RST_ST);
 
 	if (flag == (SYS_KERNRL_REBOOT_FLAG | BOOT_RECOVER))
 		mode = BOOT_MODE_RECOVERY;
@@ -88,20 +88,20 @@ static void __init rk1108_boot_mode_init(void)
 	rockchip_boot_mode_init(flag, mode);
 }
 
-static void __init rk1108_dt_map_io(void)
+static void __init rv1108_dt_map_io(void)
 {
 	rockchip_soc_id = ROCKCHIP_SOC_RV1108;
 
-	iotable_init(rk1108_io_desc, ARRAY_SIZE(rk1108_io_desc));
+	iotable_init(rv1108_io_desc, ARRAY_SIZE(rv1108_io_desc));
 	debug_ll_io_init();
 
-	rk1108_boot_mode_init();
+	rv1108_boot_mode_init();
 	rockchip_efuse_init();
 }
 
 static DEFINE_SPINLOCK(pmu_idle_lock);
 
-static const u8 rk1108_pmu_idle_map[] = {
+static const u8 rv1108_pmu_idle_map[] = {
 	[IDLE_REQ_DSP] = 2,
 	[IDLE_REQ_CORE] = 3,
 	[IDLE_REQ_BUS] = 4,
@@ -113,9 +113,9 @@ static const u8 rk1108_pmu_idle_map[] = {
 	[IDLE_REQ_PMU] = 13,
 };
 
-static int rk1108_set_idle_request(enum pmu_idle_req req, bool idle)
+static int rv1108_set_idle_request(enum pmu_idle_req req, bool idle)
 {
-	u32 bit = rk1108_pmu_idle_map[req];
+	u32 bit = rv1108_pmu_idle_map[req];
 	u32 idle_mask, idle_target;
 	u32 mask = BIT(bit);
 	u32 val;
@@ -128,16 +128,16 @@ static int rk1108_set_idle_request(enum pmu_idle_req req, bool idle)
 	idle_target = (idle << bit) | (idle << (bit + 16));
 
 	spin_lock_irqsave(&pmu_idle_lock, flags);
-	val = readl_relaxed(RK_PMU_VIRT + RK1108_PMU_IDLE_REQ);
+	val = readl_relaxed(RK_PMU_VIRT + RV1108_PMU_IDLE_REQ);
 	if (idle)
 		val |=  mask;
 	else
 		val &= ~mask;
-	writel_relaxed(val, RK_PMU_VIRT + RK1108_PMU_IDLE_REQ);
+	writel_relaxed(val, RK_PMU_VIRT + RV1108_PMU_IDLE_REQ);
 
 	dsb();
 
-	while ((readl_relaxed(RK_PMU_VIRT + RK1108_PMU_IDLE_ST) & idle_mask) != idle_target)
+	while ((readl_relaxed(RK_PMU_VIRT + RV1108_PMU_IDLE_ST) & idle_mask) != idle_target)
 		;
 
 	spin_unlock_irqrestore(&pmu_idle_lock, flags);
@@ -145,68 +145,68 @@ static int rk1108_set_idle_request(enum pmu_idle_req req, bool idle)
 	return 0;
 }
 
-static void __init rk1108_dt_init_timer(void)
+static void __init rv1108_dt_init_timer(void)
 {
-	rockchip_pmu_ops.set_idle_request = rk1108_set_idle_request;
+	rockchip_pmu_ops.set_idle_request = rv1108_set_idle_request;
 	of_clk_init(NULL);
 	clocksource_of_init();
 	of_dvfs_init();
 }
 
-static void __init rk1108_reserve(void)
+static void __init rv1108_reserve(void)
 {
 	/* reserve memory for ION */
 	rockchip_ion_reserve();
 }
 
-static void __init rk1108_init_late(void)
+static void __init rv1108_init_late(void)
 {
 	if (rockchip_jtag_enabled)
 		clk_prepare_enable(clk_get_sys(NULL, "clk_jtag"));
-	rk1108_suspend_init();
+	rv1108_suspend_init();
 	rockchip_suspend_init();
 }
 
-static void rk1108_restart(char mode, const char *cmd)
+static void rv1108_restart(char mode, const char *cmd)
 {
 	u32 boot_flag, boot_mode;
 
 	rockchip_restart_get_boot_mode(cmd, &boot_flag, &boot_mode);
 
 	/* for loader */
-	writel_relaxed(boot_flag, RK_GRF_VIRT + RK1108_GRF_OS_REG0);
+	writel_relaxed(boot_flag, RK_GRF_VIRT + RV1108_GRF_OS_REG0);
 	/* for linux */
-	writel_relaxed(boot_mode, RK_GRF_VIRT + RK1108_GRF_OS_REG1);
+	writel_relaxed(boot_mode, RK_GRF_VIRT + RV1108_GRF_OS_REG1);
 
 	dsb();
 
 	/* pll enter slow mode */
-	writel_relaxed(0x01000000, RK_CRU_VIRT + RK1108_CRU_APLL_CON3);
-	writel_relaxed(0x01000000, RK_CRU_VIRT + RK1108_CRU_GPLL_CON3);
+	writel_relaxed(0x01000000, RK_CRU_VIRT + RV1108_CRU_APLL_CON3);
+	writel_relaxed(0x01000000, RK_CRU_VIRT + RV1108_CRU_GPLL_CON3);
 	dsb();
-	writel_relaxed(0xfdb9, RK_CRU_VIRT + RK1108_CRU_GLB_SRST_FST_VALUE);
+	writel_relaxed(0xfdb9, RK_CRU_VIRT + RV1108_CRU_GLB_SRST_FST_VALUE);
 	dsb();
 }
 
-static const char * const rk1108_dt_compat[] __initconst = {
-	"rockchip,rk1108",
+static const char * const rv1108_dt_compat[] __initconst = {
+	"rockchip,rv1108",
 	NULL,
 };
 
-DT_MACHINE_START(RK1108_DT, "Rockchip RK1108")
+DT_MACHINE_START(RV1108_DT, "Rockchip RV1108")
 	.smp		= smp_ops(rockchip_smp_ops),
-	.map_io		= rk1108_dt_map_io,
-	.init_time	= rk1108_dt_init_timer,
-	.dt_compat	= rk1108_dt_compat,
-	.init_late	= rk1108_init_late,
-	.reserve	= rk1108_reserve,
-	.restart	= rk1108_restart,
+	.map_io		= rv1108_dt_map_io,
+	.init_time	= rv1108_dt_init_timer,
+	.dt_compat	= rv1108_dt_compat,
+	.init_late	= rv1108_init_late,
+	.reserve	= rv1108_reserve,
+	.restart	= rv1108_restart,
 MACHINE_END
 
 char PIE_DATA(sram_stack)[1024];
 EXPORT_PIE_SYMBOL(DATA(sram_stack));
 
-static int __init rk1108_pie_init(void)
+static int __init rv1108_pie_init(void)
 {
 	int err;
 
@@ -229,4 +229,4 @@ static int __init rk1108_pie_init(void)
 
 	return 0;
 }
-arch_initcall(rk1108_pie_init);
+arch_initcall(rv1108_pie_init);

@@ -441,7 +441,7 @@ static void rockchip_hdmiv2_powerdown(struct hdmi_dev *hdmi_dev)
 				     RK322XH_PLL_PDATA_DEN);
 		else
 			regmap_write(hdmi_dev->grf_base,
-				     RK1108_GRF_SOC_CON4,
+				     RV1108_GRF_SOC_CON4,
 				     RK1108_PLL_PDATA_DEN);
 		if (hdmi_dev->soctype == HDMI_SOC_RK1108 ||
 		    hdmi_dev->soctype == HDMI_SOC_RK322XH) {
@@ -559,7 +559,7 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
 		regmap_write(hdmi_dev->grf_base,
-			     RK1108_GRF_SOC_CON4,
+			     RV1108_GRF_SOC_CON4,
 			     RK1108_PLL_POWER_DOWN |
 			     RK1108_PLL_PDATA_DEN);
 	else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
@@ -745,7 +745,7 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 	}
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
 		regmap_write(hdmi_dev->grf_base,
-			     RK1108_GRF_SOC_CON4,
+			     RV1108_GRF_SOC_CON4,
 			     RK1108_PLL_POWER_UP);
 	else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
 		regmap_write(hdmi_dev->grf_base,
@@ -776,7 +776,7 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 	}
 	if (hdmi_dev->soctype == HDMI_SOC_RK1108)
 		regmap_write(hdmi_dev->grf_base,
-			     RK1108_GRF_SOC_CON4,
+			     RV1108_GRF_SOC_CON4,
 			     RK1108_PLL_PDATA_EN);
 	else if (hdmi_dev->soctype == HDMI_SOC_RK322XH)
 		regmap_write(hdmi_dev->grf_base,
@@ -2023,7 +2023,7 @@ static int hdmi_dev_config_video(struct hdmi *hdmi, struct hdmi_video *vpara)
 					     RK322XH_PLL_POWER_DOWN);
 			else if (hdmi->soctype == HDMI_SOC_RK1108)
 				regmap_write(hdmi_dev->grf_base,
-					     RK1108_GRF_SOC_CON4,
+					     RV1108_GRF_SOC_CON4,
 					     RK1108_PLL_POWER_DOWN);
 		}
 		/* force output blue */
@@ -2513,10 +2513,10 @@ void rockchip_hdmiv2_dev_initial(struct hdmi_dev *hdmi_dev)
 					     BIT(2 + 16));
 			} else if (hdmi_dev->soctype == HDMI_SOC_RK1108) {
 				regmap_write(hdmi_dev->grf_base,
-					     RK1108_GRF_SOC_CON4,
+					     RV1108_GRF_SOC_CON4,
 					     RK1108_DDC_MASK_EN);
 				regmap_write(hdmi_dev->grf_base,
-					     RK1108_GRF_SOC_CON2,
+					     RV1108_GRF_SOC_CON2,
 					     RK1108_SDA_READ_EN);
 			}
 			reset_control_assert(hdmi_dev->reset);

@@ -684,7 +684,7 @@ static int rk1108_platform_probe(struct platform_device *pdev)
 	}
 
 	/* enable i2s->acodec path */
-	ret = regmap_write(grf, RK1108_GRF_SOC_CON0, BIT(12) << 16 | BIT(12));
+	ret = regmap_write(grf, RV1108_GRF_SOC_CON0, BIT(12) << 16 | BIT(12));
 	if (ret != 0) {
 		dev_err(&pdev->dev, "Could not write to GRF: %d\n", ret);
 		return ret;

@@ -46,8 +46,8 @@
 #include "lcd-ili9806e_mipi.dtsi"
 
 / {
-	model = "Rockchip RK1108 CVR 2 Layer SDK BOARD";
-	compatible = "rockchip,rk1108-cvr-hx108", "rockchip,rk1108";
+	model = "Rockchip RV1108 CVR 2 Layer SDK BOARD";
+	compatible = "rockchip,rv1108-cvr-hx108", "rockchip,rv1108";
 
 	memory {
 		device_type = "memory";

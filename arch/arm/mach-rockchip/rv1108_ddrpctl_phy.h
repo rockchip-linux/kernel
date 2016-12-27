@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __PLAT_ROCKCHIP_RK1108_DDRPCTL_PHY_H
-#define __PLAT_ROCKCHIP_RK1108_DDRPCTL_PHY_H
+#ifndef __PLAT_ROCKCHIP_RV1108_DDRPCTL_PHY_H
+#define __PLAT_ROCKCHIP_RV1108_DDRPCTL_PHY_H
 
 /* DDR pctl register */
 #define DDR_PCTL_SCFG			0x0000
@@ -396,4 +396,4 @@
 #define DDR_MSCH_READLATENCY		0x0014
 #define DDR_MSCH_ACTIVATE		0x0038
 #define DDR_MSCH_DEVTODEV		0x003c
-#endif /* __MACH_ROCKCHIP_RK31108_DDR_H */
+#endif /* __MACH_ROCKCHIP_RV1108_DDR_H */

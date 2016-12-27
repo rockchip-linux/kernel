@@ -92,22 +92,22 @@
 /********************* console used for sleep.S ******************************/
 #endif
 
-#define RK1108_PMU_PWRMODE_COMMON_CON 		(0x20010018)
-#define RK1108_DDR_DERETION			(0x00002000)
-#define RK1108_CRU_DPLL_CON2 			(0x20200028)
-#define RK1108_CRU_DPLL_LOCK			(0x80000000)
+#define RV1108_PMU_PWRMODE_COMMON_CON 		(0x20010018)
+#define RV1108_DDR_DERETION			(0x00002000)
+#define RV1108_CRU_DPLL_CON2 			(0x20200028)
+#define RV1108_CRU_DPLL_LOCK			(0x80000000)
 
 .text
-ENTRY(rk1108_pm_slp_cpu_while_tst)
+ENTRY(rv1108_pm_slp_cpu_while_tst)
 	stmfd sp!, { r3 - r12, lr }
 1:	mov r3, r3
 	b 1b
 	ldmfd sp!, { r3 - r12, pc }
-ENDPROC(rk1108_pm_slp_cpu_while_tst)
+ENDPROC(rv1108_pm_slp_cpu_while_tst)
 
 .data
 .align
-ENTRY(rk1108_pm_slp_cpu_resume)
+ENTRY(rv1108_pm_slp_cpu_resume)
 9:	mov r1, r1
 
 	setmode	PSR_I_BIT | PSR_F_BIT | SVC_MODE, r1  @ set SVC, irqs off
@@ -124,15 +124,15 @@ cpu1loop:
 
 cpu0Run:
 	/* ddr deretention */
-	ldr r1, =RK1108_PMU_PWRMODE_COMMON_CON
-	ldr r2, =RK1108_DDR_DERETION
+	ldr r1, =RV1108_PMU_PWRMODE_COMMON_CON
+	ldr r2, =RV1108_DDR_DERETION
 	str r2, [r1]
 
 	/* dpll lock */
 dpll_unlock:
-	ldr r1, =RK1108_CRU_DPLL_CON2
+	ldr r1, =RV1108_CRU_DPLL_CON2
 	ldr r2, [r1]
-	and r2, r2, #RK1108_CRU_DPLL_LOCK
+	and r2, r2, #RV1108_CRU_DPLL_LOCK
 	cmp r2, #0
 	beq dpll_unlock
 
@@ -141,4 +141,4 @@ dpll_unlock:
 	add r5, r5, r1	/* resume data addr */
 	ldr pc, [r5, #(RKPM_BOOTDATA_CPUCODE*4)]
 8:      .long (0x00 + 0x700)	/* RKPM_BOOT_CODE_OFFSET+RKPM_BOOT_CODE_SIZE */
-ENDPROC(rk1108_pm_slp_cpu_resume)
+ENDPROC(rv1108_pm_slp_cpu_resume)

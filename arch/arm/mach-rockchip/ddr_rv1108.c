@@ -17,7 +17,7 @@
 #include <linux/rk_fb.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/io.h>
-#include "rk1108_ddrpctl_phy.h"
+#include "rv1108_ddrpctl_phy.h"
 
 /* DDR3 define */
 /* mr0 for ddr3 */
@@ -161,8 +161,8 @@
 #define pmu_write32(v, offset)		writel_relaxed(v, RK_PMU_VIRT + offset)
 #define ddrpctl_read32(offset)		readl_relaxed(RK_DDR_VIRT + offset)
 #define ddrpctl_write32(v, offset)	writel_relaxed(v, RK_DDR_VIRT + offset)
-#define ddrphy_read32(offset)		readl_relaxed((RK_DDR_VIRT + RK1108_DDR_PCTL_SIZE) + offset)
-#define ddrphy_write32(v, offset)	writel_relaxed(v, (RK_DDR_VIRT + RK1108_DDR_PCTL_SIZE) + offset)
+#define ddrphy_read32(offset)		readl_relaxed((RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE) + offset)
+#define ddrphy_write32(v, offset)	writel_relaxed(v, (RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE) + offset)
 
 #define READ_CS_INFO()		(((grf_read32(GRF_OS_REG2) >> 11) & 0x1) + 1)
 #define READ_COL_INFO()		(9 + ((grf_read32(GRF_OS_REG2) >> 9) & 0x3))
@@ -309,7 +309,7 @@ u32 DEFINE_PIE_DATA(ddr_freq);
 static u32 *p_ddr_freq;
 
 
-static __sramdata u32 clk_gate[RK1108_CRU_CLKGATES_CON_CNT];
+static __sramdata u32 clk_gate[RV1108_CRU_CLKGATES_CON_CNT];
 
 
 #define DDR3_CL_CWL(d1, d2, d3, d4, d5, d6, d7) \
@@ -599,12 +599,12 @@ static noinline u32 ddr_get_pll_freq(PLL_ID pll_id)
 	u32 ret = 0, val = 0;
 	u32 fbdiv, postdiv1, postdiv2, refdiv;
 
-	fbdiv = cru_read32(RK1108_PLL_CONS(pll_id, 0)) & 0xfff;
-	val = cru_read32(RK1108_PLL_CONS(pll_id, 1));
+	fbdiv = cru_read32(RV1108_PLL_CONS(pll_id, 0)) & 0xfff;
+	val = cru_read32(RV1108_PLL_CONS(pll_id, 1));
 	postdiv1 = (val >> 8) & 0x7;
 	postdiv2 = (val >> 12) & 0x7;
 	refdiv = val & 0x3f;
-	val = (cru_read32(RK1108_PLL_CONS(pll_id, 3)) >> 8) & 1;
+	val = (cru_read32(RV1108_PLL_CONS(pll_id, 3)) >> 8) & 1;
 
 	if (val == 1)
 		ret = 24 * fbdiv / (refdiv * postdiv1 * postdiv2);
@@ -632,20 +632,20 @@ static __sramfunc u32 ddr_set_pll(u32 nmhz, u32 set)
 		clkPostDiv2 = 1;
 		clkFbDiv = (nmhz * 2 * DDR_PLL_REFDIV * clkPostDiv1 * clkPostDiv2) / 24;
 	} else {
-		cru_write32(PLL_MODE_SLOW, RK1108_PLL_CONS(DPLL, 3));
-		cru_write32(FBDIV(clkFbDiv), RK1108_PLL_CONS(DPLL, 0));
+		cru_write32(PLL_MODE_SLOW, RV1108_PLL_CONS(DPLL, 3));
+		cru_write32(FBDIV(clkFbDiv), RV1108_PLL_CONS(DPLL, 0));
 		cru_write32(REFDIV(DDR_PLL_REFDIV) | POSTDIV1(clkPostDiv1) |
-				POSTDIV2(clkPostDiv2), RK1108_PLL_CONS(DPLL, 1));
+				POSTDIV2(clkPostDiv2), RV1108_PLL_CONS(DPLL, 1));
 		ddr_delayus(1);
 		delay = 1000;
 		while (delay > 0) {
-			if (cru_read32(RK1108_PLL_CONS(DPLL, 2)) &
+			if (cru_read32(RV1108_PLL_CONS(DPLL, 2)) &
 			    PLL_LOCK_STATUS)
 				break;
 			ddr_delayus(1);
 			delay--;
 		}
-		cru_write32(PLL_MODE_NORM, RK1108_PLL_CONS(DPLL, 3));
+		cru_write32(PLL_MODE_NORM, RV1108_PLL_CONS(DPLL, 3));
 	}
 
 	ret = (24 * clkFbDiv) / (2 * DDR_PLL_REFDIV * clkPostDiv1 *
@@ -1384,11 +1384,11 @@ static __sramfunc void idle_port(void)
 	u32 idle_stus, i;
 
 	ddr_copy(&(clk_gate[0]),
-		 (u32 *)(RK_CRU_VIRT + RK1108_CRU_CLKGATE_CON),
-		 RK1108_CRU_CLKGATES_CON_CNT);
+		 (u32 *)(RK_CRU_VIRT + RV1108_CRU_CLKGATE_CON),
+		 RV1108_CRU_CLKGATES_CON_CNT);
 
-	for (i = 0; i < RK1108_CRU_CLKGATES_CON_CNT; i++)
-		cru_write32(0xffff0000, RK1108_CRU_CLKGATES_CON(i));
+	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++)
+		cru_write32(0xffff0000, RV1108_CRU_CLKGATES_CON(i));
 
 	idle_stus = IDLE_MSCH_ST;
 	pmu_write32(IDLE_REQ_MSCH_EN, 0x3c);
@@ -1409,8 +1409,8 @@ static __sramfunc void deidle_port(void)
 	while ((pmu_read32(0x40) & idle_stus) != 0)
 		;
 
-	ddr_copy((u32 *)(RK_CRU_VIRT + RK1108_CRU_CLKGATE_CON),
-		 &(clk_gate[0]), RK1108_CRU_CLKGATES_CON_CNT);
+	ddr_copy((u32 *)(RK_CRU_VIRT + RV1108_CRU_CLKGATE_CON),
+		 &(clk_gate[0]), RV1108_CRU_CLKGATES_CON_CNT);
 }
 
 static void __sramfunc ddr_SRE_2_SRX(u32 freq)
@@ -1566,7 +1566,7 @@ int _ddr_change_freq(u32 nmhz)
 	}
 
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_DDR_VIRT));
-	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_DDR_VIRT + RK1108_DDR_PCTL_SIZE));
+	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE));
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_CRU_VIRT));
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_GRF_VIRT));
 	dsb();
@@ -1639,7 +1639,7 @@ static int of_do_get_timings(struct device_node *np, struct ddr_timing *tim)
 	return ret;
 }
 
-static void rk1108_ddr_timing_init(void *arg)
+static void rv1108_ddr_timing_init(void *arg)
 {
 	if (arg) {
 		of_do_get_timings(arg, &p_ddr_reg->dram_timing);
@@ -1684,7 +1684,7 @@ int ddr_init(u32 freq, void *arg)
 	p_ddr_freq = kern_to_pie(rockchip_pie_chunk, &DATA(ddr_freq));
 	p_ddr_set_pll = fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_set_pll));
 
-	rk1108_ddr_timing_init(arg);
+	rv1108_ddr_timing_init(arg);
 
 	*p_ddr_freq = 0;
 	p_ddr_reg->ddr_sr_idle = p_ddr_reg->dram_timing.sr_idle;
