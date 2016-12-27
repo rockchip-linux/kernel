@@ -870,7 +870,7 @@
 	};
 
 	hdmi: hdmi@300c0000 {
-		compatible = "rockchip,rk1108-hdmi";
+		compatible = "rockchip,rv1108-hdmi";
 		reg = <0x300c0000 0x20000>,
 		      <0x20220000 0x8000>;
 		interrupts = <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
