@@ -1,6 +1,6 @@
 obj-y += common.o
 obj-y += cpu.o
-obj-y += rk1108.o
+obj-y += rv1108.o
 obj-y += rk3036.o
 obj-y += rk312x.o
 obj-y += rk3126b.o
@@ -15,7 +15,7 @@ endif
 obj-y += efuse.o
 obj-y += pvtm.o
 obj-y += rk_system_status.o
-obj-$(CONFIG_PM) += rockchip_pm.o sleep.o rk312x_sleep.o rk1108_sleep.o
+obj-$(CONFIG_PM) += rockchip_pm.o sleep.o rk312x_sleep.o rv1108_sleep.o
 obj-$(CONFIG_RK_FPGA) += fpga.o
 obj-$(CONFIG_CPU_IDLE) += cpuidle.o
 obj-$(CONFIG_SMP) += platsmp.o

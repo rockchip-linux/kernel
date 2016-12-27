@@ -42,13 +42,15 @@
 
 /dts-v1/;
 
-#include "rk1108.dtsi"
-#include "lcd-ili9806e_mipi.dtsi"
+#include "rv1108.dtsi"
+//#include "lcd-ili9806e_mipi.dtsi" /* dispaly board v10 v11 */
+#include "lcd-e555hbm2_mipi.dtsi" /* display board v20*/
+//#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
 #include "dt-bindings/suspend/rockchip-pm.h"
 
 / {
-	model = "Rockchip RK1108 EVB MAINBOARD V10";
-	compatible = "rockchip,rk1108-evb-v10", "rockchip,rk1108";
+	model = "Rockchip RK1108 IPC MAINBOARD V10";
+	compatible = "rockchip,rk1108-ipc-v10", "rockchip,rk1108";
 
 	memory {
 		device_type = "memory";
@@ -57,6 +59,8 @@
 
 	fiq-debugger {
 		status = "okay";
+		rockchip,serial-id = <2>;
+		pinctrl-0 = <&uart2m0_xfer>;
 	};
 
 	rockchip_suspend: rockchip_suspend {
@@ -167,9 +171,10 @@
 
 	wireless-wlan {
 		compatible = "wlan-platdata";
-		wifi_chip_type = "rtl8723bs_vq0";
-		WIFI,poweren_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
-		WIFI,host_wake_irq = <&gpio0 GPIO_A3 GPIO_ACTIVE_HIGH>;
+		wifi_chip_type = "rtl8723cs";
+		sdio_vref = <0>;
+		WIFI,poweren_gpio = <&gpio3 GPIO_B6 GPIO_ACTIVE_HIGH>;
+		WIFI,host_wake_irq = <&gpio3 GPIO_A7 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 	};
 
@@ -192,11 +197,7 @@
 		408000 1000000
 		600000 1000000
 		816000 1000000
-		1008000 1050000
-		//1200000 1150000
-		//1296000 1200000
-		//1392000 1250000
-		//1488000 1325000
+		1008000 1150000
 		>;
 	status = "okay";
 };
@@ -229,52 +230,48 @@
 	key0 {
 		compatible = "rockchip,key";
 		io-channels = <&adc 0>;
+		adc-drift = <45>;
 
 		tab-key {
 			linux,code = <15>;
 			label = "tab";
-			rockchip,adc_value = <1>;
+			rockchip,adc_value = <685>;
 		};
 
 		enter-key {
 			linux,code = <28>;
 			label = "volume down";
-			rockchip,adc_value = <169>;
+			rockchip,adc_value = <802>;
 		};
 
 		up-key {
 			linux,code = <103>;
 			label = "up";
-			rockchip,adc_value = <352>;
+			rockchip,adc_value = <238>;
 		};
 
 		down-key {
 			linux,code = <108>;
 			label = "down";
-			rockchip,adc_value = <559>;
+			rockchip,adc_value = <353>;
 		};
-	};
-
-	key1 {
-		compatible = "rockchip,key";
-		io-channels = <&adc 1>;
 
 		left-key {
 			linux,code = <105>;
 			label = "left";
-			rockchip,adc_value = <353>;
+			rockchip,adc_value = <465>;
 		};
 
 		right-key {
 			linux,code = <106>;
 			label = "right";
-			rockchip,adc_value = <559>;
+			rockchip,adc_value = <109>;
 		};
 
 		menu-key {
 			linux,code = <127>;
 			label = "menu";
-			rockchip,adc_value = <169>;
+			rockchip,adc_value = <581>;
 		};
 
 		esc-key {
@@ -291,10 +288,20 @@
 	i2c-scl-rising-time-ns = <275>;
 	i2c-scl-falling-time-ns = <16>;
 	clock-frequency = <400000>;
-	nack-retry = <1>;
 
 	rk805: rk805@18 {
 		reg = <0x18>;
+		status = "okay";
+	};
+
+	sensor: sensor@19 {
+		compatible = "bma2xx_acc";
+		reg = <0x19>;
+		type = <2>;
+		irq-gpio = <&gpio0 GPIO_B3 IRQ_TYPE_LEVEL_HIGH>;
+		irq_enable = <0>;
+		poll_delay_ms = <30>;
+		layout = <2>;
 		status = "okay";
 	};
 
@@ -304,7 +311,7 @@
 		reg = <0x30>;
 		device_type = "v4l2-i2c-subdev";
 		/* 1 or 2 or 4 */
-		channels = <2>;
+		channels = <4>;
 		/* 1.8v or 3.3v */
 		apio_vol = <3300>;
 		/* PAL or NTSC */
@@ -315,105 +322,32 @@
 		pinctrl-0 = <&cif_dvp_d2d9 &cif_dvp_clk_in>;
 		pinctrl-1 = <&cif_dvp_d2d9_sleep &cif_dvp_clk_in_sleep>;
 	};
+
+	mpu6500: mpu6500@68 {
+		status = "disabled";
+		compatible = "invensense,mpu6500";
+		reg = <0x68>;
+		mpu-int_config = <0x10>;
+		mpu-level_shifter = <0>;
+		mpu-orientation = <1 0 0 0 1 0 0 0 1>;
+		orientation-x= <1>;
+		orientation-y= <1>;
+		orientation-z= <0>;
+		support-hw-poweroff = <1>;
+		mpu-debug = <1>;
+	};
 };
 
 &i2c1 {
 	status = "okay";
-	camera0: camera-module@1a {
-		status = "okay";
-		compatible = "sony,imx323-v4l2-i2c-subdev";
-		reg = <0x1a>;
-		device_type = "v4l2-i2c-subdev";
-		clocks = <&clk_cif_out>;
-		clock-names = "clk_cif_out";
-		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
-		pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11
-			&cif_dvp_clk_in &cif_dvp_clk_out &cif_dvp_sync>;
-		pinctrl-1 = <&cif_dvp_sleep>;
-		rockchip,pd-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
-		rockchip,pwr-gpio = <&gpio0 18 GPIO_ACTIVE_HIGH>;
-		rockchip,rst-gpio = <&gpio3 8 GPIO_ACTIVE_LOW>;
-		rockchip,camera-module-mclk-name = "clk_cif_out";
-		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
-		rockchip,camera-module-regulator-voltages = <1200000 2700000>;
-		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "LA6114PA";
-		rockchip,camera-module-len-name = "YM6011P";
-		rockchip,camera-module-fov-h = "122";
-		rockchip,camera-module-fov-v = "63";
-		rockchip,camera-module-orientation = <0>;
-		rockchip,camera-module-iq-flip = <0>;
-		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <0>;
-		rockchip,camera-module-mirror = <0>;
-		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
-		rockchip,camera-module-defrect0 = <2200 1125 48 13 1920 1080>;
-		rockchip,camera-module-flash-support = <0>;
-	};
 
-	camera1: camera-module@36 {
-		status = "okay";
-		compatible = "omnivision,ov4689-v4l2-i2c-subdev";
-		reg = <0x36>;
-		device_type = "v4l2-i2c-subdev";
-		clocks = <&clk_mipicsi_out>;
-		clock-names = "clk_mipicsi_out";
-		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
-		pinctrl-0 = <&cam0_default_pins>;
-		pinctrl-1 = <&cam0_sleep_pins>;
-		rockchip,pd-gpio = <&gpio3 8 GPIO_ACTIVE_LOW>;
-		rockchip,pwr-gpio = <&gpio0 18 GPIO_ACTIVE_HIGH>;
-		rockchip,rst-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
-		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
-		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
-		rockchip,camera-module-regulator-voltages = <1200000 2800000>;
-		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "LA6111PA";
-		rockchip,camera-module-len-name = "YM6011P";
-		rockchip,camera-module-fov-h = "116";
-		rockchip,camera-module-fov-v = "61";
-		rockchip,camera-module-orientation = <0>;
-		rockchip,camera-module-iq-flip = <0>;
-		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <0>;
-		rockchip,camera-module-mirror = <1>;
-		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
-		rockchip,camera-module-defrect0 = <2688 1520 0 0 2688 1520>;
-		rockchip,camera-module-flash-support = <0>;
-		rockchip,camera-module-mipi-dphy-index = <0>;
-	};
+//#include "rv1108-camb-v11.dtsi" /* camera board v11 */
+//#include "rv1108-camb-v12.dtsi" /* camera board v12 */
+#include "rv1108-camb-v13.dtsi" /* camera board v13 */
+};
 
-	camera2: camera-module@36-1 {
-		status = "okay";
-		compatible = "omnivision,ov2710-v4l2-i2c-subdev";
-		reg = <0x36>;
-		device_type = "v4l2-i2c-subdev";
-		clocks = <&clk_mipicsi_out>;
-		clock-names = "clk_mipicsi_out";
-		pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
-		pinctrl-0 = <&cam0_default_pins>;
-		pinctrl-1 = <&cam0_sleep_pins>;
-		rockchip,pd-gpio = <&gpio3 8 GPIO_ACTIVE_HIGH>;
-		rockchip,pwr-gpio = <&gpio0 18 GPIO_ACTIVE_HIGH>;
-		rockchip,rst-gpio = <&gpio3 25 GPIO_ACTIVE_LOW>;
-		rockchip,camera-module-mclk-name = "clk_mipicsi_out";
-		rockchip,camera-module-regulator-names = "vdd_cam", "avdd_cam";
-		rockchip,camera-module-regulator-voltages = <1450000 3300000>;
-		rockchip,camera-module-facing = "back";
-		rockchip,camera-module-name = "LA6110PA";
-		rockchip,camera-module-len-name = "YM6011P";
-		rockchip,camera-module-fov-h = "128";
-		rockchip,camera-module-fov-v = "55.7";
-		rockchip,camera-module-orientation = <0>;
-		rockchip,camera-module-iq-flip = <0>;
-		rockchip,camera-module-iq-mirror = <0>;
-		rockchip,camera-module-flip = <0>;
-		rockchip,camera-module-mirror = <0>;
-		/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
-		rockchip,camera-module-defrect0 = <1920 1080 0 0 1920 1080>;
-		rockchip,camera-module-flash-support = <0>;
-		rockchip,camera-module-mipi-dphy-index = <0>;
-	};
+&cif1to4 {
+	status = "disabled";
 };
 
 &cif_cif0 {
@@ -423,7 +357,7 @@
 
 &cif_cif1 {
 	rockchip,camera-modules-attached = <&nvp6124>;
-	status = "okay";
+	status = "disabled";
 };
 
 &cif_cif2 {
@@ -441,10 +375,6 @@
 	status = "okay";
 };
 
-&cif1to4 {
-	status = "okay";
-};
-
 &cvbsin {
 	status = "okay";
 };
@@ -458,7 +388,7 @@
 
 	/* pmu_regulator = "act_ldo5"; */
 	/* power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>; */
-	reset-gpio = <&gpio1 GPIO_C1 GPIO_ACTIVE_LOW>;
+	reset-gpio = <&gpio1 GPIO_C0 GPIO_ACTIVE_LOW>;
 
 	phy-mode = "rmii";
 	clock_in_out = "output";
@@ -491,6 +421,7 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	power-inverted;
+	pwr-gpios = <&gpio3 GPIO_B7 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
 
@@ -509,108 +440,11 @@
 	status = "okay";
 };
 
-#include "rk805.dtsi"
-&rk805 {
-	gpios = <&gpio0 GPIO_B4 GPIO_ACTIVE_HIGH>, <&gpio0 GPIO_B5 GPIO_ACTIVE_LOW>;
-	rk805,system-power-controller;
-	rk805,support_dc_chg = <1>; /* 1: dc chg; 0: usb chg */
-
-	regulators {
-		rk805_dcdc1_reg: regulator@0 {
-			regulator-name= "vdd_core";
-			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <1500000>;
-			regulator-initial-mode = <0x2>;
-			regulator-initial-state = <3>;
-			regulator-boot-on;
-			regulator-always-on;
-			regulator-state-mem {
-				regulator-state-mode = <0x2>;
-				regulator-state-enabled;
-				regulator-state-uv = <900000>;
-			};
-		};
-
-		rk805_dcdc2_reg: regulator@1 {
-			regulator-name= "vdd_cam";
-			regulator-min-microvolt = <700000>;
-			regulator-max-microvolt = <2000000>;
-			regulator-initial-mode = <0x1>;
-			regulator-initial-state = <3>;
-			regulator-state-mem {
-				regulator-state-disabled;
-			};
-		};
-
-		rk805_dcdc3_reg: regulator@2 {
-			regulator-name= "vcc_ddr";
-			regulator-min-microvolt = <1200000>;
-			regulator-max-microvolt = <1200000>;
-			regulator-initial-mode = <0x2>;
-			regulator-initial-state = <3>;
-			regulator-boot-on;
-			regulator-always-on;
-			regulator-state-mem {
-				regulator-state-mode = <0x2>;
-				regulator-state-enabled;
-				regulator-state-uv = <1200000>;
-			};
-		};
-
-		rk805_dcdc4_reg: regulator@3 {
-			regulator-name= "vcc_io";
-			regulator-min-microvolt = <3300000>;
-			regulator-max-microvolt = <3300000>;
-			regulator-initial-mode = <0x2>;
-			regulator-initial-state = <3>;
-			regulator-boot-on;
-			regulator-always-on;
-			regulator-state-mem {
-				regulator-state-mode = <0x2>;
-				regulator-state-enabled;
-				regulator-state-uv = <3300000>;
-			};
-		};
-
-		rk805_ldo1_reg: regulator@4 {
-			regulator-name= "vdd_10";
-			regulator-min-microvolt = <1000000>;
-			regulator-max-microvolt = <1000000>;
-			regulator-initial-state = <3>;
-			regulator-boot-on;
-			regulator-always-on;
-			regulator-state-mem {
-				regulator-state-enabled;
-				regulator-state-uv = <1000000>;
-			};
-		};
-
-		rk805_ldo2_reg: regulator@5 {
-			regulator-name= "vcc_18";
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <1800000>;
-			regulator-initial-state = <3>;
-			regulator-boot-on;
-			regulator-always-on;
-			regulator-state-mem {
-				regulator-state-enabled;
-				regulator-state-uv = <1800000>;
-			};
-		};
-
-		rk805_ldo3_reg: regulator@6 {
-			regulator-name= "avdd_cam";
-			regulator-min-microvolt = <2500000>;
-			regulator-max-microvolt = <3400000>;
-			regulator-initial-state = <3>;
-			regulator-state-mem {
-				regulator-state-disabled;
-			};
-		};
-	};
-};
+//#include "rv1108-rk805-v11.dtsi" /* rk805 v11 */
+#include "rv1108-rk805-v12.dtsi" /* rk805 v12 */
 
 &dwc_control_usb {
+	vbus_drv = <&gpio0 GPIO_B0 GPIO_ACTIVE_LOW>;
 	rockchip,remote_wakeup;
 	rockchip,usb_irq_wakeup;
 	status = "okay";
@@ -662,6 +496,9 @@
 
 &vop {
 	status = "okay";
+	pinctrl-names = "default", "gpio";
+	pinctrl-0 = <&lcdc_mipi_data>;
+	pinctrl-1 = <&lcdc_mipi_gpio>;
 	power_ctr: power_ctr {
 		rockchip,debug = <0>;
 		/*
@@ -683,5 +520,15 @@
 };
 
 &codec {
+	spk_ctl_io = <&gpio0 GPIO_A5 GPIO_ACTIVE_HIGH>;
 	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+	pinctrl-0 = <&hdmi_cec &i2c2m1_xfer &hdmi_hpd>;
+};
+
+&camera2 {
+	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
 };

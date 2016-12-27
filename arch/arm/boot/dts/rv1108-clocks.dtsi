@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#include <dt-bindings/clock/rockchip,rk1108.h>
+#include <dt-bindings/clock/rockchip,rv1108.h>
 
 /{
 	clocks {

@@ -2,7 +2,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include "skeleton.dtsi"
-#include "rk1108-clocks.dtsi"
+#include "rv1108-clocks.dtsi"
 #include <dt-bindings/rkfb/rk_fb.h>
 
 / {

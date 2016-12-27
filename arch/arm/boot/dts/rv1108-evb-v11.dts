@@ -42,15 +42,15 @@
 
 /dts-v1/;
 
-#include "rk1108.dtsi"
-//#include "lcd-ili9806e_mipi.dtsi" /* dispaly board v10 v11 */
+#include "rv1108.dtsi"
+#include "lcd-ili9806e_mipi.dtsi" /* dispaly board v10 v11 */
 //#include "lcd-e555hbm2_mipi.dtsi" /* display board v20*/
-#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
+//#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
 #include "dt-bindings/suspend/rockchip-pm.h"
 
 / {
-	model = "Rockchip RK1108 EVB MAINBOARD V12";
-	compatible = "rockchip,rk1108-evb-v12", "rockchip,rk1108";
+	model = "Rockchip RK1108 EVB MAINBOARD V11";
+	compatible = "rockchip,rk1108-evb-v11", "rockchip,rk1108";
 
 	memory {
 		device_type = "memory";
@@ -106,7 +106,7 @@
 		};
 	};
 
-	backlight {
+	backlight: backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm0 0 25000>;
 		brightness-levels = <
@@ -194,10 +194,10 @@
 
 	operating-points = <
 		/* KHz	  uV */
-		408000 1000000
-		600000 1000000
+		408000 975000
+		600000 975000
 		816000 1000000
-		1008000 1150000
+		1008000 1050000
 		>;
 	status = "okay";
 };
@@ -323,28 +323,14 @@
 		pinctrl-0 = <&cif_dvp_d2d9 &cif_dvp_clk_in>;
 		pinctrl-1 = <&cif_dvp_d2d9_sleep &cif_dvp_clk_in_sleep>;
 	};
-
-	mpu6500: mpu6500@68 {
-		status = "disabled";
-		compatible = "invensense,mpu6500";
-		reg = <0x68>;
-		mpu-int_config = <0x10>;
-		mpu-level_shifter = <0>;
-		mpu-orientation = <1 0 0 0 1 0 0 0 1>;
-		orientation-x= <1>;
-		orientation-y= <1>;
-		orientation-z= <0>;
-		support-hw-poweroff = <1>;
-		mpu-debug = <1>;
-	};
 };
 
 &i2c1 {
 	status = "okay";
 
-//#include "rk1108-camb-v11.dtsi" /* camera board v11 */
-//#include "rk1108-camb-v12.dtsi" /* camera board v12 */
-#include "rk1108-camb-v13.dtsi" /* camera board v13 */
+#include "rv1108-camb-v11.dtsi" /* camera board v11 */
+//#include "rv1108-camb-v12.dtsi" /* camera board v12 */
+//#include "rv1108-camb-v13.dtsi" /* camera board v13 */
 };
 
 &cif1to4 {
@@ -422,7 +408,6 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	power-inverted;
-	pwr-gpios = <&gpio3 GPIO_B7 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
 
@@ -441,8 +426,8 @@
 	status = "okay";
 };
 
-//#include "rk1108-rk805-v11.dtsi" /* rk805 v11 */
-#include "rk1108-rk805-v12.dtsi" /* rk805 v12 */
+#include "rv1108-rk805-v11.dtsi" /* rk805 v11 */
+//#include "rv1108-rk805-v12.dtsi" /* rk805 v12 */
 
 &dwc_control_usb {
 	vbus_drv = <&gpio0 GPIO_B0 GPIO_ACTIVE_LOW>;
@@ -497,6 +482,7 @@
 
 &vop {
 	status = "okay";
+	backlight = <&backlight>;
 	pinctrl-names = "default", "gpio";
 	pinctrl-0 = <&lcdc_mipi_data>;
 	pinctrl-1 = <&lcdc_mipi_gpio>;

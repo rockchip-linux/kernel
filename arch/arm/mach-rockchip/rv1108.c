@@ -37,7 +37,7 @@
 #include "sram.h"
 #include <linux/rockchip/cpu.h>
 #include "pm.h"
-#include "pm-rk1108.c"
+#include "pm-rv1108.c"
 
 #define RK1108_DEVICE(name) \
 	{ \
