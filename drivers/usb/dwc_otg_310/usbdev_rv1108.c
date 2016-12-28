@@ -7,19 +7,11 @@ static struct dwc_otg_control_usb *control_usb;
 #ifdef CONFIG_USB20_OTG
 static void usb20otg_hw_init(void)
 {
-	/* Open debug mode for tuning */
-	regmap_write(control_usb->usb_grf, 0x02c,
-		     UOC_HIWORD_UPDATE(0x1, 0x1, 10));
-
 	/* Open HS pre-emphasize function to increase HS slew rate */
 	regmap_write(control_usb->usb_grf, 0x0,
 		     UOC_HIWORD_UPDATE(0x5, 0x7, 0));
 	regmap_write(control_usb->usb_grf, 0x030,
 		     UOC_HIWORD_UPDATE(0x5, 0x7, 0));
-
-	/* Set ODT compensation voltage reference */
-	regmap_write(control_usb->usb_grf, 0x08,
-		     UOC_HIWORD_UPDATE(0x1, 0x1, 15));
 
 	/* Turn off differential receiver in suspend mode */
 	regmap_write(control_usb->usb_grf, 0x018, UOC_HIWORD_UPDATE(0, 1, 2));
