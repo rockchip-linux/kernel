@@ -1670,14 +1670,14 @@ const struct v4l2_ioctl_ops cif_isp11_v4l2_dma_ioctlops = {
 	.vidioc_querycap = v4l2_querycap
 };
 
-static struct pltfrm_soc_cfg rk1108_cfg = {
-	.name = CIF_ISP11_SOC_RK1108,
-	.soc_cfg = pltfrm_rk1108_cfg,
+static struct pltfrm_soc_cfg rv1108_cfg = {
+	.name = CIF_ISP11_SOC_RV1108,
+	.soc_cfg = pltfrm_rv1108_cfg,
 };
 
 static const struct of_device_id cif_isp11_v4l2_of_match[] = {
-	{.compatible = "rockchip,rk1108-cif-isp",
-		.data = (void *)&rk1108_cfg},
+	{.compatible = "rockchip,rv1108-cif-isp",
+		.data = (void *)&rv1108_cfg},
 	{},
 };
 

@@ -38,7 +38,7 @@ struct pltfrm_cvbsin_cfg {
 	int (*soc_cfg)(struct pltfrm_cvbsin_cfg_para *cfg);
 };
 
-int pltfrm_rk1108_cvbsin_cfg(
+int pltfrm_rv1108_cvbsin_cfg(
 	struct pltfrm_cvbsin_cfg_para *cfg);
 
 #endif

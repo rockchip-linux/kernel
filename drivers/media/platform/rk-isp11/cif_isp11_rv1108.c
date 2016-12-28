@@ -60,18 +60,18 @@
 #define DPHY_DATA_LANE3_BASE 0x300
 #define DPHY_DATA_LANE3_THS_SETTLE (DPHY_DATA_LANE0_BASE + 0x00)
 
-#define write_cifisp_reg(addr, val)		__raw_writel(val, addr+rk1108->isp_base)
-#define read_cifisp_reg(addr)		__raw_readl(addr+rk1108->isp_base)
+#define write_cifisp_reg(addr, val)		__raw_writel(val, addr+rv1108->isp_base)
+#define read_cifisp_reg(addr)		__raw_readl(addr+rv1108->isp_base)
 #define write_cifcru_reg(addr, val)		__raw_writel(val, addr+cru_base_addr)
 #define read_cifcru_reg(addr)		__raw_readl(addr+cru_base_addr)
 
-#define write_grf_reg(addr, val)	regmap_write(rk1108->regmap_grf, addr, val)
-#define read_grf_reg(addr, val)	regmap_read(rk1108->regmap_grf, addr, val)
+#define write_grf_reg(addr, val)	regmap_write(rv1108->regmap_grf, addr, val)
+#define read_grf_reg(addr, val)	regmap_read(rv1108->regmap_grf, addr, val)
 
-#define write_csiphy_reg(addr, val)       __raw_writel(val, addr+rk1108->csiphy_base)
-#define read_csiphy_reg(addr)             __raw_readl(addr+rk1108->csiphy_base)
+#define write_csiphy_reg(addr, val)       __raw_writel(val, addr+rv1108->csiphy_base)
+#define read_csiphy_reg(addr)             __raw_readl(addr+rv1108->csiphy_base)
 
-struct cif_isp11_clk_rst_rk1108 {
+struct cif_isp11_clk_rst_rv1108 {
 	struct clk	*aclk_isp;
 	struct clk	*hclk_isp;
 	struct clk	*sclk_isp;
@@ -87,11 +87,11 @@ struct cif_isp11_clk_rst_rk1108 {
 };
 
 
-struct cif_isp11_rk1108 {
+struct cif_isp11_rv1108 {
 	struct regmap *regmap_grf;
 	void __iomem *csiphy_base;
 	void __iomem *isp_base;
-	struct cif_isp11_clk_rst_rk1108 clk_rst;
+	struct cif_isp11_clk_rst_rv1108 clk_rst;
 	struct cif_isp11_device *cif_isp11;
 };
 
@@ -115,7 +115,7 @@ static struct mipi_dphy_hsfreqrange mipi_dphy_hsfreq_range[] = {
 	{800, 1000, 0x0a}
 };
 
-static struct cif_isp11_rk1108 *rk1108;
+static struct cif_isp11_rv1108 *rv1108;
 
 static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 {
@@ -207,7 +207,7 @@ static int mipi_dphy_cfg (struct pltfrm_cam_mipi_config *para)
 			read_cifisp_reg(CIF_MIPI_CTRL) & (~(0x0f<<8)));
 	} else {
 		printk(KERN_ERR
-			"MIPI DPHY %d isn't support for rk1108\n",
+			"MIPI DPHY %d isn't support for rv1108\n",
 			input_sel);
 		goto fail;
 	}
@@ -219,7 +219,7 @@ fail:
 
 static int soc_clk_enable(void)
 {
-	struct cif_isp11_clk_rst_rk1108 *clk_rst = &rk1108->clk_rst;
+	struct cif_isp11_clk_rst_rv1108 *clk_rst = &rv1108->clk_rst;
 
 	clk_prepare_enable(clk_rst->hclk_isp);
 	clk_prepare_enable(clk_rst->aclk_isp);
@@ -244,7 +244,7 @@ static int soc_clk_enable(void)
 
 static int soc_clk_disable(void)
 {
-	struct cif_isp11_clk_rst_rk1108 *clk_rst = &rk1108->clk_rst;
+	struct cif_isp11_clk_rst_rv1108 *clk_rst = &rv1108->clk_rst;
 
 	clk_disable_unprepare(clk_rst->hclk_isp);
 	clk_disable_unprepare(clk_rst->aclk_isp);
@@ -258,27 +258,27 @@ static int soc_clk_disable(void)
 
 static int soc_init(struct pltfrm_soc_init_para *init)
 {
-	struct cif_isp11_clk_rst_rk1108 *clk_rst;
+	struct cif_isp11_clk_rst_rv1108 *clk_rst;
 	struct resource *res;
 	struct platform_device *pdev = init->pdev;
 	struct device_node *np = pdev->dev.of_node, *node;
 	int err;
 
-	rk1108 = (struct cif_isp11_rk1108 *)devm_kzalloc(
+	rv1108 = (struct cif_isp11_rv1108 *)devm_kzalloc(
 				&pdev->dev,
-				sizeof(struct cif_isp11_rk1108),
+				sizeof(struct cif_isp11_rv1108),
 				GFP_KERNEL);
-	if (!rk1108) {
-		dev_err(&pdev->dev, "Can't allocate cif_isp11_rk1108 \n");
+	if (!rv1108) {
+		dev_err(&pdev->dev, "Can't allocate cif_isp11_rv1108 \n");
 		err = -ENOMEM;
 		goto alloc_failed;
 	}
 
 	node = of_parse_phandle(np, "rockchip,grf", 0);
 	if (node) {
-		rk1108->regmap_grf = syscon_node_to_regmap(node);
-		if (IS_ERR(rk1108->regmap_grf)) {
-			dev_err(&pdev->dev, "Can't allocate cif_isp11_rk1108 \n");
+		rv1108->regmap_grf = syscon_node_to_regmap(node);
+		if (IS_ERR(rv1108->regmap_grf)) {
+			dev_err(&pdev->dev, "Can't allocate cif_isp11_rv1108 \n");
 			err = -ENODEV;
 			goto regmap_failed;
 		}
@@ -291,17 +291,17 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 		err = -ENODEV;
 		goto regmap_failed;
 	}
-	rk1108->csiphy_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR_OR_NULL(rk1108->csiphy_base)) {
+	rv1108->csiphy_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR_OR_NULL(rv1108->csiphy_base)) {
 		dev_err(&pdev->dev, "devm_ioremap_resource failed\n");
-		if (IS_ERR(rk1108->csiphy_base))
-			err = PTR_ERR(rk1108->csiphy_base);
+		if (IS_ERR(rv1108->csiphy_base))
+			err = PTR_ERR(rv1108->csiphy_base);
 		else
 			err = -ENODEV;
 		goto regmap_failed;
 	}
 
-	clk_rst = &rk1108->clk_rst;
+	clk_rst = &rv1108->clk_rst;
 	clk_rst->aclk_isp = devm_clk_get(&pdev->dev, "aclk_isp");
 	clk_rst->hclk_isp = devm_clk_get(&pdev->dev, "hclk_isp");
 	clk_rst->sclk_isp = devm_clk_get(&pdev->dev, "sclk_isp");
@@ -326,7 +326,7 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 		IS_ERR_OR_NULL(clk_rst->isp_niu_arst) ||
 		IS_ERR_OR_NULL(clk_rst->isp_niu_hrst) ||
 		IS_ERR_OR_NULL(clk_rst->isp_hrst)) {
-		dev_err(&pdev->dev, "Get rk1108 cif isp11 clock resouce failed !\n");
+		dev_err(&pdev->dev, "Get rv1108 cif isp11 clock resouce failed !\n");
 		err = -EINVAL;
 		goto clk_failed;
 	}
@@ -335,7 +335,7 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 	clk_set_rate(clk_rst->sclk_isp_jpe, 400000000);
 	reset_control_deassert(clk_rst->isp_rst);
 
-	rk1108->isp_base = init->isp_base;
+	rv1108->isp_base = init->isp_base;
 	return 0;
 
 clk_failed:
@@ -373,7 +373,7 @@ alloc_failed:
 
 }
 
-int pltfrm_rk1108_cfg (
+int pltfrm_rv1108_cfg (
 		struct pltfrm_soc_cfg_para *cfg)
 {
 	switch (cfg->cmd) {
@@ -393,9 +393,9 @@ int pltfrm_rk1108_cfg (
 		break;
 
 	case PLTFRM_CLKRST:
-		reset_control_assert(rk1108->clk_rst.isp_rst);
+		reset_control_assert(rv1108->clk_rst.isp_rst);
 		usleep_range(5, 30);
-		reset_control_deassert(rk1108->clk_rst.isp_rst);
+		reset_control_deassert(rv1108->clk_rst.isp_rst);
 		break;
 
 	case PLTFRM_SOC_INIT:

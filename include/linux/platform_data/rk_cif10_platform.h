@@ -17,7 +17,7 @@
 #define _CIF_CIF10_PLATFORM_H
 #include <linux/videodev2.h>
 
-#define CIF_CIF10_SOC_RK1108	"rk1108"
+#define CIF_CIF10_SOC_RV1108	"rv1108"
 
 enum pltfrm_cam_io_voltage {
 	PLTFRM_CAM_IO_1800 = 1800,
@@ -192,6 +192,6 @@ struct pltfrm_soc_cfg {
 	int (*soc_cfg)(struct pltfrm_soc_cfg_para *cfg);
 };
 
-int pltfrm_rk1108_cif_cfg(
+int pltfrm_rv1108_cif_cfg(
 		struct pltfrm_soc_cfg_para *cfg);
 #endif

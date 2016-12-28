@@ -98,7 +98,7 @@ static int cif1to4_drv_probe(struct platform_device *pdev)
 		syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	if (IS_ERR(cif1to4->regmap_grf)) {
 		dev_err(&pdev->dev,
-			"Can't regmap cif1to4 rk1108 grf\n");
+			"Can't regmap cif1to4 rv1108 grf\n");
 		return PTR_ERR(cif1to4->regmap_grf);
 	}
 

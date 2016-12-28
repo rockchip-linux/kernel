@@ -17,7 +17,7 @@
 #define _CIF_ISP11_PLATFORM_H
 #include <linux/videodev2.h>
 
-#define CIF_ISP11_SOC_RK1108	"rk1108"
+#define CIF_ISP11_SOC_RV1108	"rv1108"
 
 #define DRIVER_NAME "rkisp11"
 #define ISP_VDEV_NAME DRIVER_NAME"_ispdev"
@@ -165,7 +165,7 @@ struct pltfrm_soc_cfg {
 	int (*soc_cfg)(struct pltfrm_soc_cfg_para *cfg);
 };
 
-int pltfrm_rk1108_cfg (
+int pltfrm_rv1108_cfg (
 		struct pltfrm_soc_cfg_para *cfg);
 
 

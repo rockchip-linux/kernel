@@ -1434,14 +1434,14 @@ const struct v4l2_ioctl_ops cif_cif10_v4l2_ioctlops = {
 	.vidioc_try_fmt_vid_cap = cif_cif10_v4l2_try_fmt_vid_cap,
 };
 
-static struct pltfrm_soc_cfg rk1108_cfg = {
-	.name = CIF_CIF10_SOC_RK1108,
-	.soc_cfg = pltfrm_rk1108_cif_cfg,
+static struct pltfrm_soc_cfg rv1108_cfg = {
+	.name = CIF_CIF10_SOC_RV1108,
+	.soc_cfg = pltfrm_rv1108_cif_cfg,
 };
 
 static const struct of_device_id cif_cif10_v4l2_of_match[] = {
-	{  .compatible = "rockchip,rk1108-cif-cif",
-	   .data = (void *)&rk1108_cfg},
+	{  .compatible = "rockchip,rv1108-cif-cif",
+	   .data = (void *)&rv1108_cfg},
 	{},
 };
 static int cif_cif10_v4l2_drv_probe(struct platform_device *pdev)

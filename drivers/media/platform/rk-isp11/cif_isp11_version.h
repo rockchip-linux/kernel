@@ -21,8 +21,8 @@
 *       CIF DRIVER VERSION NOTE
 *
 *v0.1.0:
-*1. New mi register update mode is invalidate in raw/jpeg for rk1108,
-* All path used old mode for rk1108;
+*1. New mi register update mode is invalidate in raw/jpeg for rv1108,
+* All path used old mode for rv1108;
 *v0.1.1:
 *1. Modify CIF stop sequence for fix isp bus may dead when switch isp:
 *Original stop sequence: Stop ISP(mipi) -> Stop ISP(isp) ->wait for ISP isp off -> Stop ISP(mi)

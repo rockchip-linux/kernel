@@ -304,14 +304,14 @@ static struct v4l2_subdev_ops cvbsin_module_ops = {
 	.pad = &cvbsin_module_pad_ops
 };
 
-static struct pltfrm_cvbsin_cfg rk1108_cvbsin_cfg = {
-	.name = CIF_CIF10_SOC_RK1108,
-	.soc_cfg = pltfrm_rk1108_cvbsin_cfg,
+static struct pltfrm_cvbsin_cfg rv1108_cvbsin_cfg = {
+	.name = CIF_CIF10_SOC_RV1108,
+	.soc_cfg = pltfrm_rv1108_cvbsin_cfg,
 };
 
 static const struct of_device_id cif_cvbsin_of_match[] = {
 	{.compatible = "rockchip,cvbsin",
-	 .data = (void *)&rk1108_cvbsin_cfg
+	 .data = (void *)&rv1108_cvbsin_cfg
 	},
 	{},
 };
