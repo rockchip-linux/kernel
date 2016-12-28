@@ -179,15 +179,6 @@ config SND_RK_SOC_RK1000
 	  Say Y if you want to add support for SoC audio on rockchip
 	  with the RK1000.
 
-config SND_RK_SOC_RV1108
-	tristate "SoC I2S Audio support for rockchip - RV1108"
-	depends on SND_RK_SOC
-	select SND_RK_SOC_I2S
-	select SND_SOC_RV1108
-	help
-	  Say Y if you want to add support for SoC audio on rockchip
-	  with the RV1108 internal codec.
-
 config SND_RK_SOC_RK2928
 	tristate "SoC I2S Audio support for rockchip - RK2928"
 	depends on SND_RK_SOC && ARCH_RK2928
@@ -356,6 +347,15 @@ config SND_RK_SOC_RT5640
 	select SND_SOC_RT5640
 	help
 	   RT5640 is pin to pin as RT5642, but not have dsp function.
+
+config SND_RK_SOC_RV1108
+	tristate "SoC I2S Audio support for rockchip - RV1108"
+	depends on SND_RK_SOC
+	select SND_RK_SOC_I2S
+	select SND_SOC_RV1108
+	help
+	  Say Y if you want to add support for SoC audio on rockchip
+	  with the RV1108 internal codec.
 
 config SND_RK_SOC_WM8900
 	tristate "SoC I2S Audio support for rockchip - WM8900"
