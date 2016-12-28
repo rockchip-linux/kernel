@@ -2,11 +2,11 @@ Device-Tree bindings for rockchip tve driver
 
 Required properties:
 - compatible: value should be following:
-	"rockchip,rv1108-tve",
 	"rockchip,rk3036-tve",
 	"rockchip,rk312x-tve",
 	"rockchip,rk322x-tve",
 	"rockchip,rk322xh-tve",
+	"rockchip,rv1108-tve",
 - reg: tv encode base address of the tve and length of memory mapped
         region.another one is used for vadc.
 - clocks: must include clock specifiers corresponding to entries in the

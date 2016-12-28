@@ -348,10 +348,6 @@ static const struct rockchip_iodomain_soc_data soc_data_rk3368 = {
 
 static const struct of_device_id rockchip_iodomain_match[] = {
 	{
-		.compatible = "rockchip,rv1108-io-voltage-domain",
-		.data = (void *)&soc_data_rv1108
-	},
-	{
 		.compatible = "rockchip,rk3188-io-voltage-domain",
 		.data = (void *)&soc_data_rk3188
 	},
@@ -370,6 +366,10 @@ static const struct of_device_id rockchip_iodomain_match[] = {
 	{
 		.compatible = "rockchip,rk3368-io-voltage-domain",
 		.data = (void *)&soc_data_rk3368
+	},
+	{
+		.compatible = "rockchip,rv1108-io-voltage-domain",
+		.data = (void *)&soc_data_rv1108
 	},
 	{ /* sentinel */ },
 };

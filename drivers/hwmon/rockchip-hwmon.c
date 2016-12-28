@@ -361,16 +361,16 @@ static const struct attribute_group rockchip_temp_group = {
 
 static const struct of_device_id rockchip_temp_match[] = {
 	{
-		.compatible = "rockchip,tsadc",
-		.data = (void *)RK3288_TSADC,
+		.compatible = "rockchip,rk322x-tsadc",
+		.data = (void *)RK322X_TSADC,
 	},
 	{
 		.compatible = "rockchip,rv1108-tsadc",
 		.data = (void *)RV1108_TSADC,
 	},
 	{
-		.compatible = "rockchip,rk322x-tsadc",
-		.data = (void *)RK322X_TSADC,
+		.compatible = "rockchip,tsadc",
+		.data = (void *)RK3288_TSADC,
 	},
 	{ /* end */ },
 };

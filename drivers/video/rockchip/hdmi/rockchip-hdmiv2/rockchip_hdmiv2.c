@@ -484,11 +484,11 @@ static struct hdmi_ops rk_hdmi_ops;
 
 #if defined(CONFIG_OF)
 static const struct of_device_id rk_hdmi_dt_ids[] = {
-	{.compatible = "rockchip,rv1108-hdmi",},
 	{.compatible = "rockchip,rk322x-hdmi",},
 	{.compatible = "rockchip,rk322xh-hdmi",},
 	{.compatible = "rockchip,rk3288-hdmi",},
 	{.compatible = "rockchip,rk3368-hdmi",},
+	{.compatible = "rockchip,rv1108-hdmi",},
 	{}
 };
 
