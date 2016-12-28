@@ -264,13 +264,13 @@ config PHY_ROCKCHIP_USB
 	help
 	  Enable this to support the Rockchip USB 2.0 PHY.
 
-config PHY_RK1108_USB2
-	tristate "RK1108 USB2PHY Driver"
+config PHY_RV1108_USB2
+	tristate "RV1108 USB2PHY Driver"
 	depends on ARCH_ROCKCHIP && OF
 	depends on COMMON_CLK
 	select GENERIC_PHY
 	help
-	  Support for RK1108 USB2.0(EHCI & OHCI) PHY.
+	  Support for RV1108 USB2.0(EHCI & OHCI) PHY.
 
 config PHY_ROCKCHIP_INNO_USB3
 	tristate "Rockchip INNO USB3PHY Driver"

@@ -1,5 +1,5 @@
 /*
- * RK1108 USB2.0 Host(EHCI & OHCI) PHY Driver
+ * RV1108 USB2.0 Host(EHCI & OHCI) PHY Driver
  *
  * Copyright (C) 2016 Fuzhou Rockchip Electronics Co., Ltd
  *
@@ -32,7 +32,7 @@
 #define BIT_WRITEABLE_SHIFT	16
 #define SCHEDULE_DELAY	(60 * HZ)
 
-enum rk1108_usb2phy_host_state {
+enum rv1108_usb2phy_host_state {
 	PHY_STATE_HS_ONLINE	= 0,
 	PHY_STATE_DISCONNECT	= 1,
 	PHY_STATE_CONNECT	= 2,
@@ -48,7 +48,7 @@ struct usb2phy_reg {
 };
 
 /**
- * struct rk1108_usb2phy_cfg: usb-phy register configuration.
+ * struct rv1108_usb2phy_cfg: usb-phy register configuration.
  * @phy_sus: phy suspend register.
  * @ls_det_en: linestate detection enable register.
  * @ls_det_st: linestate detection state register.
@@ -56,7 +56,7 @@ struct usb2phy_reg {
  * @utmi_ls: utmi linestate state register.
  * @utmi_hstdet: utmi host disconnect register.
  */
-struct rk1108_usb2phy_cfg {
+struct rv1108_usb2phy_cfg {
 	struct usb2phy_reg	phy_sus;
 	struct usb2phy_reg	ls_det_en;
 	struct usb2phy_reg	ls_det_st;
@@ -66,7 +66,7 @@ struct rk1108_usb2phy_cfg {
 };
 
 /**
- * struct rk1108_usb2phy: usb2.0 phy driver data.
+ * struct rv1108_usb2phy: usb2.0 phy driver data.
  * @grf: General Register Files regmap.
  * @usb_grf: USB General Register Files regmap.
  * @clk: clock struct of phy input clk.
@@ -76,7 +76,7 @@ struct rk1108_usb2phy_cfg {
  * @sm_work: OTG state machine work.
  * @cfg: phy register configuration, assigned by driver data.
  */
-struct rk1108_usb2phy {
+struct rv1108_usb2phy {
 	struct device		*dev;
 	struct phy		*phy;
 	struct regmap		*grf;
@@ -86,7 +86,7 @@ struct rk1108_usb2phy {
 	int			ls_irq;
 	struct mutex		mutex;
 	struct delayed_work	sm_work;
-	const struct	rk1108_usb2phy_cfg	*cfg;
+	const struct	rv1108_usb2phy_cfg	*cfg;
 };
 
 static inline int property_enable(struct regmap *base,
@@ -116,9 +116,9 @@ static inline bool property_enabled(struct regmap *base,
 	return tmp == reg->enable;
 }
 
-static int rk1108_usb2phy_init(struct phy *phy)
+static int rv1108_usb2phy_init(struct phy *phy)
 {
-	struct rk1108_usb2phy *rphy = phy_get_drvdata(phy);
+	struct rv1108_usb2phy *rphy = phy_get_drvdata(phy);
 	int ret;
 
 	/* clear linestate and enable linestate detect irq */
@@ -142,9 +142,9 @@ static int rk1108_usb2phy_init(struct phy *phy)
 	return 0;
 }
 
-static int rk1108_usb2phy_power_on(struct phy *phy)
+static int rv1108_usb2phy_power_on(struct phy *phy)
 {
-	struct rk1108_usb2phy *rphy = phy_get_drvdata(phy);
+	struct rv1108_usb2phy *rphy = phy_get_drvdata(phy);
 	int ret;
 
 	dev_dbg(rphy->dev, "port power on\n");
@@ -160,9 +160,9 @@ static int rk1108_usb2phy_power_on(struct phy *phy)
 	return 0;
 }
 
-static int rk1108_usb2phy_power_off(struct phy *phy)
+static int rv1108_usb2phy_power_off(struct phy *phy)
 {
-	struct rk1108_usb2phy *rphy = phy_get_drvdata(phy);
+	struct rv1108_usb2phy *rphy = phy_get_drvdata(phy);
 	int ret;
 
 	dev_dbg(rphy->dev, "port power off\n");
@@ -178,19 +178,19 @@ static int rk1108_usb2phy_power_off(struct phy *phy)
 	return 0;
 }
 
-static int rk1108_usb2phy_exit(struct phy *phy)
+static int rv1108_usb2phy_exit(struct phy *phy)
 {
-	struct rk1108_usb2phy *rphy = phy_get_drvdata(phy);
+	struct rv1108_usb2phy *rphy = phy_get_drvdata(phy);
 
 	cancel_delayed_work_sync(&rphy->sm_work);
 	return 0;
 }
 
-static const struct phy_ops rk1108_usb2phy_ops = {
-	.init		= rk1108_usb2phy_init,
-	.exit		= rk1108_usb2phy_exit,
-	.power_on	= rk1108_usb2phy_power_on,
-	.power_off	= rk1108_usb2phy_power_off,
+static const struct phy_ops rv1108_usb2phy_ops = {
+	.init		= rv1108_usb2phy_init,
+	.exit		= rv1108_usb2phy_exit,
+	.power_on	= rv1108_usb2phy_power_on,
+	.power_off	= rv1108_usb2phy_power_off,
 	.owner		= THIS_MODULE,
 };
 
@@ -204,10 +204,10 @@ static const struct phy_ops rk1108_usb2phy_ops = {
  * device is disconnected at last through rearm the delayed work,
  * to suspend the phy port in _PHY_STATE_DISCONNECT_ case.
  */
-static void rk1108_usb2phy_sm_work(struct work_struct *work)
+static void rv1108_usb2phy_sm_work(struct work_struct *work)
 {
-	struct rk1108_usb2phy *rphy =
-		container_of(work, struct rk1108_usb2phy, sm_work.work);
+	struct rv1108_usb2phy *rphy =
+		container_of(work, struct rv1108_usb2phy, sm_work.work);
 	unsigned int sh = rphy->cfg->utmi_hstdet.bitend -
 			  rphy->cfg->utmi_hstdet.bitstart + 1;
 	unsigned int ul, uhd, state;
@@ -256,7 +256,7 @@ static void rk1108_usb2phy_sm_work(struct work_struct *work)
 	case PHY_STATE_CONNECT:
 		if (rphy->suspended) {
 			dev_dbg(rphy->dev, "Connected\n");
-			rk1108_usb2phy_power_on(rphy->phy);
+			rv1108_usb2phy_power_on(rphy->phy);
 			rphy->suspended = false;
 		} else {
 			/* D+ line pull-up, D- line pull-down */
@@ -266,7 +266,7 @@ static void rk1108_usb2phy_sm_work(struct work_struct *work)
 	case PHY_STATE_DISCONNECT:
 		if (!rphy->suspended) {
 			dev_dbg(rphy->dev, "Disconnected\n");
-			rk1108_usb2phy_power_off(rphy->phy);
+			rv1108_usb2phy_power_off(rphy->phy);
 			rphy->suspended = true;
 		}
 
@@ -293,9 +293,9 @@ next_schedule:
 	schedule_delayed_work(&rphy->sm_work, SCHEDULE_DELAY);
 }
 
-static irqreturn_t rk1108_usb2phy_linestate_irq(int irq, void *data)
+static irqreturn_t rv1108_usb2phy_linestate_irq(int irq, void *data)
 {
-	struct rk1108_usb2phy *rphy = data;
+	struct rv1108_usb2phy *rphy = data;
 
 	if (!property_enabled(rphy->grf, &rphy->cfg->ls_det_st))
 		return IRQ_NONE;
@@ -314,17 +314,17 @@ static irqreturn_t rk1108_usb2phy_linestate_irq(int irq, void *data)
 	 * and mange its states; otherwise, we just return irq handled.
 	 */
 	if (rphy->suspended)
-		rk1108_usb2phy_sm_work(&rphy->sm_work.work);
+		rv1108_usb2phy_sm_work(&rphy->sm_work.work);
 
 	return IRQ_HANDLED;
 }
 
-static int rk1108_usb2phy_probe(struct platform_device *pdev)
+static int rv1108_usb2phy_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
 	struct phy_provider *provider;
-	struct rk1108_usb2phy *rphy;
+	struct rv1108_usb2phy *rphy;
 	struct phy *phy;
 	const struct of_device_id *match;
 	int ret;
@@ -368,7 +368,7 @@ static int rk1108_usb2phy_probe(struct platform_device *pdev)
 		goto disable_clks;
 	}
 
-	phy = devm_phy_create(dev, np, &rk1108_usb2phy_ops);
+	phy = devm_phy_create(dev, np, &rv1108_usb2phy_ops);
 	if (IS_ERR(phy)) {
 		dev_err(dev, "failed to create phy\n");
 		ret = PTR_ERR(phy);
@@ -383,12 +383,12 @@ static int rk1108_usb2phy_probe(struct platform_device *pdev)
 		goto disable_clks;
 
 	mutex_init(&rphy->mutex);
-	INIT_DELAYED_WORK(&rphy->sm_work, rk1108_usb2phy_sm_work);
+	INIT_DELAYED_WORK(&rphy->sm_work, rv1108_usb2phy_sm_work);
 
 	ret = devm_request_threaded_irq(rphy->dev, rphy->ls_irq, NULL,
-					rk1108_usb2phy_linestate_irq,
+					rv1108_usb2phy_linestate_irq,
 					IRQF_ONESHOT,
-					"rk1108_usb2phy", rphy);
+					"rv1108_usb2phy", rphy);
 	if (ret) {
 		dev_err(rphy->dev, "failed to request linestate irq handle\n");
 		goto disable_clks;
@@ -404,7 +404,7 @@ disable_clks:
 	return ret;
 }
 
-static const struct rk1108_usb2phy_cfg rk1108_host_phy_cfg = {
+static const struct rv1108_usb2phy_cfg rv1108_host_phy_cfg = {
 	.phy_sus	= { 0x0104, 15, 0, 0, 0x1d1 },
 	.ls_det_en	= { 0x0680, 4, 4, 0, 1 },
 	.ls_det_st	= { 0x0690, 4, 4, 0, 1 },
@@ -413,24 +413,24 @@ static const struct rk1108_usb2phy_cfg rk1108_host_phy_cfg = {
 	.utmi_hstdet	= { 0x0804, 7, 7, 0, 1 }
 };
 
-static const struct of_device_id rk1108_usb2phy_dt_match[] = {
+static const struct of_device_id rv1108_usb2phy_dt_match[] = {
 	{
-		.compatible = "rockchip,rk1108-usb2phy",
-		.data = &rk1108_host_phy_cfg
+		.compatible = "rockchip,rv1108-usb2phy",
+		.data = &rv1108_host_phy_cfg
 	},
 	{}
 };
-MODULE_DEVICE_TABLE(of, rk1108_usb2phy_dt_match);
+MODULE_DEVICE_TABLE(of, rv1108_usb2phy_dt_match);
 
-static struct platform_driver rk1108_usb2phy_driver = {
-	.probe		= rk1108_usb2phy_probe,
+static struct platform_driver rv1108_usb2phy_driver = {
+	.probe		= rv1108_usb2phy_probe,
 	.driver		= {
-		.name	= "rk1108-usb2phy",
-		.of_match_table = rk1108_usb2phy_dt_match,
+		.name	= "rv1108-usb2phy",
+		.of_match_table = rv1108_usb2phy_dt_match,
 	},
 };
-module_platform_driver(rk1108_usb2phy_driver);
+module_platform_driver(rv1108_usb2phy_driver);
 
 MODULE_AUTHOR("Frank Wang <frank.wang@rock-chips.com>");
-MODULE_DESCRIPTION("RK1108 USB2.0 PHY driver");
+MODULE_DESCRIPTION("rv1108 USB2.0 PHY driver");
 MODULE_LICENSE("GPL v2");
