@@ -6,7 +6,7 @@
 #include <dt-bindings/rkfb/rk_fb.h>
 
 / {
-	compatible = "rockchip,rk1108";
+	compatible = "rockchip,rv1108";
 	interrupt-parent = <&gic>;
 
 	cpus {
@@ -211,7 +211,7 @@
 
 	vop: vop@30040000 {
 		status = "disabled";
-		compatible = "rockchip,rk1108-lcdc-lite";
+		compatible = "rockchip,rv1108-lcdc-lite";
 		rockchip,prop = <PRMRY>;
 		rockchip,pwr18 = <0>;
 		rockchip,iommu-enabled = <0>;

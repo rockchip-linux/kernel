@@ -502,12 +502,12 @@
 	};
 
 	grf: syscon@10300000 {
-		compatible = "rockchip,rk1108-grf", "rockchip,grf", "syscon";
+		compatible = "rockchip,rv1108-grf", "rockchip,grf", "syscon";
 		reg = <0x10300000 0x1000>;
 	};
 
 	pmugrf: syscon@20060000 {
-		compatible = "rockchip,rk1108-pmugrf", "rockchip,pmugrf", "syscon";
+		compatible = "rockchip,rv1108-pmugrf", "rockchip,pmugrf", "syscon";
 		reg = <0x20060000 0x1000>;
 	};
 
@@ -613,7 +613,7 @@
 	};
 
 	cru: syscon@20200000 {
-		compatible = "rockchip,rk1108-cru", "rockchip,cru", "syscon";
+		compatible = "rockchip,rv1108-cru", "rockchip,cru", "syscon";
 		reg = <0x20200000 0x1000>;
 	};
 
@@ -702,7 +702,7 @@
 	};
 
 	cif_isp0: cif_isp@30020000 {
-		compatible = "rockchip,rk1108-cif-isp";
+		compatible = "rockchip,rv1108-cif-isp";
 		rockchip,grf = <&grf>;
 		reg = <0x30020000 0x10000>, <0x20258000 0x8000>, <0x20200000 0x1000>;
 		reg-names = "register", "csiphy_base", "cru_base";
@@ -773,7 +773,7 @@
 	};
 
 	cif1to4: cif1to4 {
-		compatible = "rockchip,rk1108-cif1to4","rockchip,cif1to4";
+		compatible = "rockchip,rv1108-cif1to4","rockchip,cif1to4";
 		rockchip,grf = <&grf>;
 		clocks = <&clk_gates7 8>, <&pclkin_vip>, <&pclkin_vip_inv>;
 		clock-names = "cif1to4_pclk", "pclkin_vip", "pclkin_vip_inv";
@@ -783,7 +783,7 @@
 	};
 
 	cif_cif0: cif_cif@30060000 {
-		compatible = "rockchip,rk1108-cif-cif";
+		compatible = "rockchip,rv1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x30060000 0x10000>;
 		clocks = <&clk_gates18 6>, <&clk_gates18 7>, <&clk_gates7 9>,
@@ -799,7 +799,7 @@
 	};
 
 	cvbsin: cvbsin@30070000 {
-		compatible = "rockchip,rk1108-cvbsin", "rockchip,cvbsin";
+		compatible = "rockchip,rv1108-cvbsin", "rockchip,cvbsin";
 		rockchip,grf = <&grf>;
 		reg = <0x30070000 0x10000>;
 		device_type = "v4l2-pltfrm-subdev";
@@ -811,7 +811,7 @@
 	};
 
 	cif_cif1: cif_cif@30080000 {
-		compatible = "rockchip,rk1108-cif-cif";
+		compatible = "rockchip,rv1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x30080000 0x10000>;
 		clocks = <&clk_gates17 6>, <&clk_gates17 7>, <&clk_gates7 10>,
@@ -827,7 +827,7 @@
 	};
 
 	cif_cif2: cif_cif@30090000 {
-		compatible = "rockchip,rk1108-cif-cif";
+		compatible = "rockchip,rv1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x30090000 0x10000>;
 		clocks = <&clk_gates17 8>, <&clk_gates17 9>, <&clk_gates7 11>,
@@ -843,7 +843,7 @@
 	};
 
 	cif_cif3: cif_cif@300a0000 {
-		compatible = "rockchip,rk1108-cif-cif";
+		compatible = "rockchip,rv1108-cif-cif";
 		rockchip,grf = <&grf>;
 		reg = <0x300a0000 0x10000>;
 		clocks = <&clk_gates17 10>, <&clk_gates17 11>, <&clk_gates7 12>,
@@ -902,7 +902,7 @@
 	};
 
 	emmc: rksdmmc@30110000 {
-		compatible = "rockchip,rk_mmc", "rockchip,rk1108-sdmmc";
+		compatible = "rockchip,rk_mmc", "rockchip,rv1108-sdmmc";
 		reg = <0x30110000 0x10000>;
 		interrupts = <GIC_SPI 13 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -919,7 +919,7 @@
 	};
 
 	sdio: rksdmmc@30120000 {
-		compatible = "rockchip,rk_mmc", "rockchip,rk1108-sdmmc";
+		compatible = "rockchip,rk_mmc", "rockchip,rv1108-sdmmc";
 		reg = <0x30120000 0x10000>;
 		interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -939,7 +939,7 @@
 	};
 
 	sdmmc: rksdmmc@30130000 {
-		compatible = "rockchip,rk_mmc", "rockchip,rk1108-sdmmc";
+		compatible = "rockchip,rk_mmc", "rockchip,rv1108-sdmmc";
 		reg = <0x30130000 0x10000>;
 		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
 		#address-cells = <1>;
@@ -1017,7 +1017,7 @@
 	};
 
 	gmac: eth@30200000 {
-		compatible = "rockchip,rk1108-gmac";
+		compatible = "rockchip,rv1108-gmac";
 		reg = <0x30200000 0x10000>;
 		rockchip,grf = <&grf>;
 		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
@@ -1046,7 +1046,7 @@
 	};
 
 	dsp: dsp@33000000 {
-		compatible = "rockchip,rk1108-dsp", "rockchip,dsp";
+		compatible = "rockchip,rv1108-dsp", "rockchip,dsp";
 		reg = <0x33800000 0x10000>,
 		      <0x33000000 0x800000>,
 		      <0x33810000 0x10000>;
@@ -1064,7 +1064,7 @@
 	};
 
 	pinctrl: pinctrl {
-		compatible = "rockchip,rk1108-pinctrl";
+		compatible = "rockchip,rv1108-pinctrl";
 		rockchip,grf = <&grf>;
 		rockchip,pmugrf = <&pmugrf>;
 		#address-cells = <1>;
