@@ -404,33 +404,6 @@ disable_clks:
 	return ret;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int rk1108_usb2phy_pm_suspend(struct device *dev)
-{
-	struct rk1108_usb2phy *rphy = dev_get_drvdata(dev);
-
-	dev_dbg(dev, "PM suspend\n");
-	return rk1108_usb2phy_power_off(rphy->phy);
-}
-
-static int rk1108_usb2phy_pm_resume(struct device *dev)
-{
-	struct rk1108_usb2phy *rphy = dev_get_drvdata(dev);
-
-	dev_dbg(dev, "PM resume\n");
-	return rk1108_usb2phy_power_on(rphy->phy);
-}
-
-static const struct dev_pm_ops rk1108_usb2phy_dev_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(rk1108_usb2phy_pm_suspend,
-				rk1108_usb2phy_pm_resume)
-};
-
-#define RK1108_DEV_PM_OPS	(&rk1108_usb2phy_dev_pm_ops)
-#else
-#define RK1108_DEV_PM_OPS	NULL
-#endif /* CONFIG_PM_SLEEP */
-
 static const struct rk1108_usb2phy_cfg rk1108_host_phy_cfg = {
 	.phy_sus	= { 0x0104, 15, 0, 0, 0x1d1 },
 	.ls_det_en	= { 0x0680, 4, 4, 0, 1 },
@@ -453,7 +426,6 @@ static struct platform_driver rk1108_usb2phy_driver = {
 	.probe		= rk1108_usb2phy_probe,
 	.driver		= {
 		.name	= "rk1108-usb2phy",
-		.pm	= RK1108_DEV_PM_OPS,
 		.of_match_table = rk1108_usb2phy_dt_match,
 	},
 };
