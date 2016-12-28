@@ -1667,12 +1667,15 @@ static void rk322xh_vop_bcsh_path_sel(struct rk_lcdc_driver *dev_drv)
 	if (IS_YUV_COLOR(dev_drv->output_color)) {
 		val = V_DSP_OUT_RGB_YUV(1);
 		vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
+	} else {
+		val = V_DSP_OUT_RGB_YUV(0);
+		vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
+	}
+	if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
 		val = V_DSP_BG_BLUE(0x200) | V_DSP_BG_GREEN(0x40) |
 			V_DSP_BG_RED(0x200);
 		vop_msk_reg(vop_dev, DSP_BG, val);
 	} else {
-		val = V_DSP_OUT_RGB_YUV(0);
-		vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 		val = V_DSP_BG_BLUE(0) | V_DSP_BG_GREEN(0) |
 			V_DSP_BG_RED(0);
 		vop_msk_reg(vop_dev, DSP_BG, val);
@@ -1917,12 +1920,15 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 		if (IS_YUV_COLOR(dev_drv->output_color)) {
 			val = V_DSP_OUT_RGB_YUV(1);
 			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
+		} else {
+			val = V_DSP_OUT_RGB_YUV(0);
+			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
+		}
+		if (dev_drv->overlay_mode == VOP_YUV_DOMAIN) {
 			val = V_DSP_BG_BLUE(0x200) | V_DSP_BG_GREEN(0x40) |
 				V_DSP_BG_RED(0x200);
 			vop_msk_reg(vop_dev, DSP_BG, val);
 		} else {
-			val = V_DSP_OUT_RGB_YUV(0);
-			vop_msk_reg(vop_dev, POST_SCL_CTRL, val);
 			val = V_DSP_BG_BLUE(0) | V_DSP_BG_GREEN(0) |
 				V_DSP_BG_RED(0);
 			vop_msk_reg(vop_dev, DSP_BG, val);
