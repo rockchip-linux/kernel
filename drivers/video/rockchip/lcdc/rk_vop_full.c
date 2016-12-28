@@ -681,7 +681,14 @@ static void rk322xh_vop_win_csc_mode(struct vop_device *vop_dev,
 		r2y_en = 0;
 		y2r_en = 1;
 		/* y2r csc mode depend on data color space */
-		win_csc_mode = win->colorspace;
+		if (win->colorspace == CSC_BT2020)
+			win_csc_mode = VOP_CSC_BT2020;
+		else if (win->colorspace == CSC_BT709)
+			win_csc_mode = VOP_CSC_BT709L;
+		else if (win->colorspace == CSC_BT601F)
+			win_csc_mode = VOP_CSC_BT601F;
+		else
+			win_csc_mode = VOP_CSC_BT601L;
 	} else if (!IS_YUV_COLOR(win_csc) && (overlay_mode == VOP_YUV_DOMAIN)) {
 		r2y_en = 1;
 		y2r_en = 0;
