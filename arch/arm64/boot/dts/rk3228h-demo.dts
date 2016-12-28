@@ -73,11 +73,6 @@
 	};
 };
 
-&clk_core_dvfs_table {
-	target-temp = <105>;
-	status = "okay";
-};
-
 &hdmi {
 	rockchip,cec_enable = <1>;
 };
