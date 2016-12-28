@@ -138,14 +138,14 @@ static u64 gmac_dmamask = DMA_BIT_MASK(32);
 #define RK322XH_GMAC_CLK_2_5M		(GRF_CLR_BIT(11) | GRF_BIT(12))
 
 /* RV1108_GRF_GMAC_CON0 */
-#define RK1108_GMAC_PHY_INTF_SEL_RMII	\
+#define RV1108_GMAC_PHY_INTF_SEL_RMII	\
 		(GRF_CLR_BIT(4) | GRF_CLR_BIT(5) | GRF_BIT(6))
-#define RK1108_GMAC_FLOW_CTRL		GRF_BIT(3)
-#define RK1108_GMAC_FLOW_CTRL_CLR	GRF_CLR_BIT(3)
-#define RK1108_GMAC_SPEED_10M		GRF_CLR_BIT(2)
-#define RK1108_GMAC_SPEED_100M		GRF_BIT(2)
-#define RK1108_GMAC_RMII_CLK_25M	GRF_BIT(7)
-#define RK1108_GMAC_RMII_CLK_2_5M	GRF_CLR_BIT(7)
+#define RV1108_GMAC_FLOW_CTRL		GRF_BIT(3)
+#define RV1108_GMAC_FLOW_CTRL_CLR	GRF_CLR_BIT(3)
+#define RV1108_GMAC_SPEED_10M		GRF_CLR_BIT(2)
+#define RV1108_GMAC_SPEED_100M		GRF_BIT(2)
+#define RV1108_GMAC_RMII_CLK_25M	GRF_BIT(7)
+#define RV1108_GMAC_RMII_CLK_2_5M	GRF_CLR_BIT(7)
 
 static void SET_RGMII(struct bsp_priv *bsp_priv, int type,
 		      int tx_delay, int rx_delay)
@@ -268,7 +268,7 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 			     RK322X_GMAC_PHY_INTF_SEL_RMII |
 			      RK322XH_GMAC_RMII_MODE);
 		break;
-	case RK1108_GMAC:
+	case RV1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -276,7 +276,7 @@ static void SET_RMII(struct bsp_priv *bsp_priv, int type)
 		}
 
 		regmap_write(bsp_priv->grf, RV1108_GRF_GMAC_CON0,
-			     RK1108_GMAC_PHY_INTF_SEL_RMII);
+			     RV1108_GMAC_PHY_INTF_SEL_RMII);
 		break;
 	default:
 		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
@@ -460,7 +460,7 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 			     RK322X_GMAC_RMII_CLK_2_5M |
 			     RK322X_GMAC_SPEED_10M);
 		break;
-	case RK1108_GMAC:
+	case RV1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -468,8 +468,8 @@ static void SET_RMII_10M(struct bsp_priv *bsp_priv, int type)
 		}
 
 		regmap_write(bsp_priv->grf, RV1108_GRF_GMAC_CON0,
-			     RK1108_GMAC_RMII_CLK_2_5M |
-			     RK1108_GMAC_SPEED_10M);
+			     RV1108_GMAC_RMII_CLK_2_5M |
+			     RV1108_GMAC_SPEED_10M);
 		break;
 	default:
 		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
@@ -533,7 +533,7 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 			     RK322X_GMAC_RMII_CLK_25M |
 			     RK322X_GMAC_SPEED_100M);
 		break;
-	case RK1108_GMAC:
+	case RV1108_GMAC:
 		if (IS_ERR(bsp_priv->grf)) {
 			dev_err(dev, "%s: Missing rockchip,grf property\n",
 				__func__);
@@ -541,8 +541,8 @@ static void SET_RMII_100M(struct bsp_priv *bsp_priv, int type)
 		}
 
 		regmap_write(bsp_priv->grf, RV1108_GRF_GMAC_CON0,
-			     RK1108_GMAC_RMII_CLK_25M |
-			     RK1108_GMAC_SPEED_100M);
+			     RV1108_GMAC_RMII_CLK_25M |
+			     RV1108_GMAC_SPEED_100M);
 		break;
 	default:
 		dev_err(dev, "%s: unsupport type: %d\n", __func__, type);
@@ -1431,8 +1431,8 @@ static const struct of_device_id stmmac_dt_ids[] = {
 	{ .compatible = "rockchip,rk322xh-gmac",
 	  .data = (void *)RK322XH_GMAC
 	},
-	{ .compatible = "rockchip,rk1108-gmac",
-	  .data = (void *) RK1108_GMAC
+	{ .compatible = "rockchip,rv1108-gmac",
+	  .data = (void *) RV1108_GMAC
 	},
 	{ /* sentinel */ }
 };
