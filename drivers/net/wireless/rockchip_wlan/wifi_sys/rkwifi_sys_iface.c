@@ -100,7 +100,12 @@ static ssize_t wifi_chip_read(struct class *cls, struct class_attribute *attr, c
 	if(type == WIFI_RTL8723CS) {
 	    count = sprintf(_buf, "%s", "RTL8723CS");
 	    printk("Current WiFi chip is RTL8723CS.\n");
-	}	
+	}
+
+	if(type == WIFI_RTL8723DS) {
+	    count = sprintf(_buf, "%s", "RTL8723DS");
+	    printk("Current WiFi chip is RTL8723DS.\n");
+	}
 	
 	if(type == WIFI_RTL8723BU) {
 	    count = sprintf(_buf, "%s", "RTL8723BU");
@@ -194,6 +199,12 @@ static int wifi_init_exit_module(int enable)
 			rockchip_wifi_exit_module_rtkwifi();
 		return ret;
 	}  else if (type == WIFI_RTL8723CS) {
+		if (enable > 0)
+			ret = rockchip_wifi_init_module_rtkwifi();
+		else
+			rockchip_wifi_exit_module_rtkwifi();
+		return ret;
+	} else if (type == WIFI_RTL8723DS) {
 		if (enable > 0)
 			ret = rockchip_wifi_init_module_rtkwifi();
 		else

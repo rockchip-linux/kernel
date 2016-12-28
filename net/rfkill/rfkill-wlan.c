@@ -133,8 +133,10 @@ int get_wifi_chip_type(void)
     } else if (strcmp(wifi_chip_type_string, "rtl8723bs_vq0") == 0) {
         type = WIFI_RTL8723BS_VQ0;        
     } else if (strcmp(wifi_chip_type_string, "rtl8723cs") == 0) {
-        type = WIFI_RTL8723CS;        
-    }else if (strcmp(wifi_chip_type_string, "rtl8723bs") == 0) {
+        type = WIFI_RTL8723CS;
+    } else if (strcmp(wifi_chip_type_string, "rtl8723ds") == 0) {
+	type = WIFI_RTL8723DS;
+    } else if (strcmp(wifi_chip_type_string, "rtl8723bs") == 0) {
         type = WIFI_RTL8723BS;
     } else if (strcmp(wifi_chip_type_string, "rtl8723au") == 0) {
         type = WIFI_RTL8723AU;        
