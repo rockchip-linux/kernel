@@ -71,7 +71,7 @@
 #define GPIO_LS_SYNC		0x60
 
 enum rockchip_pinctrl_type {
-	RK1108,
+	RV1108,
 	RK2928,
 	RK3066B,
 	RK3188,
@@ -428,7 +428,7 @@ static const struct pinctrl_ops rockchip_pctrl_ops = {
  * Hardware access
  */
 
-static const struct rockchip_mux_recalced_data rk1108_mux_recalced_data[] = {
+static const struct rockchip_mux_recalced_data rv1108_mux_recalced_data[] = {
 	{
 		.num = 1,
 		.bit = 0x2,
@@ -482,17 +482,17 @@ static const struct rockchip_mux_recalced_data rk322xh_mux_recalced_data[] = {
 	},
 };
 
-static void rk1108_recalc_mux(u8 bank_num, int pin, int *reg,
+static void rv1108_recalc_mux(u8 bank_num, int pin, int *reg,
 			      int *mask, u8 *bit)
 {
 	const struct rockchip_mux_recalced_data *data = NULL;
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(rk1108_mux_recalced_data); i++)
-		if (rk1108_mux_recalced_data[i].num == bank_num &&
-		    rk1108_mux_recalced_data[i].min_pin <= pin &&
-		    rk1108_mux_recalced_data[i].max_pin >= pin) {
-			data = &rk1108_mux_recalced_data[i];
+	for (i = 0; i < ARRAY_SIZE(rv1108_mux_recalced_data); i++)
+		if (rv1108_mux_recalced_data[i].num == bank_num &&
+		    rv1108_mux_recalced_data[i].min_pin <= pin &&
+		    rv1108_mux_recalced_data[i].max_pin >= pin) {
+			data = &rv1108_mux_recalced_data[i];
 			break;
 		}
 
@@ -667,8 +667,8 @@ static int rockchip_set_mux(struct rockchip_pin_bank *bank, int pin, int mux)
 	return ret;
 }
 
-#define RK1108_PULL_PMU_OFFSET		0x10
-#define RK1108_PULL_OFFSET		0x110
+#define RV1108_PULL_PMU_OFFSET		0x10
+#define RV1108_PULL_OFFSET		0x110
 
 #define RK3188_PULL_BITS_PER_PIN	2
 #define RK3188_PULL_PINS_PER_REG	8
@@ -695,9 +695,9 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 	/* The first 24 pins of the first bank are located in PMU */
 	if (bank->bank_num == 0) {
 		switch (ctrl->type) {
-		case RK1108:
+		case RV1108:
 			*regmap = info->regmap_pmu;
-			*reg = RK1108_PULL_PMU_OFFSET;
+			*reg = RV1108_PULL_PMU_OFFSET;
 			break;
 		case RK322X:
 			*regmap = info->regmap_base;
@@ -725,8 +725,8 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 		*bit *= RK3188_PULL_BITS_PER_PIN;
 	} else {
 		switch (ctrl->type) {
-		case RK1108:
-			*reg = RK1108_PULL_OFFSET;
+		case RV1108:
+			*reg = RV1108_PULL_OFFSET;
 			break;
 		case RK322X:
 			*reg = RK322X_PULL_OFFSET;
@@ -756,8 +756,8 @@ static void rk3288_calc_pull_reg_and_bit(struct rockchip_pin_bank *bank,
 	}
 }
 
-#define RK1108_DRV_PMU_OFFSET		0x20
-#define RK1108_DRV_GRF_OFFSET		0x210
+#define RV1108_DRV_PMU_OFFSET		0x20
+#define RV1108_DRV_GRF_OFFSET		0x210
 
 #define RK322X_DRV_PMU_OFFSET		0x200
 #define RK322X_DRV_GRF_OFFSET		0x210
@@ -785,9 +785,9 @@ static void rk3288_calc_drv_reg_and_bit(struct rockchip_pin_bank *bank,
 	/* The first 24 pins of the first bank are located in PMU */
 	if (bank->bank_num == 0) {
 		switch (ctrl->type) {
-		case RK1108:
+		case RV1108:
 			*regmap = info->regmap_pmu;
-			*reg = RK1108_DRV_PMU_OFFSET;
+			*reg = RV1108_DRV_PMU_OFFSET;
 			break;
 		case RK322X:
 			*regmap = info->regmap_base;
@@ -815,8 +815,8 @@ static void rk3288_calc_drv_reg_and_bit(struct rockchip_pin_bank *bank,
 		*bit *= RK3288_DRV_BITS_PER_PIN;
 	} else {
 		switch (ctrl->type) {
-		case RK1108:
-			*reg = RK1108_DRV_GRF_OFFSET;
+		case RV1108:
+			*reg = RV1108_DRV_GRF_OFFSET;
 			break;
 		case RK322X:
 			*reg = RK322X_DRV_GRF_OFFSET;
@@ -928,7 +928,7 @@ static int rockchip_get_pull(struct rockchip_pin_bank *bank, int pin_num)
 		return !(data & BIT(bit))
 				? PIN_CONFIG_BIAS_PULL_PIN_DEFAULT
 				: PIN_CONFIG_BIAS_DISABLE;
-	case RK1108:
+	case RV1108:
 	case RK3188:
 	case RK322X:
 	case RK322XH:
@@ -987,7 +987,7 @@ static int rockchip_set_pull(struct rockchip_pin_bank *bank,
 
 		spin_unlock_irqrestore(&bank->slock, flags);
 		break;
-	case RK1108:
+	case RV1108:
 	case RK3188:
 	case RK322X:
 	case RK322XH:
@@ -1030,14 +1030,14 @@ static int rockchip_set_pull(struct rockchip_pin_bank *bank,
 	return ret;
 }
 
-#define RK1108_SCHMITT_BITS_PER_PIN     1
-#define RK1108_SCHMITT_PINS_PER_REG     16
-#define RK1108_SCHMITT_BANK_STRIDE      8
+#define RV1108_SCHMITT_BITS_PER_PIN     1
+#define RV1108_SCHMITT_PINS_PER_REG     16
+#define RV1108_SCHMITT_BANK_STRIDE      8
 
-#define RK1108_SCHMITT_PMU_GRF_OFFSET   0x30
-#define RK1108_SCHMITT_GRF_OFFSET       0x388
+#define RV1108_SCHMITT_PMU_GRF_OFFSET   0x30
+#define RV1108_SCHMITT_GRF_OFFSET       0x388
 
-static void rk1108_calc_schmitt_reg_and_bit(struct rockchip_pin_bank *bank,
+static void rv1108_calc_schmitt_reg_and_bit(struct rockchip_pin_bank *bank,
 					    int pin_num,
 					    struct regmap **regmap,
 					    int *reg, u8 *bit)
@@ -1046,19 +1046,19 @@ static void rk1108_calc_schmitt_reg_and_bit(struct rockchip_pin_bank *bank,
 
 	if (bank->bank_num == 0) {
 		*regmap = info->regmap_pmu;
-		*reg = RK1108_SCHMITT_PMU_GRF_OFFSET;
+		*reg = RV1108_SCHMITT_PMU_GRF_OFFSET;
 
-		*reg += ((pin_num / RK1108_SCHMITT_PINS_PER_REG) * 4);
-		*bit = pin_num % RK1108_SCHMITT_PINS_PER_REG;
+		*reg += ((pin_num / RV1108_SCHMITT_PINS_PER_REG) * 4);
+		*bit = pin_num % RV1108_SCHMITT_PINS_PER_REG;
 	} else {
 		*regmap = info->regmap_base;
-		*reg = RK1108_SCHMITT_GRF_OFFSET;
+		*reg = RV1108_SCHMITT_GRF_OFFSET;
 
 		/* correct the offset, as we're starting with the 2nd bank */
 		*reg -= 0x8;
-		*reg += bank->bank_num * RK1108_SCHMITT_BANK_STRIDE;
-		*reg += ((pin_num / RK1108_SCHMITT_PINS_PER_REG) * 4);
-		*bit = pin_num % RK1108_SCHMITT_PINS_PER_REG;
+		*reg += bank->bank_num * RV1108_SCHMITT_BANK_STRIDE;
+		*reg += ((pin_num / RV1108_SCHMITT_PINS_PER_REG) * 4);
+		*bit = pin_num % RV1108_SCHMITT_PINS_PER_REG;
 	}
 }
 
@@ -1306,7 +1306,7 @@ static bool rockchip_pinconf_pull_valid(struct rockchip_pin_ctrl *ctrl,
 			pull == PIN_CONFIG_BIAS_DISABLE);
 	case RK3066B:
 		return pull ? false : true;
-	case RK1108:
+	case RV1108:
 	case RK3188:
 	case RK322X:
 	case RK322XH:
@@ -1376,9 +1376,9 @@ static int rockchip_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 		}
 		break;
 	case PIN_CONFIG_DRIVE_STRENGTH:
-		/* rk1108 rk322x rk3288 rk3368 is the first
+		/* rv1108 rk322x rk3288 rk3368 is the first
 			with per-pin drive-strength */
-		if ((RK1108 != info->ctrl->type) &&
+		if ((RV1108 != info->ctrl->type) &&
 		    (RK322X != info->ctrl->type) &&
 		    (RK322XH != info->ctrl->type) &&
 		    (RK3288 != info->ctrl->type) &&
@@ -1447,10 +1447,10 @@ static int rockchip_pinconf_get(struct pinctrl_dev *pctldev, unsigned int pin,
 		arg = rc ? 1 : 0;
 		break;
 	case PIN_CONFIG_DRIVE_STRENGTH:
-		/* rk1108 rk322x rk3288 RK3368 is the first with per-pin
+		/* rv1108 rk322x rk3288 RK3368 is the first with per-pin
 		* drive-strength
 		*/
-		if ((RK1108 != info->ctrl->type) &&
+		if ((RV1108 != info->ctrl->type) &&
 		    (RK322X != info->ctrl->type) &&
 		    (RK322XH != info->ctrl->type) &&
 		    (RK3288 != info->ctrl->type) &&
@@ -2489,7 +2489,7 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static struct rockchip_pin_bank rk1108_pin_banks[] = {
+static struct rockchip_pin_bank rv1108_pin_banks[] = {
 	PIN_BANK_IOMUX_FLAGS(0, 32, "gpio0", IOMUX_SOURCE_PMU,
 					     IOMUX_SOURCE_PMU,
 					     IOMUX_SOURCE_PMU,
@@ -2503,16 +2503,16 @@ static struct rockchip_pin_bank rk1108_pin_banks[] = {
 	PIN_BANK_IOMUX_FLAGS(3, 32, "gpio3", 0, 0, 0, 0),
 };
 
-static struct rockchip_pin_ctrl rk1108_pin_ctrl = {
-		.pin_banks		= rk1108_pin_banks,
-		.nr_banks		= ARRAY_SIZE(rk1108_pin_banks),
-		.label			= "RK1108-GPIO",
-		.type			= RK1108,
+static struct rockchip_pin_ctrl rv1108_pin_ctrl = {
+		.pin_banks		= rv1108_pin_banks,
+		.nr_banks		= ARRAY_SIZE(rv1108_pin_banks),
+		.label			= "RV1108-GPIO",
+		.type			= RV1108,
 		.grf_mux_offset		= 0x10,
 		.pmu_mux_offset		= 0x0,
 		.pull_calc_reg		= rk3288_calc_pull_reg_and_bit,
-		.iomux_recalc		= rk1108_recalc_mux,
-		.schmitt_calc_reg	= rk1108_calc_schmitt_reg_and_bit,
+		.iomux_recalc		= rv1108_recalc_mux,
+		.schmitt_calc_reg	= rv1108_calc_schmitt_reg_and_bit,
 };
 
 static struct rockchip_pin_bank rk322x_pin_banks[] = {
@@ -2606,8 +2606,8 @@ static struct rockchip_pin_ctrl rk3368_pin_ctrl = {
 };
 
 static const struct of_device_id rockchip_pinctrl_dt_match[] = {
-	{ .compatible = "rockchip,rk1108-pinctrl",
-		.data = (void *)&rk1108_pin_ctrl },
+	{ .compatible = "rockchip,rv1108-pinctrl",
+		.data = (void *)&rv1108_pin_ctrl },
 	{ .compatible = "rockchip,rk322x-pinctrl",
 		.data = (void *)&rk322x_pin_ctrl },
 	{ .compatible = "rockchip,rk322xh-pinctrl",
