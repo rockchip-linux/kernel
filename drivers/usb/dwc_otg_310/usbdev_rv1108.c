@@ -177,7 +177,7 @@ static void dwc_otg_uart_mode(void *pdata, int enter_usb_uart_mode)
 {
 }
 
-struct dwc_otg_platform_data usb20otg_pdata_rk1108 = {
+struct dwc_otg_platform_data usb20otg_pdata_rv1108 = {
 	.phyclk = NULL,
 	.ahbclk = NULL,
 	.busclk = NULL,
@@ -223,7 +223,7 @@ static irqreturn_t otg_irq_handler(int irq, void *data)
 
 	regmap_read(control_usb->grf, 0x690, &sig_det_st);
 
-	/* For rk1108, otg_bvalid_irq, otg_id_irq and otg_linestate_irq are
+	/* For rv1108, otg_bvalid_irq, otg_id_irq and otg_linestate_irq are
 	 * shared with the same irq number, so we use _grf_sig_detect_status_
 	 * bits to distinguish them.
 	 */
@@ -345,7 +345,7 @@ static int dwc_otg_control_usb_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id dwc_otg_control_dt_match[] = {
-	{ .compatible = "rockchip,rk1108-dwc-control-usb", },
+	{ .compatible = "rockchip,rv1108-dwc-control-usb", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, dwc_otg_control_dt_match);
@@ -354,7 +354,7 @@ static struct platform_driver dwc_otg_control_usb_driver = {
 	.probe		= dwc_otg_control_usb_probe,
 	.remove		= dwc_otg_control_usb_remove,
 	.driver		= {
-		.name	= "rk1108-dwc-control-usb",
+		.name	= "rv1108-dwc-control-usb",
 		.owner = THIS_MODULE,
 		.of_match_table = dwc_otg_control_dt_match,
 	},
