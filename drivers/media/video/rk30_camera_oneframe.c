@@ -578,11 +578,13 @@ static void rk_camera_cif_reset(struct rk_camera_dev *pcdev, int only_rst)
 		write_cif_reg(pcdev->base, CIF_CIF_CROP, crop_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_SET_SIZE, set_size_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_FOR, for_reg);
-		if (CHIP_NAME != 3368)
-			write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH, vir_line_width_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH,
+			      vir_line_width_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_SCL_CTRL, scl_reg);
 		write_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_Y, y_reg);      /*ddl@rock-chips.com v0.3.0x13 */
 		write_cif_reg(pcdev->base, CIF_CIF_FRM0_ADDR_UV, uv_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_FRM1_ADDR_Y, y_reg);
+		write_cif_reg(pcdev->base, CIF_CIF_FRM1_ADDR_UV, uv_reg);
 	}
 	return;
 }
@@ -988,7 +990,6 @@ static void rk_camera_cifrest_delay(struct work_struct *work)
 	struct rk_camera_work *camera_work = container_of(work, struct rk_camera_work, work);
 	struct rk_camera_dev *pcdev = camera_work->pcdev;
 	unsigned long flags = 0;
-	unsigned int vir_line_width;
 
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()/n", __FILE__, __LINE__,__FUNCTION__);
 
@@ -1005,15 +1006,6 @@ static void rk_camera_cifrest_delay(struct work_struct *work)
 		RKCAMERA_DG2("After reset cif, enable capture again!\n");
 	}
 	spin_unlock_irqrestore(&pcdev->lock, flags);
-	if (CHIP_NAME == 3368) {
-		vir_line_width = read_cif_reg(pcdev->base, CIF_CIF_SET_SIZE);
-		if (pcdev->deinterlace)
-			vir_line_width = vir_line_width << 1;
-		RKCAMERA_TR("%s(%d): cif reset need reinit vir_line_width 0x%x\n",
-			    __func__, __LINE__, vir_line_width);
-		mdelay(100);
-		write_cif_reg(pcdev->base, CIF_CIF_VIR_LINE_WIDTH, vir_line_width & 0xffff);
-	};
 	return;
 }
 
