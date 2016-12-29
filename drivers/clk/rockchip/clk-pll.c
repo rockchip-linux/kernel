@@ -32,6 +32,9 @@
 #define PLL_MODE_DEEP		0x2
 #define PLL_RK3328_MODE_MASK	0x1
 
+unsigned long apll_safefreq = ULONG_MAX;
+unsigned long apll_maxfreq;
+
 struct rockchip_clk_pll {
 	struct clk_hw		hw;
 
@@ -52,6 +55,7 @@ struct rockchip_clk_pll {
 	spinlock_t		*lock;
 
 	struct rockchip_clk_provider *ctx;
+	u8			id;
 };
 
 #define to_rockchip_clk_pll(_hw) container_of(_hw, struct rockchip_clk_pll, hw)
@@ -645,6 +649,8 @@ static unsigned long rockchip_rk3066_pll_recalc_rate(struct clk_hw *hw,
 
 	if (pll->sel && pll->scaling)
 		return pll->scaling;
+	if (pll->id == 1 && apll_maxfreq)
+		return apll_maxfreq;
 
 	rockchip_rk3066_pll_get_params(pll, &cur);
 
@@ -720,6 +726,7 @@ static int rockchip_rk3066_pll_set_rate(struct clk_hw *hw, unsigned long drate,
 	struct rockchip_clk_pll *pll = to_rockchip_clk_pll(hw);
 	const struct rockchip_pll_rate_table *rate;
 	unsigned long old_rate = rockchip_rk3066_pll_recalc_rate(hw, prate);
+	 unsigned long temp_rate = drate;
 	struct regmap *grf = rockchip_clk_get_grf(pll->ctx);
 	int ret;
 
@@ -728,6 +735,9 @@ static int rockchip_rk3066_pll_set_rate(struct clk_hw *hw, unsigned long drate,
 			 __func__);
 		return PTR_ERR(grf);
 	}
+
+	if (pll->id == 1 && drate > apll_safefreq)
+		drate = apll_safefreq;
 
 	pr_debug("%s: changing %s from %lu to %lu with a parent rate of %lu\n",
 		 __func__, clk_hw_get_name(hw), old_rate, drate, prate);
@@ -743,6 +753,10 @@ static int rockchip_rk3066_pll_set_rate(struct clk_hw *hw, unsigned long drate,
 	ret = rockchip_rk3066_pll_set_params(pll, rate);
 	if (ret)
 		pll->scaling = 0;
+	if (!ret && pll->id == 1 && drate == apll_safefreq)
+		apll_maxfreq = temp_rate;
+	else
+		apll_maxfreq = 0;
 
 	return ret;
 }
@@ -1268,7 +1282,7 @@ struct clk *rockchip_clk_register_pll(struct rockchip_clk_provider *ctx,
 		u8 num_parents, int con_offset, int grf_lock_offset,
 		int lock_shift, int mode_offset, int mode_shift,
 		struct rockchip_pll_rate_table *rate_table,
-		unsigned long flags, u8 clk_pll_flags)
+		unsigned long flags, u8 clk_pll_flags, u8 id)
 {
 	const char *pll_parents[3];
 	struct clk_init_data init;
@@ -1393,6 +1407,7 @@ struct clk *rockchip_clk_register_pll(struct rockchip_clk_provider *ctx,
 	pll->flags = clk_pll_flags;
 	pll->lock = &ctx->lock;
 	pll->ctx = ctx;
+	pll->id = id;
 
 	pll_clk = clk_register(NULL, &pll->hw);
 	if (IS_ERR(pll_clk)) {
