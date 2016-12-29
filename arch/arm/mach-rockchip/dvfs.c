@@ -227,7 +227,7 @@ static struct notifier_block sys_stat_notifier = {
 
 #define RK322XH_CPU_MIN_RATE_4K		816000000
 #define RK322XH_CPU_MAX_RATE_4K		816000000
-static int rk322xh_sys_stat_notifier_call(struct notifier_block *nb,
+static int __cpuinit rk322xh_sys_stat_notifier_call(struct notifier_block *nb,
 					  unsigned long val, void *data)
 {
 	if (!clk_cpu_dvfs_node)
@@ -248,8 +248,8 @@ static int rk322xh_sys_stat_notifier_call(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block rk322xh_sys_stat_notifier = {
-		.notifier_call = rk322xh_sys_stat_notifier_call,
+static struct notifier_block rk322xh_sys_stat_notifier __cpuinitdata = {
+	.notifier_call = rk322xh_sys_stat_notifier_call,
 };
 
 #define DVFS_REGULATOR_MODE_STANDBY	1
@@ -2552,7 +2552,7 @@ static int dvfs_node_parse_dt(struct device_node *np,
 	return 0;
 }
 
-int of_dvfs_init(void)
+int __init of_dvfs_init(void)
 {
 	struct vd_node *vd;
 	struct pd_node *pd;

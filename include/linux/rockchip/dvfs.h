@@ -239,7 +239,7 @@ int rk_regist_vd(struct vd_node *vd);
 int rk_regist_pd(struct pd_node *pd);
 int rk_regist_clk(struct dvfs_node *clk_dvfs_node);
 struct regulator *dvfs_get_regulator(char *regulator_name);
-int of_dvfs_init(void);
+int __init of_dvfs_init(void);
 void register_dvfs_notifier_callback(struct dvfs_node *dvfs_node,
 				     notifier_fn_t callback);
 
