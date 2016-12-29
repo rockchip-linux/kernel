@@ -2330,7 +2330,8 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 			     (fb_data_fmt == FBDC_ABGR_888) ||
 			     (fb_data_fmt == ABGR888)) ? 1 : 0;
 		/*act_height should be 2 pix align for interlace output*/
-		if (win_par->area_par[i].yact % 2 == 1) {
+		if ((win_par->area_par[i].yact % 2 == 1) &&
+		    (screen->mode.vmode & FB_VMODE_INTERLACED)) {
 			win_par->area_par[i].yact  -= 1;
 			win_par->area_par[i].ysize -= 1;
 		}
