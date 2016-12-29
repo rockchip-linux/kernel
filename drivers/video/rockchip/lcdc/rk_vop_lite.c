@@ -1088,6 +1088,9 @@ static int vop_config_interface(struct rk_lcdc_driver *dev_drv)
 	case OUT_S888:
 		val = V_DSP_OUT_MODE(OUT_S888) | V_DITHER_DOWN(0);
 		break;
+	case OUT_S888DUMY:
+		val = V_DSP_OUT_MODE(OUT_S888DUMY) | V_DITHER_DOWN(0);
+		break;
 	case OUT_P565:
 		val = V_DSP_OUT_MODE(OUT_P565) | V_DITHER_DOWN(1) |
 			V_DITHER_DOWN_MODE(DITHER_888_565) |
