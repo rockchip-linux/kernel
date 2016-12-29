@@ -123,12 +123,13 @@
 };
 
 &sdmmc {
+	status = "okay";
 	cd-gpios = <&gpio1 GPIO_C1 GPIO_ACTIVE_HIGH>;/*CD GPIO*/
 };
 
 &key {
 	power-key {
-		gpios = <&gpio0 GPIO_A2 GPIO_ACTIVE_LOW>;
+		gpios = <&gpio2 GPIO_B5 GPIO_ACTIVE_LOW>;
 		linux,code = <116>;
 		label = "power";
 		gpio-key,wakeup;
