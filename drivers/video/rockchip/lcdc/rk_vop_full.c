@@ -1910,10 +1910,7 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			val |= V_SW_P2I_EN(0);
 		vop_msk_reg(vop_dev, DSP_CTRL0, val);
 
-		if (screen->mode.vmode & FB_VMODE_INTERLACED)
-			vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(1));
-		else
-			vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(0));
+		vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(0));
 		dev_drv->output_color = screen->color_mode;
 		rk322xh_vop_csc_cfg(dev_drv);
 		/* BG color */
@@ -1987,9 +1984,9 @@ static int vop_enable_irq(struct rk_lcdc_driver *dev_drv)
 
 	vop_mask_writel(vop_dev, INTR_CLEAR0, INTR_MASK, INTR_MASK);
 
-	val = INTR_FS | INTR_LINE_FLAG0 | INTR_BUS_ERROR | INTR_LINE_FLAG1 |
+	val = INTR_LINE_FLAG0 | INTR_BUS_ERROR | INTR_LINE_FLAG1 |
 		INTR_WIN0_EMPTY | INTR_WIN1_EMPTY | INTR_HWC_EMPTY |
-		INTR_POST_BUF_EMPTY;
+		INTR_POST_BUF_EMPTY | INTR_FS_FIELD;
 
 	vop_mask_writel(vop_dev, INTR_EN0, INTR_MASK, val);
 
@@ -3884,11 +3881,11 @@ static irqreturn_t vop_isr(int irq, void *dev_id)
 	if (!intr_status)
 		return IRQ_NONE;
 
-	if (intr_status & INTR_FS) {
+	if (intr_status & INTR_FS_FIELD) {
 		timestamp = ktime_get();
 		vop_dev->driver.vsync_info.timestamp = timestamp;
 		wake_up_interruptible_all(&vop_dev->driver.vsync_info.wait);
-		intr_status &= ~INTR_FS;
+		intr_status &= ~INTR_FS_FIELD;
 	}
 
 	if (intr_status & INTR_LINE_FLAG0)
