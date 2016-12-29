@@ -426,6 +426,10 @@
 	rk805,system-power-controller;
 	rk805,support_dc_chg = <1>; /* 1: dc chg; 0: usb chg */
 
+	rtc {
+		status = "okay";
+	};
+
 	regulators {
 		rk805_dcdc1_reg: regulator@0 {
 			regulator-name= "vdd_core";
