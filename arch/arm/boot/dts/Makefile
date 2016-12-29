@@ -163,6 +163,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rv1108-evb-v12.dtb \
 	rv1108-evb-v13.dtb \
 	rv1108-ipc-v10.dtb \
+	rv1108-ketong.dtb \
 	rk3036-fpga.dtb \
 	rk3036-new.dtb \
 	rk3036-rk88.dtb \
