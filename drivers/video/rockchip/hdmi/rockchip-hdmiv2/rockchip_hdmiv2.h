@@ -76,6 +76,7 @@ struct hdmi_dev {
 	const char		*product_name;
 	unsigned char		deviceinfo;
 	int			io_pullup;
+	int			frac_en;
 };
 
 void ext_pll_set_27m_out(void);

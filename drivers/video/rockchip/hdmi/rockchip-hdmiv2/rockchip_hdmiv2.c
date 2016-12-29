@@ -715,7 +715,8 @@ static int rockchip_hdmiv2_probe(struct platform_device *pdev)
 				SUPPORT_1080I |
 				SUPPORT_480I_576I |
 				SUPPORT_YUV420 |
-				SUPPORT_DEEP_10BIT;
+				SUPPORT_DEEP_10BIT |
+				SUPPORT_FRAC_FREQ;
 	} else {
 		ret = -ENXIO;
 		goto failed1;

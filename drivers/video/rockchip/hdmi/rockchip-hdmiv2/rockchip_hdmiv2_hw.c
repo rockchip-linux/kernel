@@ -92,61 +92,61 @@ static const struct phy_mpll_config_tab PHY_MPLL_TABLE[] = {
 static const struct ext_pll_config_tab EXT_PLL_TABLE[] = {
 	{27000000,	27000000,	8,	1,	90,	3,	2,
 		2,	10,	3,	3,	4,	0,	1,	40,
-		8},
+		8,	0xE8FBA7},
 	{27000000,	33750000,	10,	1,	90,	1,	3,
 		3,	10,	3,	3,	4,	0,	1,	40,
-		8},
+		8,	0xE8FBA7},
 	{59400000,	59400000,	8,	1,	99,	3,	1,
 		1,	1,	3,	3,	4,	0,	1,	40,
-		8},
+		8,	0xE6AE6B},
 	{59400000,	74250000,	10,	1,	99,	0,	3,
 		3,	1,	3,	3,	4,	0,	1,	40,
-		8},
+		8,	0xE6AE6B},
 	{74250000,	74250000,	8,	1,	99,	1,	2,
 		2,	1,	2,	3,	4,	0,	1,	40,
-		8},
+		8,	0xE6AE6B},
 	{74250000,	92812500,	10,	4,	495,	1,	2,
 		2,	1,	3,	3,	4,	0,	2,	40,
-		4},
+		4,	0x816817},
 	{148500000,	148500000,	8,	1,	99,	1,	1,
 		1,	1,	2,	2,	2,	0,	2,	40,
-		4},
+		4,	0xE6AE6B},
 	{148500000,	185625000,	10,	4,	495,	0,	2,
 		2,	1,	3,	2,	2,	0,	4,	40,
-		2},
+		2,	0x816817},
 	{297000000,	297000000,	8,	1,	99,	0,	1,
 		1,	1,	0,	2,	2,	0,	4,	40,
-		2},
+		2,	0xE6AE6B},
 	{297000000,	371250000,	10,	4,	495,	1,	2,
 		0,	1,	3,	1,	1,	0,	8,	40,
-		1},
+		1,	0x816817},
 	{594000000,	297000000,	8,	1,	99,	0,	1,
 		1,	1,	0,	2,	1,	0,	4,	40,
-		2},
+		2,	0xE6AE6B},
 	{594000000,	371250000,	10,	4,	495,	1,	2,
 		0,	1,	3,	1,	1,	1,	8,	40,
-		1},
+		1,	0x816817},
 	{594000000,	594000000,	8,	1,	99,	0,	2,
 		0,	1,	0,	1,	1,	0,	8,	40,
-		1},
+		1,	0xE6AE6B},
 };
 
 static const struct ext_pll_config_tab RK322XH_V1_PLL_TABLE[] = {
 	{27000000,	27000000,	8,	1,	90,	3,	2,
 		2,	10,	3,	3,	4,	0,	1,	80,
-		8},
+		8,	0xE8FBA7},
 	{27000000,	33750000,	10,	1,	90,	1,	3,
 		3,	10,	3,	3,	4,	0,	1,	80,
-		8},
+		8,	0xE8FBA7},
 	{59400000,	59400000,	8,	1,	99,	3,	1,
 		1,	1,	3,	3,	4,	0,	18,	80,
-		8},
+		8,	0xE6AE6B},
 	{59400000,	74250000,	10,	1,	99,	0,	3,
 		3,	1,	3,	3,	4,	0,	18,	80,
-		8},
+		8,	0xE6AE6B},
 	{74250000,	74250000,	8,	1,	99,	1,	2,
 		2,	1,	2,	3,	4,	0,	18,	80,
-		8},
+		8,	0xE6AE6B},
 };
 
 /* ddc i2c master reset */
@@ -586,7 +586,7 @@ int rockchip_hdmiv2_read_phy(struct hdmi_dev *hdmi_dev,
 
 static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 {
-	int stat = 0, i = 0, temp;
+	u32 stat = 0, i = 0, temp;
 	const struct ext_pll_config_tab *phy_ext = NULL;
 
 	if (hdmi_dev->soctype == HDMI_SOC_RV1108)
@@ -620,10 +620,16 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY1_PLL_PRE_DIVIDER,
 					  phy_ext->pll_nd);
-		stat = ((phy_ext->pll_nf >> 8) & 0x0f) | 0xf0;
+		if (hdmi_dev->frac_en)
+			stat = (((phy_ext->pll_nf - 1) >> 8) & 0x0f) | 0xc0;
+		else
+			stat = ((phy_ext->pll_nf >> 8) & 0x0f) | 0xf0;
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY1_PLL_SPM_CTRL, stat);
-		stat = phy_ext->pll_nf & 0xff;
+		if (hdmi_dev->frac_en)
+			stat = (phy_ext->pll_nf - 1) & 0xff;
+		else
+			stat = phy_ext->pll_nf & 0xff;
 		rockchip_hdmiv2_write_phy(hdmi_dev,
 					  EXT_PHY1_PLL_FB_DIVIDER, stat);
 		stat = (phy_ext->pclk_divider_a & EXT_PHY_PCLK_DIVIDERA_MASK) |
@@ -663,6 +669,19 @@ static int ext_phy1_config(struct hdmi_dev *hdmi_dev)
 			rockchip_hdmiv2_write_phy(hdmi_dev,
 						  0xaa,
 						  0x0e);
+		}
+		if (hdmi_dev->frac_en) {
+			stat = phy_ext->frac;
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0xd3,
+						  stat & 0xff);
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0xd2,
+						  (stat >> 8) & 0xff);
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0xd1,
+						  (stat >> 16) & 0xff);
+		} else {
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0xd3, 0);
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0xd2, 0);
+			rockchip_hdmiv2_write_phy(hdmi_dev, 0xd1, 0);
 		}
 	} else {
 		pr_err("%s no supported phy configuration.\n", __func__);
@@ -1231,6 +1250,16 @@ static int rockchip_hdmiv2_video_framecomposer(struct hdmi *hdmi_drv,
 		hdmi_dev->colordepth = vpara->color_output_depth;
 	pr_info("pixel clk is %lu tmds clk is %u\n",
 		hdmi_dev->pixelclk, hdmi_dev->tmdsclk);
+	/*
+	 * Only refresh rate 24/30/60 and HD/UHD resolution
+	 * need to be enabled frac mode.
+	 */
+	if (hdmi_drv->frac &&
+	    (mode->refresh % 25) &&
+	    mode->pixclock != 27000000)
+		hdmi_dev->frac_en = 1;
+	else
+		hdmi_dev->frac_en = 0;
 	/* Start/stop HDCP keepout window generation */
 	hdmi_msk_reg(hdmi_dev, FC_INVIDCONF,
 		     m_FC_HDCP_KEEPOUT, v_FC_HDCP_KEEPOUT(1));
@@ -2192,7 +2221,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 		else
 			N = N_32K_LOWCLK;
 		/*div a num to avoid the value is exceed 2^32(int)*/
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 32);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 32);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 32);
 		break;
 	case HDMI_AUDIO_FS_44100:
 		mclk_fs = FS_128;
@@ -2203,8 +2235,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			N = N_441K_MIDCLK;
 		else
 			N = N_441K_LOWCLK;
-
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 441);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk * 10 / 1001, 441);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 441);
 		break;
 	case HDMI_AUDIO_FS_48000:
 		mclk_fs = FS_128;
@@ -2215,8 +2249,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			N = N_48K_MIDCLK;
 		else
 			N = N_48K_LOWCLK;
-
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 48);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 48);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 48);
 		break;
 	case HDMI_AUDIO_FS_88200:
 		mclk_fs = FS_128;
@@ -2227,8 +2263,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			N = N_882K_MIDCLK;
 		else
 			N = N_882K_LOWCLK;
-
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 882);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk * 10 / 1001, 882);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 882);
 		break;
 	case HDMI_AUDIO_FS_96000:
 		mclk_fs = FS_128;
@@ -2239,8 +2277,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			N = N_96K_MIDCLK;
 		else
 			N = N_96K_LOWCLK;
-
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 96);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 96);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 96);
 		break;
 	case HDMI_AUDIO_FS_176400:
 		mclk_fs = FS_128;
@@ -2251,8 +2291,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			N = N_1764K_MIDCLK;
 		else
 			N = N_1764K_LOWCLK;
-
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 1764);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk * 10 / 1001, 1764);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 100, 1764);
 		break;
 	case HDMI_AUDIO_FS_192000:
 		mclk_fs = FS_128;
@@ -2263,8 +2305,10 @@ static int hdmi_dev_config_audio(struct hdmi *hdmi, struct hdmi_audio *audio)
 			N = N_192K_MIDCLK;
 		else
 			N = N_192K_LOWCLK;
-
-		CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 192);
+		if (hdmi_dev->frac_en)
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1001, 192);
+		else
+			CTS = CALC_CTS(N, hdmi_dev->tmdsclk / 1000, 192);
 		break;
 	default:
 		dev_err(hdmi_dev->hdmi->dev,

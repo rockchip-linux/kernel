@@ -298,6 +298,17 @@ static int hdmi_set_color(struct rk_display_device *device,
 			return -1;
 		else
 			return 0;
+	} else if (!strncmp(buf, "frac", 4)) {
+		if (!(hdmi->property->feature & SUPPORT_FRAC_FREQ)) {
+			pr_err("Don't support fractional frequency\n");
+			return -1;
+		}
+		if (sscanf(buf, "frac=%d", &value) == -1)
+			return -1;
+		if (hdmi->frac != value)
+			hdmi->frac = value;
+		else
+			return 0;
 	} else {
 		pr_err("%s unknown event\n", __func__);
 		return -1;

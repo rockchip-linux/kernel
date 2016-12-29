@@ -1766,6 +1766,7 @@ struct ext_pll_config_tab {
 	u8	ppll_nd;
 	u16	ppll_nf;
 	u8	ppll_no;
+	u32	frac;
 };
 
 /*

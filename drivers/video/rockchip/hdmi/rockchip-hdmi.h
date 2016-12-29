@@ -396,6 +396,7 @@ enum rk_hdmi_feature {
 	SUPPORT_YCBCR_INPUT	=	(1 << 12),
 	SUPPORT_VESA_DMT	=	(1 << 13),
 	SUPPORT_CEC_WAKEUP	=	(1 << 14),
+	SUPPORT_FRAC_FREQ	=	(1 << 15),
 };
 
 struct hdmi_property {
@@ -459,6 +460,7 @@ struct hdmi {
 	struct hdmi_video video;	/* HDMI output video information.*/
 	int xscale;
 	int yscale;
+	int frac;			/* Fractional frequency Enable Flag */
 };
 
 /* HDMI EDID Block Size */
