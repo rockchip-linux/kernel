@@ -382,7 +382,7 @@ static int rk_pwm_remotectl_hw_init(struct rkxx_remotectl_drvdata *ddata)
 }
 
 
-static int rk_pwm_probe(struct platform_device *pdev)
+static int __init rk_pwm_probe(struct platform_device *pdev)
 {
 	struct rkxx_remotectl_drvdata *ddata;
 	struct device_node *np = pdev->dev.of_node;
@@ -630,10 +630,9 @@ static struct platform_driver rk_pwm_driver = {
 		.pm = &remotectl_pm_ops,
 #endif
 	},
-	.probe = rk_pwm_probe,
 	.remove = rk_pwm_remove,
 };
 
-module_platform_driver(rk_pwm_driver);
+module_platform_driver_probe(rk_pwm_driver, rk_pwm_probe);
 
 MODULE_LICENSE("GPL");
