@@ -28,6 +28,8 @@
  */
 static int gpio_num = -1;
 static int gpio_active_low;
+static bool auto_power_off;
+module_param(auto_power_off, bool, 0644);
 
 extern int dwc_vbus_status(void);
 
@@ -35,7 +37,7 @@ static void gpio_poweroff_do_poweroff(void)
 {
 	BUG_ON(!gpio_is_valid(gpio_num));
 
-	if (cpu_is_rv1108()) {
+	if (auto_power_off) {
 		pr_info("%s: vbus status: %d\n", __func__, dwc_vbus_status());
 		if (dwc_vbus_status())
 			machine_restart(NULL);
