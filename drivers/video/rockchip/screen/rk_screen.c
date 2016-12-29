@@ -88,6 +88,7 @@ static int rk_screen_probe(struct platform_device *pdev)
 		return  -ENOMEM;
 	}
 	ret = rk_fb_prase_timing_dt(np, rk_screen);
+	rk_fb_get_screen_init(np, rk_screen);
 	dev_info(&pdev->dev, "rockchip screen probe %s\n",
 				ret ? "failed" : "success");
 	return ret;

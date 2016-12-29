@@ -149,5 +149,6 @@ extern size_t get_fb_size(u8 reserved_fb);
 
 extern void set_tv_info(struct rk_screen *screen);
 extern void set_hdmi_info(struct rk_screen *screen);
+int rk_fb_get_screen_init(struct device_node *np, struct rk_screen *screen);
 
 #endif

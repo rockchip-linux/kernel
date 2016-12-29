@@ -15,6 +15,6 @@ $(obj)/lcd.h: $(lcd-cpath)  FORCE
 	$(call if_changed,gen)
 
 $(obj)/rk_screen.o: $(obj)/lcd.h
-obj-y += rk_screen.o
+obj-y += rk_screen.o rk_screen_init.o
 
 clean-files := lcd.h

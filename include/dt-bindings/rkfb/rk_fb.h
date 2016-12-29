@@ -92,6 +92,9 @@
 #define DISPLAY_POLICY_SDK	0
 #define DISPLAY_POLICY_BOX	1
 
+#define SCREEN_INIT_SPI		1
+#define SCREEN_INIT_MCU		2
+
 /*      	lvds connect config       
  *                                        
  *          	LVDS_8BIT_1    LVDS_8BIT_2     LVDS_8BIT_3     LVDS_6BIT

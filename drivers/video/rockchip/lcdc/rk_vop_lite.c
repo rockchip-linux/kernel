@@ -1716,11 +1716,14 @@ static int vop_early_suspend(struct rk_lcdc_driver *dev_drv)
 static int vop_early_resume(struct rk_lcdc_driver *dev_drv)
 {
 	struct vop_device *vop_dev = to_vop_dev(dev_drv);
+	struct rk_screen *screen = dev_drv->cur_screen;
 
 	if (!dev_drv->suspend_flag)
 		return 0;
 
 	rk_disp_pwr_enable(dev_drv);
+	if (screen->init)
+		screen->init();
 	vop_clk_enable(vop_dev);
 	vop_reg_restore(dev_drv);
 	vop_standby_disable(vop_dev);
