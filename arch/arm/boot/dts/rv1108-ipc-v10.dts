@@ -189,6 +189,26 @@
 			};
 		};
 	};
+
+	motor_1 {
+		compatible = "motor-gpio";
+		gpios = <&gpio0 GPIO_A4 GPIO_ACTIVE_LOW>,
+				<&gpio0 GPIO_A5 GPIO_ACTIVE_LOW>,
+				<&gpio0 GPIO_A6 GPIO_ACTIVE_LOW>,
+				<&gpio0 GPIO_A7 GPIO_ACTIVE_LOW>;
+		rockchip,motor-id = <1>;
+		status = "okay";
+	};
+
+	motor_2 {
+		compatible = "motor-gpio";
+		gpios = <&gpio0 GPIO_B6 GPIO_ACTIVE_LOW>,
+				<&gpio0 GPIO_B0 GPIO_ACTIVE_LOW>,
+				<&gpio0 GPIO_C3 GPIO_ACTIVE_LOW>,
+				<&gpio0 GPIO_C5 GPIO_ACTIVE_LOW>;
+		rockchip,motor-id = <2>;
+		status = "okay";
+	};
 };
 
 &clk_core_dvfs_table {
