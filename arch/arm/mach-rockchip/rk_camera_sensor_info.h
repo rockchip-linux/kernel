@@ -48,6 +48,7 @@
 #define RK29_CAM_ISP_ICATCH7002_OV8825  icatchov8825
 #define RK29_CAM_ISP_ICATCH7002_OV2720  icatchov2720
 #define RK29_CAM_SENSOR_TP2825  tp2825	/* benjo.zhou#rock-chips.com */
+#define RK29_CAM_SENSOR_ADV7181 adv7181
 
 #define RK29_CAM_SENSOR_NAME_OV7675 "ov7675"
 #define RK29_CAM_SENSOR_NAME_OV9650 "ov9650"
@@ -91,6 +92,7 @@
 #define RK29_CAM_ISP_NAME_ICATCH7002_OV8825 "icatchov8825"
 #define RK29_CAM_ISP_NAME_ICATCH7002_OV2720 "icatchov2720"
 #define RK29_CAM_SENSOR_NAME_TP2825  "tp2825"
+#define RK29_CAM_SENSOR_NAME_ADV7181 "adv7181"
 
 /* Sensor full resolution define */
 #define ov7675_FULL_RESOLUTION     0x30000 /* 0.3 megapixel */
@@ -162,6 +164,7 @@
 #define icatchov8825_FULL_RESOLUTION 0x800000
 #define icatchov2720_FULL_RESOLUTION 0x210000
 #define tp2825_FULL_RESOLUTION		0x100000
+#define adv7181_FULL_RESOLUTION		0x100000
 #define end_FULL_RESOLUTION         0x00
 
 /* Sensor i2c addr define */
@@ -221,6 +224,7 @@
 #define icatchov8825_I2C_ADDR       0x78
 #define icatchov2720_I2C_ADDR       0x78
 #define tp2825_I2C_ADDR				0x88
+#define adv7181_I2C_ADDR		0x42
 #define end_I2C_ADDR                INVALID_VALUE
 
 /* Sensor power  active level define */
@@ -280,6 +284,7 @@
 #define hm5065_PWRDN_ACTIVE             0x00
 #define mtk9335isp_PWRDN_ACTIVE         0x01
 #define tp2825_PWRDN_ACTIVE				0x00
+#define adv7181_PWRDN_ACTIVE		0x00
 #define end_PWRDN_ACTIVE                INVALID_VALUE
 
 
@@ -379,6 +384,7 @@
 	SENSOR_PWRSEQ_SET(SENSOR_PWRSEQ_CLKIN, 1))
 
 #define tp2825_PWRSEQ					sensor_PWRSEQ_DEFAULT
+#define adv7181_PWRSEQ				sensor_PWRSEQ_DEFAULT
 
 #define end_PWRSEQ         0xffffffff
 /* Camera Sensor Must Define Macro End */
