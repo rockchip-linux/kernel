@@ -44,8 +44,9 @@
 
 #include "rv1108.dtsi"
 //#include "lcd-ili9806e_mipi.dtsi" /* dispaly board v10 v11 */
-#include "lcd-e555hbm2_mipi.dtsi" /* display board v20*/
+//#include "lcd-e555hbm2_mipi.dtsi" /* display board v20*/
 //#include "lcd-ili9807_mipi.dtsi" /* display board v30 */
+#include "lcd_dummy_mipi.dtsi" /* dummy mipi for rv1108 */
 #include "dt-bindings/suspend/rockchip-pm.h"
 
 / {

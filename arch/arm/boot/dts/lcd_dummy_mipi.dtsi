@@ -1,0 +1,27 @@
+/ {
+	disp_timings: display-timings {
+		native-mode = <&timing0>;
+		compatible = "rockchip,display-timings";
+		timing0: timing0 {
+			screen-type = <SCREEN_MIPI>;
+			/*lvds-format = <LVDS_8BIT_2>;*/
+			out-face = <OUT_P888>;
+			clock-frequency = <62000000>;
+			hactive = <720>;
+			vactive = <1280>;
+			hsync-len = <4>;
+			hback-porch = <20>;
+			hfront-porch = <32>;
+			vsync-len = <4>;
+			vback-porch = <15>;
+			vfront-porch = <15>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <0>;
+			pixelclk-active = <0>;
+			swap-rb = <0>;
+			swap-rg = <0>;
+			swap-gb = <0>;
+		};
+	};
+};
