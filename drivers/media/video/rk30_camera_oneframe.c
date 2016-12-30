@@ -2827,7 +2827,9 @@ static int rk_camera_s_stream(struct soc_camera_device *icd, int enable)
         write_cif_reg(pcdev->base,CIF_CIF_CTRL, cif_ctrl_val);
         spin_unlock_irqrestore(&pcdev->lock,flags);
         printk("%s:stream enable CIF_CIF_CTRL 0x%x\n",__func__,read_cif_reg(pcdev->base,CIF_CIF_CTRL));
-		hrtimer_start(&(pcdev->fps_timer.timer),ktime_set(3, 0),HRTIMER_MODE_REL);
+		hrtimer_start(&pcdev->fps_timer.timer,
+			      ktime_set(0, 500 * (1000 * 1000)),
+			      HRTIMER_MODE_REL);
         pcdev->fps_timer.istarted = true;
 	} else {
 	    /*cancel timer before stop cif*/

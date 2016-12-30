@@ -240,6 +240,7 @@ struct rk_camera_device_defrect {
 struct rk_camera_device_channel_info {
 	unsigned int channel_total;
 	unsigned int default_id;
+	const char *channel_info[5];
 };
 
 struct rkcamera_platform_data {

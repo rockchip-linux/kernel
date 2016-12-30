@@ -168,7 +168,12 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		
 		char sensor_name[20] = {0};
 		char *name = NULL;
-		
+		const char *status = NULL;
+
+		of_property_read_string(cp, "status", &status);
+		if (!strcmp(status, "disabled"))
+			continue;
+
 		strcpy(sensor_name,cp->name);
 		name = sensor_name;
 		if(strstr(sensor_name,"_") != NULL){			
@@ -288,6 +293,26 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 			"rockchip,camera-module-channel",
 			(unsigned int *)&new_camera->channel_info,
 			2);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-ain-1",
+			&new_camera->channel_info.channel_info[0]);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-ain-2",
+			&new_camera->channel_info.channel_info[1]);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-ain-3",
+			&new_camera->channel_info.channel_info[2]);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-ain-4",
+			&new_camera->channel_info.channel_info[3]);
+		of_property_read_string(
+			cp,
+			"rockchip,camera-module-ain-5",
+			&new_camera->channel_info.channel_info[4]);
 
 		strcpy(new_camera->dev.i2c_cam_info.type, name);
 		new_camera->dev.i2c_cam_info.addr = i2c_add>>1;
