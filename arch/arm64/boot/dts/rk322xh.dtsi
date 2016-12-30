@@ -1126,7 +1126,7 @@
 		#size-cells = <0>;
 		pinctrl-names = "default", "idle";
 		pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_dectn
-			     &sdmmc0_bus4>;
+			     &sdmmc0_bus4 &sdmmc0m1_pwren>;
 		pinctrl-1 = <&sdmmc0_gpio>;
 		cd-gpios = <&gpio1 GPIO_A5 GPIO_ACTIVE_HIGH>; /* CD GPIO */
 		clocks = <&clk_sdmmc>, <&clk_gates19 0>;
