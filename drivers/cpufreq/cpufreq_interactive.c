@@ -1349,6 +1349,8 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			tunables->boostpulse_duration_val = 40 * USEC_PER_MSEC;
 			tunables->touchboostpulse_duration_val = 500 * USEC_PER_MSEC;
 			tunables->touchboost_freq = 1200000;
+			if (tunables->touchboost_freq > policy->cpuinfo.max_freq)
+				tunables->touchboost_freq = policy->cpuinfo.max_freq;
 		}
 #endif
 
