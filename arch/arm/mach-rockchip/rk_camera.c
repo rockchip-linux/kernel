@@ -171,7 +171,7 @@ static int	rk_dts_sensor_probe(struct platform_device *pdev)
 		const char *status = NULL;
 
 		of_property_read_string(cp, "status", &status);
-		if (!strcmp(status, "disabled"))
+		if (status && !strcmp(status, "disabled"))
 			continue;
 
 		strcpy(sensor_name,cp->name);
