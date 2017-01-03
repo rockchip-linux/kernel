@@ -7,6 +7,7 @@
 			status = "disabled";
 
 		tp2825 {
+			status = "okay";
 			is_front = <0>;
 			rockchip,power = <&gpio0 GPIO_D0 GPIO_ACTIVE_HIGH>;
 			rockchip,powerdown = <&gpio1 GPIO_B4 GPIO_ACTIVE_HIGH>;
@@ -24,6 +25,7 @@
 			i2c_rata = <100000>;
 			i2c_chl = <3>;
 			cif_chl = <0>;
+			ad_chl = <0>; // 0 ~ 4;
 			mclk_rate = <24>;
 			//rockchip,camera-module-defrect0 = <960 480 0 0 960 480>;
 			//rockchip,camera-module-interface0 = "cvbs_ntsc";
@@ -37,6 +39,40 @@
 			rockchip,camera-module-interface2 = "bt601_8";
 			rockchip,camera-module-channel = <4 0>;
 		};
+
+		adv7181 {
+			status = "disabled";
+			is_front = <0>;
+			//rockchip,power = <&gpio0 GPIO_D0 GPIO_ACTIVE_HIGH>;
+			rockchip,powerdown = <&gpio1 GPIO_B4 GPIO_ACTIVE_HIGH>;
+			//irq_active = <&gpio1 GPIO_B5 IRQ_TYPE_EDGE_FALLING>;
+			//rockchip,reset = <&gpio1 GPIO_B4 GPIO_ACTIVE_HIGH>;
+			pwdn_active = <adv7181_PWRDN_ACTIVE>;
+			pwr_active = <PWR_ACTIVE_HIGH>;
+			mir = <0>;
+			flash_attach = <1>;
+			flash_active = <1>;
+			resolution = <adv7181_FULL_RESOLUTION>;
+			powerup_sequence = <adv7181_PWRSEQ>;
+			orientation = <0>;
+			i2c_add = <adv7181_I2C_ADDR>;
+			i2c_rata = <100000>;
+			i2c_chl = <3>;
+			cif_chl = <0>;
+			ad_chl = <0>; // 0 ~ 4;
+			mclk_rate = <24>;
+			rockchip,camera-module-defrect0 = <720 480 0 24 720 480>;
+			rockchip,camera-module-interface0 = "cvbs_ntsc";
+			rockchip,camera-module-defrect1 = <720 576 0 4 720 568>;
+			rockchip,camera-module-interface1 = "cvbs_pal";
+			rockchip,camera-module-channel = <4 0>;
+			rockchip,camera-module-ain-1 = "cvbs 1";
+			rockchip,camera-module-ain-2 = "cvbs 6";
+			rockchip,camera-module-ain-3 = "cvbs 8";
+			rockchip,camera-module-ain-4 = "cvbs 10";
+			rockchip,camera-module-ain-5 = "yprpb 6 8 10";
+		};
+
 	};
 };
 
