@@ -407,7 +407,6 @@ static int rockchip_mpp_rkvenc_run(struct rockchip_mpp_dev *mpp)
 		mpp_write_relaxed(mpp, 0x1ff, RKVENC_INT_EN);
 		reg = RKVENC_CLK_GATE_EN
 			| RKVENC_CMD(1);
-
 		mpp_write(mpp, reg, RKVENC_ENC_START);
 
 		break;
@@ -462,9 +461,10 @@ static int rockchip_mpp_rkvenc_done(struct rockchip_mpp_dev *mpp)
 
 	if (ctx == enc->dummy_ctx) {
 		mpp_debug(DEBUG_RESET, "war done\n");
+		mpp->srv->current_ctx = NULL;
 
 		/* for war do not trigger service done process */
-		mpp_srv_clear_current_ctx(mpp->srv);
+		clear_bit(HW_RUNNING, &mpp->srv->state);
 
 		if (enc->irq_status & RKVENC_TIMEOUT_ERROR) {
 			/*

@@ -212,7 +212,7 @@ static struct mpp_ctx *ctx_init(struct rockchip_mpp_dev *mpp,
 		ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 
 	if (NULL == ctx) {
-		mpp_err("ctx init failed\n");
+		mpp_err("kmalloc failed\n");
 		return NULL;
 	}
 
@@ -230,12 +230,6 @@ void mpp_dev_common_ctx_deinit(struct rockchip_mpp_dev *mpp,
 			       struct mpp_ctx *ctx)
 {
 	struct mpp_mem_region *mem_region = NULL, *n;
-
-	if (IS_ERR_OR_NULL(ctx)) {
-		mpp_err("invalidate ctx found\n");
-		WARN_ON(1);
-		return;
-	}
 
 	list_del_init(&ctx->session_link);
 	list_del_init(&ctx->status_link);
@@ -399,11 +393,6 @@ static int mpp_dev_wait_result(struct mpp_session *session,
 	struct mpp_ctx *ctx;
 	int ret;
 
-	if (!mpp_srv_is_running(mpp->srv)) {
-		mpp_err("Get result when service idle\n");
-		return -1;
-	}
-
 	ret = wait_event_timeout(session->wait,
 				 !list_empty(&session->done),
 				 MPP_TIMEOUT_DELAY);
@@ -428,9 +417,6 @@ static int mpp_dev_wait_result(struct mpp_session *session,
 	if (ret < 0) {
 		mpp_srv_lock(mpp->srv);
 		atomic_sub(1, &mpp->total_running);
-		mpp_dev_common_ctx_deinit(mpp,
-					  mpp_srv_get_current_ctx(mpp->srv));
-		mpp_srv_clear_current_ctx(mpp->srv);
 		if (mpp->variant->reset)
 			mpp->variant->reset(mpp);
 		mpp_srv_unlock(mpp->srv);
