@@ -24,8 +24,8 @@
 #include <linux/wakelock.h>
 #include <linux/hrtimer.h>
 
-static struct class *moto_class;
-static char *moto_id_label = "rockchip,moto-id";
+static struct class *motor_class;
+static char *motor_id_label = "rockchip,motor-id";
 static char *motor_status_desc[] = {
 	"stopped",
 	"cw",
@@ -230,7 +230,7 @@ static int motor_gpio_parse_dt(struct motor_gpio *motor)
 		gpio_direction_output(gpio, 0);
 		motor->phase_gpios[i] = gpio;
 	}
-	ret = of_property_read_u32(node, moto_id_label, &motor->id);
+	ret = of_property_read_u32(node, motor_id_label, &motor->id);
 	if (ret != 0) {
 		dev_err(motor->dev, "failed getting id from dts\n");
 		return -EIO;
@@ -309,7 +309,7 @@ static int motor_gpio_probe(struct platform_device *pdev)
 	hrtimer_init(&motor->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	motor->timer.function = motor_timer_func;
 
-	motor->child_dev = device_create(moto_class, &pdev->dev, MKDEV(0, 0),
+	motor->child_dev = device_create(motor_class, &pdev->dev, MKDEV(0, 0),
 				motor, "%s%d", "motor_", motor->id);
 	ret = sysfs_create_groups(&motor->child_dev->kobj, motor_gpio_groups);
 	if (ret) {
@@ -350,9 +350,9 @@ static struct platform_driver motor_gpio_driver = {
 
 static int __init motor_gpio_init(void)
 {
-	moto_class = class_create(THIS_MODULE, "motor");
-	if (IS_ERR(moto_class))
-		return PTR_ERR(moto_class);
+	motor_class = class_create(THIS_MODULE, "motor");
+	if (IS_ERR(motor_class))
+		return PTR_ERR(motor_class);
 	return platform_driver_register(&motor_gpio_driver);
 }
 
@@ -361,7 +361,7 @@ fs_initcall_sync(motor_gpio_init);
 static void __exit motor_gpio_exit(void)
 {
 	platform_driver_unregister(&motor_gpio_driver);
-	class_destroy(moto_class);
+	class_destroy(motor_class);
 }
 
 module_exit(motor_gpio_exit);
