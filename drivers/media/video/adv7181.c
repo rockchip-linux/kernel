@@ -1018,18 +1018,19 @@ static int adv7181_status(struct i2c_client *client, u32 *status,
 static int sensor_activate_cb(struct i2c_client *client)
 {
 	struct generic_sensor *sensor = to_generic_sensor(client);
-/*	u32 status = V4L2_IN_ST_NO_SIGNAL;
+	u32 status = V4L2_IN_ST_NO_SIGNAL;
 	v4l2_std_id std;
 
-	while (status == V4L2_IN_ST_NO_SIGNAL) {
-		msleep(20);
-		adv7181_status(client, &status, NULL);
+	adv7181_status(client, &status, &std);
+	if (status) {
+		mdelay(30);
+		adv7181_status(client, &status, &std);
+		SENSOR_TR("status 0x%x\n", status);
 	}
-	SENSOR_TR("status %d\n", (int)status);
-	adv7181_status(client, NULL, &std);
+	if (status)
+		std = V4L2_STD_NTSC;
 	adv7181_reinit_parameter(std, sensor);
-	SENSOR_TR("%s(%d):now mode %s\n", __func__, __LINE__, input_mode);
- */
+
 	sensor_write(client, ADV7181_INPUT_CONTROL, now_channel_value);
 	if (sensor->state_check_work.state_check_wq) {
 		SENSOR_DG("sensor_activate_cb: queue_delayed_work 1000ms");
