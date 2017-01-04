@@ -289,6 +289,24 @@ cvbs_get_mode(struct rk_display_device *device, struct fb_videomode *mode)
 	return 0;
 }
 
+static int cvbs_set_debug(struct rk_display_device *device, int val)
+{
+	if ((rk3036_tve->mode->yres == 576) &&
+	    (rk3036_tve->soctype == SOC_RK322XH)) {
+		if (val == 1) {
+			tve_writel(TV_LUMA_FILTER0, 0x04ff0000);
+			tve_writel(TV_BRIGHTNESS_CONTRAST, 0xa004);
+		} else if (val == 0) {
+			tve_writel(TV_LUMA_FILTER0,
+				   rk3036_tve->lumafilter0);
+			tve_writel(TV_BRIGHTNESS_CONTRAST,
+				   rk3036_tve->brightcontrast);
+		}
+		TVEDBG("%s val %d\n", __func__, val);
+	}
+	return 0;
+}
+
 static int
 tve_fb_event_notify(struct notifier_block *self,
 		    unsigned long action, void *data)
@@ -351,6 +369,7 @@ static struct rk_display_ops cvbs_display_ops = {
 	.getmodelist = cvbs_get_modelist,
 	.setmode = cvbs_set_mode,
 	.getmode = cvbs_get_mode,
+	.setdebug = cvbs_set_debug,
 };
 
 static int
@@ -375,6 +394,7 @@ static const struct of_device_id rk3036_tve_dt_ids[] = {
 	{.compatible = "rockchip,rk312x-tve",},
 	{.compatible = "rockchip,rk322x-tve",},
 	{.compatible = "rockchip,rv1108-tve",},
+	{.compatible = "rockchip,rk322xh-tve",},
 	{}
 };
 #endif
