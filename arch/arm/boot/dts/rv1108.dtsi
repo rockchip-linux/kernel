@@ -751,6 +751,7 @@
 	vop: vop@30040000 {
 		status = "disabled";
 		compatible = "rockchip,rv1108-lcdc-lite";
+		rockchip,grf = <&grf>;
 		rockchip,prop = <PRMRY>;
 		rockchip,pwr18 = <0>;
 		rockchip,iommu-enabled = <0>;
