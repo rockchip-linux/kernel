@@ -1196,6 +1196,7 @@ struct vop_device {
 
 	/* lock vop irq reg */
 	spinlock_t irq_lock;
+	int interlace_flag;
 };
 
 static inline void vop_writel(struct vop_device *vop_dev, u32 offset, u32 v)

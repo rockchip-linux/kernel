@@ -1917,7 +1917,8 @@ static int vop_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			val |= V_SW_P2I_EN(0);
 		vop_msk_reg(vop_dev, DSP_CTRL0, val);
 
-		vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(0));
+		vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(1));
+		vop_dev->interlace_flag = 0;
 		dev_drv->output_color = screen->color_mode;
 		rk322xh_vop_csc_cfg(dev_drv);
 		/* BG color */
@@ -3455,6 +3456,7 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 	int i, layer2_alpha_en = 0;
 	u64 val;
 	struct rk_lcdc_win *win = NULL;
+	struct rk_screen *screen = dev_drv->cur_screen;
 
 	spin_lock(&vop_dev->reg_lock);
 	vop_post_cfg(dev_drv);
@@ -3516,6 +3518,10 @@ static int vop_config_done(struct rk_lcdc_driver *dev_drv)
 		}
 		win->last_state = win->state;
 	}
+	if ((screen->mode.vmode & FB_VMODE_INTERLACED) &&
+	    (vop_dev->interlace_flag == 2))
+		vop_msk_reg(vop_dev, SYS_CTRL1, V_REG_DONE_FRM(0));
+	vop_dev->interlace_flag++;
 	vop_cfg_done(vop_dev);
 	spin_unlock(&vop_dev->reg_lock);
 	return 0;
