@@ -367,6 +367,27 @@
 #include "rv1108-camb-v13.dtsi" /* camera board v13 */
 };
 
+/ {
+	cam_ircut0: cam_ircut {
+		status = "okay";
+		compatible = "rockchip,ircut";
+		rockchip,ircut-gpio-close = <&gpio1 GPIO_D2 GPIO_ACTIVE_LOW>;
+		rockchip,ircut-gpio-open  = <&gpio1 GPIO_D1 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&camera0 {
+	rockchip,camera-ircut = <&cam_ircut0>;
+};
+
+&camera1 {
+	rockchip,camera-ircut = <&cam_ircut0>;
+};
+
+&camera2 {
+	rockchip,camera-ircut = <&cam_ircut0>;
+};
+
 &cif1to4 {
 	status = "disabled";
 };
