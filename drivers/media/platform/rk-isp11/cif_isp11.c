@@ -6869,6 +6869,7 @@ int cif_isp11_s_ctrl(
 	case CIF_ISP11_CID_AUTO_FPS:
 	case CIF_ISP11_CID_HFLIP:
 	case CIF_ISP11_CID_VFLIP:
+	case CIF_ISP11_CID_BAND_STOP_FILTER:
 		return cif_isp11_img_src_s_ctrl(dev->img_src,
 			id, val);
 	default:

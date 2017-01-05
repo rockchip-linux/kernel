@@ -275,6 +275,8 @@ static int cif_isp11_v4l2_cid2cif_isp11_cid(u32 v4l2_cid)
 		return CIF_ISP11_CID_ISO_SENSITIVITY;
 	case RK_V4L2_CID_AUTO_FPS:
 		return CIF_ISP11_CID_AUTO_FPS;
+	case V4L2_CID_BAND_STOP_FILTER:
+		return CIF_ISP11_CID_BAND_STOP_FILTER;
 	default:
 		cif_isp11_pltfrm_pr_err(NULL,
 			"unknown/unsupported V4L2 CID 0x%x\n",

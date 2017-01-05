@@ -128,7 +128,7 @@ enum cif_isp11_cid {
 	CIF_ISP11_CID_AUTO_FPS = 16,
 	CIF_ISP11_CID_VBLANKING = 17,
 	CIF_ISP11_CID_ISO_SENSITIVITY = 18,
-
+	CIF_ISP11_CID_BAND_STOP_FILTER = 19,
 };
 
 /* correspond to bit field values */

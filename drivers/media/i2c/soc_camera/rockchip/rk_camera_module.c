@@ -31,6 +31,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
+#include <linux/platform_device.h>
 #include <media/v4l2-subdev.h>
 #include <linux/videodev2.h>
 #include <linux/lcm.h>
@@ -72,6 +73,7 @@
 #define OF_CAMERA_MODULE_MCLK_NAME "rockchip,camera-module-mclk-name"
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT "rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP "rockchip,camera_sleep"
+#define OF_CAMERA_IRCUT	"rockchip,camera-ircut"
 
 const char *PLTFRM_CAMERA_MODULE_PIN_PD = OF_OV_GPIO_PD;
 const char *PLTFRM_CAMERA_MODULE_PIN_PWR = OF_OV_GPIO_PWR;
@@ -144,6 +146,7 @@ struct pltfrm_camera_module_data {
 	struct pinctrl_state *pins_default;
 	struct pinctrl_state *pins_sleep;
 	struct v4l2_subdev *af_ctrl;
+	struct v4l2_subdev *ircut_ctrl;
 	/*move to struct pltfrm_camera_module_fl */
 	/*const char *flash_driver_name;*/
 	struct pltfrm_camera_module_fl fl_ctrl;
@@ -263,6 +266,27 @@ err:
 	return ret;
 }
 
+static int pltfrm_of_dev_node_match(struct device *dev, void *data)
+{
+	return dev->of_node == data;
+}
+
+static struct platform_device *pltfrm_of_find_pltfrm_device_by_node(
+	struct device_node *node)
+{
+	struct device *dev;
+
+	dev = bus_find_device(
+			&platform_bus_type,
+			NULL,
+			node,
+			pltfrm_of_dev_node_match);
+	if (!dev)
+		return NULL;
+
+	return to_platform_device(dev);
+}
+
 static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	struct v4l2_subdev *sd)
 {
@@ -275,6 +299,8 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	struct i2c_client *af_ctrl_client = NULL;
 	struct device_node *fl_ctrl_node = NULL;
 	struct i2c_client *fl_ctrl_client = NULL;
+	struct device_node *ircut_ctrl_node = NULL;
+	struct platform_device *ircut_plt_dev = NULL;
 	struct pltfrm_camera_module_data *pdata = NULL;
 	struct property *prop;
 
@@ -382,6 +408,31 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 			pltfrm_dev_string(pdata->af_ctrl));
 	}
 
+	ircut_ctrl_node = of_parse_phandle(np, OF_CAMERA_IRCUT, 0);
+	if (!IS_ERR_OR_NULL(ircut_ctrl_node)) {
+		ircut_plt_dev = pltfrm_of_find_pltfrm_device_by_node(
+					ircut_ctrl_node);
+		of_node_put(ircut_ctrl_node);
+		if (IS_ERR_OR_NULL(ircut_plt_dev)) {
+			pltfrm_camera_module_pr_err(
+				sd,
+				"cannot not get node\n");
+			ret = -EFAULT;
+			goto err;
+		}
+		pdata->ircut_ctrl = platform_get_drvdata(ircut_plt_dev);
+		if (IS_ERR_OR_NULL(pdata->ircut_ctrl)) {
+			pltfrm_camera_module_pr_warn(
+				sd,
+				"cannot not get camera ircut dev, maybe not yet created, deferring device probing...\n");
+			ret = -EPROBE_DEFER;
+			goto err;
+		}
+		pltfrm_camera_module_pr_info(
+			sd,
+			"camera module has ircut controller %s\n",
+			pltfrm_dev_string(pdata->ircut_ctrl));
+	}
 	pdata->pinctrl = devm_pinctrl_get(&client->dev);
 	if (!IS_ERR(pdata->pinctrl)) {
 
@@ -1435,6 +1486,16 @@ struct v4l2_subdev *pltfrm_camera_module_get_fl_ctrl(
 		dev_get_platdata(&client->dev);
 
 	return pdata->fl_ctrl.flsh_ctrl;
+}
+
+struct v4l2_subdev *pltfrm_camera_module_get_ircut_ctrl(
+	struct v4l2_subdev *sd)
+{
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	struct pltfrm_camera_module_data *pdata =
+		dev_get_platdata(&client->dev);
+
+	return pdata->ircut_ctrl;
 }
 
 int pltfrm_camera_module_patch_config(

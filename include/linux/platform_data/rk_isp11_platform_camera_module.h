@@ -70,6 +70,9 @@ int pltfrm_camera_module_patch_config(
 struct v4l2_subdev *pltfrm_camera_module_get_af_ctrl(
 	struct v4l2_subdev *sd);
 
+struct v4l2_subdev *pltfrm_camera_module_get_ircut_ctrl(
+	struct v4l2_subdev *sd);
+
 struct v4l2_subdev *pltfrm_camera_module_get_fl_ctrl(
 	struct v4l2_subdev *sd);
 

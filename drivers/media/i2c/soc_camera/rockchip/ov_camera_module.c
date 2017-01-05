@@ -675,6 +675,16 @@ int ov_camera_module_g_ctrl(struct v4l2_subdev *sd,
 		}
 	}
 
+	if (ctrl->id == V4L2_CID_BAND_STOP_FILTER) {
+		struct v4l2_subdev *ircut_ctrl;
+
+		ircut_ctrl = pltfrm_camera_module_get_ircut_ctrl(sd);
+		if (!IS_ERR_OR_NULL(ircut_ctrl)) {
+			ret = v4l2_subdev_call(ircut_ctrl, core, g_ctrl, ctrl);
+			return ret;
+		}
+	}
+
 	if (!IS_ERR_OR_NULL(cam_mod->custom.g_ctrl)) {
 		ret = cam_mod->custom.g_ctrl(cam_mod, ctrl->id);
 		if (IS_ERR_VALUE(ret))
@@ -857,13 +867,36 @@ int ov_camera_module_s_ext_ctrls(
 					return ret;
 				}
 			}
-			ctrl_updt =
-				OV_CAMERA_MODULE_CTRL_UPDT_FOCUS_ABSOLUTE;
+			ctrl_updt = OV_CAMERA_MODULE_CTRL_UPDT_FOCUS_ABSOLUTE;
 			cam_mod->af_config.abs_pos = ctrl->value;
-			pltfrm_camera_module_pr_debug(&cam_mod->sd,
-			"V4L2_CID_FOCUS_ABSOLUTE %d\n",
-			ctrl->value);
+			pltfrm_camera_module_pr_debug(
+				&cam_mod->sd,
+				"V4L2_CID_FOCUS_ABSOLUTE %d\n",
+				ctrl->value);
 			break;
+		case V4L2_CID_BAND_STOP_FILTER:
+		{
+			struct v4l2_subdev *ircut_ctrl;
+
+			ircut_ctrl = pltfrm_camera_module_get_ircut_ctrl
+					(sd);
+			if (!IS_ERR_OR_NULL(ircut_ctrl)) {
+				struct v4l2_control single_ctrl;
+
+				single_ctrl.id =
+					V4L2_CID_BAND_STOP_FILTER;
+				single_ctrl.value = ctrl->value;
+				ret = v4l2_subdev_call(
+					ircut_ctrl,
+					core, s_ctrl, &single_ctrl);
+				return ret;
+			}
+			pltfrm_camera_module_pr_debug(
+				&cam_mod->sd,
+				"V4L2_CID_BAND_STOP_FILTER %d\n",
+				ctrl->value);
+			break;
+		}
 		case V4L2_CID_HFLIP:
 			if (ctrl->value)
 				cam_mod->hflip = true;
