@@ -348,22 +348,30 @@ static int dwc3_rockchip_probe(struct platform_device *pdev)
 		rockchip->clks[i] = clk;
 	}
 
+	pm_runtime_set_active(dev);
+	pm_runtime_enable(dev);
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		dev_err(dev, "get_sync failed with err %d\n", ret);
+		goto err1;
+	}
+
 	ret = of_platform_populate(np, NULL, NULL, dev);
 	if (ret)
-		goto err0;
+		goto err1;
 
 	child_pdev = of_find_device_by_node(child);
 	if (!child_pdev) {
 		dev_err(dev, "failed to find dwc3 core device\n");
 		ret = -ENODEV;
-		goto err1;
+		goto err2;
 	}
 
 	rockchip->dwc = platform_get_drvdata(child_pdev);
 	if (!rockchip->dwc || !rockchip->dwc->xhci) {
 		dev_dbg(dev, "failed to get drvdata dwc3\n");
 		ret = -EPROBE_DEFER;
-		goto err1;
+		goto err2;
 	}
 
 	mutex_init(&rockchip->lock);
@@ -377,15 +385,13 @@ static int dwc3_rockchip_probe(struct platform_device *pdev)
 
 	dwc3_rockchip_debugfs_init(rockchip);
 
-	pm_runtime_set_active(dev);
-	pm_runtime_enable(dev);
-	pm_runtime_get_sync(dev);
-
 	return 0;
 
-err1:
+err2:
 	of_platform_depopulate(dev);
-
+err1:
+	pm_runtime_put_sync(dev);
+	pm_runtime_disable(dev);
 err0:
 	for (i = 0; i < rockchip->num_clocks && rockchip->clks[i]; i++) {
 		if (!pm_runtime_status_suspended(dev))
