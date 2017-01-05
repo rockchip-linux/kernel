@@ -1725,6 +1725,8 @@ static void stmmac_check_ether_addr(struct stmmac_priv *priv)
 		if (!is_valid_ether_addr(priv->dev->dev_addr))
 			eth_mac_devinfo(priv->dev->dev_addr);
 		if (!is_valid_ether_addr(priv->dev->dev_addr))
+			eth_mac_vendor_storage(priv->dev->dev_addr);
+		if (!is_valid_ether_addr(priv->dev->dev_addr))
 			eth_mac_idb(priv->dev->dev_addr);
 		if (!is_valid_ether_addr(priv->dev->dev_addr))
 			eth_mac_file(priv->dev->dev_addr);

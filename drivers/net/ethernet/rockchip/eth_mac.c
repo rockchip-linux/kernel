@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include "eth_mac.h"
 #include <linux/etherdevice.h>
+#include <linux/soc/rockchip/rk_vendor_storage.h>
 
 #if 1
 #define DBG(x...)   printk("eth_mac:" x)
@@ -122,6 +123,31 @@ int eth_mac_devinfo(u8 *eth_mac)
 	get_eth_mac(eth_mac);
 	__symbol_put(symbol_name);
 
+	return 0;
+}
+
+int eth_mac_vendor_storage(u8 *eth_mac)
+{
+	int ret;
+	unsigned char *addr = eth_mac;
+
+	ret = rk_vendor_read(LAN_MAC_ID, addr, 6);
+	if (ret != 6 || is_zero_ether_addr(addr)) {
+		pr_info("%s: rk_vendor_read eth mac address failed (%d)\n",
+					__func__, ret);
+		random_ether_addr(addr);
+		pr_info("%s: generate random eth mac address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+					__func__, addr[0], addr[1], addr[2],
+					addr[3], addr[4], addr[5]);
+		ret = rk_vendor_write(LAN_MAC_ID, addr, 6);
+		if (ret != 0)
+			pr_info("%s: rk_vendor_write eth mac address failed (%d)\n",
+					__func__, ret);
+	} else {
+		pr_info("%s: rk_vendor_read eth mac address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+					__func__, addr[0], addr[1], addr[2],
+					addr[3], addr[4], addr[5]);
+	}
 	return 0;
 }
 

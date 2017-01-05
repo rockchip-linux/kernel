@@ -16,4 +16,5 @@ int eth_mac_idb(u8 *eth_mac);
 int eth_mac_file(u8 *eth_mac);
 int eth_mac_devinfo(u8 *eth_mac);
 int eth_mac_wifi(u8 *eth_mac);
+int eth_mac_vendor_storage(u8 *eth_mac);
 #endif /* _ETH_MAC_H_ */
