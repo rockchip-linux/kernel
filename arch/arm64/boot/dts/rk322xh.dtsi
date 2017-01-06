@@ -336,7 +336,9 @@
 
 			<&clk_gates8 5>, /* clk_timer0 */
 			<&clk_gates14 1>, /* clk_gpu_noc */
-			<&clk_gates7 2>; /* clk_jtag */
+			<&clk_gates7 2>, /* clk_jtag */
+
+			<&clk_rtc32k>;
 	};
 
 	ion {
