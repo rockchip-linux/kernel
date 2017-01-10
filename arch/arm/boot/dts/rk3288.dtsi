@@ -792,6 +792,7 @@
 		interrupts = <GIC_SPI 98 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk_edp>, <&clk_edp_24m>, <&clk_gates16 8>;
 		clock-names = "clk_edp", "clk_edp_24m", "pclk_edp";
+		rockchip,edp-audio-enable = <0>;
 	};
 
 	hdmi: hdmi@ff980000 {
