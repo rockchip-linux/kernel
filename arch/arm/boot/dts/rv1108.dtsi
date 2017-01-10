@@ -119,7 +119,7 @@
 			<&clk_emmc &clk_gpll>, <&clk_sdio &clk_gpll>,
 			<&hdmiphy &hdmiphy_pll>, <&usb480m &usbphy_480m>;
 		rockchip,clocks-init-rate =
-			<&clk_gpll 1188000000>, <&clk_core 816000000>,
+			<&clk_gpll 1188000000>, <&clk_core 800000000>,
 			<&clk_dsp 396000000>, <&aclk_bus_pre 150000000>,
 			<&hclk_bus_pre 150000000>, <&pclk_bus_pre 75000000>,
 			<&aclk_peri 150000000>, <&hclk_peri 150000000>,
