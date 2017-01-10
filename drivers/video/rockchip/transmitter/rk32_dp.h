@@ -119,6 +119,23 @@
 
 #define DP_RESERVE2				0x134
 
+#define AUDIO_I2S_CH_STA1			0x344
+#define AUDIO_I2S_CH_STA2			0x348
+#define AUDIO_I2S_CH_STA3			0x34c
+
+#define AUDIO_I2S_CH_STA4			0x350
+#define FS_FREQ_44_1_KHZ			(0x0 << 0)
+#define FS_FREQ_48_KHZ				(0x2 << 0)
+#define FS_FREQ_32_KHZ				(0x3 << 0)
+#define FS_FREQ_88_2_KHZ			(0x8 << 0)
+#define FS_FREQ_96_KHZ				(0xa << 0)
+#define FS_FREQ_192_KHZ				(0xe << 0)
+
+#define AUDIO_I2S_CH_STA5			0x354
+#define WORD_LENGTH_16BITS			(0x1 << 1)
+#define WORD_MAX_24BITS				(0x1 << 0)
+#define WORD_MAX_20BITS				(0x0 << 0)
+
 #define LANE_MAP				0x35C
 #define LANE3_MAP_LOGIC_LANE_0			(0x0 << 6)
 #define LANE3_MAP_LOGIC_LANE_1			(0x1 << 6)
@@ -222,6 +239,10 @@
 #define FIX_M_VID				(0x1 << 2)
 #define M_VID_UPDATE_CTRL			(0x3 << 0)
 
+#define DP_AUD_CTL				0x618
+#define MISC_CTRL_RESET				(0x1 << 4)
+#define AUDIO_EN				(0x1 << 0)
+#define CLK_SEL					(0x2 << 1)
 
 #define PKT_SEND_CTL				0x640
 #define HDCP_CTL				0x648
@@ -311,6 +332,27 @@
 #define BUF_DATA_0				0x7C0
 
 #define SOC_GENERAL_CTL				0x800
+
+#define AUD_CTL					0x834
+#define AUD_CHANNEL_COUNT_2			(0x1 << 0)
+#define AUD_CHANNEL_COUNT_4			(0x3 << 0)
+#define AUD_CHANNEL_COUNT_6			(0x5 << 0)
+
+#define I2S_CTRL				0x9c8
+#define I2S_ENABLE_CHANNEL_3			(0x1 << 7)
+#define I2S_ENABLE_CHANNEL_2			(0x1 << 6)
+#define I2S_ENABLE_CHANNEL_1			(0x1 << 5)
+#define I2S_ENABLE_CHANNEL_0			(0x1 << 4)
+#define I2S_WS_DELAY				(0x1 << 3)
+#define I2S_DATA_LSB_FIRST			(0x1 << 2)
+/* left:0, right:1 */
+#define INPUT_CHANNEL_FLAG			(0x1 << 1)
+/* Left and right alignment of data, left:0, right:1 */
+#define WORD_TRUNCATION_ORENTATION		(0x1 << 0)
+
+#define I2S_CH_SWAP				0x9cc
+#define I2S_WD_LEN_24bit			(0xb << 0)
+#define I2S_WD_LEN_16bit			(0x2 << 0)
 
 /* TX_SW_RESET */
 #define RST_DP_TX				(0x1 << 0)
@@ -421,6 +463,7 @@
 #define VSC_SHADOW_DB1 0x0320
 #define PSR_FRAME_UPDATA_CTRL 0x0318
 #define SPDIF_AUDIO_CTL_0 0x00D8
+#define AUD_SPDIF_EN (0x1 << 7)
 /* PSR END */
 
 enum dp_irq_type {
@@ -565,6 +608,7 @@ struct rk32_edp {
 	struct fb_monspecs      specs;
 	bool clk_on;
 	bool edp_en;
+	int audio_en;
 	struct dentry *debugfs_dir;
 };
 
@@ -662,5 +706,7 @@ int rk32_edp_get_hw_lt_status(struct rk32_edp *edp);
 int rk32_edp_wait_hw_lt_done(struct rk32_edp *edp);
 enum dp_irq_type rk32_edp_get_irq_type(struct rk32_edp *edp);
 void rk32_edp_clear_hotplug_interrupts(struct rk32_edp *edp);
+void rk32_edp_config_audio_share(struct rk32_edp *edp);
+void rk32_edp_config_spdif(struct rk32_edp *edp);
 
 #endif

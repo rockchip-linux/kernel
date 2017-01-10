@@ -1134,6 +1134,12 @@ static int rk32_edp_config_video(struct rk32_edp *edp,
 	return retval;
 }
 
+static void rk32_edp_config_audio(void)
+{
+	rk32_edp_config_audio_share(rk32_edp);
+	rk32_edp_config_spdif(rk32_edp);
+}
+
 static irqreturn_t rk32_edp_isr(int irq, void *arg)
 {
 	struct rk32_edp *edp = arg;
@@ -1210,6 +1216,8 @@ static int rk32_edp_enable(void)
 		ret = rk32_edp_config_video(edp, &edp->video_info);
 		if (ret)
 			dev_err(edp->dev, "unable to config video\n");
+		if (edp->audio_en)
+			rk32_edp_config_audio();
 
 		edp->edp_en = true;
 	}
@@ -1712,6 +1720,7 @@ static int rk32_edp_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device_node *np = pdev->dev.of_node;
 	int ret;
+	int val = 0;
 
 	if (!np) {
 		dev_err(&pdev->dev, "Missing device tree node.\n");
@@ -1748,6 +1757,9 @@ static int rk32_edp_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "ioremap reg failed\n");
 		return PTR_ERR(edp->regs);
 	}
+
+	if (!of_property_read_u32(np, "rockchip,edp-audio-enable", &val))
+		edp->audio_en = val;
 
 	edp->grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 	if (IS_ERR(edp->grf) && !cpu_is_rk3288()) {

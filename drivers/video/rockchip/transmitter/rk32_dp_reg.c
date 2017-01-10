@@ -1296,3 +1296,34 @@ void rk32_edp_clear_hotplug_interrupts(struct rk32_edp *edp)
 	val = INT_HPD;
 	writel(val, edp->regs + DP_INT_STA);
 }
+
+void rk32_edp_config_audio_share(struct rk32_edp *edp)
+{
+	u32 val;
+
+	/* reset misc and audio enable */
+	val = readl(edp->regs + DP_AUD_CTL);
+	val |= (MISC_CTRL_RESET | AUDIO_EN);
+	writel(val, edp->regs + DP_AUD_CTL);
+
+	udelay(20);
+
+	/* clean misc reset bit */
+
+	val = readl(edp->regs + FUNC_EN_1);
+	val &= (~AUD_FUNC_EN_N);
+	val &= (~AUD_FIFO_FUNC_EN_N);
+	writel(val, edp->regs + FUNC_EN_1);
+
+	/*select 2/4/6 */
+	val = AUD_CHANNEL_COUNT_2;
+	writel(val, edp->regs + AUD_CTL);
+}
+
+void rk32_edp_config_spdif(struct rk32_edp *edp)
+{
+	u32 val;
+
+	val = AUD_SPDIF_EN;
+	writel(val, edp->regs + SPDIF_AUDIO_CTL_0);
+}
