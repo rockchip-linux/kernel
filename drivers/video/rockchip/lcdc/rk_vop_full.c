@@ -3400,7 +3400,7 @@ static int vop_fps_mgr(struct rk_lcdc_driver *dev_drv, int fps, bool set)
 		ret = clk_set_rate(vop_dev->dclk, dotclk);
 	}
 
-	pixclock = div_u64(1000000000000llu, clk_get_rate(vop_dev->dclk));
+	pixclock = div_u64(1000000000000llu, screen->mode.pixclock);
 	vop_dev->pixclock = pixclock;
 	dev_drv->pixclock = vop_dev->pixclock;
 	fps = rk_fb_calc_fps(screen, pixclock);
