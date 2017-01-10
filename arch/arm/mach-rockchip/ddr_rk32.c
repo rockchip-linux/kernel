@@ -1441,6 +1441,12 @@ static BACKUP_REG_T *p_ddr_reg;
 static __attribute__((aligned(4096))) uint32 ddr_data_training_buf[32+8192/4];  //data in two channel even use max stride
 uint32 DEFINE_PIE_DATA(ddr_freq);
 uint32 DEFINE_PIE_DATA(ddr_sr_idle);
+/*
+ * 0: use standard flow
+ * 1: vop dclk never divide
+ * 2: vop dclk always divide
+ */
+uint32 DEFINE_PIE_DATA(vop_dclk_mode);
 
 /***********************************
  * ARCH Relative Data and Function
@@ -3694,6 +3700,9 @@ static noinline uint32 ddr_change_freq_sram(void *arg)
     uint32 nMHz=p_freq_t->nMHz;
 	static struct rk_screen screen;
 	static int dclk_div, down_dclk_div;
+	uint32 down_dclk_en;
+	struct rk_lcdc_driver *lcdc_dev = NULL;
+	uint32 screen_type;
 
 #if defined (DDR_CHANGE_FREQ_IN_LCDC_VSYNC)
     struct ddr_freq_t *p_ddr_freq_t=p_freq_t->p_ddr_freq_t;
@@ -3708,11 +3717,27 @@ static noinline uint32 ddr_change_freq_sram(void *arg)
 #endif
 	if (!screen.mode.pixclock) {
 		rk_fb_get_prmry_screen(&screen);
-		if (screen.lcdc_id == 0)
+		if (screen.lcdc_id == 0) {
+			lcdc_dev = rk_get_lcdc_drv("lcdc0");
 			dclk_div = (cru_readl(RK3288_CRU_CLKSELS_CON(27)) >> 8) & 0xff;
-		else if (screen.lcdc_id == 1)
+		} else if (screen.lcdc_id == 1) {
+			lcdc_dev = rk_get_lcdc_drv("lcdc1");
 			dclk_div = (cru_readl(RK3288_CRU_CLKSELS_CON(29)) >> 8) & 0xff;
+		}
 		down_dclk_div = 64*(dclk_div+1)-1;
+		screen_type = lcdc_dev ? (u32)lcdc_dev->cur_screen->type : 0;
+		if (DATA(vop_dclk_mode) == 1) {
+			down_dclk_en = 0;
+		} else if (DATA(vop_dclk_mode) == 2) {
+			down_dclk_en = 1;
+		} else {
+			if ((screen_type == SCREEN_MIPI) ||
+			    (screen_type == SCREEN_DUAL_MIPI) ||
+			    (screen_type == SCREEN_EDP))
+				down_dclk_en = 1;
+			else
+				down_dclk_en = 0;
+		}
 	}
     param.arm_freq = ddr_get_pll_freq(APLL);
     gpllvaluel = ddr_get_pll_freq(GPLL);
@@ -3763,6 +3788,14 @@ static noinline uint32 ddr_change_freq_sram(void *arg)
         }
     }
 #endif
+	rk_fb_set_prmry_screen_status(SCREEN_PREPARE_DDR_CHANGE);
+	if ((screen.lcdc_id == 0) && down_dclk_en)
+		cru_writel(0 | CRU_W_MSK_SETBITS(down_dclk_div, 8, 0xff),
+			   RK3288_CRU_CLKSELS_CON(27));
+	else if ((screen.lcdc_id == 1) && down_dclk_en)
+		cru_writel(0 | CRU_W_MSK_SETBITS(down_dclk_div, 8, 0xff),
+			   RK3288_CRU_CLKSELS_CON(29));
+
     for(i=0;i<SRAM_SIZE/4096;i++)
     {
         n=temp[1024*i];
@@ -3786,22 +3819,15 @@ static noinline uint32 ddr_change_freq_sram(void *arg)
     param.freq = freq;
     param.freq_slew = freq_slew;
     param.dqstr_value = dqstr_value;
-	rk_fb_set_prmry_screen_status(SCREEN_PREPARE_DDR_CHANGE);
-	if (screen.lcdc_id == 0)
-		cru_writel(0 | CRU_W_MSK_SETBITS(down_dclk_div, 8, 0xff),
-			   RK3288_CRU_CLKSELS_CON(27));
-	else if (screen.lcdc_id == 1)
-		cru_writel(0 | CRU_W_MSK_SETBITS(down_dclk_div, 8, 0xff),
-			   RK3288_CRU_CLKSELS_CON(29));
 
     call_with_stack(fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_change_freq_sram)),
                     &param,
                     rockchip_sram_stack-(NR_CPUS-1)*PAUSE_CPU_STACK_SIZE);
 
-	if (screen.lcdc_id == 0)
+	if ((screen.lcdc_id == 0) && down_dclk_en)
 		cru_writel(0 | CRU_W_MSK_SETBITS(dclk_div, 8, 0xff),
 		RK3288_CRU_CLKSELS_CON(27));
-	else if (screen.lcdc_id == 1)
+	else if ((screen.lcdc_id == 1) && down_dclk_en)
 		cru_writel(0 | CRU_W_MSK_SETBITS(dclk_div, 8, 0xff),
 		RK3288_CRU_CLKSELS_CON(29));
 	rk_fb_set_prmry_screen_status(SCREEN_UNPREPARE_DDR_CHANGE);
@@ -4535,6 +4561,8 @@ static int ddr_init(uint32 dram_speed_bin, uint32 freq)
     uint32 gsr,dqstr;
     struct clk *clk;
     uint32 ch,cap=0,cs_cap;
+	struct device_node *clk_ddr_dev_node;
+	const struct property *prop;
 
     ddr_print("version 1.00 20150126 \n");
 
@@ -4545,7 +4573,24 @@ static int ddr_init(uint32 dram_speed_bin, uint32 freq)
     tmp = clk_get_rate(clk_get(NULL, "clk_ddr"))/1000000;
     *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_freq)) = tmp;
     *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_sr_idle)) = 0;
-    
+
+	*kern_to_pie(rockchip_pie_chunk, &DATA(vop_dclk_mode)) = 0;
+	clk_ddr_dev_node = of_find_node_by_name(NULL, "clk_ddr");
+	if (IS_ERR_OR_NULL(clk_ddr_dev_node)) {
+		ddr_print("%s: get clk ddr dev node err\n", __func__);
+	} else {
+		prop = of_find_property(clk_ddr_dev_node,
+					"vop-dclk-mode",
+					NULL);
+		if (prop && prop->value) {
+			tmp = be32_to_cpup(prop->value);
+			if (tmp < 3)
+				*kern_to_pie(rockchip_pie_chunk,
+					&DATA(vop_dclk_mode)) = tmp;
+		}
+		of_node_put(clk_ddr_dev_node);
+	}
+
     for(ch=0;ch<CH_MAX;ch++)
     {
         p_ddr_ch[ch] = kern_to_pie(rockchip_pie_chunk, &DATA(ddr_ch[ch]));
