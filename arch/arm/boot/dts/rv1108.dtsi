@@ -164,6 +164,7 @@
 			<&clk_gates12 6>, /* pclk_ddrmon */
 			<&clk_gates12 12>, /* pclk_efuse0 */
 			<&clk_gates12 13>, /* pclk_efuse1 */
+			<&clk_gates13 4>, /* pclk_timer */
 			<&clk_gates14 0>, /* pclk_grf */
 			<&clk_gates14 1>, /* aclk_niu */
 			<&clk_gates14 2>, /* pclk_mschniu */
