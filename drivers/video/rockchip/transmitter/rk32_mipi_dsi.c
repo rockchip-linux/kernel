@@ -763,7 +763,16 @@ static int rk312x_phy_init(struct dsi *dsi, int n)
 		rk32_dsi_set_bits(dsi, 0x6, reg5_phy);
 	}
 	rk32_dsi_set_bits(dsi, 0x6, reg10_4_6_phy);
-	rk32_dsi_set_bits(dsi, 0x9, regb_phy);
+
+	if (dsi->ops.id == DSI_RV1108) {
+		rk32_dsi_set_bits(dsi, 0x8, regb_phy);
+		rk32_dsi_set_bits(dsi, 0x8, reg8_phy);
+		rk32_dsi_set_bits(dsi, 0x3, reg17_3_4_phy);
+		rk32_dsi_set_bits(dsi, 0x1, reg18_2_3_phy);
+	} else {
+		rk32_dsi_set_bits(dsi, 0x9, regb_phy);
+	}
+
 	return 0;
 
 }

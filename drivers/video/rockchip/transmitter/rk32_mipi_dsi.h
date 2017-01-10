@@ -196,6 +196,8 @@ drivers/video/rockchip/transmitter/rk32_mipi_dsi.h
 #define reg10_phy 				DSI_DPHY_BITS(0X40, 8, 0)
 #define reg10_4_6_phy				DSI_DPHY_BITS(0X40, 3, 4)
 #define regb_phy 				DSI_DPHY_BITS(0X2c, 4, 0)
+#define reg17_3_4_phy				DSI_DPHY_BITS(0x5c, 2, 3)
+#define reg18_2_3_phy				DSI_DPHY_BITS(0x60, 2, 2)
 
 #define reg_dig_rstn 				DSI_DPHY_BITS(0X80, 1, 0)
 #define reg20_phy 				DSI_DPHY_BITS(0X80, 8, 0)
