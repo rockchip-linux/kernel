@@ -18,7 +18,7 @@
 * 
 ******************************************************************************/
 
-/*Image2HeaderVersion: 2.23*/
+/*Image2HeaderVersion: 2.26*/
 #if (RTL8723D_SUPPORT == 1)
 #ifndef __INC_MP_RF_HW_IMG_8723D_H
 #define __INC_MP_RF_HW_IMG_8723D_H

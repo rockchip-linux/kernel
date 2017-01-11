@@ -38,29 +38,6 @@
 	#include "rtl8188e_sreset.h"
 #endif
 
-#if 0
-	/* Fw Array */
-	#define Rtl8188E_FwImageArray				Rtl8188EFwImgArray
-	#define Rtl8188E_FWImgArrayLength			Rtl8188EFWImgArrayLength
-	#ifdef CONFIG_WOWLAN
-		#define Rtl8188E_FwWoWImageArray			Array_MP_8188E_FW_WoWLAN
-		#define Rtl8188E_FwWoWImgArrayLength		ArrayLength_MP_8188E_FW_WoWLAN
-	#endif /* CONFIG_WOWLAN */
-#endif
-
-
-#define RTL8188E_FW_IMG					"rtl8188e/FW_NIC.bin"
-#define RTL8188E_FW_WW_IMG				"rtl8188e/FW_WoWLAN.bin"
-#define RTL8188E_PHY_REG					"rtl8188e/PHY_REG.txt"
-#define RTL8188E_PHY_RADIO_A				"rtl8188e/RadioA.txt"
-#define RTL8188E_PHY_RADIO_B				"rtl8188e/RadioB.txt"
-#define RTL8188E_TXPWR_TRACK				"rtl8188e/TxPowerTrack.txt"
-#define RTL8188E_AGC_TAB					"rtl8188e/AGC_TAB.txt"
-#define RTL8188E_PHY_MACREG 				"rtl8188e/MAC_REG.txt"
-#define RTL8188E_PHY_REG_PG				"rtl8188e/PHY_REG_PG.txt"
-#define RTL8188E_PHY_REG_MP 				"rtl8188e/PHY_REG_MP.txt"
-#define RTL8188E_TXPWR_LMT				"rtl8188e/TXPWR_LMT.txt"
-
 /* --------------------------------------------------------------------- */
 /*		RTL8188E Power Configuration CMDs for USB/SDIO/PCIE interfaces */
 /* --------------------------------------------------------------------- */

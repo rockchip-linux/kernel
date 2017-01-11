@@ -1833,8 +1833,13 @@ static int rtw_wx_set_mode(struct net_device *dev, struct iw_request_info *a,
 #if 0
 		dev->type = ARPHRD_IEEE80211; /* IEEE 802.11 : 801 */
 #endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 		dev->type = ARPHRD_IEEE80211_RADIOTAP; /* IEEE 802.11 + radiotap header : 803 */
 		RTW_INFO("set_mode = IW_MODE_MONITOR\n");
+#else
+		RTW_INFO("kernel version < 2.6.24 not support IW_MODE_MONITOR\n");
+#endif
 		break;
 
 	case IW_MODE_AUTO:
@@ -4077,7 +4082,7 @@ static void rtw_dbg_mode_hdl(_adapter *padapter, u32 id, u8 *pdata, u32 len)
 	}
 
 }
-
+#ifdef MP_IOCTL_HDL
 static int rtw_mp_ioctl_hdl(struct net_device *dev, struct iw_request_info *info,
 			    union iwreq_data *wrqu, char *extra)
 {
@@ -4186,7 +4191,7 @@ _rtw_mp_ioctl_hdl_exit:
 
 	return ret;
 }
-
+#endif
 static int rtw_get_ap_info(struct net_device *dev,
 			   struct iw_request_info *info,
 			   union iwreq_data *wrqu, char *extra)
@@ -8974,6 +8979,8 @@ static int rtw_mp_efuse_get(struct net_device *dev,
 	char *pch, *ptmp, *token, *tmp[3] = {0x00, 0x00, 0x00};
 	u16 i = 0, j = 0, mapLen = 0, addr = 0, cnts = 0;
 	u16 max_available_len = 0, raw_cursize = 0, raw_maxsize = 0;
+	u16 mask_len;
+	u8 mask_buf[64] = "";
 	int err;
 #ifdef CONFIG_IOL
 	u8 org_fw_iol = padapter->registrypriv.fw_iol;/* 0:Disable, 1:enable, 2:by usb speed */
@@ -9031,26 +9038,37 @@ static int rtw_mp_efuse_get(struct net_device *dev,
 		       );
 		goto exit;
 	} else if (strcmp(tmp[0], "drvmap") == 0) {
+		static u8 drvmaporder = 0;
+		u8 *efuse;
+		u32 shift, cnt;
+		u32 blksz = 0x200; /* The size of one time show, default 512 */
 		EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_EFUSE_MAP_LEN, (void *)&mapLen, _FALSE);
 
+		efuse = pHalData->efuse_eeprom_data;
+
+		shift = blksz * drvmaporder;
+		efuse += shift;
+		cnt = mapLen - shift;
+
+		if (cnt > blksz) {
+			cnt = blksz;
+			drvmaporder++;
+		} else
+			drvmaporder = 0;
+
 		sprintf(extra, "\n");
-		for (i = 0; i < mapLen; i += 16) {
-			/*RTW_INFO("0x%02x\t", i);*/
-			sprintf(extra, "%s0x%02x\t", extra, i);
-			for (j = 0; j < 8; j++) {
-				/*				RTW_INFO("%02X ", data[i+j]); */
-				sprintf(extra, "%s%02X ", extra, PROMContent[i + j]);
-			}
-			/*			RTW_INFO("\t"); */
+		for (i = 0; i < cnt; i += 16) {
+			sprintf(extra, "%s0x%02x\t", extra, shift + i);
+			for (j = 0; j < 8; j++)
+				sprintf(extra, "%s%02X ", extra, efuse[i + j]);
 			sprintf(extra, "%s\t", extra);
-			for (; j < 16; j++) {
-				/*				RTW_INFO("%02X ", data[i+j]); */
-				sprintf(extra, "%s%02X ", extra, PROMContent[i + j]);
-			}
-			/*			RTW_INFO("\n"); */
+			for (; j < 16; j++)
+				sprintf(extra, "%s%02X ", extra, efuse[i + j]);
 			sprintf(extra, "%s\n", extra);
 		}
-		/*		RTW_INFO("\n"); */
+		if ((shift + cnt) < mapLen)
+			sprintf(extra, "%s\t...more (left:%d/%d)\n", extra, mapLen-(shift + cnt), mapLen);
+
 	} else if (strcmp(tmp[0], "realmap") == 0) {
 		static u8 order = 0;
 		u8 *efuse;
@@ -9141,7 +9159,7 @@ static int rtw_mp_efuse_get(struct net_device *dev,
 		/*		RTW_INFO("}\n"); */
 	} else if (strcmp(tmp[0], "realraw") == 0) {
 		addr = 0;
-		mapLen = EFUSE_MAX_SIZE;
+		EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_EFUSE_REAL_CONTENT_LEN , (PVOID)&mapLen, _FALSE);
 		RTW_INFO("EFUSE_MAX_SIZE = %d\n", EFUSE_MAX_SIZE);
 
 		if (rtw_efuse_access(padapter, _FALSE, addr, mapLen, rawdata) == _FAIL) {
@@ -9519,6 +9537,18 @@ static int rtw_mp_efuse_get(struct net_device *dev,
 			RTW_INFO("wlrfkrmap = 0x%02x\n", pEfuseHal->fakeBTEfuseModifiedMap[addr + i]);
 			sprintf(extra, "%s0x%02X ", extra, pEfuseHal->fakeBTEfuseModifiedMap[addr + i]);
 		}
+	} else if (strcmp(tmp[0], "mask") == 0) {
+		*extra = 0;
+		mask_len = sizeof(u8) * rtw_get_efuse_mask_arraylen(padapter);
+		rtw_efuse_mask_array(padapter, mask_buf);
+
+		if (padapter->registrypriv.bFileMaskEfuse == _TRUE)
+			_rtw_memcpy(mask_buf, maskfileBuffer, mask_len);
+
+		sprintf(extra, "\n");
+		for (i = 0; i < mask_len; i++)
+			sprintf(extra, "%s0x%02X\n", extra, mask_buf[i]);
+
 	} else
 		sprintf(extra, "Command not found!");
 
@@ -9555,6 +9585,8 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 	struct pwrctrl_priv *pwrctrlpriv ;
 	PHAL_DATA_TYPE pHalData;
 	PEFUSE_HAL pEfuseHal;
+	struct hal_ops *pHalFunc;
+	struct mp_priv *pmp_priv;
 
 	u8 ips_mode = IPS_NUM; /* init invalid value */
 	u8 lps_mode = PS_MODE_NUM; /* init invalid value */
@@ -9573,6 +9605,9 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 	pwrctrlpriv = adapter_to_pwrctl(padapter);
 	pHalData = GET_HAL_DATA(padapter);
 	pEfuseHal = &pHalData->EfuseHal;
+	pHalFunc = &padapter->HalFunc;
+	pmp_priv = &padapter->mppriv;
+
 	err = 0;
 
 	if (copy_from_user(extra, wrqu->pointer, wrqu->length))
@@ -10099,6 +10134,15 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 #endif
 
 	} else if (strcmp(tmp[0], "wlfk2map") == 0) {
+		*extra = 0;
+
+		if (padapter->registrypriv.bFileMaskEfuse != _TRUE && pmp_priv->bloadefusemap == _TRUE) {
+			RTW_INFO("%s: File eFuse mask file not to be loaded\n", __FUNCTION__);
+			sprintf(extra, "Not load eFuse mask file yet, Please use the efuse_mask CMD.\n");
+			err = 0;
+			goto exit;
+		}
+
 		if (wifimaplen > EFUSE_MAX_MAP_LEN)
 			cnts = EFUSE_MAX_MAP_LEN;
 		else
@@ -10108,7 +10152,7 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 			err = -EFAULT;
 			goto exit;
 		}
-		*extra = 0;
+
 		if (rtw_efuse_mask_map_read(padapter, 0x00, wifimaplen, ShadowMapWiFi) == _SUCCESS) {
 			if (_rtw_memcmp((void *)ShadowMapWiFi , (void *)pEfuseHal->fakeEfuseModifiedMap, cnts)) {
 				RTW_INFO("%s: WiFi write map afterf compare OK\n", __FUNCTION__);
@@ -10189,6 +10233,29 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 
 		_rtw_memset(extra, '\0', strlen(extra));
 		sprintf(extra, "write mac addr to fake map OK\n");
+	} else if(strcmp(tmp[0], "update") == 0) {
+		RTW_INFO("To Use new eFuse map\n");
+		/*step read efuse/eeprom data and get mac_addr*/
+		rtw_hal_read_chip_info(padapter);
+		/* set mac addr*/
+		rtw_macaddr_cfg(adapter_mac_addr(padapter), get_hal_mac_addr(padapter));
+		_rtw_memcpy(padapter->pnetdev->dev_addr, get_hal_mac_addr(padapter), ETH_ALEN); /* set mac addr to net_device */
+
+#ifdef CONFIG_P2P
+		rtw_init_wifidirect_addrs(padapter, adapter_mac_addr(padapter), adapter_mac_addr(padapter));
+#endif
+#ifdef CONFIG_MI_WITH_MBSSID_CAM
+		rtw_hal_change_macaddr_mbid(padapter, adapter_mac_addr(padapter));
+#else
+		rtw_hal_set_hwreg(padapter, HW_VAR_MAC_ADDR, adapter_mac_addr(padapter)); /* set mac addr to mac register */
+#endif
+		/*pHalFunc->hal_deinit(padapter);*/
+		if (pHalFunc->hal_init(padapter) == _FAIL) {
+			err = -EINVAL;
+			goto exit;
+		}
+		_rtw_memset(extra, '\0', strlen(extra));
+		sprintf(extra, "eFuse Update OK\n");
 	}
 
 exit:
@@ -10216,8 +10283,107 @@ exit:
 	return err;
 }
 
-
 #ifdef CONFIG_MP_INCLUDED
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+static int rtw_mp_customer_str(
+	struct net_device *dev,
+	struct iw_request_info *info,
+	union iwreq_data *wrqu, char *extra)
+{
+	_adapter *adapter = rtw_netdev_priv(dev);
+	u32 len;
+	u8 *pbuf = NULL, *pch;
+	char *ptmp;
+	u8 param[RTW_CUSTOMER_STR_LEN];
+	u8 count = 0;
+	u8 tmp;
+	u8 i;
+	u32 pos;
+	u8 ret;
+	u8 read = 0;
+
+	if (adapter->registrypriv.mp_mode != 1
+		|| !adapter->registrypriv.mp_customer_str)
+		return -EFAULT;
+
+	len = wrqu->data.length;
+
+	pbuf = (u8 *)rtw_zmalloc(len);
+	if (pbuf == NULL) {
+		RTW_WARN("%s: no memory!\n", __func__);
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(pbuf, wrqu->data.pointer, len)) {
+		rtw_mfree(pbuf, len);
+		RTW_WARN("%s: copy from user fail!\n", __func__);
+		return -EFAULT;
+	}
+	RTW_INFO("%s: string=\"%s\"\n", __func__, pbuf);
+
+	ptmp = (char *)pbuf;
+	pch = strsep(&ptmp, ",");
+	if ((pch == NULL) || (strlen(pch) == 0)) {
+		rtw_mfree(pbuf, len);
+		RTW_INFO("%s: parameter error(no cmd)!\n", __func__);
+		return -EFAULT;
+	}
+
+	_rtw_memset(param, 0xFF, RTW_CUSTOMER_STR_LEN);
+
+	if (strcmp(pch, "read") == 0) {
+		read = 1;
+		ret = rtw_hal_customer_str_read(adapter, param);
+
+	} else if (strcmp(pch, "write") == 0) {
+		do {
+			pch = strsep(&ptmp, ":");
+			if ((pch == NULL) || (strlen(pch) == 0))
+				break;
+			if (strlen(pch) != 2
+				|| IsHexDigit(*pch) == _FALSE
+				|| IsHexDigit(*(pch + 1)) == _FALSE
+				|| sscanf(pch, "%hhx", &tmp) != 1
+			) {
+				RTW_WARN("%s: invalid 8-bit hex!\n", __func__);
+				rtw_mfree(pbuf, len);
+				return -EFAULT;
+			}
+
+			param[count++] = tmp;
+
+		} while (count < RTW_CUSTOMER_STR_LEN);
+
+		if (count == 0) {
+			rtw_mfree(pbuf, len);
+			RTW_WARN("%s: no input!\n", __func__);
+			return -EFAULT;
+		}
+		ret = rtw_hal_customer_str_write(adapter, param);
+	} else {
+		rtw_mfree(pbuf, len);
+		RTW_INFO("%s: parameter error(unknown cmd)!\n", __func__);
+		return -EFAULT;
+	}
+
+	pos = sprintf(extra, "%s: ", read ? "read" : "write");
+	if (read == 0 || ret == _SUCCESS) {
+		for (i = 0; i < RTW_CUSTOMER_STR_LEN; i++)
+			pos += sprintf(extra + pos, "%02x:", param[i]);
+		extra[pos] = 0;
+		pos--;
+	}
+	pos += sprintf(extra + pos, " %s", ret == _SUCCESS ? "OK" : "FAIL");
+
+	wrqu->data.length = strlen(extra) + 1;
+
+free_buf:
+	rtw_mfree(pbuf, len);
+	return 0;
+}
+#endif /* CONFIG_RTW_CUSTOMER_STR */
+
 static int rtw_priv_mp_set(struct net_device *dev,
 			   struct iw_request_info *info,
 			   union iwreq_data *wdata, char *extra)
@@ -10227,26 +10393,6 @@ static int rtw_priv_mp_set(struct net_device *dev,
 	u32 subcmd = wrqu->flags;
 
 	switch (subcmd) {
-	case MP_START:
-		RTW_INFO("set case mp_start\n");
-		rtw_mp_start(dev, info, wrqu, extra);
-		break;
-	case MP_STOP:
-		RTW_INFO("set case mp_stop\n");
-		rtw_mp_stop(dev, info, wrqu, extra);
-		break;
-	case MP_BANDWIDTH:
-		RTW_INFO("set case mp_bandwidth\n");
-		rtw_mp_bandwidth(dev, info, wrqu, extra);
-		break;
-	case MP_RESET_STATS:
-		RTW_INFO("set case MP_RESET_STATS\n");
-		rtw_mp_reset_stats(dev, info, wrqu, extra);
-		break;
-	case MP_SetRFPathSwh:
-		RTW_INFO("set MP_SetRFPathSwitch\n");
-		rtw_mp_SetRFPath(dev, info, wdata, extra);
-		break;
 	case CTA_TEST:
 		RTW_INFO("set CTA_TEST\n");
 		rtw_cta_test_start(dev, info, wdata, extra);
@@ -10280,6 +10426,26 @@ static int rtw_priv_mp_get(struct net_device *dev,
 	u32 subcmd = wrqu->flags;
 
 	switch (subcmd) {
+	case MP_START:
+		RTW_INFO("set case mp_start\n");
+		rtw_mp_start(dev, info, wrqu, extra);
+		break;
+	case MP_STOP:
+		RTW_INFO("set case mp_stop\n");
+		rtw_mp_stop(dev, info, wrqu, extra);
+		break;
+	case MP_BANDWIDTH:
+		RTW_INFO("set case mp_bandwidth\n");
+		rtw_mp_bandwidth(dev, info, wrqu, extra);
+		break;
+	case MP_RESET_STATS:
+		RTW_INFO("set case MP_RESET_STATS\n");
+		rtw_mp_reset_stats(dev, info, wrqu, extra);
+		break;
+	case MP_SetRFPathSwh:
+		RTW_INFO("set MP_SetRFPathSwitch\n");
+		rtw_mp_SetRFPath(dev, info, wrqu, extra);
+		break;
 	case WRITE_REG:
 		rtw_mp_write_reg(dev, info, wrqu, extra);
 		break;
@@ -10393,6 +10559,12 @@ static int rtw_priv_mp_get(struct net_device *dev,
 		RTW_INFO("mp_get MP_HW_TX_MODE\n");
 		rtw_mp_hwtx(dev, info, wdata, extra);
 		break;
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	case MP_CUSTOMER_STR:
+		RTW_INFO("customer str\n");
+		rtw_mp_customer_str(dev, info, wdata, extra);
+		break;
+#endif
 	default:
 		return -EIO;
 	}
@@ -12479,13 +12651,13 @@ static const struct iw_priv_args rtw_private_args[] = {
 static const struct iw_priv_args rtw_mp_private_args[] = {
 	/* --- sub-ioctls definitions --- */
 #ifdef CONFIG_MP_INCLUDED
-	{ MP_START , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_start" },
+	{ MP_START , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_start" },
 	{ MP_PHYPARA, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_phypara" },
-	{ MP_STOP , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_stop" },
+	{ MP_STOP , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_stop" },
 	{ MP_CHANNEL , IW_PRIV_TYPE_CHAR | 1024 , IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_channel" },
-	{ MP_BANDWIDTH , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_bandwidth"},
+	{ MP_BANDWIDTH , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_bandwidth"},
 	{ MP_RATE , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_rate" },
-	{ MP_RESET_STATS , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_reset_stats"},
+	{ MP_RESET_STATS , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_reset_stats"},
 	{ MP_QUERY , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK , "mp_query"},
 	{ READ_REG , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "read_reg" },
 	{ MP_RATE , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_rate" },
@@ -12502,10 +12674,10 @@ static const struct iw_priv_args rtw_mp_private_args[] = {
 	{ MP_THER , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_ther"},
 	{ EFUSE_SET, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "efuse_set" },
 	{ EFUSE_GET, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "efuse_get" },
-	{ MP_PWRTRK , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_pwrtrk"},
+	{ MP_PWRTRK , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_pwrtrk"},
 	{ MP_QueryDrvStats, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_drvquery" },
 	{ MP_IOCTL, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_ioctl"},
-	{ MP_SetRFPathSwh, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_setrfpath" },
+	{ MP_SetRFPathSwh, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_setrfpath" },
 	{ MP_PwrCtlDM, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_pwrctldm" },
 	{ MP_GET_TXPOWER_INX, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_get_txpower" },
 	{ MP_GETVER, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_priv_ver" },
@@ -12518,6 +12690,9 @@ static const struct iw_priv_args rtw_mp_private_args[] = {
 	{ CTA_TEST, IW_PRIV_TYPE_CHAR | 1024, 0, "cta_test"},
 	{ MP_IQK, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_iqk"},
 	{ MP_LCK, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_lck"},
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	{ MP_CUSTOMER_STR, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "customer_str" },
+#endif
 
 #endif /* CONFIG_MP_INCLUDED */
 };
@@ -12720,7 +12895,7 @@ static int _rtw_ioctl_wext_private(struct net_device *dev, union iwreq_data *wrq
 
 	input_len = wdata.data.length;
 	if (!input_len)
-		return 0;
+		return -EINVAL;
 	input = rtw_zmalloc(input_len);
 	if (NULL == input)
 		return -ENOMEM;

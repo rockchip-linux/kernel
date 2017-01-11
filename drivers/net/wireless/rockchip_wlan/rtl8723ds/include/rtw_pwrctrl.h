@@ -81,6 +81,14 @@ struct rtl_wow_pattern {
 	u8	type;
 	u32	mask[4];
 };
+
+struct aoac_report {
+	u8 iv[8];
+	u8 replay_counter_eapol_key[8];
+	u8 group_key[32];
+	u8 key_index;
+	u8 scurity_type;
+};
 #endif /* CONFIG_WOWLAN */
 
 enum Power_Mgnt {
@@ -367,6 +375,7 @@ struct pwrctrl_priv {
 #endif
 	u8		bSupportRemoteWakeup;
 	u8		wowlan_wake_reason;
+	u8		wowlan_last_wake_reason;
 	u8		wowlan_ap_mode;
 	u8		wowlan_mode;
 	u8		wowlan_p2p_mode;
@@ -377,10 +386,12 @@ struct pwrctrl_priv {
 #ifdef CONFIG_WOWLAN
 	u8		wowlan_txpause_status;
 	u8		wowlan_pattern_idx;
+	u8		wowlan_in_resume;
 	u64		wowlan_fw_iv;
 	struct rtl_priv_pattern	patterns[MAX_WKFM_NUM];
+	struct aoac_report wowlan_aoac_rpt;
+	u8		wowlan_aoac_rpt_loc;
 #ifdef CONFIG_PNO_SUPPORT
-	u8		pno_in_resume;
 	u8		pno_inited;
 	pno_nlo_info_t	*pnlo_info;
 	pno_scan_info_t	*pscan_info;
@@ -531,7 +542,6 @@ u32 rtw_ps_deny_get(PADAPTER padapter);
 #if defined(CONFIG_WOWLAN)
 void rtw_get_current_ip_address(PADAPTER padapter, u8 *pcurrentip);
 void rtw_get_sec_iv(PADAPTER padapter, u8 *pcur_dot11txpn, u8 *StaAddr);
-void rtw_set_sec_pn(_adapter *padapter);
 bool rtw_check_pattern_valid(u8 *input, u8 len);
 bool rtw_write_to_frame_mask(_adapter *adapter, u8 idx,
 			     struct rtl_wow_pattern *content);

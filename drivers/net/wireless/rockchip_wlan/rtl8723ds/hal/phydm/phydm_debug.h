@@ -23,7 +23,8 @@
 #define __ODM_DBG_H__
 
 /*#define DEBUG_VERSION	"1.1"*/  /*2015.07.29 YuChen*/
-#define DEBUG_VERSION	"1.2"  /*2015.08.28 Dino*/
+/*#define DEBUG_VERSION	"1.2"*/  /*2015.08.28 Dino*/
+#define DEBUG_VERSION	"1.3"  /*2016.04.28 YuChen*/
 //-----------------------------------------------------------------------------
 //	Define the debug levels
 //
@@ -79,7 +80,14 @@
 // Define the tracing components
 //
 //-----------------------------------------------------------------------------
-//BB Functions
+/*BB FW Functions*/
+#define	PHYDM_FW_COMP_RA			BIT0	
+#define	PHYDM_FW_COMP_MU			BIT1	
+#define	PHYDM_FW_COMP_PATH_DIV		BIT2
+#define	PHYDM_FW_COMP_PHY_CONFIG	BIT3
+
+
+/*BB Driver Functions*/
 #define	ODM_COMP_DIG					BIT0	
 #define	ODM_COMP_RA_MASK				BIT1	
 #define	ODM_COMP_DYNAMIC_TXPWR		BIT2
@@ -108,14 +116,15 @@
 //RF Functions
 									/*BIT23 TBD*/
 #define	ODM_COMP_TX_PWR_TRACK		BIT24
-#define	ODM_COMP_RX_GAIN_TRACK		BIT25
+									/*BIT25 TBD*/
 #define	ODM_COMP_CALIBRATION			BIT26
 //Common Functions
+									/*BIT27 TBD*/
 #define	ODM_PHY_CONFIG				BIT28
 #define	ODM_COMP_INIT					BIT29
 #define	ODM_COMP_COMMON				BIT30
+#define	ODM_COMP_API					BIT31
 
-									/*BIT31 TBD*/
 
 /*------------------------Export Marco Definition---------------------------*/
 
@@ -204,13 +213,12 @@
 VOID 
 PHYDM_InitDebugSetting(IN		PDM_ODM_T		pDM_Odm);
 
-#define	BB_TMP_BUF_SIZE		100
-VOID phydm_BB_Debug_Info(IN PDM_ODM_T pDM_Odm);
 VOID phydm_BasicDbgMessage(	IN		PVOID			pDM_VOID);
 
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 #define	PHYDM_DBGPRINT		0
 #define	PHYDM_SSCANF(x, y, z)	DCMD_Scanf(x, y, z)
+#define	PHYDM_VAST_INFO_SNPRINTF	PHYDM_SNPRINTF
 #if (PHYDM_DBGPRINT == 1)
 #define	PHYDM_SNPRINTF(msg)	\
 		do {\
@@ -237,6 +245,13 @@ VOID phydm_BasicDbgMessage(	IN		PVOID			pDM_VOID);
 #define	DCMD_HEX				"%x"
 
 #define	PHYDM_SSCANF(x, y, z)	sscanf(x, y, z)
+
+#define	PHYDM_VAST_INFO_SNPRINTF(msg)\
+		do {\
+			snprintf msg;\
+			DbgPrint(output);\
+		} while (0)
+
 #if (PHYDM_DBGPRINT == 1)
 #define	PHYDM_SNPRINTF(msg)\
 		do {\
@@ -280,6 +295,20 @@ phydm_cmd_parser(
 	IN u4Byte	out_len
 );
 
+VOID
+phydm_la_mode_bb_setting(
+	IN	PVOID		pDM_VOID,
+	IN	u4Byte		DbgPort,
+	IN	BOOLEAN		bTriggerEdge,
+	IN	u1Byte		sampling_rate
+);
+
+u1Byte
+phydm_la_mode_mac_setting(
+	IN	PVOID		pDM_VOID,
+	IN	u4Byte		TriggerTime_mu_sec
+);
+
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 void phydm_sbd_check(
 	IN	PDM_ODM_T					pDM_Odm
@@ -296,8 +325,9 @@ void phydm_sbd_workitem_callback(
 
 VOID
 phydm_fw_trace_en_h2c(
-	IN	PVOID	pDM_VOID,
+	IN	PVOID		pDM_VOID,
 	IN	BOOLEAN		enable,
+	IN	u4Byte		fw_debug_component,	
 	IN	u4Byte		monitor_mode,
 	IN	u4Byte		macid
 );

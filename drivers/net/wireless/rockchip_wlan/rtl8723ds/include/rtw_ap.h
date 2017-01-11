@@ -77,10 +77,12 @@ extern void rtw_start_auto_ap(_adapter *adapter);
 
 #endif
 void update_bmc_sta(_adapter *padapter);
-
-void rtw_process_ht_action_smps(_adapter *padapter, u8 *ta, u8 ctrl_field);
 void rtw_process_public_act_bsscoex(_adapter *padapter, u8 *pframe, uint frame_len);
+
+#ifdef CONFIG_80211N_HT
+void rtw_process_ht_action_smps(_adapter *padapter, u8 *ta, u8 ctrl_field);
 int rtw_ht_operation_update(_adapter *padapter);
+#endif
 
 #ifdef CONFIG_SWTIMER_BASED_TXBCN
 void tx_beacon_handlder(struct dvobj_priv *pdvobj);

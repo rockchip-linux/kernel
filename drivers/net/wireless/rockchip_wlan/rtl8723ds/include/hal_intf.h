@@ -247,6 +247,8 @@ typedef enum _HAL_INTF_PS_FUNC {
 
 typedef s32(*c2h_id_filter)(_adapter *adapter, u8 id, u8 seq, u8 plen, u8 *payload);
 
+struct txpwr_idx_comp;
+
 struct hal_ops {
 	/*** initialize section ***/
 	void	(*read_chip_version)(_adapter *padapter);
@@ -303,16 +305,13 @@ struct hal_ops {
 	void	(*InitSwLeds)(_adapter *padapter);
 	void	(*DeInitSwLeds)(_adapter *padapter);
 
-
-	void	(*set_bwmode_handler)(_adapter *padapter, CHANNEL_WIDTH Bandwidth, u8 Offset);
-	void	(*set_channel_handler)(_adapter *padapter, u8 channel);
 	void	(*set_chnl_bw_handler)(_adapter *padapter, u8 channel, CHANNEL_WIDTH Bandwidth, u8 Offset40, u8 Offset80);
 
 	void	(*set_tx_power_level_handler)(_adapter *padapter, u8 channel);
 	void	(*get_tx_power_level_handler)(_adapter *padapter, s32 *powerlevel);
 
 	void (*set_tx_power_index_handler)(_adapter *padapter, u32 powerindex, u8 rfpath, u8 rate);
-	u8(*get_tx_power_index_handler)(_adapter *padapter, u8 rfpath, u8 rate, u8 bandwidth, u8 channel);
+	u8(*get_tx_power_index_handler)(_adapter *padapter, u8 rfpath, u8 rate, u8 bandwidth, u8 channel, struct txpwr_idx_comp *tic);
 
 	void	(*hal_dm_watchdog)(_adapter *padapter);
 #ifdef CONFIG_LPS_LCLK_WD_TIMER
@@ -567,18 +566,6 @@ struct wowlan_ioctl_param {
 	unsigned int wakeup_reason;
 };
 
-#define Rx_Pairwisekey			0x01
-#define Rx_GTK					0x02
-#define Rx_DisAssoc				0x04
-#define Rx_DeAuth				0x08
-#define Rx_ARPReq				0x09
-#define FWDecisionDisconnect	0x10
-#define Rx_MagicPkt				0x21
-#define Rx_UnicastPkt			0x22
-#define Rx_PatternPkt			0x23
-#define	RX_PNOWakeUp			0x55
-#define	AP_WakeUp			0x66
-
 u8 rtw_hal_data_init(_adapter *padapter);
 void rtw_hal_data_deinit(_adapter *padapter);
 
@@ -664,8 +651,6 @@ void	rtw_hal_write_rfreg(_adapter *padapter, u32 eRFPath, u32 RegAddr, u32 BitMa
 	void	rtw_hal_interrupt_handler(_adapter *padapter, u16 pkt_len, u8 *pbuf);
 #endif
 
-void	rtw_hal_set_bwmode(_adapter *padapter, CHANNEL_WIDTH Bandwidth, u8 Offset);
-void	rtw_hal_set_chan(_adapter *padapter, u8 channel);
 void	rtw_hal_set_chnl_bw(_adapter *padapter, u8 channel, CHANNEL_WIDTH Bandwidth, u8 Offset40, u8 Offset80);
 void	rtw_hal_dm_watchdog(_adapter *padapter);
 void	rtw_hal_dm_watchdog_in_lps(_adapter *padapter);
@@ -737,7 +722,7 @@ s32 rtw_hal_fw_dl(_adapter *padapter, u8 wowlan);
 #endif
 
 void rtw_hal_set_tx_power_index(PADAPTER, u32 powerindex, u8 rfpath, u8 rate);
-u8 rtw_hal_get_tx_power_index(PADAPTER, u8 rfpath, u8 rate, u8 bandwidth, u8 channel);
+u8 rtw_hal_get_tx_power_index(PADAPTER, u8 rfpath, u8 rate, u8 bandwidth, u8 channel,struct txpwr_idx_comp *tic);
 
 u8 rtw_hal_ops_check(_adapter *padapter);
 

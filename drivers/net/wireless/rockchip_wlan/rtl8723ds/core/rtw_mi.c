@@ -110,33 +110,14 @@ inline int rtw_mi_get_ch_setting_union_no_self(_adapter *adapter, u8 *ch, u8 *bw
 	return _rtw_mi_get_ch_setting_union(adapter, ch, bw, offset, 0);
 }
 
-void _rtw_mi_status(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_num
-		    , u8 *ap_num, u8 *ld_ap_num, u8 *uw_num, bool include_self)
+/* For now, not return union_ch/bw/offset */
+void _rtw_mi_status(_adapter *adapter, struct mi_state *mstate, bool include_self)
 {
 	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
 	_adapter *iface;
-	struct mlme_ext_priv *mlmeext;
-
 	int i;
-	u8 sta_num_ret = 0;
-	u8 ld_sta_num_ret = 0;
-	u8 lg_sta_num_ret = 0;
-	u8 ap_num_ret = 0;
-	u8 ld_ap_num_ret = 0;
-	u8 uw_num_ret = 0;
 
-	if (sta_num)
-		*sta_num = 0;
-	if (ld_sta_num)
-		*ld_sta_num = 0;
-	if (lg_sta_num)
-		*lg_sta_num = 0;
-	if (ap_num)
-		*ap_num = 0;
-	if (ld_ap_num)
-		*ld_ap_num = 0;
-	if (uw_num)
-		*uw_num = 0;
+	_rtw_memset(mstate, 0, sizeof(struct mi_state));
 
 	for (i = 0; i < dvobj->iface_nums; i++) {
 		iface = dvobj->padapters[i];
@@ -144,72 +125,75 @@ void _rtw_mi_status(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_n
 		if (include_self == _FALSE && iface == adapter)
 			continue;
 
-		/*mlmeext = &iface->mlmeextpriv;
-
-		if (mlmeext_msr(mlmeext) == WIFI_FW_STATION_STATE) {*/
-		if (check_fwstate(&iface->mlmepriv, WIFI_STATION_STATE)) {
-			sta_num_ret++;
+		if (check_fwstate(&iface->mlmepriv, WIFI_STATION_STATE) == _TRUE) {
+			MSTATE_STA_NUM(mstate)++;
 			if (check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE)
-				ld_sta_num_ret++;
-			if (check_fwstate(&iface->mlmepriv, _FW_UNDER_LINKING) == _TRUE)
-				lg_sta_num_ret++;
-		}
+				MSTATE_STA_LD_NUM(mstate)++;
 
-		/*if (mlmeext_msr(mlmeext) == WIFI_FW_AP_STATE*/
-		if (check_fwstate(&iface->mlmepriv, WIFI_AP_STATE)
-		    && check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE
-		   ) {
-			ap_num_ret++;
+			if (check_fwstate(&iface->mlmepriv, _FW_UNDER_LINKING) == _TRUE)
+				MSTATE_STA_LG_NUM(mstate)++;
+
+		} else if (check_fwstate(&iface->mlmepriv, WIFI_AP_STATE) == _TRUE
+			&& check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE
+		) {
+			MSTATE_AP_NUM(mstate)++;
 			if (iface->stapriv.asoc_sta_count > 2)
-				ld_ap_num_ret++;
+				MSTATE_AP_LD_NUM(mstate)++;
+
+		} else if (check_fwstate(&iface->mlmepriv, WIFI_ADHOC_STATE | WIFI_ADHOC_MASTER_STATE) == _TRUE
+			&& check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE
+		) {
+			MSTATE_ADHOC_NUM(mstate)++;
+			if (iface->stapriv.asoc_sta_count > 2)
+				MSTATE_ADHOC_LD_NUM(mstate)++;
 		}
 
 		if (check_fwstate(&iface->mlmepriv, WIFI_UNDER_WPS) == _TRUE)
-			uw_num_ret++;
+			MSTATE_WPS_NUM(mstate)++;
+
+#ifdef CONFIG_IOCTL_CFG80211
+		if (rtw_cfg80211_get_is_mgmt_tx(iface))
+			MSTATE_MGMT_TX_NUM(mstate)++;
+		#ifdef CONFIG_P2P
+		if (rtw_cfg80211_get_is_roch(iface) == _TRUE)
+			MSTATE_ROCH_NUM(mstate)++;
+		#endif
+#endif /* CONFIG_IOCTL_CFG80211 */
 
 	}
-
-	if (sta_num)
-		*sta_num = sta_num_ret;
-	if (ld_sta_num)
-		*ld_sta_num = ld_sta_num_ret;
-	if (lg_sta_num)
-		*lg_sta_num = lg_sta_num_ret;
-	if (ap_num)
-		*ap_num = ap_num_ret;
-	if (ld_ap_num)
-		*ld_ap_num = ld_ap_num_ret;
-	if (uw_num)
-		*uw_num = uw_num_ret;
 }
 
-inline void rtw_mi_status(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_num
-			  , u8 *ap_num, u8 *ld_ap_num, u8 *uw_num)
+inline void rtw_mi_status(_adapter *adapter, struct mi_state *mstate)
 {
-	return _rtw_mi_status(adapter, sta_num, ld_sta_num, lg_sta_num, ap_num, ld_ap_num, uw_num, 1);
+	return _rtw_mi_status(adapter, mstate, 1);
 }
-inline void rtw_mi_status_no_self(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_num
-				  , u8 *ap_num, u8 *ld_ap_num, u8 *uw_num)
+inline void rtw_mi_status_no_self(_adapter *adapter, struct mi_state *mstate)
 {
-	return _rtw_mi_status(adapter, sta_num, ld_sta_num, lg_sta_num, ap_num, ld_ap_num, uw_num, 0);
+	return _rtw_mi_status(adapter, mstate, 0);
 }
 void dump_mi_status(void *sel, struct dvobj_priv *dvobj)
 {
 	RTW_PRINT_SEL(sel, "== dvobj-iface_state ==\n");
-	RTW_PRINT_SEL(sel, "sta_num:%d\n", dvobj->iface_state.sta_num);
-	RTW_PRINT_SEL(sel, "linking_sta_num:%d\n", dvobj->iface_state.lg_sta_num);
-	RTW_PRINT_SEL(sel, "linked_sta_num:%d\n", dvobj->iface_state.ld_sta_num);
-	RTW_PRINT_SEL(sel, "ap_num:%d\n", dvobj->iface_state.ap_num);
-	RTW_PRINT_SEL(sel, "linked_ap_num:%d\n", dvobj->iface_state.ld_ap_num);
-	RTW_PRINT_SEL(sel, "adhoc_num:%d\n", dvobj->iface_state.adhoc_num);
-	RTW_PRINT_SEL(sel, "linked_adhoc_num:%d\n", dvobj->iface_state.ld_adhoc_num);
+	RTW_PRINT_SEL(sel, "sta_num:%d\n", DEV_STA_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "linking_sta_num:%d\n", DEV_STA_LG_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "linked_sta_num:%d\n", DEV_STA_LD_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "ap_num:%d\n", DEV_AP_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "linked_ap_num:%d\n", DEV_AP_LD_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "adhoc_num:%d\n", DEV_ADHOC_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "linked_adhoc_num:%d\n", DEV_ADHOC_LD_NUM(dvobj));
 #ifdef CONFIG_P2P
 	RTW_PRINT_SEL(sel, "p2p_device_num:%d\n", rtw_mi_stay_in_p2p_mode(dvobj->padapters[IFACE_ID0]));
 #endif
-	RTW_PRINT_SEL(sel, "under_wps_num:%d\n", dvobj->iface_state.uwps_num);
-	RTW_PRINT_SEL(sel, "union_ch:%d\n", dvobj->iface_state.union_ch);
-	RTW_PRINT_SEL(sel, "union_bw:%d\n", dvobj->iface_state.union_bw);
-	RTW_PRINT_SEL(sel, "union_offset:%d\n", dvobj->iface_state.union_offset);
+#if defined(CONFIG_IOCTL_CFG80211)
+	#if defined(CONFIG_P2P)
+	RTW_PRINT_SEL(sel, "roch_num:%d\n", DEV_ROCH_NUM(dvobj));
+	#endif
+	RTW_PRINT_SEL(sel, "mgmt_tx_num:%d\n", DEV_MGMT_TX_NUM(dvobj));
+#endif
+	RTW_PRINT_SEL(sel, "under_wps_num:%d\n", DEV_WPS_NUM(dvobj));
+	RTW_PRINT_SEL(sel, "union_ch:%d\n", DEV_U_CH(dvobj));
+	RTW_PRINT_SEL(sel, "union_bw:%d\n", DEV_U_BW(dvobj));
+	RTW_PRINT_SEL(sel, "union_offset:%d\n", DEV_U_OFFSET(dvobj));
 	RTW_PRINT_SEL(sel, "================\n\n");
 }
 
@@ -224,51 +208,22 @@ inline void rtw_mi_update_iface_status(struct mlme_priv *pmlmepriv, sint state)
 	_adapter *adapter = container_of(pmlmepriv, _adapter, mlmepriv);
 	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
 	struct mi_state *iface_state = &dvobj->iface_state;
+	struct mi_state tmp_mstate;
 	u8 i;
 	u8 u_ch, u_offset, u_bw;
 	_adapter *iface;
-	struct mlme_ext_priv *mlmeext;
 
-	if ((state == WIFI_MONITOR_STATE) || /* (state == WIFI_OP_CH_SWITCHING) || */
-	    (state == WIFI_ADHOC_MASTER_STATE) || (state == WIFI_ADHOC_STATE) ||
-	    (state == WIFI_SITE_MONITOR) || (state == 0xFFFFFFFF) ||
-	    (state == WIFI_UNDER_WPS)
-	   )
+	if (state == WIFI_MONITOR_STATE
+		|| state == WIFI_SITE_MONITOR
+		|| state == 0xFFFFFFFF
+	)
 		return;
 
 	if (0)
 		RTW_INFO("%s => will change or clean state to 0x%08x\n", __func__, state);
-	_rtw_memset(iface_state, 0, sizeof(struct mi_state));
 
-	for (i = 0; i < dvobj->iface_nums; i++) {
-		iface = dvobj->padapters[i];
-		mlmeext = &iface->mlmeextpriv;
-
-		if (check_fwstate(&iface->mlmepriv, WIFI_STATION_STATE) == _TRUE) {
-			iface_state->sta_num++;
-			if (check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE)
-				iface_state->ld_sta_num++;
-
-			if (check_fwstate(&iface->mlmepriv, _FW_UNDER_LINKING) == _TRUE)
-				iface_state->lg_sta_num++;
-		} else if (check_fwstate(&iface->mlmepriv, WIFI_AP_STATE) == _TRUE
-			&& check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE
-			  ) {
-			iface_state->ap_num++;
-			if (iface->stapriv.asoc_sta_count > 2)
-				iface_state->ld_ap_num++;
-		} else if (check_fwstate(&iface->mlmepriv, WIFI_ADHOC_STATE | WIFI_ADHOC_MASTER_STATE) == _TRUE
-			&& check_fwstate(&iface->mlmepriv, _FW_LINKED) == _TRUE
-			  ) {
-			iface_state->adhoc_num++;
-			if (iface->stapriv.asoc_sta_count > 2)
-				iface_state->ld_adhoc_num++;
-		}
-
-		if (check_fwstate(&iface->mlmepriv, WIFI_UNDER_WPS) == _TRUE)
-			iface_state->uwps_num++;
-
-	}
+	rtw_mi_status(adapter, &tmp_mstate);
+	_rtw_memcpy(iface_state, &tmp_mstate, sizeof(struct mi_state));
 
 	if (rtw_mi_get_ch_setting_union(adapter, &u_ch, &u_bw, &u_offset))
 		rtw_mi_update_union_chan_inf(adapter , u_ch, u_offset , u_bw);
@@ -297,46 +252,46 @@ u8 rtw_mi_check_status(_adapter *adapter, u8 type)
 
 	switch (type) {
 	case MI_LINKED:
-		if (iface_state->ld_sta_num || iface_state->ap_num || iface_state->adhoc_num) /*check_fwstate(&iface->mlmepriv, _FW_LINKED)*/
+		if (MSTATE_STA_LD_NUM(iface_state) || MSTATE_AP_NUM(iface_state) || MSTATE_ADHOC_NUM(iface_state)) /*check_fwstate(&iface->mlmepriv, _FW_LINKED)*/
 			ret = _TRUE;
 		break;
 	case MI_ASSOC:
-		if (iface_state->ld_sta_num || iface_state->ld_ap_num || iface_state->ld_adhoc_num)
+		if (MSTATE_STA_LD_NUM(iface_state) || MSTATE_AP_LD_NUM(iface_state) || MSTATE_ADHOC_LD_NUM(iface_state))
 			ret = _TRUE;
 		break;
 	case MI_UNDER_WPS:
-		if (iface_state->uwps_num)
+		if (MSTATE_WPS_NUM(iface_state))
 			ret = _TRUE;
 		break;
 
 	case MI_AP_MODE:
-		if (iface_state->ap_num)
+		if (MSTATE_AP_NUM(iface_state))
 			ret = _TRUE;
 		break;
 	case MI_AP_ASSOC:
-		if (iface_state->ld_ap_num)
+		if (MSTATE_AP_LD_NUM(iface_state))
 			ret = _TRUE;
 		break;
 
 	case MI_ADHOC:
-		if (iface_state->adhoc_num)
+		if (MSTATE_ADHOC_NUM(iface_state))
 			ret = _TRUE;
 		break;
 	case MI_ADHOC_ASSOC:
-		if (iface_state->ld_adhoc_num)
+		if (MSTATE_ADHOC_LD_NUM(iface_state))
 			ret = _TRUE;
 		break;
 
 	case MI_STA_NOLINK: /* this is misleading, but not used now */
-		if (iface_state->sta_num && (!(iface_state->ld_sta_num || iface_state->lg_sta_num)))
+		if (MSTATE_STA_NUM(iface_state) && (!(MSTATE_STA_LD_NUM(iface_state) || MSTATE_STA_LG_NUM(iface_state))))
 			ret = _TRUE;
 		break;
 	case MI_STA_LINKED:
-		if (iface_state->ld_sta_num)
+		if (MSTATE_STA_LD_NUM(iface_state))
 			ret = _TRUE;
 		break;
 	case MI_STA_LINKING:
-		if (iface_state->lg_sta_num)
+		if (MSTATE_STA_LG_NUM(iface_state))
 			ret = _TRUE;
 		break;
 
@@ -346,50 +301,9 @@ u8 rtw_mi_check_status(_adapter *adapter, u8 type)
 	return ret;
 }
 
-#if 0
-inline void rtw_mi_update_fwstate(struct mlme_priv *pmlmepriv, sint state, u8 bset)
-{
-	_adapter *adapter = container_of(pmlmepriv, _adapter, mlmepriv);
-
-	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
-	struct mi_state *iface_state = &dvobj->iface_state;
-	struct mlme_ext_priv *mlmeext = &adapter->mlmeextpriv;
-
-	if (!(state & (_FW_LINKED | _FW_UNDER_LINKING | WIFI_UNDER_WPS)))
-		return;
-
-	if (mlmeext_msr(mlmeext) == WIFI_FW_STATION_STATE) {
-		/*ATOMIC_INC(&(iface_state->sta_num_ret));*/
-
-		if (state & _FW_LINKED)
-			(bset)	? ATOMIC_INC(&(iface_state->ld_sta_num_ret))
-			: ATOMIC_DEC(&(iface_state->ld_sta_num_ret));
-
-		if (state & _FW_UNDER_LINKING)
-			(bset)	? ATOMIC_INC(&(iface_state->lg_sta_num_ret))
-			: ATOMIC_DEC(&(iface_state->lg_sta_num_ret));
-	}
-
-	if (mlmeext_msr(mlmeext) == WIFI_FW_AP_STATE
-	    && check_fwstate(&adapter->mlmepriv, _FW_LINKED) == _TRUE
-	   ) {
-		/*ATOMIC_INC(&(iface_state->ap_num_ret));*/
-		if (adapter->stapriv.asoc_sta_count > 2)
-			ld_ap_num_ret++;
-	}
-
-	if (state & WIFI_UNDER_WPS)
-		(bset)	? ATOMIC_INC(&(iface_state->uw_num_ret))
-		: ATOMIC_DEC(&(iface_state->uw_num_ret));
-
-	_rtw_mi_status(adapter, &iface_state->sta_num, &iface_state->ld_sta_num, &iface_state->lg_sta_num
-		, &iface_state->ap_num, &iface_state->ld_ap_num, &iface_state->uwps_num, 1);
-}
-#endif
-
-#ifdef CONFIG_MP_INCLUDED
 u8 rtw_mi_mp_mode_check(_adapter *padapter)
 {
+#ifdef CONFIG_MP_INCLUDED
 #ifdef CONFIG_CONCURRENT_MODE
 	int i;
 	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
@@ -398,111 +312,16 @@ u8 rtw_mi_mp_mode_check(_adapter *padapter)
 	for (i = 0; i < dvobj->iface_nums; i++) {
 		iface = dvobj->padapters[i];
 
-		if ((iface) && (iface->registrypriv.mp_mode == 1)) {
-			RTW_INFO(ADPT_FMT "-MP mode enable\n", ADPT_ARG(iface));
+		if ((iface) && (iface->registrypriv.mp_mode == 1))
 			return _TRUE;
-		}
 	}
 #else
 	if (padapter->registrypriv.mp_mode == 1)
 		return _TRUE;
 #endif
+#endif /* CONFIG_MP_INCLUDED */
 	return _FALSE;
 }
-#endif
-
-#ifdef CONFIG_CONCURRENT_MODE
-u8 rtw_mi_buddy_under_survey(_adapter *padapter)
-{
-	int i;
-	u8 ret = 0;
-	_adapter *iface = NULL;
-	_irqL	irqL;
-	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
-
-#ifdef CONFIG_IOCTL_CFG80211
-	struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter);
-#endif
-
-	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
-
-	struct mlme_priv *buddy_mlmepriv;
-	struct rtw_wdev_priv *buddy_wdev_priv;
-
-	for (i = 0; i < dvobj->iface_nums; i++) {
-		iface = dvobj->padapters[i];
-		if ((iface) && rtw_is_adapter_up(iface)) {
-
-			if (iface == padapter)
-				continue;
-
-			buddy_mlmepriv = &iface->mlmepriv;
-			if (check_fwstate(buddy_mlmepriv, _FW_UNDER_SURVEY)) {
-				ret = UNDER_SURVEY_T1;
-
-#ifdef CONFIG_IOCTL_CFG80211
-				buddy_wdev_priv = adapter_wdev_data(iface);
-				_enter_critical_bh(&pwdev_priv->scan_req_lock, &irqL);
-				_enter_critical_bh(&buddy_wdev_priv->scan_req_lock, &irqL);
-				if (buddy_wdev_priv->scan_request) {
-					pmlmepriv->scanning_via_buddy_intf = _TRUE;
-					_enter_critical_bh(&pmlmepriv->lock, &irqL);
-					set_fwstate(pmlmepriv, _FW_UNDER_SURVEY);
-					_exit_critical_bh(&pmlmepriv->lock, &irqL);
-					ret = UNDER_SURVEY_T2;
-				}
-				_exit_critical_bh(&buddy_wdev_priv->scan_req_lock, &irqL);
-				_exit_critical_bh(&pwdev_priv->scan_req_lock, &irqL);
-#endif
-
-				RTW_INFO(ADPT_FMT"_FW_UNDER_SURVEY\n", ADPT_ARG(iface));
-				return ret;
-			}
-		}
-	}
-	return ret;
-}
-void rtw_mi_buddy_indicate_scan_done(_adapter *padapter, bool bscan_aborted)
-{
-#if defined(CONFIG_IOCTL_CFG80211)
-	int i;
-	u8 ret = 0;
-	_adapter *iface = NULL;
-	_irqL	irqL;
-	struct dvobj_priv *dvobj = adapter_to_dvobj(padapter);
-	struct mlme_priv *mlmepriv;
-	struct rtw_wdev_priv *wdev_priv;
-	bool indicate_buddy_scan = _FALSE;
-
-	for (i = 0; i < dvobj->iface_nums; i++) {
-		iface = dvobj->padapters[i];
-		if ((iface) && rtw_is_adapter_up(iface)) {
-
-			if (iface == padapter)
-				continue;
-
-			mlmepriv = &(iface->mlmepriv);
-			wdev_priv = adapter_wdev_data(iface);
-
-			_enter_critical_bh(&wdev_priv->scan_req_lock, &irqL);
-			if (wdev_priv->scan_request && mlmepriv->scanning_via_buddy_intf == _TRUE) {
-				mlmepriv->scanning_via_buddy_intf = _FALSE;
-				clr_fwstate(mlmepriv, _FW_UNDER_SURVEY);
-				indicate_buddy_scan = _TRUE;
-			}
-			_exit_critical_bh(&wdev_priv->scan_req_lock, &irqL);
-
-			if (indicate_buddy_scan == _TRUE) {
-				rtw_cfg80211_surveydone_event_callback(iface);
-				rtw_indicate_scan_done(iface, bscan_aborted);
-			}
-
-		}
-	}
-#endif
-
-}
-#endif
 
 /*
 * return value : 0 is failed or have not interface meet condition
@@ -987,20 +806,6 @@ static u8 _rtw_mi_traffic_statistics(_adapter *padapter , void *data)
 }
 u8 rtw_mi_traffic_statistics(_adapter *padapter)
 {
-	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
-
-	/*_rtw_memset(&pdvobjpriv->traffic_stat, 0, sizeof(struct rtw_traffic_statistics));*/
-
-	/* Tx bytes reset*/
-	pdvobjpriv->traffic_stat.tx_bytes = 0;
-	pdvobjpriv->traffic_stat.tx_pkts = 0;
-	pdvobjpriv->traffic_stat.tx_drop = 0;
-
-	/* Rx bytes reset*/
-	pdvobjpriv->traffic_stat.rx_bytes = 0;
-	pdvobjpriv->traffic_stat.rx_pkts = 0;
-	pdvobjpriv->traffic_stat.rx_drop = 0;
-
 	return _rtw_mi_process(padapter, _FALSE, NULL, _rtw_mi_traffic_statistics);
 }
 
@@ -1085,7 +890,7 @@ void rtw_mi_buddy_adapter_reset(_adapter *padapter)
 
 static u8 _rtw_mi_dynamic_check_timer_handlder(_adapter *adapter, void *data)
 {
-	rtw_dynamic_check_timer_handlder(adapter);
+	rtw_iface_dynamic_check_timer_handlder(adapter);
 	return _TRUE;
 }
 u8 rtw_mi_dynamic_check_timer_handlder(_adapter *padapter)
@@ -1113,7 +918,7 @@ u8 rtw_mi_buddy_dev_unload(_adapter *padapter)
 
 static u8 _rtw_mi_dynamic_chk_wk_hdl(_adapter *adapter, void *data)
 {
-	dynamic_chk_wk_hdl(adapter);
+	rtw_iface_dynamic_chk_wk_hdl(adapter);
 	return _TRUE;
 }
 u8 rtw_mi_dynamic_chk_wk_hdl(_adapter *padapter)
@@ -1415,17 +1220,18 @@ void rtw_mi_buddy_clone_bcmc_packet(_adapter *padapter, union recv_frame *precvf
 
 	for (i = 0; i < dvobj->iface_nums; i++) {
 		iface = dvobj->padapters[i];
-		if ((iface) && rtw_is_adapter_up(iface)) {
-			if (iface == padapter)
-				continue;
-			pcloneframe = rtw_alloc_recvframe(pfree_recv_queue);
-			if (pcloneframe) {
-				ret = _rtw_mi_buddy_clone_bcmc_packet(iface, precvframe, pphy_status, pcloneframe);
-				if (_SUCCESS != ret) {
-					if (ret == -1)
-						rtw_free_recvframe(pcloneframe, pfree_recv_queue);
-					/*RTW_INFO(ADPT_FMT"-clone BC/MC frame failed\n", ADPT_ARG(iface));*/
-				}
+		if (!iface || iface == padapter)
+			continue;
+		if (rtw_is_adapter_up(iface) == _FALSE || iface->registered == 0)
+			continue;
+
+		pcloneframe = rtw_alloc_recvframe(pfree_recv_queue);
+		if (pcloneframe) {
+			ret = _rtw_mi_buddy_clone_bcmc_packet(iface, precvframe, pphy_status, pcloneframe);
+			if (_SUCCESS != ret) {
+				if (ret == -1)
+					rtw_free_recvframe(pcloneframe, pfree_recv_queue);
+				/*RTW_INFO(ADPT_FMT"-clone BC/MC frame failed\n", ADPT_ARG(iface));*/
 			}
 		}
 	}

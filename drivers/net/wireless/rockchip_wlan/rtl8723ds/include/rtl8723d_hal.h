@@ -39,35 +39,6 @@
 	#include "rtl8723d_lps_poff.h"
 #endif
 
-
-/* ---------------------------------------------------------------------
- *		RTL8723D From file
- * --------------------------------------------------------------------- */
-#define RTL8723D_FW_IMG			"rtl8723d/FW_NIC.bin"
-#define RTL8723D_FW_WW_IMG		"rtl8723d/FW_WoWLAN.bin"
-#define RTL8723D_PHY_REG		"rtl8723d/PHY_REG.txt"
-#define RTL8723D_PHY_RADIO_A		"rtl8723d/RadioA.txt"
-#define RTL8723D_PHY_RADIO_B		"rtl8723d/RadioB.txt"
-#define RTL8723D_TXPWR_TRACK		"rtl8723d/TxPowerTrack.txt"
-#define RTL8723D_AGC_TAB		"rtl8723d/AGC_TAB.txt"
-#define RTL8723D_PHY_MACREG		"rtl8723d/MAC_REG.txt"
-#define RTL8723D_PHY_REG_PG		"rtl8723d/PHY_REG_PG.txt"
-#define RTL8723D_PHY_REG_MP		"rtl8723d/PHY_REG_MP.txt"
-#define RTL8723D_TXPWR_LMT		"rtl8723d/TXPWR_LMT.txt"
-
-/* ---------------------------------------------------------------------
- *		RTL8723D From header
- * --------------------------------------------------------------------- */
-
-#if MP_DRIVER == 1
-	#define Rtl8723D_FwBTImgArray		Rtl8723DFwBTImgArray
-	#define Rtl8723D_FwBTImgArrayLength	Rtl8723DFwBTImgArrayLength
-
-	#define Rtl8723D_PHY_REG_Array_MP	Rtl8723D_PHYREG_Array_MP
-	#define Rtl8723D_PHY_REG_Array_MPLength	Rtl8723D_PHYREG_Array_MPLength
-#endif
-
-
 #define FW_8723D_SIZE		0x8000
 #define FW_8723D_START_ADDRESS	0x1000
 #define FW_8723D_END_ADDRESS	0x1FFF /* 0x5FFF */
@@ -198,11 +169,11 @@ typedef struct _RT_8723D_FIRMWARE_HDR {
 #include "HalVerDef.h"
 #include "hal_com.h"
 
-#define EFUSE_OOB_PROTECT_BYTES			15
+#define EFUSE_OOB_PROTECT_BYTES (96 + 1)
 
 #define HAL_EFUSE_MEMORY
 #define HWSET_MAX_SIZE_8723D                512
-#define EFUSE_REAL_CONTENT_LEN_8723D        256
+#define EFUSE_REAL_CONTENT_LEN_8723D        512
 #define EFUSE_MAP_LEN_8723D                 512
 #define EFUSE_MAX_SECTION_8723D             64
 

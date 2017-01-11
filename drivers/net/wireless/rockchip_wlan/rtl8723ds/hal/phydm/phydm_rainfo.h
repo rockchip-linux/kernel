@@ -26,16 +26,15 @@
 /*#define RAINFO_VERSION	"3.1"  //2015.01.14 Dino*/
 /*#define RAINFO_VERSION	"3.3"  2015.07.29 YuChen*/
 /*#define RAINFO_VERSION	"3.4"*/  /*2015.12.15 Stanley*/
-#define RAINFO_VERSION	"4.0"  /*2016.03.24 Dino, Add more RA mask state and Phydm-lize partial ra mask function  */
+/*#define RAINFO_VERSION	"4.0"*/  /*2016.03.24 Dino, Add more RA mask state and Phydm-lize partial ra mask function  */
+/*#define RAINFO_VERSION	"4.1"*/  /*2016.04.20 Dino, Add new function to adjust PCR RA threshold  */
+#define RAINFO_VERSION	"4.2"  /*2016.05.17 Dino, Add H2C debug cmd  */
 
+#define	H2C_0X42_LENGTH	5
+#define	H2C_MAX_LENGTH	7
 
-#define	RA_FLOOR_UP_GAP				3
+#define	RA_FLOOR_UP_GAP		3
 #define	RA_FLOOR_TABLE_SIZE	7
-#define	RA_FLOOR_H_RATE	ODM_RATEMCS4
-#define	RA_FLOOR_L_RATE	ODM_RATEMCS0
-
-#define HIGH_RSSI_THRESH	50
-#define LOW_RSSI_THRESH	20
 
 #define	ACTIVE_TP_THRESHOLD	150
 #define	RA_RETRY_DESCEND_NUM	2
@@ -62,31 +61,24 @@
 #define	RA_MASK_VHT2SS	0xffc00000
 
 #if(DM_ODM_SUPPORT_TYPE == ODM_AP)
-#define	EXT_RA_INFO_SUPPORT_IC (ODM_RTL8881A | ODM_RTL8192E | ODM_RTL8812 | ODM_RTL8814A | ODM_RTL8822B | ODM_RTL8197F)
 #define		RA_FIRST_MACID 	1
 #elif (DM_ODM_SUPPORT_TYPE == ODM_WIN)
-#define	EXT_RA_INFO_SUPPORT_IC (ODM_RTL8192E | ODM_RTL8812 | ODM_RTL8821 | ODM_RTL8723B | ODM_RTL8814A | ODM_RTL8822B | ODM_RTL8703B)
 #define	RA_FIRST_MACID	0
 #define	WIN_DEFAULT_PORT_MACID	0
 #define	WIN_BT_PORT_MACID	2
-#elif (DM_ODM_SUPPORT_TYPE == ODM_CE)
-/*#define	EXT_RA_INFO_SUPPORT_IC (ODM_RTL8192E|ODM_RTL8812|ODM_RTL8821|ODM_RTL8723B|ODM_RTL8814A|ODM_RTL8822B|ODM_RTL8703B) */
+#else /*if (DM_ODM_SUPPORT_TYPE == ODM_CE)*/
 #define		RA_FIRST_MACID 	0
 #endif
 
-
 #define AP_InitRateAdaptiveState	ODM_RateAdaptiveStateApInit
 
+#if (RA_MASK_PHYDMLIZE_CE || RA_MASK_PHYDMLIZE_AP || RA_MASK_PHYDMLIZE_WIN)
 #define		DM_RATR_STA_INIT			0
 #define		DM_RATR_STA_HIGH			1
 #define 		DM_RATR_STA_MIDDLE		2
 #define 		DM_RATR_STA_LOW			3
-#if(DM_ODM_SUPPORT_TYPE & ODM_AP)
 #define		DM_RATR_STA_ULTRA_LOW	4
 #endif
-
-#define		DM_RA_RATE_UP				1
-#define		DM_RA_RATE_DOWN			2
 
 typedef enum _phydm_arfr_num {
 	ARFR_0_RATE_ID	=	0x9,
@@ -98,7 +90,8 @@ typedef enum _phydm_arfr_num {
 } PHYDM_RA_ARFR_NUM_E;
 
 typedef enum _Phydm_ra_dbg_para {
-	RADBG_RTY_PENALTY			=	1,
+	RADBG_PCR_TH_OFFSET		=	0,
+	RADBG_RTY_PENALTY		=	1,
 	RADBG_N_HIGH 				=	2,
 	RADBG_N_LOW				=	3,
 	RADBG_TRATE_UP_TABLE		=	4,
@@ -255,6 +248,8 @@ typedef struct _Rate_Adaptive_Table_ {
 	u1Byte	highest_client_tx_order;
 	u2Byte	highest_client_tx_rate_order;
 	u1Byte	power_tracking_flag;
+	u1Byte	RA_threshold_offset;
+	u1Byte	RA_offset_direction;
 
 	#if (defined(CONFIG_RA_DYNAMIC_RTY_LIMIT))
 	u1Byte per_rate_retrylimit_20M[ODM_NUM_RATE_IDX];
@@ -290,16 +285,15 @@ typedef struct _ODM_RATE_ADAPTIVE {
 } ODM_RATE_ADAPTIVE, *PODM_RATE_ADAPTIVE;
 
 VOID
-ODM_C2HRaParaReportHandler(
-	IN	PVOID	pDM_VOID,
-	IN pu1Byte   CmdBuf,
-	IN u1Byte   CmdLen
+phydm_h2C_debug(
+	IN		PVOID		pDM_VOID,
+	IN		u4Byte		*const dm_value,
+	IN		u4Byte		*_used,
+	OUT		char			*output,
+	IN		u4Byte		*_out_len
 );
 
-VOID
-odm_RA_ParaAdjust_Send_H2C(
-	IN	PVOID	pDM_VOID
-);
+#if (defined(CONFIG_RA_DBG_CMD))
 
 VOID
 odm_RA_debug(
@@ -310,6 +304,26 @@ odm_RA_debug(
 VOID
 odm_RA_ParaAdjust_init(
 	IN		PVOID		pDM_VOID
+);
+
+#else
+
+VOID
+phydm_RA_debug_PCR(
+	IN		PVOID		pDM_VOID,
+	IN		u4Byte		*const dm_value,
+	IN		u4Byte		*_used,
+	OUT		char			*output,
+	IN		u4Byte		*_out_len
+);
+
+#endif
+
+VOID
+ODM_C2HRaParaReportHandler(
+	IN	PVOID	pDM_VOID,
+	IN	pu1Byte	CmdBuf,
+	IN	u1Byte	CmdLen
 );
 
 VOID
@@ -370,6 +384,13 @@ odm_RSSIMonitorInit(
 );
 
 VOID
+phydm_modify_RA_PCR_threshold(
+	IN		PVOID		pDM_VOID,
+	IN		u1Byte		RA_offset_direction,
+	IN		u1Byte		RA_threshold_offset
+);
+
+VOID
 odm_RSSIMonitorCheck(
 	IN	PVOID	pDM_VOID
 );
@@ -378,16 +399,6 @@ VOID
 phydm_initRaInfo(
 	IN		PVOID		pDM_VOID
 );
-
-#if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
-s4Byte
-phydm_FindMinimumRSSI(
-IN		PDM_ODM_T		pDM_Odm,
-IN		PADAPTER		pAdapter,
-IN OUT	BOOLEAN	*pbLink_temp
-
-	);
-#endif
 
 u1Byte
 phydm_vht_en_mapping(
@@ -403,15 +414,6 @@ phydm_rate_id_mapping(
 	IN	u1Byte			bw
 );
 
-#if 0
-u4Byte
-phydm_disable_cck_ra_mask(
-	IN	PVOID			pDM_VOID,
-	IN	u4Byte			ra_mask_in
-);
-#endif
-
-
 VOID
 phydm_UpdateHalRAMask(
 	IN	PVOID			pDM_VOID,
@@ -424,22 +426,6 @@ phydm_UpdateHalRAMask(
 	IN	u4Byte			*ratr_bitmap_in,
 	IN	u1Byte			tx_rate_level
 );
-
-VOID
-odm_RSSIMonitorCheckMP(
-	IN	PVOID	pDM_VOID
-);
-
-VOID
-odm_RSSIMonitorCheckCE(
-	IN	PVOID	pDM_VOID
-);
-
-VOID
-odm_RSSIMonitorCheckAP(
-	IN	PVOID	pDM_VOID
-);
-
 
 VOID
 odm_RateAdaptiveMaskInit(
@@ -513,6 +499,13 @@ phydm_update_pwr_track(
 
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 
+s4Byte
+phydm_FindMinimumRSSI(
+IN		PDM_ODM_T		pDM_Odm,
+IN		PADAPTER		pAdapter,
+IN OUT	BOOLEAN	*pbLink_temp
+);
+
 VOID
 ODM_UpdateInitRateWorkItemCallback(
 	IN	PVOID	pContext
@@ -532,12 +525,14 @@ odm_RefreshLdpcRtsMP(
 	IN	s4Byte				UndecoratedSmoothedPWDB
 );
 
+#if 0
 VOID
 ODM_DynamicARFBSelect(
 	IN		PVOID		pDM_VOID,
 	IN 		u1Byte		rate,
 	IN  	BOOLEAN		Collision_State
 );
+#endif
 
 VOID
 ODM_RateAdaptiveStateApInit(
@@ -570,6 +565,16 @@ ODM_Get_Rate_Bitmap(
 
 void phydm_ra_rssi_rpt_wk(PVOID pContext);
 #endif/*#elif (DM_ODM_SUPPORT_TYPE == ODM_CE)*/
+
+#elif (DM_ODM_SUPPORT_TYPE & (ODM_AP))
+
+VOID
+phydm_gen_ramask_h2c_AP(
+	IN		PVOID			pDM_VOID,
+	IN		struct rtl8192cd_priv *priv,
+	IN		PSTA_INFO_T		*pEntry,
+	IN		u1Byte			rssi_level
+);
 
 #endif/*#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN| ODM_CE))*/
 

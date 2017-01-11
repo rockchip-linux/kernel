@@ -159,7 +159,7 @@ typedef struct _EFUSE_HAL {
 
 } EFUSE_HAL, *PEFUSE_HAL;
 
-extern u8 maskfileBuffer[32];
+extern u8 maskfileBuffer[64];
 
 /*------------------------Export global variable----------------------------*/
 extern u8 fakeEfuseBank;
@@ -205,8 +205,6 @@ int	Efuse_PgPacketRead(PADAPTER pAdapter, u8 offset, u8 *data, BOOLEAN bPseudoTe
 int	Efuse_PgPacketWrite(PADAPTER pAdapter, u8 offset, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
 void	efuse_WordEnableDataRead(u8 word_en, u8 *sourdata, u8 *targetdata);
 u8	Efuse_WordEnableDataWrite(PADAPTER pAdapter, u16 efuse_addr, u8 word_en, u8 *data, BOOLEAN bPseudoTest);
-
-u8	EFUSE_Read1Byte(PADAPTER pAdapter, u16 Address);
 void	EFUSE_ShadowMapUpdate(PADAPTER pAdapter, u8 efuseType, BOOLEAN bPseudoTest);
 void	EFUSE_ShadowRead(PADAPTER pAdapter, u8 Type, u16 Offset, u32 *Value);
 
@@ -222,6 +220,8 @@ u8	EfusePgPacketWrite_BT(
 	u8			word_en,
 	u8			*pData,
 	u8			bPseudoTest);
+u16 rtw_get_efuse_mask_arraylen(PADAPTER pAdapter);
+void rtw_efuse_mask_array(PADAPTER pAdapter, u8 *pArray);
 
 #define MAC_HIDDEN_MAX_BW_NUM 8
 extern const u8 _mac_hidden_max_bw_to_hal_bw_cap[];
@@ -236,7 +236,7 @@ u8 mac_hidden_wl_func_to_hal_wl_func(u8 func);
 #ifdef PLATFORM_LINUX
 u8 rtw_efuse_file_read(PADAPTER padapter, u8 *filepatch, u8 *buf, u32 len);
 #ifdef CONFIG_EFUSE_CONFIG_FILE
-u32 rtw_read_efuse_from_file(const char *path, u8 *buf);
+u32 rtw_read_efuse_from_file(const char *path, u8 *buf, int map_size);
 u32 rtw_read_macaddr_from_file(const char *path, u8 *buf);
 #endif /* CONFIG_EFUSE_CONFIG_FILE */
 #endif /* PLATFORM_LINUX */

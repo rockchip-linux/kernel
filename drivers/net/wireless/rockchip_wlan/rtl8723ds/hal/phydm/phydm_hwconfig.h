@@ -30,6 +30,9 @@
 #define	RA_RSSI_STATE_SEND	1
 #define	RA_RSSI_STATE_HOLD	2
 
+#define	CFO_HW_RPT_2_MHZ(val) ((val<<1) + (val>>1))
+/* ((X* 3125)  / 10)>>7 = (X*10)>>2 = X*2.5 = X<<1 + X>>1   */
+
 #define AGC_DIFF_CONFIG_MP(ic, band) (ODM_ReadAndConfig_MP_##ic##_AGC_TAB_DIFF(pDM_Odm, Array_MP_##ic##_AGC_TAB_DIFF_##band, \
                                                                               sizeof(Array_MP_##ic##_AGC_TAB_DIFF_##band)/sizeof(u4Byte)))
 #define AGC_DIFF_CONFIG_TC(ic, band) (ODM_ReadAndConfig_TC_##ic##_AGC_TAB_DIFF(pDM_Odm, Array_TC_##ic##_AGC_TAB_DIFF_##band, \

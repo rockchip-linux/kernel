@@ -476,7 +476,7 @@ ODM_Write_DIG(
 	if(pDM_DigTable->CurIGValue != CurrentIGI)
 	{
 
-#if (RTL8822B_SUPPORT == 1 | RTL8197F_SUPPORT == 1)
+#if (RTL8822B_SUPPORT == 1 || RTL8197F_SUPPORT == 1)
 		/* Modify big jump step for 8822B and 8197F */
 		if (pDM_Odm->SupportICType & (ODM_RTL8822B|ODM_RTL8197F))
 			phydm_setBigJumpStep(pDM_Odm, CurrentIGI);
@@ -528,9 +528,9 @@ ODM_Write_DIG(
 						ODM_SetBBReg(pDM_Odm, ODM_REG(IGI_B,pDM_Odm), ODM_BIT(IGI,pDM_Odm), getIGIForDiff(CurrentIGI));
 					break;
 				case ODM_CCA_1R_B:
-					ODM_SetBBReg(pDM_Odm, ODM_REG(IGI_A,pDM_Odm), ODM_BIT(IGI,pDM_Odm), getIGIForDiff(CurrentIGI));
-					if(pDM_Odm->RFType != ODM_1T1R)
-						ODM_SetBBReg(pDM_Odm, ODM_REG(IGI_B,pDM_Odm), ODM_BIT(IGI,pDM_Odm), CurrentIGI);
+					ODM_SetBBReg(pDM_Odm, ODM_REG(IGI_B, pDM_Odm), ODM_BIT(IGI, pDM_Odm), getIGIForDiff(CurrentIGI));
+					if (pDM_Odm->RFType != ODM_1T1R)
+						ODM_SetBBReg(pDM_Odm, ODM_REG(IGI_A, pDM_Odm), ODM_BIT(IGI, pDM_Odm), CurrentIGI);
 					break;
 			}
 		}
@@ -1009,7 +1009,11 @@ odm_DIG(
 				dm_dig_max = DM_DIG_MAX_AP - 6;
 			else
 				dm_dig_max = DM_DIG_MAX_AP;
-			dm_dig_min = DM_DIG_MIN_AP;
+
+			if ((*pDM_Odm->pBandType == ODM_BAND_2_4G) && (pDM_Odm->SupportICType & ODM_RTL8814A)) /* for 2G 8814 */
+				dm_dig_min = 0x1c;
+			else
+				dm_dig_min = DM_DIG_MIN_AP;
 			DIG_MaxOfMin = DM_DIG_MAX_OF_MIN;
 		}
 		
@@ -1478,6 +1482,24 @@ odm_FalseAlarmCounterStatistics(
 								FalseAlmCnt->Cnt_Crc8_fail + FalseAlmCnt->Cnt_Mcs_fail +
 								FalseAlmCnt->Cnt_Fast_Fsync + FalseAlmCnt->Cnt_SB_Search_fail;
 
+		/* read CCK CRC32 counter */
+		FalseAlmCnt->cnt_cck_crc32_error = ODM_GetBBReg(pDM_Odm, ODM_REG_CCK_CRC32_ERROR_CNT_11N, bMaskDWord);
+		FalseAlmCnt->cnt_cck_crc32_ok= ODM_GetBBReg(pDM_Odm, ODM_REG_CCK_CRC32_OK_CNT_11N, bMaskDWord);
+
+		/* read OFDM CRC32 counter */
+		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_OFDM_CRC32_CNT_11N, bMaskDWord);
+		FalseAlmCnt->cnt_ofdm_crc32_error = (ret_value & 0xffff0000) >> 16;
+		FalseAlmCnt->cnt_ofdm_crc32_ok= ret_value & 0xffff;
+
+		/* read HT CRC32 counter */
+		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_HT_CRC32_CNT_11N, bMaskDWord);
+		FalseAlmCnt->cnt_ht_crc32_error = (ret_value & 0xffff0000) >> 16;
+		FalseAlmCnt->cnt_ht_crc32_ok= ret_value & 0xffff;
+
+		/* read VHT CRC32 counter */
+		FalseAlmCnt->cnt_vht_crc32_error = 0;
+		FalseAlmCnt->cnt_vht_crc32_ok= 0;
+
 #if (RTL8188E_SUPPORT==1)
 		if(pDM_Odm->SupportICType == ODM_RTL8188E)
 		{
@@ -1528,11 +1550,23 @@ odm_FalseAlarmCounterStatistics(
 			/*reset CCK CCA counter*/
 			ODM_SetBBReg(pDM_Odm, ODM_REG_CCK_FA_RST_11N, BIT13|BIT12, 0); 
 			ODM_SetBBReg(pDM_Odm, ODM_REG_CCK_FA_RST_11N, BIT13|BIT12, 2); 
+
 			/*reset CCK FA counter*/
 			ODM_SetBBReg(pDM_Odm, ODM_REG_CCK_FA_RST_11N, BIT15|BIT14, 0); 
 			ODM_SetBBReg(pDM_Odm, ODM_REG_CCK_FA_RST_11N, BIT15|BIT14, 2); 
+
+			/*reset CRC32 counter*/
+			ODM_SetBBReg(pDM_Odm, ODM_REG_PAGE_F_RST_11N, BIT16, 1); 
+			ODM_SetBBReg(pDM_Odm, ODM_REG_PAGE_F_RST_11N, BIT16, 0); 
 		}
 		
+		/* Get debug port 0 */
+		ODM_SetBBReg(pDM_Odm, ODM_REG_DBG_RPT_11N, bMaskDWord, 0x0);
+		FalseAlmCnt->dbg_port0 = ODM_GetBBReg(pDM_Odm, ODM_REG_RPT_11N, bMaskDWord);
+
+		/* Get EDCCA flag */
+		ODM_SetBBReg(pDM_Odm, ODM_REG_DBG_RPT_11N, bMaskDWord, 0x208);
+		FalseAlmCnt->edcca_flag = (BOOLEAN)ODM_GetBBReg(pDM_Odm, ODM_REG_RPT_11N, BIT30);
 
 		ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Cnt_Fast_Fsync=%d, Cnt_SB_Search_fail=%d\n",
 			FalseAlmCnt->Cnt_Fast_Fsync, FalseAlmCnt->Cnt_SB_Search_fail));
@@ -1558,6 +1592,26 @@ odm_FalseAlarmCounterStatistics(
 		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_CCK_CCA_CNT_11AC, bMaskDWord);
 		FalseAlmCnt->Cnt_OFDM_CCA = (ret_value & 0xffff0000) >> 16;
 		FalseAlmCnt->Cnt_CCK_CCA = ret_value & 0xffff;
+
+		/* read CCK CRC32 counter */
+		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_CCK_CRC32_CNT_11AC, bMaskDWord);
+		FalseAlmCnt->cnt_cck_crc32_error = (ret_value & 0xffff0000) >> 16;
+		FalseAlmCnt->cnt_cck_crc32_ok= ret_value & 0xffff;
+
+		/* read OFDM CRC32 counter */
+		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_OFDM_CRC32_CNT_11AC, bMaskDWord);
+		FalseAlmCnt->cnt_ofdm_crc32_error = (ret_value & 0xffff0000) >> 16;
+		FalseAlmCnt->cnt_ofdm_crc32_ok= ret_value & 0xffff;
+
+		/* read HT CRC32 counter */
+		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_HT_CRC32_CNT_11AC, bMaskDWord);
+		FalseAlmCnt->cnt_ht_crc32_error = (ret_value & 0xffff0000) >> 16;
+		FalseAlmCnt->cnt_ht_crc32_ok= ret_value & 0xffff;
+
+		/* read VHT CRC32 counter */
+		ret_value = ODM_GetBBReg(pDM_Odm, ODM_REG_VHT_CRC32_CNT_11AC, bMaskDWord);
+		FalseAlmCnt->cnt_vht_crc32_error = (ret_value & 0xffff0000) >> 16;
+		FalseAlmCnt->cnt_vht_crc32_ok= ret_value & 0xffff;
 
 #if (RTL8881A_SUPPORT==1) 
 		/* For 8881A */
@@ -1611,9 +1665,22 @@ odm_FalseAlarmCounterStatistics(
 			FalseAlmCnt->Cnt_all = FalseAlmCnt->Cnt_Ofdm_fail;
 			FalseAlmCnt->Cnt_CCA_all = FalseAlmCnt->Cnt_OFDM_CCA;
 		}
+		if (pDM_Odm->ADCSmp_count == 0) {
+			/* Get debug port 0 */
+			ODM_SetBBReg(pDM_Odm, ODM_REG_DBG_RPT_11AC, bMaskDWord, 0x0);
+			FalseAlmCnt->dbg_port0 = ODM_GetBBReg(pDM_Odm, ODM_REG_RPT_11AC, bMaskDWord);
 
+			/* Get EDCCA flag */
+			ODM_SetBBReg(pDM_Odm, ODM_REG_DBG_RPT_11AC, bMaskDWord, 0x209);
+			FalseAlmCnt->edcca_flag = (BOOLEAN)ODM_GetBBReg(pDM_Odm, ODM_REG_RPT_11AC, BIT30);
+		}
+		
 	}
 #endif
+
+
+	FalseAlmCnt->cnt_crc32_error_all = FalseAlmCnt->cnt_vht_crc32_error + FalseAlmCnt->cnt_ht_crc32_error + FalseAlmCnt->cnt_ofdm_crc32_error + FalseAlmCnt->cnt_cck_crc32_error;
+	FalseAlmCnt->cnt_crc32_ok_all = FalseAlmCnt->cnt_vht_crc32_ok + FalseAlmCnt->cnt_ht_crc32_ok + FalseAlmCnt->cnt_ofdm_crc32_ok + FalseAlmCnt->cnt_cck_crc32_ok;
 
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Cnt_OFDM_CCA=%d\n", FalseAlmCnt->Cnt_OFDM_CCA));
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Cnt_CCK_CCA=%d\n", FalseAlmCnt->Cnt_CCK_CCA));
@@ -1621,7 +1688,13 @@ odm_FalseAlarmCounterStatistics(
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Cnt_Ofdm_fail=%d\n", FalseAlmCnt->Cnt_Ofdm_fail));
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Cnt_Cck_fail=%d\n", FalseAlmCnt->Cnt_Cck_fail));
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Cnt_Ofdm_fail=%d\n", FalseAlmCnt->Cnt_Ofdm_fail));
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Total False Alarm=%d\n\n", FalseAlmCnt->Cnt_all));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Total False Alarm=%d\n", FalseAlmCnt->Cnt_all));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): CCK CRC32 fail: %d, ok: %d\n", FalseAlmCnt->cnt_cck_crc32_error, FalseAlmCnt->cnt_cck_crc32_ok));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): OFDM CRC32 fail: %d, ok: %d\n", FalseAlmCnt->cnt_ofdm_crc32_error, FalseAlmCnt->cnt_ofdm_crc32_ok));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): HT CRC32 fail: %d, ok: %d\n", FalseAlmCnt->cnt_ht_crc32_error, FalseAlmCnt->cnt_ht_crc32_ok));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): VHT CRC32 fail: %d, ok: %d\n", FalseAlmCnt->cnt_vht_crc32_error, FalseAlmCnt->cnt_vht_crc32_ok));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): Total CRC32 fail: %d, ok: %d\n", FalseAlmCnt->cnt_crc32_error_all, FalseAlmCnt->cnt_crc32_ok_all));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_FA_CNT, ODM_DBG_LOUD, ("odm_FalseAlarmCounterStatistics(): dbg port 0x0 = 0x%x, EDCCA = %d\n\n", FalseAlmCnt->dbg_port0, FalseAlmCnt->edcca_flag));
 }
 
 //3============================================================
@@ -1787,11 +1860,14 @@ odm_CCKPacketDetectionThresh(
 
 	if (pDM_Odm->bLinked) {
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
+		#if 0 /*for [PCIE-1596]*/
 		if (pDM_Odm->RSSI_Min > (RSSI_thd + 14))
 			CurCCK_CCAThres = 0xed;
 		else if (pDM_Odm->RSSI_Min > (RSSI_thd + 6))
 			CurCCK_CCAThres = 0xdd;
-		else if (pDM_Odm->RSSI_Min > RSSI_thd)
+		else 
+		#endif
+		if (pDM_Odm->RSSI_Min > RSSI_thd)
 			CurCCK_CCAThres = 0xcd;
 		else if (pDM_Odm->RSSI_Min > 20) {
 			if (pDM_DigTable->cckFaMa > ((DM_DIG_FA_TH1>>1) + (DM_DIG_FA_TH1>>3)))

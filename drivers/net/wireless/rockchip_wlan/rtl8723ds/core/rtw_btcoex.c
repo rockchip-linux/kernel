@@ -78,12 +78,16 @@ void rtw_btcoex_ScanNotify(PADAPTER padapter, u8 type)
 	if (_FALSE == pHalData->EEPROMBluetoothCoexist)
 		return;
 
-#ifdef CONFIG_CONCURRENT_MODE
 	if (_FALSE == type) {
+		#ifdef CONFIG_CONCURRENT_MODE
 		if (rtw_mi_buddy_check_fwstate(padapter, WIFI_SITE_MONITOR))
 			return;
+		#endif
+
+		if (DEV_MGMT_TX_NUM(adapter_to_dvobj(padapter))
+			|| DEV_ROCH_NUM(adapter_to_dvobj(padapter)))
+			return;
 	}
-#endif
 
 #ifdef CONFIG_BT_COEXIST_SOCKET_TRX
 	if (pBtMgnt->ExtConfig.bEnableWifiScanNotify)
@@ -210,26 +214,30 @@ void rtw_btcoex_SuspendNotify(PADAPTER padapter, u8 state)
 void rtw_btcoex_HaltNotify(PADAPTER padapter)
 {
 	PHAL_DATA_TYPE	pHalData;
+	u8 do_halt = 1;
 
 	pHalData = GET_HAL_DATA(padapter);
 	if (_FALSE == pHalData->EEPROMBluetoothCoexist)
-		return;
+		do_halt = 0;
 
 	if (_FALSE == padapter->bup) {
 		RTW_INFO(FUNC_ADPT_FMT ": bup=%d Skip!\n",
 			 FUNC_ADPT_ARG(padapter), padapter->bup);
-
-		return;
+		do_halt = 0;
 	}
 
 	if (rtw_is_surprise_removed(padapter)) {
 		RTW_INFO(FUNC_ADPT_FMT ": bSurpriseRemoved=%s Skip!\n",
 			FUNC_ADPT_ARG(padapter), rtw_is_surprise_removed(padapter) ? "True" : "False");
-
-		return;
+		do_halt = 0;
 	}
 
-	hal_btcoex_HaltNotify(padapter);
+	hal_btcoex_HaltNotify(padapter, do_halt);
+}
+
+void rtw_btcoex_switchband_notify(u8 under_scan, u8 band_type)
+{
+	hal_btcoex_switchband_notify(under_scan, band_type);
 }
 
 void rtw_btcoex_SwitchBtTRxMask(PADAPTER padapter)
@@ -255,13 +263,6 @@ void rtw_btcoex_Handler(PADAPTER padapter)
 
 	if (_FALSE == pHalData->EEPROMBluetoothCoexist)
 		return;
-
-#if defined(CONFIG_CONCURRENT_MODE)
-	if (padapter->adapter_type != PRIMARY_ADAPTER)
-		return;
-#endif
-
-
 
 	hal_btcoex_Hanlder(padapter);
 }
@@ -324,31 +325,6 @@ u8 rtw_btcoex_RpwmVal(PADAPTER padapter)
 u8 rtw_btcoex_LpsVal(PADAPTER padapter)
 {
 	return hal_btcoex_LpsVal(padapter);
-}
-
-void rtw_btcoex_SetBTCoexist(PADAPTER padapter, u8 bBtExist)
-{
-	hal_btcoex_SetBTCoexist(padapter, bBtExist);
-}
-
-void rtw_btcoex_SetChipType(PADAPTER padapter, u8 chipType)
-{
-	hal_btcoex_SetChipType(padapter, chipType);
-}
-
-void rtw_btcoex_SetPGAntNum(PADAPTER padapter, u8 antNum)
-{
-	hal_btcoex_SetPgAntNum(padapter, antNum);
-}
-
-u8 rtw_btcoex_GetPGAntNum(PADAPTER padapter)
-{
-	return hal_btcoex_GetPgAntNum(padapter);
-}
-
-void rtw_btcoex_SetSingleAntPath(PADAPTER padapter, u8 singleAntPath)
-{
-	hal_btcoex_SetSingleAntPath(padapter, singleAntPath);
 }
 
 u32 rtw_btcoex_GetRaMask(PADAPTER padapter)
@@ -451,10 +427,52 @@ u16 rtw_btcoex_btreg_write(PADAPTER padapter, u8 type, u16 addr, u16 val)
 	return hal_btcoex_btreg_write(padapter, type, addr, val);
 }
 
-
-void rtw_btcoex_set_rfe_type(u8 type)
+u8 rtw_btcoex_get_bt_coexist(PADAPTER padapter)
 {
-	hal_btcoex_set_rfe_type(type);
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+	return pHalData->EEPROMBluetoothCoexist;
+}
+
+u8 rtw_btcoex_get_chip_type(PADAPTER padapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+	return pHalData->EEPROMBluetoothType;
+}
+
+u8 rtw_btcoex_get_pg_ant_num(PADAPTER padapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+	return pHalData->EEPROMBluetoothAntNum == Ant_x2 ? 2 : 1;
+}
+
+u8 rtw_btcoex_get_pg_single_ant_path(PADAPTER padapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+	return pHalData->ant_path;
+}
+
+u8 rtw_btcoex_get_pg_rfe_type(PADAPTER padapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+	return pHalData->RFEType;
+}
+
+u8 rtw_btcoex_is_tfbga_package_type(PADAPTER padapter)
+{
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+
+#ifdef CONFIG_RTL8723B
+	if ((pHalData->PackageType == PACKAGE_TFBGA79) || (pHalData->PackageType == PACKAGE_TFBGA80)
+		    || (pHalData->PackageType == PACKAGE_TFBGA90))
+		return _TRUE;
+#endif
+
+	return _FALSE;
 }
 
 u8 rtw_btcoex_get_ant_div_cfg(PADAPTER padapter)
@@ -462,13 +480,8 @@ u8 rtw_btcoex_get_ant_div_cfg(PADAPTER padapter)
 	PHAL_DATA_TYPE pHalData;
 
 	pHalData = GET_HAL_DATA(padapter);
-	
-	return (pHalData->AntDivCfg == 0) ? _FALSE : _TRUE;
-}
 
-void rtw_btcoex_switchband_notify(u8 under_scan, u8 band_type)
-{
-	hal_btcoex_switchband_notify(under_scan, band_type);
+	return (pHalData->AntDivCfg == 0) ? _FALSE : _TRUE;
 }
 
 /* ==================================================

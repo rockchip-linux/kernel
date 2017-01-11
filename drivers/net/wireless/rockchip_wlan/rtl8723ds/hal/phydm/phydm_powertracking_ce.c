@@ -474,7 +474,7 @@ odm_TXPowerTrackingInit(
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
 #if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
-	if (!(pDM_Odm->SupportICType & (ODM_RTL8814A | ODM_IC_11N_SERIES)))
+	if (!(pDM_Odm->SupportICType & (ODM_RTL8814A | ODM_IC_11N_SERIES | ODM_RTL8822B)))
 		return;
 #endif
 
@@ -658,9 +658,9 @@ odm_TXPowerTrackingCheckCE(
 	if (!pDM_Odm->RFCalibrateInfo.TM_Trigger) {
 		
 		if (IS_HARDWARE_TYPE_8188E(Adapter) || IS_HARDWARE_TYPE_8188F(Adapter) || IS_HARDWARE_TYPE_8192E(Adapter)
-			|| IS_HARDWARE_TYPE_8723B(Adapter)
-			|| IS_HARDWARE_TYPE_JAGUAR(Adapter) || IS_HARDWARE_TYPE_8814A(Adapter)
-			|| IS_HARDWARE_TYPE_8703B(Adapter)  || IS_HARDWARE_TYPE_8723D(Adapter)
+			|| IS_HARDWARE_TYPE_8723B(Adapter) || IS_HARDWARE_TYPE_JAGUAR(Adapter) || IS_HARDWARE_TYPE_8814A(Adapter)
+			|| IS_HARDWARE_TYPE_8703B(Adapter) || IS_HARDWARE_TYPE_8723D(Adapter) || IS_HARDWARE_TYPE_8822B(Adapter)
+			|| IS_HARDWARE_TYPE_8821C(Adapter)
 		) {
 			ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_T_METER_NEW, (BIT17 | BIT16), 0x03);
 		} else {

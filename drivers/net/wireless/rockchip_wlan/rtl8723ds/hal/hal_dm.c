@@ -209,6 +209,8 @@ void Init_ODM_ComInfo(_adapter *adapter)
 	for (i = 0; i < ODM_ASSOCIATE_ENTRY_NUM; i++)
 		ODM_CmnInfoPtrArrayHook(pDM_Odm, ODM_CMNINFO_STA_STATUS, i, NULL);
 
+	PHYDM_InitDebugSetting(pDM_Odm);
+
 	/* TODO */
 	/* ODM_CmnInfoHook(pDM_Odm, ODM_CMNINFO_BT_OPERATION, _FALSE); */
 	/* ODM_CmnInfoHook(pDM_Odm, ODM_CMNINFO_BT_DISABLE_EDCA, _FALSE); */

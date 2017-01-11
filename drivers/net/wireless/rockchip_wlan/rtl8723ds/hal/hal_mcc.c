@@ -1296,11 +1296,11 @@ u8 rtw_hal_set_mcc_setting_join_done_chk_ch(PADAPTER padapter)
 	u8 ret = _FAIL;
 
 	if (MCC_EN(padapter)) {
-		u8 sta_num = 0, ld_sta_num = 0, lg_sta_num = 0, ap_num = 0, ld_ap_num = 0;
+		struct mi_state mstate;
 
-		rtw_mi_status_no_self(padapter, &sta_num, &ld_sta_num, &lg_sta_num, &ap_num, &ld_ap_num, NULL);
+		rtw_mi_status_no_self(padapter, &mstate);
 
-		if (ld_sta_num || lg_sta_num || ap_num) {
+		if (MSTATE_STA_LD_NUM(&mstate) || MSTATE_STA_LG_NUM(&mstate) || MSTATE_AP_NUM(&mstate)) {
 			bool chbw_allow = _TRUE;
 			u8 u_ch, u_offset, u_bw;
 			struct mlme_ext_priv *cur_mlmeext = &padapter->mlmeextpriv;

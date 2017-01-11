@@ -336,6 +336,9 @@ struct sta_info {
 	int wpa2_pairwise_cipher;
 
 	u8 bpairwise_key_installed;
+#ifdef CONFIG_RTW_80211R
+	u8 ft_pairwise_key_installed;
+#endif
 
 #ifdef CONFIG_NATIVEAP_MLME
 	u8 wpa_ie[32];

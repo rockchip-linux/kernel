@@ -25,6 +25,8 @@
 #define MIXED_PHY		2
 #define CCK_PHY		3
 
+#define b_mode_rate_num 4
+#define g_mode_rate_num 8
 #define NumRates	(13)
 
 /* slot time for 11g */
@@ -38,11 +40,12 @@
  * We now define the following channels as the max channels in each channel plan.
  * 2G, total 14 chnls
  * {1,2,3,4,5,6,7,8,9,10,11,12,13,14}
- * 5G, total 24 chnls
- * {36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165} */
-#define	MAX_CHANNEL_NUM_2G				14
-#define	MAX_CHANNEL_NUM_5G				24
-#define	MAX_CHANNEL_NUM					38/* 14+24 */
+ * 5G, total 25 chnls
+ * {36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,144,149,153,157,161,165}
+ */
+#define	MAX_CHANNEL_NUM_2G	14
+#define	MAX_CHANNEL_NUM_5G	25
+#define	MAX_CHANNEL_NUM		(MAX_CHANNEL_NUM_2G + MAX_CHANNEL_NUM_5G)
 
 #define CENTER_CH_2G_40M_NUM	9
 #define CENTER_CH_2G_NUM		14
@@ -67,7 +70,11 @@ extern u8 center_ch_5g_all[CENTER_CH_5G_ALL_NUM];
 u8 center_chs_5g_num(u8 bw);
 u8 center_chs_5g(u8 bw, u8 id);
 
+u8 rtw_get_scch_by_cch_offset(u8 cch, u8 bw, u8 offset);
+
 u8 rtw_get_op_chs_by_cch_bw(u8 cch, u8 bw, u8 **op_chs, u8 *op_ch_num);
+
+u8 rtw_get_ch_group(u8 ch, u8 *group, u8 *cck_group);
 
 /* #define NUM_REGULATORYS	21 */
 #define NUM_REGULATORYS	1

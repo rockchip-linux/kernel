@@ -101,8 +101,9 @@ PHY_GetTxPowerIndex_8703B(
 	IN	PADAPTER			pAdapter,
 	IN	u8					RFPath,
 	IN	u8					Rate,
-	IN	CHANNEL_WIDTH		BandWidth,
-	IN	u8					Channel
+	IN	u8					BandWidth,
+	IN	u8					Channel,
+	struct txpwr_idx_comp *tic
 );
 
 VOID
@@ -115,19 +116,6 @@ VOID
 PHY_SetTxPowerLevel8703B(
 	IN	PADAPTER		Adapter,
 	IN	u8			channel
-);
-
-VOID
-PHY_SetBWMode8703B(
-	IN	PADAPTER				Adapter,
-	IN	CHANNEL_WIDTH			Bandwidth,	/* 20M or 40M */
-	IN	unsigned char				Offset		/* Upper, Lower, or Don't care */
-);
-
-VOID
-PHY_SwChnl8703B(/* Call after initialization */
-	IN	PADAPTER	Adapter,
-	IN	u8		channel
 );
 
 VOID

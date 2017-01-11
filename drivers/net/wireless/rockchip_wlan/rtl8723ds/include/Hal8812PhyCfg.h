@@ -103,8 +103,9 @@ u8 PHY_GetTxPowerIndex_8812A(
 	IN	PADAPTER			pAdapter,
 	IN	u8					RFPath,
 	IN	u8					Rate,
-	IN	CHANNEL_WIDTH		BandWidth,
-	IN	u8					Channel
+	IN	u8					BandWidth,
+	IN	u8					Channel,
+	struct txpwr_idx_comp *tic
 );
 
 u32 PHY_GetTxBBSwing_8812A(
@@ -122,25 +123,8 @@ PHY_SetTxPowerIndex_8812A(
 );
 
 /*
- * Switch bandwidth for 8192S
- *   */
-VOID
-PHY_SetBWMode8812(
-	IN	PADAPTER			pAdapter,
-	IN	CHANNEL_WIDTH		Bandwidth,
-	IN	u8					Offset
-);
-
-/*
  * channel switch related funciton
  *   */
-VOID
-PHY_SwChnl8812(
-	IN	PADAPTER	Adapter,
-	IN	u8			channel
-);
-
-
 VOID
 PHY_SetSwChnlBWMode8812(
 	IN	PADAPTER			Adapter,

@@ -117,8 +117,9 @@ PHY_GetTxPowerIndex_8188E(
 	IN	PADAPTER		pAdapter,
 	IN	u8				RFPath,
 	IN	u8				Rate,
-	IN	CHANNEL_WIDTH	BandWidth,
-	IN	u8				Channel
+	IN	u8				BandWidth,
+	IN	u8				Channel,
+	struct txpwr_idx_comp *tic
 );
 
 /*
@@ -184,13 +185,6 @@ SetAntennaConfig92C(
 	IN	u8		DefaultAnt
 );
 
-VOID
-storePwrIndexDiffRateOffset(
-	IN	PADAPTER	Adapter,
-	IN	u32		RegAddr,
-	IN	u32		BitMask,
-	IN	u32		Data
-);
 /*--------------------------Exported Function prototype---------------------*/
 
 /*

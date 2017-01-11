@@ -29,6 +29,11 @@
 #if (RTL8822B_SUPPORT == 1)
 #include "rtl8822b/phydm_iqk_8822b.h"
 #endif
+
+#if (RTL8821C_SUPPORT == 1)
+#include "rtl8821c/phydm_iqk_8821c.h"
+#endif
+
 #include "phydm_powertracking_ce.h"
 
 

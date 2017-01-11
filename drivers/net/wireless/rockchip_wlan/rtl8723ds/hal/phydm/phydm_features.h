@@ -36,24 +36,31 @@
 		#define CONFIG_FAT_PATCH
 		#endif
 	#endif
-	
-	#define RA_MASK_PHYDMLIZE_WIN
+
+	#define SUPPORTABLITY_PHYDMLIZE	1
+	#define RA_MASK_PHYDMLIZE_WIN	1
 	/*#define CONFIG_PATH_DIVERSITY*/
 	/*#define CONFIG_RA_DYNAMIC_RTY_LIMIT*/
 	#define CONFIG_ANT_DETECTION
-	#define CONFIG_RA_DBG_CMD
+	/*#define CONFIG_RA_DBG_CMD*/
+	#define	CONFIG_RA_FW_DBG_CODE	1
 	/*#define CONFIG_PHYDM_RX_SNIFFER_PARSING*/
+	#define	CONFIG_BB_POWER_SAVING
+	#define	CONFIG_BB_TXBF_API
 
 #elif (DM_ODM_SUPPORT_TYPE == ODM_AP)
 
-	#define RA_MASK_PHYDMLIZE_AP
+	#define SUPPORTABLITY_PHYDMLIZE	0
+	#define RA_MASK_PHYDMLIZE_AP	1
 
-	/*  [ Configure RA Debug H2C CMD ]*/
 	/* #define CONFIG_RA_DBG_CMD*/
+	#define	CONFIG_RA_FW_DBG_CODE	0
 	
 	/*#define CONFIG_PATH_DIVERSITY*/
 	/*#define CONFIG_RA_DYNAMIC_RTY_LIMIT*/
 	#define CONFIG_RA_DYNAMIC_RATE_ID
+	/*#define	CONFIG_BB_POWER_SAVING*/
+	#define	CONFIG_BB_TXBF_API
 	
 	/* [ Configure Antenna Diversity ] */
 	#if defined(CONFIG_RTL_8881A_ANT_SWITCH) || defined(CONFIG_SLOT_0_ANT_SWITCH) || defined(CONFIG_SLOT_1_ANT_SWITCH)
@@ -93,7 +100,8 @@
 
 #elif (DM_ODM_SUPPORT_TYPE == ODM_CE)
 
-	#define RA_MASK_PHYDMLIZE_CE
+	#define SUPPORTABLITY_PHYDMLIZE	0
+	#define RA_MASK_PHYDMLIZE_CE	1
 
 	/*Antenna Diversity*/
 	#ifdef CONFIG_ANTENNA_DIVERSITY
@@ -116,10 +124,13 @@
 	#endif
 
 	/*#define CONFIG_RA_DBG_CMD*/
+	#define	CONFIG_RA_FW_DBG_CODE	0
 	/*#define CONFIG_ANT_DETECTION*/
 	/*#define CONFIG_PATH_DIVERSITY*/
 	/*#define CONFIG_RA_DYNAMIC_RTY_LIMIT*/
-
+	#define	CONFIG_BB_POWER_SAVING
+	#define	CONFIG_BB_TXBF_API
+	
 	#ifdef CONFIG_BT_COEXIST
 		#define BT_SUPPORT      1
 	#endif

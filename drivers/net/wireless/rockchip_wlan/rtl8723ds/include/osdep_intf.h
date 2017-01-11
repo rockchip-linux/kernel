@@ -114,8 +114,9 @@ int rtw_init_netdev_name(struct net_device *pnetdev, const char *ifname);
 struct net_device *rtw_init_netdev(_adapter *padapter);
 
 void rtw_os_ndev_free(_adapter *adapter);
-int rtw_os_ndev_init(_adapter *adapter, char *name);
+int rtw_os_ndev_init(_adapter *adapter, const char *name);
 void rtw_os_ndev_deinit(_adapter *adapter);
+void rtw_os_ndev_unregister(_adapter *adapter);
 void rtw_os_ndevs_unregister(struct dvobj_priv *dvobj);
 int rtw_os_ndevs_init(struct dvobj_priv *dvobj);
 void rtw_os_ndevs_deinit(struct dvobj_priv *dvobj);

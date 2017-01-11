@@ -329,6 +329,7 @@ enum {
 	MP_LCK,
 	MP_HW_TX_MODE,
 	MP_GET_TXPOWER_INX,
+	MP_CUSTOMER_STR,
 	MP_NULL,
 	MP_SetBT,
 #ifdef CONFIG_APPEND_VENDOR_IE_ENABLE
@@ -434,6 +435,7 @@ struct mp_priv {
 	BOOLEAN bRTWSmbCfg;
 	BOOLEAN bloopback;
 	MPT_CONTEXT MptCtx;
+	BOOLEAN bloadefusemap;
 
 	u8		*TXradomBuffer;
 };
@@ -759,7 +761,6 @@ s32 hal_mpt_SetThermalMeter(PADAPTER pAdapter, u8 target_ther);
 void hal_mpt_TriggerRFThermalMeter(PADAPTER pAdapter);
 u8 hal_mpt_ReadRFThermalMeter(PADAPTER pAdapter);
 void hal_mpt_GetThermalMeter(PADAPTER pAdapter, u8 *value);
-void hal_mpt_CCKTxPowerAdjustbyIndex(PADAPTER pAdapter, BOOLEAN beven);
 void hal_mpt_SetContinuousTx(PADAPTER pAdapter, u8 bStart);
 void hal_mpt_SetSingleCarrierTx(PADAPTER pAdapter, u8 bStart);
 void hal_mpt_SetSingleToneTx(PADAPTER pAdapter, u8 bStart);
@@ -893,7 +894,7 @@ int rtw_mp_phypara(struct net_device *dev,
 		struct iw_point *wrqu, char *extra);
 int rtw_mp_SetRFPath(struct net_device *dev,
 		struct iw_request_info *info,
-		union iwreq_data *wrqu, char *extra);
+		struct iw_point *wrqu, char *extra);
 int rtw_mp_QueryDrv(struct net_device *dev,
 		struct iw_request_info *info,
 		union iwreq_data *wrqu, char *extra);

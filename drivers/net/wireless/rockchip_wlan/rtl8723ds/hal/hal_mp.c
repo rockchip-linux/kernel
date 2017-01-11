@@ -268,8 +268,6 @@ void hal_mpt_SetChannel(PADAPTER pAdapter)
 
 	hal_mpt_SwitchRfSetting(pAdapter);
 
-	SelectChannel(pAdapter, channel);
-
 	pHalData->bSwChnl = _TRUE;
 	pHalData->bSetChnlBW = _TRUE;
 	rtw_hal_set_chnl_bw(pAdapter, channel, bandwidth, 0, 0);
@@ -290,7 +288,6 @@ void hal_mpt_SetBandwidth(PADAPTER pAdapter)
 	u8		channel = pmp->channel;
 	u8		bandwidth = pmp->bandwidth;
 
-	SetBWMode(pAdapter, pmp->bandwidth, pmp->prime_channel_offset);
 	pHalData->bSwChnl = _TRUE;
 	pHalData->bSetChnlBW = _TRUE;
 	rtw_hal_set_chnl_bw(pAdapter, channel, bandwidth, 0, 0);

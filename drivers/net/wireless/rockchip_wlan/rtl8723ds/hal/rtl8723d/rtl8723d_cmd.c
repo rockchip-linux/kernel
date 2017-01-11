@@ -428,7 +428,7 @@ static void rtl8723d_set_FwAoacRsvdPage_cmd(PADAPTER padapter, PRSVDPAGE_LOC rsv
 		FillH2CCmd8723D(padapter, H2C_8723D_AOAC_RSVD_PAGE, H2C_AOAC_RSVDPAGE_LOC_LEN, u1H2CAoacRsvdPageParm);
 	} else {
 #ifdef CONFIG_PNO_SUPPORT
-		if (!pwrpriv->pno_in_resume) {
+		if (!pwrpriv->wowlan_in_resume) {
 			RTW_INFO("NLO_INFO=%d\n", rsvdpageloc->LocPNOInfo);
 			_rtw_memset(&u1H2CAoacRsvdPageParm, 0, sizeof(u1H2CAoacRsvdPageParm));
 			SET_H2CCMD_AOAC_RSVDPAGE_LOC_NLO_INFO(u1H2CAoacRsvdPageParm, rsvdpageloc->LocPNOInfo);
@@ -762,7 +762,6 @@ void rtl8723d_set_FwPwrModeInIPS_cmd(PADAPTER padapter, u8 en)
 	u8 parm[H2C_INACTIVE_PS_LEN] = {0};
 
 	SET_H2CCMD_INACTIVE_PS_EN(parm, en);
-	SET_H2CCMD_INACTIVE_PS_IGNORE_PS_CONDITION(parm, en);
 
 	FillH2CCmd8723D(padapter, H2C_INACTIVE_PS_, H2C_INACTIVE_PS_LEN, parm);
 }

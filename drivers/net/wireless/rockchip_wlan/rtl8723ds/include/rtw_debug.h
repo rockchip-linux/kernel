@@ -67,6 +67,7 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 
 #define RTW_INFO_DUMP(_TitleString, _HexData, _HexDataLen) do {} while (0)
 #define RTW_DBG_DUMP(_TitleString, _HexData, _HexDataLen) do {} while (0)
+#define RTW_PRINT_DUMP(_TitleString, _HexData, _HexDataLen) do {} while (0)
 #define _RTW_INFO_DUMP(_TitleString, _HexData, _HexDataLen) do {} while (0)
 #define _RTW_DBG_DUMP(_TitleString, _HexData, _HexDataLen) do {} while (0)
 
@@ -334,13 +335,14 @@ struct sta_info;
 void sta_rx_reorder_ctl_dump(void *sel, struct sta_info *sta);
 
 struct dvobj_priv;
+void dump_tx_rate_bmp(void *sel, struct dvobj_priv *dvobj);
 void dump_adapters_status(void *sel, struct dvobj_priv *dvobj);
-void dump_adapters_info(void *sel, struct dvobj_priv *dvobj);
 
 struct sec_cam_ent;
 void dump_sec_cam_ent(void *sel, struct sec_cam_ent *ent, int id);
 void dump_sec_cam_ent_title(void *sel, u8 has_id);
 void dump_sec_cam(void *sel, _adapter *adapter);
+void dump_sec_cam_cache(void *sel, _adapter *adapter);
 
 #ifdef CONFIG_PROC_DEBUG
 ssize_t proc_set_write_reg(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
@@ -357,6 +359,10 @@ int proc_get_roam_param(struct seq_file *m, void *v);
 ssize_t proc_set_roam_param(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 ssize_t proc_set_roam_tgt_addr(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 #endif /* CONFIG_LAYER2_ROAMING */
+#ifdef CONFIG_RTW_80211R
+int proc_get_ft_flags(struct seq_file *m, void *v);
+ssize_t proc_set_ft_flags(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
+#endif
 int proc_get_qos_option(struct seq_file *m, void *v);
 int proc_get_ht_option(struct seq_file *m, void *v);
 int proc_get_rf_info(struct seq_file *m, void *v);
@@ -414,6 +420,7 @@ int proc_get_trx_info_debug(struct seq_file *m, void *v);
 int proc_get_rx_signal(struct seq_file *m, void *v);
 ssize_t proc_set_rx_signal(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 int proc_get_hw_status(struct seq_file *m, void *v);
+ssize_t proc_set_hw_status(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 
 #ifdef CONFIG_80211N_HT
 int proc_get_ht_enable(struct seq_file *m, void *v);
@@ -425,14 +432,11 @@ ssize_t proc_set_bw_mode(struct file *file, const char __user *buffer, size_t co
 int proc_get_ampdu_enable(struct seq_file *m, void *v);
 ssize_t proc_set_ampdu_enable(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 
-int proc_get_mac_rptbuf(struct seq_file *m, void *v);
-
 int proc_get_rx_ampdu(struct seq_file *m, void *v);
 ssize_t proc_set_rx_ampdu(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 
 int proc_get_rx_stbc(struct seq_file *m, void *v);
 ssize_t proc_set_rx_stbc(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
-
 
 int proc_get_rx_ampdu_factor(struct seq_file *m, void *v);
 ssize_t proc_set_rx_ampdu_factor(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
@@ -444,6 +448,7 @@ int proc_get_tx_ampdu_density(struct seq_file *m, void *v);
 ssize_t proc_set_tx_ampdu_density(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 #endif /* CONFIG_80211N_HT */
 
+int proc_get_mac_rptbuf(struct seq_file *m, void *v);
 int proc_get_en_fwps(struct seq_file *m, void *v);
 ssize_t proc_set_en_fwps(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 
@@ -487,6 +492,7 @@ int proc_get_tx_ring(struct seq_file *m, void *v);
 int proc_get_pattern_info(struct seq_file *m, void *v);
 ssize_t proc_set_pattern_info(struct file *file, const char __user *buffer,
 		size_t count, loff_t *pos, void *data);
+int proc_get_wakeup_reason(struct seq_file *m, void *v);
 #endif
 
 #ifdef CONFIG_GPIO_WAKEUP

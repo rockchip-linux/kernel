@@ -297,7 +297,7 @@ void sreset_start_adapter(_adapter *padapter)
 #endif
 
 	if (is_primary_adapter(padapter))
-		_set_timer(&padapter->mlmepriv.dynamic_chk_timer, 2000);
+		_set_timer(&adapter_to_dvobj(padapter)->dynamic_chk_timer, 2000);
 
 	rtw_netif_wake_queue(padapter->pnetdev);
 }

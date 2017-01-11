@@ -148,6 +148,9 @@
 #define CONFIG_NEW_SIGNAL_STAT_PROCESS
 
 #define CONFIG_EMBEDDED_FWIMG
+#ifdef CONFIG_EMBEDDED_FWIMG
+	#define	LOAD_FW_HEADER_FROM_DRIVER
+#endif
 /* #define CONFIG_FILE_FWIMG */
 /* download fw via tx packet or trafitional I/O*/
 /* #define CONFIG_DLFW_TXPKT */
@@ -280,7 +283,7 @@
 /*
  * Debug Related Config
  */
-//#define CONFIG_DEBUG
+#define CONFIG_DEBUG
 
 #ifdef CONFIG_DEBUG
 #define DBG	1	/* for ODM & BTCOEX debug */

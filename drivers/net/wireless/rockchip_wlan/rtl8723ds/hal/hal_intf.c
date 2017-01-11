@@ -130,7 +130,7 @@ void rtw_hal_dm_init(_adapter *padapter)
 
 		_rtw_spinlock_init(&pHalData->IQKSpinLock);
 
-		phy_load_tx_power_ext_info(padapter, 1, 1);
+		phy_load_tx_power_ext_info(padapter, 1);
 	}
 }
 void rtw_hal_dm_deinit(_adapter *padapter)
@@ -526,40 +526,41 @@ void	rtw_hal_interrupt_handler(_adapter *padapter, u16 pkt_len, u8 *pbuf)
 }
 #endif
 
-void	rtw_hal_set_bwmode(_adapter *padapter, CHANNEL_WIDTH Bandwidth, u8 Offset)
-{
-	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
-	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-
-	ODM_AcquireSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
-	if (pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
-		RTW_ERR("%s, %d, IQK may race condition\n", __func__, __LINE__);
-	ODM_ReleaseSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
-	padapter->HalFunc.set_bwmode_handler(padapter, Bandwidth, Offset);
-
-}
-
-void	rtw_hal_set_chan(_adapter *padapter, u8 channel)
-{
-	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
-	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-
-	ODM_AcquireSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
-	if (pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
-		RTW_ERR("%s, %d, IQK may race condition\n", __func__, __LINE__);
-	ODM_ReleaseSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
-	padapter->HalFunc.set_channel_handler(padapter, channel);
-}
-
 void	rtw_hal_set_chnl_bw(_adapter *padapter, u8 channel, CHANNEL_WIDTH Bandwidth, u8 Offset40, u8 Offset80)
 {
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(padapter);
 	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
+	u8 cch_160 = Bandwidth == CHANNEL_WIDTH_160 ? channel : 0;
+	u8 cch_80 = Bandwidth == CHANNEL_WIDTH_80 ? channel : 0;
+	u8 cch_40 = Bandwidth == CHANNEL_WIDTH_40 ? channel : 0;
+	u8 cch_20 = Bandwidth == CHANNEL_WIDTH_20 ? channel : 0;
 
 	ODM_AcquireSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
 	if (pDM_Odm->RFCalibrateInfo.bIQKInProgress == _TRUE)
 		RTW_ERR("%s, %d, IQK may race condition\n", __func__, __LINE__);
 	ODM_ReleaseSpinLock(pDM_Odm, RT_IQK_SPINLOCK);
+
+	/* MP mode channel don't use secondary channel */
+	if (rtw_mi_mp_mode_check(padapter) == _FALSE) {
+		#if 0
+		if (cch_160 != 0)
+			cch_80 = rtw_get_scch_by_cch_offset(cch_160, CHANNEL_WIDTH_160, Offset80);
+		#endif
+		if (cch_80 != 0)
+			cch_40 = rtw_get_scch_by_cch_offset(cch_80, CHANNEL_WIDTH_80, Offset80);
+		if (cch_40 != 0)
+			cch_20 = rtw_get_scch_by_cch_offset(cch_40, CHANNEL_WIDTH_40, Offset40);
+	}
+
+	pHalData->cch_80 = cch_80;
+	pHalData->cch_40 = cch_40;
+	pHalData->cch_20 = cch_20;
+
+	if (0)
+		RTW_INFO("%s cch:%u, %s, offset40:%u, offset80:%u (%u, %u, %u)\n", __func__
+			, channel, ch_width_str(Bandwidth), Offset40, Offset80
+			, pHalData->cch_80, pHalData->cch_40, pHalData->cch_20);
+
 	padapter->HalFunc.set_chnl_bw_handler(padapter, channel, Bandwidth, Offset40, Offset80);
 }
 
@@ -577,9 +578,6 @@ void	rtw_hal_get_tx_power_level(_adapter *padapter, s32 *powerlevel)
 
 void	rtw_hal_dm_watchdog(_adapter *padapter)
 {
-	if (!is_primary_adapter(padapter))
-		return;
-
 #ifdef CONFIG_MCC_MODE
 	if (MCC_EN(padapter)) {
 		if (rtw_hal_check_mcc_status(padapter, MCC_STATUS_DOING_MCC))
@@ -637,15 +635,10 @@ void rtw_hal_sreset_reset_value(_adapter *padapter)
 
 void rtw_hal_sreset_xmit_status_check(_adapter *padapter)
 {
-	if (!is_primary_adapter(padapter))
-		return;
-
 	padapter->HalFunc.sreset_xmit_status_check(padapter);
 }
 void rtw_hal_sreset_linked_status_check(_adapter *padapter)
 {
-	if (!is_primary_adapter(padapter))
-		return;
 	padapter->HalFunc.sreset_linked_status_check(padapter);
 }
 u8   rtw_hal_sreset_get_wifi_status(_adapter *padapter)
@@ -794,15 +787,27 @@ s32 c2h_handler(_adapter *adapter, u8 id, u8 seq, u8 plen, u8 *payload)
 		break;
 #endif
 
+#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
 	case C2H_MAC_HIDDEN_RPT:
 		c2h_mac_hidden_rpt_hdl(adapter, payload, plen);
 		break;
 	case C2H_MAC_HIDDEN_RPT_2:
 		c2h_mac_hidden_rpt_2_hdl(adapter, payload, plen);
 		break;
+#endif
+
 	case C2H_DEFEATURE_DBG:
 		c2h_defeature_dbg_hdl(adapter, payload, plen);
 		break;
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	case C2H_CUSTOMER_STR_RPT:
+		c2h_customer_str_rpt_hdl(adapter, payload, plen);
+		break;
+	case C2H_CUSTOMER_STR_RPT_2:
+		c2h_customer_str_rpt_2_hdl(adapter, payload, plen);
+		break;
+#endif
 
 	case C2H_EXTEND:
 		sub_id = payload[0];
@@ -960,9 +965,9 @@ void rtw_hal_set_tx_power_index(PADAPTER padapter, u32 powerindex, u8 rfpath, u8
 	return padapter->HalFunc.set_tx_power_index_handler(padapter, powerindex, rfpath, rate);
 }
 
-u8 rtw_hal_get_tx_power_index(PADAPTER padapter, u8 rfpath, u8 rate, u8 bandwidth, u8 channel)
+u8 rtw_hal_get_tx_power_index(PADAPTER padapter, u8 rfpath, u8 rate, u8 bandwidth, u8 channel, struct txpwr_idx_comp *tic)
 {
-	return padapter->HalFunc.get_tx_power_index_handler(padapter, rfpath, rate, bandwidth, channel);
+	return padapter->HalFunc.get_tx_power_index_handler(padapter, rfpath, rate, bandwidth, channel, tic);
 }
 
 #ifdef RTW_HALMAC
@@ -1144,16 +1149,6 @@ u8 rtw_hal_ops_check(_adapter *padapter)
 #endif
 
 	/*** xxx section ***/
-	if (NULL == padapter->HalFunc.set_bwmode_handler) {
-		rtw_hal_error_msg("set_bwmode_handler");
-		ret = _FAIL;
-	}
-
-	if (NULL == padapter->HalFunc.set_channel_handler) {
-		rtw_hal_error_msg("set_channel_handler");
-		ret = _FAIL;
-	}
-
 	if (NULL == padapter->HalFunc.set_chnl_bw_handler) {
 		rtw_hal_error_msg("set_chnl_bw_handler");
 		ret = _FAIL;
@@ -1247,10 +1242,11 @@ u8 rtw_hal_ops_check(_adapter *padapter)
 			rtw_hal_error_msg("set_tx_power_index_handler");
 			ret = _FAIL;
 		}
-		if (!padapter->HalFunc.get_tx_power_index_handler) {
-			rtw_hal_error_msg("get_tx_power_index_handler");
-			ret = _FAIL;
-		}
+	}
+
+	if (!padapter->HalFunc.get_tx_power_index_handler) {
+		rtw_hal_error_msg("get_tx_power_index_handler");
+		ret = _FAIL;
 	}
 
 	/*** SReset section ***/

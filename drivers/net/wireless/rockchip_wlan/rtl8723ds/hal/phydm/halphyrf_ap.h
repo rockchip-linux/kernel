@@ -30,6 +30,9 @@
 #include "rtl8822b/phydm_iqk_8822b.h"
 #endif
 
+#if (RTL8821C_SUPPORT == 1)
+#include "rtl8822b/phydm_iqk_8821c.h"
+#endif
 
 typedef enum _PWRTRACK_CONTROL_METHOD {
 	BBSWING,

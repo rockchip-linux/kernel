@@ -3298,6 +3298,7 @@ int validate_mp_recv_frame(_adapter *adapter, union recv_frame *precv_frame)
 	u8 type, subtype;
 	struct mp_priv *pmppriv = &adapter->mppriv;
 	struct mp_tx		*pmptx;
+	unsigned char	*sa , *da, *bs;
 
 	pmptx = &pmppriv->tx;
 
@@ -3324,6 +3325,22 @@ int validate_mp_recv_frame(_adapter *adapter, union recv_frame *precv_frame)
 			RTW_INFO("Compare payload content Fail !!!\n");
 			ret = _FAIL;
 		}
+	}
+ 	if (pmppriv->bSetRxBssid == _TRUE) {
+
+		sa = GetAddr2Ptr(ptr);
+		da = GetAddr1Ptr(ptr);
+		bs = GetAddr3Ptr(ptr);
+		type =	GetFrameType(ptr);
+		subtype = GetFrameSubType(ptr); /* bit(7)~bit(2)  */
+
+		if (_rtw_memcmp(bs, adapter->mppriv.network_macaddr, ETH_ALEN) == _FALSE)
+			ret = _FAIL;
+
+		RTW_DBG("############ type:0x%02x subtype:0x%02x #################\n", type, subtype);
+		RTW_DBG("A2 sa %02X:%02X:%02X:%02X:%02X:%02X \n", *(sa) , *(sa + 1), *(sa+ 2), *(sa + 3), *(sa + 4), *(sa + 5));
+		RTW_DBG("A1 da %02X:%02X:%02X:%02X:%02X:%02X \n", *(da) , *(da + 1), *(da+ 2), *(da + 3), *(da + 4), *(da + 5));
+		RTW_DBG("A3 bs %02X:%02X:%02X:%02X:%02X:%02X \n --------------------------\n", *(bs) , *(bs + 1), *(bs+ 2), *(bs + 3), *(bs + 4), *(bs + 5));
 	}
 
 	if (!adapter->mppriv.bmac_filter)
@@ -3573,6 +3590,11 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 	/* (0 << IEEE80211_RADIOTAP_AMPDU_STATUS)      | \ */
 	/* (0 << IEEE80211_RADIOTAP_VHT)               | \ */
 #endif
+
+#ifndef IEEE80211_RADIOTAP_RX_FLAGS
+#define IEEE80211_RADIOTAP_RX_FLAGS 14
+#endif
+
 #ifndef IEEE80211_RADIOTAP_MCS
 #define IEEE80211_RADIOTAP_MCS 19
 #endif
@@ -3842,7 +3864,7 @@ static sint fill_radiotap_hdr(_adapter *padapter, union recv_frame *precvframe, 
 	return ret;
 
 }
-
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 int recv_frame_monitor(_adapter *padapter, union recv_frame *rframe)
 {
 	int ret = _SUCCESS;
@@ -3889,7 +3911,7 @@ int recv_frame_monitor(_adapter *padapter, union recv_frame *rframe)
 exit:
 	return ret;
 }
-
+#endif
 int recv_func_prehandle(_adapter *padapter, union recv_frame *rframe)
 {
 	int ret = _SUCCESS;
@@ -4093,7 +4115,9 @@ int recv_func(_adapter *padapter, union recv_frame *rframe)
 
 	if (check_fwstate(mlmepriv, WIFI_MONITOR_STATE)) {
 		/* monitor mode */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 		recv_frame_monitor(padapter, rframe);
+#endif
 		ret = _SUCCESS;
 		goto exit;
 	} else
@@ -4496,6 +4520,8 @@ void rx_query_phy_status(
 			rx_process_phy_info(padapter, precvframe);
 		}
 	}
+
+	rtw_odm_parse_rx_phy_status_chinfo(precvframe, pphy_status);
 }
 /*
 * Increase and check if the continual_no_rx_packet of this @param pmlmepriv is larger than MAX_CONTINUAL_NORXPACKET_COUNT

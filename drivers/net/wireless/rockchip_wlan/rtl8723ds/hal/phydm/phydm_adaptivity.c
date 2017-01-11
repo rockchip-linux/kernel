@@ -661,7 +661,7 @@ Phydm_AdaptivityInit(
 	if (pDM_Odm->TH_EDCCA_HL_diff == 0)
 		pDM_Odm->TH_EDCCA_HL_diff = 7;
 #if(DM_ODM_SUPPORT_TYPE & (ODM_CE))
-	if (pDM_Odm->WIFITest == TRUE)
+	if (pDM_Odm->WIFITest == TRUE || pDM_Odm->mp_mode == TRUE)
 #else
 	if ((pDM_Odm->WIFITest & RT_WIFI_LOGO) == TRUE)
 #endif
@@ -730,6 +730,10 @@ Phydm_AdaptivityInit(
 			ODM_SetBBReg(pDM_Odm, ODM_REG_PAGE_B1_97F, BIT30, 0x1);								/*set to page B1*/
 			ODM_SetBBReg(pDM_Odm, ODM_REG_EDCCA_DCNF_97F, BIT27 | BIT26, 0x1);		/*0:rx_dfir, 1: dcnf_out, 2 :rx_iq, 3: rx_nbi_nf_out*/
 			ODM_SetBBReg(pDM_Odm, ODM_REG_PAGE_B1_97F, BIT30, 0x0);
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
+			if (priv->pshare->rf_ft_var.adaptivity_enable == 1)
+				ODM_SetBBReg(pDM_Odm, 0xce8, BIT13, 0x1);						/*0: mean, 1:max pwdB*/
+#endif
 		} else
 		ODM_SetBBReg(pDM_Odm, ODM_REG_EDCCA_DCNF_11N, BIT21 | BIT20, 0x1);		/*0:rx_dfir, 1: dcnf_out, 2 :rx_iq, 3: rx_nbi_nf_out*/
 	}

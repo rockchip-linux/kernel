@@ -51,7 +51,7 @@ odm_SetCrystalCap(
 		/* write 0x2C[26:21] = 0x2C[20:15] = CrystalCap */
 		CrystalCap = CrystalCap & 0x3F;
 		ODM_SetBBReg(pDM_Odm, REG_MAC_PHY_CTRL, 0x07FF8000, (CrystalCap|(CrystalCap << 6)));
-	} else if (pDM_Odm->SupportICType & ODM_RTL8822B) {
+	} else if (pDM_Odm->SupportICType & (ODM_RTL8822B|ODM_RTL8821C)) {
 		/* write 0x24[30:25] = 0x28[6:1] = CrystalCap */
 		CrystalCap = CrystalCap & 0x3F;
 		ODM_SetBBReg(pDM_Odm, REG_AFE_XTAL_CTRL, 0x7e000000, CrystalCap);
@@ -165,6 +165,12 @@ ODM_CfoTrackingInit(
 	if (pDM_Odm->SupportICType & ODM_RTL8822B)
 		ODM_SetBBReg(pDM_Odm, 0x10, 0x40, 0x1);
 #endif
+
+#if RTL8821C_SUPPORT
+	/* Crystal cap. control by WiFi */
+	if (pDM_Odm->SupportICType & ODM_RTL8821C)
+		ODM_SetBBReg(pDM_Odm, 0x10, 0x40, 0x1);
+#endif
 }
 
 VOID
@@ -174,10 +180,11 @@ ODM_CfoTracking(
 {
 	PDM_ODM_T					pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	PCFO_TRACKING				pCfoTrack = (PCFO_TRACKING)PhyDM_Get_Structure( pDM_Odm, PHYDM_CFOTRACK);
-	int							CFO_kHz_A, CFO_kHz_B, CFO_ave = 0;
-	int							CFO_ave_diff;
-	int							CrystalCap = (int)pCfoTrack->CrystalCap;
-	u1Byte						Adjust_Xtal = 1;
+	s4Byte						CFO_ave = 0;
+	u4Byte						CFO_rpt_sum, CFO_kHz_avg[4] = {0};
+	s4Byte						CFO_ave_diff;
+	s1Byte						CrystalCap = pCfoTrack->CrystalCap;
+	u1Byte						Adjust_Xtal = 1, i, valid_path_cnt = 0;
 
 	//4 Support ability
 	if(!(pDM_Odm->SupportAbility & ODM_BB_CFO_TRACKING))
@@ -207,15 +214,40 @@ ODM_CfoTracking(
 		pCfoTrack->packetCount_pre = pCfoTrack->packetCount;
 	
 		//4 1.2 Calculate CFO
-		CFO_kHz_A =  (int)((pCfoTrack->CFO_tail[0] * 3125)  / 10)>>7; /* CFO_tail[1:0] is S(8,7),    (num_subcarrier>>7) x 312.5K = CFO value(K Hz)   */
-		CFO_kHz_B =  (int)((pCfoTrack->CFO_tail[1] * 3125)  / 10)>>7;
+		for (i = 0; i < pDM_Odm->num_rf_path; i++) {
 		
-		if(pDM_Odm->RFType < ODM_2T2R)
-			CFO_ave = CFO_kHz_A;
-		else
-			CFO_ave = (int)(CFO_kHz_A + CFO_kHz_B) >> 1;
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("ODM_CfoTracking(): CFO_kHz_A = %dkHz, CFO_kHz_B = %dkHz, CFO_ave = %dkHz\n", 
-						CFO_kHz_A, CFO_kHz_B, CFO_ave));
+			if (pCfoTrack->CFO_cnt[i] == 0)
+				continue;
+
+			valid_path_cnt++;
+			CFO_rpt_sum = (u4Byte)((pCfoTrack->CFO_tail[i] < 0) ? (0 - pCfoTrack->CFO_tail[i]) :  pCfoTrack->CFO_tail[i]);
+			CFO_kHz_avg[i] = CFO_HW_RPT_2_MHZ(CFO_rpt_sum) / pCfoTrack->CFO_cnt[i];
+	
+			ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("[Path %d] CFO_rpt_sum = (( %d )), CFO_cnt = (( %d )) , CFO_avg= (( %s%d )) kHz\n",
+				i, CFO_rpt_sum, pCfoTrack->CFO_cnt[i],((pCfoTrack->CFO_tail[i] < 0) ? "-" : " ") ,CFO_kHz_avg[i]));
+		}
+		
+		for (i = 0; i < valid_path_cnt; i++) {
+			
+			//ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("path [%d], pCfoTrack->CFO_tail = %d\n", i, pCfoTrack->CFO_tail[i]));	
+			if (pCfoTrack->CFO_tail[i] < 0) {
+				CFO_ave += (0-(s4Byte)CFO_kHz_avg[i]);
+				//ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("CFO_ave = %d\n", CFO_ave));	
+			}
+			else
+				CFO_ave += (s4Byte)CFO_kHz_avg[i];
+		}
+
+		if (valid_path_cnt >= 2)
+			CFO_ave = CFO_ave / valid_path_cnt;
+			
+		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("valid_path_cnt = ((%d)), CFO_ave = ((%d kHz))\n", valid_path_cnt, CFO_ave));
+
+		/*reset counter*/
+		for (i = 0; i < pDM_Odm->num_rf_path; i++) {
+			pCfoTrack->CFO_tail[i] = 0;
+			pCfoTrack->CFO_cnt[i] = 0;
+		}
 
 		//4 1.3 Avoid abnormal large CFO
 		CFO_ave_diff = (pCfoTrack->CFO_ave_pre >= CFO_ave)?(pCfoTrack->CFO_ave_pre - CFO_ave):(CFO_ave - pCfoTrack->CFO_ave_pre);
@@ -304,7 +336,8 @@ VOID
 ODM_ParsingCFO(
 	IN		PVOID			pDM_VOID,
 	IN		PVOID			pPktinfo_VOID,
-	IN		s1Byte* 			pcfotail
+	IN		s1Byte*			pcfotail,
+	IN		u1Byte			num_ss
 	)
 {
 	PDM_ODM_T				pDM_Odm = (PDM_ODM_T)pDM_VOID;
@@ -320,19 +353,29 @@ ODM_ParsingCFO(
 #else
 	if(pPktinfo->StationID != 0)
 #endif
-	{				
+	{
+		if (num_ss > pDM_Odm->num_rf_path) /*For fool proof*/
+			num_ss = pDM_Odm->num_rf_path;
+
+		/*ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("num_ss = ((%d)),  pDM_Odm->num_rf_path = ((%d))\n", num_ss,  pDM_Odm->num_rf_path));*/
+
+		
 		//3 Update CFO report for path-A & path-B
 		// Only paht-A and path-B have CFO tail and short CFO
-		for(i = ODM_RF_PATH_A; i <= ODM_RF_PATH_B; i++)   
+		for(i = 0; i < num_ss; i++)
 		{
-			pCfoTrack->CFO_tail[i] = (int)pcfotail[i];
-	 	}
+			pCfoTrack->CFO_tail[i] += pcfotail[i];
+			pCfoTrack->CFO_cnt[i] ++;
+			/*ODM_RT_TRACE(pDM_Odm, ODM_COMP_CFO_TRACKING, ODM_DBG_LOUD, ("[ID %d][path %d][Rate 0x%x] CFO_tail = ((%d)), CFO_tail_sum = ((%d)), CFO_cnt = ((%d))\n", 
+				pPktinfo->StationID, i, pPktinfo->DataRate, pcfotail[i], pCfoTrack->CFO_tail[i], pCfoTrack->CFO_cnt[i]));
+			*/
+		}
 
 		//3 Update packet counter
 		if(pCfoTrack->packetCount == 0xffffffff)
 			pCfoTrack->packetCount = 0;
 		else
-	 		pCfoTrack->packetCount++;
+			pCfoTrack->packetCount++;
 	}
 }
 

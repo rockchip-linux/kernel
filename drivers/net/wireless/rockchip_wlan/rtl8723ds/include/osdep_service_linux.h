@@ -81,7 +81,11 @@
 
 /* Monitor mode */
 #include <net/ieee80211_radiotap.h>
-#include <linux/ieee80211.h>
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
+	#include <linux/ieee80211.h>
+#endif
+
 #ifdef CONFIG_IOCTL_CFG80211
 	/*	#include <linux/ieee80211.h> */
 	#include <net/cfg80211.h>
@@ -125,6 +129,17 @@
 		#endif
 	#endif
 #endif
+
+#if defined(CONFIG_RTW_GRO) && (!defined(CONFIG_RTW_NAPI))
+
+	#error "Enable NAPI before enable GRO\n"
+
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29) && defined(CONFIG_RTW_NAPI))
+
+	#error "Linux Kernel version too old (should newer than 2.6.29)\n"
+
+#endif
+
 
 typedef struct	semaphore _sema;
 typedef	spinlock_t	_lock;
@@ -376,11 +391,13 @@ static inline void rtw_netif_carrier_on(struct net_device *pnetdev)
 	netif_device_attach(pnetdev);
 	netif_carrier_on(pnetdev);
 }
-static inline void rtw_merge_string(char *dst, int dst_len, const char *src1, const char *src2)
+static inline int rtw_merge_string(char *dst, int dst_len, const char *src1, const char *src2)
 {
 	int	len = 0;
 	len += snprintf(dst + len, dst_len - len, "%s", src1);
 	len += snprintf(dst + len, dst_len - len, "%s", src2);
+
+	return len;
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
@@ -408,11 +425,11 @@ static inline void rtw_merge_string(char *dst, int dst_len, const char *src1, co
 #define NDEV_FMT "%s"
 #define NDEV_ARG(ndev) ndev->name
 #define ADPT_FMT "%s"
-#define ADPT_ARG(adapter) adapter->pnetdev->name
+#define ADPT_ARG(adapter) (adapter->pnetdev ? adapter->pnetdev->name : NULL)
 #define FUNC_NDEV_FMT "%s(%s)"
 #define FUNC_NDEV_ARG(ndev) __func__, ndev->name
 #define FUNC_ADPT_FMT "%s(%s)"
-#define FUNC_ADPT_ARG(adapter) __func__, adapter->pnetdev->name
+#define FUNC_ADPT_ARG(adapter) __func__, (adapter->pnetdev ? adapter->pnetdev->name : NULL)
 
 struct rtw_netdev_priv_indicator {
 	void *priv;

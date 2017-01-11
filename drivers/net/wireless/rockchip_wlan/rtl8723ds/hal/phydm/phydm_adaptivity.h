@@ -22,7 +22,7 @@
 #ifndef	__PHYDMADAPTIVITY_H__
 #define    __PHYDMADAPTIVITY_H__
 
-#define ADAPTIVITY_VERSION	"9.3.3"	/*20151230 changed by Kevin, modify 0x524[11] when adaptivity is enabled*/
+#define ADAPTIVITY_VERSION	"9.3.4"	/*20160512 changed by Kevin, modify 0xce8[13]=1 for 8197F when adaptivity is enabled*/
 
 #define PwdBUpperBound	7
 #define DFIRloss	5

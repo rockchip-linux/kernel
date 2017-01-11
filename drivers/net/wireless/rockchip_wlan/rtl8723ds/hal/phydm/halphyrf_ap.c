@@ -320,7 +320,6 @@ ODM_TXPowerTrackingCallback_ThermalMeter_92E(
 
 
 #if (RTL8197F_SUPPORT == 1 || RTL8822B_SUPPORT == 1)					
-		
 VOID
 ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries3(
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
@@ -562,9 +561,10 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries3(
 
 #endif
 }
+#endif
 
 /*#if (RTL8814A_SUPPORT == 1)*/
-#elif(RTL8814A_SUPPORT == 1)
+#if (RTL8814A_SUPPORT == 1)
 		
 VOID
 ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries2(
@@ -829,8 +829,9 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries2(
 
 	}
 }
+#endif
 
-#elif(ODM_IC_11AC_SERIES_SUPPORT)
+#if (RTL8812A_SUPPORT == 1 || RTL8881A_SUPPORT == 1)
 VOID
 ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
@@ -850,6 +851,8 @@ ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(
 	unsigned int			i = 0, j = 0, rf_path, max_rf_path =2 ,rf;
 	prtl8192cd_priv		priv = pDM_Odm->priv;
 	unsigned char			OFDM_min_index = 7; //OFDM BB Swing should be less than +2.5dB, which is required by Arthur and Mimic
+
+
 
 #ifdef MP_TEST
 	if ((OPMODE & WIFI_MP_STATE) || priv->pshare->rf_ft_var.mp_specific) {
@@ -1054,13 +1057,15 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 		ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries3(pDM_Odm);
 		return;
 	}
-#elif (RTL8814A_SUPPORT == 1)		/*use this function to do power tracking after 8814 by YuChen*/
+#endif    
+#if (RTL8814A_SUPPORT == 1)		/*use this function to do power tracking after 8814 by YuChen*/
 	if (pDM_Odm->SupportICType & ODM_RTL8814A) {
 		ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries2(pDM_Odm);
 		return;
 		}
-#elif ODM_IC_11AC_SERIES_SUPPORT
-	if (pDM_Odm->SupportICType & ODM_IC_11AC_SERIES) {
+#endif    
+#if (RTL8881A_SUPPORT || RTL8812A_SUPPORT == 1)    
+	if (pDM_Odm->SupportICType & ODM_RTL8812 || pDM_Odm->SupportICType & ODM_RTL8881A) {
 		ODM_TXPowerTrackingCallback_ThermalMeter_JaguarSeries(pDM_Odm);
 		return;
 	}
@@ -1078,6 +1083,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 	//PMGNT_INFO      		pMgntInfo = &Adapter->MgntInfo;
 #endif
 	
+
 	u1Byte			ThermalValue = 0, delta, delta_LCK, delta_IQK, offset;
 	u1Byte			ThermalValue_AVG_count = 0;
 	u4Byte			ThermalValue_AVG = 0;	
@@ -1333,7 +1339,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 #endif		
 			
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD,("<===dm_TXPowerTrackingCallback_ThermalMeter_8188E\n"));
-	
+
 	pDM_Odm->RFCalibrateInfo.TXPowercount = 0;
 }
 
@@ -2733,6 +2739,11 @@ odm_IQCalibrate(
 			#if (RTL8822B_SUPPORT == 1)	
 			if (pDM_Odm->SupportICType == ODM_RTL8822B) 
 				PHY_IQCalibrate_8822B(pDM_Odm, FALSE);
+			#endif
+
+			#if (RTL8821C_SUPPORT == 1) 
+			if (pDM_Odm->SupportICType == ODM_RTL8821C) 
+				PHY_IQCalibrate_8821C(pDM_Odm, FALSE);
 			#endif
 
 			#if (RTL8821A_SUPPORT == 1)				

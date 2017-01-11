@@ -196,6 +196,9 @@ void _rtw_init_stainfo(struct sta_info *psta)
 
 	psta->bpairwise_key_installed = _FALSE;
 
+#ifdef CONFIG_RTW_80211R
+	psta->ft_pairwise_key_installed = _FALSE;
+#endif
 
 #ifdef CONFIG_NATIVEAP_MLME
 	psta->nonerp_set = 0;
@@ -550,9 +553,10 @@ exit:
 	_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 
 
+	if (psta)
+		rtw_mi_update_iface_status(&(pstapriv->padapter->mlmepriv), 0);
+
 	return psta;
-
-
 }
 
 
@@ -577,6 +581,7 @@ u32	rtw_free_stainfo(_adapter *padapter , struct sta_info *psta)
 	rtw_list_delete(&psta->hash_list);
 	pstapriv->asoc_sta_count--;
 	_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL0);
+	rtw_mi_update_iface_status(&(padapter->mlmepriv), 0);
 
 
 	_enter_critical_bh(&psta->lock, &irqL0);

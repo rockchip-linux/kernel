@@ -24,121 +24,34 @@
 #include "mp_precomp.h"
 #include "phydm_precomp.h"
 
-#if (defined(CONFIG_RA_DBG_CMD))
 VOID
-ODM_C2HRaParaReportHandler(
-	IN	PVOID	pDM_VOID,
-	IN pu1Byte   CmdBuf,
-	IN u1Byte   CmdLen
+phydm_h2C_debug(
+	IN		PVOID		pDM_VOID,
+	IN		u4Byte		*const dm_value,
+	IN		u4Byte		*_used,
+	OUT		char			*output,
+	IN		u4Byte		*_out_len
 )
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	pRA_T		    pRA_Table = &pDM_Odm->DM_RA_Table;
+	u1Byte			H2C_Parameter[H2C_MAX_LENGTH] = {0};
+	u1Byte			phydm_h2c_id = (u1Byte)dm_value[0];
+	u1Byte			i;
+	u4Byte			used = *_used;
+	u4Byte			out_len = *_out_len;
 
-	u1Byte  para_idx = CmdBuf[0]; //Retry Penalty, NH, NL
-	u1Byte  RateTypeStart = CmdBuf[1];
-	u1Byte  RateTypeLength = CmdLen - 2;
-	u1Byte  i;
-
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[ From FW C2H RA Para ]  CmdBuf[0]= (( %d ))\n", CmdBuf[0]));
-
-	if (para_idx == RADBG_RTY_PENALTY) {
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |RTY Penality Index| \n"));
-
-		for (i = 0 ; i < (RateTypeLength) ; i++) {
-			if (pRA_Table->is_ra_dbg_init)
-				pRA_Table->RTY_P_default[RateTypeStart + i] = CmdBuf[2 + i];
-
-			pRA_Table->RTY_P[RateTypeStart + i] = CmdBuf[2 + i];
-			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("%8d  %15d \n", (RateTypeStart + i), pRA_Table->RTY_P[RateTypeStart + i]));
-		}
-
-	} else	if (para_idx == RADBG_N_HIGH) {
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|    |N-High| \n"));
-
-
-	} else	if (para_idx == RADBG_N_LOW){
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |N-Low| \n"));
-
+	PHYDM_SNPRINTF((output+used, out_len-used, "Phydm Send H2C_ID (( 0x%x))\n", phydm_h2c_id));
+	for (i = 0; i < H2C_MAX_LENGTH; i++) {
+		
+		H2C_Parameter[i] = (u1Byte)dm_value[i+1];
+		PHYDM_SNPRINTF((output+used, out_len-used, "H2C: Byte[%d] = ((0x%x))\n", i, H2C_Parameter[i]));
 	}
-	else	 if (para_idx == RADBG_RATE_UP_RTY_RATIO) {
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |Rate Up RTY Ratio| \n"));
 
-		for (i = 0 ; i < (RateTypeLength) ; i++) {
-			if (pRA_Table->is_ra_dbg_init)
-				pRA_Table->RATE_UP_RTY_RATIO_default[RateTypeStart + i] = CmdBuf[2 + i];
-
-			pRA_Table->RATE_UP_RTY_RATIO[RateTypeStart + i] = CmdBuf[2 + i];
-			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("%8d  %15d \n", (RateTypeStart + i), pRA_Table->RATE_UP_RTY_RATIO[RateTypeStart + i]));
-		}
-	} else	 if (para_idx == RADBG_RATE_DOWN_RTY_RATIO) {
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |Rate Down RTY Ratio| \n"));
-
-		for (i = 0 ; i < (RateTypeLength) ; i++) {
-			if (pRA_Table->is_ra_dbg_init)
-				pRA_Table->RATE_DOWN_RTY_RATIO_default[RateTypeStart + i] = CmdBuf[2 + i];
-
-			pRA_Table->RATE_DOWN_RTY_RATIO[RateTypeStart + i] = CmdBuf[2 + i];
-			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("%8d  %15d \n", (RateTypeStart + i), pRA_Table->RATE_DOWN_RTY_RATIO[RateTypeStart + i]));
-		}
-	} else	 if (para_idx == RADBG_DEBUG_MONITOR1) {
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
-		if (pDM_Odm->SupportICType & PHYDM_IC_3081_SERIES) {
-
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "RSSI =", CmdBuf[1]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "Rate =", CmdBuf[2] & 0x7f));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "SGI =", (CmdBuf[2] & 0x80) >> 7));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "BW =", CmdBuf[3]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "BW_max =", CmdBuf[4]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "multi_rate0 =", CmdBuf[5]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "multi_rate1 =", CmdBuf[6]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "DISRA =",	CmdBuf[7]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "VHT_EN =", CmdBuf[8]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "SGI_support =",	CmdBuf[9]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "try_ness =", CmdBuf[10]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "pre_rate =", CmdBuf[11]));
-		} else {
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "RSSI =", CmdBuf[1]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %x \n", "BW =", CmdBuf[2]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "DISRA =", CmdBuf[3]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "VHT_EN =", CmdBuf[4]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "Hightest Rate =", CmdBuf[5]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "Lowest Rate =", CmdBuf[6]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "SGI_support =", CmdBuf[7]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "Rate_ID =",	CmdBuf[8]));;
-		}
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
-	} else	 if (para_idx == RADBG_DEBUG_MONITOR2) {
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
-		if (pDM_Odm->SupportICType & PHYDM_IC_3081_SERIES) {
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "RateID =", CmdBuf[1]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "highest_rate =", CmdBuf[2]));
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "lowest_rate =", CmdBuf[3]));
-
-			for (i = 4 ; i <= 11 ; i++)
-				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("RAMASK =  0x%x \n", CmdBuf[i]));
-		} else {
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %x%x  %x%x  %x%x  %x%x \n", "RA Mask:",
-						 CmdBuf[8], CmdBuf[7], CmdBuf[6], CmdBuf[5], CmdBuf[4], CmdBuf[3], CmdBuf[2], CmdBuf[1]));
-		}
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
-	} else	 if (para_idx == RADBG_DEBUG_MONITOR3) {
-
-		for (i = 0 ; i < (CmdLen - 1) ; i++)
-			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("content[%d] =  %d \n", i, CmdBuf[1 + i]));
-	} else	 if (para_idx == RADBG_DEBUG_MONITOR4)
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  {%d.%d} \n", "RA Version =", CmdBuf[1], CmdBuf[2]));
-        else if (para_idx == RADBG_DEBUG_MONITOR5) {
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "Current rate =", CmdBuf[1]));
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "Retry ratio =", CmdBuf[2]));
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d \n", "Rate down ratio =", CmdBuf[3]));
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x \n", "highest rate =", CmdBuf[4]));
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  {0x%x 0x%x} \n", "Muti-try =", CmdBuf[5], CmdBuf[6]));
-		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x%x%x%x%x \n", "RA mask =", CmdBuf[11], CmdBuf[10], CmdBuf[9], CmdBuf[8], CmdBuf[7]));
-	}
+	ODM_FillH2CCmd(pDM_Odm, phydm_h2c_id, H2C_MAX_LENGTH, H2C_Parameter);
 
 }
 
+#if (defined(CONFIG_RA_DBG_CMD))
 VOID
 odm_RA_ParaAdjust_Send_H2C(
 	IN	PVOID	pDM_VOID
@@ -149,35 +62,34 @@ odm_RA_ParaAdjust_Send_H2C(
 	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
 	u1Byte			H2C_Parameter[6] = {0};
 
-	H2C_Parameter[0] =  RA_FIRST_MACID;
+	H2C_Parameter[0] = RA_FIRST_MACID;
 
-	//ODM_RT_TRACE(pDM_Odm,PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("RA_Para_feedback_req= (( %d ))  \n",pRA_Table->RA_Para_feedback_req ));
-	if (pRA_Table->RA_Para_feedback_req) { //H2C_Parameter[5]=1 ; ask FW for all RA parameters
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[H2C] Ask FW for RA parameter \n"));
-		H2C_Parameter[5] |= BIT1; //ask FW to report RA parameters
-		H2C_Parameter[1] =  pRA_Table->para_idx; //pRA_Table->para_idx;
+	if (pRA_Table->RA_Para_feedback_req) { /*H2C_Parameter[5]=1 ; ask FW for all RA parameters*/
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[H2C] Ask FW for RA parameter\n"));
+		H2C_Parameter[5] |= BIT1; /*ask FW to report RA parameters*/
+		H2C_Parameter[1] = pRA_Table->para_idx; /*pRA_Table->para_idx;*/
 		pRA_Table->RA_Para_feedback_req = 0;
 	} else {
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[H2C] Send H2C to FW for modifying RA parameter \n"));
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[H2C] Send H2C to FW for modifying RA parameter\n"));
 
 		H2C_Parameter[1] =  pRA_Table->para_idx;
 		H2C_Parameter[2] =  pRA_Table->rate_idx;
-		//1 [8 bit]
+		/* [8 bit]*/
 		if (pRA_Table->para_idx == RADBG_RTY_PENALTY || pRA_Table->para_idx == RADBG_RATE_UP_RTY_RATIO || pRA_Table->para_idx == RADBG_RATE_DOWN_RTY_RATIO) {
 			H2C_Parameter[3] = pRA_Table->value;
 			H2C_Parameter[4] = 0;
 		}
-		//1 [16 bit]
-		else { //if ((pRA_Table->rate_idx==RADBG_N_HIGH)||(pRA_Table->rate_idx==RADBG_N_LOW))
-			H2C_Parameter[3] = (u1Byte)(((pRA_Table->value_16) & 0xf0) >> 4); //byte1
-			H2C_Parameter[4] = (u1Byte)((pRA_Table->value_16) & 0x0f);	   //byte0
+		/* [16 bit]*/
+		else {
+			H2C_Parameter[3] = (u1Byte)(((pRA_Table->value_16) & 0xf0) >> 4); /*byte1*/
+			H2C_Parameter[4] = (u1Byte)((pRA_Table->value_16) & 0x0f);	/*byte0*/
 		}
 	}
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[1] = 0x%x  \n", H2C_Parameter[1]));
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[2] = 0x%x  \n", H2C_Parameter[2]));
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[3] = 0x%x  \n", H2C_Parameter[3]));
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[4] = 0x%x  \n", H2C_Parameter[4]));
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[5] = 0x%x  \n", H2C_Parameter[5]));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[1] = 0x%x\n", H2C_Parameter[1]));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[2] = 0x%x\n", H2C_Parameter[2]));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[3] = 0x%x\n", H2C_Parameter[3]));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[4] = 0x%x\n", H2C_Parameter[4]));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" H2C_Parameter[5] = 0x%x\n", H2C_Parameter[5]));
 
 	ODM_FillH2CCmd(pDM_Odm, ODM_H2C_RA_PARA_ADJUST, 6, H2C_Parameter);
 
@@ -199,23 +111,22 @@ odm_RA_ParaAdjust(
 		Pre_value = pRA_Table->RTY_P[rate_idx];
 		pRA_Table->RTY_P[rate_idx] = value;
 		pRA_Table->RTY_P_modify_note[rate_idx] = 1;
-	} else 	if (pRA_Table->para_idx == RADBG_N_HIGH) {
+	} else if (pRA_Table->para_idx == RADBG_N_HIGH) {
 
-	} else 	if (pRA_Table->para_idx == RADBG_N_LOW) {
+	} else if (pRA_Table->para_idx == RADBG_N_LOW) {
 
-	} else	 if (pRA_Table->para_idx == RADBG_RATE_UP_RTY_RATIO) {
+	} else if (pRA_Table->para_idx == RADBG_RATE_UP_RTY_RATIO) {
 		Pre_value = pRA_Table->RATE_UP_RTY_RATIO[rate_idx];
 		pRA_Table->RATE_UP_RTY_RATIO[rate_idx] = value;
 		pRA_Table->RATE_UP_RTY_RATIO_modify_note[rate_idx] = 1;
-	} else	 if (pRA_Table->para_idx == RADBG_RATE_DOWN_RTY_RATIO) {
+	} else if (pRA_Table->para_idx == RADBG_RATE_DOWN_RTY_RATIO) {
 		Pre_value = pRA_Table->RATE_DOWN_RTY_RATIO[rate_idx];
 		pRA_Table->RATE_DOWN_RTY_RATIO[rate_idx] = value;
 		pRA_Table->RATE_DOWN_RTY_RATIO_modify_note[rate_idx] = 1;
 	}
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("  Change RA Papa[%d], Rate[ %d ],   ((%d))  ->  ((%d)) \n", pRA_Table->para_idx, rate_idx, Pre_value, value));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("Change RA Papa[%d], Rate[ %d ],   ((%d))  ->  ((%d))\n", pRA_Table->para_idx, rate_idx, Pre_value, value));
 	odm_RA_ParaAdjust_Send_H2C(pDM_Odm);
 }
-
 
 VOID
 phydm_ra_print_msg(
@@ -229,12 +140,12 @@ phydm_ra_print_msg(
 	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
 	u4Byte i;
 
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate index| |Current-value| |Default-value| |Modify?| \n"));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate index| |Current-value| |Default-value| |Modify?|\n"));
 	for (i = 0 ; i <= (pRA_Table->rate_length); i++) {
-#if(DM_ODM_SUPPORT_TYPE & (ODM_WIN))
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("     [ %d ]  %20d  %25d  %20s \n", i, value[i], value_default[i], ((modify_note[i] == 1) ? "V" : " .  ")));
+#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("     [ %d ]  %20d  %25d  %20s\n", i, value[i], value_default[i], ((modify_note[i] == 1) ? "V" : " .  ")));
 #else
-		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("     [ %d ]  %10d  %14d  %14s \n", i, value[i], value_default[i], ((modify_note[i] == 1) ? "V" : " .  ")));
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("     [ %d ]  %10d  %14d  %14s\n", i, value[i], value_default[i], ((modify_note[i] == 1) ? "V" : " .  ")));
 #endif
 	}
 
@@ -299,7 +210,6 @@ odm_RA_debug(
 
 		odm_RA_ParaAdjust(pDM_Odm);
 	}
-
 }
 
 VOID
@@ -308,9 +218,11 @@ odm_RA_ParaAdjust_init(
 )
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	pRA_T		        pRA_Table = &pDM_Odm->DM_RA_Table;
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
 	u1Byte			i;
 	u1Byte			ra_para_pool_u8[3] = { RADBG_RTY_PENALTY,  RADBG_RATE_UP_RTY_RATIO, RADBG_RATE_DOWN_RTY_RATIO};
+	u1Byte			RateSize_HT_1ss = 20, RateSize_HT_2ss = 28, RateSize_HT_3ss = 36;	 /*4+8+8+8+8 =36*/
+	u1Byte			RateSize_VHT_1ss = 10, RateSize_VHT_2ss = 20, RateSize_VHT_3ss = 30;	 /*10 + 10 +10 =30*/
 	/*
 		RTY_PENALTY		=	1,  //u8
 		N_HIGH 				=	2,
@@ -324,7 +236,20 @@ odm_RA_ParaAdjust_init(
 		ALL_PARA		=	0xff
 
 	*/
-	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("odm_RA_ParaAdjust_init \n"));
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("odm_RA_ParaAdjust_init\n"));
+
+	if (pDM_Odm->SupportICType & (ODM_RTL8188F | ODM_RTL8195A | ODM_RTL8703B | ODM_RTL8723B | ODM_RTL8188E | ODM_RTL8723D))
+		pRA_Table->rate_length = RateSize_HT_1ss;
+	else if (pDM_Odm->SupportICType & (ODM_RTL8192E | ODM_RTL8197F))
+		pRA_Table->rate_length = RateSize_HT_2ss;
+	else if (pDM_Odm->SupportICType & (ODM_RTL8821 | ODM_RTL8881A | ODM_RTL8821C))
+		pRA_Table->rate_length = RateSize_HT_1ss + RateSize_VHT_1ss;
+	else if (pDM_Odm->SupportICType & (ODM_RTL8812 | ODM_RTL8822B))
+		pRA_Table->rate_length = RateSize_HT_2ss + RateSize_VHT_2ss;
+	else if (pDM_Odm->SupportICType == ODM_RTL8814A)
+		pRA_Table->rate_length = RateSize_HT_3ss + RateSize_VHT_3ss;
+	else
+		pRA_Table->rate_length = RateSize_HT_1ss;
 
 	pRA_Table->is_ra_dbg_init = TRUE;
 	for (i = 0; i < 3; i++) {
@@ -332,50 +257,161 @@ odm_RA_ParaAdjust_init(
 		pRA_Table->para_idx	=	ra_para_pool_u8[i];
 		odm_RA_ParaAdjust_Send_H2C(pDM_Odm);
 	}
-
-	if (pDM_Odm->SupportICType == ODM_RTL8192E)
-		pRA_Table->rate_length = ODM_RATEMCS15;
-	else if ((pDM_Odm->SupportICType == ODM_RTL8723B) || (pDM_Odm->SupportICType == ODM_RTL8188E))
-		pRA_Table->rate_length = ODM_RATEMCS7;
-	else if ((pDM_Odm->SupportICType == ODM_RTL8821) || (pDM_Odm->SupportICType == ODM_RTL8881A))
-		pRA_Table->rate_length = ODM_RATEVHTSS1MCS9;
-	else if (pDM_Odm->SupportICType == ODM_RTL8812)
-		pRA_Table->rate_length = ODM_RATEVHTSS2MCS9;
-	else if (pDM_Odm->SupportICType == ODM_RTL8814A)
-		pRA_Table->rate_length = ODM_RATEVHTSS3MCS9;
-	else
-		pRA_Table->rate_length = ODM_RATEVHTSS4MCS9;
-
 }
 
 #else
 
 VOID
+phydm_RA_debug_PCR(
+	IN		PVOID		pDM_VOID,
+	IN		u4Byte		*const dm_value,
+	IN		u4Byte		*_used,
+	OUT		char			*output,
+	IN		u4Byte		*_out_len
+)
+{
+	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
+	u4Byte used = *_used;
+	u4Byte out_len = *_out_len;
+
+	if (dm_value[0] == 100) {
+		PHYDM_SNPRINTF((output+used, out_len-used, "[Get] PCR RA_threshold_offset = (( %s%d ))\n", ((pRA_Table->RA_threshold_offset == 0) ? " " : ((pRA_Table->RA_offset_direction) ? "+" : "-")), pRA_Table->RA_threshold_offset));
+		/**/
+	} else if (dm_value[0] == 0) {
+		pRA_Table->RA_offset_direction = 0;
+		pRA_Table->RA_threshold_offset = (u1Byte)dm_value[1];
+		PHYDM_SNPRINTF((output+used, out_len-used, "[Set] PCR RA_threshold_offset = (( -%d ))\n", pRA_Table->RA_threshold_offset));
+	} else if (dm_value[0] == 1) {
+		pRA_Table->RA_offset_direction = 1;
+		pRA_Table->RA_threshold_offset = (u1Byte)dm_value[1];
+		PHYDM_SNPRINTF((output+used, out_len-used, "[Set] PCR RA_threshold_offset = (( +%d ))\n", pRA_Table->RA_threshold_offset));
+	} else {
+		PHYDM_SNPRINTF((output+used, out_len-used, "[Set] Error\n"));
+		/**/
+	}
+	
+}
+
+#endif /*#if (defined(CONFIG_RA_DBG_CMD))*/
+
+VOID
 ODM_C2HRaParaReportHandler(
 	IN	PVOID	pDM_VOID,
-	IN pu1Byte   CmdBuf,
-	IN u1Byte   CmdLen
+	IN	pu1Byte	CmdBuf,
+	IN	u1Byte	CmdLen
 )
 {
+	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
+
+	u1Byte	para_idx = CmdBuf[0]; /*Retry Penalty, NH, NL*/
+	u1Byte	RateTypeStart = CmdBuf[1];
+	u1Byte	RateTypeLength = CmdLen - 2;
+	u1Byte	i;
+
+
+	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[ From FW C2H RA Para ]  CmdBuf[0]= (( %d ))\n", CmdBuf[0]));
+	
+#if (defined(CONFIG_RA_DBG_CMD))
+	if (para_idx == RADBG_RTY_PENALTY) {
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |RTY Penality Index|\n"));
+
+		for (i = 0 ; i < (RateTypeLength) ; i++) {
+			if (pRA_Table->is_ra_dbg_init)
+				pRA_Table->RTY_P_default[RateTypeStart + i] = CmdBuf[2 + i];
+
+			pRA_Table->RTY_P[RateTypeStart + i] = CmdBuf[2 + i];
+			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("%8d  %15d \n", (RateTypeStart + i), pRA_Table->RTY_P[RateTypeStart + i]));
+		}
+
+	} else	if (para_idx == RADBG_N_HIGH) {
+		/**/
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|    |N-High|\n"));
+
+
+	} else if (para_idx == RADBG_N_LOW) {
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |N-Low|\n"));
+		/**/
+	}
+	else if (para_idx == RADBG_RATE_UP_RTY_RATIO) {
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |Rate Up RTY Ratio|\n"));
+
+		for (i = 0; i < (RateTypeLength); i++) {
+			if (pRA_Table->is_ra_dbg_init)
+				pRA_Table->RATE_UP_RTY_RATIO_default[RateTypeStart + i] = CmdBuf[2 + i];
+
+			pRA_Table->RATE_UP_RTY_RATIO[RateTypeStart + i] = CmdBuf[2 + i];
+			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("%8d  %15d\n", (RateTypeStart + i), pRA_Table->RATE_UP_RTY_RATIO[RateTypeStart + i]));
+		}
+	} else	 if (para_idx == RADBG_RATE_DOWN_RTY_RATIO) {
+		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, (" |Rate Index|   |Rate Down RTY Ratio|\n"));
+
+		for (i = 0; i < (RateTypeLength); i++) {
+			if (pRA_Table->is_ra_dbg_init)
+				pRA_Table->RATE_DOWN_RTY_RATIO_default[RateTypeStart + i] = CmdBuf[2 + i];
+
+			pRA_Table->RATE_DOWN_RTY_RATIO[RateTypeStart + i] = CmdBuf[2 + i];
+			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("%8d  %15d\n", (RateTypeStart + i), pRA_Table->RATE_DOWN_RTY_RATIO[RateTypeStart + i]));
+		}
+	} else	 
+#endif
+	if (para_idx == RADBG_DEBUG_MONITOR1) {
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
+		if (pDM_Odm->SupportICType & PHYDM_IC_3081_SERIES) {
+
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "RSSI =", CmdBuf[1]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "Rate =", CmdBuf[2] & 0x7f));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "SGI =", (CmdBuf[2] & 0x80) >> 7));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "BW =", CmdBuf[3]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "BW_max =", CmdBuf[4]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "multi_rate0 =", CmdBuf[5]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "multi_rate1 =", CmdBuf[6]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "DISRA =",	CmdBuf[7]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "VHT_EN =", CmdBuf[8]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "SGI_support =",	CmdBuf[9]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "try_ness =", CmdBuf[10]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "pre_rate =", CmdBuf[11]));
+		} else {
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "RSSI =", CmdBuf[1]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %x\n", "BW =", CmdBuf[2]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "DISRA =", CmdBuf[3]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "VHT_EN =", CmdBuf[4]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "Hightest Rate =", CmdBuf[5]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "Lowest Rate =", CmdBuf[6]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "SGI_support =", CmdBuf[7]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "Rate_ID =",	CmdBuf[8]));;
+		}
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
+	} else	 if (para_idx == RADBG_DEBUG_MONITOR2) {
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
+		if (pDM_Odm->SupportICType & PHYDM_IC_3081_SERIES) {
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "RateID =", CmdBuf[1]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "highest_rate =", CmdBuf[2]));
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "lowest_rate =", CmdBuf[3]));
+
+			for (i = 4; i <= 11; i++)
+				ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("RAMASK =  0x%x\n", CmdBuf[i]));
+		} else {
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %x%x  %x%x  %x%x  %x%x\n", "RA Mask:",
+						CmdBuf[8], CmdBuf[7], CmdBuf[6], CmdBuf[5], CmdBuf[4], CmdBuf[3], CmdBuf[2], CmdBuf[1]));
+		}
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("-------------------------------\n"));
+	} else	 if (para_idx == RADBG_DEBUG_MONITOR3) {
+
+		for (i = 0; i < (CmdLen - 1); i++)
+			ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("content[%d] = %d\n", i, CmdBuf[1 + i]));
+	} else	 if (para_idx == RADBG_DEBUG_MONITOR4)
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  {%d.%d}\n", "RA Version =", CmdBuf[1], CmdBuf[2]));
+		else if (para_idx == RADBG_DEBUG_MONITOR5) {
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "Current rate =", CmdBuf[1]));
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "Retry ratio =", CmdBuf[2]));
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  %d\n", "Rate down ratio =", CmdBuf[3]));
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x\n", "highest rate =", CmdBuf[4]));
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  {0x%x 0x%x}\n", "Muti-try =", CmdBuf[5], CmdBuf[6]));
+		ODM_RT_TRACE(pDM_Odm, ODM_FW_DEBUG_TRACE, ODM_DBG_LOUD, ("%5s  0x%x%x%x%x%x\n", "RA mask =", CmdBuf[11], CmdBuf[10], CmdBuf[9], CmdBuf[8], CmdBuf[7]));
+	}
 }
-
-VOID
-odm_RA_debug(
-	IN		PVOID		pDM_VOID,
-	IN		u4Byte		*const dm_value
-)
-{
-}
-
-VOID
-odm_RA_ParaAdjust_init(
-	IN		PVOID		pDM_VOID
-)
-
-{
-}
-
-#endif //#if (defined(CONFIG_RA_DBG_CMD))
 
 VOID
 phydm_ra_dynamic_retry_count(
@@ -479,10 +515,29 @@ phydm_reset_retry_limit_table(
 }
 
 VOID
+phydm_ra_dynamic_retry_limit_init(
+	IN	PVOID	pDM_VOID
+)
+{
+	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
+
+	pRA_Table->retry_descend_num = RA_RETRY_DESCEND_NUM;
+	pRA_Table->retrylimit_low = RA_RETRY_LIMIT_LOW;
+	pRA_Table->retrylimit_high = RA_RETRY_LIMIT_HIGH;
+	
+	phydm_reset_retry_limit_table(pDM_Odm);
+	
+}
+
+#endif
+
+VOID
 phydm_ra_dynamic_retry_limit(
 	IN	PVOID	pDM_VOID
 )
 {
+#if (defined(CONFIG_RA_DYNAMIC_RTY_LIMIT))
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	pRA_T		        pRA_Table = &pDM_Odm->DM_RA_Table;
 	PSTA_INFO_T		pEntry;
@@ -510,31 +565,8 @@ phydm_ra_dynamic_retry_limit(
 			}				
 		}
 	}
-}
-
-VOID
-phydm_ra_dynamic_retry_limit_init(
-	IN	PVOID	pDM_VOID
-)
-{
-	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	pRA_T		        pRA_Table = &pDM_Odm->DM_RA_Table;
-
-	pRA_Table->retry_descend_num = RA_RETRY_DESCEND_NUM;
-	pRA_Table->retrylimit_low = RA_RETRY_LIMIT_LOW;
-	pRA_Table->retrylimit_high = RA_RETRY_LIMIT_HIGH;
-	
-	phydm_reset_retry_limit_table(pDM_Odm);
-	
-}
-#else
-VOID
-phydm_ra_dynamic_retry_limit(
-	IN	PVOID	pDM_VOID
-)
-{
-}
 #endif
+}
 
 #if (defined(CONFIG_RA_DYNAMIC_RATE_ID))
 VOID
@@ -784,44 +816,6 @@ ODM_RAPostActionOnAssoc(
 }
 
 VOID
-odm_RSSIMonitorCheck(
-	IN		PVOID		pDM_VOID
-)
-{
-	//
-	// For AP/ADSL use prtl8192cd_priv
-	// For CE/NIC use PADAPTER
-	//
-	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	if (!(pDM_Odm->SupportAbility & ODM_BB_RSSI_MONITOR))
-		return;
-
-	//
-	// 2011/09/29 MH In HW integration first stage, we provide 4 different handle to operate
-	// at the same time. In the stage2/3, we need to prive universal interface and merge all
-	// HW dynamic mechanism.
-	//
-	switch	(pDM_Odm->SupportPlatform) {
-	case	ODM_WIN:
-		odm_RSSIMonitorCheckMP(pDM_Odm);
-		break;
-
-	case	ODM_CE:
-		odm_RSSIMonitorCheckCE(pDM_Odm);
-		break;
-
-	case	ODM_AP:
-		odm_RSSIMonitorCheckAP(pDM_Odm);
-		break;
-
-	default:
-		break;
-	}
-
-}	// odm_RSSIMonitorCheck
-
-
-VOID
 phydm_initRaInfo(
 	IN		PVOID		pDM_VOID
 )
@@ -838,52 +832,21 @@ phydm_initRaInfo(
 #endif
 }
 
-#if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
-s4Byte
-phydm_FindMinimumRSSI(
-IN		PDM_ODM_T		pDM_Odm,
-IN		PADAPTER		pAdapter,
-IN OUT	BOOLEAN	*pbLink_temp
+VOID
+phydm_modify_RA_PCR_threshold(
+	IN		PVOID		pDM_VOID,
+	IN		u1Byte		RA_offset_direction,
+	IN		u1Byte		RA_threshold_offset
 
-	)
-{	
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
-	PMGNT_INFO		pMgntInfo = &(pAdapter->MgntInfo);
-	BOOLEAN			act_as_ap = ACTING_AS_AP(pAdapter);
+)
+{
+	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
 
-	/*DbgPrint("bMediaConnect = %d,  ACTING_AS_AP = %d ,  EntryMinUndecoratedSmoothedPWDB = %d\n",
-		pMgntInfo->bMediaConnect,act_as_ap,pHalData->EntryMinUndecoratedSmoothedPWDB);*/
-
-	
-	/* 1.Determine the minimum RSSI */
-	if ((!pMgntInfo->bMediaConnect) ||	
-		(act_as_ap && (pHalData->EntryMinUndecoratedSmoothedPWDB == 0))) {/* We should check AP mode and Entry info.into consideration, revised by Roger, 2013.10.18*/
-	
-		pHalData->MinUndecoratedPWDBForDM = 0;
-		*pbLink_temp = FALSE;
-
-	} else
-		*pbLink_temp = TRUE; 
-	
-
-	if (pMgntInfo->bMediaConnect) {	/* Default port*/
-	
-		if (act_as_ap || pMgntInfo->mIbss) {
-			pHalData->MinUndecoratedPWDBForDM = pHalData->EntryMinUndecoratedSmoothedPWDB;
-			/**/
-		} else {
-			pHalData->MinUndecoratedPWDBForDM = pHalData->UndecoratedSmoothedPWDB;
-			/**/
-		}
-	} else { /* associated entry pwdb*/
-		pHalData->MinUndecoratedPWDBForDM = pHalData->EntryMinUndecoratedSmoothedPWDB;
-		/**/
-	}
-
-	return pHalData->MinUndecoratedPWDBForDM;
+	pRA_Table->RA_offset_direction = RA_offset_direction;
+	pRA_Table->RA_threshold_offset = RA_threshold_offset;
+	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("Set RA_threshold_offset = (( %s%d ))\n", ((RA_threshold_offset == 0) ? " " : ((RA_offset_direction) ? "+" : "-")), RA_threshold_offset));
 }
-
-#endif
 
 VOID
 odm_RSSIMonitorCheckMP(
@@ -892,10 +855,11 @@ odm_RSSIMonitorCheckMP(
 {
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u1Byte			H2C_Parameter[4] = {0};
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
+	u1Byte			H2C_Parameter[H2C_0X42_LENGTH] = {0};
 	u4Byte			i;
-	BOOLEAN			bExtRAInfo = FALSE;
-	u1Byte			cmdlen = 3;
+	BOOLEAN			bExtRAInfo = TRUE;
+	u1Byte			cmdlen = H2C_0X42_LENGTH;
 	u1Byte			TxBF_EN = 0, stbc_en = 0;
 
 	PADAPTER		Adapter = pDM_Odm->Adapter;
@@ -910,31 +874,12 @@ odm_RSSIMonitorCheckMP(
 	BEAMFORMING_CAP Beamform_cap = BEAMFORMING_CAP_NONE;
 #endif
 #endif
-
 	PADAPTER	pLoopAdapter = GetDefaultAdapter(Adapter);
 
-	if (pDM_Odm->SupportICType & EXT_RA_INFO_SUPPORT_IC) {
-		bExtRAInfo = TRUE;
-		cmdlen = 4;
+	if (pDM_Odm->SupportICType == ODM_RTL8188E) {
+		bExtRAInfo = FALSE;
+		cmdlen = 3;
 	}
-
-	/*
-		if(pDM_Odm->SupportICType == ODM_RTL8188E && (pDefaultMgntInfo->CustomerID==RT_CID_819x_HP))
-		{
-			if(curRxOkCnt >(curTxOkCnt*6))
-				PlatformEFIOWrite4Byte(Adapter, REG_ARFR0, 0x8f015);
-			else
-				PlatformEFIOWrite4Byte(Adapter, REG_ARFR0, 0xff015);
-		}
-
-
-		if(pDM_Odm->SupportICType == ODM_RTL8812 || pDM_Odm->SupportICType == ODM_RTL8821 ||
-		   pDM_Odm->SupportICType == ODM_RTL8814A|| pDM_Odm->SupportICType == ODM_RTL8822B)
-		{
-			if(curRxOkCnt >(curTxOkCnt*6))
-				H2C_Parameter[3]|=RAINFO_BE_RX_STATE;
-		}
-	*/
 
 	while (pLoopAdapter) {
 
@@ -987,6 +932,9 @@ odm_RSSIMonitorCheckMP(
 						tmpEntryMinPWDB = pEntry->rssi_stat.UndecoratedSmoothedPWDB;
 					if (pEntry->rssi_stat.UndecoratedSmoothedPWDB > tmpEntryMaxPWDB)
 						tmpEntryMaxPWDB = pEntry->rssi_stat.UndecoratedSmoothedPWDB;
+
+					H2C_Parameter[4] = (pRA_Table->RA_threshold_offset & 0x7f) | (pRA_Table->RA_offset_direction<<7); 
+					ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("RA_threshold_offset = (( %s%d ))\n", ((pRA_Table->RA_threshold_offset == 0) ? " " : ((pRA_Table->RA_offset_direction) ? "+" : "-")),pRA_Table->RA_threshold_offset));
 
 					if (bExtRAInfo) {
 						if (curRxOkCnt > (curTxOkCnt * 6))
@@ -1074,6 +1022,9 @@ odm_RSSIMonitorCheckMP(
 			if ((IS_WIRELESS_MODE_AC(Adapter) && TEST_FLAG(pVHTInfo->VhtCurStbc, STBC_VHT_ENABLE_TX)) ||
 				TEST_FLAG(pHTInfo->HtCurStbc, STBC_HT_ENABLE_TX))
 				stbc_en = 1;
+
+			H2C_Parameter[4] = (pRA_Table->RA_threshold_offset & 0x7f) | (pRA_Table->RA_offset_direction<<7); 
+			ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("RA_threshold_offset = (( %s%d ))\n", ((pRA_Table->RA_threshold_offset == 0) ? " " : ((pRA_Table->RA_offset_direction) ? "+" : "-")), pRA_Table->RA_threshold_offset));
 
 			if (bExtRAInfo) {
 				if (TxBF_EN)
@@ -1172,11 +1123,12 @@ odm_RSSIMonitorCheckMP(
 s8 phydm_rssi_report(PDM_ODM_T pDM_Odm, u8 mac_id)
 {
 	PADAPTER Adapter = pDM_Odm->Adapter;
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
 	struct dvobj_priv *pdvobjpriv = adapter_to_dvobj(Adapter);
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(Adapter);
-	u8 H2C_Parameter[4] = {0};
+	u8 H2C_Parameter[H2C_0X42_LENGTH] = {0};
 	u8 UL_DL_STATE = 0, STBC_TX = 0, TxBF_EN = 0;
-	u8 cmdlen = 4, first_connect = _FALSE;
+	u8 cmdlen = H2C_0X42_LENGTH, first_connect = _FALSE;
 	u64	curTxOkCnt = 0, curRxOkCnt = 0;
 	PSTA_INFO_T pEntry = pDM_Odm->pODM_StaInfo[mac_id];
 	
@@ -1227,7 +1179,9 @@ s8 phydm_rssi_report(PDM_ODM_T pDM_Odm, u8 mac_id)
 			STBC_TX = TEST_FLAG(pEntry->vhtpriv.stbc_cap, STBC_VHT_ENABLE_TX);
 		else
 		#endif
+		#ifdef CONFIG_80211N_HT
 			STBC_TX = TEST_FLAG(pEntry->htpriv.stbc_cap, STBC_HT_ENABLE_TX);
+		#endif
 	}
 		
 	H2C_Parameter[0] = (u8)(pEntry->mac_id & 0xFF);
@@ -1249,7 +1203,10 @@ s8 phydm_rssi_report(PDM_ODM_T pDM_Odm, u8 mac_id)
 		pEntry->rssi_stat.bsend_rssi = RA_RSSI_STATE_HOLD;
 		first_connect = _TRUE;
 	}
-		
+
+	H2C_Parameter[4] = (pRA_Table->RA_threshold_offset & 0x7f) | (pRA_Table->RA_offset_direction<<7); 
+	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("RA_threshold_offset = (( %s%d ))\n", ((pRA_Table->RA_threshold_offset == 0) ? " " : ((pRA_Table->RA_offset_direction) ? "+" : "-")), pRA_Table->RA_threshold_offset));
+	
 	#if 1
 	if (first_connect) {
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_RATE_ADAPTIVE, ODM_DBG_LOUD, ("%s mac_id:%u, mac:"MAC_FMT", rssi:%d\n", __func__,
@@ -1369,10 +1326,11 @@ odm_RSSIMonitorCheckAP(
 #if (RTL8812A_SUPPORT || RTL8881A_SUPPORT || RTL8192E_SUPPORT || RTL8814A_SUPPORT || RTL8197F_SUPPORT)
 
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u1Byte 			H2C_Parameter[4] = {0};
+	pRA_T			pRA_Table = &pDM_Odm->DM_RA_Table;
+	u1Byte 			H2C_Parameter[H2C_0X42_LENGTH] = {0};
 	u4Byte			 i;
-	BOOLEAN			bExtRAInfo = FALSE;
-	u1Byte			cmdlen = 3 ;
+	BOOLEAN			bExtRAInfo = TRUE;
+	u1Byte			cmdlen = H2C_0X42_LENGTH;
 	u1Byte			TxBF_EN = 0, stbc_en = 0;
 
 	prtl8192cd_priv	priv		= pDM_Odm->priv;
@@ -1390,9 +1348,9 @@ odm_RSSIMonitorCheckAP(
 	if (!pDM_Odm->H2C_RARpt_connect && (priv->up_time % 2))
 		return;
 
-	if (pDM_Odm->SupportICType & EXT_RA_INFO_SUPPORT_IC) {
-		bExtRAInfo = TRUE;
-		cmdlen = 4;
+	if (pDM_Odm->SupportICType == ODM_RTL8188E) {
+		bExtRAInfo = FALSE;
+		cmdlen = 3;
 	}
 
 	for (i = 0; i < ODM_ASSOCIATE_ENTRY_NUM; i++) {
@@ -1403,7 +1361,7 @@ odm_RSSIMonitorCheckAP(
 				continue;
 
 			//2 BF_en
-#if (BEAMFORMING_SUPPORT == 1)
+		#if (BEAMFORMING_SUPPORT == 1)
 			BEAMFORMING_CAP Beamform_cap = Beamforming_GetEntryBeamCapByMacId(priv, pstat->aid);
 			PRT_BEAMFORMING_ENTRY	pEntry = Beamforming_GetEntryByMacId(priv, pstat->aid, &Idx);
 
@@ -1417,8 +1375,7 @@ odm_RSSIMonitorCheckAP(
 				act_bfer = TRUE;
 			}
 
-#if (defined(CONFIG_PHYDM_ANTENNA_DIVERSITY)) /*BDC*/
-
+			#if (defined(CONFIG_PHYDM_ANTENNA_DIVERSITY)) /*BDC*/
 			if (act_bfer == TRUE) {
 				pDM_BdcTable->w_BFee_Client[i] = 1; //AP act as BFer
 				pDM_BdcTable->num_Txbfee_Client++;
@@ -1432,19 +1389,22 @@ odm_RSSIMonitorCheckAP(
 			} else {
 				pDM_BdcTable->w_BFer_Client[i] = 0; //AP act as BFer
 			}
-#endif
-#endif
+			#endif
+		#endif
 
 			//2 STBC_en
 			if ((priv->pmib->dot11nConfigEntry.dot11nSTBC) &&
 				((pstat->ht_cap_buf.ht_cap_info & cpu_to_le16(_HTCAP_RX_STBC_CAP_))
-#ifdef RTK_AC_SUPPORT
-				 || (pstat->vht_cap_buf.vht_cap_info & cpu_to_le32(_VHTCAP_RX_STBC_CAP_))
-#endif
+				#ifdef RTK_AC_SUPPORT
+				|| (pstat->vht_cap_buf.vht_cap_info & cpu_to_le32(_VHTCAP_RX_STBC_CAP_))
+				#endif
 				))
 				stbc_en = 1;
 
 			//2 RAINFO
+
+			H2C_Parameter[4] = (pRA_Table->RA_threshold_offset & 0x7f) | (pRA_Table->RA_offset_direction<<7); 
+			ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("RA_threshold_offset = (( %s%d ))\n", ((pRA_Table->RA_threshold_offset == 0) ? " " : ((pRA_Table->RA_offset_direction) ? "+" : "-")), pRA_Table->RA_threshold_offset));
 
 			if (bExtRAInfo) {
 				if ((pstat->rx_avarage)  > ((pstat->tx_avarage) * 6))
@@ -1457,10 +1417,8 @@ odm_RSSIMonitorCheckAP(
 						H2C_Parameter[3] |= RAINFO_STBC_STATE;
 				}
 
-                if ( pDM_Odm->NoisyDecision )
-                {
-                    H2C_Parameter[3] |= RAINFO_NOISY_STATE;             // BIT2
-                }
+				if (pDM_Odm->NoisyDecision)
+					H2C_Parameter[3] |= RAINFO_NOISY_STATE;
 				else
 					H2C_Parameter[3] &= (~RAINFO_NOISY_STATE);
 				
@@ -1475,8 +1433,7 @@ odm_RSSIMonitorCheckAP(
 			H2C_Parameter[2] = (u1Byte)(pstat->rssi & 0xFF);
 			H2C_Parameter[0] = REMAP_AID(pstat);
 
-            ODM_RT_TRACE(pDM_Odm,ODM_COMP_COMMON, ODM_DBG_LOUD,
-            ("H2C_Parameter[3]=%d\n", H2C_Parameter[3]));
+			ODM_RT_TRACE(pDM_Odm, ODM_COMP_COMMON, ODM_DBG_LOUD, ("H2C_Parameter[3]=%d\n", H2C_Parameter[3]));
 
 			//ODM_RT_TRACE(pDM_Odm,PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[RSSI] H2C_Para[2] = %x,  \n",H2C_Parameter[2]));
 			//ODM_RT_TRACE(pDM_Odm,PHYDM_COMP_RA_DBG, ODM_DBG_LOUD, ("[MACID] H2C_Para[0] = %x,  \n",H2C_Parameter[0]));
@@ -1491,6 +1448,34 @@ odm_RSSIMonitorCheckAP(
 
 }
 
+VOID
+odm_RSSIMonitorCheck(
+	IN		PVOID		pDM_VOID
+)
+{
+	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	
+	if (!(pDM_Odm->SupportAbility & ODM_BB_RSSI_MONITOR))
+		return;
+
+	switch	(pDM_Odm->SupportPlatform) {
+	case	ODM_WIN:
+		odm_RSSIMonitorCheckMP(pDM_Odm);
+		break;
+
+	case	ODM_CE:
+		odm_RSSIMonitorCheckCE(pDM_Odm);
+		break;
+
+	case	ODM_AP:
+		odm_RSSIMonitorCheckAP(pDM_Odm);
+		break;
+
+	default:
+		break;
+	}
+
+}
 
 VOID
 odm_RateAdaptiveMaskInit(
@@ -1859,15 +1844,19 @@ phydm_rate_id_mapping(
 			
 				if (phydm_RfType == PHYDM_RF_1T1R)
 					rate_id_idx = PHYDM_BGN_40M_1SS;
-				else
+				else if (phydm_RfType == PHYDM_RF_2T2R)
 					rate_id_idx = PHYDM_BGN_40M_2SS;
+				else
+					rate_id_idx = PHYDM_ARFR5_N_3SS;
 				
 			} else {
 			
 				if (phydm_RfType == PHYDM_RF_1T1R)
 					rate_id_idx = PHYDM_BGN_20M_1SS;
-				else 
+				else if (phydm_RfType == PHYDM_RF_2T2R)
 					rate_id_idx = PHYDM_BGN_20M_2SS;
+				else
+					rate_id_idx = PHYDM_ARFR5_N_3SS;
 			}
 		}
 		break;
@@ -1876,8 +1865,10 @@ phydm_rate_id_mapping(
 		{
 			if (phydm_RfType == PHYDM_RF_1T1R)
 				rate_id_idx = PHYDM_GN_N1SS;
-			else
+			else if (phydm_RfType == PHYDM_RF_2T2R)
 				rate_id_idx = PHYDM_GN_N2SS;
+			else
+				rate_id_idx = PHYDM_ARFR5_N_3SS;
 		}
 		
 		break;
@@ -1909,19 +1900,22 @@ phydm_rate_id_mapping(
 	
 	case PHYDM_WIRELESS_MODE_AC_24G:
 		{
+			/*Becareful to set "Lowest rate" while using PHYDM_ARFR4_AC_3SS in 2.4G/5G*/          
 			if (phydm_BW >= PHYDM_BW_80) {
 				if (phydm_RfType == PHYDM_RF_1T1R)
 					rate_id_idx = PHYDM_ARFR1_AC_1SS;
 				else if (phydm_RfType == PHYDM_RF_2T2R)
 					rate_id_idx = PHYDM_ARFR0_AC_2SS;
 				else
-					rate_id_idx = PHYDM_ARFR5_N_3SS;
+					rate_id_idx = PHYDM_ARFR4_AC_3SS;
 			} else {
 				
 				if (phydm_RfType == PHYDM_RF_1T1R)
 					rate_id_idx = PHYDM_ARFR2_AC_2G_1SS;
-				else
+				else if (phydm_RfType == PHYDM_RF_2T2R)
 					rate_id_idx = PHYDM_ARFR3_AC_2G_2SS;
+				else
+					rate_id_idx = PHYDM_ARFR4_AC_3SS;
 			}
 		}
 		break;
@@ -1935,23 +1929,6 @@ phydm_rate_id_mapping(
 	
 	return rate_id_idx;
 }
-
-#if 0
-u4Byte
-phydm_disable_cck_ra_mask(
-	IN	PVOID			pDM_VOID,
-	IN	u4Byte			ra_mask_in
-	)
-{
-	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u4Byte			ra_mask_out;
-
-	ra_mask_out = ra_mask_in & 0xfffffff0;
-	
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[Disable all CCK rate] Update RA Mask = (( 0x%x ))\n", ra_mask_out));
-	return ra_mask_out;
-}
-#endif
 
 VOID
 phydm_UpdateHalRAMask(
@@ -2141,42 +2118,6 @@ phydm_RA_level_decision(
 
 }
 
-#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
-VOID
-phydm_gen_ramask_h2c_AP(
-	IN		PVOID			pDM_VOID,
-	IN		struct rtl8192cd_priv *priv,
-	IN		PSTA_INFO_T		*pEntry,
-	IN		u1Byte			rssi_level
-)
-{
-	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
-
-	if (pDM_Odm->SupportICType & (ODM_RTL8192E | ODM_RTL8881A)) {
-		
-		#ifdef CONFIG_WLAN_HAL
-		GET_HAL_INTERFACE(priv)->UpdateHalRAMaskHandler(priv, pEntry, rssi_level);
-		#endif
-		
-	} else if (pDM_Odm->SupportICType == ODM_RTL8812) {
-	
-		#if (RTL8812A_SUPPORT == 1)
-		UpdateHalRAMask8812(priv, pEntry, rssi_level);
-		/**/
-		#endif
-	} else if (pDM_Odm->SupportICType == ODM_RTL8188E) {
-	
-		#if (RTL8188E_SUPPORT == 1)
-		#ifdef TXREPORT
-		add_RATid(priv, pEntry);
-		/**/
-		#endif
-		#endif
-	}
-}
-#endif
-
-
 VOID
 odm_RefreshRateAdaptiveMaskMP(
 	IN		PVOID		pDM_VOID
@@ -2207,7 +2148,7 @@ odm_RefreshRateAdaptiveMaskMP(
 		odm_RefreshLdpcRtsMP(pAdapter, pDM_Odm, pMgntInfo->mMacId,  pMgntInfo->IOTPeer, pHalData->UndecoratedSmoothedPWDB);
 		/*ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("Infrasture Mode\n"));*/
 
-		#ifdef RA_MASK_PHYDMLIZE_WIN
+		#if RA_MASK_PHYDMLIZE_WIN
 			Ratr_State_new = phydm_RA_level_decision(pDM_Odm, pHalData->UndecoratedSmoothedPWDB, pMgntInfo->Ratr_State);
 
 			if (pMgntInfo->Ratr_State != Ratr_State_new) {
@@ -2255,7 +2196,7 @@ odm_RefreshRateAdaptiveMaskMP(
 
 				odm_RefreshLdpcRtsMP(pAdapter, pDM_Odm, pEntry->AssociatedMacId, pEntry->IOTPeer, pEntry->rssi_stat.UndecoratedSmoothedPWDB);
 
-				#ifdef RA_MASK_PHYDMLIZE_WIN
+				#if RA_MASK_PHYDMLIZE_WIN
 				Ratr_State_new = phydm_RA_level_decision(pDM_Odm, pEntry->rssi_stat.UndecoratedSmoothedPWDB, pEntry->Ratr_State);
 
 				if (pEntry->Ratr_State != Ratr_State_new) {
@@ -2288,7 +2229,7 @@ odm_RefreshRateAdaptiveMaskMP(
 		}
 	}
 	
-	#ifdef RA_MASK_PHYDMLIZE_WIN
+	#if RA_MASK_PHYDMLIZE_WIN
 
 	#else
 		if (pMgntInfo->bSetTXPowerTrainingByOid)
@@ -2348,7 +2289,7 @@ odm_RefreshRateAdaptiveMaskCE(
 			}
 			#endif
 			
-		#ifdef RA_MASK_PHYDMLIZE_CE
+		#if RA_MASK_PHYDMLIZE_CE
 			Ratr_State_new = phydm_RA_level_decision(pDM_Odm, pEntry->rssi_stat.UndecoratedSmoothedPWDB, pEntry->rssi_level);
 
 			if (pEntry->rssi_level != Ratr_State_new) {
@@ -2409,7 +2350,7 @@ odm_RefreshRateAdaptiveMaskAPADSL(
 			if (!priv->pmib->dot11StationConfigEntry.autoRate)
 				continue;
 
-#ifdef RA_MASK_PHYDMLIZE_AP
+#if RA_MASK_PHYDMLIZE_AP
 			Ratr_State_new = phydm_RA_level_decision(pDM_Odm, (u4Byte)pEntry->rssi, pEntry->rssi_level);
 
 			if (pEntry->rssi_level != Ratr_State_new) {
@@ -2460,88 +2401,6 @@ odm_RefreshRateAdaptiveMaskAPADSL(
 		}
 	}
 #endif /*#if (DM_ODM_SUPPORT_TYPE & ODM_AP)*/
-}
-
-
-// Return Value: BOOLEAN
-// - TRUE: RATRState is changed.
-BOOLEAN
-ODM_RAStateCheck(
-	IN		PVOID			pDM_VOID,
-	IN		s4Byte			RSSI,
-	IN		BOOLEAN			bForceUpdate,
-	OUT		pu1Byte			pRATRState
-)
-{
-	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	PODM_RATE_ADAPTIVE pRA = &pDM_Odm->RateAdaptive;
-	const u1Byte GoUpGap = 5;
-	u1Byte HighRSSIThreshForRA = pRA->HighRSSIThresh;
-	u1Byte LowRSSIThreshForRA = pRA->LowRSSIThresh;
-	u1Byte RATRState;
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("RSSI= (( %d )), Current_RSSI_level = (( %d ))\n", RSSI, *pRATRState));
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[Ori RA RSSI Thresh]  High= (( %d )), Low = (( %d ))\n", HighRSSIThreshForRA, LowRSSIThreshForRA));
-	// Threshold Adjustment:
-	// when RSSI state trends to go up one or two levels, make sure RSSI is high enough.
-	// Here GoUpGap is added to solve the boundary's level alternation issue.
-#if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
-	u1Byte UltraLowRSSIThreshForRA = pRA->UltraLowRSSIThresh;
-	if (pDM_Odm->SupportICType == ODM_RTL8881A)
-		LowRSSIThreshForRA = 30;		// for LDPC / BCC switch
-#endif
-
-	switch (*pRATRState) {
-	case DM_RATR_STA_INIT:
-	case DM_RATR_STA_HIGH:
-		break;
-
-	case DM_RATR_STA_MIDDLE:
-		HighRSSIThreshForRA += GoUpGap;
-		break;
-
-	case DM_RATR_STA_LOW:
-		HighRSSIThreshForRA += GoUpGap;
-		LowRSSIThreshForRA += GoUpGap;
-		break;
-
-#if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
-	case DM_RATR_STA_ULTRA_LOW:
-		HighRSSIThreshForRA += GoUpGap;
-		LowRSSIThreshForRA += GoUpGap;
-		UltraLowRSSIThreshForRA += GoUpGap;
-		break;
-#endif
-
-	default:
-		ODM_RT_ASSERT(pDM_Odm, FALSE, ("wrong rssi level setting %d !", *pRATRState));
-		break;
-	}
-
-	// Decide RATRState by RSSI.
-	if (RSSI > HighRSSIThreshForRA)
-		RATRState = DM_RATR_STA_HIGH;
-	else if (RSSI > LowRSSIThreshForRA)
-		RATRState = DM_RATR_STA_MIDDLE;
-
-#if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
-	else if (RSSI > UltraLowRSSIThreshForRA)
-		RATRState = DM_RATR_STA_LOW;
-	else
-		RATRState = DM_RATR_STA_ULTRA_LOW;
-#else
-	else
-		RATRState = DM_RATR_STA_LOW;
-#endif
-	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[Mod RA RSSI Thresh]  High= (( %d )), Low = (( %d ))\n", HighRSSIThreshForRA, LowRSSIThreshForRA));
-	/*printk("==>%s,RATRState:0x%02x ,RSSI:%d\n",__FUNCTION__,RATRState,RSSI);*/
-
-	if (*pRATRState != RATRState || bForceUpdate) {
-		ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[RSSI Level Update] %d -> %d\n", *pRATRState, RATRState));
-		*pRATRState = RATRState;
-		return TRUE;
-	}
-
-	return FALSE;
 }
 
 VOID
@@ -2684,6 +2543,8 @@ phydm_ra_info_init(
 
 	pRA_Table->highest_client_tx_rate_order = 0;
 	pRA_Table->highest_client_tx_order = 0;
+	pRA_Table->RA_threshold_offset = 0;
+	pRA_Table->RA_offset_direction = 0;
 
 	#if (defined(CONFIG_RA_DYNAMIC_RTY_LIMIT))
 	phydm_ra_dynamic_retry_limit_init(pDM_Odm);
@@ -2692,8 +2553,10 @@ phydm_ra_info_init(
 	#if (defined(CONFIG_RA_DYNAMIC_RATE_ID))
 	phydm_ra_dynamic_rate_id_init(pDM_Odm);
 	#endif
+	#if (defined(CONFIG_RA_DBG_CMD))
+	odm_RA_ParaAdjust_init(pDM_Odm);
+	#endif
 
-	/*phydm_fw_trace_en_h2c(pDM_Odm, 1, 0, 0);*/
 }
 
 
@@ -2880,6 +2743,46 @@ phydm_update_pwr_track(
 
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 
+s4Byte
+phydm_FindMinimumRSSI(
+IN		PDM_ODM_T		pDM_Odm,
+IN		PADAPTER		pAdapter,
+IN	OUT	BOOLEAN			*pbLink_temp
+
+	)
+{	
+	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
+	PMGNT_INFO		pMgntInfo = &(pAdapter->MgntInfo);
+	BOOLEAN			act_as_ap = ACTING_AS_AP(pAdapter);
+	
+	/* 1.Determine the minimum RSSI */
+	if ((!pMgntInfo->bMediaConnect) ||	
+		(act_as_ap && (pHalData->EntryMinUndecoratedSmoothedPWDB == 0))) {/* We should check AP mode and Entry info.into consideration, revised by Roger, 2013.10.18*/
+	
+		pHalData->MinUndecoratedPWDBForDM = 0;
+		*pbLink_temp = FALSE;
+
+	} else
+		*pbLink_temp = TRUE; 
+	
+
+	if (pMgntInfo->bMediaConnect) {	/* Default port*/
+	
+		if (act_as_ap || pMgntInfo->mIbss) {
+			pHalData->MinUndecoratedPWDBForDM = pHalData->EntryMinUndecoratedSmoothedPWDB;
+			/**/
+		} else {
+			pHalData->MinUndecoratedPWDBForDM = pHalData->UndecoratedSmoothedPWDB;
+			/**/
+		}
+	} else { /* associated entry pwdb*/
+		pHalData->MinUndecoratedPWDBForDM = pHalData->EntryMinUndecoratedSmoothedPWDB;
+		/**/
+	}
+
+	return pHalData->MinUndecoratedPWDBForDM;
+}
+
 VOID
 ODM_UpdateInitRateWorkItemCallback(
 	IN	PVOID	pContext
@@ -2992,6 +2895,7 @@ odm_RefreshLdpcRtsMP(
 		pRA->bLowerRtsRate = FALSE;
 }
 
+#if 0
 VOID
 ODM_DynamicARFBSelect(
 	IN		PVOID		pDM_VOID,
@@ -3095,6 +2999,7 @@ ODM_DynamicARFBSelect(
 	}
 	pRA_Table->PT_collision_pre = Collision_State;
 }
+#endif
 
 VOID
 ODM_RateAdaptiveStateApInit(
@@ -3386,5 +3291,130 @@ ODM_Get_Rate_Bitmap(
 
 #endif //#if (DM_ODM_SUPPORT_TYPE == ODM_CE)
 
+#elif (DM_ODM_SUPPORT_TYPE & (ODM_AP))
+
+VOID
+phydm_gen_ramask_h2c_AP(
+	IN		PVOID			pDM_VOID,
+	IN		struct rtl8192cd_priv *priv,
+	IN		PSTA_INFO_T		*pEntry,
+	IN		u1Byte			rssi_level
+)
+{
+	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
+
+	if (pDM_Odm->SupportICType & (ODM_RTL8192E | ODM_RTL8881A)) {
+		
+		#ifdef CONFIG_WLAN_HAL
+		GET_HAL_INTERFACE(priv)->UpdateHalRAMaskHandler(priv, pEntry, rssi_level);
+		#endif
+		
+	} else if (pDM_Odm->SupportICType == ODM_RTL8812) {
+	
+		#if (RTL8812A_SUPPORT == 1)
+		UpdateHalRAMask8812(priv, pEntry, rssi_level);
+		/**/
+		#endif
+	} else if (pDM_Odm->SupportICType == ODM_RTL8188E) {
+	
+		#if (RTL8188E_SUPPORT == 1)
+		#ifdef TXREPORT
+		add_RATid(priv, pEntry);
+		/**/
+		#endif
+		#endif
+	}
+}
+
+
 #endif /*#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN| ODM_CE))*/
+
+
+/* RA_MASK_PHYDMLIZE, will delete it later*/
+
+#if (RA_MASK_PHYDMLIZE_CE || RA_MASK_PHYDMLIZE_AP || RA_MASK_PHYDMLIZE_WIN)
+
+BOOLEAN
+ODM_RAStateCheck(
+	IN		PVOID			pDM_VOID,
+	IN		s4Byte			RSSI,
+	IN		BOOLEAN			bForceUpdate,
+	OUT		pu1Byte			pRATRState
+)
+{
+	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	PODM_RATE_ADAPTIVE pRA = &pDM_Odm->RateAdaptive;
+	const u1Byte GoUpGap = 5;
+	u1Byte HighRSSIThreshForRA = pRA->HighRSSIThresh;
+	u1Byte LowRSSIThreshForRA = pRA->LowRSSIThresh;
+	u1Byte RATRState;
+	
+	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("RSSI= (( %d )), Current_RSSI_level = (( %d ))\n", RSSI, *pRATRState));
+	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[Ori RA RSSI Thresh]  High= (( %d )), Low = (( %d ))\n", HighRSSIThreshForRA, LowRSSIThreshForRA));
+	/* Threshold Adjustment:*/
+	/* when RSSI state trends to go up one or two levels, make sure RSSI is high enough.*/
+	/* Here GoUpGap is added to solve the boundary's level alternation issue.*/
+#if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
+	u1Byte UltraLowRSSIThreshForRA = pRA->UltraLowRSSIThresh;
+
+	if (pDM_Odm->SupportICType == ODM_RTL8881A)
+		LowRSSIThreshForRA = 30;		/* for LDPC / BCC switch*/
+#endif
+
+	switch (*pRATRState) {
+	case DM_RATR_STA_INIT:
+	case DM_RATR_STA_HIGH:
+		break;
+
+	case DM_RATR_STA_MIDDLE:
+		HighRSSIThreshForRA += GoUpGap;
+		break;
+
+	case DM_RATR_STA_LOW:
+		HighRSSIThreshForRA += GoUpGap;
+		LowRSSIThreshForRA += GoUpGap;
+		break;
+
+#if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
+	case DM_RATR_STA_ULTRA_LOW:
+		HighRSSIThreshForRA += GoUpGap;
+		LowRSSIThreshForRA += GoUpGap;
+		UltraLowRSSIThreshForRA += GoUpGap;
+		break;
+#endif
+
+	default:
+		ODM_RT_ASSERT(pDM_Odm, FALSE, ("wrong rssi level setting %d !", *pRATRState));
+		break;
+	}
+
+	/* Decide RATRState by RSSI.*/
+	if (RSSI > HighRSSIThreshForRA)
+		RATRState = DM_RATR_STA_HIGH;
+	else if (RSSI > LowRSSIThreshForRA)
+		RATRState = DM_RATR_STA_MIDDLE;
+
+#if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
+	else if (RSSI > UltraLowRSSIThreshForRA)
+		RATRState = DM_RATR_STA_LOW;
+	else
+		RATRState = DM_RATR_STA_ULTRA_LOW;
+#else
+	else
+		RATRState = DM_RATR_STA_LOW;
+#endif
+	ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[Mod RA RSSI Thresh]  High= (( %d )), Low = (( %d ))\n", HighRSSIThreshForRA, LowRSSIThreshForRA));
+	/*printk("==>%s,RATRState:0x%02x ,RSSI:%d\n",__FUNCTION__,RATRState,RSSI);*/
+
+	if (*pRATRState != RATRState || bForceUpdate) {
+		ODM_RT_TRACE(pDM_Odm, ODM_COMP_RA_MASK, ODM_DBG_LOUD, ("[RSSI Level Update] %d -> %d\n", *pRATRState, RATRState));
+		*pRATRState = RATRState;
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+#endif
+
 

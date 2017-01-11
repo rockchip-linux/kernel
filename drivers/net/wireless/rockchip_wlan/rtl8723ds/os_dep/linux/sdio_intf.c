@@ -292,6 +292,15 @@ static u32 sdio_init(struct dvobj_priv *dvobj)
 	psdio_data->block_transfer_len = 512;
 	psdio_data->tx_block_mode = 1;
 	psdio_data->rx_block_mode = 1;
+	psdio_data->clock = func->card->host->ios.clock;
+	RTW_PRINT("%s: sdio clk rate: %d\n", __func__, psdio_data->clock);
+
+	if (dvobj->irq_alloc == 0) {
+		if (sdio_alloc_irq(dvobj) != _SUCCESS) {
+			RTW_ERR("%s: sdio_alloc_irq fail\n", __func__);
+			goto release;
+		}
+	}	
 
 release:
 	sdio_release_host(func);
@@ -308,8 +317,6 @@ static void sdio_deinit(struct dvobj_priv *dvobj)
 	struct sdio_func *func;
 	int err;
 
-
-
 	func = dvobj->intf_data.func;
 
 	if (func) {
@@ -325,8 +332,10 @@ static void sdio_deinit(struct dvobj_priv *dvobj)
 			if (err) {
 				dvobj->drv_dbg.dbg_sdio_free_irq_error_cnt++;
 				RTW_ERR("%s: sdio_release_irq(%d)\n", __func__, err);
-			} else
+			} else {
 				dvobj->drv_dbg.dbg_sdio_free_irq_cnt++;
+				dvobj->irq_alloc = 0;
+			}
 		}
 
 		sdio_release_host(func);
@@ -593,17 +602,18 @@ _adapter *rtw_sdio_primary_adapter_init(struct dvobj_priv *dvobj)
 
 	rtw_hal_chip_configure(padapter);
 
-#ifdef CONFIG_BT_COEXIST
-	rtw_btcoex_Initialize(padapter);
-#endif /* CONFIG_BT_COEXIST */
-
 	/* 3 6. read efuse/eeprom data */
 	rtw_hal_read_chip_info(padapter);
+
 
 	/* 3 7. init driver common data */
 	if (rtw_init_drv_sw(padapter) == _FAIL) {
 		goto free_hal_data;
 	}
+
+#ifdef CONFIG_BT_COEXIST
+	rtw_btcoex_Initialize(padapter);
+#endif /* CONFIG_BT_COEXIST */
 
 	/* 3 8. get WLan MAC address */
 	/* set mac addr */
@@ -661,9 +671,11 @@ static void rtw_sdio_primary_adapter_deinit(_adapter *padapter)
 	sw_gpio_eint_set_enable(gpio_eint_wlan, 0);
 	sw_gpio_irq_free(eint_wlan_handle);
 #else
+#ifndef RTW_ENABLE_WIFI_CONTROL_FUNC
 	gpio_hostwakeup_free_irq(padapter);
-#endif
-#endif
+#endif /* RTW_ENABLE_WIFI_CONTROL_FUNC */
+#endif /* CONFIG_PLATFORM_ARM_SUN6I */
+#endif /* CONFIG_GPIO_WAKEUP */
 
 	/*rtw_cancel_all_timer(if1);*/
 
@@ -786,9 +798,6 @@ static int rtw_drv_init(
 	rtd2885_wlan_netlink_sendMsg("linkup", "8712");
 #endif
 
-	if (sdio_alloc_irq(dvobj) != _SUCCESS)
-		goto os_ndevs_deinit;
-
 #ifdef CONFIG_GPIO_WAKEUP
 #ifdef CONFIG_PLATFORM_ARM_SUN6I
 	eint_wlan_handle = sw_gpio_irq_request(gpio_eint_wlan, TRIG_EDGE_NEGATIVE, (peint_handle)gpio_hostwakeup_irq_thread, NULL);
@@ -797,9 +806,11 @@ static int rtw_drv_init(
 		return -1;
 	}
 #else
+#ifndef RTW_ENABLE_WIFI_CONTROL_FUNC 
 	gpio_hostwakeup_alloc_irq(padapter);
-#endif
-#endif
+#endif /* RTW_ENABLE_WIFI_CONTROL_FUNC */
+#endif /* CONFIG_PLATFORM_ARM_SUN6I */
+#endif /* CONFIG_GPIO_WAKEUP */
 
 #ifdef CONFIG_GLOBAL_UI_PID
 	if (ui_pid[1] != 0) {
@@ -862,12 +873,11 @@ static void rtw_dev_remove(struct sdio_func *func)
 	rtw_unregister_early_suspend(pwrctl);
 #endif
 
-	if (padapter->bFWReady == _TRUE) {
-		rtw_ps_deny(padapter, PS_DENY_DRV_REMOVE);
-		rtw_pm_set_ips(padapter, IPS_NONE);
-		rtw_pm_set_lps(padapter, PS_MODE_ACTIVE);
-		LeaveAllPowerSaveMode(padapter);
-	}
+	rtw_ps_deny(padapter, PS_DENY_DRV_REMOVE);
+	rtw_pm_set_ips(padapter, IPS_NONE);
+	rtw_pm_set_lps(padapter, PS_MODE_ACTIVE);
+	LeaveAllPowerSaveMode(padapter);
+
 	rtw_set_drv_stopped(padapter);	/*for stop thread*/
 	rtw_stop_cmd_thread(padapter);
 #ifdef CONFIG_CONCURRENT_MODE
@@ -907,6 +917,11 @@ static int rtw_sdio_suspend(struct device *dev)
 
 	if (psdpriv == NULL)
 		goto exit;
+
+	if (psdpriv->processing_dev_remove == _TRUE) {
+		RTW_ERR("%s processing_dev_remove is _TRUE\n", __func__);
+		goto exit;
+	}
 
 	pwrpriv = dvobj_to_pwrctl(psdpriv);
 	padapter = psdpriv->padapters[IFACE_ID0];
@@ -1109,7 +1124,7 @@ int rockchip_wifi_init_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("==== Launching Wi-Fi driver! (Powered by Rockchip) ====\n");
     printk("=======================================================\n");
-    printk("Realtek 8723CS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", DRIVERVERSION);
+    printk("Realtek 8723DS SDIO WiFi driver (Powered by Rockchip,Ver %s) init.\n", DRIVERVERSION);
 
     rockchip_wifi_power(1);
     rockchip_wifi_set_carddetect(1);    

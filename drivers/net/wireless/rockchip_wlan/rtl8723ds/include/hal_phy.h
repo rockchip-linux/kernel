@@ -71,9 +71,6 @@ typedef	enum _RF_TYPE {
 #define	TX_3S			2
 #define	TX_4S			3
 
-#define	RF_PATH_MAX_92C_88E		2
-#define	RF_PATH_MAX_90_8812		4	/* Max RF number 90 support */
-
 typedef enum _ANTENNA_PATH {
 	ANTENNA_NONE	= 0,
 	ANTENNA_D		= 1,

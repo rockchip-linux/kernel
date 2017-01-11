@@ -24,6 +24,8 @@
 #include "mp_precomp.h"
 #include "phydm_precomp.h"
 
+#if (defined(CONFIG_BB_POWER_SAVING))
+
 VOID 
 odm_DynamicBBPowerSavingInit(
 	IN		PVOID					pDM_VOID
@@ -119,3 +121,4 @@ ODM_RF_Saving(
 #endif	
 }
 
+#endif

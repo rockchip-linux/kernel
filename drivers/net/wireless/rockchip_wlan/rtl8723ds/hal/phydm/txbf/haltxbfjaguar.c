@@ -374,7 +374,7 @@ HalTxbfJaguar_Status(
 		BeamCtrlVal |= BIT12 | BIT14 | BIT15;
 	}
 
-	if (BeamformEntry.BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED) {
+	if ((BeamformEntry.BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED) && (pBeamInfo->applyVmatrix == TRUE)) {
 		if (BeamformEntry.SoundBW == CHANNEL_WIDTH_20)
 			BeamCtrlVal |= BIT9;
 		else if (BeamformEntry.SoundBW == CHANNEL_WIDTH_40)

@@ -84,19 +84,20 @@ void _rtw_scan_timeout_handler(void *FunctionContext)
 
 void _dynamic_check_timer_handlder(void *FunctionContext)
 {
-	_adapter *adapter = (_adapter *)FunctionContext;
+	struct dvobj_priv *pdvobj = (struct dvobj_priv *)FunctionContext;
+	_adapter *adapter = dvobj_get_primary_adapter(pdvobj);
 
 #if (MP_DRIVER == 1)
 	if (adapter->registrypriv.mp_mode == 1 && adapter->mppriv.mp_dm == 0) { /* for MP ODM dynamic Tx power tracking */
 		/* RTW_INFO("_dynamic_check_timer_handlder mp_dm =0 return\n"); */
-		_set_timer(&adapter->mlmepriv.dynamic_chk_timer, 2000);
+		_set_timer(&pdvobj->dynamic_chk_timer, 2000);
 		return;
 	}
 #endif
 
-	rtw_mi_dynamic_check_timer_handlder(adapter);
+	rtw_dynamic_check_timer_handlder(adapter);
 
-	_set_timer(&adapter->mlmepriv.dynamic_chk_timer, 2000);
+	_set_timer(&pdvobj->dynamic_chk_timer, 2000);
 }
 
 #ifdef CONFIG_SET_SCAN_DENY_TIMER
@@ -119,8 +120,6 @@ void rtw_init_mlme_timer(_adapter *padapter)
 #ifdef CONFIG_DFS_MASTER
 	_init_timer(&(pmlmepriv->dfs_master_timer), padapter->pnetdev, rtw_dfs_master_timer_hdl, padapter);
 #endif
-
-	_init_timer(&(pmlmepriv->dynamic_chk_timer), padapter->pnetdev, _dynamic_check_timer_handlder, padapter);
 
 #ifdef CONFIG_SET_SCAN_DENY_TIMER
 	_init_timer(&(pmlmepriv->set_scan_deny_timer), padapter->pnetdev, _rtw_set_scan_deny_timer_hdl, padapter);
@@ -314,6 +313,22 @@ void _link_timer_hdl(void *FunctionContext)
 	link_timer_hdl(padapter);
 }
 
+#ifdef CONFIG_RTW_80211R
+void _ft_link_timer_hdl(void *FunctionContext)
+{
+	_adapter *padapter = (_adapter *)FunctionContext;
+
+	ft_link_timer_hdl(padapter);
+}
+
+void _ft_roam_timer_hdl(void *FunctionContext)
+{
+	_adapter *padapter = (_adapter *)FunctionContext;
+
+	ft_roam_timer_hdl(padapter);
+}
+#endif
+
 void _addba_timer_hdl(void *FunctionContext)
 {
 	struct sta_info *psta = (struct sta_info *)FunctionContext;
@@ -362,6 +377,10 @@ void init_mlme_ext_timer(_adapter *padapter)
 
 	_init_timer(&pmlmeext->survey_timer, padapter->pnetdev, _survey_timer_hdl, padapter);
 	_init_timer(&pmlmeext->link_timer, padapter->pnetdev, _link_timer_hdl, padapter);
+#ifdef CONFIG_RTW_80211R
+	_init_timer(&pmlmeext->ft_link_timer, padapter->pnetdev, _ft_link_timer_hdl, padapter);
+	_init_timer(&pmlmeext->ft_roam_timer, padapter->pnetdev, _ft_roam_timer_hdl, padapter);
+#endif
 
 	/* _init_timer(&pmlmeext->ADDBA_timer, padapter->pnetdev, _addba_timer_hdl, padapter); */
 

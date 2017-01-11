@@ -91,6 +91,12 @@
 	#ifndef CONFIG_FW_C2H_PKT
 		#define CONFIG_FW_C2H_PKT
 	#endif
+	#ifndef CONFIG_RTW_MAC_HIDDEN_RPT
+		#define CONFIG_RTW_MAC_HIDDEN_RPT
+	#endif
+	#ifndef CONFIG_RTW_CUSTOMER_STR
+		#define CONFIG_RTW_CUSTOMER_STR
+	#endif
 #endif
 
 #ifdef CONFIG_RTL8814A
@@ -107,6 +113,9 @@
 	#ifndef CONFIG_FW_C2H_PKT
 		#define CONFIG_FW_C2H_PKT
 	#endif
+	#ifndef CONFIG_RTW_MAC_HIDDEN_RPT
+		#define CONFIG_RTW_MAC_HIDDEN_RPT
+	#endif
 #endif
 
 #ifdef CONFIG_RTL8188F
@@ -114,6 +123,9 @@
 	#define RTL8188F_SUPPORT				1
 	#ifndef CONFIG_FW_C2H_PKT
 		#define CONFIG_FW_C2H_PKT
+	#endif
+	#ifndef CONFIG_RTW_MAC_HIDDEN_RPT
+		#define CONFIG_RTW_MAC_HIDDEN_RPT
 	#endif
 #endif
 
@@ -130,6 +142,9 @@
 	#define RTL8821C_SUPPORT				1
 	#ifndef CONFIG_FW_C2H_PKT
 		#define CONFIG_FW_C2H_PKT
+	#endif
+	#ifndef CONFIG_RTW_MAC_HIDDEN_RPT
+		#define CONFIG_RTW_MAC_HIDDEN_RPT
 	#endif
 	#define LOAD_FW_HEADER_FROM_DRIVER
 	#define CONFIG_PHY_CAPABILITY_QUERY

@@ -18,7 +18,7 @@
 * 
 ******************************************************************************/
 
-/*Image2HeaderVersion: 2.23*/
+/*Image2HeaderVersion: 2.26*/
 #include "mp_precomp.h"
 #include "../phydm_precomp.h"
 
@@ -36,13 +36,18 @@ CheckPositive(
 				((pDM_Odm->BoardType & BIT3) >> 3) << 1 | /* _GPA*/ 
 				((pDM_Odm->BoardType & BIT7) >> 7) << 2 | /* _ALNA*/
 				((pDM_Odm->BoardType & BIT6) >> 6) << 3 | /* _APA */
-				((pDM_Odm->BoardType & BIT2) >> 2) << 4;  /* _BT*/  
+				((pDM_Odm->BoardType & BIT2) >> 2) << 4 | /* _BT*/  
+				((pDM_Odm->BoardType & BIT1) >> 1) << 5;  /* _NGFF*/  
 
 	u4Byte	cond1   = Condition1, cond2 = Condition2, cond3 = Condition3, cond4 = Condition4;
-	u4Byte    driver1 = pDM_Odm->CutVersion       << 24 | 
+
+	u1Byte	cut_version_for_para   = (pDM_Odm->CutVersion == ODM_CUT_A) ? 15 : pDM_Odm->CutVersion;
+	u1Byte	pkg_type_for_para   = (pDM_Odm->PackageType == 0) ? 15 : pDM_Odm->PackageType;
+
+	u4Byte    driver1 = cut_version_for_para       << 24 | 
 				(pDM_Odm->SupportInterface & 0xF0) << 16 | 
 				pDM_Odm->SupportPlatform  << 16 | 
-				pDM_Odm->PackageType      << 12 | 
+				pkg_type_for_para      << 12 | 
 				(pDM_Odm->SupportInterface & 0x0F) << 8  |
 				_BoardType;
 
@@ -566,7 +571,7 @@ ODM_ReadAndConfig_MP_8723D_AGC_TAB(
 u4Byte
 ODM_GetVersion_MP_8723D_AGC_TAB(void)
 {
-	   return 29;
+	   return 31;
 }
 
 /******************************************************************************
@@ -721,7 +726,7 @@ u4Byte Array_MP_8723D_PHY_REG[] = {
 		0xCD4, 0x001C8000,
 		0xCD8, 0x00000100,
 		0xCDC, 0x40100000,
-		0xCE0, 0x00222222,
+		0xCE0, 0x00222220,
 		0xCE4, 0x20000000,
 		0xCE8, 0x37644302,
 		0xCEC, 0x2F97D40C,
@@ -732,7 +737,7 @@ u4Byte Array_MP_8723D_PHY_REG[] = {
 		0xD10, 0xA0633333,
 		0xD14, 0x3333BC53,
 		0xD18, 0x7A8F5B6F,
-		0xD2C, 0xCB979975,
+		0xD2C, 0xCC979975,
 		0xD30, 0x00000000,
 		0xD34, 0x80608000,
 		0xD38, 0x88000000,
@@ -857,7 +862,7 @@ ODM_ReadAndConfig_MP_8723D_PHY_REG(
 u4Byte
 ODM_GetVersion_MP_8723D_PHY_REG(void)
 {
-	   return 29;
+	   return 31;
 }
 
 /******************************************************************************

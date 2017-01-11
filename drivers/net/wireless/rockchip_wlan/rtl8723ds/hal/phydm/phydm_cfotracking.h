@@ -34,8 +34,9 @@ typedef struct _CFO_TRACKING_
 	BOOLEAN			bAdjust;
 	u1Byte			CrystalCap;
 	u1Byte			DefXCap;
-	int				CFO_tail[2];
-	int				CFO_ave_pre;
+	s4Byte			CFO_tail[4];
+	u4Byte			CFO_cnt[4];
+	s4Byte			CFO_ave_pre;
 	u4Byte			packetCount;
 	u4Byte			packetCount_pre;
 
@@ -62,7 +63,8 @@ VOID
 ODM_ParsingCFO(
 	IN		PVOID					pDM_VOID,
 	IN		PVOID					pPktinfo_VOID,
-	IN     	s1Byte* 					pcfotail
+	IN		s1Byte*					pcfotail,
+	IN		u1Byte					num_ss
 );
 
 #endif

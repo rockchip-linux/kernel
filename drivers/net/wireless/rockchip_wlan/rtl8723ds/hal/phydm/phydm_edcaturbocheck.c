@@ -364,7 +364,10 @@ odm_EdcaTurboCheckMP(
 			odm_EdcaChooseTrafficIdx(pDM_Odm,curTxOkCnt, curRxOkCnt,   FALSE,  pbIsCurRDLState);
 
 //modify by Guo.Mingzhi 2011-12-29
-			EDCA_BE=((*pbIsCurRDLState)==TRUE)?EDCA_BE_DL:EDCA_BE_UL;
+			if( Adapter->AP_EDCA_PARAM[0] != EDCA_BE )
+				EDCA_BE = Adapter->AP_EDCA_PARAM[0];
+			else
+				EDCA_BE=((*pbIsCurRDLState)==TRUE)?EDCA_BE_DL:EDCA_BE_UL;
 			if(IS_HARDWARE_TYPE_8821U(Adapter))
 			{
 				if(pMgntInfo->RegTxDutyEnable)

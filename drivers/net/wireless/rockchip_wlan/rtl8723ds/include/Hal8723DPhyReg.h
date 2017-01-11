@@ -536,7 +536,7 @@
 #define		bOFDMTxStatus					0x2
 
 #define		IS_BB_REG_OFFSET_92S(_Offset)		((_Offset >= 0x800) && (_Offset <= 0xfff))
-#define	RF_TX_GAIN_OFFSET_8723D(_val) (abs((_val)) | (((_val) > 0) ? BIT(5) : 0))
+#define		RF_TX_GAIN_OFFSET_8723D(_val) (abs((_val)) | (((_val) > 0) ? BIT(4) : 0))
 
 /* 2. Page8(0x800) */
 #define		bRFMOD							0x1	/* Reg 0x800 rFPGA0_RFMOD */

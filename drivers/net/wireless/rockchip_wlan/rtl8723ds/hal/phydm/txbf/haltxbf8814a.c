@@ -83,10 +83,9 @@ HalTxbf8814A_ResetTxPath(
 {
 	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
 #if DEV_BUS_TYPE == RT_USB_INTERFACE
-
 	PRT_BEAMFORMING_INFO	pBeamformingInfo = &pDM_Odm->BeamformingInfo;
 	RT_BEAMFORMEE_ENTRY	BeamformeeEntry;
-	u1Byte	Nr_index = 0;
+	u1Byte	Nr_index = 0, txSS = 0;
 
 	if (idx < BEAMFORMEE_ENTRY_NUM)
 		BeamformeeEntry = pBeamformingInfo->BeamformeeEntry[idx];
@@ -96,6 +95,29 @@ HalTxbf8814A_ResetTxPath(
 	if ((pDM_Odm->LastUSBHub) != (*pDM_Odm->HubUsbMode)) {
 		Nr_index = TxBF_Nr(halTxbf8814A_GetNtx(pDM_Odm), BeamformeeEntry.CompSteeringNumofBFer);
 
+		if (*pDM_Odm->HubUsbMode == 2) {
+			if (pDM_Odm->RFType == ODM_4T4R)
+				txSS = 0xf;
+			else if (pDM_Odm->RFType == ODM_3T3R)
+				txSS = 0xe;
+			else
+				txSS = 0x6;
+		} else if (*pDM_Odm->HubUsbMode == 1)	/*USB 2.0 always 2Tx*/
+			txSS = 0x6;
+		else
+			txSS = 0x6;
+
+		if (txSS == 0xf) {
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93f);
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskDWord, 0x93f93f0);
+		} else if (txSS == 0xe) {
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93e);
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93e93e0);
+		} else if (txSS == 0x6) {
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x936);
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskLWord, 0x9360);
+		}
+
 		if (idx == 0) {
 			switch (Nr_index) {
 			case 0:
@@ -103,20 +125,14 @@ HalTxbf8814A_ResetTxPath(
 
 			case 1:			/*Nsts = 2	BC*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF0_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x9366);		/*tx2path, BC*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x936);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskLWord, 0x9360);
 			break;
 
 			case 2:			/*Nsts = 3	BCD*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF0_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93e93ee);	/*tx3path, BCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93e);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93e93e0);
 			break;
 
 			default:			/*Nr>3, same as Case 3*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF0_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93f93ff);	/*tx4path, ABCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93f);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskDWord, 0x93f93f0);
 			break;
 			}
 		} else	{
@@ -126,20 +142,14 @@ HalTxbf8814A_ResetTxPath(
 
 			case 1:			/*Nsts = 2	BC*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x9366);		/*tx2path, BC*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x936);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskLWord, 0x9360);
 			break;
 
 			case 2:			/*Nsts = 3	BCD*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93e93ee);	/*tx3path, BCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93e);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93e93e0);
 			break;
 
 			default:			/*Nr>3, same as Case 3*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93f93ff);	/*tx4path, ABCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93f);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93f93f0);
 			break;
 			}
 		}
@@ -157,31 +167,22 @@ halTxbf8814A_GetNtx(
 )
 {
 	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u1Byte			Ntx = 0;
+	u1Byte		Ntx = 0, txSS = 3;
 
 #if DEV_BUS_TYPE == RT_USB_INTERFACE
-	if (pDM_Odm->SupportInterface == ODM_ITRF_USB) {
-		if (*pDM_Odm->HubUsbMode == 2) {/*USB3.0*/
-			if (pDM_Odm->RFType == ODM_4T4R)
-				Ntx = 3;
-			else if (pDM_Odm->RFType == ODM_3T3R)
-				Ntx = 2;
-			else
-				Ntx = 1;
-		} else if (*pDM_Odm->HubUsbMode == 1)	/*USB 2.0 always 2Tx*/
-			Ntx = 1;
-		else
-			Ntx = 1;
-	} else
+	txSS = *pDM_Odm->HubUsbMode;
 #endif
-	{
+	if (txSS == 3 || txSS == 2) {
 		if (pDM_Odm->RFType == ODM_4T4R)
 			Ntx = 3;
 		else if (pDM_Odm->RFType == ODM_3T3R)
 			Ntx = 2;
 		else
 			Ntx = 1;
-	}
+	} else if (txSS == 1)	/*USB 2.0 always 2Tx*/
+		Ntx = 1;
+	else
+		Ntx = 1;
 
 	ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_TXBF, ODM_DBG_LOUD, ("[%s] Ntx = %d\n", __func__, Ntx));
 	return Ntx;
@@ -225,6 +226,7 @@ halTxbf8814A_RfMode(
 {
 	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	u1Byte				i, Nr_index = 0;
+	u1Byte				txSS = 3;		/*default use 3 Tx*/
 	RT_BEAMFORMEE_ENTRY	BeamformeeEntry;
 
 	if (idx < BEAMFORMEE_ENTRY_NUM)
@@ -263,32 +265,50 @@ halTxbf8814A_RfMode(
 	if (pBeamformingInfo->beamformee_su_cnt > 0) {
 #if DEV_BUS_TYPE == RT_USB_INTERFACE
 		pDM_Odm->LastUSBHub = *pDM_Odm->HubUsbMode;
+		txSS = *pDM_Odm->HubUsbMode;
 #endif
+		if (txSS == 3 || txSS == 2) {
+			if (pDM_Odm->RFType == ODM_4T4R)
+				txSS = 0xf;
+			else if (pDM_Odm->RFType == ODM_3T3R)
+				txSS = 0xe;
+			else
+				txSS = 0x6;
+		} else if (txSS == 1)	/*USB 2.0 always 2Tx*/
+			txSS = 0x6;
+		else
+			txSS = 0x6;
+
+		if (txSS == 0xf) {
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93f);
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskDWord, 0x93f93f0);
+		} else if (txSS == 0xe) {
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93e);
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93e93e0);
+		} else if (txSS == 0x6) {
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x936);
+			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskLWord, 0x9360);
+		}
 
 		/*for 8814 19ac(idx 1), 19b4(idx 0), different Tx ant setting*/
 		ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, BIT28 | BIT29, 0x2);			/*enable BB TxBF ant mapping register*/
-
+		
 		if (idx == 0) {
 			switch (Nr_index) {
 			case 0:
-				break;
+			break;
 
 			case 1:			/*Nsts = 2	BC*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF0_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x9366);		/*tx2path, BC*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x936);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskLWord, 0x9360);
 			break;
 
 			case 2:			/*Nsts = 3	BCD*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF0_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93e93ee);	/*tx3path, BCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93e);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93e93e0);
 			break;
 
 			default:			/*Nr>3, same as Case 3*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF0_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93f93ff);	/*tx4path, ABCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93f);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskDWord, 0x93f93f0);
+			
 			break;
 			}
 		} else {
@@ -298,20 +318,14 @@ halTxbf8814A_RfMode(
 
 			case 1:			/*Nsts = 2	BC*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x9366);		/*tx2path, BC*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x936);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskLWord, 0x9360);
 			break;
 
 			case 2:			/*Nsts = 3	BCD*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93e93ee);	/*tx3path, BCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93e);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93e93e0);
 			break;
 
 			default:			/*Nr>3, same as Case 3*/
 			ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8814A, bMaskByte3LowNibble | bMaskL3Bytes, 0x93f93ff);	/*tx4path, ABCD*/
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8814A, bMaskByte3 | bMaskByte2HighNibble, 0x93f);
-			ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_2_8814A, bMaskDWord, 0x93f93f0);
 			break;
 			}
 		}
@@ -614,7 +628,7 @@ HalTxbf8814A_Status(
 		BeamCtrlVal |= BIT12 | BIT14 | BIT15;
 	}
 
-	if (BeamformEntry.BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED) {
+	if ((BeamformEntry.BeamformEntryState == BEAMFORMING_ENTRY_STATE_PROGRESSED) && (pBeamformingInfo->applyVmatrix == TRUE)) {
 		if (BeamformEntry.SoundBW == CHANNEL_WIDTH_20)
 			BeamCtrlVal |= BIT9;
 		else if (BeamformEntry.SoundBW == CHANNEL_WIDTH_40)

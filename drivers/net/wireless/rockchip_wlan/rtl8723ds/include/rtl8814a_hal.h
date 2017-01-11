@@ -38,15 +38,6 @@
 	#include "rtl8814a_sreset.h"
 #endif /* DBG_CONFIG_ERROR_DETECT */
 
-
-typedef enum _TX_PWR_PERCENTAGE {
-	TX_PWR_PERCENTAGE_0 = 0x01, /* 12.5% */
-	TX_PWR_PERCENTAGE_1 = 0x02, /* 25% */
-	TX_PWR_PERCENTAGE_2 = 0x04, /* 50% */
-	TX_PWR_PERCENTAGE_3 = 0x08, /* 100%, default target output power.	 */
-} TX_PWR_PERCENTAGE;
-
-
 enum {
 	VOLTAGE_V25						= 0x03,
 	LDOE25_SHIFT					= 28 ,
@@ -66,24 +57,6 @@ typedef struct _RT_FIRMWARE_8814 {
 
 #define PAGE_SIZE_TX_8814	PAGE_SIZE_128
 #define BCNQ_PAGE_NUM_8814		0x08
-
-/* ---------------------------------------------------------------------
- *		RTL8814AU From header
- * --------------------------------------------------------------------- */
-#define RTL8814A_FW_IMG					"rtl8814a/FW_NIC.bin"
-#define RTL8814A_FW_WW_IMG				"rtl8814a/FW_WoWLAN.bin"
-#define RTL8814A_PHY_REG					"rtl8814a/PHY_REG.txt"
-#define RTL8814A_PHY_RADIO_A				"rtl8814a/RadioA.txt"
-#define RTL8814A_PHY_RADIO_B				"rtl8814a/RadioB.txt"
-#define RTL8814A_PHY_RADIO_C				"rtl8814a/RadioC.txt"
-#define RTL8814A_PHY_RADIO_D				"rtl8814a/RadioD.txt"
-#define RTL8814A_TXPWR_TRACK				"rtl8814a/TxPowerTrack.txt"
-#define RTL8814A_AGC_TAB					"rtl8814a/AGC_TAB.txt"
-#define RTL8814A_PHY_MACREG				"rtl8814a/MAC_REG.txt"
-#define RTL8814A_PHY_REG_PG				"rtl8814a/PHY_REG_PG.txt"
-#define RTL8814A_PHY_REG_MP				"rtl8814a/PHY_REG_MP.txt"
-#define RTL8814A_TXPWR_LMT				"rtl8814a/TXPWR_LMT.txt"
-#define RTL8814A_WIFI_ANT_ISOLATION		"rtl8814a/wifi_ant_isolation.txt"
 
 #define Rtl8814A_NIC_PWR_ON_FLOW				rtl8814A_power_on_flow
 #define Rtl8814A_NIC_RF_OFF_FLOW				rtl8814A_radio_off_flow

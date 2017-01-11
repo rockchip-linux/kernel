@@ -21,7 +21,7 @@
 #ifndef	__PHYDMDIG_H__
 #define    __PHYDMDIG_H__
 
-#define DIG_VERSION	"1.21"	/* 2016.03.30  Stanley, modify CCK PD */
+#define DIG_VERSION	"1.24"	/* 2016.06.01  Stanley. Modify IGI setting for 1R-CCA path-B */
 
 /* Pause DIG & CCKPD */
 #define		DM_DIG_MAX_PAUSE_TYPE		0x7
@@ -115,22 +115,36 @@ typedef struct _Dynamic_Initial_Gain_Threshold_
 }DIG_T,*pDIG_T;
 
 typedef struct _FALSE_ALARM_STATISTICS{
-	u4Byte	Cnt_Parity_Fail;
-	u4Byte	Cnt_Rate_Illegal;
-	u4Byte	Cnt_Crc8_fail;
-	u4Byte	Cnt_Mcs_fail;
-	u4Byte	Cnt_Ofdm_fail;
-	u4Byte	Cnt_Ofdm_fail_pre;	//For RTL8881A
-	u4Byte	Cnt_Cck_fail;
-	u4Byte	Cnt_all;
-	u4Byte	Cnt_all_pre;
-	u4Byte	Cnt_Fast_Fsync;
-	u4Byte	Cnt_SB_Search_fail;
-	u4Byte	Cnt_OFDM_CCA;
-	u4Byte	Cnt_CCK_CCA;
-	u4Byte	Cnt_CCA_all;
-	u4Byte	Cnt_BW_USC;	//Gary
-	u4Byte	Cnt_BW_LSC;	//Gary
+	u4Byte		Cnt_Parity_Fail;
+	u4Byte		Cnt_Rate_Illegal;
+	u4Byte		Cnt_Crc8_fail;
+	u4Byte		Cnt_Mcs_fail;
+	u4Byte		Cnt_Ofdm_fail;
+	u4Byte		Cnt_Ofdm_fail_pre;	//For RTL8881A
+	u4Byte		Cnt_Cck_fail;
+	u4Byte		Cnt_all;
+	u4Byte		Cnt_all_pre;
+	u4Byte		Cnt_Fast_Fsync;
+	u4Byte		Cnt_SB_Search_fail;
+	u4Byte		Cnt_OFDM_CCA;
+	u4Byte		Cnt_CCK_CCA;
+	u4Byte		Cnt_CCA_all;
+	u4Byte		Cnt_BW_USC;	//Gary
+	u4Byte		Cnt_BW_LSC;	//Gary
+	u4Byte		cnt_cck_crc32_error;
+	u4Byte		cnt_cck_crc32_ok;
+	u4Byte		cnt_ofdm_crc32_error;
+	u4Byte		cnt_ofdm_crc32_ok;
+	u4Byte		cnt_ht_crc32_error;
+	u4Byte		cnt_ht_crc32_ok;
+	u4Byte		cnt_vht_crc32_error;
+	u4Byte		cnt_vht_crc32_ok;
+	u4Byte		cnt_crc32_error_all;
+	u4Byte		cnt_crc32_ok_all;
+	BOOLEAN		cck_block_enable;
+	BOOLEAN		ofdm_block_enable;
+	u4Byte		dbg_port0;
+	BOOLEAN		edcca_flag;
 }FALSE_ALARM_STATISTICS, *PFALSE_ALARM_STATISTICS;
 
 typedef enum tag_Dynamic_Init_Gain_Operation_Type_Definition

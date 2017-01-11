@@ -212,6 +212,30 @@ typedef enum _CH_SW_USE_CASE {
 	CH_SW_USE_CASE_MCC		= 1
 } CH_SW_USE_CASE;
 
+typedef enum _WAKEUP_REASON{
+	RX_PAIRWISEKEY					= 0x01,
+	RX_GTK							= 0x02,
+	RX_FOURWAY_HANDSHAKE			= 0x03,
+	RX_DISASSOC						= 0x04,
+	RX_DEAUTH						= 0x08,
+	RX_ARP_REQUEST					= 0x09,
+	FW_DECISION_DISCONNECT			= 0x10,
+	RX_MAGIC_PKT					= 0x21,
+	RX_UNICAST_PKT					= 0x22,
+	RX_PATTERN_PKT					= 0x23,
+	RTD3_SSID_MATCH					= 0x24,
+	RX_REALWOW_V2_WAKEUP_PKT		= 0x30,
+	RX_REALWOW_V2_ACK_LOST			= 0x31,
+	ENABLE_FAIL_DMA_IDLE			= 0x40,
+	ENABLE_FAIL_DMA_PAUSE			= 0x41,
+	RTIME_FAIL_DMA_IDLE				= 0x42,
+	RTIME_FAIL_DMA_PAUSE			= 0x43,
+	RX_PNO							= 0x55,
+	AP_OFFLOAD_WAKEUP				= 0x66,
+	CLK_32K_UNLOCK					= 0xFD,
+	CLK_32K_LOCK					= 0xFE
+}WAKEUP_REASON;
+
 /*
  * Queue Select Value in TxDesc
  *   */
@@ -379,6 +403,7 @@ u32 rtw_sec_read_cam(_adapter *adapter, u8 addr);
 void rtw_sec_write_cam(_adapter *adapter, u8 addr, u32 wdata);
 void rtw_sec_read_cam_ent(_adapter *adapter, u8 id, u8 *ctrl, u8 *mac, u8 *key);
 void rtw_sec_write_cam_ent(_adapter *adapter, u8 id, u16 ctrl, u8 *mac, u8 *key);
+void rtw_sec_clr_cam_ent(_adapter *adapter, u8 id);
 bool rtw_sec_read_cam_is_gk(_adapter *adapter, u8 id);
 
 void rtw_hal_set_msr(_adapter *adapter, u8 net_type);

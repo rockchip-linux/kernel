@@ -36,35 +36,6 @@
 	#include "rtl8723b_sreset.h"
 #endif
 
-
-/* ---------------------------------------------------------------------
- *		RTL8723B From file
- * --------------------------------------------------------------------- */
-#define RTL8723B_FW_IMG					"rtl8723b/FW_NIC.bin"
-#define RTL8723B_FW_WW_IMG				"rtl8723b/FW_WoWLAN.bin"
-#define RTL8723B_PHY_REG					"rtl8723b/PHY_REG.txt"
-#define RTL8723B_PHY_RADIO_A				"rtl8723b/RadioA.txt"
-#define RTL8723B_PHY_RADIO_B				"rtl8723b/RadioB.txt"
-#define RTL8723B_TXPWR_TRACK				"rtl8723b/TxPowerTrack.txt"
-#define RTL8723B_AGC_TAB					"rtl8723b/AGC_TAB.txt"
-#define RTL8723B_PHY_MACREG 				"rtl8723b/MAC_REG.txt"
-#define RTL8723B_PHY_REG_PG				"rtl8723b/PHY_REG_PG.txt"
-#define RTL8723B_PHY_REG_MP				"rtl8723b/PHY_REG_MP.txt"
-#define RTL8723B_TXPWR_LMT 				"rtl8723b/TXPWR_LMT.txt"
-
-/* ---------------------------------------------------------------------
- *		RTL8723B From header
- * --------------------------------------------------------------------- */
-
-#if MP_DRIVER == 1
-	#define Rtl8723B_FwBTImgArray				Rtl8723BFwBTImgArray
-	#define Rtl8723B_FwBTImgArrayLength		Rtl8723BFwBTImgArrayLength
-
-	#define Rtl8723B_PHY_REG_Array_MP			Rtl8723B_PHYREG_Array_MP
-	#define Rtl8723B_PHY_REG_Array_MPLength	Rtl8723B_PHYREG_Array_MPLength
-#endif
-
-
 #define FW_8723B_SIZE			0x8000
 #define FW_8723B_START_ADDRESS	0x1000
 #define FW_8723B_END_ADDRESS		0x1FFF /* 0x5FFF */

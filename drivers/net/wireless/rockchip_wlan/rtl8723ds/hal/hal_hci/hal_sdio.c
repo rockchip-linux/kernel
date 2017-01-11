@@ -23,6 +23,163 @@
 #include <hal_data.h>
 
 #ifndef RTW_HALMAC
+static void dump_sdio_f0(PADAPTER padapter)
+{
+	char str_out[128];
+	char str_val[8];
+	char *p = NULL;
+	int index = 0, i = 0;
+	u8 val8 = 0, len = 0;
+
+	RTW_ERR("Dump SDIO function_0 register:\n");
+	for (index = 0 ; index < 0x100 ; index += 16) {
+		p = &str_out[0];
+		len = snprintf(str_val, sizeof(str_val),
+			       "0x%02x: ", index);
+		strncpy(str_out, str_val, len);
+		p += len;
+
+		for (i = 0 ; i < 16 ; i++) {
+			len = snprintf(str_val, sizeof(str_val), "%02x ",
+				       rtw_sd_f0_read8(padapter, index + i));
+			strncpy(p, str_val, len);
+			p += len;
+		}
+		RTW_INFO("%s\n", str_out);
+		_rtw_memset(&str_out, '\0', sizeof(str_out));
+	}
+}
+
+static void dump_sdio_local(PADAPTER padapter)
+{
+	char str_out[128];
+	char str_val[8];
+	char *p = NULL;
+	int index = 0, i = 0;
+	u8 val8 = 0, len = 0;
+
+	RTW_ERR("Dump SDIO local register:\n");
+	for (index = 0 ; index < 0x100 ; index += 16) {
+		p = &str_out[0];
+		len = snprintf(str_val, sizeof(str_val),
+			       "0x%02x: ", index);
+		strncpy(str_out, str_val, len);
+		p += len;
+
+		for (i = 0 ; i < 16 ; i++) {
+			len = snprintf(str_val, sizeof(str_val), "%02x ",
+				       rtw_read8(padapter, (0x1025 << 16) | (index + i)));
+			strncpy(p, str_val, len);
+			p += len;
+		}
+		RTW_INFO("%s\n", str_out);
+		_rtw_memset(&str_out, '\0', sizeof(str_out));
+	}
+}
+
+static void dump_mac_page0(PADAPTER padapter)
+{
+	char str_out[128];
+	char str_val[8];
+	char *p = NULL;
+	int index = 0, i = 0;
+	u8 val8 = 0, len = 0;
+
+	RTW_ERR("Dump MAC Page0 register:\n");
+	for (index = 0 ; index < 0x100 ; index += 16) {
+		p = &str_out[0];
+		len = snprintf(str_val, sizeof(str_val),
+			       "0x%02x: ", index);
+		strncpy(str_out, str_val, len);
+		p += len;
+
+		for (i = 0 ; i < 16 ; i++) {
+			len = snprintf(str_val, sizeof(str_val), "%02x ",
+				       rtw_read8(padapter, index + i));
+			strncpy(p, str_val, len);
+			p += len;
+		}
+		RTW_INFO("%s\n", str_out);
+		_rtw_memset(&str_out, '\0', sizeof(str_out));
+	}
+}
+
+/*
+ * Description:
+ *	Call this function to make sure power on successfully
+ *
+ * Return:
+ *	_SUCCESS	enable success
+ *	_FAIL	enable fail
+ */
+bool sdio_power_on_check(PADAPTER padapter) {
+	u32 val_offset0, val_offset1, val_offset2, val_offset3;
+	u32 val_mix = 0;
+	u32 res = 0;
+	bool ret = _FAIL;
+	int index = 0;
+
+	val_offset0 = rtw_read8(padapter, REG_CR);
+	val_offset1 = rtw_read8(padapter, REG_CR + 1);
+	val_offset2 = rtw_read8(padapter, REG_CR + 2);
+	val_offset3 = rtw_read8(padapter, REG_CR + 3);
+
+	if (val_offset0 == 0xEA || val_offset1 == 0xEA ||
+	    val_offset2 == 0xEA || val_offset3 == 0xEA) {
+		RTW_INFO("%s: power on fail, do Power on again\n", __func__);
+		goto _exit;
+	}
+
+	val_mix = val_offset3 << 24 | val_mix;
+	val_mix = val_offset2 << 16 | val_mix;
+	val_mix = val_offset1 << 8 | val_mix;
+	val_mix = val_offset0 | val_mix;
+
+	res = rtw_read32(padapter, REG_CR);
+
+	RTW_INFO("%s: val_mix:0x%08x, res:0x%08x\n", __func__, val_mix, res);
+
+	while (index < 100) {
+		if (res == val_mix) {
+			RTW_INFO("%s: 0x100 the result of cmd52 and cmd53 is the same.\n", __func__);
+			ret = _SUCCESS;
+			break;
+		} else {
+			RTW_INFO("%s: 0x100 cmd52 and cmd53 is not the same(index:%d).\n", __func__, index);
+			res = rtw_read32(padapter, REG_CR);
+			index++;
+			ret = _FAIL;
+		}
+	}
+
+	if (ret) {
+		index = 0;
+		while (index < 100) {
+			rtw_write32(padapter, 0x1B8, 0x12345678);
+			res = rtw_read32(padapter, 0x1B8);
+			if (res == 0x12345678) {
+				RTW_INFO("%s: 0x1B8 test Pass.\n", __func__);
+				ret = _SUCCESS;
+				break;
+			} else {
+				index++;
+				RTW_INFO("%s: 0x1B8 test Fail(index: %d).\n", __func__, index);
+				ret = _FAIL;
+			}
+		}
+	} else
+		RTW_INFO("%s: fail at cmd52, cmd53.\n", __func__);
+
+_exit:
+	if (ret == _FAIL) {
+		dump_sdio_f0(padapter);
+		dump_sdio_local(padapter);
+		dump_mac_page0(padapter);
+	}
+
+	return ret;
+}
+
 u8 rtw_hal_sdio_max_txoqt_free_space(_adapter *padapter)
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);

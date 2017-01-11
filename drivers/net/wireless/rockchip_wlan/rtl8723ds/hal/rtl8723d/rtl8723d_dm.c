@@ -523,6 +523,7 @@ void rtl8723d_init_dm_priv(IN PADAPTER Adapter)
 
 	Init_ODM_ComInfo_8723d(Adapter);
 	ODM_InitAllTimers(podmpriv);
+
 }
 
 void rtl8723d_deinit_dm_priv(IN PADAPTER Adapter)

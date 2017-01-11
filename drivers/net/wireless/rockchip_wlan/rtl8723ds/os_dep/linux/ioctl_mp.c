@@ -372,6 +372,9 @@ int rtw_mp_start(struct net_device *dev,
 	rtw_pm_set_ips(padapter, IPS_NONE);
 	LeaveAllPowerSaveMode(padapter);
 
+	if (rtw_mi_check_fwstate(padapter, _FW_UNDER_SURVEY))
+		rtw_mi_scan_abort(padapter, _FALSE);
+
 	if (padapter->registrypriv.mp_mode == 0) {
 		rtw_hal_deinit(padapter);
 		padapter->registrypriv.mp_mode = 1;
@@ -411,6 +414,10 @@ int rtw_mp_start(struct net_device *dev,
 #endif
 	ODM_Write_DIG(&pHalData->odmpriv, 0x20);
 
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "mp_start ok\n");
+	wrqu->length = strlen(extra);
+
 	return 0;
 }
 
@@ -435,6 +442,9 @@ int rtw_mp_stop(struct net_device *dev,
 		mp_stop_test(padapter);
 		padapter->mppriv.mode = MP_OFF;
 	}
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "mp_stop ok\n");
+	wrqu->length = strlen(extra);
 
 	return 0;
 }
@@ -521,8 +531,12 @@ int rtw_mp_bandwidth(struct net_device *dev,
 	int cur_ch_offset;
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	HAL_DATA_TYPE	*pHalData	= GET_HAL_DATA(padapter);
+	u8		input[wrqu->length];
 
-	if (sscanf(extra, "40M=%d,shortGI=%d", &bandwidth, &sg) > 0)
+	if (copy_from_user(input, wrqu->pointer, wrqu->length))
+		return -EFAULT;
+
+	if (sscanf(input, "40M=%d,shortGI=%d", &bandwidth, &sg) > 0)
 		RTW_INFO("%s: bw=%d sg=%d\n", __func__, bandwidth , sg);
 
 	if (bandwidth == 1)
@@ -532,11 +546,14 @@ int rtw_mp_bandwidth(struct net_device *dev,
 
 	padapter->mppriv.bandwidth = (u8)bandwidth;
 	padapter->mppriv.preamble = sg;
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "Change BW %d to BW %d\n", pHalData->CurrentChannelBW , bandwidth);
 
 	SetBandwidth(padapter);
 	pHalData->CurrentChannelBW = bandwidth;
 	/*cur_ch_offset =  rtw_get_offset_by_ch(padapter->mppriv.channel);*/
 	/*set_channel_bwmode(padapter, padapter->mppriv.channel, cur_ch_offset, bandwidth);*/
+	wrqu->length = strlen(extra);
 
 	return 0;
 }
@@ -949,6 +966,7 @@ int rtw_mp_arx(struct net_device *dev,
 	} else if (bStopRx) {
 		SetPacketRx(padapter, bStartRx, _FALSE);
 		pmppriv->bmac_filter = _FALSE;
+		pmppriv->bSetRxBssid = _FALSE;
 		sprintf(extra, "Received packet OK:%d CRC error:%d ,Filter out:%d", padapter->mppriv.rx_pktcount, padapter->mppriv.rx_crcerrpktcount, padapter->mppriv.rx_pktcount_filter_out);
 	} else if (bQueryPhy) {
 		_rtw_memset(&rx_counter, 0, sizeof(struct dbg_rx_counter));
@@ -1180,6 +1198,10 @@ int rtw_mp_reset_stats(struct net_device *dev,
 	rtw_reset_phy_rx_counters(padapter);
 	rtw_reset_mac_rx_counters(padapter);
 
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "mp_reset_stats ok\n");
+	wrqu->length = strlen(extra);
+
 	return 0;
 }
 
@@ -1240,26 +1262,34 @@ int rtw_mp_phypara(struct net_device *dev,
 
 int rtw_mp_SetRFPath(struct net_device *dev,
 		     struct iw_request_info *info,
-		     union iwreq_data *wrqu, char *extra)
+		     struct iw_point *wrqu, char *extra)
 {
 	PADAPTER padapter = rtw_netdev_priv(dev);
-	char	input[wrqu->data.length];
+	char	input[wrqu->length];
 	int		bMain = 1, bTurnoff = 1;
 
-	if (copy_from_user(input, wrqu->data.pointer, wrqu->data.length))
-		return -EFAULT;
 	RTW_INFO("%s:iwpriv in=%s\n", __func__, input);
+
+	if (copy_from_user(input, wrqu->pointer, wrqu->length))
+		return -EFAULT;
 
 	bMain = strncmp(input, "1", 2); /* strncmp TRUE is 0*/
 	bTurnoff = strncmp(input, "0", 3); /* strncmp TRUE is 0*/
 
+	_rtw_memset(extra, 0, wrqu->length);
+
 	if (bMain == 0) {
 		MP_PHY_SetRFPathSwitch(padapter, _TRUE);
 		RTW_INFO("%s:PHY_SetRFPathSwitch=TRUE\n", __func__);
+		sprintf(extra, "mp_setrfpath Main\n");
+
 	} else if (bTurnoff == 0) {
 		MP_PHY_SetRFPathSwitch(padapter, _FALSE);
 		RTW_INFO("%s:PHY_SetRFPathSwitch=FALSE\n", __func__);
+		sprintf(extra, "mp_setrfpath Aux\n");
 	}
+
+	wrqu->length = strlen(extra);
 
 	return 0;
 }
@@ -2010,6 +2040,7 @@ int rtw_efuse_file_map(struct net_device *dev,
 	PEFUSE_HAL pEfuseHal;
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+	struct mp_priv *pmp_priv = &padapter->mppriv;
 
 	pEfuseHal = &pHalData->EfuseHal;
 	if (copy_from_user(extra, wrqu->data.pointer, wrqu->data.length))
@@ -2022,10 +2053,13 @@ int rtw_efuse_file_map(struct net_device *dev,
 	if (rtw_is_file_readable(rtw_efuse_file_map_path) == _TRUE) {
 		RTW_INFO("%s do rtw_efuse_mask_file_read = %s!\n", __func__, rtw_efuse_file_map_path);
 		Status = rtw_efuse_file_read(padapter, rtw_efuse_file_map_path, pEfuseHal->fakeEfuseModifiedMap, sizeof(pEfuseHal->fakeEfuseModifiedMap));
-		if (Status == _TRUE)
+		if (Status == _TRUE) {
+			pmp_priv->bloadefusemap = _TRUE;
 			sprintf(extra, "efuse file file_read OK\n");
-		else
+		} else {
+			pmp_priv->bloadefusemap = _FALSE;
 			sprintf(extra, "efuse file file_read FAIL\n");
+		}
 	} else {
 		sprintf(extra, "efuse file readable FAIL\n");
 		RTW_INFO("%s rtw_is_file_readable fail!\n", __func__);

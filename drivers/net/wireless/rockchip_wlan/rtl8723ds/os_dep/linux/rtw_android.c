@@ -1073,6 +1073,9 @@ static int wifi_probe(struct platform_device *pdev)
 
 	wifi_set_power(1, 0);	/* Power On */
 	wifi_set_carddetect(1);	/* CardDetect (0->1) */
+	
+	if (oob_irq != 0)
+		enable_irq_wake(oob_irq);
 
 	up(&wifi_control_sem);
 	return 0;
@@ -1152,6 +1155,9 @@ static int wifi_remove(struct platform_device *pdev)
 
 	RTW_INFO("## %s\n", __FUNCTION__);
 	wifi_control_data = wifi_ctrl;
+
+	if (oob_irq != 0)
+		disable_irq_wake(oob_irq);
 
 	wifi_set_power(0, 0);	/* Power Off */
 	wifi_set_carddetect(0);	/* CardDetect (1->0) */

@@ -220,7 +220,7 @@ bool rtw_pwr_unassociated_idle(_adapter *adapter)
 			    || check_fwstate(pmlmepriv, WIFI_AP_STATE)
 			    || check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE | WIFI_ADHOC_STATE)
 #if defined(CONFIG_P2P) && defined(CONFIG_IOCTL_CFG80211)
-			    || pcfg80211_wdinfo->is_ro_ch
+			    || rtw_cfg80211_get_is_roch(iface) == _TRUE
 #elif defined(CONFIG_P2P)
 			    || rtw_p2p_chk_state(pwdinfo, P2P_STATE_IDLE)
 			    || rtw_p2p_chk_state(pwdinfo, P2P_STATE_LISTEN)
@@ -619,7 +619,7 @@ u8 PS_RDY_CHECK(_adapter *padapter)
 	    || check_fwstate(pmlmepriv, WIFI_AP_STATE)
 	    || check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE | WIFI_ADHOC_STATE)
 #if defined(CONFIG_P2P) && defined(CONFIG_IOCTL_CFG80211)
-	    || pcfg80211_wdinfo->is_ro_ch
+	    || rtw_cfg80211_get_is_roch(padapter) == _TRUE
 #endif
 	    || rtw_is_scan_deny(padapter)
 #ifdef CONFIG_TDLS
@@ -1200,7 +1200,7 @@ void LeaveAllPowerSaveModeDirect(PADAPTER Adapter)
 			} else
 #endif
 			{
-#if defined(CONFIG_FWLPS_IN_IPS) || defined(CONFIG_SWLPS_IN_IPS) || defined(CONFIG_RTL8188E)
+#if defined(CONFIG_FWLPS_IN_IPS) || defined(CONFIG_SWLPS_IN_IPS)
 #ifdef CONFIG_IPS
 				if (_FALSE == ips_leave(pri_padapter))
 					RTW_INFO("======> ips_leave fail.............\n");
@@ -1960,6 +1960,7 @@ void rtw_init_pwrctrl_priv(PADAPTER padapter)
 	pwrctrlpriv->wowlan_mode = _FALSE;
 	pwrctrlpriv->wowlan_ap_mode = _FALSE;
 	pwrctrlpriv->wowlan_p2p_mode = _FALSE;
+	pwrctrlpriv->wowlan_last_wake_reason = 0;
 
 #ifdef CONFIG_RESUME_IN_WORKQUEUE
 	_init_workitem(&pwrctrlpriv->resume_work, resume_workitem_callback, NULL);
@@ -1983,7 +1984,7 @@ void rtw_init_pwrctrl_priv(PADAPTER padapter)
 
 #ifdef CONFIG_WOWLAN
 	pwrctrlpriv->wowlan_pattern_idx = DEFAULT_PATTERN_NUM;
-
+	pwrctrlpriv->wowlan_in_resume = _FALSE;
 	for (i = 0 ; i < MAX_WKFM_NUM; i++) {
 		_rtw_memset(pwrctrlpriv->patterns[i].content, '\0',
 			    sizeof(pwrctrlpriv->patterns[i].content));
@@ -1997,8 +1998,8 @@ void rtw_init_pwrctrl_priv(PADAPTER padapter)
 	pwrctrlpriv->pnlo_info = NULL;
 	pwrctrlpriv->pscan_info = NULL;
 	pwrctrlpriv->pno_ssid_list = NULL;
-	pwrctrlpriv->pno_in_resume = _TRUE;
 #endif /* CONFIG_PNO_SUPPORT */
+	pwrctrlpriv->wowlan_aoac_rpt_loc = 0;
 #endif /* CONFIG_WOWLAN */
 
 #ifdef CONFIG_LPS_POFF

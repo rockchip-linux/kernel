@@ -36,38 +36,6 @@
 #include "rtl8188f_sreset.h"
 #endif
 
-
-/* ---------------------------------------------------------------------
- *		RTL8188F From file
- * --------------------------------------------------------------------- */
-#define RTL8188F_FW_IMG					"rtl8188f/FW_NIC.bin"
-#define RTL8188F_FW_WW_IMG				"rtl8188f/FW_WoWLAN.bin"
-#define RTL8188F_PHY_REG					"rtl8188f/PHY_REG.txt"
-#define RTL8188F_PHY_RADIO_A				"rtl8188f/RadioA.txt"
-#define RTL8188F_PHY_RADIO_B				"rtl8188f/RadioB.txt"
-#define RTL8188F_TXPWR_TRACK				"rtl8188f/TxPowerTrack.txt"
-#define RTL8188F_AGC_TAB					"rtl8188f/AGC_TAB.txt"
-#define RTL8188F_PHY_MACREG 				"rtl8188f/MAC_REG.txt"
-#define RTL8188F_PHY_REG_PG				"rtl8188f/PHY_REG_PG.txt"
-#define RTL8188F_PHY_REG_MP				"rtl8188f/PHY_REG_MP.txt"
-#define RTL8188F_TXPWR_LMT 				"rtl8188f/TXPWR_LMT.txt"
-
-/* ---------------------------------------------------------------------
- *		RTL8188F From header
- * --------------------------------------------------------------------- */
-
-#if MP_DRIVER == 1
-	#define Rtl8188F_FwBTImgArray				Rtl8188FFwBTImgArray
-	#define Rtl8188F_FwBTImgArrayLength		Rtl8188FFwBTImgArrayLength
-
-	#define Rtl8188F_FwMPImageArray			Rtl8188FFwMPImgArray
-	#define Rtl8188F_FwMPImgArrayLength		Rtl8188FMPImgArrayLength
-
-	#define Rtl8188F_PHY_REG_Array_MP			Rtl8188F_PHYREG_Array_MP
-	#define Rtl8188F_PHY_REG_Array_MPLength	Rtl8188F_PHYREG_Array_MPLength
-#endif
-
-
 #define FW_8188F_SIZE			0x8000
 #define FW_8188F_START_ADDRESS	0x1000
 #define FW_8188F_END_ADDRESS		0x1FFF /* 0x5FFF */

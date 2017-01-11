@@ -600,13 +600,19 @@ u8 rtw_get_offset_by_chbw(u8 ch, u8 bw, u8 *r_offset)
 		goto exit;
 	}
 
-	/* TODO: 2.4G 40MHz offset choise */
-
 	if (ch >= 1 && ch <= 4)
 		offset = HAL_PRIME_CHNL_OFFSET_LOWER;
-	else if (ch >= 5 && ch <= 14)
+	else if (ch >= 5 && ch <= 9) {
+		if (*r_offset == HAL_PRIME_CHNL_OFFSET_LOWER || *r_offset == HAL_PRIME_CHNL_OFFSET_UPPER)
+			offset = *r_offset; /* both lower and upper is valid, obey input value */
+		else
+			offset = HAL_PRIME_CHNL_OFFSET_UPPER; /* default use upper */
+	} else if (ch >= 10 && ch <= 13)
 		offset = HAL_PRIME_CHNL_OFFSET_UPPER;
-	else if (ch >= 36 && ch <= 177) {
+	else if (ch == 14) {
+		valid = 0; /* ch14 doesn't support 40MHz bandwidth */
+		goto exit;
+	} else if (ch >= 36 && ch <= 177) {
 		switch (ch) {
 		case 36:
 		case 44:
@@ -745,110 +751,6 @@ inline u32 rtw_get_on_cur_ch_time(_adapter *adapter)
 		return adapter_to_dvobj(adapter)->on_oper_ch_time;
 	else
 		return 0;
-}
-
-void SelectChannel(_adapter *padapter, unsigned char channel)
-{
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-
-	_enter_critical_mutex(&(adapter_to_dvobj(padapter)->setch_mutex), NULL);
-
-#ifdef CONFIG_MCC_MODE
-	if (MCC_EN(padapter)) {
-		/* driver doesn't set channel reg under MCC */
-		if (rtw_hal_check_mcc_status(padapter, MCC_STATUS_DOING_MCC)) {
-			RTW_INFO("Warning: Do not set channel reg MCC mode\n");
-			rtw_warn_on(1);
-		}
-	}
-#endif
-
-#ifdef CONFIG_DFS_MASTER
-	{
-		struct rf_ctl_t *rfctl = adapter_to_rfctl(padapter);
-		bool ori_overlap_radar_detect_ch = rtw_rfctl_overlap_radar_detect_ch(rfctl);
-		bool new_overlap_radar_detect_ch = _rtw_rfctl_overlap_radar_detect_ch(rfctl, channel
-			, adapter_to_dvobj(padapter)->oper_bwmode, adapter_to_dvobj(padapter)->oper_ch_offset);
-
-		if (new_overlap_radar_detect_ch)
-			rtw_odm_radar_detect_enable(padapter);
-
-		if (new_overlap_radar_detect_ch && IS_CH_WAITING(rfctl)) {
-			u8 pause = 0xFF;
-
-			rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-		}
-#endif /* CONFIG_DFS_MASTER */
-
-		/* saved channel info */
-		rtw_set_oper_ch(padapter, channel);
-
-		rtw_hal_set_chan(padapter, channel);
-
-#ifdef CONFIG_DFS_MASTER
-		if (ori_overlap_radar_detect_ch && !new_overlap_radar_detect_ch) {
-			u8 pause = 0x00;
-
-			rtw_odm_radar_detect_disable(padapter);
-			rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-		}
-	}
-#endif /* CONFIG_DFS_MASTER */
-
-	_exit_critical_mutex(&(adapter_to_dvobj(padapter)->setch_mutex), NULL);
-
-}
-
-void SetBWMode(_adapter *padapter, unsigned short bwmode, unsigned char channel_offset)
-{
-	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
-
-	_enter_critical_mutex(&(adapter_to_dvobj(padapter)->setbw_mutex), NULL);
-
-#ifdef CONFIG_MCC_MODE
-	if (MCC_EN(padapter)) {
-		/* driver doesn't set bw reg under MCC */
-		if (rtw_hal_check_mcc_status(padapter, MCC_STATUS_DOING_MCC)) {
-			RTW_INFO("Warning: Do not set bw reg MCC mode\n");
-			rtw_warn_on(1);
-		}
-	}
-#endif
-
-#ifdef CONFIG_DFS_MASTER
-	{
-		struct rf_ctl_t *rfctl = adapter_to_rfctl(padapter);
-		bool ori_overlap_radar_detect_ch = rtw_rfctl_overlap_radar_detect_ch(rfctl);
-		bool new_overlap_radar_detect_ch = _rtw_rfctl_overlap_radar_detect_ch(rfctl
-			, adapter_to_dvobj(padapter)->oper_channel, bwmode, channel_offset);
-
-		if (new_overlap_radar_detect_ch)
-			rtw_odm_radar_detect_enable(padapter);
-
-		if (new_overlap_radar_detect_ch && IS_CH_WAITING(rfctl)) {
-			u8 pause = 0xFF;
-
-			rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-		}
-#endif /* CONFIG_DFS_MASTER */
-
-		/* saved bw info */
-		rtw_set_oper_bw(padapter, bwmode);
-		rtw_set_oper_choffset(padapter, channel_offset);
-
-		rtw_hal_set_bwmode(padapter, (CHANNEL_WIDTH)bwmode, channel_offset);
-
-#ifdef CONFIG_DFS_MASTER
-		if (ori_overlap_radar_detect_ch && !new_overlap_radar_detect_ch) {
-			u8 pause = 0x00;
-
-			rtw_odm_radar_detect_disable(padapter);
-			rtw_hal_set_hwreg(padapter, HW_VAR_TXPAUSE, &pause);
-		}
-	}
-#endif /* CONFIG_DFS_MASTER */
-
-	_exit_critical_mutex(&(adapter_to_dvobj(padapter)->setbw_mutex), NULL);
 }
 
 void set_channel_bwmode(_adapter *padapter, unsigned char channel, unsigned char channel_offset, unsigned short bwmode)
@@ -1670,6 +1572,14 @@ void rtw_clean_dk_section(_adapter *adapter)
 		}
 	}
 }
+void rtw_clean_hw_dk_cam(_adapter *adapter)
+{
+	int i;
+
+	for (i = 0; i < 4; i++)
+		rtw_sec_clr_cam_ent(adapter, i);
+		/*_clear_cam_entry(adapter, i);*/
+}
 
 void flush_all_cam_entry(_adapter *padapter)
 {
@@ -2262,8 +2172,6 @@ void HTOnAssocRsp(_adapter *padapter)
 			pmlmeext->cur_ch_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 			break;
 		}
-
-		/* SelectChannel(padapter, pmlmeext->cur_channel, pmlmeext->cur_ch_offset); */
 	}
 #endif
 
@@ -3182,7 +3090,7 @@ unsigned char check_assoc_AP(u8 *pframe, uint len)
 				return HT_IOT_PEER_CISCO;
 			} else if (_rtw_memcmp(pIE->data, REALTEK_OUI, 3)) {
 				u32	Vender = HT_IOT_PEER_REALTEK;
-
+#ifdef CONFIG_80211N_HT
 				if (pIE->Length >= 5) {
 					if (pIE->data[4] == 1) {
 						/* if(pIE->data[5] & RT_HT_CAP_USE_LONG_PREAMBLE) */
@@ -3208,7 +3116,7 @@ unsigned char check_assoc_AP(u8 *pframe, uint len)
 						}
 					}
 				}
-
+#endif
 				RTW_INFO("link to Realtek AP\n");
 				return Vender;
 			} else if (_rtw_memcmp(pIE->data, AIRGOCAP_OUI, 3)) {
@@ -3343,10 +3251,14 @@ void update_wireless_mode(_adapter *padapter)
 	rtw_hal_set_hwreg(padapter, HW_VAR_WIRELESS_MODE, (u8 *)&(pmlmeext->cur_wireless_mode));
 
 	if ((pmlmeext->cur_wireless_mode & WIRELESS_11B)
-#ifdef CONFIG_P2P
-	    && rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE)
-#endif /* CONFIG_P2P */
-	   )
+		#ifdef CONFIG_P2P
+		&& (rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE)
+			#ifdef CONFIG_IOCTL_CFG80211
+			|| !rtw_cfg80211_iface_has_p2p_group_cap(padapter)
+			#endif
+			)
+		#endif
+	)
 		update_mgnt_tx_rate(padapter, IEEE80211_CCK_RATE_1MB);
 	else
 		update_mgnt_tx_rate(padapter, IEEE80211_OFDM_RATE_6MB);
@@ -3935,6 +3847,54 @@ inline void rtw_macid_ctl_set_h2c_msr(struct macid_ctl_t *macid_ctl, u8 id, u8 h
 		RTW_INFO("macid:%u, h2c_msr:"H2C_MSR_FMT"\n", id, H2C_MSR_ARG(&macid_ctl->h2c_msr[id]));
 }
 
+inline void rtw_macid_ctl_set_bw(struct macid_ctl_t *macid_ctl, u8 id, u8 bw)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->bw[id] = bw;
+	if (0)
+		RTW_INFO("macid:%u, bw:%s\n", id, ch_width_str(macid_ctl->bw[id]));
+}
+
+inline void rtw_macid_ctl_set_vht_en(struct macid_ctl_t *macid_ctl, u8 id, u8 en)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->vht_en[id] = en;
+	if (0)
+		RTW_INFO("macid:%u, vht_en:%u\n", id, macid_ctl->vht_en[id]);
+}
+
+inline void rtw_macid_ctl_set_rate_bmp0(struct macid_ctl_t *macid_ctl, u8 id, u32 bmp)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->rate_bmp0[id] = bmp;
+	if (0)
+		RTW_INFO("macid:%u, rate_bmp0:0x%08X\n", id, macid_ctl->rate_bmp0[id]);
+}
+
+inline void rtw_macid_ctl_set_rate_bmp1(struct macid_ctl_t *macid_ctl, u8 id, u32 bmp)
+{
+	if (id >= macid_ctl->num) {
+		rtw_warn_on(1);
+		return;
+	}
+
+	macid_ctl->rate_bmp1[id] = bmp;
+	if (0)
+		RTW_INFO("macid:%u, rate_bmp1:0x%08X\n", id, macid_ctl->rate_bmp1[id]);
+}
+
 inline void rtw_macid_ctl_init(struct macid_ctl_t *macid_ctl)
 {
 	_rtw_spinlock_init(&macid_ctl->lock);
@@ -4059,6 +4019,38 @@ _adapter *dvobj_get_port0_adapter(struct dvobj_priv *dvobj)
 		port0_iface = dvobj->padapters[i];
 
 	return port0_iface;
+}
+
+_adapter *dvobj_get_unregisterd_adapter(struct dvobj_priv *dvobj)
+{
+	_adapter *adapter = NULL;
+	int i;
+
+	for (i = 0; i < dvobj->iface_nums; i++) {
+		if (dvobj->padapters[i]->registered == 0)
+			break;
+	}
+
+	if (i < dvobj->iface_nums)
+		adapter = dvobj->padapters[i];
+
+	return adapter;
+}
+
+_adapter *dvobj_get_adapter_by_addr(struct dvobj_priv *dvobj, u8 *addr)
+{
+	_adapter *adapter = NULL;
+	int i;
+
+	for (i = 0; i < dvobj->iface_nums; i++) {
+		if (_rtw_memcmp(dvobj->padapters[i]->mac_addr, addr, ETH_ALEN) == _TRUE)
+			break;
+	}
+
+	if (i < dvobj->iface_nums)
+		adapter = dvobj->padapters[i];
+
+	return adapter;
 }
 
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
@@ -4507,36 +4499,15 @@ void rtw_get_sec_iv(PADAPTER padapter, u8 *pcur_dot11txpn, u8 *StaAddr)
 		 StaAddr[3], StaAddr[4], StaAddr[5]);
 
 	if (psta) {
-		if (psecpriv->dot11PrivacyAlgrthm != _NO_PRIVACY_ && psta->dot11txpn.val > 0)
-			psta->dot11txpn.val--;
-		AES_IV(pcur_dot11txpn, psta->dot11txpn, 0);
+		if (psecpriv->dot11PrivacyAlgrthm == _AES_)
+			AES_IV(pcur_dot11txpn, psta->dot11txpn, 0);
+		else if (psecpriv->dot11PrivacyAlgrthm == _TKIP_)
+			TKIP_IV(pcur_dot11txpn, psta->dot11txpn, 0);
 
 		RTW_INFO("%s(): CurrentIV: %02x %02x %02x %02x %02x %02x %02x %02x\n"
 			 , __func__, pcur_dot11txpn[0], pcur_dot11txpn[1],
 			pcur_dot11txpn[2], pcur_dot11txpn[3], pcur_dot11txpn[4],
 			pcur_dot11txpn[5], pcur_dot11txpn[6], pcur_dot11txpn[7]);
-	}
-}
-void rtw_set_sec_pn(PADAPTER padapter)
-{
-	struct sta_info         *psta;
-	struct mlme_ext_priv    *pmlmeext = &(padapter->mlmeextpriv);
-	struct mlme_ext_info    *pmlmeinfo = &(pmlmeext->mlmext_info);
-	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
-	struct security_priv *psecpriv = &padapter->securitypriv;
-
-	psta = rtw_get_stainfo(&padapter->stapriv,
-			       get_my_bssid(&pmlmeinfo->network));
-
-	if (psta) {
-		if (pwrpriv->wowlan_fw_iv > psta->dot11txpn.val) {
-			if (psecpriv->dot11PrivacyAlgrthm != _NO_PRIVACY_)
-				psta->dot11txpn.val = pwrpriv->wowlan_fw_iv + 2;
-		} else {
-			RTW_INFO("%s(): FW IV is smaller than driver\n", __func__);
-			psta->dot11txpn.val += 2;
-		}
-		RTW_INFO("%s: dot11txpn: 0x%016llx\n", __func__ , psta->dot11txpn.val);
 	}
 }
 #endif /* CONFIG_WOWLAN */
@@ -4797,7 +4768,7 @@ int rtw_dev_pno_set(struct net_device *net, pno_ssid_t *ssid, int num,
 		goto failing;
 	}
 
-	pwrctl->pno_in_resume = _FALSE;
+	pwrctl->wowlan_in_resume = _FALSE;
 
 	pwrctl->pno_inited = _TRUE;
 	/* NLO Info */

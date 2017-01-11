@@ -27,6 +27,7 @@
 #define PPG_BB_GAIN_5G_TX_OFFSET_MASK	0x1F
 #define PPG_THERMAL_OFFSET_MASK			0x1F
 #define KFREE_BB_GAIN_2G_TX_OFFSET(_ppg_v) (((_ppg_v) == PPG_BB_GAIN_2G_TX_OFFSET_MASK) ? 0 : (((_ppg_v) & 0x01) ? ((_ppg_v) >> 1) : (-((_ppg_v) >> 1))))
+#define KFREE_BB_GAIN_2G_TXB_OFFSET(_ppg_v) (((_ppg_v) == PPG_BB_GAIN_2G_TXB_OFFSET_MASK) ? 0 : (((_ppg_v) & 0x10) ? ((_ppg_v) >> 5) : (-((_ppg_v) >> 5))))
 #define KFREE_BB_GAIN_5G_TX_OFFSET(_ppg_v) (((_ppg_v) == PPG_BB_GAIN_5G_TX_OFFSET_MASK) ? 0 : (((_ppg_v) & 0x01) ? ((_ppg_v) >> 1) : (-((_ppg_v) >> 1))))
 #define KFREE_THERMAL_OFFSET(_ppg_v) (((_ppg_v) == PPG_THERMAL_OFFSET_MASK) ? 0 : (((_ppg_v) & 0x01) ? ((_ppg_v) >> 1) : (-((_ppg_v) >> 1))))
 
@@ -531,7 +532,11 @@
 #define GET_PG_KFREE_THERMAL_K_ON_8723D(_pg_m)	\
 	LE_BITS_TO_1BYTE(((u8 *)(_pg_m)) + 0xC8, 5, 1)
 
+#define PPG_8723D_S1	0
+#define PPG_8723D_S0	1
+
 #define PPG_BB_GAIN_2G_TXA_OFFSET_8723D		0xEE
+#define PPG_BB_GAIN_2G_TX_OFFSET_8723D		0x1EE
 #define PPG_THERMAL_OFFSET_8723D		0xEF
 
 #define	EEPROM_TX_PWR_INX_8723D			0x10
@@ -670,15 +675,6 @@
 #define EEPROM_Default_LNAType						0
 
 /* New EFUSE default value */
-#define EEPROM_DEFAULT_24G_INDEX			0x2D
-#define EEPROM_DEFAULT_24G_HT20_DIFF		0X02
-#define EEPROM_DEFAULT_24G_OFDM_DIFF	0X04
-
-#define EEPROM_DEFAULT_5G_INDEX			0X2A
-#define EEPROM_DEFAULT_5G_HT20_DIFF		0X00
-#define EEPROM_DEFAULT_5G_OFDM_DIFF		0X04
-
-#define EEPROM_DEFAULT_DIFF				0XFE
 #define EEPROM_DEFAULT_CHANNEL_PLAN		0x7F
 #define EEPROM_DEFAULT_BOARD_OPTION		0x00
 #define EEPROM_DEFAULT_RFE_OPTION_8192E 0xFF

@@ -67,10 +67,8 @@
 #include "phydm_regdefine11n.h"
 #include "phydm_interface.h"
 #include "phydm_reg.h"
-#if (DM_ODM_SUPPORT_TYPE == ODM_AP)
-#include "phydm_adc_sampling.h"
-#endif
 
+#include "phydm_adc_sampling.h"
 
 #if (DM_ODM_SUPPORT_TYPE & ODM_CE)
 VOID
@@ -337,7 +335,12 @@ PHY_SetTxPowerLimit(
 #include "rtl8821c/halhwimg8821c_testchip_mac.h"
 #include "rtl8821c/halhwimg8821c_testchip_rf.h"
 #include "rtl8821c/halhwimg8821c_testchip_bb.h"
+#include "rtl8821c/halhwimg8821c_mac.h"
+#include "rtl8821c/halhwimg8821c_rf.h"
+#include "rtl8821c/halhwimg8821c_bb.h"
+#include "rtl8821c/halhwimg8821c_fw.h"
 #include "rtl8821c/phydm_regconfig8821c.h"
+#include "rtl8821c/halphyrf_8821c.h"
 #include "rtl8821c/version_rtl8821c.h"
 #if (DM_ODM_SUPPORT_TYPE == ODM_CE)
 	#include "rtl8821c_hal.h"

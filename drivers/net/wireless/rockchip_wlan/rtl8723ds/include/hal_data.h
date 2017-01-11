@@ -86,12 +86,6 @@ typedef enum _RT_AMPDU_BRUST_MODE {
 	RT_AMPDU_BRUST_8723B		= 7,
 } RT_AMPDU_BRUST, *PRT_AMPDU_BRUST_MODE;
 
-#if 0
-	#define CHANNEL_MAX_NUMBER			14+24+21	/*  14 is the max channel number */
-#endif
-#define CHANNEL_GROUP_MAX		(3 + 9)	/* ch1~3, ch4~9, ch10~14 total three groups */
-#define MAX_PG_GROUP			13
-
 /* Tx Power Limit Table Size */
 #define MAX_REGULATION_NUM						4
 #define MAX_RF_PATH_NUM_IN_POWER_LIMIT_TABLE	4
@@ -157,7 +151,7 @@ typedef enum _RX_AGG_MODE {
 
 #if defined(CONFIG_RTL8814A) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C)
 	#define EFUSE_MAX_SIZE	1024
-#elif defined(CONFIG_RTL8188E) || defined(CONFIG_RTL8188F) || defined(CONFIG_RTL8703B) || defined(CONFIG_RTL8723D)
+#elif defined(CONFIG_RTL8188E) || defined(CONFIG_RTL8188F) || defined(CONFIG_RTL8703B)
 	#define EFUSE_MAX_SIZE	256
 #else
 	#define EFUSE_MAX_SIZE	512
@@ -251,11 +245,16 @@ struct kfree_data_t {
 bool kfree_data_is_bb_gain_empty(struct kfree_data_t *data);
 
 struct hal_spec_t {
+	char *ic_name;
 	u8 macid_num;
 
 	u8 sec_cam_ent_num;
 	u8 sec_cap;
 
+	u8 rfpath_num_2g:4;	/* used for tx power index path */
+	u8 rfpath_num_5g:4;	/* used for tx power index path */
+
+	u8 max_tx_cnt;
 	u8 nss_num;
 	u8 band_cap;	/* value of BAND_CAP_XXX */
 	u8 bw_cap;		/* value of BW_CAP_XXX */
@@ -263,6 +262,14 @@ struct hal_spec_t {
 	u8 proto_cap;	/* value of PROTO_CAP_XXX */
 	u8 wl_func;		/* value of WL_FUNC_XXX */
 };
+
+#define HAL_SPEC_CHK_RF_PATH_2G(_spec, _path) ((_spec)->rfpath_num_2g > (_path))
+#define HAL_SPEC_CHK_RF_PATH_5G(_spec, _path) ((_spec)->rfpath_num_5g > (_path))
+#define HAL_SPEC_CHK_RF_PATH(_spec, _band, _path) ( \
+	_band == BAND_ON_2_4G ? HAL_SPEC_CHK_RF_PATH_2G(_spec, _path) : \
+	_band == BAND_ON_5G ? HAL_SPEC_CHK_RF_PATH_5G(_spec, _path) : 0)
+
+#define HAL_SPEC_CHK_TX_CNT(_spec, _cnt_idx) ((_spec)->max_tx_cnt > (_cnt_idx))
 
 struct hal_iqk_reg_backup {
 	u8 central_chnl;
@@ -292,6 +299,9 @@ typedef struct hal_com_data {
 	BAND_TYPE		CurrentBandType;	/* 0:2.4G, 1:5G */
 	BAND_TYPE		BandSet;
 	u8				CurrentChannel;
+	u8				cch_20;
+	u8				cch_40;
+	u8				cch_80;
 	u8				CurrentCenterFrequencyIndex1;
 	u8				nCur40MhzPrimeSC;	/* Control channel sub-carrier */
 	u8				nCur80MhzPrimeSC;   /* used for primary 40MHz of 80MHz mode */
@@ -354,7 +364,6 @@ typedef struct hal_com_data {
 	u8	EEPROMBluetoothAntNum;
 	u8	EEPROMBluetoothAntIsolation;
 	u8	EEPROMBluetoothRadioShared;
-	u8	bTXPowerDataReadFromEEPORM;
 	u8	EEPROMMACAddr[ETH_ALEN];
 
 #ifdef CONFIG_RF_POWER_TRIM
@@ -374,26 +383,26 @@ typedef struct hal_com_data {
 	EFUSE_HAL	EfuseHal;
 
 	/*---------------------------------------------------------------------------------*/
-	/* 3 [2.4G] */
+	/* 2.4G TX power info for target TX power*/
 	u8	Index24G_CCK_Base[MAX_RF_PATH][CENTER_CH_2G_NUM];
 	u8	Index24G_BW40_Base[MAX_RF_PATH][CENTER_CH_2G_NUM];
-	/* If only one tx, only BW20 and OFDM are used. */
 	s8	CCK_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	OFDM_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW20_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW40_24G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
-	/* 3 [5G] */
+
+	/* 5G TX power info for target TX power*/
+#ifdef CONFIG_IEEE80211_BAND_5GHZ
 	u8	Index5G_BW40_Base[MAX_RF_PATH][CENTER_CH_5G_ALL_NUM];
 	u8	Index5G_BW80_Base[MAX_RF_PATH][CENTER_CH_5G_80M_NUM];
 	s8	OFDM_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW20_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW40_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
 	s8	BW80_5G_Diff[MAX_RF_PATH][MAX_TX_COUNT];
+#endif
 
 	u8	Regulation2_4G;
 	u8	Regulation5G;
-
-	u8	TxPwrInPercentage;
 
 	/********************************
 	*	TX power by rate table at most 4RF path.
@@ -404,8 +413,10 @@ typedef struct hal_com_data {
 	*	RF: at most 4*4 = ABCD=0/1/2/3
 	*	CCK=0 OFDM=1/2 HT-MCS 0-15=3/4/56 VHT=7/8/9/10/11
 	**********************************/
-	u8	TxPwrByRateTable;
-	u8	TxPwrByRateBand;
+
+	u8 txpwr_by_rate_undefined_band_path[TX_PWR_BY_RATE_NUM_BAND]
+		[TX_PWR_BY_RATE_NUM_RF];
+
 	s8	TxPwrByRateOffset[TX_PWR_BY_RATE_NUM_BAND]
 		[TX_PWR_BY_RATE_NUM_RF]
 		[TX_PWR_BY_RATE_NUM_RF]
@@ -418,15 +429,6 @@ typedef struct hal_com_data {
 		[TX_PWR_BY_RATE_NUM_RATE];
 #endif
 	/* --------------------------------------------------------------------------------- */
-
-#if 0
-	/* 2 Power Limit Table */
-	u8	TxPwrLevelCck[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];
-	u8	TxPwrLevelHT40_1S[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];	/*  For HT 40MHZ pwr */
-	u8	TxPwrLevelHT40_2S[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];	/*  For HT 40MHZ pwr */
-	s8	TxPwrHt20Diff[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];/*  HT 20<->40 Pwr diff */
-	u8	TxPwrLegacyHtDiff[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];/*  For HT<->legacy pwr diff */
-#endif
 
 	u8 tx_pwr_lmt_5g_20_40_ref;
 
@@ -475,24 +477,7 @@ typedef struct hal_com_data {
 	u8	txpwr_limit_from_file:1;
 	u8	RfPowerTrackingType;
 
-	/* For power group */
-	/*
-	u8	PwrGroupHT20[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];
-	u8	PwrGroupHT40[RF_PATH_MAX_92C_88E][CHANNEL_MAX_NUMBER];
-	*/
-	u8	PGMaxGroup;
-
-	/* The current Tx Power Level */
-	u8	CurrentCckTxPwrIdx;
-	u8	CurrentOfdm24GTxPwrIdx;
-	u8	CurrentBW2024GTxPwrIdx;
-	u8	CurrentBW4024GTxPwrIdx;
-
 	/* Read/write are allow for following hardware information variables	 */
-	u8	pwrGroupCnt;
-	u32	MCSTxPowerLevelOriginalOffset[MAX_PG_GROUP][16];
-	u32	CCKTxPowerLevelOriginalOffset;
-
 	u8	CrystalCap;
 
 	u8	PAType_2G;

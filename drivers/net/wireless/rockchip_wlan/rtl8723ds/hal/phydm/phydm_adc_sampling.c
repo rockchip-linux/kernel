@@ -1,10 +1,13 @@
 #include "mp_precomp.h"
 #include "phydm_precomp.h"
-#include "rtl8197f/Hal8197FPhyReg.h"
+
+#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
 #if ((RTL8197F_SUPPORT == 1)||(RTL8822B_SUPPORT == 1))
+#include "rtl8197f/Hal8197FPhyReg.h"
 #include "WlanHAL/HalMac88XX/halmac_reg2.h"
 #else
 #include "WlanHAL/HalHeader/HalComReg.h"
+#endif
 #endif
 
 #if (PHYDM_LA_MODE_SUPPORT == 1)
@@ -19,8 +22,8 @@ ADCSmp_BufferAllocate(
 	PRT_ADCSMP_STRING	ADCSmpBuf = &(AdcSmp->ADCSmpBuf);
 
 	if (ADCSmpBuf->Length == 0) {
-		if (PlatformAllocateMemoryWithZero(Adapter, (void **)&(ADCSmpBuf->Octet), 0x10000) == RT_STATUS_SUCCESS)
-			ADCSmpBuf->Length = 0x10000;
+		if (PlatformAllocateMemoryWithZero(Adapter, (void **)&(ADCSmpBuf->Octet), ADCSmpBuf->buffer_size) == RT_STATUS_SUCCESS)
+			ADCSmpBuf->Length = ADCSmpBuf->buffer_size;
 		else
 			return FALSE;
 	}
@@ -41,27 +44,22 @@ ADCSmp_GetTxPktBuf(
 	u4Byte				End_Addr = (ADCSmpBuf->start_pos  + ADCSmpBuf->buffer_size)-1;	/*End_Addr = 0x3ffff;*/
 	BOOLEAN				bRoundUp;
 	static u4Byte			page = 0xFF;
+	u4Byte				while_cnt = 0;
 
-
-	PlatformZeroMemory(ADCSmpBuf->Octet, ADCSmpBuf->Length);
-
-	ODM_Write1Byte(pDM_Odm, REG_PKT_BUFF_ACCESS_CTRL, 0x69);
-	/*PlatformEFIOWrite1Byte(Adapter, REG_PKT_BUFF_ACCESS_CTRL_8814A, 0x69);*/
-	/*0x106[7:0]=0x69: access TXPKT Buffer*/
-	/*			0xA5: access RXPKT Buffer*/
-	/*			0x7F: access TXREPORT buffer*/
+	ODM_Memory_Set(pDM_Odm, ADCSmpBuf->Octet, 0, ADCSmpBuf->Length);
+	ODM_Write1Byte(pDM_Odm, 0x0106, 0x69);
 
 	DbgPrint("%s\n", __func__);
 
-	value32 = ODM_Read4Byte(pDM_Odm, REG_IQ_DUMP);
+	value32 = ODM_Read4Byte(pDM_Odm, 0x7c0);
 	bRoundUp = (BOOLEAN)((value32 & BIT31) >> 31);
 	Finish_Addr = (value32 & 0x7FFF0000) >> 16;	/*Reg7C0[30:16]: finish addr (unit: 8byte)*/
 
 	if (bRoundUp)
 		Addr = (Finish_Addr+1)<<3;
-	else	
+	else
 		Addr = ADCSmpBuf->start_pos;
-
+		
 	DbgPrint("bRoundUp = %d, Finish_Addr=0x%x, value32=0x%x\n", bRoundUp, Finish_Addr, value32);
 	DbgPrint("End_Addr = %x, ADCSmpBuf->start_pos = 0x%x, ADCSmpBuf->buffer_size = 0x%x\n", End_Addr, ADCSmpBuf->start_pos, ADCSmpBuf->buffer_size);
 
@@ -72,9 +70,9 @@ ADCSmp_GetTxPktBuf(
 	if (pDM_Odm->SupportICType & ODM_RTL8197F) {
 		for (Addr = 0x0, i = 0; Addr < End_Addr; Addr += 8, i += 2) {	/*64K byte*/
 			if ((Addr&0xfff) == 0)
-				ODM_Write2Byte(pDM_Odm, REG_PKTBUF_DBG_CTRL, 0x780+(Addr >> 12));
-			DataL = ODM_Read4Byte(pDM_Odm, 0x8000+(Addr&0xfff));
-			DataH = ODM_Read4Byte(pDM_Odm, 0x8000+(Addr&0xfff)+4);
+				ODM_SetBBReg(pDM_Odm, 0x0140, bMaskLWord, 0x780+(Addr >> 12));
+			DataL = ODM_GetBBReg(pDM_Odm, 0x8000+(Addr&0xfff), bMaskDWord);
+			DataH = ODM_GetBBReg(pDM_Odm, 0x8000+(Addr&0xfff)+4, bMaskDWord);
 
 			DbgPrint("%08x%08x\n", DataH, DataL);		
 		}
@@ -83,15 +81,17 @@ ADCSmp_GetTxPktBuf(
 			if (page != (Addr >> 12)) {
 				/*Reg140=0x780+(Addr>>12), Addr=0x30~0x3F, total 16 pages*/
 				page = (Addr >> 12);
-				ODM_Write2Byte(pDM_Odm, REG_PKTBUF_DBG_CTRL, 0x780+page);
 			}
-			/*pDataL = 0x8000+(Addr&0xfff);*/
-			DataL = ODM_Read4Byte(pDM_Odm, 0x8000+(Addr&0xfff));
-			DataH = ODM_Read4Byte(pDM_Odm, 0x8000+(Addr&0xfff)+4);
+			ODM_SetBBReg(pDM_Odm, 0x0140, bMaskLWord, 0x780+page);
 
-			/*ADCSmpBuf->Octet[i] = DataH;*/
-			/*ADCSmpBuf->Octet[i+1] = DataL;*/
-			/*DbgPrint("%08x%08x\n", ADCSmpBuf->Octet[i], ADCSmpBuf->Octet[i+1]);*/
+			/*pDataL = 0x8000+(Addr&0xfff);*/
+			DataL = ODM_GetBBReg(pDM_Odm, 0x8000+(Addr&0xfff), bMaskDWord);
+			DataH = ODM_GetBBReg(pDM_Odm, 0x8000+(Addr&0xfff)+4, bMaskDWord);
+
+#if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
+			ADCSmpBuf->Octet[i] = DataH;
+			ADCSmpBuf->Octet[i+1] = DataL;
+#endif
 			DbgPrint("%08x%08x\n", DataH, DataL);
 			i = i + 2;
 			
@@ -99,6 +99,10 @@ ADCSmp_GetTxPktBuf(
 				Addr = ADCSmpBuf->start_pos;
 			else
 				Addr = Addr + 8;
+
+			while_cnt = while_cnt + 1;
+			if (while_cnt > ((ADCSmpBuf->buffer_size)>>3))
+				break;
 		}
 	}
 	
@@ -118,20 +122,20 @@ ADCSmp_Start(
 	u1Byte					tmpU1b;
 	PRT_ADCSMP_STRING		Buffer = &(AdcSmp->ADCSmpBuf);
 	RT_ADCSMP_TRIG_SIG_SEL	TrigSigSel = AdcSmp->ADCSmpTrigSigSel;
-	u1Byte					backup_DMA;
+	u1Byte					backup_DMA, while_cnt = 0;
 
 	DbgPrint("%s\n", __func__);
 
 	if (pDM_Odm->SupportICType & ODM_RTL8197F)
-		ODM_SetBBReg(pDM_Odm, r_dma_trigger_8197F, 0xf00, AdcSmp->ADCSmpDmaDataSigSel);	/*0x9A0[11:8]*/
+		ODM_SetBBReg(pDM_Odm, 0x9a0, 0xf00, AdcSmp->ADCSmpDmaDataSigSel);	/*0x9A0[11:8]*/
 	else
 		ODM_SetBBReg(pDM_Odm , ODM_ADC_TRIGGER_Jaguar2, 0xf00, AdcSmp->ADCSmpDmaDataSigSel);	/*0x95C[11:8]*/
 
-	ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP+1, AdcSmp->ADCSmpTriggerTime);
+	ODM_Write1Byte(pDM_Odm, 0x7c0+1, AdcSmp->ADCSmpTriggerTime);
 
 
 	if (pDM_Odm->SupportICType & ODM_RTL8197F)
-		ODM_SetBBReg(pDM_Odm, r_reset_cfo_rpt_ctrl_8197F, BIT26, 0x1);
+		ODM_SetBBReg(pDM_Odm, 0xd00, BIT26, 0x1);
 	else {	/*for 8814A and 8822B?*/
 		ODM_Write1Byte(pDM_Odm, 0x198c, 0x7);
 		ODM_Write1Byte(pDM_Odm, 0x8b4, 0x80);
@@ -139,44 +143,45 @@ ADCSmp_Start(
 	
 	if (AdcSmp->ADCSmpTrigSel == ADCSMP_MAC_TRIG) {	/* trigger by MAC*/
 		if (TrigSigSel == ADCSMP_TRIG_REG) {			/* manual trigger 0x7C0[5] = 0 -> 1*/
-			ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP, 0xCB);		/*0x7C0[7:0]=8'b1100_1011*/
-			ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP, 0xEB);		/*0x7C0[7:0]=8'b1110_1011*/
+			ODM_Write1Byte(pDM_Odm, 0x7c0, 0xCB);		/*0x7C0[7:0]=8'b1100_1011*/
+			ODM_Write1Byte(pDM_Odm, 0x7c0, 0xEB);		/*0x7C0[7:0]=8'b1110_1011*/
 		} else if (TrigSigSel == ADCSMP_TRIG_CCA)
-			ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP, 0x8B);		/*0x7C0[7:0]=8'b1000_1011*/
+			ODM_Write1Byte(pDM_Odm, 0x7c0, 0x8B);		/*0x7C0[7:0]=8'b1000_1011*/
 		else if (TrigSigSel == ADCSMP_TRIG_CRCFAIL)
-			ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP, 0x4B);		/*0x7C0[7:0]=8'b0100_1011*/
+			ODM_Write1Byte(pDM_Odm, 0x7c0, 0x4B);		/*0x7C0[7:0]=8'b0100_1011*/
 		else if (TrigSigSel == ADCSMP_TRIG_CRCOK)
-			ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP, 0x0B);		/*0x7C0[7:0]=8'b0000_1011*/
+			ODM_Write1Byte(pDM_Odm, 0x7c0, 0x0B);		/*0x7C0[7:0]=8'b0000_1011*/
 	} else {												/*trigger by BB*/
 		if (pDM_Odm->SupportICType & ODM_RTL8197F)
-			ODM_SetBBReg(pDM_Odm, r_dma_trigger_8197F, 0x1f, TrigSigSel);	/*0x9A0[4:0]*/
+			ODM_SetBBReg(pDM_Odm, 0x9a0, 0x1f, TrigSigSel);	/*0x9A0[4:0]*/
 		else
 			ODM_SetBBReg(pDM_Odm , ODM_ADC_TRIGGER_Jaguar2, 0x1f, TrigSigSel);	/*0x95C[4:0], 0x1F: trigger by CCA*/
-		ODM_Write1Byte(pDM_Odm, REG_IQ_DUMP, 0x03);	/*0x7C0[7:0]=8'b0000_0011*/
+		ODM_Write1Byte(pDM_Odm, 0x7c0, 0x03);	/*0x7C0[7:0]=8'b0000_0011*/
 	}
 	
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
 	watchdog_stop(pDM_Odm->priv);
 #endif
 
-	/*Polling*/
+	/*Polling time always use 100ms, when it exceed 2s, break while loop*/
 	do {
-		tmpU1b = ODM_Read1Byte(pDM_Odm, REG_IQ_DUMP);
+		tmpU1b = ODM_Read1Byte(pDM_Odm, 0x7c0);
 
 		if (AdcSmp->ADCSmpState != ADCSMP_STATE_SET) {
 			DbgPrint("ADCSmpState != ADCSMP_STATE_SET\n");
 			break;
 			
 		} else if (tmpU1b & BIT1) {
-			ODM_delay_us(AdcSmp->ADCSmpPollingTime);
+			ODM_delay_ms(100);
+			while_cnt = while_cnt + 1;
 			continue;
 		} else {
 			DbgPrint("%s Query OK\n", __func__);
 			if (pDM_Odm->SupportICType & ODM_RTL8197F)
-				ODM_SetBBReg(pDM_Odm, REG_IQ_DUMP, BIT0, 0x0);
+				ODM_SetBBReg(pDM_Odm, 0x7c0, BIT0, 0x0);
 			break;
 		}
-	} while (1);
+	} while (while_cnt < 20);
 	
 #if (DM_ODM_SUPPORT_TYPE & ODM_AP)
 	watchdog_resume(pDM_Odm->priv);
@@ -219,9 +224,11 @@ ADCSmpWorkItemCallback(
 {
 	PADAPTER			Adapter = (PADAPTER)pContext;
 	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(Adapter);
-	PRT_ADCSMP			AdcSmp = &(pHalData->ADCSmp);
+	PDM_ODM_T		pDM_Odm = &pHalData->DM_OutSrc;
+	PRT_ADCSMP		AdcSmp = &(pDM_Odm->adcsmp);
 
-	ADCSmp_Start(Adapter, AdcSmp); 
+	ADCSmp_Start(pDM_Odm, AdcSmp);
+	ADCSmp_Stop(pDM_Odm);
 }
 #endif
 
@@ -237,15 +244,8 @@ ADCSmp_Set(
 {
 	PDM_ODM_T				pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	BOOLEAN				retValue = TRUE;
-
 	PRT_ADCSMP			AdcSmp = &(pDM_Odm->adcsmp);
-/*	
-	DbgPrint("%s\n ADCSmpState %d ADCSmpTrigSig %d ADCSmpTrigSigSel %d\n", 
-			__FUNCTION__, AdcSmp->ADCSmpState, TrigSel, TrigSigSel);
 
-	DbgPrint("ADCSmpDmaDataSigSel %d, ADCSmpTriggerTime %d ADCSmpPollingTime %d\n", 
-			DmaDataSigSel, TriggerTime, PollingTime);
-*/
 	AdcSmp->ADCSmpTrigSel = TrigSel;
 	AdcSmp->ADCSmpTrigSigSel = TrigSigSel;
 	AdcSmp->ADCSmpDmaDataSigSel = DmaDataSigSel;
@@ -256,14 +256,15 @@ ADCSmp_Set(
 	if (AdcSmp->ADCSmpState != ADCSMP_STATE_IDLE)
 		retValue = FALSE;
 	else if (AdcSmp->ADCSmpBuf.Length == 0)
-		retValue = ADCSmp_BufferAllocate(pDM_Odm, AdcSmp);
+		retValue = ADCSmp_BufferAllocate(pDM_Odm->Adapter, AdcSmp);
 #endif
 
 	if (retValue) {
 		AdcSmp->ADCSmpState = ADCSMP_STATE_SET;
+		
 #if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
-		PlatformScheduleWorkItem(&(pHalData->ADCSmpWorkItem));
-#elif (DM_ODM_SUPPORT_TYPE & ODM_AP)
+		ODM_ScheduleWorkItem(&(AdcSmp->ADCSmpWorkItem));
+#else
 		ADCSmp_Start(pDM_Odm, AdcSmp); 
 #endif
 	}	
@@ -274,15 +275,15 @@ ADCSmp_Set(
 #if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
 RT_STATUS
 ADCSmp_Query(
-	IN	PADAPTER			Adapter,
+	IN	PVOID				pDM_VOID,
 	IN	ULONG				InformationBufferLength, 
 	OUT	PVOID				InformationBuffer, 
 	OUT	PULONG				BytesWritten
 	)
 {
+	PDM_ODM_T			pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	PRT_ADCSMP			AdcSmp = &(pDM_Odm->adcsmp);
 	RT_STATUS			retStatus = RT_STATUS_SUCCESS;
-	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(Adapter);
-	PRT_ADCSMP			AdcSmp = &(pHalData->ADCSmp);
 	PRT_ADCSMP_STRING	ADCSmpBuf = &(AdcSmp->ADCSmpBuf);
 
 	DbgPrint("%s ADCSmpState %d", __func__, AdcSmp->ADCSmpState);
@@ -297,7 +298,7 @@ ADCSmp_Query(
 		*BytesWritten = 0;
 		retStatus = RT_STATUS_PENDING;
 	} else {
-		PlatformMoveMemory(InformationBuffer, ADCSmpBuf->Octet, ADCSmpBuf->buffer_size);
+		ODM_MoveMemory(pDM_Odm, InformationBuffer, ADCSmpBuf->Octet, ADCSmpBuf->buffer_size);
 		*BytesWritten = ADCSmpBuf->buffer_size;
 
 		AdcSmp->ADCSmpState = ADCSMP_STATE_IDLE;
@@ -322,13 +323,6 @@ ADCSmp_Stop(
 	DbgPrint("%s status %d\n", __func__, AdcSmp->ADCSmpState);
 }
 
-
-
-
-#if (DM_ODM_SUPPORT_TYPE & ODM_AP)
-u1Byte ADC_buffer[0x20000];
-#endif
-
 VOID
 ADCSmp_Init(
 	IN		PVOID			pDM_VOID
@@ -349,77 +343,31 @@ ADCSmp_Init(
 	} else if (pDM_Odm->SupportICType & ODM_RTL8197F) {
 		ADCSmpBuf->start_pos = 0x00000;
 		ADCSmpBuf->buffer_size = 0x10000;	
+	} else if (pDM_Odm->SupportICType & ODM_RTL8821C) {
+		ADCSmpBuf->start_pos = 0x8000;
+		ADCSmpBuf->buffer_size = 0x8000;	
 	}
 	
-#if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
-	PlatformInitializeWorkItem(
-		Adapter,
-		&(pHalData->ADCSmpWorkItem), 
-		(RT_WORKITEM_CALL_BACK)ADCSmpWorkItemCallback, 
-		(PVOID)Adapter,
-		"ADCSmpWorkItem");
-#endif
 }
 
 #if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
 VOID
 ADCSmp_DeInit(
-	PADAPTER		Adapter
+	IN		PVOID			pDM_VOID
 	)
 {
-	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(Adapter);
-	PRT_ADCSMP			AdcSmp = &(pHalData->ADCSmp);
+	PDM_ODM_T			pDM_Odm = (PDM_ODM_T)pDM_VOID;
+	PRT_ADCSMP			AdcSmp = &(pDM_Odm->adcsmp);
 	PRT_ADCSMP_STRING	ADCSmpBuf = &(AdcSmp->ADCSmpBuf);
 
-	ADCSmp_Stop(Adapter);
-
-	PlatformFreeWorkItem(&(pHalData->ADCSmpWorkItem));
+	ADCSmp_Stop(pDM_Odm);
 
 	if (ADCSmpBuf->Length != 0x0) {
-		PlatformFreeMemory(ADCSmpBuf->Octet, ADCSmpBuf->Length);
+		ODM_FreeMemory(pDM_Odm, ADCSmpBuf->Octet, ADCSmpBuf->Length);
 		ADCSmpBuf->Length = 0x0;
 	}
 }	
 
-
-VOID
-Dump_MAC(
-	PADAPTER		Adapter
-	)
-{
-
-	u4Byte	Addr = 0;
-	
-	for (Addr = 0; Addr < 0x1A3D; Addr++)
-		DbgPrint("%04x %04x\n", Addr, PlatformEFIORead4Byte(Adapter, Addr));
-}
-
-
-VOID
-Dump_BB(
-	PADAPTER		Adapter
-	)
-{
-	u4Byte	Addr = 0;
-	
-	for (Addr = 0; Addr < 0x1AFD; Addr++)
-		DbgPrint("%04x %04x\n", Addr, PHY_QueryBBReg(Adapter, Addr, bMaskDWord));
-}
-
-
-VOID
-Dump_RF(
-	PADAPTER		Adapter
-	)
-{
-	u1Byte	Addr = 0, Path = 0;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
-	
-	for (Path = ODM_RF_PATH_A; Path < pHalData->NumTotalRFPath; Path++) {
-		for (Addr = 0; Addr < 0xF6; Addr++)
-			DbgPrint("%04x %04x\n", Addr, PHY_QueryRFReg(Adapter, Path, Addr, bRFRegOffsetMask));
-	}
-}
 #endif
 
 #endif

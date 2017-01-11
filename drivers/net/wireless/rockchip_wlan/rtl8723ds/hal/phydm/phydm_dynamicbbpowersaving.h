@@ -23,6 +23,8 @@
 
 #define DYNAMIC_BBPWRSAV_VERSION	"1.1"
 
+#if (defined(CONFIG_BB_POWER_SAVING))
+
 typedef struct _Dynamic_Power_Saving_
 {
 	u1Byte		PreCCAState;
@@ -49,5 +51,8 @@ VOID
 odm_DynamicBBPowerSavingInit(
 	IN		PVOID					pDM_VOID
 	);
+#else
+#define dm_RF_Saving(pDM_VOID, bForceInNormal)
+#endif
 
 #endif

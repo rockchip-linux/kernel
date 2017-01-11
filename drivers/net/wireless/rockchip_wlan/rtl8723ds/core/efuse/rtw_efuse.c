@@ -41,7 +41,7 @@ u8	fakeBTEfuseContent[EFUSE_MAX_BT_BANK][EFUSE_MAX_HW_SIZE];
 u8	fakeBTEfuseInitMap[EFUSE_BT_MAX_MAP_LEN] = {0};
 u8	fakeBTEfuseModifiedMap[EFUSE_BT_MAX_MAP_LEN] = {0};
 
-u8	maskfileBuffer[32];
+u8	maskfileBuffer[64];
 /*------------------------Define local variable------------------------------*/
 BOOLEAN rtw_file_efuse_IsMasked(PADAPTER pAdapter, u16 Offset)
 {
@@ -587,7 +587,11 @@ u8 rtw_efuse_map_write(PADAPTER adapter, u16 addr, u16 cnts, u8 *data)
 		RTW_INFO("Use mask Array Len: %d\n", mask_len);
 
 		if (mask_len != 0) {
-			rtw_efuse_mask_array(adapter, mask_buf);
+			if (adapter->registrypriv.bFileMaskEfuse == _TRUE)
+				_rtw_memcpy(mask_buf, maskfileBuffer, mask_len);
+			else
+				rtw_efuse_mask_array(adapter, mask_buf);
+
 			err = rtw_halmac_write_logical_efuse_map(d, efuse, size, mask_buf, mask_len);
 		} else
 			err = rtw_halmac_write_logical_efuse_map(d, efuse, size, NULL, 0);
@@ -1346,131 +1350,6 @@ EFUSE_GetEfuseDefinition(
 	pAdapter->HalFunc.EFUSEGetEfuseDefinition(pAdapter, efuseType, type, pOut, bPseudoTest);
 }
 
-/*-----------------------------------------------------------------------------
- * Function:	EFUSE_Read1Byte
- *
- * Overview:	Copy from WMAC fot EFUSE read 1 byte.
- *
- * Input:       NONE
- *
- * Output:      NONE
- *
- * Return:      NONE
- *
- * Revised History:
- * When			Who		Remark
- * 09/23/2008	MHC		Copy from WMAC.
- *
- *---------------------------------------------------------------------------*/
-u8
-EFUSE_Read1Byte(
-	IN	PADAPTER	Adapter,
-	IN	u16		Address)
-{
-	u8	data;
-	u8	Bytetemp = {0x00};
-	u8	temp = {0x00};
-	u32	k = 0;
-	u16	contentLen = 0;
-
-	EFUSE_GetEfuseDefinition(Adapter, EFUSE_WIFI , TYPE_EFUSE_REAL_CONTENT_LEN, (PVOID)&contentLen, _FALSE);
-
-	if (Address < contentLen) {	/* E-fuse 512Byte */
-		/* Write E-fuse Register address bit0~7 */
-		temp = Address & 0xFF;
-		rtw_write8(Adapter, EFUSE_CTRL + 1, temp);
-		Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 2);
-		/* Write E-fuse Register address bit8~9 */
-		temp = ((Address >> 8) & 0x03) | (Bytetemp & 0xFC);
-		rtw_write8(Adapter, EFUSE_CTRL + 2, temp);
-
-		/* Write 0x30[31]=0 */
-		Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 3);
-		temp = Bytetemp & 0x7F;
-		rtw_write8(Adapter, EFUSE_CTRL + 3, temp);
-
-		/* Wait Write-ready (0x30[31]=1) */
-		Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 3);
-		while (!(Bytetemp & 0x80)) {
-			Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 3);
-			k++;
-			if (k == 1000) {
-				k = 0;
-				break;
-			}
-		}
-		data = rtw_read8(Adapter, EFUSE_CTRL);
-		return data;
-	} else
-		return 0xFF;
-
-} /* EFUSE_Read1Byte */
-
-/*-----------------------------------------------------------------------------
- * Function:	EFUSE_Write1Byte
- *
- * Overview:	Copy from WMAC fot EFUSE write 1 byte.
- *
- * Input:       NONE
- *
- * Output:      NONE
- *
- * Return:      NONE
- *
- * Revised History:
- * When			Who		Remark
- * 09/23/2008	MHC		Copy from WMAC.
- *
- *---------------------------------------------------------------------------*/
-
-void
-EFUSE_Write1Byte(
-	IN	PADAPTER	Adapter,
-	IN	u16		Address,
-	IN	u8		Value);
-void
-EFUSE_Write1Byte(
-	IN	PADAPTER	Adapter,
-	IN	u16		Address,
-	IN	u8		Value)
-{
-	u8	Bytetemp = {0x00};
-	u8	temp = {0x00};
-	u32	k = 0;
-	u16	contentLen = 0;
-
-	EFUSE_GetEfuseDefinition(Adapter, EFUSE_WIFI , TYPE_EFUSE_REAL_CONTENT_LEN, (PVOID)&contentLen, _FALSE);
-
-	if (Address < contentLen) {	/* E-fuse 512Byte */
-		rtw_write8(Adapter, EFUSE_CTRL, Value);
-
-		/* Write E-fuse Register address bit0~7 */
-		temp = Address & 0xFF;
-		rtw_write8(Adapter, EFUSE_CTRL + 1, temp);
-		Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 2);
-
-		/* Write E-fuse Register address bit8~9 */
-		temp = ((Address >> 8) & 0x03) | (Bytetemp & 0xFC);
-		rtw_write8(Adapter, EFUSE_CTRL + 2, temp);
-
-		/* Write 0x30[31]=1 */
-		Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 3);
-		temp = Bytetemp | 0x80;
-		rtw_write8(Adapter, EFUSE_CTRL + 3, temp);
-
-		/* Wait Write-ready (0x30[31]=0) */
-		Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 3);
-		while (Bytetemp & 0x80) {
-			Bytetemp = rtw_read8(Adapter, EFUSE_CTRL + 3);
-			k++;
-			if (k == 100) {
-				k = 0;
-				break;
-			}
-		}
-	}
-} /* EFUSE_Write1Byte */
-
 
 /*  11/16/2008 MH Read one byte from real Efuse. */
 u8
@@ -1793,12 +1672,14 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 	u8	offset, word_en;
 	u8	*map;
 	u8	newdata[PGPKT_DATA_SIZE];
-	s32	i, j, idx;
+	s32	i, j, idx, chk_total_byte;
 	u8	ret = _SUCCESS;
-	u16	mapLen = 0;
+	u16	mapLen = 0, startAddr = 0, efuse_max_available_len = 0;
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
+	PEFUSE_HAL	pEfuseHal = &pHalData->EfuseHal;
 
 	EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_EFUSE_MAP_LEN, (PVOID)&mapLen, _FALSE);
+	EFUSE_GetEfuseDefinition(padapter, EFUSE_WIFI, TYPE_AVAILABLE_EFUSE_BYTES_TOTAL, &efuse_max_available_len, _FALSE);
 
 	if ((addr + cnts) > mapLen)
 		return _FAIL;
@@ -1829,6 +1710,47 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 		}
 	}
 	Efuse_PowerSwitch(padapter, _TRUE, _TRUE);
+
+	chk_total_byte = 0;
+	idx = 0;
+	offset = (addr >> 3);
+
+	while (idx < cnts) {
+		word_en = 0xF;
+		j = (addr + idx) & 0x7;
+		for (i = j; i < PGPKT_DATA_SIZE && idx < cnts; i++, idx++) {
+			if (data[idx] != map[addr + idx])
+				word_en &= ~BIT(i >> 1);
+		}
+
+		if (word_en != 0xF) {
+			chk_total_byte += Efuse_CalculateWordCnts(word_en) * 2;
+
+			if (offset >= EFUSE_MAX_SECTION_BASE) /* Over EFUSE_MAX_SECTION 16 for 2 ByteHeader */
+				chk_total_byte += 2;
+			else
+				chk_total_byte += 1;
+		}
+
+		offset++;
+	}
+
+	RTW_INFO("Total PG bytes Count = %d\n", chk_total_byte);
+	rtw_hal_get_hwreg(padapter, HW_VAR_EFUSE_BYTES, (u8 *)&startAddr);
+
+	if (startAddr == 0) {
+		startAddr = Efuse_GetCurrentSize(padapter, EFUSE_WIFI, _FALSE);
+		RTW_INFO("%s: Efuse_GetCurrentSize startAddr=%#X\n", __func__, startAddr);
+	}
+	RTW_DBG("%s: startAddr=%#X\n", __func__, startAddr);
+
+	if ((startAddr + chk_total_byte) >= efuse_max_available_len) {
+		RTW_INFO("%s: startAddr(0x%X) + PG data len %d >= efuse_max_available_len(0x%X)\n",
+			 __func__, startAddr, chk_total_byte, efuse_max_available_len);
+		ret = _FAIL;
+		goto exit;
+	}
+
 
 	idx = 0;
 	offset = (addr >> 3);
@@ -2537,126 +2459,143 @@ u8 rtw_efuse_file_read(PADAPTER padapter, u8 *filepatch, u8 *buf, u32 len)
 }
 
 #ifdef CONFIG_EFUSE_CONFIG_FILE
-u32 rtw_read_efuse_from_file(const char *path, u8 *buf)
+u32 rtw_read_efuse_from_file(const char *path, u8 *buf, int map_size)
 {
 	u32 i;
+	u8 c;
 	u8 temp[3];
+	u8 temp_i;
+	u8 end = _FALSE;
 	u32 ret = _FAIL;
 
-	struct file *fp;
-	mm_segment_t fs;
-	loff_t pos = 0;
+	u8 *file_data = NULL;
+	u32 file_size, read_size, pos = 0;
+	u8 *map = NULL;
 
-	fp = filp_open(path, O_RDONLY, 0);
-	if (fp == NULL || IS_ERR(fp)) {
-		if (fp != NULL)
-			RTW_PRINT("%s open %s fail, err:%ld\n"
-				  , __func__, path, PTR_ERR(fp));
-		else
-			RTW_PRINT("%s open %s fail, fp is NULL\n"
-				  , __func__, path);
-
+	if (rtw_is_file_readable_with_size(path, &file_size) != _TRUE) {
+		RTW_PRINT("%s %s is not readable\n", __func__, path);
 		goto exit;
 	}
 
-	temp[2] = 0; /* add end of string '\0' */
+	file_data = rtw_vmalloc(file_size);
+	if (!file_data) {
+		RTW_ERR("%s rtw_vmalloc(%d) fail\n", __func__, file_size);
+		goto exit;
+	}
 
-	fs = get_fs();
-	set_fs(KERNEL_DS);
+	read_size = rtw_retrieve_from_file(path, file_data, file_size);
+	if (read_size == 0) {
+		RTW_ERR("%s read from %s fail\n", __func__, path);
+		goto exit;
+	}
 
-	for (i = 0 ; i < HWSET_MAX_SIZE ; i++) {
-		vfs_read(fp, temp, 2, &pos);
-		if (sscanf(temp, "%hhx", &buf[i]) != 1) {
-			if (0)
-				RTW_ERR("%s sscanf fail\n", __func__);
-			buf[i] = 0xFF;
-		}
-		if ((i % EFUSE_FILE_COLUMN_NUM) == (EFUSE_FILE_COLUMN_NUM - 1)) {
-			/* Filter the lates space char. */
-			vfs_read(fp, temp, 1, &pos);
-			if (strchr(temp, ' ') == NULL) {
-				pos--;
-				vfs_read(fp, temp, 2, &pos);
+	map = rtw_vmalloc(map_size);
+	if (!map) {
+		RTW_ERR("%s rtw_vmalloc(%d) fail\n", __func__, map_size);
+		goto exit;
+	}
+	_rtw_memset(map, 0xff, map_size);
+
+	temp[2] = 0; /* end of string '\0' */
+
+	for (i = 0 ; i < map_size ; i++) {
+		temp_i = 0;
+
+		while (1) {
+			if (pos >= read_size) {
+				end = _TRUE;
+				break;
 			}
-		} else {
-			pos += 1; /* Filter the space character */
+			c = file_data[pos++];
+
+			/* bypass spece or eol or null before first hex digit */
+			if (temp_i == 0 && (is_eol(c) == _TRUE || is_space(c) == _TRUE || is_null(c) == _TRUE))
+				continue;
+
+			if (IsHexDigit(c) == _FALSE) {
+				RTW_ERR("%s invalid 8-bit hex format for offset:0x%03x\n", __func__, i);
+				goto exit;
+			}
+
+			temp[temp_i++] = c;
+
+			if (temp_i == 2) {
+				/* parse value */
+				if (sscanf(temp, "%hhx", &map[i]) != 1) {
+					RTW_ERR("%s sscanf fail for offset:0x%03x\n", __func__, i);
+					goto exit;
+				}
+				break;
+			}
+		}
+
+		if (end == _TRUE) {
+			if (temp_i != 0) {
+				RTW_ERR("%s incomplete 8-bit hex format for offset:0x%03x\n", __func__, i);
+				goto exit;
+			}
+			break;
 		}
 	}
 
-	set_fs(fs);
+	RTW_PRINT("efuse file:%s, 0x%03x byte content read\n", path, i);
 
-	RTW_PRINT("efuse file: %s\n", path);
-#ifdef CONFIG_RTW_DEBUG
-	for (i = 0; i < HWSET_MAX_SIZE; i++) {
-		if (i % 16 == 0)
-			RTW_PRINT_SEL(RTW_DBGDUMP, "0x%03x: ", i);
-
-		_RTW_PRINT_SEL(RTW_DBGDUMP, "%02X%s"
-			       , buf[i]
-			, ((i + 1) % 16 == 0) ? "\n" : (((i + 1) % 8 == 0) ? "    " : " ")
-			      );
-	}
-	_RTW_PRINT_SEL(RTW_DBGDUMP, "\n");
-#endif
+	_rtw_memcpy(buf, map, map_size);
 
 	ret = _SUCCESS;
 
 exit:
+	if (file_data)
+		rtw_vmfree(file_data, file_size);
+	if (map)
+		rtw_vmfree(map, map_size);
+
 	return ret;
 }
 
 u32 rtw_read_macaddr_from_file(const char *path, u8 *buf)
 {
-	struct file *fp;
-	mm_segment_t fs;
-	loff_t pos = 0;
-
-	u8 source_addr[18];
-	u8 *head, *end;
-	int i;
+	u32 i;
+	u8 temp[3];
 	u32 ret = _FAIL;
 
-	_rtw_memset(source_addr, 0, 18);
+	u8 file_data[17];
+	u32 read_size, pos = 0;
+	u8 addr[ETH_ALEN];
 
-	fp = filp_open(path, O_RDONLY, 0);
-	if (fp == NULL || IS_ERR(fp)) {
-		if (fp != NULL)
-			RTW_PRINT("%s open %s fail, err:%ld\n"
-				  , __func__, path, PTR_ERR(fp));
-		else
-			RTW_PRINT("%s open %s fail, fp is NULL\n"
-				  , __func__, path);
-
+	if (rtw_is_file_readable(path) != _TRUE) {
+		RTW_PRINT("%s %s is not readable\n", __func__, path);
 		goto exit;
 	}
 
-	fs = get_fs();
-	set_fs(KERNEL_DS);
+	read_size = rtw_retrieve_from_file(path, file_data, 17);
+	if (read_size != 17) {
+		RTW_ERR("%s read from %s fail\n", __func__, path);
+		goto exit;
+	}
 
-	vfs_read(fp, source_addr, 18, &pos);
-	source_addr[17] = ':';
+	temp[2] = 0; /* end of string '\0' */
 
-	head = end = source_addr;
-	for (i = 0; i < ETH_ALEN; i++) {
-		while (end && (*end != ':'))
-			end++;
-
-		if (end && (*end == ':'))
-			*end = '\0';
-
-		if (sscanf(head, "%hhx", &buf[i]) != 1) {
-			if (0)
-				RTW_ERR("%s sscanf fail\n", __func__);
-			buf[i] = 0xFF;
+	for (i = 0 ; i < ETH_ALEN ; i++) {
+		if (IsHexDigit(file_data[i * 3]) == _FALSE || IsHexDigit(file_data[i * 3 + 1]) == _FALSE) {
+			RTW_ERR("%s invalid 8-bit hex format for address offset:%u\n", __func__, i);
+			goto exit;
 		}
 
-		if (end) {
-			end++;
-			head = end;
+		if (i < ETH_ALEN - 1 && file_data[i * 3 + 2] != ':') {
+			RTW_ERR("%s invalid separator after address offset:%u\n", __func__, i);
+			goto exit;
+		}
+
+		temp[0] = file_data[i * 3];
+		temp[1] = file_data[i * 3 + 1];
+		if (sscanf(temp, "%hhx", &addr[i]) != 1) {
+			RTW_ERR("%s sscanf fail for address offset:0x%03x\n", __func__, i);
+			goto exit;
 		}
 	}
 
-	set_fs(fs);
+	_rtw_memcpy(buf, addr, ETH_ALEN);
 
 	RTW_PRINT("wifi_mac file: %s\n", path);
 #ifdef CONFIG_RTW_DEBUG

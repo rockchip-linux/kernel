@@ -199,6 +199,59 @@ struct center_chs_ent_t center_chs_5g_by_bw[] = {
 	{CENTER_CH_5G_160M_NUM, center_ch_5g_160m},
 };
 
+/*
+ * Get center channel of smaller bandwidth by @param cch, @param bw, @param offset
+ * @cch: the given center channel
+ * @bw: the given bandwidth
+ * @offset: the given primary SC offset of the given bandwidth
+ *
+ * return center channel of smaller bandiwdth if valid, or 0
+ */
+u8 rtw_get_scch_by_cch_offset(u8 cch, u8 bw, u8 offset)
+{
+	int i;
+	u8 t_cch = 0;
+
+	if (bw == CHANNEL_WIDTH_20) {
+		t_cch = cch;
+		goto exit;
+	}
+
+	if (offset == HAL_PRIME_CHNL_OFFSET_DONT_CARE) {
+		rtw_warn_on(1);
+		goto exit;
+	}
+
+	/* 2.4G, 40MHz */
+	if (cch >= 3 && cch <= 11 && bw == CHANNEL_WIDTH_40) {
+		t_cch = (offset == HAL_PRIME_CHNL_OFFSET_UPPER) ? cch + 2 : cch - 2;
+		goto exit;
+	}
+
+	/* 5G, 160MHz */
+	if (cch >= 50 && cch <= 163 && bw == CHANNEL_WIDTH_160) {
+		t_cch = (offset == HAL_PRIME_CHNL_OFFSET_UPPER) ? cch + 8 : cch - 8;
+		goto exit;
+
+	/* 5G, 80MHz */
+	} else if (cch >= 42 && cch <= 171 && bw == CHANNEL_WIDTH_80) {
+		t_cch = (offset == HAL_PRIME_CHNL_OFFSET_UPPER) ? cch + 4 : cch - 4;
+		goto exit;
+
+	/* 5G, 40MHz */
+	} else if (cch >= 38 && cch <= 175 && bw == CHANNEL_WIDTH_40) {
+		t_cch = (offset == HAL_PRIME_CHNL_OFFSET_UPPER) ? cch + 2 : cch - 2;
+		goto exit;
+
+	} else {
+		rtw_warn_on(1);
+		goto exit;
+	}
+
+exit:
+	return t_cch;
+}
+
 struct op_chs_ent_t {
 	u8 ch_num;
 	u8 *chs;
@@ -299,6 +352,84 @@ u8 rtw_get_op_chs_by_cch_bw(u8 cch, u8 bw, u8 **op_chs, u8 *op_ch_num)
 
 exit:
 	return valid;
+}
+
+u8 rtw_get_ch_group(u8 ch, u8 *group, u8 *cck_group)
+{
+	BAND_TYPE band = BAND_MAX;
+	s8 gp = -1, cck_gp = -1;
+
+	if (ch <= 14) {
+		band = BAND_ON_2_4G;
+
+		if (1 <= ch && ch <= 2)
+			gp = 0;
+		else if (3  <= ch && ch <= 5)
+			gp = 1;
+		else if (6  <= ch && ch <= 8)
+			gp = 2;
+		else if (9  <= ch && ch <= 11)
+			gp = 3;
+		else if (12 <= ch && ch <= 14)
+			gp = 4;
+		else
+			band = BAND_MAX;
+
+		if (ch == 14)
+			cck_gp = 5;
+		else
+			cck_gp = gp;
+	} else {
+		band = BAND_ON_5G;
+
+		if (36 <= ch && ch <= 42)
+			gp = 0;
+		else if (44   <= ch && ch <=  48)
+			gp = 1;
+		else if (50   <= ch && ch <=  58)
+			gp = 2;
+		else if (60   <= ch && ch <=  64)
+			gp = 3;
+		else if (100  <= ch && ch <= 106)
+			gp = 4;
+		else if (108  <= ch && ch <= 114)
+			gp = 5;
+		else if (116  <= ch && ch <= 122)
+			gp = 6;
+		else if (124  <= ch && ch <= 130)
+			gp = 7;
+		else if (132  <= ch && ch <= 138)
+			gp = 8;
+		else if (140  <= ch && ch <= 144)
+			gp = 9;
+		else if (149  <= ch && ch <= 155)
+			gp = 10;
+		else if (157  <= ch && ch <= 161)
+			gp = 11;
+		else if (165  <= ch && ch <= 171)
+			gp = 12;
+		else if (173  <= ch && ch <= 177)
+			gp = 13;
+		else
+			band = BAND_MAX;
+	}
+
+	if (band == BAND_MAX
+		|| (band == BAND_ON_2_4G && cck_gp == -1)
+		|| gp == -1
+	) {
+		RTW_WARN("%s invalid channel:%u", __func__, ch);
+		rtw_warn_on(1);
+		goto exit;
+	}
+
+	if (group)
+		*group = gp;
+	if (cck_group && band == BAND_ON_2_4G)
+		*cck_group = cck_gp;
+
+exit:
+	return band;
 }
 
 int rtw_ch2freq(int chan)
@@ -867,7 +998,11 @@ s8 rtw_rf_get_kfree_tx_gain_offset(_adapter *padapter, u8 path, u8 ch)
 
 	if (kfree_data->flag & KFREE_FLAG_ON) {
 		kfree_offset = kfree_data->bb_gain[bb_gain_sel][path];
-		if (1)
+		if (IS_HARDWARE_TYPE_8723D(padapter))
+			RTW_INFO("%s path:%s, ch:%u, bb_gain_sel:%d, kfree_offset:%d\n"
+				, __func__, (path == 0)?"S1":"S0", 
+				ch, bb_gain_sel, kfree_offset);
+		else
 			RTW_INFO("%s path:%u, ch:%u, bb_gain_sel:%d, kfree_offset:%d\n"
 				, __func__, path, ch, bb_gain_sel, kfree_offset);
 	}
@@ -879,38 +1014,55 @@ exit:
 void rtw_rf_set_tx_gain_offset(_adapter *adapter, u8 path, s8 offset)
 {
 	u8 write_value;
+	u8 target_path = 0;
+	u32 val32 = 0;
 
-	RTW_INFO("kfree gain_offset 0x55:0x%x ", rtw_hal_read_rfreg(adapter, path, 0x55, 0xffffffff));
+	if (IS_HARDWARE_TYPE_8723D(adapter)) {
+		target_path = RF_PATH_A; /*in 8723D case path means S0/S1*/
+		if (path == PPG_8723D_S1)
+			RTW_INFO("kfree gain_offset 0x55:0x%x ",
+			rtw_hal_read_rfreg(adapter, target_path, 0x55, 0xffffffff));
+		else if (path == PPG_8723D_S0)
+			RTW_INFO("kfree gain_offset 0x65:0x%x ",
+			rtw_hal_read_rfreg(adapter, target_path, 0x65, 0xffffffff));
+	} else {
+		target_path = path;
+		RTW_INFO("kfree gain_offset 0x55:0x%x ", rtw_hal_read_rfreg(adapter, target_path, 0x55, 0xffffffff));
+	}
+	
 	switch (rtw_get_chip_type(adapter)) {
 #ifdef CONFIG_RTL8723D
 	case RTL8723D:
 		write_value = RF_TX_GAIN_OFFSET_8723D(offset);
-		rtw_hal_write_rfreg(adapter, path, 0x55, 0x0fc000, write_value);
+		if (path == PPG_8723D_S1)
+			rtw_hal_write_rfreg(adapter, target_path, 0x55, 0x0f8000, write_value);
+		else if (path == PPG_8723D_S0)
+			rtw_hal_write_rfreg(adapter, target_path, 0x65, 0x0f8000, write_value);
 		break;
 #endif /* CONFIG_RTL8723D */
 #ifdef CONFIG_RTL8703B
 	case RTL8703B:
 		write_value = RF_TX_GAIN_OFFSET_8703B(offset);
-		rtw_hal_write_rfreg(adapter, path, 0x55, 0x0fc000, write_value);
+		rtw_hal_write_rfreg(adapter, target_path, 0x55, 0x0fc000, write_value);
 		break;
 #endif /* CONFIG_RTL8703B */
 #ifdef CONFIG_RTL8188F
 	case RTL8188F:
 		write_value = RF_TX_GAIN_OFFSET_8188F(offset);
-		rtw_hal_write_rfreg(adapter, path, 0x55, 0x0fc000, write_value);
+		rtw_hal_write_rfreg(adapter, target_path, 0x55, 0x0fc000, write_value);
 		break;
 #endif /* CONFIG_RTL8188F */
 #ifdef CONFIG_RTL8192E
 	case RTL8192E:
 		write_value = RF_TX_GAIN_OFFSET_8192E(offset);
-		rtw_hal_write_rfreg(adapter, path, 0x55, 0x0f8000, write_value);
+		rtw_hal_write_rfreg(adapter, target_path, 0x55, 0x0f8000, write_value);
 		break;
 #endif /* CONFIG_RTL8188F */
 
 #ifdef CONFIG_RTL8821A
 	case RTL8821:
 		write_value = RF_TX_GAIN_OFFSET_8821A(offset);
-		rtw_hal_write_rfreg(adapter, path, 0x55, 0x0f8000, write_value);
+		rtw_hal_write_rfreg(adapter, target_path, 0x55, 0x0f8000, write_value);
 		break;
 #endif /* CONFIG_RTL8821A */
 #if defined(CONFIG_RTL8814A) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C)
@@ -925,8 +1077,16 @@ void rtw_rf_set_tx_gain_offset(_adapter *adapter, u8 path, s8 offset)
 		rtw_warn_on(1);
 		break;
 	}
-
-	RTW_INFO(" after :0x%x\n", rtw_hal_read_rfreg(adapter, path, 0x55, 0xffffffff));
+	
+	if (IS_HARDWARE_TYPE_8723D(adapter)) {
+		if (path == PPG_8723D_S1)
+			val32 = rtw_hal_read_rfreg(adapter, target_path, 0x55, 0xffffffff);
+		else if (path == PPG_8723D_S0)
+			val32 = rtw_hal_read_rfreg(adapter, target_path, 0x65, 0xffffffff);
+	} else {
+		val32 = rtw_hal_read_rfreg(adapter, target_path, 0x55, 0xffffffff);
+	}
+	RTW_INFO(" after :0x%x\n", val32);
 }
 
 void rtw_rf_apply_tx_gain_offset(_adapter *adapter, u8 ch)
@@ -935,9 +1095,14 @@ void rtw_rf_apply_tx_gain_offset(_adapter *adapter, u8 ch)
 	s8 kfree_offset = 0;
 	s8 tx_pwr_track_offset = 0; /* TODO: 8814A should consider tx pwr track when setting tx gain offset */
 	s8 total_offset;
-	int i;
+	int i, total = 0;
 
-	for (i = 0; i < hal_data->NumTotalRFPath; i++) {
+	if (IS_HARDWARE_TYPE_8723D(adapter))
+		total = 2; /* S1 and S0 */
+	else
+		total = hal_data->NumTotalRFPath;
+
+	for (i = 0; i < total; i++) {
 		kfree_offset = rtw_rf_get_kfree_tx_gain_offset(adapter, i, ch);
 		total_offset = kfree_offset + tx_pwr_track_offset;
 		rtw_rf_set_tx_gain_offset(adapter, i, total_offset);

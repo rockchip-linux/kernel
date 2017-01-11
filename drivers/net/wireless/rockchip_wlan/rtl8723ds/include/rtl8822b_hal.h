@@ -194,22 +194,6 @@
 #define RF_0x52			0x52
 #define RF_WeLut_Jaguar		0xEF	/* rtl8822b_phy.c */
 
-/*
- * 8822B files path
- */
-#define RTL8822B_FW_IMG		"rtl8822b/FW_NIC.bin"
-#define RTL8822B_FW_WW_IMG	"rtl8822b/FW_WoWLAN.bin"
-#define RTL8822B_PHY_REG	"rtl8822b/PHY_REG.txt"
-#define RTL8822B_PHY_RADIO_A	"rtl8822b/RadioA.txt"
-#define RTL8822B_PHY_RADIO_B	"rtl8822b/RadioB.txt"
-#define RTL8822B_TXPWR_TRACK	"rtl8822b/TxPowerTrack.txt"
-#define RTL8822B_AGC_TAB	"rtl8822b/AGC_TAB.txt"
-#define RTL8822B_PHY_MACREG	"rtl8822b/MAC_REG.txt"
-#define RTL8822B_PHY_REG_PG	"rtl8822b/PHY_REG_PG.txt"
-#define RTL8822B_PHY_REG_MP	"rtl8822b/PHY_REG_MP.txt"
-#define RTL8822B_TXPWR_LMT	"rtl8822b/TXPWR_LMT.txt"
-
-
 /* General Functions */
 void rtl8822b_init_hal_spec(PADAPTER);				/* hal/hal_com.c */
 

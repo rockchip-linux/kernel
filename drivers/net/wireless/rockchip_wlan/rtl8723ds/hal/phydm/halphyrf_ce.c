@@ -87,6 +87,10 @@ void ConfigureTxpowerTrack(
 	if (pDM_Odm->SupportICType == ODM_RTL8822B)
 		ConfigureTxpowerTrack_8822B(pConfig);
 #endif 
+#if RTL8821C_SUPPORT
+	if (pDM_Odm->SupportICType == ODM_RTL8821C)
+		ConfigureTxpowerTrack_8821C(pConfig);
+#endif
 
 }
 
@@ -566,7 +570,8 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 
 			if (pDM_Odm->SupportICType == ODM_RTL8188E || pDM_Odm->SupportICType == ODM_RTL8192E || pDM_Odm->SupportICType == ODM_RTL8821 ||
 				pDM_Odm->SupportICType == ODM_RTL8812 || pDM_Odm->SupportICType == ODM_RTL8723B || pDM_Odm->SupportICType == ODM_RTL8814A ||
-				pDM_Odm->SupportICType == ODM_RTL8703B || pDM_Odm->SupportICType == ODM_RTL8188F || pDM_Odm->SupportICType == ODM_RTL8822B || pDM_Odm->SupportICType == ODM_RTL8723D) {
+				pDM_Odm->SupportICType == ODM_RTL8703B || pDM_Odm->SupportICType == ODM_RTL8188F || pDM_Odm->SupportICType == ODM_RTL8822B ||
+				pDM_Odm->SupportICType == ODM_RTL8723D || pDM_Odm->SupportICType == ODM_RTL8821C) {
 
 				ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("**********Enter POWER Tracking MIX_MODE**********\n"));
 				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++)
@@ -584,7 +589,8 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 
 			if (pDM_Odm->SupportICType == ODM_RTL8188E || pDM_Odm->SupportICType == ODM_RTL8192E || pDM_Odm->SupportICType == ODM_RTL8821 ||
 				pDM_Odm->SupportICType == ODM_RTL8812 || pDM_Odm->SupportICType == ODM_RTL8723B || pDM_Odm->SupportICType == ODM_RTL8814A ||
-				pDM_Odm->SupportICType == ODM_RTL8703B || pDM_Odm->SupportICType == ODM_RTL8188F || pDM_Odm->SupportICType == ODM_RTL8822B || pDM_Odm->SupportICType == ODM_RTL8723D) {
+				pDM_Odm->SupportICType == ODM_RTL8703B || pDM_Odm->SupportICType == ODM_RTL8188F || pDM_Odm->SupportICType == ODM_RTL8822B ||
+				pDM_Odm->SupportICType == ODM_RTL8723D || pDM_Odm->SupportICType == ODM_RTL8821C) {
 
 				ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("**********Enter POWER Tracking MIX_MODE**********\n"));
 				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++)
@@ -756,6 +762,11 @@ odm_IQCalibrate(
 			#if (RTL8822B_SUPPORT == 1)
 			else if (IS_HARDWARE_TYPE_8822B(Adapter))
 				PHY_IQCalibrate_8822B(pDM_Odm, FALSE);
+			#endif
+			
+			#if (RTL8821C_SUPPORT == 1)
+			else if (IS_HARDWARE_TYPE_8821C(Adapter))
+				PHY_IQCalibrate_8821C(pDM_Odm, FALSE);
 			#endif
 			
 			#if (RTL8821A_SUPPORT == 1)

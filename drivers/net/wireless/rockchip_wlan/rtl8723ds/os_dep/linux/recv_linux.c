@@ -177,6 +177,11 @@ int rtw_os_recv_resource_init(struct recv_priv *precvpriv, _adapter *padapter)
 {
 	int	res = _SUCCESS;
 
+
+#ifdef CONFIG_RTW_NAPI
+	skb_queue_head_init(&precvpriv->rx_napi_skb_queue);
+#endif /* CONFIG_RTW_NAPI */
+
 	return res;
 }
 
@@ -196,6 +201,13 @@ void rtw_os_recv_resource_free(struct recv_priv *precvpriv)
 	sint i;
 	union recv_frame *precvframe;
 	precvframe = (union recv_frame *) precvpriv->precv_frame_buf;
+
+
+#ifdef CONFIG_RTW_NAPI
+	if (skb_queue_len(&precvpriv->rx_napi_skb_queue))
+		RTW_WARN("rx_napi_skb_queue not empty\n");
+	rtw_skb_queue_purge(&precvpriv->rx_napi_skb_queue);
+#endif /* CONFIG_RTW_NAPI */
 
 	for (i = 0; i < NR_RECVFRAME; i++) {
 		if (precvframe->u.hdr.pkt) {
@@ -329,6 +341,65 @@ _pkt *rtw_os_alloc_msdu_pkt(union recv_frame *prframe, u16 nSubframe_Length, u8 
 	return sub_skb;
 }
 
+#ifdef CONFIG_RTW_NAPI
+static int napi_recv(_adapter *padapter, int budget)
+{
+	_pkt *pskb;
+	struct recv_priv *precvpriv = &padapter->recvpriv;
+	int work_done = 0;
+	struct registry_priv *pregistrypriv = &padapter->registrypriv;
+	u8 rx_ok;
+
+
+	while ((work_done < budget) &&
+	       (!skb_queue_empty(&precvpriv->rx_napi_skb_queue))) {
+		pskb = skb_dequeue(&precvpriv->rx_napi_skb_queue);
+		if (!pskb)
+			break;
+
+		rx_ok = _FALSE;
+
+#ifdef CONFIG_RTW_GRO
+		if (pregistrypriv->en_gro) {
+			if (rtw_napi_gro_receive(&padapter->napi, pskb) != GRO_DROP)
+				rx_ok = _TRUE;
+			goto next;
+		}
+#endif /* CONFIG_RTW_GRO */
+
+		if (rtw_netif_receive_skb(padapter->pnetdev, pskb) == NET_RX_SUCCESS)
+			rx_ok = _TRUE;
+
+next:
+		if (rx_ok == _TRUE) {
+			work_done++;
+			DBG_COUNTER(padapter->rx_logs.os_netif_ok);
+		} else {
+			DBG_COUNTER(padapter->rx_logs.os_netif_err);
+		}
+	}
+
+	return work_done;
+}
+
+int rtw_recv_napi_poll(struct napi_struct *napi, int budget)
+{
+	_adapter *padapter = container_of(napi, _adapter, napi);
+	int work_done = 0;
+	struct recv_priv *precvpriv = &padapter->recvpriv;
+
+
+	work_done = napi_recv(padapter, budget);
+	if (work_done < budget) {
+		napi_complete(napi);
+		if (!skb_queue_empty(&precvpriv->rx_napi_skb_queue))
+			napi_schedule(napi);
+	}
+
+	return work_done;
+}
+#endif /* CONFIG_RTW_NAPI */
+
 #ifdef DBG_UDP_PKT_LOSE_11AC
 	#define PAYLOAD_LEN_LOC_OF_IP_HDR 0x10 /*ethernet payload length location of ip header (DA + SA+eth_type+(version&hdr_len)) */
 #endif
@@ -337,6 +408,7 @@ void rtw_os_recv_indicate_pkt(_adapter *padapter, _pkt *pkt, struct rx_pkt_attri
 {
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
 	struct recv_priv *precvpriv = &(padapter->recvpriv);
+	struct registry_priv	*pregistrypriv = &padapter->registrypriv;
 #ifdef CONFIG_BR_EXT
 	void *br_port = NULL;
 #endif
@@ -445,6 +517,14 @@ void rtw_os_recv_indicate_pkt(_adapter *padapter, _pkt *pkt, struct rx_pkt_attri
 #else /* !CONFIG_TCP_CSUM_OFFLOAD_RX */
 		pkt->ip_summed = CHECKSUM_NONE;
 #endif /* CONFIG_TCP_CSUM_OFFLOAD_RX */
+
+#ifdef CONFIG_RTW_NAPI
+		if (pregistrypriv->en_napi) {
+			skb_queue_tail(&precvpriv->rx_napi_skb_queue, pkt);
+			napi_schedule(&padapter->napi);
+			return;
+		}
+#endif /* CONFIG_RTW_NAPI */
 
 		ret = rtw_netif_rx(padapter->pnetdev, pkt);
 		if (ret == NET_RX_SUCCESS)

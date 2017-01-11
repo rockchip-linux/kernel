@@ -6,9 +6,10 @@
 /*============================================================*/
 
 #include "mp_precomp.h"
+#include "phydm_precomp.h"
 
-#if (BEAMFORMING_SUPPORT == 1)
 #if (RTL8822B_SUPPORT == 1)
+#if (BEAMFORMING_SUPPORT == 1)
 
 u1Byte
 halTxbf8822B_GetNtx(
@@ -83,6 +84,7 @@ halTxbf8822B_RfMode(
 	IN	u1Byte					idx
 	)
 {
+#if 0
 	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
 	u1Byte				i, Nr_index = 0;
 	BOOLEAN				bSelfBeamformer = FALSE;
@@ -147,7 +149,7 @@ halTxbf8822B_RfMode(
 		ODM_SetBBReg(pDM_Odm, REG_BB_TXBF_ANT_SET_BF1_8822B, 0xffff, 0x0433);
 		ODM_SetBBReg(pDM_Odm, REG_BB_TX_PATH_SEL_1_8822B, 0xfff00000, 0x043);
 	}
-
+#endif
 }
 #if 0
 VOID
@@ -1001,7 +1003,9 @@ HalTxbf8822B_FwTxBF(
 #endif
 }
 
+#endif
 
+#if (defined(CONFIG_BB_TXBF_API))
 /*this function is only used for BFer*/
 VOID
 phydm_8822btxbf_rfmode(
@@ -1088,14 +1092,7 @@ phydm_8822b_sutxbfer_workaroud(
 	
 
 }
-
-
-
-
-#else	/* (RTL8822B_SUPPORT == 1)*/
-
+#endif
 #endif	/* (RTL8822B_SUPPORT == 1)*/
-
-#endif 
 
 

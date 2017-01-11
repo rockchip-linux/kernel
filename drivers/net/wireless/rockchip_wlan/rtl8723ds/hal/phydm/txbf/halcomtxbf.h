@@ -16,7 +16,6 @@ typedef	BOOLEAN
 	OUT	PVOID			pInBuf
 	);
 */
-#define TxBF_Nr(a, b) ((a > b) ? (b) : (a))
 
 typedef enum _TXBF_SET_TYPE{
 	TXBF_SET_SOUNDING_ENTER,

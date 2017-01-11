@@ -36,35 +36,6 @@
 	#include "rtl8703b_sreset.h"
 #endif
 
-
-/* ---------------------------------------------------------------------
- *		RTL8703B From file
- * --------------------------------------------------------------------- */
-#define RTL8703B_FW_IMG					"rtl8703b/FW_NIC.bin"
-#define RTL8703B_FW_WW_IMG				"rtl8703b/FW_WoWLAN.bin"
-#define RTL8703B_PHY_REG					"rtl8703b/PHY_REG.txt"
-#define RTL8703B_PHY_RADIO_A				"rtl8703b/RadioA.txt"
-#define RTL8703B_PHY_RADIO_B				"rtl8703b/RadioB.txt"
-#define RTL8703B_TXPWR_TRACK				"rtl8703b/TxPowerTrack.txt"
-#define RTL8703B_AGC_TAB					"rtl8703b/AGC_TAB.txt"
-#define RTL8703B_PHY_MACREG 				"rtl8703b/MAC_REG.txt"
-#define RTL8703B_PHY_REG_PG				"rtl8703b/PHY_REG_PG.txt"
-#define RTL8703B_PHY_REG_MP				"rtl8703b/PHY_REG_MP.txt"
-#define RTL8703B_TXPWR_LMT 				"rtl8703b/TXPWR_LMT.txt"
-
-/* ---------------------------------------------------------------------
- *		RTL8703B From header
- * --------------------------------------------------------------------- */
-
-#if MP_DRIVER == 1
-	#define Rtl8703B_FwBTImgArray				Rtl8703BFwBTImgArray
-	#define Rtl8703B_FwBTImgArrayLength		Rtl8703BFwBTImgArrayLength
-
-	#define Rtl8703B_PHY_REG_Array_MP			Rtl8703B_PHYREG_Array_MP
-	#define Rtl8703B_PHY_REG_Array_MPLength	Rtl8703B_PHYREG_Array_MPLength
-#endif
-
-
 #define FW_8703B_SIZE			0x8000
 #define FW_8703B_START_ADDRESS	0x1000
 #define FW_8703B_END_ADDRESS		0x1FFF /* 0x5FFF */

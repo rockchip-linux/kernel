@@ -41,9 +41,8 @@ static u8 CardEnable(PADAPTER padapter)
 	if (bMacPwrCtrlOn == _FALSE) {
 		/* RSV_CTRL 0x1C[7:0] = 0x00 */
 		/* unlock ISO/CLK/Power control register */
-		
 		val8 = rtw_read8(padapter, REG_WLLPS_CTRL + 3);
- 
+
 		if (val8 & BIT(1))
 			RTW_INFO("%s: LP-LPS: %02x\n", __func__, val8);
 
@@ -57,95 +56,6 @@ static u8 CardEnable(PADAPTER padapter)
 		}
 	} else
 		ret = _SUCCESS;
-
-	return ret;
-}
-
-/*
- * Description:
- *	Call this function to make sure power on successfully
- *
- * Return:
- *	_SUCCESS	enable success
- *	_FAIL	enable fail
- */
-static int PowerOnCheck(PADAPTER padapter)
-{
-	u32	val_offset0, val_offset1, val_offset2, val_offset3;
-	u32 val_mix = 0;
-	u32 res = 0;
-	u8	ret = _FAIL;
-	int index = 0;
-
-	val_offset0 = rtw_read8(padapter, REG_CR);
-	val_offset1 = rtw_read8(padapter, REG_CR + 1);
-	val_offset2 = rtw_read8(padapter, REG_CR + 2);
-	val_offset3 = rtw_read8(padapter, REG_CR + 3);
-
-	if (val_offset0 == 0xEA || val_offset1 == 0xEA ||
-	    val_offset2 == 0xEA || val_offset3 == 0xEA) {
-		RTW_INFO("%s: power on fail, do Power on again\n", __func__);
-		return ret;
-	}
-
-	val_mix = val_offset3 << 24 | val_mix;
-	val_mix = val_offset2 << 16 | val_mix;
-	val_mix = val_offset1 << 8 | val_mix;
-	val_mix = val_offset0 | val_mix;
-
-	res = rtw_read32(padapter, REG_CR);
-
-	RTW_INFO("%s: val_mix:0x%08x, res:0x%08x\n", __func__, val_mix, res);
-
-	while (index < 100) {
-		if (res == val_mix) {
-			RTW_INFO("%s: 0x100 the result of cmd52 and cmd53 is the same.\n", __func__);
-			ret = _SUCCESS;
-			break;
-		} /*else*/
-		{
-			RTW_INFO("%s: 0x100 cmd52 and cmd53 is not the same(index:%d).\n", __func__, index);
-			res = rtw_read32(padapter, REG_CR);
-			index++;
-			ret = _FAIL;
-		}
-	}
-
-	if (ret) {
-		index = 0;
-		while (index < 100) {
-			rtw_write32(padapter, 0x1B8, 0x12345678);
-			res = rtw_read32(padapter, 0x1B8);
-			if (res == 0x12345678) {
-				RTW_INFO("%s: 0x1B8 test Pass.\n", __func__);
-				ret = _SUCCESS;
-				break;
-			} /*else*/
-			{
-				index++;
-				RTW_INFO("%s: 0x1B8 test Fail(index: %d).\n", __func__, index);
-				ret = _FAIL;
-			}
-		}
-	} else
-		RTW_INFO("%s: fail at cmd52, cmd53.\n", __func__);
-
-	if (ret == _FAIL) {
-		RTW_ERR("Dump MAC Page0 register:\n");
-		/* Dump Page0 for check cystal*/
-		for (index = 0 ; index < 0xff ; index++) {
-			if (index % 16 == 0)
-				printk(KERN_ERR "0x%02x ", index);
-
-			printk(KERN_ERR "%02x ", rtw_read8(padapter, index));
-
-			if (index % 16 == 15)
-				printk(KERN_ERR "\n");
-			else if (index % 8 == 7)
-				printk(KERN_ERR "\t");
-		}
-		printk(KERN_ERR "\n");
-	}
 
 	return ret;
 }
@@ -230,7 +140,7 @@ _init_power_on:
 
 
 	/* PowerOnCheck() */
-	ret = PowerOnCheck(padapter);
+	ret = sdio_power_on_check(padapter);
 	pwron_chk_cnt++;
 	if (_FAIL == ret) {
 		if (pwron_chk_cnt > 1) {
@@ -890,7 +800,7 @@ static void _InitPABias(PADAPTER padapter)
 
 	/* FIXED PA current issue */
 	/* efuse_one_byte_read(padapter, 0x1FA, &pa_setting); */
-	pa_setting = EFUSE_Read1Byte(padapter, 0x1FA);
+	efuse_OneByteRead(padapter, 0x1FA, &pa_setting ,_FALSE);
 
 
 	if (!(pa_setting & BIT(0))) {
@@ -1110,7 +1020,12 @@ static u32 rtl8723ds_hal_init(PADAPTER padapter)
 
 	rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
 
-	if (padapter->registrypriv.mp_mode == 0) {
+	if ((padapter->registrypriv.mp_mode == 0 &&
+		psdpriv->processing_dev_remove == _FALSE)
+		#if defined(CONFIG_MP_INCLUDED) && defined(CONFIG_RTW_CUSTOMER_STR)
+		|| padapter->registrypriv.mp_customer_str
+		#endif
+	) {
 		ret = rtl8723d_FirmwareDownload(padapter, _FALSE);
 		if (ret != _SUCCESS) {
 			padapter->bFWReady = _FALSE;
@@ -1228,7 +1143,7 @@ static u32 rtl8723ds_hal_init(PADAPTER padapter)
 
 #ifdef CONFIG_CHECK_AC_LIFETIME
 	/* Enable lifetime check for the four ACs */
-	rtw_write8(padapter, REG_LIFETIME_EN, 0x0F);
+	rtw_write8(padapter, REG_LIFETIME_CTRL, rtw_read8(padapter, REG_LIFETIME_CTRL) | 0x0F);
 #endif /* CONFIG_CHECK_AC_LIFETIME */
 
 #ifdef CONFIG_TX_MCAST2UNI
@@ -1246,11 +1161,6 @@ static u32 rtl8723ds_hal_init(PADAPTER padapter)
 
 	rtw_hal_set_chnl_bw(padapter, padapter->registrypriv.channel,
 		CHANNEL_WIDTH_20, HAL_PRIME_CHNL_OFFSET_DONT_CARE, HAL_PRIME_CHNL_OFFSET_DONT_CARE);
-
-	/* Record original value for template. This is arough data, we can only use the data */
-	/* for power adjust. The value can not be adjustde according to different power!!!
-	*	pHalData->OriginalCckTxPwrIdx = pHalData->CurrentCckTxPwrIdx;
-	*	pHalData->OriginalOfdm24GTxPwrIdx = pHalData->CurrentOfdm24GTxPwrIdx; */
 
 	rtl8723d_InitAntenna_Selection(padapter);
 
@@ -1324,7 +1234,8 @@ static u32 rtl8723ds_hal_init(PADAPTER padapter)
 	{
 		pwrctrlpriv->rf_pwrstate = rf_on;
 
-		if (pwrctrlpriv->rf_pwrstate == rf_on) {
+		if (pwrctrlpriv->rf_pwrstate == rf_on &&
+			psdpriv->processing_dev_remove == _FALSE) {
 			struct pwrctrl_priv *pwrpriv;
 			u32 start_time;
 			u8 h2cCmdBuf;
@@ -1664,10 +1575,13 @@ _ReadEfuseInfo8723DS(
 	Hal_DetectWoWMode(padapter);
 #endif
 
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 	Hal_ReadRFGainOffset(padapter, hwinfo, pHalData->bautoload_fail_flag);
 #endif /* CONFIG_RF_GAIN_OFFSET */
+
+#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
 	hal_read_mac_hidden_rpt(padapter);
+#endif
 }
 
 static void _ReadPROMContent(
@@ -1813,8 +1727,7 @@ void SetHwReg8723DS(PADAPTER padapter, u8 variable, u8 *val)
 			value &= ~BIT(3);
 			rtw_write8(padapter, REG_GPIO_MUXCFG, value);
 		} else if (enable == _FALSE) {
-			value |= BIT(3);
-			rtw_write8(padapter, REG_GPIO_MUXCFG, value);
+			RTW_INFO("%s: keep WLAN ctrl\n", __func__);
 		}
 		/*0x66 bit4*/
 		value = rtw_read8(padapter, REG_PAD_CTRL_1 + 2);
@@ -1883,6 +1796,8 @@ GetHalDefVar8723DSDIO(
 	IN	PVOID					pValue
 )
 {
+	struct dvobj_priv *dvobj = adapter_to_dvobj(Adapter);
+	PSDIO_DATA psdio_data = NULL;
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(Adapter);
 	u8			bResult = _SUCCESS;
 
@@ -1896,7 +1811,11 @@ GetHalDefVar8723DSDIO(
 	case HW_VAR_MAX_RX_AMPDU_FACTOR:
 		/* Stanley@BB.SD3 suggests 16K can get stable performance */
 		/* coding by Lucas@20130730 */
-		*(HT_CAP_AMPDU_FACTOR *)pValue = MAX_AMPDU_FACTOR_16K;
+		psdio_data = &dvobj->intf_data;
+		if (psdio_data->clock > RTW_SDIO_CLK_40M)
+			*(HT_CAP_AMPDU_FACTOR *)pValue = MAX_AMPDU_FACTOR_32K;
+		else
+			*(HT_CAP_AMPDU_FACTOR *)pValue = MAX_AMPDU_FACTOR_16K;
 		break;
 	default:
 		bResult = GetHalDefVar8723D(Adapter, eVariable, pValue);

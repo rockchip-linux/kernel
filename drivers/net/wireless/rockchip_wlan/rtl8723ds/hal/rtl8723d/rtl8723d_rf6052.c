@@ -123,16 +123,6 @@ phy_RF6052_Config_ParaFile(
 	int					rtStatus = _SUCCESS;
 	HAL_DATA_TYPE		*pHalData = GET_HAL_DATA(Adapter);
 
-	static char			sz8723RadioAFile[] = RTL8723D_PHY_RADIO_A;
-	static char			sz8723RadioBFile[] = RTL8723D_PHY_RADIO_B;
-
-	static s1Byte			sz8723DTxPwrTrackFile[] = RTL8723D_TXPWR_TRACK;
-	char					*pszRadioAFile, *pszRadioBFile, *pszTxPwrTrackFile;
-
-	pszRadioAFile = sz8723RadioAFile;
-	pszRadioBFile = sz8723RadioBFile;
-	pszTxPwrTrackFile = sz8723DTxPwrTrackFile;
-
 	/* 3//----------------------------------------------------------------- */
 	/* 3// <2> Initialize RF */
 	/* 3//----------------------------------------------------------------- */
@@ -172,7 +162,7 @@ phy_RF6052_Config_ParaFile(
 		switch (eRFPath) {
 		case RF_PATH_A:
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-			if (PHY_ConfigRFWithParaFile(Adapter, pszRadioAFile, eRFPath) == _FAIL)
+			if (PHY_ConfigRFWithParaFile(Adapter, PHY_FILE_RADIO_A, eRFPath) == _FAIL)
 #endif
 			{
 #ifdef CONFIG_EMBEDDED_FWIMG
@@ -183,7 +173,7 @@ phy_RF6052_Config_ParaFile(
 			break;
 		case RF_PATH_B:
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-			if (PHY_ConfigRFWithParaFile(Adapter, pszRadioBFile, eRFPath) == _FAIL)
+			if (PHY_ConfigRFWithParaFile(Adapter, PHY_FILE_RADIO_B, eRFPath) == _FAIL)
 #endif
 			{
 #ifdef CONFIG_EMBEDDED_FWIMG
@@ -221,7 +211,7 @@ phy_RF6052_Config_ParaFile(
 	/* 3 ----------------------------------------------------------------- */
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-	if (PHY_ConfigRFWithTxPwrTrackParaFile(Adapter, pszTxPwrTrackFile) == _FAIL)
+	if (PHY_ConfigRFWithTxPwrTrackParaFile(Adapter, PHY_FILE_TXPWR_TRACK) == _FAIL)
 #endif
 	{
 #ifdef CONFIG_EMBEDDED_FWIMG

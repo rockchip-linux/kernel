@@ -87,6 +87,12 @@ void ConfigureTxpowerTrack(
 	if (pDM_Odm->SupportICType == ODM_RTL8723D)
 		ConfigureTxpowerTrack_8723D(pConfig);
 #endif
+
+#if RTL8821C_SUPPORT
+	if (pDM_Odm->SupportICType == ODM_RTL8821C)
+		ConfigureTxpowerTrack_8821C(pConfig);
+#endif
+
 }
 
 //======================================================================
@@ -565,7 +571,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 			if (pDM_Odm->SupportICType == ODM_RTL8188E || pDM_Odm->SupportICType == ODM_RTL8192E || pDM_Odm->SupportICType == ODM_RTL8821 ||
 				pDM_Odm->SupportICType == ODM_RTL8812 || pDM_Odm->SupportICType == ODM_RTL8723B || pDM_Odm->SupportICType == ODM_RTL8814A ||
 				pDM_Odm->SupportICType == ODM_RTL8703B || pDM_Odm->SupportICType == ODM_RTL8188F || pDM_Odm->SupportICType == ODM_RTL8822B ||
-				pDM_Odm->SupportICType == ODM_RTL8723D) {
+				pDM_Odm->SupportICType == ODM_RTL8723D || pDM_Odm->SupportICType == ODM_RTL8821C) {
 
 				ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("**********Enter POWER Tracking MIX_MODE**********\n"));
 				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++)
@@ -584,7 +590,7 @@ ODM_TXPowerTrackingCallback_ThermalMeter(
 			if (pDM_Odm->SupportICType == ODM_RTL8188E || pDM_Odm->SupportICType == ODM_RTL8192E || pDM_Odm->SupportICType == ODM_RTL8821 ||
 				pDM_Odm->SupportICType == ODM_RTL8812 || pDM_Odm->SupportICType == ODM_RTL8723B || pDM_Odm->SupportICType == ODM_RTL8814A ||
 				pDM_Odm->SupportICType == ODM_RTL8703B || pDM_Odm->SupportICType == ODM_RTL8188F || pDM_Odm->SupportICType == ODM_RTL8822B ||
-				pDM_Odm->SupportICType == ODM_RTL8723D) {
+				pDM_Odm->SupportICType == ODM_RTL8723D || pDM_Odm->SupportICType == ODM_RTL8821C) {
 
 				ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("**********Enter POWER Tracking MIX_MODE**********\n"));
 				for (p = ODM_RF_PATH_A; p < c.RfPathCount; p++)
@@ -773,8 +779,14 @@ void phydm_rf_watchdog(IN		PDM_ODM_T		pDM_Odm)
 {
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE))
-	ODM_TXPowerTrackingCheck(pDM_Odm);
-	if (pDM_Odm->SupportICType & ODM_IC_11AC_SERIES)
-		odm_IQCalibrate(pDM_Odm);
+	PADAPTER	Adapter = pDM_Odm->Adapter;
+	PMGNT_INFO	pMgntInfo = &Adapter->MgntInfo;
+	
+	if(!pMgntInfo->IQKBeforeConnection)
+	{
+		ODM_TXPowerTrackingCheck(pDM_Odm);
+		if (pDM_Odm->SupportICType & ODM_IC_11AC_SERIES)
+			odm_IQCalibrate(pDM_Odm);
+	}
 #endif
 }

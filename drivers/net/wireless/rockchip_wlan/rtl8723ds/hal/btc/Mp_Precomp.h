@@ -54,21 +54,6 @@ extern u4Byte GLBtcDbgType[];
 #define DBG_LOUD		4
 #define DBG_TRACE		5
 
-#if DBG
-#ifdef RT_TRACE
-#undef RT_TRACE
-#define RT_TRACE(dbgtype, dbgflag, printstr)\
-do {\
-	if (GLBtcDbgType[dbgtype] & BIT(dbgflag))\
-	{\
-		DbgPrint printstr;\
-	}\
-} while (0)
-#endif
-#else
-#define RT_TRACE(dbgtype, dbgflag, printstr)
-#endif
-
 #ifdef CONFIG_BT_COEXIST
 #define BT_SUPPORT		1
 #define COEX_SUPPORT	1

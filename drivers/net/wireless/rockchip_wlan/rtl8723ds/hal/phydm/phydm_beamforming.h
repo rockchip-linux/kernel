@@ -193,6 +193,8 @@ typedef struct _RT_BEAMFORMING_INFO {
 	u1Byte					FirstMUBFeeIndex;
 	BOOLEAN					is_mu_sounding_in_progress;
 	BOOLEAN					dbg_disable_mu_tx;
+	BOOLEAN					applyVmatrix;
+	BOOLEAN					snding3SS;
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 	PADAPTER				SourceAdapter;
 #endif
@@ -232,18 +234,6 @@ phydm_Beamforming_GetBFerEntryByAddr(
 	IN	pu1Byte	TA,
 	OUT	pu1Byte	Idx
 	);
-
-u1Byte
-Beamforming_GetHTNDPTxRate(
-	IN	PVOID	pDM_VOID,
-	u1Byte	CompSteeringNumofBFer
-);
-
-u1Byte
-Beamforming_GetVHTNDPTxRate(
-	IN	PVOID	pDM_VOID,
-	u1Byte	CompSteeringNumofBFer
-);
 
 VOID
 phydm_Beamforming_Notify(

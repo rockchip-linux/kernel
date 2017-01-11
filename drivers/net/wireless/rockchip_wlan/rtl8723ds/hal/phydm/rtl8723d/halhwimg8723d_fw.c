@@ -22,11 +22,17 @@
 #include "mp_precomp.h"
 #include "../phydm_precomp.h"
 
+#ifdef LOAD_FW_HEADER_FROM_DRIVER
+#include "../../rtl8723d/hal8723d_fw.h"
+#endif
+
+
 #if (RTL8723D_SUPPORT == 1)
 #if (defined(CONFIG_AP_WOWLAN) || (DM_ODM_SUPPORT_TYPE & (ODM_AP)))
 
 
-u1Byte Array_MP_8723D_FW_AP[] = {
+#ifndef LOAD_FW_HEADER_FROM_DRIVER
+u8 array_mp_8723d_fw_ap[] = {
 0xD1, 0x23, 0x20, 0x00, 0x10, 0x00, 0x00, 0x00, 0x05, 0x16, 0x18, 0x17, 0xA0, 0x52, 0x02, 0x00, 
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 0x00, 0x00, 0x00, 0x00, 0x02, 0x85, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -1355,6 +1361,7 @@ u1Byte Array_MP_8723D_FW_AP[] = {
 };
 u4Byte ArrayLength_MP_8723D_FW_AP = 21184;
 
+#endif
 
 void
 ODM_ReadFirmware_MP_8723D_FW_AP(
@@ -1364,11 +1371,11 @@ ODM_ReadFirmware_MP_8723D_FW_AP(
 )
 {
 #if (DM_ODM_SUPPORT_TYPE & (ODM_CE))
-	*((SIZE_PTR *)pFirmware) = (SIZE_PTR)Array_MP_8723D_FW_AP;
+	*((SIZE_PTR *)pFirmware) = (SIZE_PTR)array_mp_8723d_fw_ap;
 #else
-	ODM_MoveMemory(pDM_Odm, pFirmware, Array_MP_8723D_FW_AP, ArrayLength_MP_8723D_FW_AP);
+	ODM_MoveMemory(pDM_Odm, pFirmware, array_mp_8723d_fw_ap, array_length_mp_8723d_fw_ap);
 #endif
-	*pFirmwareSize = ArrayLength_MP_8723D_FW_AP;
+	*pFirmwareSize = array_length_mp_8723d_fw_ap;
 }
 
 
@@ -1377,8 +1384,8 @@ ODM_ReadFirmware_MP_8723D_FW_AP(
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN)) || (DM_ODM_SUPPORT_TYPE & (ODM_CE))
 
-
-u1Byte Array_MP_8723D_FW_NIC[] = {
+#ifndef LOAD_FW_HEADER_FROM_DRIVER
+u8 array_mp_8723d_fw_nic[] = {
 0xD1, 0x23, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00, 0x05, 0x16, 0x18, 0x16, 0x12, 0x64, 0x02, 0x00, 
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 0x00, 0x00, 0x00, 0x00, 0x02, 0x86, 0x75, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -2984,8 +2991,10 @@ u1Byte Array_MP_8723D_FW_NIC[] = {
 0xA6, 0x90, 0x05, 0x00, 0x74, 0x1C, 0xF0, 0xA3, 0x22, 0x7D, 0x03, 0x7F, 0x02, 0x02, 0x7C, 0x05, 
 0xFC, 0x2A, 
 };
-u4Byte ArrayLength_MP_8723D_FW_NIC = 25650;
+u32 array_length_mp_8723d_fw_nic = 25650;
 
+
+#endif
 
 void
 ODM_ReadFirmware_MP_8723D_FW_NIC(
@@ -2995,15 +3004,15 @@ ODM_ReadFirmware_MP_8723D_FW_NIC(
 )
 {
 #if (DM_ODM_SUPPORT_TYPE & (ODM_CE))
-	*((SIZE_PTR *)pFirmware) = (SIZE_PTR)Array_MP_8723D_FW_NIC;
+	*((SIZE_PTR *)pFirmware) = (SIZE_PTR)array_mp_8723d_fw_nic;
 #else
-	ODM_MoveMemory(pDM_Odm, pFirmware, Array_MP_8723D_FW_NIC, ArrayLength_MP_8723D_FW_NIC);
+	ODM_MoveMemory(pDM_Odm, pFirmware, array_mp_8723d_fw_nic, array_length_mp_8723d_fw_nic);
 #endif
-	*pFirmwareSize = ArrayLength_MP_8723D_FW_NIC;
+	*pFirmwareSize = array_length_mp_8723d_fw_nic;
 }
 
-
-u1Byte Array_MP_8723D_FW_WoWLAN[] = {
+#ifndef LOAD_FW_HEADER_FROM_DRIVER 
+u8 array_mp_8723d_fw_wowlan[] = {
 0xD1, 0x23, 0x30, 0x00, 0x10, 0x00, 0x00, 0x00, 0x05, 0x16, 0x18, 0x17, 0x4A, 0x70, 0x02, 0x00, 
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
 0x00, 0x00, 0x00, 0x00, 0x02, 0x87, 0xD0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
@@ -4804,8 +4813,9 @@ u1Byte Array_MP_8723D_FW_WoWLAN[] = {
 0x54, 0x20, 0xFE, 0xEF, 0x54, 0xDF, 0x4E, 0x22, 0x90, 0x88, 0x34, 0xE0, 0xC4, 0x54, 0x0F, 0x22, 
 0x90, 0x05, 0x00, 0x74, 0x1C, 0xF0, 0xA3, 0x22, 0x2C, 0xC0, 
 };
-u4Byte ArrayLength_MP_8723D_FW_WoWLAN = 28778;
+u32 array_length_mp_8723d_fw_wowlan = 28778;
 
+#endif
 
 void
 ODM_ReadFirmware_MP_8723D_FW_WoWLAN(
@@ -4815,17 +4825,16 @@ ODM_ReadFirmware_MP_8723D_FW_WoWLAN(
 )
 {
 #if (DM_ODM_SUPPORT_TYPE & (ODM_CE))
-	*((SIZE_PTR *)pFirmware) = (SIZE_PTR)Array_MP_8723D_FW_WoWLAN;
+	*((SIZE_PTR *)pFirmware) = (SIZE_PTR)array_mp_8723d_fw_wowlan;
 #else
-	ODM_MoveMemory(pDM_Odm, pFirmware, Array_MP_8723D_FW_WoWLAN, ArrayLength_MP_8723D_FW_WoWLAN);
+	ODM_MoveMemory(pDM_Odm, pFirmware, array_mp_8723d_fw_wowlan, array_length_mp_8723d_fw_wowlan);
 #endif
-	*pFirmwareSize = ArrayLength_MP_8723D_FW_WoWLAN;
+	*pFirmwareSize = array_length_mp_8723d_fw_wowlan;
 }
 
 
 
 #endif /* end of (defined(CONFIG_AP_WOWLAN) || (DM_ODM_SUPPORT_TYPE & (ODM_AP)))*/
-
 
 #endif /* end of HWIMG_SUPPORT*/
 

@@ -71,6 +71,8 @@ typedef enum _C2H_EVT {
 	C2H_MAC_HIDDEN_RPT_2 = 0x1A,
 	C2H_BCN_EARLY_RPT = 0x1E,
 	C2H_DEFEATURE_DBG = 0x22,
+	C2H_CUSTOMER_STR_RPT = 0x24,
+	C2H_CUSTOMER_STR_RPT_2 = 0x25,
 	C2H_DEFEATURE_RSVD = 0xFD,
 	C2H_EXTEND = 0xff,
 } C2H_EVT;
@@ -87,6 +89,7 @@ void c2h_iqk_offload(_adapter *adapter, u8 *data, u8 len);
 int	c2h_iqk_offload_wait(_adapter *adapter, u32 timeout_ms);
 #define rtl8812_iqk_wait c2h_iqk_offload_wait /* TODO: remove this after phydm call c2h_iqk_offload_wait instead */
 
+#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
 /* C2H_MAC_HIDDEN_RPT, 0x19 */
 #define MAC_HIDDEN_RPT_LEN 8
 int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
@@ -95,9 +98,20 @@ int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
 #define MAC_HIDDEN_RPT_2_LEN 5
 int c2h_mac_hidden_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
 int hal_read_mac_hidden_rpt(_adapter *adapter);
+#endif /* CONFIG_RTW_MAC_HIDDEN_RPT */
 
 /* C2H_DEFEATURE_DBG, 0x22 */
 #define DEFEATURE_DBG_LEN 1
 int c2h_defeature_dbg_hdl(_adapter *adapter, u8 *data, u8 len);
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+/* C2H_CUSTOMER_STR_RPT, 0x24 */
+#define CUSTOMER_STR_RPT_LEN 8
+int c2h_customer_str_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
+
+/* C2H_CUSTOMER_STR_RPT_2, 0x25 */
+#define CUSTOMER_STR_RPT_2_LEN 8
+int c2h_customer_str_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
+#endif /* CONFIG_RTW_CUSTOMER_STR */
 
 #endif /* __COMMON_C2H_H__ */

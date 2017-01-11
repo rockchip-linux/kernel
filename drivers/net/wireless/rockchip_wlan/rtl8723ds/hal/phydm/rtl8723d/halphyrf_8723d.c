@@ -840,7 +840,7 @@ phy_PathS1_IQK_8723D(
 
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD,  ("[IQK]Path S1 TXIQK!!\n"));	
 		
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S1 TXIQK = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S1 TXIQK = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 		/*save RF path*/
 		Path_SEL_BB = ODM_GetBBReg(pDM_Odm, 0x948, bMaskDWord);
 		/*ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x1e6@S1 TXIQK = 0x%x\n", PlatformEFIORead1Byte(pAdapter, 0x1e6)));*/
@@ -988,7 +988,7 @@ phy_PathS1_RxIQK_8723D(
 
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]Path S1 RXIQK Step1!!\n"));
 	
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S1 RXIQK1 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S1 RXIQK1 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 		ODM_SetBBReg(pDM_Odm, 0x948, bMaskDWord, 0x99000000);		
 		/*ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("[IQK]0x1e6@S1 RXIQK1 = 0x%x\n", PlatformEFIORead1Byte(pAdapter, 0x1e6)));	*/	
 		ODM_SetBBReg(pDM_Odm, rFPGA0_IQK, 0xffffff00, 0x000000);	
@@ -1103,7 +1103,7 @@ phy_PathS1_RxIQK_8723D(
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0xe40 = 0x%x u4tmp = 0x%x\n", ODM_GetBBReg(pDM_Odm, rTx_IQK, bMaskDWord), u4tmp));
 	
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]Path S1 RXIQK STEP2!!\n"));
-		ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S1 RXIQK2 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+		ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S1 RXIQK2 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 		/*ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("[IQK]0x1e6@S1 RXIQK2 = 0x%x\n", PlatformEFIORead1Byte(pAdapter, 0x1e6)));	*/
 		ODM_SetBBReg(pDM_Odm, rRx_IQK, bMaskDWord, 0x01004800);
 				
@@ -1234,7 +1234,7 @@ phy_PathS0_IQK_8723D(
 #endif	
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD,  ("Path S0 TXIQK!\n"));
 
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S0 TXIQK = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S0 TXIQK = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 	Path_SEL_BB = ODM_GetBBReg(pDM_Odm, 0x948, bMaskDWord);
 
 	ODM_SetBBReg(pDM_Odm, 0x948, bMaskDWord, 0x99000280); /*10 od 0x948 0x1 [7] ; WL:S1 to S0;BT:S0 to S1;*/
@@ -1380,7 +1380,7 @@ phy_PathS0_RxIQK_8723D(
 	Path_SEL_BB = ODM_GetBBReg(pDM_Odm, 0x948, bMaskDWord);
 
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("Path S0 RxIQK Step1!!\n"));
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S0 RXIQK1 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S0 RXIQK1 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 	ODM_SetBBReg(pDM_Odm, 0x948, bMaskDWord, 0x99000280); 
 	/*ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("[IQK]0x1e6@S0 RXIQK1 = 0x%x\n", PlatformEFIORead1Byte(pAdapter, 0x1e6)));*/
 	
@@ -1495,7 +1495,7 @@ phy_PathS0_RxIQK_8723D(
 
 	
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]Path S0 RXIQK STEP2!!\n\n"));
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S0 RXIQK2 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]0x67 @S0 RXIQK2 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 	/*ODM_RT_TRACE(pDM_Odm,ODM_COMP_INIT, ODM_DBG_LOUD, ("[IQK]0x1e6@S0 RXIQK2 = 0x%x\n", PlatformEFIORead1Byte(pAdapter, 0x1e6)));*/
 	ODM_SetBBReg(pDM_Odm, rRx_IQK, bMaskDWord, 0x01004800);
 		
@@ -3224,10 +3224,10 @@ for (i = 0; i < 3; i++) {
 
 #if 1
 	/*set path control to WL*/
-	oriPathCtrl = ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord);  /*save 0x67*/
+	oriPathCtrl = ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3);  /*save 0x67*/
 	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]original 0x67 = 0x%x\n", oriPathCtrl));
-	ODM_SetMACReg(pDM_Odm, 0x67, BIT7, 0x1);
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]set 0x67 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+	ODM_SetMACReg(pDM_Odm, 0x64, BIT31, 0x1);
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]set 0x67 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 	
 	/*backup Path & GNT value */
 	originalPath = ODM_GetMACReg(pDM_Odm, REG_LTECOEX_PATH_CONTROL, bMaskDWord);  /*save 0x70*/
@@ -3257,8 +3257,8 @@ for (i = 0; i < 3; i++) {
 	ODM_SetMACReg(pDM_Odm, REG_LTECOEX_PATH_CONTROL, 0xffffffff, originalPath);
 
 	/*Restore path control owner*/
-	ODM_SetMACReg(pDM_Odm, 0x67, 0xffffffff, oriPathCtrl);
-	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]restore 0x67 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x67, bMaskDWord)));
+	ODM_SetMACReg(pDM_Odm, 0x64, bMaskByte3, oriPathCtrl);
+	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("[IQK]restore 0x67 = 0x%x\n", ODM_GetMACReg(pDM_Odm, 0x64, bMaskByte3)));
 #endif
 		
 		if (i == 1) {

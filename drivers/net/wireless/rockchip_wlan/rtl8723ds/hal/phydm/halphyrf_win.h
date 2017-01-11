@@ -32,6 +32,10 @@
 #endif
 #include "phydm_powertracking_win.h"
 
+#if (RTL8821C_SUPPORT == 1)
+#include "rtl8821c/phydm_iqk_8821c.h"
+#endif
+
 typedef enum _SPUR_CAL_METHOD {
 	PLL_RESET,
 	AFE_PHASE_SEL

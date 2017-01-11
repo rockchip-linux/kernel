@@ -44,12 +44,9 @@
 
 #ifdef DBG_MEM_ALLOC
 extern bool match_mstat_sniff_rules(const enum mstat_f flags, const size_t size);
-struct sk_buff *dbg_rtw_cfg80211_vendor_event_alloc(struct wiphy *wiphy, int len, int event_id, gfp_t gfp
+struct sk_buff *dbg_rtw_cfg80211_vendor_event_alloc(struct wiphy *wiphy, struct wireless_dev *wdev, int len, int event_id, gfp_t gfp
 		, const enum mstat_f flags, const char *func, const int line)
 {
-	_adapter *padapter = wiphy_to_adapter(wiphy);
-	struct wireless_dev *wdev = padapter->rtw_wdev;
-
 	struct sk_buff *skb;
 	unsigned int truesize = 0;
 
@@ -134,8 +131,8 @@ int dbg_rtw_cfg80211_vendor_cmd_reply(struct sk_buff *skb
 	return ret;
 }
 
-#define rtw_cfg80211_vendor_event_alloc(wiphy, len, event_id, gfp) \
-	dbg_rtw_cfg80211_vendor_event_alloc(wiphy, len, event_id, gfp, MSTAT_FUNC_CFG_VENDOR | MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
+#define rtw_cfg80211_vendor_event_alloc(wiphy, wdev, len, event_id, gfp) \
+	dbg_rtw_cfg80211_vendor_event_alloc(wiphy, wdev, len, event_id, gfp, MSTAT_FUNC_CFG_VENDOR | MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
 
 #define rtw_cfg80211_vendor_event(skb, gfp) \
 	dbg_rtw_cfg80211_vendor_event(skb, gfp, MSTAT_FUNC_CFG_VENDOR | MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
@@ -148,10 +145,8 @@ int dbg_rtw_cfg80211_vendor_cmd_reply(struct sk_buff *skb
 #else
 
 struct sk_buff *rtw_cfg80211_vendor_event_alloc(
-	struct wiphy *wiphy, int len, int event_id, gfp_t gfp)
+	struct wiphy *wiphy, struct wireless_dev *wdev, int len, int event_id, gfp_t gfp)
 {
-	_adapter *padapter = wiphy_to_adapter(wiphy);
-	struct wireless_dev *wdev = padapter->rtw_wdev;
 	struct sk_buff *skb;
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0))
@@ -187,7 +182,7 @@ int rtw_cfgvendor_send_async_event(struct wiphy *wiphy,
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 
 	/* Alloc the SKB for vendor_event */
-	skb = rtw_cfg80211_vendor_event_alloc(wiphy, len, event_id, kflags);
+	skb = rtw_cfg80211_vendor_event_alloc(wiphy, ndev_to_wdev(dev), len, event_id, kflags);
 	if (!skb) {
 		RTW_ERR(FUNC_NDEV_FMT" skb alloc failed", FUNC_NDEV_ARG(dev));
 		return -ENOMEM;
@@ -393,7 +388,7 @@ int wl_cfgvendor_send_hotlist_event(struct wiphy *wiphy,
 		kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 
 		/* Alloc the SKB for vendor_event */
-		skb = rtw_cfg80211_vendor_event_alloc(wiphy, malloc_len, event, kflags);
+		skb = rtw_cfg80211_vendor_event_alloc(wiphy, ndev_to_wdev(dev), malloc_len, event, kflags);
 		if (!skb) {
 			WL_ERR(("skb alloc failed"));
 			return -ENOMEM;
@@ -925,7 +920,7 @@ void wl_cfgvendor_rtt_evt(void *ctx, void *rtt_data)
 	rtt_list = (struct list_head *)rtt_data;
 	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 	/* Alloc the SKB for vendor_event */
-	skb = rtw_cfg80211_vendor_event_alloc(wiphy, tot_len, GOOGLE_RTT_COMPLETE_EVENT, kflags);
+	skb = rtw_cfg80211_vendor_event_alloc(wiphy, wdev, tot_len, GOOGLE_RTT_COMPLETE_EVENT, kflags);
 	if (!skb) {
 		WL_ERR(("skb alloc failed"));
 		goto exit;

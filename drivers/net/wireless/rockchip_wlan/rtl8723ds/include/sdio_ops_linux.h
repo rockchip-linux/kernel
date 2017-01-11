@@ -50,5 +50,4 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, int addr,
 				void *buf, size_t len, bool fixed);
 int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, int addr,
 				void *buf, size_t len, bool fixed);
-
 #endif

@@ -24,24 +24,67 @@ void rtw_mi_update_union_chan_inf(_adapter *adapter, u8 ch, u8 offset , u8 bw);
 int rtw_mi_get_ch_setting_union(_adapter *adapter, u8 *ch, u8 *bw, u8 *offset);
 int rtw_mi_get_ch_setting_union_no_self(_adapter *adapter, u8 *ch, u8 *bw, u8 *offset);
 
-void rtw_mi_status(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_num
-	, u8 *ap_num, u8 *ld_ap_num, u8 *uw_num);
-void rtw_mi_status_no_self(_adapter *adapter, u8 *sta_num, u8 *ld_sta_num, u8 *lg_sta_num
-	, u8 *ap_num, u8 *ld_ap_num, u8 *uw_num);
+struct mi_state {
+	u8 sta_num;			/*WIFI_FW_STATION_STATE*/
+	u8 ld_sta_num;		/*WIFI_FW_STATION_STATE |_FW_LINKED*/
+	u8 lg_sta_num;		/*WIFI_FW_STATION_STATE |_FW_UNDER_LINKING*/
+	u8 ap_num;			/*WIFI_FW_AP_STATE|_FW_LINKED*/
+	u8 ld_ap_num;		/*WIFI_FW_AP_STATE|_FW_LINKED && asoc_sta_count > 2*/
+	u8 adhoc_num;		/* WIFI_FW_ADHOC_STATE */
+	u8 ld_adhoc_num;	/* WIFI_FW_ADHOC_STATE && asoc_sta_count > 2 */
+	u8 uwps_num;		/*WIFI_UNDER_WPS*/
+
+#ifdef CONFIG_IOCTL_CFG80211
+	#ifdef CONFIG_P2P
+	u8 roch_num;
+	#endif
+	u8 mgmt_tx_num;
+#endif
+
+	u8 union_ch;
+	u8 union_bw;
+	u8 union_offset;
+};
+
+#define MSTATE_STA_NUM(_mstate)			((_mstate)->sta_num)
+#define MSTATE_STA_LD_NUM(_mstate)		((_mstate)->ld_sta_num)
+#define MSTATE_STA_LG_NUM(_mstate)		((_mstate)->lg_sta_num)
+#define MSTATE_AP_NUM(_mstate)			((_mstate)->ap_num)
+#define MSTATE_AP_LD_NUM(_mstate)		((_mstate)->ld_ap_num)
+#define MSTATE_ADHOC_NUM(_mstate)		((_mstate)->adhoc_num)
+#define MSTATE_ADHOC_LD_NUM(_mstate)	((_mstate)->ld_adhoc_num)
+#define MSTATE_WPS_NUM(_mstate)			((_mstate)->uwps_num)
+
+#if defined(CONFIG_IOCTL_CFG80211) && defined(CONFIG_P2P)
+#define MSTATE_ROCH_NUM(_mstate)		((_mstate)->roch_num)
+#else
+#define MSTATE_ROCH_NUM(_mstate)		0
+#endif
+
+#if defined(CONFIG_IOCTL_CFG80211)
+#define MSTATE_MGMT_TX_NUM(_mstate)		((_mstate)->mgmt_tx_num)
+#else
+#define MSTATE_MGMT_TX_NUM(_mstate)		0
+#endif
+
+#define MSTATE_U_CH(_mstate)			((_mstate)->union_ch)
+#define MSTATE_U_BW(_mstate)			((_mstate)->union_bw)
+#define MSTATE_U_OFFSET(_mstate)		((_mstate)->union_offset)
+
+#define rtw_mi_get_union_chan(adapter)	adapter_to_dvobj(adapter)->iface_state.union_ch
+#define rtw_mi_get_union_bw(adapter)		adapter_to_dvobj(adapter)->iface_state.union_bw
+#define rtw_mi_get_union_offset(adapter)	adapter_to_dvobj(adapter)->iface_state.union_offset
+
+#define rtw_mi_get_assoced_sta_num(adapter)	DEV_STA_LD_NUM(adapter_to_dvobj(adapter))
+#define rtw_mi_get_ap_num(adapter)			DEV_AP_NUM(adapter_to_dvobj(adapter))
+
+/* For now, not return union_ch/bw/offset */
+void rtw_mi_status(_adapter *adapter, struct mi_state *mstate);
+void rtw_mi_status_no_self(_adapter *adapter, struct mi_state *mstate);
 
 void rtw_mi_update_iface_status(struct mlme_priv *pmlmepriv, sint state);
 
-
-#ifdef CONFIG_MP_INCLUDED
 u8 rtw_mi_mp_mode_check(_adapter *padapter);
-#endif
-
-#ifdef CONFIG_CONCURRENT_MODE
-#define UNDER_SURVEY_T1	1 /*buddy under suvey*/
-#define UNDER_SURVEY_T2	2 /*buddy under suvey by scan_request*/
-u8 rtw_mi_buddy_under_survey(_adapter *padapter);
-void  rtw_mi_buddy_indicate_scan_done(_adapter *padapter, bool bscan_aborted);
-#endif
 
 u8 rtw_mi_netif_stop_queue(_adapter *padapter, bool carrier_off);
 u8 rtw_mi_buddy_netif_stop_queue(_adapter *padapter, bool carrier_off);
@@ -119,13 +162,6 @@ enum {
 	MI_STA_LINKING,
 };
 u8 rtw_mi_check_status(_adapter *adapter, u8 type);
-#define rtw_mi_get_union_chan(adapter)	adapter_to_dvobj(adapter)->iface_state.union_ch
-#define rtw_mi_get_union_bw(adapter)		adapter_to_dvobj(adapter)->iface_state.union_bw
-#define rtw_mi_get_union_offset(adapter)	adapter_to_dvobj(adapter)->iface_state.union_offset
-
-#define rtw_mi_get_assoced_sta_num(adapter)	adapter_to_dvobj(adapter)->iface_state.ld_sta_num
-#define rtw_mi_get_ap_num(adapter)			adapter_to_dvobj(adapter)->iface_state.ap_num
-#define rtw_mi_get_sta_num(adapter)			adapter_to_dvobj(adapter)->iface_state.sta_num
 
 void dump_dvobj_mi_status(void *sel, const char *fun_name, _adapter *adapter);
 #ifdef DBG_IFACE_STATUS
@@ -160,7 +196,7 @@ u8 rtw_mi_buddy_dynamic_check_timer_handlder(_adapter *padapter);
 u8 rtw_mi_dev_unload(_adapter *padapter);
 u8 rtw_mi_buddy_dev_unload(_adapter *padapter);
 
-extern void dynamic_chk_wk_hdl(_adapter *padapter);
+extern void rtw_iface_dynamic_chk_wk_hdl(_adapter *padapter);
 u8 rtw_mi_dynamic_chk_wk_hdl(_adapter *padapter);
 u8 rtw_mi_buddy_dynamic_chk_wk_hdl(_adapter *padapter);
 

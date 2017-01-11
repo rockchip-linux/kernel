@@ -589,6 +589,7 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _EXT_SUPPORTEDRATES_IE_	50
 
 #define _HT_CAPABILITY_IE_			45
+#define _MDIE_						54
 #define _FTIE_						55
 #define _TIMEOUT_ITVL_IE_			56
 #define _SRC_IE_				59
@@ -1146,7 +1147,7 @@ typedef enum _HT_CAP_AMPDU_DENSITY {
 #define	P2P_ATTR_LISTEN_CH				0x06
 #define	P2P_ATTR_GROUP_BSSID				0x07
 #define	P2P_ATTR_EX_LISTEN_TIMING		0x08
-#define	P2P_ATTR_INTENTED_IF_ADDR		0x09
+#define	P2P_ATTR_INTENDED_IF_ADDR		0x09
 #define	P2P_ATTR_MANAGEABILITY			0x0A
 #define	P2P_ATTR_CH_LIST					0x0B
 #define	P2P_ATTR_NOA						0x0C
@@ -1307,6 +1308,7 @@ enum P2P_PROTO_WK_ID {
 	P2P_PRE_TX_INVITEREQ_PROCESS_WK = 4,
 	P2P_AP_P2P_CH_SWITCH_PROCESS_WK = 5,
 	P2P_RO_CH_WK = 6,
+	P2P_CANCEL_RO_CH_WK = 7,
 };
 
 #ifdef CONFIG_P2P_PS

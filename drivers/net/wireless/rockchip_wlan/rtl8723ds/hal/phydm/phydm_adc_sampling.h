@@ -38,6 +38,10 @@ typedef struct _RT_ADCSMP {
 	u1Byte					ADCSmpDmaDataSigSel;
 	u1Byte					ADCSmpTriggerTime;
 	u2Byte					ADCSmpPollingTime;
+
+	#if (DM_ODM_SUPPORT_TYPE == ODM_WIN)	
+	RT_WORK_ITEM	ADCSmpWorkItem;
+	#endif	
 } RT_ADCSMP, *PRT_ADCSMP;
 
 #if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
@@ -60,7 +64,7 @@ ADCSmp_Set(
 #if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
 RT_STATUS
 ADCSmp_Query(
-	IN	PADAPTER	Adapter,
+	IN	PVOID	pDM_VOID,
 	IN	ULONG	InformationBufferLength, 
 	OUT	PVOID	InformationBuffer, 
 	OUT	PULONG	BytesWritten
@@ -79,23 +83,9 @@ ADCSmp_Init(
 #if (DM_ODM_SUPPORT_TYPE & ODM_WIN)
 VOID
 ADCSmp_DeInit(
-	PADAPTER	Adapter
+	IN		PVOID			pDM_VOID
 );
 
-VOID
-Dump_MAC(
-	PADAPTER	Adapter
-);
-
-VOID
-Dump_BB(
-	PADAPTER	Adapter
-);
-
-VOID
-Dump_RF(
-	PADAPTER	Adapter
-);
 #endif
 #endif
 

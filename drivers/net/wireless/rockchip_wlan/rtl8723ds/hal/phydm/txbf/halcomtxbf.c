@@ -510,9 +510,8 @@ HalComTxbf_Get(
 		} else
 			*pBoolean = FALSE;
 	} else if (getType == TXBF_GET_MU_MIMO_STA) {
-#if (RTL8822B_SUPPORT == 1)
-		if (/*pDM_Odm->SupportICType & (ODM_RTL8822B)*/
-			IS_HARDWARE_TYPE_8822B(Adapter))
+#if ((RTL8822B_SUPPORT == 1) || (RTL8821C_SUPPORT == 1))
+		if (IS_HARDWARE_TYPE_8822B(Adapter) || IS_HARDWARE_TYPE_8821C(Adapter))
 			*pBoolean = TRUE;
 		else
 #endif
@@ -521,8 +520,7 @@ HalComTxbf_Get(
 
 	} else if (getType == TXBF_GET_MU_MIMO_AP) {
 #if (RTL8822B_SUPPORT == 1)	
-		if (/*pDM_Odm->SupportICType & (ODM_RTL8822B)*/
-			IS_HARDWARE_TYPE_8822B(Adapter))
+		if (IS_HARDWARE_TYPE_8822B(Adapter))
 			*pBoolean = TRUE;
 		else
 #endif

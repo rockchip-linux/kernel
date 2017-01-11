@@ -53,6 +53,13 @@ typedef enum _BT_CTRL_STATUS {
 	BT_STATUS_MAX
 } BT_CTRL_STATUS, *PBT_CTRL_STATUS;
 
+typedef enum _BTCOEX_SUSPEND_STATE {
+	BTCOEX_SUSPEND_STATE_RESUME					= 0x0,
+	BTCOEX_SUSPEND_STATE_SUSPEND				= 0x1,
+	BTCOEX_SUSPEND_STATE_SUSPEND_KEEP_ANT		= 0x2,
+	BTCOEX_SUSPEND_STATE_MAX
+} BTCOEX_SUSPEND_STATE, *PBTCOEX_SUSPEND_STATE;
+
 #define SET_BT_MP_OPER_RET(OpCode, StatusCode)						((OpCode << 8) | StatusCode)
 #define GET_OP_CODE_FROM_BT_MP_OPER_RET(RetCode)					((RetCode & 0xF0) >> 8)
 #define GET_STATUS_CODE_FROM_BT_MP_OPER_RET(RetCode)				(RetCode & 0x0F)
@@ -375,6 +382,7 @@ void rtw_btcoex_BtInfoNotify(PADAPTER, u8 length, u8 *tmpBuf);
 void rtw_btcoex_BtMpRptNotify(PADAPTER, u8 length, u8 *tmpBuf);
 void rtw_btcoex_SuspendNotify(PADAPTER, u8 state);
 void rtw_btcoex_HaltNotify(PADAPTER);
+void rtw_btcoex_switchband_notify(u8 under_scan, u8 band_type);
 void rtw_btcoex_SwitchBtTRxMask(PADAPTER);
 void rtw_btcoex_Switch(PADAPTER, u8 enable);
 u8 rtw_btcoex_IsBtDisabled(PADAPTER);
@@ -388,11 +396,6 @@ u8 rtw_btcoex_IsBtControlLps(PADAPTER);
 u8 rtw_btcoex_IsLpsOn(PADAPTER);
 u8 rtw_btcoex_RpwmVal(PADAPTER);
 u8 rtw_btcoex_LpsVal(PADAPTER);
-void rtw_btcoex_SetBTCoexist(PADAPTER, u8 bBtExist);
-void rtw_btcoex_SetChipType(PADAPTER, u8 chipType);
-void rtw_btcoex_SetPGAntNum(PADAPTER, u8 antNum);
-u8 rtw_btcoex_GetPGAntNum(PADAPTER);
-void rtw_btcoex_SetSingleAntPath(PADAPTER padapter, u8 singleAntPath);
 u32 rtw_btcoex_GetRaMask(PADAPTER);
 void rtw_btcoex_RecordPwrMode(PADAPTER, u8 *pCmdBuf, u8 cmdLen);
 void rtw_btcoex_DisplayBtCoexInfo(PADAPTER, u8 *pbuf, u32 bufsize);
@@ -424,8 +427,13 @@ void rtw_btcoex_SendScanNotify(PADAPTER padapter, u8 scanType);
 u16 rtw_btcoex_btreg_read(PADAPTER padapter, u8 type, u16 addr, u32 *data);
 u16 rtw_btcoex_btreg_write(PADAPTER padapter, u8 type, u16 addr, u16 val);
 u8 rtw_btcoex_get_ant_div_cfg(PADAPTER padapter);
-void rtw_btcoex_set_rfe_type(u8 type);
-void rtw_btcoex_switchband_notify(u8 under_scan, u8 band_type);
+u8 rtw_btcoex_get_bt_coexist(PADAPTER padapter);
+u8 rtw_btcoex_get_chip_type(PADAPTER padapter);
+u8 rtw_btcoex_get_pg_ant_num(PADAPTER padapter);
+u8 rtw_btcoex_get_pg_single_ant_path(PADAPTER padapter);
+u8 rtw_btcoex_get_pg_rfe_type(PADAPTER padapter);
+u8 rtw_btcoex_is_tfbga_package_type(PADAPTER padapter);
+u8 rtw_btcoex_get_ant_div_cfg(PADAPTER padapter);
 
 /* ==================================================
  * Below Functions are called by BT-Coex

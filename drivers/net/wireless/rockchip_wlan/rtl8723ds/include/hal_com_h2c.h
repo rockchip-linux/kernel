@@ -32,6 +32,7 @@ enum h2c_cmd {
 	H2C_KEEP_ALIVE = 0x03,
 	H2C_DISCON_DECISION = 0x04,
 	H2C_PSD_OFFLOAD = 0x05,
+	H2C_CUSTOMER_STR_REQ = 0x06,
 	H2C_AP_OFFLOAD = 0x08,
 	H2C_BCN_RSVDPAGE = 0x09,
 	H2C_PROBERSP_RSVDPAGE = 0x0A,
@@ -107,10 +108,12 @@ enum h2c_cmd {
 
 	H2C_RESET_TSF = 0xC0,
 	H2C_BCNHWSEQ = 0xC5,
+	H2C_CUSTOMER_STR_W1 = 0xC6,
+	H2C_CUSTOMER_STR_W2 = 0xC7,
+	H2C_CUSTOMER_STR_W3 = 0xC8,
 	H2C_MAXID,
 };
 
-#define H2C_INACTIVE_PS_LEN		3
 #define H2C_RSVDPAGE_LOC_LEN		5
 #define H2C_MEDIA_STATUS_RPT_LEN		3
 #define H2C_KEEP_ALIVE_CTRL_LEN	2
@@ -135,7 +138,7 @@ enum h2c_cmd {
 #define H2C_PROBERSP_RSVDPAGE_LEN	5
 #define H2C_P2PRSVDPAGE_LOC_LEN	5
 #define H2C_P2P_OFFLOAD_LEN	3
-#define H2C_INACTIVE_PS_LEN	3
+#define H2C_INACTIVE_PS_LEN	4
 #ifdef CONFIG_MCC_MODE
 	#define H2C_MCC_INFO_LEN			7
 	#define H2C_MCC_LOCATION_LEN		3
@@ -260,6 +263,37 @@ s32 rtw_hal_set_FwMediaStatusRpt_range_cmd(_adapter *adapter, bool opmode, bool 
 #define SET_H2CCMD_DISCONDECISION_PARM_CHECK_PERIOD(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd+1, 0, 8, __Value)
 #define SET_H2CCMD_DISCONDECISION_PARM_TRY_PKT_NUM(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd+2, 0, 8, __Value)
 
+#ifdef CONFIG_RTW_CUSTOMER_STR
+#define RTW_CUSTOMER_STR_LEN 16
+#define RTW_CUSTOMER_STR_FMT "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"
+#define RTW_CUSTOMER_STR_ARG(x) ((u8 *)(x))[0], ((u8 *)(x))[1], ((u8 *)(x))[2], ((u8 *)(x))[3], ((u8 *)(x))[4], ((u8 *)(x))[5], \
+	((u8 *)(x))[6], ((u8 *)(x))[7], ((u8 *)(x))[8], ((u8 *)(x))[9], ((u8 *)(x))[10], ((u8 *)(x))[11], \
+	((u8 *)(x))[12], ((u8 *)(x))[13], ((u8 *)(x))[14], ((u8 *)(x))[15]
+
+/* H2C_CUSTOMER_STR_REQ  0x06 */
+#define H2C_CUSTOMER_STR_REQ_LEN 1
+#define SET_H2CCMD_CUSTOMER_STR_REQ_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(((u8 *)(__pH2CCmd)), 0, 1, (__Value))
+s32 rtw_hal_h2c_customer_str_req(_adapter *adapter);
+s32 rtw_hal_customer_str_read(_adapter *adapter, u8 *cs);
+
+/* H2C_CUSTOMER_STR_W1 0xC6 */
+#define H2C_CUSTOMER_STR_W1_LEN 7
+#define SET_H2CCMD_CUSTOMER_STR_W1_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(((u8 *)(__pH2CCmd)), 0, 1, (__Value))
+#define H2CCMD_CUSTOMER_STR_W1_BYTE0(__pH2CCmd)				(((u8 *)(__pH2CCmd)) + 1)
+
+/* H2C_CUSTOMER_STR_W2 0xC7 */
+#define H2C_CUSTOMER_STR_W2_LEN 7
+#define SET_H2CCMD_CUSTOMER_STR_W2_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(((u8 *)(__pH2CCmd)), 0, 1, (__Value))
+#define H2CCMD_CUSTOMER_STR_W2_BYTE6(__pH2CCmd)				(((u8 *)(__pH2CCmd)) + 1)
+
+/* H2C_CUSTOMER_STR_W3 0xC8 */
+#define H2C_CUSTOMER_STR_W3_LEN 5
+#define SET_H2CCMD_CUSTOMER_STR_W3_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(((u8 *)(__pH2CCmd)), 0, 1, (__Value))
+#define H2CCMD_CUSTOMER_STR_W3_BYTE12(__pH2CCmd)			(((u8 *)(__pH2CCmd)) + 1)
+s32 rtw_hal_h2c_customer_str_write(_adapter *adapter, const u8 *cs);
+s32 rtw_hal_customer_str_write(_adapter *adapter, const u8 *cs);
+#endif /* CONFIG_RTW_CUSTOMER_STR */
+
 /* _AP_Offload 0x08 */
 #define SET_H2CCMD_AP_WOWLAN_EN(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 8, __Value)
 /* _BCN_RsvdPage	0x09 */
@@ -283,12 +317,16 @@ s32 rtw_hal_set_FwMediaStatusRpt_range_cmd(_adapter *adapter, bool opmode, bool 
 /* INACTIVE_PS 0x27, duration unit is TBTT */
 #define SET_H2CCMD_INACTIVE_PS_EN(__pH2CCmd, __Value) \
 	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 1, __Value)
-#define SET_H2CCMD_INACTIVE_PS_IGNORE_PS_CONDITION(__pH2CCmd, __Value) \
+#define SET_H2CCMD_INACTIVE_PS_IGNORE_PS(__pH2CCmd, __Value) \
 	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 1, 1, __Value)
+#define SET_H2CCMD_INACTIVE_PS_PERIOD_SCAN_EN(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 2, 1, __Value)
 #define SET_H2CCMD_INACTIVE_PS_FREQ(__pH2CCmd, __Value) \
 	SET_BITS_TO_LE_1BYTE(__pH2CCmd + 1, 0, 8, __Value)
 #define SET_H2CCMD_INACTIVE_PS_DURATION(__pH2CCmd, __Value) \
 	SET_BITS_TO_LE_1BYTE(__pH2CCmd + 2, 0, 8, __Value)
+#define SET_H2CCMD_INACTIVE_PS_PERIOD_SCAN_TIME(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE(__pH2CCmd + 3, 0, 8, __Value)
 
 #ifdef CONFIG_LPS_POFF
 /*PARTIAL OFF Control 0x29*/
@@ -386,6 +424,7 @@ s32 rtw_hal_set_FwMediaStatusRpt_range_cmd(_adapter *adapter, bool opmode, bool 
 #define SET_H2CCMD_REMOTE_WAKE_CTRL_FW_UNICAST_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE(__pH2CCmd, 7, 1, __Value)
 #define SET_H2CCMD_REMOTE_WAKE_CTRL_P2P_OFFLAD_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 0, 1, __Value)
 #define SET_H2CCMD_REMOTE_WAKE_CTRL_NBNS_FILTER_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 2, 1, __Value)
+#define SET_H2CCMD_REMOTE_WAKE_CTRL_TKIP_OFFLOAD_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 3, 1, __Value)
 #define SET_H2CCMD_REMOTE_WAKE_CTRL_ARP_ACTION(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+2, 0, 1, __Value)
 #define SET_H2CCMD_REMOTE_WAKE_CTRL_FW_PARSING_UNTIL_WAKEUP(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+2, 4, 1, __Value)
 
@@ -405,6 +444,8 @@ s32 rtw_hal_set_FwMediaStatusRpt_range_cmd(_adapter *adapter, bool opmode, bool 
 #ifdef CONFIG_PNO_SUPPORT
 #define SET_H2CCMD_AOAC_RSVDPAGE_LOC_NLO_INFO(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd), 0, 8, __Value)
 #endif
+#define SET_H2CCMD_AOAC_RSVDPAGE_LOC_AOAC_REPORT(__pH2CCmd, __Value) \
+	SET_BITS_TO_LE_1BYTE((__pH2CCmd) + 1, 0, 8, __Value)
 
 #ifdef CONFIG_PNO_SUPPORT
 /* D0_Scan_Offload_Info_0x86 */
@@ -454,6 +495,7 @@ typedef struct _RSVDPAGE_LOC {
 #ifdef CONFIG_GTK_OL
 	u8 LocGTKEXTMEM;
 #endif /* CONFIG_GTK_OL */
+	u8 LocAOACReport;
 #ifdef CONFIG_PNO_SUPPORT
 	u8 LocPNOInfo;
 	u8 LocScanInfo;

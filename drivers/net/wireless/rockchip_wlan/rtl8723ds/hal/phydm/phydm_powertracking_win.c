@@ -423,10 +423,6 @@ u4Byte TxScalingTable_Jaguar[TXSCALE_TABLE_SIZE] =
 	0x3C4, // 35, +5.5dB
 	0x3FE  // 36, +6.0dB	
 };
-u1Byte DeltaSwingTableIdx_2GA_P_DEFAULT[DELTA_SWINGIDX_SIZE] = {0, 0, 0, 0, 1, 1, 2, 2, 3, 3
-, 4, 4, 4,  4,  4,  4,  4,  4,  5,  5,  7,  7,  8,  8,  8,  9,  9,  9,  9,  9};
-u1Byte DeltaSwingTableIdx_2GA_N_DEFAULT[DELTA_SWINGIDX_SIZE] = {0, 0, 0, 2, 2, 3, 3, 4, 4, 4
-, 4, 5, 5,  6,  6,  7,  7,  7,  7,  8,  8,  9,  9, 10, 10, 10, 11, 11, 11, 11}; 
 
 
 #ifdef AP_BUILD_WORKAROUND
@@ -480,7 +476,7 @@ odm_TXPowerTrackingInit(
 {
 	PDM_ODM_T		pDM_Odm = (PDM_ODM_T)pDM_VOID;
 #if (DM_ODM_SUPPORT_TYPE & (ODM_AP))
-	if(!(pDM_Odm->SupportICType & (ODM_RTL8814A|ODM_IC_11N_SERIES|ODM_RTL8822B)))
+	if (!(pDM_Odm->SupportICType & (ODM_RTL8814A | ODM_IC_11N_SERIES | ODM_RTL8822B)))
 		return;
 #endif
 
@@ -766,7 +762,7 @@ odm_TXPowerTrackingThermalMeterCheck(
 	{
 		if (IS_HARDWARE_TYPE_8188E(Adapter) || IS_HARDWARE_TYPE_JAGUAR(Adapter) || IS_HARDWARE_TYPE_8192E(Adapter) ||
 			    IS_HARDWARE_TYPE_8723B(Adapter) || IS_HARDWARE_TYPE_8814A(Adapter) || IS_HARDWARE_TYPE_8188F(Adapter) || IS_HARDWARE_TYPE_8703B(Adapter)
-			    || IS_HARDWARE_TYPE_8822B(Adapter) || IS_HARDWARE_TYPE_8723D(Adapter))
+			    || IS_HARDWARE_TYPE_8822B(Adapter) || IS_HARDWARE_TYPE_8723D(Adapter) || IS_HARDWARE_TYPE_8821C(Adapter))
 			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_T_METER_88E, BIT17 | BIT16, 0x03);
 		else
 			PHY_SetRFReg(Adapter, ODM_RF_PATH_A, RF_T_METER, bRFRegOffsetMask, 0x60);

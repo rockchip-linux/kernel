@@ -50,6 +50,7 @@ const char *security_type_str(u8 value);
 
 #define RTW_KEK_LEN 16
 #define RTW_KCK_LEN 16
+#define RTW_TKIP_MIC_LEN 8
 #define RTW_REPLAY_CTR_LEN 8
 
 #define INVALID_SEC_MAC_CAM_ID	0xFF
@@ -158,6 +159,8 @@ struct security_priv {
 #ifdef CONFIG_CONCURRENT_MODE
 	u8	dot118021x_bmc_cam_id;
 #endif
+	/*IEEE802.11-2012 Std. Table 8-101 AKM Suite Selectors*/
+	u32	rsn_akm_suite_type;
 
 	u8 wps_ie[MAX_WPS_IE_LEN];/* added in assoc req */
 	int wps_ie_len;

@@ -41,23 +41,6 @@
 	#include "rtl8192e_sreset.h"
 #endif
 
-
-/* ---------------------------------------------------------------------
- *		RTL8192E From header
- * --------------------------------------------------------------------- */
-#define RTL8192E_FW_IMG					"rtl8192e/FW_NIC.bin"
-#define RTL8192E_FW_WW_IMG				"rtl8192e/FW_WoWLAN.bin"
-#define RTL8192E_PHY_REG					"rtl8192e/PHY_REG.txt"
-#define RTL8192E_PHY_RADIO_A				"rtl8192e/RadioA.txt"
-#define RTL8192E_PHY_RADIO_B				"rtl8192e/RadioB.txt"
-#define RTL8192E_TXPWR_TRACK				"rtl8192e/TxPowerTrack.txt"
-#define RTL8192E_AGC_TAB					"rtl8192e/AGC_TAB.txt"
-#define RTL8192E_PHY_MACREG 				"rtl8192e/MAC_REG.txt"
-#define RTL8192E_PHY_REG_PG				"rtl8192e/PHY_REG_PG.txt"
-#define RTL8192E_PHY_REG_MP 				"rtl8192e/PHY_REG_MP.txt"
-#define RTL8192E_TXPWR_LMT					"rtl8192e/TXPWR_LMT.txt"
-#define RTL8192E_WIFI_ANT_ISOLATION		"rtl8192e/wifi_ant_isolation.txt"
-
 /* ---------------------------------------------------------------------
  *		RTL8192E Power Configuration CMDs for PCIe interface
  * --------------------------------------------------------------------- */

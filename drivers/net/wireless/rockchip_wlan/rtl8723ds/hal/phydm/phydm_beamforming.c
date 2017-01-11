@@ -100,83 +100,6 @@ void phydm_staInfoUpdate(
 	pSTA->txbf_gid = pBeamformEntry->G_ID;
 #endif	
 }
-	
-
-u1Byte
-Beamforming_GetHTNDPTxRate(
-	IN	PVOID	pDM_VOID,
-	u1Byte	CompSteeringNumofBFer
-)
-{
-	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u1Byte Nr_index = 0;
-	u1Byte NDPTxRate;
-	/*Find Nr*/
-	
-	if (pDM_Odm->SupportICType & ODM_RTL8814A)
-		Nr_index = TxBF_Nr(halTxbf8814A_GetNtx(pDM_Odm), CompSteeringNumofBFer);
-	else
-		Nr_index = TxBF_Nr(1, CompSteeringNumofBFer);
-	
-	switch (Nr_index) {
-	case 1:
-	NDPTxRate = MGN_MCS8;
-	break;
-
-	case 2:
-	NDPTxRate = MGN_MCS16;
-	break;
-
-	case 3:
-	NDPTxRate = MGN_MCS24;
-	break;
-			
-	default:
-	NDPTxRate = MGN_MCS8;
-	break;
-	}
-
-return NDPTxRate;
-
-}
-
-u1Byte
-Beamforming_GetVHTNDPTxRate(
-	IN	PVOID	pDM_VOID,
-	u1Byte	CompSteeringNumofBFer
-)
-{
-	PDM_ODM_T	pDM_Odm = (PDM_ODM_T)pDM_VOID;
-	u1Byte Nr_index = 0;
-	u1Byte NDPTxRate;
-	/*Find Nr*/
-	if (pDM_Odm->SupportICType & ODM_RTL8814A)
-		Nr_index = TxBF_Nr(halTxbf8814A_GetNtx(pDM_Odm), CompSteeringNumofBFer);
-	else
-		Nr_index = TxBF_Nr(1, CompSteeringNumofBFer);
-	
-	switch (Nr_index) {
-	case 1:
-	NDPTxRate = MGN_VHT2SS_MCS0;
-	break;
-
-	case 2:
-	NDPTxRate = MGN_VHT3SS_MCS0;
-	break;
-
-	case 3:
-	NDPTxRate = MGN_VHT4SS_MCS0;
-	break;
-			
-	default:
-	NDPTxRate = MGN_VHT2SS_MCS0;
-	break;
-	}
-
-return NDPTxRate;
-
-}
-
 
 PRT_BEAMFORMEE_ENTRY
 phydm_Beamforming_GetBFeeEntryByAddr(
@@ -661,7 +584,7 @@ Beamforming_SendVHTNDPAPacket(
 
 	HalComTxbf_Set(pDM_Odm, TXBF_SET_GET_TX_RATE, NULL);
 
-	if ((pDM_Odm->TxBfDataRate >= ODM_RATEVHTSS3MCS7) && (pDM_Odm->TxBfDataRate <= ODM_RATEVHTSS3MCS9)) {
+	if ((pDM_Odm->TxBfDataRate >= ODM_RATEVHTSS3MCS7) && (pDM_Odm->TxBfDataRate <= ODM_RATEVHTSS3MCS9) && (pBeamInfo->snding3SS == FALSE)) {
 		ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_TXBF, ODM_DBG_LOUD, ("@%s: 3SS VHT 789 don't sounding\n", __func__));
 
 	} else  {
@@ -1590,7 +1513,7 @@ phydm_Beamforming_End_SW(
 			return;
 		}
 
-		if ((pDM_Odm->TxBfDataRate >= ODM_RATEVHTSS3MCS7) && (pDM_Odm->TxBfDataRate <= ODM_RATEVHTSS3MCS9)) {
+		if ((pDM_Odm->TxBfDataRate >= ODM_RATEVHTSS3MCS7) && (pDM_Odm->TxBfDataRate <= ODM_RATEVHTSS3MCS9) && (pBeamInfo->snding3SS == FALSE)) {
 			ODM_RT_TRACE(pDM_Odm, PHYDM_COMP_TXBF, ODM_DBG_LOUD, ("[%s] VHT3SS 7,8,9, do not apply V matrix.\n", __func__));
 			pEntry->BeamformEntryState = BEAMFORMING_ENTRY_STATE_INITIALIZED;
 			HalComTxbf_Set(pDM_Odm, TXBF_SET_SOUNDING_STATUS, (pu1Byte)&(pBeamInfo->BeamformeeCurIdx));
@@ -1726,6 +1649,9 @@ phydm_Beamforming_Init(
 	pBeamInfo->mu_ap_index = 0;
 	pBeamInfo->is_mu_sounding = FALSE;
 	pBeamInfo->FirstMUBFeeIndex = 0xFF;
+	pBeamInfo->applyVmatrix = TRUE;
+	pBeamInfo->snding3SS = FALSE;
+	
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)	
 	pBeamInfo->SourceAdapter = pDM_Odm->Adapter;
 #endif

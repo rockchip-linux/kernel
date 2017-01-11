@@ -146,6 +146,12 @@ void dbg_rtw_skb_free(struct sk_buff *skb, const enum mstat_f flags, const char 
 struct sk_buff *dbg_rtw_skb_copy(const struct sk_buff *skb, const enum mstat_f flags, const char *func, const int line);
 struct sk_buff *dbg_rtw_skb_clone(struct sk_buff *skb, const enum mstat_f flags, const char *func, const int line);
 int dbg_rtw_netif_rx(_nic_hdl ndev, struct sk_buff *skb, const enum mstat_f flags, const char *func, int line);
+#ifdef CONFIG_RTW_NAPI
+int dbg_rtw_netif_receive_skb(_nic_hdl ndev, struct sk_buff *skb, const enum mstat_f flags, const char *func, int line);
+#ifdef CONFIG_RTW_GRO
+gro_result_t dbg_rtw_napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb, const enum mstat_f flags, const char *func, int line);
+#endif
+#endif /* CONFIG_RTW_NAPI */
 void dbg_rtw_skb_queue_purge(struct sk_buff_head *list, enum mstat_f flags, const char *func, int line);
 #ifdef CONFIG_USB_HCI
 void *dbg_rtw_usb_buffer_alloc(struct usb_device *dev, size_t size, dma_addr_t *dma, const enum mstat_f flags, const char *func, const int line);
@@ -183,6 +189,12 @@ void dbg_rtw_usb_buffer_free(struct usb_device *dev, size_t size, void *addr, dm
 #define rtw_skb_copy_f(skb, mstat_f)	dbg_rtw_skb_copy((skb), ((mstat_f) & 0xff00) | MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
 #define rtw_skb_clone_f(skb, mstat_f)	dbg_rtw_skb_clone((skb), ((mstat_f) & 0xff00) | MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
 #define rtw_netif_rx(ndev, skb)	dbg_rtw_netif_rx(ndev, skb, MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
+#ifdef CONFIG_RTW_NAPI
+#define rtw_netif_receive_skb(ndev, skb) dbg_rtw_netif_receive_skb(ndev, skb, MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
+#ifdef CONFIG_RTW_GRO
+#define rtw_napi_gro_receive(napi, skb) dbg_rtw_napi_gro_receive(napi, skb, MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
+#endif
+#endif /* CONFIG_RTW_NAPI */
 #define rtw_skb_queue_purge(sk_buff_head) dbg_rtw_skb_queue_purge(sk_buff_head, MSTAT_TYPE_SKB, __FUNCTION__, __LINE__)
 #ifdef CONFIG_USB_HCI
 #define rtw_usb_buffer_alloc(dev, size, dma)		dbg_rtw_usb_buffer_alloc((dev), (size), (dma), MSTAT_TYPE_USB, __FUNCTION__, __LINE__)
@@ -206,6 +218,12 @@ void _rtw_skb_free(struct sk_buff *skb);
 struct sk_buff *_rtw_skb_copy(const struct sk_buff *skb);
 struct sk_buff *_rtw_skb_clone(struct sk_buff *skb);
 int _rtw_netif_rx(_nic_hdl ndev, struct sk_buff *skb);
+#ifdef CONFIG_RTW_NAPI
+int _rtw_netif_receive_skb(_nic_hdl ndev, struct sk_buff *skb);
+#ifdef CONFIG_RTW_GRO
+gro_result_t _rtw_napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb);
+#endif
+#endif /* CONFIG_RTW_NAPI */
 void _rtw_skb_queue_purge(struct sk_buff_head *list);
 
 #ifdef CONFIG_USB_HCI
@@ -244,6 +262,12 @@ void _rtw_usb_buffer_free(struct usb_device *dev, size_t size, void *addr, dma_a
 #define rtw_skb_copy_f(skb, mstat_f)	_rtw_skb_copy((skb))
 #define rtw_skb_clone_f(skb, mstat_f)	_rtw_skb_clone((skb))
 #define rtw_netif_rx(ndev, skb) _rtw_netif_rx(ndev, skb)
+#ifdef CONFIG_RTW_NAPI
+#define rtw_netif_receive_skb(ndev, skb) _rtw_netif_receive_skb(ndev, skb)
+#ifdef CONFIG_RTW_GRO
+#define rtw_napi_gro_receive(napi, skb) _rtw_napi_gro_receive(napi, skb)
+#endif
+#endif /* CONFIG_RTW_NAPI */
 #define rtw_skb_queue_purge(sk_buff_head) _rtw_skb_queue_purge(sk_buff_head)
 #ifdef CONFIG_USB_HCI
 #define rtw_usb_buffer_alloc(dev, size, dma) _rtw_usb_buffer_alloc((dev), (size), (dma))
@@ -475,6 +499,17 @@ __inline static u32 bitshift(u32 bitmask)
 	return i;
 }
 
+static inline int largest_bit(u32 bitmask)
+{
+	int i;
+
+	for (i = 31; i >= 0; i--)
+		if (bitmask & BIT(i))
+			break;
+
+	return i;
+}
+
 #define rtw_min(a, b) ((a > b) ? b : a)
 #define rtw_is_range_a_in_b(hi_a, lo_a, hi_b, lo_b) (((hi_a) <= (hi_b)) && ((lo_a) >= (lo_b)))
 #define rtw_is_range_overlap(hi_a, lo_a, hi_b, lo_b) (((hi_a) > (lo_b)) && ((lo_a) < (hi_b)))
@@ -515,9 +550,10 @@ extern int ATOMIC_INC_RETURN(ATOMIC_T *v);
 extern int ATOMIC_DEC_RETURN(ATOMIC_T *v);
 
 /* File operation APIs, just for linux now */
-extern int rtw_is_file_readable(char *path);
-extern int rtw_retrieve_from_file(char *path, u8 *buf, u32 sz);
-extern int rtw_store_to_file(char *path, u8 *buf, u32 sz);
+extern int rtw_is_file_readable(const char *path);
+extern int rtw_is_file_readable_with_size(const char *path, u32 *sz);
+extern int rtw_retrieve_from_file(const char *path, u8 *buf, u32 sz);
+extern int rtw_store_to_file(const char *path, u8 *buf, u32 sz);
 
 
 #ifndef PLATFORM_FREEBSD
@@ -612,8 +648,36 @@ void *rtw_cbuf_pop(struct rtw_cbuf *cbuf);
 struct rtw_cbuf *rtw_cbuf_alloc(u32 size);
 void rtw_cbuf_free(struct rtw_cbuf *cbuf);
 
+struct map_seg_t {
+	u16 sa;
+	u16 len;
+	u8 *c;
+};
+
+struct map_t {
+	u16 len;
+	u16 seg_num;
+	u8 init_value;
+	struct map_seg_t *segs;
+};
+
+#define MAPSEG_ARRAY_ENT(_sa, _len, _c, arg...) \
+	{ .sa = _sa, .len = _len, .c = (u8[_len]){ _c, ##arg}, }
+
+#define MAPSEG_PTR_ENT(_sa, _len, _p) \
+	{ .sa = _sa, .len = _len, .c = _p, }
+
+#define MAP_ENT(_len, _seg_num, _init_v, _seg, arg...) \
+	{ .len = _len, .seg_num = _seg_num, .init_value = _init_v, .segs = (struct map_seg_t[_seg_num]){ _seg, ##arg}, }
+
+int map_readN(const struct map_t *map, u16 offset, u16 len, u8 *buf);
+u8 map_read8(const struct map_t *map, u16 offset);
+
 /* String handler */
 
+BOOLEAN is_null(char c);
+BOOLEAN is_eol(char c);
+BOOLEAN is_space(char c);
 BOOLEAN IsHexDigit(char chTmp);
 BOOLEAN is_alpha(char chTmp);
 char alpha_to_upper(char c);

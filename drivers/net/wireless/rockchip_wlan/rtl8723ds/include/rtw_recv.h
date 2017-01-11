@@ -51,6 +51,9 @@
 		#define NR_PREALLOC_RECV_SKB 8
 	#endif /* CONFIG_PREALLOC_RX_SKB_BUFFER */
 
+	#ifdef CONFIG_RTW_NAPI
+		#define RTL_NAPI_WEIGHT (32)
+	#endif
 #endif
 
 #define NR_RECVFRAME 256
@@ -258,6 +261,7 @@ struct rx_pkt_attrib	{
 	u8	key_index;
 
 	u8	data_rate;
+	u8 ch; /* RX channel */
 	u8	bw;
 	u8	stbc;
 	u8	ldpc;
@@ -430,6 +434,9 @@ struct recv_priv {
 #endif /* PLATFORM_FREEBSD */
 	struct sk_buff_head free_recv_skb_queue;
 	struct sk_buff_head rx_skb_queue;
+#ifdef CONFIG_RTW_NAPI
+	struct sk_buff_head rx_napi_skb_queue;
+#endif 
 #ifdef CONFIG_RX_INDICATE_QUEUE
 	struct task rx_indicate_tasklet;
 	struct ifqueue rx_indicate_queue;

@@ -192,6 +192,24 @@ extern void rtw_cmd_clr_isr(struct cmd_priv *pcmdpriv);
 extern void rtw_evt_notify_isr(struct evt_priv *pevtpriv);
 #ifdef CONFIG_P2P
 u8 p2p_protocol_wk_cmd(_adapter *padapter, int intCmdType);
+
+#ifdef CONFIG_IOCTL_CFG80211
+struct p2p_roch_parm {
+	u64 cookie;
+	struct wireless_dev *wdev;
+	struct ieee80211_channel ch;
+	enum nl80211_channel_type ch_type;
+	unsigned int duration;
+};
+
+u8 p2p_roch_cmd(_adapter *adapter
+	, u64 cookie, struct wireless_dev *wdev
+	, struct ieee80211_channel *ch, enum nl80211_channel_type ch_type
+	, unsigned int duration
+	, u8 flags
+);
+u8 p2p_cancel_roch_cmd(_adapter *adapter, u64 cookie, struct wireless_dev *wdev, u8 flags);
+#endif /* CONFIG_IOCTL_CFG80211 */
 #endif /* CONFIG_P2P */
 
 #else
@@ -224,6 +242,7 @@ enum rtw_drvextra_cmd_id {
 	SESSION_TRACKER_WK_CID,
 	EN_HW_UPDATE_TSF_WK_CID,
 	TEST_H2C_CID,
+	CUSTOMER_STR_WK_CID,
 	MAX_WK_CID
 };
 
@@ -1084,6 +1103,11 @@ u8 rtw_set_country_cmd(_adapter *adapter, int flags, const char *country_code, u
 extern u8 rtw_led_blink_cmd(_adapter *padapter, PVOID pLed);
 extern u8 rtw_set_csa_cmd(_adapter *padapter, u8 new_ch_no);
 extern u8 rtw_tdls_cmd(_adapter *padapter, u8 *addr, u8 option);
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+u8 rtw_customer_str_req_cmd(_adapter *adapter);
+u8 rtw_customer_str_write_cmd(_adapter *adapter, const u8 *cstr);
+#endif
 
 #ifdef CONFIG_FW_C2H_REG
 u8 rtw_c2h_reg_wk_cmd(_adapter *adapter, u8 *c2h_evt);
