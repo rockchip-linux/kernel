@@ -200,7 +200,8 @@ static dma_addr_t __swiotlb_map_page(struct device *dev, struct page *page,
 	dma_addr_t dev_addr;
 
 	dev_addr = swiotlb_map_page(dev, page, offset, size, dir, attrs);
-	if (!is_device_dma_coherent(dev))
+	if (!is_device_dma_coherent(dev) &&
+	    !dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
 		__dma_map_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
 
 	return dev_addr;
@@ -211,7 +212,8 @@ static void __swiotlb_unmap_page(struct device *dev, dma_addr_t dev_addr,
 				 size_t size, enum dma_data_direction dir,
 				 struct dma_attrs *attrs)
 {
-	if (!is_device_dma_coherent(dev))
+	if (!is_device_dma_coherent(dev) &&
+	    !dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
 		__dma_unmap_area(phys_to_virt(dma_to_phys(dev, dev_addr)), size, dir);
 	swiotlb_unmap_page(dev, dev_addr, size, dir, attrs);
 }
@@ -224,7 +226,8 @@ static int __swiotlb_map_sg_attrs(struct device *dev, struct scatterlist *sgl,
 	int i, ret;
 
 	ret = swiotlb_map_sg_attrs(dev, sgl, nelems, dir, attrs);
-	if (!is_device_dma_coherent(dev))
+	if (!is_device_dma_coherent(dev) &&
+	    !dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
 		for_each_sg(sgl, sg, ret, i)
 			__dma_map_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
 				       sg->length, dir);
@@ -240,7 +243,8 @@ static void __swiotlb_unmap_sg_attrs(struct device *dev,
 	struct scatterlist *sg;
 	int i;
 
-	if (!is_device_dma_coherent(dev))
+	if (!is_device_dma_coherent(dev) &&
+	    !dma_get_attr(DMA_ATTR_SKIP_CPU_SYNC, attrs))
 		for_each_sg(sgl, sg, nelems, i)
 			__dma_unmap_area(phys_to_virt(dma_to_phys(dev, sg->dma_address)),
 					 sg->length, dir);
