@@ -1667,9 +1667,6 @@ static void rk322xh_vop_bcsh_path_sel(struct rk_lcdc_driver *dev_drv)
 	u64 val = 0;
 
 	vop_msk_reg(vop_dev, SYS_CTRL, V_OVERLAY_MODE(dev_drv->overlay_mode));
-	vop_msk_reg(vop_dev, SYS_CTRL1,
-		    V_LEVEL2_OVERLAY_EN(dev_drv->pre_overlay) |
-		    V_ALPHA_HARD_CALC(dev_drv->pre_overlay));
 	/* BG color */
 	if (IS_YUV_COLOR(dev_drv->output_color)) {
 		val = V_DSP_OUT_RGB_YUV(1);
@@ -3895,6 +3892,9 @@ static irqreturn_t vop_isr(int irq, void *dev_id)
 		return IRQ_NONE;
 
 	if (intr_status & INTR_FS_FIELD) {
+		vop_msk_reg(vop_dev, SYS_CTRL1,
+			    V_LEVEL2_OVERLAY_EN(vop_dev->driver.pre_overlay) |
+			    V_ALPHA_HARD_CALC(vop_dev->driver.pre_overlay));
 		timestamp = ktime_get();
 		vop_dev->driver.vsync_info.timestamp = timestamp;
 		wake_up_interruptible_all(&vop_dev->driver.vsync_info.wait);
