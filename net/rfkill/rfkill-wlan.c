@@ -45,6 +45,7 @@
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
 #endif
+#include <linux/soc/rockchip/rk_vendor_storage.h>
 
 #if 0
 #define DBG(x...)   printk(KERN_INFO "[WLAN_RFKILL]: "x)
@@ -599,10 +600,48 @@ static int rockchip_wifi_rand_mac_addr(unsigned char *buf)
 }
 #endif
 
+//#define RANDOM_ADDRESS_SAVE
+static int get_wifi_addr_vendor_storage(unsigned char *addr)
+{
+	int ret;
+
+	ret = rk_vendor_read(WIFI_MAC_ID, addr, 6);
+	if (ret != 6 || is_zero_ether_addr(addr)) {
+		LOG("%s: rk_vendor_read wifi mac address failed (%d)\n",
+			__func__, ret);
+#ifdef RANDOM_ADDRESS_SAVE
+		random_ether_addr(addr);
+		LOG("%s random mac addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+			__func__, addr[0], addr[1], addr[2],
+			addr[3], addr[4], addr[5]);
+		ret = rk_vendor_write(WIFI_MAC_ID, addr, 6);
+		if (ret != 0) {
+			LOG("%s: vendor write wifi mac address failed (%d)\n",
+				__func__, ret);
+			memset(addr, 0, 6);
+			//return -1;
+		}
+#else
+		//return -1;
+#endif
+	} else {
+		LOG("%s: read mac addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+			__func__, addr[0], addr[1], addr[2],
+			addr[3], addr[4], addr[5]);
+	}
+	return 0;
+}
+
 int rockchip_wifi_mac_addr(unsigned char *buf)
 {
     char mac_buf[20] = {0};
     LOG("%s: enter.\n", __func__);
+
+	// from vendor storage
+	if (is_zero_ether_addr(wifi_custom_mac_addr)) {
+		if (get_wifi_addr_vendor_storage(wifi_custom_mac_addr) != 0)
+			return -1;
+	}
 
     // from vflash
     if(is_zero_ether_addr(wifi_custom_mac_addr)) {
