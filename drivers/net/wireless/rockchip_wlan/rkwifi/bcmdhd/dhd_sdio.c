@@ -3555,6 +3555,13 @@ dhdsdio_readshared(dhd_bus_t *bus, sdpcm_shared_t *sh)
 	int rv, i;
 	uint32 shaddr = 0;
 
+	if (bus->dhd && bus->dhd->dongle_reset) {
+		return BCME_NOTREADY;
+	} else if (!bus->sih) {
+		ASSERT(bus->dhd);
+		ASSERT(bus->sih);
+		return BCME_ERROR;
+	}
 	if (CHIPID(bus->sih->chip) == BCM43430_CHIP_ID && !dhdsdio_sr_cap(bus))
 		bus->srmemsize = 0;
 
