@@ -18,6 +18,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <dt-bindings/clock/ddr.h>
+#include <dt-bindings/rkfb/rk_fb.h>
 #include <linux/delay.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of.h>
@@ -72,6 +73,7 @@ struct rockchip_ddr {
 	struct regmap *msch_regs;
 	struct regmap *grf_regs;
 	struct ddr_timing dram_timing;
+	u32 vop_dclk_mode;
 };
 
 static struct rockchip_ddr *ddr_data = NULL;
@@ -129,8 +131,19 @@ static int _ddr_change_freq(u32 n_mhz)
 	struct rk_lcdc_driver *lcdc_dev = NULL;
 
 	printk(KERN_DEBUG pr_fmt("In func %s,freq=%dMHz\n"), __func__, n_mhz);
-	lcdc_dev = rk_get_lcdc_drv("lcdc0");
-	lcdc_type = lcdc_dev ? (u32)lcdc_dev->cur_screen->type : 0;
+
+	if (ddr_data->vop_dclk_mode == 0) {
+		lcdc_dev = rk_get_lcdc_drv("lcdc0");
+		if (!lcdc_dev)
+			lcdc_type = 0;
+		else
+			lcdc_type = (u32)lcdc_dev->cur_screen->type;
+	} else if (ddr_data->vop_dclk_mode == 2) {
+		lcdc_type = SCREEN_EDP;
+	} else {
+		lcdc_type = SCREEN_HDMI;
+	}
+
 	printk(KERN_DEBUG pr_fmt("lcdc type:%d\n"), lcdc_type);
 	if (scpi_ddr_set_clk_rate(n_mhz, lcdc_type))
 		pr_info("set ddr freq timeout\n");
@@ -312,11 +325,18 @@ static void ddr_init(u32 dram_speed_bin, u32 freq, u32 addr_mcu_el3)
 	if (addr == 0)
 		addr = addr_mcu_el3;
 
-	lcdc_dev = rk_get_lcdc_drv("lcdc0");
-	if (lcdc_dev == NULL)
-		lcdc_type = 0;
-	else
-		lcdc_type = (u32)lcdc_dev->cur_screen->type;
+	if (ddr_data->vop_dclk_mode == 0) {
+		lcdc_dev = rk_get_lcdc_drv("lcdc0");
+		if (!lcdc_dev)
+			lcdc_type = 0;
+		else
+			lcdc_type = (u32)lcdc_dev->cur_screen->type;
+	} else if (ddr_data->vop_dclk_mode == 2) {
+		lcdc_type = SCREEN_EDP;
+	} else {
+		lcdc_type = SCREEN_HDMI;
+	}
+
 	printk(KERN_DEBUG pr_fmt("In Func:%s,dram_speed_bin:%d,freq:%d,lcdc_type:%d\n"),
 	       __func__, dram_speed_bin, freq, lcdc_type);
 	if (scpi_ddr_init(dram_speed_bin, freq, lcdc_type, addr))
@@ -361,7 +381,10 @@ static int __init rockchip_tf_ver_check(void)
 static int __init rockchip_ddr_probe(struct platform_device *pdev)
 {
 	u32 addr_mcu_el3;
+	u32 tmp;
 	struct device_node *np;
+	struct device_node *clk_ddr_dev_node;
+	struct property *prop;
 
 	pr_info("Rockchip DDR Initialize, verision: "DDR_VERSION"\n");
 	np = pdev->dev.of_node;
@@ -395,6 +418,17 @@ static int __init rockchip_ddr_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "%s: could not find msch dt node\n",
 			__func__);
 		return -ENXIO;
+	}
+
+	ddr_data->vop_dclk_mode = 0;
+	clk_ddr_dev_node = of_find_node_by_name(NULL, "clk_ddr");
+	if (IS_ERR_OR_NULL(clk_ddr_dev_node))
+		pr_err("%s: get clk ddr dev node err\n", __func__);
+	prop = of_find_property(clk_ddr_dev_node, "vop-dclk-mode", NULL);
+	if (prop && prop->value) {
+		tmp = be32_to_cpup(prop->value);
+		if (tmp < 3)
+			ddr_data->vop_dclk_mode = tmp;
 	}
 
 	platform_set_drvdata(pdev, ddr_data);
