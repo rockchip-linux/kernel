@@ -31,7 +31,6 @@
 /* dma pool buffer size 1K */
 #define DSP_DMA_POOL_BUFFER_SIZE    (1 * 1024)
 
-#define DSP_WORK_TIMEOUT_MS  500
 #define DSP_SESSION_ID_START 1000
 
 /*
@@ -150,8 +149,8 @@ static int dsp_dequeue_work(struct dsp_session *session,
 
 	dsp_debug_enter();
 
-	timeout = wait_event_timeout(session->wait, !list_empty(&session->done),
-				     DSP_WORK_TIMEOUT_MS);
+	timeout = wait_event_timeout(session->wait,
+				     !list_empty(&session->done), HZ);
 	if (unlikely(timeout <= 0)) {
 		dsp_err("dequeue work timeout\n");
 		ret = -EBUSY;
