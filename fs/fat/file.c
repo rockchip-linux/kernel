@@ -227,7 +227,7 @@ out:
 static long fat_fallocate(struct file *file, int mode,
 			  loff_t offset, loff_t len)
 {
-	int nr_cluster; /* Number of clusters to be allocated */
+	loff_t nr_cluster, add_cluster; /* Number of clusters to be allocated */
 	loff_t mm_bytes; /* Number of bytes to be allocated for file */
 	loff_t ondisksize; /* block aligned on-disk size in bytes*/
 	struct inode *inode = file->f_mapping->host;
@@ -251,7 +251,7 @@ static long fat_fallocate(struct file *file, int mode,
 
 		/* First compute the number of clusters to be allocated */
 		mm_bytes = offset + len - ondisksize;
-		nr_cluster = (mm_bytes + (sbi->cluster_size - 1)) >>
+		add_cluster = nr_cluster = (mm_bytes + (sbi->cluster_size - 1)) >>
 			sbi->cluster_bits;
 
 		/* Start the allocation.We are not zeroing out the clusters */
@@ -263,7 +263,7 @@ static long fat_fallocate(struct file *file, int mode,
 
 		if (sbi->options.force_fallocate) {
 			i_size_write(inode, offset + len);
-			MSDOS_I(inode)->mmu_private += nr_cluster << sbi->cluster_bits;
+			MSDOS_I(inode)->mmu_private += add_cluster << sbi->cluster_bits;
 		}
 	} else {
 		if ((offset + len) <= i_size_read(inode))
