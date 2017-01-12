@@ -1913,7 +1913,7 @@ static ssize_t vop_get_disp_info(struct rk_lcdc_driver *dev_drv,
 		/* WIN1 */
 		win_ctrl = vop_readl(vop_dev, WIN1_CTRL0);
 		w1_state = win_ctrl & MASK(WIN1_EN);
-		fmt_id = (win_ctrl & MASK(WIN1_DATA_FMT)) >> 1;
+		fmt_id = (win_ctrl & MASK(WIN1_DATA_FMT)) >> 3;
 		vop_format_to_string(fmt_id, format_w1);
 		vir_info = vop_readl(vop_dev, WIN1_VIR);
 		dsp_info = vop_readl(vop_dev, WIN1_DSP_INFO);
