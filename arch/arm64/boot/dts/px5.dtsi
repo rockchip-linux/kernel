@@ -1141,6 +1141,12 @@
 					auto_freq_interval = <20>; /* ms */
 					down_rate_delay = <500>;   /* ms */
 					channel = <2>;
+					/*
+					 * 0: use standard flow
+					 * 1: vop dclk never divided
+					 * 2: vop dclk always divided
+					 */
+					vop-dclk-mode = <0>;
 					status = "disabled";
 				};
 			};
