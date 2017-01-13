@@ -252,7 +252,7 @@ static struct rk_sensor_reg sensor_preview_data_pal[] = {
 	{0x15, 0x13},
 	{0x16, 0x67},
 	{0x17, 0xBC},
-	{0x18, 0x18},
+	{0x18, 0x16},
 	{0x19, 0x20},
 	{0x1A, 0x17},
 	{0x1B, 0x00},
@@ -1048,7 +1048,6 @@ static struct sensor_v4l2ctrl_usr_s sensor_controls[] = {
 */
 static struct rk_sensor_datafmt sensor_colour_fmts[] = {
 	{V4L2_MBUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_JPEG},
-	{V4L2_MBUS_FMT_YUYV8_2X8, V4L2_COLORSPACE_JPEG}
 };
 
 /*
