@@ -830,6 +830,12 @@
 		528000
 		>;
 	auto-freq=<1>;
+	/*
+	 * 0: use standard flow
+	 * 1: vop dclk never divided
+	 * 2: vop dclk always divided
+	 */
+	vop-dclk-mode = <0>;
 	status="okay";
 };
 /include/ "act8846.dtsi"
