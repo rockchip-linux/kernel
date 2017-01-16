@@ -4398,12 +4398,12 @@ static int cif_isp11_mi_frame_end(
 		 * buffer, the last buffer isn't been release to user
 		 * until new buffer queue;
 		 */
-		if ((stream->curr_buf != NULL) &&
-			(stream->next_buf != NULL)) {
+		if (stream->curr_buf != NULL) {
 			bool wake_now;
 
 			stream->curr_buf->field_count = dev->isp_dev.frame_id;
-			stream->curr_buf->state = VIDEOBUF_DONE;
+			if (stream->next_buf != NULL)
+				stream->curr_buf->state = VIDEOBUF_DONE;
 			wake_now = false;
 
 			if (stream->metadata.d && dev->isp_dev.streamon) {
@@ -4429,7 +4429,10 @@ static int cif_isp11_mi_frame_end(
 						&dev->isp_dev;
 					work->frame_id =
 						dev->isp_dev.frame_id;
-					work->vb = stream->curr_buf;
+					if (stream->next_buf != NULL)
+						work->vb = stream->curr_buf;
+					else
+						work->vb = NULL;
 					work->stream_id = 	stream->id;
 					if (!queue_work(dev->isp_dev.readout_wq,
 						(struct work_struct *)work)) {
@@ -4447,12 +4450,14 @@ static int cif_isp11_mi_frame_end(
 				wake_now = true;
 			}
 
-			if (wake_now) {
-				cif_isp11_pltfrm_pr_dbg(NULL,
-					"frame done\n");
-				wake_up(&stream->curr_buf->done);
+			if (stream->next_buf != NULL) {
+				if (wake_now) {
+					cif_isp11_pltfrm_pr_dbg(NULL,
+						"frame done\n");
+					wake_up(&stream->curr_buf->done);
+				}
+				stream->curr_buf = NULL;
 			}
-			stream->curr_buf = NULL;
 		}
 
 		if (stream->curr_buf == NULL) {

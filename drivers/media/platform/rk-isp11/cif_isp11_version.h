@@ -73,8 +73,13 @@
 *
 *v0.1.b:
 *1. add wdr config in cifisp_isp_isr_other_config;
+*
+*v0.1.c:
+*1. sync other_configs/meas_config info in readout work;
+*2. meta data must sync in every mi frame end isr,
+*3. isp configs info may be async.
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xb)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xc)
 
 #endif

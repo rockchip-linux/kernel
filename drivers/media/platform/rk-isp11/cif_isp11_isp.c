@@ -3767,6 +3767,224 @@ end:
 		vb->state = VIDEOBUF_QUEUED;
 	}
 }
+
+static void cifisp_other_config_sync(
+	struct cif_isp11_isp_dev *isp_dev,
+	bool all)
+{
+	struct cifisp_isp_other_cfg *last_or_new;
+	struct cifisp_isp_other_cfg *curr;
+
+	last_or_new = isp_dev->other_cfgs.last_or_new;
+	curr = isp_dev->other_cfgs.curr;
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_DPCC)) {
+		/*update dpc config */
+		memcpy(&last_or_new->dpcc_config,
+			&curr->dpcc_config,
+			sizeof(struct cifisp_dpcc_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_DPCC);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_DPCC);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_BLS)) {
+		memcpy(&last_or_new->bls_config,
+			&curr->bls_config,
+			sizeof(struct cifisp_bls_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_BLS);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_BLS);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_SDG)) {
+		/*update sdg config */
+		memcpy(&last_or_new->sdg_config,
+			&curr->sdg_config,
+			sizeof(struct cifisp_sdg_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_SDG);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_SDG);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_LSC)) {
+		/*update lsc config */
+		memcpy(&last_or_new->lsc_config,
+			&curr->lsc_config,
+			sizeof(struct cifisp_lsc_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_LSC);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_LSC);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_AWB_GAIN)) {
+		/*update awb gains */
+		memcpy(&last_or_new->awb_gain_config,
+			&curr->awb_gain_config,
+			sizeof(struct cifisp_awb_gain_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AWB_GAIN);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AWB_GAIN);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_BDM)) {
+		/*update bdm config */
+		memcpy(&last_or_new->bdm_config,
+			&curr->bdm_config,
+			sizeof(struct cifisp_bdm_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_BDM);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_BDM);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_FLT)) {
+		/*update filter config */
+		memcpy(&last_or_new->flt_config,
+			&curr->flt_config,
+			sizeof(struct cifisp_flt_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_FLT);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_FLT);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_CTK)) {
+		/*update ctk config */
+		memcpy(&last_or_new->ctk_config,
+			&curr->ctk_config,
+			sizeof(struct cifisp_ctk_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_CTK);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_CTK);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_GOC)) {
+		/*update goc config */
+		memcpy(&last_or_new->goc_config,
+			&curr->goc_config,
+			sizeof(struct cifisp_goc_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_GOC);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_GOC);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_CPROC)) {
+		/*update cprc config */
+		memcpy(&last_or_new->cproc_config,
+			&curr->cproc_config,
+			sizeof(struct cifisp_cproc_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_CPROC);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_CPROC);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_IE)) {
+		/*update ie config */
+		memcpy(&last_or_new->ie_config,
+			&curr->ie_config,
+			sizeof(struct cifisp_ie_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_IE);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_IE);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_DPF)) {
+		/*update dpf  config */
+		memcpy(&last_or_new->dpf_config,
+			&curr->dpf_config,
+			sizeof(struct cifisp_dpf_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_DPF);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_DPF);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_DPF_STRENGTH)) {
+		memcpy(&last_or_new->dpf_strength_config,
+			&curr->dpf_strength_config,
+			sizeof(struct cifisp_dpf_strength_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_DPF_STRENGTH);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_DPF_STRENGTH);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->other_cfgs.module_updates,
+		CIFISP_MODULE_WDR)) {
+		memcpy(&last_or_new->wdr_config,
+			&curr->wdr_config,
+			sizeof(struct cifisp_wdr_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_WDR);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_WDR);
+	}
+}
+
+static void cifisp_meas_config_sync(
+	struct cif_isp11_isp_dev *isp_dev,
+	bool all)
+{
+	struct cifisp_isp_meas_cfg *last_or_new;
+	struct cifisp_isp_meas_cfg *curr;
+
+	last_or_new = isp_dev->meas_cfgs.last_or_new;
+	curr = isp_dev->meas_cfgs.curr;
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->meas_cfgs.module_updates,
+		CIFISP_MODULE_AWB)) {
+		/*update awb config */
+		memcpy(&last_or_new->awb_meas_config,
+			&curr->awb_meas_config,
+			sizeof(struct cifisp_awb_meas_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AWB);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AWB);
+	}
+
+	if (!CIFISP_MODULE_IS_UPDATE(
+		isp_dev->meas_cfgs.module_updates,
+		CIFISP_MODULE_AFC)) {
+		/*update afc config */
+		memcpy(&last_or_new->afc_config,
+			&curr->afc_config,
+			sizeof(struct cifisp_afc_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AFC);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AFC);
+	}
+
+	if (CIFISP_MODULE_IS_UPDATE(
+		isp_dev->meas_cfgs.module_updates,
+		CIFISP_MODULE_HST)) {
+		/*update hst config */
+		memcpy(&last_or_new->hst_config,
+			&curr->hst_config,
+			sizeof(struct cifisp_hst_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_HST);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_HST);
+	}
+
+	if (CIFISP_MODULE_IS_UPDATE(
+		isp_dev->meas_cfgs.module_updates,
+		CIFISP_MODULE_AEC)) {
+		/*update aec config */
+		memcpy(&last_or_new->aec_config,
+			&curr->aec_config,
+			sizeof(struct cifisp_aec_config));
+		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AEC);
+		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AEC);
+	}
+}
+
 void cifisp_isp_readout_work(struct work_struct *work)
 {
 	struct cif_isp11_isp_readout_work *readout_work =
@@ -3798,9 +4016,9 @@ void cifisp_isp_readout_work(struct work_struct *work)
 				isp_dev->other_cfgs.curr->s_frame_id)
 				other_new = isp_dev->other_cfgs.last_or_new;
 			else if (readout_work->frame_id >
-				isp_dev->other_cfgs.curr->s_frame_id)
+				isp_dev->other_cfgs.curr->s_frame_id) {
 				other_new = isp_dev->other_cfgs.curr;
-			else
+			} else
 				other_new = NULL;
 		}
 
@@ -3809,9 +4027,9 @@ void cifisp_isp_readout_work(struct work_struct *work)
 				isp_dev->meas_cfgs.curr->s_frame_id)
 				meas_new = isp_dev->meas_cfgs.last_or_new;
 			else if (readout_work->frame_id >
-				isp_dev->meas_cfgs.curr->s_frame_id)
+				isp_dev->meas_cfgs.curr->s_frame_id) {
 				meas_new = isp_dev->meas_cfgs.curr;
-			else
+			} else
 				meas_new = NULL;
 		}
 
@@ -3828,6 +4046,20 @@ void cifisp_isp_readout_work(struct work_struct *work)
 			other_new,
 			meas_new,
 			stat_new);
+
+		if (isp_dev->other_cfgs.curr->s_frame_id >
+			isp_dev->other_cfgs.last_or_new->s_frame_id) {
+			cifisp_other_config_sync(
+				isp_dev,
+				(isp_dev->other_cfgs.module_updates == 0));
+		}
+		if (isp_dev->meas_cfgs.curr->s_frame_id >
+			isp_dev->meas_cfgs.last_or_new->s_frame_id) {
+			cifisp_meas_config_sync(
+				isp_dev,
+				(isp_dev->meas_cfgs.module_updates == 0));
+		}
+
 		spin_unlock_irqrestore(&isp_dev->config_lock, lock_flags);
 
 		break;
