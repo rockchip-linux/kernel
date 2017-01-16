@@ -41,6 +41,7 @@
 #include <sound/initval.h>
 #include <sound/soc.h>
 #include <sound/dmaengine_pcm.h>
+#include <sound/tlv.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
 #include "rv1108_codec.h"
@@ -75,6 +76,22 @@ struct rv1108_codec_priv {
 enum {
 	SINGLE_ENDED = 0,
 	DIFFERENTIAL_ENDED,
+};
+
+static const DECLARE_TLV_DB_MINMAX(rv1108_codec_line_tlv, -39, 0);
+static const DECLARE_TLV_DB_MINMAX(rv1108_codec_alc_tlv, -18, 28.5);
+
+static const struct snd_kcontrol_new rv1108_codec_dapm_controls[] = {
+	SOC_DOUBLE_R_RANGE_TLV("Playback Volume",
+			       RV1108_LOUTL_GAIN, RV1108_LOUTR_GAIN,
+			       RV1108_LOUT_GAIN_SHIFT, RV1108_LOUT_GAIN_N39DB,
+			       RV1108_LOUT_GAIN_0DB, 0, rv1108_codec_line_tlv),
+	SOC_SINGLE_TLV("ALCL Capture Volume",
+		       RV1108_ALCL_GAIN_CTL, RV1108_ALCL_GAIN_SHT,
+		       0x1f, 0, rv1108_codec_alc_tlv),
+	SOC_SINGLE_TLV("ALCR Capture Volume",
+		       RV1108_ALCR_GAIN_CTL, RV1108_ALCR_GAIN_SHT,
+		       0x1f, 0, rv1108_codec_alc_tlv),
 };
 
 static void rv1108_analog_output(struct rv1108_codec_priv *rv1108, int mute)
@@ -583,6 +600,8 @@ static struct snd_soc_codec_driver soc_codec_dev_rv1108 = {
 	.suspend = rv1108_suspend,
 	.resume = rv1108_resume,
 	.set_bias_level = rv1108_set_bias_level,
+	.controls = rv1108_codec_dapm_controls,
+	.num_controls = ARRAY_SIZE(rv1108_codec_dapm_controls),
 };
 
 static const struct reg_default rv1108_codec_reg_defaults[] = {
