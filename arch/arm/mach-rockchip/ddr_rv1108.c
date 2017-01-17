@@ -131,6 +131,7 @@
 #define ACTIVE_POWER_DOWN		(1)
 /* GRF */
 #define GRF_SOC_CON0			(0x0400)
+#define GRF_SOC_CON1			(0x0404)
 #define GRF_SOC_CON3			(0x040c)
 #define GRF_SOC_STATUS			(0x0480)
 #define GRF_OS_REG2			(0x0588)
@@ -1389,6 +1390,9 @@ static __sramfunc void idle_port(void)
 
 	for (i = 0; i < RV1108_CRU_CLKGATES_CON_CNT; i++)
 		cru_write32(0xffff0000, RV1108_CRU_CLKGATES_CON(i));
+
+	/* Set all masters to stall state when ddr access is forbidden */
+	grf_write32(0x00ff00ff, GRF_SOC_CON1);
 
 	idle_stus = IDLE_MSCH_ST;
 	pmu_write32(IDLE_REQ_MSCH_EN, 0x3c);
