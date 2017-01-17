@@ -1501,13 +1501,13 @@ static int rk_fb_get_list_stat(struct rk_lcdc_driver *dev_drv)
 
 void rk_fd_fence_wait(struct rk_lcdc_driver *dev_drv, struct sync_fence *fence)
 {
-	int err = sync_fence_wait(fence, 1000);
+	int err = sync_fence_wait(fence, MSEC_PER_SEC);
 
 	if (err >= 0)
 		return;
 
 	if (err == -ETIME)
-		err = sync_fence_wait(fence, 10 * MSEC_PER_SEC);
+		err = sync_fence_wait(fence, MSEC_PER_SEC);
 
 	if (err < 0)
 		pr_info("error waiting on fence\n");
