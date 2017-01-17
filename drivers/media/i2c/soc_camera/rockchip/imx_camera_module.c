@@ -192,7 +192,8 @@ static int imx_camera_module_write_config(
 	}
 
 	if (!IS_ERR_OR_NULL(cam_mod->custom.set_flip))
-		cam_mod->custom.set_flip(cam_mod);
+		cam_mod->custom.set_flip(cam_mod,
+			reg_table, reg_table_num_entries);
 
 	ret = pltfrm_camera_module_write_reglist(&cam_mod->sd,
 		reg_table, reg_table_num_entries);

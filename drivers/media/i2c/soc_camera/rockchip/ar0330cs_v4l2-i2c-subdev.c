@@ -61,53 +61,52 @@
 /* ======================================================================== */
 static struct aptina_camera_module_reg ar0330cs_init_tab_2048_1536_30fps[] = {
 
-//STATE = Master Clock, 49200000
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x301A, 0x0058}, //RESET_REGISTER = 88
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x302A, 0x0005}, //VT_PIX_CLK_DIV = 5
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x302C, 0x0002}, //VT_SYS_CLK_DIV = 2
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x302E, 0x0002}, //PRE_PLL_CLK_DIV = 2
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3030, 0x0029}, //PLL_MULTIPLIER = 41
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3036, 0x000A}, //OP_PIX_CLK_DIV = 10
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3038, 0x0001}, //OP_SYS_CLK_DIV = 1
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31AC, 0x0A0A}, //DATA_FORMAT_BITS = 2570
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31AE, 0x0202}, //SERIAL_FORMAT = 514
+/*STATE = Master Clock, 49200000*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x301A, 0x0058}, /*RESET_REGISTER = 88*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x302A, 0x0005}, /*VT_PIX_CLK_DIV = 5*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x302C, 0x0002}, /*VT_SYS_CLK_DIV = 2*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x302E, 0x0002}, /*PRE_PLL_CLK_DIV = 2*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3030, 0x0029}, /*PLL_MULTIPLIER = 41*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3036, 0x000A}, /*OP_PIX_CLK_DIV = 10*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3038, 0x0001}, /*OP_SYS_CLK_DIV = 1*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31AC, 0x0A0A}, /*DATA_FORMAT_BITS = 2570*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31AE, 0x0202}, /*SERIAL_FORMAT = 514*/
 
-//MIPI Port Timing
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B0, 0x0045}, //FRAME_PREAMBLE = 69
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B2, 0x0029}, //LINE_PREAMBLE = 41
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B4, 0x3c44}, //MIPI_TIMING_0 = 15428
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B6, 0x314d}, //MIPI_TIMING_1 = 12621
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B8, 0x208a}, //MIPI_TIMING_2 = 8330
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31BA, 0x0207}, //MIPI_TIMING_3 = 519
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31BC, 0x0005}, //MIPI_TIMING_4 = 5
+/*MIPI Port Timing*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B0, 0x0045}, /*FRAME_PREAMBLE = 69*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B2, 0x0029}, /*LINE_PREAMBLE = 41*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B4, 0x3c44}, /*MIPI_TIMING_0 = 15428*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B6, 0x314d}, /*MIPI_TIMING_1 = 12621*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31B8, 0x208a}, /*MIPI_TIMING_2 = 8330*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31BA, 0x0207}, /*MIPI_TIMING_3 = 519*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31BC, 0x0005}, /*MIPI_TIMING_4 = 5*/
 
-// timing_settings
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3002, 0x0006}, //Y_ADDR_START = 6
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3004, 0x0086}, //X_ADDR_START = 134
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3006, 0x0605}, //Y_ADDR_END = 1541
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3008, 0x0885}, //X_ADDR_END = 2181
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x300A, 0x0630}, //FRAME_LENGTH_LINES = 1584
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x300C, 0x04DA}, //LINE_LENGTH_PCK = 1242
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3012, 0x0528}, //COARSE_INTEGRATION_TIME = 1320
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3014, 0x0000}, //FINE_INTEGRATION_TIME = 0
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A2, 0x0001}, //X_ODD_INC = 1
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A6, 0x0001}, //Y_ODD_INC = 1
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x308C, 0x0006}, //Y_ADDR_START_CB = 6
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x308A, 0x0086}, //X_ADDR_START_CB = 134
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3090, 0x0605}, //Y_ADDR_END_CB = 1541
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x308E, 0x0885}, //X_ADDR_END_CB = 2181
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30AA, 0x0630}, //FRAME_LENGTH_LINES_CB = 1584
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x303E, 0x04da}, //LINE_LENGTH_PCK_CB = 1242
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x0527}, //COARSE_INTEGRATION_TIME_CB = 1319
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3018, 0x0000}, //FINE_INTEGRATION_TIME_CB = 0
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30AE, 0x0001}, //X_ODD_INC_CB = 1
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A8, 0x0001}, //Y_ODD_INC_CB = 1
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, AR0330CS_MIRROR_FLIP_MODE_REG, AR0330CS_MIRROR_FLIP_MODE_VALUE}, //mirror and flip mode select
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3040, 0x0000}, //READ_MODE = 0
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3042, 0x02a0}, //EXTRA_DELAY = 672
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30BA, 0x002C}, //DIGITAL_CTRL = 44
+/* timing_settings*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3002, 0x0006}, /*Y_ADDR_START = 6*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3004, 0x0086}, /*X_ADDR_START = 134*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3006, 0x0605}, /*Y_ADDR_END = 1541*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3008, 0x0885}, /*X_ADDR_END = 2181*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x300A, 0x0630}, /*FRAME_LENGTH_LINES = 1584*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x300C, 0x04DA}, /*LINE_LENGTH_PCK = 1242*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3012, 0x0528}, /*COARSE_INTEGRATION_TIME = 1320*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3014, 0x0000}, /*FINE_INTEGRATION_TIME = 0*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A2, 0x0001}, /*X_ODD_INC = 1*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A6, 0x0001}, /*Y_ODD_INC = 1*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x308C, 0x0006}, /*Y_ADDR_START_CB = 6*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x308A, 0x0086}, /*X_ADDR_START_CB = 134*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3090, 0x0605}, /*Y_ADDR_END_CB = 1541*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x308E, 0x0885}, /*X_ADDR_END_CB = 2181*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30AA, 0x0630}, /*FRAME_LENGTH_LINES_CB = 1584*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x303E, 0x04da}, /*LINE_LENGTH_PCK_CB = 1242*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x0527}, /*COARSE_INTEGRATION_TIME_CB = 1319*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3018, 0x0000}, /*FINE_INTEGRATION_TIME_CB = 0*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30AE, 0x0001}, /*X_ODD_INC_CB = 1*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A8, 0x0001}, /*Y_ODD_INC_CB = 1
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3040, 0x0000}, /*READ_MODE = 0*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3042, 0x02a0}, /*EXTRA_DELAY = 672*/
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30BA, 0x002C}, /*DIGITAL_CTRL = 44*/
 
-//commended Configuration
+/*commended Configuration*/
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x31E0, 0x0303},
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3064, 0x1802},
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3ED2, 0x0146},
@@ -118,8 +117,8 @@ static struct aptina_camera_module_reg ar0330cs_init_tab_2048_1536_30fps[] = {
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3EDC, 0xAA63},
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x305E, 0x00A0},
 
-//{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30CE, 0x0020}, //auto adjust fps
-//{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x301A, 0x005C}, //RESET_REGISTER and streaming
+/*{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30CE, 0x0020}, auto adjust fps*/
+/*{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x301A, 0x005C}, RESET_REGISTER and streaming*/
 };
 
 /* ======================================================================== */
@@ -224,12 +223,12 @@ static int ar0330cs_write_aec(struct aptina_camera_module *cam_mod)
 
 		exp_time = cam_mod->exp_config.exp_time;
 
-		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps){
+		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps) {
 			ret = ar0330cs_auto_adjust_fps(cam_mod, cam_mod->exp_config.exp_time);
 		}
 
 		ret |= aptina_camera_module_write_reg(cam_mod,
-			0x0104,0x01); // GROUPED_PARAMETER_HOLD
+			0x0104, 0x01); /* GROUPED_PARAMETER_HOLD*/
 		ret |= aptina_camera_module_write_reg(cam_mod,
 			AR0330CS_AEC_PK_GAIN_REG,
 			AR0330CS_FETCH_GAIN(a_gain));
@@ -237,7 +236,7 @@ static int ar0330cs_write_aec(struct aptina_camera_module *cam_mod)
 			AR0330CS_AEC_PK_LONG_EXPO_REG,
 			AR0330CS_FETCH_BYTE_EXP(exp_time));
 		ret |= aptina_camera_module_write_reg(cam_mod,
-			0x0104,0x00); // GROUPED_PARAMETER_HOLD
+			0x0104, 0x00); /* GROUPED_PARAMETER_HOLD*/
 	}
 
 	if (IS_ERR_VALUE(ret))
@@ -308,7 +307,7 @@ static int ar0330cs_filltimings(struct aptina_camera_module_custom_config *custo
 				break;
 			#if 0
 			default:
-				//aptina_camera_module_pr_err(cam_mod,"can not find reg(%x) in table\n", AR0330CS_VERTICAL_END_REG);
+				/*aptina_camera_module_pr_err(cam_mod,"can not find reg(%x) in table\n", AR0330CS_VERTICAL_END_REG);*/
 			#endif
 			}
 	}
@@ -357,7 +356,10 @@ err:
 
 /*--------------------------------------------------------------------------*/
 
-static int ar0330cs_set_flip(struct aptina_camera_module *cam_mod)
+static int ar0330cs_set_flip(
+	struct aptina_camera_module *cam_mod,
+	struct pltfrm_camera_module_reg reglist[],
+	int len);
 {
 	int i, mode = 0;
 
@@ -460,22 +462,22 @@ static int ar0330cs_start_streaming(struct aptina_camera_module *cam_mod)
 
 	ret = ar0330cs_write_aec(cam_mod);
 
-	if (IS_ERR_VALUE(ret)){
+	if (IS_ERR_VALUE(ret)) {
 		aptina_camera_module_pr_err(cam_mod,
 					    "write aec fail ar0330cs_start_streaming active config=%s \n",
 					    cam_mod->active_config->name);
 		goto err;
-	}else{
+	} else {
 		aptina_camera_module_pr_err(cam_mod,
 					    "write aec success ar0330cs_start_streaming active config=%s \n",
 					    cam_mod->active_config->name);
 	}
-	if (IS_ERR_VALUE(aptina_camera_module_write_reg(cam_mod, 0x301a, 0x5c))){
+	if (IS_ERR_VALUE(aptina_camera_module_write_reg(cam_mod, 0x301a, 0x5c))) {
 		aptina_camera_module_pr_err(cam_mod,
 					    "write steaming fail ar0330cs_start_streaming active config=%s \n",
 					    cam_mod->active_config->name);
 		goto err;
-	}else{
+	} else {
 		aptina_camera_module_pr_err(cam_mod,
 					    "write steaming success ar0330cs_start_streaming active config=%s \n",
 					    cam_mod->active_config->name);
@@ -515,7 +517,7 @@ err:
 
 static int ar0330cs_check_camera_id(struct aptina_camera_module *cam_mod)
 {
-	u32 pid,test_value=0;
+	u32 pid, test_value = 0;
 	int ret = 0;
 
 	aptina_camera_module_pr_err(cam_mod, " ar0330cs_check_camera_id enter \n");
@@ -527,9 +529,9 @@ static int ar0330cs_check_camera_id(struct aptina_camera_module *cam_mod)
 		goto err;
 	}
 
-	if(pid == AR0330CS_PID_MAGIC) {
-		aptina_camera_module_pr_err(cam_mod,"successfully detected camera ID 0x%04x\n",pid);
-		//try to test i2c write success or not
+	if (pid == AR0330CS_PID_MAGIC) {
+		aptina_camera_module_pr_err(cam_mod, "successfully detected camera ID 0x%04x\n", pid);
+		/*try to test i2c write success or not*/
 		aptina_camera_module_write_reg(cam_mod, 0x3012, 0xbbb);
 		msleep(1);
 		ret = aptina_camera_module_read_reg(cam_mod, 2, 0x3012, &test_value);
@@ -537,7 +539,7 @@ static int ar0330cs_check_camera_id(struct aptina_camera_module *cam_mod)
 		aptina_camera_module_pr_err(cam_mod,
 			"successfully read 0x3012 0x%04x\n",
 			test_value);
-	}else {
+	} else {
 		aptina_camera_module_pr_err(cam_mod,
 			"wrong camera ID, expected 0x%04x, detected 0x%04x\n",
 			AR0330CS_PID_MAGIC, pid);

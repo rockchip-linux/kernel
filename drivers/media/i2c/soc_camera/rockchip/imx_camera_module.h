@@ -29,8 +29,8 @@
 #define imx_camera_module_csi_config
 #define imx_camera_module_reg pltfrm_camera_module_reg
 
-#define IMX_FLIP_BIT_MASK 0x2
-#define IMX_MIRROR_BIT_MASK 0x1
+#define IMX_FLIP_BIT_MASK (1 << PLTFRM_CAMERA_MODULE_FLIP_BIT)
+#define IMX_MIRROR_BIT_MASK (1 << PLTFRM_CAMERA_MODULE_MIRROR_BIT)
 
 #define IMX_CAMERA_MODULE_CTRL_UPDT_GAIN 0x01
 #define IMX_CAMERA_MODULE_CTRL_UPDT_EXP_TIME 0x02
@@ -153,7 +153,9 @@ struct imx_camera_module_custom_config {
 		u32 vts);
 	int (*s_ext_ctrls)(struct imx_camera_module *cam_mod,
 		struct imx_camera_module_ext_ctrls *ctrls);
-	int (*set_flip)(struct imx_camera_module *cam_mod);	
+	int (*set_flip)(struct imx_camera_module *cam_mod,
+		struct pltfrm_camera_module_reg reglist[],
+		int len);
 	int (*init_common)(struct imx_camera_module *cam_mod);
 	struct imx_camera_module_config *configs;
 	u32 num_configs;

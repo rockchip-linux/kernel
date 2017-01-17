@@ -28,8 +28,8 @@
 #define OV_CAMERA_MODULE_REG_TYPE_TIMEOUT PLTFRM_CAMERA_MODULE_REG_TYPE_TIMEOUT
 #define ov_camera_module_csi_config
 #define ov_camera_module_reg pltfrm_camera_module_reg
-#define OV_FLIP_BIT_MASK				   0x2
-#define OV_MIRROR_BIT_MASK				   0x1
+#define OV_FLIP_BIT_MASK				   (1 << PLTFRM_CAMERA_MODULE_FLIP_BIT)
+#define OV_MIRROR_BIT_MASK				   (1 << PLTFRM_CAMERA_MODULE_MIRROR_BIT)
 
 #define OV_CAMERA_MODULE_CTRL_UPDT_GAIN				0x01
 #define OV_CAMERA_MODULE_CTRL_UPDT_EXP_TIME			0x02

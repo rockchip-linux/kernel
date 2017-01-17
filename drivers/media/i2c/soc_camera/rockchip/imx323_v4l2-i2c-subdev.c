@@ -48,6 +48,7 @@
 #define IMX323_TIMING_VTS_LOW_REG 0x0341
 #define IMX323_TIMING_HTS_HIGH_REG 0x0342
 #define IMX323_TIMING_HTS_LOW_REG 0x0343
+#define IMX323_MIRROR_FLIP_REG 0x0101
 
 #define IMX323_INTEGRATION_TIME_MARGIN 8
 #define IMX323_FINE_INTG_TIME_MIN 0
@@ -70,29 +71,30 @@ static struct imx_camera_module_custom_config imx323_custom_config;
 
 /* MCLK:37.125MHz  1920x1080  30fps   DVP_12_DATA   PCLK:74.25MHz */
 static struct imx_camera_module_reg imx323_init_tab_1920_1080_30fps[] = {
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3000, 0x31},//standby/register write valid
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0100, 0x00},//MODEL_SEL
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0009, 0xf0},//I2C BLKLEVEL
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0112, 0x0c},//AD gradation
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0113, 0x0c},//AD gradation
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0340, 0x04},//FRM_LENGTH H
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0341, 0x65},//FRM_LENGTH L
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0342, 0x04},//LINE_LENGTH H
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0343, 0x4c},//LINE_LENGTH L
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3002, 0x0f},//HD 1080P
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3011, 0x00},//2 times INCK
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3012, 0x82},//12bit
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3013, 0x40},//fix
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3016, 0x3c},//HD 1080P
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x301a, 0xc9},//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3000, 0x31},/*standby/register write valid*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0100, 0x00},/*MODEL_SEL*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0009, 0xf0},/*I2C BLKLEVEL*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0101, 0x00},/*Mirror flip*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0112, 0x0c},/*AD gradation*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0113, 0x0c},/*AD gradation*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0340, 0x04},/*FRM_LENGTH H*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0341, 0x65},/*FRM_LENGTH L*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0342, 0x04},/*LINE_LENGTH H*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x0343, 0x4c},/*LINE_LENGTH L*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3002, 0x0f},/*HD 1080P*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3011, 0x00},/*2 times INCK*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3012, 0x82},/*12bit*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3013, 0x40},/*fix*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3016, 0x3c},/*HD 1080P*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x301a, 0xc9},/*fix*/
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x301c, 0x50},
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x301f, 0x73},//fix
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3021, 0x00},//12bit/h sync pulse low level width
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3022, 0x40},//v sync pulse low level width
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3027, 0x20},//fix
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x303f, 0x0a},//
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x304f, 0x47},//DCK sync mode
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3054, 0x11},//DCK sync mode
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x301f, 0x73},/*fix*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3021, 0x00},/*12bit/h sync pulse low level width*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3022, 0x40},/*v sync pulse low level width*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3027, 0x20},/*fix*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x303f, 0x0a},
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x304f, 0x47},/*DCK sync mode*/
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3054, 0x11},/*DCK sync mode*/
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x307a, 0x00},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x307b, 0x00},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3098, 0x26},
@@ -102,9 +104,9 @@ static struct imx_camera_module_reg imx323_init_tab_1920_1080_30fps[] = {
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x30ce, 0x16},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x30cf, 0x82},
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x30d0, 0x00},
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3117, 0x0d},//fix
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3117, 0x0d},/*fix*/
 	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x3000, 0x30},
-	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x302c, 0x00}//XMSTA
+	{IMX_CAMERA_MODULE_REG_TYPE_DATA_SINGLE, 0x302c, 0x00} /*XMSTA*/
 };
 
 /* ======================================================================== */
@@ -180,7 +182,7 @@ static int imx323_auto_adjust_fps(struct imx_camera_module *cam_mod,
 
 	if ((exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN)
 		> cam_mod->vts_min)
-		vts =exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN;
+		vts = exp_time + IMX323_COARSE_INTG_TIME_MAX_MARGIN;
 	else
 		vts = cam_mod->vts_min;
 	ret = imx_camera_module_write_reg(cam_mod, IMX323_TIMING_VTS_LOW_REG, vts & 0xFF);
@@ -219,10 +221,10 @@ static int imx323_write_aec(struct imx_camera_module *cam_mod)
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
 			ret = imx323_auto_adjust_fps(cam_mod, cam_mod->exp_config.exp_time);
 
-		// Gain
+		/*Gain*/
 		ret = imx_camera_module_write_reg(cam_mod, IMX323_AEC_PK_GAIN_REG, a_gain);
 
-		// Integration Time
+		/*Integration Time*/
 		ret = imx_camera_module_write_reg(cam_mod, IMX323_AEC_PK_EXPO_HIGH_REG, IMX323_FETCH_HIGH_BYTE_EXP(exp_time));
 		ret |= imx_camera_module_write_reg(cam_mod, IMX323_AEC_PK_EXPO_LOW_REG, IMX323_FETCH_LOW_BYTE_EXP(exp_time));
 
@@ -340,9 +342,12 @@ err:
 
 /*--------------------------------------------------------------------------*/
 
-static int imx323_set_flip(struct imx_camera_module *cam_mod)
+static int imx323_set_flip(
+	struct imx_camera_module *cam_mod,
+	struct pltfrm_camera_module_reg reglist[],
+	int len)
 {
-	int mode = 0;
+	int i, mode = 0;
 	u16 orientation = 0;
 
 	mode = imx_camera_module_get_flip_mirror(cam_mod);
@@ -352,14 +357,13 @@ static int imx323_set_flip(struct imx_camera_module *cam_mod)
 	}
 
 	if (!IS_ERR_OR_NULL(cam_mod->active_config)) {
-		if (mode == IMX_FLIP_BIT_MASK) {
-			orientation = IMX323_ORIENTATION_V;
-		} else if (mode == IMX_MIRROR_BIT_MASK) {
-			orientation = IMX323_ORIENTATION_H;
- 		} else if (mode == (IMX_MIRROR_BIT_MASK | IMX_FLIP_BIT_MASK)) {
-			orientation = IMX323_ORIENTATION_H | IMX323_ORIENTATION_V;
-		} else {
-			orientation = 0;
+		if (PLTFRM_CAMERA_MODULE_IS_MIRROR(mode))
+			orientation |= 0x01;
+		if (PLTFRM_CAMERA_MODULE_IS_FLIP(mode))
+			orientation |= 0x02;
+		for (i = 0; i < len; i++) {
+			if (reglist[i].reg == IMX323_MIRROR_FLIP_REG)
+				reglist[i].val = orientation;
 		}
 	}
 

@@ -27,8 +27,8 @@
 #define APTINA_CAMERA_MODULE_REG_TYPE_TIMEOUT PLTFRM_CAMERA_MODULE_REG_TYPE_TIMEOUT
 #define aptina_camera_module_csi_config
 #define aptina_camera_module_reg pltfrm_camera_module_reg
-#define APTINA_FLIP_BIT_MASK 0x2
-#define APTINA_MIRROR_BIT_MASK 0x1
+#define APTINA_FLIP_BIT_MASK (1 << PLTFRM_CAMERA_MODULE_FLIP_BIT)
+#define APTINA_MIRROR_BIT_MASK (1 << PLTFRM_CAMERA_MODULE_MIRROR_BIT)
 
 #define APTINA_CAMERA_MODULE_CTRL_UPDT_GAIN 0x01
 #define APTINA_CAMERA_MODULE_CTRL_UPDT_EXP_TIME 0x02
@@ -151,7 +151,9 @@ struct aptina_camera_module_custom_config {
 		u32 vts);
 	int (*s_ext_ctrls)(struct aptina_camera_module *cam_mod,
 		struct aptina_camera_module_ext_ctrls *ctrls);
-	int (*set_flip)(struct aptina_camera_module *cam_mod);
+	int (*set_flip)(struct aptina_camera_module *cam_mod,
+		struct pltfrm_camera_module_reg reglist[],
+		int len);
 	struct aptina_camera_module_config *configs;
 	int (*init_common)(struct aptina_camera_module *cam_mod);
 	int (*g_exposure_valid_frame)(struct aptina_camera_module *cam_mod);
