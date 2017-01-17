@@ -68,7 +68,7 @@ static int rk33_usb_phy_power(struct rockchip_usb_phy *phy,
 	if (on)
 		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff0000);
 	else
-		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d5);
+		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d1);
 }
 
 static int rk322x_usb_phy_power(struct rockchip_usb_phy *phy,
@@ -77,7 +77,7 @@ static int rk322x_usb_phy_power(struct rockchip_usb_phy *phy,
 	if (on)
 		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff0000);
 	else
-		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d5);
+		return regmap_write(phy->reg_base, phy->reg_offset, 0xffff01d1);
 }
 
 static int rk322xh_usb_phy_power(struct rockchip_usb_phy *phy,
