@@ -3703,12 +3703,15 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 		mutex_unlock(&dev_drv->switch_screen);
 		return 0;
 	} else {
-		if (dev_drv->uboot_logo) {
-			if (dev_drv->cur_screen->mode.xres !=
-				screen->mode.xres ||
-			    dev_drv->cur_screen->mode.yres !=
-				screen->mode.yres)
-				load_screen = 1;
+		if ((dev_drv->uboot_logo) &&
+		    (dev_drv->cur_screen->mode.xres != screen->mode.xres ||
+		     dev_drv->cur_screen->mode.yres != screen->mode.yres)) {
+			load_screen = 0;
+			for (i = 0; i < dev_drv->lcdc_win_num; i++) {
+				if (dev_drv->win[i] && dev_drv->win[i]->state &&
+					dev_drv->ops->win_direct_en)
+				dev_drv->ops->win_direct_en(dev_drv, i, 0);
+			}
 		}
 		if (dev_drv->screen1)
 			dev_drv->cur_screen = dev_drv->screen1;
