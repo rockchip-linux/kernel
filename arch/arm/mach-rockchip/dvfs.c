@@ -234,11 +234,17 @@ static int __cpuinit rk322xh_sys_stat_notifier_call(struct notifier_block *nb,
 		return NOTIFY_OK;
 
 	if (val & (SYS_STATUS_VIDEO_4K_10B | SYS_STATUS_VIDEO_4K)) {
+		if (temp_limit_4k)
+			return NOTIFY_OK;
+		temp_limit_4k = true;
 		clk_cpu_dvfs_node->min_rate = RK322XH_CPU_MIN_RATE_4K;
 		clk_cpu_dvfs_node->max_rate = RK322XH_CPU_MAX_RATE_4K;
 		cpu_down(3);
 		cpu_down(2);
 	} else {
+		if (!temp_limit_4k)
+			return NOTIFY_OK;
+		temp_limit_4k = false;
 		dvfs_get_rate_range(clk_cpu_dvfs_node);
 		cpu_up(2);
 		cpu_up(3);
