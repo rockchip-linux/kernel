@@ -76,31 +76,16 @@ static int SENSOR_PREVIEW_W = 720;
 static int SENSOR_PREVIEW_H = 480;
 
 static struct rk_camera_device_signal_config dev_info[] = {
-#if 1
 	{
 		.type = RK_CAMERA_DEVICE_CVBS_NTSC,
+		.code = V4L2_MBUS_FMT_UYVY8_2X8,
 		.crop = {
 			.top = 24,
 			.left = 0,
 			.width = 720,
 			.height = 480
 		}
-	},
-#else
-	{
-		.type = RK_CAMERA_DEVICE_BT601_8,
-		.dvp = {
-			.vsync = RK_CAMERA_DEVICE_SIGNAL_LOW_LEVEL,
-			.hsync = RK_CAMERA_DEVICE_SIGNAL_HIGH_LEVEL
-		},
-		.crop = {
-			.top = 0,
-			.left = 0,
-			.width = 1024,
-			.height = 600
-		}
 	}
-#endif
 };
 
 static struct rk_camera_device_defrect defrects[4];
@@ -129,6 +114,9 @@ static unsigned int SensorChipID[] = {SENSOR_ID};
 #define sensor_write(client, reg, v) CONS4(sensor_write_reg, SENSOR_REGISTER_LEN, val, SENSOR_VALUE_LEN)(client, (reg), (v))
 #define sensor_read(client, reg, v) CONS4(sensor_read_reg, SENSOR_REGISTER_LEN, val, SENSOR_VALUE_LEN)(client, (reg), (v))
 #define sensor_write_array generic_sensor_write_array
+static void adv7181_reinit_parameter(v4l2_std_id std,
+				     struct generic_sensor *sensor);
+static void adv7181_send_uevent(struct generic_sensor *sensor);
 
 struct sensor_parameter {
 	unsigned int PreviewDummyPixels;
@@ -262,7 +250,7 @@ static struct rk_sensor_reg sensor_preview_data_cvbs[] = {
 	SensorEnd
 };
 
-static struct rk_sensor_reg sensor_preview_data_ypbpr_p[] = {
+static struct rk_sensor_reg sensor_preview_data_yprpb_p[] = {
 /*
 	{0x05, 0x01},//PRIM_MODE = 001b COMP
 	{0x06, 0x06},//VID_STD for 525P 2x1
@@ -307,7 +295,7 @@ static struct rk_sensor_reg sensor_preview_data_ypbpr_p[] = {
 	{0x3c, 0x3b},
 	{0x6b, 0x83},
 	{0xc9, 0x00},
-	{0x73, 0xcf},
+	{0x73, 0x10},
 	{0x74, 0xa3},
 	{0x75, 0xe8},
 	{0x76, 0xfa},
@@ -330,7 +318,7 @@ static struct rk_sensor_reg sensor_preview_data_ypbpr_p[] = {
 	SensorEnd
 };
 
-static struct rk_sensor_reg sensor_preview_data_YPbPr[] = {
+static struct rk_sensor_reg sensor_preview_data_yprpb_i[] = {
 /*	##SDP YPrPb##
  *	:AUTODETECT YPbPr In, 8 Bit 422 Encoder
  */
@@ -744,10 +732,26 @@ static inline int adv7181_channel_set(struct i2c_client *client,
 				break;
 			}
 			sensor_series[i].data = sensor_preview_data_cvbs;
+			sensor->info_priv.dev_sig_cnf.type =
+				RK_CAMERA_DEVICE_CVBS_NTSC;
+			sensor->info_priv.dev_sig_cnf.code =
+				V4L2_MBUS_FMT_UYVY8_2X8;
+			adv7181_reinit_parameter(V4L2_STD_NTSC, sensor);
 		} else if (strstr(channel_infos.channel_info[id], "yprpb")) {
+			now_channel_value = ADV7181_INPUT_DEFAULT;
+			sensor_series[i].data = sensor_preview_data_yprpb_p;
+			sensor->info_priv.dev_sig_cnf.type =
+				RK_CAMERA_DEVICE_BT601_8;
+			sensor->info_priv.dev_sig_cnf.code =
+				V4L2_MBUS_FMT_YVYU8_2X8;
+			adv7181_reinit_parameter(V4L2_STD_525_60, sensor);
+		} else if (strstr(channel_infos.channel_info[id], "ycrpc")) {
 			now_channel_value = ADV7181_INPUT_YPRPB_AIN6_8_10;
-			sensor_series[i].data = sensor_preview_data_ypbpr_p;
-			sensor_series[i].data = sensor_preview_data_YPbPr;
+			sensor_series[i].data = sensor_preview_data_yprpb_i;
+			sensor->info_priv.dev_sig_cnf.type =
+				RK_CAMERA_DEVICE_CVBS_NTSC;
+			sensor->info_priv.dev_sig_cnf.code =
+				V4L2_MBUS_FMT_UYVY8_2X8;
 		} else if (strstr(channel_infos.channel_info[id], "yc")) {
 			SENSOR_TR("%s(%d): yc signal not support\n",
 				  __func__, __LINE__);
@@ -756,6 +760,7 @@ static inline int adv7181_channel_set(struct i2c_client *client,
 			now_channel_value = ADV7181_INPUT_DEFAULT;
 			sensor_series[i].data = sensor_preview_data_yc;
 		}
+
 		sensor_write(client, ADV7181_INPUT_CONTROL, now_channel_value);
 		generic_sensor_write_array(client, sensor_series[i].data);
 	}
@@ -782,7 +787,7 @@ static inline int sensor_v4l2ctrl_inside_cb(struct soc_camera_device *icd,
 				goto cb_end;
 			} else {
 				if (RK_CAMERA_DEVICE_BT601_8 ==
-					sensor->info_priv.dev_sig_cnf.type) {
+				    sensor->info_priv.dev_sig_cnf.type) {
 					/* don't need deinterlace process */
 					ext_ctrl->value = 0;
 					ctrl_info->cur_value = 0;
@@ -851,7 +856,6 @@ static struct sensor_v4l2ctrl_usr_s sensor_controls[] = {
  */
 static struct rk_sensor_datafmt sensor_colour_fmts[] = {
 	{V4L2_MBUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_JPEG},
-	{V4L2_MBUS_FMT_YVYU8_2X8, V4L2_COLORSPACE_JPEG}
 };
 
 /*
@@ -876,7 +880,6 @@ static int sensor_ae_transfer(struct i2c_client *client)
  * If necessary, you could coding these callback
  **********************************************************
  */
-
 static void adv7181_reinit_parameter(v4l2_std_id std,
 				     struct generic_sensor *sensor)
 {
@@ -887,14 +890,16 @@ static void adv7181_reinit_parameter(v4l2_std_id std,
 	if (std == V4L2_STD_NTSC || std == V4L2_STD_NTSC_443) {
 		SENSOR_PREVIEW_W = 720;
 		SENSOR_PREVIEW_H = 480;
-		sensor->info_priv.dev_sig_cnf.type = RK_CAMERA_DEVICE_CVBS_NTSC;
 		strcpy(input_mode, "NTSC");
 	} else if (std == V4L2_STD_PAL || std == V4L2_STD_PAL_60 ||
 		   std == V4L2_STD_PAL_M) {
 		SENSOR_PREVIEW_W = 720;
 		SENSOR_PREVIEW_H = 576;
-		sensor->info_priv.dev_sig_cnf.type = RK_CAMERA_DEVICE_CVBS_PAL;
 		strcpy(input_mode, "PAL");
+	} else {
+		SENSOR_PREVIEW_W = 1024;
+		SENSOR_PREVIEW_H = 500;
+		strcpy(input_mode, "YUV");
 	}
 	for (i = 0; i < 4; i++) {
 		if ((defrects[i].width == SENSOR_PREVIEW_W) &&
@@ -910,15 +915,7 @@ static void adv7181_reinit_parameter(v4l2_std_id std,
 					  __func__, __LINE__);
 				continue;
 			}
-			if (!strcmp(defrects[i].interface, "bt601_8"))
-				sensor->info_priv.dev_sig_cnf.type =
-				RK_CAMERA_DEVICE_BT601_8;
-			if (!strcmp(defrects[i].interface, "cvbs_ntsc"))
-				sensor->info_priv.dev_sig_cnf.type =
-				RK_CAMERA_DEVICE_CVBS_NTSC;
-			if (!strcmp(defrects[i].interface, "cvbs_pal"))
-				sensor->info_priv.dev_sig_cnf.type =
-				RK_CAMERA_DEVICE_CVBS_PAL;
+
 			SENSOR_TR("%s(%d): type 0x%x\n", __func__, __LINE__,
 				  sensor->info_priv.dev_sig_cnf.type);
 		}
@@ -1336,6 +1333,9 @@ static void adv7181_check_state_work(struct work_struct *work)
 	struct i2c_client *client = sensor->client;
 	static v4l2_std_id std_old = V4L2_STD_NTSC;
 	v4l2_std_id std;
+
+	if (sensor->info_priv.dev_sig_cnf.type == RK_CAMERA_DEVICE_BT601_8)
+		return;
 
 	adv7181_status(client, NULL, &std);
 	if (std_old != std) {

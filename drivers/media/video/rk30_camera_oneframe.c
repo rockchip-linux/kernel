@@ -1783,6 +1783,8 @@ static void rk_camera_setup_format(struct soc_camera_device *icd, __u32 host_pix
 	if (dev_sig_cnf.type == RK_CAMERA_DEVICE_CVBS_DEINTERLACE)
 		pcdev->deinterlace = ODD_FRAME;
 
+	if (dev_sig_cnf.code)
+		icd_code = dev_sig_cnf.code;
 	fmt = soc_mbus_get_fmtdesc(icd_code);
 	debug_printk( "/$$$$$$$$$$$$$$$$$$$$$$//n Here I am: %s:%i-------%s()/n", __FILE__, __LINE__,__FUNCTION__);
 
