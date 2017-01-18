@@ -162,6 +162,7 @@ struct vcodec_hw_var {
 	enum pmu_idle_req pmu_type;
 	struct vcodec_hw_ops *ops;
 	int (*init)(struct vpu_service_info *pservice);
+	void (*config)(struct vpu_subdev_data *data);
 };
 
 #define MHZ					(1000*1000)
@@ -1675,6 +1676,9 @@ static void reg_copy_to_hw(struct vpu_subdev_data *data, struct vpu_reg *reg)
 				writel_relaxed(src[i], dst + i);
 		}
 
+		if (pservice->hw_var && pservice->hw_var->config)
+			pservice->hw_var->config(data);
+
 		writel(src[reg_en] | gating_mask, dst + reg_en);
 		dsb(sy);
 
@@ -2621,6 +2625,22 @@ static int vcodec_spec_init_rk322xh(struct vpu_service_info *pservice)
 	return 0;
 }
 
+static void vcodec_spec_config_rk322xh(struct vpu_subdev_data *data)
+{
+	u32 *dst = data->dec_dev.regs;
+	struct vpu_reg *reg = data->pservice->reg_codec;
+	u32 cfg;
+
+	/*
+	 * HW defeat workaround: VP9 power save optimization cause decoding
+	 * corruption, disable optimization here.
+	 */
+	if (rkv_dec_get_fmt(reg->reg) == FMT_VP9D) {
+		cfg = readl(dst + 99);
+		writel(cfg & (~(1 << 12)), dst + 99);
+	}
+}
+
 static struct vcodec_hw_ops hw_ops_default = {
 	.power_on = vcodec_power_on_default,
 	.power_off = vcodec_power_off_default,
@@ -2641,12 +2661,14 @@ static struct vcodec_hw_var rk322xh_rkvdec_var = {
 	.pmu_type = IDLE_REQ_VIDEO,
 	.ops = &hw_ops_rk322xh_rkvdec,
 	.init = vcodec_spec_init_rk322xh,
+	.config = vcodec_spec_config_rk322xh,
 };
 
 static struct vcodec_hw_var rk322xh_vpucombo_var = {
 	.pmu_type = IDLE_REQ_VPU,
 	.ops = &hw_ops_default,
 	.init = NULL,
+	.config = NULL,
 };
 
 static void vcodec_set_hw_ops(struct vpu_service_info *pservice)
