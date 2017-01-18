@@ -43,7 +43,7 @@ static int pd_gpu_off, early_suspend;
 static DEFINE_MUTEX(switch_vdd_gpu_mutex);
 struct regulator *vdd_gpu_regulator;
 static DEFINE_MUTEX(temp_limit_mutex);
-static u32 cpu_target_temp;
+static int cpu_target_temp;
 static bool temp_limit_4k;
 
 static int dvfs_get_rate_range(struct dvfs_node *clk_dvfs_node);
