@@ -579,14 +579,11 @@ static int rk3036_tve_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&(rk3036_tve->modelist));
 	for (i = 0; i < ARRAY_SIZE(rk3036_cvbs_mode); i++)
 		fb_add_videomode(&rk3036_cvbs_mode[i], &(rk3036_tve->modelist));
-	 if (cvbsformat >= 0) {
+	if (cvbsformat >= 0)
 		rk3036_tve->mode =
 			(struct fb_videomode *)&rk3036_cvbs_mode[cvbsformat];
-		rk3036_tve->enable = 1;
-		tve_switch_fb(rk3036_tve->mode, 1);
-	} else {
+	else
 		rk3036_tve->mode = (struct fb_videomode *)&rk3036_cvbs_mode[1];
-	}
 	rk3036_tve->ddev =
 		rk_display_device_register(&display_cvbs, &pdev->dev, NULL);
 	rk_display_device_enable(rk3036_tve->ddev);
