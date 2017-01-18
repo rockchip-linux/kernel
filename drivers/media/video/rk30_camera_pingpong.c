@@ -1181,26 +1181,27 @@ static inline irqreturn_t rk_camera_dmairq(int irq, void *data)
             goto end;
         }
 
-        if (!list_empty(&pcdev->capture)) {
-			active_buf = list_entry(pcdev->capture.next, struct videobuf_buffer, queue);
-            if (active_buf) {
-                
-                WARN_ON(active_buf->state != VIDEOBUF_QUEUED);
-				if ((flag == 0) && ((active_buf->i)%2 == 0)){					
-			        pcdev->active0 = active_buf;
-        		} else if ((flag == 1) && ((active_buf->i)%2 == 1)){
-			        pcdev->active1 = active_buf;
-        		}else{
-                    RKCAMERA_DG1("irq frame status erro or no a suitable buf!\n");
+		if (!list_empty(&pcdev->capture)) {
+			active_buf = list_entry(pcdev->capture.next,
+						struct videobuf_buffer,
+						queue);
+			if (active_buf) {
+				WARN_ON(active_buf->state != VIDEOBUF_QUEUED);
+				if (flag == 0) {
+					pcdev->active0 = active_buf;
+				} else if (flag == 1) {
+					pcdev->active1 = active_buf;
+				} else {
+					RKCAMERA_DG1("irq frame status erro or no a suitable buf!\n");
 					goto end;
-        		}
+				}
 				rk_videobuf_capture(active_buf,pcdev,flag);
 				list_del_init(&(active_buf->queue));
-            }
-        }else{
+			}
+		} else {
 			RKCAMERA_DG1("video_buf queue is empty!\n");
 			goto end;
-        }
+		}
         		
         do_gettimeofday(&vb->ts);
         if (CAM_WORKQUEUE_IS_EN()) {
