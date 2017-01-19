@@ -38,6 +38,15 @@ config NO_DUAL_DISP
 	  No dual display needed
 endchoice
 
+config RK_FB_FOR_ANDROID_EXTEND
+	bool "enable rk fb screen info extend for android"
+	depends on FB_ROCKCHIP
+	default y
+	help
+	  Add some extend info in rk fb screen info which used in rockchip android framework,
+	  if you use pure linux system, such as linux desktop system base on wayland display
+	  server,please disable it.
+
 config FB_ROTATE
 	bool"FB rotate support"
 	depends on FB_ROCKCHIP

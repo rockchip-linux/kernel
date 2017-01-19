@@ -3265,6 +3265,7 @@ static int rk_fb_set_par(struct fb_info *info)
 	else
 		win = dev_drv->win[win_id];
 
+#ifdef CONFIG_RK_FB_FOR_ANDROID_EXTEND
 	/* if the application has specific the hor and ver display size */
 	if (var->grayscale >> 8) {
 		xsize = (var->grayscale >> 8) & 0xfff;
@@ -3277,7 +3278,10 @@ static int rk_fb_set_par(struct fb_info *info)
 		xsize = screen->mode.xres;
 		ysize = screen->mode.yres;
 	}
-
+#else
+	xsize = screen->mode.xres;
+	ysize = screen->mode.yres;
+#endif
 	win->colorspace = CSC_FORMAT(data_format);
 	data_format &= ~CSC_MASK;
 	fb_data_fmt = rk_fb_data_fmt(data_format, var->bits_per_pixel);
@@ -3656,10 +3660,12 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 			dev_drv->ops->load_screen(dev_drv, 1);
 			/* force modify dsp size */
 			info = rk_fb->fb[dev_drv->fb_index_base];
+#ifdef CONFIG_RK_FB_FOR_ANDROID_EXTEND
 			info->var.grayscale &= 0xff;
 			info->var.grayscale |=
 				(dev_drv->cur_screen->mode.xres << 8) +
 				(dev_drv->cur_screen->mode.yres << 20);
+#endif
 			mutex_lock(&dev_drv->win_config);
 			info->var.xoffset = 0;
 			info->var.yoffset = 0;
@@ -3733,12 +3739,14 @@ int rk_fb_switch_screen(struct rk_screen *screen, int enable, int lcdc_id)
 				dev_drv->ops->load_screen(dev_drv, 1);
 
 				info->var.activate |= FB_ACTIVATE_FORCE;
+#ifdef CONFIG_RK_FB_FOR_ANDROID_EXTEND
 				if (rk_fb->disp_mode == ONE_DUAL) {
 					info->var.grayscale &= 0xff;
 					info->var.grayscale |=
 						(dev_drv->cur_screen->xsize << 8) +
 						(dev_drv->cur_screen->ysize << 20);
 				}
+#endif
 				if (dev_drv->uboot_logo && win->state) {
 					if (win->area[0].xpos ||
 					    win->area[0].ypos) {
@@ -3857,10 +3865,12 @@ int rk_fb_disp_scale(u8 scale_x, u8 scale_y, u8 lcdc_id)
 		if (inf->disp_mode == ONE_DUAL) {
 			var->nonstd &= 0xff;
 			var->nonstd |= (xpos << 8) + (ypos << 20);
+#ifdef CONFIG_RK_FB_FOR_ANDROID_EXTEND
 			var->grayscale &= 0xff;
 			var->grayscale |=
 				(dev_drv->cur_screen->xsize << 8) +
 				(dev_drv->cur_screen->ysize << 20);
+#endif
 		}
 	}
 
@@ -4239,8 +4249,10 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		fb_videomode_to_var(&fbi->var, &dev_drv->cur_screen->mode);
 		fbi->var.width = dev_drv->cur_screen->width;
 		fbi->var.height = dev_drv->cur_screen->height;
+#ifdef CONFIG_RK_FB_FOR_ANDROID_EXTEND
 		fbi->var.grayscale |=
 		    (fbi->var.xres << 8) + (fbi->var.yres << 20);
+#endif
 #if defined(CONFIG_LOGO_LINUX_BMP)
 		fbi->var.bits_per_pixel = 32;
 #else
