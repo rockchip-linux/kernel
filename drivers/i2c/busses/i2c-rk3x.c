@@ -1141,7 +1141,7 @@ static const struct i2c_algorithm rk3x_i2c_algorithm = {
 };
 
 static const struct rk3x_i2c_soc_data rv1108_soc_data = {
-	.grf_offset = -1,
+	.grf_offset = 0x408,
 	.calc_timings = rk3x_i2c_v1_calc_timings,
 };
 
@@ -1257,6 +1257,7 @@ static int rk3x_i2c_probe(struct platform_device *pdev)
 	 */
 	if (i2c->soc_data->grf_offset >= 0) {
 		struct regmap *grf;
+		u32 grf_offset = i2c->soc_data->grf_offset;
 
 		grf = syscon_regmap_lookup_by_phandle(np, "rockchip,grf");
 		if (IS_ERR(grf)) {
@@ -1270,13 +1271,28 @@ static int rk3x_i2c_probe(struct platform_device *pdev)
 			return -EINVAL;
 		}
 
-		/* 27+i: write mask, 11+i: value */
-		value = BIT(27 + bus_nr) | BIT(11 + bus_nr);
+		if (i2c->soc_data->calc_timings == rk3x_i2c_v0_calc_timings) {
+			/* 27+i: write mask, 11+i: value */
+			value = BIT(27 + bus_nr) | BIT(11 + bus_nr);
 
-		ret = regmap_write(grf, i2c->soc_data->grf_offset, value);
-		if (ret != 0) {
-			dev_err(i2c->dev, "Could not write to GRF: %d\n", ret);
-			return ret;
+			ret = regmap_write(grf, grf_offset, value);
+			if (ret != 0) {
+				dev_err(i2c->dev, "Could not write to GRF: %d\n",
+					ret);
+				return ret;
+			}
+		} else {
+			/* rv1108 i2c2 need to set grf offset-0x408, bit-10*/
+			if ((bus_nr == 2) && (grf_offset == 0x408)) {
+				value = BIT(26) | BIT(10);
+
+				ret = regmap_write(grf, grf_offset, value);
+				if (ret != 0) {
+					dev_err(i2c->dev, "Could not write to GRF: %d\n",
+						ret);
+					return ret;
+				}
+			}
 		}
 	}
 
