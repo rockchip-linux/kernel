@@ -1049,6 +1049,15 @@
 		status = "disabled";
 	};
 
+	nandc: nandc@30100000 {
+		compatible = "rockchip,nandc";
+		reg = <0x30100000 0x1000>;
+		interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_nandc>, <&clk_gates15 3>, <&clk_gates5 3>;
+		clock-names = "clk_nandc", "hclk_nandc", "g_clk_nandc";
+		status = "disabled";
+	};
+
 	emmc: rksdmmc@30110000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rv1108-sdmmc";
 		reg = <0x30110000 0x10000>;
