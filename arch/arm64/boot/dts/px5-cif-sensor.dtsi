@@ -65,14 +65,16 @@
 			rockchip,camera-module-interface0 = "cvbs_ntsc";
 			rockchip,camera-module-defrect1 = <720 576 0 4 720 568>;
 			rockchip,camera-module-interface1 = "cvbs_pal";
+			rockchip,camera-module-defrect2 = <1024 500 56 36 720 480>;
+			rockchip,camera-module-interface2 = "bt601_8";
 			rockchip,camera-module-channel = <4 0>;
 			rockchip,camera-module-ain-1 = "cvbs 1";
 			rockchip,camera-module-ain-2 = "cvbs 6";
 			rockchip,camera-module-ain-3 = "cvbs 8";
 			rockchip,camera-module-ain-4 = "cvbs 10";
+			//rockchip,camera-module-ain-5 = "ycrcb 6 8 10";
 			rockchip,camera-module-ain-5 = "yprpb 6 8 10";
 		};
 
 	};
 };
-
