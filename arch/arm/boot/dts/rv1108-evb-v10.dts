@@ -509,6 +509,10 @@
 	status = "okay";
 };
 
+&nandc {
+	status = "okay";
+};
+
 #include "rk805.dtsi"
 &rk805 {
 	gpios = <&gpio0 GPIO_B4 GPIO_ACTIVE_HIGH>, <&gpio0 GPIO_B5 GPIO_ACTIVE_LOW>;

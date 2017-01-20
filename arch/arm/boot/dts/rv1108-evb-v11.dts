@@ -426,6 +426,10 @@
 	status = "okay";
 };
 
+&nandc {
+	status = "okay";
+};
+
 #include "rv1108-rk805-v11.dtsi" /* rk805 v11 */
 //#include "rv1108-rk805-v12.dtsi" /* rk805 v12 */
 
