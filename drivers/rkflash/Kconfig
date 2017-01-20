@@ -1,0 +1,47 @@
+if ARCH_ROCKCHIP
+
+menuconfig RK_FLASH
+	tristate "Rockchip Flash Devices Support"
+	default n
+	help
+	  Enable rockchip flash devices support.
+
+	  rkflash driver support 3-type flash devices: NANDC NAND, SFC_NOR
+	  and SFC_NAND.
+
+	  Say Y when you have a board with one of them.
+
+if RK_FLASH
+
+comment "Rockchip Flash Devices"
+
+config RK_NANDC_NAND
+	tristate "RK NANDC NAND Device Support"
+	default n
+	help
+	  Enable NANDC_NAND device support.
+
+	  Say Y when you have a board with nand flash supported by rockchip
+	  nandc controller.
+
+config RK_SFC_NOR
+	tristate "RK SFC NOR Device Support"
+	default n
+	help
+	  Enable SFC_NOR device support.
+
+	  Say Y when you have a board with nor flash supported by rockchip
+	  sfc controller.
+
+config RK_SFC_NAND
+	tristate "RK SFC NAND Device Support"
+	default n
+	help
+	  Enable SFC_NAND device support.
+
+	  Say Y when you have a board with nand flash supported by rockchip
+	  sfc controller.
+
+endif
+
+endif

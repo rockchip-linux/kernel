@@ -6,27 +6,28 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/slab.h>
-#include <linux/dma-mapping.h>
-#include <linux/irq.h>
-#include <linux/interrupt.h>
 #include <linux/bootmem.h>
-#include <asm/cacheflush.h>
-#include <linux/platform_device.h>
 #include <linux/clk.h>
+#include <linux/dma-mapping.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/platform_device.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
+#include <asm/cacheflush.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
 #endif
-#include "rk_sfc_blk.h"
-#include "rk_sfc_api.h"
 
-#define RKNAND_VERSION_AND_DATE  "rksfcbase v1.1 2016-01-08"
+#include "rkflash_api.h"
+#include "rkflash_blk.h"
 
-struct rk_sfc_info {
+#define RKSFC_VERSION_AND_DATE  "rksfc_base v1.1 2016-01-08"
+#define	RKSFC_CLK_SET_RATE	(100 * 1000 * 1000)
+
+struct rksfc_info {
 	void __iomem	*reg_base;
 	int	irq;
 	int	clk_rate;
@@ -34,8 +35,8 @@ struct rk_sfc_info {
 	struct clk	*ahb_clk;	/* ahb clk gate*/
 };
 
-static struct rk_sfc_info g_sfc_info;
-struct device *g_sfc_device;
+static struct rksfc_info g_sfc_info;
+static struct device *g_sfc_dev;
 static struct completion sfc_irq_complete;
 
 unsigned long rksfc_dma_map_single(unsigned long ptr, int size, int dir)
@@ -65,49 +66,51 @@ int rksfc_get_reg_addr(unsigned long *p_sfc_addr)
 	return 0;
 }
 
-static irqreturn_t rk_sfc_interrupt(int irq, void *dev_id)
+static irqreturn_t rksfc_interrupt(int irq, void *dev_id)
 {
 	sfc_clean_irq();
 	complete(&sfc_irq_complete);
 	return IRQ_HANDLED;
 }
 
-void rk_sfc_irq_flag_init(void)
+void rksfc_irq_flag_init(void)
 {
 	init_completion(&sfc_irq_complete);
 }
 
-void wait_for_sfc_irq_completed(void)
+void rksfc_wait_for_irq_completed(void)
 {
-	wait_for_completion_timeout(&sfc_irq_complete, msecs_to_jiffies(10));
+	wait_for_completion_timeout(&sfc_irq_complete,
+				    msecs_to_jiffies(10));
 }
 
-static int rk_sfc_irq_config(int mode, void *pfun)
+static int rksfc_irq_config(int mode, void *pfun)
 {
 	int ret = 0;
 	int irq = g_sfc_info.irq;
 
 	if (mode)
-		ret = request_irq(irq, pfun, 0, "sfc", g_sfc_info.reg_base);
+		ret = request_irq(irq, pfun, 0, "rksfc",
+				  g_sfc_info.reg_base);
 	else
 		free_irq(irq,  NULL);
 	return ret;
 }
 
-int rk_sfc_irq_init(void)
+int rksfc_irq_init(void)
 {
 	int ret = 0;
 
 	init_completion(&sfc_irq_complete);
-	rk_sfc_irq_config(1, rk_sfc_interrupt);
+	rksfc_irq_config(1, rksfc_interrupt);
 	return ret;
 }
 
-int rk_sfc_irq_deinit(void)
+int rksfc_irq_deinit(void)
 {
 	int ret = 0;
 
-	rk_sfc_irq_config(0, rk_sfc_interrupt);
+	rksfc_irq_config(0, rksfc_interrupt);
 	return ret;
 }
 
@@ -116,8 +119,9 @@ static int rksfc_probe(struct platform_device *pdev)
 	int irq;
 	struct resource	*mem;
 	void __iomem	*membase;
+	int ret;
 
-	g_sfc_device = &pdev->dev;
+	g_sfc_dev = &pdev->dev;
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	membase = devm_ioremap_resource(&pdev->dev, mem);
 	if (membase == 0) {
@@ -133,7 +137,6 @@ static int rksfc_probe(struct platform_device *pdev)
 
 	g_sfc_info.irq = irq;
 	g_sfc_info.reg_base = membase;
-
 	g_sfc_info.ahb_clk = devm_clk_get(&pdev->dev, "hclk_sfc");
 	g_sfc_info.clk = devm_clk_get(&pdev->dev, "clk_sfc");
 	if (unlikely(IS_ERR(g_sfc_info.clk)) ||
@@ -142,33 +145,35 @@ static int rksfc_probe(struct platform_device *pdev)
 		return -1;
 	}
 	clk_prepare_enable(g_sfc_info.ahb_clk);
-	clk_set_rate(g_sfc_info.clk, 100 * 1000 * 1000);
+	clk_set_rate(g_sfc_info.clk, RKSFC_CLK_SET_RATE);
 	g_sfc_info.clk_rate = clk_get_rate(g_sfc_info.clk);
 	clk_prepare_enable(g_sfc_info.clk);
 	dev_info(&pdev->dev,
 		 "rksfc_probe clk rate = %d\n",
 		 g_sfc_info.clk_rate);
-	rk_sfc_irq_init();
-	return rksfc_dev_init(g_sfc_info.reg_base);
+	rksfc_irq_init();
+	ret = rkflash_dev_init(g_sfc_info.reg_base, FLASH_CON_TYPE_SFC);
+
+	return ret;
 }
 
 static int rksfc_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	return rksfc_dev_suspend();
+	return rkflash_dev_suspend();
 }
 
 static int rksfc_resume(struct platform_device *pdev)
 {
-	return rksfc_dev_resume();
+	return rkflash_dev_resume(g_sfc_info.reg_base);
 }
 
 static void rksfc_shutdown(struct platform_device *pdev)
 {
-	rksfc_dev_shutdown();
+	rkflash_dev_shutdown();
 }
 
 #ifdef CONFIG_OF
-static const struct of_device_id of_rk_sfc_match[] = {
+static const struct of_device_id of_rksfc_match[] = {
 	{.compatible = "rockchip,sfc"},
 	{}
 };
@@ -180,9 +185,9 @@ static struct platform_driver rksfc_driver = {
 	.resume		= rksfc_resume,
 	.shutdown	= rksfc_shutdown,
 	.driver		= {
-		.name	= "sfc",
+		.name	= "rksfc",
 #ifdef CONFIG_OF
-		.of_match_table	= of_rk_sfc_match,
+		.of_match_table	= of_rksfc_match,
 #endif
 		.owner	= THIS_MODULE,
 	},
@@ -190,8 +195,8 @@ static struct platform_driver rksfc_driver = {
 
 static void __exit rksfc_driver_exit(void)
 {
-	rksfc_dev_exit();
-	rk_sfc_irq_deinit();
+	rkflash_dev_exit();
+	rksfc_irq_deinit();
 	platform_driver_unregister(&rksfc_driver);
 }
 
@@ -199,7 +204,7 @@ static int __init rksfc_driver_init(void)
 {
 	int ret = 0;
 
-	pr_err("%s\n", RKNAND_VERSION_AND_DATE);
+	pr_err("%s\n", RKSFC_VERSION_AND_DATE);
 	ret = platform_driver_register(&rksfc_driver);
 	return ret;
 }

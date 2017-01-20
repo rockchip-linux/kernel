@@ -6,22 +6,24 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
-#include <linux/kernel.h>
+
 #include <linux/delay.h>
+#include <linux/kernel.h>
 #include <linux/string.h>
 
-#include "typedef.h"
 #include "sfc.h"
 #include "sfc_nor.h"
+#include "typedef.h"
+
 #define PRINT_SPI_CHIP_INFO		0
 #define SNOR_4BIT_DATA_DETECT_EN	0
 #define SNOR_STRESS_TEST_EN	0
 #define NOR_PAGE_SIZE		256
-#define NOR_BLOCK_SIZE		(64*1024)
-#define NOR_SECS_BLK		(NOR_BLOCK_SIZE/512)
+#define NOR_BLOCK_SIZE		(64 * 1024)
+#define NOR_SECS_BLK		(NOR_BLOCK_SIZE / 512)
 #define NOR_SECS_PAGE		4
 
-#define FEA_READ_STATUE_MASK	(0x3<<0)
+#define FEA_READ_STATUE_MASK	(0x3 << 0)
 #define FEA_STATUE_MODE1	0
 #define FEA_STATUE_MODE2	1
 #define FEA_4BIT_READ		BIT(2)
@@ -48,7 +50,7 @@ struct flash_info {
 	u8 reserved2;
 };
 
-struct flash_info spi_flash_tbl[] = {
+static struct flash_info spi_flash_tbl[] = {
 	/* GD25Q32B */
 	{0xc84016, 128, 8, 0x03, 0x02, 0x6B, 0x32, 0x20, 0xD8, 0x0D, 13, 9, 0},
 	/* GD25Q64B */
@@ -63,7 +65,7 @@ struct flash_info spi_flash_tbl[] = {
 	{0xef4019, 128, 8, 0x13, 0x02, 0x6C, 0x32, 0x20, 0xD8, 0x3C, 16, 9, 0},
 };
 
-struct flash_info *g_spi_flash_info;
+static struct flash_info *g_spi_flash_info;
 typedef int (*SNOR_WRITE_STATUS)(u32 reg_index, u8 status);
 struct SFNOR_DEV {
 	u32	capacity;
@@ -91,7 +93,7 @@ struct SFNOR_DEV {
 static int snor_wait_busy(int timeout);
 static struct SFNOR_DEV sfnor_dev;
 
-const u8 sfnor_dev_code[] = {
+static const u8 sfnor_dev_code[] = {
 	0x11,
 	0x12,
 	0x13,
@@ -103,7 +105,7 @@ const u8 sfnor_dev_code[] = {
 	0x19
 };
 
-const u32 sfnor_capacity[] = {
+static const u32 sfnor_capacity[] = {
 	0x20000,        /* 128k-byte */
 	0x40000,        /* 256k-byte */
 	0x80000,        /* 512k-byte */
@@ -246,7 +248,7 @@ static int snor_wait_busy(int timeout)
 	return SFC_BUSY_TIMEOUT;
 }
 
-int snor_erase(u32 addr, enum NOR_ERASE_TYPE erase_type)
+static int snor_erase(u32 addr, enum NOR_ERASE_TYPE erase_type)
 {
 	int ret;
 	union SFCCMD_DATA sfcmd;
@@ -275,7 +277,7 @@ int snor_erase(u32 addr, enum NOR_ERASE_TYPE erase_type)
 	if (ret != SFC_OK)
 		return ret;
 
-	ret = snor_wait_busy(timeout[erase_type]*1000);
+	ret = snor_wait_busy(timeout[erase_type] * 1000);
 	return ret;
 }
 
@@ -325,7 +327,7 @@ int snor_prog(u32 addr, void *p_data, u32 size)
 
 	page_size = NOR_PAGE_SIZE;
 	while (size) {
-		len = MIN(page_size, size);
+		len = page_size < size ? page_size : size;
 		ret = snor_prog_page(addr, p_buf, len);
 		if (ret != SFC_OK)
 			return ret;
@@ -474,7 +476,7 @@ int snor_read(u32 sec, u32 n_sec, void *p_data)
 	addr = sec << 9;
 	size = n_sec << 9;
 	while (size) {
-		len = MIN(size, SFC_MAX_IOSIZE);
+		len = size < SFC_MAX_IOSIZE ? size : SFC_MAX_IOSIZE;
 		ret = snor_read_data(addr, p_buf, len);
 		if (ret != SFC_OK) {
 			PRINT_E("snor_read_data %x ret= %x\n", addr >> 9, ret);
@@ -514,7 +516,8 @@ int snor_write(u32 sec, u32 n_sec, void *p_data)
 				return ret;
 			}
 		}
-		len = MIN((blk_size - offset), n_sec);
+		len = (blk_size - offset) < n_sec ?
+		      (blk_size - offset) : n_sec;
 		ret = snor_prog(sec << 9, p_buf, len << 9);
 		if (ret != SFC_OK) {
 			PRINT_E("snor_prog %x ret= %x\n", sec, ret);
@@ -522,7 +525,7 @@ int snor_write(u32 sec, u32 n_sec, void *p_data)
 		}
 		n_sec -= len;
 		sec += len;
-		p_buf += len<<9;
+		p_buf += len << 9;
 	}
 	return ret;
 }
@@ -640,7 +643,7 @@ void snor_test(void)
 }
 #endif
 
-struct flash_info *SNOR_get_flash_info(u8 *flash_id)
+static struct flash_info *snor_get_flash_info(u8 *flash_id)
 {
 	u32 i;
 	u32 id = (flash_id[0] << 16) | (flash_id[1] << 8) | (flash_id[2] << 0);
@@ -662,7 +665,7 @@ int snor_init(void)
 
 	memset(p_dev, 0, sizeof(struct SFNOR_DEV));
 	snor_read_id(id_byte);
-	PRINT_E("id: %x %x %x\n", id_byte[0], id_byte[1], id_byte[2]);
+	PRINT_E("sfc nor id: %x %x %x\n", id_byte[0], id_byte[1], id_byte[2]);
 	if ((0xFF == id_byte[0] && 0xFF == id_byte[1]) ||
 	    (0x00 == id_byte[0] && 0x00 == id_byte[1]))
 		return SFC_ERROR;
@@ -670,8 +673,8 @@ int snor_init(void)
 	p_dev->manufacturer = id_byte[0];
 	p_dev->mem_type = id_byte[1];
 
-	g_spi_flash_info = SNOR_get_flash_info(id_byte);
-	if (g_spi_flash_info != NULL) {
+	g_spi_flash_info = snor_get_flash_info(id_byte);
+	if (g_spi_flash_info) {
 		p_dev->capacity = 1 << g_spi_flash_info->density;
 		p_dev->blk_size = g_spi_flash_info->block_size;
 		p_dev->page_size = NOR_SECS_PAGE;
@@ -764,7 +767,7 @@ void snor_deinit(void)
 	snor_reset_device();
 }
 
-int snor_resume(void)
+int snor_resume(void __iomem *reg_addr)
 {
 	return snor_init();
 }

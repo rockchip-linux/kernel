@@ -7,11 +7,12 @@
  * (at your option) any later version.
  */
 
-#include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
-#include "typedef.h"
+#include <linux/kernel.h>
+
 #include "sfc.h"
+#include "typedef.h"
 
 #define DMA_INT		BIT(7)      /* dma interrupt */
 #define NSPIERR_INT	BIT(6)      /* Nspi error interrupt */
@@ -39,14 +40,14 @@
 /* Dma start trigger signal. Auto cleared after write */
 #define SFC_DMA_START	BIT(0)
 
-#define	SFC_CTRL	0x00
-#define	SFC_IMR		0x04
-#define	SFC_ICLR	0x08
-#define	SFC_FTLR	0x0C
-#define	SFC_RCVR	0x10
-#define	SFC_AX		0x14
-#define	SFC_ABIT	0x18
-#define	SFC_MASKISR	0x1C
+#define SFC_CTRL	0x00
+#define SFC_IMR		0x04
+#define SFC_ICLR	0x08
+#define SFC_FTLR	0x0C
+#define SFC_RCVR	0x10
+#define SFC_AX		0x14
+#define SFC_ABIT	0x18
+#define SFC_MASKISR	0x1C
 #define SFC_FSR		0x20
 #define SFC_SR		0x24
 #define SFC_RAWISR	0x28
@@ -71,7 +72,7 @@ union SFCFSR_DATA {
 	} b;
 };
 
-void __iomem *g_sfc_reg;
+static void __iomem *g_sfc_reg;
 
 static void sfc_reset(void)
 {
@@ -112,7 +113,7 @@ int sfc_request(u32 sfcmd, u32 sfctrl, u32 addr, void *data)
 		sfc_reset();
 
 	cmd.d32 = sfcmd;
-	if (SFC_ADDR_XBITS == cmd.b.addrbits) {
+	if (cmd.b.addrbits == SFC_ADDR_XBITS) {
 		union SFCCTRL_DATA ctrl;
 
 		ctrl.d32 = sfctrl;
@@ -132,26 +133,26 @@ int sfc_request(u32 sfcmd, u32 sfctrl, u32 addr, void *data)
 		goto exit_wait;
 	if (SFC_ENABLE_DMA & sfctrl) {
 		unsigned long dma_addr;
-		u8 direction = (SFC_WRITE == cmd.b.rw) ? 1 : 0;
+		u8 direction = (cmd.b.rw == SFC_WRITE) ? 1 : 0;
 
 		dma_addr = rksfc_dma_map_single((unsigned long)data,
 						cmd.b.datasize,
 						direction);
-		rk_sfc_irq_flag_init();
+		rksfc_irq_flag_init();
 		writel(0xFFFFFFFF, g_sfc_reg + SFC_ICLR);
 		writel(~(FINISH_INT), g_sfc_reg + SFC_IMR);
 		writel((u32)dma_addr, g_sfc_reg + SFC_DMA_ADDR);
 		writel(SFC_DMA_START, g_sfc_reg + SFC_DMA_TRIGGER);
 
 		timeout = cmd.b.datasize * 10;
-		wait_for_sfc_irq_completed();
+		rksfc_wait_for_irq_completed();
 		while ((readl(g_sfc_reg + SFC_SR) & SFC_BUSY) &&
 		       (timeout-- > 0))
 			sfc_delay(1);
 		writel(0xFFFFFFFF, g_sfc_reg + SFC_ICLR);
 		if (timeout <= 0)
 			ret = SFC_WAIT_TIMEOUT;
-		direction = (SFC_WRITE == cmd.b.rw) ? 1 : 0;
+		direction = (cmd.b.rw == SFC_WRITE) ? 1 : 0;
 		rksfc_dma_unmap_single(dma_addr,
 				       cmd.b.datasize,
 				       direction);
@@ -160,18 +161,19 @@ int sfc_request(u32 sfcmd, u32 sfctrl, u32 addr, void *data)
 		union SFCFSR_DATA    fifostat;
 		u32 *p_data = (u32 *)data;
 
-		if (SFC_WRITE == cmd.b.rw) {
+		if (cmd.b.rw == SFC_WRITE) {
 			words  = (cmd.b.datasize + 3) >> 2;
 			while (words) {
 				fifostat.d32 = readl(g_sfc_reg + SFC_FSR);
 				if (fifostat.b.txlevel > 0) {
-					count = MIN(words, fifostat.b.txlevel);
+					count = words < fifostat.b.txlevel ?
+						words : fifostat.b.txlevel;
 					for (i = 0; i < count; i++) {
 						writel(*p_data++,
 						       g_sfc_reg + SFC_DATA);
 						words--;
 					}
-					if (0 == words)
+					if (words == 0)
 						break;
 					timeout = 0;
 				} else {
@@ -189,15 +191,17 @@ int sfc_request(u32 sfcmd, u32 sfctrl, u32 addr, void *data)
 			while (words) {
 				fifostat.d32 = readl(g_sfc_reg + SFC_FSR);
 				if (fifostat.b.rxlevel > 0) {
-					u32 count = MIN(words,
-							fifostat.b.rxlevel);
+					u32 count;
+
+					count = words < fifostat.b.rxlevel ?
+						words : fifostat.b.rxlevel;
 
 					for (i = 0; i < count; i++) {
 						*p_data++ = readl(g_sfc_reg +
 								  SFC_DATA);
 						words--;
 					}
-					if (0 == words)
+					if (words == 0)
 						break;
 					timeout = 0;
 				} else {
@@ -243,4 +247,3 @@ exit_wait:
 	sfc_delay(1); /* CS# High Time (read/write) >100ns */
 	return ret;
 }
-

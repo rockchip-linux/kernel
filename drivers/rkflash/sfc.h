@@ -1,5 +1,4 @@
-/* driver/rksfc/sfc.h
- *
+/*
  * Copyright (c) 2016, Fuzhou Rockchip Electronics Co., Ltd
  *
  * This program is free software; you can redistribute it and/or modify
@@ -11,7 +10,11 @@
 #ifndef _SFC_H
 #define _SFC_H
 
-#define SFC_MAX_IOSIZE		(1024*8)    /* 8K byte */
+#ifndef BIT
+#define BIT(nr)			(1 << (nr))
+#endif
+
+#define SFC_MAX_IOSIZE		(1024 * 8)    /* 8K byte */
 #define SFC_EN_INT		(0)         /* enable interrupt */
 #define SFC_EN_DMA		(1)         /* enable dma */
 #define SFC_FIFO_DEPTH		(0x10)      /* 16 words */
@@ -48,7 +51,7 @@
 #define SFC_2BITS_LINE              (1)
 #define SFC_4BITS_LINE              (2)
 
-#define SFC_ENABLE_DMA              (1<<14)
+#define SFC_ENABLE_DMA              BIT(14)
 
 /*------------------------------ Global Typedefs -----------------------------*/
 enum SFC_DATA_LINES {
@@ -113,10 +116,10 @@ union SFCCMD_DATA {
 int sfc_init(void __iomem *reg_addr);
 int sfc_request(u32 sfcmd, u32 sfctrl, u32 addr, void *data);
 void sfc_handle_irq(void);
+void sfc_clean_irq(void);
 int rksfc_get_reg_addr(unsigned long *p_sfc_addr);
 unsigned long rksfc_dma_map_single(unsigned long ptr, int size, int dir);
 void rksfc_dma_unmap_single(unsigned long ptr, int size, int dir);
-void sfc_clean_irq(void);
-void rk_sfc_irq_flag_init(void);
-void wait_for_sfc_irq_completed(void);
+void rksfc_irq_flag_init(void);
+void rksfc_wait_for_irq_completed(void);
 #endif

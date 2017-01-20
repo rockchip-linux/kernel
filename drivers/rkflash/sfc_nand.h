@@ -1,5 +1,4 @@
-/* driver/rksfc/sfc_nor.h
- *
+/*
  * Copyright (c) 2016, Fuzhou Rockchip Electronics Co., Ltd
  *
  * This program is free software; you can redistribute it and/or modify
@@ -8,10 +7,10 @@
  * (at your option) any later version.
  */
 
-#ifndef _SFNOR_H
-#define _SFNOR_H
+#ifndef __SFC_NAND_H
+#define __SFC_NAND_H
 
-/*Manufactory ID*/
+/* Manufactory ID */
 #define MID_WINBOND             0xEF
 #define MID_GIGADEV             0xC8
 #define MID_MICRON              0x2C
@@ -20,7 +19,7 @@
 #define MID_EON                 0x1C
 #define MID_ST                  0x20
 
-/*Command Set*/
+/* Command Set */
 #define CMD_READ_JEDECID        (0x9F)
 #define CMD_READ_DATA           (0x03)
 #define CMD_READ_STATUS         (0x05)
@@ -45,10 +44,8 @@
 #define CMD_READ_STATUS3        (0x15)
 #define CMD_WRITE_STATUS2       (0x31)
 #define CMD_WRITE_STATUS3       (0x11)
-/* X1 cmd, X1 addr, X1 data */
-#define CMD_FAST_READ_X1        (0x0B)
-/* X1 cmd, X1 addr, X2 data */
-#define CMD_FAST_READ_X2        (0x3B)
+#define CMD_FAST_READ_X1        (0x0B)  /* X1 cmd, X1 addr, X1 data */
+#define CMD_FAST_READ_X2        (0x3B)  /* X1 cmd, X1 addr, X2 data */
 /* X1 cmd, X1 addr, X4 data SUPPORT GD MARCONIX WINBOND */
 #define CMD_FAST_READ_X4        (0x6B)
 /* X1 cmd, X1 addr, X4 data SUPPORT GD MARCONIX WINBOND */
@@ -60,40 +57,14 @@
 /* X1 cmd, X4 addr, X4 data, SUPPORT MARCONIX */
 #define CMD_PAGE_PROG_A4        (0x38)
 #define CMD_RESET_NAND          (0xFF)
+
 #define CMD_ENTER_4BYTE_MODE    (0xB7)
 #define CMD_EXIT_4BYTE_MODE     (0xE9)
 #define CMD_ENABLE_RESER	(0x66)
 #define CMD_RESET_DEVICE	(0x99)
 
-enum NOR_ERASE_TYPE {
-	ERASE_SECTOR = 0,
-	ERASE_BLOCK64K,
-	ERASE_CHIP
-};
-
-enum SNOR_IO_MODE {
-	IO_MODE_SPI = 0,
-	IO_MODE_QPI
-};
-
-enum SNOR_READ_MODE {
-	READ_MODE_NOMAL = 0,
-	READ_MODE_FAST
-};
-
-enum SNOR_ADDR_MODE {
-	ADDR_MODE_3BYTE = 0,
-	ADDR_MODE_4BYTE
-};
-
-
-int snor_init(void);
-u32 snor_get_capacity(void);
-int snor_read_id(u8 *data);
-int snor_read(u32 sec, u32 n_sec, void *p_data);
-int snor_write(u32 sec, u32 n_sec, void *p_data);
-int snor_prog(u32 addr, void *p_data, u32 size);
-int snor_erase(u32 addr, enum NOR_ERASE_TYPE erase_type);
-int snor_erase_blk(u32 addr);
+u32 sfc_nand_init(void __iomem *sfc_addr);
+void sfc_nand_deinit(void);
+int sfc_nand_read_id(u8 *buf);
 
 #endif

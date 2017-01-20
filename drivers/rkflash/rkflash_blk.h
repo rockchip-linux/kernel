@@ -7,28 +7,51 @@
  * (at your option) any later version.
  */
 
-#ifndef __RKNAND_BLK_H
-#define __RKNAND_BLK_H
+#ifndef __RKFLASH_BLK_H
+#define __RKFLASH_BLK_H
 
 #include <linux/semaphore.h>
 
 #define MAX_PART_COUNT 32
 
-struct sfc_part {
+enum flash_con_type {
+	FLASH_CON_TYPE_NANDC = 0,
+	FLASH_CON_TYPE_SFC,
+	FLASH_CON_TYPE_MAX,
+};
+
+enum flash_type {
+	FLASH_TYPE_NANDC_NAND = 0,
+	FLASH_TYPE_SFC_NOR,
+	FLASH_TYPE_SFC_NAND,
+	FLASH_TYPE_MAX,
+};
+
+struct flash_boot_ops {
+	int id;
+	int (*init)(void __iomem *reg_addr);
+	int (*read)(u32 sec, u32 n_sec, void *p_data);
+	int (*write)(u32 sec, u32 n_sec, void *p_data);
+	u32 (*get_capacity)(void);
+	void (*deinit)(void);
+	int (*resume)(void __iomem *reg_addr);
+};
+
+struct flash_part {
 	unsigned char name[32];
 	unsigned int offset;
 	unsigned int size;
 	unsigned char type;
 };
 
-struct sfc_blk_ops {
+struct flash_blk_ops {
 	char *name;
 	int major;
 	int minorbits;
 	int last_dev_index;
 	struct completion thread_exit;
 	int quit;
-	int sfc_th_quited;
+	int flash_th_quited;
 	wait_queue_head_t thread_wq; /* thread wait queue */
 	struct request_queue *rq;
 	spinlock_t queue_lock; /* queue lock */
@@ -36,8 +59,8 @@ struct sfc_blk_ops {
 	struct module *owner;
 };
 
-struct sfc_blk_dev {
-	struct sfc_blk_ops *sfc_ops;
+struct flash_blk_dev {
+	struct flash_blk_ops *blk_ops;
 	struct list_head list;
 	int devnum;
 	unsigned int size;
@@ -96,12 +119,13 @@ struct STRUCT_PART_INFO {
 	struct STRUCT_PART_ENTRY part[12];	/* 1.5KB */
 } __packed;
 
-int rksfc_dev_suspend(void);
-int rksfc_dev_resume(void);
-void rksfc_dev_shutdown(void);
-void rksfc_dev_flush(void);
-int rksfc_dev_init(void __iomem *reg_addr);
-int rksfc_dev_exit(void);
-void rksfc_device_unlock(void);
-void rksfc_device_lock(void);
+int rkflash_dev_suspend(void);
+int rkflash_dev_resume(void __iomem *reg_addr);
+void rkflash_dev_shutdown(void);
+void rkflash_dev_flush(void);
+int rkflash_dev_init(void __iomem *reg_addr, enum flash_con_type type);
+int rkflash_dev_exit(void);
+void rkflash_device_unlock(void);
+void rkflash_device_lock(void);
+
 #endif

@@ -164,5 +164,5 @@ obj-$(CONFIG_GATOR)		+= gator/
 obj-y				+= headset_observe/
 obj-$(CONFIG_CORESIGHT)		+= coresight/
 obj-$(CONFIG_ANDROID)		+= android/
-obj-$(CONFIG_RK_SFC)		+= rksfc/
+obj-$(CONFIG_RK_FLASH)		+= rkflash/
 obj-y                           += rk_nand/
