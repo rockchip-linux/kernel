@@ -318,6 +318,7 @@
 		compatible = "rockchip,ircut";
 		rockchip,ircut-gpio-close = <&gpio1 GPIO_D2 GPIO_ACTIVE_LOW>;
 		rockchip,ircut-gpio-open  = <&gpio1 GPIO_D1 GPIO_ACTIVE_LOW>;
+		rockchip,led              = <&gpio0 GPIO_C0 GPIO_ACTIVE_LOW>;
 	};
 };
 
@@ -509,4 +510,5 @@
 
 &camera2 {
 	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
+	rockchip,camera-module-name = "LA6271";
 };
