@@ -331,16 +331,16 @@
 				clk_core_dvfs_table: clk_core {
 					operating-points = <
 						/* KHz    uV */
-						312000 1000000
-						504000 1000000
-						816000 1000000
+						408000 975000
+						600000 975000
+						816000 1025000
+						1008000 1150000
 						>;
-					status = "disabled";
+					status = "okay";
 					tsadc-ch = <0>;
 					temp-limit-enable = <1>;
-					target-temp = <85>;
+					target-temp = <95>;
 					min_temp_limit = <600000>;
-
 					normal-temp-limit = <
 					/* delta-temp delta-freq */
 						3	96000
@@ -353,13 +353,21 @@
 						/* temp freq */
 						100     816000
 						>;
+					lkg_adjust_volt_en = <1>;
+					channel = <0>;
+					def_table_lkg = <6>;
+					min_adjust_freq = <408000>;
+					lkg_adjust_volt_table = <
+						/*lkg(mA)  volt(uV)*/
+						60         50000
+						>;
 				};
 			};
 			pd_ddr {
 				clk_ddr_dvfs_table: clk_ddr {
 					operating-points = <
 						/* KHz    uV */
-						400000 900000
+						400000 925000
 						600000 1000000
 						800000 1050000
 						>;
@@ -376,13 +384,21 @@
 				clk_dsp_dvfs_table: clk_dsp {
 					operating-points = <
 						/* KHz    uV */
-						300000 850000
-						400000 900000
-						600000 1150000
+						300000 1025000
+						400000 1100000
+						600000 1175000
 						//700000 1200000
 						>;
 					skip_adjusting_volt = <1>;
 					status = "okay";
+					lkg_adjust_volt_en = <1>;
+					channel = <0>;
+					def_table_lkg = <6>;
+					min_adjust_freq = <200000>;
+					lkg_adjust_volt_table = <
+						/*lkg(mA)  volt(uV)*/
+						60         25000
+						>;
 				};
 			};
 		};
