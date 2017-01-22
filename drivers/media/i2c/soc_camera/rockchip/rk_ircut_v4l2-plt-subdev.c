@@ -54,10 +54,12 @@ struct ircut_dev {
 	int pulse_width;
 	int val;
 	int gpio[IRCUT_GPIO_COUNT];
+	int gpio_led;
 };
 
 static char *ircut_gpio_open_label = "rockchip,ircut-gpio-open";
 static char *ircut_gpio_close_label = "rockchip,ircut-gpio-close";
+static char *gpio_led_lable = "rockchip,led";
 
 #define IRCUT_STATE_EQ(expected) \
 	((ircut->state == (expected)) ? true : false)
@@ -115,6 +117,21 @@ static int ircut_gpio_parse_dt(
 	}
 	gpio_direction_output(gpio, 0);
 	ircut->gpio[IRCUT_GPIO_CLOSE] = gpio;
+
+	/* get led gpio */
+	gpio = of_get_named_gpio_flags(node, gpio_led_lable, 0, NULL);
+	dev_dbg(ircut->dev, "of_get_named_gpio_flags %d", gpio);
+	if (!gpio_is_valid(gpio)) {
+		dev_err(ircut->dev, "failed to parse led gpio\n");
+		goto err_request_gpio;
+	}
+	ret = devm_gpio_request(ircut->dev, gpio, dev_name(ircut->dev));
+	if (ret < 0) {
+		dev_err(ircut->dev, "failed to request led gpio %d\n", ret);
+		goto err_request_gpio;
+	}
+	gpio_direction_output(gpio, 0);
+	ircut->gpio_led = gpio;
 	return 0;
 err_request_gpio:
 	for (i = 0; i < IRCUT_GPIO_COUNT; i++) {
@@ -134,6 +151,7 @@ static void ircut_op_work(struct work_struct *work)
 		gpio_set_value(ircut->gpio[IRCUT_GPIO_OPEN], 1);
 		msleep(ircut->pulse_width);
 		gpio_set_value(ircut->gpio[IRCUT_GPIO_OPEN], 0);
+		gpio_direction_output(ircut->gpio_led, 0);
 		mutex_lock(&ircut->mut_state);
 		ircut->state = IRCUT_STATE_OPENED;
 		mutex_unlock(&ircut->mut_state);
@@ -141,6 +159,7 @@ static void ircut_op_work(struct work_struct *work)
 		gpio_set_value(ircut->gpio[IRCUT_GPIO_CLOSE], 1);
 		msleep(ircut->pulse_width);
 		gpio_set_value(ircut->gpio[IRCUT_GPIO_CLOSE], 0);
+		gpio_direction_output(ircut->gpio_led, 1);
 		mutex_lock(&ircut->mut_state);
 		ircut->state = IRCUT_STATE_CLOSED;
 		mutex_unlock(&ircut->mut_state);
