@@ -2046,6 +2046,26 @@ retry_stop:
 		 mmc_hostname(host->mmc));
 }
 
+void dw_mci_sdio_switch_iovel(struct mmc_host *mmc, int enable)
+{
+	struct dw_mci_slot *slot = mmc_priv(mmc);
+	struct dw_mci *host = slot->host;
+	const struct dw_mci_rockchip_priv_data *priv = host->priv;
+
+	switch (priv->ctrl_type) {
+	case DW_MCI_TYPE_RK322XH:
+		regmap_write(host->grf, RK322XH_GRF_SOC_CON4,
+			     (enable << 3) | ((1 << 3) << 16));
+		if (enable)
+			host->bus_hz = 150000000;
+		else
+			host->bus_hz = 50000000;
+		break;
+	default:
+		pr_info("%s not switch iovel.\n", mmc_hostname(host->mmc));
+	}
+}
+
 static const struct mmc_host_ops dw_mci_ops = {
 	.request		= dw_mci_request,
 	.pre_req		= dw_mci_pre_req,
@@ -2063,6 +2083,7 @@ static const struct mmc_host_ops dw_mci_ops = {
 				= dw_mci_start_signal_voltage_switch,
         .card_busy		= dw_mci_card_busy,
         #endif
+	.sdio_switch_iovel	= dw_mci_sdio_switch_iovel,
 };
 
 static void dw_mci_request_end(struct dw_mci *host, struct mmc_request *mrq)

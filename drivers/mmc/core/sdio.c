@@ -666,11 +666,15 @@ try_again:
 	if (host->ops->init_card)
 		host->ops->init_card(host, card);
 
-	if (rocr & R4_18V_PRESENT)
+	if (rocr & R4_18V_PRESENT) {
 		rocr &= ~R4_18V_PRESENT;
-	else
+		if (host->ops->sdio_switch_iovel)
+			host->ops->sdio_switch_iovel(host, 1);
+	} else {
 		ocr &= ~R4_18V_PRESENT;
-
+		if (host->ops->sdio_switch_iovel)
+			host->ops->sdio_switch_iovel(host, 0);
+	}
 	/*
 	 * If the host and card support UHS-I mode request the card
 	 * to switch to 1.8V signaling level.  No 1.8v signalling if

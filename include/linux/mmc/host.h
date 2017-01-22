@@ -143,6 +143,7 @@ struct mmc_host_ops {
 	void	(*card_event)(struct mmc_host *host);
 
 	void	(*post_tmo)(struct mmc_host *host);
+	void	(*sdio_switch_iovel)(struct mmc_host *host, int enable);
 };
 
 struct mmc_card;
