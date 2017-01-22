@@ -81,6 +81,118 @@
 		};
 	};
 
+	cpu_axi_bus: cpu_axi_bus {
+		compatible = "rockchip,cpu_axi_bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		qos {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			cpu {
+				reg = <0x31000000 0x20>;
+			};
+			dsp {
+				reg = <0x31010000 0x20>;
+			};
+			rkvenc_r0 {
+				reg = <0x31020000 0x20>;
+			};
+			rkvenc_r1 {
+				reg = <0x31020100 0x20>;
+			};
+			rkvenc_w0 {
+				reg = <0x31020200 0x20>;
+			};
+			rkvenc_w1 {
+				reg = <0x31020300 0x20>;
+			};
+			rkvdec_r {
+				reg = <0x31030000 0x20>;
+			};
+			rkvdec_w {
+				reg = <0x31030080 0x20>;
+			};
+			vpu {
+				reg = <0x31030100 0x20>;
+			};
+			vop {
+				reg = <0x31050000 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			iep {
+				reg = <0x31050080 0x20>;
+			};
+			rga_w {
+				reg = <0x31050100 0x20>;
+			};
+			cif0 {
+				reg = <0x31050180 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			rga_r {
+				reg = <0x31050200 0x20>;
+			};
+			isp_r {
+				reg = <0x31050280 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			isp_w0 {
+				reg = <0x31050300 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			isp_w1 {
+				reg = <0x31050380 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			cif1 {
+				reg = <0x31050400 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			cif2 {
+				reg = <0x31050480 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			cif3 {
+				reg = <0x31050500 0x20>;
+				rockchip,priority = <3 3>;
+			};
+			dma {
+				reg = <0x31060080 0x20>;
+			};
+			crypto {
+				reg = <0x31060100 0x20>;
+			};
+			emmc {
+				reg = <0x31080000 0x20>;
+			};
+			gmac {
+				reg = <0x31080080 0x20>;
+			};
+			nandc {
+				reg = <0x31080100 0x20>;
+			};
+			sdio {
+				reg = <0x31080180 0x20>;
+			};
+			sdmmc {
+				reg = <0x31080200 0x20>;
+			};
+			usbhost {
+				reg = <0x31080280 0x20>;
+			};
+			sfc {
+				reg = <0x31080300 0x20>;
+			};
+			usbotg {
+				reg = <0x31080400 0x20>;
+			};
+		};
+	};
+
 	arm-pmu {
 		compatible = "arm,cortex-a7-pmu";
 		interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
