@@ -3932,12 +3932,6 @@ static int rk818_battery_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no battery, virtual power mode\n");
 	}
 
-	ret = rk818_bat_init_irqs(di);
-	if (ret != 0) {
-		dev_err(&pdev->dev, "rk818 bat irq init failed!\n");
-		return ret;
-	}
-
 	ret = rk818_bat_init_power_supply(di);
 	if (ret) {
 		dev_err(&pdev->dev, "rk818 power supply register failed!\n");
@@ -3955,10 +3949,37 @@ static int rk818_battery_probe(struct platform_device *pdev)
 			WQ_MEM_RECLAIM | WQ_FREEZABLE, "rk818-bat-monitor-wq");
 	INIT_DELAYED_WORK(&di->bat_delay_work, rk818_battery_work);
 	INIT_DELAYED_WORK(&di->irq_delay_work, rk818_bat_irq_delay_work);
+
+	ret = rk818_bat_init_irqs(di);
+	if (ret) {
+		dev_err(&pdev->dev, "rk818 bat irq init failed!\n");
+		goto irq_fail;
+	}
+
 	queue_delayed_work(di->bat_monitor_wq, &di->bat_delay_work,
 			   msecs_to_jiffies(TIMER_MS_COUNTS * 5));
 
 	BAT_INFO("driver version %s\n", DRIVER_VERSION);
+
+	return 0;
+
+irq_fail:
+	cancel_delayed_work(&di->dc_delay_work);
+	cancel_delayed_work(&di->bc_delay_work);
+	cancel_delayed_work(&di->bat_delay_work);
+	cancel_delayed_work(&di->calib_delay_work);
+	cancel_delayed_work(&di->irq_delay_work);
+	cancel_delayed_work(&di->term_mode_work);
+	destroy_workqueue(di->bat_monitor_wq);
+	destroy_workqueue(di->charger_wq);
+	rk818_bat_unregister_fb_notify(di);
+	rk_bc_detect_notifier_unregister(&di->bc_detect_nb);
+	del_timer(&di->caltimer);
+	wake_lock_destroy(&di->wake_lock);
+	power_supply_unregister(&di->ac);
+	power_supply_unregister(&di->usb);
+	power_supply_unregister(&di->bat);
+
 	return ret;
 }
 
