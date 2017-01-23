@@ -24,6 +24,8 @@
 #define DSP_TEXT_MEM_SIZE          (0x100000)
 #define DSP_TEXT_OFFSET_MASK       (0xfffff)
 
+#define DSP_FIRMWARE_NAME          "rkdsp.bin"
+
 #define FIRMWARE_MAGIC_SIZE        16
 #define FIRMWARE_VERSION_SIZE      16
 #define FIRMWARE_RESERVE_SIZE      60
@@ -243,14 +245,37 @@ out:
  * @loader: DSP loader ptr
  * @name: image name
  */
-static int dsp_loader_load_image(struct dsp_loader *loader, const char *name)
+int dsp_loader_load_image(struct device *device,
+			  struct dsp_loader *loader, const char *name)
 {
 	int ret = 0;
 	int i;
 	u32 offset = 0;
 	struct dsp_image *image;
+	const char *magic = "#RKCPDSPFW#";
+	const struct firmware *fw = NULL;
 
 	dsp_debug_enter();
+
+	request_firmware(&fw, DSP_FIRMWARE_NAME, device);
+	if (!fw) {
+		dsp_err("DSP firmware cannot be found\n");
+		ret = -EEXIST;
+		goto out;
+	}
+
+	/* Check firmware magic, must be #RKCPDSPFW#. */
+	if (memcmp(fw->data, magic, strlen(magic))) {
+		dsp_err("Invalid DSP firmware\n");
+		ret = -EFAULT;
+		goto out;
+	}
+
+	ret = dsp_loader_prepare_image(fw, loader);
+	if (ret) {
+		dsp_err("Preare DSP image failed\n");
+		goto out;
+	}
 
 	ret = dsp_loader_get_image_by_name(loader, name, &image);
 	if (!image) {
@@ -304,31 +329,23 @@ static int dsp_loader_load_image(struct dsp_loader *loader, const char *name)
 
 	dsp_debug(DEBUG_LOADER, "dsp image loaded, name=%s\n", image->name);
 out:
+	release_firmware(fw);
 	dsp_debug_leave();
 	return ret;
 }
 
-void dsp_loader_request_firmware(const struct firmware *fw, void *context)
+void dsp_loader_unload_image(struct dsp_loader *loader)
 {
-	const char *magic = "#RKCPDSPFW#";
-	struct dsp_loader *loader = context;
+	struct list_head *pos, *n;
 
 	dsp_debug_enter();
+	list_for_each_safe(pos, n, &loader->images) {
+		struct dsp_image *image = container_of(pos,
+				struct dsp_image, list_node);
 
-	if (!fw) {
-		dsp_err("DSP firmware cannot be found.\n");
-		goto out;
+		list_del(pos);
+		dsp_loader_image_destroy(image);
 	}
-
-	/* Check firmware magic, must be #RKCPDSPFW# */
-	if (memcmp(fw->data, magic, strlen(magic))) {
-		dsp_err("invalid dsp firmware\n");
-		goto out;
-	}
-
-	dsp_loader_prepare_image(fw, loader);
-out:
-	release_firmware(fw);
 	dsp_debug_leave();
 }
 
@@ -363,7 +380,6 @@ int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader_out)
 	}
 	loader->external_text = ion_map_kernel(ion_client, hdl);
 
-	loader->load_image = dsp_loader_load_image;
 	loader->dma = dma;
 	INIT_LIST_HEAD(&loader->images);
 
@@ -389,6 +405,7 @@ int dsp_loader_destroy(struct dsp_loader *loader)
 		struct dsp_image *image = container_of(pos,
 				struct dsp_image, list_node);
 
+		list_del(pos);
 		dsp_loader_image_destroy(image);
 	}
 

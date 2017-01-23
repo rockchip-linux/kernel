@@ -33,7 +33,6 @@
 #define DSP_TRACE_SLOT_COUNT        (DSP_TRACE_BUFFER_SIZE / \
 				     DSP_TRACE_SLOT_SIZE)
 
-#define DSP_FIRMWARE_NAME    "rkdsp.bin"
 #define DSP_CMP_OFFSET       0x400000
 
 #define DSP_GRF_CON0                0x0000
@@ -402,7 +401,7 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 	reset_control_deassert(dev->oecm_rst);
 	udelay(1);
 
-	ret = dev->loader->load_image(dev->loader, "MAIN");
+	ret = dsp_loader_load_image(dev->device, dev->loader, "MAIN");
 	if (ret) {
 		dev->status = DSP_ON;
 		dsp_err("load dsp os image failed\n");
@@ -433,6 +432,8 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 	dev->resume(dev);
 
 	dsp_dev_trace(dev, dev->trace_index + DSP_TRACE_SLOT_COUNT);
+
+	dsp_loader_unload_image(dev->loader);
 
 	reset_control_assert(dev->core_rst);
 	reset_control_assert(dev->sys_rst);
@@ -608,9 +609,6 @@ int dsp_dev_create(struct platform_device *pdev, struct dma_pool *dma_pool,
 		dsp_err("cannot create dsp image loader\n");
 		goto out;
 	}
-	request_firmware_nowait(THIS_MODULE, 0, DSP_FIRMWARE_NAME, &pdev->dev,
-				GFP_KERNEL, dev->loader,
-				dsp_loader_request_firmware);
 
 	dev->trace_buffer = dma_pool_alloc(dma_pool, GFP_KERNEL, &dma_addr);
 	if (dev->trace_buffer) {
@@ -621,6 +619,7 @@ int dsp_dev_create(struct platform_device *pdev, struct dma_pool *dma_pool,
 	dev->dsp_dvfs_node = clk_get_dvfs_node("clk_dsp");
 	INIT_DELAYED_WORK(&dev->guard_work, dsp_dev_work_timeout);
 
+	dev->device = &pdev->dev;
 	(*dev_out) = dev;
 out:
 	if (ret) {

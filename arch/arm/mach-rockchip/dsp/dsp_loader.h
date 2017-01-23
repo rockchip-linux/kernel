@@ -15,6 +15,7 @@
 #ifndef _ARCH_ARM_MACH_RK_DSP_LOADER_H_
 #define _ARCH_ARM_MACH_RK_DSP_LOADER_H_
 
+#include <linux/device.h>
 #include <linux/firmware.h>
 #include "dsp_dma.h"
 
@@ -58,14 +59,12 @@ struct dsp_loader {
 
 	/* Reserved dsp external text memory */
 	u8 *external_text;
-
-	int (*load_image)(struct dsp_loader *, const char *name);
 };
 
-void dsp_loader_request_firmware(const struct firmware *fw, void *context);
-
 int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader);
-
 int dsp_loader_destroy(struct dsp_loader *loader);
+int dsp_loader_load_image(struct device *device, struct dsp_loader *loader,
+			  const char *name);
+void dsp_loader_unload_image(struct dsp_loader *loader);
 
 #endif
