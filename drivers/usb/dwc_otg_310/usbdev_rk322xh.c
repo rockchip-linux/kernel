@@ -46,7 +46,7 @@ static void usb20otg_phy_suspend(void *pdata, int suspend)
 
 	if (suspend) {
 		/* enable soft control */
-		uoc_write(UOC_HIWORD_UPDATE(0x1d5, 0x1ff, 0), 0x100);
+		uoc_write(UOC_HIWORD_UPDATE(0x1d1, 0x1ff, 0), 0x100);
 		usbpdata->phy_status = 1;
 	} else {
 		/* exit suspend */
