@@ -412,6 +412,7 @@ static int dsp_dev_power_on(struct dsp_dev *dev)
 	reset_control_deassert(dev->core_rst);
 
 	dev->status = DSP_ON;
+	pr_info("DSP power on\n");
 out:
 	if (ret)
 		dsp_dev_power_off(dev);
@@ -444,6 +445,7 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 	dsp_dev_clk_disable(dev);
 
 	dev->status = DSP_OFF;
+	pr_info("DSP power off\n");
 out:
 	dsp_debug_leave();
 	return ret;
