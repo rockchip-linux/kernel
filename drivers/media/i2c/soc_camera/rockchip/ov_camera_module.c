@@ -431,6 +431,27 @@ err:
 	return ret;
 }
 
+int ov_camera_module_g_frame_interval(
+	struct v4l2_subdev *sd,
+	struct v4l2_subdev_frame_interval *interval)
+{
+	struct ov_camera_module *cam_mod = to_ov_camera_module(sd);
+
+	if (cam_mod->active_config) {
+		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
+			if (cam_mod->frm_intrvl_valid) {
+				*interval = cam_mod->frm_intrvl;
+				return 0;
+			} else {
+				*interval = cam_mod->active_config->frm_intrvl;
+				return 0;
+			}
+		}
+	}
+
+	return -EFAULT;
+}
+
 /* ======================================================================== */
 
 int ov_camera_module_s_stream(struct v4l2_subdev *sd, int enable)

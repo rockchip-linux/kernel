@@ -383,9 +383,6 @@ static int imx323_s_ctrl(struct imx_camera_module *cam_mod, u32 ctrl_id)
 	case V4L2_CID_EXPOSURE:
 		ret = imx323_write_aec(cam_mod);
 		break;
-	case V4L2_CID_FLASH_LED_MODE:
-		/* nothing to be done here */
-		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -504,6 +501,7 @@ static struct v4l2_subdev_video_ops imx323_camera_module_video_ops = {
 	.g_mbus_fmt = imx_camera_module_g_fmt,
 	.try_mbus_fmt = imx_camera_module_try_fmt,
 	.s_frame_interval = imx_camera_module_s_frame_interval,
+	.g_frame_interval = imx_camera_module_g_frame_interval,
 	.s_stream = imx_camera_module_s_stream
 };
 

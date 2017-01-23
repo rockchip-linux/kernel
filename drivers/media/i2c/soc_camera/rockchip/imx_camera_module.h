@@ -243,6 +243,10 @@ int imx_camera_module_s_frame_interval(
 	struct v4l2_subdev *sd,
 	struct v4l2_subdev_frame_interval *interval);
 
+int imx_camera_module_g_frame_interval(
+	struct v4l2_subdev *sd,
+	struct v4l2_subdev_frame_interval *interval);
+
 int imx_camera_module_s_stream(
 	struct v4l2_subdev *sd,
 	int enable);

@@ -991,9 +991,6 @@ static int ov4689_s_ctrl(struct ov_camera_module *cam_mod, u32 ctrl_id)
 	case V4L2_CID_EXPOSURE:
 		ret = ov4689_write_aec(cam_mod);
 		break;
-	case V4L2_CID_FLASH_LED_MODE:
-		/* nothing to be done here */
-		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -1119,6 +1116,7 @@ static struct v4l2_subdev_video_ops ov4689_camera_module_video_ops = {
 	.g_mbus_fmt = ov_camera_module_g_fmt,
 	.try_mbus_fmt = ov_camera_module_try_fmt,
 	.s_frame_interval = ov_camera_module_s_frame_interval,
+	.g_frame_interval = ov_camera_module_g_frame_interval,
 	.s_stream = ov_camera_module_s_stream
 };
 

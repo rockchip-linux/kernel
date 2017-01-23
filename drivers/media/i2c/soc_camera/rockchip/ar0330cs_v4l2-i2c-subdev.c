@@ -410,9 +410,6 @@ static int ar0330cs_s_ctrl(struct aptina_camera_module *cam_mod, u32 ctrl_id)
 	case V4L2_CID_EXPOSURE:
 		ret = ar0330cs_write_aec(cam_mod);
 		break;
-	case V4L2_CID_FLASH_LED_MODE:
-		/* nothing to be done here */
-		break;
 	default:
 		ret = -EINVAL;
 		break;
