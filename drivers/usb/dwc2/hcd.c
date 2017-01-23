@@ -510,8 +510,9 @@ static void dwc2_config_fifos(struct dwc2_hsotg *hsotg)
 		dwc2_readl(hsotg->regs + HPTXFSIZ));
 
 	if (hsotg->core_params->en_multiple_tx_fifo > 0 &&
-	    hsotg->hw_params.snpsid <= DWC2_CORE_REV_2_94a) {
+	    hsotg->hw_params.snpsid >= DWC2_CORE_REV_2_91a) {
 		/*
+		 * This feature was implemented in 2.91a version
 		 * Global DFIFOCFG calculation for Host mode -
 		 * include RxFIFO, NPTXFIFO and HPTXFIFO
 		 */
