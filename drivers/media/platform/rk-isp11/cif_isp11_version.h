@@ -78,8 +78,11 @@
 *1. sync other_configs/meas_config info in readout work;
 *2. meta data must sync in every mi frame end isr,
 *3. isp configs info may be async.
+*
+*v0.1.d:
+*1. add cif_isp11_v4l2_g_frame_interval / cif_isp11_v4l2_s_frame_interval;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xc)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xd)
 
 #endif

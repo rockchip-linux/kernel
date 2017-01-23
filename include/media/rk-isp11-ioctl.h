@@ -135,4 +135,11 @@
 #define CI_MODE_CONTINUOUS	0x1000
 #define CI_MODE_NONE	0x0000
 
+/* Kernel API */
+void cif_isp11_v4l2_s_frame_interval(
+	unsigned int numerator,
+	unsigned int denominator);
+int cif_isp11_v4l2_g_frame_interval(
+	unsigned int *numerator,
+	unsigned int *denominator);
 #endif

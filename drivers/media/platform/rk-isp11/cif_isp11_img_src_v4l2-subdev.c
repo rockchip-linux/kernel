@@ -317,6 +317,51 @@ err:
 	return ret;
 }
 
+int cif_isp11_img_src_v4l2_subdev_s_frame_interval(
+	void *img_src,
+	struct cif_isp11_frm_intrvl *frm_intrvl)
+{
+	int ret = 0;
+	struct v4l2_subdev *subdev = img_src;
+	struct v4l2_subdev_frame_interval interval;
+
+	interval.interval.numerator = frm_intrvl->numerator;
+	interval.interval.denominator = frm_intrvl->denominator;
+
+	ret = v4l2_subdev_call(subdev, video, s_frame_interval, &interval);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+
+	return 0;
+err:
+	pr_err("img_src.%s ERR: failed with error %d\n", __func__, ret);
+	return ret;
+}
+
+int cif_isp11_img_src_v4l2_subdev_g_frame_interval(
+	void *img_src,
+	struct cif_isp11_frm_intrvl *frm_intrvl)
+{
+	int ret = 0;
+	struct v4l2_subdev *subdev = img_src;
+	struct v4l2_subdev_frame_interval interval;
+
+	interval.interval.numerator = 0;
+	interval.interval.denominator = 0;
+
+	ret = v4l2_subdev_call(subdev, video, g_frame_interval, &interval);
+	if (IS_ERR_VALUE(ret))
+		goto err;
+
+	frm_intrvl->denominator = interval.interval.denominator;
+	frm_intrvl->numerator = interval.interval.numerator;
+
+	return 0;
+err:
+	pr_err("img_src.%s ERR: failed with error %d\n", __func__, ret);
+	return ret;
+}
+
 int cif_isp11_img_src_v4l2_subdev_g_ctrl(
 	void *img_src,
 	int id,

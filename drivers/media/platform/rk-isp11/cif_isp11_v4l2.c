@@ -1683,7 +1683,8 @@ static const struct of_device_id cif_isp11_v4l2_of_match[] = {
 	{},
 };
 
-static unsigned int cif_isp11_v4l2_dev_cnt;
+static unsigned int g_cif_isp11_v4l2_dev_cnt;
+static struct cif_isp11_v4l2_device *g_cif_isp11_v4l2_dev[4];
 static int cif_isp11_v4l2_drv_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
@@ -1713,7 +1714,7 @@ static int cif_isp11_v4l2_drv_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	dev->dev_id = cif_isp11_v4l2_dev_cnt;
+	dev->dev_id = g_cif_isp11_v4l2_dev_cnt;
 	dev->isp_dev.dev_id = &dev->dev_id;
 	dev->nodes = (void *)cif_isp11_v4l2_dev;
 	spin_lock_init(&dev->vbq_lock);
@@ -1783,7 +1784,10 @@ static int cif_isp11_v4l2_drv_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 
-	cif_isp11_v4l2_dev_cnt++;
+	g_cif_isp11_v4l2_dev[g_cif_isp11_v4l2_dev_cnt] =
+		cif_isp11_v4l2_dev;
+	g_cif_isp11_v4l2_dev_cnt++;
+
 	return 0;
 err:
 	cif_isp11_destroy(dev);
@@ -1813,7 +1817,9 @@ static int cif_isp11_v4l2_drv_remove(struct platform_device *pdev)
 	cif_isp11_pltfrm_dev_release(&pdev->dev);
 	cif_isp11_destroy(cif_isp11_dev);
 
-	cif_isp11_v4l2_dev_cnt--;
+	g_cif_isp11_v4l2_dev_cnt--;
+	g_cif_isp11_v4l2_dev[g_cif_isp11_v4l2_dev_cnt] = NULL;
+
 	return 0;
 }
 
@@ -1902,7 +1908,7 @@ static struct platform_driver cif_isp11_v4l2_plat_drv = {
 static int cif_isp11_v4l2_init(void)
 {
 	int ret;
-
+	g_cif_isp11_v4l2_dev_cnt = 0;
 	ret = platform_driver_register(&cif_isp11_v4l2_plat_drv);
 	if (ret) {
 		cif_isp11_pltfrm_pr_err(NULL,
@@ -1918,6 +1924,74 @@ static int cif_isp11_v4l2_init(void)
 static void __exit cif_isp11_v4l2_exit(void)
 {
 	platform_driver_unregister(&cif_isp11_v4l2_plat_drv);
+}
+
+/* ======================================================================== */
+void cif_isp11_v4l2_s_frame_interval(
+	unsigned int numerator,
+	unsigned int denominator)
+{
+	struct cif_isp11_v4l2_device *cif_isp11_v4l2_dev;
+	struct cif_isp11_device *cif_isp11_dev;
+	struct videobuf_queue *queue;
+	struct cif_isp11_frm_intrvl frm_intrvl;
+	unsigned int i;
+
+	for (i = 0; i < g_cif_isp11_v4l2_dev_cnt; i++) {
+		if (g_cif_isp11_v4l2_dev[i] == NULL)
+			continue;
+
+		cif_isp11_v4l2_dev =
+			g_cif_isp11_v4l2_dev[i];
+		queue = (struct videobuf_queue *)
+			&cif_isp11_v4l2_dev->node[SP_DEV].buf_queue;
+		cif_isp11_dev = to_cif_isp11_device(queue);
+
+		if (cif_isp11_dev->img_src == NULL)
+			continue;
+
+		frm_intrvl.numerator = numerator;
+		frm_intrvl.denominator = denominator;
+		cif_isp11_img_src_s_frame_interval(
+			cif_isp11_dev->img_src,
+			&frm_intrvl);
+	}
+}
+
+int cif_isp11_v4l2_g_frame_interval(
+	unsigned int *numerator,
+	unsigned int *denominator)
+{
+	struct cif_isp11_v4l2_device *cif_isp11_v4l2_dev;
+	struct cif_isp11_device *cif_isp11_dev;
+	struct videobuf_queue *queue;
+	struct cif_isp11_frm_intrvl frm_intrvl;
+	unsigned int i;
+	int ret = -EFAULT;
+
+	for (i = 0; i < g_cif_isp11_v4l2_dev_cnt; i++) {
+		if (g_cif_isp11_v4l2_dev[i] == NULL)
+			continue;
+
+		cif_isp11_v4l2_dev =
+			g_cif_isp11_v4l2_dev[i];
+		queue = (struct videobuf_queue *)
+			&cif_isp11_v4l2_dev->node[SP_DEV].buf_queue;
+		cif_isp11_dev = to_cif_isp11_device(queue);
+
+		if (cif_isp11_dev->img_src == NULL)
+			continue;
+
+		ret = cif_isp11_img_src_g_frame_interval(
+			cif_isp11_dev->img_src,
+			&frm_intrvl);
+		if (ret == 0) {
+			*numerator = frm_intrvl.numerator;
+			*denominator = frm_intrvl.denominator;
+		}
+	}
+
+	return ret;
 }
 
 device_initcall_sync(cif_isp11_v4l2_init);

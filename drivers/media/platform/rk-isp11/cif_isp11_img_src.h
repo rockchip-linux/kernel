@@ -22,7 +22,7 @@ struct cif_isp11_strm_fmt_desc;
 struct cif_isp11_strm_fmt;
 struct cif_isp11_csi_config;
 enum cif_isp11_pix_fmt;
-
+struct cif_isp11_frm_intrvl;
 struct cif_isp11_img_src;
 struct pltfrm_soc_cfg;
 
@@ -81,4 +81,12 @@ long cif_isp11_img_src_ioctl(
 	void *arg);
 void *cif_isp11_img_src_g_img_src(
 	struct cif_isp11_img_src *img_src);
+
+int cif_isp11_img_src_s_frame_interval(
+	struct cif_isp11_img_src *img_src,
+	struct cif_isp11_frm_intrvl *frm_intrvl);
+
+int cif_isp11_img_src_g_frame_interval(
+	struct cif_isp11_img_src *img_src,
+	struct cif_isp11_frm_intrvl *frm_intrvl);
 #endif

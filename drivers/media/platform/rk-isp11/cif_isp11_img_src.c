@@ -183,3 +183,25 @@ void *cif_isp11_img_src_g_img_src(
 	return NULL;
 }
 
+int cif_isp11_img_src_s_frame_interval(
+	struct cif_isp11_img_src *img_src,
+	struct cif_isp11_frm_intrvl *frm_intrvl)
+{
+	if (img_src)
+		return img_src->ops->s_frame_interval(
+			img_src->img_src,
+			frm_intrvl);
+	return -EINVAL;
+}
+
+int cif_isp11_img_src_g_frame_interval(
+	struct cif_isp11_img_src *img_src,
+	struct cif_isp11_frm_intrvl *frm_intrvl)
+{
+	if (img_src)
+		return img_src->ops->g_frame_interval(
+			img_src->img_src,
+			frm_intrvl);
+	return -EINVAL;
+}
+
