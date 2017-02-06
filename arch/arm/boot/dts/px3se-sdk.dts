@@ -81,6 +81,19 @@
 		rockchip,remote_wakeup;
 		rockchip,usb_irq_wakeup;
 	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+
+		wifi_chip_type = "rtl8723cs";
+		sdio_vref = <1800>; /*1800mv or 3300mv*/
+		/* WIFI_HOST_WAKE = GPIO3_C7 */
+		WIFI,host_wake_irq = <&gpio3 GPIO_C7 GPIO_ACTIVE_HIGH>;
+		/* WIFI_REG_ON  = GPIO3_D3 */
+		WIFI,poweren_gpio  = <&gpio3 GPIO_D3 GPIO_ACTIVE_HIGH>;
+
+		status = "okay";
+	};
 };
 
 &fb {

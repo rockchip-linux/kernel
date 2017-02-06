@@ -1,0 +1,16 @@
+* Rockchip wlan controller
+
+Required SoC Specific Properties:
+
+- compatible : "wlan-platdata"
+
+Example:
+
+wireless-wlan { {
+	compatible = "wlan-platdata";
+
+	wifi_chip_type = "rtl8723cs";
+	sdio_vref = <1800>;
+	WIFI,host_wake_irq = <&gpio3 GPIO_C7 GPIO_ACTIVE_HIGH>;
+	WIFI,poweren_gpio  = <&gpio3 GPIO_D3 GPIO_ACTIVE_HIGH>;
+};
