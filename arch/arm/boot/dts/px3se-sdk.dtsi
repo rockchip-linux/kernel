@@ -157,13 +157,13 @@
 		vol-up-key {
 			linux,code = <115>;
 			label = "volume up";
-			rockchip,adc_value = <523>;
+			rockchip,adc_value = <1>;
 		};
 
 		vol-down-key {
 			linux,code = <114>;
 			label = "volume down";
-			rockchip,adc_value = <727>;
+			rockchip,adc_value = <90>;
 		};
 
 		power-key {
@@ -176,19 +176,19 @@
 		menu-key {
 			linux,code = <59>;
 			label = "menu";
-			rockchip,adc_value = <1>;
+			rockchip,adc_value = <194>;
 		};
 
 		home-key {
 			linux,code = <102>;
 			label = "home";
-			rockchip,adc_value = <318>;
+			rockchip,adc_value = <414>;
 		};
 
 		back-key {
 			linux,code = <158>;
 			label = "back";
-			rockchip,adc_value = <146>;
+			rockchip,adc_value = <309>;
 		};
 
 		camera-key {
