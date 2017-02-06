@@ -1865,6 +1865,8 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
 		GTP_SWAP(ts->abs_x_max, ts->abs_y_max);
 	}
 
+	input_set_abs_params(ts->input_dev, ABS_X, 0, ts->abs_x_max, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_Y, 0, ts->abs_y_max, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, ts->abs_x_max, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, ts->abs_y_max, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
@@ -1878,6 +1880,7 @@ static s8 gtp_request_input_dev(struct goodix_ts_data *ts)
 	ts->input_dev->id.vendor = 0xDEAD;
 	ts->input_dev->id.product = 0xBEEF;
 	ts->input_dev->id.version = 10427;
+	ts->input_dev->dev.parent = &ts->client->dev;
 
 	ret = input_register_device(ts->input_dev);
 	if (ret) {
