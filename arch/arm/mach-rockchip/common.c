@@ -279,6 +279,7 @@ int (*ddr_change_freq)(uint32_t nMHz) = NULL;
 long (*ddr_round_rate)(uint32_t nMHz) = NULL;
 void (*ddr_set_auto_self_refresh)(bool en) = NULL;
 int (*ddr_recalc_rate)(void) = NULL;
+int (*ddr_freq_scale_send_event)(int id, unsigned long timeout) = NULL;
 
 extern struct ion_platform_data ion_pdata;
 extern void __init ion_reserve(struct ion_platform_data *data);
