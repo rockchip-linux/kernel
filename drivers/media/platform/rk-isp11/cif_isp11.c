@@ -20,6 +20,7 @@
 #include "cif_isp11.h"
 #include <linux/pm_runtime.h>
 #include <linux/vmalloc.h>
+#include <linux/rockchip/common.h>
 
 static int cif_isp11_mipi_isr(
 	unsigned int mis,
@@ -5398,6 +5399,8 @@ static int cif_isp11_mi_isr(unsigned int mi_mis, void *cntxt)
 			spin_lock(&dev->vbq_lock);
 			(void)cif_isp11_mi_frame_end(dev,
 				CIF_ISP11_STREAM_MP);
+			if (ddr_freq_scale_send_event)
+				ddr_freq_scale_send_event(ISP_FE_EVENT, 0);
 			spin_unlock(&dev->vbq_lock);
 		}
 		if (dev->y12_stream.state == CIF_ISP11_STATE_STREAMING) {
@@ -7037,6 +7040,8 @@ int cif_isp11_isp_isr(unsigned int isp_mis, void *cntxt)
 	if (isp_mis & CIF_ISP_V_START) {
 		struct cif_isp11_img_src_exp *exp;
 
+		if (ddr_freq_scale_send_event)
+			ddr_freq_scale_send_event(ISP_VS_EVENT, 0);
 		do_gettimeofday(&tv);
 		dev->b_isp_frame_in = false;
 		dev->b_mi_frame_end = false;
