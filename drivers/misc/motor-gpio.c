@@ -32,10 +32,10 @@ static char *motor_status_desc[] = {
 	"ccw",
 };
 
-#define MAX_START_UP_HZ (500)
-#define MAX_RUNNING_HZ (1000)
+#define MAX_START_UP_HZ (1150)
+#define MAX_RUNNING_HZ (1200)
 #define MOTOR_MAX_HZ MAX_START_UP_HZ
-#define MOTOR_MIN_HZ (20)
+#define MOTOR_MIN_HZ (550)
 
 #define HZ_TO_SPEED(hz) (5625 * (hz) / 64000)
 #define SPEED_TO_HZ(sp) ((sp) * 64000 / 5625)
