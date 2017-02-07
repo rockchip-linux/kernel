@@ -17,7 +17,12 @@
 #include <linux/rk_fb.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/io.h>
+#include <linux/wait.h>
 #include "rv1108_ddrpctl_phy.h"
+#include <linux/interrupt.h>
+#include <media/rk-isp11-ioctl.h>
+#include <linux/workqueue.h>
+#include <asm/arch_timer.h>
 
 /* DDR3 define */
 /* mr0 for ddr3 */
@@ -177,9 +182,6 @@
 #define SRAM_CODE_OFFSET        rockchip_sram_virt
 #define SRAM_SIZE               rockchip_sram_size
 
-#ifdef CONFIG_FB_ROCKCHIP
-#define DDR_CHANGE_FREQ_IN_LCDC_VSYNC
-#endif
 
 /* pll config */
 static __sramdata u32 clkFbDiv;
@@ -312,6 +314,28 @@ static u32 *p_ddr_freq;
 
 static __sramdata u32 clk_gate[RV1108_CRU_CLKGATES_CON_CNT];
 
+static int __ddr_change_freq(u32 nmhz);
+
+struct master_request {
+	int id;
+	unsigned long long start;     /* us*/
+	unsigned long long end;     /* us*/
+	unsigned long timeout;   /* us*/
+	unsigned long frame_time;  /* us*/
+};
+
+static int ddr_freq_current = 600;	/* MHz*/
+static int ddr_freq_new = 600;		/* MHz*/
+static int ddr_freq_period = 300;	/* us*/
+static struct master_request gmr[4];
+static struct tasklet_struct ddr_freq_ts[4];
+unsigned long long trace_time[16];
+static wait_queue_head_t wq;
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+static unsigned int numerator = 1;
+static unsigned int denominator = 30;
+static struct work_struct ws;
+#endif
 
 #define DDR3_CL_CWL(d1, d2, d3, d4, d5, d6, d7) \
 	{((d1) << 4) | 5, ((d2) << 4) | 5, ((d3) << 4) | 6, ((d4) << 4) | 7, \
@@ -385,14 +409,16 @@ volatile u32 DEFINE_PIE_DATA(loops_per_us);
 
 static void __sramfunc ddr_delayus(u32 us)
 {
-	do {
-		volatile unsigned int i = (DATA(loops_per_us) * us);
+	u32 start, end;
 
-		if (i < 7)
-			i = 7;
-		barrier();
-		asm volatile (".align 4; 1 : subs %0, %0, #1; bne 1b;" : "+r" (i));
-	} while (0);
+	us *= 24;
+
+	start = arch_counter_get_cntpct();
+	do {
+		end = arch_counter_get_cntpct();
+		if ((end - start) > us)
+			break;
+	} while (1);
 }
 
 static __sramfunc void ddr_copy(u32 *pDest, u32 *pSrc,
@@ -1461,32 +1487,24 @@ void PIE_FUNC(ddr_change_freq_sram)(void *arg)
 
 EXPORT_PIE_SYMBOL(FUNC(ddr_change_freq_sram));
 
-static unsigned long vblank_t, screen_ft_us;
-
-
-int _ddr_change_freq(u32 nmhz)
+static bool ddr_freq_is_event_active(int id, unsigned long long tmp)
 {
-	u32 ret = -1, i;
-	volatile u32 n;
-	unsigned long flags = 0;
-	u32 arm_freq;
-	volatile unsigned int *temp = (volatile unsigned int *)SRAM_CODE_OFFSET;
-#if defined(DDR_CHANGE_FREQ_IN_LCDC_VSYNC)
-	unsigned long remain_t, pass_t;
-	static unsigned long reserve_t = 800;	/*us*/
-	unsigned long long tmp;
-	int test_count = 0;
-	unsigned long long t0;
-	unsigned long long t1;
-	unsigned long t2;
-#endif
-	arm_freq = ddr_get_pll_freq(APLL);
-	*kern_to_pie(rockchip_pie_chunk, &DATA(loops_per_us)) =
-	    LPJ_100MHZ * arm_freq / 1000000;
+	if ((gmr[id].start + 200000) < tmp)
+		return false;
+	else
+		return true;
+}
 
+static int _ddr_change_freq(u32 nmhz)
+{
+	u32 ret = -1;
+	unsigned long long tmp = cpu_clock(0);
+
+	do_div(tmp, 1000);
 	ret = p_ddr_set_pll(nmhz, 0);
-	if (ret == *p_ddr_freq)
-		goto out;
+
+	if (ret == ddr_freq_new)
+		return 0;
 
 	switch (p_ddr_reg->mem_type) {
 	case DDR3:
@@ -1499,70 +1517,112 @@ int _ddr_change_freq(u32 nmhz)
 		break;
 	}
 
-#if defined(DDR_CHANGE_FREQ_IN_LCDC_VSYNC)
-	do {
-		if (!screen_ft_us)
-			screen_ft_us = rk_fb_get_prmry_screen_ft();
-		if (!vblank_t)
-			vblank_t = rk_fb_get_prmry_screen_vbt();
+	ddr_freq_new = ret;
+	ddr_freq_scale_send_event(0, 10000);
 
-		t0 = rk_fb_get_prmry_screen_framedone_t();
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+	if (ddr_freq_is_event_active(ISP_FE_EVENT, tmp)) {
 
-		if (!screen_ft_us)
-			break;
+		cif_isp11_v4l2_g_frame_interval(&numerator, &denominator);
 
-		tmp = cpu_clock(0) - t0;
-		do_div(tmp, 1000);
-		pass_t = tmp;
-		/*lost frame interrupt*/
-		while (pass_t > screen_ft_us) {
-			int n = pass_t / screen_ft_us;
-			pass_t -= n * screen_ft_us;
-			t0 += n * screen_ft_us * 1000;
-		}
-
-		remain_t = screen_ft_us - pass_t;
-		if (remain_t < reserve_t) {
-			vblank_t = rk_fb_get_prmry_screen_vbt();
-			usleep_range(remain_t + vblank_t, remain_t + vblank_t);
-			continue;
-		}
-		/* test 10 times */
-		test_count++;
-		if (test_count > 10)
-			screen_ft_us = 0xfefefefe;
-
-		usleep_range(remain_t - reserve_t, remain_t - reserve_t);
-		break;
-	} while (1);
+		if (numerator * 15 < denominator)
+			cif_isp11_v4l2_s_frame_interval(1, 15);
+	}
 #endif
+	wait_event_timeout(wq, ddr_freq_new == ddr_freq_current, (HZ / 2));
+	return ddr_freq_current;
+}
+
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+static void ddr_freq_change_isp_fps(struct work_struct *work)
+{
+	if (numerator * 15 < denominator)
+		cif_isp11_v4l2_s_frame_interval(numerator, denominator);
+}
+#endif
+
+static void ddr_freq_scale_tasklet(unsigned long data)
+{
+	int id;
+	struct master_request *mr = (struct master_request *)data;
+	unsigned long long tmp = cpu_clock(0), end;
+
+	do_div(tmp, 1000);
+	id = mr->id;
+	end = tmp + ddr_freq_period;
+
+	if (ddr_freq_is_event_active(ISP_FE_EVENT, tmp)) {
+		if ((gmr[ISP_VS_EVENT].start < gmr[ISP_FE_EVENT].start) &&
+			(gmr[VOP_EVENT].end > end)) {
+			if (ddr_freq_new != ddr_freq_current) {
+				__ddr_change_freq(ddr_freq_new);
+				ddr_freq_current = ddr_freq_new;
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+				schedule_work(&ws);
+#endif
+				wake_up(&wq);
+			}
+		}
+	} else if (ddr_freq_is_event_active(VOP_EVENT, tmp)) {
+		if (gmr[VOP_EVENT].end > end) {
+			if (ddr_freq_new != ddr_freq_current) {
+				__ddr_change_freq(ddr_freq_new);
+				ddr_freq_current = ddr_freq_new;
+				wake_up(&wq);
+			}
+		}
+	} else {
+		if (ddr_freq_new != ddr_freq_current) {
+			__ddr_change_freq(ddr_freq_new);
+			ddr_freq_current = ddr_freq_new;
+		}
+	}
+	wake_up(&wq);
+}
+
+static int _ddr_freq_scale_send_event(int id, unsigned long timeout)
+{
+	unsigned long long tmp = 0;
+
+	tmp = cpu_clock(0);
+	do_div(tmp, 1000);
+
+	gmr[id].frame_time = tmp - gmr[id].start;
+	gmr[id].start = tmp;
+
+	if (ddr_freq_new == ddr_freq_current)
+		return 0;
+
+	gmr[id].id = id;
+	gmr[id].timeout = timeout;
+	gmr[id].end = tmp + gmr[id].timeout;
+
+	if (id <= VOP_EVENT) {
+		if (timeout < ddr_freq_period)
+			pr_warn("%s vop blank time should larger then %dus\n",
+				 __func__, ddr_freq_period);
+		tasklet_hi_schedule(&ddr_freq_ts[id]);
+	}
+
+	return 0;
+}
+
+static int __ddr_change_freq(u32 nmhz)
+{
+	u32 i;
+	volatile u32 n;
+	unsigned long flags;
+	volatile unsigned int *temp = (volatile unsigned int *)SRAM_CODE_OFFSET;
 
 	/*
 	 * 1. Make sure there is no host access
 	 */
+	flags = 0;
 	local_irq_save(flags);
 	local_fiq_disable();
 	flush_cache_all();
 	outer_flush_all();
 	flush_tlb_all();
-
-#if defined(DDR_CHANGE_FREQ_IN_LCDC_VSYNC)
-	if (screen_ft_us > 0) {
-		t1 = cpu_clock(0);
-		t2 = (u32)(t1 - t0);   /* ns */
-
-		if ((t2 > screen_ft_us * 1000) && (screen_ft_us != 0xfefefefe)) {
-			ret = 0;
-			goto out;
-		} else {
-			rk_fb_poll_wait_frame_complete();
-		}
-	} else {
-		rk_fb_poll_wait_frame_complete();
-	}
-#else
-	rk_fb_poll_wait_frame_complete();
-#endif
 
 	for (i = 0; i < 2; i++) {
 		n = temp[1024 * i];
@@ -1573,17 +1633,16 @@ int _ddr_change_freq(u32 nmhz)
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE));
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_CRU_VIRT));
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_GRF_VIRT));
-	dsb();
 
+	dsb();
 	call_with_stack(fn_to_pie
 			(rockchip_pie_chunk, &FUNC(ddr_change_freq_sram)),
-			&ret,
+			&nmhz,
 			rockchip_sram_stack - (NR_CPUS -
 					       1) * PAUSE_CPU_STACK_SIZE);
-out:
 	local_fiq_enable();
 	local_irq_restore(flags);
-	return ret;
+	return 0;
 }
 
 static u32 ddr_get_cap(u32 cs_cap)
@@ -1699,10 +1758,22 @@ int ddr_init(u32 freq, void *arg)
 	p_ddr_reg->ddr_capability_per_die = ddr_get_cap(0) / die;
 	p_ddr_reg->ddr_speed_bin = p_ddr_reg->dram_timing.dram_spd_bin;
 
-	if (freq == 0)
-		freq = ddr_get_dram_freq();
+	ddr_freq_current = ddr_get_pll_freq(DPLL) / 2;
+	ddr_freq_new = ddr_freq_current;
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+	INIT_WORK(&ws, ddr_freq_change_isp_fps);
+#endif
+	init_waitqueue_head(&wq);
 
-	_ddr_change_freq(freq);
+	tasklet_init(&ddr_freq_ts[0], ddr_freq_scale_tasklet,
+			(unsigned long)&gmr[0]);
+	tasklet_init(&ddr_freq_ts[VOP_EVENT], ddr_freq_scale_tasklet,
+			(unsigned long)&gmr[VOP_EVENT]);
+
+	if (freq == 0)
+		_ddr_change_freq(ddr_freq_current);
+	else
+		_ddr_change_freq(freq);
 
 	return 0;
 }
