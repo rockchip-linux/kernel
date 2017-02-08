@@ -54,7 +54,7 @@
 #define IMX323_FINE_INTG_TIME_MIN 0
 #define IMX323_FINE_INTG_TIME_MAX_MARGIN 0
 #define IMX323_COARSE_INTG_TIME_MIN 16
-#define IMX323_COARSE_INTG_TIME_MAX_MARGIN 4
+#define IMX323_COARSE_INTG_TIME_MAX_MARGIN 0
 
 #define IMX323_ORIENTATION_REG 0x0101
 #define IMX323_ORIENTATION_H 0x1
@@ -215,19 +215,43 @@ static int imx323_write_aec(struct imx_camera_module *cam_mod)
 	   if the sensor is off/registers are not writeable, do nothing */
 	if ((cam_mod->state == IMX_CAMERA_MODULE_SW_STANDBY) || (cam_mod->state == IMX_CAMERA_MODULE_STREAMING)) {
 		u32 a_gain = cam_mod->exp_config.gain;
-		u32 exp_time = cam_mod->exp_config.exp_time;
+		int exp_time = cam_mod->exp_config.exp_time;
+		u32 vts = cam_mod->vts_min;
 		a_gain = a_gain * cam_mod->exp_config.gain_percent / 100;
 
+		if (exp_time < 0)
+			vts -= exp_time;
+
 		if (!IS_ERR_VALUE(ret) && cam_mod->auto_adjust_fps)
-			ret = imx323_auto_adjust_fps(cam_mod, cam_mod->exp_config.exp_time);
+			ret = imx323_auto_adjust_fps(cam_mod, vts);
 
 		/*Gain*/
 		ret = imx_camera_module_write_reg(cam_mod, IMX323_AEC_PK_GAIN_REG, a_gain);
 
 		/*Integration Time*/
-		ret = imx_camera_module_write_reg(cam_mod, IMX323_AEC_PK_EXPO_HIGH_REG, IMX323_FETCH_HIGH_BYTE_EXP(exp_time));
-		ret |= imx_camera_module_write_reg(cam_mod, IMX323_AEC_PK_EXPO_LOW_REG, IMX323_FETCH_LOW_BYTE_EXP(exp_time));
-
+		if (exp_time < 0) {
+			ret = imx_camera_module_write_reg(
+					cam_mod,
+					IMX323_AEC_PK_EXPO_HIGH_REG,
+					IMX323_FETCH_HIGH_BYTE_EXP(0)
+					);
+			ret |= imx_camera_module_write_reg(
+					cam_mod,
+					IMX323_AEC_PK_EXPO_LOW_REG,
+					IMX323_FETCH_LOW_BYTE_EXP(0)
+					);
+		} else {
+			ret = imx_camera_module_write_reg(
+					cam_mod,
+					IMX323_AEC_PK_EXPO_HIGH_REG,
+					IMX323_FETCH_HIGH_BYTE_EXP(exp_time)
+					);
+			ret |= imx_camera_module_write_reg(
+					cam_mod,
+					IMX323_AEC_PK_EXPO_LOW_REG,
+					IMX323_FETCH_LOW_BYTE_EXP(exp_time)
+					);
+		}
 	}
 
 	if (IS_ERR_VALUE(ret))
