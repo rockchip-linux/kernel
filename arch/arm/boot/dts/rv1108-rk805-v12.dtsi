@@ -55,7 +55,7 @@
 		};
 
 		rk805_dcdc4_reg: regulator@3 {
-			regulator-name= "vcc_io";
+			regulator-name= "vcc_33";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			regulator-initial-mode = <0x2>;
