@@ -39,3 +39,10 @@ config CAMERA_IRCUTTER
 	default n
 	---help---
 	  This is camera ir-cutter driver.
+
+config VIDEO_IMX258
+	tristate "imx258 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is imx258 camera driver adapt to rockchip cif isp platform.
