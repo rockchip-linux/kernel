@@ -556,10 +556,13 @@ static void lcdc_read_reg_defalut_cfg(struct vop_device *vop_dev)
 			win0->area[0].cbr_start = val;
 			break;
 		case DSP_VACT_ST_END:
-			if (support_uboot_display())
+			if (support_uboot_display()) {
 				screen->mode.yres =
 					(val & MASK(DSP_VACT_END)) -
 					((val & MASK(DSP_VACT_ST)) >> 16);
+				if (screen->mode.vmode)
+					screen->mode.yres *= 2;
+			}
 			break;
 		case DSP_HACT_ST_END:
 			if (support_uboot_display())
