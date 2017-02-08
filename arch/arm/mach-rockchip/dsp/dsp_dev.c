@@ -434,8 +434,6 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 
 	dsp_dev_trace(dev, dev->trace_index + DSP_TRACE_SLOT_COUNT);
 
-	dsp_loader_unload_image(dev->loader);
-
 	reset_control_assert(dev->core_rst);
 	reset_control_assert(dev->sys_rst);
 	reset_control_assert(dev->global_rst);

@@ -56,6 +56,7 @@ struct dsp_image {
 struct dsp_loader {
 	struct dsp_dma *dma;
 	struct list_head images;
+	int image_prepared;
 
 	/* Reserved dsp external text memory */
 	u8 *external_text;
@@ -65,6 +66,5 @@ int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader);
 int dsp_loader_destroy(struct dsp_loader *loader);
 int dsp_loader_load_image(struct device *device, struct dsp_loader *loader,
 			  const char *name);
-void dsp_loader_unload_image(struct dsp_loader *loader);
 
 #endif

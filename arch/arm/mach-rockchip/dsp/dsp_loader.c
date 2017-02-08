@@ -14,6 +14,7 @@
  */
 #include <linux/slab.h>
 #include <linux/err.h>
+#include <linux/vmalloc.h>
 #if defined(CONFIG_ION_ROCKCHIP)
 #include <linux/rockchip_ion.h>
 #endif
@@ -197,15 +198,36 @@ out:
  * @fw: firmware prt
  * @loader: loader ptr
  */
-static int dsp_loader_prepare_image(const struct firmware *fw,
+static int dsp_loader_prepare_image(struct device *device,
 				    struct dsp_loader *loader)
 {
 	int i;
 	int ret = 0;
 	u32 offset = 0;
+	const struct firmware *fw = NULL;
+	const char *magic = "#RKCPDSPFW#";
 	struct dsp_firmware_header firmware_hdr;
 
 	dsp_debug_enter();
+
+	if (loader->image_prepared) {
+		ret = 0;
+		goto out;
+	}
+
+	request_firmware(&fw, DSP_FIRMWARE_NAME, device);
+	if (!fw) {
+		dsp_err("DSP firmware cannot be found\n");
+		ret = -EEXIST;
+		goto out;
+	}
+
+	/* Check firmware magic, must be #RKCPDSPFW#. */
+	if (memcmp(fw->data, magic, strlen(magic))) {
+		dsp_err("Invalid DSP firmware\n");
+		ret = -EFAULT;
+		goto out;
+	}
 
 	memset(&firmware_hdr, 0, sizeof(firmware_hdr));
 
@@ -221,7 +243,7 @@ static int dsp_loader_prepare_image(const struct firmware *fw,
 		u32 image_size = firmware_hdr.image_size[i];
 		u8 *image_data;
 
-		image_data = kzalloc(image_size, GFP_KERNEL);
+		image_data = vzalloc(image_size);
 		if (!image_data) {
 			dsp_err("cannot alloc mem for image data\n");
 			ret = -ENOMEM;
@@ -232,9 +254,13 @@ static int dsp_loader_prepare_image(const struct firmware *fw,
 		offset += image_size;
 
 		dsp_loader_image_parse(loader, image_data, image_size);
-		kfree(image_data);
+		vfree(image_data);
 	}
+
+	loader->image_prepared = 1;
 out:
+	if (fw)
+		release_firmware(fw);
 	dsp_debug_leave();
 	return ret;
 }
@@ -252,26 +278,10 @@ int dsp_loader_load_image(struct device *device,
 	int i;
 	u32 offset = 0;
 	struct dsp_image *image;
-	const char *magic = "#RKCPDSPFW#";
-	const struct firmware *fw = NULL;
 
 	dsp_debug_enter();
 
-	request_firmware(&fw, DSP_FIRMWARE_NAME, device);
-	if (!fw) {
-		dsp_err("DSP firmware cannot be found\n");
-		ret = -EEXIST;
-		goto out;
-	}
-
-	/* Check firmware magic, must be #RKCPDSPFW#. */
-	if (memcmp(fw->data, magic, strlen(magic))) {
-		dsp_err("Invalid DSP firmware\n");
-		ret = -EFAULT;
-		goto out;
-	}
-
-	ret = dsp_loader_prepare_image(fw, loader);
+	ret = dsp_loader_prepare_image(device, loader);
 	if (ret) {
 		dsp_err("Preare DSP image failed\n");
 		goto out;
@@ -329,24 +339,8 @@ int dsp_loader_load_image(struct device *device,
 
 	dsp_debug(DEBUG_LOADER, "dsp image loaded, name=%s\n", image->name);
 out:
-	release_firmware(fw);
 	dsp_debug_leave();
 	return ret;
-}
-
-void dsp_loader_unload_image(struct dsp_loader *loader)
-{
-	struct list_head *pos, *n;
-
-	dsp_debug_enter();
-	list_for_each_safe(pos, n, &loader->images) {
-		struct dsp_image *image = container_of(pos,
-				struct dsp_image, list_node);
-
-		list_del(pos);
-		dsp_loader_image_destroy(image);
-	}
-	dsp_debug_leave();
 }
 
 int dsp_loader_create(struct dsp_dma *dma, struct dsp_loader **loader_out)
