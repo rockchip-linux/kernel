@@ -527,8 +527,8 @@ static int dsp_open(struct inode *inode, struct file *filp)
 		goto out;
 	}
 
-	/* Power on DSP if service has more than one session */
-	if (atomic_read(&service->ref)) {
+	/* Power on DSP if first session is created. */
+	if (atomic_read(&service->ref) == 1) {
 		ret = service->dev->on(service->dev);
 		if (ret) {
 			dsp_session_destroy(session);
