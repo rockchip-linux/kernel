@@ -488,6 +488,7 @@ long cif_isp11_img_src_v4l2_subdev_ioctl(
 	case PLTFRM_CIFCAM_G_ITF_CFG:
 	case PLTFRM_CIFCAM_G_DEFRECT:
 	case PLTFRM_CIFCAM_ATTACH:
+	case PLTFRM_CIFCAM_R_LIGHTSENSOR:
 		ret = v4l2_subdev_call(subdev,
 			core,
 			ioctl,

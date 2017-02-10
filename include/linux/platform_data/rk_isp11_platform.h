@@ -96,7 +96,7 @@ struct pltfrm_cam_itf {
 					.vc = v,\
 					.nb_lanes = nb,\
 					.bit_rate = br,\
-				}\
+				} \
 			},\
 		.mclk_hz = mk\
 	}
@@ -108,7 +108,7 @@ struct pltfrm_cam_itf {
 				.vsync = vs,\
 				.hsync = hs,\
 				.pclk = ck,\
-			}\
+			} \
 		},\
 		.mclk_hz = mk\
 	}
@@ -117,6 +117,17 @@ struct pltfrm_cam_itf {
 #define PLTFRM_CIFCAM_G_ITF_CFG				(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 1)
 #define PLTFRM_CIFCAM_G_DEFRECT				(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 2)
 #define PLTFRM_CIFCAM_ATTACH					(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 3)
+#define PLTFRM_CIFCAM_R_LIGHTSENSOR			(PLTFRM_CIFCAM_IOCTL_INTERNAL_BASE + 4)
+
+enum pltfrm_cam_ls_val {
+	PLTFRM_LS_INVAL = -1,
+	PLTFRM_LS_DAY = 0,
+	PLTFRM_LS_NIGHT = 1,
+	PLTFRM_LS_HOLD = 2
+};
+struct pltfrm_cam_ls {
+	enum pltfrm_cam_ls_val val;
+};
 
 struct pltfrm_cam_defrect {
 	unsigned int width;
@@ -158,7 +169,7 @@ struct pltfrm_soc_mclk_para {
 };
 struct pltfrm_soc_cfg_para {
 	enum pltfrm_soc_cfg_cmd cmd;
-	void * cfg_para;
+	void *cfg_para;
 };
 struct pltfrm_soc_cfg {
 	char name[32];

@@ -212,6 +212,21 @@ struct cifisp_af_stat {
 	struct cifisp_af_meas_val window[CIFISP_AFM_MAX_WINDOWS];
 };
 
+enum cifisp_lightsensor_val {
+	CIFISP_LS_INVAL = -1,
+	CIFISP_LS_DAY = 0,
+	CIFISP_LS_NIGHT = 1,
+	CIFISP_LS_HOLD = 2
+};
+
+struct cifisp_lightsensor_stat {
+	enum cifisp_lightsensor_val val;
+};
+
+struct cifisp_subdev_stat {
+	struct cifisp_lightsensor_stat ls;
+};
+
 struct cifisp_stat {
 	struct cifisp_awb_stat awb;
 	struct cifisp_ae_stat ae;
@@ -223,6 +238,7 @@ struct cifisp_stat_buffer {
 	unsigned int meas_type;
 	struct cifisp_stat params;
 	struct isp_supplemental_sensor_mode_data sensor_mode;
+	struct cifisp_subdev_stat subdev_stat;
 };
 
 struct cifisp_dpcc_methods_config {

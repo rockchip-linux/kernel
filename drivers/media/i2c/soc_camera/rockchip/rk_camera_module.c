@@ -32,6 +32,7 @@
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
+#include <linux/of_platform.h>
 #include <media/v4l2-subdev.h>
 #include <linux/videodev2.h>
 #include <linux/lcm.h>
@@ -40,6 +41,7 @@
 #include <linux/platform_data/rk_isp11_platform_camera_module.h>
 #include <linux/platform_data/rk_isp11_platform.h>
 #include <media/v4l2-controls_rockchip.h>
+#include <linux/input/ls_adc.h>
 
 #define OF_OV_GPIO_PD "rockchip,pd-gpio"
 #define OF_OV_GPIO_PWR "rockchip,pwr-gpio"
@@ -74,6 +76,8 @@
 #define OF_CAMERA_PINCTRL_STATE_DEFAULT "rockchip,camera_default"
 #define OF_CAMERA_PINCTRL_STATE_SLEEP "rockchip,camera_sleep"
 #define OF_CAMERA_IRCUT	"rockchip,camera-ircut"
+#define OF_CAMERA_LS		"rockchip,camera-ls"
+#define OF_CAMERA_LS_RANGE	"rockchip,camera-ls-range"
 
 const char *PLTFRM_CAMERA_MODULE_PIN_PD = OF_OV_GPIO_PD;
 const char *PLTFRM_CAMERA_MODULE_PIN_PWR = OF_OV_GPIO_PWR;
@@ -140,6 +144,10 @@ struct pltfrm_camera_module_itf {
 	} itf;
 };
 
+struct pltfrm_camera_ls {
+	struct platform_device *ls_ctrl;
+	unsigned int range[4];
+};
 struct pltfrm_camera_module_data {
 	struct pltfrm_camera_module_gpio gpios[6];
 	struct pinctrl *pinctrl;
@@ -147,6 +155,7 @@ struct pltfrm_camera_module_data {
 	struct pinctrl_state *pins_sleep;
 	struct v4l2_subdev *af_ctrl;
 	struct v4l2_subdev *ircut_ctrl;
+	struct pltfrm_camera_ls ls;
 	/*move to struct pltfrm_camera_module_fl */
 	/*const char *flash_driver_name;*/
 	struct pltfrm_camera_module_fl fl_ctrl;
@@ -301,6 +310,8 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 	struct i2c_client *fl_ctrl_client = NULL;
 	struct device_node *ircut_ctrl_node = NULL;
 	struct platform_device *ircut_plt_dev = NULL;
+	struct device_node *ls_node = NULL;
+	struct platform_device *ls_pdev = NULL;
 	struct pltfrm_camera_module_data *pdata = NULL;
 	struct property *prop;
 
@@ -433,6 +444,21 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 			"camera module has ircut controller %s\n",
 			pltfrm_dev_string(pdata->ircut_ctrl));
 	}
+
+	ls_node = of_parse_phandle(np, OF_CAMERA_LS, 0);
+	if (!IS_ERR_OR_NULL(ls_node)) {
+		ls_pdev = of_find_device_by_node(ls_node);
+		if (!IS_ERR_OR_NULL(ls_pdev)) {
+			pdata->ls.ls_ctrl = ls_pdev;
+			of_property_read_u32_array(
+				np,
+				OF_CAMERA_LS_RANGE,
+				(unsigned int *)&pdata->ls.range[0],
+				4);
+		}
+		of_node_put(ls_node);
+	}
+
 	pdata->pinctrl = devm_pinctrl_get(&client->dev);
 	if (!IS_ERR(pdata->pinctrl)) {
 
@@ -1599,7 +1625,7 @@ void pltfrm_camera_module_release(
 				pdata->gpios[i].pltfrm_gpio);
 		}
 	}
-	for (i = 0; i < pdata->regulators.cnt; i++){
+	for (i = 0; i < pdata->regulators.cnt; i++) {
 		if (!IS_ERR(pdata->regulators.regulator[i].regulator))
 			devm_regulator_put(pdata->regulators.regulator[i].regulator);
 	}
@@ -1681,6 +1707,23 @@ long pltfrm_camera_module_ioctl(struct v4l2_subdev *sd,
 	} else if (cmd == PLTFRM_CIFCAM_ATTACH) {
 		return pltfrm_camera_module_init_pm(sd,
 			(struct pltfrm_soc_cfg *)arg);
+	} else if (cmd == PLTFRM_CIFCAM_R_LIGHTSENSOR) {
+		int vol = 0;
+		struct pltfrm_cam_ls *ls = (struct pltfrm_cam_ls *)arg;
+
+		ls->val = PLTFRM_LS_INVAL;
+		if (!IS_ERR_OR_NULL(pdata->ls.ls_ctrl)) {
+			ret = lightsensor_vol_r(&pdata->ls.ls_ctrl->dev, &vol);
+			if (ret == 0) {
+				ls->val = PLTFRM_LS_HOLD;
+				if ((vol >= pdata->ls.range[0]) &&
+					(vol <= pdata->ls.range[1]))
+					ls->val = PLTFRM_LS_DAY;
+				if ((vol >= pdata->ls.range[2]) &&
+					(vol <= pdata->ls.range[3]))
+					ls->val = PLTFRM_LS_NIGHT;
+			}
+		}
 	}
 
 	return ret;

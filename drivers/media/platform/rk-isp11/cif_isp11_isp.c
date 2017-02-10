@@ -3671,6 +3671,7 @@ static void cifisp_send_measurement(
 	struct cifisp_stat_buffer *stat_buf;
 	struct cif_isp11_device *cif_dev =
 		container_of(isp_dev, struct cif_isp11_device, isp_dev);
+	struct pltfrm_cam_ls  cam_ls;
 
 	spin_lock_irqsave(&isp_dev->irq_lock, lock_flags);
 	if (isp_dev->frame_id != meas_work->frame_id) {
@@ -3753,6 +3754,12 @@ static void cifisp_send_measurement(
 	}
 	isp_dev->meas_stats.g_frame_id = meas_work->frame_id;
 	vb->field_count = meas_work->frame_id;
+
+	cif_isp11_img_src_ioctl(cif_dev->img_src,
+			PLTFRM_CIFCAM_R_LIGHTSENSOR,
+			&cam_ls);
+	stat_buf->subdev_stat.ls.val = (enum cifisp_lightsensor_val)cam_ls.val;
+
 	vb->state = VIDEOBUF_DONE;
 	wake_up(&vb->done);
 

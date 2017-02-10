@@ -81,8 +81,11 @@
 *
 *v0.1.d:
 *1. add cif_isp11_v4l2_g_frame_interval / cif_isp11_v4l2_s_frame_interval;
+*
+*v0.1.e
+*1. support lsensor;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xd)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xe)
 
 #endif
