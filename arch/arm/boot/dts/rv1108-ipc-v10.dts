@@ -193,6 +193,11 @@
 &adc {
 	status = "okay";
 
+	light_sensor0: light_sensor {
+		compatible = "rockchip,light_sensor";
+		io-channels = <&adc 2>;
+	};
+
 	key0 {
 		compatible = "rockchip,key";
 		io-channels = <&adc 0>;
@@ -324,14 +329,20 @@
 
 &camera0 {
 	rockchip,camera-ircut = <&cam_ircut0>;
+	rockchip,camera-ls = <&light_sensor0>;
+	rockchip,camera-ls-range = <0 700 800 1024>;
 };
 
 &camera1 {
 	rockchip,camera-ircut = <&cam_ircut0>;
+	rockchip,camera-ls = <&light_sensor0>;
+	rockchip,camera-ls-range = <0 700 800 1024>;
 };
 
 &camera2 {
 	rockchip,camera-ircut = <&cam_ircut0>;
+	rockchip,camera-ls = <&light_sensor0>;
+	rockchip,camera-ls-range = <0 700 800 1024>;
 };
 
 &cif1to4 {
