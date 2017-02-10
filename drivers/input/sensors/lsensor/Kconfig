@@ -47,5 +47,9 @@ config LS_STK3410
 	bool "light sensor stk3410"
 	default y
 
+config LS_ADC
+	bool "light sensor from adc"
+	default y
+
 endif
 
