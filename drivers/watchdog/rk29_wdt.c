@@ -118,6 +118,7 @@ static struct clk	*wdt_clock;
 static void __iomem	*wdt_base;
 static char		 expect_close;
 static int		 clk_en_count;
+static int		 wdt_started;
 
 /* watchdog control routines */
 
@@ -455,13 +456,19 @@ static void rk29_wdt_shutdown(struct platform_device *dev)
 
 static int rk29_wdt_suspend(struct platform_device *dev, pm_message_t state)
 {
+	if (clk_en_count > 0)
+		wdt_started = 1;
+	else
+		wdt_started = 0;
+
 	rk29_wdt_stop();
 	return 0;
 }
 
 static int rk29_wdt_resume(struct platform_device *dev)
 {
-	rk29_wdt_start();
+	if (wdt_started == 1)
+		rk29_wdt_start();
 	return 0;
 }
 
