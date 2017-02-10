@@ -2216,8 +2216,7 @@ void rt_mutex_destroy(struct rt_mutex *lock)
 	lock->magic = NULL;
 #endif
 }
-
-EXPORT_SYMBOL_GPL(rt_mutex_destroy);
+EXPORT_SYMBOL(rt_mutex_destroy);
 
 /**
  * __rt_mutex_init - initialize the rt lock
