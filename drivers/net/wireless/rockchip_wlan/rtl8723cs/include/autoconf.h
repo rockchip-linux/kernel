@@ -286,7 +286,7 @@
 /*
  * Debug Related Config
  */
-#define CONFIG_DEBUG
+/* #define CONFIG_DEBUG */
 
 #ifdef CONFIG_DEBUG
 #define DBG	1	/* for ODM & BTCOEX debug */
