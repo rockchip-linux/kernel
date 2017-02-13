@@ -61,7 +61,7 @@ static struct display_timing *of_get_display_timing(struct device_node *np)
 	struct display_timing *dt;
 	u32 val = 0;
 	int ret = 0;
-#if defined(CONFIG_FB_ROCKCHIP)
+#if defined(CONFIG_FB_ROCKCHIP) || defined(CONFIG_DRM_ROCKCHIP)
 	struct property *prop;
 	int length;
 #endif
@@ -101,7 +101,7 @@ static struct display_timing *of_get_display_timing(struct device_node *np)
 	if (of_property_read_bool(np, "doublescan"))
 		dt->flags |= DISPLAY_FLAGS_DOUBLESCAN;
 
-#if defined(CONFIG_FB_ROCKCHIP)
+#if defined(CONFIG_FB_ROCKCHIP) || defined(CONFIG_DRM_ROCKCHIP)
 	if (!of_property_read_u32(np, "swap-rg", &val))
 		dt->flags |= val ? DISPLAY_FLAGS_SWAP_RG : 0;
 	if (!of_property_read_u32(np, "swap-gb", &val))
