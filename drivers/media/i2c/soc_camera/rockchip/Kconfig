@@ -33,6 +33,13 @@ config VIDEO_IMX323
 	---help---
 	  This is imx323 camera driver adapt to rockchip cif isp platform.
 
+config VIDEO_OV7251BW
+	tristate "ov7251 black&white driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is ov7251 camera driver adapt to rockchip cif isp platform.
+
 config CAMERA_IRCUTTER
 	tristate "camera ir-cutter driver"
 	depends on VIDEO_V4L2
