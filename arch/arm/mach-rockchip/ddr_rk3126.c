@@ -39,7 +39,7 @@ typedef uint32_t uint32;
 #define SRAM_CODE_OFFSET        rockchip_sram_virt
 #define SRAM_SIZE               rockchip_sram_size
 
-#ifdef CONFIG_FB_ROCKCHIP
+#if defined(CONFIG_FB_ROCKCHIP) || defined(CONFIG_DRM_ROCKCHIP)
 #define DDR_CHANGE_FREQ_IN_LCDC_VSYNC
 #endif
 
