@@ -84,8 +84,11 @@
 *
 *v0.1.e
 *1. support lsensor;
+*
+*v0.1.f:
+*1. support Y8/Y10 format.
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xe)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xf)
 
 #endif

@@ -2755,11 +2755,18 @@ static int cifisp_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 static int cifisp_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 {
 	struct cif_isp11_isp_dev *isp_dev = video_get_drvdata(video_devdata(file));
+	struct cif_isp11_device *cif_dev =
+		container_of(isp_dev, struct cif_isp11_device, isp_dev);
+	int ret;
 
-	int ret = videobuf_streamon(&isp_dev->vbq_stat);
-
-	if (ret == 0)
-		isp_dev->streamon = true;
+	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(
+	cif_dev->config.isp_config.output.pix_fmt)) {
+		ret = -EPERM;
+	} else {
+		ret = videobuf_streamon(&isp_dev->vbq_stat);
+		if (ret == 0)
+			isp_dev->streamon = true;
+	}
 
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		      " %s: %s: ret %d\n", ISP_VDEV_NAME, __func__, ret);

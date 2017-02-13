@@ -64,6 +64,25 @@ static enum cif_isp11_pix_fmt img_src_v4l2_subdev_pix_fmt2cif_isp11_pix_fmt(
 	int img_src_pix_fmt)
 {
 	switch (img_src_pix_fmt) {
+	case V4L2_MBUS_FMT_Y8_1X8:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR8;
+		#else
+		return CIF_YUV400;
+		#endif
+	case V4L2_MBUS_FMT_Y10_1X10:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR10;
+		#else
+		return CIF_Y10;
+		#endif
+	case V4L2_MBUS_FMT_Y12_1X12:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR12;
+		#else
+		return CIF_Y12;
+		#endif
+
 	case V4L2_MBUS_FMT_YUYV8_1_5X8:
 	case V4L2_MBUS_FMT_YUYV8_2X8:
 	case V4L2_MBUS_FMT_YUYV10_2X10:
@@ -130,6 +149,12 @@ static int cif_isp11_pix_fmt2img_src_v4l2_subdev_pix_fmt(
 	enum cif_isp11_pix_fmt cif_isp11_pix_fmt)
 {
 	switch (cif_isp11_pix_fmt) {
+	case CIF_Y10:
+		return V4L2_MBUS_FMT_Y10_1X10;
+	case CIF_Y12:
+		return V4L2_MBUS_FMT_Y12_1X12;
+	case CIF_YUV400:
+		return V4L2_MBUS_FMT_Y8_1X8;
 	case CIF_YUV422I:
 		return V4L2_MBUS_FMT_YUYV8_2X8;
 	case CIF_UYV422I:
@@ -141,7 +166,11 @@ static int cif_isp11_pix_fmt2img_src_v4l2_subdev_pix_fmt(
 	case CIF_RGB888:
 		return V4L2_MBUS_FMT_RGB888_1X24;
 	case CIF_BAYER_SBGGR8:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return V4L2_MBUS_FMT_Y8_1X8;
+		#else
 		return V4L2_MBUS_FMT_SBGGR8_1X8;
+		#endif
 	case CIF_BAYER_SGBRG8:
 		return V4L2_MBUS_FMT_SGBRG8_1X8;
 	case CIF_BAYER_SGRBG8:
@@ -149,7 +178,11 @@ static int cif_isp11_pix_fmt2img_src_v4l2_subdev_pix_fmt(
 	case CIF_BAYER_SRGGB8:
 		return V4L2_MBUS_FMT_SRGGB8_1X8;
 	case CIF_BAYER_SBGGR10:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return V4L2_MBUS_FMT_Y10_1X10;
+		#else
 		return V4L2_MBUS_FMT_SBGGR10_1X10;
+		#endif
 	case CIF_BAYER_SGBRG10:
 		return V4L2_MBUS_FMT_SGBRG10_1X10;
 	case CIF_BAYER_SGRBG10:
@@ -157,7 +190,11 @@ static int cif_isp11_pix_fmt2img_src_v4l2_subdev_pix_fmt(
 	case CIF_BAYER_SRGGB10:
 		return V4L2_MBUS_FMT_SRGGB10_1X10;
 	case CIF_BAYER_SBGGR12:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return V4L2_MBUS_FMT_Y12_1X12;
+		#else
 		return V4L2_MBUS_FMT_SBGGR12_1X12;
+		#endif
 	case CIF_BAYER_SGBRG12:
 		return V4L2_MBUS_FMT_SGBRG12_1X12;
 	case CIF_BAYER_SGRBG12:

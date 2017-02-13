@@ -321,7 +321,23 @@ static enum cif_isp11_pix_fmt cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
 
 	switch (v4l2_pix_fmt) {
 	case V4L2_PIX_FMT_GREY:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
 		return CIF_YUV400;
+		#else
+		return CIF_BAYER_SBGGR8;
+		#endif
+	case V4L2_PIX_FMT_Y10:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR10;
+		#else
+		return CIF_Y10;
+		#endif
+	case V4L2_PIX_FMT_Y12:
+		#if (CIF_ISP11_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR12;
+		#else
+		return CIF_Y12;
+		#endif
 	case V4L2_PIX_FMT_YUV420:
 		return CIF_YUV420P;
 	case V4L2_PIX_FMT_YVU420:
@@ -382,8 +398,6 @@ static enum cif_isp11_pix_fmt cif_isp11_v4l2_pix_fmt2cif_isp11_pix_fmt(
 		return CIF_BAYER_SRGGB12;
 	case V4L2_PIX_FMT_JPEG:
 		return CIF_JPEG;
-	case V4L2_PIX_FMT_Y12:
-		return CIF_Y12;
 	default:
 		cif_isp11_pltfrm_pr_err(NULL,
 			"unknown or unsupported V4L2 pixel format %c%c%c%c\n",
