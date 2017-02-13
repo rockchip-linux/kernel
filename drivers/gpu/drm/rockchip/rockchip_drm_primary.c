@@ -143,7 +143,7 @@ static void primary_commit(struct device *dev)
 	struct primary_context *ctx = get_primary_context(dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	struct rockchip_drm_panel_info *panel = (struct rockchip_drm_panel_info *)primary_get_panel(dev);
-	struct fb_videomode *mode;
+	//struct fb_videomode *mode;
 
 	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	if (ctx->suspended)
@@ -269,19 +269,19 @@ static void primary_win_mode_set(struct device *dev,
 
 }
 
-static void primary_win_set_pixfmt(struct device *dev, unsigned int win)
+/*static void primary_win_set_pixfmt(struct device *dev, unsigned int win)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 	struct primary_win_data *win_data = &ctx->win_data[win];
 }
-
-static void primary_win_set_colkey(struct device *dev, unsigned int win)
+*/
+/*static void primary_win_set_colkey(struct device *dev, unsigned int win)
 {
 //	struct primary_context *ctx = get_primary_context(dev);
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
-}
+}*/
 #if 0
 static ktime_t win_start;
 static ktime_t win_end;
@@ -292,11 +292,11 @@ static void primary_win_commit(struct device *dev, int zpos)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
-	struct rk_win_data *rk_win = NULL; 
+	struct rk_win_data *rk_win = NULL;
 	struct primary_win_data *win_data;
 	int win = zpos;
-	unsigned long val,  size;
-	u32 xpos, ypos;
+	//unsigned long val,  size;
+	//u32 xpos, ypos;
 
 //	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 
@@ -462,14 +462,14 @@ static void primary_subdrv_remove(struct drm_device *drm_dev, struct device *dev
 }
 
 
-static void primary_clear_win(struct primary_context *ctx, int win)
+/*static void primary_clear_win(struct primary_context *ctx, int win)
 {
 	u32 val;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 }
-
+*/
 
 static void primary_window_suspend(struct device *dev)
 {
@@ -503,7 +503,7 @@ static int primary_activate(struct primary_context *ctx, bool enable)
 	struct device *dev = ctx->subdrv.dev;
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	if (enable) {
-		int ret;
+		//int ret;
 
 		ctx->suspended = false;
 

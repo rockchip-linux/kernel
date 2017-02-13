@@ -29,10 +29,10 @@
 #include <linux/rk_fb.h>
 #include <linux/linux_logo.h>
 #include <linux/dma-mapping.h>
-#include <drm/drm_os_linux.h>
 #include <linux/of_gpio.h>
 #ifdef CONFIG_OF
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <video/of_display_timing.h>
 #include <video/display_timing.h>
@@ -111,6 +111,31 @@ struct void *get_extend_drv(void)
 	return extend_display->priv_data;
 }
 #endif
+/*
+ * this two function is for other module that in the kernel which
+ * need show image directly through fb
+ * fb_id:we have 4 fb here,default we use fb0 for ui display
+ */
+struct fb_info *rk_get_fb(int fb_id)
+{
+	struct rk_fb *inf = platform_get_drvdata(drm_fb_pdev);
+	struct fb_info *fb = inf->fb[fb_id];
+	return fb;
+}
+EXPORT_SYMBOL(rk_get_fb);
+
+int rk_fb_get_display_policy(void)
+{
+	struct rk_fb *rk_fb;
+
+	if (drm_fb_pdev) {
+		rk_fb = platform_get_drvdata(drm_fb_pdev);
+		return rk_fb->disp_policy;
+	} else {
+		return DISPLAY_POLICY_SDK;
+	}
+}
+
 struct rk_fb_trsm_ops *rk_fb_trsm_ops_get(int type)
 {
 	struct rk_fb_trsm_ops *ops;
@@ -458,6 +483,276 @@ char *get_format_string(enum data_format format, char *fmt)
 	return fmt;
 
 }
+
+/*
+ * this is for hdmi
+ * name: lcdc device name ,lcdc0 , lcdc1
+ */
+struct rk_lcdc_driver *rk_get_lcdc_drv(char *name)
+{
+	struct rk_fb *inf = NULL;
+	struct rk_lcdc_driver *dev_drv = NULL;
+	int i = 0;
+
+	if (likely(drm_fb_pdev))
+		inf = platform_get_drvdata(drm_fb_pdev);
+	else
+		return NULL;
+
+	for (i = 0; i < inf->num_lcdc; i++) {
+		if (!strcmp(inf->lcdc_dev_drv[i]->name, name)) {
+			dev_drv = inf->lcdc_dev_drv[i];
+			break;
+		}
+	}
+
+	return dev_drv;
+}
+
+static struct rk_lcdc_driver *rk_get_prmry_lcdc_drv(void)
+{
+	struct rk_fb *inf = NULL;
+	struct rk_lcdc_driver *dev_drv = NULL;
+	int i = 0;
+
+	if (likely(drm_fb_pdev))
+		inf = platform_get_drvdata(drm_fb_pdev);
+	else
+		return NULL;
+
+	for (i = 0; i < inf->num_lcdc; i++) {
+		if (inf->lcdc_dev_drv[i]->prop == PRMRY) {
+			dev_drv = inf->lcdc_dev_drv[i];
+			break;
+		}
+	}
+
+	return dev_drv;
+}
+
+static __maybe_unused struct rk_lcdc_driver *rk_get_extend_lcdc_drv(void)
+{
+	struct rk_fb *inf = NULL;
+	struct rk_lcdc_driver *dev_drv = NULL;
+	int i = 0;
+
+	if (likely(drm_fb_pdev))
+		inf = platform_get_drvdata(drm_fb_pdev);
+	else
+		return NULL;
+
+	for (i = 0; i < inf->num_lcdc; i++) {
+		if (inf->lcdc_dev_drv[i]->prop == EXTEND) {
+			dev_drv = inf->lcdc_dev_drv[i];
+			break;
+		}
+	}
+
+	return dev_drv;
+}
+
+/*
+ * get one frame time of the prmry screen, unit: us
+ */
+u32 rk_fb_get_prmry_screen_ft(void)
+{
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+	u32 htotal, vtotal, pixclock_ps;
+	u64 pix_total, ft_us;
+
+	if (unlikely(!dev_drv))
+		return 0;
+
+	pixclock_ps = dev_drv->pixclock;
+
+	vtotal = dev_drv->cur_screen->mode.upper_margin +
+		 dev_drv->cur_screen->mode.lower_margin +
+		 dev_drv->cur_screen->mode.yres +
+		 dev_drv->cur_screen->mode.vsync_len;
+	htotal = dev_drv->cur_screen->mode.left_margin +
+		 dev_drv->cur_screen->mode.right_margin +
+		 dev_drv->cur_screen->mode.xres +
+		 dev_drv->cur_screen->mode.hsync_len;
+	pix_total = htotal * vtotal;
+	ft_us = pix_total * pixclock_ps;
+	do_div(ft_us, 1000000);
+	if (dev_drv->frame_time.ft == 0)
+		dev_drv->frame_time.ft = ft_us;
+
+	ft_us = dev_drv->frame_time.framedone_t - dev_drv->frame_time.last_framedone_t;
+	do_div(ft_us, 1000);
+	ft_us = min(dev_drv->frame_time.ft, (u32)ft_us);
+	if (ft_us != 0)
+		dev_drv->frame_time.ft = ft_us;
+
+	return dev_drv->frame_time.ft;
+}
+
+/*
+ * get the vblanking time of the prmry screen, unit: us
+ */
+u32 rk_fb_get_prmry_screen_vbt(void)
+{
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+	u32 htotal, vblank, pixclock_ps;
+	u64 pix_blank, vbt_us;
+
+	if (unlikely(!dev_drv))
+		return 0;
+
+	pixclock_ps = dev_drv->pixclock;
+
+	htotal = (dev_drv->cur_screen->mode.left_margin +
+		  dev_drv->cur_screen->mode.right_margin +
+		  dev_drv->cur_screen->mode.xres +
+		  dev_drv->cur_screen->mode.hsync_len);
+	vblank = (dev_drv->cur_screen->mode.upper_margin +
+		  dev_drv->cur_screen->mode.lower_margin +
+		  dev_drv->cur_screen->mode.vsync_len);
+	pix_blank = htotal * vblank;
+	vbt_us = pix_blank * pixclock_ps;
+	do_div(vbt_us, 1000000);
+	return (u32)vbt_us;
+}
+
+/*
+ * get the frame done time of the prmry screen, unit: us
+ */
+u64 rk_fb_get_prmry_screen_framedone_t(void)
+{
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+
+	if (unlikely(!dev_drv))
+		return 0;
+	else
+		return dev_drv->frame_time.framedone_t;
+}
+
+/*
+ * set prmry screen status
+ */
+int rk_fb_set_prmry_screen_status(int status)
+{
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+	struct rk_screen *screen;
+
+	if (unlikely(!dev_drv))
+		return 0;
+
+	screen = dev_drv->cur_screen;
+	switch (status) {
+	case SCREEN_PREPARE_DDR_CHANGE:
+		if (screen->type == SCREEN_MIPI ||
+		    screen->type == SCREEN_DUAL_MIPI) {
+			if (dev_drv->trsm_ops->dsp_pwr_off)
+				dev_drv->trsm_ops->dsp_pwr_off();
+		}
+		break;
+	case SCREEN_UNPREPARE_DDR_CHANGE:
+		if (screen->type == SCREEN_MIPI ||
+		    screen->type == SCREEN_DUAL_MIPI) {
+			if (dev_drv->trsm_ops->dsp_pwr_on)
+				dev_drv->trsm_ops->dsp_pwr_on();
+		}
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+u32 rk_fb_get_prmry_screen_pixclock(void)
+{
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+
+	if (unlikely(!dev_drv))
+		return 0;
+	else
+		return dev_drv->pixclock;
+}
+
+int rk_fb_poll_prmry_screen_vblank(void)
+{
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->poll_vblank)
+			return dev_drv->ops->poll_vblank(dev_drv);
+		else
+			return RK_LF_STATUS_NC;
+	} else {
+		return RK_LF_STATUS_NC;
+	}
+}
+
+bool rk_fb_poll_wait_frame_complete(void)
+{
+	uint32_t timeout = RK_LF_MAX_TIMEOUT;
+	struct rk_lcdc_driver *dev_drv = rk_get_prmry_lcdc_drv();
+
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->set_irq_to_cpu)
+			dev_drv->ops->set_irq_to_cpu(dev_drv, 0);
+	}
+
+	if (rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_NC) {
+		if (likely(dev_drv)) {
+			if (dev_drv->ops->set_irq_to_cpu)
+				dev_drv->ops->set_irq_to_cpu(dev_drv, 1);
+		}
+		return false;
+	}
+	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FR) && --timeout)
+		;
+	while (!(rk_fb_poll_prmry_screen_vblank() == RK_LF_STATUS_FC) && --timeout)
+		;
+	if (likely(dev_drv)) {
+		if (dev_drv->ops->set_irq_to_cpu)
+			dev_drv->ops->set_irq_to_cpu(dev_drv, 1);
+	}
+
+	return true;
+}
+
+/* rk_fb_get_sysmmu_device_by_compatible()
+ * @compt: dts device compatible name
+ * return value: success: pointer to the device inside of platform device
+ *               fail: NULL
+ */
+struct device *rk_fb_get_sysmmu_device_by_compatible(const char *compt)
+{
+	struct device_node *dn = NULL;
+	struct platform_device *pd = NULL;
+	struct device *ret = NULL ;
+
+	dn = of_find_compatible_node(NULL, NULL, compt);
+	if (!dn) {
+		pr_info("can't find device node %s \r\n", compt);
+		return NULL;
+	}
+
+	pd = of_find_device_by_node(dn);
+	if (!pd) {
+		pr_info("can't find platform device node %s \r\n", compt);
+		return  NULL;
+	}
+	ret = &pd->dev;
+
+	return ret;
+}
+
+#ifdef CONFIG_IOMMU_API
+void rk_fb_platform_set_sysmmu(struct device *sysmmu, struct device *dev)
+{
+	dev->archdata.iommu = sysmmu;
+}
+#else
+void rk_fb_platform_set_sysmmu(struct device *sysmmu, struct device *dev)
+{
+}
+#endif
+
 int rk_disp_pwr_disable(struct rk_lcdc_driver *dev_drv)
 {
 	struct list_head *pos;
@@ -491,9 +786,9 @@ bool is_prmry_rk_lcdc_registered(void)
 }
 static void rk_fb_update_regs_handler(struct kthread_work *work)
 {
-	struct rk_lcdc_driver * dev_drv =
-			container_of(work, struct rk_lcdc_driver, update_regs_work);
-	struct rk_fb_reg_data *data, *next;
+	//struct rk_lcdc_driver * dev_drv =
+	//		container_of(work, struct rk_lcdc_driver, update_regs_work);
+	//struct rk_fb_reg_data *data, *next;
 #if 0
 	//struct list_head saved_list;
 	mutex_lock(&dev_drv->update_regs_list_lock);
@@ -531,7 +826,7 @@ static int rk_fb_wait_for_vsync_thread(void *data)
 #if 1
 		if(atomic_read(&drm_screen_priv->wait_vsync_done)){
 			atomic_set(&drm_screen_priv->wait_vsync_done,0);
-			DRM_WAKEUP(&drm_screen_priv->wait_vsync_queue);
+			wake_up(&drm_screen_priv->wait_vsync_queue);
 		}
 		if(!ret && drm_display->event_call_back)
 			drm_display->event_call_back(drm_display,0,RK_DRM_CALLBACK_VSYNC);
@@ -551,11 +846,11 @@ static void rk_drm_irq_handle(struct rk_lcdc_driver *dev_drv)
 	else if(dev_drv->prop == EXTEND)
 		drm_screen_priv = &rk_drm_priv->screen_priv[1];
 	if(drm_screen_priv == NULL)
-		return -1;
+		return;
 	drm_display = &drm_screen_priv->drm_disp;
 	if(atomic_read(&drm_screen_priv->wait_vsync_done)){
 			atomic_set(&drm_screen_priv->wait_vsync_done,0);
-			DRM_WAKEUP(&drm_screen_priv->wait_vsync_queue);
+			wake_up(&drm_screen_priv->wait_vsync_queue);
 	}
 
 	if(drm_display->event_call_back)
@@ -586,7 +881,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 	drm_display = &drm_screen_priv->drm_disp;
 	drm_display->num_win = dev_drv->lcdc_win_num;
 	atomic_set(&drm_screen_priv->wait_vsync_done, 1);
-	DRM_INIT_WAITQUEUE(&drm_screen_priv->wait_vsync_queue);
+	init_waitqueue_head(&drm_screen_priv->wait_vsync_queue);
 	if(dev_drv->prop == PRMRY){
 		struct fb_modelist *modelist_new;
 		struct fb_modelist *modelist;
@@ -609,7 +904,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 	//	printk("---->yzq 1mode xres=%d yres=%d \n",mode->xres,mode->yres);
 
 	}else if(dev_drv->prop == EXTEND){
-		struct list_head *modelist;
+		//struct list_head *modelist;
 		drm_screen_priv->ex_display = rk_drm_extend_display_get(SCREEN_HDMI);
 	//	printk("------>yzq ex_display=%x\n",drm_screen_priv->ex_display);
 		drm_display->screen_type = RK_DRM_EXTEND_SCREEN;
@@ -655,8 +950,8 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 int rk_fb_unregister(struct rk_lcdc_driver *dev_drv)
 
 {
-	struct rk_drm_private *rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
-	int i = 0;
+	//struct rk_drm_private *rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
+	//int i = 0;
 
 	return 0;
 }
@@ -693,21 +988,7 @@ int rk_fb_disp_scale(u8 scale_x, u8 scale_y, u8 lcdc_id)
 {
 	return 0;
 }
-/**********************************************************************
-this is for hdmi
-name: lcdc device name ,lcdc0 , lcdc1
-***********************************************************************/
-struct rk_lcdc_driver *rk_get_lcdc_drv(char *name)
-{
-	struct rk_drm_private *rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
-	int i = 0;
-	for (i = 0; i < rk_drm_priv->num_screen; i++) {
-		if (!strcmp(rk_drm_priv->screen_priv[i].lcdc_dev_drv->name, name))
-			break;
-	}
-	return rk_drm_priv->screen_priv[i].lcdc_dev_drv;
 
-}
 int rk_fb_switch_screen(struct rk_screen *screen , int enable, int lcdc_id)
 {
 	struct rk_drm_private *rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
@@ -740,8 +1021,8 @@ int rk_fb_switch_screen(struct rk_screen *screen , int enable, int lcdc_id)
 
 	if(enable && !drm_disp->is_connected ){
 		struct list_head *modelist;
-		struct fb_modelist *modelist1;
-		struct fb_videomode *mode;
+		//struct fb_modelist *modelist1;
+		//struct fb_videomode *mode;
 		struct rk_display_device *ex_display = rk_drm_priv->screen_priv[i].ex_display;
 		memcpy(dev_drv->cur_screen, screen, sizeof(struct rk_screen));
 		if(ex_display == NULL)
@@ -760,7 +1041,7 @@ int rk_fb_switch_screen(struct rk_screen *screen , int enable, int lcdc_id)
 //	printk("----->yzq %s %d \n",__func__,__LINE__);
 	}
 
-
+	return 0;
 }
 static int rk_drm_screen_videomode_set(struct rk_drm_display *drm_disp)
 {
@@ -816,7 +1097,7 @@ static int rk_drm_win_commit(struct rk_drm_display *drm_disp,unsigned int win_id
 				printk(KERN_ERR"---->%s can not find display win%d\n",__func__,j);
 				return -1;
 			}
-			lcdc_win->format = drm_win->format;
+			lcdc_win->area[0].format = drm_win->format;
 			lcdc_win->area[0].xpos = drm_win->xpos;
 			lcdc_win->area[0].ypos = drm_win->ypos;
 			lcdc_win->area[0].xsize = drm_win->xsize;
@@ -870,7 +1151,7 @@ int rk_drm_disp_handle(struct rk_drm_display *drm_disp,unsigned int win_id,unsig
 				if(win_id & i){
 					if (!wait_event_timeout(drm_screen_priv->wait_vsync_queue,
 								!atomic_read(&drm_screen_priv->wait_vsync_done),
-								DRM_HZ/20))
+								HZ/20))
 						printk("wait frame timed out.\n");
 				}
 
@@ -878,6 +1159,7 @@ int rk_drm_disp_handle(struct rk_drm_display *drm_disp,unsigned int win_id,unsig
 				if(win_id & i){
 					atomic_set(&drm_screen_priv->wait_vsync_done,1);
 				}
+				break;
 		}
 			
 	}
@@ -896,6 +1178,11 @@ struct rk_drm_display *rk_drm_get_diplay(int screen_type)
 	return NULL;
 }
 
+int rk_fb_set_car_reverse_status(struct rk_lcdc_driver *dev_drv,
+				 int status)
+{
+	return 0;
+}
 
 static int rk_drm_fb_probe(struct platform_device *pdev)
 {
