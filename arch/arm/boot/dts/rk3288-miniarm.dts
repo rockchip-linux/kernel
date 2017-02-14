@@ -489,9 +489,13 @@
 	status = "okay";
 };
 
+
 &spi2 {
 	status = "okay";
 	max-freq = <50000000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi2_clk &spi2_tx &spi2_rx &spi2_cs0 &spi2_cs1>;
+	#address-cells = <2>;
 
 	spidev@0 {
 		compatible = "rockchip,spi_tinker";
