@@ -97,15 +97,12 @@ static int lightsensor_dt_parse(
 	struct device *dev,
 	struct lightsensor_data *gdata)
 {
-	int rv = 0;
 	struct iio_channel *chan;
 
 	chan = iio_channel_get(dev, NULL);
 	if (IS_ERR(chan)) {
 		dev_err(dev, "no io-channnels defined for lightsensor\n");
-		chan = NULL;
-		rv = PTR_ERR(chan);
-		return rv;
+		return PTR_ERR(chan);
 	}
 	gdata->chan = chan;
 	return 0;
