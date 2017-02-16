@@ -511,6 +511,7 @@
 
 &codec {
 	spk_ctl_io = <&gpio0 GPIO_C4 GPIO_ACTIVE_HIGH>;
+	rockchip,single-ended = <1>;
 	status = "okay";
 };
 
