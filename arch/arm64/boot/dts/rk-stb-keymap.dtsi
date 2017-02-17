@@ -44,7 +44,7 @@
 
 &pwm3 {
 	/* for IPTV */
-	ir_key3 {
+	ir_key4 {
 		rockchip,usercode = <0x4db2>;
 		rockchip,key_table =
 			<0x31	KEY_REPLY>,
@@ -87,7 +87,7 @@
 	};
 
 	/* for CMCC */
-	ir_key4 {
+	ir_key5 {
 		rockchip,usercode = <0x1608>;
 		rockchip,key_table =
 			<0x4c	KEY_REPLY>,
@@ -119,51 +119,6 @@
 			<0x24	KEY_REVIEW>,
 			<0x21	KEY_ON_DEMAND>,
 			<0x20	KEY_INFO1>;
-	};
-
-	/* for CMCC */
-	ir_key5 {
-		rockchip,usercode = <0xff00>;
-		rockchip,key_table =
-			<0xb6	KEY_REPLY>,
-			<0xb3	KEY_BACK>,
-			<0xb8	KEY_UP>,
-			<0xb4	KEY_DOWN>,
-			<0xb7	KEY_LEFT>,
-			<0xb5	KEY_RIGHT>,
-			<0xf3	KEY_VOLUMEUP>,
-			<0xe7	KEY_VOLUMEDOWN>,
-			<0xbf	KEY_POWER>,
-			<0xed	KEY_MUTE>,
-			<0xb2	KEY_MENU>,
-			<0xfe	KEY_1>,
-			<0xfd	KEY_2>,
-			<0xfc	KEY_3>,
-			<0xfb	KEY_4>,
-			<0xfa	KEY_5>,
-			<0xf9	KEY_6>,
-			<0xf8	KEY_7>,
-			<0xf7	KEY_8>,
-			<0xf6	KEY_9>,
-			<0xff	KEY_0>,
-			<0xf2	KEY_PAGEDOWN>,
-			<0xec	KEY_PAGEUP>,
-			<0xe2	KEY_SETUP>,
-			<0xf4	KEY_CHANNEL_UP>,
-			<0xea	KEY_CHANNEL_DN>,
-			<0xe9	KEY_CH_CUT_BACK>,
-			<0xb1	KEY_DIRECT_SEEDING>,
-			<0xb0	KEY_REVIEW>,
-			<0xaf	KEY_ON_DEMAND>,
-			<0xe1	KEY_INFO1>,
-			<0xe3	KEY_SOUND1>,
-			<0xa9	KEY_LOCAL>,
-			<0xbb	KEY_PLAYPAUSE>,
-			<0x0b	KEY_EQUAL>,
-			<0xbc	401>,
-			<0xb9	400>,
-			<0xba	66>,
-			<0xae	KEY_HOME>;
 	};
 
 	/* rk new remote */
