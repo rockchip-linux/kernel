@@ -766,7 +766,6 @@ int snd_config_hdmi_audio(struct snd_pcm_hw_params *params)
 		rate = HDMI_AUDIO_FS_192000;
 		break;
 	default:
-		pr_err("rate %d unsupport.\n", params_rate(params));
 		rate = HDMI_AUDIO_FS_44100;
 	}
 
