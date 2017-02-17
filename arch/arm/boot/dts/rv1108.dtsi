@@ -1094,7 +1094,7 @@
 		#size-cells = <0>;
 		pinctrl-names = "default", "idle";
 		pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_dectn &sdmmc_bus4 &sdmmc_pwren>;
-		pinctrl-1 = <&sdmmc_gpio>;
+		pinctrl-1 = <&sdmmc_gpio &sdmmc_dectn>;
 		cd-gpios = <&gpio0 GPIO_A1 GPIO_ACTIVE_HIGH>; /* CD GPIO */
 		clocks = <&clk_sdmmc>, <&clk_gates15 0>;
 		clock-names = "clk_mmc", "hclk_mmc";
@@ -1639,14 +1639,12 @@
 			};
 
 			sdmmc_gpio: sdmmc-gpio {
-				rockchip,pins = <3 GPIO_C4 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<0 GPIO_A1 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_B7 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>,
-						<3 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_up_drv_4ma>;
+				rockchip,pins = <3 GPIO_C4 RK_FUNC_GPIO &pcfg_pull_down>,
+						<3 GPIO_C5 RK_FUNC_GPIO &pcfg_pull_down>,
+						<3 GPIO_C3 RK_FUNC_GPIO &pcfg_pull_down>,
+						<3 GPIO_C2 RK_FUNC_GPIO &pcfg_pull_down>,
+						<3 GPIO_C1 RK_FUNC_GPIO &pcfg_pull_down>,
+						<3 GPIO_C0 RK_FUNC_GPIO &pcfg_pull_down>;
 			};
 		};
 
