@@ -1428,9 +1428,22 @@ EXIT_POWER:
 			regs |= (1 << slot->id);
 
 		mci_writel(slot->host, PWREN, regs);
+
+		if ((mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) &&
+		    !IS_ERR(host->pins_default) && cpu_is_rv1108()) {
+			if (pinctrl_select_state(host->pinctrl,
+						 host->pins_default) < 0)
+				dev_err(host->dev, "pins_default pinctrl setting failed\n");
+		}
 		break;
 	case MMC_POWER_OFF:
 	/* Power down slot */
+		if ((mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) &&
+		    !IS_ERR(host->pins_idle) && cpu_is_rv1108()) {
+			if (pinctrl_select_state(host->pinctrl,
+						 host->pins_idle) < 0)
+				dev_err(host->dev, "pins_idle pinctrl setting failed\n");
+		}
 		if(slot->host->pdata->setpower)
 			slot->host->pdata->setpower(slot->id, 0);
 		regs = mci_readl(slot->host, PWREN);
