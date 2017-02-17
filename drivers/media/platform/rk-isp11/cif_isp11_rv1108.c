@@ -256,6 +256,28 @@ static int soc_clk_disable(void)
 	return 0;
 }
 
+static int soc_isp_clk_cfg(int *data_rate)
+{
+	int isp_clk[] = {198, 240, 297, 396, 480, 594};
+	int tmp, i;
+	struct cif_isp11_clk_rst_rv1108 *clk_rst = &rv1108->clk_rst;
+
+	tmp = (*data_rate * 10) >> 6;
+	for (i = 0; i < ARRAY_SIZE(isp_clk); i++)
+		if (tmp <= isp_clk[i])
+			break;
+	if (i == ARRAY_SIZE(isp_clk))
+		i--;
+
+	if (isp_clk[i] > 396)
+		pr_warn("rv1108 isp signoff is 360MHz, using %dMHz maybe unstable\n",
+			isp_clk[i]);
+
+	clk_set_rate(clk_rst->sclk_isp, isp_clk[i] * 1000000);
+	clk_set_rate(clk_rst->sclk_isp_jpe, isp_clk[i] * 1000000);
+	return 0;
+}
+
 static int soc_init(struct pltfrm_soc_init_para *init)
 {
 	struct cif_isp11_clk_rst_rv1108 *clk_rst;
@@ -331,8 +353,8 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 		goto clk_failed;
 	}
 
-	clk_set_rate(clk_rst->sclk_isp, 400000000);
-	clk_set_rate(clk_rst->sclk_isp_jpe, 400000000);
+	clk_set_rate(clk_rst->sclk_isp, 300000000);
+	clk_set_rate(clk_rst->sclk_isp_jpe, 300000000);
 	reset_control_deassert(clk_rst->isp_rst);
 
 	rv1108->isp_base = init->isp_base;
@@ -400,6 +422,10 @@ int pltfrm_rv1108_cfg (
 
 	case PLTFRM_SOC_INIT:
 		soc_init((struct pltfrm_soc_init_para *)cfg->cfg_para);
+		break;
+
+	case PLTFRM_ISPCLK_CFG:
+		soc_isp_clk_cfg((int *)cfg->cfg_para);
 		break;
 
 	default:

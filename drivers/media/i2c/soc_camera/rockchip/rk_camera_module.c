@@ -1281,6 +1281,7 @@ int pltfrm_camera_module_set_pm_state(
 	struct pltfrm_soc_cfg_para cfg_para;
 	struct pltfrm_cam_itf itf_cfg;
 	unsigned int i;
+	int data_rate;
 
 	if (on) {
 		if (IS_ERR_OR_NULL(soc_cfg)) {
@@ -1319,21 +1320,31 @@ int pltfrm_camera_module_set_pm_state(
 		cfg_para.cfg_para = (void *)&mclk_para;
 		(soc_cfg->soc_cfg)(&cfg_para);
 
-		if (!IS_ERR_OR_NULL(pdata->mclk)) {
-			if (v4l2_subdev_call(sd,
-				core,
-				ioctl,
-				PLTFRM_CIFCAM_G_ITF_CFG,
-				(void *)&itf_cfg) == 0) {
+		if (v4l2_subdev_call(sd,
+			core,
+			ioctl,
+			PLTFRM_CIFCAM_G_ITF_CFG,
+			(void *)&itf_cfg) == 0) {
+			if (itf_cfg.type == PLTFRM_CAM_ITF_MIPI)
+				data_rate = itf_cfg.cfg.mipi.nb_lanes * itf_cfg.cfg.mipi.bit_rate;
+			else
+				data_rate = 200;
+			cfg_para.cmd = PLTFRM_ISPCLK_CFG;
+			cfg_para.cfg_para = (void *)&data_rate;
+			(soc_cfg->soc_cfg)(&cfg_para);
+
+			if (!IS_ERR_OR_NULL(pdata->mclk))
 				clk_set_rate(pdata->mclk, itf_cfg.mclk_hz);
-			} else {
-				pltfrm_camera_module_pr_err(sd,
-					"PLTFRM_CIFCAM_G_ITF_CFG failed,"
-					"mclk set 24m default.\n");
+		} else {
+			pltfrm_camera_module_pr_err(sd,
+				"PLTFRM_CIFCAM_G_ITF_CFG failed,"
+				"mclk set 24m default.\n");
+			if (!IS_ERR_OR_NULL(pdata->mclk))
 				clk_set_rate(pdata->mclk, 24000000);
-			}
-			clk_prepare_enable(pdata->mclk);
 		}
+
+		if (!IS_ERR_OR_NULL(pdata->mclk))
+			clk_prepare_enable(pdata->mclk);
 
 		pltfrm_camera_module_set_pin_state(
 			sd,

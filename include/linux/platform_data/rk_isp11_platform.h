@@ -149,7 +149,9 @@ enum pltfrm_soc_cfg_cmd {
 	PLTFRM_CLKDIS,
 	PLTFRM_CLKRST,
 
-	PLTFRM_SOC_INIT
+	PLTFRM_SOC_INIT,
+
+	PLTFRM_ISPCLK_CFG
 };
 
 enum pltfrm_soc_io_voltage {
