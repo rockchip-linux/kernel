@@ -74,7 +74,7 @@ static struct nvp *nvp;
 
 static struct nvp_module_config nvp_configs[] = {
 	{
-		.name = "720x480_60fps",	/* NTSC */
+		.name = "720x480_30fps",	/* NTSC */
 		.frm_fmt = {
 			.width = 720,
 			.height = 480,
@@ -83,12 +83,17 @@ static struct nvp_module_config nvp_configs[] = {
 		.frm_intrvl = {
 			.interval = {
 				.numerator = 1,
-				.denominator = 60
+				.denominator = 30
 			}
-		}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
 	},
 	{
-		.name = "720x576_50fps",	/* PAL */
+		.name = "720x576_25fps",	/* PAL */
 		.frm_fmt = {
 			.width = 720,
 			.height = 576,
@@ -97,8 +102,14 @@ static struct nvp_module_config nvp_configs[] = {
 		.frm_intrvl = {
 			.interval = {
 				.numerator = 1,
-				.denominator = 50}
-		}
+				.denominator = 25
+			}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
 	}
 };
 
@@ -150,6 +161,9 @@ nvp_module_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		return -1;
 	if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
 		itf_cfg = (struct pltfrm_cam_itf *)arg;
+		memcpy(itf_cfg,
+		       &nvp_configs[0].itf_cfg,
+		       sizeof(struct pltfrm_cam_itf));
 		if (nvp->channels == 1)
 			itf_cfg->type = PLTFRM_CAM_ITF_BT656_8_1;
 		else if (nvp->channels == 2)
@@ -164,8 +178,6 @@ nvp_module_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 		else
 			pr_err("Don't support %d voltage\n",
 			       nvp->apio_vol);
-		nvp->cif_id = itf_cfg->cif_id;
-		pr_info("nvp: cif id %d\n", nvp->cif_id);
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_ATTACH) {
 		nvp->soc_cfg = (struct pltfrm_soc_cfg *)arg;
@@ -220,16 +232,10 @@ nvp_module_s_stream(struct v4l2_subdev *sd, int enable)
 	return 0;
 }
 
-static struct v4l2_subdev_video_ops nvp_module_video_ops = {
-	.s_frame_interval = nvp_module_s_frame_interval,
-	.s_stream = nvp_module_s_stream
-};
-
 static int
 nvp_module_enum_frameintervals(
 	struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh,
-	struct v4l2_subdev_frame_interval_enum *fie)
+	struct v4l2_frmivalenum *fie)
 {
 	int index = 0;
 
@@ -241,22 +247,20 @@ nvp_module_enum_frameintervals(
 		index = 1;
 	else
 		index = 0;
-	fie->code = nvp_configs[index].frm_fmt.code;
+	fie->pixel_format = nvp_configs[index].frm_fmt.code;
 	fie->width = nvp_configs[index].frm_fmt.width;
 	fie->height = nvp_configs[index].frm_fmt.height;
-	fie->interval.numerator =
+	fie->discrete.numerator =
 		nvp_configs[index].frm_intrvl.interval.numerator;
-	fie->interval.denominator =
+	fie->discrete.denominator =
 		nvp_configs[index].frm_intrvl.interval.denominator;
 	return 0;
 }
 
 static int nvp_module_g_fmt(
 	struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh,
-	struct v4l2_subdev_format *format)
+	struct v4l2_mbus_framefmt *fmt)
 {
-	struct v4l2_mbus_framefmt *fmt = &format->format;
 	int index = 0;
 
 	if (nvp == NULL)
@@ -274,22 +278,22 @@ static int nvp_module_g_fmt(
 
 static int nvp_module_s_fmt(
 	struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh,
-	struct v4l2_subdev_format *format)
+	struct v4l2_mbus_framefmt *fmt)
 {
 	return 0;
 }
 
-static struct v4l2_subdev_pad_ops nvp_module_pad_ops = {
-	.enum_frame_interval = nvp_module_enum_frameintervals,
-	.get_fmt = nvp_module_g_fmt,
-	.set_fmt = nvp_module_s_fmt
+static struct v4l2_subdev_video_ops nvp_module_video_ops = {
+	.enum_frameintervals = nvp_module_enum_frameintervals,
+	.g_mbus_fmt = nvp_module_g_fmt,
+	.s_mbus_fmt = nvp_module_s_fmt,
+	.s_frame_interval = nvp_module_s_frame_interval,
+	.s_stream = nvp_module_s_stream
 };
 
 static struct v4l2_subdev_ops nvp_module_ops = {
 	.core = &nvp_module_core_ops,
 	.video = &nvp_module_video_ops,
-	.pad = &nvp_module_pad_ops
 };
 
 static int nvp_set_channels(void)

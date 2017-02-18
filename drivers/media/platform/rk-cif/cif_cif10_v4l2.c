@@ -175,10 +175,25 @@ const char *cif_cif10_v4l2_pix_fmt_string(
 		return "M5-YUV444SP";
 	case V4L2_PIX_FMT_JPEG:
 		return "V4L2-JPEG";
-	case V4L2_PIX_FMT_SGRBG10:
-		return "RAW-BAYER-10Bits";
+	case V4L2_PIX_FMT_SBGGR8:
+	case V4L2_PIX_FMT_SGBRG8:
 	case V4L2_PIX_FMT_SGRBG8:
+	case V4L2_PIX_FMT_SRGGB8:
 		return "RAW-BAYER-8Bits";
+	case V4L2_PIX_FMT_SBGGR10:
+	case V4L2_PIX_FMT_SGBRG10:
+	case V4L2_PIX_FMT_SGRBG10:
+	case V4L2_PIX_FMT_SRGGB10:
+		return "RAW-BAYER-10Bits";
+	case V4L2_PIX_FMT_SBGGR12:
+	case V4L2_PIX_FMT_SGBRG12:
+	case V4L2_PIX_FMT_SGRBG12:
+	case V4L2_PIX_FMT_SRGGB12:
+		return "RAW-BAYER-12Bits";
+	case V4L2_PIX_FMT_Y10:
+		return "V4L2-Y10";
+	case V4L2_PIX_FMT_Y12:
+		return "V4L2-Y12";
 	}
 	return "UNKNOWN/UNSUPPORTED";
 }
@@ -261,7 +276,6 @@ static unsigned int cif_cif10_pix_fmt2bytesperline(
 		unsigned int width)
 {
 	unsigned int bpl = (unsigned int)-EINVAL;
-
 	switch (v4l2_pix_fmt) {
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
@@ -285,28 +299,36 @@ static unsigned int cif_cif10_pix_fmt2bytesperline(
 		bpl = width * 4;
 		break;
 	case V4L2_PIX_FMT_JPEG:
-		/* not used */
-		bpl = 0;
 	case V4L2_PIX_FMT_MJPEG:
-		/* not used */
-		bpl = 0;
 	case V4L2_PIX_FMT_H264:
 		/* not used */
 		bpl = 0;
 		break;
+	case V4L2_PIX_FMT_SBGGR8:
+	case V4L2_PIX_FMT_SGBRG8:
+	case V4L2_PIX_FMT_SGRBG8:
+	case V4L2_PIX_FMT_SRGGB8:
+	case V4L2_PIX_FMT_SBGGR10:
+	case V4L2_PIX_FMT_SGBRG10:
+	case V4L2_PIX_FMT_SGRBG10:
+	case V4L2_PIX_FMT_SRGGB10:
 	case V4L2_PIX_FMT_SBGGR12:
 	case V4L2_PIX_FMT_SGBRG12:
 	case V4L2_PIX_FMT_SGRBG12:
 	case V4L2_PIX_FMT_SRGGB12:
-		bpl = width;
+	case V4L2_PIX_FMT_GREY:
+	case V4L2_PIX_FMT_Y10:
+	case V4L2_PIX_FMT_Y12:
+		/* 2 bytes per pixel */
+		bpl = width * 2;
+		break;
 	default:
-		pr_info(
-				"%s: Unsupported V4L2 pixel format %c%c%c%c\n",
-				__func__,
-				v4l2_pix_fmt & 0xFF,
-				(v4l2_pix_fmt >> 8) & 0xFF,
-				(v4l2_pix_fmt >> 16) & 0xFF,
-				(v4l2_pix_fmt >> 24) & 0xFF);
+		pr_info("%s: Unsupported V4L2 pixel format %c%c%c%c\n",
+			__func__,
+			v4l2_pix_fmt & 0xFF,
+			(v4l2_pix_fmt >> 8) & 0xFF,
+			(v4l2_pix_fmt >> 16) & 0xFF,
+			(v4l2_pix_fmt >> 24) & 0xFF);
 		break;
 	}
 
@@ -318,7 +340,11 @@ static enum cif_cif10_pix_fmt cif_cif10_v4l2_pix_fmt2cif_cif10_pix_fmt(
 {
 	switch (v4l2_pix_fmt) {
 	case V4L2_PIX_FMT_GREY:
+		#if (CIF_CIF10_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR8;
+		#else
 		return CIF_YUV400;
+		#endif
 	case V4L2_PIX_FMT_YUV420:
 		return CIF_YUV420P;
 	case V4L2_PIX_FMT_YVU420:
@@ -371,6 +397,18 @@ static enum cif_cif10_pix_fmt cif_cif10_v4l2_pix_fmt2cif_cif10_pix_fmt(
 		return CIF_BAYER_SRGGB12;
 	case V4L2_PIX_FMT_JPEG:
 		return CIF_JPEG;
+	case V4L2_PIX_FMT_Y10:
+		#if (CIF_CIF10_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR10;
+		#else
+		return CIF_Y10;
+		#endif
+	case V4L2_PIX_FMT_Y12:
+		#if (CIF_CIF10_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR12;
+		#else
+		return CIF_Y12;
+		#endif
 	default:
 		cif_cif10_pltfrm_pr_err(
 			NULL,
@@ -380,6 +418,73 @@ static enum cif_cif10_pix_fmt cif_cif10_v4l2_pix_fmt2cif_cif10_pix_fmt(
 			(u8)((v4l2_pix_fmt >> 16) & 0xff),
 			(u8)((v4l2_pix_fmt >> 24) & 0xff));
 		return CIF_UNKNOWN_FORMAT;
+	}
+}
+
+static u32 cif_cif10_pix_fmt2cif_cif10_v4l2_pix_fmt(
+	enum cif_cif10_pix_fmt cif_cif10_pix_fmt)
+{
+	switch (cif_cif10_pix_fmt) {
+	case CIF_YUV400:
+		return V4L2_PIX_FMT_GREY;
+	case CIF_Y10:
+		return V4L2_PIX_FMT_Y10;
+	case CIF_Y12:
+		return V4L2_PIX_FMT_Y12;
+	case CIF_YUV420P:
+		return V4L2_PIX_FMT_YUV420;
+	case CIF_YVU420P:
+		return V4L2_PIX_FMT_YVU420;
+	case CIF_YUV420SP:
+		return V4L2_PIX_FMT_NV12;
+	case CIF_YVU420SP:
+		return V4L2_PIX_FMT_NV21;
+	case CIF_YUV422I:
+		return V4L2_PIX_FMT_YUYV;
+	case CIF_UYV422I:
+		return V4L2_PIX_FMT_UYVY;
+	case CIF_YUV422P:
+		return V4L2_PIX_FMT_YUV422P;
+	case CIF_YUV422SP:
+		return V4L2_PIX_FMT_NV16;
+	case CIF_YVU422SP:
+		return V4L2_PIX_FMT_NV61;
+	case CIF_YUV444P:
+		return V4L2_PIX_FMT_YUV444;
+	case CIF_YUV444SP:
+		return V4L2_PIX_FMT_NV24;
+	case CIF_RGB565:
+		return V4L2_PIX_FMT_RGB565;
+	case CIF_RGB888:
+		return V4L2_PIX_FMT_RGB24;
+	case CIF_BAYER_SBGGR8:
+		return V4L2_PIX_FMT_SBGGR8;
+	case CIF_BAYER_SGBRG8:
+		return V4L2_PIX_FMT_SGBRG8;
+	case CIF_BAYER_SGRBG8:
+		return V4L2_PIX_FMT_SGRBG8;
+	case CIF_BAYER_SRGGB8:
+		return V4L2_PIX_FMT_SRGGB8;
+	case CIF_BAYER_SBGGR10:
+		return V4L2_PIX_FMT_SBGGR10;
+	case CIF_BAYER_SGBRG10:
+		return V4L2_PIX_FMT_SGBRG10;
+	case CIF_BAYER_SGRBG10:
+		return V4L2_PIX_FMT_SGRBG10;
+	case CIF_BAYER_SRGGB10:
+		return V4L2_PIX_FMT_SRGGB10;
+	case CIF_BAYER_SBGGR12:
+		return V4L2_PIX_FMT_SBGGR12;
+	case CIF_BAYER_SGBRG12:
+		return V4L2_PIX_FMT_SGBRG12;
+	case CIF_BAYER_SGRBG12:
+		return V4L2_PIX_FMT_SGRBG12;
+	case CIF_BAYER_SRGGB12:
+		return V4L2_PIX_FMT_SRGGB12;
+	case CIF_JPEG:
+		return V4L2_PIX_FMT_JPEG;
+	default:
+		return -EINVAL;
 	}
 }
 
@@ -828,7 +933,11 @@ static int cif_cif10_v4l2_try_fmt_vid_cap(
 	struct videobuf_queue *queue = to_videobuf_queue(file);
 	struct cif_cif10_device *dev = to_cif_cif10_device(queue);
 	struct cif_cif10_strm_fmt_desc strm_fmt_desc;
+	u32 cif_pix_fmt;
 
+	cif_pix_fmt =
+		cif_cif10_v4l2_pix_fmt2cif_cif10_pix_fmt(
+				f->fmt.pix.pixelformat);
 	/* find the best matching format from the image source */
 	/* TODO: frame interval and pixel format handling */
 	ret = cif_cif10_enum_fmt(dev, &strm_fmt_desc);
@@ -837,6 +946,11 @@ static int cif_cif10_v4l2_try_fmt_vid_cap(
 			strm_fmt_desc.min_frmsize.width;
 		f->fmt.pix.height =
 			strm_fmt_desc.min_frmsize.height;
+		if ((cif_pix_fmt & 0xF0000000) !=
+		    (strm_fmt_desc.pix_fmt & 0xF0000000))
+			f->fmt.pix.pixelformat =
+				cif_cif10_pix_fmt2cif_cif10_v4l2_pix_fmt(
+						strm_fmt_desc.pix_fmt);
 	}
 
 	cif_cif10_pltfrm_pr_dbg(NULL,
@@ -882,10 +996,9 @@ static int cif_cif10_v4l2_s_fmt(
 	strm_fmt.frm_fmt.width = f->fmt.pix.width;
 	strm_fmt.frm_fmt.height = f->fmt.pix.height;
 
-	ret = cif_cif10_s_fmt(
-				dev,
-				&strm_fmt,
-				f->fmt.pix.bytesperline);
+	ret = cif_cif10_s_fmt(dev,
+			      &strm_fmt,
+			      f->fmt.pix.bytesperline);
 	if (IS_ERR_VALUE(ret))
 		goto err;
 
@@ -1248,7 +1361,7 @@ static int v4l2_enum_input(struct file *file, void *priv,
 
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = V4L2_STD_UNKNOWN;
-	strcpy(input->name, inp_name);
+	strlcpy(input->name, inp_name, sizeof(input->name));
 
 	return 0;
 }

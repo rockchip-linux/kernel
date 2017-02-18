@@ -20,11 +20,11 @@
  /*
 *       CIF DRIVER VERSION NOTE
 *
-*v1.0.0:
-*
+*v0.1.0:
+*add support raw8\10\12
 *
 */
 
-#define CONFIG_CIFCIF10_DRIVER_VERSION KERNEL_VERSION(0, 0, 1)
+#define CONFIG_CIFCIF10_DRIVER_VERSION KERNEL_VERSION(0, 1, 0)
 
 #endif

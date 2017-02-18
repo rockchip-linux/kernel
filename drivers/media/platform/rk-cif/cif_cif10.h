@@ -206,12 +206,14 @@ enum cif_cif10_image_effect {
 	(!CIF_CIF10_PIX_FMT_IS_YUV(pix_fmt) ||\
 	!CIF_CIF10_PIX_FMT_YUV_GET_NUM_CPLANES(pix_fmt))
 
-
+#define CIF_CIF10_PIX_FMT_Y_AS_BAYER (1)
 
 enum cif_cif10_pix_fmt {
 	/* YUV */
 	CIF_YUV400				= 0x10008000,
 	CIF_YVU400				= 0x10008004,
+	CIF_Y10					= 0x1000a000,
+	CIF_Y12					= 0x10010000,
 
 	CIF_YUV420I				= 0x1000c220,
 	CIF_YUV420SP			= 0x1000c221,	/* NV12 */

@@ -22,11 +22,14 @@
 /*
 #define MEASURE_VERTICAL_BLANKING
 */
-#define CIF_F0_READY (0x01<<0)
-#define CIF_F1_READY (0x01<<1)
+#define CIF_F0_READY        (0x01 << 0)
+#define CIF_F1_READY        (0x01 << 1)
 
-#define PAL_HEIGHT  (576)
-#define NTSC_HEIGHT (480)
+#define PAL_HEIGHT          (576)
+#define NTSC_HEIGHT         (480)
+#define CIF_CROP_X_MASK     (0xFFF)
+#define CIF_CROP_START_X(x) ((x) & CIF_CROP_X_MASK)
+
 static void init_output_formats(void);
 
 static struct v4l2_fmtdesc output_formats[MAX_NB_FORMATS];
@@ -114,12 +117,30 @@ static struct cif_cif10_fmt cif_cif10_output_format[] = {
 	.rotation = false,
 	.overlay = false,
 },
-/* ************* YUV400 ************* */
+/* ************* YUV400/Y8 ************* */
 {
 	.name		= "YVU400-Grey-Planar",
 	.fourcc	= V4L2_PIX_FMT_GREY,
 	.flags	= 0,
 	.depth	= 8,
+	.rotation = false,
+	.overlay = false,
+},
+/* ************ Y10*********** */
+{
+	.name		= "Y10",
+	.fourcc = V4L2_PIX_FMT_Y10,
+	.flags	= 0,
+	.depth	= 10,
+	.rotation = false,
+	.overlay = false,
+},
+/* ************ Y12*********** */
+{
+	.name		= "Y12",
+	.fourcc = V4L2_PIX_FMT_Y12,
+	.flags	= 0,
+	.depth	= 12,
 	.rotation = false,
 	.overlay = false,
 },
@@ -140,6 +161,33 @@ static struct cif_cif10_fmt cif_cif10_output_format[] = {
 	.rotation = false,
 	.overlay = false,
 },
+/* ************* RAW8 ************* */
+{
+	.name	= "SGBRG8",
+	.fourcc	= V4L2_PIX_FMT_SGBRG8,
+	.flags	= 0,
+	.depth	= 8,
+	.rotation = false,
+	.overlay = false,
+},
+/* ************* RAW10 ************* */
+{
+	.name	= "SGBRG10",
+	.fourcc	= V4L2_PIX_FMT_SGBRG10,
+	.flags	= 0,
+	.depth	= 10,
+	.rotation = false,
+	.overlay = false,
+},
+/* ************* RAW12 ************* */
+{
+	.name	= "SGBRG12",
+	.fourcc	= V4L2_PIX_FMT_SGBRG12,
+	.flags	= 0,
+	.depth	= 12,
+	.rotation = false,
+	.overlay = false,
+}
 };
 
 /**Structures and Types*******************************************************/
@@ -272,6 +320,34 @@ static const char *cif_cif10_pix_fmt_string(int pixfmt)
 		return "VYU444SP";
 	case CIF_VYU444P:
 		return "VYU444P";
+	case CIF_BAYER_SBGGR8:
+		return "BAYER BGGR8";
+	case CIF_BAYER_SGBRG8:
+		return "BAYER GBRG8";
+	case CIF_BAYER_SGRBG8:
+		return "BAYER GRBG8";
+	case CIF_BAYER_SRGGB8:
+		return "BAYER RGGB8";
+	case CIF_BAYER_SBGGR10:
+		return "BAYER BGGR10";
+	case CIF_BAYER_SGBRG10:
+		return "BAYER GBRG10";
+	case CIF_BAYER_SGRBG10:
+		return "BAYER GRBG10";
+	case CIF_BAYER_SRGGB10:
+		return "BAYER RGGB10";
+	case CIF_BAYER_SBGGR12:
+		return "BAYER BGGR12";
+	case CIF_BAYER_SGBRG12:
+		return "BAYER GBRG12";
+	case CIF_BAYER_SGRBG12:
+		return "BAYER GRBG12";
+	case CIF_BAYER_SRGGB12:
+		return "BAYER RGGB12";
+	case CIF_Y10:
+		return "Y10";
+	case CIF_Y12:
+		return "Y12";
 	default:
 		return "unknown/unsupported";
 	}
@@ -505,9 +581,8 @@ static int cif_cif10_img_src_select_strm_fmt(
 			img_src_height = strm_fmt_desc.min_frmsize.height;
 		}
 
-		if (
-			(img_src_width >= target_width) &&
-			(img_src_height >= target_height)) {
+		if ((img_src_width >= target_width) &&
+		    (img_src_height >= target_height)) {
 			u32 diff = abs(
 				target_height -
 				(target_width * img_src_height
@@ -682,17 +757,71 @@ static void cif_cif10_config_for(struct cif_cif10_device *cif_cif10_dev)
 	if (cif_cif10_dev == NULL)
 		return;
 
-	cam_itf = &cif_cif10_dev->config.cam_itf;
-	if (!PLTFRM_CAM_ITF_IS_BT656(cam_itf->type))
-		cif_fmt_val = INPUT_MODE_YUV |
-			      YUV_INPUT_422 |
-			      INPUT_420_ORDER_EVEN |
-			      OUTPUT_420_ORDER_EVEN;
-
 	input_fmt =
 		&(cif_cif10_dev->config.img_src_output.frm_fmt);
 	output_fmt =
 		&(cif_cif10_dev->config.output);
+	cam_itf = &cif_cif10_dev->config.cam_itf;
+	if (PLTFRM_CAM_ITF_IS_BT656(cam_itf->type)) {
+		if (input_fmt->height == NTSC_HEIGHT) {
+			cif_fmt_val = INPUT_MODE_NTSC;
+		} else if (input_fmt->height == PAL_HEIGHT) {
+			cif_fmt_val = INPUT_MODE_PAL;
+		} else {
+			if (PLTFRM_CAM_ITF_IS_BT656_MIX(cam_itf->type)) {
+				cif_fmt_val = INPUT_MODE_YUV |
+					      VSY_LOW_ACTIVE |
+					      HSY_LOW_ACTIVE;
+			}
+		}
+	} else if (PLTFRM_CAM_ITF_IS_BT601(cam_itf->type)) {
+		if (CIF_CIF10_PIX_FMT_IS_RAW_BAYER(input_fmt->pix_fmt)) {
+			if (PLTFRM_CAM_ITF_DVP_BW(cam_itf->type) == 8)
+				cif_fmt_val = INPUT_MODE_RAW |
+					      RAW_DATA_WIDTH_8;
+			else if (PLTFRM_CAM_ITF_DVP_BW(cam_itf->type) == 10)
+				cif_fmt_val = INPUT_MODE_RAW |
+					      RAW_DATA_WIDTH_10;
+			else
+				cif_fmt_val = INPUT_MODE_RAW |
+					      RAW_DATA_WIDTH_12;
+		} else if (CIF_CIF10_PIX_FMT_IS_JPEG(input_fmt->pix_fmt)) {
+			cif_fmt_val = INPUT_MODE_JPEG;
+		} else {
+			cif_fmt_val = INPUT_MODE_YUV |
+				      YUV_INPUT_422 |
+				      INPUT_420_ORDER_EVEN |
+				      OUTPUT_420_ORDER_EVEN;
+			switch (input_fmt->pix_fmt) {
+			case CIF_UYV422I:
+				cif_fmt_val = YUV_INPUT_ORDER_UYVY(cif_fmt_val);
+				break;
+			case CIF_YUV422I:
+				cif_fmt_val = YUV_INPUT_ORDER_YUYV(cif_fmt_val);
+				break;
+			case CIF_YVU422I:
+				cif_fmt_val = YUV_INPUT_ORDER_YVYU(cif_fmt_val);
+				break;
+			case CIF_VYU422I:
+				cif_fmt_val = YUV_INPUT_ORDER_VYUY(cif_fmt_val);
+				break;
+			default:
+				cif_fmt_val = YUV_INPUT_ORDER_YUYV(cif_fmt_val);
+				break;
+			}
+		}
+
+		/* config vsync/hsync */
+		if (cam_itf->cfg.dvp.hsync)
+			cif_fmt_val |= HSY_LOW_ACTIVE;
+		else
+			cif_fmt_val &= ~HSY_LOW_ACTIVE;
+
+		if (cam_itf->cfg.dvp.vsync)
+			cif_fmt_val &= ~VSY_HIGH_ACTIVE;
+		else
+			cif_fmt_val |= VSY_HIGH_ACTIVE;
+	}
 
 	switch (output_fmt->pix_fmt) {
 	case CIF_YUV422SP:
@@ -716,31 +845,6 @@ static void cif_cif10_config_for(struct cif_cif10_device *cif_cif10_dev)
 		break;
 	}
 
-	if (PLTFRM_CAM_ITF_IS_BT656(cam_itf->type)) {
-		pr_info("input_fmt->height %d\n", input_fmt->height);
-		if (input_fmt->height == NTSC_HEIGHT)
-			cif_fmt_val |= INPUT_MODE_NTSC;
-		else
-			cif_fmt_val |= INPUT_MODE_PAL;
-	} else {
-		switch (input_fmt->pix_fmt) {
-		case CIF_UYV422I:
-			cif_fmt_val = YUV_INPUT_ORDER_UYVY(cif_fmt_val);
-			break;
-		case CIF_YUV422I:
-			cif_fmt_val = YUV_INPUT_ORDER_YUYV(cif_fmt_val);
-			break;
-		case CIF_YVU422I:
-			cif_fmt_val = YUV_INPUT_ORDER_YVYU(cif_fmt_val);
-			break;
-		case CIF_VYU422I:
-			cif_fmt_val = YUV_INPUT_ORDER_VYUY(cif_fmt_val);
-			break;
-		default:
-			cif_fmt_val = YUV_INPUT_ORDER_YUYV(cif_fmt_val);
-			break;
-		}
-	}
 	cif_iowrite32OR(
 		cif_fmt_val,
 		cif_cif10_dev->config.base_addr +
@@ -875,12 +979,12 @@ static int cif_cif10_config_cif_phy(
 	cif_cif10_config_for(dev);
 	cif_cif10_config_frm_addr(dev);
 
-	cif_iowrite32(0xFFFFFFFF,
+	cif_iowrite32(INTSTAT_CLS,
 		      dev->config.base_addr +
 		      CIF_CIF_INTSTAT);
 
-	cif_crop = output->defrect.left +
-		   (output->defrect.top << 16);
+	cif_crop = input->defrect.left +
+		   (input->defrect.top << 16);
 
 	if (cif_ctrl_val & MODE_PINGPONG) {
 		if (PLTFRM_CAM_ITF_IS_BT601_FIELD(
@@ -891,12 +995,18 @@ static int cif_cif10_config_cif_phy(
 		} else {
 			cif_fs  = (output->defrect.height << 16) +
 				  output->defrect.width;
-			cif_width = output->defrect.width;
+			if (CIF_CIF10_PIX_FMT_IS_RAW_BAYER(input->pix_fmt))
+				cif_width = output->defrect.width * 2;
+			else
+				cif_width = output->defrect.width;
 		}
 	} else {/* this is one frame mode */
 		cif_fs  = output->defrect.width +
 			  (output->defrect.height << 16);
-		cif_width = output->defrect.width;
+		if (CIF_CIF10_PIX_FMT_IS_RAW_BAYER(input->pix_fmt))
+			cif_width = output->defrect.width * 2;
+		else
+			cif_width = output->defrect.width;
 	}
 
 	cif_iowrite32(cif_crop,
@@ -908,13 +1018,18 @@ static int cif_cif10_config_cif_phy(
 	cif_iowrite32(cif_width,
 		      dev->config.base_addr +
 		      CIF_CIF_VIR_LINE_WIDTH);
-	cif_iowrite32(0x00000000,
+	cif_iowrite32(FRAME_STAT_CLS,
 		      dev->config.base_addr +
 		      CIF_CIF_FRAME_STATUS);
 	/* MUST bypass scale */
-	cif_iowrite32(0x10,
-		      dev->config.base_addr +
-		      CIF_CIF_SCL_CTRL);
+	if (CIF_CIF10_PIX_FMT_IS_RAW_BAYER(input->pix_fmt))
+		cif_iowrite32(ENABLE_RAW_16BIT_BYPASS,
+			      dev->config.base_addr +
+			      CIF_CIF_SCL_CTRL);
+	else
+		cif_iowrite32(ENABLE_YUV_16BIT_BYPASS,
+			      dev->config.base_addr +
+			      CIF_CIF_SCL_CTRL);
 
 	return 0;
 }
@@ -1098,7 +1213,7 @@ static int cif_cif10_start(
 	if (IS_ERR_VALUE(ret))
 		goto err;
 	/* capture complete interrupt enable */
-	cif_iowrite32(FRAME_END_EN | PST_INF_FRAME_END_EN,
+	cif_iowrite32(FRAME_END_EN/* | PST_INF_FRAME_END_EN */,
 		      dev->config.base_addr + CIF_CIF_INTEN);
 	cif_iowrite32OR(ENABLE_CAPTURE,
 			dev->config.base_addr + CIF_CIF_CTRL);
@@ -1359,14 +1474,9 @@ int cif_cif10_release(
 	if (strm->state == CIF_CIF10_STATE_DISABLED)
 		return 0;
 
-
-	if (strm) {
-		if (strm->frame.frame_t != NULL) {
-			kfree(strm->frame.frame_t);
-			strm->frame.frame_t = NULL;
-			strm->frame.cnt = 0;
-		}
-	}
+	kfree(strm->frame.frame_t);
+	strm->frame.frame_t = NULL;
+	strm->frame.cnt = 0;
 
 	if (strm->state == CIF_CIF10_STATE_STREAMING) {
 		cif_cif10_pltfrm_pr_warn(
@@ -1654,10 +1764,8 @@ int cif_cif10_calc_min_out_buff_size(
 	height  = frm_fmt->defrect.height;
 	llength = frm_fmt->llength;
 
-	if (
-		CIF_CIF10_PIX_FMT_IS_RAW_BAYER(pix_fmt) &&
-		CIF_CIF10_PIX_FMT_GET_BPP(pix_fmt) > 8)
-		/* RAW input > 8BPP is stored with 16BPP by MI */
+	if (CIF_CIF10_PIX_FMT_IS_RAW_BAYER(pix_fmt))
+		/* RAW input is stored with 16BPP by MI */
 		bpp = 16;
 	else
 		bpp = CIF_CIF10_PIX_FMT_GET_BPP(pix_fmt);
@@ -1863,10 +1971,14 @@ irqreturn_t cif_cif10_cifirq(int irq, void *data)
 			cif_err = 1;
 			goto cif_rst;
 		}
-		if (tmp_cif_frmst & CIF_F0_READY)
+		if (tmp_cif_frmst & CIF_F0_READY) {
 			frm_flag = 0;
-		else if (tmp_cif_frmst & CIF_F1_READY)
+		} else if (tmp_cif_frmst & CIF_F1_READY) {
 			frm_flag = 1;
+			cif_iowrite32(FRAME_STAT_CLS,
+				      base_addr +
+				      CIF_CIF_FRAME_STATUS);
+		}
 
 		/*
 		 * CVBSIN没有信号输入时,TVD是以一个默认的
@@ -1968,7 +2080,6 @@ irqreturn_t cif_cif10_cifirq(int irq, void *data)
 		} else {
 			cif_cif10_dev->irqinfo.cif_frm0_ok = 0;
 			cif_cif10_dev->irqinfo.cif_frm1_ok = 0;
-			pr_info("video_buf queue is empty!\n");
 			goto end;
 		}
 	} else {
@@ -2017,11 +2128,16 @@ irqreturn_t cif_cif10_oneframe_irq(int irq, void *data)
 	short cif_err = 0;
 	unsigned long y_addr, uv_addr;
 	unsigned int cifctrl, lastpix, lastline;
+	unsigned int cif_for, cif_crop;
 	unsigned int cif_frmst, reg_intstat;
 	struct cif_cif10_device *cif_cif10_dev = data;
 	struct videobuf_buffer *curr_buf = NULL, *next_buf = NULL;
 	void __iomem *base_addr =
 		cif_cif10_dev->config.base_addr;
+	struct pltfrm_cam_itf *cam_itf =
+		&cif_cif10_dev->config.cam_itf;
+	void *vaddr;
+	unsigned char uv_1st_byte, uv_2nd_byte;
 
 	cifctrl  = cif_ioread32(base_addr +
 				CIF_CIF_CTRL);
@@ -2054,6 +2170,40 @@ irqreturn_t cif_cif10_oneframe_irq(int irq, void *data)
 			cif_ioread32(base_addr + CIF_CIF_LAST_PIX);
 
 		curr_buf = cif_cif10_dev->stream.curr_buf;
+		if (cif_cif10_dev->irqinfo.dmairq_idx == 0 &&
+		    PLTFRM_CAM_ITF_IS_BT656_MIX(cam_itf->type)) {
+			cif_cif10_dev->irqinfo.dmairq_idx = 1;
+			cif_for  = cif_ioread32(base_addr + CIF_CIF_FOR);
+			if ((cif_for & 0x1c) == INPUT_MODE_YUV)	{
+				cif_crop =
+					cif_ioread32(base_addr + CIF_CIF_CROP);
+				y_addr =
+					videobuf_to_dma_contig(curr_buf);
+				uv_addr = y_addr +
+					  curr_buf->width *
+					  curr_buf->height;
+				vaddr = phys_to_virt(uv_addr);
+				uv_1st_byte = *((unsigned char *)vaddr);
+				uv_2nd_byte = *((unsigned char *)vaddr + 1);
+				if (CIF_CROP_START_X(cif_crop) < 0x2)
+					cif_crop = (cif_crop &
+						    ~CIF_CROP_X_MASK) |
+						   0x2;
+				if (uv_1st_byte == 0xFF &&
+				    uv_2nd_byte == 0x00) {
+					cif_iowrite32(cif_crop,
+						      base_addr + CIF_CIF_CROP);
+				} else {
+					/* miss y data, reset yuv order */
+					cif_iowrite32(cif_crop,
+						      base_addr + CIF_CIF_CROP);
+					cif_for = YUV_INPUT_ORDER_YVYU(cif_for);
+					cif_iowrite32(cif_for,
+						      base_addr + CIF_CIF_FOR);
+					goto end;
+				}
+			}
+		}
 
 		if (!list_empty(&cif_cif10_dev->stream.buf_queue) &&
 		    !cif_cif10_dev->stream.stop &&
@@ -2084,7 +2234,6 @@ irqreturn_t cif_cif10_oneframe_irq(int irq, void *data)
 			list_del_init(&next_buf->queue);
 			wake_up(&curr_buf->done);
 		} else {
-			pr_info("video_buf queue is empty!\n");
 			goto end;
 		}
 	} else {
@@ -2142,8 +2291,9 @@ end:
 
 irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 {
-	short reset = 0, cif_err = 0, frm_flag;
+	short reset = 0, cif_err = 0, frm_flag = -1;
 	unsigned long y_addr, uv_addr;
+	unsigned int cif_for, cif_crop;
 	unsigned int cifctrl, lastpix, lastline;
 	unsigned long tmp_cif_frmst, reg_intstat;
 	struct cif_cif10_device *cif_cif10_dev = data;
@@ -2151,6 +2301,10 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 	struct videobuf_buffer *curr_buf = NULL, *next_buf = NULL;
 	void __iomem *base_addr =
 		cif_cif10_dev->config.base_addr;
+	struct pltfrm_cam_itf *cam_itf =
+		&cif_cif10_dev->config.cam_itf;
+	void *vaddr;
+	unsigned char uv_1st_byte, uv_2nd_byte;
 
 	frm_fmt =
 		&cif_cif10_dev->config.img_src_output.frm_fmt;
@@ -2158,7 +2312,7 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 	reg_intstat =
 		cif_ioread32(base_addr + CIF_CIF_INTSTAT);
 
-	if ((reg_intstat & PST_INF_FRAME_END) &&
+	if (/*(reg_intstat & PST_INF_FRAME_END) &&*/
 	    (reg_intstat & FRAME_END)) {
 		cif_iowrite32(INTSTAT_CLS,
 			      base_addr +
@@ -2186,6 +2340,9 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 		} else if (tmp_cif_frmst & CIF_F1_READY) {
 			frm_flag = 1;
 			curr_buf = cif_cif10_dev->stream.next_buf;
+			cif_iowrite32(FRAME_STAT_CLS,
+				      base_addr +
+				      CIF_CIF_FRAME_STATUS);
 		}
 
 		if (!curr_buf) {
@@ -2194,12 +2351,51 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 			goto end;
 		}
 
+		if (cif_cif10_dev->irqinfo.dmairq_idx == 0 &&
+		    PLTFRM_CAM_ITF_IS_BT656_MIX(cam_itf->type)) {
+			cif_cif10_dev->irqinfo.dmairq_idx = 1;
+			cif_for  = cif_ioread32(base_addr + CIF_CIF_FOR);
+			if ((cif_for & 0x1c) == INPUT_MODE_YUV)	{
+				cif_crop =
+					cif_ioread32(base_addr + CIF_CIF_CROP);
+				y_addr =
+					videobuf_to_dma_contig(curr_buf);
+				uv_addr = y_addr +
+					  curr_buf->width *
+					  curr_buf->height;
+				vaddr = phys_to_virt(uv_addr);
+				uv_1st_byte = *((unsigned char *)vaddr);
+				uv_2nd_byte = *((unsigned char *)vaddr + 1);
+				if (CIF_CROP_START_X(cif_crop) < 0x2)
+					cif_crop = (cif_crop &
+						    ~CIF_CROP_X_MASK) |
+						   0x2;
+				if (uv_1st_byte == 0xFF &&
+				    uv_2nd_byte == 0x00) {
+					cif_iowrite32(cif_crop,
+						      base_addr + CIF_CIF_CROP);
+				} else {
+					/* miss y data, reset yuv order */
+					cif_iowrite32(cif_crop,
+						      base_addr + CIF_CIF_CROP);
+					cif_for = YUV_INPUT_ORDER_YVYU(cif_for);
+					cif_iowrite32(cif_for,
+						      base_addr + CIF_CIF_FOR);
+					goto end;
+				}
+			}
+		}
+
 		if (!list_empty(&cif_cif10_dev->stream.buf_queue) &&
 		    !cif_cif10_dev->stream.stop) {
 			next_buf = list_entry(
 					cif_cif10_dev->stream.buf_queue.next,
 					struct videobuf_buffer,
 					queue);
+			if (frm_flag == 0 && (next_buf->i % 2) != 0)
+				goto end;
+			if (frm_flag == 1 && (next_buf->i % 2) == 0)
+				goto end;
 			WARN_ON(next_buf->state != VIDEOBUF_QUEUED);
 			y_addr = videobuf_to_dma_contig(next_buf);
 			uv_addr = y_addr +
@@ -2236,7 +2432,6 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 				wake_up(&curr_buf->done);
 			}
 		} else {
-			pr_info("video_buf queue is empty!\n");
 			goto end;
 		}
 	} else {

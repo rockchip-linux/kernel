@@ -55,7 +55,7 @@ void cif_cif10_cifrest(struct work_struct *work)
 	init_para.cif_base = cif_cif10_dev->config.base_addr;
 	(soc_cfg->soc_cfg)(&cfg_para);
 
-	cif_iowrite32(FRAME_END_EN | PST_INF_FRAME_END_EN,
+	cif_iowrite32(FRAME_END_EN,
 		      cif_cif10_dev->config.base_addr + CIF_CIF_INTEN);
 	cif_iowrite32OR(ENABLE_CAPTURE,
 			cif_cif10_dev->config.base_addr + CIF_CIF_CTRL);

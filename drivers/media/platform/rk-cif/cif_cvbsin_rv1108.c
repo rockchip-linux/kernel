@@ -76,6 +76,7 @@ static int soc_cvbsin_poweron(void)
 		      0xFFFF0000 |
 		      VADC_PD_CLMP);
 	usleep_range(1000, 10 * 1000);
+	soc_cvbsin_reset();
 	return 0;
 }
 
@@ -163,7 +164,6 @@ static int soc_cvbsin_init(struct pltfrm_cvbsin_init_para *init)
 		       rv1108_cvbs.cvbs_clk_parent);
 	clk_set_rate(rv1108_cvbs.cvbs_pclk, 54000000);
 
-	soc_cvbsin_reset();
 	/* config adc */
 	write_grf_reg(RV1108_GRF_SOC_CON10,
 		      0xFFFF0000 |

@@ -63,6 +63,7 @@ struct cvbsin_module_config {
 };
 
 struct cif_cvbsin_module {
+	int pwr_stat;
 	void __iomem *base_addr;
 	struct device *dev;
 	struct v4l2_subdev sd;
@@ -80,6 +81,7 @@ static struct cif_cvbsin_module *cvbsin;
 #define read_cvbsin_reg(addr)			\
 	__raw_readl(addr + cvbsin->base_addr)
 
+#define CVBSIN_EXT_CLK 54000000
 static struct cvbsin_module_config cvbsin_configs[] = {
 	{
 		.name = "720x480_60fps", /*NTSC*/
@@ -91,9 +93,14 @@ static struct cvbsin_module_config cvbsin_configs[] = {
 		.frm_intrvl = {
 			.interval = {
 				.numerator = 1,
-				.denominator = 60
+				.denominator = 30
 			}
-		}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
 	},
 	{
 		.name = "720x576_50fps", /*PAL*/
@@ -105,9 +112,14 @@ static struct cvbsin_module_config cvbsin_configs[] = {
 		.frm_intrvl = {
 			.interval = {
 				.numerator = 1,
-				.denominator = 50
+				.denominator = 25
 			}
-		}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
 	}
 };
 
@@ -135,6 +147,14 @@ static  int cvbsin_module_s_ext_ctrls(
 static int cvbsin_module_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct pltfrm_cvbsin_cfg_para cfg_para;
+
+	if (cvbsin->pwr_stat == on) {
+		dev_info(cvbsin->dev,
+			 "cvbsin already %s\n",
+			 on ? "power on" : "power off");
+		return 0;
+	}
+
 	if (on) {
 		cfg_para.cmd = PLTFRM_CVBSIN_POWERON;
 		(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
@@ -150,6 +170,7 @@ static int cvbsin_module_s_power(struct v4l2_subdev *sd, int on)
 		cfg_para.cmd = PLTFRM_CVBSIN_POWEROFF;
 		(cvbsin->soc_cfg->soc_cfg)(&cfg_para);
 	}
+	cvbsin->pwr_stat = on;
 
 	return 0;
 }
@@ -168,7 +189,9 @@ static long cvbsin_module_ioctl(
 
 	if (cmd == PLTFRM_CIFCAM_G_ITF_CFG) {
 		itf_cfg = (struct pltfrm_cam_itf *)arg;
-		itf_cfg->type = PLTFRM_CAM_ITF_BT601_8_FIELD;
+		memcpy(itf_cfg,
+		       &cvbsin_configs[0].itf_cfg,
+		       sizeof(struct pltfrm_cam_itf));
 		return ret;
 	} else if (cmd == PLTFRM_CIFCAM_ATTACH) {
 		return ret;
@@ -230,15 +253,9 @@ static int cvbsin_module_s_stream(struct v4l2_subdev *sd, int enable)
 	return 0;
 }
 
-static struct v4l2_subdev_video_ops cvbsin_module_video_ops = {
-	.s_frame_interval = cvbsin_module_s_frame_interval,
-	.s_stream = cvbsin_module_s_stream
-};
-
 static int cvbsin_module_enum_frameintervals(
 	struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh,
-	struct v4l2_subdev_frame_interval_enum *fie)
+	struct v4l2_frmivalenum *fie)
 {
 	int index = 0;
 
@@ -248,17 +265,20 @@ static int cvbsin_module_enum_frameintervals(
 	if (!cvbsin || !cvbsin->soc_cfg)
 		return -1;
 
-	cvbsin_module_s_power(sd, 1);
-	msleep(1000);
+	if (!cvbsin->pwr_stat) {
+		cvbsin_module_s_power(sd, 1);
+		msleep(1000);
+	}
 
 	index = read_cvbsin_reg(CVBSIN_STATUS) & 0x1;
 
-	fie->code = cvbsin_configs[index].frm_fmt.code;
+	fie->pixel_format = cvbsin_configs[index].frm_fmt.code;
 	fie->width = cvbsin_configs[index].frm_fmt.width;
 	fie->height = cvbsin_configs[index].frm_fmt.height;
-	fie->interval.numerator =
+	fie->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	fie->discrete.numerator =
 		cvbsin_configs[index].frm_intrvl.interval.numerator;
-	fie->interval.denominator =
+	fie->discrete.denominator =
 		cvbsin_configs[index].frm_intrvl.interval.denominator;
 
 	return 0;
@@ -266,10 +286,8 @@ static int cvbsin_module_enum_frameintervals(
 
 static int cvbsin_module_g_fmt(
 	struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh,
-	struct v4l2_subdev_format *format)
+	struct v4l2_mbus_framefmt *fmt)
 {
-	struct v4l2_mbus_framefmt *fmt = &format->format;
 	int index = 0;
 
 	if (cvbsin == NULL)
@@ -287,21 +305,22 @@ static int cvbsin_module_g_fmt(
 
 static int cvbsin_module_s_fmt(
 	struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh,
-	struct v4l2_subdev_format *format)
+	struct v4l2_mbus_framefmt *fmt)
 {
 	return 0;
 }
-static struct v4l2_subdev_pad_ops cvbsin_module_pad_ops = {
-	.enum_frame_interval = cvbsin_module_enum_frameintervals,
-	.get_fmt = cvbsin_module_g_fmt,
-	.set_fmt = cvbsin_module_s_fmt,
+
+static struct v4l2_subdev_video_ops cvbsin_module_video_ops = {
+	.enum_frameintervals = cvbsin_module_enum_frameintervals,
+	.s_mbus_fmt = cvbsin_module_g_fmt,
+	.s_mbus_fmt = cvbsin_module_s_fmt,
+	.s_frame_interval = cvbsin_module_s_frame_interval,
+	.s_stream = cvbsin_module_s_stream
 };
 
 static struct v4l2_subdev_ops cvbsin_module_ops = {
 	.core = &cvbsin_module_core_ops,
 	.video = &cvbsin_module_video_ops,
-	.pad = &cvbsin_module_pad_ops
 };
 
 static struct pltfrm_cvbsin_cfg rv1108_cvbsin_cfg = {

@@ -34,9 +34,7 @@ void *cif_cif10_img_src_v4l2_pltfrm_subdev_to_img_src(
 	struct platform_device *pltfrm_dev = NULL;
 	struct v4l2_subdev *subdev;
 
-	if (
-		dev == NULL ||
-			dev->bus != &platform_bus_type){
+	if (!dev || dev->bus != &platform_bus_type) {
 		cif_cif10_pltfrm_pr_err(
 				dev,
 				"not an pltfrm device\n");
@@ -175,6 +173,24 @@ static enum cif_cif10_pix_fmt img_src_v4l2_subdev_pix_fmt2cif_cif10_pix_fmt(
 		return CIF_BAYER_SRGGB12;
 	case V4L2_MBUS_FMT_JPEG_1X8:
 		return CIF_JPEG;
+	case V4L2_MBUS_FMT_Y8_1X8:
+		#if (CIF_CIF10_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR8;
+		#else
+		return CIF_YUV400;
+		#endif
+	case V4L2_MBUS_FMT_Y10_1X10:
+		#if (CIF_CIF10_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR10;
+		#else
+		return CIF_Y10;
+		#endif
+	case V4L2_MBUS_FMT_Y12_1X12:
+		#if (CIF_CIF10_PIX_FMT_Y_AS_BAYER)
+		return CIF_BAYER_SBGGR12;
+		#else
+		return CIF_Y12;
+		#endif
 	default:
 		return CIF_UNKNOWN_FORMAT;
 	}
@@ -224,6 +240,12 @@ static int cif_cif10_pix_fmt2img_src_v4l2_subdev_pix_fmt(
 		return V4L2_MBUS_FMT_SRGGB12_1X12;
 	case CIF_JPEG:
 		return V4L2_MBUS_FMT_JPEG_1X8;
+	case CIF_YUV400:
+		return V4L2_MBUS_FMT_Y8_1X8;
+	case CIF_Y10:
+		return V4L2_MBUS_FMT_Y10_1X10;
+	case CIF_Y12:
+		return V4L2_MBUS_FMT_Y12_1X12;
 	default:
 		return -EINVAL;
 	}
@@ -305,7 +327,7 @@ int cif_cif10_img_src_v4l2_subdev_enum_strm_fmts(
 {
 	int ret;
 	struct v4l2_subdev *subdev = img_src;
-	struct v4l2_subdev_frame_interval_enum fie = {.index = index};
+	struct v4l2_frmivalenum fie = {.index = index};
 	struct pltfrm_cam_defrect defrect;
 	v4l2_std_id std;
 
@@ -315,24 +337,22 @@ int cif_cif10_img_src_v4l2_subdev_enum_strm_fmts(
 	else
 		strm_fmt_desc->std_id = 0;
 
-	ret = v4l2_subdev_call(
-			subdev,
-			pad,
-			enum_frame_interval,
-			NULL,
-			&fie);
+	ret = v4l2_subdev_call(subdev,
+			       video,
+			       enum_frameintervals,
+			       &fie);
 	if (!IS_ERR_VALUE(ret)) {
 		strm_fmt_desc->discrete_intrvl = true;
 		strm_fmt_desc->min_intrvl.numerator =
-			fie.interval.numerator;
+			fie.discrete.numerator;
 		strm_fmt_desc->min_intrvl.denominator =
-			fie.interval.denominator;
+			fie.discrete.denominator;
 		strm_fmt_desc->discrete_frmsize = true;
 		strm_fmt_desc->min_frmsize.width = fie.width;
 		strm_fmt_desc->min_frmsize.height = fie.height;
 		strm_fmt_desc->pix_fmt =
 			img_src_v4l2_subdev_pix_fmt2cif_cif10_pix_fmt(
-				fie.code);
+				fie.pixel_format);
 
 		defrect.width = fie.width;
 		defrect.height = fie.height;
@@ -343,9 +363,8 @@ int cif_cif10_img_src_v4l2_subdev_enum_strm_fmts(
 			ioctl,
 			PLTFRM_CIFCAM_G_DEFRECT,
 			(void *)&defrect);
-		if (
-			(defrect.defrect.width == 0) ||
-			(defrect.defrect.height == 0)) {
+		if ((defrect.defrect.width == 0) ||
+		    (defrect.defrect.height == 0)) {
 			strm_fmt_desc->defrect.left = 0;
 			strm_fmt_desc->defrect.top = 0;
 			strm_fmt_desc->defrect.width = fie.width;
@@ -364,17 +383,17 @@ int cif_cif10_img_src_v4l2_subdev_s_strm_fmt(
 {
 	int ret = 0;
 	struct v4l2_subdev *subdev = img_src;
-	struct v4l2_subdev_format format;
 	struct v4l2_subdev_frame_interval intrvl;
+	struct v4l2_mbus_framefmt format;
 
-	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = cif_cif10_pix_fmt2img_src_v4l2_subdev_pix_fmt(
-		strm_fmt->frm_fmt.pix_fmt);
-	format.format.width = strm_fmt->frm_fmt.width;
-	format.format.height = strm_fmt->frm_fmt.height;
-	ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &format);
+	format.code = cif_cif10_pix_fmt2img_src_v4l2_subdev_pix_fmt(
+			strm_fmt->frm_fmt.pix_fmt);
+	format.width = strm_fmt->frm_fmt.width;
+	format.height = strm_fmt->frm_fmt.height;
+	ret = v4l2_subdev_call(subdev, video, s_mbus_fmt, &format);
 	if (IS_ERR_VALUE(ret))
 		goto err;
+
 	intrvl.interval.numerator = strm_fmt->frm_intrvl.numerator;
 	intrvl.interval.denominator = strm_fmt->frm_intrvl.denominator;
 	ret = v4l2_subdev_call(subdev, video, s_frame_interval, &intrvl);

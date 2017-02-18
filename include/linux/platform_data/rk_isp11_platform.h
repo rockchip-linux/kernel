@@ -26,6 +26,11 @@
 #define DMA_VDEV_NAME DRIVER_NAME"_dmapath"
 #define Y12_VDEV_NAME DRIVER_NAME"_y12path"
 
+enum pltfrm_cam_io_voltage {
+	PLTFRM_CAM_IO_1800 = 1800,
+	PLTFRM_CAM_IO_3300 = 3300,
+};
+
 enum pltfrm_cam_signal_polarity {
 	PLTFRM_CAM_SIGNAL_HIGH_LEVEL = 0,
 	PLTFRM_CAM_SIGNAL_LOW_LEVEL = 1,
@@ -74,11 +79,12 @@ struct pltfrm_cam_dvp_config {
 	enum pltfrm_cam_signal_polarity vsync;
 	enum pltfrm_cam_signal_polarity hsync;
 	enum pltfrm_cam_sample_type pclk;
+	enum pltfrm_cam_io_voltage io_vol;
 };
 
 struct pltfrm_cam_itf {
 	enum pltfrm_cam_itf_type type;
-
+	short cif_id;
 	union {
 		struct pltfrm_cam_mipi_config mipi;
 		struct pltfrm_cam_dvp_config dvp;

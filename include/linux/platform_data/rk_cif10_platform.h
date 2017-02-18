@@ -102,6 +102,7 @@ struct pltfrm_cam_itf {
 		struct pltfrm_cam_mipi_config mipi;
 		struct pltfrm_cam_dvp_config dvp;
 	} cfg;
+	unsigned int mclk_hz;
 };
 
 
