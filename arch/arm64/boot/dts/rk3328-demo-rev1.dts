@@ -96,3 +96,8 @@
 	pinctrl-0 = <&spdifm0_tx>;
 	status = "okay";
 };
+
+&usb2_otg {
+	/* 0 - Normal, 1 - Force Host, 2 - Force Device */
+	rockchip,usb-mode = <1>;
+};

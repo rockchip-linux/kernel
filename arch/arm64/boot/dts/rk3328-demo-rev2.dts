@@ -136,3 +136,8 @@
 &uart0 {
 	status = "disabled";
 };
+
+&usb2_otg {
+	/* 0 - Normal, 1 - Force Host, 2 - Force Device */
+	rockchip,usb-mode = <1>;
+};
