@@ -31,7 +31,7 @@
 #define FIRMWARE_MAGIC_SIZE        16
 #define FIRMWARE_VERSION_SIZE      16
 #define FIRMWARE_RESERVE_SIZE      60
-#define FIRMWARE_MAX_IMAGES        8
+#define FIRMWARE_MAX_IMAGES        16
 
 struct dsp_section_header {
 	u32 type;

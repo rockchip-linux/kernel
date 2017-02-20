@@ -16,7 +16,7 @@
 #define _ARCH_ARM_MACH_RK_DSP_H_
 #include <linux/ioctl.h>
 
-#define DSP_MAX_IMAGE         8
+#define DSP_MAX_IMAGE         16
 
 /*
  * DSP driver ioctl definition
