@@ -53,85 +53,6 @@
 #define DDR3_RTT_WR_60		(1 << 9)
 #define DDR3_RTT_WR_120		(2 << 9)
 
-/* LPDDR3 */
-/* MR0 (Device Information) */
-#define  LPDDR3_DAI		(0x1)
-#define  LPDDR3_RZQI		(0x3 << 3)
-#define  LPDDR3_WL_SUPOT	(1 << 6)
-#define  LPDDR3_RL3_SUPOT	(1 << 7)
-
-/* MR1 (Device Feature) */
-#define LPDDR3_BL8		(0x3)
-#define LPDDR3_WR_NUM(n)	((n) << 5)
-
-/* MR2 (Device Feature 2) */
-/* WL Set A,default */
-#define LPDDR3_RL3_WL1		(0x1)	/* <=166MHz,optional */
-#define LPDDR3_RL6_WL3		(0x4)	/* <=400MHz */
-#define LPDDR3_RL8_WL4		(0x6)	/* <=533MHz */
-#define LPDDR3_RL9_WL5		(0x7)	/* <=600MHz */
-#define LPDDR3_RL10_WL6		(0x8)	/* <=667MHz,default */
-#define LPDDR3_RL11_WL6		(0x9)	/* <=733MHz */
-#define LPDDR3_RL12_WL6		(0xa)	/* <=800MHz */
-#define LPDDR3_RL14_WL8		(0xc)	/* <=933MHz */
-#define LPDDR3_RL16_WL8		(0xe)	/* <=1066MHz */
-/* WL Set B, optional */
-/* #define LPDDR3_RL3_WL1	(0x1)        <=166MHz,optional */
-/* #define LPDDR3_RL6_WL3	(0x4)        <=400MHz */
-/* #define LPDDR3_RL8_WL4	(0x6)        <=533MHz */
-/* #define LPDDR3_RL9_WL5	(0x7)        <=600MHz */
-#define LPDDR3_RL10_WL8		(0x8)	/* <=667MHz,default */
-#define LPDDR3_RL11_WL9		(0x9)	/* <=733MHz */
-#define LPDDR3_RL12_WL9		(0xa)	/* <=800MHz */
-#define LPDDR3_RL14_WL11	(0xc)	/* <=933MHz */
-#define LPDDR3_RL16_WL13	(0xe)	/* <=1066MHz */
-/* 1:enable nWR programming > 9(defualt) */
-#define LPDDR3_WRE_NUM		(1 << 4)
-#define LPDDR3_WL_S		(1 << 6)	/* 1:Select WL Set B */
-#define LPDDR3_WR_LEVEL		(1 << 7)	/* 1:enable */
-
-/* MR3 (IO Configuration 1) */
-#define LPDDR3_DS_34		(0x1)
-#define LPDDR3_DS_40		(0x2)
-#define LPDDR3_DS_48		(0x3)
-#define LPDDR3_DS_60		(0x4)	/* reserved */
-#define LPDDR3_DS_80		(0x6)	/* reserved */
-#define LPDDR3_DS_34D_40U	(0x9)
-#define LPDDR3_DS_40D_48U	(0xa)
-#define LPDDR3_DS_34D_48U	(0xb)
-
-/* MR4 (Device Temperature) */
-#define LPDDR3_TREF_MASK	(0x7)
-/* SDRAM Low temperature operating limit exceeded */
-#define LPDDR3_LT_EXED		(0x0)
-#define LPDDR3_4_TREF		(0x1)
-#define LPDDR3_2_TREF		(0x2)
-#define LPDDR3_1_TREF		(0x3)
-#define LPDDR3_05_TREF		(0x4)
-#define LPDDR3_025_TREF		(0x5)
-#define LPDDR3_025_TREF_DERATE	(0x6)
-/* SDRAM High temperature operating limit exceeded */
-#define LPDDR3_HT_EXED		(0x7)
-
-/* 1:value has changed since last read of MR4 */
-#define LPDDR3_TUF		(0x1<<7)
-
-/* MR8 (Basic configuration 4) */
-#define LPDDR3_S8		(0x3)
-#define LPDDR3_DENSITY(mr8)	(8 << (((mr8) >> 2) & 0xf))	/* Unit:MB */
-#define LPDDR3_IO_WIDTH(mr8)	(32 >> (((mr8) >> 6) & 0x3))
-
-/* MR10 (Calibration) */
-#define LPDDR3_ZQINIT		(0xFF)
-#define LPDDR3_ZQCL		(0xAB)
-#define LPDDR3_ZQCS		(0x56)
-#define LPDDR3_ZQRESET		(0xC3)
-/* MR11 (ODT Control) */
-#define LPDDR3_ODT_60		(1)	/* optional for 1333 and 1600 */
-#define LPDDR3_ODT_120		(2)
-#define LPDDR3_ODT_240		(3)
-#define LPDDR3_ODT_DIS		(0)
-
 #define DDR3_FAST_EXIT			(1)
 #define ACTIVE_POWER_DOWN		(1)
 /* GRF */
@@ -159,6 +80,12 @@
 #define VOP_CLEAR_FLAG1			((1 << (4 + 16)) | (1 << 4))
 #define VOP_FLAG1_STATUS		(1 << 4)
 
+/* service msch */
+#define MSCH_DDR_TIMING			(0x000c)
+#define MSCH_READ_LATENCY		(0x0014)
+#define MSCH_ACTIVATE			(0x0038)
+#define MSCH_DEVTODEV			(0x003c)
+
 #define cru_read32(offset)		readl_relaxed(RK_CRU_VIRT + offset)
 #define cru_write32(v, offset)		writel_relaxed(v, RK_CRU_VIRT + offset)
 #define grf_read32(offset)		readl_relaxed(RK_GRF_VIRT + offset)
@@ -169,6 +96,10 @@
 #define ddrpctl_write32(v, offset)	writel_relaxed(v, RK_DDR_VIRT + offset)
 #define ddrphy_read32(offset)		readl_relaxed((RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE) + offset)
 #define ddrphy_write32(v, offset)	writel_relaxed(v, (RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE) + offset)
+#define msch_read32(offset)		readl_relaxed(RK_SERVICE_MSCH_VIRT + \
+					(offset))
+#define msch_write32(v, offset)		writel_relaxed(v, \
+					RK_SERVICE_MSCH_VIRT + (offset))
 
 #define READ_CS_INFO()		(((grf_read32(GRF_OS_REG2) >> 11) & 0x1) + 1)
 #define READ_COL_INFO()		(9 + ((grf_read32(GRF_OS_REG2) >> 9) & 0x3))
@@ -269,6 +200,16 @@ typedef union NOC_TIMING_Tag {
 	} b;
 } NOC_TIMING_T;
 
+typedef union NOC_ACTIVATE_Tag {
+	u32 d32;
+	struct {
+		unsigned Rrd : 4;	/* bit[0:3] */
+		unsigned Faw : 6;	/* bit[4:9] */
+		unsigned Fawbank : 1;	/* bit 10 */
+		unsigned reserved : 21;
+	} b;
+} NOC_ACTIVATE_T;
+
 struct ddr_timing {
 	u32 dram_spd_bin;
 	u32 sr_idle;
@@ -303,6 +244,9 @@ typedef struct BACKUP_REG_Tag {
 	u32 ddr_dll_status;
 	u32 ddr_sr_idle;
 	struct ddr_timing dram_timing;
+	u32 readlatency;
+	NOC_ACTIVATE_T noc_activate;
+	u32 devtodev;
 } BACKUP_REG_T;
 
 BACKUP_REG_T DEFINE_PIE_DATA(ddr_reg);
@@ -460,8 +404,6 @@ static __sramfunc void ddr_move_to_Lowpower_state(void)
 			       LOW_POWER)
 				continue;
 			break;
-		default:	/* Transitional state */
-			break;
 		}
 	}
 }
@@ -528,8 +470,6 @@ static __sramfunc void ddr_move_to_Access_state(void)
 				     == LOW_POWER))))
 				continue;
 			break;
-		default:	/* Transitional state */
-			break;
 		}
 	}
 	grf_write32(C_ACTIVE_IN_DISABLE, GRF_SOC_CON0);
@@ -554,8 +494,6 @@ static __sramfunc void ddr_move_to_Config_state(void)
 		case INIT_MEM:
 			ddrpctl_write32(CFG_STATE, DDR_PCTL_SCTL);
 			dsb();
-			break;
-		default:	/* Transitional state */
 			break;
 		}
 	}
@@ -706,8 +644,11 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	u32 cl;
 	u32 cwl;
 
-	PCTL_TIMING_T *p_pctl_timing = &(p_ddr_reg->pctl_timing);
-	NOC_TIMING_T *p_noc_timing = &(p_ddr_reg->noc_timing);
+	PCTL_TIMING_T *p_pctl_timing = &p_ddr_reg->pctl_timing;
+	NOC_TIMING_T *p_noc_timing = &p_ddr_reg->noc_timing;
+	NOC_ACTIVATE_T  *p_noc_activate = &p_ddr_reg->noc_activate;
+	u32 *p_readlatency = &p_ddr_reg->readlatency;
+	u32 *p_devtodev = &p_ddr_reg->devtodev;
 
 	p_pctl_timing->togcnt1u = nmhz / 2;
 	p_pctl_timing->togcnt100n = nmhz / 20;
@@ -818,8 +759,7 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	 * WrToMiss=WL*tCK + tWR + tRP + tRCD
 	 */
 	p_noc_timing->b.WrToMiss =
-	    ((cwl + ((DDR3_tWR * nmhz + 999) / 1000) + cl + cl) & 0x3F);
-
+	    (((cwl + ((DDR3_tWR * nmhz + 999) / 1000) + cl + cl) / 2) & 0x3F);
 	/*
 	 * tRAS, 37.5ns(400MHz)     37.5ns(533MHz)
 	 */
@@ -832,11 +772,11 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	p_pctl_timing->trc = p_pctl_timing->tras + p_pctl_timing->trp;
 
 	p_noc_timing->b.ActToAct =
-	    ((((ddr3_tRC_tFAW[p_ddr_reg->ddr_speed_bin] >> 8) * nmhz +
-	       999) / 1000) & 0x3F);
+	    (((((ddr3_tRC_tFAW[p_ddr_reg->ddr_speed_bin] >> 8) * nmhz +
+	       999) / 1000) / 2) & 0x3F);
 
 	p_pctl_timing->trtw = (cl + 2 - cwl);	/*DDR3_tRTW */
-	p_noc_timing->b.RdToWr = ((cl + 2 - cwl) & 0x1F);
+	p_noc_timing->b.RdToWr = (((cl + 2 - cwl) / 2) & 0x1F);
 	p_pctl_timing->tal = al;
 	p_pctl_timing->tcl = cl;
 	p_pctl_timing->tcwl = cwl;
@@ -859,6 +799,7 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	if (tmp < 4)
 		tmp = 4;
 	p_pctl_timing->trrd = (tmp & 0xF);
+	p_noc_activate->b.Rrd = tmp / 2;
 	/*
 	 * tRTP, max(4 tCK,7.5ns)
 	 */
@@ -869,7 +810,7 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	/*
 	 * RdToMiss=tRTP+tRP + tRCD - (BL/2 * tCK)
 	 */
-	p_noc_timing->b.RdToMiss = ((tmp + cl + cl - (bl >> 1)) & 0x3F);
+	p_noc_timing->b.RdToMiss = (((tmp + cl + cl - (bl >> 1)) / 2) & 0x3F);
 	/*
 	 * tWR, 15ns
 	 */
@@ -891,7 +832,7 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	if (tmp < 4)
 		tmp = 4;
 	p_pctl_timing->twtr = tmp & 0xF;
-	p_noc_timing->b.WrToRd = ((tmp + cwl) & 0x1F);
+	p_noc_timing->b.WrToRd = (((tmp + cwl) / 2) & 0x1F);
 	/*
 	 * tXP, max(3 tCK, 7.5ns)(<933MHz)
 	 */
@@ -976,310 +917,20 @@ static u32 ddr_get_parameter_ddr3(u32 nmhz)
 	/**************************************************
 	*NOC Timing
 	**************************************************/
-	p_noc_timing->b.BurstLen = ((bl >> 1) & 0x7);
-
+	/*
+	* tFAW,40ns(400MHz 1KB page) 37.5ns(533MHz 1KB page)
+	* 50ns(400MHz 2KB page)   50ns(533MHz 2KB page)
+	*/
+	tmp = (((ddr3_tRC_tFAW[0] & 0x0ff) * nmhz + 999) / 1000);
+	p_noc_activate->b.Fawbank = 1;
+	p_noc_activate->b.Faw = tmp / 2;
+	p_noc_timing->b.BurstLen = (((bl >> 1) / 2) & 0x7);
+	/*
+	* readlatency = trp + trcd + cl + bl + few cycles
+	*/
+	*p_readlatency = (cl + cl + cl + (bl / 2) + 26) / 2;
+	*p_devtodev = (1 << 4) | (1 << 2) | 1;
 OUT:
-	return ret;
-}
-
-static u32 ddr_get_parameter_lpddr3(u32 nmhz)
-{
-	u32 tmp;
-	u32 ret = 0;
-	u32 al;
-	u32 bl;
-	u32 cl;
-	u32 cwl;
-
-	u32 trp_tmp;
-	u32 trcd_tmp;
-	u32 tras_tmp;
-	u32 trtp_tmp;
-	u32 twr_tmp;
-	u32 twr_LP3;
-
-	PCTL_TIMING_T *p_pctl_timing = &(p_ddr_reg->pctl_timing);
-	NOC_TIMING_T *p_noc_timing = &(p_ddr_reg->noc_timing);
-
-	p_pctl_timing->togcnt1u = nmhz / 2;
-	p_pctl_timing->togcnt100n = nmhz / 20;
-	p_pctl_timing->tinit = 200;
-#define LPDDR3_tREFI_3_9_us		(39)
-#define LPDDR3_tMRD			(7)	/* tCK */
-#define LPDDR3_tRFC_8Gb			(130)	/* ns */
-#define LPDDR3_tRFC_4Gb			(130)	/* ns */
-#define LPDDR3_tRPpb_8_BANK		(18)	/* ns */
-#define LPDDR3_tRPab_SUB_tRPpb_8_BANK	(3)	/* ns */
-#define LPDDR3_tRTW			(1)	/* tCK */
-#define LPDDR3_tRAS			(42)	/* ns */
-#define LPDDR3_tRCD			(18)	/* ns */
-#define LPDDR3_tRRD			(10)	/* ns */
-#define LPDDR3_tRTP			(7)	/* ns */
-#define LPDDR3_tWR			(15)	/* ns */
-#define LPDDR3_tWTR			(7)	/* ns */
-#define LPDDR3_tXP			(7)	/* ns */
-#define LPDDR3_tXPDLL			(0)
-#define LPDDR3_tZQCS			(90)	/* ns */
-#define LPDDR3_tZQCSI			(0)
-#define LPDDR3_tDQS			(1)
-#define LPDDR3_tCKSRE			(2)	/* tCK */
-#define LPDDR3_tCKSRX			(2)	/* tCK */
-#define LPDDR3_tCKE			(3)	/* tCK */
-#define LPDDR3_tMOD			(0)
-#define LPDDR3_tRSTL			(0)
-#define LPDDR3_tZQCL			(360)	/* ns */
-#define LPDDR3_tMRR			(4)	/* tCK */
-#define LPDDR3_tCKESR			(15)	/* ns */
-#define LPDDR3_tDPD_US			(500)	/* ns */
-#define LPDDR3_tFAW			(50)	/* ns */
-#define LPDDR3_tDLLK			(2)	/* tCK */
-#define LPDDR3_tDQSCK_MAX		(3)	/* tCK */
-#define LPDDR3_tDQSCK_MIN		(0)	/* tCK */
-#define LPDDR3_tDQSS			(1)	/* tCK */
-#define LPDDR3_tDQSCK			(5)	/* 5.5ns */
-
-	al = 0;
-	bl = 8;
-	/* Only support Write Latency Set A here
-	 *      1066 933 800 733 667 600 533 400 166
-	 * RL,   16  14  12  11  10  9   8   6    3
-	 * WL,   8    8   6   6   6  5   4   3    1
-	 */
-	if (nmhz <= 400) {
-		cl = 6;
-		cwl = 3;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL6_WL3;
-	} else if (nmhz <= 533) {
-		cl = 8;
-		cwl = 4;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL8_WL4;
-	} else if (nmhz <= 600) {
-		cl = 9;
-		cwl = 5;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL9_WL5;
-	} else if (nmhz <= 667) {
-		cl = 10;
-		cwl = 6;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL10_WL6;
-	} else if (nmhz <= 733) {
-		cl = 11;
-		cwl = 6;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL11_WL6;
-	} else if (nmhz <= 800) {
-		cl = 12;
-		cwl = 6;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL12_WL6;
-	} else {
-		cl = 14;
-		cwl = 8;
-		p_ddr_reg->ddrMR[2] = LPDDR3_RL14_WL8;
-	}
-	p_ddr_reg->ddrMR[3] = p_ddr_reg->dram_timing.lpddr3_drv;
-	if (nmhz <= p_ddr_reg->dram_timing.dram_odt_dis_freq)
-		p_ddr_reg->ddrMR11 = LPDDR3_ODT_DIS;
-	else
-		p_ddr_reg->ddrMR11 = p_ddr_reg->dram_timing.lpddr3_odt;
-	p_ddr_reg->ddrMR[0] = 0;
-	/**************************************************
-	 * PCTL Timing
-	 **************************************************/
-	/*
-	 * tREFI, average periodic refresh interval, 3.9us(4Gb-16Gb)
-	 */
-	p_pctl_timing->trefi = (1 << 31) | LPDDR3_tREFI_3_9_us;
-
-	/*
-	 * tMRD, (=tMRW), 10 tCK
-	 */
-	p_pctl_timing->tmrd = LPDDR3_tMRD & 0x7;
-	/*
-	 * tRFC, 130ns(4Gb) 210ns(>4Gb)
-	 */
-	if (p_ddr_reg->ddr_capability_per_die > 0x20000000) {
-		p_pctl_timing->trfc = (LPDDR3_tRFC_8Gb * nmhz + 999) / 1000;
-		/*
-		 * tXSR, max(2tCK,tRFC+10ns)
-		 */
-		tmp = (((LPDDR3_tRFC_8Gb + 10) * nmhz + 999) / 1000);
-	} else {
-		p_pctl_timing->trfc = (LPDDR3_tRFC_4Gb * nmhz + 999) / 1000;
-		tmp = (((LPDDR3_tRFC_4Gb + 10) * nmhz + 999) / 1000);
-	}
-	if (tmp < 2)
-		tmp = 2;
-	p_pctl_timing->texsr = tmp & 0x3FF;
-
-	/*
-	 * tRP, max(3tCK, 18ns(Fast) 21ns(Typ) 27ns(Slow))
-	 */
-	if (1) {
-		trp_tmp = ((LPDDR3_tRPpb_8_BANK * nmhz + 999) / 1000);
-		if (trp_tmp < 3)
-			trp_tmp = 3;
-		p_pctl_timing->trp =
-		    ((((LPDDR3_tRPab_SUB_tRPpb_8_BANK * nmhz +
-			999) / 1000) & 0x3) << 16) | (trp_tmp & 0x1F);
-	}
-	/*
-	 * tRAS, max(3tCK,42ns)
-	 */
-	tras_tmp = ((LPDDR3_tRAS * nmhz + 999) / 1000);
-	if (tras_tmp < 3)
-		tras_tmp = 3;
-	p_pctl_timing->tras = (tras_tmp & 0x3F);
-
-	/*
-	 * tRCD, max(3tCK, 15ns(Fast) 18ns(Typ) 24ns(Slow))
-	 */
-	trcd_tmp = ((LPDDR3_tRCD * nmhz + 999) / 1000);
-	if (trcd_tmp < 3)
-		trcd_tmp = 3;
-	p_pctl_timing->trcd = (trcd_tmp & 0x1F);
-
-	/*
-	 * tRTP, max(4tCK, 7.5ns)
-	 */
-	trtp_tmp = ((LPDDR3_tRTP * nmhz + (nmhz >> 1) + 999) / 1000);
-	if (trtp_tmp < 4)
-		trtp_tmp = 4;
-	p_pctl_timing->trtp = trtp_tmp & 0xF;
-
-	/*
-	 * tWR, max(4tCK,15ns)
-	 */
-	twr_tmp = ((LPDDR3_tWR * nmhz + 999) / 1000);
-	if (twr_tmp < 4)
-		twr_tmp = 4;
-	p_pctl_timing->twr = twr_tmp & 0x1F;
-	if (twr_tmp <= 6)
-		twr_LP3 = 6;
-	else if (twr_tmp <= 8)
-		twr_LP3 = 8;
-	else if (twr_tmp <= 12)
-		twr_LP3 = twr_tmp;
-	else
-		twr_LP3 = 12;
-
-	if (twr_LP3 > 9)
-		p_ddr_reg->ddrMR[2] |= (1 << 4);	/*enable nWR > 9 */
-	twr_LP3 = (twr_LP3 > 9) ? (twr_LP3 - 10) : (twr_LP3 - 2);
-	p_ddr_reg->ddrMR[1] = LPDDR3_BL8 | LPDDR3_WR_NUM(twr_LP3);
-
-	/*
-	 * WrToMiss=WL*tCK + tWR + tRP + tRCD
-	 */
-	p_noc_timing->b.WrToMiss = (cwl + twr_tmp + trp_tmp + trcd_tmp);
-	/*
-	 * RdToMiss=tRTP + tRP + tRCD - (BL/2 * tCK)
-	 */
-	p_noc_timing->b.RdToMiss = (trtp_tmp + trp_tmp + trcd_tmp - (bl >> 1));
-	/*
-	 * tRC=tRAS+tRP
-	 */
-	p_pctl_timing->trc = ((tras_tmp + trp_tmp) & 0x3F);
-	p_noc_timing->b.ActToAct = (tras_tmp + trp_tmp);
-
-	/*
-	 * RdToWr=(cl+2-cwl)
-	 */
-	tmp = ((LPDDR3_tDQSCK * nmhz + (nmhz >> 1) + 999) / 1000);
-	p_pctl_timing->trtw = tmp;
-	p_noc_timing->b.RdToWr = tmp;
-	p_pctl_timing->tal = al;
-	p_pctl_timing->tcl = cl;
-	p_pctl_timing->tcwl = cwl;
-	/*
-	 * tRRD, max(2tCK,10ns)
-	 */
-	tmp = ((LPDDR3_tRRD * nmhz + 999) / 1000);
-	if (tmp < 2)
-		tmp = 2;
-	p_pctl_timing->trrd = (tmp & 0xF);
-	/*
-	 * tWTR, max(4tCK, 7.5ns)
-	 */
-	tmp = ((LPDDR3_tWTR * nmhz + (nmhz >> 1) + 999) / 1000);
-	if (tmp < 4)
-		tmp = 4;
-	p_pctl_timing->twtr = tmp & 0xF;
-	/*
-	 * WrToRd=WL+tWTR
-	 */
-	p_noc_timing->b.WrToRd = (cwl + tmp);
-	/*
-	 * tXP, max(3tCK,7.5ns)
-	 */
-	tmp = ((LPDDR3_tXP * nmhz + (nmhz >> 1) + 999) / 1000);
-	if (tmp < 3)
-		tmp = 3;
-	p_pctl_timing->txp = tmp & 0x7;
-	/*
-	 * tXPDLL, 0ns
-	 */
-	p_pctl_timing->txpdll = LPDDR3_tXPDLL;
-	/*
-	 * tZQCS, 90ns
-	 */
-	p_pctl_timing->tzqcs = ((LPDDR3_tZQCS * nmhz + 999) / 1000) & 0x7F;
-	/*
-	 * tZQCSI,
-	 */
-	p_pctl_timing->tzqcsi = LPDDR3_tZQCSI;
-	/*
-	 * tDQS,
-	 */
-	if (nmhz <= 733)
-		p_pctl_timing->tdqs = LPDDR3_tDQS;
-	else
-		p_pctl_timing->tdqs = LPDDR3_tDQS + 1;
-	/*
-	 * tCKSRE=tCPDED, 2 tCK
-	 */
-	p_pctl_timing->tcksre = LPDDR3_tCKSRE;
-	/*
-	 * tCKSRX, 2 tCK
-	 */
-	p_pctl_timing->tcksrx = LPDDR3_tCKSRX;
-	/*
-	 * tCKE, (max 7.5ns,3 tCK)
-	 */
-	tmp = ((7 * nmhz + (nmhz >> 1) + 999) / 1000);
-	if (tmp < LPDDR3_tCKE)
-		tmp = LPDDR3_tCKE;
-	p_pctl_timing->tcke = tmp;
-	/*
-	 * tMOD, 0 tCK
-	 */
-	p_pctl_timing->tmod = LPDDR3_tMOD;
-	/*
-	 * tRSTL, 0 tCK
-	 */
-	p_pctl_timing->trstl = LPDDR3_tRSTL;
-	/*
-	 * tZQCL, 360ns
-	 */
-	p_pctl_timing->tzqcl = ((LPDDR3_tZQCL * nmhz + 999) / 1000) & 0x3FF;
-	/*
-	 * tMRR, 4 tCK
-	 */
-	p_pctl_timing->tmrr = LPDDR3_tMRR;
-	/*
-	 * tCKESR, max(3tCK,15ns)
-	 */
-	tmp = ((LPDDR3_tCKESR * nmhz + 999) / 1000);
-	if (tmp < 3)
-		tmp = 3;
-	p_pctl_timing->tckesr = tmp & 0xF;
-	/*
-	 * tDPD, 500us
-	 */
-	p_pctl_timing->tdpd = ddrpctl_read32(DDR_PCTL_TDPD);
-
-	/**************************************************
-	 * NOC Timing
-	 **************************************************/
-	p_noc_timing->b.BurstLen = (bl >> 1);
-
 	return ret;
 }
 
@@ -1305,12 +956,8 @@ static __sramfunc u32 ddr_update_timing(void)
 		ddrpctl_write32(val, DDR_PCTL_DFITRDDATAEN);
 		val = (p_pctl_timing->tcwl - 1) / 2 - 1;
 		ddrpctl_write32(val, DDR_PCTL_DFITPHYWRLAT);
-	} else if (DATA(ddr_reg).mem_type == LPDDR3) {
-		val = ddrpctl_read32(DDR_PCTL_TCL) / 2 - 1;
-		ddrpctl_write32(val, DDR_PCTL_DFITRDDATAEN);
-		val = ddrpctl_read32(DDR_PCTL_TCWL) / 2 - 1;
-		ddrpctl_write32(val, DDR_PCTL_DFITPHYWRLAT);
 	}
+
 	return ret;
 }
 
@@ -1344,15 +991,6 @@ static __sramfunc u32 ddr_update_mr(void)
 		}
 		ddr_send_command(3, MRS_cmd, bank_addr(0x2) |
 				 cmd_addr((DATA(ddr_reg).ddrMR[2])));
-	} else if (DATA(ddr_reg).mem_type == LPDDR3) {
-		ddr_send_command(3, MRS_cmd, lpddr2_ma(0x1) |
-				 lpddr2_op(DATA(ddr_reg).ddrMR[1]));
-		ddr_send_command(3, MRS_cmd, lpddr2_ma(0x2) |
-				 lpddr2_op(DATA(ddr_reg).ddrMR[2]));
-		ddr_send_command(3, MRS_cmd, lpddr2_ma(0x3) |
-				 lpddr2_op(DATA(ddr_reg).ddrMR[3]));
-		ddr_send_command(3, MRS_cmd, lpddr2_ma(11) |
-				 lpddr2_op(DATA(ddr_reg).ddrMR11));
 	}
 	return 0;
 }
@@ -1370,18 +1008,6 @@ static __sramfunc void ddr_update_odt(void)
 		cmd_drv = DATA(ddr_reg).dram_timing.phy_ddr3_cmd_drv;
 		clk_drv = DATA(ddr_reg).dram_timing.phy_ddr3_clk_drv;
 		dqs_drv = DATA(ddr_reg).dram_timing.phy_ddr3_dqs_drv;
-	} else {
-		if (DATA(ddr_reg).mem_type == LPDDR3) {
-			if (DATA(ddr_freq) <= DATA(ddr_reg).dram_timing.phy_odt_dis_freq)
-				dqs_odt = PHY_LP23_RON_RTT_DISABLE;
-			else
-				dqs_odt = DATA(ddr_reg).dram_timing.phy_lp3_odt;
-		} else {
-			dqs_odt = PHY_LP23_RON_RTT_DISABLE;
-		}
-		cmd_drv = DATA(ddr_reg).dram_timing.phy_lp23_cmd_drv;
-		clk_drv = DATA(ddr_reg).dram_timing.phy_lp23_clk_drv;
-		dqs_drv = DATA(ddr_reg).dram_timing.phy_lp23_dqs_drv;
 	}
 
 	ddrphy_write32(cmd_drv, PHYREG11);
@@ -1446,6 +1072,10 @@ static __sramfunc void deidle_port(void)
 static void __sramfunc ddr_SRE_2_SRX(u32 freq)
 {
 	u32 val;
+	NOC_TIMING_T *p_noc_timing = &(DATA(ddr_reg).noc_timing);
+	NOC_ACTIVATE_T  *p_noc_activate = &(DATA(ddr_reg).noc_activate);
+	u32 *p_readlatency = &(DATA(ddr_reg).readlatency);
+	u32 *p_devtodev = &(DATA(ddr_reg).devtodev);
 
 	grf_write32(C_ACTIVE_IN_EN, GRF_SOC_CON0);
 
@@ -1476,6 +1106,13 @@ static void __sramfunc ddr_SRE_2_SRX(u32 freq)
 	ddr_move_to_Access_state();
 	grf_write32(C_ACTIVE_IN_DISABLE, GRF_SOC_CON0);
 	deidle_port();
+
+	/* During idle port, cpu accesses service msch registers would fail*/
+	val = (msch_read32(MSCH_DDR_TIMING) & (1u << 31)) | p_noc_timing->d32;
+	msch_write32(val, MSCH_DDR_TIMING);
+	msch_write32(*p_readlatency, MSCH_READ_LATENCY);
+	msch_write32(p_noc_activate->d32, MSCH_ACTIVATE);
+	msch_write32(*p_devtodev, MSCH_DEVTODEV);
 }
 
 void PIE_FUNC(ddr_change_freq_sram)(void *arg)
@@ -1509,9 +1146,6 @@ static int _ddr_change_freq(u32 nmhz)
 	switch (p_ddr_reg->mem_type) {
 	case DDR3:
 		ddr_get_parameter_ddr3(ret);
-		break;
-	case LPDDR3:
-		ddr_get_parameter_lpddr3(ret);
 		break;
 	default:
 		break;
@@ -1633,6 +1267,7 @@ static int __ddr_change_freq(u32 nmhz)
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_DDR_VIRT + RV1108_DDR_PCTL_SIZE));
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_CRU_VIRT));
 	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_GRF_VIRT));
+	asm volatile ("ldr %0,[%1]\n" : "=r" (n) : "r"(RK_SERVICE_MSCH_VIRT));
 
 	dsb();
 	call_with_stack(fn_to_pie
@@ -1716,8 +1351,6 @@ static void rv1108_ddr_timing_init(void *arg)
 		p_ddr_reg->dram_timing.phy_odt_dis_freq = 333;
 		p_ddr_reg->dram_timing.ddr3_drv = DDR3_DS_40;
 		p_ddr_reg->dram_timing.ddr3_odt = DDR3_RTT_NOM_120;
-		p_ddr_reg->dram_timing.lpddr3_drv = LPDDR3_DS_34;
-		p_ddr_reg->dram_timing.lpddr3_odt = LPDDR3_ODT_240;
 		p_ddr_reg->dram_timing.phy_ddr3_clk_drv = PHY_DDR3_RON_RTT_45ohm;
 		p_ddr_reg->dram_timing.phy_ddr3_cmd_drv = PHY_DDR3_RON_RTT_34ohm;
 		p_ddr_reg->dram_timing.phy_ddr3_dqs_drv = PHY_DDR3_RON_RTT_34ohm;
