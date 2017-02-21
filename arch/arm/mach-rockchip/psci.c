@@ -314,14 +314,18 @@ int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 
 	psci_fiq_debugger_uart_irq_tf = callback;
 	if (!ft_fiq_mem_base) {
+		dma_addr_t ft_fiq_mem_dma;
+
 		ft_fiq_mem_base = dma_alloc_coherent(NULL, PAGE_SIZE,
-						     &ft_fiq_mem_phy,
+						     &ft_fiq_mem_dma,
 						     GFP_KERNEL);
 		if (IS_ERR_OR_NULL(ft_fiq_mem_base)) {
 			ft_fiq_mem_base = NULL;
 			pr_err("%s: alloc mem failed\n", __func__);
 			return PSCI_SMC_INVALID_PARAMS;
 		}
+		ft_fiq_mem_phy = ft_fiq_mem_dma;
+		WARN_ON(ft_fiq_mem_phy != ft_fiq_mem_dma);
 	}
 
 	sip_fn_smc32(PSCI_SIP_UARTDBG_CFG, irq_id,
