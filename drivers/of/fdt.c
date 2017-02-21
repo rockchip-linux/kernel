@@ -690,6 +690,17 @@ int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 		base = dt_mem_next_cell(dt_root_addr_cells, &reg);
 		size = dt_mem_next_cell(dt_root_size_cells, &reg);
 
+		if (config_enabled(CONFIG_ARCH_ROCKCHIP) &&
+		    config_enabled(CONFIG_ARM_LPAE) &&
+		    dt_root_addr_cells == 1 &&
+		    dt_root_size_cells == 1 &&
+		    l > 8 && (endp - reg) == 0 &&
+		    base == 0) {
+			base = 0x100000000ULL;
+			if (size == 0)
+				size = 0x100000000ULL;
+		}
+
 		if (size == 0)
 			continue;
 		pr_debug(" - %llx ,  %llx\n", (unsigned long long)base,
