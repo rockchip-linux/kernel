@@ -819,7 +819,7 @@ struct dwc3 {
 	unsigned		is_fpga:1;
 	unsigned		usb3_lpm_capable:1;
 
-	unsigned		dis_u3_autosuspend_quirk;
+	unsigned		dis_u3_autosuspend_quirk:1;
 	unsigned		dis_u3_susphy_quirk:1;
 	unsigned		dis_u2_susphy_quirk:1;
 	unsigned		dis_u2_freeclk_exists_quirk:1;
