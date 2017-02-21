@@ -708,6 +708,18 @@ static int m41t80_probe(struct i2c_client *client,
 		}
 	}
 #endif
+
+	/* Disable Squarewave feature by defaut to save power */
+	if (clientdata->features & M41T80_FEATURE_SQ) {
+		rc = i2c_smbus_read_byte_data(client, M41T80_REG_ALARM_MON);
+		if (rc >= 0 && rc & M41T80_ALMON_SQWE)
+			rc = i2c_smbus_write_byte_data(client,
+				M41T80_REG_ALARM_MON, rc & ~M41T80_ALMON_SQWE);
+		if (rc < 0) {
+			dev_err(&client->dev, "Can't clear CLKOE bit\n");
+			return rc;
+		}
+	}
 	return 0;
 }
 
