@@ -383,11 +383,10 @@ extern void rk312x_pm_slp_cpu_resume(void);
 
 static void sram_data_for_sleep(char *boot_save, char *int_save, u32 flag)
 {
-	char *addr_base, *addr_phy, *data_src, *data_dst;
+	char *addr_base, *data_src, *data_dst;
 	u32 sr_size, data_size;
 
 	addr_base = (char *)RKPM_BOOTRAM_BASE;
-	addr_phy = (char *)RKPM_BOOTRAM_PHYS;
 	sr_size = RKPM_BOOTRAM_SIZE;  /*SZ8k*/
 	/**********save boot sarm***********************************/
 	if (boot_save)
@@ -523,7 +522,6 @@ static void sram_code_data_save(u32 pwrmode)
 
 	sram_data_for_sleep(boot_ram_data, int_ram_data, 1);
 	flush_cache_all();
-	outer_flush_all();
 	local_flush_tlb_all();
 }
 
@@ -790,11 +788,10 @@ static void rkpm_gic_dist_resume(u32 *context)
 
 static void sram_data_resume(char *boot_save, char *int_save, u32 flag)
 {
-	char *addr_base, *addr_phy;
+	char *addr_base;
 	u32 sr_size;
 
 	addr_base = (char *)RKPM_BOOTRAM_BASE;
-	addr_phy = (char *)RKPM_BOOTRAM_PHYS;
 	sr_size = RKPM_BOOTRAM_SIZE;
 	/* save boot sram*/
 	if (boot_save)
@@ -802,8 +799,6 @@ static void sram_data_resume(char *boot_save, char *int_save, u32 flag)
 
 	flush_icache_range((unsigned long)addr_base
 		, (unsigned long)addr_base + sr_size);
-	outer_clean_range((phys_addr_t) addr_phy
-		, (phys_addr_t)addr_phy+sr_size);
 }
 
 static inline void sram_code_data_resume(u32 pwrmode)
@@ -997,7 +992,6 @@ static void reg_pread(void)
 	volatile u32 *temp = (volatile unsigned int *)rockchip_sram_virt;
 
 	flush_cache_all();
-	outer_flush_all();
 	local_flush_tlb_all();
 
 	for (i = 0; i < 2; i++) {
