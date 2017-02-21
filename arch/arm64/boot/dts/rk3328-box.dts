@@ -42,16 +42,11 @@
 
 /dts-v1/;
 
-#include "rk3228h.dtsi"
-#include "rk322xh-evb.dtsi"
-#include "rk322xh-cif-sensor.dtsi"
+#include "rk3328.dtsi"
+#include "rk3328-evb.dtsi"
 #include "rk-stb-keymap.dtsi"
 
 / {
-	io-domains {
-		vccio4-supply = <&rk805_dcdc4_reg>;
-	};
-
 	leds {
 		compatible = "gpio-leds";
 			power-green {
@@ -62,16 +57,9 @@
 			};
 
 			net-green {
-				gpios = <&gpio2 GPIO_B7 GPIO_ACTIVE_HIGH>;
+				gpios = <&rk805 1 GPIO_ACTIVE_HIGH>;
 				linux,default-trigger = "none";
 				default-state = "off";
-				mode = <0x05>;
-			};
-
-			net-red {
-				gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
-				linux,default-trigger = "none";
-				default-state = "on";
 				mode = <0x05>;
 			};
 
@@ -84,19 +72,7 @@
 	};
 
 	wireless-wlan {
-		wifi_chip_type = "rtl8822bu";
-		WIFI,poweren_gpio = <&gpio2 GPIO_C4 GPIO_ACTIVE_LOW>;
-		WIFI,host_wake_irq = <&gpio2 GPIO_C6 GPIO_ACTIVE_HIGH>;
-	};
-
-	wireless-bluetooth {
-		/delete-property/ uart_rts_gpios;
-		/delete-property/ pinctrl-names;
-		/delete-property/ pinctrl-0;
-		BT,power_gpio = <&gpio2 GPIO_C5 GPIO_ACTIVE_HIGH>;
-		BT,wake_gpio = <&gpio2 GPIO_C7 GPIO_ACTIVE_HIGH>;
-		BT,wake_host_irq = <&gpio2 GPIO_C0 GPIO_ACTIVE_HIGH>;
-		status = "okay";
+		wifi_chip_type = "rtl8723bs";
 	};
 };
 
@@ -115,26 +91,9 @@
 	status = "okay";
 };
 
-&gmac2io {
-	reset-gpio = <&gpio1 GPIO_C2 GPIO_ACTIVE_LOW>;
-	phy-mode = "rgmii";
-	pinctrl-0 = <&rgmiim1_pins>;
-	clock_in_out = "input";
-	tx_delay = <0x26>;
-	status = "okay";
-};
-
-&gmac2phy {
-	status = "disabled";
-};
-
 &spdif {
 	pinctrl-0 = <&spdifm0_tx>;
 	status = "okay";
-};
-
-&uart0 {
-	status = "disabled";
 };
 
 &usb2_otg {
