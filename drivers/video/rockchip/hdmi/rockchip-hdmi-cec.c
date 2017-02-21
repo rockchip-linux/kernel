@@ -74,16 +74,11 @@ static void cecworkfunc(struct work_struct *work)
 	case EVENT_RX_WAKEUP:
 		cecreadframe(&cecframe);
 		HDMIDBG(1, "%s opcode = 0x%x\n", __func__, cecframe.opcode);
-		if (cecframe.opcode == 0x86 || cecframe.opcode == 0x82 ||
-		    cecframe.opcode == 0x70 || cecframe.opcode == 0x44 ||
-		    cecframe.opcode == 0x42 || cecframe.opcode == 0x41 ||
-		    cecframe.opcode == 0x0D || cecframe.opcode == 0x04) {
-			pr_info("CEC wake up!\n");
-			input_event(cec_dev->devinput, EV_KEY, KEY_POWER, 1);
-			input_sync(cec_dev->devinput);
-			input_event(cec_dev->devinput, EV_KEY, KEY_POWER, 0);
-			input_sync(cec_dev->devinput);
-		}
+		pr_info("CEC wake up!\n");
+		input_event(cec_dev->devinput, EV_KEY, KEY_POWER, 1);
+		input_sync(cec_dev->devinput);
+		input_event(cec_dev->devinput, EV_KEY, KEY_POWER, 0);
+		input_sync(cec_dev->devinput);
 		break;
 	default:
 		break;
