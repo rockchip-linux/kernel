@@ -2918,7 +2918,7 @@ static int rockchip_get_bank_data(struct rockchip_pin_bank *bank,
 	if (IS_ERR(bank->reg_base))
 		return PTR_ERR(bank->reg_base);
 	
-	printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res.name, res.start, res.end);
+	printk("%s:name=%s start=%pa,end=%pa\n",__func__,res.name, &res.start, &res.end);
 
 	/*
 	 * special case, where parts of the pull setting-registers are
@@ -2940,7 +2940,7 @@ static int rockchip_get_bank_data(struct rockchip_pin_bank *bank,
 		if (IS_ERR(bank->reg_pull_bank0))
 			return PTR_ERR(bank->reg_pull_bank0);
 		
-		printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res.name, res.start, res.end);
+		printk("%s:name=%s start=%pa,end=%pa\n",__func__,res.name, &res.start, &res.end);
 
 	}
 	else if (rk3288)
@@ -2954,7 +2954,7 @@ static int rockchip_get_bank_data(struct rockchip_pin_bank *bank,
 		if (IS_ERR(bank->reg_mux_bank0))
 			return PTR_ERR(bank->reg_mux_bank0);
 		
-		printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res.name, res.start, res.end);
+		printk("%s:name=%s start=%pa,end=%pa\n",__func__,res.name, &res.start, &res.end);
 
 		if (of_address_to_resource(bank->of_node, 2, &res)) {
 			dev_err(dev, "cannot find IO resource for bank %s\n", bank->name);
@@ -2964,7 +2964,7 @@ static int rockchip_get_bank_data(struct rockchip_pin_bank *bank,
 		if (IS_ERR(bank->reg_pull_bank0))
 			return PTR_ERR(bank->reg_pull_bank0);
 		
-		printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res.name, res.start, res.end);
+		printk("%s:name=%s start=%pa,end=%pa\n",__func__,res.name, &res.start, &res.end);
 
 		if (of_address_to_resource(bank->of_node, 3, &res)) {
 			dev_err(dev, "cannot find IO resource for bank %s\n", bank->name);
@@ -2974,7 +2974,7 @@ static int rockchip_get_bank_data(struct rockchip_pin_bank *bank,
 		if (IS_ERR(bank->reg_drv_bank0))
 			return PTR_ERR(bank->reg_drv_bank0);
 		
-		printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res.name, res.start, res.end);
+		printk("%s:name=%s start=%pa,end=%pa\n",__func__,res.name, &res.start, &res.end);
 	
 	} 
 	else 
@@ -3198,7 +3198,7 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 			info->reg_base = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_base))
 				return PTR_ERR(info->reg_base);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 			break;
 
 		case RK3188:
@@ -3208,25 +3208,25 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 			info->reg_base = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_base))
 				return PTR_ERR(info->reg_base);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 
 			res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 			info->reg_mux = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_mux))
 				return PTR_ERR(info->reg_mux);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 
 			res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 			info->reg_pull = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_pull))
 				return PTR_ERR(info->reg_pull);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 
 			res = platform_get_resource(pdev, IORESOURCE_MEM, 3);
 			info->reg_drv = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_drv))
 				return PTR_ERR(info->reg_drv);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 
 			break;
 
@@ -3235,7 +3235,7 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 			info->reg_base = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_base))
 				return PTR_ERR(info->reg_base);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 	
 			info->reg_mux = info->reg_base;
 			
@@ -3243,13 +3243,13 @@ static int rockchip_pinctrl_probe(struct platform_device *pdev)
 			info->reg_pull = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_pull))
 				return PTR_ERR(info->reg_pull);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 
 			res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 			info->reg_drv = devm_ioremap_resource(&pdev->dev, res);
 			if (IS_ERR(info->reg_drv))
 				return PTR_ERR(info->reg_drv);
-			printk("%s:name=%s start=0x%x,end=0x%x\n",__func__,res->name, res->start, res->end);
+			printk("%s:name=%s start=%pa,end=%pa\n",__func__,res->name, &res->start, &res->end);
 
 			break;
 			
