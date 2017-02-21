@@ -266,6 +266,10 @@
 		dma-unusable@fe000000 {
 			reg = <0xfe000000 0x1000000>;
 		};
+
+        uboot@50000000 {
+			reg = <0x50000000 0x10000000>;
+		};
 	};
 
 	xin24m: oscillator {
@@ -1534,6 +1538,12 @@
 		      <0xffc04000 0x2000>,
 		      <0xffc06000 0x2000>;
 		interrupts = <GIC_PPI 9 0xf04>;
+	};
+
+    uboot {
+		compatible = "rockchip,uboot";
+		clocks = <&cru PCLK_TIMER>, <&cru SCLK_UART1>, <&cru PCLK_UART1>;
+		clock-names = "pclk_timer","uart1_sclk", "uart1_pclk";
 	};
 
 	pinctrl: pinctrl {
