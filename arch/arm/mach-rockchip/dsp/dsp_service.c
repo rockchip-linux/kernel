@@ -277,15 +277,21 @@ static int dsp_work_consume(void *data)
 	dsp_debug_enter();
 
 	while (!kthread_should_stop()) {
-		if (!wait_event_timeout(service->wait,
-					!list_empty(&service->pending), HZ))
-			continue;
+		wait_event_interruptible_timeout(service->wait,
+						 !list_empty(&service->pending),
+						 HZ);
 
 		mutex_lock(&service->lock);
+		if (list_empty(&service->pending)) {
+			mutex_unlock(&service->lock);
+			continue;
+		}
+
 		work = list_first_entry(&service->pending,
 					struct dsp_work, list_node);
 		list_del(&work->list_node);
 		list_add_tail(&work->list_node, &service->running);
+
 		mutex_unlock(&service->lock);
 
 		dsp_debug(DEBUG_SERVICE, "consume a work=0x%08x\n", work->id);
