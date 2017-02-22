@@ -49,7 +49,7 @@ int dw_mci_pltfm_register(struct platform_device *pdev,
 	host->pdata = pdev->dev.platform_data;
 	host->regs = devm_ioremap_resource(&pdev->dev, regs);
 	#ifdef CONFIG_MMC_DW_IDMAC
-	host->phy_regs = (void *)(regs->start);
+	host->phy_regs = regs->start;
 	#endif
 	if (IS_ERR(host->regs))
 		return PTR_ERR(host->regs);

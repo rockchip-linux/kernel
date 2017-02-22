@@ -153,7 +153,7 @@ struct dw_mci {
 #ifdef CONFIG_MMC_DW_IDMAC
 	unsigned int		ring_size;
 	struct dw_mci_dma_slave *dms;
-	void                    *phy_regs;
+	resource_size_t		phy_regs;
 #else
 	struct dw_mci_dma_data	*dma_data;
 #endif
