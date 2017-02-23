@@ -433,7 +433,7 @@
 
 		rk805_dcdc2_reg: regulator@1 {
 			regulator-name = "vdd_arm";
-			regulator-init-microvolt = <1200000>;
+			regulator-init-microvolt = <1225000>;
 			regulator-min-microvolt = <700000>;
 			regulator-max-microvolt = <1350000>;
 			regulator-initial-mode = <0x1>;
