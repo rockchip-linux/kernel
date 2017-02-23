@@ -120,7 +120,7 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 {
 	int ret = 0;
 	int idx;
-	u32 offset = 0;
+	u32 offset = 0, dst_offset = 0;
 	struct dsp_image *image;
 	struct dsp_image_header *image_hdr;
 
@@ -149,22 +149,40 @@ static int dsp_loader_image_parse(struct dsp_loader *loader,
 		section->size = section_hdr->size;
 		section->dst = (void *)section_hdr->load_address;
 
+		if (!section->size)
+			continue;
+
 		dsp_debug(DEBUG_LOADER,
-			  "image section, type=%d, size=%d, load_addr=0x%08x\n",
+			  "Read an image section, type=%d, size=%d, load_addr=0x%08x.\n",
 			  section->type, section->size, (u32)section->dst);
 
-		section->src = kzalloc(section->size, GFP_KERNEL);
-		if (!section->src) {
-			dsp_err("cannot alloc mem for section\n");
-			ret = -ENOMEM;
-			goto out;
+		if (section->type == DSP_IMAGE_CODE_EXTERNAL ||
+		    section->type == DSP_IMAGE_DATA_EXTERNAL) {
+			dst_offset = (u32)section->dst & DSP_TEXT_OFFSET_MASK;
+
+			/*
+			 * External data is resident, just copy external data
+			 * to destination directly.
+			 */
+			memcpy(loader->external_text + dst_offset,
+			       image_data + offset, section->size);
+		} else {
+			/* We Should save loadable section data in buffer. */
+			section->src = kzalloc(section->size, GFP_KERNEL);
+			if (!section->src) {
+				dsp_err("Cannot alloc mem for section, size=%d.\n",
+					section->size);
+				ret = -ENOMEM;
+				goto out;
+			}
+
+			memcpy(section->src, image_data + offset,
+			       section->size);
+
+			section->valid = 1;
 		}
 
-		memcpy(section->src, image_data + offset, section->size);
 		offset += section->size;
-
-		if (section->size > 0)
-			section->valid = 1;
 	}
 
 	if (offset != image_size) {
@@ -284,7 +302,6 @@ int dsp_loader_load_image(struct device *device,
 {
 	int ret = 0;
 	int i;
-	u32 offset = 0;
 	struct dsp_image *image;
 
 	dsp_debug_enter();
@@ -316,25 +333,9 @@ int dsp_loader_load_image(struct device *device,
 				  "load section, src=0x%p, dst=0x%p\n",
 				  section->src, section->dst);
 			break;
-		case DSP_IMAGE_CODE_EXTERNAL:
-			offset = (u32)section->dst & DSP_TEXT_OFFSET_MASK;
-			memcpy(loader->external_text + offset,
-			       section->src, section->size);
-			dsp_debug(DEBUG_LOADER,
-				  "load section, src=0x%p, dst=0x%p\n",
-				  section->src, section->dst);
-			break;
 		case DSP_IMAGE_DATA_INTERNAL:
 			loader->dma->transfer_data(loader->dma, section->src,
 						   section->dst, section->size);
-			dsp_debug(DEBUG_LOADER,
-				  "load section, src=0x%p, dst=0x%p\n",
-				  section->src, section->dst);
-			break;
-		case DSP_IMAGE_DATA_EXTERNAL:
-			offset = (u32)section->dst & DSP_TEXT_OFFSET_MASK;
-			memcpy(loader->external_text + offset,
-			       section->src, section->size);
 			dsp_debug(DEBUG_LOADER,
 				  "load section, src=0x%p, dst=0x%p\n",
 				  section->src, section->dst);
