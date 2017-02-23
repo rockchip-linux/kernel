@@ -2965,7 +2965,12 @@ void si_meminfo(struct sysinfo *val)
 {
 	val->totalram = totalram_pages;
 	val->sharedram = 0;
+#ifdef CONFIG_CMA_STINGY
+	val->freeram = global_page_state(NR_FREE_PAGES) -
+				global_page_state(NR_FREE_CMA_PAGES);
+#else
 	val->freeram = global_page_state(NR_FREE_PAGES);
+#endif
 	val->bufferram = nr_blockdev_pages();
 	val->totalhigh = totalhigh_pages;
 	val->freehigh = nr_free_highpages();
