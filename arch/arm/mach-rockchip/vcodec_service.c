@@ -2142,6 +2142,20 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 			return -EFAULT;
 		}
 	} break;
+	case COMPAT_VPU_IOC_SET_DRIVER_DATA: {
+		u32 val;
+
+		if (copy_from_user(&val,
+				   compat_ptr((compat_uptr_t)arg),
+				   sizeof(int))) {
+			vpu_err("error: COMPAT_VPU_IOC_SET_DRIVER_DATA copy_from_user failed\n");
+			return -EFAULT;
+		}
+		if (pservice->grf)
+			regmap_write(pservice->grf, 0x5d8, val);
+		else if (pservice->grf_base)
+			writel(val, pservice->grf_base + (0x5d8 >> 2));
+	} break;
 	default: {
 		vpu_err("error: unknow vpu service ioctl cmd %x\n", cmd);
 	} break;
