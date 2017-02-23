@@ -536,3 +536,7 @@
 &hdmi {
 	status = "okay";
 };
+
+&tve {
+	status = "okay";
+};

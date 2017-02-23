@@ -696,3 +696,7 @@
 &codec {
 	status = "okay";
 };
+
+&tve {
+	status = "okay";
+};
