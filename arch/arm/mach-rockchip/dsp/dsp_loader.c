@@ -18,6 +18,7 @@
 #if defined(CONFIG_ION_ROCKCHIP)
 #include <linux/rockchip_ion.h>
 #endif
+#include <asm/cacheflush.h>
 #include "dsp_dbg.h"
 #include "dsp_loader.h"
 
@@ -256,6 +257,13 @@ static int dsp_loader_prepare_image(struct device *device,
 		dsp_loader_image_parse(loader, image_data, image_size);
 		vfree(image_data);
 	}
+
+	/*
+	 * The data of images will be transferred to DSP by DMA soon,
+	 * so we call flush_cache_all() here to make cache coherence
+	 * of it's memory.
+	 */
+	flush_cache_all();
 
 	loader->image_prepared = 1;
 out:
