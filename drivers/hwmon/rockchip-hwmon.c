@@ -29,6 +29,7 @@
 
 #define DEFAULT_MONITOR_DELAY	HZ
 #define DEFAULT_MAX_TEMP	130
+#define DEFAULT_MIN_TEMP	(-273)
 
 static inline void schedule_monitor(struct rockchip_temp *data)
 {
@@ -153,14 +154,14 @@ static ssize_t show_input(struct device *dev,
 static ssize_t set_min(struct device *dev, struct device_attribute *devattr,
 		       const char *buf, size_t count)
 {
-	unsigned long val;
+	long val;
 	struct rockchip_temp *data = dev_get_drvdata(dev);
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	int res = kstrtol(buf, 10, &val);
 	if (res < 0)
 		return res;
 
-	val = clamp_val(val, 0, DEFAULT_MAX_TEMP);
+	val = clamp_val(val, DEFAULT_MIN_TEMP, DEFAULT_MAX_TEMP);
 
 	mutex_lock(&data->lock);
 	data->min[attr->index] = val;
@@ -174,14 +175,14 @@ static ssize_t set_min(struct device *dev, struct device_attribute *devattr,
 static ssize_t set_max(struct device *dev, struct device_attribute *devattr,
 		       const char *buf, size_t count)
 {
-	unsigned long val;
+	long val;
 	struct rockchip_temp *data = dev_get_drvdata(dev);
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	int res = kstrtol(buf, 10, &val);
 	if (res < 0)
 		return res;
 
-	val = clamp_val(val, 0, DEFAULT_MAX_TEMP);
+	val = clamp_val(val, DEFAULT_MIN_TEMP, DEFAULT_MAX_TEMP);
 
 	mutex_lock(&data->lock);
 	data->max[attr->index] = val;
@@ -196,14 +197,14 @@ static ssize_t set_max_hyst(struct device *dev,
 			    struct device_attribute *devattr,
 			    const char *buf, size_t count)
 {
-	unsigned long val;
+	long val;
 	struct rockchip_temp *data = dev_get_drvdata(dev);
 	struct sensor_device_attribute *attr = to_sensor_dev_attr(devattr);
 	int res = kstrtoul(buf, 10, &val);
 	if (res < 0)
 		return res;
 
-	val = clamp_val(val, 0, DEFAULT_MAX_TEMP);
+	val = clamp_val(val, DEFAULT_MIN_TEMP, DEFAULT_MAX_TEMP);
 
 	mutex_lock(&data->lock);
 	data->max_hyst[attr->index] = val;
