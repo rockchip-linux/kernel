@@ -87,8 +87,13 @@
 *
 *v0.1.f:
 *1. support Y8/Y10 format.
+*
+*v0.2.0:
+*1. Resume isp internal reset by VI_IRCL CIF_IRCL_CIF_SW_RST bit in cif_isp11_config_cif;
+*Isp internal reset is cancel in v0.1.1.
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 1, 0xf)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 0)
+
 
 #endif
