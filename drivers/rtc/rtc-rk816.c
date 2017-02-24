@@ -462,7 +462,7 @@ static int rk816_rtc_probe(struct platform_device *pdev)
 
 	pr_info("%s,line=%d\n", __func__, __LINE__);
 
-	np = of_find_node_by_name(pdev->dev.parent->of_node, "rtc");
+	np = of_get_child_by_name(pdev->dev.parent->of_node, "rtc");
 	if (np) {
 		if (!of_device_is_available(np))
 			return -EINVAL;
