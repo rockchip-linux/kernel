@@ -367,15 +367,23 @@
 				clk_ddr_dvfs_table: clk_ddr {
 					operating-points = <
 						/* KHz    uV */
-						400000 925000
-						600000 1000000
-						800000 1050000
+						400000 975000
+						600000 1100000
+						800000 1150000
 						>;
 					freq-table = <
 						/*status		freq(KHz)*/
 						SYS_STATUS_LOW_POWER	400000
 						SYS_STATUS_NORMAL	600000
 						SYS_STATUS_PERFORMANCE	800000
+						>;
+					lkg_adjust_volt_en = <1>;
+					channel = <0>;
+					def_table_lkg = <6>;
+					min_adjust_freq = <300000>;
+					lkg_adjust_volt_table = <
+						/*lkg(mA)  volt(uV)*/
+						60         50000
 						>;
 					status = "okay";
 				};
