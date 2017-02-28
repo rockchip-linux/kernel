@@ -220,6 +220,11 @@
 		compatible = "rockchip,key";
 		io-channels = <&adc 2>;
 
+		/delete-node/ menu-key;
+		/delete-node/ menu-key;
+		/delete-node/ back-key;
+		/delete-node/ camera-key;
+
 		vol-up-key {
 			linux,code = <115>;
 			label = "volume up";
