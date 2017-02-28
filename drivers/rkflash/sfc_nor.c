@@ -9,11 +9,20 @@
 
 #include <linux/delay.h>
 #include <linux/kernel.h>
+#include <linux/mutex.h>
 #include <linux/string.h>
 
 #include "sfc.h"
 #include "sfc_nor.h"
 #include "typedef.h"
+
+#ifdef CONFIG_RK_SFC_NOR_MTD
+#include <linux/mtd/cfi.h>
+#include <linux/mtd/mtd.h>
+#include <linux/mtd/partitions.h>
+#include <linux/slab.h>
+#include "rkflash_blk.h"
+#endif
 
 #define PRINT_SPI_CHIP_INFO		0
 #define SNOR_4BIT_DATA_DETECT_EN	0
@@ -88,6 +97,11 @@ struct SFNOR_DEV {
 	enum SFC_DATA_LINES prog_lines;
 
 	SNOR_WRITE_STATUS write_status;
+	struct mutex	lock; /* to lock this object */
+#ifdef CONFIG_RK_SFC_NOR_MTD
+	struct mtd_info	mtd;
+	u8 *dma_buf;
+#endif
 };
 
 static int snor_wait_busy(int timeout);
@@ -116,6 +130,14 @@ static const u32 sfnor_capacity[] = {
 	0x1000000,      /* 16M-byte */
 	0x2000000       /* 32M-byte */
 };
+
+#ifdef CONFIG_RK_SFC_NOR_MTD
+static struct mtd_partition nor_parts[MAX_PART_COUNT];
+static inline struct SFNOR_DEV *mtd_to_sfc(struct mtd_info *mtd)
+{
+	return container_of(mtd, struct SFNOR_DEV, mtd);
+}
+#endif
 
 static int snor_write_en(void)
 {
@@ -281,11 +303,6 @@ static int snor_erase(u32 addr, enum NOR_ERASE_TYPE erase_type)
 	return ret;
 }
 
-int snor_erase_blk(u32 addr)
-{
-	return snor_erase(addr, ERASE_BLOCK64K);
-}
-
 static int snor_prog_page(u32 addr, void *p_data, u32 size)
 {
 	int ret;
@@ -319,7 +336,7 @@ static int snor_prog_page(u32 addr, void *p_data, u32 size)
 	return ret;
 }
 
-int snor_prog(u32 addr, void *p_data, u32 size)
+static int snor_prog(u32 addr, void *p_data, u32 size)
 {
 	int ret = SFC_OK;
 	u32 page_size, len;
@@ -428,7 +445,7 @@ static int snor_set_dlines(enum SFC_DATA_LINES lines)
 }
 #endif
 
-int snor_read_data(u32 addr, void *p_data, u32 size)
+static int snor_read_data(u32 addr, void *p_data, u32 size)
 {
 	int ret;
 	union SFCCMD_DATA sfcmd;
@@ -442,7 +459,8 @@ int snor_read_data(u32 addr, void *p_data, u32 size)
 
 	sfctrl.d32 = 0;
 	sfctrl.b.datalines = p_dev->read_lines;
-	sfctrl.b.enbledma = 1;
+	if (!(size & 0x3) && size >= 4)
+		sfctrl.b.enbledma = 1;
 
 	if (p_dev->read_cmd == CMD_FAST_READ_X1 ||
 	    p_dev->read_cmd == CMD_FAST_READ_X4 ||
@@ -473,6 +491,7 @@ int snor_read(u32 sec, u32 n_sec, void *p_data)
 	if ((sec + n_sec) > p_dev->capacity)
 		return SFC_PARAM_ERR;
 
+	mutex_lock(&p_dev->lock);
 	addr = sec << 9;
 	size = n_sec << 9;
 	while (size) {
@@ -480,13 +499,15 @@ int snor_read(u32 sec, u32 n_sec, void *p_data)
 		ret = snor_read_data(addr, p_buf, len);
 		if (ret != SFC_OK) {
 			PRINT_E("snor_read_data %x ret= %x\n", addr >> 9, ret);
-			return ret;
+			goto out;
 		}
 
 		size -= len;
 		addr += len;
 		p_buf += len;
 	}
+out:
+	mutex_unlock(&p_dev->lock);
 
 	return ret;
 }
@@ -501,6 +522,7 @@ int snor_write(u32 sec, u32 n_sec, void *p_data)
 	if ((sec + n_sec) > p_dev->capacity)
 		return SFC_PARAM_ERR;
 
+	mutex_lock(&p_dev->lock);
 	while (n_sec) {
 		if (sec < 512 || sec >= p_dev->capacity  - 512)
 			blk_size = 8;
@@ -513,7 +535,7 @@ int snor_write(u32 sec, u32 n_sec, void *p_data)
 				ERASE_SECTOR : ERASE_BLOCK64K);
 			if (ret != SFC_OK) {
 				PRINT_E("snor_erase %x ret= %x\n", sec, ret);
-				return ret;
+				goto out;
 			}
 		}
 		len = (blk_size - offset) < n_sec ?
@@ -521,12 +543,15 @@ int snor_write(u32 sec, u32 n_sec, void *p_data)
 		ret = snor_prog(sec << 9, p_buf, len << 9);
 		if (ret != SFC_OK) {
 			PRINT_E("snor_prog %x ret= %x\n", sec, ret);
-			return ret;
+			goto out;
 		}
 		n_sec -= len;
 		sec += len;
 		p_buf += len << 9;
 	}
+out:
+	mutex_unlock(&p_dev->lock);
+
 	return ret;
 }
 
@@ -550,6 +575,202 @@ u32 snor_get_capacity(void)
 
 	return p_dev->capacity;
 }
+
+#ifdef CONFIG_RK_SFC_NOR_MTD
+static int sfc_erase_mtd(struct mtd_info *mtd, struct erase_info *instr)
+{
+	int ret;
+	struct SFNOR_DEV *p_dev = mtd_to_sfc(mtd);
+	u32 addr, len;
+	u32 rem;
+
+	if ((instr->addr + instr->len) > p_dev->capacity << 9)
+		return -EINVAL;
+
+	div_u64_rem(instr->len, mtd->erasesize, &rem);
+	if (rem)
+		return -EINVAL;
+
+	mutex_lock(&p_dev->lock);
+
+	addr = instr->addr;
+	len = instr->len;
+
+	if (len == p_dev->mtd.size) {
+		ret = snor_erase(0, CMD_CHIP_ERASE);
+		if (ret) {
+			PRINT_E("snor_erase CHIP 0x%x ret=%d\n", addr, ret);
+			instr->state = MTD_ERASE_FAILED;
+			mutex_unlock(&p_dev->lock);
+			return -EIO;
+		}
+	} else {
+		while (len > 0) {
+			ret = snor_erase(addr, ERASE_BLOCK64K);
+			if (ret) {
+				PRINT_E("snor_erase 0x%x ret=%d\n", addr, ret);
+				instr->state = MTD_ERASE_FAILED;
+				mutex_unlock(&p_dev->lock);
+				return -EIO;
+			}
+			addr += mtd->erasesize;
+			len -= mtd->erasesize;
+		}
+	}
+
+	mutex_unlock(&p_dev->lock);
+
+	instr->state = MTD_ERASE_DONE;
+	mtd_erase_callback(instr);
+
+	return 0;
+}
+
+static int sfc_write_mtd(struct mtd_info *mtd, loff_t to, size_t len,
+			 size_t *retlen, const u_char *buf)
+{
+	int status;
+	u32 addr, size, chunk, padding;
+	u32 page_align;
+	struct SFNOR_DEV *p_dev = mtd_to_sfc(mtd);
+
+	if ((to + len) > p_dev->capacity << 9)
+		return -EINVAL;
+
+	mutex_lock(&p_dev->lock);
+
+	addr = to;
+	size = len;
+
+	while (size > 0) {
+		page_align = addr & (NOR_PAGE_SIZE - 1);
+		chunk = size;
+		if (chunk > (NOR_PAGE_SIZE - page_align))
+			chunk = NOR_PAGE_SIZE - page_align;
+		memcpy(p_dev->dma_buf, buf, chunk);
+		padding = 0;
+		if (chunk < NOR_PAGE_SIZE) {
+			/* 4 bytes algin */
+			padding = ((chunk + 3) & 0xFFFC) - chunk;
+			memset(p_dev->dma_buf + chunk, 0xFF, padding);
+		}
+		status = snor_prog_page(addr, p_dev->dma_buf, chunk + padding);
+		if (status != SFC_OK) {
+			PRINT_E("snor_prog_page %x ret= %d\n", addr, status);
+			*retlen = len - size;
+			mutex_unlock(&p_dev->lock);
+			return status;
+		}
+
+		size -= chunk;
+		addr += chunk;
+		buf += chunk;
+	}
+	*retlen = len;
+	mutex_unlock(&p_dev->lock);
+
+	return 0;
+}
+
+static int sfc_read_mtd(struct mtd_info *mtd, loff_t from, size_t len,
+			size_t *retlen, u_char *buf)
+{
+	u32 addr, size, chunk;
+	u8 *p_buf =  (u8 *)buf;
+	int ret = SFC_OK;
+
+	struct SFNOR_DEV *p_dev = mtd_to_sfc(mtd);
+
+	if ((from + len) > p_dev->capacity << 9)
+		return -EINVAL;
+
+	mutex_lock(&p_dev->lock);
+
+	addr = from;
+	size = len;
+
+	while (size > 0) {
+		chunk = (size < NOR_PAGE_SIZE) ? size : NOR_PAGE_SIZE;
+		ret = snor_read_data(addr, p_dev->dma_buf, chunk);
+		if (ret != SFC_OK) {
+			PRINT_E("snor_read_data %x ret=%d\n", addr, ret);
+			*retlen = len - size;
+			mutex_unlock(&p_dev->lock);
+			return ret;
+		}
+		memcpy(p_buf, p_dev->dma_buf, chunk);
+		size -= chunk;
+		addr += chunk;
+		p_buf += chunk;
+	}
+
+	*retlen = len;
+	mutex_unlock(&p_dev->lock);
+	return 0;
+}
+
+static int sfc_nor_mtd_init(struct SFNOR_DEV *p_dev)
+{
+	int ret, i, part_num = 0;
+	struct STRUCT_PART_INFO *g_part;  /* size 2KB */
+
+	p_dev->mtd.name = "sfc_nor";
+	p_dev->mtd.type = MTD_NORFLASH;
+	p_dev->mtd.writesize = 1;
+	p_dev->mtd.flags = MTD_CAP_NORFLASH;
+	/* see snor_write */
+	p_dev->mtd.size = p_dev->capacity << 9;
+	p_dev->mtd._erase = sfc_erase_mtd;
+	p_dev->mtd._read = sfc_read_mtd;
+	p_dev->mtd._write = sfc_write_mtd;
+	p_dev->mtd.erasesize = g_spi_flash_info->block_size << 9;
+	p_dev->mtd.writebufsize = NOR_PAGE_SIZE;
+
+	p_dev->dma_buf = kmalloc(NOR_PAGE_SIZE, GFP_KERNEL | GFP_DMA);
+	if (!p_dev->dma_buf) {
+		PRINT_E("kmalloc size=0x%x failed\n", NOR_PAGE_SIZE);
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	g_part = kmalloc(sizeof(*g_part), GFP_KERNEL | GFP_DMA);
+	if (!g_part) {
+		ret = -ENOMEM;
+		goto free_dma_buf;
+	}
+	part_num = 0;
+	if (snor_read(0, 4, g_part) == 0) {
+		if (g_part->hdr.ui_fw_tag == RK_PARTITION_TAG) {
+			part_num = g_part->hdr.ui_part_entry_count;
+			for (i = 0; i < part_num; i++) {
+				nor_parts[i].name =
+					kstrdup(g_part->part[i].sz_name,
+						GFP_KERNEL);
+				nor_parts[i].offset =
+					g_part->part[i].ui_pt_off << 9;
+				nor_parts[i].size =
+					g_part->part[i].ui_pt_sz << 9;
+				nor_parts[i].mask_flags = 0;
+			}
+		}
+	}
+	kfree(g_part);
+	if (part_num == 0) {
+		ret = -1;
+		goto free_dma_buf;
+	}
+	ret = mtd_device_register(&p_dev->mtd, nor_parts, part_num);
+	if (ret != 0)
+		goto free_dma_buf;
+	return ret;
+
+free_dma_buf:
+	kfree(p_dev->dma_buf);
+out:
+	return ret;
+}
+
+#endif /* CONFIG_RK_SFC_NOR_MTD */
 
 #if (SNOR_STRESS_TEST_EN)
 #define max_test_sector 64
@@ -643,6 +864,19 @@ void snor_test(void)
 }
 #endif
 
+#if (PRINT_SPI_CHIP_INFO)
+static void snor_print_spi_chip_info(struct SFNOR_DEV *p_dev)
+{
+	PRINT_E("addr_mode: %x\n", p_dev->addr_mode);
+	PRINT_E("read_lines: %x\n", p_dev->read_lines);
+	PRINT_E("prog_lines: %x\n", p_dev->prog_lines);
+	PRINT_E("read_cmd: %x\n", p_dev->read_cmd);
+	PRINT_E("prog_cmd: %x\n", p_dev->prog_cmd);
+	PRINT_E("blk_erase_cmd: %x\n", p_dev->blk_erase_cmd);
+	PRINT_E("sec_erase_cmd: %x\n", p_dev->sec_erase_cmd);
+}
+#endif
+
 static struct flash_info *snor_get_flash_info(u8 *flash_id)
 {
 	u32 i;
@@ -662,17 +896,21 @@ int snor_init(void)
 	int i;
 	struct SFNOR_DEV *p_dev = &sfnor_dev;
 	u8 id_byte[5];
+	int err;
 
 	memset(p_dev, 0, sizeof(struct SFNOR_DEV));
 	snor_read_id(id_byte);
 	PRINT_E("sfc nor id: %x %x %x\n", id_byte[0], id_byte[1], id_byte[2]);
 	if ((0xFF == id_byte[0] && 0xFF == id_byte[1]) ||
-	    (0x00 == id_byte[0] && 0x00 == id_byte[1]))
-		return SFC_ERROR;
+	    (0x00 == id_byte[0] && 0x00 == id_byte[1])) {
+		err = SFC_ERROR;
+		goto err_out;
+	}
 
 	p_dev->manufacturer = id_byte[0];
 	p_dev->mem_type = id_byte[1];
 
+	mutex_init(&p_dev->lock);
 	g_spi_flash_info = snor_get_flash_info(id_byte);
 	if (g_spi_flash_info) {
 		p_dev->capacity = 1 << g_spi_flash_info->density;
@@ -708,20 +946,12 @@ int snor_init(void)
 
 		if ((g_spi_flash_info->feature & FEA_4BYTE_ADDR_MODE))
 			snor_enter_4byte_mode();
-
-		#if (PRINT_SPI_CHIP_INFO)
-		PRINT_E("addr_mode: %x\n", p_dev->addr_mode);
-		PRINT_E("read_lines: %x\n", p_dev->read_lines);
-		PRINT_E("prog_lines: %x\n", p_dev->prog_lines);
-		PRINT_E("read_cmd: %x\n", p_dev->read_cmd);
-		PRINT_E("prog_cmd: %x\n", p_dev->prog_cmd);
-		PRINT_E("blk_erase_cmd: %x\n", p_dev->blk_erase_cmd);
-		PRINT_E("sec_erase_cmd: %x\n", p_dev->sec_erase_cmd);
-		#endif
-		#if (SNOR_STRESS_TEST_EN)
-		snor_test();
-		#endif
-		return SFC_OK;
+#ifdef CONFIG_RK_SFC_NOR_MTD
+		err = sfc_nor_mtd_init(p_dev);
+		if (err)
+			goto err_out;
+#endif
+		goto normal_out;
 	}
 
 	for (i = 0; i < sizeof(sfnor_dev_code); i++) {
@@ -731,8 +961,10 @@ int snor_init(void)
 		}
 	}
 
-	if (i >= sizeof(sfnor_dev_code))
-		return SFC_ERROR;
+	if (i >= sizeof(sfnor_dev_code)) {
+		err = SFC_ERROR;
+		goto err_out;
+	}
 
 	p_dev->QE_bits = 9;
 	p_dev->blk_size = NOR_SECS_BLK;
@@ -745,20 +977,18 @@ int snor_init(void)
 	#if (SNOR_4BIT_DATA_DETECT_EN)
 	snor_set_dlines(DATA_LINES_X4);
 	#endif
-#if (PRINT_SPI_CHIP_INFO)
-	PRINT_E("addr_mode: %x\n", p_dev->addr_mode);
-	PRINT_E("read_lines: %x\n", p_dev->read_lines);
-	PRINT_E("prog_lines: %x\n", p_dev->prog_lines);
-	PRINT_E("read_cmd: %x\n", p_dev->read_cmd);
-	PRINT_E("prog_cmd: %x\n", p_dev->prog_cmd);
-	PRINT_E("blk_erase_cmd: %x\n", p_dev->blk_erase_cmd);
-	PRINT_E("sec_erase_cmd: %x\n", p_dev->sec_erase_cmd);
-#endif
-	#if (SNOR_STRESS_TEST_EN)
-	snor_test();
-	#endif
 
+normal_out:
+#if (PRINT_SPI_CHIP_INFO)
+	snor_print_spi_chip_info(p_dev);
+#endif
+#if (SNOR_STRESS_TEST_EN)
+	snor_test();
+#endif
 	return SFC_OK;
+
+err_out:
+	return err;
 }
 
 void snor_deinit(void)

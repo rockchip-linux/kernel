@@ -118,7 +118,6 @@ void ftl_free(void *p, int size)
 	kfree(p);
 }
 
-#define RK_PARTITION_TAG 0x50464B52
 static unsigned int rk_partition_init(struct flash_part *part)
 {
 	int i, part_num = 0;
@@ -576,7 +575,6 @@ static int rkflash_blk_register(struct flash_blk_ops *blk_ops)
 	spin_lock_init(&blk_ops->queue_lock);
 	init_completion(&blk_ops->thread_exit);
 	init_waitqueue_head(&blk_ops->thread_wq);
-	rkflash_device_lock_init();
 
 	blk_ops->rq = blk_init_queue(rkflash_blk_request, &blk_ops->queue_lock);
 	if (!blk_ops->rq) {
@@ -667,6 +665,15 @@ int rkflash_dev_init(void __iomem *reg_addr, enum flash_con_type con_type)
 	}
 	pr_info("rkflash[%d] init success\n", tmp_id);
 	g_flash_type = tmp_id;
+	rkflash_device_lock_init();
+	mytr.quit = 1;
+#ifdef CONFIG_RK_SFC_NOR_MTD
+	if (g_flash_type == FLASH_TYPE_SFC_NOR) {
+		pr_info("sfc_nor flash registered as a mtd device\n");
+		rkflash_dev_initialised = 1;
+		return 0;
+	}
+#endif
 	ret = rkflash_blk_register(&mytr);
 	if (ret) {
 		pr_err("rkflash_blk_register fail\n");

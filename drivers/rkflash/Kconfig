@@ -42,6 +42,15 @@ config RK_SFC_NAND
 	  Say Y when you have a board with nand flash supported by rockchip
 	  sfc controller.
 
-endif
+config RK_SFC_NOR_MTD
+	bool "RK SFC NOR mtd Interface Support"
+	depends on RK_SFC_NOR
+	default n
+	help
+	  Enable mtd interface for SFC_NOR device.
 
-endif
+	  Say Y when you wanna use mtd interface for SFC_NOR flash.
+
+endif # RK_FLASH
+
+endif # ARCH_ROCKCHIP
