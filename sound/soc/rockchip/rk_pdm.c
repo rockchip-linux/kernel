@@ -41,6 +41,39 @@ struct rk_pdm_dev {
 	struct snd_dmaengine_dai_dma_data capture_dma_data;
 };
 
+struct rk_pdm_clkref {
+	unsigned int sr;
+	unsigned int clk;
+};
+
+static struct rk_pdm_clkref clkref[] = {
+	{ 8000, 40960000 },
+	{ 11025, 56448000 },
+	{ 12000, 61440000 },
+};
+
+static unsigned int get_pdm_clk(unsigned int sr)
+{
+	unsigned int i, count, clk, div;
+
+	clk = 0;
+	if (!sr)
+		return clk;
+
+	count = ARRAY_SIZE(clkref);
+	for (i = 0; i < count; i++) {
+		if (sr % clkref[i].sr)
+			continue;
+		div = sr / clkref[i].sr;
+		if ((div & (div - 1)) == 0) {
+			clk = clkref[i].clk;
+			break;
+		}
+	}
+
+	return clk;
+}
+
 static inline struct rk_pdm_dev *to_info(struct snd_soc_dai *dai)
 {
 	return snd_soc_dai_get_drvdata(dai);
@@ -69,9 +102,16 @@ static int rockchip_pdm_hw_params(struct snd_pcm_substream *substream,
 	struct rk_pdm_dev *pdm = to_info(dai);
 	unsigned int val = 0;
 	unsigned int clk_rate, clk_div, samplerate;
+	int ret;
 
-	clk_rate = clk_get_rate(pdm->clk);
 	samplerate = params_rate(params);
+	clk_rate = get_pdm_clk(samplerate);
+	if (!clk_rate)
+		return -EINVAL;
+
+	ret = clk_set_rate(pdm->clk, clk_rate);
+	if (ret)
+		return -EINVAL;
 
 	clk_div = DIV_ROUND_CLOSEST(clk_rate, samplerate);
 
