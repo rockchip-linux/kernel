@@ -49,6 +49,9 @@ struct dsp_session {
 	wait_queue_head_t wait;
 	struct list_head done;
 
+	/* Lock done work list. */
+	struct mutex work_lock;
+
 	struct list_head list_node;
 	void *owner;
 };
@@ -73,7 +76,9 @@ struct dsp_service {
 	u32 counter;
 	/* reference count */
 	atomic_t ref;
-	/* lock work lists */
+	/* Lock running and pending work list. */
+	struct mutex work_lock;
+	/* Lock service. */
 	struct mutex lock;
 };
 
@@ -123,9 +128,9 @@ static int dsp_queue_work(struct dsp_session *session, struct dsp_work *work)
 	dsp_debug_enter();
 	dsp_debug(DEBUG_SERVICE, "queue work id=0x%08x\n", work->id);
 
-	mutex_lock(&service->lock);
+	mutex_lock(&service->work_lock);
 	list_add_tail(&work->list_node, &service->pending);
-	mutex_unlock(&service->lock);
+	mutex_unlock(&service->work_lock);
 
 	wake_up(&service->wait);
 	dsp_debug_leave();
@@ -157,8 +162,11 @@ static int dsp_dequeue_work(struct dsp_session *session,
 		goto out;
 	}
 
+	mutex_lock(&session->work_lock);
 	work = list_first_entry(&session->done, struct dsp_work, list_node);
 	list_del(&work->list_node);
+	mutex_unlock(&session->work_lock);
+
 	dsp_debug(DEBUG_SERVICE, "dequeue work id=0x%08x\n", work->id);
 	(*work_out) = work;
 out:
@@ -192,14 +200,10 @@ static int dsp_session_create(struct dsp_service *service,
 	}
 
 	INIT_LIST_HEAD(&session->done);
+	mutex_init(&session->work_lock);
 	init_waitqueue_head(&session->wait);
 	session->id = service->counter++;
 	session->owner = service;
-
-	mutex_lock(&service->lock);
-	list_add_tail(&session->list_node, &service->sessions);
-	mutex_unlock(&service->lock);
-	atomic_add(1, &service->ref);
 
 	(*session_out) = session;
 
@@ -213,14 +217,21 @@ out:
 static int dsp_session_destroy(struct dsp_session *session)
 {
 	struct dsp_service *service = session->owner;
+	struct list_head *pos, *n;
 
 	dsp_debug_enter();
 
-	/* TODO must to check works of this session has been done */
-	mutex_lock(&service->lock);
-	list_del(&session->list_node);
-	mutex_unlock(&service->lock);
-	atomic_sub(1, &service->ref);
+	/* Destroy all works has already been done. */
+	mutex_lock(&session->work_lock);
+	list_for_each_safe(pos, n, &session->done) {
+		struct dsp_work *work = list_entry(pos, struct dsp_work,
+			list_node);
+		list_del(&work->list_node);
+		dsp_work_destroy(service->dma_pool, work);
+		dsp_debug(DEBUG_SERVICE, "Drop a done work.\n");
+	}
+	mutex_unlock(&session->work_lock);
+
 	kfree(session);
 
 	dsp_debug_leave();
@@ -245,7 +256,7 @@ static int dsp_service_clean_pending_works(struct dsp_service *service,
 
 	dsp_debug_enter();
 
-	mutex_lock(&service->lock);
+	mutex_lock(&service->work_lock);
 	list_for_each_safe(pos, n, &service->pending) {
 		struct dsp_work *work = list_entry(pos, struct dsp_work,
 			list_node);
@@ -253,10 +264,12 @@ static int dsp_service_clean_pending_works(struct dsp_service *service,
 		if (work->session == (u32)session) {
 			work->result = DSP_WORK_EABANDON;
 			list_del(&work->list_node);
+			mutex_lock(&session->work_lock);
 			list_add_tail(&work->list_node, &session->done);
+			mutex_unlock(&session->work_lock);
 		}
 	}
-	mutex_unlock(&service->lock);
+	mutex_unlock(&service->work_lock);
 
 	dsp_debug_leave();
 	return ret;
@@ -281,9 +294,9 @@ static int dsp_work_consume(void *data)
 						 !list_empty(&service->pending),
 						 HZ);
 
-		mutex_lock(&service->lock);
+		mutex_lock(&service->work_lock);
 		if (list_empty(&service->pending)) {
-			mutex_unlock(&service->lock);
+			mutex_unlock(&service->work_lock);
 			continue;
 		}
 
@@ -292,7 +305,7 @@ static int dsp_work_consume(void *data)
 		list_del(&work->list_node);
 		list_add_tail(&work->list_node, &service->running);
 
-		mutex_unlock(&service->lock);
+		mutex_unlock(&service->work_lock);
 
 		dsp_debug(DEBUG_SERVICE, "consume a work=0x%08x\n", work->id);
 
@@ -315,20 +328,41 @@ static int dsp_work_consume(void *data)
 static int dsp_work_done(struct dsp_dev_client *client, struct dsp_work *work)
 {
 	int ret = 0;
-	struct dsp_session *session = (struct dsp_session *)work->session;
-	struct dsp_service *service = session->owner;
+	struct dsp_service *service = client->data;
+	struct list_head *pos, *n;
 
 	dsp_debug_enter();
 
-	mutex_lock(&service->lock);
+	mutex_lock(&service->work_lock);
 	list_del(&work->list_node);
-	list_add_tail(&work->list_node, &session->done);
+	mutex_unlock(&service->work_lock);
+
+	mutex_lock(&service->lock);
+	list_for_each_safe(pos, n, &service->sessions) {
+		struct dsp_session *session = list_entry(pos,
+			struct dsp_session, list_node);
+
+		if (work->session == (u32)session) {
+			mutex_lock(&session->work_lock);
+			list_add_tail(&work->list_node, &session->done);
+			mutex_unlock(&session->work_lock);
+			wake_up(&session->wait);
+			dsp_debug(DEBUG_SERVICE, "work done id=0x%08x\n",
+				  work->id);
+			goto out;
+		}
+	}
+
+	/*
+	 * Cannot found this work's session, maybe the it's session has
+	 * been destroyed. We drop this work directly.
+	 */
+	dsp_err("Drop an orphan work, id=0x%08x.\n", work->id);
+	dsp_work_destroy(service->dma_pool, work);
+
+out:
 	mutex_unlock(&service->lock);
-
-	dsp_debug(DEBUG_SERVICE, "work done id=0x%08x\n", work->id);
 	dsp_debug_leave();
-
-	wake_up(&session->wait);
 	return ret;
 }
 
@@ -381,6 +415,7 @@ static int dsp_service_prepare(struct platform_device *pdev,
 	dsp_debug_enter();
 
 	mutex_init(&service->lock);
+	mutex_init(&service->work_lock);
 	init_waitqueue_head(&service->wait);
 
 	INIT_LIST_HEAD(&service->running);
@@ -517,34 +552,40 @@ static int dsp_open(struct inode *inode, struct file *filp)
 	struct dsp_session *session;
 	struct dsp_service *service;
 
-	dsp_debug_enter();
-
 	dsp = container_of(inode->i_cdev, struct rk_dsp, cdev);
 	if (!dsp) {
 		dsp_err("invalid dsp handle\n");
 		ret = -EINVAL;
-		goto out;
+		return ret;
 	}
 	service = &dsp->service;
 
+	dsp_debug_enter();
+
+	mutex_lock(&service->lock);
 	ret = dsp_session_create(service, &session);
 	if (ret) {
 		dsp_err("cannot create a session\n");
 		goto out;
 	}
 
+	atomic_add(1, &service->ref);
+
 	/* Power on DSP if first session is created. */
 	if (atomic_read(&service->ref) == 1) {
 		ret = service->dev->on(service->dev);
 		if (ret) {
+			atomic_sub(1, &service->ref);
 			dsp_session_destroy(session);
 			dsp_err("power on dsp device failed\n");
 			goto out;
 		}
 	}
 
+	list_add_tail(&session->list_node, &service->sessions);
 	filp->private_data = session;
 out:
+	mutex_unlock(&service->lock);
 	dsp_debug_leave();
 	return ret;
 }
@@ -557,16 +598,19 @@ static int dsp_release(struct inode *inode, struct file *filp)
 
 	dsp_debug_enter();
 
-	/* waiting running done */
-	while (!list_empty(&service->running))
-		msleep(20);
-
 	dsp_service_clean_pending_works(service, session);
-	ret = dsp_session_destroy(session);
+
+	mutex_lock(&service->lock);
+
+	list_del(&session->list_node);
+	dsp_session_destroy(session);
+	atomic_sub(1, &service->ref);
 
 	/* Power off DSP if service has not sessions anymore */
 	if (!atomic_read(&service->ref))
 		service->dev->off(service->dev);
+
+	mutex_unlock(&service->lock);
 
 	dsp_debug_leave();
 	return ret;

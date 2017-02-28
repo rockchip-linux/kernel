@@ -432,6 +432,13 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 
 	dev->resume(dev);
 
+	/*
+	 * Before DSP device power off, we must make sure that there is not
+	 * coming work request from device client.
+	 */
+	mutex_lock(&dev->lock);
+	dev->client->device_pause(dev->client);
+
 	dsp_dev_trace(dev, dev->trace_index + DSP_TRACE_SLOT_COUNT);
 
 	reset_control_assert(dev->core_rst);
@@ -444,6 +451,7 @@ static int dsp_dev_power_off(struct dsp_dev *dev)
 
 	dev->status = DSP_OFF;
 	pr_info("DSP power off\n");
+	mutex_unlock(&dev->lock);
 out:
 	dsp_debug_leave();
 	return ret;
