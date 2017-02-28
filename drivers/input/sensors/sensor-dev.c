@@ -2128,7 +2128,7 @@ static const struct i2c_device_id sensor_id[] = {
 	{"mpu6880_acc",ACCEL_ID_MPU6880},
 	{"mpu6500_acc",ACCEL_ID_MPU6500},
 	{"bma2xx_acc",ACCEL_ID_BMA2XX},
-
+	{"da380_acc", ACCEL_ID_MIR3DA},
 	/*compass*/
 	{"compass", COMPASS_ID_ALL},
 	{"ak8975", COMPASS_ID_AK8975},
@@ -2181,6 +2181,7 @@ static struct of_device_id sensor_dt_ids[] = {
 	{ .compatible = "gs_mxc6225" },
 	{ .compatible = "gs_mc3230" },
 	{ .compatible = "bma2xx_acc" },
+	{ .compatible = "da380_acc"},
 	/*compass*/
 	{ .compatible = "ak8975" },
 	{ .compatible = "ak8963" },
@@ -2240,6 +2241,7 @@ static int __init sensor_init(void)
 
 	sensor_proc_entry = proc_create("driver/sensor_dbg", 0660, NULL, &sensor_proc_fops);
 	printk("%s\n", SENSOR_VERSION_AND_TIME);
+
 	return res;
 }
 
