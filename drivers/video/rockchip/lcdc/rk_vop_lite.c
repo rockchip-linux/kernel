@@ -698,6 +698,8 @@ static int vop_win1_reg_update(struct rk_lcdc_driver *dev_drv, int win_id)
 			V_WIN1_RB_SWAP(win->area[0].swap_rb);
 		if (dev_drv->cur_screen->mode.vmode & FB_VMODE_INTERLACED)
 			val |= V_WIN1_INTERLACE_READ(1);
+		else
+			val |= V_WIN1_INTERLACE_READ(0);
 		vop_msk_reg(vop_dev, WIN1_CTRL0, val);
 
 		val = V_WIN1_VIR_STRIDE(win->area[0].y_vir_stride);
