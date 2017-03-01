@@ -101,7 +101,7 @@ static struct aptina_camera_module_reg ar0330cs_init_tab_2048_1536_30fps[] = {
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3016, 0x0527}, /*COARSE_INTEGRATION_TIME_CB = 1319*/
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3018, 0x0000}, /*FINE_INTEGRATION_TIME_CB = 0*/
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30AE, 0x0001}, /*X_ODD_INC_CB = 1*/
-{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A8, 0x0001}, /*Y_ODD_INC_CB = 1
+{APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30A8, 0x0001}, /*Y_ODD_INC_CB = 1*/
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3040, 0x0000}, /*READ_MODE = 0*/
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x3042, 0x02a0}, /*EXTRA_DELAY = 672*/
 {APTINA_CAMERA_MODULE_REG_TYPE_DATA, 0x30BA, 0x002C}, /*DIGITAL_CTRL = 44*/
@@ -359,7 +359,7 @@ err:
 static int ar0330cs_set_flip(
 	struct aptina_camera_module *cam_mod,
 	struct pltfrm_camera_module_reg reglist[],
-	int len);
+	int len)
 {
 	int i, mode = 0;
 

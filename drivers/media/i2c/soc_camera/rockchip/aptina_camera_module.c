@@ -599,12 +599,14 @@ int aptina_camera_module_s_frame_interval(
 			goto err;
 		}
 
-		if (cam_mod->state != APTINA_CAMERA_MODULE_STREAMING)
-			goto end;
-
 		vts = cam_mod->active_config->timings.frame_length_lines;
 		vts *= cam_mod->active_config->frm_intrvl.interval.denominator;
 		vts /= norm_interval.interval.denominator;
+		cam_mod->vts_cur = vts;
+
+		if (cam_mod->state != APTINA_CAMERA_MODULE_STREAMING)
+			goto end;
+
 		cam_mod->custom.s_vts(cam_mod, vts);
 	}
 
@@ -627,7 +629,7 @@ int aptina_camera_module_g_frame_interval(
 	struct aptina_camera_module *cam_mod = to_aptina_camera_module(sd);
 
 	if (cam_mod->active_config) {
-		if (cam_mod->state == OV_CAMERA_MODULE_STREAMING) {
+		if (cam_mod->state == APTINA_CAMERA_MODULE_STREAMING) {
 			if (cam_mod->frm_intrvl_valid) {
 				*interval = cam_mod->frm_intrvl;
 				return 0;
@@ -667,9 +669,6 @@ int aptina_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 			ret = -EINVAL;
 			goto err;
 		}
-
-		if (!IS_ERR_OR_NULL(cam_mod->custom.set_flip))
-			cam_mod->custom.set_flip(cam_mod);
 
 		if (cam_mod->update_config)
 			ret = aptina_camera_module_write_config(cam_mod);
@@ -1293,10 +1292,6 @@ long aptina_camera_module_ioctl(struct v4l2_subdev *sd,
 			aptina_timings.fine_integration_time_max_margin;
 		timings->fine_integration_time_min =
 			aptina_timings.fine_integration_time_min;
-
-		if (cam_mod->custom.g_exposure_valid_frame)
-			timings->exposure_valid_frame =
-				cam_mod->custom.g_exposure_valid_frame(cam_mod);
 
 		#if 0
 		timings->exp_time = cam_mod->exp_config.exp_time;

@@ -605,6 +605,7 @@ static int ov2710_g_timings(struct ov_camera_module *cam_mod,
 	vts = (!cam_mod->vts_cur) ?
 		timings->frame_length_lines :
 		cam_mod->vts_cur;
+
 	if (cam_mod->frm_intrvl_valid)
 		timings->vt_pix_clk_freq_hz =
 			cam_mod->frm_intrvl.interval.denominator
@@ -615,6 +616,8 @@ static int ov2710_g_timings(struct ov_camera_module *cam_mod,
 			cam_mod->active_config->frm_intrvl.interval.denominator
 			*vts
 			* timings->line_length_pck;
+
+	timings->frame_length_lines = vts;
 
 	return ret;
 err:

@@ -358,6 +358,8 @@ static int imx323_g_timings(struct imx_camera_module *cam_mod,
 			* vts
 			* timings->line_length_pck;
 
+	timings->frame_length_lines = vts;
+
 	return ret;
 err:
 	imx_camera_module_pr_err(cam_mod, "failed with error (%d)\n", ret);

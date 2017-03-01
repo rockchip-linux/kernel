@@ -411,12 +411,14 @@ int ov_camera_module_s_frame_interval(
 			goto err;
 		}
 
-		if (cam_mod->state != OV_CAMERA_MODULE_STREAMING)
-			goto end;
-
 		vts = cam_mod->active_config->timings.frame_length_lines;
 		vts *= cam_mod->active_config->frm_intrvl.interval.denominator;
 		vts /= norm_interval.interval.denominator;
+		cam_mod->vts_cur = vts;
+
+		if (cam_mod->state != OV_CAMERA_MODULE_STREAMING)
+			goto end;
+
 		cam_mod->custom.s_vts(cam_mod, vts);
 	}
 

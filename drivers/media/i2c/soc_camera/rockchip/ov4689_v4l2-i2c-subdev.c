@@ -890,11 +890,16 @@ static int ov4689_g_timings(struct ov_camera_module *cam_mod,
 	struct ov_camera_module_timings *timings)
 {
 	int ret = 0;
+	unsigned int vts;
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config))
 		goto err;
 
 	*timings = cam_mod->active_config->timings;
+
+	vts = (!cam_mod->vts_cur) ?
+		timings->frame_length_lines :
+		cam_mod->vts_cur;
 
 	if (cam_mod->frm_intrvl_valid)
 		timings->vt_pix_clk_freq_hz =
@@ -906,6 +911,8 @@ static int ov4689_g_timings(struct ov_camera_module *cam_mod,
 			cam_mod->active_config->frm_intrvl.interval.denominator
 			* timings->frame_length_lines
 			* timings->line_length_pck;
+
+	timings->frame_length_lines = vts;
 
 	return ret;
 err:
