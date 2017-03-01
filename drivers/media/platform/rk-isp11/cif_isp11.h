@@ -212,7 +212,7 @@ enum cif_isp11_image_effect {
 	(!CIF_ISP11_PIX_FMT_IS_YUV(pix_fmt) ||\
 	!CIF_ISP11_PIX_FMT_YUV_GET_NUM_CPLANES(pix_fmt))
 
-#define CIF_ISP11_PIX_FMT_Y_AS_BAYER	1
+#define CIF_ISP11_PIX_FMT_Y_AS_BAYER	0
 
 enum cif_isp11_pix_fmt {
 	/* YUV */
