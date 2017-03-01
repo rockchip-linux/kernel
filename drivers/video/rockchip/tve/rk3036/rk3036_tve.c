@@ -270,7 +270,7 @@ cvbs_set_mode(struct rk_display_device *device, struct fb_videomode *mode)
 				(struct fb_videomode *)&rk3036_cvbs_mode[i];
 				if (rk3036_tve->enable && !rk3036_tve->suspend) {
 					dac_enable(false);
-					msleep(200);
+					msleep(1000);
 					tve_switch_fb(rk3036_tve->mode, 1);
 					dac_enable(true);
 				}
