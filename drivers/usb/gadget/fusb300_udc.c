@@ -1345,7 +1345,7 @@ static const struct usb_gadget_ops fusb300_gadget_ops = {
 	.udc_stop	= fusb300_udc_stop,
 };
 
-static int __exit fusb300_remove(struct platform_device *pdev)
+static int fusb300_remove(struct platform_device *pdev)
 {
 	struct fusb300 *fusb300 = dev_get_drvdata(&pdev->dev);
 
@@ -1495,7 +1495,7 @@ clean_up:
 }
 
 static struct platform_driver fusb300_driver = {
-	.remove =	__exit_p(fusb300_remove),
+	.remove =	fusb300_remove,
 	.driver		= {
 		.name =	(char *) udc_name,
 		.owner	= THIS_MODULE,

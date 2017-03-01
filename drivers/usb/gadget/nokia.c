@@ -127,7 +127,7 @@ static struct usb_configuration nokia_config_100ma_driver = {
 
 static struct usb_function_instance *fi_acm;
 
-static int __init nokia_bind_config(struct usb_configuration *c)
+static int nokia_bind_config(struct usb_configuration *c)
 {
 	struct usb_function *f_acm;
 	int status = 0;
@@ -170,7 +170,7 @@ err_conf:
 	return status;
 }
 
-static int __init nokia_bind(struct usb_composite_dev *cdev)
+static int nokia_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			status;
@@ -240,7 +240,7 @@ err_phonet:
 	return status;
 }
 
-static int __exit nokia_unbind(struct usb_composite_dev *cdev)
+static int nokia_unbind(struct usb_composite_dev *cdev)
 {
 	int i;
 
@@ -257,13 +257,13 @@ static int __exit nokia_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static __refdata struct usb_composite_driver nokia_driver = {
+static struct usb_composite_driver nokia_driver = {
 	.name		= "g_nokia",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.max_speed	= USB_SPEED_HIGH,
 	.bind		= nokia_bind,
-	.unbind		= __exit_p(nokia_unbind),
+	.unbind		= nokia_unbind,
 };
 
 static int __init nokia_init(void)

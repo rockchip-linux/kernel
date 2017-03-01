@@ -116,7 +116,7 @@ static u8 hostaddr[ETH_ALEN];
 
 /*-------------------------------------------------------------------------*/
 
-static int __init ncm_do_config(struct usb_configuration *c)
+static int ncm_do_config(struct usb_configuration *c)
 {
 	/* FIXME alloc iConfiguration string, set it in c->strings */
 
@@ -138,7 +138,7 @@ static struct usb_configuration ncm_config_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static int __init gncm_bind(struct usb_composite_dev *cdev)
+static int gncm_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			status;
@@ -173,19 +173,19 @@ fail:
 	return status;
 }
 
-static int __exit gncm_unbind(struct usb_composite_dev *cdev)
+static int gncm_unbind(struct usb_composite_dev *cdev)
 {
 	gether_cleanup(the_dev);
 	return 0;
 }
 
-static __refdata struct usb_composite_driver ncm_driver = {
+static struct usb_composite_driver ncm_driver = {
 	.name		= "g_ncm",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.max_speed	= USB_SPEED_HIGH,
 	.bind		= gncm_bind,
-	.unbind		= __exit_p(gncm_unbind),
+	.unbind		= gncm_unbind,
 };
 
 MODULE_DESCRIPTION(DRIVER_DESC);

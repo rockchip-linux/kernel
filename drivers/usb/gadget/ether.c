@@ -215,7 +215,7 @@ static struct eth_dev *the_dev;
  * the first one present.  That's to make Microsoft's drivers happy,
  * and to follow DOCSIS 1.0 (cable modem standard).
  */
-static int __init rndis_do_config(struct usb_configuration *c)
+static int rndis_do_config(struct usb_configuration *c)
 {
 	/* FIXME alloc iConfiguration string, set it in c->strings */
 
@@ -247,7 +247,7 @@ MODULE_PARM_DESC(use_eem, "use CDC EEM mode");
 /*
  * We _always_ have an ECM, CDC Subset, or EEM configuration.
  */
-static int __init eth_do_config(struct usb_configuration *c)
+static int eth_do_config(struct usb_configuration *c)
 {
 	/* FIXME alloc iConfiguration string, set it in c->strings */
 
@@ -273,7 +273,7 @@ static struct usb_configuration eth_config_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static int __init eth_bind(struct usb_composite_dev *cdev)
+static int eth_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			status;
@@ -342,19 +342,19 @@ fail:
 	return status;
 }
 
-static int __exit eth_unbind(struct usb_composite_dev *cdev)
+static int eth_unbind(struct usb_composite_dev *cdev)
 {
 	gether_cleanup(the_dev);
 	return 0;
 }
 
-static __refdata struct usb_composite_driver eth_driver = {
+static struct usb_composite_driver eth_driver = {
 	.name		= "g_ether",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.max_speed	= USB_SPEED_SUPER,
 	.bind		= eth_bind,
-	.unbind		= __exit_p(eth_unbind),
+	.unbind		= eth_unbind,
 };
 
 MODULE_DESCRIPTION(PREFIX DRIVER_DESC);

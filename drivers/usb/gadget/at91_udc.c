@@ -1849,7 +1849,7 @@ fail0:
 	return retval;
 }
 
-static int __exit at91udc_remove(struct platform_device *pdev)
+static int at91udc_remove(struct platform_device *pdev)
 {
 	struct at91_udc *udc = platform_get_drvdata(pdev);
 	struct resource *res;
@@ -1948,7 +1948,7 @@ MODULE_DEVICE_TABLE(of, at91_udc_dt_ids);
 #endif
 
 static struct platform_driver at91_udc_driver = {
-	.remove		= __exit_p(at91udc_remove),
+	.remove		= at91udc_remove,
 	.shutdown	= at91udc_shutdown,
 	.suspend	= at91udc_suspend,
 	.resume		= at91udc_resume,

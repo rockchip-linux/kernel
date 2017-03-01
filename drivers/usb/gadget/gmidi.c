@@ -115,7 +115,7 @@ static struct usb_gadget_strings *dev_strings[] = {
 	NULL,
 };
 
-static int __exit midi_unbind(struct usb_composite_dev *dev)
+static int midi_unbind(struct usb_composite_dev *dev)
 {
 	return 0;
 }
@@ -128,14 +128,14 @@ static struct usb_configuration midi_config = {
 	.MaxPower	= CONFIG_USB_GADGET_VBUS_DRAW,
 };
 
-static int __init midi_bind_config(struct usb_configuration *c)
+static int midi_bind_config(struct usb_configuration *c)
 {
 	return f_midi_bind_config(c, index, id,
 				  in_ports, out_ports,
 				  buflen, qlen);
 }
 
-static int __init midi_bind(struct usb_composite_dev *cdev)
+static int midi_bind(struct usb_composite_dev *cdev)
 {
 	int status;
 
@@ -154,13 +154,13 @@ static int __init midi_bind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static __refdata struct usb_composite_driver midi_driver = {
+static struct usb_composite_driver midi_driver = {
 	.name		= (char *) longname,
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.max_speed	= USB_SPEED_HIGH,
 	.bind		= midi_bind,
-	.unbind		= __exit_p(midi_unbind),
+	.unbind		= midi_unbind,
 };
 
 static int __init midi_init(void)

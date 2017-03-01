@@ -111,7 +111,7 @@ static struct usb_gadget_strings *dev_strings[] = {
 
 /****************************** Configurations ******************************/
 
-static int __init do_config(struct usb_configuration *c)
+static int do_config(struct usb_configuration *c)
 {
 	struct hidg_func_node *e;
 	int func = 0, status = 0;
@@ -139,7 +139,7 @@ static struct usb_configuration config_driver = {
 
 /****************************** Gadget Bind ******************************/
 
-static int __init hid_bind(struct usb_composite_dev *cdev)
+static int hid_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget *gadget = cdev->gadget;
 	struct list_head *tmp;
@@ -177,13 +177,13 @@ static int __init hid_bind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static int __exit hid_unbind(struct usb_composite_dev *cdev)
+static int hid_unbind(struct usb_composite_dev *cdev)
 {
 	ghid_cleanup();
 	return 0;
 }
 
-static int __init hidg_plat_driver_probe(struct platform_device *pdev)
+static int hidg_plat_driver_probe(struct platform_device *pdev)
 {
 	struct hidg_func_descriptor *func = pdev->dev.platform_data;
 	struct hidg_func_node *entry;
@@ -219,13 +219,13 @@ static int hidg_plat_driver_remove(struct platform_device *pdev)
 /****************************** Some noise ******************************/
 
 
-static __refdata struct usb_composite_driver hidg_driver = {
+static struct usb_composite_driver hidg_driver = {
 	.name		= "g_hid",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.max_speed	= USB_SPEED_HIGH,
 	.bind		= hid_bind,
-	.unbind		= __exit_p(hid_unbind),
+	.unbind		= hid_unbind,
 };
 
 static struct platform_driver hidg_plat_driver = {

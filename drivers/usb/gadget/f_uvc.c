@@ -75,7 +75,7 @@ static struct usb_gadget_strings *uvc_function_strings[] = {
 
 #define UVC_STATUS_MAX_PACKET_SIZE		16	/* 16 bytes status */
 
-static struct usb_interface_assoc_descriptor uvc_iad __initdata = {
+static struct usb_interface_assoc_descriptor uvc_iad = {
 	.bLength		= sizeof(uvc_iad),
 	.bDescriptorType	= USB_DT_INTERFACE_ASSOCIATION,
 	.bFirstInterface	= 0,
@@ -86,7 +86,7 @@ static struct usb_interface_assoc_descriptor uvc_iad __initdata = {
 	.iFunction		= 0,
 };
 
-static struct usb_interface_descriptor uvc_control_intf __initdata = {
+static struct usb_interface_descriptor uvc_control_intf = {
 	.bLength		= USB_DT_INTERFACE_SIZE,
 	.bDescriptorType	= USB_DT_INTERFACE,
 	.bInterfaceNumber	= UVC_INTF_VIDEO_CONTROL,
@@ -98,7 +98,7 @@ static struct usb_interface_descriptor uvc_control_intf __initdata = {
 	.iInterface		= 0,
 };
 
-static struct usb_endpoint_descriptor uvc_control_ep __initdata = {
+static struct usb_endpoint_descriptor uvc_control_ep = {
 	.bLength		= USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType	= USB_DT_ENDPOINT,
 	.bEndpointAddress	= USB_DIR_IN,
@@ -107,7 +107,7 @@ static struct usb_endpoint_descriptor uvc_control_ep __initdata = {
 	.bInterval		= 8,
 };
 
-static struct usb_ss_ep_comp_descriptor uvc_ss_control_comp __initdata = {
+static struct usb_ss_ep_comp_descriptor uvc_ss_control_comp = {
 	.bLength		= sizeof(uvc_ss_control_comp),
 	.bDescriptorType	= USB_DT_SS_ENDPOINT_COMP,
 	/* The following 3 values can be tweaked if necessary. */
@@ -116,14 +116,14 @@ static struct usb_ss_ep_comp_descriptor uvc_ss_control_comp __initdata = {
 	.wBytesPerInterval	= cpu_to_le16(UVC_STATUS_MAX_PACKET_SIZE),
 };
 
-static struct uvc_control_endpoint_descriptor uvc_control_cs_ep __initdata = {
+static struct uvc_control_endpoint_descriptor uvc_control_cs_ep = {
 	.bLength		= UVC_DT_CONTROL_ENDPOINT_SIZE,
 	.bDescriptorType	= USB_DT_CS_ENDPOINT,
 	.bDescriptorSubType	= UVC_EP_INTERRUPT,
 	.wMaxTransferSize	= cpu_to_le16(UVC_STATUS_MAX_PACKET_SIZE),
 };
 
-static struct usb_interface_descriptor uvc_streaming_intf_alt0 __initdata = {
+static struct usb_interface_descriptor uvc_streaming_intf_alt0 = {
 	.bLength		= USB_DT_INTERFACE_SIZE,
 	.bDescriptorType	= USB_DT_INTERFACE,
 	.bInterfaceNumber	= UVC_INTF_VIDEO_STREAMING,
@@ -135,7 +135,7 @@ static struct usb_interface_descriptor uvc_streaming_intf_alt0 __initdata = {
 	.iInterface		= 0,
 };
 
-static struct usb_interface_descriptor uvc_streaming_intf_alt1 __initdata = {
+static struct usb_interface_descriptor uvc_streaming_intf_alt1 = {
 	.bLength		= USB_DT_INTERFACE_SIZE,
 	.bDescriptorType	= USB_DT_INTERFACE,
 	.bInterfaceNumber	= UVC_INTF_VIDEO_STREAMING,
@@ -147,7 +147,7 @@ static struct usb_interface_descriptor uvc_streaming_intf_alt1 __initdata = {
 	.iInterface		= 0,
 };
 
-static struct usb_endpoint_descriptor uvc_fs_streaming_ep __initdata = {
+static struct usb_endpoint_descriptor uvc_fs_streaming_ep = {
 	.bLength		= USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType	= USB_DT_ENDPOINT,
 	.bEndpointAddress	= USB_DIR_IN,
@@ -160,7 +160,7 @@ static struct usb_endpoint_descriptor uvc_fs_streaming_ep __initdata = {
 	.bInterval		= 0,
 };
 
-static struct usb_endpoint_descriptor uvc_hs_streaming_ep __initdata = {
+static struct usb_endpoint_descriptor uvc_hs_streaming_ep = {
 	.bLength		= USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType	= USB_DT_ENDPOINT,
 	.bEndpointAddress	= USB_DIR_IN,
@@ -173,7 +173,7 @@ static struct usb_endpoint_descriptor uvc_hs_streaming_ep __initdata = {
 	.bInterval		= 0,
 };
 
-static struct usb_endpoint_descriptor uvc_ss_streaming_ep __initdata = {
+static struct usb_endpoint_descriptor uvc_ss_streaming_ep = {
 	.bLength		= USB_DT_ENDPOINT_SIZE,
 	.bDescriptorType	= USB_DT_ENDPOINT,
 
@@ -187,7 +187,7 @@ static struct usb_endpoint_descriptor uvc_ss_streaming_ep __initdata = {
 	.bInterval		= 0,
 };
 
-static struct usb_ss_ep_comp_descriptor uvc_ss_streaming_comp __initdata = {
+static struct usb_ss_ep_comp_descriptor uvc_ss_streaming_comp = {
 	.bLength		= sizeof(uvc_ss_streaming_comp),
 	.bDescriptorType	= USB_DT_SS_ENDPOINT_COMP,
 	/* The following 3 values can be tweaked if necessary. */
@@ -441,7 +441,7 @@ uvc_register_video(struct uvc_device *uvc)
 		} \
 	} while (0)
 
-static struct usb_descriptor_header ** __init
+static struct usb_descriptor_header **
 uvc_copy_descriptors(struct uvc_device *uvc, enum usb_device_speed speed)
 {
 	struct uvc_input_header_descriptor *uvc_streaming_header;
@@ -582,7 +582,7 @@ uvc_function_unbind(struct usb_configuration *c, struct usb_function *f)
 	kfree(uvc);
 }
 
-static int __init
+static int
 uvc_function_bind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct usb_composite_dev *cdev = c->cdev;
@@ -743,7 +743,7 @@ error:
  * Caller must have called @uvc_setup(). Caller is also responsible for
  * calling @uvc_cleanup() before module unload.
  */
-int __init
+int
 uvc_bind_config(struct usb_configuration *c,
 		const struct uvc_descriptor_header * const *fs_control,
 		const struct uvc_descriptor_header * const *ss_control,

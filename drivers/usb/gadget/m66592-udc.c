@@ -1531,7 +1531,7 @@ static const struct usb_gadget_ops m66592_gadget_ops = {
 	.pullup			= m66592_pullup,
 };
 
-static int __exit m66592_remove(struct platform_device *pdev)
+static int m66592_remove(struct platform_device *pdev)
 {
 	struct m66592		*m66592 = dev_get_drvdata(&pdev->dev);
 
@@ -1699,7 +1699,7 @@ clean_up:
 
 /*-------------------------------------------------------------------------*/
 static struct platform_driver m66592_driver = {
-	.remove =	__exit_p(m66592_remove),
+	.remove =	m66592_remove,
 	.driver		= {
 		.name =	(char *) udc_name,
 		.owner	= THIS_MODULE,

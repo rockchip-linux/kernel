@@ -111,7 +111,7 @@ static struct usb_function_instance *fi_serial;
 /*
  * We _always_ have both CDC ECM and CDC ACM functions.
  */
-static int __init cdc_do_config(struct usb_configuration *c)
+static int cdc_do_config(struct usb_configuration *c)
 {
 	int	status;
 
@@ -154,7 +154,7 @@ static struct usb_configuration cdc_config_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static int __init cdc_bind(struct usb_composite_dev *cdev)
+static int cdc_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			status;
@@ -196,7 +196,7 @@ fail1:
 	return status;
 }
 
-static int __exit cdc_unbind(struct usb_composite_dev *cdev)
+static int cdc_unbind(struct usb_composite_dev *cdev)
 {
 	usb_put_function(f_acm);
 	usb_put_function_instance(fi_serial);
@@ -204,13 +204,13 @@ static int __exit cdc_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static __refdata struct usb_composite_driver cdc_driver = {
+static struct usb_composite_driver cdc_driver = {
 	.name		= "g_cdc",
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.max_speed	= USB_SPEED_HIGH,
 	.bind		= cdc_bind,
-	.unbind		= __exit_p(cdc_unbind),
+	.unbind		= cdc_unbind,
 };
 
 MODULE_DESCRIPTION(DRIVER_DESC);
