@@ -291,6 +291,91 @@ static void rkpart_bootmode_fixup(void)
 	saved_command_line = new_command_line;
 }
 
+/*
+ * read_lba(): Read bytes from disk, starting at given LBA
+ * @state
+ * @lba
+ * @buffer
+ * @size_t
+ *
+ * Description: Reads @count bytes from @state->bdev into @buffer.
+ * Returns number of bytes read on success, 0 on error.
+ */
+static size_t read_lba(struct parsed_partitions *state,
+		       u64 lba, u8 *buffer, size_t count)
+{
+	size_t totalreadcount = 0;
+	struct block_device *bdev = state->bdev;
+	sector_t n = lba * (bdev_logical_block_size(bdev) / 512);
+
+	while (count) {
+		int copied = 512;
+		Sector sect;
+		unsigned char *data = read_part_sector(state, n++, &sect);
+
+		if (!data)
+			break;
+		if (copied > count)
+			copied = count;
+		memcpy(buffer, data, copied);
+		put_dev_sector(sect);
+		buffer += copied;
+		totalreadcount += copied;
+		count -= copied;
+	}
+	return totalreadcount;
+}
+
+static int rk_new_part_dectet(sector_t n, struct parsed_partitions *state)
+{
+	int i, part_num = 0;
+	struct rk_part_info *g_part; /* size 2KB */
+	struct rk_part_entey *parts;
+	int size;
+
+	BUILD_BUG_ON_MSG(sizeof(struct rk_part_info) != 4096,
+			 "struct rk_part_info size error");
+
+	size = sizeof(*g_part);
+	g_part = kmalloc(size, GFP_KERNEL | GFP_DMA);
+	if (!g_part)
+		return 0;
+
+	if (read_lba(state, 0, (u8 *)g_part, size) < size) {
+		kfree(g_part);
+		return 0;
+	}
+
+	if (g_part->hdr.ui_fw_tag == RK_PARTITION_TAG) {
+		part_num = g_part->hdr.ui_part_entry_count;
+		parts = g_part->part;
+
+		for (i = 0; i < part_num; i++) {
+			struct partition_meta_info *info;
+			unsigned int label_max;
+
+			if (parts[i].size == SIZE_REMAINING)
+				parts[i].size = n - parts[i].offset;
+
+			info = &state->parts[i + 1].info;
+			put_partition(state, i + 1,
+				      parts[i].offset,
+				      parts[i].size);
+			label_max = min(sizeof(info->volname) - 1,
+					sizeof(parts[i].name));
+			strncpy(info->volname, parts[i].name, label_max);
+			pr_info("%10s: 0x%09llx -- 0x%09llx (%llu MB)\n",
+				parts[i].name,
+				(u64)parts[i].offset * 512,
+				(u64)(parts[i].offset + parts[i].size) * 512,
+				(u64)parts[i].size / 2048);
+		}
+	}
+
+	kfree(g_part);
+	return (part_num > 0);
+}
+
 int rkpart_partition(struct parsed_partitions *state)
 {
 	int num_parts = 0, i;
@@ -300,11 +385,14 @@ int rkpart_partition(struct parsed_partitions *state)
 	if (n < SECTOR_1G)
 		return 0;
 
-        /* ONLY be used by eMMC-disk */
-        if (1 != state->bdev->bd_disk->emmc_disk)
-                return 0;
+	/* ONLY be used by eMMC-disk */
+	if (1 != state->bdev->bd_disk->emmc_disk)
+		return 0;
 
-        /* Fixme: parameter should be coherence with part table */
+	if (rk_new_part_dectet(n, state) == 1)
+		return 1;
+
+	/* Fixme: parameter should be coherence with part table */
 	cmdline = strstr(saved_command_line, "mtdparts=") + 9;
 	cmdline_parsed = 0;
 
@@ -313,16 +401,22 @@ int rkpart_partition(struct parsed_partitions *state)
 		return num_parts;
 
 	for (i = 0; i < num_parts; i++) {
-		put_partition(  state,
-		                i+1,
-                                parts[i].from + FROM_OFFSET,
-                                parts[i].size);
-		strcpy(state->parts[i+1].info.volname, parts[i].name);
-                printk(KERN_INFO "%10s: 0x%09llx -- 0x%09llx (%llu MB)\n", 
-				parts[i].name,
-				(u64)parts[i].from * 512,
-				(u64)(parts[i].from + parts[i].size) * 512,
-				(u64)parts[i].size / 2048);
+		struct partition_meta_info *info;
+		unsigned int label_max;
+
+		info = &state->parts[i + 1].info;
+		put_partition(state,
+			      i + 1,
+			      parts[i].from + FROM_OFFSET,
+			      parts[i].size);
+		label_max = min(sizeof(info->volname) - 1,
+				sizeof(parts[i].name));
+		strncpy(info->volname, parts[i].name, label_max);
+		pr_info("%10s: 0x%09llx -- 0x%09llx (%llu MB)\n",
+			parts[i].name,
+			(u64)parts[i].from * 512,
+			(u64)(parts[i].from + parts[i].size) * 512,
+			(u64)parts[i].size / 2048);
 	}
 
 	rkpart_bootmode_fixup();
