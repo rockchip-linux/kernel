@@ -77,8 +77,6 @@ static bool extend_display_is_connected(struct device *dev)
 {
 	struct extend_context *ctx = get_extend_context(dev);
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 
 	return drm_disp->is_connected?true:false;
 	
@@ -93,7 +91,6 @@ static void *extend_get_panel(struct device *dev)
 	struct fb_modelist *modelist;
 	struct fb_videomode *mode;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 	if(!drm_disp->is_connected)
 		return NULL;
 	list_for_each(pos,drm_disp->modelist){
@@ -116,9 +113,6 @@ static void *extend_get_modelist(struct device *dev)
 }
 static int extend_check_timing(struct device *dev, void *timing)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	/* TODO. */
 
 	return 0;
@@ -127,9 +121,7 @@ static int extend_check_timing(struct device *dev, void *timing)
 static int extend_display_power_on(struct device *dev, int mode)
 {
 	struct extend_context *ctx = get_extend_context(dev);
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 	/* TODO */
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
 	extend_activate(ctx,mode == DRM_MODE_DPMS_ON?true:false);
 	
 	return 0;
@@ -229,8 +221,6 @@ static void extend_dpms(struct device *subdrv_dev, int mode)
 {
 	struct extend_context *ctx = get_extend_context(subdrv_dev);
 
-	DRM_DEBUG_KMS("%s, %d\n", __FILE__, mode);
-
 	mutex_lock(&ctx->lock);
 
 	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
@@ -269,9 +259,6 @@ static void extend_apply(struct device *subdrv_dev)
 	struct extend_win_data *win_data;
 	int i;
 
-	printk(KERN_ERR"%s %d\n", __func__,__LINE__);
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	for (i = 0; i < WINDOWS_NR; i++) {
 		win_data = &ctx->win_data[i];
 		if (win_data->enabled && (ovl_ops && ovl_ops->commit))
@@ -302,8 +289,6 @@ static int extend_enable_vblank(struct device *dev)
 {
 	struct extend_context *ctx = get_extend_context(dev);
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (ctx->suspended)
 		return -EPERM;
 
@@ -314,8 +299,6 @@ static int extend_enable_vblank(struct device *dev)
 static void extend_disable_vblank(struct device *dev)
 {
 	struct extend_context *ctx = get_extend_context(dev);
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (ctx->suspended)
 		return;
@@ -415,8 +398,6 @@ static void extend_win_mode_set(struct device *dev,
 	struct fb_videomode *mode;
 	struct drm_display_mode *disp_mode = NULL;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (!overlay) {
 		dev_err(dev, "overlay is NULL\n");
 		return;
@@ -479,9 +460,6 @@ static void extend_win_set_pixfmt(struct device *dev, unsigned int win)
 static void extend_win_set_colkey(struct device *dev, unsigned int win)
 {
 //	struct extend_context *ctx = get_extend_context(dev);
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 }
 
 ktime_t win_start;
@@ -558,8 +536,6 @@ static void extend_win_disable(struct device *dev, int zpos)
 	struct extend_win_data *win_data;
 	int win = zpos;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (win == DEFAULT_ZPOS)
 		win = ctx->default_win;
 
@@ -620,8 +596,6 @@ out:
 #endif
 static int extend_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/*
 	 * enable drm irq mode.
 	 * - with irq_enabled = 1, we can use the vblank feature.
@@ -648,8 +622,6 @@ static int extend_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
 
 static void extend_subdrv_remove(struct drm_device *drm_dev, struct device *dev)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* detach this sub driver from iommu mapping if supported. */
 	if (is_drm_iommu_supported(drm_dev))
 		drm_iommu_detach_device(drm_dev, dev);

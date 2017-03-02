@@ -105,8 +105,6 @@ rockchip_drm_encoder_mode_fixup(struct drm_encoder *encoder,
 	struct rockchip_drm_manager *manager = rockchip_drm_get_manager(encoder);
 	struct rockchip_drm_manager_ops *manager_ops = manager->ops;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		if (connector->encoder == encoder)
 			if (manager_ops && manager_ops->mode_fixup)
@@ -156,8 +154,6 @@ static void rockchip_drm_encoder_mode_set(struct drm_encoder *encoder,
 	struct rockchip_drm_manager *manager;
 	struct rockchip_drm_manager_ops *manager_ops;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		if (connector->encoder == encoder) {
 			struct rockchip_drm_encoder *rockchip_encoder;
@@ -190,8 +186,6 @@ static void rockchip_drm_encoder_mode_set(struct drm_encoder *encoder,
 
 static void rockchip_drm_encoder_prepare(struct drm_encoder *encoder)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* drm framework doesn't check NULL. */
 }
 
@@ -201,7 +195,6 @@ static void rockchip_drm_encoder_commit(struct drm_encoder *encoder)
 	struct rockchip_drm_manager *manager = rockchip_encoder->manager;
 	struct rockchip_drm_manager_ops *manager_ops = manager->ops;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (manager_ops && manager_ops->commit)
 		manager_ops->commit(manager->dev);
@@ -275,8 +268,6 @@ static void rockchip_drm_encoder_destroy(struct drm_encoder *encoder)
 	struct rockchip_drm_encoder *rockchip_encoder =
 		to_rockchip_encoder(encoder);
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	rockchip_encoder->manager->pipe = -1;
 
 	drm_encoder_cleanup(encoder);
@@ -316,8 +307,6 @@ void rockchip_drm_encoder_setup(struct drm_device *dev)
 {
 	struct drm_encoder *encoder;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head)
 		encoder->possible_clones = rockchip_drm_encoder_clones(encoder);
 }
@@ -329,8 +318,6 @@ rockchip_drm_encoder_create(struct drm_device *dev,
 {
 	struct drm_encoder *encoder;
 	struct rockchip_drm_encoder *rockchip_encoder;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (!manager || !possible_crtcs)
 		return NULL;
@@ -352,7 +339,7 @@ rockchip_drm_encoder_create(struct drm_device *dev,
 	DRM_DEBUG_KMS("possible_crtcs = 0x%x\n", encoder->possible_crtcs);
 
 	drm_encoder_init(dev, encoder, &rockchip_encoder_funcs,
-			DRM_MODE_ENCODER_TMDS);
+			DRM_MODE_ENCODER_LVDS);
 
 	drm_encoder_helper_add(encoder, &rockchip_encoder_helper_funcs);
 
@@ -455,8 +442,6 @@ void rockchip_drm_encoder_crtc_dpms(struct drm_encoder *encoder, void *data)
 	struct rockchip_drm_manager_ops *manager_ops = manager->ops;
 	int mode = *(int *)data;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (manager_ops && manager_ops->dpms)
 		manager_ops->dpms(manager->dev, mode);
 
@@ -477,8 +462,6 @@ void rockchip_drm_encoder_crtc_pipe(struct drm_encoder *encoder, void *data)
 		to_rockchip_encoder(encoder)->manager;
 	int pipe = *(int *)data;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/*
 	 * when crtc is detached from encoder, this pipe is used
 	 * to select manager operation
@@ -493,8 +476,6 @@ void rockchip_drm_encoder_plane_mode_set(struct drm_encoder *encoder, void *data
 	struct rockchip_drm_overlay_ops *overlay_ops = manager->overlay_ops;
 	struct rockchip_drm_overlay *overlay = data;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (overlay_ops && overlay_ops->mode_set)
 		overlay_ops->mode_set(manager->dev, overlay);
 }
@@ -505,8 +486,6 @@ void rockchip_drm_encoder_plane_commit(struct drm_encoder *encoder, void *data)
 		to_rockchip_encoder(encoder)->manager;
 	struct rockchip_drm_overlay_ops *overlay_ops = manager->overlay_ops;
 	int zpos = DEFAULT_ZPOS;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (data)
 		zpos = *(int *)data;
@@ -522,8 +501,6 @@ void rockchip_drm_encoder_plane_enable(struct drm_encoder *encoder, void *data)
 	struct rockchip_drm_overlay_ops *overlay_ops = manager->overlay_ops;
 	int zpos = DEFAULT_ZPOS;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (data)
 		zpos = *(int *)data;
 
@@ -537,8 +514,6 @@ void rockchip_drm_encoder_plane_disable(struct drm_encoder *encoder, void *data)
 		to_rockchip_encoder(encoder)->manager;
 	struct rockchip_drm_overlay_ops *overlay_ops = manager->overlay_ops;
 	int zpos = DEFAULT_ZPOS;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (data)
 		zpos = *(int *)data;

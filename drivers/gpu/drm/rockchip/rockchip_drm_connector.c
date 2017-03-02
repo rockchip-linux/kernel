@@ -37,7 +37,6 @@ convert_to_display_mode(struct drm_display_mode *mode,
 			struct rockchip_drm_panel_info *panel)
 {
 	struct fb_videomode *timing = &panel->timing;
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	mode->clock = timing->pixclock / 1000;
 	mode->vrefresh = timing->refresh;
@@ -64,7 +63,6 @@ static inline void
 convert_fbmode_to_display_mode(struct drm_display_mode *mode,
 			struct fb_videomode *timing)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	mode->clock = timing->pixclock / 1000;
 	mode->vrefresh = timing->refresh;
@@ -90,8 +88,6 @@ static inline void
 convert_to_video_timing(struct fb_videomode *timing,
 			struct drm_display_mode *mode)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	memset(timing, 0, sizeof(*timing));
 
 	timing->pixclock = mode->clock * 1000;
@@ -125,8 +121,6 @@ static int rockchip_drm_connector_get_modes(struct drm_connector *connector)
 	struct edid *edid = NULL;
 	unsigned int count = 0;
 	int ret;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (!display_ops) {
 		DRM_DEBUG_KMS("display_ops is null.\n");
@@ -226,8 +220,6 @@ static int rockchip_drm_connector_mode_valid(struct drm_connector *connector,
 	struct fb_videomode timing;
 	int ret = MODE_BAD;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	convert_to_video_timing(&timing, mode);
 
 	if (display_ops && display_ops->check_timing)
@@ -244,8 +236,6 @@ struct drm_encoder *rockchip_drm_best_encoder(struct drm_connector *connector)
 					to_rockchip_connector(connector);
 	struct drm_mode_object *obj;
 	struct drm_encoder *encoder;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	obj = drm_mode_object_find(dev, rockchip_connector->encoder_id,
 				   DRM_MODE_OBJECT_ENCODER);
@@ -289,8 +279,6 @@ void rockchip_drm_display_power(struct drm_connector *connector, int mode)
 static void rockchip_drm_connector_dpms(struct drm_connector *connector,
 					int mode)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/*
 	 * in case that drm_crtc_helper_set_mode() is called,
 	 * encoder/crtc->funcs->dpms() will be just returned
@@ -337,8 +325,6 @@ rockchip_drm_connector_detect(struct drm_connector *connector, bool force)
 					manager->display_ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (display_ops && display_ops->is_connected) {
 		if (display_ops->is_connected(manager->dev))
 			status = connector_status_connected;
@@ -353,8 +339,6 @@ static void rockchip_drm_connector_destroy(struct drm_connector *connector)
 {
 	struct rockchip_drm_connector *rockchip_connector =
 		to_rockchip_connector(connector);
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	drm_sysfs_connector_remove(connector);
 	drm_connector_cleanup(connector);
@@ -376,8 +360,6 @@ struct drm_connector *rockchip_drm_connector_create(struct drm_device *dev,
 	struct drm_connector *connector;
 	int type;
 	int err;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	rockchip_connector = kzalloc(sizeof(*rockchip_connector), GFP_KERNEL);
 	if (!rockchip_connector) {

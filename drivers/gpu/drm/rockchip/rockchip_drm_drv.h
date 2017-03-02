@@ -18,8 +18,8 @@
 
 #include <linux/module.h>
 
-#define MAX_CRTC	3
-#define MAX_PLANE	5
+#define MAX_CRTC	1  /* hjc change 3 to 1 for px3se */
+#define MAX_PLANE	3  /* hjc change 5 to 3 for px3se */
 #define MAX_FB_BUFFER	4
 #define DEFAULT_ZPOS	-1
 
@@ -43,6 +43,9 @@ struct drm_connector;
 
 extern unsigned int drm_vblank_offdelay;
 
+#if defined(CONFIG_ION_ROCKCHIP)
+extern struct ion_client *rockchip_ion_client_create(const char *name);
+#endif
 /* this enumerates display type. */
 enum rockchip_drm_output_type {
 	ROCKCHIP_DISPLAY_TYPE_NONE,
@@ -243,9 +246,11 @@ struct drm_rockchip_file_private {
  */
 struct rockchip_drm_private {
 	struct drm_fb_helper *fb_helper;
+	struct drm_gem_object *fbdev_bo;
 
 	/* list head for new event to be added. */
 	struct list_head pageflip_event_list;
+	struct ion_client *ion_client;
 
 	/*
 	 * created crtc object would be contained at this array and
@@ -258,6 +263,7 @@ struct rockchip_drm_private {
 	unsigned long da_start;
 	unsigned long da_space_size;
 	unsigned long da_space_order;
+	bool iommu_en;
 };
 
 /*

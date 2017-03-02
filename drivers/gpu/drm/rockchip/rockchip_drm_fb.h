@@ -22,9 +22,9 @@ rockchip_drm_framebuffer_init(struct drm_device *dev,
 			    struct drm_gem_object *obj);
 
 /* get memory information of a drm framebuffer */
-struct rockchip_drm_gem_buf *rockchip_drm_fb_buffer(struct drm_framebuffer *fb,
-						 int index);
-
+struct rockchip_gem_object *rockchip_fb_get_gem_obj(struct device *dev,
+						    struct drm_framebuffer *fb,
+						    int index);
 void rockchip_drm_mode_config_init(struct drm_device *dev);
 
 /* set a buffer count to drm framebuffer. */

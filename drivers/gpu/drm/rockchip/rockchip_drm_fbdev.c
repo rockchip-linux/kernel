@@ -26,17 +26,27 @@
 #define MAX_CONNECTOR		4
 #define PREFERRED_BPP		32
 
+#define to_drm_private(x) \
+                container_of(x, struct rockchip_drm_private, fb_helper)
+
 #define to_rockchip_fbdev(x)	container_of(x, struct rockchip_drm_fbdev,\
 				drm_fb_helper)
 
 struct rockchip_drm_fbdev {
 	struct drm_fb_helper		drm_fb_helper;
-	struct rockchip_drm_gem_obj	*rockchip_gem_obj;
+	struct rockchip_gem_object	*rockchip_gem_obj;
 };
+void rockchip_drm_fbdev_restore_mode(struct drm_device *dev);
 
 static int rockchip_drm_fb_mmap(struct fb_info *info,
-			struct vm_area_struct *vma)
+				struct vm_area_struct *vma)
 {
+#if 1
+	struct drm_fb_helper *helper = info->par;
+	struct rockchip_drm_private *private = helper->dev->dev_private;
+
+	return rockchip_gem_mmap_buf(private->fbdev_bo, vma);
+#else
 	struct drm_fb_helper *helper = info->par;
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(helper);
 	struct rockchip_drm_gem_obj *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
@@ -61,6 +71,7 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 	}
 
 	return 0;
+#endif
 }
 
 static struct fb_ops rockchip_drm_fb_ops = {
@@ -76,6 +87,7 @@ static struct fb_ops rockchip_drm_fb_ops = {
 	.fb_setcmap	= drm_fb_helper_setcmap,
 };
 
+#if 0
 static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 				     struct drm_framebuffer *fb)
 {
@@ -136,25 +148,28 @@ static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 
 	return 0;
 }
+#endif
 
 static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 				    struct drm_fb_helper_surface_size *sizes)
 {
 	struct rockchip_drm_fbdev *rockchip_fbdev = to_rockchip_fbdev(helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj;
+	struct rockchip_drm_private *private = helper->dev->dev_private;
+	struct rockchip_gem_object *rockchip_gem_obj;
 	struct drm_device *dev = helper->dev;
 	struct fb_info *fbi;
 	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
 	struct platform_device *pdev = dev->platformdev;
 	unsigned long size;
-	int ret;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
+	unsigned int bytes_per_pixel;
+	unsigned long offset;
+	int ret, i;
+	struct drm_framebuffer *fb;
 
 	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d\n",
 			sizes->surface_width, sizes->surface_height,
 			sizes->surface_bpp);
-
+	bytes_per_pixel = DIV_ROUND_UP(sizes->surface_bpp, 8);
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
 	mode_cmd.pitches[0] = sizes->surface_width * (sizes->surface_bpp >> 3);
@@ -173,12 +188,13 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	size = mode_cmd.pitches[0] * mode_cmd.height;
 
 	/* 0 means to allocate physically continuous memory */
-	rockchip_gem_obj = rockchip_drm_gem_create(dev, 0, size);
+	rockchip_gem_obj = rockchip_gem_create_object(dev, size, true);
 	if (IS_ERR(rockchip_gem_obj)) {
 		ret = PTR_ERR(rockchip_gem_obj);
 		goto err_release_framebuffer;
 	}
 
+	private->fbdev_bo = &rockchip_gem_obj->base;
 	rockchip_fbdev->rockchip_gem_obj = rockchip_gem_obj;
 
 	helper->fb = rockchip_drm_framebuffer_init(dev, &mode_cmd,
@@ -195,6 +211,19 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	fbi->flags = FBINFO_FLAG_DEFAULT;
 	fbi->fbops = &rockchip_drm_fb_ops;
 
+	fb = helper->fb;
+	drm_fb_helper_fill_fix(fbi, fb->pitches[0], fb->depth);
+	drm_fb_helper_fill_var(fbi, helper, sizes->fb_width, sizes->fb_height);
+
+	offset = fbi->var.xoffset * bytes_per_pixel;
+	offset += fbi->var.yoffset * fb->pitches[0];
+
+	dev->mode_config.fb_base = 0;
+	fbi->screen_base = rockchip_gem_obj->kvaddr + offset;
+	fbi->screen_size = rockchip_gem_obj->base.size;
+	fbi->fix.smem_len = rockchip_gem_obj->base.size;
+
+	#if 0
 	ret = fb_alloc_cmap(&fbi->cmap, 256, 0);
 	if (ret) {
 		DRM_ERROR("failed to allocate cmap.\n");
@@ -204,14 +233,24 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	ret = rockchip_drm_fbdev_update(helper, helper->fb);
 	if (ret < 0)
 		goto err_dealloc_cmap;
+	#endif
 
 	mutex_unlock(&dev->struct_mutex);
+
+
+	fbi->skip_vt_switch = true;
+	fb_prepare_logo(fbi, 0);
+	fb_show_logo(fbi, 0);
+
+	/* hjc todo for debug */
+	for (i = 0; i < helper->crtc_count; i++)
+		if (helper->crtc_info[i].mode_set.num_connectors)
+			helper->crtc_info[i].mode_set.fb = helper->fb;
+	/* rockchip_drm_fbdev_restore_mode(dev); */
+	drm_fb_helper_set_par(fbi);
+
 	return ret;
 
-err_dealloc_cmap:
-	fb_dealloc_cmap(&fbi->cmap);
-err_destroy_framebuffer:
-	drm_framebuffer_cleanup(helper->fb);
 err_destroy_gem:
 	rockchip_drm_gem_destroy(rockchip_gem_obj);
 err_release_framebuffer:
@@ -238,8 +277,6 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 	struct drm_fb_helper *helper;
 	unsigned int num_crtc;
 	int ret;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (!dev->mode_config.num_crtc || !dev->mode_config.num_connector)
 		return 0;
@@ -270,7 +307,6 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 
 	/* disable all the possible outputs/crtcs before entering KMS mode */
 	drm_helper_disable_unused_functions(dev);
-
 	ret = drm_fb_helper_initial_config(helper, PREFERRED_BPP);
 	if (ret < 0) {
 		DRM_ERROR("failed to set up hw configuration.\n");
@@ -289,11 +325,12 @@ err_init:
 	return ret;
 }
 
+#if 0
 static void rockchip_drm_fbdev_destroy(struct drm_device *dev,
 				      struct drm_fb_helper *fb_helper)
 {
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(fb_helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
+	struct rockchip_gem_object *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
 	struct drm_framebuffer *fb;
 
 	if (is_drm_iommu_supported(dev) && rockchip_gem_obj->buffer->kvaddr)
@@ -326,9 +363,26 @@ static void rockchip_drm_fbdev_destroy(struct drm_device *dev,
 
 	drm_fb_helper_fini(fb_helper);
 }
+#endif
 
 void rockchip_drm_fbdev_fini(struct drm_device *dev)
 {
+#if 1
+	struct rockchip_drm_private *private = dev->dev_private;
+	struct drm_fb_helper *helper;
+
+	helper = private->fb_helper;
+
+	/* hjc todo
+	 * drm_fb_helper_unregister_fbi(helper);
+	 * drm_fb_helper_release_fbi(helper);
+	 */
+	if (helper->fb)
+		drm_framebuffer_unreference(helper->fb);
+
+	drm_fb_helper_fini(helper);
+
+#else
 	struct rockchip_drm_private *private = dev->dev_private;
 	struct rockchip_drm_fbdev *fbdev;
 
@@ -343,6 +397,7 @@ void rockchip_drm_fbdev_fini(struct drm_device *dev)
 	rockchip_drm_fbdev_destroy(dev, private->fb_helper);
 	kfree(fbdev);
 	private->fb_helper = NULL;
+#endif
 }
 
 void rockchip_drm_fbdev_restore_mode(struct drm_device *dev)

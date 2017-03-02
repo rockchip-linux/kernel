@@ -36,6 +36,8 @@ struct rk_win_data {
 struct rk_drm_display {
 /***** hardware define *****/ 
 	enum drm_screen_type screen_type;
+	struct device *vop_dev;
+	bool iommu_en;
 
 	struct list_head *modelist;
 	int num_videomode;

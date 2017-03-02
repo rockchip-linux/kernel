@@ -73,6 +73,7 @@ static int rockchip_plane_get_size(int start, unsigned length, unsigned last)
 	return size;
 }
 
+extern struct device *get_primary_vop_dev(void);
 int rockchip_plane_mode_set(struct drm_plane *plane, struct drm_crtc *crtc,
 			  struct drm_framebuffer *fb, int crtc_x, int crtc_y,
 			  unsigned int crtc_w, unsigned int crtc_h,
@@ -84,23 +85,21 @@ int rockchip_plane_mode_set(struct drm_plane *plane, struct drm_crtc *crtc,
 	unsigned int actual_w;
 	unsigned int actual_h;
 	int nr;
-	int i;
+	struct rockchip_gem_object *rk_obj;
+	struct rockchip_gem_object *rk_uv_obj;
+	struct device *dev;
 
 	DRM_DEBUG_KMS("[%d] %s\n", __LINE__, __func__);
 
 	nr = rockchip_drm_fb_get_buf_cnt(fb);
-	for (i = 0; i < nr; i++) {
-		struct rockchip_drm_gem_buf *buffer = rockchip_drm_fb_buffer(fb, i);
 
-		if (!buffer) {
-			DRM_LOG_KMS("buffer is null\n");
-			return -EFAULT;
-		}
+	dev = get_primary_vop_dev(); /* hjc todo for primary or extend */
+	rk_obj = rockchip_fb_get_gem_obj(dev, fb, 0);
+	overlay->dma_addr[0] = rk_obj->dma_addr;
 
-		overlay->dma_addr[i] = buffer->dma_addr;
-
-		DRM_DEBUG_KMS("buffer: %d, dma_addr = 0x%lx\n",
-				i, (unsigned long)overlay->dma_addr[i]);
+	if (nr > 1) {
+		rk_uv_obj = rockchip_fb_get_gem_obj(dev, fb, 1);
+		overlay->dma_addr[1] = rk_uv_obj->dma_addr;
 	}
 
 	actual_w = rockchip_plane_get_size(crtc_x, crtc_w, crtc->mode.hdisplay);

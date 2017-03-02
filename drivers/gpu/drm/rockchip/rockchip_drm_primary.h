@@ -1,5 +1,5 @@
 #include "../../../video/rockchip/rk_drm_fb.h"
-#define WINDOWS_NR	4
+#define WINDOWS_NR	3   // change by hjc for px3se 4 to 3
 
 #define get_primary_context(dev)	platform_get_drvdata(to_platform_device(dev))
 

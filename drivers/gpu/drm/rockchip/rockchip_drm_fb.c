@@ -25,6 +25,8 @@
 #include "rockchip_drm_iommu.h"
 #include "rockchip_drm_encoder.h"
 
+#include <linux/rockchip_ion.h>
+#include <linux/rockchip-iovmm.h>
 #define to_rockchip_fb(x)	container_of(x, struct rockchip_drm_fb, fb)
 
 /*
@@ -35,13 +37,14 @@
  * @rockchip_gem_obj: array of rockchip specific gem object containing a gem object.
  */
 struct rockchip_drm_fb {
+	struct device *dev;
 	struct drm_framebuffer		fb;
 	unsigned int			buf_cnt;
-	struct rockchip_drm_gem_obj	*rockchip_gem_obj[MAX_FB_BUFFER];
+	struct rockchip_gem_object	*rockchip_gem_obj[MAX_FB_BUFFER];
 };
 
 static int check_fb_gem_memory_type(struct drm_device *drm_dev,
-				struct rockchip_drm_gem_obj *rockchip_gem_obj)
+				struct rockchip_gem_object *rockchip_gem_obj)
 {
 	unsigned int flags;
 
@@ -71,8 +74,6 @@ static void rockchip_drm_fb_destroy(struct drm_framebuffer *fb)
 	struct rockchip_drm_fb *rockchip_fb = to_rockchip_fb(fb);
 	unsigned int i;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* make sure that overlay data are updated before relesing fb. */
 	rockchip_drm_encoder_complete_scanout(fb);
 
@@ -98,8 +99,6 @@ static int rockchip_drm_fb_create_handle(struct drm_framebuffer *fb,
 {
 	struct rockchip_drm_fb *rockchip_fb = to_rockchip_fb(fb);
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* This fb should have only one gem object. */
 	if (WARN_ON(rockchip_fb->buf_cnt != 1))
 		return -EINVAL;
@@ -113,8 +112,6 @@ static int rockchip_drm_fb_dirty(struct drm_framebuffer *fb,
 				unsigned color, struct drm_clip_rect *clips,
 				unsigned num_clips)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* TODO */
 
 	return 0;
@@ -151,7 +148,7 @@ rockchip_drm_framebuffer_init(struct drm_device *dev,
 			    struct drm_gem_object *obj)
 {
 	struct rockchip_drm_fb *rockchip_fb;
-	struct rockchip_drm_gem_obj *rockchip_gem_obj;
+	struct rockchip_gem_object *rockchip_gem_obj;
 	int ret;
 
 	rockchip_gem_obj = to_rockchip_gem_obj(obj);
@@ -222,11 +219,9 @@ rockchip_user_fb_create(struct drm_device *dev, struct drm_file *file_priv,
 		      struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	struct drm_gem_object *obj;
-	struct rockchip_drm_gem_obj *rockchip_gem_obj;
+	struct rockchip_gem_object *rockchip_gem_obj;
 	struct rockchip_drm_fb *rockchip_fb;
 	int i, ret;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	rockchip_fb = kzalloc(sizeof(*rockchip_fb), GFP_KERNEL);
 	if (!rockchip_fb) {
@@ -288,6 +283,7 @@ err_free:
 	return ERR_PTR(ret);
 }
 
+#if 0
 struct rockchip_drm_gem_buf *rockchip_drm_fb_buffer(struct drm_framebuffer *fb,
 						int index)
 {
@@ -306,6 +302,50 @@ struct rockchip_drm_gem_buf *rockchip_drm_fb_buffer(struct drm_framebuffer *fb,
 	DRM_DEBUG_KMS("dma_addr = 0x%lx\n", (unsigned long)buffer->dma_addr);
 
 	return buffer;
+}
+#endif
+
+struct rockchip_gem_object *rockchip_fb_get_gem_obj(struct device *dev, struct drm_framebuffer *fb,
+						int index)
+{
+	struct rockchip_drm_fb *rockchip_fb = to_rockchip_fb(fb);
+	struct rockchip_drm_private *priv = fb->dev->dev_private;
+	struct rockchip_gem_object *rk_obj;
+	unsigned long dma_size;
+	int ret = 0;
+
+	if (index >= MAX_FB_BUFFER)
+		return NULL;
+
+	rk_obj = rockchip_fb->rockchip_gem_obj[index];
+	if (!rk_obj)
+		return NULL;
+
+	if (priv->iommu_en) {/* iommu en */
+		if (!rk_obj->dma_addr) {
+			rockchip_fb->dev = dev; /* dev is vop dev */
+			ret = ion_map_iommu(rockchip_fb->dev, priv->ion_client,
+					    rk_obj->handle,
+					    (unsigned long *)&rk_obj->dma_addr,
+					    &dma_size);
+			if (dma_size < rk_obj->base.size) {
+				dev_err(rockchip_fb->dev, "Error: dma_size[%ld] < rk_obj->size[%zu]",
+					dma_size, rk_obj->base.size);
+				return NULL;
+			}
+		}
+	} else {
+		ret = ion_phys(priv->ion_client, rk_obj->handle,
+		      (unsigned long *)&rk_obj->dma_addr, (size_t *)&dma_size);
+	}
+	if (ret < 0) {
+		dev_err(dev, "ion map to get phy addr failed\n");
+		ion_free(priv->ion_client, rk_obj->handle);
+		return NULL;
+	}
+	DRM_DEBUG_KMS("dma_addr = 0x%lx\n", (unsigned long)rk_obj->dma_addr);
+
+	return rk_obj;
 }
 
 static void rockchip_drm_output_poll_changed(struct drm_device *dev)

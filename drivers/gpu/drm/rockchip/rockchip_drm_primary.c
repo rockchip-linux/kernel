@@ -39,28 +39,26 @@
 #include "rockchip_drm_iommu.h"
 #include "rockchip_drm_primary.h"
 static struct device *g_dev = NULL;
+struct device *primary_vop_dev = NULL;
+static int iommu_state;
 
 static bool primary_display_is_connected(struct device *dev)
 {
 
 	/* TODO. */
 
-	return false;
+	return true;
 }
 
 static void *primary_get_panel(struct device *dev)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	return ctx->panel;
 }
 
 static int primary_check_timing(struct device *dev, void *timing)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* TODO. */
 
 	return 0;
@@ -68,8 +66,6 @@ static int primary_check_timing(struct device *dev, void *timing)
 
 static int primary_display_power_on(struct device *dev, int mode)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* TODO */
 
 	return 0;
@@ -86,8 +82,6 @@ static struct rockchip_drm_display_ops primary_display_ops = {
 static void primary_dpms(struct device *subdrv_dev, int mode)
 {
 	struct primary_context *ctx = get_primary_context(subdrv_dev);
-
-	DRM_DEBUG_KMS("%s, %d\n", __FILE__, mode);
 
 	mutex_lock(&ctx->lock);
 
@@ -126,8 +120,6 @@ static void primary_apply(struct device *subdrv_dev)
 	struct primary_win_data *win_data;
 	int i;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	for (i = 0; i < WINDOWS_NR; i++) {
 		win_data = &ctx->win_data[i];
 		if (win_data->enabled && (ovl_ops && ovl_ops->commit))
@@ -157,8 +149,6 @@ static int primary_enable_vblank(struct device *dev)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	if (ctx->suspended)
 		return -EPERM;
 
@@ -168,8 +158,6 @@ static int primary_enable_vblank(struct device *dev)
 static void primary_disable_vblank(struct device *dev)
 {
 	struct primary_context *ctx = get_primary_context(dev);
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (ctx->suspended)
 		return;
@@ -231,8 +219,6 @@ static void primary_win_mode_set(struct device *dev,
 	struct primary_win_data *win_data;
 	int win;
 	unsigned long offset;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (!overlay) {
 		dev_err(dev, "overlay is NULL\n");
@@ -342,7 +328,6 @@ static void primary_win_commit(struct device *dev, int zpos)
 	rk_win->xvir = win_data->fb_width;
 	rk_win->yrgb_addr = win_data->dma_addr;
 	rk_win->enabled = true;
-
 	rk_drm_disp_handle(drm_disp,1<<win,RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 		
 	win_data->enabled = true;
@@ -363,8 +348,6 @@ static void primary_win_disable(struct device *dev, int zpos)
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 	struct primary_win_data *win_data;
 	int win = zpos;
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	if (win == DEFAULT_ZPOS)
 		win = ctx->default_win;
@@ -426,8 +409,6 @@ out:
 #endif
 static int primary_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/*
 	 * enable drm irq mode.
 	 * - with irq_enabled = 1, we can use the vblank feature.
@@ -454,8 +435,6 @@ static int primary_subdrv_probe(struct drm_device *drm_dev, struct device *dev)
 
 static void primary_subdrv_remove(struct drm_device *drm_dev, struct device *dev)
 {
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	/* detach this sub driver from iommu mapping if supported. */
 	if (is_drm_iommu_supported(drm_dev))
 		drm_iommu_detach_device(drm_dev, dev);
@@ -529,6 +508,16 @@ static int primary_activate(struct primary_context *ctx, bool enable)
 	return 0;
 }
 
+struct device *get_primary_vop_dev(void)
+{
+	return primary_vop_dev;
+}
+
+int get_iommu_state(void)
+{
+	return iommu_state;
+}
+
 static int primary_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -539,8 +528,6 @@ static int primary_probe(struct platform_device *pdev)
 	struct fb_modelist *modelist;
 	struct fb_videomode *mode;
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	g_dev = dev;
 	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
 	if (!ctx)
@@ -550,6 +537,8 @@ static int primary_probe(struct platform_device *pdev)
 	ctx->panel = panel;
 
 	drm_display = rk_drm_get_diplay(RK_DRM_PRIMARY_SCREEN);
+	primary_vop_dev = drm_display->vop_dev;
+	iommu_state = drm_display->iommu_en;
 	ctx->drm_disp = drm_display;
 	ctx->default_win = 0;
 	modelist = list_first_entry(drm_display->modelist, struct fb_modelist, list);
@@ -587,8 +576,6 @@ static int primary_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct primary_context *ctx = platform_get_drvdata(pdev);
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	rockchip_drm_subdrv_unregister(&ctx->subdrv);
 
@@ -654,16 +641,12 @@ static int primary_runtime_suspend(struct device *dev)
 {
 	struct primary_context *ctx = get_primary_context(dev);
 
-	DRM_DEBUG_KMS("%s\n", __FILE__);
-
 	return primary_activate(ctx, false);
 }
 
 static int primary_runtime_resume(struct device *dev)
 {
 	struct primary_context *ctx = get_primary_context(dev);
-
-	DRM_DEBUG_KMS("%s\n", __FILE__);
 
 	return primary_activate(ctx, true);
 }

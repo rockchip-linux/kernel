@@ -28,6 +28,8 @@
 #include "rockchip_drm_plane.h"
 #include "rockchip_drm_dmabuf.h"
 #include "rockchip_drm_iommu.h"
+#include <linux/rockchip_ion.h>
+#include <linux/rockchip-iovmm.h>
 
 #define DRIVER_NAME	"rockchip"
 #define DRIVER_DESC	"rockchip Soc DRM"
@@ -39,14 +41,13 @@
 
 /* platform device pointer for eynos drm device. */
 static struct platform_device *rockchip_drm_pdev;
+extern int get_iommu_state(void);
 
 static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 {
 	struct rockchip_drm_private *private;
 	int ret;
 	int nr;
-
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
 
 	private = kzalloc(sizeof(struct rockchip_drm_private), GFP_KERNEL);
 	if (!private) {
@@ -57,17 +58,24 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	INIT_LIST_HEAD(&private->pageflip_event_list);
 	dev->dev_private = (void *)private;
 
+	private->ion_client = rockchip_ion_client_create("rockchip-drm");
+	if (IS_ERR(private->ion_client)) {
+		printk("failed to create ion client for rockchip drm");
+		goto err_ion_client_destroy;
+	}
+	private->iommu_en = get_iommu_state();
 	/*
 	 * create mapping to manage iommu table and set a pointer to iommu
 	 * mapping structure to iommu_mapping of private data.
 	 * also this iommu_mapping can be used to check if iommu is supported
 	 * or not.
 	 */
-	ret = drm_create_iommu_mapping(dev);
-	if (ret < 0) {
-		DRM_ERROR("failed to create iommu mapping.\n");
-		goto err_crtc;
-	}
+	/* ret = drm_create_iommu_mapping(dev);
+	 * if (ret < 0) {
+	 *	DRM_ERROR("failed to create iommu mapping.\n");
+	 *	goto err_crtc;
+	 *}
+	 */
 
 	drm_mode_config_init(dev);
 
@@ -122,6 +130,7 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	}
 
 	drm_vblank_offdelay = VBLANK_OFF_DELAY;
+	DRM_INFO("%s[%d], load sucess\n", __func__, __LINE__);
 
 	return 0;
 
@@ -131,22 +140,26 @@ err_vblank:
 	drm_vblank_cleanup(dev);
 err_release_iommu_mapping:
 	drm_release_iommu_mapping(dev);
-err_crtc:
-	drm_mode_config_cleanup(dev);
-	kfree(private);
+err_ion_client_destroy:
+	if (private->ion_client)
+		ion_client_destroy(private->ion_client);
+	if (private)
+		kfree(private);
 
 	return ret;
 }
 
 static int rockchip_drm_unload(struct drm_device *dev)
 {
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
+	struct rockchip_drm_private *private = dev->dev_private;
 
 	rockchip_drm_fbdev_fini(dev);
 	rockchip_drm_device_unregister(dev);
 	drm_vblank_cleanup(dev);
 	drm_kms_helper_poll_fini(dev);
 	drm_mode_config_cleanup(dev);
+	if (private->ion_client)
+		ion_client_destroy(private->ion_client);
 
 	drm_release_iommu_mapping(dev);
 	kfree(dev->dev_private);
@@ -159,8 +172,7 @@ static int rockchip_drm_unload(struct drm_device *dev)
 static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 {
 	struct drm_rockchip_file_private *file_priv;
-
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
+	int ret;
 
 	file_priv = kzalloc(sizeof(*file_priv), GFP_KERNEL);
 	if (!file_priv)
@@ -168,7 +180,13 @@ static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 
 	file->driver_priv = file_priv;
 
-	return rockchip_drm_subdrv_open(dev, file);
+	ret = rockchip_drm_subdrv_open(dev, file);
+	if (ret) {
+		DRM_ERROR("%s[%d] error ret:%d\n", __func__, __LINE__, ret);
+		return ret;
+	}
+
+	return 0;
 }
 
 static void rockchip_drm_preclose(struct drm_device *dev,
@@ -177,8 +195,6 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 	struct rockchip_drm_private *private = dev->dev_private;
 	struct drm_pending_vblank_event *e, *t;
 	unsigned long flags;
-
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
 
 	/* release events of current file */
 	spin_lock_irqsave(&dev->event_lock, flags);
@@ -196,8 +212,6 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 
 static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file)
 {
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
 	if (!file->driver_priv)
 		return;
 
@@ -207,33 +221,19 @@ static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file
 
 static void rockchip_drm_lastclose(struct drm_device *dev)
 {
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
 	rockchip_drm_fbdev_restore_mode(dev);
 }
 
 static const struct vm_operations_struct rockchip_drm_gem_vm_ops = {
-	.fault = rockchip_drm_gem_fault,
+	/* .fault = rockchip_drm_gem_fault, */
 	.open = drm_gem_vm_open,
 	.close = drm_gem_vm_close,
-};
-
-static struct drm_ioctl_desc rockchip_ioctls[] = {
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_CREATE, rockchip_drm_gem_create_ioctl,
-			DRM_UNLOCKED | DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MAP_OFFSET,
-			rockchip_drm_gem_map_offset_ioctl, DRM_UNLOCKED |
-			DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_MMAP,
-			rockchip_drm_gem_mmap_ioctl, DRM_UNLOCKED | DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(ROCKCHIP_GEM_GET,
-			rockchip_drm_gem_get_ioctl, DRM_UNLOCKED),
 };
 
 static const struct file_operations rockchip_drm_driver_fops = {
 	.owner		= THIS_MODULE,
 	.open		= drm_open,
-	.mmap		= rockchip_drm_gem_mmap,
+	.mmap		= rockchip_gem_mmap,
 	.poll		= drm_poll,
 	.read		= drm_read,
 	.unlocked_ioctl	= drm_ioctl,
@@ -255,18 +255,21 @@ static struct drm_driver rockchip_drm_driver = {
 	.get_vblank_counter	= drm_vblank_count,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
-//	.get_vblank_timestamp   = rockchip_get_crtc_vblank_timestamp,
-	.gem_init_object	= rockchip_drm_gem_init_object,
-	.gem_free_object	= rockchip_drm_gem_free_object,
+	//.get_vblank_timestamp = rockchip_get_crtc_vblank_timestamp,
+	//.gem_init_object	= rockchip_drm_gem_init_object,
+	.gem_free_object	= rockchip_gem_free_object,
 	.gem_vm_ops		= &rockchip_drm_gem_vm_ops,
-	.dumb_create		= rockchip_drm_gem_dumb_create,
-	.dumb_map_offset	= rockchip_drm_gem_dumb_map_offset,
+	.dumb_create		= rockchip_gem_dumb_create,
+	.dumb_map_offset	= rockchip_gem_dumb_map_offset,
 	.dumb_destroy		= rockchip_drm_gem_dumb_destroy,
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
-	.gem_prime_export	= rockchip_dmabuf_prime_export,
-	.gem_prime_import	= rockchip_dmabuf_prime_import,
-	.ioctls			= rockchip_ioctls,
+	.gem_prime_export	= drm_gem_prime_export,
+	.gem_prime_import	= drm_gem_prime_import,
+	.gem_prime_get_sg_table	= rockchip_gem_prime_get_sg_table,
+	.gem_prime_vmap		= rockchip_gem_prime_vmap,
+	.gem_prime_vunmap	= rockchip_gem_prime_vunmap,
+	//.gem_prime_mmap	= rockchip_gem_mmap_buf,//hjc todo
 	.fops			= &rockchip_drm_driver_fops,
 	.name	= DRIVER_NAME,
 	.desc	= DRIVER_DESC,
@@ -277,18 +280,13 @@ static struct drm_driver rockchip_drm_driver = {
 
 static int rockchip_drm_platform_probe(struct platform_device *pdev)
 {
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
-	rockchip_drm_driver.num_ioctls = DRM_ARRAY_SIZE(rockchip_ioctls);
 
 	return drm_platform_init(&rockchip_drm_driver, pdev);
 }
 
 static int rockchip_drm_platform_remove(struct platform_device *pdev)
 {
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
 	drm_platform_exit(&rockchip_drm_driver, pdev);
 
 	return 0;
@@ -355,8 +353,6 @@ out_extend:
 
 static void __exit rockchip_drm_exit(void)
 {
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
 	platform_device_unregister(rockchip_drm_pdev);
 
 	platform_driver_unregister(&rockchip_drm_platform_driver);
