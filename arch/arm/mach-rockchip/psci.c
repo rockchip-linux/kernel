@@ -202,6 +202,7 @@ int rockchip_psci_remotectl_config(u32 func, u32 data)
 
 /*************************** fiq debug *****************************/
 #ifdef CONFIG_ARM64
+static u32 fiq_target_cpu;
 static u64 ft_fiq_mem_phy;
 static void __iomem *ft_fiq_mem_base;
 static void (*psci_fiq_debugger_uart_irq_tf)(void *reg_base, u64 sp_el1);
@@ -236,6 +237,7 @@ int psci_fiq_debugger_uart_irq_tf_init(u32 irq_id, void *callback)
 {
 	struct arm_smccc_res res;
 
+	fiq_target_cpu = 0;
 	psci_fiq_debugger_uart_irq_tf = callback;
 	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, irq_id,
 		     (u64)psci_fiq_debugger_uart_irq_tf_cb,
@@ -266,6 +268,7 @@ int psci_fiq_debugger_switch_cpu(u32 cpu)
 {
 	struct arm_smccc_res res;
 
+	fiq_target_cpu = cpu;
 	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, cpu_logical_map(cpu),
 		     0, UARTDBG_CFG_OSHDL_CPUSW, &res);
 	return res.a0;
@@ -287,6 +290,21 @@ int psci_fiq_debugger_set_print_port(u32 port, u32 baudrate)
 	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, port, baudrate,
 		     UARTDBG_CFG_SET_PRINT_PORT, &res);
 	return res.a0;
+}
+
+int psci_fiq_debugger_get_target_cpu(void)
+{
+	return fiq_target_cpu;
+}
+
+void psci_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu)
+{
+	u32 en;
+
+	en = enable ? UARTDBG_CFG_FIQ_ENABEL : UARTDBG_CFG_FIQ_DISABEL;
+	fiq_target_cpu = tgt_cpu;
+
+	sip_fn_smc64(PSCI_SIP_UARTDBG_CFG64, tgt_cpu, 0, en, NULL);
 }
 #endif
 

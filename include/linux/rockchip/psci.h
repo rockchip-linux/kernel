@@ -59,6 +59,8 @@ struct arm_smccc_res {
 #define UARTDBG_CFG_OSHDL_DEBUG_DISABLE	0xf5
 #define UARTDBG_CFG_SET_SHARE_MEM	0xf6
 #define UARTDBG_CFG_SET_PRINT_PORT	0xf7
+#define UARTDBG_CFG_FIQ_ENABEL		0xf8
+#define UARTDBG_CFG_FIQ_DISABEL		0xf9
 
 /*
  * define PSCI_SIP_REMOTECTL_CFG call type
@@ -110,6 +112,8 @@ int rockchip_secure_reg_write64(u64 addr_phy, u64 val);
 
 void psci_fiq_debugger_uart_irq_tf_cb(u64 sp_el1, u64 offset);
 int psci_fiq_debugger_request_share_memory(void);
+int psci_fiq_debugger_get_target_cpu(void);
+void psci_fiq_debugger_enable_fiq(bool enable, uint32_t tgt_cpu);
 #endif
 
 int psci_fiq_debugger_switch_cpu(u32 cpu);
