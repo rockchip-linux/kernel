@@ -4286,7 +4286,7 @@ static inline bool cifisp_isp_isr_other_config(
 
 		CIFISP_MODULE_CLR_UPDATE(
 			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_IE);
+			CIFISP_MODULE_GOC);
 
 		*time_left -= CIFISP_MODULE_GOC_PROC_TIME;
 		CIFISP_DPRINT(CIFISP_DEBUG,
