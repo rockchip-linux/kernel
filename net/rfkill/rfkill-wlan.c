@@ -430,28 +430,27 @@ int rockchip_wifi_power(int on)
             LOG("%s: wifi power set to be controled by pmic, but which one?\n", __func__);
             return -1;
         }
-        ldo = regulator_get(NULL, ldostr);
+	ldo = regulator_get_exclusive(NULL, ldostr);
         if (ldo == NULL || IS_ERR(ldo)) {
             LOG("\n\n\n%s get ldo error,please mod this\n\n\n", __func__);
             return -1;
         } else {
-			if (on == level) {
-				regulator_set_voltage(ldo, 3000000, 3000000);
-			    LOG("%s: %s enabled\n", __func__, ldostr);
-				ret = regulator_enable(ldo);
-                wifi_power_state = 1;
-			    LOG("wifi turn on power.\n");
-            } else {
-				LOG("%s: %s disabled\n", __func__, ldostr);
-                while (regulator_is_enabled(ldo) > 0) {
-				    ret = regulator_disable(ldo);
-                }
-                wifi_power_state = 0;
-			    LOG("wifi shut off power.\n");
+		if (on == level) {
+			ret = regulator_enable(ldo);
+			wifi_power_state = 1;
+			LOG("wifi turn on power.\n");
+		} else {
+			ret = regulator_is_enabled(ldo);
+			if (ret > 0) {
+				LOG("%s already enabled (%d)\n", ldostr, ret);
+				ret = regulator_disable(ldo);
+				wifi_power_state = 0;
+				LOG("wifi turn off power.\n");
 			}
-			regulator_put(ldo);
-			msleep(100);
 		}
+		regulator_put(ldo);
+		msleep(100);
+	}
     } else {
 		poweron = &mrfkill->pdata->power_n;
 		reset = &mrfkill->pdata->reset_n;
@@ -500,17 +499,14 @@ EXPORT_SYMBOL(rockchip_wifi_power);
 extern int mmc_host_rescan(struct mmc_host *host, int val, int irq_type);
 int rockchip_wifi_set_carddetect(int val)
 {
-	int chip, irq_type;
-	chip = get_wifi_chip_type();
-
-	/*  irq_type : 0, oob; 1, cap-sdio-irq */
-	if (!strncmp(wifi_chip_type_string, "ap", 2) ||
-		!strncmp(wifi_chip_type_string, "rk", 2))
-		irq_type = 0;
-	else
-		irq_type = 1;
-
-	return mmc_host_rescan(NULL, val, irq_type);//NULL => SDIO host
+	if (val) {
+		rockchip_wifi_power(0);
+		mdelay(10);
+		rockchip_wifi_power(1);
+		return mmc_host_rescan(NULL, val, 1);
+	} else {
+		return mmc_host_rescan(NULL, val, 1);
+	}
 }
 EXPORT_SYMBOL(rockchip_wifi_set_carddetect);
 
@@ -1034,6 +1030,8 @@ static int rfkill_wlan_probe(struct platform_device *pdev)
     }
 
     rockchip_wifi_voltage_select();
+
+	rockchip_wifi_set_carddetect(1);
 
 #if BCM_STATIC_MEMORY_SUPPORT
     rockchip_init_wifi_mem();
