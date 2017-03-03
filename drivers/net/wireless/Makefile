@@ -19,3 +19,4 @@ obj-$(CONFIG_RTL8188FU)        += rockchip_wlan/rtl8188fu/
 obj-$(CONFIG_ESP8089)  	       += rockchip_wlan/esp8089/
 obj-$(CONFIG_RTL8822BS)        += rockchip_wlan/rtl8822bs/
 obj-$(CONFIG_RTL8822BU)        += rockchip_wlan/rtl8822bu/
+obj-$(CONFIG_SSV6051)          += rockchip_wlan/ssv6xxx/
