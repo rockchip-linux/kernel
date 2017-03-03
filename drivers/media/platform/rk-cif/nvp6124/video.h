@@ -45,6 +45,7 @@ struct nvp {
 	u8 cif_id;
 	u32 channels;
 	u32 apio_vol;
+	const char *nvp_mode;
 	const char *cvbs_mode;
 	struct pltfrm_cam_defrect defrects[4];
 

@@ -32,6 +32,7 @@
 
 #define OF_NVP_MODULE_CHANNELS "channels"
 #define OF_NVP_MODULE_APIO_VOL "apio_vol"
+#define OF_NVP_MODULE_NVP_MODE "nvp_mode"
 #define OF_NVP_MODULE_CVBS_MODE "cvbs_mode"
 #define OF_CAMERA_MODULE_DEFRECT0 "rockchip,camera-module-defrect0"
 #define OF_CAMERA_MODULE_DEFRECT1 "rockchip,camera-module-defrect1"
@@ -97,6 +98,82 @@ static struct nvp_module_config nvp_configs[] = {
 		.frm_fmt = {
 			.width = 720,
 			.height = 576,
+			.code = V4L2_MBUS_FMT_UYVY8_2X8
+		},
+		.frm_intrvl = {
+			.interval = {
+				.numerator = 1,
+				.denominator = 25
+			}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
+	},
+	{
+		.name = "1280x720_30fps",	/* 720p@30 */
+		.frm_fmt = {
+			.width = 1280,
+			.height = 720,
+			.code = V4L2_MBUS_FMT_VYUY8_2X8
+		},
+		.frm_intrvl = {
+			.interval = {
+				.numerator = 1,
+				.denominator = 30
+			}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
+	},
+	{
+		.name = "1280x720_25fps",	/* 720P@25 */
+		.frm_fmt = {
+			.width = 1280,
+			.height = 720,
+			.code = V4L2_MBUS_FMT_UYVY8_2X8
+		},
+		.frm_intrvl = {
+			.interval = {
+				.numerator = 1,
+				.denominator = 25
+			}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
+	},
+	{
+		.name = "1920x1080_30fps",	/* 1080p@30 */
+		.frm_fmt = {
+			.width = 1920,
+			.height = 1080,
+			.code = V4L2_MBUS_FMT_VYUY8_2X8
+		},
+		.frm_intrvl = {
+			.interval = {
+				.numerator = 1,
+				.denominator = 30
+			}
+		},
+		PLTFRM_CAM_ITF_DVP_CFG(
+			PLTFRM_CAM_ITF_BT601_8_FIELD,
+			PLTFRM_CAM_SIGNAL_LOW_LEVEL,
+			PLTFRM_CAM_SIGNAL_HIGH_LEVEL,
+			PLTFRM_CAM_SDR_NEG_EDG)
+	},
+	{
+		.name = "1920x1080_25fps",	/* 1080P@25 */
+		.frm_fmt = {
+			.width = 1920,
+			.height = 1080,
 			.code = V4L2_MBUS_FMT_UYVY8_2X8
 		},
 		.frm_intrvl = {
@@ -247,6 +324,12 @@ nvp_module_enum_frameintervals(
 		index = 1;
 	else
 		index = 0;
+	if (nvp->nvp_mode &&
+	    !strcasecmp(nvp->nvp_mode, "720p_2530"))
+		index += 2;
+	if (nvp->nvp_mode &&
+	    !strcasecmp(nvp->nvp_mode, "1080p_2530"))
+		index += 4;
 	fie->pixel_format = nvp_configs[index].frm_fmt.code;
 	fie->width = nvp_configs[index].frm_fmt.width;
 	fie->height = nvp_configs[index].frm_fmt.height;
@@ -269,6 +352,12 @@ static int nvp_module_g_fmt(
 		index = 1;
 	else
 		index = 0;
+	if (nvp->nvp_mode &&
+	    !strcasecmp(nvp->nvp_mode, "720p_2530"))
+		index += 2;
+	if (nvp->nvp_mode &&
+	    !strcasecmp(nvp->nvp_mode, "1080p_2530"))
+		index += 4;
 	fmt->code = nvp_configs[index].frm_fmt.code;
 	fmt->width = nvp_configs[index].frm_fmt.width;
 	fmt->height = nvp_configs[index].frm_fmt.height;
@@ -314,8 +403,36 @@ static int nvp_set_channels(void)
 	case 1:
 	case 5:
 		/* mode 1 to 1: channal 0 */
-		nvp6124_each_mode_setting(nvp, 0, vformat, NVP6124_VI_720H);
-		nvp6124b_set_portmode(nvp, 0, NVP6124_OUTMODE_1MUX_SD, 0);
+		if (nvp->nvp_mode &&
+		    !strcasecmp(nvp->nvp_mode, "1080p_2530")) {
+			nvp6124_each_mode_setting(nvp,
+						  0,
+						  vformat,
+						  NVP6124_VI_1080P_2530);
+			nvp6124b_set_portmode(nvp,
+					      0,
+					      NVP6124_OUTMODE_1MUX_FHD,
+					      0);
+		} else if (nvp->nvp_mode &&
+			  !strcasecmp(nvp->nvp_mode, "720p_2530")) {
+			nvp6124_each_mode_setting(nvp,
+						  0,
+						  vformat,
+						  NVP6124_VI_720P_2530);
+			nvp6124b_set_portmode(nvp,
+					      0,
+					      NVP6124_OUTMODE_1MUX_HD,
+					      0);
+		} else {
+			nvp6124_each_mode_setting(nvp,
+						  0,
+						  vformat,
+						  NVP6124_VI_720H);
+			nvp6124b_set_portmode(nvp,
+					      0,
+					      NVP6124_OUTMODE_1MUX_SD,
+					      0);
+		}
 		break;
 	case 6:
 		/* mode 1 to 1: channal 1 */
@@ -334,9 +451,34 @@ static int nvp_set_channels(void)
 		break;
 	case 2:
 		/* mode 1 to 2: channal 0 1 */
-		nvp6124_each_mode_setting(nvp, 0, vformat, NVP6124_VI_720H);
-		nvp6124_each_mode_setting(nvp, 1, vformat, NVP6124_VI_720H);
-		nvp6124b_set_portmode(nvp, 0, NVP6124_OUTMODE_2MUX_SD, 0);
+		if (nvp->nvp_mode &&
+		    !strcasecmp(nvp->nvp_mode, "720p_2530")) {
+			nvp6124_each_mode_setting(nvp,
+						  0,
+						  vformat,
+						  NVP6124_VI_720P_2530);
+			nvp6124_each_mode_setting(nvp,
+						  1,
+						  vformat,
+						  NVP6124_VI_720P_2530);
+			nvp6124b_set_portmode(nvp,
+					      0,
+					      NVP6124_OUTMODE_2MUX_MIX,
+					      0);
+		} else {
+			nvp6124_each_mode_setting(nvp,
+						  0,
+						  vformat,
+						  NVP6124_VI_720H);
+			nvp6124_each_mode_setting(nvp,
+						  1,
+						  vformat,
+						  NVP6124_VI_720H);
+			nvp6124b_set_portmode(nvp,
+					      0,
+					      NVP6124_OUTMODE_2MUX_SD,
+					      0);
+		}
 		break;
 	case 3:
 		/* mode 1 to 2: channal 2 3 */
@@ -455,6 +597,15 @@ static int nvp_probe(
 			"get %s from dts failed!\n",
 			OF_NVP_MODULE_CVBS_MODE);
 		return -EINVAL;
+	}
+
+	if (of_property_read_string(np,
+				    OF_NVP_MODULE_NVP_MODE,
+				    &nvp->nvp_mode)) {
+		dev_warn(&client->dev,
+			 "get %s from dts failed!\n",
+			 OF_NVP_MODULE_NVP_MODE);
+		nvp->nvp_mode = NULL;
 	}
 
 	of_property_read_u32_array(

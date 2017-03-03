@@ -196,7 +196,7 @@ static unsigned char nvp_i2c_read(
 	ret = i2c_transfer(client->adapter, &msg, 1) == 1 ? 0 : -EIO;
 	if (ret == -EIO) {
 		pr_info("i2c transfer error\n");
-		return -EIO;
+		return 0;
 	}
 
 	msg.flags = I2C_M_RD;
@@ -898,6 +898,8 @@ void nvp6124_each_mode_setting(
 				      vformat == PAL ? 0x9e : 0x9e);
 			nvp_i2c_write(0x64 + ch,
 				      vformat == PAL ? 0xb1 : 0xb2);
+			nvp_i2c_write(0x78, 0x10);
+			nvp_i2c_write(0x79, 0x32);
 			nvp_i2c_write(0x81 + ch,
 				      vformat == PAL ? 0x07 : 0x06);
 			nvp_i2c_write(0x85 + ch,
@@ -1004,6 +1006,7 @@ void nvp6124_each_mode_setting(
 			nvp_i2c_write(0xDD, 0x2C);
 			nvp_i2c_write(0xDE, 0x34);
 
+			nvp_i2c_write(0xFF, 0x05 + ch % 4);
 			nvp_i2c_write(0xFF, 0x09);
 			nvp_i2c_write(0x40 + ch, 0x00);
 			if (chip_id == NVP6124B_R0_ID)
@@ -1183,6 +1186,8 @@ void nvp6124_each_mode_setting(
 				      vformat == PAL ? 0x9e : 0x9e);
 			nvp_i2c_write(0x64 + ch,
 				      vformat == PAL ? 0xbf : 0x8d);
+			nvp_i2c_write(0x78, 0x0e);
+			nvp_i2c_write(0x79, 0x32);
 			nvp_i2c_write(0x81 + ch,
 				      vformat == PAL ? 0x03 : 0x02);
 			nvp_i2c_write(0x85 + ch,
@@ -1431,7 +1436,7 @@ void nvp6124b_set_portmode(
 		      ((portsel % 2) ? 0x0F : 0xF0);
 		tmp |= (portsel % 2) ? 0x20 : 0x02;
 		nvp_i2c_write(0xC8, tmp);
-		nvp_i2c_write(0xCF - (portsel << 1), 0x16);
+		nvp_i2c_write(0xCF - (portsel << 1), 0x0);
 		break;
 	case NVP6124_OUTMODE_2MUX_FHD_X:
 		/* 输出FHD-X 2通道,数据148.5MHz,
@@ -1663,7 +1668,7 @@ void nvp6124b_set_portmode(
 		      ((portsel % 2) ? 0x0F : 0xF0);
 		tmp |= (portsel % 2) ? 0x20 : 0x02;
 		nvp_i2c_write(0xC8, tmp);
-		nvp_i2c_write(0xCF - (portsel << 1), 0x46);
+		nvp_i2c_write(0xCF - (portsel << 1), 0x4f);
 		break;
 	default:
 		pr_info("portmode %d not supported yet\n",
