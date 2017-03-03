@@ -34,7 +34,12 @@ typedef enum _C2H_EVT {
 	C2H_MAILBOX_STATUS = 0x15,
 	C2H_P2P_RPORT = 0x16,
 	C2H_MAC_HIDDEN_RPT = 0x19,
+	C2H_MAC_HIDDEN_RPT_2 = 0x1A,
 	C2H_BT_SCOREBOARD_STATUS = 0x20,
+	C2H_DEFEATURE_DBG = 0x22,
+	C2H_CUSTOMER_STR_RPT = 0x24,
+	C2H_CUSTOMER_STR_RPT_2 = 0x25,
+	C2H_DEFEATURE_RSVD = 0xFD,
 	C2H_EXTEND = 0xff,
 } C2H_EVT;
 
@@ -42,9 +47,28 @@ typedef enum _EXTEND_C2H_EVT {
 	EXTEND_C2H_DBG_PRINT = 0
 } EXTEND_C2H_EVT;
 
+/* C2H_MAC_HIDDEN_RPT, 0x19 */
 #define MAC_HIDDEN_RPT_LEN 8
 int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
+
+/* C2H_MAC_HIDDEN_RPT_2, 0x1A */
+#define MAC_HIDDEN_RPT_2_LEN 5
+int c2h_mac_hidden_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
 int hal_read_mac_hidden_rpt(_adapter *adapter);
+
+/* C2H_DEFEATURE_DBG, 0x22 */
+#define DEFEATURE_DBG_LEN 1
+int c2h_defeature_dbg_hdl(_adapter *adapter, u8 *data, u8 len);
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+/* C2H_CUSTOMER_STR_RPT, 0x24 */
+#define CUSTOMER_STR_RPT_LEN 8
+int c2h_customer_str_rpt_hdl(_adapter *adapter, u8 *data, u8 len);
+
+/* C2H_CUSTOMER_STR_RPT_2, 0x25 */
+#define CUSTOMER_STR_RPT_2_LEN 8
+int c2h_customer_str_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len);
+#endif /* CONFIG_RTW_CUSTOMER_STR */
 
 #endif /* __COMMON_C2H_H__ */
 

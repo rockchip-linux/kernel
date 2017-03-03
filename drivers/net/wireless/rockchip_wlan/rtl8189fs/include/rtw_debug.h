@@ -210,7 +210,25 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 		}\
 	}while(0)
 
-	#define RTW_ERR(fmt, arg...) DBG_871X_LEVEL(_drv_err_, fmt, ##arg)
+#define RTW_ERR(fmt, arg...) DBG_871X_LEVEL(_drv_err_, fmt, ##arg)
+
+#undef RTW_PRINT_DUMP
+#define RTW_PRINT_DUMP(_TitleString, _HexData, _HexDataLen)			\
+	do {\
+		int __i;								\
+		u8	*ptr = (u8 *)_HexData;				\
+		_dbgdump("%s", DRIVER_PREFIX);						\
+		_dbgdump(_TitleString); 					\
+		for (__i = 0; __i < (int)_HexDataLen; __i++) {				\
+			_dbgdump("%02X%s", ptr[__i], (((__i + 1) % 4) == 0) ? "  " : " ");	\
+			if (((__i + 1) % 16) == 0)	\
+				_dbgdump("\n"); 		\
+		}								\
+		_dbgdump("\n"); 						\
+	} while (0)
+
+#undef RTW_INFO_DUMP
+#define RTW_INFO_DUMP RTW_PRINT_DUMP
 
 /* without driver-defined prefix */
 #undef _DBG_871X_LEVEL

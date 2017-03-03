@@ -1040,7 +1040,11 @@ static u32 rtl8188fs_hal_init(PADAPTER padapter)
 
 	rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
 
-	if (padapter->registrypriv.mp_mode == 0) {
+	if (padapter->registrypriv.mp_mode == 0
+		#if defined(CONFIG_MP_INCLUDED) && defined(CONFIG_RTW_CUSTOMER_STR)
+		|| padapter->registrypriv.mp_customer_str
+		#endif
+	) {
 		ret = rtl8188f_FirmwareDownload(padapter, _FALSE);
 		if (ret != _SUCCESS) {
 			RT_TRACE(_module_hci_hal_init_c_, _drv_err_, ("%s: Download Firmware failed!!\n", __FUNCTION__));

@@ -2085,7 +2085,7 @@ static void sd_rxhandler(PADAPTER padapter, struct recv_buf *precvbuf)
 }
 
 #ifndef CMD52_ACCESS_HISR_RX_REQ_LEN
-#define CMD52_ACCESS_HISR_RX_REQ_LEN 0
+#define CMD52_ACCESS_HISR_RX_REQ_LEN 1
 #endif
 
 void sd_int_dpc(PADAPTER padapter)

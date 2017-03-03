@@ -826,10 +826,12 @@ exit:
 #define	GET_C2H_MAC_HIDDEN_RPT_UUID_Z(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 2, 0, 5)
 #define	GET_C2H_MAC_HIDDEN_RPT_UUID_CRC(_data)			LE_BITS_TO_2BYTE(((u8 *)(_data)) + 2, 5, 11)
 #define	GET_C2H_MAC_HIDDEN_RPT_HCI_TYPE(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 4, 0, 4)
-#define	GET_C2H_MAC_HIDDEN_RPT_PACKAGE_TYPE(_data)		LE_BITS_TO_1BYTE(((u8 *)(_data)) + 4, 4, 4)
+#define	GET_C2H_MAC_HIDDEN_RPT_PACKAGE_TYPE(_data)		LE_BITS_TO_1BYTE(((u8 *)(_data)) + 4, 4, 3)
+#define	GET_C2H_MAC_HIDDEN_RPT_TR_SWITCH(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 4, 7, 1)
 #define	GET_C2H_MAC_HIDDEN_RPT_WL_FUNC(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 5, 0, 4)
 #define	GET_C2H_MAC_HIDDEN_RPT_HW_STYPE(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 5, 4, 4)
 #define	GET_C2H_MAC_HIDDEN_RPT_BW(_data)				LE_BITS_TO_1BYTE(((u8 *)(_data)) + 6, 0, 3)
+#define	GET_C2H_MAC_HIDDEN_RPT_FAB(_data)				LE_BITS_TO_1BYTE(((u8 *)(_data)) + 6, 3, 2)
 #define	GET_C2H_MAC_HIDDEN_RPT_ANT_NUM(_data)			LE_BITS_TO_1BYTE(((u8 *)(_data)) + 6, 5, 3)
 #define	GET_C2H_MAC_HIDDEN_RPT_80211_PROTOCOL(_data)	LE_BITS_TO_1BYTE(((u8 *)(_data)) + 7, 2, 2)
 #define	GET_C2H_MAC_HIDDEN_RPT_NIC_ROUTER(_data)		LE_BITS_TO_1BYTE(((u8 *)(_data)) + 7, 6, 2)
@@ -852,9 +854,11 @@ int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len)
 
 	u8 hci_type;
 	u8 package_type;
+	u8 tr_switch;
 	u8 wl_func;
 	u8 hw_stype;
 	u8 bw;
+	u8 fab;
 	u8 ant_num;
 	u8 protocol;
 	u8 nic;
@@ -874,10 +878,13 @@ int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len)
 	hci_type = GET_C2H_MAC_HIDDEN_RPT_HCI_TYPE(data);
 	package_type = GET_C2H_MAC_HIDDEN_RPT_PACKAGE_TYPE(data);
 
+	tr_switch = GET_C2H_MAC_HIDDEN_RPT_TR_SWITCH(data);
+
 	wl_func = GET_C2H_MAC_HIDDEN_RPT_WL_FUNC(data);
 	hw_stype = GET_C2H_MAC_HIDDEN_RPT_HW_STYPE(data);
 
 	bw = GET_C2H_MAC_HIDDEN_RPT_BW(data);
+	fab = GET_C2H_MAC_HIDDEN_RPT_FAB(data);
 	ant_num = GET_C2H_MAC_HIDDEN_RPT_ANT_NUM(data);
 
 	protocol = GET_C2H_MAC_HIDDEN_RPT_80211_PROTOCOL(data);
@@ -890,19 +897,66 @@ int c2h_mac_hidden_rpt_hdl(_adapter *adapter, u8 *data, u8 len)
 		DBG_871X("uuid x:0x%02x y:0x%02x z:0x%x crc:0x%x\n", uuid_x, uuid_y, uuid_z, uuid_crc);
 		DBG_871X("hci_type:0x%x\n", hci_type);
 		DBG_871X("package_type:0x%x\n", package_type);
+		DBG_871X("tr_switch:0x%x\n", tr_switch);
 		DBG_871X("wl_func:0x%x\n", wl_func);
 		DBG_871X("hw_stype:0x%x\n", hw_stype);
 		DBG_871X("bw:0x%x\n", bw);
+		DBG_871X("fab:0x%x\n", fab);
 		DBG_871X("ant_num:0x%x\n", ant_num);
 		DBG_871X("protocol:0x%x\n", protocol);
 		DBG_871X("nic:0x%x\n", nic);
 	}
 
+	/*
+	* NOTICE:
+	* for now, the following is common info/format
+	* if there is any hal difference need to export
+	* some IC dependent code will need to be implement
+	*/
 	hal_data->PackageType = package_type;
 	hal_spec->wl_func &= mac_hidden_wl_func_to_hal_wl_func(wl_func);
 	hal_spec->bw_cap &= mac_hidden_max_bw_to_hal_bw_cap(bw);
 	hal_spec->nss_num = rtw_min(hal_spec->nss_num, ant_num);
 	hal_spec->proto_cap &= mac_hidden_proto_to_hal_proto_cap(protocol);
+
+	/* TODO: tr_switch */
+	/* TODO: fab */
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
+}
+
+int c2h_mac_hidden_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len)
+{
+	HAL_DATA_TYPE	*hal_data = GET_HAL_DATA(adapter);
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
+	int ret = _FAIL;
+
+	int i;
+
+	if (len < MAC_HIDDEN_RPT_2_LEN) {
+		RTW_WARN("%s len(%u) < %d\n", __func__, len, MAC_HIDDEN_RPT_2_LEN);
+		goto exit;
+	}
+
+	if (DBG_C2H_MAC_HIDDEN_RPT_HANDLE) {
+		for (i = 0; i < len; i++)
+			DBG_871X("%s: 0x%02X\n", __func__, *(data + i));
+	}
+
+	#ifdef CONFIG_RTL8188F
+	if (IS_8188F(hal_data->VersionID)) {
+		#define GET_C2H_MAC_HIDDEN_RPT_IRV(_data)	LE_BITS_TO_1BYTE(((u8 *)(_data)) + 0, 0, 4)
+		u8 irv = GET_C2H_MAC_HIDDEN_RPT_IRV(data);
+
+		if (DBG_C2H_MAC_HIDDEN_RPT_HANDLE)
+			DBG_871X("irv:0x%x\n", irv);
+
+		hal_data->VersionID.irv = irv;
+	}
+	#endif
 
 	ret = _SUCCESS;
 
@@ -914,12 +968,12 @@ int hal_read_mac_hidden_rpt(_adapter *adapter)
 {
 	int ret = _FAIL;
 	int ret_fwdl;
-	u8 mac_hidden_rpt[MAC_HIDDEN_RPT_LEN] = {0};
+	u8 mac_hidden_rpt[MAC_HIDDEN_RPT_LEN + MAC_HIDDEN_RPT_2_LEN] = {0};
 	u32 start = rtw_get_current_time();
 	u32 cnt = 0;
 	u32 timeout_ms = 800;
 	u32 min_cnt = 10;
-	u8 id = C2H_MAC_HIDDEN_RPT + 1;
+	u8 id = C2H_DEFEATURE_RSVD;
 	int i;
 
 #if defined(CONFIG_USB_HCI) || defined(CONFIG_PCI_HCI)
@@ -930,8 +984,8 @@ int hal_read_mac_hidden_rpt(_adapter *adapter)
 		rtw_hal_power_on(adapter);
 #endif
 
-	/* clear data ready */
-	rtw_write8(adapter, REG_C2HEVT_MSG_NORMAL, id);
+	/* inform FW mac hidden rpt from reg is needed */
+	rtw_write8(adapter, REG_C2HEVT_MSG_NORMAL, C2H_DEFEATURE_RSVD);
 
 	/* download FW */
 	ret_fwdl = rtw_hal_fw_dl(adapter, _FALSE);
@@ -950,12 +1004,16 @@ int hal_read_mac_hidden_rpt(_adapter *adapter)
 
 	if (id == C2H_MAC_HIDDEN_RPT) {
 		/* read data */
-		for (i = 0; i < MAC_HIDDEN_RPT_LEN; i++)
+		for (i = 0; i < MAC_HIDDEN_RPT_LEN + MAC_HIDDEN_RPT_2_LEN; i++)
 			mac_hidden_rpt[i] = rtw_read8(adapter, REG_C2HEVT_MSG_NORMAL + 2 + i);
 	}
 
+	/* inform FW mac hidden rpt has read */
+	rtw_write8(adapter, REG_C2HEVT_MSG_NORMAL, C2H_DBG);
+
 mac_hidden_rpt_hdl:
 	c2h_mac_hidden_rpt_hdl(adapter, mac_hidden_rpt, MAC_HIDDEN_RPT_LEN);
+	c2h_mac_hidden_rpt_2_hdl(adapter, mac_hidden_rpt + MAC_HIDDEN_RPT_LEN, MAC_HIDDEN_RPT_2_LEN);
 
 	if (ret_fwdl == _SUCCESS && id == C2H_MAC_HIDDEN_RPT)
 		ret = _SUCCESS;
@@ -973,6 +1031,251 @@ exit:
 
 	return ret;
 }
+
+int c2h_defeature_dbg_hdl(_adapter *adapter, u8 *data, u8 len)
+{
+	HAL_DATA_TYPE	*hal_data = GET_HAL_DATA(adapter);
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
+	int ret = _FAIL;
+
+	int i;
+
+	if (len < DEFEATURE_DBG_LEN) {
+		RTW_WARN("%s len(%u) < %d\n", __func__, len, DEFEATURE_DBG_LEN);
+		goto exit;
+	}
+
+	for (i = 0; i < len; i++)
+		DBG_871X("%s: 0x%02X\n", __func__, *(data + i));
+
+	ret = _SUCCESS;
+	
+exit:
+	return ret;
+}
+
+#ifndef DBG_CUSTOMER_STR_RPT_HANDLE
+#define DBG_CUSTOMER_STR_RPT_HANDLE 0
+#endif
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+s32 rtw_hal_h2c_customer_str_req(_adapter *adapter)
+{
+	u8 h2c_data[H2C_CUSTOMER_STR_REQ_LEN] = {0};
+
+	SET_H2CCMD_CUSTOMER_STR_REQ_EN(h2c_data, 1);
+	return rtw_hal_fill_h2c_cmd(adapter, H2C_CUSTOMER_STR_REQ, H2C_CUSTOMER_STR_REQ_LEN, h2c_data);
+}
+
+#define	C2H_CUSTOMER_STR_RPT_BYTE0(_data)		((u8 *)(_data))
+#define	C2H_CUSTOMER_STR_RPT_2_BYTE8(_data)		((u8 *)(_data))
+
+int c2h_customer_str_rpt_hdl(_adapter *adapter, u8 *data, u8 len)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	int ret = _FAIL;
+	int i;
+
+	if (len < CUSTOMER_STR_RPT_LEN) {
+		RTW_WARN("%s len(%u) < %d\n", __func__, len, CUSTOMER_STR_RPT_LEN);
+		goto exit;
+	}
+
+	if (DBG_CUSTOMER_STR_RPT_HANDLE)
+		RTW_PRINT_DUMP("customer_str_rpt: ", data, CUSTOMER_STR_RPT_LEN);
+
+	_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+	if (dvobj->customer_str_sctx != NULL) {
+		if (dvobj->customer_str_sctx->status != RTW_SCTX_SUBMITTED)
+			RTW_WARN("%s invalid sctx.status:%d\n", __func__, dvobj->customer_str_sctx->status);
+		_rtw_memcpy(dvobj->customer_str,  C2H_CUSTOMER_STR_RPT_BYTE0(data), CUSTOMER_STR_RPT_LEN);
+		dvobj->customer_str_sctx->status = RTX_SCTX_CSTR_WAIT_RPT2;
+	} else
+		RTW_WARN("%s sctx not set\n", __func__);
+
+	_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
+}
+
+int c2h_customer_str_rpt_2_hdl(_adapter *adapter, u8 *data, u8 len)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	int ret = _FAIL;
+	int i;
+
+	if (len < CUSTOMER_STR_RPT_2_LEN) {
+		RTW_WARN("%s len(%u) < %d\n", __func__, len, CUSTOMER_STR_RPT_2_LEN);
+		goto exit;
+	}
+
+	if (DBG_CUSTOMER_STR_RPT_HANDLE)
+		RTW_PRINT_DUMP("customer_str_rpt_2: ", data, CUSTOMER_STR_RPT_2_LEN);
+
+	_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+	if (dvobj->customer_str_sctx != NULL) {
+		if (dvobj->customer_str_sctx->status != RTX_SCTX_CSTR_WAIT_RPT2)
+			RTW_WARN("%s rpt not ready\n", __func__);
+		_rtw_memcpy(dvobj->customer_str + CUSTOMER_STR_RPT_LEN,  C2H_CUSTOMER_STR_RPT_2_BYTE8(data), CUSTOMER_STR_RPT_2_LEN);
+		rtw_sctx_done(&dvobj->customer_str_sctx);
+	} else
+		RTW_WARN("%s sctx not set\n", __func__);
+
+	_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+	ret = _SUCCESS;
+
+exit:
+	return ret;
+}
+
+/* read customer str */
+s32 rtw_hal_customer_str_read(_adapter *adapter, u8 *cs)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	struct submit_ctx sctx;
+	s32 ret = _SUCCESS;
+
+	_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+	if (dvobj->customer_str_sctx != NULL)
+		ret = _FAIL;
+	else {
+		rtw_sctx_init(&sctx, 2 * 1000);
+		dvobj->customer_str_sctx = &sctx;
+	}
+	_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+	if (ret == _FAIL) {
+		RTW_WARN("%s another handle ongoing\n", __func__);
+		goto exit;
+	}
+
+	ret = rtw_customer_str_req_cmd(adapter);
+	if (ret != _SUCCESS) {
+		RTW_WARN("%s read cmd fail\n", __func__);
+		_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+		dvobj->customer_str_sctx = NULL;
+		_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+		goto exit;
+	}
+
+	/* wait till rpt done or timeout */
+	rtw_sctx_wait(&sctx, __func__);
+
+	_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+	dvobj->customer_str_sctx = NULL;
+	if (sctx.status == RTW_SCTX_DONE_SUCCESS)
+		_rtw_memcpy(cs, dvobj->customer_str, RTW_CUSTOMER_STR_LEN);
+	else
+		ret = _FAIL;
+	_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+exit:
+	return ret;
+}
+
+s32 rtw_hal_h2c_customer_str_write(_adapter *adapter, const u8 *cs)
+{
+	u8 h2c_data_w1[H2C_CUSTOMER_STR_W1_LEN] = {0};
+	u8 h2c_data_w2[H2C_CUSTOMER_STR_W2_LEN] = {0};
+	u8 h2c_data_w3[H2C_CUSTOMER_STR_W3_LEN] = {0};
+	s32 ret;
+
+	SET_H2CCMD_CUSTOMER_STR_W1_EN(h2c_data_w1, 1);
+	_rtw_memcpy(H2CCMD_CUSTOMER_STR_W1_BYTE0(h2c_data_w1), cs, 6);
+
+	SET_H2CCMD_CUSTOMER_STR_W2_EN(h2c_data_w2, 1);
+	_rtw_memcpy(H2CCMD_CUSTOMER_STR_W2_BYTE6(h2c_data_w2), cs + 6, 6);
+
+	SET_H2CCMD_CUSTOMER_STR_W3_EN(h2c_data_w3, 1);
+	_rtw_memcpy(H2CCMD_CUSTOMER_STR_W3_BYTE12(h2c_data_w3), cs + 6 + 6, 4);
+
+	ret = rtw_hal_fill_h2c_cmd(adapter, H2C_CUSTOMER_STR_W1, H2C_CUSTOMER_STR_W1_LEN, h2c_data_w1);
+	if (ret != _SUCCESS) {
+		RTW_WARN("%s w1 fail\n", __func__);
+		goto exit;
+	}
+
+	ret = rtw_hal_fill_h2c_cmd(adapter, H2C_CUSTOMER_STR_W2, H2C_CUSTOMER_STR_W2_LEN, h2c_data_w2);
+	if (ret != _SUCCESS) {
+		RTW_WARN("%s w2 fail\n", __func__);
+		goto exit;
+	}
+
+	ret = rtw_hal_fill_h2c_cmd(adapter, H2C_CUSTOMER_STR_W3, H2C_CUSTOMER_STR_W3_LEN, h2c_data_w3);
+	if (ret != _SUCCESS) {
+		RTW_WARN("%s w3 fail\n", __func__);
+		goto exit;
+	}
+
+exit:
+	return ret;
+}
+
+/* write customer str and check if value reported is the same as requested */
+s32 rtw_hal_customer_str_write(_adapter *adapter, const u8 *cs)
+{
+	struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+	struct submit_ctx sctx;
+	s32 ret = _SUCCESS;
+
+	_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+	if (dvobj->customer_str_sctx != NULL)
+		ret = _FAIL;
+	else {
+		rtw_sctx_init(&sctx, 2 * 1000);
+		dvobj->customer_str_sctx = &sctx;
+	}
+	_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+	if (ret == _FAIL) {
+		RTW_WARN("%s another handle ongoing\n", __func__);
+		goto exit;
+	}
+
+	ret = rtw_customer_str_write_cmd(adapter, cs);
+	if (ret != _SUCCESS) {
+		RTW_WARN("%s write cmd fail\n", __func__);
+		_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+		dvobj->customer_str_sctx = NULL;
+		_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+		goto exit;
+	}
+
+	ret = rtw_customer_str_req_cmd(adapter);
+	if (ret != _SUCCESS) {
+		RTW_WARN("%s read cmd fail\n", __func__);
+		_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+		dvobj->customer_str_sctx = NULL;
+		_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+		goto exit;
+	}
+
+	/* wait till rpt done or timeout */
+	rtw_sctx_wait(&sctx, __func__);
+
+	_enter_critical_mutex(&dvobj->customer_str_mutex, NULL);
+	dvobj->customer_str_sctx = NULL;
+	if (sctx.status == RTW_SCTX_DONE_SUCCESS) {
+		if (_rtw_memcmp(cs, dvobj->customer_str, RTW_CUSTOMER_STR_LEN) != _TRUE) {
+			RTW_WARN("%s read back check fail\n", __func__);
+			RTW_INFO_DUMP("write req: ", cs, RTW_CUSTOMER_STR_LEN);
+			RTW_INFO_DUMP("read back: ", dvobj->customer_str, RTW_CUSTOMER_STR_LEN);
+			ret = _FAIL;
+		}
+	} else
+		ret = _FAIL;
+	_exit_critical_mutex(&dvobj->customer_str_mutex, NULL);
+
+exit:
+	return ret;
+}
+#endif /* CONFIG_RTW_CUSTOMER_STR */
 
 u8  rtw_hal_networktype_to_raid(_adapter *adapter, struct sta_info *psta)
 {

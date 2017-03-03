@@ -410,16 +410,20 @@ int rtw_mp_start(struct net_device *dev,
 	rtw_write8(padapter, 0xc50, 0x20); /*for RX init Gain*/
 #endif
 #ifdef CONFIG_RTL8188F
-	DBG_871X("Set reg 0x88c, 0x58, 0x00\n");
-	rfreg0 = PHY_QueryRFReg(padapter, RF_PATH_A, 0x0, 0x1f);
-	PHY_SetBBReg(padapter, 0x88c, BIT21|BIT20, 0x3);
-	PHY_SetRFReg(padapter, RF_PATH_A, 0x58, BIT1, 0x1);
-	PHY_SetRFReg(padapter, RF_PATH_A, 0x0, 0xF001f, 0x2001f);
-	rtw_msleep_os(200);
-	PHY_SetRFReg(padapter, RF_PATH_A, 0x0, 0xF001f, 0x30000 | rfreg0);
-	PHY_SetRFReg(padapter, RF_PATH_A, 0x58, BIT1, 0x0);
-	PHY_SetBBReg(padapter, 0x88c, BIT21|BIT20, 0x0);
-	rtw_msleep_os(1000);
+	if (IS_A_CUT(pHalData->VersionID)
+		|| (IS_B_CUT(pHalData->VersionID) && pHalData->VersionID.irv == 0xF)
+	) {
+		DBG_871X("Set reg 0x88c, 0x58, 0x00\n");
+		rfreg0 = PHY_QueryRFReg(padapter, RF_PATH_A, 0x0, 0x1f);
+		PHY_SetBBReg(padapter, 0x88c, BIT21|BIT20, 0x3);
+		PHY_SetRFReg(padapter, RF_PATH_A, 0x58, BIT1, 0x1);
+		PHY_SetRFReg(padapter, RF_PATH_A, 0x0, 0xF001f, 0x2001f);
+		rtw_msleep_os(200);
+		PHY_SetRFReg(padapter, RF_PATH_A, 0x0, 0xF001f, 0x30000 | rfreg0);
+		PHY_SetRFReg(padapter, RF_PATH_A, 0x58, BIT1, 0x0);
+		PHY_SetBBReg(padapter, 0x88c, BIT21|BIT20, 0x0);
+		rtw_msleep_os(1000);
+	}
 #endif
 
 	ODM_Write_DIG(&pHalData->odmpriv, 0x20);

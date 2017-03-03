@@ -6810,6 +6810,7 @@ exit:
 void rtw_cfg80211_ndev_res_free(_adapter *adapter)
 {
 	rtw_wdev_free(adapter->rtw_wdev);
+	adapter->rtw_wdev = NULL;
 #if !defined(RTW_SINGLE_WIPHY)
 	rtw_wiphy_free(adapter_to_wiphy(adapter));
 	adapter->wiphy = NULL;

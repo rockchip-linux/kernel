@@ -11036,6 +11036,105 @@ exit:
 
 #ifdef CONFIG_MP_INCLUDED
 
+#ifdef CONFIG_RTW_CUSTOMER_STR
+static int rtw_mp_customer_str(
+	struct net_device *dev,
+	struct iw_request_info *info,
+	union iwreq_data *wrqu, char *extra)
+{
+	_adapter *adapter = rtw_netdev_priv(dev);
+	u32 len;
+	u8 *pbuf = NULL, *pch;
+	char *ptmp;
+	u8 param[RTW_CUSTOMER_STR_LEN];
+	u8 count = 0;
+	u8 tmp;
+	u8 i;
+	u32 pos;
+	u8 ret;
+	u8 read = 0;
+
+	if (adapter->registrypriv.mp_mode != 1
+		|| !adapter->registrypriv.mp_customer_str)
+		return -EFAULT;
+
+	len = wrqu->data.length;
+
+	pbuf = (u8 *)rtw_zmalloc(len);
+	if (pbuf == NULL) {
+		RTW_WARN("%s: no memory!\n", __func__);
+		return -ENOMEM;
+	}
+
+	if (copy_from_user(pbuf, wrqu->data.pointer, len)) {
+		rtw_mfree(pbuf, len);
+		RTW_WARN("%s: copy from user fail!\n", __func__);
+		return -EFAULT;
+	}
+	RTW_INFO("%s: string=\"%s\"\n", __func__, pbuf);
+
+	ptmp = (char *)pbuf;
+	pch = strsep(&ptmp, ",");
+	if ((pch == NULL) || (strlen(pch) == 0)) {
+		rtw_mfree(pbuf, len);
+		RTW_INFO("%s: parameter error(no cmd)!\n", __func__);
+		return -EFAULT;
+	}
+
+	_rtw_memset(param, 0xFF, RTW_CUSTOMER_STR_LEN);
+
+	if (strcmp(pch, "read") == 0) {
+		read = 1;
+		ret = rtw_hal_customer_str_read(adapter, param);
+
+	} else if (strcmp(pch, "write") == 0) {
+		do {
+			pch = strsep(&ptmp, ":");
+			if ((pch == NULL) || (strlen(pch) == 0))
+				break;
+			if (strlen(pch) != 2
+				|| IsHexDigit(*pch) == _FALSE
+				|| IsHexDigit(*(pch + 1)) == _FALSE
+				|| sscanf(pch, "%hhx", &tmp) != 1
+			) {
+				RTW_WARN("%s: invalid 8-bit hex!\n", __func__);
+				rtw_mfree(pbuf, len);
+				return -EFAULT;
+			}
+
+			param[count++] = tmp;
+
+		} while (count < RTW_CUSTOMER_STR_LEN);
+
+		if (count == 0) {
+			rtw_mfree(pbuf, len);
+			RTW_WARN("%s: no input!\n", __func__);
+			return -EFAULT;
+		}
+		ret = rtw_hal_customer_str_write(adapter, param);
+	} else {
+		rtw_mfree(pbuf, len);
+		RTW_INFO("%s: parameter error(unknown cmd)!\n", __func__);
+		return -EFAULT;
+	}
+
+	pos = sprintf(extra, "%s: ", read ? "read" : "write");
+	if (read == 0 || ret == _SUCCESS) {
+		for (i = 0; i < RTW_CUSTOMER_STR_LEN; i++)
+			pos += sprintf(extra + pos, "%02x:", param[i]);
+		extra[pos] = 0;
+		pos--;
+	}
+	pos += sprintf(extra + pos, " %s", ret == _SUCCESS ? "OK" : "FAIL");
+
+	wrqu->data.length = strlen(extra) + 1;
+
+free_buf:
+	rtw_mfree(pbuf, len);
+	return 0;
+}
+#endif /* CONFIG_RTW_CUSTOMER_STR */
+
 #ifdef CONFIG_SDIO_INDIRECT_ACCESS
 #define DBG_MP_SDIO_INDIRECT_ACCESS 1
 static int rtw_mp_sd_iread(struct net_device *dev
@@ -11433,6 +11532,12 @@ static int rtw_mp_get(struct net_device *dev,
 		break;
 	case MP_SD_IWRITE:
 		rtw_mp_sd_iwrite(dev, info, wrqu, extra);
+		break;
+#endif
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	case MP_CUSTOMER_STR:
+		RTW_INFO("customer str\n");
+		rtw_mp_customer_str(dev, info, wdata, extra);
 		break;
 #endif
 	}
@@ -13250,6 +13355,11 @@ static const struct iw_priv_args rtw_private_args[] = {
         { MP_DISABLE_BT_COEXIST, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_disa_btcoex"},
 #endif
 		{ CTA_TEST, IW_PRIV_TYPE_CHAR | 1024, 0, "cta_test"},
+		{ MP_IQK, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_iqk"},
+		{ MP_LCK, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_lck"},
+		#ifdef CONFIG_RTW_CUSTOMER_STR
+		{ MP_CUSTOMER_STR, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "customer_str" },
+		#endif
 #endif
 #ifdef CONFIG_WOWLAN
 		{ MP_WOW_ENABLE , IW_PRIV_TYPE_CHAR | 1024, 0, "wow_mode" },
@@ -13262,8 +13372,6 @@ static const struct iw_priv_args rtw_private_args[] = {
 		{ MP_SD_IREAD, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "sd_iread" },
 		{ MP_SD_IWRITE, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "sd_iwrite" },
 #endif
-		{ MP_IQK, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_iqk"},
-		{ MP_LCK, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_lck"},
 };
 
 static iw_handler rtw_private_handler[] = 

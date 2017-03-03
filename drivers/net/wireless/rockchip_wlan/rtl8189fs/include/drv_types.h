@@ -200,6 +200,9 @@ struct registry_priv
 	u16	busy_thresh;
 	u8	ack_policy;
 	u8	mp_mode;
+#if defined(CONFIG_MP_INCLUDED) && defined(CONFIG_RTW_CUSTOMER_STR)
+	u8 mp_customer_str;
+#endif
 	u8  mp_dm;
 	u8	software_encrypt;
 	u8	software_decrypt;
@@ -757,6 +760,13 @@ struct dvobj_priv
 
 	_mutex hw_init_mutex;
 	_mutex h2c_fwcmd_mutex;
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	_mutex customer_str_mutex;
+	struct submit_ctx *customer_str_sctx;
+	u8 customer_str[RTW_CUSTOMER_STR_LEN];
+#endif
+
 	_mutex setch_mutex;
 	_mutex setbw_mutex;
 	_mutex rf_read_reg_mutex;

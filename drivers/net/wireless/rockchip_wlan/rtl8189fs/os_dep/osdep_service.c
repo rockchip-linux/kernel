@@ -690,7 +690,7 @@ inline struct sk_buff *dbg_rtw_skb_copy(const struct sk_buff *skb, const enum ms
 	rtw_mstat_update(
 		flags
 		, skb_cp ? MSTAT_ALLOC_SUCCESS : MSTAT_ALLOC_FAIL
-		, truesize
+		, cp_truesize
 	);
 
 	return skb_cp;
@@ -712,7 +712,7 @@ inline struct sk_buff *dbg_rtw_skb_clone(struct sk_buff *skb, const enum mstat_f
 	rtw_mstat_update(
 		flags
 		, skb_cl ? MSTAT_ALLOC_SUCCESS : MSTAT_ALLOC_FAIL
-		, truesize
+		, cl_truesize
 	);
 
 	return skb_cl;
@@ -830,7 +830,7 @@ inline void _rtw_memmove(void *dst, const void *src, u32 sz)
 #endif
 }
 
-int	_rtw_memcmp(void *dst, void *src, u32 sz)
+int	_rtw_memcmp(const void *dst, const void *src, u32 sz)
 {
 
 #if defined (PLATFORM_LINUX)|| defined (PLATFORM_FREEBSD)

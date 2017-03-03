@@ -683,8 +683,7 @@ post_process:
 		_enter_critical_mutex(&(pcmd->padapter->cmdpriv.sctx_mutex), NULL);
 		if (pcmd->sctx) {
 			if (0)
-				DBG_871X_LEVEL(_drv_always_, FUNC_ADPT_FMT" pcmd->sctx\n",
-					FUNC_ADPT_ARG(pcmd->padapter));
+				DBG_871X_LEVEL(_drv_always_, FUNC_ADPT_FMT" pcmd->sctx\n", FUNC_ADPT_ARG(pcmd->padapter));
 			if (pcmd->res == H2C_SUCCESS)
 				rtw_sctx_done(&pcmd->sctx);
 			else
@@ -746,7 +745,15 @@ post_process:
 			}
 		}
 
-		rtw_free_cmd_obj(pcmd);	
+		_enter_critical_mutex(&(pcmd->padapter->cmdpriv.sctx_mutex), NULL);
+		if (pcmd->sctx) {
+			if (0)
+				DBG_871X_LEVEL(_drv_always_, FUNC_ADPT_FMT" pcmd->sctx\n", FUNC_ADPT_ARG(pcmd->padapter));
+			rtw_sctx_done_err(&pcmd->sctx, RTW_SCTX_DONE_CMD_DROP);
+		}
+		_exit_critical_mutex(&(pcmd->padapter->cmdpriv.sctx_mutex), NULL);
+
+		rtw_free_cmd_obj(pcmd);
 	} while (1);
 
 	_rtw_up_sema(&pcmdpriv->terminate_cmdthread_sema);
@@ -3835,6 +3842,93 @@ exit:
 /* dont call R/W in this function, beucase SDIO interrupt have claim host */
 /* or deadlock will happen and cause special-systemserver-died in android */
 
+#ifdef CONFIG_RTW_CUSTOMER_STR
+static s32 rtw_customer_str_cmd_hdl(_adapter *adapter, u8 write, const u8 *cstr)
+{
+	int ret = H2C_SUCCESS;
+
+	if (write)
+		ret = rtw_hal_h2c_customer_str_write(adapter, cstr);
+	else
+		ret = rtw_hal_h2c_customer_str_req(adapter);
+
+	return ret == _SUCCESS ? H2C_SUCCESS : H2C_REJECTED;
+}
+
+static u8 rtw_customer_str_cmd(_adapter *adapter, u8 write, const u8 *cstr)
+{
+	struct cmd_obj *cmdobj;
+	struct drvextra_cmd_parm *parm;
+	u8 *str = NULL;
+	struct cmd_priv *pcmdpriv = &adapter->cmdpriv;
+	struct submit_ctx sctx;
+	u8 res = _SUCCESS;
+
+	parm = (struct drvextra_cmd_parm *)rtw_zmalloc(sizeof(struct drvextra_cmd_parm));
+	if (parm == NULL) {
+		res = _FAIL;
+		goto exit;
+	}
+
+	if (write) {
+		str = rtw_zmalloc(RTW_CUSTOMER_STR_LEN);
+		if (str == NULL) {
+			rtw_mfree((u8 *)parm, sizeof(struct drvextra_cmd_parm));
+			res = _FAIL;
+			goto exit;
+		}
+	}
+
+	parm->ec_id = CUSTOMER_STR_WK_CID;
+	parm->type = write;
+	parm->size = write ? RTW_CUSTOMER_STR_LEN : 0;
+	parm->pbuf = write ? str : NULL;
+
+	if (write)
+		_rtw_memcpy(str, cstr, RTW_CUSTOMER_STR_LEN);
+
+	/* need enqueue, prepare cmd_obj and enqueue */
+	cmdobj = (struct cmd_obj *)rtw_zmalloc(sizeof(*cmdobj));
+	if (cmdobj == NULL) {
+		res = _FAIL;
+		rtw_mfree((u8 *)parm, sizeof(*parm));
+		if (write)
+			rtw_mfree(str, RTW_CUSTOMER_STR_LEN);
+		goto exit;
+	}
+
+	init_h2fwcmd_w_parm_no_rsp(cmdobj, parm, GEN_CMD_CODE(_Set_Drv_Extra));
+
+	cmdobj->sctx = &sctx;
+	rtw_sctx_init(&sctx, 2 * 1000);
+
+	res = rtw_enqueue_cmd(pcmdpriv, cmdobj);
+
+	if (res == _SUCCESS) {
+		rtw_sctx_wait(&sctx, __func__);
+		_enter_critical_mutex(&pcmdpriv->sctx_mutex, NULL);
+		if (sctx.status == RTW_SCTX_SUBMITTED)
+			cmdobj->sctx = NULL;
+		_exit_critical_mutex(&pcmdpriv->sctx_mutex, NULL);
+		if (sctx.status != RTW_SCTX_DONE_SUCCESS)
+			res = _FAIL;
+	}
+
+exit:
+	return res;
+}
+
+inline u8 rtw_customer_str_req_cmd(_adapter *adapter)
+{
+	return rtw_customer_str_cmd(adapter, 0, NULL);
+}
+
+inline u8 rtw_customer_str_write_cmd(_adapter *adapter, const u8 *cstr)
+{
+	return rtw_customer_str_cmd(adapter, 1, cstr);
+}
+#endif /* CONFIG_RTW_CUSTOMER_STR */
+
 u8 rtw_c2h_wk_cmd(PADAPTER padapter, u8 *c2h_evt)
 {
 	struct cmd_obj *ph2c;
@@ -4260,6 +4354,7 @@ exit:
 
 u8 rtw_drvextra_cmd_hdl(_adapter *padapter, unsigned char *pbuf)
 {
+	int ret = H2C_SUCCESS;
 	struct drvextra_cmd_parm *pdrvextra_cmd;
 
 	if(!pbuf)
@@ -4366,7 +4461,11 @@ u8 rtw_drvextra_cmd_hdl(_adapter *padapter, unsigned char *pbuf)
 	case EN_HW_UPDATE_TSF_WK_CID:
 		rtw_hal_set_hwreg(padapter, HW_VAR_EN_HW_UPDATE_TSF, NULL);
 		break;
-
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	case CUSTOMER_STR_WK_CID:
+		ret = rtw_customer_str_cmd_hdl(padapter, pdrvextra_cmd->type, pdrvextra_cmd->pbuf);
+		break;
+#endif
 		default:
 			break;
 	}
@@ -4376,7 +4475,7 @@ u8 rtw_drvextra_cmd_hdl(_adapter *padapter, unsigned char *pbuf)
 		rtw_mfree(pdrvextra_cmd->pbuf, pdrvextra_cmd->size);
 	}
 
-	return H2C_SUCCESS;
+	return ret;
 }
 
 void rtw_survey_cmd_callback(_adapter*	padapter ,  struct cmd_obj *pcmd)

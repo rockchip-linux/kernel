@@ -26,6 +26,7 @@
 #define	ODM_ADSL		0x02
 #define	ODM_CE			0x04	/*BIT2*/
 #define	ODM_WIN		0x08	/*BIT3*/
+#define	ODM_IOT		0x20	/*BIT5*/
 
 /*Deifne HW endian support*/
 #define	ODM_ENDIAN_BIG	0

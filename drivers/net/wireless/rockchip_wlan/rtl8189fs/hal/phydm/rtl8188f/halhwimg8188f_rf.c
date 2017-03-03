@@ -18,7 +18,7 @@
 * 
 ******************************************************************************/
 
-/*Image2HeaderVersion: 2.18*/
+/*Image2HeaderVersion: 2.25*/
 #include "mp_precomp.h"
 #include "../phydm_precomp.h"
 
@@ -39,10 +39,14 @@ CheckPositive(
 				((pDM_Odm->BoardType & BIT2) >> 2) << 4;  /* _BT*/  
 
 	u4Byte	cond1   = Condition1, cond2 = Condition2, cond3 = Condition3, cond4 = Condition4;
-	u4Byte    driver1 = pDM_Odm->CutVersion       << 24 | 
+
+	u1Byte	cut_version_for_para   = (pDM_Odm->CutVersion == ODM_CUT_A) ? 15 : pDM_Odm->CutVersion;
+	u1Byte	pkg_type_for_para   = (pDM_Odm->PackageType == 0) ? 15 : pDM_Odm->PackageType;
+
+	u4Byte    driver1 = cut_version_for_para       << 24 | 
 				(pDM_Odm->SupportInterface & 0xF0) << 16 | 
 				pDM_Odm->SupportPlatform  << 16 | 
-				pDM_Odm->PackageType      << 12 | 
+				pkg_type_for_para      << 12 | 
 				(pDM_Odm->SupportInterface & 0x0F) << 8  |
 				_BoardType;
 
@@ -161,33 +165,25 @@ u4Byte Array_MP_8188F_RadioA[] = {
 		0x0CA, 0x00080000,
 		0x0DF, 0x00000180,
 		0x0EF, 0x000001A0,
-	0x81000000,	0x00000000,	0x40000000,	0x00000000,
-		0x051, 0x000E8231,
-	0xA0000000,	0x00000000,
+	0x8f000000,	0x00000000,	0x40000000,	0x00000000,
 		0x051, 0x000E8333,
+	0xA0000000,	0x00000000,
+		0x051, 0x000E8231,
 	0xB0000000,	0x00000000,
 	0x80000400,	0x00000000,	0x40000000,	0x00000000,
 		0x052, 0x000FAC88,
-	0x91000000,	0x00000000,	0x40000000,	0x00000000,
+	0x9f000000,	0x00000000,	0x40000000,	0x00000000,
 		0x052, 0x000FAC2C,
 	0xA0000000,	0x00000000,
 		0x052, 0x000FAC2C,
 	0xB0000000,	0x00000000,
-	0x81000000,	0x00000000,	0x40000000,	0x00000000,
-		0x053, 0x00000141,
-	0xA0000000,	0x00000000,
+	0x8f000000,	0x00000000,	0x40000000,	0x00000000,
 		0x053, 0x00000103,
+	0xA0000000,	0x00000000,
+		0x053, 0x00000141,
 	0xB0000000,	0x00000000,
 		0x056, 0x000517F0,
-	0x81000000,	0x00000000,	0x40000000,	0x00000000,
-		0x035, 0x00000090,
-		0x035, 0x00000190,
-		0x035, 0x00000290,
-		0x036, 0x00001064,
-		0x036, 0x00009064,
-		0x036, 0x00011064,
-		0x036, 0x00019064,
-	0xA0000000,	0x00000000,
+	0x8f000000,	0x00000000,	0x40000000,	0x00000000,
 		0x035, 0x00000099,
 		0x035, 0x00000199,
 		0x035, 0x00000299,
@@ -195,6 +191,14 @@ u4Byte Array_MP_8188F_RadioA[] = {
 		0x036, 0x00008064,
 		0x036, 0x00010064,
 		0x036, 0x00018064,
+	0xA0000000,	0x00000000,
+		0x035, 0x00000090,
+		0x035, 0x00000190,
+		0x035, 0x00000290,
+		0x036, 0x00001064,
+		0x036, 0x00009064,
+		0x036, 0x00011064,
+		0x036, 0x00019064,
 	0xB0000000,	0x00000000,
 		0x018, 0x00000C07,
 		0x05A, 0x00048000,
@@ -211,19 +215,7 @@ u4Byte Array_MP_8188F_RadioA[] = {
 		0x034, 0x00002CC8,
 		0x034, 0x00001C4B,
 		0x034, 0x00000C48,
-	0x91000000,	0x00000000,	0x40000000,	0x00000000,
-		0x034, 0x0000ADD2,
-		0x034, 0x00009DD0,
-		0x034, 0x00008CF3,
-		0x034, 0x00007CF0,
-		0x034, 0x00006CED,
-		0x034, 0x00005CD2,
-		0x034, 0x00004CCF,
-		0x034, 0x00003CCC,
-		0x034, 0x00002CC9,
-		0x034, 0x00001C4C,
-		0x034, 0x00000C49,
-	0xA0000000,	0x00000000,
+	0x9f000000,	0x00000000,	0x40000000,	0x00000000,
 		0x034, 0x0000ADD6,
 		0x034, 0x00009DD3,
 		0x034, 0x00008CF4,
@@ -235,6 +227,18 @@ u4Byte Array_MP_8188F_RadioA[] = {
 		0x034, 0x00002CC8,
 		0x034, 0x00001C4B,
 		0x034, 0x00000C48,
+	0xA0000000,	0x00000000,
+		0x034, 0x0000ADD2,
+		0x034, 0x00009DD0,
+		0x034, 0x00008CF3,
+		0x034, 0x00007CF0,
+		0x034, 0x00006CED,
+		0x034, 0x00005CD2,
+		0x034, 0x00004CCF,
+		0x034, 0x00003CCC,
+		0x034, 0x00002CC9,
+		0x034, 0x00001C4C,
+		0x034, 0x00000C49,
 	0xB0000000,	0x00000000,
 		0x000, 0x00030159,
 		0x084, 0x00048000,
@@ -339,7 +343,7 @@ ODM_ReadAndConfig_MP_8188F_RadioA(
 u4Byte
 ODM_GetVersion_MP_8188F_RadioA(void)
 {
-	   return 31;
+	   return 32;
 }
 
 /******************************************************************************
@@ -1108,8 +1112,13 @@ ODM_ReadAndConfig_MP_8188F_TXPWR_LMT(
 )
 {
 	u4Byte     i           = 0;
+#if (DM_ODM_SUPPORT_TYPE == ODM_IOT)
+	u4Byte     ArrayLen    = sizeof(Array_MP_8188F_TXPWR_LMT)/sizeof(u1Byte);
+	pu1Byte    Array      = (pu1Byte)Array_MP_8188F_TXPWR_LMT;
+#else
 	u4Byte     ArrayLen    = sizeof(Array_MP_8188F_TXPWR_LMT)/sizeof(pu1Byte);
 	pu1Byte    *Array      = (pu1Byte *)Array_MP_8188F_TXPWR_LMT;
+#endif
 
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)
 	PADAPTER		Adapter = pDM_Odm->Adapter;
@@ -1122,6 +1131,15 @@ ODM_ReadAndConfig_MP_8188F_TXPWR_LMT(
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, ("===> ODM_ReadAndConfig_MP_8188F_TXPWR_LMT\n"));
 
 	for (i = 0; i < ArrayLen; i += 7) {
+#if (DM_ODM_SUPPORT_TYPE == ODM_IOT)
+		u1Byte regulation = Array[i];
+		u1Byte band = Array[i+1];
+		u1Byte bandwidth = Array[i+2];
+		u1Byte rate = Array[i+3];
+		u1Byte rfPath = Array[i+4];
+		u1Byte chnl = Array[i+5];
+		u1Byte val = Array[i+6];
+#else
 		pu1Byte regulation = Array[i];
 		pu1Byte band = Array[i+1];
 		pu1Byte bandwidth = Array[i+2];
@@ -1129,6 +1147,7 @@ ODM_ReadAndConfig_MP_8188F_TXPWR_LMT(
 		pu1Byte rfPath = Array[i+4];
 		pu1Byte chnl = Array[i+5];
 		pu1Byte val = Array[i+6];
+#endif
 	
 		odm_ConfigBB_TXPWR_LMT_8188F(pDM_Odm, regulation, band, bandwidth, rate, rfPath, chnl, val);
 #if (DM_ODM_SUPPORT_TYPE == ODM_WIN)

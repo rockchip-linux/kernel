@@ -421,6 +421,28 @@ static int proc_get_dump_adapters_status(struct seq_file *m, void *v)
 	return 0;
 }
 
+#ifdef CONFIG_RTW_CUSTOMER_STR
+static int proc_get_customer_str(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *adapter = (_adapter *)rtw_netdev_priv(dev);
+	u8 cstr[RTW_CUSTOMER_STR_LEN];
+
+	rtw_ps_deny(adapter, PS_DENY_IOCTL);
+	if (rtw_pwr_wakeup(adapter) == _FAIL)
+		goto exit;
+
+	if (rtw_hal_customer_str_read(adapter, cstr) != _SUCCESS)
+		goto exit;
+
+	RTW_PRINT_SEL(m, RTW_CUSTOMER_STR_FMT"\n", RTW_CUSTOMER_STR_ARG(cstr));
+
+exit:
+	rtw_ps_deny_cancel(adapter, PS_DENY_IOCTL);
+	return 0;
+}
+#endif /* CONFIG_RTW_CUSTOMER_STR */
+
 //gpio setting
 #ifdef CONFIG_GPIO_API
 static ssize_t proc_set_config_gpio(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
@@ -1774,6 +1796,9 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 	RTW_PROC_HDL_SSEQ("read_reg", proc_get_read_reg, proc_set_read_reg),
 	RTW_PROC_HDL_SSEQ("tx_rate_bmp", proc_get_dump_tx_rate_bmp, NULL),
 	RTW_PROC_HDL_SSEQ("adapters_status", proc_get_dump_adapters_status, NULL),
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	RTW_PROC_HDL_SSEQ("customer_str", proc_get_customer_str, NULL),
+#endif
 	RTW_PROC_HDL_SSEQ("fwstate", proc_get_fwstate, NULL),
 	RTW_PROC_HDL_SSEQ("sec_info", proc_get_sec_info, NULL),
 	RTW_PROC_HDL_SSEQ("mlmext_state", proc_get_mlmext_state, NULL),

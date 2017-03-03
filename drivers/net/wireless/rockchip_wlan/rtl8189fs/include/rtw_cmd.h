@@ -238,6 +238,7 @@ enum rtw_drvextra_cmd_id
 	DFS_MASTER_WK_CID,
 	SESSION_TRACKER_WK_CID,
 	EN_HW_UPDATE_TSF_WK_CID,
+	CUSTOMER_STR_WK_CID,
 	MAX_WK_CID
 };
 
@@ -1117,6 +1118,11 @@ extern u8 rtw_c2h_packet_wk_cmd(PADAPTER padapter, u8 *pbuf, u16 length);
 //#else
 extern u8 rtw_c2h_wk_cmd(PADAPTER padapter, u8 *c2h_evt);
 //#endif
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+u8 rtw_customer_str_req_cmd(_adapter *adapter);
+u8 rtw_customer_str_write_cmd(_adapter *adapter, const u8 *cstr);
+#endif
 
 u8 rtw_run_in_thread_cmd(PADAPTER padapter, void (*func)(void*), void* context);
 

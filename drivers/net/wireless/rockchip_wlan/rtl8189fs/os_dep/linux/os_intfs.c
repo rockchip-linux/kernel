@@ -87,6 +87,12 @@ int rtw_ack_policy = NORMAL_ACK;
 
 int rtw_mp_mode = 0;
 
+#if defined(CONFIG_MP_INCLUDED) && defined(CONFIG_RTW_CUSTOMER_STR)
+uint rtw_mp_customer_str = 0;
+module_param(rtw_mp_customer_str, uint, 0644);
+MODULE_PARM_DESC(rtw_mp_customer_str, "Whether or not to enable customer str support on MP mode");
+#endif
+
 int rtw_software_encrypt = 0;
 int rtw_software_decrypt = 0;
 
@@ -603,6 +609,9 @@ _func_enter_;
   	//registry_par->qos_enable = (u8)rtw_qos_enable;
 	registry_par->ack_policy = (u8)rtw_ack_policy;
 	registry_par->mp_mode = (u8)rtw_mp_mode;
+#if defined(CONFIG_MP_INCLUDED) && defined(CONFIG_RTW_CUSTOMER_STR)
+	registry_par->mp_customer_str = (u8)rtw_mp_customer_str;
+#endif
 	registry_par->software_encrypt = (u8)rtw_software_encrypt;
 	registry_par->software_decrypt = (u8)rtw_software_decrypt;
 
@@ -1540,6 +1549,11 @@ struct dvobj_priv *devobj_init(void)
 	_rtw_mutex_init(&pdvobj->sd_indirect_access_mutex);
 #endif
 
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	_rtw_mutex_init(&pdvobj->customer_str_mutex);
+	_rtw_memset(pdvobj->customer_str, 0xFF, RTW_CUSTOMER_STR_LEN);
+#endif
+
 	pdvobj->processing_dev_remove = _FALSE;
 
 	ATOMIC_SET(&pdvobj->disable_func, 0);
@@ -1564,6 +1578,11 @@ void devobj_deinit(struct dvobj_priv *pdvobj)
 
 	_rtw_mutex_free(&pdvobj->hw_init_mutex);
 	_rtw_mutex_free(&pdvobj->h2c_fwcmd_mutex);
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	_rtw_mutex_free(&pdvobj->customer_str_mutex);
+#endif
+
 	_rtw_mutex_free(&pdvobj->setch_mutex);
 	_rtw_mutex_free(&pdvobj->setbw_mutex);
 	_rtw_mutex_free(&pdvobj->rf_read_reg_mutex);

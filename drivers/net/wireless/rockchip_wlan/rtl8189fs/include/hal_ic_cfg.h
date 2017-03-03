@@ -82,6 +82,9 @@
 #ifdef CONFIG_RTL8188F
 #undef RTL8188F_SUPPORT
 #define RTL8188F_SUPPORT				1
+	#ifndef CONFIG_RTW_CUSTOMER_STR
+		#define CONFIG_RTW_CUSTOMER_STR
+	#endif
 #endif
 
 #ifdef CONFIG_RTL8822B

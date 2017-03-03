@@ -1192,11 +1192,15 @@ s32 rtl8188f_FirmwareDownload(PADAPTER padapter, BOOLEAN  bUsedWoWLANFw)
 #endif /* CONFIG_WOWLAN */
 		{
 			ODM_ConfigFWWithHeaderFile(&pHalData->odmpriv
-				, CONFIG_FW_WoWLAN /* functions of CONFIG_FW_NIC is included in CONFIG_FW_WoWLAN */
+				/* , CONFIG_FW_WoWLAN functions of NIC is included in WoWLAN */
+				, CONFIG_FW_NIC /* functions of NIC is separated from WoWLAN starting from V0200 */
 				, (u8 *)&pFirmware->szFwBuffer
 				, &pFirmware->ulFwLength
 			);
-			DBG_8192C("%s fw: %s, size: %d\n", __func__, "FW_WoWLAN", pFirmware->ulFwLength);
+			DBG_8192C("%s fw: %s, size: %d\n", __func__
+				/*, "FW_WoWLAN" */
+				, "FW_NIC"
+				, pFirmware->ulFwLength);
 		}
 		break;
 	}
@@ -5602,6 +5606,15 @@ static void process_c2h_event(PADAPTER padapter, PC2H_EVT_HDR pC2hEvent, u8 *c2h
 	case C2H_CCX_TX_RPT:
 		CCX_FwC2HTxRpt_8188f(padapter, c2hBuf, pC2hEvent->CmdLen);
 		break;
+
+#ifdef CONFIG_RTW_CUSTOMER_STR
+	case C2H_CUSTOMER_STR_RPT:
+		c2h_customer_str_rpt_hdl(padapter, c2hBuf, pC2hEvent->CmdLen);
+		break;
+	case C2H_CUSTOMER_STR_RPT_2:
+		c2h_customer_str_rpt_2_hdl(padapter, c2hBuf, pC2hEvent->CmdLen);
+		break;
+#endif
 
 #ifdef CONFIG_BT_COEXIST
 	case C2H_BT_INFO:
