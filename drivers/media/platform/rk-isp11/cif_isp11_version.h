@@ -97,9 +97,14 @@
 *
 *v0.2.2:
 *1. Fix goc update bit isn't been clear in cifisp_isp_isr_other_config;
+*
+*v0.2.3:
+*1. Fix module enable isn't match current value, if new module parameters set,
+*but enable bit isn't switch;
+*
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 2)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 3)
 
 
 #endif

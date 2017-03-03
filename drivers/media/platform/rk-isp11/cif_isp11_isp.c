@@ -330,13 +330,15 @@ static int cifisp_module_enable(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	if (CIFISP_MODULE_IS_EN(*curr_ens, module) != *value) {
+	if ((CIFISP_MODULE_IS_EN(*curr_ens, module) != *value) ||
+		CIFISP_MODULE_IS_UPDATE(*updates, module)) {
 		if (*value)
 			CIFISP_MODULE_EN(*new_ens, module);
 		else
 			CIFISP_MODULE_DIS(*new_ens, module);
 
 		CIFISP_MODULE_UPDATE(*updates, module);
+
 	}
 
 end:
@@ -561,6 +563,7 @@ static int cifisp_lsc_param(struct cif_isp11_isp_dev *isp_dev,
 	CIFISP_MODULE_UPDATE(
 		isp_dev->other_cfgs.module_updates,
 		CIFISP_MODULE_LSC);
+
 end:
 	spin_unlock_irqrestore(&isp_dev->config_lock, lock_flags);
 
@@ -4173,10 +4176,11 @@ static inline bool cifisp_isp_isr_other_config(
 		} else
 			cifisp_lsc_end(isp_dev);
 
-		if (res)
+		if (res) {
 			CIFISP_MODULE_CLR_UPDATE(
 				isp_dev->other_cfgs.module_updates,
 				CIFISP_MODULE_LSC);
+		}
 
 		*time_left -= CIFISP_MODULE_LSC_PROC_TIME;
 		CIFISP_DPRINT(CIFISP_DEBUG,
