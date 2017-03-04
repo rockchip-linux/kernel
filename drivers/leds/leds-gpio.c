@@ -293,10 +293,9 @@ static int fb_event_notify(struct notifier_block *self,
 	struct led_notifier *n = container_of(self,
 			struct led_notifier, notifier);
 	struct fb_event *event = data;
-	int blank_mode = *((int *)event->data);
 
 	if (action == FB_EARLY_EVENT_BLANK) {
-		switch (blank_mode) {
+		switch (*((int *)event->data)) {
 		case FB_BLANK_UNBLANK:
 			break;
 		default:
@@ -304,7 +303,7 @@ static int fb_event_notify(struct notifier_block *self,
 			break;
 		}
 	} else if (action == FB_EVENT_BLANK) {
-		switch (blank_mode) {
+		switch (*((int *)event->data)) {
 		case FB_BLANK_UNBLANK:
 			led_mode_request(n->pdev, LED_M_UNBLANK);
 			break;

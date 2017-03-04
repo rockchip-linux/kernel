@@ -25,17 +25,14 @@ static inline int fb_notifier_callback(struct notifier_block *self,
 {
 	struct tp_device *tp;
 	struct fb_event *event = data;
-	int blank_mode = *((int *)event->data);
 	int ret = 0;
 
 	tp = container_of(self, struct tp_device, fb_notif);
 
-	//printk("%s.....lin=%d tp->status=%x,blank_mode=%x\n",__func__,__LINE__,tp->status,blank_mode);
-
 	mutex_lock(&tp->ops_lock);
 
 	if (action == FB_EARLY_EVENT_BLANK) {
-		switch (blank_mode) {
+		switch (*((int *)event->data)) {
 		case FB_BLANK_UNBLANK:
 			break;
 		default:
@@ -44,7 +41,7 @@ static inline int fb_notifier_callback(struct notifier_block *self,
 		}
 	}
 	else if (action == FB_EVENT_BLANK) {
-		switch (blank_mode) {
+		switch (*((int *)event->data)) {
 		case FB_BLANK_UNBLANK:
 			tp->tp_resume(tp);
 			break;
@@ -56,7 +53,7 @@ static inline int fb_notifier_callback(struct notifier_block *self,
 
 	if (ret < 0)
 	{
-		printk("TP_notifier_callback error action=%x,blank_mode=%x\n",(int)action,blank_mode);
+		printk("TP_notifier_callback error action=%x,blank_mode=%x\n", (int)action, *((int *)event->data));
 		return ret;
 	}
 

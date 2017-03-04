@@ -44,10 +44,9 @@ static int fb_notifier_callback(struct notifier_block *p,
 				unsigned long action, void *data)
 {
 	struct fb_event *event = data;
-	int blank_mode = *((int *)event->data);
 
 	if (action == FB_EARLY_EVENT_BLANK) {
-		switch (blank_mode) {
+		switch (*((int *)event->data)) {
 		case FB_BLANK_UNBLANK:
 			break;
 		default:
@@ -55,7 +54,7 @@ static int fb_notifier_callback(struct notifier_block *p,
 			break;
 		}
 	} else if (action == FB_EVENT_BLANK) {
-		switch (blank_mode) {
+		switch (*((int *)event->data)) {
 		case FB_BLANK_UNBLANK:
 			bl_blank = 0;
 			break;

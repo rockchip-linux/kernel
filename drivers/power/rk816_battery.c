@@ -1558,9 +1558,13 @@ static int rk816_bat_fb_notifier(struct notifier_block *nb,
 {
 	struct rk816_battery *di;
 	struct fb_event *evdata = data;
-
 	di = container_of(nb, struct rk816_battery, fb_nb);
-	di->fb_blank = *(int *)evdata->data;
+
+	if (event == FB_EVENT_BLANK || event == FB_EARLY_EVENT_BLANK ||
+			event == FB_R_EARLY_EVENT_BLANK)
+		di->fb_blank = *(int *)evdata->data;
+	else
+		di->fb_blank = 1;
 
 	return 0;
 }
