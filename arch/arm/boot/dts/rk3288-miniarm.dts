@@ -104,12 +104,17 @@
 		compatible = "gpio-leds";
 
 		pwr-led {
-			gpios = <&gpio2 2 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger = "default-on";
 		};
 
+		heartbeat-led {
+			gpios=<&gpio1 25 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger="heartbeat";
+		};
+
 		act-led {
-			gpios=<&gpio2 3 GPIO_ACTIVE_LOW>;
+			gpios=<&gpio1 24 GPIO_ACTIVE_HIGH>;
 			linux,default-trigger="mmc0";
 		};
 	};
@@ -117,7 +122,7 @@
 	sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
-		simple-audio-card,name = "rockchip,miniarm-codec";
+		simple-audio-card,name = "TinkerBoard";
 		simple-audio-card,mclk-fs = <512>;
 		simple-audio-card,cpu {
 			sound-dai = <&i2s>;
@@ -164,14 +169,14 @@
 	clock_in_out = "input";
 	snps,reset-gpio = <&gpio4 7 0>;
 	snps,reset-active-low;
-	snps,reset-delays-us = <0 10000 1000000>;
+	snps,reset-delays-us = <0 10000 50000>;
 	assigned-clocks = <&cru SCLK_MAC>;
 	assigned-clock-parents = <&ext_gmac>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_pins>;
 	tx_delay = <0x30>;
 	rx_delay = <0x10>;
-	status = "ok";
+	status = "okay";
 };
 
 &gpu {
@@ -233,7 +238,7 @@
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-min-microvolt = <750000>;
-				regulator-max-microvolt = <1350000>;
+				regulator-max-microvolt = <1450000>;
 				regulator-name = "vdd_arm";
 				regulator-ramp-delay = <6000>;
 				regulator-state-mem {
@@ -393,10 +398,16 @@
 
 &i2c2 {
 	status = "okay";
+
+	m24c08@50 {
+		compatible = "at,24c08";
+		reg = <0x50>;
+	};
 };
 
 &i2s {
 	#sound-dai-cells = <0>;
+	rockchip,bclk-fs = <128>;
 	status = "okay";
 };
 
