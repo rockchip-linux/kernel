@@ -17,6 +17,8 @@
  */
 
 #include <stdarg.h>
+#include <linux/cpu.h>
+#include <linux/cpu_pm.h>
 #include <linux/module.h>
 #include <linux/io.h>
 #include <linux/of.h>
@@ -509,6 +511,64 @@ out2:
 	kfree(t);
 }
 
+#ifdef CONFIG_FIQ_DEBUGGER_EL3_TO_EL1
+static int fiq_debugger_cpu_resume_fiq(struct notifier_block *nb,
+				       unsigned long action, void *hcpu)
+{
+	switch (action) {
+	case CPU_PM_EXIT:
+		if (psci_fiq_debugger_get_target_cpu() == smp_processor_id())
+			psci_fiq_debugger_enable_fiq(true, smp_processor_id());
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+
+static int fiq_debugger_cpu_migrate_fiq(struct notifier_block *nb,
+					unsigned long action, void *hcpu)
+{
+	int target_cpu, cpu = (long)hcpu;
+
+	switch (action) {
+	case CPU_DEAD:
+		if (psci_fiq_debugger_get_target_cpu() == cpu) {
+			target_cpu = cpumask_first(cpu_online_mask);
+			psci_fiq_debugger_switch_cpu(target_cpu);
+		}
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
+}
+#else
+static int fiq_debugger_cpu_resume_fiq(struct notifier_block *nb,
+				       unsigned long action, void *hcpu)
+{
+	return NOTIFY_OK;
+}
+
+static int fiq_debugger_cpu_migrate_fiq(struct notifier_block *nb,
+					unsigned long action, void *hcpu)
+{
+	return NOTIFY_OK;
+}
+#endif
+
+static struct notifier_block fiq_debugger_pm_notifier = {
+	.notifier_call = fiq_debugger_cpu_resume_fiq,
+	.priority = 100,
+};
+
+static struct notifier_block fiq_debugger_cpu_notifier = {
+	.notifier_call = fiq_debugger_cpu_migrate_fiq,
+	.priority = 100,
+};
+
 static const struct of_device_id ids[] = {
 	{ .compatible = "rockchip,fiq-debugger" },
 	{}
@@ -523,6 +583,7 @@ static int __init rk_fiq_debugger_init(void) {
 	unsigned int baudrate = 0, irq_mode = 0;
 	struct clk *clk;
 	struct clk *pclk;
+	int err;
 
 	np = of_find_matching_node(NULL, ids);
 
@@ -584,6 +645,18 @@ static int __init rk_fiq_debugger_init(void) {
 	base = of_iomap(np, 0);
 	if (base)
 		rk_serial_debug_init(base, irq, signal_irq, wake_irq, baudrate);
+
+	err = register_cpu_notifier(&fiq_debugger_cpu_notifier);
+	if (err) {
+		pr_err("fiq-debugger register cpu notifier failed!\n");
+		return err;
+	}
+
+	err = cpu_pm_register_notifier(&fiq_debugger_pm_notifier);
+	if (err) {
+		pr_err("fiq-debugger register pm notifier failed!\n");
+		return err;
+	}
 
 	return 0;
 }

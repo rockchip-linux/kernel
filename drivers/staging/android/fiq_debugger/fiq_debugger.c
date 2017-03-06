@@ -658,6 +658,11 @@ static void fiq_debugger_take_affinity(void *info)
 
 static void fiq_debugger_switch_cpu(struct fiq_debugger_state *state, int cpu)
 {
+	if (!cpu_online(cpu)) {
+		fiq_debugger_printf(&state->output, "cpu %d offline\n", cpu);
+		return;
+	}
+
 	if (!fiq_debugger_have_fiq(state))
 		smp_call_function_single(cpu, fiq_debugger_take_affinity, state,
 				false);
@@ -668,11 +673,6 @@ static void fiq_debugger_switch_cpu(struct fiq_debugger_state *state, int cpu)
 			state->pdata->switch_cpu(state->pdev, cpu);
 #else
 		struct cpumask cpumask;
-
-		if (!cpu_online(cpu)) {
-			fiq_debugger_printf(&state->output, "cpu %d offline\n", cpu);
-			return;
-		}
 
 #ifdef CONFIG_ARM_PSCI
 		if (is_psci_enable()) {
@@ -978,7 +978,8 @@ static bool fiq_debugger_handle_uart_interrupt(struct fiq_debugger_state *state,
 	bool signal_helper = false;
 	unsigned long ms = 0;
 
-	if (this_cpu != state->current_cpu) {
+	if ((this_cpu != state->current_cpu) &&
+	    (cpu_online(state->current_cpu))) {
 		if (state->in_fiq)
 			return false;
 
@@ -995,6 +996,9 @@ static bool fiq_debugger_handle_uart_interrupt(struct fiq_debugger_state *state,
 		fiq_debugger_switch_cpu(state, this_cpu);
 		return false;
 	}
+
+	if (this_cpu != state->current_cpu)
+		state->current_cpu = this_cpu;
 
 	state->in_fiq = true;
 
