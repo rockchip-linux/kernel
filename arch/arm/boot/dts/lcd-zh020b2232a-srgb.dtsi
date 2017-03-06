@@ -1,0 +1,207 @@
+/*
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This library is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This library is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/{
+	screen_init_cmds: screen-init-cmds {
+		compatible = "rockchip,screen-init-cmds";
+		rockchip,cmd_debug = <1>;
+
+		rockchip,init-cmds0 {
+			rockchip,init-cmd = <0x11>;
+			rockchip,init-cmd-delay = <120>;
+		};
+
+		rockchip,init-cmds1 {
+			rockchip,init-cmd = <0x36>;
+			rockchip,init-cmd-value = <0x0>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds2 {
+			rockchip,init-cmd = <0x3a>;
+			rockchip,init-cmd-value = <0x65>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds3 {
+			rockchip,init-cmd = <0xb2>;
+			rockchip,init-cmd-value = <0x0c 0x0c 0x0 0x33 0x33>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds4 {
+			rockchip,init-cmd = <0xb7>;
+			rockchip,init-cmd-value = <0x35>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds5 {
+			rockchip,init-cmd = <0xbb>;
+			rockchip,init-cmd-value = <0x1d>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds6 {
+			rockchip,init-cmd = <0xb0>;
+			rockchip,init-cmd-value = <0x11 0x04>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds7 {
+			rockchip,init-cmd = <0xb1>;
+			rockchip,init-cmd-value = <0xc0 0x04 0x0a>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds8 {
+			rockchip,init-cmd = <0xbb>;
+			rockchip,init-cmd-value = <0x1d>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds9 {
+			rockchip,init-cmd = <0xc0>;
+			rockchip,init-cmd-value = <0x2c>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds10 {
+			rockchip,init-cmd = <0xc2>;
+			rockchip,init-cmd-value = <0x1>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds11 {
+			rockchip,init-cmd = <0xc3>;
+			rockchip,init-cmd-value = <0x6>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds12 {
+			rockchip,init-cmd = <0xc4>;
+			rockchip,init-cmd-value = <0x20>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds13 {
+			rockchip,init-cmd = <0xc6>;
+			rockchip,init-cmd-value = <0x0f>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds14 {
+			rockchip,init-cmd = <0xd0>;
+			rockchip,init-cmd-value = <0xa7 0xa1>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds15 {
+			rockchip,init-cmd = <0xb5>;
+			rockchip,init-cmd-value = <0x82>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds16 {
+			rockchip,init-cmd = <0xe0>;
+			rockchip,init-cmd-value = <0xd0 0x0 0x3 0x9 0x13 0x1c
+				0x3a 0x55 0x48 0x18 0x12 0x0e 0x20 0x1e>;
+			rockchip,init-cmd-delay = <1>;
+		};
+
+		rockchip,init-cmds17 {
+			rockchip,init-cmd = <0xe1>;
+			rockchip,init-cmd-value = <0xd0 0x0 0x3 0x9 0x5 0x25
+				0x3a 0x55 0x50 0x3d 0x1c 0x1d 0x21 0x1e>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds18 {
+			rockchip,init-cmd = <0x2a>;
+			rockchip,init-cmd-value = <0 0 0 0xef>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds19 {
+			rockchip,init-cmd = <0x2b>;
+			rockchip,init-cmd-value = <0 0 0x1 0x3f>;
+			rockchip,init-cmd-delay = <0>;
+		};
+
+		rockchip,init-cmds20 {
+			rockchip,init-cmd = <0x29>;
+			rockchip,init-cmd-delay = <1>;
+		};
+
+		rockchip,init-cmds21 {
+			rockchip,init-cmd = <0x2c>;
+			rockchip,init-cmd-delay = <1>;
+		};
+	};
+
+	disp_timings: display-timings {
+		native-mode = <&timing0>;
+		timing0: timing0 {
+			screen-type = <SCREEN_RGB>;
+			lvds-format = <LVDS_8BIT_2>;
+			out-face    = <OUT_S888>;
+			color-mode = <COLOR_RGB>;
+			clock-frequency = <17000000>;
+			hactive = <240>;
+			vactive = <320>;
+			hback-porch = <10>;
+			hfront-porch = <38>;
+			vback-porch = <8>;
+			vfront-porch = <12>;
+			hsync-len = <10>;
+			vsync-len = <4>;
+			hsync-active = <0>;
+			vsync-active = <0>;
+			de-active = <0>;
+			pixelclk-active = <1>;
+			swap-rb = <1>;
+			swap-rg = <0>;
+			swap-gb = <0>;
+			swap-delta = <0>;
+			swap-dummy = <0>;
+		};
+	};
+};

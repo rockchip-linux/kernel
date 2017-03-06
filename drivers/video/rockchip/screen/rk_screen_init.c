@@ -20,8 +20,9 @@
 #include <linux/device.h>
 
 struct screen_init_cmd {
-	int cmd;
-	int value;
+	u8 cmd;
+	u8 *value;
+	u32 value_size;
 	int delay;
 };
 
@@ -42,9 +43,16 @@ struct _spi_data {
 
 struct _spi_data *spi_data;
 
-static void spi_sentdata(unsigned char value)
+static void spi_sentdata(unsigned char value, bool dcx)
 {
 	int i;
+
+	if (spi_data->cmd_type == SCREEN_INIT_SPI_9BIT) {
+		gpio_set_value(spi_data->spi_scl, 0);
+		gpio_set_value(spi_data->spi_sdi, dcx);
+		udelay(1);
+		gpio_set_value(spi_data->spi_scl, 1);
+	}
 
 	for (i = 0; i < 8; i++) {
 		udelay(1);
@@ -60,12 +68,15 @@ static void spi_sentdata(unsigned char value)
 	}
 }
 
-void spi_write_cmd(unsigned char c, unsigned char d)
+void spi_write_cmd(unsigned char c, u8 *d, u32 size)
 {
-	gpio_set_value(spi_data->spi_cs, 0);
+	int i;
 
-	spi_sentdata(c);
-	spi_sentdata(d);
+	gpio_set_value(spi_data->spi_cs, 0);
+	spi_sentdata(c, 0);
+
+	for (i = 0; i < size; i++)
+		spi_sentdata(*d++, 1);
 
 	gpio_set_value(spi_data->spi_cs, 1);
 }
@@ -90,20 +101,26 @@ static int spi_screen_init(void)
 	list_for_each(pos, &spi_data->cmd_list_head) {
 		init_cmd_list =
 			list_entry(pos, struct screen_init_cmd_list, list);
-		spi_write_cmd(init_cmd_list->cmd.cmd, init_cmd_list->cmd.value);
+		spi_write_cmd(init_cmd_list->cmd.cmd, init_cmd_list->cmd.value,
+			      init_cmd_list->cmd.value_size);
 		mdelay(init_cmd_list->cmd.delay);
 	}
+
 	return 0;
 }
 
 static int rk_fb_parse_init_cmd(void)
 {
-	int ret = 0;
-	u32 value = 0;
-	int debug = 0;
 	struct device_node *childnode, *root;
 	struct list_head *pos;
 	struct screen_init_cmd_list *init_cmd_list;
+	const struct property *prop;
+	const __be32 *val;
+	u8 *data;
+	int nr;
+	int ret = 0;
+	u32 value = 0;
+	int debug = 0;
 
 	root = of_find_node_by_name(NULL, "screen-init-cmds");
 
@@ -114,8 +131,11 @@ static int rk_fb_parse_init_cmd(void)
 			init_cmd_list =
 				kmalloc(sizeof(struct screen_init_cmd_list),
 					GFP_KERNEL);
-			if (!init_cmd_list)
-				return -ENOMEM;
+			if (!init_cmd_list) {
+				ret = -ENOMEM;
+				goto err_free_mem;
+			}
+
 			ret = of_property_read_u32(childnode,
 						   "rockchip,init-cmd",
 						   &value);
@@ -124,13 +144,28 @@ static int rk_fb_parse_init_cmd(void)
 			else
 				init_cmd_list->cmd.cmd = value;
 
-			ret = of_property_read_u32(childnode,
-						   "rockchip,init-cmd-value",
-						   &value);
-			if (ret)
-				pr_err("Can't get init cmd value: %d\n", ret);
-			else
-				init_cmd_list->cmd.value = value;
+			prop = of_find_property(childnode,
+						"rockchip,init-cmd-value",
+						NULL);
+			if (!prop || !prop->value) {
+				pr_debug("Can't get init cmd value\n");
+				init_cmd_list->cmd.value_size = 0;
+			} else {
+				nr = prop->length / sizeof(u32);
+				init_cmd_list->cmd.value_size = nr;
+				data = kmalloc(nr, GFP_KERNEL);
+				if (!data) {
+					pr_err("Can't kmalloc buf\n");
+					ret = -ENOMEM;
+					goto err_free_value;
+				}
+
+				init_cmd_list->cmd.value = data;
+
+				val = prop->value;
+				while (nr--)
+					*data++ = be32_to_cpup(val++);
+			}
 
 			ret = of_property_read_u32(childnode,
 						   "rockchip,init-cmd-delay",
@@ -146,20 +181,32 @@ static int rk_fb_parse_init_cmd(void)
 	}
 
 	of_property_read_u32(root, "rockchip,cmd_debug", &debug);
-
 	if (debug) {
 		list_for_each(pos, &spi_data->cmd_list_head) {
 			init_cmd_list = list_entry(pos,
 						   struct screen_init_cmd_list,
 						   list);
-			pr_info("cmd: 0x%x, val: 0x%x, delay: %d\n",
+			pr_info("cmd: 0x%x, val size: %d, delay: %d\n",
 				init_cmd_list->cmd.cmd,
-				init_cmd_list->cmd.value,
+				init_cmd_list->cmd.value_size,
 				init_cmd_list->cmd.delay);
 		}
 	}
 
 	return  0;
+
+err_free_value:
+	kfree(init_cmd_list);
+err_free_mem:
+	while (!list_empty(&spi_data->cmd_list_head)) {
+		init_cmd_list = list_entry(spi_data->cmd_list_head.next,
+					   struct screen_init_cmd_list, list);
+		list_del(&init_cmd_list->list);
+		kfree(init_cmd_list->cmd.value);
+		kfree(init_cmd_list);
+	}
+
+	return ret;
 }
 
 static int rk_fb_parse_screen_init(struct device_node *np,
@@ -175,11 +222,14 @@ static int rk_fb_parse_screen_init(struct device_node *np,
 		screen->init = NULL;
 		return -ENODEV;
 	}
+
 	of_property_read_u32(root, "screen-init-type", &init_type);
-	if (init_type != SCREEN_INIT_SPI) {
+	if ((init_type != SCREEN_INIT_SPI) &&
+	    (init_type != SCREEN_INIT_SPI_9BIT)) {
 		pr_err("now unsupport screen init type: %d\n", init_type);
 		return -1;
 	}
+
 	spi_data->cmd_type = init_type;
 	spi_data->spi_cs = of_get_named_gpio(root, "cs-gpio", 0);
 

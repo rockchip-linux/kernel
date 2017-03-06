@@ -93,7 +93,8 @@
 #define DISPLAY_POLICY_BOX	1
 
 #define SCREEN_INIT_SPI		1
-#define SCREEN_INIT_MCU		2
+#define SCREEN_INIT_SPI_9BIT	2
+#define SCREEN_INIT_MCU		3
 
 /*      	lvds connect config       
  *                                        
