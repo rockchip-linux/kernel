@@ -12,7 +12,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-
+#include <linux/clk.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -196,6 +196,7 @@ struct es8396_private {
 	struct regmap *regmap;
 	u8 sysclk[3];
 	u32 mclk[3];
+	struct clk *mclk_out;
 
 	/* platform dependant DVDD voltage configuration */
 	u8 dvdd_pwr_vol;
@@ -3100,9 +3101,17 @@ static int es8396_probe(struct snd_soc_codec *codec)
 {
 	int ret, regv;
 	u8 value;
-
 	struct es8396_private *es8396 = snd_soc_codec_get_drvdata(codec);
 
+	es8396->mclk_out = devm_clk_get(codec->dev, "mclk");
+	if (PTR_ERR(es8396->mclk_out) == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
+
+	if (!IS_ERR(es8396->mclk_out)) {
+		ret = clk_prepare_enable(es8396->mclk_out);
+		if (ret)
+			return ret;
+	}
 	ret = snd_soc_codec_set_cache_io(codec, 8, 8, SND_SOC_I2C);
 	if (ret < 0) {
 		pr_err("Failed to set cache I/O: %d\n", ret);
