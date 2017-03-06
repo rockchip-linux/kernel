@@ -197,6 +197,29 @@ static int rockchip_pdm_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int rockchip_pdm_set_fmt(struct snd_soc_dai *cpu_dai,
+				unsigned int fmt)
+{
+	struct rk_pdm_dev *pdm = to_info(cpu_dai);
+	unsigned int mask = 0, val = 0;
+
+	mask = PDM_CKP_MSK;
+	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
+	case SND_SOC_DAIFMT_NB_NF:
+		val = PDM_CKP_NORMAL;
+		break;
+	case SND_SOC_DAIFMT_IB_NF:
+		val = PDM_CKP_INVERTED;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	regmap_update_bits(pdm->regmap, PDM_CLK_CTRL, mask, val);
+
+	return 0;
+}
+
 static int rockchip_pdm_trigger(struct snd_pcm_substream *substream, int cmd,
 				struct snd_soc_dai *dai)
 {
@@ -234,6 +257,7 @@ static int rockchip_pdm_dai_probe(struct snd_soc_dai *dai)
 }
 
 static struct snd_soc_dai_ops rockchip_pdm_dai_ops = {
+	.set_fmt = rockchip_pdm_set_fmt,
 	.trigger = rockchip_pdm_trigger,
 	.hw_params = rockchip_pdm_hw_params,
 };
