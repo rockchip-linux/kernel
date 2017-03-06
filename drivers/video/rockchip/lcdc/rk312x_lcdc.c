@@ -1280,6 +1280,7 @@ static int rk312x_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 			else {
 				dev_err(lcdc_dev->dev,
 					"unsupported video timing!\n");
+				spin_unlock(&lcdc_dev->reg_lock);
 				return -1;
 			}
 			if (lcdc_dev->soc_type == VOP_RK312X) {

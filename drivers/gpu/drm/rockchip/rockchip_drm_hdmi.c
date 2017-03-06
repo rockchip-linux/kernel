@@ -30,7 +30,7 @@
 #define to_context(dev)		platform_get_drvdata(to_platform_device(dev))
 #define to_subdrv(dev)		to_context(dev)
 #define get_ctx_from_subdrv(subdrv)	container_of(subdrv,\
-					struct drm_hdmi_context, subdrv);
+					struct drm_hdmi_context, subdrv)
 
 /* platform device pointer for common drm hdmi device. */
 static struct platform_device *rockchip_drm_hdmi_pdev;
@@ -118,7 +118,7 @@ static bool drm_hdmi_is_connected(struct device *dev)
 }
 
 static struct edid *drm_hdmi_get_edid(struct device *dev,
-			struct drm_connector *connector)
+				      struct drm_connector *connector)
 {
 	struct drm_hdmi_context *ctx = to_context(dev);
 
@@ -242,7 +242,7 @@ static void drm_hdmi_mode_fixup(struct device *subdrv_dev,
 			DRM_INFO("use the most suitable mode among modes.\n");
 
 			DRM_DEBUG_KMS("Adjusted Mode: [%d]x[%d] [%d]Hz\n",
-				m->hdisplay, m->vdisplay, m->vrefresh);
+				      m->hdisplay, m->vdisplay, m->vrefresh);
 
 			/* preserve display mode header while copying. */
 			head = adjusted_mode->head;
@@ -266,7 +266,7 @@ static void drm_hdmi_mode_set(struct device *subdrv_dev, void *mode)
 }
 
 static void drm_hdmi_get_max_resol(struct device *subdrv_dev,
-				unsigned int *width, unsigned int *height)
+				   unsigned int *width, unsigned int *height)
 {
 	struct drm_hdmi_context *ctx = to_context(subdrv_dev);
 
@@ -330,7 +330,7 @@ static struct rockchip_drm_manager_ops drm_hdmi_manager_ops = {
 };
 
 static void drm_mixer_mode_set(struct device *subdrv_dev,
-		struct rockchip_drm_overlay *overlay)
+			       struct rockchip_drm_overlay *overlay)
 {
 	struct drm_hdmi_context *ctx = to_context(subdrv_dev);
 
@@ -390,7 +390,7 @@ static struct rockchip_drm_manager hdmi_manager = {
 };
 
 static int hdmi_subdrv_probe(struct drm_device *drm_dev,
-		struct device *dev)
+			     struct device *dev)
 {
 	struct rockchip_drm_subdrv *subdrv = to_subdrv(dev);
 	struct drm_hdmi_context *ctx;

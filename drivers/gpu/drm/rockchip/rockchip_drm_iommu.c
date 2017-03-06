@@ -45,8 +45,8 @@ int drm_create_iommu_mapping(struct drm_device *drm_dev)
 		priv->da_space_order = ROCKCHIP_DEV_ADDR_ORDER;
 
 	mapping = arm_iommu_create_mapping(&platform_bus_type, priv->da_start,
-						priv->da_space_size,
-						priv->da_space_order);
+					   priv->da_space_size,
+					   priv->da_space_order);
 	if (IS_ERR(mapping))
 		return PTR_ERR(mapping);
 
@@ -83,7 +83,7 @@ void drm_release_iommu_mapping(struct drm_device *drm_dev)
  * mapping.
  */
 int drm_iommu_attach_device(struct drm_device *drm_dev,
-				struct device *subdrv_dev)
+			    struct device *subdrv_dev)
 {
 	struct device *dev = drm_dev->dev;
 	int ret;
@@ -128,7 +128,7 @@ int drm_iommu_attach_device(struct drm_device *drm_dev,
  * mapping
  */
 void drm_iommu_detach_device(struct drm_device *drm_dev,
-				struct device *subdrv_dev)
+			     struct device *subdrv_dev)
 {
 	struct device *dev = drm_dev->dev;
 	struct dma_iommu_mapping *mapping = dev->archdata.mapping;

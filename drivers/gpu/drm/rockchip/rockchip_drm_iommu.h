@@ -27,10 +27,10 @@ int drm_create_iommu_mapping(struct drm_device *drm_dev);
 void drm_release_iommu_mapping(struct drm_device *drm_dev);
 
 int drm_iommu_attach_device(struct drm_device *drm_dev,
-				struct device *subdrv_dev);
+			    struct device *subdrv_dev);
 
 void drm_iommu_detach_device(struct drm_device *dev_dev,
-				struct device *subdrv_dev);
+			     struct device *subdrv_dev);
 
 static inline bool is_drm_iommu_supported(struct drm_device *drm_dev)
 {
@@ -56,13 +56,13 @@ static inline void drm_release_iommu_mapping(struct drm_device *drm_dev)
 }
 
 static inline int drm_iommu_attach_device(struct drm_device *drm_dev,
-						struct device *subdrv_dev)
+					  struct device *subdrv_dev)
 {
 	return 0;
 }
 
 static inline void drm_iommu_detach_device(struct drm_device *drm_dev,
-						struct device *subdrv_dev)
+					   struct device *subdrv_dev)
 {
 }
 

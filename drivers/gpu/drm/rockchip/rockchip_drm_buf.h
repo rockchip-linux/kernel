@@ -18,20 +18,20 @@
 
 /* create and initialize buffer object. */
 struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
-						unsigned int size);
+						   unsigned int size);
 
 /* destroy buffer object. */
 void rockchip_drm_fini_buf(struct drm_device *dev,
-				struct rockchip_drm_gem_buf *buffer);
+			   struct rockchip_drm_gem_buf *buffer);
 
 /* allocate physical memory region and setup sgt. */
 int rockchip_drm_alloc_buf(struct drm_device *dev,
-				struct rockchip_drm_gem_buf *buf,
-				unsigned int flags);
+			   struct rockchip_drm_gem_buf *buf,
+			   unsigned int flags);
 
 /* release physical memory region, and sgt. */
 void rockchip_drm_free_buf(struct drm_device *dev,
-				unsigned int flags,
-				struct rockchip_drm_gem_buf *buffer);
+			   unsigned int flags,
+			   struct rockchip_drm_gem_buf *buffer);
 
 #endif

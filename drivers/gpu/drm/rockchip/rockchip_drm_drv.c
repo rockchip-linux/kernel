@@ -1,8 +1,8 @@
 /*
  * Copyright (C) ROCKCHIP, Inc.
  * Author:yzq<yzq@rock-chips.com>
- * 
- * based on exynos_drm_drv.c
+ *
+ * based on rockchip_drm_drv.c
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -49,7 +49,7 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 	int ret;
 	int nr;
 
-	private = kzalloc(sizeof(struct rockchip_drm_private), GFP_KERNEL);
+	private = kzalloc(sizeof(*private), GFP_KERNEL);
 	if (!private) {
 		DRM_ERROR("failed to allocate private\n");
 		return -ENOMEM;
@@ -60,7 +60,7 @@ static int rockchip_drm_load(struct drm_device *dev, unsigned long flags)
 
 	private->ion_client = rockchip_ion_client_create("rockchip-drm");
 	if (IS_ERR(private->ion_client)) {
-		printk("failed to create ion client for rockchip drm");
+		pr_err("failed to create ion client for rockchip drm");
 		goto err_ion_client_destroy;
 	}
 	private->iommu_en = get_iommu_state();
@@ -143,8 +143,7 @@ err_release_iommu_mapping:
 err_ion_client_destroy:
 	if (private->ion_client)
 		ion_client_destroy(private->ion_client);
-	if (private)
-		kfree(private);
+	kfree(private);
 
 	return ret;
 }
@@ -190,7 +189,7 @@ static int rockchip_drm_open(struct drm_device *dev, struct drm_file *file)
 }
 
 static void rockchip_drm_preclose(struct drm_device *dev,
-					struct drm_file *file)
+				  struct drm_file *file)
 {
 	struct rockchip_drm_private *private = dev->dev_private;
 	struct drm_pending_vblank_event *e, *t;
@@ -210,7 +209,8 @@ static void rockchip_drm_preclose(struct drm_device *dev,
 	rockchip_drm_subdrv_close(dev, file);
 }
 
-static void rockchip_drm_postclose(struct drm_device *dev, struct drm_file *file)
+static void rockchip_drm_postclose(struct drm_device *dev,
+				   struct drm_file *file)
 {
 	if (!file->driver_priv)
 		return;
@@ -255,8 +255,9 @@ static struct drm_driver rockchip_drm_driver = {
 	.get_vblank_counter	= drm_vblank_count,
 	.enable_vblank		= rockchip_drm_crtc_enable_vblank,
 	.disable_vblank		= rockchip_drm_crtc_disable_vblank,
-	//.get_vblank_timestamp = rockchip_get_crtc_vblank_timestamp,
-	//.gem_init_object	= rockchip_drm_gem_init_object,
+	/* .get_vblank_timestamp = rockchip_get_crtc_vblank_timestamp,
+	 * .gem_init_object	= rockchip_drm_gem_init_object,
+	 */
 	.gem_free_object	= rockchip_gem_free_object,
 	.gem_vm_ops		= &rockchip_drm_gem_vm_ops,
 	.dumb_create		= rockchip_gem_dumb_create,
@@ -269,7 +270,7 @@ static struct drm_driver rockchip_drm_driver = {
 	.gem_prime_get_sg_table	= rockchip_gem_prime_get_sg_table,
 	.gem_prime_vmap		= rockchip_gem_prime_vmap,
 	.gem_prime_vunmap	= rockchip_gem_prime_vunmap,
-	//.gem_prime_mmap	= rockchip_gem_mmap_buf,//hjc todo
+	/* .gem_prime_mmap	= rockchip_gem_mmap_buf,//hjc todo */
 	.fops			= &rockchip_drm_driver_fops,
 	.name	= DRIVER_NAME,
 	.desc	= DRIVER_DESC,
@@ -305,9 +306,6 @@ static int __init rockchip_drm_init(void)
 {
 	int ret;
 
-	DRM_DEBUG_DRIVER("%s\n", __FILE__);
-
-
 #ifdef CONFIG_DRM_ROCKCHIP_PRIMARY
 	ret = platform_driver_register(&primary_platform_driver);
 	if (ret < 0)
@@ -320,7 +318,7 @@ static int __init rockchip_drm_init(void)
 	if (ret < 0)
 		goto out_extend;
 	platform_device_register_simple("extend-display", -1,
-			NULL, 0);
+					NULL, 0);
 #endif
 
 	ret = platform_driver_register(&rockchip_drm_platform_driver);
@@ -329,7 +327,7 @@ static int __init rockchip_drm_init(void)
 
 
 	rockchip_drm_pdev = platform_device_register_simple("rockchip-drm", -1,
-				NULL, 0);
+							    NULL, 0);
 	if (IS_ERR(rockchip_drm_pdev)) {
 		ret = PTR_ERR(rockchip_drm_pdev);
 		goto out;

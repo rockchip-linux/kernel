@@ -95,7 +95,7 @@ int rockchip_gem_mmap_buf(struct drm_gem_object *obj,
 			  struct vm_area_struct *vma)
 {
 #if 1
-	pr_err("hjc todo>>%s:%d, check  drm_gem_mmap_obj\n", __func__, __LINE__);
+	pr_err("hjc todo>>%s:%d, check drm_gem_mmap_obj\n", __func__, __LINE__);
 	return 0;
 #else
 	int ret;

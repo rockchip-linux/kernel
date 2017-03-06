@@ -6,7 +6,7 @@ ccflags-y := -Iinclude/drm -Idrivers/gpu/drm/rockchip
 rockchipdrm-y := rockchip_drm_drv.o rockchip_drm_encoder.o rockchip_drm_connector.o \
 		rockchip_drm_crtc.o rockchip_drm_fbdev.o rockchip_drm_fb.o \
 		rockchip_drm_gem.o rockchip_drm_core.o \
-		rockchip_drm_plane.o 
+		rockchip_drm_plane.o
 
 rockchipdrm-$(CONFIG_DRM_ROCKCHIP_IOMMU) += rockchip_drm_iommu.o
 #rockchipdrm-$(CONFIG_DRM_ROCKCHIP_DMABUF) += rockchip_drm_dmabuf.o

@@ -35,14 +35,14 @@ struct rockchip_hdmi_ops {
 	/* display */
 	bool (*is_connected)(void *ctx);
 	struct edid *(*get_edid)(void *ctx,
-			struct drm_connector *connector);
+				 struct drm_connector *connector);
 	int (*check_timing)(void *ctx, struct fb_videomode *timing);
 	int (*power_on)(void *ctx, int mode);
 
 	/* manager */
 	void (*mode_set)(void *ctx, void *mode);
 	void (*get_max_resol)(void *ctx, unsigned int *width,
-				unsigned int *height);
+			      unsigned int *height);
 	void (*commit)(void *ctx);
 	void (*dpms)(void *ctx, int mode);
 };

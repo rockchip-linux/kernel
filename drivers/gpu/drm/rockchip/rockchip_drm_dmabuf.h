@@ -18,10 +18,11 @@
 
 #ifdef CONFIG_DRM_ROCKCHIP_DMABUF
 struct dma_buf *rockchip_dmabuf_prime_export(struct drm_device *drm_dev,
-				struct drm_gem_object *obj, int flags);
+					     struct drm_gem_object *obj,
+					     int flags);
 
 struct drm_gem_object *rockchip_dmabuf_prime_import(struct drm_device *drm_dev,
-						struct dma_buf *dma_buf);
+						    struct dma_buf *dma_buf);
 #else
 #define rockchip_dmabuf_prime_export		NULL
 #define rockchip_dmabuf_prime_import		NULL

@@ -1,8 +1,8 @@
 /*
  * Copyright (C) ROCKCHIP, Inc.
  * Author:yzq<yzq@rock-chips.com>
- * 
- * based on exynos_drm_dmabuf.c
+ *
+ * based on rockchip_drm_dmabuf.c
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -28,8 +28,8 @@ struct rockchip_drm_dmabuf_attachment {
 };
 
 static int rockchip_gem_attach_dma_buf(struct dma_buf *dmabuf,
-					struct device *dev,
-					struct dma_buf_attachment *attach)
+				       struct device *dev,
+				       struct dma_buf_attachment *attach)
 {
 	struct rockchip_drm_dmabuf_attachment *rockchip_attach;
 
@@ -56,7 +56,7 @@ static void rockchip_gem_detach_dma_buf(struct dma_buf *dmabuf,
 
 	if (rockchip_attach->dir != DMA_NONE)
 		dma_unmap_sg(attach->dev, sgt->sgl, sgt->nents,
-				rockchip_attach->dir);
+			     rockchip_attach->dir);
 
 	sg_free_table(sgt);
 	kfree(rockchip_attach);
@@ -64,8 +64,8 @@ static void rockchip_gem_detach_dma_buf(struct dma_buf *dmabuf,
 }
 
 static struct sg_table *
-		rockchip_gem_map_dma_buf(struct dma_buf_attachment *attach,
-					enum dma_data_direction dir)
+rockchip_gem_map_dma_buf(struct dma_buf_attachment *attach,
+			 enum dma_data_direction dir)
 {
 	struct rockchip_drm_dmabuf_attachment *rockchip_attach = attach->priv;
 	struct rockchip_drm_gem_obj *gem_obj = attach->dmabuf->priv;
@@ -128,8 +128,8 @@ err_unlock:
 }
 
 static void rockchip_gem_unmap_dma_buf(struct dma_buf_attachment *attach,
-						struct sg_table *sgt,
-						enum dma_data_direction dir)
+				       struct sg_table *sgt,
+				       enum dma_data_direction dir)
 {
 	/* Nothing to do. */
 }
@@ -158,7 +158,7 @@ static void rockchip_dmabuf_release(struct dma_buf *dmabuf)
 }
 
 static void *rockchip_gem_dmabuf_kmap_atomic(struct dma_buf *dma_buf,
-						unsigned long page_num)
+					     unsigned long page_num)
 {
 	/* TODO */
 
@@ -166,14 +166,14 @@ static void *rockchip_gem_dmabuf_kmap_atomic(struct dma_buf *dma_buf,
 }
 
 static void rockchip_gem_dmabuf_kunmap_atomic(struct dma_buf *dma_buf,
-						unsigned long page_num,
-						void *addr)
+					      unsigned long page_num,
+					      void *addr)
 {
 	/* TODO */
 }
 
 static void *rockchip_gem_dmabuf_kmap(struct dma_buf *dma_buf,
-					unsigned long page_num)
+				      unsigned long page_num)
 {
 	/* TODO */
 
@@ -181,13 +181,13 @@ static void *rockchip_gem_dmabuf_kmap(struct dma_buf *dma_buf,
 }
 
 static void rockchip_gem_dmabuf_kunmap(struct dma_buf *dma_buf,
-					unsigned long page_num, void *addr)
+				       unsigned long page_num, void *addr)
 {
 	/* TODO */
 }
 
 static int rockchip_gem_dmabuf_mmap(struct dma_buf *dma_buf,
-	struct vm_area_struct *vma)
+				    struct vm_area_struct *vma)
 {
 	return -ENOTTY;
 }
@@ -206,16 +206,18 @@ static struct dma_buf_ops rockchip_dmabuf_ops = {
 };
 
 struct dma_buf *rockchip_dmabuf_prime_export(struct drm_device *drm_dev,
-				struct drm_gem_object *obj, int flags)
+					     struct drm_gem_object *obj,
+					     int flags)
 {
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = to_rockchip_gem_obj(obj);
+	struct rockchip_drm_gem_obj *rockchip_gem_obj =
+						to_rockchip_gem_obj(obj);
 
 	return dma_buf_export(rockchip_gem_obj, &rockchip_dmabuf_ops,
-				rockchip_gem_obj->base.size, flags);
+			      rockchip_gem_obj->base.size, flags);
 }
 
 struct drm_gem_object *rockchip_dmabuf_prime_import(struct drm_device *drm_dev,
-				struct dma_buf *dma_buf)
+						    struct dma_buf *dma_buf)
 {
 	struct dma_buf_attachment *attach;
 	struct sg_table *sgt;
@@ -292,7 +294,7 @@ struct drm_gem_object *rockchip_dmabuf_prime_import(struct drm_device *drm_dev,
 	rockchip_gem_obj->base.import_attach = attach;
 
 	DRM_DEBUG_PRIME("dma_addr = 0x%x, size = 0x%lx\n", buffer->dma_addr,
-								buffer->size);
+			buffer->size);
 
 	return &rockchip_gem_obj->base;
 
@@ -307,4 +309,3 @@ err_buf_detach:
 
 	return ERR_PTR(ret);
 }
-

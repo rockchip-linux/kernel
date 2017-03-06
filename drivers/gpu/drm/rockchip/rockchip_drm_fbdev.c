@@ -27,7 +27,7 @@
 #define PREFERRED_BPP		32
 
 #define to_drm_private(x) \
-                container_of(x, struct rockchip_drm_private, fb_helper)
+		container_of(x, struct rockchip_drm_private, fb_helper)
 
 #define to_rockchip_fbdev(x)	container_of(x, struct rockchip_drm_fbdev,\
 				drm_fb_helper)
@@ -36,7 +36,6 @@ struct rockchip_drm_fbdev {
 	struct drm_fb_helper		drm_fb_helper;
 	struct rockchip_gem_object	*rockchip_gem_obj;
 };
-void rockchip_drm_fbdev_restore_mode(struct drm_device *dev);
 
 static int rockchip_drm_fb_mmap(struct fb_info *info,
 				struct vm_area_struct *vma)
@@ -49,7 +48,8 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 #else
 	struct drm_fb_helper *helper = info->par;
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(helper);
-	struct rockchip_drm_gem_obj *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
+	struct rockchip_drm_gem_obj *rockchip_gem_obj =
+					rockchip_fbd->rockchip_gem_obj;
 	struct rockchip_drm_gem_buf *buffer = rockchip_gem_obj->buffer;
 	unsigned long vm_size;
 	int ret;
@@ -64,7 +64,8 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 		return -EINVAL;
 
 	ret = dma_mmap_attrs(helper->dev->dev, vma, buffer->pages,
-		buffer->dma_addr, buffer->size, &buffer->dma_attrs);
+			     buffer->dma_addr, buffer->size,
+			     &buffer->dma_attrs);
 	if (ret < 0) {
 		DRM_ERROR("failed to mmap.\n");
 		return ret;
@@ -118,6 +119,7 @@ static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 					pgprot_writecombine(PAGE_KERNEL));
 		} else {
 			phys_addr_t dma_addr = buffer->dma_addr;
+
 			if (dma_addr)
 				buffer->kvaddr = phys_to_virt(dma_addr);
 			else
@@ -151,7 +153,7 @@ static int rockchip_drm_fbdev_update(struct drm_fb_helper *helper,
 #endif
 
 static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
-				    struct drm_fb_helper_surface_size *sizes)
+				     struct drm_fb_helper_surface_size *sizes)
 {
 	struct rockchip_drm_fbdev *rockchip_fbdev = to_rockchip_fbdev(helper);
 	struct rockchip_drm_private *private = helper->dev->dev_private;
@@ -167,8 +169,8 @@ static int rockchip_drm_fbdev_create(struct drm_fb_helper *helper,
 	struct drm_framebuffer *fb;
 
 	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d\n",
-			sizes->surface_width, sizes->surface_height,
-			sizes->surface_bpp);
+		      sizes->surface_width, sizes->surface_height,
+		      sizes->surface_bpp);
 	bytes_per_pixel = DIV_ROUND_UP(sizes->surface_bpp, 8);
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
@@ -286,8 +288,8 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 		DRM_ERROR("failed to allocate drm fbdev.\n");
 		return -ENOMEM;
 	}
-
-	private->fb_helper = helper = &fbdev->drm_fb_helper;
+	helper = &fbdev->drm_fb_helper;
+	private->fb_helper = helper;
 	helper->funcs = &rockchip_drm_fb_helper_funcs;
 
 	num_crtc = dev->mode_config.num_crtc;
@@ -302,7 +304,6 @@ int rockchip_drm_fbdev_init(struct drm_device *dev)
 	if (ret < 0) {
 		DRM_ERROR("failed to register drm_fb_helper_connector.\n");
 		goto err_setup;
-
 	}
 
 	/* disable all the possible outputs/crtcs before entering KMS mode */
@@ -327,10 +328,11 @@ err_init:
 
 #if 0
 static void rockchip_drm_fbdev_destroy(struct drm_device *dev,
-				      struct drm_fb_helper *fb_helper)
+				       struct drm_fb_helper *fb_helper)
 {
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(fb_helper);
-	struct rockchip_gem_object *rockchip_gem_obj = rockchip_fbd->rockchip_gem_obj;
+	struct rockchip_gem_object *rockchip_gem_obj =
+					rockchip_fbd->rockchip_gem_obj;
 	struct drm_framebuffer *fb;
 
 	if (is_drm_iommu_supported(dev) && rockchip_gem_obj->buffer->kvaddr)

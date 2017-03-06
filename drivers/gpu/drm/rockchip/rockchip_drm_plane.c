@@ -75,10 +75,10 @@ static int rockchip_plane_get_size(int start, unsigned length, unsigned last)
 
 extern struct device *get_primary_vop_dev(void);
 int rockchip_plane_mode_set(struct drm_plane *plane, struct drm_crtc *crtc,
-			  struct drm_framebuffer *fb, int crtc_x, int crtc_y,
-			  unsigned int crtc_w, unsigned int crtc_h,
-			  uint32_t src_x, uint32_t src_y,
-			  uint32_t src_w, uint32_t src_h)
+			    struct drm_framebuffer *fb, int crtc_x, int crtc_y,
+			    unsigned int crtc_w, unsigned int crtc_h,
+			    uint32_t src_x, uint32_t src_y,
+			    uint32_t src_w, uint32_t src_h)
 {
 	struct rockchip_plane *rockchip_plane = to_rockchip_plane(plane);
 	struct rockchip_drm_overlay *overlay = &rockchip_plane->overlay;
@@ -141,12 +141,12 @@ int rockchip_plane_mode_set(struct drm_plane *plane, struct drm_crtc *crtc,
 	overlay->pixclock = crtc->mode.clock*1000;
 	overlay->scan_flag = crtc->mode.flags;
 
-//	printk("--->yzq %s crtc->mode->refresh =%d \n",__func__,crtc->mode.vrefresh);
 	DRM_DEBUG_KMS("overlay : offset_x/y(%d,%d), width/height(%d,%d)",
-			overlay->crtc_x, overlay->crtc_y,
-			overlay->crtc_width, overlay->crtc_height);
+		      overlay->crtc_x, overlay->crtc_y,
+		      overlay->crtc_width, overlay->crtc_height);
 
-	rockchip_drm_fn_encoder(crtc, overlay, rockchip_drm_encoder_plane_mode_set);
+	rockchip_drm_fn_encoder(crtc, overlay,
+				rockchip_drm_encoder_plane_mode_set);
 
 	return 0;
 }
@@ -157,7 +157,7 @@ void rockchip_plane_commit(struct drm_plane *plane)
 	struct rockchip_drm_overlay *overlay = &rockchip_plane->overlay;
 
 	rockchip_drm_fn_encoder(plane->crtc, &overlay->zpos,
-			rockchip_drm_encoder_plane_commit);
+				rockchip_drm_encoder_plane_commit);
 }
 
 void rockchip_plane_dpms(struct drm_plane *plane, int mode)
@@ -172,7 +172,7 @@ void rockchip_plane_dpms(struct drm_plane *plane, int mode)
 			return;
 
 		rockchip_drm_fn_encoder(plane->crtc, &overlay->zpos,
-				rockchip_drm_encoder_plane_enable);
+					rockchip_drm_encoder_plane_enable);
 
 		rockchip_plane->enabled = true;
 	} else {
@@ -180,7 +180,7 @@ void rockchip_plane_dpms(struct drm_plane *plane, int mode)
 			return;
 
 		rockchip_drm_fn_encoder(plane->crtc, &overlay->zpos,
-				rockchip_drm_encoder_plane_disable);
+					rockchip_drm_encoder_plane_disable);
 
 		rockchip_plane->enabled = false;
 	}
@@ -188,18 +188,18 @@ void rockchip_plane_dpms(struct drm_plane *plane, int mode)
 
 static int
 rockchip_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
-		     struct drm_framebuffer *fb, int crtc_x, int crtc_y,
-		     unsigned int crtc_w, unsigned int crtc_h,
-		     uint32_t src_x, uint32_t src_y,
-		     uint32_t src_w, uint32_t src_h)
+		      struct drm_framebuffer *fb, int crtc_x, int crtc_y,
+		      unsigned int crtc_w, unsigned int crtc_h,
+		      uint32_t src_x, uint32_t src_y,
+		      uint32_t src_w, uint32_t src_h)
 {
 	int ret;
 
 	DRM_DEBUG_KMS("[%d] %s\n", __LINE__, __func__);
 
 	ret = rockchip_plane_mode_set(plane, crtc, fb, crtc_x, crtc_y,
-			crtc_w, crtc_h, src_x >> 16, src_y >> 16,
-			src_w >> 16, src_h >> 16);
+				      crtc_w, crtc_h, src_x >> 16, src_y >> 16,
+				      src_w >> 16, src_h >> 16);
 	if (ret < 0)
 		return ret;
 
@@ -232,8 +232,8 @@ static void rockchip_plane_destroy(struct drm_plane *plane)
 }
 
 static int rockchip_plane_set_property(struct drm_plane *plane,
-				     struct drm_property *property,
-				     uint64_t val)
+				       struct drm_property *property,
+				       uint64_t val)
 {
 	struct drm_device *dev = plane->dev;
 	struct rockchip_plane *rockchip_plane = to_rockchip_plane(plane);
@@ -278,22 +278,22 @@ static void rockchip_plane_attach_zpos_property(struct drm_plane *plane)
 }
 
 struct drm_plane *rockchip_plane_init(struct drm_device *dev,
-				    unsigned int possible_crtcs, bool priv)
+				      unsigned int possible_crtcs, bool priv)
 {
 	struct rockchip_plane *rockchip_plane;
 	int err;
 
 	DRM_DEBUG_KMS("[%d] %s\n", __LINE__, __func__);
 
-	rockchip_plane = kzalloc(sizeof(struct rockchip_plane), GFP_KERNEL);
+	rockchip_plane = kzalloc(sizeof(*rockchip_plane), GFP_KERNEL);
 	if (!rockchip_plane) {
 		DRM_ERROR("failed to allocate plane\n");
 		return NULL;
 	}
 
 	err = drm_plane_init(dev, &rockchip_plane->base, possible_crtcs,
-			      &rockchip_plane_funcs, formats, ARRAY_SIZE(formats),
-			      priv);
+			     &rockchip_plane_funcs, formats,
+			     ARRAY_SIZE(formats), priv);
 	if (err) {
 		DRM_ERROR("failed to initialize plane\n");
 		kfree(rockchip_plane);

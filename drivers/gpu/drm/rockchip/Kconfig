@@ -24,7 +24,7 @@ config DRM_ROCKCHIP_DMABUF
 
 config DRM_ROCKCHIP_PRIMARY
 	  bool "RK DRM PRIMARY"
-	  depends on OF && DRM_ROCKCHIP 
+	  depends on OF && DRM_ROCKCHIP
 	  select FB_MODE_HELPERS
 	  select VIDEOMODE_HELPERS
 	  help
@@ -32,7 +32,7 @@ config DRM_ROCKCHIP_PRIMARY
 
 config DRM_ROCKCHIP_HDMI
 	bool "Rockchip DRM HDMI"
-	depends on DRM_ROCKCHIP 
+	depends on DRM_ROCKCHIP
 	help
 	  Choose this option if you want to use Rockchip HDMI for DRM.
 

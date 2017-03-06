@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) ROCKCHIP, Inc.
  * Author:yzq<yzq@rock-chips.com>
  *
@@ -23,7 +23,8 @@
 #include "rockchip_drm_iommu.h"
 
 static int lowlevel_buffer_allocate(struct drm_device *dev,
-		unsigned int flags, struct rockchip_drm_gem_buf *buf)
+				    unsigned int flags,
+				    struct rockchip_drm_gem_buf *buf)
 {
 	int ret = 0;
 	enum dma_attr attr;
@@ -65,7 +66,7 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 		unsigned int i = 0;
 
 		buf->pages = kzalloc(sizeof(struct page) * nr_pages,
-					GFP_KERNEL);
+				     GFP_KERNEL);
 		if (!buf->pages) {
 			DRM_ERROR("failed to allocate pages.\n");
 			return -ENOMEM;
@@ -87,10 +88,9 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 			i++;
 		}
 	} else {
-
 		buf->pages = dma_alloc_attrs(dev->dev, buf->size,
-					&buf->dma_addr, GFP_KERNEL,
-					&buf->dma_attrs);
+					     &buf->dma_addr, GFP_KERNEL,
+					     &buf->dma_attrs);
 		if (!buf->pages) {
 			DRM_ERROR("failed to allocate buffer.\n");
 			return -ENOMEM;
@@ -105,14 +105,14 @@ static int lowlevel_buffer_allocate(struct drm_device *dev,
 	}
 
 	DRM_DEBUG_KMS("dma_addr(0x%lx), size(0x%lx)\n",
-			(unsigned long)buf->dma_addr,
-			buf->size);
+		      (unsigned long)buf->dma_addr,
+		      buf->size);
 
 	return ret;
 
 err_free_attrs:
 	dma_free_attrs(dev->dev, buf->size, buf->pages,
-			(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
+		       (dma_addr_t)buf->dma_addr, &buf->dma_attrs);
 	buf->dma_addr = (dma_addr_t)NULL;
 
 	if (!is_drm_iommu_supported(dev))
@@ -122,18 +122,17 @@ err_free_attrs:
 }
 
 static void lowlevel_buffer_deallocate(struct drm_device *dev,
-		unsigned int flags, struct rockchip_drm_gem_buf *buf)
+				       unsigned int flags,
+				       struct rockchip_drm_gem_buf *buf)
 {
-	DRM_DEBUG_KMS("%s.\n", __FILE__);
-
 	if (!buf->dma_addr) {
 		DRM_DEBUG_KMS("dma_addr is invalid.\n");
 		return;
 	}
 
 	DRM_DEBUG_KMS("dma_addr(0x%lx), size(0x%lx)\n",
-			(unsigned long)buf->dma_addr,
-			buf->size);
+		      (unsigned long)buf->dma_addr,
+		      buf->size);
 
 	sg_free_table(buf->sgt);
 
@@ -142,21 +141,20 @@ static void lowlevel_buffer_deallocate(struct drm_device *dev,
 
 	if (!is_drm_iommu_supported(dev)) {
 		dma_free_attrs(dev->dev, buf->size, buf->kvaddr,
-				(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
+			       (dma_addr_t)buf->dma_addr, &buf->dma_attrs);
 		kfree(buf->pages);
 	} else
 		dma_free_attrs(dev->dev, buf->size, buf->pages,
-				(dma_addr_t)buf->dma_addr, &buf->dma_attrs);
+			       (dma_addr_t)buf->dma_addr, &buf->dma_attrs);
 
 	buf->dma_addr = (dma_addr_t)NULL;
 }
 
 struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
-						unsigned int size)
+						   unsigned int size)
 {
 	struct rockchip_drm_gem_buf *buffer;
 
-	DRM_DEBUG_KMS("%s.\n", __FILE__);
 	DRM_DEBUG_KMS("desired size = 0x%x\n", size);
 
 	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
@@ -170,10 +168,8 @@ struct rockchip_drm_gem_buf *rockchip_drm_init_buf(struct drm_device *dev,
 }
 
 void rockchip_drm_fini_buf(struct drm_device *dev,
-				struct rockchip_drm_gem_buf *buffer)
+			   struct rockchip_drm_gem_buf *buffer)
 {
-	DRM_DEBUG_KMS("%s.\n", __FILE__);
-
 	if (!buffer) {
 		DRM_DEBUG_KMS("buffer is null.\n");
 		return;
@@ -184,9 +180,8 @@ void rockchip_drm_fini_buf(struct drm_device *dev,
 }
 
 int rockchip_drm_alloc_buf(struct drm_device *dev,
-		struct rockchip_drm_gem_buf *buf, unsigned int flags)
+			   struct rockchip_drm_gem_buf *buf, unsigned int flags)
 {
-
 	/*
 	 * allocate memory region and set the memory information
 	 * to vaddr and dma_addr of a buffer object.
@@ -198,8 +193,8 @@ int rockchip_drm_alloc_buf(struct drm_device *dev,
 }
 
 void rockchip_drm_free_buf(struct drm_device *dev,
-		unsigned int flags, struct rockchip_drm_gem_buf *buffer)
+			   unsigned int flags,
+			   struct rockchip_drm_gem_buf *buffer)
 {
-
 	lowlevel_buffer_deallocate(dev, flags, buffer);
 }

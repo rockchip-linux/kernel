@@ -14,11 +14,11 @@
  * GNU General Public License for more details.
  */
 int rockchip_plane_mode_set(struct drm_plane *plane, struct drm_crtc *crtc,
-			  struct drm_framebuffer *fb, int crtc_x, int crtc_y,
-			  unsigned int crtc_w, unsigned int crtc_h,
-			  uint32_t src_x, uint32_t src_y,
-			  uint32_t src_w, uint32_t src_h);
+			    struct drm_framebuffer *fb, int crtc_x, int crtc_y,
+			    unsigned int crtc_w, unsigned int crtc_h,
+			    uint32_t src_x, uint32_t src_y,
+			    uint32_t src_w, uint32_t src_h);
 void rockchip_plane_commit(struct drm_plane *plane);
 void rockchip_plane_dpms(struct drm_plane *plane, int mode);
 struct drm_plane *rockchip_plane_init(struct drm_device *dev,
-				    unsigned int possible_crtcs, bool priv);
+				      unsigned int possible_crtcs, bool priv);

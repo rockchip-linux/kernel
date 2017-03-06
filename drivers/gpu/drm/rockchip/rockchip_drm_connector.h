@@ -16,8 +16,9 @@
 #ifndef _ROCKCHIP_DRM_CONNECTOR_H_
 #define _ROCKCHIP_DRM_CONNECTOR_H_
 
-struct drm_connector *rockchip_drm_connector_create(struct drm_device *dev,
-						   struct drm_encoder *encoder);
+struct drm_connector *
+rockchip_drm_connector_create(struct drm_device *dev,
+			      struct drm_encoder *encoder);
 
 struct drm_encoder *rockchip_drm_best_encoder(struct drm_connector *connector);
 
