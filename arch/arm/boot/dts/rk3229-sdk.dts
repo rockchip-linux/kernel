@@ -1,0 +1,31 @@
+/dts-v1/;
+
+#include "rk3229.dtsi"
+#include "rk322x-sdk.dtsi"
+
+/ {
+};
+
+&i2c0 {
+	status = "okay";
+	rtc@51 {
+		compatible = "rtc,hym8563";
+		reg = <0x51>;
+		irq_gpio = <&gpio0 GPIO_A4 IRQ_TYPE_EDGE_FALLING>;
+	};
+};
+
+&clk_core_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		408000 950000
+		600000 975000
+		816000 1000000
+		1008000 1175000
+		1200000 1275000
+		1296000 1325000
+		1392000 1375000
+		1464000 1400000
+		>;
+	status = "okay";
+};

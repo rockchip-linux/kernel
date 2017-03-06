@@ -183,6 +183,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3228b-box_805.dtb \
 	rk3228b-fpga.dtb \
 	rk3228b-sdk.dtb \
+	rk3229-sdk.dtb \
 	rk3288-box.dtb \
 	rk3288-p977_8846.dtb \
 	rk3288-p977.dtb \
