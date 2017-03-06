@@ -28,11 +28,26 @@
 #include "card_info.h"
 #include "rk_pdm.h"
 
+static int rkpdm_micarray_hw_params(struct snd_pcm_substream *substream,
+				    struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	unsigned int dai_fmt = rtd->dai_link->dai_fmt;
+
+	return snd_soc_dai_set_fmt(cpu_dai, dai_fmt);
+}
+
+static struct snd_soc_ops rkpdm_micarray_ops = {
+	.hw_params = rkpdm_micarray_hw_params,
+};
+
 static struct snd_soc_dai_link rkpdm_micarray_dai_link[] = {
 	{
 		.name = "rk-pdm-micarray",
 		.stream_name = "rk-pdm-micarray",
 		.codec_dai_name = "dummy_codec",
+		.ops = &rkpdm_micarray_ops,
 	}
 };
 
