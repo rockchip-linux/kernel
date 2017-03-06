@@ -244,7 +244,7 @@
 			<&clk_nandc 150000000>, <&clk_i2s0_pll 594000000>,
 			<&clk_i2s1_pll 594000000>, <&clk_i2s2_pll 594000000>,
 			<&clk_uart0_pll 297000000>, <&clk_uart1_pll 297000000>,
-			<&clk_uart2_pll 297000000>;
+			<&clk_uart2_pll 297000000>, <&clk_rga 300000000>;
 		rockchip,clocks-uboot-has-init =
 			<&dclk_vop_pll>;
 		rockchip,set_div_for_pll_init;
