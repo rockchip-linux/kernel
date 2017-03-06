@@ -100,6 +100,21 @@
 		};
 	};
 
+	rockchip-es8396 {
+		compatible = "rockchip-es8396";
+		dais {
+			dai0 {
+				audio-codec = <&es8396>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+			};
+			dai1 {
+				audio-codec = <&es8396>;
+				audio-controller = <&i2s0>;
+				format = "i2s";
+			};
+		};
+	};
 };
 
 &nandc {
@@ -242,6 +257,16 @@
 		tp-size = <910>;
 		status = "okay";
 	};
+
+	es8396: es8396@10 {
+		compatible = "es8396";
+		reg = <0x11>;
+		spk-con-gpio = <&gpio0 GPIO_D6 GPIO_ACTIVE_HIGH>;
+		clocks = <&clk_i2s_2ch_out>;
+		clock-names = "mclk";
+		status = "okay";
+	};
+
 	/*
 	ts@01 {
 		compatible = "ct,vtl_ts";
@@ -332,6 +357,13 @@
 		pinctrl-0 = <&wk2xxx_irq_gpio>;
 		status = "okay";
 	};
+};
+
+&i2s0 {
+	pinctrl-names = "default", "sleep";
+	pinctrl-0 = <&i2s0_mclk_mux0 &i2s0_sclk_mux0 &i2s0_lrckrx_mux0 &i2s0_lrcktx_mux0 &i2s0_sdi_mux0 &i2s0_sdo_mux0>;
+	pinctrl-1 = <&i2s0_gpio_mux0>;
+	status = "okay";
 };
 
 &fb {
@@ -873,13 +905,13 @@
 
 		rk816_ldo5_reg: regulator@8 {
 			regulator-name = "rk816_ldo5";
-			regulator-min-microvolt = <3000000>;
-			regulator-max-microvolt = <3000000>;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
 			regulator-initial-state = <3>;
 			regulator-always-on;
 			regulator-state-mem {
 				regulator-state-disabled;
-				regulator-state-uv = <3000000>;
+				regulator-state-uv = <3300000>;
 			};
 		};
 
