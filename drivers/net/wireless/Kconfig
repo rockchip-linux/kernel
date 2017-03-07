@@ -27,23 +27,16 @@ if WLAN
 #	    rda5990P fm bt wifi
 
 config WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
-    bool "Wifi load driver when kernel bootup"
-    default y
-    ---help---
-      Wifi driver will be load (use late_initcall) when kernel bootup
-	    
+	bool "Wifi load driver when kernel bootup"
+	default n
+	---help---
+	 Wifi driver will be load (use late_initcall) when kernel bootup
+
 menuconfig RTL_WIRELESS_SOLUTION
-    bool "Realtek Wireless Device Driver Support"
-    default y
+	bool "Realtek Wireless Device Driver Support"
+	default y
 
 if RTL_WIRELESS_SOLUTION
-choice
-    prompt "Realtek WiFi Device Driver Support"
-    default RTL8188EU
-
-    config RTL_WIFI_NONE
-    bool "No Realtek WiFi"
-
 source "drivers/net/wireless/rockchip_wlan/rtl8188eu/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rtl8189es/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rtl8192cu/Kconfig"
@@ -59,31 +52,28 @@ source "drivers/net/wireless/rockchip_wlan/rtl8189fs/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rtl8188fu/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rtl8822bs/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rtl8822bu/Kconfig"
-endchoice
 endif
-
-#source "drivers/net/wireless/rockchip_wlan/mt5931/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/esp8089/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/rkwifi/Kconfig"
 source "drivers/net/wireless/rockchip_wlan/ssv6xxx/Kconfig"
 
-choice	
+choice
 	depends on RKWIFI
 	prompt "Select the wifi module"
 	default RK903
-	
-	config BCM4330 
-    	bool "BCM4330"
-    	depends on RKWIFI
+
+	config BCM4330
+		bool "BCM4330"
+		depends on RKWIFI
 
 	config RK903
-    	bool "RK903"
-	    depends on RKWIFI
+		bool "RK903"
+		depends on RKWIFI
 
 	config RK901
-    	bool "RK901"
-	    depends on RKWIFI
-	
+		bool "RK901"
+		depends on RKWIFI
+
 	config AP6181
 		bool "AP6181"
 		depends on RKWIFI
