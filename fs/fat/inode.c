@@ -1585,12 +1585,14 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	if (!fat_inode)
 		goto out_fail;
 	MSDOS_I(fat_inode)->i_pos = 0;
+	MSDOS_I(fat_inode)->mmu_private = 0;
 	sbi->fat_inode = fat_inode;
 
 	fsinfo_inode = new_inode(sb);
 	if (!fsinfo_inode)
 		goto out_fail;
 	fsinfo_inode->i_ino = MSDOS_FSINFO_INO;
+	MSDOS_I(fsinfo_inode)->mmu_private = 0;
 	sbi->fsinfo_inode = fsinfo_inode;
 	insert_inode_hash(fsinfo_inode);
 
