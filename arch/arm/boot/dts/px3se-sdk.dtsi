@@ -265,6 +265,12 @@
 		layout = <1>;
 		status = "disabled";
 	};
+
+	tmp103: temperature@70 {
+		compatible = "tmp103";
+		reg = <0x70>;
+		compensation_value = <0>;
+	};
 };
 
 &fb {
