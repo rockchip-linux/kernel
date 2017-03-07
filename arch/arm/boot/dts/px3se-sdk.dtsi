@@ -252,6 +252,19 @@
 		rst_gpio_number = <&gpio2 GPIO_C1 GPIO_ACTIVE_HIGH>;
 	};
 	*/
+
+	ak8963: compass@0d {
+		compatible = "ak8963";
+		reg = <0x0d>;
+		type = <SENSOR_TYPE_COMPASS>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ak8963_int>;
+		irq-gpio = <&gpio2 GPIO_D5 IRQ_TYPE_EDGE_RISING>;
+		irq_enable = <1>;
+		poll_delay_ms = <30>;
+		layout = <1>;
+		status = "disabled";
+	};
 };
 
 &fb {
@@ -902,5 +915,14 @@
 
 &pwm0 {
 	status = "okay";
+};
+
+&pinctrl {
+	gpio0_gpio {
+		ak8963_int: ak8963-int {
+			rockchip,pins = <GPIO2_D5>;
+			rockchip,pull = <VALUE_PULL_UPDOWN_DISABLE>;
+		};
+	};
 };
 
