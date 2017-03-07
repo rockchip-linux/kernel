@@ -34,6 +34,8 @@
 #include "rkflash_api.h"
 #include "rkflash_blk.h"
 
+#include "../soc/rockchip/flash_vendor_storage.h"
+
 static struct flash_boot_ops nandc_nand_ops = {
 #ifdef	CONFIG_RK_NANDC_NAND
 	FLASH_TYPE_NANDC_NAND,
@@ -185,27 +187,6 @@ static int rkflash_create_procfs(void)
 	return 0;
 }
 
-static struct mutex g_rkflash_ops_mutex;
-static void rkflash_device_lock_init(void)
-{
-	mutex_init(&g_rkflash_ops_mutex);
-}
-
-void rkflash_device_lock(void)
-{
-	mutex_lock(&g_rkflash_ops_mutex);
-}
-
-int rkflash_device_trylock(void)
-{
-	return mutex_trylock(&g_rkflash_ops_mutex);
-}
-
-void rkflash_device_unlock(void)
-{
-	mutex_unlock(&g_rkflash_ops_mutex);
-}
-
 static int rkflash_xfer(struct flash_blk_dev *dev,
 			unsigned long start,
 			unsigned long nsector,
@@ -222,7 +203,6 @@ static int rkflash_xfer(struct flash_blk_dev *dev,
 	}
 
 	start += dev->off_size;
-	rkflash_device_lock();
 
 	switch (cmd) {
 	case READ:
@@ -246,7 +226,6 @@ static int rkflash_xfer(struct flash_blk_dev *dev,
 		break;
 	}
 
-	rkflash_device_unlock();
 	return ret;
 }
 
@@ -665,8 +644,9 @@ int rkflash_dev_init(void __iomem *reg_addr, enum flash_con_type con_type)
 	}
 	pr_info("rkflash[%d] init success\n", tmp_id);
 	g_flash_type = tmp_id;
-	rkflash_device_lock_init();
 	mytr.quit = 1;
+	flash_vendor_dev_ops_register(g_boot_ops[g_flash_type]->read,
+				      g_boot_ops[g_flash_type]->write);
 #ifdef CONFIG_RK_SFC_NOR_MTD
 	if (g_flash_type == FLASH_TYPE_SFC_NOR) {
 		pr_info("sfc_nor flash registered as a mtd device\n");
@@ -698,14 +678,12 @@ int rkflash_dev_exit(void)
 
 int rkflash_dev_suspend(void)
 {
-	rkflash_device_lock();
 	return 0;
 }
 
 int rkflash_dev_resume(void __iomem *reg_addr)
 {
 	g_boot_ops[g_flash_type]->resume(reg_addr);
-	rkflash_device_unlock();
 	return 0;
 }
 
