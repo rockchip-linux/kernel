@@ -297,6 +297,19 @@
 		status = "disabled";
 	};
 
+	bma2x2: bma250@18 {
+		compatible = "bma2xx_acc";
+		reg = <0x18>;
+		type = <SENSOR_TYPE_ACCEL>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bma250_int>;
+		irq-gpio = <&gpio0 GPIO_A2 IRQ_TYPE_LEVEL_LOW>;
+		irq_enable = <1>;
+		poll_delay_ms = <200>;
+		layout = <6>;
+		status = "disabled";
+	};
+
 	tmp103: temperature@70 {
 		compatible = "tmp103";
 		reg = <0x70>;
@@ -955,6 +968,13 @@
 };
 
 &pinctrl {
+	gpio0_gpio {
+		bma250_int: bma250-int {
+			rockchip,pins = <GPIO0_A2>;
+			rockchip,pull = <VALUE_PULL_UP>;
+		};
+	};
+
 	gpio2_gpio {
 		stk3410_int: stk3410-int {
 			rockchip,pins = <GPIO2_C2>;
