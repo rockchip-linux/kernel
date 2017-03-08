@@ -132,19 +132,20 @@ struct sensor_flag {
 struct sensor_operate {
 	char *name;
 	int type;
-	int	id_i2c;
-	int	range[2];
-	int 	brightness[2];//backlight min_brightness max_brightness
+	int id_i2c;
+	int range[2];
+	int brightness[2];/*backlight min_brightness max_brightness*/
 	int read_reg;
 	int read_len;
 	int id_reg;
 	int id_data;
 	int precision;
+	unsigned short slave_addr;
 	int ctrl_reg;
 	int ctrl_data;
 	int int_ctrl_reg;
-	int	int_status_reg;
-	int trig;	//intterupt trigger
+	int int_status_reg;
+	int trig;/*intterupt trigger*/
 	int (*active)(struct i2c_client *client, int enable, int rate);
 	int (*init)(struct i2c_client *client);
 	int (*report)(struct i2c_client *client);

@@ -322,6 +322,7 @@ struct sensor_operate light_stk3410_ops = {
 	.id_reg			= SENSOR_UNKNOW_DATA,
 	.id_data		= SENSOR_UNKNOW_DATA,
 	.precision		= 16,
+	.slave_addr		= 0x48,
 	.ctrl_reg		= STK_STATE,
 	.int_status_reg	= STK_FLAG,
 	.range			= {100, 65535},
