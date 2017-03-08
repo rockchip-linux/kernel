@@ -206,7 +206,6 @@ struct dw_mci {
 	/* Workaround flags */
 	u32			quirks;
 	bool	    irq_state;
-	u32                     svi_flags; /* Switch voltage interrupt flags */
 	struct regulator	*vmmc;	/* Power regulator */
 	unsigned long		irq_flags; /* IRQ flags */
 	int			irq;

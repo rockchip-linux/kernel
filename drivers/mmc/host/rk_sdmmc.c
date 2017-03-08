@@ -4003,7 +4003,6 @@ int dw_mci_probe(struct dw_mci *host)
 	host->irq_state = true;
 	host->set_speed = 0;
 	host->set_div = 0;
-	host->svi_flags = 0;
 
 	spin_lock_init(&host->lock);
 	spin_lock_init(&host->slock);
