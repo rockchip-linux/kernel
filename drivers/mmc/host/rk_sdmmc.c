@@ -1165,23 +1165,15 @@ static void dw_mci_wait_unbusy(struct dw_mci *host, u32 cmd_flags)
 int dw_mci_card_busy(struct mmc_host *mmc)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
-	struct dw_mci *host = slot->host;
+	u32 status;
 
-        MMC_DBG_INFO_FUNC(host->mmc, "dw_mci_card_busy: svi_flags = %d [%s]", \
-                                host->svi_flags, mmc_hostname(host->mmc));	
-    
-        /* svi toggle*/
-        if(host->svi_flags == 0){
-                /*first svi*/
-                host->svi_flags = 1;
-                return host->svi_flags;           
-    
-        }else{
-                host->svi_flags = 0;
-                return host->svi_flags;   
-    	}
-    	
+	/*
+	 * Check the busy bit which is low when DAT[3:0]
+	 * (the data lines) are 0000
+	 */
+	status = mci_readl(slot->host, STATUS);
 
+	return !!(status & SDMMC_STAUTS_DATA_BUSY);
 }
 #endif
 static void __dw_mci_start_request(struct dw_mci *host,
