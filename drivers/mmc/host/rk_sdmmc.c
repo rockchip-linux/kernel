@@ -1302,43 +1302,6 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	const struct dw_mci_drv_data *drv_data = host->drv_data;
 	const struct dw_mci_rockchip_priv_data *priv = host->priv;
 	u32 regs;
-	
-        #ifdef SDMMC_WAIT_FOR_UNBUSY
-	unsigned long   time_loop;
-	bool ret = true;
-
-	time_loop = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
-
-        #ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-        if (host->svi_flags == 1)
-                time_loop = jiffies + msecs_to_jiffies(SDMMC_DATA_TIMEOUT_SD);
-	#endif
-        
-	if (!test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
-		dev_info(host->dev, "%s:  no card. [%s]\n",
-			 __FUNCTION__, mmc_hostname(mmc));
-		goto EXIT_POWER;
-	}
-    
-	while (ret) {
-		ret = time_before(jiffies, time_loop);
-		regs = mci_readl(slot->host, STATUS);
-		if (!(regs & (SDMMC_STAUTS_DATA_BUSY |
-			SDMMC_STAUTS_MC_BUSY)))
-    			break;
-	};
-	
-	if (false == ret) {
-		dev_info(host->dev, "slot->flags = %lu ", slot->flags);
-		#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
-                if (host->svi_flags != 1)
-                #endif
-		dump_stack();
-		dev_err(host->dev,
-			"%s:  wait for unbusy timeout.. STATUS = 0x%x [%s]\n",
-			__FUNCTION__, regs, mmc_hostname(mmc));
-	}
-        #endif
         
 	switch (ios->bus_width) {
 	case MMC_BUS_WIDTH_4:
@@ -1391,7 +1354,6 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	/* Slot specific timing and width adjustment */
 	dw_mci_setup_bus(slot, false);
 
-EXIT_POWER:
 	switch (ios->power_mode) {
 	case MMC_POWER_UP:
 	/* Power up slot */
