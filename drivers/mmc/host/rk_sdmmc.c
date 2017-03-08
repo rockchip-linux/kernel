@@ -1154,7 +1154,6 @@ static void dw_mci_wait_unbusy(struct dw_mci *host, u32 cmd_flags)
 	}
 }
 
-#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
 /*
 *   result: 
 *   0--status is busy. 
@@ -1173,7 +1172,7 @@ int dw_mci_card_busy(struct mmc_host *mmc)
 
 	return !!(status & SDMMC_STAUTS_DATA_BUSY);
 }
-#endif
+
 static void __dw_mci_start_request(struct dw_mci *host,
 				   struct dw_mci_slot *slot,
 				   struct mmc_command *cmd)
@@ -1644,7 +1643,6 @@ static void dw_mci_enable_sdio_irq(struct mmc_host *mmc, int enb)
 	spin_unlock_irqrestore(&host->slock, flags);
 }
 
-#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
 enum{
 	IO_DOMAIN_12 = 1200,
 	IO_DOMAIN_18 = 1800,
@@ -1844,8 +1842,6 @@ static int dw_mci_start_signal_voltage_switch(struct mmc_host *mmc,
 	return err;
 }
 
-#endif
-
 static int dw_mci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
@@ -2034,11 +2030,9 @@ static const struct mmc_host_ops dw_mci_ops = {
 	.enable_sdio_irq	= dw_mci_enable_sdio_irq,
 	.execute_tuning		= dw_mci_execute_tuning,
         .post_tmo		= dw_mci_post_tmo,
-	#ifdef CONFIG_MMC_DW_ROCKCHIP_SWITCH_VOLTAGE
         .start_signal_voltage_switch
 				= dw_mci_start_signal_voltage_switch,
         .card_busy		= dw_mci_card_busy,
-        #endif
 	.sdio_switch_iovel	= dw_mci_sdio_switch_iovel,
 };
 
