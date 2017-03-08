@@ -266,6 +266,37 @@
 		status = "disabled";
 	};
 
+	ls_stk3410: light@48 {
+		compatible = "ls_stk3410";
+		reg = <0x48>;
+		type = <SENSOR_TYPE_LIGHT>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&stk3410_int>;
+		//irq-gpio = <&gpio2 GPIO_C2 IRQ_TYPE_LEVEL_LOW>;
+		irq_enable = <0>;
+		als_threshold_high = <100>;
+		als_threshold_low = <10>;
+		als_ctrl_gain = <2>; /* 0:x1 1:x4 2:x16 3:x64 */
+		poll_delay_ms = <100>;
+		status = "disabled";
+	};
+
+	ps_stk3410: proximity@49 {
+		compatible = "ps_stk3410";
+		reg = <0x49>;
+		type = <SENSOR_TYPE_PROXIMITY>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&stk3410_int>;
+		irq-gpio = <&gpio2 GPIO_C2 IRQ_TYPE_LEVEL_LOW>;
+		irq_enable = <1>;
+		ps_threshold_high = <0x200>;
+		ps_threshold_low = <0x100>;
+		ps_ctrl_gain = <3>; /* 0:x1 1:x4 2:x16 3:x64 */
+		ps_led_current = <3>; /* 0:12.5mA 1:25mA 2:50mA 3:100mA */
+		poll_delay_ms = <100>;
+		status = "disabled";
+	};
+
 	tmp103: temperature@70 {
 		compatible = "tmp103";
 		reg = <0x70>;
@@ -924,7 +955,12 @@
 };
 
 &pinctrl {
-	gpio0_gpio {
+	gpio2_gpio {
+		stk3410_int: stk3410-int {
+			rockchip,pins = <GPIO2_C2>;
+			rockchip,pull = <VALUE_PULL_UPDOWN_DISABLE>;
+		};
+
 		ak8963_int: ak8963-int {
 			rockchip,pins = <GPIO2_D5>;
 			rockchip,pull = <VALUE_PULL_UPDOWN_DISABLE>;
