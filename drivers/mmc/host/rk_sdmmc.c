@@ -117,6 +117,7 @@ static inline bool dw_mci_ctrl_all_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 static void dw_mci_disable_low_power(struct dw_mci_slot *slot);
 static void rockchip_mmc_reset_controller(struct reset_control *reset);
+static void dw_mci_wait_unbusy(struct dw_mci *host, u32 cmd_flags);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -936,35 +937,11 @@ static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
 	struct dw_mci *host = slot->host;	
 	unsigned long timeout = jiffies + msecs_to_jiffies(500);
 	unsigned int cmd_status = 0;
-
-#ifdef SDMMC_WAIT_FOR_UNBUSY
-	bool ret = true;
-	timeout = jiffies + msecs_to_jiffies(SDMMC_WAIT_FOR_UNBUSY);
-	
-	if (test_bit(DW_MMC_CARD_PRESENT, &slot->flags)) {
-		while (ret) {
-			ret =  time_before(jiffies, timeout);
-			cmd_status = mci_readl(host, STATUS);
-			if (!(cmd_status &
-				(SDMMC_STAUTS_DATA_BUSY |
-				SDMMC_STAUTS_MC_BUSY)))
-				break;
-		};
-
-		if(false == ret)
-			MMC_DBG_ERR_FUNC(host->mmc,
-				"mci_send_cmd: wait for unbusy timeout! [%s]",
-				mmc_hostname(host->mmc));
-	}
-#endif
  
 	mci_writel(host, CMDARG, arg);
 	wmb();
+	dw_mci_wait_unbusy(host, cmd);
 	mci_writel(host, CMD, SDMMC_CMD_START | cmd);
-	if(cmd & SDMMC_CMD_UPD_CLK)
-		timeout = jiffies + msecs_to_jiffies(50);
-	else
-		timeout = jiffies + msecs_to_jiffies(500);
 
 	while (time_before(jiffies, timeout)) {
 		cmd_status = mci_readl(host, CMD);
