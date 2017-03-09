@@ -1866,12 +1866,10 @@
 
 		cam_pins {
 			cam0_default_pins: cam0-default-pins {
-				rockchip,pins = <3 GPIO_B0 RK_FUNC_1 &pcfg_pull_none>,
-						<3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
+				rockchip,pins = <3 GPIO_B5 RK_FUNC_1 &pcfg_pull_none>;
 			};
 			cam0_sleep_pins: cam0-sleep-pins {
-				rockchip,pins = <3 GPIO_B0 RK_FUNC_GPIO &pcfg_pull_none>,
-						<3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
+				rockchip,pins = <3 GPIO_B5 RK_FUNC_GPIO &pcfg_pull_none>;
 			};
 		};
 
