@@ -3518,9 +3518,11 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	if (drv_data && drv_data->hold_reg_flag)
 		mmc->hold_reg_flag |= drv_data->hold_reg_flag[ctrl_id];		
 
-	/* set the compatibility of driver. */
-	mmc->caps |= MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 | MMC_CAP_UHS_SDR50 
-	                | MMC_CAP_UHS_SDR104 | MMC_CAP_ERASE ;
+	/*
+	 * Support MMC_CAP_ERASE by default.
+	 * It needs to use trim/discard/erase commands.
+	 */
+	mmc->caps |= MMC_CAP_ERASE;
 
 	if (host->pdata->caps2)
 		mmc->caps2 = host->pdata->caps2;
