@@ -917,6 +917,7 @@ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
 	loff_t new_i_pos;
 	int err, is_dir, update_dotdot, corrupt = 0;
 	struct super_block *sb = old_dir->i_sb;
+	struct msdos_sb_info *sbi = MSDOS_SB(sb);
 
 	old_sinfo.bh = sinfo.bh = dotdot_bh = NULL;
 	old_inode = old_dentry->d_inode;
@@ -957,6 +958,10 @@ static int vfat_rename(struct inode *old_dir, struct dentry *old_dentry,
 	fat_attach(old_inode, new_i_pos);
 	if (IS_DIRSYNC(new_dir)) {
 		err = fat_sync_inode(old_inode);
+		if (err)
+			goto error_inode;
+	} else if (sbi->options.force_fallocate) {
+		err = fat_sync_inode_nowait(old_inode);
 		if (err)
 			goto error_inode;
 	} else
