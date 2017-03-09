@@ -7751,6 +7751,9 @@ late_initcall(rockchip_wifi_init_module_rkwifi);
 module_exit(rockchip_wifi_exit_module_rkwifi);
 #else
 
+module_init(rockchip_wifi_init_module_rkwifi);
+module_exit(rockchip_wifi_exit_module_rkwifi);
+
 EXPORT_SYMBOL(rockchip_wifi_init_module_rkwifi);
 EXPORT_SYMBOL(rockchip_wifi_exit_module_rkwifi);
 #endif
