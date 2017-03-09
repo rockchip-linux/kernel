@@ -220,10 +220,6 @@
 		<594000000 8 0 16 26 26 26>;
 };
 
-&i2c0 {
-	status = "okay";
-};
-
 &i2c1 {
 	status = "okay";
 
@@ -625,13 +621,5 @@
 };
 
 &tve {
-	status = "okay";
-};
-
-&cif {
-	status = "okay";
-};
-
-&rk3228_cif_sensor {
 	status = "okay";
 };

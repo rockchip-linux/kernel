@@ -72,3 +72,15 @@
 			};
 	};
 };
+
+&i2c0 {
+	status = "okay";
+};
+
+&cif {
+	status = "okay";
+};
+
+&rk3228_cif_sensor {
+	status = "okay";
+};
