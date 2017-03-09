@@ -353,6 +353,8 @@
 #define PLUGIN_OUT_INT_EN			0xfc
 #define RK816_PWRON_FALL_RISE_INT_EN		0x9f
 #define DEV_OFF					(1 << 0)
+#define BUCK1_2_IMAX_MAX			(0x3 << 6)
+#define BUCK3_4_IMAX_MAX			(0x3 << 3)
 
 enum rk805_reg_id {
 	RK805_ID_DCDC1,
