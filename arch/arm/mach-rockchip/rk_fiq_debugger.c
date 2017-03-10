@@ -494,7 +494,7 @@ void __init rk_serial_debug_init(void __iomem *base, int irq, int signal_irq,
 			psci_fiq_debugger_set_print_port(serial_id, baudrate);
 			ret = rk_fiq_debugger_register_cpu_pm_notify();
 			if (ret)
-				goto out3;
+				goto out4;
 		} else {
 			t->pdata.switch_cpu = NULL;
 			t->pdata.enable_debug = NULL;
