@@ -1857,6 +1857,9 @@ static int rk312x_codec_power_up(int type)
 		for (i = 0; i < RK312x_CODEC_PLAYBACK_POWER_UP_LIST_LEN; i++) {
 			snd_soc_write(codec, playback_power_up_list[i].reg,
 				      playback_power_up_list[i].value);
+			if (playback_power_up_list[i].reg == 0xa8 ||
+			    playback_power_up_list[i].reg == 0xb0)
+				usleep_range(10000, 11000);
 		}
 	} else if (type == RK312x_CODEC_CAPTURE) {
 		if (rk312x_priv->rk312x_for_mid == 1) {
