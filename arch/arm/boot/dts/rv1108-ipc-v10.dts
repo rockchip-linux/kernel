@@ -170,6 +170,20 @@
 		rockchip,motor-id = <2>;
 		status = "okay";
 	};
+
+	ipc_leds {
+		compatible = "gpio-leds";
+		led0 {
+			label = "led0";
+			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+		led1 {
+			label = "led1";
+			gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+	};
 };
 
 &clk_core_dvfs_table {
