@@ -317,6 +317,23 @@
 	};
 };
 
+&i2c3 {
+	status = "okay";
+	compatible = "rockchip,rk3128-i2c", "rockchip,rk3288-i2c";
+	clock-frequency = <400000>;
+	i2c-scl-rising-time-ns = <71>;
+	i2c-scl-falling-time-ns = <10>;
+	wk@01 {
+		compatible = "wkmic,wk2xxx_i2c";
+		reg = <0x01>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <GPIO_C6 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&wk2xxx_irq_gpio>;
+		status = "okay";
+	};
+};
+
 &fb {
 	rockchip,disp-mode = <ONE_DUAL>;
 	rockchip,uboot-logo-on = <0>;
@@ -984,6 +1001,11 @@
 		ak8963_int: ak8963-int {
 			rockchip,pins = <GPIO2_D5>;
 			rockchip,pull = <VALUE_PULL_UPDOWN_DISABLE>;
+		};
+
+		wk2xxx_irq_gpio: wk2xxx-irq-gpio {
+			rockchip,pins = <GPIO2_C6>;
+			rockchip,pull = <VALUE_PULL_UP>;
 		};
 	};
 };
