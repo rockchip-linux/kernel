@@ -199,6 +199,10 @@
 		816000 1025000
 		1008000 1150000
 		>;
+	lkg_adjust_volt_table = <
+		/*lkg(mA)  volt(uV)*/
+		60         25000
+		>;
 	status = "okay";
 };
 
