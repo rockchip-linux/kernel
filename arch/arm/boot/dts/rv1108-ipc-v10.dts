@@ -430,7 +430,6 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	power-inverted;
-	pwr-gpios = <&gpio3 GPIO_B7 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
 
