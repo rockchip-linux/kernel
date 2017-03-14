@@ -323,6 +323,8 @@ static int vendor_init_thread(void *arg)
 	int ret;
 
 	pr_info("flash vendor_init_thread!\n");
+	if (!_flash_read)
+		return -1;
 	ret = flash_vendor_init();
 	if (!ret) {
 		ret = misc_register(&vender_storage_dev);
