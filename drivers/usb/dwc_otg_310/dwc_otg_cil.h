@@ -850,6 +850,7 @@ struct dwc_otg_core_if {
 #define USB_MODE_FORCE_DEVICE (2)
 
 	u8 usb_early_detect;
+	u8 usb_pd_off;
 
 	/* True if support high bandwidth endpoints */
 	bool high_bandwidth_en;

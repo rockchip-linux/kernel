@@ -1121,6 +1121,9 @@ static int host20_driver_probe(struct platform_device *_dev)
 		goto fail;
 	}
 
+	/* Initialize last_id */
+	dwc_otg_device->last_id = -1;
+
 	clk_set_rate(pldata->phyclk_480m, 480000000);
 	/*
 	 * Enable the global interrupt after all the interrupt
@@ -1541,6 +1544,9 @@ static int otg20_driver_probe(struct platform_device *_dev)
 	/* Indicate usb vbus get from pmic (e.g. rk81x) */
 	dwc_otg_device->core_if->pmic_vbus = of_property_read_bool(node,
 						"rockchip,usb-pmic-vbus");
+	/* usb pd off support */
+	dwc_otg_device->core_if->usb_pd_off =
+		of_property_read_bool(node, "rockchip,usb-pd-off");
 
 #ifndef DWC_HOST_ONLY
 	/*
@@ -1564,6 +1570,9 @@ static int otg20_driver_probe(struct platform_device *_dev)
 		goto fail;
 	}
 #endif
+	/* Initialize last_id */
+	dwc_otg_device->last_id = -1;
+
 	/*
 	 * Enable the global interrupt after all the interrupt
 	 * handlers are installed if there is no ADP support else
@@ -1604,6 +1613,9 @@ static int dwc_otg_pm_suspend(struct device *dev)
 
 	dev_dbg(dev, "dwc_otg PM suspend\n");
 
+	if (dwc_otg_device->core_if->usb_pd_off)
+		cancel_delayed_work(&dwc_otg_device->pcd->check_id_work);
+
 	if (dwc_otg_device->core_if->op_state == B_PERIPHERAL)
 		return 0;
 
@@ -1621,6 +1633,11 @@ static int dwc_otg_pm_resume(struct device *dev)
 	dwc_otg_device = dev_get_platdata(dev);
 
 	dev_dbg(dev, "dwc_otg PM resume\n");
+
+	if (dwc_otg_device->core_if->usb_pd_off) {
+		dwc_otg_device->last_id = -1;
+		schedule_delayed_work(&dwc_otg_device->pcd->check_id_work, HZ);
+	}
 
 	if (dwc_otg_device->core_if->op_state == B_PERIPHERAL)
 		return 0;
