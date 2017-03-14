@@ -501,6 +501,13 @@ void __init rockchip_efuse_init(void)
 }
 
 #ifdef CONFIG_ARM64
+static int __init rk322xh_get_process_version(void)
+{
+	int ret = efuse_buf[26] & 0x07;
+
+	return ret;
+}
+
 static int __init rockchip_efuse_probe(struct platform_device *pdev)
 {
 	struct resource *regs;
@@ -510,9 +517,8 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 		rockchip_copy_efuse();
 
 		efuse.get_leakage = rk3288_get_leakage;
-		efuse.efuse_version = rk3288_get_efuse_version();
-		efuse.process_version = rk3288_get_process_version();
-		rockchip_set_cpu_version((efuse_buf[6] >> 4) & 3);
+		efuse.process_version = rk322xh_get_process_version();
+		rockchip_set_cpu_version((efuse_buf[26] >> 3) & 7);
 		rk3288_set_system_serial();
 
 		return 0;
