@@ -385,14 +385,16 @@ enum {
     V4L2_IDENT_GC0329 = 64115,      /* ddl@rock-chips.com : GC0329 support */
     V4L2_IDENT_GC2035= 64116,      /* ddl@rock-chips.com : GC0329 support */
     V4L2_IDENT_GC0328 = 64117,
-    
+    V4L2_IDENT_GC0312 = 64119,      /* tao.fan@rock-chips.com: GC0312 support */
+    V4L2_IDENT_GC2145 = 64118,      /* tao.fan@rock-chips.com: GC2145 support */
+
     V4L2_IDENT_SP0838 = 64120,      /* ddl@rock-chips.com : SP0838 support */
-    V4L2_IDENT_SP2518 = 64121,      /* ddl@rock-chips.com : SP2518 support */	      
+    V4L2_IDENT_SP2518 = 64121,      /* ddl@rock-chips.com : SP2518 support */
     V4L2_IDENT_SP0718 = 64122,      /* ddl@rock-chips.com : SP0718 support */
 
     V4L2_IDENT_HI253 = 64130,      /* ddl@rock-chips.com : hi253 support */
-    V4L2_IDENT_HI704 = 64131,      /* ddl@rock-chips.com : hi704 support */    
-    
+    V4L2_IDENT_HI704 = 64131,      /* ddl@rock-chips.com : hi704 support */
+
     V4L2_IDENT_SIV120B = 64140,      /* ddl@rock-chips.com : siv120b support */
     V4L2_IDENT_SIV121D= 64141,      /* ddl@rock-chips.com : sid130B support */
 
