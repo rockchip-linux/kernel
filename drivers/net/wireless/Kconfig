@@ -32,6 +32,12 @@ config WIFI_LOAD_DRIVER_WHEN_KERNEL_BOOTUP
 	---help---
 	 Wifi driver will be load (use late_initcall) when kernel bootup
 
+config WIFI_BUILD_MODULE
+	bool "build wifi ko modules"
+	default n
+	---help---
+	 wifi drivers will compile as ko module
+
 menuconfig RTL_WIRELESS_SOLUTION
 	bool "Realtek Wireless Device Driver Support"
 	default y
