@@ -419,4 +419,6 @@ config DA_CONSOLE
 	help
 	  This enables a console on a Dash channel.
 
+source "drivers/tty/wk2xxx/Kconfig"
+
 endif # TTY

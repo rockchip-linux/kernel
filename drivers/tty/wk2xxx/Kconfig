@@ -1,0 +1,9 @@
+menu "wk2xxx"
+
+config WK2XXX_I2C
+	tristate "WK2XXX_I2C I2C Convert To UART"
+	depends on I2C
+	help
+	  Select this option to enable I2C convert to 2 UARTS.
+
+endmenu
