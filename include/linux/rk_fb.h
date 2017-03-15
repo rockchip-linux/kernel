@@ -382,6 +382,7 @@ struct pwr_ctr {
 	const char *rgl_name;
 	int volt;
 	int delay;
+	int ldo_reverse;
 };
 
 struct rk_disp_pwr_ctr_list {

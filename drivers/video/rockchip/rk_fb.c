@@ -369,6 +369,10 @@ int rk_disp_pwr_ctr_parse_dt(struct rk_lcdc_driver *dev_drv)
 					pwr_ctr->pwr_ctr.volt = val;
 				else
 					pwr_ctr->pwr_ctr.volt = 0;
+				if (of_property_read_u32(child, "rockchip,ldo_reverse", &val))
+					pwr_ctr->pwr_ctr.ldo_reverse = 0;
+				else
+					pwr_ctr->pwr_ctr.ldo_reverse = val;
 			}
 		};
 
@@ -428,15 +432,28 @@ int rk_disp_pwr_enable(struct rk_lcdc_driver *dev_drv)
 					__func__, pwr_ctr->rgl_name);
 				continue;
 			}
-			regulator_set_voltage(regulator_lcd, pwr_ctr->volt, pwr_ctr->volt);
-			while (count) {
-				if (regulator_enable(regulator_lcd) == 0)
-					break;
-				else
+			if (pwr_ctr->ldo_reverse) {
+				while (regulator_is_enabled(regulator_lcd) > 0) {
+					if (regulator_disable(regulator_lcd) == 0 ||
+					    count == 0)
+						break;
+					count--;
+				}
+				if (regulator_is_enabled(regulator_lcd) > 0)
+					dev_err(dev_drv->dev,
+						"regulator_disable failed,count=%d\n",
+						count);
+			} else {
+				regulator_set_voltage(regulator_lcd, pwr_ctr->volt, pwr_ctr->volt);
+				while (count) {
+					if (regulator_enable(regulator_lcd) == 0)
+						break;
+					count--;
+				}
+				if (regulator_enable(regulator_lcd) != 0)
 					dev_err(dev_drv->dev,
 						"regulator_enable failed,count=%d\n",
 						count);
-				count--;
 			}
 			regulator_put(regulator_lcd);
 			msleep(pwr_ctr->delay);
@@ -471,15 +488,32 @@ int rk_disp_pwr_disable(struct rk_lcdc_driver *dev_drv)
 					__func__, pwr_ctr->rgl_name);
 				continue;
 			}
-			while (regulator_is_enabled(regulator_lcd) > 0) {
-				if (regulator_disable(regulator_lcd) == 0 ||
-				    count == 0)
-					break;
-				else
+			if (pwr_ctr->ldo_reverse) {
+				regulator_set_voltage(regulator_lcd, pwr_ctr->volt, pwr_ctr->volt);
+				while (count) {
+					if (regulator_enable(regulator_lcd) == 0)
+						break;
+					count--;
+				}
+				if (regulator_enable(regulator_lcd) != 0)
+					dev_err(dev_drv->dev,
+						"regulator_enable failed,count=%d\n",
+						count);
+			} else {
+				while (regulator_is_enabled(regulator_lcd) > 0) {
+					if (regulator_disable(regulator_lcd) == 0 ||
+					    count == 0)
+						break;
+					else
+						dev_err(dev_drv->dev,
+							"regulator_disable failed,count=%d\n",
+							count);
+					count--;
+				}
+				if (regulator_is_enabled(regulator_lcd) > 0)
 					dev_err(dev_drv->dev,
 						"regulator_disable failed,count=%d\n",
 						count);
-				count--;
 			}
 			regulator_put(regulator_lcd);
 		}
