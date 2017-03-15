@@ -157,9 +157,9 @@ static int params_from_user(struct tee_context *ctx, struct tee_param *params,
 			break;
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT:
-			params[n].u.value.a = ip.u.value.a;
-			params[n].u.value.b = ip.u.value.b;
-			params[n].u.value.c = ip.u.value.c;
+			params[n].u.value.a = ip.a;
+			params[n].u.value.b = ip.b;
+			params[n].u.value.c = ip.c;
 			break;
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_OUTPUT:
@@ -172,12 +172,12 @@ static int params_from_user(struct tee_context *ctx, struct tee_param *params,
 			 * count. It's the callers responibility to do
 			 * tee_shm_put() on all resolved pointers.
 			 */
-			shm = tee_shm_get_from_id(ctx, ip.u.memref.shm_id);
+			shm = tee_shm_get_from_id(ctx, ip.c);
 			if (IS_ERR(shm))
 				return PTR_ERR(shm);
 
-			params[n].u.memref.shm_offs = ip.u.memref.shm_offs;
-			params[n].u.memref.size = ip.u.memref.size;
+			params[n].u.memref.shm_offs = ip.a;
+			params[n].u.memref.size = ip.b;
 			params[n].u.memref.shm = shm;
 			break;
 		default:
@@ -200,14 +200,14 @@ static int params_to_user(struct tee_ioctl_param __user *uparams,
 		switch (p->attr) {
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT:
-			if (put_user(p->u.value.a, &up->u.value.a) ||
-			    put_user(p->u.value.b, &up->u.value.b) ||
-			    put_user(p->u.value.c, &up->u.value.c))
+			if (put_user(p->u.value.a, &up->a) ||
+			    put_user(p->u.value.b, &up->b) ||
+			    put_user(p->u.value.c, &up->c))
 				return -EFAULT;
 			break;
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_OUTPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INOUT:
-			if (put_user((u64)p->u.memref.size, &up->u.memref.size))
+			if (put_user((u64)p->u.memref.size, &up->b))
 				return -EFAULT;
 		default:
 			break;
@@ -251,7 +251,7 @@ static int tee_ioctl_open_session(struct tee_context *ctx,
 		return -EINVAL;
 
 	uarg = (struct tee_ioctl_open_session_arg __user *)(unsigned long)
-		buf.buf_ptr;
+	       buf.buf_ptr;
 	if (copy_from_user(&arg, uarg, sizeof(arg)))
 		return -EFAULT;
 
@@ -263,7 +263,7 @@ static int tee_ioctl_open_session(struct tee_context *ctx,
 				 GFP_KERNEL);
 		if (!params)
 			return -ENOMEM;
-		uparams = (struct tee_ioctl_param __user *)(uarg + 1);
+		uparams = uarg->params;
 		rc = params_from_user(ctx, params, arg.num_params, uparams);
 		if (rc)
 			goto out;
@@ -322,7 +322,8 @@ static int tee_ioctl_invoke(struct tee_context *ctx,
 	    buf.buf_len < sizeof(struct tee_ioctl_invoke_arg))
 		return -EINVAL;
 
-	uarg = (struct tee_ioctl_invoke_arg __user *)(unsigned long)buf.buf_ptr;
+	uarg = (struct tee_ioctl_invoke_arg __user *)(unsigned long)
+	       buf.buf_ptr;
 	if (copy_from_user(&arg, uarg, sizeof(arg)))
 		return -EFAULT;
 
@@ -334,7 +335,7 @@ static int tee_ioctl_invoke(struct tee_context *ctx,
 				 GFP_KERNEL);
 		if (!params)
 			return -ENOMEM;
-		uparams = (struct tee_ioctl_param __user *)(uarg + 1);
+		uparams = uarg->params;
 		rc = params_from_user(ctx, params, arg.num_params, uparams);
 		if (rc)
 			goto out;
@@ -406,24 +407,26 @@ static int params_to_supp(struct tee_context *ctx,
 		switch (p->attr) {
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT:
-			ip.u.value.a = p->u.value.a;
-			ip.u.value.b = p->u.value.b;
-			ip.u.value.c = p->u.value.c;
+			ip.a = p->u.value.a;
+			ip.b = p->u.value.b;
+			ip.c = p->u.value.c;
 			break;
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_OUTPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INOUT:
-			ip.u.memref.size = p->u.memref.size;
+			ip.b = p->u.memref.size;
 			if (!p->u.memref.shm) {
-				ip.u.memref.shm_offs = 0;
-				ip.u.memref.shm_id = -1;
+				ip.a = 0;
+				ip.c = (u64)-1; /* invalid shm id */
 				break;
 			}
-			ip.u.memref.shm_offs = p->u.memref.shm_offs;
-			ip.u.memref.shm_id = p->u.memref.shm->id;
+			ip.a = p->u.memref.shm_offs;
+			ip.c = p->u.memref.shm->id;
 			break;
 		default:
-			memset(&ip.u, 0, sizeof(ip.u));
+			ip.a = 0;
+			ip.b = 0;
+			ip.c = 0;
 			break;
 		}
 
@@ -441,7 +444,6 @@ static int tee_ioctl_supp_recv(struct tee_context *ctx,
 	struct tee_ioctl_buf_data buf;
 	struct tee_iocl_supp_recv_arg __user *uarg;
 	struct tee_param *params;
-	struct tee_ioctl_param __user *uparams;
 	u32 num_params;
 	u32 func;
 
@@ -456,7 +458,7 @@ static int tee_ioctl_supp_recv(struct tee_context *ctx,
 		return -EINVAL;
 
 	uarg = (struct tee_iocl_supp_recv_arg __user *)(unsigned long)
-		buf.buf_ptr;
+	       buf.buf_ptr;
 	if (get_user(num_params, &uarg->num_params))
 		return -EFAULT;
 
@@ -477,8 +479,7 @@ static int tee_ioctl_supp_recv(struct tee_context *ctx,
 		goto out;
 	}
 
-	uparams = (struct tee_ioctl_param __user *)(uarg + 1);
-	rc = params_to_supp(ctx, uparams, num_params, params);
+	rc = params_to_supp(ctx, uarg->params, num_params, params);
 out:
 	kfree(params);
 	return rc;
@@ -505,9 +506,9 @@ static int params_from_supp(struct tee_param *params, size_t num_params,
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_OUTPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_VALUE_INOUT:
 			/* Only out and in/out values can be updated */
-			p->u.value.a = ip.u.value.a;
-			p->u.value.b = ip.u.value.b;
-			p->u.value.c = ip.u.value.c;
+			p->u.value.a = ip.a;
+			p->u.value.b = ip.b;
+			p->u.value.c = ip.c;
 			break;
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_OUTPUT:
 		case TEE_IOCTL_PARAM_ATTR_TYPE_MEMREF_INOUT:
@@ -520,7 +521,7 @@ static int params_from_supp(struct tee_param *params, size_t num_params,
 			 */
 			p->u.memref.shm = NULL;
 			p->u.memref.shm_offs = 0;
-			p->u.memref.size = ip.u.memref.size;
+			p->u.memref.size = ip.b;
 			break;
 		default:
 			memset(&p->u, 0, sizeof(p->u));
@@ -537,7 +538,6 @@ static int tee_ioctl_supp_send(struct tee_context *ctx,
 	struct tee_ioctl_buf_data buf;
 	struct tee_iocl_supp_send_arg __user *uarg;
 	struct tee_param *params;
-	struct tee_ioctl_param __user *uparams;
 	u32 num_params;
 	u32 ret;
 
@@ -553,7 +553,7 @@ static int tee_ioctl_supp_send(struct tee_context *ctx,
 		return -EINVAL;
 
 	uarg = (struct tee_iocl_supp_send_arg __user *)(unsigned long)
-		buf.buf_ptr;
+	       buf.buf_ptr;
 	if (get_user(ret, &uarg->ret) ||
 	    get_user(num_params, &uarg->num_params))
 		return -EFAULT;
@@ -565,8 +565,7 @@ static int tee_ioctl_supp_send(struct tee_context *ctx,
 	if (!params)
 		return -ENOMEM;
 
-	uparams = (struct tee_ioctl_param __user *)(uarg + 1);
-	rc = params_from_supp(params, num_params, uparams);
+	rc = params_from_supp(params, num_params, uarg->params);
 	if (rc)
 		goto out;
 
@@ -646,7 +645,7 @@ struct tee_device *tee_device_alloc(const struct tee_desc *teedesc,
 
 	if (!teedesc || !teedesc->name || !teedesc->ops ||
 	    !teedesc->ops->get_version || !teedesc->ops->open ||
-	    !teedesc->ops->release || !dev || !pool)
+	    !teedesc->ops->release || !pool)
 		return ERR_PTR(-EINVAL);
 
 	teedev = kzalloc(sizeof(*teedev), GFP_KERNEL);
@@ -704,8 +703,8 @@ struct tee_device *tee_device_alloc(const struct tee_desc *teedesc,
 err_devt:
 	unregister_chrdev_region(teedev->dev.devt, 1);
 err:
-	dev_err(dev, "could not register %s driver\n",
-		teedesc->flags & TEE_DESC_PRIVILEGED ? "privileged" : "client");
+	pr_err("could not register %s driver\n",
+	       teedesc->flags & TEE_DESC_PRIVILEGED ? "privileged" : "client");
 	if (teedev && teedev->id < TEE_NUM_DEVICES) {
 		spin_lock(&driver_lock);
 		clear_bit(teedev->id, dev_mask);
@@ -749,14 +748,9 @@ int tee_device_register(struct tee_device *teedev)
 {
 	int rc;
 
-	/*
-	 * If the teedev already is registered, don't do it again. It's
-	 * obviously an error to try to register twice, but if we return
-	 * an error we'll force the driver to remove the teedev.
-	 */
 	if (teedev->flags & TEE_DEVICE_FLAG_REGISTERED) {
 		dev_err(&teedev->dev, "attempt to register twice\n");
-		return 0;
+		return -EINVAL;
 	}
 
 	rc = cdev_add(&teedev->cdev, teedev->dev.devt, 1);

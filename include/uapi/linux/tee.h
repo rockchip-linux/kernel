@@ -165,54 +165,28 @@ struct tee_ioctl_buf_data {
 #define TEE_IOCTL_LOGIN_GROUP_APPLICATION	6
 
 /**
- * struct tee_ioctl_param_memref - memory reference
- * @shm_offs:	Offset into the shared memory object
- * @size:	Size of the buffer
- * @shm_id:	Shared memory identifier
- *
- * Shared memory is allocated with TEE_IOC_SHM_ALLOC which returns an
- * identifier representing the shared memory object. A memref can reference
- * a part of a shared memory by specifying an offset (@shm_offs) and @size
- * of the object. To supply the entire shared memory object set @shm_offs
- * to 0 and @size to the previously returned size of the object.
- */
-struct tee_ioctl_param_memref {
-	__u64 shm_offs;
-	__u64 size;
-	__s64 shm_id;
-};
-
-/**
- * struct tee_ioctl_param_value - values
- * @a: first value
- * @b: second value
- * @c: third value
- *
- * Value parameters are passed unchecked to the destination
- */
-struct tee_ioctl_param_value {
-	__u64 a;
-	__u64 b;
-	__u64 c;
-};
-
-/**
  * struct tee_ioctl_param - parameter
  * @attr: attributes
- * @memref: a memory reference
- * @value: a value
+ * @a: if a memref, offset into the shared memory object, else a value parameter
+ * @b: if a memref, size of the buffer, else a value parameter
+ * @c: if a memref, shared memory identifier, else a value parameter
  *
  * @attr & TEE_PARAM_ATTR_TYPE_MASK indicates if memref or value is used in
  * the union. TEE_PARAM_ATTR_TYPE_VALUE_* indicates value and
  * TEE_PARAM_ATTR_TYPE_MEMREF_* indicates memref. TEE_PARAM_ATTR_TYPE_NONE
  * indicates that none of the members are used.
+ *
+ * Shared memory is allocated with TEE_IOC_SHM_ALLOC which returns an
+ * identifier representing the shared memory object. A memref can reference
+ * a part of a shared memory by specifying an offset (@a) and size (@b) of
+ * the object. To supply the entire shared memory object set the offset
+ * (@a) to 0 and size (@b) to the previously returned size of the object.
  */
 struct tee_ioctl_param {
 	__u64 attr;
-	union {
-		struct tee_ioctl_param_memref memref;
-		struct tee_ioctl_param_value value;
-	} u;
+	__u64 a;
+	__u64 b;
+	__u64 c;
 };
 
 #define TEE_IOCTL_UUID_LEN		16
@@ -237,17 +211,9 @@ struct tee_ioctl_open_session_arg {
 	__u32 ret;
 	__u32 ret_origin;
 	__u32 num_params;
-	/*
-	 * this struct is 8 byte aligned since the 'struct tee_ioctl_param'
-	 * which follows requires 8 byte alignment.
-	 *
-	 * Commented out element used to visualize the layout dynamic part
-	 * of the struct. This field is not available at all if
-	 * num_params == 0.
-	 *
-	 * struct tee_ioctl_param params[num_params];
-	 */
-} __aligned(8);
+	/* num_params tells the actual number of element in params */
+	struct tee_ioctl_param params[];
+};
 
 /**
  * TEE_IOC_OPEN_SESSION - opens a session to a Trusted Application
@@ -276,17 +242,9 @@ struct tee_ioctl_invoke_arg {
 	__u32 ret;
 	__u32 ret_origin;
 	__u32 num_params;
-	/*
-	 * this struct is 8 byte aligned since the 'struct tee_ioctl_param'
-	 * which follows requires 8 byte alignment.
-	 *
-	 * Commented out element used to visualize the layout dynamic part
-	 * of the struct. This field is not available at all if
-	 * num_params == 0.
-	 *
-	 * struct tee_ioctl_param params[num_params];
-	 */
-} __aligned(8);
+	/* num_params tells the actual number of element in params */
+	struct tee_ioctl_param params[];
+};
 
 /**
  * TEE_IOC_INVOKE - Invokes a function in a Trusted Application
@@ -339,17 +297,9 @@ struct tee_ioctl_close_session_arg {
 struct tee_iocl_supp_recv_arg {
 	__u32 func;
 	__u32 num_params;
-	/*
-	 * this struct is 8 byte aligned since the 'struct tee_ioctl_param'
-	 * which follows requires 8 byte alignment.
-	 *
-	 * Commented out element used to visualize the layout dynamic part
-	 * of the struct. This field is not available at all if
-	 * num_params == 0.
-	 *
-	 * struct tee_ioctl_param params[num_params];
-	 */
-} __aligned(8);
+	/* num_params tells the actual number of element in params */
+	struct tee_ioctl_param params[];
+};
 
 /**
  * TEE_IOC_SUPPL_RECV - Receive a request for a supplicant function
@@ -368,17 +318,10 @@ struct tee_iocl_supp_recv_arg {
 struct tee_iocl_supp_send_arg {
 	__u32 ret;
 	__u32 num_params;
-	/*
-	 * this struct is 8 byte aligned since the 'struct tee_ioctl_param'
-	 * which follows requires 8 byte alignment.
-	 *
-	 * Commented out element used to visualize the layout dynamic part
-	 * of the struct. This field is not available at all if
-	 * num_params == 0.
-	 *
-	 * struct tee_ioctl_param params[num_params];
-	 */
-} __aligned(8);
+	/* num_params tells the actual number of element in params */
+	struct tee_ioctl_param params[];
+};
+
 /**
  * TEE_IOC_SUPPL_SEND - Receive a request for a supplicant function
  *

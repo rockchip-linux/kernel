@@ -89,25 +89,23 @@ struct optee_supp {
  * struct optee - main service struct
  * @supp_teedev:	supplicant device
  * @teedev:		client device
- * @dev:		probed device
  * @invoke_fn:		function to issue smc or hvc
  * @call_queue:		queue of threads waiting to call @invoke_fn
  * @wait_queue:		queue of threads from secure world waiting for a
  *			secure world sync object
  * @supp:		supplicant synchronization struct for RPC to supplicant
  * @pool:		shared memory pool
- * @ioremaped_shm	virtual address of memory in shared memory pool
+ * @memremaped_shm	virtual address of memory in shared memory pool
  */
 struct optee {
 	struct tee_device *supp_teedev;
 	struct tee_device *teedev;
-	struct device *dev;
 	optee_invoke_fn *invoke_fn;
 	struct optee_call_queue call_queue;
 	struct optee_wait_queue wait_queue;
 	struct optee_supp supp;
 	struct tee_shm_pool *pool;
-	void __iomem *ioremaped_shm;
+	void *memremaped_shm;
 };
 
 struct optee_session {

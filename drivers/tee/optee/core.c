@@ -11,6 +11,9 @@
  * GNU General Public License for more details.
  *
  */
+
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/errno.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -341,8 +344,7 @@ static bool optee_msg_exchange_capabilities(optee_invoke_fn *invoke_fn,
 }
 
 static struct tee_shm_pool *
-optee_config_shm_ioremap(struct device *dev, optee_invoke_fn *invoke_fn,
-			 void __iomem **ioremaped_shm)
+optee_config_shm_memremap(optee_invoke_fn *invoke_fn, void **memremaped_shm)
 {
 	union {
 		struct arm_smccc_res smccc;
@@ -354,18 +356,18 @@ optee_config_shm_ioremap(struct device *dev, optee_invoke_fn *invoke_fn,
 	size_t size;
 	phys_addr_t begin;
 	phys_addr_t end;
-	void __iomem *va;
+	void *va;
 	struct tee_shm_pool_mem_info priv_info;
 	struct tee_shm_pool_mem_info dmabuf_info;
 
 	invoke_fn(OPTEE_SMC_GET_SHM_CONFIG, 0, 0, 0, 0, 0, 0, 0, &res.smccc);
 	if (res.result.status != OPTEE_SMC_RETURN_OK) {
-		dev_info(dev, "shm service not available\n");
+		pr_info("shm service not available\n");
 		return ERR_PTR(-ENOENT);
 	}
 
 	if (res.result.settings != OPTEE_SMC_SHM_CACHED) {
-		dev_err(dev, "only normal cached shared memory supported\n");
+		pr_err("only normal cached shared memory supported\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -375,13 +377,13 @@ optee_config_shm_ioremap(struct device *dev, optee_invoke_fn *invoke_fn,
 	size = end - begin;
 
 	if (size < 2 * OPTEE_SHM_NUM_PRIV_PAGES * PAGE_SIZE) {
-		dev_err(dev, "too small shared memory area\n");
+		pr_err("too small shared memory area\n");
 		return ERR_PTR(-EINVAL);
 	}
 
 	va = ioremap_cache(paddr, size);
 	if (!va) {
-		dev_err(dev, "shared memory ioremap failed\n");
+		pr_err("shared memory ioremap failed\n");
 		return ERR_PTR(-EINVAL);
 	}
 	vaddr = (unsigned long)va;
@@ -393,67 +395,64 @@ optee_config_shm_ioremap(struct device *dev, optee_invoke_fn *invoke_fn,
 	dmabuf_info.paddr = paddr + OPTEE_SHM_NUM_PRIV_PAGES * PAGE_SIZE;
 	dmabuf_info.size = size - OPTEE_SHM_NUM_PRIV_PAGES * PAGE_SIZE;
 
-	pool = tee_shm_pool_alloc_res_mem(dev, &priv_info, &dmabuf_info);
+	pool = tee_shm_pool_alloc_res_mem(&priv_info, &dmabuf_info);
 	if (IS_ERR(pool)) {
 		iounmap(va);
 		goto out;
 	}
 
-	*ioremaped_shm = va;
+	*memremaped_shm = va;
 out:
 	return pool;
 }
 
-static int get_invoke_func(struct device *dev, optee_invoke_fn **invoke_fn)
+static optee_invoke_fn *get_invoke_func(struct device_node *np)
 {
-	struct device_node *np = dev->of_node;
 	const char *method;
 
-	dev_info(dev, "probing for conduit method from DT.\n");
+	pr_info("probing for conduit method from DT.\n");
 
 	if (of_property_read_string(np, "method", &method)) {
-		dev_warn(dev, "missing \"method\" property\n");
-		return -ENXIO;
+		pr_warn("missing \"method\" property\n");
+		return ERR_PTR(-ENXIO);
 	}
 
-	if (!strcmp("hvc", method)) {
-		*invoke_fn = arm_smccc_hvc;
-	} else if (!strcmp("smc", method)) {
-		*invoke_fn = arm_smccc_smc;
-	} else {
-		dev_warn(dev, "invalid \"method\" property: %s\n", method);
-		return -EINVAL;
-	}
-	return 0;
+	if (!strcmp("hvc", method))
+		return arm_smccc_hvc;
+	else if (!strcmp("smc", method))
+		return arm_smccc_smc;
+
+	pr_warn("invalid \"method\" property: %s\n", method);
+	return ERR_PTR(-EINVAL);
 }
 
-static int optee_probe(struct platform_device *pdev)
+static struct optee *optee_probe(struct device_node *np)
 {
 	optee_invoke_fn *invoke_fn;
 	struct tee_shm_pool *pool;
 	struct optee *optee = NULL;
-	void __iomem *ioremaped_shm = NULL;
+	void *memremaped_shm = NULL;
 	struct tee_device *teedev;
 	u32 sec_caps;
 	int rc;
 
-	rc = get_invoke_func(&pdev->dev, &invoke_fn);
-	if (rc)
-		return rc;
+	invoke_fn = get_invoke_func(np);
+	if (IS_ERR(invoke_fn))
+		return (void *)invoke_fn;
 
 	if (!optee_msg_api_uid_is_optee_api(invoke_fn)) {
-		dev_warn(&pdev->dev, "api uid mismatch\n");
-		return -EINVAL;
+		pr_warn("api uid mismatch\n");
+		return ERR_PTR(-EINVAL);
 	}
 
 	if (!optee_msg_api_revision_is_compatible(invoke_fn)) {
-		dev_warn(&pdev->dev, "api revision mismatch\n");
-		return -EINVAL;
+		pr_warn("api revision mismatch\n");
+		return ERR_PTR(-EINVAL);
 	}
 
 	if (!optee_msg_exchange_capabilities(invoke_fn, &sec_caps)) {
-		dev_warn(&pdev->dev, "capabilities mismatch\n");
-		return -EINVAL;
+		pr_warn("capabilities mismatch\n");
+		return ERR_PTR(-EINVAL);
 	}
 
 	/*
@@ -461,29 +460,28 @@ static int optee_probe(struct platform_device *pdev)
 	 * doesn't have any reserved memory we can use we can't continue.
 	 */
 	if (!(sec_caps & OPTEE_SMC_SEC_CAP_HAVE_RESERVERED_SHM))
-		return -EINVAL;
+		return ERR_PTR(-EINVAL);
 
-	pool = optee_config_shm_ioremap(&pdev->dev, invoke_fn, &ioremaped_shm);
+	pool = optee_config_shm_memremap(invoke_fn, &memremaped_shm);
 	if (IS_ERR(pool))
-		return PTR_ERR(pool);
+		return (void *)pool;
 
-	optee = devm_kzalloc(&pdev->dev, sizeof(*optee), GFP_KERNEL);
+	optee = kzalloc(sizeof(*optee), GFP_KERNEL);
 	if (!optee) {
 		rc = -ENOMEM;
 		goto err;
 	}
 
-	optee->dev = &pdev->dev;
 	optee->invoke_fn = invoke_fn;
 
-	teedev = tee_device_alloc(&optee_desc, &pdev->dev, pool, optee);
+	teedev = tee_device_alloc(&optee_desc, NULL, pool, optee);
 	if (IS_ERR(teedev)) {
 		rc = PTR_ERR(teedev);
 		goto err;
 	}
 	optee->teedev = teedev;
 
-	teedev = tee_device_alloc(&optee_supp_desc, &pdev->dev, pool, optee);
+	teedev = tee_device_alloc(&optee_supp_desc, NULL, pool, optee);
 	if (IS_ERR(teedev)) {
 		rc = PTR_ERR(teedev);
 		goto err;
@@ -502,15 +500,13 @@ static int optee_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&optee->call_queue.waiters);
 	optee_wait_queue_init(&optee->wait_queue);
 	optee_supp_init(&optee->supp);
-	optee->ioremaped_shm = ioremaped_shm;
+	optee->memremaped_shm = memremaped_shm;
 	optee->pool = pool;
-
-	platform_set_drvdata(pdev, optee);
 
 	optee_enable_shm_cache(optee);
 
-	dev_info(&pdev->dev, "initialized driver\n");
-	return 0;
+	pr_info("initialized driver\n");
+	return optee;
 err:
 	if (optee) {
 		/*
@@ -520,18 +516,17 @@ err:
 		 */
 		tee_device_unregister(optee->supp_teedev);
 		tee_device_unregister(optee->teedev);
+		kfree(optee);
 	}
 	if (pool)
 		tee_shm_pool_free(pool);
-	if (ioremaped_shm)
-		iounmap(ioremaped_shm);
-	return rc;
+	if (memremaped_shm)
+		iounmap(memremaped_shm);
+	return ERR_PTR(rc);
 }
 
-static int optee_remove(struct platform_device *pdev)
+static void optee_remove(struct optee *optee)
 {
-	struct optee *optee = platform_get_drvdata(pdev);
-
 	/*
 	 * Ask OP-TEE to free all cached shared memory objects to decrease
 	 * reference counters and also avoid wild pointers in secure world
@@ -547,13 +542,13 @@ static int optee_remove(struct platform_device *pdev)
 	tee_device_unregister(optee->teedev);
 
 	tee_shm_pool_free(optee->pool);
-	if (optee->ioremaped_shm)
-		iounmap(optee->ioremaped_shm);
+	if (optee->memremaped_shm)
+		iounmap(optee->memremaped_shm);
 	optee_wait_queue_exit(&optee->wait_queue);
 	optee_supp_uninit(&optee->supp);
 	mutex_destroy(&optee->call_queue.mutex);
 
-	return 0;
+	kfree(optee);
 }
 
 static const struct of_device_id optee_match[] = {
@@ -561,33 +556,43 @@ static const struct of_device_id optee_match[] = {
 	{},
 };
 
-static struct platform_driver optee_driver = {
-	.driver = {
-		.name = DRIVER_NAME,
-		.of_match_table = optee_match,
-	},
-	.probe = optee_probe,
-	.remove = optee_remove,
-};
+static struct optee *optee_svc;
 
 static int __init optee_driver_init(void)
 {
-	struct device_node *node;
+	struct device_node *fw_np;
+	struct device_node *np;
+	struct optee *optee;
 
-	/*
-	 * Preferred path is /firmware/optee, but it's the matching that
-	 * matters.
-	 */
-	for_each_matching_node(node, optee_match)
-		of_platform_device_create(node, NULL, NULL);
+	/* Node is supposed to be below /firmware */
+	fw_np = of_find_node_by_name(NULL, "firmware");
+	if (!fw_np)
+		return -ENODEV;
 
-	return platform_driver_register(&optee_driver);
+	np = of_find_matching_node(fw_np, optee_match);
+	of_node_put(fw_np);
+	if (!np)
+		return -ENODEV;
+
+	optee = optee_probe(np);
+	of_node_put(np);
+
+	if (IS_ERR(optee))
+		return PTR_ERR(optee);
+
+	optee_svc = optee;
+
+	return 0;
 }
 module_init(optee_driver_init);
 
 static void __exit optee_driver_exit(void)
 {
-	platform_driver_unregister(&optee_driver);
+	struct optee *optee = optee_svc;
+
+	optee_svc = NULL;
+	if (optee)
+		optee_remove(optee);
 }
 module_exit(optee_driver_exit);
 

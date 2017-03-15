@@ -164,7 +164,6 @@ struct tee_shm_pool_mem_info {
 /**
  * tee_shm_pool_alloc_res_mem() - Create a shared memory pool from reserved
  * memory range
- * @dev:	 Device allocating the pool
  * @priv_info:	 Information for driver private shared memory pool
  * @dmabuf_info: Information for dma-buf shared memory pool
  *
@@ -176,8 +175,7 @@ struct tee_shm_pool_mem_info {
  * @returns pointer to a 'struct tee_shm_pool' or an ERR_PTR on failure.
  */
 struct tee_shm_pool *
-tee_shm_pool_alloc_res_mem(struct device *dev,
-			   struct tee_shm_pool_mem_info *priv_info,
+tee_shm_pool_alloc_res_mem(struct tee_shm_pool_mem_info *priv_info,
 			   struct tee_shm_pool_mem_info *dmabuf_info);
 
 /**

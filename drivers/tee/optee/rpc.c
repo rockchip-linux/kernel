@@ -11,6 +11,10 @@
  * GNU General Public License for more details.
  *
  */
+
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
@@ -37,19 +41,17 @@ void optee_wait_queue_exit(struct optee_wait_queue *priv)
 
 static void handle_rpc_func_cmd_get_time(struct optee_msg_arg *arg)
 {
-	struct optee_msg_param *params;
 	struct timespec64 ts;
 
 	if (arg->num_params != 1)
 		goto bad;
-	params = OPTEE_MSG_GET_PARAMS(arg);
-	if ((params->attr & OPTEE_MSG_ATTR_TYPE_MASK) !=
+	if ((arg->params[0].attr & OPTEE_MSG_ATTR_TYPE_MASK) !=
 			OPTEE_MSG_ATTR_TYPE_VALUE_OUTPUT)
 		goto bad;
 
 	getnstimeofday64(&ts);
-	params->u.value.a = ts.tv_sec;
-	params->u.value.b = ts.tv_nsec;
+	arg->params[0].u.value.a = ts.tv_sec;
+	arg->params[0].u.value.b = ts.tv_nsec;
 
 	arg->ret = TEEC_SUCCESS;
 	return;
@@ -102,22 +104,19 @@ static void wq_wakeup(struct optee_wait_queue *wq, u32 key)
 static void handle_rpc_func_cmd_wq(struct optee *optee,
 				   struct optee_msg_arg *arg)
 {
-	struct optee_msg_param *params;
-
 	if (arg->num_params != 1)
 		goto bad;
 
-	params = OPTEE_MSG_GET_PARAMS(arg);
-	if ((params->attr & OPTEE_MSG_ATTR_TYPE_MASK) !=
+	if ((arg->params[0].attr & OPTEE_MSG_ATTR_TYPE_MASK) !=
 			OPTEE_MSG_ATTR_TYPE_VALUE_INPUT)
 		goto bad;
 
-	switch (params->u.value.a) {
+	switch (arg->params[0].u.value.a) {
 	case OPTEE_MSG_RPC_WAIT_QUEUE_SLEEP:
-		wq_sleep(&optee->wait_queue, params->u.value.b);
+		wq_sleep(&optee->wait_queue, arg->params[0].u.value.b);
 		break;
 	case OPTEE_MSG_RPC_WAIT_QUEUE_WAKEUP:
-		wq_wakeup(&optee->wait_queue, params->u.value.b);
+		wq_wakeup(&optee->wait_queue, arg->params[0].u.value.b);
 		break;
 	default:
 		goto bad;
@@ -131,24 +130,22 @@ bad:
 
 static void handle_rpc_func_cmd_wait(struct optee_msg_arg *arg)
 {
-	struct optee_msg_param *params;
 	u32 msec_to_wait;
 
 	if (arg->num_params != 1)
 		goto bad;
 
-	params = OPTEE_MSG_GET_PARAMS(arg);
-	if ((params->attr & OPTEE_MSG_ATTR_TYPE_MASK) !=
+	if ((arg->params[0].attr & OPTEE_MSG_ATTR_TYPE_MASK) !=
 			OPTEE_MSG_ATTR_TYPE_VALUE_INPUT)
 		goto bad;
 
-	msec_to_wait = params->u.value.a;
+	msec_to_wait = arg->params[0].u.value.a;
 
 	/* set task's state to interruptible sleep */
 	set_current_state(TASK_INTERRUPTIBLE);
 
 	/* take a nap */
-	schedule_timeout(msecs_to_jiffies(msec_to_wait));
+	msleep(msec_to_wait);
 
 	arg->ret = TEEC_SUCCESS;
 	return;
@@ -160,7 +157,6 @@ static void handle_rpc_supp_cmd(struct tee_context *ctx,
 				struct optee_msg_arg *arg)
 {
 	struct tee_param *params;
-	struct optee_msg_param *msg_params = OPTEE_MSG_GET_PARAMS(arg);
 
 	arg->ret_origin = TEEC_ORIGIN_COMMS;
 
@@ -171,14 +167,14 @@ static void handle_rpc_supp_cmd(struct tee_context *ctx,
 		return;
 	}
 
-	if (optee_from_msg_param(params, arg->num_params, msg_params)) {
+	if (optee_from_msg_param(params, arg->num_params, arg->params)) {
 		arg->ret = TEEC_ERROR_BAD_PARAMETERS;
 		goto out;
 	}
 
 	arg->ret = optee_supp_thrd_req(ctx, arg->cmd, arg->num_params, params);
 
-	if (optee_to_msg_param(msg_params, arg->num_params, params))
+	if (optee_to_msg_param(arg->params, arg->num_params, params))
 		arg->ret = TEEC_ERROR_BAD_PARAMETERS;
 out:
 	kfree(params);
@@ -210,7 +206,6 @@ static struct tee_shm *cmd_alloc_suppl(struct tee_context *ctx, size_t sz)
 static void handle_rpc_func_cmd_shm_alloc(struct tee_context *ctx,
 					  struct optee_msg_arg *arg)
 {
-	struct optee_msg_param *params = OPTEE_MSG_GET_PARAMS(arg);
 	phys_addr_t pa;
 	struct tee_shm *shm;
 	size_t sz;
@@ -219,20 +214,20 @@ static void handle_rpc_func_cmd_shm_alloc(struct tee_context *ctx,
 	arg->ret_origin = TEEC_ORIGIN_COMMS;
 
 	if (!arg->num_params ||
-	    params->attr != OPTEE_MSG_ATTR_TYPE_VALUE_INPUT) {
+	    arg->params[0].attr != OPTEE_MSG_ATTR_TYPE_VALUE_INPUT) {
 		arg->ret = TEEC_ERROR_BAD_PARAMETERS;
 		return;
 	}
 
 	for (n = 1; n < arg->num_params; n++) {
-		if (params[n].attr != OPTEE_MSG_ATTR_TYPE_NONE) {
+		if (arg->params[n].attr != OPTEE_MSG_ATTR_TYPE_NONE) {
 			arg->ret = TEEC_ERROR_BAD_PARAMETERS;
 			return;
 		}
 	}
 
-	sz = params->u.value.b;
-	switch (params->u.value.a) {
+	sz = arg->params[0].u.value.b;
+	switch (arg->params[0].u.value.a) {
 	case OPTEE_MSG_RPC_SHM_TYPE_APPL:
 		shm = cmd_alloc_suppl(ctx, sz);
 		break;
@@ -254,10 +249,10 @@ static void handle_rpc_func_cmd_shm_alloc(struct tee_context *ctx,
 		goto bad;
 	}
 
-	params[0].attr = OPTEE_MSG_ATTR_TYPE_TMEM_OUTPUT;
-	params[0].u.tmem.buf_ptr = pa;
-	params[0].u.tmem.size = sz;
-	params[0].u.tmem.shm_ref = (unsigned long)shm;
+	arg->params[0].attr = OPTEE_MSG_ATTR_TYPE_TMEM_OUTPUT;
+	arg->params[0].u.tmem.buf_ptr = pa;
+	arg->params[0].u.tmem.size = sz;
+	arg->params[0].u.tmem.shm_ref = (unsigned long)shm;
 	arg->ret = TEEC_SUCCESS;
 	return;
 bad:
@@ -292,19 +287,18 @@ static void cmd_free_suppl(struct tee_context *ctx, struct tee_shm *shm)
 static void handle_rpc_func_cmd_shm_free(struct tee_context *ctx,
 					 struct optee_msg_arg *arg)
 {
-	struct optee_msg_param *params = OPTEE_MSG_GET_PARAMS(arg);
 	struct tee_shm *shm;
 
 	arg->ret_origin = TEEC_ORIGIN_COMMS;
 
 	if (arg->num_params != 1 ||
-	    params->attr != OPTEE_MSG_ATTR_TYPE_VALUE_INPUT) {
+	    arg->params[0].attr != OPTEE_MSG_ATTR_TYPE_VALUE_INPUT) {
 		arg->ret = TEEC_ERROR_BAD_PARAMETERS;
 		return;
 	}
 
-	shm = (struct tee_shm *)(unsigned long)params->u.value.b;
-	switch (params->u.value.a) {
+	shm = (struct tee_shm *)(unsigned long)arg->params[0].u.value.b;
+	switch (arg->params[0].u.value.a) {
 	case OPTEE_MSG_RPC_SHM_TYPE_APPL:
 		cmd_free_suppl(ctx, shm);
 		break;
@@ -324,8 +318,7 @@ static void handle_rpc_func_cmd(struct tee_context *ctx, struct optee *optee,
 
 	arg = tee_shm_get_va(shm, 0);
 	if (IS_ERR(arg)) {
-		dev_err(optee->dev, "%s: tee_shm_get_va %p failed\n",
-			__func__, shm);
+		pr_err("%s: tee_shm_get_va %p failed\n", __func__, shm);
 		return;
 	}
 
@@ -395,8 +388,8 @@ void optee_handle_rpc(struct tee_context *ctx, struct optee_rpc_param *param)
 		handle_rpc_func_cmd(ctx, optee, shm);
 		break;
 	default:
-		dev_warn(optee->dev, "Unknown RPC func 0x%x\n",
-			 (u32)OPTEE_SMC_RETURN_GET_RPC_FUNC(param->a0));
+		pr_warn("Unknown RPC func 0x%x\n",
+			(u32)OPTEE_SMC_RETURN_GET_RPC_FUNC(param->a0));
 		break;
 	}
 

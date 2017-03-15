@@ -194,29 +194,9 @@ struct optee_msg_arg {
 	u32 ret_origin;
 	u32 num_params;
 
-	/*
-	 * this struct is 8 byte aligned since the 'struct optee_msg_param'
-	 * which follows requires 8 byte alignment.
-	 *
-	 * Commented out element used to visualize the layout dynamic part
-	 * of the struct. This field is not available at all if
-	 * num_params == 0.
-	 *
-	 * params is accessed through the macro OPTEE_MSG_GET_PARAMS
-	 *
-	 * struct optee_msg_param params[num_params];
-	 */
-} __aligned(8);
-
-/**
- * OPTEE_MSG_GET_PARAMS - return pointer to struct optee_msg_param *
- *
- * @x: Pointer to a struct optee_msg_arg
- *
- * Returns a pointer to the params[] inside a struct optee_msg_arg.
- */
-#define OPTEE_MSG_GET_PARAMS(x) \
-	(struct optee_msg_param *)(((struct optee_msg_arg *)(x)) + 1)
+	/* num_params tells the actual number of element in params */
+	struct optee_msg_param params[0];
+};
 
 /**
  * OPTEE_MSG_GET_ARG_SIZE - return size of struct optee_msg_arg
@@ -281,8 +261,6 @@ struct optee_msg_arg {
  * Returns revision in 2 32-bit words in the same way as
  * OPTEE_MSG_CALLS_REVISION described above.
  */
-#define OPTEE_MSG_OS_OPTEE_REVISION_MAJOR	1
-#define OPTEE_MSG_OS_OPTEE_REVISION_MINOR	0
 #define OPTEE_MSG_FUNCID_GET_OS_REVISION	0x0001
 
 /*
@@ -371,7 +349,12 @@ struct optee_msg_arg {
 #define OPTEE_MSG_RPC_CMD_GET_TIME	3
 
 /*
- * Wait queue primitive, helper for secure world to implement a wait queue
+ * Wait queue primitive, helper for secure world to implement a wait queue.
+ *
+ * If secure world need to wait for a secure world mutex it issues a sleep
+ * request instead of spinning in secure world. Conversely is a wakeup
+ * request issued when a secure world mutex with a thread waiting thread is
+ * unlocked.
  *
  * Waiting on a key
  * [in] param[0].u.value.a OPTEE_MSG_RPC_WAIT_QUEUE_SLEEP
