@@ -14,6 +14,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/arm-smccc.h>
 #include <linux/errno.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -329,9 +330,8 @@ static bool optee_msg_exchange_capabilities(optee_invoke_fn *invoke_fn,
 	 * point of view) or not, is_smp() returns the the information
 	 * needed, but can't be called directly from here.
 	 */
-#ifndef CONFIG_SMP
-	a1 |= OPTEE_SMC_NSEC_CAP_UNIPROCESSOR;
-#endif
+	if (!IS_ENABLED(CONFIG_SMP) || nr_cpu_ids == 1)
+		a1 |= OPTEE_SMC_NSEC_CAP_UNIPROCESSOR;
 
 	invoke_fn(OPTEE_SMC_EXCHANGE_CAPABILITIES, a1, 0, 0, 0, 0, 0, 0,
 		  &res.smccc);
@@ -406,6 +406,25 @@ out:
 	return pool;
 }
 
+/* Simple wrapper functions to be able to use a function pointer */
+static void optee_smccc_smc(unsigned long a0, unsigned long a1,
+			    unsigned long a2, unsigned long a3,
+			    unsigned long a4, unsigned long a5,
+			    unsigned long a6, unsigned long a7,
+			    struct arm_smccc_res *res)
+{
+	arm_smccc_smc(a0, a1, a2, a3, a4, a5, a6, a7, res);
+}
+
+static void optee_smccc_hvc(unsigned long a0, unsigned long a1,
+			    unsigned long a2, unsigned long a3,
+			    unsigned long a4, unsigned long a5,
+			    unsigned long a6, unsigned long a7,
+			    struct arm_smccc_res *res)
+{
+	arm_smccc_hvc(a0, a1, a2, a3, a4, a5, a6, a7, res);
+}
+
 static optee_invoke_fn *get_invoke_func(struct device_node *np)
 {
 	const char *method;
@@ -418,9 +437,9 @@ static optee_invoke_fn *get_invoke_func(struct device_node *np)
 	}
 
 	if (!strcmp("hvc", method))
-		return arm_smccc_hvc;
+		return optee_smccc_hvc;
 	else if (!strcmp("smc", method))
-		return arm_smccc_smc;
+		return optee_smccc_smc;
 
 	pr_warn("invalid \"method\" property: %s\n", method);
 	return ERR_PTR(-EINVAL);
@@ -459,7 +478,7 @@ static struct optee *optee_probe(struct device_node *np)
 	 * We have no other option for shared memory, if secure world
 	 * doesn't have any reserved memory we can use we can't continue.
 	 */
-	if (!(sec_caps & OPTEE_SMC_SEC_CAP_HAVE_RESERVERED_SHM))
+	if (!(sec_caps & OPTEE_SMC_SEC_CAP_HAVE_RESERVED_SHM))
 		return ERR_PTR(-EINVAL);
 
 	pool = optee_config_shm_memremap(invoke_fn, &memremaped_shm);

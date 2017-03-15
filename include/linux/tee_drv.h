@@ -266,7 +266,8 @@ int tee_shm_get_pa(struct tee_shm *shm, size_t offs, phys_addr_t *pa);
 int tee_shm_get_id(struct tee_shm *shm);
 
 /**
- * tee_shm_get_from_id() - Find shared memory object and increase referece count
+ * tee_shm_get_from_id() - Find shared memory object and increase reference
+ * count
  * @ctx:	Context owning the shared memory
  * @id:		Id of shared memory object
  * @returns a pointer to 'struct tee_shm' on success or an ERR_PTR on failure

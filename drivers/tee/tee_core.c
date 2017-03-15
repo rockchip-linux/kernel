@@ -618,6 +618,7 @@ static void tee_release_device(struct device *dev)
 	clear_bit(teedev->id, dev_mask);
 	spin_unlock(&driver_lock);
 	mutex_destroy(&teedev->mutex);
+	idr_destroy(&teedev->idr);
 	kfree(teedev);
 }
 
@@ -695,6 +696,7 @@ struct tee_device *tee_device_alloc(const struct tee_desc *teedesc,
 	teedev->num_users = 1;
 	init_completion(&teedev->c_no_users);
 	mutex_init(&teedev->mutex);
+	idr_init(&teedev->idr);
 
 	teedev->desc = teedesc;
 	teedev->pool = pool;

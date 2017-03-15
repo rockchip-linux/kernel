@@ -219,7 +219,7 @@ struct optee_smc_get_shm_config_result {
 /* Normal world works as a uniprocessor system */
 #define OPTEE_SMC_NSEC_CAP_UNIPROCESSOR		BIT(0)
 /* Secure world has reserved shared memory for normal world to use */
-#define OPTEE_SMC_SEC_CAP_HAVE_RESERVERED_SHM	BIT(0)
+#define OPTEE_SMC_SEC_CAP_HAVE_RESERVED_SHM	BIT(0)
 /* Secure world can communicate via previously unregistered shared memory */
 #define OPTEE_SMC_SEC_CAP_UNREGISTERED_SHM	BIT(1)
 #define OPTEE_SMC_FUNCID_EXCHANGE_CAPABILITIES	9
