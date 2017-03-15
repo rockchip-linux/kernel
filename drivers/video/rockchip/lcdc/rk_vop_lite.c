@@ -148,11 +148,17 @@ static int vop_standby_enable(struct vop_device *vop_dev)
 	spin_lock(&vop_dev->reg_lock);
 	if (likely(vop_dev->clk_on)) {
 		vop_dev->sync.stdbyfin.done = 0;
+		if (VOP_CHIP(vop_dev) == VOP_RV1108) {
+			vop_msk_reg(vop_dev, WIN0_CTRL0, V_WIN0_EN(0));
+			vop_msk_reg(vop_dev, WIN1_CTRL0, V_WIN1_EN(0));
+		} else {
+			val = V_IMD_VOP_DMA_STOP(1);
+			vop_msk_reg(vop_dev, SYS_CTRL2, val);
+		}
 
 		vop_msk_reg(vop_dev, DSP_CTRL2, V_DSP_BLANK_EN(1));
 		/*vop_mask_writel(vop_dev, INTR_CLEAR0, INTR_MASK, INTR_MASK);*/
-		val = V_IMD_VOP_STANDBY_EN(1) | V_IMD_VOP_DMA_STOP(1) |
-			V_IMD_DSP_OUT_ZERO(1);
+		val = V_IMD_VOP_STANDBY_EN(1) | V_IMD_DSP_OUT_ZERO(1);
 		vop_msk_reg(vop_dev, SYS_CTRL2, val);
 		vop_cfg_done(vop_dev);
 		spin_unlock(&vop_dev->reg_lock);
@@ -197,6 +203,13 @@ static int vop_standby_disable(struct vop_device *vop_dev)
 			dev_err(vop_dev->dev, "wait frame start timeout %dms\n",
 				vop_dev->sync.frmst_to);
 			return -ETIMEDOUT;
+		}
+		if (VOP_CHIP(vop_dev) == VOP_RV1108) {
+			vop_msk_reg(vop_dev, WIN0_CTRL0,
+				    V_WIN0_EN(vop_dev->driver.win[0]->state));
+			vop_msk_reg(vop_dev, WIN1_CTRL0,
+				    V_WIN1_EN(vop_dev->driver.win[1]->state));
+			vop_cfg_done(vop_dev);
 		}
 	} else {
 		spin_unlock(&vop_dev->reg_lock);
