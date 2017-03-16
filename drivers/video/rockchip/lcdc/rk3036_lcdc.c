@@ -524,8 +524,9 @@ static int rk3036_lcdc_pre_init(struct rk_lcdc_driver *dev_drv)
 
 	/*backup reg config at uboot*/
 	rk_lcdc_read_reg_defalut_cfg(lcdc_dev);
-	if (lcdc_readl(lcdc_dev, AXI_BUS_CTRL) & m_TVE_DAC_DCLK_EN)
-		dev_drv->cur_screen->type = SCREEN_TVOUT;
+	if (support_uboot_display())
+		if (lcdc_readl(lcdc_dev, AXI_BUS_CTRL) & m_TVE_DAC_DCLK_EN)
+			dev_drv->cur_screen->type = SCREEN_TVOUT;
 
 	lcdc_msk_reg(lcdc_dev, SYS_CTRL, m_AUTO_GATING_EN,
 		     v_AUTO_GATING_EN(0));
