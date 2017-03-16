@@ -399,8 +399,6 @@ static int __init rk_pwm_probe(struct platform_device *pdev)
 	int pwm_id;
 	int pwm_freq;
 	int count;
-	int pwrkey;
-	int scancode;
 
 	pr_err(".. rk pwm remotectl v1.1 init\n");
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -548,12 +546,13 @@ static int __init rk_pwm_probe(struct platform_device *pdev)
 		 * if atf doesn't support, return probe success to abandon atf
 		 * function and still use kernel pwm parse function
 		 */
-		ret = 0;
 		goto end;
 	}
 	rockchip_psci_remotectl_config(REMOTECTL_SET_PWM_CH, pwm_id);
 	for (j = 0; j < num; j++) {
 		for (i = 0; i < remotectl_button[j].nbuttons; i++) {
+			int scancode, pwrkey;
+
 			if (remotectl_button[j].key_table[i].keycode
 			    != KEY_POWER)
 				continue;
@@ -568,6 +567,7 @@ static int __init rk_pwm_probe(struct platform_device *pdev)
 		}
 	}
 	rockchip_psci_remotectl_config(REMOTECTL_ENABLE, 1);
+end:
 #endif
 	return 0;
 error_irq:
@@ -576,7 +576,6 @@ error_pclk:
 	clk_unprepare(p_clk);
 error_clk:
 	clk_unprepare(clk);
-end:
 	return ret;
 }
 
