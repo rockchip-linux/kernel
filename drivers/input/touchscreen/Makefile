@@ -7,7 +7,7 @@
 wm97xx-ts-y := wm97xx-core.o
 obj-$(CONFIG_TOUCHSCREEN_ZET62XX)        += zet62xx/
 obj-$(CONFIG_TOUCHSCREEN_GSL3673)	+= gsl3673.o gsl_point_id.o
-obj-$(CONFIG_TOUCHSCREEN_GSLX680)	+= rockchip_gslX680_rk3128.o
+obj-$(CONFIG_TOUCHSCREEN_GSLX680)	+= rockchip_gslX680_rk312x.o gsl_point_id.o
 obj-$(CONFIG_TOUCHSCREEN_GSLX680_VR)	+= gslx680.o gsl_point_id.o
 obj-$(CONFIG_TOUCHSCREEN_GSLX680_PX5)	+= rockchip_gslX680_px5.o gsl_point_id.o
 obj-$(CONFIG_TOUCHSCREEN_CT36X_TS)     += ct36x/
