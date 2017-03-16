@@ -94,3 +94,31 @@ camera2: camera-module@36-1 {
 	rockchip,camera-module-flash-support = <0>;
 	rockchip,camera-module-mipi-dphy-index = <0>;
 };
+
+camera3: camera-module@60 {
+	status = "okay";
+	compatible = "omnivision,ov7251-bw-v4l2-i2c-subdev";
+	reg = <0x60>;
+	device_type = "v4l2-i2c-subdev";
+	clocks = <&clk_mipicsi_out>;
+	clock-names = "clk_mipicsi_out";
+	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
+	pinctrl-0 = <&cam0_default_pins>;
+	pinctrl-1 = <&cam0_sleep_pins>;
+	rockchip,pd-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
+	rockchip,camera-module-mclk-name = "clk_mipicsi_out";
+	rockchip,camera-module-facing = "back";
+	rockchip,camera-module-name = "NAVA";
+	rockchip,camera-module-len-name = "FISHEYE";
+	rockchip,camera-module-fov-h = "128";
+	rockchip,camera-module-fov-v = "55.7";
+	rockchip,camera-module-orientation = <0>;
+	rockchip,camera-module-iq-flip = <0>;
+	rockchip,camera-module-iq-mirror = <0>;
+	rockchip,camera-module-flip = <0>;
+	rockchip,camera-module-mirror = <0>;
+	/* resolution.w, resolution.h, defrect.left, defrect.top, defrect.w, defrect.h */
+	rockchip,camera-module-defrect0 = <640 480 0 0 640 480>;
+	rockchip,camera-module-flash-support = <0>;
+	rockchip,camera-module-mipi-dphy-index = <0>;
+};
