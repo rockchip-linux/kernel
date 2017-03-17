@@ -53,6 +53,38 @@ static struct rk_display_device *disp_hdmi_devices;
 static struct rk_lcdc_driver *prm_dev_drv;
 static struct rk_lcdc_driver *ext_dev_drv;
 
+static ssize_t show_disp_info(struct device *dev,
+			      struct device_attribute *attr, char *buf)
+{
+	struct rk_drm_private *rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
+	struct rk_lcdc_driver *dev_drv =
+			rk_drm_priv->screen_priv[0].lcdc_dev_drv;
+
+	if (dev_drv->ops->get_disp_info)
+		return dev_drv->ops->get_disp_info(dev_drv, buf, 0);
+
+	return 0;
+}
+
+static struct device_attribute rk_drm_fb_attrs[] = {
+	__ATTR(disp_info, S_IRUGO, show_disp_info, NULL),
+};
+
+static int rk_drm_fb_create_sysfs(struct rk_lcdc_driver *dev_drv)
+{
+	int r, t;
+
+	for (t = 0; t < ARRAY_SIZE(rk_drm_fb_attrs); t++) {
+		r = device_create_file(dev_drv->dev, &rk_drm_fb_attrs[t]);
+		if (r) {
+			dev_err(dev_drv->dev, "failed to create sysfs file\n");
+			return r;
+		}
+	}
+
+	return 0;
+}
+
 void rk_drm_display_register(struct rk_display_ops *extend_ops,
 			     void *displaydata, int type)
 {
@@ -883,6 +915,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 					    struct fb_modelist, list);
 		mode = &modelist->mode;
 
+		rk_drm_fb_create_sysfs(dev_drv);
 		if (dev_drv->ops->open)
 			dev_drv->ops->open(dev_drv, 0, 1);
 		if (dev_drv->ops->mmu_en)
