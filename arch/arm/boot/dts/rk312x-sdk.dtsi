@@ -190,6 +190,7 @@
 		//power-gpio = <&gpio0 GPIO_C5 GPIO_ACTIVE_LOW>;
 		max-x = <1280>;
 		max-y = <800>;
+		status = "disabled";
 	};
 	/*
 	ts@01 {
@@ -633,6 +634,7 @@
 	/* gpio: 0-irq, 1-pwr_hold */
 	gpios = <&gpio2 GPIO_B1 GPIO_ACTIVE_HIGH>, <&gpio1 GPIO_A2 GPIO_ACTIVE_HIGH>;
 	act8931,system-power-controller;
+	status = "disabled";
 
 	regulators {
 
