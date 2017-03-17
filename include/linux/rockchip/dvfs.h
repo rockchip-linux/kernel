@@ -262,10 +262,7 @@ static inline int dvfs_clk_get_limit(struct dvfs_node *clk_dvfs_node, unsigned i
 static inline int dvfs_clk_disable_limit(struct dvfs_node *clk_dvfs_node){ return 0; };
 static inline void dvfs_clk_boost(struct dvfs_node *clk_dvfs_node,
 				  unsigned long boost_freq,
-				  unsigned long delay)
-{
-	return 0;
-};
+				  unsigned long delay){ };
 static inline int clk_disable_dvfs(struct dvfs_node *clk_dvfs_node){ return 0; };
 static inline int clk_enable_dvfs(struct dvfs_node *clk_dvfs_node){ return 0; };
 static inline void dvfs_disable_temp_limit(void) {};
