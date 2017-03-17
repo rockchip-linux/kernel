@@ -472,7 +472,7 @@ u32 flash_init(void __iomem *nandc_addr)
 		}
 	}
 	if (id_byte[0][1] == 0xDA) {
-		nand_para.blk_per_plane = 2048;
+		nand_para.plane_per_die = 2;
 		nand_para.nand_id[1] = 0xDA;
 	}
 	flash_die_info_init();

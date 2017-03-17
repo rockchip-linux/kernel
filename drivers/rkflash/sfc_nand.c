@@ -24,6 +24,8 @@
 
 #define SFC_NAND_PAGE_MAX_SIZE		2112
 
+static u8 id_byte[8];
+
 struct SFC_NAND_DEV_T {
 	u32 capacity;
 	u8 manufacturer;
@@ -34,7 +36,7 @@ struct SFC_NAND_DEV_T {
 
 static struct NAND_PARA_INFO_T  nand_para = {
 	2,
-	{0x98, 0xC2, 0x98, 0, 0, 0},
+	{0x98, 0xC2, 0, 0, 0, 0},
 	TOSHIBA,
 	1,
 	4,
@@ -243,7 +245,7 @@ u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	return ret;
 }
 
-int sfc_nand_read_id(u8 *data)
+static int sfc_nand_read_id_raw(u8 *data)
 {
 	int ret;
 	union SFCCMD_DATA sfcmd;
@@ -397,17 +399,22 @@ static void ftl_flash_init(void)
 
 u32 sfc_nand_init(void __iomem *sfc_addr)
 {
-	u8 id_byte[5];
 	u8 ecc_bits = 0;
 
 	PRINT_E("sfc_nand_init\n");
 	sfc_init(sfc_addr);
-	sfc_nand_read_id(id_byte);
+	sfc_nand_read_id_raw(id_byte);
 	PRINT_E("sfc_nand id: %x %x %x\n", id_byte[0], id_byte[1], id_byte[2]);
 	if ((0xFF == id_byte[0] && 0xFF == id_byte[1]) ||
 	    (0x00 == id_byte[0] && 0x00 == id_byte[1]))
-		return SFC_ERROR;
+		return FTL_NO_FLASH;
+	if ((id_byte[1] != 0xC2) && (id_byte[1] != 0xCB))
+		return FTL_UNSUPPORTED_FLASH;
 
+	if (id_byte[1] == 0xCB) {
+		nand_para.plane_per_die = 2;
+		nand_para.nand_id[1] = 0xCB;
+	}
 	sfc_nand_dev.manufacturer = id_byte[0];
 	sfc_nand_dev.mem_type = id_byte[1];
 
@@ -427,4 +434,10 @@ u32 sfc_nand_init(void __iomem *sfc_addr)
 
 void sfc_nand_deinit(void)
 {
+}
+
+int sfc_nand_read_id(u8 *data)
+{
+	memcpy(data, id_byte, 3);
+	return 0;
 }
