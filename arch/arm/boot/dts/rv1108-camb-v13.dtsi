@@ -69,7 +69,9 @@ camera2: camera-module@1a {
 	pinctrl-names = "rockchip,camera_default", "rockchip,camera_sleep";
 	pinctrl-0 = <&cif_dvp_d0d1 &cif_dvp_d2d9 &cif_dvp_d10d11
 		&cif_dvp_clk_in &cif_dvp_clk_out &cif_dvp_sync>;
-	pinctrl-1 = <&cif_dvp_sleep>;
+	pinctrl-1 = <&cif_dvp_d0d1_sleep &cif_dvp_d2d9_sleep
+		&cif_dvp_d10d11_sleep &cif_dvp_clk_in_sleep
+		&cif_dvp_clk_out_sleep &cif_dvp_sync_sleep>;
 	rockchip,pd-gpio = <&gpio3 GPIO_D1 GPIO_ACTIVE_LOW>;
 	rockchip,pwr-gpio = <&gpio3 GPIO_B5 GPIO_ACTIVE_HIGH>;
 	rockchip,rst-gpio = <&gpio3 GPIO_B0 GPIO_ACTIVE_LOW>;
