@@ -342,6 +342,14 @@
 
 &rk3126_cif_sensor{
 	status = "okay";
+
+	gc2145 {
+		status = "okay";
+	};
+
+	gc0312 {
+		status = "okay";
+	};
 };
 
 &gmac {
