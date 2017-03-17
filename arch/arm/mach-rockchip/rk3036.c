@@ -664,6 +664,9 @@ static void __init rk3036_init_late(void)
 
 static void __init rk3036_reserve(void)
 {
+	/* reserve memory for uboot */
+	rockchip_uboot_mem_reserve();
+
 	/* reserve memory for ION */
 	rockchip_ion_reserve();
 }
