@@ -10,6 +10,7 @@
 			CONFIG_SENSOR_AF_IOCTL_USR	   		= <0>;
 
 		gc2035{
+			status = "disabled";
 			is_front = <0>;
 			rockchip,power = <&gpio2 GPIO_B2 GPIO_ACTIVE_HIGH>;
 			rockchip,powerdown = <&gpio1 GPIO_B1 GPIO_ACTIVE_HIGH>;
@@ -28,6 +29,7 @@
 		};
 
 		gc0308{
+			status = "disabled";
 			is_front = <1>;
 			rockchip,power = <&gpio2 GPIO_B2 GPIO_ACTIVE_HIGH>;
 			rockchip,powerdown = <&gpio1 GPIO_B2 GPIO_ACTIVE_HIGH>;
@@ -46,6 +48,7 @@
 		};
 
 		gc0329{
+			status = "disabled";
 			is_front = <0>;
 			//rockchip,power = <&gpio2 GPIO_B2 GPIO_ACTIVE_HIGH>;
 			//rockchip,power_pmu_name1 = "rk818_ldo4";
@@ -72,6 +75,7 @@
 		};
 
 		gc2145{
+			status = "disabled";
 			is_front = <0>;
 			//rockchip,power = <&gpio2 GPIO_B2 GPIO_ACTIVE_HIGH>;
 			rockchip,powerdown = <&gpio1 GPIO_B3 GPIO_ACTIVE_HIGH>;
@@ -90,6 +94,7 @@
 		};
 
 		gc0312{
+			status = "disabled";
 			is_front = <1>;
 			//rockchip,power = <&gpio2 GPIO_B2 GPIO_ACTIVE_LOW>;
 			rockchip,powerdown = <&gpio3 GPIO_B3 GPIO_ACTIVE_HIGH>;
