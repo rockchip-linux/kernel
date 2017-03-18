@@ -403,7 +403,6 @@
 				rockchip,pins =
 					<GPIO1_B7>,  //CMD
 					<GPIO1_C0>,  //CLK
-					<GPIO1_C1>,  //DET
 					<GPIO1_C2>,  //D0
 					<GPIO1_C3>,  //D1
 					<GPIO1_C4>,  //D2
