@@ -488,6 +488,8 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <8>;
+		resets = <&reset RK3036_RST_EMMC>;
+		reset-names = "mmc_ahb_reset";
 	};
 
 
@@ -509,6 +511,8 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
+		resets = <&reset RK3036_RST_MMC0>;
+		reset-names = "mmc_ahb_reset";
 	};
 
 	sdio: rksdmmc@10218000 {
@@ -527,6 +531,8 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
+		resets = <&reset RK3036_RST_SDIO>;
+		reset-names = "mmc_ahb_reset";
 	};
 	gpu {
 		compatible = "arm,mali400";
