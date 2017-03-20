@@ -32,6 +32,7 @@
 #define DSP_WORK_EABANDON  0x80000001
 #define DSP_WORK_ECOPY     0x80000002
 #define DSP_WORK_ETIMEOUT  0x80000003
+#define DSP_WORK_EUNKNOWN  0x8000ffff
 
 /*
  * User work magic, used by DSP kernel driver to check

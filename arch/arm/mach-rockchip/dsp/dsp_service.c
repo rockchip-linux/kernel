@@ -492,12 +492,13 @@ static long dsp_ioctl(struct file *filp, unsigned int cmd,
 {
 	int ret = 0;
 	struct dsp_session *session = filp->private_data;
-	struct dsp_service *service = session->owner;
+	struct dsp_service *service;
 
 	if (!session)
 		return -EINVAL;
 
 	dsp_debug_enter();
+	service = session->owner;
 
 	switch (cmd) {
 	case DSP_IOC_QUEUE_WORK: {
@@ -529,10 +530,12 @@ static long dsp_ioctl(struct file *filp, unsigned int cmd,
 		} else {
 			struct dsp_user_work user_work;
 
-			if (ret == -EBUSY) {
-				user_work.id = 0;
+			user_work.id = 0;
+			user_work.magic = DSP_RENDER_WORK_MAGIC;
+			if (ret == -EBUSY)
 				user_work.result = DSP_WORK_ETIMEOUT;
-			}
+			else
+				user_work.result = DSP_WORK_EUNKNOWN;
 			if (copy_to_user((void __user *)arg,
 					 &user_work, sizeof(user_work)))
 				dsp_err("dequeue work copy failed\n");
@@ -657,7 +660,7 @@ static int dsp_cdev_create(struct device *dev, struct rk_dsp *dsp)
 		goto out;
 	}
 
-	device_create(dsp->class, dev, dsp->devt, NULL, name);
+	device_create(dsp->class, dev, dsp->devt, NULL, "dsp");
 
 out:
 	if (ret)
@@ -715,7 +718,7 @@ static int dsp_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dsp);
 
 out:
-	if (ret)
+	if (ret && dsp)
 		dsp_cdev_destroy(dsp);
 
 	dsp_debug_leave();
