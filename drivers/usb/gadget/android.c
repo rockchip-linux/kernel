@@ -28,13 +28,16 @@
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
 
-#include "f_uvc.h"
 #include "gadget_chips.h"
 
+#ifdef CONFIG_VIDEO_DEV
+#define VIDEOBUF2_VMALLOC y
+#include "f_uvc.h"
 #include "uvc_queue.c"
 #include "uvc_video.c"
 #include "uvc_v4l2.c"
 #include "f_uvc.c"
+#endif
 #include "f_fs.c"
 #include "f_audio_source.c"
 #include "f_midi.c"
@@ -1022,6 +1025,7 @@ static struct android_usb_function midi_function = {
 	.attributes	= midi_function_attributes,
 };
 
+#ifdef CONFIG_VIDEO_DEV
 DECLARE_UVC_HEADER_DESCRIPTOR(1);
 
 static const struct UVC_HEADER_DESCRIPTOR(1) uvc_control_header = {
@@ -1308,6 +1312,7 @@ static struct android_usb_function webcam_function = {
 	.unbind_config	= webcam_function_unbind_config,
 	.attributes	= webcam_function_attributes,
 };
+#endif
 
 static struct android_usb_function *supported_functions[] = {
 	&ffs_function,
@@ -1319,7 +1324,9 @@ static struct android_usb_function *supported_functions[] = {
 	&accessory_function,
 	&audio_source_function,
 	&midi_function,
+#ifdef CONFIG_VIDEO_DEV
 	&webcam_function,
+#endif
 	NULL
 };
 
