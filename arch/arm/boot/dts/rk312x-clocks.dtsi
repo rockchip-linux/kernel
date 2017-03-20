@@ -522,7 +522,7 @@
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <12 1>;
 						clocks = <&clk_i2s_2ch>, <&xin12m>;
-						clock-output-names = "i2s_clkout";
+						clock-output-names = "clk_i2s_2ch_out";
 						#clock-cells = <0>;
 					};
 
