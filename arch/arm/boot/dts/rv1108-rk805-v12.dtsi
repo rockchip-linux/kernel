@@ -13,7 +13,7 @@
 			regulator-name= "vdd_core";
 			regulator-min-microvolt = <700000>;
 			regulator-max-microvolt = <1500000>;
-			regulator-initial-mode = <0x2>;
+			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-boot-on;
 			regulator-always-on;
@@ -28,7 +28,7 @@
 			regulator-name= "vcc_22";
 			regulator-min-microvolt = <2200000>;
 			regulator-max-microvolt = <2200000>;
-			regulator-initial-mode = <0x2>;
+			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-boot-on;
 			regulator-always-on;
@@ -43,7 +43,7 @@
 			regulator-name= "vcc_ddr";
 			regulator-min-microvolt = <1200000>;
 			regulator-max-microvolt = <1200000>;
-			regulator-initial-mode = <0x2>;
+			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-boot-on;
 			regulator-always-on;
@@ -58,7 +58,7 @@
 			regulator-name= "vcc_33";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
-			regulator-initial-mode = <0x2>;
+			regulator-initial-mode = <0x1>;
 			regulator-initial-state = <3>;
 			regulator-boot-on;
 			regulator-always-on;
