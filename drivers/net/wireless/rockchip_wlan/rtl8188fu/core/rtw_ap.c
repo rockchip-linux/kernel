@@ -2175,7 +2175,15 @@ int rtw_check_beacon_data(_adapter *padapter, u8 *pbuf,  int len)
 	}
 #endif //CONFIG_80211AC_VHT
 
-	pbss_network->Length = get_WLAN_BSSID_EX_sz((WLAN_BSSID_EX  *)pbss_network);
+	if(pbss_network->Configuration.DSConfig <= 14 && padapter->registrypriv.wifi_spec == 1) {
+		uint len = 0;
+		SET_EXT_CAPABILITY_ELE_BSS_COEXIST(pmlmepriv->ext_capab_ie_data, 1);
+		pmlmepriv->ext_capab_ie_len = 10;
+		rtw_set_ie(pbss_network->IEs + pbss_network->IELength, EID_EXTCapability, 8, pmlmepriv->ext_capab_ie_data, &len);
+		pbss_network->IELength += pmlmepriv->ext_capab_ie_len;
+	}
+
+	pbss_network->Length = get_WLAN_BSSID_EX_sz((WLAN_BSSID_EX *)pbss_network);
 
 	rtw_ies_get_chbw(pbss_network->IEs + _BEACON_IE_OFFSET_, pbss_network->IELength - _BEACON_IE_OFFSET_
 		, &pmlmepriv->ori_ch, &pmlmepriv->ori_bw, &pmlmepriv->ori_offset);
@@ -3367,39 +3375,7 @@ void bss_cap_update_on_sta_join(_adapter *padapter, struct sta_info *psta)
 		}
 		
 
-		if (ht_capab & RTW_IEEE80211_HT_CAP_40MHZ_INTOLERANT) {
-
-			if (!psta->ht_40mhz_intolerant) {
-				psta->ht_40mhz_intolerant = 1;
-				pmlmepriv->num_sta_40mhz_intolerant++;
-				DBG_871X("%s STA " MAC_FMT " - HT_CAP_40MHZ_INTOLERANT is set\n" ,
-				   __FUNCTION__, MAC_ARG(psta->hwaddr));
-				beacon_updated = _TRUE;
-			}
-				
-/*
-			if (pmlmepriv->ht_40mhz_intolerant == _FALSE) {
-				
-				pmlmepriv->ht_40mhz_intolerant = _TRUE;				
-			
-				DBG_871X("%s STA " MAC_FMT " - HT_CAP_40MHZ_INTOLERANT is set\n" ,
-				   __FUNCTION__, MAC_ARG(psta->hwaddr));
-
-				beacon_updated = _TRUE;
-			}
-*/			
-
-			/*update ext_capab_ie_len & ext_capab_ie_data for beacon, probersp, assocrsp.*/
-			if (pmlmepriv->ext_capab_ie_len == 0)
-				pmlmepriv->ext_capab_ie_len = 1;
-			SET_EXT_CAPABILITY_ELE_BSS_COEXIST(pmlmepriv->ext_capab_ie_data, 1);
-
-			update_beacon(padapter, _EXT_CAP_IE_, NULL, _FALSE);
-		}		
-		
-	} 
-	else 
-	{
+	} else {
 		if (!psta->no_ht_set) {
 			psta->no_ht_set = 1;
 			pmlmepriv->num_sta_no_ht++;
@@ -3485,21 +3461,8 @@ u8 bss_cap_update_on_sta_leave(_adapter *padapter, struct sta_info *psta)
 		pmlmepriv->num_sta_ht_20mhz--;
 	}
 
-	if (psta->ht_40mhz_intolerant) {
-		psta->ht_40mhz_intolerant = 0;
-		pmlmepriv->num_sta_40mhz_intolerant--;
 
-		/*update ext_capab_ie_len & ext_capab_ie_data for beacon, probersp, assocrsp.*/
-		if ((pmlmepriv->ext_capab_ie_len > 0) && (pmlmepriv->num_sta_40mhz_intolerant == 0)) {
-			SET_EXT_CAPABILITY_ELE_BSS_COEXIST(pmlmepriv->ext_capab_ie_data, 0);
-			update_beacon(padapter, _EXT_CAP_IE_, NULL, _FALSE);
-		}
 		
-		beacon_updated = _TRUE;
-
-		update_beacon(padapter, _HT_ADD_INFO_IE_, NULL, _FALSE);
-	}
-
 	if (rtw_ht_operation_update(padapter) > 0) {
 		update_beacon(padapter, _HT_CAPABILITY_IE_, NULL, _FALSE);
 		update_beacon(padapter, _HT_ADD_INFO_IE_, NULL, _TRUE);
@@ -3572,7 +3535,7 @@ u8 ap_free_sta(_adapter *padapter, struct sta_info *psta, bool active, u16 reaso
 		rtw_indicate_sta_disassoc_event(padapter, psta);
 	}
 
-	report_del_sta_event(padapter, psta->hwaddr, reason, enqueue);
+	report_del_sta_event(padapter, psta->hwaddr, reason, enqueue, _FALSE);
 
 	beacon_updated = bss_cap_update_on_sta_leave(padapter, psta);
 

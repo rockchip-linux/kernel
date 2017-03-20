@@ -71,6 +71,7 @@ struct stassoc_event {
 struct stadel_event {
  unsigned char macaddr[6];
  unsigned char rsvd[2]; //for reason
+ unsigned char locally_generated;
  int mac_id;
 };
 

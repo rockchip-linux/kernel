@@ -253,7 +253,7 @@ void rtw_reset_securitypriv( _adapter *adapter )
 	DBG_871X(FUNC_ADPT_FMT" - End to Disconnect\n", FUNC_ADPT_ARG(adapter));
 }
 
-void rtw_os_indicate_disconnect( _adapter *adapter )
+void rtw_os_indicate_disconnect(_adapter *adapter, u16 reason, u8 locally_generated)
 {
 	//RT_PMKID_LIST   backupPMKIDList[ NUM_PMKID_CACHE ];
 
@@ -262,7 +262,7 @@ _func_enter_;
 	netif_carrier_off(adapter->pnetdev); // Do it first for tx broadcast pkt after disconnection issue!
 
 #ifdef CONFIG_IOCTL_CFG80211
-	rtw_cfg80211_indicate_disconnect(adapter);
+	rtw_cfg80211_indicate_disconnect(adapter, reason, locally_generated);
 #endif //CONFIG_IOCTL_CFG80211
 
 	rtw_indicate_wx_disassoc_event(adapter);

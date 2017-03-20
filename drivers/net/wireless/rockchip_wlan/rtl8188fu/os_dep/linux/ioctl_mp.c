@@ -364,6 +364,7 @@ int rtw_mp_start(struct net_device *dev,
 				 struct iw_request_info *info,
 				 struct iw_point *wrqu, char *extra)
 {
+	int ret = 0;
 	u8 val8;
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
@@ -372,45 +373,15 @@ int rtw_mp_start(struct net_device *dev,
 	rtw_pm_set_ips(padapter, IPS_NONE);
 	LeaveAllPowerSaveMode(padapter);
 
-	if (padapter->registrypriv.mp_mode == 0) {
-		rtw_hal_deinit(padapter);
-		padapter->registrypriv.mp_mode = 1;
-		#ifdef CONFIG_RF_GAIN_OFFSET
-		if (!IS_HARDWARE_TYPE_8814A(padapter))
-			padapter->registrypriv.RegRfKFreeEnable = 1;
-		rtw_hal_read_chip_info(padapter);
-		#endif /*CONFIG_RF_GAIN_OFFSET*/
-		rtw_hal_init(padapter);
-	}
+	if (rtw_mp_cmd(padapter, MP_START, RTW_CMDF_WAIT_ACK) != _SUCCESS)
+		ret = -EPERM;
+	
 
-	if (padapter->registrypriv.mp_mode == 0)
-		return -EPERM;
-
-	if (padapter->mppriv.mode == MP_OFF) {
-		if (mp_start_test(padapter) == _FAIL)
-			return -EPERM;
-		padapter->mppriv.mode = MP_ON;
-		MPT_PwrCtlDM(padapter, 0);
-	}
-	padapter->mppriv.bmac_filter = _FALSE;
-#ifdef CONFIG_RTL8723B
-#ifdef CONFIG_USB_HCI
-	rtw_write32(padapter, 0x765, 0x0000);
-	rtw_write32(padapter, 0x948, 0x0280);
-#else
-	rtw_write32(padapter, 0x765, 0x0000);
-	rtw_write32(padapter, 0x948, 0x0000);
-#endif
-#ifdef CONFIG_FOR_RTL8723BS_VQ0
-	rtw_write32(padapter, 0x765, 0x0000);
-	rtw_write32(padapter, 0x948, 0x0280);
-#endif
-	rtw_write8(padapter, 0x66, 0x27); /*Open BT uart Log*/
-	rtw_write8(padapter, 0xc50, 0x20); /*for RX init Gain*/
-#endif
-	ODM_Write_DIG(&pHalData->odmpriv, 0x20);
-
-	return 0;
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "mp_start %s\n", ret == 0 ? "ok" : "fail");
+	wrqu->length = strlen(extra);
+	
+	return ret;
 }
 
 
@@ -419,23 +390,18 @@ int rtw_mp_stop(struct net_device *dev,
 				struct iw_request_info *info,
 				struct iw_point *wrqu, char *extra)
 {
+	int ret = 0;
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	struct hal_ops *pHalFunc = &padapter->HalFunc;
 
-	if (padapter->registrypriv.mp_mode == 1) {
+	if (rtw_mp_cmd(padapter, MP_STOP, RTW_CMDF_WAIT_ACK) != _SUCCESS)
+		ret = -EPERM;
 
-		MPT_DeInitAdapter(padapter);
-		pHalFunc->hal_deinit(padapter);
-		padapter->registrypriv.mp_mode = 0;
-		pHalFunc->hal_init(padapter);
-	}
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "mp_stop %s\n", ret == 0 ? "ok" : "fail");
+	wrqu->length = strlen(extra);
 
-	if (padapter->mppriv.mode != MP_OFF) {
-		mp_stop_test(padapter);
-		padapter->mppriv.mode = MP_OFF;
-	}
-
-	return 0;
+	return ret;
 }
 
 
@@ -477,7 +443,7 @@ int rtw_mp_rate(struct net_device *dev,
 	if (padapter->mppriv.rateidx >= DESC_RATEVHTSS4MCS9)
 		return -EINVAL;
 
-	pMptCtx->MptRateIndex = padapter->mppriv.rateidx;
+	pMptCtx->MptRateIndex = HwRateToMPTRate(padapter->mppriv.rateidx);
 	SetDataRate(padapter);
 
 	wrqu->length = strlen(extra);
@@ -520,8 +486,12 @@ int rtw_mp_bandwidth(struct net_device *dev,
 	int cur_ch_offset;
 	PADAPTER padapter = rtw_netdev_priv(dev);
 	HAL_DATA_TYPE	*pHalData	= GET_HAL_DATA(padapter);
+	u8 input[wrqu->length];
 
-	if (sscanf(extra, "40M=%d,shortGI=%d", &bandwidth, &sg) > 0)
+	if (copy_from_user(input, wrqu->pointer, wrqu->length))
+		return -EFAULT;
+
+	if (sscanf(input, "40M=%d,shortGI=%d", &bandwidth, &sg) > 0)
 		DBG_871X("%s: bw=%d sg=%d\n", __func__, bandwidth , sg);
 
 	if (bandwidth == 1)
@@ -531,11 +501,14 @@ int rtw_mp_bandwidth(struct net_device *dev,
 
 	padapter->mppriv.bandwidth = (u8)bandwidth;
 	padapter->mppriv.preamble = sg;
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "Change BW %d to BW %d\n", pHalData->CurrentChannelBW , bandwidth);
 
 	SetBandwidth(padapter);
 	pHalData->CurrentChannelBW = bandwidth;
 	/*cur_ch_offset =  rtw_get_offset_by_ch(padapter->mppriv.channel);*/
 	/*set_channel_bwmode(padapter, padapter->mppriv.channel, cur_ch_offset, bandwidth);*/
+	wrqu->length = strlen(extra);
 
 	return 0;
 }
@@ -868,7 +841,7 @@ int rtw_mp_arx(struct net_device *dev,
 			   struct iw_point *wrqu, char *extra)
 {
 	int bStartRx = 0, bStopRx = 0, bQueryPhy = 0, bQueryMac = 0, bSetBssid = 0;
-	int bmac_filter = 0, bfilter_init = 0, bmon = 0, bSmpCfg = 0;
+	int bmac_filter = 0, bfilter_init = 0, bmon = 0, bSmpCfg = 0, bloopbk = 0;
 	u8		input[wrqu->length];
 	char *pch, *ptmp, *token, *tmp[2] = {0x00, 0x00};
 	u32 i = 0, ii = 0, jj = 0, kk = 0, cnts = 0, ret;
@@ -896,6 +869,7 @@ int rtw_mp_arx(struct net_device *dev,
 	bmac_filter = (strncmp(input, "accept_mac", 10) == 0) ? 1 : 0;
 	bmon = (strncmp(input, "mon=", 4) == 0) ? 1 : 0;
 	bSmpCfg = (strncmp(input , "smpcfg=" , 7) == 0) ? 1 : 0;
+	pmppriv->bloopback = (strncmp(input, "loopbk", 6) == 0) ? 1 : 0; /* strncmp TRUE is 0*/
 
 	if (bSetBssid == 1) {
 		pch = input;
@@ -992,6 +966,14 @@ int rtw_mp_arx(struct net_device *dev,
 			sprintf(extra , "Indicate By Normal Format\n");
 			SetPacketRx(padapter, _TRUE, _FALSE);
 		}
+	}
+
+	if (pmppriv->bloopback == _TRUE) {
+		sprintf(extra , "Enter MAC LoopBack mode\n");
+		_rtw_write32(padapter, 0x100, 0xB0106FF);
+		DBG_871X("0x100 :0x%x" , _rtw_read32(padapter, 0x100));
+		_rtw_write16(padapter, 0x608, 0x30c);
+		DBG_871X("0x100 :0x%x" , _rtw_read32(padapter, 0x608));
 	}
 
 	wrqu->length = strlen(extra) + 1;
@@ -1165,6 +1147,10 @@ int rtw_mp_reset_stats(struct net_device *dev,
 	rtw_reset_phy_rx_counters(padapter);
 	rtw_reset_mac_rx_counters(padapter);
 
+	_rtw_memset(extra, 0, wrqu->length);
+	sprintf(extra, "mp_reset_stats ok\n");
+	wrqu->length = strlen(extra);
+
 	return 0;
 }
 
@@ -1225,27 +1211,34 @@ int rtw_mp_phypara(struct net_device *dev,
 
 int rtw_mp_SetRFPath(struct net_device *dev,
 					 struct iw_request_info *info,
-					 union iwreq_data *wrqu, char *extra)
+					 struct iw_point *wrqu, char *extra)
 {
 	PADAPTER padapter = rtw_netdev_priv(dev);
-	char	input[wrqu->data.length];
+	char	input[wrqu->length];
 	int		bMain = 1, bTurnoff = 1;
 
-	if (copy_from_user(input, wrqu->data.pointer, wrqu->data.length))
-		return -EFAULT;
 	DBG_871X("%s:iwpriv in=%s\n", __func__, input);
+
+	if (copy_from_user(input, wrqu->pointer, wrqu->length))
+		return -EFAULT;
 
 	bMain = strncmp(input, "1", 2); /* strncmp TRUE is 0*/
 	bTurnoff = strncmp(input, "0", 3); /* strncmp TRUE is 0*/
 
+	_rtw_memset(extra, 0, wrqu->length);
+
 	if (bMain == 0) {
 		MP_PHY_SetRFPathSwitch(padapter, _TRUE);
 		DBG_871X("%s:PHY_SetRFPathSwitch=TRUE\n", __func__);
+		sprintf(extra, "mp_setrfpath Main\n");
 	} else if (bTurnoff == 0) {
 		MP_PHY_SetRFPathSwitch(padapter, _FALSE);
 		DBG_871X("%s:PHY_SetRFPathSwitch=FALSE\n", __func__);
+		sprintf(extra, "mp_setrfpath Aux\n");
 	}
 
+	wrqu->length = strlen(extra);
+	
 	return 0;
 }
 
@@ -1365,7 +1358,7 @@ int rtw_mp_mon(struct net_device *dev,
 		/*rtw_disassoc_cmd(padapter, 0, _TRUE);*/
 		if (check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE) {
 			rtw_disassoc_cmd(padapter, 500, _TRUE);
-			rtw_indicate_disconnect(padapter);
+			rtw_indicate_disconnect(padapter, 0, _FALSE);
 			/*rtw_free_assoc_resources(padapter, 1);*/
 		}
 		rtw_pm_set_ips(padapter, IPS_NORMAL);

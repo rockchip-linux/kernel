@@ -242,7 +242,7 @@ struct sta_info {
 	u8	SNonce[32];
 	u8	ANonce[32];
 	u32	TDLS_PeerKey_Lifetime;
-	u16	TPK_count;
+	u32	TPK_count;
 	_timer	TPK_timer;
 	struct TDLS_PeerKey	tpk;
 #ifdef CONFIG_TDLS_CH_SW	

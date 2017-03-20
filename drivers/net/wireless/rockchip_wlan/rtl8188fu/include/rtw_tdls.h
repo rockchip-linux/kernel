@@ -42,7 +42,7 @@
 #define	TDLS_WAIT_CH_RSP_STATE			BIT(19)			/* 0x00080000 */	/* Wait Ch. response as we are TDLS channel switch initiator */
 
 
-#define	TDLS_TPK_RESEND_COUNT			1800	/*Unit: seconds */
+#define	TDLS_TPK_RESEND_COUNT			86400	/*Unit: seconds */
 #define	TDLS_CH_SWITCH_TIME				15
 #define	TDLS_CH_SWITCH_TIMEOUT			30
 #define	TDLS_CH_SWITCH_OPER_OFFLOAD_TIMEOUT	10
@@ -119,7 +119,7 @@ void free_tdls_sta(_adapter *padapter, struct sta_info *ptdls_sta);
 #ifdef CONFIG_TDLS_CH_SW
 void rtw_tdls_set_ch_sw_oper_control(_adapter *padapter, u8 enable);
 void rtw_tdls_ch_sw_back_to_base_chnl(_adapter *padapter);
-s32 rtw_tdls_do_ch_sw(_adapter *padapter, u8 chnl_type, u8 channel, u8 channel_offset, u16 bwmode, u16 ch_switch_time);
+s32 rtw_tdls_do_ch_sw(_adapter *padapter, struct sta_info *ptdls_sta, u8 chnl_type, u8 channel, u8 channel_offset, u16 bwmode, u16 ch_switch_time);
 void rtw_tdls_chsw_oper_done(_adapter* padapter);
 #endif
 

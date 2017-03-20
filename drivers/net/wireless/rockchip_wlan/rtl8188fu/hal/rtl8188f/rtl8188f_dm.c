@@ -270,8 +270,8 @@ static void Update_ODM_ComInfo_8188f(PADAPTER	Adapter)
 					 | ODM_BB_DYNAMIC_TXPWR
 					 | ODM_BB_FA_CNT
 					 | ODM_BB_RSSI_MONITOR
-					 /*| ODM_BB_CCK_PD
-					 | ODM_BB_PWR_SAVE */
+					 | ODM_BB_CCK_PD
+					 /* | ODM_BB_PWR_SAVE */
 					 | ODM_BB_CFO_TRACKING
 					 | ODM_MAC_EDCA_TURBO
 					 | ODM_RF_TX_PWR_TRACK

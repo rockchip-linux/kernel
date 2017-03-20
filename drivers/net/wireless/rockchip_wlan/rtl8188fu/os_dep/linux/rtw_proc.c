@@ -968,7 +968,7 @@ static ssize_t proc_set_tx_power_ext_info(struct file *file, const char __user *
 	return count;
 }
 
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 static int proc_get_kfree_flag(struct seq_file *m, void *v)
 {
 	struct net_device *dev = m->private;
@@ -1167,7 +1167,7 @@ static ssize_t proc_set_tx_gain_offset(struct file *file, const char __user *buf
 
 	return count;
 }
-#endif /* CONFIG_RF_GAIN_OFFSET */
+#endif /* CONFIG_RF_POWER_TRIM */
 
 #ifdef CONFIG_BT_COEXIST
 ssize_t proc_set_btinfo_evt(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
@@ -1644,7 +1644,7 @@ const struct rtw_proc_hdl adapter_proc_hdls [] = {
 	{"tx_power_by_rate", proc_get_tx_power_by_rate, NULL},
 	{"tx_power_limit", proc_get_tx_power_limit, NULL},
 	{"tx_power_ext_info", proc_get_tx_power_ext_info, proc_set_tx_power_ext_info},
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 	{"tx_gain_offset", proc_get_dummy, proc_set_tx_gain_offset},
 	{"kfree_flag", proc_get_kfree_flag, proc_set_kfree_flag},
 	{"kfree_bb_gain", proc_get_kfree_bb_gain, proc_set_kfree_bb_gain},

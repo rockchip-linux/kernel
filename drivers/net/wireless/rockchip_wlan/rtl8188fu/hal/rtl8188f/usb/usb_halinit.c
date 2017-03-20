@@ -225,33 +225,6 @@ static u8 _LLTWrite(
 }
 
 
-static u8 _LLTRead(
-	IN  PADAPTER	Adapter,
-	IN	u32		address
-)
-{
-	int		count = 0;
-	u32		value = _LLT_INIT_ADDR(address) | _LLT_OP(_LLT_READ_ACCESS);
-
-	rtw_write32(Adapter, REG_LLT_INIT, value);
-
-	/*polling and get value */
-	do {
-
-		value = rtw_read32(Adapter, REG_LLT_INIT);
-		if (_LLT_NO_ACTIVE == _LLT_OP_VALUE(value))
-			return (u8)value;
-
-		if (count > POLLING_LLT_THRESHOLD) {
-			/*RT_TRACE(COMP_INIT,DBG_SERIOUS,("Failed to polling read LLT done at address %d!\n", address)); */
-			break;
-		}
-	} while (count++);
-
-	return 0xFF;
-
-}
-
 
 /*--------------------------------------------------------------- */
 /* */
@@ -1006,6 +979,69 @@ rt_rf_power_state RfOnOffDetect(IN	PADAPTER pAdapter)
 
 void _ps_open_RF(_adapter *padapter);
 
+#ifdef CONFIG_8188FTV_SOLUTION_D
+/* 
+Write corresponding register of efuse. Indirect Write.
+Offset:	reg offset.
+Value:	u8 value
+*/
+VOID WriteUSB2PHYReg(PADAPTER Adapter, u8 Offset, u8 Value)
+{
+	rtw_write8(Adapter, 0xFE41, Value);
+	rtw_write8(Adapter, 0xFE40, Offset);
+	rtw_write8(Adapter, 0xFE42, 0x81);
+}
+
+/* 
+Read corresponding register of efuse. Indirect Read.
+Offset: reg offset.
+*/
+u1Byte ReadUSB2PHYReg(PADAPTER Adapter, u8 Offset)
+{
+	u8 value = 0;
+	rtw_write8(Adapter, 0xFE40, Offset);
+	rtw_write8(Adapter, 0xFE42, 0x81);
+	value = rtw_read8(Adapter, 0xFE43);
+
+	return value;
+}
+
+void rtl8188fu_solution_d(PADAPTER Adapter)
+{
+	u8 reg_val[6] = {0};
+	u16 reg0mask = BIT(10) | BIT(11) | BIT(12) | BIT(13);
+	u16 reg1mask = BIT(0) | BIT(1) | BIT(2) | BIT(3);
+
+	reg_val[0] = PHY_QueryMacReg(Adapter, 0x10, reg0mask);	/* efuse 0x3   */
+	reg_val[1] = PHY_QueryMacReg(Adapter, 0xC4, reg1mask);	/* efuse 0xd   */
+	reg_val[2] = ReadUSB2PHYReg(Adapter, 0xC1);				/* efuse 0x131 */
+	reg_val[3] = PHY_QueryMacReg(Adapter, 0x4, BIT(11)); 	/* efuse 0xa   */
+	reg_val[4] = ReadUSB2PHYReg(Adapter, 0xD2);				/* efuse 0x13a */
+	reg_val[5] = ReadUSB2PHYReg(Adapter, 0xD3);				/* efuse 0x13b */
+
+	if(!(reg_val[3] == 0 && reg_val[4] == 0 && reg_val[5] == 0x31)) /* solution "EP" not applied */
+	{
+		if((reg_val[0] == 0xC && reg_val[1] == 0xC && reg_val[2] == 0xAE)		/* solution O */
+			||(reg_val[0] == 0xF && reg_val[1] == 0xC && reg_val[2] == 0xAE)	/* solution A */
+			||(reg_val[0] == 0xC && reg_val[1] == 0xB && reg_val[2] == 0xAE)	/* solution B */
+			||(reg_val[0] == 0xC && reg_val[1] == 0xC && reg_val[2] == 0xBE))	/* solution C */
+		{
+			/* apply solution D */
+			PHY_SetMacReg(Adapter, 0x10, reg0mask, 0xF);
+			PHY_SetMacReg(Adapter, 0xC4, reg1mask, 0x7);
+			WriteUSB2PHYReg(Adapter, 0xE1, 0xB6);
+			DBG_871X("%s, Aplly Solution D\n", __func__);
+		}
+		else if(reg_val[0] == 0xF && reg_val[1] == 0x7 && reg_val[2] == 0xB6)
+			DBG_871X("%s, Solution D already apllied\n", __func__);
+		else
+			DBG_871X("%s, Unexpected efuse content\n", __func__);
+	}
+	else
+		DBG_871X("%s, Solution EP already applied\n", __func__);
+}
+#endif
+
 u32 rtl8188fu_hal_init(PADAPTER padapter)
 {
 	u8	value8 = 0, u1bRegCR;
@@ -1347,6 +1383,7 @@ u32 rtl8188fu_hal_init(PADAPTER padapter)
 
 			PHY_LCCalibrate_8188F(&pHalData->odmpriv);
 
+#ifdef CONFIG_BT_COEXIST
 			/* Inform WiFi FW that it is the beginning of IQK */
 			h2cCmdBuf = 1;
 			FillH2CCmd8188F(padapter, H2C_8188F_BT_WLAN_CALIBRATION, 1, &h2cCmdBuf);
@@ -1359,19 +1396,21 @@ u32 rtl8188fu_hal_init(PADAPTER padapter)
 				rtw_msleep_os(50);
 			} while (rtw_get_passing_time_ms(start_time) <= 400);
 
-#ifdef CONFIG_BT_COEXIST
+
 			rtw_btcoex_IQKNotify(padapter, _TRUE);
 #endif
+
 			restore_iqk_rst = (pwrpriv->bips_processing == _TRUE) ? _TRUE : _FALSE;
 			PHY_IQCalibrate_8188F(padapter, _FALSE, restore_iqk_rst);
 			pHalData->odmpriv.RFCalibrateInfo.bIQKInitialized = _TRUE;
+
 #ifdef CONFIG_BT_COEXIST
 			rtw_btcoex_IQKNotify(padapter, _FALSE);
-#endif
 
 			/* Inform WiFi FW that it is the finish of IQK */
 			h2cCmdBuf = 0;
 			FillH2CCmd8188F(padapter, H2C_8188F_BT_WLAN_CALIBRATION, 1, &h2cCmdBuf);
+#endif
 
 			ODM_TXPowerTrackingCheck(&pHalData->odmpriv);
 		}
@@ -2209,6 +2248,10 @@ static void _ReadPROMContent(
 	DBG_8192C("Boot from %s, Autoload %s !\n", (pHalData->EepromOrEfuse ? "EEPROM" : "EFUSE"),
 			  (pHalData->bautoload_fail_flag ? "Fail" : "OK"));
 
+#ifdef CONFIG_8188FTV_SOLUTION_D
+	rtl8188fu_solution_d(Adapter);
+#endif
+
 	InitAdapterVariablesByPROM_8188FU(Adapter);
 }
 
@@ -2364,7 +2407,7 @@ GetHalDefVar8188FUsb(
 		*((u32 *)pValue) = MAX_RECVBUF_SZ;
 		break;
 	case HAL_DEF_RX_PACKET_OFFSET:
-		*((u32 *)pValue) = RXDESC_SIZE + DRVINFO_SZ;
+		*((u32 *)pValue) = RXDESC_SIZE + DRVINFO_SZ*8;
 		break;
 	case HW_VAR_MAX_RX_AMPDU_FACTOR:
 		*((HT_CAP_AMPDU_FACTOR *)pValue) = MAX_AMPDU_FACTOR_64K;

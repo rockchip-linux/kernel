@@ -1566,12 +1566,16 @@ _PHY_MACSettingCalibration8188F(
 #endif
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("MAC settings for Calibration.\n"));
 
+#if 0
 	ODM_Write1Byte(pDM_Odm, MACReg[i], 0x3F);
 
 	for (i = 1; i < (IQK_MAC_REG_NUM - 1); i++)
 		ODM_Write1Byte(pDM_Odm, MACReg[i], (u1Byte)(MACBackup[i] & (~BIT3)));
 	ODM_Write1Byte(pDM_Odm, MACReg[i], (u1Byte)(MACBackup[i] & (~BIT5)));
+#else
 
+	ODM_SetBBReg(pDM_Odm, 0x520, 0x00ff0000, 0xff);
+#endif
 }
 
 VOID
@@ -1844,6 +1848,7 @@ phy_IQCalibrate_8188F(
 	if (t == 0)
 		pDM_Odm->RFCalibrateInfo.bRfPiEnable = (u1Byte)ODM_GetBBReg(pDM_Odm, rFPGA0_XA_HSSIParameter1, BIT(8));
 
+#if 0
 	if (!pDM_Odm->RFCalibrateInfo.bRfPiEnable) {
 		// Switch BB to PI mode to do IQ Calibration.
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP)
@@ -1852,6 +1857,7 @@ phy_IQCalibrate_8188F(
 		_PHY_PIModeSwitch8188F(pDM_Odm, TRUE);
 #endif
 	}
+#endif
 
 	//save RF path
 	Path_SEL_BB = ODM_GetBBReg(pDM_Odm, 0x948, bMaskDWord);
@@ -1859,7 +1865,7 @@ phy_IQCalibrate_8188F(
 
 
 	//BB setting
-	ODM_SetBBReg(pDM_Odm, rFPGA0_RFMOD, BIT24, 0x00);
+	/*ODM_SetBBReg(pDM_Odm, rFPGA0_RFMOD, BIT24, 0x00);*/
 	ODM_SetBBReg(pDM_Odm, rOFDM0_TRxPathEnable, bMaskDWord, 0x03a05600);
 	ODM_SetBBReg(pDM_Odm, rOFDM0_TRMuxPar, bMaskDWord, 0x000800e4);
 	ODM_SetBBReg(pDM_Odm, rFPGA0_XCD_RFInterfaceSW, bMaskDWord, 0x25204000);
@@ -2080,71 +2086,46 @@ phy_LCCalibrate_8188F(
 )
 {
 	u1Byte tmpReg;
-	u4Byte RF_Amode = 0, RF_Bmode = 0, LC_Cal;
+	u4Byte RF_Amode = 0, RF_Bmode = 0, LC_Cal, cnt;
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP)
 	PADAPTER pAdapter = pDM_Odm->Adapter;
 #endif
 
-	//Check continuous TX and Packet TX
+	/*Check continuous TX and Packet TX*/
 	tmpReg = ODM_Read1Byte(pDM_Odm, 0xd03);
 
-	if ((tmpReg & 0x70) != 0)          //Deal with contisuous TX case
-		ODM_Write1Byte(pDM_Odm, 0xd03, tmpReg & 0x8F);    //disable all continuous TX
-	else                            // Deal with Packet TX case
-		ODM_Write1Byte(pDM_Odm, REG_TXPAUSE, 0xFF);         // block all queues
+	if ((tmpReg & 0x70) != 0)			/*Deal with contisuous TX case*/
+		ODM_Write1Byte(pDM_Odm, 0xd03, tmpReg & 0x8F);	/*disable all continuous TX*/
+	else							/* Deal with Packet TX case*/
+		ODM_Write1Byte(pDM_Odm, REG_TXPAUSE, 0xFF);			/* block all queues*/
 
-	if ((tmpReg & 0x70) != 0) {
-		//1. Read original RF mode
-		//Path-A
-#if !(DM_ODM_SUPPORT_TYPE & ODM_AP)
-		RF_Amode = PHY_QueryRFReg(pAdapter, ODM_RF_PATH_A, RF_AC, bMask12Bits);
 
-		//Path-B
-		if (is2T)
-			RF_Bmode = PHY_QueryRFReg(pAdapter, ODM_RF_PATH_B, RF_AC, bMask12Bits);
-#else
-		RF_Amode = ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_AC, bMask12Bits);
+	/*backup RF0x18*/
+	LC_Cal = ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, bRFRegOffsetMask);
 
-		//Path-B
-		if (is2T)
-			RF_Bmode = ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_B, RF_AC, bMask12Bits);
-#endif
+	/*Start LCK*/
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, bRFRegOffsetMask, LC_Cal|0x08000);
 
-		//2. Set RF mode = standby mode
-		//Path-A
-		ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_AC, bMask12Bits, (RF_Amode & 0x8FFFF) | 0x10000);
-
-		//Path-B
-		if (is2T)
-			ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_B, RF_AC, bMask12Bits, (RF_Bmode & 0x8FFFF) | 0x10000);
+	for(cnt=0;cnt<100;cnt++) 
+	{
+		if(ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, 0x8000) != 0x1)
+		break;	
+		ODM_delay_ms(10);
 	}
 
-	//3. Read RF reg18
-#if !(DM_ODM_SUPPORT_TYPE & ODM_AP)
-	LC_Cal = PHY_QueryRFReg(pAdapter, ODM_RF_PATH_A, RF_CHNLBW, bMask12Bits);
-#else
-	LC_Cal = ODM_GetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, bMask12Bits);
-#endif
+	/*Recover channel number*/
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, bRFRegOffsetMask, LC_Cal);	
 
-	//4. Set LC calibration begin	bit15
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0xB0, bRFRegOffsetMask, 0xDFBF0); // LDO ON
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_CHNLBW, bMask12Bits, LC_Cal | 0x08000);
 
-	ODM_delay_ms(100);
-
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0xB0, bRFRegOffsetMask, 0xDFFF0); // LDO OFF
-
-	//Restore original situation
-	if ((tmpReg & 0x70) != 0) { //Deal with contisuous TX case
-		//Path-A
+	/*Restore original situation*/
+	if ((tmpReg&0x70) != 0) {
+		/*Deal with contisuous TX case*/
 		ODM_Write1Byte(pDM_Odm, 0xd03, tmpReg);
-		ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_AC, bMask12Bits, RF_Amode);
-
-		//Path-B
-		if (is2T)
-			ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_B, RF_AC, bMask12Bits, RF_Bmode);
-	} else   // Deal with Packet TX case
+	} else { 
+		/* Deal with Packet TX case*/
 		ODM_Write1Byte(pDM_Odm, REG_TXPAUSE, 0x00);
+	}
+
 }
 
 //Analog Pre-distortion calibration

@@ -128,7 +128,7 @@ void rtw_hal_dm_init(_adapter *padapter)
 
 		_rtw_spinlock_init(&pHalData->IQKSpinLock);
 
-		phy_load_tx_power_ext_info(padapter, 1, 1);
+		phy_load_tx_power_ext_info(padapter, 1);
 	}
 }
 void rtw_hal_dm_deinit(_adapter *padapter)
@@ -211,9 +211,9 @@ uint	 rtw_hal_init(_adapter *padapter)
 
                 rtw_hal_init_opmode(padapter);
 		
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 		rtw_bb_rf_gain_offset(padapter);
-#endif //CONFIG_RF_GAIN_OFFSET
+#endif /*CONFIG_RF_POWER_TRIM*/
 
 	} else {
 		pHalData->hw_init_completed = _FALSE;

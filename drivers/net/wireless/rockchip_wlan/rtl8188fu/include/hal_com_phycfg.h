@@ -239,9 +239,9 @@ PHY_SetTxPowerIndex(
 
 bool phy_is_tx_power_limit_needed(_adapter *adapter);
 bool phy_is_tx_power_by_rate_needed(_adapter *adapter);
-int phy_load_tx_power_by_rate(_adapter *adapter, const char *hal_file_name, u8 force);
-int phy_load_tx_power_limit(_adapter *adapter, const char *hal_file_name, u8 force);
-void phy_load_tx_power_ext_info(_adapter *adapter, u8 chk_file, u8 force);
+int phy_load_tx_power_by_rate(_adapter *adapter, u8 chk_file);
+int phy_load_tx_power_limit(_adapter *adapter, u8 chk_file);
+void phy_load_tx_power_ext_info(_adapter *adapter, u8 chk_file);
 void phy_reload_tx_power_ext_info(_adapter *adapter);
 void phy_reload_default_tx_power_ext_info(_adapter *adapter);
 
@@ -250,9 +250,27 @@ void dump_target_tx_power(void *sel, _adapter *adapter);
 void dump_tx_power_by_rate(void *sel, _adapter *adapter);
 void dump_tx_power_limit(void *sel, _adapter *adapter);
 
-int rtw_is_phy_file_readable(const char *hal_file_name);
+int rtw_get_phy_file_path(_adapter *adapter, const char *file_name);
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
+#define MAC_FILE_FW_NIC			"FW_NIC.bin"
+#define MAC_FILE_FW_WW_IMG		"FW_WoWLAN.bin"
+#define PHY_FILE_MAC_REG		"MAC_REG.txt"
+
+#define PHY_FILE_AGC_TAB		"AGC_TAB.txt"
+#define PHY_FILE_PHY_REG		"PHY_REG.txt"
+#define PHY_FILE_PHY_REG_MP		"PHY_REG_MP.txt"
+#define PHY_FILE_PHY_REG_PG		"PHY_REG_PG.txt"
+
+#define PHY_FILE_RADIO_A		"RadioA.txt"
+#define PHY_FILE_RADIO_B		"RadioB.txt"
+#define PHY_FILE_RADIO_C		"RadioC.txt"
+#define PHY_FILE_RADIO_D		"RadioD.txt"
+#define PHY_FILE_TXPWR_TRACK	"TxPowerTrack.txt"
+#define PHY_FILE_TXPWR_LMT		"TXPWR_LMT.txt"
+
+#define PHY_FILE_WIFI_ANT_ISOLATION	"wifi_ant_isolation.txt"
+
 #define MAX_PARA_FILE_BUF_LEN	25600
 
 #define LOAD_MAC_PARA_FILE				BIT0

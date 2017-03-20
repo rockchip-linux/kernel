@@ -4217,7 +4217,7 @@ sint xmitframe_enqueue_for_sleeping_sta(_adapter *padapter, struct xmit_frame *p
 			
 			rtw_list_delete(&pxmitframe->list);
 			
-			//_enter_critical_bh(&psta->sleep_q.lock, &irqL);	
+			/*_enter_critical_bh(&psta->sleep_q.lock, &irqL);*/
 			
 			rtw_list_insert_tail(&pxmitframe->list, get_list_head(&psta->sleep_q));
 			
@@ -4230,31 +4230,23 @@ sint xmitframe_enqueue_for_sleeping_sta(_adapter *padapter, struct xmit_frame *p
 			pstapriv->sta_dz_bitmap |= BIT(0);
 
 			//DBG_871X("enqueue, sq_len=%d, tim=%x\n", psta->sleepq_len, pstapriv->tim_bitmap);
-			if (padapter->registrypriv.wifi_spec == 1) {
-				/*
-				*if (update_tim == _TRUE)
-				*	rtw_chk_hi_queue_cmd(padapter);
-				*/
+			if (update_tim == _TRUE) {
+				if (is_broadcast_mac_addr(pattrib->ra))
+					_update_beacon(padapter, _TIM_IE_, NULL, _TRUE, "buffer BC");
+				else
+					_update_beacon(padapter, _TIM_IE_, NULL, _TRUE, "buffer MC");
 			} else {
-
-				if (update_tim == _TRUE) {
-					if (is_broadcast_mac_addr(pattrib->ra))
-						_update_beacon(padapter, _TIM_IE_, NULL, _TRUE, "buffer BC");
-					else
-						_update_beacon(padapter, _TIM_IE_, NULL, _TRUE, "buffer MC");
-				} else {
-					chk_bmc_sleepq_cmd(padapter);
-				}
+				chk_bmc_sleepq_cmd(padapter);
 			}
-
-			//_exit_critical_bh(&psta->sleep_q.lock, &irqL);				
 			
-			ret = _TRUE;			
+			/*_exit_critical_bh(&psta->sleep_q.lock, &irqL);*/
+
+			ret = _TRUE;
 
 			DBG_COUNTER(padapter->tx_logs.core_tx_ap_enqueue_mcast);
-			
+
 		}
-		
+
 		_exit_critical_bh(&psta->sleep_q.lock, &irqL);	
 		
 		return ret;

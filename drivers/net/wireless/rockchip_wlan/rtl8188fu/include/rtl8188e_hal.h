@@ -278,6 +278,9 @@ void Hal_ReadThermalMeter_88E(PADAPTER	Adapter,u8* PROMContent,BOOLEAN 	Autoload
 void Hal_EfuseParseXtal_8188E(PADAPTER pAdapter,u8* hwinfo,BOOLEAN AutoLoadFail);
 void Hal_EfuseParseBoardType88E(PADAPTER pAdapter,u8* hwinfo,BOOLEAN AutoLoadFail);
 void Hal_ReadPowerSavingMode88E(PADAPTER pAdapter,u8* hwinfo,BOOLEAN AutoLoadFail);
+void Hal_ReadPAType_8188E(PADAPTER Adapter, u8 *PROMContent, BOOLEAN AutoloadFail);
+void Hal_ReadAmplifierType_8188E(PADAPTER Adapter, u8 *PROMContent, BOOLEAN AutoloadFail);
+void Hal_ReadRFEType_8188E(PADAPTER Adapter, u8 *PROMContent, BOOLEAN AutoloadFail);
 
 BOOLEAN HalDetectPwrDownMode88E(PADAPTER Adapter);
 	
@@ -286,9 +289,9 @@ void Hal_DetectWoWMode(PADAPTER pAdapter);
 #endif //CONFIG_WOWLAN
 
 
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 void Hal_ReadRFGainOffset(PADAPTER pAdapter,u8* hwinfo,BOOLEAN AutoLoadFail);
-#endif //CONFIG_RF_GAIN_OFFSET
+#endif /*CONFIG_RF_POWER_TRIM*/
 
 void rtl8188e_init_default_value(_adapter *adapter);
 

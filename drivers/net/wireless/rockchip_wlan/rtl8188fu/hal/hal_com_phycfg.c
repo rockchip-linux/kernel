@@ -2350,21 +2350,11 @@ bool phy_is_tx_power_by_rate_needed(_adapter *adapter)
 	return _FALSE;
 }
 
-int phy_load_tx_power_by_rate(_adapter *adapter, const char *hal_file_name, u8 force)
+int phy_load_tx_power_by_rate(_adapter *adapter, u8 chk_file)
 {
 	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(adapter);
 	struct registry_priv *regsty = dvobj_to_regsty(adapter_to_dvobj(adapter));
 	int ret = _FAIL;
-
-	if (!force
-		&& !rtw_is_phy_file_readable(hal_file_name)
-		&& hal_data->txpwr_by_rate_loaded == 1
-		&& hal_data->txpwr_by_rate_from_file == 0
-	) {
-		/* No file and already load default(compile-time) table */
-		ret = _SUCCESS;
-		goto exit;
-	}
 
 	hal_data->txpwr_by_rate_loaded = 0;
 	PHY_InitTxPowerByRate(adapter);
@@ -2373,8 +2363,8 @@ int phy_load_tx_power_by_rate(_adapter *adapter, const char *hal_file_name, u8 f
 	hal_data->txpwr_limit_loaded = 0;
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-	if (rtw_is_phy_file_readable(hal_file_name)
-		&& phy_ConfigBBWithPgParaFile(adapter, hal_file_name) == _SUCCESS
+	if (chk_file
+		&& phy_ConfigBBWithPgParaFile(adapter, PHY_FILE_PHY_REG_PG) == _SUCCESS
 	) {
 		hal_data->txpwr_by_rate_from_file = 1;
 		goto post_hdl;
@@ -2407,21 +2397,11 @@ exit:
 	return ret;
 }
 
-int phy_load_tx_power_limit(_adapter *adapter, const char *hal_file_name, u8 force)
+int phy_load_tx_power_limit(_adapter *adapter, u8 chk_file)
 {
 	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(adapter);
 	struct registry_priv *regsty = dvobj_to_regsty(adapter_to_dvobj(adapter));
 	int ret = _FAIL;
-
-	if (!force
-		&& !rtw_is_phy_file_readable(hal_file_name)
-		&& hal_data->txpwr_by_rate_loaded == 1
-		&& hal_data->txpwr_by_rate_from_file == 0
-	) {
-		/* No file and already load default(compile-time) table */
-		ret = _SUCCESS;
-		goto exit;
-	}
 
 	hal_data->txpwr_limit_loaded = 0;
 	PHY_InitTxPowerLimit(adapter);
@@ -2432,8 +2412,8 @@ int phy_load_tx_power_limit(_adapter *adapter, const char *hal_file_name, u8 for
 	}
 
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-	if (rtw_is_phy_file_readable(hal_file_name)
-		&& PHY_ConfigRFWithPowerLimitTableParaFile(adapter, hal_file_name) == _SUCCESS
+	if (chk_file
+		&& PHY_ConfigRFWithPowerLimitTableParaFile(adapter, PHY_FILE_TXPWR_LMT) == _SUCCESS
 	) {
 		hal_data->txpwr_limit_from_file = 1;
 		goto post_hdl;
@@ -2460,152 +2440,30 @@ exit:
 	return ret;
 }
 
-const char *hal_phy_reg_pg_str(_adapter *adapter)
-{
-	u8 interface_type = 0;
-	const char *str = NULL;
-
-	interface_type = rtw_get_intf_type(adapter);
-
-	switch (rtw_get_chip_type(adapter)) {
-#ifdef CONFIG_RTL8723B
-	case RTL8723B:
-		str = RTL8723B_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8703B
-	case RTL8703B:
-		str = RTL8703B_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8188E
-	case RTL8188E:
-		str = RTL8188E_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8188F
-	case RTL8188F:
-		str = RTL8188F_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8812A
-	case RTL8812:
-		str = RTL8812_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8821A
-	case RTL8821:
-		str = RTL8821_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8192E
-	case RTL8192E:
-		str = RTL8192E_PHY_REG_PG;
-		break;
-#endif
-#ifdef CONFIG_RTL8814A
-	case RTL8814A:
-		str = RTL8814A_PHY_REG_PG;
-		break;
-#endif
-	}
-
-	if (str == NULL) {
-		DBG_871X_LEVEL(_drv_err_, "%s: unknown chip_type:%u\n"
-			, __func__, rtw_get_chip_type(adapter));
-	}
-
-	return str;
-}
-
-const char *hal_txpwr_lmt_str(_adapter *adapter)
-{
-	u8 interface_type = 0;
-	const char *str = NULL;
-
-	interface_type = rtw_get_intf_type(adapter);
-
-	switch (rtw_get_chip_type(adapter)) {
-#ifdef CONFIG_RTL8723B
-	case RTL8723B:
-		str = RTL8723B_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8703B
-	case RTL8703B:
-		str = RTL8703B_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8188E
-	case RTL8188E:
-		str = RTL8188E_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8188F
-	case RTL8188F:
-		str = RTL8188F_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8812A
-	case RTL8812:
-		str = RTL8812_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8821A
-	case RTL8821:
-		str = RTL8821_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8192E
-	case RTL8192E:
-		str = RTL8192E_TXPWR_LMT;
-		break;
-#endif
-#ifdef CONFIG_RTL8814A
-	case RTL8814A:
-		str = RTL8814A_TXPWR_LMT;
-		break;
-#endif
-	}
-
-	if (str == NULL) {
-		DBG_871X_LEVEL(_drv_err_, "%s: unknown chip_type:%u\n"
-			, __func__, rtw_get_chip_type(adapter));
-	}
-
-	return str;
-}
-
-void phy_load_tx_power_ext_info(_adapter *adapter, u8 chk_file, u8 force)
+void phy_load_tx_power_ext_info(_adapter *adapter, u8 chk_file)
 {
 	struct registry_priv *regsty = adapter_to_regsty(adapter);
-	const char *str = NULL;
 
 	/* check registy target tx power */
 	regsty->target_tx_pwr_valid = rtw_regsty_chk_target_tx_power_valid(adapter);
 
 	/* power by rate and limit */
 	if (phy_is_tx_power_by_rate_needed(adapter)
-		|| (phy_is_tx_power_limit_needed(adapter) && regsty->target_tx_pwr_valid != _TRUE)
-	) {
-		str = chk_file ? hal_phy_reg_pg_str(adapter) : NULL;
-		phy_load_tx_power_by_rate(adapter, str, force);
-	}
+		|| (phy_is_tx_power_limit_needed(adapter) && regsty->target_tx_pwr_valid != _TRUE))
+		phy_load_tx_power_by_rate(adapter, chk_file);
 
-	if (phy_is_tx_power_limit_needed(adapter)) {
-		str = chk_file ? hal_txpwr_lmt_str(adapter) : NULL;
-		phy_load_tx_power_limit(adapter, str, force);
-	}
+	if (phy_is_tx_power_limit_needed(adapter))
+		phy_load_tx_power_limit(adapter, chk_file);
 }
 
 inline void phy_reload_tx_power_ext_info(_adapter *adapter)
 {
-	phy_load_tx_power_ext_info(adapter, 1, 1);
+	phy_load_tx_power_ext_info(adapter, 1);
 }
 
 inline void phy_reload_default_tx_power_ext_info(_adapter *adapter)
 {
-	phy_load_tx_power_ext_info(adapter, 0, 1);
+	phy_load_tx_power_ext_info(adapter, 0);
 }
 
 void dump_tx_power_ext_info(void *sel, _adapter *adapter)
@@ -2916,12 +2774,24 @@ void dump_tx_power_limit(void *sel, _adapter *adapter)
 	}
 }
 
-int rtw_is_phy_file_readable(const char *hal_file_name)
+/*
+ * phy file path is stored in global char array rtw_phy_para_file_path
+ * need to care about racing
+ */
+int rtw_get_phy_file_path(_adapter *adapter, const char *file_name)
 {
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
-	if (hal_file_name) {
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, hal_file_name);
-		return rtw_is_file_readable(rtw_phy_para_file_path);
+	struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
+	int len = 0;
+
+	if (file_name) {
+		len += snprintf(rtw_phy_para_file_path, PATH_LENGTH_MAX, "%s", rtw_phy_file_path);
+		#if defined(CONFIG_MULTIDRV) || defined(REALTEK_CONFIG_PATH_WITH_IC_NAME_FOLDER)
+		len += snprintf(rtw_phy_para_file_path + len, PATH_LENGTH_MAX - len, "%s/", hal_spec->ic_name);
+		#endif
+		len += snprintf(rtw_phy_para_file_path + len, PATH_LENGTH_MAX - len, "%s", file_name);
+
+		return _TRUE;
 	}
 #endif
 	return _FALSE;
@@ -2946,8 +2816,7 @@ phy_ConfigMACWithParaFile(
 
 	if ((pHalData->mac_reg_len == 0) && (pHalData->mac_reg == NULL))
 	{
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-	
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);
@@ -3045,8 +2914,7 @@ phy_ConfigBBWithParaFile(
 
 	if ((pBufLen != NULL) && (*pBufLen == 0) && (pBuf == NULL))
 	{
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-	
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);
@@ -3497,8 +3365,7 @@ phy_ConfigBBWithPgParaFile(
 	_rtw_memset(pHalData->para_file_buf, 0, MAX_PARA_FILE_BUF_LEN);
 
 	if (pHalData->bb_phy_reg_pg == NULL) {
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-	
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);
@@ -3558,8 +3425,7 @@ phy_ConfigBBWithMpParaFile(
 
 	if ((pHalData->bb_phy_reg_mp_len == 0) && (pHalData->bb_phy_reg_mp == NULL))
 	{
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-	
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);
@@ -3694,8 +3560,7 @@ PHY_ConfigRFWithParaFile(
 
 	if ((pBufLen != NULL) && (*pBufLen == 0) && (pBuf == NULL))
 	{
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);
@@ -3972,8 +3837,7 @@ PHY_ConfigRFWithTxPwrTrackParaFile(
 
 	if ((pHalData->rf_tx_pwr_track_len == 0) && (pHalData->rf_tx_pwr_track == NULL))
 	{
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-	
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);
@@ -4344,8 +4208,7 @@ PHY_ConfigRFWithPowerLimitTableParaFile(
 	_rtw_memset(pHalData->para_file_buf, 0, MAX_PARA_FILE_BUF_LEN);
 
 	if (pHalData->rf_tx_pwr_lmt == NULL) {
-		rtw_merge_string(rtw_phy_para_file_path, PATH_LENGTH_MAX, rtw_phy_file_path, pFileName);
-	
+		rtw_get_phy_file_path(Adapter, pFileName);
 		if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE)
 		{
 			rlen = rtw_retrieve_from_file(rtw_phy_para_file_path, pHalData->para_file_buf, MAX_PARA_FILE_BUF_LEN);

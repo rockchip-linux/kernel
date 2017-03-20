@@ -464,6 +464,7 @@ struct mp_priv
 	BOOLEAN bSetRxBssid;
 	BOOLEAN bTxBufCkFail;
 	BOOLEAN bRTWSmbCfg;
+	BOOLEAN bloopback;
 	MPT_CONTEXT MptCtx;
 
 	u8		*TXradomBuffer;
@@ -734,7 +735,7 @@ typedef enum	_MPT_TXPWR_DEF{
 	MPT_VHT
 }MPT_TXPWR_DEF;
 
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 
 #if defined(CONFIG_RTL8723B)
 	#define 	REG_RF_BB_GAIN_OFFSET	0x7f
@@ -747,7 +748,7 @@ typedef enum	_MPT_TXPWR_DEF{
 	#define 	RF_GAIN_OFFSET_MASK 	0xfffff
 #endif	//CONFIG_RTL8723B
 
-#endif //CONFIG_RF_GAIN_OFFSET
+#endif /*CONFIG_RF_POWER_TRIM*/
 
 #define IS_MPT_HT_RATE(_rate)			(_rate >= MPT_RATE_MCS0 && _rate <= MPT_RATE_MCS31)
 #define IS_MPT_VHT_RATE(_rate)			(_rate >= MPT_RATE_VHT1SS_MCS0 && _rate <= MPT_RATE_VHT4SS_MCS9)
@@ -946,7 +947,7 @@ int rtw_mp_phypara(struct net_device *dev,
 			struct iw_point *wrqu, char *extra);
 int rtw_mp_SetRFPath(struct net_device *dev,
 			struct iw_request_info *info,
-			union iwreq_data *wrqu, char *extra);
+			struct iw_point *wrqu, char *extra);
 int rtw_mp_QueryDrv(struct net_device *dev,
 			struct iw_request_info *info,
 			union iwreq_data *wrqu, char *extra);

@@ -159,6 +159,10 @@ PHY_SetSwChnlBWMode8188E(
 	IN	u8					Offset80
 );
 
+VOID
+PHY_SetRFEReg_8188E(
+	IN PADAPTER		Adapter
+);
 //
 // BB/MAC/RF other monitor API
 //

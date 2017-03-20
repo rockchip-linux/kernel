@@ -1220,7 +1220,7 @@ void rtw_sec_write_cam_ent(_adapter *adapter, u8 id, u16 ctrl, u8 *mac, u8 *key)
 
 	}
 #else
-	j = 5;
+	j = 7;
 #endif
 
 	for (; j >= 0; j--) {
@@ -1230,6 +1230,10 @@ void rtw_sec_write_cam_ent(_adapter *adapter, u8 id, u16 ctrl, u8 *mac, u8 *key)
 			break;
 		case 1:
 			wdata = (mac[2] | (mac[3] << 8) | (mac[4] << 16) | (mac[5] << 24));
+			break;
+		case 6:
+		case 7:
+			wdata = 0;
 			break;
 		default:
 			i = (j - 2) << 2;
@@ -1940,9 +1944,11 @@ static void rtw_hal_fw_sync_cam_id(_adapter *adapter)
 			DBG_871X("%s: cam_id: %d key_id(%d) is not GK\n",
 					__func__, cam_id, index);
 		} else {
-			rtw_sec_read_cam_ent(adapter, cam_id, NULL, NULL, get_key);
-			algorithm = psecuritypriv->dot11PrivacyAlgrthm;
-			ctrl = BIT(15) | BIT6 |(algorithm << 2) | index;
+			//rtw_sec_read_cam_ent(adapter, cam_id, NULL, NULL, get_key);
+			rtw_sec_read_cam_ent(adapter, cam_id, (u8 *)&ctrl, NULL, get_key);
+			//algorithm = psecuritypriv->dot11PrivacyAlgrthm;
+			//ctrl = BIT(15) | BIT6 |(algorithm << 2) | index;
+			ctrl = BIT(15) | BIT6 | index;
 			write_cam(adapter, index, ctrl, addr, get_key);
 			ctrl = 0;
 			write_cam(adapter, cam_id, ctrl, null_addr, get_key);
@@ -1984,10 +1990,12 @@ static void rtw_hal_update_gtk_offload_info(_adapter *adapter)
 		do{
 			/* chech if GK */
 			if (rtw_sec_read_cam_is_gk(adapter, default_cam_id) == _TRUE) {
-				rtw_sec_read_cam_ent(adapter, default_cam_id, NULL, NULL, get_key);
-				algorithm = psecuritypriv->dot11PrivacyAlgrthm;
+				//rtw_sec_read_cam_ent(adapter, default_cam_id, NULL, NULL, get_key);
+				rtw_sec_read_cam_ent(adapter, default_cam_id, (u8 *)&ctrl, NULL, get_key);
+				//algorithm = psecuritypriv->dot11PrivacyAlgrthm;
 				/* in default cam entry, cam id = key id */
-				ctrl = BIT(15) | BIT6 | (algorithm << 2) | default_cam_id;
+				//ctrl = BIT(15) | BIT6 | (algorithm << 2) | default_cam_id;
+				ctrl |= BIT6;
 				write_cam(adapter, cam_id, ctrl, addr, get_key);
 				cam_id++;
 				ctrl = 0;
@@ -2194,9 +2202,15 @@ static u8 rtw_hal_set_remote_wake_ctrl_cmd(_adapter *adapter, u8 enable)
 		}
 #endif //CONFIG_GTK_OL
 
+#ifdef CONFIG_PLATFORM_NOVATEK_NT72668
+		SET_H2CCMD_REMOTE_WAKE_CTRL_FW_UNICAST_EN(
+						u1H2CRemoteWakeCtrlParm,
+						0);
+#else
 		SET_H2CCMD_REMOTE_WAKE_CTRL_FW_UNICAST_EN(
 						u1H2CRemoteWakeCtrlParm,
 						!ppwrpriv->wowlan_pattern);
+#endif
 
 		/*
 		 * filter NetBios name service pkt to avoid being waked-up
@@ -2495,6 +2509,7 @@ static void rtw_hal_ap_wow_enable(_adapter *padapter)
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
 	struct hal_ops *pHalFunc = &padapter->HalFunc;
 	struct sta_info *psta = NULL;
+	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
 #ifdef DBG_CHECK_FW_PS_STATE
 	struct dvobj_priv *psdpriv = padapter->dvobj;
 	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;
@@ -2553,7 +2568,8 @@ static void rtw_hal_ap_wow_enable(_adapter *padapter)
 #endif /*CONFIG_CONCURRENT_MODE*/
 		/* Invoid SE0 reset signal during suspending*/
 	rtw_write8(padapter, REG_RSV_CTRL, 0x20);
-	rtw_write8(padapter, REG_RSV_CTRL, 0x60);
+	if (IS_8188F(pHalData->VersionID) == FALSE)
+		rtw_write8(padapter, REG_RSV_CTRL, 0x60);
 #endif /*CONFIG_USB_HCI*/
 }
 
@@ -5381,6 +5397,7 @@ static void rtw_hal_wow_enable(_adapter *adapter)
 	struct mlme_priv *pmlmepriv = &adapter->mlmepriv;
 	struct hal_ops *pHalFunc = &adapter->HalFunc;
 	struct sta_info *psta = NULL;
+	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(adapter);
 	int res;
 	u16 media_status_rpt;
 	
@@ -5456,7 +5473,8 @@ static void rtw_hal_wow_enable(_adapter *adapter)
 #endif /*CONFIG_CONCURRENT_MODE*/
 	/* Invoid SE0 reset signal during suspending*/
 	rtw_write8(adapter, REG_RSV_CTRL, 0x20);
-	rtw_write8(adapter, REG_RSV_CTRL, 0x60);
+	if (IS_8188F(pHalData->VersionID) == FALSE)
+		rtw_write8(adapter, REG_RSV_CTRL, 0x60);
 #endif /*CONFIG_USB_HCI*/
 
 	rtw_hal_gate_bb(adapter, _FALSE);
@@ -5920,42 +5938,24 @@ error:
 #ifdef CONFIG_TDLS_CH_SW
 s32 rtw_hal_ch_sw_oper_offload(_adapter *padapter, u8 channel, u8 channel_offset, u16 bwmode)
 {
+	PHAL_DATA_TYPE	pHalData =  GET_HAL_DATA(padapter);
 	u8 ch_sw_h2c_buf[4] = {0x00, 0x00, 0x00, 0x00};
 
-	ch_sw_h2c_buf[0] = channel;
-	ch_sw_h2c_buf[2] = 1;
 
-	switch (bwmode)
-	{	
+	SET_H2CCMD_CH_SW_OPER_OFFLOAD_CH_NUM(ch_sw_h2c_buf, channel);	
+	SET_H2CCMD_CH_SW_OPER_OFFLOAD_BW_MODE(ch_sw_h2c_buf, bwmode);
+	switch (bwmode) {
 		case CHANNEL_WIDTH_40:
-			ch_sw_h2c_buf[1] |= 0x01;
+			SET_H2CCMD_CH_SW_OPER_OFFLOAD_BW_40M_SC(ch_sw_h2c_buf, channel_offset);	
 			break;
 		case CHANNEL_WIDTH_80:
-			ch_sw_h2c_buf[1] |= 0x02;
+			SET_H2CCMD_CH_SW_OPER_OFFLOAD_BW_80M_SC(ch_sw_h2c_buf, channel_offset);
 			break;
-		case CHANNEL_WIDTH_20:
+		case CHANNEL_WIDTH_20:	
 		default:
 			break;
 	}
-
-	switch (channel_offset)
-	{
-		case HAL_PRIME_CHNL_OFFSET_LOWER:
-			if (bwmode == CHANNEL_WIDTH_40)
-				ch_sw_h2c_buf[1] |= 0x04;
-			else if (bwmode == CHANNEL_WIDTH_80)
-				ch_sw_h2c_buf[1] |= 0x20;
-			break;
-		case HAL_PRIME_CHNL_OFFSET_UPPER:
-			if (bwmode == CHANNEL_WIDTH_40)
-				ch_sw_h2c_buf[1] |= 0x08;
-			else if (bwmode == CHANNEL_WIDTH_80)
-				ch_sw_h2c_buf[1] |= 0x40;
-			break;
-		case HAL_PRIME_CHNL_OFFSET_DONT_CARE:
-		default:
-			break;
-	}
+	SET_H2CCMD_CH_SW_OPER_OFFLOAD_RFE_TYPE(ch_sw_h2c_buf, pHalData->RFEType);
 
 	return rtw_hal_fill_h2c_cmd(padapter, H2C_CHNL_SWITCH_OPER_OFFLOAD, sizeof(ch_sw_h2c_buf), ch_sw_h2c_buf);
 }
@@ -7120,7 +7120,7 @@ exit:
 	return ret;
 }
 
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 u32 Array_kfreemap[] = { 
 0x08,0xe,
 0x06,0xc,
@@ -7146,13 +7146,13 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 	pu4Byte		Array	= Array_kfreemap;
 	u4Byte		v1 = 0, v2 = 0, GainValue = 0, target = 0;
 
-	if (registry_par->RegRfKFreeEnable == 2) {
+	if (registry_par->RegPwrTrimEnable == 2) {
 		DBG_871X("Registry kfree default force disable.\n");
 		return;
 	}
 
 #if defined(CONFIG_RTL8723B)
-	if (value & BIT4 || (registry_par->RegRfKFreeEnable == 1)) {
+	if (value & BIT4 || (registry_par->RegPwrTrimEnable == 1)) {
 		DBG_871X("Offset RF Gain.\n");
 		DBG_871X("Offset RF Gain.  pHalData->EEPROMRFGainVal=0x%x\n",pHalData->EEPROMRFGainVal);
 		
@@ -7195,7 +7195,7 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 	}
 
 #elif defined(CONFIG_RTL8188E)
-	if (value & BIT4 || (registry_par->RegRfKFreeEnable == 1)) {
+	if (value & BIT4 || (registry_par->RegPwrTrimEnable == 1)) {
 		DBG_871X("8188ES Offset RF Gain.\n");
 		DBG_871X("8188ES Offset RF Gain. EEPROMRFGainVal=0x%x\n",
 				pHalData->EEPROMRFGainVal);
@@ -7227,11 +7227,11 @@ void rtw_bb_rf_gain_offset(_adapter *padapter)
 #endif
 	
 }
-#endif //CONFIG_RF_GAIN_OFFSET
+#endif /*CONFIG_RF_POWER_TRIM */
 
 bool kfree_data_is_bb_gain_empty(struct kfree_data_t *data)
 {
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 	int i, j;
 
 	for (i = 0; i < BB_GAIN_NUM; i++)

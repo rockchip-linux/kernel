@@ -328,7 +328,7 @@ struct registry_priv
 	u8	RFE_Type;
 	u8	GLNA_Type;	
 	u8  check_fw_ps;
-	u8	RegRfKFreeEnable;
+	u8	RegPwrTrimEnable;
 	
 #ifdef CONFIG_LOAD_PHY_PARA_FROM_FILE
 	u8	load_phy_file;

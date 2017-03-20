@@ -100,9 +100,9 @@ int rtw_uapsd_acbe_en = 0;
 int rtw_uapsd_acvi_en = 0;
 int rtw_uapsd_acvo_en = 0;
 #ifdef CONFIG_RTL8814A
-int rtw_rfkfree_enable = 2; /* disable kfree */
+int rtw_pwrtrim_enable = 2; /* disable kfree , rename to power trim disable */
 #else
-int rtw_rfkfree_enable = 0; /* Default Enalbe kfree by efuse config */
+int rtw_pwrtrim_enable = 0; /* Default Enalbe  power trim by efuse config */
 #endif
 #ifdef CONFIG_80211N_HT
 int rtw_ht_enable = 1;
@@ -110,7 +110,7 @@ int rtw_ht_enable = 1;
 // 2.4G use bit 0 ~ 3, 5G use bit 4 ~ 7
 // 0x21 means enable 2.4G 40MHz & 5G 80MHz
 int rtw_bw_mode = 0x21;
-int rtw_ampdu_enable = 1;//for enable tx_ampdu ,// 0: disable, 0x1:enable (but wifi_spec should be 0), 0x2: force enable (don't care wifi_spec)
+int rtw_ampdu_enable = 1;//for enable tx_ampdu ,// 0: disable, 0x1:enable
 int rtw_rx_stbc = 1;// 0: disable, bit(0):enable 2.4g, bit(1):enable 5g, default is set to enable 2.4GHZ for IOT issue with bufflao's AP at 5GHZ
 int rtw_ampdu_amsdu = 0;// 0: disabled, 1:enabled, 2:auto . There is an IOT issu with DLINK DIR-629 when the flag turn on
 // Short GI support Bit Map
@@ -256,7 +256,7 @@ int rtw_ext_iface_num  = 1;//primary/secondary iface is excluded
 module_param(rtw_ext_iface_num, int, 0644);
 #endif //CONFIG_MULTI_VIR_IFACES
 
-module_param(rtw_rfkfree_enable, int, 0644);
+module_param(rtw_pwrtrim_enable, int, 0644);
 module_param(rtw_initmac, charp, 0644);
 module_param(rtw_special_rf_path, int, 0644);
 module_param(rtw_chip_version, int, 0644);
@@ -412,10 +412,6 @@ MODULE_PARM_DESC(rtw_OffEfuseMask, "default open Efuse Mask value:0");
 uint rtw_FileMaskEfuse = 0;
 module_param(rtw_FileMaskEfuse, uint, 0644);
 MODULE_PARM_DESC(rtw_FileMaskEfuse, "default drv Mask Efuse value:0");
-
-uint rtw_kfree = 0;
-module_param(rtw_kfree, uint, 0644);
-MODULE_PARM_DESC(rtw_kfree, "default kfree config value:0");
 
 uint rtw_pll_ref_clk_sel = CONFIG_RTW_PLL_REF_CLK_SEL;
 module_param(rtw_pll_ref_clk_sel, uint, 0644);
@@ -610,7 +606,7 @@ _func_enter_;
 	registry_par->uapsd_acvi_en = (u8)rtw_uapsd_acvi_en;
 	registry_par->uapsd_acvo_en = (u8)rtw_uapsd_acvo_en;
 
-	registry_par->RegRfKFreeEnable = (u8)rtw_rfkfree_enable;
+	registry_par->RegPwrTrimEnable = (u8)rtw_pwrtrim_enable;
 	
 #ifdef CONFIG_80211N_HT
 	registry_par->ht_enable = (u8)rtw_ht_enable;
@@ -2993,7 +2989,7 @@ static int netdev_close(struct net_device *pnetdev)
 		LeaveAllPowerSaveMode(padapter);
 		rtw_disassoc_cmd(padapter, 500, _FALSE);
 		//s2-2.  indicate disconnect to os
-		rtw_indicate_disconnect(padapter);
+		rtw_indicate_disconnect(padapter, 0, _FALSE);
 		//s2-3.
 		rtw_free_assoc_resources(padapter, 1);
 		//s2-4.
@@ -3498,7 +3494,7 @@ int rtw_suspend_free_assoc_resource(_adapter *padapter)
 	{	
 		rtw_disassoc_cmd(padapter, 0, _FALSE);	
 		//s2-2.  indicate disconnect to os
-		rtw_indicate_disconnect(padapter);
+		rtw_indicate_disconnect(padapter, 0, _FALSE);
 	}
 	#ifdef CONFIG_AP_MODE
 	else if(check_fwstate(pmlmepriv, WIFI_AP_STATE))	
@@ -3525,7 +3521,7 @@ int rtw_suspend_free_assoc_resource(_adapter *padapter)
 	if (check_fwstate(pmlmepriv, _FW_UNDER_LINKING) == _TRUE)
 	{
 		DBG_871X_LEVEL(_drv_always_, "%s: fw_under_linking\n", __FUNCTION__);
-		rtw_indicate_disconnect(padapter);
+		rtw_indicate_disconnect(padapter, 0, _FALSE);
 	}
 	
 	DBG_871X("<== "FUNC_ADPT_FMT" exit....\n", FUNC_ADPT_ARG(padapter));
@@ -4096,7 +4092,7 @@ _func_enter_;
 
 			DBG_871X("%s: disconnect reason: %02x\n", __func__,
 						pwrpriv->wowlan_wake_reason);
-			rtw_indicate_disconnect(padapter);
+			rtw_indicate_disconnect(padapter, 0, _FALSE);
 
 			rtw_sta_media_status_rpt(padapter,
 				rtw_get_stainfo(&padapter->stapriv,
@@ -4148,7 +4144,6 @@ _func_enter_;
 
 	// Power On LED
 #ifdef CONFIG_SW_LED
-	rtw_hal_sw_led_init(padapter);
 	if(pwrpriv->wowlan_wake_reason == Rx_DisAssoc ||
 		pwrpriv->wowlan_wake_reason == Rx_DeAuth ||
 		pwrpriv->wowlan_wake_reason == FWDecisionDisconnect)
@@ -4293,7 +4288,6 @@ _func_enter_;
 
 	// Power On LED
 #ifdef CONFIG_SW_LED
-	rtw_hal_sw_led_init(padapter);
 	rtw_led_control(padapter, LED_CTL_LINK);
 #endif
 exit:
@@ -4415,9 +4409,7 @@ _func_enter_;
 		}
 	}
 	#endif
-#ifdef CONFIG_SW_LED
-	rtw_hal_sw_led_init(padapter);
-#endif
+
 #ifdef CONFIG_RESUME_IN_WORKQUEUE
 	//rtw_unlock_suspend();
 #endif //CONFIG_RESUME_IN_WORKQUEUE

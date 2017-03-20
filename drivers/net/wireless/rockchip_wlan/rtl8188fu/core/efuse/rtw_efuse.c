@@ -512,7 +512,7 @@ efuse_OneByteWrite(
 		return bResult;
 	}
 
-
+	Efuse_PowerSwitch(pAdapter, _TRUE, _TRUE);
 	// -----------------e-fuse reg ctrl ---------------------------------	
 	//address			
 
@@ -562,6 +562,8 @@ efuse_OneByteWrite(
 		) {
 		PHY_SetMacReg(pAdapter, EFUSE_TEST, BIT(11), 0);
 	}
+
+	Efuse_PowerSwitch(pAdapter, _TRUE, _FALSE);
 
 	return bResult;
 }
@@ -1001,7 +1003,7 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 			DBG_8192C("%s , data[%d] = %x, map[addr+i]= %x\n", __func__, i, data[i], map[addr+i]);
 		}
 	}
-	Efuse_PowerSwitch(padapter, _TRUE, _TRUE);
+	/*Efuse_PowerSwitch(padapter, _TRUE, _TRUE);*/
 
 	idx = 0;
 	offset = (addr >> 3);
@@ -1047,7 +1049,7 @@ u8 rtw_efuse_map_write(PADAPTER padapter, u16 addr, u16 cnts, u8 *data)
 		offset++;
 	}
 
-	Efuse_PowerSwitch(padapter, _TRUE, _FALSE);
+	/*Efuse_PowerSwitch(padapter, _TRUE, _FALSE);*/
 
 exit:
 

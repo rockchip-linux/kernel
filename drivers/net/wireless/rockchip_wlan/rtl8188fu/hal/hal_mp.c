@@ -144,6 +144,10 @@ void hal_mpt_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14)
 	ULONG				ulRateIdx = pMptCtx->MptRateIndex;
 	u1Byte				DataRate = 0xFF;
 
+	/* Suggested by BB David. 2015.04.27*/
+	if(IS_HARDWARE_TYPE_8188F(Adapter))
+		return;
+
 	DataRate = MptToMgntRate(ulRateIdx);
 	
 	if (u1Channel == 14 && IS_CCK_RATE(DataRate))
@@ -166,8 +170,6 @@ void hal_mpt_CCKTxPowerAdjust(PADAPTER Adapter, BOOLEAN bInCH14)
 
 				RT_TRACE(_module_mp_, DBG_LOUD, ("MPT_CCKTxPowerAdjust 8703B in Channel %u restore to default setting\n", u1Channel));
 			}
-	} else if (IS_HARDWARE_TYPE_8188F(Adapter)) {
-		/* No difference between CCK in CH14 and others, no need to change TX filter */
 	} else {
 
 		/* get current cck swing value and check 0xa22 & 0xa23 later to match the table.*/
@@ -246,7 +248,6 @@ void hal_mpt_SetChannel(PADAPTER pAdapter)
 	struct mp_priv	*pmp = &pAdapter->mppriv;
 	u8		channel = pmp->channel;
 	u8		bandwidth = pmp->bandwidth;
-	u8		rate = pmp->rateidx;
 
 	hal_mpt_SwitchRfSetting(pAdapter);
 	
@@ -358,6 +359,8 @@ mpt_SetTxPower(
 	
 	if (IS_HARDWARE_TYPE_8814A(pAdapter))
 		EndPath = ODM_RF_PATH_D;
+	else if (IS_HARDWARE_TYPE_8188F(pAdapter))
+		EndPath = ODM_RF_PATH_A;
 
 	switch (Rate) {
 	case MPT_CCK:
@@ -453,11 +456,11 @@ void hal_mpt_SetTxPower(PADAPTER pAdapter)
 	PDM_ODM_T		pDM_Odm = &pHalData->odmpriv;
 
 	if (pHalData->rf_chip < RF_TYPE_MAX) {
-		if (IS_HARDWARE_TYPE_8188E(pAdapter) || 
-			IS_HARDWARE_TYPE_8723B(pAdapter) || 
-			IS_HARDWARE_TYPE_8192E(pAdapter) || 
-			IS_HARDWARE_TYPE_8703B(pAdapter) ||
-			IS_HARDWARE_TYPE_8188F(pAdapter)) {
+		if (IS_HARDWARE_TYPE_8188E(pAdapter) ||
+		    IS_HARDWARE_TYPE_8723B(pAdapter) ||
+		    IS_HARDWARE_TYPE_8192E(pAdapter) ||
+		    IS_HARDWARE_TYPE_8703B(pAdapter) ||
+		    IS_HARDWARE_TYPE_8188F(pAdapter)) {
 			u8 path = (pHalData->AntennaTxPath == ANTENNA_A) ? (ODM_RF_PATH_A) : (ODM_RF_PATH_B);
 
 			DBG_8192C("===> MPT_ProSetTxPower: Old\n");
@@ -487,8 +490,8 @@ void hal_mpt_SetDataRate(PADAPTER pAdapter)
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
 	PMPT_CONTEXT		pMptCtx = &(pAdapter->mppriv.MptCtx);
 	u32 DataRate;
-	
-	DataRate = MptToMgntRate(pAdapter->mppriv.rateidx);
+
+	DataRate = MptToMgntRate(pMptCtx->MptRateIndex);
 	
 	hal_mpt_SwitchRfSetting(pAdapter);
 
@@ -556,8 +559,7 @@ VOID mpt_SetRFPath_8814A(PADAPTER	pAdapter)
 	PMPT_CONTEXT	pMptCtx = &pAdapter->mppriv.MptCtx;
 	R_ANTENNA_SELECT_OFDM	*p_ofdm_tx;	/* OFDM Tx register */
 	R_ANTENNA_SELECT_CCK	*p_cck_txrx;
-
-	u8	ForcedDataRate = HwRateToMRate(pAdapter->mppriv.rateidx);
+	u8	ForcedDataRate = MptToMgntRate(pMptCtx->MptRateIndex);
 	u8	HtStbcCap = pAdapter->registrypriv.stbc_cap;
 	/*/PRT_HIGH_THROUGHPUT		pHTInfo = GET_HT_INFO(pMgntInfo);*/
 	/*/PRT_VERY_HIGH_THROUGHPUT	pVHTInfo = GET_VHT_INFO(pMgntInfo);*/
@@ -1504,9 +1506,8 @@ void hal_mpt_SetSingleToneTx(PADAPTER pAdapter, u8 bStart)
 			PHY_SetBBReg(pAdapter, rFPGA0_AnalogParameter4, 0xF00000, 0xF);
 			PHY_SetRFReg(pAdapter, pMptCtx->MptRfPath, LNA_Low_Gain_3, BIT1, 0x1);
 			PHY_SetRFReg(pAdapter, pMptCtx->MptRfPath, RF_AC, 0xF0000, 0x2);
-
-		} else if (IS_HARDWARE_TYPE_JAGUAR(pAdapter)) {
-#if defined(CONFIG_RTL8812A) || defined(CONFIG_RTL8821A)
+		} else if (IS_HARDWARE_TYPE_JAGUAR(pAdapter) || IS_HARDWARE_TYPE_8822B(pAdapter)) {
+#if defined(CONFIG_RTL8812A) || defined(CONFIG_RTL8821A) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C)
 			u1Byte p = ODM_RF_PATH_A;
 			
 			regRF = PHY_QueryRFReg(pAdapter, ODM_RF_PATH_A, RF_AC_Jaguar, bRFRegOffsetMask);
@@ -1582,9 +1583,9 @@ void hal_mpt_SetSingleToneTx(PADAPTER pAdapter, u8 bStart)
 			PHY_SetRFReg(pAdapter, pMptCtx->MptRfPath, RF_AC, 0xF0000, 0x3); /*Tx mode*/
 			PHY_SetRFReg(pAdapter, pMptCtx->MptRfPath, LNA_Low_Gain_3, BIT1, 0x0); /*RF LO disabled*/
 			/*Set BB REG 88C: Prevent SingleTone Fail*/
-			PHY_SetBBReg(pAdapter, rFPGA0_AnalogParameter4, 0xF00000, 0xc);	
-		} else if (IS_HARDWARE_TYPE_JAGUAR(pAdapter)) {
-#if defined(CONFIG_RTL8812A) || defined(CONFIG_RTL8821A)
+			PHY_SetBBReg(pAdapter, rFPGA0_AnalogParameter4, 0xF00000, 0xc);
+		} else if (IS_HARDWARE_TYPE_JAGUAR(pAdapter) || IS_HARDWARE_TYPE_8822B(pAdapter)) {
+#if defined(CONFIG_RTL8812A) || defined(CONFIG_RTL8821A) || defined(CONFIG_RTL8822B) || defined(CONFIG_RTL8821C)
 			u1Byte p = ODM_RF_PATH_A;
 			
 			PHY_SetBBReg(pAdapter, rOFDMCCKEN_Jaguar, BIT29|BIT28, 0x3); /*/ Disable CCK and OFDM*/

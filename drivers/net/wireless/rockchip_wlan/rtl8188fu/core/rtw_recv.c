@@ -3690,9 +3690,11 @@ int validate_mp_recv_frame(_adapter *adapter, union recv_frame *precv_frame)
 	int ret = _SUCCESS;
 	u8 *ptr = precv_frame->u.hdr.rx_data;	
 	u8 type,subtype;
+	struct mp_priv *pmppriv = &adapter->mppriv;
+	struct mp_tx		*pmptx;
 
-	if(!adapter->mppriv.bmac_filter)	
-		return ret;
+	pmptx = &pmppriv->tx;
+
 #if 0	
 	if (1){
 		u8 bDumpRxPkt;
@@ -3707,10 +3709,19 @@ int validate_mp_recv_frame(_adapter *adapter, union recv_frame *precv_frame)
 			for(i=0; i<64;i=i+8)
 				DBG_871X("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X:\n", *(ptr+i),
 				*(ptr+i+1), *(ptr+i+2) ,*(ptr+i+3) ,*(ptr+i+4),*(ptr+i+5), *(ptr+i+6), *(ptr+i+7));
-			DBG_871X("############################# \n");
+			DBG_871X("#############################\n");
 		}
 	}
-#endif		
+#endif
+	if (pmppriv->bloopback) {
+		if (_rtw_memcmp(ptr + 24, pmptx->buf + 24, precv_frame->u.hdr.len - 24) == _FALSE) {
+			DBG_871X("Compare payload content Fail !!!\n");
+			ret = _FAIL;
+		}
+	}
+
+	if (!adapter->mppriv.bmac_filter)
+		return ret;
 
 	if(_rtw_memcmp( GetAddr2Ptr(ptr), adapter->mppriv.mac_filter, ETH_ALEN) == _FALSE )
 		ret = _FAIL;

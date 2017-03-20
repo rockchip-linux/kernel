@@ -151,6 +151,7 @@ static void _init_mp_priv_(struct mp_priv *pmp_priv)
 
 	pmp_priv->bSetRxBssid = _FALSE;
 	pmp_priv->bRTWSmbCfg = _FALSE;
+	pmp_priv->bloopback = _FALSE;
 
 	pnetwork = &pmp_priv->mp_network.network;
 	_rtw_memcpy(pnetwork->MacAddress, pmp_priv->network_macaddr, ETH_ALEN);
@@ -711,8 +712,12 @@ void MPT_PwrCtlDM(PADAPTER padapter, u32 bstart)
 			ConfigureTxpowerTrack(pDM_Odm, &c);
 			ODM_ClearTxPowerTrackingState(pDM_Odm);
 			if (*c.ODM_TxPwrTrackSetPwr) {
-				(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, BBSWING, ODM_RF_PATH_A, chnl);
-				(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, BBSWING, ODM_RF_PATH_B, chnl);
+				if (pDM_Odm->SupportICType == ODM_RTL8188F)
+					(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, MIX_MODE, ODM_RF_PATH_A, chnl);
+				else {
+					(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, BBSWING, ODM_RF_PATH_A, chnl);
+					(*c.ODM_TxPwrTrackSetPwr)(pDM_Odm, BBSWING, ODM_RF_PATH_B, chnl);
+				}
 			}
 		}
 	}
@@ -775,7 +780,7 @@ u32 mp_join(PADAPTER padapter,u8 mode)
 	//init mp_start_test status
 	if (check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE) {
 		rtw_disassoc_cmd(padapter, 500, _TRUE);
-		rtw_indicate_disconnect(padapter);
+		rtw_indicate_disconnect(padapter, 0, _FALSE);
 		rtw_free_assoc_resources(padapter, 1);
 	}
 	pmppriv->prev_fw_state = get_fwstate(pmlmepriv);
@@ -914,7 +919,7 @@ void mp_stop_test(PADAPTER padapter)
 		goto end_of_mp_stop_test;
 
 	//3 1. disconnect psudo AdHoc
-	rtw_indicate_disconnect(padapter);
+	rtw_indicate_disconnect(padapter, 0, _FALSE);
 
 	//3 2. clear psta used in mp test mode.
 //	rtw_free_assoc_resources(padapter, 1);
@@ -2666,8 +2671,7 @@ ULONG mpt_ProQueryCalTxPower(
 
 	ULONG			TxPower = 1, PwrGroup=0, PowerDiffByRate=0;	
 	u1Byte			limit = 0, rate = 0;
-	u8 mpt_rateidx = HwRateToMPTRate(pAdapter->mppriv.rateidx);
-	u8 mgn_rate = MptToMgntRate(mpt_rateidx);
+	u8 mgn_rate = MptToMgntRate(pMptCtx->MptRateIndex);
 
 	#if defined(CONFIG_RTL8188E)
 	if (IS_HARDWARE_TYPE_8188E(pAdapter))

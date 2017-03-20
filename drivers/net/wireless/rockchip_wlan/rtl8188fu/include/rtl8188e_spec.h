@@ -101,11 +101,11 @@
 //	0x0600h ~ 0x07FFh	WMAC Configuration
 //
 //-----------------------------------------------------
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 #define EEPROM_RF_GAIN_OFFSET			0xC1
 #define EEPROM_RF_GAIN_VAL				0xF6
 #define EEPROM_THERMAL_OFFSET			0xF5
-#endif //CONFIG_RF_GAIN_OFFSET
+#endif /*CONFIG_RF_POWER_TRIM*/
 //----------------------------------------------------------------------------
 //       88E Driver Initialization Offload REG_FDHM0(Offset 0x88, 8 bits)  
 //----------------------------------------------------------------------------

@@ -238,6 +238,7 @@ enum rtw_drvextra_cmd_id
 	DFS_MASTER_WK_CID,
 	SESSION_TRACKER_WK_CID,
 	EN_HW_UPDATE_TSF_WK_CID,
+	MP_CMD_WK_CID,
 	MAX_WK_CID
 };
 
@@ -1120,6 +1121,8 @@ u8 rtw_set_country_cmd(_adapter *adapter, int flags, const char *country_code, u
 extern u8 rtw_led_blink_cmd(_adapter*padapter, PVOID pLed);
 extern u8 rtw_set_csa_cmd(_adapter*padapter, u8 new_ch_no);
 extern u8 rtw_tdls_cmd(_adapter *padapter, const u8 *addr, u8 option);
+
+u8 rtw_mp_cmd(_adapter *adapter, u8 mp_cmd_id, u8 flags);
 
 //#ifdef CONFIG_C2H_PACKET_EN
 extern u8 rtw_c2h_packet_wk_cmd(PADAPTER padapter, u8 *pbuf, u16 length);

@@ -20,6 +20,7 @@
 #define _RTW_TDLS_C_
 
 #include <drv_types.h>
+#include <hal_data.h>
 
 #ifdef CONFIG_TDLS
 #define ONE_SEC 	1000 /* 1000 ms */
@@ -823,23 +824,49 @@ void rtw_tdls_chsw_oper_done(_adapter* padapter)
 	rtw_sctx_done(&chsw_sctx);
 }
 
-s32 rtw_tdls_do_ch_sw(_adapter *padapter, u8 chnl_type, u8 channel, u8 channel_offset, u16 bwmode, u16 ch_switch_time)
+s32 rtw_tdls_do_ch_sw(_adapter *padapter, struct sta_info *ptdls_sta, u8 chnl_type, u8 channel, u8 channel_offset, u16 bwmode, u16 ch_switch_time)
 {
+	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(padapter);
+	u8 center_ch, chnl_offset80 = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 	u32 ch_sw_time_start, ch_sw_time_spent, wait_time;
 	u8 take_care_iqk;
+	s32 ret = _FAIL;
 
 	ch_sw_time_start = rtw_systime_to_ms(rtw_get_current_time());
 
 	rtw_tdls_chsw_oper_init(padapter, TDLS_CH_SWITCH_OPER_OFFLOAD_TIMEOUT);
+
+	/* set mac_id sleep before channel switch */
+	rtw_hal_macid_sleep(padapter, ptdls_sta->mac_id);
 	
 	/* channel switch IOs offload to FW */
 	if (rtw_hal_ch_sw_oper_offload(padapter, channel, channel_offset, bwmode) == _SUCCESS) {
 		if (rtw_tdls_chsw_oper_wait(padapter) == _SUCCESS) {
 			/* set channel and bw related variables in driver */
 			_enter_critical_mutex(&(adapter_to_dvobj(padapter)->setch_mutex), NULL);
+
 			rtw_set_oper_ch(padapter, channel);	
 			rtw_set_oper_choffset(padapter, channel_offset);
 			rtw_set_oper_bw(padapter, bwmode);	
+
+			center_ch = rtw_get_center_ch(channel, bwmode, channel_offset);
+			pHalData->CurrentChannel = center_ch;
+			pHalData->CurrentCenterFrequencyIndex1 = center_ch;
+			pHalData->CurrentChannelBW = bwmode;
+			pHalData->nCur40MhzPrimeSC = channel_offset;
+
+			if (bwmode == CHANNEL_WIDTH_80) {
+				if (center_ch > channel)
+					chnl_offset80 = HAL_PRIME_CHNL_OFFSET_LOWER;
+				else if (center_ch < channel)
+					chnl_offset80 = HAL_PRIME_CHNL_OFFSET_UPPER;
+				else
+					chnl_offset80 = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
+			}
+			pHalData->nCur80MhzPrimeSC = chnl_offset80;
+
+			pHalData->CurrentCenterFrequencyIndex1 = center_ch;
+			
 			_exit_critical_mutex(&(adapter_to_dvobj(padapter)->setch_mutex), NULL);
 
 			rtw_hal_get_hwreg(padapter, HW_VAR_CH_SW_NEED_TO_TAKE_CARE_IQK_INFO, &take_care_iqk);
@@ -858,13 +885,15 @@ s32 rtw_tdls_do_ch_sw(_adapter *padapter, u8 chnl_type, u8 channel, u8 channel_o
 					rtw_msleep_os(wait_time);
 			}
 
-			return _SUCCESS;
-		}
-		else
+			ret = _SUCCESS;
+		} else
 			DBG_871X("[TDLS] chsw oper wait fail !!\n");
 	}		
 
-	return _FAIL;
+	/* set mac_id wakeup after channel switch */
+	rtw_hal_macid_wakeup(padapter, ptdls_sta->mac_id);
+
+	return ret;
 }
 #endif
 
@@ -1147,8 +1176,8 @@ int _issue_tdls_teardown(_adapter *padapter, struct tdls_txmgmt *ptxmgmt, u8 wai
 		ret = _SUCCESS;
 	}
 
-	if (ret == _SUCCESS && rtw_tdls_is_driver_setup(padapter))
-		rtw_tdls_cmd(padapter, ptxmgmt->peer, TDLS_TEAR_STA);
+	if (rtw_tdls_is_driver_setup(padapter))
+		rtw_tdls_cmd(padapter, ptxmgmt->peer, TDLS_TEARDOWN_STA_LOCALLY);
 
 exit:
 
@@ -2213,7 +2242,7 @@ int On_TDLS_Teardown(_adapter *padapter, union recv_frame *precv_frame)
 	ptdls_sta = rtw_get_stainfo(pstapriv, psa);
 	if (ptdls_sta != NULL) {
 		if (rtw_tdls_is_driver_setup(padapter))
-			rtw_tdls_cmd(padapter, ptdls_sta->hwaddr, TDLS_TEAR_STA);
+			rtw_tdls_cmd(padapter, ptdls_sta->hwaddr, TDLS_TEARDOWN_STA_LOCALLY);
 	}
 
 	return _SUCCESS;
@@ -3139,7 +3168,7 @@ void _tdls_tpk_timer_hdl(void *FunctionContext)
 	ptdls_sta->TPK_count++;
 	/* TPK_timer expired in a second */
 	/* Retry timer should set at least 301 sec. */
-	if (ptdls_sta->TPK_count >= ptdls_sta->TDLS_PeerKey_Lifetime) {
+	if (ptdls_sta->TPK_count >= (ptdls_sta->TDLS_PeerKey_Lifetime - 3)) {
 		DBG_871X("[TDLS] %s, Re-Setup TDLS link with "MAC_FMT" since TPK lifetime expires!\n", __FUNCTION__, MAC_ARG(ptdls_sta->hwaddr));
 		ptdls_sta->TPK_count=0;
 		_rtw_memcpy(txmgmt.peer, ptdls_sta->hwaddr, ETH_ALEN);
@@ -3208,11 +3237,11 @@ void _tdls_handshake_timer_hdl(void *FunctionContext)
 		DBG_871X("[TDLS] Handshake time out\n");
 		if (ptdls_sta->tdls_sta_state & TDLS_LINKED_STATE) 
 		{
-			issue_tdls_teardown(padapter, &txmgmt, _TRUE);
+			rtw_tdls_cmd(padapter, ptdls_sta->hwaddr, TDLS_TEARDOWN_STA);
 		}
 		else
 		{
-			rtw_tdls_cmd(padapter, ptdls_sta->hwaddr, TDLS_TEAR_STA);
+			rtw_tdls_cmd(padapter, ptdls_sta->hwaddr, TDLS_TEARDOWN_STA_LOCALLY);
 		}
 	}
 }

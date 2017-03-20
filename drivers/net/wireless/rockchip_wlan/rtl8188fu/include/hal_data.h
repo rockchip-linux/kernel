@@ -192,6 +192,7 @@ struct kfree_data_t {
 bool kfree_data_is_bb_gain_empty(struct kfree_data_t *data);
 
 struct hal_spec_t {
+	char *ic_name;
 	u8 macid_num;
 
 	u8 sec_cam_ent_num;
@@ -294,11 +295,11 @@ typedef struct hal_com_data
 	u8	bTXPowerDataReadFromEEPORM;
 	u8	EEPROMMACAddr[ETH_ALEN];
 	
-#ifdef CONFIG_RF_GAIN_OFFSET
+#ifdef CONFIG_RF_POWER_TRIM
 	u8	EEPROMRFGainOffset;
 	u8	EEPROMRFGainVal;
 	struct kfree_data_t kfree_data;
-#endif /*CONFIG_RF_GAIN_OFFSET*/
+#endif /*CONFIG_RF_POWER_TRIM*/
 
 #if defined(CONFIG_RTL8723B) || defined(CONFIG_RTL8703B)
 	u8	adjuseVoltageVal;
@@ -636,6 +637,7 @@ typedef struct hal_com_data
 typedef struct hal_com_data HAL_DATA_TYPE, *PHAL_DATA_TYPE;
 #define GET_HAL_DATA(__pAdapter)			((HAL_DATA_TYPE *)((__pAdapter)->HalData))
 #define GET_HAL_SPEC(__pAdapter)			(&(GET_HAL_DATA((__pAdapter))->hal_spec))
+#define GET_ODM(__pAdapter)				(&(GET_HAL_DATA((__pAdapter))->odmpriv))
 
 #define GET_HAL_RFPATH_NUM(__pAdapter)		(((HAL_DATA_TYPE *)((__pAdapter)->HalData))->NumTotalRFPath )
 #define RT_GetInterfaceSelection(_Adapter) 		(GET_HAL_DATA(_Adapter)->InterfaceSel)

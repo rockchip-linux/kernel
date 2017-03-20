@@ -840,7 +840,7 @@ int rtw_hw_suspend(_adapter *padapter )
 			_clr_fwstate_(pmlmepriv, _FW_LINKED);
 			rtw_led_control(padapter, LED_CTL_NO_LINK);
 
-			rtw_os_indicate_disconnect(padapter);
+			rtw_os_indicate_disconnect(padapter, 0, _FALSE);
 
 			#ifdef CONFIG_LPS
 			//donnot enqueue cmd
@@ -1671,7 +1671,6 @@ int rockchip_wifi_init_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("Realtek 8188FU USB WiFi driver (Powered by Rockchip) init.\n");
     rockchip_wifi_power(1);
-    //rockchip_wifi_set_carddetect(1);
 
     return rtw_drv_entry();
 }
@@ -1688,7 +1687,6 @@ void rockchip_wifi_exit_module_rtkwifi(void)
     printk("=======================================================\n");
     printk("Realtek 8188FU USB WiFi driver (Powered by Rockchip) init.\n");
     rtw_drv_halt();
-    //rockchip_wifi_set_carddetect(0);
     rockchip_wifi_power(0);
 }
 

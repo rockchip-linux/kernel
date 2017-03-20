@@ -373,11 +373,13 @@ static inline void rtw_netif_stop_queue(struct net_device *pnetdev)
 #endif
 }
 
-static inline void rtw_merge_string(char *dst, int dst_len, const char *src1, const char *src2)
+static inline int rtw_merge_string(char *dst, int dst_len, const char *src1, const char *src2)
 {
 	int	len = 0;
 	len += snprintf(dst+len, dst_len - len, "%s", src1);
 	len += snprintf(dst+len, dst_len - len, "%s", src2);
+
+	return len;
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27))

@@ -140,7 +140,7 @@
 
 #define CONFIG_C2H_PACKET_EN
 
-#define CONFIG_RF_GAIN_OFFSET
+#define CONFIG_RF_POWER_TRIM
 
 #define DISABLE_BB_RF	0
 
@@ -263,7 +263,7 @@
 #endif /* CONFIG_BT_COEXIST */
 
 #ifdef CONFIG_WOWLAN
-	/* #define CONFIG_GTK_OL */
+	#define CONFIG_GTK_OL
 #endif /* CONFIG_WOWLAN */
 
 #ifdef CONFIG_GPIO_WAKEUP
@@ -306,7 +306,7 @@
 /*
  * Debug Related Configure
  */
-//#define CONFIG_DEBUG /* DBG_871X, etc... */
+#define CONFIG_DEBUG /* DBG_871X, etc... */
 #ifdef CONFIG_DEBUG
 	#define DBG	1	/* for ODM & BTCOEX debug */
 	#define DBG_PHYDM_MORE 0

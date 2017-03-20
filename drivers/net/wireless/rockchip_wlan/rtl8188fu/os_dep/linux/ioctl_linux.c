@@ -3831,7 +3831,7 @@ static int rtw_wx_set_auth(struct net_device *dev,
 			LeaveAllPowerSaveMode(padapter);
 			rtw_disassoc_cmd(padapter, 500, _FALSE);
 			DBG_871X("%s...call rtw_indicate_disconnect\n ",__FUNCTION__);
-			rtw_indicate_disconnect(padapter);
+			rtw_indicate_disconnect(padapter, 0, _FALSE);
 			rtw_free_assoc_resources(padapter, 1);
 		}
 		#endif
@@ -7455,7 +7455,7 @@ static int rtw_dbg_port(struct net_device *dev,
 			break;
 		case 0x7a:
 			receive_disconnect(padapter, pmlmeinfo->network.MacAddress
-				, WLAN_REASON_EXPIRATION_CHK);
+				, WLAN_REASON_EXPIRATION_CHK, _FALSE);
 			break;
 		case 0x7F:
 			switch(minor_cmd)
@@ -7706,9 +7706,8 @@ static int rtw_dbg_port(struct net_device *dev,
 				case 0x13: //set ampdu_enable
 				{
 					struct registry_priv	*pregpriv = &padapter->registrypriv;
-					// 0: disable, 0x1:enable (but wifi_spec should be 0), 0x2: force enable (don't care wifi_spec)
-					if( pregpriv && extra_arg < 3 )
-					{
+					/* 0: disable, 0x1:enable */
+					if (pregpriv && extra_arg < 2) {
 						pregpriv->ampdu_enable= extra_arg;
 						DBG_871X("set ampdu_enable=%d\n",pregpriv->ampdu_enable);
 					}
@@ -10384,6 +10383,7 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 	struct pwrctrl_priv *pwrctrlpriv ;
 	PHAL_DATA_TYPE pHalData;
 	PEFUSE_HAL pEfuseHal;
+	struct hal_ops *pHalFunc;
 
 	u8 ips_mode = IPS_NUM; // init invalid value
 	u8 lps_mode = PS_MODE_NUM; // init invalid value
@@ -10401,6 +10401,8 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 	pwrctrlpriv = adapter_to_pwrctl(padapter);
 	pHalData = GET_HAL_DATA(padapter);
 	pEfuseHal = &pHalData->EfuseHal;
+	pHalFunc = &padapter->HalFunc;
+
 	err = 0;
 	
 	if (copy_from_user(extra, wrqu->pointer, wrqu->length))
@@ -10998,6 +11000,25 @@ static int rtw_mp_efuse_set(struct net_device *dev,
 		}
 		_rtw_memset(extra, '\0', strlen(extra));
 		sprintf(extra, "wlwfake OK\n");
+	} else if(strcmp(tmp[0], "update") == 0) {
+		DBG_871X("To Use new eFuse map\n");
+		/*step read efuse/eeprom data and get mac_addr*/
+		rtw_hal_read_chip_info(padapter);
+		/* set mac addr*/
+		rtw_macaddr_cfg(adapter_mac_addr(padapter), get_hal_mac_addr(padapter));
+		_rtw_memcpy(padapter->pnetdev->dev_addr, get_hal_mac_addr(padapter), ETH_ALEN); /* set mac addr to net_device */
+
+#ifdef CONFIG_P2P
+		rtw_init_wifidirect_addrs(padapter, adapter_mac_addr(padapter), adapter_mac_addr(padapter));
+#endif
+		rtw_hal_set_hwreg(padapter, HW_VAR_MAC_ADDR, adapter_mac_addr(padapter)); /* set mac addr to mac register */
+		/*pHalFunc->hal_deinit(padapter);*/
+		if (pHalFunc->hal_init(padapter) == _FAIL) {
+			err = -EINVAL;
+			goto exit;
+		}
+		_rtw_memset(extra, '\0', strlen(extra));
+		sprintf(extra, "eFuse Update OK\n");
 	}
 
 exit:
@@ -11198,29 +11219,6 @@ static int rtw_mp_set(struct net_device *dev,
 
 	switch(subcmd)
 	{
-	case MP_START:
-			DBG_871X("set case mp_start \n");
-			rtw_mp_start (dev,info,wrqu,extra);
-			 break; 
-			 
-	case MP_STOP:
-			DBG_871X("set case mp_stop \n");
-			rtw_mp_stop (dev,info,wrqu,extra);
-			 break; 
-			 
-	case MP_BANDWIDTH:
-			DBG_871X("set case mp_bandwidth \n");
-			rtw_mp_bandwidth (dev,info,wrqu,extra);
-			break;
-				
-	case MP_RESET_STATS:
-			DBG_871X("set case MP_RESET_STATS \n");
-			rtw_mp_reset_stats	(dev,info,wrqu,extra);
-			break;
-	case MP_SetRFPathSwh:		
-			DBG_871X("set MP_SetRFPathSwitch \n");
-			rtw_mp_SetRFPath  (dev,info,wdata,extra);
-			break;
 	case CTA_TEST:
 			DBG_871X("set CTA_TEST\n");
 			rtw_cta_test_start (dev, info, wdata, extra);
@@ -11284,6 +11282,31 @@ static int rtw_mp_get(struct net_device *dev,
 	}
 	
 	switch (subcmd) {
+	case MP_START:
+			DBG_871X("set case mp_start \n");
+			rtw_mp_start (dev,info,wrqu,extra);
+			 break; 
+			 
+	case MP_STOP:
+			DBG_871X("set case mp_stop \n");
+			rtw_mp_stop (dev,info,wrqu,extra);
+			 break; 
+			 
+	case MP_BANDWIDTH:
+			DBG_871X("set case mp_bandwidth \n");
+			rtw_mp_bandwidth (dev,info,wrqu,extra);
+			break;
+				
+	case MP_RESET_STATS:
+			DBG_871X("set case MP_RESET_STATS \n");
+			rtw_mp_reset_stats	(dev,info,wrqu,extra);
+			break;
+
+	case MP_SetRFPathSwh:		
+			DBG_871X("set MP_SetRFPathSwitch \n");
+			rtw_mp_SetRFPath  (dev,info,wrqu,extra);
+			break;
+
 	case WRITE_REG:
 			rtw_mp_write_reg(dev, info, wrqu, extra);
 			 break;
@@ -13231,13 +13254,13 @@ static const struct iw_priv_args rtw_private_args[] = {
 	{ SIOCIWFIRSTPRIV + 0x0E, IW_PRIV_TYPE_CHAR | 1024, 0 , ""},  //set 
 	{ SIOCIWFIRSTPRIV + 0x0F, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK , ""},//get
 /* --- sub-ioctls definitions --- */   
-		{ MP_START , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_start" }, //set
+		{ MP_START , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_start" }, //set
 		{ MP_PHYPARA, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_phypara" },//get
-		{ MP_STOP , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_stop" }, //set
+		{ MP_STOP , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_stop" }, //set
 		{ MP_CHANNEL , IW_PRIV_TYPE_CHAR | 1024 , IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_channel" },//get
-		{ MP_BANDWIDTH , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_bandwidth"}, //set
+		{ MP_BANDWIDTH , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_bandwidth"}, //set
 		{ MP_RATE , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_rate" },//get
-		{ MP_RESET_STATS , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_reset_stats"},
+		{ MP_RESET_STATS , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_reset_stats"},
 		{ MP_QUERY , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK , "mp_query"}, //get
 		{ READ_REG , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "read_reg" },
 		{ MP_RATE , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_rate" },
@@ -13254,10 +13277,10 @@ static const struct iw_priv_args rtw_private_args[] = {
 		{ MP_THER , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_ther"},
 		{ EFUSE_SET, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "efuse_set" },
 		{ EFUSE_GET, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "efuse_get" },
-		{ MP_PWRTRK , IW_PRIV_TYPE_CHAR | 1024, 0, "mp_pwrtrk"},
+		{ MP_PWRTRK , IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_pwrtrk"},
 		{ MP_QueryDrvStats, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_drvquery" },
 		{ MP_IOCTL, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_ioctl"}, // mp_ioctl	
-		{ MP_SetRFPathSwh, IW_PRIV_TYPE_CHAR | 1024, 0, "mp_setrfpath" },		
+		{ MP_SetRFPathSwh, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_setrfpath" },		
 		{ MP_PwrCtlDM, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_pwrctldm" },		
 		{ MP_GET_TXPOWER_INX, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_get_txpower" },
 		{ MP_GETVER, IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | IW_PRIV_SIZE_MASK, "mp_priv_ver" },
