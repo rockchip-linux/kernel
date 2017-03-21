@@ -1146,6 +1146,7 @@ enum {
 enum {
 	SDR2HDR_FOR_BT2020,
 	SDR2HDR_FOR_HDR,
+	SDR2HDR_FOR_HLG_HDR,
 };
 
 struct vop_data {
@@ -1179,6 +1180,7 @@ struct vop_device {
 	bool pre_sdr2hdr;
 	bool post_sdr2hdr;
 	bool post_hdr2sdr;
+	bool post_hlg2hdr10;
 
 	int		irq;
 

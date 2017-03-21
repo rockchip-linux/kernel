@@ -103,6 +103,26 @@ static const struct of_device_id vop_dt_ids[] = {
 };
 #endif
 
+static const u32 sdr2hdr_bt1886eotf_yn_for_hlg_hdr[65] = {
+	0,
+	1,	7,	17,	35,
+	60,	92,	134,	184,
+	244,	315,	396,	487,
+	591,	706,	833,	915,
+	1129,	1392,	1717,	2118,
+	2352,	2612,	2900,	3221,
+	3577,	3972,	4411,	4899,
+	5441,	6042,	6710,	7452,
+	7853,	8276,	8721,	9191,
+	9685,	10207,	10756,	11335,
+	11945,	12588,	13266,	13980,
+	14732,	15525,	16361,	17241,
+	17699,	18169,	18652,	19147,
+	19656,	20178,	20714,	21264,
+	21829,	22408,	23004,	23615,
+	24242,	24886,	25547,	26214,
+};
+
 static const u32 sdr2hdr_bt1886eotf_yn_for_bt2020[65] = {
 	0,
 	1820,   3640,   5498,   7674,
@@ -142,6 +162,26 @@ static u32 sdr2hdr_bt1886eotf_yn_for_hdr[65] = {
 	10039, 10136, 10234, 10333,
 	10432, 10531, 10631, 10732,
 	10833, 10935, 11038, 11141,
+};
+
+static u32 sdr2hdr_st2084oetf_yn_for_hlg_hdr[65] = {
+	0,
+	668,	910,	1217,	1600,
+	2068,	2384,	2627,	3282,
+	3710,	4033,	4879,	5416,
+	5815,	6135,	6401,	6631,
+	6833,	7176,	7462,	7707,
+	7921,	8113,	8285,	8442,
+	8586,	8843,	9068,	9268,
+	9447,	9760,	10027,	10259,
+	10465,	10650,	10817,	10971,
+	11243,	11480,	11689,	11877,
+	12047,	12202,	12345,	12477,
+	12601,	12716,	12926,	13115,
+	13285,	13441,	13583,	13716,
+	13839,	13953,	14163,	14350,
+	14519,	14673,	14945,	15180,
+	15570,	15887,	16153,	16383,
 };
 
 static const u32 sdr2hdr_st2084oetf_yn_for_bt2020[65] = {
@@ -301,10 +341,14 @@ static void vop_load_sdr2hdr_table(struct vop_device *vop_dev, int cmd)
 			sdr2hdr_eotf_oetf_yn[i] =
 				sdr2hdr_bt1886eotf_yn_for_bt2020[i] +
 				(sdr2hdr_st2084oetf_yn_for_bt2020[i] << 18);
-		} else {
+		} else if (cmd == SDR2HDR_FOR_HDR) {
 			sdr2hdr_eotf_oetf_yn[i] =
 				sdr2hdr_bt1886eotf_yn_for_hdr[i] +
 				(sdr2hdr_st2084oetf_yn_for_hdr[i] << 18);
+		} else if (cmd == SDR2HDR_FOR_HLG_HDR) {
+			sdr2hdr_eotf_oetf_yn[i] =
+				sdr2hdr_bt1886eotf_yn_for_hlg_hdr[i] +
+				(sdr2hdr_st2084oetf_yn_for_hlg_hdr[i] << 18);
 		}
 	}
 
@@ -743,6 +787,135 @@ static void rk322xh_vop_win_csc_mode(struct vop_device *vop_dev,
  *        sdr2hdr: post convert mode = 0
  * win1/2 sdr2hdr: pre convert mode  = 0
  */
+static void rk322xh_vop_hlg_hdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
+{
+	struct vop_device *vop_dev =
+	    container_of(dev_drv, struct vop_device, driver);
+	struct rk_lcdc_win *win = NULL;
+	int i = 0, overlay_mode;
+	int post_hdr2sdr_en = 0, pre_sdr2hdr_en = 0, post_sdr2hdr_hlg_en = 0;
+	int pre_hdr2sdr_en = 0;
+	int output_data_space;
+	u64 val = 0;
+	int output_color = dev_drv->output_color;
+
+	output_data_space = dev_drv->cur_screen->data_space;
+	dev_drv->pre_overlay = 1;
+
+	if (output_data_space == HDR10_DATA) { /* hdr10 output */
+		for (i = 0; i < dev_drv->lcdc_win_num; i++) {
+			win = dev_drv->win[i];
+			if (!win->state)
+				continue;
+			if (win->area[0].data_space == HLG_HDR_DATA) { /* bypass */
+				if (win->id == 0) {
+					post_sdr2hdr_hlg_en = 1;
+					post_hdr2sdr_en = 0;
+				} else {
+					dev_info(dev_drv->dev, "win%d: hlg hdr input hdr10 output\n", win->id);
+					pre_sdr2hdr_en &= ~(1 << win->id);
+					pre_hdr2sdr_en &= ~(1 << win->id);
+				}
+			} else if (win->area[0].data_space == HDR10_DATA) {
+				if (win->id == 0) {
+					post_sdr2hdr_hlg_en = 0;
+					post_hdr2sdr_en = 0;
+				} else {
+					pre_sdr2hdr_en &= ~(1 << win->id);
+					pre_hdr2sdr_en &= ~(1 << win->id);
+				}
+			} else if (win->area[0].data_space == SDR_DATA) {/* sdr2hdr */
+				if (win->id == 0) {
+					dev_info(dev_drv->dev, "should not be here, win0 is sdr\n");
+					post_sdr2hdr_hlg_en = 0;
+					post_hdr2sdr_en = 0;
+				} else {
+					pre_sdr2hdr_en |= 1 << win->id;
+					pre_hdr2sdr_en &= ~(1 << win->id);
+				}
+			}
+		}
+	} else if (output_data_space == HLG_HDR_DATA) { /* HLG_HDR_DATA*/
+		for (i = 0; i < dev_drv->lcdc_win_num; i++) {
+			win = dev_drv->win[i];
+			if (!win->state)
+				continue;
+			if (win->area[0].data_space == HLG_HDR_DATA) { /* bypass */
+				if (win->id == 0) {
+					post_sdr2hdr_hlg_en = 0;
+					post_hdr2sdr_en = 0;
+				} else {
+					pre_sdr2hdr_en &= ~(1 << win->id);
+					pre_hdr2sdr_en &= ~(1 << win->id);
+				}
+			} else if (win->area[0].data_space == HDR10_DATA) {
+				dev_info(dev_drv->dev, "should not be here, win%d is hdr10, output hlg\n", win->id);
+				post_sdr2hdr_hlg_en = 0;
+				post_hdr2sdr_en = 0;
+				pre_sdr2hdr_en &= ~(1 << win->id);
+				pre_hdr2sdr_en &= ~(1 << win->id);
+			} else if (win->area[0].data_space == SDR_DATA) {/* sdr2hdr */
+				if (win->id == 0) {
+					dev_info(dev_drv->dev, "should not be here, win0 input sdr output hlg\n");
+					post_sdr2hdr_hlg_en = 0;
+					post_hdr2sdr_en = 0;
+				} else {
+					pre_sdr2hdr_en &= ~(1 << win->id);
+					pre_hdr2sdr_en &= ~(1 << win->id);
+				}
+			}
+		}
+	} else {  /* sdr output */
+		dev_info(dev_drv->dev, "should not be here, input hlg output sdr\n");
+	}
+	if (pre_hdr2sdr_en || post_hdr2sdr_en ||
+	    pre_sdr2hdr_en || post_sdr2hdr_hlg_en) {
+		/* hdr must in rgb domain transform */
+		overlay_mode = VOP_RGB_DOMAIN;
+	} else {
+		if (output_color == COLOR_RGB)
+			overlay_mode = VOP_RGB_DOMAIN;
+		else
+			overlay_mode = VOP_YUV_DOMAIN;
+	}
+	/* win0 */
+	val = V_BT1886EOTF_POST_CONV_EN(post_sdr2hdr_hlg_en) |
+		V_RGB2RGB_POST_CONV_EN(0) |
+		V_RGB2RGB_POST_CONV_MODE(0) |
+		V_ST2084OETF_POST_CONV_EN(post_sdr2hdr_hlg_en);
+
+	val |=	V_BT1886EOTF_PRE_CONV_EN(!!pre_hdr2sdr_en) |
+			V_RGB2RGB_PRE_CONV_EN(0) |
+			V_RGB2RGB_PRE_CONV_MODE(0) |
+			V_ST2084OETF_PRE_CONV_EN(!!pre_hdr2sdr_en);
+	vop_msk_reg(vop_dev, SDR2HDR_CTRL, val);
+	vop_load_sdr2hdr_table(vop_dev, SDR2HDR_FOR_HLG_HDR);
+
+	vop_dev->post_sdr2hdr = 0;
+	vop_dev->post_hdr2sdr = !!post_hdr2sdr_en;
+	vop_dev->pre_sdr2hdr = !!pre_sdr2hdr_en;
+	vop_dev->post_hlg2hdr10 = !!post_sdr2hdr_hlg_en;
+
+	dev_drv->overlay_mode = overlay_mode;
+	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
+		win = dev_drv->win[i];
+		if (!win->state)
+			continue;
+		rk322xh_vop_get_win_csc(win);
+		rk322xh_vop_win_csc_mode(vop_dev, win,
+					 overlay_mode, output_color);
+	}
+}
+
+/*
+ * color space & sdr/hdr path
+ * win0 support hdr <-> sdr
+ * win1/win2 support sdr -> hdr
+ *
+ * win0   hdr2sdr: post convert mode = 1
+ *        sdr2hdr: post convert mode = 0
+ * win1/2 sdr2hdr: pre convert mode  = 0
+ */
 static void rk322xh_vop_hdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 {
 	struct vop_device *vop_dev =
@@ -978,13 +1151,19 @@ static void rk322xh_vop_csc_cfg(struct rk_lcdc_driver *dev_drv)
 	vop_dev->pre_sdr2hdr = 0;
 	vop_dev->post_sdr2hdr = 0;
 	vop_dev->post_hdr2sdr = 0;
+	vop_dev->post_hlg2hdr10 = 0;
 
 	if ((dev_drv->win[0]->area[0].data_space ||
 	     dev_drv->cur_screen->data_space) &&
-	    dev_drv->win[0]->area[0].state)
-		rk322xh_vop_hdr_csc_cfg(dev_drv);
-	else
+	    dev_drv->win[0]->area[0].state) {
+		if ((dev_drv->win[0]->area[0].data_space == HLG_HDR_DATA) ||
+		    (dev_drv->cur_screen->data_space == HLG_HDR_DATA))
+			rk322xh_vop_hlg_hdr_csc_cfg(dev_drv);
+		else
+			rk322xh_vop_hdr_csc_cfg(dev_drv);
+	} else {
 		rk322xh_vop_sdr_csc_cfg(dev_drv);
+	}
 
 	rk322xh_vop_bcsh_path_sel(dev_drv);
 }
@@ -3361,9 +3540,9 @@ static ssize_t vop_get_disp_info(struct rk_lcdc_driver *dev_drv,
 	memset(dsp_buf, 0, sizeof(dsp_buf));
 
 	size += snprintf(dsp_buf, 80,
-		"HDR:\n  pre sdr2hdr : %d\n  post_hdr2sdr: %d\n  post_sdr2hdr: %d\n",
+		"HDR:\n  pre sdr2hdr : %d\n  post_hdr2sdr: %d\n  post_sdr2hdr: %d\n, hlg2hdr10:  %d\n",
 		vop_dev->pre_sdr2hdr, vop_dev->post_hdr2sdr,
-		vop_dev->post_sdr2hdr);
+		vop_dev->post_sdr2hdr, vop_dev->post_hlg2hdr10);
 
 	strcat(buf, dsp_buf);
 	memset(dsp_buf, 0, sizeof(dsp_buf));

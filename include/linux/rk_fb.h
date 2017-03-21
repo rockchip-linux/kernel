@@ -119,8 +119,10 @@ enum {
 #define BT601F(x)	((CSC_BT601F << CSC_SHIFT) | ((x) & ~CSC_MASK))
 
 enum {
-	SDR_DATA,
-	HDR_DATA,
+	SDR_DATA = 0,
+	HDR10_DATA,
+	HLG_HDR_DATA,
+	DOLBY_HDR_DATA,
 };
 
 /**
