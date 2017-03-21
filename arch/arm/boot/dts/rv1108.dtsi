@@ -229,7 +229,8 @@
 		rockchip,clocks-init-parent =
 			<&aclk_bus_pre &clk_gpll>, <&aclk_peri &clk_gpll>,
 			<&clk_emmc &clk_gpll>, <&clk_sdio &clk_gpll>,
-			<&hdmiphy &hdmiphy_pll>, <&usb480m &usbphy_480m>;
+			<&hdmiphy &hdmiphy_pll>, <&usb480m &usbphy_480m>,
+			<&clk_mac_pll &clk_apll>;
 		rockchip,clocks-init-rate =
 			<&clk_gpll 1188000000>, <&clk_core 800000000>,
 			<&clk_dsp 396000000>, <&aclk_bus_pre 150000000>,

@@ -1063,6 +1063,8 @@
 						clocks = <&clk_apll>, <&clk_gpll>;
 						clock-output-names = "clk_mac_pll";
 						#clock-cells = <0>;
+						rockchip,flags = <CLK_SET_RATE_NO_REPARENT>;
+						#clock-init-cells = <1>;
 					};
 
 					/* 15:13 reserved */
