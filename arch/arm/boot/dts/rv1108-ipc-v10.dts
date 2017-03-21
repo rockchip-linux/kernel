@@ -397,7 +397,7 @@
 &camera2 {
 	rockchip,camera-ircut = <&cam_ircut0>;
 	rockchip,camera-ls = <&light_sensor0>;
-	rockchip,camera-ls-range = <0 700 800 1024>;
+	rockchip,camera-ls-range = <0 750 950 1024>;
 };
 
 &cif1to4 {
