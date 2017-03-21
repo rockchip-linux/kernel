@@ -43,6 +43,10 @@
 #define		RKVENC_INT_EN_SAFE_CLEAR		BIT(2)
 #define		RKVENC_INT_EN_TIMEOUT			BIT(8)
 #define	RKVENC_INT_MSK			0x014
+#define		RKVENC_INT_MSK_OVERFLOW			BIT(4)
+#define		RKVENC_INT_MSK_W_FIFO_FULL		BIT(5)
+#define		RKVENC_INT_MSK_W_CHN_ERROR		BIT(6)
+#define		RKVENC_INT_MSK_R_CHN_ERROR		BIT(7)
 #define		RKVENC_INT_MSK_TIMEOUT			BIT(8)
 #define	RKVENC_INT_CLR			0x018
 #define	RKVENC_INT_STATUS		0x01c
@@ -55,6 +59,11 @@
 #define		RKVENC_AXI_WRITE_CHANNEL_ERROR		BIT(6)
 #define		RKVENC_AXI_READ_CHANNEL_ERROR		BIT(7)
 #define		RKVENC_TIMEOUT_ERROR			BIT(8)
+#define RKVENC_INT_ERROR_BITS		((RKVENC_BIT_STREAM_OVERFLOW) |	   \
+					 (RKVENC_AXI_WRITE_FIFO_FULL) |	   \
+					 (RKVENC_AXI_WRITE_CHANNEL_ERROR) |\
+					 (RKVENC_AXI_READ_CHANNEL_ERROR) | \
+					 (RKVENC_TIMEOUT_ERROR))
 #define	RKVENC_ENC_PIC			0x034
 #define		RKVENC_ENC_PIC_NODE_INT_EN		BIT(31)
 #define	RKVENC_ENC_WDG			0x038
@@ -461,19 +470,19 @@ static int rockchip_mpp_rkvenc_done(struct rockchip_mpp_dev *mpp)
 
 	ctx = to_rkvenc_ctx(ictx);
 
+	if (enc->irq_status & RKVENC_INT_ERROR_BITS)
+		/*
+		 * according to war running, if the dummy encoding
+		 * running with timeout, we enable a safe clear process,
+		 * we reset the ip, and complete the war procedure.
+		 */
+		atomic_inc(&mpp->reset_request);
+
 	if (ctx == enc->dummy_ctx) {
 		mpp_debug(DEBUG_RESET, "war done\n");
-		list_del_init(&ictx->status_link);
 
 		/* for war do not trigger service done process */
-		if (enc->irq_status & RKVENC_TIMEOUT_ERROR) {
-			/*
-			 * according to war running, if the dummy encoding
-			 * running with timeout, we enable a safe clear process,
-			 * we reset the ip, and complete the war procedure.
-			 */
-			rockchip_mpp_rkvenc_reset(mpp);
-		}
+		list_del_init(&ictx->status_link);
 		atomic_set(&enc->dummy_ctx_in_used, 0);
 
 		/* dummy ctx, do not trigger service to wake up done process */
@@ -536,11 +545,10 @@ static int rockchip_mpp_rkvenc_irq(struct rockchip_mpp_dev *mpp)
 
 	mpp_debug(DEBUG_IRQ_STATUS, "irq_status: %08x\n", enc->irq_status);
 	mpp_write(mpp, 0xffffffff, RKVENC_INT_CLR);
-	if (enc->irq_status & RKVENC_TIMEOUT_ERROR) {
-		mpp_err("error irq timeout\n");
+	if (enc->irq_status & RKVENC_INT_ERROR_BITS) {
+		mpp_err("error irq %08x\n", enc->irq_status);
 		/* time out error */
-		mpp_write(mpp, RKVENC_INT_MSK_TIMEOUT,
-			  RKVENC_INT_MSK);
+		mpp_write(mpp, RKVENC_INT_ERROR_BITS, RKVENC_INT_MSK);
 	}
 
 	mpp_debug_leave();
