@@ -1,5 +1,5 @@
 #include "../../../video/rockchip/rk_drm_fb.h"
-#include "../../../video/rockchip/hdmi/rk_hdmi.h"
+#include "../../../video/rockchip/hdmi/rockchip-hdmi.h"
 #define WINDOWS_NR	4
 #define MAX_HDMI_WIDTH   1920
 #define MAX_HDMI_HEIGHT  1080

@@ -129,7 +129,6 @@ static int extend_display_power_on(struct device *dev, int mode)
 struct edid *extend_get_edid(struct device *dev,
 			     struct drm_connector *connector)
 {
-#if 0
 	int i, j = 0, valid_extensions = 0;
 	struct hdmi *hdmi = get_extend_drv();
 	u8 *block, *new;
@@ -210,7 +209,6 @@ out:
 		return ERR_PTR(-ENOMEM);
 	}
 	return edid;
-#endif
 }
 
 static struct rockchip_drm_display_ops extend_display_ops = {
@@ -371,7 +369,8 @@ static void extend_event_call_back_handle(struct rk_drm_display *drm_disp,
 		break;
 	}
 }
-static void extend_get_max_resol(void *ctx, unsigned int *width,
+
+static void extend_get_max_resol(struct device *dev, unsigned int *width,
 				 unsigned int *height)
 {
 	DRM_DEBUG_KMS("[%d] %s\n", __LINE__, __func__);
@@ -400,7 +399,6 @@ static void extend_win_mode_set(struct device *dev,
 	struct list_head *pos, *head;
 	struct fb_modelist *modelist;
 	struct fb_videomode *mode;
-	struct drm_display_mode *disp_mode = NULL;
 
 	if (!overlay) {
 		dev_err(dev, "overlay is NULL\n");
@@ -467,8 +465,6 @@ static void extend_win_commit(struct device *dev, int zpos)
 	struct rk_win_data *rk_win = NULL;
 	struct extend_win_data *win_data;
 	int win = zpos;
-	unsigned long val,  size;
-	u32 xpos, ypos;
 
 	if (ctx->suspended)
 		return;
@@ -662,8 +658,6 @@ static int extend_activate(struct extend_context *ctx, bool enable)
 	struct rk_drm_display *drm_disp = ctx->drm_disp;
 
 	if (enable) {
-		int ret;
-
 		ctx->suspended = false;
 
 		drm_disp->enable = true;
@@ -695,7 +689,6 @@ static int extend_probe(struct platform_device *pdev)
 	struct rockchip_drm_subdrv *subdrv;
 	struct rockchip_drm_panel_info *panel;
 	struct rk_drm_display *drm_display = NULL;
-	int ret = -EINVAL;
 
 	DRM_DEBUG_KMS("%s\n", __FILE__);
 

@@ -492,18 +492,18 @@ char *get_format_string(enum data_format format, char *fmt)
  */
 struct rk_lcdc_driver *rk_get_lcdc_drv(char *name)
 {
-	struct rk_fb *inf = NULL;
+	struct rk_drm_private  *rk_drm_priv = NULL;
 	struct rk_lcdc_driver *dev_drv = NULL;
 	int i = 0;
 
 	if (likely(drm_fb_pdev))
-		inf = platform_get_drvdata(drm_fb_pdev);
+		rk_drm_priv = platform_get_drvdata(drm_fb_pdev);
 	else
 		return NULL;
 
-	for (i = 0; i < inf->num_lcdc; i++) {
-		if (!strcmp(inf->lcdc_dev_drv[i]->name, name)) {
-			dev_drv = inf->lcdc_dev_drv[i];
+	for (i = 0; i < rk_drm_priv->num_lcdc; i++) {
+		if (!strcmp(rk_drm_priv->lcdc_dev_drv[i]->name, name)) {
+			dev_drv = rk_drm_priv->lcdc_dev_drv[i];
 			break;
 		}
 	}
@@ -839,9 +839,14 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 	if (rk_drm_priv->num_screen == RK30_MAX_LCDC_SUPPORT)
 		return -ENXIO;
 	for (i = 0; i < RK_DRM_MAX_SCREEN_NUM; i++) {
-		if (!rk_drm_priv->screen_priv[i].lcdc_dev_drv)
+		if (!rk_drm_priv->screen_priv[i].lcdc_dev_drv) {
+			rk_drm_priv->lcdc_dev_drv[i] = dev_drv;
+			rk_drm_priv->lcdc_dev_drv[i]->id = id;
+			rk_drm_priv->num_lcdc++;
 			break;
+		}
 	}
+
 	rk_drm_priv->num_screen++;
 	drm_screen_priv = &rk_drm_priv->screen_priv[i];
 	drm_screen_priv->lcdc_dev_drv = dev_drv;
@@ -982,25 +987,21 @@ int rk_fb_switch_screen(struct rk_screen *screen , int enable, int lcdc_id)
 
 	sprintf(name, "lcdc%d", lcdc_id);
 
-	if (rk_drm_priv->disp_mode != DUAL) {
-		dev_drv = rk_drm_priv->screen_priv[0].lcdc_dev_drv;
-	} else {
-		for (i = 0; i < rk_drm_priv->num_screen; i++) {
-			if (rk_drm_priv->screen_priv[i].lcdc_dev_drv->prop == EXTEND) {
-				drm_disp = &rk_drm_priv->screen_priv[i].drm_disp;
-				dev_drv = rk_drm_priv->screen_priv[i].lcdc_dev_drv;
-				break;
-			}
-		}
-
-		if (i == rk_drm_priv->num_screen) {
-			pr_err("%s driver not found!", name);
-			return -ENODEV;
+	for (i = 0; i < rk_drm_priv->num_screen; i++) {
+		if (rk_drm_priv->screen_priv[i].lcdc_dev_drv->prop == EXTEND) {
+			drm_disp = &rk_drm_priv->screen_priv[i].drm_disp;
+			dev_drv = rk_drm_priv->screen_priv[i].lcdc_dev_drv;
+			break;
 		}
 	}
+
+	if (i == rk_drm_priv->num_screen) {
+		pr_err("%s driver not found!", name);
+		return -ENODEV;
+	}
+
 	pr_info("hdmi %s lcdc%d\n", enable ? "connect to" : "remove from",
 		dev_drv->id);
-
 
 	if (enable && !drm_disp->is_connected) {
 		struct list_head *modelist;

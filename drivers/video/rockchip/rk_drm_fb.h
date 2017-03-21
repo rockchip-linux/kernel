@@ -67,6 +67,8 @@ struct rk_drm_screen_private {
 struct rk_drm_private {
 	struct rk_drm_screen_private screen_priv[RK_DRM_MAX_SCREEN_NUM];
 	int num_screen;
+	struct rk_lcdc_driver *lcdc_dev_drv[RK30_MAX_LCDC_SUPPORT];
+	int num_lcdc;
 
 	int disp_mode;
 };
