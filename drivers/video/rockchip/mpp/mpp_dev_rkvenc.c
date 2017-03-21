@@ -158,6 +158,7 @@ static void rockchip_mpp_war_init(struct rockchip_mpp_dev *mpp)
 	enc->dummy_ctx->ictx.session = NULL;
 	enc->dummy_ctx->mode = RKVENC_MODE_ONEFRAME;
 	enc->dummy_ctx->cfg.mode = RKVENC_MODE_ONEFRAME;
+	atomic_set(&enc->dummy_ctx_in_used, 0);
 	memcpy(enc->dummy_ctx->cfg.elem[0].reg, enc->war_reg,
 	       sizeof(*enc->war_reg));
 	enc->dummy_ctx->cfg.elem[0].reg_num = sizeof(*enc->war_reg) / 4;
@@ -206,7 +207,8 @@ static struct mpp_ctx *rockchip_mpp_rkvenc_init(struct rockchip_mpp_dev *mpp,
 		return NULL;
 
 	/* HW defeat workaround start */
-	if (!mpp_dev_is_power_on(mpp) && enc->dummy_ctx != NULL) {
+	if (!mpp_dev_is_power_on(mpp) && enc->dummy_ctx &&
+	    atomic_inc_return(&enc->dummy_ctx_in_used) == 1) {
 		mpp_debug(DEBUG_RESET, "add a dummy ctx\n");
 		mpp_srv_pending_locked(mpp->srv, &enc->dummy_ctx->ictx);
 	}
@@ -472,6 +474,7 @@ static int rockchip_mpp_rkvenc_done(struct rockchip_mpp_dev *mpp)
 			 */
 			rockchip_mpp_rkvenc_reset(mpp);
 		}
+		atomic_set(&enc->dummy_ctx_in_used, 0);
 
 		/* dummy ctx, do not trigger service to wake up done process */
 		return -1;
