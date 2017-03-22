@@ -34,6 +34,7 @@
 #include <asm/atomic.h>
 #include <linux/pm.h>
 #include <linux/i2c.h>
+#include <linux/rockchip/cpu.h>
 #include <linux/spi/spi.h>
 #include "rk_headset.h"
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -134,7 +135,12 @@ static int read_gpio(int gpio)
 static irqreturn_t headset_interrupt(int irq, void *dev_id)
 {
 	DBG("---headset_interrupt---\n");	
-	schedule_delayed_work(&headset_info->h_delayed_work[HEADSET], msecs_to_jiffies(50));
+	if (soc_is_rk3126() || soc_is_rk3126b())
+		schedule_delayed_work(&headset_info->h_delayed_work[HEADSET],
+				      msecs_to_jiffies(20));
+	else
+		schedule_delayed_work(&headset_info->h_delayed_work[HEADSET],
+				      msecs_to_jiffies(50));
 	return IRQ_HANDLED;
 }
 
@@ -158,7 +164,11 @@ static void headsetobserve_work(struct work_struct *work)
 	level = read_gpio(pdata->headset_gpio);
 	if(level < 0)
 		goto out;
-	msleep(100);	
+	if (soc_is_rk3126() || soc_is_rk3126b())
+		msleep(20);
+	else
+		msleep(100);
+
 	level2 = read_gpio(pdata->headset_gpio);
 	if(level2 < 0)
 		goto out;
