@@ -1741,26 +1741,20 @@ static struct rk312x_reg_val_typ playback_power_up_list[] = {
 	{0xa8, 0x44},
 	{0xa8, 0x55},
 
-	{0xb0, 0x82},
-	{0xb0, 0xc3},
+	{0xb0, 0x90},
+	{0xb0, 0xd8},
 
 	{0xa4, 0x88},
 	{0xa4, 0xcc},
 	{0xa4, 0xee},
 	{0xa4, 0xff},
 
-	/* {0xa8, 0x44}, */
-	/* {0xb0, 0x92}, */
-	/* {0xb0, 0xdb}, */
 	{0xac, 0x11}, /*DAC*/
-	/* {0xa8, 0x55}, */
 	{0xa8, 0x77},
-
-	{0xb0, 0xee},
+	{0xb0, 0xfc},
 
 	{0xb4, OUT_VOLUME},
 	{0xb8, OUT_VOLUME},
-	/* {0xb0, 0xff}, */
 	{0xb0, 0xff},
 	{0xa0, 0x73|0x08},
 };
@@ -1857,9 +1851,7 @@ static int rk312x_codec_power_up(int type)
 		for (i = 0; i < RK312x_CODEC_PLAYBACK_POWER_UP_LIST_LEN; i++) {
 			snd_soc_write(codec, playback_power_up_list[i].reg,
 				      playback_power_up_list[i].value);
-			if (playback_power_up_list[i].reg == 0xa8 ||
-			    playback_power_up_list[i].reg == 0xb0)
-				usleep_range(10000, 11000);
+			usleep_range(1000, 1100);
 		}
 	} else if (type == RK312x_CODEC_CAPTURE) {
 		if (rk312x_priv->rk312x_for_mid == 1) {
