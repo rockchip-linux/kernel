@@ -1,0 +1,608 @@
+/*
+ * Copyright (c) 2016 Fuzhou Rockchip Electronics Co., Ltd
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is free software; you can redistribute it and/or
+ *     modify it under the terms of the GNU General Public License as
+ *     published by the Free Software Foundation; either version 2 of the
+ *     License, or (at your option) any later version.
+ *
+ *     This file is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/dts-v1/;
+#include <dt-bindings/rkfb/rk_fb.h>
+#include "rk3036.dtsi"
+#include "rk3036-pinctrl.dtsi"
+#include <dt-bindings/input/input.h>
+
+/ {
+
+	uart2 {
+		status = "okay";
+	};
+
+	fiq-debugger {
+		compatible = "rockchip,fiq-debugger";
+		rockchip,serial-id = <2>;
+		rockchip,signal-irq = <106>;
+		rockchip,wake-irq = <0>;
+		/* If enable uart uses irq instead of fiq */
+		rockchip,irq-mode-enable = <1>;
+		/* Only 115200 and 1500000 */
+		rockchip,baudrate = <115200>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart2_xfer>;
+		status = "okay";
+	};
+
+	pwm_regulator {
+		compatible = "rockchip_pwm_regulator";
+		pwms = <&pwm2 0 25000>;
+		rockchip,pwm_id= <2>;
+		rockchip,pwm_voltage_map= <950000 975000 1000000 1025000 1050000 1075000 1100000
+		1125000 1150000 1175000 1200000 1225000 1250000 1275000 1300000 1325000 1350000
+		1375000 1400000 1425000 1450000>;
+		rockchip,pwm_voltage= <1300000>;
+		rockchip,pwm_min_voltage= <950000>;
+		rockchip,pwm_max_voltage= <1450000>;
+		rockchip,pwm_suspend_voltage= <1000000>;
+		rockchip,pwm_coefficient= <500>;
+		status = "disabled";
+		regulators {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pwm_reg0: regulator@0 {
+				regulator-compatible = "pwm_dcdc1";
+				regulator-name= "vdd_arm";
+				regulator-min-microvolt = <950000>;
+				regulator-max-microvolt = <1450000>;
+				regulator-always-on;
+				regulator-boot-on;
+			};
+		};
+	};
+
+	gpio_poweroff {
+		compatible = "gpio-poweroff";
+		gpios = <&gpio1 GPIO_A2 GPIO_ACTIVE_LOW>;
+	};
+
+	power-led {
+		compatible = "gpio-leds";
+		power {
+			label = "standby";
+			gpios = <&gpio1 GPIO_A3 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+	};
+
+	wireless-wlan {
+		compatible = "wlan-platdata";
+
+		wifi_chip_type = "ap6212";
+		sdio_vref = <0>; //1800mv or 3300mv
+
+		//power_ctrl_by_pmu;
+		//keep_wifi_power_on;
+		//power_pmu_regulator = "act_ldo3";
+		//power_pmu_enable_level = <1>; //1->HIGH, 0->LOW
+
+		//vref_ctrl_enable;
+		//vref_ctrl_gpio = <&gpio0 GPIO_A2 GPIO_ACTIVE_HIGH>;
+		//vref_pmu_regulator = "act_ldo3";
+		//vref_pmu_enable_level = <1>; //1->HIGH, 0->LOW
+
+		WIFI,poweren_gpio = <&gpio0 GPIO_D2 GPIO_ACTIVE_HIGH>;
+		WIFI,host_wake_irq = <&gpio0 GPIO_D3 GPIO_ACTIVE_HIGH>;
+		//WIFI,reset_gpio = <&gpio2 GPIO_D6 GPIO_ACTIVE_LOW>;
+
+		status = "okay";
+};
+
+	wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		//wifi-bt-power-toggle;
+
+		uart_rts_gpios = <&gpio0 GPIO_C2 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default","rts_gpio";
+		pinctrl-0 = <&uart0_rts>;
+		pinctrl-1 = <&uart0_rts_gpio>;
+
+		//BT,power_gpio = <&gpio4 GPIO_D3 GPIO_ACTIVE_HIGH>;
+		BT,reset_gpio = <&gpio2 GPIO_B1 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio2 GPIO_B0 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio0 GPIO_C4 GPIO_ACTIVE_LOW>;
+
+		status = "disabled";
+	};
+
+	usb_control {
+		compatible = "rockchip,rk3036-usb-control";
+		//host_drv_gpio = <&gpio2 GPIO_C7 GPIO_ACTIVE_LOW>;
+		//otg_drv_gpio = <&gpio0 GPIO_D2 GPIO_ACTIVE_LOW>;
+
+		rockchip,remote_wakeup;
+		rockchip,usb_irq_wakeup;
+	};
+
+	usb0: usb@10180000 {
+		  /*0 - Normal, 1 - Force Host, 2 - Force Device*/
+		  rockchip,usb-mode = <0>;
+	};
+
+	key {
+		compatible = "rockchip,key";
+		vol-up-key {
+			gpios = <&gpio2 GPIO_C7 GPIO_ACTIVE_LOW>;
+			linux,code = <115>;
+			label = "volume up";
+		};
+	};
+
+	codec_hdmi_spdif: codec-hdmi-spdif {
+		compatible = "hdmi-spdif";
+	};
+
+	rockchip-hdmi-spdif {
+		compatible = "rockchip-hdmi-spdif";
+		dais {
+			dai0 {
+				audio-codec = <&codec_hdmi_spdif>;
+				audio-controller = <&spdif>;
+			};
+		};
+	};
+
+	rockchip-spdif-card {
+		compatible = "rockchip-spdif-card";
+		dais {
+			dai0 {
+				audio-codec = <&codec_hdmi_spdif>;
+				audio-controller = <&spdif>;
+			};
+		};
+	};
+
+	rockchip-audio {
+		compatible = "rk3036-audio";
+		dais {
+			dai0 {
+				audio-codec = <&codec>;
+				audio-controller = <&i2s>;
+				format = "i2s";
+				//continuous-clock;
+				//bitclock-inversion;
+				//frame-inversion;
+				//bitclock-master;
+				//frame-master;
+			};
+		};
+	};
+};
+
+&uart0{
+	status = "okay";
+	dma-names = "!tx", "!rx";
+	pinctrl-0 = <&uart0_xfer &uart0_cts>;
+};
+
+&sfc {
+	/* use spi flash set "okay", otherwise set "disabled" */
+	status = "disabled";
+};
+
+&nandc {
+	/* used nand set "okay" ,used emmc set "disabled" */
+	status = "disabled";
+};
+
+&nandc0reg {
+	/* used nand set "disabled" ,used emmc set "okay" */
+	status = "okay";
+};
+
+&emmc {
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <400000 37500000>;
+
+	supports-highspeed;
+	supports-emmc;
+	bootpart-no-access;
+
+	supports-DDR_MODE;
+
+	ignore-pm-notify;
+	keep-power-in-suspend;
+
+	//poll-hw-reset
+	status = "okay";
+};
+
+&sdmmc {
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <400000 37500000>;
+	supports-highspeed;
+	supports-sd;
+	broken-cd;
+	card-detect-delay = <200>;
+
+	ignore-pm-notify;
+	keep-power-in-suspend;
+
+	//vmmc-supply = <&rk808_ldo5_reg>;
+	status = "disabled";
+};
+
+&sdio {
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <200000 37500000>;
+	supports-highspeed;
+	supports-sdio;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	cap-sdio-irq;
+	status = "okay";
+};
+
+&lcdc {
+	status = "disabled";
+};
+
+&tve {
+	status = "okay";
+};
+
+&hdmi {
+	status = "disabled";
+	//rockchips,hdmi_audio_source = <0>;
+	//rockchip,defaultmode = <16>;
+	//rockchip,defaultmode = <2>;
+};
+
+&vmac {
+	//pmu_regulator = "act_ldo5";
+	//pmu_enable_level = <1>; //1->HIGH, 0->LOW
+	//power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>;
+	reset-gpio = <&gpio2 GPIO_C6 GPIO_ACTIVE_LOW>;
+};
+
+&dwc_control_usb {
+	usb_uart {
+		status = "disabled";
+	};
+};
+
+&pwm2 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+	rk808: rk808@1b {
+		reg = <0x1b>;
+		status = "okay";
+	};
+};
+
+/include/ "rk808.dtsi"
+&rk808 {
+	gpios =<&gpio2 GPIO_A2 GPIO_ACTIVE_HIGH>,<&gpio2 GPIO_A7 GPIO_ACTIVE_LOW>;
+	rk808,system-power-controller;
+
+	regulators {
+
+		rk808_dcdc1_reg: regulator@0{
+			regulator-name= "vdd_arm";
+			regulator-min-microvolt = <1100000>;
+			regulator-max-microvolt = <1100000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-disabled;
+				regulator-state-uv = <900000>;
+			};
+		};
+
+		rk808_dcdc2_reg: regulator@1 {
+			regulator-name= "vdd_gpu";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-disabled;
+				regulator-state-uv = <900000>;
+			};
+		};
+
+		rk808_dcdc3_reg: regulator@2 {
+			regulator-name= "rk_dcdc3";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};
+		};
+
+		rk808_dcdc4_reg: regulator@3 {
+			regulator-name= "vccio";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-mode = <0x2>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <2800000>;
+			};
+		};
+
+	/* NO USED, 3.3V*/
+		rk808_ldo1_reg: regulator@4 {
+			regulator-name= "rk_ldo1";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+	/* BOX:RK1000s, 3.3V  */
+		rk808_ldo2_reg: regulator@5 {
+			regulator-name= "rk_ldo2";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+	/* RK3288 PLL,USB PHY, 1.0V */
+		rk808_ldo3_reg: regulator@6 {
+			regulator-name= "rk_ldo3";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+
+	/* BOX:RK1000S CORE, 1.8V  */
+		rk808_ldo4_reg:regulator@7 {
+			regulator-name= "rk_ldo4";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+	/* SDMMC IO, 3.3V*/
+		rk808_ldo5_reg: regulator@8 {
+			regulator-name= "rk_ldo5";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk808_ldo6_reg: regulator@9 {
+			regulator-name= "rk_ldo6";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <2500000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+
+		rk808_ldo7_reg: regulator@10 {
+			regulator-name= "rk_ldo7";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+		rk808_ldo8_reg: regulator@11 {
+			regulator-name= "rk_ldo8";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk808_ldo9_reg: regulator@12 {
+			regulator-name= "rk_ldo9";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-enabled;
+			};
+		};
+
+		rk808_ldo10_reg: regulator@13 {
+			regulator-name= "rk_ldo10";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+			};
+		};
+	};
+};
+
+&remotectl {
+	handle_cpu_id = <1>;
+	ir_key1{
+		rockchip,usercode = <0x4040>;
+		rockchip,key_table =
+			<0xf2	KEY_REPLY>,
+			<0xba	KEY_BACK>,
+			<0xf4	KEY_UP>,
+			<0xf1	KEY_DOWN>,
+			<0xef	KEY_LEFT>,
+			<0xee	KEY_RIGHT>,
+			<0xbd	KEY_HOME>,
+			<0xea	KEY_VOLUMEUP>,
+			<0xe3	KEY_VOLUMEDOWN>,
+			<0xe2	KEY_SEARCH>,
+			<0xb2	KEY_POWER>,
+			<0xbc	KEY_MUTE>,
+			<0xec	KEY_MENU>,
+			<0xbf	0x190>,
+			<0xe0	0x191>,
+			<0xe1	0x192>,
+			<0xe9	183>,
+			<0xe6	248>,
+			<0xe8	185>,
+			<0xe7	186>,
+			<0xf0	388>,
+			<0xbe	0x175>;
+	};
+	ir_key2{
+		rockchip,usercode = <0xff00>;
+		rockchip,key_table =
+			<0xf9	KEY_HOME>,
+			<0xbf	KEY_BACK>,
+			<0xfb	KEY_MENU>,
+			<0xaa	KEY_REPLY>,
+			<0xb9	KEY_UP>,
+			<0xe9	KEY_DOWN>,
+			<0xb8	KEY_LEFT>,
+			<0xea	KEY_RIGHT>,
+			<0xeb	KEY_VOLUMEDOWN>,
+			<0xef	KEY_VOLUMEUP>,
+			<0xf7	KEY_MUTE>,
+			<0xe7	KEY_POWER>,
+			<0xfc	KEY_POWER>,
+			<0xa9	KEY_VOLUMEDOWN>,
+			<0xa8	KEY_VOLUMEDOWN>,
+			<0xe0	KEY_VOLUMEDOWN>,
+			<0xa5	KEY_VOLUMEDOWN>,
+			<0xab	183>,
+			<0xb7	388>,
+			<0xf8	184>,
+			<0xaf	185>,
+			<0xed	KEY_VOLUMEDOWN>,
+			<0xee	186>,
+			<0xb3	KEY_VOLUMEDOWN>,
+			<0xf1	KEY_VOLUMEDOWN>,
+			<0xf2	KEY_VOLUMEDOWN>,
+			<0xf3	KEY_SEARCH>,
+			<0xb4	KEY_VOLUMEDOWN>,
+			<0xbe	KEY_SEARCH>;
+	};
+	ir_key3{
+		rockchip,usercode = <0x1dcc>;
+		rockchip,key_table =
+			<0xee	KEY_REPLY>,
+			<0xf0	KEY_BACK>,
+			<0xf8	KEY_UP>,
+			<0xbb	KEY_DOWN>,
+			<0xef	KEY_LEFT>,
+			<0xed	KEY_RIGHT>,
+			<0xfc	KEY_HOME>,
+			<0xf1	KEY_VOLUMEUP>,
+			<0xfd	KEY_VOLUMEDOWN>,
+			<0xb7	KEY_SEARCH>,
+			<0xff	KEY_POWER>,
+			<0xf3	KEY_MUTE>,
+			<0xbf	KEY_MENU>,
+			<0xf9	0x191>,
+			<0xf5	0x192>,
+			<0xb3	388>,
+			<0xbe	KEY_1>,
+			<0xba	KEY_2>,
+			<0xb2	KEY_3>,
+			<0xbd	KEY_4>,
+			<0xf9	KEY_5>,
+			<0xb1	KEY_6>,
+			<0xfc	KEY_7>,
+			<0xf8	KEY_8>,
+			<0xb0	KEY_9>,
+			<0xb6	KEY_0>,
+			<0xb5	KEY_BACKSPACE>;
+	};
+};
