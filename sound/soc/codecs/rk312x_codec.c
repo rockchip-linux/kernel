@@ -801,6 +801,20 @@ static const SOC_ENUM_SINGLE_DECL(rk312x_voice_call_path_type, 0, 0,
 /* static int rk312x_codec_power_up(int type); */
 static int rk312x_codec_power_down(int type);
 
+int rk312x_codec_mute_dac(int mute)
+{
+	if (!rk312x_priv) {
+		DBG("%s : rk312x_priv is NULL\n", __func__);
+		return -EINVAL;
+	}
+	if (mute) {
+		snd_soc_write(rk312x_priv->codec, 0xb4, 0x40);
+		snd_soc_write(rk312x_priv->codec, 0xb8, 0x40);
+	}
+	return 0;
+}
+EXPORT_SYMBOL(rk312x_codec_mute_dac);
+
 static int rk312x_playback_path_get(struct snd_kcontrol *kcontrol,
 				    struct snd_ctl_elem_value *ucontrol)
 {
