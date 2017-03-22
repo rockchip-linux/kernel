@@ -264,6 +264,9 @@
 			<&clk_mac_ref_div 25000000>;
 	/*	rockchip,clocks-uboot-has-init =
 			<&aclk_vio1>;*/
+		rockchip,clocks-uboot-has-init =
+			<&clk_uart_pll>;
+		rockchip,set_div_for_pll_init;
 	};
 
 	clocks-enable {
@@ -388,6 +391,15 @@
 		//pinctrl-names = "default", "sleep";
 		//pinctrl-0 = <&i2s_mclk &i2s_sclk &i2s_lrckrx &i2s_lrcktx &i2s_sdi &i2s_sdo0 &i2s_sdo1 &i2s_sdo2 &i2s_sdo3>;
 		//pinctrl-1 = <&i2s_gpio>;
+	};
+
+	sfc: sfc@10208000 {
+		compatible = "rockchip,sfc";
+		reg = <0x10208000 0x200>;
+		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk_sfc>, <&clk_gates3 14>;
+		clock-names = "clk_sfc", "hclk_sfc";
+		status = "disabled";
 	};
 
 	codec: codec@20030000 {
