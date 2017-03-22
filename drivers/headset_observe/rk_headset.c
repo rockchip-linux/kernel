@@ -67,6 +67,10 @@ extern void rk2928_codec_set_spk(bool on);
 extern int wm8994_set_status(void);
 #endif
 
+#if defined(CONFIG_SND_RK_SOC_RK312X)
+extern int rk312x_codec_mute_dac(int mute);
+#endif
+
 /* headset private data */
 struct headset_priv {
 	struct input_dev *input_dev;
@@ -209,6 +213,11 @@ static void headsetobserve_work(struct work_struct *work)
 	}
 //	rk28_send_wakeup_key();
 	switch_set_state(&headset_info->sdev, headset_info->cur_headset_status);	
+#if defined(CONFIG_SND_RK_SOC_RK312X)
+	/* mute speaker to fix android speaker & headphone different volume */
+	if (headset_info->headset_status == HEADSET_IN)
+		rk312x_codec_mute_dac(1);
+#endif
 	#if defined(CONFIG_SND_RK_SOC_RK2928) || defined(CONFIG_SND_RK29_SOC_RK610)
 	if (headset_info->headset_status == HEADSET_OUT)
 	{
