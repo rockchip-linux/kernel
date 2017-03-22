@@ -1712,10 +1712,20 @@ static int rk312x_digital_mute(struct snd_soc_dai *dai, int mute)
 			switch (rk312x_priv->playback_path) {
 			case SPK_PATH:
 			case RING_SPK:
+				rk312x_codec_ctl_gpio(CODEC_SET_SPK,
+						      rk312x_priv->spk_active_level);
+				rk312x_codec_ctl_gpio(CODEC_SET_HP,
+						      !rk312x_priv->hp_active_level);
+				break;
 			case HP_PATH:
 			case HP_NO_MIC:
 			case RING_HP:
 			case RING_HP_NO_MIC:
+				rk312x_codec_ctl_gpio(CODEC_SET_SPK,
+						      !rk312x_priv->spk_active_level);
+				rk312x_codec_ctl_gpio(CODEC_SET_HP,
+						      rk312x_priv->hp_active_level);
+				break;
 			case SPK_HP:
 			case RING_SPK_HP:
 				rk312x_codec_ctl_gpio(CODEC_SET_SPK,
