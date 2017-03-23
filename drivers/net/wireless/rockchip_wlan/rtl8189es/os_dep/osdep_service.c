@@ -322,7 +322,7 @@ inline int _rtw_netif_rx(_nic_hdl ndev, struct sk_buff *skb)
 {
 #ifdef PLATFORM_LINUX
 	skb->dev = ndev;
-	return netif_rx(skb);
+		return netif_rx(skb);
 #endif /* PLATFORM_LINUX */
 
 #ifdef PLATFORM_FREEBSD
@@ -804,7 +804,7 @@ void rtw_mfree2d(void *pbuf, int h, int w, int size)
 	rtw_mfree((u8 *)pbuf, h*sizeof(void*) + w*h*size);
 }
 
-void _rtw_memcpy(void* dst, void* src, u32 sz)
+void _rtw_memcpy(void *dst, const void *src, u32 sz)
 {
 
 #if defined (PLATFORM_LINUX)|| defined (PLATFORM_FREEBSD)
@@ -1551,7 +1551,7 @@ void rtw_udelay_os(int us)
 }
 #endif
 
-void rtw_yield_os()
+void rtw_yield_os(void)
 {
 #ifdef PLATFORM_LINUX
 	yield();
@@ -1598,7 +1598,7 @@ static android_suspend_lock_t rtw_resume_scan_lock ={
 };
 #endif
 
-inline void rtw_suspend_lock_init()
+inline void rtw_suspend_lock_init(void)
 {
 	#ifdef CONFIG_WAKELOCK
 	wake_lock_init(&rtw_suspend_lock, WAKE_LOCK_SUSPEND, RTW_SUSPEND_LOCK_NAME);
@@ -1617,7 +1617,7 @@ inline void rtw_suspend_lock_init()
 	#endif
 }
 
-inline void rtw_suspend_lock_uninit()
+inline void rtw_suspend_lock_uninit(void)
 {
 	#ifdef CONFIG_WAKELOCK
 	wake_lock_destroy(&rtw_suspend_lock);
@@ -2051,7 +2051,7 @@ int rtw_is_file_readable(char *path)
 * @param sz how many bytes to read at most
 * @return the byte we've read
 */
-int rtw_retrive_from_file(char *path, u8* buf, u32 sz)
+int rtw_retrieve_from_file(char *path, u8 *buf, u32 sz)
 {
 #ifdef PLATFORM_LINUX
 	int ret =retriveFromFile(path, buf, sz);
@@ -2141,7 +2141,6 @@ void rtw_free_netdev(struct net_device * netdev)
 	if(!pnpi->priv)
 		goto RETURN;
 
-	rtw_vmfree(pnpi->priv, pnpi->sizeof_priv);
 	free_netdev(netdev);
 
 RETURN:
@@ -2190,7 +2189,7 @@ int rtw_change_ifname(_adapter *padapter, const char *ifname)
 
 	rtw_init_netdev_name(pnetdev, ifname);
 
-	_rtw_memcpy(pnetdev->dev_addr, padapter->eeprompriv.mac_addr, ETH_ALEN);
+	_rtw_memcpy(pnetdev->dev_addr, adapter_mac_addr(padapter), ETH_ALEN);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26))
 	if(!rtnl_is_locked())
