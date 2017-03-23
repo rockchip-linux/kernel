@@ -345,17 +345,25 @@ static void rk816_power_off_shutdown(void)
 	for (i = 0; i < 10; i++) {
 		pr_info("%s\n", __func__);
 		ret = rk816_i2c_read(rk816, RK816_DEV_CTRL_REG, 1, &reg);
-		if (ret < 0)
+		if (ret < 0) {
+			dev_err(rk816->dev,
+				"rk816 power off try %d times: %d\n", i, ret);
 			continue;
+		}
+
 		ret = rk816_i2c_write(rk816, RK816_DEV_CTRL_REG, 1,
 				      (reg | DEV_OFF));
 		if (ret < 0) {
-			dev_err(rk816->dev, "rk816 power off error!\n");
+			dev_err(rk816->dev,
+				"rk816 power off fail %d times: %d\n", i, ret);
 			continue;
 		}
 	}
-	while (1)
+
+	while (1) {
+		dev_err(rk816->dev, "rk816 power off failed!!!\n");
 		wfi();
+	}
 }
 
 /******************************** rk816 ***************************************/
