@@ -35,6 +35,7 @@
 #define rCCAonSec_Jaguar		0x838
 #define rPwed_TH_Jaguar			0x830
 #define rL1_Weight_Jaguar		0x840
+#define	r_L1_SBD_start_time		0x844
 
 // BW and sideband setting
 #define rBWIndication_Jaguar		0x834
@@ -549,11 +550,14 @@
 // 4. Page9(0x900)
 //
 #define rFPGA1_RFMOD				0x900	//RF mode & OFDM TxSC // RF BW Setting??
-
+#define	REG_BB_TX_PATH_SEL_1		0x93c
+#define	REG_BB_TX_PATH_SEL_2		0x940
 #define rFPGA1_TxBlock				0x904	// Useless now
 #define rFPGA1_DebugSelect			0x908	// Useless now
 #define rFPGA1_TxInfo				0x90c	// Useless now // Status report??
-
+/*Page 19 for TxBF*/
+#define	REG_BB_TXBF_ANT_SET_BF1	0x19ac
+#define	REG_BB_TXBF_ANT_SET_BF0	0x19b4
 //
 // PageA(0xA00)
 //
@@ -851,7 +855,10 @@
 #define bMaskH4Bits				0xf0000000	
 #define bMaskOFDM_D			0xffc00000
 #define bMaskCCK				0x3f3f3f3f
-
+#define bMask7bits				0x7f
+#define bMaskByte2HighNibble			0x00f00000
+#define bMaskByte3LowNibble				0x0f000000
+#define bMaskL3Bytes			0x00ffffff
 
 /*--------------------------Define Parameters-------------------------------*/
 

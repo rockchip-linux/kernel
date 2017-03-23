@@ -271,6 +271,7 @@ PHY_SetSwChnlBWMode8814(
 
 s32 PHY_MACConfig8814(PADAPTER Adapter);
 int PHY_BBConfig8814(PADAPTER	Adapter);
+VOID PHY_Set_SecCCATH_by_RXANT_8814A(PADAPTER	pAdapter, u4Byte ulAntennaRx);
 
 
 

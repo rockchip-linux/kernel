@@ -62,9 +62,31 @@
 #endif
 
 
-//=============
+/* RX buffer descriptor */
+/* DWORD 0 */
+#define SET_RX_BUFFER_DESC_DATA_LENGTH_8814A(__pRxStatusDesc, __Value)		SET_BITS_TO_LE_4BYTE(__pRxStatusDesc, 0, 14, __Value)
+#define SET_RX_BUFFER_DESC_LS_8814A(__pRxStatusDesc, __Value)					SET_BITS_TO_LE_4BYTE(__pRxStatusDesc, 14, 1, __Value)
+#define SET_RX_BUFFER_DESC_FS_8814A(__pRxStatusDesc, __Value)					SET_BITS_TO_LE_4BYTE(__pRxStatusDesc, 15, 1, __Value)
+#define SET_RX_BUFFER_DESC_TOTAL_LENGTH_8814A(__pRxStatusDesc, __Value)		SET_BITS_TO_LE_4BYTE(__pRxStatusDesc, 16, 16, __Value)
+
+#define GET_RX_BUFFER_DESC_OWN_8814A(__pRxStatusDesc)						LE_BITS_TO_4BYTE(__pRxStatusDesc, 31, 1)
+#define GET_RX_BUFFER_DESC_LS_8814A(__pRxStatusDesc)							LE_BITS_TO_4BYTE(__pRxStatusDesc, 14, 1)
+#define GET_RX_BUFFER_DESC_FS_8814A(__pRxStatusDesc)							LE_BITS_TO_4BYTE(__pRxStatusDesc, 15, 1)
+#define GET_RX_BUFFER_DESC_TOTAL_LENGTH_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE(__pRxStatusDesc, 16, 15)
+
+/* DWORD 1 */
+#define SET_RX_BUFFER_PHYSICAL_LOW_8814A(__pRxStatusDesc, __Value)			SET_BITS_TO_LE_4BYTE(__pRxStatusDesc+4, 0, 32, __Value)
+#define GET_RX_BUFFER_PHYSICAL_LOW_8814A(__pRxStatusDesc)					LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 0, 32)
+
+/* DWORD 2 */
+#define SET_RX_BUFFER_PHYSICAL_HIGH_8814A(__pRxStatusDesc, __Value)			SET_BITS_TO_LE_4BYTE(__pRxStatusDesc+8, 0, 32, __Value)
+
+/* DWORD 3*/ /* RESERVED */
+
+
+/*=============
 //RX Info
-//=============
+==============*/
 //DWORD 0
 #define SET_RX_STATUS_DESC_PKT_LEN_8814A(__pRxStatusDesc, __Value)		SET_BITS_TO_LE_4BYTE( __pRxStatusDesc, 0, 14, __Value)
 #define SET_RX_STATUS_DESC_EOR_8814A(__pRxStatusDesc, __Value)			SET_BITS_TO_LE_4BYTE( __pRxStatusDesc, 30, 1, __Value)
@@ -83,12 +105,12 @@
 #define GET_RX_STATUS_DESC_EOR_8814A(__pRxStatusDesc)						LE_BITS_TO_4BYTE( __pRxStatusDesc, 30, 1)
 
 //DWORD 1
-#define GET_RX_STATUS_DESC_MACID_8814A(__pRxDesc) 							LE_BITS_TO_4BYTE(__pRxDesc+4, 0, 7)
-#define GET_RX_STATUS_DESC_EXT_SECTYPE_8814A(__pRxDesc) 					LE_BITS_TO_4BYTE(__pRxDesc+4, 7, 1)//20130415 KaiYuan add for 8814
-#define GET_RX_STATUS_DESC_TID_8814A(__pRxDesc) 								LE_BITS_TO_4BYTE(__pRxDesc+4, 8, 4)
-#define GET_RX_STATUS_DESC_MACID_VLD_8814A(__pRxDesc) 						LE_BITS_TO_4BYTE(__pRxDesc+4, 12, 1)
-#define GET_RX_STATUS_DESC_AMSDU_8814A(__pRxDesc) 							LE_BITS_TO_4BYTE(__pRxDesc+4, 13, 1)
-#define GET_RX_STATUS_DESC_RXID_MATCH_8814A(__pRxDesc) 						LE_BITS_TO_4BYTE(__pRxDesc+4, 14, 1)
+#define GET_RX_STATUS_DESC_MACID_8814A(__pRxStatusDesc)					LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 0, 7)
+#define GET_RX_STATUS_DESC_EXT_SECTYPE_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 7, 1)/* 20130415 KaiYuan add for 8814 */
+#define GET_RX_STATUS_DESC_TID_8814A(__pRxStatusDesc)					LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 8, 4)
+#define GET_RX_STATUS_DESC_MACID_VLD_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 12, 1)
+#define GET_RX_STATUS_DESC_AMSDU_8814A(__pRxStatusDesc)					LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 13, 1)
+#define GET_RX_STATUS_DESC_RXID_MATCH_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE(__pRxStatusDesc+4, 14, 1)
 #define GET_RX_STATUS_DESC_PAGGR_8814A(__pRxStatusDesc)						LE_BITS_TO_4BYTE( __pRxStatusDesc+4, 15, 1)
 #define GET_RX_STATUS_DESC_TCPOFFLOAD_CHKERR_8814A(__pRxStatusDesc)		LE_BITS_TO_4BYTE( __pRxStatusDesc+4, 20, 1)
 #define GET_RX_STATUS_DESC_TCPOFFLOAD_IPVER_8814A(__pRxStatusDesc)			LE_BITS_TO_4BYTE( __pRxStatusDesc+4, 21, 1)
@@ -124,9 +146,9 @@
 #define GET_RX_STATUS_DESC_EOSP_8814A(__pRxStatusDesc)						LE_BITS_TO_4BYTE( __pRxStatusDesc+12, 11, 1)
 #define GET_RX_STATUS_DESC_BSSID_FIT_L_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE( __pRxStatusDesc+12, 12, 2)
 #define GET_RX_STATUS_DESC_DMA_AGG_NUM_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE( __pRxStatusDesc+12, 16, 8)//20130415 KaiYuan Check if it exist anymore
-#define GET_RX_STATUS_DESC_PATTERN_MATCH_8814A(__pRxDesc)					LE_BITS_TO_4BYTE( __pRxDesc+12, 29, 1)
-#define GET_RX_STATUS_DESC_UNICAST_8814A(__pRxDesc)							LE_BITS_TO_4BYTE( __pRxDesc+12, 30, 1)
-#define GET_RX_STATUS_DESC_MAGIC_WAKE_8814A(__pRxDesc)						LE_BITS_TO_4BYTE( __pRxDesc+12, 31, 1)
+#define GET_RX_STATUS_DESC_PATTERN_MATCH_8814A(__pRxStatusDesc)			LE_BITS_TO_4BYTE(__pRxStatusDesc+12, 29, 1)
+#define GET_RX_STATUS_DESC_UNICAST_8814A(__pRxStatusDesc)					LE_BITS_TO_4BYTE(__pRxStatusDesc+12, 30, 1)
+#define GET_RX_STATUS_DESC_MAGIC_WAKE_8814A(__pRxStatusDesc)				LE_BITS_TO_4BYTE(__pRxStatusDesc+12, 31, 1)
 
 //DWORD 4
 #define GET_RX_STATUS_DESC_PATTERN_IDX_8814A(__pRxStatusDesc)	 			LE_BITS_TO_4BYTE( __pRxStatusDesc+16, 0, 8)
@@ -143,21 +165,24 @@
 // Rx smooth factor
 #define Rx_Smooth_Factor (20)
 
-void rtl8814_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc);
+#ifdef CONFIG_USB_HCI
 s32 rtl8814au_init_recv_priv(PADAPTER padapter);
 void rtl8814au_free_recv_priv(PADAPTER padapter);
-#define INTERRUPT_MSG_FORMAT_LEN 60
+#endif
+
+#ifdef CONFIG_PCI_HCI
+s32 rtl8814ae_init_recv_priv(PADAPTER padapter);
+void rtl8814ae_free_recv_priv(PADAPTER padapter);
+#endif
 
 /* temp solution
 #ifdef CONFIG_SDIO_HCI
 s32 InitRecvPriv8821AS(PADAPTER padapter);
 void FreeRecvPriv8821AS(PADAPTER padapter);
 #endif // CONFIG_SDIO_HCI
-
-#ifdef CONFIG_PCI_HCI
-s32 rtl8812ae_init_recv_priv(PADAPTER padapter);
-void rtl8812ae_free_recv_priv(PADAPTER padapter);
-#endif
 */
-#endif /* __RTL8812A_RECV_H__ */
+
+void rtl8814_query_rx_desc_status(union recv_frame *precvframe, u8 *pdesc);
+
+#endif /* __RTL8814A_RECV_H__ */
 

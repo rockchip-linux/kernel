@@ -43,16 +43,35 @@ typedef struct txdescriptor_8814
 //-----------------------------------------------------------------
 //	RTL8814A TX BUFFER DESC
 //-----------------------------------------------------------------
+/*
+- Each TXBD has 4 segment.
+ -- For 32 bit, each segment is 8 bytes.
+ -- For 64 bit, each segment is 16 bytes.
+*/
+#if 0
+#if 1 /* 32 bit */
+#define SET_TX_EXTBUFF_DESC_LEN_8814A(__pTxDesc, __Value, __Set) SET_BITS_TO_LE_4BYTE(__pTxDesc+(__Set*8), 0, 16, __Value)
+#define SET_TX_EXTBUFF_DESC_ADDR_LOW_8814A(__pTxDesc, __Value, __Set) SET_BITS_TO_LE_4BYTE(__pTxDesc+(__Set*8)+4, 0, 32, __Value)
+#else /* 64 bit */
 #define SET_TX_EXTBUFF_DESC_LEN_8814A(__pTxDesc, __Value, __Set) SET_BITS_TO_LE_4BYTE(__pTxDesc+(__Set*16), 0, 16, __Value)
 #define SET_TX_EXTBUFF_DESC_ADDR_LOW_8814A(__pTxDesc, __Value, __Set) SET_BITS_TO_LE_4BYTE(__pTxDesc+(__Set*16)+4, 0, 32, __Value)
+#endif
 #define SET_TX_EXTBUFF_DESC_ADDR_HIGH_8814A(__pTxDesc, __Value, __Set) SET_BITS_TO_LE_4BYTE(__pTxDesc+(__Set*16)+8, 0, 32, __Value)
-
+#endif
+/*c2h-DWORD 2*/
+#define GET_RX_STATUS_DESC_RPT_SEL_8814A(__pRxDesc)			LE_BITS_TO_4BYTE(__pRxDesc+8, 28, 1)
 
 //=========================================================
 // for Txfilldescroptor8814Ae, fill the desc content.
+#if 1 /* 32 bit */
+#define SET_TXBUFFER_DESC_LEN_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*8), 0, 16, __Valeu)
+#define SET_TXBUFFER_DESC_AMSDU_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*8), 31, 1, __Valeu)
+#define SET_TXBUFFER_DESC_ADD_LOW_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*8)+4, 0, 32, __Valeu)
+#else /* 64 bit */
 #define SET_TXBUFFER_DESC_LEN_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*16), 0, 16, __Valeu)
 #define SET_TXBUFFER_DESC_AMSDU_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*16), 31, 1, __Valeu)
 #define SET_TXBUFFER_DESC_ADD_LOW_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*16)+4, 0, 32, __Valeu)
+#endif
 #define SET_TXBUFFER_DESC_ADD_HIGT_WITH_OFFSET(__pTxDesc, __Offset, __Valeu) SET_BITS_TO_LE_4BYTE(__pTxDesc+((__Offset)*16)+8, 0, 32, __Valeu)
 
 //=========================================================
@@ -63,12 +82,17 @@ typedef struct txdescriptor_8814
 #define SET_TX_BUFF_DESC_LEN_0_8814A(__pTxDesc, __Valeu) 			SET_BITS_TO_LE_4BYTE(__pTxDesc, 0, 16, __Valeu)
 #define SET_TX_BUFF_DESC_PSB_8814A(__pTxDesc, __Value) 			SET_BITS_TO_LE_4BYTE(__pTxDesc, 16, 15, __Value)
 #define SET_TX_BUFF_DESC_OWN_8814A(__pTxDesc, __Value) 			SET_BITS_TO_LE_4BYTE(__pTxDesc, 31, 1, __Value)
+#define GET_TX_BUFF_DESC_OWN_8814A(__pTxDesc)				LE_BITS_TO_4BYTE(__pTxDesc, 31, 1)
 
 // Dword 1
 #define SET_TX_BUFF_DESC_ADDR_LOW_0_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+4, 0, 32, __Value)
+#define GET_TX_BUFF_DESC_ADDR_LOW_0_8814A(__pTxDesc)			LE_BITS_TO_4BYTE(__pTxDesc+4, 0, 32)
 // Dword 2
 #define SET_TX_BUFF_DESC_ADDR_HIGH_0_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+8, 0, 32, __Value)
+#define GET_TX_BUFF_DESC_ADDR_HIGH_0_8814A(__pTxDesc)			LE_BITS_TO_4BYTE(__pTxDesc+8, 0, 32)
 // Dword 3 //RESERVED 0
+
+#if 0 /* 64 bit */
 // Dword 4
 #define SET_TX_BUFF_DESC_LEN_1_8814A(__pTxDesc, __Value) 			SET_BITS_TO_LE_4BYTE(__pTxDesc+16, 0, 16, __Value)
 #define SET_TX_BUFF_DESC_AMSDU_1_8814A(__pTxDesc, __Value) 		SET_BITS_TO_LE_4BYTE(__pTxDesc+16, 31, 1, __Value)
@@ -93,6 +117,7 @@ typedef struct txdescriptor_8814
 // Dword 14
 #define SET_TX_BUFF_DESC_ADDR_HIGH_3_8814A(__pTxDesc, __Value) 	SET_BITS_TO_LE_4BYTE(__pTxDesc+56, 0, 32, __Value)
 // Dword 15 //RESERVED 0
+#endif
 
 //=====Desc content
 //TX Info
@@ -147,7 +172,7 @@ typedef struct txdescriptor_8814
 // Dword 3
 #define SET_TX_DESC_WHEADER_LEN_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 0, 5, __Value)
 #define SET_TX_DESC_EARLY_RATE_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 5, 1, __Value)
-#define SET_TX_DESC_HWSEQ_SEL_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 6, 2, __Value)
+#define SET_TX_DESC_HW_SSN_SEL_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 6, 2, __Value)
 #define SET_TX_DESC_USE_RATE_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 8, 1, __Value)
 #define SET_TX_DESC_DISABLE_RTS_FB_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 9, 1, __Value)
 #define SET_TX_DESC_DISABLE_FB_8814A(__pTxDesc, __Value) SET_BITS_TO_LE_4BYTE(__pTxDesc+12, 10, 1, __Value)
@@ -255,6 +280,17 @@ void rtl8814au_xmit_tasklet(void *priv);
 s32 rtl8814au_xmitframe_complete(_adapter *padapter, struct xmit_priv *pxmitpriv, struct xmit_buf *pxmitbuf);
 #endif //CONFIG_USB_HCI
 
+#ifdef CONFIG_PCI_HCI
+s32 rtl8814ae_init_xmit_priv(PADAPTER padapter);
+void rtl8814ae_free_xmit_priv(PADAPTER padapter);
+struct xmit_buf *rtl8814ae_dequeue_xmitbuf(struct rtw_tx_ring *ring);
+void rtl8814ae_xmitframe_resume(_adapter *padapter);
+s32 rtl8814ae_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe);
+s32 rtl8814ae_mgnt_xmit(PADAPTER padapter, struct xmit_frame *pmgntframe);
+s32	rtl8814ae_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmitframe);
+void rtl8814ae_xmit_tasklet(void *priv);
+#endif
+
 void _dbg_dump_tx_info(_adapter	*padapter,int frame_tag, u8 *ptxdesc);
 u8 
 SCMapping_8814(
@@ -269,5 +305,5 @@ BWMapping_8814(
 );
 
 
-#endif //__RTL8812_XMIT_H__
+#endif /* __RTL8814_XMIT_H__ */
 

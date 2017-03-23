@@ -25,10 +25,5 @@ void rtl8814_deinit_dm_priv(IN PADAPTER Adapter);
 void rtl8814_InitHalDm(IN PADAPTER Adapter);
 void rtl8814_HalDmWatchDog(IN PADAPTER Adapter);
 
-#ifdef CONFIG_ANTENNA_DIVERSITY
-void AntDivCompare8814(PADAPTER Adapter, WLAN_BSSID_EX *dst, WLAN_BSSID_EX *src);
-u8 AntDivBeforeLink8814(PADAPTER Adapter );
-#endif //CONFIG_ANTENNA_DIVERSITY
-
 #endif
 

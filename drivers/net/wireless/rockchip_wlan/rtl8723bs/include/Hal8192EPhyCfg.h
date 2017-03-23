@@ -137,6 +137,11 @@ PHY_SetSwChnlBWMode8192E(
 	IN	u8					Offset80
 );
 
+VOID
+PHY_SetRFEReg_8192E(
+	IN PADAPTER		Adapter
+);
+
 void 
 phy_SpurCalibration_8192E(
 	IN	PADAPTER			Adapter,

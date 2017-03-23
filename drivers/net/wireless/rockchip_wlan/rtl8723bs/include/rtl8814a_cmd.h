@@ -28,18 +28,13 @@
 #define SET_8814A_H2CCMD_RSVDPAGE_LOC_QOS_NULL_DATA(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd)+3, 0, 8, __Value)
 #define SET_8814A_H2CCMD_RSVDPAGE_LOC_BT_QOS_NULL_DATA(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 0, 8, __Value)
 
-//_MEDIA_STATUS_RPT_PARM_CMD1
-#define SET_8814A_H2CCMD_MSRRPT_PARM_OPMODE(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 1, __Value)
-#define SET_8814A_H2CCMD_MSRRPT_PARM_MACID_IND(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 1, 1, __Value)
-#define SET_8814A_H2CCMD_MSRRPT_PARM_MACID(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd+1, 0, 8, __Value)
-#define SET_8814A_H2CCMD_MSRRPT_PARM_MACID_END(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd+2, 0, 8, __Value)
-
 //_SETPWRMODE_PARM
 #define SET_8814A_H2CCMD_PWRMODE_PARM_MODE(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd, 0, 8, __Value)
 #define SET_8814A_H2CCMD_PWRMODE_PARM_RLBM(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 0, 4, __Value)
 #define SET_8814A_H2CCMD_PWRMODE_PARM_SMART_PS(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 4, 4, __Value)
 #define SET_8814A_H2CCMD_PWRMODE_PARM_BCN_PASS_TIME(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+2, 0, 8, __Value)
 #define SET_8814A_H2CCMD_PWRMODE_PARM_ALL_QUEUE_UAPSD(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+3, 0, 8, __Value)
+#define SET_8814A_H2CCMD_PWRMODE_PARM_BCN_EARLY_C2H_RPT(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+3, 2, 1, __Value)
 #define SET_8814A_H2CCMD_PWRMODE_PARM_PWR_STATE(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 0, 8, __Value)
 #define SET_8814A_H2CCMD_PWRMODE_PARM_BYTE5(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+5, 0, 8, __Value)
 
@@ -85,6 +80,13 @@
 #define SET_88E_H2CCMD_PWRMODE_PARM_ALL_QUEUE_UAPSD(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+3, 0, 8, __Value)
 #define SET_88E_H2CCMD_PWRMODE_PARM_PWR_STATE(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+4, 0, 8, __Value)
 
+/*BCNHWSEQ*/
+#define SET_8814A_H2CCMD_BCNHWSEQ_EN(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd), 0, 1, __Value)
+#define SET_8814A_H2CCMD_BCNHWSEQ_BCN_NUMBER(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd), 1, 3, __Value)
+#define SET_8814A_H2CCMD_BCNHWSEQ_HWSEQ(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd), 6, 1, __Value)
+#define SET_8814A_H2CCMD_BCNHWSEQ_EXHWSEQ(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd), 7, 1, __Value)
+#define SET_8814A_H2CCMD_BCNHWSEQ_PAGE(__pH2CCmd, __Value)	SET_BITS_TO_LE_1BYTE((__pH2CCmd)+1, 0, 8, __Value)
+void rtl8814_fw_update_beacon_cmd(_adapter *padapter);
 
 // TX Beamforming
 #define GET_8814A_C2H_TXBF_ORIGINATE(_Header)			LE_BITS_TO_1BYTE(_Header, 0, 8)
@@ -114,28 +116,20 @@
 #define SET_8814A_H2CCMD_P2P_PS_OFFLOAD_ALLSTASLEEP(__pH2CCmd, __Value)		SET_BITS_TO_LE_1BYTE(__pH2CCmd, 5, 1, __Value)
 #define SET_8814A_H2CCMD_P2P_PS_OFFLOAD_DISCOVERY(__pH2CCmd, __Value)			SET_BITS_TO_LE_1BYTE(__pH2CCmd, 6, 1, __Value)
 
-
-typedef enum _RTL8814A_C2H_EVT
-{
-	C2H_8814A_DBG = 0,
-	C2H_8814A_LB = 1,
-	C2H_8814A_TXBF = 2,
-	C2H_8814A_TX_REPORT = 3,
-	C2H_8814A_BT_INFO = 9,
-	C2H_8814A_BT_MP = 11,
-	C2H_8814A_RA_PARA_RPT = 14,
-	MAX_8814A_C2HEVENT
-}RTL8814A_C2H_EVT;
-
 s32 FillH2CCmd_8814(PADAPTER padapter, u8 ElementID, u32 CmdLen, u8 *pCmdBuffer);
 void rtl8814_set_raid_cmd(PADAPTER padapter, u64 bitmap, u8* arg);
-void rtl8814_Add_RateATid(PADAPTER padapter, u32 bitmap, u8* arg, u8 rssi_level);
+void rtl8814_Add_RateATid(PADAPTER padapter, u64 rate_bitmap, u8 *arg, u8 rssi_level);
 void rtl8814_set_wowlan_cmd(_adapter* padapter, u8 enable);
 void rtl8814_set_FwJoinBssReport_cmd(PADAPTER padapter, u8 mstatus);
-void rtl8814_set_FwMediaStatus_cmd(PADAPTER padapter, u16 mstatus_rpt );
 void rtl8814_set_FwPwrMode_cmd(PADAPTER padapter, u8 PSMode);
 u8 GetTxBufferRsvdPageNum8814(_adapter *padapter, bool wowlan);
 u8 rtl8814_set_rssi_cmd(_adapter*padapter, u8 *param);
+
+#ifdef CONFIG_TDLS
+#ifdef CONFIG_TDLS_CH_SW
+void rtl8814_set_BcnEarly_C2H_Rpt_cmd(PADAPTER padapter, u8 enable);
+#endif
+#endif
 
 void
 Set_RA_LDPC_8814(
@@ -162,5 +156,5 @@ _C2HContentParsing8814(
 	IN	u8 			*tmpBuf
 );
 
-#endif//__RTL8812A_CMD_H__
+#endif/* __RTL8814A_CMD_H__ */
 

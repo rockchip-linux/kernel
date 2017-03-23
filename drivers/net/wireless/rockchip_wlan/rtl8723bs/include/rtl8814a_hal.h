@@ -17,8 +17,8 @@
  *
  *
  ******************************************************************************/
-#ifndef __RTL8812A_HAL_H__
-#define __RTL8812A_HAL_H__
+#ifndef __RTL8814A_HAL_H__
+#define __RTL8814A_HAL_H__
 
 //#include "hal_com.h"
 #include "hal_data.h"
@@ -51,7 +51,9 @@ enum{
 		VOLTAGE_V25						= 0x03,
 		LDOE25_SHIFT					= 28 ,
 	};
-#define FW_SIZE					      0x10000  // Compatible with RTL8723 Maximal RAM code size 24K.   modified to 32k, TO compatible with 92d maximal fw size 32k
+/* max. iram is 64k , max dmen is 32k. Total = 96k = 0x18000*/
+#define FW_SIZE							0x18000
+#define FW_START_ADDRESS   0x1000
 typedef struct _RT_FIRMWARE_8814 {
 	FIRMWARE_SOURCE	eFWSource;
 #ifdef CONFIG_EMBEDDED_FWIMG
@@ -172,6 +174,12 @@ typedef struct _RT_FIRMWARE_8814 {
 
 #endif //#if defined(CONFIG_SDIO_HCI) || defined(CONFIG_USB_HCI)
 
+#ifdef CONFIG_WOWLAN
+#define WOWLAN_PAGE_NUM_8814	0x00
+#else
+#define WOWLAN_PAGE_NUM_8814	0x00
+#endif
+
 #define PAGE_SIZE_8814A						128//TXFF Page Size, Unit: Byte
 #define MAX_RX_DMA_BUFFER_SIZE_8814A		0x5C00	//BASIC_RXFF_SIZE_8814A+TRX_SHARE_MODE_8814A*TRX_SHARE_BUFF_UNIT_8814A //Basic RXFF Size + ShareBuffer Size
 #define TX_PAGE_BOUNDARY_8814A			TXPKT_PGNUM_8814A	// Need to enlarge boundary, by KaiYuan
@@ -179,7 +187,7 @@ typedef struct _RT_FIRMWARE_8814 {
 
 
 #define  TOTAL_PGNUM_8814A		2048
-#define  TXPKT_PGNUM_8814A		2032
+#define  TXPKT_PGNUM_8814A		(2048 - BCNQ_PAGE_NUM_8814-WOWLAN_PAGE_NUM_8814)
 #define  PUB_PGNUM_8814A		(TXPKT_PGNUM_8814A-HPQ_PGNUM_8814A-NPQ_PGNUM_8814A-LPQ_PGNUM_8814A-EPQ_PGNUM_8814A)
 
 //Note: For WMM Normal Chip Setting ,modify later
@@ -207,7 +215,26 @@ typedef struct _RT_FIRMWARE_8814 {
 #define	EFUSE_IC_ID_OFFSET_8814A		506	//For some inferiority IC purpose. added by Roger, 2009.09.02.
 #define AVAILABLE_EFUSE_ADDR_8814A(addr) 	(addr < EFUSE_REAL_CONTENT_LEN_8814A)
 
-//
+/*-------------------------------------------------------------------------
+Chip specific
+-------------------------------------------------------------------------*/
+
+/* pic buffer descriptor */
+#if 1 /* according to the define in the rtw_xmit.h, rtw_recv.h */
+#define RTL8814AE_SEG_NUM  TX_BUFFER_SEG_NUM /* 0:2 seg, 1: 4 seg, 2: 8 seg */
+#define TX_DESC_NUM_8814A  TXDESC_NUM   /* 128 */
+#define RX_DESC_NUM_8814A  PCI_MAX_RX_COUNT /* 128 */
+#ifdef CONFIG_CONCURRENT_MODE
+#define BE_QUEUE_TX_DESC_NUM_8814A  (TXDESC_NUM<<1)    /* 256 */
+#else
+#define BE_QUEUE_TX_DESC_NUM_8814A  (TXDESC_NUM+(TXDESC_NUM>>1)) /* 192 */
+#endif
+#else
+#define RTL8814AE_SEG_NUM  TX_BUFFER_SEG_NUM /* 0:2 seg, 1: 4 seg, 2: 8 seg */
+#define TX_DESC_NUM_8814A  128 /* 1024//2048 change by ylb 20130624 */
+#define RX_DESC_NUM_8814A  128 /* 1024 //512 change by ylb 20130624 */
+#endif
+
 // <Roger_Notes> To prevent out of boundary programming case, leave 1byte and program full section
 // 9bytes + 1byt + 5bytes and pre 1byte.
 // For worst case:
@@ -216,7 +243,7 @@ typedef struct _RT_FIRMWARE_8814 {
 //
 #define	EFUSE_OOB_PROTECT_BYTES 		15	// PG data exclude header, dummy 6 bytes frome CP test and reserved 1byte.
 
-// rtl8812_hal_init.c
+/* rtl8814_hal_init.c */
 s32 FirmwareDownload8814A( PADAPTER	Adapter, BOOLEAN bUsedWoWLANFw);
 void	InitializeFirmwareVars8814(PADAPTER padapter);
 
@@ -256,6 +283,15 @@ VOID hal_ReadPAType_8814A(
 	OUT u8*		pPAType, 
 	OUT u8*		pLNAType
 	);
+void hal_GetRxGainOffset_8814A(
+	PADAPTER	Adapter,
+	pu1Byte		PROMContent,
+	BOOLEAN		AutoloadFail
+	);
+void Hal_EfuseParseKFreeData_8814A(
+	IN		PADAPTER		Adapter,
+	IN		u8				*PROMContent,
+	IN		BOOLEAN			AutoloadFail);
 void	hal_ReadRFEType_8814A(PADAPTER Adapter,u8* PROMContent, BOOLEAN AutoloadFail);
 void	hal_EfuseParseBTCoexistInfo8814A(PADAPTER Adapter, u8* hwinfo, BOOLEAN AutoLoadFail);
 
@@ -282,6 +318,7 @@ u8 SetHalDefVar8814A(PADAPTER padapter, HAL_DEF_VARIABLE variable, void *pval);
 u8 GetHalDefVar8814A(PADAPTER padapter, HAL_DEF_VARIABLE variable, void *pval);
 s32 c2h_id_filter_ccx_8814a(u8 *buf);
 void rtl8814_set_hal_ops(struct hal_ops *pHalFunc);
+void init_hal_spec_8814a(_adapter *adapter);
 
 // register
 void SetBcnCtrlReg(PADAPTER padapter, u8 SetBits, u8 ClearBits);
@@ -289,9 +326,11 @@ void SetBcnCtrlReg(PADAPTER	Adapter, u8	SetBits, u8	ClearBits);
 void rtl8814_start_thread(PADAPTER padapter);
 void rtl8814_stop_thread(PADAPTER padapter);
 
+
 #ifdef CONFIG_PCI_HCI
-BOOLEAN	InterruptRecognized8812AE(PADAPTER Adapter);
-VOID	UpdateInterruptMask8812AE(PADAPTER Adapter, u32 AddMSR, u32 AddMSR1, u32 RemoveMSR, u32 RemoveMSR1);
+BOOLEAN	InterruptRecognized8814AE(PADAPTER Adapter);
+VOID	UpdateInterruptMask8814AE(PADAPTER Adapter, u32 AddMSR, u32 AddMSR1, u32 RemoveMSR, u32 RemoveMSR1);
+u16	get_txbd_idx_addr(u16 ff_hwaddr);
 #endif
 
 #ifdef CONFIG_BT_COEXIST

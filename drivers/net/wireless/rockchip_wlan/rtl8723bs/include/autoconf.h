@@ -57,6 +57,7 @@
 	#endif //!CONFIG_PLATFORM_INTEL_BYT
 	//#define CONFIG_DEBUG_CFG80211
 	#define CONFIG_SET_SCAN_DENY_TIMER
+	/*#define SUPPLICANT_RTK_VERSION_LOWER_THAN_JB42*/ /* wpa_supplicant realtek version <= jb42 will be defined this */
 #endif
 
 #define CONFIG_AP_MODE
@@ -79,7 +80,6 @@
 
 	//#define CONFIG_DBG_P2P
 	#define CONFIG_P2P_PS
-	//#define CONFIG_P2P_IPS
 	#define CONFIG_P2P_OP_CHK_SOCIAL_CH
 	#define CONFIG_CFG80211_ONECHANNEL_UNDER_CONCURRENT  //replace CONFIG_P2P_CHK_INVITE_CH_LIST flag
 	#define CONFIG_P2P_INVITE_IOT
@@ -93,7 +93,7 @@
 //	#endif
 //	#define CONFIG_TDLS_AUTOSETUP
 	#define CONFIG_TDLS_AUTOCHECKALIVE
-	#define CONFIG_TDLS_CH_SW		/* Enable "CONFIG_TDLS_CH_SW" by default, however limit it to only work in wifi logo test mode but not in normal mode currently */
+	/* #define CONFIG_TDLS_CH_SW */	/* Enable this flag only when we confirm that TDLS CH SW is supported in FW */
 #endif
 
 //#define CONFIG_CONCURRENT_MODE	// Set from Makefile
@@ -104,7 +104,7 @@
 		#define CONFIG_TSF_RESET_OFFLOAD			// For 2 PORT TSF SYNC.
 	#endif
 	//#define DBG_RUNTIME_PORT_SWITCH
-	#define CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
+	#define CONFIG_SCAN_BACKOP
 #endif // CONFIG_CONCURRENT_MODE
 
 #define CONFIG_LAYER2_ROAMING
@@ -158,7 +158,6 @@
 //#define CONFIG_FILE_FWIMG
 
 #define CONFIG_LONG_DELAY_ISSUE
-#define CONFIG_DEAUTH_BEFORE_CONNECT
 //#define CONFIG_PATCH_JOIN_WRONG_CHANNEL
 #define CONFIG_ATTEMPT_TO_FIX_AP_BEACON_ERROR
 
@@ -222,8 +221,6 @@
 
 #ifdef CONFIG_BT_COEXIST
 	// for ODM and outsrc BT-Coex
-	#define BT_30_SUPPORT 1
-
 	#ifndef CONFIG_LPS
 		#define CONFIG_LPS	// download reserved page to FW
 	#endif
@@ -231,8 +228,6 @@
 	#ifndef CONFIG_C2H_PACKET_EN
 		#define CONFIG_C2H_PACKET_EN
 	#endif
-#else // !CONFIG_BT_COEXIST
-	#define BT_30_SUPPORT 0
 #endif // !CONFIG_BT_COEXIST
 
 #ifdef CONFIG_WOWLAN
@@ -247,26 +242,7 @@
 #endif // CONFIG_GPIO_WAKEUP
 
 
-/*
- * Outsource  Related Config
- */
 
-#define TESTCHIP_SUPPORT				0
- 
-#define RTL8188E_SUPPORT				0
-#define RTL8812A_SUPPORT				0
-#define RTL8821A_SUPPORT				0
-#define RTL8723B_SUPPORT				1
-#define RTL8192E_SUPPORT				0
-#define RTL8814A_SUPPORT				0
-#define 	RTL8195A_SUPPORT				0
-
-#define RATE_ADAPTIVE_SUPPORT			0
-#define POWER_TRAINING_ACTIVE			0
-
-#ifdef CONFIG_ANTENNA_DIVERSITY
-#define CONFIG_HW_ANTENNA_DIVERSITY
-#endif
 
 
 /*
@@ -310,7 +286,7 @@
 /*
  * Debug Related Config
  */
-//#define CONFIG_DEBUG
+#define CONFIG_DEBUG
 
 #ifdef CONFIG_DEBUG
 #define DBG	1	// for ODM & BTCOEX debug
@@ -327,3 +303,4 @@
 #define DBG_CHECK_FW_PS_STATE
 #define DBG_CHECK_FW_PS_STATE_H2C
 //#define CONFIG_FW_C2H_DEBUG 
+/* #define CONFIG_GPIO_API */

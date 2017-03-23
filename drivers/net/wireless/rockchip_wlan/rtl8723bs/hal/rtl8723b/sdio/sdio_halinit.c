@@ -20,12 +20,8 @@
 #define _SDIO_HALINIT_C_
 
 #include <rtl8723b_hal.h>
-
-#ifdef CONFIG_EFUSE_CONFIG_FILE
-#include <linux/fs.h>
-#include <asm/uaccess.h>
-#endif
 #include "hal_com_h2c.h"
+
 /*
  * Description:
  *	Call power on sequence to enable card
@@ -58,65 +54,6 @@ static u8 CardEnable(PADAPTER padapter)
 
 	return ret;
 }
-
-#ifdef CONFIG_GPIO_WAKEUP
-//we set it high under init and fw will
-//give us Low Pulse when host wake up
-void HostWakeUpGpioClear(PADAPTER Adapter)
-{
-	u32	value32;
-
-	value32 = rtw_read32(Adapter, REG_GPIO_PIN_CTRL_2);
-
-	//set GPIO 12 1
-	value32 |= BIT(12);//4+8
-	//GPIO 12 out put
-	value32 |= BIT(20);//4+16
-
-	rtw_write32(Adapter, REG_GPIO_PIN_CTRL_2, value32);
-} //HostWakeUpGpioClear
-
-void HalSetOutPutGPIO(PADAPTER padapter, u8 index, u8 OutPutValue)
-{
-	if ( index <= 7 ) {
-		/* config GPIO mode */
-		rtw_write8(padapter, REG_GPIO_PIN_CTRL + 3, rtw_read8(padapter, REG_GPIO_PIN_CTRL + 3) & ~BIT(index) );
-
-		/* config GPIO Sel */
-		/* 0: input */
-		/* 1: output */
-		rtw_write8(padapter, REG_GPIO_PIN_CTRL + 2, rtw_read8(padapter, REG_GPIO_PIN_CTRL + 2) | BIT(index));
-
-		/* set output value */
-		if ( OutPutValue ) {
-			rtw_write8(padapter, REG_GPIO_PIN_CTRL + 1, rtw_read8(padapter, REG_GPIO_PIN_CTRL + 1) | BIT(index));
-		} else {
-			rtw_write8(padapter, REG_GPIO_PIN_CTRL + 1, rtw_read8(padapter, REG_GPIO_PIN_CTRL + 1) & ~BIT(index));
-		}
-	} else {
-		/* 88C Series: */
-		/* index: 11~8 transform to 3~0 */
-		/* 8723 Series: */
-		/* index: 12~8 transform to 4~0 */  
-		index -= 8;
-
-		/* config GPIO mode */
-		rtw_write8(padapter, REG_GPIO_PIN_CTRL_2 + 3, rtw_read8(padapter, REG_GPIO_PIN_CTRL_2 + 3) & ~BIT(index) );
-
-		/* config GPIO Sel */
-		/* 0: input */
-		/* 1: output */
-		rtw_write8(padapter, REG_GPIO_PIN_CTRL_2 + 2, rtw_read8(padapter, REG_GPIO_PIN_CTRL_2 + 2) | BIT(index));
-
-		/* set output value */
-		if ( OutPutValue ) {
-			rtw_write8(padapter, REG_GPIO_PIN_CTRL_2 + 1, rtw_read8(padapter, REG_GPIO_PIN_CTRL_2 + 1) | BIT(index));
-		} else {
-			rtw_write8(padapter, REG_GPIO_PIN_CTRL_2 + 1, rtw_read8(padapter, REG_GPIO_PIN_CTRL_2 + 1) & ~BIT(index));
-		}
-	}
-}
-#endif
 
 /*
  * Description:
@@ -322,10 +259,6 @@ _init_power_on:
 	rtw_write8(padapter, REG_PAD_CTRL1_8723B, value8);
 //	DBG_8192C("%s: REG_PAD_CTRL1(0x%x)=0x%02X\n", __FUNCTION__, REG_PAD_CTRL1_8723B, rtw_read8(padapter, REG_PAD_CTRL1_8723B));
 #endif // CONFIG_BT_COEXIST
-
-#ifdef CONFIG_GPIO_WAKEUP
-	HostWakeUpGpioClear(padapter);
-#endif
 
 	return _SUCCESS;
 }
@@ -914,12 +847,6 @@ void _InitOperationMode(PADAPTER padapter)
 
 void _InitInterrupt(PADAPTER padapter)
 {
-	// HISR - turn all off
-	rtw_write32(padapter, REG_HISR, 0);
-
-	// HIMR - turn all off
-	rtw_write32(padapter, REG_HIMR, 0);
-
 	//
 	// Initialize and enable SDIO Host Interrupt.
 	//
@@ -937,14 +864,6 @@ void _InitRDGSetting(PADAPTER padapter)
 	rtw_write16(padapter, REG_RD_NAV_NXT, 0x200);
 	rtw_write8(padapter, REG_RD_RESP_PKT_TH, 0x05);
 }
-
-#if (MP_DRIVER == 1  )
-static void _InitRxSetting(PADAPTER padapter)
-{
-	rtw_write32(padapter, REG_MACID, 0x87654321);
-	rtw_write32(padapter, 0x0700, 0x87654321);
-}
-#endif
 
 static void _InitRFType(PADAPTER padapter)
 {
@@ -1162,30 +1081,6 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 	}	
 #endif //CONFIG_SWLPS_IN_IPS
 
-#ifdef CONFIG_WOWLAN
-	if(rtw_read8(padapter, REG_MCUFWDL)&BIT7) {
-		u8 reg_val=0;
-		DBG_871X("+Reset Entry+\n");
-		rtw_write8(padapter, REG_MCUFWDL, 0x00);
-		_8051Reset8723(padapter);
-		//reset BB
-		reg_val = rtw_read8(padapter, REG_SYS_FUNC_EN);
-		reg_val &= ~(BIT(0) | BIT(1));
-		rtw_write8(padapter, REG_SYS_FUNC_EN, reg_val);
-		//reset RF
-		rtw_write8(padapter, REG_RF_CTRL, 0);
-		//reset TRX path
-		rtw_write16(padapter, REG_CR, 0);
-		//reset MAC, Digital Core
-		reg_val = rtw_read8(padapter, REG_SYS_FUNC_EN+1);
-		reg_val &= ~(BIT(4) | BIT(7));
-		rtw_write8(padapter, REG_SYS_FUNC_EN+1, reg_val);
-		reg_val = rtw_read8(padapter, REG_SYS_FUNC_EN+1);
-		reg_val |= BIT(4) | BIT(7);
-		rtw_write8(padapter, REG_SYS_FUNC_EN+1, reg_val);
-		DBG_871X("-Reset Entry-\n");
-	}
-#endif //CONFIG_WOWLAN
 	// Disable Interrupt first.
 //	rtw_hal_disable_interrupt(padapter);
 
@@ -1201,7 +1096,7 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 		pdbgpriv->dbg_ips_drvopen_fail_cnt++;
 	}
 	
-	ret = _InitPowerOn_8723BS(padapter);
+	ret = rtw_hal_power_on(padapter);
 	if (_FAIL == ret) {
 		RT_TRACE(_module_hci_hal_init_c_, _drv_err_, ("Failed to init Power On!\n"));
 		return _FAIL;
@@ -1217,14 +1112,8 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 
 	rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
 
-#if (MP_DRIVER == 1)
-	if (padapter->registrypriv.mp_mode == 1)
+	/* if (padapter->registrypriv.mp_mode == 0) */
 	{
-		_InitRxSetting(padapter);
-	}
-
-#endif
-	
 		ret = rtl8723b_FirmwareDownload(padapter, _FALSE);
 		if (ret != _SUCCESS) {
 			RT_TRACE(_module_hci_hal_init_c_, _drv_err_, ("%s: Download Firmware failed!!\n", __FUNCTION__));
@@ -1236,8 +1125,7 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 			padapter->bFWReady = _TRUE;
 			pHalData->fw_ractrl = _TRUE;
 		}
-
-	rtl8723b_InitializeFirmwareVars(padapter);
+	}
 
 //	SIC_Init(padapter);
 
@@ -1392,7 +1280,7 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 	rtw_write32(padapter, SDIO_LOCAL_BASE|SDIO_REG_TX_CTRL, u4Tmp);
 
 	_RfPowerSave(padapter);
-
+	
 	rtl8723b_InitHalDm(padapter);
 
 	//DbgPrint("pHalData->DefaultTxPwrDbm = %d\n", pHalData->DefaultTxPwrDbm);
@@ -1539,6 +1427,8 @@ static void CardDisableRTL8723BSdio(PADAPTER padapter)
 	if (ret == _FALSE) {
 		DBG_8192C(KERN_ERR "%s: run CARD DISABLE flow fail!\n", __func__);
 	}
+
+	padapter->bFWReady = _FALSE;
 }
 
 static u32 rtl8723bs_hal_deinit(PADAPTER padapter)
@@ -1553,8 +1443,7 @@ static u32 rtl8723bs_hal_deinit(PADAPTER padapter)
 		MPT_DeInitAdapter(padapter);
 #endif
 
-	if (padapter->hw_init_completed == _TRUE)
-	{
+	if (rtw_is_hw_init_completed(padapter)) {
 #ifdef CONFIG_SWLPS_IN_IPS				
 		if (adapter_to_pwrctl(padapter)->bips_processing == _TRUE)
 		{
@@ -1641,7 +1530,7 @@ static u32 rtl8723bs_hal_deinit(PADAPTER padapter)
 					pdbgpriv->dbg_carddisable_error_cnt++;
 				}
 #endif //DBG_CHECK_FW_PS_STATE
-				CardDisableRTL8723BSdio(padapter);
+				rtw_hal_power_off(padapter);
 
 				adapter_to_pwrctl(padapter)->pre_ips_type = 1;
 			}
@@ -1658,7 +1547,7 @@ static u32 rtl8723bs_hal_deinit(PADAPTER padapter)
 				pdbgpriv->dbg_carddisable_error_cnt++;
 			}
 #endif //DBG_CHECK_FW_PS_STATE
-			CardDisableRTL8723BSdio(padapter);
+			rtw_hal_power_off(padapter);
 		}
 	}
 	else
@@ -1772,118 +1661,6 @@ _ReadRFType(
 #endif
 }
 
-
-static void
-Hal_EfuseParseMACAddr_8723BS(
-	IN	PADAPTER		padapter,
-	IN	u8*			hwinfo,
-	IN	BOOLEAN			AutoLoadFail
-	)
-{
-	u16			i, usValue;
-	u8			sMacAddr[6] = {0x00, 0xE0, 0x4C, 0xb7, 0x23, 0x00};
-	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
-
-	if (AutoLoadFail)
-	{
-//		sMacAddr[5] = (u1Byte)GetRandomNumber(1, 254);
-		for (i=0; i<6; i++)
-			pHalData->EEPROMMACAddr[i] = sMacAddr[i];
-	}
-	else
-	{
-		//Read Permanent MAC address
-#if 1
-		_rtw_memcpy(pHalData->EEPROMMACAddr, &hwinfo[EEPROM_MAC_ADDR_8723BS], ETH_ALEN);
-#else
-		for(i=0; i<6; i+=2)
-		{
-			usValue = *(u16*)&hwinfo[EEPROM_MAC_ADDR_8723S+i];
-			*((u16*)(&pHalData->EEPROMMACAddr[i])) = usValue;
-		}
-#endif
-	}
-//	NicIFSetMacAddress(pAdapter, pAdapter->PermanentAddress);
-
-	RT_TRACE(_module_hci_hal_init_c_, _drv_notice_,
-		 ("Hal_EfuseParseMACAddr_8723BS: Permanent Address = %02x-%02x-%02x-%02x-%02x-%02x\n",
-		  pHalData->EEPROMMACAddr[0], pHalData->EEPROMMACAddr[1],
-		  pHalData->EEPROMMACAddr[2], pHalData->EEPROMMACAddr[3],
-		  pHalData->EEPROMMACAddr[4], pHalData->EEPROMMACAddr[5]));
-}
-
-#ifdef CONFIG_EFUSE_CONFIG_FILE
-static void
-Hal_ReadMACAddrFromFile_8723BS(
-	PADAPTER		padapter
-	)
-{
-	u32 i;
-	struct file *fp;
-	mm_segment_t fs;
-	u8 source_addr[18];
-	loff_t pos = 0;
-	u32	curtime = rtw_get_current_time();
-	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
-	u8 *head, *end;
-
-	u8 null_mac_addr[ETH_ALEN] = {0, 0, 0,0, 0, 0};
-	u8 multi_mac_addr[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-
-	_rtw_memset(source_addr, 0, 18);
-	_rtw_memset(pHalData->EEPROMMACAddr, 0, ETH_ALEN);
-
-	fp = filp_open("/data/wifimac.txt", O_RDWR,  0644);
-	if (IS_ERR(fp)) {
-		RT_TRACE(_module_hci_hal_init_c_, _drv_err_, ("Error, wifi mac address file doesn't exist.\n"));
-	} else {
-		fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		DBG_871X("wifi mac address:\n");
-		vfs_read(fp, source_addr, 18, &pos);
-		source_addr[17] = ':';
-
-		head = end = source_addr;
-		for (i=0; i<ETH_ALEN; i++) {
-			while (end && (*end != ':') )
-				end++;
-
-			if (end && (*end == ':') )
-				*end = '\0';
-
-			pHalData->EEPROMMACAddr[i] = simple_strtoul(head, NULL, 16 );
-
-			if (end) {
-				end++;
-				head = end;
-			}
-			DBG_871X("%02x \n", pHalData->EEPROMMACAddr[i]);
-		}
-		DBG_871X("\n");
-		set_fs(fs);
-
-		filp_close(fp, NULL);
-	}
-
-	if ( (_rtw_memcmp(pHalData->EEPROMMACAddr, null_mac_addr, ETH_ALEN)) ||
-		(_rtw_memcmp(pHalData->EEPROMMACAddr, multi_mac_addr, ETH_ALEN)) ) {
-		pHalData->EEPROMMACAddr[0] = 0x00;
-		pHalData->EEPROMMACAddr[1] = 0xe0;
-		pHalData->EEPROMMACAddr[2] = 0x4c;
-		pHalData->EEPROMMACAddr[3] = (u8)(curtime & 0xff) ;
-		pHalData->EEPROMMACAddr[4] = (u8)((curtime>>8) & 0xff) ;
-		pHalData->EEPROMMACAddr[5] = (u8)((curtime>>16) & 0xff) ;
-	}
-
-	RT_TRACE(_module_hci_hal_init_c_, _drv_notice_,
-		 ("Hal_ReadMACAddrFromFile_8723BS: Permanent Address = %02x-%02x-%02x-%02x-%02x-%02x\n",
-		  pHalData->EEPROMMACAddr[0], pHalData->EEPROMMACAddr[1],
-		  pHalData->EEPROMMACAddr[2], pHalData->EEPROMMACAddr[3],
-		  pHalData->EEPROMMACAddr[4], pHalData->EEPROMMACAddr[5]));
-}
-#endif
-
 static VOID
 _ReadEfuseInfo8723BS(
 	IN PADAPTER			padapter
@@ -1891,9 +1668,6 @@ _ReadEfuseInfo8723BS(
 {
 	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
 	u8*			hwinfo = NULL;
-#ifdef CONFIG_EFUSE_CONFIG_FILE
-	struct file *fp;
-#endif //CONFIG_EFUSE_CONFIG_FILE
 
 	RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("====>_ReadEfuseInfo8723BS()\n"));
 
@@ -1908,39 +1682,9 @@ _ReadEfuseInfo8723BS(
 
 	Hal_InitPGData(padapter, hwinfo);
 
-#ifdef CONFIG_EFUSE_CONFIG_FILE
-	if (check_phy_efuse_tx_power_info_valid(padapter) == _FALSE) {
-		fp = filp_open(EFUSE_MAP_PATH, O_RDONLY, 0);
-		if (fp == NULL || IS_ERR(fp)) {
-			DBG_871X("[WARNING] invalid phy efuse and no efuse file, use driver default!!\n");
-		} else {
-			Hal_readPGDataFromConfigFile(padapter, fp);
-			filp_close(fp, NULL);
-		}
-	}
-#endif //CONFIG_EFUSE_CONFIG_FILE
-
 	Hal_EfuseParseIDCode(padapter, hwinfo);
 	Hal_EfuseParseEEPROMVer_8723B(padapter, hwinfo, pHalData->bautoload_fail_flag);
-
-#ifdef CONFIG_EFUSE_CONFIG_FILE
-	if (check_phy_efuse_macaddr_info_valid(padapter) == _TRUE) {
-		DBG_871X("using phy efuse mac\n");
-		Hal_GetPhyEfuseMACAddr(padapter, pHalData->EEPROMMACAddr);
-	} else {
-		fp = filp_open(WIFIMAC_PATH, O_RDONLY, 0);
-		if (fp == NULL || IS_ERR(fp)) {
-			DBG_871X("wifimac does not exist!!\n");
-			Hal_GetPhyEfuseMACAddr(padapter, pHalData->EEPROMMACAddr);
-		} else {
-			Hal_ReadMACAddrFromFile(padapter, fp);
-			filp_close(fp, NULL);
-		}
-	}
-#else //CONFIG_EFUSE_CONFIG_FILE
-	Hal_EfuseParseMACAddr_8723BS(padapter, hwinfo, pHalData->bautoload_fail_flag);
-#endif
-
+	hal_config_macaddr(padapter, pHalData->bautoload_fail_flag);
 	Hal_EfuseParseTxPowerInfo_8723B(padapter, hwinfo, pHalData->bautoload_fail_flag);
 	Hal_EfuseParseBoardType_8723B(padapter, hwinfo, pHalData->bautoload_fail_flag);
 
@@ -1957,7 +1701,7 @@ _ReadEfuseInfo8723BS(
 	
 	Hal_EfuseParseVoltage_8723B(padapter, hwinfo, pHalData->bautoload_fail_flag);
 	
-#ifdef CONFIG_WOWLAN
+#if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
 	Hal_DetectWoWMode(padapter);
 #endif
 
@@ -2018,25 +1762,17 @@ _InitOtherVariable(
 //		PASSIVE_LEVEL (SDIO interface)
 //
 //
-static s32 _ReadAdapterInfo8723BS(PADAPTER padapter)
+static void ReadAdapterInfo8723BS(PADAPTER padapter)
 {
     u8 val8;
-	u32 start;
-
-	RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("+_ReadAdapterInfo8723BS\n"));
-
-	// before access eFuse, make sure card enable has been called
-	if(padapter->hw_init_completed == _FALSE)
-		_InitPowerOn_8723BS(padapter);
-
 
 	val8 = rtw_read8(padapter, 0x4e);
 	MSG_8192C("%s, 0x4e=0x%x\n", __func__, val8);
 	val8 |= BIT(6);
 	rtw_write8(padapter, 0x4e, val8);
 
-
-	start = rtw_get_current_time();
+	/* Read EEPROM size before call any EEPROM function */
+	padapter->EepromAddressSize = GetEEPROMSize8723B(padapter);
 
 	_EfuseCellSel(padapter);
 	_ReadRFType(padapter);
@@ -2055,24 +1791,8 @@ static s32 _ReadAdapterInfo8723BS(PADAPTER padapter)
 }
 #endif //CONFIG_PLATFORM_INTEL_BYT
 
-	if(padapter->hw_init_completed == _FALSE)	
-	{
-		rtw_write8(padapter, 0x67, 0x00); // for BT, Switch Ant control to BT
-		CardDisableRTL8723BSdio(padapter);//for the power consumption issue,  wifi ko module is loaded during booting, but wifi GUI is off
-	}	
-	
-
-	MSG_8192C("<==== _ReadAdapterInfo8723BS in %d ms\n", rtw_get_passing_time_ms(start));
-
-	return _SUCCESS;
-}
-
-static void ReadAdapterInfo8723BS(PADAPTER padapter)
-{
-	// Read EEPROM size before call any EEPROM function
-	padapter->EepromAddressSize = GetEEPROMSize8723B(padapter);
-
-	_ReadAdapterInfo8723BS(padapter);
+	if (!rtw_is_hw_init_completed(padapter))
+		rtw_write8(padapter, 0x67, 0x00); /* for BT, Switch Ant control to BT */
 }
 
 /*
@@ -2188,11 +1908,7 @@ GetHalDefVar8723BSDIO(
 			*((u8 *)pValue) = _FALSE;
 #endif
 			break;
-		case HAL_DEF_CURRENT_ANTENNA:
-#ifdef CONFIG_ANTENNA_DIVERSITY
-			*(( u8*)pValue) = pHalData->CurAntenna;
-#endif
-			break;
+
 		case HW_VAR_MAX_RX_AMPDU_FACTOR:
 			// Stanley@BB.SD3 suggests 16K can get stable performance
 			// coding by Lucas@20130730

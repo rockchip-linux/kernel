@@ -318,7 +318,11 @@
 //========================================================
 
 #define MACID_NUM_8192E 128
-#define CAM_ENTRY_NUM_8192E 64
+#define SEC_CAM_ENT_NUM_8192E 64
+#define NSS_NUM_8192E 2
+#define BAND_CAP_8192E (BAND_CAP_2G)
+#define BW_CAP_8192E (BW_CAP_20M | BW_CAP_40M)
+#define PROTO_CAP_8192E (PROTO_CAP_11B|PROTO_CAP_11G|PROTO_CAP_11N)
 
 #endif //__RTL8192E_SPEC_H__
 

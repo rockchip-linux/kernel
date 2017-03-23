@@ -313,6 +313,9 @@
 #define RF_0x52 						0x52
 #define RF_WE_LUT					0xEF
 
+#define RF_TX_GAIN_OFFSET_8812A(_val) ((abs((_val)) << 1) | (((_val) > 0) ? BIT0 : 0))
+#define RF_TX_GAIN_OFFSET_8821A(_val) ((abs((_val)) << 1) | (((_val) > 0) ? BIT0 : 0))
+
 //
 //Bit Mask
 //

@@ -482,7 +482,7 @@ static void rtl8723bs_recv_tasklet(void *priv)
 
 					// The case of can't allocte skb is serious and may never be recovered,
 					// once bDriverStopped is enable, this task should be stopped.
-					if (padapter->bDriverStopped == _FALSE) {
+					if (!rtw_is_drv_stopped(padapter)) {
 #ifdef PLATFORM_LINUX
 						tasklet_schedule(&precvpriv->recv_tasklet);
 #endif
