@@ -441,8 +441,7 @@ static struct pltfrm_camera_module_data *pltfrm_camera_module_get_data(
 		}
 		pltfrm_camera_module_pr_info(
 			sd,
-			"camera module has ircut controller %s\n",
-			pltfrm_dev_string(pdata->ircut_ctrl));
+			"camera module has ircut controller \n");
 	}
 
 	ls_node = of_parse_phandle(np, OF_CAMERA_LS, 0);
