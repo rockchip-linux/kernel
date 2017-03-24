@@ -803,7 +803,7 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 				 (win->area[i].format == ABGR888)) ? 1 : 0;
 	}
 
-	global_alpha = (win->g_alpha_val == 0) ? 0 : 1;
+	global_alpha = ((win->g_alpha_val == 0) || (win->g_alpha_val == 0xff)) ? 0 : 1;
 
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
 		if (!dev_drv->win[i]->state)
@@ -900,7 +900,7 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id)
 	else
 		alpha_en = 0;
 	alpha_config.src_alpha_mode = AA_STRAIGHT;
-	alpha_config.src_alpha_cal_m0 = AA_NO_SAT;
+	alpha_config.src_alpha_cal_m0 = AA_SAT;
 
 	switch (win_id) {
 	case 0:

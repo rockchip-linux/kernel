@@ -1461,7 +1461,7 @@ static int vop_alpha_cfg(struct rk_lcdc_driver *dev_drv, int win_id,
 	}
 
 	alpha_config.src_alpha_mode = AA_STRAIGHT;
-	alpha_config.src_alpha_cal_m0 = AA_NO_SAT;
+	alpha_config.src_alpha_cal_m0 = AA_SAT;
 
 	switch (win_id) {
 	case 0:
