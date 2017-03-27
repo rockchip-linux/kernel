@@ -1,0 +1,176 @@
+#include "rk816.dtsi"
+&rk816{
+	gpios = <&gpio0 GPIO_B4 GPIO_ACTIVE_HIGH>, <&gpio0 GPIO_B5 GPIO_ACTIVE_LOW>;
+	rk816,system-power-controller;
+	rk816,support_dc_chg = <0>;/*1: dc chg; 0:usb chg*/
+
+	rtc {
+		status = "okay";
+	};
+
+	regulators {
+		/* override the ldo5, ldo6 */
+		/delete-node/ regulator@8;
+		/delete-node/ regulator@9;
+
+		rk816_dcdc1_reg: regulator@0 {
+			regulator-name= "vdd_core";
+			regulator-min-microvolt = <700000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <900000>;
+			};
+		};
+
+		rk816_dcdc2_reg: regulator@1 {
+			regulator-name= "vcc_22";
+			regulator-min-microvolt = <2200000>;
+			regulator-max-microvolt = <2200000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};
+		};
+
+		rk816_dcdc3_reg: regulator@2 {
+			regulator-name= "vcc_ddr";
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <1200000>;
+			};
+		};
+
+		rk816_dcdc4_reg: regulator@3 {
+			regulator-name= "vcc_io";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-mode = <0x1>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-mode = <0x2>;
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk816_ldo1_reg: regulator@4 {
+			regulator-name= "vdd_10";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+
+		rk816_ldo2_reg: regulator@5 {
+			regulator-name= "vcc_18";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1800000>;
+			};
+		};
+
+		rk816_ldo3_reg: regulator@6 {
+			regulator-name= "vdd10_pmu";
+			regulator-min-microvolt = <1000000>;
+			regulator-max-microvolt = <1000000>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <1000000>;
+			};
+		};
+
+		rk816_ldo4_reg: regulator@7 {
+			regulator-name= "vdd33_pmu";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-state-mem {
+				regulator-state-enabled;
+				regulator-state-uv = <3300000>;
+			};
+		};
+
+		rk816_ldo5_reg: regulator@8 {
+			reg = <8>;
+			regulator-compatible = "RK816_LDO5";
+			regulator-name= "dovdd_cam";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+			};
+		};
+
+		rk816_ldo6_reg: regulator@9 {
+			reg = <9>;
+			regulator-compatible = "RK816_LDO6";
+			regulator-name= "avdd_cam";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-initial-state = <3>;
+			regulator-state-mem {
+				regulator-state-disabled;
+			};
+		};
+	};
+
+	battery {
+		ocv_table = <3400 3599 3671 3701 3728 3746 3762
+			3772 3781 3792 3816 3836 3866 3910
+			3942 3971 4002 4050 4088 4132 4183>;
+
+		design_capacity = <4000>;
+		design_qmax = <4100>;
+		bat_res = <120>;
+		max_input_current = <1200>;
+		max_chrg_current = <1800>;
+		max_chrg_voltage = <4200>;
+		sleep_enter_current = <300>;
+		sleep_exit_current = <300>;
+		sleep_filter_current = <100>;
+		power_off_thresd = <3400>;
+		zero_algorithm_vol = <3850>;
+		fb_temperature = <115>;
+		energy_mode = <0>;
+		max_soc_offset = <60>;
+		monitor_sec = <5>;
+		virtual_power = <0>;
+		power_dc2otg = <1>;
+		dc_det_adc = <1>;
+	};
+};
