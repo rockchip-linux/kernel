@@ -343,7 +343,7 @@
 };
 
 &i2c3 {
-	status = "okay";
+	status = "disabled";
 	compatible = "rockchip,rk3128-i2c", "rockchip,rk3288-i2c";
 	clock-frequency = <400000>;
 	i2c-scl-rising-time-ns = <71>;
