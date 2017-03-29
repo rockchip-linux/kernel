@@ -1232,9 +1232,12 @@ static int _ddr_freq_scale_send_event(int id, unsigned long timeout)
 	gmr[id].end = tmp + gmr[id].timeout;
 
 	if (id <= VOP_EVENT) {
-		if (timeout < ddr_freq_period)
-			pr_warn("%s vop blank time should larger then %dus\n",
-				 __func__, ddr_freq_period);
+		if (timeout < ddr_freq_period) {
+			pr_warn("%s vop blank time %luus should larger than %dus\n",
+				 __func__, timeout, ddr_freq_period * 10 / 8);
+			pr_warn("%s please adjust vback-porch vfront-porch vsync-len of lcd dts\n",
+				__func__);
+		}
 		tasklet_hi_schedule(&ddr_freq_ts[id]);
 	}
 
