@@ -2742,6 +2742,16 @@ static void clk_322xh_apll_table_correct(void)
 	}
 }
 
+void rk322xh_adjust_avs(int sign_bit, int delta)
+{
+	if (sign_bit == 0)
+		rockchip_avs_delta += delta;
+	else
+		rockchip_avs_delta -= delta;
+
+	clk_322xh_apll_table_correct();
+}
+
 static int clk_pll_set_rate_322xh_apll(struct clk_hw *hw, unsigned long rate,
 				       unsigned long parent_rate)
 {

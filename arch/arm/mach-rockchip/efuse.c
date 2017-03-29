@@ -11,6 +11,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/rockchip/cpu.h>
+#include <linux/rockchip/cru.h>
 #include <linux/rockchip/iomap.h>
 #ifdef CONFIG_ARM
 #include <linux/rockchip/psci.h>
@@ -520,6 +521,12 @@ static int __init rockchip_efuse_probe(struct platform_device *pdev)
 		efuse.process_version = rk322xh_get_process_version();
 		rockchip_set_cpu_version((efuse_buf[26] >> 3) & 7);
 		rk3288_set_system_serial();
+		/*
+		 * efuse_buf[28] bit6 represent sign, raise or down avs,
+		 * efuse_buf[28] bit4-5 represent delta.
+		 */
+		rk322xh_adjust_avs((efuse_buf[28] >> 6) & 0x01,
+				   ((efuse_buf[28] >> 4) & 0x03) * 4);
 
 		return 0;
 	}
