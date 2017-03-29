@@ -164,7 +164,7 @@ static int ep_enable(struct usb_ep *usb_ep,
 		return -EINVAL;
 	}
 
-	usb_ep->maxpacket = le16_to_cpu(ep_desc->wMaxPacketSize);
+	usb_ep->maxpacket = usb_endpoint_maxp(ep_desc);
 
 	return 0;
 }
