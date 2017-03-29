@@ -1078,7 +1078,7 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <8>;
-		tune_regsbase = <0x1ec>;
+		tune_regsbase = <0x1e8>;
 		resets = <&reset RV1108_RST_EMMC_H>;
 		reset-names = "mmc_ahb_reset";
 		status = "disabled";
@@ -1098,7 +1098,7 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
-		tune_regsbase = <0x1e4>;
+		tune_regsbase = <0x1e0>;
 		resets = <&reset RV1108_RST_SDIO_H>;
 		reset-names = "mmc_ahb_reset";
 		status = "disabled";
@@ -1119,6 +1119,7 @@
 		num-slots = <1>;
 		fifo-depth = <0x100>;
 		bus-width = <4>;
+		tune_regsbase = <0x1d8>;
 		resets = <&reset RV1108_RST_SDMMC_H>;
 		reset-names = "mmc_ahb_reset";
 		status = "disabled";
