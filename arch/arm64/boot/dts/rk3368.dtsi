@@ -1168,6 +1168,19 @@
 						0          3
 					>;
 					regu-mode-en = <0>;
+					temp-limit-enable = <1>;
+					target-temp = <85>;
+					min_temp_limit = <288000>;
+					normal-temp-limit = <
+					/*delta-temp    delta-freq*/
+						5	100000
+						10	200000
+						>;
+					performance-temp-limit = <
+						/*temp    freq*/
+						100     400000
+						>;
+					tsadc-ch = <0>;
 				};
 			};
 		};
