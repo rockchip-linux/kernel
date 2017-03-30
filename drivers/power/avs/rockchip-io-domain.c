@@ -455,6 +455,8 @@ static int rockchip_iodomain_parse_supply(struct rockchip_iodomain *iod,
 		}
 	}
 
+	return 0;
+
 unreg_notify:
 	for (i = MAX_SUPPLIES - 1; i >= 0; i--) {
 		struct rockchip_iodomain_supply *io_supply = &group_supply[i];
