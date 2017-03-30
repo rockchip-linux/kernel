@@ -18,6 +18,8 @@
 
 #include "mali_dvfs.h"
 #include "mali_osk.h"
+
+#include <linux/reboot.h>
 #include <linux/mali/mali_utgard.h>
 #include <linux/rockchip/dvfs.h>
 #include <linux/cpufreq.h>
@@ -113,6 +115,11 @@ struct mali_platform_drv_data {
 	bool power_state;
 
 	_mali_osk_mutex_t *clock_set_lock;
+
+	/* to prevent operating clk_gpu/pd_gpu in reboot_session. */
+	struct notifier_block reboot_event_notifier;
+
+	bool is_in_reboot_session;
 };
 
 /** @brief Platform specific setup and initialisation of MALI

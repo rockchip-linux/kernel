@@ -252,10 +252,16 @@ static ssize_t error_count_show(struct device *dev,
 	return sprintf(buf, "%d\n", mali_group_error);
 }
 
-static DEVICE_ATTR(available_frequencies, S_IRUGO, show_available_frequencies, NULL);
-static DEVICE_ATTR(clock, S_IRUGO | S_IWUSR, show_clock, set_clock);
-static DEVICE_ATTR(dvfs_enable, S_IRUGO | S_IWUSR, show_dvfs_enable, set_dvfs_enable);
-static DEVICE_ATTR(utilisation, S_IRUGO, show_utilisation, NULL);
+static DEVICE_ATTR(available_frequencies,
+		   0644,
+		   show_available_frequencies,
+		   NULL);
+static DEVICE_ATTR(clock, 0644, show_clock, set_clock);
+static DEVICE_ATTR(dvfs_enable,
+		   0644,
+		   show_dvfs_enable,
+		   set_dvfs_enable);
+static DEVICE_ATTR(utilisation, 0644, show_utilisation, NULL);
 static DEVICE_ATTR(error_count, 0644, error_count_show, NULL);
 
 static struct attribute *mali_sysfs_entries[] = {
@@ -288,6 +294,22 @@ static int mali_create_sysfs(struct device *dev)
 static void mali_remove_sysfs(struct device *dev)
 {
 	sysfs_remove_group(&dev->kobj, &mali_attr_group);
+}
+
+static int notify_reboot_event(struct notifier_block *this,
+			       unsigned long event,
+			       void *ptr)
+{
+	struct mali_platform_drv_data *drv_data
+		= container_of(this,
+			       struct mali_platform_drv_data,
+			       reboot_event_notifier);
+
+	mali_dvfs_disable(mali_dev);
+
+	drv_data->is_in_reboot_session = true;
+
+	return NOTIFY_OK;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -331,6 +353,12 @@ _mali_osk_errcode_t mali_platform_init(struct platform_device *pdev)
 		_mali_osk_mutex_init(_MALI_OSK_LOCKFLAG_ORDERED,
 				     _MALI_OSK_LOCK_ORDER_UTILIZATION);
 
+	mali_drv_data->reboot_event_notifier.notifier_call
+		= notify_reboot_event;
+	register_reboot_notifier(&mali_drv_data->reboot_event_notifier);
+
+	mali_drv_data->is_in_reboot_session = false;
+
 	return 0;
 term_clk:
 	mali_clock_term(dev);
@@ -342,6 +370,9 @@ _mali_osk_errcode_t mali_platform_deinit(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct mali_platform_drv_data *drv_data = dev_get_drvdata(dev);
+
+	drv_data->is_in_reboot_session = false;
+	unregister_reboot_notifier(&drv_data->reboot_event_notifier);
 
 	mali_remove_sysfs(dev);
 
@@ -362,6 +393,10 @@ _mali_osk_errcode_t mali_platform_deinit(struct platform_device *pdev)
 static _mali_osk_errcode_t mali_power_domain_control(bool bpower_off)
 {
 	struct mali_platform_drv_data *drv_data = dev_get_drvdata(mali_dev);
+
+	if (drv_data->is_in_reboot_session) {
+		return 0;
+	}
 
 	/* 若要 上电, 则 ... */
 	if (!bpower_off) {
