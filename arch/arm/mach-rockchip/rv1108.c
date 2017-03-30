@@ -90,15 +90,25 @@ static void __init rv1108_boot_mode_init(void)
 	rockchip_boot_mode_init(flag, mode);
 }
 
-static void __init rv1108_dt_map_io(void)
+static void __init rv110x_dt_map_io(void)
 {
-	rockchip_soc_id = ROCKCHIP_SOC_RV1108;
-
 	iotable_init(rv1108_io_desc, ARRAY_SIZE(rv1108_io_desc));
 	debug_ll_io_init();
 
 	rv1108_boot_mode_init();
 	rockchip_efuse_init();
+}
+
+static void __init rv1107_dt_map_io(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RV1107;
+	rv110x_dt_map_io();
+}
+
+static void __init rv1108_dt_map_io(void)
+{
+	rockchip_soc_id = ROCKCHIP_SOC_RV1108;
+	rv110x_dt_map_io();
 }
 
 static DEFINE_SPINLOCK(pmu_idle_lock);
@@ -195,11 +205,26 @@ static const char * const rv1108_dt_compat[] __initconst = {
 	NULL,
 };
 
+static const char * const rv1107_dt_compat[] __initconst = {
+	"rockchip,rv1107",
+	NULL,
+};
+
 DT_MACHINE_START(RV1108_DT, "Rockchip RV1108")
 	.smp		= smp_ops(rockchip_smp_ops),
 	.map_io		= rv1108_dt_map_io,
 	.init_time	= rv1108_dt_init_timer,
 	.dt_compat	= rv1108_dt_compat,
+	.init_late	= rv1108_init_late,
+	.reserve	= rv1108_reserve,
+	.restart	= rv1108_restart,
+MACHINE_END
+
+DT_MACHINE_START(RV1107_DT, "Rockchip RV1107")
+	.smp		= smp_ops(rockchip_smp_ops),
+	.map_io		= rv1107_dt_map_io,
+	.init_time	= rv1108_dt_init_timer,
+	.dt_compat	= rv1107_dt_compat,
 	.init_late	= rv1108_init_late,
 	.reserve	= rv1108_reserve,
 	.restart	= rv1108_restart,
@@ -212,7 +237,7 @@ static int __init rv1108_pie_init(void)
 {
 	int err;
 
-	if (!cpu_is_rv1108())
+	if (!cpu_is_rv110x())
 		return 0;
 
 	err = rockchip_pie_init();
@@ -238,7 +263,7 @@ static int __init rv1108_ddr_init(void)
 {
 	struct device_node *np = NULL;
 
-	if (soc_is_rv1108()) {
+	if (cpu_is_rv110x()) {
 		ddr_change_freq = _ddr_change_freq;
 		ddr_round_rate = _ddr_round_rate;
 		ddr_set_auto_self_refresh = _ddr_set_auto_self_refresh;

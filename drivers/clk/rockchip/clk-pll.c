@@ -1926,7 +1926,7 @@ static unsigned long rv1108_pll_clk_recalc(struct clk_hw *hw,
 static unsigned long clk_pll_recalc_rate_3036_apll(struct clk_hw *hw,
 		unsigned long parent_rate)
 {
-	if (soc_is_rv1108())
+	if (cpu_is_rv110x())
 		return rv1108_pll_clk_recalc(hw, parent_rate);
 	else
 		return rk3036_pll_clk_recalc(hw, parent_rate);
@@ -1943,7 +1943,7 @@ static long clk_pll_round_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 		return rate;
 	}
 
-	if (soc_is_rv1108())
+	if (cpu_is_rv110x())
 		return (apll_get_best_set(rate, rv1108_apll_table)->rate);
 	else
 		return (apll_get_best_set(rate, rk3036_apll_table)->rate);
@@ -2104,7 +2104,7 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	u32 temp_div;
 	u32 clksel0_offset, clksel1_offset;
 
-	if (soc_is_rv1108())
+	if (cpu_is_rv110x())
 		ps = (struct apll_clk_set *)(rv1108_apll_table);
 
 	while (ps->rate) {
@@ -2132,7 +2132,7 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	temp_rate = (old_rate > rate) ? old_rate : rate;
 	temp_div = DIV_ROUND_UP(arm_gpll_rate, temp_rate);
 
-	if (soc_is_rv1108()) {
+	if (cpu_is_rv110x()) {
 		clksel0_offset = RV1108_CRU_CLKSELS_CON(0);
 		clksel1_offset = RV1108_CRU_CLKSELS_CON(1);
 	} else {
@@ -2153,7 +2153,7 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 
 	if (cpu_is_rk322x())
 		cru_writel(RK3228_CPU_SEL_PLL(1), clksel0_offset);
-	else if (soc_is_rv1108())
+	else if (cpu_is_rv110x())
 		cru_writel(RV1108_CPU_SEL_PLL(1), clksel0_offset);
 	else
 		cru_writel(RK3036_CORE_SEL_PLL(1), clksel0_offset);
@@ -2184,7 +2184,7 @@ static int clk_pll_set_rate_3036_apll(struct clk_hw *hw, unsigned long rate,
 	/************select apll******************/
 	if (cpu_is_rk322x())
 		cru_writel(RK3228_CPU_SEL_PLL(0), clksel0_offset);
-	else if (soc_is_rv1108())
+	else if (cpu_is_rv110x())
 		cru_writel(RV1108_CPU_SEL_PLL(0), clksel0_offset);
 	else
 		cru_writel(RK3036_CORE_SEL_PLL(0), clksel0_offset);
@@ -2275,7 +2275,7 @@ static int clk_cpll_set_rate_312xplus(struct clk_hw *hw, unsigned long rate,
 	struct pll_clk_set *clk_set = (struct pll_clk_set *)(rk312xplus_pll_com_table);
 	u32 refdiv, fbdiv, postdiv1, postdiv2, frac;
 
-	if (soc_is_rv1108())
+	if (cpu_is_rv110x())
 		clk_set = (struct pll_clk_set *)(rv1108_pll_com_table);
 
 	while (clk_set->rate) {
@@ -2297,7 +2297,7 @@ static int clk_cpll_set_rate_312xplus(struct clk_hw *hw, unsigned long rate,
 		}
 		clk_debug("%s get rate=%lu, refdiv=%u, fbdiv=%u, postdiv1=%u, postdiv2=%u",
 				__func__, rate, refdiv, fbdiv, postdiv1, postdiv2);
-		if (soc_is_rv1108())
+		if (cpu_is_rv110x())
 			rv1108_pll_set_con(hw, refdiv, fbdiv,
 					   postdiv1, postdiv2, frac);
 		else
