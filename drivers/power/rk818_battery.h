@@ -263,7 +263,7 @@ static const u16 FEED_BACK_TEMP[] = {
 };
 
 static const u16 CHRG_VOL_SEL[] = {
-	4050, 4100, 4150, 4200, 4250, 4300, 4350
+	4050, 4100, 4150, 4200, 4300, 4350
 };
 
 static const u16 CHRG_CUR_SEL[] = {
