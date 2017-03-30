@@ -707,12 +707,9 @@ void cif_isp11_dbgfs_fill_sensor_aec_para(
 	s32 exp_time,
 	u16 gain);
 
-int cif_isp11_s_isp_metadata(
+int cif_isp11_s_vb_metadata(
 	struct cif_isp11_device *dev,
-	struct cif_isp11_isp_readout_work *readout_work,
-	struct cifisp_isp_other_cfg *new_other,
-	struct cifisp_isp_meas_cfg *new_meas,
-	struct cifisp_stat_buffer *new_stats);
+	struct cif_isp11_isp_readout_work *readout_work);
 
 int cif_isp11_s_exp(
 	struct cif_isp11_device *dev,

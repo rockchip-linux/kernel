@@ -302,49 +302,58 @@ static void cifisp_reg_dump(const struct cif_isp11_isp_dev *isp_dev,
 #ifdef LOG_CAPTURE_PARAMS
 static void cifisp_reg_dump_capture(const struct cif_isp11_isp_dev *isp_dev);
 #endif
+static inline bool cifisp_isp_isr_other_config(
+	struct cif_isp11_isp_dev *isp_dev,
+	unsigned int *time_left);
+static inline bool cifisp_isp_isr_meas_config(
+	struct cif_isp11_isp_dev *isp_dev,
+	unsigned int *time_left);
 
 static int cifisp_module_enable(struct cif_isp11_isp_dev *isp_dev,
 	bool flag, __s32 *value, unsigned int module)
 {
-	unsigned int *curr_ens, *updates, *new_ens;
+	unsigned int curr_id, new_id;
+	unsigned int *updates, *curr_ens, *new_ens;
 	unsigned long lock_flags = 0;
-	int retval = 0;
+
+	if (module >= CIFISP_MODULE_MAX)
+		return -EINVAL;
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
-	if (module & (CIFISP_MODULE_AWB |
-		CIFISP_MODULE_AEC |
-		CIFISP_MODULE_AFC |
-		CIFISP_MODULE_HST)) {
-		curr_ens = &isp_dev->meas_cfgs.curr->module_ens;
-		new_ens = &isp_dev->meas_cfgs.last_or_new->module_ens;
+	if (module >= CIFISP_MEAS_ID) {
+		curr_id = isp_dev->meas_cfgs.log[module].curr_id;
+		new_id = isp_dev->meas_cfgs.log[module].new_id;
 		updates = &isp_dev->meas_cfgs.module_updates;
+		curr_ens = &isp_dev->meas_cfgs.cfgs[curr_id].module_ens;
+		new_ens = &isp_dev->meas_cfgs.cfgs[new_id].module_ens;
 	} else {
-		curr_ens = &isp_dev->other_cfgs.curr->module_ens;
-		new_ens = &isp_dev->other_cfgs.last_or_new->module_ens;
+		curr_id = isp_dev->other_cfgs.log[module].curr_id;
+		new_id = isp_dev->other_cfgs.log[module].new_id;
 		updates = &isp_dev->other_cfgs.module_updates;
+		curr_ens = &isp_dev->other_cfgs.cfgs[curr_id].module_ens;
+		new_ens = &isp_dev->other_cfgs.cfgs[new_id].module_ens;
 	}
 
 	if (flag == _GET_) {
-		*value = CIFISP_MODULE_IS_EN(*curr_ens, module);
+		*value = CIFISP_MODULE_IS_EN(
+			*curr_ens, (1 << module));
 		goto end;
 	}
 
-	if ((CIFISP_MODULE_IS_EN(*curr_ens, module) != *value) ||
-		CIFISP_MODULE_IS_UPDATE(*updates, module)) {
+	if ((CIFISP_MODULE_IS_EN(*curr_ens, (1 << module)) != *value) ||
+		(CIFISP_MODULE_IS_UPDATE(*updates, (1 << module)))) {
 		if (*value)
-			CIFISP_MODULE_EN(*new_ens, module);
+			CIFISP_MODULE_EN(*new_ens, (1 << module));
 		else
-			CIFISP_MODULE_DIS(*new_ens, module);
-
-		CIFISP_MODULE_UPDATE(*updates, module);
-
+			CIFISP_MODULE_DIS(*new_ens, (1 << module));
+		CIFISP_MODULE_UPDATE(*updates, (1 << module));
 	}
 
 end:
 	spin_unlock_irqrestore(&isp_dev->config_lock, lock_flags);
 
-	return retval;
+	return 0;
 }
 
 /* ISP BP interface function */
@@ -354,6 +363,8 @@ static int cifisp_dpcc_param(struct cif_isp11_isp_dev *isp_dev,
 	unsigned long lock_flags = 0;
 	unsigned int i;
 	struct cifisp_dpcc_methods_config *method;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_dpcc_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL) {
@@ -365,18 +376,21 @@ static int cifisp_dpcc_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_DPCC_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].dpcc_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].dpcc_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->dpcc_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_DPCC);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->dpcc_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_DPCC) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -410,9 +424,7 @@ static int cifisp_dpcc_param(struct cif_isp11_isp_dev *isp_dev,
 	}
 
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->dpcc_config,
-		arg,
-		sizeof(struct cifisp_dpcc_config));
+	memcpy(new_cfg, arg, sizeof(struct cifisp_dpcc_config));
 	CIFISP_MODULE_UPDATE(
 		isp_dev->other_cfgs.module_updates,
 		CIFISP_MODULE_DPCC);
@@ -427,6 +439,8 @@ static int cifisp_bls_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_bls_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_bls_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -434,18 +448,21 @@ static int cifisp_bls_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_BLS_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].bls_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].bls_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->bls_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_BLS);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->bls_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_BLS) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -474,7 +491,7 @@ static int cifisp_bls_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->bls_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_bls_config));
 	CIFISP_MODULE_UPDATE(
@@ -492,6 +509,8 @@ static int cifisp_lsc_param(struct cif_isp11_isp_dev *isp_dev,
 {
 	int i;
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_lsc_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -499,18 +518,21 @@ static int cifisp_lsc_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_LSC_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].lsc_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].lsc_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->lsc_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_LSC);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->lsc_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_LSC) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -557,7 +579,7 @@ static int cifisp_lsc_param(struct cif_isp11_isp_dev *isp_dev,
 		}
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->lsc_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_lsc_config));
 	CIFISP_MODULE_UPDATE(
@@ -575,6 +597,8 @@ static int cifisp_flt_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_flt_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_flt_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -582,18 +606,21 @@ static int cifisp_flt_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_FLT_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].flt_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].flt_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->flt_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_FLT);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->flt_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_FLT) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -620,7 +647,7 @@ static int cifisp_flt_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->flt_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_flt_config));
 	CIFISP_MODULE_UPDATE(
@@ -637,6 +664,8 @@ static int cifisp_bdm_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_bdm_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_bdm_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -644,18 +673,21 @@ static int cifisp_bdm_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_BDM_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].bdm_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].bdm_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->bdm_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_BDM);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->bdm_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_BDM) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -667,7 +699,7 @@ static int cifisp_bdm_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->bdm_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_bdm_config));
 	CIFISP_MODULE_UPDATE(
@@ -685,6 +717,8 @@ static int cifisp_sdg_param(struct cif_isp11_isp_dev *isp_dev,
 {
 	unsigned long lock_flags = 0;
 	unsigned int i;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_sdg_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -692,18 +726,21 @@ static int cifisp_sdg_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_SDG_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].sdg_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].sdg_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->sdg_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_SDG);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->sdg_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_SDG) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -728,7 +765,7 @@ static int cifisp_sdg_param(struct cif_isp11_isp_dev *isp_dev,
 		}
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->sdg_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_sdg_config));
 	CIFISP_MODULE_UPDATE(
@@ -745,6 +782,8 @@ static int cifisp_goc_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_goc_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_goc_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -752,18 +791,21 @@ static int cifisp_goc_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_GOC_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].goc_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].goc_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->goc_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_GOC);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->goc_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_GOC) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -777,7 +819,7 @@ static int cifisp_goc_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->goc_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_goc_config));
 	CIFISP_MODULE_UPDATE(
@@ -794,6 +836,8 @@ static int cifisp_wdr_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_wdr_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_wdr_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -801,18 +845,21 @@ static int cifisp_wdr_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_WDR_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].wdr_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].wdr_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->wdr_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_WDR);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->wdr_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_WDR) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -826,7 +873,7 @@ static int cifisp_wdr_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->wdr_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_wdr_config));
 	CIFISP_MODULE_UPDATE(
@@ -843,6 +890,8 @@ static int cifisp_ctk_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_ctk_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_ctk_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -850,18 +899,21 @@ static int cifisp_ctk_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_CTK_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].ctk_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].ctk_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->ctk_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_CTK);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->ctk_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_CTK) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -886,7 +938,7 @@ static int cifisp_ctk_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->ctk_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_ctk_config));
 	CIFISP_MODULE_UPDATE(
@@ -903,6 +955,8 @@ static int cifisp_awb_meas_param(struct cif_isp11_isp_dev *isp_dev,
 				 bool flag, struct cifisp_awb_meas_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_awb_meas_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -910,18 +964,21 @@ static int cifisp_awb_meas_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->meas_cfgs.log[CIFISP_AWB_ID];
+	curr_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].awb_meas_config);
+	new_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->new_id].awb_meas_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->meas_cfgs.curr->awb_meas_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_AWB);
 
-	if (memcmp(arg,
-		&(isp_dev->meas_cfgs.curr->awb_meas_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_AWB) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -945,7 +1002,7 @@ static int cifisp_awb_meas_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->meas_cfgs.last_or_new->awb_meas_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_awb_meas_config));
 	CIFISP_MODULE_UPDATE(
@@ -961,6 +1018,8 @@ static int cifisp_awb_gain_param(struct cif_isp11_isp_dev *isp_dev,
 				 bool flag, struct cifisp_awb_gain_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_awb_gain_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -968,18 +1027,21 @@ static int cifisp_awb_gain_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_AWB_GAIN_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].awb_gain_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].awb_gain_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->awb_gain_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_AWB_GAIN);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->awb_gain_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_AWB_GAIN) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -995,7 +1057,7 @@ static int cifisp_awb_gain_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->awb_gain_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_awb_gain_config));
 	CIFISP_MODULE_UPDATE(
@@ -1011,6 +1073,8 @@ static int cifisp_aec_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_aec_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_aec_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1018,18 +1082,21 @@ static int cifisp_aec_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->meas_cfgs.log[CIFISP_AEC_ID];
+	curr_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].aec_config);
+	new_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->new_id].aec_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->meas_cfgs.curr->aec_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_AEC);
 
-	if (memcmp(arg,
-		&(isp_dev->meas_cfgs.curr->aec_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_AEC) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -1048,7 +1115,7 @@ static int cifisp_aec_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->meas_cfgs.last_or_new->aec_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_aec_config));
 	CIFISP_MODULE_UPDATE(
@@ -1064,6 +1131,8 @@ static int cifisp_cproc_param(struct cif_isp11_isp_dev *isp_dev,
 			      bool flag, struct cifisp_cproc_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_cproc_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1071,18 +1140,21 @@ static int cifisp_cproc_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_CPROC_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].cproc_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].cproc_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->cproc_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_CPROC);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->cproc_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_CPROC) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -1101,7 +1173,7 @@ static int cifisp_cproc_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->cproc_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_cproc_config));
 	CIFISP_MODULE_UPDATE(
@@ -1118,6 +1190,8 @@ static int cifisp_hst_param(struct cif_isp11_isp_dev *isp_dev,
 {
 	unsigned long lock_flags = 0;
 	unsigned int i;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_hst_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1125,16 +1199,19 @@ static int cifisp_hst_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->meas_cfgs.log[CIFISP_HST_ID];
+	curr_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].hst_config);
+	new_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->new_id].hst_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->meas_cfgs.curr->hst_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
-	if (memcmp(arg,
-		&(isp_dev->meas_cfgs.curr->hst_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_HST) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -1163,7 +1240,7 @@ static int cifisp_hst_param(struct cif_isp11_isp_dev *isp_dev,
 		}
 	}
 
-	memcpy(&isp_dev->meas_cfgs.last_or_new->hst_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_hst_config));
 	CIFISP_MODULE_UPDATE(
@@ -1180,6 +1257,8 @@ static int cifisp_afc_param(struct cif_isp11_isp_dev *isp_dev,
 {
 	unsigned long lock_flags = 0;
 	int i;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_afc_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1187,18 +1266,21 @@ static int cifisp_afc_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->meas_cfgs.log[CIFISP_AFC_ID];
+	curr_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].afc_config);
+	new_cfg = &(isp_dev->meas_cfgs.cfgs[cfg_log->new_id].afc_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->meas_cfgs.curr->afc_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_AFC);
 
-	if (memcmp(arg,
-		&(isp_dev->meas_cfgs.curr->afc_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->meas_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_AFC) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -1229,7 +1311,7 @@ static int cifisp_afc_param(struct cif_isp11_isp_dev *isp_dev,
 
 	}
 
-	memcpy(&isp_dev->meas_cfgs.last_or_new->afc_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_afc_config));
 	CIFISP_MODULE_UPDATE(
@@ -1245,6 +1327,8 @@ static int cifisp_ie_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_ie_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_ie_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1252,20 +1336,28 @@ static int cifisp_ie_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_IE_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].ie_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].ie_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->ie_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_IE);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->ie_config),
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_IE) &&
+		memcmp(arg,
+		curr_cfg,
 		sizeof(*arg)) == 0) {
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			      "same param in function: %s\n", __func__);
+		CIFISP_DPRINT(CIFISP_ERROR,
+			      "same param in function: %s, enable: 0x%x, curr_id: 0x%x, effect: %d\n", __func__,
+				CIFISP_MODULE_IS_EN(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens, CIFISP_MODULE_IE),
+				cfg_log->curr_id,
+				arg->effect);
 		goto end;
 	}
 
@@ -1283,7 +1375,7 @@ static int cifisp_ie_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->ie_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_ie_config));
 	CIFISP_MODULE_UPDATE(
@@ -1301,6 +1393,8 @@ static int cifisp_dpf_param(struct cif_isp11_isp_dev *isp_dev,
 {
 	unsigned long lock_flags = 0;
 	unsigned int i;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_dpf_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1308,18 +1402,21 @@ static int cifisp_dpf_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_DPF_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].dpf_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].dpf_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->dpf_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_DPF);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->dpf_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_DPF) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
@@ -1379,7 +1476,7 @@ static int cifisp_dpf_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->dpf_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_dpf_config));
 	CIFISP_MODULE_UPDATE(
@@ -1395,6 +1492,8 @@ static int cifisp_dpf_strength_param(struct cif_isp11_isp_dev *isp_dev,
 			    bool flag, struct cifisp_dpf_strength_config *arg)
 {
 	unsigned long lock_flags = 0;
+	struct cif_isp11_isp_cfgs_log *cfg_log;
+	struct cifisp_dpf_strength_config *curr_cfg, *new_cfg;
 	int retval = 0;
 
 	if (arg == NULL)
@@ -1402,24 +1501,27 @@ static int cifisp_dpf_strength_param(struct cif_isp11_isp_dev *isp_dev,
 
 	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
 
+	cfg_log = &isp_dev->other_cfgs.log[CIFISP_DPF_STRENGTH_ID];
+	curr_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->curr_id].dpf_strength_config);
+	new_cfg = &(isp_dev->other_cfgs.cfgs[cfg_log->new_id].dpf_strength_config);
+
 	if (flag == _GET_) {
-		memcpy(arg,
-			&(isp_dev->other_cfgs.curr->dpf_strength_config),
-			sizeof(*arg));
+		memcpy(arg, curr_cfg, sizeof(*arg));
 		goto end;
 	}
 
 	cifisp_param_dump(arg, CIFISP_MODULE_DPF_STRENGTH);
 
-	if (memcmp(arg,
-		&(isp_dev->other_cfgs.curr->dpf_strength_config),
-		sizeof(*arg)) == 0) {
+	if (CIFISP_MODULE_IS_EN(
+		isp_dev->other_cfgs.cfgs[cfg_log->curr_id].module_ens,
+		CIFISP_MODULE_DPF_STRENGTH) &&
+		memcmp(arg, curr_cfg, sizeof(*arg)) == 0) {
 		CIFISP_DPRINT(CIFISP_DEBUG,
 			      "same param in function: %s\n", __func__);
 		goto end;
 	}
 
-	memcpy(&isp_dev->other_cfgs.last_or_new->dpf_strength_config,
+	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_dpf_strength_config));
 	CIFISP_MODULE_UPDATE(
@@ -1446,11 +1548,15 @@ static int cifisp_last_capture_config(struct cifisp_last_capture_config *arg)
 }
 
 /* DPCC */
-static void cifisp_dpcc_config(const struct cif_isp11_isp_dev *isp_dev)
+static void cifisp_dpcc_config(
+	const struct cif_isp11_isp_dev *isp_dev
+	)
 {
-	const struct cifisp_dpcc_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->dpcc_config);
 	unsigned int i;
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_DPCC_ID].new_id;
+	const struct cifisp_dpcc_config *pconfig =
+		&isp_dev->other_cfgs.cfgs[new_id].dpcc_config;
 
 	cifisp_iowrite32(pconfig->mode, CIF_ISP_DPCC_MODE);
 	cifisp_iowrite32(pconfig->output_mode, CIF_ISP_DPCC_OUTPUT_MODE);
@@ -1502,8 +1608,10 @@ static bool cifisp_lsc_correct_matrix_config(struct cif_isp11_isp_dev *isp_dev)
 	int i, n;
 	unsigned int isp_lsc_status, sram_addr, isp_lsc_table_sel;
 	unsigned int data;
-	struct cifisp_lsc_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->lsc_config);
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_LSC_ID].new_id;
+	const struct cifisp_lsc_config *pconfig =
+		&isp_dev->other_cfgs.cfgs[new_id].lsc_config;
 
 	isp_lsc_status = cifisp_ioread32(CIF_ISP_LSC_STATUS);
 	sram_addr = (isp_lsc_status & 0x2U) ? 0U : 153U; /* ( 17 * 18 ) >> 1 */
@@ -1565,8 +1673,10 @@ static bool cifisp_lsc_config(struct cif_isp11_isp_dev *isp_dev)
 {
 	int i;
 	unsigned int data;
-	struct cifisp_lsc_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->lsc_config);
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_LSC_ID].new_id;
+	const struct cifisp_lsc_config *pconfig =
+		&isp_dev->other_cfgs.cfgs[new_id].lsc_config;
 
 	if (pconfig->config_width != isp_dev->input_width ||
 		pconfig->config_height != isp_dev->input_height) {
@@ -1616,7 +1726,6 @@ static bool cifisp_lsc_config(struct cif_isp11_isp_dev *isp_dev)
 
 	isp_dev->active_lsc_width = pconfig->config_width;
 	isp_dev->active_lsc_height = pconfig->config_height;
-
 	cifisp_iowrite32(1, CIF_ISP_LSC_CTRL);
 
 	return true;
@@ -1681,8 +1790,10 @@ static void cifisp_bls_get_meas(const struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_bls_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_BLS_ID].new_id;
 	const struct cifisp_bls_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->bls_config);
+		&isp_dev->other_cfgs.cfgs[new_id].bls_config;
 	u32 new_control = 0;
 	const struct cif_isp11_device *cif_dev =
 		container_of(isp_dev, struct cif_isp11_device, isp_dev);
@@ -1693,7 +1804,7 @@ static void cifisp_bls_config(const struct cif_isp11_isp_dev *isp_dev)
 	/* fixed subtraction values */
 	if (pconfig->enable_auto == false) {
 		const struct cifisp_bls_fixed_val *pval =
-		    &isp_dev->other_cfgs.last_or_new->bls_config.fixed_val;
+		    &pconfig->fixed_val;
 
 		if (CIF_ISP11_PIX_FMT_BAYER_PAT_IS_BGGR(in_pix_fmt)) {
 			cifisp_iowrite32(pval->r, CIF_ISP_BLS_D_FIXED);
@@ -1769,8 +1880,10 @@ static void cifisp_bls_end(const struct cif_isp11_isp_dev *isp_dev)
 /*****************************************************************************/
 static void cifisp_sdg_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_SDG_ID].new_id;
 	const struct cifisp_sdg_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->sdg_config);
+		&isp_dev->other_cfgs.cfgs[new_id].sdg_config;
 	unsigned int i;
 
 	cifisp_iowrite32(pconfig->xa_pnts.gamma_dx0, CIF_ISP_GAMMA_DX_LO);
@@ -1806,8 +1919,10 @@ static void cifisp_sdg_end(const struct cif_isp11_isp_dev *isp_dev)
 static void cifisp_goc_config(const struct cif_isp11_isp_dev *isp_dev)
 {
 	int i;
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_GOC_ID].new_id;
 	const struct cifisp_goc_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->goc_config);
+		&isp_dev->other_cfgs.cfgs[new_id].goc_config;
 
 	cifisp_iowrite32AND(~CIF_ISP_CTRL_ISP_GAMMA_OUT_ENA, CIF_ISP_CTRL);
 
@@ -1821,8 +1936,10 @@ static void cifisp_goc_config(const struct cif_isp11_isp_dev *isp_dev)
 static void cifisp_wdr_config(const struct cif_isp11_isp_dev *isp_dev)
 {
 	int i;
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_WDR_ID].new_id;
 	const struct cifisp_wdr_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->wdr_config);
+		&isp_dev->other_cfgs.cfgs[new_id].wdr_config;
 
 	for (i = 0; i < CIFISP_WDR_SIZE; i++) {
 		if (i <= 39)
@@ -1868,8 +1985,10 @@ static void cifisp_wdr_end(const struct cif_isp11_isp_dev *isp_dev)
 /*****************************************************************************/
 static void cifisp_bdm_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_BDM_ID].new_id;
 	const struct cifisp_bdm_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->bdm_config);
+		&isp_dev->other_cfgs.cfgs[new_id].bdm_config;
 
 	/*set demosaic threshold */
 	cifisp_iowrite32(pconfig->demosaic_th, CIF_ISP_DEMOSAIC);
@@ -1890,8 +2009,10 @@ static void cifisp_bdm_end(const struct cif_isp11_isp_dev *isp_dev)
 /*****************************************************************************/
 static void cifisp_flt_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_FLT_ID].new_id;
 	const struct cifisp_flt_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->flt_config);
+		&isp_dev->other_cfgs.cfgs[new_id].flt_config;
 
 	cifisp_iowrite32(pconfig->thresh_bl0,
 		CIF_ISP_FILT_THRESH_BL0);
@@ -1944,14 +2065,22 @@ static void cifisp_flt_end(const struct cif_isp11_isp_dev *isp_dev)
 /*****************************************************************************/
 static void cifisp_awb_gain_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_AWB_GAIN_ID].new_id;
+	unsigned int new_ens =
+		isp_dev->other_cfgs.cfgs[new_id].module_ens;
 	const struct cifisp_awb_gain_config *pconfig =
-	    &(isp_dev->other_cfgs.last_or_new->awb_gain_config);
+		&isp_dev->other_cfgs.cfgs[new_id].awb_gain_config;
 
-	cifisp_iowrite32(CIFISP_AWB_GAIN_R_SET(pconfig->gain_green_r) |
-		      pconfig->gain_green_b, CIF_ISP_AWB_GAIN_G);
-
-	cifisp_iowrite32(CIFISP_AWB_GAIN_R_SET(pconfig->gain_red) |
-		      pconfig->gain_blue, CIF_ISP_AWB_GAIN_RB);
+	if (CIFISP_MODULE_IS_EN(new_ens, CIFISP_MODULE_AWB_GAIN)) {
+		cifisp_iowrite32(CIFISP_AWB_GAIN_R_SET(pconfig->gain_green_r) |
+			      pconfig->gain_green_b, CIF_ISP_AWB_GAIN_G);
+		cifisp_iowrite32(CIFISP_AWB_GAIN_R_SET(pconfig->gain_red) |
+			      pconfig->gain_blue, CIF_ISP_AWB_GAIN_RB);
+	} else {
+		cifisp_iowrite32(0x01000100, CIF_ISP_AWB_GAIN_G);
+		cifisp_iowrite32(0x01000100, CIF_ISP_AWB_GAIN_RB);
+	}
 }
 
 #ifdef LOG_CAPTURE_PARAMS
@@ -1971,8 +2100,10 @@ static void cifisp_awb_gain_config_read(const struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_awb_meas_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->meas_cfgs.log[CIFISP_AWB_ID].new_id;
 	const struct cifisp_awb_meas_config *pconfig =
-		&(isp_dev->meas_cfgs.last_or_new->awb_meas_config);
+		&isp_dev->meas_cfgs.cfgs[new_id].awb_meas_config;
 	unsigned int awb_prob = 0;
 
 	/*based on the mode,configure the awb module */
@@ -2017,8 +2148,10 @@ static void cifisp_awb_meas_config_read(const struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_awb_meas_en(struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->meas_cfgs.log[CIFISP_AWB_ID].new_id;
 	const struct cifisp_awb_meas_config *pconfig =
-		&(isp_dev->meas_cfgs.last_or_new->awb_meas_config);
+		&isp_dev->meas_cfgs.cfgs[new_id].awb_meas_config;
 	u32 reg_val = cifisp_ioread32(CIF_ISP_AWB_PROP);
 
 	/* switch off */
@@ -2049,26 +2182,7 @@ static void cifisp_awb_meas_end(struct cif_isp11_isp_dev *isp_dev)
 
 	isp_dev->active_meas &= ~CIF_ISP_AWB_DONE;
 
-	if (!CIFISP_MODULE_IS_EN(
-		isp_dev->meas_cfgs.last_or_new->module_ens,
-		CIFISP_MODULE_AWB))
-		cifisp_iowrite32AND(~CIF_ISP_CTRL_ISP_AWB_ENA,
-		CIF_ISP_CTRL);
-}
-
-/*****************************************************************************/
-static void cifisp_awb_gain_en(const struct cif_isp11_isp_dev *isp_dev)
-{
-	cifisp_iowrite32OR(CIF_ISP_CTRL_ISP_AWB_ENA, CIF_ISP_CTRL);
-}
-
-/*****************************************************************************/
-static void cifisp_awb_gain_end(const struct cif_isp11_isp_dev *isp_dev)
-{
-	if (!CIFISP_MODULE_IS_EN(
-		isp_dev->meas_cfgs.last_or_new->module_ens,
-		CIFISP_MODULE_AWB))
-		cifisp_iowrite32AND(~CIF_ISP_CTRL_ISP_AWB_ENA,
+	cifisp_iowrite32AND(~CIF_ISP_CTRL_ISP_AWB_ENA,
 		CIF_ISP_CTRL);
 }
 
@@ -2078,8 +2192,10 @@ static void cifisp_get_awb_meas(struct cif_isp11_isp_dev *isp_dev,
 {
 	/* Protect against concurrent access from ISR? */
 	u32 reg_val;
+	unsigned int curr_id =
+		isp_dev->meas_cfgs.log[CIFISP_AWB_ID].curr_id;
 	const struct cifisp_awb_meas_config *pconfig =
-		&(isp_dev->meas_cfgs.curr->awb_meas_config);
+		&isp_dev->meas_cfgs.cfgs[curr_id].awb_meas_config;
 
 	pbuf->meas_type |= CIFISP_STAT_AWB;
 	reg_val = cifisp_ioread32(CIF_ISP_AWB_WHITE_CNT);
@@ -2108,8 +2224,10 @@ static void cifisp_get_awb_meas(struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_aec_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->meas_cfgs.log[CIFISP_AEC_ID].new_id;
 	const struct cifisp_aec_config *pconfig =
-		&(isp_dev->meas_cfgs.last_or_new->aec_config);
+		&isp_dev->meas_cfgs.cfgs[new_id].aec_config;
 	unsigned int block_hsize, block_vsize;
 
 	cifisp_iowrite32(CIFISP_EXP_CTRL_AUTOSTOP(pconfig->autostop) |
@@ -2186,8 +2304,10 @@ static void cifisp_ctk_config_read(const struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_ctk_en(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_CTK_ID].new_id;
 	const struct cifisp_ctk_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->ctk_config);
+		&isp_dev->other_cfgs.cfgs[new_id].ctk_config;
 
 	cifisp_iowrite32(pconfig->coeff0, CIF_ISP_CT_COEFF_0);
 	cifisp_iowrite32(pconfig->coeff1, CIF_ISP_CT_COEFF_1);
@@ -2227,10 +2347,14 @@ static void cifisp_ctk_end(const struct cif_isp11_isp_dev *isp_dev)
 static void cifisp_cproc_config(const struct cif_isp11_isp_dev *isp_dev,
 	enum cif_isp11_pix_fmt_quantization quantization)
 {
+	unsigned int new_id_cproc =
+		isp_dev->other_cfgs.log[CIFISP_CPROC_ID].new_id;
 	const struct cifisp_cproc_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->cproc_config);
+		&isp_dev->other_cfgs.cfgs[new_id_cproc].cproc_config;
+	unsigned int curr_id =
+		isp_dev->other_cfgs.log[CIFISP_IE_ID].curr_id;
 	const struct cifisp_ie_config *ie_pconfig =
-		&isp_dev->other_cfgs.last_or_new->ie_config;
+		&isp_dev->other_cfgs.cfgs[curr_id].ie_config;
 
 	cifisp_iowrite32(pconfig->contrast, CIF_C_PROC_CONTRAST);
 	cifisp_iowrite32(pconfig->hue, CIF_C_PROC_HUE);
@@ -2284,8 +2408,10 @@ static void cifisp_cproc_end(const struct cif_isp11_isp_dev *isp_dev)
 
 static void cifisp_afc_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->meas_cfgs.log[CIFISP_AFC_ID].new_id;
 	const struct cifisp_afc_config *pconfig =
-		&(isp_dev->meas_cfgs.last_or_new->afc_config);
+		&isp_dev->meas_cfgs.cfgs[new_id].afc_config;
 	int num_of_win = pconfig->num_afm_win, i;
 
 	/* Switch off to configure. Enabled during normal flow in frame isr. */
@@ -2347,8 +2473,10 @@ static void cifisp_get_afc_meas(struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_hst_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->meas_cfgs.log[CIFISP_HST_ID].new_id;
 	const struct cifisp_hst_config *pconfig =
-		&(isp_dev->meas_cfgs.last_or_new->hst_config);
+		&isp_dev->meas_cfgs.cfgs[new_id].hst_config;
 	unsigned int block_hsize, block_vsize;
 
 	cifisp_iowrite32(CIFISP_HIST_PREDIV_SET(pconfig->histogram_predivider),
@@ -2388,8 +2516,10 @@ static void cifisp_hst_config(const struct cif_isp11_isp_dev *isp_dev)
 
 static void cifisp_hst_en(struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->meas_cfgs.log[CIFISP_HST_ID].new_id;
 	const struct cifisp_hst_config *pconfig =
-		&(isp_dev->meas_cfgs.last_or_new->hst_config);
+		&isp_dev->meas_cfgs.cfgs[new_id].hst_config;
 
 	isp_dev->active_meas |= CIF_ISP_HIST_MEASURE_RDY;
 
@@ -2424,8 +2554,10 @@ static void cifisp_get_hst_meas(const struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_ie_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_IE_ID].new_id;
 	const struct cifisp_ie_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->ie_config);
+		&isp_dev->other_cfgs.cfgs[new_id].ie_config;
 
 	switch (pconfig->effect) {
 	case V4L2_COLORFX_SET_CBCR:
@@ -2453,8 +2585,10 @@ static void cifisp_ie_config(const struct cif_isp11_isp_dev *isp_dev)
 
 static void cifisp_ie_en(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_IE_ID].new_id;
 	const struct cifisp_ie_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->ie_config);
+		&isp_dev->other_cfgs.cfgs[new_id].ie_config;
 	enum cif_isp11_image_effect effect;
 
 	switch (pconfig->effect) {
@@ -2504,13 +2638,19 @@ static void cifisp_ie_end(const struct cif_isp11_isp_dev *isp_dev)
 static void cifisp_csm_config(const struct cif_isp11_isp_dev *isp_dev,
 				enum cif_isp11_pix_fmt_quantization quantization)
 {
-	const struct cifisp_ie_config *pconfig =
-		&isp_dev->other_cfgs.last_or_new->ie_config;
+	unsigned int curr_id_ie =
+		isp_dev->other_cfgs.log[CIFISP_IE_ID].curr_id;
+	const struct cifisp_ie_config *ie_pconfig =
+		&isp_dev->other_cfgs.cfgs[curr_id_ie].ie_config;
+	unsigned int curr_id_cproc =
+		isp_dev->other_cfgs.log[CIFISP_CPROC_ID].curr_id;
+	unsigned int curr_cproc_en =
+		isp_dev->other_cfgs.cfgs[curr_id_cproc].module_ens;
 
 	if ((quantization != CIF_ISP11_QUANTIZATION_FULL_RANGE) ||
-		((pconfig->effect != V4L2_COLORFX_NONE) &&
+		((ie_pconfig->effect != V4L2_COLORFX_NONE) &&
 		CIFISP_MODULE_IS_EN(
-		isp_dev->other_cfgs.last_or_new->module_ens,
+		curr_cproc_en,
 		CIFISP_MODULE_CPROC))) {
 		/* Limit range conversion */
 		cifisp_iowrite32(0x02100021, CIF_ISP_CC_COEFF_0);
@@ -2547,8 +2687,10 @@ static void cifisp_csm_config(const struct cif_isp11_isp_dev *isp_dev,
 /*****************************************************************************/
 static void cifisp_dpf_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_DPF_ID].new_id;
 	const struct cifisp_dpf_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->dpf_config);
+		&isp_dev->other_cfgs.cfgs[new_id].dpf_config;
 	unsigned int isp_dpf_mode;
 	unsigned int i;
 	unsigned int spatial_coeff;
@@ -2624,8 +2766,10 @@ static void cifisp_dpf_config(const struct cif_isp11_isp_dev *isp_dev)
 
 static void cifisp_dpf_strength_config(const struct cif_isp11_isp_dev *isp_dev)
 {
+	unsigned int new_id =
+		isp_dev->other_cfgs.log[CIFISP_DPF_STRENGTH_ID].new_id;
 	const struct cifisp_dpf_strength_config *pconfig =
-		&(isp_dev->other_cfgs.last_or_new->dpf_strength_config);
+		&isp_dev->other_cfgs.cfgs[new_id].dpf_strength_config;
 
 	cifisp_iowrite32(pconfig->b, CIF_ISP_DPF_STRENGTH_B);
 	cifisp_iowrite32(pconfig->g, CIF_ISP_DPF_STRENGTH_G);
@@ -2906,112 +3050,11 @@ static int cifisp_s_ctrl(struct file *file, void *priv, struct v4l2_control *vc)
 {
 	struct cif_isp11_isp_dev *isp_dev = video_get_drvdata(video_devdata(file));
 
-	switch (vc->id) {
-	case V4L2_CID_CIFISP_DPCC:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_DPCC);
-	case V4L2_CID_CIFISP_BLS:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_BLS);
-	case V4L2_CID_CIFISP_SDG:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_SDG);
-	case V4L2_CID_CIFISP_LSC:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_LSC);
-	case V4L2_CID_CIFISP_AWB_MEAS:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_AWB);
-	case V4L2_CID_CIFISP_AWB_GAIN:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_AWB_GAIN);
-	case V4L2_CID_CIFISP_FLT:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_FLT);
-	case V4L2_CID_CIFISP_BDM:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_BDM);
-	case V4L2_CID_CIFISP_CTK:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_CTK);
-	case V4L2_CID_CIFISP_GOC:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_GOC);
-	case V4L2_CID_CIFISP_HST:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_HST);
-	case V4L2_CID_CIFISP_AEC:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_AEC);
-	case V4L2_CID_CIFISP_CPROC:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_CPROC);
-	case V4L2_CID_CIFISP_AFC:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_AFC);
-	case V4L2_CID_CIFISP_IE:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_IE);
-	case V4L2_CID_CIFISP_DPF:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_DPF);
-	case V4L2_CID_CIFISP_WDR:
-		return cifisp_module_enable(
-			isp_dev,
-			_SET_,
-			&vc->value,
-			CIFISP_MODULE_WDR);
-	default:
-		return -EINVAL;
-	}
+	return cifisp_module_enable(
+		isp_dev,
+		_SET_,
+		&vc->value,
+		vc->id - V4L2_CID_PRIVATE_BASE);
 }
 
 static long cifisp_ioctl_default(struct file *file,
@@ -3168,16 +3211,11 @@ static int cifisp_reset(struct file *file)
 	struct cif_isp11_isp_dev *isp_dev =
 		video_get_drvdata(video_devdata(file));
 
-	memset(isp_dev->other_cfgs.cfgs, 0, sizeof(isp_dev->other_cfgs.cfgs));
-	memset(isp_dev->meas_cfgs.cfgs, 0, sizeof(isp_dev->meas_cfgs.cfgs));
-
-	isp_dev->other_cfgs.last_or_new = &isp_dev->other_cfgs.cfgs[0];
-	isp_dev->other_cfgs.curr = &isp_dev->other_cfgs.cfgs[1];
+	memset(&isp_dev->other_cfgs, 0, sizeof(struct cifisp_isp_other_cfg));
+	memset(&isp_dev->meas_cfgs, 0, sizeof(struct cifisp_isp_meas_cfg));
 	isp_dev->other_cfgs.module_updates = 0;
-
-	isp_dev->meas_cfgs.last_or_new = &isp_dev->meas_cfgs.cfgs[0];
-	isp_dev->meas_cfgs.curr = &isp_dev->meas_cfgs.cfgs[1];
 	isp_dev->meas_cfgs.module_updates = 0;
+
 	isp_dev->active_lsc_width = 0;
 	isp_dev->active_lsc_height = 0;
 
@@ -3341,173 +3379,30 @@ static void cifisp_dump_reg(struct cif_isp11_isp_dev *isp_dev, int level)
 #endif
 }
 
-static inline void cifisp_meas_config_swap(
-	struct cif_isp11_isp_dev *isp_dev)
-{
-	struct cifisp_isp_meas_cfg *new_cfg;
-
-	new_cfg = isp_dev->meas_cfgs.last_or_new;
-	new_cfg->s_frame_id = isp_dev->frame_id;
-	isp_dev->meas_cfgs.last_or_new =
-		isp_dev->meas_cfgs.curr;
-	isp_dev->meas_cfgs.curr = new_cfg;
-
-	return;
-}
-
-static inline void cifisp_other_config_swap(
-	struct cif_isp11_isp_dev *isp_dev)
-{
-	struct cifisp_isp_other_cfg *new_cfg;
-
-	new_cfg = isp_dev->other_cfgs.last_or_new;
-	new_cfg->s_frame_id = isp_dev->frame_id;
-	isp_dev->other_cfgs.last_or_new =
-		isp_dev->other_cfgs.curr;
-	isp_dev->other_cfgs.curr = new_cfg;
-
-	return;
-}
 /* Not called when the camera active, thus not isr protection. */
 void cifisp_configure_isp(
 	struct cif_isp11_isp_dev *isp_dev,
 	enum cif_isp11_pix_fmt in_pix_fmt,
 	enum cif_isp11_pix_fmt_quantization quantization)
 {
-	unsigned int *other_ens, *other_updates;
-	unsigned int *meas_ens, *meas_updates;
+	unsigned int *other_ens;
+	unsigned int *other_updates, *meas_updates;
+	unsigned int time_left = 3000;
 	CIFISP_DPRINT(CIFISP_DEBUG, "%s\n", __func__);
 
 	mutex_lock(&isp_dev->mutex);
 	spin_lock(&isp_dev->config_lock);
 
-	other_ens = &isp_dev->other_cfgs.last_or_new->module_ens;
-	other_updates = &isp_dev->other_cfgs.module_updates;
-	meas_ens = &isp_dev->meas_cfgs.last_or_new->module_ens;
-	meas_updates = &isp_dev->meas_cfgs.module_updates;
 	isp_dev->quantization = quantization;
 	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(in_pix_fmt)) {
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_DPCC)) {
-			cifisp_dpcc_config(isp_dev);
-			cifisp_dpcc_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_DPCC);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_LSC)) {
-			if (cifisp_lsc_config(isp_dev))
-				CIFISP_MODULE_CLR_UPDATE(*other_updates,
-					CIFISP_MODULE_LSC);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_BLS)) {
-			cifisp_bls_config(isp_dev);
-			cifisp_bls_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_BLS);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_SDG)) {
-			cifisp_sdg_config(isp_dev);
-			cifisp_sdg_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_SDG);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_GOC)) {
-			cifisp_goc_config(isp_dev);
-			cifisp_goc_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_GOC);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_BDM)) {
-			cifisp_bdm_config(isp_dev);
-			cifisp_bdm_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_BDM);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_FLT)) {
-			cifisp_flt_config(isp_dev);
-			cifisp_flt_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_FLT);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_AWB_GAIN)) {
-			cifisp_awb_gain_config(isp_dev);
-			cifisp_awb_gain_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_AWB_GAIN);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_CTK)) {
-			cifisp_ctk_config(isp_dev);
-			cifisp_ctk_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_CTK);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_CPROC)) {
-			cifisp_cproc_config(isp_dev, quantization);
-			cifisp_cproc_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_CPROC);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_IE)) {
-			cifisp_ie_config(isp_dev);
-			cifisp_ie_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_IE);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_WDR)) {
-			cifisp_wdr_config(isp_dev);
-			cifisp_wdr_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_WDR);
-		}
-
+		cifisp_isp_isr_other_config(isp_dev, &time_left);
 		cifisp_csm_config(isp_dev, quantization);
-
-		if (CIFISP_MODULE_IS_EN(*other_ens, CIFISP_MODULE_DPF)) {
-			cifisp_dpf_config(isp_dev);
-			cifisp_dpf_strength_config(isp_dev);
-			cifisp_dpf_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_DPF | CIFISP_MODULE_DPF_STRENGTH);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*meas_ens, CIFISP_MODULE_AFC)) {
-			cifisp_afc_config(isp_dev);
-			cifisp_afc_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*meas_updates,
-				CIFISP_MODULE_AFC);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*meas_ens, CIFISP_MODULE_AWB)) {
-			cifisp_awb_meas_config(isp_dev);
-			cifisp_awb_meas_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*meas_updates,
-				CIFISP_MODULE_AWB);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*meas_ens, CIFISP_MODULE_AEC)) {
-			cifisp_aec_config(isp_dev);
-			cifisp_aec_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*meas_updates,
-				CIFISP_MODULE_AEC);
-		}
-
-		if (CIFISP_MODULE_IS_EN(*meas_ens, CIFISP_MODULE_HST)) {
-			cifisp_hst_config(isp_dev);
-			cifisp_hst_en(isp_dev);
-			CIFISP_MODULE_CLR_UPDATE(*meas_updates,
-				CIFISP_MODULE_HST);
-		}
+		cifisp_isp_isr_meas_config(isp_dev, &time_left);
 	} else {
+		other_updates = &isp_dev->other_cfgs.module_updates;
+		meas_updates = &isp_dev->meas_cfgs.module_updates;
+		other_ens = &isp_dev->other_cfgs.cfgs[0].module_ens;
+
 		/* Disable modules for yuv */
 		cifisp_dpcc_end(isp_dev);
 		CIFISP_MODULE_CLR_UPDATE(*other_updates,
@@ -3545,10 +3440,6 @@ void cifisp_configure_isp(
 		CIFISP_MODULE_CLR_UPDATE(*meas_updates,
 				CIFISP_MODULE_AWB);
 
-		cifisp_awb_gain_end(isp_dev);
-		CIFISP_MODULE_CLR_UPDATE(*other_updates,
-				CIFISP_MODULE_AWB_GAIN);
-
 		cifisp_aec_end(isp_dev);
 		CIFISP_MODULE_CLR_UPDATE(*meas_updates,
 				CIFISP_MODULE_AEC);
@@ -3567,6 +3458,8 @@ void cifisp_configure_isp(
 			cifisp_cproc_en(isp_dev);
 			CIFISP_MODULE_CLR_UPDATE(*other_updates,
 				CIFISP_MODULE_CPROC);
+			isp_dev->other_cfgs.log[CIFISP_CPROC_ID].curr_id = 0;
+			isp_dev->other_cfgs.log[CIFISP_CPROC_ID].new_id = 1;
 		}
 
 		cifisp_hst_end(isp_dev);
@@ -3582,22 +3475,14 @@ void cifisp_configure_isp(
 			cifisp_ie_en(isp_dev);
 			CIFISP_MODULE_CLR_UPDATE(*other_updates,
 				CIFISP_MODULE_IE);
+			isp_dev->other_cfgs.log[CIFISP_IE_ID].curr_id = 0;
+			isp_dev->other_cfgs.log[CIFISP_IE_ID].new_id = 1;
 		} else {
 			cifisp_ie_end(isp_dev);
 		}
 	}
 
 	cifisp_dump_reg(isp_dev, CIFISP_DEBUG);
-
-	cifisp_meas_config_swap(isp_dev);
-	cifisp_other_config_swap(isp_dev);
-
-	memcpy(isp_dev->other_cfgs.last_or_new,
-		isp_dev->other_cfgs.curr,
-		sizeof(struct cifisp_isp_other_cfg));
-	memcpy(isp_dev->meas_cfgs.last_or_new,
-		isp_dev->meas_cfgs.curr,
-		sizeof(struct cifisp_isp_meas_cfg));
 
 	spin_unlock(&isp_dev->config_lock);
 	mutex_unlock(&isp_dev->mutex);
@@ -3635,7 +3520,6 @@ void cifisp_disable_isp(struct cif_isp11_isp_dev *isp_dev)
 	cifisp_bdm_end(isp_dev);
 	cifisp_flt_end(isp_dev);
 	cifisp_awb_meas_end(isp_dev);
-	cifisp_awb_gain_end(isp_dev);
 	cifisp_aec_end(isp_dev);
 	cifisp_ctk_end(isp_dev);
 	cifisp_cproc_end(isp_dev);
@@ -3648,24 +3532,10 @@ void cifisp_disable_isp(struct cif_isp11_isp_dev *isp_dev)
 	Isp isn't active, isp interrupt isn't enabled, spin_lock is enough;
 	*/
 	spin_lock(&isp_dev->config_lock);
-
-	isp_dev->other_cfgs.last_or_new->module_ens = 0;
-	isp_dev->meas_cfgs.last_or_new->module_ens = 0;
-
-	/*
-	1. Swap last_or_new and curr pointer;
-	2. Sync last_or_new and curr configuration;
-	*/
-	cifisp_meas_config_swap(isp_dev);
-	cifisp_other_config_swap(isp_dev);
-
-	memcpy(isp_dev->other_cfgs.last_or_new,
-		isp_dev->other_cfgs.curr,
-		sizeof(struct cifisp_isp_other_cfg));
-	memcpy(isp_dev->meas_cfgs.last_or_new,
-		isp_dev->meas_cfgs.curr,
-		sizeof(struct cifisp_isp_meas_cfg));
-
+	memset(&isp_dev->other_cfgs, 0, sizeof(struct cifisp_isp_other_cfg));
+	memset(&isp_dev->meas_cfgs, 0, sizeof(struct cifisp_isp_meas_cfg));
+	isp_dev->other_cfgs.module_updates = 0;
+	isp_dev->meas_cfgs.module_updates = 0;
 	spin_unlock(&isp_dev->config_lock);
 
 	mutex_unlock(&isp_dev->mutex);
@@ -3785,232 +3655,227 @@ end:
 	}
 }
 
-static void cifisp_other_config_sync(
+static int cifisp_s_vb_metadata(
 	struct cif_isp11_isp_dev *isp_dev,
-	bool all)
+	struct cif_isp11_isp_readout_work *readout_work)
 {
-	struct cifisp_isp_other_cfg *last_or_new;
-	struct cifisp_isp_other_cfg *curr;
+	struct cif_isp11_device *cif_dev =
+		container_of(isp_dev, struct cif_isp11_device, isp_dev);
+	struct cifisp_isp_metadata *isp_metadata =
+		readout_work->isp_metadata;
+	struct cifisp_isp_other_cfg *other_cfg =
+		&isp_metadata->other_cfg;
+	struct cifisp_isp_meas_cfg *meas_cfg =
+		&isp_metadata->meas_cfg;
+	struct cifisp_stat_buffer *stat_new =
+		&isp_metadata->meas_stat;
+	unsigned int i, j, match_id;
+	unsigned long int lock_flags;
 
-	last_or_new = isp_dev->other_cfgs.last_or_new;
-	curr = isp_dev->other_cfgs.curr;
+	spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
+	other_cfg->module_ens = 0;
+	for (i = 0; i < CIFISP_MEAS_ID; i++) {
+		match_id = 0xff;
+		for (j = 0; j < 3; j++) {
+			if (readout_work->frame_id >
+				isp_dev->other_cfgs.log[i].s_frame_id[j]) {
+				if (match_id == 0xff)
+					match_id = j;
+				else if (isp_dev->other_cfgs.log[i].s_frame_id[match_id] <
+					isp_dev->other_cfgs.log[i].s_frame_id[j])
+					match_id = j;
+			}
+		}
 
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_DPCC)) {
-		/*update dpc config */
-		memcpy(&last_or_new->dpcc_config,
-			&curr->dpcc_config,
-			sizeof(struct cifisp_dpcc_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_DPCC);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_DPCC);
+		if (match_id == 0xff) {
+			CIFISP_DPRINT(CIFISP_ERROR,
+				"%s: FrameID:%d isp other config haven't found! s_frame_id:%d, %d,%d\n",
+				__func__,
+				readout_work->frame_id,
+				isp_dev->other_cfgs.log[i].s_frame_id[0],
+				isp_dev->other_cfgs.log[i].s_frame_id[1],
+				isp_dev->other_cfgs.log[i].s_frame_id[2]);
+			match_id = isp_dev->other_cfgs.log[i].curr_id;
+		}
+
+		other_cfg->module_ens |=
+			(isp_dev->other_cfgs.cfgs[match_id].module_ens &
+			(1 << i));
+
+		switch (i) {
+		case CIFISP_DPCC_ID:
+			memcpy(&other_cfg->dpcc_config,
+				&isp_dev->other_cfgs.cfgs[match_id].dpcc_config,
+				sizeof(other_cfg->dpcc_config));
+			break;
+		case CIFISP_BLS_ID:
+			memcpy(&other_cfg->bls_config,
+				&isp_dev->other_cfgs.cfgs[match_id].bls_config,
+				sizeof(other_cfg->bls_config));
+			break;
+		case CIFISP_SDG_ID:
+			memcpy(&other_cfg->sdg_config,
+				&isp_dev->other_cfgs.cfgs[match_id].sdg_config,
+				sizeof(other_cfg->sdg_config));
+			break;
+		case CIFISP_LSC_ID:
+			memcpy(&other_cfg->lsc_config,
+				&isp_dev->other_cfgs.cfgs[match_id].lsc_config,
+				sizeof(other_cfg->lsc_config));
+			break;
+		case CIFISP_AWB_GAIN_ID:
+			if (CIFISP_MODULE_IS_EN(other_cfg->module_ens,
+				CIFISP_MODULE_AWB_GAIN)) {
+				memcpy(&other_cfg->awb_gain_config,
+					&isp_dev->other_cfgs.cfgs[match_id].awb_gain_config,
+					sizeof(other_cfg->awb_gain_config));
+			} else {
+				unsigned int reg = cifisp_ioread32(CIF_ISP_AWB_GAIN_RB);
+				other_cfg->awb_gain_config.gain_red =
+					(unsigned short)CIFISP_AWB_GAIN_R_READ(reg);
+				other_cfg->awb_gain_config.gain_blue =
+					(unsigned short)CIFISP_AWB_GAIN_B_READ(reg);
+				reg = cifisp_ioread32(CIF_ISP_AWB_GAIN_RB);
+				other_cfg->awb_gain_config.gain_green_r =
+					(unsigned short)CIFISP_AWB_GAIN_R_READ(reg);
+				other_cfg->awb_gain_config.gain_green_b =
+					(unsigned short)CIFISP_AWB_GAIN_B_READ(reg);
+			}
+			break;
+		case CIFISP_FLT_ID:
+			memcpy(&other_cfg->flt_config,
+				&isp_dev->other_cfgs.cfgs[match_id].flt_config,
+				sizeof(other_cfg->flt_config));
+			break;
+		case CIFISP_BDM_ID:
+			memcpy(&other_cfg->bdm_config,
+				&isp_dev->other_cfgs.cfgs[match_id].bdm_config,
+				sizeof(other_cfg->bdm_config));
+			break;
+		case CIFISP_CTK_ID:
+			if (CIFISP_MODULE_IS_EN(other_cfg->module_ens,
+				CIFISP_MODULE_CTK)) {
+				memcpy(&other_cfg->ctk_config,
+					&isp_dev->other_cfgs.cfgs[match_id].ctk_config,
+					sizeof(other_cfg->ctk_config));
+			} else {
+				other_cfg->ctk_config.coeff0 = cifisp_ioread32(CIF_ISP_CT_COEFF_0);
+				other_cfg->ctk_config.coeff1 = cifisp_ioread32(CIF_ISP_CT_COEFF_1);
+				other_cfg->ctk_config.coeff2 = cifisp_ioread32(CIF_ISP_CT_COEFF_2);
+				other_cfg->ctk_config.coeff3 = cifisp_ioread32(CIF_ISP_CT_COEFF_3);
+				other_cfg->ctk_config.coeff4 = cifisp_ioread32(CIF_ISP_CT_COEFF_4);
+				other_cfg->ctk_config.coeff5 = cifisp_ioread32(CIF_ISP_CT_COEFF_5);
+				other_cfg->ctk_config.coeff6 = cifisp_ioread32(CIF_ISP_CT_COEFF_6);
+				other_cfg->ctk_config.coeff7 = cifisp_ioread32(CIF_ISP_CT_COEFF_7);
+				other_cfg->ctk_config.coeff8 = cifisp_ioread32(CIF_ISP_CT_COEFF_8);
+			}
+			break;
+		case CIFISP_GOC_ID:
+			memcpy(&other_cfg->goc_config,
+				&isp_dev->other_cfgs.cfgs[match_id].goc_config,
+				sizeof(other_cfg->goc_config));
+			break;
+		case CIFISP_CPROC_ID:
+			memcpy(&other_cfg->cproc_config,
+				&isp_dev->other_cfgs.cfgs[match_id].cproc_config,
+				sizeof(other_cfg->cproc_config));
+			break;
+		case CIFISP_IE_ID:
+			memcpy(&other_cfg->ie_config,
+				&isp_dev->other_cfgs.cfgs[match_id].ie_config,
+				sizeof(other_cfg->ie_config));
+			break;
+		case CIFISP_WDR_ID:
+			memcpy(&other_cfg->wdr_config,
+				&isp_dev->other_cfgs.cfgs[match_id].wdr_config,
+				sizeof(other_cfg->wdr_config));
+			break;
+		case CIFISP_DPF_ID:
+			memcpy(&other_cfg->dpf_config,
+				&isp_dev->other_cfgs.cfgs[match_id].dpf_config,
+				sizeof(other_cfg->dpf_config));
+			break;
+		case CIFISP_DPF_STRENGTH_ID:
+			memcpy(&other_cfg->dpf_strength_config,
+				&isp_dev->other_cfgs.cfgs[match_id].dpf_strength_config,
+				sizeof(other_cfg->dpf_strength_config));
+			break;
+		default:
+			break;
+		}
 	}
 
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_BLS)) {
-		memcpy(&last_or_new->bls_config,
-			&curr->bls_config,
-			sizeof(struct cifisp_bls_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_BLS);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_BLS);
+	meas_cfg->module_ens = 0;
+	for (i = CIFISP_MEAS_ID; i < CIFISP_MODULE_MAX; i++) {
+		match_id = 0xff;
+		for (j = 0; j < 3; j++) {
+			if (readout_work->frame_id >
+				isp_dev->meas_cfgs.log[i].s_frame_id[j]) {
+				if (match_id == 0xff)
+					match_id = j;
+				else if (isp_dev->meas_cfgs.log[i].s_frame_id[match_id] <
+					isp_dev->meas_cfgs.log[i].s_frame_id[j])
+					match_id = j;
+			}
+		}
+
+		if (match_id == 0xff) {
+			CIFISP_DPRINT(CIFISP_ERROR,
+				"%s: FrameID:%d isp meas config haven't found! s_frame_id:%d, %d,%d\n",
+				__func__,
+				readout_work->frame_id,
+				isp_dev->meas_cfgs.log[i].s_frame_id[0],
+				isp_dev->meas_cfgs.log[i].s_frame_id[1],
+				isp_dev->meas_cfgs.log[i].s_frame_id[2]);
+			match_id = isp_dev->meas_cfgs.log[i].curr_id;
+		}
+		switch (i) {
+		case CIFISP_AFC_ID:
+			memcpy(&meas_cfg->afc_config,
+				&isp_dev->meas_cfgs.cfgs[match_id].afc_config,
+				sizeof(meas_cfg->afc_config));
+			break;
+		case CIFISP_AEC_ID:
+			memcpy(&meas_cfg->aec_config,
+				&isp_dev->meas_cfgs.cfgs[match_id].aec_config,
+				sizeof(meas_cfg->aec_config));
+			break;
+		case CIFISP_AWB_ID:
+			memcpy(&meas_cfg->awb_meas_config,
+				&isp_dev->meas_cfgs.cfgs[match_id].awb_meas_config,
+				sizeof(meas_cfg->awb_meas_config));
+			break;
+		case CIFISP_HST_ID:
+			memcpy(&meas_cfg->hst_config,
+				&isp_dev->meas_cfgs.cfgs[match_id].hst_config,
+				sizeof(meas_cfg->hst_config));
+			break;
+		default:
+			break;
+		}
+
+		meas_cfg->module_ens |=
+			(isp_dev->meas_cfgs.cfgs[match_id].module_ens &
+			(1 << i));
 	}
 
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_SDG)) {
-		/*update sdg config */
-		memcpy(&last_or_new->sdg_config,
-			&curr->sdg_config,
-			sizeof(struct cifisp_sdg_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_SDG);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_SDG);
+	if (isp_dev->meas_stats.g_frame_id >=
+		readout_work->frame_id) {
+		memcpy(stat_new,
+			&isp_dev->meas_stats.stat,
+			sizeof(*stat_new));
 	}
+	spin_unlock_irqrestore(&isp_dev->config_lock, lock_flags);
 
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_LSC)) {
-		/*update lsc config */
-		memcpy(&last_or_new->lsc_config,
-			&curr->lsc_config,
-			sizeof(struct cifisp_lsc_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_LSC);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_LSC);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_AWB_GAIN)) {
-		/*update awb gains */
-		memcpy(&last_or_new->awb_gain_config,
-			&curr->awb_gain_config,
-			sizeof(struct cifisp_awb_gain_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AWB_GAIN);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AWB_GAIN);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_BDM)) {
-		/*update bdm config */
-		memcpy(&last_or_new->bdm_config,
-			&curr->bdm_config,
-			sizeof(struct cifisp_bdm_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_BDM);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_BDM);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_FLT)) {
-		/*update filter config */
-		memcpy(&last_or_new->flt_config,
-			&curr->flt_config,
-			sizeof(struct cifisp_flt_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_FLT);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_FLT);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_CTK)) {
-		/*update ctk config */
-		memcpy(&last_or_new->ctk_config,
-			&curr->ctk_config,
-			sizeof(struct cifisp_ctk_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_CTK);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_CTK);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_GOC)) {
-		/*update goc config */
-		memcpy(&last_or_new->goc_config,
-			&curr->goc_config,
-			sizeof(struct cifisp_goc_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_GOC);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_GOC);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_CPROC)) {
-		/*update cprc config */
-		memcpy(&last_or_new->cproc_config,
-			&curr->cproc_config,
-			sizeof(struct cifisp_cproc_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_CPROC);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_CPROC);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_IE)) {
-		/*update ie config */
-		memcpy(&last_or_new->ie_config,
-			&curr->ie_config,
-			sizeof(struct cifisp_ie_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_IE);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_IE);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_DPF)) {
-		/*update dpf  config */
-		memcpy(&last_or_new->dpf_config,
-			&curr->dpf_config,
-			sizeof(struct cifisp_dpf_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_DPF);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_DPF);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_DPF_STRENGTH)) {
-		memcpy(&last_or_new->dpf_strength_config,
-			&curr->dpf_strength_config,
-			sizeof(struct cifisp_dpf_strength_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_DPF_STRENGTH);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_DPF_STRENGTH);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_WDR)) {
-		memcpy(&last_or_new->wdr_config,
-			&curr->wdr_config,
-			sizeof(struct cifisp_wdr_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_WDR);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_WDR);
-	}
+	cif_isp11_s_vb_metadata(cif_dev, readout_work);
+	return 0;
 }
-
-static void cifisp_meas_config_sync(
-	struct cif_isp11_isp_dev *isp_dev,
-	bool all)
-{
-	struct cifisp_isp_meas_cfg *last_or_new;
-	struct cifisp_isp_meas_cfg *curr;
-
-	last_or_new = isp_dev->meas_cfgs.last_or_new;
-	curr = isp_dev->meas_cfgs.curr;
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_AWB)) {
-		/*update awb config */
-		memcpy(&last_or_new->awb_meas_config,
-			&curr->awb_meas_config,
-			sizeof(struct cifisp_awb_meas_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AWB);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AWB);
-	}
-
-	if (!CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_AFC)) {
-		/*update afc config */
-		memcpy(&last_or_new->afc_config,
-			&curr->afc_config,
-			sizeof(struct cifisp_afc_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AFC);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AFC);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_HST)) {
-		/*update hst config */
-		memcpy(&last_or_new->hst_config,
-			&curr->hst_config,
-			sizeof(struct cifisp_hst_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_HST);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_HST);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_AEC)) {
-		/*update aec config */
-		memcpy(&last_or_new->aec_config,
-			&curr->aec_config,
-			sizeof(struct cifisp_aec_config));
-		CIFISP_MODULE_DIS(last_or_new->module_ens, CIFISP_MODULE_AEC);
-		last_or_new->module_ens |= (curr->module_ens & CIFISP_MODULE_AEC);
-	}
-}
-
 void cifisp_isp_readout_work(struct work_struct *work)
 {
 	struct cif_isp11_isp_readout_work *readout_work =
 		(struct cif_isp11_isp_readout_work *)work;
 	struct cif_isp11_isp_dev *isp_dev =
 		readout_work->isp_dev;
-	struct cif_isp11_device *cif_dev =
-		container_of(isp_dev, struct cif_isp11_device, isp_dev);
-	unsigned long int lock_flags;
 
 	if (!isp_dev->streamon)
 		return;
@@ -4021,66 +3886,10 @@ void cifisp_isp_readout_work(struct work_struct *work)
 		cifisp_send_measurement(isp_dev, readout_work);
 		break;
 
-	case CIF_ISP11_ISP_READOUT_META: {
-		struct cifisp_isp_other_cfg *other_new = NULL;
-		struct cifisp_isp_meas_cfg *meas_new = NULL;
-		struct cifisp_stat_buffer *stat_new = NULL;
-
-		spin_lock_irqsave(&isp_dev->config_lock, lock_flags);
-
-		if (isp_dev->other_cfgs.module_updates == 0) {
-			if (readout_work->frame_id ==
-				isp_dev->other_cfgs.curr->s_frame_id)
-				other_new = isp_dev->other_cfgs.last_or_new;
-			else if (readout_work->frame_id >
-				isp_dev->other_cfgs.curr->s_frame_id) {
-				other_new = isp_dev->other_cfgs.curr;
-			} else
-				other_new = NULL;
-		}
-
-		if (isp_dev->meas_cfgs.module_updates == 0) {
-			if (readout_work->frame_id ==
-				isp_dev->meas_cfgs.curr->s_frame_id)
-				meas_new = isp_dev->meas_cfgs.last_or_new;
-			else if (readout_work->frame_id >
-				isp_dev->meas_cfgs.curr->s_frame_id) {
-				meas_new = isp_dev->meas_cfgs.curr;
-			} else
-				meas_new = NULL;
-		}
-
-		if ((isp_dev->meas_stats.g_frame_id ==
-			readout_work->frame_id) &&
-			isp_dev->meas_stats.stat.meas_type)
-			stat_new = &isp_dev->meas_stats.stat;
-		else
-			stat_new = NULL;
-
-		cif_isp11_s_isp_metadata(
-			cif_dev,
-			readout_work,
-			other_new,
-			meas_new,
-			stat_new);
-
-		if (isp_dev->other_cfgs.curr->s_frame_id >
-			isp_dev->other_cfgs.last_or_new->s_frame_id) {
-			cifisp_other_config_sync(
-				isp_dev,
-				(isp_dev->other_cfgs.module_updates == 0));
-		}
-		if (isp_dev->meas_cfgs.curr->s_frame_id >
-			isp_dev->meas_cfgs.last_or_new->s_frame_id) {
-			cifisp_meas_config_sync(
-				isp_dev,
-				(isp_dev->meas_cfgs.module_updates == 0));
-		}
-
-		spin_unlock_irqrestore(&isp_dev->config_lock, lock_flags);
-
+	case CIF_ISP11_ISP_READOUT_META:
+		cifisp_s_vb_metadata(isp_dev, readout_work);
 		break;
-	}
+
 	default:
 		break;
 	}
@@ -4094,329 +3903,168 @@ static inline bool cifisp_isp_isr_other_config(
 {
 	unsigned int time_in = *time_left;
 	bool config_chk;
+	unsigned int new_id;
+	unsigned int i, j;
 	unsigned int *ens;
 
-	ens = &isp_dev->other_cfgs.last_or_new->module_ens;
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_DPCC)) {
-		/*update dpc config */
-		cifisp_dpcc_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_DPCC))
-			cifisp_dpcc_en(isp_dev);
-		else
-			cifisp_dpcc_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
+	for (i = 0; i < CIFISP_MEAS_ID; i++) {
+		if (CIFISP_MODULE_IS_UPDATE(
 			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_DPCC);
+			(1 << i))) {
 
-		*time_left -= CIFISP_MODULE_DPCC_PROC_TIME;
+			new_id = isp_dev->other_cfgs.log[i].new_id;
+			ens = &isp_dev->other_cfgs.cfgs[new_id].module_ens;
 
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"dpcc time-left :%d\n",
-			*time_left);
-	}
+			switch (i) {
+			case CIFISP_DPCC_ID:
+				/*update dpc config */
+				cifisp_dpcc_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_dpcc_en(isp_dev);
+				else
+					cifisp_dpcc_end(isp_dev);
+				*time_left -= CIFISP_MODULE_DPCC_PROC_TIME;
+				break;
+			case CIFISP_BLS_ID:
+				/*update bls config */
+				cifisp_bls_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_bls_en(isp_dev);
+				else
+					cifisp_bls_end(isp_dev);
+				*time_left -= CIFISP_MODULE_BLS_PROC_TIME;
+				break;
+			case CIFISP_SDG_ID:
+				/*update sdg config */
+				cifisp_sdg_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_sdg_en(isp_dev);
+				else
+					cifisp_sdg_end(isp_dev);
+				*time_left -= CIFISP_MODULE_SDG_PROC_TIME;
+				break;
+			case CIFISP_LSC_ID: {
+				bool res = true;
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i))) {
+					if (!cifisp_lsc_config(isp_dev))
+						res = false;
+				} else
+					cifisp_lsc_end(isp_dev);
+				*time_left -= CIFISP_MODULE_LSC_PROC_TIME;
+				break;
+			}
+			case CIFISP_AWB_GAIN_ID:
+				/*update awb gains */
+				cifisp_awb_gain_config(isp_dev);
+				*time_left -= CIFISP_MODULE_AWB_GAIN_PROC_TIME;
+				break;
+			case CIFISP_BDM_ID:
+				/*update bdm config */
+				cifisp_bdm_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_bdm_en(isp_dev);
+				else
+					cifisp_bdm_end(isp_dev);
+				*time_left -= CIFISP_MODULE_BDM_PROC_TIME;
+				break;
+			case CIFISP_FLT_ID:
+				/*update filter config */
+				cifisp_flt_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_flt_en(isp_dev);
+				else
+					cifisp_flt_end(isp_dev);
+				*time_left -= CIFISP_MODULE_FLT_PROC_TIME;
+				break;
+			case CIFISP_CTK_ID:
+				/*update ctk config */
+				cifisp_ctk_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_ctk_en(isp_dev);
+				else
+					cifisp_ctk_end(isp_dev);
+				*time_left -= CIFISP_MODULE_CTK_PROC_TIME;
+				break;
+			case CIFISP_GOC_ID:
+				/*update goc config */
+				cifisp_goc_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_goc_en(isp_dev);
+				else
+					cifisp_goc_end(isp_dev);
+				*time_left -= CIFISP_MODULE_GOC_PROC_TIME;
+				break;
+			case CIFISP_CPROC_ID:
+				/*update cprc config */
+				cifisp_cproc_config(
+					isp_dev,
+					isp_dev->quantization);
+				cifisp_csm_config(isp_dev,
+					isp_dev->quantization);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i))) {
+					cifisp_cproc_en(isp_dev);
+				} else {
+					cifisp_cproc_end(isp_dev);
+				}
+				*time_left -= CIFISP_MODULE_CPROC_PROC_TIME;
+				break;
+			case CIFISP_IE_ID:
+				/*update ie config */
+				cifisp_ie_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_ie_en(isp_dev);
+				else
+					cifisp_ie_end(isp_dev);
+				*time_left -= CIFISP_MODULE_IE_PROC_TIME;
+				break;
+			case CIFISP_DPF_ID:
+				/*update dpf  config */
+				cifisp_dpf_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_dpf_en(isp_dev);
+				else
+					cifisp_dpf_end(isp_dev);
+				*time_left -= CIFISP_MODULE_DPF_TIME;
+				break;
+			case CIFISP_DPF_STRENGTH_ID:
+				if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_DPF)) {
+					/*update dpf strength config */
+					cifisp_dpf_strength_config(isp_dev);
+					cifisp_dpf_en(isp_dev);
+				} else
+					cifisp_dpf_end(isp_dev);
+				*time_left -= CIFISP_MODULE_DPF_STRENGTH_TIME;
+				break;
+			case CIFISP_WDR_ID:
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i))) {
+					cifisp_wdr_config(isp_dev);
+					cifisp_wdr_en(isp_dev);
+				} else {
+					cifisp_wdr_end(isp_dev);
+				}
+				*time_left -= CIFISP_MODULE_WDR_TIME;
+				break;
+			default:
+				break;
+			}
 
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_BLS) &&
-		*time_left >= CIFISP_MODULE_BLS_PROC_TIME) {
-		/*update bls config */
-		cifisp_bls_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_BLS))
-			cifisp_bls_en(isp_dev);
-		else
-			cifisp_bls_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_BLS);
-
-		*time_left -= CIFISP_MODULE_BLS_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"bls time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_SDG) &&
-		*time_left >= CIFISP_MODULE_SDG_PROC_TIME) {
-		/*update sdg config */
-		cifisp_sdg_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_SDG))
-			cifisp_sdg_en(isp_dev);
-		else
-			cifisp_sdg_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_SDG);
-
-		*time_left -= CIFISP_MODULE_SDG_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"sdg time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_LSC) &&
-		*time_left >= CIFISP_MODULE_LSC_PROC_TIME) {
-		/*update lsc config */
-		bool res = true;
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_LSC)) {
-			if (!cifisp_lsc_config(isp_dev))
-				res = false;
-		} else
-			cifisp_lsc_end(isp_dev);
-
-		if (res) {
+			isp_dev->other_cfgs.log[i].s_frame_id[new_id] =
+				isp_dev->frame_id;
+			isp_dev->other_cfgs.log[i].curr_id = new_id;
+			new_id = 0;
+			for (j = 0; j < 3; j++) {
+				if (isp_dev->other_cfgs.log[i].s_frame_id[new_id] >
+					isp_dev->other_cfgs.log[i].s_frame_id[j])
+					new_id = j;
+			}
+			isp_dev->other_cfgs.log[i].new_id = new_id;
 			CIFISP_MODULE_CLR_UPDATE(
 				isp_dev->other_cfgs.module_updates,
-				CIFISP_MODULE_LSC);
+				(1 << i));
 		}
-
-		*time_left -= CIFISP_MODULE_LSC_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"lsc time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_AWB_GAIN) &&
-		*time_left >= CIFISP_MODULE_AWB_GAIN_PROC_TIME) {
-		/*update awb gains */
-		cifisp_awb_gain_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_AWB_GAIN))
-			cifisp_awb_gain_en(isp_dev);
-		else
-			cifisp_awb_gain_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_AWB_GAIN);
-
-		*time_left -= CIFISP_MODULE_AWB_GAIN_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"awb-g time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_BDM) &&
-		*time_left >= CIFISP_MODULE_BDM_PROC_TIME) {
-		/*update bdm config */
-		cifisp_bdm_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_BDM))
-			cifisp_bdm_en(isp_dev);
-		else
-			cifisp_bdm_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_BDM);
-
-		*time_left -= CIFISP_MODULE_BDM_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"bdm time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_FLT) &&
-		*time_left >= CIFISP_MODULE_FLT_PROC_TIME) {
-		/*update filter config */
-		cifisp_flt_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_FLT))
-			cifisp_flt_en(isp_dev);
-		else
-			cifisp_flt_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_FLT);
-
-		*time_left -= CIFISP_MODULE_FLT_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"flt time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_CTK) &&
-		*time_left >= CIFISP_MODULE_CTK_PROC_TIME) {
-		/*update ctk config */
-		cifisp_ctk_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_CTK))
-			cifisp_ctk_en(isp_dev);
-		else
-			cifisp_ctk_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_CTK);
-
-		*time_left -= CIFISP_MODULE_CTK_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"ctk time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_GOC) &&
-		*time_left >= CIFISP_MODULE_GOC_PROC_TIME) {
-		/*update goc config */
-		cifisp_goc_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_GOC))
-			cifisp_goc_en(isp_dev);
-		else
-			cifisp_goc_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_GOC);
-
-		*time_left -= CIFISP_MODULE_GOC_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"goc time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_CPROC) &&
-		*time_left >= CIFISP_MODULE_CPROC_PROC_TIME) {
-		/*update cprc config */
-		cifisp_cproc_config(
-			isp_dev,
-			isp_dev->quantization);
-
-		cifisp_csm_config(isp_dev,
-			isp_dev->quantization);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_CPROC)) {
-			cifisp_cproc_en(isp_dev);
-		} else {
-			cifisp_cproc_end(isp_dev);
-		}
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_CPROC);
-
-		*time_left -= CIFISP_MODULE_CPROC_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"cproc time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_IE) &&
-		*time_left >= CIFISP_MODULE_IE_PROC_TIME) {
-		/*update ie config */
-		cifisp_ie_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_IE))
-			cifisp_ie_en(isp_dev);
-		else
-			cifisp_ie_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_IE);
-
-		*time_left -= CIFISP_MODULE_IE_PROC_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"ie time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_DPF) &&
-		*time_left >= CIFISP_MODULE_DPF_TIME) {
-		/*update dpf  config */
-		cifisp_dpf_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_DPF))
-			cifisp_dpf_en(isp_dev);
-		else
-			cifisp_dpf_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_DPF);
-
-		*time_left -= CIFISP_MODULE_DPF_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"dpf time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_DPF_STRENGTH) &&
-		*time_left >= CIFISP_MODULE_DPF_STRENGTH_TIME) {
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_DPF)) {
-			/*update dpf strength config */
-			cifisp_dpf_strength_config(isp_dev);
-			cifisp_dpf_en(isp_dev);
-		} else
-			cifisp_dpf_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_DPF_STRENGTH);
-
-		*time_left -= CIFISP_MODULE_DPF_STRENGTH_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"dpf strength time-left :%d\n",
-			*time_left);
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->other_cfgs.module_updates,
-		CIFISP_MODULE_WDR) &&
-		*time_left >= CIFISP_MODULE_WDR_TIME) {
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_WDR)) {
-			cifisp_wdr_config(isp_dev);
-			cifisp_wdr_en(isp_dev);
-		} else {
-			cifisp_wdr_end(isp_dev);
-		}
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->other_cfgs.module_updates,
-			CIFISP_MODULE_WDR);
-
-		*time_left -= CIFISP_MODULE_WDR_TIME;
-		CIFISP_DPRINT(CIFISP_DEBUG,
-			"wdr time-left :%d\n",
-			*time_left);
 	}
 
 	config_chk = time_in > *time_left;
-	if (config_chk)
-		cifisp_other_config_swap(isp_dev);
 
 	return config_chk;
 }
@@ -4427,82 +4075,76 @@ static inline bool cifisp_isp_isr_meas_config(
 {
 	unsigned int time_in = *time_left;
 	bool config_chk;
+	unsigned int new_id;
+	unsigned int i, j;
 	unsigned int *ens;
 
-	ens = &isp_dev->meas_cfgs.last_or_new->module_ens;
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_AWB)) {
-		/*update awb config */
-		cifisp_awb_meas_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_AWB))
-			cifisp_awb_meas_en(isp_dev);
-		else
-			cifisp_awb_meas_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
+	for (i = CIFISP_MEAS_ID; i < CIFISP_MODULE_MAX; i++) {
+		if (CIFISP_MODULE_IS_UPDATE(
 			isp_dev->meas_cfgs.module_updates,
-			CIFISP_MODULE_AWB);
-		*time_left -= CIFISP_MODULE_AWB_PROC_TIME;
-	}
+			(1 << i))) {
 
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_AFC)) {
-		/*update afc config */
-		cifisp_afc_config(isp_dev);
+			new_id = isp_dev->meas_cfgs.log[i].new_id;
+			ens = &isp_dev->meas_cfgs.cfgs[new_id].module_ens;
 
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_AFC))
-			cifisp_afc_en(isp_dev);
-		else
-			cifisp_afc_end(isp_dev);
+			switch (i) {
+			case CIFISP_AWB_ID:
+				/*update dpc config */
+				cifisp_awb_meas_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_awb_meas_en(isp_dev);
+				else
+					cifisp_awb_meas_end(isp_dev);
+				*time_left -= CIFISP_MODULE_AWB_PROC_TIME;
+				break;
+			case CIFISP_AEC_ID:
+				/*update aec config */
+				cifisp_aec_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_aec_en(isp_dev);
+				else
+					cifisp_aec_end(isp_dev);
+				*time_left -= CIFISP_MODULE_AEC_PROC_TIME;
+				break;
+			case CIFISP_AFC_ID:
+				/*update afc config */
+				cifisp_afc_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_afc_en(isp_dev);
+				else
+					cifisp_afc_end(isp_dev);
+				*time_left -= CIFISP_MODULE_AFC_PROC_TIME;
+				break;
+			case CIFISP_HST_ID:
+				/*update hst config */
+				cifisp_hst_config(isp_dev);
+				if (CIFISP_MODULE_IS_EN(*ens, (1 << i)))
+					cifisp_hst_en(isp_dev);
+				else
+					cifisp_hst_end(isp_dev);
+				*time_left -= CIFISP_MODULE_HST_PROC_TIME;
+				break;
+			default:
+				break;
+			}
 
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->meas_cfgs.module_updates,
-			CIFISP_MODULE_AFC);
-		*time_left -= CIFISP_MODULE_AFC_PROC_TIME;
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_HST)) {
-		/*update hst config */
-		cifisp_hst_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_HST))
-			cifisp_hst_en(isp_dev);
-		else
-			cifisp_hst_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->meas_cfgs.module_updates,
-			CIFISP_MODULE_HST);
-		*time_left -= CIFISP_MODULE_HST_PROC_TIME;
-	}
-
-	if (CIFISP_MODULE_IS_UPDATE(
-		isp_dev->meas_cfgs.module_updates,
-		CIFISP_MODULE_AEC)) {
-		/*update aec config */
-		cifisp_aec_config(isp_dev);
-
-		if (CIFISP_MODULE_IS_EN(*ens, CIFISP_MODULE_AEC))
-			cifisp_aec_en(isp_dev);
-		else
-			cifisp_aec_end(isp_dev);
-
-		CIFISP_MODULE_CLR_UPDATE(
-			isp_dev->meas_cfgs.module_updates,
-			CIFISP_MODULE_AEC);
-		*time_left -= CIFISP_MODULE_AEC_PROC_TIME;
+			isp_dev->meas_cfgs.log[i].s_frame_id[new_id] =
+				isp_dev->frame_id;
+			isp_dev->meas_cfgs.log[i].curr_id = new_id;
+			new_id = 0;
+			for (j = 0; j < 3; j++) {
+				if (isp_dev->meas_cfgs.log[i].s_frame_id[new_id] >
+					isp_dev->meas_cfgs.log[i].s_frame_id[j])
+					new_id = j;
+			}
+			isp_dev->meas_cfgs.log[i].new_id = new_id;
+			CIFISP_MODULE_CLR_UPDATE(
+				isp_dev->meas_cfgs.module_updates,
+				(1 << i));
+		}
 	}
 
 	config_chk = time_in > *time_left;
-	if (config_chk) {
-		cifisp_meas_config_swap(isp_dev);
-	}
 
 	return config_chk;
 }

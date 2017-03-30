@@ -4442,6 +4442,8 @@ static int cif_isp11_mi_frame_end(
 					else
 						work->vb = NULL;
 					work->stream_id = 	stream->id;
+					work->isp_metadata =
+						(struct cifisp_isp_metadata *)metadata->isp;
 					if (!queue_work(dev->isp_dev.readout_wq,
 						(struct work_struct *)work)) {
 						cif_isp11_pltfrm_pr_err(dev->dev,
@@ -6504,13 +6506,9 @@ failed:
 	return retval;
 }
 
-
-int cif_isp11_s_isp_metadata(
+int cif_isp11_s_vb_metadata(
 	struct cif_isp11_device *dev,
-	struct cif_isp11_isp_readout_work *readout_work,
-	struct cifisp_isp_other_cfg *new_other,
-	struct cifisp_isp_meas_cfg *new_meas,
-	struct cifisp_stat_buffer *new_stats)
+	struct cif_isp11_isp_readout_work *readout_work)
 {
 	unsigned int stream_id =
 		readout_work->stream_id;
@@ -6518,7 +6516,7 @@ int cif_isp11_s_isp_metadata(
 		readout_work->vb;
 	struct cif_isp11_stream *strm_dev;
 	struct v4l2_buffer_metadata_s *metadata;
-	struct cifisp_isp_metadata *isp_last;
+	struct isp_supplemental_sensor_mode_data sensor_mode;
 
 	switch (stream_id) {
 	case CIF_ISP11_STREAM_MP:
@@ -6542,40 +6540,13 @@ int cif_isp11_s_isp_metadata(
 			vb->i*CAMERA_METADATA_LEN);
 
 		metadata->frame_id = readout_work->frame_id;
-		isp_last =
-			(struct cifisp_isp_metadata *)metadata->isp;
-
-		if (new_meas) {
-			if ((isp_last->meas_cfg.s_frame_id == 0xffffffff) ||
-				(isp_last->meas_cfg.s_frame_id <
-				new_meas->s_frame_id)) {
-				memcpy(&isp_last->meas_cfg,
-					new_meas,
-					sizeof(struct cifisp_isp_meas_cfg));
-			}
-		}
-
-		if (new_other) {
-			if ((isp_last->other_cfg.s_frame_id == 0xffffffff) ||
-				(isp_last->other_cfg.s_frame_id <
-				new_other->s_frame_id)) {
-				memcpy(&isp_last->other_cfg,
-					new_other,
-					sizeof(struct cifisp_isp_other_cfg));
-			}
-		}
-
-		if (new_stats) {
-			memcpy(&isp_last->meas_stat,
-				new_stats,
-				sizeof(struct cifisp_stat_buffer));
-			metadata->sensor.exp_time =
-				new_stats->sensor_mode.exp_time;
-			metadata->sensor.gain =
-				new_stats->sensor_mode.gain;
-		} else
-			isp_last->meas_stat.meas_type = 0x00;
-
+		cif_isp11_sensor_mode_data_sync(dev,
+			metadata->frame_id,
+			&sensor_mode);
+		metadata->sensor.exp_time =
+			sensor_mode.exp_time;
+		metadata->sensor.gain =
+			sensor_mode.gain;
 	}
 
 	if (vb) {
@@ -6583,7 +6554,6 @@ int cif_isp11_s_isp_metadata(
 				"frame done\n");
 		wake_up(&vb->done);
 	}
-
 	return 0;
 }
 

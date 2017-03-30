@@ -32,17 +32,22 @@ enum cif_isp11_pix_fmt_quantization {
 	CIF_ISP11_QUANTIZATION_FULL_RANGE = 1,
 	CIF_ISP11_QUANTIZATION_LIM_RANGE = 2
 };
+
+struct cif_isp11_isp_cfgs_log {
+	unsigned int s_frame_id[3];
+	unsigned int new_id;
+	unsigned int curr_id;
+};
+
 struct cif_isp11_isp_other_cfgs {
-	struct cifisp_isp_other_cfg *last_or_new;
-	struct cifisp_isp_other_cfg *curr;
-	struct cifisp_isp_other_cfg cfgs[2];
+	struct cif_isp11_isp_cfgs_log log[CIFISP_MODULE_MAX];
+	struct cifisp_isp_other_cfg cfgs[3];
 	unsigned int module_updates;
 };
 
 struct cif_isp11_isp_meas_cfgs {
-	struct cifisp_isp_meas_cfg *last_or_new;
-	struct cifisp_isp_meas_cfg *curr;
-	struct cifisp_isp_meas_cfg cfgs[2];
+	struct cif_isp11_isp_cfgs_log log[CIFISP_MODULE_MAX];
+	struct cifisp_isp_meas_cfg cfgs[3];
 	unsigned int module_updates;
 };
 
@@ -104,6 +109,7 @@ struct cif_isp11_isp_readout_work {
 	enum cif_isp11_isp_readout_cmd readout;
 	struct videobuf_buffer *vb;
 	unsigned int stream_id;
+	struct cifisp_isp_metadata *isp_metadata;
 };
 
 int register_cifisp_device(
