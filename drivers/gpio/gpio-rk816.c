@@ -209,7 +209,7 @@ static int rk816_gpio_probe(struct platform_device *pdev)
 	gi->gpio_chip.direction_output = rk816_gpio_direction_output;
 	gi->gpio_chip.get = rk816_gpio_get_value;
 	gi->gpio_chip.set = rk816_gpio_set_value;
-	gi->gpio_chip.can_sleep = 0;
+	gi->gpio_chip.can_sleep = 1;
 	gi->gpio_chip.base = -1;
 	gi->gpio_chip.ngpio = rk8xx_gpio->ngpio;
 	gi->gpio_chip.label = pdev->name;
