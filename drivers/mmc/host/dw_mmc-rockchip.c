@@ -61,6 +61,10 @@ static struct dw_mci_rockchip_compatible {
 		.compatible	= "rockchip,rk322xh-sdmmc",
 		.ctrl_type	= DW_MCI_TYPE_RK322XH,
 	},
+	{
+		.compatible	= "rockchip,rv1108-sdmmc",
+		.ctrl_type	= DW_MCI_TYPE_RV1108,
+	},
 };
 
 #define syscon_find(np, property) \
@@ -161,6 +165,7 @@ static int rockchip_mmc_set_phase(int degrees, struct dw_mci *host)
 	switch (priv->ctrl_type) {
 	case DW_MCI_TYPE_RK3288:
 	case DW_MCI_TYPE_RK3368:
+	case DW_MCI_TYPE_RV1108:
 		delay_sel = 1 << 10;
 		sample_delaynum_offset = 0x2;
 		sample_degree_offset = 0x0;
