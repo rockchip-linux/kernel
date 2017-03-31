@@ -2478,7 +2478,7 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		}
 	}
 
-	global_a = (win_par->g_alpha_val == 0) ? 0 : 1;
+	global_a = ((win_par->g_alpha_val == 0) || (win_par->g_alpha_val == 0xff)) ? 0 : 1;
 	reg_win_data->alpha_en = ppixel_a | global_a;
 	reg_win_data->g_alpha_val = win_par->g_alpha_val;
 	reg_win_data->alpha_mode = win_par->alpha_mode;
