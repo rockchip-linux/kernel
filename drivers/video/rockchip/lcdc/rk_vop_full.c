@@ -1766,7 +1766,7 @@ static int vop_set_dclk(struct rk_lcdc_driver *dev_drv, int reset_rate)
 		dev_err(dev_drv->dev, "set lcdc%d dclk[%d] failed\n",
 			vop_dev->id, screen->mode.pixclock);
 	vop_dev->pixclock =
-	    div_u64(1000000000000llu, clk_get_rate(vop_dev->dclk));
+	    div_u64(1000000000000llu, screen->mode.pixclock);
 	vop_dev->driver.pixclock = vop_dev->pixclock;
 
 	fps = rk_fb_calc_fps(screen, vop_dev->pixclock);
