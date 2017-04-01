@@ -31,6 +31,7 @@ idt	Integrated Device Technologies, Inc.
 img	Imagination Technologies Ltd.
 inno	Innosilicon
 intercontrol	Inter Control Group
+issi	Integrated Silicon Solutions Inc.
 linux	Linux-specific binding
 marvell	Marvell Technology Group Ltd.
 maxim	Maxim Integrated Products
@@ -51,6 +52,7 @@ rockchip	Fuzhou Rockchip Electronics Co., Ltd
 samsung	Samsung Semiconductor
 sbs	Smart Battery System
 schindler	Schindler
+si-en	Si-En Technology Ltd.
 sil	Silicon Image
 silabs	Silicon Laboratories
 simtek
