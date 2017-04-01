@@ -177,11 +177,13 @@
 			label = "led0";
 			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
 			default-state = "off";
+			linux,default-trigger = "blink";
 		};
 		led1 {
 			label = "led1";
 			gpios = <&rk805 1 GPIO_ACTIVE_LOW>;
 			default-state = "off";
+			linux,default-trigger = "blink";
 		};
 	};
 };
