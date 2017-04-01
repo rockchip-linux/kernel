@@ -33,6 +33,14 @@ config LEDS_TRIGGER_ONESHOT
 
 	  If unsure, say Y.
 
+config LEDS_TRIGGER_BLINK
+	tristate "LED Blink Trigger"
+	depends on LEDS_TRIGGERS
+	help
+	  This allows LEDs to blink continuously
+	  User can blink and turn on or off the leds through this trigger
+	  If unsure, say Y.
+
 config LEDS_TRIGGER_IDE_DISK
 	bool "LED IDE Disk Trigger"
 	depends on IDE_GD_ATA
