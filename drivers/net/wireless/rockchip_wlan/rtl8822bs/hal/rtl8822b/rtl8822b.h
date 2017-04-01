@@ -77,8 +77,6 @@ void rtl8822b_gethwreg(PADAPTER, u8 variable, u8 *pval);
 u8 rtl8822b_sethaldefvar(PADAPTER, HAL_DEF_VARIABLE, void *pval);
 u8 rtl8822b_gethaldefvar(PADAPTER, HAL_DEF_VARIABLE, void *pval);
 void rtl8822b_set_hal_ops(PADAPTER);
-void rtl8822b_resume_tx_beacon(PADAPTER);
-void rtl8822b_stop_tx_beacon(PADAPTER);
 
 /* tx */
 void rtl8822b_fill_txdesc_sectype(struct pkt_attrib *, u8 *ptxdesc);
@@ -103,9 +101,9 @@ void rtl8822b_set_FwMediaStatusRpt_cmd(PADAPTER, u8 mstatus, u8 macid);
 void rtl8822b_set_FwMacIdConfig_cmd(PADAPTER , u64 bitmap, u8 *arg, u8 bw);
 void rtl8822b_set_FwRssiSetting_cmd(PADAPTER, u8 *param);
 void rtl8822b_set_FwPwrMode_cmd(PADAPTER, u8 psmode);
-#ifdef CONFIG_P2P
+#ifdef CONFIG_P2P_PS
 void rtl8822b_set_p2p_ps_offload_cmd(PADAPTER, u8 p2p_ps_state);
-#endif
+#endif /* CONFIG_P2P_PS */
 void rtl8822b_fw_update_beacon_cmd(PADAPTER);
 void rtl8822b_c2h_handler(PADAPTER, u8 *pbuf, u16 length);
 void rtl8822b_c2h_handler_no_io(PADAPTER, u8 *pbuf, u16 length);

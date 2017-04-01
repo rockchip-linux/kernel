@@ -294,6 +294,7 @@ typedef struct hal_com_data {
 	RT_REGULATOR_MODE	RegulatorMode; /* switching regulator or LDO */
 	u8	hw_init_completed;
 	/****** FW related ******/
+	u32 firmware_size;
 	u16 firmware_version;
 	u16	FirmwareVersionRev;
 	u16 firmware_sub_version;
@@ -378,10 +379,12 @@ typedef struct hal_com_data {
 	u8	EEPROMMACAddr[ETH_ALEN];
 	u8	tx_bbswing_24G;
 	u8	tx_bbswing_5G;
-#ifdef RTW_TX_PA_BIAS
+	u8	efuse0x3d7;	/* efuse[0x3D7] */
+	u8	efuse0x3d8;	/* efuse[0x3D7] */
+#ifdef RTW_TX_PA_BIAS_DRV
 	u8	tx_pa_bias_a;	/* TX PA Bias for Path A */
 	u8	tx_pa_bias_b;	/* TX PA Bias for Path B */
-#endif /* RTW_TX_PA_BIAS */
+#endif /* RTW_TX_PA_BIAS_DRV */
 
 #ifdef CONFIG_RF_POWER_TRIM
 	u8	EEPROMRFGainOffset;
@@ -616,7 +619,7 @@ typedef struct hal_com_data {
 	/* SDIO Rx FIFO related. */
 	/*  */
 	u8			SdioRxFIFOCnt;
-	u16			SdioRxFIFOSize;
+	u32			SdioRxFIFOSize;
 
 #ifndef RTW_HALMAC
 	u32			sdio_tx_max_len[SDIO_MAX_TX_QUEUE];/* H, N, L, used for sdio tx aggregation max length per queue */
@@ -632,12 +635,6 @@ typedef struct hal_com_data {
 	u32			max_xmit_size_bebk;
 #endif
 #endif /* !RTW_HALMAC */
-
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-	_thread_hdl_		rx_polling_thread;
-	_sema			rx_polling_sema;
-	_sema			rx_polling_terminate_sema;
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
 #endif /* CONFIG_SDIO_HCI */
 
 #ifdef CONFIG_USB_HCI

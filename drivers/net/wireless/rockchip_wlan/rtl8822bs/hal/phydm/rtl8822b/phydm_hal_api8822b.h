@@ -22,10 +22,15 @@
 
 #if (RTL8822B_SUPPORT == 1)
 
-#define	PHY_CONFIG_VERSION_8822B			"27.5.31"	/*2016.08.01     (HW user guide version: R27, SW user guide version: R05, Modification: R31)*/
+#define	PHY_CONFIG_VERSION_8822B			"28.5.33"	/*2016.12.19     (HW user guide version: R28, SW user guide version: R05, Modification: R33)*/
 
 #define	INVALID_RF_DATA					0xffffffff
 #define	INVALID_TXAGC_DATA				0xff
+
+#define number_of_psd_value				5
+#define number_of_sample                3
+#define number_of_2G_freq_pt			14
+#define number_of_5G_freq_pt			10
 
 #define	config_phydm_read_rf_check_8822b(data)			(data != INVALID_RF_DATA)
 #define	config_phydm_read_txagc_check_8822b(data)		(data != INVALID_TXAGC_DATA)
@@ -62,7 +67,12 @@ config_phydm_read_txagc_8822b(
 	u8					hw_rate
 );
 
-bool
+void
+phydm_dynamic_spur_det_elimitor(
+	struct PHY_DM_STRUCT				*p_dm_odm
+);
+
+boolean
 config_phydm_switch_band_8822b(
 	struct PHY_DM_STRUCT				*p_dm_odm,
 	u8					central_ch

@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright(c) 2015 - 2016 Realtek Corporation. All rights reserved.
+ * Copyright(c) 2016 Realtek Corporation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of version 2 of the GNU General Public License as
@@ -17,20 +17,14 @@
  *
  *
  ******************************************************************************/
-#ifndef _RTL8822BS_HAL_H_
-#define _RTL8822BS_HAL_H_
+#ifndef __PLATFORM_ZTE_ZX296716_SDIO_H__
+#define __PLATFORM_ZTE_ZX296716_SDIO_H__
 
-#include <drv_types.h>		/* PADAPTER */
+extern void sdio_reinit(void);
+extern void extern_wifi_set_enable(int val);
+#ifdef CONFIG_A16T03_BOARD
+extern int sdio_host_is_null(void);
+extern void remove_card(void);
+#endif /* CONFIG_A16T03_BOARD */
 
-/* rtl8822bs_ops.c */
-void rtl8822bs_set_hal_ops(PADAPTER);
-
-#if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
-void rtl8822bs_disable_interrupt_but_cpwm2(PADAPTER adapter);
-#endif
-
-/* rtl8822bs_xmit.c */
-s32 rtl8822bs_dequeue_writeport(PADAPTER);
-#define _dequeue_writeport(a)	rtl8822bs_dequeue_writeport(a)
-
-#endif /* _RTL8822BS_HAL_H_ */
+#endif /* __PLATFORM_ZTE_ZX296716_SDIO_H__ */

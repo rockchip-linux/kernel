@@ -3310,6 +3310,9 @@ static void ro_ch_handler(_adapter *padapter)
 	}
 
 	set_channel_bwmode(padapter, ch, offset, bw);
+	if (rtw_mi_buddy_check_fwstate(padapter, _FW_LINKED))
+		rtw_mi_buddy_issue_nulldata(padapter, NULL, 0, 3, 500);
+
 
 	rtw_p2p_set_state(pwdinfo, rtw_p2p_pre_state(pwdinfo));
 #ifdef CONFIG_DEBUG_CFG80211

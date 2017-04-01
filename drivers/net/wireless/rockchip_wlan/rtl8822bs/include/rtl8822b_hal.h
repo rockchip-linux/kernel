@@ -26,11 +26,7 @@
 
 
 #ifdef CONFIG_SUPPORT_TRX_SHARED
-#if 0
 #define MAX_RECVBUF_SZ		HALMAC_RX_FIFO_SIZE_RX_FIFO_EXPANDING_1_BLOCK_8822B
-#else /* Identical to the max possible rx_len in isr */
-#define MAX_RECVBUF_SZ		65536
-#endif
 #else /* !CONFIG_SUPPORT_TRX_SHARED */
 #define MAX_RECVBUF_SZ		HALMAC_RX_FIFO_SIZE_8822B
 #endif /* !CONFIG_SUPPORT_TRX_SHARED */

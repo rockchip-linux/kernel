@@ -1342,7 +1342,7 @@ static void _bfee_remove_entry(PADAPTER adapter, struct beamformee_entry *entry)
 	_sounding_update_min_period(adapter, 0, _TRUE);
 }
 
-static enum _BEAMFORMING_CAP _bfee_get_entry_cap_by_macid(PADAPTER adapter, u8 macid)
+static enum beamforming_cap _bfee_get_entry_cap_by_macid(PADAPTER adapter, u8 macid)
 {
 	struct beamforming_info *info;
 	struct beamformee_entry *bfee;
@@ -1585,10 +1585,10 @@ static void _c2h_snd_txbf(PADAPTER adapter, u8 *buf, u8 buf_len)
  * Description:
  *	This function is for phydm only
  */
-enum _BEAMFORMING_CAP rtw_bf_bfee_get_entry_cap_by_macid(void *mlme, u8 macid)
+enum beamforming_cap rtw_bf_bfee_get_entry_cap_by_macid(void *mlme, u8 macid)
 {
 	PADAPTER adapter;
-	enum _BEAMFORMING_CAP cap = BEAMFORMING_CAP_NONE;
+	enum beamforming_cap cap = BEAMFORMING_CAP_NONE;
 
 
 	adapter = mlme_to_adapter((struct mlme_priv *)mlme);

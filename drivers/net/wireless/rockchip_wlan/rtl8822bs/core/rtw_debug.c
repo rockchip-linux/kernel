@@ -490,22 +490,6 @@ void dump_adapters_status(void *sel, struct dvobj_priv *dvobj)
 
 #ifdef CONFIG_DFS_MASTER
 	if (rfctl->radar_detect_ch != 0) {
-		u32 non_ocp_ms;
-		u32 cac_ms;
-
-		for (i = 0; i < dvobj->iface_nums; i++) {
-			if (!dvobj->padapters[i])
-				continue;
-			if (check_fwstate(&dvobj->padapters[i]->mlmepriv, WIFI_AP_STATE)
-				&& check_fwstate(&dvobj->padapters[i]->mlmepriv, WIFI_ASOC_STATE))
-				break;
-		}
-
-		if (i >= dvobj->iface_nums) {
-			RTW_PRINT_SEL(sel, "DFS master enable without AP mode???");
-			goto end_dfs_master;
-		}
-
 		RTW_PRINT_SEL(sel, "%34s %3u,%u,%u"
 			, "radar_detect:"
 			, rfctl->radar_detect_ch
@@ -513,20 +497,42 @@ void dump_adapters_status(void *sel, struct dvobj_priv *dvobj)
 			, rfctl->radar_detect_offset
 		);
 
-		_RTW_PRINT_SEL(sel, ", domain:%u", rtw_odm_get_dfs_domain(dvobj->padapters[IFACE_ID0]));
+		if (rfctl->radar_detect_by_others)
+			_RTW_PRINT_SEL(sel, ", by AP of STA link");
+		else {
+			u32 non_ocp_ms;
+			u32 cac_ms;
+			u8 dfs_domain = rtw_odm_get_dfs_domain(dvobj_get_primary_adapter(dvobj));
 
-		rtw_get_ch_waiting_ms(dvobj->padapters[i]
-			, rfctl->radar_detect_ch
-			, rfctl->radar_detect_bw
-			, rfctl->radar_detect_offset
-			, &non_ocp_ms
-			, &cac_ms
-		);
+			_RTW_PRINT_SEL(sel, ", domain:%u", dfs_domain);
 
-		if (non_ocp_ms)
-			_RTW_PRINT_SEL(sel, ", non_ocp:%d", non_ocp_ms);
-		if (cac_ms)
-			_RTW_PRINT_SEL(sel, ", cac:%d", cac_ms);
+			for (i = 0; i < dvobj->iface_nums; i++) {
+				if (!dvobj->padapters[i])
+					continue;
+				if (check_fwstate(&dvobj->padapters[i]->mlmepriv, WIFI_AP_STATE)
+					&& check_fwstate(&dvobj->padapters[i]->mlmepriv, WIFI_ASOC_STATE))
+					break;
+			}
+
+			if (i >= dvobj->iface_nums) {
+				RTW_PRINT_SEL(sel, "DFS master enable without AP mode???");
+				goto end_dfs_master;
+			}
+
+			rtw_get_ch_waiting_ms(dvobj->padapters[i]
+				, rfctl->radar_detect_ch
+				, rfctl->radar_detect_bw
+				, rfctl->radar_detect_offset
+				, &non_ocp_ms
+				, &cac_ms
+			);
+
+			if (non_ocp_ms)
+				_RTW_PRINT_SEL(sel, ", non_ocp:%d", non_ocp_ms);
+			if (cac_ms)
+				_RTW_PRINT_SEL(sel, ", cac:%d", cac_ms);
+		}
+
 end_dfs_master:
 		_RTW_PRINT_SEL(sel, "\n");
 	}
@@ -2417,6 +2423,20 @@ int proc_get_mac_rptbuf(struct seq_file *m, void *v)
 	return 0;
 }
 
+void dump_regsty_rx_ampdu_size_limit(void *sel, _adapter *adapter)
+{
+	struct registry_priv *regsty = adapter_to_regsty(adapter);
+	int i;
+
+	RTW_PRINT_SEL(sel, "%-3s %-3s %-3s %-3s %-4s\n"
+		, "", "20M", "40M", "80M", "160M");
+	for (i = 0; i < 4; i++)
+		RTW_PRINT_SEL(sel, "%dSS %3u %3u %3u %4u\n", i + 1
+			, regsty->rx_ampdu_sz_limit_by_nss_bw[i][0]
+			, regsty->rx_ampdu_sz_limit_by_nss_bw[i][1]
+			, regsty->rx_ampdu_sz_limit_by_nss_bw[i][2]
+			, regsty->rx_ampdu_sz_limit_by_nss_bw[i][3]);
+}
 
 int proc_get_rx_ampdu(struct seq_file *m, void *v)
 {
@@ -2430,10 +2450,12 @@ int proc_get_rx_ampdu(struct seq_file *m, void *v)
 		RTW_PRINT_SEL(m, "%u%s\n", padapter->fix_rx_ampdu_accept, "(fixed)");
 
 	_RTW_PRINT_SEL(m, "size: ");
-	if (padapter->fix_rx_ampdu_size == RX_AMPDU_SIZE_INVALID)
-		RTW_PRINT_SEL(m, "%u%s\n", rtw_rx_ampdu_size(padapter), "(auto)");
-	else
+	if (padapter->fix_rx_ampdu_size == RX_AMPDU_SIZE_INVALID) {
+		RTW_PRINT_SEL(m, "%u%s\n", rtw_rx_ampdu_size(padapter), "(auto) with conditional limit:");
+		dump_regsty_rx_ampdu_size_limit(m, padapter);
+	} else
 		RTW_PRINT_SEL(m, "%u%s\n", padapter->fix_rx_ampdu_size, "(fixed)");
+	RTW_PRINT_SEL(m, "\n");
 
 	RTW_PRINT_SEL(m, "%19s %17s\n", "fix_rx_ampdu_accept", "fix_rx_ampdu_size");
 

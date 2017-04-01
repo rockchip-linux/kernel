@@ -17,20 +17,17 @@
  *
  *
  ******************************************************************************/
-#ifdef CONFIG_PLATFORM_AML_S905
-#include <linux/version.h>	/* Linux vresion */
-#include <linux/printk.h>       /* printk() */
-#include <linux/delay.h>	/* msleep() */
+/*
+ * Description:
+ *	This file can be applied to following platforms:
+ *    CONFIG_PLATFORM_ACTIONS_ATM703X
+ */
+#include <drv_types.h>
 
-extern void sdio_reinit(void);
-extern void extern_wifi_set_enable(int is_on);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
-extern void wifi_teardown_dt(void);
-extern int wifi_setup_dt(void);
-#endif /* kernel < 3.14.0 */
-#endif /* CONFIG_PLATFORM_AML_S905 */
-
+#ifdef CONFIG_PLATFORM_ACTIONS_ATM705X
+extern int acts_wifi_init(void);
+extern void acts_wifi_cleanup(void);
+#endif
 
 /*
  * Return:
@@ -41,33 +38,21 @@ int platform_wifi_power_on(void)
 {
 	int ret = 0;
 
-#ifdef CONFIG_PLATFORM_AML_S905
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
-	ret = wifi_setup_dt();
-	if (ret) {
-		printk("%s: setup dt failed!!(%d)\n", __func__, ret);
-		return -1;
+#ifdef CONFIG_PLATFORM_ACTIONS_ATM705X
+	ret = acts_wifi_init();
+	if (unlikely(ret < 0)) {
+		pr_err("%s Failed to register the power control driver.\n", __FUNCTION__);
+		goto exit;
 	}
-#endif /* kernel < 3.14.0 */
-
-#if 0 /* Seems redundancy? Already done before insert driver */
-	printk("######%s: \n",__func__);
-	extern_wifi_set_enable(0);
-	msleep(500);
-	extern_wifi_set_enable(1);
-	msleep(500);
-	sdio_reinit();
 #endif
-#endif /* CONFIG_PLATFORM_AML_S905 */
 
+exit:
 	return ret;
 }
 
 void platform_wifi_power_off(void)
 {
-#ifdef CONFIG_PLATFORM_AML_S905
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
-	wifi_teardown_dt();
-#endif /* kernel < 3.14.0 */
-#endif /* CONFIG_PLATFORM_AML_S905 */
+#ifdef CONFIG_PLATFORM_ACTIONS_ATM705X
+	acts_wifi_cleanup();
+#endif
 }

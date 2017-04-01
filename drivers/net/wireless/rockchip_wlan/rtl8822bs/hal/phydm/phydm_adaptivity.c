@@ -747,7 +747,8 @@ phydm_adaptivity_init(
 		phydm_search_pwdb_lower_bound(p_dm_odm);
 		if (phydm_re_search_condition(p_dm_odm))
 			phydm_search_pwdb_lower_bound(p_dm_odm);
-	}
+	} else
+		phydm_set_edcca_threshold(p_dm_odm, 0x7f, 0x7f);				/*resume to no link state*/
 #endif
 
 	/*we need to consider PwdB upper bound for 8814 later IC*/

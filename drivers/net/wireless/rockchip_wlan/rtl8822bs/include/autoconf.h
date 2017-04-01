@@ -22,8 +22,8 @@
  */
 #define AUTOCONF_INCLUDED
 
-#define RTL871X_MODULE_NAME "8822BS"
-#define DRV_NAME "rtl8822bs"
+#define RTL871X_MODULE_NAME "88x2BS"
+#define DRV_NAME "rtl88x2bs"
 
 /* Set CONFIG_RTL8822B from Makefile */
 #ifndef CONFIG_RTL8822B
@@ -70,7 +70,8 @@
 	#define CONFIG_WFD	/* Wi-Fi display */
 	#define CONFIG_P2P_REMOVE_GROUP_INFO
 	/*#define CONFIG_DBG_P2P*/
-	#define CONFIG_P2P_PS
+	/* Lucas@20170116, Default disable P2P PS to avoid P2P connect fail */
+	/*#define CONFIG_P2P_PS*/
 	/*#define CONFIG_P2P_IPS*/
 	#define CONFIG_P2P_OP_CHK_SOCIAL_CH
 	#define CONFIG_CFG80211_ONECHANNEL_UNDER_CONCURRENT  /* Replace CONFIG_P2P_CHK_INVITE_CH_LIST flag */
@@ -150,8 +151,6 @@
 #define CONFIG_XMIT_THREAD_MODE	/* necessary for SDIO */
 /*#define CONFIG_SDIO_TX_ENABLE_AVAL_INT*/ /* not implemented yet */
 #define CONFIG_SDIO_RX_COPY
-/* #define CONFIG_SDIO_RX_DISABLE_POLLING */
-/*#define CONFIG_SDIO_RX_READ_IN_THREAD*/
 
 
 /*
@@ -164,7 +163,7 @@
 #ifdef CONFIG_EMBEDDED_FWIMG
 	#define	LOAD_FW_HEADER_FROM_DRIVER
 #endif
-#define CONFIG_FILE_FWIMG
+/*#define CONFIG_FILE_FWIMG*/
 #define CONFIG_LONG_DELAY_ISSUE
 /*#define CONFIG_PATCH_JOIN_WRONG_CHANNEL*/
 #define CONFIG_ATTEMPT_TO_FIX_AP_BEACON_ERROR
@@ -172,6 +171,17 @@
 #ifdef CONFIG_RTW_NAPI
 #define CONFIG_RTW_NAPI_V2
 #endif
+
+#define RTW_DYNAMIC_AMPDU_SIZE
+#ifdef RTW_DYNAMIC_AMPDU_SIZE
+#ifdef CONFIG_SUPPORT_TRX_SHARED
+#define CONFIG_RTW_RX_AMPDU_SZ_LIMIT_1SS {0xFF, 0xFF, 0xFF, 0xFF}
+#define CONFIG_RTW_RX_AMPDU_SZ_LIMIT_2SS {0xFF, 0xFF, 0xFF, 0xFF}
+#else /* !CONFIG_SUPPORT_TRX_SHARED */
+#define CONFIG_RTW_RX_AMPDU_SZ_LIMIT_1SS {0xFF, 0xFF, 0xFF, 0xFF}
+#define CONFIG_RTW_RX_AMPDU_SZ_LIMIT_2SS {0xFF, 0xFF, 0xFF, 0xFF}
+#endif /* CONFIG_SUPPORT_TRX_SHARED */
+#endif /* RTW_DYNAMIC_AMPDU_SIZE */
 
 /*
  * Platform
@@ -205,7 +215,7 @@
 #endif /* !CONFIG_MP_INCLUDED */
 
 #ifdef CONFIG_POWER_SAVING
-	#define CONFIG_IPS
+	/*#define CONFIG_IPS*/
 	#define CONFIG_LPS
 
 	#if defined(CONFIG_LPS) && (defined(CONFIG_GSPI_HCI) || defined(CONFIG_SDIO_HCI))
@@ -241,6 +251,14 @@
 		#define CONFIG_LPS	/* download reserved page to FW */
 	#endif
 #endif /* !CONFIG_BT_COEXIST */
+
+#ifdef CONFIG_GPIO_WAKEUP
+	#ifndef WAKEUP_GPIO_IDX
+		/* 1315 module WIFI Chip Side */
+		#define WAKEUP_GPIO_IDX	10
+	#endif /* !WAKEUP_GPIO_IDX */
+#endif /* CONFIG_GPIO_WAKEUP */
+
 
 #ifdef CONFIG_ANTENNA_DIVERSITY
 #define CONFIG_HW_ANTENNA_DIVERSITY

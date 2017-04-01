@@ -165,6 +165,10 @@ void rtw_hal_power_off(_adapter *padapter)
 
 	_rtw_memset(macid_ctl->h2c_msr, 0, MACID_NUM_SW_LIMIT);
 
+#ifdef CONFIG_BT_COEXIST
+	rtw_btcoex_PowerOffSetting(padapter);
+#endif
+
 	padapter->hal_func.hal_power_off(padapter);
 }
 

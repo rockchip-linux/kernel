@@ -11,9 +11,9 @@ extern u32 array_length_mp_8822b_fw_ap;
 #endif
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN)) || (DM_ODM_SUPPORT_TYPE & (ODM_CE))
-extern u8 array_mp_8822b_fw_nic[119872];
+extern u8 array_mp_8822b_fw_nic[119880];
 extern u32 array_length_mp_8822b_fw_nic;
-extern u8 array_mp_8822b_fw_wowlan[65912];
+extern u8 array_mp_8822b_fw_wowlan[66024];
 extern u32 array_length_mp_8822b_fw_wowlan;
 #endif
 #endif /* end of LOAD_FW_HEADER_FROM_DRIVER */

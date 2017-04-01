@@ -106,7 +106,7 @@ static u8 _halmac_sdio_reg_read_8(void *p, u32 offset)
 		return val;
 
 	ret = rtw_sdio_read_cmd53(d, offset, pbuf, 1);
-	if (_FAIL == ret) {
+	if (ret == _FAIL) {
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 		goto exit;
 	}
@@ -135,7 +135,7 @@ static u16 _halmac_sdio_reg_read_16(void *p, u32 offset)
 		return val;
 
 	ret = rtw_sdio_read_cmd53(d, offset, pbuf, 2);
-	if (_FAIL == ret) {
+	if (ret == _FAIL) {
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 		goto exit;
 	}
@@ -164,7 +164,7 @@ static u32 _halmac_sdio_reg_read_32(void *p, u32 offset)
 		return val;
 
 	ret = rtw_sdio_read_cmd53(d, offset, pbuf, 4);
-	if (_FAIL == ret) {
+	if (ret == _FAIL) {
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 		goto exit;
 	}
@@ -196,7 +196,7 @@ static u8 _halmac_sdio_reg_read_n(void *p, u32 offset, u32 size, u8 *data)
 		return rst;
 
 	ret = rtw_sdio_read_cmd53(d, offset, pbuf, sdio_read_size);
-	if (_FAIL == ret) {
+	if (ret == _FAIL) {
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 		goto exit;
 	}
@@ -224,7 +224,7 @@ static void _halmac_sdio_reg_write_8(void *p, u32 offset, u8 val)
 	_rtw_memcpy(pbuf, &val, 1);
 
 	ret = rtw_sdio_write_cmd53(d, offset, pbuf, 1);
-	if (_FAIL == ret)
+	if (ret == _FAIL)
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 
 	rtw_mfree(pbuf, 1);
@@ -246,7 +246,7 @@ static void _halmac_sdio_reg_write_16(void *p, u32 offset, u16 val)
 	_rtw_memcpy(pbuf, &val, 2);
 
 	ret = rtw_sdio_write_cmd53(d, offset, pbuf, 2);
-	if (_FAIL == ret)
+	if (ret == _FAIL)
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 
 	rtw_mfree(pbuf, 2);
@@ -268,7 +268,7 @@ static void _halmac_sdio_reg_write_32(void *p, u32 offset, u32 val)
 	_rtw_memcpy(pbuf, &val, 4);
 
 	ret = rtw_sdio_write_cmd53(d, offset, pbuf, 4);
-	if (_FAIL == ret)
+	if (ret == _FAIL)
 		RTW_ERR("%s: I/O FAIL!\n", __FUNCTION__);
 
 	rtw_mfree(pbuf, 4);
@@ -990,13 +990,11 @@ int rtw_halmac_poweron(struct dvobj_priv *d)
 	if (status != HALMAC_RET_SUCCESS)
 		goto out;
 
-#ifndef CONFIG_SUPPORT_TRX_SHARED
 #ifdef CONFIG_SDIO_HCI
 	status = api->halmac_sdio_cmd53_4byte(halmac, 1);
 	if (status != HALMAC_RET_SUCCESS)
 		goto out;
-#endif
-#endif
+#endif /* CONFIG_SDIO_HCI */
 
 	status = api->halmac_mac_power_switch(halmac, HALMAC_MAC_POWER_ON);
 	if (HALMAC_RET_PWR_UNCHANGE == status) {
@@ -1292,20 +1290,26 @@ static int download_fw(struct dvobj_priv *d, u8 *fw, u32 fwsize, u8 re_dl)
 		if (HALMAC_RET_SUCCESS != status)
 			return -1;
 
-		/* 7. Send General Info */
+		/* 7. Config RX Aggregation */
+		err = rtw_halmac_rx_agg_switch(d, _TRUE);
+		if (err)
+			return -1;
+
+		/* 8. Send General Info */
 		err = _send_general_info(d);
 		if (err)
 			return -1;
 	}
 
-	/* 8. Reset driver variables if needed */
+	/* 9. Reset driver variables if needed */
 	hal->LastHMEBoxNum = 0;
 
-	/* 9. Get FW version */
+	/* 10. Get FW version */
 	status = api->halmac_get_fw_version(mac, &fw_vesion);
 	if (status == HALMAC_RET_SUCCESS) {
 		hal->firmware_version = fw_vesion.version;
 		hal->firmware_sub_version = fw_vesion.sub_version;
+		hal->firmware_size = fwsize;
 	}
 
 	return err;
@@ -1574,11 +1578,10 @@ int rtw_halmac_dlfw(struct dvobj_priv *d, u8 *fw, u32 fwsize)
 	PADAPTER adapter;
 	HALMAC_RET_STATUS status;
 	u32 ok = _TRUE;
-	u8 fw_ok = _FALSE;
 	int err, err_ret = -1;
 
 
-	if (!fw && !fwsize)
+	if (!fw || !fwsize)
 		return -22;
 
 	adapter = dvobj_get_primary_adapter(d);
@@ -1587,6 +1590,7 @@ int rtw_halmac_dlfw(struct dvobj_priv *d, u8 *fw, u32 fwsize)
 	if (rtw_is_hw_init_completed(adapter))
 		return download_fw(d, fw, fwsize, 1);
 
+	/* Download firmware before hal init */
 	/* Power on, download firmware and init mac */
 	ok = rtw_hal_power_on(adapter);
 	if (_FAIL == ok)
@@ -1747,6 +1751,21 @@ exit:
 	return ret;
 }
 
+/**
+ * rtw_halmac_c2h_handle() - Handle C2H for HALMAC
+ * @d:		struct dvobj_priv*
+ * @c2h:	Full C2H packet, including RX description and payload
+ * @size:	Size(byte) of c2h
+ *
+ * Send C2H packet to HALMAC to process C2H packets, and the expected C2H ID is
+ * 0xFF. This function won't have any I/O, so caller doesn't have to call it in
+ * I/O safe place(ex. command thread).
+ *
+ * Please sure doesn't call this function in the same thread as someone is
+ * waiting HALMAC C2H ack, otherwise there is a deadlock happen.
+ *
+ * Return: 0 if process OK, otherwise no action for this C2H.
+ */
 int rtw_halmac_c2h_handle(struct dvobj_priv *d, u8 *c2h, u32 size)
 {
 	PHALMAC_ADAPTER mac;
@@ -1819,7 +1838,7 @@ int rtw_halmac_read_physical_efuse_map(struct dvobj_priv *d, u8 *map, u32 size)
 	if (ret)
 		return -1;
 
-	status = api->halmac_dump_efuse_map(mac, HALMAC_EFUSE_R_AUTO);
+	status = api->halmac_dump_efuse_map(mac, HALMAC_EFUSE_R_DRV);
 	if (HALMAC_RET_SUCCESS != status) {
 		free_halmac_event(d, id);
 		return -1;

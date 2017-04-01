@@ -47,7 +47,7 @@ static u8 sdio_io(struct dvobj_priv *d, u32 addr, void *buf, size_t len, u8 writ
 
 	if (rtw_is_surprise_removed(dvobj_get_primary_adapter(d))) {
 		RTW_ERR("%s: bSurpriseRemoved, skip %s 0x%05x, %zu bytes\n",
-		        __FUNCTION__, write?"write":"read", addr, len);
+			__FUNCTION__, write?"write":"read", addr, len);
 		return _FAIL;
 	}
 
@@ -63,23 +63,23 @@ static u8 sdio_io(struct dvobj_priv *d, u32 addr, void *buf, size_t len, u8 writ
 		if (!err) {
 			if (retry) {
 				RTW_INFO("%s: Retry %s OK! addr=0x%05x %zu bytes, retry=%u,%u\n",
-				         __FUNCTION__, write?"write":"read",
-				         addr, len, retry, ATOMIC_READ(&d->continual_io_error));
+					 __FUNCTION__, write?"write":"read",
+					 addr, len, retry, ATOMIC_READ(&d->continual_io_error));
 				RTW_INFO_DUMP("Data: ", buf, len);
 			}
 			rtw_reset_continual_io_error(d);
 			break;
 		}
 		RTW_ERR("%s: %s FAIL! error(%d) addr=0x%05x %zu bytes, retry=%u,%u\n",
-		        __FUNCTION__, write?"write":"read", err, addr, len,
-		        retry, ATOMIC_READ(&d->continual_io_error));
+			__FUNCTION__, write?"write":"read", err, addr, len,
+			retry, ATOMIC_READ(&d->continual_io_error));
 
 		retry++;
 		stop_retry = rtw_inc_and_chk_continual_io_error(d);
-		if ((err == -1) || (_TRUE == stop_retry) || (retry > SD_IO_TRY_CNT)) {
+		if ((err == -1) || (stop_retry == _TRUE) || (retry > SD_IO_TRY_CNT)) {
 			/* critical error, unrecoverable */
 			RTW_ERR("%s: Fatal error! Set surprise remove flag ON! (retry=%u,%u)\n",
-			        __FUNCTION__, retry, ATOMIC_READ(&d->continual_io_error));
+				__FUNCTION__, retry, ATOMIC_READ(&d->continual_io_error));
 			rtw_set_surprise_removed(dvobj_get_primary_adapter(d));
 			return _FAIL;
 		}
@@ -87,8 +87,8 @@ static u8 sdio_io(struct dvobj_priv *d, u32 addr, void *buf, size_t len, u8 writ
 		/* WLAN IOREG or SDIO Local */
 		if ((addr & 0x10000) || !(addr & 0xE000)) {
 			RTW_WARN("%s: Retry %s addr=0x%05x %zu bytes, retry=%u,%u\n",
-			         __FUNCTION__, write?"write":"read", addr, len,
-			         retry, ATOMIC_READ(&d->continual_io_error));
+				 __FUNCTION__, write?"write":"read", addr, len,
+				 retry, ATOMIC_READ(&d->continual_io_error));
 			continue;
 		}
 		return _FAIL;

@@ -104,6 +104,13 @@ static int rtw_android_wifictrl_func_add(void)
 static void rtw_android_wifictrl_func_del(void) {}
 #endif /* defined(RTW_ENABLE_WIFI_CONTROL_FUNC) */
 
+
+#if defined(CONFIG_GPIO_WAKEUP) || defined(CONFIG_RTW_SDIO_OOB_INT)
+extern unsigned int oob_irq;
+extern unsigned int oob_gpio;
+#endif
+
+
 #ifdef CONFIG_GPIO_WAKEUP
 #ifdef CONFIG_PLATFORM_INTEL_BYT
 int wifi_configure_gpio(void);

@@ -332,6 +332,8 @@ enum odm_cmninfo_e {
 	ODM_CMNINFO_REGRFKFREEENABLE,
 	ODM_CMNINFO_RFKFREEENABLE,
 	ODM_CMNINFO_NORMAL_RX_PATH_CHANGE,
+	ODM_CMNINFO_EFUSE0X3D8,
+	ODM_CMNINFO_EFUSE0X3D7,
 	/*-----------HOOK BEFORE REG INIT-----------*/
 
 	/*Dynamic value:*/
@@ -457,6 +459,7 @@ enum odm_ability_e {
 	ODM_BB_PRIMARY_CCA			= BIT(16),
 	ODM_BB_TXBF					= BIT(17),
 	ODM_BB_DYNAMIC_ARFR			= BIT(18),
+	ODM_BB_DYNAMIC_PSDTOOL		= BIT(19),
 
 	ODM_MAC_EDCA_TURBO			= BIT(20),
 	ODM_BB_DYNAMIC_RX_PATH		= BIT(21),
@@ -569,6 +572,9 @@ enum phy_reg_pg_type {
 	/*with external PA  NO/Yes = 0/1*/
 	u8			ext_pa;		/*2G*/
 	u8			ext_pa_5g;	/*5G*/
+	/*with Efuse number*/
+	u8 			efuse0x3d7;
+	u8 			efuse0x3d8;
 	/*with external TRSW  NO/Yes = 0/1*/
 	u8			ext_trsw;
 	u8			ext_lna_gain;	/*2G*/
@@ -595,6 +601,7 @@ enum phy_reg_pg_type {
 	/*--------- POINTER REFERENCE-----------*/
 
 	u8			u1_byte_temp;
+	u8			rfe_hwsetting_band;
 	bool			BOOLEAN_temp;
 	struct _ADAPTER		*PADAPTER_temp;
 
@@ -758,6 +765,8 @@ enum phy_reg_pg_type {
 	u8			tx_bf_data_rate;
 
 	u8			nbi_set_result;
+	u8			csi_set_result;
+	u8			csi_set_result_2;
 
 	u8			c2h_cmd_start;
 	u8			fw_debug_trace[60];
@@ -820,6 +829,8 @@ enum phy_reg_pg_type {
 	struct _CFO_TRACKING_				dm_cfo_track;
 	struct _ACS_							dm_acs;
 	struct _CCX_INFO				dm_ccx_info;
+
+	
 #if (PHYDM_LA_MODE_SUPPORT == 1)
 	struct _RT_ADCSMP					adcsmp;
 #endif
@@ -858,6 +869,9 @@ enum phy_reg_pg_type {
 
 	/*for rate adaptive, in fact,  88c/92c fw will handle this*/
 	u8			is_use_ra_mask;
+
+	/*	for	dynamic HTSTF gain control	*/
+	boolean			bhtstfenabled;
 
 	struct _ODM_RATE_ADAPTIVE	rate_adaptive;
 #if (defined(CONFIG_ANT_DETECTION))
@@ -1083,6 +1097,12 @@ odm_init_mp_driver_status(
 );
 
 void
+phydm_txcurrentcalibration(
+	struct PHY_DM_STRUCT	*p_dm_odm
+);	
+
+
+void
 phydm_seq_sorting(
 	void	*p_dm_void,
 	u32	*p_value,
@@ -1289,6 +1309,16 @@ phydm_api_debug(
 	u32		*_used,
 	char			*output,
 	u32		*_out_len
+);
+
+u8
+phydm_csi_mask_setting(
+	void		*p_dm_void,
+	u32		enable,
+	u32		channel,
+	u32		bw,
+	u32		f_interference,
+	u32		Second_ch
 );
 
 u8

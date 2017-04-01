@@ -1389,9 +1389,9 @@ int rtw_mp_mon(struct net_device *dev,
 		pHalFunc->hal_deinit(padapter);
 		padapter->registrypriv.mp_mode = 0;
 		pHalFunc->hal_init(padapter);
-		/*rtw_disassoc_cmd(padapter, 0, _TRUE);*/
+		/*rtw_disassoc_cmd(padapter, 0, 0);*/
 		if (check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE) {
-			rtw_disassoc_cmd(padapter, 500, _TRUE);
+			rtw_disassoc_cmd(padapter, 500, 0);
 			rtw_indicate_disconnect(padapter, 0, _FALSE);
 			/*rtw_free_assoc_resources(padapter, 1);*/
 		}

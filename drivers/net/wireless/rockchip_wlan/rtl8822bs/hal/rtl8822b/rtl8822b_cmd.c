@@ -1172,7 +1172,7 @@ void rtl8822b_download_BTCoex_AP_mode_rsvd_page(PADAPTER adapter)
 }
 #endif /* CONFIG_BT_COEXIST */
 
-#ifdef CONFIG_P2P
+#ifdef CONFIG_P2P_PS
 void rtl8822b_set_p2p_ps_offload_cmd(PADAPTER adapter, u8 p2p_ps_state)
 {
 	PHAL_DATA_TYPE hal = GET_HAL_DATA(adapter);
@@ -1257,7 +1257,7 @@ void rtl8822b_set_p2p_ps_offload_cmd(PADAPTER adapter, u8 p2p_ps_state)
 
 	_rtw_memcpy(&hal->p2p_ps_offload, &h2c[1], sizeof(hal->p2p_ps_offload));
 }
-#endif /* CONFIG_P2P */
+#endif /* CONFIG_P2P_PS */
 
 #ifdef CONFIG_TSF_RESET_OFFLOAD
 /*
@@ -1307,6 +1307,7 @@ static void c2h_ccx_rpt(PADAPTER adapter, u8 *pdata)
 #endif /* CONFIG_XMIT_ACK */
 }
 
+#define C2H_SUB_CMD_ID_CCX_RPT	0x0F
 /**
  * c2h = RXDESC + c2h packet
  * size = RXDESC_SIZE + c2h packet size
@@ -1357,14 +1358,22 @@ static void process_c2h_event(PADAPTER adapter, u8 *c2h, u32 size)
 		rtw_bf_c2h_handler(adapter, id, pc2h_data, c2h_len);
 		break;
 #endif /* CONFIG_BEAMFORMING */
+
 	case CMD_ID_C2H_CCX_RPT:
 		c2h_ccx_rpt(adapter, pc2h_data);
 		break;
-	/* FW offload C2H is 0xFF cmd according to halmac function - halmac_parse_c2h_packet */
-	case 0xFF:
+
+	case C2H_EXTEND:
+		if (C2H_HDR_GET_C2H_SUB_CMD_ID(pc2h_data) == C2H_SUB_CMD_ID_CCX_RPT) {
+			/* Shift C2H HDR 4 bytes */
+			c2h_ccx_rpt(adapter, pc2h_data + 4);
+			break;
+		}
+
 		/* indicate c2h pkt + rx desc to halmac */
 		rtw_halmac_c2h_handle(adapter_to_dvobj(adapter), c2h, size);
 		break;
+
 	/* others for c2h common code */
 	default:
 		c2h_handler(adapter, id, seq, c2h_payload_len, pc2h_payload);
@@ -1393,8 +1402,9 @@ void rtl8822b_c2h_handler(PADAPTER adapter, u8 *pbuf, u16 length)
  */
 void rtl8822b_c2h_handler_no_io(PADAPTER adapter, u8 *pbuf, u16 length)
 {
-	u8 id, seq, c2h_size;
+	u8 id, seq;
 	u8 *pc2h_content;
+	u8 res;
 
 
 	if ((length == 0) || (!pbuf))
@@ -1408,21 +1418,7 @@ void rtl8822b_c2h_handler_no_io(PADAPTER adapter, u8 *pbuf, u16 length)
 	RTW_INFO("%s: C2H, ID=%d seq=%d len=%d\n",
 		 __FUNCTION__, id, seq, length);
 
-	if (id == 0xff) {
-		u8 sub_cmd_id = C2H_HDR_GET_C2H_SUB_CMD_ID(pc2h_content);
-
-		if (sub_cmd_id == 0x0f) {
-			u8 len = C2H_HDR_GET_LEN(pc2h_content);
-			/* C2H HDR is 4bytes */
-			u8 *ccx_data = pc2h_content + 4;
-
-			c2h_ccx_rpt(adapter, ccx_data);
-			goto exit;
-		}
-	}
-
 	switch (id) {
-	/* no I/O, process directly */
 	case CMD_ID_C2H_SND_TXBF:
 	case CMD_ID_C2H_CCX_RPT:
 	case C2H_BT_MP_INFO:
@@ -1430,16 +1426,16 @@ void rtl8822b_c2h_handler_no_io(PADAPTER adapter, u8 *pbuf, u16 length)
 	case C2H_IQK_FINISH:
 	case C2H_MCC:
 	case C2H_BCN_EARLY_RPT:
+	case C2H_EXTEND:
+		/* no I/O, process directly */
 		process_c2h_event(adapter, pbuf, length);
 		break;
 
-	/* need I/O, run in command thread */
 	default:
-		if (rtw_c2h_packet_wk_cmd(adapter, pbuf, length) == _FAIL)
+		/* Others may need I/O, run in command thread */
+		res = rtw_c2h_packet_wk_cmd(adapter, pbuf, length);
+		if (res == _FAIL)
 			RTW_ERR("%s: C2H(%d) enqueue FAIL!\n", __FUNCTION__, id);
 		break;
 	}
-
-exit:
-	return;
 }

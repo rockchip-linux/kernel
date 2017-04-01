@@ -111,7 +111,7 @@ halmac_init_trx_cfg_8822b(
 
 	status = halmac_priority_queue_config_8822b(pHalmac_adapter, halmac_trx_mode);
 	if (HALMAC_RX_FIFO_EXPANDING_MODE_DISABLE != pHalmac_adapter->txff_allocation.rx_fifo_expanding_mode)
-		HALMAC_REG_WRITE_8(pHalmac_adapter, REG_RX_DRVINFO_SZ, 0x0A);
+		HALMAC_REG_WRITE_8(pHalmac_adapter, REG_RX_DRVINFO_SZ, HALMAC_RX_DESC_DUMMY_SIZE_MAX_8822B >> 3);
 
 	if (HALMAC_RET_SUCCESS != status) {
 		PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_TRACE, "halmac_txdma_queue_mapping fail!\n");

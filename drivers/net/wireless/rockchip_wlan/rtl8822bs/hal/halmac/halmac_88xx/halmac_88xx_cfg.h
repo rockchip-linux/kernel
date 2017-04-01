@@ -28,13 +28,14 @@
 #define HALMAC_PROTOTYPE_VER_88XX    0x0003
 /* else increment minor version */
 #define HALMAC_MINOR_VER_88XX        0x0002
-
-
+#define HALMAC_PATCH_VER_88XX        0x0004 /* patch version */
 
 #define HALMAC_C2H_DATA_OFFSET_88XX             10
 #define HALMAC_RX_AGG_ALIGNMENT_SIZE_88XX       8
 #define HALMAC_TX_AGG_ALIGNMENT_SIZE_88XX       8
 #define HALMAC_TX_AGG_BUFF_SIZE_88XX            32768
+#define HALMAC_RX_DESC_DUMMY_SIZE_MAX_88XX      80 /*8*10 Bytes*/
+#define HALMAC_RX_FIFO_EXPANDING_MODE_PKT_SIZE_MAX_88XX    80 /* should be 8 Byte alignment*/
 
 #define HALMAC_EXTRA_INFO_BUFF_SIZE_88XX				4096 /*4K*/
 #define HALMAC_EXTRA_INFO_BUFF_SIZE_FULL_FIFO_88XX		16384 /*16K*/

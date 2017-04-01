@@ -533,6 +533,7 @@ static void update_phydm_cominfo(PADAPTER adapter)
 			 | ODM_RF_CALIBRATION
 			 | ODM_BB_NHM_CNT
 /*			 | ODM_BB_PWR_TRAIN*/
+			 | ODM_BB_DYNAMIC_PSDTOOL
 			 ;
 
 	if (rtw_odm_adaptivity_needed(adapter) == _TRUE)
@@ -548,6 +549,7 @@ static void update_phydm_cominfo(PADAPTER adapter)
 		support_ability = 0
 				 | ODM_RF_CALIBRATION
 				 | ODM_RF_TX_PWR_TRACK
+				 | ODM_BB_DYNAMIC_PSDTOOL
 				 ;
 	}
 #endif /* CONFIG_MP_INCLUDED */
@@ -559,6 +561,7 @@ static void update_phydm_cominfo(PADAPTER adapter)
 	odm_cmn_info_update(p_dm_odm, ODM_CMNINFO_ABILITY, support_ability);
 }
 
+#ifdef RTW_TX_PA_BIAS_DRV
 static void _pa_bias_paser(u8 shift, u8 *minus, u8 *val)
 {
 	shift &= 0xF;
@@ -672,6 +675,7 @@ static void pa_bias_calibration(PADAPTER adapter)
 
 	RTW_INFO("%s: done! cost %u ms\n", __FUNCTION__, rtw_get_passing_time_ms(time));
 }
+#endif /* RTW_TX_PA_BIAS_DRV */
 
 void rtl8822b_phy_init_dm_priv(PADAPTER adapter)
 {
@@ -707,9 +711,11 @@ void rtl8822b_phy_init_haldm(PADAPTER adapter)
 
 	odm_dm_init(p_dm_odm);
 
+#ifdef RTW_TX_PA_BIAS_DRV
 	/* Run once in hal initialize flow */
 	if (hal->hw_init_completed == _FALSE)
 		pa_bias_calibration(adapter);
+#endif /* RTW_TX_PA_BIAS_DRV */
 }
 
 static void check_rxfifo_full(PADAPTER adapter)
@@ -754,13 +760,13 @@ void rtl8822b_phy_haldm_watchdog(PADAPTER adapter)
 	rtw_hal_get_hwreg(adapter, HW_VAR_FWLPS_RF_ON, (u8 *)&bFwPSAwake);
 #endif /* CONFIG_LPS */
 
-#ifdef CONFIG_P2P
+#ifdef CONFIG_P2P_PS
 	/*
 	 * Fw is under p2p powersaving mode, driver should stop dynamic mechanism.
 	 */
 	if (adapter->wdinfo.p2p_ps_mode)
 		bFwPSAwake = _FALSE;
-#endif /* CONFIG_P2P */
+#endif /* CONFIG_P2P_PS */
 
 	if ((rtw_is_hw_init_completed(adapter))
 	    && ((!bFwCurrentInPSMode) && bFwPSAwake)) {

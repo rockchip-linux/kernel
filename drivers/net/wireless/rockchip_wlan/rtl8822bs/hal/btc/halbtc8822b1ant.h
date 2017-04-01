@@ -6,6 +6,7 @@
 /* *******************************************
  * The following is for 8822B 1ANT BT Co-exist definition
  * ******************************************* */
+#define	BT_8822B_1ANT_COEX_DBG					0
 #define	BT_AUTO_REPORT_ONLY_8822B_1ANT				1
 
 #define	BT_INFO_8822B_1ANT_B_FTP						BIT(7)
@@ -290,6 +291,8 @@ struct coex_sta_8822b_1ant {
 
 	u32					bt_coex_supported_feature;
 	u32					bt_coex_supported_version;
+	boolean                               rf4ce_enabled;
+	u8					switch_band_notify_to;
 };
 
 struct rfe_type_8822b_1ant {

@@ -2704,7 +2704,7 @@ void hw_var_port_switch(_adapter *adapter)
 {
 #ifdef CONFIG_CONCURRENT_MODE
 #ifdef CONFIG_RUNTIME_PORT_SWITCH
-#ifndef CONFIG_AP_PORT_SWAP
+#ifndef RTW_HALMAC
 	/*
 	0x102: MSR
 	0x550: REG_BCN_CTRL
@@ -2904,7 +2904,7 @@ void hw_var_port_switch(_adapter *adapter)
 		 , MAC_ARG(bssid_1)
 		);
 #endif /* DBG_RUNTIME_PORT_SWITCH */
-#endif /* !CONFIG_AP_PORT_SWAP */
+#endif /* !RTW_HALMAC */
 #endif /* CONFIG_RUNTIME_PORT_SWITCH */
 #endif /* CONFIG_CONCURRENT_MODE */
 }
@@ -2949,26 +2949,9 @@ s32 rtw_hal_set_FwMediaStatusRpt_cmd(_adapter *adapter, bool opmode, bool miraca
 
 	RTW_DBG_DUMP("MediaStatusRpt parm:", parm, H2C_MEDIA_STATUS_RPT_LEN);
 
-#ifdef CONFIG_DFS_MASTER
-	/* workaround for TXPAUSE cleared issue by FW's MediaStatusRpt handling */
-	if (macid_ind == 0 && macid == 1) {
-		u8 parm0_bak = parm[0];
-
-		SET_H2CCMD_MSRRPT_PARM_MACID_IND(&parm0_bak, 0);
-		if (macid_ctl->h2c_msr[macid] == parm0_bak) {
-			ret = _SUCCESS;
-			goto post_action;
-		}
-	}
-#endif
-
 	ret = rtw_hal_fill_h2c_cmd(adapter, H2C_MEDIA_STATUS_RPT, H2C_MEDIA_STATUS_RPT_LEN, parm);
 	if (ret != _SUCCESS)
 		goto exit;
-
-#ifdef CONFIG_DFS_MASTER
-post_action:
-#endif
 
 #if defined(CONFIG_RTL8188E)
 	if (rtw_get_chip_type(adapter) == RTL8188E) {
@@ -4198,11 +4181,13 @@ static void rtw_hal_ap_wow_enable(_adapter *padapter)
 	rtw_write8(padapter, REG_MCUTST_WOWLAN, 0);
 #ifdef CONFIG_USB_HCI
 	rtw_mi_intf_stop(padapter);
+#endif
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_PCI_HCI)
 	/* Invoid SE0 reset signal during suspending*/
 	rtw_write8(padapter, REG_RSV_CTRL, 0x20);
 	if (IS_8188F(pHalData->version_id) == FALSE)
 		rtw_write8(padapter, REG_RSV_CTRL, 0x60);
-#endif /*CONFIG_USB_HCI*/
+#endif
 }
 
 static void rtw_hal_ap_wow_disable(_adapter *padapter)
@@ -7594,11 +7579,13 @@ static void rtw_hal_wow_enable(_adapter *adapter)
 	/* free adapter's resource */
 	rtw_mi_intf_stop(adapter);
 
+#endif
+#if defined(CONFIG_USB_HCI) || defined(CONFIG_PCI_HCI)
 	/* Invoid SE0 reset signal during suspending*/
 	rtw_write8(adapter, REG_RSV_CTRL, 0x20);
 	if (IS_8188F(pHalData->version_id) == FALSE)
 		rtw_write8(adapter, REG_RSV_CTRL, 0x60);
-#endif /*CONFIG_USB_HCI*/
+#endif
 
 	rtw_hal_gate_bb(adapter, _FALSE);
 }
@@ -11015,9 +11002,9 @@ void ResumeTxBeacon(_adapter *padapter)
 
 	pHalData->RegFwHwTxQCtrl |= BIT(6);
 	rtw_write8(padapter, REG_FWHW_TXQ_CTRL + 2, pHalData->RegFwHwTxQCtrl);
-	rtw_write8(padapter, REG_TBTT_PROHIBIT + 1, 0xff);
-	pHalData->RegReg542 |= BIT(0);
-	rtw_write8(padapter, REG_TBTT_PROHIBIT + 2, pHalData->RegReg542);
+	/*TBTT hold time :4ms */
+	rtw_write16(padapter, REG_TBTT_PROHIBIT + 1,
+		(rtw_read16(padapter, REG_TBTT_PROHIBIT + 1) & (~0xFFF)) | (TBTT_PROBIHIT_HOLD_TIME));
 }
 
 void StopTxBeacon(_adapter *padapter)
@@ -11032,8 +11019,6 @@ void StopTxBeacon(_adapter *padapter)
 	pHalData->RegFwHwTxQCtrl &= ~BIT(6);
 	rtw_write8(padapter, REG_FWHW_TXQ_CTRL + 2, pHalData->RegFwHwTxQCtrl);
 	rtw_write8(padapter, REG_TBTT_PROHIBIT + 1, 0x64);
-	pHalData->RegReg542 &= ~BIT(0);
-	rtw_write8(padapter, REG_TBTT_PROHIBIT + 2, pHalData->RegReg542);
 
 	/*CheckFwRsvdPageContent(padapter);*/  /* 2010.06.23. Added by tynli. */
 }

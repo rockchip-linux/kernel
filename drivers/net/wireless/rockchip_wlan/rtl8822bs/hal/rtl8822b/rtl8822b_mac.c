@@ -208,7 +208,8 @@ s32 rtl8822b_fw_dl(PADAPTER adapter, u8 wowlan)
 		adapter->bFWReady = _TRUE;
 		hal->fw_ractrl = _TRUE;
 		RTW_INFO("%s Download Firmware from %s success\n", __FUNCTION__, (fw_bin) ? "file" : "array");
-		RTW_INFO("%s FW Version:%d SubVersion:%d\n", (wowlan) ? "WOW" : "NIC", hal->firmware_version, hal->firmware_sub_version);
+		RTW_INFO("%s FW Version:%d SubVersion:%d FW size:%d\n", (wowlan) ? "WOW" : "NIC",
+			hal->firmware_version, hal->firmware_sub_version, hal->firmware_size);
 		return _SUCCESS;
 	} else {
 		adapter->bFWReady = _FALSE;

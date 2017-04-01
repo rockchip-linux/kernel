@@ -1686,7 +1686,8 @@ enum PHYDM_CMD_ID {
 	PHYDM_TXBF,
 	PHYDM_PAUSE_DIG_EN,
 	PHYDM_H2C,
-	PHYDM_ANT_SWITCH
+	PHYDM_ANT_SWITCH,
+	PHYDM_HTSTF_CONTROL
 };
 
 struct _PHYDM_COMMAND phy_dm_ary[] = {
@@ -1720,7 +1721,8 @@ struct _PHYDM_COMMAND phy_dm_ary[] = {
 	{"txbf", PHYDM_TXBF},
 	{"pause_dig", PHYDM_PAUSE_DIG_EN},
 	{"h2c", PHYDM_H2C},
-	{"ant_switch", PHYDM_ANT_SWITCH}
+	{"ant_switch", PHYDM_ANT_SWITCH},
+	{"htstf", PHYDM_HTSTF_CONTROL}
 };
 
 void
@@ -2473,7 +2475,21 @@ phydm_cmd_parser(
 
 
 		break;
+	case PHYDM_HTSTF_CONTROL:
+		{
+			if (input[1])
+				PHYDM_SSCANF(input[1], DCMD_DECIMAL, &var1[0]);
 
+			if (var1[0] == 1)
+				/* phydm_dynamic_switch_htstf_mumimo_8822b(p_dm_odm);*/
+				p_dm_odm->bhtstfenabled = TRUE;
+			else {
+				p_dm_odm->bhtstfenabled = FALSE;
+				PHYDM_SNPRINTF((output + used, out_len - used, "Dynamic HT-STF Gain Control Disable\n"));
+			}
+		}
+		break;
+		
 	default:
 		PHYDM_SNPRINTF((output + used, out_len - used, "SET, unknown command!\n"));
 		break;

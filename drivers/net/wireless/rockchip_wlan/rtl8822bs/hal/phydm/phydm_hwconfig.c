@@ -2269,12 +2269,26 @@ odm_config_rf_with_tx_pwr_track_header_file(
 			READ_AND_CONFIG_MP(8822b, _txpowertrack_type0);
 		else if (p_dm_odm->rfe_type == 1)
 			READ_AND_CONFIG_MP(8822b, _txpowertrack_type1);
+		else if (p_dm_odm->rfe_type == 2)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type2);
 		else if ((p_dm_odm->rfe_type == 3) || (p_dm_odm->rfe_type == 5))
 			READ_AND_CONFIG_MP(8822b, _txpowertrack_type3_type5);
+		else if (p_dm_odm->rfe_type == 4)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type4);
 		else if (p_dm_odm->rfe_type == 6)
 			READ_AND_CONFIG_MP(8822b, _txpowertrack_type6);
 		else if (p_dm_odm->rfe_type == 7)
 			READ_AND_CONFIG_MP(8822b, _txpowertrack_type7);
+		else if (p_dm_odm->rfe_type == 8)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type8);
+		else if (p_dm_odm->rfe_type == 9)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type9);
+		else if (p_dm_odm->rfe_type == 10)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type10);
+		else if (p_dm_odm->rfe_type == 11)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type11);
+		else if (p_dm_odm->rfe_type == 12)
+			READ_AND_CONFIG_MP(8822b, _txpowertrack_type12);
 		else
 			READ_AND_CONFIG_MP(8822b, _txpowertrack);
 	}

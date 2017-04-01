@@ -18,7 +18,7 @@
 *
 ******************************************************************************/
 
-/*Image2HeaderVersion: 3.1*/
+/*Image2HeaderVersion: R2 1.0*/
 #if (RTL8822B_SUPPORT == 1)
 #ifndef __INC_MP_RF_HW_IMG_8822B_H
 #define __INC_MP_RF_HW_IMG_8822B_H
@@ -73,6 +73,46 @@ odm_read_and_config_mp_8822b_txpowertrack_type1(/* tc: Test Chip, mp: mp Chip*/
 	struct	PHY_DM_STRUCT *p_dm_odm
 );
 u32	odm_get_version_mp_8822b_txpowertrack_type1(void);
+
+/******************************************************************************
+*                           txpowertrack_type10.TXT
+******************************************************************************/
+
+void
+odm_read_and_config_mp_8822b_txpowertrack_type10(/* tc: Test Chip, mp: mp Chip*/
+	struct	PHY_DM_STRUCT *p_dm_odm
+);
+u32	odm_get_version_mp_8822b_txpowertrack_type10(void);
+
+/******************************************************************************
+*                           txpowertrack_type11.TXT
+******************************************************************************/
+
+void
+odm_read_and_config_mp_8822b_txpowertrack_type11(/* tc: Test Chip, mp: mp Chip*/
+	struct	PHY_DM_STRUCT *p_dm_odm
+);
+u32	odm_get_version_mp_8822b_txpowertrack_type11(void);
+
+/******************************************************************************
+*                           txpowertrack_type12.TXT
+******************************************************************************/
+
+void
+odm_read_and_config_mp_8822b_txpowertrack_type12(/* tc: Test Chip, mp: mp Chip*/
+	struct	PHY_DM_STRUCT *p_dm_odm
+);
+u32	odm_get_version_mp_8822b_txpowertrack_type12(void);
+
+/******************************************************************************
+*                           txpowertrack_type13.TXT
+******************************************************************************/
+
+void
+odm_read_and_config_mp_8822b_txpowertrack_type13(/* tc: Test Chip, mp: mp Chip*/
+	struct	PHY_DM_STRUCT *p_dm_odm
+);
+u32	odm_get_version_mp_8822b_txpowertrack_type13(void);
 
 /******************************************************************************
 *                           txpowertrack_type2.TXT

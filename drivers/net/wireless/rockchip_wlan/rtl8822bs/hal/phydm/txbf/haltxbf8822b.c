@@ -1029,6 +1029,8 @@ phydm_8822btxbf_rfmode(
 		}
 	}
 
+	odm_set_bb_reg(p_dm_odm, REG_BB_TXBF_ANT_SET_BF1_8822B, BIT(30), 1);			/*if Nsts > Nc, don't apply V matrix*/
+
 	if (su_bfee_cnt > 0 || mu_bfee_cnt > 0) {
 		/*for 8814 19ac(idx 1), 19b4(idx 0), different Tx ant setting*/
 		odm_set_bb_reg(p_dm_odm, REG_BB_TXBF_ANT_SET_BF1_8822B, BIT(28) | BIT29, 0x2);	/*enable BB TxBF ant mapping register*/

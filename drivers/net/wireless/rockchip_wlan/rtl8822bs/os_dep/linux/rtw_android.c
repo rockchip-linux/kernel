@@ -18,7 +18,7 @@
  *
  ******************************************************************************/
 
-#ifdef CONFIG_GPIO_WAKEUP
+#if defined(CONFIG_GPIO_WAKEUP) || defined(CONFIG_RTW_SDIO_OOB_INT)
 #include <linux/gpio.h>
 #endif
 
@@ -37,7 +37,7 @@
 #define strnicmp	strncasecmp
 #endif /* Linux kernel >= 4.0.0 */
 
-#ifdef CONFIG_GPIO_WAKEUP
+#if defined(CONFIG_GPIO_WAKEUP) || defined(CONFIG_RTW_SDIO_OOB_INT)
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #endif
@@ -169,8 +169,8 @@ typedef struct compat_android_wifi_priv_cmd {
  */
 static int g_wifi_on = _TRUE;
 
-unsigned int oob_irq = 0;
-unsigned int oob_gpio = 0;
+unsigned int oob_irq;
+unsigned int oob_gpio;
 
 #ifdef CONFIG_PNO_SUPPORT
 /*
@@ -1051,9 +1051,9 @@ static int wifi_probe(struct platform_device *pdev)
 	else
 		wifi_wake_gpio = wifi_irqres->start;
 
-#ifdef CONFIG_GPIO_WAKEUP
-	printk("%s: gpio:%d wifi_wake_gpio:%d\n", __func__,
-	       wifi_irqres->start, wifi_wake_gpio);
+#if defined(CONFIG_GPIO_WAKEUP) || defined(CONFIG_RTW_SDIO_OOB_INT)
+	RTW_INFO("%s: gpio:%d wifi_wake_gpio:%d\n", __func__,
+	       (int)wifi_irqres->start, wifi_wake_gpio);
 
 	if (wifi_wake_gpio > 0) {
 #ifdef CONFIG_PLATFORM_INTEL_BYT
@@ -1063,10 +1063,10 @@ static int wifi_probe(struct platform_device *pdev)
 		gpio_direction_input(wifi_wake_gpio);
 		oob_irq = gpio_to_irq(wifi_wake_gpio);
 #endif /* CONFIG_PLATFORM_INTEL_BYT */
-		printk("%s oob_irq:%d\n", __func__, oob_irq);
+		RTW_INFO("%s oob_irq:%d\n", __func__, oob_irq);
 	} else if (wifi_irqres) {
 		oob_irq = wifi_irqres->start;
-		printk("%s oob_irq:%d\n", __func__, oob_irq);
+		RTW_INFO("%s oob_irq:%d\n", __func__, oob_irq);
 	}
 #endif
 	wifi_control_data = wifi_ctrl;

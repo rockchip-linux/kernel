@@ -132,7 +132,11 @@
 	#ifndef CONFIG_FW_C2H_PKT
 		#define CONFIG_FW_C2H_PKT
 	#endif /* CONFIG_FW_C2H_PKT */
+
 	#define RTW_TX_PA_BIAS	/* Adjust TX PA Bias from eFuse */
+	#ifdef RTW_TX_PA_BIAS
+		#define RTW_TX_PA_BIAS_DRV	/* Run in driver not phydm */
+	#endif /* RTW_TX_PA_BIAS */
 	#define CONFIG_DFS	/* Enable 5G band 2&3 channel */
 
 	#ifdef CONFIG_WOWLAN

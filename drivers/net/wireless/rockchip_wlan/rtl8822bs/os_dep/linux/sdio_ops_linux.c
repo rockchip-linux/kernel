@@ -860,29 +860,6 @@ s32 sd_write(struct intf_hdl *pintfhdl, u32 addr, u32 cnt, void *pdata)
 
 #if 1
 /*#define RTW_SDIO_DUMP*/
-#define IO_TIME_LIMIT	1000	/* ms */
-#define LAST_IO_REC_DEPTH 10	/* 1~255 */
-int last_addr_r[LAST_IO_REC_DEPTH] = {0};
-size_t last_len_r[LAST_IO_REC_DEPTH] = {0};
-u32 last_io_time_r[LAST_IO_REC_DEPTH] = {0};
-int last_addr_w[LAST_IO_REC_DEPTH] = {0};
-size_t last_len_w[LAST_IO_REC_DEPTH] = {0};
-u32 last_io_time_w[LAST_IO_REC_DEPTH] = {0};
-
-u8 last_io_rec_w = 0;
-u8 last_io_rec_r = 0;
-
-static void rtw_sdio_raw_io_dump(void)
-{
-	u8 i = 0;
-
-
-	for (i = 0; i < LAST_IO_REC_DEPTH; i++)
-		RTW_DBG("[WIFIDBG][w %d] last_addr_w=0x%08X, last_len_w=%d, last_io_time_w=0x%08X\n", i, last_addr_w[i], (u32)last_len_w[i], last_io_time_w[i]);
-
-	for (i = 0; i < LAST_IO_REC_DEPTH; i++)
-		RTW_DBG("[WIFIDBG][r %d] last_addr_r=0x%08X, last_len_r=%d, last_io_time_r=0x%08X\n", i, last_addr_r[i], (u32)last_len_r[i], last_io_time_r[i]);
-}
 
 /**
  *	Returns driver error code,
@@ -924,7 +901,6 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, unsigned int addr,
 	struct sdio_func *func;
 	bool claim_needed;
 	u32 offset, i;
-	u32 time;
 
 
 	func = dvobj_to_sdio_func(d);
@@ -958,7 +934,6 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, unsigned int addr,
 	if (claim_needed)
 		sdio_claim_host(func);
 
-	time = rtw_get_current_time();
 	if (f0) {
 		offset = addr;
 		for (i = 0; i < len; i++, offset++) {
@@ -999,19 +974,9 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, unsigned int addr,
 				error = sdio_memcpy_fromio(func, buf, addr, len);
 		}
 	}
-	time = rtw_get_passing_time_ms(time);
 
 	if (claim_needed)
 		sdio_release_host(func);
-
-#if 1
-	if (time >= IO_TIME_LIMIT) {
-		dev_err(&func->dev, "%s: I/O too slow, addr=0x%05x %zu bytes, cost %u ms!\n", __func__, addr, len, time);
-		rtw_sdio_raw_io_dump();
-		if (!error)
-			error = -ETIMEDOUT;
-	}
-#endif /* CONFIG_PLATFORM_AML_S905 */
 
 	if (WARN_ON(error)) {
 		dev_err(&func->dev, "%s: sdio read failed (%d)\n", __func__, error);
@@ -1025,17 +990,8 @@ int __must_check rtw_sdio_raw_read(struct dvobj_priv *d, unsigned int addr,
 		dev_err(&func->dev, "rtw_sdio: READ from 0x%05x, %zu bytes\n", addr, len);
 		print_hex_dump(KERN_ERR, "rtw_sdio: READ ",
 			       DUMP_PREFIX_OFFSET, 16, 1,
-			       buf, len>64?64:len, false);
+			       buf, len, false);
 #endif /* !RTW_SDIO_DUMP */
-	}
-
-	if (!error) {
-		last_addr_r[last_io_rec_r] = addr;
-		last_len_r[last_io_rec_r] = len;
-		last_io_time_r[last_io_rec_r] = rtw_get_current_time();
-
-		last_io_rec_r++;
-		last_io_rec_r %= LAST_IO_REC_DEPTH;
 	}
 
 	return linux_io_err_to_drv_err(error);
@@ -1060,7 +1016,6 @@ int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, unsigned int addr,
 	struct sdio_func *func;
 	bool claim_needed;
 	u32 offset, i;
-	u32 time;
 
 
 	func = dvobj_to_sdio_func(d);
@@ -1093,7 +1048,6 @@ int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, unsigned int addr,
 	if (claim_needed)
 		sdio_claim_host(func);
 
-	time = rtw_get_current_time();
 	if (f0) {
 		offset = addr;
 		for (i = 0; i < len; i++, offset++) {
@@ -1134,19 +1088,9 @@ int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, unsigned int addr,
 				error = sdio_memcpy_toio(func, addr, buf, len);
 		}
 	}
-	time = rtw_get_passing_time_ms(time);
 
 	if (claim_needed)
 		sdio_release_host(func);
-
-#if 1
-	if (time >= IO_TIME_LIMIT) {
-		dev_err(&func->dev, "%s: I/O too slow, addr=0x%05x %zu bytes, cost %u ms! error=%d\n", __func__, addr, len, time, error);
-		rtw_sdio_raw_io_dump();
-		if (!error)
-			error = -ETIMEDOUT;
-	}
-#endif /* CONFIG_PLATFORM_AML_S905 */
 
 	if (WARN_ON(error)) {
 		dev_err(&func->dev, "%s: sdio write failed (%d)\n", __func__, error);
@@ -1160,17 +1104,8 @@ int __must_check rtw_sdio_raw_write(struct dvobj_priv *d, unsigned int addr,
 		dev_err(&func->dev, "rtw_sdio: WRITE to 0x%05x, %zu bytes\n", addr, len);
 		print_hex_dump(KERN_ERR, "rtw_sdio: WRITE ",
 			       DUMP_PREFIX_OFFSET, 16, 1,
-			       buf, len>64?64:len, false);
+			       buf, len, false);
 #endif /* !RTW_SDIO_DUMP */
-	}
-
-	if (!error) {
-		last_addr_w[last_io_rec_w] = addr;
-		last_len_w[last_io_rec_w] = len;
-		last_io_time_w[last_io_rec_w] = rtw_get_current_time();
-
-		last_io_rec_w++;
-		last_io_rec_w %= LAST_IO_REC_DEPTH;
 	}
 
 	return linux_io_err_to_drv_err(error);

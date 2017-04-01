@@ -1566,27 +1566,7 @@ void rtw_indicate_disconnect(_adapter *padapter, u16 reason, u8 locally_generate
 	struct sta_priv *pstapriv = &padapter->stapriv;
 	u8 *wps_ie = NULL;
 	uint wpsie_len = 0;
-/*
-	Connection fail after P2P_INVIT will set wdinfo->role to P2P_ROLE_CLIENT and keep it.
-	This will casue driver do not issue p2p probe_rsp in OnProbeReq()
-	Therefore, clear P2P_ROLE_CLIENT when : !P2P_STATE_NONE &&  _FW_UNDER_LINKING
-*/
-#ifdef CONFIG_P2P
-	struct wireless_dev *pwdev = padapter->rtw_wdev;
-	struct wifidirect_info *pwdinfo = &(padapter->wdinfo);
 
-	if (pwdinfo->driver_interface == DRIVER_CFG80211) {
-		if (!rtw_p2p_chk_state(pwdinfo, P2P_STATE_NONE) && check_fwstate(pmlmepriv,_FW_UNDER_LINKING)) {
-
-			#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
-			if (pwdev->iftype == NL80211_IFTYPE_P2P_CLIENT)
-			#endif
-				rtw_p2p_set_role(pwdinfo, P2P_ROLE_DEVICE);
-
-			RTW_INFO("%s, clear P2P_ROLE_CLIENT role=%d, p2p_state=%d, pre_p2p_state=%d\n", __func__, rtw_p2p_role(pwdinfo), rtw_p2p_state(pwdinfo), rtw_p2p_pre_state(pwdinfo));
-		}
-	}
-#endif /* CONFIG_P2P */
 
 
 	_clr_fwstate_(pmlmepriv, _FW_UNDER_LINKING | WIFI_UNDER_WPS);
@@ -2493,7 +2473,7 @@ void rtw_sta_mstatus_report(_adapter *adapter)
 	struct wlan_network *tgt_network = &pmlmepriv->cur_network;
 	struct sta_info *psta = NULL;
 
-	if (check_fwstate(pmlmepriv, WIFI_STATION_STATE)) {
+	if (check_fwstate(pmlmepriv, WIFI_STATION_STATE) && check_fwstate(pmlmepriv, WIFI_ASOC_STATE)) {
 		psta = rtw_get_stainfo(&adapter->stapriv, tgt_network->network.MacAddress);
 		if (psta)
 			rtw_sta_mstatus_disc_rpt(adapter, psta->mac_id);
@@ -3384,7 +3364,7 @@ candidate_exist:
 		} else
 #endif
 		{
-			rtw_disassoc_cmd(adapter, 0, _TRUE);
+			rtw_disassoc_cmd(adapter, 0, 0);
 			rtw_indicate_disconnect(adapter, 0, _FALSE);
 			rtw_free_assoc_resources(adapter, 0);
 		}

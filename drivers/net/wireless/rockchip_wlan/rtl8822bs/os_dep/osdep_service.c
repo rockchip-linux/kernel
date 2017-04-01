@@ -2703,6 +2703,15 @@ inline BOOLEAN is_null(char c)
 		return _FALSE;
 }
 
+inline BOOLEAN is_all_null(char *c, int len)
+{
+	for (; len > 0; len--)
+		if (c[len - 1] != '\0')
+			return _FALSE;
+
+	return _TRUE;
+}
+
 /**
 * is_eol -
 *

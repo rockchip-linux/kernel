@@ -48,7 +48,7 @@ hal8822b_wifi_only_switch_antenna(IN struct wifi_only_cfg *pwifionlycfg,
 {
 
 	if (is_5g)
-		halwifionly_phy_set_bb_reg(pwifionlycfg, 0xcbd, 0x3, 0x1);
+		halwifionly_phy_set_bb_reg(pwifionlycfg, 0xcbc, 0x300, 0x1);
 	else
-		halwifionly_phy_set_bb_reg(pwifionlycfg, 0xcbd, 0x3, 0x2);
+		halwifionly_phy_set_bb_reg(pwifionlycfg, 0xcbc, 0x300, 0x2);
 }

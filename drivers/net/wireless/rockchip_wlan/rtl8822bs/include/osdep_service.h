@@ -681,6 +681,7 @@ u8 map_read8(const struct map_t *map, u16 offset);
 /* String handler */
 
 BOOLEAN is_null(char c);
+BOOLEAN is_all_null(char *c, int len);
 BOOLEAN is_eol(char c);
 BOOLEAN is_space(char c);
 BOOLEAN IsHexDigit(char chTmp);

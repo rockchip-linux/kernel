@@ -160,6 +160,24 @@ typedef enum _RT_CHANNEL_DOMAIN {
 	RTW_CHPLAN_MKK2_MKK4 = 0x58,
 	RTW_CHPLAN_WORLD_ETSI14 = 0x59,
 	RTW_CHPLAN_FCC1_FCC5 = 0x60,
+	RTW_CHPLAN_FCC2_FCC7 = 0x61,
+	RTW_CHPLAN_FCC2_FCC1 = 0x62,
+	RTW_CHPLAN_WORLD_ETSI15 = 0x63,
+	RTW_CHPLAN_MKK2_MKK5 = 0x64,
+	RTW_CHPLAN_ETSI1_ETSI16 = 0x65,
+	RTW_CHPLAN_FCC1_FCC14 = 0x66,
+	RTW_CHPLAN_FCC1_FCC12 = 0x67,
+	RTW_CHPLAN_FCC2_FCC14 = 0x68,
+	RTW_CHPLAN_FCC2_FCC12 = 0x69,
+	RTW_CHPLAN_ETSI1_ETSI17 = 0x6A,
+	RTW_CHPLAN_WORLD_FCC16 = 0x6B,
+	RTW_CHPLAN_WORLD_FCC13 = 0x6C,
+	RTW_CHPLAN_FCC2_FCC15 = 0x6D,
+	RTW_CHPLAN_WORLD_FCC12 = 0x6E,
+	RTW_CHPLAN_NULL_ETSI8 = 0x6F,
+	RTW_CHPLAN_NULL_ETSI18 = 0x70,
+	RTW_CHPLAN_NULL_ETSI17 = 0x71,
+	RTW_CHPLAN_NULL_ETSI19 = 0x72,
 
 	RTW_CHPLAN_MAX,
 	RTW_CHPLAN_REALTEK_DEFINE = 0x7F,
@@ -214,6 +232,18 @@ typedef enum _RT_CHANNEL_DOMAIN_5G {
 	RTW_RD_5G_FCC10 = 31,	/* Argentina(w/o Weather radar) */
 	RTW_RD_5G_MKK4 = 32,	/* Japan (W52) */
 	RTW_RD_5G_ETSI14 = 33,	/* Russia */
+	RTW_RD_5G_FCC11 = 34,	/* US(include CH144) */
+	RTW_RD_5G_ETSI15 = 35,	/* Malaysia */
+	RTW_RD_5G_MKK5 = 36,	/* Japan */
+	RTW_RD_5G_ETSI16 = 37,	/* Europe */
+	RTW_RD_5G_ETSI17 = 38,	/* Europe */
+	RTW_RD_5G_FCC12 = 39,	/* FCC */
+	RTW_RD_5G_FCC13 = 40,	/* FCC */
+	RTW_RD_5G_FCC14 = 41,	/* FCC w/o Weather radar(w/o 5600~5650MHz) */
+	RTW_RD_5G_FCC15 = 42,	/* FCC w/o Band3 */
+	RTW_RD_5G_FCC16 = 43,	/* FCC w/o Band3 */
+	RTW_RD_5G_ETSI18 = 44,	/* ETSI w/o DFS Band2&3 */
+	RTW_RD_5G_ETSI19 = 45,	/* Europe */
 
 	/* === Below are driver defined for legacy channel plan compatible, DON'T assign index ==== */
 	RTW_RD_5G_OLD_FCC1,
@@ -232,21 +262,29 @@ typedef struct _RT_CHANNEL_PLAN {
 	unsigned char	Len;
 } RT_CHANNEL_PLAN, *PRT_CHANNEL_PLAN;
 
-typedef struct _RT_CHANNEL_PLAN_2G {
-	unsigned char	Channel[MAX_CHANNEL_NUM_2G];
-	unsigned char	Len;
-} RT_CHANNEL_PLAN_2G, *PRT_CHANNEL_PLAN_2G;
+struct ch_list_t {
+	u8 *len_ch;
+};
 
-typedef struct _RT_CHANNEL_PLAN_5G {
-	unsigned char	Channel[MAX_CHANNEL_NUM_5G];
-	unsigned char	Len;
-} RT_CHANNEL_PLAN_5G, *PRT_CHANNEL_PLAN_5G;
+#define CH_LIST_ENT(_len, arg...) \
+	{.len_ch = (u8[_len + 1]) {_len, ##arg}, }
+
+#define CH_LIST_LEN(_ch_list) (_ch_list.len_ch[0])
+#define CH_LIST_CH(_ch_list, _i) (_ch_list.len_ch[_i + 1])
 
 typedef struct _RT_CHANNEL_PLAN_MAP {
 	u8 Index2G;
+#ifdef CONFIG_IEEE80211_BAND_5GHZ
 	u8 Index5G;
+#endif
 	u8 regd; /* value of REGULATION_TXPWR_LMT */
 } RT_CHANNEL_PLAN_MAP, *PRT_CHANNEL_PLAN_MAP;
+
+#ifdef CONFIG_IEEE80211_BAND_5GHZ
+#define CHPLAN_ENT(i2g, i5g, regd) {i2g, i5g, regd}
+#else
+#define CHPLAN_ENT(i2g, i5g, regd) {i2g, regd}
+#endif
 
 enum Associated_AP {
 	atherosAP	= 0,
@@ -333,6 +371,9 @@ struct ss_res {
 	u8 next_state; /* will set to state on next cmd hdl */
 	int	bss_cnt;
 	int	channel_idx;
+#ifdef CONFIG_DFS
+	u8 dfs_ch_ssid_scan;
+#endif
 	int	scan_mode;
 	u16 scan_ch_ms;
 	u8 rx_ampdu_accept;
@@ -481,8 +522,11 @@ typedef struct _RT_CHANNEL_INFO {
 #ifdef CONFIG_FIND_BEST_CHANNEL
 	u32				rx_count;
 #endif
-#ifdef CONFIG_DFS_MASTER
+#ifdef CONFIG_DFS
+	#ifdef CONFIG_DFS_MASTER
 	u32 non_ocp_end_time;
+	#endif
+	u8 hidden_bss_cnt; /* per scan count */
 #endif
 } RT_CHANNEL_INFO, *PRT_CHANNEL_INFO;
 
@@ -505,7 +549,6 @@ void rtw_chset_update_non_ocp(RT_CHANNEL_INFO *ch_set, u8 ch, u8 bw, u8 offset);
 void rtw_chset_update_non_ocp_ms(RT_CHANNEL_INFO *ch_set, u8 ch, u8 bw, u8 offset, int ms);
 u32 rtw_get_ch_waiting_ms(_adapter *adapter, u8 ch, u8 bw, u8 offset, u32 *r_non_ocp_ms, u32 *r_cac_ms);
 void rtw_reset_cac(_adapter *adapter, u8 ch, u8 bw, u8 offset);
-bool rtw_choose_shortest_waiting_ch(_adapter *adapter, u8 req_bw, u8 *dec_ch, u8 *dec_bw, u8 *dec_offset, u8 d_flags);
 #else
 #define CH_IS_NON_OCP(rt_ch_info) 0
 #define rtw_chset_is_ch_non_ocp(ch_set, ch, bw, offset) _FALSE
@@ -521,6 +564,9 @@ enum {
 	RTW_CHF_NON_LONG_CAC = BIT5,
 	RTW_CHF_NON_OCP = BIT6,
 };
+
+bool rtw_choose_shortest_waiting_ch(_adapter *adapter, u8 req_bw, u8 *dec_ch, u8 *dec_bw, u8 *dec_offset, u8 d_flags);
+
 void dump_country_chplan(void *sel, const struct country_chplan *ent);
 void dump_country_chplan_map(void *sel);
 void dump_chplan_id_list(void *sel);
@@ -974,6 +1020,7 @@ bool rtw_rx_ampdu_is_accept(_adapter *adapter);
 bool rtw_rx_ampdu_set_size(_adapter *adapter, u8 size, u8 reason);
 bool rtw_rx_ampdu_set_accept(_adapter *adapter, u8 accept, u8 reason);
 u8 rx_ampdu_apply_sta_tid(_adapter *adapter, struct sta_info *sta, u8 tid, u8 accept, u8 size);
+u8 rx_ampdu_size_sta_limit(_adapter *adapter, struct sta_info *sta);
 u8 rx_ampdu_apply_sta(_adapter *adapter, struct sta_info *sta, u8 accept, u8 size);
 u16 rtw_rx_ampdu_apply(_adapter *adapter);
 
@@ -1125,8 +1172,8 @@ struct cmd_hdl wlancmds[] = {
 	GEN_MLME_EXT_HANDLER(sizeof(struct getbasicrate_parm), NULL)
 	GEN_MLME_EXT_HANDLER(sizeof(struct setdatarate_parm), NULL)
 	GEN_MLME_EXT_HANDLER(sizeof(struct getdatarate_parm), NULL)
-	GEN_MLME_EXT_HANDLER(sizeof(struct setphyinfo_parm), NULL)
-	GEN_MLME_EXT_HANDLER(sizeof(struct getphyinfo_parm), NULL)   /*30*/
+	GEN_MLME_EXT_HANDLER(0, NULL)
+	GEN_MLME_EXT_HANDLER(0, NULL)   /*30*/
 	GEN_MLME_EXT_HANDLER(sizeof(struct setphy_parm), NULL)
 	GEN_MLME_EXT_HANDLER(sizeof(struct getphy_parm), NULL)
 	GEN_MLME_EXT_HANDLER(0, NULL)

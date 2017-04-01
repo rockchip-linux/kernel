@@ -251,7 +251,6 @@ void sdio_set_intf_ops(PADAPTER adapter, struct _io_ops *pops)
 #endif /* CONFIG_SDIO_INDIRECT_ACCESS */
 }
 
-#ifndef CONFIG_SDIO_RX_READ_IN_THREAD
 static struct recv_buf *sd_recv_rxfifo(PADAPTER adapter, u32 size)
 {
 	struct recv_priv *recvpriv;
@@ -312,12 +311,11 @@ static struct recv_buf *sd_recv_rxfifo(PADAPTER adapter, u32 size)
 
 	return recvbuf;
 }
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
 
 static u32 sdio_recv_and_drop(PADAPTER adapter, u32 size)
 {
 	u32 readsz, blksz, bufsz;
-	u8 *rbuf;	
+	u8 *rbuf;
 	s32 ret = _SUCCESS;
 
 	/*
@@ -340,9 +338,8 @@ static u32 sdio_recv_and_drop(PADAPTER adapter, u32 size)
 	}
 
 	ret = rtl8822bs_read_port(adapter_to_dvobj(adapter), bufsz, rbuf);
-	if (_FAIL == ret) {
+	if (_FAIL == ret)
 		RTW_ERR("%s: read port FAIL!\n", __FUNCTION__);
-	}
 
 	if (NULL != rbuf)
 		rtw_mfree(rbuf, bufsz);
@@ -405,14 +402,9 @@ void sd_int_dpc(PADAPTER adapter)
 		RTW_INFO("%s: Rx Error\n", __FUNCTION__);
 
 	if (phal->sdio_hisr & BIT_RX_REQUEST_8822B) {
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-		phal->sdio_hisr ^= BIT_RX_REQUEST_8822B;
-		rtl8822bs_rx_polling_start(dvobj);
-#else /* !CONFIG_SDIO_RX_READ_IN_THREAD */
 		struct recv_buf *precvbuf;
-		int alloc_fail_time = 0;
-		u32 hisr;
-		u16 rx_len;
+		int rx_fail_time = 0;
+		u32 rx_len;
 
 
 		/* No need to write 1 clear for RX_REQUEST */
@@ -427,41 +419,33 @@ void sd_int_dpc(PADAPTER adapter)
 			if (precvbuf) {
 				rtl8822bs_rxhandler(adapter, precvbuf);
 			} else {
-				alloc_fail_time++;
-#ifndef CONFIG_RECV_THREAD_MODE
-				RTW_WARN("%s: recv fail!(time=%d)\n", __FUNCTION__, alloc_fail_time);
-#endif /* !CONFIG_RECV_THREAD_MODE */
-				if (alloc_fail_time >= 10)
-				{					
+				rx_fail_time++;
+#ifdef CONFIG_RECV_THREAD_MODE
+				if (rx_fail_time >= 10) {
 					if (_FAIL == sdio_recv_and_drop(adapter, rx_len))
 						break;
-					else
-		alloc_fail_time = 0;
+
+					rx_fail_time = 0;
+				} else {
+					rtw_msleep_os(1);
+					continue;
 				}
-#ifndef CONFIG_SDIO_RX_DISABLE_POLLING
-				rtw_msleep_os(1);
-#else
-				rtw_udelay_os(2);
-				continue;
-#endif /* CONFIG_SDIO_RX_DISABLE_POLLING */
+#else /* !CONFIG_RECV_THREAD_MODE */
+				RTW_WARN("%s: recv fail!(time=%d)\n", __FUNCTION__, rx_fail_time);
+				if (rx_fail_time >= 10)
+					break;
+#endif /* !CONFIG_RECV_THREAD_MODE */
 			}
 			rx_len = 0;
-
-#ifdef CONFIG_SDIO_RX_DISABLE_POLLING
-			break;
-#else /* !CONFIG_SDIO_RX_DISABLE_POLLING */
-			rtl8822bs_get_interrupt(adapter, &hisr, &rx_len);
-#if 0	/* Remove unnecessary check, rx_len would be checked later */
-			hisr &= BIT_RX_REQUEST_8822B;
-			if (!hisr)
-				break;
-#endif
-#endif /* !CONFIG_SDIO_RX_DISABLE_POLLING */
+#ifdef CONFIG_PLATFORM_ZTE_ZX296716
+			/* clear Host cached interrupt */
+			dw_mci_clear_sdio_irq_status();
+#endif /* CONFIG_PLATFORM_ZTE_ZX296716 */
+			rtl8822bs_get_interrupt(adapter, NULL, &rx_len);
 		} while (1);
 
-		if (alloc_fail_time == 10)
+		if (rx_fail_time == 10)
 			RTW_ERR("%s: exit because recv failed more than 10 times!\n", __FUNCTION__);
-#endif /* !CONFIG_SDIO_RX_READ_IN_THREAD */
 	}
 }
 
@@ -475,6 +459,10 @@ void sd_int_hdl(PADAPTER adapter)
 
 	phal = GET_HAL_DATA(adapter);
 
+#ifdef CONFIG_RTW_SDIO_OOB_INT
+	rtw_hal_disable_interrupt(adapter);/* disable interrupt -> clear HIMR */
+#endif
+
 	rtl8822bs_get_interrupt(adapter, &phal->sdio_hisr, &phal->SdioRxFIFOSize);
 	if (phal->sdio_hisr & phal->sdio_himr) {
 		phal->sdio_hisr &= phal->sdio_himr;
@@ -484,21 +472,17 @@ void sd_int_hdl(PADAPTER adapter)
 		RTW_INFO("%s: HISR(0x%08x) and HIMR(0x%08x) no match!\n",
 			 __FUNCTION__, phal->sdio_hisr, phal->sdio_himr);
 	}
+
+#ifdef CONFIG_RTW_SDIO_OOB_INT
+	rtw_hal_enable_interrupt(adapter);/* enable interrupt -> set HIMR */
+#endif
+
 }
 
 #if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
 u8 rtw_hal_enable_cpwm2(_adapter *adapter)
 {
-	u32 hisr = 0;
-
-	RTW_PRINT("%s\n", __func__);
-	hisr = rtl8822bs_get_interrupt(adapter);
-	RTW_INFO("read SDIO_REG_HIMR: 0x%08x\n", hisr);
-
-	update_himr(adapter, BIT_SDIO_CPWM2_MSK_8822B);
-
-	hisr = rtl8822bs_get_interrupt(adapter);
-	RTW_INFO("read again SDIO_REG_HIMR: 0x%08x\n", hisr);
+	rtl8822bs_disable_interrupt_but_cpwm2(adapter);
 	return _SUCCESS;
 }
 
@@ -507,21 +491,28 @@ u8 RecvOnePkt(PADAPTER adapter)
 	struct recv_buf *precvbuf;
 	struct dvobj_priv *psddev;
 	PSDIO_DATA psdio_data;
+	PHAL_DATA_TYPE phal;
 	struct sdio_func *func;
 	u8 res = _TRUE;
-	u16 len = 0;
+	u32 len = 0;
 
 	if (adapter == NULL) {
 		RTW_ERR("%s: adapter is NULL!\n", __func__);
 		return _FALSE;
 	}
+
 	psddev = adapter->dvobj;
 	psdio_data = &psddev->intf_data;
 	func = psdio_data->func;
+	phal = GET_HAL_DATA(adapter);
 
-	len = rtw_read16(adapter, REG_SDIO_RX_REQ_LEN_8822B);
+	rtl8822bs_get_interrupt(adapter, &phal->sdio_hisr,
+				&phal->SdioRxFIFOSize);
 
-	RTW_INFO("+%s: size=%d+\n", __func__, len);
+	len = phal->SdioRxFIFOSize;
+
+	RTW_DBG("+%s: hisr: %08x size=%d+\n",
+		 __func__, phal->sdio_hisr, phal->SdioRxFIFOSize);
 
 	if (len) {
 		sdio_claim_host(func);
@@ -532,7 +523,6 @@ u8 RecvOnePkt(PADAPTER adapter)
 			res = _FALSE;
 		sdio_release_host(func);
 	}
-	RTW_INFO("-%s-\n", __func__);
 	return res;
 }
 #endif /* CONFIG_WOWLAN */

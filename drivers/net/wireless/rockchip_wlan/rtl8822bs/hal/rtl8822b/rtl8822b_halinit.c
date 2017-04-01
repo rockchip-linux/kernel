@@ -134,7 +134,6 @@ u8 rtl8822b_hal_init(PADAPTER adapter)
 
 #ifdef CONFIG_FILE_FWIMG
 	rtw_get_phy_file_path(adapter, MAC_FILE_FW_NIC);
-	RTW_INFO("%s: FW location:%s\n", __FUNCTION__, rtw_phy_para_file_path);
 	if (rtw_is_file_readable(rtw_phy_para_file_path) == _TRUE) {
 		RTW_INFO("%s acquire FW from file:%s\n", __FUNCTION__, rtw_phy_para_file_path);
 		fw_bin = _TRUE;
@@ -160,7 +159,8 @@ u8 rtl8822b_hal_init(PADAPTER adapter)
 	
 
 	RTW_INFO("%s Download Firmware from %s success\n", __FUNCTION__, (fw_bin) ? "file" : "array");
-	RTW_INFO("%s FW Version:%d SubVersion:%d\n", "NIC", hal->firmware_version, hal->firmware_sub_version);
+	RTW_INFO("%s FW Version:%d SubVersion:%d FW size:%d\n", "NIC",
+		hal->firmware_version, hal->firmware_sub_version, hal->firmware_size);
 
 	/* Sync driver status with hardware setting */
 	rtl8822b_rcr_get(adapter, NULL);

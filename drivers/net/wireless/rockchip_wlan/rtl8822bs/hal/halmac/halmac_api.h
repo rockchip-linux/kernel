@@ -9,6 +9,7 @@
 #define HALMAC_PROTOTYPE_VER    0x0003
 /* else increment minor version */
 #define HALMAC_MINOR_VER        0x0002
+#define HALMAC_PATCH_VER        0x0005		/* patch version */
 
 #include "halmac_2_platform.h"
 #include "halmac_hw_cfg.h"

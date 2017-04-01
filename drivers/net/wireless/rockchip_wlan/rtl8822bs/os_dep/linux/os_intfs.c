@@ -133,6 +133,27 @@ int rtw_ampdu_amsdu = 2;/* 0: disabled, 1:enabled, 2:auto . There is an IOT issu
 #else
 int rtw_ampdu_amsdu = 0;/* 0: disabled, 1:enabled, 2:auto . There is an IOT issu with DLINK DIR-629 when the flag turn on */
 #endif
+
+static uint rtw_rx_ampdu_sz_limit_1ss[4] = CONFIG_RTW_RX_AMPDU_SZ_LIMIT_1SS;
+static uint rtw_rx_ampdu_sz_limit_1ss_num = 0;
+module_param_array(rtw_rx_ampdu_sz_limit_1ss, uint, &rtw_rx_ampdu_sz_limit_1ss_num, 0644);
+MODULE_PARM_DESC(rtw_rx_ampdu_sz_limit_1ss, "RX AMPDU size limit for 1SS link of each BW, 0xFF: no limitation");
+
+static uint rtw_rx_ampdu_sz_limit_2ss[4] = CONFIG_RTW_RX_AMPDU_SZ_LIMIT_2SS;
+static uint rtw_rx_ampdu_sz_limit_2ss_num = 0;
+module_param_array(rtw_rx_ampdu_sz_limit_2ss, uint, &rtw_rx_ampdu_sz_limit_2ss_num, 0644);
+MODULE_PARM_DESC(rtw_rx_ampdu_sz_limit_2ss, "RX AMPDU size limit for 2SS link of each BW, 0xFF: no limitation");
+
+static uint rtw_rx_ampdu_sz_limit_3ss[4] = CONFIG_RTW_RX_AMPDU_SZ_LIMIT_3SS;
+static uint rtw_rx_ampdu_sz_limit_3ss_num = 0;
+module_param_array(rtw_rx_ampdu_sz_limit_3ss, uint, &rtw_rx_ampdu_sz_limit_3ss_num, 0644);
+MODULE_PARM_DESC(rtw_rx_ampdu_sz_limit_3ss, "RX AMPDU size limit for 3SS link of each BW, 0xFF: no limitation");
+
+static uint rtw_rx_ampdu_sz_limit_4ss[4] = CONFIG_RTW_RX_AMPDU_SZ_LIMIT_4SS;
+static uint rtw_rx_ampdu_sz_limit_4ss_num = 0;
+module_param_array(rtw_rx_ampdu_sz_limit_4ss, uint, &rtw_rx_ampdu_sz_limit_4ss_num, 0644);
+MODULE_PARM_DESC(rtw_rx_ampdu_sz_limit_4ss, "RX AMPDU size limit for 4SS link of each BW, 0xFF: no limitation");
+
 /* Short GI support Bit Map
 * BIT0 - 20MHz, 0: non-support, 1: support
 * BIT1 - 40MHz, 0: non-support, 1: support
@@ -444,7 +465,7 @@ MODULE_PARM_DESC(rtw_adaptivity_th_edcca_hl_diff, "th_edcca_hl_diff for Adaptivi
 #ifdef CONFIG_DFS_MASTER
 uint rtw_dfs_region_domain = CONFIG_RTW_DFS_REGION_DOMAIN;
 module_param(rtw_dfs_region_domain, uint, 0644);
-MODULE_PARM_DESC(rtw_dfs_region_domain, "1:FCC, 2:MKK, 3:ETSI");
+MODULE_PARM_DESC(rtw_dfs_region_domain, "0:UNKNOWN, 1:FCC, 2:MKK, 3:ETSI");
 #endif
 
 uint rtw_amplifier_type_2g = CONFIG_RTW_AMPLIFIER_TYPE_2G;
@@ -688,6 +709,28 @@ inline void rtw_regsty_load_excl_chs(struct registry_priv *regsty)
 		regsty->excl_chs[ch_num] = 0;
 }
 
+#ifdef CONFIG_80211N_HT
+inline void rtw_regsty_init_rx_ampdu_sz_limit(struct registry_priv *regsty)
+{
+	int i, j;
+	uint *sz_limit;
+
+	for (i = 0; i < 4; i++) {
+		if (i == 0)
+			sz_limit = rtw_rx_ampdu_sz_limit_1ss;
+		else if (i == 1)
+			sz_limit = rtw_rx_ampdu_sz_limit_2ss;
+		else if (i == 2)
+			sz_limit = rtw_rx_ampdu_sz_limit_3ss;
+		else if (i == 3)
+			sz_limit = rtw_rx_ampdu_sz_limit_4ss;
+
+		for (j = 0; j < 4; j++)
+			regsty->rx_ampdu_sz_limit_by_nss_bw[i][j] = sz_limit[j];
+	}
+}
+#endif /* CONFIG_80211N_HT */
+
 uint loadparam(_adapter *padapter)
 {
 	uint status = _SUCCESS;
@@ -768,6 +811,7 @@ uint loadparam(_adapter *padapter)
 	registry_par->beamform_cap = (u8)rtw_beamform_cap;
 	registry_par->beamformer_rf_num = (u8)rtw_bfer_rf_number;
 	registry_par->beamformee_rf_num = (u8)rtw_bfee_rf_number;
+	rtw_regsty_init_rx_ampdu_sz_limit(registry_par);
 #endif
 
 #ifdef CONFIG_80211AC_VHT
@@ -2448,7 +2492,7 @@ void rtw_drv_stop_vir_if(_adapter *padapter)
 	pnetdev = padapter->pnetdev;
 
 	if (check_fwstate(pmlmepriv, _FW_LINKED))
-		rtw_disassoc_cmd(padapter, 0, _FALSE);
+		rtw_disassoc_cmd(padapter, 0, RTW_CMDF_DIRECTLY);
 
 #ifdef CONFIG_AP_MODE
 	if (check_fwstate(&padapter->mlmepriv, WIFI_AP_STATE) == _TRUE) {
@@ -3022,7 +3066,7 @@ static int netdev_close(struct net_device *pnetdev)
 #ifndef CONFIG_ANDROID
 		/* s2. */
 		LeaveAllPowerSaveMode(padapter);
-		rtw_disassoc_cmd(padapter, 500, _FALSE);
+		rtw_disassoc_cmd(padapter, 500, RTW_CMDF_DIRECTLY);
 		/* s2-2.  indicate disconnect to os */
 		rtw_indicate_disconnect(padapter, 0, _FALSE);
 		/* s2-3. */
@@ -3498,7 +3542,7 @@ int rtw_suspend_free_assoc_resource(_adapter *padapter)
 	}
 
 	if (check_fwstate(pmlmepriv, WIFI_STATION_STATE) && check_fwstate(pmlmepriv, _FW_LINKED)) {
-		rtw_disassoc_cmd(padapter, 0, _FALSE);
+		rtw_disassoc_cmd(padapter, 0, RTW_CMDF_DIRECTLY);
 		/* s2-2.  indicate disconnect to os */
 		rtw_indicate_disconnect(padapter, 0, _FALSE);
 	}
@@ -3557,16 +3601,21 @@ int rtw_suspend_wow(_adapter *padapter)
 #endif
 
 	if (pwrpriv->wowlan_mode == _TRUE) {
-#ifdef CONFIG_BT_COEXIST
-		rtw_btcoex_SuspendNotify(padapter, BTCOEX_SUSPEND_STATE_SUSPEND_KEEP_ANT);
-#endif
-
 		if (pnetdev)
 			rtw_netif_stop_queue(pnetdev);
 		rtw_mi_buddy_netif_stop_queue(padapter, _TRUE);
 
 		/* 0. Power off LED */
 		rtw_led_control(padapter, LED_CTL_POWER_OFF);
+
+#if defined(CONFIG_SDIO_HCI) || defined(CONFIG_GSPI_HCI)
+		/* 2.only for SDIO disable interrupt */
+		rtw_intf_stop(padapter);
+
+		/* 2.1 clean interrupt */
+		rtw_hal_clear_interrupt(padapter);
+#endif /* CONFIG_SDIO_HCI */
+
 		/* 1. stop thread */
 		rtw_set_drv_stopped(padapter);	/*for stop thread*/
 		for (i = 0; i < dvobj->iface_nums; i++) {
@@ -3579,14 +3628,6 @@ int rtw_suspend_wow(_adapter *padapter)
 		/* #ifdef CONFIG_LPS */
 		/* rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "WOWLAN"); */
 		/* #endif */
-
-#if defined(CONFIG_SDIO_HCI) || defined(CONFIG_GSPI_HCI)
-		/* 2. disable interrupt */
-		rtw_mi_intf_stop(padapter);
-
-		/* 2.1 clean interupt */
-		rtw_hal_clear_interrupt(padapter);
-#endif /* CONFIG_SDIO_HCI */
 
 		/* 2.2 free irq */
 		/* sdio_free_irq(adapter_to_dvobj(padapter)); */
@@ -3643,6 +3684,10 @@ int rtw_suspend_wow(_adapter *padapter)
 		}
 #endif
 
+#ifdef CONFIG_BT_COEXIST
+		rtw_btcoex_SuspendNotify(padapter, BTCOEX_SUSPEND_STATE_SUSPEND_KEEP_ANT);
+#endif
+
 #ifdef CONFIG_CONCURRENT_MODE
 		rtw_mi_buddy_suspend_free_assoc_resource(padapter);
 #endif
@@ -3687,14 +3732,18 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 
 	RTW_INFO("wowlan_ap_mode: %d\n", pwrpriv->wowlan_ap_mode);
 
-#ifdef CONFIG_BT_COEXIST
-	rtw_btcoex_SuspendNotify(padapter, BTCOEX_SUSPEND_STATE_SUSPEND_KEEP_ANT);
-#endif
-
 	rtw_mi_netif_stop_queue(padapter, _FALSE);
 
 	/* 0. Power off LED */
 	rtw_led_control(padapter, LED_CTL_POWER_OFF);
+#ifdef CONFIG_SDIO_HCI
+	/* 2.only for SDIO disable interrupt*/
+	rtw_intf_stop(padapter);
+
+	/* 2.1 clean interrupt */
+	rtw_hal_clear_interrupt(padapter);
+#endif /* CONFIG_SDIO_HCI */
+
 	/* 1. stop thread */
 	rtw_set_drv_stopped(padapter);	/*for stop thread*/
 	for (i = 0; i < dvobj->iface_nums; i++) {
@@ -3703,14 +3752,6 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 			rtw_stop_drv_threads(iface);
 	}
 	rtw_clr_drv_stopped(padapter);	/*for 32k command*/
-
-#ifdef CONFIG_SDIO_HCI
-	/* 2. disable interrupt*/
-	rtw_mi_intf_stop(padapter);
-
-	/* 2.1 clean interupt */
-	rtw_hal_clear_interrupt(padapter);
-#endif /* CONFIG_SDIO_HCI */
 
 	/* 2.2 free irq */
 	if (padapter->intf_free_irq)
@@ -3741,6 +3782,10 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 		set_channel_bwmode(padapter, ch, offset, bw);
 		rtw_mi_update_union_chan_inf(padapter, ch, offset, bw);
 	}
+#endif
+
+#ifdef CONFIG_BT_COEXIST
+	rtw_btcoex_SuspendNotify(padapter, BTCOEX_SUSPEND_STATE_SUSPEND_KEEP_ANT);
 #endif
 
 	/*FOR ONE AP - TODO :Multi-AP*/
@@ -3851,7 +3896,6 @@ int rtw_suspend_common(_adapter *padapter)
 
 	rtw_mi_cancel_all_timer(padapter);
 	LeaveAllPowerSaveModeDirect(padapter);
-	rtw_stop_cmd_thread(padapter);
 
 	rtw_ps_deny_cancel(padapter, PS_DENY_SUSPEND);
 
@@ -3941,10 +3985,10 @@ int rtw_resume_process_wow(_adapter *padapter)
 
 		pwrpriv->bFwCurrentInPSMode = _FALSE;
 
-#ifdef CONFIG_SDIO_HCI
+#if defined(CONFIG_SDIO_HCI) || defined(CONFIG_PCI_HCI)
 		rtw_mi_intf_stop(padapter);
 		rtw_hal_clear_interrupt(padapter);
-#endif /* CONFIG_SDIO_HCI */
+#endif
 
 #if !(CONFIG_RTW_SDIO_KEEP_IRQ)
 		/* if (sdio_alloc_irq(adapter_to_dvobj(padapter)) != _SUCCESS) {		 */
@@ -4021,15 +4065,9 @@ int rtw_resume_process_wow(_adapter *padapter)
 		rtw_lock_ext_suspend_timeout(8000);
 
 	if (pwrpriv->wowlan_wake_reason == RX_PNO) {
-#ifdef CONFIG_IOCTL_CFG80211
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))
-		u8 locally_generated = 1;
-
-		cfg80211_disconnected(padapter->pnetdev, 0, NULL, 0, locally_generated, GFP_ATOMIC);
-#else
-		cfg80211_disconnected(padapter->pnetdev, 0, NULL, 0, GFP_ATOMIC);
-#endif
-#endif /* CONFIG_IOCTL_CFG80211 */
+		#ifdef CONFIG_IOCTL_CFG80211
+		rtw_cfg80211_disconnected(padapter->rtw_wdev, 0, NULL, 0, 1, GFP_ATOMIC);
+		#endif
 		rtw_lock_ext_suspend_timeout(10000);
 	}
 

@@ -560,7 +560,7 @@ halmac_func_write_logical_efuse_88xx(
 	u8 pg_efuse_header, pg_efuse_header2;
 	u8 *pEeprom_map = NULL;
 	u32 eeprom_size = pHalmac_adapter->hw_config_info.eeprom_size;
-	u32 efuse_end;
+	u32 efuse_end, pg_efuse_num;
 	VOID *pDriver_adapter = NULL;
 	HALMAC_RET_STATUS status = HALMAC_RET_SUCCESS;
 
@@ -600,13 +600,19 @@ halmac_func_write_logical_efuse_88xx(
 		}
 
 		if (offset > 0x7f) {
-			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, pg_efuse_header);
-			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, pg_efuse_header2);
-			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 2, pg_efuse_byte1);
+			pg_efuse_num = 4;
+			if (pHalmac_adapter->hw_config_info.efuse_size <= (pg_efuse_num + HALMAC_PROTECTED_EFUSE_SIZE_88XX + pHalmac_adapter->efuse_end))
+				return HALMAC_RET_EFUSE_NOT_ENOUGH;
+			halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, pg_efuse_header);
+			halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, pg_efuse_header2);
+			halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 2, pg_efuse_byte1);
 			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 3, pg_efuse_byte2);
 		} else {
-			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, pg_efuse_header);
-			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, pg_efuse_byte1);
+			pg_efuse_num = 3;
+			if (pHalmac_adapter->hw_config_info.efuse_size <= (pg_efuse_num + HALMAC_PROTECTED_EFUSE_SIZE_88XX + pHalmac_adapter->efuse_end))
+				return HALMAC_RET_EFUSE_NOT_ENOUGH;
+			halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, pg_efuse_header);
+			halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, pg_efuse_byte1);
 			status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 2, pg_efuse_byte2);
 		}
 
@@ -811,7 +817,7 @@ halmac_check_efuse_enough_88xx(
 		}
 	}
 
-	if ((pHalmac_adapter->hw_config_info.efuse_size - pg_efuse_num - HALMAC_PROTECTED_EFUSE_SIZE_88XX - pHalmac_adapter->efuse_end) <= 0)
+	if (pHalmac_adapter->hw_config_info.efuse_size <= (pg_efuse_num + HALMAC_PROTECTED_EFUSE_SIZE_88XX + pHalmac_adapter->efuse_end))
 		return HALMAC_RET_EFUSE_NOT_ENOUGH;
 
 	return HALMAC_RET_SUCCESS;
@@ -856,12 +862,12 @@ halmac_program_efuse_88xx(
 			}
 
 			if (tmp_eeprom_offset > 0x7f) {
-				status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, pg_efuse_header);
+				halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, pg_efuse_header);
 				status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, pg_efuse_header2);
 				efuse_end = efuse_end + 2;
 				for (j = 0; j < 4; j++) {
 					if (((pre_word_enb >> j) & 0x1) > 0) {
-						status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, *(pPg_efuse_info->pEfuse_map + tmp_eeprom_offset + (j << 1)));
+						halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, *(pPg_efuse_info->pEfuse_map + tmp_eeprom_offset + (j << 1)));
 						status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, *(pPg_efuse_info->pEfuse_map + tmp_eeprom_offset + (j << 1) + 1));
 						efuse_end = efuse_end + 2;
 					}
@@ -871,7 +877,7 @@ halmac_program_efuse_88xx(
 				efuse_end = efuse_end + 1;
 				for (j = 0; j < 4; j++) {
 					if (((pre_word_enb >> j) & 0x1) > 0) {
-						status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, *(pPg_efuse_info->pEfuse_map + tmp_eeprom_offset + (j << 1)));
+						halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end, *(pPg_efuse_info->pEfuse_map + tmp_eeprom_offset + (j << 1)));
 						status = halmac_func_write_efuse_88xx(pHalmac_adapter, efuse_end + 1, *(pPg_efuse_info->pEfuse_map + tmp_eeprom_offset + (j << 1) + 1));
 						efuse_end = efuse_end + 2;
 					}
@@ -1085,6 +1091,8 @@ halmac_dlfw_end_flow_88xx(
 	while (0xC078 != HALMAC_REG_READ_16(pHalmac_adapter, REG_MCUFW_CTRL)) {
 		if (counter == 0) {
 			PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "Check 0x80 = 0xC078 fail\n");
+			if (0xFAAAAA00 == (HALMAC_REG_READ_32(pHalmac_adapter, REG_FW_DBG7) & 0xFFFFFF00))
+				PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "Key fail\n");
 			return HALMAC_RET_DLFW_FAIL;
 		}
 		counter--;
@@ -2803,6 +2811,7 @@ halmac_update_oqt_free_space_88xx(
 	VOID *pDriver_adapter = NULL;
 	PHALMAC_API pHalmac_api;
 	PHALMAC_SDIO_FREE_SPACE pSdio_free_space;
+	u8 value;
 
 	pDriver_adapter = pHalmac_adapter->pDriver_adapter;
 	pHalmac_api = (PHALMAC_API)pHalmac_adapter->pHalmac_api;
@@ -2813,7 +2822,12 @@ halmac_update_oqt_free_space_88xx(
 
 	pSdio_free_space->ac_oqt_number = HALMAC_REG_READ_8(pHalmac_adapter, REG_SDIO_OQT_FREE_TXPG_V1 + 2);
 	/* pSdio_free_space->non_ac_oqt_number = (u8)BIT_GET_NOAC_OQT_FREEPG_V1(oqt_free_page); */
-	pSdio_free_space->ac_empty = HALMAC_REG_READ_8(pHalmac_adapter, REG_TXPKT_EMPTY);
+	pSdio_free_space->ac_empty = 0;
+	value = HALMAC_REG_READ_8(pHalmac_adapter, REG_TXPKT_EMPTY);
+	while (value > 0) {
+		value = value & (value - 1);
+		pSdio_free_space->ac_empty++;
+	}
 
 	PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_TRACE, "halmac_update_oqt_free_space_88xx <==========\n");
 

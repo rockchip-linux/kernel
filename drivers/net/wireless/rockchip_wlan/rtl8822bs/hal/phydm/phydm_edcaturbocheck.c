@@ -119,7 +119,7 @@ odm_edca_turbo_check_ce(
 	u32	edca_param;
 	u64	cur_tx_bytes = 0;
 	u64	cur_rx_bytes = 0;
-	u8	bbtchange = _FALSE;
+	u8	bbtchange = _TRUE;
 	u8	is_bias_on_rx = _FALSE;
 	HAL_DATA_TYPE		*p_hal_data = GET_HAL_DATA(adapter);
 	struct dvobj_priv		*pdvobjpriv = adapter_to_dvobj(adapter);
@@ -155,7 +155,7 @@ odm_edca_turbo_check_ce(
 	}
 
 	/* Check if the status needs to be changed. */
-	if ((1) || (!precvpriv->is_any_non_be_pkts)) {
+	if ((bbtchange) || (!precvpriv->is_any_non_be_pkts)) {
 		cur_tx_bytes = pdvobjpriv->traffic_stat.cur_tx_bytes;
 		cur_rx_bytes = pdvobjpriv->traffic_stat.cur_rx_bytes;
 

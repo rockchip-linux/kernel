@@ -208,15 +208,28 @@ void rtw_odm_releasespinlock(_adapter *adapter,	enum rt_spinlock_type type)
 	}
 }
 
-#ifdef CONFIG_DFS_MASTER
 inline u8 rtw_odm_get_dfs_domain(_adapter *adapter)
 {
+#ifdef CONFIG_DFS_MASTER
 	HAL_DATA_TYPE *hal_data = GET_HAL_DATA(adapter);
 	struct PHY_DM_STRUCT *pDM_Odm = &(hal_data->odmpriv);
 
 	return pDM_Odm->dfs_region_domain;
+#else
+	return PHYDM_DFS_DOMAIN_UNKNOWN;
+#endif
 }
 
+inline u8 rtw_odm_dfs_domain_unknown(_adapter *adapter)
+{
+#ifdef CONFIG_DFS_MASTER
+	return rtw_odm_get_dfs_domain(adapter) == PHYDM_DFS_DOMAIN_UNKNOWN;
+#else
+	return 1;
+#endif
+}
+
+#ifdef CONFIG_DFS_MASTER
 inline VOID rtw_odm_radar_detect_reset(_adapter *adapter)
 {
 	phydm_radar_detect_reset(GET_ODM(adapter));

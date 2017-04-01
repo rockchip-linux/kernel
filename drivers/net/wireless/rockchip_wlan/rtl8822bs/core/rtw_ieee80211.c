@@ -1372,6 +1372,9 @@ func_exit:
 }
 
 extern char *rtw_initmac;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
+#include <linux/rfkill-wlan.h>
+#endif
 /**
  * rtw_macaddr_cfg - Decide the mac address used
  * @out: buf to store mac address decided
@@ -1397,6 +1400,14 @@ void rtw_macaddr_cfg(u8 *out, const u8 *hw_mac_addr)
 		goto err_chk;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
+        if (!rockchip_wifi_mac_addr(mac)) {
+                printk("=========> get mac address from flash=[%02x:%02x:%02x:%02x:%02x:%02x]\n", mac[0], mac[1],
+                mac[2], mac[3], mac[4], mac[5]);
+                //_rtw_memcpy(mac_addr, mac, ETH_ALEN);
+                goto err_chk;
+        }
+#endif
 	/* platform specified */
 #ifdef CONFIG_PLATFORM_INTEL_BYT
 	if (rtw_get_mac_addr_intel(mac) == 0)

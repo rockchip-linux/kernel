@@ -54,17 +54,32 @@ static void read_adapter_info(PADAPTER adapter)
 	 */
 }
 
-void rtl8822bs_get_interrupt(PADAPTER adapter, u32 *hisr, u16 *rx_len)
+void rtl8822bs_get_interrupt(PADAPTER adapter, u32 *hisr, u32 *rx_len)
 {
-	u8 data[6] = {0};
+	u8 data[8] = {0};
+	u32 addr, sz;
+	u8 *buf;
 
 
-	rtw_read_mem(adapter, REG_SDIO_HISR_8822B, 6, data);
+	if (hisr) {
+		addr = REG_SDIO_HISR_8822B;
+		sz = 4;
+		buf = data;
+		if (rx_len)
+			sz += 4;
+	} else {
+		addr = REG_SDIO_RX_REQ_LEN_8822B;
+		sz = 4;
+		buf = &data[4];
+	}
+
+	rtw_read_mem(adapter, addr, sz, buf);
 
 	if (hisr)
 		*hisr = le32_to_cpu(*(u32 *)data);
+	/* REG_SDIO_RX_REQ_LEN_8822B[17:0] */
 	if (rx_len)
-		*rx_len = le16_to_cpu(*(u16 *)&data[4]);
+		*rx_len = le32_to_cpu(*(u32 *)&data[4]) & 0x3FFFF;
 }
 
 void rtl8822bs_clear_interrupt(PADAPTER adapter, u32 hisr)
@@ -186,55 +201,6 @@ static void disable_interrupt(PADAPTER adapter)
 	RTW_INFO("%s: update SDIO HIMR=0\n", __FUNCTION__);
 }
 
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-void rtl8822bs_enable_rx_interrupt(struct dvobj_priv *d)
-{
-	struct _ADAPTER *a;
-	struct hal_com_data *hal;
-
-
-	a = dvobj_get_primary_adapter(d);
-	hal = GET_HAL_DATA(a);
-
-	if (hal->sdio_himr & BIT_RX_REQUEST_MSK_8822B)
-		return;
-
-	hal->sdio_himr |= BIT_RX_REQUEST_MSK_8822B;
-	update_himr(a, hal->sdio_himr);
-}
-
-void rtl8822bs_disable_rx_interrupt(struct dvobj_priv *d)
-{
-	struct _ADAPTER *a;
-	struct hal_com_data *hal;
-
-
-	a = dvobj_get_primary_adapter(d);
-	hal = GET_HAL_DATA(a);
-
-	if (!(hal->sdio_himr & BIT_RX_REQUEST_MSK_8822B))
-		return;
-
-	hal->sdio_himr &= ~BIT_RX_REQUEST_MSK_8822B;
-	update_himr(a, hal->sdio_himr);
-}
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
-#ifdef CONFIG_WOWLAN
-void rtl8822bs_disable_interrupt_but_cpwm2(PADAPTER adapter)
-{
-	u32 himr, tmp;
-
-	tmp = rtw_read32(adapter, REG_SDIO_HIMR);
-	RTW_INFO("%s: Read SDIO_REG_HIMR: 0x%08x\n", __FUNCTION__, tmp);
-
-	himr = BIT_SDIO_CPWM2_MSK;
-	update_himr(adapter, himr);
-
-	tmp = rtw_read32(adapter, REG_SDIO_HIMR);
-	RTW_INFO("%s: Read again SDIO_REG_HIMR: 0x%08x\n", __FUNCTION__, tmp);
-}
-#endif /* CONFIG_WOWLAN */
-
 static void _run_thread(PADAPTER adapter)
 {
 #ifndef CONFIG_SDIO_TX_TASKLET
@@ -244,10 +210,6 @@ static void _run_thread(PADAPTER adapter)
 	if (IS_ERR(xmitpriv->SdioXmitThread))
 		RTW_INFO("%s: start rtl8822bs_xmit_thread FAIL!!\n", __FUNCTION__);
 #endif /* !CONFIG_SDIO_TX_TASKLET */
-
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-	rtl8822bs_rx_polling_thread_start(adapter_to_dvobj(adapter));
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
 }
 
 static void run_thread(PADAPTER adapter)
@@ -268,10 +230,6 @@ static void _cancel_thread(PADAPTER adapter)
 		xmitpriv->SdioXmitThread = 0;
 	}
 #endif /* !CONFIG_SDIO_TX_TASKLET */
-
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-	rtl8822bs_rx_polling_thread_stop(adapter_to_dvobj(adapter));
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
 }
 
 static void cancel_thread(PADAPTER adapter)
@@ -394,6 +352,20 @@ static u8 gethaldefvar(PADAPTER adapter, HAL_DEF_VARIABLE eVariable, void *pval)
 	hal = GET_HAL_DATA(adapter);
 
 	switch (eVariable) {
+	case HW_VAR_MAX_RX_AMPDU_FACTOR:
+#ifdef RTW_DYNAMIC_AMPDU_SIZE
+		/* Default use MAX size */
+		*(HT_CAP_AMPDU_FACTOR *)pval = MAX_AMPDU_FACTOR_64K;
+#else /* !RTW_DYNAMIC_AMPDU_SIZE */
+#ifdef CONFIG_SUPPORT_TRX_SHARED
+		*(HT_CAP_AMPDU_FACTOR *)pval = MAX_AMPDU_FACTOR_32K;
+#else /* !CONFIG_SUPPORT_TRX_SHARED */
+		/* 8822B RX FIFO is 24KB */
+		*(HT_CAP_AMPDU_FACTOR *)pval = MAX_AMPDU_FACTOR_16K;
+#endif /* !CONFIG_SUPPORT_TRX_SHARED */
+#endif /* !RTW_DYNAMIC_AMPDU_SIZE */
+		break;
+
 	default:
 		bResult = rtl8822b_gethaldefvar(adapter, eVariable, pval);
 		break;
@@ -473,3 +445,19 @@ void rtl8822bs_set_hal_ops(PADAPTER adapter)
 	ops->get_hal_def_var_handler = gethaldefvar;
 	ops->SetHalDefVarHandler = sethaldefvar;
 }
+
+#if defined(CONFIG_WOWLAN) || defined(CONFIG_AP_WOWLAN)
+void rtl8822bs_disable_interrupt_but_cpwm2(PADAPTER adapter)
+{
+	u32 himr, tmp;
+
+	tmp = rtw_read32(adapter, REG_SDIO_HIMR);
+	RTW_INFO("%s: Read SDIO_REG_HIMR: 0x%08x\n", __FUNCTION__, tmp);
+
+	himr = BIT_SDIO_CPWM2_MSK;
+	update_himr(adapter, himr);
+
+	tmp = rtw_read32(adapter, REG_SDIO_HIMR);
+	RTW_INFO("%s: Read again SDIO_REG_HIMR: 0x%08x\n", __FUNCTION__, tmp);
+}
+#endif /* CONFIG_WOWLAN */

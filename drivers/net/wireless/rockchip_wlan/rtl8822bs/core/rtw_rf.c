@@ -1109,19 +1109,57 @@ void rtw_rf_apply_tx_gain_offset(_adapter *adapter, u8 ch)
 	}
 }
 
-bool rtw_is_dfs_range(u32 hi, u32 lo)
+inline u8 rtw_is_5g_band1(u8 ch)
 {
-	return rtw_is_range_overlap(hi, lo, 5720 + 10, 5260 - 10) ? _TRUE : _FALSE;
+	if (ch >= 36 && ch <= 48)
+		return 1;
+	return 0;
 }
 
-bool rtw_is_dfs_ch(u8 ch, u8 bw, u8 offset)
+inline u8 rtw_is_5g_band2(u8 ch)
+{
+	if (ch >= 52 && ch <= 64)
+		return 1;
+	return 0;
+}
+
+inline u8 rtw_is_5g_band3(u8 ch)
+{
+	if (ch >= 100 && ch <= 144)
+		return 1;
+	return 0;
+}
+
+inline u8 rtw_is_5g_band4(u8 ch)
+{
+	if (ch >= 149 && ch <= 177)
+		return 1;
+	return 0;
+}
+
+inline u8 rtw_is_dfs_range(u32 hi, u32 lo)
+{
+	return rtw_is_range_overlap(hi, lo, 5720 + 10, 5260 - 10);
+}
+
+u8 rtw_is_dfs_ch(u8 ch)
 {
 	u32 hi, lo;
 
-	if (rtw_chbw_to_freq_range(ch, bw, offset, &hi, &lo) == _FALSE)
-		return _FALSE;
+	if (!rtw_chbw_to_freq_range(ch, CHANNEL_WIDTH_20, HAL_PRIME_CHNL_OFFSET_DONT_CARE, &hi, &lo))
+		return 0;
 
-	return rtw_is_dfs_range(hi, lo) ? _TRUE : _FALSE;
+	return rtw_is_dfs_range(hi, lo);
+}
+
+u8 rtw_is_dfs_chbw(u8 ch, u8 bw, u8 offset)
+{
+	u32 hi, lo;
+
+	if (!rtw_chbw_to_freq_range(ch, bw, offset, &hi, &lo))
+		return 0;
+
+	return rtw_is_dfs_range(hi, lo);
 }
 
 bool rtw_is_long_cac_range(u32 hi, u32 lo, u8 dfs_region)

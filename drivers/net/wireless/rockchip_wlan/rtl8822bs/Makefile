@@ -43,7 +43,7 @@ CONFIG_SDIO_HCI = y
 CONFIG_GSPI_HCI = n
 ########################## Features ###########################
 CONFIG_MP_INCLUDED = y
-CONFIG_POWER_SAVING = n
+CONFIG_POWER_SAVING = y
 CONFIG_USB_AUTOSUSPEND = n
 CONFIG_HW_PWRP_DETECTION = n
 CONFIG_WIFI_TEST = n
@@ -69,7 +69,7 @@ CONFIG_APPEND_VENDOR_IE_ENABLE = n
 CONFIG_RTW_NAPI = y
 CONFIG_RTW_GRO = y
 ########################## Debug ###########################
-CONFIG_RTW_DEBUG = n
+CONFIG_RTW_DEBUG = y
 # default log level is _DRV_INFO_ = 4,
 # please refer to "How_to_set_driver_debug_log_level.doc" to set the available level.
 CONFIG_RTW_LOG_LEVEL = 4
@@ -140,6 +140,7 @@ CONFIG_PLATFORM_RTK129X = n
 CONFIG_PLATFORM_NOVATEK_NT72668 = n
 CONFIG_PLATFORM_HISILICON = n
 CONFIG_PLATFORM_NV_TK1 = n
+CONFIG_PLATFORM_ZTE_ZX296716 = n
 ###############################################################
 
 CONFIG_DRVEXT_MODULE = n
@@ -799,8 +800,100 @@ endif
 
 ########### HAL_RTL8822B #################################
 ifeq ($(CONFIG_RTL8822B), y)
-#include $(TopDIR)/rtl8822b.mk
-include $(shell pwd)/drivers/net/wireless/rockchip_wlan/rtl8822bs/rtl8822b.mk
+RTL871X := rtl8822b
+EXTRA_CFLAGS += -DCONFIG_RTL8822B
+
+ifeq ($(CONFIG_USB_HCI), y)
+ifeq ($(CONFIG_BT_COEXIST), n)
+MODULE_NAME = 8812bu
+else
+MODULE_NAME = 88x2bu
+endif
+endif
+ifeq ($(CONFIG_PCI_HCI), y)
+MODULE_NAME = 88x2be
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+MODULE_NAME = 88x2bs
+endif
+
+ifeq ($(CONFIG_MP_INCLUDED), y)
+### 8822B Default Enable VHT MP HW TX MODE ###
+#EXTRA_CFLAGS += -DCONFIG_MP_VHT_HW_TX_MODE
+#CONFIG_MP_VHT_HW_TX_MODE = y
+endif
+
+_HAL_HALMAC_FILES +=	hal/halmac/halmac_api.o
+
+_HAL_HALMAC_FILES +=	hal/halmac/halmac_88xx/halmac_api_88xx.o \
+			hal/halmac/halmac_88xx/halmac_func_88xx.o \
+			hal/halmac/halmac_88xx/halmac_api_88xx_usb.o \
+			hal/halmac/halmac_88xx/halmac_api_88xx_sdio.o \
+			hal/halmac/halmac_88xx/halmac_api_88xx_pcie.o
+
+_HAL_HALMAC_FILES +=	hal/halmac/halmac_88xx/halmac_8822b/halmac_8822b_pwr_seq.o \
+			hal/halmac/halmac_88xx/halmac_8822b/halmac_api_8822b.o \
+			hal/halmac/halmac_88xx/halmac_8822b/halmac_func_8822b.o \
+			hal/halmac/halmac_88xx/halmac_8822b/halmac_api_8822b_usb.o \
+			hal/halmac/halmac_88xx/halmac_8822b/halmac_api_8822b_sdio.o \
+			hal/halmac/halmac_88xx/halmac_8822b/halmac_api_8822b_pcie.o \
+			hal/halmac/halmac_88xx/halmac_8822b/halmac_8822b_phy.o
+
+_HAL_INTFS_FILES +=	hal/hal_halmac.o
+
+_HAL_INTFS_FILES +=	hal/rtl8822b/rtl8822b_halinit.o \
+			hal/rtl8822b/rtl8822b_mac.o \
+			hal/rtl8822b/rtl8822b_cmd.o \
+			hal/rtl8822b/rtl8822b_phy.o \
+			hal/rtl8822b/rtl8822b_ops.o \
+			hal/rtl8822b/hal8822b_fw.o
+
+ifeq ($(CONFIG_USB_HCI), y)
+_HAL_INTFS_FILES +=	hal/rtl8822b/$(HCI_NAME)/rtl8822bu_halinit.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bu_halmac.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bu_io.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bu_xmit.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bu_recv.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bu_led.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bu_ops.o
+
+_HAL_INTFS_FILES +=hal/efuse/rtl8822b/HalEfuseMask8822B_USB.o
+endif
+ifeq ($(CONFIG_PCI_HCI), y)
+_HAL_INTFS_FILES +=	hal/rtl8822b/$(HCI_NAME)/rtl8822be_halinit.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822be_halmac.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822be_io.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822be_xmit.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822be_recv.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822be_led.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822be_ops.o
+
+_HAL_INTFS_FILES +=hal/efuse/rtl8822b/HalEfuseMask8822B_PCIE.o
+endif
+ifeq ($(CONFIG_SDIO_HCI), y)
+_HAL_INTFS_FILES +=	hal/rtl8822b/$(HCI_NAME)/rtl8822bs_halinit.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bs_halmac.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bs_io.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bs_xmit.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bs_recv.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bs_led.o \
+			hal/rtl8822b/$(HCI_NAME)/rtl8822bs_ops.o
+
+_HAL_INTFS_FILES +=hal/efuse/rtl8822b/HalEfuseMask8822B_SDIO.o
+endif
+
+_OUTSRC_FILES +=	hal/phydm/rtl8822b/halhwimg8822b_bb.o \
+			hal/phydm/rtl8822b/halhwimg8822b_mac.o \
+			hal/phydm/rtl8822b/halhwimg8822b_rf.o \
+			hal/phydm/rtl8822b/halphyrf_8822b.o \
+			hal/phydm/rtl8822b/phydm_hal_api8822b.o \
+			hal/phydm/rtl8822b/phydm_iqk_8822b.o \
+			hal/phydm/rtl8822b/phydm_regconfig8822b.o \
+			hal/phydm/rtl8822b/phydm_rtl8822b.o
+
+_OUTSRC_FILES +=	hal/phydm/txbf/haltxbf8822b.o
+
+_HAL_INTFS_FILES += $(_HAL_HALMAC_FILES)
 endif
 
 ########### HAL_RTL8821C #################################
@@ -1161,8 +1254,12 @@ endif
 ifeq ($(CONFIG_PLATFORM_MSTAR), y)
 EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
 EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -DCONFIG_PLATFORM_MSTAR -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_FIX_NR_BULKIN_BUFFER
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_MSTAR
 EXTRA_CFLAGS += -DCONFIG_PLATFORM_MSTAR_HIGH
+ifeq ($(CONFIG_USB_HCI), y)
+EXTRA_CFLAGS += -DCONFIG_USE_USB_BUFFER_ALLOC_TX -DCONFIG_FIX_NR_BULKIN_BUFFER
+endif
 ARCH:=arm
 CROSS_COMPILE:= /usr/src/bin/arm-none-linux-gnueabi-
 KVER:= 3.1.10
@@ -1692,22 +1789,6 @@ _PLATFORM_FILES += platform/platform_sprd_sdio.o
 endif
 endif
 
-ifeq ($(CONFIG_PLATFORM_AML_S905), y)
-EXTRA_CFLAGS += -Wno-error=date-time
-EXTRA_CFLAGS += -DCONFIG_PLATFORM_AML_S905
-EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN -fno-pic
-EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DCONFIG_CONCURRENT_MODE
-EXTRA_CFLAGS += -DCONFIG_P2P_IPS -DRTW_USE_CFG80211_STA_EVENT
-EXTRA_CFLAGS += -DCONFIG_RADIO_WORK
-
-ifeq ($(CONFIG_SDIO_HCI), y)
-EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
-_PLATFORM_FILES += platform/platform_AML_S905_sdio.o
-endif
-
-CROSS_COMPILE :=
-KSRC :=
-endif
 ifeq ($(CONFIG_PLATFORM_ARM_WMT), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
 EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
@@ -1758,30 +1839,27 @@ ifeq ($(CONFIG_PLATFORM_RTK129X), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
 EXTRA_CFLAGS += -DRTK_129X_PLATFORM
 EXTRA_CFLAGS += -DCONFIG_TRAFFIC_PROTECT
-# default setting for Android 4.1, 4.2
-#EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
 EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
 #EXTRA_CFLAGS += -DCONFIG_P2P_IPS -DCONFIG_QOS_OPTIMIZATION
 EXTRA_CFLAGS += -DCONFIG_QOS_OPTIMIZATION
+# Enable this for Android 5.0
+EXTRA_CFLAGS += -DCONFIG_RADIO_WORK
 EXTRA_CFLAGS += -Wno-error=date-time
-
-#EXTRA_CFLAGS += -DCONFIG_#PLATFORM_OPS
-ifeq ($(CONFIG_USB_HCI), y)
-EXTRA_CFLAGS += -DCONFIG_USE_USB_BUFFER_ALLOC_TX
-#_PLATFORM_FILES += platform/platform_ARM_SUNxI_usb.o
-endif
-ifeq ($(CONFIG_SDIO_HCI), y)
-_PLATFORM_FILES += platform/platform_ARM_SUNnI_sdio.o
-endif
 
 ARCH := arm64
 
 # ==== Cross compile setting for Android 4.4 SDK =====
 #CROSS_COMPILE := arm-linux-gnueabihf-
-KVER  := 4.1.10
-CROSS_COMPILE := $(CROSS)
-KSRC := $(LINUX_KERNEL_PATH)
-MODULE_NAME := 8822be
+#KVER  := 4.1.10
+#CROSS_COMPILE := $(CROSS)
+#KSRC := $(LINUX_KERNEL_PATH)
+
+# ==== Cross compile setting for Android 6.0 SDK =====
+CROSS_COMPILE := /home/android_sdk/DHC/trunk-6.0.0_r1-QA160627/phoenix/toolchain/asdk64-4.9.4-a53-EL-3.10-g2.19-a64nt-160307/bin/asdk64-linux-
+KSRC := /home/android_sdk/DHC/trunk-6.0.0_r1-QA160627/linux-kernel
+
+#MODULE_NAME := 8822be
 endif
 
 ifeq ($(CONFIG_PLATFORM_NOVATEK_NT72668), y)
@@ -1808,6 +1886,38 @@ CROSS_COMPILE := /home/android_sdk/Telechips/v13.05_r1-tcc-android-4.2.2_tcc893x
 KSRC := /home/android_sdk/Telechips/v13.05_r1-tcc-android-4.2.2_tcc893x-evm_build/kernel
 MODULE_NAME := wlan
 endif 
+
+ifeq ($(CONFIG_PLATFORM_ZTE_ZX296716), y)
+EXTRA_CFLAGS += -Wno-error=date-time
+EXTRA_CFLAGS += -DCONFIG_PLATFORM_ZTE_ZX296716
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+# default setting for Android
+EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
+EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+# default setting for Android 5.x and later
+#EXTRA_CFLAGS += -DCONFIG_RADIO_WORK
+# others
+#EXTRA_CFLAGS += -DCONFIG_P2P_IPS
+
+ifeq ($(CONFIG_SDIO_HCI), y)
+# mark this temporarily
+#EXTRA_CFLAGS += -DCONFIG_PLATFORM_OPS
+#_PLATFORM_FILES += platform/platform_zte_zx296716_sdio.o
+endif
+
+ARCH := arm64
+CROSS_COMPILE :=
+KSRC :=
+
+# default 8822bs module name would be 88x2bs, but zte use 8822bs
+ifeq ($(CONFIG_RTL8822B), y)
+ifeq ($(CONFIG_SDIO_HCI), y)
+MODULE_NAME := 8822bs
+endif
+endif
+
+endif
+
 
 ifeq ($(CONFIG_MULTIDRV), y)
 
@@ -1884,11 +1994,7 @@ ifeq ($(CONFIG_RTL8723B), y)
 $(MODULE_NAME)-$(CONFIG_MP_INCLUDED)+= core/rtw_bt_mp.o
 endif
 
-ifeq ($(CONFIG_PLATFORM_AML_S905), y)
-obj-m := $(MODULE_NAME).o
-else
 obj-$(CONFIG_RTL8822BS) := $(MODULE_NAME).o
-endif
 
 else
 

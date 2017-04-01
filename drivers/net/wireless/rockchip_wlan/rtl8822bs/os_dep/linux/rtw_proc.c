@@ -1090,6 +1090,55 @@ exit:
 }
 #endif /* CONFIG_DFS_MASTER */
 
+#ifdef CONFIG_80211N_HT
+int proc_get_rx_ampdu_size_limit(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *adapter = (_adapter *)rtw_netdev_priv(dev);
+
+	dump_regsty_rx_ampdu_size_limit(m, adapter);
+
+	return 0;
+}
+
+ssize_t proc_set_rx_ampdu_size_limit(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data)
+{
+	struct net_device *dev = data;
+	_adapter *adapter = (_adapter *)rtw_netdev_priv(dev);
+	struct registry_priv *regsty = adapter_to_regsty(adapter);
+	char tmp[32];
+	u8 nss;
+	u8 limit_by_bw[4] = {0xFF};
+
+	if (count < 1)
+		return -EFAULT;
+
+	if (count > sizeof(tmp)) {
+		rtw_warn_on(1);
+		return -EFAULT;
+	}
+
+	if (buffer && !copy_from_user(tmp, buffer, count)) {
+		int i;
+		int num = sscanf(tmp, "%hhu %hhu %hhu %hhu %hhu"
+			, &nss, &limit_by_bw[0], &limit_by_bw[1], &limit_by_bw[2], &limit_by_bw[3]);
+
+		if (num < 2)
+			goto exit;
+		if (nss == 0 || nss > 4)
+			goto exit;
+
+		for (i = 0; i < num - 1; i++)
+			regsty->rx_ampdu_sz_limit_by_nss_bw[nss - 1][i] = limit_by_bw[i];
+
+		rtw_rx_ampdu_apply(adapter);
+	}
+
+exit:
+	return count;
+}
+#endif /* CONFIG_80211N_HT */
+
 static int proc_get_udpport(struct seq_file *m, void *v)
 {
 	struct net_device *dev = m->private;
@@ -2389,6 +2438,7 @@ const struct rtw_proc_hdl adapter_proc_hdls[] = {
 	RTW_PROC_HDL_SSEQ("bw_mode", proc_get_bw_mode, proc_set_bw_mode),
 	RTW_PROC_HDL_SSEQ("ampdu_enable", proc_get_ampdu_enable, proc_set_ampdu_enable),
 	RTW_PROC_HDL_SSEQ("rx_ampdu", proc_get_rx_ampdu, proc_set_rx_ampdu),
+	RTW_PROC_HDL_SSEQ("rx_ampdu_size_limit", proc_get_rx_ampdu_size_limit, proc_set_rx_ampdu_size_limit),
 	RTW_PROC_HDL_SSEQ("rx_ampdu_factor", proc_get_rx_ampdu_factor, proc_set_rx_ampdu_factor),
 	RTW_PROC_HDL_SSEQ("rx_ampdu_density", proc_get_rx_ampdu_density, proc_set_rx_ampdu_density),
 	RTW_PROC_HDL_SSEQ("tx_ampdu_density", proc_get_tx_ampdu_density, proc_set_tx_ampdu_density),

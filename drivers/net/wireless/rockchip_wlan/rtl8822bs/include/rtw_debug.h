@@ -438,6 +438,7 @@ ssize_t proc_set_ampdu_enable(struct file *file, const char __user *buffer, size
 
 int proc_get_mac_rptbuf(struct seq_file *m, void *v);
 
+void dump_regsty_rx_ampdu_size_limit(void *sel, _adapter *adapter);
 int proc_get_rx_ampdu(struct seq_file *m, void *v);
 ssize_t proc_set_rx_ampdu(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
 

@@ -34,6 +34,10 @@ int rtl8822bs_halmac_init_adapter(PADAPTER);
 u32 rtl8822bs_read_port(struct dvobj_priv *, u32 cnt, u8 *mem);
 u32 rtl8822bs_write_port(struct dvobj_priv *, u32 cnt, u8 *mem);
 
+#ifdef CONFIG_PLATFORM_ZTE_ZX296716
+extern void dw_mci_clear_sdio_irq_status(void);
+#endif /* CONFIG_PLATFORM_ZTE_ZX296716 */
+
 /* rtl8822bs_led.c */
 void rtl8822bs_initswleds(PADAPTER);
 void rtl8822bs_deinitswleds(PADAPTER);
@@ -54,21 +58,10 @@ _pkt *rtl8822bs_alloc_recvbuf_skb(struct recv_buf *, u32 size);
 void rtl8822bs_free_recvbuf_skb(struct recv_buf *);
 s32 rtl8822bs_recv_hdl(_adapter *adapter);
 void rtl8822bs_rxhandler(PADAPTER, struct recv_buf *);
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-void rtl8822bs_rx_polling_init(struct dvobj_priv *);
-void rtl8822bs_rx_polling_deinit(struct dvobj_priv *);
-void rtl8822bs_rx_polling_thread_start(struct dvobj_priv *);
-void rtl8822bs_rx_polling_thread_stop(struct dvobj_priv *);
-void rtl8822bs_rx_polling_start(struct dvobj_priv *);
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
 
 /* rtl8822bs_ops.c */
-void rtl8822bs_get_interrupt(PADAPTER, u32 *hisr, u16 *rx_len);
+void rtl8822bs_get_interrupt(PADAPTER adapter, u32 *hisr, u32 *rx_len);
 void rtl8822bs_clear_interrupt(PADAPTER, u32 hisr);
 void rtl8822bs_init_interrupt(PADAPTER);
-#ifdef CONFIG_SDIO_RX_READ_IN_THREAD
-void rtl8822bs_enable_rx_interrupt(struct dvobj_priv *);
-void rtl8822bs_disable_rx_interrupt(struct dvobj_priv *);
-#endif /* CONFIG_SDIO_RX_READ_IN_THREAD */
 
 #endif /* _RTL8822BS_H_ */

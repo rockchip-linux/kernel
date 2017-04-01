@@ -20,29 +20,11 @@
 #ifndef	__RTW_RF_H_
 #define __RTW_RF_H_
 
-
-#define OFDM_PHY		1
-#define MIXED_PHY		2
-#define CCK_PHY		3
-
 #define NumRates	(13)
 
 /* slot time for 11g */
 #define SHORT_SLOT_TIME					9
 #define NON_SHORT_SLOT_TIME				20
-
-#define RTL8711_RF_MAX_SENS 6
-#define RTL8711_RF_DEF_SENS 4
-
-/*
- * We now define the following channels as the max channels in each channel plan.
- * 2G, total 14 chnls
- * {1,2,3,4,5,6,7,8,9,10,11,12,13,14}
- * 5G, total 24 chnls
- * {36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165} */
-#define	MAX_CHANNEL_NUM_2G				14
-#define	MAX_CHANNEL_NUM_5G				24
-#define	MAX_CHANNEL_NUM					38/* 14+24 */
 
 #define CENTER_CH_2G_40M_NUM	9
 #define CENTER_CH_2G_NUM		14
@@ -51,6 +33,10 @@
 #define CENTER_CH_5G_80M_NUM	7	/* 80M center channels */
 #define CENTER_CH_5G_160M_NUM	3	/* 160M center channels */
 #define CENTER_CH_5G_ALL_NUM	(CENTER_CH_5G_20M_NUM + CENTER_CH_5G_40M_NUM + CENTER_CH_5G_80M_NUM)
+
+#define	MAX_CHANNEL_NUM_2G	CENTER_CH_2G_NUM
+#define	MAX_CHANNEL_NUM_5G	CENTER_CH_5G_20M_NUM
+#define	MAX_CHANNEL_NUM		(MAX_CHANNEL_NUM_2G + MAX_CHANNEL_NUM_5G)
 
 extern u8 center_ch_2g[CENTER_CH_2G_NUM];
 extern u8 center_ch_2g_40m[CENTER_CH_2G_40M_NUM];
@@ -72,24 +58,6 @@ u8 rtw_get_scch_by_cch_offset(u8 cch, u8 bw, u8 offset);
 u8 rtw_get_op_chs_by_cch_bw(u8 cch, u8 bw, u8 **op_chs, u8 *op_ch_num);
 
 u8 rtw_get_ch_group(u8 ch, u8 *group, u8 *cck_group);
-
-/* #define NUM_REGULATORYS	21 */
-#define NUM_REGULATORYS	1
-
-/* Country codes */
-#define USA							0x555320
-#define EUROPE						0x1 /* temp, should be provided later	 */
-#define JAPAN						0x2 /* temp, should be provided later	 */
-
-struct	regulatory_class {
-	u32	starting_freq;					/* MHz, */
-	u8	channel_set[MAX_CHANNEL_NUM];
-	u8	channel_cck_power[MAX_CHANNEL_NUM];/* dbm */
-	u8	channel_ofdm_power[MAX_CHANNEL_NUM];/* dbm */
-	u8	txpower_limit;  				/* dbm */
-	u8	channel_spacing;				/* MHz */
-	u8	modem;
-};
 
 typedef enum _CAPABILITY {
 	cESS			= 0x0001,
@@ -114,18 +82,6 @@ enum	_REG_PREAMBLE_MODE {
 	PREAMBLE_LONG	= 1,
 	PREAMBLE_AUTO	= 2,
 	PREAMBLE_SHORT	= 3,
-};
-
-
-enum _RTL8712_RF_MIMO_CONFIG_ {
-	RTL8712_RFCONFIG_1T = 0x10,
-	RTL8712_RFCONFIG_2T = 0x20,
-	RTL8712_RFCONFIG_1R = 0x01,
-	RTL8712_RFCONFIG_2R = 0x02,
-	RTL8712_RFCONFIG_1T1R = 0x11,
-	RTL8712_RFCONFIG_1T2R = 0x12,
-	RTL8712_RFCONFIG_TURBO = 0x92,
-	RTL8712_RFCONFIG_2T2R = 0x22
 };
 
 typedef enum _RF_PATH {
@@ -276,8 +232,14 @@ int rtw_ch_to_bb_gain_sel(int ch);
 void rtw_rf_set_tx_gain_offset(_adapter *adapter, u8 path, s8 offset);
 void rtw_rf_apply_tx_gain_offset(_adapter *adapter, u8 ch);
 
-bool rtw_is_dfs_range(u32 hi, u32 lo);
-bool rtw_is_dfs_ch(u8 ch, u8 bw, u8 offset);
+u8 rtw_is_5g_band1(u8 ch);
+u8 rtw_is_5g_band2(u8 ch);
+u8 rtw_is_5g_band3(u8 ch);
+u8 rtw_is_5g_band4(u8 ch);
+
+u8 rtw_is_dfs_range(u32 hi, u32 lo);
+u8 rtw_is_dfs_ch(u8 ch);
+u8 rtw_is_dfs_chbw(u8 ch, u8 bw, u8 offset);
 bool rtw_is_long_cac_range(u32 hi, u32 lo, u8 dfs_region);
 bool rtw_is_long_cac_ch(u8 ch, u8 bw, u8 offset, u8 dfs_region);
 

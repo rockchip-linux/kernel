@@ -108,6 +108,7 @@ halmac_init_adapter(
 	pHalmac_platform_api->MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_MAJOR_VER = %x\n", HALMAC_MAJOR_VER);
 	pHalmac_platform_api->MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_PROTOTYPE_VER = %x\n", HALMAC_PROTOTYPE_VER);
 	pHalmac_platform_api->MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_MINOR_VER = %x\n", HALMAC_MINOR_VER);
+	pHalmac_platform_api->MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_PATCH_VER = %x\n", HALMAC_PATCH_VER);
 
 	pHalmac_platform_api->MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_TRACE, "halmac_init_adapter_88xx ==========>\n");
 
@@ -424,16 +425,14 @@ halmac_get_chip_info(
 
 	/* Get Chip_id and Chip_version */
 	if (HALMAC_INTERFACE_SDIO == pHalmac_adapter->halmac_interface) {
-		chip_id = platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SYS_CFG2);
-		/*if (chip_id == 0xEA) {*/
-			plarform_reg_write_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SDIO_HSUS_CTRL, platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SDIO_HSUS_CTRL) & ~(BIT(0)));
-			polling_count = HALMAC_POLLING_READY_TIMEOUT_COUNT;
-			while (!(platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SDIO_HSUS_CTRL) & 0x02)) {
-				polling_count--;
-				if (polling_count == 0)
-					return HALMAC_RET_SDIO_LEAVE_SUSPEND_FAIL;
-			}
-		/*}*/
+		plarform_reg_write_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SDIO_HSUS_CTRL, platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SDIO_HSUS_CTRL) & ~(BIT(0)));
+
+		polling_count = HALMAC_POLLING_READY_TIMEOUT_COUNT;
+		while (!(platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SDIO_HSUS_CTRL) & 0x02)) {
+			polling_count--;
+			if (polling_count == 0)
+				return HALMAC_RET_SDIO_LEAVE_SUSPEND_FAIL;
+		}
 
 		chip_id = platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SYS_CFG2);
 		chip_version =  platform_reg_read_8_sdio(pDriver_adapter, pHalmac_platform_api, REG_SYS_CFG1 + 1) >> 4;

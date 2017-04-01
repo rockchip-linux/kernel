@@ -1274,6 +1274,9 @@ void start_bss_network(_adapter *padapter, struct createbss_parm *parm)
 		req_bw = parm->req_bw;
 		req_offset = parm->req_offset;
 		goto chbw_decision;
+	} else {
+		/* inform this request comes from upper layer */
+		req_ch = 0;
 	}
 
 	bcn_interval = (u16)pnetwork->Configuration.BeaconPeriod;
@@ -1429,9 +1432,7 @@ update_beacon:
 	rtw_scan_wait_completed(padapter);
 
 	/* send beacon */
-	if ((0 == rtw_mi_check_fwstate(padapter, _FW_UNDER_SURVEY))
-		&& (0 == rtw_mi_check_fwstate(padapter, WIFI_OP_CH_SWITCHING))
-	) {
+	if (!rtw_mi_check_fwstate(padapter, _FW_UNDER_SURVEY)) {
 
 		/*update_beacon(padapter, _TIM_IE_, NULL, _TRUE);*/
 
@@ -3909,23 +3910,30 @@ bool rtw_ap_chbw_decision(_adapter *adapter, s16 req_ch, s8 req_bw, s8 req_offse
 		/* check temporary decision first */
 		rtw_adjust_chbw(adapter, dec_ch, &dec_bw, &dec_offset);
 		if (!rtw_get_offset_by_chbw(dec_ch, dec_bw, &dec_offset)) {
-#if defined(CONFIG_DFS_MASTER)
 			if (req_ch == -1 || req_bw == -1)
 				goto choose_chbw;
-#endif
 			RTW_WARN(FUNC_ADPT_FMT" req: %u,%u has no valid offset\n", FUNC_ADPT_ARG(adapter), dec_ch, dec_bw);
 			*chbw_allow = _FALSE;
 			goto exit;
 		}
 
 		if (!rtw_chset_is_chbw_valid(mlmeext->channel_set, dec_ch, dec_bw, dec_offset)) {
-#if defined(CONFIG_DFS_MASTER)
 			if (req_ch == -1 || req_bw == -1)
 				goto choose_chbw;
-#endif
 			RTW_WARN(FUNC_ADPT_FMT" req: %u,%u,%u doesn't fit in chplan\n", FUNC_ADPT_ARG(adapter), dec_ch, dec_bw, dec_offset);
 			*chbw_allow = _FALSE;
 			goto exit;
+		}
+
+		if (rtw_odm_dfs_domain_unknown(adapter) && rtw_is_dfs_chbw(dec_ch, dec_bw, dec_offset)) {
+			if (req_ch >= 0)
+				RTW_WARN(FUNC_ADPT_FMT" DFS channel %u,%u,%u can't be used\n", FUNC_ADPT_ARG(adapter), dec_ch, dec_bw, dec_offset);
+			if (req_ch > 0) {
+				/* specific channel and not from IE => don't change channel setting */
+				*chbw_allow = _FALSE;
+				goto exit;
+			}
+			goto choose_chbw;
 		}
 
 		if (rtw_chset_is_ch_non_ocp(mlmeext->channel_set, dec_ch, dec_bw, dec_offset) == _FALSE)
@@ -3936,19 +3944,26 @@ choose_chbw:
 			req_bw = cur_ie_bw;
 
 #if defined(CONFIG_DFS_MASTER)
-		/* choose 5G DFS channel for debug */
-		if (adapter_to_rfctl(adapter)->dbg_dfs_master_choose_dfs_ch_first
-		    && rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, RTW_CHF_2G | RTW_CHF_NON_DFS) == _TRUE)
-			RTW_INFO(FUNC_ADPT_FMT" choose 5G DFS channel for debug\n", FUNC_ADPT_ARG(adapter));
-		else if (adapter_to_rfctl(adapter)->dfs_ch_sel_d_flags
-			&& rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, adapter_to_rfctl(adapter)->dfs_ch_sel_d_flags) == _TRUE)
-			RTW_INFO(FUNC_ADPT_FMT" choose with dfs_ch_sel_d_flags:0x%02x for debug\n", FUNC_ADPT_ARG(adapter), adapter_to_rfctl(adapter)->dfs_ch_sel_d_flags);
-		else if (rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, 0) == _FALSE) {
+		if (!rtw_odm_dfs_domain_unknown(adapter)) {
+			/* choose 5G DFS channel for debug */
+			if (adapter_to_rfctl(adapter)->dbg_dfs_master_choose_dfs_ch_first
+				&& rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, RTW_CHF_2G | RTW_CHF_NON_DFS) == _TRUE)
+				RTW_INFO(FUNC_ADPT_FMT" choose 5G DFS channel for debug\n", FUNC_ADPT_ARG(adapter));
+			else if (adapter_to_rfctl(adapter)->dfs_ch_sel_d_flags
+				&& rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, adapter_to_rfctl(adapter)->dfs_ch_sel_d_flags) == _TRUE)
+				RTW_INFO(FUNC_ADPT_FMT" choose with dfs_ch_sel_d_flags:0x%02x for debug\n", FUNC_ADPT_ARG(adapter), adapter_to_rfctl(adapter)->dfs_ch_sel_d_flags);
+			else if (rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, 0) == _FALSE) {
+				RTW_WARN(FUNC_ADPT_FMT" no available channel\n", FUNC_ADPT_ARG(adapter));
+				*chbw_allow = _FALSE;
+				goto exit;
+			}
+		} else
+#endif /* defined(CONFIG_DFS_MASTER) */
+		if (rtw_choose_shortest_waiting_ch(adapter, req_bw, &dec_ch, &dec_bw, &dec_offset, RTW_CHF_DFS) == _FALSE) {
 			RTW_WARN(FUNC_ADPT_FMT" no available channel\n", FUNC_ADPT_ARG(adapter));
 			*chbw_allow = _FALSE;
 			goto exit;
 		}
-#endif /* defined(CONFIG_DFS_MASTER) */
 
 update_bss_chbw:
 		rtw_ap_update_bss_chbw(adapter, &(adapter->mlmepriv.cur_network.network)
@@ -4118,8 +4133,15 @@ void tx_beacon_handlder(struct dvobj_priv *pdvobj)
 #ifdef DBG_SWTIMER_BASED_TXBCN
 		RTW_INFO("padapter=%p, PORT=%d\n", padapter, padapter->hw_port);
 #endif
-		/*update_beacon(padapter, _TIM_IE_, NULL, _FALSE);*/
-		issue_beacon(padapter, 0);
+		/* bypass TX BCN queue if op ch is switching/waiting */
+		if (!check_fwstate(&padapter->mlmepriv, WIFI_OP_CH_SWITCHING)
+			#ifdef CONFIG_DFS_MASTER
+			&& !IS_CH_WAITING(adapter_to_rfctl(padapter))
+			#endif
+		) {
+			/*update_beacon(padapter, _TIM_IE_, NULL, _FALSE);*/
+			issue_beacon(padapter, 0);
+		}
 	}
 
 #if 0

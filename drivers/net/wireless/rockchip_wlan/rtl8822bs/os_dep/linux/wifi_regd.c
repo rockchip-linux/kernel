@@ -134,11 +134,6 @@ static const struct ieee80211_regdomain rtw_regdom_14 = {
 static struct rtw_regulatory *rtw_regd;
 #endif
 
-static bool _rtw_is_radar_freq(u16 center_freq)
-{
-	return center_freq >= 5260 && center_freq <= 5700;
-}
-
 #if 0 /* not_yet */
 static void _rtw_reg_apply_beaconing_flags(struct wiphy *wiphy,
 		enum nl80211_reg_initiator initiator)
@@ -160,7 +155,7 @@ static void _rtw_reg_apply_beaconing_flags(struct wiphy *wiphy,
 
 		for (i = 0; i < sband->n_channels; i++) {
 			ch = &sband->channels[i];
-			if (_rtw_is_radar_freq(ch->center_freq) ||
+			if (rtw_is_dfs_ch(ch->hw_value) ||
 			    (ch->flags & IEEE80211_CHAN_RADAR))
 				continue;
 			if (initiator == NL80211_REGDOM_SET_BY_COUNTRY_IE) {
@@ -265,11 +260,14 @@ static void _rtw_reg_apply_radar_flags(struct wiphy *wiphy)
 
 	for (i = 0; i < sband->n_channels; i++) {
 		ch = &sband->channels[i];
-		if (!_rtw_is_radar_freq(ch->center_freq))
+		if (!rtw_is_dfs_ch(ch->hw_value))
 			continue;
 #ifdef CONFIG_DFS
-		#if !defined(CONFIG_DFS_MASTER)
-		if (!(ch->flags & IEEE80211_CHAN_DISABLED)) {
+		if (!(ch->flags & IEEE80211_CHAN_DISABLED)
+			#if defined(CONFIG_DFS_MASTER)
+			&& rtw_odm_dfs_domain_unknown(wiphy_to_adapter(wiphy))
+			#endif
+		) {
 			ch->flags |= IEEE80211_CHAN_RADAR;
 			#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 			ch->flags |= (IEEE80211_CHAN_NO_IBSS | IEEE80211_CHAN_PASSIVE_SCAN);
@@ -277,7 +275,6 @@ static void _rtw_reg_apply_radar_flags(struct wiphy *wiphy)
 			ch->flags |= IEEE80211_CHAN_NO_IR;
 			#endif
 		}
-		#endif
 #endif /* CONFIG_DFS */
 
 #if 0
@@ -336,10 +333,12 @@ static void _rtw_reg_apply_flags(struct wiphy *wiphy)
 
 		ch = ieee80211_get_channel(wiphy, freq);
 		if (ch) {
-			if (channel_set[i].ScanType == SCAN_PASSIVE) {
+			if (channel_set[i].ScanType == SCAN_PASSIVE
 				#if defined(CONFIG_DFS_MASTER)
-				ch->flags = 0;
-				#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
+				&& rtw_odm_dfs_domain_unknown(wiphy_to_adapter(wiphy))
+				#endif
+			) {
+				#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0))
 				ch->flags = (IEEE80211_CHAN_NO_IBSS | IEEE80211_CHAN_PASSIVE_SCAN);
 				#else
 				ch->flags = IEEE80211_CHAN_NO_IR;

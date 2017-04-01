@@ -18,12 +18,12 @@
 *
 ******************************************************************************/
 
-/*Image2HeaderVersion: 3.1*/
+/*Image2HeaderVersion: R2 1.0*/
 #include "mp_precomp.h"
 #include "../phydm_precomp.h"
 
 #if (RTL8822B_SUPPORT == 1)
-static bool
+static boolean
 check_positive(
 	struct PHY_DM_STRUCT *p_dm_odm,
 	const u32	condition1,
@@ -32,19 +32,17 @@ check_positive(
 	const u32	condition4
 )
 {
-	u8	_board_type = ((p_dm_odm->board_type & BIT(4)) >> 4) << 0 | /* _GLNA*/
-			((p_dm_odm->board_type & BIT(3)) >> 3) << 1 | /* _GPA*/
-			((p_dm_odm->board_type & BIT(7)) >> 7) << 2 | /* _ALNA*/
-			((p_dm_odm->board_type & BIT(6)) >> 6) << 3 | /* _APA */
-			((p_dm_odm->board_type & BIT(2)) >> 2) << 4;  /* _BT*/
-
 	u32	cond1 = condition1, cond2 = condition2, cond3 = condition3, cond4 = condition4;
-	u32	driver1 = p_dm_odm->cut_version << 24 |
+
+	u8	cut_version_for_para = (p_dm_odm->cut_version ==  ODM_CUT_A) ? 15 : p_dm_odm->cut_version;
+	u8	pkg_type_for_para = (p_dm_odm->package_type == 0) ? 15 : p_dm_odm->package_type;
+
+	u32	driver1 = cut_version_for_para << 24 |
 			(p_dm_odm->support_interface & 0xF0) << 16 |
 			p_dm_odm->support_platform << 16 |
-			p_dm_odm->package_type << 12 |
+			pkg_type_for_para << 12 |
 			(p_dm_odm->support_interface & 0x0F) << 8  |
-			_board_type;
+			p_dm_odm->rfe_type;
 
 	u32	driver2 = (p_dm_odm->type_glna & 0xFF) <<  0 |
 			(p_dm_odm->type_gpa & 0xFF)  <<  8 |
@@ -66,46 +64,27 @@ check_positive(
 	ODM_RT_TRACE(p_dm_odm, ODM_COMP_INIT, ODM_DBG_TRACE,
 	("	(Platform, Interface) = (0x%X, 0x%X)\n", p_dm_odm->support_platform, p_dm_odm->support_interface));
 	ODM_RT_TRACE(p_dm_odm, ODM_COMP_INIT, ODM_DBG_TRACE,
-	("	(Board, Package) = (0x%X, 0x%X)\n", p_dm_odm->board_type, p_dm_odm->package_type));
+	("	(RFE, Package) = (0x%X, 0x%X)\n", p_dm_odm->rfe_type, p_dm_odm->package_type));
 
 
 	/*============== value Defined Check ===============*/
-	/*QFN type [15:12] and cut version [27:24] need to do value check*/
+	/*cut version [27:24] need to do value check*/
 
-	if (((cond1 & 0x0000F000) != 0) && ((cond1 & 0x0000F000) != (driver1 & 0x0000F000)))
-		return false;
 	if (((cond1 & 0x0F000000) != 0) && ((cond1 & 0x0F000000) != (driver1 & 0x0F000000)))
 		return false;
 
 	/*=============== Bit Defined Check ================*/
 	/* We don't care [31:28] */
 
-	cond1 &= 0x00FF0FFF;
-	driver1 &= 0x00FF0FFF;
+	cond1 &= 0x000000FF;
+	driver1 &= 0x000000FF;
 
-	if ((cond1 & driver1) == cond1) {
-		u32	bit_mask = 0;
-
-		if ((cond1 & 0x0F) == 0) /* board_type is DONTCARE*/
-			return true;
-
-		if ((cond1 & BIT(0)) != 0) /*GLNA*/
-			bit_mask |= 0x000000FF;
-		if ((cond1 & BIT(1)) != 0) /*GPA*/
-			bit_mask |= 0x0000FF00;
-		if ((cond1 & BIT(2)) != 0) /*ALNA*/
-			bit_mask |= 0x00FF0000;
-		if ((cond1 & BIT(3)) != 0) /*APA*/
-			bit_mask |= 0xFF000000;
-
-		if (((cond2 & bit_mask) == (driver2 & bit_mask)) && ((cond4 & bit_mask) == (driver4 & bit_mask)))  /* board_type of each RF path is matched*/
-			return true;
-		else
-			return false;
-	} else
+	if (cond1 == driver1)
+		return true;
+	else
 		return false;
 }
-static bool
+static boolean
 check_negative(
 	struct PHY_DM_STRUCT *p_dm_odm,
 	const u32	condition1,
@@ -255,7 +234,7 @@ odm_read_and_config_mp_8822b_mac_reg(
 {
 	u32	i = 0;
 	u8	c_cond;
-	bool	is_matched = true, is_skipped = false;
+	boolean	is_matched = true, is_skipped = false;
 	u32	array_len = sizeof(array_mp_8822b_mac_reg)/sizeof(u32);
 	u32	*array = array_mp_8822b_mac_reg;
 
@@ -305,7 +284,7 @@ odm_read_and_config_mp_8822b_mac_reg(
 u32
 odm_get_version_mp_8822b_mac_reg(void)
 {
-		return 63;
+		return 76;
 }
 
 #endif /* end of HWIMG_SUPPORT*/

@@ -34,6 +34,11 @@ void rtw_btcoex_PowerOnSetting(PADAPTER padapter)
 	hal_btcoex_PowerOnSetting(padapter);
 }
 
+void rtw_btcoex_PowerOffSetting(PADAPTER padapter)
+{
+	hal_btcoex_PowerOffSetting(padapter);
+}
+
 void rtw_btcoex_PreLoadFirmware(PADAPTER padapter)
 {
 	hal_btcoex_PreLoadFirmware(padapter);

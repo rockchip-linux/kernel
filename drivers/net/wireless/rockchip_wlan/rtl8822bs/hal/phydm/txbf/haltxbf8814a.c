@@ -291,7 +291,8 @@ hal_txbf_8814a_rf_mode(
 		}
 
 		/*for 8814 19ac(idx 1), 19b4(idx 0), different Tx ant setting*/
-		odm_set_bb_reg(p_dm_odm, REG_BB_TXBF_ANT_SET_BF1_8814A, BIT(28) | BIT29, 0x2);			/*enable BB TxBF ant mapping register*/
+		odm_set_bb_reg(p_dm_odm, REG_BB_TXBF_ANT_SET_BF1_8814A, BIT(28) | BIT(29), 0x2);			/*enable BB TxBF ant mapping register*/
+		odm_set_bb_reg(p_dm_odm, REG_BB_TXBF_ANT_SET_BF1_8814A, BIT(30), 0x1);			/*if Nsts > Nc don't apply V matrix*/
 
 		if (idx == 0) {
 			switch (nr_index) {

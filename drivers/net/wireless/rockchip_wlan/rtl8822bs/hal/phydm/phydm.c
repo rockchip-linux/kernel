@@ -931,6 +931,7 @@ phydm_supportability_init(
 			ODM_BB_RSSI_MONITOR	|
 			ODM_BB_RA_MASK		|
 			ODM_RF_TX_PWR_TRACK	|
+			ODM_BB_DYNAMIC_PSDTOOL	|
 			ODM_MAC_EDCA_TURBO;
 		break;
 
@@ -1007,6 +1008,12 @@ odm_dm_init(
 	odm_rssi_monitor_init(p_dm_odm);
 	phydm_rf_init(p_dm_odm);
 	odm_txpowertracking_init(p_dm_odm);
+
+#if (RTL8822B_SUPPORT == 1)
+			if (p_dm_odm->support_ic_type & ODM_RTL8822B)
+				phydm_txcurrentcalibration(p_dm_odm);
+#endif
+	
 	odm_antenna_diversity_init(p_dm_odm);
 #if (CONFIG_DYNAMIC_RX_PATH == 1)
 	phydm_dynamic_rx_path_init(p_dm_odm);
@@ -1399,6 +1406,12 @@ odm_cmn_info_init(
 		break;
 	case	ODM_CMNINFO_NORMAL_RX_PATH_CHANGE:
 		p_dm_odm->normal_rx_path = (u8)value;
+		break;
+	case	ODM_CMNINFO_EFUSE0X3D8:
+		p_dm_odm->efuse0x3d8 = (u8)value;
+		break;
+	case	ODM_CMNINFO_EFUSE0X3D7:
+		p_dm_odm->efuse0x3d7 = (u8)value;
 		break;
 #ifdef CONFIG_PHYDM_DFS_MASTER
 	case	ODM_CMNINFO_DFS_REGION_DOMAIN:

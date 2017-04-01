@@ -249,6 +249,7 @@ typedef enum _BTC_GET_TYPE {
 	BTC_GET_BL_EXT_SWITCH,
 	BTC_GET_BL_WIFI_IS_IN_MP_MODE,
 	BTC_GET_BL_IS_ASUS_8723B,
+	BTC_GET_BL_RF4CE_CONNECTED,
 
 	/* type s4Byte */
 	BTC_GET_S4_WIFI_RSSI,
@@ -685,6 +686,13 @@ typedef u4Byte
 	IN  u1Byte			scanType
 	);
 
+typedef BOOLEAN
+(*BFP_BTC_GET_BT_AFH_MAP_FROM_BT)(
+	IN	PVOID			pBtcContext,
+	IN	u1Byte			mapType,
+	OUT	pu1Byte			afhMap
+	);
+
 struct  btc_bt_info {
 	boolean					bt_disabled;
 	boolean				bt_enable_disable_change;
@@ -826,6 +834,7 @@ struct btc_coexist {
 	BFP_BTC_GET_ANT_DET_VAL_FROM_BT		btc_get_ant_det_val_from_bt;
 	BFP_BTC_GET_BLE_SCAN_TYPE_FROM_BT	btc_get_ble_scan_type_from_bt;
 	BFP_BTC_GET_BLE_SCAN_PARA_FROM_BT	btc_get_ble_scan_para_from_bt;
+	BFP_BTC_GET_BT_AFH_MAP_FROM_BT		btc_get_bt_afh_map_from_bt;
 };
 typedef struct btc_coexist *PBTC_COEXIST;
 

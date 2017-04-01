@@ -598,9 +598,6 @@ struct mlme_priv {
 
 	u8	*nic_hdl;
 
-#ifdef SUPPLICANT_RTK_VERSION_LOWER_THAN_JB42
-	u8	not_indic_disco;
-#endif
 	_list		*pscanned;
 	_queue	free_bss_pool;
 	_queue	scanned_queue;

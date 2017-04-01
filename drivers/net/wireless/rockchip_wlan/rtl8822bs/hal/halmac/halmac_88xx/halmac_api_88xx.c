@@ -190,7 +190,7 @@ halmac_mount_api_88xx(
 	PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_MAJOR_VER_88XX = %x\n", HALMAC_MAJOR_VER_88XX);
 	PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_PROTOTYPE_88XX = %x\n", HALMAC_PROTOTYPE_VER_88XX);
 	PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_MINOR_VER_88XX = %x\n", HALMAC_MINOR_VER_88XX);
-
+	PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_ERR, "HALMAC_PATCH_VER_88XX = %x\n", HALMAC_PATCH_VER_88XX);
 
 	/* Mount function pointer */
 	pHalmac_api->halmac_download_firmware = halmac_download_firmware_88xx;
@@ -611,21 +611,21 @@ halmac_download_firmware_88xx(
 	pFile_ptr = pHamacl_fw + HALMAC_FWHDR_SIZE_88XX;
 	/* if (HALMAC_RET_SUCCESS != halmac_dlfw_to_mem_88xx(pHalmac_adapter, pFile_ptr, HALMAC_OCPBASE_DMEM_88XX, dmem_pkt_size)) */
 	if (HALMAC_RET_SUCCESS != halmac_dlfw_to_mem_88xx(pHalmac_adapter, pFile_ptr,
-		    rtk_le32_to_cpu((*((u32 *)(pHamacl_fw + HALMAC_FWHDR_OFFSET_DMEM_ADDR_88XX))) & ~(BIT(31))), dmem_pkt_size))
+		    rtk_le32_to_cpu(*((u32 *)(pHamacl_fw + HALMAC_FWHDR_OFFSET_DMEM_ADDR_88XX))) & ~(BIT(31)), dmem_pkt_size))
 		goto DLFW_END;
 
 	/* Download to IMEM */
 	pFile_ptr = pHamacl_fw + HALMAC_FWHDR_SIZE_88XX + dmem_pkt_size;
 	/* if (HALMAC_RET_SUCCESS != halmac_dlfw_to_mem_88xx(pHalmac_adapter, pFile_ptr, HALMAC_OCPBASE_IMEM_88XX, iram_pkt_size)) */
 	if (HALMAC_RET_SUCCESS != halmac_dlfw_to_mem_88xx(pHalmac_adapter, pFile_ptr,
-		    rtk_le32_to_cpu((*((u32 *)(pHamacl_fw + HALMAC_FWHDR_OFFSET_IRAM_ADDR_88XX))) & ~(BIT(31))), iram_pkt_size))
+		    rtk_le32_to_cpu(*((u32 *)(pHamacl_fw + HALMAC_FWHDR_OFFSET_IRAM_ADDR_88XX))) & ~(BIT(31)), iram_pkt_size))
 		goto DLFW_END;
 
 	/* Download to EMEM */
 	if (0 != eram_pkt_size) {
 		pFile_ptr = pHamacl_fw + HALMAC_FWHDR_SIZE_88XX + dmem_pkt_size + iram_pkt_size;
 		if (HALMAC_RET_SUCCESS != halmac_dlfw_to_mem_88xx(pHalmac_adapter, pFile_ptr,
-			    rtk_le32_to_cpu((*((u32 *)(pHamacl_fw + HALMAC_FWHDR_OFFSET_EMEM_ADDR_88XX))) & ~(BIT(31))), eram_pkt_size))
+			    rtk_le32_to_cpu(*((u32 *)(pHamacl_fw + HALMAC_FWHDR_OFFSET_EMEM_ADDR_88XX))) & ~(BIT(31)), eram_pkt_size))
 			goto DLFW_END;
 	}
 
@@ -853,7 +853,7 @@ halmac_pre_init_system_cfg_88xx(
 	IN PHALMAC_ADAPTER pHalmac_adapter
 )
 {
-	u32 value32;
+	u32 value32, counter;
 	VOID *pDriver_adapter = NULL;
 	PHALMAC_API pHalmac_api;
 	u8 enable_bb;
@@ -870,6 +870,16 @@ halmac_pre_init_system_cfg_88xx(
 	pHalmac_api = (PHALMAC_API)pHalmac_adapter->pHalmac_api;
 
 	PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_INIT, HALMAC_DBG_TRACE, "halmac_pre_init_system_cfg ==========>\n");
+
+	if (pHalmac_adapter->halmac_interface == HALMAC_INTERFACE_SDIO) {
+		HALMAC_REG_WRITE_8(pHalmac_adapter, REG_SDIO_HSUS_CTRL, HALMAC_REG_READ_8(pHalmac_adapter, REG_SDIO_HSUS_CTRL) & ~(BIT(0)));
+		counter = 10000;
+		while (!(HALMAC_REG_READ_8(pHalmac_adapter, REG_SDIO_HSUS_CTRL) & 0x02)) {
+			counter--;
+			if (counter == 0)
+				return HALMAC_RET_SDIO_LEAVE_SUSPEND_FAIL;
+		}
+	}
 
 	/* Config PIN Mux */
 	value32 = HALMAC_REG_READ_32(pHalmac_adapter, REG_PAD_CTRL1);
@@ -2857,12 +2867,12 @@ halmac_cfg_drv_info_88xx(
 		return status;
 	}
 
-	if (HALMAC_RX_FIFO_EXPANDING_MODE_DISABLE != pHalmac_adapter->txff_allocation.rx_fifo_expanding_mode)
-		drv_info_size = 0x0A;
+	if (pHalmac_adapter->txff_allocation.rx_fifo_expanding_mode != HALMAC_RX_FIFO_EXPANDING_MODE_DISABLE)
+		drv_info_size = HALMAC_RX_DESC_DUMMY_SIZE_MAX_88XX >> 3;
+
+	HALMAC_REG_WRITE_8(pHalmac_adapter, REG_RX_DRVINFO_SZ, drv_info_size);
 
 	pHalmac_adapter->drv_info_size = drv_info_size;
-
-		HALMAC_REG_WRITE_8(pHalmac_adapter, REG_RX_DRVINFO_SZ, drv_info_size);
 
 	value32 = HALMAC_REG_READ_32(pHalmac_adapter, REG_RCR);
 	value32 = (value32 & (~BIT_APP_PHYSTS));
@@ -3099,6 +3109,9 @@ halmac_fill_txdesc_check_sum_88xx(
 	for (i = 0; i < 8; i++)
 		chk_result ^= (*(pData + 2 * i) ^ *(pData + (2 * i + 1)));
 
+	/* *(pData + 2 * i) & *(pData + (2 * i + 1) have endain issue*/
+	/* Process eniadn issue after checksum calculation */
+	chk_result = rtk_le16_to_cpu(chk_result);
 	SET_TX_DESC_TXDESC_CHECKSUM(pCur_desc, chk_result);
 
 	return HALMAC_RET_SUCCESS;
