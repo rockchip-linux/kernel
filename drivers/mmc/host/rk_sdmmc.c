@@ -1415,6 +1415,8 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 		break;
 	case MMC_POWER_OFF:
+		if (!IS_ERR_OR_NULL(host->vmmc))
+			regulator_set_voltage(host->vmmc, 3300000, 3300000);
 	/* Power down slot */
 		if ((mmc->restrict_caps & RESTRICT_CARD_TYPE_SD) &&
 		    !IS_ERR(host->pins_idle) && cpu_is_rv110x()) {
