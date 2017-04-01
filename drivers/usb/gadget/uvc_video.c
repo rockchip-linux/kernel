@@ -24,6 +24,9 @@
 /* --------------------------------------------------------------------------
  * Video codecs
  */
+static unsigned int hs_bulk_xfersize = (512 * 20);
+module_param(hs_bulk_xfersize, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(hs_bulk_xfersize, "512 - 512 * 20 (hs bulk only)");
 
 static int
 uvc_video_encode_header(struct uvc_video *video, struct uvc_buffer *buf,
@@ -238,9 +241,22 @@ uvc_video_alloc_requests(struct uvc_video *video)
 
 	BUG_ON(video->req_size);
 
-	req_size = video->ep->maxpacket
-		 * max_t(unsigned int, video->ep->maxburst, 1)
-		 * (video->ep->mult);
+	if (!video->bulk_streaming_ep) {
+		req_size = video->ep->maxpacket
+			* max_t(unsigned int, video->ep->maxburst, 1)
+			* (video->ep->mult);
+	} else {
+		req_size = video->ep->maxpacket
+			* max_t(unsigned int, video->ep->maxburst, 1);
+
+		/*
+		 * For bulk ep, the usb controller may be able to
+		 * transfer more than 512 bytes in a transaction.
+		 */
+		if (video->ep->maxpacket == 512)
+			req_size = max_t(unsigned int, req_size,
+					 hs_bulk_xfersize);
+	}
 
 	for (i = 0; i < UVC_NUM_REQUESTS; ++i) {
 		video->req_buffer[i] = kmalloc(req_size, GFP_KERNEL);
@@ -386,6 +402,9 @@ uvc_video_init(struct uvc_video *video)
 	video->width = 320;
 	video->height = 240;
 	video->imagesize = 320 * 240 * 2;
+
+	if (video->bulk_streaming_ep)
+		video->max_payload_size = video->imagesize;
 
 	/* Initialize the video buffers queue. */
 	uvc_queue_init(&video->queue, V4L2_BUF_TYPE_VIDEO_OUTPUT);

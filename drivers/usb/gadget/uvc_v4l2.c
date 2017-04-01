@@ -250,11 +250,20 @@ uvc_v4l2_do_ioctl(struct file *file, unsigned int cmd, void *arg)
 			return ret;
 
 		/*
-		 * Complete the alternate setting selection setup phase now that
-		 * userspace is ready to provide video frames.
+		 * Alt settings in an interface are supported only for ISOC
+		 * endpoints as there are different alt-settings for
+		 * zero-bandwidth and full-bandwidth cases, but the same is not
+		 * true for BULK endpoints, as they have a single alt-setting.
 		 */
-		uvc_function_setup_continue(uvc);
-		uvc->state = UVC_STATE_STREAMING;
+		if (!video->bulk_streaming_ep) {
+			/*
+			 * Complete the alternate setting selection setup
+			 * phase now that userspace is ready to provide video
+			 * frames.
+			 */
+			uvc_function_setup_continue(uvc);
+			uvc->state = UVC_STATE_STREAMING;
+		}
 
 		return 0;
 	}
