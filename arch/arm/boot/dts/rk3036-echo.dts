@@ -315,6 +315,271 @@
 	};
 };
 
+&i2c2 {
+	status = "okay";
+	is31fl3236: led-controller@3c {
+		compatible = "issi,is31fl3236";
+		reg = <0x3c>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		rockchip,num-sdb-gpio = <&gpio2 GPIO_C3 GPIO_ACTIVE_LOW>;
+		status = "okay";
+
+		led1: led@1 {
+			label = "led1";
+			reg = <1>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+			/*"none";*/
+		};
+
+		led2: led@2 {
+			label = "led2";
+			reg = <2>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led3: led@3 {
+			label = "led3";
+			reg = <3>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led4: led@4 {
+			label = "led4";
+			reg = <4>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led5: led@5 {
+			label = "led5";
+			reg = <5>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led6: led@6 {
+			label = "led6";
+			reg = <6>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led7: led@7 {
+			label = "led7";
+			reg = <7>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led8: led@8 {
+			label = "led8";
+			reg = <8>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led9: led@9 {
+			label = "led9";
+			reg = <9>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led10: led@10 {
+			label = "led10";
+			reg = <10>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led11: led@11 {
+			label = "led11";
+			reg = <11>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led12: led@12 {
+			label = "led12";
+			reg = <12>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led13: led@13 {
+			label = "led13";
+			reg = <13>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led14: led@14 {
+			label = "led14";
+			reg = <14>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led15: led@15 {
+			label = "led15";
+			reg = <15>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led16: led@16 {
+			label = "led16";
+			reg = <16>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led17: led@17 {
+			label = "led17";
+			reg = <17>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led18: led@18 {
+			label = "led18";
+			reg = <18>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led19: led@19 {
+			label = "led19";
+			reg = <19>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led20: led@20 {
+			label = "led20";
+			reg = <20>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led21: led@21 {
+			label = "led21";
+			reg = <21>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led22: led@22 {
+			label = "led22";
+			reg = <22>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led23: led@23 {
+			label = "led23";
+			reg = <23>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led124: led@24 {
+			label = "led24";
+			reg = <24>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led25: led@25 {
+			label = "led25";
+			reg = <25>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led26: led@26 {
+			label = "led26";
+			reg = <26>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led27: led@27 {
+			label = "led27";
+			reg = <27>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led28: led@28 {
+			label = "led28";
+			reg = <28>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led29: led@29 {
+			label = "led29";
+			reg = <29>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led30: led@30 {
+			label = "led30";
+			reg = <30>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led31: led@31 {
+			label = "led31";
+			reg = <31>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led32: led@32 {
+			label = "led32";
+			reg = <32>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led33: led@33 {
+			label = "led33";
+			reg = <33>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led34: led@34 {
+			label = "led34";
+			reg = <34>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led35: led@35 {
+			label = "led35";
+			reg = <35>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+
+		led36: led@36 {
+			label = "led36";
+			reg = <36>;
+			led-max-microamp = <10000>;
+			linux,default-trigger = "none";
+		};
+	};
+};
+
 /include/ "rk808.dtsi"
 &rk808 {
 	gpios =<&gpio2 GPIO_A2 GPIO_ACTIVE_HIGH>,<&gpio2 GPIO_A7 GPIO_ACTIVE_LOW>;
