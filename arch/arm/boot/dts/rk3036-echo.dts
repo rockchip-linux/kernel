@@ -107,6 +107,14 @@
 		};
 	};
 
+	rotary {
+		compatible = "rotary-encoder";
+		gpios = <&gpio2 GPIO_C1 GPIO_ACTIVE_LOW>,
+				<&gpio2 GPIO_C0 GPIO_ACTIVE_LOW>;
+		linux,axis = <0>; /* REL_X */
+		rotary-encoder,relative-axis;
+	};
+
 	wireless-wlan {
 		compatible = "wlan-platdata";
 
