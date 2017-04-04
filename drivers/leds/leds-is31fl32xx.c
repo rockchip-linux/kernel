@@ -21,6 +21,8 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
 /* Used to indicate a device has no such register */
 #define IS31FL32XX_REG_NONE 0xFF
 
@@ -443,16 +445,32 @@ static int is31fl32xx_probe(struct i2c_client *client,
 	struct is31fl32xx_priv *priv;
 	int count;
 	int ret = 0;
+	int gpio = -1;
 
 	of_dev_id = of_match_device(of_is31fl32xx_match, dev);
 	if (!of_dev_id)
 		return -EINVAL;
 
+	gpio = of_get_named_gpio_flags(dev->of_node,
+				       "rockchip,num-sdb-gpio", 0, NULL);
+	if (gpio_is_valid(gpio)) {
+		if (gpio_request(gpio, "num-sdb-gpio") != 0) {
+			gpio_free(gpio);
+			dev_err(dev, "gpio request error\n");
+			return -EIO;
+		}
+		gpio_direction_output(gpio, 1);
+	} else {
+		dev_dbg(dev, "gpio is invalid\n");
+	}
+
 	cdef = of_dev_id->data;
 
 	count = of_get_child_count(dev->of_node);
-	if (!count)
+	if (!count) {
+		dev_err(dev, "count is invalid\n");
 		return -EINVAL;
+	}
 
 	priv = devm_kzalloc(dev, sizeof_is31fl32xx_priv(count),
 			    GFP_KERNEL);
