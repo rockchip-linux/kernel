@@ -1335,6 +1335,24 @@ static void rk816_bat_set_current(struct rk816_battery *di, int charge_current)
 	rk816_bat_write(di, RK816_USB_CTRL_REG, usb_ctrl);
 }
 
+/*
+ * when charger plugin, boost should be disabled. when charger plugout, we
+ * should wait 200ms to wait 5v-input fade way, then re-enable. we add wait
+ * time inside function to avoid forget it.
+ */
+static void rk816_bat_enable_boost(struct rk816_battery *di)
+{
+	msleep(200);
+	rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_ON);
+	DBG("%s\n", __func__);
+}
+
+static void rk816_bat_disable_boost(struct rk816_battery *di)
+{
+	rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_OFF);
+	DBG("%s\n", __func__);
+}
+
 static void rk816_bat_set_chrg_param(struct rk816_battery *di,
 				     enum charger_type charger_type)
 {
@@ -1425,17 +1443,23 @@ static void rk816_bat_set_chrg_param(struct rk816_battery *di,
 
 static void rk816_bat_set_otg_state(struct rk816_battery *di, int state)
 {
+	u8 buf;
+
 	switch (state) {
 	case USB_OTG_POWER_ON:
-		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
-				   BOOST_OTG_MASK, BOOST_ON_OTG_OFF);
+		/* for safe, detect vbus-5v by pmic self */
+		buf = rk816_bat_read(di, RK816_VB_MON_REG);
+		if (buf & PLUG_IN_STS) {
+			BAT_INFO("detect vbus-5v suppling, deny otg on..\n");
+			break;
+		}
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_ON);
+		/* it had better to wait 100ms to enable otg_en */
 		msleep(100);
-		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
-				   BOOST_OTG_MASK, BOOST_ON_OTG_ON);
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, OTG_MASK, OTG_ON);
 		break;
 	case USB_OTG_POWER_OFF:
-		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
-				   BOOST_OTG_MASK, BOOST_OFF_OTG_OFF);
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, OTG_MASK, OTG_OFF);
 		break;
 	default:
 		break;
@@ -1512,6 +1536,11 @@ static void rk816_bat_dc_delay_work(struct work_struct *work)
 		/* check otg supply, power on anyway */
 		if (di->otg_in) {
 			BAT_INFO("charge disable, enable otg\n");
+			/*
+			 * must wait 200ms to wait 5v-input fade away before
+			 * enable boost
+			 */
+			msleep(200);
 			rk816_bat_set_otg_state(di, USB_OTG_POWER_ON);
 		}
 	}
@@ -3418,11 +3447,13 @@ static void rk816_bat_irq_delay_work(struct work_struct *work)
 		di->plugin_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG3, BIT(0));
 		rk_send_wakeup_key();
+		rk816_bat_disable_boost(di);
 		BAT_INFO("pmic: plug in\n");
 	} else if (di->plugout_trigger) {
 		di->plugout_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG3, BIT(1));
 		rk_send_wakeup_key();
+		rk816_bat_enable_boost(di);
 		BAT_INFO("pmic: plug out\n");
 	} else if (di->cvtlmt_trigger) {
 		di->cvtlmt_trigger = 0;
@@ -3952,9 +3983,12 @@ static int rk816_bat_parse_dt(struct rk816_battery *di)
 		BAT_INFO("support gpio dc\n");
 		pdata->dc_det_pin = of_get_named_gpio_flags(np, "dc_det_gpio",
 							    0, &flags);
-		if (gpio_is_valid(pdata->dc_det_pin))
+		if (gpio_is_valid(pdata->dc_det_pin)) {
 			pdata->dc_det_level =
 					(flags & OF_GPIO_ACTIVE_LOW) ? 0 : 1;
+			/* if support dc, default set power_dc2otg = 1 */
+			pdata->power_dc2otg = 1;
+		}
 	}
 
 	if (!of_find_property(np, "ntc_table", &length)) {
