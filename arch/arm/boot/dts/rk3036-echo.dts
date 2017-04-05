@@ -171,10 +171,10 @@
 
 	key {
 		compatible = "rockchip,key";
-		vol-up-key {
-			gpios = <&gpio2 GPIO_C7 GPIO_ACTIVE_LOW>;
-			linux,code = <115>;
-			label = "volume up";
+		echo-wake-up {
+			gpios = <&gpio2 GPIO_D1 GPIO_ACTIVE_LOW>;
+			linux,code = <143>;
+			label = "wake up";
 		};
 	};
 
