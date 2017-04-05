@@ -174,6 +174,7 @@ static void __init rk3036_dt_init_timer(void)
 	rockchip_pmu_ops.set_idle_request = rk3036_pmu_set_idle_request;
 	of_clk_init(NULL);
 	clocksource_of_init();
+	of_dvfs_init();
 }
 
 #ifdef CONFIG_PM
