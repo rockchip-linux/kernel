@@ -267,6 +267,15 @@ config SND_SOC_CX20442
 	tristate
 	depends on TTY
 
+config SND_SOC_CX20810
+	tristate "CX20810 is a voice capture ic."
+	default n
+	depends on I2C
+	help
+	  Say Y here if you have a CX20810 ic and want to enable
+	  support for the built-in.
+	  If unsure, say N.
+
 config SND_SOC_JZ4740_CODEC
 	select REGMAP_MMIO
 	tristate
