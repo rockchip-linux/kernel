@@ -450,7 +450,7 @@ int rk_disp_pwr_enable(struct rk_lcdc_driver *dev_drv)
 						break;
 					count--;
 				}
-				if (regulator_enable(regulator_lcd) != 0)
+				if (!regulator_is_enabled(regulator_lcd))
 					dev_err(dev_drv->dev,
 						"regulator_enable failed,count=%d\n",
 						count);
@@ -495,7 +495,7 @@ int rk_disp_pwr_disable(struct rk_lcdc_driver *dev_drv)
 						break;
 					count--;
 				}
-				if (regulator_enable(regulator_lcd) != 0)
+				if (!regulator_is_enabled(regulator_lcd))
 					dev_err(dev_drv->dev,
 						"regulator_enable failed,count=%d\n",
 						count);
