@@ -19,6 +19,7 @@
 #include "cif_cif10_regs.h"
 #include "cif_cif10.h"
 #include <linux/pm_runtime.h>
+#include <asm/cacheflush.h>
 /*
 #define MEASURE_VERTICAL_BLANKING
 */
@@ -1158,6 +1159,7 @@ static int cif_cif10_stop(
 	}
 
 	cancel_work_sync(&cif_cif10_dev->work);
+	cancel_work_sync(&cif_cif10_dev->repair_work);
 	if (IS_ERR_VALUE(cif_cif10_img_src_set_state(
 					cif_cif10_dev,
 					CIF_CIF10_IMG_SRC_STATE_SW_STNDBY)))
@@ -2376,6 +2378,7 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 						      base_addr + CIF_CIF_CROP);
 				} else {
 					/* miss y data, reset yuv order */
+					cif_cif10_dev->data_need_repair = true;
 					cif_iowrite32(cif_crop,
 						      base_addr + CIF_CIF_CROP);
 					cif_for = YUV_INPUT_ORDER_YVYU(cif_for);
@@ -2419,9 +2422,15 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 					      CIF_CIF_FRM1_ADDR_UV);
 				cif_cif10_dev->stream.next_buf = next_buf;
 			}
+			next_buf->state = VIDEOBUF_ACTIVE;
 			list_del_init(&next_buf->queue);
 
-			if (frm_flag == 0 || frm_flag == 1) {
+			if (cif_cif10_dev->data_need_repair) {
+				list_add_tail(&curr_buf->queue,
+					      &cif_cif10_dev->repair_queue);
+				queue_work(cif_cif10_dev->wq,
+					   &cif_cif10_dev->repair_work);
+			} else {
 				do_gettimeofday(&curr_buf->ts);
 				if ((curr_buf->state == VIDEOBUF_QUEUED) ||
 				    (curr_buf->state == VIDEOBUF_ACTIVE)) {
@@ -2431,8 +2440,6 @@ irqreturn_t cif_cif10_pingpong_irq(int irq, void *data)
 				}
 				wake_up(&curr_buf->done);
 			}
-		} else {
-			goto end;
 		}
 	} else {
 		cif_cif10_pltfrm_pr_err(cif_cif10_dev->dev,
@@ -2473,4 +2480,38 @@ end:
 	}
 
 	return IRQ_HANDLED;
+}
+
+void cif_cif10_repair_data(struct work_struct *work)
+{
+	short i = 0;
+	unsigned long uv_addr = 0, y_addr;
+	struct videobuf_buffer *buf = NULL;
+	struct cif_cif10_device *cif_dev =
+		container_of(work, struct cif_cif10_device, repair_work);
+	unsigned char *vaddr;
+
+	if (!list_empty(&cif_dev->repair_queue)) {
+		buf = list_first_entry(&cif_dev->repair_queue,
+				       struct videobuf_buffer,
+				       queue);
+		list_del_init(&buf->queue);
+		y_addr = videobuf_to_dma_contig(buf);
+		uv_addr = y_addr + buf->width * buf->height;
+		vaddr = (unsigned char *)phys_to_virt(uv_addr);
+
+		for (i = 0; i < buf->height / 2; i++)
+			*(vaddr + (i + 1) * buf->width - 2) =
+				*(vaddr + (i + 1) * buf->width - 4);
+		flush_cache_all();
+
+		do_gettimeofday(&buf->ts);
+		if ((buf->state == VIDEOBUF_QUEUED) ||
+		    (buf->state == VIDEOBUF_ACTIVE)) {
+			buf->state =
+				VIDEOBUF_DONE;
+			buf->field_count++;
+		}
+		wake_up(&buf->done);
+	}
 }

@@ -469,6 +469,10 @@ struct cif_cif10_device {
 	struct cif_cif10_irqinfo irqinfo;
 	struct work_struct work;
 	struct workqueue_struct *wq;
+
+	short data_need_repair;
+	struct list_head repair_queue;
+	struct work_struct repair_work;
 };
 
 struct cif_cif10_fmt *get_cif_cif10_output_format(int index);
@@ -573,4 +577,6 @@ irqreturn_t cif_cif10_oneframe_irq(
 irqreturn_t cif_cif10_pingpong_irq(
 	int irq,
 	void *data);
+
+void cif_cif10_repair_data(struct work_struct *work);
 #endif

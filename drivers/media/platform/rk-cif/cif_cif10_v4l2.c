@@ -562,6 +562,8 @@ static int cif_cif10_v4l2_streamon(
 	dev->irqinfo.plug = 0;
 	dev->irqinfo.cif_frm0_ok = 0;
 	dev->irqinfo.cif_frm1_ok = 0;
+	dev->data_need_repair = 0;
+	INIT_LIST_HEAD(&dev->repair_queue);
 
 	ret = videobuf_streamon(queue);
 	if (IS_ERR_VALUE(ret)) {
@@ -1612,6 +1614,7 @@ static int cif_cif10_v4l2_drv_probe(struct platform_device *pdev)
 		goto err;
 	}
 	INIT_WORK(&cif_cif10_dev->work, cif_cif10_cifrest);
+	INIT_WORK(&cif_cif10_dev->repair_work, cif_cif10_repair_data);
 
 	cif_cif10_v4l2_dev.node_num++;
 
