@@ -18,6 +18,7 @@
 #include "custom_log.h"
 
 #include <linux/workqueue.h>
+#include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/gfp.h>
@@ -29,6 +30,7 @@
 #include <linux/uaccess.h>
 #include <linux/cpufreq.h>
 #include <linux/of.h>
+#include <linux/rockchip/cpu.h>
 
 #include "mali_kernel_common.h"
 #include "mali_osk.h"
@@ -373,6 +375,10 @@ static _mali_osk_errcode_t mali_power_domain_control(bool bpower_off)
 			}
 
 			drv_data->power_state = true;
+
+			#define DELAY_IN_US (5000)
+			if (cpu_is_rk322x())
+				usleep_range(DELAY_IN_US, DELAY_IN_US + 100);
 		}
 	} else {
 		if (drv_data->power_state) {
