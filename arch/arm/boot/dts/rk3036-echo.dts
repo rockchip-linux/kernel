@@ -325,6 +325,14 @@
 
 &i2c2 {
 	status = "okay";
+
+	cx20810: cx20810@35 {
+		compatible = "conexant,cx20810";
+		reg = <0x35>;
+		rockchip,reset-gpio = <&gpio0 GPIO_D4 GPIO_ACTIVE_LOW>;
+		status = "okay";
+	};
+
 	is31fl3236: led-controller@3c {
 		compatible = "issi,is31fl3236";
 		reg = <0x3c>;
