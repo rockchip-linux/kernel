@@ -139,6 +139,11 @@
 #define RK3036_CR28_YES_400I                (0 << 0)
 #define RK3036_CR28_NON_400I                (1 << 0)
 
+#define RK3036_LOUT_GAIN_MASK               (0X1f << 0)
+#define RK3036_LOUT_GAIN_SHIFT              (0)
+#define RK3036_LOUT_GAIN_0DB                (0x1a)
+#define RK3036_LOUT_GAIN_N39DB              (0x0)
+
 enum {
 	RK3036_HIFI,
 	RK3036_VOICE,

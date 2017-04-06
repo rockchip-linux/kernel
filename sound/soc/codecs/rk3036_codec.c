@@ -34,6 +34,7 @@
 #include <sound/pcm_params.h>
 #include <sound/initval.h>
 #include <sound/soc.h>
+#include <sound/tlv.h>
 #include <sound/dmaengine_pcm.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
@@ -68,6 +69,15 @@ module_param(debug, int, S_IRUGO|S_IWUSR);
 #if CODECDEBUG
 static struct delayed_work debug_delayed_work;
 #endif
+
+static const DECLARE_TLV_DB_MINMAX(rk3036_codec_line_tlv, -39, 0);
+
+static const struct snd_kcontrol_new rk3036_codec_dapm_controls[] = {
+	SOC_DOUBLE_R_RANGE_TLV("Playback Volume",
+			       RK3036_CODEC_REG25, RK3036_CODEC_REG26,
+			       RK3036_LOUT_GAIN_SHIFT, RK3036_LOUT_GAIN_N39DB,
+			       RK3036_LOUT_GAIN_0DB, 0, rk3036_codec_line_tlv),
+};
 
 struct rk3036_codec_priv {
 	void __iomem	*regbase;
@@ -991,6 +1001,8 @@ static struct snd_soc_codec_driver soc_codec_dev_rk3036 = {
 	.volatile_register = rk3036_volatile_register,
 	.readable_register = rk3036_codec_register,
 	.reg_cache_step = sizeof(unsigned int),
+	.controls = rk3036_codec_dapm_controls,
+	.num_controls = ARRAY_SIZE(rk3036_codec_dapm_controls),
 };
 
 #ifdef CONFIG_PM
