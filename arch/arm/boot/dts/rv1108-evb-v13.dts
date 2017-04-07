@@ -471,6 +471,7 @@
 };
 
 &usb_otg {
+	rockchip,high-bandwidth;
 	status = "okay";
 };
 
