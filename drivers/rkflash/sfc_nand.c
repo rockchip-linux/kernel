@@ -7,6 +7,7 @@
  * (at your option) any later version.
  */
 
+#include <linux/bug.h>
 #include <linux/delay.h>
 #include <linux/kernel.h>
 #include "flash.h"
@@ -24,40 +25,87 @@
 
 #define SFC_NAND_PAGE_MAX_SIZE		2112
 
-static u8 id_byte[8];
+#define FEA_READ_STATUE_MASK    (0x3 << 0)
+#define FEA_STATUE_MODE1        0
+#define FEA_STATUE_MODE2        1
+#define FEA_4BIT_READ           BIT(2)
+#define FEA_4BIT_PROG           BIT(3)
+#define FEA_4BYTE_ADDR          BIT(4)
+#define FEA_4BYTE_ADDR_MODE	BIT(5)
 
 struct SFC_NAND_DEV_T {
 	u32 capacity;
+	u32 block_size;
+	u16 page_size;
 	u8 manufacturer;
 	u8 mem_type;
-	u16 page_size;
-	u32 block_size;
+	u8 read_lines;
+	u8 prog_lines;
+	u8 page_read_cmd;
+	u8 page_prog_cmd;
 };
 
-static struct NAND_PARA_INFO_T  nand_para = {
-	2,
-	{0x98, 0xC2, 0, 0, 0, 0},
-	TOSHIBA,
-	1,
-	4,
-	64,
-	1,
-	1,
-	1024,
-	0x100,
-	LSB_0,
-	RR_NONE,
-	16,
-	40,
-	1,
-	0,
-	BBF_1,
-	MPM_0,
-	{0}
-}; /* TC58CVG0S3HQA2E */
+struct nand_info {
+	u32 id;
 
+	u16 sec_per_page;
+	u16 page_per_blk;
+	u16 plane_per_die;
+	u16 blk_per_plane;
+
+	u8 page_read_cmd;
+	u8 page_prog_cmd;
+	u8 read_cache_cmd_1;
+	u8 prog_cache_cmd_1;
+
+	u8 read_cache_cmd_4;
+	u8 prog_cache_cmd_4;
+	u8 block_erase_cmd;
+	u8 feature;
+
+	u8 density;  /* (1 << density) sectors*/
+	u8 max_ecc_bits;
+	u8 QE_address;
+	u8 QE_bits;
+};
+
+static struct nand_info spi_nand_tbl[] = {
+	/* TC58CVG0S0HxAIx */
+	{0x98C2, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x02, 0xD8, 0x00, 18, 8, 0xB0, 0XFF},
+	/* TC58CVG1S0HxAIx */
+	{0x98CB, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x02, 0xD8, 0x00, 19, 8, 0xB0, 0XFF},
+	/* MX35LF1GE4AB */
+	{0xC212, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	/* MX35LF2GE4AB */
+	{0xC222, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 19, 4, 0xB0, 0},
+	/* GD5F1GQ4UAYIG */
+	{0xC8F1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	/* MT29F1G01ZAC */
+	{0x2C12, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x00, 18, 4, 0xB0, 0},
+	/* GD5F1GQ4U */
+	{0xC8B1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+	/* GD5F2GQ4U */
+	{0xC8B2, 4, 64, 2, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 19, 4, 0xB0, 0},
+	/* GD5F1GQ4U */
+	{0xC8D1, 4, 64, 1, 1024, 0x13, 0x10, 0x03, 0x02, 0x6B, 0x32, 0xD8, 0x0C, 18, 4, 0xB0, 0},
+};
+
+static u8 id_byte[8];
+static struct nand_info *p_nand_info;
 static u32 gp_page_buf[SFC_NAND_PAGE_MAX_SIZE / 4];
-struct SFC_NAND_DEV_T sfc_nand_dev;
+static struct SFC_NAND_DEV_T sfc_nand_dev;
+
+static struct nand_info *spi_nand_get_info(u8 *nand_id)
+{
+	u32 i;
+	u32 id = (nand_id[0] << 8) | (nand_id[1] << 0);
+
+	for (i = 0; i < ARRAY_SIZE(spi_nand_tbl); i++) {
+		if (spi_nand_tbl[i].id == id)
+			return &spi_nand_tbl[i];
+	}
+	return NULL;
+}
 
 static int sfc_nand_write_en(void)
 {
@@ -132,7 +180,7 @@ u32 sfc_nand_erase_block(u8 cs, u32 addr)
 	u8 status;
 
 	sfcmd.d32 = 0;
-	sfcmd.b.cmd = 0xD8;
+	sfcmd.b.cmd = p_nand_info->block_erase_cmd;
 	sfcmd.b.addrbits = SFC_ADDR_24BITS;
 	sfc_nand_write_en();
 	ret = sfc_request(sfcmd.d32, 0, addr, NULL);
@@ -154,28 +202,27 @@ u32 sfc_nand_prog_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	u32 spare_sz = 8;
 	u32 spare_offs = 4;
 
-	memset(gp_page_buf, 0, SFC_NAND_PAGE_MAX_SIZE);
 	memcpy(gp_page_buf, p_data, data_sz);
 	memcpy(gp_page_buf + (data_sz + spare_offs) / 4, p_spare, spare_sz);
 
+	sfc_nand_write_en();
 	sfcmd.d32 = 0;
-	sfcmd.b.cmd = 0x02;
+	sfcmd.b.cmd = sfc_nand_dev.page_prog_cmd;
 	sfcmd.b.addrbits = SFC_ADDR_XBITS;
 	sfcmd.b.datasize = SFC_NAND_PAGE_MAX_SIZE;
 	sfcmd.b.rw = SFC_WRITE;
 
 	sfctrl.d32 = 0;
-	sfctrl.b.datalines = 0;
+	sfctrl.b.datalines = sfc_nand_dev.prog_lines;
 	sfctrl.b.enbledma = 1;
 	sfctrl.b.addrbits = 16;
 	ret = sfc_request(sfcmd.d32, sfctrl.d32, 0, gp_page_buf);
 
 	sfcmd.d32 = 0;
-	sfcmd.b.cmd = 0x10;
+	sfcmd.b.cmd = p_nand_info->page_prog_cmd;
 	sfcmd.b.addrbits = SFC_ADDR_24BITS;
 	sfcmd.b.datasize = 0;
 	sfcmd.b.rw = SFC_WRITE;
-	sfc_nand_write_en();
 	ret = sfc_request(sfcmd.d32, 0, addr, p_data);
 	if (ret != SFC_OK)
 		return ret;
@@ -197,7 +244,7 @@ u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	u32 spare_offs = 4;
 
 	sfcmd.d32 = 0;
-	sfcmd.b.cmd = 0x13;
+	sfcmd.b.cmd = p_nand_info->page_read_cmd;
 	sfcmd.b.datasize = 0;
 	sfcmd.b.addrbits = SFC_ADDR_24BITS;
 	ret = sfc_request(sfcmd.d32, 0, addr, p_data);
@@ -205,11 +252,11 @@ u32 sfc_nand_read_page(u8 cs, u32 addr, u32 *p_data, u32 *p_spare)
 	ret = sfc_nand_wait_busy(&status, 1000 * 1000);
 	ecc = (status >> 4) & 0x03;
 	sfcmd.d32 = 0;
-	sfcmd.b.cmd = 0x03;
+	sfcmd.b.cmd = sfc_nand_dev.page_read_cmd;
 	sfcmd.b.datasize = SFC_NAND_PAGE_MAX_SIZE;
 	sfcmd.b.addrbits = SFC_ADDR_24BITS;
 	sfctrl.d32 = 0;
-	sfctrl.b.datalines = 0;
+	sfctrl.b.datalines = sfc_nand_dev.read_lines;
 	sfctrl.b.enbledma = 1;
 
 	memset(gp_page_buf, 0, SFC_NAND_PAGE_MAX_SIZE);
@@ -276,12 +323,15 @@ static int sfc_nand_get_bad_block_list(u16 *table, u32 die)
 	pread = ftl_malloc(2048);
 	pspare_read = ftl_malloc(8);
 	bad_cnt = 0;
-	blk_per_die = nand_para.plane_per_die * nand_para.blk_per_plane;
+	blk_per_die = p_nand_info->plane_per_die *
+			p_nand_info->blk_per_plane;
 	for (blk = 0; blk < blk_per_die; blk++) {
-		page = (blk + blk_per_die * die) * nand_para.page_per_blk + 0;
+		page = (blk + blk_per_die * die) *
+			p_nand_info->page_per_blk;
 		sfc_nand_read_page(0, page, pread, pspare_read);
 
-		if (pread[0] != 0xFFFFFFFF) {
+		if ((pread[0] != 0xFFFFFFFF) ||
+		    (pspare_read[0] != 0xFFFFFFFF)) {
 			table[bad_cnt++] = blk;
 			PRINT_E("die[%d], bad_blk[%d]\n", die, blk);
 		}
@@ -374,21 +424,20 @@ static void sfc_nand_test(void)
 static void ftl_flash_init(void)
 {
 	/* para init */
-	g_nand_phy_info.nand_type	= nand_para.cell;
-	g_nand_phy_info.die_num		= nand_para.die_per_chip;
-	g_nand_phy_info.plane_per_die	= nand_para.plane_per_die;
-	g_nand_phy_info.blk_per_plane	= nand_para.blk_per_plane;
-	g_nand_phy_info.page_per_blk	= nand_para.page_per_blk;
-	g_nand_phy_info.page_per_slc_blk	= nand_para.page_per_blk /
-						  nand_para.cell;
+	g_nand_phy_info.nand_type	= 1;
+	g_nand_phy_info.die_num		= 1;
+	g_nand_phy_info.plane_per_die	= p_nand_info->plane_per_die;
+	g_nand_phy_info.blk_per_plane	= p_nand_info->blk_per_plane;
+	g_nand_phy_info.page_per_blk	= p_nand_info->page_per_blk;
+	g_nand_phy_info.page_per_slc_blk = p_nand_info->page_per_blk;
 	g_nand_phy_info.byte_per_sec	= 512;
-	g_nand_phy_info.sec_per_page	= nand_para.sec_per_page;
-	g_nand_phy_info.sec_per_blk	= nand_para.sec_per_page *
-					  nand_para.page_per_blk;
+	g_nand_phy_info.sec_per_page	= p_nand_info->sec_per_page;
+	g_nand_phy_info.sec_per_blk	= p_nand_info->sec_per_page *
+					  p_nand_info->page_per_blk;
 	g_nand_phy_info.reserved_blk	= 8;
-	g_nand_phy_info.blk_per_die	= nand_para.plane_per_die *
-					  nand_para.blk_per_plane;
-	g_nand_phy_info.ecc_bits	= nand_para.ecc_bits;
+	g_nand_phy_info.blk_per_die	= p_nand_info->plane_per_die *
+					  p_nand_info->blk_per_plane;
+	g_nand_phy_info.ecc_bits	= p_nand_info->max_ecc_bits;
 
 	/* driver register */
 	g_nand_ops.get_bad_blk_list	= sfc_nand_get_bad_block_list;
@@ -397,32 +446,78 @@ static void ftl_flash_init(void)
 	g_nand_ops.read_page		= sfc_nand_read_page;
 }
 
+static int spi_nand_enable_QE(void)
+{
+	int ret = SFC_OK;
+	u8 status;
+	int bit_offset = p_nand_info->QE_bits;
+
+	if (bit_offset == 0xFF)
+		return SFC_OK;
+
+	ret = sfc_nand_read_feature(p_nand_info->QE_address, &status);
+	if (ret != SFC_OK)
+		return ret;
+
+	if (status & (1 << bit_offset))   /* is QE bit set */
+		return SFC_OK;
+
+	status |= (1 << bit_offset);
+		return sfc_nand_write_feature(p_nand_info->QE_address, status);
+
+	return ret;
+}
+
 u32 sfc_nand_init(void __iomem *sfc_addr)
 {
-	u8 ecc_bits = 0;
-
 	PRINT_E("sfc_nand_init\n");
 	sfc_init(sfc_addr);
 	sfc_nand_read_id_raw(id_byte);
 	PRINT_E("sfc_nand id: %x %x %x\n", id_byte[0], id_byte[1], id_byte[2]);
-	if ((0xFF == id_byte[0] && 0xFF == id_byte[1]) ||
-	    (0x00 == id_byte[0] && 0x00 == id_byte[1]))
+	if ((id_byte[0] == 0xFF) || (id_byte[0] == 0x00))
 		return FTL_NO_FLASH;
-	if ((id_byte[1] != 0xC2) && (id_byte[1] != 0xCB))
+
+	p_nand_info = spi_nand_get_info(id_byte);
+	if (!p_nand_info)
 		return FTL_UNSUPPORTED_FLASH;
 
-	if (id_byte[1] == 0xCB) {
-		nand_para.plane_per_die = 2;
-		nand_para.nand_id[1] = 0xCB;
-	}
 	sfc_nand_dev.manufacturer = id_byte[0];
 	sfc_nand_dev.mem_type = id_byte[1];
 
 	/* disable block lock */
 	sfc_nand_write_feature(0xA0, 0);
-	sfc_nand_read_feature(0x10, &ecc_bits);
-	PRINT_E("sfc_nand ecc bits = %d\n", ecc_bits >> 4);
+	sfc_nand_dev.read_lines = DATA_LINES_X1;
+	sfc_nand_dev.prog_lines = DATA_LINES_X1;
+	sfc_nand_dev.page_read_cmd = p_nand_info->read_cache_cmd_1;
+	sfc_nand_dev.page_prog_cmd = p_nand_info->prog_cache_cmd_1;
+	if (p_nand_info->feature & FEA_4BIT_READ) {
+		if (spi_nand_enable_QE() == SFC_OK) {
+			sfc_nand_dev.read_lines = DATA_LINES_X4;
+			sfc_nand_dev.page_read_cmd =
+				p_nand_info->read_cache_cmd_4;
+		}
+	}
 
+	if ((p_nand_info->feature & FEA_4BIT_PROG) &&
+	    (sfc_nand_dev.read_lines == DATA_LINES_X4)) {
+		sfc_nand_dev.prog_lines = DATA_LINES_X4;
+		sfc_nand_dev.page_prog_cmd = p_nand_info->prog_cache_cmd_4;
+	}
+
+	if (1) {
+		u8 status;
+
+		sfc_nand_read_feature(0xA0, &status);
+		PRINT_E("sfc_nand A0 = 0x%x\n", status);
+		sfc_nand_read_feature(0xB0, &status);
+		PRINT_E("sfc_nand B0 = 0x%x\n", status);
+		sfc_nand_read_feature(0xC0, &status);
+		PRINT_E("sfc_nand C0 = 0x%x\n", status);
+		PRINT_E("read_lines = %x\n", sfc_nand_dev.read_lines);
+		PRINT_E("prog_lines = %x\n", sfc_nand_dev.prog_lines);
+		PRINT_E("page_read_cmd = %x\n", sfc_nand_dev.page_read_cmd);
+		PRINT_E("page_prog_cmd = %x\n", sfc_nand_dev.page_prog_cmd);
+	}
 	ftl_flash_init();
 
 	#if SFC_NAND_STRESS_TEST_EN
