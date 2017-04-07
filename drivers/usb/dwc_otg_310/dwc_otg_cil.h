@@ -851,6 +851,9 @@ struct dwc_otg_core_if {
 
 	u8 usb_early_detect;
 
+	/* True if support high bandwidth endpoints */
+	bool high_bandwidth_en;
+
 	/* Indicate USB get VBUS 5V from PMIC(e.g. rk81x) */
 	bool pmic_vbus;
 

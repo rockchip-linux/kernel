@@ -22,6 +22,8 @@ Required properties:
 Optional properties:
  - rockchip,usb-pmic-vbus: If present, OTG VBUS 5V is supplied
    from PMIC.
+ - rockchip,high-bandwidth: If present, support high bandwidth
+   endpoints.
 
 Example:
  - RK3288
