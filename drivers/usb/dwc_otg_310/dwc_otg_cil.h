@@ -851,6 +851,9 @@ struct dwc_otg_core_if {
 
 	u8 usb_early_detect;
 
+	/* Indicate USB get VBUS 5V from PMIC(e.g. rk81x) */
+	bool pmic_vbus;
+
 #ifdef DWC_DEV_SRPCAP
 	/* This timer is needed to power on the hibernated host core if SRP is not
 	 * initiated on connected SRP capable device for limited period of time
