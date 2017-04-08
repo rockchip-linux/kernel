@@ -505,8 +505,8 @@ int ov_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 					goto end;
 				}
 				vts = cam_mod->active_config->timings.frame_length_lines;
-				vts *= cam_mod->active_config->frm_intrvl.interval.denominator/
-					cam_mod->frm_intrvl.interval.denominator;
+				vts *= cam_mod->active_config->frm_intrvl.interval.denominator;
+				vts /= cam_mod->frm_intrvl.interval.denominator;
 				cam_mod->custom.s_vts(cam_mod, vts);
 			}
 		}

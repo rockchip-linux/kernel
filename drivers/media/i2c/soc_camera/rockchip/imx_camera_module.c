@@ -173,7 +173,7 @@ static int imx_camera_module_write_config(
 	int ret = 0;
 	struct imx_camera_module_reg *reg_table;
 	u32 reg_table_num_entries;
-	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
+	pltfrm_camera_module_pr_err(&cam_mod->sd, "\n");
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -489,8 +489,8 @@ int imx_camera_module_s_stream(struct v4l2_subdev *sd, int enable)
 					goto end;
 				}
 				vts = cam_mod->active_config->timings.frame_length_lines;
-				vts *= cam_mod->active_config->frm_intrvl.interval.denominator/
-					cam_mod->frm_intrvl.interval.denominator;
+				vts *= cam_mod->active_config->frm_intrvl.interval.denominator;
+				vts /= cam_mod->frm_intrvl.interval.denominator;
 				cam_mod->custom.s_vts(cam_mod, vts);
 			}
 		}
