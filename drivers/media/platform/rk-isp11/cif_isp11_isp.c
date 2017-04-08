@@ -2917,7 +2917,6 @@ static int cifisp_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		      " %s: %s: ret %d\n", ISP_VDEV_NAME, __func__, ret);
-
 	return ret;
 }
 
@@ -2936,7 +2935,6 @@ static int cifisp_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		" %s: %s: ret %d\n", ISP_VDEV_NAME, __func__, ret);
-
 	return ret;
 }
 
@@ -3388,6 +3386,7 @@ void cifisp_configure_isp(
 	unsigned int *other_ens;
 	unsigned int *other_updates, *meas_updates;
 	unsigned int time_left = 3000;
+	unsigned int i, curr_id;
 	CIFISP_DPRINT(CIFISP_DEBUG, "%s\n", __func__);
 
 	mutex_lock(&isp_dev->mutex);
@@ -3395,6 +3394,48 @@ void cifisp_configure_isp(
 
 	isp_dev->quantization = quantization;
 	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(in_pix_fmt)) {
+		/*
+		*Must config isp, Hardware may has been reseted.
+		*/
+		for (i = 0; i < CIFISP_MEAS_ID; i++) {
+			if (CIFISP_MODULE_IS_UPDATE(
+				isp_dev->other_cfgs.module_updates,
+				(1 << i)))
+				continue;
+
+			curr_id = isp_dev->other_cfgs.log[i].curr_id;
+			if (CIFISP_MODULE_IS_EN(
+				isp_dev->other_cfgs.cfgs[curr_id].module_ens,
+				(1 << i))) {
+				isp_dev->other_cfgs.log[i].new_id = curr_id;
+				CIFISP_MODULE_UPDATE(
+					isp_dev->other_cfgs.module_updates,
+					(1 << i));
+
+				if (i == CIFISP_DPF_ID) {
+					isp_dev->other_cfgs.log[CIFISP_DPF_STRENGTH_ID].new_id = curr_id;
+					CIFISP_MODULE_UPDATE(
+						isp_dev->other_cfgs.module_updates,
+						(1 << CIFISP_DPF_STRENGTH_ID));
+				}
+			}
+		}
+		for (i = CIFISP_MEAS_ID; i < CIFISP_MODULE_MAX; i++) {
+			if (CIFISP_MODULE_IS_UPDATE(
+				isp_dev->meas_cfgs.module_updates,
+				(1 << i)))
+				continue;
+
+			curr_id = isp_dev->meas_cfgs.log[i].curr_id;
+			if (CIFISP_MODULE_IS_EN(
+				isp_dev->meas_cfgs.cfgs[curr_id].module_ens,
+				(1 << i))) {
+				isp_dev->meas_cfgs.log[i].new_id = curr_id;
+				CIFISP_MODULE_UPDATE(
+					isp_dev->meas_cfgs.module_updates,
+					(1 << i));
+			}
+		}
 		cifisp_isp_isr_other_config(isp_dev, &time_left);
 		cifisp_csm_config(isp_dev, quantization);
 		cifisp_isp_isr_meas_config(isp_dev, &time_left);
@@ -3503,6 +3544,24 @@ void cifisp_v_start(
 	/* Called in an interrupt context. */
 	isp_dev->frame_id += 2;
 	isp_dev->vs_t = *vs_t;
+}
+
+void cifisp_frame_id_reset(
+	struct cif_isp11_isp_dev *isp_dev)
+{
+	unsigned int i;
+
+	isp_dev->frame_id = 0;
+	for (i = 0; i < CIFISP_MEAS_ID; i++) {
+		memset(isp_dev->other_cfgs.log[i].s_frame_id,
+			0x00,
+			sizeof(isp_dev->other_cfgs.log[i].s_frame_id));
+	}
+	for (i = CIFISP_MEAS_ID; i < CIFISP_MODULE_MAX; i++) {
+		memset(isp_dev->meas_cfgs.log[i].s_frame_id,
+			0x00,
+			sizeof(isp_dev->meas_cfgs.log[i].s_frame_id));
+	}
 }
 
 /* Not called when the camera active, thus not isr protection. */
@@ -3677,7 +3736,7 @@ static int cifisp_s_vb_metadata(
 	for (i = 0; i < CIFISP_MEAS_ID; i++) {
 		match_id = 0xff;
 		for (j = 0; j < 3; j++) {
-			if (readout_work->frame_id >
+			if (readout_work->frame_id >=
 				isp_dev->other_cfgs.log[i].s_frame_id[j]) {
 				if (match_id == 0xff)
 					match_id = j;
@@ -3809,7 +3868,7 @@ static int cifisp_s_vb_metadata(
 	for (i = CIFISP_MEAS_ID; i < CIFISP_MODULE_MAX; i++) {
 		match_id = 0xff;
 		for (j = 0; j < 3; j++) {
-			if (readout_work->frame_id >
+			if (readout_work->frame_id >=
 				isp_dev->meas_cfgs.log[i].s_frame_id[j]) {
 				if (match_id == 0xff)
 					match_id = j;

@@ -129,6 +129,8 @@ void cifisp_v_start(struct cif_isp11_isp_dev *isp_dev,
 void cifisp_frame_in(
 	struct cif_isp11_isp_dev *isp_dev,
 	const struct timeval *fi_t);
+void cifisp_frame_id_reset(
+	struct cif_isp11_isp_dev *isp_dev);
 void cifisp_isp_readout_work(struct work_struct *work);
 
 #endif

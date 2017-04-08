@@ -3454,8 +3454,10 @@ static int cif_isp11_config_cif(
 
 		cif_iowrite32(CIF_IRCL_CIF_SW_RST,
 			dev->config.base_addr + CIF_IRCL);
-
 		cif_isp11_config_clk(dev);
+
+		cifisp_frame_id_reset(&dev->isp_dev);
+		dev->isp_dev.frame_id_setexp = 0;
 
 		/* Decide when to switch to asynchronous mode */
 		/* TODO: remove dev->isp_dev.ycflt_en check for
@@ -5096,7 +5098,7 @@ static int cif_isp11_start(
 			sensor output. */
 		mdelay(1);
 		/* start sensor output! */
-		dev->isp_dev.frame_id = 0;
+		cifisp_frame_id_reset(&dev->isp_dev);
 		dev->isp_dev.frame_id_setexp = 0;
 		videobuf_queue_lock(&dev->isp_dev.vbq_stat);
 		list_for_each_entry_safe(
