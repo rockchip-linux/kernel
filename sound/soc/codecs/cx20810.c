@@ -144,7 +144,8 @@ static int cx2081x_probe(struct i2c_client *client,
 	}
 
 	cx20810_init(dev, 0, CX20810_NORMAL_MODE);
-
+	if (gpio_is_valid(gpio))
+		gpio_free(gpio);
 	return 0;
 }
 
