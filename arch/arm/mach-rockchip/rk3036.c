@@ -126,6 +126,7 @@ static void __init rk3036_dt_map_io(void)
 	dsb();
 
 	rk3036_boot_mode_init();
+	rockchip_efuse_init();
 }
 
 extern void secondary_startup(void);
