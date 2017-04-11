@@ -152,7 +152,6 @@
 		vccio2-supply = <&rk805_ldo2_reg>;
 		vccio3-supply = <&rk805_dcdc4_reg>;
 		vccio5-supply = <&rk805_ldo2_reg>;
-		vccio6-supply = <&rk805_dcdc4_reg>;
 
 		/* PMU_GRF_IO_VSEL */
 		pmu-supply = <&rk805_dcdc4_reg>;
