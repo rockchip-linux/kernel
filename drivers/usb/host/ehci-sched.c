@@ -986,7 +986,6 @@ iso_stream_init (
 
 		stream->highspeed = 1;
 
-		maxp = max_packet(maxp);
 		buf1 |= maxp;
 		maxp *= multi;
 

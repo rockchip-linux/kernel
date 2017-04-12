@@ -553,9 +553,6 @@ qh_completions (struct ehci_hcd *ehci, struct ehci_qh *qh)
 
 /*-------------------------------------------------------------------------*/
 
-// ... and packet size, for any kind of endpoint descriptor
-#define max_packet(wMaxPacketSize) ((wMaxPacketSize) & 0x07ff)
-
 /*
  * reverse of qh_urb_transaction:  free a list of TDs.
  * used for cleanup after errors, before HC sees an URB's TDs.
@@ -652,7 +649,7 @@ qh_urb_transaction (
 		token |= (1 /* "in" */ << 8);
 	/* else it's already initted to "out" pid (0 << 8) */
 
-	maxpacket = max_packet(usb_maxpacket(urb->dev, urb->pipe, !is_input));
+	maxpacket = usb_maxpacket(urb->dev, urb->pipe, !is_input);
 
 	/*
 	 * buffer gets wrapped in one or more qtds;
@@ -797,8 +794,8 @@ qh_make (
 	/* 1024 byte maxpacket is a hardware ceiling.  High bandwidth
 	 * acts like up to 3KB, but is built from smaller packets.
 	 */
-	if (max_packet(maxp) > 1024) {
-		ehci_dbg(ehci, "bogus qh maxpacket %d\n", max_packet(maxp));
+	if (maxp > 1024) {
+		ehci_dbg(ehci, "bogus qh maxpacket %d\n", maxp);
 		goto done;
 	}
 
@@ -812,8 +809,7 @@ qh_make (
 	 */
 	if (type == PIPE_INTERRUPT) {
 		qh->usecs = NS_TO_US(usb_calc_bus_time(USB_SPEED_HIGH,
-				is_input, 0,
-				mult * max_packet(maxp)));
+				is_input, 0, mult * maxp));
 		qh->start = NO_FRAME;
 
 		if (urb->dev->speed == USB_SPEED_HIGH) {
@@ -850,7 +846,7 @@ qh_make (
 			think_time = tt ? tt->think_time : 0;
 			qh->tt_usecs = NS_TO_US (think_time +
 					usb_calc_bus_time (urb->dev->speed,
-					is_input, 0, max_packet (maxp)));
+					is_input, 0, maxp));
 			qh->period = urb->interval;
 			if (qh->period > ehci->periodic_size) {
 				qh->period = ehci->periodic_size;
@@ -913,10 +909,10 @@ qh_make (
 			 * to help them do so.  So now people expect to use
 			 * such nonconformant devices with Linux too; sigh.
 			 */
-			info1 |= max_packet(maxp) << 16;
+			info1 |= maxp << 16;
 			info2 |= (EHCI_TUNE_MULT_HS << 30);
 		} else {		/* PIPE_INTERRUPT */
-			info1 |= max_packet (maxp) << 16;
+			info1 |= maxp << 16;
 			info2 |= mult << 30;
 		}
 		break;
