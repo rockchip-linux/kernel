@@ -767,7 +767,6 @@
 		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH 0>;
 		interrupt-names = "vop_mmu";
 		#iommu-cells = <0>;
-		status = "disabled";
 	};
 
 	hdmi: hdmi@ff3c0000 {
