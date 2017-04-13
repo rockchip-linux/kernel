@@ -27,6 +27,7 @@
 #define DRAM_FREQ_CONFIG_DRAM_SET_AT_SR		(3)
 #define DRAM_FREQ_CONFIG_DRAM_GET_BW		(4)
 #define DRAM_FREQ_CONFIG_DRAM_GET_RATE		(5)
+#define DRAM_FREQ_CONFIG_DRAM_GET_VERSION	(8)
 
 #if defined(CONFIG_ARM_PSCI) || defined(CONFIG_ARM64)
 uint32_t psci_ddr_init(uint32_t freq, void *dram_param);

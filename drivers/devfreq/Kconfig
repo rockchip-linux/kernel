@@ -65,13 +65,13 @@ config DEVFREQ_GOV_USERSPACE
 
 comment "DEVFREQ Drivers"
 
-config ROCKCHIP_RK3368_DDR_FREQ
-	bool "ROCKCHIP RK3368 DDR FREQ Driver"
+config ROCKCHIP_DDR_FREQ
+	bool "ROCKCHIP DDR FREQ Driver"
 	depends on ARCH_ROCKCHIP
 	help
-	  This adds the rockchip ddr change freq driver for rk3368 it
-	  used MCU to change ddr freq,and mast enadle rockchip mailbox
-	  and scpi.
+	  This adds the rockchip ddr change freq driver. because rk3368 it
+	  used MCU to change ddr freq, and must enable rockchip mailbox
+	  and scpi. other chip use trust.
 
 config ARM_EXYNOS4_BUS_DEVFREQ
 	bool "ARM Exynos4210/4212/4412 Memory Bus DEVFREQ Driver"
