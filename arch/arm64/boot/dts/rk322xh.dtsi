@@ -47,6 +47,7 @@
 #include <dt-bindings/clock/rk_system_status.h>
 #include <dt-bindings/rkfb/rk_fb.h>
 #include "rk322xh-clocks.dtsi"
+#include "rk322xh-dram-default-timing.dtsi"
 
 / {
 	compatible = "rockchip,rk322xh";
@@ -1436,6 +1437,25 @@
 	msch: syscon@ff720000 {
 		compatible = "rockchip,rk322xh-msch", "rockchip,msch", "syscon";
 		reg = <0x0 0xff720000 0x0 0x3000>;
+	};
+
+	ddrpctl: syscon@ff780000 {
+		compatible = "rockchip,rk322xh-ddrpctl", "syscon";
+		reg = <0x0 0xff780000 0x0 0x3000>;
+	};
+
+	ddrmonitor: syscon@ff790000 {
+		compatible = "rockchip,rk322xh-ddrmonitor", "syscon";
+		reg = <0x0 0xff790000 0x0 0x300>;
+	};
+
+	ddr: ddr {
+		compatible = "rockchip,rk322xh-ddr";
+		status = "okay";
+		rockchip,ddrpctl = <&ddrpctl>;
+		rockchip,msch = <&msch>;
+		rockchip,ddrmonitor = <&ddrmonitor>;
+		rockchip,ddr_timing = <&ddr_timing>;
 	};
 
 	gic: interrupt-controller@ffb70000 {

@@ -1,0 +1,213 @@
+* rk322xh dram default timing is at arch/arm64/boot/dts/rk322xh-dram-default-timing.dtsi
+
+Required properties:
+- compatible : Should be "rockchip,ddr-timing"
+- ddr3_speed_bin : value is defined at include/dt-bindings/clock/ddr.h
+  it select ddr3 cl-trp-trcd type, default value "DDR3_DEFAULT".it must selected
+  according to "Speed Bin" in ddr3 datasheet, DO NOT use smaller "Speed Bin" than
+  ddr3 exactly is.
+
+- ddr4_speed_bin : value is defined at include/dt-bindings/clock/ddr.h
+  it select ddr4 cl-trp-trcd type, default value "DDR4_DEFAULT".it must selected
+  according to "Speed Bin" in ddr4 datasheet, DO NOT use smaller "Speed Bin" than
+  ddr4 exactly is.
+
+- sr_idle : configure the SR_IDLE value, defined the selfrefresh idle period,
+  memories are places into self-refresh mode if bus is idle for SR_IDLE*32 DFI
+  clocks (DFI clocks freq is half of dram's clocks), defaule value is "1"
+
+- pd_idle : config the PD_IDLE value, defined the power-down idle period, memories
+  are places into power-down mode if bus is idle for PD_IDLE*32 DFI clocks.
+
+- sr_mc_gate_idle : no used for rk322xh
+
+- srpd_lite_idle : no used for rk322xh
+
+- standby_idle: no used for rk322xh
+
+- auto_pd_dis_freq: it's defined the frequency of disable auto power-down
+  function in MHz (Mega Hz). when ddr work frequency small than
+  this setting value, will disable auto power-down function.
+
+- auto_sr_dis_freq: it's defined the frequency of disable auto self-refresh
+  function in MHz (Mega Hz). when ddr work frequency small than
+  this setting value, will disable auto self-refresh function.
+
+- ddr3_dll_dis_freq : it's defined the DDR3 dll bypass frequency in MHz (Mega Hz),
+  when ddr freq less than this setting value, ddr3 dll will bypssed
+  note: if dll was bypassed, the odt also stop working.
+
+- ddr4_dll_dis_freq : it's defined the DDR4 dll bypass frequency in MHz (Mega Hz),
+  when ddr freq less than this setting value, ddr4 dll will bypssed
+  note: if dll was bypassed, the odt also stop working.
+
+- phy_dll_dis_freq : defined the PHY dll bypass frequency in MHz (Mega Hz),
+  when ddr freq less than this setting value, phy dll will bypssed
+  note: phy dll and phy odt are independent
+
+- ddr3_odt_dis_freq : defined the DDR3 odt disable frequency in
+  MHz (Mega Hz), when ddr frequency less then this setting value, the DDR3
+  ODT are disabled.
+
+- ddr3_drv : define the DDR3 driver strength in ohm
+
+- ddr3_odt : define the DDR3 ODT in ohm
+
+- phy_ddr3_ca_drv : define the phy commands and address driver strength in ohm
+  when connect DDR3
+
+- phy_ddr3_ck_drv : define the phy clocks driver strength in ohm
+  when connect DDR3
+
+- phy_ddr3_dq_drv : define the phy dqs and dq driver strength in ohm
+  when connnect DDR3
+
+- phy_ddr3_odt : define the phy odt in ohm when connect DDR3
+
+
+- lpddr3_odt_dis_freq : defined the LPDDR3 odt disable frequency in
+  MHz (Mega Hz), when ddr frequency less then this setting value, the LPDDR3
+  ODT are disabled.
+
+- lpddr3_drv : define the LPDDR3 driver strength in ohm
+
+- lpddr3_odt : define the LPDDR3 ODT in ohm
+
+- phy_lpddr3_ca_drv : define the phy commands and address driver strength in ohm
+  when connect LPDDR3
+
+- phy_lpddr3_ck_drv : define the phy clocks driver strength in ohm
+  when connect LPDDR3
+
+- phy_lpddr3_dq_drv : define the phy dqs and dq driver strength in ohm
+  when connnect LPDDR3
+
+- phy_lpddr3_odt : define the phy odt in ohm when connect LPDDR3
+
+
+- lpddr4_odt_dis_freq : defined the LPDDR4 odt disable frequency in
+  MHz (Mega Hz), when ddr frequency less then this setting value, the LPDDR4
+  ODT are disabled.
+
+- lpddr4_drv : define the LPDDR4 driver strength in ohm
+
+- lpddr4_dq_odt : define the LPDDR4 DQ ODT in ohm
+
+- lpddr4_ca_odt : define the LPDDR4 CA ODT in ohm
+
+- phy_lpddr4_ca_drv : define the phy commands and address driver strength in ohm
+  when connect LPDDR4
+
+- phy_lpddr4_ck_cs_drv : define the phy clocks driver strength in ohm
+  when connect LPDDR4
+
+- phy_lpddr4_dq_drv : define the phy dqs and dq driver strength in ohm
+  when connnect LPDDR4
+
+- phy_lpddr4_odt : define the phy odt in ohm when connect LPDDR4
+
+
+- ddr4_odt_dis_freq : defined the DDR4 odt disable frequency in
+  MHz (Mega Hz), when ddr frequency less then this setting value, the DDR4
+  ODT are disabled.
+
+- ddr4_drv : define the DDR4 driver strength in ohm
+
+- ddr4_odt : define the DDR4 ODT in ohm
+
+- phy_ddr4_ca_drv : define the phy commands and address driver strength in ohm
+  when connect DDR4
+
+- phy_ddr4_ck_drv : define the phy clocks driver strength in ohm
+  when connect DDR4
+
+- phy_ddr4_dq_drv : define the phy dqs and dq driver strength in ohm
+  when connnect DDR4
+
+- phy_ddr4_odt : define the phy odt in ohm when connect DDR4
+
+- ddr3a1_ddr4a9_de-skew : define DDR3 address A1 or DDR4 address A9 de-skew value
+  one step is 47.8ps, range 0-15
+  other CA de-skew is similar
+
+- cs0_dm0_rx_de-skew : CS0 DM0 receive end's de-skew
+  RX one step is 25.1ps, range 0-15
+  other DATA RX de-skew is similar
+
+- cs0_dm0_tx_de-skew : CS0 DM0 transmit end's de-skew
+  TX one step is 47.8ps, range 0-15
+  other DATA TX de-skew is similar
+
+- cs1_dm0_rx_de-skew : CS1 DM0 receive end's de-skew
+
+- cs1_dm0_tx_de-skew : CS1 DM0 transmit end's de-skew
+
+
+the driver strength and odt value are defined at include/dt-bindings/dram/rockchip,rk322x.h
+
+Example:
+
+/ {
+	ddr_timing: ddr_timing {
+		compatible = "rockchip,ddr-timing";
+		ddr3_speed_bin = <DDR3_DEFAULT>;
+		ddr4_speed_bin = <DDR4_DEFAULT>;
+		pd_idle = <0>;
+		sr_idle = <0>;
+		sr_mc_gate_idle = <0>;
+		srpd_lite_idle	= <0>;
+		standby_idle = <0>;
+
+		auto_pd_dis_freq = <1066>;
+		auto_sr_dis_freq = <800>;
+		ddr3_dll_dis_freq = <300>;
+		ddr4_dll_dis_freq = <625>;
+		phy_dll_dis_freq = <400>;
+
+		ddr3_odt_dis_freq = <100>;
+		ddr3_drv = <DDR3_DS_40ohm>;
+		ddr3_odt = <DDR3_ODT_120ohm>;
+		phy_ddr3_ca_drv = <PHY_DDR3_RON_RTT_34ohm>;
+		phy_ddr3_ck_drv = <PHY_DDR3_RON_RTT_45ohm>;
+		phy_ddr3_dq_drv = <PHY_DDR3_RON_RTT_34ohm>;
+		phy_ddr3_odt = <PHY_DDR3_RON_RTT_225ohm>;
+
+		lpddr3_odt_dis_freq = <666>;
+		lpddr3_drv = <LP3_DS_40ohm>;
+		lpddr3_odt = <LP3_ODT_240ohm>;
+		phy_lpddr3_ca_drv = <PHY_DDR4_LPDDR3_RON_RTT_34ohm>;
+		phy_lpddr3_ck_drv = <PHY_DDR4_LPDDR3_RON_RTT_43ohm>;
+		phy_lpddr3_dq_drv = <PHY_DDR4_LPDDR3_RON_RTT_34ohm>;
+		phy_lpddr3_odt = <PHY_DDR4_LPDDR3_RON_RTT_240ohm>;
+
+		lpddr4_odt_dis_freq = <800>;
+		lpddr4_drv = <LP4_PDDS_60ohm>;
+		lpddr4_dq_odt = <LP4_DQ_ODT_40ohm>;
+		lpddr4_ca_odt = <LP4_CA_ODT_40ohm>;
+		phy_lpddr4_ca_drv = <PHY_DDR4_LPDDR3_RON_RTT_40ohm>;
+		phy_lpddr4_ck_cs_drv = <PHY_DDR4_LPDDR3_RON_RTT_80ohm>;
+		phy_lpddr4_dq_drv = <PHY_DDR4_LPDDR3_RON_RTT_80ohm>;
+		phy_lpddr4_odt = <PHY_DDR4_LPDDR3_RON_RTT_60ohm>;
+
+		ddr4_odt_dis_freq = <666>;
+		ddr4_drv = <DDR4_DS_34ohm>;
+		ddr4_odt = <DDR4_RTT_NOM_240ohm>;
+		phy_ddr4_ca_drv = <PHY_DDR4_LPDDR3_RON_RTT_34ohm>;
+		phy_ddr4_ck_drv = <PHY_DDR4_LPDDR3_RON_RTT_43ohm>;
+		phy_ddr4_dq_drv = <PHY_DDR4_LPDDR3_RON_RTT_34ohm>;
+		phy_ddr4_odt = <PHY_DDR4_LPDDR3_RON_RTT_240ohm>;
+
+		/* CA de-skew, one step is 47.8ps, range 0-15 */
+		ddr3a1_ddr4a9_de-skew = <7>;
+		ddr3a0_ddr4a10_de-skew = <7>;
+		ddr3a3_ddr4a6_de-skew = <8>;
+
+		/* DATA de-skew
+		 * RX one step is 25.1ps, range 0-15
+		 * TX one step is 47.8ps, range 0-15
+		 */
+		cs0_dm0_rx_de-skew = <7>;
+		cs0_dm0_tx_de-skew = <8>;
+		cs0_dq0_rx_de-skew = <7>;
+	};
+};
