@@ -40,6 +40,7 @@
 
 /*#define CONFIG_RK_FPGA 1*/
 #define VOP_CHIP(dev)	(dev->data->chip_type)
+#define EARLY_TIME 500 /* us */
 
 static int dbg_thresd;
 module_param(dbg_thresd, int, S_IRUGO | S_IWUSR);
@@ -1791,11 +1792,13 @@ static int vop_config_timing(struct rk_lcdc_driver *dev_drv)
 	u16 y_res = screen->mode.yres;
 	u64 val;
 	u16 h_total, v_total;
+	u32 frame_time;
 	u16 vact_end_f1, vact_st_f1, vs_end_f1, vs_st_f1;
 
 	h_total = hsync_len + left_margin + x_res + right_margin;
 	v_total = vsync_len + upper_margin + y_res + lower_margin;
 
+	frame_time = 1000 * v_total * h_total / (screen->mode.pixclock / 1000);
 	val = V_DSP_HS_END(hsync_len) | V_DSP_HTOTAL(h_total);
 	vop_msk_reg(vop_dev, DSP_HTOTAL_HS_END, val);
 
@@ -1834,8 +1837,8 @@ static int vop_config_timing(struct rk_lcdc_driver *dev_drv)
 		val = V_DSP_LINE_FLAG_NUM_0(lower_margin ?
 					    vact_end_f1 : vact_end_f1 - 1);
 
-		val |= V_DSP_LINE_FLAG_NUM_1(lower_margin ?
-					     vact_end_f1 : vact_end_f1 - 1);
+		val |= V_DSP_LINE_FLAG_NUM_1(vact_end_f1 -
+					     EARLY_TIME * v_total / frame_time);
 		vop_msk_reg(vop_dev, LINE_FLAG, val);
 	} else {
 		val = V_DSP_VS_END(vsync_len) | V_DSP_VTOTAL(v_total);
@@ -1849,7 +1852,8 @@ static int vop_config_timing(struct rk_lcdc_driver *dev_drv)
 			    V_DSP_FIELD_POL(0));
 
 		val = V_DSP_LINE_FLAG_NUM_0(vsync_len + upper_margin + y_res) |
-			V_DSP_LINE_FLAG_NUM_1(vsync_len + upper_margin + y_res);
+			V_DSP_LINE_FLAG_NUM_1(vsync_len + upper_margin + y_res -
+					      EARLY_TIME * v_total / frame_time);
 		vop_msk_reg(vop_dev, LINE_FLAG, val);
 	}
 	vop_post_cfg(dev_drv);
@@ -2194,7 +2198,7 @@ static int vop_enable_irq(struct rk_lcdc_driver *dev_drv)
 
 	vop_mask_writel(vop_dev, INTR_CLEAR0, INTR_MASK, INTR_MASK);
 
-	val = INTR_LINE_FLAG0 | INTR_BUS_ERROR | INTR_LINE_FLAG1 |
+	val = INTR_LINE_FLAG0 | INTR_BUS_ERROR |
 		INTR_WIN0_EMPTY | INTR_WIN1_EMPTY | INTR_HWC_EMPTY |
 		INTR_POST_BUF_EMPTY | INTR_FS_FIELD;
 
