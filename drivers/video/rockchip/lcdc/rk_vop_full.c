@@ -282,7 +282,7 @@ static const u32 sdr2hdr_st2084oetf_xn[63] = {
 	163840, 196608, 229376,
 };
 
-static const u32 hdr2sdr_eetf_yn[33] = {
+static u32 hdr2sdr_eetf_yn[33] = {
 	1716,
 	1880,	2067,	2277,	2508,
 	2758,	3026,	3310,	3609,
@@ -294,7 +294,7 @@ static const u32 hdr2sdr_eetf_yn[33] = {
 	10812,	10960,	11053,	11084,
 };
 
-static const u32 hdr2sdr_bt1886oetf_yn[33] = {
+static u32 hdr2sdr_bt1886oetf_yn[33] = {
 	0,
 	0,	0,	0,	0,
 	0,	0,	0,	314,
@@ -4040,6 +4040,72 @@ static int vop_set_hdr_st2084oetf(struct rk_lcdc_driver *dev_drv,
 	return 0;
 }
 
+static int vop_set_hdr2sdr_yn(struct rk_lcdc_driver *dev_drv, int cmd,
+			      int *hdr2sdr_yn)
+{
+	int i;
+	u64 val = 0;
+	struct vop_device *vop_dev =
+		container_of(dev_drv, struct vop_device, driver);
+
+	spin_lock(&vop_dev->reg_lock);
+	if (cmd == 0) {
+		for (i = 0; i < 33; i++)
+			hdr2sdr_eetf_yn[i] = hdr2sdr_yn[i];
+	} else if (cmd == 1) {
+		for (i = 0; i < 33; i++)
+			hdr2sdr_bt1886oetf_yn[i] = hdr2sdr_yn[i];
+	} else if (cmd == 2) {
+		val = V_SRC_MAX(hdr2sdr_yn[0] * 4);
+		vop_msk_reg(vop_dev, HDR2SDR_DST_RANGE, val);
+	} else {
+		val = V_NORMFACCGAMMA(hdr2sdr_yn[0]);
+		vop_msk_reg(vop_dev, HDR2SDR_NORMFACCGAMMA, val);
+	}
+	spin_unlock(&vop_dev->reg_lock);
+
+	return 0;
+}
+
+static ssize_t vop_show_hdr2sdr_yn(struct rk_lcdc_driver *dev_drv, char *buf)
+{
+	struct vop_device *vop_dev =
+		container_of(dev_drv, struct vop_device, driver);
+	ssize_t size = 0;
+	int i = 0;
+	char hdr_buf[200];
+	u32 val = 0;
+
+	strcat(buf, "hdr2sdr_eetf_yn: ");
+	for (i = 0; i < 33; i++) {
+		memset(hdr_buf, 0, sizeof(hdr_buf));
+		size += snprintf(hdr_buf, 10, "%d ", hdr2sdr_eetf_yn[i]);
+		strcat(buf, hdr_buf);
+	}
+
+	strcat(buf, "r2sdr_bt1886oetf_yn: ");
+	for (i = 0; i < 33; i++) {
+		memset(hdr_buf, 0, sizeof(hdr_buf));
+		size += snprintf(hdr_buf, 10, "%d ", hdr2sdr_bt1886oetf_yn[i]);
+		strcat(buf, hdr_buf);
+	}
+
+	strcat(buf, "DST_RANGE: ");
+	memset(hdr_buf, 0, sizeof(hdr_buf));
+	val = (vop_readl(vop_dev, HDR2SDR_DST_RANGE) & MASK(SRC_MAX)) >> 16;
+	val /= 4;
+	size += snprintf(hdr_buf, 10, "%d ", val);
+	strcat(buf, hdr_buf);
+
+	strcat(buf, "RMFACCGAMMA: ");
+	memset(hdr_buf, 0, sizeof(hdr_buf));
+	val = vop_readl(vop_dev, HDR2SDR_NORMFACCGAMMA) & MASK(NORMFACCGAMMA);
+	size += snprintf(hdr_buf, 10, "%d ", val);
+	strcat(buf, hdr_buf);
+
+	return strlen(buf);
+}
+
 static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.open = vop_open,
 	.win_direct_en = vop_win_direct_en,
@@ -4076,6 +4142,8 @@ static struct rk_lcdc_drv_ops lcdc_drv_ops = {
 	.set_overscan   = vop_set_overscan,
 	.set_hdr_bt1886eotf = vop_set_hdr_bt1886eotf,
 	.set_hdr_st2084oetf = vop_set_hdr_st2084oetf,
+	.set_hdr2sdr_yn = vop_set_hdr2sdr_yn,
+	.show_hdr2sdr_yn = vop_show_hdr2sdr_yn,
 };
 
 static irqreturn_t vop_isr(int irq, void *dev_id)

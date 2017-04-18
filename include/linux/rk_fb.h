@@ -601,6 +601,9 @@ struct rk_lcdc_drv_ops {
 				  int *bt1886eotf_yn_for_hdr);
 	int (*set_hdr_st2084oetf)(struct rk_lcdc_driver *dev_drv,
 				  int *st2084oetf_yn_for_hdr);
+	int (*set_hdr2sdr_yn)(struct rk_lcdc_driver *dev_drv, int cmd,
+			      int *hdr2sdr_yn);
+	ssize_t (*show_hdr2sdr_yn)(struct rk_lcdc_driver *dev_drv, char *buf);
 };
 
 struct rk_fb_area_par {

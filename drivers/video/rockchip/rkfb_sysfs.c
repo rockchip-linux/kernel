@@ -1361,6 +1361,96 @@ static ssize_t set_hdr_st2084oetf(struct device *dev,
 	return count;
 }
 
+static ssize_t show_hdr2sdr_yn(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct rk_fb_par *fb_par = (struct rk_fb_par *)fbi->par;
+	struct rk_lcdc_driver *dev_drv = fb_par->lcdc_drv;
+
+	if (dev_drv->ops->show_hdr2sdr_yn)
+		return dev_drv->ops->show_hdr2sdr_yn(dev_drv, buf);
+
+	return 0;
+}
+
+static ssize_t set_hdr2sdr_yn(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	struct fb_info *fbi = dev_get_drvdata(dev);
+	struct rk_fb_par *fb_par = (struct rk_fb_par *)fbi->par;
+	struct rk_lcdc_driver *dev_drv = fb_par->lcdc_drv;
+	int hdr2sdr_eetf[33];
+	const char *start = buf;
+	int i = 0, temp;
+	int space_max = 20;
+
+	if (!strncmp(buf, "hdr2sdr_eetf", 12)) {
+		do {
+			start++;
+			space_max--;
+		} while ((*start != ' ') && space_max);
+		start++;
+		for (i = 0; i < 33; i++) {
+			space_max = 10;	/* max space number 10 */
+			temp = simple_strtoul(start, NULL, 10);
+			hdr2sdr_eetf[i] = temp;
+			do {
+				start++;
+				space_max--;
+			} while ((*start != ' ') && space_max);
+			if (!space_max)
+				break;
+			start++;
+		}
+		if (dev_drv->ops->set_hdr2sdr_yn)
+			dev_drv->ops->set_hdr2sdr_yn(dev_drv, 0, hdr2sdr_eetf);
+	} else if (!strncmp(buf, "hdr2sdr_bt1886oetf", 12)) {
+		do {
+			start++;
+			space_max--;
+		} while ((*start != ' ') && space_max);
+		start++;
+		for (i = 0; i < 33; i++) {
+			space_max = 10;	/* max space number 10 */
+			temp = simple_strtoul(start, NULL, 10);
+			hdr2sdr_eetf[i] = temp;
+			do {
+				start++;
+				space_max--;
+			} while ((*start != ' ') && space_max);
+			if (!space_max)
+				break;
+			start++;
+		}
+		if (dev_drv->ops->set_hdr2sdr_yn)
+			dev_drv->ops->set_hdr2sdr_yn(dev_drv, 1, hdr2sdr_eetf);
+	} else if (!strncmp(buf, "dst_maxlumi", 12)) {
+		do {
+			start++;
+			space_max--;
+		} while ((*start != ' ') && space_max);
+		start++;
+		temp = simple_strtoul(start, NULL, 10);
+		hdr2sdr_eetf[0] = temp;
+		if (dev_drv->ops->set_hdr2sdr_yn)
+			dev_drv->ops->set_hdr2sdr_yn(dev_drv, 2, hdr2sdr_eetf);
+	} else if (!strncmp(buf, "normfacgamma", 12)) {
+		do {
+			start++;
+			space_max--;
+		} while ((*start != ' ') && space_max);
+		start++;
+		temp = simple_strtoul(start, NULL, 10);
+		hdr2sdr_eetf[0] = temp;
+		if (dev_drv->ops->set_hdr2sdr_yn)
+			dev_drv->ops->set_hdr2sdr_yn(dev_drv, 3, hdr2sdr_eetf);
+	}
+
+	return count;
+}
+
 static struct device_attribute rkfb_attrs[] = {
 	__ATTR(phys_addr, S_IRUGO, show_phys, NULL),
 	__ATTR(virt_addr, S_IRUGO, show_virt, NULL),
@@ -1388,6 +1478,8 @@ static struct device_attribute rkfb_attrs[] = {
 	       set_hdr_bt1886eotf),
 	__ATTR(hdr_st2084oetf, S_IRUGO | S_IWUSR, show_hdr_st2084oetf,
 	       set_hdr_st2084oetf),
+	__ATTR(hdr2sdr_yn, S_IRUGO | S_IWUSR, show_hdr2sdr_yn,
+	       set_hdr2sdr_yn),
 };
 
 int rkfb_create_sysfs(struct fb_info *fbi)
