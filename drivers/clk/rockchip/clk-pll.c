@@ -2953,7 +2953,6 @@ const struct clk_ops *rk_get_pll_ops(u32 pll_flags)
 
 		case CLK_PLL_322XH_APLL:
 			SOC_IS_RK322XH = 1;
-			clk_322xh_apll_table_correct();
 			return &clk_pll_ops_322xh_apll;
 
 		default:
