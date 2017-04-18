@@ -431,15 +431,19 @@ static int dwc3_core_init(struct dwc3 *dwc)
 
 	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
 
+	reg = dwc3_readl(dwc->regs, DWC3_GUCTL1);
+
 	/*
 	 * Enable hardware control of sending remote wakeup in HS when
 	 * the device is in the L1 state.
 	 */
-	if (dwc->revision >= DWC3_REVISION_290A) {
-		reg = dwc3_readl(dwc->regs, DWC3_GUCTL1);
+	if (dwc->revision >= DWC3_REVISION_290A)
 		reg |= DWC3_GUCTL1_DEV_L1_EXIT_BY_HW;
-		dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
-	}
+
+	if (dwc->tx_ipgap_linecheck_dis_quirk)
+		reg |= DWC3_GUCTL1_TX_IPGAP_LINECHECK_DIS;
+
+	dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
 
 	return 0;
 
@@ -602,6 +606,8 @@ static int dwc3_probe(struct platform_device *pdev)
 				"snps,del_phy_power_chg_quirk");
 		dwc->dis_del_phy_power_chg_quirk = of_property_read_bool(node,
 				"snps,dis-del-phy-power-chg-quirk");
+		dwc->tx_ipgap_linecheck_dis_quirk = of_property_read_bool(node,
+				"snps,tx-ipgap-linecheck-dis-quirk");
 	} else if (pdata) {
 		dwc->maximum_speed = pdata->maximum_speed;
 
