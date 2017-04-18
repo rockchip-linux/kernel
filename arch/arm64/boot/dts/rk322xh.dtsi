@@ -1430,6 +1430,7 @@
 			snps,dis_u2_susphy_quirk;
 			snps,dis-del-phy-power-chg-quirk;
 			snps,dis-u3-autosuspend-quirk;
+			snps,tx-ipgap-linecheck-dis-quirk;
 			status = "disabled";
 		};
 	};
