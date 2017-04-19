@@ -178,10 +178,11 @@ static void rockchip_hdmiv2_i2cm_write_data(struct hdmi_dev *hdmi_dev,
 {
 	u8 interrupt = 0;
 	int trytime = 2;
-	int i = 20;
+	int i;
 
 	while (trytime-- > 0) {
 		rockchip_hdmiv2_i2cm_write_request(hdmi_dev, offset, data);
+		i = 20;
 		while (i--) {
 			usleep_range(900, 1000);
 			interrupt = hdmi_readl(hdmi_dev, IH_I2CM_STAT0);
