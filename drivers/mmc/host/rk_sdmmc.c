@@ -1922,10 +1922,8 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
-	u32 i, regs, cmd_flags;
+	u32 i, regs;
 	u32 sdio_int;
-	unsigned long timeout = 0;
-	bool ret_timeout = true;
 	u32 opcode, int_val;
 
 	/* unmask irq */
@@ -1953,40 +1951,11 @@ static void dw_mci_post_tmo(struct mmc_host *mmc)
 		 "[%s] -- Timeout recovery procedure start --\n",
 		 mmc_hostname(host->mmc));
 
-retry_stop:
-	/* send stop cmd */
-	mci_writel(host, CMDARG, 0);
-	wmb();
-	cmd_flags = SDMMC_CMD_STOP | SDMMC_CMD_RESP_CRC |
-			SDMMC_CMD_RESP_EXP | MMC_STOP_TRANSMISSION;
-
-	if (host->mmc->hold_reg_flag)
-		cmd_flags |= SDMMC_CMD_USE_HOLD_REG;
-
-	mci_writel(host, CMD, cmd_flags | SDMMC_CMD_START);
-	wmb();
-	timeout = jiffies + msecs_to_jiffies(10);
-
-	while(ret_timeout) {
-		ret_timeout = time_before(jiffies, timeout);
-		if(!(mci_readl(host, CMD) & SDMMC_CMD_START))
-			break;
-	}
-
-	if (false == ret_timeout) {
-		MMC_DBG_ERR_FUNC(host->mmc, "stop cmd recovery failed![%s]",
-				 mmc_hostname(host->mmc));
-		/* pd_peri mmc AHB bus software reset request */
-		rockchip_mmc_reset_controller(host->reset);
-		goto retry_stop;
-	}
-
 	if (!dw_mci_ctrl_all_reset(host)) {
-		MMC_DBG_ERR_FUNC(host->mmc, "all reset recovery failed![%s]",
+		MMC_DBG_ERR_FUNC(host->mmc, "dw_mci host reset failed![%s]",
 				 mmc_hostname(host->mmc));
 		/* pd_peri mmc AHB bus software reset request */
 		rockchip_mmc_reset_controller(host->reset);
-		goto retry_stop;
 	}
 
 #ifdef CONFIG_MMC_DW_IDMAC
