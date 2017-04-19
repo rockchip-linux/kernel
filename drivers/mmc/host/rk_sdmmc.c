@@ -118,6 +118,7 @@ static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 static void dw_mci_disable_low_power(struct dw_mci_slot *slot);
 static void rockchip_mmc_reset_controller(struct reset_control *reset);
 static void dw_mci_wait_unbusy(struct dw_mci *host, u32 cmd_flags);
+static int dw_mci_idmac_init(struct dw_mci *host);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -407,15 +408,30 @@ static void dw_mci_idmac_complete_dma(void *arg)
         }
 }
 
-static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
+static int dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 				    unsigned int sg_len)
 {
 	int i;
 	struct idmac_desc *desc = host->sg_cpu;
+	unsigned long timeout;
 
 	for (i = 0; i < sg_len; i++, desc++) {
 		unsigned int length = sg_dma_len(&data->sg[i]);
 		u32 mem_addr = sg_dma_address(&data->sg[i]);
+
+		/*
+		 * Wait for the former clear OWN bit operation
+		 * of IDMAC to make sure that this descriptor
+		 * isn't still owned by IDMAC as IDMAC's write
+		 * ops and CPU's read ops are asynchronous.
+		 */
+		timeout = jiffies + msecs_to_jiffies(100);
+		while (readl(&desc->des0) &
+			   cpu_to_le32(IDMAC_DES0_OWN)) {
+			if (time_after(jiffies, timeout))
+				goto err_own_bit;
+			udelay(10);
+		}
 
 		/* Set the OWN bit and disable interrupts for this descriptor */
 		desc->des0 = IDMAC_DES0_OWN | IDMAC_DES0_DIC | IDMAC_DES0_CH;
@@ -437,13 +453,24 @@ static void dw_mci_translate_sglist(struct dw_mci *host, struct mmc_data *data,
 	desc->des0 |= IDMAC_DES0_LD;
 
 	wmb();
+	return 0;
+
+err_own_bit:
+	/* restore the descriptor chain as it's polluted */
+	dev_err(host->dev, "descriptor is still owned by IDMAC.\n");
+	memset(host->sg_cpu, 0, PAGE_SIZE);
+	dw_mci_idmac_init(host);
+	return -EINVAL;
 }
 
-static void dw_mci_idmac_start_dma(struct dw_mci *host, unsigned int sg_len)
+static int dw_mci_idmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 {
 	u32 temp;
+	int ret;
 
-	dw_mci_translate_sglist(host, host->data, sg_len);
+	ret = dw_mci_translate_sglist(host, host->data, sg_len);
+	if (ret)
+		goto out;
 
 	/* Select IDMAC interface */
 	temp = mci_readl(host, CTRL);
@@ -459,6 +486,9 @@ static void dw_mci_idmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 
 	/* Start it running */
 	mci_writel(host, PLDMND, 1);
+
+out:
+	return ret;
 }
 
 static int dw_mci_idmac_init(struct dw_mci *host)
@@ -528,7 +558,7 @@ static void dw_mci_edmac_complete_dma(void *arg)
 	}
 }
 
-static void dw_mci_edmac_start_dma(struct dw_mci *host, unsigned int sg_len)
+static int dw_mci_edmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 {
 	struct dma_slave_config slave_config;
 	struct dma_async_tx_descriptor *desc = NULL;
@@ -579,7 +609,7 @@ static void dw_mci_edmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 	if (ret) {
 		dev_err(host->dev,
 			"Error in dw_mci edmac write configuration.\n");
-		return;
+		return -EBUSY;
 	}
 
 	desc = dmaengine_prep_slave_sg(host->dms->ch, sgl, sg_len,
@@ -588,7 +618,7 @@ static void dw_mci_edmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 	if (!desc) {
 		dev_err(host->dev,
 			 "Cannot prepare slave write sg the dw_mci edmac!\n");
-		return;
+		return -EBUSY;
 	}
 
 	/* Set dw_mci_edmac_complete_dma as callback */
@@ -602,6 +632,8 @@ static void dw_mci_edmac_start_dma(struct dw_mci *host, unsigned int sg_len)
 				       sg_elems, DMA_TO_DEVICE);
 
 	dma_async_issue_pending(host->dms->ch);
+
+	return 0;
 }
 
 static int dw_mci_edmac_init(struct dw_mci *host)
@@ -863,7 +895,14 @@ static int dw_mci_submit_data_dma(struct dw_mci *host, struct mmc_data *data)
 	mci_writel(host, INTMASK, temp);
 	spin_unlock_irqrestore(&host->slock, flags);
 
-	host->dma_ops->start(host, sg_len);
+	if (host->dma_ops->start(host, sg_len)) {
+		host->dma_ops->stop(host);
+		/* We can't do DMA, try PIO for this one */
+		dev_err(host->dev,
+			"%s: fall back to PIO mode for current transfer\n",
+			__func__);
+		return -ENODEV;
+	}
 
 	return 0;
 }
