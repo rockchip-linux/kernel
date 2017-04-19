@@ -123,6 +123,7 @@ void ftl_free(void *p, int size)
 static unsigned int rk_partition_init(struct flash_part *part)
 {
 	int i, part_num = 0;
+	int desity;
 	struct STRUCT_PART_INFO *g_part;  /* size 2KB */
 
 	g_part = kmalloc(sizeof(*g_part), GFP_KERNEL | GFP_DMA);
@@ -132,6 +133,7 @@ static unsigned int rk_partition_init(struct flash_part *part)
 	if (g_boot_ops[g_flash_type]->read(0, 4, g_part) == 0) {
 		if (g_part->hdr.ui_fw_tag == RK_PARTITION_TAG) {
 			part_num = g_part->hdr.ui_part_entry_count;
+			desity = g_boot_ops[g_flash_type]->get_capacity();
 			for (i = 0; i < part_num; i++) {
 				memcpy(part[i].name,
 				       g_part->part[i].sz_name,
@@ -139,6 +141,8 @@ static unsigned int rk_partition_init(struct flash_part *part)
 				part[i].offset = g_part->part[i].ui_pt_off;
 				part[i].size = g_part->part[i].ui_pt_sz;
 				part[i].type = 0;
+				if (part[i].size == UINT_MAX)
+					part[i].size = desity - part[i].offset;
 			}
 		}
 	}

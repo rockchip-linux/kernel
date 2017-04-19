@@ -712,14 +712,16 @@ static int sfc_read_mtd(struct mtd_info *mtd, loff_t from, size_t len,
 static int sfc_nor_mtd_init(struct SFNOR_DEV *p_dev)
 {
 	int ret, i, part_num = 0;
+	int capacity;
 	struct STRUCT_PART_INFO *g_part;  /* size 2KB */
 
+	capacity = p_dev->capacity;
 	p_dev->mtd.name = "sfc_nor";
 	p_dev->mtd.type = MTD_NORFLASH;
 	p_dev->mtd.writesize = 1;
 	p_dev->mtd.flags = MTD_CAP_NORFLASH;
 	/* see snor_write */
-	p_dev->mtd.size = p_dev->capacity << 9;
+	p_dev->mtd.size = capacity << 9;
 	p_dev->mtd._erase = sfc_erase_mtd;
 	p_dev->mtd._read = sfc_read_mtd;
 	p_dev->mtd._write = sfc_write_mtd;
@@ -746,6 +748,9 @@ static int sfc_nor_mtd_init(struct SFNOR_DEV *p_dev)
 				nor_parts[i].name =
 					kstrdup(g_part->part[i].sz_name,
 						GFP_KERNEL);
+				if (g_part->part[i].ui_pt_sz == 0xFFFFFFFF)
+					g_part->part[i].ui_pt_sz = capacity -
+						g_part->part[i].ui_pt_off;
 				nor_parts[i].offset =
 					g_part->part[i].ui_pt_off << 9;
 				nor_parts[i].size =
