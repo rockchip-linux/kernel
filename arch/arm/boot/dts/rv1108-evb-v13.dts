@@ -81,7 +81,7 @@
 	};
 
 	chosen {
-		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
+		bootargs = "user_debug=31 rockchip_jtag noinitrd root=/dev/mtdblock3 rootfstype=squashfs";
 	};
 
 	ion {

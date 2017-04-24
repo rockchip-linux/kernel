@@ -77,7 +77,7 @@
 	};
 
 	chosen {
-		bootargs = "rockchip_jtag noinitrd root=/dev/rootfs rootfstype=squashfs";
+		bootargs = "rockchip_jtag noinitrd root=/dev/mtdblock3 rootfstype=squashfs";
 	};
 
 	ion {
