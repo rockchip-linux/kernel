@@ -188,6 +188,7 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += \
 	rk3288-tb_8846.dtb \
 	rk3288-tb.dtb \
 	rk3288-vr.dtb \
+	rv1107-ipc-v10.dtb \
 	rv1108-cvr-hx108.dtb \
 	rv1108-evb-v10.dtb \
 	rv1108-evb-v11.dtb \
