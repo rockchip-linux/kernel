@@ -360,10 +360,10 @@ static void rk816_power_off_shutdown(void)
 		}
 	}
 
-	while (1) {
-		dev_err(rk816->dev, "rk816 power off failed!!!\n");
+	dev_err(rk816->dev, "rk816 power off failed!!!\n");
+
+	while (1)
 		wfi();
-	}
 }
 
 /******************************** rk816 ***************************************/
