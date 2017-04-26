@@ -26,6 +26,8 @@ struct rk_win_data {
 	unsigned int		xsize;
 	unsigned int		ysize;
 	unsigned int 		xvir;
+	unsigned int		yvir;
+	unsigned int		uv_vir;
 
 	dma_addr_t		yrgb_addr;
 	dma_addr_t		uv_addr;

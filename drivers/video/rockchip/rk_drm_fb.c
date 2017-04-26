@@ -1126,6 +1126,7 @@ static int rk_drm_win_commit(struct rk_drm_display *drm_disp,
 			lcdc_win->area[0].yact = drm_win->yact;
 			lcdc_win->area[0].xvir = drm_win->xvir;
 			lcdc_win->area[0].y_vir_stride = drm_win->xvir;
+			lcdc_win->area[0].uv_vir_stride = drm_win->uv_vir;
 			lcdc_win->area[0].smem_start = drm_win->yrgb_addr;
 			lcdc_win->area[0].cbr_start = drm_win->uv_addr;
 			lcdc_win->alpha_en = 1;

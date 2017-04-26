@@ -237,17 +237,20 @@ static void primary_win_mode_set(struct device *dev,
 	offset += overlay->fb_y * overlay->pitch;
 
 	win_data = &ctx->win_data[win];
-	win_data->offset_x = overlay->crtc_x;
-	win_data->offset_y = overlay->crtc_y;
-	win_data->ovl_width = overlay->crtc_width;
-	win_data->ovl_height = overlay->crtc_height;
-	win_data->fb_width = overlay->fb_width;
-	win_data->fb_height = overlay->fb_height;
+	win_data->offset_x = overlay->crtc_x; /* xpos */
+	win_data->offset_y = overlay->crtc_y; /* ypos */
+	win_data->ovl_width = overlay->crtc_width; /* xsize*/
+	win_data->ovl_height = overlay->crtc_height; /* ysize */
+	win_data->fb_width = overlay->fb_width;	/* xvir */
+	win_data->fb_height = overlay->fb_height;  /* yvir */
+	win_data->src_width = overlay->src_width; /* xact */
+	win_data->src_height = overlay->src_height; /* yact */
 	win_data->dma_addr = overlay->dma_addr[0] + offset;
 	win_data->bpp = overlay->bpp;
 	win_data->buf_offsize = (overlay->fb_width - overlay->crtc_width) *
 				(overlay->bpp >> 3);
 	win_data->line_size = overlay->crtc_width * (overlay->bpp >> 3);
+	win_data->pixel_format = overlay->pixel_format;
 
 }
 
@@ -285,30 +288,46 @@ static void primary_win_commit(struct device *dev, int zpos)
 #endif
 	rk_win = &drm_disp->win[win];
 	win_data = &ctx->win_data[win];
-	switch (win_data->bpp) {
-	case 32:
-		rk_win->format = ARGB888;
-		break;
-	case 24:
-		rk_win->format = RGB888;
-		break;
-	case 16:
-		rk_win->format = RGB565;
-		break;
-	default:
-		pr_info("not support format %d\n", win_data->bpp);
-		break;
-	}
 
 	rk_win->xpos = win_data->offset_x;
 	rk_win->ypos = win_data->offset_y;
-	rk_win->xact = win_data->ovl_width;
-	rk_win->yact = win_data->ovl_height;
+	rk_win->xact = win_data->src_width;
+	rk_win->yact = win_data->src_height;
 	rk_win->xsize = win_data->ovl_width;
 	rk_win->ysize = win_data->ovl_height;
-	rk_win->xvir = win_data->fb_width;
+	rk_win->yvir = win_data->fb_height;
 	rk_win->yrgb_addr = win_data->dma_addr;
 	rk_win->enabled = true;
+	switch (win_data->pixel_format) {
+	case DRM_FORMAT_NV12:
+		rk_win->format = YUV420;
+		rk_win->uv_addr = win_data->dma_addr +
+				win_data->fb_width * win_data->fb_height;
+		rk_win->xvir = win_data->fb_width / 4;
+		rk_win->uv_vir = rk_win->xvir;
+		break;
+	case DRM_FORMAT_RGB888:
+		rk_win->format = RGB888;
+		rk_win->xvir = win_data->fb_width * 3 / 4;
+		break;
+	case DRM_FORMAT_ARGB8888:
+		rk_win->format = ARGB888;
+		rk_win->xvir = win_data->fb_width;
+		break;
+	case DRM_FORMAT_XRGB8888:
+		rk_win->format = XRGB888;
+		rk_win->xvir = win_data->fb_width;
+		break;
+	case DRM_FORMAT_RGB565:
+		rk_win->format = RGB565;
+		rk_win->xvir = win_data->fb_width / 2;
+		break;
+	default:
+		pr_info("not support format 0x%x\n", win_data->pixel_format);
+		break;
+
+	}
+
 	rk_drm_disp_handle(drm_disp, 1 << win,
 			   RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
 	win_data->enabled = true;

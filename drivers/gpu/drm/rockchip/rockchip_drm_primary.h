@@ -17,6 +17,9 @@ struct primary_win_data {
 	unsigned int		line_size;	/* bytes */
 	bool			enabled;
 	bool			resume;
+	unsigned int		pixel_format;
+	unsigned int		src_width;
+	unsigned int		src_height;
 };
 
 struct primary_context {
