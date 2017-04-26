@@ -122,6 +122,14 @@ int rockchip_secure_reg_write64(u64 addr_phy, u64 val)
 }
 #endif /*CONFIG_ARM64*/
 
+struct arm_smccc_res sip_smc_dram(u32 arg0, u32 arg1, u32 arg2)
+{
+	struct arm_smccc_res res;
+
+	sip_fn_smc32(PSCI_SIP_DRAM_FREQ_CONFIG, arg0, arg1, arg2, &res);
+	return res;
+}
+
 struct arm_smccc_res rockchip_psci_smc_read(u32 function_id, u32 arg0,
 					    u32 arg1, u32 arg2)
 {
