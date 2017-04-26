@@ -1605,6 +1605,11 @@ static int rk312x_lcdc_set_par(struct rk_lcdc_driver *dev_drv, int win_id)
 		win->area[0].swap_rb = 1;
 		win->area[0].swap_uv = 0;
 		break;
+	case XRGB888:
+		win->area[0].fmt_cfg = VOP_FORMAT_ARGB888;
+		win->area[0].swap_rb = 0;
+		win->area[0].swap_uv = 0;
+		break;
 	case ABGR888:
 		win->area[0].fmt_cfg = VOP_FORMAT_ARGB888;
 		win->area[0].swap_rb = 1;
@@ -2284,6 +2289,39 @@ static int rk312x_lcdc_get_dsp_addr(struct rk_lcdc_driver *dev_drv,
 	return 0;
 }
 
+
+static char *rk312x_lcdc_format_to_string(int format, char *fmt)
+{
+	if (!fmt)
+		return NULL;
+
+	switch (format) {
+	case 0:
+		strcpy(fmt, "ARGB888");
+		break;
+	case 1:
+		strcpy(fmt, "RGB888");
+		break;
+	case 2:
+		strcpy(fmt, "RGB565");
+		break;
+	case 4:
+		strcpy(fmt, "YCbCr420");
+		break;
+	case 5:
+		strcpy(fmt, "YCbCr422");
+		break;
+	case 6:
+		strcpy(fmt, "YCbCr444");
+		break;
+	default:
+		strcpy(fmt, "invalid\n");
+		break;
+	}
+	return fmt;
+}
+
+
 static ssize_t rk312x_lcdc_get_disp_info(struct rk_lcdc_driver *dev_drv,
 					 char *buf, int win_id)
 {
@@ -2299,13 +2337,14 @@ static ssize_t rk312x_lcdc_get_disp_info(struct rk_lcdc_driver *dev_drv,
 	u16 x_factor, y_factor, x_scale, y_scale;
 	u16 ovl;
 	u32 win1_dsp_yaddr = 0;
+	struct rk_screen *screen = dev_drv->cur_screen;
 
 	spin_lock(&lcdc_dev->reg_lock);
 	if (lcdc_dev->clk_on) {
 		/* data format */
 		fmt_id = lcdc_readl(lcdc_dev, SYS_CTRL);
-		get_format_string((fmt_id & m_WIN0_FORMAT) >> 3, format_w0);
-		get_format_string((fmt_id & m_WIN1_FORMAT) >> 6, format_w1);
+		rk312x_lcdc_format_to_string((fmt_id & m_WIN0_FORMAT) >> 3, format_w0);
+		rk312x_lcdc_format_to_string((fmt_id & m_WIN1_FORMAT) >> 6, format_w1);
 
 		/* win status */
 		if (fmt_id & m_WIN0_EN)
@@ -2354,16 +2393,20 @@ static ssize_t rk312x_lcdc_get_disp_info(struct rk_lcdc_driver *dev_drv,
 
 		/* xpos/ypos */
 		dsp_st = lcdc_readl(lcdc_dev, WIN0_DSP_ST);
-		x_st_w0 = dsp_st & m_DSP_STX;
-		y_st_w0 = (dsp_st & m_DSP_STY) >> 16;
+		x_st_w0 = (dsp_st & m_DSP_STX) - (screen->mode.left_margin +
+			       screen->mode.hsync_len);
+		y_st_w0 = ((dsp_st & m_DSP_STY) >> 16) - (screen->mode.upper_margin +
+				       screen->mode.vsync_len);
 
 		if (lcdc_dev->soc_type == VOP_RK3036)
 			dsp_st = lcdc_readl(lcdc_dev, WIN1_DSP_ST);
 		else if (lcdc_dev->soc_type == VOP_RK312X)
 			dsp_st = lcdc_readl(lcdc_dev, WIN1_DSP_ST_RK312X);
 
-		x_st_w1 = dsp_st & m_DSP_STX;
-		y_st_w1 = (dsp_st & m_DSP_STY) >> 16;
+		x_st_w1 = (dsp_st & m_DSP_STX) - (screen->mode.left_margin +
+			       screen->mode.hsync_len);
+		y_st_w1 = ((dsp_st & m_DSP_STY) >> 16) - (screen->mode.upper_margin +
+				       screen->mode.vsync_len);
 
 		/* scale factor */
 		factor = lcdc_readl(lcdc_dev, WIN0_SCL_FACTOR_YRGB);
