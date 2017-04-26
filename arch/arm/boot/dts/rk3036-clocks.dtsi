@@ -217,7 +217,7 @@
 					aclk_cpu_pre: aclk_cpu_pre_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&clk_apll>, <&clk_dpll>,<&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>,<&clk_gpll>;
 						clock-output-names = "aclk_cpu_pre";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -371,7 +371,7 @@
 					clk_i2s_pll: i2s_pll_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "clk_i2s_pll";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -413,7 +413,7 @@
 					clk_spdif_pll: spdif_pll_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <10 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "clk_spdif_pll";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -512,7 +512,7 @@
 					aclk_peri_pre: aclk_peri_pre_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "aclk_peri_pre";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -575,7 +575,7 @@
 					clk_sdmmc0: clk_sdmmc0_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>, <&xin24m>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>, <&xin24m>;
 						clock-output-names = "clk_sdmmc0";
 						#clock-cells = <0>;
 					};
@@ -583,7 +583,7 @@
 					clk_sdio: clk_sdio_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <10 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>, <&xin24m>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>, <&xin24m>;
 						clock-output-names = "clk_sdio";
 						#clock-cells = <0>;
 					};
@@ -591,7 +591,7 @@
 					clk_emmc: clk_emmc_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <12 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>, <&xin24m>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>, <&xin24m>;
 						clock-output-names = "clk_emmc";
 						#clock-cells = <0>;
 					};
@@ -630,7 +630,7 @@
 					clk_uart_pll: clk_uart_pll_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <10 2>;
-						clocks = <&clk_apll>,<&clk_dpll>, <&clk_gpll>, <&usb_480m>;
+						clocks = <&dummy>,<&clk_dpll>, <&clk_gpll>, <&usb_480m>;
 						clock-output-names = "clk_uart_pll";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -711,7 +711,7 @@
 					clk_sfc: clk_sfc_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <0 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>, <&xin24m>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>, <&xin24m>;
 						clock-output-names = "clk_sfc";
 						#clock-cells = <0>;
 					};
@@ -732,7 +732,7 @@
 					clk_nandc: clk_nandc_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "clk_nandc";
 						#clock-cells = <0>;
 					};
@@ -815,7 +815,7 @@
 					clk_hevc_core: clk_hevc_core_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <0 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "clk_hevc_core";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -913,7 +913,7 @@
 					clk_spi0: clk_spi0_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <8 2>;
-						clocks = <&clk_apll>, <&clk_dpll>,<&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>,<&clk_gpll>;
 						clock-output-names = "clk_spi0";
 						#clock-cells = <0>;
 					};
@@ -966,7 +966,7 @@
 					dclk_lcdc1: dclk_lcdc1_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <0 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "dclk_lcdc1";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -1022,7 +1022,7 @@
 					hclk_vio_pre: hclk_vio_pre_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "hclk_vio_pre";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -1063,7 +1063,7 @@
 					aclk_vio_pre: aclk_vio_pre_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "aclk_vio_pre";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
@@ -1096,7 +1096,7 @@
 					aclk_vcodec_pre: aclk_vcodec_pre_mux {
 						compatible = "rockchip,rk3188-mux-con";
 						rockchip,bits = <14 2>;
-						clocks = <&clk_apll>, <&clk_dpll>, <&clk_gpll>;
+						clocks = <&dummy>, <&clk_dpll>, <&clk_gpll>;
 						clock-output-names = "aclk_vcodec_pre";
 						#clock-cells = <0>;
 						#clock-init-cells = <1>;
