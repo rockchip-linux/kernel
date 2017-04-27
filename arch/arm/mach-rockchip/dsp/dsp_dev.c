@@ -137,6 +137,11 @@ static int dsp_dev_work_done(struct dsp_dev *dev, struct dsp_work *work)
 {
 	dsp_debug_enter();
 
+	dsp_debug(DEBUG_DEVICE,
+		  "Work cost cycles, id=0x%08x, cycles=%d, dsp_rate=%ld\n",
+		  work->id, work->cycles,
+		  dvfs_clk_get_rate(dev->dsp_dvfs_node));
+
 	/*
 	 * Algorithms can request its satisfying DSP
 	 * rate respectively
