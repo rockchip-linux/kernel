@@ -1335,24 +1335,6 @@ static void rk816_bat_set_current(struct rk816_battery *di, int charge_current)
 	rk816_bat_write(di, RK816_USB_CTRL_REG, usb_ctrl);
 }
 
-/*
- * when charger plugin, boost should be disabled. when charger plugout, we
- * should wait 200ms to wait 5v-input fade way, then re-enable. we add wait
- * time inside function to avoid forget it.
- */
-static void rk816_bat_enable_boost(struct rk816_battery *di)
-{
-	msleep(200);
-	rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_ON);
-	DBG("%s\n", __func__);
-}
-
-static void rk816_bat_disable_boost(struct rk816_battery *di)
-{
-	rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_OFF);
-	DBG("%s\n", __func__);
-}
-
 static void rk816_bat_set_chrg_param(struct rk816_battery *di,
 				     enum charger_type charger_type)
 {
@@ -1454,11 +1436,11 @@ static void rk816_bat_set_otg_state(struct rk816_battery *di, int state)
 			break;
 		}
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_ON);
-		/* it had better to wait 100ms to enable otg_en */
-		msleep(100);
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, OTG_MASK, OTG_ON);
 		break;
 	case USB_OTG_POWER_OFF:
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
+				   BOOST_MASK, BOOST_OFF);
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, OTG_MASK, OTG_OFF);
 		break;
 	default:
@@ -3447,13 +3429,11 @@ static void rk816_bat_irq_delay_work(struct work_struct *work)
 		di->plugin_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG3, BIT(0));
 		rk_send_wakeup_key();
-		rk816_bat_disable_boost(di);
 		BAT_INFO("pmic: plug in\n");
 	} else if (di->plugout_trigger) {
 		di->plugout_trigger = 0;
 		rk816_bat_write(di, RK816_INT_STS_REG3, BIT(1));
 		rk_send_wakeup_key();
-		rk816_bat_enable_boost(di);
 		BAT_INFO("pmic: plug out\n");
 	} else if (di->cvtlmt_trigger) {
 		di->cvtlmt_trigger = 0;
