@@ -467,7 +467,9 @@ struct rk8xx_mfd_data {
 	struct regmap_irq_chip *irq_chip;
 	struct regmap_irq_chip *irq_battery_chip;
 	const char *parse_dt_pm_lable;
-	void (*register_pm_power_off)(struct rk816_board *pdev);
+	void (*pm_power_off)(void);
+	void (*pm_power_off_prepare)(void);
+	void (*syscore_pm_power_off)(void);
 };
 
 int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest);

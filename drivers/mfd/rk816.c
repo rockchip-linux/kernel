@@ -43,6 +43,7 @@
 
 static struct rk8xx_mfd_data *rk8xx_mfd_data;
 static struct rk816 *g_rk8xx;
+static void (*rk_syscore_pm_power_off)(void);
 
 static const struct regmap_config rk816_regmap_config = {
 	.reg_bits = 8,
@@ -337,22 +338,22 @@ static struct rk8xx_attribute rk8xx_attrs[] = {
 	       rk8xx_test_show, rk8xx_test_store),
 };
 
-static void rk816_power_off_shutdown(void)
+static void rk816_syscore_power_off(void)
 {
 	int ret, i;
-	u8 reg = 0;
+	int reg = 0;
 	struct rk816 *rk8xx = g_rk8xx;
 
 	for (i = 0; i < 10; i++) {
 		pr_info("%s\n", __func__);
-		ret = rk816_i2c_read(rk8xx, RK816_DEV_CTRL_REG, 1, &reg);
-		if (ret < 0) {
+		reg = rk816_reg_read(rk8xx, RK816_DEV_CTRL_REG);
+		if (reg < 0) {
 			dev_err(rk8xx->dev,
-				"rk816 power off try %d times: %d\n", i, ret);
+				"rk816 power off try %d times: %d\n", i, reg);
 			continue;
 		}
 
-		ret = rk816_i2c_write(rk8xx, RK816_DEV_CTRL_REG, 1,
+		ret = rk816_reg_write(rk8xx, RK816_DEV_CTRL_REG,
 				      (reg | DEV_OFF));
 		if (ret < 0) {
 			dev_err(rk8xx->dev,
@@ -365,6 +366,21 @@ static void rk816_power_off_shutdown(void)
 
 	while (1)
 		wfi();
+}
+
+/*
+ * 'pm_power_off' must be captured, otherwise LINUX_REBOOT_CMD_POWER_OFF will
+ * be replace with LINUX_REBOOT_CMD_HALT. Actually, we will do real poweroff
+ * in syscore->shutdown, that is 'rk816_syscore_power_off'. Why? Because rk816
+ * must write regs via i2c transfer, but i2c may has been stopped or rk816 may
+ * not be able to get i2c while there are too many devices are competiting.
+ */
+static void rk816_dummy_pm_power_off(void)
+{
+	pr_err("%s: we should never reach here, error!\n", __func__);
+
+	while (1)
+		;
 }
 
 /******************************** rk816 ***************************************/
@@ -656,18 +672,6 @@ static void rk805_power_off_prepare(void)
 	pr_info("%s", __func__);
 }
 
-static void rk816_register_pm_power_off(struct rk816_board *pdev)
-{
-	if (pdev->pm_off && !pm_power_off)
-		pm_power_off = rk816_power_off_shutdown;
-}
-
-static void rk805_register_pm_power_off(struct rk816_board *pdev)
-{
-	if (pdev->pm_off && !pm_power_off_prepare)
-		pm_power_off_prepare = rk805_power_off_prepare;
-}
-
 static struct rk8xx_mfd_data rk816_mfd = {
 	.cell = rk816_cells,
 	.cell_num = ARRAY_SIZE(rk816_cells),
@@ -681,7 +685,8 @@ static struct rk8xx_mfd_data rk816_mfd = {
 	.irq_battery_chip = &rk816_battery_irq_chip,
 	.regmap_config = &rk816_regmap_config,
 	.parse_dt_pm_lable = "rk816,system-power-controller",
-	.register_pm_power_off = rk816_register_pm_power_off,
+	.syscore_pm_power_off = rk816_syscore_power_off,
+	.pm_power_off = rk816_dummy_pm_power_off,
 };
 
 static struct rk8xx_mfd_data rk805_mfd = {
@@ -692,7 +697,7 @@ static struct rk8xx_mfd_data rk805_mfd = {
 	.irq_chip = &rk805_irq_chip,
 	.regmap_config = &rk805_regmap_config,
 	.parse_dt_pm_lable = "rk805,system-power-controller",
-	.register_pm_power_off = rk805_register_pm_power_off,
+	.pm_power_off_prepare = rk805_power_off_prepare,
 };
 
 #ifdef CONFIG_OF
@@ -760,12 +765,28 @@ static void rk8xx_syscore_shutdown(void)
 {
 	int i;
 
-	pr_info("%s\n", __func__);
+	pr_info("%s: system state=%d\n", __func__, system_state);
 	for (i = 0; i < ARRAY_SIZE(rk8xx_shutdown_reg); i++)
 		rk816_set_bits(g_rk8xx,
 			       rk8xx_shutdown_reg[i].reg,
 			       rk8xx_shutdown_reg[i].mask,
 			       rk8xx_shutdown_reg[i].val);
+
+	/*
+	 * For PMIC that power off supplies by write register via i2c bus,
+	 * it's better to do power off at syscore shutdown here.
+	 *
+	 * Because when run to kernel's "pm_power_off" call, i2c may has
+	 * been stopped or PMIC may not be able to get i2c transfer while
+	 * there are too many device is competiting.
+	 */
+	if (system_state == SYSTEM_POWER_OFF) {
+		/* power off supplies ! */
+		if (rk_syscore_pm_power_off) {
+			pr_info("System power off\n");
+			rk_syscore_pm_power_off();
+		}
+	}
 
 	mutex_lock(&g_rk8xx->io_lock);
 	mdelay(100);
@@ -872,9 +893,21 @@ static int rk8xx_i2c_probe(struct i2c_client *i2c,
 
 	g_rk8xx = rk8xx;
 
+	/* register power off prepare */
+	if (pdev->pm_off && !pm_power_off_prepare &&
+	    rk8xx_mfd_data->pm_power_off_prepare) {
+		pm_power_off_prepare = rk8xx_mfd_data->pm_power_off_prepare;
+	}
+
 	/* register power off shutdown */
-	if (rk8xx_mfd_data->register_pm_power_off)
-		rk8xx_mfd_data->register_pm_power_off(pdev);
+	if (pdev->pm_off && !pm_power_off &&
+	    rk8xx_mfd_data->pm_power_off) {
+		pm_power_off = rk8xx_mfd_data->pm_power_off;
+	}
+
+	/* register rockchip syscore power off shutdown */
+	if (rk8xx_mfd_data->syscore_pm_power_off)
+		rk_syscore_pm_power_off = rk8xx_mfd_data->syscore_pm_power_off;
 
 	/* create debug kobject */
 	rk8xx_kobj = kobject_create_and_add("rk816", NULL);
