@@ -191,8 +191,8 @@ int psci_set_memory_secure(bool val)
 }
 
 struct arm_smccc_res
-rockchip_request_share_memory(enum share_page_type_t page_type,
-			      u32 page_nums)
+sip_smc_request_share_mem(enum share_page_type_t page_type,
+			  u32 page_nums)
 {
 	struct arm_smccc_res res;
 
@@ -233,8 +233,8 @@ int psci_fiq_debugger_request_share_memory(void)
 		return 0;
 
 	/* request page share memory */
-	res = rockchip_request_share_memory(SHARE_PAGE_TYPE_UARTDBG,
-					    FIQ_UARTDBG_PAGE_NUMS);
+	res = sip_smc_request_share_mem(SHARE_PAGE_TYPE_UARTDBG,
+					FIQ_UARTDBG_PAGE_NUMS);
 	if (IS_SIP_ERROR(res.a0))
 		return res.a0;
 

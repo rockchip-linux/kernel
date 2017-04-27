@@ -99,8 +99,7 @@ int rockchip_psci_smc_set_suspend_mode(u32 mode);
 u32 rockchip_secure_reg_read(u32 addr_phy);
 int rockchip_secure_reg_write(u32 addr_phy, u32 val);
 struct arm_smccc_res
-rockchip_request_share_memory(enum share_page_type_t page_type,
-			      u32 page_nums);
+sip_smc_request_share_mem(enum share_page_type_t page_type, u32 page_nums);
 int rockchip_psci_remotectl_config(u32 func, u32 data);
 struct arm_smccc_res sip_smc_dram(u32 arg0, u32 arg1, u32 arg2);
 
