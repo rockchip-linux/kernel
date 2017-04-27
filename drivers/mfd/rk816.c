@@ -555,6 +555,7 @@ static struct rk8xx_reg_data rk816_init_reg[] = {
 	{RK816_INT_STS_REG1, ALL_INT_FLAGS_ST, REG_WRITE_MSK},
 	{RK816_INT_STS_REG2, ALL_INT_FLAGS_ST, REG_WRITE_MSK},
 	{RK816_INT_STS_REG3, ALL_INT_FLAGS_ST, REG_WRITE_MSK},
+	{RK816_DCDC_EN_REG2, BOOST_DISABLE, BOOST_EN_MASK},
 };
 
 static struct rk8xx_reg_data rk805_init_reg[] = {

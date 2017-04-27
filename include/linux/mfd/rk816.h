@@ -355,6 +355,8 @@
 #define DEV_OFF					(1 << 0)
 #define BUCK1_2_IMAX_MAX			(0x3 << 6)
 #define BUCK3_4_IMAX_MAX			(0x3 << 3)
+#define BOOST_EN_MASK				((0x1 << 5) | (0x1 << 1))
+#define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
 
 enum rk805_reg_id {
 	RK805_ID_DCDC1,
