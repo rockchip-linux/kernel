@@ -847,9 +847,7 @@ static int _ddr_recalc_rate(void)
 	if (!ddr_data->enable)
 		return 0;
 
-	pr_debug("In func %s\n", __func__);
-	res = rockchip_psci_smc_read(PSCI_SIP_DRAM_FREQ_CONFIG, 0, 0,
-				     DRAM_FREQ_CONFIG_DRAM_GET_RATE);
+	res = sip_smc_dram(0, 0, DRAM_FREQ_CONFIG_DRAM_GET_RATE);
 	if (res.a0)
 		return 0;
 	else
@@ -862,7 +860,6 @@ static int _ddr_change_freq(u32 hz)
 	struct arm_smccc_res res;
 	struct set_rate_params *p =
 		(struct set_rate_params *)ddr_data->share_memory;
-	unsigned int cpu = raw_smp_processor_id();
 
 	if (!ddr_data->enable)
 		return 0;
@@ -870,20 +867,15 @@ static int _ddr_change_freq(u32 hz)
 	p->hz = hz;
 	p->wait_flag1 = 1;
 	p->wait_flag0 = 1;
-	pr_debug("In func %s,freq=%dMHz\n", __func__, hz / 1000000);
-	pr_err("current cpu %x\n", cpu);
-	pr_err("vbank = %dus\n", rk_fb_get_prmry_screen_vbt());
 	/* lock cpu to avoid cpu on/off */
 	cpu_maps_update_begin();
-	res = rockchip_psci_smc_read(PSCI_SIP_DRAM_FREQ_CONFIG,
-				     SHARE_PAGE_TYPE_DDR,
-				     0,
-				     DRAM_FREQ_CONFIG_DRAM_FREQ_CHANGE);
+	res = sip_smc_dram(SHARE_PAGE_TYPE_DDR,
+			   0,
+			   DRAM_FREQ_CONFIG_DRAM_FREQ_CHANGE);
 	cpu_maps_update_done();
 	if (!res.a1)
 		pr_info("set ddr freq timeout\n");
 	ret = _ddr_recalc_rate();
-	pr_debug("Func %s out,freq=%dMHz\n", __func__, ret / 1000000);
 	return ret;
 }
 
@@ -897,11 +889,9 @@ static long _ddr_round_rate(u32 hz)
 		return 0;
 
 	p->hz = hz;
-	pr_debug("In func %s,freq=%dMHz\n", __func__, hz / 1000000);
-	res = rockchip_psci_smc_read(PSCI_SIP_DRAM_FREQ_CONFIG,
-				     SHARE_PAGE_TYPE_DDR,
-				     0,
-				     DRAM_FREQ_CONFIG_DRAM_ROUND_RATE);
+	res = sip_smc_dram(SHARE_PAGE_TYPE_DDR,
+			   0,
+			   DRAM_FREQ_CONFIG_DRAM_ROUND_RATE);
 	if (res.a0)
 		return 0;
 	else
@@ -917,11 +907,9 @@ static void _ddr_set_auto_self_refresh(bool en)
 		return;
 
 	p->en = en;
-	pr_debug("In func %s\n", __func__);
-	rockchip_psci_smc_read(PSCI_SIP_DRAM_FREQ_CONFIG,
-			       SHARE_PAGE_TYPE_DDR,
-			       0,
-			       DRAM_FREQ_CONFIG_DRAM_SET_AT_SR);
+	sip_smc_dram(SHARE_PAGE_TYPE_DDR,
+		     0,
+		     DRAM_FREQ_CONFIG_DRAM_SET_AT_SR);
 }
 
 static int ddr_monitor_init(struct platform_device *pdev,
@@ -1114,22 +1102,18 @@ static void ddr_init(u32 page_type)
 {
 	struct arm_smccc_res res;
 
-	pr_debug("In Func:%s\n", __func__);
-	res = rockchip_psci_smc_read(PSCI_SIP_DRAM_FREQ_CONFIG, page_type,
-				     0,
-				     DRAM_FREQ_CONFIG_DRAM_INIT);
+	res = sip_smc_dram(page_type,
+			   0,
+			   DRAM_FREQ_CONFIG_DRAM_INIT);
 	if (res.a0)
 		pr_info("ddr init error\n");
-	else
-		pr_debug("%s out\n", __func__);
 }
 
 static int __init rockchip_atf_ver_check(void)
 {
 	struct arm_smccc_res res;
 
-	res = rockchip_psci_smc_read(PSCI_SIP_DRAM_FREQ_CONFIG, 0, 0,
-				     DRAM_FREQ_CONFIG_DRAM_GET_VERSION);
+	res = sip_smc_dram(0, 0, DRAM_FREQ_CONFIG_DRAM_GET_VERSION);
 	pr_info("current ATF version 0x%lx!\n", res.a1);
 	if ((!res.a0) && (res.a1 >= 0x100))
 		return 0;
@@ -1191,7 +1175,7 @@ static int __init rockchip_ddr_probe(struct platform_device *pdev)
 	if (!of_get_ddr_timings(np, ddr_data->dram_timing)) {
 		ddr_data->dram_timing->available = 1;
 	} else {
-		pr_info("of_get_ddr_timings: fail\n");
+		pr_err("of_get_ddr_timings: fail\n");
 		ddr_data->dram_timing->available = 0;
 	}
 
