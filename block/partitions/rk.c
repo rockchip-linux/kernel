@@ -409,8 +409,7 @@ int rkpart_partition(struct parsed_partitions *state)
 			      i + 1,
 			      parts[i].from + FROM_OFFSET,
 			      parts[i].size);
-		label_max = min(sizeof(info->volname) - 1,
-				sizeof(parts[i].name));
+		label_max = sizeof(info->volname) - 1;
 		strncpy(info->volname, parts[i].name, label_max);
 		pr_info("%10s: 0x%09llx -- 0x%09llx (%llu MB)\n",
 			parts[i].name,
