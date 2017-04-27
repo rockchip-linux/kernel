@@ -116,32 +116,18 @@ static const struct snd_soc_dapm_route audio_map[]= {
 static int rk29_es8323_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
-	  
-    DBG("Enter::%s----%d\n",__FUNCTION__,__LINE__);
-    
-    ret = snd_soc_dai_set_sysclk(codec_dai, 0,
-		/*12000000*/11289600, SND_SOC_CLOCK_IN);
+
+	DBG("Enter::%s----%d\n", __func__, __LINE__);
+
+	ret = snd_soc_dai_set_sysclk(codec_dai, 0,
+			11289600, SND_SOC_CLOCK_IN);
 	if (ret < 0) {
 		printk(KERN_ERR "Failed to set es8323 SYSCLK: %d\n", ret);
 		return ret;
 	}
-	
-    /* Add specific widgets */
-#if 0
-	snd_soc_dapm_new_controls(dapm, rk29_dapm_widgets,
-				  ARRAY_SIZE(rk29_dapm_widgets));
-  	//snd_soc_dapm_nc_pin(codec, "LOUT2");
-	//snd_soc_dapm_nc_pin(codec, "ROUT2");
-	
-    /* Set up specific audio path audio_mapnects */
-        snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
-       
-        snd_soc_dapm_sync(dapm);
-#endif
-    return 0;
+
+	return 0;
 }
 
 static struct snd_soc_ops rk29_ops = {
