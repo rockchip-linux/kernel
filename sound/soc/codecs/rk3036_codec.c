@@ -70,6 +70,7 @@ module_param(debug, int, S_IRUGO|S_IWUSR);
 static struct delayed_work debug_delayed_work;
 #endif
 
+static void spk_ctrl_fun(int status);
 static const DECLARE_TLV_DB_MINMAX(rk3036_codec_line_tlv, -39, 0);
 
 static const struct snd_kcontrol_new rk3036_codec_dapm_controls[] = {
@@ -89,6 +90,7 @@ struct rk3036_codec_priv {
 	struct delayed_work codec_delayed_work;
 	struct delayed_work spk_ctrl_delayed_work;
 	int spk_ctl_gpio;
+	int spk_ctl_gpio_invert;
 	int delay_time;
 
 	struct clk	*pclk;
@@ -706,8 +708,11 @@ static void spk_ctrl_fun(int status)
 	if (rk3036_priv == NULL)
 		return;
 
+	if (rk3036_priv->spk_ctl_gpio_invert)
+		status = !status;
+
 	if (rk3036_priv->spk_ctl_gpio != INVALID_GPIO)
-		gpio_set_value(rk3036_priv->spk_ctl_gpio, status);
+		gpio_direction_output(rk3036_priv->spk_ctl_gpio, status);
 }
 
 static void codec_delayedwork_fun(struct work_struct *work)
@@ -1047,6 +1052,7 @@ static int rk3036_platform_probe(struct platform_device *pdev)
 	struct rk3036_codec_priv *rk3036;
 	struct resource *res;
 	int ret;
+	enum of_gpio_flags invert_flag;
 
 	rk3036 = devm_kzalloc(&pdev->dev, sizeof(*rk3036), GFP_KERNEL);
 	if (!rk3036) {
@@ -1056,7 +1062,8 @@ static int rk3036_platform_probe(struct platform_device *pdev)
 	rk3036_priv = rk3036;
 	platform_set_drvdata(pdev, rk3036);
 
-	rk3036->spk_ctl_gpio = of_get_named_gpio(rk3036_np, "spk_ctl_io", 0);
+	rk3036->spk_ctl_gpio = of_get_named_gpio_flags(rk3036_np,
+		"spk_ctl_io", 0, &invert_flag);
 	if (!gpio_is_valid(rk3036->spk_ctl_gpio)) {
 		DBG("invalid reset_gpio: %d\n", rk3036->spk_ctl_gpio);
 		ret = -ENOENT;
@@ -1069,7 +1076,8 @@ static int rk3036_platform_probe(struct platform_device *pdev)
 		goto err__;
 	}
 
-	gpio_direction_output(rk3036->spk_ctl_gpio, SPK_CTRL_CLOSE);
+	rk3036->spk_ctl_gpio_invert = !!(invert_flag & OF_GPIO_ACTIVE_LOW);
+	spk_ctrl_fun(SPK_CTRL_CLOSE);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	rk3036->regbase = devm_ioremap_resource(&pdev->dev, res);
