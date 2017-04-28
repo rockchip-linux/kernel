@@ -41,3 +41,7 @@
  */
 
 #include "rk3228h.dtsi"
+
+/ {
+	compatible = "rockchip,rk3328";
+};
