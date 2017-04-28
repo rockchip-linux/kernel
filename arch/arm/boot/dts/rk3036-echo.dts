@@ -837,3 +837,6 @@
 	status = "okay";
 };
 
+&codec {
+	spk_ctl_io = <&gpio2 GPIO_B7 GPIO_ACTIVE_LOW>;
+};
