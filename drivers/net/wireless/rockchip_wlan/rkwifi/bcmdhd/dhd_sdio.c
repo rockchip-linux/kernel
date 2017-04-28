@@ -280,7 +280,9 @@ typedef struct dhd_bus {
 	int32		sd_rxchain;		/* If bcmsdh api accepts PKT chains */
 	bool		use_rxchain;		/* If dhd should use PKT chains */
 	bool		sleeping;		/* Is SDIO bus sleeping? */
+#if defined(SUPPORT_P2P_GO_PS)
 	wait_queue_head_t bus_sleep;
+#endif /* LINUX && SUPPORT_P2P_GO_PS */
 	uint		rxflow_mode;		/* Rx flow control mode */
 	bool		rxflow;			/* Is rx flow control on */
 	uint		prev_rxlim_hit;		/* Is prev rx limit exceeded (per dpc schedule) */
@@ -889,9 +891,6 @@ dhdsdio_clk_kso_enab(dhd_bus_t *bus, bool on)
 	uint8 wr_val = 0, rd_val, cmp_val, bmask;
 	int err = 0;
 	int try_cnt = 0;
-
-	if (!bus->dhd->conf->kso_enable)
-		return 0;
 
 	KSO_DBG(("%s> op:%s\n", __FUNCTION__, (on ? "KSO_SET" : "KSO_CLR")));
 
@@ -1520,7 +1519,9 @@ dhdsdio_bussleep(dhd_bus_t *bus, bool sleep)
 
 		/* Change state */
 		bus->sleeping = TRUE;
+#if defined(SUPPORT_P2P_GO_PS)
 		wake_up(&bus->bus_sleep);
+#endif /* LINUX && SUPPORT_P2P_GO_PS */
 	} else {
 		/* Waking up: bus power up is ok, set local state */
 
@@ -1561,6 +1562,35 @@ dhdsdio_bussleep(dhd_bus_t *bus, bool sleep)
 	}
 
 	return err;
+}
+
+int dhdsdio_func_blocksize(dhd_pub_t *dhd, int function_num, int block_size)
+{
+	int func_blk_size = function_num;
+	int bcmerr = 0;
+	int result;
+
+	bcmerr = dhd_bus_iovar_op(dhd, "sd_blocksize", &func_blk_size,
+		sizeof(int), &result, sizeof(int), IOV_GET);
+
+	if (bcmerr != BCME_OK) {
+		DHD_ERROR(("%s: Get F%d Block size error\n", __FUNCTION__, function_num));
+		return BCME_ERROR;
+	}
+
+	if (result != block_size) {
+		DHD_ERROR(("%s: F%d Block size set from %d to %d\n",
+			__FUNCTION__, function_num, result, block_size));
+		func_blk_size = function_num << 16 | block_size;
+		bcmerr = dhd_bus_iovar_op(dhd, "sd_blocksize", NULL,
+			0, &func_blk_size, sizeof(int32), IOV_SET);
+		if (bcmerr != BCME_OK) {
+			DHD_ERROR(("%s: Set F2 Block size error\n", __FUNCTION__));
+			return BCME_ERROR;
+		}
+	}
+
+	return BCME_OK;
 }
 
 #if defined(OOB_INTR_ONLY) || defined(FORCE_WOWLAN)
@@ -2588,16 +2618,11 @@ dhdsdio_sendfromq_swtxglom(dhd_bus_t *bus, uint maxframes)
 			datalen = 0;
 
 #ifdef PKT_STATICS
-			if (txglom_cnt < 2)
-				tx_statics.glom_1_count++;
-			else if (txglom_cnt < 3)
-				tx_statics.glom_3_count++;
-			else if (txglom_cnt < 8)
-				tx_statics.glom_3_8_count++;
-			else
-				tx_statics.glom_8_count++;
-			if (txglom_cnt > tx_statics.glom_max)
-				tx_statics.glom_max = txglom_cnt;
+			if (txglom_cnt) {
+				tx_statics.glom_cnt[txglom_cnt-1]++;
+				if (txglom_cnt > tx_statics.glom_max)
+					tx_statics.glom_max = txglom_cnt;
+			}
 #endif
 			for (i = 0; i < txglom_cnt; i++) {
 				uint datalen_tmp = 0;
@@ -2863,16 +2888,11 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 		}
 		cnt += i;
 #ifdef PKT_STATICS
-		if (num_pkt < 2)
-			tx_statics.glom_1_count++;
-		else if (num_pkt < 3)
-			tx_statics.glom_3_count++;
-		else if (num_pkt < 8)
-			tx_statics.glom_3_8_count++;
-		else
-			tx_statics.glom_8_count++;
-		if (num_pkt > tx_statics.glom_max)
-			tx_statics.glom_max = num_pkt;
+		if (num_pkt) {
+			tx_statics.glom_cnt[num_pkt-1]++;
+			if (num_pkt > tx_statics.glom_max)
+				tx_statics.glom_max = num_pkt;
+		}
 #endif
 
 		/* In poll mode, need to check for other events */
@@ -5084,6 +5104,7 @@ dhd_txglom_enable(dhd_pub_t *dhdp, bool enable)
 		bus->txglom_enable = FALSE;
 	printf("%s: enable %d\n",  __FUNCTION__, bus->txglom_enable);
 	dhd_conf_set_txglom_params(bus->dhd, bus->txglom_enable);
+	bcmsdh_set_mode(bus->sdh, bus->dhd->conf->txglom_mode);
 }
 
 int
@@ -5810,6 +5831,15 @@ dhdsdio_rxglom(dhd_bus_t *bus, uint8 rxseq)
 					dhd_os_sdunlock(bus->dhd);
 					dhd_rx_frame(bus->dhd, idx, list_head[idx], cnt, 0);
 					dhd_os_sdlock(bus->dhd);
+#if defined(SDIO_ISR_THREAD)
+					/* terence 20150615: fix for below error due to bussleep in watchdog after dhd_os_sdunlock here,
+					  * so call BUS_WAKE to wake up bus again
+					  * dhd_bcmsdh_recv_buf: Device asleep
+					  * dhdsdio_readframes: RXHEADER FAILED: -40
+					  * dhdsdio_rxfail: abort command, terminate frame, send NAK
+					*/
+					BUS_WAKE(bus);
+#endif
 				}
 			}
 		}
@@ -6750,7 +6780,7 @@ clkwait:
 	 * or clock availability.  (Allows tx loop to check ipend if desired.)
 	 * (Unless register access seems hosed, as we may not be able to ACK...)
 	 */
-	if (bus->intr && bus->intdis && !bcmsdh_regfail(sdh)) {
+	if (!bus->dhd->conf->oob_enabled_later && bus->intr && bus->intdis && !bcmsdh_regfail(sdh)) {
 		DHD_INTR(("%s: enable SDIO interrupts, rxdone %d framecnt %d\n",
 		          __FUNCTION__, rxdone, framecnt));
 		bus->intdis = FALSE;
@@ -6788,7 +6818,10 @@ clkwait:
 	/* Send queued frames (limit 1 if rx may still be pending) */
 	else if ((bus->clkstate == CLK_AVAIL) && !bus->fcstate &&
 	    pktq_mlen(&bus->txq, ~bus->flowcontrol) && txlimit && DATAOK(bus)) {
-		framecnt = rxdone ? txlimit : MIN(txlimit, dhd_txminmax);
+		if (bus->dhd->conf->dhd_txminmax < 0)
+			framecnt = rxdone ? txlimit : MIN(txlimit, DATABUFCNT(bus));
+		else
+			framecnt = rxdone ? txlimit : MIN(txlimit, bus->dhd->conf->dhd_txminmax);
 #if defined(SWTXGLOM)
 		if (bus->dhd->conf->swtxglom)
 			framecnt = dhdsdio_sendfromq_swtxglom(bus, framecnt);
@@ -6802,7 +6835,7 @@ clkwait:
 		if (bus->dhd->conf->txctl_tmo_fix) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			if (!kthread_should_stop())
-					schedule_timeout(1);
+				schedule_timeout(1);
 			set_current_state(TASK_RUNNING);
 		}
 		resched = TRUE;
@@ -6840,9 +6873,24 @@ clkwait:
 
 exit:
 
-	if (!resched && dhd_dpcpoll) {
-		if (dhdsdio_readframes(bus, dhd_rxbound, &rxdone) != 0)
-			resched = TRUE;
+	if (!resched) {
+		/* Re-enable interrupts to detect new device events (mailbox, rx frame)
+		 * or clock availability.  (Allows tx loop to check ipend if desired.)
+		 * (Unless register access seems hosed, as we may not be able to ACK...)
+		 */
+		if (bus->dhd->conf->oob_enabled_later && bus->intr && bus->intdis && !bcmsdh_regfail(sdh)) {
+			DHD_INTR(("%s: enable SDIO interrupts, rxdone %d framecnt %d\n",
+					  __FUNCTION__, rxdone, framecnt));
+			bus->intdis = FALSE;
+#if defined(OOB_INTR_ONLY)
+			bcmsdh_oob_intr_set(bus->sdh, TRUE);
+#endif /* defined(OOB_INTR_ONLY) */
+			bcmsdh_intr_enable(sdh);
+		}
+		if (dhd_dpcpoll) {
+			if (dhdsdio_readframes(bus, dhd_rxbound, &rxdone) != 0)
+				resched = TRUE;
+		}
 	}
 
 	dhd_os_sdunlock(bus->dhd);
@@ -6933,22 +6981,40 @@ dhdsdio_isr(void *arg)
 #ifdef PKT_STATICS
 void dhdsdio_txpktstatics(void)
 {
-	uint total, f1, f2, f3, f4;
-	printf("Randy: TYPE EVENT: %d pkts (size=%d) transfered\n", tx_statics.event_count, tx_statics.event_size);
-	printf("Randy: TYPE CTRL:  %d pkts (size=%d) transfered\n", tx_statics.ctrl_count, tx_statics.ctrl_size);
-	printf("Randy: TYPE DATA:  %d pkts (size=%d) transfered\n", tx_statics.data_count, tx_statics.data_size);
-	if(tx_statics.glom_1_count || tx_statics.glom_3_count || tx_statics.glom_3_8_count || tx_statics.glom_8_count) {
-		total = tx_statics.glom_1_count + tx_statics.glom_3_count + tx_statics.glom_3_8_count + tx_statics.glom_8_count;
-		f1 = (tx_statics.glom_1_count*100) / total;
-		f2 = (tx_statics.glom_3_count*100) / total;
-		f3 = (tx_statics.glom_3_8_count*100) / total;
-		f4 = (tx_statics.glom_8_count*100) / total;
-		printf("Randy: glomsize==1: %d(%d), tglomsize==2: %d(%d), pkts 3<=glomsize<8: %d(%d), pkts glomszie>=8: %d(%d)\n",
-			tx_statics.glom_1_count, f1, tx_statics.glom_3_count, f2, tx_statics.glom_3_8_count, f3, tx_statics.glom_8_count, f4);
-		printf("Randy: data/glom=%d, glom_max=%d\n", tx_statics.data_count/total, tx_statics.glom_max);
+	uint i, total = 0;
+
+	printf("%s: TYPE EVENT: %d pkts (size=%d) transfered\n",
+		__FUNCTION__, tx_statics.event_count, tx_statics.event_size);
+	printf("%s: TYPE CTRL:  %d pkts (size=%d) transfered\n",
+		__FUNCTION__, tx_statics.ctrl_count, tx_statics.ctrl_size);
+	printf("%s: TYPE DATA:  %d pkts (size=%d) transfered\n",
+		__FUNCTION__, tx_statics.data_count, tx_statics.data_size);
+	printf("%s: Glom size distribution:\n", __FUNCTION__);
+	for (i=0;i<tx_statics.glom_max;i++) {
+		total += tx_statics.glom_cnt[i];
 	}
-	printf("Randy: TYPE RX GLOM: %d pkts (size=%d) transfered\n", tx_statics.glom_count, tx_statics.glom_size);
-	printf("Randy: TYPE TEST: %d pkts (size=%d) transfered\n\n\n", tx_statics.test_count, tx_statics.test_size);
+	for (i=0;i<tx_statics.glom_max;i++) {
+		printf("%02d: %d", i+1, tx_statics.glom_cnt[i]);
+		if ((i+1)%8) 
+			printf(", ");
+		else
+			printf("\n");
+	}
+	printf("\n");
+	for (i=0;i<tx_statics.glom_max;i++) {
+		printf("%02d:%3d%%", i+1, (tx_statics.glom_cnt[i]*100)/total);
+		if ((i+1)%8) 
+			printf(", ");
+		else
+			printf("\n");
+	}
+	printf("\n");
+	printf("%s: data/glom=%d, glom_max=%d\n",
+		__FUNCTION__, tx_statics.data_count/total, tx_statics.glom_max);
+	printf("%s: TYPE RX GLOM: %d pkts (size=%d) transfered\n",
+		__FUNCTION__, tx_statics.glom_count, tx_statics.glom_size);
+	printf("%s: TYPE TEST: %d pkts (size=%d) transfered\n\n\n",
+		__FUNCTION__, tx_statics.test_count, tx_statics.test_size);
 }
 #endif
 
@@ -7324,7 +7390,8 @@ dhd_bus_watchdog(dhd_pub_t *dhdp)
 	dhd_os_sdlock(bus->dhd);
 
 	/* Poll period: check device if appropriate. */
-	if (!SLPAUTO_ENAB(bus) && (bus->poll && (++bus->polltick >= bus->pollrate))) {
+	// terence 20160615: remove !SLPAUTO_ENAB(bus) to fix not able to polling if sr supported
+	if (1 && (bus->poll && (++bus->polltick >= bus->pollrate))) {
 		uint32 intstatus = 0;
 
 		/* Reset poll tick */
@@ -7711,6 +7778,10 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	bus->tx_seq = SDPCM_SEQUENCE_WRAP - 1;
 	bus->usebufpool = FALSE; /* Use bufpool if allocated, else use locally malloced rxbuf */
 
+#if defined(SUPPORT_P2P_GO_PS)
+	init_waitqueue_head(&bus->bus_sleep);
+#endif /* LINUX && SUPPORT_P2P_GO_PS */
+
 	/* attempt to attach to the dongle */
 	if (!(dhdsdio_probe_attach(bus, osh, sdh, regsva, devid))) {
 		DHD_ERROR(("%s: dhdsdio_probe_attach failed\n", __FUNCTION__));
@@ -7783,8 +7854,6 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 	DHD_ERROR(("%s : the lock is released.\n", __FUNCTION__));
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) */
 #endif 
-
-	init_waitqueue_head(&bus->bus_sleep);
 
 	return bus;
 
@@ -8243,7 +8312,9 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 					? CR4_4345_LT_C0_RAM_BASE : CR4_4345_GE_C0_RAM_BASE;
 				break;
 			case BCM4349_CHIP_GRPID:
-				bus->dongle_ram_base = CR4_4349_RAM_BASE;
+				/* RAM base changed from 4349c0(revid=9) onwards */
+				bus->dongle_ram_base = ((bus->sih->chiprev < 9) ?
+				CR4_4349_RAM_BASE: CR4_4349_RAM_BASE_FROM_REV_9);
 				break;
 			default:
 				bus->dongle_ram_base = 0;
@@ -8457,6 +8528,29 @@ dhd_bus_download_firmware(struct dhd_bus *bus, osl_t *osh,
 	return ret;
 }
 
+void
+dhd_conf_set_bus_params(struct dhd_bus *bus)
+{
+	if (bus->dhd->conf->dhd_poll >= 0) {
+		bus->poll = bus->dhd->conf->dhd_poll;
+		if (!bus->pollrate)
+			bus->pollrate = 1;
+		printf("%s: set polling mode %d\n", __FUNCTION__, bus->dhd->conf->dhd_poll);
+	}
+	if (bus->dhd->conf->use_rxchain >= 0) {
+		bus->use_rxchain = (bool)bus->dhd->conf->use_rxchain;
+		printf("%s: set use_rxchain %d\n", __FUNCTION__, bus->dhd->conf->use_rxchain);
+	}
+	if (bus->dhd->conf->txinrx_thres >= 0) {
+		bus->txinrx_thres = bus->dhd->conf->txinrx_thres;
+		printf("%s: set txinrx_thres %d\n", __FUNCTION__, bus->txinrx_thres);
+	}
+	if (bus->dhd->conf->txglomsize >= 0) {
+		bus->txglomsize = bus->dhd->conf->txglomsize;
+		printf("%s: set txglomsize %d\n", __FUNCTION__, bus->dhd->conf->txglomsize);
+	}
+}
+
 static int
 dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 {
@@ -8476,21 +8570,7 @@ dhdsdio_download_firmware(struct dhd_bus *bus, osl_t *osh, void *sdh)
 	dhd_conf_set_nv_name_by_chip(bus->dhd, bus->nv_path);
 	dhd_conf_set_fw_name_by_mac(bus->dhd, bus->sdh, bus->fw_path);
 	dhd_conf_set_nv_name_by_mac(bus->dhd, bus->sdh, bus->nv_path);
-	if (bus->dhd->conf->dhd_poll >= 0) {
-		printf("%s: set polling mode %d\n", __FUNCTION__, bus->dhd->conf->dhd_poll);
-		bus->poll = TRUE;
-		if (!bus->pollrate)
-			bus->pollrate = 1;
-	}
-	if (bus->dhd->conf->use_rxchain >= 0) {
-		printf("%s: set use_rxchain %d\n", __FUNCTION__, bus->dhd->conf->use_rxchain);
-		bus->use_rxchain = (bool)bus->dhd->conf->use_rxchain;
-	}
-	if (bus->dhd->conf->txglomsize >= 0) {
-		printf("%s: set txglomsize %d\n", __FUNCTION__, bus->dhd->conf->txglomsize);
-		bus->txglomsize = bus->dhd->conf->txglomsize;
-	}
-	bcmsdh_set_mode(sdh, bus->dhd->conf->txglom_mode);
+	dhd_conf_set_bus_params(bus);
 
 	printf("Final fw_path=%s\n", bus->fw_path);
 	printf("Final nv_path=%s\n", bus->nv_path);
@@ -8650,20 +8730,24 @@ dhdsdio_suspend(void *context)
 	int ret = 0;
 
 	dhd_bus_t *bus = (dhd_bus_t*)context;
+#ifdef SUPPORT_P2P_GO_PS
 	int wait_time = 0;
+
 	if (bus->idletime > 0) {
 		wait_time = msecs_to_jiffies(bus->idletime * dhd_watchdog_ms);
 	}
-
+#endif /* SUPPORT_P2P_GO_PS */
 	ret = dhd_os_check_wakelock(bus->dhd);
+#ifdef SUPPORT_P2P_GO_PS
 	// terence 20141124: fix for suspend issue
-	if (SLPAUTO_ENAB(bus) && (!ret) && (bus->dhd->up)) {
+	if (SLPAUTO_ENAB(bus) && (!ret) && (bus->dhd->up) && (bus->dhd->op_mode != DHD_FLAG_HOSTAP_MODE)) {
 		if (wait_event_timeout(bus->bus_sleep, bus->sleeping, wait_time) == 0) {
 			if (!bus->sleeping) {
 				return 1;
 			}
 		}
 	}
+#endif /* SUPPORT_P2P_GO_PS */
 	return ret;
 }
 
@@ -8849,7 +8933,7 @@ dhdsdio_download_code_file(struct dhd_bus *bus, char *pfw_path)
 		// terence 20150412: fix for firmware failed to download
 		if (bus->dhd->conf->chip == BCM43340_CHIP_ID ||
 				bus->dhd->conf->chip == BCM43341_CHIP_ID) {
-			if (len%64 != 0) {
+			if (len % 64 != 0) {
 				memset(memptr+len, 0, len%64);
 				len += (64 - len%64);
 			}
@@ -9280,7 +9364,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			} else
 				bcmerror = BCME_SDIO_ERROR;
 
-				dhd_os_sdunlock(dhdp);
+			dhd_os_sdunlock(dhdp);
 		} else {
 			bcmerror = BCME_SDIO_ERROR;
 			printf("%s called when dongle is not in reset\n",

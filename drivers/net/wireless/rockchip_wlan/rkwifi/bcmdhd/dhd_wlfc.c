@@ -18,6 +18,7 @@
 
 #include <dhd_bus.h>
 #include <dhd_dbg.h>
+#include <dhd_config.h>
 
 #ifdef PROP_TXSTATUS
 #include <wlfc_proto.h>
@@ -3151,6 +3152,8 @@ dhd_wlfc_init(dhd_pub_t *dhd)
 		*/
 		DHD_ERROR(("dhd_wlfc_init(): successfully %s bdcv2 tlv signaling, %d\n",
 			dhd->wlfc_enabled?"enabled":"disabled", tlv));
+		/* terence 20161229: enable ampdu_hostreorder if tlv enable hostreorder */
+		dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "ampdu_hostreorder", 1, 0, TRUE);
 	}
 
 	/* query caps */
@@ -3232,6 +3235,8 @@ dhd_wlfc_hostreorder_init(dhd_pub_t *dhd)
 	dhd_os_wlfc_block(dhd);
 	dhd->proptxstatus_mode = WLFC_ONLY_AMPDU_HOSTREORDER;
 	dhd_os_wlfc_unblock(dhd);
+	/* terence 20161229: enable ampdu_hostreorder if tlv enable hostreorder */
+	dhd_conf_set_intiovar(dhd, WLC_SET_VAR, "ampdu_hostreorder", 1, 0, TRUE);
 
 	return BCME_OK;
 }

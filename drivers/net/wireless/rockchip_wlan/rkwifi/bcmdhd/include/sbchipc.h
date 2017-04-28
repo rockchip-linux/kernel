@@ -2706,6 +2706,7 @@ typedef volatile struct {
 #define RES4349_MACPHY_CLKAVAIL		30
 
 #define CR4_4349_RAM_BASE			(0x180000)
+#define CR4_4349_RAM_BASE_FROM_REV_9		(0x160000)
 #define CC4_4349_SR_ASM_ADDR		(0x48)
 
 #define CST4349_CHIPMODE_SDIOD(cs)	(((cs) & (1 << 6)) != 0)	/* SDIO */

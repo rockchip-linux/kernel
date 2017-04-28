@@ -515,7 +515,9 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 			bus->dongle_ram_base = CR4_43602_RAM_BASE;
 			break;
 		case BCM4349_CHIP_GRPID:
-			bus->dongle_ram_base = CR4_4349_RAM_BASE;
+			/* RAM base changed from 4349c0(revid=9) onwards */
+			bus->dongle_ram_base = ((bus->sih->chiprev < 9) ?
+			CR4_4349_RAM_BASE : CR4_4349_RAM_BASE_FROM_REV_9);
 			break;
 		default:
 			bus->dongle_ram_base = 0;
@@ -613,7 +615,7 @@ dhdpcie_bus_remove_prep(dhd_bus_t *bus)
 
 	bus->dhd->busstate = DHD_BUS_DOWN;
 	dhdpcie_bus_intr_disable(bus);
-	// terence 20150406: fix for null pointer handle
+	// terence 20150406: fix for null pointer handle when doing remove driver
 	if (bus->sih)
 		pcie_watchdog_reset(bus->osh, bus->sih, (sbpcieregs_t *)(bus->regs));
 
@@ -3191,6 +3193,7 @@ dhdpcie_bus_suspend(struct dhd_bus *bus, bool state)
 	bool pending;
 	int rc = 0;
 
+	printf("%s: state=%d\n", __FUNCTION__, state);
 	if (bus->dhd == NULL) {
 		DHD_ERROR(("%s: bus not inited\n", __FUNCTION__));
 		return BCME_ERROR;

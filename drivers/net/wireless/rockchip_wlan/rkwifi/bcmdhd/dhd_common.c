@@ -29,6 +29,7 @@
 #include <dhd_bus.h>
 #include <dhd_proto.h>
 #include <dhd_config.h>
+#include <bcmsdbus.h>
 #include <dhd_dbg.h>
 #include <msgtrace.h>
 
@@ -453,9 +454,6 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 		bcopy(&int_val, arg, val_size);
 		printf("cfg_msg_level=0x%x\n", wl_dbg_level);
 #endif
-#ifdef PKT_STATICS
-		dhdsdio_txpktstatics();
-#endif
 		break;
 
 	case IOV_SVAL(IOV_WLMSGLEVEL):
@@ -483,6 +481,9 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 	case IOV_GVAL(IOV_MSGLEVEL):
 		int_val = (int32)dhd_msg_level;
 		bcopy(&int_val, arg, val_size);
+#ifdef PKT_STATICS
+		dhdsdio_txpktstatics();
+#endif
 		break;
 
 	case IOV_SVAL(IOV_MSGLEVEL):
@@ -2529,7 +2530,9 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 	int ret = -1;
 	int dtim_period = 0;
 	int ap_beacon = 0;
+#ifndef ENABLE_MAX_DTIM_IN_SUSPEND
 	int allowed_skip_dtim_cnt = 0;
+#endif /* !ENABLE_MAX_DTIM_IN_SUSPEND */
 	/* Check if associated */
 	if (dhd_is_associated(dhd, NULL, NULL) == FALSE) {
 		DHD_TRACE(("%s NOT assoc ret %d\n", __FUNCTION__, ret));
@@ -2555,6 +2558,13 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		goto exit;
 	}
 
+#ifdef ENABLE_MAX_DTIM_IN_SUSPEND
+	bcn_li_dtim = (int) (MAX_DTIM_ALLOWED_INTERVAL / (ap_beacon * dtim_period));
+	if (bcn_li_dtim == 0) {
+		bcn_li_dtim = 1;
+	}
+	bcn_li_dtim = MAX(dhd->suspend_bcn_li_dtim, bcn_li_dtim);
+#else /* ENABLE_MAX_DTIM_IN_SUSPEND */
 	/* attemp to use platform defined dtim skip interval */
 	bcn_li_dtim = dhd->suspend_bcn_li_dtim;
 
@@ -2577,6 +2587,7 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 		bcn_li_dtim = (int)(CUSTOM_LISTEN_INTERVAL / dtim_period);
 		DHD_TRACE(("%s agjust dtim_skip as %d\n", __FUNCTION__, bcn_li_dtim));
 	}
+#endif /* ENABLE_MAX_DTIM_IN_SUSPEND */
 
 	DHD_ERROR(("%s beacon=%d bcn_li_dtim=%d DTIM=%d Listen=%d\n",
 		__FUNCTION__, ap_beacon, bcn_li_dtim, dtim_period, CUSTOM_LISTEN_INTERVAL));

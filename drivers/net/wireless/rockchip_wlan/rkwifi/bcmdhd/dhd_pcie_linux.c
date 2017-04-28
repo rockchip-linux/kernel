@@ -310,6 +310,9 @@ dhdpcie_bus_unregister(void)
 int __devinit
 dhdpcie_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
+#ifdef BUS_POWER_RESTORE
+	wifi_adapter_info_t *adapter = NULL;
+#endif
 
 	if (dhdpcie_chipmatch (pdev->vendor, pdev->device)) {
 		DHD_ERROR(("%s: chipmatch failed!!\n", __FUNCTION__));
@@ -328,6 +331,14 @@ dhdpcie_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* disable async suspend */
 	device_disable_async_suspend(&pdev->dev);
 #endif /* BCMPCIE_DISABLE_ASYNC_SUSPEND */
+
+#ifdef BUS_POWER_RESTORE
+	adapter = dhd_wifi_platform_get_adapter(PCI_BUS, pdev->bus->number,
+						PCI_SLOT(pdev->devfn));
+
+	if (adapter != NULL)
+		adapter->pci_dev = pdev;
+#endif
 
 	DHD_TRACE(("%s: PCIe Enumeration done!!\n", __FUNCTION__));
 	return 0;
@@ -425,13 +436,15 @@ dhdpcie_request_irq(dhdpcie_info_t *dhdpcie_info)
 {
 	dhd_bus_t *bus = dhdpcie_info->bus;
 	struct pci_dev *pdev = dhdpcie_info->bus->dev;
+	int err = 0;
 
 	snprintf(dhdpcie_info->pciname, sizeof(dhdpcie_info->pciname),
 	    "dhdpcie:%s", pci_name(pdev));
-	if (request_irq(pdev->irq, dhdpcie_isr, IRQF_SHARED,
-	                dhdpcie_info->pciname, bus) < 0) {
-			DHD_ERROR(("%s: request_irq() failed\n", __FUNCTION__));
-			return -1;
+	err = request_irq(pdev->irq, dhdpcie_isr, IRQF_SHARED,
+	                dhdpcie_info->pciname, bus);
+	if (err) {
+		DHD_ERROR(("%s: request_irq failed with %d\n", __FUNCTION__, err));
+		return err;
 	}
 	bus->irq_registered = TRUE;
 
@@ -1021,12 +1034,7 @@ dhdpcie_enable_device(dhd_bus_t *bus)
 		ret = pci_enable_device(bus->dev);
 		if (!ret)
 			pci_set_master(bus->dev);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0))
 	}
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) and
-		* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)) && \
-		* (LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
-		*/
 
 	if (ret)
 		pci_disable_device(bus->dev);

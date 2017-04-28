@@ -33,6 +33,7 @@
 #define sd_debug(x)	do { if (sd_msglevel & SDH_DEBUG_VAL) printf x; } while (0)
 #define sd_data(x)	do { if (sd_msglevel & SDH_DATA_VAL) printf x; } while (0)
 #define sd_ctrl(x)	do { if (sd_msglevel & SDH_CTRL_VAL) printf x; } while (0)
+#define sd_cost(x)	do { if (sd_msglevel & SDH_COST_VAL) printf x; } while (0)
 
 
 #define sd_sync_dma(sd, read, nbytes)
