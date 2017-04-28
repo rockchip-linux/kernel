@@ -32,15 +32,19 @@ enum dsp_work_status {
  * @id: user work id
  * @type: work type, see enum dsp_work_type
  * @result: work result return by DSP core
+ * @rate: inform DSP its real rate
+ * @cycles: work cost cycles returned by DSP core
  * @params: work parameters
  */
 struct dsp_work_hw {
 	u32 id;
 	u32 type;
 	u32 result;
+	u32 rate;
+	u32 cycles;
 
 	union {
-		struct dsp_render_params render;
+		struct dsp_algorithm_params algorithm;
 		struct dsp_config_params config;
 	} params;
 };
@@ -68,7 +72,7 @@ struct dsp_work {
 	u32 cycles;
 
 	union {
-		struct dsp_render_params render;
+		struct dsp_algorithm_params algorithm;
 		struct dsp_config_params config;
 	} params;
 

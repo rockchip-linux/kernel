@@ -42,7 +42,7 @@ int dsp_work_copy_from_user(struct dma_pool *dma_pool, struct dsp_work *work,
 {
 	int ret = 0;
 	struct dsp_user_work user_work;
-	struct dsp_render_params *render = &work->params.render;
+	struct dsp_algorithm_params *algo = &work->params.algorithm;
 
 	dsp_debug_enter();
 
@@ -50,34 +50,35 @@ int dsp_work_copy_from_user(struct dma_pool *dma_pool, struct dsp_work *work,
 			     sizeof(user_work));
 	if (ret) {
 		dsp_err("copy from user work failed\n");
+		ret = -EFAULT;
 		goto out;
 	}
 
-	if (user_work.magic != DSP_RENDER_WORK_MAGIC) {
+	if (user_work.magic != DSP_ALGORITHM_WORK_MAGIC ||
+	    user_work.algorithm.size == 0) {
 		dsp_err("work parameter err\n");
 		ret = -EINVAL;
 		goto out;
 	}
 
 	work->id = user_work.id;
-	work->type = DSP_RENDER_WORK;
-	render->type = user_work.render.type;
-	render->size = user_work.render.size;
+	work->type = DSP_ALGORITHM_WORK;
+	algo->type = user_work.algorithm.type;
+	algo->size = user_work.algorithm.size;
 
-	if (render->size != 0) {
-		render->packet_virt = (u32)dma_pool_alloc(dma_pool, GFP_KERNEL,
-							  &render->packet_phys);
-		if (!render->packet_virt) {
-			dsp_err("cannot alloc dma buffer for render packet\n");
-			return -ENOMEM;
-		}
-		ret = copy_from_user((void *)render->packet_virt,
-				     (void __user *)user_work.render.packet_virt,
-				     render->size);
-		if (ret) {
-			dsp_err("copy from user packet failed\n");
-			goto out;
-		}
+	algo->packet_virt = (u32)dma_pool_alloc(dma_pool, GFP_KERNEL,
+						&algo->packet_phys);
+	if (!algo->packet_virt) {
+		dsp_err("cannot alloc dma buffer for algorithm packet\n");
+		return -ENOMEM;
+	}
+	ret = copy_from_user((void *)algo->packet_virt,
+			     (void __user *)user_work.algorithm.packet_virt,
+			     algo->size);
+	if (ret) {
+		dsp_err("copy from user packet failed\n");
+		ret = -EFAULT;
+		goto out;
 	}
 out:
 	dsp_debug_leave();
@@ -95,25 +96,26 @@ int dsp_work_copy_to_user(struct dsp_work *work, void *user)
 			     sizeof(user_work));
 	if (ret) {
 		dsp_err("copy from user work failed\n");
+		ret = -EFAULT;
 		goto out;
 	}
 
 	user_work.id = work->id;
 	user_work.result = work->result;
 
-	if (work->params.render.size != 0) {
-		ret = copy_to_user((void __user *)user_work.render.packet_virt,
-				   (void *)work->params.render.packet_virt,
-				   work->params.render.size);
-		if (ret) {
-			dsp_err("copy to user failed\n");
-			goto out;
-		}
+	ret = copy_to_user((void __user *)user_work.algorithm.packet_virt,
+			   (void *)work->params.algorithm.packet_virt,
+			   work->params.algorithm.size);
+	if (ret) {
+		dsp_err("copy to user failed\n");
+		ret = -EFAULT;
+		goto out;
 	}
 
 	ret = copy_to_user((void __user *)user, &user_work, sizeof(user_work));
 	if (ret) {
 		dsp_err("copy to user failed\n");
+		ret = -EFAULT;
 		goto out;
 	}
 out:
@@ -151,12 +153,12 @@ out:
 
 int dsp_work_destroy(struct dma_pool *dma_pool, struct dsp_work *work)
 {
-	if (work->type == DSP_RENDER_WORK) {
-		struct dsp_render_params *render = &work->params.render;
+	if (work->type == DSP_ALGORITHM_WORK) {
+		struct dsp_algorithm_params *algo = &work->params.algorithm;
 
-		if (render->packet_virt)
-			dma_pool_free(dma_pool, (void *)render->packet_virt,
-				      render->packet_phys);
+		if (algo->packet_virt)
+			dma_pool_free(dma_pool, (void *)algo->packet_virt,
+				      algo->packet_phys);
 	}
 
 	dma_pool_free(dma_pool, work, work->dma_addr);

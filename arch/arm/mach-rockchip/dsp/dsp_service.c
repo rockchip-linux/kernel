@@ -531,7 +531,7 @@ static long dsp_ioctl(struct file *filp, unsigned int cmd,
 			struct dsp_user_work user_work;
 
 			user_work.id = 0;
-			user_work.magic = DSP_RENDER_WORK_MAGIC;
+			user_work.magic = DSP_ALGORITHM_WORK_MAGIC;
 			if (ret == -EBUSY)
 				user_work.result = DSP_WORK_ETIMEOUT;
 			else

@@ -38,21 +38,8 @@
  * User work magic, used by DSP kernel driver to check
  * the work parameter is valid or not
  */
-#define DSP_RENDER_WORK_MAGIC 0x20462046
-#define DSP_CONFIG_WORK_MAGIC 0x95279527
-
-/*
- * DSP render types. User application should set type
- * in the type member of struct dsp_render_work
- */
-#define DSP_RENDER_COPY    0x00000001
-#define DSP_RENDER_ADAS    0x00000002
-#define DSP_RENDER_2DNR    0x00000004
-#define DSP_RENDER_3DNR    0x00000008
-#define DSP_RENDER_HDR     0x00000010
-#define DSP_RENDER_DEFOG   0x00000020
-#define DSP_RENDER_LLE     0x00000040
-#define DSP_RENDER_TEST    0x80000000
+#define DSP_ALGORITHM_WORK_MAGIC 0x20462046
+#define DSP_CONFIG_WORK_MAGIC    0x95279527
 
 /*
  * DSP config types
@@ -60,20 +47,20 @@
 #define DSP_CONFIG_INIT   0x80000001
 
 enum dsp_work_type {
-	DSP_RENDER_WORK = 1,
-	DSP_CONFIG_WORK = 2,
+	DSP_ALGORITHM_WORK = 1,
+	DSP_CONFIG_WORK    = 2,
 };
 
 /*
- * dsp_render_params - parameters used by DSP core
- * hardware to render a frame
+ * dsp_algorithm_params - parameters used by DSP core to process
+ * an algorithm request.
  *
- * @type: render type, DSP_RENDER_3DNR etc
- * @packet_phys: render algrithm config packet phys address
- * @packet_virt: packet virt address
- * @size: render algrithm config packet size
+ * @type: algorithm type, user specific, known by user application and DSP
+ * @packet_phys: algorithm parameter packet physical address
+ * @packet_virt: algorithm parameter packet virtual address
+ * @size: size of algorithm parameter packet
  */
-struct dsp_render_params {
+struct dsp_algorithm_params {
 	u32 type;
 	u32 packet_phys;
 	u32 packet_virt;
@@ -81,8 +68,7 @@ struct dsp_render_params {
 };
 
 /*
- * dsp_config_params - parameters used to config
- * DSP core
+ * dsp_config_params - parameters used to config DSP core
  *
  * @type: config type
  * @image_count: image count which DSP can use
@@ -104,17 +90,17 @@ struct dsp_config_params {
 /*
  * dsp_user_work - This struct is used by user ioctl
  *
- * @magic: work magic should be DSP_RENDER_WORK_MAGIC
+ * @magic: work magic should be DSP_ALGORITHM_WORK_MAGIC
  * @id: user work id
  * @result: work result, if success result is 0
- * @render: render params
+ * @algorithm: algorithm parameters
  */
 struct dsp_user_work {
 	u32 magic;
 	u32 id;
 	u32 result;
 
-	struct dsp_render_params render;
+	struct dsp_algorithm_params algorithm;
 };
 
 #endif
