@@ -44,6 +44,7 @@
 
 #include "rk3328.dtsi"
 #include "rk3328-evb.dtsi"
+#include "rk3328-box-plus-dram-timing.dtsi"
 #include "rk-stb-keymap.dtsi"
 
 / {
