@@ -1455,41 +1455,197 @@ static int rk3036_lcdc_get_dsp_addr(struct rk_lcdc_driver *dev_drv,
 	struct lcdc_device *lcdc_dev =
 	    container_of(dev_drv, struct lcdc_device, driver);
 
+	spin_lock(&lcdc_dev->reg_lock);
 	if (lcdc_dev->clk_on) {
 		dsp_addr[0][0] = lcdc_readl(lcdc_dev, WIN0_YRGB_MST);
 		dsp_addr[1][0] = lcdc_readl(lcdc_dev, WIN1_MST);
 	}
+	spin_unlock(&lcdc_dev->reg_lock);
+
 	return 0;
+}
+
+static char *rk3036_lcdc_format_to_string(int format, char *fmt)
+{
+	if (!fmt)
+		return NULL;
+
+	switch (format) {
+	case 0:
+		strcpy(fmt, "ARGB888");
+		break;
+	case 1:
+		strcpy(fmt, "RGB888");
+		break;
+	case 2:
+		strcpy(fmt, "RGB565");
+		break;
+	case 4:
+		strcpy(fmt, "YCbCr420");
+		break;
+	case 5:
+		strcpy(fmt, "YCbCr422");
+		break;
+	case 6:
+		strcpy(fmt, "YCbCr444");
+		break;
+	default:
+		strcpy(fmt, "invalid\n");
+		break;
+	}
+	return fmt;
 }
 
 static ssize_t rk3036_lcdc_get_disp_info(struct rk_lcdc_driver *dev_drv,
 					 char *buf, int win_id)
 {
-	struct rk_lcdc_win *win = NULL;
-	char fmt[9] = "NULL";
-	u32	size;
+	struct lcdc_device *lcdc_dev = container_of(dev_drv, struct lcdc_device,
+						    driver);
+	char format_w0[9] = "NULL";
+	char format_w1[9] = "NULL";
+	char status_w0[9] = "NULL";
+	char status_w1[9] = "NULL";
+	u32 fmt_id, act_info, dsp_info, dsp_st, factor;
+	u16 xvir_w0, x_act_w0, y_act_w0, x_dsp_w0, y_dsp_w0, x_st_w0, y_st_w0;
+	u16 xvir_w1, x_act_w1, y_act_w1, x_dsp_w1, y_dsp_w1, x_st_w1, y_st_w1;
+	u16 x_factor, y_factor, x_scale_w0, y_scale_w0, x_scale_w1, y_scale_w1;
+	u16 ovl;
+	u32 win1_dsp_yaddr = 0;
 
-	if (win_id < ARRAY_SIZE(lcdc_win)) {
-		win = dev_drv->win[win_id];
+	spin_lock(&lcdc_dev->reg_lock);
+	if (lcdc_dev->clk_on) {
+		/* data format */
+		fmt_id = lcdc_readl(lcdc_dev, SYS_CTRL);
+		rk3036_lcdc_format_to_string((fmt_id & m_WIN0_FORMAT) >> 3,
+					     format_w0);
+		rk3036_lcdc_format_to_string((fmt_id & m_WIN1_FORMAT) >> 6,
+					      format_w1);
+
+		/* win status */
+		if (fmt_id & m_WIN0_EN)
+			strcpy(status_w0, "enabled");
+		else
+			strcpy(status_w0, "disabled");
+
+		if ((fmt_id & m_WIN1_EN) >> 1)
+			strcpy(status_w1, "enabled");
+		else
+			strcpy(status_w1, "disabled");
+
+		/* ovl */
+		ovl = lcdc_read_bit(lcdc_dev, DSP_CTRL0, m_WIN0_TOP);
+
+		/* xvir */
+		xvir_w0 = lcdc_readl(lcdc_dev, WIN0_VIR) & m_YRGB_VIR;
+		xvir_w1 = lcdc_readl(lcdc_dev, WIN1_VIR) & m_YRGB_VIR;
+
+		/* xact/yact */
+		act_info = lcdc_readl(lcdc_dev, WIN0_ACT_INFO);
+		x_act_w0 = (act_info & m_ACT_WIDTH) + 1;
+		y_act_w0 = ((act_info & m_ACT_HEIGHT) >> 16) + 1;
+
+		act_info = lcdc_readl(lcdc_dev, WIN1_ACT_INFO);
+		x_act_w1 = (act_info & m_ACT_WIDTH) + 1;
+		y_act_w1 = ((act_info & m_ACT_HEIGHT) >> 16) + 1;
+
+		/* xsize/ysize */
+		dsp_info = lcdc_readl(lcdc_dev, WIN0_DSP_INFO);
+		x_dsp_w0 = (dsp_info & m_DSP_WIDTH) + 1;
+		y_dsp_w0 = ((dsp_info & m_DSP_HEIGHT) >> 16) + 1;
+
+		dsp_info = lcdc_readl(lcdc_dev, WIN1_DSP_INFO);
+
+		x_dsp_w1 = (dsp_info & m_DSP_WIDTH) + 1;
+		y_dsp_w1 = ((dsp_info & m_DSP_HEIGHT) >> 16) + 1;
+
+		/* xpos/ypos */
+		dsp_st = lcdc_readl(lcdc_dev, WIN0_DSP_ST);
+		x_st_w0 = dsp_st & m_DSP_STX;
+		y_st_w0 = (dsp_st & m_DSP_STY) >> 16;
+
+		dsp_st = lcdc_readl(lcdc_dev, WIN1_DSP_ST);
+
+		x_st_w1 = dsp_st & m_DSP_STX;
+		y_st_w1 = (dsp_st & m_DSP_STY) >> 16;
+
+		/* scale factor */
+		factor = lcdc_readl(lcdc_dev, WIN0_SCL_FACTOR_YRGB);
+		x_factor = factor & m_X_SCL_FACTOR;
+		y_factor = (factor & m_Y_SCL_FACTOR) >> 16;
+		x_scale_w0 = x_factor ? 4096 * 100 / x_factor : 100;
+		y_scale_w0 = y_factor ? 4096 * 100 / y_factor : 100;
+
+		factor = lcdc_readl(lcdc_dev, WIN1_SCL_FACTOR_YRGB);
+		x_factor = factor & m_X_SCL_FACTOR;
+		y_factor = (factor & m_Y_SCL_FACTOR) >> 16;
+		x_scale_w1 = x_factor ? 4096 * 100 / x_factor : 100;
+		y_scale_w1 = y_factor ? 4096 * 100 / y_factor : 100;
+
+		/* dsp addr */
+		win1_dsp_yaddr = lcdc_readl(lcdc_dev, WIN1_MST);
 	} else {
-		dev_err(dev_drv->dev, "invalid win number:%d!\n", win_id);
-		return 0;
+		spin_unlock(&lcdc_dev->reg_lock);
+		return -EPERM;
 	}
-
-	size = snprintf(buf, PAGE_SIZE, "win%d: %s\n", win_id,
-			get_format_string(win->area[0].format, fmt));
-	size += snprintf(buf + size, PAGE_SIZE - size,
-			 "	xact %d yact %d xvir %d yvir %d\n",
-		win->area[0].xact, win->area[0].yact,
-		win->area[0].xvir, win->area[0].yvir);
-	size += snprintf(buf + size, PAGE_SIZE - size,
-			 "	xpos %d ypos %d xsize %d ysize %d\n",
-		win->area[0].xpos, win->area[0].ypos,
-		win->area[0].xsize, win->area[0].ysize);
-	size += snprintf(buf + size, PAGE_SIZE - size,
-			 "	yaddr 0x%x uvaddr 0x%x\n",
-		win->area[0].y_addr, win->area[0].uv_addr);
-	return size;
+	spin_unlock(&lcdc_dev->reg_lock);
+	return snprintf(buf, PAGE_SIZE,
+			"win0:%s\n"
+			"xvir:%d\n"
+			"xact:%d\n"
+			"yact:%d\n"
+			"xdsp:%d\n"
+			"ydsp:%d\n"
+			"x_st:%d\n"
+			"y_st:%d\n"
+			"x_scale:%d.%d\n"
+			"y_scale:%d.%d\n"
+			"format:%s\n"
+			"YRGB buffer addr:0x%08x\n"
+			"CBR buffer addr:0x%08x\n\n"
+			"win1:%s\n"
+			"xvir:%d\n"
+			"xact:%d\n"
+			"yact:%d\n"
+			"xdsp:%d\n"
+			"ydsp:%d\n"
+			"x_st:%d\n"
+			"y_st:%d\n"
+			"x_scale:%d.%d\n"
+			"y_scale:%d.%d\n"
+			"format:%s\n"
+			"YRGB buffer addr:0x%08x\n"
+			"overlay:%s\n",
+			status_w0,
+			xvir_w0,
+			x_act_w0,
+			y_act_w0,
+			x_dsp_w0,
+			y_dsp_w0,
+			x_st_w0,
+			y_st_w0,
+			x_scale_w0 / 100,
+			x_scale_w0 % 100,
+			y_scale_w0 / 100,
+			y_scale_w0 % 100,
+			format_w0,
+			lcdc_readl(lcdc_dev, WIN0_YRGB_MST),
+			lcdc_readl(lcdc_dev, WIN0_CBR_MST),
+			status_w1,
+			xvir_w1,
+			x_act_w1,
+			y_act_w1,
+			x_dsp_w1,
+			y_dsp_w1,
+			x_st_w1,
+			y_st_w1,
+			x_scale_w1 / 100,
+			x_scale_w1 % 100,
+			y_scale_w1 / 100,
+			y_scale_w1 % 100,
+			format_w1,
+			win1_dsp_yaddr,
+			ovl ? "win0 on the top of win1\n" :
+			"win1 on the top of win0\n");
 }
 
 static int rk3036_lcdc_reg_dump(struct rk_lcdc_driver *dev_drv)

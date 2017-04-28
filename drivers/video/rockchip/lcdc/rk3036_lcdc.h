@@ -216,18 +216,24 @@
 
 #define WIN0_DSP_INFO		(0x38)
 #define WIN1_DSP_INFO		(0xB8)
+	#define m_DSP_WIDTH             GENMASK(10, 0)
+	#define m_DSP_HEIGHT            GENMASK(26, 16)
 	#define v_DSP_WIDTH(x)		(((x-1)&0x7ff)<<0)
 	#define v_DSP_HEIGHT(x)		(((x-1)&0x7ff)<<16)
 
 #define WIN0_DSP_ST		(0x3C)
 #define WIN1_DSP_ST		(0xBC)
 #define HWC_DSP_ST		(0x5C)
+	#define m_DSP_STX               GENMASK(11, 0)
+	#define m_DSP_STY               GENMASK(27, 16)
 	#define v_DSP_STX(x)		(((x)&0xfff)<<0)
 	#define v_DSP_STY(x)		(((x)&0xfff)<<16)
 
 #define WIN0_SCL_FACTOR_YRGB	(0x40)
 #define WIN0_SCL_FACTOR_CBR	(0x44)
 #define WIN1_SCL_FACTOR_YRGB	(0xC0)
+	#define m_X_SCL_FACTOR          GENMASK(11, 0)
+	#define m_Y_SCL_FACTOR          GENMASK(27, 16)
 	#define v_X_SCL_FACTOR(x)	(((x)&0xffff)<<0)
 	#define v_Y_SCL_FACTOR(x)	(((x)&0xffff)<<16)
 
