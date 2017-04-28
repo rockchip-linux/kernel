@@ -124,12 +124,9 @@
 #define CHRG_TIMER_CCCV_EN	(1 << 2)
 #define CHRG_EN			(1 << 7)
 
-#define BOOST_MASK		((0x1 << 5) | (0x1 << 1))
-#define BOOST_ON		((0x1 << 5) | (0x1 << 1))
-#define BOOST_OFF		((0x1 << 5) | (0x0 << 1))
-#define OTG_MASK		((0x1 << 6) | (0x1 << 2))
-#define OTG_ON			((0x1 << 6) | (0x1 << 2))
-#define OTG_OFF			((0x1 << 6) | (0x0 << 2))
+#define BOOST_OTG_MASK		((0x3 << 5) | (0x3 << 1))
+#define BOOST_OTG_ON		((0x3 << 5) | (0x3 << 1))
+#define BOOST_OTG_OFF		((0x3 << 5) | (0x0 << 1))
 
 /* MISC_MARK_REG */
 #define FG_INIT			BIT(3)

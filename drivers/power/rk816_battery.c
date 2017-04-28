@@ -1435,13 +1435,12 @@ static void rk816_bat_set_otg_state(struct rk816_battery *di, int state)
 			BAT_INFO("detect vbus-5v suppling, deny otg on..\n");
 			break;
 		}
-		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, BOOST_MASK, BOOST_ON);
-		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, OTG_MASK, OTG_ON);
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
+				   BOOST_OTG_MASK, BOOST_OTG_ON);
 		break;
 	case USB_OTG_POWER_OFF:
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
-				   BOOST_MASK, BOOST_OFF);
-		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2, OTG_MASK, OTG_OFF);
+				   BOOST_OTG_MASK, BOOST_OTG_OFF);
 		break;
 	default:
 		break;
