@@ -69,7 +69,7 @@
 	};
 
 	chosen {
-		bootargs = "vmalloc=496M rockchip_jtag";
+		bootargs = "psci=enable vmalloc=496M rockchip_jtag";
 	};
 };
 
