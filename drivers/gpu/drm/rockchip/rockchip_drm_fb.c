@@ -250,6 +250,11 @@ rockchip_atomic_wait_for_complete(struct drm_device *dev, struct drm_atomic_stat
 		if (!crtc->state->active)
 			continue;
 
+		/* Legacy cursor ioctls are completely unsynced, and userspace
+		 * relies on that (by doing tons of cursor updates). */
+		if (old_state->legacy_cursor_update)
+			continue;
+
 		if (!drm_atomic_helper_framebuffer_changed(dev,
 				old_state, crtc))
 			continue;
