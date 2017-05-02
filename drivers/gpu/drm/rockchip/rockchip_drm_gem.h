@@ -58,4 +58,6 @@ int rockchip_gem_dumb_map_offset(struct drm_file *file_priv,
 int rockchip_drm_gem_dumb_destroy(struct drm_file *file_priv,
 				  struct drm_device *dev,
 				  unsigned int handle);
+int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
+				 struct vm_area_struct *vma);
 #endif /* _ROCKCHIP_DRM_GEM_H */

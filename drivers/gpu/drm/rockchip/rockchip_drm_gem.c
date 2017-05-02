@@ -60,8 +60,8 @@ static void rockchip_gem_free_buf(struct rockchip_gem_object *rk_obj)
 	ion_free(priv->ion_client, rk_obj->handle);
 }
 
-static int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
-					struct vm_area_struct *vma)
+int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
+				 struct vm_area_struct *vma)
 
 {
 	int ret;
@@ -82,30 +82,13 @@ static int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
 		return -ENOMEM;
 	}
 
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
 	ret = dma_buf_mmap(dma_buf, vma, 0);
 
 	dma_buf_put(dma_buf);
 
 	return ret;
-}
-
-int rockchip_gem_mmap_buf(struct drm_gem_object *obj,
-			  struct vm_area_struct *vma)
-{
-#if 1
-	pr_err("hjc todo>>%s:%d, check drm_gem_mmap_obj\n", __func__, __LINE__);
-	return 0;
-#else
-	int ret;
-
-	ret = drm_gem_mmap_obj(obj, obj->size, vma);
-	if (ret)
-		return ret;
-
-	return rockchip_drm_gem_object_mmap(obj, vma);
-#endif
 }
 
 /* drm driver mmap file operations */

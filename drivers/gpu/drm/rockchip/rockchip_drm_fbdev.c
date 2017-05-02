@@ -44,7 +44,7 @@ static int rockchip_drm_fb_mmap(struct fb_info *info,
 	struct drm_fb_helper *helper = info->par;
 	struct rockchip_drm_private *private = helper->dev->dev_private;
 
-	return rockchip_gem_mmap_buf(private->fbdev_bo, vma);
+	return rockchip_drm_gem_object_mmap(private->fbdev_bo, vma);
 #else
 	struct drm_fb_helper *helper = info->par;
 	struct rockchip_drm_fbdev *rockchip_fbd = to_rockchip_fbdev(helper);
