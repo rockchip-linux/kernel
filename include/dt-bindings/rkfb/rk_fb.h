@@ -96,6 +96,10 @@
 #define SCREEN_INIT_SPI_9BIT	2
 #define SCREEN_INIT_MCU		3
 
+#define	TTL_DEFAULT_MODE	0
+#define	TTL_HVSYNC_MODE		1
+#define	TTL_DEN_MODE		2
+
 /*      	lvds connect config       
  *                                        
  *          	LVDS_8BIT_1    LVDS_8BIT_2     LVDS_8BIT_3     LVDS_6BIT
