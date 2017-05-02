@@ -53,3 +53,10 @@ config VIDEO_IMX258
 	default n
 	---help---
 	  This is imx258 camera driver adapt to rockchip cif isp platform.
+
+config VIDEO_XC9080_HM2131
+	tristate "external isp xc9080 and sensor HM2131 driver adapt to rockchip cif isp platform"
+	depends on VIDEO_V4L2 && VIDEO_RK_CIF_ISP11 && I2C
+	default n
+	---help---
+	  This is external isp xc9080 and hm2131 camera driver adapt to rockchip cif isp platform.
