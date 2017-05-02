@@ -1215,6 +1215,22 @@ static int rk312x_load_screen(struct rk_lcdc_driver *dev_drv, bool initscreen)
 				mask = m_RGB_DCLK_EN | m_RGB_DCLK_INVERT;
 				val = v_RGB_DCLK_EN(1) | v_RGB_DCLK_INVERT(0);
 				lcdc_msk_reg(lcdc_dev, AXI_BUS_CTRL, mask, val);
+				if (lcdc_dev->ttl_sync_mode == TTL_DEN_MODE) {
+					if (lcdc_dev->p && !IS_ERR(lcdc_dev->den_state))
+						pinctrl_select_state(lcdc_dev->p,
+								     lcdc_dev->den_state);
+				} else if (lcdc_dev->ttl_sync_mode == TTL_HVSYNC_MODE) {
+					if (lcdc_dev->p && !IS_ERR(lcdc_dev->sync_state))
+						pinctrl_select_state(lcdc_dev->p,
+								     lcdc_dev->sync_state);
+				} else {
+					if (lcdc_dev->p && !IS_ERR(lcdc_dev->den_state))
+						pinctrl_select_state(lcdc_dev->p,
+								     lcdc_dev->den_state);
+					if (lcdc_dev->p && !IS_ERR(lcdc_dev->sync_state))
+						pinctrl_select_state(lcdc_dev->p,
+								     lcdc_dev->sync_state);
+				}
 			}
 			break;
 		case SCREEN_LVDS:
@@ -2669,6 +2685,11 @@ static int rk312x_lcdc_parse_dt(struct lcdc_device *lcdc_dev)
 	else
 		lcdc_dev->driver.fb_win_map = val;
 
+	if (of_property_read_u32(np, "rockchip,ttl-sync-mode", &val))
+		lcdc_dev->ttl_sync_mode = TTL_DEFAULT_MODE;
+	else
+		lcdc_dev->ttl_sync_mode = val;
+
 	match = of_match_node(rk312x_lcdc_dt_ids, np);
 	if (match) {
 		lcdc_drvdata = (const struct rk_lcdc_drvdata *)match->data;
@@ -2746,6 +2767,21 @@ static int rk312x_lcdc_probe(struct platform_device *pdev)
 
 	if (dev_drv->iommu_enabled)
 		strcpy(dev_drv->mmu_dts_name, VOP_IOMMU_COMPATIBLE_NAME);
+
+	lcdc_dev->p = devm_pinctrl_get(lcdc_dev->dev);
+	if (IS_ERR(lcdc_dev->p)) {
+		dev_info(lcdc_dev->dev, "no pinctrl handle\n");
+		lcdc_dev->p = NULL;
+	} else {
+		lcdc_dev->den_state =
+			pinctrl_lookup_state(lcdc_dev->p, "den");
+		if (IS_ERR(lcdc_dev->den_state))
+			dev_info(lcdc_dev->dev, "no den pinctrl state\n");
+		lcdc_dev->sync_state =
+			pinctrl_lookup_state(lcdc_dev->p, "sync");
+		if (IS_ERR(lcdc_dev->den_state))
+			dev_info(lcdc_dev->dev, "no sync pinctrl state\n");
+	}
 
 	ret = rk_fb_register(dev_drv, lcdc_win, lcdc_dev->id);
 	if (ret < 0) {

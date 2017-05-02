@@ -695,6 +695,10 @@ struct lcdc_device {
 	u32 standby;			/* 1:standby,0:work */
 	struct backlight_device *backlight;
 	u32 iommu_status;
+	u32 ttl_sync_mode;
+	struct pinctrl *p;
+	struct pinctrl_state *den_state;
+	struct pinctrl_state *sync_state;
 };
 
 static inline void lcdc_writel(struct lcdc_device *lcdc_dev, u32 offset, u32 v)
