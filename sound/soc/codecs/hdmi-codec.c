@@ -758,7 +758,6 @@ static struct snd_soc_dai_driver hdmi_i2s_dai = {
 		.channels_max = 8,
 		.rates = HDMI_RATES,
 		.formats = I2S_FORMATS,
-		.sig_bits = 24,
 	},
 	.ops = &hdmi_dai_ops,
 	.pcm_new = hdmi_codec_pcm_new,
