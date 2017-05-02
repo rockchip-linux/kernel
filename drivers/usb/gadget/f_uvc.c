@@ -37,7 +37,7 @@ static unsigned int streaming_interval = 1;
 module_param(streaming_interval, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(streaming_interval, "1 - 16");
 
-static unsigned int streaming_maxpacket = 3072;
+static unsigned int streaming_maxpacket = 1024;
 module_param(streaming_maxpacket, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(streaming_maxpacket, "1 - 1023 (FS), 1 - 3072 (hs/ss)");
 
