@@ -127,8 +127,11 @@
          1) add isp-dvp-d4d11 iomux support.
 *v0.0x22.0:
          1) remove memset function wrong called code.
+*v0.0x23.0:
+	1) modify phy frequency table of 3368.
+	2) add phy timing seting for 3368.
 */
-#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0,0x22,0)
+#define CAMSYS_DRIVER_VERSION                   KERNEL_VERSION(0, 0x23, 0)
 
 
 #define CAMSYS_PLATFORM_DRV_NAME                "RockChip-CamSys"

@@ -10,21 +10,21 @@ struct mipiphy_hsfreqrange_s {
 };
 
 static struct mipiphy_hsfreqrange_s mipiphy_hsfreqrange[] = {
-    {80,110,0x00},
-    {110,150,0x01},
-    {150,200,0x02},
-    {200,250,0x03},
-    {250,300,0x04},
-    {300,400,0x05},
-    {400,500,0x06},
-    {500,600,0x07},
-    {600,700,0x08},
-    {700,800,0x09},
-    {800,1000,0x10},
-    {1000,1200,0x11},
-    {1200,1400,0x12},
-    {1400,1600,0x13},
-    {1600,1800,0x14}
+	{80, 110, 0x00},
+	{110, 150, 0x01},
+	{150, 200, 0x02},
+	{200, 250, 0x03},
+	{250, 300, 0x04},
+	{300, 400, 0x05},
+	{400, 500, 0x06},
+	{500, 600, 0x07},
+	{600, 700, 0x08},
+	{700, 800, 0x09},
+	{800, 1000, 0xa},
+	{1000, 1100, 0xb},
+	{1100, 1250, 0xc},
+	{1250, 1350, 0xd},
+	{1350, 1500, 0xe}
     
 };
 
@@ -82,7 +82,6 @@ static int camsys_rk3368_mipihpy_cfg (camsys_mipiphy_soc_para_t *para)
 	}
     if ((para->phy->bit_rate == 0) || (para->phy->data_en_bit == 0)) {
         if (para->phy->phy_index == 0) {
-			camsys_trace(1, ">>>>>>>>>>>>>>>>para->phy->phy_index==0");	
             base = (unsigned long)para->camsys_dev->devmems.registermem->vir_base;
             *((unsigned int*)(base + (MRV_MIPI_BASE+MRV_MIPI_CTRL))) &= ~(0x0f<<8);
             camsys_trace(1, "mipi phy 0 standby!");		
@@ -115,10 +114,20 @@ static int camsys_rk3368_mipihpy_cfg (camsys_mipiphy_soc_para_t *para)
         write_grf_reg(GRF_SOC_CON6_OFFSET, ISP_MIPI_CSI_HOST_SEL_OFFSET_MASK | (1<<ISP_MIPI_CSI_HOST_SEL_OFFSET_BIT)); 
 
 		/*phy start */
-        {
+			write_csiphy_reg(MIPI_CSI_DPHY_CTRL_PWRCTL_OFFSET, 0xe4);
+			/*set data lane num and enable clock lane */
+			write_csiphy_reg(MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET,
+					((para->phy->data_en_bit << 2) | (0x1 << 6) | 0x1));
+			/*Reset dphy analog part*/
+			write_csiphy_reg(MIPI_CSI_DPHY_CTRL_PWRCTL_OFFSET, 0xe0);
+			usleep_range(500, 1000);
+			/*Reset dphy digital part*/
+			write_csiphy_reg(MIPI_CSI_DPHY_CTRL_DIG_RST_OFFSET, 0x1e);
+			write_csiphy_reg(MIPI_CSI_DPHY_CTRL_DIG_RST_OFFSET, 0x1f);
+			write_grf_reg(GRF_SOC_CON6_OFFSET,
+				MIPI_CSI_DPHY_RX_FORCERXMODE_MASK |
+				MIPI_CSI_DPHY_RX_FORCERXMODE_BIT);
 			/*set clock lane */
-			/*write_csiphy_reg(0x34,0x00); */
-			
             write_csiphy_reg((MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x100),hsfreqrange|(read_csiphy_reg(MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x100)&(~0xf)));
 
 			if(para->phy->data_en_bit > 0x00){
@@ -131,77 +140,16 @@ static int camsys_rk3368_mipihpy_cfg (camsys_mipiphy_soc_para_t *para)
 				write_csiphy_reg(MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x280,hsfreqrange|(read_csiphy_reg(MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x280)&(~0xf)));//lane2			
 				write_csiphy_reg(MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x300,hsfreqrange|(read_csiphy_reg(MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x300)&(~0xf)));	//lane3				
 			}
-
-			/*set data lane num and enable clock lane */
-			write_csiphy_reg( 0x00, ((para->phy->data_en_bit << 2)|(0x1<<6)|0x1));
-			//base = (unsigned long)para->camsys_dev->devmems.registermem->vir_base;
-			//*((unsigned int*)(base + (MRV_MIPI_BASE+MRV_MIPI_CTRL))) =( 0x1|((/*para->phy->data_en_bit*/0x0)<<12)|0x1<<18);
-
-        }
-		camsys_trace(1,"vir_base=0x%lx",(unsigned long)para->camsys_dev->devmems.registermem->vir_base);		
-
+		/*
+		 * MIPI CTRL bit8:11 SHUTDOWN_LANE are invert
+		 * connect to dphy pin_enable_x
+		 */
         base = (unsigned long)para->camsys_dev->devmems.registermem->vir_base;
         *((unsigned int*)(base + (MRV_MIPI_BASE+MRV_MIPI_CTRL))) &= ~(0x0f<<8);
-        camsys_trace(1,"val:0x%x",*((unsigned int*)(base + (MRV_MIPI_BASE+MRV_MIPI_CTRL))));
-    }
-#if 0	
-	else if (para->phy->phy_index == 1){
 		
-		//csihost select
-        write_grf_reg(GRF_SOC_CON6_OFFSET, ISP_MIPI_CSI_HOST_SEL_OFFSET_MASK | (0<<ISP_MIPI_CSI_HOST_SEL_OFFSET_BIT)); 
-		  
-		write_csihost_reg(CSIHOST_PHY_TEST_CTRL0,0x00000002); 		 //TESTCLK=1
-		write_csihost_reg(CSIHOST_PHY_TEST_CTRL0,0x00000003); 		 //TESTCLR=1 TESTCLK=1	
-		udelay(100);
-		write_csihost_reg(CSIHOST_PHY_TEST_CTRL0,0x00000002); 		 //TESTCLR=0 TESTCLK=1
-		udelay(100);
-
-		//set lane num, csi phy
-		camsys_rk3368_mipiphy_wr_reg(phy_virt, MIPI_CSI_DPHY_CTRL_LANE_ENABLE_OFFSET<<2, para->phy->data_en_bit << MIPI_CSI_DPHY_CTRL_LANE_ENABLE_OFFSET_BIT);
-
-		//set clock lane
-		camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x100)<<2,0x00);
-		//MSB enable
-		//camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_MSB_EN_OFFSET+0x100)<<2,0x40); 		
-		if(para->phy->data_en_bit > 0x00){
-			camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x180)<<2,hsfreqrange);//lane0
-			//MSB enable
-			//camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_MSB_EN_OFFSET+0x180)<<2,0x40);
-		}
-		if(para->phy->data_en_bit > 0x02){
-			camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x200)<<2,hsfreqrange);//lane1
-			//MSB enable
-			//camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_MSB_EN_OFFSET+0x200)<<2,0x40);
-		}
-		if(para->phy->data_en_bit > 0x04){
-			camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x280)<<2,hsfreqrange);//lane2
-			//MSB enable
-			//camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_MSB_EN_OFFSET+0x280)<<2,0x40);
-			camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_THS_SETTLE_OFFSET+0x300)<<2,hsfreqrange); //lane3 
-			//MSB enable
-			//camsys_rk3368_mipiphy_wr_reg(phy_virt, (MIPI_CSI_DPHY_LANEX_MSB_EN_OFFSET+0x300)<<2,0x40);
-		}
-
-		
-		//set active lane num, csi host
-		if(para->phy->data_en_bit > 0x00){
-			write_csihost_reg(CSIHOST_N_LANES_OFFSET, 0x00);//one lane active
-		}else if(para->phy->data_en_bit > 0x01){
-			write_csihost_reg(CSIHOST_N_LANES_OFFSET, 0x01);//two lane active
-		}else if(para->phy->data_en_bit > 0x04){
-			write_csihost_reg(CSIHOST_N_LANES_OFFSET, 0x02);// three lane active
-		}else if(para->phy->data_en_bit > 0x08){
-			write_csihost_reg(CSIHOST_N_LANES_OFFSET, 0x03);//foure lane active
-		}
-		camsys_rk3368_mipiphy_rd_reg(phy_virt,0x0);
-		write_csihost_reg(CSIHOST_PHY_TEST_CTRL0,0x00000002);  //TESTCLK=1			
-		write_csihost_reg(CSIHOST_PHY_TEST_CTRL1,0x00000000); //TESTCLR=0	
-        write_csihost_reg(CSIHOST_PHY_SHUTDOWNZ,0x00000001);  //SHUTDOWNZ=1
-        write_csihost_reg(CSIHOST_DPHY_RSTZ,0x00000001);  //RSTZ=1	
-        write_csihost_reg(CSIHOST_CSI2_RESETN,0x00000001);  //RESETN=1	       
-    }
-#endif
-    else {
+			camsys_trace(1, "vir_base=0x%lx", (unsigned long)para->camsys_dev->devmems.registermem->vir_base);
+			camsys_trace(1, "val:0x%x", *((unsigned int *)(base + (MRV_MIPI_BASE + MRV_MIPI_CTRL))));
+		} else {
         camsys_err("mipi phy index %d is invalidate!",para->phy->phy_index);
         goto fail;
     }
