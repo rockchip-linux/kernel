@@ -482,6 +482,11 @@ static int rk3036_codec_open_p(void)
 		}
 	}
 
+	if (rk3036_priv->spk_ctl_gpio_invert) {
+		msleep(100);
+		spk_ctrl_fun(SPK_CTRL_OPEN);
+	}
+
 	return 0;
 }
 
@@ -720,7 +725,8 @@ static void codec_delayedwork_fun(struct work_struct *work)
 	DBG("codec_delayedwork_fun\n");
 
 	/* codec start up. */
-	rk3036_codec_open_p();
+	if (!rk3036_priv->spk_ctl_gpio_invert)
+		rk3036_codec_open_p();
 
 	/* for sure, start codec again. */
 	mdelay(200);
@@ -732,7 +738,8 @@ static void spk_ctrl_delayedwork_fun(struct work_struct *work)
 	if (rk3036_priv == NULL)
 		return;
 	DBG("spk_ctrl_delayedwork_fun\n");
-	spk_ctrl_fun(SPK_CTRL_OPEN);
+	if (!rk3036_priv->spk_ctl_gpio_invert)
+		spk_ctrl_fun(SPK_CTRL_OPEN);
 }
 
 #if CODECDEBUG
