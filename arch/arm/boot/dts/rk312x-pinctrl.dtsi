@@ -821,24 +821,16 @@
 		};
 
 		gpio2_lcdc0 {
-			lcdc0_lcdc:lcdc0-lcdc {
-				rockchip,pins =
-						<LCDC0_DCLK>,
-						<LCDC0_DEN>,
-						<LCDC0_HSYNC>,
+			lcdc0_den:lcdc0-den {
+				rockchip,pins = <LCDC0_DEN>;
+				rockchip,pull = <VALUE_PULL_DISABLE>;
+			};
+
+			lcdc0_sync:lcdc0-sync {
+				rockchip,pins = <LCDC0_HSYNC>,
 						<LCDC0_VSYNC>;
 				rockchip,pull = <VALUE_PULL_DISABLE>;
 			};
-
-			lcdc0_gpio:lcdc0-gpio {
-				rockchip,pins =
-						<FUNC_TO_GPIO(LCDC0_DCLK)>,
-						<FUNC_TO_GPIO(LCDC0_DEN)>,
-						<FUNC_TO_GPIO(LCDC0_HSYNC)>,
-						<FUNC_TO_GPIO(LCDC0_VSYNC)>;
-				rockchip,pull = <VALUE_PULL_DISABLE>;
-			};
-
 		};
 
 		gpio2_lcdc0_d {
@@ -851,7 +843,8 @@
 						<LCDC0_D14>,
 						<LCDC0_D15>,
 						<LCDC0_D16>,
-						<LCDC0_D17>;
+						<LCDC0_D17>,
+						<LCDC0_DCLK>;
 						/*
 						<LCDC0_D18>,
 						<LCDC0_D19>,
@@ -872,7 +865,8 @@
 						<FUNC_TO_GPIO(LCDC0_D14)>,
 						<FUNC_TO_GPIO(LCDC0_D15)>,
 						<FUNC_TO_GPIO(LCDC0_D16)>,
-						<FUNC_TO_GPIO(LCDC0_D17)>;
+						<FUNC_TO_GPIO(LCDC0_D17)>,
+						<FUNC_TO_GPIO(LCDC0_DCLK)>;
 						/*
 						<FUNC_TO_GPIO(LCDC0_D18)>,
 						<FUNC_TO_GPIO(LCDC0_D19)>,

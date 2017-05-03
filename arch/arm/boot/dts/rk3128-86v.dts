@@ -188,9 +188,9 @@
 	status = "okay";
 
 	//backlight = <&backlight>;
-	pinctrl-names = "default", "gpio";
-	pinctrl-0 = <&lcdc0_lcdc>;
-	pinctrl-1 = <&lcdc0_gpio>;
+	pinctrl-names = "den", "sync";
+	pinctrl-0 = <&lcdc0_den>;
+	pinctrl-1 = <&lcdc0_sync>;
 
 	rockchip,fb-win-map = <FB_DEFAULT_ORDER>;
 	power_ctr: power_ctr {
