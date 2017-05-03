@@ -23,6 +23,10 @@
 
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+#include "leds-multi.h"
+#endif
+
 /* Used to indicate a device has no such register */
 #define IS31FL32XX_REG_NONE 0xFF
 
@@ -447,6 +451,9 @@ static int is31fl32xx_parse_dt(struct device *dev,
 				goto err;
 			}
 		}
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+		led_multi_control_register(&led_data->cdev);
+#endif
 		priv->num_leds++;
 	}
 
@@ -518,6 +525,10 @@ static int is31fl32xx_probe(struct i2c_client *client,
 	if (ret)
 		return ret;
 
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+	led_multi_control_init(dev);
+#endif
+
 	ret = is31fl32xx_parse_dt(dev, priv);
 	if (ret)
 		return ret;
@@ -527,9 +538,40 @@ static int is31fl32xx_probe(struct i2c_client *client,
 
 static int is31fl32xx_remove(struct i2c_client *client)
 {
+	int i;
 	struct is31fl32xx_priv *priv = i2c_get_clientdata(client);
 
+	for (i = 0; i < priv->num_leds; i++) {
+		struct is31fl32xx_led_data *led_data =
+					&priv->leds[i];
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+		led_multi_control_unregister(&led_data->cdev);
+#endif
+		led_classdev_unregister(&led_data->cdev);
+	}
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+	led_multi_control_exit(&client->dev);
+#endif
 	return is31fl32xx_reset_regs(priv);
+}
+
+static void is31fl32xx_shutdown(struct i2c_client *client)
+{
+	int i;
+	struct is31fl32xx_priv *priv = i2c_get_clientdata(client);
+
+	for (i = 0; i < priv->num_leds; i++) {
+		struct is31fl32xx_led_data *led_data =
+					&priv->leds[i];
+		led_classdev_unregister(&led_data->cdev);
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+		led_multi_control_unregister(&led_data->cdev);
+#endif
+	}
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+	led_multi_control_exit(&client->dev);
+#endif
+	is31fl32xx_reset_regs(priv);
 }
 
 /*
@@ -555,6 +597,7 @@ static struct i2c_driver is31fl32xx_driver = {
 	},
 	.probe		= is31fl32xx_probe,
 	.remove		= is31fl32xx_remove,
+	.shutdown	= is31fl32xx_shutdown,
 	.id_table	= is31fl32xx_id,
 };
 
