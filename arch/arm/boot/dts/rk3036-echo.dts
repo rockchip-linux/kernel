@@ -127,7 +127,7 @@
 		BT,wake_gpio = <&gpio2 GPIO_B0 GPIO_ACTIVE_HIGH>;
 		BT,wake_host_irq = <&gpio0 GPIO_C4 GPIO_ACTIVE_LOW>;
 
-		status = "disabled";
+		status = "okay";
 	};
 
 	usb_control {
