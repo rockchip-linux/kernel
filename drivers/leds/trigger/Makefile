@@ -10,3 +10,4 @@ obj-$(CONFIG_LEDS_TRIGGER_TRANSIENT)	+= ledtrig-transient.o
 obj-$(CONFIG_LEDS_TRIGGER_CAMERA)	+= ledtrig-camera.o
 obj-$(CONFIG_LEDS_TRIGGER_IR)		+= ledtrig-ir.o
 obj-$(CONFIG_LEDS_TRIGGER_BLINK)	+= ledtrig-blink.o
+obj-$(CONFIG_LEDS_TRIGGER_MULTI_CTRL)	+= ledtrig-multi-control.o

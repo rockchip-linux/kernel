@@ -47,12 +47,17 @@ static inline void *led_get_trigger_data(struct led_classdev *led_cdev)
 {
 	return led_cdev->trigger_data;
 }
-
 #else
 #define led_trigger_set_default(x) do {} while (0)
 #define led_trigger_set(x, y) do {} while (0)
 #define led_trigger_remove(x) do {} while (0)
 #define led_get_trigger_data(x) (NULL)
+#endif
+
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+void led_trigger_set_by_name(struct led_classdev *led_cdev, char *trig_name);
+#else
+#define led_trigger_set_by_name(x, y) do {} while (0)
 #endif
 
 ssize_t led_trigger_store(struct device *dev, struct device_attribute *attr,
