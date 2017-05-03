@@ -298,6 +298,7 @@
 	ignore-pm-notify;
 	keep-power-in-suspend;
 	cap-sdio-irq;
+	supports-UHS_SDR104;
 	status = "okay";
 };
 
