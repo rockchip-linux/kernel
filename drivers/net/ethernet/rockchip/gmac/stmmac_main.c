@@ -141,6 +141,7 @@ static unsigned int chain_mode;
 module_param(chain_mode, int, S_IRUGO);
 MODULE_PARM_DESC(chain_mode, "To use chain instead of ring mode");
 
+static int rk322x_phy_adjust(struct phy_device *phydev);
 static irqreturn_t stmmac_interrupt(int irq, void *dev_id);
 
 #ifdef CONFIG_GMAC_DEBUG_FS
@@ -774,6 +775,15 @@ static void stmmac_adjust_link(struct net_device *dev)
 
 				if ((bsp_priv->chip == RK322X_GMAC ||
 				     bsp_priv->chip == RK322XH_GMAC) &&
+				    (bsp_priv->internal_phy)) {
+					if (priv->oldspeed == 10 &&
+					    phydev->speed == 100) {
+						rk322x_phy_adjust(phydev);
+					}
+				}
+
+				if ((bsp_priv->chip == RK322X_GMAC ||
+				     bsp_priv->chip == RK322XH_GMAC) &&
 				    (bsp_priv->internal_phy) &&
 				    (phydev->speed == 10)) {
 					int an_expan;
@@ -803,6 +813,7 @@ static void stmmac_adjust_link(struct net_device *dev)
 			}
 
 			priv->speed = phydev->speed;
+			priv->oldspeed = phydev->speed;
 		}
 
 		writel(ctrl, priv->ioaddr + MAC_CTRL_REG);
@@ -984,13 +995,18 @@ static int rk322x_phy_adjust(struct phy_device *phydev) {
 	printk("resv1 = %x\n", resv1);
 	phy_write(phydev, 17, resv1 & 0x3F);
 
+	// enable access to Analog and DSP register bank
+	phy_write(phydev, 20, 0x400);
+	phy_write(phydev, 20, 0x0);
+	phy_write(phydev, 20, 0x400);
+
 	// adjust TXAMP
-	phy_write(phydev,20,0x400);
-	phy_write(phydev,20,0x0);
-	phy_write(phydev,20,0x400);
-	phy_write(phydev,23,0xb);    // default is 0x8, set to 0xb
-	phy_write(phydev,20,0x4418);
-//	phy_write(phydev,20,0x8700);
+	phy_write(phydev, 23, 0xb);    // default is 0x8, set to 0xb
+	phy_write(phydev, 20, 0x4418);
+//	phy_write(phydev, 20, 0x8700);
+
+	// disable access to Analog and DSP register bank
+	phy_write(phydev, 20, 0x0);
 	return 0;
 }
 
@@ -1024,6 +1040,7 @@ static int stmmac_init_phy(struct net_device *dev)
 	struct bsp_priv *bsp_priv = priv->plat->bsp_priv;
 	priv->oldlink = 0;
 	priv->speed = 0;
+	priv->oldspeed = 0;
 	priv->oldduplex = -1;
 
 	if (priv->plat->phy_bus_name)

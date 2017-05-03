@@ -77,6 +77,7 @@ struct stmmac_priv {
 	struct phy_device *phydev ____cacheline_aligned_in_smp;
 	int oldlink;
 	int speed;
+	int oldspeed;
 	int oldduplex;
 	unsigned int flow_ctrl;
 	unsigned int pause;
