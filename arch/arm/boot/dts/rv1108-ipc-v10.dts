@@ -579,4 +579,6 @@
 &camera2 {
 	rockchip,pwr-gpio = <&gpio1 GPIO_D0 GPIO_ACTIVE_HIGH>;
 	rockchip,camera-module-name = "LA6271";
+	rockchip,camera-module-flip = <1>;
+	rockchip,camera-module-mirror = <1>;
 };
