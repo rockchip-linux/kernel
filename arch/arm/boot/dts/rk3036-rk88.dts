@@ -136,6 +136,14 @@
 	status = "okay";
 };
 
+&i2s {
+	status = "okay";
+};
+
+&codec {
+	status = "okay";
+};
+
 &codec_hdmi_spdif {
 	status = "okay";
 };
@@ -172,29 +180,29 @@
 };
 
 &sdmmc {
-		clock-frequency = <37500000>;
-		clock-freq-min-max = <400000 37500000>;
-		supports-highspeed;
-		supports-sd;
-		broken-cd;
-		card-detect-delay = <200>;
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <400000 37500000>;
+	supports-highspeed;
+	supports-sd;
+	broken-cd;
+	card-detect-delay = <200>;
 
-		ignore-pm-notify;
-		keep-power-in-suspend;
+	ignore-pm-notify;
+	keep-power-in-suspend;
 
-		//vmmc-supply = <&rk808_ldo5_reg>;
-		status = "okay";
+	//vmmc-supply = <&rk808_ldo5_reg>;
+	status = "okay";
 };
 
 &sdio {
-		clock-frequency = <37500000>;
-		clock-freq-min-max = <200000 37500000>;
-		supports-highspeed;
-		supports-sdio;
-		ignore-pm-notify;
-		keep-power-in-suspend;
-		cap-sdio-irq;
-		status = "okay";
+	clock-frequency = <37500000>;
+	clock-freq-min-max = <200000 37500000>;
+	supports-highspeed;
+	supports-sdio;
+	ignore-pm-notify;
+	keep-power-in-suspend;
+	cap-sdio-irq;
+	status = "okay";
 };
 
 
@@ -209,10 +217,12 @@
 
 
 &rk_screen {
-	 display-timings = <&disp_timings>;
+	status = "okay";
+	display-timings = <&disp_timings>;
 };
 
 &fb {
+	status = "okay";
 	rockchip,disp-mode = <NO_DUAL>;
 	rockchip,uboot-logo-on = <1>;
 };
@@ -230,11 +240,48 @@
 	//rockchips,hdmi_audio_source = <0>;
 };
 
+&gpu {
+	status = "okay";
+};
+
 &vmac {
-//	pmu_regulator = "act_ldo5";
-//	pmu_enable_level = <1>; //1->HIGH, 0->LOW
-//      power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>;
-        reset-gpio = <&gpio2 GPIO_C6 GPIO_ACTIVE_LOW>;
+	status = "okay";
+	//pmu_regulator = "act_ldo5";
+	//pmu_enable_level = <1>; //1->HIGH, 0->LOW
+	//power-gpio = <&gpio0 GPIO_A6 GPIO_ACTIVE_HIGH>;
+	reset-gpio = <&gpio2 GPIO_C6 GPIO_ACTIVE_LOW>;
+};
+
+&vpu {
+	status = "okay";
+};
+
+&hevc {
+	status = "okay";
+};
+
+&vpu_combo {
+	status = "okay";
+};
+
+&vop_mmu {
+	status = "okay";
+};
+
+&hevc_mmu {
+	 status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
+&usb0 {
+	status = "okay";
+};
+
+&usb1 {
+	status = "okay";
 };
 
 &dwc_control_usb {
@@ -248,6 +295,7 @@
 };
 
 &remotectl {
+	status = "okay";
 	handle_cpu_id = <1>;
 	ir_key1{
 		rockchip,usercode = <0x4040>;

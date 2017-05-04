@@ -432,6 +432,7 @@
 		//pinctrl-names = "default", "sleep";
 		//pinctrl-0 = <&i2s_mclk &i2s_sclk &i2s_lrckrx &i2s_lrcktx &i2s_sdi &i2s_sdo0 &i2s_sdo1 &i2s_sdo2 &i2s_sdo3>;
 		//pinctrl-1 = <&i2s_gpio>;
+		status = "disabled";
 	};
 
 	sfc: sfc@10208000 {
@@ -454,6 +455,7 @@
 		pa_enable_time = <1000>;
 		clocks = <&clk_gates5 14>;
 		clock-names = "g_pclk_acodec";
+		status = "disabled";
 	};
 
 	spdif: spdif@10204000 {
@@ -549,7 +551,7 @@
 		clock-names = "pclk_pwm";
 		remote_pwm_id = <3>;
 		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	emmc: rksdmmc@1021c000 {
@@ -569,8 +571,8 @@
 		bus-width = <8>;
 		resets = <&reset RK3036_RST_EMMC>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
 	};
-
 
 	sdmmc: rksdmmc@10214000 {
 		compatible = "rockchip,rk_mmc", "rockchip,rk3036-sdmmc";
@@ -592,6 +594,7 @@
 		bus-width = <4>;
 		resets = <&reset RK3036_RST_MMC0>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
 	};
 
 	sdio: rksdmmc@10218000 {
@@ -612,8 +615,10 @@
 		bus-width = <4>;
 		resets = <&reset RK3036_RST_SDIO>;
 		reset-names = "mmc_ahb_reset";
+		status = "disabled";
 	};
-	gpu {
+
+	gpu: gpu {
 		compatible = "arm,mali400";
 		reg = <0x10091000 0x200>,
 			  <0x10090000 0x100>,
@@ -621,20 +626,22 @@
 			  <0x10098000 0x1100>,
 			  <0x10094000 0x100>;
 		reg-names = "Mali_L2",
-					"Mali_GP",
-					"Mali_GP_MMU",
-					"Mali_PP0",
-					"Mali_PP0_MMU";
+			    "Mali_GP",
+			    "Mali_GP_MMU",
+			    "Mali_PP0",
+			    "Mali_PP0_MMU";
 
-	    interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>,
-                     <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>,
-			  	     <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,
-                     <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
-	    interrupt-names = "Mali_GP_IRQ",
-						  "Mali_GP_MMU_IRQ",
-						  "Mali_PP0_IRQ",
-						  "Mali_PP0_MMU_IRQ";
+		interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "Mali_GP_IRQ",
+				  "Mali_GP_MMU_IRQ",
+				  "Mali_PP0_IRQ",
+				  "Mali_PP0_MMU_IRQ";
+		status = "disabled";
 	  };
+
 	dwc_control_usb: dwc-control-usb@20008000 {
 		compatible = "rockchip,rk3036-dwc-control-usb";
 		reg = <0x20008000 0x4>;
@@ -650,6 +657,8 @@
 		rockchip,usb_irq_wakeup;
 		resets = <&reset RK3036_RST_USBPOR>;
 		reset-names = "usbphy_por";
+		status = "disabled";
+
 		usb_bc{
 			compatible = "rockchip,ctrl";
 			rk_usb,bvalid   = <0x14c 8 1>;
@@ -661,6 +670,7 @@
 			rk_usb,termsel  = <0x17c 6 1>;
 		};
 	};
+
 	usb0: usb@10180000 {
 		compatible = "rockchip,rk3036_usb20_otg";
 		reg = <0x10180000 0x40000>;
@@ -672,6 +682,7 @@
 		reset-names = "otg_ahb", "otg_phy", "otg_controller";
 		/*0 - Normal, 1 - Force Host, 2 - Force Device*/
 		rockchip,usb-mode = <0>;
+		status = "disabled";
 	};
 
 	usb1: usb@101c0000 {
@@ -683,26 +694,29 @@
 		resets = <&reset RK3036_RST_USBOTG1>, <&reset RK3036_RST_UTMI1>,
 				<&reset RK3036_RST_OTGC1>;
 		reset-names = "host_ahb", "host_phy", "host_controller";
+		status = "disabled";
 	};
 
 	fb: fb{
 		compatible = "rockchip,rk-fb";
 		rockchip,disp-mode = <NO_DUAL>;
 		rockchip,disp-policy = <DISPLAY_POLICY_BOX>;
+		status = "disabled";
 	};
 
 	rk_screen: rk_screen{
 		compatible = "rockchip,screen";
+		status = "disabled";
 	};
 
 	lcdc: lcdc@10118000 {
 		compatible = "rockchip,rk3036-lcdc";
 		reg = <0x10118000 0x1000>;
 		interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
-		status = "disabled";
 		clocks = <&clk_gates9 6>, <&dclk_lcdc1>, <&clk_gates9 5>;
 		clock-names = "aclk_lcdc", "dclk_lcdc", "hclk_lcdc";
 		rockchip,iommu-enabled = <1>;
+		status = "disabled";
 	};
 
 	hdmi: hdmi@20034000 {
@@ -770,6 +784,7 @@
 		name = "hevc_service";
 		status = "okay";
 	};*/
+
 	vpu: vpu_service {
 		compatible = "rockchip,vpu_sub";
 		iommu_enabled = <1>;
@@ -778,6 +793,7 @@
 		interrupt-names = "irq_dec";
 		dev_mode = <0>;
 		name = "vpu_service";
+		status = "disabled";
 	};
 
 	hevc: hevc_service {
@@ -788,6 +804,7 @@
 		interrupt-names = "irq_dec";
 		dev_mode = <1>;
 		name = "hevc_service";
+		status = "disabled";
 	};
 
 	vpu_combo: vpu_combo@ff9a0000 {
@@ -799,32 +816,35 @@
 		mode_bit = <3>;
 		mode_ctrl = <0x144>;
 		name = "vpu_combo";
-		status = "okay";
+		status = "disabled";
 	};
 
-	vop_mmu {
+	vop_mmu: vop_mmu {
 		dbgname = "vop";
 		compatible = "rockchip,vop_mmu";
 		reg = <0x10118300 0x100>;
 		interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "vop_mmu";
+		status = "disabled";
 	};
 
-	hevc_mmu {
+	hevc_mmu: hevc_mmu {
 		dbgname = "hevc";
 		compatible = "rockchip,hevc_mmu";
 		reg = <0x1010c440 0x40>,
 		      <0x1010c480 0x40>;
 		interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "hevc_mmu";
+		status = "disabled";
 	};
 
-	vpu_mmu {
+	vpu_mmu: vpu_mmu {
 		dbgname = "vpu";
 		compatible = "rockchip,vpu_mmu";
 		reg = <0x10108800 0x100>;
 		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "vpu_mmu";
+		status = "disabled";
 	};
 
 	rockchip_suspend: rockchip_suspend {
@@ -868,5 +888,6 @@
                           "clk_tx_rx_gate", "hclk_mac";
                 pinctrl-names = "default";
                 pinctrl-0 = <&mac_clk &mac_txpins &mac_rxpins &mac_crs &mac_mdpins>;
+		status = "disabled";
         };
 };
