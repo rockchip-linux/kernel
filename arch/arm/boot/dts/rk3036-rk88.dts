@@ -388,3 +388,27 @@
 			<0xb5	KEY_BACKSPACE>;
 	};
 };
+
+&clk_core_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		816000 1100000
+	>;
+	status = "okay";
+};
+
+&clk_ddr_dvfs_table {
+	operating-points = <
+		/* KHz    uV */
+		396000 1000000
+	>;
+	status = "okay";
+};
+
+&clk_gpu_dvfs_table {
+	status = "okay";
+		operating-points = <
+		/* KHz    uV */
+		400000 1100000
+	>;
+};
