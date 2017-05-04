@@ -1423,21 +1423,89 @@ static void rk816_bat_set_chrg_param(struct rk816_battery *di,
 	rk816_bat_update_leds(di, di->prop_val);
 }
 
+/*
+ * -----: VBUS-5V
+ * #####: PMIC_INT
+ *
+ *
+ *		A	140ms	   D
+ *		|------------------>>>>>>>>>>>>>>>
+ *		|	B   C
+ * ##########################
+ *		|	    #
+ *		|   100ms   #   F    E
+ * --------------	    ##############
+ *
+ * [PMIC]
+ *	A: charger plugin event(vbus-5v on);
+ *	C: pmic reaction time finish, [A~C] = 100ms;
+ *	D: pmic switch to charging mode, start charging, [A~D] = 140ms;
+ *
+ * [Software]
+ *	B: PLUG_IN_STS=0, we think it's not charging mode, so enable otg+boost,
+ *	   but actually, PLUG_IN_STS is not effective now.
+ *	F: pmic reaction finish, PLUG_IN_STS is effective and we do check again.
+ *	E: output-5v mode really works(enable boost+otg)
+ *
+ * [Mistake detail]
+ *	1. Charger plugin at spot-A and switch to charing mode at spot-D.
+ *	2. Software check PLUG_IN_STS=0 at spot-B, so we think it's not
+ *	   charging mode and we enable boost+otg, and this really works at
+ *	   spot-E(because delay of i2c transfer or other).
+ *	3. It's a pity that pmic has been changed to charing mode at spot-D
+ *	   earlier than spot-E.
+ *
+ * After above mistake, we enable otg+boost in charing mode. Then, boost will
+ * burn off if we plugout charger.
+ *
+ * [Solution]
+ *	we should abey the rule: Don't enable boost while in charging mode.
+ * We should enable otg first at spot-B, trying to switch to output-5v mode,
+ * then delay 140ms(pmic reaction and other) to check effective PLUG_IN_STS
+ * again at spot-F, if PLUG_IN_STS=1, means it's charging mode now, we abandont
+ * enable boost and disable otg. Otherwise, we can turn on boost safely.
+ */
 static void rk816_bat_set_otg_state(struct rk816_battery *di, int state)
 {
 	u8 buf;
 
 	switch (state) {
 	case USB_OTG_POWER_ON:
-		/* for safe, detect vbus-5v by pmic self */
+		/* (spot-B). for safe, detect vbus-5v by pmic self */
 		buf = rk816_bat_read(di, RK816_VB_MON_REG);
 		if (buf & PLUG_IN_STS) {
 			BAT_INFO("detect vbus-5v suppling, deny otg on..\n");
 			break;
 		}
+
+		/* (spot-B). enable otg, try to switch to output-5v mode */
+		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
+				   BOOST_OTG_MASK, BOOST_OFF_OTG_ON);
+
+		/*
+		 * pmic need about 140ms to switch to charging mode, so wait
+		 * 140ms and check charger again. if still check vbus-5v online,
+		 * that means it's charger mode now, we should turn off boost
+		 * and otg, then return.
+		 */
+		msleep(140);
+		/* spot-F */
+		buf = rk816_bat_read(di, RK816_VB_MON_REG);
+		if (buf & PLUG_IN_STS) {
+			rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
+					   BOOST_OTG_MASK, BOOST_OTG_OFF);
+			BAT_INFO("detect vbus-5v suppling too, deny otg on\n");
+			break;
+		}
+
+		/*
+		 * reach here, means pmic switch to output-5v mode ok, it's
+		 * safe to enable boost-5v on output mode.
+		 */
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
 				   BOOST_OTG_MASK, BOOST_OTG_ON);
 		break;
+
 	case USB_OTG_POWER_OFF:
 		rk816_bat_set_bits(di, RK816_DCDC_EN_REG2,
 				   BOOST_OTG_MASK, BOOST_OTG_OFF);

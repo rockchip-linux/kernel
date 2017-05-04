@@ -127,6 +127,7 @@
 #define BOOST_OTG_MASK		((0x3 << 5) | (0x3 << 1))
 #define BOOST_OTG_ON		((0x3 << 5) | (0x3 << 1))
 #define BOOST_OTG_OFF		((0x3 << 5) | (0x0 << 1))
+#define BOOST_OFF_OTG_ON	((0x3 << 5) | (0x2 << 1))
 
 /* MISC_MARK_REG */
 #define FG_INIT			BIT(3)
