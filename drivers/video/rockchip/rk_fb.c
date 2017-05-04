@@ -426,7 +426,7 @@ int rk_disp_pwr_enable(struct rk_lcdc_driver *dev_drv)
 			if (pwr_ctr->rgl_name)
 				regulator_lcd =
 					regulator_get(NULL, pwr_ctr->rgl_name);
-			if (regulator_lcd == NULL) {
+			if (IS_ERR_OR_NULL(regulator_lcd)) {
 				dev_err(dev_drv->dev,
 					"%s: regulator get failed,regulator name:%s\n",
 					__func__, pwr_ctr->rgl_name);
@@ -482,7 +482,7 @@ int rk_disp_pwr_disable(struct rk_lcdc_driver *dev_drv)
 		} else if (pwr_ctr->type == REGULATOR) {
 			if (pwr_ctr->rgl_name)
 				regulator_lcd = regulator_get(NULL, pwr_ctr->rgl_name);
-			if (regulator_lcd == NULL) {
+			if (IS_ERR_OR_NULL(regulator_lcd)) {
 				dev_err(dev_drv->dev,
 					"%s: regulator get failed,regulator name:%s\n",
 					__func__, pwr_ctr->rgl_name);
