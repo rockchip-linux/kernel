@@ -103,6 +103,7 @@ struct rockchip_i2c {
 	unsigned int		count;
 
 	unsigned int		check_idle;
+	unsigned int		bus_recovery;
 	int			sda_gpio, scl_gpio;
 	struct pinctrl_state	*gpio_state;
 };
@@ -760,7 +761,7 @@ static int rockchip_i2c_xfer(struct i2c_adapter *adap,
 
 	clk_enable(i2c->clk);
 	if (i2c->check_idle) {
-		int state, retry = 10;
+		int state, retry = 5;
 		while (retry) {
 			state = rockchip_i2c_check_idle(i2c);
 			if (state == I2C_IDLE)
@@ -773,6 +774,8 @@ static int rockchip_i2c_xfer(struct i2c_adapter *adap,
 		}
 		if (retry == 0) {
 			dev_err(i2c->dev, "i2c is not in idle(state = %d)\n", state);
+			if (i2c->bus_recovery)
+				i2c_recover_bus(adap);
 			ret = -EIO;
 			goto out;
 		}
@@ -806,6 +809,52 @@ out:
 	return (ret < 0) ? ret : num;
 }
 
+static int rockchip_i2c_get_scl_gpio_value(struct i2c_adapter *adap)
+{
+	struct rockchip_i2c *i2c = i2c_get_adapdata(adap);
+
+	gpio_direction_input(i2c->scl_gpio);
+	return gpio_get_value(i2c->scl_gpio);
+}
+
+static void  rockchip_i2c_set_scl_gpio_value(struct i2c_adapter *adap, int val)
+{
+	struct rockchip_i2c *i2c = i2c_get_adapdata(adap);
+
+	gpio_direction_output(i2c->scl_gpio, val);
+}
+
+static int rockchip_i2c_get_sda_gpio_value(struct i2c_adapter *adap)
+{
+	struct rockchip_i2c *i2c = i2c_get_adapdata(adap);
+
+	gpio_direction_input(i2c->sda_gpio);
+	return gpio_get_value(i2c->sda_gpio);
+}
+
+void rockchip_i2c_prepare_recovery(struct i2c_adapter *adap)
+{
+	struct rockchip_i2c *i2c = i2c_get_adapdata(adap);
+
+	pinctrl_select_state(i2c->dev->pins->p, i2c->gpio_state);
+}
+
+void rockchip_i2c_unprepare_recovery(struct i2c_adapter *adap)
+{
+	struct rockchip_i2c *i2c = i2c_get_adapdata(adap);
+
+	pinctrl_select_state(i2c->dev->pins->p, i2c->dev->pins->default_state);
+}
+
+static struct i2c_bus_recovery_info rockchip_i2c_bus_recovery_info = {
+	.get_scl		= rockchip_i2c_get_scl_gpio_value,
+	.get_sda		= rockchip_i2c_get_sda_gpio_value,
+	.set_scl		= rockchip_i2c_set_scl_gpio_value,
+	.prepare_recovery	= rockchip_i2c_prepare_recovery,
+	.unprepare_recovery	= rockchip_i2c_unprepare_recovery,
+	.recover_bus		= i2c_generic_scl_recovery,
+};
+
 /* declare our i2c functionality */
 static u32 rockchip_i2c_func(struct i2c_adapter *adap)
 {
@@ -829,6 +878,7 @@ static int rockchip_i2c_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct device_node *np = pdev->dev.of_node;
 	struct rockchip_i2c_data *data = rockchip_i2c_get_data();
+	struct i2c_adapter *adap;
 	int ret;
 
 	if (!np) {
@@ -852,6 +902,7 @@ static int rockchip_i2c_probe(struct platform_device *pdev)
 	i2c_set_adapdata(&i2c->adap, i2c);
 	i2c->adap.dev.parent = &pdev->dev;
 	i2c->adap.dev.of_node = np;
+	adap = &i2c->adap;
 
 	spin_lock_init(&i2c->lock);
 	init_waitqueue_head(&i2c->wait);
@@ -898,6 +949,13 @@ static int rockchip_i2c_probe(struct platform_device *pdev)
 		gpio_direction_input(i2c->scl_gpio);
 		pinctrl_select_state(i2c->dev->pins->p, i2c->dev->pins->default_state);
 	}
+
+	if (of_property_read_u32(np, "rockchip,bus-recovery",
+				 &i2c->bus_recovery))
+		i2c->bus_recovery = 0;
+
+	if (i2c->bus_recovery)
+		adap->bus_recovery_info = &rockchip_i2c_bus_recovery_info;
 
 	/* setup info block for the i2c core */
 	ret = i2c_add_adapter(&i2c->adap);
