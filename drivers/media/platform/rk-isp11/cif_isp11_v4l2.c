@@ -867,8 +867,22 @@ static int cif_isp11_v4l2_s_fmt(
 			f->fmt.pix.pixelformat, queue);
 	strm_fmt.frm_fmt.width = f->fmt.pix.width;
 	strm_fmt.frm_fmt.height = f->fmt.pix.height;
-/* strm_fmt.frm_fmt.quantization = f->fmt.pix.quantization; */
-	strm_fmt.frm_fmt.quantization = 0;
+
+	switch (f->fmt.pix.colorspace) {
+	case V4L2_COLORSPACE_SMPTE170M:
+		strm_fmt.frm_fmt.quantization = CIF_ISP11_QUANTIZATION_LIM_RANGE;
+		break;
+	case V4L2_COLORSPACE_JPEG:
+		strm_fmt.frm_fmt.quantization = CIF_ISP11_QUANTIZATION_FULL_RANGE;
+		break;
+	default:
+		strm_fmt.frm_fmt.quantization = CIF_ISP11_QUANTIZATION_LIM_RANGE;
+		cif_isp11_pltfrm_pr_warn(NULL,
+			"It is not support v4l2_colorspace: %d, force switch  yuv clip range!\n",
+			f->fmt.pix.colorspace);
+		break;
+	}
+
 	ret = cif_isp11_s_fmt(dev,
 		to_stream_id(file),
 		&strm_fmt,

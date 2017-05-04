@@ -5101,13 +5101,16 @@ static int cif_isp11_start(
 		cifisp_frame_id_reset(&dev->isp_dev);
 		dev->isp_dev.frame_id_setexp = 0;
 		videobuf_queue_lock(&dev->isp_dev.vbq_stat);
-		list_for_each_entry_safe(
-			vb, n, &dev->isp_dev.vbq_stat.stream, queue) {
-			if (vb->state == VIDEOBUF_DONE) {
-				vb->field_count = -1;
-				cif_isp11_pltfrm_pr_info(
-					dev->dev,
-					"discard vb: %d\n", vb->i);
+
+		if (dev->isp_dev.streamon) {
+			list_for_each_entry_safe(
+				vb, n, &dev->isp_dev.vbq_stat.stream, queue) {
+				if (vb && vb->state == VIDEOBUF_DONE) {
+					vb->field_count = -1;
+					cif_isp11_pltfrm_pr_err(
+						dev->dev,
+						"discard vb: %d\n", vb->i);
+				}
 			}
 		}
 		videobuf_queue_unlock(&dev->isp_dev.vbq_stat);

@@ -108,9 +108,13 @@
 *v0.2.5:
 *1. Fix cifisp_configure_isp is invalidate if isp parameter not update,
 *this is trigger when two path enable;
+*
+*v0.2.6:
+*1. Fix cif_isp11_start check stream on before access stream list;,
+*2. Add control colorspace by v4l2_format.fmt.pix.colorspace;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 5)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 6)
 
 
 #endif

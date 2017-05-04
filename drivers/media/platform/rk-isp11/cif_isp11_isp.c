@@ -2907,7 +2907,7 @@ static int cifisp_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 	int ret;
 
 	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(
-	cif_dev->config.isp_config.output.pix_fmt)) {
+		cif_dev->config.isp_config.output.pix_fmt)) {
 		ret = -EPERM;
 	} else {
 		ret = videobuf_streamon(&isp_dev->vbq_stat);
