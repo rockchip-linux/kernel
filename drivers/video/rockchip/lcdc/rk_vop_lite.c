@@ -493,7 +493,6 @@ vop_win_csc_mode(struct vop_device *vop_dev, struct rk_lcdc_win *win,
 {
 	u64 val;
 
-	spin_lock(&vop_dev->reg_lock);
 	if (likely(vop_dev->clk_on)) {
 		if (win->id == 0) {
 			val = V_WIN0_CSC_MODE(csc_mode);
@@ -506,7 +505,6 @@ vop_win_csc_mode(struct vop_device *vop_dev, struct rk_lcdc_win *win,
 				__func__, win->id);
 		}
 	}
-	spin_unlock(&vop_dev->reg_lock);
 }
 
 static int vop_clr_key_cfg(struct rk_lcdc_driver *dev_drv)
@@ -689,6 +687,20 @@ static int vop_win0_reg_update(struct rk_lcdc_driver *dev_drv, int win_id)
 		if (win->area[0].uv_addr > 0)
 			vop_writel(vop_dev, WIN0_CBR_MST, win->area[0].uv_addr);
 
+		if (dev_drv->overlay_mode == VOP_RGB_DOMAIN &&
+		    IS_YUV(win->area[0].fmt_cfg)) {
+			if (win->colorspace == CSC_BT601)
+				vop_win_csc_mode(vop_dev, win, VOP_Y2R_CSC_MPEG);
+			else if (win->colorspace == CSC_BT709)
+				vop_win_csc_mode(vop_dev, win, VOP_Y2R_CSC_HD);
+			else if  (win->colorspace == CSC_BT601F)
+				vop_win_csc_mode(vop_dev, win, VOP_Y2R_CSC_JPEG);
+			else
+				dev_err(vop_dev->driver.dev, "%s:un supported colorspace[%d]\n",
+					__func__, win->colorspace);
+		} else {
+			vop_win_csc_mode(vop_dev, win, VOP_R2Y_CSC_BT601);
+		}
 		vop_alpha_cfg(dev_drv, win_id);
 	} else {
 		val = V_WIN0_EN(win->state);
