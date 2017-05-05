@@ -112,9 +112,12 @@
 *v0.2.6:
 *1. Fix cif_isp11_start check stream on before access stream list;,
 *2. Add control colorspace by v4l2_format.fmt.pix.colorspace;
+*
+*v0.2.7:
+*1. Delete aec measurement window size check in cifisp_aec_param;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 6)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 7)
 
 
 #endif

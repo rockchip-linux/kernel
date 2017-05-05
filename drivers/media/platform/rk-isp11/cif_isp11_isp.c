@@ -1102,19 +1102,6 @@ static int cifisp_aec_param(struct cif_isp11_isp_dev *isp_dev,
 		goto end;
 	}
 
-	if (arg->meas_window.h_offs > CIFISP_EXP_MAX_HOFFS ||
-		arg->meas_window.h_size > CIFISP_EXP_MAX_HSIZE ||
-		arg->meas_window.h_size < CIFISP_EXP_MIN_HSIZE ||
-		arg->meas_window.v_offs > CIFISP_EXP_MAX_VOFFS ||
-		arg->meas_window.v_size > CIFISP_EXP_MAX_VSIZE ||
-		arg->meas_window.v_size < CIFISP_EXP_MIN_VSIZE ||
-		arg->mode > CIFISP_EXP_MEASURING_MODE_1) {
-		CIFISP_DPRINT(CIFISP_ERROR,
-			      "incompatible param in function: %s\n", __func__);
-		retval = -EINVAL;
-		goto end;
-	}
-
 	memcpy(new_cfg,
 		arg,
 		sizeof(struct cifisp_aec_config));
