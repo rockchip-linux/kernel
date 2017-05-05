@@ -199,6 +199,11 @@ config DRM_SAVAGE
 	  Choose this option if you have a Savage3D/4/SuperSavage/Pro/Twister
 	  chipset. If M is selected the module will be called savage.
 
+config DRM_IGNORE_IOTCL_PERMIT
+	bool "Ignore drm ioctl permission"
+	default y
+	depends on DRM
+
 source "drivers/gpu/drm/exynos/Kconfig"
 
 source "drivers/gpu/drm/rockchip/Kconfig"
