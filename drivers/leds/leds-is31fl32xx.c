@@ -51,6 +51,8 @@ struct is31fl32xx_led_data {
 	unsigned int register_delay;
 	struct device *dev;
 	struct delayed_work register_work;
+	struct work_struct	brightness_work;
+	enum led_brightness new_brightness;
 };
 
 struct is31fl32xx_priv {
@@ -211,6 +213,29 @@ static int is31fl3216_software_shutdown(struct is31fl32xx_priv *priv,
 	return is31fl32xx_write(priv, IS31FL3216_CONFIG_REG, value);
 }
 
+static void is31fl32xx_brightness_work(struct work_struct *work)
+{
+	const struct is31fl32xx_led_data *led_data =
+			container_of(work, struct is31fl32xx_led_data, brightness_work);
+	const struct is31fl32xx_chipdef *cdef = led_data->priv->cdef;
+	u8 pwm_register_offset;
+	int ret;
+
+	dev_dbg(led_data->cdev.dev, "%s: %d\n", __func__, led_data->new_brightness);
+
+	/* NOTE: led_data->channel is 1-based */
+	if (cdef->pwm_registers_reversed)
+		pwm_register_offset = cdef->channels - led_data->channel;
+	else
+		pwm_register_offset = led_data->channel - 1;
+
+	ret = is31fl32xx_write(led_data->priv,
+			       cdef->pwm_register_base + pwm_register_offset,
+			       led_data->new_brightness);
+
+	is31fl32xx_write(led_data->priv, cdef->pwm_update_reg, 0);
+}
+
 /*
  * NOTE: A mutex is not needed in this function because:
  * - All referenced data is read-only after probe()
@@ -235,25 +260,11 @@ static int is31fl3216_software_shutdown(struct is31fl32xx_priv *priv,
 static void is31fl32xx_brightness_set(struct led_classdev *led_cdev,
 				     enum led_brightness brightness)
 {
-	const struct is31fl32xx_led_data *led_data =
+	struct is31fl32xx_led_data *led_data =
 		container_of(led_cdev, struct is31fl32xx_led_data, cdev);
-	const struct is31fl32xx_chipdef *cdef = led_data->priv->cdef;
-	u8 pwm_register_offset;
-	int ret;
 
-	dev_dbg(led_cdev->dev, "%s: %d\n", __func__, brightness);
-
-	/* NOTE: led_data->channel is 1-based */
-	if (cdef->pwm_registers_reversed)
-		pwm_register_offset = cdef->channels - led_data->channel;
-	else
-		pwm_register_offset = led_data->channel - 1;
-
-	ret = is31fl32xx_write(led_data->priv,
-			       cdef->pwm_register_base + pwm_register_offset,
-			       brightness);
-
-	is31fl32xx_write(led_data->priv, cdef->pwm_update_reg, 0);
+	led_data->new_brightness = brightness;
+	schedule_work(&led_data->brightness_work);
 }
 
 static int is31fl32xx_reset_regs(struct is31fl32xx_priv *priv)
@@ -378,6 +389,7 @@ static int is31fl32xx_parse_child_dt(const struct device *dev,
 			     &led_data->register_delay);
 	cdev->brightness_set = is31fl32xx_brightness_set;
 
+	INIT_WORK(&led_data->brightness_work, is31fl32xx_brightness_work);
 	return 0;
 }
 
@@ -544,6 +556,8 @@ static int is31fl32xx_remove(struct i2c_client *client)
 	for (i = 0; i < priv->num_leds; i++) {
 		struct is31fl32xx_led_data *led_data =
 					&priv->leds[i];
+		cancel_delayed_work_sync(&led_data->register_work);
+		cancel_work_sync(&led_data->brightness_work);
 #ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
 		led_multi_control_unregister(&led_data->cdev);
 #endif
@@ -563,6 +577,8 @@ static void is31fl32xx_shutdown(struct i2c_client *client)
 	for (i = 0; i < priv->num_leds; i++) {
 		struct is31fl32xx_led_data *led_data =
 					&priv->leds[i];
+		cancel_delayed_work_sync(&led_data->register_work);
+		cancel_work_sync(&led_data->brightness_work);
 		led_classdev_unregister(&led_data->cdev);
 #ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
 		led_multi_control_unregister(&led_data->cdev);
