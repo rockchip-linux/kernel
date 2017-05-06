@@ -298,8 +298,8 @@
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
 			linux,default-trigger-delay-ms = <0>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led2: led@2 {
@@ -308,8 +308,8 @@
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
 			linux,default-trigger-delay-ms = <0>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led3: led@3 {
@@ -324,9 +324,9 @@
 			reg = <4>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <200>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led5: led@5 {
@@ -334,9 +334,9 @@
 			reg = <5>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <200>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led6: led@6 {
@@ -351,9 +351,9 @@
 			reg = <7>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <400>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <200>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led8: led@8 {
@@ -361,9 +361,9 @@
 			reg = <8>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <400>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <200>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led9: led@9 {
@@ -378,9 +378,9 @@
 			reg = <10>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <600>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <300>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led11: led@11 {
@@ -388,9 +388,9 @@
 			reg = <11>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <600>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <300>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led12: led@12 {
@@ -405,9 +405,9 @@
 			reg = <13>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <800>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <400>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led14: led@14 {
@@ -415,9 +415,9 @@
 			reg = <14>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <800>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <400>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led15: led@15 {
@@ -432,9 +432,9 @@
 			reg = <16>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1000>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <500>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led17: led@17 {
@@ -442,9 +442,9 @@
 			reg = <17>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1000>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <500>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led18: led@18 {
@@ -459,9 +459,9 @@
 			reg = <19>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1200>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <600>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led20: led@20 {
@@ -469,9 +469,9 @@
 			reg = <20>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1200>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <600>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led21: led@21 {
@@ -486,9 +486,9 @@
 			reg = <22>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1400>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <700>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led23: led@23 {
@@ -496,9 +496,9 @@
 			reg = <23>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1400>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <700>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led124: led@24 {
@@ -513,9 +513,9 @@
 			reg = <25>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1600>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <800>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led26: led@26 {
@@ -523,9 +523,9 @@
 			reg = <26>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1600>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <800>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led27: led@27 {
@@ -540,9 +540,9 @@
 			reg = <28>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1800>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <900>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led29: led@29 {
@@ -550,9 +550,9 @@
 			reg = <29>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <1800>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <900>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led30: led@30 {
@@ -567,9 +567,9 @@
 			reg = <31>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <2000>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <1000>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led32: led@32 {
@@ -577,9 +577,9 @@
 			reg = <32>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <2000>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <1000>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led33: led@33 {
@@ -594,9 +594,9 @@
 			reg = <34>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <2200>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <1100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led35: led@35 {
@@ -604,9 +604,9 @@
 			reg = <35>;
 			led-max-microamp = <10000>;
 			linux,default-trigger = "timer";
-			linux,default-trigger-delay-ms = <2200>;
-			linux,blink-delay-on-ms = <200>;
-			linux,blink-delay-off-ms = <2400>;
+			linux,default-trigger-delay-ms = <1100>;
+			linux,blink-delay-on-ms = <100>;
+			linux,blink-delay-off-ms = <1200>;
 		};
 
 		led36: led@36 {
