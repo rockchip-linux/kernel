@@ -33,6 +33,7 @@
 #include <asm/cputype.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
+#include <asm/psci.h>
 #include "loader.h"
 #include "rk3126b.h"
 #define CPU 312x
@@ -462,6 +463,9 @@ static int __init rk312x_pie_init(void)
 {
 	int err;
 
+	if (psci_smp_available())
+		return 0;
+
 	if (!cpu_is_rk312x())
 		return 0;
 	if (soc_is_rk3126b() || soc_is_rk3126c())
@@ -489,6 +493,9 @@ arch_initcall(rk312x_pie_init);
 #include "ddr_rk3126.c"
 static int __init rk312x_ddr_init(void)
 {
+	if (psci_smp_available())
+		return 0;
+
 	if (soc_is_rk3128() || soc_is_rk3126()) {
 		ddr_change_freq = _ddr_change_freq;
 		ddr_round_rate = _ddr_round_rate;

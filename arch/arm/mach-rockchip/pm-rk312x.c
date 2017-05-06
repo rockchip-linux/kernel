@@ -3,6 +3,7 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 #include <asm/hardware/cache-l2x0.h>
+#include <asm/psci.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/wakeup_reason.h>
@@ -1030,6 +1031,9 @@ static void __init rk312x_suspend_init(void)
 {
 	struct device_node *parent;
 	u32 pm_ctrbits;
+
+	if (psci_smp_available())
+		return;
 
 	pr_info("%s\n", __func__);
 	parent = of_find_node_by_name(NULL, "rockchip_suspend");

@@ -21,6 +21,7 @@
 #include <linux/rockchip/grf.h>
 #include <linux/rockchip/iomap.h>
 #include <linux/rockchip/pmu.h>
+#include <asm/psci.h>
 #include "rk3126b.h"
 #define CPU 3126b
 #include "sram.h"
@@ -33,6 +34,9 @@ EXPORT_PIE_SYMBOL(DATA(sram_stack));
 static int __init rk3126b_pie_init(void)
 {
 	int err;
+
+	if (psci_smp_available())
+		return 0;
 
 	if (!soc_is_rk3126b() && !soc_is_rk3126c())
 		return 0;
@@ -68,6 +72,9 @@ void __init rk3126b_init_suspend(void)
 #include "ddr_rk3126b.c"
 static int __init rk3126b_ddr_init(void)
 {
+	if (psci_smp_available())
+		return 0;
+
 	if (!soc_is_rk3126b() && !soc_is_rk3126c())
 		return 0;
 
