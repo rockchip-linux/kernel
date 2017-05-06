@@ -257,7 +257,7 @@ static int rockchip_rk312x_audio_probe(struct platform_device *pdev)
 	}
 
 	/* rk3126b workaround remap cpu dai node */
-	if (soc_is_rk3126b()) {
+	if (soc_is_rk3126b() || soc_is_rk3126c()) {
 		int i;
 		struct device_node *cpu_dai_node;
 

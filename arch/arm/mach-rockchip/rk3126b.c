@@ -34,7 +34,7 @@ static int __init rk3126b_pie_init(void)
 {
 	int err;
 
-	if (!soc_is_rk3126b())
+	if (!soc_is_rk3126b() && !soc_is_rk3126c())
 		return 0;
 
 	err = rockchip_pie_init();
@@ -68,7 +68,7 @@ void __init rk3126b_init_suspend(void)
 #include "ddr_rk3126b.c"
 static int __init rk3126b_ddr_init(void)
 {
-	if (!soc_is_rk3126b())
+	if (!soc_is_rk3126b() && !soc_is_rk3126c())
 		return 0;
 
 	ddr_change_freq = _ddr_change_freq;

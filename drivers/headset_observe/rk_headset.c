@@ -135,7 +135,7 @@ static int read_gpio(int gpio)
 static irqreturn_t headset_interrupt(int irq, void *dev_id)
 {
 	DBG("---headset_interrupt---\n");	
-	if (soc_is_rk3126() || soc_is_rk3126b())
+	if (soc_is_rk3126() || soc_is_rk3126b() || soc_is_rk3126c())
 		schedule_delayed_work(&headset_info->h_delayed_work[HEADSET],
 				      msecs_to_jiffies(20));
 	else
@@ -164,7 +164,7 @@ static void headsetobserve_work(struct work_struct *work)
 	level = read_gpio(pdata->headset_gpio);
 	if(level < 0)
 		goto out;
-	if (soc_is_rk3126() || soc_is_rk3126b())
+	if (soc_is_rk3126() || soc_is_rk3126b() || soc_is_rk3126c())
 		msleep(20);
 	else
 		msleep(100);
