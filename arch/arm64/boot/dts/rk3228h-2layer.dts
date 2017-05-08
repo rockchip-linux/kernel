@@ -44,7 +44,6 @@
 
 #include "rk3228h.dtsi"
 #include "rk322xh-evb.dtsi"
-#include "rk322xh-cif-sensor.dtsi"
 #include "rk322xh-dram-2layer-timing.dtsi"
 
 / {
