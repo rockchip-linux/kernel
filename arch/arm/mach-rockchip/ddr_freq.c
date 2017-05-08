@@ -176,7 +176,8 @@ static void ddrfreq_mode(bool auto_self_refresh, unsigned long target_rate, char
 
 	ddr.mode = name;
 	if (auto_self_refresh != ddr.auto_self_refresh) {
-		ddr_set_auto_self_refresh(auto_self_refresh);
+		if (ddr_set_auto_self_refresh)
+			ddr_set_auto_self_refresh(auto_self_refresh);
 		ddr.auto_self_refresh = auto_self_refresh;
 		dprintk(DEBUG_DDR, "change auto self refresh to %d when %s\n", auto_self_refresh, name);
 	}
