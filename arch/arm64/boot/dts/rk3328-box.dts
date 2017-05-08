@@ -49,26 +49,27 @@
 / {
 	leds {
 		compatible = "gpio-leds";
-			power-green {
-				gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
-				linux,default-trigger = "none";
-				default-state = "on";
-				mode = <0x23>;
-			};
 
-			net-green {
-				gpios = <&rk805 1 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "none";
-				default-state = "off";
-				mode = <0x05>;
-			};
+		power-green {
+			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "none";
+			default-state = "on";
+			mode = <0x23>;
+		};
 
-			ir {
-				gpios = <&gpio2 GPIO_C2 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "ir";
-				default-state = "off";
-				mode = <0x00>;
-			};
+		net-green {
+			gpios = <&rk805 1 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+			default-state = "off";
+			mode = <0x05>;
+		};
+
+		ir {
+			gpios = <&gpio2 GPIO_C2 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "ir";
+			default-state = "off";
+			mode = <0x00>;
+		};
 	};
 
 	wireless-wlan {

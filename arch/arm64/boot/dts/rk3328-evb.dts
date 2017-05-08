@@ -49,6 +49,7 @@
 / {
 	leds {
 		compatible = "gpio-leds";
+
 		power-green {
 			gpios = <&rk805 0 GPIO_ACTIVE_LOW>;
 			linux,default-trigger = "none";
