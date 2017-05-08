@@ -36,13 +36,13 @@
 #include <linux/iio/consumer.h>
 
 #if 0
-#define RK816_DBG(x...)	printk(KERN_INFO x)
+#define RK8xx_DBG(x...)	printk(KERN_INFO x)
 #else
-#define RK816_DBG(x...)
+#define RK8xx_DBG(x...)
 #endif
 
 static struct rk8xx_mfd_data *rk8xx_mfd_data;
-static struct rk816 *g_rk816;
+static struct rk816 *g_rk8xx;
 
 static const struct regmap_config rk816_regmap_config = {
 	.reg_bits = 8,
@@ -116,9 +116,9 @@ static struct mfd_cell rk805_cells[] = {
 	},
 };
 
-int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest)
+int rk816_i2c_read(struct rk816 *rk8xx, char reg, int count, u8 *dest)
 {
-	struct i2c_client *i2c = rk816->i2c;
+	struct i2c_client *i2c = rk8xx->i2c;
 	int ret;
 	struct i2c_adapter *adap;
 	struct i2c_msg msgs[2];
@@ -144,15 +144,15 @@ int rk816_i2c_read(struct rk816 *rk816, char reg, int count, u8 *dest)
 
 	ret = i2c_transfer(adap, msgs, 2);
 
-	RK816_DBG("***run in %s %x  %x\n", __func__, i2c->addr, *(msgs[1].buf));
+	RK8xx_DBG("***run in %s %x  %x\n", __func__, i2c->addr, *msgs[1].buf);
 
 	return (ret < 0) ? ret : 0;
 }
 
-int rk816_i2c_write(struct rk816 *rk816, char reg, int count,  const u8 src)
+int rk816_i2c_write(struct rk816 *rk8xx, char reg, int count,  const u8 src)
 {
 	int ret;
-	struct i2c_client *i2c = rk816->i2c;
+	struct i2c_client *i2c = rk8xx->i2c;
 	struct i2c_adapter *adap;
 	struct i2c_msg msg;
 	char tx_buf[2];
@@ -177,101 +177,101 @@ int rk816_i2c_write(struct rk816 *rk816, char reg, int count,  const u8 src)
 	return (ret < 0) ? ret : 0;
 }
 
-int rk816_reg_read(struct rk816 *rk816, u8 reg)
+int rk816_reg_read(struct rk816 *rk8xx, u8 reg)
 {
 	u8 val = 0;
 	int ret;
 
-	mutex_lock(&rk816->io_lock);
+	mutex_lock(&rk8xx->io_lock);
 
-	ret = rk816_i2c_read(rk816, reg, 1, &val);
-	RK816_DBG("reg read 0x%02x -> 0x%02x\n",
+	ret = rk816_i2c_read(rk8xx, reg, 1, &val);
+	RK8xx_DBG("reg read 0x%02x -> 0x%02x\n",
 		  (int)reg, (unsigned)val & 0xff);
 	if (ret < 0) {
-		mutex_unlock(&rk816->io_lock);
-		dev_err(rk816->dev, "read reg 0x%x failed: %d\n", reg, ret);
+		mutex_unlock(&rk8xx->io_lock);
+		dev_err(rk8xx->dev, "read reg 0x%x failed: %d\n", reg, ret);
 		return ret;
 	}
-	mutex_unlock(&rk816->io_lock);
+	mutex_unlock(&rk8xx->io_lock);
 
 	return val & 0xff;
 }
 EXPORT_SYMBOL_GPL(rk816_reg_read);
 
-int rk816_reg_write(struct rk816 *rk816, u8 reg, u8 val)
+int rk816_reg_write(struct rk816 *rk8xx, u8 reg, u8 val)
 {
 	int err = 0;
 
-	mutex_lock(&rk816->io_lock);
+	mutex_lock(&rk8xx->io_lock);
 
-	err = rk816_i2c_write(rk816, reg, 1, val);
+	err = rk816_i2c_write(rk8xx, reg, 1, val);
 	if (err < 0)
-		dev_err(rk816->dev, "write reg 0x%x failed: %d\n", reg, err);
+		dev_err(rk8xx->dev, "write reg 0x%x failed: %d\n", reg, err);
 
-	mutex_unlock(&rk816->io_lock);
+	mutex_unlock(&rk8xx->io_lock);
 	return err;
 }
 EXPORT_SYMBOL_GPL(rk816_reg_write);
 
-int rk816_set_bits(struct rk816 *rk816, u8 reg, u8 mask, u8 val)
+int rk816_set_bits(struct rk816 *rk8xx, u8 reg, u8 mask, u8 val)
 {
 	u8 tmp;
 	int ret = 0;
 
-	mutex_lock(&rk816->io_lock);
+	mutex_lock(&rk8xx->io_lock);
 
-	ret = rk816_i2c_read(rk816, reg, 1, &tmp);
-	RK816_DBG("1 reg read 0x%02x -> 0x%02x\n",
+	ret = rk816_i2c_read(rk8xx, reg, 1, &tmp);
+	RK8xx_DBG("1 reg read 0x%02x -> 0x%02x\n",
 		  (int)reg, (unsigned)tmp & 0xff);
 	if (ret < 0) {
-		mutex_unlock(&rk816->io_lock);
+		mutex_unlock(&rk8xx->io_lock);
 		return ret;
 	}
 	tmp = (tmp & ~mask) | val;
-	ret = rk816_i2c_write(rk816, reg, 1, tmp);
-	RK816_DBG("reg write 0x%02x -> 0x%02x\n",
+	ret = rk816_i2c_write(rk8xx, reg, 1, tmp);
+	RK8xx_DBG("reg write 0x%02x -> 0x%02x\n",
 		  (int)reg, (unsigned)val & 0xff);
 	if (ret < 0) {
-		mutex_unlock(&rk816->io_lock);
+		mutex_unlock(&rk8xx->io_lock);
 		return ret;
 	}
-	ret = rk816_i2c_read(rk816, reg, 1, &tmp);
+	ret = rk816_i2c_read(rk8xx, reg, 1, &tmp);
 	if (ret < 0) {
-		mutex_unlock(&rk816->io_lock);
+		mutex_unlock(&rk8xx->io_lock);
 		return ret;
 	}
-	RK816_DBG("2 reg read 0x%02x -> 0x%02x\n",
+	RK8xx_DBG("2 reg read 0x%02x -> 0x%02x\n",
 		  (int)reg, (unsigned)tmp & 0xff);
-	mutex_unlock(&rk816->io_lock);
+	mutex_unlock(&rk8xx->io_lock);
 
 	return ret;
 }
 EXPORT_SYMBOL_GPL(rk816_set_bits);
 
-int rk816_clear_bits(struct rk816 *rk816, u8 reg, u8 mask)
+int rk816_clear_bits(struct rk816 *rk8xx, u8 reg, u8 mask)
 {
 	u8 data;
 	int err;
 
-	mutex_lock(&rk816->io_lock);
-	err = rk816_i2c_read(rk816, reg, 1, &data);
+	mutex_lock(&rk8xx->io_lock);
+	err = rk816_i2c_read(rk8xx, reg, 1, &data);
 	if (err < 0) {
-		dev_err(rk816->dev, "read from reg %x failed\n", reg);
+		dev_err(rk8xx->dev, "read from reg %x failed\n", reg);
 		goto out;
 	}
 
 	data &= ~mask;
-	err = rk816_i2c_write(rk816, reg, 1, data);
+	err = rk816_i2c_write(rk8xx, reg, 1, data);
 	if (err < 0)
-		dev_err(rk816->dev, "write to reg %x failed\n", reg);
+		dev_err(rk8xx->dev, "write to reg %x failed\n", reg);
 
 out:
-	mutex_unlock(&rk816->io_lock);
+	mutex_unlock(&rk8xx->io_lock);
 	return err;
 }
 EXPORT_SYMBOL_GPL(rk816_clear_bits);
 
-static ssize_t rk816_test_store(struct kobject *kobj,
+static ssize_t rk8xx_test_store(struct kobject *kobj,
 				struct kobj_attribute *attr,
 				const char *buf, size_t n)
 {
@@ -280,7 +280,7 @@ static ssize_t rk816_test_store(struct kobject *kobj,
 	u8 data;
 	char cmd;
 	const char *buftmp = buf;
-	struct rk816 *rk816 = g_rk816;
+	struct rk816 *rk8xx = g_rk8xx;
 	int ret;
 
 	ret = sscanf(buftmp, "%c ", &cmd);
@@ -293,8 +293,8 @@ static ssize_t rk816_test_store(struct kobject *kobj,
 		data = (u8)(getdata[1] & 0xff);
 		pr_info("get value = %x\n", data);
 
-		rk816_i2c_write(rk816, regAddr, 1, data);
-		rk816_i2c_read(rk816, regAddr, 1, &data);
+		rk816_i2c_write(rk8xx, regAddr, 1, data);
+		rk816_i2c_read(rk8xx, regAddr, 1, &data);
 		pr_info("%x   %x\n", getdata[1], data);
 		break;
 	case 'r':
@@ -302,7 +302,7 @@ static ssize_t rk816_test_store(struct kobject *kobj,
 		pr_info("CMD : %c %x\n", cmd, getdata[0]);
 
 		regAddr = (u8)(getdata[0] & 0xff);
-		rk816_i2c_read(rk816, regAddr, 1, &data);
+		rk816_i2c_read(rk8xx, regAddr, 1, &data);
 		pr_info("\n%x %x\n", getdata[0], data);
 		break;
 	default:
@@ -311,7 +311,8 @@ static ssize_t rk816_test_store(struct kobject *kobj,
 	}
 	return n;
 }
-static ssize_t rk816_test_show(struct kobject *kobj,
+
+static ssize_t rk8xx_test_show(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
 	char *s = buf;
@@ -320,8 +321,8 @@ static ssize_t rk816_test_show(struct kobject *kobj,
 	return sprintf(s, "%s\n", buf);
 }
 
-static struct kobject *rk816_kobj;
-struct rk816_attribute {
+static struct kobject *rk8xx_kobj;
+struct rk8xx_attribute {
 	struct attribute	attr;
 
 	ssize_t (*show)(struct kobject *kobj, struct kobj_attribute *attr,
@@ -330,37 +331,37 @@ struct rk816_attribute {
 			 const char *buf, size_t n);
 };
 
-static struct rk816_attribute rk816_attrs[] = {
+static struct rk8xx_attribute rk8xx_attrs[] = {
 	/*node_name permision show_func	store_func */
 	__ATTR(rk816_test, S_IRUGO | S_IWUSR,
-	       rk816_test_show, rk816_test_store),
+	       rk8xx_test_show, rk8xx_test_store),
 };
 
 static void rk816_power_off_shutdown(void)
 {
 	int ret, i;
 	u8 reg = 0;
-	struct rk816 *rk816 = g_rk816;
+	struct rk816 *rk8xx = g_rk8xx;
 
 	for (i = 0; i < 10; i++) {
 		pr_info("%s\n", __func__);
-		ret = rk816_i2c_read(rk816, RK816_DEV_CTRL_REG, 1, &reg);
+		ret = rk816_i2c_read(rk8xx, RK816_DEV_CTRL_REG, 1, &reg);
 		if (ret < 0) {
-			dev_err(rk816->dev,
+			dev_err(rk8xx->dev,
 				"rk816 power off try %d times: %d\n", i, ret);
 			continue;
 		}
 
-		ret = rk816_i2c_write(rk816, RK816_DEV_CTRL_REG, 1,
+		ret = rk816_i2c_write(rk8xx, RK816_DEV_CTRL_REG, 1,
 				      (reg | DEV_OFF));
 		if (ret < 0) {
-			dev_err(rk816->dev,
+			dev_err(rk8xx->dev,
 				"rk816 power off fail %d times: %d\n", i, ret);
 			continue;
 		}
 	}
 
-	dev_err(rk816->dev, "rk816 power off failed!!!\n");
+	dev_err(rk8xx->dev, "rk816 power off failed!!!\n");
 
 	while (1)
 		wfi();
@@ -515,7 +516,7 @@ static struct rk8xx_reg_data rk8xx_shutdown_reg[] = {
 	{RK816_RTC_INT_REG, RTC_TIMER_ALARM_INT_DIS, RTC_TIMER_ALARM_INT_MSK},
 };
 
-static struct rk8xx_reg_data rk816_suspend_reg[] = {
+static struct rk8xx_reg_data rk8xx_suspend_reg[] = {
 	/* set bat 3.4v low and act irq */
 	{RK816_VB_MON_REG, RK816_VBAT_LOW_3V4 | EN_VBAT_LOW_IRQ,
 	 VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK},
@@ -523,7 +524,7 @@ static struct rk8xx_reg_data rk816_suspend_reg[] = {
 	{RK816_INT_STS_MSK_REG2, VB_LOW_IRQ_EN, VB_LOW_IRQ_MSK},
 };
 
-static struct rk8xx_reg_data rk816_resume_reg[] = {
+static struct rk8xx_reg_data rk8xx_resume_reg[] = {
 	/* set bat 3.0v low and act shutdown*/
 	{RK816_VB_MON_REG, RK816_VBAT_LOW_3V0 | EN_VABT_LOW_SHUT_DOWN,
 	 VBAT_LOW_VOL_MASK | VBAT_LOW_ACT_MASK},
@@ -574,74 +575,74 @@ static struct rk8xx_reg_data rk805_init_reg[] = {
 	{RK805_BUCK4_CONFIG_REG, BUCK3_4_IMAX_MAX, BUCK3_4_IMAX_MAX},
 };
 
-static int rk816_pre_init_regs(struct rk816 *rk816)
+static int rk8xx_pre_init_regs(struct rk816 *rk8xx)
 {
 	int i, ret;
 
 	pr_info("pmic on/off source: on=0x%x, off=0x%x\n",
-		rk816_reg_read(rk816, RK816_ON_SOURCE_REG),
-		rk816_reg_read(rk816, RK816_OFF_SOURCE_REG));
+		rk816_reg_read(rk8xx, RK816_ON_SOURCE_REG),
+		rk816_reg_read(rk8xx, RK816_OFF_SOURCE_REG));
 
 	/* common regs */
 	for (i = 0; i < ARRAY_SIZE(rk8xx_init_reg); i++)
-		ret = rk816_set_bits(rk816,
+		ret = rk816_set_bits(rk8xx,
 				     rk8xx_init_reg[i].reg,
 				     rk8xx_init_reg[i].mask,
 				     rk8xx_init_reg[i].val);
 
 	for (i = 0; i < rk8xx_mfd_data->init_reg_num; i++)
-		ret = rk816_set_bits(rk816,
+		ret = rk816_set_bits(rk8xx,
 				     rk8xx_mfd_data->init_reg[i].reg,
 				     rk8xx_mfd_data->init_reg[i].mask,
 				     rk8xx_mfd_data->init_reg[i].val);
 	return ret;
 }
 
-static int rk816_irq_init(struct rk816 *rk816)
+static int rk8xx_irq_init(struct rk816 *rk8xx)
 {
 	int ret = 0;
 
-	if (gpio_is_valid(rk816->irq_gpio)) {
-		rk816->chip_irq = gpio_to_irq(rk816->irq_gpio);
-		ret = gpio_request(rk816->irq_gpio, "rk816_pmic_irq");
+	if (gpio_is_valid(rk8xx->irq_gpio)) {
+		rk8xx->chip_irq = gpio_to_irq(rk8xx->irq_gpio);
+		ret = gpio_request(rk8xx->irq_gpio, "rk816_pmic_irq");
 		if (ret < 0) {
-			dev_err(rk816->dev,
+			dev_err(rk8xx->dev,
 				"Failed request gpio %d with ret=%d\n",
-				rk816->irq_gpio, ret);
+				rk8xx->irq_gpio, ret);
 			return ret;
 		}
-		gpio_direction_input(rk816->irq_gpio);
-		gpio_free(rk816->irq_gpio);
+		gpio_direction_input(rk8xx->irq_gpio);
+		gpio_free(rk8xx->irq_gpio);
 	}
 
 	if (rk8xx_mfd_data->irq_chip) {
-		ret = regmap_add_irq_chip(rk816->regmap, rk816->chip_irq,
+		ret = regmap_add_irq_chip(rk8xx->regmap, rk8xx->chip_irq,
 					  IRQF_TRIGGER_FALLING | IRQF_ONESHOT |
 					  IRQF_SHARED, -1,
 					  rk8xx_mfd_data->irq_chip,
-					  &rk816->irq_data);
+					  &rk8xx->irq_data);
 		if (ret < 0) {
-			dev_err(rk816->dev, "Failed to add irq_chip %d\n", ret);
+			dev_err(rk8xx->dev, "Failed to add irq_chip %d\n", ret);
 			return ret;
 		}
 	}
 
 	if (rk8xx_mfd_data->irq_battery_chip) {
-		ret = regmap_add_irq_chip(rk816->regmap, rk816->chip_irq,
+		ret = regmap_add_irq_chip(rk8xx->regmap, rk8xx->chip_irq,
 					  IRQF_TRIGGER_FALLING | IRQF_ONESHOT |
 					  IRQF_SHARED, -1,
 					  rk8xx_mfd_data->irq_battery_chip,
-					  &rk816->battery_irq_data);
+					  &rk8xx->battery_irq_data);
 		if (ret < 0) {
-			dev_err(rk816->dev,
+			dev_err(rk8xx->dev,
 				"Failed to add battery_irq_chip %d\n", ret);
-			regmap_del_irq_chip(rk816->chip_irq, rk816->irq_data);
+			regmap_del_irq_chip(rk8xx->chip_irq, rk8xx->irq_data);
 			return ret;
 		}
 	}
 
-	irq_set_irq_type(rk816->chip_irq, IRQ_TYPE_LEVEL_LOW);
-	enable_irq_wake(rk816->chip_irq);
+	irq_set_irq_type(rk8xx->chip_irq, IRQ_TYPE_LEVEL_LOW);
+	enable_irq_wake(rk8xx->chip_irq);
 
 	return ret;
 }
@@ -649,7 +650,7 @@ static int rk816_irq_init(struct rk816 *rk816)
 static void rk805_power_off_prepare(void)
 {
 	/* power off pin */
-	rk816_set_bits(g_rk816, RK805_GPIO_IO_POL_REG,
+	rk816_set_bits(g_rk8xx, RK805_GPIO_IO_POL_REG,
 		       SLP_SD_MSK, SHUTDOWN_FUN);
 
 	pr_info("%s", __func__);
@@ -672,10 +673,10 @@ static struct rk8xx_mfd_data rk816_mfd = {
 	.cell_num = ARRAY_SIZE(rk816_cells),
 	.init_reg = rk816_init_reg,
 	.init_reg_num = ARRAY_SIZE(rk816_init_reg),
-	.suspend_reg = rk816_suspend_reg,
-	.suspend_reg_num = ARRAY_SIZE(rk816_suspend_reg),
-	.resume_reg = rk816_resume_reg,
-	.resume_reg_num = ARRAY_SIZE(rk816_resume_reg),
+	.suspend_reg = rk8xx_suspend_reg,
+	.suspend_reg_num = ARRAY_SIZE(rk8xx_suspend_reg),
+	.resume_reg = rk8xx_resume_reg,
+	.resume_reg_num = ARRAY_SIZE(rk8xx_resume_reg),
 	.irq_chip = &rk816_irq_chip,
 	.irq_battery_chip = &rk816_battery_irq_chip,
 	.regmap_config = &rk816_regmap_config,
@@ -712,72 +713,72 @@ static const struct i2c_device_id rk8xx_mfd_i2c_id[] = {
 MODULE_DEVICE_TABLE(i2c, rk8xx_mfd_i2c_id);
 
 #ifdef CONFIG_OF
-static struct rk816_board *rk816_parse_dt(struct rk816 *rk816)
+static struct rk816_board *rk8xx_parse_dt(struct rk816 *rk8xx)
 {
 	struct rk816_board *pdata;
-	struct device_node *rk816_pmic_np;
+	struct device_node *rk8xx_pmic_np;
 
-	rk816_pmic_np = of_node_get(rk816->dev->of_node);
-	if (!rk816_pmic_np) {
-		dev_err(rk816->dev, "could not find pmic sub-node\n");
+	rk8xx_pmic_np = of_node_get(rk8xx->dev->of_node);
+	if (!rk8xx_pmic_np) {
+		dev_err(rk8xx->dev, "could not find pmic sub-node\n");
 		return NULL;
 	}
 
-	pdata = devm_kzalloc(rk816->dev, sizeof(*pdata), GFP_KERNEL);
+	pdata = devm_kzalloc(rk8xx->dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return NULL;
 
-	pdata->irq = rk816->chip_irq;
+	pdata->irq = rk8xx->chip_irq;
 	pdata->irq_base = -1;
-	pdata->irq_gpio = of_get_named_gpio(rk816_pmic_np, "gpios", 0);
+	pdata->irq_gpio = of_get_named_gpio(rk8xx_pmic_np, "gpios", 0);
 	if (!gpio_is_valid(pdata->irq_gpio)) {
-		dev_err(rk816->dev, "invalid gpio: %d\n",  pdata->irq_gpio);
+		dev_err(rk8xx->dev, "invalid gpio: %d\n",  pdata->irq_gpio);
 		return NULL;
 	}
 
-	pdata->pmic_sleep_gpio = of_get_named_gpio(rk816_pmic_np, "gpios", 1);
+	pdata->pmic_sleep_gpio = of_get_named_gpio(rk8xx_pmic_np, "gpios", 1);
 	if (!gpio_is_valid(pdata->pmic_sleep_gpio))
-		dev_err(rk816->dev, "invalid gpio: %d\n",
+		dev_err(rk8xx->dev, "invalid gpio: %d\n",
 			pdata->pmic_sleep_gpio);
 	pdata->pmic_sleep = true;
 
 	if (rk8xx_mfd_data->parse_dt_pm_lable)
-		pdata->pm_off = of_property_read_bool(rk816_pmic_np,
+		pdata->pm_off = of_property_read_bool(rk8xx_pmic_np,
 				rk8xx_mfd_data->parse_dt_pm_lable);
 
 	return pdata;
 }
 
 #else
-static struct rk816_board *rk816_parse_dt(struct i2c_client *i2c)
+static struct rk816_board *rk8xx_parse_dt(struct i2c_client *i2c)
 {
 	return NULL;
 }
 #endif
 
-static void rk816_syscore_shutdown(void)
+static void rk8xx_syscore_shutdown(void)
 {
 	int i;
 
 	pr_info("%s\n", __func__);
 	for (i = 0; i < ARRAY_SIZE(rk8xx_shutdown_reg); i++)
-		rk816_set_bits(g_rk816,
+		rk816_set_bits(g_rk8xx,
 			       rk8xx_shutdown_reg[i].reg,
 			       rk8xx_shutdown_reg[i].mask,
 			       rk8xx_shutdown_reg[i].val);
 
-	mutex_lock(&g_rk816->io_lock);
+	mutex_lock(&g_rk8xx->io_lock);
 	mdelay(100);
 }
 
-static struct syscore_ops rk816_syscore_ops = {
-	.shutdown = rk816_syscore_shutdown,
+static struct syscore_ops rk8xx_syscore_ops = {
+	.shutdown = rk8xx_syscore_shutdown,
 };
 
-static int rk816_i2c_probe(struct i2c_client *i2c,
+static int rk8xx_i2c_probe(struct i2c_client *i2c,
 			   const struct i2c_device_id *id)
 {
-	struct rk816 *rk816;
+	struct rk816 *rk8xx;
 	struct rk816_board *pdev;
 	const struct of_device_id *match;
 	int ret, i;
@@ -795,28 +796,28 @@ static int rk816_i2c_probe(struct i2c_client *i2c,
 
 	rk8xx_mfd_data = (struct rk8xx_mfd_data *)match->data;
 
-	rk816 = devm_kzalloc(&i2c->dev, sizeof(struct rk816), GFP_KERNEL);
-	if (rk816 == NULL)
+	rk8xx = devm_kzalloc(&i2c->dev, sizeof(struct rk816), GFP_KERNEL);
+	if (!rk8xx)
 		return -ENOMEM;
 
-	rk816->i2c = i2c;
-	rk816->dev = &i2c->dev;
-	i2c_set_clientdata(i2c, rk816);
+	rk8xx->i2c = i2c;
+	rk8xx->dev = &i2c->dev;
+	i2c_set_clientdata(i2c, rk8xx);
 
-	rk816->regmap = devm_regmap_init_i2c(i2c,
+	rk8xx->regmap = devm_regmap_init_i2c(i2c,
 					     rk8xx_mfd_data->regmap_config);
-	if (IS_ERR(rk816->regmap)) {
+	if (IS_ERR(rk8xx->regmap)) {
 		dev_err(&i2c->dev, "regmap initialization failed\n");
-		return PTR_ERR(rk816->regmap);
+		return PTR_ERR(rk8xx->regmap);
 	}
 
-	mutex_init(&rk816->io_lock);
+	mutex_init(&rk8xx->io_lock);
 
 	/* check chip id */
 	chip_version = 0;
-	ret = rk816_reg_read(rk816, RK816_CHIP_NAME_REG);
+	ret = rk816_reg_read(rk8xx, RK816_CHIP_NAME_REG);
 	chip_version |= ret << 8;
-	ret = rk816_reg_read(rk816, RK816_CHIP_VER_REG);
+	ret = rk816_reg_read(rk8xx, RK816_CHIP_VER_REG);
 	chip_version |= ret;
 
 	if ((chip_version & 0x8160) == 0x8160) {
@@ -829,39 +830,39 @@ static int rk816_i2c_probe(struct i2c_client *i2c,
 	}
 
 	/* init registers */
-	ret = rk816_pre_init_regs(rk816);
+	ret = rk8xx_pre_init_regs(rk8xx);
 	if (ret < 0) {
-		dev_err(&i2c->dev, "The rk816_pre_init_regs failed %d\n", ret);
+		dev_err(&i2c->dev, "The rk8xx_pre_init_regs failed %d\n", ret);
 		return ret;
 	}
 
 	/* parse dt */
-	if (rk816->dev->of_node)
-		pdev = rk816_parse_dt(rk816);
+	if (rk8xx->dev->of_node)
+		pdev = rk8xx_parse_dt(rk8xx);
 
 	/* set pmic_sleep */
 	#ifdef CONFIG_OF
-	rk816->pmic_sleep_gpio = pdev->pmic_sleep_gpio;
-	if (gpio_is_valid(rk816->pmic_sleep_gpio)) {
-		ret = gpio_request(rk816->pmic_sleep_gpio, "rk816_pmic_sleep");
+	rk8xx->pmic_sleep_gpio = pdev->pmic_sleep_gpio;
+	if (gpio_is_valid(rk8xx->pmic_sleep_gpio)) {
+		ret = gpio_request(rk8xx->pmic_sleep_gpio, "rk8xx_pmic_sleep");
 		if (ret < 0) {
-			dev_err(rk816->dev, "Failed req gpio %d with ret=%d\n",
-				rk816->pmic_sleep_gpio, ret);
+			dev_err(rk8xx->dev, "Failed req gpio %d with ret=%d\n",
+				rk8xx->pmic_sleep_gpio, ret);
 			return ret;
 		}
-		gpio_direction_output(rk816->pmic_sleep_gpio, 0);
-		ret = gpio_get_value(rk816->pmic_sleep_gpio);
-		gpio_free(rk816->pmic_sleep_gpio);
-		pr_info("%s: rk816_pmic_sleep=%x\n", __func__, ret);
+		gpio_direction_output(rk8xx->pmic_sleep_gpio, 0);
+		ret = gpio_get_value(rk8xx->pmic_sleep_gpio);
+		gpio_free(rk8xx->pmic_sleep_gpio);
+		pr_info("%s: rk8xx_pmic_sleep=%x\n", __func__, ret);
 	}
 	#endif
 
 	/* init irqs */
-	rk816->irq_gpio = pdev->irq_gpio;
-	ret = rk816_irq_init(rk816);
+	rk8xx->irq_gpio = pdev->irq_gpio;
+	ret = rk8xx_irq_init(rk8xx);
 
 	/* add mfd devices */
-	ret = mfd_add_devices(rk816->dev, -1,
+	ret = mfd_add_devices(rk8xx->dev, -1,
 			      rk8xx_mfd_data->cell, rk8xx_mfd_data->cell_num,
 			      NULL, 0, NULL);
 	if (ret) {
@@ -869,51 +870,51 @@ static int rk816_i2c_probe(struct i2c_client *i2c,
 		goto err_irq;
 	}
 
-	g_rk816 = rk816;
+	g_rk8xx = rk8xx;
 
 	/* register power off shutdown */
 	if (rk8xx_mfd_data->register_pm_power_off)
 		rk8xx_mfd_data->register_pm_power_off(pdev);
 
 	/* create debug kobject */
-	rk816_kobj = kobject_create_and_add("rk816", NULL);
-	if (!rk816_kobj) {
+	rk8xx_kobj = kobject_create_and_add("rk816", NULL);
+	if (!rk8xx_kobj) {
 		ret = -ENOMEM;
 		goto err_irq;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(rk816_attrs); i++) {
-		ret = sysfs_create_file(rk816_kobj, &rk816_attrs[i].attr);
+	for (i = 0; i < ARRAY_SIZE(rk8xx_attrs); i++) {
+		ret = sysfs_create_file(rk8xx_kobj, &rk8xx_attrs[i].attr);
 		if (ret != 0) {
-			dev_err(rk816->dev, "create index %d error\n", i);
+			dev_err(rk8xx->dev, "create index %d error\n", i);
 			goto err_irq;
 		}
 	}
 
 	/* add syscore ops */
-	register_syscore_ops(&rk816_syscore_ops);
+	register_syscore_ops(&rk8xx_syscore_ops);
 	pr_info("%s success\n", __func__);
 
 	return 0;
 
 err_irq:
 	if (rk8xx_mfd_data->irq_chip)
-		regmap_del_irq_chip(rk816->chip_irq, rk816->irq_data);
+		regmap_del_irq_chip(rk8xx->chip_irq, rk8xx->irq_data);
 	if (rk8xx_mfd_data->irq_battery_chip)
-		regmap_del_irq_chip(rk816->chip_irq, rk816->battery_irq_data);
+		regmap_del_irq_chip(rk8xx->chip_irq, rk8xx->battery_irq_data);
 
 	return ret;
 }
 
-static int rk816_i2c_remove(struct i2c_client *i2c)
+static int rk8xx_i2c_remove(struct i2c_client *i2c)
 {
-	struct rk816 *rk816 = i2c_get_clientdata(i2c);
+	struct rk816 *rk8xx = i2c_get_clientdata(i2c);
 
-	unregister_syscore_ops(&rk816_syscore_ops);
+	unregister_syscore_ops(&rk8xx_syscore_ops);
 	if (rk8xx_mfd_data->irq_chip)
-		regmap_del_irq_chip(rk816->chip_irq, rk816->irq_data);
+		regmap_del_irq_chip(rk8xx->chip_irq, rk8xx->irq_data);
 	if (rk8xx_mfd_data->irq_battery_chip)
-		regmap_del_irq_chip(rk816->chip_irq, rk816->battery_irq_data);
+		regmap_del_irq_chip(rk8xx->chip_irq, rk8xx->battery_irq_data);
 	mfd_remove_devices(&i2c->dev);
 	pm_power_off = NULL;
 	i2c_set_clientdata(i2c, NULL);
@@ -924,74 +925,74 @@ static int rk816_i2c_remove(struct i2c_client *i2c)
 MODULE_DEVICE_TABLE(i2c, rk816_i2c_id);
 
 #ifdef CONFIG_PM
-static int rk816_suspend(struct i2c_client *i2c, pm_message_t mesg)
+static int rk8xx_suspend(struct i2c_client *i2c, pm_message_t mesg)
 {
 	int i;
-	struct rk816 *rk816 = i2c_get_clientdata(i2c);
+	struct rk816 *rk8xx = i2c_get_clientdata(i2c);
 
 	for (i = 0; i < rk8xx_mfd_data->suspend_reg_num; i++)
-		rk816_set_bits(rk816,
+		rk816_set_bits(rk8xx,
 			       rk8xx_mfd_data->suspend_reg[i].reg,
 			       rk8xx_mfd_data->suspend_reg[i].mask,
 			       rk8xx_mfd_data->suspend_reg[i].val);
 	return 0;
 }
 
-static int rk816_resume(struct i2c_client *i2c)
+static int rk8xx_resume(struct i2c_client *i2c)
 {
 	int i;
-	struct rk816 *rk816 = i2c_get_clientdata(i2c);
+	struct rk816 *rk8xx = i2c_get_clientdata(i2c);
 
 	for (i = 0; i < rk8xx_mfd_data->resume_reg_num; i++)
-		rk816_set_bits(rk816,
+		rk816_set_bits(rk8xx,
 			       rk8xx_mfd_data->resume_reg[i].reg,
 			       rk8xx_mfd_data->resume_reg[i].mask,
 			       rk8xx_mfd_data->resume_reg[i].val);
 	return 0;
 }
 #else
-static int rk816_suspend(struct i2c_client *i2c, pm_message_t mesg)
+static int rk8xx_suspend(struct i2c_client *i2c, pm_message_t mesg)
 {
 	return 0;
 }
 
-static int rk816_resume(struct i2c_client *i2c)
+static int rk8xx_resume(struct i2c_client *i2c)
 {
 	return 0;
 }
 #endif
 
-static struct i2c_driver rk816_i2c_driver = {
+static struct i2c_driver rk8xx_i2c_driver = {
 	.driver = {
 		.name = "rk816",
 		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(rk8xx_mfd_of_match),
 	},
-	.probe    = rk816_i2c_probe,
-	.remove   = rk816_i2c_remove,
+	.probe    = rk8xx_i2c_probe,
+	.remove   = rk8xx_i2c_remove,
 	#ifdef CONFIG_PM
-	.suspend = rk816_suspend,
-	.resume	 = rk816_resume,
+	.suspend = rk8xx_suspend,
+	.resume	 = rk8xx_resume,
 	#endif
 	.id_table = rk8xx_mfd_i2c_id,
 };
 
-static int __init rk816_module_init(void)
+static int __init rk8xx_module_init(void)
 {
 	int ret;
 
-	ret = i2c_add_driver(&rk816_i2c_driver);
+	ret = i2c_add_driver(&rk8xx_i2c_driver);
 	if (ret != 0)
 		pr_err("Failed to register I2C driver: %d\n", ret);
 	return ret;
 }
-subsys_initcall_sync(rk816_module_init);
+subsys_initcall_sync(rk8xx_module_init);
 
-static void __exit rk816_module_exit(void)
+static void __exit rk8xx_module_exit(void)
 {
-	i2c_del_driver(&rk816_i2c_driver);
+	i2c_del_driver(&rk8xx_i2c_driver);
 }
-module_exit(rk816_module_exit);
+module_exit(rk8xx_module_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("zhangqing <zhangqing@rock-chips.com>");
