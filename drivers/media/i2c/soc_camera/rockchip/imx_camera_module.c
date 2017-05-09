@@ -172,7 +172,7 @@ static int imx_camera_module_write_config(
 {
 	int ret = 0;
 	struct imx_camera_module_reg *reg_table;
-	u32 reg_table_num_entries;
+	u32 reg_table_num_entries = 0;
 	pltfrm_camera_module_pr_err(&cam_mod->sd, "\n");
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config)) {
