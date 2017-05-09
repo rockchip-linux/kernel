@@ -268,6 +268,8 @@ static int __init rv1108_ddr_init(void)
 		ddr_round_rate = _ddr_round_rate;
 		ddr_set_auto_self_refresh = _ddr_set_auto_self_refresh;
 		ddr_freq_scale_send_event = _ddr_freq_scale_send_event;
+		ddr_freq_register_nb = _ddr_freq_register_nb;
+		ddr_freq_unregister_nb = _ddr_freq_unregister_nb;
 		np = of_find_node_by_name(np, "ddr_timing");
 		ddr_init(0, np);
 	}
