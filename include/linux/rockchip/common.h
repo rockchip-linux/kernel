@@ -38,6 +38,8 @@ extern long (*ddr_round_rate)(uint32_t mhz);
 extern void (*ddr_set_auto_self_refresh)(bool en);
 extern int (*ddr_recalc_rate)(void);
 extern int (*ddr_freq_scale_send_event)(int id, unsigned long timeout);
+extern int (*ddr_freq_register_nb)(struct notifier_block *nb);
+extern int (*ddr_freq_unregister_nb)(struct notifier_block *nb);
 
 /* The id for ddr_freq_scale_send_event() */
 #define VOP_EVENT	1	/* vop line flag1 or frame end interrupt */
