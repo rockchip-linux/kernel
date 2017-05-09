@@ -23,6 +23,8 @@
 #include <media/rk-isp11-ioctl.h>
 #include <linux/workqueue.h>
 #include <asm/arch_timer.h>
+#include <linux/fb.h>
+#include <linux/notifier.h>
 
 /* DDR3 define */
 /* mr0 for ddr3 */
@@ -275,10 +277,10 @@ static struct master_request gmr[4];
 static struct tasklet_struct ddr_freq_ts[4];
 unsigned long long trace_time[16];
 static wait_queue_head_t wq;
+static struct work_struct ws;
 #ifdef CONFIG_VIDEO_RK_CIF_ISP11
 static unsigned int numerator = 1;
 static unsigned int denominator = 30;
-static struct work_struct ws;
 #endif
 
 #define DDR3_CL_CWL(d1, d2, d3, d4, d5, d6, d7) \
@@ -1132,12 +1134,71 @@ static bool ddr_freq_is_event_active(int id, unsigned long long tmp)
 		return true;
 }
 
-static int _ddr_change_freq(u32 nmhz)
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+static void ddr_freq_change_isp_fps(void)
 {
-	u32 ret = -1;
+	if (numerator * 15 < denominator)
+		cif_isp11_v4l2_s_frame_interval(numerator, denominator);
+}
+#endif
+
+static BLOCKING_NOTIFIER_HEAD(ddr_freq_notifier_list);
+
+int _ddr_freq_register_nb(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&ddr_freq_notifier_list, nb);
+}
+
+int _ddr_freq_unregister_nb(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&ddr_freq_notifier_list, nb);
+}
+
+int ddr_freq_notifier_call_chain(unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&ddr_freq_notifier_list, val, v);
+}
+
+static int isp_notify(struct notifier_block *nb,
+			unsigned long action, void *data)
+{
 	unsigned long long tmp = cpu_clock(0);
 
 	do_div(tmp, 1000);
+#ifdef CONFIG_VIDEO_RK_CIF_ISP11
+	if (ddr_freq_is_event_active(ISP_FE_EVENT, tmp)) {
+		if (action == 0) {
+			cif_isp11_v4l2_g_frame_interval(&numerator, &denominator);
+
+			if (numerator * 15 < denominator)
+				cif_isp11_v4l2_s_frame_interval(1, 15);
+		} else {
+			ddr_freq_change_isp_fps();
+		}
+	}
+#endif
+	return NOTIFY_OK;
+}
+
+static struct notifier_block isp_nb = {
+	.notifier_call = isp_notify,
+	.priority = 100,
+};
+
+static int _ddr_change_freq_pre(void)
+{
+	ddr_freq_notifier_call_chain(0, NULL);
+	return 0;
+}
+
+static void _ddr_change_freq_post(struct work_struct *work)
+{
+	ddr_freq_notifier_call_chain(1, NULL);
+}
+
+static int _ddr_change_freq(u32 nmhz)
+{
+	u32 ret = -1;
 	ret = p_ddr_set_pll(nmhz, 0);
 
 	if (ret == ddr_freq_new)
@@ -1154,26 +1215,11 @@ static int _ddr_change_freq(u32 nmhz)
 	ddr_freq_new = ret;
 	ddr_freq_scale_send_event(0, 10000);
 
-#ifdef CONFIG_VIDEO_RK_CIF_ISP11
-	if (ddr_freq_is_event_active(ISP_FE_EVENT, tmp)) {
-
-		cif_isp11_v4l2_g_frame_interval(&numerator, &denominator);
-
-		if (numerator * 15 < denominator)
-			cif_isp11_v4l2_s_frame_interval(1, 15);
-	}
-#endif
+	_ddr_change_freq_pre();
 	wait_event_timeout(wq, ddr_freq_new == ddr_freq_current, (HZ / 2));
+
 	return ddr_freq_current;
 }
-
-#ifdef CONFIG_VIDEO_RK_CIF_ISP11
-static void ddr_freq_change_isp_fps(struct work_struct *work)
-{
-	if (numerator * 15 < denominator)
-		cif_isp11_v4l2_s_frame_interval(numerator, denominator);
-}
-#endif
 
 static void ddr_freq_scale_tasklet(unsigned long data)
 {
@@ -1191,9 +1237,7 @@ static void ddr_freq_scale_tasklet(unsigned long data)
 			if (ddr_freq_new != ddr_freq_current) {
 				__ddr_change_freq(ddr_freq_new);
 				ddr_freq_current = ddr_freq_new;
-#ifdef CONFIG_VIDEO_RK_CIF_ISP11
 				schedule_work(&ws);
-#endif
 				wake_up(&wq);
 			}
 		}
@@ -1396,15 +1440,16 @@ int ddr_init(u32 freq, void *arg)
 
 	ddr_freq_current = ddr_get_pll_freq(DPLL) / 2;
 	ddr_freq_new = ddr_freq_current;
-#ifdef CONFIG_VIDEO_RK_CIF_ISP11
-	INIT_WORK(&ws, ddr_freq_change_isp_fps);
-#endif
+
+	INIT_WORK(&ws, _ddr_change_freq_post);
 	init_waitqueue_head(&wq);
 
 	tasklet_init(&ddr_freq_ts[0], ddr_freq_scale_tasklet,
 			(unsigned long)&gmr[0]);
 	tasklet_init(&ddr_freq_ts[VOP_EVENT], ddr_freq_scale_tasklet,
 			(unsigned long)&gmr[VOP_EVENT]);
+
+	_ddr_freq_register_nb(&isp_nb);
 
 	if (freq == 0)
 		_ddr_change_freq(ddr_freq_current);
