@@ -44,6 +44,7 @@
 
 #include "rk3228h.dtsi"
 #include "rk322xh-evb.dtsi"
+#include "rk322xh-dram-2layer-timing.dtsi"
 #include "rk-stb-keymap.dtsi"
 
 / {
