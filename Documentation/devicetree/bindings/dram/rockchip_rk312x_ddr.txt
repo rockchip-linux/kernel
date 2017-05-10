@@ -1,0 +1,20 @@
+* Rockchip rk312x DDR device driver
+
+Required properties:
+- compatible : Should be "rockchip,rk312x-ddr"
+- rockchip,grf : Get GRF base address for DDR monitor.
+- ddr_timing : DDR timing need to pass to optee firmware.
+- vop-dclk-mode : Define how to process dclk when DDR change frequency.
+	Parameter:
+	0 = Use standard flow,decide by lcdc type if process dclk.
+	1 = Vop dclk never divided.
+	2 = Vop dclk always divided.
+
+Example:
+	ddr: ddr {
+		compatible = "rockchip,rk312x-ddr";
+		rockchip,grf = <&grf>;
+		rockchip,ddr_timing = <&ddr_timing>;
+		vop-dclk-mode = <0>;
+		status = "disabled";
+	};
