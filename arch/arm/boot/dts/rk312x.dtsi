@@ -7,6 +7,7 @@
 #include "skeleton.dtsi"
 #include "rk312x-clocks.dtsi"
 #include "rk312x-pinctrl.dtsi"
+#include <rk312x_ddr_default_timing.dtsi>
 
 / {
 	compatible = "rockchip,rk312x";
@@ -278,6 +279,19 @@
 		rockchip,serial-id = <2>;
 		rockchip,signal-irq = <106>;
 		rockchip,wake-irq = <0>;
+		status = "disabled";
+	};
+
+	grf: syscon@20008000 {
+		compatible = "rockchip,grf", "syscon";
+		reg = <0x20008000 0x400>;
+	};
+
+	ddr: ddr {
+		compatible = "rockchip,rk312x-ddr";
+		rockchip,grf = <&grf>;
+		rockchip,ddr_timing = <&ddr_timing>;
+		vop-dclk-mode = <0>;
 		status = "disabled";
 	};
 

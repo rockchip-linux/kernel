@@ -1,0 +1,97 @@
+* rk312x dram default timing is at arch/arm/boot/dts/rk312x-ddr-default-timing.dtsi
+
+Required properties:
+- compatible : Should be "rockchip,ddr-timing"
+
+- ddr3_speed_bin : Value is defined at include/dt-bindings/clock/ddr.h.
+  It select ddr3 cl-trp-trcd type, default value "DDR3_DEFAULT".it must selected
+  according to "Speed Bin" in ddr3 datasheet, DO NOT use smaller "Speed Bin" than
+  ddr3 exactly is.
+
+- pd_idle : Config the PD_IDLE value, defined the power-down idle period, memories
+  are places into power-down mode if bus is idle for PD_IDLE DFI clocks.
+
+- sr_idle : Configure the SR_IDLE value, defined the selfrefresh idle period,
+  memories are places into self-refresh mode if bus is idle for SR_IDLE*32 DFI
+  clocks (DFI clocks freq is half of dram's clocks), defaule value is "1".
+
+- auto_pd_dis_freq : It's defined the auto power-down frequency in MHz (Mega Hz),
+  when ddr freq greater than this setting value, auto power-down will disable.
+
+- auto_sr_dis_freq : It's defined the auto selfrefresh frequency in MHz (Mega Hz),
+  when ddr freq greater than this setting value, auto selfrefresh will disable.
+
+- ddr3_dll_disb_freq : It's defined the ddr3 dll bypass frequency in MHz (Mega Hz),
+  when ddr freq less than this setting value, ddr3 dll will bypssed.
+  note: if dll was bypassed, the odt also stop working.
+
+- lpddr2_dll_disb_freq : It's defined the lpddr2 dll bypass frequency in MHz (Mega Hz),
+  when ddr freq less than this setting value, lpddr2 dll will bypssed.
+
+- phy_dll_disb_freq : Defined the PHY dll bypass frequency in MHz (Mega Hz),
+  when ddr freq less than this setting value, phy dll will bypssed.
+  note: phy dll and phy odt are independent.
+
+- ddr3_odt_disb_freq : Defined the ddr3 odt disable frequency in
+  MHz (Mega Hz), when ddr frequency less then this setting value, the ddr3
+  ODT are disabled.
+
+- phy_ddr3_odt_disb_freq : Defined the phy odt disable frequency in
+  MHz (Mega Hz), when ddr frequency less then this setting value, the phy
+  ODT are disabled.
+
+- ddr3_drv : Define the DDR3 driver strength in ohm.
+
+- ddr3_odt : Define the DDR3 ODT in ohm.
+
+- phy_ddr3_clk_drv : Define the phy clocks driver strength in ohm.
+  when connect DDR3.
+
+- phy_ddr3_cmd_drv : Define the phy commands driver strength in ohm.
+  when connect DDR3.
+
+- phy_ddr3_cmd_drv : Define the phy dqs and dq driver strength in ohm.
+  when connect DDR3.
+
+- phy_ddr3_odt : Define the phy odt in ohm when connect DDR3.
+
+- lpddr2_drv : Define the LPDDR2 driver strength in ohm.
+
+- phy_lpddr2_clk_drv : Define the phy clocks driver strength in ohm
+  when connect LPDDR2.
+
+- phy_lpddr2_cmd_drv : Define the phy commands driver strength in ohm
+  when connect LPDDR2.
+
+- phy_lpddr2_dqs_drv : Define the phy dqs and dq driver strength in ohm
+  when connect LPDDR2.
+
+Example:
+/ {
+	ddr_timing: ddr_timing {
+		compatible = "rockchip,ddr-timing";
+		ddr3_speed_bin = <DDR3_DEFAULT>;
+		pd_idle = <0x40>;
+		sr_idle = <0x1>;
+
+		auto_pd_dis_freq = <533>;
+		auto_sr_dis_freq = <533>;
+		ddr3_dll_dis_freq = <300>;
+		lpddr2_dll_dis_freq = <300>;
+		phy_dll_dis_freq = <266>;
+
+		ddr3_odt_dis_freq = <333>;
+		phy_ddr3_odt_disb_freq = <333>;
+		ddr3_drv = <DDR3_DS_40ohm>;
+		ddr3_odt = <DDR3_ODT_120ohm>;
+		phy_ddr3_clk_drv = <PHY_RON_44ohm>;
+		phy_ddr3_cmd_drv = <PHY_RON_44ohm>;
+		phy_ddr3_dqs_drv = <PHY_RON_44ohm>;
+		phy_ddr3_odt = <PHY_RTT_216ohm>;
+
+		lpddr2_drv = <LP2_DS_34ohm>;
+		phy_lpddr2_clk_drv = <PHY_RON_44ohm>;
+		phy_lpddr2_cmd_drv = <PHY_RON_44ohm>;
+		phy_lpddr2_dqs_drv = <PHY_RON_44ohm>;
+	};
+};

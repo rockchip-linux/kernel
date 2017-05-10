@@ -1,0 +1,44 @@
+/*
+ * Copyright (C) 2017 ROCKCHIP, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+#include <dt-bindings/clock/ddr.h>
+#include <dt-bindings/dram/rockchip,rk312x.h>
+
+/ {
+	ddr_timing: ddr_timing {
+		compatible = "rockchip,ddr-timing";
+		ddr3_speed_bin = <DDR3_DEFAULT>;
+		pd_idle = <0x40>;
+		sr_idle = <0x1>;
+
+		auto_pd_dis_freq = <533>;
+		auto_sr_dis_freq = <533>;
+		ddr3_dll_dis_freq = <300>;
+		lpddr2_dll_dis_freq = <300>;
+		phy_dll_dis_freq = <266>;
+
+		ddr3_odt_dis_freq = <333>;
+		phy_ddr3_odt_disb_freq = <333>;
+		ddr3_drv = <DDR3_DS_40ohm>;
+		ddr3_odt = <DDR3_ODT_120ohm>;
+		phy_ddr3_clk_drv = <PHY_RON_44ohm>;
+		phy_ddr3_cmd_drv = <PHY_RON_44ohm>;
+		phy_ddr3_dqs_drv = <PHY_RON_44ohm>;
+		phy_ddr3_odt = <PHY_RTT_216ohm>;
+
+		lpddr2_drv = <LP2_DS_34ohm>;
+		phy_lpddr2_clk_drv = <PHY_RON_44ohm>;
+		phy_lpddr2_cmd_drv = <PHY_RON_44ohm>;
+		phy_lpddr2_dqs_drv = <PHY_RON_44ohm>;
+	};
+};

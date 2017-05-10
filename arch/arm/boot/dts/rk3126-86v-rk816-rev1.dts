@@ -89,6 +89,10 @@
 	};
 };
 
+&ddr {
+	status = "okay";
+};
+
 &timing0 {
 	clock-frequency = <50000000>;
 	hback-porch = <16>;
