@@ -277,15 +277,9 @@ int imx_camera_module_s_fmt(struct v4l2_subdev *sd,
 	}
 	cam_mod->frm_fmt_valid = true;
 	cam_mod->frm_fmt = *fmt;
-	if (cam_mod->frm_intrvl_valid) {
-		imx_camera_module_set_active_config(cam_mod,
-			imx_camera_module_find_config(cam_mod,
-				fmt, &cam_mod->frm_intrvl));
-	} else {
-		imx_camera_module_set_active_config(cam_mod,
-			imx_camera_module_find_config(cam_mod,
-				fmt, NULL));
-	}
+	imx_camera_module_set_active_config(cam_mod,
+	imx_camera_module_find_config(cam_mod,
+			fmt, NULL));
 	return 0;
 err:
 	pltfrm_camera_module_pr_err(&cam_mod->sd,
