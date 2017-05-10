@@ -375,7 +375,8 @@ static int dsp_device_pause(struct dsp_dev_client *client)
 
 	/* Wake up work consumer thread and stop it */
 	wake_up(&service->wait);
-	kthread_stop(service->work_consumer);
+	if (service->work_consumer)
+		kthread_stop(service->work_consumer);
 	service->work_consumer = NULL;
 
 	dsp_debug_leave();
