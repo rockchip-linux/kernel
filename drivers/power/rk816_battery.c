@@ -1338,7 +1338,10 @@ static void rk816_bat_set_current(struct rk816_battery *di, int charge_current)
 static void rk816_bat_set_chrg_param(struct rk816_battery *di,
 				     enum charger_type charger_type)
 {
-	u8 buf;
+	u8 buf, usb_ctrl, chrg_ctrl1;
+	static const char *const charge_name[] = {"UNKNOWN", "NONE_USB_DC",
+						  "NONE_USB", "USB", "AC",
+						  "DC_DC", "NONE_DC"};
 
 	switch (charger_type) {
 	case USB_DC_TYPE_NONE_CHARGER:
@@ -1416,6 +1419,13 @@ static void rk816_bat_set_chrg_param(struct rk816_battery *di,
 		di->prop_val = POWER_SUPPLY_STATUS_DISCHARGING;
 		break;
 	}
+
+	usb_ctrl = rk816_bat_read(di, RK816_USB_CTRL_REG);
+	chrg_ctrl1 = rk816_bat_read(di, RK816_CHRG_CTRL_REG1);
+	BAT_INFO("set charger type: %s, current: input=%d, chrg=%d\n",
+		 charge_name[charger_type],
+		 CHRG_CUR_INPUT[usb_ctrl & 0x0f],
+		 CHRG_CUR_SEL[chrg_ctrl1 & 0x0f]);
 
 	if (di->dsoc == 100 && rk816_bat_chrg_online(di))
 		di->prop_val = POWER_SUPPLY_STATUS_FULL;
