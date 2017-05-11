@@ -583,6 +583,11 @@ int rk_fb_video_mode_from_timing(const struct display_timing *dt,
 	else
 		screen->swap_dumy = 0;
 
+	if (!screen->width || !screen->height) {
+		pr_err("error: please config lcd physical size at lcd-xxx.dtsi\n");
+		WARN_ON(1);
+	}
+
 	return 0;
 }
 
