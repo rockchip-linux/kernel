@@ -278,6 +278,8 @@
 &i2c1 {
 	status = "okay";
 
+	rockchip,bus-recovery = <1>;
+
 	sensor@4c {
 		compatible = "gs_mma7660";
 		reg = <0x4c>;

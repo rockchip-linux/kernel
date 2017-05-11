@@ -283,6 +283,8 @@
 &i2c2 {
 	status = "okay";
 
+	rockchip,bus-recovery = <1>;
+
 	ts@40 {
 		compatible = "gslX680_312x";
 		reg = <0x40>;
