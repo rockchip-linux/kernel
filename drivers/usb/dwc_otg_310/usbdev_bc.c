@@ -14,6 +14,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/rockchip/cpu.h>
 #include "usbdev_rk.h"
 
 char *bc_string[USB_BC_TYPE_MAX] = {"DISCONNECT",
@@ -26,9 +27,11 @@ char *bc_string[USB_BC_TYPE_MAX] = {"DISCONNECT",
 #define BC_GET(x) grf_uoc_get_field(&pBC_UOC_FIELDS[x])
 #define BC_SET(x, v) grf_uoc_set_field(&pBC_UOC_FIELDS[x], v)
 
+static bool opt_usbgrf;
 uoc_field_t *pBC_UOC_FIELDS;
 static void *pGRF_BASE;
 static void *pGRF_REGMAP;
+static void *pUSBGRF_REGMAP;
 DEFINE_MUTEX(bc_mutex);
 
 static enum bc_port_type usb_charger_status = USB_BC_TYPE_DISCNT;
@@ -58,6 +61,18 @@ static inline struct regmap *get_grf_regmap(struct device_node *np)
 	return grf;
 }
 
+static inline struct regmap *get_usbgrf_regmap(struct device_node *np)
+{
+	struct regmap *usbgrf;
+
+	usbgrf = syscon_regmap_lookup_by_phandle(of_get_parent(np),
+						 "rockchip,usbgrf");
+	if (IS_ERR(usbgrf))
+		return NULL;
+
+	return usbgrf;
+}
+
 void grf_uoc_set_field(uoc_field_t *field, u32 value)
 {
 	if (!uoc_field_valid(field))
@@ -66,6 +81,10 @@ void grf_uoc_set_field(uoc_field_t *field, u32 value)
 	if (pGRF_BASE) {
 		grf_uoc_set(pGRF_BASE, field->b.offset, field->b.bitmap,
 			    field->b.mask, value);
+	} else if (opt_usbgrf && pUSBGRF_REGMAP) {
+		regmap_grf_uoc_set(pUSBGRF_REGMAP, field->b.offset,
+				   field->b.bitmap,
+				   field->b.mask, value);
 	} else if (pGRF_REGMAP) {
 		regmap_grf_uoc_set(pGRF_REGMAP, field->b.offset,
 				   field->b.bitmap,
@@ -386,9 +405,15 @@ enum bc_port_type usb_battery_charger_detect(bool wait)
 		np = of_find_node_by_name(NULL, "usb_bc");
 	if (!np)
 		return -1;
+
+	if (cpu_is_rv110x())
+		opt_usbgrf = 1;
+
 	if (!pGRF_BASE && !pGRF_REGMAP) {
 		pGRF_BASE = get_grf_base(np);
 		pGRF_REGMAP = get_grf_regmap(np);
+		if (opt_usbgrf)
+			pUSBGRF_REGMAP = get_usbgrf_regmap(np);
 	}
 
 	mutex_lock(&bc_mutex);

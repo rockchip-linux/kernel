@@ -182,6 +182,7 @@ struct dwc_otg_platform_data usb20otg_pdata_rv1108 = {
 	.clock_enable = usb20otg_clock_enable,
 	.get_status = usb20otg_get_status,
 	.dwc_otg_uart_mode = dwc_otg_uart_mode,
+	.bc_detect_cb = rk_battery_charger_detect_cb,
 };
 #endif
 
@@ -190,6 +191,11 @@ static inline void do_wakeup(struct work_struct *work)
 {
 	/* wake up the system */
 	rk_send_wakeup_key();
+}
+
+static void usb_battery_charger_detect_work(struct work_struct *work)
+{
+	rk_battery_charger_detect_cb(usb_battery_charger_detect(1));
 }
 
 static irqreturn_t bvalid_irq_handler(int irq, void *dev_id)
@@ -204,6 +210,8 @@ static irqreturn_t bvalid_irq_handler(int irq, void *dev_id)
 		schedule_delayed_work(&control_usb->usb_det_wakeup_work,
 				      HZ / 10);
 	}
+
+	schedule_delayed_work(&control_usb->usb_charger_det_work, HZ / 10);
 
 	return IRQ_HANDLED;
 }
@@ -293,6 +301,9 @@ static int dwc_otg_control_usb_probe(struct platform_device *pdev)
 		return PTR_ERR(control_usb->usb_grf);
 	}
 
+	INIT_DELAYED_WORK(&control_usb->usb_charger_det_work,
+			  usb_battery_charger_detect_work);
+
 	gpio = of_get_named_gpio(np, "vbus_drv", 0);
 	if (gpio_is_valid(gpio)) {
 		ret = devm_gpio_request(dev, gpio, "vbus_drv_pullup");
@@ -318,6 +329,12 @@ static int dwc_otg_control_usb_probe(struct platform_device *pdev)
 		control_usb->hclk_usb_peri = NULL;
 	}
 	clk_prepare_enable(control_usb->hclk_usb_peri);
+
+#ifdef CONFIG_USB20_OTG
+	if (usb20otg_get_status(USB_STATUS_BVABLID))
+		schedule_delayed_work(&control_usb->usb_charger_det_work,
+				      HZ / 10);
+#endif
 
 	ret = otg_irq_detect_init(pdev);
 	if (ret < 0)
