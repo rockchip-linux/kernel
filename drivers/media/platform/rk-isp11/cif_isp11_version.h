@@ -115,9 +115,15 @@
 *
 *v0.2.7:
 *1. Delete aec measurement window size check in cifisp_aec_param;
+*
+*v0.2.8:
+*1. output->quantization filled error by sp.output.quantization in
+*cif_isp11_config_isp when mp is ready;
+*2. Cifisp stream off, if cif output is raw.  Because check isp_config.out.pix
+*may be error in cifisp_streamon, if isp dev streamon before path dev;
 */
 
-#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 7)
+#define CONFIG_CIFISP11_DRIVER_VERSION KERNEL_VERSION(0, 2, 8)
 
 
 #endif

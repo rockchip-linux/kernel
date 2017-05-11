@@ -1669,7 +1669,7 @@ static int cif_isp11_config_isp(
 
 			if (dev->mp_stream.state == CIF_ISP11_STATE_READY) {
 				output->quantization =
-					dev->config.mi_config.sp.output.quantization;
+					dev->config.mi_config.mp.output.quantization;
 			}
 			if (dev->y12_stream.state == CIF_ISP11_STATE_READY) {
 				output->quantization =

@@ -2889,18 +2889,11 @@ static int cifisp_dqbuf(struct file *file, void *priv, struct v4l2_buffer *p)
 static int cifisp_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 {
 	struct cif_isp11_isp_dev *isp_dev = video_get_drvdata(video_devdata(file));
-	struct cif_isp11_device *cif_dev =
-		container_of(isp_dev, struct cif_isp11_device, isp_dev);
 	int ret;
 
-	if (CIF_ISP11_PIX_FMT_IS_RAW_BAYER(
-		cif_dev->config.isp_config.output.pix_fmt)) {
-		ret = -EPERM;
-	} else {
-		ret = videobuf_streamon(&isp_dev->vbq_stat);
-		if (ret == 0)
-			isp_dev->streamon = true;
-	}
+	ret = videobuf_streamon(&isp_dev->vbq_stat);
+	if (ret == 0)
+		isp_dev->streamon = true;
 
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		      " %s: %s: ret %d\n", ISP_VDEV_NAME, __func__, ret);
@@ -2908,9 +2901,8 @@ static int cifisp_streamon(struct file *file, void *priv, enum v4l2_buf_type i)
 }
 
 /* ========================================================== */
-static int cifisp_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
+static int __cifisp_streamoff(struct cif_isp11_isp_dev *isp_dev)
 {
-	struct cif_isp11_isp_dev *isp_dev = video_get_drvdata(video_devdata(file));
 	int ret;
 
 	drain_workqueue(isp_dev->readout_wq);
@@ -2919,6 +2911,16 @@ static int cifisp_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
 
 	if (ret == 0)
 		isp_dev->streamon = false;
+
+	return ret;
+}
+
+static int cifisp_streamoff(struct file *file, void *priv, enum v4l2_buf_type i)
+{
+	struct cif_isp11_isp_dev *isp_dev = video_get_drvdata(video_devdata(file));
+	int ret;
+
+	ret = __cifisp_streamoff(isp_dev);
 
 	CIFISP_DPRINT(CIFISP_DEBUG,
 		" %s: %s: ret %d\n", ISP_VDEV_NAME, __func__, ret);
@@ -3508,6 +3510,9 @@ void cifisp_configure_isp(
 		} else {
 			cifisp_ie_end(isp_dev);
 		}
+
+		__cifisp_streamoff(isp_dev);
+
 	}
 
 	cifisp_dump_reg(isp_dev, CIFISP_DEBUG);
@@ -3574,6 +3579,7 @@ void cifisp_disable_isp(struct cif_isp11_isp_dev *isp_dev)
 	cifisp_ie_end(isp_dev);
 	cifisp_dpf_end(isp_dev);
 
+	__cifisp_streamoff(isp_dev);
 	/*
 	Isp isn't active, isp interrupt isn't enabled, spin_lock is enough;
 	*/
