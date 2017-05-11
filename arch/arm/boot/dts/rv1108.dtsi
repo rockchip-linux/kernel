@@ -1134,6 +1134,22 @@
 		clocks = <&clk_gates15 8>, <&clk_gates15 9>;
 		clock-names = "hclk_otg", "hclk_otg_pmu";
 		status = "disabled";
+
+		usb_bc {
+			compatible = "inno,phy";
+			regbase = &dwc_control_usb;
+			rk_usb,bvalid     = <0x0480 10 1>;
+			rk_usb,iddig      = <0x0480 13 1>;
+			rk_usb,vdmsrcen   = <0x0108 12 1>;
+			rk_usb,vdpsrcen   = <0x0108 11 1>;
+			rk_usb,rdmpden    = <0x0108 10 1>;
+			rk_usb,idpsrcen   = <0x0108  9 1>;
+			rk_usb,idmsinken  = <0x0108  8 1>;
+			rk_usb,idpsinken  = <0x0108  7 1>;
+			rk_usb,dpattach   = <0x0804  2 1>;
+			rk_usb,cpdet      = <0x0804  1 1>;
+			rk_usb,dcpattach  = <0x0804  0 1>;
+		};
 	};
 
 	u2phy: usb2-phy {
