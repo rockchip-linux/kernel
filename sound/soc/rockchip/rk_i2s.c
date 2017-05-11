@@ -46,7 +46,7 @@
 
 #define CLK_SET_LATER
 #define I2S_DEFAULT_FREQ	(11289600)
-#define I2S_DMA_BURST_SIZE	(16) /* size * width: 16*4 = 64 bytes */
+#define I2S_DMA_BURST_SIZE	(8) /* size * width: 16*4 = 64 bytes */
 static DEFINE_SPINLOCK(lock);
 
 #if defined(CONFIG_RK_HDMI) && defined(CONFIG_SND_RK_SOC_HDMI_I2S)
