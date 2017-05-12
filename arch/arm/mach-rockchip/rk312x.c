@@ -435,7 +435,7 @@ static void rk312x_restart(char mode, const char *cmd)
 	dsb();
 }
 
-DT_MACHINE_START(RK3126_DT, "Rockchip RK3126")
+DT_MACHINE_START(RK3126_DT, "Rockchip RK3126C")
 	.smp		= smp_ops(rockchip_smp_ops),
 	.map_io		= rk3126_dt_map_io,
 	.init_time	= rk312x_dt_init_timer,
