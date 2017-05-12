@@ -12,30 +12,48 @@
 #define __LEDS_MULTI_H_INCLUDED
 
 enum {
-	TRIGGER_NONE = 0,
-	TRIGGER_DEFAULT_ON,
-	TRIGGER_TIMER,
-	TRIGGER_ONESHOT,
-	TRIGGER_MAX,
+	TRIG_NONE = 0,
+	TRIG_DEF_ON,
+	TRIG_TIMER,
+	TRIG_ONESHOT,
+	TRIG_MAX,
 };
 
 struct led_ctrl_data {
-	unsigned int trigger;
+	u32 trigger;
 	/* the delay time(ms) of triggering a trigger */
-	unsigned int delayed_trigger_ms;
-	unsigned int brightness;
-	unsigned int delay_on;
-	unsigned int delay_off;
+	u32 delayed_trigger_ms;
+	u32 brightness;
+	u32 delay_on;
+	u32 delay_off;
 } __packed;
 
-#define MAX_LEDS_NUMBER	128
+struct led_ctrl_scroll_data {
+	u64 init_bitmap;
+	/* the shift bits on every scrolling time*/
+	u32 shifts;
+	u32 shift_delay_ms;
+} __packed;
+
+struct led_ctrl_breath_data {
+	u64 background_bitmap;
+	u64 breath_bitmap;
+	u32 change_delay_ms;
+	u32 breath_steps;
+} __packed;
+
+#define MAX_LEDS_NUMBER	64
 
 #define LEDS_MULTI_CTRL_IOCTL_MAGIC	'z'
 
 #define LEDS_MULTI_CTRL_IOCTL_MULTI_SET	\
-		_IOW(LEDS_MULTI_CTRL_IOCTL_MAGIC, 0x01, struct led_ctrl_data*)
+	_IOW(LEDS_MULTI_CTRL_IOCTL_MAGIC, 0x01, struct led_ctrl_data*)
 #define LEDS_MULTI_CTRL_IOCTL_GET_LED_NUMBER	\
-		_IOR(LEDS_MULTI_CTRL_IOCTL_MAGIC, 0x02, int)
+	_IOR(LEDS_MULTI_CTRL_IOCTL_MAGIC, 0x02, int)
+#define LEDS_MULTI_CTRL_IOCTL_MULTI_SET_SCROLL	\
+	_IOW(LEDS_MULTI_CTRL_IOCTL_MAGIC, 0x03, struct led_ctrl_scroll_data*)
+#define LEDS_MULTI_CTRL_IOCTL_MULTI_SET_BREATH	\
+	_IOW(LEDS_MULTI_CTRL_IOCTL_MAGIC, 0x04, struct led_ctrl_breath_data*)
 
 int led_multi_control_register(struct led_classdev *led_cdev);
 int led_multi_control_unregister(struct led_classdev *led_cdev);

@@ -32,12 +32,35 @@ struct multi_ctrl_data {
 	struct led_ctrl_data old_data;
 };
 
+struct multi_ctrl_scroll_data {
+	struct led_ctrl_scroll_data *data;
+	volatile bool data_valid;
+	struct delayed_work scroll_work;
+};
+
+struct multi_ctrl_breath_data {
+	struct led_ctrl_breath_data *data;
+	volatile bool data_valid;
+	struct delayed_work breath_work;
+};
+
+enum leds_mode {
+	LEDS_MODE_MULTI_SET = 0,
+	LEDS_MODE_MULTI_SCROLL,
+	LEDS_MODE_MULTI_BREATH,
+	LEDS_MODE_MULTI_INVALID = 0xff,
+};
+
+#define bits(nr)	((u64)1 << (nr))
+
 DECLARE_RWSEM(multi_leds_list_lock);
 LIST_HEAD(multi_leds_list);
 
 static int led_num;
 static struct miscdevice multi_ctrl_miscdev;
-static char *mult_ctrl_trigger[TRIGGER_MAX] = {
+static struct multi_ctrl_scroll_data *multi_ctrl_scroll_info;
+static struct multi_ctrl_breath_data *multi_ctrl_breath_info;
+static char *mult_ctrl_trigger[TRIG_MAX] = {
 	"none",
 	"default-on",
 	"timer",
@@ -45,6 +68,130 @@ static char *mult_ctrl_trigger[TRIGGER_MAX] = {
 };
 
 static struct led_ctrl_data leds_data[MAX_LEDS_NUMBER];
+static struct led_ctrl_scroll_data leds_scroll_data;
+static struct led_ctrl_breath_data leds_breath_data;
+static enum leds_mode leds_pre_mode = LEDS_MODE_MULTI_INVALID;
+
+static u64 multi_ctrl_calc_next_scroll_bitmap(u64 cur_bitmap)
+{
+	u64 bitmap = cur_bitmap << leds_scroll_data.shifts;
+	u64 ret_bitmap = bitmap & (bits(led_num) - 1);
+
+	if (bitmap > (bits(led_num) - 1))
+		ret_bitmap |= bitmap >> led_num;
+	else
+		ret_bitmap = bitmap;
+
+	return ret_bitmap;
+}
+
+static void multi_ctrl_scroll_work_fn(struct work_struct *ws)
+{
+	struct multi_ctrl_data *ctrl_data;
+	int bit = 0;
+	static u64 update_bits = ~0;
+
+	if (!multi_ctrl_scroll_info->data_valid) {
+		pr_err("%s, scroll data is invalid, exit\n", __func__);
+		return;
+	}
+
+	down_read(&multi_leds_list_lock);
+	if (unlikely(update_bits > (bits(led_num) - 1))) {
+		pr_warn("%s,update_bits is exceed the max led numbers!\n", __func__);
+		update_bits = bits(led_num) - 1;
+	}
+
+	if (leds_pre_mode != LEDS_MODE_MULTI_SCROLL) {
+		update_bits = bits(led_num) - 1;
+		leds_pre_mode = LEDS_MODE_MULTI_SCROLL;
+	}
+
+	list_for_each_entry(ctrl_data, &multi_leds_list, node) {
+		struct led_classdev *led_cdev = ctrl_data->led_cdev;
+
+		if (bit >= led_num) {
+			dev_err(led_cdev->dev, "exceed the max number of muti_leds_list\n");
+			break;
+		}
+
+		cancel_delayed_work_sync(&ctrl_data->delay_trig_work);
+
+		/* only change the led status when bits updated */
+		if (update_bits & bits(bit)) {
+			if (leds_scroll_data.init_bitmap & bits(bit)) {
+				led_trigger_set_by_name(led_cdev,
+							mult_ctrl_trigger[TRIG_DEF_ON]);
+			} else {
+				led_trigger_remove(led_cdev);
+			}
+		}
+
+		bit++;
+	}
+	update_bits = leds_scroll_data.init_bitmap;
+	leds_scroll_data.init_bitmap = multi_ctrl_calc_next_scroll_bitmap(update_bits);
+	update_bits ^= leds_scroll_data.init_bitmap;
+	up_read(&multi_leds_list_lock);
+
+	schedule_delayed_work(&multi_ctrl_scroll_info->scroll_work,
+			      msecs_to_jiffies(leds_scroll_data.shift_delay_ms));
+}
+
+static void multi_ctrl_breath_work_fn(struct work_struct *ws)
+{
+	struct multi_ctrl_data *ctrl_data;
+	int bit = 0;
+	u32 bri_every_step;
+	static u32 pre_brightness = LED_HALF;
+	static u64 pre_bg_bitmap;
+
+	if (!multi_ctrl_breath_info->data_valid) {
+		pre_bg_bitmap = 0;
+		pr_err("%s, breath data is invalid, exit\n", __func__);
+		return;
+	}
+
+	down_read(&multi_leds_list_lock);
+	bri_every_step = LED_FULL / leds_breath_data.breath_steps;
+	list_for_each_entry(ctrl_data, &multi_leds_list, node) {
+		struct led_classdev *led_cdev = ctrl_data->led_cdev;
+
+		if (bit >= led_num) {
+			dev_err(led_cdev->dev, "exceed the max number of muti_leds_list\n");
+			break;
+		}
+
+		cancel_delayed_work_sync(&ctrl_data->delay_trig_work);
+
+		if (leds_breath_data.background_bitmap & bits(bit)) {
+			if (pre_bg_bitmap != leds_breath_data.background_bitmap) {
+				led_trigger_set_by_name(led_cdev,
+							mult_ctrl_trigger[TRIG_DEF_ON]);
+				pre_bg_bitmap = leds_breath_data.background_bitmap;
+			}
+		}
+
+		/* only update the leds indicated by bitmap*/
+		if (leds_breath_data.breath_bitmap & bits(bit)) {
+			led_cdev->brightness =
+				(pre_brightness + bri_every_step) % LED_FULL;
+			if (leds_pre_mode != LEDS_MODE_MULTI_BREATH)
+				led_trigger_set_by_name(led_cdev,
+							mult_ctrl_trigger[TRIG_DEF_ON]);
+			else
+				__led_set_brightness(led_cdev,
+						     led_cdev->brightness);
+		}
+		bit++;
+	}
+	pre_brightness = (pre_brightness + bri_every_step) % LED_FULL;
+	leds_pre_mode = LEDS_MODE_MULTI_BREATH;
+	up_read(&multi_leds_list_lock);
+
+	schedule_delayed_work(&multi_ctrl_breath_info->breath_work,
+			      msecs_to_jiffies(leds_breath_data.change_delay_ms));
+}
 
 static void multi_ctrl_delay_trig_func(struct work_struct *ws)
 {
@@ -65,7 +212,7 @@ static void multi_ctrl_delay_trig_func(struct work_struct *ws)
 
 	led_trigger_set_by_name(led_cdev, mult_ctrl_trigger[led_data->trigger]);
 
-	if (led_data->trigger == TRIGGER_ONESHOT)
+	if (led_data->trigger == TRIG_ONESHOT)
 		led_blink_set_oneshot(led_cdev,
 				      &led_cdev->blink_delay_on,
 				      &led_cdev->blink_delay_off, 0);
@@ -76,18 +223,18 @@ static int multi_ctrl_set_led(struct multi_ctrl_data *ctrl_data)
 	struct led_ctrl_data *led_data = ctrl_data->data;
 	struct led_classdev *led_cdev = ctrl_data->led_cdev;
 
-	if (!led_data || led_data->trigger >= TRIGGER_MAX)
+	if (!led_data || led_data->trigger >= TRIG_MAX)
 		return -EINVAL;
 
 	if (led_data->delayed_trigger_ms &&
-	    (led_data->trigger == TRIGGER_TIMER ||
-	    led_data->trigger == TRIGGER_ONESHOT)) {
+	    (led_data->trigger == TRIG_TIMER ||
+	    led_data->trigger == TRIG_ONESHOT)) {
 		schedule_delayed_work(&ctrl_data->delay_trig_work,
 				      msecs_to_jiffies(led_data->delayed_trigger_ms));
 	} else {
 		/* set brightness*/
 		if (led_data->brightness == LED_OFF ||
-		    led_data->trigger == TRIGGER_NONE) {
+		    led_data->trigger == TRIG_NONE) {
 			led_trigger_remove(led_cdev);
 			return 0;
 		}
@@ -99,13 +246,21 @@ static int multi_ctrl_set_led(struct multi_ctrl_data *ctrl_data)
 		led_trigger_set_by_name(led_cdev,
 					mult_ctrl_trigger[led_data->trigger]);
 
-		if (led_data->trigger == TRIGGER_ONESHOT)
+		if (led_data->trigger == TRIG_ONESHOT)
 			led_blink_set_oneshot(led_cdev,
 					      &led_cdev->blink_delay_on,
 					      &led_cdev->blink_delay_off, 0);
 	}
 
 	return 0;
+}
+
+static void cancel_all_work_sync(void)
+{
+	multi_ctrl_scroll_info->data_valid = false;
+	multi_ctrl_breath_info->data_valid = false;
+	cancel_delayed_work_sync(&multi_ctrl_scroll_info->scroll_work);
+	cancel_delayed_work_sync(&multi_ctrl_breath_info->breath_work);
 }
 
 static int multi_ctrl_open(struct inode *inode, struct file *file)
@@ -124,24 +279,33 @@ static long multi_ctrl_ioctl(struct file *file,
 	int i = 0;
 	int ret = 0;
 
+	cancel_all_work_sync();
+
 	switch (cmd) {
 	case LEDS_MULTI_CTRL_IOCTL_MULTI_SET:
 	{
 		struct led_ctrl_data *argp = (struct led_ctrl_data *)arg;
 		struct multi_ctrl_data *ctrl_data;
+		bool mode_changed = false;
 
 		down_read(&multi_leds_list_lock);
+
+		if (leds_pre_mode != LEDS_MODE_MULTI_SET) {
+			leds_pre_mode = LEDS_MODE_MULTI_SET;
+			mode_changed = true;
+		}
+
 		if (copy_from_user(leds_data, argp,
 				   sizeof(struct led_ctrl_data) * led_num)) {
 			pr_err("%s, copy from user failed\n", __func__);
 			up_read(&multi_leds_list_lock);
-			return -EFAULT;
+			ret = -EFAULT;
+			break;
 		}
 		list_for_each_entry(ctrl_data, &multi_leds_list, node) {
 			struct led_classdev *led_cdev = ctrl_data->led_cdev;
 
-			if (delayed_work_pending(&ctrl_data->delay_trig_work))
-				cancel_delayed_work_sync(&ctrl_data->delay_trig_work);
+			cancel_delayed_work_sync(&ctrl_data->delay_trig_work);
 
 			if (i >= led_num) {
 				dev_err(led_cdev->dev, "exceed the max number of muti_leds_list\n");
@@ -149,8 +313,10 @@ static long multi_ctrl_ioctl(struct file *file,
 			}
 			ctrl_data->data = &leds_data[i++];
 			if (!memcmp(&ctrl_data->old_data, ctrl_data->data,
-				    sizeof(struct led_ctrl_data)))
+				    sizeof(struct led_ctrl_data)) &&
+				    !mode_changed) {
 				continue;
+			}
 			multi_ctrl_set_led(ctrl_data);
 			memcpy(&ctrl_data->old_data, ctrl_data->data,
 			       sizeof(struct led_ctrl_data));
@@ -162,6 +328,54 @@ static long multi_ctrl_ioctl(struct file *file,
 	{
 		 int *argp = (int *)arg;
 		*argp = led_num;
+		break;
+	}
+	case LEDS_MULTI_CTRL_IOCTL_MULTI_SET_SCROLL:
+	{
+		if (led_num > sizeof(leds_scroll_data.init_bitmap) * 8) {
+			pr_err("registered leds is exeeded the size of scroll bitmap!\n");
+			ret = -EINVAL;
+			break;
+		}
+
+		if (copy_from_user(&leds_scroll_data,
+				   (struct led_ctrl_scroll_data *)arg,
+				   sizeof(struct led_ctrl_scroll_data))) {
+			pr_err("%s, set scroll mode, copy from user failed\n",
+			       __func__);
+			ret = -EFAULT;
+			break;
+		}
+		multi_ctrl_scroll_info->data_valid = true;
+		schedule_delayed_work(&multi_ctrl_scroll_info->scroll_work,
+				      msecs_to_jiffies(leds_scroll_data.shift_delay_ms));
+		break;
+	}
+	case LEDS_MULTI_CTRL_IOCTL_MULTI_SET_BREATH:
+	{
+		if (led_num > sizeof(leds_breath_data.breath_bitmap) * 8) {
+			pr_err("registered leds is exeeded the size of breath bitmap!\n");
+			ret = -EINVAL;
+			break;
+		}
+
+		/*
+		 * background color bitmap will be set to default-on mode,
+		 * so we can't set a bit in background bits if it's one of
+		 * bit in breath color bitmap.
+		 */
+		leds_breath_data.background_bitmap &=
+					!leds_breath_data.breath_bitmap;
+		if (copy_from_user(&leds_breath_data,
+				   (struct led_ctrl_breath_data *)arg,
+				   sizeof(leds_breath_data))) {
+			pr_err("%s, set breath mode, copy from user failed\n",
+			       __func__);
+			ret = -EFAULT;
+			break;
+		}
+		multi_ctrl_breath_info->data_valid = true;
+		schedule_delayed_work(&multi_ctrl_breath_info->breath_work, 0);
 		break;
 	}
 	default:
@@ -234,15 +448,41 @@ int led_multi_control_init(struct device *dev)
 {
 	int ret;
 
+	multi_ctrl_scroll_info =
+			kzalloc(sizeof(*multi_ctrl_scroll_info), GFP_KERNEL);
+	if (!multi_ctrl_scroll_info) {
+		pr_err("malloc multi_ctrl_scroll_info failed\n");
+		return -ENOMEM;
+	}
+	multi_ctrl_breath_info =
+			kzalloc(sizeof(*multi_ctrl_breath_info), GFP_KERNEL);
+	if (!multi_ctrl_breath_info) {
+		kfree(multi_ctrl_scroll_info);
+		multi_ctrl_scroll_info = NULL;
+		pr_err("malloc leds_breath_info failed\n");
+		return -ENOMEM;
+	}
+
 	multi_ctrl_miscdev.fops = &multi_ctrl_ops;
 	multi_ctrl_miscdev.parent = dev;
 	multi_ctrl_miscdev.name = "led_multi_ctrl";
 	ret = misc_register(&multi_ctrl_miscdev);
 	if (ret < 0) {
-		pr_err("multi_control_init - Can't allocate misc dev for led multi-control.\n");
+		kfree(multi_ctrl_breath_info);
+		multi_ctrl_breath_info = NULL;
+		kfree(multi_ctrl_scroll_info);
+		multi_ctrl_scroll_info = NULL;
+		pr_err("Can't register misc dev for led multi-control.\n");
 		return ret;
 	}
 	led_num = 0;
+
+	multi_ctrl_scroll_info->data = &leds_scroll_data;
+	INIT_DELAYED_WORK(&multi_ctrl_scroll_info->scroll_work,
+			  multi_ctrl_scroll_work_fn);
+	multi_ctrl_breath_info->data = &leds_breath_data;
+	INIT_DELAYED_WORK(&multi_ctrl_breath_info->breath_work,
+			  multi_ctrl_breath_work_fn);
 
 	return 0;
 }
@@ -250,6 +490,16 @@ int led_multi_control_init(struct device *dev)
 int led_multi_control_exit(struct device *dev)
 {
 	misc_deregister(&multi_ctrl_miscdev);
+	cancel_delayed_work_sync(&multi_ctrl_scroll_info->scroll_work);
+	cancel_delayed_work_sync(&multi_ctrl_breath_info->breath_work);
+	if (multi_ctrl_scroll_info) {
+		kfree(multi_ctrl_scroll_info);
+		multi_ctrl_scroll_info = NULL;
+	}
+	if (multi_ctrl_breath_info) {
+		kfree(multi_ctrl_breath_info);
+		multi_ctrl_breath_info = NULL;
+	}
 
 	return 0;
 }
