@@ -1,6 +1,8 @@
 #ifndef __MACH_ROCKCHIP_CPU_H
 #define __MACH_ROCKCHIP_CPU_H
 
+#include <linux/types.h>
+
 extern unsigned long rockchip_soc_id;
 
 static inline bool cpu_is_rockchip(void)
