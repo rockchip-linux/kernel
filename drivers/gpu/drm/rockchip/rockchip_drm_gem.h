@@ -60,4 +60,12 @@ int rockchip_drm_gem_dumb_destroy(struct drm_file *file_priv,
 				  unsigned int handle);
 int rockchip_drm_gem_object_mmap(struct drm_gem_object *obj,
 				 struct vm_area_struct *vma);
+struct drm_gem_object *rockchip_drm_gem_prime_import(struct drm_device *dev,
+					    struct dma_buf *dma_buf, int prime_fd);
+int rockchip_drm_gem_prime_fd_to_handle(struct drm_device *dev,
+					struct drm_file *file_priv,
+					int prime_fd, uint32_t *handle);
+extern struct dma_buf_ops drm_gem_prime_dmabuf_ops;
+extern int drm_prime_add_buf_handle(struct drm_prime_file_private *prime_fpriv,
+				    struct dma_buf *dma_buf, uint32_t handle);
 #endif /* _ROCKCHIP_DRM_GEM_H */

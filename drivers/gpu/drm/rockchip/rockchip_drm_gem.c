@@ -147,12 +147,20 @@ err_free_rk_obj:
 void rockchip_gem_free_object(struct drm_gem_object *obj)
 {
 	struct rockchip_gem_object *rk_obj;
+	struct drm_map_list *list = &obj->map_list;
+
+	if (!list->file_offset_node) {
+		DRM_ERROR("list->file_offset_node is null\n");
+		return;
+	}
 
 	drm_gem_free_mmap_offset(obj);
 
 	rk_obj = to_rockchip_gem_obj(obj);
 
 	rockchip_gem_free_buf(rk_obj);
+	if (obj->import_attach)
+		drm_prime_gem_destroy(obj, NULL);
 
 	kfree(rk_obj);
 }
@@ -303,6 +311,132 @@ struct sg_table *rockchip_gem_prime_get_sg_table(struct drm_gem_object *obj)
 		memcpy(sg, ion_sg, sizeof(*sg));
 
 	return sgt;
+}
+
+static struct rockchip_gem_object *
+rockchip_gem_alloc_object(struct drm_device *drm, unsigned int size)
+{
+	struct rockchip_gem_object *rk_obj;
+	struct drm_gem_object *obj;
+
+	size = round_up(size, PAGE_SIZE);
+
+	rk_obj = kzalloc(sizeof(*rk_obj), GFP_KERNEL);
+	if (!rk_obj)
+		return ERR_PTR(-ENOMEM);
+
+	obj = &rk_obj->base;
+
+	drm_gem_object_init(drm, obj, size);
+
+	return rk_obj;
+}
+
+struct drm_gem_object *rockchip_drm_gem_prime_import(struct drm_device *dev,
+						     struct dma_buf *dma_buf,
+						     int prime_fd)
+{
+	struct dma_buf_attachment *attach;
+	struct drm_gem_object *obj;
+	int ret;
+	struct rockchip_gem_object *rk_obj;
+	struct rockchip_drm_private *priv = dev->dev_private;
+
+	if (dma_buf->ops == &drm_gem_prime_dmabuf_ops) {
+		obj = dma_buf->priv;
+		if (obj->dev == dev) {
+			/*
+			 * Importing dmabuf exported from out own gem increases
+			 * refcount on gem itself instead of f_count of dmabuf.
+			 */
+			drm_gem_object_reference(obj);
+			return obj;
+		}
+	}
+
+	attach = dma_buf_attach(dma_buf, dev->dev);
+	if (IS_ERR(attach))
+		return ERR_PTR(PTR_ERR(attach));
+
+	get_dma_buf(dma_buf);
+
+	rk_obj = rockchip_gem_alloc_object(dev, dma_buf->size);
+	if (IS_ERR(rk_obj)) {
+		return ERR_CAST(rk_obj);
+		goto fail_unmap;
+	}
+	obj  = &rk_obj->base;
+	rk_obj->handle = ion_import_dma_buf(priv->ion_client, prime_fd);
+	if (IS_ERR(rk_obj->handle)) {
+		pr_info("%s: Could not import handle: %ld\n",
+			__func__, (long)rk_obj->handle);
+	}
+
+	obj->import_attach = attach;
+	drm_gem_create_mmap_offset(obj);
+	return obj;
+
+fail_unmap:
+	dma_buf_detach(dma_buf, attach);
+	dma_buf_put(dma_buf);
+
+	return ERR_PTR(ret);
+}
+
+int rockchip_drm_gem_prime_fd_to_handle(struct drm_device *dev,
+					struct drm_file *file_priv,
+					int prime_fd, uint32_t *handle)
+{
+	struct dma_buf *dma_buf;
+	struct drm_gem_object *obj;
+	int ret;
+
+	dma_buf = dma_buf_get(prime_fd);
+	if (IS_ERR(dma_buf))
+		return PTR_ERR(dma_buf);
+
+	mutex_lock(&file_priv->prime.lock);
+
+	ret = drm_prime_lookup_buf_handle(&file_priv->prime,
+			dma_buf, handle);
+	if (!ret) {
+		ret = 0;
+		goto out_put;
+	}
+
+	/* never seen this one, need to import */
+	/* obj = dev->driver->gem_prime_import(dev, dma_buf); */
+	obj = rockchip_drm_gem_prime_import(dev, dma_buf, prime_fd);
+	if (IS_ERR(obj)) {
+		ret = PTR_ERR(obj);
+		goto out_put;
+	}
+
+	ret = drm_gem_handle_create(file_priv, obj, handle);
+	drm_gem_object_unreference_unlocked(obj);
+	if (ret)
+		goto out_put;
+
+	ret = drm_prime_add_buf_handle(&file_priv->prime,
+			dma_buf, *handle);
+	if (ret)
+		goto fail;
+
+	mutex_unlock(&file_priv->prime.lock);
+
+	dma_buf_put(dma_buf);
+
+	return 0;
+
+fail:
+	/* hmm, if driver attached, we are relying on the free-object path
+	 * to detach.. which seems ok..
+	 */
+	drm_gem_object_handle_unreference_unlocked(obj);
+out_put:
+	dma_buf_put(dma_buf);
+	mutex_unlock(&file_priv->prime.lock);
+	return ret;
 }
 
 void *rockchip_gem_prime_vmap(struct drm_gem_object *obj)

@@ -62,7 +62,7 @@ struct drm_prime_member {
 	struct dma_buf *dma_buf;
 	uint32_t handle;
 };
-static int drm_prime_add_buf_handle(struct drm_prime_file_private *prime_fpriv, struct dma_buf *dma_buf, uint32_t handle);
+int drm_prime_add_buf_handle(struct drm_prime_file_private *prime_fpriv, struct dma_buf *dma_buf, uint32_t handle);
 
 static struct sg_table *drm_gem_map_dma_buf(struct dma_buf_attachment *attach,
 		enum dma_data_direction dir)
@@ -145,7 +145,7 @@ static int drm_gem_dmabuf_mmap(struct dma_buf *dma_buf,
 	return -EINVAL;
 }
 
-static const struct dma_buf_ops drm_gem_prime_dmabuf_ops =  {
+const struct dma_buf_ops drm_gem_prime_dmabuf_ops =  {
 	.map_dma_buf = drm_gem_map_dma_buf,
 	.unmap_dma_buf = drm_gem_unmap_dma_buf,
 	.release = drm_gem_dmabuf_release,
@@ -492,7 +492,7 @@ void drm_prime_destroy_file_private(struct drm_prime_file_private *prime_fpriv)
 }
 EXPORT_SYMBOL(drm_prime_destroy_file_private);
 
-static int drm_prime_add_buf_handle(struct drm_prime_file_private *prime_fpriv, struct dma_buf *dma_buf, uint32_t handle)
+int drm_prime_add_buf_handle(struct drm_prime_file_private *prime_fpriv, struct dma_buf *dma_buf, uint32_t handle)
 {
 	struct drm_prime_member *member;
 
