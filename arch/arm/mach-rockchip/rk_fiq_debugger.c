@@ -344,8 +344,18 @@ static void fiq_debugger_uart_irq_tf(struct sm_nsec_ctx *nsec_ctx)
 	fiq_pt_regs.ARM_ip = nsec_ctx->r12;
 	fiq_pt_regs.ARM_sp = nsec_ctx->svc_sp;
 	fiq_pt_regs.ARM_lr = nsec_ctx->svc_lr;
-	fiq_pt_regs.ARM_pc = nsec_ctx->mon_lr;
 	fiq_pt_regs.ARM_cpsr = nsec_ctx->mon_spsr;
+
+	/*
+	 * 'nsec_ctx->mon_lr' is not the fiq break point's PC, because it will
+	 * be override as 'psci_fiq_debugger_uart_irq_tf_cb' for optee-os to
+	 * jump to fiq_debugger handler.
+	 *
+	 * As 'nsec_ctx->und_lr' is not used for kernel, so optee-os uses it to
+	 * deliver fiq break point's PC.
+	 *
+	 */
+	fiq_pt_regs.ARM_pc = nsec_ctx->und_lr;
 
 	fiq_debugger_fiq_tf(&fiq_pt_regs);
 }
