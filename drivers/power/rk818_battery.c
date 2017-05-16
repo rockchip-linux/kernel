@@ -80,6 +80,10 @@ module_param_named(dbg_level, dbg_enable, int, 0644);
 #define INVALID_COFFSET_MAX		0x980
 #define INVALID_VOL_THRESD		2500
 #define DEFAULT_ZERO_RESERVE_DSOC	10
+#define DEFAULT_TS2_THRESHOLD_VOL	4350
+#define DEFAULT_TS2_VALID_VOL		1000
+#define DEFAULT_TS2_VOL_MULTI		0
+#define DEFAULT_TS2_CHECK_CNT		5
 
 /*MODE_VIRTUAL params*/
 #define VIRTUAL_CURRENT			1000
@@ -157,12 +161,14 @@ struct rk818_battery {
 	struct battery_platform_data	*pdata;
 	struct workqueue_struct		*bat_monitor_wq;
 	struct workqueue_struct		*charger_wq;
+	struct workqueue_struct		*ts2_wq;
 	struct delayed_work		bat_delay_work;
 	struct delayed_work		dc_delay_work;
 	struct delayed_work		bc_delay_work;
 	struct delayed_work		calib_delay_work;
 	struct delayed_work		term_mode_work;
 	struct delayed_work		irq_delay_work;
+	struct delayed_work		ts2_vol_work;
 	struct wake_lock		wake_lock;
 	struct notifier_block		bc_detect_nb;
 	struct notifier_block           fb_nb;
@@ -185,6 +191,7 @@ struct rk818_battery {
 	int				voltage_relax;
 	int				voltage_k;/* VCALIB0 VCALIB1 */
 	int				voltage_b;
+	u32				voltage_ts2;
 	int				remain_cap;
 	int				design_cap;
 	int				nac;
@@ -1276,6 +1283,22 @@ static void rk818_bat_set_current(struct rk818_battery *di, int charge_current)
 	rk818_bat_write(di, RK818_USB_CTRL_REG, usb_ctrl);
 }
 
+static int rk818_bat_get_ts2_voltage(struct rk818_battery *di)
+{
+	u32 val = 0;
+	int voltage;
+
+	val |= rk818_bat_read(di, RK818_TS2_ADC_REGL) << 0;
+	val |= rk818_bat_read(di, RK818_TS2_ADC_REGH) << 8;
+
+	/* refer voltage 2.2V, 12bit adc accuracy */
+	voltage = val * 2200 * di->pdata->ts2_vol_multi / 4095;
+
+	DBG("********* ts2 adc=%d, vol=%d\n", val, voltage);
+
+	return voltage;
+}
+
 static void rk818_chrg_term_mode_set(struct rk818_battery *di, int mode)
 {
 	u8 buf, mask = CHRG_TERM_MODE_MSK;
@@ -1297,6 +1320,63 @@ static void rk818_term_mode_work(struct work_struct *work)
 		rk818_chrg_term_mode_set(di, CHRG_TERM_DIG_SIGNAL);
 	else
 		rk818_chrg_term_mode_set(di, CHRG_TERM_ANA_SIGNAL);
+}
+
+static void rk818_ts2_vol_work(struct work_struct *work)
+{
+	struct rk818_battery *di;
+	int ts2_vol, input_current, invalid_cnt = 0, confirm_cnt = 0;
+
+	di = container_of(work, struct rk818_battery, ts2_vol_work.work);
+
+	input_current = INPUT_CUR80MA;
+	while (input_current < di->chrg_cur_input) {
+		msleep(100);
+		ts2_vol = rk818_bat_get_ts2_voltage(di);
+
+		/* filter invalid voltage */
+		if (ts2_vol <= DEFAULT_TS2_VALID_VOL) {
+			invalid_cnt++;
+			DBG("%s: invalid ts2 voltage: %d\n, cnt=%d",
+			    __func__, ts2_vol, invalid_cnt);
+			if (invalid_cnt < DEFAULT_TS2_CHECK_CNT)
+				continue;
+
+			/* if fail, set max input current as default */
+			input_current = di->chrg_cur_input;
+			rk818_bat_set_current(di, input_current);
+			break;
+		}
+
+		/* update input current */
+		if (ts2_vol >= DEFAULT_TS2_THRESHOLD_VOL) {
+			/* update input current */
+			input_current++;
+			rk818_bat_set_current(di, input_current);
+			DBG("********* input=%d\n",
+			    CHRG_CUR_INPUT[input_current & 0x0f]);
+		} else {
+			/* confirm lower threshold voltage */
+			confirm_cnt++;
+			if (confirm_cnt < DEFAULT_TS2_CHECK_CNT) {
+				DBG("%s: confirm ts2 voltage: %d\n, cnt=%d",
+				    __func__, ts2_vol, confirm_cnt);
+				continue;
+			}
+
+			/* trigger threshold, so roll back 1 step */
+			input_current--;
+			if (input_current == INPUT_CUR80MA ||
+			    input_current < 0)
+				input_current = INPUT_CUR450MA;
+			rk818_bat_set_current(di, input_current);
+			break;
+		}
+	}
+
+	if (input_current != di->chrg_cur_input)
+		BAT_INFO("adjust input current: %dma\n",
+			 CHRG_CUR_INPUT[input_current & 0x0f]);
 }
 
 static void rk818_bat_set_chrg_param(struct rk818_battery *di,
@@ -1340,23 +1420,39 @@ static void rk818_bat_set_chrg_param(struct rk818_battery *di,
 		di->ac_in = ONLINE;
 		di->usb_in = OFFLINE;
 		di->prop_val = POWER_SUPPLY_STATUS_CHARGING;
-		if (di->pdata->lp_input_current &&
-		    di->dsoc >= di->pdata->lp_soc_min &&
-		    di->dsoc <= di->pdata->lp_soc_max)
-			rk818_bat_set_current(di, di->chrg_cur_lp_input);
-		else
-			rk818_bat_set_current(di, di->chrg_cur_input);
+		if (di->pdata->ts2_vol_multi) {
+			rk818_bat_set_current(di, INPUT_CUR450MA);
+			queue_delayed_work(di->ts2_wq,
+					   &di->ts2_vol_work,
+					   msecs_to_jiffies(0));
+		} else {
+			if (di->pdata->lp_input_current &&
+			    di->dsoc >= di->pdata->lp_soc_min &&
+			    di->dsoc <= di->pdata->lp_soc_max)
+				rk818_bat_set_current(di,
+						      di->chrg_cur_lp_input);
+			else
+				rk818_bat_set_current(di, di->chrg_cur_input);
+		}
 		power_supply_changed(&di->ac);
 		break;
 	case DC_TYPE_DC_CHARGER:
 		di->dc_in = ONLINE;
 		di->prop_val = POWER_SUPPLY_STATUS_CHARGING;
-		if (di->pdata->lp_input_current &&
-		    di->dsoc >= di->pdata->lp_soc_min &&
-		    di->dsoc <= di->pdata->lp_soc_max)
-			rk818_bat_set_current(di, di->chrg_cur_lp_input);
-		else
-			rk818_bat_set_current(di, di->chrg_cur_input);
+		if (di->pdata->ts2_vol_multi) {
+			rk818_bat_set_current(di, INPUT_CUR450MA);
+			queue_delayed_work(di->ts2_wq,
+					   &di->ts2_vol_work,
+					   msecs_to_jiffies(0));
+		} else {
+			if (di->pdata->lp_input_current &&
+			    di->dsoc >= di->pdata->lp_soc_min &&
+			    di->dsoc <= di->pdata->lp_soc_max)
+				rk818_bat_set_current(di,
+						      di->chrg_cur_lp_input);
+			else
+				rk818_bat_set_current(di, di->chrg_cur_input);
+		}
 		power_supply_changed(&di->ac);
 		break;
 	case DC_TYPE_NONE_CHARGER:
@@ -2355,7 +2451,7 @@ static void rk818_bat_debug_info(struct rk818_battery *di)
 	    "Dsoc=%d, Rsoc=%d, Vavg=%d, Iavg=%d, Cap=%d, Fcc=%d, d=%d\n"
 	    "K=%d, Mode=%s, Oldcap=%d, Is=%d, Ip=%d, Vs=%d\n"
 	    "AC=%d, USB=%d, DC=%d, OTG=%d, PROP=%d, rd=%d, wr=%d, "
-	    "Tfb=%d, Tbat=%d\n"
+	    "Tfb=%d, Tbat=%d, ts2_vol=%d\n"
 	    "off:i=0x%x, c=0x%x, p=%d, Rbat=%d, age_ocv_cap=%d, fb=%d\n"
 	    "adp:in=%lu, out=%lu, finish=%lu, boot_min=%lu, sleep_min=%lu, adc=%d\n"
 	    "bat:%s, meet: soc=%d, calc: dsoc=%d, rsoc=%d, Vocv=%d\n"
@@ -2372,6 +2468,7 @@ static void rk818_bat_debug_info(struct rk818_battery *di)
 	    di->ac_in, di->usb_in, di->dc_in, di->otg_in, di->prop_val,
 	    di->dbg_i2c_rd_err, di->dbg_i2c_wr_err,
 	    FEED_BACK_TEMP[(thermal & 0x0c) >> 2], di->temperature,
+	    di->voltage_ts2,
 	    rk818_bat_get_ioffset(di), rk818_bat_get_coffset(di),
 	    di->poffset, di->bat_res, di->age_adjust_cap, di->fb_blank,
 	    base2min(di->plug_in_base), base2min(di->plug_out_base),
@@ -3040,6 +3137,7 @@ static void rk818_bat_update_info(struct rk818_battery *di)
 	di->voltage_relax = rk818_bat_get_relax_voltage(di);
 	di->rsoc = rk818_bat_get_rsoc(di);
 	di->remain_cap = rk818_bat_get_coulomb_cap(di);
+	di->voltage_ts2 = rk818_bat_get_ts2_voltage(di);
 
 	/* smooth charge */
 	if (di->remain_cap > di->fcc) {
@@ -3569,9 +3667,15 @@ static void rk818_bat_init_charger(struct rk818_battery *di)
 				WQ_MEM_RECLAIM | WQ_FREEZABLE,
 				"rk818-bat-charger-wq");
 
+	di->ts2_wq = alloc_ordered_workqueue("%s",
+				WQ_MEM_RECLAIM | WQ_FREEZABLE,
+				"rk818-bat-ts2-wq");
+
 	INIT_DELAYED_WORK(&di->dc_delay_work, rk818_bat_dc_delay_work);
 	INIT_DELAYED_WORK(&di->bc_delay_work, rk818_bat_bc_delay_work);
 	INIT_DELAYED_WORK(&di->term_mode_work, rk818_term_mode_work);
+	INIT_DELAYED_WORK(&di->ts2_vol_work, rk818_ts2_vol_work);
+
 	di->bc_detect_nb.notifier_call = rk818_bat_usb_notifier_call;
 	rk_bc_detect_notifier_register(&di->bc_detect_nb, &di->charge_otg);
 
@@ -3626,6 +3730,27 @@ static void rk818_bat_init_ts1_detect(struct rk818_battery *di)
 	rk818_bat_write(di, RK818_ADC_CTRL_REG, buf);
 }
 
+static void rk818_bat_init_ts2_detect(struct rk818_battery *di)
+{
+	u8 buf;
+
+	if (!di->pdata->ts2_vol_multi)
+		return;
+
+	/* TS2 adc mode */
+	buf = rk818_bat_read(di, RK818_TS_CTRL_REG);
+	buf |= TS2_FUN_ADC;
+	rk818_bat_write(di, RK818_TS_CTRL_REG, buf);
+
+	/* TS2 adc enable */
+	buf = rk818_bat_read(di, RK818_ADC_CTRL_REG);
+	buf |= ADC_TS2_EN;
+	rk818_bat_write(di, RK818_ADC_CTRL_REG, buf);
+
+	BAT_INFO("eanble ts2 voltage detect, multi=%d\n",
+		 di->pdata->ts2_vol_multi);
+}
+
 static void rk818_bat_init_fg(struct rk818_battery *di)
 {
 	rk818_bat_enable_gauge(di);
@@ -3635,6 +3760,7 @@ static void rk818_bat_init_fg(struct rk818_battery *di)
 	rk818_bat_set_ioffset_sample(di);
 	rk818_bat_set_ocv_sample(di);
 	rk818_bat_init_ts1_detect(di);
+	rk818_bat_init_ts2_detect(di);
 	rk818_bat_init_rsoc(di);
 	rk818_bat_init_coulomb_cap(di, di->nac);
 	rk818_bat_init_age_algorithm(di);
@@ -3691,6 +3817,7 @@ static int rk818_bat_parse_dt(struct rk818_battery *di)
 	pdata->fb_temp = DEFAULT_FB_TEMP;
 	pdata->energy_mode = DEFAULT_ENERGY_MODE;
 	pdata->zero_reserve_dsoc = DEFAULT_ZERO_RESERVE_DSOC;
+	pdata->ts2_vol_multi = DEFAULT_TS2_VOL_MULTI;
 
 	/* parse necessary param */
 	if (!of_find_property(np, "ocv_table", &length)) {
@@ -3833,6 +3960,9 @@ static int rk818_bat_parse_dt(struct rk818_battery *di)
 	if (ret < 0)
 		dev_err(dev, "power_off_thresd missing!\n");
 
+	ret = of_property_read_u32(np, "ts2_vol_multi",
+				   &pdata->ts2_vol_multi);
+
 	if (!of_find_property(np, "dc_det_gpio", &length)) {
 		BAT_INFO("not support dc\n");
 		pdata->dc_det_pin = -1;
@@ -3893,6 +4023,7 @@ static int rk818_bat_parse_dt(struct rk818_battery *di)
 	    "max_soc_offset:%d\n"
 	    "virtual_power:%d\n"
 	    "pwroff_vol:%d\n"
+	    "ts2_vol_multi:%d\n"
 	    "ntc_size=%d\n"
 	    "ntc_degree_from:%d\n"
 	    "ntc_degree_to:%d\n",
@@ -3903,7 +4034,7 @@ static int rk818_bat_parse_dt(struct rk818_battery *di)
 	    pdata->zero_algorithm_vol, pdata->zero_reserve_dsoc,
 	    pdata->monitor_sec, pdata->power_dc2otg,
 	    pdata->max_soc_offset, pdata->bat_mode, pdata->pwroff_vol,
-	    pdata->ntc_size, pdata->ntc_degree_from,
+	    pdata->ts2_vol_multi, pdata->ntc_size, pdata->ntc_degree_from,
 	    pdata->ntc_degree_from + pdata->ntc_size - 1
 	    );
 
@@ -3980,8 +4111,10 @@ irq_fail:
 	cancel_delayed_work(&di->calib_delay_work);
 	cancel_delayed_work(&di->irq_delay_work);
 	cancel_delayed_work(&di->term_mode_work);
+	cancel_delayed_work(&di->ts2_vol_work);
 	destroy_workqueue(di->bat_monitor_wq);
 	destroy_workqueue(di->charger_wq);
+	destroy_workqueue(di->ts2_wq);
 	rk818_bat_unregister_fb_notify(di);
 	rk_bc_detect_notifier_unregister(&di->bc_detect_nb);
 	del_timer(&di->caltimer);
@@ -4111,6 +4244,8 @@ static void rk818_battery_shutdown(struct platform_device *dev)
 	cancel_delayed_work_sync(&di->bat_delay_work);
 	cancel_delayed_work_sync(&di->calib_delay_work);
 	cancel_delayed_work_sync(&di->irq_delay_work);
+	cancel_delayed_work_sync(&di->ts2_vol_work);
+
 	rk818_bat_unregister_fb_notify(di);
 	rk_bc_detect_notifier_unregister(&di->bc_detect_nb);
 	del_timer(&di->caltimer);

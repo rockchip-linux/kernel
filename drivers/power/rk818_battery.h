@@ -107,6 +107,9 @@
 /* RK818_TS_CTRL_REG */
 #define GG_EN			BIT(7)
 #define ADC_CUR_EN		BIT(6)
+#define TS2_FUN_ADC		BIT(5)
+
+/* RK818_ADC_CTRL_REG */
 #define ADC_TS1_EN		BIT(5)
 #define ADC_TS2_EN		BIT(4)
 
@@ -180,6 +183,8 @@
 
 /* RK818_CHGR_CUR_INPUT */
 #define INPUT_CUR450MA		(0x00)
+#define INPUT_CUR80MA		(0x01)
+#define INPUT_CUR850MA		(0x02)
 #define INPUT_CUR2000MA		(0x07)
 #define CHRG_CUR1400MA		(0x02)
 #define CHRG_VOL4200MV		(0x03 << 4)
@@ -228,6 +233,7 @@ struct battery_platform_data {
 	u32 cccv_hour;
 	int dc_det_pin;
 	u8  dc_det_level;
+	u32 ts2_vol_multi;
 };
 
 enum work_mode {
