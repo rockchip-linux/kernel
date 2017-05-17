@@ -118,10 +118,12 @@
 };
 
 &nandc {
+	compatible = "rockchip,nandc";
 	status = "okay"; // used nand set "okay" ,used emmc set "disabled"
 };
 
 &nandc0reg {
+	compatible = "rockchip,nandc";
 	status = "disabled"; // used nand set "disabled" ,used emmc set "okay"
 };
 
