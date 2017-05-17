@@ -12,12 +12,11 @@ Required properties:
   according to "Speed Bin" in ddr4 datasheet, DO NOT use smaller "Speed Bin" than
   ddr4 exactly is.
 
-- sr_idle : configure the SR_IDLE value, defined the selfrefresh idle period,
-  memories are places into self-refresh mode if bus is idle for SR_IDLE*32 DFI
-  clocks (DFI clocks freq is half of dram's clocks), defaule value is "1"
+- sr_idle : no used for rk322xh, because rk322xh controller not support sr_idle
+  modify after system boot.
 
-- pd_idle : config the PD_IDLE value, defined the power-down idle period, memories
-  are places into power-down mode if bus is idle for PD_IDLE*32 DFI clocks.
+- pd_idle : no used for rk322xh, because rk322xh controller not support pd_idle
+  modify after system boot.
 
 - sr_mc_gate_idle : no used for rk322xh
 
@@ -26,28 +25,32 @@ Required properties:
 - standby_idle: no used for rk322xh
 
 - auto_pd_dis_freq: it's defined the frequency of disable auto power-down
-  function in MHz (Mega Hz). when ddr work frequency small than
+  function in MHz (Mega Hz). when ddr work frequency greater than or equal
   this setting value, will disable auto power-down function.
 
 - auto_sr_dis_freq: it's defined the frequency of disable auto self-refresh
-  function in MHz (Mega Hz). when ddr work frequency small than
+  function in MHz (Mega Hz). when ddr work frequency greater than or equal
   this setting value, will disable auto self-refresh function.
 
 - ddr3_dll_dis_freq : it's defined the DDR3 dll bypass frequency in MHz (Mega Hz),
-  when ddr freq less than this setting value, ddr3 dll will bypssed
+  when ddr freq less than or equal this setting value, ddr3 dll will bypssed
   note: if dll was bypassed, the odt also stop working.
 
 - ddr4_dll_dis_freq : it's defined the DDR4 dll bypass frequency in MHz (Mega Hz),
-  when ddr freq less than this setting value, ddr4 dll will bypssed
+  when ddr freq less than or equal this setting value, ddr4 dll will bypssed
   note: if dll was bypassed, the odt also stop working.
 
 - phy_dll_dis_freq : defined the PHY dll bypass frequency in MHz (Mega Hz),
-  when ddr freq less than this setting value, phy dll will bypssed
+  when ddr freq less than or equal this setting value, phy dll will bypssed
   note: phy dll and phy odt are independent
 
 - ddr3_odt_dis_freq : defined the DDR3 odt disable frequency in
-  MHz (Mega Hz), when ddr frequency less then this setting value, the DDR3
-  ODT are disabled.
+  MHz (Mega Hz), when ddr frequency less then or equal this setting value,
+  the DDR3 ODT are disabled.
+
+- phy_ddr3_odt_dis_freq : defined the PHY side odt disable frequency in
+  MHz (Mega Hz), when ddr3 frequency less then or equal this setting value
+  for DDR3 system
 
 - ddr3_drv : define the DDR3 driver strength in ohm
 
@@ -66,8 +69,12 @@ Required properties:
 
 
 - lpddr3_odt_dis_freq : defined the LPDDR3 odt disable frequency in
-  MHz (Mega Hz), when ddr frequency less then this setting value, the LPDDR3
-  ODT are disabled.
+  MHz (Mega Hz), when ddr frequency less then or equal this setting value,
+  the LPDDR3 ODT are disabled.
+
+- phy_lpddr3_odt_dis_freq : defined the PHY side odt disable frequency in
+  MHz (Mega Hz), when lpddr3 frequency less then or equal this setting value
+  for LPDDR3 system
 
 - lpddr3_drv : define the LPDDR3 driver strength in ohm
 
@@ -86,8 +93,12 @@ Required properties:
 
 
 - lpddr4_odt_dis_freq : defined the LPDDR4 odt disable frequency in
-  MHz (Mega Hz), when ddr frequency less then this setting value, the LPDDR4
-  ODT are disabled.
+  MHz (Mega Hz), when ddr frequency less then or equal this setting value,
+  the LPDDR4 ODT are disabled.
+
+- phy_lpddr4_odt_dis_freq : defined the PHY side odt disable frequency in
+  MHz (Mega Hz), when lpddr4 frequency less then or equal this setting value
+  for LPDDR4 system
 
 - lpddr4_drv : define the LPDDR4 driver strength in ohm
 
@@ -108,8 +119,12 @@ Required properties:
 
 
 - ddr4_odt_dis_freq : defined the DDR4 odt disable frequency in
-  MHz (Mega Hz), when ddr frequency less then this setting value, the DDR4
-  ODT are disabled.
+  MHz (Mega Hz), when ddr frequency less then or equal this setting value,
+  the DDR4 ODT are disabled.
+
+- phy_ddr4_odt_dis_freq : defined the PHY side odt disable frequency in
+  MHz (Mega Hz), when ddr4 frequency less then or equal this setting value
+  for DDR4 system
 
 - ddr4_drv : define the DDR4 driver strength in ohm
 
