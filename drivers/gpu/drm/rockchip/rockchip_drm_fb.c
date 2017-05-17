@@ -192,27 +192,6 @@ static u32 rockchip_drm_format_num_buffers(struct drm_mode_fb_cmd2 *mode_cmd)
 		cnt++;
 	}
 
-	/*
-	 * check if NV12 or NV12M.
-	 *
-	 * NV12
-	 * handles[0] = base1, offsets[0] = 0
-	 * handles[1] = base1, offsets[1] = Y_size
-	 *
-	 * NV12M
-	 * handles[0] = base1, offsets[0] = 0
-	 * handles[1] = base2, offsets[1] = 0
-	 */
-	if (cnt == 2) {
-		/*
-		 * in case of NV12 format, offsets[1] is not 0 and
-		 * handles[0] is same as handles[1].
-		 */
-		if (mode_cmd->offsets[1] &&
-		    mode_cmd->handles[0] == mode_cmd->handles[1])
-		    cnt = 1;
-	}
-
 	return cnt;
 }
 

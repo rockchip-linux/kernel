@@ -14,7 +14,7 @@ struct extend_win_data {
 	unsigned int		fb_width;
 	unsigned int		fb_height;
 	unsigned int		bpp;
-	dma_addr_t		dma_addr;
+	dma_addr_t		dma_addr[MAX_FB_BUFFER];
 	unsigned int		buf_offsize;
 	unsigned int		line_size;	/* bytes */
 	bool			enabled;

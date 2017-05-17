@@ -17,5 +17,7 @@ int rockchip_drm_crtc_create(struct drm_device *dev, unsigned int nr);
 int rockchip_drm_crtc_enable_vblank(struct drm_device *dev, int crtc);
 void rockchip_drm_crtc_disable_vblank(struct drm_device *dev, int crtc);
 void rockchip_drm_crtc_finish_pageflip(struct drm_device *dev, int crtc);
+bool is_yuv_support(uint32_t format);
+int rockchip_drm_format_plane_bpp(uint32_t format, int plane);
 
 #endif

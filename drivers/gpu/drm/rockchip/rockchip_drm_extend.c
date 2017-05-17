@@ -412,22 +412,35 @@ static void extend_win_mode_set(struct device *dev,
 	if (win < 0 || win > WINDOWS_NR)
 		return;
 
-	offset = overlay->fb_x * (overlay->bpp >> 3);
-	offset += overlay->fb_y * overlay->pitch;
-
 	win_data = &ctx->win_data[win];
+	win_data->offset_x = overlay->crtc_x; /* xpos */
+	win_data->offset_y = overlay->crtc_y; /* ypos */
+	win_data->ovl_width = overlay->crtc_width; /* xsize*/
+	win_data->ovl_height = overlay->crtc_height; /* ysize */
+	win_data->fb_width = overlay->fb_width;	/* xvir */
+	win_data->fb_height = overlay->fb_height;  /* yvir */
+	win_data->src_width = overlay->src_width; /* xact */
+	win_data->src_height = overlay->src_height; /* yact */
 
-	win_data->offset_x = overlay->crtc_x;
-	win_data->offset_y = overlay->crtc_y;
-	win_data->ovl_width = overlay->crtc_width;
-	win_data->ovl_height = overlay->crtc_height;
-	win_data->fb_width = overlay->fb_width;
-	win_data->fb_height = overlay->fb_height;
-	win_data->dma_addr = overlay->dma_addr[0] + offset;
+	if (is_yuv_support(overlay->pixel_format)) {
+		int hsub = drm_format_horz_chroma_subsampling(overlay->pixel_format);
+		int vsub = drm_format_vert_chroma_subsampling(overlay->pixel_format);
+		int bpp = rockchip_drm_format_plane_bpp(overlay->pixel_format, 1);
+
+		offset = (overlay->fb_x >> 16) * bpp / hsub / 8;
+		offset += (overlay->fb_y >> 16) * overlay->pitches[1] / vsub;
+		win_data->dma_addr[1] = overlay->dma_addr[1] + offset + overlay->offsets[1];
+	}
+
+	offset = overlay->fb_x * (overlay->bpp >> 3);
+	offset += overlay->fb_y * overlay->pitches[0];
+	win_data->dma_addr[0] = overlay->dma_addr[0] + offset + overlay->offsets[0];
+
 	win_data->bpp = overlay->bpp;
 	win_data->buf_offsize = (overlay->fb_width - overlay->crtc_width) *
 				(overlay->bpp >> 3);
 	win_data->line_size = overlay->crtc_width * (overlay->bpp >> 3);
+	win_data->pixel_format = overlay->pixel_format;
 	head = drm_disp->modelist;
 	list_for_each(pos, head) {
 		modelist = list_entry(pos, struct fb_modelist, list);
@@ -474,48 +487,67 @@ static void extend_win_commit(struct device *dev, int zpos)
 
 	if (win < 0 || win > WINDOWS_NR)
 		return;
-	if (win == 0) {
-		win_start = ktime_get();
-		win_start = ktime_sub(win_start, win_end);
-	}
+#if 0
+	/* if(win == 0){
+	 *	win_start = ktime_get();
+	 *	win_start = ktime_sub(win_start, win_end);
+	 *	pr_info("user flip buffer time %dus\n",
+	 *		(int)ktime_to_us(win_start));
+	 *	win_start = ktime_get();
+	 *}
+	 */
+#endif
 	rk_win = &drm_disp->win[win];
 	win_data = &ctx->win_data[win];
-	switch (win_data->bpp) {
-	case 32:
-		rk_win->format = ARGB888;
-		break;
-	case 24:
-		rk_win->format = RGB888;
-		break;
-	case 16:
-		rk_win->format = RGB565;
-		break;
-	default:
-		pr_err("not support format %d\n", win_data->bpp);
-		break;
-	}
 
 	rk_win->xpos = win_data->offset_x;
 	rk_win->ypos = win_data->offset_y;
-	rk_win->xact = win_data->ovl_width;
-	rk_win->yact = win_data->ovl_height;
+	rk_win->xact = win_data->src_width;
+	rk_win->yact = win_data->src_height;
 	rk_win->xsize = win_data->ovl_width;
 	rk_win->ysize = win_data->ovl_height;
-	rk_win->xvir = win_data->fb_width;
-	rk_win->yrgb_addr = win_data->dma_addr;
+	rk_win->yvir = win_data->fb_height;
+	rk_win->yrgb_addr = win_data->dma_addr[0];
 	rk_win->enabled = true;
+	switch (win_data->pixel_format) {
+	case DRM_FORMAT_NV12:
+		rk_win->format = YUV420;
+		rk_win->uv_addr = win_data->dma_addr[1];
+		rk_win->xvir = win_data->fb_width / 4;
+		rk_win->uv_vir = rk_win->xvir;
+		break;
+	case DRM_FORMAT_RGB888:
+		rk_win->format = RGB888;
+		rk_win->xvir = win_data->fb_width * 3 / 4;
+		break;
+	case DRM_FORMAT_ARGB8888:
+		rk_win->format = ARGB888;
+		rk_win->xvir = win_data->fb_width;
+		break;
+	case DRM_FORMAT_XRGB8888:
+		rk_win->format = XRGB888;
+		rk_win->xvir = win_data->fb_width;
+		break;
+	case DRM_FORMAT_RGB565:
+		rk_win->format = RGB565;
+		rk_win->xvir = win_data->fb_width / 2;
+		break;
+	default:
+		pr_info("not support format 0x%x\n", win_data->pixel_format);
+		break;
+	}
 
-	rk_drm_disp_handle(drm_disp, 1<<win,
+	rk_drm_disp_handle(drm_disp, 1 << win,
 			   RK_DRM_WIN_COMMIT | RK_DRM_DISPLAY_COMMIT);
-
 	win_data->enabled = true;
 #if 0
-	if (win == 0) {
-		win_end = ktime_get();
-		win_end = ktime_sub(win_end, win_start);
-		pr_info("flip buffer time %dus\n", (int)ktime_to_us(win_end));
-		win_end = ktime_get();
-	}
+	/* if(win ==0){
+	 *	win_end = ktime_get();
+	 *	win_end = ktime_sub(win_end, win_start);
+	 *	printk("flip buffer time %dus\n", (int)ktime_to_us(win_end));
+	 *	win_end = ktime_get();
+	 *}
+	 */
 #endif
 }
 

@@ -233,9 +233,6 @@ static void primary_win_mode_set(struct device *dev,
 	if (win < 0 || win > WINDOWS_NR)
 		return;
 
-	offset = overlay->fb_x * (overlay->bpp >> 3);
-	offset += overlay->fb_y * overlay->pitch;
-
 	win_data = &ctx->win_data[win];
 	win_data->offset_x = overlay->crtc_x; /* xpos */
 	win_data->offset_y = overlay->crtc_y; /* ypos */
@@ -245,7 +242,21 @@ static void primary_win_mode_set(struct device *dev,
 	win_data->fb_height = overlay->fb_height;  /* yvir */
 	win_data->src_width = overlay->src_width; /* xact */
 	win_data->src_height = overlay->src_height; /* yact */
-	win_data->dma_addr = overlay->dma_addr[0] + offset;
+
+	if (is_yuv_support(overlay->pixel_format)) {
+		int hsub = drm_format_horz_chroma_subsampling(overlay->pixel_format);
+		int vsub = drm_format_vert_chroma_subsampling(overlay->pixel_format);
+		int bpp = rockchip_drm_format_plane_bpp(overlay->pixel_format, 1);
+
+		offset = (overlay->fb_x >> 16) * bpp / hsub / 8;
+		offset += (overlay->fb_y >> 16) * overlay->pitches[1] / vsub;
+		win_data->dma_addr[1] = overlay->dma_addr[1] + offset + overlay->offsets[1];
+	}
+
+	offset = overlay->fb_x * (overlay->bpp >> 3);
+	offset += overlay->fb_y * overlay->pitches[0];
+	win_data->dma_addr[0] = overlay->dma_addr[0] + offset + overlay->offsets[0];
+
 	win_data->bpp = overlay->bpp;
 	win_data->buf_offsize = (overlay->fb_width - overlay->crtc_width) *
 				(overlay->bpp >> 3);
@@ -296,13 +307,12 @@ static void primary_win_commit(struct device *dev, int zpos)
 	rk_win->xsize = win_data->ovl_width;
 	rk_win->ysize = win_data->ovl_height;
 	rk_win->yvir = win_data->fb_height;
-	rk_win->yrgb_addr = win_data->dma_addr;
+	rk_win->yrgb_addr = win_data->dma_addr[0];
 	rk_win->enabled = true;
 	switch (win_data->pixel_format) {
 	case DRM_FORMAT_NV12:
 		rk_win->format = YUV420;
-		rk_win->uv_addr = win_data->dma_addr +
-				win_data->fb_width * win_data->fb_height;
+		rk_win->uv_addr = win_data->dma_addr[1];
 		rk_win->xvir = win_data->fb_width / 4;
 		rk_win->uv_vir = rk_win->xvir;
 		break;

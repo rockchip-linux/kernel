@@ -126,7 +126,8 @@ struct rockchip_drm_overlay {
 	unsigned int pixclock;
 	unsigned int scan_flag;
 	unsigned int bpp;
-	unsigned int pitch;
+	unsigned int pitches[MAX_FB_BUFFER];
+	unsigned int offsets[MAX_FB_BUFFER];
 	uint32_t pixel_format;
 	dma_addr_t dma_addr[MAX_FB_BUFFER];
 	int zpos;
