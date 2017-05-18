@@ -945,10 +945,12 @@
 		reg = <0x30060000 0x10000>;
 		clocks = <&clk_gates18 6>, <&clk_gates18 7>, <&clk_gates7 9>,
 			 <&vip0_clk>, <&pclkin_cvbs2cif>, <&pclkin_vip>,
-			 <&pclk_cif0_out>;
+			 <&pclk_cif0_out>, <&pclkin_vip_ninv>,
+			 <&pclkin_vip_inv>;
 		clock-names = "aclk_cif", "hclk_cif", "pclkin_cif",
 			      "vip_clk", "pclkin_cvbs2cif", "pclkin_vip",
-			      "pclk_cif1t4_out";
+			      "pclk_cif1t4_out", "pclkin_vip_ninv",
+			      "pclkin_vip_inv";
 		resets = <&reset RV1108_RST_VIP0_A>, <&reset RV1108_RST_VIP0_H>, <&reset RV1108_RST_VIP0_P>;
 		reset-names = "cif_arst", "cif_hrst", "cif_prst";
 		interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
