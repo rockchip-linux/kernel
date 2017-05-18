@@ -66,6 +66,8 @@ struct cif_cif10_clk_rst_rv1108 {
 	struct clk      *pclkin_cvbs2cif;
 	struct clk      *pclkin_vip;
 	struct clk      *pclk_cif1t4_out;
+	struct clk      *pclkin_ninv;
+	struct clk      *pclkin_inv;
 
 	struct reset_control *cif_arst;
 	struct reset_control *cif_hrst;
@@ -173,12 +175,20 @@ static void soc_clk_init(struct pltfrm_soc_init_para *init)
 				       clk_rst->pclkin_cvbs2cif);
 		} else {
 			if (PLTFRM_CAM_ITF_DVP_CHS(init->cam_itf.type) == 2 ||
-			    PLTFRM_CAM_ITF_DVP_CHS(init->cam_itf.type) == 4)
+			    PLTFRM_CAM_ITF_DVP_CHS(init->cam_itf.type) == 4) {
 				clk_set_parent(clk_rst->vip_clk,
 					       clk_rst->pclk_cif1t4_out);
-			else
+			} else {
+				if (init->cam_itf.cfg.dvp.pclk ==
+				    PLTFRM_CAM_SDR_POS_EDG)
+					clk_set_parent(clk_rst->pclkin_vip,
+						       clk_rst->pclkin_ninv);
+				else
+					clk_set_parent(clk_rst->pclkin_vip,
+						       clk_rst->pclkin_inv);
 				clk_set_parent(clk_rst->vip_clk,
 					       clk_rst->pclkin_vip);
+			}
 		}
 		break;
 	case 1:
@@ -353,6 +363,22 @@ static int soc_init(struct pltfrm_soc_init_para *init)
 	if (IS_ERR_OR_NULL(clk_rst->pclk_cif1t4_out)) {
 		dev_err(&pdev->dev,
 			"Get rv1108 cif%d pclk_cif1t4_out resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
+	clk_rst->pclkin_ninv =
+		devm_clk_get(&pdev->dev, "pclkin_vip_ninv");
+	if (IS_ERR_OR_NULL(clk_rst->pclkin_ninv)) {
+		dev_err(&pdev->dev,
+			"Get rv1108 cif%d pclkin_ninv resouce failed !\n",
+			pdev->id);
+		return -EINVAL;
+	}
+	clk_rst->pclkin_inv =
+		devm_clk_get(&pdev->dev, "pclkin_vip_inv");
+	if (IS_ERR_OR_NULL(clk_rst->pclkin_inv)) {
+		dev_err(&pdev->dev,
+			"Get rv1108 cif%d pclkin_inv resouce failed !\n",
 			pdev->id);
 		return -EINVAL;
 	}
