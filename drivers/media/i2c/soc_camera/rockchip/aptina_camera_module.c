@@ -463,12 +463,14 @@ int aptina_camera_module_s_fmt(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *fmt)
 {
 	struct aptina_camera_module *cam_mod =  to_aptina_camera_module(sd);
+	struct aptina_camera_module_config *config;
 	int ret = 0;
 
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "%dx%d, fmt code 0x%04x\n",
 		fmt->width, fmt->height, fmt->code);
 
-	if (IS_ERR_OR_NULL(aptina_camera_module_find_config(cam_mod, fmt, NULL))) {
+	config = aptina_camera_module_find_config(cam_mod, fmt, NULL);
+	if (IS_ERR_OR_NULL(config)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
 			"format %dx%d, code 0x%04x, not supported\n",
 			fmt->width, fmt->height, fmt->code);
@@ -477,18 +479,17 @@ int aptina_camera_module_s_fmt(struct v4l2_subdev *sd,
 	}
 	cam_mod->frm_fmt_valid = true;
 	cam_mod->frm_fmt = *fmt;
-	if (cam_mod->frm_intrvl_valid) {
+
+	if (cam_mod->frm_intrvl_valid &&
+		!IS_ERR_OR_NULL(aptina_camera_module_find_config(
+		cam_mod, fmt, &cam_mod->frm_intrvl))) {
 		aptina_camera_module_set_active_config(cam_mod,
 			aptina_camera_module_find_config(cam_mod,
 				fmt, &cam_mod->frm_intrvl));
 	} else {
-		aptina_camera_module_set_active_config(
-			cam_mod,
-			aptina_camera_module_find_config(
-				cam_mod,
-				fmt,
-				NULL));
+		aptina_camera_module_set_active_config(cam_mod, config);
 	}
+
 	return 0;
 err:
 	pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -563,13 +564,10 @@ int aptina_camera_module_s_frame_interval(
 			&cam_mod->active_config->frm_fmt,
 			&norm_interval);
 
-	if (!IS_ERR_OR_NULL(config) && (config != cam_mod->active_config)) {
+	if (!IS_ERR_OR_NULL(config) &&
+		(config != cam_mod->active_config) &&
+		(cam_mod->state != APTINA_CAMERA_MODULE_STREAMING)) {
 		aptina_camera_module_set_active_config(cam_mod, config);
-		if (cam_mod->state == APTINA_CAMERA_MODULE_STREAMING) {
-			cam_mod->custom.stop_streaming(cam_mod);
-			aptina_camera_module_write_config(cam_mod);
-			cam_mod->custom.start_streaming(cam_mod);
-		}
 	} else {
 		if (IS_ERR_OR_NULL(cam_mod->active_config)) {
 			pltfrm_camera_module_pr_err(

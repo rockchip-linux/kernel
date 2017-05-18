@@ -173,7 +173,8 @@ static int imx_camera_module_write_config(
 	int ret = 0;
 	struct imx_camera_module_reg *reg_table;
 	u32 reg_table_num_entries = 0;
-	pltfrm_camera_module_pr_err(&cam_mod->sd, "\n");
+
+	pltfrm_camera_module_pr_debug(&cam_mod->sd, "\n");
 
 	if (IS_ERR_OR_NULL(cam_mod->active_config)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -263,12 +264,14 @@ int imx_camera_module_s_fmt(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *fmt)
 {
 	struct imx_camera_module *cam_mod =  to_imx_camera_module(sd);
+	struct imx_camera_module_config *config;
 	int ret = 0;
 
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "%dx%d, fmt code 0x%04x\n",
 		fmt->width, fmt->height, fmt->code);
 
-	if (IS_ERR_OR_NULL(imx_camera_module_find_config(cam_mod, fmt, NULL))) {
+	config = imx_camera_module_find_config(cam_mod, fmt, NULL);
+	if (IS_ERR_OR_NULL(config)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
 			"format %dx%d, code 0x%04x, not supported\n",
 			fmt->width, fmt->height, fmt->code);
@@ -277,9 +280,17 @@ int imx_camera_module_s_fmt(struct v4l2_subdev *sd,
 	}
 	cam_mod->frm_fmt_valid = true;
 	cam_mod->frm_fmt = *fmt;
-	imx_camera_module_set_active_config(cam_mod,
-	imx_camera_module_find_config(cam_mod,
-			fmt, NULL));
+
+	if (cam_mod->frm_intrvl_valid &&
+		!IS_ERR_OR_NULL(imx_camera_module_find_config(
+		cam_mod, fmt, &cam_mod->frm_intrvl))) {
+		imx_camera_module_set_active_config(cam_mod,
+			imx_camera_module_find_config(cam_mod,
+				fmt, &cam_mod->frm_intrvl));
+	} else {
+		imx_camera_module_set_active_config(cam_mod, config);
+	}
+
 	return 0;
 err:
 	pltfrm_camera_module_pr_err(&cam_mod->sd,
@@ -353,13 +364,10 @@ int imx_camera_module_s_frame_interval(
 			&cam_mod->active_config->frm_fmt,
 			&norm_interval);
 
-	if (!IS_ERR_OR_NULL(config) && (config != cam_mod->active_config)) {
+	if (!IS_ERR_OR_NULL(config) &&
+		(config != cam_mod->active_config) &&
+		(cam_mod->state != IMX_CAMERA_MODULE_STREAMING)) {
 		imx_camera_module_set_active_config(cam_mod, config);
-		if (cam_mod->state == IMX_CAMERA_MODULE_STREAMING) {
-			cam_mod->custom.stop_streaming(cam_mod);
-			imx_camera_module_write_config(cam_mod);
-			cam_mod->custom.start_streaming(cam_mod);
-		}
 	} else {
 		if (IS_ERR_OR_NULL(cam_mod->active_config)) {
 			pltfrm_camera_module_pr_err(
