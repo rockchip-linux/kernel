@@ -524,6 +524,8 @@ int rk_disp_pwr_disable(struct rk_lcdc_driver *dev_drv)
 int rk_fb_video_mode_from_timing(const struct display_timing *dt,
 				 struct rk_screen *screen)
 {
+	struct rk_fb *rk_fb = platform_get_drvdata(fb_pdev);
+
 	screen->mode.pixclock = dt->pixelclock.typ;
 	screen->mode.left_margin = dt->hback_porch.typ;
 	screen->mode.right_margin = dt->hfront_porch.typ;
@@ -583,7 +585,8 @@ int rk_fb_video_mode_from_timing(const struct display_timing *dt,
 	else
 		screen->swap_dumy = 0;
 
-	if (!screen->width || !screen->height) {
+	if ((rk_fb->disp_policy != DISPLAY_POLICY_BOX) &&
+	    (!screen->width || !screen->height)) {
 		pr_err("error: please config lcd physical size at lcd-xxx.dtsi\n");
 		WARN_ON(1);
 	}
