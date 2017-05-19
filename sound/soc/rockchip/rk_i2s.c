@@ -580,9 +580,9 @@ static int rockchip_i2s_probe(struct platform_device *pdev)
 	if (soc_is_rk3126b() || soc_is_rk3126c()) {
 		int sdi_src = 0;
 
-		/* rk3126b has no i2s1 controller(i2s_8ch) */
+		/* rk3126b/c has no i2s1 controller(i2s_8ch) */
 		if (1 == pdev->id) {
-			pr_info("rk3126b has no i2s1 controller\n");
+			pr_info("rk3126b/c has no i2s1 controller\n");
 			ret = -ENODEV;
 			goto err;
 		}
