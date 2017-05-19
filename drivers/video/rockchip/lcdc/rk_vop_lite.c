@@ -1436,18 +1436,16 @@ static int win_0_1_set_par(struct vop_device *vop_dev,
 	win->post_cfg.ysize = win->area[0].ysize * (dev_drv->overscan.top +
 		dev_drv->overscan.bottom) / 200;
 
-	win->area[0].dsp_stx = win->area[0].xpos + screen->mode.left_margin +
+	win->area[0].dsp_stx = screen->mode.left_margin +
 				screen->mode.hsync_len + win->post_cfg.xpos;
 	if (screen->mode.vmode & FB_VMODE_INTERLACED) {
 		win->area[0].ysize /= 2;
 		win->post_cfg.ysize /= 2;
-		win->area[0].dsp_sty = win->area[0].ypos / 2 +
-			screen->mode.upper_margin + screen->mode.vsync_len +
-			win->post_cfg.ypos / 2;
+		win->area[0].dsp_sty = screen->mode.upper_margin +
+			screen->mode.vsync_len + win->post_cfg.ypos / 2;
 	} else {
-		win->area[0].dsp_sty = win->area[0].ypos +
-			screen->mode.upper_margin + screen->mode.vsync_len +
-			win->post_cfg.ypos;
+		win->area[0].dsp_sty = screen->mode.upper_margin +
+			screen->mode.vsync_len + win->post_cfg.ypos;
 	}
 
 	win->area[0].xsize = win->post_cfg.xsize;
