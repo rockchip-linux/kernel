@@ -37,6 +37,10 @@
 		<&clk_mac_pll &clk_cpll>;
 };
 
+&gmac {
+	status = "disabled";
+};
+
 &i2s0 {
 	/* sdi: 0: from io, 1: from acodec */
 	sdi_source = <1>;
