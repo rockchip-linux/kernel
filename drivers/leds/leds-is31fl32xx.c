@@ -59,6 +59,8 @@ struct is31fl32xx_priv {
 	const struct is31fl32xx_chipdef *cdef;
 	struct i2c_client *client;
 	unsigned int num_leds;
+	struct mutex led_mutex;
+	int reset_gpio;
 	struct is31fl32xx_led_data leds[0];
 };
 
@@ -222,7 +224,7 @@ static void is31fl32xx_brightness_work(struct work_struct *work)
 	int ret;
 
 	dev_dbg(led_data->cdev.dev, "%s: %d\n", __func__, led_data->new_brightness);
-
+	mutex_lock(&led_data->priv->led_mutex);
 	/* NOTE: led_data->channel is 1-based */
 	if (cdef->pwm_registers_reversed)
 		pwm_register_offset = cdef->channels - led_data->channel;
@@ -234,6 +236,7 @@ static void is31fl32xx_brightness_work(struct work_struct *work)
 			       led_data->new_brightness);
 
 	is31fl32xx_write(led_data->priv, cdef->pwm_update_reg, 0);
+	mutex_unlock(&led_data->priv->led_mutex);
 }
 
 /*
@@ -529,8 +532,10 @@ static int is31fl32xx_probe(struct i2c_client *client,
 	if (!priv)
 		return -ENOMEM;
 
+	mutex_init(&priv->led_mutex);
 	priv->client = client;
 	priv->cdef = cdef;
+	priv->reset_gpio = gpio;
 	i2c_set_clientdata(client, priv);
 
 	ret = is31fl32xx_init_regs(priv);
@@ -553,6 +558,9 @@ static int is31fl32xx_remove(struct i2c_client *client)
 	int i;
 	struct is31fl32xx_priv *priv = i2c_get_clientdata(client);
 
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+	led_multi_control_exit(&client->dev);
+#endif
 	for (i = 0; i < priv->num_leds; i++) {
 		struct is31fl32xx_led_data *led_data =
 					&priv->leds[i];
@@ -563,9 +571,6 @@ static int is31fl32xx_remove(struct i2c_client *client)
 #endif
 		led_classdev_unregister(&led_data->cdev);
 	}
-#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
-	led_multi_control_exit(&client->dev);
-#endif
 	return is31fl32xx_reset_regs(priv);
 }
 
@@ -574,6 +579,9 @@ static void is31fl32xx_shutdown(struct i2c_client *client)
 	int i;
 	struct is31fl32xx_priv *priv = i2c_get_clientdata(client);
 
+#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
+	led_multi_control_exit(&client->dev);
+#endif
 	for (i = 0; i < priv->num_leds; i++) {
 		struct is31fl32xx_led_data *led_data =
 					&priv->leds[i];
@@ -584,10 +592,9 @@ static void is31fl32xx_shutdown(struct i2c_client *client)
 		led_multi_control_unregister(&led_data->cdev);
 #endif
 	}
-#ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
-	led_multi_control_exit(&client->dev);
-#endif
 	is31fl32xx_reset_regs(priv);
+	if (gpio_is_valid(priv->reset_gpio))
+		gpio_direction_output(priv->reset_gpio, 0);
 }
 
 /*
