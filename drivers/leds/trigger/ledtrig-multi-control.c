@@ -91,12 +91,13 @@ static void multi_ctrl_scroll_work_fn(struct work_struct *ws)
 	int bit = 0;
 	static u64 update_bits = ~0;
 
-	if (!multi_ctrl_scroll_info->data_valid) {
-		pr_err("%s, scroll data is invalid, exit\n", __func__);
-		return;
-	}
 
 	down_read(&multi_leds_list_lock);
+	if (!multi_ctrl_scroll_info->data_valid) {
+		update_bits = bits(led_num) - 1;
+		multi_ctrl_scroll_info->data_valid = true;
+		pr_info("%s, new scroll work is queued\n", __func__);
+	}
 	if (unlikely(update_bits > (bits(led_num) - 1))) {
 		pr_warn("%s,update_bits is exceed the max led numbers!\n", __func__);
 		update_bits = bits(led_num) - 1;
@@ -145,14 +146,18 @@ static void multi_ctrl_breath_work_fn(struct work_struct *ws)
 	u32 bri_every_step;
 	static u32 pre_brightness = LED_HALF;
 	static u64 pre_bg_bitmap;
-
-	if (!multi_ctrl_breath_info->data_valid) {
-		pre_bg_bitmap = 0;
-		pr_err("%s, breath data is invalid, exit\n", __func__);
-		return;
-	}
+	static u64 pre_br_bitmap;
+	static u64 pre_black_bitmap;
 
 	down_read(&multi_leds_list_lock);
+	if (!multi_ctrl_breath_info->data_valid) {
+		pre_bg_bitmap = 0;
+		pre_br_bitmap = 0;
+		pre_black_bitmap = 0;
+		multi_ctrl_breath_info->data_valid = true;
+		pr_info("%s, new breath work is queued\n", __func__);
+	}
+
 	bri_every_step = LED_FULL / leds_breath_data.breath_steps;
 	list_for_each_entry(ctrl_data, &multi_leds_list, node) {
 		struct led_classdev *led_cdev = ctrl_data->led_cdev;
@@ -164,28 +169,37 @@ static void multi_ctrl_breath_work_fn(struct work_struct *ws)
 
 		cancel_delayed_work_sync(&ctrl_data->delay_trig_work);
 
-		if (leds_breath_data.background_bitmap & bits(bit)) {
-			if (pre_bg_bitmap != leds_breath_data.background_bitmap) {
+		if (pre_bg_bitmap == 0) {
+			if (leds_breath_data.background_bitmap & bits(bit)) {
 				led_trigger_set_by_name(led_cdev,
 							mult_ctrl_trigger[TRIG_DEF_ON]);
-				pre_bg_bitmap = leds_breath_data.background_bitmap;
 			}
 		}
 
-		/* only update the leds indicated by bitmap*/
 		if (leds_breath_data.breath_bitmap & bits(bit)) {
+			/* only update the leds indicated by bitmap*/
 			led_cdev->brightness =
 				(pre_brightness + bri_every_step) % LED_FULL;
-			if (leds_pre_mode != LEDS_MODE_MULTI_BREATH)
+			if (unlikely(pre_br_bitmap == 0))
 				led_trigger_set_by_name(led_cdev,
 							mult_ctrl_trigger[TRIG_DEF_ON]);
 			else
 				__led_set_brightness(led_cdev,
 						     led_cdev->brightness);
 		}
+
+		if (pre_black_bitmap == 0) {
+			if ((~(leds_breath_data.breath_bitmap |
+			     leds_breath_data.breath_bitmap)) &
+			    bits(bit))
+				led_trigger_remove(led_cdev);
+		}
 		bit++;
 	}
 	pre_brightness = (pre_brightness + bri_every_step) % LED_FULL;
+	pre_bg_bitmap = leds_breath_data.background_bitmap;
+	pre_br_bitmap = leds_breath_data.breath_bitmap;
+	pre_black_bitmap = ~(pre_bg_bitmap | pre_br_bitmap);
 	leds_pre_mode = LEDS_MODE_MULTI_BREATH;
 	up_read(&multi_leds_list_lock);
 
@@ -346,9 +360,7 @@ static long multi_ctrl_ioctl(struct file *file,
 			ret = -EFAULT;
 			break;
 		}
-		multi_ctrl_scroll_info->data_valid = true;
-		schedule_delayed_work(&multi_ctrl_scroll_info->scroll_work,
-				      msecs_to_jiffies(leds_scroll_data.shift_delay_ms));
+		schedule_delayed_work(&multi_ctrl_scroll_info->scroll_work, 0);
 		break;
 	}
 	case LEDS_MULTI_CTRL_IOCTL_MULTI_SET_BREATH:
@@ -365,7 +377,7 @@ static long multi_ctrl_ioctl(struct file *file,
 		 * bit in breath color bitmap.
 		 */
 		leds_breath_data.background_bitmap &=
-					!leds_breath_data.breath_bitmap;
+					~leds_breath_data.breath_bitmap;
 		if (copy_from_user(&leds_breath_data,
 				   (struct led_ctrl_breath_data *)arg,
 				   sizeof(leds_breath_data))) {
@@ -374,7 +386,6 @@ static long multi_ctrl_ioctl(struct file *file,
 			ret = -EFAULT;
 			break;
 		}
-		multi_ctrl_breath_info->data_valid = true;
 		schedule_delayed_work(&multi_ctrl_breath_info->breath_work, 0);
 		break;
 	}
