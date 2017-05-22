@@ -8,6 +8,34 @@
 	clocks = <&dummy>;
 };
 
+&clk_gates3 {
+	clocks =
+		<&aclk_vio0_pre>,	<&dclk_lcdc0>,
+		<&sclk_lcdc0>,		<&pclkin_cif>,
+
+		<&dclk_ebc>,		<&hclk_cpu_pre>,
+		<&hclk_peri_pre>,	<&clk_cif_pll>,
+
+		<&dummy>,		<&clk_vepu>,
+		<&clk_hevc_core>,	<&clk_vdpu>,
+
+		<&hclk_vdpu>,		<&clk_gpu>,
+		<&dummy>,		<&dummy>;
+
+	clock-output-names =
+		"aclk_vio0_pre",	"dclk_lcdc0",
+		"sclk_lcdc0",		"pclkin_cif",
+
+		"dclk_ebc",		"g_hclk_crypto",
+		"g_hclk_em_peri",	"clk_cif_pll",
+
+		"reserved",		"clk_vepu",
+		"clk_hevc_core",	"clk_vdpu",
+
+		"hclk_vdpu",		"clk_gpu",
+		"reserved",		"reserved";
+	rockchip,suspend-clkgating-setting=<0x0060 0x0000>;
+};
 
 &aclk_vio0_pre_div {
 	rockchip,flags = <CLK_SET_RATE_PARENT_IN_ORDER>;
