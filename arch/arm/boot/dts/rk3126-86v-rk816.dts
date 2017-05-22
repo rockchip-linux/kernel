@@ -379,7 +379,7 @@
 };
 
 &uart2 {
-	status = "okay";
+	status = "disabled";
 };
 
 &pinctrl {
@@ -389,7 +389,7 @@
 /include/ "rk816.dtsi"
 &rk816 {
 	gpios = <&gpio1 GPIO_A5 GPIO_ACTIVE_HIGH>, <&gpio1 GPIO_A1 GPIO_ACTIVE_LOW>;
-	rockchip,system-power-controller;
+	rk816,system-power-controller;
 	rk816,support_dc_chg = <1>;/*1: dc chg; 0:usb chg*/
 	io-channels = <&adc 0>;
 	gpio-controller;
