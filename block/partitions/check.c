@@ -110,6 +110,7 @@ static int (*check_part[])(struct parsed_partitions *) = {
 #endif
 #ifdef CONFIG_RK_PARTITION
 	rkpart_partition,
+	rkpart_new_partition,
 #endif
 
 	NULL
@@ -169,7 +170,7 @@ check_partition(struct gendisk *hd, struct block_device *bdev)
 	/* Rockchip partition table ONLY used by eMMC disk */
 	#ifdef CONFIG_RK_PARTITION
 	if ((179 == MAJOR(bdev->bd_dev) && (1 == hd->emmc_disk)))
-		i = sizeof(check_part) / sizeof(struct parsed_partitions *) - 2;
+		i = ARRAY_SIZE(check_part) - 3;
 	#endif
 
 	while (!res && check_part[i]) {

@@ -89,3 +89,4 @@ struct rk_part_info {
 } __packed;
 
 int rkpart_partition(struct parsed_partitions *state);
+int rkpart_new_partition(struct parsed_partitions *state);

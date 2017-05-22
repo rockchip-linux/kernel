@@ -389,9 +389,6 @@ int rkpart_partition(struct parsed_partitions *state)
 	if (1 != state->bdev->bd_disk->emmc_disk)
 		return 0;
 
-	if (rk_new_part_dectet(n, state) == 1)
-		return 1;
-
 	/* Fixme: parameter should be coherence with part table */
 	cmdline = strstr(saved_command_line, "mtdparts=") + 9;
 	cmdline_parsed = 0;
@@ -423,4 +420,18 @@ int rkpart_partition(struct parsed_partitions *state)
 	return 1;
 }
 
+int rkpart_new_partition(struct parsed_partitions *state)
+{
+	sector_t n = get_capacity(state->bdev->bd_disk);
 
+	if (n < SECTOR_1G)
+		return 0;
+
+	/* ONLY be used by eMMC-disk */
+	if (state->bdev->bd_disk->emmc_disk != 1)
+		return 0;
+
+	if (rk_new_part_dectet(n, state) == 1)
+		return 1;
+	return 0;
+}
