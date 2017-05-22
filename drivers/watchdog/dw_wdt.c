@@ -35,6 +35,7 @@
 #include <linux/pm.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
+#include <linux/reset.h>
 #include <linux/timer.h>
 #include <linux/uaccess.h>
 #include <linux/watchdog.h>
@@ -69,6 +70,7 @@ static struct {
 	struct timer_list	timer;
 	int			expect_close;
 	struct notifier_block	restart_handler;
+	struct reset_control	*rst;
 	/* Save/restore */
 	u32			control;
 	u32			timeout;
@@ -367,6 +369,13 @@ static int dw_wdt_drv_probe(struct platform_device *pdev)
 		goto out_disable_clk;
 	}
 
+	dw_wdt.rst = devm_reset_control_get(&pdev->dev, "reset");
+	if (IS_ERR(dw_wdt.rst))
+		dev_warn(&pdev->dev, "Should better to setup a \'resets\' "
+			"property in dt, that must been named with reset\n");
+	else
+		reset_control_deassert(dw_wdt.rst);
+
 	ret = misc_register(&dw_wdt_miscdev);
 	if (ret)
 		goto out_disable_clk;
@@ -394,7 +403,8 @@ static int dw_wdt_drv_remove(struct platform_device *pdev)
 	unregister_restart_handler(&dw_wdt.restart_handler);
 
 	misc_deregister(&dw_wdt_miscdev);
-
+	if (!IS_ERR(dw_wdt.rst))
+		reset_control_assert(dw_wdt.rst);
 	clk_disable_unprepare(dw_wdt.clk);
 
 	return 0;
