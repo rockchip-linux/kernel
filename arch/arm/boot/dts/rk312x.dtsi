@@ -888,8 +888,8 @@
 		compatible = "rockchip,rk312x-rga";
 		reg = <0x1010c000 0x1000>;
 		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk_gates6 10>, <&clk_gates6 11>;
-		clock-names = "hclk_rga", "aclk_rga";
+		clocks = <&clk_gates6 10>, <&clk_gates6 11>, <&pd_rga>;
+		clock-names = "hclk_rga", "aclk_rga", "pd_rga";
 		status = "okay";
 	};
 
