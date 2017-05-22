@@ -263,6 +263,7 @@
 	cap-sd-highspeed;
 	card-detect-delay = <200>;
 	disable-wp;
+	supports-sd;
 	num-slots = <1>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;

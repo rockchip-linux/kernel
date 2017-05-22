@@ -176,8 +176,19 @@
 	};
 };
 
+&gpu {
+	mali-supply = <&vdd_gpu>;
+	status = "okay";
+};
+
 &hdmi {
-	ddc-i2c-bus = <&i2c5>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	#sound-dai-cells = <0>;
+};
+
+&hevc_service {
+	status = "okay";
 };
 
 &io_domains {
@@ -390,6 +401,15 @@
 	};
 };
 
+&i2s {
+	#sound-dai-cells = <0>;
+	status = "okay";
+};
+
+&rga {
+	status = "okay";
+};
+
 &pinctrl {
 	pcfg_output_high: pcfg-output-high {
 		output-high;
@@ -475,6 +495,7 @@
 	status = "okay";
 	rockchip,hw-tshut-mode = <0>;
 	rockchip,hw-tshut-polarity = <0>;
+	pinctrl-1 = <&otp_gpio>;
 };
 
 &vopb {
@@ -490,6 +511,10 @@
 };
 
 &vopl_mmu {
+	status = "okay";
+};
+
+&vpu_service {
 	status = "okay";
 };
 
