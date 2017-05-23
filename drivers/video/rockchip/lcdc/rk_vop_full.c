@@ -896,6 +896,8 @@ static void rk322xh_vop_hlg_hdr_csc_cfg(struct rk_lcdc_driver *dev_drv)
 	vop_dev->post_hdr2sdr = !!post_hdr2sdr_en;
 	vop_dev->pre_sdr2hdr = !!pre_sdr2hdr_en;
 	vop_dev->post_hlg2hdr10 = !!post_sdr2hdr_hlg_en;
+	val = V_HDR2SDR_EN(vop_dev->post_hdr2sdr);
+	vop_msk_reg(vop_dev, HDR2SDR_CTRL, val);
 
 	dev_drv->overlay_mode = overlay_mode;
 	for (i = 0; i < dev_drv->lcdc_win_num; i++) {
