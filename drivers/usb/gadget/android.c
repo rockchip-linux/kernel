@@ -60,6 +60,9 @@ static const char longname[] = "Gadget Android";
 #define VENDOR_ID		0x2207
 #define PRODUCT_ID		0x2910
 
+/* usb request to set function */
+#define UR_SET_FUNCTION		0xfe
+
 /* f_midi configuration */
 #define MIDI_INPUT_PORTS    1
 #define MIDI_OUTPUT_PORTS   1
@@ -110,6 +113,7 @@ struct android_dev {
 
 	bool enabled;
 	int disable_depth;
+	int set_func;
 	struct mutex mutex;
 	bool connected;
 	bool sw_connected;
@@ -172,17 +176,39 @@ static void android_work(struct work_struct *data)
 {
 	struct android_dev *dev = container_of(data, struct android_dev, work);
 	struct usb_composite_dev *cdev = dev->cdev;
-	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
-	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
-	char *configured[2]   = { "USB_STATE=CONFIGURED", NULL };
+	char *disconnected[2]	= { "USB_STATE=DISCONNECTED", NULL };
+	char *connected[2]	= { "USB_STATE=CONNECTED", NULL };
+	char *configured[2]	= { "USB_STATE=CONFIGURED", NULL };
+	char *set_funcs[2]	= { "USB_STATE=SET_FUNC", NULL };
 	char **uevent_envp = NULL;
 	unsigned long flags;
 
 	spin_lock_irqsave(&cdev->lock, flags);
-	if (cdev->config)
+	if (dev->set_func) {
+		switch (dev->set_func) {
+		case 1:
+			set_funcs[1] = "SET_UVC";
+			break;
+		case 2:
+			set_funcs[1] = "SET_MSC";
+			break;
+		case 3:
+			set_funcs[1] = "SET_ADB";
+			break;
+		default:
+			set_funcs[1] = NULL;
+			break;
+		}
+
+		uevent_envp = set_funcs;
+		/* reset the set_func value */
+		dev->set_func = 0;
+	} else if (cdev->config) {
 		uevent_envp = configured;
-	else if (dev->connected != dev->sw_connected)
+	} else if (dev->connected != dev->sw_connected) {
 		uevent_envp = dev->connected ? connected : disconnected;
+	}
+
 	dev->sw_connected = dev->connected;
 	spin_unlock_irqrestore(&cdev->lock, flags);
 
@@ -2045,7 +2071,24 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 		value = composite_setup_func(gadget, c);
 
 	spin_lock_irqsave(&cdev->lock, flags);
-	if (!dev->connected) {
+	if (c->bRequest == UR_SET_FUNCTION) {
+		/*
+		 * Handle special request for Rockchip platform.
+		 * If bmRequestType is Vendor and bRequest is 0xfe,
+		 * it indicates that usb host wants to change the
+		 * usb function.
+		 *
+		 * The value of usb_ctrlrequest->wValue indicates
+		 * that which function the usb host wants to set.
+		 *
+		 * wValue = 0x0001 - set UVC function
+		 * wValue = 0x0002 - set MSC function
+		 * wValue = 0x0003 - set ADB function
+		 */
+		dev->set_func = c->wValue;
+		schedule_work(&dev->work);
+		value = 0;
+	} else if (!dev->connected) {
 		dev->connected = 1;
 		schedule_work(&dev->work);
 	} else if (c->bRequest == USB_REQ_SET_CONFIGURATION &&
