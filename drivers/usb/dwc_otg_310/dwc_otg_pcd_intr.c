@@ -1891,6 +1891,16 @@ static inline void pcd_setup(dwc_otg_pcd_t *pcd)
 
 		/* handle non-standard (class/vendor) requests in the gadget driver */
 		do_gadget_setup(pcd, &ctrl);
+
+		/*
+		 * Rockchip platform Vendor Request for sending uevent to
+		 * user space and notify the user space to set the expected
+		 * usb functions according to the request.
+		 */
+		if (UT_GET_TYPE(ctrl.bmRequestType) == UT_VENDOR &&
+		    ctrl.bRequest == UR_SET_FUNCTION)
+			do_setup_in_status_phase(pcd);
+
 		return;
 	}
 

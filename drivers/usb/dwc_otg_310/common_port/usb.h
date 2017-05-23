@@ -208,6 +208,7 @@ typedef struct {
 #define WUR_LOOPBACK_DATA_WRITE	0x15
 #define WUR_LOOPBACK_DATA_READ	0x16
 #define WUR_SET_INTERFACE_DS	0x17
+#define UR_SET_FUNCTION		0xfe
 
 /* Feature numbers */
 #define UF_ENDPOINT_HALT	0
