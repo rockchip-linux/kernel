@@ -423,6 +423,7 @@ typedef struct rga_service_info {
 #define RGA_AXI_ID               0x014
 #define RGA_MMU_STA_CTRL         0x018
 #define RGA_MMU_STA              0x01c
+#define RGA_VERSION              0x028
 
 //Command code start
 #define RGA_MODE_CTRL            0x100
