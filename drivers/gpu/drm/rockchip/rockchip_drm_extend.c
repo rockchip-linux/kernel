@@ -735,7 +735,7 @@ static int extend_probe(struct platform_device *pdev)
 
 	drm_display = rk_drm_get_diplay(RK_DRM_EXTEND_SCREEN);
 	ctx->drm_disp = drm_display;
-	ctx->default_win = 0;
+	ctx->default_win = 1;
 
 	drm_display->event_call_back = extend_event_call_back_handle;
 

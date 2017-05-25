@@ -552,7 +552,7 @@ static int primary_probe(struct platform_device *pdev)
 	primary_vop_dev = drm_display->vop_dev;
 	iommu_state = drm_display->iommu_en;
 	ctx->drm_disp = drm_display;
-	ctx->default_win = 0;
+	ctx->default_win = 1;
 	modelist = list_first_entry(drm_display->modelist,
 				    struct fb_modelist, list);
 	mode = &modelist->mode;
