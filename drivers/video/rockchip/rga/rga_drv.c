@@ -1076,8 +1076,10 @@ static long rga_ioctl(struct file *file, uint32_t cmd, unsigned long arg)
         case RGA_GET_VERSION:
 	    if (!drvdata->version) {
 		drvdata->version = kzalloc(16, GFP_KERNEL);
-		if (!drvdata->version)
-			return -ENOMEM;
+		if (!drvdata->version) {
+			ret = -ENOMEM;
+			break;
+		}
 		rga_power_on();
 		udelay(1);
 		if (rga_read(RGA_VERSION) == 0x02018632)
