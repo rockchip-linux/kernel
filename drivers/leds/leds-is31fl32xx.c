@@ -20,7 +20,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
-
+#include <linux/delay.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
 #ifdef CONFIG_LEDS_TRIGGER_MULTI_CTRL
@@ -154,14 +154,17 @@ static const struct is31fl32xx_chipdef is31fl3216_cdef = {
 static int is31fl32xx_write(struct is31fl32xx_priv *priv, u8 reg, u8 val)
 {
 	int ret;
+	int retries = 3;
 
 	dev_dbg(&priv->client->dev, "writing register 0x%02X=0x%02X", reg, val);
 
 	ret =  i2c_smbus_write_byte_data(priv->client, reg, val);
-	if (ret) {
+	while (ret && (retries-- > 0)) {
 		dev_err(&priv->client->dev,
 			"register write to 0x%02X failed (error %d),val=%d",
 			reg, ret, val);
+		msleep(100);
+		ret = i2c_smbus_write_byte_data(priv->client, reg, val);
 	}
 	return ret;
 }
@@ -270,6 +273,11 @@ static void is31fl32xx_brightness_set(struct led_classdev *led_cdev,
 	schedule_work(&led_data->brightness_work);
 }
 
+#if 0
+ /*
+  * we use function is31fl32xx_software_shutdown to reset the registers
+  * of is31fl32xx.
+  */
 static int is31fl32xx_reset_regs(struct is31fl32xx_priv *priv)
 {
 	const struct is31fl32xx_chipdef *cdef = priv->cdef;
@@ -286,6 +294,7 @@ static int is31fl32xx_reset_regs(struct is31fl32xx_priv *priv)
 
 	return 0;
 }
+#endif
 
 static int is31fl32xx_software_shutdown(struct is31fl32xx_priv *priv,
 					bool enable)
@@ -313,9 +322,9 @@ static int is31fl32xx_init_regs(struct is31fl32xx_priv *priv)
 	int ret;
 	int cdef_control;
 
-	ret = is31fl32xx_reset_regs(priv);
+	ret = is31fl32xx_software_shutdown(priv, true);
 	if (ret)
-		return ret;
+		pr_err("%s, write to shutdown register failed\n", __func__);
 
 	/*
 	 * Set enable bit for all channels.
@@ -571,7 +580,7 @@ static int is31fl32xx_remove(struct i2c_client *client)
 #endif
 		led_classdev_unregister(&led_data->cdev);
 	}
-	return is31fl32xx_reset_regs(priv);
+	return is31fl32xx_software_shutdown(priv, true);
 }
 
 static void is31fl32xx_shutdown(struct i2c_client *client)
@@ -592,7 +601,7 @@ static void is31fl32xx_shutdown(struct i2c_client *client)
 		led_multi_control_unregister(&led_data->cdev);
 #endif
 	}
-	is31fl32xx_reset_regs(priv);
+	is31fl32xx_software_shutdown(priv, true);
 	if (gpio_is_valid(priv->reset_gpio))
 		gpio_direction_output(priv->reset_gpio, 0);
 }
