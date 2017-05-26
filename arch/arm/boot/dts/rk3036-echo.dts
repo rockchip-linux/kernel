@@ -276,6 +276,7 @@
 
 &i2c2 {
 	status = "okay";
+	rockchip,bus-recovery = <1>;
 
 	cx20810: cx20810@35 {
 		compatible = "conexant,cx20810";
