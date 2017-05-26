@@ -55,6 +55,16 @@ static int nandc1_xfer_completed_flag;
 static int nandc1_ready_completed_flag;
 static int rk_timer_add;
 
+void *ftl_malloc(int size)
+{
+	return kmalloc(size, GFP_KERNEL | GFP_DMA);
+}
+
+void ftl_free(void *buf)
+{
+	kfree(buf);
+}
+
 char rknand_get_sn(char *pbuf)
 {
 	memcpy(pbuf, &nand_idb_data[0x600], 0x200);
