@@ -242,6 +242,7 @@ struct rk816_battery {
 	u8				vblow_trigger;
 	u8				cvtlmt_trigger;
 	u8				cvtlmt_int_event;
+	u8				slp_dcdc_en_reg;
 	int				ocv_pre_dsoc;
 	int				ocv_new_dsoc;
 	int				max_pre_dsoc;
@@ -4028,6 +4029,10 @@ static int rk816_bat_parse_dt(struct rk816_battery *di)
 	if (ret < 0)
 		dev_err(dev, "power_off_thresd missing!\n");
 
+	ret = of_property_read_u32(np, "otg5v_suspend_enable",
+				   &pdata->otg5v_suspend_enable);
+	if (ret < 0)
+		pdata->otg5v_suspend_enable = 1;
 
 	if (!of_find_property(np, "dc_det_gpio", &length)) {
 		pdata->dc_det_pin = -1;
@@ -4213,6 +4218,27 @@ static int rk816_battery_suspend(struct platform_device *dev,
 	do_gettimeofday(&di->rtc_base);
 	rk816_bat_save_data(di);
 	st = (rk816_bat_read(di, RK816_SUP_STS_REG) & CHRG_STATUS_MSK) >> 4;
+	di->slp_dcdc_en_reg = rk816_bat_read(di, RK816_SLP_DCDC_EN_REG);
+
+	/* enable sleep boost5v and otg5v */
+	if (di->pdata->otg5v_suspend_enable) {
+		if ((di->otg_in && !di->dc_in) ||
+		    (di->otg_in && di->dc_in && !di->pdata->power_dc2otg)) {
+			rk816_bat_set_bits(di, RK816_SLP_DCDC_EN_REG,
+					   OTG_BOOST_SLP_ON, OTG_BOOST_SLP_ON);
+			BAT_INFO("suspend: otg 5v on\n");
+		} else {
+			/* disable sleep otg5v */
+			rk816_bat_set_bits(di, RK816_SLP_DCDC_EN_REG,
+					   OTG_BOOST_SLP_ON, 0);
+			BAT_INFO("suspend: otg 5v off\n");
+		}
+	} else {
+		/* disable sleep otg5v */
+		rk816_bat_set_bits(di, RK816_SLP_DCDC_EN_REG,
+				   OTG_BOOST_SLP_ON, 0);
+		BAT_INFO("suspend: otg 5v off\n");
+	}
 
 	/* if not CHARGE_FINISH, reinit chrg_finish_base.
 	 * avoid sleep loop in suspend and resume all the time
@@ -4261,6 +4287,9 @@ static int rk816_battery_resume(struct platform_device *dev)
 	di->sleep_sum_sec += interval_sec;
 	pwroff_vol = di->pdata->pwroff_vol;
 	st = (rk816_bat_read(di, RK816_SUP_STS_REG) & CHRG_STATUS_MSK) >> 4;
+	/* resume sleep boost5v and otg5v */
+	rk816_bat_set_bits(di, RK816_SLP_DCDC_EN_REG,
+			   OTG_BOOST_SLP_ON, di->slp_dcdc_en_reg);
 
 	if (!di->sleep_chrg_online) {
 		/* only add up discharge sleep seconds */

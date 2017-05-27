@@ -129,6 +129,8 @@
 #define BOOST_OTG_OFF		((0x3 << 5) | (0x0 << 1))
 #define BOOST_OFF_OTG_ON	((0x3 << 5) | (0x2 << 1))
 
+#define OTG_BOOST_SLP_ON	(0x3 << 5)
+
 /* MISC_MARK_REG */
 #define FG_INIT			BIT(3)
 #define FG_RESET_LATE		BIT(1)
@@ -182,6 +184,7 @@ struct battery_platform_data {
 	u32 dc_det_adc;
 	int dc_det_pin;
 	u8  dc_det_level;
+	int otg5v_suspend_enable;
 };
 
 enum work_mode {
