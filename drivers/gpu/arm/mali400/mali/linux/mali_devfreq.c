@@ -236,7 +236,7 @@ int mali_devfreq_init(struct mali_device *mdev)
 		return -EFAULT;
 
 	mdev->devfreq = devfreq_add_device(mdev->dev, dp,
-					   "simple_ondemand", NULL);
+					   "performance", NULL);
 	if (IS_ERR(mdev->devfreq)) {
 		mali_devfreq_term_freq_table(mdev);
 		return PTR_ERR(mdev->devfreq);
