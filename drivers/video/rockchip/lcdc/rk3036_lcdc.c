@@ -846,6 +846,8 @@ static int rk3036_lcdc_set_par(struct rk_lcdc_driver *dev_drv, int win_id)
 	}
 	win->scale_yrgb_x = calscale(win->area[0].xact, win->post_cfg.xsize);
 	win->scale_yrgb_y = calscale(win->area[0].yact, win->post_cfg.ysize);
+	if ((win->id == 1) && (win->area[0].xact > 1280))
+		dev_err_ratelimited(lcdc_dev->dev, "win1 xact max input is 1280, now is %d!\n", win->area[0].xact);
 
 	switch (win->area[0].format) {
 	case ARGB888:
