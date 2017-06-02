@@ -191,6 +191,7 @@
 #define RK816_GPIO_IO_POL_REG			0x50
 #define RK816_BOOST_ON_VESL_REG			0x54
 #define RK816_BOOST_SLP_VSEL_REG		0x55
+#define RK816_DCDC_VRP_REG			0x92
 #define RK816_CHRG_BOOST_CONFIG_REG		0x9A
 #define RK816_SUP_STS_REG			0xA0
 #define RK816_USB_CTRL_REG			0xA1
@@ -357,6 +358,8 @@
 #define BUCK3_4_IMAX_MAX			(0x3 << 3)
 #define BOOST_EN_MASK				((0x1 << 5) | (0x1 << 1))
 #define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
+#define BUCK4_VRP_3PERCENT			0xc0
+#define BUCK4_IMAX_IMIN_MAX			0x2f
 
 enum rk805_reg_id {
 	RK805_ID_DCDC1,
