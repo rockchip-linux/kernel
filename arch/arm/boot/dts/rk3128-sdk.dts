@@ -3,7 +3,7 @@
 #include "rk3128.dtsi"
 #include "rk3128-cif-sensor.dtsi"
 #include "rk312x-sdk.dtsi"
-#include "lcd-b101ew05.dtsi"
+#include "lcd-3128sdk-lvds.dtsi"
 
 / {
 	 compatible = "rockchip,rk3128";
