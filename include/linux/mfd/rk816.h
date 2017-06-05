@@ -354,8 +354,11 @@
 #define PLUGIN_OUT_INT_EN			0xfc
 #define RK816_PWRON_FALL_RISE_INT_EN		0x9f
 #define DEV_OFF					(1 << 0)
-#define BUCK1_2_IMAX_MAX			(0x3 << 6)
-#define BUCK3_4_IMAX_MAX			(0x3 << 3)
+#define BUCK1_2_IMAX_MSK			(0x3 << 6)
+#define BUCK3_4_IMAX_MSK			(0x3 << 3)
+#define BUCK1_2_IMAX_3A				(0x1 << 6)
+#define BUCK3_IMAX_3A				(0x3 << 3)
+#define BUCK4_IMAX_3A				(0x2 << 3)
 #define BOOST_EN_MASK				((0x1 << 5) | (0x1 << 1))
 #define BOOST_DISABLE				((0x1 << 5) | (0x0 << 1))
 #define BUCK4_VRP_3PERCENT			0xc0
