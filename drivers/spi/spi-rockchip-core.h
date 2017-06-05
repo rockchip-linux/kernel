@@ -298,6 +298,7 @@ struct dw_spi_chip {
 	u8 poll_mode;	/* 0 for contoller polling mode */
 	u8 type;	/* SPI/SSP/Micrwire */
 	u8 enable_dma;
+	u8 slave_enable;
 	void (*cs_control)(struct dw_spi *dws, u32 cs, u8 flag);
 };
 
