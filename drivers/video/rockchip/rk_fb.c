@@ -2274,7 +2274,6 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 				struct rk_fb_reg_win_data *reg_win_data)
 {
 	struct rk_fb *rk_fb = dev_get_drvdata(info->device);
-	struct fb_fix_screeninfo *fix = &info->fix;
 	struct rk_fb_par *fb_par = (struct rk_fb_par *)info->par;
 	struct rk_lcdc_driver *dev_drv = fb_par->lcdc_drv;
 	/*if hdmi size move to hwc,screen should point to cur_screen
@@ -2436,7 +2435,6 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		stride_32bit_2 = ((vir_width_bit * 2 + 31) & (~31)) / 8;
 
 		stride = stride_32bit_1;	/* default rgb */
-		fix->line_length = stride;
 		reg_win_data->reg_area_data[i].y_vir_stride = stride >> 2;
 
 		/* x y mirror ,jump line
@@ -2499,7 +2497,6 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		uv_stride = stride_32bit_1;
 		uv_x_off = xoffset;
 		uv_y_off = yoffset;
-		fix->line_length = stride;
 		uv_y_act = win_par->area_par[0].yact >> 1;
 		break;
 	case YUV420:		/* nv12 */
@@ -2510,7 +2507,6 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		uv_stride = stride_32bit_1;
 		uv_x_off = xoffset;
 		uv_y_off = yoffset >> 1;
-		fix->line_length = stride;
 		uv_y_act = win_par->area_par[0].yact >> 1;
 		break;
 	case YUV444:
@@ -2520,7 +2516,6 @@ static int rk_fb_set_win_buffer(struct fb_info *info,
 		uv_stride = stride_32bit_2;
 		uv_x_off = xoffset * 2;
 		uv_y_off = yoffset;
-		fix->line_length = stride << 2;
 		uv_y_act = win_par->area_par[0].yact;
 		break;
 	default:
