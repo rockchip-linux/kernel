@@ -148,7 +148,7 @@
 		compatible = "rockchip,key";
 		echo-wake-up {
 			gpios = <&gpio2 GPIO_D1 GPIO_ACTIVE_LOW>;
-			linux,code = <143>;
+			linux,code = <207>;
 			label = "wake up";
 		};
 	};
