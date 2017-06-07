@@ -23,6 +23,9 @@
  *1. Support config sensor gain and shutter time in ov_camera_module_custom_config.exposure_valid_frame;
  *v0.1.2:
  *1. Support v4l2 subdev api for s_frame_interval;
+ *v0.1.3:
+ *1. stream on -> aec -> stream off -> stream on, sometime the stream reg value
+ *not equal to the set value, so delay  more than 2frame between stream on and aec.
  */
 
 #include <linux/i2c.h>
@@ -821,7 +824,7 @@ static struct ov_camera_module_custom_config ov2710_custom_config = {
 	.s_vts = OV2710_auto_adjust_fps,
 	.configs = ov2710_configs,
 	.num_configs = sizeof(ov2710_configs) / sizeof(ov2710_configs[0]),
-	.power_up_delays_ms = {5, 30, 30},
+	.power_up_delays_ms = {5, 30, 60},
 	/*
 	*0: Exposure time valid fileds;
 	*1: Exposure gain valid fileds;
