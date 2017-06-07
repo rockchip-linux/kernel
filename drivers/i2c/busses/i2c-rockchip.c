@@ -367,13 +367,8 @@ static void rockchip_i2c_stop(struct rockchip_i2c *i2c, int ret)
 
 	i2c->msg_ptr = 0;
 	i2c->msg = NULL;
-	if (ret == -EAGAIN) {
-		i2c->state = STATE_IDLE;
-		i2c->is_busy = 0;
-		wake_up(&i2c->wait);
-		return;
-	}
 	i2c->error = ret;
+
 	i2c_writel(I2C_STOPIEN, i2c->regs + I2C_IEN);
 	i2c->state = STATE_STOP;
 	rockchip_i2c_send_stop(i2c);
