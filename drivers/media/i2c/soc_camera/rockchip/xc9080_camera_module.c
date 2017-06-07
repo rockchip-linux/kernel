@@ -309,6 +309,7 @@ int xc9080_camera_module_s_fmt(struct v4l2_subdev *sd,
 	pltfrm_camera_module_pr_debug(&cam_mod->sd, "%dx%d, fmt code 0x%04x\n",
 		fmt->width, fmt->height, fmt->code);
 
+	config = xc9080_camera_module_find_config(cam_mod, fmt, NULL);
 	if (IS_ERR_OR_NULL(config)) {
 		pltfrm_camera_module_pr_err(&cam_mod->sd,
 			"format %dx%d, code 0x%04x, not supported\n",
