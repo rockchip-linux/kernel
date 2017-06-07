@@ -536,8 +536,11 @@ static irqreturn_t rockchip_i2c_irq(int irq, void *dev_id)
 
 	if (ipd & I2C_NAKRCVIPD) {
 		i2c_writel(I2C_NAKRCVIPD, i2c->regs + I2C_IPD);
-		i2c->error = -EAGAIN;
-		goto out;
+		ipd &= ~I2C_NAKRCVIPD;
+		if (!(i2c->msg->flags & I2C_M_IGNORE_NAK)) {
+			rockchip_i2c_stop(i2c, -EAGAIN);
+			goto out;
+		}
 	}
 	rockchip_i2c_irq_nextblock(i2c, ipd);
 out:
