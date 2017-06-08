@@ -4556,23 +4556,25 @@ end:
 
 static int ddr_init(uint32 dram_speed_bin, uint32 freq)
 {
-    uint32 tmp;
-    uint32 die=1;
-    uint32 gsr,dqstr;
-    struct clk *clk;
-    uint32 ch,cap=0,cs_cap;
+	uint32 tmp;
+	uint32 die = 1;
+	uint32 gsr, dqstr;
+	struct clk *clk;
+	uint32 ch, cs_cap;
+	u64 cap = 0;
 	struct device_node *clk_ddr_dev_node;
 	const struct property *prop;
 
-    ddr_print("version 1.00 20150126 \n");
+	ddr_print("version 1.00 20150126\n");
 
-    p_ddr_reg = kern_to_pie(rockchip_pie_chunk, &DATA(ddr_reg));
-    p_ddr_set_pll = fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_set_pll));
-    DATA(p_cpu_pause) = kern_to_pie(rockchip_pie_chunk, &DATA(cpu_pause[0]));
+	p_ddr_reg = kern_to_pie(rockchip_pie_chunk, &DATA(ddr_reg));
+	p_ddr_set_pll = fn_to_pie(rockchip_pie_chunk, &FUNC(ddr_set_pll));
+	DATA(p_cpu_pause) = kern_to_pie(rockchip_pie_chunk,
+					&DATA(cpu_pause[0]));
 
-    tmp = clk_get_rate(clk_get(NULL, "clk_ddr"))/1000000;
-    *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_freq)) = tmp;
-    *kern_to_pie(rockchip_pie_chunk, &DATA(ddr_sr_idle)) = 0;
+	tmp = clk_get_rate(clk_get(NULL, "clk_ddr")) / 1000000;
+	*kern_to_pie(rockchip_pie_chunk, &DATA(ddr_freq)) = tmp;
+	*kern_to_pie(rockchip_pie_chunk, &DATA(ddr_sr_idle)) = 0;
 
 	*kern_to_pie(rockchip_pie_chunk, &DATA(vop_dclk_mode)) = 0;
 	clk_ddr_dev_node = of_find_node_by_name(NULL, "clk_ddr");
@@ -4586,134 +4588,136 @@ static int ddr_init(uint32 dram_speed_bin, uint32 freq)
 			tmp = be32_to_cpup(prop->value);
 			if (tmp < 3)
 				*kern_to_pie(rockchip_pie_chunk,
-					&DATA(vop_dclk_mode)) = tmp;
+					     &DATA(vop_dclk_mode)) = tmp;
 		}
 		of_node_put(clk_ddr_dev_node);
 	}
 
-    for(ch=0;ch<CH_MAX;ch++)
-    {
-        p_ddr_ch[ch] = kern_to_pie(rockchip_pie_chunk, &DATA(ddr_ch[ch]));
-        
-        p_ddr_ch[ch]->chNum = ch;
-        p_ddr_ch[ch]->pDDR_Reg = pDDR_REG(ch);
-        p_ddr_ch[ch]->pPHY_Reg = pPHY_REG(ch);
-        p_ddr_ch[ch]->pMSCH_Reg = pMSCH_REG(ch);
+	for (ch = 0; ch < CH_MAX; ch++) {
+		p_ddr_ch[ch] = kern_to_pie(rockchip_pie_chunk,
+					   &DATA(ddr_ch[ch]));
 
-        if(!(READ_CH_INFO()&(1<<ch)))
-        {
-            p_ddr_ch[ch]->mem_type = DRAM_MAX;
-            continue;
-        }
-        else
-        {
-            if(ch)
-            {
-                ddr_print("Channel b: \n");
-            }
-            else
-            {
-                ddr_print("Channel a: \n");
-            }
-            tmp = p_ddr_ch[ch]->pPHY_Reg->DCR.b.DDRMD;
-            if((tmp ==  LPDDR2) && (READ_DRAMTYPE_INFO() == 6))
-            {
-                tmp = LPDDR3;
-            }
-            switch(tmp)
-            {
-                case DDR3:
-                    ddr_print("DDR3 Device\n");
-                    break;
-                case LPDDR3:
-                    ddr_print("LPDDR3 Device\n");
-                    break;
-                case LPDDR2:
-                    ddr_print("LPDDR2 Device\n");
-                    break;
-                default:
-                    ddr_print("Unkown Device\n");
-                    tmp = DRAM_MAX;
-                    break;
-            }
-            p_ddr_ch[ch]->mem_type = tmp;
-            if(tmp == DRAM_MAX)
-            {
-                p_ddr_ch[ch]->mem_type = DRAM_MAX;
-                continue;
-            }
-        }
-        
-        p_ddr_ch[ch]->ddr_speed_bin = dram_speed_bin;
-        //get capability per chip, not total size, used for calculate tRFC
-        die = (8<<READ_BW_INFO(ch))/(8<<READ_DIE_BW_INFO(ch));
-        cap = (1 << (READ_ROW_INFO(ch,0)+READ_COL_INFO(ch)+READ_BK_INFO(ch)+READ_BW_INFO(ch)));
-        cs_cap = cap;
-        if(READ_CS_INFO(ch) > 1)
-        {
-            cap += cap >> (READ_ROW_INFO(ch,0)-READ_ROW_INFO(ch,1));
-        }
-        if(READ_CH_ROW_INFO(ch))
-        {
-            cap = cap*3/4;
-        }
-        p_ddr_ch[ch]->ddr_capability_per_die = cs_cap/die;
-        ddr_print("Bus Width=%d Col=%d Bank=%d Row=%d CS=%d Total Capability=%dMB\n",
-                                                                        READ_BW_INFO(ch)*16,\
-                                                                        READ_COL_INFO(ch), \
-                                                                        (0x1<<(READ_BK_INFO(ch))), \
-                                                                        READ_ROW_INFO(ch,0), \
-                                                                        READ_CS_INFO(ch), \
-                                                                        (cap>>20));
-    }
-    
-    ddr_adjust_config();
+		p_ddr_ch[ch]->chNum = ch;
+		p_ddr_ch[ch]->pDDR_Reg = pDDR_REG(ch);
+		p_ddr_ch[ch]->pPHY_Reg = pPHY_REG(ch);
+		p_ddr_ch[ch]->pMSCH_Reg = pMSCH_REG(ch);
 
-    clk = clk_get(NULL, "clk_ddr");
-    if (IS_ERR(clk)) {
-        ddr_print("failed to get ddr clk\n");
-        clk = NULL;
-    }
-    if(freq != 0)
-        tmp = clk_set_rate(clk, 1000*1000*freq);
-    else
-        tmp = clk_set_rate(clk, clk_get_rate(clk));
-    ddr_print("init success!!! freq=%luMHz\n", clk ? clk_get_rate(clk)/1000000 : freq);
+		if (!(READ_CH_INFO() & (1 << ch))) {
+			p_ddr_ch[ch]->mem_type = DRAM_MAX;
+			continue;
+		}
 
-    for(ch=0;ch<CH_MAX;ch++)
-    {
-        if(p_ddr_ch[ch]->mem_type != DRAM_MAX)
-        {            
-            if(ch)
-            {
-                ddr_print("Channel b: \n");
-            }
-            else
-            {
-                ddr_print("Channel a: \n");
-            }
-            for(tmp=0;tmp<4;tmp++)
-            {
-                gsr = p_ddr_ch[ch]->pPHY_Reg->DATX8[tmp].DXGSR[0];
-                dqstr = p_ddr_ch[ch]->pPHY_Reg->DATX8[tmp].DXDQSTR;
-                ddr_print("DTONE=0x%x, DTERR=0x%x, DTIERR=0x%x, DTPASS=%d,%d, DGSL=%d,%d extra clock, DGPS=%d,%d\n", \
-                                                                    (gsr&0xF), ((gsr>>4)&0xF), ((gsr>>8)&0xF), \
-                                                                    ((gsr>>13)&0x7), ((gsr>>16)&0x7),\
-                                                                    (dqstr&0x7), ((dqstr>>3)&0x7),\
-                                                                    ((((dqstr>>12)&0x3)+1)*90), ((((dqstr>>14)&0x3)+1)*90));
-            }
-            ddr_print("ZERR=%x, ZDONE=%x, ZPD=0x%x, ZPU=0x%x, OPD=0x%x, OPU=0x%x\n", \
-                                                        (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0]>>30)&0x1, \
-                                                        (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0]>>31)&0x1, \
-                                                        p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1]&0x3,\
-                                                        (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1]>>2)&0x3,\
-                                                        (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1]>>4)&0x3,\
-                                                        (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1]>>6)&0x3);
-            ddr_print("DRV Pull-Up=0x%x, DRV Pull-Dwn=0x%x\n", p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0]&0x1F, (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0]>>5)&0x1F);
-            ddr_print("ODT Pull-Up=0x%x, ODT Pull-Dwn=0x%x\n", (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0]>>10)&0x1F, (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0]>>15)&0x1F);
-        }
-    }
+		if (ch)
+			ddr_print("Channel b:\n");
+		else
+			ddr_print("Channel a:\n");
+		tmp = p_ddr_ch[ch]->pPHY_Reg->DCR.b.DDRMD;
+		if ((tmp ==  LPDDR2) && (READ_DRAMTYPE_INFO() == 6))
+			tmp = LPDDR3;
 
-    return 0;
+		switch (tmp) {
+		case DDR3:
+			ddr_print("DDR3 Device\n");
+			break;
+		case LPDDR3:
+			ddr_print("LPDDR3 Device\n");
+			break;
+		case LPDDR2:
+			ddr_print("LPDDR2 Device\n");
+			break;
+		default:
+			ddr_print("Unknown Device\n");
+			tmp = DRAM_MAX;
+			break;
+		}
+		p_ddr_ch[ch]->mem_type = tmp;
+
+		if (tmp == DRAM_MAX) {
+			p_ddr_ch[ch]->mem_type = DRAM_MAX;
+			continue;
+		}
+
+		p_ddr_ch[ch]->ddr_speed_bin = dram_speed_bin;
+		/*
+		 * get capability per chip, not total size,
+		 * used for calculate tRFC
+		 */
+		die = (8 << READ_BW_INFO(ch)) / (8 << READ_DIE_BW_INFO(ch));
+		cap = (1ull << (READ_ROW_INFO(ch, 0) +
+				READ_COL_INFO(ch) +
+				READ_BK_INFO(ch) +
+				READ_BW_INFO(ch)));
+		cs_cap = cap;
+		if (READ_CS_INFO(ch) > 1)
+			cap += cap >> (READ_ROW_INFO(ch, 0) -
+				       READ_ROW_INFO(ch, 1));
+		if (READ_CH_ROW_INFO(ch))
+			cap = cap * 3 / 4;
+		p_ddr_ch[ch]->ddr_capability_per_die = cs_cap / die;
+		ddr_print("Bus Width=%d Col=%d Bank=%d Row=%d ",
+			  READ_BW_INFO(ch) * 16,
+			  READ_COL_INFO(ch),
+			  (0x1 << (READ_BK_INFO(ch))),
+			  READ_ROW_INFO(ch, 0));
+		ddr_print("CS=%d Total Capability=%lluMB\n",
+			  READ_CS_INFO(ch),
+			  (unsigned long long)(cap >> 20));
+	}
+
+	ddr_adjust_config();
+
+	clk = clk_get(NULL, "clk_ddr");
+	if (IS_ERR(clk)) {
+		ddr_print("failed to get ddr clk\n");
+		clk = NULL;
+	}
+	if (freq != 0)
+		tmp = clk_set_rate(clk, 1000 * 1000 * freq);
+	else
+		tmp = clk_set_rate(clk, clk_get_rate(clk));
+	ddr_print("init success!!! freq=%luMHz\n",
+		  clk ? clk_get_rate(clk) / 1000000 : freq);
+
+	for (ch = 0; ch < CH_MAX; ch++) {
+		if (p_ddr_ch[ch]->mem_type == DRAM_MAX)
+			continue;
+		if (ch)
+			ddr_print("Channel b:\n");
+		else
+			ddr_print("Channel a:\n");
+
+		for (tmp = 0; tmp < 4; tmp++) {
+			gsr = p_ddr_ch[ch]->pPHY_Reg->DATX8[tmp].DXGSR[0];
+			dqstr = p_ddr_ch[ch]->pPHY_Reg->DATX8[tmp].DXDQSTR;
+			ddr_print("DTONE=0x%x, DTERR=0x%x, DTIERR=0x%x, ",
+				  (gsr & 0xF),
+				  ((gsr >> 4) & 0xF),
+				  ((gsr >> 8) & 0xF));
+			ddr_print("DTPASS=%d,%d, DGSL=%d,%d extra clock, ",
+				  ((gsr >> 13) & 0x7),
+				  ((gsr >> 16) & 0x7),
+				  (dqstr & 0x7),
+				  ((dqstr >> 3) & 0x7));
+			ddr_print("DGPS=%d,%d\n",
+				  ((((dqstr >> 12) & 0x3) + 1) * 90),
+				  ((((dqstr >> 14) & 0x3) + 1) * 90));
+		}
+		ddr_print("ZERR=%x, ZDONE=%x, ZPD=0x%x, ",
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0] >> 30) & 0x1,
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0] >> 31) & 0x1,
+			  p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1] & 0x3);
+		ddr_print("ZPU=0x%x, OPD=0x%x, OPU=0x%x\n",
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1] >> 2) & 0x3,
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1] >> 4) & 0x3,
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[1] >> 6) & 0x3);
+		ddr_print("DRV Pull-Up=0x%x, DRV Pull-Dwn=0x%x\n",
+			  p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0] & 0x1F,
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0] >> 5) & 0x1F);
+		ddr_print("ODT Pull-Up=0x%x, ODT Pull-Dwn=0x%x\n",
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0] >> 10) & 0x1F,
+			  (p_ddr_ch[ch]->pPHY_Reg->ZQ0SR[0] >> 15) & 0x1F);
+	}
+
+	return 0;
 }
 
