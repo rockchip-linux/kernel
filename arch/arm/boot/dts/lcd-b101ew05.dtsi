@@ -28,6 +28,8 @@
 				swap-rb = <0>;
 				swap-rg = <0>;
 				swap-gb = <0>;
+				screen-width = <229>;
+				screen-hight = <149>;
 				cabc-lut = <
 					/*gamma = 2.0*/
 					 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000 0x00000000

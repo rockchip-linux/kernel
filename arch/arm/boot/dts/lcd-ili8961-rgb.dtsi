@@ -150,6 +150,8 @@
 			swap-gb = <0>;
 			swap-delta = <0>;
 			swap-dummy = <0>;
+			screen-width = <37>;
+			screen-hight = <66>;
 		};
 		timing1: timing1 {
 			screen-type = <SCREEN_RGB>;
@@ -174,6 +176,8 @@
 			swap-gb = <0>;
 			swap-delta = <0>;
 			swap-dummy = <1>;
+			screen-width = <37>;
+			screen-hight = <66>;
 		};
 	};
 };
