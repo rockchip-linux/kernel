@@ -55,10 +55,18 @@ static void rockchip_hdmiv1_set_pwr_mode(struct hdmi *hdmi_drv, int mode)
 			 __func__);
 		rockchip_hdmiv1_sys_power(hdmi_drv, false);
 		if (hdmi_dev->soctype == HDMI_SOC_RK3036) {
-			hdmi_writel(hdmi_dev, PHY_PRE_EMPHASIS, 0x6f);
+			if ((hdmi_drv->vic == HDMI_1920X1080P_50HZ) ||
+			    (hdmi_drv->vic == HDMI_1920X1080P_60HZ))
+				hdmi_writel(hdmi_dev, PHY_PRE_EMPHASIS, 0x6f);
+			else
+				hdmi_writel(hdmi_dev, PHY_PRE_EMPHASIS, 0x3f);
 			hdmi_writel(hdmi_dev, PHY_DRIVER, 0xbb);
 		} else if (hdmi_dev->soctype == HDMI_SOC_RK312X) {
-			hdmi_writel(hdmi_dev, PHY_PRE_EMPHASIS, 0x5f);
+			if ((hdmi_drv->vic == HDMI_1920X1080P_50HZ) ||
+			    (hdmi_drv->vic == HDMI_1920X1080P_60HZ))
+				hdmi_writel(hdmi_dev, PHY_PRE_EMPHASIS, 0x5f);
+			else
+				hdmi_writel(hdmi_dev, PHY_PRE_EMPHASIS, 0x3f);
 			hdmi_writel(hdmi_dev, PHY_DRIVER, 0xaa);
 		}
 
@@ -856,7 +864,7 @@ int rockchip_hdmiv1_control_output(struct hdmi *hdmi_drv, int enable)
 			hdmi_writel(hdmi_dev, 0xce, 0x01);
 		}
 
-		if (mutestatus == (m_AUDIO_MUTE | m_VIDEO_BLACK)) {
+		if (mutestatus & (m_AUDIO_MUTE | m_VIDEO_BLACK)) {
 			hdmi_msk_reg(hdmi_dev, AV_MUTE,
 				     m_AUDIO_MUTE |
 				     m_AUDIO_PD |
